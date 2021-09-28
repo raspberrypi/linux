@@ -35,8 +35,6 @@
 
 #define RPIVID_QUIRK_NO_DMA_OFFSET	BIT(0)
 
-#define RPIVID_SRC_PIXELFORMAT_DEFAULT	V4L2_PIX_FMT_HEVC_SLICE
-
 enum rpivid_irq_status {
 	RPIVID_IRQ_NONE,
 	RPIVID_IRQ_ERROR,
@@ -83,12 +81,6 @@ typedef void (*rpivid_irq_callback)(struct rpivid_dev *dev, void *ctx);
 struct rpivid_q_aux;
 #define RPIVID_AUX_ENT_COUNT VB2_MAX_FRAME
 
-
-#define RPIVID_CTX_STATE_STOPPED	0	/* stream_off */
-#define RPIVID_CTX_STATE_STREAM_ON	1	/* decoding */
-#define RPIVID_CTX_STATE_STREAM_STOP	2	/* in stream_off */
-#define RPIVID_CTX_STATE_STREAM_ERR	3	/* stream_on but broken */
-
 struct rpivid_ctx {
 	struct v4l2_fh			fh;
 	struct rpivid_dev		*dev;
@@ -97,7 +89,6 @@ struct rpivid_ctx {
 	struct v4l2_pix_format_mplane	dst_fmt;
 	int dst_fmt_set;
 
-	atomic_t 			stream_state;
 	struct clk_request		*clk_req;
 	int 				src_stream_on;
 	int 				dst_stream_on;

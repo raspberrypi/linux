@@ -850,11 +850,9 @@ static bool vc4_dsi_encoder_mode_fixup(struct drm_encoder *encoder,
 	/* Find what divider gets us a faster clock than the requested
 	 * pixel clock.
 	 */
-	for (divider = 1; divider < 8; divider++) {
-		if (parent_rate / divider < pll_clock) {
-			divider--;
+	for (divider = 1; divider < 7; divider++) {
+		if (parent_rate / (divider + 1) < pll_clock)
 			break;
-		}
 	}
 
 	/* Now that we've picked a PLL divider, calculate back to its
@@ -1608,7 +1606,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 			if (ret != -EPROBE_DEFER)
 				DRM_ERROR("Failed to get DMA channel: %d\n",
 					  ret);
-			return ret;
+			goto err_free_dma_mem;
 		}
 
 		/* Get the physical address of the device's registers.  The
@@ -1637,7 +1635,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get interrupt: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 
 	dsi->escape_clock = devm_clk_get(dev, "escape");
@@ -1645,7 +1643,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->escape_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get escape clock: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 
 	dsi->pll_phy_clock = devm_clk_get(dev, "phy");
@@ -1653,7 +1651,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pll_phy_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get phy clock: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 
 	dsi->pixel_clock = devm_clk_get(dev, "pixel");
@@ -1661,7 +1659,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pixel_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get pixel clock: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 
 	ret = drm_of_find_panel_or_bridge(dev->of_node, 0, 0,
@@ -1676,26 +1674,28 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		if (ret == -ENODEV)
 			return 0;
 
-		return ret;
+		goto err_free_dma;
 	}
 
 	if (panel) {
 		dsi->bridge = devm_drm_panel_bridge_add_typed(dev, panel,
 							      DRM_MODE_CONNECTOR_DSI);
-		if (IS_ERR(dsi->bridge))
-			return PTR_ERR(dsi->bridge);
+		if (IS_ERR(dsi->bridge)) {
+			ret = PTR_ERR(dsi->bridge);
+			goto err_free_dma;
+		}
 	}
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);
 	if (ret) {
 		dev_err(dev, "Failed to set esc clock: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 
 	ret = vc4_dsi_init_phy_clocks(dsi);
 	if (ret)
-		return ret;
+		goto err_free_dma;
 
 	drm_simple_encoder_init(drm, dsi->encoder, DRM_MODE_ENCODER_DSI);
 	drm_encoder_helper_add(dsi->encoder, &vc4_dsi_encoder_helper_funcs);
@@ -1703,7 +1703,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	ret = drm_bridge_attach(dsi->encoder, dsi->bridge, NULL, 0);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
-		return ret;
+		goto err_free_dma;
 	}
 	/* Disable the atomic helper calls into the bridge.  We
 	 * manually call the bridge pre_enable / enable / etc. calls
@@ -1717,6 +1717,19 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	pm_runtime_enable(dev);
 
 	return 0;
+
+err_free_dma:
+	if (dsi->reg_dma_chan) {
+		dma_release_channel(dsi->reg_dma_chan);
+		dsi->reg_dma_chan = NULL;
+	}
+err_free_dma_mem:
+	if (dsi->reg_dma_mem) {
+		dma_free_coherent(dev, 4, dsi->reg_dma_mem, dsi->reg_dma_paddr);
+		dsi->reg_dma_mem = NULL;
+	}
+
+	return ret;
 }
 
 static void vc4_dsi_unbind(struct device *dev, struct device *master,
@@ -1733,6 +1746,16 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 	 */
 	list_splice_init(&dsi->bridge_chain, &dsi->encoder->bridge_chain);
 	drm_encoder_cleanup(dsi->encoder);
+
+	if (dsi->reg_dma_chan) {
+		dma_release_channel(dsi->reg_dma_chan);
+		dsi->reg_dma_chan = NULL;
+	}
+
+	if (dsi->reg_dma_mem) {
+		dma_free_coherent(dev, 4, dsi->reg_dma_mem, dsi->reg_dma_paddr);
+		dsi->reg_dma_mem = NULL;
+	}
 }
 
 static const struct component_ops vc4_dsi_ops = {

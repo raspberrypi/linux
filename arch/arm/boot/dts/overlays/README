@@ -235,7 +235,7 @@ Params:
         sd_debug                Enable debug output from SD driver (default off)
 
         sdio_overclock          Clock (in MHz) to use when the MMC framework
-                                requests 50MHz for the SDIO/WiFi interface.
+                                requests 50MHz for the SDIO/WLAN interface.
 
         tx_lpi_timer            Set the delay in microseconds between going idle
                                 and entering the low power state (default 600).
@@ -611,7 +611,7 @@ Params: swap_lr                 Reverse the channel allocation, which will also
 
 
 Name:   balena-fin
-Info:   Overlay that enables WiFi, Bluetooth and the GPIO expander on the
+Info:   Overlay that enables WLAN, Bluetooth and the GPIO expander on the
         balenaFin carrier board for the Raspberry Pi Compute Module 3/3+ Lite.
 Load:   dtoverlay=balena-fin
 Params: <None>
@@ -694,7 +694,7 @@ Params: <None>
 
 
 Name:   disable-wifi
-Info:   Disable onboard WiFi on Pi 3B, 3B+, 3A+, 4B and Zero W.
+Info:   Disable onboard WLAN on Pi 3B, 3B+, 3A+, 4B and Zero W.
 Load:   dtoverlay=disable-wifi
 Params: <None>
 
@@ -1390,6 +1390,8 @@ Params: abx80x                  Select one of the ABx80x family:
                                   AB0801, AB0803, AB0804, AB0805,
                                   AB1801, AB1803, AB1804, AB1805
 
+        bq32000                 Select the TI BQ32000 device
+
         ds1307                  Select the DS1307 device
 
         ds1339                  Select the DS1339 device
@@ -1434,6 +1436,9 @@ Params: abx80x                  Select one of the ABx80x family:
                                 device must be configured to use the specified
                                 address.
 
+        trickle-diode-disable   Do not use the internal trickle charger diode
+                                (BQ32000 only)
+
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x and RV1805 only)
 
@@ -1454,6 +1459,8 @@ Load:   dtoverlay=i2c-rtc-gpio,<param>=<val>
 Params: abx80x                  Select one of the ABx80x family:
                                   AB0801, AB0803, AB0804, AB0805,
                                   AB1801, AB1803, AB1804, AB1805
+
+        bq32000                 Select the TI BQ32000 device
 
         ds1307                  Select the DS1307 device
 
@@ -1494,6 +1501,9 @@ Params: abx80x                  Select one of the ABx80x family:
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
                                 address.
+
+        trickle-diode-disable   Do not use the internal trickle charger diode
+                                (BQ32000 only)
 
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x and RV1805 only)
@@ -1967,6 +1977,21 @@ Params: s08-spi<n>-<m>-present  4-bit integer, bitmap indicating MCP23S08
                                 or INTB output of MCP23S17 is connected.
 
 
+Name:   mcp2515
+Info:   Configures the MCP2515 CAN controller on spi0/1/2
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+Load:   dtoverlay=mcp2515,<param>=<val>
+Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+
+        oscillator              Clock frequency for the CAN controller (Hz)
+
+        speed                   Maximum SPI frequence (Hz)
+
+        interrupt               GPIO for interrupt signal
+
+
 Name:   mcp2515-can0
 Info:   Configures the MCP2515 CAN controller on spi0.0
 Load:   dtoverlay=mcp2515-can0,<param>=<val>
@@ -2140,6 +2165,12 @@ Info:   Switch the onboard Bluetooth function on Pi 3B, 3B+, 3A+, 4B and Zero W
 Load:   dtoverlay=miniuart-bt,<param>=<val>
 Params: krnbt                   Set to "on" to enable autoprobing of Bluetooth
                                 driver without need of hciattach/btattach
+
+
+Name:   mlx90640
+Info:   Overlay for i2c connected mlx90640 thermal camera
+Load:   dtoverlay=mlx90640
+Params: <None>
 
 
 Name:   mmc
@@ -2494,11 +2525,22 @@ Params: gpio_pin                Output GPIO (default 18)
 
 
 Name:   qca7000
-Info:   I2SE's Evaluation Board for PLC Stamp micro
+Info:   in-tech's Evaluation Board for PLC Stamp micro
+        This uses spi0 and a separate GPIO interrupt to connect the QCA7000.
 Load:   dtoverlay=qca7000,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
         speed                   SPI bus speed (default 12 MHz)
+
+
+Name:   qca7000-uart0
+Info:   in-tech's Evaluation Board for PLC Stamp micro (UART)
+        This uses uart0/ttyAMA0 over GPIOs 14 & 15 to connect the QCA7000.
+        But it requires disabling of onboard Bluetooth on
+        Pi 3B, 3B+, 3A+, 4B and Zero W.
+Load:   dtoverlay=qca7000-uart0,<param>=<val>
+Params: baudrate                Set the baudrate for the UART (default
+                                "115200")
 
 
 Name:   rotary-encoder
@@ -2702,7 +2744,7 @@ Name:   sdhost
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock.
         N.B. This overlay is designed for situations where the mmc driver is
         the default, so it disables the other (mmc) interface - this will kill
-        WiFi on a Pi3. If this isn't what you want, either use the sdtweak
+        WLAN on a Pi3. If this isn't what you want, either use the sdtweak
         overlay or the new sd_* dtparams of the base DTBs.
 Load:   dtoverlay=sdhost,<param>=<val>
 Params: overclock_50            Clock (in MHz) to use when the MMC framework
@@ -3344,10 +3386,15 @@ Params: <None>
 
 Name:   vc4-kms-dsi-7inch
 Info:   Enable the Raspberry Pi DSI 7" screen.
-        Use edt-ft5406 for the touchscreen element.
+        Includes the edt-ft5406 for the touchscreen element.
         Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-dsi-7inch
-Params: <None>
+Load:   dtoverlay=vc4-kms-dsi-7inch,<param>=<val>
+Params: sizex                   Touchscreen size x (default 800)
+        sizey                   Touchscreen size y (default 480)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
 
 
 Name:   vc4-kms-dsi-lt070me05000

@@ -287,10 +287,12 @@ __v7_ca17mp_setup:
 	mov	r10, #0
 1:	adr	r0, __v7_setup_stack_ptr
 	ldr	r12, [r0]
-	tst	r12, #0x1f
-	addeq	r12, r12, #4
 	add	r12, r12, r0			@ the local stack
+1:
 	stmia	r12, {r1-r6, lr}		@ v7_invalidate_l1 touches r0-r6
+	ldr	r0, [r12, #(6 * 4)]		@ read back the return address
+	teq	r0, lr				@ confirm it is correct
+	bne	1b				@ retrying if not
 	bl      v7_invalidate_l1
 	ldmia	r12, {r1-r6, lr}
 #ifdef CONFIG_SMP
@@ -476,9 +478,11 @@ __v7_setup:
 	adr	r0, __v7_setup_stack_ptr
 	ldr	r12, [r0]
 	add	r12, r12, r0			@ the local stack
-	tst	r12, #0x1f
-	addeq	r12, r12, #4
+1:
 	stmia	r12, {r1-r6, lr}		@ v7_invalidate_l1 touches r0-r6
+	ldr	r0, [r12, #(6 * 4)]		@ read back the return address
+	teq	r0, lr				@ confirm it is correct
+	bne	1b				@ retrying if not
 	bl      v7_invalidate_l1
 	ldmia	r12, {r1-r6, lr}
 
@@ -561,7 +565,7 @@ ENDPROC(__v7_setup)
 	.bss
 	.align	2
 __v7_setup_stack:
-	.space	4 * 8				@ 7 registers + 1 spare
+	.space	4 * 7				@ 7 registers
 
 	__INITDATA
 

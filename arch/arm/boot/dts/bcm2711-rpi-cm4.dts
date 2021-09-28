@@ -28,11 +28,11 @@
 	};
 
 	leds {
-		act {
+		led-act {
 			gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
 		};
 
-		pwr {
+		led-pwr {
 			label = "PWR";
 			gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
 			default-state = "keep";
@@ -193,12 +193,14 @@
 &hdmi0 {
 	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 0>, <&clk_27MHz>;
 	clock-names = "hdmi", "bvb", "audio", "cec";
+	wifi-2.4ghz-coexistence;
 	status = "okay";
 };
 
 &hdmi1 {
 	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 1>, <&clk_27MHz>;
 	clock-names = "hdmi", "bvb", "audio", "cec";
+	wifi-2.4ghz-coexistence;
 	status = "okay";
 };
 
@@ -597,13 +599,13 @@
 };
 
 &leds {
-	act_led: act {
+	act_led: led-act {
 		label = "led0";
 		linux,default-trigger = "mmc0";
 		gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
 	};
 
-	pwr_led: pwr {
+	pwr_led: led-pwr {
 		label = "led1";
 		linux,default-trigger = "default-on";
 		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
