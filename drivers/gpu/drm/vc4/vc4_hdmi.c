@@ -955,11 +955,12 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	else
 		bvb_rate = 75000000;
 
-	if (vc4_hdmi->pixel_bvb_clock)
+	if (vc4_hdmi->pixel_bvb_clock) {
 		vc4_hdmi->bvb_req = clk_request_start(vc4_hdmi->pixel_bvb_clock, bvb_rate);
-	if (IS_ERR(vc4_hdmi->bvb_req)) {
-		DRM_ERROR("Failed to set pixel bvb clock rate: %ld\n", PTR_ERR(vc4_hdmi->bvb_req));
-		goto err_remove_hsm_req;
+		if (IS_ERR(vc4_hdmi->bvb_req)) {
+			DRM_ERROR("Failed to set pixel bvb clock rate: %ld\n", PTR_ERR(vc4_hdmi->bvb_req));
+			goto err_remove_hsm_req;
+		}
 	}
 
 	ret = clk_prepare_enable(vc4_hdmi->pixel_bvb_clock);
