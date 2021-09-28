@@ -191,6 +191,7 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 		  size_t count, loff_t *offs)
 {
 	int odd_bytes;
+	size_t count_check;
 
 	dev_dbg(inst->dev, "User reading %zu bytes from SMI.", count);
 	/* We don't want to DMA a number of bytes % 4 != 0 (32 bit FIFO) */
@@ -199,6 +200,7 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 	else
 		odd_bytes = count;
 	count -= odd_bytes;
+	count_check = count;
 	if (count) {
 		struct bcm2835_smi_bounce_info *bounce;
 
@@ -209,15 +211,16 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 			count = dma_bounce_user(DMA_DEV_TO_MEM, user_ptr,
 				count, bounce);
 	}
-	if (odd_bytes) {
+	if (odd_bytes && (count == count_check)) {
 		/* Read from FIFO directly if not using DMA */
 		uint8_t buf[DMA_THRESHOLD_BYTES];
+		unsigned long bytes_not_transferred;
 
 		bcm2835_smi_read_buf(smi_inst, buf, odd_bytes);
-		if (copy_to_user(user_ptr, buf, odd_bytes))
+		bytes_not_transferred = copy_to_user(user_ptr + count, buf, odd_bytes);
+		if (bytes_not_transferred)
 			dev_err(inst->dev, "copy_to_user() failed.");
-		count += odd_bytes;
-
+		count += odd_bytes - bytes_not_transferred;
 	}
 	return count;
 }
@@ -227,6 +230,7 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 		   size_t count, loff_t *offs)
 {
 	int odd_bytes;
+	size_t count_check;
 
 	dev_dbg(inst->dev, "User writing %zu bytes to SMI.", count);
 	if (count > DMA_THRESHOLD_BYTES)
@@ -234,6 +238,7 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 	else
 		odd_bytes = count;
 	count -= odd_bytes;
+	count_check = count;
 	if (count) {
 		struct bcm2835_smi_bounce_info *bounce;
 
@@ -245,14 +250,16 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 				(char __user *)user_ptr,
 				count, bounce);
 	}
-	if (odd_bytes) {
+	if (odd_bytes && (count == count_check)) {
 		uint8_t buf[DMA_THRESHOLD_BYTES];
+		unsigned long bytes_not_transferred;
 
-		if (copy_from_user(buf, user_ptr, odd_bytes))
+		bytes_not_transferred = copy_from_user(buf, user_ptr + count, odd_bytes);
+		if (bytes_not_transferred)
 			dev_err(inst->dev, "copy_from_user() failed.");
 		else
 			bcm2835_smi_write_buf(smi_inst, buf, odd_bytes);
-		count += odd_bytes;
+		count += odd_bytes - bytes_not_transferred;
 	}
 	return count;
 }
