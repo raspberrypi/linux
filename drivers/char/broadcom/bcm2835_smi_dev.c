@@ -211,7 +211,7 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 			count = dma_bounce_user(DMA_DEV_TO_MEM, user_ptr,
 				count, bounce);
 	}
-	if ((odd_bytes) && (count == count_check)) {
+	if (odd_bytes && (count == count_check)) {
 		/* Read from FIFO directly if not using DMA */
 		uint8_t buf[DMA_THRESHOLD_BYTES];
 		unsigned long bytes_not_transferred;
@@ -220,7 +220,7 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 		bytes_not_transferred = copy_to_user(user_ptr + count, buf, odd_bytes);
 		if (bytes_not_transferred)
 			dev_err(inst->dev, "copy_to_user() failed.");
-		count += (odd_bytes - bytes_not_transferred);
+		count += odd_bytes - bytes_not_transferred;
 	}
 	return count;
 }
@@ -250,7 +250,7 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 				(char __user *)user_ptr,
 				count, bounce);
 	}
-	if ((odd_bytes) && (count == count_check)) {
+	if (odd_bytes && (count == count_check)) {
 		uint8_t buf[DMA_THRESHOLD_BYTES];
 		unsigned long bytes_not_transferred;
 
@@ -259,7 +259,7 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 			dev_err(inst->dev, "copy_from_user() failed.");
 		else
 			bcm2835_smi_write_buf(smi_inst, buf, odd_bytes);
-		count += (odd_bytes - bytes_not_transferred);
+		count += odd_bytes - bytes_not_transferred;
 	}
 	return count;
 }
