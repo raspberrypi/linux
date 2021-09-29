@@ -738,6 +738,20 @@ config VIDEO_HI556
 	  To compile this driver as a module, choose M here: the
 	  module will be called hi556.
 
+config VIDEO_IMX135
+	tristate "Sony IMX135 sensor support"
+	depends on GPIOLIB && I2C && VIDEO_V4L2
+	select V4L2_FWNODE
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select REGMAP_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX135 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx135.
+
 config VIDEO_IMX214
 	tristate "Sony IMX214 sensor support"
 	depends on GPIOLIB && I2C && VIDEO_V4L2
