@@ -1489,6 +1489,13 @@ endmenu
 menu "Lens drivers"
 	visible if MEDIA_CAMERA_SUPPORT
 
+config VIDEO_AD5398
+	tristate "AD5398 lens voice coil support"
+	depends on GPIOLIB && I2C && VIDEO_V4L2
+	select MEDIA_CONTROLLER
+	help
+	  This is a driver for the AD5398 camera lens voice coil.
+
 config VIDEO_AD5820
 	tristate "AD5820 lens voice coil support"
 	depends on GPIOLIB && I2C && VIDEO_V4L2
