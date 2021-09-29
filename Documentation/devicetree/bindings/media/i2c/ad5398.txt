@@ -1,0 +1,20 @@
+* Analog Devices AD5398 autofocus coil
+
+Required Properties:
+
+  - compatible: Must contain one of:
+		- "adi,ad5398"
+
+  - reg: I2C slave address
+
+  - VANA-supply: supply of voltage for VANA pin
+
+Example:
+
+       ad5398: coil@c {
+               compatible = "adi,ad5398";
+               reg = <0x0c>;
+
+               VANA-supply = <&vaux4>;
+       };
+
