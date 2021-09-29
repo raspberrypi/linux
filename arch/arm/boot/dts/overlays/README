@@ -1685,6 +1685,19 @@ Params: interrupt               GPIO used for interrupt (default 4)
                                 touchscreen (in pixels)
 
 
+Name:   imx135
+Info:   Sony IMX135 camera module with AD5398 VCM lens actuator.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+        NB Currently uses 4 CSI2 data lanes, so only works on a Compute Module
+        CAM1 connector.
+Load:   dtoverlay=imx135,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+
+
 Name:   imx219
 Info:   Sony IMX219 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi

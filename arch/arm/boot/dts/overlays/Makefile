@@ -94,6 +94,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c6.dtbo \
 	i2s-gpio28-31.dtbo \
 	ilitek251x.dtbo \
+	imx135.dtbo \
 	imx219.dtbo \
 	imx290.dtbo \
 	imx378.dtbo \
