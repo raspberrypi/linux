@@ -553,7 +553,7 @@ struct vc4_dsi {
 
 	struct mipi_dsi_host dsi_host;
 	struct drm_encoder *encoder;
-	struct drm_bridge *bridge;
+	struct drm_bridge *out_bridge;
 	struct list_head bridge_chain;
 
 	void __iomem *regs;
@@ -804,7 +804,7 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
 		if (iter->funcs->disable)
 			iter->funcs->disable(iter);
 
-		if (iter == dsi->bridge)
+		if (iter == dsi->out_bridge)
 			break;
 	}
 
@@ -1665,9 +1665,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		goto err_free_dma;
 	}
 
-	dsi->bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-	if (IS_ERR(dsi->bridge)) {
-		ret = PTR_ERR(dsi->bridge);
+	dsi->out_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
+	if (IS_ERR(dsi->out_bridge)) {
+		ret = PTR_ERR(dsi->out_bridge);
 		goto err_free_dma;
 	}
 
@@ -1685,7 +1685,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	drm_simple_encoder_init(drm, dsi->encoder, DRM_MODE_ENCODER_DSI);
 	drm_encoder_helper_add(dsi->encoder, &vc4_dsi_encoder_helper_funcs);
 
-	ret = drm_bridge_attach(dsi->encoder, dsi->bridge, NULL, 0);
+	ret = drm_bridge_attach(dsi->encoder, dsi->out_bridge, NULL, 0);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
 		goto err_free_dma;
