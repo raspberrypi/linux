@@ -203,6 +203,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_TAS5086
 	imply SND_SOC_TAS571X
 	imply SND_SOC_TAS5720
+	imply SND_SOC_TAS5754M
 	imply SND_SOC_TAS6424
 	imply SND_SOC_TDA7419
 	imply SND_SOC_TFA9879
@@ -1343,6 +1344,13 @@ config SND_SOC_TAS5720
 	depends on I2C
 	help
 	  Enable support for Texas Instruments TAS5720L/M high-efficiency mono
+	  Class-D audio power amplifiers.
+
+config SND_SOC_TAS5754M
+	tristate "Texas Instruments TAS5754M Digital Input Audio amplifier"
+	depends on I2C
+	help
+	  Enable support for Texas Instruments TAS5754M digital input
 	  Class-D audio power amplifiers.
 
 config SND_SOC_TAS6424
