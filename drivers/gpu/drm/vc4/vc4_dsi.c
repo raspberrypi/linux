@@ -851,6 +851,7 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	unsigned long parent_rate = clk_get_rate(phy_parent);
 	unsigned long pixel_clock_hz = mode->clock * 1000;
 	unsigned long pll_clock = pixel_clock_hz * dsi->divider;
+	struct drm_bridge *iter;
 	int divider;
 
 	/* Find what divider gets us a faster clock than the requested
@@ -875,7 +876,50 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	adjusted_mode->hsync_end += adjusted_mode->htotal - mode->htotal;
 	adjusted_mode->hsync_start += adjusted_mode->htotal - mode->htotal;
 
+	list_for_each_entry(iter, &dsi->bridge_chain, chain_node) {
+		if (!iter->funcs->mode_fixup)
+			continue;
+
+		if (!iter->funcs->mode_fixup(iter, mode, adjusted_mode))
+			return false;
+	}
 	return true;
+}
+
+static enum drm_mode_status
+vc4_dsi_bridge_mode_valid(struct drm_bridge *bridge,
+			  const struct drm_display_info *info,
+			  const struct drm_display_mode *mode)
+{
+	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
+	struct drm_bridge *iter;
+
+	list_for_each_entry(iter, &dsi->bridge_chain, chain_node) {
+		enum drm_mode_status ret;
+
+		if (!iter->funcs->mode_valid)
+			continue;
+
+		ret = iter->funcs->mode_valid(iter, info, mode);
+		if (ret != MODE_OK)
+			return ret;
+	}
+
+	return MODE_OK;
+}
+
+static void
+vc4_dsi_bridge_mode_set(struct drm_bridge *bridge,
+			const struct drm_display_mode *mode,
+			const struct drm_display_mode *adjusted_mode)
+{
+	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
+	struct drm_bridge *iter;
+
+	list_for_each_entry(iter, &dsi->bridge_chain, chain_node) {
+		if (iter->funcs->mode_set)
+			iter->funcs->mode_set(iter, mode, adjusted_mode);
+	}
 }
 
 static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
@@ -1391,7 +1435,9 @@ static const struct drm_bridge_funcs vc4_dsi_bridge_funcs = {
 	.atomic_pre_enable = vc4_dsi_bridge_pre_enable,
 	.atomic_disable = vc4_dsi_bridge_disable,
 	.attach = vc4_dsi_bridge_attach,
+	.mode_valid = vc4_dsi_bridge_mode_valid,
 	.mode_fixup = vc4_dsi_bridge_mode_fixup,
+	.mode_set = vc4_dsi_bridge_mode_set,
 };
 
 static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
