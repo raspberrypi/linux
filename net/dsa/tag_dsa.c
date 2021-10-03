@@ -176,7 +176,7 @@ static struct sk_buff *dsa_rcv_ll(struct sk_buff *skb, struct net_device *dev,
 	case DSA_CMD_FORWARD:
 		skb->offload_fwd_mark = 1;
 
-		trunk = !!(dsa_header[1] & 7);
+		trunk = !!(dsa_header[1] & 4);
 		break;
 
 	case DSA_CMD_TO_CPU:
