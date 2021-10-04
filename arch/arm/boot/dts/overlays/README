@@ -299,9 +299,23 @@ Params: activelow               Set to "on" to invert the sense of the LED
                                 REQUIRED
 
 
+Name:   adafruit-st7735r
+Info:   Overlay for the SPI-connected Adafruit 1.8" 160x128 or 128x128 displays,
+        based on the ST7735R chip.
+        This overlay uses the newer DRM/KMS "Tiny" driver.
+Load:   dtoverlay=adafruit-st7735r,<param>=<val>
+Params: 128x128                 Select the 128x128 driver (default 160x128)
+        rotate                  Display rotation {0,90,180,270} (default 90)
+        speed                   SPI bus speed in Hz (default 4000000)
+        dc_pin                  GPIO pin for D/C (default 24)
+        reset_pin               GPIO pin for RESET (default 25)
+        led_pin                 GPIO used to control backlight (default 18)
+
+
 Name:   adafruit18
 Info:   Overlay for the SPI-connected Adafruit 1.8" display (based on the
         ST7735R chip). It includes support for the "green tab" version.
+        This overlay uses the older fbtft driver.
 Load:   dtoverlay=adafruit18,<param>=<val>
 Params: green                   Use the adafruit18_green variant.
         rotate                  Display rotation {0,90,180,270}
