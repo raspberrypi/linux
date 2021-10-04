@@ -1,0 +1,83 @@
+/*
+ * adafruit-st7735r-overlay.dts
+ *
+ * ST7735R based SPI LCD displays. Either
+ * Adafruit 1.8" 160x128
+ *   or
+ * Okaya 1.44" 128x128
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			adafruit_pins: adafruit_pins {
+				brcm,pins = <25 24>;
+				brcm,function = <1>; /* out */
+			};
+			backlight_pins: backlight_pins {
+				brcm,pins = <18>;
+				brcm,function = <1>; /* out */
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			af18_backlight: backlight {
+				compatible = "gpio-backlight";
+				gpios = <&gpio 18 GPIO_ACTIVE_HIGH>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&backlight_pins>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			af18: adafruit18@0 {
+				compatible = "jianda,jd-t18003-t01";
+				reg = <0>;
+				spi-max-frequency = <32000000>;
+				dc-gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&gpio 25 GPIO_ACTIVE_HIGH>;
+				rotate = <90>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&adafruit_pins>;
+				backlight = <&af18_backlight>;
+			};
+		};
+	};
+
+	__overrides__ {
+		128x128 = <&af18>, "compatible=okaya,rh128128t";
+		speed = <&af18>,"spi-max-frequency:0";
+		rotate = <&af18>,"rotate:0";
+		dc_pin = <&af18>,"dc-gpios:4", <&adafruit_pins>,"brcm,pins:4";
+		reset_pin = <&af18>,"reset-gpios:4",
+			    <&adafruit_pins>,"brcm,pins:0";
+		led_pin = <&af18_backlight>,"gpios:4",
+			  <&backlight_pins>,"brcm,pins:0";
+	};
+};
