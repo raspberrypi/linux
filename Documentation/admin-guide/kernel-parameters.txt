@@ -1073,6 +1073,10 @@
 			can be useful when debugging issues that require an SLB
 			miss to occur.
 
+	disable_dma32=	[KNL]
+			Dynamically disable ZONE_DMA32 on kernels compiled with
+			CONFIG_ZONE_DMA32=y.
+
 	disable=	[IPV6]
 			See Documentation/networking/ipv6.rst.
 

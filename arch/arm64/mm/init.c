@@ -64,6 +64,12 @@ EXPORT_SYMBOL(memstart_addr);
  */
 phys_addr_t __ro_after_init arm64_dma_phys_limit;
 
+/*
+ * Provide a run-time mean of disabling ZONE_DMA32 if it is enabled via
+ * CONFIG_ZONE_DMA32.
+ */
+static bool disable_dma32 __ro_after_init;
+
 /* Current arm64 boot protocol requires 2MB alignment */
 #define CRASH_ALIGN			SZ_2M
 
@@ -269,9 +275,11 @@ static void __init zone_sizes_init(void)
 	max_zone_pfns[ZONE_DMA] = PFN_DOWN(arm64_dma_phys_limit);
 #endif
 #ifdef CONFIG_ZONE_DMA32
-	max_zone_pfns[ZONE_DMA32] = PFN_DOWN(dma32_phys_limit);
-	if (!arm64_dma_phys_limit)
-		arm64_dma_phys_limit = dma32_phys_limit;
+	if (!disable_dma32) {
+		max_zone_pfns[ZONE_DMA32] = PFN_DOWN(dma32_phys_limit);
+		if (!arm64_dma_phys_limit)
+			arm64_dma_phys_limit = dma32_phys_limit;
+	}
 #endif
 	if (!arm64_dma_phys_limit)
 		arm64_dma_phys_limit = PHYS_MASK + 1;
@@ -279,6 +287,18 @@ static void __init zone_sizes_init(void)
 
 	free_area_init(max_zone_pfns);
 }
+
+static int __init early_disable_dma32(char *buf)
+{
+	if (!buf)
+		return -EINVAL;
+
+	if (!strcmp(buf, "on"))
+		disable_dma32 = true;
+
+	return 0;
+}
+early_param("disable_dma32", early_disable_dma32);
 
 int pfn_is_map_memory(unsigned long pfn)
 {
