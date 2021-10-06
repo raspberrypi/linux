@@ -691,7 +691,7 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	} else {
 		/* If the QH wasn't in a schedule, then sched_frame is stale. */
 		qh->sched_frame = dwc_frame_num_inc(dwc_otg_hcd_get_frame_number(hcd),
-							SCHEDULE_SLOP);
+						    max_t(uint32_t, qh->interval, SCHEDULE_SLOP));
 		status = schedule_periodic(hcd, qh);
 		qh->start_split_frame = qh->sched_frame;
 		if ( !hcd->periodic_qh_count ) {
