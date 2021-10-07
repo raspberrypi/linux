@@ -1065,6 +1065,9 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_UNIT_CELL_SIZE:		return "Unit Cell Size";
 	case V4L2_CID_CAMERA_ORIENTATION:	return "Camera Orientation";
 	case V4L2_CID_CAMERA_SENSOR_ROTATION:	return "Camera Sensor Rotation";
+	case V4L2_CAMERA_CALL_FOR_STROBE_MODE:	return "Camera Strobe Mode";
+	case V4L2_CAMERA_CALL_FOR_STROBE_WIDTH:	return "Camera Strobe Width";
+	case V4L2_CAMERA_CALL_FOR_STROBE_DELAY:	return "Camera Strobe Delay";
 
 	/* FM Radio Modulator controls */
 	/* Keep the order of the 'case's the same as in v4l2-controls.h! */
@@ -1324,6 +1327,15 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_DV_RX_RGB_RANGE:
 	case V4L2_CID_DV_RX_IT_CONTENT_TYPE:
 	case V4L2_CID_TEST_PATTERN:
+	case V4L2_CAMERA_CALL_FOR_STROBE_MODE:
+		*type = V4L2_CTRL_TYPE_MENU;
+		break;
+	case V4L2_CAMERA_CALL_FOR_STROBE_WIDTH:
+		*type = V4L2_CTRL_TYPE_INTEGER;
+		break;
+	case V4L2_CAMERA_CALL_FOR_STROBE_DELAY:
+		*type = V4L2_CTRL_TYPE_INTEGER;
+		break;
 	case V4L2_CID_DEINTERLACING_MODE:
 	case V4L2_CID_TUNE_DEEMPHASIS:
 	case V4L2_CID_MPEG_VIDEO_VPX_GOLDEN_FRAME_SEL:
@@ -1543,6 +1555,7 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_RF_TUNER_PLL_LOCK:
 		*flags |= V4L2_CTRL_FLAG_VOLATILE;
 		break;
+
 	}
 }
 EXPORT_SYMBOL(v4l2_ctrl_fill);

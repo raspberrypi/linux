@@ -1100,6 +1100,9 @@ struct imx477 {
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
+	struct v4l2_ctrl *strobeMode;
+	struct v4l2_ctrl *strobeWidth;
+	struct v4l2_ctrl *strobeDelay;
 
 	/* Current mode */
 	const struct imx477_mode *mode;
@@ -1323,6 +1326,91 @@ static int imx477_set_frame_length(struct imx477 *imx477, unsigned int val)
 				IMX477_REG_VALUE_08BIT, imx477->long_exp_shift);
 }
 
+/* imx477 fstrobe out signal mode */
+static int imx477_set_call_for_strobe_mode(struct imx477 *imx477,
+					   unsigned int fstrobe_cont_trig)
+{
+	int ret = 0;
+	switch (fstrobe_cont_trig) {
+	case V4L2_CALL_FOR_STROBE_OFF:
+		// FLASH_TRIG_RS
+		ret = imx477_write_reg(imx477, 0x0C1B, 1, 0);
+		if (ret != 0) {
+			printk(KERN_ERR "Couldn't set FLASH_TRIG_RS %d", ret);
+			return ret;
+		}
+		break;
+	case V4L2_CALL_FOR_STROBE_CONTINUOUS:
+		ret = imx477_write_reg(imx477, 0x0C1A, 1, 3);
+		if (ret != 0) {
+			printk(KERN_ERR "Couldn't set imx477 FLASH_MD_RS %d",
+			       ret);
+			return ret;
+		}
+		// FLASH_TRIG_RS
+		ret = imx477_write_reg(imx477, 0x0C1B, 1, 1);
+		if (ret != 0) {
+			printk(KERN_ERR "Couldn't set FLASH_TRIG_RS %d", ret);
+			return ret;
+		}
+		break;
+	case V4L2_CALL_FOR_STROBE_SINGLE:
+		ret = imx477_write_reg(imx477, 0x0C1A, 1, 2);
+		if (ret != 0) {
+			printk(KERN_ERR "Couldn't set imx477 FLASH_MD_RS %d",
+			       ret);
+			return ret;
+		}
+		// FLASH_TRIG_RS
+		ret = imx477_write_reg(imx477, 0x0C1B, 1, 1);
+		if (ret != 0) {
+			printk(KERN_ERR "Couldn't set FLASH_TRIG_RS %d", ret);
+			return ret;
+		}
+		break;
+	}
+	return 0;
+}
+
+static int imx477_set_call_for_strobe_width(struct imx477 *imx477,
+					    unsigned int fstrobe_width)
+{
+	int ret = 0;
+	unsigned int fstrobe_mult = 1;
+
+	while (fstrobe_width / fstrobe_mult > 0xffff && fstrobe_mult < 255)
+		fstrobe_mult++;
+
+	fstrobe_width /= fstrobe_mult;
+
+	// FLASH_STRB_WIDTH
+	ret = imx477_write_reg(imx477, 0x0C18, 2, fstrobe_width);
+	if (ret != 0) {
+		printk(KERN_ERR "Couldn't set fstrobe_width %d", ret);
+		return ret;
+	}
+
+	// FLASH_STRB_WIDTH adjust
+	ret = imx477_write_reg(imx477, 0x0C12, 1, fstrobe_mult);
+	if (ret != 0) {
+		printk(KERN_ERR "Couldn't set fstrobe_mult %d", ret);
+		return ret;
+	}
+	return 0;
+}
+
+static int imx477_set_call_for_strobe_delay(struct imx477 *imx477,
+					    unsigned int fstrobe_delay)
+{
+	// FLASH_STRB_START_POINT
+	int ret = imx477_write_reg(imx477, 0x0C14, 2, fstrobe_delay);
+	if (ret != 0) {
+		printk(KERN_ERR "Couldn't set imx477_fstrobe_delay %d", ret);
+		return ret;
+	}
+	return 0;
+}
+
 static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct imx477 *imx477 =
@@ -1388,6 +1476,15 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		ret = imx477_set_frame_length(imx477,
 					      imx477->mode->height + ctrl->val);
+		break;
+	case V4L2_CAMERA_CALL_FOR_STROBE_MODE:
+		ret = imx477_set_call_for_strobe_mode(imx477, ctrl->val);
+		break;
+	case V4L2_CAMERA_CALL_FOR_STROBE_DELAY:
+		ret = imx477_set_call_for_strobe_delay(imx477, ctrl->val);
+		break;
+	case V4L2_CAMERA_CALL_FOR_STROBE_WIDTH:
+		ret = imx477_set_call_for_strobe_width(imx477, ctrl->val);
 		break;
 	default:
 		dev_info(&client->dev,
@@ -1972,6 +2069,22 @@ static int imx477_init_controls(struct imx477 *imx477)
 					   V4L2_CID_VBLANK, 0, 0xffff, 1, 0);
 	imx477->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
 					   V4L2_CID_HBLANK, 0, 0xffff, 1, 0);
+
+	/* strobe pin controls*/
+	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx477_ctrl_ops,
+				     V4L2_CAMERA_CALL_FOR_STROBE_MODE,
+				     ARRAY_SIZE(imx477_strobe_menu) - 1, 0,
+				     0, imx477_strobe_menu);
+
+	/* strobe width in units of the INCLK period */
+	imx477->strobeWidth = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
+			  V4L2_CAMERA_CALL_FOR_STROBE_WIDTH, 1, 0xffff, 1,
+			  100);
+
+	/* strobe delay in units of the INCLK period */
+	imx477->strobeDelay = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
+			  V4L2_CAMERA_CALL_FOR_STROBE_DELAY, 1, 0xffff, 1,
+			  5);
 
 	/* HBLANK is read-only for now, but does change with mode. */
 	if (imx477->hblank)
