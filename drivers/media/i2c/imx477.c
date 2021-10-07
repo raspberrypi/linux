@@ -1038,6 +1038,12 @@ static const u32 codes[] = {
 	MEDIA_BUS_FMT_SBGGR10_1X10,
 };
 
+static const char * const imx477_strobe_menu[] = {
+	"Disabled",
+	"Single",
+	"Continuous",
+};
+
 static const char * const imx477_test_pattern_menu[] = {
 	"Disabled",
 	"Color Bars",
