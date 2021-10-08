@@ -1374,6 +1374,8 @@ static int imx477_set_call_for_strobe_mode(struct imx477 *imx477,
 			return ret;
 		}
 		break;
+	default:
+		printk(KERN_ERR "Unknown camera strobe mode %d", fstrobe_cont_trig);
 	}
 	return 0;
 }
