@@ -2838,6 +2838,26 @@ Load:   dtoverlay=seeed-can-fd-hat-v2
 Params: <None>
 
 
+Name:   seeed-reterminal-core
+Info:   Overlay that enables 5-inch LCD display, touch screen, signal LEDs,
+        user buttons, accelerometer lis331dlh and GPIO expander on reTerminal,
+        a Seeed studio carrier board for the Raspberry Pi Compute Module 4.
+        https://wiki.seeedstudio.com/reTerminal/
+Load:   dtoverlay=seeed-reterminal-core,<param>=<val>
+Params: int                     interrupt pin and it's configuration
+                                of mcp23008(default 6,2)
+        addr                    i2c slave address of mcp23008(default 0x20)
+        noints                  Disable the interrupt GPIO line
+        key0                    event code for key0(default 0x30)
+        key1                    event code for key1(default 0x31)
+        key2                    event code for key2(default 0x32)
+        key3                    event code for key3(default 0x33)
+        mcu_auto_reset          auto reset the MCU when the touch panel
+                                is not connected to PCB board(default 0)
+        tp_rotate               rotate the touch panel's point for 90 degrees
+                                counterclockwise(default 0)
+
+
 Name:   sh1106-spi
 Info:   Overlay for SH1106 OLED via SPI using fbtft staging driver.
 Load:   dtoverlay=sh1106-spi,<param>=<val>
