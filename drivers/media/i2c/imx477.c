@@ -1485,13 +1485,13 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = imx477_set_frame_length(imx477,
 					      imx477->mode->height + ctrl->val);
 		break;
-	case V4L2_CAMERA_CALL_FOR_STROBE_MODE:
+	case V4L2_CID_CAMERA_STROBE_MODE:
 		ret = imx477_set_call_for_strobe_mode(imx477, ctrl->val);
 		break;
-	case V4L2_CAMERA_CALL_FOR_STROBE_DELAY:
+	case V4L2_CID_CAMERA_STROBE_DELAY:
 		ret = imx477_set_call_for_strobe_delay(imx477, ctrl->val);
 		break;
-	case V4L2_CAMERA_CALL_FOR_STROBE_WIDTH:
+	case V4L2_CID_CAMERA_STROBE_WIDTH:
 		ret = imx477_set_call_for_strobe_width(imx477, ctrl->val);
 		break;
 	default:
@@ -2080,18 +2080,18 @@ static int imx477_init_controls(struct imx477 *imx477)
 
 	/* strobe pin controls*/
 	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx477_ctrl_ops,
-				     V4L2_CAMERA_CALL_FOR_STROBE_MODE,
+				     V4L2_CID_CAMERA_STROBE_MODE,
 				     ARRAY_SIZE(imx477_strobe_menu) - 1, 0,
 				     0, imx477_strobe_menu);
 
 	/* strobe width in units of the INCLK period */
 	imx477->strobeWidth = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
-			  V4L2_CAMERA_CALL_FOR_STROBE_WIDTH, 1, 0xffff, 1,
+			  V4L2_CID_CAMERA_STROBE_WIDTH, 1, 0xffff, 1,
 			  100);
 
 	/* strobe delay in units of the INCLK period */
 	imx477->strobeDelay = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
-			  V4L2_CAMERA_CALL_FOR_STROBE_DELAY, 1, 0xffff, 1,
+			  V4L2_CID_CAMERA_STROBE_DELAY, 1, 0xffff, 1,
 			  5);
 
 	/* HBLANK is read-only for now, but does change with mode. */
