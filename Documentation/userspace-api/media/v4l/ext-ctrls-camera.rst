@@ -657,3 +657,21 @@ enum v4l2_scene_mode -
 .. [#f1]
    This control may be changed to a menu control in the future, if more
    options are required.
+
+``V4L2_CID_CAMERA_STROBE_MODE (menu)``
+    This control allows changing the strobe signal mode for cameras.
+    Cameras can then emit a strobe signal to be received by flashes
+    or other cameras. The main modes are off, single, and continuous.
+    Off disables the strobe signal. Single flashes on the first frame
+    of a stream/single capture. The continuous mode should signal on
+    each frame.
+
+``V4L2_CID_CAMERA_STROBE_WIDTH (integer)``
+    This control allows changing the pulse width of the camera strobe
+    signal. The units are in 1us increments (1/1000000 second).
+
+``V4L2_CID_CAMERA_STROBE_DELAY (integer)``
+    This control allows changing the pulse delay of the camera strobe
+    signal. The delay is measured from start of exposure to start of
+    the strobe pulse. The units are in 1us increments (1/1000000
+    second).
