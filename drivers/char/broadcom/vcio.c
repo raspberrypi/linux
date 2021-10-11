@@ -1,14 +1,13 @@
 /*
  *  Copyright (C) 2010 Broadcom
  *  Copyright (C) 2015 Noralf Trønnes
+ *  Copyright (C) 2021 Raspberry Pi (Trading) Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  */
-
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/cdev.h>
 #include <linux/device.h>
@@ -19,24 +18,22 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/compat.h>
+#include <linux/miscdevice.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
-#define MBOX_CHAN_PROPERTY 8
-
+#define MODULE_NAME "vcio"
 #define VCIO_IOC_MAGIC 100
 #define IOCTL_MBOX_PROPERTY _IOWR(VCIO_IOC_MAGIC, 0, char *)
 #ifdef CONFIG_COMPAT
 #define IOCTL_MBOX_PROPERTY32 _IOWR(VCIO_IOC_MAGIC, 0, compat_uptr_t)
 #endif
 
-static struct {
-	dev_t devt;
-	struct cdev cdev;
-	struct class *class;
+struct vcio_data {
 	struct rpi_firmware *fw;
-} vcio;
+	struct miscdevice misc_dev;
+};
 
-static int vcio_user_property_list(void *user)
+static int vcio_user_property_list(struct vcio_data *vcio, void *user)
 {
 	u32 *buf, size;
 	int ret;
@@ -55,7 +52,7 @@ static int vcio_user_property_list(void *user)
 	}
 
 	/* Strip off protocol encapsulation */
-	ret = rpi_firmware_property_list(vcio.fw, &buf[2], size - 12);
+	ret = rpi_firmware_property_list(vcio->fw, &buf[2], size - 12);
 	if (ret) {
 		kfree(buf);
 		return ret;
@@ -87,9 +84,12 @@ static int vcio_device_release(struct inode *inode, struct file *file)
 static long vcio_device_ioctl(struct file *file, unsigned int ioctl_num,
 			      unsigned long ioctl_param)
 {
+	struct vcio_data *vcio = container_of(file->private_data,
+					      struct vcio_data, misc_dev);
+
 	switch (ioctl_num) {
 	case IOCTL_MBOX_PROPERTY:
-		return vcio_user_property_list((void *)ioctl_param);
+		return vcio_user_property_list(vcio, (void *)ioctl_param);
 	default:
 		pr_err("unknown ioctl: %x\n", ioctl_num);
 		return -EINVAL;
@@ -100,9 +100,12 @@ static long vcio_device_ioctl(struct file *file, unsigned int ioctl_num,
 static long vcio_device_compat_ioctl(struct file *file, unsigned int ioctl_num,
 				     unsigned long ioctl_param)
 {
+	struct vcio_data *vcio = container_of(file->private_data,
+					      struct vcio_data, misc_dev);
+
 	switch (ioctl_num) {
 	case IOCTL_MBOX_PROPERTY32:
-		return vcio_user_property_list(compat_ptr(ioctl_param));
+		return vcio_user_property_list(vcio, compat_ptr(ioctl_param));
 	default:
 		pr_err("unknown ioctl: %x\n", ioctl_num);
 		return -EINVAL;
@@ -119,77 +122,65 @@ const struct file_operations vcio_fops = {
 	.release = vcio_device_release,
 };
 
-static int __init vcio_init(void)
+static int vcio_probe(struct platform_device *pdev)
 {
-	struct device_node *np;
-	static struct device *dev;
-	int ret;
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
+	struct device_node *fw_node;
+	struct rpi_firmware *fw;
+	struct vcio_data *vcio;
 
-	np = of_find_compatible_node(NULL, NULL,
-				     "raspberrypi,bcm2835-firmware");
-	if (!of_device_is_available(np))
-		return -ENODEV;
-
-	vcio.fw = rpi_firmware_get(np);
-	if (!vcio.fw)
-		return -ENODEV;
-
-	ret = alloc_chrdev_region(&vcio.devt, 0, 1, "vcio");
-	if (ret) {
-		pr_err("failed to allocate device number\n");
-		return ret;
+	fw_node = of_get_parent(np);
+	if (!fw_node) {
+		dev_err(dev, "Missing firmware node\n");
+		return -ENOENT;
 	}
 
-	cdev_init(&vcio.cdev, &vcio_fops);
-	vcio.cdev.owner = THIS_MODULE;
-	ret = cdev_add(&vcio.cdev, vcio.devt, 1);
-	if (ret) {
-		pr_err("failed to register device\n");
-		goto err_unregister_chardev;
-	}
+	fw = rpi_firmware_get(fw_node);
+	of_node_put(fw_node);
+	if (!fw)
+		return -EPROBE_DEFER;
 
-	/*
-	 * Create sysfs entries
-	 * 'bcm2708_vcio' is used for backwards compatibility so we don't break
-	 * userspace. Raspian has a udev rule that changes the permissions.
-	 */
-	vcio.class = class_create(THIS_MODULE, "bcm2708_vcio");
-	if (IS_ERR(vcio.class)) {
-		ret = PTR_ERR(vcio.class);
-		pr_err("failed to create class\n");
-		goto err_cdev_del;
-	}
+	vcio = devm_kzalloc(dev, sizeof(struct vcio_data), GFP_KERNEL);
+	if (!vcio)
+		return -ENOMEM;
 
-	dev = device_create(vcio.class, NULL, vcio.devt, NULL, "vcio");
-	if (IS_ERR(dev)) {
-		ret = PTR_ERR(dev);
-		pr_err("failed to create device\n");
-		goto err_class_destroy;
-	}
+	vcio->fw = fw;
+	vcio->misc_dev.fops = &vcio_fops;
+	vcio->misc_dev.minor = MISC_DYNAMIC_MINOR;
+	vcio->misc_dev.name = "vcio";
+	vcio->misc_dev.parent = dev;
 
+	return misc_register(&vcio->misc_dev);
+}
+
+static int vcio_remove(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+
+	misc_deregister(dev_get_drvdata(dev));
 	return 0;
-
-err_class_destroy:
-	class_destroy(vcio.class);
-err_cdev_del:
-	cdev_del(&vcio.cdev);
-err_unregister_chardev:
-	unregister_chrdev_region(vcio.devt, 1);
-
-	return ret;
 }
-module_init(vcio_init);
 
-static void __exit vcio_exit(void)
-{
-	device_destroy(vcio.class, vcio.devt);
-	class_destroy(vcio.class);
-	cdev_del(&vcio.cdev);
-	unregister_chrdev_region(vcio.devt, 1);
-}
-module_exit(vcio_exit);
+static const struct of_device_id vcio_ids[] = {
+	{ .compatible = "raspberrypi,vcio" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, vcio_ids);
+
+static struct platform_driver vcio_driver = {
+	.driver	= {
+		.name		= MODULE_NAME,
+		.of_match_table	= of_match_ptr(vcio_ids),
+	},
+	.probe	= vcio_probe,
+	.remove = vcio_remove,
+};
+
+module_platform_driver(vcio_driver);
 
 MODULE_AUTHOR("Gray Girling");
 MODULE_AUTHOR("Noralf Trønnes");
 MODULE_DESCRIPTION("Mailbox userspace access");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:rpi-vcio");
