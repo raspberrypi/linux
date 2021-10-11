@@ -334,6 +334,42 @@ static int vc4_plane_margins_adj(struct drm_plane_state *pstate)
 	return 0;
 }
 
+static int vc4_plane_scaling_adj(struct drm_plane_state *pstate)
+{
+	struct vc4_plane_state *vc4_pstate = to_vc4_plane_state(pstate);
+	struct drm_crtc_state *crtc_state;
+
+	crtc_state = drm_atomic_get_new_crtc_state(pstate->state,
+						   pstate->crtc);
+
+	if (crtc_state->mode.hdisplay != crtc_state->adjusted_mode.hdisplay) {
+		vc4_pstate->crtc_x =
+			DIV_ROUND_CLOSEST(vc4_pstate->crtc_x *
+					  crtc_state->adjusted_mode.hdisplay,
+					  crtc_state->mode.hdisplay);
+		vc4_pstate->crtc_w =
+			DIV_ROUND_CLOSEST(vc4_pstate->crtc_w *
+					  crtc_state->adjusted_mode.hdisplay,
+					  crtc_state->mode.hdisplay);
+	}
+
+	if (crtc_state->mode.vdisplay != crtc_state->adjusted_mode.vdisplay) {
+		vc4_pstate->crtc_y =
+			DIV_ROUND_CLOSEST(vc4_pstate->crtc_y *
+					  crtc_state->adjusted_mode.vdisplay,
+					  crtc_state->mode.vdisplay);
+		vc4_pstate->crtc_h =
+			DIV_ROUND_CLOSEST(vc4_pstate->crtc_h *
+					  crtc_state->adjusted_mode.vdisplay,
+					  crtc_state->mode.vdisplay);
+	}
+
+	if (!vc4_pstate->crtc_w || !vc4_pstate->crtc_h)
+		return -EINVAL;
+
+	return 0;
+}
+
 static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 {
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
@@ -375,6 +411,10 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 	vc4_state->crtc_h = state->dst.y2 - state->dst.y1;
 
 	ret = vc4_plane_margins_adj(state);
+	if (ret)
+		return ret;
+
+	ret = vc4_plane_scaling_adj(state);
 	if (ret)
 		return ret;
 
