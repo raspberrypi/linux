@@ -681,12 +681,42 @@ static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
 		crtc_state->adjusted_mode.crtc_vtotal /= 2;
 	}
 
-	if (crtc_state->adjusted_mode.crtc_clock != reference_mode->clock ||
-	    crtc_state->adjusted_mode.crtc_htotal != reference_mode->htotal ||
-	    crtc_state->adjusted_mode.crtc_hdisplay % 4 != 0 ||
-	    crtc_state->adjusted_mode.crtc_hsync_end -
-		    crtc_state->adjusted_mode.crtc_hsync_start < 1)
+	if (crtc_state->adjusted_mode.hdisplay % 4 != 0 ||
+	    crtc_state->adjusted_mode.hsync_end -
+		    crtc_state->adjusted_mode.hsync_start < 1)
 		return -EINVAL;
+
+	crtc_state->adjusted_mode.hdisplay =
+		DIV_ROUND_CLOSEST(crtc_state->adjusted_mode.hdisplay *
+				  reference_mode->clock,
+				  crtc_state->adjusted_mode.clock);
+	crtc_state->adjusted_mode.hsync_start =
+		DIV_ROUND_CLOSEST(crtc_state->adjusted_mode.hsync_start *
+				  reference_mode->clock,
+				  crtc_state->adjusted_mode.clock);
+	crtc_state->adjusted_mode.hsync_end =
+		DIV_ROUND_CLOSEST(crtc_state->adjusted_mode.hsync_end *
+				  reference_mode->clock,
+				  crtc_state->adjusted_mode.clock);
+	crtc_state->adjusted_mode.htotal =
+		DIV_ROUND_CLOSEST(crtc_state->adjusted_mode.htotal *
+				  reference_mode->clock,
+				  crtc_state->adjusted_mode.clock);
+	crtc_state->adjusted_mode.clock = reference_mode->clock;
+
+	if (crtc_state->adjusted_mode.htotal != reference_mode->htotal)
+		return -EINVAL;
+
+	if (crtc_state->adjusted_mode.hsync_end -
+	    crtc_state->adjusted_mode.hsync_start < 1)
+		crtc_state->adjusted_mode.hsync_end =
+			crtc_state->adjusted_mode.hsync_start + 1;
+
+	crtc_state->adjusted_mode.crtc_clock = crtc_state->adjusted_mode.clock;
+	crtc_state->adjusted_mode.crtc_hdisplay = crtc_state->adjusted_mode.hdisplay;
+	crtc_state->adjusted_mode.crtc_hsync_start = crtc_state->adjusted_mode.hsync_start;
+	crtc_state->adjusted_mode.crtc_hsync_end = crtc_state->adjusted_mode.hsync_end;
+	crtc_state->adjusted_mode.crtc_htotal = crtc_state->adjusted_mode.htotal;
 
 	switch (reference_mode->vtotal) {
 	case 525:
