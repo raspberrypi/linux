@@ -8,6 +8,7 @@
  * Copyright 2020-2021 NXP Semiconductors
  */
 
+#include <linux/dsa/ocelot.h>
 #include <linux/if_bridge.h>
 #include <net/pkt_cls.h>
 #include "ocelot.h"
