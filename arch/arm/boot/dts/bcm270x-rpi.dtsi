@@ -152,3 +152,9 @@
 		status = "disabled";
 	};
 };
+
+&firmware {
+	vcio: vcio {
+		compatible = "raspberrypi,vcio";
+	};
+};
