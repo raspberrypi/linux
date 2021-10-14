@@ -555,6 +555,14 @@ config GPIO_PL061
 	help
 	  Say yes here to support the PrimeCell PL061 GPIO device.
 
+config GPIO_PWM
+	tristate "PWM chip GPIO"
+	depends on OF_GPIO
+	depends on PWM
+	help
+	  Turn on support for exposing a PWM chip as a GPIO
+	  driver.
+
 config GPIO_PXA
 	bool "PXA GPIO support"
 	depends on ARCH_PXA || ARCH_MMP || COMPILE_TEST
