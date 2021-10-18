@@ -520,6 +520,11 @@ struct vc4_crtc {
 	struct drm_pending_vblank_event *event;
 
 	struct debugfs_regset32 regset;
+
+	/**
+	 * @feeds_txp: True if the CRTC feeds our writeback controller.
+	 */
+	bool feeds_txp;
 };
 
 static inline struct vc4_crtc *
@@ -552,7 +557,6 @@ struct vc4_crtc_state {
 	struct drm_crtc_state base;
 	/* Dlist area for this CRTC configuration. */
 	struct drm_mm_node mm;
-	bool feed_txp;
 	bool txp_armed;
 	unsigned int assigned_channel;
 
