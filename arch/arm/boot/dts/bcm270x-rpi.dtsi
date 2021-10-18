@@ -65,12 +65,6 @@
 			status = "okay";
 		};
 
-		vcsm: vcsm {
-			compatible = "raspberrypi,bcm2835-vcsm";
-			firmware = <&firmware>;
-			status = "okay";
-		};
-
 		/* External sound card */
 		sound: sound {
 			status = "disabled";
