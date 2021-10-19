@@ -109,7 +109,7 @@
 		vec: vec@7e806000 {
 			compatible = "brcm,bcm2835-vec";
 			reg = <0x7e806000 0x1000>;
-			clocks = <&clocks BCM2835_CLOCK_VEC>;
+			clocks = <&firmware_clocks 15>;
 			interrupts = <2 27>;
 			status = "disabled";
 		};
