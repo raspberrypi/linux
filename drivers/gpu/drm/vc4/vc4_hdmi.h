@@ -186,6 +186,7 @@ struct vc4_hdmi {
 	/* Common debugfs regset */
 	struct debugfs_regset32 hdmi_regset;
 	struct debugfs_regset32 hd_regset;
+
 	/* VC5 debugfs regset */
 	struct debugfs_regset32 cec_regset;
 	struct debugfs_regset32 csc_regset;
@@ -193,6 +194,11 @@ struct vc4_hdmi {
 	struct debugfs_regset32 phy_regset;
 	struct debugfs_regset32 ram_regset;
 	struct debugfs_regset32 rm_regset;
+
+	/**
+	 * @hw_lock: Spinlock protecting device register access.
+	 */
+	spinlock_t hw_lock;
 };
 
 static inline struct vc4_hdmi *
