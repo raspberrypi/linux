@@ -303,7 +303,7 @@
 		vec: vec@7ec13000 {
 			compatible = "brcm,bcm2711-vec";
 			reg = <0x7ec13000 0x1000>;
-			clocks = <&clocks BCM2835_CLOCK_VEC>;
+			clocks = <&firmware_clocks 15>;
 			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
