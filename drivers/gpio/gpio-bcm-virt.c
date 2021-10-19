@@ -49,7 +49,7 @@ static int brcmvirt_gpio_get(struct gpio_chip *gc, unsigned off)
 	unsigned v;
 	gpio = container_of(gc, struct brcmvirt_gpio, gc);
 	v = readl(gpio->ts_base + off);
-	return (v >> off) & 1;
+	return (s16)((v >> 16) - v) > 0;
 }
 
 static void brcmvirt_gpio_set(struct gpio_chip *gc, unsigned off, int val)
