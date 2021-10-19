@@ -724,6 +724,11 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 
 static void vc4_hdmi_encoder_disable(struct drm_encoder *encoder)
 {
+	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+
+	mutex_lock(&vc4_hdmi->mutex);
+	vc4_hdmi->output_enabled = false;
+	mutex_unlock(&vc4_hdmi->mutex);
 }
 
 static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi, bool enable)
@@ -1217,6 +1222,11 @@ static void vc4_hdmi_encoder_post_crtc_enable(struct drm_encoder *encoder,
 
 static void vc4_hdmi_encoder_enable(struct drm_encoder *encoder)
 {
+	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+
+	mutex_lock(&vc4_hdmi->mutex);
+	vc4_hdmi->output_enabled = true;
+	mutex_unlock(&vc4_hdmi->mutex);
 }
 
 static void vc4_hdmi_encoder_atomic_mode_set(struct drm_encoder *encoder,
@@ -1396,14 +1406,12 @@ static inline struct vc4_hdmi *dai_to_hdmi(struct snd_soc_dai *dai)
 
 static bool vc4_hdmi_audio_can_stream(struct vc4_hdmi *vc4_hdmi)
 {
-	struct drm_encoder *encoder = &vc4_hdmi->encoder.base.base;
-
 	lockdep_assert_held(&vc4_hdmi->mutex);
 
 	/*
-	 * The encoder doesn't have a CRTC until the first modeset.
+	 * If the controller is disabled, prevent any ALSA output.
 	 */
-	if (!encoder->crtc)
+	if (!vc4_hdmi->output_enabled)
 		return false;
 
 	/*
