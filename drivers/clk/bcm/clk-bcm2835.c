@@ -2238,21 +2238,6 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.tcnt_mux = 28,
 		.round_up = true),
 
-	/* TV encoder clock.  Only operating frequency is 108Mhz.  */
-	[BCM2835_CLOCK_VEC]	= REGISTER_PER_CLK(
-		SOC_ALL,
-		.name = "vec",
-		.ctl_reg = CM_VECCTL,
-		.div_reg = CM_VECDIV,
-		.int_bits = 4,
-		.frac_bits = 0,
-		/*
-		 * Allow rate change propagation only on PLLH_AUX which is
-		 * assigned index 7 in the parent array.
-		 */
-		.set_rate_parent = BIT(7),
-		.tcnt_mux = 29),
-
 	/* dsi clocks */
 	[BCM2835_CLOCK_DSI0E]	= REGISTER_PER_CLK(
 		SOC_ALL,
