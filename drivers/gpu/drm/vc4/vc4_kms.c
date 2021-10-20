@@ -352,11 +352,11 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	int i;
 
 	old_hvs_state = vc4_hvs_get_old_global_state(state);
-	if (WARN_ON(!old_hvs_state))
+	if (WARN_ON(IS_ERR(old_hvs_state)))
 		return;
 
 	new_hvs_state = vc4_hvs_get_new_global_state(state);
-	if (WARN_ON(!new_hvs_state))
+	if (WARN_ON(IS_ERR(new_hvs_state)))
 		return;
 
 	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
@@ -891,8 +891,8 @@ vc4_core_clock_atomic_check(struct drm_atomic_state *state)
 	load_state = to_vc4_load_tracker_state(priv_state);
 
 	hvs_new_state = vc4_hvs_get_global_state(state);
-	if (!hvs_new_state)
-		return -EINVAL;
+	if (IS_ERR(hvs_new_state))
+		return PTR_ERR(hvs_new_state);
 
 	for_each_oldnew_crtc_in_state(state, crtc,
 				      old_crtc_state,
