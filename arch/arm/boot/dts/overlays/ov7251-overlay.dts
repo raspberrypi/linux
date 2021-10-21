@@ -106,8 +106,16 @@
 		};
 	};
 
+	fragment@6 {
+		target = <&csi1>;
+		__dormant__ {
+			brcm,media-controller;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&ov7251>,"rotation:0";
 		orientation = <&ov7251>,"orientation:0";
+		media-controller = <0>,"=6";
 	};
 };

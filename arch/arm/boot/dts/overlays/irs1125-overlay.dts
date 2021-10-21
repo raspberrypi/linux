@@ -82,4 +82,15 @@
 			};
 		};
 	};
+
+	fragment@6 {
+		target = <&csi1>;
+		__dormant__ {
+			brcm,media-controller;
+		};
+	};
+
+	__overrides__ {
+		media-controller = <0>,"=6";
+	};
 };
