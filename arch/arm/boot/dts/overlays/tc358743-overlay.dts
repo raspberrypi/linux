@@ -100,8 +100,16 @@
 		};
 	};
 
+	fragment@9 {
+		target = <&csi1>;
+		__dormant__ {
+			brcm,media-controller;
+		};
+	};
+
 	__overrides__ {
 		4lane = <0>, "-2+3-7+8";
 		link-frequency = <&tc358743>,"link-frequencies#0";
+		media-controller = <0>,"=9";
 	};
 };
