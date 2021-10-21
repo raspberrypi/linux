@@ -674,7 +674,7 @@ static void imx219_set_default_format(struct imx219 *imx219)
 
 	fmt = &imx219->fmt;
 	fmt->code = MEDIA_BUS_FMT_SRGGB10_1X10;
-	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->colorspace = V4L2_COLORSPACE_RAW;
 	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
 	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true,
 							  fmt->colorspace,
@@ -844,7 +844,7 @@ static int imx219_enum_frame_size(struct v4l2_subdev *sd,
 
 static void imx219_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 {
-	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->colorspace = V4L2_COLORSPACE_RAW;
 	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
 	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true,
 							  fmt->colorspace,
