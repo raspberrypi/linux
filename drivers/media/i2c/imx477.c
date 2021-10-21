@@ -1471,7 +1471,7 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 
 static void imx477_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 {
-	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->colorspace = V4L2_COLORSPACE_RAW;
 	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
 	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true,
 							  fmt->colorspace,
