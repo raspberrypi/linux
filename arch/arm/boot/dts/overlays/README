@@ -416,6 +416,8 @@ Info:   Analog Devices ADV7282M analogue video to CSI2 bridge.
         variants.
 Load:   dtoverlay=adv7282m,<param>=<val>
 Params: addr                    Overrides the I2C address (default 0x21)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default off)
 
 
 Name:   adv728x-m
@@ -426,6 +428,8 @@ Params: addr                    Overrides the I2C address (default 0x21)
         adv7280m                Select ADV7280-M.
         adv7281m                Select ADV7281-M.
         adv7281ma               Select ADV7281-MA.
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default off)
 
 
 Name:   akkordion-iqdacplus
@@ -1708,6 +1712,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   imx290
@@ -1728,6 +1734,8 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 2 = external, default external)
         rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   imx378
@@ -1739,6 +1747,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   imx477
@@ -1750,6 +1760,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   imx519
@@ -1761,6 +1773,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   iqaudio-codec
@@ -1824,8 +1838,9 @@ Name:   irs1125
 Info:   Infineon irs1125 TOF camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=irs1125
-Params: <None>
+Load:   dtoverlay=irs1125,<param>=<val>
+Params: media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default off)
 
 
 Name:   jedec-spi-nor
@@ -2237,6 +2252,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   ov7251
@@ -2248,6 +2265,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default off)
 
 
 Name:   ov9281
@@ -2259,6 +2278,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
 
 
 Name:   papirus
@@ -3239,6 +3260,8 @@ Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
         link-frequency          Set the link frequency. Only values of 297000000
                                 (574Mbit/s) and 486000000 (972Mbit/s - default)
                                 are supported by the driver.
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default off)
 
 
 Name:   tc358743-audio
