@@ -103,8 +103,16 @@
 		};
 	};
 
+	fragment@6 {
+		target = <&csi1>;
+		__overlay__ {
+			brcm,media-controller;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&imx477>,"rotation:0";
 		orientation = <&imx477>,"orientation:0";
+		media-controller = <0>,"=6";
 	};
 };
