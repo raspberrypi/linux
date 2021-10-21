@@ -507,7 +507,7 @@ static int ov9281_set_fmt(struct v4l2_subdev *sd,
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
-	fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->format.colorspace = V4L2_COLORSPACE_RAW;
 	fmt->format.ycbcr_enc =
 			V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
 	fmt->format.quantization =
@@ -558,7 +558,7 @@ static int ov9281_get_fmt(struct v4l2_subdev *sd,
 		fmt->format.height = mode->height;
 		fmt->format.code = ov9281->code;
 		fmt->format.field = V4L2_FIELD_NONE;
-		fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+		fmt->format.colorspace = V4L2_COLORSPACE_RAW;
 		fmt->format.ycbcr_enc =
 			V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
 		fmt->format.quantization =
@@ -911,7 +911,7 @@ static int ov9281_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt->height = def_mode->height;
 	try_fmt->code = MEDIA_BUS_FMT_Y10_1X10;
 	try_fmt->field = V4L2_FIELD_NONE;
-	try_fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	try_fmt->colorspace = V4L2_COLORSPACE_RAW;
 	try_fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(try_fmt->colorspace);
 	try_fmt->quantization =
 		V4L2_MAP_QUANTIZATION_DEFAULT(true, try_fmt->colorspace,
