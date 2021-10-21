@@ -59,7 +59,15 @@
 		};
 	};
 
+	fragment@4 {
+		target = <&csi1>;
+		__dormant__ {
+			brcm,media-controller;
+		};
+	};
+
 	__overrides__ {
 		addr =			<&adv728x>,"reg:0";
+		media-controller = <0>,"=4";
 	};
 };
