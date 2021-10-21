@@ -885,7 +885,7 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 
 	fmt->format.code = imx290->formats[i].code;
 	fmt->format.field = V4L2_FIELD_NONE;
-	fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->format.colorspace = V4L2_COLORSPACE_RAW;
 	fmt->format.ycbcr_enc =
 			V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
 	fmt->format.quantization =
