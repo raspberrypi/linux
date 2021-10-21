@@ -601,7 +601,7 @@ static struct ov5647_mode supported_modes_8bit[] = {
 	{
 		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR8_1X8,
-			.colorspace = V4L2_COLORSPACE_SRGB,
+			.colorspace = V4L2_COLORSPACE_RAW,
 			.field = V4L2_FIELD_NONE,
 			.width = 640,
 			.height = 480
@@ -627,7 +627,7 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	{
 		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace = V4L2_COLORSPACE_SRGB,
+			.colorspace = V4L2_COLORSPACE_RAW,
 			.field = V4L2_FIELD_NONE,
 			.width = 2592,
 			.height = 1944
@@ -651,7 +651,7 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	{
 		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace = V4L2_COLORSPACE_SRGB,
+			.colorspace = V4L2_COLORSPACE_RAW,
 			.field = V4L2_FIELD_NONE,
 			.width = 1920,
 			.height = 1080
@@ -674,7 +674,7 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	{
 		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace = V4L2_COLORSPACE_SRGB,
+			.colorspace = V4L2_COLORSPACE_RAW,
 			.field = V4L2_FIELD_NONE,
 			.width = 1296,
 			.height = 972
@@ -698,7 +698,7 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	{
 		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
-			.colorspace = V4L2_COLORSPACE_SRGB,
+			.colorspace = V4L2_COLORSPACE_RAW,
 			.field = V4L2_FIELD_NONE,
 			.width = 640,
 			.height = 480
