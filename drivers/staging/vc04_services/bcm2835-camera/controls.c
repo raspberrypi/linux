@@ -58,6 +58,14 @@ static const u32 iso_values[] = {
 	0, 100, 200, 400, 800,
 };
 
+static const u32 h264_level_max_rates[] = {
+	175000,   350000,             /* 1, 1b */
+	500000,   1000000,  2000000,  /* 1.1, 1.2, 1.3 */
+	2000000,  4000000,  4000000,  /* 2, 2.1, 2.2 */
+	10000000, 14000000, 20000000, /* 3, 3.1, 3.2 */
+	25000000, 62500000, 62500000, /* 4, 4.1, 4.2 */
+};
+
 enum bm2835_mmal_ctrl_type {
 	MMAL_CONTROL_TYPE_STD,
 	MMAL_CONTROL_TYPE_STD_MENU,
@@ -595,6 +603,10 @@ static int ctrl_set_bitrate(struct bm2835_mmal_dev *dev,
 {
 	int ret;
 	struct vchiq_mmal_port *encoder_out;
+
+	int max_rate = h264_level_max_rates[dev->capture.enc_level];
+	if (ctrl->val > max_rate)
+		ctrl->val = max_rate;
 
 	dev->capture.encode_bitrate = ctrl->val;
 
@@ -1168,8 +1180,8 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE,
 		.type = MMAL_CONTROL_TYPE_STD,
-		.min = 25 * 1000,
-		.max = 25 * 1000 * 1000,
+		.min = 0,
+		.max = 625 * 100 * 1000,
 		.def = 10 * 1000 * 1000,
 		.step = 25 * 1000,
 		.imenu = NULL,
