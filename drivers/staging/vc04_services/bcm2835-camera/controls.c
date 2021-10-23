@@ -1263,6 +1263,28 @@ static const struct bcm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		.mmal_id = MMAL_PARAMETER_INTRAPERIOD,
 		.setter = ctrl_set_video_encode_param_output,
 	},
+	{
+		.id = V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
+		.type = MMAL_CONTROL_TYPE_STD,
+		.min = 0,
+		.max = 51,
+		.def = 0,
+		.step = 1,
+		.imenu = NULL,
+		.mmal_id = MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT,
+		.setter = ctrl_set_video_encode_param_output,
+	},
+	{
+		.id = V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
+		.type = MMAL_CONTROL_TYPE_STD,
+		.min = 0,
+		.max = 51,
+		.def = 0,
+		.step = 1,
+		.imenu = NULL,
+		.mmal_id = MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT,
+		.setter = ctrl_set_video_encode_param_output,
+	},
 };
 
 int bcm2835_mmal_set_all_camera_controls(struct bcm2835_mmal_dev *dev)
