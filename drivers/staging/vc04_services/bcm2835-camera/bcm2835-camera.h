@@ -13,7 +13,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 32 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 33 /* number of v4l controls */
 
 enum {
 	COMP_CAMERA = 0,
@@ -41,6 +41,8 @@ struct bm2835_mmal_dev {
 	/* controls */
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_ctrl *ctrls[V4L2_CTRL_COUNT];
+	struct v4l2_ctrl *bitrate_ctrl;
+
 	enum v4l2_scene_mode scene_mode;
 	struct mmal_colourfx colourfx;
 	int hflip;

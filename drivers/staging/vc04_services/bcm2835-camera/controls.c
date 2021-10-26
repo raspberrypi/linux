@@ -630,6 +630,7 @@ static int ctrl_set_bitrate_mode(struct bm2835_mmal_dev *dev,
 	switch (ctrl->val) {
 	default:
 	case V4L2_MPEG_VIDEO_BITRATE_MODE_VBR:
+	case V4L2_MPEG_VIDEO_BITRATE_MODE_CQ:
 		bitrate_mode = MMAL_VIDEO_RATECONTROL_VARIABLE;
 		break;
 	case V4L2_MPEG_VIDEO_BITRATE_MODE_CBR:
@@ -641,7 +642,41 @@ static int ctrl_set_bitrate_mode(struct bm2835_mmal_dev *dev,
 				      mmal_ctrl->mmal_id,
 					     &bitrate_mode,
 					     sizeof(bitrate_mode));
+
+	if (ctrl->val == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ) {
+		__v4l2_ctrl_s_ctrl(dev->bitrate_ctrl, 0);
+		v4l2_ctrl_activate(dev->bitrate_ctrl, false);
+		__v4l2_ctrl_grab(dev->bitrate_ctrl, true);
+	} else {
+		__v4l2_ctrl_grab(dev->bitrate_ctrl, false);
+		v4l2_ctrl_activate(dev->bitrate_ctrl, true);
+		__v4l2_ctrl_s_ctrl(dev->bitrate_ctrl, dev->bitrate_ctrl->default_value);
+	}
+
 	return 0;
+}
+
+static int ctrl_set_constant_quality(struct bm2835_mmal_dev *dev,
+				     struct v4l2_ctrl *ctrl,
+				     const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
+{
+	int ret;
+	u32 u32_value;
+	struct vchiq_mmal_port *vid_enc_ctl;
+
+	vid_enc_ctl = &dev->component[COMP_VIDEO_ENCODE]->output[0];
+
+	/* map quality (min-max) 1->100 to 51->1 */
+	u32_value = 51 - ctrl->val / 2;
+
+	ret = vchiq_mmal_port_parameter_set(dev->instance, vid_enc_ctl,
+					    MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT,
+					    &u32_value, sizeof(u32_value));
+	if (ret)
+		v4l2_dbg(0, bcm2835_v4l2_debug, &dev->v4l2_dev,
+			"Failed to set constant quality ret %d\n", ret);
+
+	return ret;
 }
 
 static int ctrl_set_image_encode_output(struct bm2835_mmal_dev *dev,
@@ -1158,7 +1193,7 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 		.type = MMAL_CONTROL_TYPE_STD_MENU,
 		.min = 0,
-		.max = V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
+		.max = V4L2_MPEG_VIDEO_BITRATE_MODE_CQ,
 		.def = 0,
 		.step = 0,
 		.imenu = NULL,
@@ -1168,7 +1203,7 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE,
 		.type = MMAL_CONTROL_TYPE_STD,
-		.min = 25 * 1000,
+		.min = 0,
 		.max = 25 * 1000 * 1000,
 		.def = 10 * 1000 * 1000,
 		.step = 25 * 1000,
@@ -1291,6 +1326,17 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		.imenu = NULL,
 		.mmal_id = MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT,
 		.setter = ctrl_set_video_encode_param_output,
+	},
+	{
+		.id = V4L2_CID_MPEG_VIDEO_CONSTANT_QUALITY,
+		.type = MMAL_CONTROL_TYPE_STD,
+		.min = 1,
+		.max = 100,
+		.def = 50,
+		.step = 1,
+		.imenu = NULL,
+		.mmal_id = MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT,
+		.setter = ctrl_set_constant_quality,
 	},
 	{
 		.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
@@ -1437,6 +1483,9 @@ int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 			break;
 
 		dev->ctrls[c]->priv = (void *)ctrl;
+
+		if (ctrl->id == V4L2_CID_MPEG_VIDEO_BITRATE)
+			dev->bitrate_ctrl = dev->ctrls[c];
 	}
 
 	if (hdl->error) {
