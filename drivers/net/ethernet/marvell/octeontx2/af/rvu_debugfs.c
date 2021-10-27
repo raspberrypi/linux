@@ -1796,6 +1796,10 @@ static int rvu_dbg_nix_band_prof_ctx_display(struct seq_file *m, void *unused)
 	u16 pcifunc;
 	char *str;
 
+	/* Ingress policers do not exist on all platforms */
+	if (!nix_hw->ipolicer)
+		return 0;
+
 	for (layer = 0; layer < BAND_PROF_NUM_LAYERS; layer++) {
 		if (layer == BAND_PROF_INVAL_LAYER)
 			continue;
@@ -1844,6 +1848,10 @@ static int rvu_dbg_nix_band_prof_rsrc_display(struct seq_file *m, void *unused)
 	struct nix_ipolicer *ipolicer;
 	int layer;
 	char *str;
+
+	/* Ingress policers do not exist on all platforms */
+	if (!nix_hw->ipolicer)
+		return 0;
 
 	seq_puts(m, "\nBandwidth profile resource free count\n");
 	seq_puts(m, "=====================================\n");
