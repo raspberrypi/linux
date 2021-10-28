@@ -2511,7 +2511,7 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 					      &enable,
 					      sizeof(enable));
 
-		enable = (unsigned int)-5;
+		enable = (unsigned int)-6;
 		vchiq_mmal_port_parameter_set(dev->instance,
 					      &ctx->component->control,
 					      MMAL_PARAMETER_VIDEO_MAX_NUM_CALLBACKS,
