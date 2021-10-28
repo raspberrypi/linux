@@ -206,7 +206,7 @@ static void realtek_gpio_irq_handler(struct irq_desc *desc)
 		status = realtek_gpio_read_isr(ctrl, lines_done / 8);
 		port_pin_count = min(gc->ngpio - lines_done, 8U);
 		for_each_set_bit(offset, &status, port_pin_count) {
-			irq = irq_find_mapping(gc->irq.domain, offset);
+			irq = irq_find_mapping(gc->irq.domain, offset + lines_done);
 			generic_handle_irq(irq);
 		}
 	}
