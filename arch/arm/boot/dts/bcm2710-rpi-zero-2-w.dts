@@ -89,6 +89,19 @@
 	brcmf: wifi@1 {
 		reg = <1>;
 		compatible = "brcm,bcm4329-fmac";
+
+		firmwares {
+			fw_43436p {
+				chipid = <43430>;
+				revmask = <4>;
+				fw_base = "brcm/brcmfmac43436-sdio";
+			};
+			fw_43436s {
+				chipid = <43430>;
+				revmask = <2>;
+				fw_base = "brcm/brcmfmac43436s-sdio";
+			};
+		};
 	};
 };
 
