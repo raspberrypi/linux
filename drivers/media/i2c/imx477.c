@@ -25,6 +25,10 @@ static int dpc_enable = 1;
 module_param(dpc_enable, int, 0644);
 MODULE_PARM_DESC(dpc_enable, "Enable on-sensor DPC");
 
+static int trigger_mode;
+module_param(trigger_mode, int, 0644);
+MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
+
 #define IMX477_REG_VALUE_08BIT		1
 #define IMX477_REG_VALUE_16BIT		2
 
@@ -97,6 +101,12 @@ MODULE_PARM_DESC(dpc_enable, "Enable on-sensor DPC");
 #define IMX477_TEST_PATTERN_GR_DEFAULT	0
 #define IMX477_TEST_PATTERN_B_DEFAULT	0
 #define IMX477_TEST_PATTERN_GB_DEFAULT	0
+
+/* Trigger mode */
+#define IMX477_REG_MC_MODE		0x3f0b
+#define IMX477_REG_MS_SEL		0x3041
+#define IMX477_REG_XVS_IO_CTRL		0x3040
+#define IMX477_REG_EXTOUT_EN		0x4b81
 
 /* Embedded metadata stream structure */
 #define IMX477_EMBEDDED_LINE_WIDTH 16384
@@ -1720,6 +1730,21 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
 	imx477_write_reg(imx477, 0x0b06, IMX477_REG_VALUE_08BIT, !!dpc_enable);
+
+	/* Set vsync trigger mode */
+	if (trigger_mode != 0) {
+		/* trigger_mode == 1 for source, 2 for sink */
+		const u32 val = (trigger_mode == 1) ? 1 : 0;
+
+		imx477_write_reg(imx477, IMX477_REG_MC_MODE,
+				 IMX477_REG_VALUE_08BIT, 1);
+		imx477_write_reg(imx477, IMX477_REG_MS_SEL,
+				 IMX477_REG_VALUE_08BIT, val);
+		imx477_write_reg(imx477, IMX477_REG_XVS_IO_CTRL,
+				 IMX477_REG_VALUE_08BIT, val);
+		imx477_write_reg(imx477, IMX477_REG_EXTOUT_EN,
+				 IMX477_REG_VALUE_08BIT, val);
+	}
 
 	/* Apply customized values from user */
 	ret =  __v4l2_ctrl_handler_setup(imx477->sd.ctrl_handler);
