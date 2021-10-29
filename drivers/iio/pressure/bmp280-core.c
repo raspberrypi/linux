@@ -423,7 +423,7 @@ static int bmp280_read_press(struct bmp280_data *data,
 	comp_press = bmp280_compensate_press(data, adc_press);
 
 	*val = comp_press;
-	*val2 = 256000;
+	*val2 = 25600;
 
 	return IIO_VAL_FRACTIONAL;
 }
