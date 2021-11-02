@@ -6,6 +6,7 @@
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 
@@ -29,13 +30,19 @@
 #define AK7375_MODE_ACTIVE	0x0
 #define AK7375_MODE_STANDBY	0x40
 
+#define AK7375_PW_MIN_DELAY_US		12000
+#define AK7375_PW_DELAY_RANGE_US	1000
+
 /* ak7375 device structure */
 struct ak7375_device {
 	struct v4l2_ctrl_handler ctrls_vcm;
 	struct v4l2_subdev sd;
 	struct v4l2_ctrl *focus;
+	struct regulator *vana;
+	struct notifier_block notifier;
 	/* active or standby mode */
 	bool active;
+	atomic_t power_count;
 };
 
 static inline struct ak7375_device *to_ak7375_vcm(struct v4l2_ctrl *ctrl)
@@ -49,7 +56,7 @@ static inline struct ak7375_device *sd_to_ak7375_vcm(struct v4l2_subdev *subdev)
 }
 
 static int ak7375_i2c_write(struct ak7375_device *ak7375,
-	u8 addr, u16 data, u8 size)
+			    u8 addr, u16 data, u8 size)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&ak7375->sd);
 	u8 buf[3];
@@ -85,6 +92,94 @@ static const struct v4l2_ctrl_ops ak7375_vcm_ctrl_ops = {
 	.s_ctrl = ak7375_set_ctrl,
 };
 
+static int ak7375_active(struct ak7375_device *ak7375_dev)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&ak7375_dev->sd);
+	int ret = 0;
+	int val;
+
+	if (atomic_read(&ak7375_dev->power_count) > 1)
+		return 0;
+
+	ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_CONT,
+			       AK7375_MODE_ACTIVE, 1);
+	if (ret) {
+		dev_err(&client->dev, "%s I2C failure: %d\n", __func__, ret);
+		return ret;
+	}
+
+	for (val = ak7375_dev->focus->val % AK7375_CTRL_STEPS;
+	     val <= ak7375_dev->focus->val;
+	     val += AK7375_CTRL_STEPS) {
+		ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_POSITION,
+				       val << 4, 2);
+		if (ret)
+			dev_err_ratelimited(&client->dev, "%s I2C failure: %d\n",
+					    __func__, ret);
+		usleep_range(AK7375_CTRL_DELAY_US, AK7375_CTRL_DELAY_US + 10);
+	}
+
+	return 0;
+}
+
+static int ak7375_standby(struct ak7375_device *ak7375_dev)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&ak7375_dev->sd);
+	int ret = 0;
+	int val;
+
+	if (atomic_read(&ak7375_dev->power_count) != 1)
+		return 0;
+
+	for (val = ak7375_dev->focus->val & ~(AK7375_CTRL_STEPS - 1);
+	     val >= 0; val -= AK7375_CTRL_STEPS) {
+		ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_POSITION,
+				       val << 4, 2);
+		if (ret)
+			dev_err_once(&client->dev, "%s I2C failure: %d\n",
+				     __func__, ret);
+		usleep_range(AK7375_CTRL_DELAY_US, AK7375_CTRL_DELAY_US + 10);
+	}
+
+	ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_CONT,
+			       AK7375_MODE_STANDBY, 1);
+	if (ret)
+		dev_err(&client->dev, "%s I2C failure: %d\n", __func__, ret);
+
+	return ret;
+}
+
+/*
+ * Power handling
+ */
+static int ak7375_power_off(struct ak7375_device *ak7375_dev)
+{
+	int ret = 0;
+
+	atomic_dec(&ak7375_dev->power_count);
+
+	if (ak7375_dev->vana)
+		ret = regulator_disable(ak7375_dev->vana);
+
+	return ret;
+}
+
+static int ak7375_power_on(struct ak7375_device *ak7375_dev)
+{
+	int ret;
+
+	if (ak7375_dev->vana) {
+		ret = regulator_enable(ak7375_dev->vana);
+
+		if (ret < 0)
+			return ret;
+	}
+
+	atomic_inc(&ak7375_dev->power_count);
+
+	return 0;
+}
+
 static int ak7375_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	return pm_runtime_resume_and_get(sd->dev);
@@ -119,7 +214,8 @@ static int ak7375_init_controls(struct ak7375_device *dev_vcm)
 	v4l2_ctrl_handler_init(hdl, 1);
 
 	dev_vcm->focus = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_ABSOLUTE,
-		0, AK7375_MAX_FOCUS_POS, AK7375_FOCUS_STEPS, 0);
+					   0, AK7375_MAX_FOCUS_POS,
+					   AK7375_FOCUS_STEPS, 0);
 
 	if (hdl->error)
 		dev_err(dev_vcm->sd.dev, "%s fail error: 0x%x\n",
@@ -127,6 +223,34 @@ static int ak7375_init_controls(struct ak7375_device *dev_vcm)
 	dev_vcm->sd.ctrl_handler = hdl;
 
 	return hdl->error;
+}
+
+static int ak7375_regulator_event(struct notifier_block *nb,
+				  unsigned long action, void *data)
+{
+	struct ak7375_device *ak7375_dev =
+		container_of(nb, struct ak7375_device, notifier);
+
+	if (action & REGULATOR_EVENT_ENABLE) {
+		/*
+		 * Initialisation delay between VDD low->high and the moment
+		 * when the i2c command is available.
+		 * From the datasheet, it should be 10ms + 2ms (max power
+		 * up sequence duration)
+		 */
+		if (atomic_read(&ak7375_dev->power_count) < 1)
+			usleep_range(AK7375_PW_MIN_DELAY_US,
+				     AK7375_PW_MIN_DELAY_US +
+				     AK7375_PW_DELAY_RANGE_US);
+
+		atomic_inc(&ak7375_dev->power_count);
+		ak7375_active(ak7375_dev);
+	} else if (action & REGULATOR_EVENT_PRE_DISABLE) {
+		ak7375_standby(ak7375_dev);
+		atomic_dec(&ak7375_dev->power_count);
+	}
+
+	return 0;
 }
 
 static int ak7375_probe(struct i2c_client *client)
@@ -138,6 +262,26 @@ static int ak7375_probe(struct i2c_client *client)
 				  GFP_KERNEL);
 	if (!ak7375_dev)
 		return -ENOMEM;
+
+	atomic_set(&ak7375_dev->power_count, 0);
+
+	ak7375_dev->vana = devm_regulator_get_optional(&client->dev, "VANA");
+	if (IS_ERR(ak7375_dev->vana)) {
+		if (PTR_ERR(ak7375_dev->vana) != -ENODEV)
+			return PTR_ERR(ak7375_dev->vana);
+
+		ak7375_dev->vana = NULL;
+	} else {
+		ak7375_dev->notifier.notifier_call = ak7375_regulator_event;
+
+		ret = regulator_register_notifier(ak7375_dev->vana,
+						  &ak7375_dev->notifier);
+		if (ret) {
+			dev_err(&client->dev,
+				"could not register regulator notifier\n");
+			return ret;
+		}
+	}
 
 	v4l2_i2c_subdev_init(&ak7375_dev->sd, client, &ak7375_ops);
 	ak7375_dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
@@ -163,6 +307,9 @@ static int ak7375_probe(struct i2c_client *client)
 	return 0;
 
 err_cleanup:
+	if (ak7375_dev->vana)
+		regulator_unregister_notifier(ak7375_dev->vana,
+					      &ak7375_dev->notifier);
 	v4l2_ctrl_handler_free(&ak7375_dev->ctrls_vcm);
 	media_entity_cleanup(&ak7375_dev->sd.entity);
 
@@ -174,6 +321,9 @@ static int ak7375_remove(struct i2c_client *client)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct ak7375_device *ak7375_dev = sd_to_ak7375_vcm(sd);
 
+	if (ak7375_dev->vana)
+		regulator_unregister_notifier(ak7375_dev->vana,
+					      &ak7375_dev->notifier);
 	ak7375_subdev_cleanup(ak7375_dev);
 	pm_runtime_disable(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
@@ -190,25 +340,19 @@ static int __maybe_unused ak7375_vcm_suspend(struct device *dev)
 {
 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
 	struct ak7375_device *ak7375_dev = sd_to_ak7375_vcm(sd);
-	int ret, val;
+	int ret;
 
 	if (!ak7375_dev->active)
 		return 0;
 
-	for (val = ak7375_dev->focus->val & ~(AK7375_CTRL_STEPS - 1);
-	     val >= 0; val -= AK7375_CTRL_STEPS) {
-		ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_POSITION,
-				       val << 4, 2);
-		if (ret)
-			dev_err_once(dev, "%s I2C failure: %d\n",
-				     __func__, ret);
-		usleep_range(AK7375_CTRL_DELAY_US, AK7375_CTRL_DELAY_US + 10);
-	}
-
-	ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_CONT,
-			       AK7375_MODE_STANDBY, 1);
+	ret = ak7375_standby(ak7375_dev);
 	if (ret)
-		dev_err(dev, "%s I2C failure: %d\n", __func__, ret);
+		dev_err(dev, "%s Failed to enter standby mode: %d\n",
+			__func__, ret);
+
+	ret = ak7375_power_off(ak7375_dev);
+	if (ret)
+		dev_err(dev, "%s Poweroff failure: %d\n", __func__, ret);
 
 	ak7375_dev->active = false;
 
@@ -225,32 +369,26 @@ static int __maybe_unused ak7375_vcm_resume(struct device *dev)
 {
 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
 	struct ak7375_device *ak7375_dev = sd_to_ak7375_vcm(sd);
-	int ret, val;
+	int ret;
 
 	if (ak7375_dev->active)
 		return 0;
 
-	ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_CONT,
-		AK7375_MODE_ACTIVE, 1);
-	if (ret) {
-		dev_err(dev, "%s I2C failure: %d\n", __func__, ret);
+	ret = ak7375_power_on(ak7375_dev);
+	if (ret)
 		return ret;
-	}
 
-	for (val = ak7375_dev->focus->val % AK7375_CTRL_STEPS;
-	     val <= ak7375_dev->focus->val;
-	     val += AK7375_CTRL_STEPS) {
-		ret = ak7375_i2c_write(ak7375_dev, AK7375_REG_POSITION,
-				       val << 4, 2);
-		if (ret)
-			dev_err_ratelimited(dev, "%s I2C failure: %d\n",
-						__func__, ret);
-		usleep_range(AK7375_CTRL_DELAY_US, AK7375_CTRL_DELAY_US + 10);
-	}
+	ret = ak7375_active(ak7375_dev);
+	if (ret)
+		goto err_poweroff;
 
 	ak7375_dev->active = true;
 
 	return 0;
+
+err_poweroff:
+	ak7375_power_off(ak7375_dev);
+	return ret;
 }
 
 static const struct of_device_id ak7375_of_table[] = {
