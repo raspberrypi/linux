@@ -35,7 +35,6 @@
 #include "core.h"
 #include "common.h"
 #include "bcdc.h"
-#include "of.h"
 
 #define DCMD_RESP_TIMEOUT	msecs_to_jiffies(2500)
 #define CTL_DONE_TIMEOUT	msecs_to_jiffies(2500)
@@ -627,7 +626,7 @@ BRCMF_FW_DEF(4359, "brcmfmac4359-sdio");
 BRCMF_FW_DEF(4373, "brcmfmac4373-sdio");
 BRCMF_FW_DEF(43012, "brcmfmac43012-sdio");
 
-static const struct brcmf_firmware_mapping sdio_fwnames[] = {
+static const struct brcmf_firmware_mapping brcmf_sdio_fwnames[] = {
 	BRCMF_FW_ENTRY(BRCM_CC_43143_CHIP_ID, 0xFFFFFFFF, 43143),
 	BRCMF_FW_ENTRY(BRCM_CC_43241_CHIP_ID, 0x0000001F, 43241B0),
 	BRCMF_FW_ENTRY(BRCM_CC_43241_CHIP_ID, 0x00000020, 43241B4),
@@ -650,9 +649,6 @@ static const struct brcmf_firmware_mapping sdio_fwnames[] = {
 	BRCMF_FW_ENTRY(CY_CC_4373_CHIP_ID, 0xFFFFFFFF, 4373),
 	BRCMF_FW_ENTRY(CY_CC_43012_CHIP_ID, 0xFFFFFFFF, 43012)
 };
-
-static const struct brcmf_firmware_mapping *brcmf_sdio_fwnames = sdio_fwnames;
-static u32 brcmf_sdio_fwnames_count = ARRAY_SIZE(sdio_fwnames);
 
 #define TXCTL_CREDITS	2
 
@@ -4139,7 +4135,7 @@ int brcmf_sdio_get_fwname(struct device *dev, const char *ext, u8 *fw_name,
 	}
 	fwreq = brcmf_fw_alloc_request(bus_if->chip, bus_if->chiprev,
 				       brcmf_sdio_fwnames,
-				       brcmf_sdio_fwnames_count,
+				       ARRAY_SIZE(brcmf_sdio_fwnames),
 				       fwnames, ARRAY_SIZE(fwnames));
 	if (!fwreq)
 		return -ENOMEM;
@@ -4195,9 +4191,6 @@ static const struct brcmf_bus_ops brcmf_sdio_bus_ops = {
 #define BRCMF_SDIO_FW_CODE	0
 #define BRCMF_SDIO_FW_NVRAM	1
 
-static struct brcmf_fw_request *
-brcmf_sdio_prepare_fw_request(struct brcmf_sdio *bus);
-
 static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 					 struct brcmf_fw_request *fwreq)
 {
@@ -4212,22 +4205,6 @@ static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 	u8 devctl;
 
 	brcmf_dbg(TRACE, "Enter: dev=%s, err=%d\n", dev_name(dev), err);
-
-	if (err && brcmf_sdio_fwnames != sdio_fwnames) {
-		/* Try again with the standard firmware names */
-		brcmf_sdio_fwnames = sdio_fwnames;
-		brcmf_sdio_fwnames_count = ARRAY_SIZE(sdio_fwnames);
-		kfree(fwreq);
-		fwreq = brcmf_sdio_prepare_fw_request(bus);
-		if (!fwreq) {
-			err = -ENOMEM;
-			goto fail;
-		}
-		err = brcmf_fw_get_firmwares(dev, fwreq,
-					     brcmf_sdio_firmware_callback);
-		if (!err)
-			return;
-	}
 
 	if (err)
 		goto fail;
@@ -4436,7 +4413,7 @@ brcmf_sdio_prepare_fw_request(struct brcmf_sdio *bus)
 
 	fwreq = brcmf_fw_alloc_request(bus->ci->chip, bus->ci->chiprev,
 				       brcmf_sdio_fwnames,
-				       brcmf_sdio_fwnames_count,
+				       ARRAY_SIZE(brcmf_sdio_fwnames),
 				       fwnames, ARRAY_SIZE(fwnames));
 	if (!fwreq)
 		return NULL;
@@ -4454,9 +4431,6 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 	struct brcmf_sdio *bus;
 	struct workqueue_struct *wq;
 	struct brcmf_fw_request *fwreq;
-	struct brcmf_firmware_mapping *of_fwnames, *fwnames;
-	const int fwname_size = sizeof(struct brcmf_firmware_mapping);
-	u32 of_fw_count;
 
 	brcmf_dbg(TRACE, "Enter\n");
 
@@ -4538,21 +4512,6 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 	bus->sr_enabled = false;
 
 	brcmf_dbg(INFO, "completed!!\n");
-
-	of_fwnames = brcmf_of_fwnames(sdiodev->dev, &of_fw_count);
-	if (of_fwnames)
-		fwnames = devm_kcalloc(sdiodev->dev,
-				       of_fw_count + brcmf_sdio_fwnames_count,
-				       fwname_size, GFP_KERNEL);
-
-	if (fwnames) {
-		/* The array is scanned in order, so overrides come first */
-		memcpy(fwnames, of_fwnames, of_fw_count * fwname_size);
-		memcpy(fwnames + of_fw_count, sdio_fwnames,
-		       brcmf_sdio_fwnames_count * fwname_size);
-		brcmf_sdio_fwnames = fwnames;
-		brcmf_sdio_fwnames_count += of_fw_count;
-	}
 
 	fwreq = brcmf_sdio_prepare_fw_request(bus);
 	if (!fwreq) {
