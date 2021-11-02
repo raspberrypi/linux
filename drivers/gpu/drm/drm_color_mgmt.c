@@ -326,7 +326,9 @@ static int drm_crtc_legacy_gamma_set(struct drm_crtc *crtc,
 	replaced = drm_property_replace_blob(&crtc_state->degamma_lut,
 					     use_gamma_lut ? NULL : blob);
 	replaced |= drm_property_replace_blob(&crtc_state->ctm, NULL);
-	replaced |= drm_property_replace_blob(&crtc_state->gamma_lut,
+	if (!crtc_state->gamma_lut || !crtc_state->gamma_lut->data ||
+	    memcmp(crtc_state->gamma_lut->data, blob_data, blob->length))
+		replaced |= drm_property_replace_blob(&crtc_state->gamma_lut,
 					      use_gamma_lut ? blob : NULL);
 	crtc_state->color_mgmt_changed |= replaced;
 
