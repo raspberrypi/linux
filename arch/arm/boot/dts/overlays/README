@@ -857,6 +857,130 @@ Params: interrupt               GPIO used for interrupt (default 4)
         swapxy                  Touchscreen swapped x y axis
 
 
+Name:   fbtft
+Info:   Overlay for SPI-connected displays using the fbtft drivers.
+
+        This overlay seeks to replace the functionality provided by fbtft_device
+        which is now gone from the kernel.
+
+        Most displays from fbtft_device have been ported over.
+        Example:
+          dtoverlay=fbtft,spi0-0,rpi-display,reset_pin=23,dc_pin=24,led_pin=18,rotate=270
+
+        It is also possible to specify the controller (this will use the default
+        init sequence in the driver).
+        Example:
+          dtoverlay=fbtft,spi0-0,ili9341,bgr,reset_pin=23,dc_pin=24,led_pin=18,rotate=270
+
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+
+        The following features of fbtft_device have not been ported over:
+        - parallel bus is not supported
+        - the init property which overrides the controller initialization
+          sequence is not supported as a parameter due to memory limitations in
+          the bootloader responsible for applying the overlay.
+
+        See https://github.com/notro/fbtft/wiki/FBTFT-RPI-overlays for how to
+        create an overlay.
+
+Load:   dtoverlay=fbtft,<param>=<val>
+Params:
+        spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+        speed                   SPI bus speed in Hz (default 32000000)
+        cpha                    Shifted clock phase (CPHA) mode
+        cpol                    Inverse clock polarity (CPOL) mode
+
+        adafruit18              Adafruit 1.8
+        adafruit22              Adafruit 2.2 (old)
+        adafruit22a             Adafruit 2.2
+        adafruit28              Adafruit 2.8
+        adafruit13m             Adafruit 1.3 OLED
+        admatec_c-berry28       C-Berry28
+        dogs102                 EA DOGS102
+        er_tftm050_2            ER-TFTM070-2
+        er_tftm070_5            ER-TFTM070-5
+        ew24ha0                 EW24HA0
+        ew24ha0_9bit            EW24HA0 in 9-bit mode
+        freetronicsoled128      Freetronics OLED128
+        hy28a                   HY28A
+        hy28b                   HY28B
+        itdb28_spi              ITDB02-2.8 with SPI interface circuit
+        mi0283qt-2              Watterott MI0283QT-2
+        mi0283qt-9a             Watterott MI0283QT-9A
+        nokia3310               Nokia 3310
+        nokia3310a              Nokia 3310a
+        nokia5110               Nokia 5110
+        piscreen                PiScreen
+        pitft                   Adafruit PiTFT 2.8
+        pioled                  ILSoft OLED
+        rpi-display             Watterott rpi-display
+        sainsmart18             Sainsmart 1.8
+        sainsmart32_spi         Sainsmart 3.2 with SPI interfce circuit
+        tinylcd35               TinyLCD 3.5
+        tm022hdh26              Tianma TM022HDH26
+        tontec35_9481           Tontect 3.5 with ILI9481 controller
+        tontec35_9486           Tontect 3.5 with ILI9486 controller
+        waveshare32b            Waveshare 3.2
+        waveshare22             Waveshare 2.2
+
+        bd663474                BD663474 display controller
+        hx8340bn                HX8340BN display controller
+        hx8347d                 HX8347D display controller
+        hx8353d                 HX8353D display controller
+        hx8357d                 HX8357D display controller
+        ili9163                 ILI9163 display controller
+        ili9320                 ILI9320 display controller
+        ili9325                 ILI9325 display controller
+        ili9340                 ILI9340 display controller
+        ili9341                 ILI9341 display controller
+        ili9481                 ILI9481 display controller
+        ili9486                 ILI9486 display controller
+        pcd8544                 PCD8544 display controller
+        ra8875                  RA8875 display controller
+        s6d02a1                 S6D02A1 display controller
+        s6d1121                 S6D1121 display controller
+        seps525                 SEPS525 display controller
+        sh1106                  SH1106 display controller
+        ssd1289                 SSD1289 display controller
+        ssd1305                 SSD1305 display controller
+        ssd1306                 SSD1306 display controller
+        ssd1325                 SSD1325 display controller
+        ssd1331                 SSD1331 display controller
+        ssd1351                 SSD1351 display controller
+        st7735r                 ST7735R display controller
+        st7789v                 ST7789V display controller
+        tls8204                 TLS8204 display controller
+        uc1611                  UC1611 display controller
+        uc1701                  UC1701 display controller
+        upd161704               UPD161704 display controller
+
+        width                   Display width in pixels
+        height                  Display height in pixels
+        regwidth                Display controller register width (default is
+                                driver specific)
+        buswidth                Display bus interface width (default 8)
+        debug                   Debug output level {0-7}
+        rotate                  Display rotation {0, 90, 180, 270} (counter
+                                clockwise). Not supported by all drivers.
+        bgr                     Enable BGR mode (default off). Use if Red and
+                                Blue are swapped. Not supported by all drivers.
+        fps                     Frames per second (default 30). In effect this
+                                states how long the driver will wait after video
+                                memory has been changed until display update
+                                transfer is started.
+        txbuflen                Length of the FBTFT transmit buffer
+                                (default 4096)
+        startbyte               Sets the Start byte used by fb_ili9320,
+                                fb_ili9325 and fb_hx8347d. Common value is 0x70.
+        gamma                   String representation of Gamma Curve(s). Driver
+                                specific. Not supported by all drivers.
+        reset_pin               GPIO pin for RESET
+        dc_pin                  GPIO pin for D/C
+        led_pin                 GPIO pin for LED backlight
+
+
 Name:   fe-pi-audio
 Info:   Configures the Fe-Pi Audio Sound Card
 Load:   dtoverlay=fe-pi-audio
