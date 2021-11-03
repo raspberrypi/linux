@@ -661,8 +661,8 @@ static const struct brcmf_firmware_mapping sdio_fwnames[] = {
 	BRCMF_FW_ENTRY(CY_CC_43752_CHIP_ID, 0xFFFFFFFF, 43752)
 };
 
-static const struct brcmf_firmware_mapping *brcmf_sdio_fwnames = sdio_fwnames;
-static u32 brcmf_sdio_fwnames_count = ARRAY_SIZE(sdio_fwnames);
+static const struct brcmf_firmware_mapping *brcmf_sdio_fwnames;
+static u32 brcmf_sdio_fwnames_count;
 
 #define TXCTL_CREDITS	2
 
@@ -4556,6 +4556,8 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 
 	brcmf_dbg(INFO, "completed!!\n");
 
+	brcmf_sdio_fwnames = sdio_fwnames;
+	brcmf_sdio_fwnames_count = ARRAY_SIZE(sdio_fwnames);
 	of_fwnames = brcmf_of_fwnames(sdiodev->dev, &of_fw_count);
 	if (of_fwnames)
 		fwnames = devm_kcalloc(sdiodev->dev,
