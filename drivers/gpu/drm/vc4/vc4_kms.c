@@ -343,12 +343,12 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	struct drm_device *dev = state->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_hvs *hvs = vc4->hvs;
-	struct drm_crtc_state *old_crtc_state;
 	struct drm_crtc_state *new_crtc_state;
 	struct vc4_hvs_state *new_hvs_state;
 	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
 	struct clk_request *core_req;
+	unsigned int channel;
 	int i;
 
 	old_hvs_state = vc4_hvs_get_old_global_state(state);
@@ -369,15 +369,9 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
 
-	for_each_old_crtc_in_state(state, crtc, old_crtc_state, i) {
-		struct vc4_crtc_state *vc4_crtc_state =
-			to_vc4_crtc_state(old_crtc_state);
+	for (channel = 0; channel < HVS_NUM_CHANNELS; channel++) {
 		struct drm_crtc_commit *commit;
-		unsigned int channel = vc4_crtc_state->assigned_channel;
 		int ret;
-
-		if (channel == VC4_HVS_CHANNEL_DISABLED)
-			continue;
 
 		if (!old_hvs_state->fifo_state[channel].in_use)
 			continue;
