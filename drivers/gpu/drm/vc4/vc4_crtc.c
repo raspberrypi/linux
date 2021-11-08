@@ -1371,7 +1371,7 @@ int __vc4_crtc_init(struct drm_device *drm,
 		/* We support CTM, but only for one CRTC at a time. It's therefore
 		 * implemented as private driver state in vc4_kms, not here.
 		 */
-		drm_crtc_enable_color_mgmt(crtc, 0, true, crtc->gamma_size);
+		drm_crtc_enable_color_mgmt(crtc, 0, true, 0);
 
 		/* Initialize the VC4 gamma LUTs */
 		for (i = 0; i < crtc->gamma_size; i++) {
