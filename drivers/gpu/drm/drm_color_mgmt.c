@@ -316,8 +316,7 @@ static int drm_crtc_legacy_gamma_set(struct drm_crtc *crtc,
 	if (!crtc_state->gamma_lut || !crtc_state->gamma_lut->data ||
 	    memcmp(crtc_state->gamma_lut->data, blob_data, blob->length))
 		replaced |= drm_property_replace_blob(&crtc_state->gamma_lut, blob);
-	else
-		drm_property_blob_put(blob);
+
 	crtc_state->color_mgmt_changed |= replaced;
 
 	ret = drm_atomic_commit(state);
