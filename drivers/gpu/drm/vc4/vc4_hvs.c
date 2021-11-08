@@ -548,8 +548,11 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
 	dispbkgndx &= ~SCALER_DISPBKGND_INTERLACE;
 
+	if (crtc->state->gamma_lut)
+		/* Enable gamma on if required */
+		dispbkgndx |= SCALER_DISPBKGND_GAMMA;
+
 	HVS_WRITE(SCALER_DISPBKGNDX(chan), dispbkgndx |
-		  ((!vc4->is_vc5) ? SCALER_DISPBKGND_GAMMA : 0) |
 		  (interlace ? SCALER_DISPBKGND_INTERLACE : 0));
 
 	/* Reload the LUT, since the SRAMs would have been disabled if
@@ -834,18 +837,25 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		u32 dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(channel));
 
 		if (crtc->state->gamma_lut) {
-			if (!vc4->is_vc5)
+			if (!vc4->is_vc5) {
 				vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
-			else
+				dispbkgndx |= SCALER_DISPBKGND_GAMMA;
+			} else {
 				vc5_hvs_update_gamma_lut(hvs, vc4_crtc);
-
-			dispbkgndx |= SCALER_DISPBKGND_GAMMA;
+			}
 		} else {
 			/* Unsetting DISPBKGND_GAMMA skips the gamma lut step
 			 * in hardware, which is the same as a linear lut that
 			 * DRM expects us to use in absence of a user lut.
+			 *
+			 * Do NOT change state dynamically for hvs5 as it
+			 * inserts a delay in the pipeline that will cause
+			 * stalls if enabled/disabled whilst running. The other
+			 * should already be disabling/enabling the pipeline
+			 * when gamma changes.
 			 */
-			dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
+			if (!vc4->is_vc5)
+				dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
 		}
 		HVS_WRITE(SCALER_DISPBKGNDX(channel), dispbkgndx);
 	}
