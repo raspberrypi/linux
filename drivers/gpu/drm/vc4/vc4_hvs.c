@@ -614,6 +614,16 @@ static int vc4_hvs_gamma_check(struct drm_crtc *crtc,
 	if (!crtc_state->color_mgmt_changed)
 		return 0;
 
+	if (crtc_state->gamma_lut) {
+		unsigned int len = drm_color_lut_size(crtc_state->gamma_lut);
+
+		if (len != crtc->gamma_size) {
+			DRM_DEBUG_KMS("Invalid LUT size; got %u, expected %u\n",
+				      len, crtc->gamma_size);
+			return -EINVAL;
+		}
+	}
+
 	connector = vc4_get_crtc_connector(crtc, crtc_state);
 	if (!connector)
 		return -EINVAL;
