@@ -27,7 +27,6 @@
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 			ft5406: ts@38 {
 				compatible = "edt,edt-ft5406";
 				reg = <0x38>;
@@ -35,13 +34,6 @@
 				touchscreen-size-x = < 800 >;
 				touchscreen-size-y = < 480 >;
 			};
-		};
-	};
-
-	fragment@13 {
-		target = <&i2c0if>;
-		__overlay__ {
-			status = "okay";
 		};
 	};
 
