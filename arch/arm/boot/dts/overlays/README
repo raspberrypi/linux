@@ -1155,6 +1155,11 @@ Info:   Drives a GPIO high or low on poweroff (including halt). Using this
         or reboot). This also disables the ability to trigger a boot by driving
         GPIO3 low.
 
+        The GPIO starts in an inactive state. At poweroff time it is driven
+        active for 100ms, then inactive for 100ms, then active again. It is
+        safe to remove the power at any point after the initial activation of
+        the GPIO.
+
         Users of this overlay are required to provide an external mechanism to
         switch off the power supply when signalled - failure to do so results
         in a kernel BUG, increased power consumption and undefined behaviour.
@@ -1170,6 +1175,8 @@ Params: gpiopin                 GPIO for signalling (default 26)
         input                   Set if the gpio pin should be configured as
                                 an input.
         export                  Set to export the configured pin to sysfs
+        active_delay_ms         Initial GPIO active period (default 100)
+        inactive_delay_ms       Subsequent GPIO inactive period (default 100)
         timeout_ms              Specify (in ms) how long the kernel waits for
                                 power-down before issuing a WARN (default 3000).
 
