@@ -3222,9 +3222,6 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 	}
 
 	st = (struct kvm_steal_time __user *)ghc->hva;
-	if (!user_access_begin(st, sizeof(*st)))
-		return;
-
 	/*
 	 * Doing a TLB flush here, on the guest's behalf, can avoid
 	 * expensive IPIs.
@@ -3232,6 +3229,9 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 	if (guest_pv_has(vcpu, KVM_FEATURE_PV_TLB_FLUSH)) {
 		u8 st_preempted = 0;
 		int err = -EFAULT;
+
+		if (!user_access_begin(st, sizeof(*st)))
+			return;
 
 		asm volatile("1: xchgb %0, %2\n"
 			     "xor %1, %1\n"
@@ -3255,6 +3255,9 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 		if (!user_access_begin(st, sizeof(*st)))
 			goto dirty;
 	} else {
+		if (!user_access_begin(st, sizeof(*st)))
+			return;
+
 		unsafe_put_user(0, &st->preempted, out);
 		vcpu->arch.st.preempted = 0;
 	}
