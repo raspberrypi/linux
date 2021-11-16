@@ -89,7 +89,7 @@
 
 	fragment@11 {
 		target = <&vec>;
-		__dormant__  {
+		__overlay__  {
 			status = "okay";
 		};
 	};
@@ -118,6 +118,6 @@
 	__overrides__ {
 		audio   = <0>,"!13";
 		noaudio = <0>,"=13";
-		composite = <0>, "=11";
+		nocomposite = <0>, "!11";
 	};
 };
