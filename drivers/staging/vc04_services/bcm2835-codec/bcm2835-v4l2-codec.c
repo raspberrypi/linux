@@ -2189,6 +2189,28 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = bcm2835_codec_set_level_profile(ctx, ctrl);
 		break;
 
+	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+		if (!ctx->component)
+			break;
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->output[0],
+						    MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT,
+						    &ctrl->val,
+						    sizeof(ctrl->val));
+		break;
+
+	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
+		if (!ctx->component)
+			break;
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->output[0],
+						    MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT,
+						    &ctrl->val,
+						    sizeof(ctrl->val));
+		break;
+
 	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME: {
 		u32 mmal_bool = 1;
 
@@ -3105,7 +3127,7 @@ static int bcm2835_codec_open(struct file *file)
 	case ENCODE:
 	{
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 9);
+		v4l2_ctrl_handler_init(hdl, 11);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -3153,6 +3175,14 @@ static int bcm2835_codec_open(struct file *file)
 					 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
 					 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
 					V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
+				  0, 51,
+				  1, 20);
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
+				  0, 51,
+				  1, 51);
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 				  0, 0, 0, 0);
