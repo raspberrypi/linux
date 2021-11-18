@@ -31,8 +31,8 @@ Apply the Default Configuration Pi4 32-bit:
 
 Apply the Default Configuration Pi4 64-bit:
 
-``KERNEL=kernel8```
-``make bcm2711_defconfig```
+```KERNEL=kernel8```
+```make bcm2711_defconfig```
 
 Customising the Kernel Version Using LOCALVERSION:
 
