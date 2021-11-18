@@ -364,10 +364,13 @@ unsigned long arch_align_stack(unsigned long sp)
 }
 #endif
 
-unsigned long __get_wchan(struct task_struct *p)
+unsigned long get_wchan(struct task_struct *p)
 {
 	unsigned long stack_page, sp, ip;
 	bool seen_sched = 0;
+
+	if ((p == NULL) || (p == current) || task_is_running(p))
+		return 0;
 
 	stack_page = (unsigned long) task_stack_page(p);
 	/* Bail if the process has no kernel stack for some reason */

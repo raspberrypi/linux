@@ -376,11 +376,12 @@ thread_saved_pc(struct task_struct *t)
 }
 
 unsigned long
-__get_wchan(struct task_struct *p)
+get_wchan(struct task_struct *p)
 {
 	unsigned long schedule_frame;
 	unsigned long pc;
-
+	if (!p || p == current || task_is_running(p))
+		return 0;
 	/*
 	 * This one depends on the frame size of schedule().  Do a
 	 * "disass schedule" in gdb to find the frame size.  Also, the

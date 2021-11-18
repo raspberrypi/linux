@@ -588,7 +588,7 @@ static inline void load_sp0(unsigned long sp0)
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
 
-unsigned long __get_wchan(struct task_struct *p);
+unsigned long get_wchan(struct task_struct *p);
 
 /*
  * Generic CPUID function

@@ -523,11 +523,14 @@ exit_thread (struct task_struct *tsk)
 }
 
 unsigned long
-__get_wchan (struct task_struct *p)
+get_wchan (struct task_struct *p)
 {
 	struct unw_frame_info info;
 	unsigned long ip;
 	int count = 0;
+
+	if (!p || p == current || task_is_running(p))
+		return 0;
 
 	/*
 	 * Note: p may not be a blocked task (it could be current or
