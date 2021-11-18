@@ -2170,6 +2170,10 @@ brcmf_set_key_mgmt(struct net_device *ndev, struct cfg80211_connect_params *sme)
 			if (sme->crypto.sae_pwd) {
 				brcmf_dbg(INFO, "using SAE offload\n");
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_SAE;
+			} else if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_FWSUP) &&
+				brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT)) {
+				brcmf_dbg(INFO, "using EXTSAE with PSK offload\n");
+				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
 			}
 			break;
 		case WLAN_AKM_SUITE_FT_OVER_SAE:
@@ -2472,7 +2476,8 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 
 	if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_FWSUP)) {
 		if (sme->crypto.psk) {
-			if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_SAE) {
+			if ((profile->use_fwsup != BRCMF_PROFILE_FWSUP_SAE) &&
+				(profile->use_fwsup != BRCMF_PROFILE_FWSUP_PSK)) {
 				if (WARN_ON(profile->use_fwsup !=
 					BRCMF_PROFILE_FWSUP_NONE)) {
 					err = -EINVAL;
@@ -2496,7 +2501,8 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 			err = brcmf_fil_iovar_int_set(ifp, "sup_wpa", 0);
 		}
 
-		if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_PSK) {
+		if ((profile->use_fwsup == BRCMF_PROFILE_FWSUP_PSK) &&
+			sme->crypto.psk) {
 			err = brcmf_set_pmk(ifp, sme->crypto.psk,
 					    BRCMF_WSEC_MAX_PSK_LEN);
 		} else if (profile->use_fwsup == BRCMF_PROFILE_FWSUP_SAE) {
