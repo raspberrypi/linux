@@ -28,6 +28,9 @@
 #include "mmal-parameters.h"
 #include "bcm2835-camera.h"
 
+#define MMAL_V4L2_CID_CUSTOM_BASE	V4L2_CID_USER_BCM2835_ISP_BASE
+#define MMAL_V4L2_CID_SENSOR_MODE	(MMAL_V4L2_CID_CUSTOM_BASE + 0)
+
 /* The supported V4L2_CID_AUTO_EXPOSURE_BIAS values are from -4.0 to +4.0.
  * MMAL values are in 1/6th increments so the MMAL range is -24 to +24.
  * V4L2 docs say value "is expressed in terms of EV, drivers should interpret
@@ -63,6 +66,7 @@ enum bm2835_mmal_ctrl_type {
 	MMAL_CONTROL_TYPE_STD_MENU,
 	MMAL_CONTROL_TYPE_INT_MENU,
 	MMAL_CONTROL_TYPE_CLUSTER, /* special cluster entry */
+	MMAL_CONTROL_TYPE_CUSTOM,
 };
 
 struct bm2835_mmal_v4l2_ctrl;
@@ -75,6 +79,7 @@ typedef	int(bm2835_mmal_v4l2_ctrl_cb)(
 struct bm2835_mmal_v4l2_ctrl {
 	u32 id; /* v4l2 control identifier */
 	enum bm2835_mmal_ctrl_type type;
+	const char *name;
 	/* control minimum value or
 	 * mask for MMAL_CONTROL_TYPE_STD_MENU
 	 */
@@ -1155,6 +1160,18 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		.setter = ctrl_set_flip,
 	},
 	{
+		.id = MMAL_V4L2_CID_SENSOR_MODE,
+		.name = "Sensor mode",
+		.type = MMAL_CONTROL_TYPE_CUSTOM,
+		.min = 0,
+		.max = 7,
+		.def = 0,
+		.step = 1,
+		.imenu = NULL,
+		.mmal_id = MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG,
+		.setter = ctrl_set_value,
+	},
+	{
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 		.type = MMAL_CONTROL_TYPE_STD_MENU,
 		.min = 0,
@@ -1431,6 +1448,25 @@ int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 		case MMAL_CONTROL_TYPE_CLUSTER:
 			/* skip this entry when constructing controls */
 			continue;
+
+		case MMAL_CONTROL_TYPE_CUSTOM:
+		{
+			struct v4l2_ctrl_config custom_cfg = {
+				.ops = &bm2835_mmal_ctrl_ops,
+				.id = ctrl->id,
+				.name = ctrl->name,
+				.type = V4L2_CTRL_TYPE_INTEGER,
+				.min = ctrl->min,
+				.max = ctrl->max,
+				.step = ctrl->step,
+				.def = ctrl->def,
+			};
+
+			dev->ctrls[c] = v4l2_ctrl_new_custom(hdl,
+							     &custom_cfg,
+							     NULL);
+			break;
+		}
 		}
 
 		if (hdl->error)
@@ -1459,6 +1495,7 @@ int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 		case MMAL_CONTROL_TYPE_STD:
 		case MMAL_CONTROL_TYPE_STD_MENU:
 		case MMAL_CONTROL_TYPE_INT_MENU:
+		case MMAL_CONTROL_TYPE_CUSTOM:
 			break;
 		}
 	}
