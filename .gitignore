@@ -157,3 +157,7 @@ x509.genkey
 
 # Documentation toolchain
 sphinx_*/
+
+# Visual Studio Code
+.vscode/
+.push.settings.jsonc
