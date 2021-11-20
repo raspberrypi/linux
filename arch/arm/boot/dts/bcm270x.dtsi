@@ -153,6 +153,39 @@
 		};
 	};
 
+	cam1_reg: cam1_regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1-reg";
+		enable-active-high;
+		/* Needs to be enabled, as removing a regulator is very unsafe */
+		status = "okay";
+	};
+
+	cam1_clk: cam1_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam0_regulator: cam0_regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "cam0-reg";
+		enable-active-high;
+		status = "disabled";
+	};
+
+	cam0_clk: cam0_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam_dummy_reg: cam_dummy_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam-dummy-reg";
+		status = "okay";
+	};
+
 	__overrides__ {
 		cam0-pwdn-ctrl;
 		cam0-pwdn;
