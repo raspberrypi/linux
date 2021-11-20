@@ -339,7 +339,6 @@
 #include "bcm2711-rpi.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
-#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	chosen {
@@ -606,6 +605,9 @@
 
 &cam1_reg {
 	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+};
+
+cam0_reg: &cam_dummy_reg {
 };
 
 / {
