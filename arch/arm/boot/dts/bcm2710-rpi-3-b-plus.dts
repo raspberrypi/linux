@@ -6,7 +6,6 @@
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
 #include "bcm271x-rpi-bt.dtsi"
-#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	compatible = "raspberrypi,3-model-b-plus", "brcm,bcm2837";
@@ -186,6 +185,9 @@
 
 &cam1_reg {
 	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+};
+
+cam0_reg: &cam_dummy_reg {
 };
 
 / {
