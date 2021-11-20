@@ -19,7 +19,7 @@
 				status = "okay";
 
 				pwdn-gpios = <&gpio 41 1>, <&gpio 32 1>;
-				clocks = <&ov5647_clk>;
+				clocks = <&cam1_clk>;
 
 				rotation = <0>;
 				orientation = <2>;
@@ -77,13 +77,10 @@
 	};
 
 	fragment@5 {
-		target-path = "/";
+		target = <&cam1_clk>;
 		__overlay__ {
-			ov5647_clk: camera-clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <25000000>;
-			};
+			status = "okay";
+			clock-frequency = <25000000>;
 		};
 	};
 
@@ -91,6 +88,13 @@
 		target = <&csi1>;
 		__overlay__ {
 			brcm,media-controller;
+		};
+	};
+
+	fragment@7 {
+		target = <&cam1_reg>;
+		__overlay__ {
+			status = "disabled";
 		};
 	};
 
