@@ -353,7 +353,6 @@
 #include "bcm283x-rpi-csi0-2lane.dtsi"
 #include "bcm283x-rpi-csi1-4lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
-#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	chosen {
