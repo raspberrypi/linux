@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
+#include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
 #include <media/v4l2-ctrls.h>
@@ -92,6 +93,15 @@
 #define OV5647_EXPOSURE_DEFAULT		1000
 #define OV5647_EXPOSURE_MAX		65535
 
+/* regulator supplies */
+static const char * const ov5647_supply_names[] = {
+	"avdd",		/* Analog power */
+	"dovdd",	/* Digital I/O power */
+	"dvdd",		/* Digital core power */
+};
+
+#define OV5647_NUM_SUPPLIES ARRAY_SIZE(ov5647_supply_names)
+
 struct regval_list {
 	u16 addr;
 	u8 data;
@@ -120,6 +130,7 @@ struct ov5647 {
 	int				power_count;
 	struct clk			*xclk;
 	struct gpio_desc		*pwdn;
+	struct regulator_bulk_data supplies[OV5647_NUM_SUPPLIES];
 	unsigned int			flags;
 	struct v4l2_ctrl_handler	ctrls;
 	struct v4l2_ctrl		*pixel_rate;
@@ -949,6 +960,13 @@ static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
 	if (on && !ov5647->power_count)	{
 		dev_dbg(&client->dev, "OV5647 power on\n");
 
+		ret = regulator_bulk_enable(OV5647_NUM_SUPPLIES,
+					    ov5647->supplies);
+		if (ret < 0) {
+			dev_err(&client->dev, "Failed to enable regulators\n");
+			goto out;
+		}
+
 		if (ov5647->pwdn) {
 			gpiod_set_value_cansleep(ov5647->pwdn, 0);
 			msleep(PWDN_ACTIVE_DELAY_MS);
@@ -956,6 +974,8 @@ static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
 
 		ret = clk_prepare_enable(ov5647->xclk);
 		if (ret < 0) {
+			regulator_bulk_disable(OV5647_NUM_SUPPLIES,
+					       ov5647->supplies);
 			dev_err(&client->dev, "clk prepare enable failed\n");
 			goto out;
 		}
@@ -964,6 +984,8 @@ static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
 					 ARRAY_SIZE(sensor_oe_enable_regs));
 		if (ret < 0) {
 			clk_disable_unprepare(ov5647->xclk);
+			regulator_bulk_disable(OV5647_NUM_SUPPLIES,
+					       ov5647->supplies);
 			dev_err(&client->dev,
 				"write sensor_oe_enable_regs error\n");
 			goto out;
@@ -975,6 +997,8 @@ static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
 		ret = ov5647_stream_off(sd);
 		if (ret < 0) {
 			clk_disable_unprepare(ov5647->xclk);
+			regulator_bulk_disable(OV5647_NUM_SUPPLIES,
+					       ov5647->supplies);
 			dev_err(&client->dev,
 				"Camera not available, check Power\n");
 			goto out;
@@ -999,6 +1023,8 @@ static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
 		clk_disable_unprepare(ov5647->xclk);
 
 		gpiod_set_value_cansleep(ov5647->pwdn, 1);
+
+		regulator_bulk_disable(OV5647_NUM_SUPPLIES, ov5647->supplies);
 	}
 
 	/* Update the power count. */
@@ -1557,6 +1583,18 @@ static const struct v4l2_ctrl_ops ov5647_ctrl_ops = {
 	.s_ctrl = ov5647_s_ctrl,
 };
 
+static int ov5647_configure_regulators(struct device *dev,
+				       struct ov5647 *ov5647)
+{
+	unsigned int i;
+
+	for (i = 0; i < OV5647_NUM_SUPPLIES; i++)
+		ov5647->supplies[i].supply = ov5647_supply_names[i];
+
+	return devm_regulator_bulk_get(dev, OV5647_NUM_SUPPLIES,
+				       ov5647->supplies);
+}
+
 static int ov5647_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
@@ -1596,6 +1634,12 @@ static int ov5647_probe(struct i2c_client *client)
 	/* Request the power down GPIO asserted */
 	sensor->pwdn = devm_gpiod_get_optional(&client->dev, "pwdn",
 					       GPIOD_OUT_HIGH);
+
+	ret = ov5647_configure_regulators(dev, sensor);
+	if (ret) {
+		dev_err(dev, "Failed to get power regulators\n");
+		return ret;
+	}
 
 	mutex_init(&sensor->lock);
 
@@ -1701,6 +1745,12 @@ static int ov5647_probe(struct i2c_client *client)
 	if (ret < 0)
 		goto mutex_remove;
 
+	ret = regulator_bulk_enable(OV5647_NUM_SUPPLIES, sensor->supplies);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable regulators\n");
+		goto error;
+	}
+
 	if (sensor->pwdn) {
 		gpiod_set_value_cansleep(sensor->pwdn, 0);
 		msleep(PWDN_ACTIVE_DELAY_MS);
@@ -1711,7 +1761,7 @@ static int ov5647_probe(struct i2c_client *client)
 	gpiod_set_value_cansleep(sensor->pwdn, 1);
 
 	if (ret < 0)
-		goto error;
+		goto power_down;
 
 	ret = v4l2_async_register_subdev(sd);
 	if (ret < 0)
@@ -1719,6 +1769,8 @@ static int ov5647_probe(struct i2c_client *client)
 
 	dev_dbg(dev, "OmniVision OV5647 camera driver probed\n");
 	return 0;
+power_down:
+	regulator_bulk_disable(OV5647_NUM_SUPPLIES, sensor->supplies);
 error:
 	media_entity_cleanup(&sd->entity);
 mutex_remove:
