@@ -6,7 +6,7 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -41,10 +41,11 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
+			brcm,media-controller;
 
 			port {
 				csi1_ep: endpoint {
@@ -69,14 +70,14 @@
 		};
 	};
 
-	fragment@4 {
+	reg_frag: fragment@4 {
 		target = <&cam1_reg>;
 		__overlay__ {
 			startup-delay-us = <20000>;
 		};
 	};
 
-	fragment@5 {
+	clk_frag: fragment@5 {
 		target = <&cam1_clk>;
 		__overlay__ {
 			status = "okay";
@@ -84,23 +85,15 @@
 		};
 	};
 
-	fragment@6 {
-		target = <&csi1>;
-		__overlay__ {
-			brcm,media-controller;
-		};
-	};
-
-	fragment@7 {
-		target = <&cam1_reg>;
-		__overlay__ {
-			status = "disabled";
-		};
-	};
-
 	__overrides__ {
 		rotation = <&ov5647>,"rotation:0";
 		orientation = <&ov5647>,"orientation:0";
-		media-controller = <0>,"=6";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&ov5647>, "clocks:0=",<&cam0_clk>,
+		       <&ov5647>, "avdd-supply:0=",<&cam0_reg>;
 	};
 };
