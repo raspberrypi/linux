@@ -8,7 +8,7 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -45,9 +45,9 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
 
 			port {
@@ -67,6 +67,13 @@
 	};
 
 	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@4 {
 		target = <&cam1_clk>;
 		__overlay__ {
 			status = "okay";
@@ -74,23 +81,14 @@
 		};
 	};
 
-	fragment@4 {
-		target = <&i2c0mux>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@6 {
-		target = <&csi1>;
-		__dormant__ {
-			brcm,media-controller;
-		};
-	};
-
 	__overrides__ {
 		rotation = <&ov7251>,"rotation:0";
 		orientation = <&ov7251>,"orientation:0";
-		media-controller = <0>,"=6";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&ov7251>, "clocks:0=",<&cam0_clk>,
+		       <&ov7251>, "vdda-supply:0=",<&cam0_reg>;
 	};
 };

@@ -9,7 +9,7 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -41,10 +41,11 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
+			brcm,media-controller;
 
 			port {
 				csi1_ep: endpoint {
@@ -61,9 +62,9 @@
 		};
 	};
 
-	fragment@3 {
+	clk_frag: fragment@3 {
 		target = <&cam1_clk>;
-		__overlay__ {
+		cam_clk: __overlay__ {
 			status = "okay";
 			clock-frequency = <37125000>;
 		};
@@ -108,19 +109,17 @@
 		};
 	};
 
-	fragment@10 {
-		target = <&csi1>;
-		__overlay__ {
-			brcm,media-controller;
-		};
-	};
-
 	__overrides__ {
 		4lane = <0>, "-6+7-8+9";
-		clock-frequency = <&cam1_clk>,"clock-frequency:0",
+		clock-frequency = <&cam_clk>,"clock-frequency:0",
 				  <&imx290>,"clock-frequency:0";
 		rotation = <&imx290>,"rotation:0";
 		orientation = <&imx290>,"orientation:0";
-		media-controller = <0>,"=10";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&imx290>, "clocks:0=",<&cam0_clk>,
+		       <&imx290>, "vdda-supply:0=",<&cam0_reg>;
 	};
 };
