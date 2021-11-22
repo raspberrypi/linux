@@ -64,6 +64,8 @@
 #define OV5647_REG_GAIN_LO		0x350B
 #define OV5647_REG_VTS_HI		0x380e
 #define OV5647_REG_VTS_LO		0x380f
+#define OV5647_REG_VFLIP		0x3820
+#define OV5647_REG_HFLIP		0x3821
 #define OV5647_REG_FRAME_OFF_NUMBER	0x4202
 #define OV5647_REG_MIPI_CTRL00		0x4800
 #define OV5647_REG_MIPI_CTRL14		0x4814
@@ -124,6 +126,8 @@ struct ov5647 {
 	struct v4l2_ctrl		*hblank;
 	struct v4l2_ctrl		*vblank;
 	struct v4l2_ctrl		*exposure;
+	struct v4l2_ctrl		*hflip;
+	struct v4l2_ctrl		*vflip;
 	bool				write_mode_regs;
 };
 
@@ -152,7 +156,7 @@ static struct regval_list ov5647_640x480_8bit[] = {
 	{0x3036, 0x46},
 	{0x303c, 0x11},
 	{0x3106, 0xf5},
-	{0x3821, 0x07},
+	{0x3821, 0x01},
 	{0x3820, 0x41},
 	{0x3827, 0xec},
 	{0x370c, 0x0f},
@@ -240,7 +244,7 @@ static struct regval_list ov5647_2592x1944_10bit[] = {
 	{0x3036, 0x69},
 	{0x303c, 0x11},
 	{0x3106, 0xf5},
-	{0x3821, 0x06},
+	{0x3821, 0x00},
 	{0x3820, 0x00},
 	{0x3827, 0xec},
 	{0x370c, 0x03},
@@ -329,7 +333,7 @@ static struct regval_list ov5647_1080p30_10bit[] = {
 	{0x3036, 0x62},
 	{0x303c, 0x11},
 	{0x3106, 0xf5},
-	{0x3821, 0x06},
+	{0x3821, 0x00},
 	{0x3820, 0x00},
 	{0x3827, 0xec},
 	{0x370c, 0x03},
@@ -493,7 +497,7 @@ static struct regval_list ov5647_2x2binned_10bit[] = {
 	{0x4800, 0x24},
 	{0x3503, 0x03},
 	{0x3820, 0x41},
-	{0x3821, 0x07},
+	{0x3821, 0x01},
 	{0x350A, 0x00},
 	{0x350B, 0x10},
 	{0x3500, 0x00},
@@ -509,7 +513,7 @@ static struct regval_list ov5647_640x480_10bit[] = {
 	{0x3035, 0x11},
 	{0x3036, 0x46},
 	{0x303c, 0x11},
-	{0x3821, 0x07},
+	{0x3821, 0x01},
 	{0x3820, 0x41},
 	{0x370c, 0x03},
 	{0x3612, 0x59},
@@ -1116,18 +1120,45 @@ static const struct v4l2_subdev_video_ops ov5647_subdev_video_ops = {
 	.s_stream =		ov5647_s_stream,
 };
 
+/* This function returns the mbus code for the current settings of the
+   HFLIP and VFLIP controls. */
+
+static u32 ov5647_get_mbus_code(struct v4l2_subdev *sd, int mode_8bit)
+{
+	struct ov5647 *state = to_state(sd);
+	/* The control values are only 0 or 1. */
+	int index =  state->hflip->val | (state->vflip->val << 1);
+
+	static const u32 codes[2][4] = {
+		{
+			MEDIA_BUS_FMT_SGBRG10_1X10,
+			MEDIA_BUS_FMT_SBGGR10_1X10,
+			MEDIA_BUS_FMT_SRGGB10_1X10,
+			MEDIA_BUS_FMT_SGRBG10_1X10
+		},
+		{
+			MEDIA_BUS_FMT_SGBRG8_1X8,
+			MEDIA_BUS_FMT_SBGGR8_1X8,
+			MEDIA_BUS_FMT_SRGGB8_1X8,
+			MEDIA_BUS_FMT_SGRBG8_1X8
+		}
+	};
+
+	return codes[mode_8bit][index];
+}
+
 static int ov5647_enum_mbus_code(struct v4l2_subdev *sd,
 				struct v4l2_subdev_pad_config *cfg,
 				struct v4l2_subdev_mbus_code_enum *code)
 {
 	if (code->index == 0 && ARRAY_SIZE(supported_modes_8bit))
-		code->code = MEDIA_BUS_FMT_SBGGR8_1X8;
+		code->code = ov5647_get_mbus_code(sd, 1);
 	else if (code->index == 0 && ARRAY_SIZE(supported_modes_8bit) == 0 &&
 		 ARRAY_SIZE(supported_modes_10bit))
-		code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+		code->code = ov5647_get_mbus_code(sd, 0);
 	else if (code->index == 1 && ARRAY_SIZE(supported_modes_8bit) &&
 		 ARRAY_SIZE(supported_modes_10bit))
-		code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+		code->code = ov5647_get_mbus_code(sd, 0);
 	else
 		return -EINVAL;
 
@@ -1140,11 +1171,11 @@ static int ov5647_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct ov5647_mode *mode = NULL;
 
-	if (fse->code == MEDIA_BUS_FMT_SBGGR8_1X8) {
+	if (fse->code == ov5647_get_mbus_code(sd, 1)) {
 		if (fse->index >= ARRAY_SIZE(supported_modes_8bit))
 			return -EINVAL;
 		mode = &supported_modes_8bit[fse->index];
-	} else if (fse->code == MEDIA_BUS_FMT_SBGGR10_1X10) {
+	} else if (fse->code == ov5647_get_mbus_code(sd, 0)) {
 		if (fse->index >= ARRAY_SIZE(supported_modes_10bit))
 			return -EINVAL;
 		mode = &supported_modes_10bit[fse->index];
@@ -1188,9 +1219,9 @@ static int ov5647_set_fmt(struct v4l2_subdev *sd,
 					    format.width, format.height,
 					    format->format.width,
 					    format->format.height);
-	if (format->format.code == MEDIA_BUS_FMT_SBGGR8_1X8 && mode_8bit)
+	if (format->format.code == ov5647_get_mbus_code(sd, 1) && mode_8bit)
 		mode = mode_8bit;
-	else if (format->format.code == MEDIA_BUS_FMT_SBGGR10_1X10 &&
+	else if (format->format.code == ov5647_get_mbus_code(sd, 0) &&
 		 mode_10bit)
 		mode = mode_10bit;
 	else if (mode_10bit)
@@ -1204,6 +1235,8 @@ static int ov5647_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	*fmt = mode->format;
+	/* The mbus code we pass back must reflect the current H/VFLIP settings. */
+	fmt->code = ov5647_get_mbus_code(sd, mode == mode_8bit);
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		framefmt = v4l2_subdev_get_try_format(sd, cfg, format->pad);
 		*framefmt = format->format;
@@ -1265,6 +1298,8 @@ static int ov5647_get_fmt(struct v4l2_subdev *sd,
 		*fmt = *v4l2_subdev_get_try_format(sd, cfg, format->pad);
 	else
 		*fmt = state->mode->format;
+	/* The mbus code we pass back must reflect the current H/VFLIP settings. */
+	fmt->code = ov5647_get_mbus_code(sd, fmt->code == MEDIA_BUS_FMT_SBGGR8_1X8);
 
 	mutex_unlock(&state->lock);
 
@@ -1424,6 +1459,25 @@ static int ov5647_s_exposure(struct v4l2_subdev *sd, u32 val)
 	return ret;
 }
 
+static int ov5647_s_flip( struct v4l2_subdev *sd, u16 reg, u32 ctrl_val)
+{
+	int ret;
+	u8 reg_val;
+
+	/* Set or clear bit 1 and leave everything else alone. */
+	ret = ov5647_read(sd, reg, &reg_val);
+	if (ret == 0) {
+		if (ctrl_val)
+			reg_val |= 2;
+		else
+			reg_val &= ~2;
+
+		ret = ov5647_write(sd, reg, reg_val);
+	}
+
+	return ret;
+}
+
 static int ov5647_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct ov5647 *state = container_of(ctrl->handler,
@@ -1480,6 +1534,13 @@ static int ov5647_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		ret = ov5647_write16(sd, OV5647_REG_VTS_HI,
 				     state->mode->format.height + ctrl->val);
+		break;
+	case V4L2_CID_HFLIP:
+		/* There's an in-built hflip in the sensor, so account for that here. */
+		ov5647_s_flip(sd, OV5647_REG_HFLIP, !ctrl->val);
+		break;
+	case V4L2_CID_VFLIP:
+		ov5647_s_flip(sd, OV5647_REG_VFLIP, ctrl->val);
 		break;
 	default:
 		dev_info(&client->dev,
@@ -1539,7 +1600,7 @@ static int ov5647_probe(struct i2c_client *client)
 	mutex_init(&sensor->lock);
 
 	/* Initialise controls. */
-	v4l2_ctrl_handler_init(&sensor->ctrls, 9);
+	v4l2_ctrl_handler_init(&sensor->ctrls, 11);
 	v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
 			  V4L2_CID_AUTOGAIN,
 			  0,  /* min */
@@ -1596,6 +1657,16 @@ static int ov5647_probe(struct i2c_client *client)
 						sensor->mode->format.height, 1,
 					   sensor->mode->vts_def -
 						sensor->mode->format.height);
+
+	sensor->hflip = v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (sensor->hflip)
+		sensor->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	sensor->vflip = v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (sensor->vflip)
+		sensor->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	if (sensor->ctrls.error) {
 		ret = sensor->ctrls.error;
