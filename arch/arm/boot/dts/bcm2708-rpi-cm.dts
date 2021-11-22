@@ -12,6 +12,7 @@
 
 &cam1_reg {
 	gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
 };
 
 cam0_reg: &cam0_regulator {

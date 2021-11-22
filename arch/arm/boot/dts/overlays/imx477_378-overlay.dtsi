@@ -4,7 +4,36 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@3 {
+		target = <&cam1_clk>;
+		cam_clk: __overlay__ {
+			clock-frequency = <24000000>;
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	reg_frag: fragment@5 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <300000>;
+		};
+	};
+
+	i2c_frag: fragment@100 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -27,7 +56,7 @@
 
 				port {
 					imx477_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1 2>;
 						clock-noncontinuous;
@@ -39,13 +68,14 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@101 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
+			brcm,media-controller;
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&imx477_0>;
 					clock-lanes = <0>;
 					data-lanes = <1 2>;
@@ -55,45 +85,15 @@
 		};
 	};
 
-	fragment@2 {
-		target = <&i2c0if>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@3 {
-		target = <&cam1_clk>;
-		__overlay__ {
-			clock-frequency = <24000000>;
-			status = "okay";
-		};
-	};
-
-	fragment@4 {
-		target = <&i2c0mux>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@5 {
-		target = <&cam1_reg>;
-		__overlay__ {
-			startup-delay-us = <300000>;
-		};
-	};
-
-	fragment@6 {
-		target = <&csi1>;
-		__overlay__ {
-			brcm,media-controller;
-		};
-	};
-
 	__overrides__ {
 		rotation = <&imx477>,"rotation:0";
 		orientation = <&imx477>,"orientation:0";
-		media-controller = <0>,"=6";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&imx477>, "clocks:0=",<&cam0_clk>,
+		       <&imx477>, "vdda-supply:0=",<&cam0_reg>;
 	};
 };
