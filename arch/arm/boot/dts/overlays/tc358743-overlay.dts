@@ -6,23 +6,23 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
 
-			tc358743@0f {
+			tc358743: tc358743@f {
 				compatible = "toshiba,tc358743";
 				reg = <0x0f>;
 				status = "okay";
 
-				clocks = <&tc358743_clk>;
+				clocks = <&cam1_clk>;
 				clock-names = "refclk";
 
 				port {
-					tc358743: endpoint {
+					tc358743_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
 						clock-lanes = <0>;
 						clock-noncontinuous;
@@ -34,28 +34,28 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
 
 			port {
 				csi1_ep: endpoint {
-					remote-endpoint = <&tc358743>;
+					remote-endpoint = <&tc358743_0>;
 				};
 			};
 		};
 	};
 
 	fragment@2 {
-		target = <&tc358743>;
+		target = <&tc358743_0>;
 		__overlay__ {
 			data-lanes = <1 2>;
 		};
 	};
 
 	fragment@3 {
-		target = <&tc358743>;
+		target = <&tc358743_0>;
 		__dormant__ {
 			data-lanes = <1 2 3 4>;
 		};
@@ -75,14 +75,10 @@
 		};
 	};
 
-	fragment@6 {
-		target-path = "/";
+	clk_frag: fragment@6 {
+		target = <&cam1_clk>;
 		__overlay__ {
-			tc358743_clk: bridge-clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <27000000>;
-			};
+			clock-frequency = <27000000>;
 		};
 	};
 
@@ -100,16 +96,13 @@
 		};
 	};
 
-	fragment@9 {
-		target = <&csi1>;
-		__dormant__ {
-			brcm,media-controller;
-		};
-	};
-
 	__overrides__ {
 		4lane = <0>, "-2+3-7+8";
-		link-frequency = <&tc358743>,"link-frequencies#0";
-		media-controller = <0>,"=9";
+		link-frequency = <&tc358743_0>,"link-frequencies#0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&tc358743>, "clocks:0=",<&cam0_clk>;
 	};
 };

@@ -162,21 +162,6 @@
 		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
 	};
 
-	cam1_reg: cam1_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam1-regulator";
-		gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
-	cam0_reg: cam0_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam0-regulator";
-		gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
-
 	aliases {
 		serial0 = &uart0;
 		mmc0 = &emmc2;
@@ -397,6 +382,16 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
 	brcm,disable-headphones = <1>;
+};
+
+&cam1_reg {
+	gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+cam0_reg: &cam0_regulator {
+	gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
 };
 
 / {
