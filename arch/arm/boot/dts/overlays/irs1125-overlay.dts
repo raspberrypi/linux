@@ -6,20 +6,20 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
 
-			irs1125: irs1125@3D {
+			irs1125: irs1125@3d {
 				compatible = "infineon,irs1125";
-				reg = <0x3D>;
+				reg = <0x3d>;
 				status = "okay";
 
 				pwdn-gpios = <&gpio 5 0>;
-				clocks = <&irs1125_clk>;
+				clocks = <&cam1_clk>;
 
 				port {
 					irs1125_0: endpoint {
@@ -35,9 +35,9 @@
 		};
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
 
 			port {
@@ -72,25 +72,18 @@
 		};
 	};
 
-	fragment@5 {
-		target-path = "/";
+	clk_frag: fragment@5 {
+		target = <&cam1_clk>;
 		__overlay__ {
-			irs1125_clk: camera-clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <26000000>;
-			};
-		};
-	};
-
-	fragment@6 {
-		target = <&csi1>;
-		__dormant__ {
-			brcm,media-controller;
+			clock-frequency = <26000000>;
 		};
 	};
 
 	__overrides__ {
-		media-controller = <0>,"=6";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&irs1125>, "clocks:0=",<&cam0_clk>;
 	};
 };
