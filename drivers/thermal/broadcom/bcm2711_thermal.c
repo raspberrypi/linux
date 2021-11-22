@@ -100,6 +100,8 @@ static int bcm2711_thermal_probe(struct platform_device *pdev)
 	}
 
 	priv->thermal = thermal;
+	
+	platform_set_drvdata(pdev, priv);
 
 	thermal->tzp->no_hwmon = false;
 	ret = thermal_add_hwmon_sysfs(thermal);
