@@ -544,6 +544,7 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_META_FMT_BCM2835_ISP_STATS,
+		.depth		    = 8,
 		.mmal_fmt	    = MMAL_ENCODING_BRCM_STATS,
 		/* The rest are not valid fields for stats. */
 	}
