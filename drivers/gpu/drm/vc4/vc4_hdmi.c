@@ -2242,7 +2242,6 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 	struct platform_device *pdev = vc4_hdmi->pdev;
 	struct device *dev = &pdev->dev;
 	unsigned long flags;
-	u32 value;
 	int ret;
 
 	if (!of_find_property(dev->of_node, "interrupts", NULL)) {
@@ -2260,15 +2259,6 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 
 	cec_fill_conn_info_from_drm(&conn_info, &vc4_hdmi->connector);
 	cec_s_conn_info(vc4_hdmi->cec_adap, &conn_info);
-
-	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
-	value = HDMI_READ(HDMI_CEC_CNTRL_1);
-	/* Set the logical address to Unregistered */
-	value |= VC4_HDMI_CEC_ADDR_MASK;
-	HDMI_WRITE(HDMI_CEC_CNTRL_1, value);
-	spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
-
-	vc4_hdmi_cec_update_clk_div(vc4_hdmi);
 
 	if (vc4_hdmi->variant->external_irq_controller) {
 		ret = request_threaded_irq(platform_get_irq_byname(pdev, "cec-rx"),
@@ -2332,6 +2322,29 @@ static void vc4_hdmi_cec_exit(struct vc4_hdmi *vc4_hdmi)
 
 	cec_unregister_adapter(vc4_hdmi->cec_adap);
 }
+
+static int vc4_hdmi_cec_resume(struct vc4_hdmi *vc4_hdmi)
+{
+	unsigned long flags;
+	u32 value;
+
+	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
+	value = HDMI_READ(HDMI_CEC_CNTRL_1);
+	/* Set the logical address to Unregistered */
+	value |= VC4_HDMI_CEC_ADDR_MASK;
+	HDMI_WRITE(HDMI_CEC_CNTRL_1, value);
+	spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
+
+	vc4_hdmi_cec_update_clk_div(vc4_hdmi);
+
+	if (!vc4_hdmi->variant->external_irq_controller) {
+		spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
+		HDMI_WRITE(HDMI_CEC_CPU_MASK_SET, 0xffffffff);
+		spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
+	}
+
+	return 0;
+}
 #else
 static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 {
@@ -2340,6 +2353,10 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 
 static void vc4_hdmi_cec_exit(struct vc4_hdmi *vc4_hdmi) {};
 
+static void vc4_hdmi_cec_resume(struct vc4_hdmi *vc4_hdmi)
+{
+	return 0;
+}
 #endif
 
 static int vc4_hdmi_build_regset(struct vc4_hdmi *vc4_hdmi,
@@ -2575,6 +2592,15 @@ static int vc4_hdmi_runtime_resume(struct device *dev)
 	if (ret)
 		return ret;
 
+	if (vc4_hdmi->variant->reset)
+		vc4_hdmi->variant->reset(vc4_hdmi);
+
+	ret = vc4_hdmi_cec_resume(vc4_hdmi);
+	if (ret) {
+		clk_disable_unprepare(vc4_hdmi->hsm_clock);
+		return ret;
+	}
+
 	return 0;
 }
 #endif
@@ -2688,20 +2714,11 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		goto err_put_ddc;
 
-	/*
-	 * We need to have the device powered up at this point to call
-	 * our reset hook and for the CEC init.
-	 */
-	ret = vc4_hdmi_runtime_resume(dev);
-	if (ret)
-		goto err_put_ddc;
-
-	pm_runtime_get_noresume(dev);
-	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 
-	if (vc4_hdmi->variant->reset)
-		vc4_hdmi->variant->reset(vc4_hdmi);
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret)
+		goto err_put_ddc;
 
 	if ((of_device_is_compatible(dev->of_node, "brcm,bcm2711-hdmi0") ||
 	     of_device_is_compatible(dev->of_node, "brcm,bcm2711-hdmi1")) &&
