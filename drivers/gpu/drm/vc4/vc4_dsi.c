@@ -1670,9 +1670,10 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	}
 
 	dsi->bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-	if (IS_ERR(dsi->bridge))
+	if (IS_ERR(dsi->bridge)) {
 		ret = PTR_ERR(dsi->bridge);
 		goto err_free_dma;
+	}
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);
