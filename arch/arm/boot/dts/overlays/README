@@ -3427,6 +3427,12 @@ Load:   dtoverlay=rpi-sense
 Params: <None>
 
 
+Name:   rpi-sense-v2
+Info:   Raspberry Pi Sense HAT v2
+Load:   dtoverlay=rpi-sense-v2
+Params: <None>
+
+
 Name:   rpi-tv
 Info:   Raspberry Pi TV HAT
 Load:   dtoverlay=rpi-tv

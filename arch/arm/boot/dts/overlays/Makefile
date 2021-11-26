@@ -197,6 +197,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-poe.dtbo \
 	rpi-poe-plus.dtbo \
 	rpi-sense.dtbo \
+	rpi-sense-v2.dtbo \
 	rpi-tv.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
 	sainsmart18.dtbo \
