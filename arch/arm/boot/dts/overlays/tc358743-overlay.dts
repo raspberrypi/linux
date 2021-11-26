@@ -13,7 +13,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			tc358743@0f {
+			tc358743@f {
 				compatible = "toshiba,tc358743";
 				reg = <0x0f>;
 				status = "okay";
