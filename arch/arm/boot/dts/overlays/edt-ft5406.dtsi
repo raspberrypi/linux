@@ -28,7 +28,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			ft5406: ts@38 {
-				compatible = "edt,edt-ft5406";
+				compatible = "edt,edt-ft5506";
 				reg = <0x38>;
 
 				touchscreen-size-x = < 800 >;
