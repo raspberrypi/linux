@@ -141,22 +141,7 @@ static int attiny_lcd_power_disable(struct regulator_dev *rdev)
 static int attiny_lcd_power_is_enabled(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
-	unsigned int data;
-	int ret = 0, i;
-
-	scoped_guard(mutex, &state->lock) {
-		for (i = 0; i < 10; i++) {
-			ret = regmap_read(rdev->regmap, REG_PORTC, &data);
-			if (!ret)
-				break;
-			usleep_range(10000, 12000);
-		}
-	}
-
-	if (ret < 0)
-		return ret;
-
-	return data & PC_RST_BRIDGE_N;
+	return state->port_states[REG_PORTC - REG_PORTA] & PC_RST_BRIDGE_N;
 }
 
 static const struct regulator_init_data attiny_regulator_default = {
@@ -236,39 +221,6 @@ static int attiny_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
 	return 0;
 }
 
-static int attiny_i2c_read(struct i2c_client *client, u8 reg, unsigned int *buf)
-{
-	struct i2c_msg msgs[1];
-	u8 addr_buf[1] = { reg };
-	u8 data_buf[1] = { 0, };
-	int ret;
-
-	/* Write register address */
-	msgs[0].addr = client->addr;
-	msgs[0].flags = 0;
-	msgs[0].len = ARRAY_SIZE(addr_buf);
-	msgs[0].buf = addr_buf;
-
-	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
-	if (ret != ARRAY_SIZE(msgs))
-		return -EIO;
-
-	usleep_range(5000, 10000);
-
-	/* Read data from register */
-	msgs[0].addr = client->addr;
-	msgs[0].flags = I2C_M_RD;
-	msgs[0].len = 1;
-	msgs[0].buf = data_buf;
-
-	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
-	if (ret != ARRAY_SIZE(msgs))
-		return -EIO;
-
-	*buf = data_buf[0];
-	return 0;
-}
-
 /*
  * I2C driver interface functions
  */
@@ -280,7 +232,6 @@ static int attiny_i2c_probe(struct i2c_client *i2c)
 	struct regulator_dev *rdev;
 	struct attiny_lcd *state;
 	struct regmap *regmap;
-	unsigned int data;
 	int ret;
 
 	state = devm_kzalloc(&i2c->dev, sizeof(*state), GFP_KERNEL);
@@ -299,21 +250,6 @@ static int attiny_i2c_probe(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "Failed to allocate register map: %d\n",
 			ret);
 		return ret;
-	}
-
-	ret = attiny_i2c_read(i2c, REG_ID, &data);
-	if (ret < 0) {
-		dev_err(&i2c->dev, "Failed to read REG_ID reg: %d\n", ret);
-		return ret;
-	}
-
-	switch (data) {
-	case 0xde: /* ver 1 */
-	case 0xc3: /* ver 2 */
-		break;
-	default:
-		dev_err(&i2c->dev, "Unknown Atmel firmware revision: 0x%02x\n", data);
-		return -ENODEV;
 	}
 
 	regmap_write(regmap, REG_POWERON, 0);
@@ -362,6 +298,14 @@ static int attiny_i2c_probe(struct i2c_client *i2c)
 	return ret;
 }
 
+static void attiny_i2c_shutdown(struct i2c_client *client)
+{
+	struct attiny_lcd *state = i2c_get_clientdata(client);
+
+	regmap_write(state->regmap, REG_PWM, 0);
+	regmap_write(state->regmap, REG_POWERON, 0);
+}
+
 static const struct of_device_id attiny_dt_ids[] = {
 	{ .compatible = "raspberrypi,7inch-touchscreen-panel-regulator" },
 	{},
@@ -375,6 +319,7 @@ static struct i2c_driver attiny_regulator_driver = {
 		.of_match_table = attiny_dt_ids,
 	},
 	.probe = attiny_i2c_probe,
+	.shutdown = attiny_i2c_shutdown,
 };
 
 module_i2c_driver(attiny_regulator_driver);
