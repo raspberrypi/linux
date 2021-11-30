@@ -953,6 +953,9 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			if (unicam->node[i].cur_frm)
 				unicam->node[i].cur_frm->vb.vb2_buf.timestamp =
 								ts;
+			else
+				unicam_dbg(2, unicam, "ISR: [%d] Dropping frame, buffer not available at FS\n",
+					   i);
 			/*
 			 * Set the next frame output to go to a dummy frame
 			 * if we have not managed to obtain another frame
