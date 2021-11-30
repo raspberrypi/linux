@@ -95,7 +95,6 @@
 		target = <&i2c0if>;
 		__overlay__ {
 			status = "okay";
-			clock-frequency = <50000>;
 		};
 	};
 
