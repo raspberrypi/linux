@@ -205,6 +205,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	unsigned int active_ids = 0, known_ids = tsdata->known_ids;
 	long released_ids;
 	int b = 0;
+	unsigned int num_points;
 
 	switch (tsdata->version) {
 	case EDT_M06:
@@ -252,9 +253,15 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 
 		if (!edt_ft5x06_ts_check_crc(tsdata, rdbuf, datalen))
 			goto out;
+		num_points = tsdata->max_support_points;
+	} else {
+		/* Register 2 is TD_STATUS, containing the number of touch
+		 * points.
+		 */
+		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
 	}
 
-	for (i = 0; i < tsdata->max_support_points; i++) {
+	for (i = 0; i < num_points; i++) {
 		u8 *buf = &rdbuf[i * tplen + offset];
 
 		type = buf[0] >> 6;
