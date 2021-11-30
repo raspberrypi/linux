@@ -196,9 +196,6 @@ static int edt_M06_i2c_read(void *context, const void *reg_buf, size_t reg_size,
 	u8 wlen;
 	u8 wbuf[4], rbuf[3];
 	int ret;
-	unsigned int active_ids = 0, known_ids = tsdata->known_ids;
-	long released_ids;
-	int b = 0;
 
 	addr = *((u8 *)reg_buf);
 	wbuf[0] = addr;
@@ -312,6 +309,10 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	u8 rdbuf[63];
 	int i, type, x, y, id;
 	int error;
+	int num_points;
+	unsigned int active_ids = 0, known_ids = tsdata->known_ids;
+	long released_ids;
+	int b = 0;
 
 	memset(rdbuf, 0, sizeof(rdbuf));
 	error = regmap_bulk_read(tsdata->regmap, tsdata->tdata_cmd, rdbuf,
@@ -322,7 +323,16 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		goto out;
 	}
 
-	for (i = 0; i < tsdata->max_support_points; i++) {
+	if (tsdata->version == EDT_M06) {
+		num_points = tsdata->max_support_points;
+	} else {
+		/* Register 2 is TD_STATUS, containing the number of touch
+		 * points.
+		 */
+		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
+	}
+
+	for (i = 0; i < num_points; i++) {
 		u8 *buf = &rdbuf[i * tsdata->point_len + tsdata->tdata_offset];
 
 		type = buf[0] >> 6;
