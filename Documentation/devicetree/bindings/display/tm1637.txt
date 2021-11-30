@@ -1,0 +1,42 @@
+Titan Micro Electronics TM1637 RAM mapping 8*6 LED controller driver with keyscan
+-------------------------------------------------------------------------------
+
+Required properties:
+  - compatible: Must contain "tm,tm1637",
+  - clk-gpios: Must contain a GPIO specifier, referring to the GPIO pin
+    connected to the "CLK" (Clock) signal line of the LED Controller's bus
+    interface,
+  - dio-gpios: Must contain a GPIO specifier, referring to the GPIO pin
+    connected to the "DIO" (Data Input/Output) signal line of the LED Controller's bus
+    interface,
+  - delay-ns: Delay fo GPIO port, on bus interface.
+
+Example:
+
+	auxdisplay {
+		compatible = "tm,tm1637";
+
+		clk-gpios = <&gpio 3 0>;
+		dio-gpios = <&gpio 2 0>;
+		
+		delay-ns = <100>;
+	};
+
+The TM1637 driver provides simple interfaces as below.
+Valied values for <n> are between 0 and 5.
+led<n>     : Write LED value is used for writing LED value
+key        : Read Key value is read via the key matrix.
+brightness : Control LED brightness
+leds       : Switch on LED
+
+For example, switch on LED in TM1637
+echo on > /sys/bus/platform/devices/auxdisplay/leds
+
+For example, write LED values in TM1637
+echo 128 > /sys/bus/platform/devices/auxdisplay/led<n>
+
+For example, read key value in TM1637
+cat /sys/bus/platform/devices/auxdisplay/key
+
+For example, control maximum brightness in TM1637
+echo 7 >/sys/bus/platform/devices/auxdisplay/brightness

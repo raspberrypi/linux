@@ -164,6 +164,12 @@ config ARM_CHARLCD
 	  line and the Linux version on the second line, but that's
 	  still useful.
 
+config TM1637
+	tristate "Titan Micro Electronics TM1637 LED controller with keyscan"
+	help
+	  Say yes here to add support for Titan Mirco Electronics TM1637, RAM mapping 8*6
+	  LED controller driver with keyscan.
+
 endif # AUXDISPLAY
 
 menuconfig PANEL

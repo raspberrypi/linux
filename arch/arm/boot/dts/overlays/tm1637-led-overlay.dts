@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            led_screen: auxdisplay {
+                compatible = "tm,tm1637";
+
+                clk-gpios = <&gpio 3 0>;
+                dio-gpios = <&gpio 2 0>;
+
+				delay-ns = <100>;
+            };
+
+        };
+    };
+
+    __overrides__ {
+        pin_clk = <&led_screen>,"clk-gpios:4";
+        pin_dio = <&led_screen>,"dio-gpios:4";
+		delay_ns = <&led_screen>,"delay-ns:0";
+    };
+
+};
