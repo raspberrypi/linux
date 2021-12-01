@@ -471,12 +471,26 @@
 		#size-cells = <0>;
 		enable-method = "brcm,bcm2836-smp"; // for ARM 32-bit
 
+		/* Source for d/i-cache-line-size and d/i-cache-sets
+		 *  https://developer.arm.com/documentation/100095/0003
+		 *  /Level-1-Memory-System/About-the-L1-memory-system?lang=en
+		 * Source for d/i-cache-size
+		 *  https://www.raspberrypi.com/documentation/computers
+		 *  /processors.html#bcm2711
+		 */
 		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a72";
 			reg = <0>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x000000d8>;
+			d-cache-size = <0x8000>; // 32KB 2-way set-associative data cache
+			d-cache-line-size = <64>;// Fixed line length of 64 bytes
+			d-cache-sets = <256>; // 32KiB(size)/64(line-size)=512ways/2-way set
+			i-cache-size = <0xc000>; // 48kB 3-way set-associative data cache
+			i-cache-line-size = <64>;// Fixed line length of 64 bytes
+			i-cache-sets = <256>; // 48KiB(size)/64(line-size)=768ways/3-way set
+			next-level-cache = <&l2>;
 		};
 
 		cpu1: cpu@1 {
@@ -485,6 +499,13 @@
 			reg = <1>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x000000e0>;
+			d-cache-size = <0x8000>; // 32KB 2-way set-associative data cache
+			d-cache-line-size = <64>;// Fixed line length of 64 bytes
+			d-cache-sets = <256>; // 32KiB(size)/64(line-size)=512ways/2-way set
+			i-cache-size = <0xc000>; // 48kB 3-way set-associative data cache
+			i-cache-line-size = <64>;// Fixed line length of 64 bytes
+			i-cache-sets = <256>; // 48KiB(size)/64(line-size)=768ways/3-way set
+			next-level-cache = <&l2>;
 		};
 
 		cpu2: cpu@2 {
@@ -493,6 +514,13 @@
 			reg = <2>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x000000e8>;
+			d-cache-size = <0x8000>; // 32KB 2-way set-associative data cache
+			d-cache-line-size = <64>;// Fixed line length of 64 bytes
+			d-cache-sets = <256>; // 32KiB(size)/64(line-size)=512ways/2-way set
+			i-cache-size = <0xc000>; // 48kB 3-way set-associative data cache
+			i-cache-line-size = <64>;// Fixed line length of 64 bytes
+			i-cache-sets = <256>; // 48KiB(size)/64(line-size)=768ways/3-way set
+			next-level-cache = <&l2>;
 		};
 
 		cpu3: cpu@3 {
@@ -501,6 +529,28 @@
 			reg = <3>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x000000f0>;
+			d-cache-size = <0x8000>; // 32KB 2-way set-associative data cache
+			d-cache-line-size = <64>;// Fixed line length of 64 bytes
+			d-cache-sets = <256>; // 32KiB(size)/64(line-size)=512ways/2-way set
+			i-cache-size = <0xc000>; // 48kB 3-way set-associative data cache
+			i-cache-line-size = <64>;// Fixed line length of 64 bytes
+			i-cache-sets = <256>; // 48KiB(size)/64(line-size)=768ways/3-way set
+			next-level-cache = <&l2>;
+		};
+
+		l2: l2-cache0 {
+			/* Source for d/i-cache-line-size and d/i-cache-sets
+			*  https://developer.arm.com/documentation/100095/0003
+			*  /Level-2-Memory-System/About-the-L2-memory-system?lang=en
+			*  Source for d/i-cache-size
+			*  https://www.raspberrypi.com/documentation/computers
+			*  /processors.html#bcm2711
+			*/
+			compatible = "cache";
+			cache-size = <0x100000>; // 1MB
+			cache-line-size = <64>; // Fixed line length of 64 bytes
+			cache-sets = <1024>; // 1MiB(size)/64(line-size)=16000ways/16-way set
+			cache-level = <2>;
 		};
 	};
 
