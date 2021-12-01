@@ -224,6 +224,13 @@ config SND_AUDIOINJECTOR_ISOLATED_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for audioinjector.net isolated soundcard
 
+config SND_AUDIOINJECTOR_RAM_PLATTER
+	tristate "Support for audioinjector.net RAM platter DAC and ADC soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_WM8750
+	help
+	  Say Y or M if you want to add support for audioinjector.net ram platter soundcard
+
 config SND_AUDIOSENSE_PI
 	tristate "Support for AudioSense Add-On Soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
