@@ -1,0 +1,92 @@
+/*
+ * vc4-kms-dpi-at056tn53v1-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			panel: panel {
+				compatible = "panel-dpi";
+
+				width-mm = <154>;
+				height-mm = <83>;
+				bus-format = <0x1009>;
+
+				timing: panel-timing {
+					clock-frequency = <29500000>;
+					hactive = <800>;
+					hfront-porch = <24>;
+					hsync-len = <72>;
+					hback-porch = <96>;
+					hsync-active = <0>;
+					vactive = <480>;
+					vfront-porch = <3>;
+					vsync-len = <10>;
+					vback-porch = <7>;
+					vsync-active = <0>;
+
+					de-active = <1>;
+					pixelclk-active = <1>;
+				};
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dpi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&dpi>;
+		dpi_node: __overlay__  {
+			status = "okay";
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi_18bit_gpio0>;
+
+			port {
+				dpi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		clock-frequency = <&timing>, "clock-frequency:0";
+		hactive = <&timing>, "hactive:0";
+		hfp = <&timing>, "hfront-porch:0";
+		hsync = <&timing>, "hsync-len:0";
+		hbp = <&timing>, "hback-porch:0";
+		vactive = <&timing>, "vactive:0";
+		vfp = <&timing>, "vfront-porch:0";
+		vsync = <&timing>, "vsync-len:0";
+		vbp = <&timing>, "vback-porch:0";
+		hsync-invert = <&timing>, "hsync-active:0=0";
+		vsync-invert = <&timing>, "vsync-active:0=0";
+		de-invert = <&timing>, "de-active:0=0";
+		pixclk-invert = <&timing>, "pixelclk-active:0=0";
+
+		width-mm = <&panel>, "width-mm:0";
+		height-mm = <&panel>, "height-mm:0";
+
+		rgb565 = <&panel>, "bus-format:0=0x1017",
+			<&dpi_node>, "pinctrl-0:0=",<&dpi_16bit_gpio0>;
+		rgb666-padhi = <&panel>, "bus-format:0=0x1015",
+			<&dpi_node>, "pinctrl-0:0=",<&dpi_18bit_cpadhi_gpio0>;
+		rgb888 = <&panel>, "bus-format:0=0x100a",
+			<&dpi_node>, "pinctrl-0:0=",<&dpi_gpio0>;
+		bus-format = <&panel>, "bus-format:0";
+	};
+};
