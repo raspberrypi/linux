@@ -3563,6 +3563,34 @@ Load:   dtoverlay=vc4-kms-dpi-at056tn53v1
 Params: <None>
 
 
+Name:   vc4-kms-dpi-generic
+Info:   Enable a generic DPI display under KMS. Default timings are for the
+        Adafruit Kippah with 800x480 panel and RGB666 (GPIOs 0-21)
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-generic,<param>=<val>
+Params: clock-frequency         Display clock frequency (Hz)
+        hactive                 Horizontal active pixels
+        hfp                     Horizontal front porch
+        hsync                   Horizontal sync pulse width
+        hbp                     Horizontal back porch
+        vactive                 Vertical active lines
+        vfp                     Vertical front porch
+        vsync                   Vertical sync pulse width
+        vbp                     Vertical back porch
+        hsync-invert            Horizontal sync active low
+        vsync-invert            Vertical sync active low
+        de-invert               Data Enable active low
+        pixclk-invert           Negative edge pixel clock
+        width-mm                Define the screen width in mm
+        height-mm               Define the screen height in mm
+        rgb565                  Change to RGB565 output on GPIOs 0-19
+        rgb666-padhi            Change to RGB666 output on GPIOs 0-9, 12-17, and
+                                20-25
+        rgb888                  Change to RGB888 output on GPIOs 0-27
+        bus-format              Override the bus format for a MEDIA_BUS_FMT_*
+                                value. NB also overridden by rgbXXX overrides.
+
+
 Name:   vc4-kms-dsi-7inch
 Info:   Enable the Raspberry Pi DSI 7" screen.
         Includes the edt-ft5406 for the touchscreen element.
