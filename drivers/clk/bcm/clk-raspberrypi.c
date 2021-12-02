@@ -276,6 +276,7 @@ static int raspberrypi_discover_clocks(struct raspberrypi_clk *rpi,
 		case RPI_FIRMWARE_HEVC_CLK_ID:
 		case RPI_FIRMWARE_PIXEL_BVB_CLK_ID:
 		case RPI_FIRMWARE_VEC_CLK_ID:
+		case RPI_FIRMWARE_PIXEL_CLK_ID:
 			hw = raspberrypi_clk_register(rpi, clks->parent,
 						      clks->id);
 			if (IS_ERR(hw))
