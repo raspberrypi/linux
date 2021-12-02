@@ -128,7 +128,7 @@
 				    "hd";
 			interrupts = <2 8>, <2 9>;
 			ddc = <&i2c2>;
-			clocks = <&clocks BCM2835_PLLH_PIX>,
+			clocks = <&firmware_clocks 9>,
 				 <&clocks BCM2835_CLOCK_HSM>;
 			clock-names = "pixel", "hdmi";
 			dmas = <&dma (17|(1<<27)|(1<<24))>;
