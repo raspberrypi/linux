@@ -485,6 +485,8 @@ static int panel_dpi_probe(struct device *dev,
 
 	/* We do not know the connector for the DT node, so guess it */
 	desc->connector_type = DRM_MODE_CONNECTOR_DPI;
+	/* Likewise for the bit depth. */
+	desc->bpc = 8;
 
 	panel->desc = desc;
 
