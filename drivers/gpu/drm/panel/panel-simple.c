@@ -489,6 +489,7 @@ static int panel_dpi_probe(struct device *dev,
 
 	of_property_read_u32(np, "width-mm", &desc->size.width);
 	of_property_read_u32(np, "height-mm", &desc->size.height);
+	of_property_read_u32(np, "bus-format", &desc->bus_format);
 
 	/* Extract bus_flags from display_timing */
 	bus_flags = 0;
