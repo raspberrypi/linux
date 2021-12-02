@@ -20,6 +20,10 @@
 #include <linux/gpio/consumer.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#include <linux/tm1637_ioctl.h>
 
 #include "tm1637.h"
 
@@ -475,7 +479,8 @@ static ssize_t tm1637_store_led(struct device *dev,
 	mutex_lock(&tm->lock);
 
 	if (kstrtoul(buf, 0, &data))
-		return -EINVAL;
+		ret = -EINVAL;
+		goto unlock;
 
 	byte = CMD_ADDR | nr;
 	ret = tm1637_write_byte_data(tm, byte, (u8)data);
@@ -483,9 +488,10 @@ static ssize_t tm1637_store_led(struct device *dev,
 		goto unlock;
 
 	tm->leds[nr] = data;
+	ret = len;
 unlock:
 	mutex_unlock(&tm->lock);
-	return len;
+	return ret;
 }
 store_led(0)
 store_led(1)
@@ -537,7 +543,8 @@ static ssize_t tm1637_store_brightness(struct device *dev,
 	mutex_lock(&tm->lock);
 
 	if (kstrtoul(buf, 0, &data))
-		return -EINVAL;
+		ret = -EINVAL;
+		goto unlock;
 
 	byte = CMD_CTRL | (tm->led ? CMD_CTRL_DISP_ON : CMD_CTRL_DISP_OFF) | data;
 	ret = tm1637_write_byte(tm, byte);
@@ -545,9 +552,10 @@ static ssize_t tm1637_store_brightness(struct device *dev,
 		goto unlock;
 
 	tm->brightness = data;
+	ret = len;
 unlock:
 	mutex_unlock(&tm->lock);
-	return len;
+	return ret;
 }
 
 static ssize_t tm1637_show_leds(struct device *dev,
@@ -576,7 +584,8 @@ static ssize_t tm1637_store_leds(struct device *dev,
 	else if (!strncmp(buf, "off", 3))
 		data = CMD_CTRL_DISP_OFF;
 	else
-		return -EINVAL;
+		ret = -EINVAL;
+		goto unlock;
 
 	byte = CMD_CTRL | data | tm->brightness;
 	ret = tm1637_write_byte(tm, byte);
@@ -584,9 +593,10 @@ static ssize_t tm1637_store_leds(struct device *dev,
 		goto unlock;
 
 	tm->led = data ? 1 : 0;
+	ret = len;
 unlock:
 	mutex_unlock(&tm->lock);
-	return len;
+	return ret;
 }
 
 static TM1637_DEV_ATTR_RW(led0, tm1637_show_led0, tm1637_store_led0);
@@ -616,6 +626,339 @@ static const struct attribute_group tm1637_group = {
 	.attrs = tm1637_attrs,
 };
 
+static int tm1637_open(struct inode *inode, struct file *filp)
+{
+	return nonseekable_open(inode, filp);
+}
+
+static ssize_t tm1637_read(struct file *filp, char __user *buf, size_t len, loff_t *off)
+{
+	struct miscdevice *mdev = filp->private_data;
+	struct tm1637_priv *priv = dev_get_drvdata(mdev->this_device);
+	struct tm1637 *tm = &priv->tm;
+	uint8_t byte;
+	unsigned char data;
+	int ret;
+
+	mutex_lock(&tm->lock);
+
+	byte = CMD_DATA | CMD_DATA_MODE_RD;
+	data = tm1637_read_byte_data(tm, byte);
+	if (data < 0)
+		goto unlock;
+
+	ret = copy_to_user(buf, &data, len);
+	if (ret)
+		ret = -EFAULT;
+		goto unlock;
+
+	tm->key = data;
+	ret = len;
+unlock:
+	mutex_unlock(&tm->lock);
+	return ret;
+}
+
+static ssize_t tm1637_write(struct file *filp, char __user *buf, size_t len, loff_t *off)
+{
+	struct miscdevice *mdev = filp->private_data;
+	struct tm1637_priv *priv = dev_get_drvdata(mdev->this_device);
+	struct tm1637 *tm = &priv->tm;
+	uint8_t byte;
+	unsigned char data[MAX_LEDS];
+	int ret;
+	int i;
+
+	mutex_lock(&tm->lock);
+
+	ret = copy_from_user(data, buf, len);
+	if (ret)
+		ret = -EFAULT;
+		goto unlock;
+
+	for (i = 0; i < len; i++) {
+		byte = CMD_ADDR | i;
+		ret = tm1637_write_byte_data(tm, byte, (u8)data[i]);
+		if (ret < 0)
+			goto unlock;
+
+		tm->leds[i] = data[i];
+	}
+	ret = len;
+unlock:
+	mutex_unlock(&tm->lock);
+	return ret;
+}
+
+static int ioctl_set_led(struct tm1637 *tm, unsigned int cmd, struct tm1637_ioctl_led_args __user *uargs)
+{
+	int ret;
+	struct tm1637_ioctl_led_args args = {0};
+	uint8_t byte;
+   	int i;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	ret = copy_from_user(&args, uargs, sizeof(args));
+	if (ret)
+		return -EFAULT;
+
+	if (cmd == TM1637_IOC_SET_LEDS) {
+		for (i = 0; i < MAX_LEDS; i++) {
+			byte = CMD_ADDR | i;
+			ret = tm1637_write_byte_data(tm, byte, (u8)args.leds[i]);
+			if (ret < 0)
+				return ret;
+
+			tm->leds[i] = args.leds[i];
+		}
+	}
+	else {
+		switch(cmd) {
+		case TM1637_IOC_SET_LED0:
+			i = CMD_ADDR_CH0;
+			break;
+		case TM1637_IOC_SET_LED1:
+			i = CMD_ADDR_CH1;
+			break;
+		case TM1637_IOC_SET_LED2:
+			i = CMD_ADDR_CH2;
+			break;
+		case TM1637_IOC_SET_LED3:
+			i = CMD_ADDR_CH3;
+			break;
+		case TM1637_IOC_SET_LED4:
+			i = CMD_ADDR_CH4;
+			break;
+		case TM1637_IOC_SET_LED5:
+			i = CMD_ADDR_CH5;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		byte = CMD_ADDR | i;
+		ret = tm1637_write_byte_data(tm, byte, (u8)args.leds[i]);
+		if (ret < 0)
+			return ret;
+
+		tm->leds[i] = args.leds[i];
+	}
+
+	return 0;
+}
+
+static int ioctl_get_led(struct tm1637 *tm, unsigned int cmd, struct tm1637_ioctl_led_args __user *uargs)
+{
+	int ret;
+	struct tm1637_ioctl_led_args args = {0};
+   	int i;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	if (cmd == TM1637_IOC_GET_LEDS) {
+		for (i = 0; i < MAX_LEDS; i++) {
+			args.leds[i] = tm->leds[i];
+		}
+	}
+	else {
+		switch(cmd) {
+		case TM1637_IOC_GET_LED0:
+			i = CMD_ADDR_CH0;
+			break;
+		case TM1637_IOC_GET_LED1:
+			i = CMD_ADDR_CH1;
+			break;
+		case TM1637_IOC_GET_LED2:
+			i = CMD_ADDR_CH2;
+			break;
+		case TM1637_IOC_GET_LED3:
+			i = CMD_ADDR_CH3;
+			break;
+		case TM1637_IOC_GET_LED4:
+			i = CMD_ADDR_CH4;
+			break;
+		case TM1637_IOC_GET_LED5:
+			i = CMD_ADDR_CH5;
+			break;
+		default:
+			return -EINVAL;
+		}
+		
+		args.leds[i] = tm->leds[i];
+	}
+
+	ret = copy_to_user(uargs, &args, sizeof(args));
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ioctl_get_key(struct tm1637 *tm, unsigned int cmd, struct tm1637_ioctl_key_args __user *uargs)
+{
+	int ret;
+	struct tm1637_ioctl_key_args args = {0};
+	uint8_t byte;
+	unsigned char data;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	byte = CMD_DATA | CMD_DATA_MODE_RD;
+	data = tm1637_read_byte_data(tm, byte);
+	if (data < 0)
+		return ret;
+
+	tm->key = data;
+	args.key = tm->key;
+
+	ret = copy_to_user(uargs, &args, sizeof(args));
+	if (ret)
+		ret = -EFAULT;
+
+	return 0;
+}
+
+static int ioctl_set_ctl(struct tm1637 *tm, unsigned int cmd, struct tm1637_ioctl_ctl_args __user *uargs)
+{
+	int ret;
+	struct tm1637_ioctl_ctl_args args = {0};
+	uint8_t byte;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	ret = copy_from_user(&args, uargs, sizeof(args));
+	if (ret)
+		return -EFAULT;
+
+	switch(cmd) {
+	case TM1637_IOC_SET_BRIGHTNESS:
+		byte = CMD_CTRL | (tm->led ? CMD_CTRL_DISP_ON : CMD_CTRL_DISP_OFF) | args.brightness;
+		args.led = tm->led;
+		break;
+	case TM1637_IOC_SET_LED:
+		byte = CMD_CTRL | args.led | tm->brightness;
+		args.brightness = tm->brightness;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = tm1637_write_byte(tm, byte);
+	if (ret < 0)
+		return ret;
+
+	tm->brightness = args.brightness;
+	tm->led = args.led;
+
+	return 0;
+}
+
+static int ioctl_get_ctl(struct tm1637 *tm, unsigned int cmd, struct tm1637_ioctl_ctl_args __user *uargs)
+{
+	int ret;
+	struct tm1637_ioctl_ctl_args args = {0};
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	switch(cmd) {
+	case TM1637_IOC_GET_BRIGHTNESS:
+		args.brightness = tm->brightness;
+		break;
+	case TM1637_IOC_GET_LED:
+		args.led = tm->led;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = copy_to_user(uargs, &args, sizeof(args));
+	if (ret)
+		return -EFAULT;
+
+	return 0;
+}
+
+static long tm1637_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct miscdevice *mdev = filp->private_data;
+    struct tm1637_priv *priv = dev_get_drvdata(mdev->this_device);
+    struct tm1637 *tm = &priv->tm;
+	int ret;
+	void __user *argp = (void __user *)arg;
+
+	switch(cmd) {
+	case TM1637_IOC_SET_LED0:
+	case TM1637_IOC_SET_LED1:
+	case TM1637_IOC_SET_LED2:
+	case TM1637_IOC_SET_LED3:
+	case TM1637_IOC_SET_LED4:
+	case TM1637_IOC_SET_LED5:
+	case TM1637_IOC_SET_LEDS:
+		ret = ioctl_set_led(tm, cmd, argp);
+		break;
+	case TM1637_IOC_GET_LED0:
+	case TM1637_IOC_GET_LED1:
+	case TM1637_IOC_GET_LED2:
+	case TM1637_IOC_GET_LED3:
+	case TM1637_IOC_GET_LED4:
+	case TM1637_IOC_GET_LED5:
+	case TM1637_IOC_GET_LEDS:
+		ret = ioctl_get_led(tm, cmd, argp);
+		break;
+	case TM1637_IOC_GET_KEY:
+		ret = ioctl_get_key(tm, cmd, argp);
+		break;
+	case TM1637_IOC_SET_BRIGHTNESS:
+	case TM1637_IOC_SET_LED:
+		ret = ioctl_set_ctl(tm, cmd, argp);
+		break;
+	case TM1637_IOC_GET_BRIGHTNESS:
+	case TM1637_IOC_GET_LED:
+		ret = ioctl_get_ctl(tm, cmd, argp);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+
+static long tm1637_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct miscdevice *mdev = filp->private_data;
+	struct tm1637_priv *priv = dev_get_drvdata(mdev->this_device);
+	struct tm1637 *tm = &priv->tm;
+	int ret;
+
+	mutex_lock(&tm->lock);
+	ret = tm1637_ioctl(filp, cmd, arg);
+	mutex_unlock(&tm->lock);
+
+	return ret;
+}
+
+static struct file_operations tm1637_fops = {
+	.owner			= THIS_MODULE,
+	.open			= tm1637_open,
+	.read			= tm1637_read,
+	.write			= tm1637_write,
+	.unlocked_ioctl	= tm1637_unlocked_ioctl,
+	.llseek			= no_llseek,
+};
+
+static struct miscdevice tm1637_misc = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = DRIVER_NAME,
+	.fops = &tm1637_fops,
+};
+
 static int tm1637_probe(struct platform_device *pdev)
 {
 	struct tm1637_priv *priv = platform_get_drvdata(pdev);
@@ -628,6 +971,7 @@ static int tm1637_probe(struct platform_device *pdev)
 
 	tm = &priv->tm;
 	tm->dev = &pdev->dev;
+	tm1637_misc.this_device = &pdev->dev;
 
 	tm->pins[PIN_CTRL_CLK] = devm_gpiod_get(tm->dev, "clk", GPIOD_OUT_HIGH);
 	if (IS_ERR(tm->pins[PIN_CTRL_CLK])) {
@@ -651,6 +995,11 @@ static int tm1637_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	ret = misc_register(&tm1637_misc);
+	if (!ret) {
+		goto fail;
+	}
+
 	mutex_init(&tm->lock);
 
 	ret = tm1637_initialize(priv);
@@ -668,6 +1017,8 @@ fail:
 
 static int tm1637_remove(struct platform_device *pdev)
 {
+	misc_deregister(&tm1637_misc);
+
 	return 0;
 }
 
