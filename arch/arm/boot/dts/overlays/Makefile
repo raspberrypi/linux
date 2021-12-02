@@ -10,7 +10,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	adv7282m.dtbo \
 	adv728x-m.dtbo \
 	akkordion-iqdacplus.dtbo \
-	allo-boss-dac-pcm512x-audio.dtbo \
 	allo-digione.dtbo \
 	allo-katana-dac-audio.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
@@ -181,6 +180,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tc358743.dtbo \
 	tc358743-audio.dtbo \
 	tinylcd35.dtbo \
+	tm1637-led.dtbo \
 	tpm-slb9670.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
