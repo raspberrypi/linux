@@ -173,6 +173,10 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 				dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR,
 						       DPI_ORDER);
 				break;
+			default:
+				DRM_ERROR("Unknown media bus format %d\n",
+					  bus_format);
+				fallthrough;
 			case MEDIA_BUS_FMT_RGB666_1X18:
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1,
 						       DPI_FORMAT);
@@ -187,11 +191,12 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_3,
 						       DPI_FORMAT);
 				break;
-			default:
-				DRM_ERROR("Unknown media bus format %d\n",
-					  bus_format);
-				break;
 			}
+		} else {
+			/* Default to 18bit if no connector found. */
+			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1,
+					       DPI_FORMAT);
+
 		}
 
 		if (connector->display_info.bus_flags &
