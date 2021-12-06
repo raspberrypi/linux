@@ -1162,18 +1162,21 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	 */
 }
 
-u32 vc4_plane_write_dlist(struct drm_plane *plane, u32 __iomem *dlist)
+u32 vc4_plane_write_dlist(struct vc4_hvs *hvs,
+			  struct vc4_crtc_state *vc4_crtc_state,
+			  struct vc4_plane_state *vc4_plane_state,
+			  unsigned dlist_offset)
 {
-	struct vc4_plane_state *vc4_state = to_vc4_plane_state(plane->state);
+	u32 __iomem *dlist = hvs->dlist + dlist_offset;
 	int i;
 
-	vc4_state->hw_dlist = dlist;
+	vc4_plane_state->hw_dlist = dlist;
 
 	/* Can't memcpy_toio() because it needs to be 32-bit writes. */
-	for (i = 0; i < vc4_state->dlist_count; i++)
-		writel(vc4_state->dlist[i], &dlist[i]);
+	for (i = 0; i < vc4_plane_state->dlist_count; i++)
+		writel(vc4_plane_state->dlist[i], &dlist[i]);
 
-	return vc4_state->dlist_count;
+	return vc4_plane_state->dlist_count;
 }
 
 u32 vc4_plane_dlist_size(const struct drm_plane_state *state)
