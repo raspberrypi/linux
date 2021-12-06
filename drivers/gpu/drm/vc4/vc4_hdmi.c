@@ -213,6 +213,7 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 			connected = true;
 	}
 
+	vc4_hdmi->encoder.hdmi_monitor = false;
 	if (connected) {
 		if (connector->status != connector_status_connected) {
 			struct edid *edid = drm_get_edid(connector, vc4_hdmi->ddc);
@@ -1455,16 +1456,10 @@ static bool vc4_hdmi_audio_can_stream(struct vc4_hdmi *vc4_hdmi)
 	lockdep_assert_held(&vc4_hdmi->mutex);
 
 	/*
-	 * If the controller is disabled, prevent any ALSA output.
-	 */
-	if (!vc4_hdmi->output_enabled)
-		return false;
-
-	/*
 	 * If the encoder is currently in DVI mode, treat the codec DAI
 	 * as missing.
 	 */
-	if (!(HDMI_READ(HDMI_RAM_PACKET_CONFIG) & VC4_HDMI_RAM_PACKET_ENABLE))
+	if (!vc4_hdmi->encoder.hdmi_monitor)
 		return false;
 
 	return true;
