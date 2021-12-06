@@ -677,14 +677,14 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 									 crtc);
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 	unsigned int channel = vc4_state->assigned_channel;
 	struct drm_plane *plane;
-	struct vc4_plane_state *vc4_plane_state;
 	bool debug_dump_regs = false;
 	bool enable_bg_fill = false;
-	u32 __iomem *dlist_start = vc4->hvs->dlist + vc4_state->mm.start;
-	u32 __iomem *dlist_next = dlist_start;
+	unsigned int dlist_start = vc4_state->mm.start;
+	unsigned int dlist_next = dlist_start;
 
 	if (vc4_state->assigned_channel == VC4_HVS_CHANNEL_DISABLED)
 		return;
@@ -696,6 +696,9 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 
 	/* Copy all the active planes' dlist contents to the hardware dlist. */
 	drm_atomic_crtc_for_each_plane(plane, crtc) {
+		struct vc4_plane_state *vc4_plane_state =
+			to_vc4_plane_state(plane->state);
+
 		/* Is this the first active plane? */
 		if (dlist_next == dlist_start) {
 			/* We need to enable background fill when a plane
@@ -706,14 +709,14 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 			 * already needs it or all planes on top blend from
 			 * the first or a lower plane.
 			 */
-			vc4_plane_state = to_vc4_plane_state(plane->state);
 			enable_bg_fill = vc4_plane_state->needs_bg_fill;
 		}
 
-		dlist_next += vc4_plane_write_dlist(plane, dlist_next);
+		dlist_next += vc4_plane_write_dlist(hvs, vc4_state,
+						    vc4_plane_state, dlist_next);
 	}
 
-	writel(SCALER_CTL0_END, dlist_next);
+	writel(SCALER_CTL0_END, vc4->hvs->dlist + dlist_next);
 	dlist_next++;
 
 	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm.size);
