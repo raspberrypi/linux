@@ -686,6 +686,9 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	u32 __iomem *dlist_start = vc4->hvs->dlist + vc4_state->mm.start;
 	u32 __iomem *dlist_next = dlist_start;
 
+	if (vc4_state->assigned_channel == VC4_HVS_CHANNEL_DISABLED)
+		return;
+
 	if (debug_dump_regs) {
 		DRM_INFO("CRTC %d HVS before:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(dev);
