@@ -597,6 +597,12 @@ Load:   dtoverlay=audioinjector-isolated-soundcard
 Params: <None>
 
 
+Name:   audioinjector-ram-platter
+Info:   Configures the audioinjector.net ram platter soundcard
+Load:   dtoverlay=audioinjector-ram-platter
+Params: <None>
+
+
 Name:   audioinjector-ultra
 Info:   Configures the audioinjector.net ultra soundcard
 Load:   dtoverlay=audioinjector-ultra
