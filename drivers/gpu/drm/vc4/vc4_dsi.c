@@ -592,6 +592,8 @@ struct vc4_dsi {
 	 */
 	struct clk *pixel_clock;
 
+	u64 link_frequency;
+
 	struct completion xfer_completion;
 	int xfer_result;
 
@@ -837,6 +839,12 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	unsigned long pixel_clock_hz = mode->clock * 1000;
 	unsigned long pll_clock = pixel_clock_hz * dsi->divider;
 	int divider;
+
+	if (dsi->link_frequency && pll_clock <= dsi->link_frequency * 2)
+		/* Link frequency specified in DT, and is sufficient for the
+		 * pixel rate.
+		 */
+		pll_clock = dsi->link_frequency * 2;
 
 	/* Find what divider gets us a faster clock than the requested
 	 * pixel clock.
@@ -1577,6 +1585,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 			DSI_PORT_READ(ID), DSI_ID_VALUE);
 		return -ENODEV;
 	}
+
+	of_property_read_u64(dev->of_node, "link_frequency",
+			     &dsi->link_frequency);
 
 	/* DSI1 on BCM2835/6/7 has a broken AXI slave that doesn't respond to
 	 * writes from the ARM.  It does handle writes from the DMA engine,
