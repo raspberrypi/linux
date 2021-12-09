@@ -86,6 +86,9 @@ static inline bool pkvm_hyp_vcpu_is_protected(struct pkvm_hyp_vcpu *hyp_vcpu)
 	return vcpu_is_protected(&hyp_vcpu->vcpu);
 }
 
+extern phys_addr_t pvmfw_base;
+extern phys_addr_t pvmfw_size;
+
 void pkvm_hyp_vm_table_init(void *tbl);
 
 int __pkvm_init_vm(struct kvm *host_kvm, unsigned long vm_hva,
@@ -111,6 +114,25 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code);
 
 struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *vm, u64 mpidr);
 
+static inline bool pkvm_hyp_vm_has_pvmfw(struct pkvm_hyp_vm *vm)
+{
+	return vm->kvm.arch.pkvm.pvmfw_load_addr != PVMFW_INVALID_LOAD_ADDR;
+}
+
+static inline bool pkvm_ipa_range_has_pvmfw(struct pkvm_hyp_vm *vm,
+					    u64 ipa_start, u64 ipa_end)
+{
+	struct kvm_protected_vm *pkvm = &vm->kvm.arch.pkvm;
+	u64 pvmfw_load_end = pkvm->pvmfw_load_addr + pvmfw_size;
+
+	if (!pkvm_hyp_vm_has_pvmfw(vm))
+		return false;
+
+	return ipa_end > pkvm->pvmfw_load_addr && ipa_start < pvmfw_load_end;
+}
+
+int pkvm_load_pvmfw_pages(struct pkvm_hyp_vm *vm, u64 ipa, phys_addr_t phys,
+			  u64 size);
 void pkvm_poison_pvmfw_pages(void);
 
 #endif /* __ARM64_KVM_NVHE_PKVM_H__ */
