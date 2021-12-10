@@ -416,6 +416,17 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 	}
 }
 
+static void flush_cb(struct vchiq_mmal_instance *instance,
+		     struct vchiq_mmal_port *port,
+		     int status,
+		     struct mmal_buffer *mmal_buf)
+{
+	struct vb2_mmal_buffer *buf =
+			container_of(mmal_buf, struct vb2_mmal_buffer, mmal);
+
+	vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
+}
+
 static int enable_camera(struct bm2835_mmal_dev *dev)
 {
 	int ret;
@@ -540,6 +551,9 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 			v4l2_err(&dev->v4l2_dev,
 				 "Failed to enable encode tunnel - error %d\n",
 				 ret);
+			vchiq_mmal_port_return_buffers(dev->instance,
+						       dev->capture.port,
+						       flush_cb);
 			return -1;
 		}
 	}
@@ -579,6 +593,8 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 			v4l2_err(&dev->v4l2_dev, "Failed to disable camera\n");
 			return -EINVAL;
 		}
+		vchiq_mmal_port_return_buffers(dev->instance, dev->capture.port,
+					       flush_cb);
 		return -1;
 	}
 
