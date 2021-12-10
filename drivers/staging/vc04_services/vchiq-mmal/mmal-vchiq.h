@@ -140,6 +140,12 @@ int vchiq_mmal_port_enable(
 int vchiq_mmal_port_disable(struct vchiq_mmal_instance *instance,
 			    struct vchiq_mmal_port *port);
 
+/* Return any buffers that have been queued to a port before enabling.
+ */
+int vchiq_mmal_port_return_buffers(struct vchiq_mmal_instance *instance,
+				   struct vchiq_mmal_port *port,
+				   vchiq_mmal_buffer_cb buffer_cb);
+
 int vchiq_mmal_port_parameter_set(struct vchiq_mmal_instance *instance,
 				  struct vchiq_mmal_port *port,
 				  u32 parameter,

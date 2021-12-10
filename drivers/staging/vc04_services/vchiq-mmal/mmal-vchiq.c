@@ -1461,13 +1461,44 @@ release_msg:
 	return ret;
 }
 
+static void port_return_buffers(struct vchiq_mmal_instance *instance,
+				struct vchiq_mmal_port *port,
+				vchiq_mmal_buffer_cb buffer_cb)
+{
+	struct list_head *q, *buf_head;
+	struct mmal_buffer *mmalbuf;
+	unsigned long flags = 0;
+
+	spin_lock_irqsave(&port->slock, flags);
+
+	/*
+	 * Drain all queued buffers on port. This should only
+	 * apply to buffers that have been queued before the port
+	 * has been enabled. If the port has been enabled and buffers
+	 * passed, then the buffers should have been removed from this
+	 * list, and we should get the relevant callbacks via VCHIQ
+	 * to release the buffers.
+	 */
+	list_for_each_safe(buf_head, q, &port->buffers) {
+		mmalbuf = list_entry(buf_head, struct mmal_buffer, list);
+		list_del(buf_head);
+
+		mmalbuf->length = 0;
+		mmalbuf->mmal_flags = 0;
+		mmalbuf->dts = MMAL_TIME_UNKNOWN;
+		mmalbuf->pts = MMAL_TIME_UNKNOWN;
+		mmalbuf->cmd = 0;
+		buffer_cb(instance, port, 0, mmalbuf);
+	}
+
+	spin_unlock_irqrestore(&port->slock, flags);
+}
+
 /* disables a port and drains buffers from it */
 static int port_disable(struct vchiq_mmal_instance *instance,
 			struct vchiq_mmal_port *port)
 {
 	int ret;
-	struct list_head *q, *buf_head;
-	unsigned long flags = 0;
 
 	if (!port->enabled)
 		return 0;
@@ -1477,34 +1508,7 @@ static int port_disable(struct vchiq_mmal_instance *instance,
 	ret = port_action_port(instance, port,
 			       MMAL_MSG_PORT_ACTION_TYPE_DISABLE);
 	if (ret == 0) {
-		/*
-		 * Drain all queued buffers on port. This should only
-		 * apply to buffers that have been queued before the port
-		 * has been enabled. If the port has been enabled and buffers
-		 * passed, then the buffers should have been removed from this
-		 * list, and we should get the relevant callbacks via VCHIQ
-		 * to release the buffers.
-		 */
-		spin_lock_irqsave(&port->slock, flags);
-
-		list_for_each_safe(buf_head, q, &port->buffers) {
-			struct mmal_buffer *mmalbuf;
-
-			mmalbuf = list_entry(buf_head, struct mmal_buffer,
-					     list);
-			list_del(buf_head);
-			if (port->buffer_cb) {
-				mmalbuf->length = 0;
-				mmalbuf->mmal_flags = 0;
-				mmalbuf->dts = MMAL_TIME_UNKNOWN;
-				mmalbuf->pts = MMAL_TIME_UNKNOWN;
-				mmalbuf->cmd = 0;
-				port->buffer_cb(instance,
-						port, 0, mmalbuf);
-			}
-		}
-
-		spin_unlock_irqrestore(&port->slock, flags);
+		port_return_buffers(instance, port, port->buffer_cb);
 
 		ret = port_info_get(instance, port);
 	}
@@ -1672,6 +1676,21 @@ int vchiq_mmal_port_disable(struct vchiq_mmal_instance *instance,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(vchiq_mmal_port_disable);
+
+int vchiq_mmal_port_return_buffers(struct vchiq_mmal_instance *instance,
+				   struct vchiq_mmal_port *port,
+				   vchiq_mmal_buffer_cb buffer_cb)
+{
+	if (mutex_lock_interruptible(&instance->vchiq_mutex))
+		return -EINTR;
+
+	port_return_buffers(instance, port, buffer_cb);
+
+	mutex_unlock(&instance->vchiq_mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(vchiq_mmal_port_return_buffers);
 
 /* ports will be connected in a tunneled manner so data buffers
  * are not handled by client.
