@@ -215,6 +215,11 @@ struct vc4_hdmi {
 	 */
 	bool scdc_enabled;
 
+	/**
+	 * @output_bpc: BPC currently being used. Protected by @mutex.
+	 */
+	unsigned int output_bpc;
+
 	/* VC5 debugfs regset */
 	struct debugfs_regset32 cec_regset;
 	struct debugfs_regset32 csc_regset;
