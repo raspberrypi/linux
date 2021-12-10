@@ -2849,6 +2849,27 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 		}
 	}
 }
+
+static void bcm2835_codec_return_m2m_buffers(struct bcm2835_codec_ctx *ctx,
+					     struct vb2_queue *q)
+{
+	struct vb2_v4l2_buffer *vbuf;
+
+	/* Clear out all buffers held by m2m framework */
+	for (;;) {
+		if (V4L2_TYPE_IS_OUTPUT(q->type))
+			vbuf = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
+		else
+			vbuf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
+		if (!vbuf)
+			break;
+		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: return buffer %p\n",
+			 __func__, vbuf);
+
+		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_QUEUED);
+	}
+}
+
 static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 					 unsigned int count)
 {
@@ -2895,7 +2916,11 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Error disabling port update buffer count, ret %d\n",
 				 __func__, ret);
+		vchiq_mmal_port_return_buffers(ctx->dev->instance,
+					       port,
+					       op_buffer_cb);
 		bcm2835_codec_flush_buffers(ctx, port);
+		bcm2835_codec_return_m2m_buffers(ctx, q);
 		port->current_buffer.num = num_buffers;
 	}
 
@@ -2924,9 +2949,13 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		ret = vchiq_mmal_port_enable(dev->instance,
 					     &ctx->component->output[0],
 					     op_buffer_cb);
-		if (ret)
+		if (ret) {
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling o/p port, ret %d\n",
 				 __func__, ret);
+			vchiq_mmal_port_return_buffers(ctx->dev->instance,
+						       port,
+						       op_buffer_cb);
+		}
 	}
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -2943,17 +2972,27 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		ret = vchiq_mmal_port_enable(dev->instance,
 					     port,
 					     ip_buffer_cb);
-		if (ret)
+		if (ret) {
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling i/p port, ret %d\n",
 				 __func__, ret);
+			vchiq_mmal_port_return_buffers(ctx->dev->instance,
+						       port,
+						       ip_buffer_cb);
+			bcm2835_codec_return_m2m_buffers(ctx, q);
+		}
 	} else {
 		if (!port->enabled) {
 			ret = vchiq_mmal_port_enable(dev->instance,
 						     port,
 						     op_buffer_cb);
-			if (ret)
+			if (ret) {
 				v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling o/p port, ret %d\n",
 					 __func__, ret);
+				vchiq_mmal_port_return_buffers(ctx->dev->instance,
+							       port,
+							       op_buffer_cb);
+				bcm2835_codec_return_m2m_buffers(ctx, q);
+			}
 		}
 	}
 	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Done, ret %d\n",
@@ -2967,7 +3006,6 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 	struct bcm2835_codec_dev *dev = ctx->dev;
 	struct bcm2835_codec_q_data *q_data = get_q_data(ctx, q->type);
 	struct vchiq_mmal_port *port = get_port_data(ctx, q->type);
-	struct vb2_v4l2_buffer *vbuf;
 	int ret;
 
 	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: type: %d - return buffers\n",
@@ -2975,19 +3013,7 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 
 	init_completion(&ctx->frame_cmplt);
 
-	/* Clear out all buffers held by m2m framework */
-	for (;;) {
-		if (V4L2_TYPE_IS_OUTPUT(q->type))
-			vbuf = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
-		else
-			vbuf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
-		if (!vbuf)
-			break;
-		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: return buffer %p\n",
-			 __func__, vbuf);
-
-		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_QUEUED);
-	}
+	bcm2835_codec_return_m2m_buffers(ctx, q);
 
 	/* Disable MMAL port - this will flush buffers back */
 	ret = vchiq_mmal_port_disable(dev->instance, port);
@@ -2995,6 +3021,8 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 		v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed disabling %s port, ret %d\n",
 			 __func__, V4L2_TYPE_IS_OUTPUT(q->type) ? "i/p" : "o/p",
 			 ret);
+
+	vchiq_mmal_port_return_buffers(ctx->dev->instance, port, op_buffer_cb);
 
 	bcm2835_codec_flush_buffers(ctx, port);
 
