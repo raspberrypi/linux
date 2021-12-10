@@ -554,7 +554,8 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 			vchiq_mmal_port_return_buffers(dev->instance,
 						       dev->capture.port,
 						       flush_cb);
-			return -1;
+			disable_camera(dev);
+			return ret;
 		}
 	}
 
@@ -595,7 +596,7 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 		}
 		vchiq_mmal_port_return_buffers(dev->instance, dev->capture.port,
 					       flush_cb);
-		return -1;
+		return ret;
 	}
 
 	/* capture the first frame */
