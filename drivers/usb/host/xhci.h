@@ -1635,6 +1635,7 @@ struct xhci_ring {
 	unsigned int		num_trbs_free;
 	unsigned int		num_trbs_free_temp;
 	unsigned int		bounce_buf_len;
+	unsigned int		trbs_per_seg;
 	enum xhci_ring_type	type;
 	bool			last_td_was_short;
 	struct radix_tree_root	*trb_address_map;
