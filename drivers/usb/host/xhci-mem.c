@@ -392,6 +392,17 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		return ring;
 
 	ring->trbs_per_seg = TRBS_PER_SEGMENT;
+	/*
+	 * The Via VL805 has a bug where cache readahead will fetch off the end
+	 * of a page if the Link TRB of a transfer ring is in the last 4 slots.
+	 * Where there are consecutive physical pages containing ring segments,
+	 * this can cause a desync between the controller's view of a ring
+	 * and the host.
+	 */
+	if (xhci->quirks & XHCI_VLI_TRB_CACHE_BUG &&
+	    type != TYPE_EVENT && type != TYPE_COMMAND)
+		ring->trbs_per_seg -= 4;
+
 	ret = xhci_alloc_segments_for_ring(xhci, &ring->first_seg,
 			&ring->last_seg, num_segs, ring->trbs_per_seg,
 			cycle_state, type, max_packet, flags);
