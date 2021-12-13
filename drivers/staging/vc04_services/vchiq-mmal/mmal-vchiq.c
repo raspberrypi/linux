@@ -247,6 +247,36 @@ release_msg_context(struct mmal_msg_context *msg_context)
 	kfree(msg_context);
 }
 
+/* Maps enum mmal_msg_status to Linux errors */
+const static int mmal_error_mapping[] = {
+	0,
+	-ENOMEM,
+	-ENOSPC,
+	-EINVAL,
+	-EINVAL,	/* MMAL_MSG_STATUS_ENOSYS - ENOSYS has specific meaning,
+			 * so avoid
+			 */
+	-ENOENT,
+	-ENXIO,
+	-EIO,
+	-ESPIPE,
+	-EPROTO,
+	-EBUSY,
+	-EISCONN,
+	-EINVAL,	/* MMAL_MSG_STATUS_ECONFIG - no real mapping */
+	-ENOTCONN,
+	-EAGAIN,
+	-EFAULT,
+};
+
+static int mmal_error_map(enum mmal_msg_status mmal_error)
+{
+	if (mmal_error < ARRAY_SIZE(mmal_error_mapping))
+		return mmal_error_mapping[mmal_error];
+
+	return -EINVAL;
+}
+
 /* workqueue scheduled callback
  *
  * we do this because it is important we do not call any other vchiq
@@ -918,7 +948,7 @@ static int port_info_set(struct vchiq_mmal_instance *instance,
 
 	pr_dbg_lvl(1, debug, "setting port info port %p\n", port);
 	if (!port)
-		return -1;
+		return -EINVAL;
 	dump_port_info(port);
 
 	m.h.type = MMAL_MSG_TYPE_PORT_INFO_SET;
@@ -957,7 +987,7 @@ static int port_info_set(struct vchiq_mmal_instance *instance,
 	}
 
 	/* return operation status */
-	ret = -rmsg->u.port_info_get_reply.status;
+	ret = mmal_error_map(rmsg->u.port_info_get_reply.status);
 
 	pr_dbg_lvl(1, debug, "%s:result:%d component:0x%x port:%d\n", __func__,
 		   ret, port->component->handle, port->handle);
@@ -996,7 +1026,7 @@ static int port_info_get(struct vchiq_mmal_instance *instance,
 	}
 
 	/* return operation status */
-	ret = -rmsg->u.port_info_get_reply.status;
+	ret = mmal_error_map(rmsg->u.port_info_get_reply.status);
 	if (ret != MMAL_MSG_STATUS_SUCCESS)
 		goto release_msg;
 
@@ -1135,7 +1165,7 @@ static int destroy_component(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.component_destroy_reply.status;
+	ret = mmal_error_map(rmsg->u.component_destroy_reply.status);
 
 release_msg:
 
@@ -1168,7 +1198,7 @@ static int enable_component(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.component_enable_reply.status;
+	ret = mmal_error_map(rmsg->u.component_enable_reply.status);
 
 release_msg:
 	vchiq_release_message(instance->service_handle, rmsg_handle);
@@ -1200,7 +1230,7 @@ static int disable_component(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.component_disable_reply.status;
+	ret = mmal_error_map(rmsg->u.component_disable_reply.status);
 
 release_msg:
 
@@ -1270,7 +1300,7 @@ static int port_action_port(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.port_action_reply.status;
+	ret = mmal_error_map(rmsg->u.port_action_reply.status);
 
 	pr_dbg_lvl(2, debug, "%s:result:%d component:0x%x port:%d action:%s(%d)\n",
 		   __func__, ret, port->component->handle, port->handle,
@@ -1316,7 +1346,7 @@ static int port_action_handle(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.port_action_reply.status;
+	ret = mmal_error_map(rmsg->u.port_action_reply.status);
 
 	pr_dbg_lvl(2, debug,
 		   "%s:result:%d component:0x%x port:%d action:%s(%d) connect component:0x%x connect port:%d\n",
@@ -1359,7 +1389,7 @@ static int port_parameter_set(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = -rmsg->u.port_parameter_set_reply.status;
+	ret = mmal_error_map(rmsg->u.port_parameter_set_reply.status);
 
 	pr_dbg_lvl(1, debug, "%s:result:%d component:0x%x port:%d parameter:%d\n",
 		   __func__, ret, port->component->handle, port->handle,
@@ -1401,7 +1431,7 @@ static int port_parameter_get(struct vchiq_mmal_instance *instance,
 		goto release_msg;
 	}
 
-	ret = rmsg->u.port_parameter_get_reply.status;
+	ret = mmal_error_map(rmsg->u.port_parameter_get_reply.status);
 
 	/* port_parameter_get_reply.size includes the header,
 	 * whilst *value_size doesn't.
