@@ -344,7 +344,7 @@ static void buffer_to_host_work_cb(struct work_struct *work)
 
 	vchiq_release_service(instance->service_handle);
 
-	if (ret != 0)
+	if (ret)
 		pr_err("%s: ctx: %p, vchiq_bulk_receive failed %d\n",
 		       __func__, msg_context, ret);
 }
@@ -669,7 +669,7 @@ static void buffer_to_host_cb(struct vchiq_mmal_instance *instance,
 		/* data is not in message, queue a bulk receive */
 		msg_context->u.bulk.status =
 		    bulk_receive(instance, msg, msg_context);
-		if (msg_context->u.bulk.status == 0)
+		if (!msg_context->u.bulk.status)
 			return;	/* successful bulk submission, bulk
 				 * completion will trigger callback
 				 */
@@ -862,7 +862,7 @@ static int send_synchronous_mmal_msg(struct vchiq_mmal_instance *instance,
 
 	timeout = wait_for_completion_timeout(&msg_context->u.sync.cmplt,
 					      SYNC_MSG_TIMEOUT * HZ);
-	if (timeout == 0) {
+	if (!timeout) {
 		pr_err("timed out waiting for sync completion\n");
 		ret = -ETIME;
 		/* todo: what happens if the message arrives after aborting */
@@ -1030,7 +1030,7 @@ static int port_info_get(struct vchiq_mmal_instance *instance,
 	if (ret != MMAL_MSG_STATUS_SUCCESS)
 		goto release_msg;
 
-	if (rmsg->u.port_info_get_reply.port.is_enabled == 0)
+	if (!rmsg->u.port_info_get_reply.port.is_enabled)
 		port->enabled = 0;
 	else
 		port->enabled = 1;
@@ -1507,7 +1507,7 @@ static int port_disable(struct vchiq_mmal_instance *instance,
 
 	ret = port_action_port(instance, port,
 			       MMAL_MSG_PORT_ACTION_TYPE_DISABLE);
-	if (ret == 0) {
+	if (!ret) {
 		port_return_buffers(instance, port, port->buffer_cb);
 
 		ret = port_info_get(instance, port);
@@ -2062,7 +2062,7 @@ int vchiq_mmal_component_enable(struct vchiq_mmal_instance *instance,
 	}
 
 	ret = enable_component(instance, component);
-	if (ret == 0)
+	if (!ret)
 		component->enabled = 1;
 
 	mutex_unlock(&instance->vchiq_mutex);
@@ -2088,7 +2088,7 @@ int vchiq_mmal_component_disable(struct vchiq_mmal_instance *instance,
 	}
 
 	ret = disable_component(instance, component);
-	if (ret == 0)
+	if (!ret)
 		component->enabled = 0;
 
 	mutex_unlock(&instance->vchiq_mutex);
@@ -2126,7 +2126,7 @@ int vchiq_mmal_finalise(struct vchiq_mmal_instance *instance)
 	vchiq_use_service(instance->service_handle);
 
 	status = vchiq_close_service(instance->service_handle);
-	if (status != 0)
+	if (status)
 		pr_err("mmal-vchiq: VCHIQ close failed\n");
 
 	mutex_unlock(&instance->vchiq_mutex);
