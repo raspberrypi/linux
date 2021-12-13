@@ -1905,6 +1905,7 @@ struct xhci_hcd {
 #define XHCI_BROKEN_D3COLD	BIT_ULL(41)
 #define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(42)
 #define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(43)
+#define XHCI_VLI_TRB_CACHE_BUG	BIT_ULL(44)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
