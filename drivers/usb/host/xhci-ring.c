@@ -90,15 +90,16 @@ static bool trb_is_link(union xhci_trb *trb)
 	return TRB_TYPE_LINK_LE32(trb->link.control);
 }
 
-static bool last_trb_on_seg(struct xhci_segment *seg, union xhci_trb *trb)
+static bool last_trb_on_seg(struct xhci_segment *seg,
+			    unsigned int trbs_per_seg, union xhci_trb *trb)
 {
-	return trb == &seg->trbs[TRBS_PER_SEGMENT - 1];
+	return trb == &seg->trbs[trbs_per_seg - 1];
 }
 
 static bool last_trb_on_ring(struct xhci_ring *ring,
 			struct xhci_segment *seg, union xhci_trb *trb)
 {
-	return last_trb_on_seg(seg, trb) && (seg->next == ring->first_seg);
+	return last_trb_on_seg(seg, ring->trbs_per_seg, trb) && (seg->next == ring->first_seg);
 }
 
 static bool link_trb_toggles_cycle(union xhci_trb *trb)
@@ -161,7 +162,8 @@ void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring)
 
 	/* event ring doesn't have link trbs, check for last trb */
 	if (ring->type == TYPE_EVENT) {
-		if (!last_trb_on_seg(ring->deq_seg, ring->dequeue)) {
+		if (!last_trb_on_seg(ring->deq_seg, ring->trbs_per_seg,
+				     ring->dequeue)) {
 			ring->dequeue++;
 			goto out;
 		}
@@ -174,7 +176,8 @@ void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring)
 
 	/* All other rings have link trbs */
 	if (!trb_is_link(ring->dequeue)) {
-		if (last_trb_on_seg(ring->deq_seg, ring->dequeue)) {
+		if (last_trb_on_seg(ring->deq_seg, ring->trbs_per_seg,
+		    ring->dequeue)) {
 			xhci_warn(xhci, "Missing link TRB at end of segment\n");
 		} else {
 			ring->dequeue++;
@@ -225,7 +228,7 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (!trb_is_link(ring->enqueue))
 		ring->num_trbs_free--;
 
-	if (last_trb_on_seg(ring->enq_seg, ring->enqueue)) {
+	if (last_trb_on_seg(ring->enq_seg, ring->trbs_per_seg, ring->enqueue)) {
 		xhci_err(xhci, "Tried to move enqueue past ring segment\n");
 		return;
 	}
@@ -3096,7 +3099,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	 * that clears the EHB.
 	 */
 	while (xhci_handle_event(xhci) > 0) {
-		if (event_loop++ < TRBS_PER_SEGMENT / 2)
+		if (event_loop++ < xhci->event_ring->trbs_per_seg / 2)
 			continue;
 		xhci_update_erst_dequeue(xhci, event_ring_deq);
 		event_ring_deq = xhci->event_ring->dequeue;
@@ -3238,7 +3241,8 @@ static int prepare_ring(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
 		}
 	}
 
-	if (last_trb_on_seg(ep_ring->enq_seg, ep_ring->enqueue)) {
+	if (last_trb_on_seg(ep_ring->enq_seg, ep_ring->trbs_per_seg,
+	    ep_ring->enqueue)) {
 		xhci_warn(xhci, "Missing link TRB at end of ring segment\n");
 		return -EINVAL;
 	}
