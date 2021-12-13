@@ -5274,6 +5274,12 @@ static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
 		  connector->name, dc_bpc);
 	info->bpc = dc_bpc;
 
+	/*
+	 * Deep color support mandates RGB444 support for all video
+	 * modes.
+	 */
+	info->color_formats |= DRM_COLOR_FORMAT_RGB444;
+
 	/* YCRCB444 is optional according to spec. */
 	if (hdmi[6] & DRM_EDID_HDMI_DC_Y444) {
 		info->edid_hdmi_ycbcr444_dc_modes = info->edid_hdmi_rgb444_dc_modes;
