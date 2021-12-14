@@ -2328,7 +2328,7 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 
 static void vc4_hdmi_cec_exit(struct vc4_hdmi *vc4_hdmi) {};
 
-static void vc4_hdmi_cec_resume(struct vc4_hdmi *vc4_hdmi)
+static int vc4_hdmi_cec_resume(struct vc4_hdmi *vc4_hdmi)
 {
 	return 0;
 }
