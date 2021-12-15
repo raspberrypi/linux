@@ -554,7 +554,6 @@ struct vc4_dsi {
 	struct mipi_dsi_host dsi_host;
 	struct drm_encoder *encoder;
 	struct drm_bridge *out_bridge;
-	struct list_head bridge_chain;
 
 	void __iomem *regs;
 
@@ -798,22 +797,8 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
 	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
 	struct vc4_dsi *dsi = vc4_encoder->dsi;
 	struct device *dev = &dsi->pdev->dev;
-	struct drm_bridge *iter;
-
-	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->disable)
-			iter->funcs->disable(iter);
-
-		if (iter == dsi->out_bridge)
-			break;
-	}
 
 	vc4_dsi_ulps(dsi, true);
-
-	list_for_each_entry_from(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->post_disable)
-			iter->funcs->post_disable(iter);
-	}
 
 	clk_disable_unprepare(dsi->pll_phy_clock);
 	clk_disable_unprepare(dsi->escape_clock);
@@ -1118,12 +1103,6 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
 	struct vc4_dsi *dsi = vc4_encoder->dsi;
 	bool debug_dump_regs = false;
-	struct drm_bridge *iter;
-
-	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->pre_enable)
-			iter->funcs->pre_enable(iter);
-	}
 
 	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO) {
 		DSI_PORT_WRITE(DISP0_CTRL,
@@ -1138,11 +1117,6 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 		DSI_PORT_WRITE(DISP0_CTRL,
 			       DSI_DISP0_COMMAND_MODE |
 			       DSI_DISP0_ENABLE);
-	}
-
-	list_for_each_entry(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->enable)
-			iter->funcs->enable(iter);
 	}
 
 	if (debug_dump_regs) {
@@ -1577,7 +1551,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (!vc4_dsi_encoder)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&dsi->bridge_chain);
 	vc4_dsi_encoder->base.type = dsi->variant->port ?
 			VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
 	vc4_dsi_encoder->dsi = dsi;
@@ -1699,12 +1672,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		dev_err(dev, "bridge attach failed: %d\n", ret);
 		goto err_free_dma;
 	}
-	/* Disable the atomic helper calls into the bridge.  We
-	 * manually call the bridge pre_enable / enable / etc. calls
-	 * from our driver, since we need to sequence them within the
-	 * encoder's enable/disable paths.
-	 */
-	list_splice_init(&dsi->encoder->bridge_chain, &dsi->bridge_chain);
 
 	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
 
@@ -1733,11 +1700,6 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 
 	pm_runtime_disable(dev);
 
-	/*
-	 * Restore the bridge_chain so the bridge detach procedure can happen
-	 * normally.
-	 */
-	list_splice_init(&dsi->bridge_chain, &dsi->encoder->bridge_chain);
 	drm_encoder_cleanup(dsi->encoder);
 
 	if (dsi->reg_dma_chan) {
