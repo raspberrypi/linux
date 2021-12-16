@@ -596,14 +596,56 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	return vc4_hvs_gamma_check(crtc, state);
 }
 
-static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
+static void vc4_hvs_install_dlist(struct vc4_dev *vc4, unsigned int channel)
 {
-	struct drm_device *dev = crtc->dev;
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
+	struct vc4_hvs *hvs = vc4->hvs;
+	u32 __iomem *dlist_start;
+	unsigned long flags;
+	unsigned i;
+	u32 reg;
 
-	HVS_WRITE(SCALER_DISPLISTX(vc4_state->assigned_channel),
-		  vc4_state->mm.start);
+	spin_lock_irqsave(&hvs->hw_dlist_lock, flags);
+
+	if (!hvs->fifo[channel].pending) {
+		spin_unlock_irqrestore(&hvs->hw_dlist_lock, flags);
+		return;
+	}
+
+	dlist_start = hvs->dlist + hvs->fifo[channel].start;
+	/* Can't memcpy_toio() because it needs to be 32-bit writes. */
+	for (i = 0; i < hvs->fifo[channel].size; i++)
+		writel(hvs->fifo[channel].shadow[i], dlist_start + i);
+
+	HVS_WRITE(SCALER_DISPLISTX(channel), hvs->fifo[channel].start);
+
+	hvs->fifo[channel].pending = false;
+
+	reg = HVS_READ(SCALER_DISPCTRL);
+	reg &= ~BIT(7 + (channel * 4));
+	HVS_WRITE(SCALER_DISPCTRL, reg);
+
+	spin_unlock_irqrestore(&hvs->hw_dlist_lock, flags);
+}
+
+static void vc4_hvs_schedule_dlist_update(struct vc4_dev *vc4,
+					  unsigned int channel)
+{
+	struct vc4_hvs *hvs = vc4->hvs;
+	unsigned long flags;
+
+	spin_lock_irqsave(&hvs->hw_dlist_lock, flags);
+
+	if (hvs->fifo[channel].pending) {
+		spin_unlock_irqrestore(&hvs->hw_dlist_lock, flags);
+		return;
+	}
+
+	HVS_WRITE(SCALER_DISPCTRL,
+		  HVS_READ(SCALER_DISPCTRL) | BIT(7 + (channel * 4)));
+
+	hvs->fifo[channel].pending = true;
+
+	spin_unlock_irqrestore(&hvs->hw_dlist_lock, flags);
 }
 
 static void vc4_hvs_update_dlist(struct drm_crtc *crtc)
@@ -650,11 +692,14 @@ void vc4_hvs_atomic_enable(struct drm_crtc *crtc,
 {
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 	bool oneshot = vc4_crtc->feeds_txp;
 
-	vc4_hvs_install_dlist(crtc);
+	hvs->fifo[vc4_state->assigned_channel].pending = true;
+	vc4_hvs_install_dlist(vc4, vc4_state->assigned_channel);
 	vc4_hvs_update_dlist(crtc);
 	vc4_hvs_init_channel(vc4, crtc, mode, oneshot);
 }
@@ -683,7 +728,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	struct drm_plane *plane;
 	bool debug_dump_regs = false;
 	bool enable_bg_fill = false;
-	unsigned int dlist_start = vc4_state->mm.start;
+	unsigned int dlist_start = 0;
 	unsigned int dlist_next = dlist_start;
 
 	if (vc4_state->assigned_channel == VC4_HVS_CHANNEL_DISABLED)
@@ -693,6 +738,8 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		DRM_INFO("CRTC %d HVS before:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(dev);
 	}
+
+	memset(&hvs->fifo[channel], 0, sizeof(hvs->fifo[channel]));
 
 	/* Copy all the active planes' dlist contents to the hardware dlist. */
 	drm_atomic_crtc_for_each_plane(plane, crtc) {
@@ -716,10 +763,11 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 						    vc4_plane_state, dlist_next);
 	}
 
-	writel(SCALER_CTL0_END, vc4->hvs->dlist + dlist_next);
-	dlist_next++;
+	hvs->fifo[channel].shadow[dlist_next++] = SCALER_CTL0_END;
+	hvs->fifo[channel].start = vc4_state->mm.start;
+	hvs->fifo[channel].size = vc4_state->mm.size;
 
-	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm.size);
+	WARN_ON_ONCE(dlist_next != vc4_state->mm.size);
 
 	if (enable_bg_fill)
 		/* This sets a black background color fill, as is the case
@@ -737,7 +785,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	 * information.
 	 */
 	if (crtc->state->active && old_state->active) {
-		vc4_hvs_install_dlist(crtc);
+		vc4_hvs_schedule_dlist_update(vc4, channel);
 		vc4_hvs_update_dlist(crtc);
 	}
 
@@ -825,6 +873,11 @@ static irqreturn_t vc4_hvs_irq_handler(int irq, void *data)
 
 			irqret = IRQ_HANDLED;
 		}
+
+		if (status & SCALER_DISPSTAT_EOF(channel)) {
+			vc4_hvs_install_dlist(vc4, channel);
+			irqret = IRQ_HANDLED;
+		}
 	}
 
 	/* Clear every per-channel interrupt flag. */
@@ -881,6 +934,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 		hvs->dlist = hvs->regs + SCALER5_DLIST_START;
 
 	spin_lock_init(&hvs->mm_lock);
+	spin_lock_init(&hvs->hw_dlist_lock);
 
 	/* Set up the HVS display list memory manager.  We never
 	 * overwrite the setup from the bootloader (just 128b out of
