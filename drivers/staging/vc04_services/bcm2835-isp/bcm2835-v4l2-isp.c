@@ -1774,6 +1774,8 @@ static int bcm2835_isp_probe(struct platform_device *pdev)
 	if (!bcm2835_isp_instances)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, bcm2835_isp_instances);
+
 	for (i = 0; i < BCM2835_ISP_NUM_INSTANCES; i++) {
 		ret = bcm2835_isp_probe_instance(pdev,
 						 &bcm2835_isp_instances[i], i);
@@ -1781,7 +1783,6 @@ static int bcm2835_isp_probe(struct platform_device *pdev)
 			goto error;
 	}
 
-	platform_set_drvdata(pdev, bcm2835_isp_instances);
 	dev_info(&pdev->dev, "Loaded V4L2 %s\n", BCM2835_ISP_NAME);
 	return 0;
 
