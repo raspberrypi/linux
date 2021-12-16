@@ -1167,14 +1167,15 @@ u32 vc4_plane_write_dlist(struct vc4_hvs *hvs,
 			  struct vc4_plane_state *vc4_plane_state,
 			  unsigned dlist_offset)
 {
-	u32 __iomem *dlist = hvs->dlist + dlist_offset;
+	u32 __iomem *dlist = hvs->dlist + vc4_crtc_state->mm.start + dlist_offset;
+	unsigned int channel = vc4_crtc_state->assigned_channel;
 	int i;
 
 	vc4_plane_state->hw_dlist = dlist;
+	vc4_plane_state->dlist_offset = dlist_offset;
 
-	/* Can't memcpy_toio() because it needs to be 32-bit writes. */
 	for (i = 0; i < vc4_plane_state->dlist_count; i++)
-		writel(vc4_plane_state->dlist[i], &dlist[i]);
+		hvs->fifo[channel].shadow[dlist_offset + i] = vc4_plane_state->dlist[i];
 
 	return vc4_plane_state->dlist_count;
 }
@@ -1192,6 +1193,9 @@ u32 vc4_plane_dlist_size(const struct drm_plane_state *state)
  */
 void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	struct drm_crtc_state *crtc_state = plane->state->crtc->state;
+	struct vc4_crtc_state *vc4_crtc_state = to_vc4_crtc_state(crtc_state);
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(plane->state);
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	uint32_t addr;
@@ -1213,13 +1217,20 @@ void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 	 * also use our updated address.
 	 */
 	vc4_state->dlist[vc4_state->ptr0_offset] = addr;
+
+	/* Update the channel shadow dlist */
+	vc4_plane_write_dlist(vc4->hvs, vc4_crtc_state,
+			      vc4_state, vc4_state->dlist_offset);
 }
 
 static void vc4_plane_atomic_async_update(struct drm_plane *plane,
 					  struct drm_atomic_state *state)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
 										 plane);
+	struct drm_crtc_state *crtc_state = new_plane_state->crtc->state;
+	struct vc4_crtc_state *vc4_crtc_state = to_vc4_crtc_state(crtc_state);
 	struct vc4_plane_state *vc4_state, *new_vc4_state;
 
 	swap(plane->state->fb, new_plane_state->fb);
@@ -1273,16 +1284,17 @@ static void vc4_plane_atomic_async_update(struct drm_plane *plane,
 	vc4_state->dlist[vc4_state->ptr0_offset] =
 		new_vc4_state->dlist[vc4_state->ptr0_offset];
 
-	/* Note that we can't just call vc4_plane_write_dlist()
-	 * because that would smash the context data that the HVS is
-	 * currently using.
-	 */
+	/* Update the hardware dlist entries. */
 	writel(vc4_state->dlist[vc4_state->pos0_offset],
 	       &vc4_state->hw_dlist[vc4_state->pos0_offset]);
 	writel(vc4_state->dlist[vc4_state->pos2_offset],
 	       &vc4_state->hw_dlist[vc4_state->pos2_offset]);
 	writel(vc4_state->dlist[vc4_state->ptr0_offset],
 	       &vc4_state->hw_dlist[vc4_state->ptr0_offset]);
+
+	/* Update the channel shadow dlist */
+	vc4_plane_write_dlist(vc4->hvs, vc4_crtc_state,
+			      new_vc4_state, new_vc4_state->dlist_offset);
 }
 
 static int vc4_plane_atomic_async_check(struct drm_plane *plane,
