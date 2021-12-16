@@ -718,6 +718,14 @@ enum drm_bridge_ops {
 	 * this flag shall implement the &drm_bridge_funcs->get_modes callback.
 	 */
 	DRM_BRIDGE_OP_MODES = BIT(3),
+	/**
+	 * @DRM_BRIDGE_OP_UPSTREAM_FIRST: The bridge can requires
+	 * that the upstream node pre_enable is called before its pre_enable,
+	 * and conversely for post_disables. This is most frequently a
+	 * requirement for DSI devices which need the host to be initialised
+	 * before them.
+	 */
+	DRM_BRIDGE_OP_UPSTREAM_FIRST = BIT(4),
 };
 
 /**
