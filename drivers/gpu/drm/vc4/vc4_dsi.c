@@ -868,6 +868,19 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	adjusted_mode->hsync_end += adjusted_mode->htotal - mode->htotal;
 	adjusted_mode->hsync_start += adjusted_mode->htotal - mode->htotal;
 
+	if (adjusted_mode->vsync_end - adjusted_mode->vsync_start <= 1)
+		/* DSI Spec V1.1 Section 8.8.1
+		 * V Sync Start event represents the start of the VSA and also
+		 * H Sync Start for the first line of the VSA.
+		 * V Sync End event represents the end of the VSA and also
+		 * H Sync Start for the last line of the VSA.
+		 * You can't put both a V Sync Start and End at the start of a
+		 * line, therefore the sync preiod has to be greater than one
+		 * line.
+		 */
+		DRM_WARN("%s: DSI vsync pulse should be greater than 1",
+			 __func__);
+
 	return true;
 }
 
