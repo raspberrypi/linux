@@ -343,6 +343,11 @@ struct vc4_hvs {
 	struct clk *core_clk;
 	struct clk *disp_clk;
 
+	struct {
+		unsigned int desc;
+		unsigned int enabled: 1;
+	} eof_irq[HVS_NUM_CHANNELS];
+
 	unsigned long max_core_rate;
 
 	/* Memory manager for CRTCs to allocate space in the display
@@ -359,6 +364,9 @@ struct vc4_hvs {
 	struct vc4_upm_refcounts upm_refcounts[VC4_NUM_UPM_HANDLES + 1];
 
 	spinlock_t mm_lock;
+
+	struct list_head stale_dlist_entries;
+	struct work_struct free_dlist_work;
 
 	struct drm_mm_node mitchell_netravali_filter;
 
@@ -379,7 +387,6 @@ struct vc4_hvs {
 	bool vc5_hdmi_enable_4096by2160;
 };
 
-#define HVS_NUM_CHANNELS 3
 #define HVS_UBM_WORD_SIZE 256
 
 struct vc4_hvs_state {
@@ -637,10 +644,17 @@ vc4_crtc_to_vc4_pv_data(const struct vc4_crtc *crtc)
 struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc,
 					 struct drm_crtc_state *state);
 
+struct vc4_hvs_dlist_allocation {
+	struct list_head node;
+	struct drm_mm_node mm_node;
+	unsigned int channel;
+	u8 target_frame_count;
+	bool dlist_programmed;
+};
+
 struct vc4_crtc_state {
 	struct drm_crtc_state base;
-	/* Dlist area for this CRTC configuration. */
-	struct drm_mm_node mm;
+	struct vc4_hvs_dlist_allocation *mm;
 	bool txp_armed;
 	unsigned int assigned_channel;
 
@@ -1055,6 +1069,8 @@ struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
 void vc4_hvs_stop_channel(struct vc4_hvs *hvs, unsigned int output);
 int vc4_hvs_get_fifo_from_output(struct vc4_hvs *hvs, unsigned int output);
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo);
+void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
+				    struct vc4_hvs_dlist_allocation *alloc);
 int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_begin(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_enable(struct drm_crtc *crtc, struct drm_atomic_state *state);
