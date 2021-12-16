@@ -234,6 +234,7 @@
 # define SCALER_DISPCTRL_DSPEIEOLN(x)		BIT(8 + ((x) * 2))
 /* Enables Display 0 EOF contribution to SCALER_DISPSTAT_IRQDISP0 */
 # define SCALER_DISPCTRL_DSPEIEOF(x)		BIT(7 + ((x) * 2))
+# define SCALER5_DISPCTRL_DSPEIEOF(x)		BIT(7 + ((x) * 4))
 
 # define SCALER_DISPCTRL_SLVRDEIRQ		BIT(6)
 # define SCALER_DISPCTRL_SLVWREIRQ		BIT(5)
