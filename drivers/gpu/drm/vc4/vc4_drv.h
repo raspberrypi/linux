@@ -341,6 +341,14 @@ struct vc4_hvs {
 
 	/* HVS version 5 flag, therefore requires updated dlist structures */
 	bool hvs5;
+
+	spinlock_t hw_dlist_lock;
+	struct {
+		unsigned int start;
+		unsigned int size;
+		u32 shadow[2048];
+		bool pending;
+	} fifo[3];
 };
 
 struct vc4_plane {
@@ -380,6 +388,11 @@ struct vc4_plane_state {
 	 * hardware at vc4_crtc_atomic_flush() time.
 	 */
 	u32 __iomem *hw_dlist;
+
+	/* Offset where the plane's dlist was last stored in the
+	 * shadow dlist bucket at vc4_crtc_atomic_flush() time.
+	 */
+	unsigned int dlist_offset;
 
 	/* Clipped coordinates of the plane on the display. */
 	int crtc_x, crtc_y, crtc_w, crtc_h;
