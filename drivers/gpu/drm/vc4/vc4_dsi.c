@@ -888,14 +888,18 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 				      struct drm_bridge_state *old_state)
 {
 	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
-	struct drm_display_mode *mode = &dsi->encoder->crtc->state->adjusted_mode;
+	struct drm_atomic_state *state = old_state->base.state;
+	const struct drm_crtc_state *crtc_state;
 	struct device *dev = &dsi->pdev->dev;
+	const struct drm_display_mode *mode;
+	struct drm_connector *connector;
 	bool debug_dump_regs = false;
 	unsigned long hs_clock;
+	struct drm_crtc *crtc;
 	u32 ui_ns;
 	/* Minimum LP state duration in escape clock cycles. */
 	u32 lpx = dsi_esc_timing(60);
-	unsigned long pixel_clock_hz = mode->clock * 1000;
+	unsigned long pixel_clock_hz;
 	unsigned long dsip_clock;
 	unsigned long phy_clock;
 	int ret;
@@ -911,6 +915,18 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 		dev_info(&dsi->pdev->dev, "DSI regs before:\n");
 		drm_print_regset32(&p, &dsi->regset);
 	}
+
+	/*
+	 * Retrieve the CRTC adjusted mode. This requires a little dance to go
+	 * from the bridge to the encoder, to the connector and to the CRTC.
+	 */
+	connector = drm_atomic_get_new_connector_for_encoder(state,
+							     bridge->encoder);
+	crtc = drm_atomic_get_new_connector_state(state, connector)->crtc;
+	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+	mode = &crtc_state->adjusted_mode;
+
+	pixel_clock_hz = mode->clock * 1000;
 
 	/* Round up the clk_set_rate() request slightly, since
 	 * PLLD_DSI1 is an integer divider and its rate selection will
