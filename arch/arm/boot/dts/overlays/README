@@ -679,6 +679,12 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-default             Use upstream's default value
 
 
+Name:   cutiepi-panel
+Info:   8" TFT LCD display and touch panel used by cutiepi.io
+Load:   dtoverlay=cutiepi-panel
+Params: <None>
+
+
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.
