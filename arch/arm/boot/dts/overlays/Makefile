@@ -34,6 +34,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
 	cma.dtbo \
+	cutiepi-panel.dtbo \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \

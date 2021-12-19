@@ -5,6 +5,10 @@
 		deprecated = "use i2c-sensor,bmp085";
 	};
 
+	cutiepi-panel {
+		bcm2711;
+	};
+
 	highperi {
 		bcm2711;
 	};
