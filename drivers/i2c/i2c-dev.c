@@ -138,8 +138,8 @@ static ssize_t i2cdev_read(struct file *file, char __user *buf, size_t count,
 
 	struct i2c_client *client = file->private_data;
 
-	if (count > 8192)
-		count = 8192;
+	if (count > 65536)
+		count = 65536;
 
 	tmp = kzalloc(count, GFP_KERNEL);
 	if (tmp == NULL)
@@ -163,8 +163,8 @@ static ssize_t i2cdev_write(struct file *file, const char __user *buf,
 	char *tmp;
 	struct i2c_client *client = file->private_data;
 
-	if (count > 8192)
-		count = 8192;
+	if (count > 65536)
+		count = 65536;
 
 	tmp = memdup_user(buf, count);
 	if (IS_ERR(tmp))
@@ -248,7 +248,7 @@ static noinline int i2cdev_ioctl_rdwr(struct i2c_client *client,
 	res = 0;
 	for (i = 0; i < nmsgs; i++) {
 		/* Limit the size of the message to a sane amount */
-		if (msgs[i].len > 8192) {
+		if (msgs[i].len > 65536) {
 			res = -EINVAL;
 			break;
 		}
