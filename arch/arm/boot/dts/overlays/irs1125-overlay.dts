@@ -75,6 +75,7 @@
 	clk_frag: fragment@5 {
 		target = <&cam1_clk>;
 		__overlay__ {
+			status = "okay";
 			clock-frequency = <26000000>;
 		};
 	};
