@@ -1157,6 +1157,13 @@ struct drm_cmdline_mode {
 	 * @tv_margins: TV margins to apply to the mode.
 	 */
 	struct drm_connector_tv_margins tv_margins;
+	
+	/**
+	 * @low_dotclock:
+	 *
+	 * Flag is enabled if a valid low dotclock resolution is defined.
+	 */
+	bool low_dotclock;
 };
 
 /**
