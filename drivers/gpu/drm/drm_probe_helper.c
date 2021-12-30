@@ -418,6 +418,7 @@ int drm_helper_probe_single_connector_modes(struct drm_connector *connector,
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode;
+	struct drm_cmdline_mode *cmdline_mode;
 	const struct drm_connector_helper_funcs *connector_funcs =
 		connector->helper_private;
 	int count = 0, ret;
@@ -512,7 +513,11 @@ retry:
 	 * Fallback for when DDC probe failed in drm_get_edid() and thus skipped
 	 * override/firmware EDID.
 	 */
-	if (count == 0 && connector->status == connector_status_connected)
+	cmdline_mode = &connector->cmdline_mode;
+
+	if (count == 0 && connector->status == connector_status_connected ||
+	   connector->status == connector_status_unknown) &&
+	   ! cmdline_mode->low_dotclock)
 		count = drm_add_override_edid_modes(connector);
 
 	if (count == 0 && connector->status == connector_status_connected)
@@ -531,21 +536,27 @@ retry:
 		mode_flags |= DRM_MODE_FLAG_3D_MASK;
 
 	list_for_each_entry(mode, &connector->modes, head) {
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] starting with mode state : %d\n", connector->base.id, connector->name, mode->status);
+ 
 		if (mode->status != MODE_OK)
 			continue;
 
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] before drm_mode_validate_driver mode is : %d\n", connector->base.id, connector->name, mode->status);
 		mode->status = drm_mode_validate_driver(dev, mode);
 		if (mode->status != MODE_OK)
 			continue;
 
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] before drm_mode_validate_size mode is : %d\n", connector->base.id, connector->name, mode->status);
 		mode->status = drm_mode_validate_size(mode, maxX, maxY);
 		if (mode->status != MODE_OK)
 			continue;
 
-		mode->status = drm_mode_validate_flag(mode, mode_flags);
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] before drm_mode_validate_flag mode is : %d\n", connector->base.id, connector->name, mode->status);
+ 		mode->status = drm_mode_validate_flag(mode, mode_flags);
 		if (mode->status != MODE_OK)
 			continue;
 
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] before drm_mode_validate_pipeline mode is : %d\n", connector->base.id, connector->name, mode->status);
 		ret = drm_mode_validate_pipeline(mode, connector, &ctx,
 						 &mode->status);
 		if (ret) {
@@ -561,9 +572,12 @@ retry:
 			}
 		}
 
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] before drm_mode_validate_ycbcr420 mode is : %d\n", connector->base.id, connector->name, mode->status);
 		if (mode->status != MODE_OK)
 			continue;
 		mode->status = drm_mode_validate_ycbcr420(mode, connector);
+		DRM_DEBUG_KMS("[CONNECTOR:%d:%s] in the end mode is : %d\n", connector->base.id, connector->name, mode->status);
+
 	}
 
 prune:

@@ -44,6 +44,7 @@
 #include <drm/drm_print.h>
 
 #include "drm_crtc_internal.h"
+#include "drm_modes_low_dotclock.h"
 
 /**
  * drm_mode_debug_printmodeline - print a mode to dmesg
@@ -1176,16 +1177,11 @@ enum drm_mode_status
 drm_mode_validate_ycbcr420(const struct drm_display_mode *mode,
 			   struct drm_connector *connector)
 {
-	u8 vic = drm_match_cea_mode(mode);
-	enum drm_mode_status status = MODE_OK;
-	struct drm_hdmi_info *hdmi = &connector->display_info.hdmi;
+	if (!connector->ycbcr_420_allowed &&
+	    drm_mode_is_420_only(&connector->display_info, mode))
+		return MODE_NO_420;
 
-	if (test_bit(vic, hdmi->y420_vdb_modes)) {
-		if (!connector->ycbcr_420_allowed)
-			status = MODE_NO_420;
-	}
-
-	return status;
+	return MODE_OK;
 }
 EXPORT_SYMBOL(drm_mode_validate_ycbcr420);
 
@@ -1482,7 +1478,7 @@ static int drm_mode_parse_cmdline_res_mode(const char *str, unsigned int length,
 					   struct drm_cmdline_mode *mode)
 {
 	const char *str_start = str;
-	bool rb = false, cvt = false;
+	bool rb = false, cvt = false, low_dotclock = false;;
 	int xres = 0, yres = 0;
 	int remaining, i;
 	char *end_ptr;
@@ -1512,6 +1508,12 @@ static int drm_mode_parse_cmdline_res_mode(const char *str, unsigned int length,
 		case 'R':
 			rb = true;
 			break;
+		case 'S':
+		case 'c':
+		case 'z':
+			low_dotclock = true;
+			DRM_DEBUG_KMS("Found one of the S/c/z low dotclock mode flag");
+			break;
 		default:
 			/*
 			 * Try to pass that to our extras parsing
@@ -1536,6 +1538,7 @@ static int drm_mode_parse_cmdline_res_mode(const char *str, unsigned int length,
 	mode->yres = yres;
 	mode->cvt = cvt;
 	mode->rb = rb;
+	mode->low_dotclock = low_dotclock;
 
 	return 0;
 }
@@ -1547,7 +1550,7 @@ static int drm_mode_parse_cmdline_int(const char *delim, unsigned int *int_ret)
 
 	/*
 	 * delim must point to the '=', otherwise it is a syntax error and
-	 * if delim points to the terminating zero, then delim + 1 wil point
+	 * if delim points to the terminating zero, then delim + 1 will point
 	 * past the end of the string.
 	 */
 	if (*delim != '=')
@@ -1865,7 +1868,14 @@ drm_mode_create_from_cmdline_mode(struct drm_device *dev,
 {
 	struct drm_display_mode *mode;
 
-	if (cmd->cvt)
+	if (cmd->xres == 0 || cmd->yres == 0)
+		return NULL;
+
+	if (cmd->low_dotclock)
+		mode = drm_mode_low_dotclock_res(dev,
+				    cmd->xres, cmd->yres,
+				    cmd->interlace);
+	else if (cmd->cvt)
 		mode = drm_cvt_mode(dev,
 				    cmd->xres, cmd->yres,
 				    cmd->refresh_specified ? cmd->refresh : 60,
@@ -1890,7 +1900,7 @@ drm_mode_create_from_cmdline_mode(struct drm_device *dev,
 EXPORT_SYMBOL(drm_mode_create_from_cmdline_mode);
 
 /**
- * drm_crtc_convert_to_umode - convert a drm_display_mode into a modeinfo
+ * drm_mode_convert_to_umode - convert a drm_display_mode into a modeinfo
  * @out: drm_mode_modeinfo struct to return to the user
  * @in: drm_display_mode to use
  *
@@ -1942,7 +1952,7 @@ void drm_mode_convert_to_umode(struct drm_mode_modeinfo *out,
 }
 
 /**
- * drm_crtc_convert_umode - convert a modeinfo into a drm_display_mode
+ * drm_mode_convert_umode - convert a modeinfo into a drm_display_mode
  * @dev: drm device
  * @out: drm_display_mode to return to the user
  * @in: drm_mode_modeinfo to use
@@ -1974,7 +1984,7 @@ int drm_mode_convert_umode(struct drm_device *dev,
 	out->flags = in->flags;
 	/*
 	 * Old xf86-video-vmware (possibly others too) used to
-	 * leave 'type' unititialized. Just ignore any bits we
+	 * leave 'type' uninitialized. Just ignore any bits we
 	 * don't like. It's a just hint after all, and more
 	 * useful for the kernel->userspace direction anyway.
 	 */
