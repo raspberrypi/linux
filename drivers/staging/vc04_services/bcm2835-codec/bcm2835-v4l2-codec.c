@@ -1563,7 +1563,7 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	q_data->bytesperline = f->fmt.pix_mp.plane_fmt[0].bytesperline;
 	q_data->sizeimage = f->fmt.pix_mp.plane_fmt[0].sizeimage;
 
-	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev,	"Calulated bpl as %u, size %u\n",
+	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev,	"Calculated bpl as %u, size %u\n",
 		 q_data->bytesperline, q_data->sizeimage);
 
 	if (ctx->dev->role == DECODE &&
