@@ -61,11 +61,13 @@ enum sd_lbp_mode {
 	SD_LBP_DISABLE,		/* Discard disabled due to failed cmd */
 };
 
-enum {
-	SD_ZERO_WRITE = 0,	/* Use WRITE(10/16) command */
+enum sd_zeroing_mode {
+	SD_ZERO_DEFAULT = 0,	/* Default mode based on what device reports */
+	SD_ZERO_WRITE,		/* Use WRITE(10/16) command */
 	SD_ZERO_WS,		/* Use WRITE SAME(10/16) command */
 	SD_ZERO_WS16_UNMAP,	/* Use WRITE SAME(16) with UNMAP */
 	SD_ZERO_WS10_UNMAP,	/* Use WRITE SAME(10) with UNMAP */
+	SD_ZERO_DISABLE,	/* Write Zeroes disabled due to failed cmd */
 };
 
 struct scsi_disk {
@@ -110,6 +112,7 @@ struct scsi_disk {
 	u8		zeroing_mode;
 	bool		lblvpd;
 	bool		provisioning_override;
+	bool		zeroing_override;
 	unsigned	ATO : 1;	/* state of disk ATO bit */
 	unsigned	cache_override : 1; /* temp override of WCE,RCD */
 	unsigned	WCE : 1;	/* state of disk WCE bit */
