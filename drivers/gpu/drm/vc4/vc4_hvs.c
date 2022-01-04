@@ -621,7 +621,7 @@ static void vc4_hvs_install_dlist(struct vc4_dev *vc4, unsigned int channel)
 	hvs->fifo[channel].pending = false;
 
 	reg = HVS_READ(SCALER_DISPCTRL);
-	reg &= ~BIT(7 + (channel * 4));
+	reg &= ~BIT(7 + (channel * (vc4->hvs->hvs5 ? 4 : 2)));
 	HVS_WRITE(SCALER_DISPCTRL, reg);
 
 	spin_unlock_irqrestore(&hvs->hw_dlist_lock, flags);
@@ -641,7 +641,7 @@ static void vc4_hvs_schedule_dlist_update(struct vc4_dev *vc4,
 	}
 
 	HVS_WRITE(SCALER_DISPCTRL,
-		  HVS_READ(SCALER_DISPCTRL) | BIT(7 + (channel * 4)));
+		  HVS_READ(SCALER_DISPCTRL) | BIT(7 + (channel * (vc4->hvs->hvs5 ? 4 : 2))));
 
 	hvs->fifo[channel].pending = true;
 
