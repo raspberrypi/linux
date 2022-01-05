@@ -675,7 +675,7 @@ static int
 dsa_switch_mrp_add_ring_role(struct dsa_switch *ds,
 			     struct dsa_notifier_mrp_ring_role_info *info)
 {
-	if (!ds->ops->port_mrp_add)
+	if (!ds->ops->port_mrp_add_ring_role)
 		return -EOPNOTSUPP;
 
 	if (ds->index == info->sw_index)
@@ -689,7 +689,7 @@ static int
 dsa_switch_mrp_del_ring_role(struct dsa_switch *ds,
 			     struct dsa_notifier_mrp_ring_role_info *info)
 {
-	if (!ds->ops->port_mrp_del)
+	if (!ds->ops->port_mrp_del_ring_role)
 		return -EOPNOTSUPP;
 
 	if (ds->index == info->sw_index)
