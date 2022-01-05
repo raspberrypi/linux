@@ -57,6 +57,7 @@ body:
       - Raspberry Pi CM3+
       - Raspberry Pi CM3+ Lite
       - Raspberry Pi CM4
+      - Raspberry Pi CM4 Lite
       - Other
   validations:
     required: true
