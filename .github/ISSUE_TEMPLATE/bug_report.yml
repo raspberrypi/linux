@@ -33,10 +33,10 @@ body:
 - type: dropdown
   id: model
   attributes:
-    label: Version
+    label: Device (s)
     description: On which device you are facing the bug?
     multiple: true
-    options:
+    options: |
       - label: Raspberry Pi Zero
       - label: Raspberry Pi Zero W / WH
       - label: Raspberry Pi Zero 2 W
