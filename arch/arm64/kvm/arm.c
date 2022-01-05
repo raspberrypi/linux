@@ -27,6 +27,7 @@
 #include "trace_arm.h"
 
 #include <linux/uaccess.h>
+#include <asm/archrandom.h>
 #include <asm/ptrace.h>
 #include <asm/mman.h>
 #include <asm/tlbflush.h>
@@ -2244,6 +2245,7 @@ static void kvm_hyp_init_symbols(void)
 	kvm_nvhe_sym(id_aa64smfr0_el1_sys_val) = read_sanitised_ftr_reg(SYS_ID_AA64SMFR0_EL1);
 	kvm_nvhe_sym(__icache_flags) = __icache_flags;
 	kvm_nvhe_sym(kvm_arm_vmid_bits) = kvm_arm_vmid_bits;
+	kvm_nvhe_sym(smccc_trng_available) = smccc_trng_available;
 }
 
 static int __init kvm_hyp_init_protection(u32 hyp_va_bits)
