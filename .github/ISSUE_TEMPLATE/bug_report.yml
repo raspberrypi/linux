@@ -30,14 +30,44 @@ body:
   validations:
     required: true
 
+type: dropdown
+  id: model
+  attributes:
+    label: Version
+    description: On which device you are facing the bug?
+    multiple: true
+    options:
+      - label: Raspberry Pi Zero
+      - label: Raspberry Pi Zero W / WH
+      - label: Raspberry Pi Zero 2 W
+      - label: Raspberry Pi 1 Mod. A
+      - label: Raspberry Pi 1 Mod. A+
+      - label: Raspberry Pi 1 Mod. B
+      - label: Raspberry Pi 1 Mod. B+
+      - label: Raspberry Pi 2 Mod. B
+      - label: Raspberry Pi 2 Mod. B v1.2
+      - label: Raspberry Pi 3 Mod. A+
+      - label: Raspberry Pi 3 Mod. B
+      - label: Raspberry Pi 3 Mod. B+
+      - label: Raspberry Pi 4 Mod. B
+      - label: Raspberry Pi 400
+      - label: Raspberry Pi CM1
+      - label: Raspberry Pi CM3
+      - label: Raspberry Pi CM3 Lite
+      - label: Raspberry Pi CM3+
+      - label: Raspberry Pi CM3+ Lite
+      - label: Raspberry Pi CM4
+      - label: Other
+  validations:
+    required: true
+
 - type: textarea
   id: system
   attributes:
     label: System
     description: |
-      Copy and paste the results of the raspinfo command in to this section. Alternatively, copy and paste a pastebin link, or add answers to the following questions:
-      
-      * Which model of Raspberry Pi? e.g. Pi3B+, PiZeroW
+      Copy and paste the results of the raspinfo command in to this section.
+      Alternatively, copy and paste a pastebin link, or add answers to the following questions:
       * Which OS and version (`cat /etc/rpi-issue`)?
       * Which firmware version (`vcgencmd version`)?
       * Which kernel version (`uname -a`)?
