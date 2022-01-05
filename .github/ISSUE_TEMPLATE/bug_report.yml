@@ -36,28 +36,28 @@ body:
     label: Device (s)
     description: On which device you are facing the bug?
     multiple: true
-    options: |
-      - label: Raspberry Pi Zero
-      - label: Raspberry Pi Zero W / WH
-      - label: Raspberry Pi Zero 2 W
-      - label: Raspberry Pi 1 Mod. A
-      - label: Raspberry Pi 1 Mod. A+
-      - label: Raspberry Pi 1 Mod. B
-      - label: Raspberry Pi 1 Mod. B+
-      - label: Raspberry Pi 2 Mod. B
-      - label: Raspberry Pi 2 Mod. B v1.2
-      - label: Raspberry Pi 3 Mod. A+
-      - label: Raspberry Pi 3 Mod. B
-      - label: Raspberry Pi 3 Mod. B+
-      - label: Raspberry Pi 4 Mod. B
-      - label: Raspberry Pi 400
-      - label: Raspberry Pi CM1
-      - label: Raspberry Pi CM3
-      - label: Raspberry Pi CM3 Lite
-      - label: Raspberry Pi CM3+
-      - label: Raspberry Pi CM3+ Lite
-      - label: Raspberry Pi CM4
-      - label: Other
+    options:
+      - Raspberry Pi Zero
+      - Raspberry Pi Zero W / WH
+      - Raspberry Pi Zero 2 W
+      - Raspberry Pi 1 Mod. A
+      - Raspberry Pi 1 Mod. A+
+      - Raspberry Pi 1 Mod. B
+      - Raspberry Pi 1 Mod. B+
+      - Raspberry Pi 2 Mod. B
+      - Raspberry Pi 2 Mod. B v1.2
+      - Raspberry Pi 3 Mod. A+
+      - Raspberry Pi 3 Mod. B
+      - Raspberry Pi 3 Mod. B+
+      - Raspberry Pi 4 Mod. B
+      - Raspberry Pi 400
+      - Raspberry Pi CM1
+      - Raspberry Pi CM3
+      - Raspberry Pi CM3 Lite
+      - Raspberry Pi CM3+
+      - Raspberry Pi CM3+ Lite
+      - Raspberry Pi CM4
+      - Other
   validations:
     required: true
 
