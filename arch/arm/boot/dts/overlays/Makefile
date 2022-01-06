@@ -235,6 +235,9 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-fkms-v3d.dtbo \
 	vc4-fkms-v3d-pi4.dtbo \
 	vc4-kms-dpi-generic.dtbo \
+	vc4-kms-dpi-hyperpixel2r.dtbo \
+	vc4-kms-dpi-hyperpixel4.dtbo \
+	vc4-kms-dpi-hyperpixel4sq.dtbo \
 	vc4-kms-dpi-panel.dtbo \
 	vc4-kms-dsi-7inch.dtbo \
 	vc4-kms-dsi-lt070me05000.dtbo \
