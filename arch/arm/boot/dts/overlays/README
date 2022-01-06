@@ -3676,6 +3676,39 @@ Params: clock-frequency         Display clock frequency (Hz)
         rotate                  Display rotation {0,90,180,270} (default 0)
 
 
+Name:   vc4-kms-dpi-hyperpixel2r
+Info:   Enable the KMS drivers for the Pimoroni HyperPixel2 Round DPI display.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-hyperpixel2r,<param>=<val>
+Params: disable-touch           Disables the touch controller
+        touchscreen-inverted-x  Inverts X direction of touch controller
+        touchscreen-inverted-y  Inverts Y direction of touch controller
+        touchscreen-swapped-x-y Swaps X & Y axes of touch controller
+        rotate                  Display rotation {0,90,180,270} (default 0)
+
+
+Name:   vc4-kms-dpi-hyperpixel4
+Info:   Enable the KMS drivers for the Pimoroni HyperPixel4 DPI display.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-hyperpixel4,<param>=<val>
+Params: disable-touch           Disables the touch controller
+        touchscreen-inverted-x  Inverts X direction of touch controller
+        touchscreen-inverted-y  Inverts Y direction of touch controller
+        touchscreen-swapped-x-y Swaps X & Y axes of touch controller
+        rotate                  Display rotation {0,90,180,270} (default 0)
+
+
+Name:   vc4-kms-dpi-hyperpixel4sq
+Info:   Enable the KMS drivers for the Pimoroni HyperPixel4 Square DPI display.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-hyperpixel4sq,<param>=<val>
+Params: disable-touch           Disables the touch controller
+        touchscreen-inverted-x  Inverts X direction of touch controller
+        touchscreen-inverted-y  Inverts Y direction of touch controller
+        touchscreen-swapped-x-y Swaps X & Y axes of touch controller
+        rotate                  Display rotation {0,90,180,270} (default 0)
+
+
 Name:   vc4-kms-dpi-panel
 Info:   Enable a preconfigured KMS DPI panel.
         Requires vc4-kms-v3d to be loaded.
