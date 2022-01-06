@@ -1068,12 +1068,14 @@ void free_hyp_memcache(struct kvm_hyp_memcache *mc)
 				    kvm_host_va, NULL);
 }
 
-int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages)
+int topup_hyp_memcache(struct kvm_vcpu *vcpu)
 {
 	if (!is_protected_kvm_enabled())
 		return 0;
 
-	return __topup_hyp_memcache(mc, min_pages, hyp_mc_alloc_fn,
+	return __topup_hyp_memcache(&vcpu->arch.pkvm_memcache,
+				    kvm_mmu_cache_min_pages(vcpu->kvm),
+				    hyp_mc_alloc_fn,
 				    kvm_host_pa, NULL);
 }
 
@@ -1431,7 +1433,6 @@ static int pkvm_host_map_guest(u64 pfn, u64 gfn)
 static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 			  unsigned long hva)
 {
-	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.pkvm_memcache;
 	struct mm_struct *mm = current->mm;
 	unsigned int flags = FOLL_HWPOISON | FOLL_LONGTERM | FOLL_WRITE;
 	struct kvm_pinned_page *ppage;
@@ -1440,7 +1441,7 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	u64 pfn;
 	int ret;
 
-	ret = topup_hyp_memcache(hyp_memcache, kvm_mmu_cache_min_pages(kvm));
+	ret = topup_hyp_memcache(vcpu);
 	if (ret)
 		return -ENOMEM;
 
