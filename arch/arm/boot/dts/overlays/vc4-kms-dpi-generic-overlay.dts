@@ -63,6 +63,23 @@
 		};
 	};
 
+	fragment@2 {
+		target = <&panel>;
+		__dormant__  {
+			backlight = <&backlight>;
+		};
+	};
+
+	fragment@3 {
+		target-path = "/";
+		__dormant__  {
+			backlight: backlight {
+				compatible = "gpio-backlight";
+				gpios = <&gpio 255 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
 	__overrides__ {
 		clock-frequency = <&timing>, "clock-frequency:0";
 		hactive = <&timing>, "hactive:0";
@@ -88,5 +105,7 @@
 		rgb888 = <&panel>, "bus-format:0=0x100a",
 			<&dpi_node>, "pinctrl-0:0=",<&dpi_gpio0>;
 		bus-format = <&panel>, "bus-format:0";
+		backlight-gpio = <0>, "+2+3",
+			<&backlight>, "gpios:4";
 	};
 };
