@@ -3625,6 +3625,8 @@ Params: clock-frequency         Display clock frequency (Hz)
         rgb888                  Change to RGB888 output on GPIOs 0-27
         bus-format              Override the bus format for a MEDIA_BUS_FMT_*
                                 value. NB also overridden by rgbXXX overrides.
+        backlight-gpio          Defines a GPIO to be used for backlight control
+                                (default of none).
 
 
 Name:   vc4-kms-dsi-7inch
