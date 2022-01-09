@@ -500,6 +500,7 @@ void scsi_attach_vpd(struct scsi_device *sdev)
 	}
 	kfree(vpd_buf);
 }
+EXPORT_SYMBOL_GPL(scsi_attach_vpd);
 
 /**
  * scsi_report_opcode - Find out if a given command opcode is supported

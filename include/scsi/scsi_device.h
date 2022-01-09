@@ -572,6 +572,20 @@ static inline int scsi_device_tpgs(struct scsi_device *sdev)
 	return sdev->inquiry ? (sdev->inquiry[5] >> 4) & 0x3 : 0;
 }
 
+static inline bool scsi_device_has_vpd(struct scsi_device *sdev)
+{
+	struct scsi_vpd *vpd;
+	bool found = false;
+
+	rcu_read_lock();
+	vpd = rcu_dereference(sdev->vpd_pg0);
+	if (vpd)
+		found = true;
+	rcu_read_unlock();
+
+	return found;
+}
+
 /**
  * scsi_device_supports_vpd - test if a device supports VPD pages
  * @sdev: the &struct scsi_device to test

@@ -2588,8 +2588,11 @@ static int read_capacity_16(struct scsi_disk *sdkp, struct scsi_device *sdp,
 		 * and the device claims conformance to a recent version of the
 		 * spec.
 		 */
-		if (sdp->scsi_level > SCSI_SPC_3)
-			sdp->try_vpd_pages = 1;
+		if (!scsi_device_has_vpd(sdp) && sdp->scsi_level > SCSI_SPC_3) {
+			sd_printk(KERN_ERR, sdkp,
+			  "Logical Block Provisioning enabled, trying VPDs\n");
+			sdkp->reattach_vpds = true;
+		}
 	}
 
 	sdkp->capacity = lba + 1;
@@ -2656,8 +2659,10 @@ static int read_capacity_10(struct scsi_disk *sdkp, struct scsi_device *sdp,
 	return sector_size;
 }
 
-static int sd_try_rc16_first(struct scsi_device *sdp)
+static int sd_try_rc16_first(struct scsi_disk *sdkp)
 {
+	struct scsi_device *sdp = sdkp->device;
+
 	if (sdp->host->max_cmd_len < 16)
 		return 0;
 	if (sdp->try_rc_10_first)
@@ -2678,7 +2683,7 @@ sd_read_capacity(struct scsi_disk *sdkp, unsigned char *buffer)
 	int sector_size;
 	struct scsi_device *sdp = sdkp->device;
 
-	if (sd_try_rc16_first(sdp)) {
+	if (sd_try_rc16_first(sdkp)) {
 		sector_size = read_capacity_16(sdkp, sdp, buffer);
 		if (sector_size == -EOVERFLOW)
 			goto got_data;
@@ -3404,6 +3409,13 @@ static int sd_revalidate_disk(struct gendisk *disk)
 		blk_queue_flag_clear(QUEUE_FLAG_NONROT, q);
 		blk_queue_flag_set(QUEUE_FLAG_ADD_RANDOM, q);
 
+		if (sdkp->reattach_vpds) {
+			sd_printk(KERN_ERR, sdkp, "Reattaching VPDs\n");
+			sdp->try_vpd_pages = 1;
+			scsi_attach_vpd(sdp);
+			sdkp->reattach_vpds = false;
+		}
+
 		if (scsi_device_supports_vpd(sdp)) {
 			sd_read_block_provisioning(sdkp);
 			sd_read_block_limits(sdkp);
@@ -3548,6 +3560,42 @@ static int sd_format_disk_name(char *prefix, int index, char *buf, int buflen)
 	return 0;
 }
 
+enum {
+	INQUIRY_DESC_START	= 58,
+	INQUIRY_DESC_END	= 74,
+	INQUIRY_DESC_SIZE	= 2,
+};
+
+static unsigned int sd_sbc_version(struct scsi_device *sdp)
+{
+	unsigned int i;
+	unsigned int max;
+
+	if (sdp->inquiry_len < INQUIRY_DESC_START + INQUIRY_DESC_SIZE)
+		return 0;
+
+	max = min_t(unsigned int, sdp->inquiry_len, INQUIRY_DESC_END);
+	max = rounddown(max, INQUIRY_DESC_SIZE);
+
+	for (i = INQUIRY_DESC_START ; i < max ; i += INQUIRY_DESC_SIZE) {
+		u16 desc = get_unaligned_be16(&sdp->inquiry[i]);
+
+		switch (desc) {
+		case 0x0600:
+			return 4;
+		case 0x04c0: case 0x04c3: case 0x04c5: case 0x04c8:
+			return 3;
+		case 0x0320: case 0x0322: case 0x0324: case 0x033B:
+		case 0x033D: case 0x033E:
+			return 2;
+		case 0x0180: case 0x019b: case 0x019c:
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 /**
  *	sd_probe - called during driver initialization and whenever a
  *	new scsi device is attached to the system. It is called once
@@ -3657,6 +3705,21 @@ static int sd_probe(struct device *dev)
 	sdkp->ATO = 0;
 	sdkp->first_scan = 1;
 	sdkp->max_medium_access_timeouts = SD_MAX_MEDIUM_TIMEOUTS;
+
+	/*
+	 * If the device explicitly claims support for SBC version 3
+	 * or later, unset the LLD flags which prevent probing for
+	 * modern protocol features and reattach VPD pages.
+	 */
+	sdkp->sbc_version = sd_sbc_version(sdp);
+	if (!scsi_device_has_vpd(sdp) && sdkp->sbc_version >= 3) {
+		sdkp->reattach_vpds = true;
+		sdp->try_rc_10_first = 0;
+		sdp->no_read_capacity_16 = 0;
+		sd_printk(KERN_ERR, sdkp,
+			  "Detected SBC version %u, trying VPDs\n",
+			  sdkp->sbc_version);
+	}
 
 	sd_revalidate_disk(gd);
 

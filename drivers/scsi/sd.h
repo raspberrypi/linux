@@ -107,6 +107,7 @@ struct scsi_disk {
 	unsigned int	physical_block_size;
 	unsigned int	max_medium_access_timeouts;
 	unsigned int	medium_access_timed_out;
+	unsigned int	sbc_version;
 	u8		media_present;
 	u8		write_prot;
 	u8		protection_type;/* Data Integrity Field */
@@ -116,6 +117,7 @@ struct scsi_disk {
 	bool		provisioning_override;
 	bool		zeroing_override;
 	bool		ndob;
+	bool		reattach_vpds;
 	unsigned	ATO : 1;	/* state of disk ATO bit */
 	unsigned	cache_override : 1; /* temp override of WCE,RCD */
 	unsigned	WCE : 1;	/* state of disk WCE bit */
