@@ -53,8 +53,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ENTRY(mmioset)
 ENTRY(memset)
 ENTRY(__memset)
-ENTRY(__memset32)
-ENTRY(__memset64)
 
         S       .req    a1
         DAT0    .req    a2
@@ -64,9 +62,13 @@ ENTRY(__memset64)
         DAT3    .req    lr
 
         orr     DAT0, DAT0, DAT0, lsl #8
-        push    {S, lr}
         orr     DAT0, DAT0, DAT0, lsl #16
+
+ENTRY(__memset32)
         mov     DAT1, DAT0
+
+ENTRY(__memset64)
+        push    {S, lr}
 
         /* See if we're guaranteed to have at least one 16-byte aligned 16-byte write */
         cmp     N, #31
@@ -89,7 +91,7 @@ ENTRY(__memset64)
         stmcsia S!, {DAT0, DAT1}
 164:    /* Delayed set up of DAT2 and DAT3 so we could use them as scratch registers above */
         mov     DAT2, DAT0
-        mov     DAT3, DAT0
+        mov     DAT3, DAT1
         /* Now the inner loop of 16-byte stores */
 165:    stmia   S!, {DAT0, DAT1, DAT2, DAT3}
         subs    N, N, #16
@@ -105,7 +107,7 @@ ENTRY(__memset64)
 
 170:    /* Short case */
         mov     DAT2, DAT0
-        mov     DAT3, DAT0
+        mov     DAT3, DAT1
         tst     S, #3
         beq     174f
 172:    subs    N, N, #1
