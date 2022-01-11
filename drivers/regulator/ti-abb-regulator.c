@@ -484,7 +484,7 @@ static int ti_abb_init_timings(struct device *dev, struct ti_abb *abb)
 	/* Calculate cycle rate */
 	cycle_rate = DIV_ROUND_CLOSEST(clock_cycles * 10, clk_rate);
 
-	/* Calulate SR2_WTCNT_VALUE */
+	/* Calculate SR2_WTCNT_VALUE */
 	sr2_wt_cnt_val = DIV_ROUND_CLOSEST(abb->settling_time * 10, cycle_rate);
 
 	dev_dbg(dev, "%s: Clk_rate=%ld, sr2_cnt=0x%08x\n", __func__,
