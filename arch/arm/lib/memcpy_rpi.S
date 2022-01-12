@@ -27,6 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <linux/linkage.h>
+#include <asm/assembler.h>
+#include <asm/unwind.h>
 #include "arm-mem.h"
 #include "memcpymove.h"
 
