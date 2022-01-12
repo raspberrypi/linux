@@ -242,6 +242,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-v3d-pi4.dtbo \
 	vc4-kms-vga666.dtbo \
 	vga666.dtbo \
+	vl805.dtbo \
 	w1-gpio.dtbo \
 	w1-gpio-pullup.dtbo \
 	w5500.dtbo \

@@ -3731,6 +3731,14 @@ Load:   dtoverlay=vga666
 Params: <None>
 
 
+Name:   vl805
+Info:   Overlay to enable a VIA VL805 USB3 controller on CM4 carriers
+        Will be loaded automatically by up-to-date firmware if "VL805=1" is
+        set in the EEPROM config.
+Load:   dtoverlay=vl805
+Params: <None>
+
+
 Name:   w1-gpio
 Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *don't* need a GPIO to drive an external pullup.
