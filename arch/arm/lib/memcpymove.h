@@ -280,6 +280,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 199:
         pop     {DAT3, DAT4, DAT5, DAT6, DAT7}
         pop     {D, DAT1, DAT2, pc}
+        UNWIND( .fnend )
 .endm
 
 .macro memcpy_medium_inner_loop  backwards, align
@@ -358,19 +359,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         LAST    .req    ip
         OFF     .req    lr
 
-        .cfi_startproc
+        UNWIND( .fnstart )
 
         push    {D, DAT1, DAT2, lr}
+        UNWIND( .fnend )
 
-        .cfi_def_cfa_offset 16
-        .cfi_rel_offset D, 0
-        .cfi_undefined  S
-        .cfi_undefined  N
-        .cfi_undefined  DAT0
-        .cfi_rel_offset DAT1, 4
-        .cfi_rel_offset DAT2, 8
-        .cfi_undefined  LAST
-        .cfi_rel_offset lr, 12
+        UNWIND( .fnstart )
+        UNWIND( .save {D, DAT1, DAT2, lr} )
 
  .if backwards
         add     D, D, N
@@ -386,17 +381,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
         /* Long case */
         push    {DAT3, DAT4, DAT5, DAT6, DAT7}
+        UNWIND( .fnend )
 
-        .cfi_def_cfa_offset 36
-        .cfi_rel_offset D, 20
-        .cfi_rel_offset DAT1, 24
-        .cfi_rel_offset DAT2, 28
-        .cfi_rel_offset DAT3, 0
-        .cfi_rel_offset DAT4, 4
-        .cfi_rel_offset DAT5, 8
-        .cfi_rel_offset DAT6, 12
-        .cfi_rel_offset DAT7, 16
-        .cfi_rel_offset lr, 32
+        UNWIND( .fnstart )
+        UNWIND( .save {D, DAT1, DAT2, lr} )
+        UNWIND( .save {DAT3, DAT4, DAT5, DAT6, DAT7} )
 
         /* Adjust N so that the decrement instruction can also test for
          * inner loop termination. We want it to stop when there are
@@ -436,16 +425,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 156:    memcpy_long_inner_loop  backwards, 2
 157:    memcpy_long_inner_loop  backwards, 3
 
-        .cfi_def_cfa_offset 16
-        .cfi_rel_offset D, 0
-        .cfi_rel_offset DAT1, 4
-        .cfi_rel_offset DAT2, 8
-        .cfi_same_value DAT3
-        .cfi_same_value DAT4
-        .cfi_same_value DAT5
-        .cfi_same_value DAT6
-        .cfi_same_value DAT7
-        .cfi_rel_offset lr, 12
+        UNWIND( .fnend )
+
+        UNWIND( .fnstart )
+        UNWIND( .save {D, DAT1, DAT2, lr} )
 
 160:    /* Medium case */
         preload_all  backwards, 0, 0, S, N, DAT2, OFF
@@ -488,7 +471,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         memcpy_short_inner_loop  backwards, 0
 140:    memcpy_short_inner_loop  backwards, 1
 
-        .cfi_endproc
+        UNWIND( .fnend )
 
         .unreq  D
         .unreq  S
