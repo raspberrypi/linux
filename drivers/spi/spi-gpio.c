@@ -35,6 +35,7 @@ struct spi_gpio {
 	struct gpio_desc		*sck;
 	struct gpio_desc		*miso;
 	struct gpio_desc		*mosi;
+	bool				sck_idle_input;
 	struct gpio_desc		**cs_gpios;
 };
 
@@ -201,8 +202,12 @@ static void spi_gpio_chipselect(struct spi_device *spi, int is_active)
 	struct spi_gpio *spi_gpio = spi_to_spi_gpio(spi);
 
 	/* set initial clock line level */
-	if (is_active)
-		gpiod_set_value_cansleep(spi_gpio->sck, spi->mode & SPI_CPOL);
+	if (is_active) {
+		if (spi_gpio->sck_idle_input)
+			gpiod_direction_output(spi_gpio->sck, spi->mode & SPI_CPOL);
+		else
+			gpiod_set_value_cansleep(spi_gpio->sck, spi->mode & SPI_CPOL);
+	}
 
 	/* Drive chip select line, if we have one */
 	if (spi_gpio->cs_gpios) {
@@ -211,6 +216,9 @@ static void spi_gpio_chipselect(struct spi_device *spi, int is_active)
 		/* SPI chip selects are normally active-low */
 		gpiod_set_value_cansleep(cs, (spi->mode & SPI_CS_HIGH) ? is_active : !is_active);
 	}
+
+	if (spi_gpio->sck_idle_input && !is_active)
+		gpiod_direction_input(spi_gpio->sck);
 }
 
 static int spi_gpio_setup(struct spi_device *spi)
@@ -289,6 +297,7 @@ static int spi_gpio_request(struct device *dev, struct spi_gpio *spi_gpio)
 	if (IS_ERR(spi_gpio->miso))
 		return PTR_ERR(spi_gpio->miso);
 
+	spi_gpio->sck_idle_input = device_property_read_bool(dev, "sck-idle-input");
 	spi_gpio->sck = devm_gpiod_get(dev, "sck", GPIOD_OUT_LOW);
 	return PTR_ERR_OR_ZERO(spi_gpio->sck);
 }
