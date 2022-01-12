@@ -237,11 +237,6 @@
 		ranges;
 
 		reg = <0 0 0 0 0>;
-
-		usb@0,0 {
-			reg = <0 0 0 0 0>;
-			resets = <&reset RASPBERRYPI_FIRMWARE_RESET_ID_USB>;
-		};
 	};
 };
 
