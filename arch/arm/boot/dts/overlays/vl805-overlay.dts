@@ -1,0 +1,18 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/reset/raspberrypi,firmware-reset.h>
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "pcie0/pci@0,0";
+		__overlay__ {
+			usb@0,0 {
+				reg = <0 0 0 0 0>;
+				resets = <&reset RASPBERRYPI_FIRMWARE_RESET_ID_USB>;
+			};
+		};
+	};
+};
