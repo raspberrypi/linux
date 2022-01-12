@@ -872,6 +872,15 @@ static int btmtksdio_setup(struct hci_dev *hdev)
 		err = mt79xx_setup(hdev, fwname);
 		if (err < 0)
 			return err;
+
+		err = btmtksdio_fw_pmctrl(bdev);
+		if (err < 0)
+			return err;
+
+		err = btmtksdio_drv_pmctrl(bdev);
+		if (err < 0)
+			return err;
+
 		break;
 	case 0x7663:
 	case 0x7668:
