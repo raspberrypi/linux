@@ -3,8 +3,6 @@
 #include "bcm2711.dtsi"
 #include "bcm2835-rpi.dtsi"
 
-#include <dt-bindings/reset/raspberrypi,firmware-reset.h>
-
 / {
 	compatible = "raspberrypi,4-compute-module", "brcm,bcm2711";
 	model = "Raspberry Pi Compute Module 4";
@@ -293,11 +291,6 @@
 		ranges;
 
 		reg = <0 0 0 0 0>;
-
-		usb@0,0 {
-			reg = <0 0 0 0 0>;
-			resets = <&reset RASPBERRYPI_FIRMWARE_RESET_ID_USB>;
-		};
 	};
 };
 
