@@ -1181,15 +1181,9 @@ int vc4_crtc_init(struct drm_device *drm, struct vc4_crtc *vc4_crtc,
 
 	if (!vc4->hvs->hvs5) {
 		drm_mode_crtc_set_gamma_size(crtc, ARRAY_SIZE(vc4_crtc->lut_r));
-	} else {
-		/* This is a lie for hvs5 which uses a 16 point PWL, but it
-		 * allows for something smarter than just 16 linearly spaced
-		 * segments. Conversion is done in vc5_hvs_update_gamma_lut.
-		 */
-		drm_mode_crtc_set_gamma_size(crtc, 256);
+		drm_crtc_enable_color_mgmt(crtc, 0, false, crtc->gamma_size);
 	}
 
-	drm_crtc_enable_color_mgmt(crtc, 0, false, crtc->gamma_size);
 
 	if (!vc4->hvs->hvs5) {
 		/* We support CTM, but only for one CRTC at a time. It's therefore
