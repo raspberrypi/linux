@@ -438,6 +438,7 @@ static int panel_dpi_probe(struct device *dev,
 
 	of_property_read_u32(np, "width-mm", &desc->size.width);
 	of_property_read_u32(np, "height-mm", &desc->size.height);
+	of_property_read_u32(np, "bus-format", &desc->bus_format);
 
 	/* Extract bus_flags from display_timing */
 	bus_flags = 0;
@@ -447,6 +448,8 @@ static int panel_dpi_probe(struct device *dev,
 
 	/* We do not know the connector for the DT node, so guess it */
 	desc->connector_type = DRM_MODE_CONNECTOR_DPI;
+	/* Likewise for the bit depth. */
+	desc->bpc = 8;
 
 	panel->desc = desc;
 
@@ -557,6 +560,7 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 		err = panel_dpi_probe(dev, panel);
 		if (err)
 			goto free_ddc;
+		desc = panel->desc;
 	} else {
 		if (!of_get_display_timing(dev->of_node, "panel-timing", &dt))
 			panel_simple_parse_panel_timing_node(dev, panel, &dt);

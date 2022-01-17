@@ -8,21 +8,15 @@
 / {
 	compatible = "raspberrypi,3-compute-module", "brcm,bcm2837";
 	model = "Raspberry Pi Compute Module 3";
+};
 
-	cam1_reg: cam1_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam1-regulator";
-		gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
-	cam0_reg: cam0_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam0-regulator";
-		gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
+&cam1_reg {
+	gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+cam0_reg: &cam0_regulator {
+	gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
 };
 
 &uart0 {
@@ -144,5 +138,9 @@
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpios:4";
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpios:4";
 	};
 };

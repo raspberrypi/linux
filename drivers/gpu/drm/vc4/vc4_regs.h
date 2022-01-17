@@ -491,6 +491,28 @@
 #define SCALER_DLIST_START                      0x00002000
 #define SCALER_DLIST_SIZE                       0x00004000
 
+/* Gamma PWL for each channel. 16 points for each of 4 colour channels (alpha
+ * only on channel 2). 8 bytes per entry, offsets first, then gradient:
+ *   Y = GRAD * X + C
+ *
+ * Values for X and C are left justified, and vary depending on the width of
+ * the HVS channel:
+ *    8-bit pipeline: X uses [31:24], C is U8.8 format, and GRAD is U4.8.
+ *   12-bit pipeline: X uses [31:20], C is U12.4 format, and GRAD is U4.8.
+ *
+ * The 3 HVS channels start at 0x400 offsets (ie chan 1 starts at 0x2400, and
+ * chan 2 at 0x2800).
+ */
+#define SCALER5_DSPGAMMA_NUM_POINTS		16
+#define SCALER5_DSPGAMMA_START			0x00002000
+#define SCALER5_DSPGAMMA_CHAN_OFFSET		0x400
+# define SCALER5_DSPGAMMA_OFF_X_MASK		VC4_MASK(31, 20)
+# define SCALER5_DSPGAMMA_OFF_X_SHIFT		20
+# define SCALER5_DSPGAMMA_OFF_C_MASK		VC4_MASK(15, 0)
+# define SCALER5_DSPGAMMA_OFF_C_SHIFT		0
+# define SCALER5_DSPGAMMA_GRAD_MASK		VC4_MASK(11, 0)
+# define SCALER5_DSPGAMMA_GRAD_SHIFT		0
+
 #define SCALER5_DLIST_START			0x00004000
 
 # define VC4_HDMI_SW_RESET_FORMAT_DETECT	BIT(1)
@@ -774,7 +796,26 @@ enum {
 # define VC4_HD_CSC_CTL_RGB2YCC			BIT(1)
 # define VC4_HD_CSC_CTL_ENABLE			BIT(0)
 
+# define VC5_MT_CP_CSC_CTL_USE_444_TO_422	BIT(6)
+# define VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422_MASK \
+						VC4_MASK(5, 4)
+# define VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422_STANDARD \
+						3
+# define VC5_MT_CP_CSC_CTL_USE_RNG_SUPPRESSION	BIT(3)
+# define VC5_MT_CP_CSC_CTL_ENABLE		BIT(2)
+# define VC5_MT_CP_CSC_CTL_MODE_MASK		VC4_MASK(1, 0)
+
+# define VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP_MASK \
+						VC4_MASK(7, 6)
+# define VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP_LEGACY_STYLE \
+						2
+
 # define VC4_DVP_HT_CLOCK_STOP_PIXEL		BIT(1)
+
+# define VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422_MASK \
+						VC4_MASK(3, 2)
+# define VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422_FORMAT_422_LEGACY \
+						2
 
 /* HVS display list information. */
 #define HVS_BOOTLOADER_DLIST_END                32

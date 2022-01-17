@@ -52,7 +52,11 @@
 #define OV9281_REG_EXPOSURE		0x3500
 #define	OV9281_EXPOSURE_MIN		4
 #define	OV9281_EXPOSURE_STEP		1
-#define OV9281_VTS_MAX			0x7fff
+/*
+ * Number of lines less than frame length (VTS) that exposure must be.
+ * Datasheet states 25, although empirically 5 appears to work.
+ */
+#define OV9281_EXPOSURE_OFFSET		25
 
 #define OV9281_REG_GAIN_H		0x3508
 #define OV9281_REG_GAIN_L		0x3509
@@ -69,6 +73,7 @@
 #define OV9281_TEST_PATTERN_DISABLE	0x0
 
 #define OV9281_REG_VTS			0x380e
+#define OV9281_VTS_MAX			0x7fff
 
 /*
  * OV9281 native and active pixel array size.
@@ -507,7 +512,7 @@ static int ov9281_set_fmt(struct v4l2_subdev *sd,
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
-	fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+	fmt->format.colorspace = V4L2_COLORSPACE_RAW;
 	fmt->format.ycbcr_enc =
 			V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
 	fmt->format.quantization =
@@ -557,7 +562,7 @@ static int ov9281_get_fmt(struct v4l2_subdev *sd,
 		fmt->format.height = mode->height;
 		fmt->format.code = ov9281->code;
 		fmt->format.field = V4L2_FIELD_NONE;
-		fmt->format.colorspace = V4L2_COLORSPACE_SRGB;
+		fmt->format.colorspace = V4L2_COLORSPACE_RAW;
 		fmt->format.ycbcr_enc =
 			V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
 		fmt->format.quantization =
@@ -908,7 +913,7 @@ static int ov9281_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt->height = def_mode->height;
 	try_fmt->code = MEDIA_BUS_FMT_Y10_1X10;
 	try_fmt->field = V4L2_FIELD_NONE;
-	try_fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	try_fmt->colorspace = V4L2_COLORSPACE_RAW;
 	try_fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(try_fmt->colorspace);
 	try_fmt->quantization =
 		V4L2_MAP_QUANTIZATION_DEFAULT(true, try_fmt->colorspace,
@@ -964,7 +969,7 @@ static int ov9281_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_VBLANK:
 		/* Update max exposure while meeting expected vblanking */
-		max = ov9281->cur_mode->height + ctrl->val - 4;
+		max = ov9281->cur_mode->height + ctrl->val - OV9281_EXPOSURE_OFFSET;
 		__v4l2_ctrl_modify_range(ov9281->exposure,
 					 ov9281->exposure->minimum, max,
 					 ov9281->exposure->step,
@@ -1059,7 +1064,7 @@ static int ov9281_initialize_controls(struct ov9281 *ov9281)
 					   OV9281_VTS_MAX - mode->height, 1,
 					   vblank_def);
 
-	exposure_max = mode->vts_def - 4;
+	exposure_max = mode->vts_def - OV9281_EXPOSURE_OFFSET;
 	ov9281->exposure = v4l2_ctrl_new_std(handler, &ov9281_ctrl_ops,
 					     V4L2_CID_EXPOSURE,
 					     OV9281_EXPOSURE_MIN, exposure_max,

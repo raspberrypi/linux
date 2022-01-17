@@ -8,21 +8,15 @@
 / {
 	compatible = "raspberrypi,compute-module", "brcm,bcm2835";
 	model = "Raspberry Pi Compute Module";
+};
 
-	cam1_reg: cam1_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam1-regulator";
-		gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
-	cam0_reg: cam0_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam0-regulator";
-		gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
+&cam1_reg {
+	gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+cam0_reg: &cam0_regulator {
+	gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
 };
 
 &uart0 {

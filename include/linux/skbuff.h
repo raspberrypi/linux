@@ -1908,7 +1908,7 @@ static inline void __skb_insert(struct sk_buff *newsk,
 	WRITE_ONCE(newsk->prev, prev);
 	WRITE_ONCE(next->prev, newsk);
 	WRITE_ONCE(prev->next, newsk);
-	list->qlen++;
+	WRITE_ONCE(list->qlen, list->qlen + 1);
 }
 
 static inline void __skb_queue_splice(const struct sk_buff_head *list,
@@ -4608,7 +4608,7 @@ static inline void skb_reset_redirect(struct sk_buff *skb)
 #endif
 }
 
-#ifdef CONFIG_KCOV
+#if IS_ENABLED(CONFIG_KCOV) && IS_ENABLED(CONFIG_SKB_EXTENSIONS)
 static inline void skb_set_kcov_handle(struct sk_buff *skb,
 				       const u64 kcov_handle)
 {
@@ -4636,7 +4636,7 @@ static inline u64 skb_get_kcov_handle(struct sk_buff *skb)
 static inline void skb_set_kcov_handle(struct sk_buff *skb,
 				       const u64 kcov_handle) { }
 static inline u64 skb_get_kcov_handle(struct sk_buff *skb) { return 0; }
-#endif /* CONFIG_KCOV */
+#endif /* CONFIG_KCOV && CONFIG_SKB_EXTENSIONS */
 
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */

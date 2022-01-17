@@ -54,8 +54,8 @@
 		regulator-always-on;
 		regulator-settling-time-us = <5000>;
 		gpios = <&expgpio 4 GPIO_ACTIVE_HIGH>;
-		states = <1800000 0x1
-			  3300000 0x0>;
+		states = <1800000 0x1>,
+			 <3300000 0x0>;
 		status = "okay";
 	};
 
@@ -181,12 +181,14 @@
 &hdmi0 {
 	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 0>, <&clk_27MHz>;
 	clock-names = "hdmi", "bvb", "audio", "cec";
+	wifi-2.4ghz-coexistence;
 	status = "okay";
 };
 
 &hdmi1 {
 	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 1>, <&clk_27MHz>;
 	clock-names = "hdmi", "bvb", "audio", "cec";
+	wifi-2.4ghz-coexistence;
 	status = "okay";
 };
 
@@ -271,15 +273,16 @@
 };
 
 &pcie0 {
-	pci@1,0 {
+	pci@0,0 {
+		device_type = "pci";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		ranges;
 
 		reg = <0 0 0 0 0>;
 
-		usb@1,0 {
-			reg = <0x10000 0 0 0 0>;
+		usb@0,0 {
+			reg = <0 0 0 0 0>;
 			resets = <&reset RASPBERRYPI_FIRMWARE_RESET_ID_USB>;
 		};
 	};
@@ -336,7 +339,6 @@
 #include "bcm2711-rpi.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
-#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	chosen {
@@ -603,6 +605,9 @@
 
 &cam1_reg {
 	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+};
+
+cam0_reg: &cam_dummy_reg {
 };
 
 / {

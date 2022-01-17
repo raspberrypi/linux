@@ -65,12 +65,6 @@
 			status = "okay";
 		};
 
-		vcsm: vcsm {
-			compatible = "raspberrypi,bcm2835-vcsm";
-			firmware = <&firmware>;
-			status = "okay";
-		};
-
 		/* External sound card */
 		sound: sound {
 			status = "disabled";
@@ -148,7 +142,14 @@
 	/* Onboard audio */
 	audio: bcm2835_audio {
 		compatible = "brcm,bcm2835-audio";
+		brcm,firmware = <&firmware>;
 		brcm,pwm-channels = <8>;
 		status = "disabled";
+	};
+};
+
+&firmware {
+	vcio: vcio {
+		compatible = "raspberrypi,vcio";
 	};
 };

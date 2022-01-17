@@ -106,7 +106,7 @@
 #define UART_OMAP_EFR2_TIMEOUT_BEHAVE	BIT(6)
 
 /* RX FIFO occupancy indicator */
-#define UART_OMAP_RX_LVL		0x64
+#define UART_OMAP_RX_LVL		0x19
 
 struct omap8250_priv {
 	int line;
@@ -538,6 +538,11 @@ static void omap_8250_pm(struct uart_port *port, unsigned int state,
 static void omap_serial_fill_features_erratas(struct uart_8250_port *up,
 					      struct omap8250_priv *priv)
 {
+	const struct soc_device_attribute k3_soc_devices[] = {
+		{ .family = "AM65X",  },
+		{ .family = "J721E", .revision = "SR1.0" },
+		{ /* sentinel */ }
+	};
 	u32 mvr, scheme;
 	u16 revision, major, minor;
 
@@ -585,6 +590,14 @@ static void omap_serial_fill_features_erratas(struct uart_8250_port *up,
 	default:
 		break;
 	}
+
+	/*
+	 * AM65x SR1.0, AM65x SR2.0 and J721e SR1.0 don't
+	 * don't have RHR_IT_DIS bit in IER2 register. So drop to flag
+	 * to enable errata workaround.
+	 */
+	if (soc_device_match(k3_soc_devices))
+		priv->habit &= ~UART_HAS_RHR_IT_DIS;
 }
 
 static void omap8250_uart_qos_work(struct work_struct *work)
@@ -604,7 +617,7 @@ static irqreturn_t omap8250_irq(int irq, void *dev_id)
 	struct uart_port *port = dev_id;
 	struct omap8250_priv *priv = port->private_data;
 	struct uart_8250_port *up = up_to_u8250p(port);
-	unsigned int iir;
+	unsigned int iir, lsr;
 	int ret;
 
 #ifdef CONFIG_SERIAL_8250_DMA
@@ -615,6 +628,7 @@ static irqreturn_t omap8250_irq(int irq, void *dev_id)
 #endif
 
 	serial8250_rpm_get(up);
+	lsr = serial_port_in(port, UART_LSR);
 	iir = serial_port_in(port, UART_IIR);
 	ret = serial8250_handle_irq(port, iir);
 
@@ -627,6 +641,24 @@ static irqreturn_t omap8250_irq(int irq, void *dev_id)
 	    (iir & UART_IIR_RX_TIMEOUT) == UART_IIR_RX_TIMEOUT &&
 	    serial_port_in(port, UART_OMAP_RX_LVL) == 0) {
 		serial_port_in(port, UART_RX);
+	}
+
+	/* Stop processing interrupts on input overrun */
+	if ((lsr & UART_LSR_OE) && up->overrun_backoff_time_ms > 0) {
+		unsigned long delay;
+
+		up->ier = port->serial_in(port, UART_IER);
+		if (up->ier & (UART_IER_RLSI | UART_IER_RDI)) {
+			port->ops->stop_rx(port);
+		} else {
+			/* Keep restarting the timer until
+			 * the input overrun subsides.
+			 */
+			cancel_delayed_work(&up->overrun_backoff);
+		}
+
+		delay = msecs_to_jiffies(up->overrun_backoff_time_ms);
+		schedule_delayed_work(&up->overrun_backoff, delay);
 	}
 
 	serial8250_rpm_put(up);
@@ -1208,12 +1240,6 @@ static int omap8250_no_handle_irq(struct uart_port *port)
 	return 0;
 }
 
-static const struct soc_device_attribute k3_soc_devices[] = {
-	{ .family = "AM65X",  },
-	{ .family = "J721E", .revision = "SR1.0" },
-	{ /* sentinel */ }
-};
-
 static struct omap8250_dma_params am654_dma = {
 	.rx_size = SZ_2K,
 	.rx_trigger = 1,
@@ -1346,6 +1372,10 @@ static int omap8250_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (of_property_read_u32(np, "overrun-throttle-ms",
+				 &up.overrun_backoff_time_ms) != 0)
+		up.overrun_backoff_time_ms = 0;
+
 	priv->wakeirq = irq_of_parse_and_map(np, 1);
 
 	pdata = of_device_get_match_data(&pdev->dev);
@@ -1419,13 +1449,6 @@ static int omap8250_probe(struct platform_device *pdev)
 			up.dma->rxconf.src_maxburst = RX_TRIGGER;
 			up.dma->txconf.dst_maxburst = TX_TRIGGER;
 		}
-
-		/*
-		 * AM65x SR1.0, AM65x SR2.0 and J721e SR1.0 don't
-		 * don't have RHR_IT_DIS bit in IER2 register
-		 */
-		if (soc_device_match(k3_soc_devices))
-			priv->habit &= ~UART_HAS_RHR_IT_DIS;
 	}
 #endif
 	ret = serial8250_register_8250_port(&up);

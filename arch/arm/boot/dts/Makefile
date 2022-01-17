@@ -7,6 +7,8 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2708-rpi-cm.dtb \
 	bcm2708-rpi-zero.dtb \
 	bcm2708-rpi-zero-w.dtb \
+	bcm2710-rpi-zero-2.dtb \
+	bcm2710-rpi-zero-2-w.dtb \
 	bcm2709-rpi-2-b.dtb \
 	bcm2710-rpi-2-b.dtb \
 	bcm2710-rpi-3-b.dtb \
@@ -14,7 +16,8 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2711-rpi-4-b.dtb \
 	bcm2711-rpi-400.dtb \
 	bcm2710-rpi-cm3.dtb \
-	bcm2711-rpi-cm4.dtb
+	bcm2711-rpi-cm4.dtb \
+	bcm2711-rpi-cm4s.dtb
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
