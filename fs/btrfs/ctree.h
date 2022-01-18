@@ -143,6 +143,9 @@ enum {
 	BTRFS_FS_STATE_DEV_REPLACING,
 	/* The btrfs_fs_info created for self-tests */
 	BTRFS_FS_STATE_DUMMY_FS_INFO,
+
+	/* Indicates there was an error cleaning up a log tree. */
+	BTRFS_FS_STATE_LOG_CLEANUP_ERROR,
 };
 
 #define BTRFS_BACKREF_REV_MAX		256
@@ -3584,6 +3587,10 @@ static inline void btrfs_print_v0_err(struct btrfs_fs_info *fs_info)
 	btrfs_err(fs_info,
 "Unsupported V0 extent filesystem detected. Aborting. Please re-create your filesystem with a newer kernel");
 }
+
+#define BTRFS_FS_LOG_CLEANUP_ERROR(fs_info)				\
+	(unlikely(test_bit(BTRFS_FS_STATE_LOG_CLEANUP_ERROR,		\
+			   &(fs_info)->fs_state)))
 
 __printf(5, 6)
 __cold
