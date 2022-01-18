@@ -983,11 +983,6 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 		}
 	}
 
-	if (reg_read(unicam, UNICAM_ICTL) & UNICAM_FCM) {
-		/* Switch out of trigger mode if selected */
-		reg_write_field(unicam, UNICAM_ICTL, 1, UNICAM_TFC);
-		reg_write_field(unicam, UNICAM_ICTL, 0, UNICAM_FCM);
-	}
 	return IRQ_HANDLED;
 }
 
@@ -2297,8 +2292,7 @@ static void unicam_start_rx(struct unicam_device *dev, dma_addr_t *addr)
 
 	reg_write_field(dev, UNICAM_ANA, 0, UNICAM_DDL);
 
-	/* Always start in trigger frame capture mode (UNICAM_FCM set) */
-	val = UNICAM_FSIE | UNICAM_FEIE | UNICAM_FCM | UNICAM_IBOB;
+	val = UNICAM_FSIE | UNICAM_FEIE | UNICAM_IBOB;
 	set_field(&val, line_int_freq, UNICAM_LCIE_MASK);
 	reg_write(dev, UNICAM_ICTL, val);
 	reg_write(dev, UNICAM_STA, UNICAM_STA_MASK_ALL);
@@ -2411,12 +2405,6 @@ static void unicam_start_rx(struct unicam_device *dev, dma_addr_t *addr)
 	/* Load embedded data buffer pointers if needed */
 	if (dev->node[METADATA_PAD].streaming && dev->sensor_embedded_data)
 		reg_write_field(dev, UNICAM_DCS, 1, UNICAM_LDP);
-
-	/*
-	 * Enable trigger only for the first frame to
-	 * sync correctly to the FS from the source.
-	 */
-	reg_write_field(dev, UNICAM_ICTL, 1, UNICAM_TFC);
 }
 
 static void unicam_disable(struct unicam_device *dev)
