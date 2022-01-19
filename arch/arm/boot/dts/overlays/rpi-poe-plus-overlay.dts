@@ -16,6 +16,21 @@
 			};
 		};
 	};
+	fragment@11 {
+		target = <&poe_mfd>;
+		__dormant__ {
+			rpi-poe-power-supply@f2 {
+				compatible = "raspberrypi,rpi-poe-power-supply";
+				reg = <0xf2>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c =	<0>, "-3+4+5+6-10+11",
+			<&fan>,"pwms:0=",<&poe_mfd_pwm>;
+	};
 };
 
 &fan {
