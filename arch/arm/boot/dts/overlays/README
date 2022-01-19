@@ -2858,6 +2858,8 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
                                 speeds up (default 55000)
         poe_fan_temp3_hyst      Temperature delta (in millicelcius) at which
                                 the fan slows down (default 5000)
+        i2c                     Control the fan via Linux I2C drivers instead of
+                                the firmware.
 
 
 Name:   rpi-poe-plus
@@ -2879,6 +2881,8 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
                                 speeds up (default 55000)
         poe_fan_temp3_hyst      Temperature delta (in millicelcius) at which
                                 the fan slows down (default 5000)
+        i2c                     Control the fan via Linux I2C drivers instead of
+                                the firmware.
 
 
 Name:   rpi-proto
