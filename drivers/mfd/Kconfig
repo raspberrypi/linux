@@ -1089,6 +1089,16 @@ config MFD_SPMI_PMIC
 	  Say M here if you want to include support for the SPMI PMIC
 	  series as a module.  The module will be called "qcom-spmi-pmic".
 
+config MFD_RASPBERRYPI_POE_HAT
+	tristate "Raspberry Pi PoE HAT MFD"
+	depends on I2C
+	select MFD_SIMPLE_MFD_I2C
+	help
+	  This module supports the PWM fan controller found on the Raspberry Pi
+	  POE and POE+ HAT boards, and the power supply driver on the POE+ HAT.
+	  (Functionally it relies on MFD_SIMPLE_MFD_I2C to provide the framework
+	  that loads the child drivers).
+
 config MFD_RDC321X
 	tristate "RDC R-321x southbridge"
 	select MFD_CORE
