@@ -29,6 +29,15 @@ static const struct regmap_config regmap_config_8r_8v = {
 	.val_bits = 8,
 };
 
+static const struct regmap_config regmap_config_16r_8v = {
+	.reg_bits = 16,
+	.val_bits = 8,
+};
+
+static const struct simple_mfd_data rpi_poe_core = {
+	.regmap_config = &regmap_config_16r_8v,
+};
+
 static int simple_mfd_i2c_probe(struct i2c_client *i2c)
 {
 	const struct simple_mfd_data *simple_mfd_data;
@@ -88,6 +97,7 @@ static const struct of_device_id simple_mfd_i2c_of_match[] = {
 	{ .compatible = "silergy,sy7636a", .data = &silergy_sy7636a},
 	{ .compatible = "maxim,max5970", .data = &maxim_max5970},
 	{ .compatible = "maxim,max5978", .data = &maxim_max5970},
+	{ .compatible = "raspberrypi,poe-core", &rpi_poe_core },
 	{ .compatible = "raspberrypi,sensehat" },
 	{}
 };
