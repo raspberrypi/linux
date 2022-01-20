@@ -106,15 +106,6 @@ static int rpi_poe_power_supply_get_property(struct power_supply *psy,
 		r_val->intval = (val > 5);
 		return 0;
 
-	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		val = 50;
-		ret = read_reg(ctx->fw, RPI_POE_ADC_REG, &val);
-		if (ret)
-			return ret;
-		val = (val * 3300)/9821;
-		r_val->intval = val * 1000;
-		return 0;
-
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		ret = read_reg(ctx->fw, RPI_POE_ADC_REG, &val);
 		if (ret)
@@ -145,7 +136,6 @@ static int rpi_poe_power_supply_get_property(struct power_supply *psy,
 static enum power_supply_property rpi_poe_power_supply_properties[] = {
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_ONLINE,
-	POWER_SUPPLY_PROP_CURRENT_AVG,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 };
