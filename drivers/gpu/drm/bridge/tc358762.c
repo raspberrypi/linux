@@ -298,7 +298,7 @@ static int tc358762_probe(struct mipi_dsi_device *dsi)
 
 	ret = devm_mipi_dsi_attach(dev, dsi);
 	if (ret < 0)
-		dev_err(dev, "failed to attach dsi\n");
+		dev_err_probe(dev, ret, "failed to attach dsi\n");
 
 	return ret;
 }
