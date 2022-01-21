@@ -280,7 +280,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 199:
         pop     {DAT3, DAT4, DAT5, DAT6, DAT7}
         pop     {D, DAT1, DAT2, pc}
-        UNWIND( .fnend )
 .endm
 
 .macro memcpy_medium_inner_loop  backwards, align
