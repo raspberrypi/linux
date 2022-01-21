@@ -320,7 +320,7 @@
 		aon_intr: interrupt-controller@7ef00100 {
 			compatible = "brcm,bcm2711-l2-intc", "brcm,l2-intc";
 			reg = <0x7ef00100 0x30>;
-			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 96 IRQ_TYPE_EDGE_RISING>;
 			interrupt-controller;
 			#interrupt-cells = <1>;
 			status = "disabled";
@@ -403,7 +403,7 @@
 				 <&clk_27MHz>;
 			resets = <&dvp 1>;
 			interrupt-parent = <&aon_intr>;
-			interrupts = <8>, <7>, <6>,
+			interrupts = <8>, <7>, <6>,	// This is correct
 				     <9>, <10>, <11>;
 			interrupt-names = "cec-tx", "cec-rx", "cec-low",
 					  "wakeup", "hpd-connected", "hpd-removed";
