@@ -3644,6 +3644,23 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 value. NB also overridden by rgbXXX overrides.
         backlight-gpio          Defines a GPIO to be used for backlight control
                                 (default of none).
+        backlight-pwm           Defines a PWM channel to be used for backlight
+                                control (default of none). NB Disables audio
+                                headphone output as that also uses PWM.
+        backlight-pwm-chan      Choose channel on &pwm node for backlight
+                                control.
+                                (default 0).
+        backlight-pwm-gpio      GPIO pin to be used for the PWM backlight. See
+                                pwm-2chan for valid options.
+                                (default 18 - note this can only work with
+                                 rgb666-padhi).
+        backlight-pwm-func      Pin function of GPIO used for the PWM
+                                backlight.
+                                See pwm-2chan for valid options.
+                                (default 2).
+        backlight-def-brightness
+                                Set the default brightness. Normal range 1-16.
+                                (default 16).
 
 
 Name:   vc4-kms-dsi-7inch
