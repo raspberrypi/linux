@@ -1,5 +1,5 @@
 /*
- * vc4-kms-dpi-at056tn53v1-overlay.dts
+ * vc4-kms-dpi-generic-overlay.dts
  */
 
 /dts-v1/;
@@ -27,12 +27,12 @@
 					hfront-porch = <24>;
 					hsync-len = <72>;
 					hback-porch = <96>;
-					hsync-active = <0>;
+					hsync-active = <1>;
 					vactive = <480>;
 					vfront-porch = <3>;
 					vsync-len = <10>;
 					vback-porch = <7>;
-					vsync-active = <0>;
+					vsync-active = <1>;
 
 					de-active = <1>;
 					pixelclk-active = <1>;
