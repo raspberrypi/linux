@@ -746,7 +746,7 @@ static int spidev_probe(struct spi_device *spi)
 	 * compatible string, it is a Linux implementation thing
 	 * rather than a description of the hardware.
 	 */
-	if (spi->dev.of_node && of_device_is_compatible(spi->dev.of_node, "spidev")) {
+	if (0 && spi->dev.of_node && of_device_is_compatible(spi->dev.of_node, "spidev")) {
 		dev_err(&spi->dev, "spidev listed directly in DT is not supported\n");
 		return -EINVAL;
 	}
