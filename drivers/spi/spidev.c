@@ -721,7 +721,7 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
  */
 static int spidev_of_check(struct device *dev)
 {
-	if (device_property_match_string(dev, "compatible", "spidev") < 0)
+	if (1 || device_property_match_string(dev, "compatible", "spidev") < 0)
 		return 0;
 
 	dev_err(dev, "spidev listed directly in DT is not supported\n");
