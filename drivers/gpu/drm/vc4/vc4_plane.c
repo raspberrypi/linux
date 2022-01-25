@@ -1572,8 +1572,13 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
+	if (type == DRM_PLANE_TYPE_PRIMARY)
+		drm_plane_create_zpos_immutable_property(plane, 0);
+
 	return plane;
 }
+
+#define VC4_NUM_OVERLAY_PLANES	16
 
 int vc4_plane_create_additional_planes(struct drm_device *drm)
 {
@@ -1590,7 +1595,7 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	 * modest number of planes to expose, that should hopefully
 	 * still cover any sane usecase.
 	 */
-	for (i = 0; i < 16; i++) {
+	for (i = 0; i < VC4_NUM_OVERLAY_PLANES; i++) {
 		struct drm_plane *plane =
 			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY);
 
@@ -1599,17 +1604,28 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 
 		plane->possible_crtcs =
 			GENMASK(drm->mode_config.num_crtc - 1, 0);
+
+		/* Create zpos property. Max of all the overlays + 1 primary +
+		 * 1 cursor plane on a crtc.
+		 */
+		drm_plane_create_zpos_property(plane, i + 1, 1,
+					       VC4_NUM_OVERLAY_PLANES + 1);
 	}
 
 	drm_for_each_crtc(crtc, drm) {
 		/* Set up the legacy cursor after overlay initialization,
-		 * since we overlay planes on the CRTC in the order they were
-		 * initialized.
+		 * since the zpos fallback is that planes are rendered by plane
+		 * ID order, and that then puts the cursor on top.
 		 */
 		cursor_plane = vc4_plane_init(drm, DRM_PLANE_TYPE_CURSOR);
 		if (!IS_ERR(cursor_plane)) {
 			cursor_plane->possible_crtcs = drm_crtc_mask(crtc);
 			crtc->cursor = cursor_plane;
+
+			drm_plane_create_zpos_property(cursor_plane,
+						       VC4_NUM_OVERLAY_PLANES + 1,
+						       1,
+						       VC4_NUM_OVERLAY_PLANES + 1);
 		}
 	}
 
