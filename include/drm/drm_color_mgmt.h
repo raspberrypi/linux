@@ -87,11 +87,41 @@ enum drm_color_range {
 	DRM_COLOR_RANGE_MAX,
 };
 
+/*
+ * From ffmpeg:
+ *
+ * Illustration showing the location of the first (top left) chroma sample of the
+ * image, the left shows only luma, the right
+ * shows the location of the chroma sample, the 2 could be imagined to overlay
+ * each other but are drawn separately due to limitations of ASCII
+ *
+ *                 1st 2nd       1st 2nd horizontal luma sample positions
+ *                  v   v         v   v
+ *                 ______        ______
+ * 1st luma line > |X   X ...    |3 4 X ...     X are luma samples,
+ *                 |             |1 2           1-6 are possible chroma positions
+ * 2nd luma line > |X   X ...    |5 6 X ...     0 is undefined/unknown position
+ */
+enum drm_chroma_siting {
+	DRM_CHROMA_SITING_UNSPECIFIED,
+	DRM_CHROMA_SITING_LEFT,
+	DRM_CHROMA_SITING_CENTER,
+	DRM_CHROMA_SITING_TOPLEFT,
+	DRM_CHROMA_SITING_TOP,
+	DRM_CHROMA_SITING_BOTTOMLEFT,
+	DRM_CHROMA_SITING_BOTTOM,
+	DRM_CHROMA_SITING_MAX,
+};
+
 int drm_plane_create_color_properties(struct drm_plane *plane,
 				      u32 supported_encodings,
 				      u32 supported_ranges,
 				      enum drm_color_encoding default_encoding,
 				      enum drm_color_range default_range);
+
+int drm_plane_create_chroma_siting_properties(struct drm_plane *plane,
+						u32 supported_chroma_sitings,
+						enum drm_chroma_siting default_chroma_siting);
 
 /**
  * enum drm_color_lut_tests - hw-specific LUT tests to perform

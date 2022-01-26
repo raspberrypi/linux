@@ -465,6 +465,16 @@ static const char * const color_range_name[] = {
 	[DRM_COLOR_YCBCR_LIMITED_RANGE] = "YCbCr limited range",
 };
 
+static const char * const chroma_siting_name[] = {
+	[DRM_CHROMA_SITING_UNSPECIFIED] = "Unspecified",
+	[DRM_CHROMA_SITING_LEFT] = "Left",
+	[DRM_CHROMA_SITING_CENTER] = "Center",
+	[DRM_CHROMA_SITING_TOPLEFT] = "Top Left",
+	[DRM_CHROMA_SITING_TOP] = "Top",
+	[DRM_CHROMA_SITING_BOTTOMLEFT] = "Bottom Left",
+	[DRM_CHROMA_SITING_BOTTOM] = "Bottom",
+};
+
 /**
  * drm_get_color_encoding_name - return a string for color encoding
  * @encoding: color encoding to compute name of
@@ -493,6 +503,21 @@ const char *drm_get_color_range_name(enum drm_color_range range)
 		return "unknown";
 
 	return color_range_name[range];
+}
+
+/**
+ * drm_get_chroma_siting_name - return a string for chroma siting
+ * @siting: chroma siting to compute name of
+ *
+ * In contrast to the other drm_get_*_name functions this one here returns a
+ * const pointer and hence is threadsafe.
+ */
+const char *drm_get_chroma_siting_name(enum drm_chroma_siting siting)
+{
+	if (WARN_ON(siting >= ARRAY_SIZE(chroma_siting_name)))
+		return "unknown";
+
+	return chroma_siting_name[siting];
 }
 
 /**
@@ -572,6 +597,44 @@ int drm_plane_create_color_properties(struct drm_plane *plane,
 	return 0;
 }
 EXPORT_SYMBOL(drm_plane_create_color_properties);
+
+/**
+ * drm_plane_create_chroma_siting_properties - chroma siting related plane properties
+ * @plane: plane object
+ *
+ * Create and attach plane specific CHROMA_SITING
+ * properties to @plane.
+ */
+int drm_plane_create_chroma_siting_properties(struct drm_plane *plane,
+						u32 supported_chroma_sitings,
+						enum drm_chroma_siting default_chroma_siting)
+{
+	struct drm_device *dev = plane->dev;
+	struct drm_property *prop;
+	struct drm_prop_enum_list enum_list[DRM_CHROMA_SITING_MAX];
+	int i, len;
+	len = 0;
+	for (i = 0; i < DRM_CHROMA_SITING_MAX; i++) {
+		if ((supported_chroma_sitings & BIT(i)) == 0)
+			continue;
+
+		enum_list[len].type = i;
+		enum_list[len].name = chroma_siting_name[i];
+		len++;
+	}
+
+	prop = drm_property_create_enum(dev, 0, "CHROMA_SITING",
+					enum_list, len);
+	if (!prop)
+		return -ENOMEM;
+	plane->chroma_siting_property = prop;
+	drm_object_attach_property(&plane->base, prop, default_chroma_siting);
+	if (plane->state)
+		plane->state->chroma_siting = default_chroma_siting;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_plane_create_chroma_siting_properties);
 
 /**
  * drm_color_lut_check - check validity of lookup table

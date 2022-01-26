@@ -1589,6 +1589,16 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
+	drm_plane_create_chroma_siting_properties(plane,
+					BIT(DRM_CHROMA_SITING_UNSPECIFIED) |
+					BIT(DRM_CHROMA_SITING_LEFT) |
+					BIT(DRM_CHROMA_SITING_CENTER) |
+					BIT(DRM_CHROMA_SITING_TOPLEFT) |
+					BIT(DRM_CHROMA_SITING_TOP) |
+					BIT(DRM_CHROMA_SITING_BOTTOMLEFT) |
+					BIT(DRM_CHROMA_SITING_BOTTOM),
+					DRM_CHROMA_SITING_UNSPECIFIED);
+
 	return plane;
 }
 
