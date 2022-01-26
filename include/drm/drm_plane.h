@@ -182,6 +182,24 @@ struct drm_plane_state {
 	enum drm_color_range color_range;
 
 	/**
+	 * @chroma_siting_h:
+	 *
+	 * Location of chroma samples horizontally compared to luma
+	 * 0 means chroma is sited with left luma
+	 * 0x8000 is interstitial. 0x10000 is sited with right luma
+	 */
+	int32_t chroma_siting_h;
+
+	/**
+	 * @chroma_siting_v:
+	 *
+	 * Location of chroma samples vertically compared to luma
+	 * 0 means chroma is sited with top luma
+	 * 0x8000 is interstitial. 0x10000 is sited with bottom luma
+	 */
+	int32_t chroma_siting_v;
+
+	/**
 	 * @fb_damage_clips:
 	 *
 	 * Blob representing damage (area in plane framebuffer that changed
@@ -779,6 +797,24 @@ struct drm_plane {
 	 * @hotspot_y_property: property to set mouse hotspot y offset.
 	 */
 	struct drm_property *hotspot_y_property;
+
+	/**
+	 * @chroma_siting_h_property:
+	 *
+	 * Optional "CHROMA_SITING_H" property for specifying
+	 * chroma siting for YUV formats.
+	 * See drm_plane_create_chroma_siting_properties().
+	 */
+	struct drm_property *chroma_siting_h_property;
+
+	/**
+	 * @chroma_siting_v_property:
+	 *
+	 * Optional "CHROMA_SITING_V" property for specifying
+	 * chroma siting for YUV formats.
+	 * See drm_plane_create_chroma_siting_properties().
+	 */
+	struct drm_property *chroma_siting_v_property;
 };
 
 #define obj_to_plane(x) container_of(x, struct drm_plane, base)
