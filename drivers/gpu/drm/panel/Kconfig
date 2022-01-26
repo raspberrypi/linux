@@ -593,6 +593,17 @@ config DRM_PANEL_SONY_ACX565AKM
 	  Say Y here if you want to enable support for the Sony ACX565AKM
 	  800x600 3.5" panel (found on the Nokia N900).
 
+config DRM_PANEL_TPO_Y17P
+	tristate "TDO Y17P-based panels"
+	depends on OF && SPI
+	depends on DRM_KMS_HELPER
+	depends on DRM_KMS_CMA_HELPER
+	depends on BACKLIGHT_CLASS_DEVICE
+	select DRM_MIPI_DBI
+	help
+	  Say Y if you want to enable support for panels based on the
+	  TDO Y17P controller.
+
 config DRM_PANEL_TDO_TL070WSH30
 	tristate "TDO TL070WSH30 DSI panel"
 	depends on OF
