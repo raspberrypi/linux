@@ -583,6 +583,10 @@ static int drm_atomic_plane_set_property(struct drm_plane *plane,
 			return -EACCES;
 
 		drm_atomic_set_colorop_for_plane(state, colorop);
+	} else if (property == plane->chroma_siting_h_property) {
+		state->chroma_siting_h = val;
+	} else if (property == plane->chroma_siting_v_property) {
+		state->chroma_siting_v = val;
 	} else if (property == config->prop_fb_damage_clips) {
 		ret = drm_property_replace_blob_from_id(dev,
 					&state->fb_damage_clips,
@@ -667,6 +671,10 @@ drm_atomic_plane_get_property(struct drm_plane *plane,
 		*val = state->color_range;
 	} else if (property == plane->color_pipeline_property) {
 		*val = (state->color_pipeline) ? state->color_pipeline->base.id : 0;
+	} else if (property == plane->chroma_siting_h_property) {
+		*val = state->chroma_siting_h;
+	} else if (property == plane->chroma_siting_v_property) {
+		*val = state->chroma_siting_v;
 	} else if (property == config->prop_fb_damage_clips) {
 		*val = (state->fb_damage_clips) ?
 			state->fb_damage_clips->base.id : 0;
