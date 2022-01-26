@@ -93,6 +93,9 @@ int drm_plane_create_color_properties(struct drm_plane *plane,
 				      enum drm_color_encoding default_encoding,
 				      enum drm_color_range default_range);
 
+int drm_plane_create_chroma_siting_properties(struct drm_plane *plane,
+						int32_t default_chroma_siting_h, int32_t default_chroma_siting_v);
+
 /**
  * enum drm_color_lut_tests - hw-specific LUT tests to perform
  *
