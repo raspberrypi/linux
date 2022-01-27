@@ -433,17 +433,18 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 #define PHASE_BITS 6
 #define SCALE_BITS 16
 
-static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst, u32 xy, int channel)
+static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst, u32 xy, int channel, int chroma_offset)
 {
 	u32 scale = (src / dst) >> (16 - SCALE_BITS);
 	s32 offset, offset2;
 	s32 phase;
 
 	/* Start the phase at 1/2 pixel from the 1st pixel at src_x.
-	   1/4 pixel for YUV. */
+	   1/4 pixel for YUV, plus the offset for chroma siting */
 	if (channel != 0) {
 		/* the phase is relative to scale_src->x, so shift it for display list's x value */
 		offset = (xy & 0x1ffff) >> (16 - PHASE_BITS) >> 1;
+		offset -= chroma_offset >> (9 - PHASE_BITS);
 		offset += -(1 << PHASE_BITS >> 2);
 	} else {
 		/* the phase is relative to scale_src->x, so shift it for display list's x value */
@@ -520,6 +521,33 @@ static u32 vc4_lbm_size(struct drm_plane_state *state)
 	return lbm;
 }
 
+/*
+ *  Returns fractional offset of chroma with
+ *  0   = chroma cosited with luma
+ *  128 = chroma interstitial bewteen luma samples
+ *  256 = chroma cosited with second luma sample
+ */
+static int vc4_chroma_siting(enum drm_chroma_siting chroma_siting, bool is_horizontal)
+{
+	/* if unspecified use the most common format (MPEG2/H264) */
+	switch (chroma_siting) {
+		case DRM_CHROMA_SITING_LEFT:
+		case DRM_CHROMA_SITING_UNSPECIFIED:
+		default:
+			return is_horizontal ? 0:128;
+		case DRM_CHROMA_SITING_CENTER:
+			return is_horizontal ? 128:128;
+		case DRM_CHROMA_SITING_TOPLEFT:
+			return is_horizontal ? 0:0;
+		case DRM_CHROMA_SITING_TOP:
+			return is_horizontal ? 128:0;
+		case DRM_CHROMA_SITING_BOTTOMLEFT:
+			return is_horizontal ? 0:256;
+		case DRM_CHROMA_SITING_BOTTOM:
+			return is_horizontal ? 128:256;
+	}
+}
+
 static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 					 int channel)
 {
@@ -528,13 +556,15 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	/* Ch0 H-PPF Word 0: Scaling Parameters */
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_w[channel], vc4_state->crtc_w, vc4_state->src_x, channel);
+			      vc4_state->src_w[channel], vc4_state->crtc_w, vc4_state->src_x, channel,
+				  vc4_chroma_siting(state->chroma_siting, 1));
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_h[channel], vc4_state->crtc_h, vc4_state->src_y, channel);
+			      vc4_state->src_h[channel], vc4_state->crtc_h, vc4_state->src_y, channel,
+				  vc4_chroma_siting(state->chroma_siting, 0));
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
