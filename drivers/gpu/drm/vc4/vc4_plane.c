@@ -864,9 +864,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			 * and bits[3:0] should be between 0 and 11, indicating which
 			 * of the 12-pixels in that 128-bit word is the first pixel to be used
 			 */
-	                u32 remaining_pixels = vc4_state->src_x % 96;
-			u32 aligned = remaining_pixels / 12;
-			u32 last_bits = remaining_pixels % 12;
+			u32 aligned = vc4_state->src_x / 12;
+			u32 last_bits = vc4_state->src_x % 12;
 
 			x_off = aligned * 16 + last_bits;
 			hvs_format = HVS_PIXEL_FORMAT_YCBCR_10BIT;
