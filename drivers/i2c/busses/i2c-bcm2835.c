@@ -60,6 +60,10 @@ static unsigned int debug;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "1=err, 2=isr, 3=xfer");
 
+static unsigned int clk_tout_ms = 35; /* SMBUs-recommended 35ms */
+module_param(clk_tout_ms, uint, 0644);
+MODULE_PARM_DESC(clk_tout_ms, "clock-stretch timeout (mS)");
+
 #define BCM2835_DEBUG_MAX	512
 struct bcm2835_debug {
 	struct i2c_msg *msg;
@@ -219,12 +223,12 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 			   (redl << BCM2835_I2C_REDL_SHIFT));
 
 	/*
-	 * Set the clock stretch timeout to the SMBUs-recommended 35ms.
+	 * Set the clock stretch timeout.
 	 */
-	if (rate > 0xffff*1000/35)
+	if (rate > 0xffff*1000/clk_tout_ms)
 	    clk_tout = 0xffff;
 	else
-	    clk_tout = 35*rate/1000;
+	    clk_tout = clk_tout_ms*rate/1000;
 
 	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_CLKT, clk_tout);
 
