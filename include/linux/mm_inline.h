@@ -93,7 +93,15 @@ static __always_inline enum lru_list page_lru(struct page *page)
 
 static inline bool lru_gen_enabled(void)
 {
-	return true;
+#ifdef CONFIG_LRU_GEN_ENABLED
+	DECLARE_STATIC_KEY_TRUE(lru_gen_caps[NR_LRU_GEN_CAPS]);
+
+	return static_branch_likely(&lru_gen_caps[LRU_GEN_CORE]);
+#else
+	DECLARE_STATIC_KEY_FALSE(lru_gen_caps[NR_LRU_GEN_CAPS]);
+
+	return static_branch_unlikely(&lru_gen_caps[LRU_GEN_CORE]);
+#endif
 }
 
 static inline bool lru_gen_in_fault(void)
@@ -183,7 +191,7 @@ static inline bool lru_gen_add_page(struct lruvec *lruvec, struct page *page, bo
 	int zone = page_zonenum(page);
 	struct lru_gen_struct *lrugen = &lruvec->lrugen;
 
-	if (PageUnevictable(page))
+	if (PageUnevictable(page) || !lrugen->enabled)
 		return false;
 	/*
 	 * There are three common cases for this page:
