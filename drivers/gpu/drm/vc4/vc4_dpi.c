@@ -191,6 +191,10 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_3,
 						       DPI_FORMAT);
 				break;
+			case MEDIA_BUS_FMT_RGB565_1X24_CPADHI:
+				dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_2,
+						       DPI_FORMAT);
+				break;
 			}
 		} else {
 			/* Default to 18bit if no connector found. */
