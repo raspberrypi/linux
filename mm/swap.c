@@ -389,6 +389,43 @@ static void __lru_cache_activate_page(struct page *page)
 	local_unlock(&lru_pvecs.lock);
 }
 
+#ifdef CONFIG_LRU_GEN
+static void page_inc_refs(struct page *page)
+{
+	unsigned long refs;
+	unsigned long old_flags, new_flags;
+
+	if (PageUnevictable(page))
+		return;
+
+	/* see the comment on MAX_NR_TIERS */
+	do {
+		new_flags = old_flags = READ_ONCE(page->flags);
+
+		if (!(new_flags & BIT(PG_referenced))) {
+			new_flags |= BIT(PG_referenced);
+			continue;
+		}
+
+		if (!(new_flags & BIT(PG_workingset))) {
+			new_flags |= BIT(PG_workingset);
+			continue;
+		}
+
+		refs = new_flags & LRU_REFS_MASK;
+		refs = min(refs + BIT(LRU_REFS_PGOFF), LRU_REFS_MASK);
+
+		new_flags &= ~LRU_REFS_MASK;
+		new_flags |= refs;
+	} while (new_flags != old_flags &&
+		 cmpxchg(&page->flags, old_flags, new_flags) != old_flags);
+}
+#else
+static void page_inc_refs(struct page *page)
+{
+}
+#endif /* CONFIG_LRU_GEN */
+
 /*
  * Mark a page as having seen activity.
  *
@@ -402,6 +439,11 @@ static void __lru_cache_activate_page(struct page *page)
 void mark_page_accessed(struct page *page)
 {
 	page = compound_head(page);
+
+	if (lru_gen_enabled()) {
+		page_inc_refs(page);
+		return;
+	}
 
 	if (!PageReferenced(page)) {
 		SetPageReferenced(page);
