@@ -2533,6 +2533,8 @@ static int vc4_hdmi_cec_disable(struct cec_adapter *adap)
 
 	spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
 
+	pm_runtime_put(&vc4_hdmi->pdev->dev);
+
 	return 0;
 }
 
@@ -2677,8 +2679,6 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 	ret = cec_register_adapter(vc4_hdmi->cec_adap, &pdev->dev);
 	if (ret < 0)
 		goto err_remove_handlers;
-
-	pm_runtime_put(&vc4_hdmi->pdev->dev);
 
 	return 0;
 
