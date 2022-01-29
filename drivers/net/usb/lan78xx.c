@@ -1958,6 +1958,7 @@ static const struct ethtool_ops lan78xx_ethtool_ops = {
 	.set_link_ksettings = lan78xx_set_link_ksettings,
 	.get_regs_len	= lan78xx_get_regs_len,
 	.get_regs	= lan78xx_get_regs,
+	.get_ts_info    = ethtool_op_get_ts_info,
 };
 
 static void lan78xx_init_mac_address(struct lan78xx_net *dev)
