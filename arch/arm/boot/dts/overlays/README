@@ -3624,10 +3624,8 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
 
 
 Name:   vc4-kms-dpi-at056tn53v1
-Info:   Enable an Innolux 5.6in VGA TFT connected to DPI interface under KMS.
-        Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-dpi-at056tn53v1
-Params: <None>
+Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,at056tn53v1
+Load:   <Deprecated>
 
 
 Name:   vc4-kms-dpi-generic
@@ -3656,6 +3654,33 @@ Params: clock-frequency         Display clock frequency (Hz)
         rgb888                  Change to RGB888 output on GPIOs 0-27
         bus-format              Override the bus format for a MEDIA_BUS_FMT_*
                                 value. NB also overridden by rgbXXX overrides.
+        backlight-gpio          Defines a GPIO to be used for backlight control
+                                (default of none).
+        backlight-pwm           Defines a PWM channel to be used for backlight
+                                control (default of none). NB Disables audio
+                                headphone output as that also uses PWM.
+        backlight-pwm-chan      Choose channel on &pwm node for backlight
+                                control.
+                                (default 0).
+        backlight-pwm-gpio      GPIO pin to be used for the PWM backlight. See
+                                pwm-2chan for valid options.
+                                (default 18 - note this can only work with
+                                 rgb666-padhi).
+        backlight-pwm-func      Pin function of GPIO used for the PWM
+                                backlight.
+                                See pwm-2chan for valid options.
+                                (default 2).
+        backlight-def-brightness
+                                Set the default brightness. Normal range 1-16.
+                                (default 16).
+
+
+Name:   vc4-kms-dpi-panel
+Info:   Enable a preconfigured KMS DPI panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-panel,<param>=<val>
+Params: at056tn53v1             Enable an Innolux 5.6in VGA TFT
+        kippah-7inch            Enable an Adafruit Kippah with 7inch panel.
         backlight-gpio          Defines a GPIO to be used for backlight control
                                 (default of none).
         backlight-pwm           Defines a PWM channel to be used for backlight
