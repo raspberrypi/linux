@@ -3115,6 +3115,14 @@ Params: ds3232                  Select the DS3232 device
         cs_high                 This device requires an active-high CS
 
 
+Name:   spi0-0cs
+Info:   Don't claim any CS pins for SPI0. Requires a device with its chip
+        select permanently enabled, but frees a GPIO for e.g. a DPI display.
+Load:   dtoverlay=spi0-0cs,<param>=<val>
+Params: no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
 Name:   spi0-1cs
 Info:   Only use one CS pin for SPI0
 Load:   dtoverlay=spi0-1cs,<param>=<val>
