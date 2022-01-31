@@ -151,6 +151,10 @@
 		bcm2711;
 	};
 
+	vc4-kms-dpi-at056tn53v1 {
+		deprecated = "use vc4-kms-dpi-panel,at056tn53v1";
+	};
+
 	vc4-kms-v3d {
 		bcm2835;
 		bcm2711 = "vc4-kms-v3d-pi4";
