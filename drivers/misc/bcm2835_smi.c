@@ -689,7 +689,7 @@ void bcm2835_smi_write_buf(
 			inst->dev,
 			(void *)buf,
 			n_bytes,
-			DMA_MEM_TO_DEV);
+			DMA_TO_DEVICE);
 		struct scatterlist *sgl =
 			smi_scatterlist_from_buffer(inst, phy_addr, n_bytes,
 				&inst->buffer_sgl);
@@ -702,7 +702,7 @@ void bcm2835_smi_write_buf(
 		smi_dma_write_sgl(inst, sgl, 1, n_bytes);
 
 		dma_unmap_single
-			(inst->dev, phy_addr, n_bytes, DMA_MEM_TO_DEV);
+			(inst->dev, phy_addr, n_bytes, DMA_TO_DEVICE);
 	} else if (n_bytes) {
 		smi_write_fifo(inst, (uint32_t *) buf, n_bytes);
 	}
@@ -748,7 +748,7 @@ void bcm2835_smi_read_buf(struct bcm2835_smi_instance *inst,
 	if (n_bytes > DMA_THRESHOLD_BYTES) {
 		dma_addr_t phy_addr = dma_map_single(inst->dev,
 						     buf, n_bytes,
-						     DMA_DEV_TO_MEM);
+						     DMA_FROM_DEVICE);
 		struct scatterlist *sgl = smi_scatterlist_from_buffer(
 			inst, phy_addr, n_bytes,
 			&inst->buffer_sgl);
@@ -758,7 +758,7 @@ void bcm2835_smi_read_buf(struct bcm2835_smi_instance *inst,
 			goto out;
 		}
 		smi_dma_read_sgl(inst, sgl, 1, n_bytes);
-		dma_unmap_single(inst->dev, phy_addr, n_bytes, DMA_DEV_TO_MEM);
+		dma_unmap_single(inst->dev, phy_addr, n_bytes, DMA_FROM_DEVICE);
 	} else if (n_bytes) {
 		smi_read_fifo(inst, (uint32_t *)buf, n_bytes);
 	}
