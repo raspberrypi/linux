@@ -2712,10 +2712,15 @@ int drm_connector_set_orientation_from_panel(
 {
 	enum drm_panel_orientation orientation;
 
-	if (panel && panel->funcs && panel->funcs->get_orientation)
+	if (panel && panel->funcs && panel->funcs->get_orientation) {
 		orientation = panel->funcs->get_orientation(panel);
-	else
+	} else {
 		orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+		if (panel) {
+			of_drm_get_panel_orientation(panel->dev->of_node,
+						     &orientation);
+		}
+	}
 
 	return drm_connector_set_panel_orientation(connector, orientation);
 }
