@@ -61,6 +61,9 @@ void drm_panel_init(struct drm_panel *panel, struct device *dev,
 	panel->dev = dev;
 	panel->funcs = funcs;
 	panel->connector_type = connector_type;
+
+	panel->orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+	of_drm_get_panel_orientation(dev->of_node, &panel->orientation);
 }
 EXPORT_SYMBOL(drm_panel_init);
 
@@ -289,16 +292,18 @@ int of_drm_get_panel_orientation(const struct device_node *np,
 	if (ret < 0)
 		return ret;
 
-	if (rotation == 0)
+	if (rotation == 0) {
 		*orientation = DRM_MODE_PANEL_ORIENTATION_NORMAL;
-	else if (rotation == 90)
+	} else if (rotation == 90) {
 		*orientation = DRM_MODE_PANEL_ORIENTATION_RIGHT_UP;
-	else if (rotation == 180)
+	} else if (rotation == 180) {
 		*orientation = DRM_MODE_PANEL_ORIENTATION_BOTTOM_UP;
-	else if (rotation == 270)
+	} else if (rotation == 270) {
 		*orientation = DRM_MODE_PANEL_ORIENTATION_LEFT_UP;
-	else
+	} else {
+		DRM_ERROR("%pOF: invalid orientation %d\n", np, ret);
 		return -EINVAL;
+	}
 
 	return 0;
 }
