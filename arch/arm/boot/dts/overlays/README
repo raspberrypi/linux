@@ -1725,6 +1725,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         htu21                   Select the HTU21 temperature and humidity sensor
 
+        int_pin                 Set the GPIO to use for interrupts (max30102
+                                only)
+
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
 
@@ -1732,6 +1735,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         max17040                Select the Maxim Integrated MAX17040 battery
                                 monitor
+
+        max30102                Select the Maxim Integrated MAX30102 heart-rate
+                                and blood-oxygen sensor
 
         sht3x                   Select the Sensiron SHT3x temperature and
                                 humidity sensor. Valid addresses 0x44-0x45,
@@ -3092,6 +3098,14 @@ Params: ds3232                  Select the DS3232 device
         cs_high                 This device requires an active-high CS
 
 
+Name:   spi0-0cs
+Info:   Don't claim any CS pins for SPI0. Requires a device with its chip
+        select permanently enabled, but frees a GPIO for e.g. a DPI display.
+Load:   dtoverlay=spi0-0cs,<param>=<val>
+Params: no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
 Name:   spi0-1cs
 Info:   Only use one CS pin for SPI0
 Load:   dtoverlay=spi0-1cs,<param>=<val>
@@ -3593,10 +3607,8 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
 
 
 Name:   vc4-kms-dpi-at056tn53v1
-Info:   Enable an Innolux 5.6in VGA TFT connected to DPI interface under KMS.
-        Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-dpi-at056tn53v1
-Params: <None>
+Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,at056tn53v1
+Load:   <Deprecated>
 
 
 Name:   vc4-kms-dpi-generic
@@ -3627,6 +3639,50 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 value. NB also overridden by rgbXXX overrides.
         backlight-gpio          Defines a GPIO to be used for backlight control
                                 (default of none).
+        backlight-pwm           Defines a PWM channel to be used for backlight
+                                control (default of none). NB Disables audio
+                                headphone output as that also uses PWM.
+        backlight-pwm-chan      Choose channel on &pwm node for backlight
+                                control.
+                                (default 0).
+        backlight-pwm-gpio      GPIO pin to be used for the PWM backlight. See
+                                pwm-2chan for valid options.
+                                (default 18 - note this can only work with
+                                 rgb666-padhi).
+        backlight-pwm-func      Pin function of GPIO used for the PWM
+                                backlight.
+                                See pwm-2chan for valid options.
+                                (default 2).
+        backlight-def-brightness
+                                Set the default brightness. Normal range 1-16.
+                                (default 16).
+
+
+Name:   vc4-kms-dpi-panel
+Info:   Enable a preconfigured KMS DPI panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-panel,<param>=<val>
+Params: at056tn53v1             Enable an Innolux 5.6in VGA TFT
+        kippah-7inch            Enable an Adafruit Kippah with 7inch panel.
+        backlight-gpio          Defines a GPIO to be used for backlight control
+                                (default of none).
+        backlight-pwm           Defines a PWM channel to be used for backlight
+                                control (default of none). NB Disables audio
+                                headphone output as that also uses PWM.
+        backlight-pwm-chan      Choose channel on &pwm node for backlight
+                                control.
+                                (default 0).
+        backlight-pwm-gpio      GPIO pin to be used for the PWM backlight. See
+                                pwm-2chan for valid options.
+                                (default 18 - note this can only work with
+                                 rgb666-padhi).
+        backlight-pwm-func      Pin function of GPIO used for the PWM
+                                backlight.
+                                See pwm-2chan for valid options.
+                                (default 2).
+        backlight-def-brightness
+                                Set the default brightness. Normal range 1-16.
+                                (default 16).
 
 
 Name:   vc4-kms-dsi-7inch

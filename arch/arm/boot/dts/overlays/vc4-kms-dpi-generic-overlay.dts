@@ -1,82 +1,47 @@
 /*
- * vc4-kms-dpi-at056tn53v1-overlay.dts
+ * vc4-kms-dpi-generic-overlay.dts
  */
 
 /dts-v1/;
 /plugin/;
 
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/pinctrl/bcm2835.h>
+#include "vc4-kms-dpi.dtsi"
 
 / {
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target-path = "/";
-		__overlay__ {
-			panel: panel {
-				compatible = "panel-dpi";
+		target = <&panel>;
+		__overlay__  {
+			compatible = "panel-dpi";
 
-				width-mm = <154>;
-				height-mm = <83>;
-				bus-format = <0x1009>;
+			width-mm = <154>;
+			height-mm = <83>;
+			bus-format = <0x1009>;
 
-				timing: panel-timing {
-					clock-frequency = <29500000>;
-					hactive = <800>;
-					hfront-porch = <24>;
-					hsync-len = <72>;
-					hback-porch = <96>;
-					hsync-active = <0>;
-					vactive = <480>;
-					vfront-porch = <3>;
-					vsync-len = <10>;
-					vback-porch = <7>;
-					vsync-active = <0>;
+			timing: panel-timing {
+				clock-frequency = <29500000>;
+				hactive = <800>;
+				hfront-porch = <24>;
+				hsync-len = <72>;
+				hback-porch = <96>;
+				hsync-active = <1>;
+				vactive = <480>;
+				vfront-porch = <3>;
+				vsync-len = <10>;
+				vback-porch = <7>;
+				vsync-active = <1>;
 
-					de-active = <1>;
-					pixelclk-active = <1>;
-				};
-
-				port {
-					panel_in: endpoint {
-						remote-endpoint = <&dpi_out>;
-					};
-				};
+				de-active = <1>;
+				pixelclk-active = <1>;
 			};
 		};
 	};
 
 	fragment@1 {
 		target = <&dpi>;
-		dpi_node: __overlay__  {
-			status = "okay";
-
-			pinctrl-names = "default";
+		__overlay__  {
 			pinctrl-0 = <&dpi_18bit_gpio0>;
-
-			port {
-				dpi_out: endpoint {
-					remote-endpoint = <&panel_in>;
-				};
-			};
-		};
-	};
-
-	fragment@2 {
-		target = <&panel>;
-		__dormant__  {
-			backlight = <&backlight>;
-		};
-	};
-
-	fragment@3 {
-		target-path = "/";
-		__dormant__  {
-			backlight: backlight {
-				compatible = "gpio-backlight";
-				gpios = <&gpio 255 GPIO_ACTIVE_HIGH>;
-			};
 		};
 	};
 
@@ -105,7 +70,5 @@
 		rgb888 = <&panel>, "bus-format:0=0x100a",
 			<&dpi_node>, "pinctrl-0:0=",<&dpi_gpio0>;
 		bus-format = <&panel>, "bus-format:0";
-		backlight-gpio = <0>, "+2+3",
-			<&backlight>, "gpios:4";
 	};
 };
