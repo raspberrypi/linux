@@ -3107,6 +3107,7 @@ static int unicam_async_complete(struct v4l2_async_notifier *notifier)
 	}
 	if (!source_pads) {
 		unicam_err(unicam, "No source pads on sensor.\n");
+		ret = -ENODEV;
 		goto unregister;
 	}
 
