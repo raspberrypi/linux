@@ -888,7 +888,7 @@ static const int pwr_mode_values[] = {
 		0x70,
 	};
 
-static const SOC_VALUE_ENUM_SINGLE_DECL(pwr_mode_ctrl,
+static SOC_VALUE_ENUM_SINGLE_DECL(pwr_mode_ctrl,
 	ma_pm_man__a, 0, 0x70,
 	pwr_mode_texts,
 	pwr_mode_values);
