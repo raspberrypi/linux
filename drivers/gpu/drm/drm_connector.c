@@ -27,6 +27,7 @@
 #include <drm/drm_encoder.h>
 #include <drm/drm_file.h>
 #include <drm/drm_managed.h>
+#include <drm/drm_of.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_print.h>
 #include <drm/drm_privacy_screen_consumer.h>
@@ -3259,10 +3260,15 @@ int drm_connector_set_orientation_from_panel(
 {
 	enum drm_panel_orientation orientation;
 
-	if (panel && panel->funcs && panel->funcs->get_orientation)
+	if (panel && panel->funcs && panel->funcs->get_orientation) {
 		orientation = panel->funcs->get_orientation(panel);
-	else
+	} else {
 		orientation = DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
+		if (panel) {
+			drm_of_get_panel_orientation(panel->dev->of_node,
+						     &orientation);
+		}
+	}
 
 	return drm_connector_set_panel_orientation(connector, orientation);
 }
