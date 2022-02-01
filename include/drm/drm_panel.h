@@ -183,6 +183,14 @@ struct drm_panel {
 	int connector_type;
 
 	/**
+	 * @orientation:
+	 *
+	 * Panel orientation at initialisation. This is used to initialise the
+	 * drm_connector property for panel orientation.
+	 */
+	enum drm_panel_orientation orientation;
+
+	/**
 	 * @list:
 	 *
 	 * Panel entry in registry.
