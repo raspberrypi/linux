@@ -3737,10 +3737,8 @@ Params: <None>
 
 
 Name:   vc4-kms-kippah-7inch
-Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
-        Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-kippah-7inch
-Params: <None>
+Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,kippah-7inch
+Load:   <Deprecated>
 
 
 Name:   vc4-kms-v3d
