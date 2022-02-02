@@ -3682,6 +3682,7 @@ Info:   Enable a preconfigured KMS DPI panel.
 Load:   dtoverlay=vc4-kms-dpi-panel,<param>=<val>
 Params: at056tn53v1             Enable an Innolux 5.6in VGA TFT
         kippah-7inch            Enable an Adafruit Kippah with 7inch panel.
+        mzp280                  Enable a Geekworm MZP280 panel.
         backlight-gpio          Defines a GPIO to be used for backlight control
                                 (default of none).
         backlight-pwm           Defines a PWM channel to be used for backlight
