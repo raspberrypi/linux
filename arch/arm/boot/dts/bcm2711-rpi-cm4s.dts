@@ -367,6 +367,16 @@
 	};
 };
 
+/* Permanently disable HDMI1 */
+&hdmi1 {
+	compatible = "disabled";
+};
+
+/* Permanently disable DDC1 */
+&ddc1 {
+	compatible = "disabled";
+};
+
 &leds {
 	act_led: led-act {
 		label = "led0";
