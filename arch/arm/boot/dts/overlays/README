@@ -3673,6 +3673,7 @@ Params: clock-frequency         Display clock frequency (Hz)
         backlight-def-brightness
                                 Set the default brightness. Normal range 1-16.
                                 (default 16).
+        rotate                  Display rotation {0,90,180,270} (default 0)
 
 
 Name:   vc4-kms-dpi-panel
@@ -3700,6 +3701,7 @@ Params: at056tn53v1             Enable an Innolux 5.6in VGA TFT
         backlight-def-brightness
                                 Set the default brightness. Normal range 1-16.
                                 (default 16).
+        rotate                  Display rotation {0,90,180,270} (default 0)
 
 
 Name:   vc4-kms-dsi-7inch
