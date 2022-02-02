@@ -207,6 +207,7 @@
 #include "bcm283x-rpi-i2c0mux_0_28.dtsi"
 
 /delete-node/ &hdmi1;
+/delete-node/ &ddc1;
 
 / {
 	chosen {
