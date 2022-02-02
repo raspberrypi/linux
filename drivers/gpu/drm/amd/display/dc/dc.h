@@ -190,6 +190,7 @@ struct dc_caps {
 #endif
 	bool vbios_lttpr_aware;
 	bool vbios_lttpr_enable;
+	uint32_t max_otg_num;
 };
 
 struct dc_bug_wa {
