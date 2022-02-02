@@ -23,6 +23,12 @@
 			compatible = "ontat,yx700wv03", "simple-panel";
 		};
 	};
+	fragment@2 {
+		target = <&panel>;
+		__dormant__  {
+			compatible = "geekworm,mzp280", "simple-panel";
+		};
+	};
 
 	fragment@90 {
 		target = <&dpi>;
@@ -58,5 +64,6 @@
 	__overrides__ {
 		at056tn53v1 = <0>, "+0+90";
 		kippah-7inch = <0>, "+1+91";
+		mzp280 = <0>, "+2+93";
 	};
 };
