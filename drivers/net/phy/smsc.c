@@ -218,6 +218,8 @@ static int lan87xx_read_status(struct phy_device *phydev)
 	int err = genphy_read_status(phydev);
 
 	if (!phydev->link && priv->energy_enable) {
+		int energy_detected;
+
 		/* Disable EDPD to wake up PHY */
 		int rc = phy_read(phydev, MII_LAN83C185_CTRL_STATUS);
 		if (rc < 0)
@@ -233,7 +235,7 @@ static int lan87xx_read_status(struct phy_device *phydev)
 		 */
 		read_poll_timeout(phy_read, rc,
 				  rc & MII_LAN83C185_ENERGYON || rc < 0,
-				  10000, 1500000, true, phydev,
+				  150000, 1500000, true, phydev,
 				  MII_LAN83C185_CTRL_STATUS);
 		if (rc < 0)
 			return rc;
@@ -243,10 +245,16 @@ static int lan87xx_read_status(struct phy_device *phydev)
 		if (rc < 0)
 			return rc;
 
+		energy_detected = !!(rc & MII_LAN83C185_ENERGYON);
+
 		rc = phy_write(phydev, MII_LAN83C185_CTRL_STATUS,
 			       rc | MII_LAN83C185_EDPWRDOWN);
 		if (rc < 0)
 			return rc;
+
+		/* Save CPU and power by deferring the next poll */
+		if (!energy_detected)
+			msleep(2000);
 	}
 
 	return err;
