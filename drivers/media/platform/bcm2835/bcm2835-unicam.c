@@ -919,10 +919,14 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			 * as complete, as the HW will reuse that buffer.
 			 */
 			if (unicam->node[i].cur_frm &&
-			    unicam->node[i].cur_frm != unicam->node[i].next_frm)
+			    unicam->node[i].cur_frm != unicam->node[i].next_frm) {
 				unicam_process_buffer_complete(&unicam->node[i],
 							       sequence);
-			unicam->node[i].cur_frm = unicam->node[i].next_frm;
+				unicam->node[i].cur_frm = unicam->node[i].next_frm;
+				unicam->node[i].next_frm = NULL;
+			} else {
+				unicam->node[i].cur_frm = unicam->node[i].next_frm;
+			}
 		}
 		unicam->sequence++;
 	}
@@ -945,10 +949,25 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 					   i);
 			/*
 			 * Set the next frame output to go to a dummy frame
-			 * if we have not managed to obtain another frame
-			 * from the queue.
+			 * if no buffer currently queued.
 			 */
-			unicam_schedule_dummy_buffer(&unicam->node[i]);
+			if (!unicam->node[i].next_frm ||
+			    unicam->node[i].next_frm == unicam->node[i].cur_frm) {
+				unicam_schedule_dummy_buffer(&unicam->node[i]);
+			} else if (unicam->node[i].cur_frm) {
+				/*
+				 * Repeated FS without FE. Hardware will have
+				 * swapped buffers, but the cur_frm doesn't
+				 * contain valid data. Return cur_frm to the
+				 * queue.
+				 */
+				spin_lock(&unicam->node[i].dma_queue_lock);
+				list_add_tail(&unicam->node[i].cur_frm->list,
+					      &unicam->node[i].dma_queue);
+				spin_unlock(&unicam->node[i].dma_queue_lock);
+				unicam->node[i].cur_frm = unicam->node[i].next_frm;
+				unicam->node[i].next_frm = NULL;
+			}
 		}
 
 		unicam_queue_event_sof(unicam);
