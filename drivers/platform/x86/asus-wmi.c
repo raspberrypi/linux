@@ -2059,7 +2059,7 @@ static int fan_boost_mode_check_present(struct asus_wmi *asus)
 	err = asus_wmi_get_devstate(asus, ASUS_WMI_DEVID_FAN_BOOST_MODE,
 				    &result);
 	if (err) {
-		if (err == -ENODEV)
+		if (err == -ENODEV || err == -ENODATA)
 			return 0;
 		else
 			return err;
