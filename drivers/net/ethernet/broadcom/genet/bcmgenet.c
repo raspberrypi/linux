@@ -36,6 +36,7 @@
 #include <linux/ipv6.h>
 #include <linux/phy.h>
 #include <linux/platform_data/bcmgenet.h>
+#include <linux/ptp_classify.h>
 
 #include <asm/unaligned.h>
 
@@ -2096,7 +2097,12 @@ static netdev_tx_t bcmgenet_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	GENET_CB(skb)->last_cb = tx_cb_ptr;
-	skb_tx_timestamp(skb);
+
+	// Timestamping
+	if (unlikely(skb_shinfo(skb)->tx_flags & (SKBTX_HW_TSTAMP | SKBTX_SW_TSTAMP)) > 0) {
+		skb_pull(skb, skb_mac_offset(skb));
+		skb_tx_timestamp(skb);
+	}
 
 	/* Decrement total BD count and advance our write pointer */
 	ring->free_bds -= nr_frags + 1;
