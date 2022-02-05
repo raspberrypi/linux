@@ -39,7 +39,10 @@
 
 #include <asm/unaligned.h>
 
+#include <linux/ptp_classify.h>
+
 #include "bcmgenet.h"
+
 
 /* Maximum number of hardware queues, downsized if needed */
 #define GENET_MAX_MQ_CNT	4
@@ -2096,7 +2099,18 @@ static netdev_tx_t bcmgenet_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	GENET_CB(skb)->last_cb = tx_cb_ptr;
-	skb_tx_timestamp(skb);
+
+	// Timestamping
+	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP))
+	{
+		//skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
+		skb_pull(skb, skb_mac_offset(skb)); // Feels like this pull should really be part of ptp_classify_raw...
+		skb_clone_tx_timestamp(skb);
+	}
+	else if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_SW_TSTAMP))
+	{
+		skb_tstamp_tx(skb, NULL);
+	}
 
 	/* Decrement total BD count and advance our write pointer */
 	ring->free_bds -= nr_frags + 1;
