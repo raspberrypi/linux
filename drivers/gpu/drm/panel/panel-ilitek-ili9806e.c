@@ -421,7 +421,7 @@ static int ili9806_probe(struct spi_device *spi)
 	if (!id)
 		return -ENODEV;
 
-	ctx->bus_format = (u32)id->data;
+	ctx->bus_format = (u32)(uintptr_t)id->data;
 
 	spi_set_drvdata(spi, ctx);
 	ctx->spi = spi;
