@@ -18,7 +18,7 @@
 	};
 	fragment@11 {
 		target = <&poe_mfd>;
-		__dormant__ {
+		__overlay__ {
 			rpi-poe-power-supply@f2 {
 				compatible = "raspberrypi,rpi-poe-power-supply";
 				reg = <0xf2>;
@@ -28,11 +28,22 @@
 	};
 
 	__overrides__ {
-		i2c =	<0>, "-3+4+5+6-10+11",
+		i2c =	<0>, "+5+6",
+			<&fwpwm>,"status=disabled",
+			<&rpi_poe_power_supply>,"status=disabled",
+			<&i2c_bus>,"status=okay",
+			<&poe_mfd>,"status=okay",
 			<&fan>,"pwms:0=",<&poe_mfd_pwm>;
 	};
 };
 
 &fan {
 	cooling-levels = <0 32 64 128 255>;
+};
+
+&params {
+	poe_fan_i2c = <&fwpwm>,"status=disabled",
+		      <&rpi_poe_power_supply>,"status=disabled",
+		      <&poe_mfd>,"status=okay",
+		      <&fan>,"pwms:0=",<&poe_mfd_pwm>;
 };
