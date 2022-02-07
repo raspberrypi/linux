@@ -67,7 +67,7 @@
 
 	fragment@2 {
 		target-path = "/__overrides__";
-		__overlay__ {
+		params: __overlay__ {
 			poe_fan_temp0 =		<&trip0>,"temperature:0";
 			poe_fan_temp0_hyst =	<&trip0>,"hysteresis:0";
 			poe_fan_temp1 =		<&trip1>,"temperature:0";
@@ -76,6 +76,9 @@
 			poe_fan_temp2_hyst =	<&trip2>,"hysteresis:0";
 			poe_fan_temp3 =		<&trip3>,"temperature:0";
 			poe_fan_temp3_hyst =	<&trip3>,"hysteresis:0";
+			poe_fan_i2c =		<&fwpwm>,"status=disabled",
+						<&poe_mfd>,"status=okay",
+						<&fan>,"pwms:0=",<&poe_mfd_pwm>;
 		};
 	};
 
@@ -91,15 +94,14 @@
 
 	fragment@4 {
 		target = <&i2c0>;
-		__dormant__ {
+		i2c_bus: __overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
 			poe_mfd: poe@51 {
 				compatible = "raspberrypi,poe-core";
 				reg = <0x51>;
-				status = "okay";
+				status = "disabled";
 
 				poe_mfd_pwm: poe_pwm@f0 {
 					compatible = "raspberrypi,poe-pwm";
@@ -134,7 +136,10 @@
 		poe_fan_temp2_hyst =	<&trip2>,"hysteresis:0";
 		poe_fan_temp3 =		<&trip3>,"temperature:0";
 		poe_fan_temp3_hyst =	<&trip3>,"hysteresis:0";
-		i2c =			<0>, "-3+4+5+6",
+		i2c =			<0>, "+5+6",
+					<&fwpwm>,"status=disabled",
+					<&i2c_bus>,"status=okay",
+					<&poe_mfd>,"status=okay",
 					<&fan>,"pwms:0=",<&poe_mfd_pwm>;
 	};
 };
