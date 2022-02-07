@@ -867,18 +867,18 @@ static bool vc4_dsi_encoder_mode_fixup(struct drm_encoder *encoder,
 	return true;
 }
 
-static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
+static void vc4_dsi_encoder_mode_set(struct drm_encoder *encoder,
+				     struct drm_display_mode *mode,
+				     struct drm_display_mode *adjusted_mode)
 {
-	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct vc4_dsi *dsi = to_vc4_dsi(encoder);
 	struct device *dev = &dsi->pdev->dev;
 	bool debug_dump_regs = false;
-	struct drm_bridge *iter;
 	unsigned long hs_clock;
 	u32 ui_ns;
 	/* Minimum LP state duration in escape clock cycles. */
 	u32 lpx = dsi_esc_timing(60);
-	unsigned long pixel_clock_hz = mode->clock * 1000;
+	unsigned long pixel_clock_hz = adjusted_mode->clock * 1000;
 	unsigned long dsip_clock;
 	unsigned long phy_clock;
 	int ret;
@@ -1105,6 +1105,14 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 		       ~DSI_PORT_BIT(PHY_AFEC0_RESET));
 
 	vc4_dsi_ulps(dsi, false);
+}
+
+static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
+{
+	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
+	struct vc4_dsi *dsi = vc4_encoder->dsi;
+	bool debug_dump_regs = false;
+	struct drm_bridge *iter;
 
 	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
 		if (iter->funcs->pre_enable)
@@ -1370,6 +1378,7 @@ static const struct drm_encoder_helper_funcs vc4_dsi_encoder_helper_funcs = {
 	.disable = vc4_dsi_encoder_disable,
 	.enable = vc4_dsi_encoder_enable,
 	.mode_fixup = vc4_dsi_encoder_mode_fixup,
+	.mode_set = vc4_dsi_encoder_mode_set,
 };
 
 static int vc4_dsi_late_register(struct drm_encoder *encoder)
