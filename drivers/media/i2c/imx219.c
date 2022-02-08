@@ -170,6 +170,9 @@ struct imx219_mode {
 
 	/* 2x2 binning is used */
 	bool binning;
+
+	/* Relative pixel clock rate factor for the mode. */
+	unsigned int rate_factor;
 };
 
 static const struct imx219_reg imx219_common_regs[] = {
@@ -412,6 +415,7 @@ static const struct imx219_mode supported_modes[] = {
 			.regs = mode_3280x2464_regs,
 		},
 		.binning = false,
+		.rate_factor = 1,
 	},
 	{
 		/* 1080P 30fps cropped */
@@ -429,6 +433,7 @@ static const struct imx219_mode supported_modes[] = {
 			.regs = mode_1920_1080_regs,
 		},
 		.binning = false,
+		.rate_factor = 1,
 	},
 	{
 		/* 2x2 binned 30fps mode */
@@ -446,6 +451,7 @@ static const struct imx219_mode supported_modes[] = {
 			.regs = mode_1640_1232_regs,
 		},
 		.binning = true,
+		.rate_factor = 1,
 	},
 	{
 		/* 640x480 30fps mode */
@@ -463,6 +469,11 @@ static const struct imx219_mode supported_modes[] = {
 			.regs = mode_640_480_regs,
 		},
 		.binning = true,
+		/*
+		 * This mode uses a special 2x2 binning that doubles the
+		 * internal pixel clock rate.
+		 */
+		.rate_factor = 2,
 	},
 };
 
@@ -625,7 +636,8 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = imx219_write_reg(imx219, IMX219_REG_EXPOSURE,
-				       IMX219_REG_VALUE_16BIT, ctrl->val);
+				       IMX219_REG_VALUE_16BIT,
+				       ctrl->val / imx219->mode->rate_factor);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
 		ret = imx219_write_reg(imx219, IMX219_REG_DIGITAL_GAIN,
@@ -645,7 +657,8 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		ret = imx219_write_reg(imx219, IMX219_REG_VTS,
 				       IMX219_REG_VALUE_16BIT,
-				       imx219->mode->height + ctrl->val);
+				       (imx219->mode->height + ctrl->val) /
+						imx219->mode->rate_factor);
 		break;
 	case V4L2_CID_HBLANK:
 		ret = imx219_write_reg(imx219, IMX219_REG_HTS,
@@ -787,13 +800,19 @@ static int imx219_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static unsigned long imx219_get_pixel_rate(struct imx219 *imx219)
+{
+	return ((imx219->lanes == 2) ? IMX219_PIXEL_RATE :
+		IMX219_PIXEL_RATE_4LANE) * imx219->mode->rate_factor;
+}
+
 static int imx219_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct imx219 *imx219 = to_imx219(sd);
 	const struct imx219_mode *mode;
-	int exposure_max, exposure_def, hblank;
+	int exposure_max, exposure_def, hblank, pixel_rate;
 	struct v4l2_mbus_framefmt *format;
 	struct v4l2_rect *crop;
 
@@ -845,6 +864,11 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 						 IMX219_PPL_MAX - mode->width,
 						 1, IMX219_PPL_MIN - mode->width);
 			__v4l2_ctrl_s_ctrl(imx219->hblank, hblank);
+
+			/* Scale the pixel rate based on the mode specific factor */
+			pixel_rate = imx219_get_pixel_rate(imx219);
+			__v4l2_ctrl_modify_range(imx219->pixel_rate, pixel_rate,
+						 pixel_rate, 1, pixel_rate);
 		}
 	} else {
 		format = v4l2_subdev_get_pad_format(sd, sd_state, 1);
@@ -1206,11 +1230,6 @@ static const struct v4l2_subdev_ops imx219_subdev_ops = {
 };
 
 
-static unsigned long imx219_get_pixel_rate(struct imx219 *imx219)
-{
-	return (imx219->lanes == 2) ? IMX219_PIXEL_RATE : IMX219_PIXEL_RATE_4LANE;
-}
-
 /* Initialize control handlers */
 static int imx219_init_controls(struct imx219 *imx219)
 {
@@ -1218,7 +1237,7 @@ static int imx219_init_controls(struct imx219 *imx219)
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	unsigned int height = imx219->mode->height;
 	struct v4l2_fwnode_device_properties props;
-	int exposure_max, exposure_def, hblank;
+	int exposure_max, exposure_def, hblank, pixel_rate;
 	int i, ret;
 
 	ctrl_hdlr = &imx219->ctrl_handler;
@@ -1227,11 +1246,11 @@ static int imx219_init_controls(struct imx219 *imx219)
 		return ret;
 
 	/* By default, PIXEL_RATE is read only */
+	pixel_rate = imx219_get_pixel_rate(imx219);
 	imx219->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
 					       V4L2_CID_PIXEL_RATE,
-					       imx219_get_pixel_rate(imx219),
-					       imx219_get_pixel_rate(imx219), 1,
-					       imx219_get_pixel_rate(imx219));
+					       pixel_rate, pixel_rate, 1,
+					       pixel_rate);
 
 	imx219->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx219_ctrl_ops,
