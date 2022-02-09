@@ -486,6 +486,7 @@ extern u64 kvm_nvhe_sym(hyp_cpu_logical_map)[NR_CPUS];
 
 enum kvm_iommu_driver {
 	KVM_IOMMU_DRIVER_NONE,
+	KVM_IOMMU_DRIVER_SMMUV3,
 };
 
 struct vcpu_reset_state {

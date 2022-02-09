@@ -335,6 +335,8 @@ static int select_iommu_ops(enum kvm_iommu_driver driver)
 	switch (driver) {
 	case KVM_IOMMU_DRIVER_NONE:
 		return 0;
+	case KVM_IOMMU_DRIVER_SMMUV3:
+		return kvm_arm_smmu_v3_register();
 	}
 
 	return -EINVAL;

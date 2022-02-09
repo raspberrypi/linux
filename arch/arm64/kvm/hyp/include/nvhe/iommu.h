@@ -5,6 +5,15 @@
 #include <kvm/iommu.h>
 #include <linux/io-pgtable.h>
 
+#if IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM)
+int kvm_arm_smmu_v3_register(void);
+#else /* CONFIG_ARM_SMMU_V3_PKVM */
+static inline int kvm_arm_smmu_v3_register(void)
+{
+	return -EINVAL;
+}
+#endif /* CONFIG_ARM_SMMU_V3_PKVM */
+
 #if IS_ENABLED(CONFIG_KVM_IOMMU)
 int kvm_iommu_init(void);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
