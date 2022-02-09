@@ -3649,6 +3649,8 @@ Params: clock-frequency         Display clock frequency (Hz)
         width-mm                Define the screen width in mm
         height-mm               Define the screen height in mm
         rgb565                  Change to RGB565 output on GPIOs 0-19
+        rgb565-padhi            Change to RGB565 output on GPIOs 0-8, 12-17, and
+                                20-24
         rgb666-padhi            Change to RGB666 output on GPIOs 0-9, 12-17, and
                                 20-25
         rgb888                  Change to RGB888 output on GPIOs 0-27
