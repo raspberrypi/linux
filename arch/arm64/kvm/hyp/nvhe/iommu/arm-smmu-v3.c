@@ -142,7 +142,6 @@ static int smmu_sync_cmd(struct hyp_arm_smmu_v3_device *smmu)
 	return smmu_wait_event(smmu, smmu_cmdq_empty(smmu));
 }
 
-__maybe_unused
 static int smmu_send_cmd(struct hyp_arm_smmu_v3_device *smmu,
 			 struct arm_smmu_cmdq_ent *cmd)
 {
@@ -152,6 +151,81 @@ static int smmu_send_cmd(struct hyp_arm_smmu_v3_device *smmu,
 		return ret;
 
 	return smmu_sync_cmd(smmu);
+}
+
+__maybe_unused
+static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
+{
+	struct arm_smmu_cmdq_ent cmd = {
+		.opcode = CMDQ_OP_CFGI_STE,
+		.cfgi.sid = sid,
+		.cfgi.leaf = true,
+	};
+
+	return smmu_send_cmd(smmu, &cmd);
+}
+
+static int smmu_alloc_l2_strtab(struct hyp_arm_smmu_v3_device *smmu, u32 idx)
+{
+	void *table;
+	u64 l2ptr, span;
+
+	/* Leaf tables must be page-sized */
+	if (smmu->strtab_split + ilog2(STRTAB_STE_DWORDS) + 3 != PAGE_SHIFT)
+		return -EINVAL;
+
+	span = smmu->strtab_split + 1;
+	if (WARN_ON(span < 1 || span > 11))
+		return -EINVAL;
+
+	table = kvm_iommu_donate_page();
+	if (!table)
+		return -ENOMEM;
+
+	l2ptr = hyp_virt_to_phys(table);
+	if (l2ptr & (~STRTAB_L1_DESC_L2PTR_MASK | ~PAGE_MASK))
+		return -EINVAL;
+
+	/* Ensure the empty stream table is visible before the descriptor write */
+	wmb();
+
+	WRITE_ONCE(smmu->strtab_base[idx], l2ptr | span);
+
+	return 0;
+}
+
+__maybe_unused
+static u64 *smmu_get_ste_ptr(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
+{
+	u32 idx;
+	int ret;
+	u64 l1std, span, *base;
+
+	if (sid >= smmu->strtab_num_entries)
+		return NULL;
+	sid = array_index_nospec(sid, smmu->strtab_num_entries);
+
+	if (!smmu->strtab_split)
+		return smmu->strtab_base + sid * STRTAB_STE_DWORDS;
+
+	idx = sid >> smmu->strtab_split;
+	l1std = smmu->strtab_base[idx];
+	if (!l1std) {
+		ret = smmu_alloc_l2_strtab(smmu, idx);
+		if (ret)
+			return NULL;
+		l1std = smmu->strtab_base[idx];
+		if (WARN_ON(!l1std))
+			return NULL;
+	}
+
+	span = l1std & STRTAB_L1_DESC_SPAN;
+	idx = sid & ((1 << smmu->strtab_split) - 1);
+	if (!span || idx >= (1 << (span - 1)))
+		return NULL;
+
+	base = hyp_phys_to_virt(l1std & STRTAB_L1_DESC_L2PTR_MASK);
+	return base + idx * STRTAB_STE_DWORDS;
 }
 
 static int smmu_init_registers(struct hyp_arm_smmu_v3_device *smmu)
@@ -233,6 +307,58 @@ static int smmu_init_cmdq(struct hyp_arm_smmu_v3_device *smmu)
 	return 0;
 }
 
+static int smmu_init_strtab(struct hyp_arm_smmu_v3_device *smmu)
+{
+	u64 strtab_base;
+	size_t strtab_size;
+	u32 strtab_cfg, fmt;
+	int split, log2size;
+
+	strtab_base = readq_relaxed(smmu->base + ARM_SMMU_STRTAB_BASE);
+	if (strtab_base & ~(STRTAB_BASE_ADDR_MASK | STRTAB_BASE_RA))
+		return -EINVAL;
+
+	strtab_cfg = readl_relaxed(smmu->base + ARM_SMMU_STRTAB_BASE_CFG);
+	if (strtab_cfg & ~(STRTAB_BASE_CFG_FMT | STRTAB_BASE_CFG_SPLIT |
+			   STRTAB_BASE_CFG_LOG2SIZE))
+		return -EINVAL;
+
+	fmt = FIELD_GET(STRTAB_BASE_CFG_FMT, strtab_cfg);
+	split = FIELD_GET(STRTAB_BASE_CFG_SPLIT, strtab_cfg);
+	log2size = FIELD_GET(STRTAB_BASE_CFG_LOG2SIZE, strtab_cfg);
+
+	smmu->strtab_split = split;
+	smmu->strtab_num_entries = 1 << log2size;
+
+	switch (fmt) {
+	case STRTAB_BASE_CFG_FMT_LINEAR:
+		if (split)
+			return -EINVAL;
+		smmu->strtab_num_l1_entries = smmu->strtab_num_entries;
+		strtab_size = smmu->strtab_num_l1_entries *
+			      STRTAB_STE_DWORDS * 8;
+		break;
+	case STRTAB_BASE_CFG_FMT_2LVL:
+		if (split != 6 && split != 8 && split != 10)
+			return -EINVAL;
+		smmu->strtab_num_l1_entries = 1 << max(0, log2size - split);
+		strtab_size = smmu->strtab_num_l1_entries *
+			      STRTAB_L1_DESC_DWORDS * 8;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	strtab_base &= STRTAB_BASE_ADDR_MASK;
+	smmu->strtab_base = smmu_take_pages(strtab_base, strtab_size);
+	if (!smmu->strtab_base)
+		return -EINVAL;
+
+	/* Disable all STEs */
+	memset(smmu->strtab_base, 0, strtab_size);
+	return 0;
+}
+
 static int smmu_init_device(struct hyp_arm_smmu_v3_device *smmu)
 {
 	int ret;
@@ -253,6 +379,10 @@ static int smmu_init_device(struct hyp_arm_smmu_v3_device *smmu)
 		return ret;
 
 	ret = smmu_init_cmdq(smmu);
+	if (ret)
+		return ret;
+
+	ret = smmu_init_strtab(smmu);
 	if (ret)
 		return ret;
 
