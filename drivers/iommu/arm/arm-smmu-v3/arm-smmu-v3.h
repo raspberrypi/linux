@@ -277,6 +277,15 @@ bool arm_smmu_capable(struct device *dev, enum iommu_cap cap);
 struct iommu_group *arm_smmu_device_group(struct device *dev);
 int arm_smmu_of_xlate(struct device *dev, struct of_phandle_args *args);
 int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu);
+int arm_smmu_init_one_queue(struct arm_smmu_device *smmu,
+			    struct arm_smmu_queue *q,
+			    void __iomem *page,
+			    unsigned long prod_off,
+			    unsigned long cons_off,
+			    size_t dwords, const char *name);
+int arm_smmu_init_strtab(struct arm_smmu_device *smmu);
+void arm_smmu_write_strtab_l1_desc(__le64 *dst,
+				   struct arm_smmu_strtab_l1_desc *desc);
 
 int arm_smmu_write_ctx_desc(struct arm_smmu_domain *smmu_domain, int ssid,
 			    struct arm_smmu_ctx_desc *cd);
