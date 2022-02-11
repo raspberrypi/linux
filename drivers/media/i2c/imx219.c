@@ -26,6 +26,7 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
+#include <media/v4l2-rect.h>
 #include <asm/unaligned.h>
 
 #define IMX219_REG_VALUE_08BIT		1
@@ -110,6 +111,14 @@
 #define IMX219_TESTP_BLUE_DEFAULT	0
 #define IMX219_TESTP_GREENB_DEFAULT	0
 
+/* IMX219 left, top, height, width registers */
+#define IMX219_REG_X_START 0x0164
+#define IMX219_REG_X_END 0x0166
+#define IMX219_REG_Y_START 0x0168
+#define IMX219_REG_Y_END 0x016a
+#define IMX219_REG_WIDTH 0x016c
+#define IMX219_REG_HEIGHT 0x016e
+
 /* IMX219 native and active pixel array size. */
 #define IMX219_NATIVE_WIDTH		3296U
 #define IMX219_NATIVE_HEIGHT		2480U
@@ -145,8 +154,14 @@ struct imx219_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* Analog crop rectangle. */
-	struct v4l2_rect crop;
+	/* Default crop rectangle. */
+	struct v4l2_rect default_crop;
+
+	/* x binning */
+	u8 x_scaler;
+
+	/* y binning */
+	u8 y_scaler;
 
 	/* V-timing */
 	unsigned int vts_def;
@@ -487,12 +502,14 @@ static const struct imx219_mode supported_modes[] = {
 		/* 8MPix 15fps mode */
 		.width = 3280,
 		.height = 2464,
-		.crop = {
+		.default_crop = {
 			.left = IMX219_PIXEL_ARRAY_LEFT,
 			.top = IMX219_PIXEL_ARRAY_TOP,
 			.width = 3280,
 			.height = 2464
 		},
+		.x_scaler = 1,
+		.y_scaler = 1,
 		.vts_def = IMX219_VTS_15FPS,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_3280x2464_regs),
@@ -504,12 +521,14 @@ static const struct imx219_mode supported_modes[] = {
 		/* 1080P 30fps cropped */
 		.width = 1920,
 		.height = 1080,
-		.crop = {
+		.default_crop = {
 			.left = 688,
 			.top = 700,
 			.width = 1920,
 			.height = 1080
 		},
+		.x_scaler = 1,
+		.y_scaler = 1,
 		.vts_def = IMX219_VTS_30FPS_1080P,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920_1080_regs),
@@ -521,12 +540,14 @@ static const struct imx219_mode supported_modes[] = {
 		/* 2x2 binned 30fps mode */
 		.width = 1640,
 		.height = 1232,
-		.crop = {
+		.default_crop = {
 			.left = IMX219_PIXEL_ARRAY_LEFT,
 			.top = IMX219_PIXEL_ARRAY_TOP,
 			.width = 3280,
 			.height = 2464
 		},
+		.x_scaler = 2,
+		.y_scaler = 2,
 		.vts_def = IMX219_VTS_30FPS_BINNED,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1640_1232_regs),
@@ -538,12 +559,14 @@ static const struct imx219_mode supported_modes[] = {
 		/* 640x480 30fps mode */
 		.width = 640,
 		.height = 480,
-		.crop = {
+		.default_crop = {
 			.left = 1008,
 			.top = 760,
 			.width = 1280,
 			.height = 960
 		},
+		.x_scaler = 2,
+		.y_scaler = 2,
 		.vts_def = IMX219_VTS_30FPS_640x480,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_640_480_regs),
@@ -581,6 +604,9 @@ struct imx219 {
 
 	/* Current mode */
 	const struct imx219_mode *mode;
+
+	/* Analog crop rectangle. */
+	struct v4l2_rect crop;
 
 	/*
 	 * Mutex for serialized access:
@@ -751,9 +777,12 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	if (ctrl->id == V4L2_CID_VBLANK) {
 		int exposure_max, exposure_def;
-
+		__u32 height;
+		height = imx219->mode->y_scaler == 0 ?
+				 imx219->crop.height :
+				       imx219->crop.height / imx219->mode->y_scaler;
 		/* Update max exposure while meeting expected vblanking */
-		exposure_max = imx219->mode->height + ctrl->val - 4;
+		exposure_max = height + ctrl->val - 4;
 		exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 			exposure_max : IMX219_EXPOSURE_DEFAULT;
 		__v4l2_ctrl_modify_range(imx219->exposure,
@@ -794,12 +823,16 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 				       imx219->hflip->val |
 				       imx219->vflip->val << 1);
 		break;
-	case V4L2_CID_VBLANK:
+	case V4L2_CID_VBLANK: {
+		__u32 height;
+		height = imx219->mode->y_scaler == 0 ?
+				 imx219->crop.height :
+				       imx219->crop.height / imx219->mode->y_scaler;
 		ret = imx219_write_reg(imx219, IMX219_REG_VTS,
 				       IMX219_REG_VALUE_16BIT,
-				       (imx219->mode->height + ctrl->val) /
-						imx219->mode->rate_factor);
+				       (height + ctrl->val)/imx219->mode->rate_factor);
 		break;
+	}
 	case V4L2_CID_TEST_PATTERN_RED:
 		ret = imx219_write_reg(imx219, IMX219_REG_TESTP_RED,
 				       IMX219_REG_VALUE_16BIT, ctrl->val);
@@ -905,8 +938,12 @@ static void imx219_update_image_pad_format(struct imx219 *imx219,
 					   const struct imx219_mode *mode,
 					   struct v4l2_subdev_format *fmt)
 {
-	fmt->format.width = mode->width;
-	fmt->format.height = mode->height;
+	fmt->format.width = mode->x_scaler == 0 ?
+				    imx219->crop.width :
+					  imx219->crop.width / mode->x_scaler;
+	fmt->format.height = mode->y_scaler == 0 ?
+				     imx219->crop.height :
+					   imx219->crop.height / mode->y_scaler;
 	fmt->format.field = V4L2_FIELD_NONE;
 	imx219_reset_colorspace(&fmt->format);
 }
@@ -917,6 +954,42 @@ static void imx219_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
 	fmt->format.height = IMX219_NUM_EMBEDDED_LINES;
 	fmt->format.code = MEDIA_BUS_FMT_SENSOR_DATA;
 	fmt->format.field = V4L2_FIELD_NONE;
+}
+
+static void imx219_refresh_ctls(struct imx219 *imx219)
+{
+	int exposure_max, exposure_def, hblank, pixel_rate;
+
+	/* Update limits and set FPS to default */
+	__v4l2_ctrl_modify_range(imx219->vblank, IMX219_VBLANK_MIN,
+				 IMX219_VTS_MAX - imx219->crop.height, 1,
+				 imx219->mode->vts_def - imx219->crop.height);
+	__v4l2_ctrl_s_ctrl(imx219->vblank,
+			   imx219->mode->vts_def - imx219->crop.height);
+	/*
+	 * Update max exposure while meeting
+	 * expected vblanking
+	 */
+	exposure_max = imx219->mode->vts_def - 4;
+	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
+			       exposure_max :
+				     IMX219_EXPOSURE_DEFAULT;
+	__v4l2_ctrl_modify_range(imx219->exposure, imx219->exposure->minimum,
+				 exposure_max, imx219->exposure->step,
+				 exposure_def);
+	/*
+	 * Currently PPL is fixed to IMX219_PPL_DEFAULT, so
+	 * hblank depends on mode->width only, and is not
+	 * changeble in any way other than changing the mode.
+	 */
+	hblank = IMX219_PPL_DEFAULT - imx219->crop.width;
+	__v4l2_ctrl_modify_range(imx219->hblank, hblank, hblank, 1, hblank);
+
+	/* Scale the pixel rate based on the mode specific factor */
+	pixel_rate =
+		IMX219_PIXEL_RATE * imx219->mode->rate_factor;
+	__v4l2_ctrl_modify_range(imx219->pixel_rate, pixel_rate,
+				 pixel_rate, 1, pixel_rate);
 }
 
 static int __imx219_get_pad_format(struct imx219 *imx219,
@@ -970,7 +1043,6 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 	struct imx219 *imx219 = to_imx219(sd);
 	const struct imx219_mode *mode;
 	struct v4l2_mbus_framefmt *framefmt;
-	int exposure_max, exposure_def, hblank, pixel_rate;
 	unsigned int i;
 
 	if (fmt->pad >= NUM_PADS)
@@ -993,6 +1065,7 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 					      width, height,
 					      fmt->format.width,
 					      fmt->format.height);
+		imx219->crop = mode->default_crop;
 		imx219_update_image_pad_format(imx219, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
@@ -1002,41 +1075,7 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			imx219->fmt.code != fmt->format.code) {
 			imx219->fmt = fmt->format;
 			imx219->mode = mode;
-			/* Update limits and set FPS to default */
-			__v4l2_ctrl_modify_range(imx219->vblank,
-						 IMX219_VBLANK_MIN,
-						 IMX219_VTS_MAX - mode->height,
-						 1,
-						 mode->vts_def - mode->height);
-			__v4l2_ctrl_s_ctrl(imx219->vblank,
-					   mode->vts_def - mode->height);
-			/*
-			 * Update max exposure while meeting
-			 * expected vblanking
-			 */
-			exposure_max = mode->vts_def - 4;
-			exposure_def =
-				(exposure_max < IMX219_EXPOSURE_DEFAULT) ?
-					exposure_max : IMX219_EXPOSURE_DEFAULT;
-			__v4l2_ctrl_modify_range(imx219->exposure,
-						 imx219->exposure->minimum,
-						 exposure_max,
-						 imx219->exposure->step,
-						 exposure_def);
-			/*
-			 * Currently PPL is fixed to IMX219_PPL_DEFAULT, so
-			 * hblank depends on mode->width only, and is not
-			 * changeble in any way other than changing the mode.
-			 */
-			hblank = IMX219_PPL_DEFAULT - mode->width;
-			__v4l2_ctrl_modify_range(imx219->hblank, hblank, hblank,
-						 1, hblank);
-
-			/* Scale the pixel rate based on the mode specific factor */
-			pixel_rate =
-				IMX219_PIXEL_RATE * imx219->mode->rate_factor;
-			__v4l2_ctrl_modify_range(imx219->pixel_rate, pixel_rate,
-						 pixel_rate, 1, pixel_rate);
+			imx219_refresh_ctls(imx219);
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
@@ -1084,7 +1123,7 @@ __imx219_get_pad_crop(struct imx219 *imx219,
 	case V4L2_SUBDEV_FORMAT_TRY:
 		return v4l2_subdev_get_try_crop(&imx219->sd, sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		return &imx219->mode->crop;
+		return &imx219->mode->default_crop;
 	}
 
 	return NULL;
@@ -1114,7 +1153,15 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 
 		return 0;
 
-	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_DEFAULT: {
+		struct imx219 *imx219 = to_imx219(sd);
+
+		mutex_lock(&imx219->mutex);
+		sel->r = imx219->mode->default_crop;
+		mutex_unlock(&imx219->mutex);
+
+		return 0;
+	}
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = IMX219_PIXEL_ARRAY_TOP;
 		sel->r.left = IMX219_PIXEL_ARRAY_LEFT;
@@ -1125,6 +1172,86 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 	}
 
 	return -EINVAL;
+}
+
+static int imx219_set_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_selection *sel)
+{
+	struct v4l2_rect max_bounds;
+	max_bounds.top = IMX219_PIXEL_ARRAY_TOP;
+	max_bounds.left = IMX219_PIXEL_ARRAY_LEFT;
+	max_bounds.width = IMX219_PIXEL_ARRAY_WIDTH;
+	max_bounds.height = IMX219_PIXEL_ARRAY_HEIGHT;
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP: {
+		struct imx219 *imx219 = to_imx219(sd);
+
+		if (!v4l2_rect_enclosed(&sel->r, &max_bounds)) {
+			return -EINVAL;
+		}
+		mutex_lock(&imx219->mutex);
+		v4l2_rect_set_max_size(&sel->r, &imx219->mode->default_crop);
+		imx219->crop = sel->r;
+		imx219_refresh_ctls(imx219);
+		mutex_unlock(&imx219->mutex);
+		return 0;
+	}
+	}
+	return -EINVAL;
+}
+
+struct imx219_reg_16bit_val {
+	u16 address;
+	u16 val;
+};
+
+static int __imx219_apply_selection(struct imx219 *imx219, __s32 x_start,
+				    __s32 x_end, __s32 y_start, __s32 y_end,
+				    __u32 height, __u32 width)
+{
+	struct imx219_reg_16bit_val regs[6] = {
+		{ IMX219_REG_X_START, 		x_start },
+		{ IMX219_REG_X_END, 		x_end },
+		{ IMX219_REG_Y_START, 		y_start },
+		{ IMX219_REG_Y_END, 		y_end },
+		{ IMX219_REG_WIDTH, 		width },
+		{ IMX219_REG_HEIGHT, 		height },
+	};
+	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
+	unsigned int i;
+	int ret;
+	for (i = 0; i < ARRAY_SIZE(regs); i++) {
+		ret = imx219_write_reg(imx219, regs[i].address,
+				       IMX219_REG_VALUE_16BIT, regs[i].val);
+		if (ret) {
+			dev_err_ratelimited(
+				&client->dev,
+				"Failed to write reg 0x%4.4x. error = %d\n",
+				regs[i].address, ret);
+
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static int imx219_apply_selection(struct imx219 *imx219)
+{
+	__u32 width, height;
+	if (v4l2_rect_equal(&imx219->crop, &imx219->mode->default_crop)) {
+		return 0;
+	}
+	width = imx219->mode->x_scaler == 0 ?
+			imx219->crop.width :
+			      imx219->crop.width / imx219->mode->x_scaler;
+	height = imx219->mode->y_scaler == 0 ?
+			 imx219->crop.height :
+			       imx219->crop.height / imx219->mode->y_scaler;
+	return __imx219_apply_selection(
+		imx219, imx219->crop.left,
+		imx219->crop.left + imx219->crop.width - 1, imx219->crop.top,
+		imx219->crop.top + imx219->crop.height - 1, height, width);
 }
 
 static int imx219_start_streaming(struct imx219 *imx219)
@@ -1150,6 +1277,13 @@ static int imx219_start_streaming(struct imx219 *imx219)
 	ret = imx219_set_framefmt(imx219);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set frame format: %d\n",
+			__func__, ret);
+		goto err_rpm_put;
+	}
+
+	ret = imx219_apply_selection(imx219);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to apply selection: %d\n",
 			__func__, ret);
 		goto err_rpm_put;
 	}
@@ -1361,6 +1495,7 @@ static const struct v4l2_subdev_pad_ops imx219_pad_ops = {
 	.get_fmt = imx219_get_pad_format,
 	.set_fmt = imx219_set_pad_format,
 	.get_selection = imx219_get_selection,
+	.set_selection = imx219_set_selection,
 	.enum_frame_size = imx219_enum_frame_size,
 };
 
@@ -1599,6 +1734,7 @@ static int imx219_probe(struct i2c_client *client)
 
 	/* Set default mode to max resolution */
 	imx219->mode = &supported_modes[0];
+	imx219->crop = imx219->mode->default_crop;
 
 	/* sensor doesn't enter LP-11 state upon power up until and unless
 	 * streaming is started, so upon power up switch the modes to:

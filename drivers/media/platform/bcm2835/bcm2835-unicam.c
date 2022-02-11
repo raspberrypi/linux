@@ -1522,6 +1522,7 @@ static int unicam_g_edid(struct file *file, void *priv, struct v4l2_edid *edid)
 static int unicam_s_selection(struct file *file, void *priv,
 			      struct v4l2_selection *sel)
 {
+	int ret;
 	struct unicam_node *node = video_drvdata(file);
 	struct unicam_device *dev = node->dev;
 	struct v4l2_subdev_selection sdsel = {
@@ -1534,7 +1535,12 @@ static int unicam_s_selection(struct file *file, void *priv,
 	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	return v4l2_subdev_call(dev->sensor, pad, set_selection, NULL, &sdsel);
+	ret = v4l2_subdev_call(dev->sensor, pad, set_selection, NULL, &sdsel);
+	if (!ret) {
+		node->v_fmt.fmt.pix.bytesperline = 0;
+		return unicam_reset_format(node);
+	}
+	return ret;
 }
 
 static int unicam_g_selection(struct file *file, void *priv,
