@@ -1529,6 +1529,8 @@ static int ov7251_probe(struct i2c_client *client)
 
 	mutex_init(&ov7251->lock);
 
+	ov7251->current_mode = &ov7251_mode_info_data[0];
+
 	v4l2_ctrl_handler_init(&ov7251->ctrls, 9);
 	ov7251->ctrls.lock = &ov7251->lock;
 
