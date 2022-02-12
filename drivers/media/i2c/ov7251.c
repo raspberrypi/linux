@@ -115,7 +115,6 @@ struct ov7251 {
 
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *exposure;
-	struct v4l2_ctrl *gain;
 	struct v4l2_ctrl *hblank;
 
 	/* Cached register values */
@@ -1167,10 +1166,6 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 		if (ret < 0)
 			goto exit;
 
-		ret = __v4l2_ctrl_s_ctrl(ov7251->gain, 16);
-		if (ret < 0)
-			goto exit;
-
 		ov7251->current_mode = new_mode;
 	}
 
@@ -1318,10 +1313,6 @@ static int ov7251_set_frame_interval(struct v4l2_subdev *subdev,
 
 		ret = __v4l2_ctrl_s_ctrl(ov7251->exposure,
 					 new_mode->exposure_def);
-		if (ret < 0)
-			goto exit;
-
-		ret = __v4l2_ctrl_s_ctrl(ov7251->gain, 16);
 		if (ret < 0)
 			goto exit;
 
@@ -1550,8 +1541,8 @@ static int ov7251_probe(struct i2c_client *client)
 			  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	ov7251->exposure = v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
 					     V4L2_CID_EXPOSURE, 1, 32, 1, 32);
-	ov7251->gain = v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
-					 V4L2_CID_GAIN, 16, 1023, 1, 16);
+	v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops, V4L2_CID_GAIN,
+			  16, 1023, 1, 16);
 	v4l2_ctrl_new_std_menu_items(&ov7251->ctrls, &ov7251_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
 				     ARRAY_SIZE(ov7251_test_pattern_menu) - 1,
