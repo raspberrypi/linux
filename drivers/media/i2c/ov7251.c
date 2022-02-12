@@ -37,6 +37,8 @@
 #define OV7251_AEC_EXPO_2		0x3502
 #define OV7251_AEC_AGC_ADJ_0		0x350a
 #define OV7251_AEC_AGC_ADJ_1		0x350b
+ /* HTS is registers 0x380c and 0x380d */
+#define OV7251_HTS			0x3a0
 #define OV7251_TIMING_FORMAT1		0x3820
 #define OV7251_TIMING_FORMAT1_VFLIP	BIT(2)
 #define OV7251_TIMING_FORMAT2		0x3821
@@ -114,6 +116,7 @@ struct ov7251 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *gain;
+	struct v4l2_ctrl *hblank;
 
 	/* Cached register values */
 	u8 aec_pk_manual;
@@ -1131,6 +1134,7 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *__format;
 	struct v4l2_rect *__crop;
 	const struct ov7251_mode_info *new_mode;
+	s64 h_blank;
 	int ret = 0;
 
 	mutex_lock(&ov7251->lock);
@@ -1147,6 +1151,11 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 	__crop->height = new_mode->height;
 
 	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+		h_blank = OV7251_HTS - new_mode->width;
+		__v4l2_ctrl_modify_range(ov7251->hblank, h_blank,
+					 h_blank, 1, h_blank);
+		__v4l2_ctrl_s_ctrl(ov7251->hblank, h_blank);
+
 		ret = __v4l2_ctrl_modify_range(ov7251->exposure,
 					       1, new_mode->exposure_max,
 					       1, new_mode->exposure_def);
@@ -1452,6 +1461,7 @@ static int ov7251_probe(struct i2c_client *client)
 	struct v4l2_ctrl *ctrl;
 	struct ov7251 *ov7251;
 	unsigned int rate = 0;
+	u32 h_blank;
 	int ret;
 	int i;
 
@@ -1531,7 +1541,7 @@ static int ov7251_probe(struct i2c_client *client)
 
 	ov7251->current_mode = &ov7251_mode_info_data[0];
 
-	v4l2_ctrl_handler_init(&ov7251->ctrls, 9);
+	v4l2_ctrl_handler_init(&ov7251->ctrls, 10);
 	ov7251->ctrls.lock = &ov7251->lock;
 
 	v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
@@ -1555,6 +1565,12 @@ static int ov7251_probe(struct i2c_client *client)
 				      0, link_freq);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	h_blank = OV7251_HTS - ov7251->current_mode->width;
+	ov7251->hblank = v4l2_ctrl_new_std(&ov7251->ctrls, NULL,
+					   V4L2_CID_HBLANK, h_blank,
+					   h_blank, 1, h_blank);
+	if (ov7251->hblank)
+		ov7251->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	ov7251->sd.ctrl_handler = &ov7251->ctrls;
 
