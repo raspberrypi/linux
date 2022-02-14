@@ -570,3 +570,8 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, unsigned long init_arg)
 
 	return ret;
 }
+
+void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
+				 enum kvm_pgtable_prot prot)
+{
+}

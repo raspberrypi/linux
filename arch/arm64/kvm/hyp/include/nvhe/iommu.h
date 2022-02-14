@@ -2,6 +2,8 @@
 #ifndef __ARM64_KVM_NVHE_IOMMU_H__
 #define __ARM64_KVM_NVHE_IOMMU_H__
 
+#include <asm/kvm_pgtable.h>
+
 #include <kvm/iommu.h>
 #include <linux/io-pgtable.h>
 
@@ -43,6 +45,8 @@ void kvm_iommu_iotlb_gather_add_page(void *cookie,
 				     struct iommu_iotlb_gather *gather,
 				     unsigned long iova,
 				     size_t size);
+void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
+				 enum kvm_pgtable_prot prot);
 
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
