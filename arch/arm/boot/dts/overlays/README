@@ -3651,8 +3651,12 @@ Params: clock-frequency         Display clock frequency (Hz)
         rgb565                  Change to RGB565 output on GPIOs 0-19
         rgb565-padhi            Change to RGB565 output on GPIOs 0-8, 12-17, and
                                 20-24
+        bgr666                  Change to BGR666 output on GPIOs 0-21.
+        bgr666-padhi            Change to BGR666 output on GPIOs 0-9, 12-17, and
+                                20-25
         rgb666-padhi            Change to RGB666 output on GPIOs 0-9, 12-17, and
                                 20-25
+        bgr888                  Change to BGR888 output on GPIOs 0-27
         rgb888                  Change to RGB888 output on GPIOs 0-27
         bus-format              Override the bus format for a MEDIA_BUS_FMT_*
                                 value. NB also overridden by rgbXXX overrides.
