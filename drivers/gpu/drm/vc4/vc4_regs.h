@@ -245,23 +245,6 @@
 /* Enables interrupt generation on scaler profiler interrupt. */
 # define SCALER_DISPCTRL_SCLEIRQ		BIT(0)
 
-/* Enables Display 0 short line and underrun contribution to
- * SCALER_DISPSTAT_IRQDISP0.  Note that short frame contributions are
- * always enabled.
- */
-# define SCALER5_DISPCTRL_DSPEISLUR(x)		BIT(9 + ((x) * 4))
-/* Enables Display 0 end-of-line-N contribution to
- * SCALER_DISPSTAT_IRQDISP0
- */
-# define SCALER5_DISPCTRL_DSPEIEOLN(x)		BIT(8 + ((x) * 4))
-/* Enables Display 0 EOF contribution to SCALER_DISPSTAT_IRQDISP0 */
-# define SCALER5_DISPCTRL_DSPEIEOF(x)		BIT(7 + ((x) * 4))
-/* Enables Display 0 VSTART contribution to SCALER_DISPSTAT_IRQDISP0 */
-# define SCALER5_DISPCTRL_DSPVSTART(x)		BIT(6 + ((x) * 4))
-
-# define SCALER5_DISPCTRL_SLVEIRQ		BIT(5)
-# define SCALER5_DISPCTRL_DMAEIRQ		BIT(4)
-
 #define SCALER_DISPSTAT                         0x00000004
 # define SCALER_DISPSTAT_RESP_MASK		VC4_MASK(15, 14)
 # define SCALER_DISPSTAT_RESP_SHIFT		14
@@ -269,8 +252,6 @@
 # define SCALER_DISPSTAT_RESP_EXOKAY		1
 # define SCALER_DISPSTAT_RESP_SLVERR		2
 # define SCALER_DISPSTAT_RESP_DECERR		3
-
-# define SCALER5_DISPSTAT_VSTART(x)		BIT(14 + ((x) * 8))
 
 # define SCALER_DISPSTAT_COBLOW(x)		BIT(13 + ((x) * 8))
 /* Set when the DISPEOLN line is done compositing. */
@@ -293,8 +274,6 @@
 # define SCALER_DISPSTAT_IRQMASK(x)		VC4_MASK(13 + ((x) * 8), \
 							 8 + ((x) * 8))
 
-# define SCALER5_DISPSTAT_IRQMASK(x)		VC4_MASK(14 + ((x) * 8), \
-							 8 + ((x) * 8))
 /* Set on AXI invalid DMA ID error. */
 # define SCALER_DISPSTAT_DMA_ERROR		BIT(7)
 /* Set on AXI slave read decode error */
