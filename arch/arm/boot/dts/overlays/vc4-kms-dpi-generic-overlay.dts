@@ -67,8 +67,13 @@
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_16bit_gpio0>;
 		rgb565-padhi = <&panel_generic>, "bus-format:0=0x1020",
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_16bit_cpadhi_gpio0>;
+		bgr666 = <&panel_generic>, "bus-format:0=0x101f";
+		bgr666-padhi = <&panel_generic>, "bus-format:0=0x101e",
+			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_18bit_cpadhi_gpio0>;
 		rgb666-padhi = <&panel_generic>, "bus-format:0=0x1015",
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_18bit_cpadhi_gpio0>;
+		bgr888 = <&panel_generic>, "bus-format:0=0x1013",
+			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_gpio0>;
 		rgb888 = <&panel_generic>, "bus-format:0=0x100a",
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_gpio0>;
 		bus-format = <&panel_generic>, "bus-format:0";
