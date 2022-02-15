@@ -903,43 +903,6 @@ static int __maybe_unused ov7251_sensor_resume(struct device *dev)
 	return ov7251_set_power_on(ov7251);
 }
 
-static int ov7251_s_power(struct v4l2_subdev *sd, int on)
-{
-	struct ov7251 *ov7251 = to_ov7251(sd);
-	int ret = 0;
-
-	mutex_lock(&ov7251->lock);
-
-	/* If the power state is not modified - no work to do. */
-	if (ov7251->power_on == !!on)
-		goto exit;
-
-	if (on) {
-		ret = ov7251_set_power_on(ov7251);
-		if (ret < 0)
-			goto exit;
-
-		ret = ov7251_set_register_array(ov7251,
-					ov7251_global_init_setting,
-					ARRAY_SIZE(ov7251_global_init_setting));
-		if (ret < 0) {
-			dev_err(ov7251->dev, "could not set init registers\n");
-			ov7251_set_power_off(ov7251);
-			goto exit;
-		}
-
-		ov7251->power_on = true;
-	} else {
-		ov7251_set_power_off(ov7251);
-		ov7251->power_on = false;
-	}
-
-exit:
-	mutex_unlock(&ov7251->lock);
-
-	return ret;
-}
-
 static int ov7251_set_hflip(struct ov7251 *ov7251, s32 value)
 {
 	u8 val = ov7251->timing_format2;
@@ -1384,10 +1347,6 @@ exit:
 	return ret;
 }
 
-static const struct v4l2_subdev_core_ops ov7251_core_ops = {
-	.s_power = ov7251_s_power,
-};
-
 static const struct v4l2_subdev_video_ops ov7251_video_ops = {
 	.s_stream = ov7251_s_stream,
 	.g_frame_interval = ov7251_get_frame_interval,
@@ -1405,7 +1364,6 @@ static const struct v4l2_subdev_pad_ops ov7251_subdev_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov7251_subdev_ops = {
-	.core = &ov7251_core_ops,
 	.video = &ov7251_video_ops,
 	.pad = &ov7251_subdev_pad_ops,
 };
@@ -1701,7 +1659,7 @@ err_pm_runtime:
 	pm_runtime_disable(ov7251->dev);
 	pm_runtime_put_noidle(ov7251->dev);
 power_down:
-	ov7251_s_power(&ov7251->sd, false);
+	ov7251_set_power_off(ov7251);
 free_entity:
 	media_entity_cleanup(&ov7251->sd.entity);
 free_ctrl:
