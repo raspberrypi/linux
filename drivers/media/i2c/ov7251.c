@@ -134,8 +134,17 @@ static inline struct ov7251 *to_ov7251(struct v4l2_subdev *sd)
 }
 
 enum xclk_rate {
+	OV7251_19_2_MHZ,
 	OV7251_24_MHZ,
 	OV7251_NUM_SUPPORTED_RATES
+};
+
+static const struct ov7251_pll1_config ov7251_pll1_config_19_2_mhz = {
+	.pre_div = 0x03,
+	.mult = 0x4b,
+	.div = 0x01,
+	.pix_div = 0x0a,
+	.mipi_div = 0x05
 };
 
 static const struct ov7251_pll1_config ov7251_pll1_config_24_mhz = {
@@ -146,6 +155,14 @@ static const struct ov7251_pll1_config ov7251_pll1_config_24_mhz = {
 	.mipi_div = 0x05
 };
 
+static const struct ov7251_pll2_config ov7251_pll2_config_19_2_mhz = {
+	.pre_div = 0x04,
+	.mult = 0x32,
+	.div = 0x00,
+	.sys_div = 0x05,
+	.adc_div = 0x04
+};
+
 static const struct ov7251_pll2_config ov7251_pll2_config_24_mhz = {
 	.pre_div = 0x04,
 	.mult = 0x28,
@@ -154,12 +171,18 @@ static const struct ov7251_pll2_config ov7251_pll2_config_24_mhz = {
 	.adc_div = 0x04
 };
 
+static const struct ov7251_pll_configs ov7251_pll_configs_19_2_mhz = {
+	.pll1 = &ov7251_pll1_config_19_2_mhz,
+	.pll2 = &ov7251_pll2_config_19_2_mhz
+};
+
 static const struct ov7251_pll_configs ov7251_pll_configs_24_mhz = {
 	.pll1 = &ov7251_pll1_config_24_mhz,
 	.pll2 = &ov7251_pll2_config_24_mhz
 };
 
 static const struct ov7251_pll_configs *ov7251_pll_configs[] = {
+	[OV7251_19_2_MHZ] = &ov7251_pll_configs_19_2_mhz,
 	[OV7251_24_MHZ] = &ov7251_pll_configs_24_mhz
 };
 
@@ -553,6 +576,7 @@ static const struct reg_value ov7251_setting_vga_90fps[] = {
 };
 
 static const unsigned long supported_xclk_rates[] = {
+	[OV7251_19_2_MHZ] = 19200000,
 	[OV7251_24_MHZ] = 24000000,
 };
 
@@ -1424,6 +1448,7 @@ static int ov7251_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct ov7251 *ov7251;
 	u8 chip_id_high, chip_id_low, chip_rev;
+	unsigned int rate = 0;
 	int ret;
 	int i;
 
@@ -1439,34 +1464,38 @@ static int ov7251_probe(struct i2c_client *client)
 		return ret;
 
 	/* get system clock (xclk) */
-	ov7251->xclk = devm_clk_get(dev, "xclk");
+	ov7251->xclk = devm_clk_get(dev, NULL);
 	if (IS_ERR(ov7251->xclk)) {
 		dev_err(dev, "could not get xclk");
 		return PTR_ERR(ov7251->xclk);
 	}
 
+	/*
+	 * We could have either a 24MHz or 19.2MHz clock rate from either dt or
+	 * ACPI. We also need to support the IPU3 case which will have both an
+	 * external clock AND a clock-frequency property.
+	 */
 	ret = fwnode_property_read_u32(dev_fwnode(dev), "clock-frequency",
-				       &ov7251->xclk_freq);
-	if (ret) {
-		dev_err(dev, "could not get xclk frequency\n");
-		return ret;
+				       &rate);
+	if (!ret && ov7251->xclk) {
+		ret = clk_set_rate(ov7251->xclk, rate);
+		if (ret)
+			return dev_err_probe(dev, ret,
+					     "failed to set clock rate\n");
+	} else if (ret && !ov7251->xclk) {
+		return dev_err_probe(dev, ret, "invalid clock config\n");
 	}
 
-	/* external clock must be 24MHz, allow 1% tolerance */
-	if (ov7251->xclk_freq < 23760000 || ov7251->xclk_freq > 24240000) {
-		dev_err(dev, "external clock frequency %u is not supported\n",
-			ov7251->xclk_freq);
-		return -EINVAL;
-	}
+	ov7251->xclk_freq = rate ? rate : clk_get_rate(ov7251->xclk);
 
-	ret = clk_set_rate(ov7251->xclk, ov7251->xclk_freq);
-	if (ret) {
-		dev_err(dev, "could not set xclk frequency\n");
-		return ret;
-	}
 	for (i = 0; i < ARRAY_SIZE(supported_xclk_rates); i++)
 		if (ov7251->xclk_freq == supported_xclk_rates[i])
 			break;
+
+	if (i == ARRAY_SIZE(supported_xclk_rates))
+		return dev_err_probe(dev, -EINVAL,
+				     "clock rate %u Hz is unsupported\n",
+				     ov7251->xclk_freq);
 
 	ov7251->pll_configs = ov7251_pll_configs[i];
 
