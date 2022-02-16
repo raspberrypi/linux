@@ -18,8 +18,12 @@ struct hyp_arm_smmu_v3_device {
 	struct kvm_hyp_iommu	iommu;
 	phys_addr_t		mmio_addr;
 	size_t			mmio_size;
+	unsigned long		features;
 
 	void __iomem		*base;
+	u32			cmdq_prod;
+	u64			*cmdq_base;
+	size_t			cmdq_log2size;
 };
 
 extern size_t kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_count);
