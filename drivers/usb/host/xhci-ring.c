@@ -3551,14 +3551,15 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	unsigned int num_trbs;
 	unsigned int start_cycle, num_sgs = 0;
 	unsigned int enqd_len, block_len, trb_buff_len, full_len;
-	int sent_len, ret;
-	u32 field, length_field, remainder;
+	int sent_len, ret, vli_quirk = 0;
+	u32 field, length_field, remainder, maxpacket;
 	u64 addr, send_addr;
 
 	ring = xhci_urb_to_transfer_ring(xhci, urb);
 	if (!ring)
 		return -EINVAL;
 
+	maxpacket = usb_endpoint_maxp(&urb->ep->desc);
 	full_len = urb->transfer_buffer_length;
 	/* If we have scatter/gather list, we use it. */
 	if (urb->num_sgs && !(urb->transfer_flags & URB_DMA_MAP_SINGLE)) {
@@ -3595,6 +3596,17 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	start_cycle = ring->cycle_state;
 	send_addr = addr;
 
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    !usb_urb_dir_in(urb) && urb->dev->speed >= USB_SPEED_SUPER) {
+		/*
+		 * VL805 - superspeed bulk OUT traffic can cause
+		 * an internal fifo overflow if the TRB buffer is larger
+		 * than wMaxPacket and the length is not an integer
+		 * multiple of wMaxPacket.
+		 */
+		vli_quirk = 1;
+	}
+
 	/* Queue the TRBs, even if they are zero-length */
 	for (enqd_len = 0; first_trb || enqd_len < full_len;
 			enqd_len += trb_buff_len) {
@@ -3607,6 +3619,11 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		if (enqd_len + trb_buff_len > full_len)
 			trb_buff_len = full_len - enqd_len;
 
+		if (vli_quirk && trb_buff_len > maxpacket) {
+			/* SS bulk wMaxPacket is 1024B */
+			remainder = trb_buff_len & (maxpacket - 1);
+			trb_buff_len -= remainder;
+		}
 		/* Don't change the cycle bit of the first TRB until later */
 		if (first_trb) {
 			first_trb = false;
