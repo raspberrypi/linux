@@ -1390,14 +1390,14 @@ static int ov7251_check_hwcfg(struct ov7251 *ov7251)
 
 	freq_found = false;
 	for (i = 0; i < bus_cfg.nr_of_link_frequencies; i++) {
-		if (freq_found)
-			break;
-
 		for (j = 0; j < ARRAY_SIZE(link_freq); j++)
 			if (bus_cfg.link_frequencies[i] == link_freq[j]) {
 				freq_found = true;
 				break;
 			}
+
+		if (freq_found)
+			break;
 	}
 
 	if (i == bus_cfg.nr_of_link_frequencies) {
