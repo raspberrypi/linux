@@ -56,6 +56,18 @@
 #define OV7251_PLL2_SYS_DIV_REG		0x309a
 #define OV7251_PLL2_ADC_DIV_REG		0x309b
 
+/*
+ * OV7251 native and active pixel array size.
+ * Datasheet not available to confirm these values, so assume there are no
+ * border pixels.
+ */
+#define OV7251_NATIVE_WIDTH		640U
+#define OV7251_NATIVE_HEIGHT		480U
+#define OV7251_PIXEL_ARRAY_LEFT		0U
+#define OV7251_PIXEL_ARRAY_TOP		0U
+#define OV7251_PIXEL_ARRAY_WIDTH	640U
+#define OV7251_PIXEL_ARRAY_HEIGHT	480U
+
 #define OV7251_PIXEL_CLOCK 48000000
 
 struct reg_value {
@@ -1212,15 +1224,34 @@ static int ov7251_get_selection(struct v4l2_subdev *sd,
 {
 	struct ov7251 *ov7251 = to_ov7251(sd);
 
-	if (sel->target != V4L2_SEL_TGT_CROP)
-		return -EINVAL;
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		mutex_lock(&ov7251->lock);
+		sel->r = *__ov7251_get_pad_crop(ov7251, sd_state, sel->pad,
+						sel->which);
+		mutex_unlock(&ov7251->lock);
 
-	mutex_lock(&ov7251->lock);
-	sel->r = *__ov7251_get_pad_crop(ov7251, sd_state, sel->pad,
-					sel->which);
-	mutex_unlock(&ov7251->lock);
+		return 0;
 
-	return 0;
+	case V4L2_SEL_TGT_NATIVE_SIZE:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = OV7251_NATIVE_WIDTH;
+		sel->r.height = OV7251_NATIVE_HEIGHT;
+
+		return 0;
+
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r.top = OV7251_PIXEL_ARRAY_TOP;
+		sel->r.left = OV7251_PIXEL_ARRAY_LEFT;
+		sel->r.width = OV7251_PIXEL_ARRAY_WIDTH;
+		sel->r.height = OV7251_PIXEL_ARRAY_HEIGHT;
+
+		return 0;
+	}
+
+	return -EINVAL;
 }
 
 static int ov7251_s_stream(struct v4l2_subdev *subdev, int enable)
