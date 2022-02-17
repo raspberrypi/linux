@@ -412,6 +412,29 @@ static void vc5_hvs_update_gamma_lut(struct drm_crtc *crtc)
 >>>>>>> 60009feee63c... drm/vc4: Add support for gamma on BCM2711
 }
 
+u8 vc4_hvs_get_fifo_frame_count(struct drm_device *dev, unsigned int fifo)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	u8 field = 0;
+
+	switch (fifo) {
+	case 0:
+		field = VC4_GET_FIELD(HVS_READ(SCALER_DISPSTAT1),
+				      SCALER_DISPSTAT1_FRCNT0);
+		break;
+	case 1:
+		field = VC4_GET_FIELD(HVS_READ(SCALER_DISPSTAT1),
+				      SCALER_DISPSTAT1_FRCNT1);
+		break;
+	case 2:
+		field = VC4_GET_FIELD(HVS_READ(SCALER_DISPSTAT2),
+				      SCALER_DISPSTAT2_FRCNT2);
+		break;
+	}
+
+	return field;
+}
+
 int vc4_hvs_get_fifo_from_output(struct drm_device *dev, unsigned int output)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
