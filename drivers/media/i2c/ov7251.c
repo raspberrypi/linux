@@ -1346,6 +1346,14 @@ static int ov7251_s_stream(struct v4l2_subdev *subdev, int enable)
 			return ret;
 		}
 
+		ret = ov7251_set_register_array(ov7251,
+					ov7251_global_init_setting,
+					ARRAY_SIZE(ov7251_global_init_setting));
+		if (ret < 0) {
+			dev_err(ov7251->dev, "could not set global_init_setting\n");
+			goto err_power_down;
+		}
+
 		ret = ov7251_pll_configure(ov7251);
 		if (ret) {
 			dev_err(ov7251->dev, "error configuring PLLs\n");
