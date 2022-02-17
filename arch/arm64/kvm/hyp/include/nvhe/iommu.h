@@ -2,8 +2,12 @@
 #ifndef __ARM64_KVM_NVHE_IOMMU_H__
 #define __ARM64_KVM_NVHE_IOMMU_H__
 
+#include <kvm/iommu.h>
+#include <linux/io-pgtable.h>
+
 #if IS_ENABLED(CONFIG_KVM_IOMMU)
 int kvm_iommu_init(void);
+int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 void *kvm_iommu_donate_page(void);
 void kvm_iommu_reclaim_page(void *p);
 
@@ -76,6 +80,13 @@ static inline phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
 
 struct kvm_iommu_ops {
 	int (*init)(void);
+	struct kvm_hyp_iommu *(*get_iommu_by_id)(pkvm_handle_t smmu_id);
+	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva);
+	void (*free_domain)(struct kvm_hyp_iommu_domain *domain);
+	int (*attach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
+			  u32 endpoint_id);
+	int (*detach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
+			  u32 endpoint_id);
 };
 
 extern struct kvm_iommu_ops kvm_iommu_ops;

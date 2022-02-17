@@ -45,9 +45,162 @@ void kvm_iommu_reclaim_page(void *p)
 	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1));
 }
 
+static struct kvm_hyp_iommu_domain *
+handle_to_domain(struct kvm_hyp_iommu *iommu, pkvm_handle_t domain_id)
+{
+	int idx;
+	struct kvm_hyp_iommu_domain *domains;
+
+	if (domain_id >= iommu->nr_domains)
+		return NULL;
+	domain_id = array_index_nospec(domain_id, iommu->nr_domains);
+
+	idx = domain_id >> KVM_IOMMU_DOMAIN_ID_SPLIT;
+	domains = iommu->domains[idx];
+	if (!domains) {
+		domains = kvm_iommu_donate_page();
+		if (!domains)
+			return NULL;
+		iommu->domains[idx] = domains;
+	}
+
+	return &domains[domain_id & KVM_IOMMU_DOMAIN_ID_LEAF_MASK];
+}
+
+int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			   unsigned long pgd_hva)
+{
+	int ret;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -EINVAL;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain)
+		goto out_unlock;
+
+	if (domain->refs)
+		goto out_unlock;
+
+	domain->domain_id = domain_id;
+	domain->iommu = iommu;
+	ret = kvm_iommu_ops.alloc_domain(domain, pgd_hva);
+	if (ret)
+		goto out_unlock;
+
+	domain->refs = 1;
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return ret;
+}
+
+int kvm_iommu_free_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id)
+{
+	int ret = -EINVAL;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -EINVAL;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain)
+		goto out_unlock;
+
+	if (domain->refs != 1)
+		goto out_unlock;
+
+	kvm_iommu_ops.free_domain(domain);
+
+	/* Set domain->refs to 0 and mark it as unused. */
+	memset(domain, 0, sizeof(*domain));
+
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return ret;
+}
+
+int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 u32 endpoint_id)
+{
+	int ret = -EINVAL;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -EINVAL;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain || !domain->refs || domain->refs == UINT_MAX)
+		goto out_unlock;
+
+	ret = kvm_iommu_ops.attach_dev(iommu, domain, endpoint_id);
+	if (ret)
+		goto out_unlock;
+
+	domain->refs++;
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return ret;
+}
+
+int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			 u32 endpoint_id)
+{
+	int ret = -EINVAL;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return -EINVAL;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain || domain->refs <= 1)
+		goto out_unlock;
+
+	ret = kvm_iommu_ops.detach_dev(iommu, domain, endpoint_id);
+	if (ret)
+		goto out_unlock;
+
+	domain->refs--;
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return ret;
+}
+
+int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
+{
+	void *domains;
+
+	/* See struct kvm_hyp_iommu */
+	BUILD_BUG_ON(sizeof(u32) != sizeof(hyp_spinlock_t));
+
+	domains = iommu->domains;
+	iommu->domains = kern_hyp_va(domains);
+	return pkvm_create_mappings(iommu->domains, iommu->domains +
+				    KVM_IOMMU_DOMAINS_ROOT_ENTRIES, PAGE_HYP);
+}
+
 int kvm_iommu_init(void)
 {
 	enum kvm_pgtable_prot prot;
+
+	if (WARN_ON(!kvm_iommu_ops.get_iommu_by_id ||
+		    !kvm_iommu_ops.alloc_domain ||
+		    !kvm_iommu_ops.free_domain ||
+		    !kvm_iommu_ops.attach_dev ||
+		    !kvm_iommu_ops.detach_dev))
+		return -ENODEV;
 
 	/* The memcache is shared with the host */
 	prot = pkvm_mkstate(PAGE_HYP, PKVM_PAGE_SHARED_OWNED);
