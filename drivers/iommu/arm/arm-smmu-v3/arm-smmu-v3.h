@@ -291,6 +291,10 @@ int arm_smmu_init_strtab(struct arm_smmu_device *smmu);
 void arm_smmu_write_strtab_l1_desc(__le64 *dst,
 				   struct arm_smmu_strtab_l1_desc *desc);
 
+int arm_smmu_register_iommu(struct arm_smmu_device *smmu,
+			    struct iommu_ops *ops, phys_addr_t ioaddr);
+void arm_smmu_unregister_iommu(struct arm_smmu_device *smmu);
+
 int arm_smmu_write_ctx_desc(struct arm_smmu_domain *smmu_domain, int ssid,
 			    struct arm_smmu_ctx_desc *cd);
 void arm_smmu_tlb_inv_asid(struct arm_smmu_device *smmu, u16 asid);
