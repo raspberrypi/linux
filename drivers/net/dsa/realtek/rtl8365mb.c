@@ -565,7 +565,7 @@ static int rtl8365mb_phy_poll_busy(struct realtek_smi *smi)
 {
 	u32 val;
 
-	return regmap_read_poll_timeout(smi->map,
+	return regmap_read_poll_timeout(smi->map_nolock,
 					RTL8365MB_INDIRECT_ACCESS_STATUS_REG,
 					val, !val, 10, 100);
 }
@@ -579,7 +579,7 @@ static int rtl8365mb_phy_ocp_prepare(struct realtek_smi *smi, int phy,
 	/* Set OCP prefix */
 	val = FIELD_GET(RTL8365MB_PHY_OCP_ADDR_PREFIX_MASK, ocp_addr);
 	ret = regmap_update_bits(
-		smi->map, RTL8365MB_GPHY_OCP_MSB_0_REG,
+		smi->map_nolock, RTL8365MB_GPHY_OCP_MSB_0_REG,
 		RTL8365MB_GPHY_OCP_MSB_0_CFG_CPU_OCPADR_MASK,
 		FIELD_PREP(RTL8365MB_GPHY_OCP_MSB_0_CFG_CPU_OCPADR_MASK, val));
 	if (ret)
@@ -592,8 +592,8 @@ static int rtl8365mb_phy_ocp_prepare(struct realtek_smi *smi, int phy,
 			  ocp_addr >> 1);
 	val |= FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_ADDRESS_OCPADR_9_6_MASK,
 			  ocp_addr >> 6);
-	ret = regmap_write(smi->map, RTL8365MB_INDIRECT_ACCESS_ADDRESS_REG,
-			   val);
+	ret = regmap_write(smi->map_nolock,
+			   RTL8365MB_INDIRECT_ACCESS_ADDRESS_REG, val);
 	if (ret)
 		return ret;
 
@@ -606,36 +606,42 @@ static int rtl8365mb_phy_ocp_read(struct realtek_smi *smi, int phy,
 	u32 val;
 	int ret;
 
+	mutex_lock(&smi->map_lock);
+
 	ret = rtl8365mb_phy_poll_busy(smi);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = rtl8365mb_phy_ocp_prepare(smi, phy, ocp_addr);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Execute read operation */
 	val = FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_CTRL_CMD_MASK,
 			 RTL8365MB_INDIRECT_ACCESS_CTRL_CMD_VALUE) |
 	      FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_CTRL_RW_MASK,
 			 RTL8365MB_INDIRECT_ACCESS_CTRL_RW_READ);
-	ret = regmap_write(smi->map, RTL8365MB_INDIRECT_ACCESS_CTRL_REG, val);
+	ret = regmap_write(smi->map_nolock, RTL8365MB_INDIRECT_ACCESS_CTRL_REG,
+			   val);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = rtl8365mb_phy_poll_busy(smi);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Get PHY register data */
-	ret = regmap_read(smi->map, RTL8365MB_INDIRECT_ACCESS_READ_DATA_REG,
-			  &val);
+	ret = regmap_read(smi->map_nolock,
+			  RTL8365MB_INDIRECT_ACCESS_READ_DATA_REG, &val);
 	if (ret)
-		return ret;
+		goto out;
 
 	*data = val & 0xFFFF;
 
-	return 0;
+out:
+	mutex_unlock(&smi->map_lock);
+
+	return ret;
 }
 
 static int rtl8365mb_phy_ocp_write(struct realtek_smi *smi, int phy,
@@ -644,32 +650,38 @@ static int rtl8365mb_phy_ocp_write(struct realtek_smi *smi, int phy,
 	u32 val;
 	int ret;
 
+	mutex_lock(&smi->map_lock);
+
 	ret = rtl8365mb_phy_poll_busy(smi);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = rtl8365mb_phy_ocp_prepare(smi, phy, ocp_addr);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Set PHY register data */
-	ret = regmap_write(smi->map, RTL8365MB_INDIRECT_ACCESS_WRITE_DATA_REG,
-			   data);
+	ret = regmap_write(smi->map_nolock,
+			   RTL8365MB_INDIRECT_ACCESS_WRITE_DATA_REG, data);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Execute write operation */
 	val = FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_CTRL_CMD_MASK,
 			 RTL8365MB_INDIRECT_ACCESS_CTRL_CMD_VALUE) |
 	      FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_CTRL_RW_MASK,
 			 RTL8365MB_INDIRECT_ACCESS_CTRL_RW_WRITE);
-	ret = regmap_write(smi->map, RTL8365MB_INDIRECT_ACCESS_CTRL_REG, val);
+	ret = regmap_write(smi->map_nolock, RTL8365MB_INDIRECT_ACCESS_CTRL_REG,
+			   val);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = rtl8365mb_phy_poll_busy(smi);
 	if (ret)
-		return ret;
+		goto out;
+
+out:
+	mutex_unlock(&smi->map_lock);
 
 	return 0;
 }
