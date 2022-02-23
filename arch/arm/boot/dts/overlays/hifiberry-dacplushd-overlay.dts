@@ -8,23 +8,13 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target-path = "/";
-		__overlay__ {
-			dachd_osc: pll_dachd_osc {
-				compatible = "hifiberry,dachd-clk";
-				#clock-cells = <0>;
-			};
-		};
-	};
-
-	fragment@1 {
 		target = <&i2s>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@2 {
+	fragment@1 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -35,7 +25,6 @@
 				compatible = "ti,pcm1792a";
 				#sound-dai-cells = <0>;
 				#clock-cells = <0>;
-				clocks = <&dachd_osc>;
 				reg = <0x4c>;
 				status = "okay";
 			};
@@ -43,7 +32,6 @@
 				compatible = "hifiberry,dachd-clk";
 				#clock-cells = <0>;
 				reg = <0x62>;
-				clocks = <&dachd_osc>;
 				status = "okay";
 				common_pll_regs = [
 					02 53 03 00 07 20 0F 00
@@ -92,7 +80,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@2 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "hifiberry,hifiberry-dacplushd";
