@@ -194,6 +194,16 @@ struct drm_panel {
 	 * Panel DSC pps payload to be sent
 	 */
 	struct drm_dsc_config *dsc;
+
+	/**
+	 * @prepare_upstream_first:
+	 *
+	 * The upstream controller should be prepared first, before the prepare
+	 * for the panel is called. This is largely required for DSI panels
+	 * where the DSI host controller should be initialised to LP-11 before
+	 * the panel is powered up.
+	 */
+	bool prepare_upstream_first;
 };
 
 void drm_panel_init(struct drm_panel *panel, struct device *dev,
