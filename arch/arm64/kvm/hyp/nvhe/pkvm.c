@@ -900,6 +900,17 @@ err_unlock:
 	return err;
 }
 
+void pkvm_poison_pvmfw_pages(void)
+{
+	u64 npages = pvmfw_size >> PAGE_SHIFT;
+	phys_addr_t addr = pvmfw_base;
+
+	while (npages--) {
+		hyp_poison_page(addr);
+		addr += PAGE_SIZE;
+	}
+}
+
 /*
  * This function sets the registers on the vcpu to their architecturally defined
  * reset values.

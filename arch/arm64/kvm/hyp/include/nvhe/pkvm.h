@@ -111,4 +111,6 @@ bool kvm_handle_pvm_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code);
 
 struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *vm, u64 mpidr);
 
+void pkvm_poison_pvmfw_pages(void);
+
 #endif /* __ARM64_KVM_NVHE_PKVM_H__ */
