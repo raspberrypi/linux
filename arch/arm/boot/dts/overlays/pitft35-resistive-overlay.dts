@@ -115,5 +115,6 @@
 		rotate =  <&pitft>,"rotate:0";
 		fps =     <&pitft>,"fps:0";
 		debug =   <&pitft>,"debug:0";
+		drm =     <&pitft>,"compatible=adafruit,yx350hv15";
 	};
 };
