@@ -2689,6 +2689,10 @@ Params: speed                   Display SPI bus speed
 
         debug                   Debug output level {0-7}
 
+        drm                     Force the use of the hx8357d DRM driver (by
+                                default the fb_hx8357d framebuffer driver will
+                                be used in preference if available)
+
 
 Name:   pps-gpio
 Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
