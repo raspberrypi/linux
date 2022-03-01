@@ -1404,9 +1404,12 @@ static void xhci_unmap_temp_buf(struct usb_hcd *hcd, struct urb *urb)
 static int xhci_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 				gfp_t mem_flags)
 {
+	unsigned int i, maxpacket;
+	struct scatterlist *sg;
 	struct xhci_hcd *xhci;
 
 	xhci = hcd_to_xhci(hcd);
+	maxpacket = usb_endpoint_maxp(&urb->ep->desc);
 
 	if (xhci_urb_suitable_for_idt(urb))
 		return 0;
@@ -1414,6 +1417,16 @@ static int xhci_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 	if (xhci->quirks & XHCI_SG_TRB_CACHE_SIZE_QUIRK) {
 		if (xhci_urb_temp_buffer_required(hcd, urb))
 			return xhci_map_temp_buffer(hcd, urb);
+	}
+
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&urb->ep->desc) &&
+	    urb->dev->speed >= USB_SPEED_SUPER &&
+	    urb->transfer_buffer_length != 0) {
+		for_each_sg(urb->sg, sg, urb->num_sgs, i) {
+			if (sg->length % maxpacket)
+				return xhci_map_temp_buffer(hcd, urb);
+		}
 	}
 	return usb_hcd_map_urb_for_dma(hcd, urb, mem_flags);
 }
@@ -1428,7 +1441,8 @@ static void xhci_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 	if (urb->num_sgs && (urb->transfer_flags & URB_DMA_MAP_SINGLE))
 		unmap_temp_buf = true;
 
-	if ((xhci->quirks & XHCI_SG_TRB_CACHE_SIZE_QUIRK) && unmap_temp_buf)
+	if ((xhci->quirks & (XHCI_SG_TRB_CACHE_SIZE_QUIRK | XHCI_VLI_SS_BULK_OUT_BUG))
+	     && unmap_temp_buf)
 		xhci_unmap_temp_buf(hcd, urb);
 	else
 		usb_hcd_unmap_urb_for_dma(hcd, urb);
