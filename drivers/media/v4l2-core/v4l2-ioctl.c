@@ -1521,6 +1521,10 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_MT2110R:	descr = "Mediatek 10bit Raster Mode"; break;
 		case V4L2_PIX_FMT_HEXTILE:	descr = "Hextile Compressed Format"; break;
 		case V4L2_PIX_FMT_RPI_BE:	descr = "PiSP Opaque Format"; break;
+		case V4L2_PIX_FMT_PISP_COMP_RGGB:
+		case V4L2_PIX_FMT_PISP_COMP_GRBG:
+		case V4L2_PIX_FMT_PISP_COMP_GBRG:
+		case V4L2_PIX_FMT_PISP_COMP_BGGR: descr = "PiSP Bayer Compressed Format"; break;
 		default:
 			if (fmt->description[0])
 				return;
