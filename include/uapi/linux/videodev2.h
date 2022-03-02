@@ -824,7 +824,11 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_IPU3_SRGGB10	v4l2_fourcc('i', 'p', '3', 'r') /* IPU3 packed 10-bit RGGB bayer */
 
 /* The pixel format for all our buffers (the precise format is found in the config buffer). */
-#define V4L2_PIX_FMT_RPI_BE v4l2_fourcc('R', 'P', 'B', 'P')
+#define V4L2_PIX_FMT_RPI_BE		v4l2_fourcc('R', 'P', 'B', 'P')
+#define V4L2_PIX_FMT_PISP_COMP_RGGB	v4l2_fourcc('P', 'C', 'R', 'G')
+#define V4L2_PIX_FMT_PISP_COMP_GRBG	v4l2_fourcc('P', 'C', 'G', 'R')
+#define V4L2_PIX_FMT_PISP_COMP_GBRG	v4l2_fourcc('P', 'C', 'G', 'B')
+#define V4L2_PIX_FMT_PISP_COMP_BGGR	v4l2_fourcc('P', 'C', 'B', 'G')
 
 /* SDR formats - used only for Software Defined Radio devices */
 #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
