@@ -722,6 +722,7 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	struct dma_buf_attachment *attach = NULL;
 	struct sg_table *sgt = NULL;
 	dma_addr_t dma_addr;
+	u32 cache_alias;
 	int ret = 0;
 	int status;
 
@@ -764,9 +765,13 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	import.type = VC_SM_ALLOC_NON_CACHED;
 	dma_addr = sg_dma_address(sgt->sgl);
 	import.addr = (u32)dma_addr;
-	if ((import.addr & 0xC0000000) != 0xC0000000) {
+	cache_alias = import.addr & 0xC0000000;
+	if (cache_alias != 0xC0000000 && cache_alias != 0x80000000) {
 		pr_err("%s: Expecting an uncached alias for dma_addr %pad\n",
 		       __func__, &dma_addr);
+		/* Note that this assumes we're on >= Pi2, but it implies a
+		 * DT configuration error.
+		 */
 		import.addr |= 0xC0000000;
 	}
 	import.size = sg_dma_len(sgt->sgl);
