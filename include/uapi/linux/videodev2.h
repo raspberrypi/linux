@@ -838,6 +838,13 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_PISP_COMP2_BGGR	v4l2_fourcc('P', 'C', '2', 'B') /* PiSP 8-bit mode 2 compressed BGGR bayer */
 #define V4L2_PIX_FMT_PISP_COMP2_MONO	v4l2_fourcc('P', 'C', '2', 'M') /* PiSP 8-bit mode 2 compressed monochrome */
 
+/* The pixel format for all our buffers (the precise format is found in the config buffer). */
+#define V4L2_PIX_FMT_RPI_BE		v4l2_fourcc('R', 'P', 'B', 'P')
+#define V4L2_PIX_FMT_PISP_COMP_RGGB	v4l2_fourcc('P', 'C', 'R', 'G')
+#define V4L2_PIX_FMT_PISP_COMP_GRBG	v4l2_fourcc('P', 'C', 'G', 'R')
+#define V4L2_PIX_FMT_PISP_COMP_GBRG	v4l2_fourcc('P', 'C', 'G', 'B')
+#define V4L2_PIX_FMT_PISP_COMP_BGGR	v4l2_fourcc('P', 'C', 'B', 'G')
+
 /* SDR formats - used only for Software Defined Radio devices */
 #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
 #define V4L2_SDR_FMT_CU16LE       v4l2_fourcc('C', 'U', '1', '6') /* IQ u16le */
