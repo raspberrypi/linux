@@ -1507,6 +1507,10 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_QC08C:	descr = "QCOM Compressed 8-bit Format"; break;
 		case V4L2_PIX_FMT_QC10C:	descr = "QCOM Compressed 10-bit Format"; break;
 		case V4L2_PIX_FMT_RPI_BE: descr = "PiSP Opaque Format"; break;
+		case V4L2_PIX_FMT_PISP_COMP_RGGB:
+		case V4L2_PIX_FMT_PISP_COMP_GRBG:
+		case V4L2_PIX_FMT_PISP_COMP_GBRG:
+		case V4L2_PIX_FMT_PISP_COMP_BGGR: descr = "PiSP Bayer Compressed Format"; break;
 		default:
 			if (fmt->description[0])
 				return;
