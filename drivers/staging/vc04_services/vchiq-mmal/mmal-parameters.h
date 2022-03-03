@@ -281,6 +281,8 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_GAMMA,
 		/**< Takes a @ref MMAL_PARAMETER_CDN_T */
 	MMAL_PARAMETER_CDN,
+		/**< Takes a @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_JPEG_IJG_SCALING,
 };
 
 enum mmal_parameter_camera_config_timestamp_mode {
