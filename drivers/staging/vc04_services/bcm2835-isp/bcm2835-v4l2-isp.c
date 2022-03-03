@@ -624,7 +624,6 @@ static void bcm2835_isp_node_stop_streaming(struct vb2_queue *q)
 {
 	struct bcm2835_isp_node *node = vb2_get_drv_priv(q);
 	struct bcm2835_isp_dev *dev = node_get_dev(node);
-	unsigned int i;
 	int ret;
 
 	v4l2_dbg(1, debug, &dev->v4l2_dev, "%s: node %s[%d], mmal port %p\n",
@@ -653,14 +652,6 @@ static void bcm2835_isp_node_stop_streaming(struct vb2_queue *q)
 				 atomic_read(&node->port->buffers_with_vpu));
 			break;
 		}
-	}
-
-	/* Release the VCSM handle here to release the associated dmabuf */
-	for (i = 0; i < q->num_buffers; i++) {
-		struct vb2_v4l2_buffer *vb2 = to_vb2_v4l2_buffer(q->bufs[i]);
-		struct bcm2835_isp_buffer *buf =
-			container_of(vb2, struct bcm2835_isp_buffer, vb);
-		bcm2835_isp_mmal_buf_cleanup(&buf->mmal);
 	}
 
 	atomic_dec(&dev->num_streaming);
