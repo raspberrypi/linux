@@ -293,6 +293,9 @@ static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 
 		switch (vc4_crtc->data->hvs_output) {
 		case 2:
+			WARN_ON(VC4_GET_FIELD(HVS_READ(SCALER_DISPCTRL),
+					      SCALER_DISPCTRL_DSP3_MUX) == channel);
+
 			mux = (channel == 2) ? 0 : 1;
 			reg = HVS_READ(SCALER_DISPECTRL);
 			HVS_WRITE(SCALER_DISPECTRL,
