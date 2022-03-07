@@ -135,6 +135,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	midi-uart5.dtbo \
 	minipitft13.dtbo \
 	miniuart-bt.dtbo \
+	mipi-dbi-spi.dtbo \
 	mlx90640.dtbo \
 	mmc.dtbo \
 	mpu6050.dtbo \
