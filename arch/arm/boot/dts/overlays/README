@@ -2386,6 +2386,73 @@ Params: krnbt                   Set to "on" to enable autoprobing of Bluetooth
                                 driver without need of hciattach/btattach
 
 
+Name:   mipi-dbi-spi
+Info:   Overlay for SPI-connected MIPI DBI displays using the panel-mipi-dbi
+        driver. The driver will load a file /lib/firmware/panel.bin containing
+        the initialisation commands.
+
+        Example:
+          dtoverlay=mipi-dbi-spi,spi0-0,speed=70000000
+          dtparam=width=320,height=240
+          dtparam=reset-gpio=23,dc-gpio=24
+          dtparam=backlight-gpio=18
+
+        Compared to fbtft panel-mipi-dbi runs pixel data at spi-max-frequency
+        and init commands at 10MHz. This makes it possible to push the envelope
+        without messing up the controller configuration due to command
+        transmission errors.
+
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+
+        See https://github.com/notro/panel-mipi-dbi/wiki for more info.
+
+Load:   dtoverlay=mipi-dbi-spi,<param>=<val>
+Params:
+        compatible              Set the compatible string to load a different
+                                firmware file. Both the panel compatible value
+                                used to load the firmware file and the value
+                                used to load the driver has to be set having a
+                                NUL (\0) separator between them.
+                                Example:
+                                dtparam=compatible=mypanel\0panel-mipi-dbi-spi
+        spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+        speed                   SPI bus speed in Hz (default 32000000)
+        cpha                    Shifted SPI clock phase (CPHA) mode
+        cpol                    Inverse SPI clock polarity (CPOL) mode
+        write-only              Controller is not readable
+                                (ie. MISO is not wired up).
+
+        width                   Panel width in pixels (required)
+        height                  Panel height in pixels (required)
+        width-mm                Panel width in mm
+        height-mm               Panel height in mm
+        x-offset                Panel x-offset in controller RAM
+        y-offset                Panel y-offset in controller RAM
+
+        clock-frequency         Panel clock frequency in Hz
+                                (optional, just informational).
+
+        reset-gpio              GPIO pin to be used for RESET
+        dc-gpio                 GPIO pin to be used for D/C
+
+        backlight-gpio          GPIO pin to be used for backlight control
+                                (default of none).
+        backlight-pwm           PWM channel to be used for backlight control
+                                (default of none). NB Disables audio headphone
+                                output as that also uses PWM.
+        backlight-pwm-chan      Choose channel on &pwm node for backlight
+                                control (default 0).
+        backlight-pwm-gpio      GPIO pin to be used for the PWM backlight. See
+                                pwm-2chan for valid options (default 18).
+        backlight-pwm-func      Pin function of GPIO used for the PWM backlight.
+                                See pwm-2chan for valid options (default 2).
+        backlight-def-brightness
+                                Set the default brightness. Normal range 1-16.
+                                (default 16).
+
+
 Name:   mlx90640
 Info:   Overlay for i2c connected mlx90640 thermal camera
 Load:   dtoverlay=mlx90640
