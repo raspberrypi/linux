@@ -4501,9 +4501,9 @@ retry:
 	return ret > 0 ? ret2 : ret;
 }
 
-static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len);
+static int ext4_collapse_range(struct file *file, loff_t offset, loff_t len);
 
-static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len);
+static int ext4_insert_range(struct file *file, loff_t offset, loff_t len);
 
 static long ext4_zero_range(struct file *file, loff_t offset,
 			    loff_t len, int mode)
@@ -4574,6 +4574,10 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 
 	/* Wait all existing dio workers, newcomers will block on i_rwsem */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/* Preallocate the range including the unaligned edges */
 	if (partial_begin || partial_end) {
@@ -4691,7 +4695,7 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 		return -EOPNOTSUPP;
 
 	if (mode & FALLOC_FL_PUNCH_HOLE) {
-		ret = ext4_punch_hole(inode, offset, len);
+		ret = ext4_punch_hole(file, offset, len);
 		goto exit;
 	}
 
@@ -4700,12 +4704,12 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 		goto exit;
 
 	if (mode & FALLOC_FL_COLLAPSE_RANGE) {
-		ret = ext4_collapse_range(inode, offset, len);
+		ret = ext4_collapse_range(file, offset, len);
 		goto exit;
 	}
 
 	if (mode & FALLOC_FL_INSERT_RANGE) {
-		ret = ext4_insert_range(inode, offset, len);
+		ret = ext4_insert_range(file, offset, len);
 		goto exit;
 	}
 
@@ -4740,6 +4744,10 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 
 	/* Wait all existing dio workers, newcomers will block on i_rwsem */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out;
 
 	ret = ext4_alloc_file_blocks(file, lblk, max_blocks, new_size, flags);
 	if (ret)
@@ -5242,8 +5250,9 @@ out:
  * This implements the fallocate's collapse range functionality for ext4
  * Returns: 0 and non-zero on error.
  */
-static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
+static int ext4_collapse_range(struct file *file, loff_t offset, loff_t len)
 {
+	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 	struct address_space *mapping = inode->i_mapping;
 	ext4_lblk_t punch_start, punch_stop;
@@ -5294,6 +5303,10 @@ static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
 
 	/* Wait for existing dio to complete */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/*
 	 * Prevent page faults from reinstantiating pages we have released from
@@ -5388,8 +5401,9 @@ out_mutex:
  * by len bytes.
  * Returns 0 on success, error otherwise.
  */
-static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
+static int ext4_insert_range(struct file *file, loff_t offset, loff_t len)
 {
+	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 	struct address_space *mapping = inode->i_mapping;
 	handle_t *handle;
@@ -5445,6 +5459,10 @@ static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
 
 	/* Wait for existing dio to complete */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/*
 	 * Prevent page faults from reinstantiating pages we have released from
