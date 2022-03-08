@@ -121,7 +121,6 @@ void blk_rq_init(struct request_queue *q, struct request *rq)
 	rq->internal_tag = BLK_MQ_NO_TAG;
 	rq->start_time_ns = ktime_get_ns();
 	rq->part = NULL;
-	refcount_set(&rq->ref, 1);
 	blk_crypto_rq_set_defaults(rq);
 }
 EXPORT_SYMBOL(blk_rq_init);
@@ -898,10 +897,8 @@ static noinline_for_stack bool submit_bio_checks(struct bio *bio)
 	if (unlikely(!current->io_context))
 		create_task_io_context(current, GFP_ATOMIC, q->node);
 
-	if (blk_throtl_bio(bio)) {
-		blkcg_bio_issue_init(bio);
+	if (blk_throtl_bio(bio))
 		return false;
-	}
 
 	blk_cgroup_bio_start(bio);
 	blkcg_bio_issue_init(bio);
