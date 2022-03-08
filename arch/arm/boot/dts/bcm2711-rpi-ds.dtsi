@@ -203,3 +203,7 @@
 &dvp {
 	status = "disabled";
 };
+
+&system_timer {
+	status = "disabled";
+};
