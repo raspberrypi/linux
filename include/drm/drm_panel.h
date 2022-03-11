@@ -24,6 +24,7 @@
 #ifndef __DRM_PANEL_H__
 #define __DRM_PANEL_H__
 
+#include <drm/drm_connector.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/list.h>
@@ -35,8 +36,6 @@ struct drm_connector;
 struct drm_device;
 struct drm_panel;
 struct display_timing;
-
-enum drm_panel_orientation;
 
 /**
  * struct drm_panel_funcs - perform operations on a given panel
