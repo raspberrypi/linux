@@ -63,6 +63,13 @@
 					};
 				};
 			};
+
+			vcm: ad5398@c {
+				compatible = "adi,ad5398";
+				reg = <0x0c>;
+				status = "disabled";
+				VANA-supply = <&cam1_reg>;
+			};
 		};
 	};
 
@@ -91,6 +98,9 @@
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&imx219>, "clocks:0=",<&cam0_clk>,
-		       <&imx219>, "VANA-supply:0=",<&cam0_reg>;
+		       <&imx219>, "VANA-supply:0=",<&cam0_reg>,
+		       <&vcm>, "VANA-supply:0=", <&cam0_reg>;
+		vcm = <&vcm>, "status=okay",
+		      <&imx219>,"lens-focus:0=", <&vcm>;
 	};
 };
