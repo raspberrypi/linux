@@ -40,7 +40,6 @@ static struct vc4_ctm_state *to_vc4_ctm_state(struct drm_private_state *priv)
 struct vc4_hvs_state {
 	struct drm_private_state base;
 	unsigned long core_clock_rate;
-	struct clk_request *core_req;
 
 	struct {
 		unsigned in_use: 1;
@@ -407,8 +406,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		 * And remove the previous one based on the HVS
 		 * requirements if any.
 		 */
-		clk_request_done(old_hvs_state->core_req);
-		old_hvs_state->core_req = NULL;
+               clk_request_done(hvs->core_req);
 	}
 	drm_atomic_helper_commit_modeset_disables(dev, state);
 
@@ -441,8 +439,8 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		 * Request a clock rate based on the current HVS
 		 * requirements.
 		 */
-		new_hvs_state->core_req = clk_request_start(hvs->core_clk,
-							    new_hvs_state->core_clock_rate);
+		hvs->core_req = clk_request_start(hvs->core_clk,
+						  new_hvs_state->core_clock_rate);
 
 		/* And drop the temporary request */
 		clk_request_done(core_req);
