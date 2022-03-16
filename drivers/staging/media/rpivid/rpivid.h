@@ -90,7 +90,6 @@ struct rpivid_ctx {
 	struct v4l2_pix_format_mplane	dst_fmt;
 	int dst_fmt_set;
 
-	struct clk_request		*clk_req;
 	int 				src_stream_on;
 	int 				dst_stream_on;
 

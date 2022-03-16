@@ -545,13 +545,10 @@ static int rpivid_buf_prepare(struct vb2_buffer *vb)
 static void stop_clock(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 {
 	if (ctx->src_stream_on ||
-	    ctx->dst_stream_on ||
-	    !ctx->clk_req)
+	    ctx->dst_stream_on)
 		return;
 
-	clk_request_done(ctx->clk_req);
-	ctx->clk_req = NULL;
-
+	clk_set_min_rate(dev->clock, 0);
 	clk_disable_unprepare(dev->clock);
 }
 
@@ -561,22 +558,17 @@ static int start_clock(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 	long max_hevc_clock;
 	int rv;
 
-	if (ctx->clk_req)
-		return 0;
-
 	max_hevc_clock = clk_round_rate(dev->clock, ULONG_MAX);
 
-	ctx->clk_req = clk_request_start(dev->clock, max_hevc_clock);
-	if (!ctx->clk_req) {
+	rv = clk_set_min_rate(dev->clock, max_hevc_clock);
+	if (rv) {
 		dev_err(dev->dev, "Failed to set clock rate\n");
-		return -EIO;
+		return rv;
 	}
 
 	rv = clk_prepare_enable(dev->clock);
 	if (rv) {
 		dev_err(dev->dev, "Failed to enable clock\n");
-		clk_request_done(ctx->clk_req);
-		ctx->clk_req = NULL;
 		return rv;
 	}
 
