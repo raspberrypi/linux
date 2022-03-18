@@ -470,7 +470,7 @@
 			clock-names = "spi", "sf", "axi";
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "disable";
+			status = "disabled";
 		};
 
 		audsys: clock-controller@11210000 {
