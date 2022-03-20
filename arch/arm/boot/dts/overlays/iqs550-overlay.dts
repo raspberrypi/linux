@@ -20,6 +20,8 @@
 				reg = <0x74>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_LEVEL_HIGH>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&iqs550_pins>;
 				touchscreen-size-x = <800>;
 				touchscreen-size-y = <480>;
 			};
@@ -34,8 +36,19 @@
 		};
 	};
 
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			iqs550_pins: iqs550_pins {
+				brcm,pins = <4>;
+				brcm,pull = <1>;
+			};
+		};
+	};
+
 	__overrides__ {
-		interrupt = <&iqs550>,"interrupts:0";
+		interrupt = <&iqs550>,"interrupts:0",
+			    <&iqs550_pins>,"brcm,pins:0";
 		reset = <0>,"+1", <&iqs550_reset>,"reset-gpios:4";
 		sizex = <&iqs550>,"touchscreen-size-x:0";
 		sizey = <&iqs550>,"touchscreen-size-y:0";
