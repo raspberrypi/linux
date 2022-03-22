@@ -657,6 +657,19 @@ static void bcm2835_isp_node_stop_streaming(struct vb2_queue *q)
 	atomic_dec(&dev->num_streaming);
 	/* If all ports disabled, then disable the component */
 	if (atomic_read(&dev->num_streaming) == 0) {
+		struct bcm2835_isp_lens_shading ls;
+		/*
+		 * The ISP component on the firmware has a reference to the
+		 * dmabuf handle for the lens shading table.  Pass a null handle
+		 * to remove that reference now.
+		 */
+		memset(&ls, 0, sizeof(ls));
+		/* Must set a valid grid size for the FW */
+		ls.grid_cell_size = 16;
+		set_isp_param(&dev->node[0],
+			      MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
+			      &ls, sizeof(ls));
+
 		ret = vchiq_mmal_component_disable(dev->mmal_instance,
 						   dev->component);
 		if (ret) {
