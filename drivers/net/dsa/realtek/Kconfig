@@ -14,6 +14,7 @@ menuconfig NET_DSA_REALTEK
 config NET_DSA_REALTEK_SMI
 	tristate "Realtek SMI connected switch driver"
 	depends on NET_DSA_REALTEK
+	depends on OF
 	default y
 	help
 	  Select to enable support for registering switches connected
