@@ -897,11 +897,17 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	hvs->regset.nregs = ARRAY_SIZE(hvs_regs);
 
 	if (hvs->hvs5) {
+		unsigned long max_rate;
+
 		hvs->core_clk = devm_clk_get(&pdev->dev, NULL);
 		if (IS_ERR(hvs->core_clk)) {
 			dev_err(&pdev->dev, "Couldn't get core clock\n");
 			return PTR_ERR(hvs->core_clk);
 		}
+
+		max_rate = clk_get_max_rate(hvs->core_clk);
+		if (max_rate >= 550000000)
+			hvs->vc5_hdmi_enable_scrambling = true;
 
 		ret = clk_prepare_enable(hvs->core_clk);
 		if (ret) {
