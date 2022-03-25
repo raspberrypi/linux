@@ -400,7 +400,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		unsigned long core_rate = max_t(unsigned long,
 						500000000, state_rate);
 
-		clk_set_min_rate(hvs->core_clk, core_rate);
+		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
 	}
 	drm_atomic_helper_commit_modeset_disables(dev, state);
 
@@ -429,7 +429,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		drm_dbg(dev, "Running the core clock at %lu Hz\n",
 			new_hvs_state->core_clock_rate);
 
-		clk_set_min_rate(hvs->core_clk, new_hvs_state->core_clock_rate);
+		WARN_ON(clk_set_min_rate(hvs->core_clk, new_hvs_state->core_clock_rate));
 
 		drm_dbg(dev, "Core clock actual rate: %lu Hz\n",
 			clk_get_rate(hvs->core_clk));
