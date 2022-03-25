@@ -138,7 +138,7 @@ static int audioinjector_pi_soundcard_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_audioinjector;
 	int ret;
-	
+
 	card->dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
@@ -158,9 +158,10 @@ static int audioinjector_pi_soundcard_probe(struct platform_device *pdev)
 			}
 	}
 
-	if ((ret = devm_snd_soc_register_card(&pdev->dev, card))) {
-		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
-	}
+	if (ret = devm_snd_soc_register_card(&pdev->dev, card))
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
+
 	return ret;
 }
 
@@ -184,4 +185,3 @@ MODULE_AUTHOR("Matt Flax <flatmax@flatmax.org>");
 MODULE_DESCRIPTION("AudioInjector.net Pi Soundcard");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:audioinjector-pi-soundcard");
-
