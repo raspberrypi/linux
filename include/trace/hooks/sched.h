@@ -323,6 +323,12 @@ DECLARE_HOOK(android_vh_set_wake_flags,
 DECLARE_RESTRICTED_HOOK(android_rvh_post_init_entity_util_avg,
 	TP_PROTO(struct sched_entity *se),
 	TP_ARGS(se), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_effective_cpu_util,
+	TP_PROTO(int cpu, unsigned long util_cfs, unsigned long max, int type,
+		 struct task_struct *p, unsigned long *new_util),
+	TP_ARGS(cpu, util_cfs, max, type, p, new_util), 1);
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
