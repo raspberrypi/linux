@@ -354,6 +354,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	struct vc4_hvs_state *new_hvs_state;
 	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
+	unsigned long max_clock_rate = clk_get_max_rate(hvs->core_clk);
 	unsigned int channel;
 	int i;
 
@@ -397,8 +398,8 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	if (vc4->hvs && vc4->hvs->hvs5) {
 		unsigned long state_rate = max(old_hvs_state->core_clock_rate,
 					       new_hvs_state->core_clock_rate);
-		unsigned long core_rate = max_t(unsigned long,
-						500000000, state_rate);
+		unsigned long core_rate = clamp_t(unsigned long, state_rate,
+						  500000000, max_clock_rate);
 
 		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
 	}
@@ -426,10 +427,13 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	drm_atomic_helper_cleanup_planes(dev, state);
 
 	if (vc4->hvs && vc4->hvs->hvs5) {
-		drm_dbg(dev, "Running the core clock at %lu Hz\n",
-			new_hvs_state->core_clock_rate);
+		unsigned long core_rate = min_t(unsigned long,
+					       max_clock_rate,
+					       new_hvs_state->core_clock_rate);
 
-		WARN_ON(clk_set_min_rate(hvs->core_clk, new_hvs_state->core_clock_rate));
+		drm_dbg(dev, "Running the core clock at %lu Hz\n", core_rate);
+
+		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
 
 		drm_dbg(dev, "Core clock actual rate: %lu Hz\n",
 			clk_get_rate(hvs->core_clk));
