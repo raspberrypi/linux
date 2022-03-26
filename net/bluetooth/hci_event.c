@@ -5498,7 +5498,7 @@ static struct hci_conn *check_pending_le_conn(struct hci_dev *hdev,
 	/* Most controller will fail if we try to create new connections
 	 * while we have an existing one in peripheral role.
 	 */
-	printk(KERN_ERR "%s: le_num_slave = %d\n", __func__,hdev->conn_hash.le_num_slave);
+	printk(KERN_ERR "%s: le_num_peripheral = %d\n", __func__,conn_hash.le_num_peripheral);
 
     printk(KERN_ERR "%s: HCI_QUIRK_VALID_LE_STATES = %d\n", __func__,HCI_QUIRK_VALID_LE_STATES);
     printk(KERN_ERR "%s: hdev->le_states[3] = %d\n", __func__,hdev->le_states[3]);
