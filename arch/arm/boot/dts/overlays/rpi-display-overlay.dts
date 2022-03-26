@@ -61,7 +61,7 @@
 				buswidth = <8>;
 				reset-gpios = <&gpio 23 1>;
 				dc-gpios = <&gpio 24 0>;
-				led-gpios = <&gpio 18 1>;
+				led-gpios = <&gpio 18 0>;
 				debug = <0>;
 			};
 
