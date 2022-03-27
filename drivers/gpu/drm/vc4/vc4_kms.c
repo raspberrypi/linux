@@ -945,6 +945,7 @@ vc4_core_clock_atomic_check(struct drm_atomic_state *state)
 	}
 
 	hvs_new_state->core_clock_rate = max(cob_rate, pixel_rate);
+	hvs_new_state->core_clock_rate = min(hvs_new_state->core_clock_rate, 550000000);
 
 	return 0;
 }
