@@ -1161,10 +1161,15 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: Empty buffer - flags %04x",
 			 __func__, mmal_buf->mmal_flags);
 		if (!(mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS)) {
-			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_QUEUED);
-			if (!port->enabled &&
-			    atomic_read(&port->buffers_with_vpu))
-				complete(&ctx->frame_cmplt);
+			if (!port->enabled) {
+				vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_QUEUED);
+				if (atomic_read(&port->buffers_with_vpu))
+					complete(&ctx->frame_cmplt);
+			} else {
+				vchiq_mmal_submit_buffer(ctx->dev->instance,
+							 &ctx->component->output[0],
+							 mmal_buf);
+			}
 			return;
 		}
 	}
