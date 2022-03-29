@@ -185,7 +185,6 @@ struct sys_stat_struct {
 /* startup code */
 asm(".section .text\n"
     ".weak _start\n"
-    ".global _start\n"
     "_start:\n"
     ".option push\n"
     ".option norelax\n"
