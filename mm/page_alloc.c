@@ -207,6 +207,27 @@ EXPORT_SYMBOL(node_states);
 
 gfp_t gfp_allowed_mask __read_mostly = GFP_BOOT_MASK;
 
+#define ALLOC_IN_CMA_THRESHOLD_MAX 16
+#define ALLOC_IN_CMA_THRESHOLD_DEFAULT 12
+
+static unsigned long _alloc_in_cma_threshold __read_mostly
+				= ALLOC_IN_CMA_THRESHOLD_DEFAULT;
+
+static int __init alloc_in_cma_threshold_setup(char *buf)
+{
+	unsigned long res;
+
+	if (kstrtoul(buf, 10, &res) < 0 ||
+	    res > ALLOC_IN_CMA_THRESHOLD_MAX) {
+		pr_err("Bad alloc_cma_threshold value\n");
+		return 0;
+	}
+	_alloc_in_cma_threshold = res;
+	pr_info("Setting alloc_in_cma_threshold to %lu\n", res);
+	return 0;
+}
+early_param("alloc_in_cma_threshold", alloc_in_cma_threshold_setup);
+
 #ifdef CONFIG_HUGETLB_PAGE_SIZE_VARIABLE
 unsigned int pageblock_order __read_mostly;
 #endif
@@ -2270,12 +2291,13 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 	if (IS_ENABLED(CONFIG_CMA)) {
 		/*
 		 * Balance movable allocations between regular and CMA areas by
-		 * allocating from CMA when over half of the zone's free memory
-		 * is in the CMA area.
+		 * allocating from CMA when over more than a given proportion of
+		 * the zone's free memory is in the CMA area.
 		 */
 		if (alloc_flags & ALLOC_CMA &&
 		    zone_page_state(zone, NR_FREE_CMA_PAGES) >
-		    zone_page_state(zone, NR_FREE_PAGES) / 2) {
+		    zone_page_state(zone, NR_FREE_PAGES) / ALLOC_IN_CMA_THRESHOLD_MAX
+		    * _alloc_in_cma_threshold) {
 			page = __rmqueue_cma_fallback(zone, order);
 			if (page)
 				return page;
