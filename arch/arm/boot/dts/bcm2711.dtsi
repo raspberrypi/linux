@@ -445,7 +445,7 @@
 	};
 
 	arm-pmu {
-		compatible = "arm,cortex-a72-pmu", "arm,armv8-pmuv3";
+		compatible = "arm,cortex-a72-pmu", "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>,
 			<GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>,
