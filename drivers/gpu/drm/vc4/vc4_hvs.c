@@ -389,150 +389,6 @@ static void vc5_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 	vc5_hvs_lut_load(hvs, vc4_crtc);
 }
 
-static void vc4_hvs_irq_enable_eof(const struct vc4_hvs *hvs,
-				   unsigned int channel)
-{
-	u32 irq_mask = hvs->hvs5 ?
-		SCALER5_DISPCTRL_DSPEIEOF(channel) :
-		SCALER_DISPCTRL_DSPEIEOF(channel);
-
-	HVS_WRITE(SCALER_DISPCTRL,
-		  HVS_READ(SCALER_DISPCTRL) | irq_mask);
-}
-
-static void vc4_hvs_irq_clear_eof(const struct vc4_hvs *hvs,
-				  unsigned int channel)
-{
-	u32 irq_mask = hvs->hvs5 ?
-		SCALER5_DISPCTRL_DSPEIEOF(channel) :
-		SCALER_DISPCTRL_DSPEIEOF(channel);
-
-	HVS_WRITE(SCALER_DISPCTRL,
-		  HVS_READ(SCALER_DISPCTRL) & ~irq_mask);
-}
-
-static struct vc4_hvs_dlist_allocation *
-vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
-			  unsigned int channel,
-			  size_t dlist_count)
-{
-	struct vc4_hvs_dlist_allocation *alloc;
-	unsigned long flags;
-	int ret;
-
-	if (channel == VC4_HVS_CHANNEL_DISABLED)
-		return NULL;
-
-	alloc = kzalloc(sizeof(*alloc), GFP_KERNEL);
-	if (!alloc)
-		return ERR_PTR(-ENOMEM);
-
-	spin_lock_irqsave(&hvs->mm_lock, flags);
-	ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
-				 dlist_count);
-	spin_unlock_irqrestore(&hvs->mm_lock, flags);
-	if (ret)
-		return ERR_PTR(ret);
-
-	alloc->channel = channel;
-
-	return alloc;
-}
-
-void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
-				    struct vc4_hvs_dlist_allocation *alloc)
-{
-	unsigned long flags;
-	u8 frcnt;
-
-	if (!alloc)
-		return;
-
-	if (!drm_mm_node_allocated(&alloc->mm_node))
-		return;
-
-	frcnt = vc4_hvs_get_fifo_frame_count(hvs, alloc->channel);
-	alloc->target_frame_count = (frcnt + 1) & ((1 << 6) - 1);
-
-	spin_lock_irqsave(&hvs->mm_lock, flags);
-
-	list_add_tail(&alloc->node, &hvs->stale_dlist_entries);
-
-	HVS_WRITE(SCALER_DISPSTAT, SCALER_DISPSTAT_EOF(alloc->channel));
-	vc4_hvs_irq_enable_eof(hvs, alloc->channel);
-
-	spin_unlock_irqrestore(&hvs->mm_lock, flags);
-}
-
-static void vc4_hvs_schedule_dlist_sweep(struct vc4_hvs *hvs,
-					 unsigned int channel)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&hvs->mm_lock, flags);
-
-	if (!list_empty(&hvs->stale_dlist_entries))
-		queue_work(system_unbound_wq, &hvs->free_dlist_work);
-
-	vc4_hvs_irq_clear_eof(hvs, channel);
-
-	spin_unlock_irqrestore(&hvs->mm_lock, flags);
-}
-
-/*
- * Frame counts are essentially sequence numbers over 6 bits, and we
- * thus can use sequence number arithmetic and follow the RFC1982 to
- * implement proper comparison between them.
- */
-static bool vc4_hvs_frcnt_lte(u8 cnt1, u8 cnt2)
-{
-	return (s8)((cnt1 << 2) - (cnt2 << 2)) <= 0;
-}
-
-/*
- * Some atomic commits (legacy cursor updates, mostly) will not wait for
- * the next vblank and will just return once the commit has been pushed
- * to the hardware.
- *
- * On the hardware side, our HVS stores the planes parameters in its
- * context RAM, and will use part of the RAM to store data during the
- * frame rendering.
- *
- * This interacts badly if we get multiple commits before the next
- * vblank since we could end up overwriting the DLIST entries used by
- * previous commits if our dlist allocation reuses that entry. In such a
- * case, we would overwrite the data currently being used by the
- * hardware, resulting in a corrupted frame.
- *
- * In order to work around this, we'll queue the dlist entries in a list
- * once the associated CRTC state is destroyed. The HVS only allows us
- * to know which entry is being active, but not which one are no longer
- * being used, so in order to avoid freeing entries that are still used
- * by the hardware we add a guesstimate of the frame count where our
- * entry will no longer be used, and thus will only free those entries
- * when we will have reached that frame count.
- */
-static void vc4_hvs_dlist_free_work(struct work_struct *work)
-{
-	struct vc4_hvs *hvs = container_of(work, struct vc4_hvs, free_dlist_work);
-	struct vc4_hvs_dlist_allocation *cur, *next;
-	unsigned long flags;
-
-	spin_lock_irqsave(&hvs->mm_lock, flags);
-	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
-		u8 frcnt;
-
-		frcnt = vc4_hvs_get_fifo_frame_count(hvs, cur->channel);
-		if (!vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
-			continue;
-
-		list_del(&cur->node);
-		drm_mm_remove_node(&cur->mm_node);
-		kfree(cur);
-	}
-	spin_unlock_irqrestore(&hvs->mm_lock, flags);
-}
-
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo)
 {
 	u8 field = 0;
@@ -732,12 +588,13 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
-	struct vc4_hvs_dlist_allocation *alloc;
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_plane *plane;
+	unsigned long flags;
 	const struct drm_plane_state *plane_state;
 	u32 dlist_count = 0;
+	int ret;
 
 	/* The pixelvalve can only feed one encoder (and encoders are
 	 * 1:1 with connectors.)
@@ -750,11 +607,12 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 
 	dlist_count++; /* Account for SCALER_CTL0_END. */
 
-	alloc = vc4_hvs_alloc_dlist_entry(vc4->hvs, vc4_state->assigned_channel, dlist_count);
-	if (IS_ERR(alloc))
-		return PTR_ERR(alloc);
-
-	vc4_state->mm = alloc;
+	spin_lock_irqsave(&vc4->hvs->mm_lock, flags);
+	ret = drm_mm_insert_node(&vc4->hvs->dlist_mm, &vc4_state->mm,
+				 dlist_count);
+	spin_unlock_irqrestore(&vc4->hvs->mm_lock, flags);
+	if (ret)
+		return ret;
 
 	return vc4_hvs_gamma_check(crtc, state);
 }
@@ -766,9 +624,8 @@ static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
 	struct vc4_hvs *hvs = vc4->hvs;
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 
-	WARN_ON(!vc4_state->mm);
 	HVS_WRITE(SCALER_DISPLISTX(vc4_state->assigned_channel),
-		  vc4_state->mm->mm_node.start);
+		  vc4_state->mm.start);
 }
 
 static void vc4_hvs_update_dlist(struct drm_crtc *crtc)
@@ -793,10 +650,8 @@ static void vc4_hvs_update_dlist(struct drm_crtc *crtc)
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 	}
 
-	WARN_ON(!vc4_state->mm);
-
 	spin_lock_irqsave(&vc4_crtc->irq_lock, flags);
-	vc4_crtc->current_dlist = vc4_state->mm->mm_node.start;
+	vc4_crtc->current_dlist = vc4_state->mm.start;
 	spin_unlock_irqrestore(&vc4_crtc->irq_lock, flags);
 }
 
@@ -853,7 +708,8 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	struct vc4_plane_state *vc4_plane_state;
 	bool debug_dump_regs = false;
 	bool enable_bg_fill = false;
-	u32 __iomem *dlist_start, *dlist_next;
+	u32 __iomem *dlist_start = vc4->hvs->dlist + vc4_state->mm.start;
+	u32 __iomem *dlist_next = dlist_start;
 	unsigned int zpos = 0;
 	bool found = false;
 
@@ -864,9 +720,6 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		DRM_INFO("CRTC %d HVS before:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(hvs);
 	}
-
-	dlist_start = vc4->hvs->dlist + vc4_state->mm->mm_node.start;
-	dlist_next = dlist_start;
 
 	/* Copy all the active planes' dlist contents to the hardware dlist. */
 	do {
@@ -901,8 +754,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	writel(SCALER_CTL0_END, dlist_next);
 	dlist_next++;
 
-	WARN_ON(!vc4_state->mm);
-	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm->mm_node.size);
+	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm.size);
 
 	if (enable_bg_fill)
 		/* This sets a black background color fill, as is the case
@@ -1007,11 +859,6 @@ static irqreturn_t vc4_hvs_irq_handler(int irq, void *data)
 
 			irqret = IRQ_HANDLED;
 		}
-
-		if (status & SCALER_DISPSTAT_EOF(channel)) {
-			vc4_hvs_schedule_dlist_sweep(hvs, channel);
-			irqret = IRQ_HANDLED;
-		}
 	}
 
 	/* Clear every per-channel interrupt flag. */
@@ -1069,8 +916,6 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 		hvs->dlist = hvs->regs + SCALER5_DLIST_START;
 
 	spin_lock_init(&hvs->mm_lock);
-	INIT_LIST_HEAD(&hvs->stale_dlist_entries);
-	INIT_WORK(&hvs->free_dlist_work, vc4_hvs_dlist_free_work);
 
 	/* Set up the HVS display list memory manager.  We never
 	 * overwrite the setup from the bootloader (just 128b out of
