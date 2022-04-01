@@ -2416,6 +2416,12 @@ static int clk_set_rate_range_nolock(struct clk *clk,
 	if (clk->core->flags & CLK_GET_RATE_NOCACHE)
 		rate = clk_core_get_rate_recalc(clk->core);
 
+	if (clk->core->orphan && !rate) {
+		pr_warn("%s: clk %s: Clock is orphan and doesn't have a rate!\n",
+			__func__, clk->core->name);
+		goto out;
+	}
+
 	/*
 	 * Since the boundaries have been changed, let's give the
 	 * opportunity to the provider to adjust the clock rate based on
