@@ -715,6 +715,7 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_mode_config *config = &dev->mode_config;
+	bool margins_updated = false;
 	bool replaced = false;
 	int ret;
 
@@ -734,12 +735,16 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 		state->tv.subconnector = val;
 	} else if (property == config->tv_left_margin_property) {
 		state->tv.margins.left = val;
+		margins_updated = true;
 	} else if (property == config->tv_right_margin_property) {
 		state->tv.margins.right = val;
+		margins_updated = true;
 	} else if (property == config->tv_top_margin_property) {
 		state->tv.margins.top = val;
+		margins_updated = true;
 	} else if (property == config->tv_bottom_margin_property) {
 		state->tv.margins.bottom = val;
+		margins_updated = true;
 	} else if (property == config->tv_mode_property) {
 		state->tv.mode = val;
 	} else if (property == config->tv_brightness_property) {
@@ -818,6 +823,12 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 			       connector->base.id, connector->name,
 			       property->base.id, property->name);
 		return -EINVAL;
+	}
+
+	if (margins_updated && state->crtc) {
+		ret = drm_atomic_add_affected_planes(state->state, state->crtc);
+
+		return ret;
 	}
 
 	return 0;
