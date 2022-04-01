@@ -728,12 +728,10 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 		if (conn_state->crtc != crtc)
 			continue;
 
-		if (memcmp(&conn_state->tv.margins, &vc4_state->margins,
+		if (memcmp(&vc4_state->margins, &conn_state->tv.margins,
 			   sizeof(vc4_state->margins))) {
-			vc4_state->margins.left = conn_state->tv.margins.left;
-			vc4_state->margins.right = conn_state->tv.margins.right;
-			vc4_state->margins.top = conn_state->tv.margins.top;
-			vc4_state->margins.bottom = conn_state->tv.margins.bottom;
+			memcpy(&vc4_state->margins, &conn_state->tv.margins,
+			       sizeof(vc4_state->margins));
 
 			/* Need to force the dlist entries for all planes to be
 			 * updated so that the dest rectangles are changed.
