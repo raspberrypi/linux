@@ -1489,7 +1489,7 @@ unsigned long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate)
 	struct clk_rate_request req;
 	struct clk_request *clk_req;
 
-	req.rate = rate;
+	clk_core_init_rate_req(hw->core, &req, rate);
 
 	list_for_each_entry(clk_req, &hw->core->pending_requests, list)
 		req.min_rate = max(clk_req->rate, req.min_rate);
@@ -1525,7 +1525,7 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 	if (clk->exclusive_count)
 		clk_core_rate_unprotect(clk->core);
 
-	req.rate = rate;
+	clk_core_init_rate_req(clk->core, &req, rate);
 
 	list_for_each_entry(clk_req, &clk->core->pending_requests, list)
 		req.min_rate = max(clk_req->rate, req.min_rate);
@@ -2237,8 +2237,7 @@ static unsigned long clk_core_req_round_rate_nolock(struct clk_core *core,
 	if (cnt < 0)
 		return cnt;
 
-	clk_core_get_boundaries(core, &req.min_rate, &req.max_rate);
-	req.rate = req_rate;
+	clk_core_init_rate_req(core, &req, req_rate);
 
 	list_for_each_entry(clk_req, &core->pending_requests, list)
 		req.min_rate = max(clk_req->rate, req.min_rate);
