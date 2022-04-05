@@ -187,11 +187,6 @@ __copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
 	unsigned long ua_flags;
 	int atomic;
 
-	if (unlikely(uaccess_kernel())) {
-		memcpy(to, (const void *)from, n);
-		return 0;
-	}
-
 	/* the mmap semaphore is taken only if not in an atomic context */
 	atomic = in_atomic();
 
