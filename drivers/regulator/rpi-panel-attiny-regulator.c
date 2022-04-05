@@ -90,17 +90,6 @@ static u8 attiny_get_port_state(struct attiny_lcd *state, int reg)
 	return state->port_states[reg - REG_PORTA];
 };
 
-static int attiny_set_port_state(struct attiny_lcd *state, int reg, u8 val)
-{
-	state->port_states[reg - REG_PORTA] = val;
-	return regmap_write(state->regmap, reg, val);
-};
-
-static u8 attiny_get_port_state(struct attiny_lcd *state, int reg)
-{
-	return state->port_states[reg - REG_PORTA];
-};
-
 static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
@@ -276,45 +265,6 @@ static int attiny_i2c_read(struct i2c_client *client, u8 reg, unsigned int *buf)
 
 	*buf = data_buf[0];
 	return 0;
-}
-
-static int attiny_gpio_get_direction(struct gpio_chip *gc, unsigned int off)
-{
-	return GPIO_LINE_DIRECTION_OUT;
-}
-
-static void attiny_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
-{
-	struct attiny_lcd *state = gpiochip_get_data(gc);
-	u8 last_val;
-
-	if (off >= NUM_GPIO)
-		return;
-
-	mutex_lock(&state->lock);
-
-	last_val = attiny_get_port_state(state, mappings[off].reg);
-	if (val)
-		last_val |= mappings[off].mask;
-	else
-		last_val &= ~mappings[off].mask;
-
-	attiny_set_port_state(state, mappings[off].reg, last_val);
-
-	if (off == RST_BRIDGE_N && val) {
-		usleep_range(5000, 8000);
-		regmap_write(state->regmap, REG_ADDR_H, 0x04);
-		usleep_range(5000, 8000);
-		regmap_write(state->regmap, REG_ADDR_L, 0x7c);
-		usleep_range(5000, 8000);
-		regmap_write(state->regmap, REG_WRITE_DATA_H, 0x00);
-		usleep_range(5000, 8000);
-		regmap_write(state->regmap, REG_WRITE_DATA_L, 0x00);
-
-		msleep(100);
-	}
-
-	mutex_unlock(&state->lock);
 }
 
 /*
