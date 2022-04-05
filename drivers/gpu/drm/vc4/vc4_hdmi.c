@@ -1610,12 +1610,12 @@ vc4_hdmi_sink_supports_format_bpc(const struct vc4_hdmi *vc4_hdmi,
 	case VC4_HDMI_OUTPUT_RGB:
 		drm_dbg(dev, "RGB Format, checking the constraints.\n");
 
-		if (bpc == 10 && !(info->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30)) {
+		if (bpc == 10 && !(info->edid_hdmi_rgb444_dc_modes & DRM_EDID_HDMI_DC_30)) {
 			drm_dbg(dev, "10 BPC but sink doesn't support Deep Color 30.\n");
 			return false;
 		}
 
-		if (bpc == 12 && !(info->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36)) {
+		if (bpc == 12 && !(info->edid_hdmi_rgb444_dc_modes & DRM_EDID_HDMI_DC_36)) {
 			drm_dbg(dev, "12 BPC but sink doesn't support Deep Color 36.\n");
 			return false;
 		}
@@ -1627,7 +1627,7 @@ vc4_hdmi_sink_supports_format_bpc(const struct vc4_hdmi *vc4_hdmi,
 	case VC4_HDMI_OUTPUT_YUV422:
 		drm_dbg(dev, "YUV422 format, checking the constraints.\n");
 
-		if (!(info->color_formats & DRM_COLOR_FORMAT_YCRCB422)) {
+		if (!(info->color_formats & DRM_COLOR_FORMAT_YCBCR422)) {
 			drm_dbg(dev, "Sink doesn't support YUV422.\n");
 			return false;
 		}
@@ -1644,17 +1644,17 @@ vc4_hdmi_sink_supports_format_bpc(const struct vc4_hdmi *vc4_hdmi,
 	case VC4_HDMI_OUTPUT_YUV444:
 		drm_dbg(dev, "YUV444 format, checking the constraints.\n");
 
-		if (!(info->color_formats & DRM_COLOR_FORMAT_YCRCB444)) {
+		if (!(info->color_formats & DRM_COLOR_FORMAT_YCBCR444)) {
 			drm_dbg(dev, "Sink doesn't support YUV444.\n");
 			return false;
 		}
 
-		if (bpc == 10 && !(info->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30)) {
+		if (bpc == 10 && !(info->edid_hdmi_rgb444_dc_modes & DRM_EDID_HDMI_DC_30)) {
 			drm_dbg(dev, "10 BPC but sink doesn't support Deep Color 30.\n");
 			return false;
 		}
 
-		if (bpc == 12 && !(info->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36)) {
+		if (bpc == 12 && !(info->edid_hdmi_rgb444_dc_modes & DRM_EDID_HDMI_DC_36)) {
 			drm_dbg(dev, "12 BPC but sink doesn't support Deep Color 36.\n");
 			return false;
 		}
