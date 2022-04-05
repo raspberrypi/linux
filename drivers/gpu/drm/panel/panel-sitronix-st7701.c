@@ -691,13 +691,11 @@ static int st7701_spi_probe(struct spi_device *spi)
 	return 0;
 }
 
-static int st7701_spi_remove(struct spi_device *spi)
+static void st7701_spi_remove(struct spi_device *spi)
 {
 	struct st7701 *ctx = spi_get_drvdata(spi);
 
 	drm_panel_remove(&ctx->panel);
-
-	return 0;
 }
 
 static const struct spi_device_id st7701_spi_ids[] = {
