@@ -452,13 +452,11 @@ static int ili9806_probe(struct spi_device *spi)
 	return 0;
 }
 
-static int ili9806_remove(struct spi_device *spi)
+static void ili9806_remove(struct spi_device *spi)
 {
 	struct ili9806 *ctx = spi_get_drvdata(spi);
 
 	drm_panel_remove(&ctx->panel);
-
-	return 0;
 }
 
 static const struct spi_device_id ili9806_ids[] = {
