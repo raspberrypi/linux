@@ -859,8 +859,8 @@ static void pre_slice_decode(struct rpivid_dec_env *const de,
 
 			msg_slice(de,
 				  dpb_no |
-				  (dec->dpb[dpb_no].rps ==
-					V4L2_HEVC_DPB_ENTRY_RPS_LT_CURR ?
+				  ((dec->dpb[dpb_no].flags &
+					V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE) ?
 						 (1 << 4) : 0) |
 				  (weighted_pred_flag ? (3 << 5) : 0));
 			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt[0]);
@@ -905,8 +905,8 @@ static void pre_slice_decode(struct rpivid_dec_env *const de,
 			//          "L1[%d]=dpb[%d]\n", idx, dpb_no);
 			msg_slice(de,
 				  dpb_no |
-				  (dec->dpb[dpb_no].rps ==
-					 V4L2_HEVC_DPB_ENTRY_RPS_LT_CURR ?
+				  ((dec->dpb[dpb_no].flags &
+					 V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE) ?
 						 (1 << 4) : 0) |
 					(weighted_pred_flag ? (3 << 5) : 0));
 			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt[0]);
