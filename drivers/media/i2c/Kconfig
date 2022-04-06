@@ -1380,7 +1380,7 @@ config VIDEO_TW9910
 
 config VIDEO_IRS1125
 	tristate "Infineon IRS1125 sensor support"
-	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on I2C && VIDEO_DEV && VIDEO_V4L2_SUBDEV_API
 	depends on MEDIA_CAMERA_SUPPORT
 	select V4L2_FWNODE
 	help
