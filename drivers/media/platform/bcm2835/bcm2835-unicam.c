@@ -2347,7 +2347,7 @@ static void unicam_start_rx(struct unicam_device *dev, dma_addr_t *addr)
 		/* CSI2 */
 		set_field(&val, 1, UNICAM_CLE);
 		set_field(&val, 1, UNICAM_CLLPE);
-		if (dev->bus_flags & V4L2_MBUS_CSI2_CONTINUOUS_CLOCK) {
+		if (!(dev->bus_flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK)) {
 			set_field(&val, 1, UNICAM_CLTRE);
 			set_field(&val, 1, UNICAM_CLHSE);
 		}
@@ -2369,7 +2369,7 @@ static void unicam_start_rx(struct unicam_device *dev, dma_addr_t *addr)
 		/* CSI2 */
 		set_field(&val, 1, UNICAM_DLE);
 		set_field(&val, 1, UNICAM_DLLPE);
-		if (dev->bus_flags & V4L2_MBUS_CSI2_CONTINUOUS_CLOCK) {
+		if (!(dev->bus_flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK)) {
 			set_field(&val, 1, UNICAM_DLTRE);
 			set_field(&val, 1, UNICAM_DLHSE);
 		}
