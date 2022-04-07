@@ -2530,9 +2530,7 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 			goto error_pipeline;
 		}
 
-		dev->active_data_lanes =
-			(mbus_config.flags & V4L2_MBUS_CSI2_LANE_MASK) >>
-					__ffs(V4L2_MBUS_CSI2_LANE_MASK);
+		dev->active_data_lanes = mbus_config.bus.mipi_csi2.num_data_lanes;
 		if (!dev->active_data_lanes)
 			dev->active_data_lanes = dev->max_data_lanes;
 		if (dev->active_data_lanes > dev->max_data_lanes) {
