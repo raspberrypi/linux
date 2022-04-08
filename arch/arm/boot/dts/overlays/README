@@ -601,6 +601,12 @@ Params: non-stop-clocks         Keeps the clocks running even when the stream
                                 is paused or stopped (default off)
 
 
+Name:   audioinjector-bare-i2s
+Info:   Configures the audioinjector.net audio bare i2s soundcard
+Load:   dtoverlay=audioinjector-bare-i2s
+Params: <None>
+
+
 Name:   audioinjector-isolated-soundcard
 Info:   Configures the audioinjector.net isolated soundcard
 Load:   dtoverlay=audioinjector-isolated-soundcard
