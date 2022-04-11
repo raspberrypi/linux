@@ -25,6 +25,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	applepi-dac.dtbo \
 	at86rf233.dtbo \
 	audioinjector-addons.dtbo \
+	audioinjector-bare-i2s.dtbo \
 	audioinjector-isolated-soundcard.dtbo \
 	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
