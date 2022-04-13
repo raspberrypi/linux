@@ -4140,7 +4140,7 @@ static int io_tee(struct io_kiocb *req, unsigned int issue_flags)
 		return -EAGAIN;
 
 	if (sp->flags & SPLICE_F_FD_IN_FIXED)
-		in = io_file_get_fixed(req, sp->splice_fd_in, IO_URING_F_UNLOCKED);
+		in = io_file_get_fixed(req, sp->splice_fd_in, issue_flags);
 	else
 		in = io_file_get_normal(req, sp->splice_fd_in);
 	if (!in) {
@@ -4182,7 +4182,7 @@ static int io_splice(struct io_kiocb *req, unsigned int issue_flags)
 		return -EAGAIN;
 
 	if (sp->flags & SPLICE_F_FD_IN_FIXED)
-		in = io_file_get_fixed(req, sp->splice_fd_in, IO_URING_F_UNLOCKED);
+		in = io_file_get_fixed(req, sp->splice_fd_in, issue_flags);
 	else
 		in = io_file_get_normal(req, sp->splice_fd_in);
 	if (!in) {
