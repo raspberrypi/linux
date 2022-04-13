@@ -31,6 +31,9 @@
 				reg = <0>;
 				spi-max-frequency = <32000000>;
 
+				width-mm = <0>;
+				height-mm = <0>;
+
 				timing: panel-timing {
 					hactive = <320>;
 					vactive = <240>;
