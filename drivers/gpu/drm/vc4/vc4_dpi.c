@@ -214,22 +214,18 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 		dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1, DPI_FORMAT);
 	}
 
-	if (mode->flags & DRM_MODE_FLAG_CSYNC) {
-		if (mode->flags & DRM_MODE_FLAG_NCSYNC)
-			dpi_c |= DPI_OUTPUT_ENABLE_INVERT;
-	} else {
-		dpi_c |= DPI_OUTPUT_ENABLE_MODE;
+	/* Enable both CSYNC and H/VSYNC signals by default */
+	dpi_c |= DPI_OUTPUT_ENABLE_INVERT;
+	
+	if (mode->flags & DRM_MODE_FLAG_NHSYNC)
+		dpi_c |= DPI_HSYNC_INVERT;
+	else if (!(mode->flags & DRM_MODE_FLAG_PHSYNC))
+		dpi_c |= DPI_HSYNC_DISABLE;
 
-		if (mode->flags & DRM_MODE_FLAG_NHSYNC)
-			dpi_c |= DPI_HSYNC_INVERT;
-		else if (!(mode->flags & DRM_MODE_FLAG_PHSYNC))
-			dpi_c |= DPI_HSYNC_DISABLE;
-
-		if (mode->flags & DRM_MODE_FLAG_NVSYNC)
-			dpi_c |= DPI_VSYNC_INVERT;
-		else if (!(mode->flags & DRM_MODE_FLAG_PVSYNC))
-			dpi_c |= DPI_VSYNC_DISABLE;
-	}
+	if (mode->flags & DRM_MODE_FLAG_NVSYNC)
+		dpi_c |= DPI_VSYNC_INVERT;
+	else if (!(mode->flags & DRM_MODE_FLAG_PVSYNC))
+		dpi_c |= DPI_VSYNC_DISABLE;
 
 	DPI_WRITE(DPI_C, dpi_c);
 
@@ -245,9 +241,6 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 static enum drm_mode_status vc4_dpi_encoder_mode_valid(struct drm_encoder *encoder,
 						       const struct drm_display_mode *mode)
 {
-	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
-		return MODE_NO_INTERLACE;
-
 	return MODE_OK;
 }
 
