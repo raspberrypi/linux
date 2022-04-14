@@ -733,6 +733,17 @@ config VIDEO_APTINA_PLL
 config VIDEO_CCS_PLL
 	tristate
 
+config VIDEO_ARDUCAM_PIVARIETY
+	tristate "Arducam Pivariety sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  Pivariety camera series.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arducam-pivariety.
+
 config VIDEO_HI556
 	tristate "Hynix Hi-556 sensor support"
 	depends on I2C && VIDEO_V4L2
