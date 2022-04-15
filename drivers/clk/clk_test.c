@@ -923,6 +923,109 @@ clk_test_single_parent_mux_get_parent(struct kunit *test)
 }
 
 /*
+ * Test that for a clock with a single parent and CLK_SET_RATE_PARENT,
+ * if we set a range on both the child clock and its parent, with a
+ * smaller range on the child, the rate range returned by
+ * clk_get_rate_range() is aggregate of both ranges.
+ */
+static void
+clk_test_single_parent_mux_get_range_both_child_smaller(struct kunit *test)
+{
+	struct clk_single_parent_ctx *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *clk = hw->clk;
+	struct clk *parent;
+	unsigned long min, max;
+	int ret;
+
+	parent = clk_get_parent(clk);
+	KUNIT_ASSERT_PTR_NE(test, parent, NULL);
+
+	ret = clk_set_rate_range(parent, DUMMY_CLOCK_RATE_1, DUMMY_CLOCK_RATE_2);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	ret = clk_set_rate_range(clk,
+				 DUMMY_CLOCK_RATE_1 + 1000,
+				 DUMMY_CLOCK_RATE_2 - 1000);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(clk, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1 + 1000);
+	KUNIT_EXPECT_EQ(test, max, DUMMY_CLOCK_RATE_2 - 1000);
+}
+
+/*
+ * Test that for a clock with a single parent and CLK_SET_RATE_PARENT,
+ * if we set a range on both the child clock and its parent, with a
+ * smaller range on the parent, the rate range returned by
+ * clk_get_rate_range() is aggregate of both ranges.
+ *
+ * FIXME: clk_get_rate_range() (and clk_core_get_boundaries() in
+ * particular) doesn't take the parent range into account when the clock
+ * has CLK_SET_RATE_PARENT.
+ */
+static void
+clk_test_single_parent_mux_get_range_both_parent_smaller(struct kunit *test)
+{
+	struct clk_single_parent_ctx *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *clk = hw->clk;
+	struct clk *parent;
+	unsigned long min, max;
+	int ret;
+
+	kunit_skip(test, "This needs to be fixed in the core.");
+
+	parent = clk_get_parent(clk);
+	KUNIT_ASSERT_PTR_NE(test, parent, NULL);
+
+	ret = clk_set_rate_range(parent,
+				 DUMMY_CLOCK_RATE_1 + 1000,
+				 DUMMY_CLOCK_RATE_2 - 1000);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	ret = clk_set_rate_range(clk, DUMMY_CLOCK_RATE_1, DUMMY_CLOCK_RATE_2);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(clk, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1 + 1000);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_2 - 1000);
+}
+
+/*
+ * Test that for a clock with a single parent and CLK_SET_RATE_PARENT,
+ * if we set a range on the parent clock only, the rate range returned
+ * by clk_get_rate_range() on the children clock matches the parent
+ * range.
+ *
+ * FIXME: clk_get_rate_range() (and clk_core_get_boundaries() in
+ * particular) doesn't take the parent range into account when the clock
+ * has CLK_SET_RATE_PARENT.
+ */
+static void
+clk_test_single_parent_mux_get_range_parent_only(struct kunit *test)
+{
+	struct clk_single_parent_ctx *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *clk = hw->clk;
+	struct clk *parent;
+	unsigned long min, max;
+	int ret;
+
+	kunit_skip(test, "This needs to be fixed in the core.");
+
+	parent = clk_get_parent(clk);
+	KUNIT_ASSERT_PTR_NE(test, parent, NULL);
+
+	ret = clk_set_rate_range(parent, DUMMY_CLOCK_RATE_1, DUMMY_CLOCK_RATE_2);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(clk, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_2);
+}
+
+/*
  * Test that for a clock with a single parent, clk_has_parent() actually
  * reports it as a parent.
  */
@@ -1099,6 +1202,9 @@ clk_test_single_parent_mux_set_range_round_rate_parent_smaller(struct kunit *tes
 
 static struct kunit_case clk_single_parent_mux_test_cases[] = {
 	KUNIT_CASE(clk_test_single_parent_mux_get_parent),
+	KUNIT_CASE(clk_test_single_parent_mux_get_range_both_child_smaller),
+	KUNIT_CASE(clk_test_single_parent_mux_get_range_both_parent_smaller),
+	KUNIT_CASE(clk_test_single_parent_mux_get_range_parent_only),
 	KUNIT_CASE(clk_test_single_parent_mux_has_parent),
 	KUNIT_CASE(clk_test_single_parent_mux_set_range_disjoint_child_last),
 	KUNIT_CASE(clk_test_single_parent_mux_set_range_disjoint_parent_last),
@@ -1332,6 +1438,79 @@ clk_orphan_two_level_root_last_test_suite = {
 	.exit = clk_orphan_two_level_root_last_test_exit,
 	.test_cases = clk_orphan_two_level_root_last_test_cases,
 };
+
+/*
+ * Test that clk_set_rate_range() and clk_get_rate_range() are
+ * consistent on a simple clock without any parent.
+ */
+static void clk_range_test_get_range(struct kunit *test)
+{
+	struct clk_dummy_context *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *clk = hw->clk;
+	unsigned long min, max;
+	int ret;
+
+	ret = clk_set_rate_range(clk, DUMMY_CLOCK_RATE_1, DUMMY_CLOCK_RATE_2);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(clk, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1);
+	KUNIT_EXPECT_EQ(test, max, DUMMY_CLOCK_RATE_2);
+}
+
+/*
+ * Test that, on a simple clock without any parent, if a rate range is
+ * set on a clk, it's properly reported by clk_get_rate_range() on all
+ * the clk structure of that clock.
+ */
+static void clk_range_test_get_range_multiple_clk(struct kunit *test)
+{
+	struct clk_dummy_context *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *user1, *user2;
+	unsigned long min, max;
+	int ret;
+
+	user1 = clk_hw_get_clk(hw, NULL);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, user1);
+
+	user2 = clk_hw_get_clk(hw, NULL);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, user2);
+
+	ret = clk_set_rate_range(user1,
+				 DUMMY_CLOCK_RATE_1,
+				 DUMMY_CLOCK_RATE_2);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(user2, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1);
+	KUNIT_EXPECT_EQ(test, max, DUMMY_CLOCK_RATE_2);
+}
+
+/*
+ * Test that, on a simple clock without any parent, if a rate range is
+ * set on struct clk_hw, it's properly reported by clk_get_rate_range().
+ */
+static void clk_range_test_get_range_with_hw(struct kunit *test)
+{
+	struct clk_dummy_context *ctx = test->priv;
+	struct clk_hw *hw = &ctx->hw;
+	struct clk *clk = hw->clk;
+	unsigned long min, max;
+	int ret;
+
+	clk_hw_set_rate_range(hw, DUMMY_CLOCK_RATE_1, DUMMY_CLOCK_RATE_2);
+
+	ret = clk_set_rate_range(clk,
+				 DUMMY_CLOCK_RATE_1 + 1000,
+				 DUMMY_CLOCK_RATE_2 - 1000);
+	KUNIT_ASSERT_EQ(test, ret, 0);
+
+	clk_get_rate_range(clk, &min, &max);
+	KUNIT_EXPECT_EQ(test, min, DUMMY_CLOCK_RATE_1 + 1000);
+	KUNIT_EXPECT_EQ(test, max, DUMMY_CLOCK_RATE_2 - 1000);
+}
 
 /*
  * Test that clk_set_rate_range won't return an error for a valid range
@@ -1607,6 +1786,9 @@ static void clk_range_test_set_range_get_rate_lowered(struct kunit *test)
 }
 
 static struct kunit_case clk_range_test_cases[] = {
+	KUNIT_CASE(clk_range_test_get_range),
+	KUNIT_CASE(clk_range_test_get_range_with_hw),
+	KUNIT_CASE(clk_range_test_get_range_multiple_clk),
 	KUNIT_CASE(clk_range_test_set_range),
 	KUNIT_CASE(clk_range_test_set_range_invalid),
 	KUNIT_CASE(clk_range_test_multiple_disjoints_range),
