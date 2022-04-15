@@ -2577,6 +2577,24 @@ int clk_set_max_rate(struct clk *clk, unsigned long rate)
 EXPORT_SYMBOL_GPL(clk_set_max_rate);
 
 /**
+ * clk_get_rate_range - returns the clock rate range for a clock source
+ * @clk: clock source
+ * @min: Pointer to the variable that will hold the minimum
+ * @max: Pointer to the variable that will hold the maximum
+ *
+ * Fills the @min and @max variables with the minimum and maximum that
+ * the clock source can reach.
+ */
+void clk_get_rate_range(struct clk *clk, unsigned long *min, unsigned long *max)
+{
+	if (!clk || !min || !max)
+		return;
+
+	clk_core_get_boundaries(clk->core, min, max);
+}
+EXPORT_SYMBOL_GPL(clk_get_rate_range);
+
+/**
  * clk_get_parent - return the parent of a clk
  * @clk: the clk whose parent gets returned
  *
