@@ -558,7 +558,7 @@ static int start_clock(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 	long max_hevc_clock;
 	int rv;
 
-	max_hevc_clock = clk_round_rate(dev->clock, ULONG_MAX);
+	max_hevc_clock = clk_get_max_rate(dev->clock);
 
 	rv = clk_set_min_rate(dev->clock, max_hevc_clock);
 	if (rv) {
