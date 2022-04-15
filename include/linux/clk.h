@@ -714,6 +714,17 @@ bool clk_has_parent(struct clk *clk, struct clk *parent);
 int clk_set_rate_range(struct clk *clk, unsigned long min, unsigned long max);
 
 /**
+ * clk_get_rate_range - returns the clock rate range for a clock source
+ * @clk: clock source
+ * @min: Pointer to the variable that will hold the minimum
+ * @max: Pointer to the variable that will hold the maximum
+ *
+ * Fills the @min and @max variables with the minimum and maximum that
+ * the clock source can reach.
+ */
+void clk_get_rate_range(struct clk *clk, unsigned long *min, unsigned long *max);
+
+/**
  * clk_set_min_rate - set a minimum clock rate for a clock source
  * @clk: clock source
  * @rate: desired minimum clock rate in Hz, inclusive
@@ -909,6 +920,16 @@ static inline int clk_set_rate_range(struct clk *clk, unsigned long min,
 	return 0;
 }
 
+static inline void clk_get_rate_range(struct clk *clk, unsigned long *min,
+				      unsigned long *max)
+{
+	if (!min || !max)
+		return;
+
+	*min = 0;
+	*max = ULONG_MAX;
+}
+
 static inline int clk_set_min_rate(struct clk *clk, unsigned long rate)
 {
 	return 0;
@@ -996,6 +1017,44 @@ static inline void clk_bulk_disable_unprepare(int num_clks,
 static inline int clk_drop_range(struct clk *clk)
 {
 	return clk_set_rate_range(clk, 0, ULONG_MAX);
+}
+
+/**
+ * clk_get_min_rate - returns the minimum clock rate for a clock source
+ * @clk: clock source
+ *
+ * Returns either the minimum clock rate in Hz that clock source can
+ * reach, or 0 on error.
+ */
+static inline unsigned long clk_get_min_rate(struct clk *clk)
+{
+	unsigned long min, max;
+
+	if (!clk)
+		return 0;
+
+	clk_get_rate_range(clk, &min, &max);
+
+	return min;
+}
+
+/**
+ * clk_get_max_rate - returns the maximum clock rate for a clock source
+ * @clk: clock source
+ *
+ * Returns either the maximum clock rate in Hz that clock source can
+ * reach, or 0 on error.
+ */
+static inline unsigned long clk_get_max_rate(struct clk *clk)
+{
+	unsigned long min, max;
+
+	if (!clk)
+		return 0;
+
+	clk_get_rate_range(clk, &min, &max);
+
+	return max;
 }
 
 /**
