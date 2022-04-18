@@ -5510,8 +5510,9 @@ static int io_poll_check_events(struct io_kiocb *req, bool locked)
 
 		if (!req->result) {
 			struct poll_table_struct pt = { ._key = poll->events };
+			unsigned flags = locked ? 0 : IO_URING_F_UNLOCKED;
 
-			if (unlikely(!io_assign_file(req, IO_URING_F_UNLOCKED)))
+			if (unlikely(!io_assign_file(req, flags)))
 				req->result = -EBADF;
 			else
 				req->result = vfs_poll(req->file, &pt) & poll->events;
