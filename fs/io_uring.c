@@ -5513,9 +5513,8 @@ static int io_poll_check_events(struct io_kiocb *req, bool locked)
 			unsigned flags = locked ? 0 : IO_URING_F_UNLOCKED;
 
 			if (unlikely(!io_assign_file(req, flags)))
-				req->result = -EBADF;
-			else
-				req->result = vfs_poll(req->file, &pt) & poll->events;
+				return -EBADF;
+			req->result = vfs_poll(req->file, &pt) & poll->events;
 		}
 
 		/* multishot, just fill an CQE and proceed */
