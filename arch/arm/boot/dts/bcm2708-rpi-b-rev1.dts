@@ -154,6 +154,10 @@ i2c_csi_dsi: &i2c1 {
 		i2c0 = &i2c0;
 	};
 
+	/* Provide an i2c0mux label to avoid undefined symbols in overlays */
+	i2c0mux: i2c0mux {
+	};
+
 	__overrides__ {
 		i2c0 = <&i2c0>, "status";
 	};
