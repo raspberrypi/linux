@@ -2408,7 +2408,11 @@ static int __init __bcm2835_clk_driver_init(void)
 {
 	return platform_driver_register(&bcm2835_clk_driver);
 }
+#ifdef CONFIG_IMA
+subsys_initcall(__bcm2835_clk_driver_init);
+#else
 postcore_initcall(__bcm2835_clk_driver_init);
+#endif
 
 MODULE_AUTHOR("Eric Anholt <eric@anholt.net>");
 MODULE_DESCRIPTION("BCM2835 clock driver");
