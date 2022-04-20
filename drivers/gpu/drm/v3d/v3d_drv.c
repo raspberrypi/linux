@@ -304,7 +304,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 			dev_err(dev, "Failed to get clock (%ld)\n", PTR_ERR(v3d->clk));
 		return PTR_ERR(v3d->clk);
 	}
-	v3d->clk_up_rate = clk_get_rate(v3d->clk);
+	v3d->clk_up_rate = clk_get_max_rate(v3d->clk);
 	/* For downclocking, drop it to the minimum frequency we can get from
 	 * the CPRMAN clock generator dividing off our parent.  The divider is
 	 * 4 bits, but ask for just higher than that so that rounding doesn't
@@ -339,7 +339,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	if (ret)
 		goto irq_disable;
 
-	ret = clk_set_rate(v3d->clk, v3d->clk_down_rate);
+	ret = clk_set_min_rate(v3d->clk, v3d->clk_down_rate);
 	WARN_ON_ONCE(ret != 0);
 
 	return 0;
