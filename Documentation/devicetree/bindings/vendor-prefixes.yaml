@@ -141,6 +141,8 @@ patternProperties:
     description: arcx Inc. / Archronix Inc.
   "^aries,.*":
     description: Aries Embedded GmbH
+  "^arducam,.*":
+    description: Arducam Technology co., Ltd.
   "^arm,.*":
     description: ARM Ltd.
   "^armadeus,.*":
