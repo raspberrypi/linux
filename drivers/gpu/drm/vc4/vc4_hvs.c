@@ -413,10 +413,11 @@ u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo)
 
 int vc4_hvs_get_fifo_from_output(struct vc4_hvs *hvs, unsigned int output)
 {
+	struct vc4_dev *vc4 = hvs->vc4;
 	u32 reg;
 	int ret;
 
-	if (!hvs->hvs5)
+	if (!vc4->is_vc5)
 		return output;
 
 	switch (output) {
@@ -466,6 +467,7 @@ int vc4_hvs_get_fifo_from_output(struct vc4_hvs *hvs, unsigned int output)
 static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 				struct drm_display_mode *mode, bool oneshot)
 {
+	struct vc4_dev *vc4 = hvs->vc4;
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct vc4_crtc_state *vc4_crtc_state = to_vc4_crtc_state(crtc->state);
 	unsigned int chan = vc4_crtc_state->assigned_channel;
@@ -484,7 +486,7 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	 */
 	dispctrl = SCALER_DISPCTRLX_ENABLE;
 
-	if (!hvs->hvs5)
+	if (!vc4->is_vc5)
 		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
 					  SCALER_DISPCTRLX_WIDTH) |
 			    VC4_SET_FIELD(mode->vdisplay,
@@ -514,7 +516,7 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	/* Reload the LUT, since the SRAMs would have been disabled if
 	 * all CRTCs had SCALER_DISPBKGND_GAMMA unset at once.
 	 */
-	if (!hvs->hvs5)
+	if (!vc4->is_vc5)
 		vc4_hvs_lut_load(hvs, vc4_crtc);
 	else
 		vc5_hvs_lut_load(hvs, vc4_crtc);
@@ -553,7 +555,7 @@ static int vc4_hvs_gamma_check(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	if (!vc4->hvs->hvs5)
+	if (!vc4->is_vc5)
 		return 0;
 
 	if (!crtc_state->color_mgmt_changed)
@@ -780,7 +782,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		u32 dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(channel));
 
 		if (crtc->state->gamma_lut) {
-			if (!vc4->hvs->hvs5) {
+			if (!vc4->is_vc5) {
 				vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
 				dispbkgndx |= SCALER_DISPBKGND_GAMMA;
 			} else {
@@ -797,7 +799,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 			 * should already be disabling/enabling the pipeline
 			 * when gamma changes.
 			 */
-			if (!vc4->hvs->hvs5)
+			if (!vc4->is_vc5)
 				dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
 		}
 		HVS_WRITE(SCALER_DISPBKGNDX(channel), dispbkgndx);
@@ -883,10 +885,8 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	if (!hvs)
 		return -ENOMEM;
 
+	hvs->vc4 = vc4;
 	hvs->pdev = pdev;
-
-	if (of_device_is_compatible(pdev->dev.of_node, "brcm,bcm2711-hvs"))
-		hvs->hvs5 = true;
 
 	hvs->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(hvs->regs))
@@ -896,7 +896,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	hvs->regset.regs = hvs_regs;
 	hvs->regset.nregs = ARRAY_SIZE(hvs_regs);
 
-	if (hvs->hvs5) {
+	if (vc4->is_vc5) {
 		unsigned long max_rate;
 
 		hvs->core_clk = devm_clk_get(&pdev->dev, NULL);
@@ -916,7 +916,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 		}
 	}
 
-	if (!hvs->hvs5)
+	if (!vc4->is_vc5)
 		hvs->dlist = hvs->regs + SCALER_DLIST_START;
 	else
 		hvs->dlist = hvs->regs + SCALER5_DLIST_START;
@@ -937,7 +937,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	 * between planes when they don't overlap on the screen, but
 	 * for now we just allocate globally.
 	 */
-	if (!hvs->hvs5)
+	if (!vc4->is_vc5)
 		/* 48k words of 2x12-bit pixels */
 		drm_mm_init(&hvs->lbm_mm, 0, 48 * 1024);
 	else
@@ -1008,7 +1008,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 			     NULL);
 	vc4_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist,
 			     NULL);
-	if (hvs->hvs5)
+	if (vc4->is_vc5)
 		vc4_debugfs_add_file(drm, "hvs_gamma", vc5_hvs_debugfs_gamma,
 				     NULL);
 
