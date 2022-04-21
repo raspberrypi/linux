@@ -371,7 +371,8 @@ static void recover_worker(struct kthread_work *work)
 
 		/* Increment the fault counts */
 		submit->queue->faults++;
-		submit->aspace->faults++;
+		if (submit->aspace)
+			submit->aspace->faults++;
 
 		task = get_pid_task(submit->pid, PIDTYPE_PID);
 		if (task) {
