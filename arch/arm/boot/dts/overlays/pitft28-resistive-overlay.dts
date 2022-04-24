@@ -112,7 +112,8 @@
 
 	__overrides__ {
 		speed =   <&pitft>,"spi-max-frequency:0";
-		rotate =  <&pitft>,"rotate:0";
+		rotate =  <&pitft>,"rotate:0", /* fbtft */
+			  <&pitft>,"rotation:0"; /* drm */
 		fps =     <&pitft>,"fps:0";
 		debug =   <&pitft>,"debug:0";
 		drm =     <&pitft>,"compatible=multi-inno,mi0283qt";
