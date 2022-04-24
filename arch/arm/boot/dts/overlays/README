@@ -2785,6 +2785,10 @@ Params: speed                   Display SPI bus speed
 
         debug                   Debug output level {0-7}
 
+        drm                     Force the use of the mi0283qt DRM driver (by
+                                default the ili9340 framebuffer driver will
+                                be used in preference if available)
+
 
 Name:   pitft35-resistive
 Info:   Adafruit PiTFT 3.5" resistive touch screen
