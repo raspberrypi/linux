@@ -49,7 +49,7 @@
 			#size-cells = <0>;
 
 			pitft: pitft@0{
-				compatible = "ilitek,ili9340";
+				compatible = "ilitek,ili9340", "multi-inno,mi0283qt";
 				reg = <0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pitft_pins>;
@@ -115,5 +115,6 @@
 		rotate =  <&pitft>,"rotate:0";
 		fps =     <&pitft>,"fps:0";
 		debug =   <&pitft>,"debug:0";
+		drm =     <&pitft>,"compatible=multi-inno,mi0283qt";
 	};
 };
