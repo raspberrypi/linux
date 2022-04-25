@@ -615,4 +615,21 @@ static __always_inline void kvm_reset_cptr_el2(struct kvm_vcpu *vcpu)
 
 	kvm_write_cptr_el2(val);
 }
+
+static inline int kvm_vcpu_enable_ptrauth(struct kvm_vcpu *vcpu)
+{
+	/*
+	 * For now make sure that both address/generic pointer authentication
+	 * features are requested by the userspace together and the system
+	 * supports these capabilities.
+	 */
+	if (!vcpu_has_feature(vcpu, KVM_ARM_VCPU_PTRAUTH_ADDRESS) ||
+	    !vcpu_has_feature(vcpu, KVM_ARM_VCPU_PTRAUTH_GENERIC) ||
+	    !system_has_full_ptr_auth())
+		return -EINVAL;
+
+	vcpu_set_flag(vcpu, GUEST_HAS_PTRAUTH);
+	return 0;
+}
+
 #endif /* __ARM64_KVM_EMULATE_H__ */
