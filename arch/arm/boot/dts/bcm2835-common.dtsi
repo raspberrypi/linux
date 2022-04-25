@@ -129,7 +129,7 @@
 			interrupts = <2 8>, <2 9>;
 			ddc = <&i2c2>;
 			clocks = <&firmware_clocks 9>,
-				 <&clocks BCM2835_CLOCK_HSM>;
+				 <&firmware_clocks 13>;
 			clock-names = "pixel", "hdmi";
 			dmas = <&dma (17|(1<<27)|(1<<24))>;
 			dma-names = "audio-rx";
