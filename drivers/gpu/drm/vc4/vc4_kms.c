@@ -359,7 +359,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	struct vc4_hvs_state *new_hvs_state;
 	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
-	unsigned long max_clock_rate = rpi_firmware_clk_get_max_rate(hvs->core_clk);
+	unsigned long max_clock_rate = hvs ? rpi_firmware_clk_get_max_rate(hvs->core_clk): 0;
 	unsigned int channel;
 	int i;
 
