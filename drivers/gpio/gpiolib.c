@@ -1562,8 +1562,6 @@ static int gpiochip_add_irqchip(struct gpio_chip *gc,
 
 	gpiochip_set_irq_hooks(gc);
 
-	acpi_gpiochip_request_interrupts(gc);
-
 	/*
 	 * Using barrier() here to prevent compiler from reordering
 	 * gc->irq.initialized before initialization of above
@@ -1572,6 +1570,8 @@ static int gpiochip_add_irqchip(struct gpio_chip *gc,
 	barrier();
 
 	gc->irq.initialized = true;
+
+	acpi_gpiochip_request_interrupts(gc);
 
 	return 0;
 }
