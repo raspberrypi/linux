@@ -64,6 +64,11 @@
 /* Run time control of log level, based on KERN_XXX level. */
 int vchiq_arm_log_level = VCHIQ_LOG_DEFAULT;
 int vchiq_susp_log_level = VCHIQ_LOG_ERROR;
+module_param_named(arm_log_level, vchiq_arm_log_level, int, 0644);
+module_param_named(susp_log_level, vchiq_susp_log_level, int, 0644);
+module_param_named(core_log_level, vchiq_core_log_level, int, 0644);
+module_param_named(core_msg_log_level, vchiq_core_msg_log_level, int, 0644);
+module_param_named(sync_log_level, vchiq_sync_log_level, int, 0644);
 
 DEFINE_SPINLOCK(msg_queue_spinlock);
 struct vchiq_state g_state;
