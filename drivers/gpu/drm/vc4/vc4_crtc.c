@@ -817,18 +817,18 @@ struct vc4_async_flip_state {
 	struct drm_framebuffer *old_fb;
 	struct drm_pending_vblank_event *event;
 
-	struct vc4_seqno_cb cb;
-	struct dma_fence_cb fence_cb;
+	union {
+		struct dma_fence_cb fence;
+		struct vc4_seqno_cb seqno;
+	} cb;
 };
 
 /* Called when the V3D execution for the BO being flipped to is done, so that
  * we can actually update the plane's address to point to it.
  */
 static void
-vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
+vc4_async_page_flip_complete(struct vc4_async_flip_state *flip_state)
 {
-	struct vc4_async_flip_state *flip_state =
-		container_of(cb, struct vc4_async_flip_state, cb);
 	struct drm_crtc *crtc = flip_state->crtc;
 	struct drm_device *dev = crtc->dev;
 	struct drm_plane *plane = crtc->primary;
@@ -864,13 +864,21 @@ vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
 	kfree(flip_state);
 }
 
+static void vc4_async_page_flip_seqno_complete(struct vc4_seqno_cb *cb)
+{
+	struct vc4_async_flip_state *flip_state =
+		container_of(cb, struct vc4_async_flip_state, cb.seqno);
+
+	vc4_async_page_flip_complete(flip_state);
+}
+
 static void vc4_async_page_flip_fence_complete(struct dma_fence *fence,
 					       struct dma_fence_cb *cb)
 {
 	struct vc4_async_flip_state *flip_state =
-		container_of(cb, struct vc4_async_flip_state, fence_cb);
+		container_of(cb, struct vc4_async_flip_state, cb.fence);
 
-	vc4_async_page_flip_complete(&flip_state->cb);
+	vc4_async_page_flip_complete(flip_state);
 	dma_fence_put(fence);
 }
 
@@ -885,14 +893,14 @@ static int vc4_async_set_fence_cb(struct drm_device *dev,
 	if (!vc4->is_vc5) {
 		struct vc4_bo *bo = to_vc4_bo(&cma_bo->base);
 
-		return vc4_queue_seqno_cb(dev, &flip_state->cb, bo->seqno,
-					  vc4_async_page_flip_complete);
+		return vc4_queue_seqno_cb(dev, &flip_state->cb.seqno, bo->seqno,
+					  vc4_async_page_flip_seqno_complete);
 	}
 
 	fence = dma_fence_get(dma_resv_excl_fence(cma_bo->base.resv));
-	if (dma_fence_add_callback(fence, &flip_state->fence_cb,
+	if (dma_fence_add_callback(fence, &flip_state->cb.fence,
 				   vc4_async_page_flip_fence_complete))
-		vc4_async_page_flip_fence_complete(fence, &flip_state->fence_cb);
+		vc4_async_page_flip_fence_complete(fence, &flip_state->cb.fence);
 
 	return 0;
 }
