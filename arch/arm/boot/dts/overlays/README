@@ -1530,6 +1530,39 @@ Load:   dtoverlay=i2c-bcm2708
 Params: <None>
 
 
+Name:   i2c-fan
+Info:   Adds support for a number of I2C fan controllers
+Load:   dtoverlay=i2c-fan,<param>=<val>
+Params: addr                    Sets the address for the fan controller. Note
+                                that the device must be configured to use the
+                                specified address.
+
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+
+        minpwm                  PWM setting for the fan when the SoC is below
+                                mintemp (range 0-255. default 0)
+        maxpwm                  PWM setting for the fan when the SoC is above
+                                maxtemp (range 0-255. default 255)
+        midtemp                 Temperature (in millicelcius) at which the fan
+                                begins to speed up (default 50000)
+
+        midtemp_hyst            Temperature delta (in millicelcius) below
+                                mintemp at which the fan will drop to minrpm
+                                (default 2000)
+
+        maxtemp                 Temperature (in millicelcius) at which the fan
+                                will be held at maxrpm (default 70000)
+
+        maxtemp_hyst            Temperature delta (in millicelcius) below
+                                maxtemp at which the fan begins to slow down
+                                (default 2000)
+
+        emc2301                 Select the Microchip EMC230x controller family
+                                - EMC2301, EMC2302, EMC2303, EMC2305.
+
+
 Name:   i2c-gpio
 Info:   Adds support for software i2c controller on gpio pins
 Load:   dtoverlay=i2c-gpio,<param>=<val>
