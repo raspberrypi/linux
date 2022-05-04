@@ -1519,8 +1519,14 @@ static struct phy_driver broadcom_drivers[] = {
 	PHY_ID_MATCH_EXACT(PHY_ID_BCM54213PE),
 	.name		= "Broadcom BCM54213PE",
 	/* PHY_GBIT_FEATURES */
+	.get_sset_count	= bcm_phy_get_sset_count,
+	.get_strings	= bcm_phy_get_strings,
+	.get_stats	= bcm54xx_get_stats,
+	.probe		= bcm54xx_phy_probe,
 	.config_init	= bcm54xx_config_init,
 	.config_intr	= bcm_phy_config_intr,
+	.suspend	= bcm54xx_suspend,
+	.resume		= bcm54xx_resume,
 }, {
 	PHY_ID_MATCH_MODEL(PHY_ID_BCM5461),
 	.name		= "Broadcom BCM5461",
