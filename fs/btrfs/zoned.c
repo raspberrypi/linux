@@ -2000,6 +2000,7 @@ void btrfs_zone_finish_endio(struct btrfs_fs_info *fs_info, u64 logical, u64 len
 	struct btrfs_block_group *block_group;
 	struct map_lookup *map;
 	struct btrfs_device *device;
+	u64 min_alloc_bytes;
 	u64 physical;
 
 	if (!btrfs_is_zoned(fs_info))
@@ -2008,7 +2009,15 @@ void btrfs_zone_finish_endio(struct btrfs_fs_info *fs_info, u64 logical, u64 len
 	block_group = btrfs_lookup_block_group(fs_info, logical);
 	ASSERT(block_group);
 
-	if (logical + length < block_group->start + block_group->zone_capacity)
+	/* No MIXED_BG on zoned btrfs. */
+	if (block_group->flags & BTRFS_BLOCK_GROUP_DATA)
+		min_alloc_bytes = fs_info->sectorsize;
+	else
+		min_alloc_bytes = fs_info->nodesize;
+
+	/* Bail out if we can allocate more data from this block group. */
+	if (logical + length + min_alloc_bytes <=
+	    block_group->start + block_group->zone_capacity)
 		goto out;
 
 	spin_lock(&block_group->lock);
