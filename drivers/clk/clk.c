@@ -2590,7 +2590,9 @@ void clk_get_rate_range(struct clk *clk, unsigned long *min, unsigned long *max)
 	if (!clk || !min || !max)
 		return;
 
+	clk_prepare_lock();
 	clk_core_get_boundaries(clk->core, min, max);
+	clk_prepare_unlock();
 }
 EXPORT_SYMBOL_GPL(clk_get_rate_range);
 
