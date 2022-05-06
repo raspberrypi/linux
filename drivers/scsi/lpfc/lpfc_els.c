@@ -1387,6 +1387,9 @@ lpfc_issue_els_flogi(struct lpfc_vport *vport, struct lpfc_nodelist *ndlp,
 
 	phba->hba_flag |= (HBA_FLOGI_ISSUED | HBA_FLOGI_OUTSTANDING);
 
+	/* Clear external loopback plug detected flag */
+	phba->link_flag &= ~LS_EXTERNAL_LOOPBACK;
+
 	/* Check for a deferred FLOGI ACC condition */
 	if (phba->defer_flogi_acc_flag) {
 		/* lookup ndlp for received FLOGI */
@@ -8182,6 +8185,9 @@ lpfc_els_rcv_flogi(struct lpfc_vport *vport, struct lpfc_iocbq *cmdiocb,
 	uint32_t fc_flag = 0;
 	uint32_t port_state = 0;
 
+	/* Clear external loopback plug detected flag */
+	phba->link_flag &= ~LS_EXTERNAL_LOOPBACK;
+
 	cmd = *lp++;
 	sp = (struct serv_parm *) lp;
 
@@ -8232,6 +8238,12 @@ lpfc_els_rcv_flogi(struct lpfc_vport *vport, struct lpfc_iocbq *cmdiocb,
 				mempool_free(mbox, phba->mbox_mem_pool);
 			return 1;
 		}
+
+		/* External loopback plug insertion detected */
+		phba->link_flag |= LS_EXTERNAL_LOOPBACK;
+
+		lpfc_printf_vlog(vport, KERN_INFO, LOG_ELS | LOG_LIBDFC,
+				 "1119 External Loopback plug detected\n");
 
 		/* abort the flogi coming back to ourselves
 		 * due to external loopback on the port.
