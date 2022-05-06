@@ -92,7 +92,7 @@ static int bcm2711_thermal_probe(struct platform_device *pdev)
 						&bcm2711_thermal_of_ops);
 	if (IS_ERR(thermal)) {
 		ret = PTR_ERR(thermal);
-		dev_err(dev, "could not register sensor: %d\n", ret);
+		dev_err_probe(dev, ret, "could not register sensor: %d\n", ret);
 		return ret;
 	}
 
