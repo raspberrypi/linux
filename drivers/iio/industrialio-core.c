@@ -1655,7 +1655,7 @@ struct iio_dev *iio_device_alloc(struct device *parent, int sizeof_priv)
 
 	alloc_size = sizeof(struct iio_dev_opaque);
 	if (sizeof_priv) {
-		alloc_size = ALIGN(alloc_size, IIO_ALIGN);
+		alloc_size = ALIGN(alloc_size, IIO_DMA_MINALIGN);
 		alloc_size += sizeof_priv;
 	}
 
@@ -1665,7 +1665,7 @@ struct iio_dev *iio_device_alloc(struct device *parent, int sizeof_priv)
 
 	indio_dev = &iio_dev_opaque->indio_dev;
 	indio_dev->priv = (char *)iio_dev_opaque +
-		ALIGN(sizeof(struct iio_dev_opaque), IIO_ALIGN);
+		ALIGN(sizeof(struct iio_dev_opaque), IIO_DMA_MINALIGN);
 
 	indio_dev->dev.parent = parent;
 	indio_dev->dev.type = &iio_device_type;
