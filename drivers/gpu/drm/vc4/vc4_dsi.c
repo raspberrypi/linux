@@ -1729,7 +1729,12 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	drm_simple_encoder_init(drm, encoder, DRM_MODE_ENCODER_DSI);
+	ret = drmm_encoder_init(drm, encoder,
+				NULL,
+				DRM_MODE_ENCODER_DSI,
+				NULL);
+	if (ret)
+		return ret;
 
 	ret = drm_bridge_attach(encoder, &dsi->bridge, NULL, 0);
 	if (ret)
@@ -1746,11 +1751,8 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 			   void *data)
 {
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
-	struct drm_encoder *encoder = &dsi->encoder.base;
 
 	pm_runtime_disable(dev);
-
-	drm_encoder_cleanup(encoder);
 }
 
 static const struct component_ops vc4_dsi_ops = {
