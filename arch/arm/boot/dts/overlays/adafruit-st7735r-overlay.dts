@@ -62,7 +62,7 @@
 				spi-max-frequency = <32000000>;
 				dc-gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
 				reset-gpios = <&gpio 25 GPIO_ACTIVE_HIGH>;
-				rotate = <90>;
+				rotation = <90>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&adafruit_pins>;
 				backlight = <&af18_backlight>;
@@ -73,7 +73,7 @@
 	__overrides__ {
 		128x128 = <&af18>, "compatible=okaya,rh128128t";
 		speed = <&af18>,"spi-max-frequency:0";
-		rotate = <&af18>,"rotate:0";
+		rotate = <&af18>,"rotation:0";
 		dc_pin = <&af18>,"dc-gpios:4", <&adafruit_pins>,"brcm,pins:4";
 		reset_pin = <&af18>,"reset-gpios:4",
 			    <&adafruit_pins>,"brcm,pins:0";
