@@ -1714,7 +1714,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		return ret;
 	}
 
-	dsi->out_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
+	dsi->out_bridge = drmm_of_get_bridge(drm, dev->of_node, 0, 0);
 	if (IS_ERR(dsi->out_bridge))
 		return PTR_ERR(dsi->out_bridge);
 
