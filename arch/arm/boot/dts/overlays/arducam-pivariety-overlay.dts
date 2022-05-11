@@ -13,7 +13,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			arducam_pivariety: arducam_pivariety@0c {
+			arducam_pivariety: arducam_pivariety@c {
 				compatible = "arducam,arducam-pivariety";
 				reg = <0x0c>;
 				status = "okay";
