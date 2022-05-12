@@ -1379,7 +1379,6 @@ config VIDEO_TW2804
 config VIDEO_OV9281
 	tristate "OmniVision OV9281 sensor support"
 	depends on I2C && VIDEO_DEV
-	depends on MEDIA_CAMERA_SUPPORT
 	help
 	  This is a Video4Linux2 sensor-level driver for the OmniVision
 	  OV9281 camera.
