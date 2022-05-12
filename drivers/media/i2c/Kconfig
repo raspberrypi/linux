@@ -1447,8 +1447,8 @@ config VIDEO_TW9910
 
 config VIDEO_IRS1125
 	tristate "Infineon IRS1125 sensor support"
-	depends on I2C && VIDEO_DEV && VIDEO_V4L2_SUBDEV_API
-	depends on MEDIA_CAMERA_SUPPORT
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
 	select V4L2_FWNODE
 	help
 	  This is a Video4Linux2 sensor-level driver for the Infineon
