@@ -1552,6 +1552,14 @@ S:	Maintained
 F:	drivers/net/arcnet/
 F:	include/uapi/linux/if_arcnet.h
 
+ARDUCAM 64MP SENSOR DRIVER
+M:	Arducam Kernel Maintenance <info@arducam.com>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+T:	git git://linuxtv.org/media_tree.git
+F:	Documentation/devicetree/bindings/media/i2c/arducam,64mp.yaml
+F:	drivers/media/i2c/arducam_64mp.c
+
 ARDUCAM PIVARIETY SENSOR DRIVER
 M:	Arducam Kernel Maintenance <info@arducam.com>
 L:	linux-media@vger.kernel.org
