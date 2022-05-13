@@ -1563,6 +1563,8 @@ static int amdgpu_dm_init(struct amdgpu_device *adev)
 		DRM_INFO("Seamless boot condition check passed\n");
 	}
 
+	init_data.flags.enable_mipi_converter_optimization = true;
+
 	INIT_LIST_HEAD(&adev->dm.da_list);
 
 	retrieve_dmi_info(&adev->dm);
