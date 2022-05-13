@@ -47,6 +47,17 @@ config VIDEO_AR0521
 	  To compile this driver as a module, choose M here: the
 	  module will be called ar0521.
 
+config VIDEO_ARDUCAM_64MP
+	tristate "Arducam 64MP sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  64MP camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arducam_64mp.
+
 config VIDEO_ARDUCAM_PIVARIETY
 	tristate "Arducam Pivariety sensor support"
 	depends on I2C && VIDEO_DEV
