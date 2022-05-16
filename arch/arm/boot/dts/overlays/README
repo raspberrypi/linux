@@ -1061,6 +1061,17 @@ Params: gpiopin                 GPIO used to control the fan (default 12)
                                 millicelcius (default 55000)
 
 
+Name:   gpio-hog
+Info:   Activate a "hog" for a GPIO - request that the kernel configures it as
+        an output, driven low or high as indicated by the presence or absence
+        of the active_low parameter. Note that a hogged GPIO is not available
+        to other drivers or for gpioset/gpioget.
+Load:   dtoverlay=gpio-hog,<param>=<val>
+Params: gpio                    GPIO pin to hog (default 26)
+        active_low              If set, the hog drives the GPIO low (defaults
+                                to off - the GPIO is driven high)
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a
