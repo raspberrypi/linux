@@ -1871,7 +1871,11 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
 	}
 
 	/* FIXME: Missing single sector read for large sector size */
-	if (!mmc_large_sector(card) && rq_data_dir(req) == READ &&
+	/*
+	 * XXX: don't do single-sector reads, as it leaks a SG DMA
+	 * mapping when reusing the still-pending req.
+	 */
+	if (0 && !mmc_large_sector(card) && rq_data_dir(req) == READ &&
 	    brq->data.blocks > 1) {
 		/* Read one sector at a time */
 		mmc_blk_read_single(mq, req);
