@@ -230,6 +230,13 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.mmal_fmt		= MMAL_ENCODING_VYUY,
 		.size_multiplier_x2	= 2,
 	}, {
+		.fourcc			= V4L2_PIX_FMT_NV12_COL128,
+		.depth			= 8,
+		.bytesperline_align	= { 32, 32, 32, 32, 32 },
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_YUVUV128,
+		.size_multiplier_x2	= 3,
+	}, {
 		/* RGB formats */
 		.fourcc			= V4L2_PIX_FMT_RGB24,
 		.depth			= 24,
@@ -862,16 +869,34 @@ static inline unsigned int get_sizeimage(int bpl, int width, int height,
 			return DEF_COMP_BUF_SIZE_GREATER_720P;
 		else
 			return DEF_COMP_BUF_SIZE_720P_OR_LESS;
-	} else {
-		return (bpl * height * fmt->size_multiplier_x2) >> 1;
 	}
+
+	if (fmt->fourcc != V4L2_PIX_FMT_NV12_COL128)
+		return (bpl * height * fmt->size_multiplier_x2) >> 1;
+
+	/*
+	 * V4L2_PIX_FMT_NV12_COL128 is 128 pixel wide columns.
+	 * bytesperline is the column stride in lines, so multiply by
+	 * the number of columns and 128.
+	 */
+	return (ALIGN(width, 128) * bpl);
 }
 
-static inline unsigned int get_bytesperline(int width,
+static inline unsigned int get_bytesperline(int width, int height,
 					    struct bcm2835_codec_fmt *fmt,
 					    enum bcm2835_codec_role role)
 {
-	return ALIGN((width * fmt->depth) >> 3, fmt->bytesperline_align[role]);
+	if (fmt->fourcc != V4L2_PIX_FMT_NV12_COL128)
+		return ALIGN((width * fmt->depth) >> 3,
+			     fmt->bytesperline_align[role]);
+
+	/*
+	 * V4L2_PIX_FMT_NV12_COL128 passes the column stride in lines via
+	 * bytesperline.
+	 * The minimum value for this is sufficient for the base luma and chroma
+	 * with no padding.
+	 */
+	return (height * 3) >> 1;
 }
 
 static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
@@ -879,14 +904,25 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 				   struct vchiq_mmal_port *port)
 {
 	port->format.encoding = q_data->fmt->mmal_fmt;
+	port->format.flags = 0;
 
 	if (!(q_data->fmt->flags & V4L2_FMT_FLAG_COMPRESSED)) {
-		/* Raw image format - set width/height */
-		port->es.video.width = (q_data->bytesperline << 3) /
-						q_data->fmt->depth;
-		port->es.video.height = q_data->height;
-		port->es.video.crop.width = q_data->crop_width;
-		port->es.video.crop.height = q_data->crop_height;
+		if (q_data->fmt->mmal_fmt != MMAL_ENCODING_YUVUV128) {
+			/* Raw image format - set width/height */
+			port->es.video.width = (q_data->bytesperline << 3) /
+							q_data->fmt->depth;
+			port->es.video.height = q_data->height;
+			port->es.video.crop.width = q_data->crop_width;
+			port->es.video.crop.height = q_data->crop_height;
+		} else {
+			/* NV12_COL128 / YUVUV128 column format */
+			/* Column stride in lines */
+			port->es.video.width = q_data->bytesperline;
+			port->es.video.height = q_data->height;
+			port->es.video.crop.width = q_data->crop_width;
+			port->es.video.crop.height = q_data->crop_height;
+			port->format.flags = MMAL_ES_FORMAT_FLAG_COL_FMTS_WIDTH_IS_COL_STRIDE;
+		}
 		port->es.video.frame_rate.num = ctx->framerate_num;
 		port->es.video.frame_rate.den = ctx->framerate_denom;
 	} else {
@@ -1069,6 +1105,7 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 	 */
 	q_data->selection_set = true;
 	q_data->bytesperline = get_bytesperline(format->es.video.width,
+						format->es.video.height,
 						q_data->fmt, ctx->dev->role);
 
 	q_data->height = format->es.video.height;
@@ -1456,8 +1493,9 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			f->fmt.pix_mp.height = ALIGN(f->fmt.pix_mp.height, 16);
 	}
 	f->fmt.pix_mp.num_planes = 1;
-	min_bytesperline = get_bytesperline(f->fmt.pix_mp.width, fmt,
-					    ctx->dev->role);
+	min_bytesperline = get_bytesperline(f->fmt.pix_mp.width,
+					    f->fmt.pix_mp.height,
+					    fmt, ctx->dev->role);
 	if (f->fmt.pix_mp.plane_fmt[0].bytesperline < min_bytesperline)
 		f->fmt.pix_mp.plane_fmt[0].bytesperline = min_bytesperline;
 	f->fmt.pix_mp.plane_fmt[0].bytesperline =
@@ -1618,8 +1656,9 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 		q_data_dst->height = ALIGN(q_data->crop_height, 16);
 
 		q_data_dst->bytesperline =
-			get_bytesperline(f->fmt.pix_mp.width, q_data_dst->fmt,
-					 ctx->dev->role);
+			get_bytesperline(f->fmt.pix_mp.width,
+					 f->fmt.pix_mp.height,
+					 q_data_dst->fmt, ctx->dev->role);
 		q_data_dst->sizeimage = get_sizeimage(q_data_dst->bytesperline,
 						      q_data_dst->crop_width,
 						      q_data_dst->height,
@@ -3156,7 +3195,7 @@ static int bcm2835_codec_open(struct file *file)
 	ctx->q_data[V4L2_M2M_SRC].crop_height = DEFAULT_HEIGHT;
 	ctx->q_data[V4L2_M2M_SRC].height = DEFAULT_HEIGHT;
 	ctx->q_data[V4L2_M2M_SRC].bytesperline =
-			get_bytesperline(DEFAULT_WIDTH,
+			get_bytesperline(DEFAULT_WIDTH, DEFAULT_HEIGHT,
 					 ctx->q_data[V4L2_M2M_SRC].fmt,
 					 dev->role);
 	ctx->q_data[V4L2_M2M_SRC].sizeimage =
@@ -3170,7 +3209,7 @@ static int bcm2835_codec_open(struct file *file)
 	ctx->q_data[V4L2_M2M_DST].crop_height = DEFAULT_HEIGHT;
 	ctx->q_data[V4L2_M2M_DST].height = DEFAULT_HEIGHT;
 	ctx->q_data[V4L2_M2M_DST].bytesperline =
-			get_bytesperline(DEFAULT_WIDTH,
+			get_bytesperline(DEFAULT_WIDTH, DEFAULT_HEIGHT,
 					 ctx->q_data[V4L2_M2M_DST].fmt,
 					 dev->role);
 	ctx->q_data[V4L2_M2M_DST].sizeimage =
