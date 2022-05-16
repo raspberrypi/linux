@@ -1,0 +1,25 @@
+ifeq ($(CONFIG_OF),y)
+
+# Overlays for the Raspberry Pi platform
+
+ifeq ($(CONFIG_ARCH_BCM2708),y)
+   RPI_DT_OVERLAYS=y
+endif
+ifeq ($(CONFIG_ARCH_BCM2709),y)
+   RPI_DT_OVERLAYS=y
+endif
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+   RPI_DT_OVERLAYS=y
+endif
+
+
+dtbo-$(RPI_DT_OVERLAYS) += dionaudio-kiwi.dtbo
+
+
+targets += dtbs dtbs_install
+targets += $(dtbo-y)
+
+endif
+
+always		:= $(dtbo-y)
+clean-files	:= *.dtbo
