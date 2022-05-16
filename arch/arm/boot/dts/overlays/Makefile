@@ -40,6 +40,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
+	dionaudio-kiwi.dtbo \
 	disable-bt.dtbo \
 	disable-wifi.dtbo \
 	dpi18.dtbo \
