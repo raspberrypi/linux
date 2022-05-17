@@ -610,7 +610,7 @@ static int imx296_enum_mbus_code(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	code->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		   : MEDIA_BUS_FMT_SBGGR10_1X10;
+		   : MEDIA_BUS_FMT_SRGGB10_1X10;
 
 	return 0;
 }
@@ -715,7 +715,7 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 	}
 
 	format->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		     : MEDIA_BUS_FMT_SBGGR10_1X10;
+		     : MEDIA_BUS_FMT_SRGGB10_1X10;
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_RAW;
 	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
