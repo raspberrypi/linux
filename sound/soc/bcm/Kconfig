@@ -331,4 +331,4 @@ config SND_BCM2708_SOC_DIONAUDIO_KIWI
         select SND_SOC_PCM1794A
         select SND_RPI_SIMPLE_SOUNDCARD
         help
-         Say Y or M if you want to add support for DionAudio-KIWI.
+         Say Y or M if you want to add support for Dion Audio-KIWI.
