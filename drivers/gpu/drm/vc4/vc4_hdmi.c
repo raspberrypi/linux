@@ -1810,6 +1810,7 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 					 struct drm_crtc_state *crtc_state,
 					 struct drm_connector_state *conn_state)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(encoder->dev);
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
 	struct drm_connector *connector = &vc4_hdmi->connector;
 	struct drm_connector_state *old_conn_state =
@@ -1842,6 +1843,12 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 			return -EINVAL;
 	}
 
+	/* 4096x2160@60 is not reliable without overclocking core */
+	if (mode->hdisplay > 3840 && mode->vdisplay >= 2160 &&
+	    drm_mode_vrefresh(mode) >= 50 &&
+	    !vc4->hvs->vc5_hdmi_enable_4096by2160)
+		return -EINVAL;
+
 	/*
 	 * The 1440p@60 pixel rate is in the same range than the first
 	 * WiFi channel (between 2.4GHz and 2.422GHz with 22MHz
@@ -1873,12 +1880,19 @@ vc4_hdmi_encoder_mode_valid(struct drm_encoder *encoder,
 			    const struct drm_display_mode *mode)
 {
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	const struct drm_connector *connector = &vc4_hdmi->connector;
+	struct vc4_dev *vc4 = to_vc4_dev(connector->dev);
 
 	if (vc4_hdmi->variant->unsupported_odd_h_timings &&
 	    !(mode->flags & DRM_MODE_FLAG_DBLCLK) &&
 	    ((mode->hdisplay % 2) || (mode->hsync_start % 2) ||
 	     (mode->hsync_end % 2) || (mode->htotal % 2)))
 		return MODE_H_ILLEGAL;
+
+	if (mode->hdisplay > 3840 && mode->vdisplay >= 2160 &&
+	    drm_mode_vrefresh(mode) >= 50 &&
+	    !vc4->hvs->vc5_hdmi_enable_4096by2160)
+		return MODE_CLOCK_HIGH;
 
 	return vc4_hdmi_encoder_clock_valid(vc4_hdmi, mode->clock * 1000);
 }
