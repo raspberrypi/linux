@@ -1979,6 +1979,21 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
+Name:   imx296
+Info:   Sony IMX296 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx296,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
 Name:   imx378
 Info:   Sony IMX378 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
