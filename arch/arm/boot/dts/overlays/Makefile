@@ -104,6 +104,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx219.dtbo \
 	imx258.dtbo \
 	imx290.dtbo \
+	imx296.dtbo \
 	imx378.dtbo \
 	imx477.dtbo \
 	imx519.dtbo \
