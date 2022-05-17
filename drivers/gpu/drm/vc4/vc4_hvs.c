@@ -898,11 +898,17 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	hvs->regset.nregs = ARRAY_SIZE(hvs_regs);
 
 	if (vc4->is_vc5) {
+		unsigned long min_rate;
+
 		hvs->core_clk = devm_clk_get(&pdev->dev, NULL);
 		if (IS_ERR(hvs->core_clk)) {
 			dev_err(&pdev->dev, "Couldn't get core clock\n");
 			return PTR_ERR(hvs->core_clk);
 		}
+
+		min_rate = rpi_firmware_clk_get_min_rate(hvs->core_clk);
+		if (min_rate >= 600000000)
+			hvs->vc5_hdmi_enable_4096by2160 = true;
 
 		ret = clk_prepare_enable(hvs->core_clk);
 		if (ret) {
