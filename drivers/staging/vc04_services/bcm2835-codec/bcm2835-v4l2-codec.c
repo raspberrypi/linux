@@ -1615,7 +1615,8 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 				  f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	q_data->crop_width = f->fmt.pix_mp.width;
 	q_data->height = f->fmt.pix_mp.height;
-	if (!q_data->selection_set)
+	if (!q_data->selection_set ||
+	    (q_data->fmt->flags & V4L2_FMT_FLAG_COMPRESSED))
 		q_data->crop_height = requested_height;
 
 	/*
