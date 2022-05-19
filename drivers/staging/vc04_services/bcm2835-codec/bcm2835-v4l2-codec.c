@@ -1901,6 +1901,8 @@ static int vidioc_s_selection(struct file *file, void *priv,
 {
 	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 	struct bcm2835_codec_q_data *q_data = NULL;
+	struct vchiq_mmal_port *port = NULL;
+	int ret;
 
 	/*
 	 * The selection API takes V4L2_BUF_TYPE_VIDEO_CAPTURE and
@@ -1916,12 +1918,16 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		if (ctx->dev->role == ENCODE || ctx->dev->role == ENCODE_IMAGE)
 			return -EINVAL;
 		q_data = &ctx->q_data[V4L2_M2M_DST];
+		if (ctx->component)
+			port = &ctx->component->output[0];
 		break;
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		/* OUTPUT on deoder is not valid. */
 		if (ctx->dev->role == DECODE)
 			return -EINVAL;
 		q_data = &ctx->q_data[V4L2_M2M_SRC];
+		if (ctx->component)
+			port = &ctx->component->input[0];
 		break;
 	default:
 		return -EINVAL;
@@ -2004,6 +2010,17 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		}
 	case NUM_ROLES:
 		break;
+	}
+
+	if (!port)
+		return 0;
+
+	setup_mmal_port_format(ctx, q_data, port);
+	ret = vchiq_mmal_port_set_format(ctx->dev->instance, port);
+	if (ret) {
+		v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed vchiq_mmal_port_set_format on port, ret %d\n",
+			 __func__, ret);
+		return -EINVAL;
 	}
 
 	return 0;
