@@ -308,6 +308,10 @@ static const char * const imx296_test_pattern_menu[] = {
 	"Checks",
 };
 
+static const s64 imx296_link_freq_menu[] = {
+	1188000000ULL,
+};
+
 static void imx296_adjust_exposure_range(struct imx296 *sensor,
 					 struct v4l2_ctrl *ctrl)
 {
@@ -412,7 +416,7 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 	if (ret < 0)
 		return ret;
 
-	v4l2_ctrl_handler_init(&sensor->ctrls, 11);
+	v4l2_ctrl_handler_init(&sensor->ctrls, 12);
 
 	sensor->exposure = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 					   V4L2_CID_EXPOSURE, 1, 1048575, 1,
@@ -462,6 +466,10 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 				     V4L2_CID_TEST_PATTERN,
 				     ARRAY_SIZE(imx296_test_pattern_menu) - 1,
 				     0, 0, imx296_test_pattern_menu);
+
+	v4l2_ctrl_new_int_menu(&sensor->ctrls, NULL, V4L2_CID_LINK_FREQ,
+			       ARRAY_SIZE(imx296_link_freq_menu) - 1, 0,
+			       imx296_link_freq_menu);
 
 	v4l2_ctrl_new_fwnode_properties(&sensor->ctrls, &imx296_ctrl_ops,
 					&props);
