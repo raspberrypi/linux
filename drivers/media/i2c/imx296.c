@@ -211,6 +211,8 @@ struct imx296 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *vblank;
+	struct v4l2_ctrl *vflip;
+	struct v4l2_ctrl *hflip;
 
 	struct mutex lock;		/* Protects format and crop */
 	struct v4l2_mbus_framefmt format;
@@ -256,6 +258,38 @@ static int imx296_write(struct imx296 *sensor, u32 addr, u32 value, int *err)
 	return ret;
 }
 
+/*
+ * The supported formats.
+ * This table MUST contain 4 entries per format, to cover the various flip
+ * combinations in the order
+ * - no flip
+ * - h flip
+ * - v flip
+ * - h&v flips
+ */
+static const u32 mbus_codes[] = {
+	/* 10-bit modes. */
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
+};
+
+static u32 imx296_mbus_code(struct imx296 *sensor)
+{
+	unsigned int i = 0;
+
+	lockdep_assert_held(&sensor->lock);
+
+	if (sensor->mono)
+		return MEDIA_BUS_FMT_Y10_1X10;
+
+	if (sensor->vflip && sensor->hflip)
+		i = (sensor->vflip->val ? 2 : 0) | (sensor->hflip->val ? 1 : 0);
+
+	return mbus_codes[i];
+}
+
 /* -----------------------------------------------------------------------------
  * Controls
  */
@@ -297,6 +331,13 @@ static int imx296_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		imx296_write(sensor, IMX296_VMAX,
 			     sensor->format.height + ctrl->val, &ret);
+		break;
+
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP:
+		imx296_write(sensor, IMX296_CTRL0E,
+			     sensor->vflip->val | (sensor->hflip->val << 1),
+			     &ret);
 		break;
 
 	case V4L2_CID_TEST_PATTERN:
@@ -348,13 +389,23 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 	if (ret < 0)
 		return ret;
 
-	v4l2_ctrl_handler_init(&sensor->ctrls, 9);
+	v4l2_ctrl_handler_init(&sensor->ctrls, 11);
 
 	v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 			  V4L2_CID_EXPOSURE, 1, 1048575, 1, 1104);
 	v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 			  V4L2_CID_ANALOGUE_GAIN, IMX296_GAIN_MIN,
 			  IMX296_GAIN_MAX, 1, IMX296_GAIN_MIN);
+
+	sensor->hflip = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (sensor->hflip)
+		sensor->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	sensor->vflip = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (sensor->vflip)
+		sensor->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	/*
 	 * Horizontal blanking is controlled through the HMAX register, which
@@ -535,6 +586,10 @@ static int imx296_stream_on(struct imx296 *sensor)
 	usleep_range(IMX296_STREAM_ON_DELAY, 2*IMX296_STREAM_ON_DELAY);
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(sensor->vflip, 1);
+	__v4l2_ctrl_grab(sensor->hflip, 1);
+
 	return ret;
 }
 
@@ -545,6 +600,9 @@ static int imx296_stream_off(struct imx296 *sensor)
 	imx296_write(sensor, IMX296_CTRL0A, IMX296_CTRL0A_XMSTA, &ret);
 	usleep_range(IMX296_STREAM_OFF_DELAY, 2*IMX296_STREAM_OFF_DELAY);
 	imx296_write(sensor, IMX296_CTRL00, IMX296_CTRL00_STANDBY, &ret);
+
+	__v4l2_ctrl_grab(sensor->vflip, 0);
+	__v4l2_ctrl_grab(sensor->hflip, 0);
 
 	return ret;
 }
@@ -614,8 +672,7 @@ static int imx296_enum_mbus_code(struct v4l2_subdev *sd,
 	if (code->index != 0)
 		return -EINVAL;
 
-	code->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		   : MEDIA_BUS_FMT_SRGGB10_1X10;
+	code->code = imx296_mbus_code(sensor);
 
 	return 0;
 }
@@ -626,7 +683,7 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct imx296 *sensor = to_imx296(sd);
 
-	if (fse->index >= 1 || fse->code != sensor->format.code)
+	if (fse->index >= 1 || fse->code != imx296_mbus_code(sensor))
 		return -EINVAL;
 
 	fse->min_width = IMX296_PIXEL_ARRAY_WIDTH / (fse->index + 1);
@@ -719,8 +776,7 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 		format->height = crop->height;
 	}
 
-	format->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		     : MEDIA_BUS_FMT_SRGGB10_1X10;
+	format->code = imx296_mbus_code(sensor);
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_RAW;
 	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
