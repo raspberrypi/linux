@@ -626,7 +626,7 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct imx296 *sensor = to_imx296(sd);
 
-	if (fse->index >= 2 || fse->code != sensor->format.code)
+	if (fse->index >= 1 || fse->code != sensor->format.code)
 		return -EINVAL;
 
 	fse->min_width = IMX296_PIXEL_ARRAY_WIDTH / (fse->index + 1);
