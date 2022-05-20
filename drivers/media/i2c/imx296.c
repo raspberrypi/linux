@@ -171,6 +171,10 @@
 #define IMX296_GTTABLENUM				IMX296_REG_8BIT(0x4114)
 #define IMX296_CTRL418C					IMX296_REG_8BIT(0x418c)
 
+#define IMX296_STANDBY_DELAY		1500
+#define IMX296_STREAM_ON_DELAY		2000
+#define IMX296_STREAM_OFF_DELAY		2000
+
 struct imx296_clk_params {
 	unsigned int freq;
 	u8 incksel[4];
@@ -528,7 +532,7 @@ static int imx296_stream_on(struct imx296 *sensor)
 	int ret = 0;
 
 	imx296_write(sensor, IMX296_CTRL00, 0, &ret);
-	usleep_range(2000, 5000);
+	usleep_range(IMX296_STREAM_ON_DELAY, 2*IMX296_STREAM_ON_DELAY);
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
 	return ret;
@@ -539,6 +543,7 @@ static int imx296_stream_off(struct imx296 *sensor)
 	int ret = 0;
 
 	imx296_write(sensor, IMX296_CTRL0A, IMX296_CTRL0A_XMSTA, &ret);
+	usleep_range(IMX296_STREAM_OFF_DELAY, 2*IMX296_STREAM_OFF_DELAY);
 	imx296_write(sensor, IMX296_CTRL00, IMX296_CTRL00_STANDBY, &ret);
 
 	return ret;
@@ -969,6 +974,8 @@ static int imx296_identify_model(struct imx296 *sensor)
 			"failed to get sensor out of standby (%d)\n", ret);
 		return ret;
 	}
+
+	usleep_range(IMX296_STANDBY_DELAY, 2*IMX296_STANDBY_DELAY);
 
 	ret = imx296_read(sensor, IMX296_SENSOR_INFO);
 	if (ret < 0) {
