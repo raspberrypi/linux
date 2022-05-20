@@ -211,6 +211,7 @@ struct imx296 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *vblank;
+	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *vflip;
 	struct v4l2_ctrl *hflip;
 
@@ -307,11 +308,33 @@ static const char * const imx296_test_pattern_menu[] = {
 	"Checks",
 };
 
+static void imx296_adjust_exposure_range(struct imx296 *sensor,
+					 struct v4l2_ctrl *ctrl)
+{
+	int exposure_max, exposure_def;
+
+	/* Honour the new VBLANK limits when setting exposure */
+	exposure_max = (sensor->format.height + sensor->vblank->val) - 4;
+	exposure_def = min(exposure_max, sensor->exposure->val);
+
+	__v4l2_ctrl_modify_range(sensor->exposure, sensor->exposure->minimum,
+				 exposure_max, sensor->exposure->step,
+				 exposure_def);
+}
+
 static int imx296_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct imx296 *sensor = container_of(ctrl->handler, struct imx296, ctrls);
 	unsigned int vmax;
 	int ret = 0;
+
+	if (ctrl->id == V4L2_CID_VBLANK) {
+		/*
+		 * This control may change the limits of usable exposure, so
+		 * check and adjust if necessary.
+		 */
+		imx296_adjust_exposure_range(sensor, ctrl);
+	}
 
 	if (!sensor->streaming)
 		return 0;
@@ -391,8 +414,9 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 
 	v4l2_ctrl_handler_init(&sensor->ctrls, 11);
 
-	v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
-			  V4L2_CID_EXPOSURE, 1, 1048575, 1, 1104);
+	sensor->exposure = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
+					   V4L2_CID_EXPOSURE, 1, 1048575, 1,
+					   1104);
 	v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 			  V4L2_CID_ANALOGUE_GAIN, IMX296_GAIN_MIN,
 			  IMX296_GAIN_MAX, 1, IMX296_GAIN_MIN);
