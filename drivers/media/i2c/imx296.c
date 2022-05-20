@@ -593,7 +593,7 @@ static int imx296_setup(struct imx296 *sensor)
 	imx296_write(sensor, IMX296_CTRL418C, sensor->clk_params->ctrl418c,
 		     &ret);
 
-	imx296_write(sensor, IMX296_GAINDLY, IMX296_GAINDLY_NONE, &ret);
+	imx296_write(sensor, IMX296_GAINDLY, IMX296_GAINDLY_1FRAME, &ret);
 	imx296_write(sensor, IMX296_BLKLEVEL, 0x03c, &ret);
 
 	if (ret < 0)
