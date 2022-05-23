@@ -86,7 +86,7 @@
 
 #include <uapi/linux/io_uring.h>
 
-#include "internal.h"
+#include "../fs/internal.h"
 #include "io-wq.h"
 
 #define IORING_MAX_ENTRIES	32768
