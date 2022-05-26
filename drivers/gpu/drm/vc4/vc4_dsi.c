@@ -358,6 +358,16 @@
 # define DSI_PHY_AFEC0_CTATADJ_MASK		VC4_MASK(3, 0)
 # define DSI_PHY_AFEC0_CTATADJ_SHIFT		0
 
+# define DSI0_AFEC0_PD_ALL_LANES	(DSI0_PHY_AFEC0_PD | \
+					 DSI0_PHY_AFEC0_PD_BG | \
+					 DSI0_PHY_AFEC0_PD_DLANE1)
+
+# define DSI1_AFEC0_PD_ALL_LANES	(DSI1_PHY_AFEC0_PD | \
+					 DSI1_PHY_AFEC0_PD_BG | \
+					 DSI1_PHY_AFEC0_PD_DLANE3 | \
+					 DSI1_PHY_AFEC0_PD_DLANE2 | \
+					 DSI1_PHY_AFEC0_PD_DLANE1)
+
 #define DSI0_PHY_AFEC1		0x68
 # define DSI0_PHY_AFEC1_IDR_DLANE1_MASK		VC4_MASK(10, 8)
 # define DSI0_PHY_AFEC1_IDR_DLANE1_SHIFT	8
@@ -807,6 +817,16 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
 	disp0_ctrl &= ~DSI_DISP0_ENABLE;
 	DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+
+	/* Reset the DSI and all its fifos. */
+	DSI_PORT_WRITE(CTRL, DSI_CTRL_SOFT_RESET_CFG |
+		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
+
+	/* Power down the analogue front end. */
+	DSI_PORT_WRITE(PHY_AFEC0, DSI_PORT_BIT(PHY_AFEC0_RESET) |
+		       DSI_PORT_BIT(PHY_AFEC0_PD) |
+		       DSI_PORT_BIT(AFEC0_PD_ALL_LANES));
+
 }
 
 static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
