@@ -61,7 +61,7 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 /* Exposure control */
 #define IMX477_REG_EXPOSURE		0x0202
 #define IMX477_EXPOSURE_OFFSET		22
-#define IMX477_EXPOSURE_MIN		20
+#define IMX477_EXPOSURE_MIN		4
 #define IMX477_EXPOSURE_STEP		1
 #define IMX477_EXPOSURE_DEFAULT		0x640
 #define IMX477_EXPOSURE_MAX		(IMX477_FRAME_LENGTH_MAX - \
