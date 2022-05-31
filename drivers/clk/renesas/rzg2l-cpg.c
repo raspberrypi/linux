@@ -744,7 +744,7 @@ static int rzg2l_cpg_status(struct reset_controller_dev *rcdev,
 	unsigned int reg = info->resets[id].off;
 	u32 bitmask = BIT(info->resets[id].bit);
 
-	return !(readl(priv->base + CLK_MRST_R(reg)) & bitmask);
+	return !!(readl(priv->base + CLK_MRST_R(reg)) & bitmask);
 }
 
 static const struct reset_control_ops rzg2l_cpg_reset_ops = {
