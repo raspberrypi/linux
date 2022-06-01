@@ -41,6 +41,8 @@
 #include <linux/component.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/pm_runtime.h>
@@ -108,6 +110,10 @@
 #define CEC_CLOCK_FREQ 40000
 
 #define HDMI_14_MAX_TMDS_CLK   (340 * 1000 * 1000)
+
+/* bit field to force hotplug detection. bit0 = HDMI0 */
+static int force_hotplug = 0;
+module_param(force_hotplug, int, 0644);
 
 static const char * const output_format_str[] = {
 	[VC4_HDMI_OUTPUT_RGB]		= "RGB",
@@ -472,7 +478,9 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 
 	WARN_ON(pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev));
 
-	if (vc4_hdmi->hpd_gpio) {
+	if (force_hotplug & BIT(vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0))
+		status = connector_status_connected;
+	else if (vc4_hdmi->hpd_gpio) {
 		if (gpiod_get_value_cansleep(vc4_hdmi->hpd_gpio))
 			status = connector_status_connected;
 	} else {
