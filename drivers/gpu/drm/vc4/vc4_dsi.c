@@ -1416,6 +1416,24 @@ static const struct drm_bridge_funcs vc4_dsi_bridge_funcs = {
 	.mode_fixup = vc4_dsi_bridge_mode_fixup,
 };
 
+static int vc4_dsi_late_register(struct drm_encoder *encoder)
+{
+	struct drm_device *drm = encoder->dev;
+	struct vc4_dsi *dsi = to_vc4_dsi(encoder);
+	int ret;
+
+	ret = vc4_debugfs_add_regset32(drm->primary, dsi->variant->debugfs_name,
+				       &dsi->regset);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static const struct drm_encoder_funcs vc4_dsi_encoder_funcs = {
+	.late_register = vc4_dsi_late_register,
+};
+
 static const struct vc4_dsi_variant bcm2711_dsi1_variant = {
 	.port			= 1,
 	.debugfs_name		= "dsi1_regs",
@@ -1765,7 +1783,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		goto err_free_dma;
 
 	ret = drmm_encoder_init(drm, encoder,
-				NULL,
+				&vc4_dsi_encoder_funcs,
 				DRM_MODE_ENCODER_DSI,
 				NULL);
 	if (ret)
@@ -1780,8 +1798,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		dev_err(dev, "bridge attach failed: %d\n", ret);
 		goto err_free_dma;
 	}
-
-	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
 
 	return 0;
 
