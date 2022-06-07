@@ -161,16 +161,17 @@ static int prepopulate_host_stage2(void)
 
 	for (i = 0; i < hyp_memblock_nr; i++) {
 		reg = &hyp_memory[i];
-		ret = host_stage2_idmap_locked(addr, reg->base - addr, PKVM_HOST_MMIO_PROT);
+		ret = host_stage2_idmap_locked(addr, reg->base - addr, PKVM_HOST_MMIO_PROT, false);
 		if (ret)
 			return ret;
-		ret = host_stage2_idmap_locked(reg->base, reg->size, PKVM_HOST_MEM_PROT);
+		ret = host_stage2_idmap_locked(reg->base, reg->size, PKVM_HOST_MEM_PROT, false);
 		if (ret)
 			return ret;
 		addr = reg->base + reg->size;
 	}
 
-	return host_stage2_idmap_locked(addr, BIT(host_mmu.pgt.ia_bits) - addr, PKVM_HOST_MMIO_PROT);
+	return host_stage2_idmap_locked(addr, BIT(host_mmu.pgt.ia_bits) - addr,
+					PKVM_HOST_MMIO_PROT, false);
 }
 
 int kvm_host_prepare_stage2(void *pgt_pool_base)
@@ -555,7 +556,8 @@ static bool range_is_memory(u64 start, u64 end)
 }
 
 static inline int __host_stage2_idmap(u64 start, u64 end,
-				      enum kvm_pgtable_prot prot)
+				      enum kvm_pgtable_prot prot,
+				      bool update_iommu)
 {
 	int ret;
 
@@ -564,7 +566,8 @@ static inline int __host_stage2_idmap(u64 start, u64 end,
 	if (ret)
 		return ret;
 
-	kvm_iommu_host_stage2_idmap(start, end, prot);
+	if (update_iommu)
+		kvm_iommu_host_stage2_idmap(start, end, prot);
 	return 0;
 }
 
@@ -629,9 +632,10 @@ static int host_stage2_adjust_range(u64 addr, struct kvm_mem_range *range)
 }
 
 int host_stage2_idmap_locked(phys_addr_t addr, u64 size,
-			     enum kvm_pgtable_prot prot)
+			     enum kvm_pgtable_prot prot,
+			     bool update_iommu)
 {
-	return host_stage2_try(__host_stage2_idmap, addr, addr + size, prot);
+	return host_stage2_try(__host_stage2_idmap, addr, addr + size, prot, update_iommu);
 }
 
 #define KVM_MAX_OWNER_ID               FIELD_MAX(KVM_INVALID_PTE_OWNER_MASK)
@@ -720,13 +724,14 @@ static int host_stage2_idmap(u64 addr)
 	bool is_memory = !!find_mem_range(addr, &range);
 	enum kvm_pgtable_prot prot = default_host_prot(is_memory);
 	int ret;
+	bool update_iommu = !is_memory;
 
 	host_lock_component();
 	ret = host_stage2_adjust_range(addr, &range);
 	if (ret)
 		goto unlock;
 
-	ret = host_stage2_idmap_locked(range.start, range.end - range.start, prot);
+	ret = host_stage2_idmap_locked(range.start, range.end - range.start, prot, update_iommu);
 unlock:
 	host_unlock_component();
 
@@ -979,7 +984,7 @@ static int __host_set_page_state_range(u64 addr, u64 size,
 				       enum pkvm_page_state state)
 {
 	if (hyp_phys_to_page(addr)->host_state & PKVM_NOPAGE) {
-		int ret = host_stage2_idmap_locked(addr, size, PKVM_HOST_MEM_PROT);
+		int ret = host_stage2_idmap_locked(addr, size, PKVM_HOST_MEM_PROT, true);
 
 		if (ret)
 			return ret;
@@ -2139,7 +2144,7 @@ update:
 			addr, nr_pages << PAGE_SHIFT, PKVM_ID_PROTECTED);
 	} else {
 		ret = host_stage2_idmap_locked(
-			addr, nr_pages << PAGE_SHIFT, prot);
+			addr, nr_pages << PAGE_SHIFT, prot, false);
 	}
 
 	if (WARN_ON(ret) || !page)
