@@ -45,8 +45,8 @@
 			  "GPIO12",
 			  "GPIO13",
 			  /* Serial port */
-			  "TXD0",
-			  "RXD0",
+			  "TXD1",
+			  "RXD1",
 			  "GPIO16",
 			  "GPIO17",
 			  "GPIO18",
