@@ -280,14 +280,19 @@ qla_edif_app_check(scsi_qla_host_t *vha, struct app_id appid)
 {
 	/* check that the app is allow/known to the driver */
 
-	if (appid.app_vid == EDIF_APP_ID) {
-		ql_dbg(ql_dbg_edif + ql_dbg_verbose, vha, 0x911d, "%s app id ok\n", __func__);
-		return true;
+	if (appid.app_vid != EDIF_APP_ID) {
+		ql_dbg(ql_dbg_edif, vha, 0x911d, "%s app id not ok (%x)",
+		    __func__, appid.app_vid);
+		return false;
 	}
-	ql_dbg(ql_dbg_edif, vha, 0x911d, "%s app id not ok (%x)",
-	    __func__, appid.app_vid);
 
-	return false;
+	if (appid.version != EDIF_VERSION1) {
+		ql_dbg(ql_dbg_edif, vha, 0x911d, "%s app version is not ok (%x)",
+		    __func__, appid.version);
+		return false;
+	}
+
+	return true;
 }
 
 static void
@@ -555,6 +560,7 @@ qla_edif_app_start(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 	appreply.host_support_edif = vha->hw->flags.edif_enabled;
 	appreply.edif_enode_active = vha->pur_cinfo.enode_flags;
 	appreply.edif_edb_active = vha->e_dbell.db_flags;
+	appreply.version = EDIF_VERSION1;
 
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
 
@@ -685,6 +691,7 @@ qla_edif_app_authok(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 	portid.b.area   = appplogiok.u.d_id.b.area;
 	portid.b.al_pa  = appplogiok.u.d_id.b.al_pa;
 
+	appplogireply.version = EDIF_VERSION1;
 	switch (appplogiok.type) {
 	case PL_TYPE_WWPN:
 		fcport = qla2x00_find_fcport_by_wwpn(vha,
@@ -877,6 +884,8 @@ qla_edif_app_getfcinfo(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 	} else {
 		struct fc_port	*fcport = NULL, *tf;
 
+		app_reply->version = EDIF_VERSION1;
+
 		list_for_each_entry_safe(fcport, tf, &vha->vp_fcports, list) {
 			if (!(fcport->flags & FCF_FCSP_DEVICE))
 				continue;
@@ -893,9 +902,6 @@ qla_edif_app_getfcinfo(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 			if (tdid.b24 != 0 && tdid.b24 != fcport->d_id.b24)
 				continue;
 
-			app_reply->ports[pcnt].rekey_count =
-				fcport->edif.rekey_cnt;
-
 			if (fcport->scan_state != QLA_FCPORT_FOUND)
 				continue;
 
@@ -910,6 +916,7 @@ qla_edif_app_getfcinfo(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 
 			rval = 0;
 
+			app_reply->ports[pcnt].version = EDIF_VERSION1;
 			app_reply->ports[pcnt].remote_type =
 				VND_CMD_RTYPE_UNKNOWN;
 			if (fcport->port_type & (FCT_NVME_TARGET | FCT_TARGET))
@@ -1005,6 +1012,8 @@ qla_edif_app_getstats(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 		rval = -1;
 	} else {
 		struct fc_port	*fcport = NULL, *tf;
+
+		app_reply->version = EDIF_VERSION1;
 
 		list_for_each_entry_safe(fcport, tf, &vha->vp_fcports, list) {
 			if (fcport->edif.enable) {
@@ -2037,6 +2046,7 @@ qla_edb_eventcreate(scsi_qla_host_t *vha, uint32_t dbtype,
 		edbnode->u.sa_aen.port_id = fcport->d_id;
 		edbnode->u.sa_aen.status =  data;
 		edbnode->u.sa_aen.key_type =  data2;
+		edbnode->u.sa_aen.version = EDIF_VERSION1;
 		break;
 	default:
 		ql_dbg(ql_dbg_edif, vha, 0x09102,
@@ -3380,6 +3390,10 @@ int qla_edif_process_els(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 	port_id_t d_id;
 	struct qla_bsg_auth_els_request *p =
 	    (struct qla_bsg_auth_els_request *)bsg_job->request;
+	struct qla_bsg_auth_els_reply *rpl =
+	    (struct qla_bsg_auth_els_reply *)bsg_job->reply;
+
+	rpl->version = EDIF_VERSION1;
 
 	d_id.b.al_pa = bsg_request->rqst_data.h_els.port_id[2];
 	d_id.b.area = bsg_request->rqst_data.h_els.port_id[1];
