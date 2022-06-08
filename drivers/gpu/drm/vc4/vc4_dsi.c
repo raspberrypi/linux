@@ -931,6 +931,21 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
 	}
 
+	ret = clk_prepare_enable(dsi->escape_clock);
+	if (ret) {
+		drm_err(bridge->dev, "Failed to turn on DSI escape clock: %d\n",
+			ret);
+		return;
+	}
+
+	ret = clk_prepare_enable(dsi->pll_phy_clock);
+	if (ret) {
+		drm_err(bridge->dev, "Failed to turn on DSI PLL: %d\n", ret);
+		return;
+	}
+
+	hs_clock = clk_get_rate(dsi->pll_phy_clock);
+
 	/* Reset the DSI and all its fifos. */
 	DSI_PORT_WRITE(CTRL,
 		       DSI_CTRL_SOFT_RESET_CFG |
@@ -988,21 +1003,6 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 		/* AFEC reset hold time */
 		mdelay(1);
 	}
-
-	ret = clk_prepare_enable(dsi->escape_clock);
-	if (ret) {
-		drm_err(bridge->dev, "Failed to turn on DSI escape clock: %d\n",
-			ret);
-		return;
-	}
-
-	ret = clk_prepare_enable(dsi->pll_phy_clock);
-	if (ret) {
-		drm_err(bridge->dev, "Failed to turn on DSI PLL: %d\n", ret);
-		return;
-	}
-
-	hs_clock = clk_get_rate(dsi->pll_phy_clock);
 
 	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
 	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
