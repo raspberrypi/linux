@@ -321,10 +321,11 @@ static const struct snd_pcm_ops snd_bcm2835_playback_spdif_ops = {
 
 /* create a pcm device */
 int snd_bcm2835_new_pcm(struct bcm2835_chip *chip, const char *name,
-			int idx, enum snd_bcm2835_route route,
+			enum snd_bcm2835_route route,
 			u32 numchannels, bool spdif)
 {
 	struct snd_pcm *pcm;
+	int idx = chip->index++;
 	int err;
 
 	err = snd_pcm_new(chip->card, name, idx, numchannels, 0, &pcm);
