@@ -2622,8 +2622,7 @@ out_unlock:
 	if (mapping)
 		i_mmap_unlock_read(mapping);
 out:
-	/* Free any memory we didn't use */
-	xas_nomem(&xas, 0);
+	xas_destroy(&xas);
 	count_vm_event(!ret ? THP_SPLIT_PAGE : THP_SPLIT_PAGE_FAILED);
 	return ret;
 }
