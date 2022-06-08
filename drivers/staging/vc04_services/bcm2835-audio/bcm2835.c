@@ -7,10 +7,12 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/of.h>
 
 #include "bcm2835.h"
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
-static bool enable_hdmi;
+static bool enable_hdmi, enable_hdmi0, enable_hdmi1;
 static bool enable_headphones = true;
 static int num_channels = MAX_SUBSTREAMS;
 
@@ -66,14 +68,13 @@ static int bcm2835_audio_dual_newpcm(struct bcm2835_chip *chip,
 				     u32 numchannels)
 {
 	int err;
-
-	err = snd_bcm2835_new_pcm(chip, name, 0, route,
+	err = snd_bcm2835_new_pcm(chip, name, route,
 				  numchannels, false);
 
 	if (err)
 		return err;
 
-	err = snd_bcm2835_new_pcm(chip, "IEC958", 1, route, 1, true);
+	err = snd_bcm2835_new_pcm(chip, name, route, 1, true);
 	if (err)
 		return err;
 
@@ -85,20 +86,33 @@ static int bcm2835_audio_simple_newpcm(struct bcm2835_chip *chip,
 				       enum snd_bcm2835_route route,
 				       u32 numchannels)
 {
-	return snd_bcm2835_new_pcm(chip, name, 0, route, numchannels, false);
+	return snd_bcm2835_new_pcm(chip, name, route, numchannels, false);
 }
 
-static struct bcm2835_audio_driver bcm2835_audio_hdmi = {
+static struct bcm2835_audio_driver bcm2835_audio_hdmi0 = {
 	.driver = {
 		.name = "bcm2835_hdmi",
 		.owner = THIS_MODULE,
 	},
-	.shortname = "bcm2835 HDMI",
-	.longname  = "bcm2835 HDMI",
+	.shortname = "bcm2835 HDMI 1",
+	.longname  = "bcm2835 HDMI 1",
 	.minchannels = 1,
 	.newpcm = bcm2835_audio_dual_newpcm,
 	.newctl = snd_bcm2835_new_hdmi_ctl,
-	.route = AUDIO_DEST_HDMI
+	.route = AUDIO_DEST_HDMI0
+};
+
+static struct bcm2835_audio_driver bcm2835_audio_hdmi1 = {
+	.driver = {
+		.name = "bcm2835_hdmi",
+		.owner = THIS_MODULE,
+	},
+	.shortname = "bcm2835 HDMI 2",
+	.longname  = "bcm2835 HDMI 2",
+	.minchannels = 1,
+	.newpcm = bcm2835_audio_dual_newpcm,
+	.newctl = snd_bcm2835_new_hdmi_ctl,
+	.route = AUDIO_DEST_HDMI1
 };
 
 static struct bcm2835_audio_driver bcm2835_audio_headphones = {
@@ -121,8 +135,12 @@ struct bcm2835_audio_drivers {
 
 static struct bcm2835_audio_drivers children_devices[] = {
 	{
-		.audio_driver = &bcm2835_audio_hdmi,
-		.is_enabled = &enable_hdmi,
+		.audio_driver = &bcm2835_audio_hdmi0,
+		.is_enabled = &enable_hdmi0,
+	},
+	{
+		.audio_driver = &bcm2835_audio_hdmi1,
+		.is_enabled = &enable_hdmi1,
 	},
 	{
 		.audio_driver = &bcm2835_audio_headphones,
@@ -269,10 +287,70 @@ static int snd_add_child_devices(struct device *device, u32 numchans)
 	return 0;
 }
 
+static void set_hdmi_enables(struct device *dev)
+{
+	struct device_node *firmware_node;
+	struct rpi_firmware *firmware = NULL;
+	u32 num_displays, i, display_id;
+	int ret;
+
+	firmware_node = of_find_compatible_node(NULL, NULL,
+					"raspberrypi,bcm2835-firmware");
+	if (firmware_node) {
+		firmware = rpi_firmware_get(firmware_node);
+		of_node_put(firmware_node);
+	}
+
+	if (!firmware) {
+		dev_err(dev, "Failed to get fw structure\n");
+		return;
+	}
+
+	ret = rpi_firmware_property(firmware,
+				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
+				    &num_displays, sizeof(u32));
+	if (ret) {
+		dev_err(dev, "Failed to get fw property NUM_DISPLAYS\n");
+		goto out_rpi_fw_put;
+	}
+
+	for (i = 0; i < num_displays; i++) {
+		display_id = i;
+		ret = rpi_firmware_property(firmware,
+				RPI_FIRMWARE_FRAMEBUFFER_GET_DISPLAY_ID,
+				&display_id, sizeof(display_id));
+		if (ret) {
+			dev_err(dev, "Failed to get fw property DISPLAY_ID "
+				"(i = %d)\n", i);
+		} else {
+			if (display_id == 2)
+				enable_hdmi0 = true;
+			if (display_id == 7)
+				enable_hdmi1 = true;
+		}
+	}
+
+	if (!enable_hdmi0 && enable_hdmi1) {
+		/* Swap them over and reassign route. This means
+		 * that if we only have one connected, it is always named
+		 *  HDMI1, irrespective of if its on port HDMI0 or HDMI1.
+		 *  This should match with the naming of HDMI ports in DRM
+		 */
+		enable_hdmi0 = true;
+		enable_hdmi1 = false;
+		bcm2835_audio_hdmi0.route = AUDIO_DEST_HDMI1;
+	}
+
+out_rpi_fw_put:
+	rpi_firmware_put(firmware);
+	return;
+}
+
 static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	int err;
+	u32 disable_headphones = 0;
 
 	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	if (err) {
@@ -284,6 +362,17 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 		num_channels = MAX_SUBSTREAMS;
 		dev_warn(dev, "Illegal num_channels value, will use %u\n",
 			 num_channels);
+	}
+
+	if (enable_hdmi &&
+	    !of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
+		set_hdmi_enables(dev);
+
+	if (enable_headphones) {
+		of_property_read_u32(dev->of_node,
+				     "brcm,disable-headphones",
+				     &disable_headphones);
+		enable_headphones = !disable_headphones;
 	}
 
 	err = bcm2835_devm_add_vchi_ctx(dev);
