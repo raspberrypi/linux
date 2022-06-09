@@ -37,34 +37,34 @@ MODULE_PARM_DESC(video_nr, "decoder video device number");
 static const struct rpivid_control rpivid_ctrls[] = {
 	{
 		.cfg = {
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_SPS,
+			.id	= V4L2_CID_STATELESS_HEVC_SPS,
 			.ops	= &rpivid_hevc_sps_ctrl_ops,
 		},
 		.required	= true,
 	},
 	{
 		.cfg = {
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_PPS,
+			.id	= V4L2_CID_STATELESS_HEVC_PPS,
 			.ops	= &rpivid_hevc_pps_ctrl_ops,
 		},
 		.required	= true,
 	},
 	{
 		.cfg = {
-			.id = V4L2_CID_MPEG_VIDEO_HEVC_SCALING_MATRIX,
+			.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
 		},
 		.required	= false,
 	},
 	{
 		.cfg = {
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_DECODE_PARAMS,
+			.id	= V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
 		},
 		.required	= true,
 	},
 	{
 		.cfg = {
 			.name	= "Slice param array",
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS,
+			.id	= V4L2_CID_STATELESS_HEVC_SLICE_PARAMS,
 			.type	= V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS,
 			.flags	= V4L2_CTRL_FLAG_DYNAMIC_ARRAY,
 			.dims	= { 0x1000 },
@@ -73,17 +73,17 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	},
 	{
 		.cfg = {
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_DECODE_MODE,
-			.max	= V4L2_MPEG_VIDEO_HEVC_DECODE_MODE_SLICE_BASED,
-			.def	= V4L2_MPEG_VIDEO_HEVC_DECODE_MODE_SLICE_BASED,
+			.id	= V4L2_CID_STATELESS_HEVC_DECODE_MODE,
+			.max	= V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
+			.def	= V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
 		},
 		.required	= false,
 	},
 	{
 		.cfg = {
-			.id	= V4L2_CID_MPEG_VIDEO_HEVC_START_CODE,
-			.max	= V4L2_MPEG_VIDEO_HEVC_START_CODE_NONE,
-			.def	= V4L2_MPEG_VIDEO_HEVC_START_CODE_NONE,
+			.id	= V4L2_CID_STATELESS_HEVC_START_CODE,
+			.max	= V4L2_STATELESS_HEVC_START_CODE_NONE,
+			.def	= V4L2_STATELESS_HEVC_START_CODE_NONE,
 		},
 		.required	= false,
 	},
