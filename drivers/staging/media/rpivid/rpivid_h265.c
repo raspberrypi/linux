@@ -626,7 +626,7 @@ static int write_bitstream(struct rpivid_dec_env *const de,
 	// Whether that is the correct behaviour or not is not clear in the
 	// spec.
 	const int rpi_use_emu = 1;
-	unsigned int offset = s->sh->data_bit_offset / 8 + 1;
+	unsigned int offset = s->sh->data_byte_offset;
 	const unsigned int len = (s->sh->bit_size + 7) / 8 - offset;
 	dma_addr_t addr;
 
@@ -781,18 +781,12 @@ static void program_slicecmds(struct rpivid_dec_env *const de,
 // Simply checks POCs
 static int has_backward(const struct v4l2_hevc_dpb_entry *const dpb,
 			const __u8 *const idx, const unsigned int n,
-			const unsigned int cur_poc)
+			const s32 cur_poc)
 {
 	unsigned int i;
 
 	for (i = 0; i < n; ++i) {
-		// Compare mod 2^16
-		// We only get u16 pocs & 8.3.1 says
-		// "The bitstream shall not contain data that result in values
-		//  of DiffPicOrderCnt( picA, picB ) used in the decoding
-		//  process that are not in the range of −2^15 to 2^15 − 1,
-		//  inclusive."
-		if (((cur_poc - dpb[idx[i]].pic_order_cnt[0]) & 0x8000) != 0)
+		if (cur_poc < dpb[idx[i]].pic_order_cnt_val)
 			return 0;
 	}
 	return 1;
@@ -863,7 +857,7 @@ static void pre_slice_decode(struct rpivid_dec_env *const de,
 					V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE) ?
 						 (1 << 4) : 0) |
 				  (weighted_pred_flag ? (3 << 5) : 0));
-			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt[0]);
+			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt_val & 0xffff);
 
 			if (weighted_pred_flag) {
 				const struct v4l2_hevc_pred_weight_table
@@ -909,7 +903,7 @@ static void pre_slice_decode(struct rpivid_dec_env *const de,
 					 V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE) ?
 						 (1 << 4) : 0) |
 					(weighted_pred_flag ? (3 << 5) : 0));
-			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt[0]);
+			msg_slice(de, dec->dpb[dpb_no].pic_order_cnt_val & 0xffff);
 			if (weighted_pred_flag) {
 				const struct v4l2_hevc_pred_weight_table
 					*const w = &sh->pred_weight_table;
@@ -1918,11 +1912,10 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 				  sh->bit_size, run->src->planes[0].bytesused);
 			goto fail;
 		}
-		if (sh->data_bit_offset >= sh->bit_size ||
-		    sh->bit_size - sh->data_bit_offset < 8) {
+		if (sh->data_byte_offset >= sh->bit_size / 8) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Bit size %d < Bit offset %d + 8\n",
-				  sh->bit_size, sh->data_bit_offset);
+				  "Bit size %u < Byte offset %u * 8\n",
+				  sh->bit_size, sh->data_byte_offset);
 			goto fail;
 		}
 

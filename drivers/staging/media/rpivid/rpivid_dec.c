@@ -51,16 +51,16 @@ void rpivid_device_run(void *priv)
 
 		run.h265.sps =
 			rpivid_find_control_data(ctx,
-						 V4L2_CID_MPEG_VIDEO_HEVC_SPS);
+						 V4L2_CID_STATELESS_HEVC_SPS);
 		run.h265.pps =
 			rpivid_find_control_data(ctx,
-						 V4L2_CID_MPEG_VIDEO_HEVC_PPS);
+						 V4L2_CID_STATELESS_HEVC_PPS);
 		run.h265.dec =
 			rpivid_find_control_data(ctx,
-						 V4L2_CID_MPEG_VIDEO_HEVC_DECODE_PARAMS);
+						 V4L2_CID_STATELESS_HEVC_DECODE_PARAMS);
 
 		ctrl = rpivid_find_ctrl(ctx,
-					V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS);
+					V4L2_CID_STATELESS_HEVC_SLICE_PARAMS);
 		if (!ctrl || !ctrl->elems) {
 			v4l2_err(&dev->v4l2_dev, "%s: Missing slice params\n",
 				 __func__);
@@ -71,7 +71,7 @@ void rpivid_device_run(void *priv)
 
 		run.h265.scaling_matrix =
 			rpivid_find_control_data(ctx,
-						 V4L2_CID_MPEG_VIDEO_HEVC_SCALING_MATRIX);
+						 V4L2_CID_STATELESS_HEVC_SCALING_MATRIX);
 		break;
 	}
 
