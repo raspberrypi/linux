@@ -155,7 +155,7 @@ static void netfs_rreq_expand(struct netfs_io_request *rreq,
 void netfs_readahead(struct readahead_control *ractl)
 {
 	struct netfs_io_request *rreq;
-	struct netfs_i_context *ctx = netfs_i_context(ractl->mapping->host);
+	struct netfs_inode *ctx = netfs_inode(ractl->mapping->host);
 	int ret;
 
 	_enter("%lx,%x", readahead_index(ractl), readahead_count(ractl));
@@ -216,7 +216,7 @@ int netfs_readpage(struct file *file, struct page *subpage)
 	struct folio *folio = page_folio(subpage);
 	struct address_space *mapping = folio_file_mapping(folio);
 	struct netfs_io_request *rreq;
-	struct netfs_i_context *ctx = netfs_i_context(mapping->host);
+	struct netfs_inode *ctx = netfs_inode(mapping->host);
 	int ret;
 
 	_enter("%lx", folio_index(folio));
@@ -333,7 +333,7 @@ int netfs_write_begin(struct file *file, struct address_space *mapping,
 		      struct folio **_folio, void **_fsdata)
 {
 	struct netfs_io_request *rreq;
-	struct netfs_i_context *ctx = netfs_i_context(file_inode(file ));
+	struct netfs_inode *ctx = netfs_inode(file_inode(file ));
 	struct folio *folio;
 	unsigned int fgp_flags;
 	pgoff_t index = pos >> PAGE_SHIFT;
