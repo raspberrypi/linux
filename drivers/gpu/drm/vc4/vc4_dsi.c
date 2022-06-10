@@ -1774,6 +1774,10 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
+	ret = devm_pm_runtime_enable(dev);
+	if (ret)
+		return ret;
+
 	ret = drm_bridge_attach(encoder, &dsi->bridge, NULL, 0);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
@@ -1782,22 +1786,11 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
 
-	pm_runtime_enable(dev);
-
 	return 0;
-}
-
-static void vc4_dsi_unbind(struct device *dev, struct device *master,
-			   void *data)
-{
-	struct vc4_dsi *dsi = dev_get_drvdata(dev);
-
-	pm_runtime_disable(dev);
 }
 
 static const struct component_ops vc4_dsi_ops = {
 	.bind   = vc4_dsi_bind,
-	.unbind = vc4_dsi_unbind,
 };
 
 static int vc4_dsi_dev_probe(struct platform_device *pdev)
