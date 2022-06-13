@@ -1588,6 +1588,23 @@ vc4_dsi_init_phy_clocks(struct vc4_dsi *dsi)
 				      dsi->clk_onecell);
 }
 
+static void vc4_dsi_dma_mem_release(void *ptr)
+{
+	struct vc4_dsi *dsi = ptr;
+	struct device *dev = &dsi->pdev->dev;
+
+	dma_free_coherent(dev, 4, dsi->reg_dma_mem, dsi->reg_dma_paddr);
+	dsi->reg_dma_mem = NULL;
+}
+
+static void vc4_dsi_dma_chan_release(void *ptr)
+{
+	struct vc4_dsi *dsi = ptr;
+
+	dma_release_channel(dsi->reg_dma_chan);
+	dsi->reg_dma_chan = NULL;
+}
+
 static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1595,7 +1612,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
 	struct vc4_dsi_encoder *vc4_dsi_encoder;
 	const struct of_device_id *match;
-	dma_cap_mask_t dma_mask;
 	int ret;
 
 	match = of_match_device(vc4_dsi_dt_match, dev);
@@ -1633,6 +1649,8 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	 * so set up a channel for talking to it.
 	 */
 	if (dsi->variant->broken_axi_workaround) {
+		dma_cap_mask_t dma_mask;
+
 		dsi->reg_dma_mem = dma_alloc_coherent(dev, 4,
 						      &dsi->reg_dma_paddr,
 						      GFP_KERNEL);
@@ -1641,16 +1659,25 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 			return -ENOMEM;
 		}
 
+		ret = devm_add_action_or_reset(dev, vc4_dsi_dma_mem_release, dsi);
+		if (ret)
+			return ret;
+
 		dma_cap_zero(dma_mask);
 		dma_cap_set(DMA_MEMCPY, dma_mask);
+
 		dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
 		if (IS_ERR(dsi->reg_dma_chan)) {
 			ret = PTR_ERR(dsi->reg_dma_chan);
 			if (ret != -EPROBE_DEFER)
 				DRM_ERROR("Failed to get DMA channel: %d\n",
 					  ret);
-			goto err_free_dma_mem;
+			return ret;
 		}
+
+		ret = devm_add_action_or_reset(dev, vc4_dsi_dma_chan_release, dsi);
+		if (ret)
+			return ret;
 
 		/* Get the physical address of the device's registers.  The
 		 * struct resource for the regs gives us the bus address
@@ -1678,7 +1705,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get interrupt: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	dsi->escape_clock = devm_clk_get(dev, "escape");
@@ -1686,7 +1713,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->escape_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get escape clock: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	dsi->pll_phy_clock = devm_clk_get(dev, "phy");
@@ -1694,7 +1721,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pll_phy_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get phy clock: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	dsi->pixel_clock = devm_clk_get(dev, "pixel");
@@ -1702,32 +1729,30 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pixel_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get pixel clock: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	dsi->out_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-	if (IS_ERR(dsi->out_bridge)) {
-		ret = PTR_ERR(dsi->out_bridge);
-		goto err_free_dma;
-	}
+	if (IS_ERR(dsi->out_bridge))
+		return PTR_ERR(dsi->out_bridge);
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);
 	if (ret) {
 		dev_err(dev, "Failed to set esc clock: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	ret = vc4_dsi_init_phy_clocks(dsi);
 	if (ret)
-		goto err_free_dma;
+		return ret;
 
 	drm_simple_encoder_init(drm, dsi->encoder, DRM_MODE_ENCODER_DSI);
 
 	ret = drm_bridge_attach(dsi->encoder, &dsi->bridge, NULL, 0);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
-		goto err_free_dma;
+		return ret;
 	}
 
 	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
@@ -1735,19 +1760,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	pm_runtime_enable(dev);
 
 	return 0;
-
-err_free_dma:
-	if (dsi->reg_dma_chan) {
-		dma_release_channel(dsi->reg_dma_chan);
-		dsi->reg_dma_chan = NULL;
-	}
-err_free_dma_mem:
-	if (dsi->reg_dma_mem) {
-		dma_free_coherent(dev, 4, dsi->reg_dma_mem, dsi->reg_dma_paddr);
-		dsi->reg_dma_mem = NULL;
-	}
-
-	return ret;
 }
 
 static void vc4_dsi_unbind(struct device *dev, struct device *master,
@@ -1758,16 +1770,6 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 	pm_runtime_disable(dev);
 
 	drm_encoder_cleanup(dsi->encoder);
-
-	if (dsi->reg_dma_chan) {
-		dma_release_channel(dsi->reg_dma_chan);
-		dsi->reg_dma_chan = NULL;
-	}
-
-	if (dsi->reg_dma_mem) {
-		dma_free_coherent(dev, 4, dsi->reg_dma_mem, dsi->reg_dma_paddr);
-		dsi->reg_dma_mem = NULL;
-	}
 }
 
 static const struct component_ops vc4_dsi_ops = {
