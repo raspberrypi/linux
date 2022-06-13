@@ -62,7 +62,7 @@
 	};
 
 	rpivid-v4l2 {
-		bcm2711;
+		deprecated = "no longer necessary";
 	};
 
 	sdio-1bit {
