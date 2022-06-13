@@ -75,29 +75,16 @@
 		power-domains = <&power RPI_POWER_DOMAIN_USB>;
 	};
 
-	hevc-decoder@7eb00000 {
-		compatible = "raspberrypi,rpivid-hevc-decoder";
-		reg = <0x0 0x7eb00000  0x0 0x10000>;
-		status = "okay";
-	};
-
-	rpivid-local-intc@7eb10000 {
-		compatible = "raspberrypi,rpivid-local-intc";
-		reg = <0x0 0x7eb10000  0x0 0x1000>;
-		status = "okay";
+	codec@7eb10000 {
+		compatible = "raspberrypi,rpivid-vid-decoder";
+		reg = <0x0 0x7eb10000  0x0 0x1000>,  /* INTC */
+		      <0x0 0x7eb00000  0x0 0x10000>; /* HEVC */
+		reg-names = "intc",
+			    "hevc";
 		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
-	};
 
-	h264-decoder@7eb20000 {
-		compatible = "raspberrypi,rpivid-h264-decoder";
-		reg = <0x0 0x7eb20000  0x0 0x10000>;
-		status = "okay";
-	};
-
-	vp9-decoder@7eb30000 {
-		compatible = "raspberrypi,rpivid-vp9-decoder";
-		reg = <0x0 0x7eb30000  0x0 0x10000>;
-		status = "okay";
+		clocks = <&firmware_clocks 11>;
+		clock-names = "hevc";
 	};
 };
 
