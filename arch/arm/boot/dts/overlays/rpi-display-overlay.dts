@@ -124,9 +124,9 @@
 	};
 
 	fragment@23 {
-		target = <&audio>;
+		target = <&chosen>;
 		__dormant__  {
-		    brcm,disable-headphones;
+			bootargs = "snd_bcm2835.enable_headphones=0";
 		};
 	};
 
