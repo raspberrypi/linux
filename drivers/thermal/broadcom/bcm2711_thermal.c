@@ -52,7 +52,7 @@ static int bcm2711_get_temp(void *data, int *temp)
 	/* Convert a HW code to a temperature reading (millidegree celsius) */
 	t = slope * val + offset;
 
-	*temp = t;
+	*temp = t < 0 ? 0 : t;
 
 	return 0;
 }
