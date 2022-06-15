@@ -15,6 +15,7 @@
                 __overlay__ {
                         brcm,pins = < 12 13 >;
                         brcm,function = < 4 >; /* alt0 alt0 */
+                        brcm,pull = < 0 >;
                 };
         };
 
@@ -23,13 +24,14 @@
 		__dormant__ {
                         brcm,pins = < 18 19 >;
                         brcm,function = < 2 >; /* alt5 alt5 */
+                        brcm,pull = < 0 >;
 		};
 	};
 
 	fragment@3 {
-		target = <&audio>;
+		target = <&chosen>;
 		__overlay__  {
-			brcm,disable-headphones = <0>;
+			bootargs = "snd_bcm2835.enable_headphones=1";
 		};
 	};
 
