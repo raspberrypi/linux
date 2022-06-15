@@ -161,7 +161,7 @@ cam0_reg: &cam0_regulator {
 	pinctrl-0 = <&i2s_pins>;
 };
 
-&audio {
+&vchiq {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
 };
