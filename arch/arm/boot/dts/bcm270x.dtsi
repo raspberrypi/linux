@@ -2,8 +2,9 @@
 #include <dt-bindings/power/raspberrypi-power.h>
 
 / {
-	chosen {
-		bootargs = "coherent_pool=1M snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
+	chosen: chosen {
+		// Disable audio by default
+		bootargs = "coherent_pool=1M snd_bcm2835.enable_headphones=0";
 		/delete-property/ stdout-path;
 	};
 
