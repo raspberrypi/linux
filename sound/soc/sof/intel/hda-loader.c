@@ -397,7 +397,8 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev)
 	struct firmware stripped_firmware;
 	int ret, ret1, i;
 
-	if ((sdev->fw_ready.flags & SOF_IPC_INFO_D3_PERSISTENT) &&
+	if ((sdev->system_suspend_target < SOF_SUSPEND_S4) &&
+	    (sdev->fw_ready.flags & SOF_IPC_INFO_D3_PERSISTENT) &&
 	    !(sof_debug_check_flag(SOF_DBG_IGNORE_D3_PERSISTENT)) &&
 	    !sdev->first_boot) {
 		dev_dbg(sdev->dev, "IMR restore supported, booting from IMR directly\n");
