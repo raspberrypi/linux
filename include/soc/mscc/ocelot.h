@@ -568,6 +568,7 @@ struct ocelot_ops {
 	int (*psfp_stats_get)(struct ocelot *ocelot, struct flow_cls_offload *f,
 			      struct flow_stats *stats);
 	void (*cut_through_fwd)(struct ocelot *ocelot);
+	void (*tas_clock_adjust)(struct ocelot *ocelot);
 };
 
 struct ocelot_vcap_policer {
@@ -678,6 +679,9 @@ struct ocelot_port {
 	int				bridge_num;
 
 	int				speed;
+
+	/* Store the AdminBaseTime of EST fetched from userspace. */
+	s64				base_time;
 };
 
 struct ocelot {
@@ -743,6 +747,9 @@ struct ocelot {
 	struct mutex			mact_lock;
 	/* Lock for serializing forwarding domain changes */
 	struct mutex			fwd_domain_lock;
+
+	/* Lock for serializing Time-Aware Shaper changes */
+	struct mutex			tas_lock;
 
 	struct workqueue_struct		*owq;
 
