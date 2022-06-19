@@ -3677,7 +3677,6 @@ static int mtip_block_shutdown(struct driver_data *dd)
 	if (test_bit(MTIP_DDF_INIT_DONE_BIT, &dd->dd_flag))
 		del_gendisk(dd->disk);
 
-	blk_cleanup_queue(dd->queue);
 	blk_mq_free_tag_set(&dd->tags);
 	put_disk(dd->disk);
 	return 0;
@@ -4040,7 +4039,6 @@ static void mtip_pci_remove(struct pci_dev *pdev)
 		dev_info(&dd->pdev->dev, "device %s surprise removal\n",
 						dd->disk->disk_name);
 
-	blk_cleanup_queue(dd->queue);
 	blk_mq_free_tag_set(&dd->tags);
 
 	/* De-initialize the protocol layer. */
