@@ -2964,6 +2964,35 @@ Params: baudrate                Set the baudrate for the UART (default
                                 "115200")
 
 
+Name:   ramoops
+Info:   Enable the preservation of crash logs across a reboot. With
+        systemd-pstore enabled (as it is on Raspberry Pi OS) the crash logs
+        are moved to /var/lib/systemd/pstore/ on reboot.
+Load:   dtoverlay=ramoops,<param>=<val>
+Params: base-addr               Where to place the capture buffer (default
+                                0x0b000000)
+        total-size              How much memory to allocate altogether (in
+                                bytes - default 64kB)
+        record-size             How much space to use for each capture, i.e.
+                                total-size / record-size = number of captures
+                                (default 16kB)
+        console-size            Size of non-panic dmesg captures (default 0)
+
+
+Name:   ramoops-pi4
+Info:   The version of the ramoops overlay for the Pi 4 family. It should be
+        loaded automatically if dtoverlay=ramoops is specified on a Pi 4.
+Load:   dtoverlay=ramoops-pi4,<param>=<val>
+Params: base-addr               Where to place the capture buffer (default
+                                0x0b000000)
+        total-size              How much memory to allocate altogether (in
+                                bytes - default 64kB)
+        record-size             How much space to use for each capture, i.e.
+                                total-size / record-size = number of captures
+                                (default 16kB)
+        console-size            Size of non-panic dmesg captures (default 0)
+
+
 Name:   rotary-encoder
 Info:   Overlay for GPIO connected rotary encoder.
 Load:   dtoverlay=rotary-encoder,<param>=<val>
