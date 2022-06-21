@@ -5984,7 +5984,8 @@ static void io_apoll_task_func(struct io_kiocb *req, bool *locked)
 		io_req_complete_failed(req, ret);
 }
 
-static void __io_poll_execute(struct io_kiocb *req, int mask, __poll_t events)
+static void __io_poll_execute(struct io_kiocb *req, int mask,
+			      __poll_t __maybe_unused events)
 {
 	req->result = mask;
 	/*
@@ -5993,7 +5994,6 @@ static void __io_poll_execute(struct io_kiocb *req, int mask, __poll_t events)
 	 * CPU. We want to avoid pulling in req->apoll->events for that
 	 * case.
 	 */
-	req->apoll_events = events;
 	if (req->opcode == IORING_OP_POLL_ADD)
 		req->io_task_work.func = io_poll_task_func;
 	else
@@ -6143,6 +6143,8 @@ static int __io_arm_poll_handler(struct io_kiocb *req,
 	io_init_poll_iocb(poll, mask, io_poll_wake);
 	poll->file = req->file;
 
+	req->apoll_events = poll->events;
+
 	ipt->pt._key = mask;
 	ipt->req = req;
 	ipt->error = 0;
@@ -6173,8 +6175,10 @@ static int __io_arm_poll_handler(struct io_kiocb *req,
 
 	if (mask) {
 		/* can't multishot if failed, just queue the event we've got */
-		if (unlikely(ipt->error || !ipt->nr_entries))
+		if (unlikely(ipt->error || !ipt->nr_entries)) {
 			poll->events |= EPOLLONESHOT;
+			req->apoll_events |= EPOLLONESHOT;
+		}
 		__io_poll_execute(req, mask, poll->events);
 		return 0;
 	}
@@ -6387,7 +6391,7 @@ static int io_poll_add_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe
 		return -EINVAL;
 
 	io_req_set_refcount(req);
-	req->apoll_events = poll->events = io_poll_parse_events(sqe, flags);
+	poll->events = io_poll_parse_events(sqe, flags);
 	return 0;
 }
 
