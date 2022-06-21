@@ -61,6 +61,15 @@
 		renamed = "miniuart-bt";
 	};
 
+	ramoops {
+		bcm2835;
+		bcm2711 = "ramoops-pi4";
+	};
+
+	ramoops-pi4 {
+		bcm2711;
+	};
+
 	rpivid-v4l2 {
 		deprecated = "no longer necessary";
 	};
