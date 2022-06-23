@@ -521,6 +521,7 @@ remote_event_wait(wait_queue_head_t *wq, struct remote_event *event)
 			return 0;
 		}
 		event->armed = 0;
+		/* FIXME */
 		wmb();
 	}
 
@@ -643,6 +644,7 @@ request_poll(struct vchiq_state *state, struct vchiq_service *service,
 
 skip_service:
 	state->poll_needed = 1;
+	/* FIXME */
 	wmb();
 
 	/* ... and ensure the slot handler runs. */
@@ -1149,6 +1151,7 @@ queue_message_sync(struct vchiq_state *state, struct vchiq_service *service,
 
 	remote_event_wait(&state->sync_release_event, &local->sync_release);
 
+	/* FIXME */
 	rmb();
 
 	header = (struct vchiq_header *)SLOT_DATA_FROM_INDEX(state,
@@ -1952,6 +1955,7 @@ slot_handler_func(void *v)
 		DEBUG_TRACE(SLOT_HANDLER_LINE);
 		remote_event_wait(&state->trigger_event, &local->trigger);
 
+		/* FIXME */
 		rmb();
 
 		DEBUG_TRACE(SLOT_HANDLER_LINE);
@@ -2014,6 +2018,7 @@ sync_func(void *v)
 
 		remote_event_wait(&state->sync_trigger_event, &local->sync_trigger);
 
+		/* FIXME */
 		rmb();
 
 		msgid = header->msgid;
@@ -3078,6 +3083,7 @@ enum vchiq_status vchiq_bulk_transfer(unsigned int handle, void *offset, void __
 	if (vchiq_prepare_bulk_data(bulk, offset, uoffset, size, dir))
 		goto unlock_error_exit;
 
+	/* FIXME */
 	wmb();
 
 	vchiq_log_info(vchiq_core_log_level, "%d: bt (%d->%d) %cx %x@%pad %pK",

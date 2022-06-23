@@ -711,6 +711,7 @@ static struct vchiq_arm_state *vchiq_platform_get_arm_state(struct vchiq_state *
 void
 remote_event_signal(struct remote_event *event)
 {
+	/* FIXME */
 	wmb();
 
 	event->fired = 1;
