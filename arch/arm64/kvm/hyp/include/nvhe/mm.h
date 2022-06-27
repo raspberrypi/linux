@@ -29,5 +29,6 @@ int __pkvm_create_private_mapping(phys_addr_t phys, size_t size,
 				  unsigned long *haddr);
 int pkvm_create_stack(phys_addr_t phys, unsigned long *haddr);
 int pkvm_alloc_private_va_range(size_t size, unsigned long *haddr);
+void pkvm_remove_mappings(void *from, void *to);
 
 #endif /* __KVM_HYP_MM_H */
