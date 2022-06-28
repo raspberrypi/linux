@@ -659,6 +659,8 @@ struct ocelot_port {
 	/* VLAN that untagged frames are classified to, on ingress */
 	const struct ocelot_bridge_vlan	*pvid_vlan;
 
+	struct tc_taprio_qopt_offload	*taprio;
+
 	phy_interface_t			phy_mode;
 
 	unsigned int			ptp_skbs_in_flight;
@@ -679,9 +681,6 @@ struct ocelot_port {
 	int				bridge_num;
 
 	int				speed;
-
-	/* Store the AdminBaseTime of EST fetched from userspace. */
-	s64				base_time;
 };
 
 struct ocelot {
