@@ -2005,6 +2005,7 @@ void btrfs_zone_finish_endio(struct btrfs_fs_info *fs_info, u64 logical, u64 len
 	struct btrfs_device *device;
 	u64 min_alloc_bytes;
 	u64 physical;
+	int i;
 
 	if (!btrfs_is_zoned(fs_info))
 		return;
@@ -2039,13 +2040,25 @@ void btrfs_zone_finish_endio(struct btrfs_fs_info *fs_info, u64 logical, u64 len
 	spin_unlock(&block_group->lock);
 
 	map = block_group->physical_map;
-	device = map->stripes[0].dev;
-	physical = map->stripes[0].physical;
+	for (i = 0; i < map->num_stripes; i++) {
+		int ret;
 
-	if (!device->zone_info->max_active_zones)
-		goto out;
+		device = map->stripes[i].dev;
+		physical = map->stripes[i].physical;
 
-	btrfs_dev_clear_active_zone(device, physical);
+		if (device->zone_info->max_active_zones == 0)
+			continue;
+
+		ret = blkdev_zone_mgmt(device->bdev, REQ_OP_ZONE_FINISH,
+				       physical >> SECTOR_SHIFT,
+				       device->zone_info->zone_size >> SECTOR_SHIFT,
+				       GFP_NOFS);
+
+		if (ret)
+			return;
+
+		btrfs_dev_clear_active_zone(device, physical);
+	}
 
 	spin_lock(&fs_info->zone_active_bgs_lock);
 	ASSERT(!list_empty(&block_group->active_bg_list));
