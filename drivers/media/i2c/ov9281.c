@@ -976,7 +976,7 @@ static int ov9281_set_ctrl(struct v4l2_ctrl *ctrl)
 		__v4l2_ctrl_modify_range(ov9281->exposure,
 					 ov9281->exposure->minimum, max,
 					 ov9281->exposure->step,
-					 ov9281->exposure->default_value);
+					 ov9281->cur_mode->vts_def);
 		break;
 	}
 
