@@ -83,7 +83,8 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	{
 		.cfg = {
 			.id	= V4L2_CID_STATELESS_HEVC_START_CODE,
-			.max	= V4L2_STATELESS_HEVC_START_CODE_NONE,
+			.min	= V4L2_STATELESS_HEVC_START_CODE_NONE,
+			.max	= V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
 			.def	= V4L2_STATELESS_HEVC_START_CODE_NONE,
 		},
 		.required	= false,
