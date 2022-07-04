@@ -48,7 +48,7 @@
 			status = "okay";
 
 			imx258: imx258@10 {
-				compatible = "sony,imx258";
+				compatible = "sony,imx258-pdaf";
 				reg = <0x10>;
 				status = "okay";
 
