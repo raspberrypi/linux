@@ -74,6 +74,7 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	{
 		.cfg = {
 			.id	= V4L2_CID_STATELESS_HEVC_DECODE_MODE,
+			.min	= V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
 			.max	= V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
 			.def	= V4L2_STATELESS_HEVC_DECODE_MODE_SLICE_BASED,
 		},
