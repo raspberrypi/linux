@@ -30,6 +30,16 @@ config SAMPLE_RUST_PRINT
 
 	  If unsure, say N.
 
+config SAMPLE_RUST_FS
+	tristate "File system"
+	help
+	  This option builds the Rust file system sample.
+
+	  To compile this as a module, choose M here:
+	  the module will be called rust_fs.
+
+	  If unsure, say N.
+
 config SAMPLE_RUST_HOSTPROGS
 	bool "Host programs"
 	help
