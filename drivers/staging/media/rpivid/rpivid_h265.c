@@ -1710,7 +1710,7 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		default:
 			v4l2_err(&dev->v4l2_dev, "%s: Unexpected state: %d\n",
 				 __func__, de->state);
-		/* FALLTHRU */
+			fallthrough;
 		case RPIVID_DECODE_ERROR_CONTINUE:
 			// Uncleared error - fail now
 			goto fail;
