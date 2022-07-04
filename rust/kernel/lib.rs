@@ -32,6 +32,7 @@ extern crate self as kernel;
 mod allocator;
 mod build_assert;
 pub mod error;
+pub mod fs;
 pub mod init;
 pub mod ioctl;
 #[cfg(CONFIG_KUNIT)]
