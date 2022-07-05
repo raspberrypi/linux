@@ -278,6 +278,8 @@ static enum vchiq_status vc_sm_cma_vchi_callback(enum vchiq_reason reason,
 
 	case VCHIQ_SERVICE_CLOSED:
 		pr_info("%s: service CLOSED!!", __func__);
+		break;
+
 	default:
 		break;
 	}
