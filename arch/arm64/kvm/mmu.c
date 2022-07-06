@@ -1476,9 +1476,9 @@ static bool kvm_vma_mte_allowed(struct vm_area_struct *vma)
 	return vma->vm_flags & VM_MTE_ALLOWED;
 }
 
-static int pkvm_host_map_guest(u64 pfn, u64 gfn)
+static int pkvm_host_map_guest(u64 pfn, u64 gfn, enum kvm_pgtable_prot prot)
 {
-	int ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn);
+	int ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn, prot);
 
 	/*
 	 * Getting -EPERM at this point implies that the pfn has already been
@@ -1568,7 +1568,7 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 
 	write_lock(&kvm->mmu_lock);
 	pfn = page_to_pfn(page);
-	ret = pkvm_host_map_guest(pfn, fault_ipa >> PAGE_SHIFT);
+	ret = pkvm_host_map_guest(pfn, fault_ipa >> PAGE_SHIFT, KVM_PGTABLE_PROT_RWX);
 	if (ret) {
 		if (ret == -EAGAIN)
 			ret = 0;
