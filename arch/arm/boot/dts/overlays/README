@@ -1568,16 +1568,16 @@ Params: addr                    Sets the address for the fan controller. Note
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
 
         i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay)
+                                overlay - BCM2711 only)
 
         minpwm                  PWM setting for the fan when the SoC is below
                                 mintemp (range 0-255. default 0)
@@ -1692,16 +1692,16 @@ Params: abx80x                  Select one of the ABx80x family:
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
 
         i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay)
+                                overlay - BCM2711 only)
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
@@ -1874,16 +1874,16 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
 
         i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay)
+                                overlay - BCM2711 only)
 
         i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay)
+                                overlay - BCM2711 only)
 
 
 Name:   i2c0
