@@ -1009,6 +1009,27 @@ out:
 	cpu_reg(host_ctxt, 1) =  ret;
 }
 
+static void handle___pkvm_host_unmap_guest(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(pkvm_handle_t, handle, host_ctxt, 1);
+	DECLARE_REG(u64, pfn, host_ctxt, 2);
+	DECLARE_REG(u64, gfn, host_ctxt, 3);
+	struct pkvm_hyp_vm *vm;
+	int ret = -EINVAL;
+
+	if (!is_protected_kvm_enabled())
+		goto out;
+
+	vm = pkvm_get_hyp_vm(handle);
+	if (!vm)
+		goto out;
+
+	ret = __pkvm_host_unshare_guest(pfn, gfn, vm);
+	pkvm_put_hyp_vm(vm);
+out:
+	cpu_reg(host_ctxt, 1) =  ret;
+}
+
 static void handle___pkvm_relax_perms(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(u64, pfn, host_ctxt, 1);
@@ -1031,7 +1052,6 @@ out:
 
 static void handle___pkvm_wrprotect(struct kvm_cpu_context *host_ctxt)
 {
-
 	DECLARE_REG(pkvm_handle_t, handle, host_ctxt, 1);
 	DECLARE_REG(u64, pfn, host_ctxt, 2);
 	DECLARE_REG(u64, gfn, host_ctxt, 3);
@@ -1473,6 +1493,7 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_host_share_hyp),
 	HANDLE_FUNC(__pkvm_host_unshare_hyp),
 	HANDLE_FUNC(__pkvm_host_map_guest),
+	HANDLE_FUNC(__pkvm_host_unmap_guest),
 	HANDLE_FUNC(__pkvm_relax_perms),
 	HANDLE_FUNC(__pkvm_wrprotect),
 	HANDLE_FUNC(__pkvm_tlb_flush_vmid),
