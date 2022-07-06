@@ -2353,9 +2353,9 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	int ret = 0;
 
 	if (is_protected_kvm_enabled()) {
-		/* In protected mode, cannot modify memslots once a VM has run. */
+		/* In protected mode, cannot modify memslots once a pVM has run. */
 		if ((change == KVM_MR_DELETE || change == KVM_MR_MOVE) &&
-		    kvm->arch.pkvm.handle) {
+		    kvm->arch.pkvm.handle && kvm->arch.pkvm.enabled) {
 			return -EPERM;
 		}
 
