@@ -13,9 +13,22 @@ module! {
 }
 
 struct RustFs;
+
+#[vtable]
+impl fs::Context<Self> for RustFs {
+    type Data = ();
+
+    fn try_new() -> Result {
+        pr_info!("context created!\n");
+        Ok(())
+    }
+}
+
 impl fs::Type for RustFs {
+    type Context = Self;
     const NAME: &'static CStr = c_str!("rustfs");
     const FLAGS: i32 = fs::flags::USERNS_MOUNT;
+    const MAGIC: u32 = 0x72757374;
 }
 
 struct FsModule {
