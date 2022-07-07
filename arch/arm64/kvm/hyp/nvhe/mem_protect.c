@@ -2148,6 +2148,45 @@ unlock:
 	return ret;
 }
 
+int __pkvm_wrprotect(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn)
+{
+	int ret;
+	u64 host_addr = hyp_pfn_to_phys(pfn);
+	u64 guest_addr = hyp_pfn_to_phys(gfn);
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = guest_addr,
+			},
+		},
+		.completer	= {
+			.id	= PKVM_ID_GUEST,
+			.guest	= {
+				.hyp_vm = vm,
+				.mc = NULL,
+				.phys = host_addr,
+			},
+		},
+	};
+
+	host_lock_component();
+	guest_lock_component(vm);
+
+	ret = check_unshare(&share);
+	if (ret)
+		goto unlock;
+
+	ret = kvm_pgtable_stage2_wrprotect(&vm->pgt, guest_addr, PAGE_SIZE);
+unlock:
+	guest_unlock_component(vm);
+	host_unlock_component();
+
+	return ret;
+}
+
 int __pkvm_host_donate_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu)
 {
 	int ret;
