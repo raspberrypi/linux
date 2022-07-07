@@ -2290,7 +2290,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 			return -EPERM;
 		}
 
-		if (new &&
+		if (new && kvm->arch.pkvm.enabled &&
 		    new->flags & (KVM_MEM_LOG_DIRTY_PAGES | KVM_MEM_READONLY)) {
 			return -EPERM;
 		}
