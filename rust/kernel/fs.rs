@@ -4,11 +4,13 @@
 //!
 //! C headers: [`include/linux/fs.h`](../../../../include/linux/fs.h)
 
-use crate::error::{from_result, to_result, Result};
+use crate::error::{from_result, to_result, Error, Result};
 use crate::types::{AlwaysRefCounted, ForeignOwnable, Opaque, ScopeGuard};
 use crate::{bindings, error::code::*, str::CStr, ThisModule};
 use core::{marker::PhantomPinned, pin::Pin, ptr};
 use macros::vtable;
+
+pub mod param;
 
 /// A file system context.
 ///
@@ -18,18 +20,48 @@ pub trait Context<T: Type + ?Sized> {
     /// Type of the data associated with the context.
     type Data: ForeignOwnable + Send + Sync + 'static;
 
+    /// The typed file system parameters.
+    ///
+    /// Users are encouraged to define it using the [`crate::define_fs_params`] macro.
+    const PARAMS: param::SpecTable<'static, Self::Data> = param::SpecTable::empty();
+
     /// Creates a new context.
     fn try_new() -> Result<Self::Data>;
+
+    /// Parses a parameter that wasn't specified in [`Self::PARAMS`].
+    fn parse_unknown_param(
+        _data: &mut Self::Data,
+        _name: &CStr,
+        _value: param::Value<'_>,
+    ) -> Result {
+        Err(ENOPARAM)
+    }
+
+    /// Parses the whole parameter block, potentially skipping regular handling for parts of it.
+    ///
+    /// The return value is the portion of the input buffer for which the regular handling
+    /// (involving [`Self::PARAMS`] and [`Self::parse_unknown_param`]) will still be carried out.
+    /// If it's `None`, the regular handling is not performed at all.
+    fn parse_monolithic<'a>(
+        _data: &mut Self::Data,
+        _buf: Option<&'a mut [u8]>,
+    ) -> Result<Option<&'a mut [u8]>> {
+        Ok(None)
+    }
 }
 
 struct Tables<T: Type + ?Sized>(T);
 impl<T: Type + ?Sized> Tables<T> {
     const CONTEXT: bindings::fs_context_operations = bindings::fs_context_operations {
         free: Some(Self::free_callback),
-        parse_param: None,
+        parse_param: Some(Self::parse_param_callback),
         get_tree: Some(Self::get_tree_callback),
         reconfigure: Some(Self::reconfigure_callback),
-        parse_monolithic: None,
+        parse_monolithic: if <T::Context as Context<T>>::HAS_PARSE_MONOLITHIC {
+            Some(Self::parse_monolithic_callback)
+        } else {
+            None
+        },
         dup: None,
     };
 
@@ -41,6 +73,58 @@ impl<T: Type + ?Sized> Tables<T> {
             // `init_fs_context_callback`, so it's ok to call `from_foreign` here.
             unsafe { <T::Context as Context<T>>::Data::from_foreign(ptr) };
         }
+    }
+
+    unsafe extern "C" fn parse_param_callback(
+        fc: *mut bindings::fs_context,
+        param: *mut bindings::fs_parameter,
+    ) -> core::ffi::c_int {
+        from_result(|| {
+            // SAFETY: The callback contract guarantees that `fc` is valid.
+            let ptr = unsafe { (*fc).fs_private };
+
+            // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
+            // `init_fs_context_callback` to the result of an `into_pointer` call. Since the
+            // context is valid, `from_pointer` wasn't called yet, so `ptr` is valid. Additionally,
+            // the callback contract guarantees that callbacks are serialised, so it is ok to
+            // mutably reference it.
+            let mut data =
+                unsafe { <<T::Context as Context<T>>::Data as ForeignOwnable>::borrow_mut(ptr) };
+            let mut result = bindings::fs_parse_result::default();
+            // SAFETY: All parameters are valid at least for the duration of the call.
+            let opt =
+                unsafe { bindings::fs_parse(fc, T::Context::PARAMS.first, param, &mut result) };
+
+            // SAFETY: The callback contract guarantees that `param` is valid for the duration of
+            // the callback.
+            let param = unsafe { &*param };
+            if opt >= 0 {
+                let opt = opt as usize;
+                if opt >= T::Context::PARAMS.handlers.len() {
+                    return Err(EINVAL);
+                }
+                T::Context::PARAMS.handlers[opt].handle_param(&mut data, param, &result)?;
+                return Ok(0);
+            }
+
+            if opt != ENOPARAM.to_errno() {
+                return Err(Error::from_errno(opt));
+            }
+
+            if !T::Context::HAS_PARSE_UNKNOWN_PARAM {
+                return Err(ENOPARAM);
+            }
+
+            let val = param::Value::from_fs_parameter(param);
+            // SAFETY: The callback contract guarantees the parameter key to be valid and last at
+            // least the duration of the callback.
+            T::Context::parse_unknown_param(
+                &mut data,
+                unsafe { CStr::from_char_ptr(param.key) },
+                val,
+            )?;
+            Ok(0)
+        })
     }
 
     unsafe extern "C" fn fill_super_callback(
@@ -63,6 +147,8 @@ impl<T: Type + ?Sized> Tables<T> {
             sb.s_time_gran = 1;
 
             // Create and initialise the root inode.
+
+            // SAFETY: `sb` was just created initialised, so it is safe pass it to `new_inode`.
             let inode = unsafe { bindings::new_inode(sb) };
             if inode.is_null() {
                 return Err(ENOMEM);
@@ -114,6 +200,41 @@ impl<T: Type + ?Sized> Tables<T> {
 
     unsafe extern "C" fn reconfigure_callback(_fc: *mut bindings::fs_context) -> core::ffi::c_int {
         EINVAL.to_errno()
+    }
+
+    unsafe extern "C" fn parse_monolithic_callback(
+        fc: *mut bindings::fs_context,
+        buf: *mut core::ffi::c_void,
+    ) -> core::ffi::c_int {
+        from_result(|| {
+            // SAFETY: The callback contract guarantees that `fc` is valid.
+            let ptr = unsafe { (*fc).fs_private };
+
+            // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
+            // `init_fs_context_callback` to the result of an `into_pointer` call. Since the
+            // context is valid, `from_pointer` wasn't called yet, so `ptr` is valid. Additionally,
+            // the callback contract guarantees that callbacks are serialised, so it is ok to
+            // mutably reference it.
+            let mut data =
+                unsafe { <<T::Context as Context<T>>::Data as ForeignOwnable>::borrow_mut(ptr) };
+            let page = if buf.is_null() {
+                None
+            } else {
+                // SAFETY: This callback is called to handle the `mount` syscall, which takes a
+                // page-sized buffer as data.
+                Some(unsafe { &mut *ptr::slice_from_raw_parts_mut(buf.cast(), crate::PAGE_SIZE) })
+            };
+            let regular = T::Context::parse_monolithic(&mut data, page)?;
+            if let Some(buf) = regular {
+                // SAFETY: Both `fc` and `buf` are guaranteed to be valid; the former because the
+                // callback is still ongoing and the latter because its lifefime is tied to that of
+                // `page`, which is also valid for the duration of the callback.
+                to_result(unsafe {
+                    bindings::generic_parse_monolithic(fc, buf.as_mut_ptr().cast())
+                })?;
+            }
+            Ok(0)
+        })
     }
 
     const SUPER_BLOCK: bindings::super_operations = bindings::super_operations {
@@ -372,5 +493,23 @@ unsafe impl AlwaysRefCounted for DEntry {
     unsafe fn dec_ref(obj: ptr::NonNull<Self>) {
         // SAFETY: The safety requirements guarantee that the refcount is nonzero.
         unsafe { bindings::dput(obj.cast().as_ptr()) }
+    }
+}
+
+/// Wraps the kernel's `struct filename`.
+#[repr(transparent)]
+pub struct Filename(pub(crate) Opaque<bindings::filename>);
+
+impl Filename {
+    /// Creates a reference to a [`Filename`] from a valid pointer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `ptr` is valid and remains valid for the lifetime of the
+    /// returned [`Filename`] instance.
+    pub(crate) unsafe fn from_ptr<'a>(ptr: *const bindings::filename) -> &'a Filename {
+        // SAFETY: The safety requirements guarantee the validity of the dereference, while the
+        // `Filename` type being transparent makes the cast ok.
+        unsafe { &*ptr.cast() }
     }
 }
