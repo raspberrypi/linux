@@ -56,6 +56,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	fbtft.dtbo \
 	fe-pi-audio.dtbo \
 	fsm-demo.dtbo \
+	gc9a01.dtbo \
 	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
