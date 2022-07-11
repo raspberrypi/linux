@@ -5,10 +5,16 @@
 
 #if IS_ENABLED(CONFIG_CLK_RASPBERRYPI)
 unsigned long rpi_firmware_clk_get_max_rate(struct clk *clk);
+unsigned long rpi_firmware_clk_get_min_rate(struct clk *clk);
 #else
 static inline unsigned long rpi_firmware_clk_get_max_rate(struct clk *clk)
 {
 	return ULONG_MAX;
+}
+
+static inline unsigned long rpi_firmware_clk_get_min_rate(struct clk *clk)
+{
+	return 0;
 }
 #endif
 
