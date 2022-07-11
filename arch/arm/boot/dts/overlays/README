@@ -1047,6 +1047,23 @@ Load:   dtoverlay=fsm-demo,<param>=<val>
 Params: fsm_debug               Enable debug logging (default off)
 
 
+Name:   gc9a01
+Info:   Enables GalaxyCore's GC9A01 single chip driver based displays on
+        spi0 as fb1.
+Load:   dtoverlay=gc9a01,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        width                   Width of the display
+
+        height                  Height of the display
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
 Name:   ghost-amp
 Info:   An overlay for the Ghost amplifier.
 Load:   dtoverlay=ghost-amp,<param>=<val>
