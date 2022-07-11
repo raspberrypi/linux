@@ -8,14 +8,14 @@
 /{
 	compatible = "brcm,bcm2835";
 
-	fragment@2 {
+	fragment@0 {
 		target = <&i2c0if>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	clk_frag: fragment@3 {
+	clk_frag: fragment@1 {
 		target = <&cam1_clk>;
 		cam_clk: __overlay__ {
 			clock-frequency = <24000000>;
@@ -23,10 +23,58 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@2 {
 		target = <&i2c0mux>;
 		__overlay__ {
 			status = "okay";
+		};
+	};
+
+	fragment@11 {
+		target = <&cam_endpoint>;
+		__overlay__ {
+			data-lanes = <1 2>;
+			link-frequencies = /bits/ 64 <633600000
+						      320000000>;
+		};
+	};
+
+	fragment@12 {
+		target = <&cam_endpoint>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+			link-frequencies =
+				/bits/ 64 <633600000 320000000>;
+		};
+	};
+
+	fragment@13 {
+		target = <&csi_ep>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@14 {
+		target = <&csi_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&cam_endpoint>;
+					clock-lanes = <0>;
+					clock-noncontinuous;
+				};
+			};
 		};
 	};
 
@@ -47,32 +95,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			imx258: imx258@10 {
-				compatible = "sony,imx258-pdaf";
-				reg = <0x10>;
-				status = "okay";
-
-				clocks = <&cam1_clk>;
-				clock-names = "xclk";
-
-				vana-supply = <&cam1_reg>;	/* 2.8v */
-				vdig-supply = <&cam_dummy_reg>;	/* 1.05v */
-				vif-supply = <&cam_dummy_reg>;	/* 1.8v */
-
-				rotation = <180>;
-				orientation = <2>;
-
-				port {
-					imx258_0: endpoint {
-						remote-endpoint = <&csi_ep>;
-						clock-lanes = <0>;
-						clock-noncontinuous;
-						link-frequencies =
-							/bits/ 64 <633600000
-								320000000>;
-					};
-				};
-			};
+			#include "imx258.dtsi"
 
 			vcm: ad5398@c {
 				compatible = "adi,ad5398";
@@ -83,66 +106,26 @@
 		};
 	};
 
-	csi_frag: fragment@101 {
-		target = <&csi1>;
-		csi: __overlay__ {
-			status = "okay";
-			brcm,media-controller;
-
-			port {
-				csi_ep: endpoint {
-					remote-endpoint = <&imx258_0>;
-					clock-lanes = <0>;
-					clock-noncontinuous;
-				};
-			};
-		};
-	};
-
-	fragment@102 {
-		target = <&imx258_0>;
-		__overlay__ {
-			data-lanes = <1 2>;
-			link-frequencies = /bits/ 64 <633600000
-						      320000000>;
-		};
-	};
-
-	fragment@103 {
-		target = <&imx258_0>;
-		__dormant__ {
-			data-lanes = <1 2 3 4>;
-			link-frequencies =
-				/bits/ 64 <633600000 320000000>;
-		};
-	};
-
-	fragment@104 {
-		target = <&csi_ep>;
-		__overlay__ {
-			data-lanes = <1 2>;
-		};
-	};
-
-	fragment@105 {
-		target = <&csi_ep>;
-		__dormant__ {
-			data-lanes = <1 2 3 4>;
-		};
-	};
-
 	__overrides__ {
-		rotation = <&imx258>,"rotation:0";
-		orientation = <&imx258>,"orientation:0";
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
-		       <&imx258>, "clocks:0=",<&cam0_clk>,
-		       <&imx258>, "vana-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "vana-supply:0=",<&cam0_reg>;
 		vcm = <&vcm>, "status=okay",
-		      <&imx258>,"lens-focus:0=", <&vcm>;
-		4lane = <0>, "-102+103-104+105";
+		      <&cam_node>,"lens-focus:0=", <&vcm>;
+		4lane = <0>, "-11+12-13+14";
 	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
 };
