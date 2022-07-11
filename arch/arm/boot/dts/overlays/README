@@ -1049,7 +1049,10 @@ Params: fsm_debug               Enable debug logging (default off)
 
 Name:   gc9a01
 Info:   Enables GalaxyCore's GC9A01 single chip driver based displays on
-        spi0 as fb1.
+        SPI0 as fb1, using GPIOs DC=25, RST=27 and BL=18 (physical
+        GPIO header pins 22, 13 and 12 respectively) in addition to the
+        SPI0 pins DIN=10, CLK=11 and CS=8 (physical GPIO header pins 19,
+        23 and 24 respectively).
 Load:   dtoverlay=gc9a01,<param>=<val>
 Params: speed                   Display SPI bus speed
 
