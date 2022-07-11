@@ -975,6 +975,9 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 	struct vc4_hvs *hvs = vc4->hvs;
 	int ret;
 
+	if (vc4->firmware_kms)
+		return 0;
+
 	if (!vc4->hvs)
 		return -ENODEV;
 
