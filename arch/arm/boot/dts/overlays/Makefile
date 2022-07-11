@@ -34,6 +34,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
+	camera-mux-2port.dtbo \
+	camera-mux-4port.dtbo \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
 	cma.dtbo \

@@ -1,0 +1,26 @@
+// Fragment that configures an ov2311
+
+cam_node: ov2311@60 {
+	compatible = "ovti,ov2311";
+	reg = <0x60>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xvclk";
+
+	avdd-supply = <&cam1_reg>;
+	dovdd-supply = <&cam_dummy_reg>;
+	dvdd-supply = <&cam_dummy_reg>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <400000000>;
+		};
+	};
+};
