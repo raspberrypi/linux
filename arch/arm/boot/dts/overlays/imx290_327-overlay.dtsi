@@ -16,28 +16,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			imx290: imx290@1a {
-				reg = <0x1a>;
-				status = "okay";
-
-				clocks = <&cam1_clk>;
-				clock-names = "xclk";
-				clock-frequency = <37125000>;
-
-				rotation = <0>;
-				orientation = <2>;
-
-				vdda-supply = <&cam1_reg>;	/* 2.8v */
-				vdddo-supply = <&cam_dummy_reg>;	/* 1.8v */
-				vddd-supply = <&cam_dummy_reg>;	/* 1.5v */
-
-				port {
-					imx290_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
-						clock-lanes = <0>;
-					};
-				};
-			};
+			#include "imx290_327.dtsi"
 		};
 	};
 
@@ -48,8 +27,8 @@
 			brcm,media-controller;
 
 			port {
-				csi1_ep: endpoint {
-					remote-endpoint = <&imx290_0>;
+				csi_ep: endpoint {
+					remote-endpoint = <&cam_endpoint>;
 				};
 			};
 		};
@@ -78,7 +57,7 @@
 	};
 
 	fragment@6 {
-		target = <&imx290_0>;
+		target = <&cam_endpoint>;
 		__overlay__ {
 			data-lanes = <1 2>;
 			link-frequencies =
@@ -87,7 +66,7 @@
 	};
 
 	fragment@7 {
-		target = <&imx290_0>;
+		target = <&cam_endpoint>;
 		__dormant__ {
 			data-lanes = <1 2 3 4>;
 			link-frequencies =
@@ -96,14 +75,14 @@
 	};
 
 	fragment@8 {
-		target = <&csi1_ep>;
+		target = <&csi_ep>;
 		__overlay__ {
 			data-lanes = <1 2>;
 		};
 	};
 
 	fragment@9 {
-		target = <&csi1_ep>;
+		target = <&csi_ep>;
 		__dormant__ {
 			data-lanes = <1 2 3 4>;
 		};
@@ -112,14 +91,22 @@
 	__overrides__ {
 		4lane = <0>, "-6+7-8+9";
 		clock-frequency = <&cam_clk>,"clock-frequency:0",
-				  <&imx290>,"clock-frequency:0";
-		rotation = <&imx290>,"rotation:0";
-		orientation = <&imx290>,"orientation:0";
+				  <&cam_node>,"clock-frequency:0";
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
-		       <&imx290>, "clocks:0=",<&cam0_clk>,
-		       <&imx290>, "vdda-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "vdda-supply:0=",<&cam0_reg>;
 	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
 };

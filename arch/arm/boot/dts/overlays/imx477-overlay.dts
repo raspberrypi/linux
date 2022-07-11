@@ -5,6 +5,6 @@
 
 #include "imx477_378-overlay.dtsi"
 
-&imx477 {
+&cam_node {
 	compatible = "sony,imx477";
 };

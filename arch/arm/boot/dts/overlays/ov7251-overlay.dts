@@ -15,33 +15,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			ov7251: ov7251@60 {
-				compatible = "ovti,ov7251";
-				reg = <0x60>;
-				status = "okay";
-
-				clocks = <&cam1_clk>;
-				clock-names = "xclk";
-				clock-frequency = <24000000>;
-
-				vdddo-supply = <&cam_dummy_reg>;
-				vdda-supply = <&cam1_reg>;
-				vddd-supply = <&cam_dummy_reg>;
-
-				rotation = <0>;
-				orientation = <2>;
-
-				port {
-					ov7251_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
-						clock-lanes = <0>;
-						data-lanes = <1>;
-						clock-noncontinuous;
-						link-frequencies =
-							/bits/ 64 <240000000>;
-					};
-				};
-			};
+			#include "ov7251.dtsi"
 		};
 	};
 
@@ -52,8 +26,8 @@
 			brcm,media-controller;
 
 			port {
-				csi1_ep: endpoint {
-					remote-endpoint = <&ov7251_0>;
+				csi_ep: endpoint {
+					remote-endpoint = <&cam_endpoint>;
 					data-lanes = <1>;
 				};
 			};
@@ -83,13 +57,21 @@
 	};
 
 	__overrides__ {
-		rotation = <&ov7251>,"rotation:0";
-		orientation = <&ov7251>,"orientation:0";
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
-		       <&ov7251>, "clocks:0=",<&cam0_clk>,
-		       <&ov7251>, "vdda-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "vdda-supply:0=",<&cam0_reg>;
 	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
 };
