@@ -990,7 +990,7 @@ static bool icmp_echo(struct sk_buff *skb)
 
 	net = dev_net(skb_dst(skb)->dev);
 	/* should there be an ICMP stat for ignored echos? */
-	if (net->ipv4.sysctl_icmp_echo_ignore_all)
+	if (READ_ONCE(net->ipv4.sysctl_icmp_echo_ignore_all))
 		return true;
 
 	icmp_param.data.icmph	   = *icmp_hdr(skb);
