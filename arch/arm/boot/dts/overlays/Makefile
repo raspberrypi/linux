@@ -39,6 +39,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	cma.dtbo \
 	cutiepi-panel.dtbo \
 	dht11.dtbo \
+	dionaudio-kiwi.dtbo \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
 	disable-bt.dtbo \
