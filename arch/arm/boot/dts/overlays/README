@@ -729,6 +729,12 @@ Params: gpiopin                 GPIO connected to the sensor's DATA output.
                                 (default 4)
 
 
+Name:   dionaudio-kiwi
+Info:   Configures the Dion Audio KIWI STREAMER
+Load:   dtoverlay=dionaudio-kiwi
+Params: <None>
+
+
 Name:   dionaudio-loco
 Info:   Configures the Dion Audio LOCO DAC-AMP
 Load:   dtoverlay=dionaudio-loco
