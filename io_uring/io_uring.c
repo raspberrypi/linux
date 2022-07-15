@@ -1576,7 +1576,7 @@ static __cold struct io_ring_ctx *io_ring_ctx_alloc(struct io_uring_params *p)
 		INIT_LIST_HEAD(&ctx->io_buffers[i]);
 
 	if (percpu_ref_init(&ctx->refs, io_ring_ctx_ref_free,
-			    PERCPU_REF_ALLOW_REINIT, GFP_KERNEL))
+			    0, GFP_KERNEL))
 		goto err;
 
 	ctx->flags = p->flags;
