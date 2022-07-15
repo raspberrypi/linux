@@ -41,9 +41,21 @@ impl fs::Context<Self> for RustFs {
 
 impl fs::Type for RustFs {
     type Context = Self;
+    const SUPER_TYPE: fs::Super = fs::Super::Independent;
     const NAME: &'static CStr = c_str!("rustfs");
     const FLAGS: i32 = fs::flags::USERNS_MOUNT;
-    const MAGIC: u32 = 0x72757374;
+
+    fn fill_super(_data: (), sb: fs::NewSuperBlock<'_, Self>) -> Result<&fs::SuperBlock<Self>> {
+        let sb = sb.init(
+            (),
+            &fs::SuperParams {
+                magic: 0x72757374,
+                ..fs::SuperParams::DEFAULT
+            },
+        )?;
+        let sb = sb.init_root()?;
+        Ok(sb)
+    }
 }
 
 struct FsModule {

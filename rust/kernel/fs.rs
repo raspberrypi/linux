@@ -7,10 +7,30 @@
 use crate::error::{from_result, to_result, Error, Result};
 use crate::types::{AlwaysRefCounted, ForeignOwnable, Opaque, ScopeGuard};
 use crate::{bindings, error::code::*, str::CStr, ThisModule};
-use core::{marker::PhantomPinned, pin::Pin, ptr};
+use core::{marker::PhantomData, marker::PhantomPinned, pin::Pin, ptr};
 use macros::vtable;
 
 pub mod param;
+
+/// Type of superblock keying.
+///
+/// It determines how C's `fs_context_operations::get_tree` is implemented.
+pub enum Super {
+    /// Only one such superblock may exist.
+    Single,
+
+    /// As [`Super::Single`], but reconfigure if it exists.
+    SingleReconf,
+
+    /// Superblocks with different data pointers may exist.
+    Keyed,
+
+    /// Multiple independent superblocks may exist.
+    Independent,
+
+    /// Uses a block device.
+    BlockDev,
+}
 
 /// A file system context.
 ///
@@ -48,6 +68,16 @@ pub trait Context<T: Type + ?Sized> {
     ) -> Result<Option<&'a mut [u8]>> {
         Ok(None)
     }
+
+    /// Returns the superblock data to be used by this file system context.
+    ///
+    /// This is only needed when [`Type::SUPER_TYPE`] is [`Super::Keyed`], otherwise it is never
+    /// called. In the former case, when the fs is being mounted, an existing superblock is reused
+    /// if one can be found with the same data as the returned value; otherwise a new superblock is
+    /// created.
+    fn tree_key(_data: &mut Self::Data) -> Result<T::Data> {
+        Err(ENOTSUPP)
+    }
 }
 
 struct Tables<T: Type + ?Sized>(T);
@@ -67,11 +97,21 @@ impl<T: Type + ?Sized> Tables<T> {
 
     unsafe extern "C" fn free_callback(fc: *mut bindings::fs_context) {
         // SAFETY: The callback contract guarantees that `fc` is valid.
-        let ptr = unsafe { (*fc).fs_private };
+        let fc = unsafe { &*fc };
+
+        let ptr = fc.fs_private;
         if !ptr.is_null() {
             // SAFETY: `fs_private` was initialised with the result of a `to_pointer` call in
             // `init_fs_context_callback`, so it's ok to call `from_foreign` here.
             unsafe { <T::Context as Context<T>>::Data::from_foreign(ptr) };
+        }
+
+        let ptr = fc.s_fs_info;
+        if !ptr.is_null() {
+            // SAFETY: `s_fs_info` may be initialised with the result of a `to_pointer` call in
+            // `get_tree_callback` when keyed superblocks are used (`get_tree_keyed` sets it), so
+            // it's ok to call `from_foreign` here.
+            unsafe { T::Data::from_foreign(ptr) };
         }
     }
 
@@ -84,8 +124,8 @@ impl<T: Type + ?Sized> Tables<T> {
             let ptr = unsafe { (*fc).fs_private };
 
             // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
-            // `init_fs_context_callback` to the result of an `into_pointer` call. Since the
-            // context is valid, `from_pointer` wasn't called yet, so `ptr` is valid. Additionally,
+            // `init_fs_context_callback` to the result of an `into_foreign` call. Since the
+            // context is valid, `from_foreign` wasn't called yet, so `ptr` is valid. Additionally,
             // the callback contract guarantees that callbacks are serialised, so it is ok to
             // mutably reference it.
             let mut data =
@@ -129,73 +169,91 @@ impl<T: Type + ?Sized> Tables<T> {
 
     unsafe extern "C" fn fill_super_callback(
         sb_ptr: *mut bindings::super_block,
-        _fc: *mut bindings::fs_context,
+        fc: *mut bindings::fs_context,
     ) -> core::ffi::c_int {
         from_result(|| {
-            // The following is temporary code to create the root inode and dentry. It will be
-            // replaced with calls to Rust code.
+            // SAFETY: The callback contract guarantees that `fc` is valid. It also guarantees that
+            // the callbacks are serialised for a given `fc`, so it is safe to mutably dereference
+            // it.
+            let fc = unsafe { &mut *fc };
+            let ptr = core::mem::replace(&mut fc.fs_private, ptr::null_mut());
 
-            // SAFETY: The callback contract guarantees that `sb_ptr` is the only pointer to a
-            // newly-allocated superblock, so it is safe to mutably reference it.
-            let sb = unsafe { &mut *sb_ptr };
+            // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
+            // `init_fs_context_callback` to the result of an `into_foreign` call. The context is
+            // being used to initialise a superblock, so we took over `ptr` (`fs_private` is set to
+            // null now) and call `from_foreign` below.
+            let data =
+                unsafe { <<T::Context as Context<T>>::Data as ForeignOwnable>::from_foreign(ptr) };
 
-            sb.s_maxbytes = bindings::MAX_LFS_FILESIZE;
-            sb.s_blocksize = crate::PAGE_SIZE as _;
-            sb.s_blocksize_bits = bindings::PAGE_SHIFT as _;
-            sb.s_magic = T::MAGIC as _;
-            sb.s_op = &Tables::<T>::SUPER_BLOCK;
-            sb.s_time_gran = 1;
-
-            // Create and initialise the root inode.
-
-            // SAFETY: `sb` was just created initialised, so it is safe pass it to `new_inode`.
-            let inode = unsafe { bindings::new_inode(sb) };
-            if inode.is_null() {
-                return Err(ENOMEM);
-            }
-
-            {
-                // SAFETY: This is a newly-created inode. No other references to it exist, so it is
-                // safe to mutably dereference it.
-                let inode = unsafe { &mut *inode };
-
-                // SAFETY: `current_time` requires that `inode.sb` be valid, which is the case here
-                // since we allocated the inode through the superblock.
-                let time = unsafe { bindings::current_time(inode) };
-                inode.i_ino = 1;
-                inode.i_mode = (bindings::S_IFDIR | 0o755) as _;
-                inode.i_mtime = time;
-                inode.i_atime = time;
-                inode.i_ctime = time;
-
-                // SAFETY: `simple_dir_operations` never changes, it's safe to reference it.
-                inode.__bindgen_anon_3.i_fop = unsafe { &bindings::simple_dir_operations };
-
-                // SAFETY: `simple_dir_inode_operations` never changes, it's safe to reference it.
-                inode.i_op = unsafe { &bindings::simple_dir_inode_operations };
-
-                // SAFETY: `inode` is valid for write.
-                unsafe { bindings::set_nlink(inode, 2) };
-            }
-
-            // SAFETY: `d_make_root` requires that `inode` be valid and referenced, which is the
-            // case for this call.
-            //
-            // It takes over the inode, even on failure, so we don't need to clean it up.
-            let dentry = unsafe { bindings::d_make_root(inode) };
-            if dentry.is_null() {
-                return Err(ENOMEM);
-            }
-
-            sb.s_root = dentry;
+            // SAFETY: The callback contract guarantees that `sb_ptr` is a unique pointer to a
+            // newly-created superblock.
+            let newsb = unsafe { NewSuperBlock::new(sb_ptr) };
+            T::fill_super(data, newsb)?;
             Ok(0)
         })
     }
 
     unsafe extern "C" fn get_tree_callback(fc: *mut bindings::fs_context) -> core::ffi::c_int {
-        // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has the
-        // right type and is a valid callback.
-        unsafe { bindings::get_tree_nodev(fc, Some(Self::fill_super_callback)) }
+        // N.B. When new types are added below, we may need to update `kill_sb_callback` to ensure
+        // that we're cleaning up properly.
+        match T::SUPER_TYPE {
+            Super::Single => unsafe {
+                // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
+                // the right type and is a valid callback.
+                bindings::get_tree_single(fc, Some(Self::fill_super_callback))
+            },
+            Super::SingleReconf => unsafe {
+                // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
+                // the right type and is a valid callback.
+                bindings::get_tree_single_reconf(fc, Some(Self::fill_super_callback))
+            },
+            Super::Independent => unsafe {
+                // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
+                // the right type and is a valid callback.
+                bindings::get_tree_nodev(fc, Some(Self::fill_super_callback))
+            },
+            Super::BlockDev => unsafe {
+                // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
+                // the right type and is a valid callback.
+                bindings::get_tree_bdev(fc, Some(Self::fill_super_callback))
+            },
+            Super::Keyed => {
+                from_result(|| {
+                    // SAFETY: `fc` is valid per the callback contract.
+                    let ctx = unsafe { &*fc };
+                    let ptr = ctx.fs_private;
+
+                    // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
+                    // `init_fs_context_callback` to the result of an `into_foreign` call. Since
+                    // the context is valid, `from_foreign` wasn't called yet, so `ptr` is valid.
+                    // Additionally, the callback contract guarantees that callbacks are
+                    // serialised, so it is ok to mutably reference it.
+                    let mut data = unsafe {
+                        <<T::Context as Context<T>>::Data as ForeignOwnable>::borrow_mut(ptr)
+                    };
+                    let fs_data = T::Context::tree_key(&mut data)?;
+                    let fs_data_ptr = fs_data.into_foreign();
+
+                    // `get_tree_keyed` reassigns `ctx.s_fs_info`, which should be ok because
+                    // nowhere else is it assigned a non-null value. However, we add the assert
+                    // below to ensure that there are no unexpected paths on the C side that may do
+                    // this.
+                    assert_eq!(ctx.s_fs_info, core::ptr::null_mut());
+
+                    // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also
+                    // has the right type and is a valid callback. Lastly, we just called
+                    // `into_foreign` above, so `fs_data_ptr` is also valid.
+                    to_result(unsafe {
+                        bindings::get_tree_keyed(
+                            fc,
+                            Some(Self::fill_super_callback),
+                            fs_data_ptr as _,
+                        )
+                    })?;
+                    Ok(0)
+                })
+            }
+        }
     }
 
     unsafe extern "C" fn reconfigure_callback(_fc: *mut bindings::fs_context) -> core::ffi::c_int {
@@ -211,8 +269,8 @@ impl<T: Type + ?Sized> Tables<T> {
             let ptr = unsafe { (*fc).fs_private };
 
             // SAFETY: The value of `ptr` (coming from `fs_private` was initialised in
-            // `init_fs_context_callback` to the result of an `into_pointer` call. Since the
-            // context is valid, `from_pointer` wasn't called yet, so `ptr` is valid. Additionally,
+            // `init_fs_context_callback` to the result of an `into_foreign` call. Since the
+            // context is valid, `from_foreign` wasn't called yet, so `ptr` is valid. Additionally,
             // the callback contract guarantees that callbacks are serialised, so it is ok to
             // mutably reference it.
             let mut data =
@@ -275,18 +333,25 @@ pub trait Type {
     /// The context used to build fs configuration before it is mounted or reconfigured.
     type Context: Context<Self> + ?Sized;
 
+    /// Data associated with each file system instance.
+    type Data: ForeignOwnable + Send + Sync = ();
+
+    /// Determines how superblocks for this file system type are keyed.
+    const SUPER_TYPE: Super;
+
     /// The name of the file system type.
     const NAME: &'static CStr;
-
-    /// The magic number associated with the file system.
-    ///
-    /// This is normally one of the values in `include/uapi/linux/magic.h`.
-    const MAGIC: u32;
 
     /// The flags of this file system type.
     ///
     /// It is a combination of the flags in the [`flags`] module.
     const FLAGS: i32;
+
+    /// Initialises a super block for this file system type.
+    fn fill_super(
+        data: <Self::Context as Context<Self>>::Data,
+        sb: NewSuperBlock<'_, Self>,
+    ) -> Result<&SuperBlock<Self>>;
 }
 
 /// File system flags.
@@ -431,14 +496,33 @@ impl Registration {
     }
 
     unsafe extern "C" fn kill_sb_callback<T: Type + ?Sized>(sb_ptr: *mut bindings::super_block) {
-        // SAFETY: We always call `get_tree_nodev` from `get_tree_callback`, so we never have a
-        // device, so it is ok to call the function below. Additionally, the callback contract
-        // guarantees that `sb_ptr` is valid.
-        unsafe { bindings::kill_anon_super(sb_ptr) }
+        if let Super::BlockDev = T::SUPER_TYPE {
+            // SAFETY: When the superblock type is `BlockDev`, we have a block device so it's safe
+            // to call `kill_block_super`. Additionally, the callback contract guarantees that
+            // `sb_ptr` is valid.
+            unsafe { bindings::kill_block_super(sb_ptr) }
+        } else {
+            // SAFETY: We always call a `get_tree_nodev` variant from `get_tree_callback` without a
+            // device when `T::SUPER_TYPE` is not `BlockDev`, so we never have a device in such
+            // cases, therefore it is ok to call the function below. Additionally, the callback
+            // contract guarantees that `sb_ptr` is valid.
+            unsafe { bindings::kill_anon_super(sb_ptr) }
+        }
 
-        // SAFETY: The callback contract guarantees that `sb_ptr` is valid, and the `kill_sb`
-        // callback being called implies that the `s_type` is also valid.
-        unsafe { Self::unregister_keys((*sb_ptr).s_type) };
+        // SAFETY: The callback contract guarantees that `sb_ptr` is valid.
+        let sb = unsafe { &*sb_ptr };
+
+        // SAFETY: The `kill_sb` callback being called implies that the `s_type` field is valid.
+        unsafe { Self::unregister_keys(sb.s_type) };
+
+        let ptr = sb.s_fs_info;
+        if !ptr.is_null() {
+            // SAFETY: The only place where `s_fs_info` is assigned is `NewSuperBlock::init`, where
+            // it's initialised with the result of a `to_pointer` call. We checked above that ptr
+            // is non-null because it would be null if we never reached the point where we init the
+            // field.
+            unsafe { T::Data::from_foreign(ptr) };
+        }
     }
 }
 
@@ -451,6 +535,169 @@ impl Drop for Registration {
         }
     }
 }
+
+/// State of [`NewSuperBlock`] that indicates that [`NewSuperBlock::init`] needs to be called
+/// eventually.
+pub struct NeedsInit;
+
+/// State of [`NewSuperBlock`] that indicates that [`NewSuperBlock::init_root`] needs to be called
+/// eventually.
+pub struct NeedsRoot;
+
+/// Required superblock parameters.
+///
+/// This is used in [`NewSuperBlock::init`].
+pub struct SuperParams {
+    /// The magic number of the superblock.
+    pub magic: u32,
+
+    /// The size of a block in powers of 2 (i.e., for a value of `n`, the size is `2^n`.
+    pub blocksize_bits: u8,
+
+    /// Maximum size of a file.
+    pub maxbytes: i64,
+
+    /// Granularity of c/m/atime in ns (cannot be worse than a second).
+    pub time_gran: u32,
+}
+
+impl SuperParams {
+    /// Default value for instances of [`SuperParams`].
+    pub const DEFAULT: Self = Self {
+        magic: 0,
+        blocksize_bits: crate::PAGE_SIZE as _,
+        maxbytes: bindings::MAX_LFS_FILESIZE,
+        time_gran: 1,
+    };
+}
+
+/// A superblock that is still being initialised.
+///
+/// It uses type states to ensure that callers use the right sequence of calls.
+///
+/// # Invariants
+///
+/// The superblock is a newly-created one and this is the only active pointer to it.
+pub struct NewSuperBlock<'a, T: Type + ?Sized, S = NeedsInit> {
+    sb: *mut bindings::super_block,
+    _p: PhantomData<(&'a T, S)>,
+}
+
+impl<'a, T: Type + ?Sized> NewSuperBlock<'a, T, NeedsInit> {
+    /// Creates a new instance of [`NewSuperBlock`].
+    ///
+    /// # Safety
+    ///
+    /// `sb` must point to a newly-created superblock and it must be the only active pointer to it.
+    unsafe fn new(sb: *mut bindings::super_block) -> Self {
+        // INVARIANT: The invariants are satisfied by the safety requirements of this function.
+        Self {
+            sb,
+            _p: PhantomData,
+        }
+    }
+
+    /// Initialises the superblock so that it transitions to the [`NeedsRoot`] type state.
+    pub fn init(
+        self,
+        data: T::Data,
+        params: &SuperParams,
+    ) -> Result<NewSuperBlock<'a, T, NeedsRoot>> {
+        // SAFETY: The type invariant guarantees that `self.sb` is the only pointer to a
+        // newly-allocated superblock, so it is safe to mutably reference it.
+        let sb = unsafe { &mut *self.sb };
+
+        sb.s_magic = params.magic as _;
+        sb.s_op = &Tables::<T>::SUPER_BLOCK;
+        sb.s_maxbytes = params.maxbytes;
+        sb.s_time_gran = params.time_gran;
+        sb.s_blocksize_bits = params.blocksize_bits;
+        sb.s_blocksize = 1;
+        if sb.s_blocksize.leading_zeros() < params.blocksize_bits.into() {
+            return Err(EINVAL);
+        }
+        sb.s_blocksize = 1 << sb.s_blocksize_bits;
+
+        // Keyed file systems already have `s_fs_info` initialised.
+        let info = data.into_foreign() as *mut _;
+        if let Super::Keyed = T::SUPER_TYPE {
+            // SAFETY: We just called `into_foreign` above.
+            unsafe { T::Data::from_foreign(info) };
+
+            if sb.s_fs_info != info {
+                return Err(EINVAL);
+            }
+        } else {
+            sb.s_fs_info = info;
+        }
+
+        Ok(NewSuperBlock {
+            sb: self.sb,
+            _p: PhantomData,
+        })
+    }
+}
+
+impl<'a, T: Type + ?Sized> NewSuperBlock<'a, T, NeedsRoot> {
+    /// Initialises the root of the superblock.
+    pub fn init_root(self) -> Result<&'a SuperBlock<T>> {
+        // The following is temporary code to create the root inode and dentry. It will be replaced
+        // once we allow inodes and dentries to be created directly from Rust code.
+
+        // SAFETY: `sb` is initialised (`NeedsRoot` typestate implies it), so it is safe to pass it
+        // to `new_inode`.
+        let inode = unsafe { bindings::new_inode(self.sb) };
+        if inode.is_null() {
+            return Err(ENOMEM);
+        }
+
+        {
+            // SAFETY: This is a newly-created inode. No other references to it exist, so it is
+            // safe to mutably dereference it.
+            let inode = unsafe { &mut *inode };
+
+            // SAFETY: `current_time` requires that `inode.sb` be valid, which is the case here
+            // since we allocated the inode through the superblock.
+            let time = unsafe { bindings::current_time(inode) };
+            inode.i_ino = 1;
+            inode.i_mode = (bindings::S_IFDIR | 0o755) as _;
+            inode.i_mtime = time;
+            inode.i_atime = time;
+            inode.i_ctime = time;
+
+            // SAFETY: `simple_dir_operations` never changes, it's safe to reference it.
+            inode.__bindgen_anon_3.i_fop = unsafe { &bindings::simple_dir_operations };
+
+            // SAFETY: `simple_dir_inode_operations` never changes, it's safe to reference it.
+            inode.i_op = unsafe { &bindings::simple_dir_inode_operations };
+
+            // SAFETY: `inode` is valid for write.
+            unsafe { bindings::set_nlink(inode, 2) };
+        }
+
+        // SAFETY: `d_make_root` requires that `inode` be valid and referenced, which is the
+        // case for this call.
+        //
+        // It takes over the inode, even on failure, so we don't need to clean it up.
+        let dentry = unsafe { bindings::d_make_root(inode) };
+        if dentry.is_null() {
+            return Err(ENOMEM);
+        }
+
+        // SAFETY: The typestate guarantees that `self.sb` is valid.
+        unsafe { (*self.sb).s_root = dentry };
+
+        // SAFETY: The typestate guarantees that `self.sb` is initialised and we just finished
+        // setting its root, so it's a fully ready superblock.
+        Ok(unsafe { &mut *self.sb.cast() })
+    }
+}
+
+/// A file system super block.
+///
+/// Wraps the kernel's `struct super_block`.
+#[repr(transparent)]
+pub struct SuperBlock<T: Type + ?Sized>(pub(crate) Opaque<bindings::super_block>, PhantomData<T>);
 
 /// Wraps the kernel's `struct inode`.
 ///

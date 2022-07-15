@@ -487,9 +487,24 @@ macro_rules! count_brace_items {
 ///
 /// # impl fs::Type for Example {
 /// #    type Context = Self;
+/// #    const SUPER_TYPE: fs::Super = fs::Super::Independent;
 /// #    const NAME: &'static CStr = c_str!("example");
 /// #    const FLAGS: i32 = 0;
-/// #    const MAGIC: u32 = 0x6578616d;
+/// #
+/// #    fn fill_super<'a>(
+/// #        _data: Box<State>,
+/// #        sb: fs::NewSuperBlock<'_, Self>,
+/// #    ) -> Result<&fs::SuperBlock<Self>> {
+/// #        let sb = sb.init(
+/// #            (),
+/// #            &fs::SuperParams {
+/// #                magic: 0x6578616d,
+/// #                ..fs::SuperParams::DEFAULT
+/// #            },
+/// #        )?;
+/// #        let sb = sb.init_root()?;
+/// #        Ok(sb)
+/// #    }
 /// # }
 /// ```
 #[macro_export]
