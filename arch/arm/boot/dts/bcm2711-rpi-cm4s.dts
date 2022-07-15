@@ -356,6 +356,16 @@
 // =============================================
 // Board specific stuff here
 
+/* Enable USB in OTG-aware mode */
+&usb {
+	compatible = "brcm,bcm2835-usb";
+	dr_mode = "otg";
+	g-np-tx-fifo-size = <32>;
+	g-rx-fifo-size = <558>;
+	g-tx-fifo-size = <512 512 512 512 512 256 256>;
+	status = "okay";
+};
+
 &sdhost {
 	status = "disabled";
 };
