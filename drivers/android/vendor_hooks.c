@@ -382,3 +382,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_show_mapcount_pages);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_update_page_mapcount);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_add_page_to_lrulist);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_del_page_from_lrulist);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_traversal_lruvec);

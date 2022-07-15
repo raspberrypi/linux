@@ -255,6 +255,9 @@ DECLARE_HOOK(android_vh_del_page_from_lrulist,
 DECLARE_HOOK(android_vh_show_mapcount_pages,
 	TP_PROTO(void *unused),
 	TP_ARGS(unused));
+DECLARE_HOOK(android_vh_do_traversal_lruvec,
+	TP_PROTO(struct lruvec *lruvec),
+	TP_ARGS(lruvec));
 
 #endif /* _TRACE_HOOK_MM_H */
 
