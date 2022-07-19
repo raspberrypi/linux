@@ -4126,6 +4126,7 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         noaudio                 Disable all HDMI audio (default "off")
         composite               Enable the composite output (default "off")
                                 N.B. Disables all other outputs on a Pi 4.
+        nohdmi                  Disable HDMI output
 
 
 Name:   vc4-kms-v3d-pi4
@@ -4149,6 +4150,10 @@ Params: cma-512                 CMA is 512MB
         noaudio                 Disable all HDMI audio (default "off")
         composite               Enable the composite output (disables all other
                                 outputs)
+        nohdmi                  Disable both HDMI 0 & 1 outputs
+        nohdmi0                 Disable HDMI 0 output
+        nohdmi1                 Disable HDMI 1 output
+
 
 
 Name:   vc4-kms-vga666
