@@ -502,7 +502,13 @@ macro_rules! count_brace_items {
 /// #                ..fs::SuperParams::DEFAULT
 /// #            },
 /// #        )?;
-/// #        let sb = sb.init_root()?;
+/// #        let root_inode = sb.try_new_dcache_dir_inode(fs::INodeParams {
+/// #            mode: 0o755,
+/// #            ino: 1,
+/// #            value: (),
+/// #        })?;
+/// #        let root = sb.try_new_root_dentry(root_inode)?;
+/// #        let sb = sb.init_root(root)?;
 /// #        Ok(sb)
 /// #    }
 /// # }

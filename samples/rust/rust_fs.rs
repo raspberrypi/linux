@@ -3,7 +3,7 @@
 //! Rust file system sample.
 
 use kernel::prelude::*;
-use kernel::{c_str, fs};
+use kernel::{c_str, file, fs, io_buffer::IoBufferWriter};
 
 module_fs! {
     type: RustFs,
@@ -34,16 +34,17 @@ impl fs::Context<Self> for RustFs {
     }
 
     fn try_new() -> Result {
-        pr_info!("context created!\n");
         Ok(())
     }
 }
 
 impl fs::Type for RustFs {
     type Context = Self;
+    type INodeData = &'static [u8];
     const SUPER_TYPE: fs::Super = fs::Super::Independent;
     const NAME: &'static CStr = c_str!("rustfs");
     const FLAGS: i32 = fs::flags::USERNS_MOUNT;
+    const DCACHE_BASED: bool = true;
 
     fn fill_super(_data: (), sb: fs::NewSuperBlock<'_, Self>) -> Result<&fs::SuperBlock<Self>> {
         let sb = sb.init(
@@ -53,7 +54,51 @@ impl fs::Type for RustFs {
                 ..fs::SuperParams::DEFAULT
             },
         )?;
-        let sb = sb.init_root()?;
+        let root = sb.try_new_populated_root_dentry(
+            &[],
+            kernel::fs_entries![
+                file("test1", 0o600, "abc\n".as_bytes(), FsFile),
+                file("test2", 0o600, "def\n".as_bytes(), FsFile),
+                char("test3", 0o600, [].as_slice(), (10, 125)),
+                sock("test4", 0o755, [].as_slice()),
+                fifo("test5", 0o755, [].as_slice()),
+                block("test6", 0o755, [].as_slice(), (1, 1)),
+                dir(
+                    "dir1",
+                    0o755,
+                    [].as_slice(),
+                    [
+                        file("test1", 0o600, "abc\n".as_bytes(), FsFile),
+                        file("test2", 0o600, "def\n".as_bytes(), FsFile),
+                    ]
+                ),
+            ],
+        )?;
+        let sb = sb.init_root(root)?;
         Ok(sb)
+    }
+}
+
+struct FsFile;
+
+#[vtable]
+impl file::Operations for FsFile {
+    type OpenData = &'static [u8];
+
+    fn open(_context: &Self::OpenData, _file: &file::File) -> Result<Self::Data> {
+        Ok(())
+    }
+
+    fn read(
+        _data: (),
+        file: &file::File,
+        writer: &mut impl IoBufferWriter,
+        offset: u64,
+    ) -> Result<usize> {
+        file::read_from_slice(
+            file.inode::<RustFs>().ok_or(EINVAL)?.fs_data(),
+            writer,
+            offset,
+        )
     }
 }
