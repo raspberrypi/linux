@@ -7,6 +7,7 @@
 use crate::error::{from_result, to_result, Error, Result};
 use crate::types::{AlwaysRefCounted, ForeignOwnable, Opaque, ScopeGuard};
 use crate::{bindings, error::code::*, str::CStr, ThisModule};
+use alloc::boxed::Box;
 use core::{marker::PhantomData, marker::PhantomPinned, pin::Pin, ptr};
 use macros::vtable;
 
@@ -758,5 +759,81 @@ impl Filename {
         // SAFETY: The safety requirements guarantee the validity of the dereference, while the
         // `Filename` type being transparent makes the cast ok.
         unsafe { &*ptr.cast() }
+    }
+}
+
+/// Kernel module that exposes a single file system implemented by `T`.
+pub struct Module<T: Type> {
+    _fs: Pin<Box<Registration>>,
+    _p: PhantomData<T>,
+}
+
+impl<T: Type + Sync> crate::Module for Module<T> {
+    fn init(_name: &'static CStr, module: &'static ThisModule) -> Result<Self> {
+        let mut reg = Pin::from(Box::try_new(Registration::new())?);
+        reg.as_mut().register::<T>(module)?;
+        Ok(Self {
+            _fs: reg,
+            _p: PhantomData,
+        })
+    }
+}
+
+/// Declares a kernel module that exposes a single file system.
+///
+/// The `type` argument must be a type which implements the [`Type`] trait. Also accepts various
+/// forms of kernel metadata.
+///
+/// # Examples
+///
+/// ```ignore
+/// use kernel::prelude::*;
+/// use kernel::{c_str, fs};
+///
+/// module_fs! {
+///     type: MyFs,
+///     name: b"my_fs_kernel_module",
+///     author: b"Rust for Linux Contributors",
+///     description: b"My very own file system kernel module!",
+///     license: b"GPL",
+/// }
+///
+/// struct MyFs;
+///
+/// #[vtable]
+/// impl fs::Context<Self> for MyFs {
+///     type Data = ();
+///     fn try_new() -> Result {
+///         Ok(())
+///     }
+/// }
+///
+/// impl fs::Type for MyFs {
+///     type Context = Self;
+///     const SUPER_TYPE: fs::Super = fs::Super::Independent;
+///     const NAME: &'static CStr = c_str!("example");
+///     const FLAGS: i32 = 0;
+///
+///     fn fill_super(_data: (), sb: fs::NewSuperBlock<'_, Self>) -> Result<&fs::SuperBlock<Self>> {
+///         let sb = sb.init(
+///             (),
+///             &fs::SuperParams {
+///                 magic: 0x6578616d,
+///                 ..fs::SuperParams::DEFAULT
+///             },
+///         )?;
+///         let sb = sb.init_root()?;
+///         Ok(sb)
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! module_fs {
+    (type: $type:ty, $($f:tt)*) => {
+        type ModuleType = $crate::fs::Module<$type>;
+        $crate::macros::module! {
+            type: ModuleType,
+            $($f)*
+        }
     }
 }
