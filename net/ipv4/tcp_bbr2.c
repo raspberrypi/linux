@@ -167,6 +167,7 @@ struct bbr {
 		initialized:1;	       /* has bbr_init() been called? */
 	u32	alpha_last_delivered;	 /* tp->delivered    at alpha update */
 	u32	alpha_last_delivered_ce; /* tp->delivered_ce at alpha update */
+	struct	tcp_plb_state plb;
 
 	/* Params configurable using setsockopt. Refer to correspoding
 	 * module param for detailed description of params.
@@ -733,7 +734,11 @@ static void bbr_cwnd_event(struct sock *sk, enum tcp_ca_event event)
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
 
-	if (event == CA_EVENT_TX_START && tp->app_limited) {
+	if (event == CA_EVENT_TX_START) {
+		tcp_plb_check_rehash(sk, &bbr->plb);
+
+		if (!tp->app_limited)
+			return;
 		bbr->idle_restart = 1;
 		bbr->ack_epoch_mstamp = tp->tcp_mstamp;
 		bbr->ack_epoch_acked = 0;
@@ -1389,7 +1394,7 @@ static void bbr2_check_ecn_too_high_in_startup(struct sock *sk, u32 ce_ratio)
 	}
 }
 
-static void bbr2_update_ecn_alpha(struct sock *sk)
+static int bbr2_update_ecn_alpha(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
@@ -1398,14 +1403,14 @@ static void bbr2_update_ecn_alpha(struct sock *sk)
 	u32 gain;
 
 	if (bbr->params.ecn_factor == 0)
-		return;
+		return -1;
 
 	delivered = tp->delivered - bbr->alpha_last_delivered;
 	delivered_ce = tp->delivered_ce - bbr->alpha_last_delivered_ce;
 
 	if (delivered == 0 ||		/* avoid divide by zero */
 	    WARN_ON_ONCE(delivered < 0 || delivered_ce < 0))  /* backwards? */
-		return;
+		return -1;
 
 	/* See if we should use ECN sender logic for this connection. */
 	if (!bbr->ecn_eligible && bbr_ecn_enable &&
@@ -1424,6 +1429,7 @@ static void bbr2_update_ecn_alpha(struct sock *sk)
 	bbr->alpha_last_delivered_ce = tp->delivered_ce;
 
 	bbr2_check_ecn_too_high_in_startup(sk, ce_ratio);
+	return (int)ce_ratio;
 }
 
 /* Each round trip of BBR_BW_PROBE_UP, double volume of probing data. */
@@ -2238,6 +2244,7 @@ static void bbr2_main(struct sock *sk, const struct rate_sample *rs)
 	struct bbr_context ctx = { 0 };
 	bool update_model = true;
 	u32 bw;
+	int ce_ratio = -1;
 
 	bbr->debug.event = '.';  /* init to default NOP (no event yet) */
 
@@ -2245,7 +2252,9 @@ static void bbr2_main(struct sock *sk, const struct rate_sample *rs)
 	if (bbr->round_start) {
 		bbr->rounds_since_probe =
 			min_t(s32, bbr->rounds_since_probe + 1, 0xFF);
-		bbr2_update_ecn_alpha(sk);
+		ce_ratio = bbr2_update_ecn_alpha(sk);
+		tcp_plb_update_state(sk, &bbr->plb, ce_ratio);
+		tcp_plb_check_rehash(sk, &bbr->plb);
 	}
 
 	bbr->ecn_in_round  |= rs->is_ece;
@@ -2408,6 +2417,7 @@ static void bbr2_init(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
+	const struct net *net = sock_net(sk);
 
 	bbr_init(sk);	/* run shared init code for v1 and v2 */
 
@@ -2469,6 +2479,13 @@ static void bbr2_init(struct sock *sk)
 	bbr->ecn_alpha = bbr->params.ecn_alpha_init;
 	bbr->alpha_last_delivered = 0;
 	bbr->alpha_last_delivered_ce = 0;
+
+	bbr->plb.enabled = 0;
+	bbr->plb.consec_cong_rounds = 0;
+	bbr->plb.pause_until = 0;
+	if ((tp->ecn_flags & TCP_ECN_OK) &&
+	    net->ipv4.sysctl_tcp_plb_enabled)
+		bbr->plb.enabled = 1;
 
 	tp->fast_ack_mode = min_t(u32, 0x2U, bbr_fast_ack_mode);
 
@@ -2614,6 +2631,7 @@ static void bbr2_set_state(struct sock *sk, u8 new_state)
 		struct rate_sample rs = { .losses = 1 };
 		struct bbr_context ctx = { 0 };
 
+		tcp_plb_update_state_upon_rto(sk, &bbr->plb);
 		bbr->prev_ca_state = TCP_CA_Loss;
 		bbr->full_bw = 0;
 		if (!bbr2_is_probing_bandwidth(sk) && bbr->inflight_lo == ~0U) {
