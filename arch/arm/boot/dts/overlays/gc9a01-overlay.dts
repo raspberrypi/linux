@@ -37,12 +37,9 @@
     compatible = "brcm,bcm2835";
 
     fragment@0 {
-        target = <&spi0>;
+        target = <&spidev0>;
         __overlay__ {
-            status = "okay";
-            spidev@0 {
-                status = "disabled";
-            };
+            status = "disabled";
         };
     };
 
@@ -63,6 +60,7 @@
             /* needed to avoid dtc warning */
             #address-cells = <1>;
             #size-cells = <0>;
+            status = "okay";
 
             gc9a01: gc9a01@0 {
                 compatible = "ilitek,ili9340";

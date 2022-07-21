@@ -24,6 +24,15 @@
 	};
 
 	fragment@2 {
+		target = <&apds9960>;
+		apds9960_irq: __overlay__ {
+			#interrupt-cells = <2>;
+			interrupt-parent = <&gpio>;
+			interrupts = <4 1>;
+		};
+	};
+
+	fragment@3 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -37,21 +46,10 @@
 		};
 	};
 
-	fragment@3 {
-		target = <&i2c1>;
-		__overlay__ {
-			apds9960_irq: apds@39 {
-				#interrupt-cells=<2>;
-				interrupt-parent = <&gpio>;
-				interrupts = <4 1>;
-			};
-		};
-	};
-
 	__overrides__ {
 		gpiopin = <&apds9960_pins>,"brcm,pins:0",
 				<&apds9960_irq>,"interrupts:0";
-		noints = <0>,"!1!3";
+		noints = <0>,"!1!2";
 	};
 };
 
