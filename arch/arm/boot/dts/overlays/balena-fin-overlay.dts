@@ -20,7 +20,7 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			sdio_pins: sdio_pins {
+			sdio_pins: sdio_ovl_pins {
 				brcm,pins = <34 35 36 37 38 39>;
 				brcm,function = <7>; /* ALT3 = SD1 */
 				brcm,pull = <0 2 2 2 2 2>;
