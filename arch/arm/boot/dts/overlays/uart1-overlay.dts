@@ -16,7 +16,7 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			uart1_pins: uart1_pins {
+			uart1_pins: uart1_ovl_pins {
 				brcm,pins = <14 15>;
 				brcm,function = <2>; /* alt5 */
 				brcm,pull = <0 2>;

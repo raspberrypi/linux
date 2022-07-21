@@ -10,21 +10,20 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&spi0>;
+		target = <&spidev0>;
 		__overlay__ {
-			status = "okay";
-
-			spidev@0{
-				status = "disabled";
-			};
-
-			spidev@1{
-				status = "disabled";
-			};
+			status = "disabled";
 		};
 	};
 
 	fragment@1 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			rpi_display_pins: rpi_display_pins {
@@ -35,12 +34,13 @@
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
 
 			rpidisplay: rpi-display@0{
 				compatible = "ilitek,ili9341";
@@ -73,7 +73,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@4 {
 		target-path = "/";
 		__overlay__ {
 			lirc_rpi: lirc_rpi {
@@ -101,7 +101,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@5 {
 		target = <&gpio>;
 		__overlay__ {
 			lirc_pins: lirc_pins {

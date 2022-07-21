@@ -132,6 +132,7 @@
 
 &cpu_thermal {
 	/delete-node/ trips;
+	/delete-node/ cooling-maps;
 };
 
 &vec {

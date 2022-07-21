@@ -23,26 +23,20 @@
 	};
 
 	fragment@1 {
-		target-path = "/";
+		target-path = "/thermal-zones";
 		__overlay__ {
-			thermal-zones {
-				display {
-					polling-delay-passive = <0>;
-					polling-delay = <0>;
-					thermal-sensors = <&display_temp>;
-				};
+			display {
+				polling-delay-passive = <0>;
+				polling-delay = <0>;
+				thermal-sensors = <&display_temp>;
 			};
 		};
 	};
 
 	fragment@2 {
-		target = <&spi0>;
+		target = <&spidev0>;
 		__overlay__ {
-			status = "okay";
-
-			spidev@0{
-				status = "disabled";
-			};
+			status = "disabled";
 		};
 	};
 
@@ -62,6 +56,7 @@
 			/* needed to avoid dtc warning */
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
 
 			repaper: repaper@0{
 				compatible = "not_set";
