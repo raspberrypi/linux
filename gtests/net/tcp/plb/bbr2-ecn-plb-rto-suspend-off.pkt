@@ -1,0 +1,71 @@
+// Verify BBR v2 changes flowlabel in ipv6 header when there are
+// net.ipv4.tcp_plb_idle_rehash_rounds=3 consecutive rounds with
+// the ECN mark rate >= net.ipv4.tcp_plb_cong_thresh=64(25%) after
+// an RTO resets PLB state. This test confirms that PLB state is reset
+// after an RTO. TLP is disabled for this test.
+
+`../common/defaults.sh
+sysctl -q net.ipv4.tcp_ecn=1  # fully enabled
+sysctl -q net.ipv4.tcp_congestion_control=bbr2
+sysctl -q net.ipv4.tcp_plb_enabled=1
+sysctl -q net.ipv4.tcp_plb_cong_thresh=64
+sysctl -q net.ipv4.tcp_plb_idle_rehash_rounds=0
+sysctl -q net.ipv4.tcp_plb_rehash_rounds=3
+sysctl -q net.ipv4.tcp_plb_suspend_rto_sec=0
+sysctl -q net.ipv4.tcp_early_retrans=0
+sysctl -q net.ipv4.tcp_recovery=0
+echo 1 > /sys/module/tcp_bbr2/parameters/ecn_enable
+echo 0 > /sys/module/tcp_bbr2/parameters/ecn_max_rtt_us
+`
+
+// Initialize connection
+    0 socket(..., SOCK_STREAM, IPPROTO_TCP) = 3
+   +0 setsockopt(3, SOL_SOCKET, SO_REUSEADDR, [1], 4) = 0
+   +0 bind(3, ..., ...) = 0
+   +0 listen(3, 1) = 0
+
+   +0 < SEW 0:0(0) ack 1 win 32792 <mss 1012,sackOK,TS val 200 ecr 0,nop,wscale 7>
+   +0 > (flowlabel 0x1) SE. 0:0(0) ack 1 <mss 1460,sackOK,TS val 100 ecr 200,nop,wscale 8>
+   +0 < . 1:1(0) ack 1 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 accept(3, ..., ...) = 4
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) P. 1:1001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < E. 1:1(0) ack 1001 win 1000 <nop,nop,TS val 200 ecr 100>
+// ECN mark, 1 congested round
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) PW. 1001:2001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < E.  1:1(0) ack 2001 win 1000 <nop,nop,TS val 200 ecr 100>
+// ECN mark, 2 consecutive congested rounds.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) PW. 2001:3001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+// Flowlabel should be changed after kernel retransmit
++.2~+.22  > (flowlabel 0x2) P. 2001:3001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < E. 1:1(0) ack 3001 win 1000 <nop,nop,TS val 200 ecr 100>
+// PLB state should reset, 1 congested round
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x2) PW. 3001:4001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < E.  1:1(0) ack 4001 win 1000 <nop,nop,TS val 200 ecr 100>
+// ECN mark, 2 consecutive congested rounds.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x2) PW. 4001:5001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < E.  1:1(0) ack 5001 win 1000 <nop,nop,TS val 200 ecr 100>
+// ECN mark, 3 consecutive congested rounds. Flowlabel should change in next round.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x3) PW. 5001:6001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 6001 win 1000 <nop,nop,TS val 200 ecr 100>
+
+   +0 write(4, ..., 1000) = 1000
+// Verify new flow label
+   +0 > (flowlabel 0x3) P. 6001:7001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 7001 win 1000 <nop,nop,TS val 200 ecr 100>
+
+   +0 write(4, ..., 1000) = 1000
+// Verify new flow label sticks
+   +0 > (flowlabel 0x3) P. 7001:8001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 8001 win 1000 <nop,nop,TS val 200 ecr 100>
