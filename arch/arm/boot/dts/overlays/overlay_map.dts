@@ -41,6 +41,22 @@
 		deprecated = "use gpio-ir";
 	};
 
+	midi-uart2 {
+		bcm2711;
+	};
+
+	midi-uart3 {
+		bcm2711;
+	};
+
+	midi-uart4 {
+		bcm2711;
+	};
+
+	midi-uart5 {
+		bcm2711;
+	};
+
 	pcie-32bit-dma {
 		bcm2711;
 	};
@@ -170,6 +186,10 @@
 	};
 
 	vc4-kms-v3d-pi4 {
+		bcm2711;
+	};
+
+	vl805 {
 		bcm2711;
 	};
 };
