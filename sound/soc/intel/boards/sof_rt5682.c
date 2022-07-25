@@ -435,6 +435,15 @@ static int sof_card_late_probe(struct snd_soc_card *card)
 	int err;
 	int i = 0;
 
+	if (sof_rt5682_quirk & SOF_MAX98373_SPEAKER_AMP_PRESENT) {
+		/* Disable Left and Right Spk pin after boot */
+		snd_soc_dapm_disable_pin(dapm, "Left Spk");
+		snd_soc_dapm_disable_pin(dapm, "Right Spk");
+		err = snd_soc_dapm_sync(dapm);
+		if (err < 0)
+			return err;
+	}
+
 	/* HDMI is not supported by SOF on Baytrail/CherryTrail */
 	if (is_legacy_cpu || !ctx->idisp_codec)
 		return 0;
@@ -466,15 +475,6 @@ static int sof_card_late_probe(struct snd_soc_card *card)
 			return err;
 
 		i++;
-	}
-
-	if (sof_rt5682_quirk & SOF_MAX98373_SPEAKER_AMP_PRESENT) {
-		/* Disable Left and Right Spk pin after boot */
-		snd_soc_dapm_disable_pin(dapm, "Left Spk");
-		snd_soc_dapm_disable_pin(dapm, "Right Spk");
-		err = snd_soc_dapm_sync(dapm);
-		if (err < 0)
-			return err;
 	}
 
 	return hdac_hdmi_jack_port_init(component, &card->dapm);
