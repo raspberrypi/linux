@@ -94,6 +94,18 @@ DECLARE_HOOK(android_vh_freeze_whether_wake,
 	TP_PROTO(struct task_struct *t, bool *wake),
 	TP_ARGS(t, wake));
 
+DECLARE_HOOK(android_vh_record_mutex_lock_starttime,
+	TP_PROTO(u64 lock, unsigned long settime_jiffies),
+	TP_ARGS(lock, settime_jiffies));
+DECLARE_HOOK(android_vh_record_rtmutex_lock_starttime,
+	TP_PROTO(u64 lock, unsigned long settime_jiffies),
+	TP_ARGS(lock, settime_jiffies));
+DECLARE_HOOK(android_vh_record_rwsem_lock_starttime,
+	TP_PROTO(u64 sem, unsigned long settime_jiffies),
+	TP_ARGS(sem, settime_jiffies));
+DECLARE_HOOK(android_vh_record_pcpu_rwsem_starttime,
+	TP_PROTO(u64 sem, unsigned long settime_jiffies),
+	TP_ARGS(sem, settime_jiffies));
 #endif /* _TRACE_HOOK_DTASK_H */
 
 /* This part must be outside protection */
