@@ -11,6 +11,8 @@
 #define PT32_PT_BITS 10
 #define PT32_ENT_PER_PAGE (1 << PT32_PT_BITS)
 
+extern bool __read_mostly enable_mmio_caching;
+
 #define PT_WRITABLE_SHIFT 1
 #define PT_USER_SHIFT 2
 
