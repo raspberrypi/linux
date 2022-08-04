@@ -253,6 +253,28 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp = {
 	.fixed_bclk_ratio = 64,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_amp3,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p.1-0020", "ma120x0p-amp")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_hifiberry_amp3_dai[] = {
+	{
+		.name		= "HifiberryAmp3",
+		.stream_name	= "Hifiberry Amp3",
+		.dai_fmt	= SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(hifiberry_amp3),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp3 = {
+	.card_name	 = "snd_rpi_hifiberry_amp3",
+	.dai		 = snd_hifiberry_amp3_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 SND_SOC_DAILINK_DEFS(hifiberry_dac,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC("pcm5102a-codec", "pcm5102a-hifi")),
@@ -370,6 +392,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_hifiberrydacplusdsp },
 	{ .compatible = "hifiberry,hifiberry-amp",
 		.data = (void *) &drvdata_hifiberry_amp },
+	{ .compatible = "hifiberry,hifiberry-amp3",
+		.data = (void *) &drvdata_hifiberry_amp3 },
 	{ .compatible = "hifiberry,hifiberry-dac",
 		.data = (void *) &drvdata_hifiberry_dac },
 	{ .compatible = "dionaudio,dionaudio-kiwi",
