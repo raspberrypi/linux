@@ -1408,6 +1408,12 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 Will be overwritten by ALSA user settings.
 
 
+Name:   hifiberry-amp3
+Info:   Configures the HifiBerry Amp3 audio card
+Load:   dtoverlay=hifiberry-amp3
+Params: <None>
+
+
 Name:   hifiberry-dac
 Info:   Configures the HifiBerry DAC audio cards
 Load:   dtoverlay=hifiberry-dac

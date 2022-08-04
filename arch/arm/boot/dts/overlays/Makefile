@@ -75,6 +75,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hdmi-backlight-hwhack-gpio.dtbo \
 	hifiberry-amp.dtbo \
 	hifiberry-amp100.dtbo \
+	hifiberry-amp3.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
 	hifiberry-dacplusadc.dtbo \
