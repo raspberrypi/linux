@@ -919,7 +919,9 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 		 * to use.
 		 */
 		for (i = 0; i < ARRAY_SIZE(unicam->node); i++) {
-			if (!unicam->node[i].streaming)
+			struct unicam_node *node = &unicam->node[i];
+
+			if (!node->streaming)
 				continue;
 
 			/*
@@ -929,14 +931,24 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			 * + FS + LS). In this case, we cannot signal the buffer
 			 * as complete, as the HW will reuse that buffer.
 			 */
-			if (unicam->node[i].cur_frm &&
-			    unicam->node[i].cur_frm != unicam->node[i].next_frm) {
-				unicam_process_buffer_complete(&unicam->node[i],
-							       sequence);
-				unicam->node[i].cur_frm = unicam->node[i].next_frm;
-				unicam->node[i].next_frm = NULL;
+			if (node->cur_frm && node->cur_frm != node->next_frm) {
+				/*
+				 * This condition checks if FE + FS for the same
+				 * frame has occurred. In such cases, we cannot
+				 * return out the frame, as no buffer handling
+				 * or timestamping has yet been done as part of
+				 * the FS handler.
+				 */
+				if (!node->cur_frm->vb.vb2_buf.timestamp) {
+					unicam_dbg(2, unicam, "ISR: FE without FS, dropping frame\n");
+					continue;
+				}
+
+				unicam_process_buffer_complete(node, sequence);
+				node->cur_frm = node->next_frm;
+				node->next_frm = NULL;
 			} else {
-				unicam->node[i].cur_frm = unicam->node[i].next_frm;
+				node->cur_frm = node->next_frm;
 			}
 		}
 		unicam->sequence++;
