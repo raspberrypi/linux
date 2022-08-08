@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Sony IMX290 & IMX327 CMOS Image Sensor Driver
+ * Sony IMX462 / IMX290 / IMX327 CMOS Image Sensor Driver
  *
- * The IMX290 and IMX327 are very similar 1920x1080 1/2.8 CMOS image sensors.
- * IMX327 can support up to 60fps, whilst IMX290 can support up to 120fps, but
- * only 10bit and when connected over 4 CSI-2 lanes.
+ * The IMX462, IMX290,and IMX327 are very similar 1920x1080 1/2.8 CMOS image
+ * sensors.
+ * IMX327 can support up to 60fps with 10 or 12bit readout.
+ * IMX290 adds support for 120fps, but only 10bit and when connected over 4
+ * CSI-2 lanes.
+ * IMX462 adds support for 120fps in both 10 and 12bit readout modes.
+ *
  * The modules don't appear to have a mechanism to identify whether the mono or
  * colour variant is connected, therefore it is done via compatible string.
  *
@@ -1232,8 +1236,19 @@ static s64 imx290_check_link_freqs(const struct imx290 *imx290,
 }
 
 static const struct of_device_id imx290_of_match[] = {
+	/*
+	 * imx327 supports 1080p60 at 10 and 12bit.
+	 * imx290 adds 10bit 1080p120.
+	 * imx462 adds 10 and 12bit 1080p120.
+	 * This driver currently maxes out at 1080p60, which is supported by all
+	 * of them, but add the compatible strings for future implementation.
+	 */
+	{ .compatible = "sony,imx327", .data = imx290_colour_formats },
+	{ .compatible = "sony,imx327-mono", .data = imx290_mono_formats },
 	{ .compatible = "sony,imx290", .data = imx290_colour_formats },
 	{ .compatible = "sony,imx290-mono", .data = imx290_mono_formats },
+	{ .compatible = "sony,imx462", .data = imx290_colour_formats },
+	{ .compatible = "sony,imx462-mono", .data = imx290_mono_formats },
 	{ /* sentinel */ }
 };
 
