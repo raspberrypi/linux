@@ -836,25 +836,29 @@ static bool stage2_unmap_defer_tlb_flush(struct kvm_pgtable *pgt)
 	return system_supports_tlb_range() && stage2_has_fwb(pgt);
 }
 
-static void stage2_unmap_put_pte(const struct kvm_pgtable_visit_ctx *ctx,
-				struct kvm_s2_mmu *mmu,
-				struct kvm_pgtable_mm_ops *mm_ops)
+static void stage2_unmap_clear_pte(const struct kvm_pgtable_visit_ctx *ctx,
+				   struct kvm_s2_mmu *mmu)
 {
 	struct kvm_pgtable *pgt = ctx->arg;
-
-	/*
-	 * Clear the existing PTE, and perform break-before-make if it was
-	 * valid. Depending on the system support, defer the TLB maintenance
-	 * for the same until the entire unmap walk is completed.
-	 */
 	if (kvm_pte_valid(ctx->old)) {
 		kvm_clear_pte(ctx->ptep);
 
 		if (!stage2_unmap_defer_tlb_flush(pgt))
 			kvm_call_hyp(__kvm_tlb_flush_vmid_ipa, mmu,
-					ctx->addr, ctx->level);
+				     ctx->addr, ctx->level);
 	}
+}
 
+static void stage2_unmap_put_pte(const struct kvm_pgtable_visit_ctx *ctx,
+				 struct kvm_s2_mmu *mmu,
+				 struct kvm_pgtable_mm_ops *mm_ops)
+{
+	/*
+	 * Clear the existing PTE, and perform break-before-make if it was
+	 * valid. Depending on the system support, defer the TLB maintenance
+	 * for the same until the entire unmap walk is completed.
+	 */
+	stage2_unmap_clear_pte(ctx, mmu);
 	mm_ops->put_page(ctx->ptep);
 }
 
