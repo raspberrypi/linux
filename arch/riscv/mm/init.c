@@ -99,6 +99,10 @@ static void __init print_vm_layout(void)
 		  (unsigned long)VMEMMAP_END);
 	print_mlm("vmalloc", (unsigned long)VMALLOC_START,
 		  (unsigned long)VMALLOC_END);
+#ifdef CONFIG_64BIT
+	print_mlm("modules", (unsigned long)MODULES_VADDR,
+		  (unsigned long)MODULES_END);
+#endif
 	print_mlm("lowmem", (unsigned long)PAGE_OFFSET,
 		  (unsigned long)high_memory);
 	if (IS_ENABLED(CONFIG_64BIT)) {
