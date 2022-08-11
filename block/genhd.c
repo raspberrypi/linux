@@ -1359,7 +1359,7 @@ struct gendisk *__alloc_disk_node(struct request_queue *q, int node_id,
 
 	disk = kzalloc_node(sizeof(struct gendisk), GFP_KERNEL, node_id);
 	if (!disk)
-		goto out_put_queue;
+		return NULL;
 
 	disk->bdi = bdi_alloc(node_id);
 	if (!disk->bdi)
@@ -1403,8 +1403,6 @@ out_free_bdi:
 	bdi_put(disk->bdi);
 out_free_disk:
 	kfree(disk);
-out_put_queue:
-	blk_put_queue(q);
 	return NULL;
 }
 
