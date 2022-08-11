@@ -523,23 +523,26 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	 * mode.
 	 */
 	dispctrl = SCALER_DISPCTRLX_ENABLE;
+	dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(chan));
 
-	if (!vc4->is_vc5)
+	if (!vc4->is_vc5) {
 		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
 					  SCALER_DISPCTRLX_WIDTH) |
 			    VC4_SET_FIELD(mode->vdisplay,
 					  SCALER_DISPCTRLX_HEIGHT) |
 			    (oneshot ? SCALER_DISPCTRLX_ONESHOT : 0);
-	else
+		dispbkgndx |= SCALER_DISPBKGND_AUTOHS;
+	} else {
 		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
 					  SCALER5_DISPCTRLX_WIDTH) |
 			    VC4_SET_FIELD(mode->vdisplay,
 					  SCALER5_DISPCTRLX_HEIGHT) |
 			    (oneshot ? SCALER5_DISPCTRLX_ONESHOT : 0);
+		dispbkgndx &= ~SCALER5_DISPBKGND_BCK2BCK;
+	}
 
 	HVS_WRITE(SCALER_DISPCTRLX(chan), dispctrl);
 
-	dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(chan));
 	dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
 	dispbkgndx &= ~SCALER_DISPBKGND_INTERLACE;
 
@@ -548,7 +551,6 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 		dispbkgndx |= SCALER_DISPBKGND_GAMMA;
 
 	HVS_WRITE(SCALER_DISPBKGNDX(chan), dispbkgndx |
-		  SCALER_DISPBKGND_AUTOHS |
 		  (interlace ? SCALER_DISPBKGND_INTERLACE : 0));
 
 	/* Reload the LUT, since the SRAMs would have been disabled if
