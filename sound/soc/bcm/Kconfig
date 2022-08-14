@@ -324,3 +324,10 @@ config SND_RPI_WM8804_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for the Raspberry Pi
           generic driver for WM8804 based soundcards.
+
+config SND_DACBERRY400
+	tristate "Support for DACBERRY400 Soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_TLV320AIC3X_I2C
+	help
+	  Say Y or M if you want to add support for tlv320aic3x add-on
