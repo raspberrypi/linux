@@ -106,6 +106,7 @@ struct sm_state_t {
 					 * has finished with a resource.
 					 */
 	u32 int_trans_id;		/* Interrupted transaction. */
+	struct vchiq_instance *vchiq_instance;
 };
 
 struct vc_sm_dma_buf_attachment {
@@ -1491,7 +1492,6 @@ static const struct file_operations vc_sm_ops = {
 static void vc_sm_connected_init(void)
 {
 	int ret;
-	struct vchiq_instance *vchiq_instance;
 	struct vc_sm_version version;
 	struct vc_sm_result_t version_result;
 
@@ -1501,7 +1501,7 @@ static void vc_sm_connected_init(void)
 	 * Initialize and create a VCHI connection for the shared memory service
 	 * running on videocore.
 	 */
-	ret = vchiq_initialise(&vchiq_instance);
+	ret = vchiq_initialise(&sm_state->vchiq_instance);
 	if (ret) {
 		pr_err("[%s]: failed to initialise VCHI instance (ret=%d)\n",
 		       __func__, ret);
@@ -1509,7 +1509,7 @@ static void vc_sm_connected_init(void)
 		return;
 	}
 
-	ret = vchiq_connect(vchiq_instance);
+	ret = vchiq_connect(sm_state->vchiq_instance);
 	if (ret) {
 		pr_err("[%s]: failed to connect VCHI instance (ret=%d)\n",
 		       __func__, ret);
@@ -1518,7 +1518,7 @@ static void vc_sm_connected_init(void)
 	}
 
 	/* Initialize an instance of the shared memory service. */
-	sm_state->sm_handle = vc_sm_cma_vchi_init(vchiq_instance, 1,
+	sm_state->sm_handle = vc_sm_cma_vchi_init(sm_state->vchiq_instance, 1,
 						  vc_sm_vpu_event);
 	if (!sm_state->sm_handle) {
 		pr_err("[%s]: failed to initialize shared memory service\n",
@@ -1576,7 +1576,7 @@ err_remove_misc_dev:
 	misc_deregister(&sm_state->misc_dev);
 err_remove_debugfs:
 	debugfs_remove_recursive(sm_state->dir_root);
-	vc_sm_cma_vchi_stop(&sm_state->sm_handle);
+	vc_sm_cma_vchi_stop(sm_state->vchiq_instance, &sm_state->sm_handle);
 }
 
 /* Driver loading. */
@@ -1614,7 +1614,7 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 		debugfs_remove_recursive(sm_state->dir_root);
 
 		/* Stop the videocore shared memory service. */
-		vc_sm_cma_vchi_stop(&sm_state->sm_handle);
+		vc_sm_cma_vchi_stop(sm_state->vchiq_instance, &sm_state->sm_handle);
 	}
 
 	if (sm_state) {
