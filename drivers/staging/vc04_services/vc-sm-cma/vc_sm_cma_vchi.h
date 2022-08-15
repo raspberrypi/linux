@@ -35,7 +35,7 @@ struct sm_instance *vc_sm_cma_vchi_init(struct vchiq_instance *vchi_instance,
 /*
  * Terminates the shared memory service.
  */
-int vc_sm_cma_vchi_stop(struct sm_instance **handle);
+int vc_sm_cma_vchi_stop(struct vchiq_instance *vchi_instance, struct sm_instance **handle);
 
 /*
  * Ask the shared memory service to free up some memory that was previously
