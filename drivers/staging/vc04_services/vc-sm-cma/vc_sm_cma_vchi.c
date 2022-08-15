@@ -70,7 +70,7 @@ struct sm_instance {
 	struct list_head free_list;
 
 	struct semaphore free_sema;
-
+	struct vchiq_instance *vchiq_instance;
 };
 
 /* ---- Private Variables ------------------------------------------------ */
@@ -79,11 +79,11 @@ struct sm_instance {
 
 /* ---- Private Functions ------------------------------------------------ */
 static int
-bcm2835_vchi_msg_queue(unsigned int handle,
+bcm2835_vchi_msg_queue(struct vchiq_instance *vchiq_instance, unsigned int handle,
 		       void *data,
 		       unsigned int size)
 {
-	return vchiq_queue_kernel_message(handle, data, size);
+	return vchiq_queue_kernel_message(vchiq_instance, handle, data, size);
 }
 
 static struct
@@ -187,12 +187,12 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 
 	while (1) {
 		if (svc_use)
-			vchiq_release_service(instance->service_handle[0]);
+			vchiq_release_service(instance->vchiq_instance, instance->service_handle[0]);
 		svc_use = 0;
 
 		if (wait_for_completion_interruptible(&instance->io_cmplt))
 			continue;
-		vchiq_use_service(instance->service_handle[0]);
+		vchiq_use_service(instance->vchiq_instance, instance->service_handle[0]);
 		svc_use = 1;
 
 		do {
@@ -212,7 +212,8 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 			mutex_unlock(&instance->lock);
 			/* Send the command */
 			status =
-				bcm2835_vchi_msg_queue(instance->service_handle[0],
+				bcm2835_vchi_msg_queue(instance->vchiq_instance,
+						       instance->service_handle[0],
 						       cmd->msg, cmd->length);
 			if (status) {
 				pr_err("%s: failed to queue message (%d)",
@@ -235,7 +236,8 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 
 		} while (1);
 
-		while ((header = vchiq_msg_hold(instance->service_handle[0]))) {
+		while ((header = vchiq_msg_hold(instance->vchiq_instance,
+						instance->service_handle[0]))) {
 			reply = (struct vc_sm_result_t *)header->data;
 			if (reply->trans_id & 0x80000000) {
 				/* Async event or cmd from the VPU */
@@ -247,7 +249,8 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 						      header->size);
 			}
 
-			vchiq_release_message(instance->service_handle[0],
+			vchiq_release_message(instance->vchiq_instance,
+					      instance->service_handle[0],
 					      header);
 		}
 
@@ -264,15 +267,16 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 	return 0;
 }
 
-static enum vchiq_status vc_sm_cma_vchi_callback(enum vchiq_reason reason,
+static enum vchiq_status vc_sm_cma_vchi_callback(struct vchiq_instance *vchiq_instance,
+						 enum vchiq_reason reason,
 						 struct vchiq_header *header,
 						 unsigned int handle, void *userdata)
 {
-	struct sm_instance *instance = vchiq_get_service_userdata(handle);
+	struct sm_instance *instance = vchiq_get_service_userdata(vchiq_instance, handle);
 
 	switch (reason) {
 	case VCHIQ_MESSAGE_AVAILABLE:
-		vchiq_msg_queue_push(handle, header);
+		vchiq_msg_queue_push(vchiq_instance, handle, header);
 		complete(&instance->io_cmplt);
 		break;
 
@@ -320,6 +324,8 @@ struct sm_instance *vc_sm_cma_vchi_init(struct vchiq_instance *vchiq_instance,
 		list_add(&instance->free_blk[i].head, &instance->free_list);
 	}
 
+	instance->vchiq_instance = vchiq_instance;
+
 	/* Open the VCHI service connections */
 	instance->num_connections = num_connections;
 	for (i = 0; i < num_connections; i++) {
@@ -358,7 +364,7 @@ struct sm_instance *vc_sm_cma_vchi_init(struct vchiq_instance *vchiq_instance,
 err_close_services:
 	for (i = 0; i < instance->num_connections; i++) {
 		if (instance->service_handle[i])
-			vchiq_close_service(instance->service_handle[i]);
+			vchiq_close_service(vchiq_instance, instance->service_handle[i]);
 	}
 	kfree(instance);
 err_null:
@@ -366,7 +372,7 @@ err_null:
 	return NULL;
 }
 
-int vc_sm_cma_vchi_stop(struct sm_instance **handle)
+int vc_sm_cma_vchi_stop(struct vchiq_instance *vchiq_instance, struct sm_instance **handle)
 {
 	struct sm_instance *instance;
 	u32 i;
@@ -385,8 +391,8 @@ int vc_sm_cma_vchi_stop(struct sm_instance **handle)
 
 	/* Close all VCHI service connections */
 	for (i = 0; i < instance->num_connections; i++) {
-		vchiq_use_service(instance->service_handle[i]);
-		vchiq_close_service(instance->service_handle[i]);
+		vchiq_use_service(vchiq_instance, instance->service_handle[i]);
+		vchiq_close_service(vchiq_instance, instance->service_handle[i]);
 	}
 
 	kfree(instance);
