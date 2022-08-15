@@ -432,9 +432,9 @@ static int panel_simple_get_timings(struct drm_panel *panel,
 
 static enum drm_panel_orientation panel_simple_get_orientation(struct drm_panel *panel)
 {
-	struct panel_simple *p = to_panel_simple(panel);
+	//struct panel_simple *p = to_panel_simple(panel);
 
-	return p->orientation;
+	return DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
 }
 
 static const struct drm_panel_funcs panel_simple_funcs = {
