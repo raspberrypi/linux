@@ -199,8 +199,8 @@ extern int bcm_dma_chan_alloc(unsigned required_feature_set,
 {
 	struct vc_dmaman *dmaman = g_dmaman;
 	struct platform_device *pdev = to_platform_device(dmaman_dev);
-	struct resource *r;
 	int chan;
+	int irq;
 
 	if (!dmaman_dev)
 		return -ENODEV;
@@ -210,8 +210,8 @@ extern int bcm_dma_chan_alloc(unsigned required_feature_set,
 	if (chan < 0)
 		goto out;
 
-	r = platform_get_resource(pdev, IORESOURCE_IRQ, (unsigned int)chan);
-	if (!r) {
+	irq = platform_get_irq(pdev, (unsigned int)chan);
+	if (irq < 0) {
 		dev_err(dmaman_dev, "failed to get irq for DMA channel %d\n",
 			chan);
 		vc_dmaman_chan_free(dmaman, chan);
@@ -220,7 +220,7 @@ extern int bcm_dma_chan_alloc(unsigned required_feature_set,
 	}
 
 	*out_dma_base = BCM2708_DMA_CHANIO(dmaman->dma_base, chan);
-	*out_dma_irq = r->start;
+	*out_dma_irq = irq;
 	dev_dbg(dmaman_dev,
 		"Legacy API allocated channel=%d, base=%p, irq=%i\n",
 		chan, *out_dma_base, *out_dma_irq);
