@@ -22,50 +22,59 @@
 	fragment@1 {
 		target = <&cpu_thermal>;
 		__overlay__ {
-			trips {
-				trip0: trip0 {
-					temperature = <40000>;
-					hysteresis = <2000>;
-					type = "active";
-				};
-				trip1: trip1 {
-					temperature = <45000>;
-					hysteresis = <2000>;
-					type = "active";
-				};
-				trip2: trip2 {
-					temperature = <50000>;
-					hysteresis = <2000>;
-					type = "active";
-				};
-				trip3: trip3 {
-					temperature = <55000>;
-					hysteresis = <5000>;
-					type = "active";
-				};
-			};
-			cooling-maps {
-				map0 {
-					trip = <&trip0>;
-					cooling-device = <&fan 0 1>;
-				};
-				map1 {
-					trip = <&trip1>;
-					cooling-device = <&fan 1 2>;
-				};
-				map2 {
-					trip = <&trip2>;
-					cooling-device = <&fan 2 3>;
-				};
-				map3 {
-					trip = <&trip3>;
-					cooling-device = <&fan 3 4>;
-				};
-			};
+			polling-delay = <2000>; /* milliseconds */
 		};
 	};
 
 	fragment@2 {
+		target = <&thermal_trips>;
+		__overlay__ {
+			trip0: trip0 {
+				temperature = <40000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+			trip1: trip1 {
+				temperature = <45000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+			trip2: trip2 {
+				temperature = <50000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+			trip3: trip3 {
+				temperature = <55000>;
+				hysteresis = <5000>;
+				type = "active";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&cooling_maps>;
+		__overlay__ {
+			map0 {
+				trip = <&trip0>;
+				cooling-device = <&fan 0 1>;
+			};
+			map1 {
+				trip = <&trip1>;
+				cooling-device = <&fan 1 2>;
+			};
+			map2 {
+				trip = <&trip2>;
+				cooling-device = <&fan 2 3>;
+			};
+			map3 {
+				trip = <&trip3>;
+				cooling-device = <&fan 3 4>;
+			};
+		};
+	};
+
+	fragment@4 {
 		target-path = "/__overrides__";
 		params: __overlay__ {
 			poe_fan_temp0 =		<&trip0>,"temperature:0";
@@ -82,7 +91,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@5 {
 		target = <&firmware>;
 		__overlay__ {
 			fwpwm: pwm {
@@ -92,7 +101,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@6 {
 		target = <&i2c0>;
 		i2c_bus: __overlay__ {
 			#address-cells = <1>;
@@ -113,14 +122,14 @@
 		};
 	};
 
-	fragment@5 {
+	fragment@7 {
 		target = <&i2c0if>;
 		__dormant__ {
 			status = "okay";
 		};
 	};
 
-	fragment@6 {
+	fragment@8 {
 		target = <&i2c0mux>;
 		__dormant__ {
 			status = "okay";

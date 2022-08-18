@@ -131,8 +131,15 @@
 };
 
 &cpu_thermal {
-	/delete-node/ trips;
-	/delete-node/ cooling-maps;
+	// Add some labels
+	thermal_trips: trips {
+		cpu-crit {
+			// Raise upstream limit of 90C
+			temperature = <110000>;
+		};
+	};
+	cooling_maps: cooling-maps {
+	};
 };
 
 &vec {
