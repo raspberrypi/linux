@@ -103,6 +103,8 @@ int virtqueue_resize(struct virtqueue *vq, u32 num,
 int virtqueue_reset(struct virtqueue *vq,
 		    void (*recycle)(struct virtqueue *vq, void *buf));
 
+void virtqueue_disable_dma_api_for_buffers(struct virtqueue *vq);
+
 /**
  * struct virtio_device - representation of a device using virtio
  * @index: unique position on the virtio bus
