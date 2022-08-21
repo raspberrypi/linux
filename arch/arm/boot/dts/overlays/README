@@ -1169,7 +1169,7 @@ Params: gpiopin                 GPIO used to control the fan (default 12)
         temp                    Temperature at which the fan switches on, in
                                 millicelcius (default 55000)
         hyst                    Temperature delta (in millicelcius) below
-                                temp at which the fan will drop to minrpm
+                                which the fan will drop to minrpm
                                 (default 10000)
 
 
