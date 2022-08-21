@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 18
-SUBLEVEL = 18
+SUBLEVEL = 19
 EXTRAVERSION =
 NAME = Superb Owl
 
