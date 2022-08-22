@@ -789,6 +789,12 @@ Load:   dtoverlay=cutiepi-panel
 Params: <None>
 
 
+Name:   dacberry400
+Info:   Configures the dacberry400 add on soundcard
+Load:   dtoverlay=dacberry400
+Params: <None>
+
+
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.
