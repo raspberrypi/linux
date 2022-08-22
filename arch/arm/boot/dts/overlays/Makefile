@@ -40,6 +40,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	chipdip-dac.dtbo \
 	cma.dtbo \
 	cutiepi-panel.dtbo \
+	dacberry400.dtbo \
 	dht11.dtbo \
 	dionaudio-kiwi.dtbo \
 	dionaudio-loco.dtbo \
