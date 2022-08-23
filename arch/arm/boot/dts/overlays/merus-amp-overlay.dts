@@ -5,7 +5,6 @@
 #include <dt-bindings/pinctrl/bcm2835.h>
 #include <dt-bindings/gpio/gpio.h>
 
-
 / {
 	compatible = "brcm,bcm2835";
 
@@ -20,9 +19,9 @@
 		target = <&gpio>;
 		__overlay__ {
 			merus_amp_pins: merus_amp_pins {
-				brcm,pins = <23>;
-				brcm,function = <0>; /* in */
-				brcm,pull = <2>; /* up */
+				brcm,pins = <23 8>;
+				brcm,function = <0 0>;
+				brcm,pull = <2 0>;
 			};
 		};
 	};
