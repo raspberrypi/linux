@@ -1,0 +1,44 @@
+// Enable the i2s interface
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&i2c_arm>;
+        __overlay__ {
+            #address-cells = <1>;
+			#size-cells = <0>;
+            status = "okay";
+
+            //test_ref = <&test_label>;
+            rohm_bh1745: bh1745@38 {
+                compatible = "rohm,bh1745";
+                reg = <0x38>;
+                //vdd-supply = <&pm8994_l29>;
+                //vio-supply = <&pm8994_s4>;
+                bh1745,tp_moudle_count = <3>;
+                /*[module_id] [golden judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                bh1745,cal_data0 = "0","198","495","1179","127","215","0","0",
+                /*[white judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "230","94","49","346","321","0","0",
+                /*[balck judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "235","97","164","404","860","0","0";
+                /*[module_id] [golden judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                bh1745,cal_data1 = "1","242","1565","932","9035","8607","0","0",
+                /*[white judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "189","146","88","598","533","0","0",
+                /*[balck judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "1040","1911","310","11509","9976","0","0";
+                /*[module_id] [golden judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                bh1745,cal_data2 = "2","199","488","274","2283","2068","0","0",
+                /*[white judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "194","216","113","886","821","0","0",
+                /*[balck judge] r[0] r[1] g[0] g[1] b[0] b[1]*/
+                "396","2301","547","13243","12687","0","0";
+                status = "okay";
+            };
+        };
+    };
+};

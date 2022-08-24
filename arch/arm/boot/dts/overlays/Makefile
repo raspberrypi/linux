@@ -33,6 +33,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	balena-fin.dtbo \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
+	bh1745.dtbo \
 	cma.dtbo \
 	cutiepi-panel.dtbo \
 	dht11.dtbo \
