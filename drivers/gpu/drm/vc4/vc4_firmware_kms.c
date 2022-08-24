@@ -711,7 +711,7 @@ static int vc4_plane_atomic_async_check(struct drm_plane *plane,
 	if (plane->type == 2 &&
 	    plane->state->fb &&
 	    new_plane_state->crtc->state->active)
-		ret = vc4_plane_atomic_check(plane, state);
+		ret = 0;
 
 	return ret;
 }
