@@ -1761,6 +1761,10 @@ static void read_bulk_callback(struct urb *urb)
 		return;
 	case -ENOENT:
 		return;	/* the urb is in unlink state */
+	case -EPROTO:
+		if (net_ratelimit())
+			netdev_warn(netdev, "Rx status %d\n", status);
+		return;
 	case -ETIME:
 		if (net_ratelimit())
 			netdev_warn(netdev, "maybe reset is needed?\n");
