@@ -4331,7 +4331,12 @@ done:
 copy_iov:
 		iov_iter_restore(&s->iter, &s->iter_state);
 		ret = io_setup_async_rw(req, iovec, s, false);
-		return ret ?: -EAGAIN;
+		if (!ret) {
+			if (kiocb->ki_flags & IOCB_WRITE)
+				kiocb_end_write(req);
+			return -EAGAIN;
+		}
+		return ret;
 	}
 out_free:
 	/* it's reportedly faster than delegating the null check to kfree() */
