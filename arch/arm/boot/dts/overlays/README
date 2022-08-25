@@ -3965,6 +3965,14 @@ Load:   dtoverlay=tpm-slb9670
 Params: <None>
 
 
+Name:   tpm-slb9673
+Info:   Enables support for Infineon SLB9673 Trusted Platform Module add-on
+        boards, which can be used as a secure key storage and hwrng
+        via the I2C protocol.
+Load:   dtoverlay=tpm-slb9673
+Params: <None>
+
+
 Name:   uart0
 Info:   Change the pin usage of uart0
 Load:   dtoverlay=uart0,<param>=<val>

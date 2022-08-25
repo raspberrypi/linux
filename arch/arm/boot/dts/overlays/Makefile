@@ -240,6 +240,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tc358743-audio.dtbo \
 	tinylcd35.dtbo \
 	tpm-slb9670.dtbo \
+	tpm-slb9673.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
 	uart2.dtbo \
