@@ -1140,6 +1140,12 @@ static const char *pivariety_ctrl_get_name(u32 id)
 		return "trigger_mode";
 	case V4L2_CID_ARDUCAM_IRCUT:
 		return "ircut";
+	case V4L2_CID_ARDUCAM_STROBE_SHIFT:
+		return "strobe_shift";
+	case V4L2_CID_ARDUCAM_STROBE_WIDTH:
+		return "strobe_width";
+	case V4L2_CID_ARDUCAM_MODE:
+		return "mode";
 	default:
 		return NULL;
 	}
