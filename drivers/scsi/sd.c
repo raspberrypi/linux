@@ -104,7 +104,8 @@ MODULE_ALIAS_SCSI_DEVICE(TYPE_ZBC);
 #define SD_MINORS	0
 #endif
 
-static void sd_config_discard(struct scsi_disk *, unsigned int);
+static void sd_config_discard(struct scsi_disk *, enum sd_lbp_mode);
+static void sd_config_write_zeroes(struct scsi_disk *, enum sd_zeroing_mode);
 static void sd_config_write_same(struct scsi_disk *);
 static int  sd_revalidate_disk(struct gendisk *);
 static void sd_unlock_native_capacity(struct gendisk *disk);
@@ -377,9 +378,11 @@ static DEVICE_ATTR_RO(thin_provisioning);
 
 /* sysfs_match_string() requires dense arrays */
 static const char *lbp_mode[] = {
+	[SD_LBP_DEFAULT]	= "default",
 	[SD_LBP_FULL]		= "full",
 	[SD_LBP_UNMAP]		= "unmap",
 	[SD_LBP_WS16]		= "writesame_16",
+	[SD_LBP_WS16_NDOB]	= "writesame_16_ndob",
 	[SD_LBP_WS10]		= "writesame_10",
 	[SD_LBP_ZERO]		= "writesame_zero",
 	[SD_LBP_DISABLE]	= "disabled",
@@ -417,6 +420,11 @@ provisioning_mode_store(struct device *dev, struct device_attribute *attr,
 	if (mode < 0)
 		return -EINVAL;
 
+	if (mode == SD_LBP_DEFAULT)
+		sdkp->provisioning_override = false;
+	else
+		sdkp->provisioning_override = true;
+
 	sd_config_discard(sdkp, mode);
 
 	return count;
@@ -425,10 +433,13 @@ static DEVICE_ATTR_RW(provisioning_mode);
 
 /* sysfs_match_string() requires dense arrays */
 static const char *zeroing_mode[] = {
+	[SD_ZERO_DEFAULT]	= "default",
 	[SD_ZERO_WRITE]		= "write",
 	[SD_ZERO_WS]		= "writesame",
 	[SD_ZERO_WS16_UNMAP]	= "writesame_16_unmap",
+	[SD_ZERO_WS16_NDOB]	= "writesame_16_ndob",
 	[SD_ZERO_WS10_UNMAP]	= "writesame_10_unmap",
+	[SD_ZERO_DISABLE]	= "disabled",
 };
 
 static ssize_t
@@ -454,7 +465,12 @@ zeroing_mode_store(struct device *dev, struct device_attribute *attr,
 	if (mode < 0)
 		return -EINVAL;
 
-	sdkp->zeroing_mode = mode;
+	if (mode == SD_ZERO_DEFAULT)
+		sdkp->zeroing_override = false;
+	else
+		sdkp->zeroing_override = true;
+
+	sd_config_write_zeroes(sdkp, mode);
 
 	return count;
 }
@@ -816,23 +832,99 @@ static unsigned char sd_setup_protect_cmnd(struct scsi_cmnd *scmd,
 	return protect;
 }
 
-static void sd_config_discard(struct scsi_disk *sdkp, unsigned int mode)
+/*
+ * It took many iterations in T10 to develop a model for thinly provisioned
+ * devices. Linux was an early adopter of the concept of discards, and as a
+ * result of the SCSI spec being a moving target for several years, we have a
+ * set of heuristics in place that allow us to support a wide variety of
+ * devices that predate the final SBC specification.
+ *
+ * These heuristics are triggered by default during device discovery, but the
+ * user can subsequently override what the kernel decided by writing a
+ * particular mode string to a scsi_disk's provisioning_mode node in sysfs.
+ * For devices that predate any of the provisioning knobs in the spec but rely
+ * on zero-detection, it is possible to enable discard through the
+ * "writesame_zero" override.
+ *
+ * For Linux to automatically identify a SCSI disk as being thinly
+ * provisioned, the device must set the LBPME bit in READ CAPACITY(16).
+ *
+ * In the ratified version of T10 SBC-4, a device must also provide a Logical
+ * Block Provisioning VPD page which has three fields that indicate which
+ * provisioning commands the device supports. The device should also implement
+ * the extended version of the Block Limits VPD which is used to indicate any
+ * limitations on the size of unmap operations as well as alignment and
+ * granularity used inside the device.
+ *
+ * If the device supports the Logical Block Provisioning VPD, and sets the
+ * LBPU flag, and reports a MAXIMUM UNMAP LBA COUNT > 0 and a MAXIMUM UNMAP
+ * BLOCK DESCRIPTOR count > 0 in the extended Block Limits VPD, then we will
+ * use UNMAP for discards. Otherwise, if the device set LBPWS in the LBP VPD,
+ * we will use WRITE SAME(16) with the UNMAP bit set for discards.  Otherwise,
+ * if the device sets LBPWS10 in the LBP VPD, then we will use WRITE SAME(10)
+ * with the UNMAP bit set for discards.
+ *
+ * If the device does *not* support the Logical Block Provisioning VPD, we
+ * rely on the extended version of the Block Limits VPD. If that is supported,
+ * and and the device reports a MAXIMUM UNMAP LBA COUNT > 0 and a MAXIMUM
+ * UNMAP BLOCK DESCRIPTOR count > 0, then we will use UNMAP for discards.
+ * Otherwise we will use WRITE SAME(16) with the UNMAP bit set for discards.
+ *
+ * If a device implements the *short* version of the Block Limits VPD or does
+ * not have a Block Limits VPD at all, we default to using WRITE SAME(16) with
+ * the UNMAP bit set for discards.
+ *
+ * The possible values for provisioning_mode in sysfs are:
+ *
+ *   "default"		 - use heuristics outlined above to decide on command
+ *   "full"		 - the device does not support discard
+ *   "unmap"		 - use the UNMAP command
+ *   "writesame_16"	 - use the WRITE SAME(16) command with the UNMAP bit set
+ *   "writesame_16_ndob" - use WRITE SAME(16) with UNMAP and NDOB bits set
+ *   "writesame_10"	 - use the WRITE SAME(10) command with the UNMAP bit set
+ *   "writesame_zero"	 - use WRITE SAME(16) with a zeroed payload, no UNMAP bit
+ *   "disabled"		 - discards disabled due to command failure
+ */
+static void sd_config_discard(struct scsi_disk *sdkp, enum sd_lbp_mode mode)
 {
 	struct request_queue *q = sdkp->disk->queue;
 	unsigned int logical_block_size = sdkp->device->sector_size;
 	unsigned int max_blocks = 0;
 
-	q->limits.discard_alignment =
-		sdkp->unmap_alignment * logical_block_size;
-	q->limits.discard_granularity =
-		max(sdkp->physical_block_size,
-		    sdkp->unmap_granularity * logical_block_size);
-	sdkp->provisioning_mode = mode;
+	if (mode == SD_LBP_DEFAULT && !sdkp->provisioning_override) {
+		if (sdkp->lbpme) { /* Logical Block Provisioning Enabled */
+			if (sdkp->lbpvpd) { /* Logical Block Provisioning VPD */
+				if (sdkp->lbpu && sdkp->max_unmap_blocks)
+					mode = SD_LBP_UNMAP;
+				else if (sdkp->lbpws) {
+					if (sdkp->ndob)
+						mode = SD_LBP_WS16_NDOB;
+					else
+						mode = SD_LBP_WS16;
+				} else if (sdkp->lbpws10)
+					mode = SD_LBP_WS10;
+				else
+					mode = SD_LBP_FULL;
+			} else if (sdkp->lblvpd) { /* Long Block Limits VPD */
+				if (sdkp->max_unmap_blocks)
+					mode = SD_LBP_UNMAP;
+				else
+					mode = SD_LBP_WS16;
+			} else /* LBPME only, no VPDs supported */
+				mode = SD_LBP_WS16;
+		} else
+			mode = SD_LBP_FULL;
+	}
 
 	switch (mode) {
-
+	case SD_LBP_DEFAULT:
 	case SD_LBP_FULL:
 	case SD_LBP_DISABLE:
+		if (mode == SD_LBP_DISABLE)
+			sdkp->provisioning_override = true;
+		sdkp->provisioning_mode = mode;
+		q->limits.discard_alignment = 0;
+		q->limits.discard_granularity = 0;
 		blk_queue_max_discard_sectors(q, 0);
 		blk_queue_flag_clear(QUEUE_FLAG_DISCARD, q);
 		return;
@@ -843,6 +935,7 @@ static void sd_config_discard(struct scsi_disk *sdkp, unsigned int mode)
 		break;
 
 	case SD_LBP_WS16:
+	case SD_LBP_WS16_NDOB:
 		if (sdkp->device->unmap_limit_for_ws)
 			max_blocks = sdkp->max_unmap_blocks;
 		else
@@ -866,6 +959,12 @@ static void sd_config_discard(struct scsi_disk *sdkp, unsigned int mode)
 		break;
 	}
 
+	sdkp->provisioning_mode = mode;
+	q->limits.discard_alignment =
+		sdkp->unmap_alignment * logical_block_size;
+	q->limits.discard_granularity =
+		max(sdkp->physical_block_size,
+		    sdkp->unmap_granularity * logical_block_size);
 	blk_queue_max_discard_sectors(q, max_blocks * (logical_block_size >> 9));
 	blk_queue_flag_set(QUEUE_FLAG_DISCARD, q);
 }
@@ -906,7 +1005,7 @@ static blk_status_t sd_setup_unmap_cmnd(struct scsi_cmnd *cmd)
 }
 
 static blk_status_t sd_setup_write_same16_cmnd(struct scsi_cmnd *cmd,
-		bool unmap)
+		bool unmap, bool ndob)
 {
 	struct scsi_device *sdp = cmd->device;
 	struct request *rq = cmd->request;
@@ -915,23 +1014,32 @@ static blk_status_t sd_setup_write_same16_cmnd(struct scsi_cmnd *cmd,
 	u32 nr_blocks = sectors_to_logical(sdp, blk_rq_sectors(rq));
 	u32 data_len = sdp->sector_size;
 
-	rq->special_vec.bv_page = mempool_alloc(sd_page_pool, GFP_ATOMIC);
-	if (!rq->special_vec.bv_page)
-		return BLK_STS_RESOURCE;
-	clear_highpage(rq->special_vec.bv_page);
-	rq->special_vec.bv_offset = 0;
-	rq->special_vec.bv_len = data_len;
+	if (ndob) {
+		rq->special_vec.bv_page = NULL;
+		rq->special_vec.bv_len = 0;
+	} else {
+		rq->special_vec.bv_page =
+			mempool_alloc(sd_page_pool, GFP_ATOMIC);
+		if (!rq->special_vec.bv_page)
+			return BLK_STS_RESOURCE;
+		clear_highpage(rq->special_vec.bv_page);
+		rq->special_vec.bv_len = data_len;
+	}
+
 	rq->rq_flags |= RQF_SPECIAL_PAYLOAD;
+	rq->special_vec.bv_offset = 0;
 
 	cmd->cmd_len = 16;
 	cmd->cmnd[0] = WRITE_SAME_16;
 	if (unmap)
 		cmd->cmnd[1] = 0x8; /* UNMAP */
+	if (ndob)
+		cmd->cmnd[1] |= 0x1; /* NDOB */
 	put_unaligned_be64(lba, &cmd->cmnd[2]);
 	put_unaligned_be32(nr_blocks, &cmd->cmnd[10]);
 
 	cmd->allowed = sdkp->max_retries;
-	cmd->transfersize = data_len;
+	cmd->transfersize = rq->special_vec.bv_len;
 	rq->timeout = unmap ? SD_TIMEOUT : SD_WRITE_SAME_TIMEOUT;
 
 	return scsi_alloc_sgtables(cmd);
@@ -969,6 +1077,39 @@ static blk_status_t sd_setup_write_same10_cmnd(struct scsi_cmnd *cmd,
 	return scsi_alloc_sgtables(cmd);
 }
 
+static void sd_config_write_zeroes(struct scsi_disk *sdkp,
+				   enum sd_zeroing_mode mode)
+{
+	struct request_queue *q = sdkp->disk->queue;
+	unsigned int logical_block_size = sdkp->device->sector_size;
+
+	if (mode == SD_ZERO_DEFAULT && !sdkp->zeroing_override) {
+		mode = SD_ZERO_WRITE;
+
+		if (sdkp->lbpme && sdkp->lbprz) {
+			if (sdkp->lbpws) {
+				if (sdkp->ndob)
+					mode = SD_ZERO_WS16_NDOB;
+				else
+					mode = SD_ZERO_WS16_UNMAP;
+			} else if (sdkp->lbpws10)
+				mode = SD_ZERO_WS10_UNMAP;
+		} else if (sdkp->max_ws_blocks) {
+				if (sdkp->ndob)
+					mode = SD_ZERO_WS16_NDOB;
+				else
+					mode = SD_ZERO_WS;
+		}
+	}
+
+	if (mode == SD_ZERO_DISABLE)
+		sdkp->zeroing_override = true;
+
+	sdkp->zeroing_mode = mode;
+	blk_queue_max_write_zeroes_sectors(q, sdkp->max_ws_blocks *
+					   (logical_block_size >> 9));
+}
+
 static blk_status_t sd_setup_write_zeroes_cmnd(struct scsi_cmnd *cmd)
 {
 	struct request *rq = cmd->request;
@@ -980,7 +1121,9 @@ static blk_status_t sd_setup_write_zeroes_cmnd(struct scsi_cmnd *cmd)
 	if (!(rq->cmd_flags & REQ_NOUNMAP)) {
 		switch (sdkp->zeroing_mode) {
 		case SD_ZERO_WS16_UNMAP:
-			return sd_setup_write_same16_cmnd(cmd, true);
+			return sd_setup_write_same16_cmnd(cmd, true, false);
+		case SD_ZERO_WS16_NDOB:
+			return sd_setup_write_same16_cmnd(cmd, true, true);
 		case SD_ZERO_WS10_UNMAP:
 			return sd_setup_write_same10_cmnd(cmd, true);
 		}
@@ -991,8 +1134,12 @@ static blk_status_t sd_setup_write_zeroes_cmnd(struct scsi_cmnd *cmd)
 		return BLK_STS_TARGET;
 	}
 
-	if (sdkp->ws16 || lba > 0xffffffff || nr_blocks > 0xffff)
-		return sd_setup_write_same16_cmnd(cmd, false);
+	if (sdkp->ws16 || lba > 0xffffffff || nr_blocks > 0xffff) {
+		if (sdkp->zeroing_mode == SD_ZERO_WS16_NDOB)
+			return sd_setup_write_same16_cmnd(cmd, false, true);
+		else
+			return sd_setup_write_same16_cmnd(cmd, false, false);
+	}
 
 	return sd_setup_write_same10_cmnd(cmd, false);
 }
@@ -1023,15 +1170,6 @@ static void sd_config_write_same(struct scsi_disk *sdkp)
 		sdkp->max_ws_blocks = 0;
 	}
 
-	if (sdkp->lbprz && sdkp->lbpws)
-		sdkp->zeroing_mode = SD_ZERO_WS16_UNMAP;
-	else if (sdkp->lbprz && sdkp->lbpws10)
-		sdkp->zeroing_mode = SD_ZERO_WS10_UNMAP;
-	else if (sdkp->max_ws_blocks)
-		sdkp->zeroing_mode = SD_ZERO_WS;
-	else
-		sdkp->zeroing_mode = SD_ZERO_WRITE;
-
 	if (sdkp->max_ws_blocks &&
 	    sdkp->physical_block_size > logical_block_size) {
 		/*
@@ -1054,8 +1192,6 @@ static void sd_config_write_same(struct scsi_disk *sdkp)
 
 out:
 	blk_queue_max_write_same_sectors(q, sdkp->max_ws_blocks *
-					 (logical_block_size >> 9));
-	blk_queue_max_write_zeroes_sectors(q, sdkp->max_ws_blocks *
 					 (logical_block_size >> 9));
 }
 
@@ -1337,7 +1473,9 @@ static blk_status_t sd_init_command(struct scsi_cmnd *cmd)
 		case SD_LBP_UNMAP:
 			return sd_setup_unmap_cmnd(cmd);
 		case SD_LBP_WS16:
-			return sd_setup_write_same16_cmnd(cmd, true);
+			return sd_setup_write_same16_cmnd(cmd, true, false);
+		case SD_LBP_WS16_NDOB:
+			return sd_setup_write_same16_cmnd(cmd, true, true);
 		case SD_LBP_WS10:
 			return sd_setup_write_same10_cmnd(cmd, true);
 		case SD_LBP_ZERO:
@@ -2125,6 +2263,8 @@ static int sd_done(struct scsi_cmnd *SCpnt)
 			case WRITE_SAME:
 				if (SCpnt->cmnd[1] & 8) { /* UNMAP */
 					sd_config_discard(sdkp, SD_LBP_DISABLE);
+					sd_config_write_zeroes(sdkp,
+							       SD_ZERO_DISABLE);
 				} else {
 					sdkp->device->no_write_same = 1;
 					sd_config_write_same(sdkp);
@@ -2282,40 +2422,48 @@ static int sd_read_protection_type(struct scsi_disk *sdkp, unsigned char *buffer
 {
 	struct scsi_device *sdp = sdkp->device;
 	u8 type;
-	int ret = 0;
 
 	if (scsi_device_protection(sdp) == 0 || (buffer[12] & 1) == 0) {
 		sdkp->protection_type = 0;
-		return ret;
+		return 0;
 	}
 
 	type = ((buffer[12] >> 1) & 7) + 1; /* P_TYPE 0 = Type 1 */
 
-	if (type > T10_PI_TYPE3_PROTECTION)
-		ret = -ENODEV;
-	else if (scsi_host_dif_capable(sdp->host, type))
-		ret = 1;
-
-	if (sdkp->first_scan || type != sdkp->protection_type)
-		switch (ret) {
-		case -ENODEV:
-			sd_printk(KERN_ERR, sdkp, "formatted with unsupported" \
-				  " protection type %u. Disabling disk!\n",
-				  type);
-			break;
-		case 1:
-			sd_printk(KERN_NOTICE, sdkp,
-				  "Enabling DIF Type %u protection\n", type);
-			break;
-		case 0:
-			sd_printk(KERN_NOTICE, sdkp,
-				  "Disabling DIF Type %u protection\n", type);
-			break;
-		}
+	if (type > T10_PI_TYPE3_PROTECTION) {
+		sd_printk(KERN_ERR, sdkp, "formatted with unsupported"	\
+			  " protection type %u. Disabling disk!\n",
+			  type);
+		sdkp->protection_type = 0;
+		return -ENODEV;
+	}
 
 	sdkp->protection_type = type;
 
-	return ret;
+	return 0;
+}
+
+static void sd_config_protection(struct scsi_disk *sdkp)
+{
+	struct scsi_device *sdp = sdkp->device;
+
+	if (!sdkp->first_scan)
+		return;
+
+	sd_dif_config_host(sdkp);
+
+	if (!sdkp->protection_type)
+		return;
+
+	if (!scsi_host_dif_capable(sdp->host, sdkp->protection_type)) {
+		sd_printk(KERN_NOTICE, sdkp,
+			  "Disabling DIF Type %u protection\n",
+			  sdkp->protection_type);
+		sdkp->protection_type = 0;
+	}
+
+	sd_printk(KERN_NOTICE, sdkp, "Enabling DIF Type %u protection\n",
+		  sdkp->protection_type);
 }
 
 static void read_capacity_error(struct scsi_disk *sdkp, struct scsi_device *sdp,
@@ -2433,8 +2581,18 @@ static int read_capacity_16(struct scsi_disk *sdkp, struct scsi_device *sdp,
 
 		if (buffer[14] & 0x40) /* LBPRZ */
 			sdkp->lbprz = 1;
-
-		sd_config_discard(sdkp, SD_LBP_WS16);
+		/*
+		 * If a device sets LBPME=1 then it should, in theory, support
+		 * the Logical Block Provisioning VPD page. Assume that querying
+		 * VPD pages is safe if logical block provisioning is enabled
+		 * and the device claims conformance to a recent version of the
+		 * spec.
+		 */
+		if (!scsi_device_has_vpd(sdp) && sdp->scsi_level > SCSI_SPC_3) {
+			sd_printk(KERN_ERR, sdkp,
+			  "Logical Block Provisioning enabled, trying VPDs\n");
+			sdkp->reattach_vpds = true;
+		}
 	}
 
 	sdkp->capacity = lba + 1;
@@ -2501,8 +2659,10 @@ static int read_capacity_10(struct scsi_disk *sdkp, struct scsi_device *sdp,
 	return sector_size;
 }
 
-static int sd_try_rc16_first(struct scsi_device *sdp)
+static int sd_try_rc16_first(struct scsi_disk *sdkp)
 {
+	struct scsi_device *sdp = sdkp->device;
+
 	if (sdp->host->max_cmd_len < 16)
 		return 0;
 	if (sdp->try_rc_10_first)
@@ -2523,7 +2683,7 @@ sd_read_capacity(struct scsi_disk *sdkp, unsigned char *buffer)
 	int sector_size;
 	struct scsi_device *sdp = sdkp->device;
 
-	if (sd_try_rc16_first(sdp)) {
+	if (sd_try_rc16_first(sdkp)) {
 		sector_size = read_capacity_16(sdkp, sdp, buffer);
 		if (sector_size == -EOVERFLOW)
 			goto got_data;
@@ -2941,62 +3101,42 @@ static void sd_read_app_tag_own(struct scsi_disk *sdkp, unsigned char *buffer)
  */
 static void sd_read_block_limits(struct scsi_disk *sdkp)
 {
-	unsigned int sector_sz = sdkp->device->sector_size;
-	const int vpd_len = 64;
-	unsigned char *buffer = kmalloc(vpd_len, GFP_KERNEL);
+	struct scsi_vpd *vpd;
 
-	if (!buffer ||
-	    /* Block Limits VPD */
-	    scsi_get_vpd_page(sdkp->device, 0xb0, buffer, vpd_len))
+	rcu_read_lock();
+
+	vpd = rcu_dereference(sdkp->device->vpd_pgb0);
+	if (!vpd || vpd->len < 16)
 		goto out;
 
-	blk_queue_io_min(sdkp->disk->queue,
-			 get_unaligned_be16(&buffer[6]) * sector_sz);
+	sdkp->min_xfer_blocks = get_unaligned_be16(&vpd->data[6]);
+	sdkp->max_xfer_blocks = get_unaligned_be32(&vpd->data[8]);
+	sdkp->opt_xfer_blocks = get_unaligned_be32(&vpd->data[12]);
 
-	sdkp->max_xfer_blocks = get_unaligned_be32(&buffer[8]);
-	sdkp->opt_xfer_blocks = get_unaligned_be32(&buffer[12]);
-
-	if (buffer[3] == 0x3c) {
+	if (vpd->len >= 64) {
 		unsigned int lba_count, desc_count;
 
-		sdkp->max_ws_blocks = (u32)get_unaligned_be64(&buffer[36]);
+		sdkp->lblvpd = 1;
+		sdkp->max_ws_blocks = (u32)get_unaligned_be64(&vpd->data[36]);
 
 		if (!sdkp->lbpme)
 			goto out;
 
-		lba_count = get_unaligned_be32(&buffer[20]);
-		desc_count = get_unaligned_be32(&buffer[24]);
+		lba_count = get_unaligned_be32(&vpd->data[20]);
+		desc_count = get_unaligned_be32(&vpd->data[24]);
 
 		if (lba_count && desc_count)
 			sdkp->max_unmap_blocks = lba_count;
 
-		sdkp->unmap_granularity = get_unaligned_be32(&buffer[28]);
+		sdkp->unmap_granularity = get_unaligned_be32(&vpd->data[28]);
 
-		if (buffer[32] & 0x80)
+		if (vpd->data[32] & 0x80)
 			sdkp->unmap_alignment =
-				get_unaligned_be32(&buffer[32]) & ~(1 << 31);
-
-		if (!sdkp->lbpvpd) { /* LBP VPD page not provided */
-
-			if (sdkp->max_unmap_blocks)
-				sd_config_discard(sdkp, SD_LBP_UNMAP);
-			else
-				sd_config_discard(sdkp, SD_LBP_WS16);
-
-		} else {	/* LBP VPD page tells us what to use */
-			if (sdkp->lbpu && sdkp->max_unmap_blocks)
-				sd_config_discard(sdkp, SD_LBP_UNMAP);
-			else if (sdkp->lbpws)
-				sd_config_discard(sdkp, SD_LBP_WS16);
-			else if (sdkp->lbpws10)
-				sd_config_discard(sdkp, SD_LBP_WS10);
-			else
-				sd_config_discard(sdkp, SD_LBP_DISABLE);
-		}
+				get_unaligned_be32(&vpd->data[32]) & ~(1 << 31);
 	}
 
  out:
-	kfree(buffer);
+	rcu_read_unlock();
 }
 
 /**
@@ -3006,18 +3146,21 @@ static void sd_read_block_limits(struct scsi_disk *sdkp)
 static void sd_read_block_characteristics(struct scsi_disk *sdkp)
 {
 	struct request_queue *q = sdkp->disk->queue;
-	unsigned char *buffer;
+	struct scsi_vpd *vpd;
 	u16 rot;
-	const int vpd_len = 64;
+	u8 zoned;
 
-	buffer = kmalloc(vpd_len, GFP_KERNEL);
+	rcu_read_lock();
+	vpd = rcu_dereference(sdkp->device->vpd_pgb1);
 
-	if (!buffer ||
-	    /* Block Device Characteristics VPD */
-	    scsi_get_vpd_page(sdkp->device, 0xb1, buffer, vpd_len))
-		goto out;
+	if (!vpd || vpd->len < 8) {
+		rcu_read_unlock();
+	        return;
+	}
 
-	rot = get_unaligned_be16(&buffer[4]);
+	rot = get_unaligned_be16(&vpd->data[4]);
+	zoned = (vpd->data[8] >> 4) & 3;
+	rcu_read_unlock();
 
 	if (rot == 1) {
 		blk_queue_flag_set(QUEUE_FLAG_NONROT, q);
@@ -3028,7 +3171,7 @@ static void sd_read_block_characteristics(struct scsi_disk *sdkp)
 		/* Host-managed */
 		blk_queue_set_zoned(sdkp->disk, BLK_ZONED_HM);
 	} else {
-		sdkp->zoned = (buffer[8] >> 4) & 3;
+		sdkp->zoned = zoned;
 		if (sdkp->zoned == 1) {
 			/* Host-aware */
 			blk_queue_set_zoned(sdkp->disk, BLK_ZONED_HA);
@@ -3039,7 +3182,7 @@ static void sd_read_block_characteristics(struct scsi_disk *sdkp)
 	}
 
 	if (!sdkp->first_scan)
-		goto out;
+		return;
 
 	if (blk_queue_is_zoned(q)) {
 		sd_printk(KERN_NOTICE, sdkp, "Host-%s zoned block device\n",
@@ -3052,9 +3195,6 @@ static void sd_read_block_characteristics(struct scsi_disk *sdkp)
 			sd_printk(KERN_NOTICE, sdkp,
 				  "Drive-managed SMR disk\n");
 	}
-
- out:
-	kfree(buffer);
 }
 
 /**
@@ -3063,24 +3203,24 @@ static void sd_read_block_characteristics(struct scsi_disk *sdkp)
  */
 static void sd_read_block_provisioning(struct scsi_disk *sdkp)
 {
-	unsigned char *buffer;
-	const int vpd_len = 8;
+	struct scsi_vpd *vpd;
 
 	if (sdkp->lbpme == 0)
 		return;
 
-	buffer = kmalloc(vpd_len, GFP_KERNEL);
+	rcu_read_lock();
+	vpd = rcu_dereference(sdkp->device->vpd_pgb2);
 
-	if (!buffer || scsi_get_vpd_page(sdkp->device, 0xb2, buffer, vpd_len))
-		goto out;
+	if (!vpd || vpd->len < 8) {
+		rcu_read_unlock();
+		return;
+	}
 
 	sdkp->lbpvpd	= 1;
-	sdkp->lbpu	= (buffer[5] >> 7) & 1;	/* UNMAP */
-	sdkp->lbpws	= (buffer[5] >> 6) & 1;	/* WRITE SAME(16) with UNMAP */
-	sdkp->lbpws10	= (buffer[5] >> 5) & 1;	/* WRITE SAME(10) with UNMAP */
-
- out:
-	kfree(buffer);
+	sdkp->lbpu	= (vpd->data[5] >> 7) & 1; /* UNMAP */
+	sdkp->lbpws	= (vpd->data[5] >> 6) & 1; /* WRITE SAME(16) w/ UNMAP */
+	sdkp->lbpws10	= (vpd->data[5] >> 5) & 1; /* WRITE SAME(10) w/ UNMAP */
+	rcu_read_unlock();
 }
 
 static void sd_read_write_same(struct scsi_disk *sdkp, unsigned char *buffer)
@@ -3094,8 +3234,7 @@ static void sd_read_write_same(struct scsi_disk *sdkp, unsigned char *buffer)
 	}
 
 	if (scsi_report_opcode(sdev, buffer, SD_BUF_SIZE, INQUIRY) < 0) {
-		/* too large values might cause issues with arcmsr */
-		int vpd_buf_len = 64;
+		struct scsi_vpd *vpd;
 
 		sdev->no_report_opcodes = 1;
 
@@ -3103,12 +3242,19 @@ static void sd_read_write_same(struct scsi_disk *sdkp, unsigned char *buffer)
 		 * CODES is unsupported and the device has an ATA
 		 * Information VPD page (SAT).
 		 */
-		if (!scsi_get_vpd_page(sdev, 0x89, buffer, vpd_buf_len))
+		rcu_read_lock();
+		vpd = rcu_dereference(sdev->vpd_pg89);
+		if (vpd)
 			sdev->no_write_same = 1;
+		rcu_read_unlock();
 	}
 
-	if (scsi_report_opcode(sdev, buffer, SD_BUF_SIZE, WRITE_SAME_16) == 1)
+	if (scsi_report_opcode(sdev, buffer, SD_BUF_SIZE, WRITE_SAME_16) == 1) {
 		sdkp->ws16 = 1;
+
+		if (get_unaligned_be16(&buffer[2]) >= 2)
+			sdkp->ndob = buffer[5] & 1;
+	}
 
 	if (scsi_report_opcode(sdev, buffer, SD_BUF_SIZE, WRITE_SAME) == 1)
 		sdkp->ws10 = 1;
@@ -3128,6 +3274,29 @@ static void sd_read_security(struct scsi_disk *sdkp, unsigned char *buffer)
 		sdkp->security = 1;
 }
 
+static bool sd_validate_min_xfer_size(struct scsi_disk *sdkp)
+{
+	struct scsi_device *sdp = sdkp->device;
+	unsigned int min_xfer_bytes =
+		logical_to_bytes(sdp, sdkp->min_xfer_blocks);
+
+	if (sdkp->min_xfer_blocks == 0)
+		return false;
+
+	if (min_xfer_bytes & (sdkp->physical_block_size - 1)) {
+		sd_first_printk(KERN_WARNING, sdkp,
+				"Preferred minimum I/O size %u bytes not a " \
+				"multiple of physical block size (%u bytes)\n",
+				min_xfer_bytes, sdkp->physical_block_size);
+		sdkp->min_xfer_blocks = 0;
+		return false;
+	}
+
+	sd_first_printk(KERN_INFO, sdkp, "Preferred minimum I/O size %u bytes\n",
+			min_xfer_bytes);
+	return true;
+}
+
 /*
  * Determine the device's preferred I/O size for reads and writes
  * unless the reported value is unreasonably small, large, not a
@@ -3139,6 +3308,8 @@ static bool sd_validate_opt_xfer_size(struct scsi_disk *sdkp,
 	struct scsi_device *sdp = sdkp->device;
 	unsigned int opt_xfer_bytes =
 		logical_to_bytes(sdp, sdkp->opt_xfer_blocks);
+	unsigned int min_xfer_bytes =
+		logical_to_bytes(sdp, sdkp->min_xfer_blocks);
 
 	if (sdkp->opt_xfer_blocks == 0)
 		return false;
@@ -3164,6 +3335,15 @@ static bool sd_validate_opt_xfer_size(struct scsi_disk *sdkp,
 				"Optimal transfer size %u bytes < " \
 				"PAGE_SIZE (%u bytes)\n",
 				opt_xfer_bytes, (unsigned int)PAGE_SIZE);
+		return false;
+	}
+
+	if (min_xfer_bytes && opt_xfer_bytes & (min_xfer_bytes - 1)) {
+		sd_first_printk(KERN_WARNING, sdkp,
+				"Optimal transfer size %u bytes not a " \
+				"multiple of preferred minimum block " \
+				"size (%u bytes)\n",
+				opt_xfer_bytes, min_xfer_bytes);
 		return false;
 	}
 
@@ -3229,6 +3409,13 @@ static int sd_revalidate_disk(struct gendisk *disk)
 		blk_queue_flag_clear(QUEUE_FLAG_NONROT, q);
 		blk_queue_flag_set(QUEUE_FLAG_ADD_RANDOM, q);
 
+		if (sdkp->reattach_vpds) {
+			sd_printk(KERN_ERR, sdkp, "Reattaching VPDs\n");
+			sdp->try_vpd_pages = 1;
+			scsi_attach_vpd(sdp);
+			sdkp->reattach_vpds = false;
+		}
+
 		if (scsi_device_supports_vpd(sdp)) {
 			sd_read_block_provisioning(sdkp);
 			sd_read_block_limits(sdkp);
@@ -3243,6 +3430,10 @@ static int sd_revalidate_disk(struct gendisk *disk)
 		sd_read_app_tag_own(sdkp, buffer);
 		sd_read_write_same(sdkp, buffer);
 		sd_read_security(sdkp, buffer);
+		sd_config_discard(sdkp, SD_LBP_DEFAULT);
+		sd_config_write_same(sdkp);
+		sd_config_write_zeroes(sdkp, SD_ZERO_DEFAULT);
+		sd_config_protection(sdkp);
 	}
 
 	/*
@@ -3257,6 +3448,12 @@ static int sd_revalidate_disk(struct gendisk *disk)
 	/* Some devices report a maximum block count for READ/WRITE requests. */
 	dev_max = min_not_zero(dev_max, sdkp->max_xfer_blocks);
 	q->limits.max_dev_sectors = logical_to_sectors(sdp, dev_max);
+
+	if (sd_validate_min_xfer_size(sdkp))
+		blk_queue_io_min(sdkp->disk->queue,
+				 logical_to_bytes(sdp, sdkp->min_xfer_blocks));
+	else
+		blk_queue_io_min(sdkp->disk->queue, 0);
 
 	if (sd_validate_opt_xfer_size(sdkp, dev_max)) {
 		q->limits.io_opt = logical_to_bytes(sdp, sdkp->opt_xfer_blocks);
@@ -3283,7 +3480,6 @@ static int sd_revalidate_disk(struct gendisk *disk)
 
 	set_capacity_revalidate_and_notify(disk,
 		logical_to_sectors(sdp, sdkp->capacity), false);
-	sd_config_write_same(sdkp);
 	kfree(buffer);
 
 	/*
@@ -3360,6 +3556,42 @@ static int sd_format_disk_name(char *prefix, int index, char *buf, int buflen)
 
 	memmove(begin, p, end - p);
 	memcpy(buf, prefix, strlen(prefix));
+
+	return 0;
+}
+
+enum {
+	INQUIRY_DESC_START	= 58,
+	INQUIRY_DESC_END	= 74,
+	INQUIRY_DESC_SIZE	= 2,
+};
+
+static unsigned int sd_sbc_version(struct scsi_device *sdp)
+{
+	unsigned int i;
+	unsigned int max;
+
+	if (sdp->inquiry_len < INQUIRY_DESC_START + INQUIRY_DESC_SIZE)
+		return 0;
+
+	max = min_t(unsigned int, sdp->inquiry_len, INQUIRY_DESC_END);
+	max = rounddown(max, INQUIRY_DESC_SIZE);
+
+	for (i = INQUIRY_DESC_START ; i < max ; i += INQUIRY_DESC_SIZE) {
+		u16 desc = get_unaligned_be16(&sdp->inquiry[i]);
+
+		switch (desc) {
+		case 0x0600:
+			return 4;
+		case 0x04c0: case 0x04c3: case 0x04c5: case 0x04c8:
+			return 3;
+		case 0x0320: case 0x0322: case 0x0324: case 0x033B:
+		case 0x033D: case 0x033E:
+			return 2;
+		case 0x0180: case 0x019b: case 0x019c:
+			return 1;
+		}
+	}
 
 	return 0;
 }
@@ -3474,6 +3706,21 @@ static int sd_probe(struct device *dev)
 	sdkp->first_scan = 1;
 	sdkp->max_medium_access_timeouts = SD_MAX_MEDIUM_TIMEOUTS;
 
+	/*
+	 * If the device explicitly claims support for SBC version 3
+	 * or later, unset the LLD flags which prevent probing for
+	 * modern protocol features and reattach VPD pages.
+	 */
+	sdkp->sbc_version = sd_sbc_version(sdp);
+	if (!scsi_device_has_vpd(sdp) && sdkp->sbc_version >= 3) {
+		sdkp->reattach_vpds = true;
+		sdp->try_rc_10_first = 0;
+		sdp->no_read_capacity_16 = 0;
+		sd_printk(KERN_ERR, sdkp,
+			  "Detected SBC version %u, trying VPDs\n",
+			  sdkp->sbc_version);
+	}
+
 	sd_revalidate_disk(gd);
 
 	gd->flags = GENHD_FL_EXT_DEVT;
@@ -3489,10 +3736,6 @@ static int sd_probe(struct device *dev)
 			sdp->host->hostt->rpm_autosuspend_delay);
 	}
 	device_add_disk(dev, gd, NULL);
-	if (sdkp->capacity)
-		sd_dif_config_host(sdkp);
-
-	sd_revalidate_disk(gd);
 
 	if (sdkp->security) {
 		sdkp->opal_dev = init_opal_dev(sdkp, &sd_sec_submit);

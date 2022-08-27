@@ -98,6 +98,10 @@ struct scsi_vpd {
 	unsigned char	data[];
 };
 
+enum scsi_vpd_parameters {
+	SCSI_VPD_HEADER_SIZE = 4,
+};
+
 struct scsi_device {
 	struct Scsi_Host *host;
 	struct request_queue *request_queue;
@@ -139,11 +143,14 @@ struct scsi_device {
 	const char * model;		/* ... after scan; point to static string */
 	const char * rev;		/* ... "nullnullnullnull" before scan */
 
-#define SCSI_VPD_PG_LEN                255
 	struct scsi_vpd __rcu *vpd_pg0;
 	struct scsi_vpd __rcu *vpd_pg83;
 	struct scsi_vpd __rcu *vpd_pg80;
 	struct scsi_vpd __rcu *vpd_pg89;
+	struct scsi_vpd __rcu *vpd_pgb0;
+	struct scsi_vpd __rcu *vpd_pgb1;
+	struct scsi_vpd __rcu *vpd_pgb2;
+
 	unsigned char current_tag;	/* current tag */
 	struct scsi_target      *sdev_target;   /* used only for single_lun */
 
@@ -563,6 +570,20 @@ static inline int scsi_device_protection(struct scsi_device *sdev)
 static inline int scsi_device_tpgs(struct scsi_device *sdev)
 {
 	return sdev->inquiry ? (sdev->inquiry[5] >> 4) & 0x3 : 0;
+}
+
+static inline bool scsi_device_has_vpd(struct scsi_device *sdev)
+{
+	struct scsi_vpd *vpd;
+	bool found = false;
+
+	rcu_read_lock();
+	vpd = rcu_dereference(sdev->vpd_pg0);
+	if (vpd)
+		found = true;
+	rcu_read_unlock();
+
+	return found;
 }
 
 /**

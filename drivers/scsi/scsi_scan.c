@@ -650,9 +650,21 @@ static int scsi_probe_lun(struct scsi_device *sdev, unsigned char *inq_result,
 		if (pass == 1) {
 			if (BLIST_INQUIRY_36 & *bflags)
 				next_inquiry_len = 36;
-			else if (sdev->inquiry_len)
+			/* LLD specified a max of sdev->inquiry_len
+			 * but device claims it has more data. Capping
+			 * the length only makes sense for legacy
+			 * devices. If a device supports SPC 3 or
+			 * newer, assume that it is safe to ask for as
+			 * much as the device says it supports.
+			 */
+			else if (sdev->inquiry_len &&
+				 response_len > sdev->inquiry_len &&
+				 (inq_result[2] & 0x7) < 5) {
+				sdev_printk(KERN_WARNING, sdev,
+				  "Truncating INQUIRY from %u to %u bytes\n",
+				  response_len, sdev->inquiry_len);
 				next_inquiry_len = sdev->inquiry_len;
-			else
+			} else
 				next_inquiry_len = response_len;
 
 			/* If more data is available perform the second pass */
