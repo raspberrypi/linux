@@ -3102,6 +3102,8 @@ Params: gpiopin                 Input GPIO (default "18")
                                 off)
         capture_clear           Generate clear events on the trailing edge
                                 (default off)
+        pull                    Desired pull-up/down state (off, down, up)
+                                Default is "off".
 
 
 Name:   pwm
