@@ -34,5 +34,6 @@
 			  <&pps_pins>,"reg:0";
 		assert_falling_edge = <&pps>,"assert-falling-edge?";
 		capture_clear = <&pps>,"capture-clear?";
+		pull = <&pps_pins>,"brcm,pull:0";
 	};
 };
