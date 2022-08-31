@@ -17,7 +17,7 @@ static u32 optional_ops[] = {
 	offsetof(struct tcp_congestion_ops, cwnd_event),
 	offsetof(struct tcp_congestion_ops, in_ack_event),
 	offsetof(struct tcp_congestion_ops, pkts_acked),
-	offsetof(struct tcp_congestion_ops, min_tso_segs),
+	offsetof(struct tcp_congestion_ops, tso_segs),
 	offsetof(struct tcp_congestion_ops, sndbuf_expand),
 	offsetof(struct tcp_congestion_ops, cong_control),
 };

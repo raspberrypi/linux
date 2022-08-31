@@ -1,0 +1,146 @@
+// Verify BBR v2 changes flowlabel in ipv6 header if and only if there are
+// net.ipv4.tcp_plb_rehash_rounds=3 consecutive rounds with the ECN mark rate >=
+// net.ipv4.tcp_plb_cong_thresh=64(25%).
+
+`../common/defaults.sh
+sysctl -q net.ipv4.tcp_ecn=1  # fully enabled
+sysctl -q net.ipv4.tcp_congestion_control=bbr2
+sysctl -q net.ipv4.tcp_plb_enabled=1
+sysctl -q net.ipv4.tcp_plb_cong_thresh=64
+sysctl -q net.ipv4.tcp_plb_idle_rehash_rounds=0
+sysctl -q net.ipv4.tcp_plb_rehash_rounds=3
+echo 1 > /sys/module/tcp_bbr2/parameters/ecn_enable
+echo 0 > /sys/module/tcp_bbr2/parameters/ecn_max_rtt_us
+`
+
+// Initialize connection
+    0 socket(..., SOCK_STREAM, IPPROTO_TCP) = 3
+   +0 setsockopt(3, SOL_SOCKET, SO_REUSEADDR, [1], 4) = 0
+   +0 bind(3, ..., ...) = 0
+   +0 listen(3, 1) = 0
+
+   +0 < SEW 0:0(0) ack 1 win 32792 <mss 1012,sackOK,TS val 200 ecr 0,nop,wscale 7>
+   +0 > (flowlabel 0x1) SE. 0:0(0) ack 1 <mss 1460,sackOK,TS val 100 ecr 200,nop,wscale 8>
+   +0 < . 1:1(0) ack 1 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 accept(3, ..., ...) = 4
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) P. 1:10001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < . 1:1(0) ack 10001 win 1000 <nop,nop,TS val 200 ecr 100>
+// no ECN mark, flowlabel won't change.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) P. 10001:20001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 19001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 20001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 1/10 packets ECN-marked. Not enough.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 20001:30001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 28001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 30001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 2/10 packets ECN-marked. Not enough.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 30001:40001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 37001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 40001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, but only 1 round.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) PW. 40001:41001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 41001 win 1000 <nop,nop,TS val 200 ecr 100>
+// no ECN mark, flowlabel won't change.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) P. 41001:51001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 48001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 51001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, but only 1 round.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 51001:61001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 58001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 61001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 2 consecutive rounds.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) PW. 61001:62001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 62001 win 1000 <nop,nop,TS val 200 ecr 100>
+// no ECN mark, flowlabel won't change.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) P. 62001:72001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 69001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 72001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, but only 1 round.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 72001:82001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 79001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 82001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 2 consecutive rounds.
+
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x1) PW. 82001:83001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 83001 win 1000 <nop,nop,TS val 200 ecr 100>
+// no ECN mark, flowlabel won't change.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) P. 83001:93001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 90001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 93001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, but only 1 round.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 93001:103001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 100001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 103001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 2 consecutive rounds.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x1) PW. 103001:113001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 110001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 113001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 3 consecutive rounds.
+
+   +0 write(4, ..., 10000) = 10000
+// Since a new round haven't started, flowlabel is not updated.
+   +0 > (flowlabel 0x1) PW. 113001:123001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 120001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 123001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 1 consecutive rounds.
+
+   +0 write(4, ..., 10000) = 10000
+// Verify the new flowlabel
+   +0 > (flowlabel 0x2) PW. 123001:133001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 130001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 133001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 2 consecutive rounds.
+
+   +0 write(4, ..., 10000) = 10000
+   +0 > (flowlabel 0x2) PW. 133001:143001(10000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 140001 win 1000 <nop,nop,TS val 200 ecr 100>
+   +0 < E. 1:1(0) ack 143001 win 1000 <nop,nop,TS val 200 ecr 100>
+// 3/10 packets ECN-marked, >25%, 3 consecutive rounds. flowlabel will change in a new round.
+
+   +0 write(4, ..., 1000) = 1000
+// Since a new round haven't started, flowlabel is not updated.
+   +0 > (flowlabel 0x2) PW. 143001:144001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 144001 win 1000 <nop,nop,TS val 200 ecr 100>
+// A new round starts after the ack above, new flowlabel assigned from here.
+
+// Verify the new flowlabel
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x3) P. 144001:145001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 145001 win 1000 <nop,nop,TS val 200 ecr 100>
+
+// Verify the new flowlabel sticks and does't change again
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x3) P. 145001:146001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 146001 win 1000 <nop,nop,TS val 200 ecr 100>
+
+// Verify the new flowlabel sticks and does't change again
+   +0 write(4, ..., 1000) = 1000
+   +0 > (flowlabel 0x3) P. 146001:147001(1000) ack 1 <nop,nop,TS val 100 ecr 200>
+   +0 < .  1:1(0) ack 147001 win 1000 <nop,nop,TS val 200 ecr 100>
