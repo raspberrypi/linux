@@ -955,6 +955,7 @@ static void bcm2708_fb_imageblit(struct fb_info *info,
 	cfb_imageblit(info, image);
 }
 
+#if 0
 static irqreturn_t bcm2708_fb_dma_irq(int irq, void *cxt)
 {
 	struct bcm2708_fb_dev *fbdev = cxt;
@@ -972,6 +973,7 @@ static irqreturn_t bcm2708_fb_dma_irq(int irq, void *cxt)
 	wake_up(&fbdev->dma_waitq);
 	return IRQ_HANDLED;
 }
+#endif
 
 static struct fb_ops bcm2708_fb_ops = {
 	.owner = THIS_MODULE,
@@ -1195,12 +1197,12 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 		return ret;
 	}
 
-free_dma_chan:
+//free_dma_chan:
 	bcm_dma_chan_free(fbdev->dma_chan);
-free_cb:
+//free_cb:
 	dma_free_wc(&dev->dev, SZ_64K, fbdev->cb_base,
 			      fbdev->cb_handle);
-free_fb:
+//free_fb:
 	dev_err(&dev->dev, "probe failed, err %d\n", ret);
 
 	return ret;
