@@ -126,8 +126,11 @@ MODULE_PARM_DESC(media_controller, "Use media controller API");
 #define UNICAM_EMBEDDED_SIZE	16384
 
 /*
- * Size of the dummy buffer. Can be any size really, but the DMA
- * allocation works in units of page sizes.
+ * Size of the dummy buffer allocation.
+ *
+ * Due to a HW bug causing buffer overruns in circular buffer mode under certain
+ * (not yet fully known) conditions, the dummy buffer allocation is set to a
+ * a single page size, but the hardware gets programmed with a buffer size of 0.
  */
 #define DUMMY_BUF_SIZE		(PAGE_SIZE)
 
@@ -832,8 +835,7 @@ static void unicam_schedule_dummy_buffer(struct unicam_node *node)
 	unicam_dbg(3, dev, "Scheduling dummy buffer for node %d\n",
 		   node->pad_id);
 
-	unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, DUMMY_BUF_SIZE,
-			   node->pad_id);
+	unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, 0, node->pad_id);
 	node->next_frm = NULL;
 }
 
@@ -2651,8 +2653,8 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 		 * This is only really needed if the embedded data pad is
 		 * disabled before the image pad.
 		 */
-		unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr,
-				   DUMMY_BUF_SIZE, METADATA_PAD);
+		unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, 0,
+				   METADATA_PAD);
 	}
 
 	/* Clear all queued buffers for the node */
