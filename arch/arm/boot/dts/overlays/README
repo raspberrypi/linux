@@ -3251,10 +3251,80 @@ Load:   dtoverlay=rpi-cirrus-wm5102
 Params: <None>
 
 
+Name:   rpi-codeczero
+Info:   Configures the Raspberry Pi Codec Zero sound card
+Load:   dtoverlay=rpi-codeczero
+Params: <None>
+
+
 Name:   rpi-dac
 Info:   Configures the RPi DAC audio card
 Load:   dtoverlay=rpi-dac
 Params: <None>
+
+
+Name:   rpi-dacplus
+Info:   Configures the Raspberry Pi DAC+ card
+Load:   dtoverlay=rpi-dacplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+
+
+Name:   rpi-dacpro
+Info:   Configures the Raspberry Pi DAC Pro sound card
+Load:   dtoverlay=rpi-dacpro,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+
+
+Name:   rpi-digiampplus
+Info:   Configures the Raspberry Pi DigiAMP+ sound card
+Load:   dtoverlay=rpi-digiampplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+        auto_mute_amp           If specified, unmute/mute the DigiAMP+ when
+                                starting/stopping audio playback (default "on").
+        unmute_amp              If specified, unmute the DigiAMP+ amp once when
+                                the DAC driver module loads (default "off").
 
 
 Name:   rpi-display

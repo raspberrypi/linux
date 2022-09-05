@@ -187,7 +187,11 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rotary-encoder.dtbo \
 	rpi-backlight.dtbo \
 	rpi-cirrus-wm5102.dtbo \
+	rpi-codeczero.dtbo \
 	rpi-dac.dtbo \
+	rpi-dacplus.dtbo \
+	rpi-dacpro.dtbo \
+	rpi-digiampplus.dtbo \
 	rpi-display.dtbo \
 	rpi-ft5406.dtbo \
 	rpi-poe.dtbo \
