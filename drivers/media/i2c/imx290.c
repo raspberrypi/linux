@@ -1369,8 +1369,7 @@ static int imx290_probe(struct i2c_client *client)
 
 	/*
 	 * Initialize the frame format. In particular, imx290->current_mode
-	 * and imx290->bpp are set to defaults: imx290_calc_pixel_rate() call
-	 * below relies on these fields.
+	 * and imx290->bpp are set to defaults.
 	 */
 	imx290_entity_init_cfg(&imx290->sd, NULL);
 
