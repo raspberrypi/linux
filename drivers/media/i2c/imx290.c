@@ -691,17 +691,6 @@ static int imx290_set_vmax(struct imx290 *imx290, u32 val)
 		dev_err(imx290->dev, "Unable to write vmax\n");
 
 	/*
-	 * Changing vblank changes the allowed range for exposure.
-	 * We don't supply the current exposure as default here as it
-	 * may lie outside the new range. We will reset it just below.
-	 */
-	__v4l2_ctrl_modify_range(imx290->exposure,
-				 IMX290_EXPOSURE_MIN,
-				 vmax - 2,
-				 IMX290_EXPOSURE_STEP,
-				 vmax - 2);
-
-	/*
 	 * Becuse of the way exposure works for this sensor, updating
 	 * vblank causes the effective exposure to change, so we must
 	 * set it back to the "new" correct value.
@@ -731,6 +720,21 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 					     struct imx290, ctrls);
 	int ret = 0;
 	u8 val;
+
+	if (ctrl->id == V4L2_CID_VBLANK) {
+		u32 vmax = ctrl->val + imx290->current_mode->height;
+
+		/*
+		 * Changing vblank changes the allowed range for exposure.
+		 * We don't supply the current exposure as default here as it
+		 * may lie outside the new range. We will reset it just below.
+		 */
+		__v4l2_ctrl_modify_range(imx290->exposure,
+					 IMX290_EXPOSURE_MIN,
+					 vmax - 2,
+					 IMX290_EXPOSURE_STEP,
+					 vmax - 2);
+	}
 
 	/* V4L2 controls values will be applied only when power is already up */
 	if (!pm_runtime_get_if_in_use(imx290->dev))
