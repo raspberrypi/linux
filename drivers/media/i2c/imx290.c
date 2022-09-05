@@ -927,12 +927,6 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 						 IMX290_VMAX_MAX - mode->height,
 						 1,
 						 mode->vmax - mode->height);
-		if (imx290->exposure)
-			__v4l2_ctrl_modify_range(imx290->exposure,
-						 IMX290_EXPOSURE_MIN,
-						 mode->vmax - 2,
-						 IMX290_EXPOSURE_STEP,
-						 mode->vmax - 2);
 	}
 
 	*format = fmt->format;
