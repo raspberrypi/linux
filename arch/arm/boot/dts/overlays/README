@@ -766,6 +766,12 @@ Load:   dtoverlay=chipdip-dac
 Params: <None>
 
 
+Name:   cirrus-wm5102
+Info:   Configures the Cirrus Logic Audio Card
+Load:   dtoverlay=cirrus-wm5102
+Params: <None>
+
+
 Name:   cma
 Info:   Set custom CMA sizes, only use if you know what you are doing, might
         clash with other overlays like vc4-fkms-v3d and vc4-kms-v3d.
@@ -2072,6 +2078,12 @@ Params: pins_0_1                Use GPIOs 0 and 1
                                 "100000")
 
 
+Name:   i2s-dac
+Info:   Configures any passive I2S DAC soundcard.
+Load:   dtoverlay=i2s-dac
+Params: <None>
+
+
 Name:   i2s-gpio28-31
 Info:   move I2S function block to GPIO 28 to 31
 Load:   dtoverlay=i2s-gpio28-31
@@ -3106,6 +3118,12 @@ Params: gpiopin                 Input GPIO (default "18")
                                 Default is "off".
 
 
+Name:   proto-codec
+Info:   Configures the PROTO Audio Codec card
+Load:   dtoverlay=proto-codec
+Params: <None>
+
+
 Name:   pwm
 Info:   Configures a single PWM channel
         Legal pin,function combinations for each channel:
@@ -3246,9 +3264,8 @@ Params: <None>
 
 
 Name:   rpi-cirrus-wm5102
-Info:   Configures the Cirrus Logic Audio Card
-Load:   dtoverlay=rpi-cirrus-wm5102
-Params: <None>
+Info:   This overlay has been renamed to cirrus-wm5102
+Load:   <Deprecated>
 
 
 Name:   rpi-codeczero
@@ -3258,9 +3275,8 @@ Params: <None>
 
 
 Name:   rpi-dac
-Info:   Configures the RPi DAC audio card
-Load:   dtoverlay=rpi-dac
-Params: <None>
+Info:   This overlay has been renaamed to i2s-dac.
+Load:   <Deprecated>
 
 
 Name:   rpi-dacplus
@@ -3328,37 +3344,8 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
 
 
 Name:   rpi-display
-Info:   RPi-Display - 2.8" Touch Display by Watterott
-        Linux has 2 drivers that support this display and this overlay supports
-        both.
-
-        Examples:
-          fbtft/fb_ili9341: dtoverlay=rpi-display
-          drm/mi0283qt: dtoverlay=rpi-display,drm,backlight-pwm,rotate=180
-
-        Some notable differences with the DRM driver compared to fbtft:
-        - The display is turned on when it's first used and not on driver load
-          as with fbtft. So if nothing uses the display it stays off.
-        - Can run with a higher SPI clock increasing framerate. This is possible
-          since the driver avoids messing up the controller configuration due to
-          transmission errors by running config commands at 10MHz and only pixel
-          data at full speed (occasional pixel glitch might occur).
-        - PWM backlight is supported.
-
-Load:   dtoverlay=rpi-display,<param>=<val>
-Params: speed                   Display SPI bus speed
-        rotate                  Display rotation {0,90,180,270}
-        fps                     Delay between frame updates (fbtft only)
-        debug                   Debug output level {0-7} (fbtft only)
-        xohms                   Touchpanel sensitivity (X-plate resistance)
-        swapxy                  Swap x and y axis
-        backlight               Change backlight GPIO pin {e.g. 12, 18}
-                                (fbtft only)
-        drm                     Use DRM/KMS driver mi0283qt instead of fbtft.
-                                Set the SPI clock to 70MHz.
-                                This has to be the first parameter.
-        backlight-pwm           Use pwm for backlight (drm only). NB: Disables
-                                audio headphone output as that also uses PWM.
+Info:   This overlay has been renamed to watterott-display
+Load:   <Deprecated>
 
 
 Name:   rpi-ft5406
@@ -3418,9 +3405,8 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
 
 
 Name:   rpi-proto
-Info:   Configures the RPi Proto audio card
-Load:   dtoverlay=rpi-proto
-Params: <None>
+Info:   This overlay has been renamaed to proto-codec.
+Load:   <Deprecated>
 
 
 Name:   rpi-sense
@@ -4407,6 +4393,40 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 30000000)
 
         cs                      SPI bus Chip Select (default 0)
+
+
+Name:   watterott-display
+Info:   Watterott RPi-Display - 2.8" Touch Display
+        Linux has 2 drivers that support this display and this overlay supports
+        both.
+
+        Examples:
+          fbtft/fb_ili9341: dtoverlay=watterott-display
+          drm/mi0283qt: dtoverlay=watterott-display,drm,backlight-pwm,rotate=180
+
+        Some notable differences with the DRM driver compared to fbtft:
+        - The display is turned on when it's first used and not on driver load
+          as with fbtft. So if nothing uses the display it stays off.
+        - Can run with a higher SPI clock increasing framerate. This is possible
+          since the driver avoids messing up the controller configuration due to
+          transmission errors by running config commands at 10MHz and only pixel
+          data at full speed (occasional pixel glitch might occur).
+        - PWM backlight is supported.
+
+Load:   dtoverlay=watterott-display,<param>=<val>
+Params: speed                   Display SPI bus speed
+        rotate                  Display rotation {0,90,180,270}
+        fps                     Delay between frame updates (fbtft only)
+        debug                   Debug output level {0-7} (fbtft only)
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+        swapxy                  Swap x and y axis
+        backlight               Change backlight GPIO pin {e.g. 12, 18}
+                                (fbtft only)
+        drm                     Use DRM/KMS driver mi0283qt instead of fbtft.
+                                Set the SPI clock to 70MHz.
+                                This has to be the first parameter.
+        backlight-pwm           Use pwm for backlight (drm only). NB: Disables
+                                audio headphone output as that also uses PWM.
 
 
 Name:   waveshare-can-fd-hat-mode-a
