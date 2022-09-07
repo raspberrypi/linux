@@ -95,7 +95,7 @@
 	};
 
 	rpi-display {
-		renamed = "watterott-rpi-display";
+		renamed = "watterott-display";
 	};
 
 	rpi-proto {

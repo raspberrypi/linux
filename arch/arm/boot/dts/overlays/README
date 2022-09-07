@@ -3344,7 +3344,7 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
 
 
 Name:   rpi-display
-Info:   This overlay has been renamed to watterott-rpi-display
+Info:   This overlay has been renamed to watterott-display
 Load:   <Deprecated>
 
 
@@ -4395,14 +4395,14 @@ Params: int_pin                 GPIO used for INT (default 25)
         cs                      SPI bus Chip Select (default 0)
 
 
-Name:   watterott-rpi-display
+Name:   watterott-display
 Info:   Watterott RPi-Display - 2.8" Touch Display
         Linux has 2 drivers that support this display and this overlay supports
         both.
 
         Examples:
-          fbtft/fb_ili9341: dtoverlay=watterott-rpi-display
-          drm/mi0283qt: dtoverlay=watterott-rpi-display,drm,backlight-pwm,rotate=180
+          fbtft/fb_ili9341: dtoverlay=watterott-display
+          drm/mi0283qt: dtoverlay=watterott-display,drm,backlight-pwm,rotate=180
 
         Some notable differences with the DRM driver compared to fbtft:
         - The display is turned on when it's first used and not on driver load
@@ -4413,7 +4413,7 @@ Info:   Watterott RPi-Display - 2.8" Touch Display
           data at full speed (occasional pixel glitch might occur).
         - PWM backlight is supported.
 
-Load:   dtoverlay=watterott-rpi-display,<param>=<val>
+Load:   dtoverlay=watterott-display,<param>=<val>
 Params: speed                   Display SPI bus speed
         rotate                  Display rotation {0,90,180,270}
         fps                     Delay between frame updates (fbtft only)
