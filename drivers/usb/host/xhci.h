@@ -1648,6 +1648,9 @@ struct xhci_hcd {
 #define XHCI_ETRON_HOST	BIT_ULL(49)
 #define XHCI_LIMIT_ENDPOINT_INTERVAL_9 BIT_ULL(50)
 
+/* Downstream VLI fixes */
+#define XHCI_VLI_SS_BULK_OUT_BUG	BIT_ULL(57)
+
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
 	struct xhci_port	*hw_ports;
