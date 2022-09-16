@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config SERIAL_PKVM_PL011
+	tristate "Protected KVM PL011 UART"
+	depends on ARM64
+	depends on KVM
+
+config SERIAL_PKVM_PL011_BASE_PHYS
+	hex
+	depends on SERIAL_PKVM_PL011
+	default 0x09000000
+
+config SERIAL_PKVM_PL011_UARTFR
+	hex
+	depends on SERIAL_PKVM_PL011
+	default 0x18
+
+config SERIAL_PKVM_PL011_UARTTX
+	hex
+	depends on SERIAL_PKVM_PL011
+	default 0x0
+
+config SERIAL_PKVM_PL011_BUSY
+	hex
+	depends on SERIAL_PKVM_PL011
+	default 0x2
+
+config SERIAL_PKVM_PL011_FULL
+	hex
+	depends on SERIAL_PKVM_PL011
+	default 0x6
