@@ -1363,6 +1363,8 @@ static int ov9282_probe(struct i2c_client *client)
 	/* Initialize subdev */
 	v4l2_i2c_subdev_init(&ov9282->sd, client, &ov9282_subdev_ops);
 
+	v4l2_i2c_subdev_set_name(&ov9282->sd, client,
+				 device_get_match_data(ov9282->dev), NULL);
 	ret = ov9282_parse_hw_config(ov9282);
 	if (ret) {
 		dev_err(ov9282->dev, "HW configuration is not supported");
@@ -1463,7 +1465,8 @@ static const struct dev_pm_ops ov9282_pm_ops = {
 };
 
 static const struct of_device_id ov9282_of_match[] = {
-	{ .compatible = "ovti,ov9282" },
+	{ .compatible = "ovti,ov9281", .data = "ov9281" },
+	{ .compatible = "ovti,ov9282", .data = "ov9282" },
 	{ }
 };
 
