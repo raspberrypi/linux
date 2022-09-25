@@ -4,6 +4,10 @@
 / {
 	__overrides__ {
 		arm_freq;
+		hdmi = <&hdmi0>,"status",
+		       <&hdmi1>,"status";
+		pcie = <&pcie0>,"status";
+		sd = <&emmc2>,"status";
 	};
 
 	v3dbus: v3dbus {
