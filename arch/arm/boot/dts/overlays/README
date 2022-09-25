@@ -190,6 +190,9 @@ Params:
                                 to negotiate. Legal values are 10, 100 and
                                 1000 (default 1000). Pi3B+ only.
 
+        hdmi                    Set to "off" to disable the HDMI interface
+                                (default "on")
+
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
 
@@ -217,6 +220,11 @@ Params:
         krnbt_baudrate          Set the baudrate of the PL011 UART when used
                                 with krnbt=on
 
+        pcie                    Set to "off" to disable the PCIe interface
+                                (default "on")
+                                (2711 only, but not applicable on CM4S)
+                                N.B. USB-A ports on 4B are subsequently disabled
+
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
 
@@ -226,6 +234,10 @@ Params:
 
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
+
+        sd                      Set to "off" to disable the SD card (or eMMC on
+                                non-lite SKU of CM4).
+                                (default "on")
 
         sd_overclock            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
