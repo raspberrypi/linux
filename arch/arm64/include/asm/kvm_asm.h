@@ -93,6 +93,13 @@ enum __kvm_host_smccc_func {
 	__KVM_HOST_SMCCC_FUNC___pkvm_enable_tracing,
 	__KVM_HOST_SMCCC_FUNC___pkvm_swap_reader_tracing,
 	__KVM_HOST_SMCCC_FUNC___pkvm_enable_event,
+	__KVM_HOST_SMCCC_FUNC___pkvm_register_hcall,
+
+	/*
+	 * Start of the dynamically registered hypercalls. Start a bit
+	 * further, just in case some modules...
+	 */
+	__KVM_HOST_SMCCC_FUNC___dynamic_hcalls = 128,
 };
 
 #define DECLARE_KVM_VHE_SYM(sym)	extern char sym[]
