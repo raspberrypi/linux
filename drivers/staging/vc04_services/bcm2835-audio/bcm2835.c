@@ -299,21 +299,28 @@ static void set_hdmi_enables(struct device *dev)
 		of_node_put(firmware_node);
 	}
 
-	if (!firmware)
+	if (!firmware) {
+		dev_err(dev, "Failed to get fw structure\n");
 		return;
+	}
 
 	ret = rpi_firmware_property(firmware,
 				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
 				    &num_displays, sizeof(u32));
-	if (ret)
+	if (ret) {
+		dev_err(dev, "Failed to get fw property NUM_DISPLAYS\n");
 		goto out_rpi_fw_put;
+	}
 
 	for (i = 0; i < num_displays; i++) {
 		display_id = i;
 		ret = rpi_firmware_property(firmware,
 				RPI_FIRMWARE_FRAMEBUFFER_GET_DISPLAY_ID,
 				&display_id, sizeof(display_id));
-		if (!ret) {
+		if (ret) {
+			dev_err(dev, "Failed to get fw property DISPLAY_ID "
+				"(i = %d)\n", i);
+		} else {
 			if (display_id == 2)
 				enable_hdmi0 = true;
 			if (display_id == 7)
