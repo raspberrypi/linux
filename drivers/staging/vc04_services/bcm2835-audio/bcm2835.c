@@ -356,7 +356,8 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 			 num_channels);
 	}
 
-	if (!of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
+	if (enable_hdmi &&
+	    !of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
 		set_hdmi_enables(dev);
 
 	of_property_read_u32(dev->of_node,
