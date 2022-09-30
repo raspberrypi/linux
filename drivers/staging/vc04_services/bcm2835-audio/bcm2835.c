@@ -288,25 +288,25 @@ static int snd_add_child_devices(struct device *device, u32 numchans)
 static void set_hdmi_enables(struct device *dev)
 {
 	struct device_node *firmware_node;
-	struct rpi_firmware *firmware;
+	struct rpi_firmware *firmware = NULL;
 	u32 num_displays, i, display_id;
 	int ret;
 
 	firmware_node = of_find_compatible_node(NULL, NULL,
 					"raspberrypi,bcm2835-firmware");
-	firmware = rpi_firmware_get(firmware_node);
+	if (firmware_node) {
+		firmware = rpi_firmware_get(firmware_node);
+		of_node_put(firmware_node);
+	}
 
 	if (!firmware)
 		return;
 
-	of_node_put(firmware_node);
-
 	ret = rpi_firmware_property(firmware,
 				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
 				    &num_displays, sizeof(u32));
-
 	if (ret)
-		return;
+		goto out_rpi_fw_put;
 
 	for (i = 0; i < num_displays; i++) {
 		display_id = i;
@@ -331,6 +331,10 @@ static void set_hdmi_enables(struct device *dev)
 		enable_hdmi1 = false;
 		bcm2835_audio_hdmi0.route = AUDIO_DEST_HDMI1;
 	}
+
+out_rpi_fw_put:
+	rpi_firmware_put(firmware);
+	return;
 }
 
 static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
