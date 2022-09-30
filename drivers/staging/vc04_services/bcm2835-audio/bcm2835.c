@@ -292,7 +292,8 @@ static void set_hdmi_enables(struct device *dev)
 	u32 num_displays, i, display_id;
 	int ret;
 
-	firmware_node = of_parse_phandle(dev->of_node, "brcm,firmware", 0);
+	firmware_node = of_find_compatible_node(NULL, NULL,
+					"raspberrypi,bcm2835-firmware");
 	firmware = rpi_firmware_get(firmware_node);
 
 	if (!firmware)
