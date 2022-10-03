@@ -54,6 +54,10 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_REG_FRAME_LENGTH		0x0340
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
 
+/* H_TIMING internal */
+#define IMX477_REG_LINE_LENGTH		0x0342
+#define IMX477_LINE_LENGTH_MAX		0xfff0
+
 /* Long exposure multiplier */
 #define IMX477_LONG_EXP_SHIFT_MAX	7
 #define IMX477_LONG_EXP_SHIFT_REG	0x3100
@@ -1399,6 +1403,10 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = imx477_set_frame_length(imx477,
 					      imx477->mode->height + ctrl->val);
 		break;
+	case V4L2_CID_HBLANK:
+		ret = imx477_write_reg(imx477, IMX477_REG_LINE_LENGTH, 2,
+				       imx477->mode->width + ctrl->val);
+		break;
 	default:
 		dev_info(&client->dev,
 			 "ctrl(id:0x%x,val:0x%x) is not handled\n",
@@ -1560,7 +1568,7 @@ unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
 
 static void imx477_set_framing_limits(struct imx477 *imx477)
 {
-	unsigned int frm_length_min, frm_length_default, hblank;
+	unsigned int frm_length_min, frm_length_default, hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
 
 	frm_length_min = imx477_get_frame_length(mode, &mode->timeperframe_min);
@@ -1579,13 +1587,9 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	/* Setting this will adjust the exposure limits as well. */
 	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
 
-	/*
-	 * Currently PPL is fixed to the mode specified value, so hblank
-	 * depends on mode->width only, and is not changeable in any
-	 * way other than changing the mode.
-	 */
-	hblank = mode->line_length_pix - mode->width;
-	__v4l2_ctrl_modify_range(imx477->hblank, hblank, hblank, 1, hblank);
+	hblank_min = mode->line_length_pix - mode->width;
+	__v4l2_ctrl_modify_range(imx477->hblank, hblank_min,
+				 IMX477_LINE_LENGTH_MAX, 1, hblank_min);
 }
 
 static int imx477_set_pad_format(struct v4l2_subdev *sd,
@@ -1999,10 +2003,6 @@ static int imx477_init_controls(struct imx477 *imx477)
 					   V4L2_CID_VBLANK, 0, 0xffff, 1, 0);
 	imx477->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
 					   V4L2_CID_HBLANK, 0, 0xffff, 1, 0);
-
-	/* HBLANK is read-only for now, but does change with mode. */
-	if (imx477->hblank)
-		imx477->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	imx477->exposure = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
 					     V4L2_CID_EXPOSURE,
