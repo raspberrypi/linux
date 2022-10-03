@@ -3639,8 +3639,6 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 		video_nr = encode_video_nr;
 		break;
 	case ISP:
-		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
-		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
@@ -3649,8 +3647,6 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 		video_nr = isp_video_nr;
 		break;
 	case DEINTERLACE:
-		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
-		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
