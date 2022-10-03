@@ -2463,11 +2463,6 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 static int vidioc_try_encoder_cmd(struct file *file, void *priv,
 				  struct v4l2_encoder_cmd *cmd)
 {
-	struct bcm2835_codec_ctx *ctx = file2ctx(file);
-
-	if (ctx->dev->role != ENCODE && ctx->dev->role != ENCODE_IMAGE)
-		return -EINVAL;
-
 	switch (cmd->cmd) {
 	case V4L2_ENC_CMD_STOP:
 		break;
