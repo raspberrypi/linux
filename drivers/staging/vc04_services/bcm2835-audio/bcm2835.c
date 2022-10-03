@@ -360,10 +360,12 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	    !of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
 		set_hdmi_enables(dev);
 
-	of_property_read_u32(dev->of_node,
-			     "brcm,disable-headphones",
-			     &disable_headphones);
-	enable_headphones = !disable_headphones;
+	if (enable_headphones) {
+		of_property_read_u32(dev->of_node,
+				     "brcm,disable-headphones",
+				     &disable_headphones);
+		enable_headphones = !disable_headphones;
+	}
 
 	err = bcm2835_devm_add_vchi_ctx(dev);
 	if (err)
