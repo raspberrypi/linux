@@ -209,8 +209,7 @@ static int
 bxt_power_sequencer_idx(struct intel_dp *intel_dp)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
-	struct intel_connector *connector = intel_dp->attached_connector;
-	int backlight_controller = connector->panel.vbt.backlight.controller;
+	int backlight_controller = dev_priv->vbt.backlight.controller;
 
 	lockdep_assert_held(&dev_priv->pps_mutex);
 
@@ -1176,9 +1175,8 @@ static void pps_init_delays_vbt(struct intel_dp *intel_dp,
 				struct edp_power_seq *vbt)
 {
 	struct drm_i915_private *dev_priv = dp_to_i915(intel_dp);
-	struct intel_connector *connector = intel_dp->attached_connector;
 
-	*vbt = connector->panel.vbt.edp.pps;
+	*vbt = dev_priv->vbt.edp.pps;
 
 	/* On Toshiba Satellite P50-C-18C system the VBT T12 delay
 	 * of 500ms appears to be too short. Ocassionally the panel
