@@ -1473,8 +1473,6 @@ static void parse_dsi_backlight_ports(struct drm_i915_private *i915,
 				      struct intel_panel *panel,
 				      enum port port)
 {
-	enum port port_bc = DISPLAY_VER(i915) >= 11 ? PORT_B : PORT_C;
-
 	if (!panel->vbt.dsi.config->dual_link || i915->vbt.version < 197) {
 		panel->vbt.dsi.bl_ports = BIT(port);
 		if (panel->vbt.dsi.config->cabc_supported)
@@ -1488,11 +1486,11 @@ static void parse_dsi_backlight_ports(struct drm_i915_private *i915,
 		panel->vbt.dsi.bl_ports = BIT(PORT_A);
 		break;
 	case DL_DCS_PORT_C:
-		panel->vbt.dsi.bl_ports = BIT(port_bc);
+		panel->vbt.dsi.bl_ports = BIT(PORT_C);
 		break;
 	default:
 	case DL_DCS_PORT_A_AND_C:
-		panel->vbt.dsi.bl_ports = BIT(PORT_A) | BIT(port_bc);
+		panel->vbt.dsi.bl_ports = BIT(PORT_A) | BIT(PORT_C);
 		break;
 	}
 
@@ -1504,12 +1502,12 @@ static void parse_dsi_backlight_ports(struct drm_i915_private *i915,
 		panel->vbt.dsi.cabc_ports = BIT(PORT_A);
 		break;
 	case DL_DCS_PORT_C:
-		panel->vbt.dsi.cabc_ports = BIT(port_bc);
+		panel->vbt.dsi.cabc_ports = BIT(PORT_C);
 		break;
 	default:
 	case DL_DCS_PORT_A_AND_C:
 		panel->vbt.dsi.cabc_ports =
-					BIT(PORT_A) | BIT(port_bc);
+					BIT(PORT_A) | BIT(PORT_C);
 		break;
 	}
 }
