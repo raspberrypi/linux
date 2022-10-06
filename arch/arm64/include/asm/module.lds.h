@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+#include <asm/page-def.h>
+
 SECTIONS {
 	.plt 0 : { BYTE(0) }
 	.init.plt 0 : { BYTE(0) }
@@ -22,5 +25,25 @@ SECTIONS {
 	 * put it into the .init allocation.
 	 */
 	.init.eh_frame : { *(.eh_frame) }
+#endif
+
+#ifdef CONFIG_KVM
+	.hyp.text : ALIGN(PAGE_SIZE) {
+		*(.hyp.text)
+		. = ALIGN(PAGE_SIZE);
+	}
+	.hyp.bss : ALIGN(PAGE_SIZE) {
+		*(.hyp.bss)
+		. = ALIGN(PAGE_SIZE);
+	}
+	.hyp.rodata : ALIGN(PAGE_SIZE) {
+		*(.hyp.rodata)
+		. = ALIGN(PAGE_SIZE);
+	}
+	.hyp.data : ALIGN(PAGE_SIZE) {
+		*(.hyp.data)
+		. = ALIGN(PAGE_SIZE);
+	}
+	.hyp.reloc : ALIGN(4) {	*(.hyp.reloc) }
 #endif
 }
