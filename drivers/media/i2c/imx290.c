@@ -50,7 +50,6 @@ enum imx290_clk_index {
 #define IMX290_VMAX_MAX 0x3fff
 #define IMX290_HMAX_LOW 0x301c
 #define IMX290_HMAX_HIGH 0x301d
-#define IMX290_HMAX_MIN 2200 /* Min of 2200 pixels = 60fps */
 #define IMX290_HMAX_MAX 0xffff
 
 #define IMX290_EXPOSURE_MIN 1
@@ -110,7 +109,6 @@ struct imx290 {
 	struct regmap *regmap;
 	u8 nlanes;
 	u8 bpp;
-	u16 hmax_min;
 
 	const struct imx290_pixfmt *formats;
 
@@ -918,7 +916,7 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 
 		if (imx290->hblank)
 			__v4l2_ctrl_modify_range(imx290->hblank,
-						 imx290->hmax_min - mode->width,
+						 mode->hmax - mode->width,
 						 IMX290_HMAX_MAX - mode->width,
 						 1, mode->hmax - mode->width);
 		if (imx290->vblank)
@@ -1298,7 +1296,6 @@ static int imx290_probe(struct i2c_client *client)
 		ret = -EINVAL;
 		goto free_err;
 	}
-	imx290->hmax_min = IMX290_HMAX_MIN;
 
 	dev_dbg(dev, "Using %u data lanes\n", imx290->nlanes);
 
@@ -1375,7 +1372,7 @@ static int imx290_probe(struct i2c_client *client)
 	mode = imx290->current_mode;
 	imx290->hblank = v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
 					   V4L2_CID_HBLANK,
-					   imx290->hmax_min - mode->width,
+					   mode->hmax - mode->width,
 					   IMX290_HMAX_MAX - mode->width, 1,
 					   mode->hmax - mode->width);
 
