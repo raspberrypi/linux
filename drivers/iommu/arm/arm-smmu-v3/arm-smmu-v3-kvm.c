@@ -7,6 +7,7 @@
 #include <asm/kvm_pkvm.h>
 #include <asm/kvm_mmu.h>
 #include <linux/local_lock.h>
+#include <linux/of_address.h>
 #include <linux/of_platform.h>
 
 #include <kvm/arm_smmu_v3.h>
@@ -17,6 +18,7 @@ struct host_arm_smmu_device {
 	struct arm_smmu_device		smmu;
 	pkvm_handle_t			id;
 	u32				boot_gbpa;
+	bool				hvc_pd;
 };
 
 #define smmu_to_host(_smmu) \
@@ -450,6 +452,24 @@ static int kvm_arm_smmu_device_reset(struct host_arm_smmu_device *host_smmu)
 	return 0;
 }
 
+/* TODO: Move this. None of it is specific to SMMU */
+static int kvm_arm_probe_power_domain(struct device *dev,
+				      struct kvm_power_domain *pd)
+{
+	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
+
+	if (!of_get_property(dev->of_node, "power-domains", NULL)) {
+		/* SMMU MUST RESET TO BLOCK DMA. */
+		dev_warn(dev, "No power-domains assuming host control\n");
+	}
+
+	pd->type = KVM_POWER_DOMAIN_HOST_HVC;
+	pd->device_id = kvm_arm_smmu_cur;
+	host_smmu->hvc_pd = true;
+	return 0;
+}
+
 static int kvm_arm_smmu_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -462,6 +482,7 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct host_arm_smmu_device *host_smmu;
 	struct hyp_arm_smmu_v3_device *hyp_smmu;
+	struct kvm_power_domain power_domain = {};
 
 	if (kvm_arm_smmu_cur >= kvm_arm_smmu_count)
 		return -ENOSPC;
@@ -478,6 +499,12 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	ret = arm_smmu_fw_probe(pdev, smmu, &bypass);
 	if (ret || bypass)
 		return ret ?: -EINVAL;
+
+	platform_set_drvdata(pdev, host_smmu);
+
+	ret = kvm_arm_probe_power_domain(dev, &power_domain);
+	if (ret)
+		return ret;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	mmio_size = resource_size(res);
@@ -549,13 +576,12 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	platform_set_drvdata(pdev, host_smmu);
-
 	/* Hypervisor parameters */
 	hyp_smmu->mmio_addr = mmio_addr;
 	hyp_smmu->mmio_size = mmio_size;
 	hyp_smmu->features = smmu->features;
 	hyp_smmu->pgtable_cfg = cfg;
+	hyp_smmu->iommu.power_domain = power_domain;
 
 	kvm_arm_smmu_cur++;
 
@@ -577,6 +603,30 @@ static int kvm_arm_smmu_remove(struct platform_device *pdev)
 	return 0;
 }
 
+int kvm_arm_smmu_suspend(struct device *dev)
+{
+	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
+
+	if (host_smmu->hvc_pd)
+		return pkvm_iommu_suspend(dev);
+	return 0;
+}
+
+int kvm_arm_smmu_resume(struct device *dev)
+{
+	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
+
+	if (host_smmu->hvc_pd)
+		return pkvm_iommu_resume(dev);
+	return 0;
+}
+
+static const struct dev_pm_ops kvm_arm_smmu_pm_ops = {
+	SET_RUNTIME_PM_OPS(kvm_arm_smmu_suspend, kvm_arm_smmu_resume, NULL)
+};
+
 static const struct of_device_id arm_smmu_of_match[] = {
 	{ .compatible = "arm,smmu-v3", },
 	{ },
@@ -586,6 +636,7 @@ static struct platform_driver kvm_arm_smmu_driver = {
 	.driver = {
 		.name = "kvm-arm-smmu-v3",
 		.of_match_table = arm_smmu_of_match,
+		.pm = &kvm_arm_smmu_pm_ops,
 	},
 	.remove = kvm_arm_smmu_remove,
 };
