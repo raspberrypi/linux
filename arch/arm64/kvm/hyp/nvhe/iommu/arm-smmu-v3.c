@@ -110,6 +110,9 @@ static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 	int idx = Q_IDX(smmu, smmu->cmdq_prod);
 	u64 *slot = smmu->cmdq_base + idx * CMDQ_ENT_DWORDS;
 
+	if (smmu->iommu.power_is_off)
+		return -EPIPE;
+
 	ret = smmu_wait_event(smmu, !smmu_cmdq_full(smmu));
 	if (ret)
 		return ret;
@@ -186,6 +189,9 @@ static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 		.cfgi.sid = sid,
 		.cfgi.leaf = true,
 	};
+
+	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
+		return 0;
 
 	return smmu_send_cmd(smmu, &cmd);
 }
@@ -433,6 +439,11 @@ static void smmu_tlb_flush_all(void *cookie)
 	};
 
 	hyp_spin_lock(&smmu->iommu.lock);
+	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on) {
+		hyp_spin_unlock(&smmu->iommu.lock);
+		return;
+	}
+
 	WARN_ON(smmu_send_cmd(smmu, &cmd));
 	hyp_spin_unlock(&smmu->iommu.lock);
 }
@@ -451,6 +462,12 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	};
 
 	hyp_spin_lock(&smmu->iommu.lock);
+
+	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on) {
+		hyp_spin_unlock(&smmu->iommu.lock);
+		return;
+	}
+
 	/*
 	 * There are no mappings at high addresses since we don't use TTB1, so
 	 * no overflow possible.

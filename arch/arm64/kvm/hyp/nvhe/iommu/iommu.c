@@ -406,13 +406,43 @@ out_unlock:
 	return phys;
 }
 
+static int iommu_power_on(struct kvm_power_domain *pd)
+{
+	struct kvm_hyp_iommu *iommu = container_of(pd, struct kvm_hyp_iommu,
+						   power_domain);
+
+	/*
+	 * We currently assume that the device retains its architectural state
+	 * across power off, hence no save/restore.
+	 */
+	hyp_spin_lock(&iommu->lock);
+	iommu->power_is_off = false;
+	hyp_spin_unlock(&iommu->lock);
+	return 0;
+}
+
+static int iommu_power_off(struct kvm_power_domain *pd)
+{
+	struct kvm_hyp_iommu *iommu = container_of(pd, struct kvm_hyp_iommu,
+						   power_domain);
+
+	hyp_spin_lock(&iommu->lock);
+	iommu->power_is_off = true;
+	hyp_spin_unlock(&iommu->lock);
+	return 0;
+}
+
+static const struct kvm_power_domain_ops iommu_power_ops = {
+	.power_on	= iommu_power_on,
+	.power_off	= iommu_power_off,
+};
+
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 {
 	/* See struct kvm_hyp_iommu */
 	BUILD_BUG_ON(sizeof(u32) != sizeof(hyp_spinlock_t));
 
-	/* This function will be used again soon. */
-	return 0;
+	return pkvm_init_power_domain(&iommu->power_domain, &iommu_power_ops);
 }
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops, unsigned long init_arg)

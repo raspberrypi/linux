@@ -12,6 +12,9 @@
  * Parameters from the trusted host:
  * @mmio_addr		base address of the SMMU registers
  * @mmio_size		size of the registers resource
+ * @caches_clean_on_power_on
+ *			is it safe to elide cache and TLB invalidation commands
+ *			while the SMMU is OFF
  *
  * Other members are filled and used at runtime by the SMMU driver.
  */
@@ -20,6 +23,7 @@ struct hyp_arm_smmu_v3_device {
 	phys_addr_t		mmio_addr;
 	size_t			mmio_size;
 	unsigned long		features;
+	bool			caches_clean_on_power_on;
 
 	void __iomem		*base;
 	u32			cmdq_prod;

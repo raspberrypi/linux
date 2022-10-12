@@ -3,6 +3,7 @@
 #define __KVM_IOMMU_H
 
 #include <asm/kvm_host.h>
+#include <kvm/power_domain.h>
 #include <linux/io-pgtable.h>
 #ifdef __KVM_NVHE_HYPERVISOR__
 #include <nvhe/spinlock.h>
@@ -13,15 +14,18 @@
 /*
  * Parameters from the trusted host:
  * @pgtable_cfg:	page table configuration
+ * @power_domain:	power domain information
  *
  * Other members are filled and used at runtime by the IOMMU driver.
  */
 struct kvm_hyp_iommu {
+	struct kvm_power_domain		power_domain;
 #ifdef __KVM_NVHE_HYPERVISOR__
 	hyp_spinlock_t			lock;
 #else
 	u32						unused; /* This is verified in kvm_iommu_init_device() */
 #endif
+	bool				power_is_off;
 };
 
 extern void **kvm_nvhe_sym(kvm_hyp_iommu_domains);
