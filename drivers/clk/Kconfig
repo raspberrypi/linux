@@ -96,6 +96,12 @@ config COMMON_CLK_RP1
 	help
 	  Enable common clock framework support for Raspberry Pi RP1
 
+config COMMON_CLK_RP1_SDIO
+	tristate "Clock driver for the RP1 SDIO interfaces"
+	depends on MFD_RP1
+	help
+	  SDIO clock driver for the RP1 support chip
+
 config COMMON_CLK_HI655X
 	tristate "Clock driver for Hi655x" if EXPERT
 	depends on (MFD_HI655X_PMIC || COMPILE_TEST)
