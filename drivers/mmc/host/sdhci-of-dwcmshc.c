@@ -90,6 +90,7 @@ struct rk35xx_priv {
 
 struct dwcmshc_priv {
 	struct clk	*bus_clk;
+	struct clk	*sdio_clk;
 	int vendor_specific_area1; /* P_VENDOR_SPECIFIC_AREA reg */
 	void *priv; /* pointer to SoC private stuff */
 };
@@ -115,6 +116,17 @@ static void dwcmshc_adma_write_desc(struct sdhci_host *host, void **desc,
 	addr += tmplen;
 	len -= tmplen;
 	sdhci_adma_write_desc(host, desc, addr, len, cmd);
+}
+
+static void dwcmshc_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct dwcmshc_priv *priv = sdhci_pltfm_priv(pltfm_host);
+
+	if (priv->sdio_clk)
+		clk_set_rate(priv->sdio_clk, clock);
+
+	sdhci_set_clock(host, clock);
 }
 
 static unsigned int dwcmshc_get_max_clock(struct sdhci_host *host)
@@ -339,7 +351,7 @@ static void rk35xx_sdhci_reset(struct sdhci_host *host, u8 mask)
 }
 
 static const struct sdhci_ops sdhci_dwcmshc_ops = {
-	.set_clock		= sdhci_set_clock,
+	.set_clock		= dwcmshc_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
 	.set_uhs_signaling	= dwcmshc_set_uhs_signaling,
 	.get_max_clock		= dwcmshc_get_max_clock,
@@ -359,8 +371,10 @@ static const struct sdhci_ops sdhci_dwcmshc_rk35xx_ops = {
 
 static const struct sdhci_pltfm_data sdhci_dwcmshc_pdata = {
 	.ops = &sdhci_dwcmshc_ops,
-	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
+		  SDHCI_QUIRK_BROKEN_CARD_DETECTION,
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+		   SDHCI_QUIRK2_BROKEN_HS200,
 };
 
 #ifdef CONFIG_ACPI
@@ -513,6 +527,14 @@ static int dwcmshc_probe(struct platform_device *pdev)
 		priv->bus_clk = devm_clk_get(dev, "bus");
 		if (!IS_ERR(priv->bus_clk))
 			clk_prepare_enable(priv->bus_clk);
+
+		pltfm_host->timeout_clk = devm_clk_get(dev, "timeout");
+		if (!IS_ERR(pltfm_host->timeout_clk))
+			err = clk_prepare_enable(pltfm_host->timeout_clk);
+		if (err)
+			goto free_pltfm;
+
+		priv->sdio_clk = devm_clk_get_optional(&pdev->dev, "sdio");
 	}
 
 	pltfm_host->timeout_clk = devm_clk_get(&pdev->dev, "timeout");
@@ -530,6 +552,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 		goto err_clk;
 
 	sdhci_get_of_property(pdev);
+	sdhci_enable_v4_mode(host);
 
 	priv->vendor_specific_area1 =
 		sdhci_readl(host, DWCMSHC_P_VENDOR_AREA1) & DWCMSHC_AREA1_MASK;
