@@ -60,15 +60,7 @@ struct io_sr_msg {
 	unsigned			done_io;
 	unsigned			msg_flags;
 	u16				flags;
-};
-
-struct io_sendzc {
-	struct file			*file;
-	void __user			*buf;
-	unsigned			len;
-	unsigned			done_io;
-	unsigned			msg_flags;
-	u16				flags;
+	/* used only for sendzc */
 	u16				addr_len;
 	void __user			*addr;
 	struct io_kiocb 		*notif;
@@ -188,7 +180,7 @@ static int io_sendmsg_copy_hdr(struct io_kiocb *req,
 
 int io_sendzc_prep_async(struct io_kiocb *req)
 {
-	struct io_sendzc *zc = io_kiocb_to_cmd(req, struct io_sendzc);
+	struct io_sr_msg *zc = io_kiocb_to_cmd(req, struct io_sr_msg);
 	struct io_async_msghdr *io;
 	int ret;
 
@@ -885,7 +877,7 @@ out_free:
 
 void io_sendzc_cleanup(struct io_kiocb *req)
 {
-	struct io_sendzc *zc = io_kiocb_to_cmd(req, struct io_sendzc);
+	struct io_sr_msg *zc = io_kiocb_to_cmd(req, struct io_sr_msg);
 
 	zc->notif->flags |= REQ_F_CQE_SKIP;
 	io_notif_flush(zc->notif);
@@ -894,7 +886,7 @@ void io_sendzc_cleanup(struct io_kiocb *req)
 
 int io_sendzc_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 {
-	struct io_sendzc *zc = io_kiocb_to_cmd(req, struct io_sendzc);
+	struct io_sr_msg *zc = io_kiocb_to_cmd(req, struct io_sr_msg);
 	struct io_ring_ctx *ctx = req->ctx;
 	struct io_kiocb *notif;
 
@@ -1000,7 +992,7 @@ static int io_sg_from_iter(struct sock *sk, struct sk_buff *skb,
 int io_sendzc(struct io_kiocb *req, unsigned int issue_flags)
 {
 	struct sockaddr_storage __address, *addr = NULL;
-	struct io_sendzc *zc = io_kiocb_to_cmd(req, struct io_sendzc);
+	struct io_sr_msg *zc = io_kiocb_to_cmd(req, struct io_sr_msg);
 	struct msghdr msg;
 	struct iovec iov;
 	struct socket *sock;
