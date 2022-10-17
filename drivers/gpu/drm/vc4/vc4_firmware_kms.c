@@ -184,18 +184,22 @@ static const struct vc_image_format {
 		.drm = DRM_FORMAT_ARGB8888,
 		.vc_image = VC_IMAGE_ARGB8888,
 	},
-/*
- *	FIXME: Need to resolve which DRM format goes to which vc_image format
- *	for the remaining RGBA and RGBX formats.
- *	{
- *		.drm = DRM_FORMAT_ABGR8888,
- *		.vc_image = VC_IMAGE_RGBA8888,
- *	},
- *	{
- *		.drm = DRM_FORMAT_XBGR8888,
- *		.vc_image = VC_IMAGE_RGBA8888,
- *	},
- */
+	{
+		.drm = DRM_FORMAT_XBGR8888,
+		.vc_image = VC_IMAGE_RGBX32,
+	},
+	{
+		.drm = DRM_FORMAT_ABGR8888,
+		.vc_image = VC_IMAGE_RGBA32,
+	},
+	{
+		.drm = DRM_FORMAT_RGBX8888,
+		.vc_image = VC_IMAGE_BGRX8888,
+	},
+	{
+		.drm = DRM_FORMAT_BGRX8888,
+		.vc_image = VC_IMAGE_RGBX8888,
+	},
 	{
 		.drm = DRM_FORMAT_RGB565,
 		.vc_image = VC_IMAGE_RGB565,
