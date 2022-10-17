@@ -376,6 +376,10 @@ static int vc4_hdmi_reset_link(struct drm_connector *connector,
 	    !try_wait_for_completion(&conn_state->commit->hw_done))
 		return 0;
 
+	if (!connector->ddc) {
+		drm_err(drm, "No ddc adapter\n");
+		return 0;
+	}
 	ret = drm_scdc_readb(connector->ddc, SCDC_TMDS_CONFIG, &config);
 	if (ret < 0) {
 		drm_err(drm, "Failed to read TMDS config: %d\n", ret);
