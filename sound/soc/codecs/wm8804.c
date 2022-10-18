@@ -40,6 +40,7 @@ static const struct reg_default wm8804_reg_defaults[] = {
 	{ 6,  0x07 },     /* R6  - PLL4 */
 	{ 7,  0x16 },     /* R7  - PLL5 */
 	{ 8,  0x18 },     /* R8  - PLL6 */
+//	{ 8,  0x1a },     /* R8  - PLL6 select RX2 input */
 	{ 9,  0xFF },     /* R9  - SPDMODE */
 	{ 10, 0x00 },     /* R10 - INTMASK */
 	{ 18, 0x00 },     /* R18 - SPDTX1 */

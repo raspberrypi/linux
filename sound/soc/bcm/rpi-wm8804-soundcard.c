@@ -70,6 +70,7 @@ static int wm8804_samplerate = 0;
 static struct snd_soc_dai_link snd_allo_digione_dai[];
 static struct snd_soc_card snd_rpi_wm8804;
 
+static uint32_t sysclk_freq = 27000000;
 
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
@@ -95,7 +96,7 @@ static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		struct wm8804_clk_cfg *clk_cfg)
 {
-	clk_cfg->sysclk_freq = 27000000;
+	clk_cfg->sysclk_freq = sysclk_freq;
 
 	if (samplerate <= 96000 ||
 	    snd_rpi_wm8804.dai_link == snd_allo_digione_dai) {
@@ -130,7 +131,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 
 	snd_rpi_wm8804_clk_cfg(samplerate, &clk_cfg);
 
-	pr_debug("%s samplerate: %d mclk_freq: %u mclk_div: %u sysclk: %u\n",
+	pr_err("%s samplerate: %d mclk_freq: %u mclk_div: %u sysclk: %u\n",
 			__func__, samplerate, clk_cfg.mclk_freq,
 			clk_cfg.mclk_div, clk_cfg.sysclk_freq);
 
@@ -179,6 +180,9 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 	/* set sampling frequency status bits */
 	snd_soc_component_update_bits(component, WM8804_SPDTX4, 0x0f,
 			sampling_freq);
+
+	/* set rx channel 2 */
+	snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 2);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
@@ -371,6 +375,13 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 
 		snd_clk48gpio =
 			devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
+
+		if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
+		{
+			pr_err("Failed to get sys_clk, defaulting to 27MHz");
+			sysclk_freq = 27000000;
+		}
+		pr_info("Setting system clock to %d kHz", sysclk_freq/1000);
 
 		if (drvdata->probe) {
 			ret = drvdata->probe(pdev);
