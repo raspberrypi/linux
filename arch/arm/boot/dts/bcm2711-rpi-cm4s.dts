@@ -7,11 +7,6 @@
 	compatible = "raspberrypi,4-compute-module-s", "brcm,bcm2711";
 	model = "Raspberry Pi Compute Module 4S";
 
-	chosen {
-		/* 8250 auxiliary UART instead of pl011 */
-		stdout-path = "serial1:115200n8";
-	};
-
 	leds {
 		led-act {
 			gpios = <&virtgpio 0 0>;
@@ -159,7 +154,7 @@
 
 / {
 	chosen {
-		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
+		bootargs = "coherent_pool=1M snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
 	};
 
 	aliases {
@@ -355,6 +350,16 @@
 
 // =============================================
 // Board specific stuff here
+
+/* Enable USB in OTG-aware mode */
+&usb {
+	compatible = "brcm,bcm2835-usb";
+	dr_mode = "otg";
+	g-np-tx-fifo-size = <32>;
+	g-rx-fifo-size = <558>;
+	g-tx-fifo-size = <512 512 512 512 512 256 256>;
+	status = "okay";
+};
 
 &sdhost {
 	status = "disabled";

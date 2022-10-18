@@ -369,7 +369,7 @@ static const struct ov9281_mode supported_modes[] = {
 		.height = 400,
 		.exp_def = 0x0320,
 		.hts_def = 0x05b0,
-		.vts_def = 421,
+		.vts_def = 422,
 		.crop = {
 			.left = 0,
 			.top = 0,
@@ -976,7 +976,7 @@ static int ov9281_set_ctrl(struct v4l2_ctrl *ctrl)
 		__v4l2_ctrl_modify_range(ov9281->exposure,
 					 ov9281->exposure->minimum, max,
 					 ov9281->exposure->step,
-					 ov9281->exposure->default_value);
+					 ov9281->cur_mode->vts_def);
 		break;
 	}
 

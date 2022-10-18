@@ -15,6 +15,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2710-rpi-3-b-plus.dtb \
 	bcm2711-rpi-4-b.dtb \
 	bcm2711-rpi-400.dtb \
+	bcm2709-rpi-cm2.dtb \
 	bcm2710-rpi-cm3.dtb \
 	bcm2711-rpi-cm4.dtb \
 	bcm2711-rpi-cm4s.dtb
@@ -147,6 +148,7 @@ dtb-$(CONFIG_ARCH_BCM_5301X) += \
 	bcm47094-luxul-xwr-3150-v1.dtb \
 	bcm47094-netgear-r8500.dtb \
 	bcm47094-phicomm-k3.dtb \
+	bcm53015-meraki-mr26.dtb \
 	bcm53016-meraki-mr32.dtb \
 	bcm94708.dtb \
 	bcm94709.dtb \

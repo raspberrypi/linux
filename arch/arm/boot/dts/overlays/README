@@ -190,6 +190,9 @@ Params:
                                 to negotiate. Legal values are 10, 100 and
                                 1000 (default 1000). Pi3B+ only.
 
+        hdmi                    Set to "off" to disable the HDMI interface
+                                (default "on")
+
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
 
@@ -217,6 +220,11 @@ Params:
         krnbt_baudrate          Set the baudrate of the PL011 UART when used
                                 with krnbt=on
 
+        pcie                    Set to "off" to disable the PCIe interface
+                                (default "on")
+                                (2711 only, but not applicable on CM4S)
+                                N.B. USB-A ports on 4B are subsequently disabled
+
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
 
@@ -226,6 +234,10 @@ Params:
 
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
+
+        sd                      Set to "off" to disable the SD card (or eMMC on
+                                non-lite SKU of CM4).
+                                (default "on")
 
         sd_overclock            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
@@ -582,6 +594,21 @@ Load:   dtoverlay=applepi-dac
 Params: <None>
 
 
+Name:   arducam-64mp
+Info:   Arducam 64MP camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=arducam-64mp,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
 Name:   arducam-pivariety
 Info:   Arducam Pivariety camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
@@ -671,6 +698,74 @@ Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
 
+Name:   camera-mux-2port
+Info:   Configures a 2 port camera multiplexer
+        Note that currently ALL IMX290 modules share a common clock, therefore
+        all modules will need to have the same clock frequency.
+Load:   dtoverlay=camera-mux-2port,<param>=<val>
+Params: cam0-imx219             Select IMX219 for camera on port 0
+        cam0-imx258             Select IMX258 for camera on port 0
+        cam0-imx290             Select IMX290 for camera on port 0
+        cam0-imx477             Select IMX477 for camera on port 0
+        cam0-ov2311             Select OV2311 for camera on port 0
+        cam0-ov5647             Select OV5647 for camera on port 0
+        cam0-ov7251             Select OV7251 for camera on port 0
+        cam0-ov9281             Select OV9281 for camera on port 0
+        cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
+        cam1-imx219             Select IMX219 for camera on port 1
+        cam1-imx258             Select IMX258 for camera on port 1
+        cam1-imx290             Select IMX290 for camera on port 1
+        cam1-imx477             Select IMX477 for camera on port 1
+        cam1-ov2311             Select OV2311 for camera on port 1
+        cam1-ov5647             Select OV5647 for camera on port 1
+        cam1-ov7251             Select OV7251 for camera on port 1
+        cam1-ov9281             Select OV9281 for camera on port 1
+        cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
+
+
+Name:   camera-mux-4port
+Info:   Configures a 4 port camera multiplexer
+        Note that currently ALL IMX290 modules share a common clock, therefore
+        all modules will need to have the same clock frequency.
+Load:   dtoverlay=camera-mux-4port,<param>=<val>
+Params: cam0-imx219             Select IMX219 for camera on port 0
+        cam0-imx258             Select IMX258 for camera on port 0
+        cam0-imx290             Select IMX290 for camera on port 0
+        cam0-imx477             Select IMX477 for camera on port 0
+        cam0-ov2311             Select OV2311 for camera on port 0
+        cam0-ov5647             Select OV5647 for camera on port 0
+        cam0-ov7251             Select OV7251 for camera on port 0
+        cam0-ov9281             Select OV9281 for camera on port 0
+        cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
+        cam1-imx219             Select IMX219 for camera on port 1
+        cam1-imx258             Select IMX258 for camera on port 1
+        cam1-imx290             Select IMX290 for camera on port 1
+        cam1-imx477             Select IMX477 for camera on port 1
+        cam1-ov2311             Select OV2311 for camera on port 1
+        cam1-ov5647             Select OV5647 for camera on port 1
+        cam1-ov7251             Select OV7251 for camera on port 1
+        cam1-ov9281             Select OV9281 for camera on port 1
+        cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
+        cam2-imx219             Select IMX219 for camera on port 2
+        cam2-imx258             Select IMX258 for camera on port 2
+        cam2-imx290             Select IMX290 for camera on port 2
+        cam2-imx477             Select IMX477 for camera on port 2
+        cam2-ov2311             Select OV2311 for camera on port 2
+        cam2-ov5647             Select OV5647 for camera on port 2
+        cam2-ov7251             Select OV7251 for camera on port 2
+        cam2-ov9281             Select OV9281 for camera on port 2
+        cam2-imx290-clk-freq    Set clock frequency for an IMX290 on port 2
+        cam3-imx219             Select IMX219 for camera on port 3
+        cam3-imx258             Select IMX258 for camera on port 3
+        cam3-imx290             Select IMX290 for camera on port 3
+        cam3-imx477             Select IMX477 for camera on port 3
+        cam3-ov2311             Select OV2311 for camera on port 3
+        cam3-ov5647             Select OV5647 for camera on port 3
+        cam3-ov7251             Select OV7251 for camera on port 3
+        cam3-ov9281             Select OV9281 for camera on port 3
+        cam3-imx290-clk-freq    Set clock frequency for an IMX290 on port 3
+
+
 Name:   cap1106
 Info:   Enables the ability to use the cap1106 touch sensor as a keyboard
 Load:   dtoverlay=cap1106,<param>=<val>
@@ -680,6 +775,12 @@ Params: int_pin                 GPIO pin for interrupt signal (default 23)
 Name:   chipdip-dac
 Info:   Configures Chip Dip audio cards.
 Load:   dtoverlay=chipdip-dac
+Params: <None>
+
+
+Name:   cirrus-wm5102
+Info:   Configures the Cirrus Logic Audio Card
+Load:   dtoverlay=cirrus-wm5102
 Params: <None>
 
 
@@ -706,12 +807,24 @@ Load:   dtoverlay=cutiepi-panel
 Params: <None>
 
 
+Name:   dacberry400
+Info:   Configures the dacberry400 add on soundcard
+Load:   dtoverlay=dacberry400
+Params: <None>
+
+
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.
 Load:   dtoverlay=dht11,<param>=<val>
 Params: gpiopin                 GPIO connected to the sensor's DATA output.
                                 (default 4)
+
+
+Name:   dionaudio-kiwi
+Info:   Configures the Dion Audio KIWI STREAMER
+Load:   dtoverlay=dionaudio-kiwi
+Params: <None>
 
 
 Name:   dionaudio-loco
@@ -1032,6 +1145,26 @@ Load:   dtoverlay=fsm-demo,<param>=<val>
 Params: fsm_debug               Enable debug logging (default off)
 
 
+Name:   gc9a01
+Info:   Enables GalaxyCore's GC9A01 single chip driver based displays on
+        SPI0 as fb1, using GPIOs DC=25, RST=27 and BL=18 (physical
+        GPIO header pins 22, 13 and 12 respectively) in addition to the
+        SPI0 pins DIN=10, CLK=11 and CS=8 (physical GPIO header pins 19,
+        23 and 24 respectively).
+Load:   dtoverlay=gc9a01,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        width                   Width of the display
+
+        height                  Height of the display
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
 Name:   ghost-amp
 Info:   An overlay for the Ghost amplifier.
 Load:   dtoverlay=ghost-amp,<param>=<val>
@@ -1059,6 +1192,9 @@ Load:   dtoverlay=gpio-fan,<param>=<val>
 Params: gpiopin                 GPIO used to control the fan (default 12)
         temp                    Temperature at which the fan switches on, in
                                 millicelcius (default 55000)
+        hyst                    Temperature delta (in millicelcius) below
+                                temp at which the fan will drop to minrpm
+                                (default 10000)
 
 
 Name:   gpio-hog
@@ -1367,6 +1503,12 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 Will be overwritten by ALSA user settings.
 
 
+Name:   hifiberry-amp3
+Info:   Configures the HifiBerry Amp3 audio card
+Load:   dtoverlay=hifiberry-amp3
+Params: <None>
+
+
 Name:   hifiberry-dac
 Info:   Configures the HifiBerry DAC audio cards
 Load:   dtoverlay=hifiberry-dac
@@ -1552,6 +1694,18 @@ Params: addr                    Sets the address for the fan controller. Note
 
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
 
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+
         minpwm                  PWM setting for the fan when the SoC is below
                                 mintemp (range 0-255. default 0)
         maxpwm                  PWM setting for the fan when the SoC is above
@@ -1654,6 +1808,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         rv3028                  Select the Micro Crystal RV3028 device
 
+        rv8803                  Select the Micro Crystal RV8803 device
+
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
         s35390a                 Select the ABLIC S35390A device
@@ -1661,6 +1817,18 @@ Params: abx80x                  Select one of the ABx80x family:
         i2c0                    Choose the I2C0 bus on GPIOs 0&1
 
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
@@ -1723,6 +1891,8 @@ Params: abx80x                  Select one of the ABx80x family:
         rv1805                  Select the Micro Crystal RV1805 device
 
         rv3028                  Select the Micro Crystal RV3028 device
+
+        rv8803                  Select the Micro Crystal RV8803 device
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
@@ -1826,6 +1996,22 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
 
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+
 
 Name:   i2c0
 Info:   Change i2c0 pin usage. Not all pin combinations are usable on all
@@ -1904,6 +2090,12 @@ Params: pins_0_1                Use GPIOs 0 and 1
                                 "100000")
 
 
+Name:   i2s-dac
+Info:   Configures any passive I2S DAC soundcard.
+Load:   dtoverlay=i2s-dac
+Params: <None>
+
+
 Name:   i2s-gpio28-31
 Info:   move I2S function block to GPIO 28 to 31
 Load:   dtoverlay=i2s-gpio28-31
@@ -1958,9 +2150,46 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
 Name:   imx290
 Info:   Sony IMX290 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
-        variants. NB This currently uses 4 CSI2 data lanes and therefore will
-        only work on a CM.
+        variants.
 Load:   dtoverlay=imx290,<param>
+Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, or 4).
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board.
+                                Modules from Vision Components use 37.125MHz
+                                (the default), whilst those from Innomaker use
+                                74.25MHz.
+        mono                    Denote that the module is a mono sensor.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
+Name:   imx296
+Info:   Sony IMX296 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx296,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
+Name:   imx327
+Info:   Sony IMX327 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx327,<param>
 Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 Module (1, 3, or 4).
         clock-frequency         Sets the clock frequency to match that used on
@@ -1988,6 +2217,29 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
+Name:   imx462
+Info:   Sony IMX462 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx462,<param>
+Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, or 4).
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board.
+                                Modules from Vision Components use 37.125MHz
+                                (the default), whilst those from Innomaker use
+                                74.25MHz.
+        mono                    Denote that the module is a mono sensor.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
         media-controller        Configure use of Media Controller API for
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
@@ -2874,6 +3126,14 @@ Params: gpiopin                 Input GPIO (default "18")
                                 off)
         capture_clear           Generate clear events on the trailing edge
                                 (default off)
+        pull                    Desired pull-up/down state (off, down, up)
+                                Default is "off".
+
+
+Name:   proto-codec
+Info:   Configures the PROTO Audio Codec card
+Load:   dtoverlay=proto-codec
+Params: <None>
 
 
 Name:   pwm
@@ -2948,6 +3208,35 @@ Params: baudrate                Set the baudrate for the UART (default
                                 "115200")
 
 
+Name:   ramoops
+Info:   Enable the preservation of crash logs across a reboot. With
+        systemd-pstore enabled (as it is on Raspberry Pi OS) the crash logs
+        are moved to /var/lib/systemd/pstore/ on reboot.
+Load:   dtoverlay=ramoops,<param>=<val>
+Params: base-addr               Where to place the capture buffer (default
+                                0x0b000000)
+        total-size              How much memory to allocate altogether (in
+                                bytes - default 64kB)
+        record-size             How much space to use for each capture, i.e.
+                                total-size / record-size = number of captures
+                                (default 16kB)
+        console-size            Size of non-panic dmesg captures (default 0)
+
+
+Name:   ramoops-pi4
+Info:   The version of the ramoops overlay for the Pi 4 family. It should be
+        loaded automatically if dtoverlay=ramoops is specified on a Pi 4.
+Load:   dtoverlay=ramoops-pi4,<param>=<val>
+Params: base-addr               Where to place the capture buffer (default
+                                0x0b000000)
+        total-size              How much memory to allocate altogether (in
+                                bytes - default 64kB)
+        record-size             How much space to use for each capture, i.e.
+                                total-size / record-size = number of captures
+                                (default 16kB)
+        console-size            Size of non-panic dmesg captures (default 0)
+
+
 Name:   rotary-encoder
 Info:   Overlay for GPIO connected rotary encoder.
 Load:   dtoverlay=rotary-encoder,<param>=<val>
@@ -2987,49 +3276,88 @@ Params: <None>
 
 
 Name:   rpi-cirrus-wm5102
-Info:   Configures the Cirrus Logic Audio Card
-Load:   dtoverlay=rpi-cirrus-wm5102
+Info:   This overlay has been renamed to cirrus-wm5102
+Load:   <Deprecated>
+
+
+Name:   rpi-codeczero
+Info:   Configures the Raspberry Pi Codec Zero sound card
+Load:   dtoverlay=rpi-codeczero
 Params: <None>
 
 
 Name:   rpi-dac
-Info:   Configures the RPi DAC audio card
-Load:   dtoverlay=rpi-dac
-Params: <None>
+Info:   This overlay has been renaamed to i2s-dac.
+Load:   <Deprecated>
+
+
+Name:   rpi-dacplus
+Info:   Configures the Raspberry Pi DAC+ card
+Load:   dtoverlay=rpi-dacplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+
+
+Name:   rpi-dacpro
+Info:   Configures the Raspberry Pi DAC Pro sound card
+Load:   dtoverlay=rpi-dacpro,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+
+
+Name:   rpi-digiampplus
+Info:   Configures the Raspberry Pi DigiAMP+ sound card
+Load:   dtoverlay=rpi-digiampplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                digital volume control. Enable by adding
+                                "dtparam=24db_digital_gain" to config.txt
+                                before any "dtoverlay" lines.
+                                The default behaviour is that the digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the digital volume control is set to a value
+                                that does not result in clipping/distortion!
+        auto_mute_amp           If specified, unmute/mute the DigiAMP+ when
+                                starting/stopping audio playback (default "on").
+        unmute_amp              If specified, unmute the DigiAMP+ amp once when
+                                the DAC driver module loads (default "off").
 
 
 Name:   rpi-display
-Info:   RPi-Display - 2.8" Touch Display by Watterott
-        Linux has 2 drivers that support this display and this overlay supports
-        both.
-
-        Examples:
-          fbtft/fb_ili9341: dtoverlay=rpi-display
-          drm/mi0283qt: dtoverlay=rpi-display,drm,backlight-pwm,rotate=180
-
-        Some notable differences with the DRM driver compared to fbtft:
-        - The display is turned on when it's first used and not on driver load
-          as with fbtft. So if nothing uses the display it stays off.
-        - Can run with a higher SPI clock increasing framerate. This is possible
-          since the driver avoids messing up the controller configuration due to
-          transmission errors by running config commands at 10MHz and only pixel
-          data at full speed (occasional pixel glitch might occur).
-        - PWM backlight is supported.
-
-Load:   dtoverlay=rpi-display,<param>=<val>
-Params: speed                   Display SPI bus speed
-        rotate                  Display rotation {0,90,180,270}
-        fps                     Delay between frame updates (fbtft only)
-        debug                   Debug output level {0-7} (fbtft only)
-        xohms                   Touchpanel sensitivity (X-plate resistance)
-        swapxy                  Swap x and y axis
-        backlight               Change backlight GPIO pin {e.g. 12, 18}
-                                (fbtft only)
-        drm                     Use DRM/KMS driver mi0283qt instead of fbtft.
-                                Set the SPI clock to 70MHz.
-                                This has to be the first parameter.
-        backlight-pwm           Use pwm for backlight (drm only). NB: Disables
-                                audio headphone output as that also uses PWM.
+Info:   This overlay has been renamed to watterott-display
+Load:   <Deprecated>
 
 
 Name:   rpi-ft5406
@@ -3089,14 +3417,19 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
 
 
 Name:   rpi-proto
-Info:   Configures the RPi Proto audio card
-Load:   dtoverlay=rpi-proto
-Params: <None>
+Info:   This overlay has been renamaed to proto-codec.
+Load:   <Deprecated>
 
 
 Name:   rpi-sense
 Info:   Raspberry Pi Sense HAT
 Load:   dtoverlay=rpi-sense
+Params: <None>
+
+
+Name:   rpi-sense-v2
+Info:   Raspberry Pi Sense HAT v2
+Load:   dtoverlay=rpi-sense-v2
 Params: <None>
 
 
@@ -3107,10 +3440,9 @@ Params: <None>
 
 
 Name:   rpivid-v4l2
-Info:   Load the V4L2 stateless video decoder driver for the HEVC block,
-        disabling the memory mapped devices in the process.
-Load:   dtoverlay=rpivid-v4l2
-Params: <None>
+Info:   This overlay has been deprecated and deleted as the V4L2 stateless
+        video decoder driver is enabled by default.
+Load:   <Deprecated>
 
 
 Name:   rra-digidac1-wm8741-audio
@@ -3998,6 +4330,7 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         noaudio                 Disable all HDMI audio (default "off")
         composite               Enable the composite output (default "off")
                                 N.B. Disables all other outputs on a Pi 4.
+        nohdmi                  Disable HDMI output
 
 
 Name:   vc4-kms-v3d-pi4
@@ -4021,6 +4354,10 @@ Params: cma-512                 CMA is 512MB
         noaudio                 Disable all HDMI audio (default "off")
         composite               Enable the composite output (disables all other
                                 outputs)
+        nohdmi                  Disable both HDMI 0 & 1 outputs
+        nohdmi0                 Disable HDMI 0 output
+        nohdmi1                 Disable HDMI 1 output
+
 
 
 Name:   vc4-kms-vga666
@@ -4074,6 +4411,40 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 30000000)
 
         cs                      SPI bus Chip Select (default 0)
+
+
+Name:   watterott-display
+Info:   Watterott RPi-Display - 2.8" Touch Display
+        Linux has 2 drivers that support this display and this overlay supports
+        both.
+
+        Examples:
+          fbtft/fb_ili9341: dtoverlay=watterott-display
+          drm/mi0283qt: dtoverlay=watterott-display,drm,backlight-pwm,rotate=180
+
+        Some notable differences with the DRM driver compared to fbtft:
+        - The display is turned on when it's first used and not on driver load
+          as with fbtft. So if nothing uses the display it stays off.
+        - Can run with a higher SPI clock increasing framerate. This is possible
+          since the driver avoids messing up the controller configuration due to
+          transmission errors by running config commands at 10MHz and only pixel
+          data at full speed (occasional pixel glitch might occur).
+        - PWM backlight is supported.
+
+Load:   dtoverlay=watterott-display,<param>=<val>
+Params: speed                   Display SPI bus speed
+        rotate                  Display rotation {0,90,180,270}
+        fps                     Delay between frame updates (fbtft only)
+        debug                   Debug output level {0-7} (fbtft only)
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+        swapxy                  Swap x and y axis
+        backlight               Change backlight GPIO pin {e.g. 12, 18}
+                                (fbtft only)
+        drm                     Use DRM/KMS driver mi0283qt instead of fbtft.
+                                Set the SPI clock to 70MHz.
+                                This has to be the first parameter.
+        backlight-pwm           Use pwm for backlight (drm only). NB: Disables
+                                audio headphone output as that also uses PWM.
 
 
 Name:   waveshare-can-fd-hat-mode-a

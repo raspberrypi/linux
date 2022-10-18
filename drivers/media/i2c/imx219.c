@@ -63,8 +63,10 @@
 #define IMX219_FLL_STEP			1
 #define IMX219_FLL_DEFAULT		0x0c98
 
-/* HBLANK control - read only */
-#define IMX219_PPL_DEFAULT		3448
+/* HBLANK control range */
+#define IMX219_PPL_MIN			3448
+#define IMX219_PPL_MAX			0x7ff0
+#define IMX219_REG_HTS			0x0162
 
 /* Exposure control */
 #define IMX219_REG_EXPOSURE		0x015a
@@ -216,8 +218,6 @@ static const struct imx219_reg mode_3280x2464_regs[] = {
 	{0x4793, 0x10},
 	{0x4797, 0x0e},
 	{0x479b, 0x0e},
-	{0x0162, 0x0d},
-	{0x0163, 0x78},
 };
 
 static const struct imx219_reg mode_1920_1080_regs[] = {
@@ -232,8 +232,6 @@ static const struct imx219_reg mode_1920_1080_regs[] = {
 	{0x0128, 0x00},
 	{0x012a, 0x18},
 	{0x012b, 0x00},
-	{0x0162, 0x0d},
-	{0x0163, 0x78},
 	{0x0164, 0x02},
 	{0x0165, 0xa8},
 	{0x0166, 0x0a},
@@ -330,8 +328,6 @@ static const struct imx219_reg mode_1640_1232_regs[] = {
 	{0x4793, 0x10},
 	{0x4797, 0x0e},
 	{0x479b, 0x0e},
-	{0x0162, 0x0d},
-	{0x0163, 0x78},
 };
 
 static const struct imx219_reg mode_640_480_regs[] = {
@@ -346,8 +342,6 @@ static const struct imx219_reg mode_640_480_regs[] = {
 	{0x0128, 0x00},
 	{0x012a, 0x18},
 	{0x012b, 0x00},
-	{0x0162, 0x0d},
-	{0x0163, 0x78},
 	{0x0164, 0x03},
 	{0x0165, 0xe8},
 	{0x0166, 0x08},
@@ -800,6 +794,11 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 				       (imx219->mode->height + ctrl->val) /
 						imx219->mode->rate_factor);
 		break;
+	case V4L2_CID_HBLANK:
+		ret = imx219_write_reg(imx219, IMX219_REG_HTS,
+				       IMX219_REG_VALUE_16BIT,
+				       imx219->mode->width + ctrl->val);
+		break;
 	case V4L2_CID_TEST_PATTERN_RED:
 		ret = imx219_write_reg(imx219, IMX219_REG_TESTP_RED,
 				       IMX219_REG_VALUE_16BIT, ctrl->val);
@@ -1000,6 +999,8 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			*framefmt = fmt->format;
 		} else if (imx219->mode != mode ||
 			imx219->fmt.code != fmt->format.code) {
+			u32 prev_hts = imx219->mode->width + imx219->hblank->val;
+
 			imx219->fmt = fmt->format;
 			imx219->mode = mode;
 			/* Update limits and set FPS to default */
@@ -1024,13 +1025,19 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 						 imx219->exposure->step,
 						 exposure_def);
 			/*
-			 * Currently PPL is fixed to IMX219_PPL_DEFAULT, so
-			 * hblank depends on mode->width only, and is not
-			 * changeble in any way other than changing the mode.
+			 * Retain PPL setting from previous mode so that the
+			 * line time does not change on a mode change.
+			 * Limits have to be recomputed as the controls define
+			 * the blanking only, so PPL values need to have the
+			 * mode width subtracted.
 			 */
-			hblank = IMX219_PPL_DEFAULT - mode->width;
-			__v4l2_ctrl_modify_range(imx219->hblank, hblank, hblank,
-						 1, hblank);
+			hblank = prev_hts - mode->width;
+			__v4l2_ctrl_modify_range(imx219->hblank,
+						 IMX219_PPL_MIN - mode->width,
+						 IMX219_PPL_MAX - mode->width,
+						 1,
+						 IMX219_PPL_MIN - mode->width);
+			__v4l2_ctrl_s_ctrl(imx219->hblank, hblank);
 
 			/* Scale the pixel rate based on the mode specific factor */
 			pixel_rate =
@@ -1412,12 +1419,12 @@ static int imx219_init_controls(struct imx219 *imx219)
 					   V4L2_CID_VBLANK, IMX219_VBLANK_MIN,
 					   IMX219_VTS_MAX - height, 1,
 					   imx219->mode->vts_def - height);
-	hblank = IMX219_PPL_DEFAULT - imx219->mode->width;
+	hblank = IMX219_PPL_MIN - imx219->mode->width;
 	imx219->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
-					   V4L2_CID_HBLANK, hblank, hblank,
+					   V4L2_CID_HBLANK, hblank,
+					   IMX219_PPL_MAX - imx219->mode->width,
 					   1, hblank);
-	if (imx219->hblank)
-		imx219->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+
 	exposure_max = imx219->mode->vts_def - 4;
 	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 		exposure_max : IMX219_EXPOSURE_DEFAULT;

@@ -730,6 +730,17 @@ config VIDEO_APTINA_PLL
 config VIDEO_CCS_PLL
 	tristate
 
+config VIDEO_ARDUCAM_64MP
+	tristate "Arducam 64MP sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  64MP camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called arducam_64mp.
+
 config VIDEO_ARDUCAM_PIVARIETY
 	tristate "Arducam Pivariety sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
@@ -827,6 +838,18 @@ config VIDEO_IMX290
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx290.
+
+config VIDEO_IMX296
+	tristate "Sony IMX296 sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX296 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx296.
 
 config VIDEO_IMX477
 	tristate "Sony IMX477 sensor support"

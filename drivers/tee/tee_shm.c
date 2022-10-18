@@ -9,6 +9,7 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/tee_drv.h>
+#include <linux/uaccess.h>
 #include <linux/uio.h>
 #include "tee_private.h"
 
@@ -221,6 +222,9 @@ struct tee_shm *tee_shm_register(struct tee_context *ctx, unsigned long addr,
 		ret = ERR_PTR(rc);
 		goto err;
 	}
+
+	if (!access_ok((void __user *)addr, length))
+		return ERR_PTR(-EFAULT);
 
 	mutex_lock(&teedev->mutex);
 	shm->id = idr_alloc(&teedev->idr, shm, 1, 0, GFP_KERNEL);

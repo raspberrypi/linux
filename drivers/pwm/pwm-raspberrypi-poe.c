@@ -73,7 +73,7 @@ static int raspberrypi_pwm_get_property(struct raspberrypi_pwm *pwm,
 					u32 reg, u32 *val)
 {
 	struct raspberrypi_pwm_prop msg = {
-		.reg = reg
+		.reg = cpu_to_le32(reg),
 	};
 	int ret;
 

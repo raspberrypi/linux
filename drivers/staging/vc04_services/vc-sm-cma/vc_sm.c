@@ -1247,7 +1247,9 @@ static void (*cache_op_to_func(const unsigned int cache_op))
 		return NULL;
 
 	case VC_SM_CACHE_OP_INV:
+		return dmac_inv_range;
 	case VC_SM_CACHE_OP_CLEAN:
+		return dmac_clean_range;
 	case VC_SM_CACHE_OP_FLUSH:
 		return dmac_flush_range;
 

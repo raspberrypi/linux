@@ -1613,7 +1613,8 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 				  f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	q_data->crop_width = f->fmt.pix_mp.width;
 	q_data->height = f->fmt.pix_mp.height;
-	if (!q_data->selection_set)
+	if (!q_data->selection_set ||
+	    (q_data->fmt->flags & V4L2_FMT_FLAG_COMPRESSED))
 		q_data->crop_height = requested_height;
 
 	/*
@@ -1898,6 +1899,8 @@ static int vidioc_s_selection(struct file *file, void *priv,
 {
 	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 	struct bcm2835_codec_q_data *q_data = NULL;
+	struct vchiq_mmal_port *port = NULL;
+	int ret;
 
 	/*
 	 * The selection API takes V4L2_BUF_TYPE_VIDEO_CAPTURE and
@@ -1913,12 +1916,16 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		if (ctx->dev->role == ENCODE || ctx->dev->role == ENCODE_IMAGE)
 			return -EINVAL;
 		q_data = &ctx->q_data[V4L2_M2M_DST];
+		if (ctx->component)
+			port = &ctx->component->output[0];
 		break;
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		/* OUTPUT on deoder is not valid. */
 		if (ctx->dev->role == DECODE)
 			return -EINVAL;
 		q_data = &ctx->q_data[V4L2_M2M_SRC];
+		if (ctx->component)
+			port = &ctx->component->input[0];
 		break;
 	default:
 		return -EINVAL;
@@ -2001,6 +2008,17 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		}
 	case NUM_ROLES:
 		break;
+	}
+
+	if (!port)
+		return 0;
+
+	setup_mmal_port_format(ctx, q_data, port);
+	ret = vchiq_mmal_port_set_format(ctx->dev->instance, port);
+	if (ret) {
+		v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed vchiq_mmal_port_set_format on port, ret %d\n",
+			 __func__, ret);
+		return -EINVAL;
 	}
 
 	return 0;
@@ -2170,6 +2188,12 @@ static int bcm2835_codec_set_level_profile(struct bcm2835_codec_ctx *ctx,
 			break;
 		case V4L2_MPEG_VIDEO_H264_LEVEL_4_2:
 			param.level = MMAL_VIDEO_LEVEL_H264_42;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_5_0:
+			param.level = MMAL_VIDEO_LEVEL_H264_5;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_5_1:
+			param.level = MMAL_VIDEO_LEVEL_H264_51;
 			break;
 		default:
 			/* Should never get here */
@@ -2437,11 +2461,6 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 static int vidioc_try_encoder_cmd(struct file *file, void *priv,
 				  struct v4l2_encoder_cmd *cmd)
 {
-	struct bcm2835_codec_ctx *ctx = file2ctx(file);
-
-	if (ctx->dev->role != ENCODE && ctx->dev->role != ENCODE_IMAGE)
-		return -EINVAL;
-
 	switch (cmd->cmd) {
 	case V4L2_ENC_CMD_STOP:
 		break;
@@ -3258,7 +3277,7 @@ static int bcm2835_codec_open(struct file *file)
 				  1, 60);
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-				       V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
+				       V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
 				       ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
 					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
 					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
@@ -3272,7 +3291,9 @@ static int bcm2835_codec_open(struct file *file)
 					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
 					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
 					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
-					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
+					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2) |
+					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_0) |
+					 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_1)),
 				       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_H264_PROFILE,
@@ -3616,8 +3637,6 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 		video_nr = encode_video_nr;
 		break;
 	case ISP:
-		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
-		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
@@ -3626,8 +3645,6 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 		video_nr = isp_video_nr;
 		break;
 	case DEINTERLACE:
-		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
-		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
