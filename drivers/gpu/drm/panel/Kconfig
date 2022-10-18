@@ -178,7 +178,7 @@ config DRM_PANEL_ILITEK_ILI9806E
 	tristate "Ilitek ILI9806E-based panels"
 	depends on OF && SPI
 	select DRM_KMS_HELPER
-	depends on DRM_GEM_CMA_HELPER
+	depends on DRM_GEM_DMA_HELPER
 	depends on BACKLIGHT_CLASS_DEVICE
 	select DRM_MIPI_DBI
 	help
@@ -673,7 +673,7 @@ config DRM_PANEL_TPO_Y17P
 	tristate "TDO Y17P-based panels"
 	depends on OF && SPI
 	select DRM_KMS_HELPER
-	depends on DRM_GEM_CMA_HELPER
+	depends on DRM_GEM_DMA_HELPER
 	depends on BACKLIGHT_CLASS_DEVICE
 	select DRM_MIPI_DBI
 	help
