@@ -383,6 +383,14 @@ static int cs4271_hw_params(struct snd_pcm_substream *substream,
 		val = CS4271_MODE1_MODE_4X;
 
 	ratio = cs4271->mclk / cs4271->rate;
+
+	printk("%s: mclk %u, rate %u, master %u, val %u, ratio %u", __func__, 
+		cs4271->mclk,
+		cs4271->rate,
+		cs4271->master,
+		val,
+		ratio);
+
 	for (i = 0; i < CS4271_NR_RATIOS; i++)
 		if ((cs4271_clk_tab[i].master == cs4271->master) &&
 		    (cs4271_clk_tab[i].speed_mode == val) &&
@@ -488,13 +496,18 @@ static int cs4271_reset(struct snd_soc_component *component)
 {
 	struct cs4271_private *cs4271 = snd_soc_component_get_drvdata(component);
 
+	pr_err("reset called");
 	if (gpio_is_valid(cs4271->gpio_nreset)) {
+		pr_err("reset setup %d", cs4271->gpio_nreset);
 		gpio_direction_output(cs4271->gpio_nreset, 0);
+		gpio_set_value(cs4271->gpio_nreset, 0);
+		//gpio_direction_output(23, 0);
+		//gpio_set_value(23, 0);
 		mdelay(1);
 		gpio_set_value(cs4271->gpio_nreset, 1);
-		mdelay(1);
+		mdelay(10);
 	}
-
+	pr_err("reset done");
 	return 0;
 }
 
@@ -565,6 +578,8 @@ static int cs4271_component_probe(struct snd_soc_component *component)
 	int ret;
 	bool amutec_eq_bmutec = false;
 
+	pr_err("cs4271 probe start\n");
+
 #ifdef CONFIG_OF
 	if (of_match_device(cs4271_dt_ids, component->dev)) {
 		if (of_get_property(component->dev->of_node,
@@ -594,17 +609,28 @@ static int cs4271_component_probe(struct snd_soc_component *component)
 
 	ret = regcache_sync(cs4271->regmap);
 	if (ret < 0)
+	{
+		pr_err("Failed to sync\n");
 		return ret;
+	}
 
 	ret = regmap_update_bits(cs4271->regmap, CS4271_MODE2,
 				 CS4271_MODE2_PDN | CS4271_MODE2_CPEN,
 				 CS4271_MODE2_PDN | CS4271_MODE2_CPEN);
 	if (ret < 0)
+	{
+		pr_err("Failed to update 1 - %d\n", ret);
 		return ret;
+	}
+
 	ret = regmap_update_bits(cs4271->regmap, CS4271_MODE2,
 				 CS4271_MODE2_PDN, 0);
 	if (ret < 0)
+	{
+		pr_err("Failed to update 2 - %d\n", ret);
 		return ret;
+	}
+
 	/* Power-up sequence requires 85 uS */
 	udelay(85);
 
@@ -613,6 +639,7 @@ static int cs4271_component_probe(struct snd_soc_component *component)
 				   CS4271_MODE2_MUTECAEQUB,
 				   CS4271_MODE2_MUTECAEQUB);
 
+	pr_err("cs4271 probe done\n");
 	return 0;
 }
 

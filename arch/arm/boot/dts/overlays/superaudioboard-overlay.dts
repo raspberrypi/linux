@@ -63,7 +63,7 @@
 				compatible = "cirrus,cs4271";
 				reg = <0x10>;
 				status = "okay";
-				reset-gpio = <&gpio 26 0>; /* Pin 26, active high */
+				reset-gpio = <&gpio 24 0>; /* Pin 26, active high */
 			};
 		};
 	};
