@@ -5,6 +5,8 @@ TEST_PROGS := bond-break-lacpdu-tx.sh \
 	      dev_addr_lists.sh \
 	      bond-arp-interval-causes-panic.sh
 
-TEST_FILES := lag_lib.sh
+TEST_FILES := \
+	lag_lib.sh \
+	net_forwarding_lib.sh
 
 include ../../../lib.mk
