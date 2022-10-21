@@ -643,7 +643,7 @@ void drm_mode_config_validate(struct drm_device *dev)
 	struct drm_encoder *encoder;
 	struct drm_crtc *crtc;
 	struct drm_plane *plane;
-	u32 primary_with_crtc = 0, cursor_with_crtc = 0;
+	u64 primary_with_crtc = 0, cursor_with_crtc = 0;
 	unsigned int num_primary = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
