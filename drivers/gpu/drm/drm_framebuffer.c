@@ -975,7 +975,7 @@ static int atomic_remove_fb(struct drm_framebuffer *fb)
 	struct drm_connector *conn __maybe_unused;
 	struct drm_connector_state *conn_state;
 	int i, ret;
-	unsigned plane_mask;
+	u64 plane_mask;
 	bool disable_crtcs = false;
 
 retry_disable:
