@@ -365,7 +365,7 @@ static int __drm_universal_plane_init(struct drm_device *dev,
 	int ret;
 
 	/* plane index is used with 32bit bitmasks */
-	if (WARN_ON(config->num_total_plane >= 32))
+	if (WARN_ON(config->num_total_plane >= 64))
 		return -EINVAL;
 
 	/*
