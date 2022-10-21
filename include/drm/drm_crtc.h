@@ -192,7 +192,7 @@ struct drm_crtc_state {
 	 * @plane_mask: Bitmask of drm_plane_mask(plane) of planes attached to
 	 * this CRTC.
 	 */
-	u32 plane_mask;
+	u64 plane_mask;
 
 	/**
 	 * @connector_mask: Bitmask of drm_connector_mask(connector) of
