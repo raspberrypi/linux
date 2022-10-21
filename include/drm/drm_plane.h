@@ -943,9 +943,9 @@ static inline unsigned int drm_plane_index(const struct drm_plane *plane)
  * drm_plane_mask - find the mask of a registered plane
  * @plane: plane to find mask for
  */
-static inline u32 drm_plane_mask(const struct drm_plane *plane)
+static inline u64 drm_plane_mask(const struct drm_plane *plane)
 {
-	return 1 << drm_plane_index(plane);
+	return 1ULL << drm_plane_index(plane);
 }
 
 struct drm_plane * drm_plane_from_index(struct drm_device *dev, int idx);
