@@ -672,7 +672,7 @@ config DRM_PANEL_TDO_TL070WSH30
 config DRM_PANEL_TPO_Y17P
 	tristate "TDO Y17P-based panels"
 	depends on OF && SPI
-	depends on DRM_KMS_HELPER
+	select DRM_KMS_HELPER
 	depends on DRM_GEM_CMA_HELPER
 	depends on BACKLIGHT_CLASS_DEVICE
 	select DRM_MIPI_DBI
