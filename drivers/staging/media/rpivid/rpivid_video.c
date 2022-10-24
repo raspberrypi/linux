@@ -555,12 +555,9 @@ static void stop_clock(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 /* Always starts the clock if it isn't already on this ctx */
 static int start_clock(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 {
-	long max_hevc_clock;
 	int rv;
 
-	max_hevc_clock = clk_get_max_rate(dev->clock);
-
-	rv = clk_set_min_rate(dev->clock, max_hevc_clock);
+	rv = clk_set_min_rate(dev->clock, dev->max_clock_rate);
 	if (rv) {
 		dev_err(dev->dev, "Failed to set clock rate\n");
 		return rv;
