@@ -1808,6 +1808,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         rv3028                  Select the Micro Crystal RV3028 device
 
+        rv3032                  Select the Micro Crystal RV3032 device
+
         rv8803                  Select the Micro Crystal RV8803 device
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
@@ -1891,6 +1893,8 @@ Params: abx80x                  Select one of the ABx80x family:
         rv1805                  Select the Micro Crystal RV1805 device
 
         rv3028                  Select the Micro Crystal RV3028 device
+
+        rv3032                  Select the Micro Crystal RV3032 device
 
         rv8803                  Select the Micro Crystal RV8803 device
 
