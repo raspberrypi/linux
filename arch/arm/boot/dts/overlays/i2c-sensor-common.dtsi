@@ -309,6 +309,20 @@
 		};
 	};
 
+	fragment@20 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			aht10: aht10@38 {
+				compatible = "aosong,aht10";
+				reg = <0x38>;
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -331,6 +345,7 @@
 		ccs811 = <0>, "+17";
 		bh1750 = <0>, "+18";
 		max30102 = <0>,"+19";
+		aht10 = <0>,"+20";
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
