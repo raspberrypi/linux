@@ -1933,6 +1933,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 BMP280, CCS811, DS1621, HDC100X, LM75, SHT3x or
                                 TMP102
 
+        aht10                   Select the Aosong AHT10 temperature and humidity
+                                sensor
+
         bh1750                  Select the Rohm BH1750 ambient light sensor
                                 Valid addresses 0x23 or 0x5c, default 0x23
 
