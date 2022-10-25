@@ -20,6 +20,7 @@ struct pkvm_module_ops {
 	void *(*fixmap_map)(phys_addr_t phys);
 	void (*fixmap_unmap)(void);
 	void (*flush_dcache_to_poc)(void *addr, size_t size);
+	int (*register_host_perm_fault_handler)(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr));
 };
 
 int __pkvm_load_el2_module(struct module *this, unsigned long *token);

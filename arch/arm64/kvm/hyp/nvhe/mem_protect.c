@@ -678,6 +678,21 @@ static void host_inject_abort(struct kvm_cpu_context *host_ctxt)
 	write_sysreg_el2(spsr, SYS_SPSR);
 }
 
+static int (*perm_fault_handler)(struct user_pt_regs *regs, u64 esr, u64 addr);
+
+int hyp_register_host_perm_fault_handler(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr))
+{
+	return cmpxchg(&perm_fault_handler, NULL, cb) ? -EBUSY : 0;
+}
+
+static int handle_host_perm_fault(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr)
+{
+	int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr);
+
+	cb = READ_ONCE(perm_fault_handler);
+	return cb ? cb(&host_ctxt->regs, esr, addr) : -EPERM;
+}
+
 void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 {
 	struct kvm_vcpu_fault_info fault;
@@ -696,6 +711,9 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 
 	addr = (fault.hpfar_el2 & HPFAR_MASK) << 8;
 	ret = host_stage2_idmap(addr);
+
+	if ((esr & ESR_ELx_FSC_TYPE) == ESR_ELx_FSC_PERM)
+		ret = handle_host_perm_fault(host_ctxt, esr, addr);
 
 	if (ret == -EPERM)
 		host_inject_abort(host_ctxt);
