@@ -17,6 +17,8 @@ struct pkvm_module_ops {
 	void (*putc)(char c);
 	void (*puts)(const char *s);
 	void (*putx64)(u64 x);
+	void *(*fixmap_map)(phys_addr_t phys);
+	void (*fixmap_unmap)(void);
 };
 
 int __pkvm_load_el2_module(struct module *this, unsigned long *token);

@@ -53,6 +53,8 @@ const struct pkvm_module_ops module_ops = {
 	.putc = hyp_putc,
 	.puts = hyp_puts,
 	.putx64 = hyp_putx64,
+	.fixmap_map = hyp_fixmap_map,
+	.fixmap_unmap = hyp_fixmap_unmap,
 };
 
 int __pkvm_init_module(void *module_init)
