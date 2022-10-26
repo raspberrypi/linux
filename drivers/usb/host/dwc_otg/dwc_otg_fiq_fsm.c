@@ -142,7 +142,7 @@ inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
  * fiq_fsm_restart_channel() - Poke channel enable bit for a split transaction
  * @channel: channel to re-enable
  */
-static void fiq_fsm_restart_channel(struct fiq_state *st, int n, int force)
+static void notrace fiq_fsm_restart_channel(struct fiq_state *st, int n, int force)
 {
 	hcchar_data_t hcchar = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR) };
 
