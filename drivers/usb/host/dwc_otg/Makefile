@@ -28,6 +28,7 @@ ccflags-y   	+= -DDWC_LINUX
 ccflags-y   	+= $(CFI)
 ccflags-y	+= $(BUS_INTERFACE)
 #ccflags-y	+= -DDWC_DEV_SRPCAP
+CFLAGS_dwc_otg_fiq_fsm.o += -fno-stack-protector
 
 obj-$(CONFIG_USB_DWCOTG) += dwc_otg.o
 
