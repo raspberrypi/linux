@@ -19,6 +19,7 @@ struct pkvm_module_ops {
 	void (*putx64)(u64 x);
 	void *(*fixmap_map)(phys_addr_t phys);
 	void (*fixmap_unmap)(void);
+	void (*flush_dcache_to_poc)(void *addr, size_t size);
 };
 
 int __pkvm_load_el2_module(struct module *this, unsigned long *token);

@@ -11,8 +11,12 @@
 #include <nvhe/spinlock.h>
 #include <nvhe/trap_handler.h>
 
-DEFINE_HYP_SPINLOCK(modules_lock);
+static void __kvm_flush_dcache_to_poc(void *addr, size_t size)
+{
+	kvm_flush_dcache_to_poc((unsigned long)addr, (unsigned long)size);
+}
 
+DEFINE_HYP_SPINLOCK(modules_lock);
 bool __pkvm_modules_enabled __ro_after_init;
 
 void pkvm_modules_lock(void)
@@ -55,6 +59,7 @@ const struct pkvm_module_ops module_ops = {
 	.putx64 = hyp_putx64,
 	.fixmap_map = hyp_fixmap_map,
 	.fixmap_unmap = hyp_fixmap_unmap,
+	.flush_dcache_to_poc = __kvm_flush_dcache_to_poc,
 };
 
 int __pkvm_init_module(void *module_init)
