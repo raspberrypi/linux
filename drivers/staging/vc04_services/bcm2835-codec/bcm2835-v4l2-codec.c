@@ -138,11 +138,14 @@ static const char * const components[] = {
  * V4L2 mandates that the encoded frame must fit in a single buffer. Sizing
  * that buffer is a compromise between wasting memory and risking not fitting.
  * The 1080P version of Big Buck Bunny has some frames that exceed 512kB.
- * Adopt a moderately arbitrary split at 720P for switching between 512 and
- * 768kB buffers.
+ * However, if the frame is an image of a large amount of small text,
+ * the size of the encoded frame increases dramatically and can reach
+ * 750kB for 720p and 1.2MB for 1080p.
+ * Adopt a moderately arbitrary split at 720P for switching between 1MB and
+ * 1.5MB buffers.
  */
-#define DEF_COMP_BUF_SIZE_GREATER_720P	(768 << 10)
-#define DEF_COMP_BUF_SIZE_720P_OR_LESS	(512 << 10)
+#define DEF_COMP_BUF_SIZE_GREATER_720P	(1536 << 10)
+#define DEF_COMP_BUF_SIZE_720P_OR_LESS	(1024 << 10)
 /* JPEG image can be very large. For paranoid reasons 4MB is used */
 #define DEF_COMP_BUF_SIZE_JPEG (4096 << 10)
 
