@@ -1981,6 +1981,10 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         max30102                Select the Maxim Integrated MAX30102 heart-rate
                                 and blood-oxygen sensor
 
+        mcp980x                 Select the Maxim MCP980x range of temperature
+                                sensors (e.g. MCP9808).
+                                Valid addresses are 0x18-0x1f (default 0x18)
+
         sht3x                   Select the Sensiron SHT3x temperature and
                                 humidity sensor. Valid addresses 0x44-0x45,
                                 default 0x44
