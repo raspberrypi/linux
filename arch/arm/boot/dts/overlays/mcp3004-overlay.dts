@@ -8,19 +8,6 @@
 / {
 	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
 
-	fragment@16 {
-		target-path = "/";
-		__overlay__ {
-			adc_vref: fixedregulator@0 {
-				compatible = "regulator-fixed";
-				regulator-name = "fixed-supply";
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-boot-on;
-			};
-		};
-	};
-
 	fragment@0 {
 		target = <&spidev0>;
 		__dormant__ {
@@ -77,150 +64,58 @@
 		};
 	};
 
-	fragment@8 {
+	mcp3004frag: fragment@8 {
 		target = <&spi0>;
-		__dormant__ {
+		__overlay__ {
 			status = "okay";
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			mcp3004_00: mcp3004@0 {
+			mcp3004dev: mcp3004@0 {
 				compatible = "microchip,mcp3004";
 				reg = <0>;
-				spi-max-frequency = <1600000>;
+				spi-max-frequency = <1000000>;
 				vref-supply = <&adc_vref>;
 			};
 		};
 	};
 
 	fragment@9 {
-		target = <&spi0>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_01: mcp3004@1 {
-				compatible = "microchip,mcp3004";
-				reg = <1>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
+		target-path = "/";
+		__overlay__ {
+			adc_vref: fixedregulator@0 {
+				compatible = "regulator-fixed";
+				regulator-name = "mcp3004_vref";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
 			};
 		};
 	};
-
-	fragment@10 {
-		target = <&spi1>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_10: mcp3004@0 {
-				compatible = "microchip,mcp3004";
-				reg = <0>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
-	fragment@11 {
-		target = <&spi1>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_11: mcp3004@1 {
-				compatible = "microchip,mcp3004";
-				reg = <1>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
-	fragment@12 {
-		target = <&spi1>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_12: mcp3004@2 {
-				compatible = "microchip,mcp3004";
-				reg = <2>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
-	fragment@13 {
-		target = <&spi2>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_20: mcp3004@0 {
-				compatible = "microchip,mcp3004";
-				reg = <0>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
-	fragment@14 {
-		target = <&spi2>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_21: mcp3004@1 {
-				compatible = "microchip,mcp3004";
-				reg = <1>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
-	fragment@15 {
-		target = <&spi2>;
-		__dormant__ {
-			status = "okay";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			mcp3004_22: mcp3004@2 {
-				compatible = "microchip,mcp3004";
-				reg = <2>;
-				spi-max-frequency = <1600000>;
-                vref-supply = <&adc_vref>;
-			};
-		};
-	};
-
 	__overrides__ {
-		spi0-0-present = <0>, "+0+8";
-		spi0-1-present = <0>, "+1+9";
-		spi1-0-present = <0>, "+2+10";
-		spi1-1-present = <0>, "+3+11";
-		spi1-2-present = <0>, "+4+12";
-		spi2-0-present = <0>, "+5+13";
-		spi2-1-present = <0>, "+6+14";
-		spi2-2-present = <0>, "+7+15";
-		spi0-0-speed = <&mcp3004_00>, "spi-max-frequency:0";
-		spi0-1-speed = <&mcp3004_01>, "spi-max-frequency:0";
-		spi1-0-speed = <&mcp3004_10>, "spi-max-frequency:0";
-		spi1-1-speed = <&mcp3004_11>, "spi-max-frequency:0";
-		spi1-2-speed = <&mcp3004_12>, "spi-max-frequency:0";
-		spi2-0-speed = <&mcp3004_20>, "spi-max-frequency:0";
-		spi2-1-speed = <&mcp3004_21>, "spi-max-frequency:0";
-		spi2-2-speed = <&mcp3004_22>, "spi-max-frequency:0";
+		spi0-0-present = <0>, "+0",
+			 <&mcp3004frag>,"target:0=",<&spi0>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi0-1-present = <0>, "+1",
+			 <&mcp3004frag>,"target:0=",<&spi0>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi1-0-present = <0>, "+2",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi1-1-present = <0>, "+3",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi1-2-present = <0>, "+4",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=2";
+		spi2-0-present = <0>, "+5",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi2-1-present = <0>, "+6",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi2-2-present = <0>, "+7",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=2";
 	};
 };
