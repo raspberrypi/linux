@@ -55,8 +55,6 @@
 			pisound_spi: pisound_spi@0{
 				compatible = "blokaslabs,pisound-spi";
 				reg = <0>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&spi0_pins>;
 				spi-max-frequency = <1000000>;
 			};
 		};
@@ -80,6 +78,7 @@
 			i2s-controller = <&i2s>;
 			status = "okay";
 
+			pinctrl-names = "default";
 			pinctrl-0 = <&pisound_button_pins>;
 
 			osr-gpios =
@@ -100,9 +99,6 @@
 	fragment@6 {
 		target = <&gpio>;
 		__overlay__ {
-			pinctrl-names = "default";
-			pinctrl-0 = <&pisound_button_pins>;
-
 			pisound_button_pins: pisound_button_pins {
 				brcm,pins = <17>;
 				brcm,function = <0>; // Input
