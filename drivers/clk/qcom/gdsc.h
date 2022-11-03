@@ -30,7 +30,6 @@ struct reset_controller_dev;
  * @resets: ids of resets associated with this gdsc
  * @reset_count: number of @resets
  * @rcdev: reset controller
- * @dev: the device holding the GDSC, used for pm_runtime calls
  */
 struct gdsc {
 	struct generic_pm_domain	pd;
@@ -69,7 +68,6 @@ struct gdsc {
 
 	const char 			*supply;
 	struct regulator		*rsupply;
-	struct device			*dev;
 };
 
 struct gdsc_desc {
