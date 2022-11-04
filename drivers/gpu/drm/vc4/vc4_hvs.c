@@ -28,8 +28,6 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_vblank.h>
 
-#include <soc/bcm2835/raspberrypi-clocks.h>
-
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
