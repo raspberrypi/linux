@@ -28,7 +28,7 @@ properties:
 
   nvmem-cells: true
 
-  nvmem-cells-names: true
+  nvmem-cell-names: true
 
   phy-connection-type:
     enum:
