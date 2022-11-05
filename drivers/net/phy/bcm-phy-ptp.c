@@ -913,6 +913,18 @@ struct bcm_ptp_private *bcm_ptp_probe(struct phy_device *phydev)
 	switch (BRCM_PHY_MODEL(phydev)) {
 	case PHY_ID_BCM54210E:
 		break;
+#ifdef PHY_ID_BCM54213PE
+	case PHY_ID_BCM54213PE:
+		switch (phydev->mdio.addr) {
+		case 0: // CM4 - this is a BCM54210PE which supports PTP
+			break;
+		case 1: //  4B - this is a BCM54213PE which doesn't
+			return NULL;
+		default: // Unknown - assume it's BCM54210PE
+			break;
+		}
+		break;
+#endif
 	default:
 		return NULL;
 	}
