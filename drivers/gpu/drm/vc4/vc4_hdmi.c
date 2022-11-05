@@ -47,7 +47,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/rational.h>
 #include <linux/reset.h>
-#include <soc/bcm2835/raspberrypi-clocks.h>
 #include <sound/dmaengine_pcm.h>
 #include <sound/hdmi-codec.h>
 #include <sound/pcm_drm_eld.h>
@@ -3672,7 +3671,7 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 
 	if (variant->max_pixel_clock == 600000000) {
 		struct vc4_dev *vc4 = to_vc4_dev(drm);
-		unsigned long max_rate = rpi_firmware_clk_get_max_rate(vc4->hvs->core_clk);
+		long max_rate = clk_round_rate(vc4->hvs->core_clk, 550000000);
 
 		if (max_rate < 550000000)
 			vc4_hdmi->disable_4kp60 = true;
