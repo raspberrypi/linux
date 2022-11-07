@@ -337,6 +337,21 @@
 		};
 	};
 
+	fragment@22 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			jc42: jc42@18 {
+				compatible = "jedec,jc-42.4-temp";
+				reg = <0x18>;
+				smbus-timeout-disable;
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -361,11 +376,12 @@
 		max30102 = <0>,"+19";
 		aht10 = <0>,"+20";
 		mcp980x = <0>,"+21";
+		jc42 = <0>,"+22";
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
 			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
-			<&bh1750>,"reg:0", <&mcp980x>,"reg:0";
+			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0";
 	};
 };
