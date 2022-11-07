@@ -1970,6 +1970,15 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         int_pin                 Set the GPIO to use for interrupts (max30102
                                 only)
 
+        jc42                    Select any of the many JEDEC JC42.4-compliant
+                                temperature sensors, including:
+                                  ADT7408, AT30TS00, CAT34TS02, CAT6095,
+                                  MAX6604, MCP9804, MCP9805, MCP9808,
+                                  MCP98242, MCP98243, MCP98244, MCP9843,
+                                  SE97, SE98, STTS424(E), STTS2002, STTS3000,
+                                  TSE2002, TSE2004, TS3000, and TS3001.
+                                The default address is 0x18.
+
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
 
@@ -1982,7 +1991,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 and blood-oxygen sensor
 
         mcp980x                 Select the Maxim MCP980x range of temperature
-                                sensors (e.g. MCP9808).
+                                sensors (i.e. MCP9800, MCP9801, MCP9802 and
+                                MCP9803). N.B. For MCP9804, MCP9805 and MCP9808,
+                                use the "jc42" option.
                                 Valid addresses are 0x18-0x1f (default 0x18)
 
         sht3x                   Select the Sensiron SHT3x temperature and
