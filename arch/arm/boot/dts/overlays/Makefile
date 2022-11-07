@@ -129,9 +129,9 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	justboom-both.dtbo \
 	justboom-dac.dtbo \
 	justboom-digi.dtbo \
+	lt6911uxc.dtbo \
+	lt6911uxc-audio.dtbo \
 	ltc294x.dtbo \
-	lt6911uxc-overlay.dtbo \
-	lt6911uxc-audio-overlay.dtbo \
 	max98357a.dtbo \
 	maxtherm.dtbo \
 	mbed-dac.dtbo \
