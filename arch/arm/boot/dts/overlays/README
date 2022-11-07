@@ -2428,7 +2428,7 @@ Name:   lt6911uxc
 Info:   Adds support for Lontium lt6911uxc HDMI to CSI
 Load:   dtoverlay=lt6911uxc,<param>=<val>
 Params: media-controller        Configure use of Media Controller API for
-                                configuring the sensor (default off)    
+                                configuring the sensor (default off)
 
 
 Name:   lt6911uxc-audio
@@ -2436,7 +2436,8 @@ Info:   Used in combination with the lt6911uxc overlay to route the audio
         from the lt6911uxc over I2S to the Pi.
         Wiring is LRCK/WFS to GPIO 19, BCK/SCK to GPIO 18, and DATA/SD to GPIO
         20.
-Load:   dtoverlay=lt6911uxc-audio
+Load:   dtoverlay=lt6911uxc-audio,<param>=<val>
+Params: card-name               Override the default, "lt6911uxc", card name.
 
 
 Name:   ltc294x
