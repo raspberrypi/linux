@@ -1,13 +1,13 @@
 /*
  * crystalfontz-cfaf7201280a0_050tx.dts
- * Configures the Crystalfontz CFAF7201280A0-050TC/TN on RaspberryPi CM4 DSI1
+ * Configures the Crystalfontz CFAF7201280A0-050TC/TN modules
  */
 /dts-v1/;
 /plugin/;
 /{
 // CM4
 	compatible = "brcm,bcm2835";
-// pcf8574 I2C GPIO EXPANDER
+// PCF8574 I2C GPIO EXPANDER
 	fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -25,7 +25,7 @@
 			};
 		};
 	};
-// lm3630a BACKLIGHT LED CONTROLLER
+// LM3630a BACKLIGHT LED CONTROLLER
 	fragment@1 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -47,7 +47,7 @@
 			};
 		};
 	};
-// cfaf7201280a0_050tn TFT DSI PANEL
+// CFAF7201280A0_050TN TFT DSI PANEL
 	fragment@2 {
 		target = <&dsi1>;
 		__overlay__  {
@@ -60,7 +60,7 @@
 				};
 			};
 			dsi_panel: dsi_panel@0 {
-				compatible = "crystalfontz,cfaf7201280a0_050tn";
+				compatible = "crystalfontz,cfaf7201280a0_050tx";
 				reg = <0>;
 				reset-gpios = <&pcf8574a 0 1>;
 				backlight = <&lm3630a>;
@@ -73,7 +73,7 @@
 			};
 		};
 	};
-// rPI GPIO INPUT FOR TOUCH IC IRQ
+// GPIO INPUT FOR TOUCH IC IRQ
 	fragment@3 {
 		target = <&gpio>;
 		__overlay__ {
@@ -84,7 +84,7 @@
 			};
 		};
 	};
-// gt928 TOUCH CONTROLLER IC
+// GT928 TOUCH CONTROLLER IC
 	fragment@4 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -103,7 +103,7 @@
 			};
 		};
 	};
-// pcf85063a RTC on I2C
+// PCF85063a RTC on I2C
 	fragment@5 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
