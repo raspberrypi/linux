@@ -7,28 +7,11 @@
         fragment@0 {
                 target = <&audio_pins>;
                 frag0: __overlay__ {
+                        brcm,pins = <12 13>;
                 };
         };
 
 	fragment@1 {
-                target = <&audio_pins>;
-                __overlay__ {
-                        brcm,pins = < 12 13 >;
-                        brcm,function = < 4 >; /* alt0 alt0 */
-                        brcm,pull = < 0 >;
-                };
-        };
-
-	fragment@2 {
-		target = <&audio_pins>;
-		__dormant__ {
-                        brcm,pins = < 18 19 >;
-                        brcm,function = < 2 >; /* alt5 alt5 */
-                        brcm,pull = < 0 >;
-		};
-	};
-
-	fragment@3 {
 		target = <&chosen>;
 		__overlay__  {
 			bootargs = "snd_bcm2835.enable_headphones=1";
@@ -38,7 +21,13 @@
 	__overrides__ {
 		swap_lr = <&frag0>, "swap_lr?";
 		enable_jack = <&frag0>, "enable_jack?";
-		pins_12_13 = <0>,"+1-2";
-		pins_18_19 = <0>,"-1+2";
+		pins_12_13 = <&frag0>,"brcm,pins:0=12",
+		             <&frag0>,"brcm,pins:4=13";
+		pins_18_19 = <&frag0>,"brcm,pins:0=18",
+		             <&frag0>,"brcm,pins:4=19";
+		pins_40_41 = <&frag0>,"brcm,pins:0=40",
+		             <&frag0>,"brcm,pins:4=41";
+		pins_40_45 = <&frag0>,"brcm,pins:0=40",
+		             <&frag0>,"brcm,pins:4=45";
 	};
 };
