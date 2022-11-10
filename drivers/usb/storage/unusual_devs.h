@@ -2126,7 +2126,7 @@ UNUSUAL_DEV(  0x152d, 0x0567, 0x0114, 0x0117,
 /* Reported by David Kozub <zub@linux.fjfi.cvut.cz> */
 UNUSUAL_DEV(0x152d, 0x0578, 0x0000, 0x9999,
 		"JMicron",
-		"JMS567",
+		"JMS578",
 		USB_SC_DEVICE, USB_PR_DEVICE, NULL,
 		US_FL_BROKEN_FUA),
 
