@@ -2207,6 +2207,9 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board, which should be one of 54000000
+                                (the default), 37125000 or 74250000.
 
 
 Name:   imx327
