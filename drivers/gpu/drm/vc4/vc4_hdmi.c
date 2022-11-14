@@ -1326,12 +1326,12 @@ static void vc5_hdmi_set_csc_coeffs_swap(struct vc4_hdmi *vc4_hdmi,
 	lockdep_assert_held(&vc4_hdmi->hw_lock);
 
 	/* YUV444 needs the CSC matrices using the channels in a different order */
-	HDMI_WRITE(HDMI_CSC_12_11, (coeffs[2][1] << 16) | coeffs[2][0]);
-	HDMI_WRITE(HDMI_CSC_14_13, (coeffs[2][3] << 16) | coeffs[2][2]);
-	HDMI_WRITE(HDMI_CSC_22_21, (coeffs[0][1] << 16) | coeffs[0][0]);
-	HDMI_WRITE(HDMI_CSC_24_23, (coeffs[0][3] << 16) | coeffs[0][2]);
-	HDMI_WRITE(HDMI_CSC_32_31, (coeffs[1][1] << 16) | coeffs[1][0]);
-	HDMI_WRITE(HDMI_CSC_34_33, (coeffs[1][3] << 16) | coeffs[1][2]);
+	HDMI_WRITE(HDMI_CSC_12_11, (coeffs[1][1] << 16) | coeffs[1][0]);
+	HDMI_WRITE(HDMI_CSC_14_13, (coeffs[1][3] << 16) | coeffs[1][2]);
+	HDMI_WRITE(HDMI_CSC_22_21, (coeffs[2][1] << 16) | coeffs[2][0]);
+	HDMI_WRITE(HDMI_CSC_24_23, (coeffs[2][3] << 16) | coeffs[2][2]);
+	HDMI_WRITE(HDMI_CSC_32_31, (coeffs[0][1] << 16) | coeffs[0][0]);
+	HDMI_WRITE(HDMI_CSC_34_33, (coeffs[0][3] << 16) | coeffs[0][2]);
 }
 
 static void vc5_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
