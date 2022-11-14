@@ -547,6 +547,7 @@ static int vc4_hdmi_connector_atomic_check(struct drm_connector *connector,
 
 	if (old_state->colorspace != new_state->colorspace ||
 	    old_vc4_state->broadcast_rgb != new_vc4_state->broadcast_rgb ||
+	    old_vc4_state->requested_output_format != new_vc4_state->requested_output_format ||
 	    !drm_connector_atomic_hdr_metadata_equal(old_state, new_state)) {
 		struct drm_crtc_state *crtc_state;
 
@@ -581,6 +582,8 @@ int vc4_hdmi_connector_get_property(struct drm_connector *connector,
 
 	if (property == vc4_hdmi->broadcast_rgb_property) {
 		*val = vc4_conn_state->broadcast_rgb;
+	} else if (property == vc4_hdmi->output_format_property) {
+		*val = vc4_conn_state->requested_output_format;
 	} else {
 		DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
 				 property->base.id, property->name);
@@ -611,6 +614,9 @@ int vc4_hdmi_connector_set_property(struct drm_connector *connector,
 
 	if (property == vc4_hdmi->broadcast_rgb_property) {
 		vc4_conn_state->broadcast_rgb = val;
+		return 0;
+	} else if (property == vc4_hdmi->output_format_property) {
+		vc4_conn_state->requested_output_format = val;
 		return 0;
 	}
 
@@ -655,6 +661,7 @@ vc4_hdmi_connector_duplicate_state(struct drm_connector *connector)
 	new_state->tmds_char_rate = vc4_state->tmds_char_rate;
 	new_state->output_bpc = vc4_state->output_bpc;
 	new_state->output_format = vc4_state->output_format;
+	new_state->requested_output_format = vc4_state->requested_output_format;
 	new_state->broadcast_rgb = vc4_state->broadcast_rgb;
 	__drm_atomic_helper_connector_duplicate_state(connector, &new_state->base);
 
@@ -697,6 +704,33 @@ vc4_hdmi_attach_broadcast_rgb_property(struct drm_device *dev,
 			return;
 
 		vc4_hdmi->broadcast_rgb_property = prop;
+	}
+
+	drm_object_attach_property(&vc4_hdmi->connector.base, prop, 0);
+}
+
+static const struct drm_prop_enum_list output_format_names[] = {
+	{ VC4_HDMI_OUTPUT_AUTO, "Automatic" },
+	{ VC4_HDMI_OUTPUT_RGB, "RGB" },
+	{ VC4_HDMI_OUTPUT_YUV422, "YCbCr 4:2:2" },
+	{ VC4_HDMI_OUTPUT_YUV444, "YCbCr 4:4:4" },
+};
+
+static void
+vc4_hdmi_attach_output_format_property(struct drm_device *dev,
+				       struct vc4_hdmi *vc4_hdmi)
+{
+	struct drm_property *prop = vc4_hdmi->output_format_property;
+
+	if (!prop) {
+		prop = drm_property_create_enum(dev, DRM_MODE_PROP_ENUM,
+						"Output format",
+						output_format_names,
+						ARRAY_SIZE(output_format_names));
+		if (!prop)
+			return;
+
+		vc4_hdmi->output_format_property = prop;
 	}
 
 	drm_object_attach_property(&vc4_hdmi->connector.base, prop, 0);
@@ -749,6 +783,7 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 		drm_connector_attach_hdr_output_metadata_property(connector);
 
 	vc4_hdmi_attach_broadcast_rgb_property(dev, vc4_hdmi);
+	vc4_hdmi_attach_output_format_property(dev, vc4_hdmi);
 
 	drm_connector_attach_encoder(connector, encoder);
 
@@ -1886,6 +1921,11 @@ static void vc4_hdmi_encoder_atomic_mode_set(struct drm_encoder *encoder,
 	vc4_hdmi->broadcast_rgb = vc4_state->broadcast_rgb;
 	vc4_hdmi->output_bpc = vc4_state->output_bpc;
 	vc4_hdmi->output_format = vc4_state->output_format;
+	vc4_hdmi->requested_output_format = vc4_state->requested_output_format;
+	vc4_hdmi->broadcast_rgb = vc4_state->broadcast_rgb;
+	memcpy(&vc4_hdmi->saved_adjusted_mode,
+	       &crtc_state->adjusted_mode,
+	       sizeof(vc4_hdmi->saved_adjusted_mode));
 	mutex_unlock(&vc4_hdmi->mutex);
 }
 
@@ -2046,6 +2086,26 @@ vc4_hdmi_encoder_compute_format(const struct vc4_hdmi *vc4_hdmi,
 	const struct drm_connector *connector = &vc4_hdmi->connector;
 	const struct drm_display_info *info = &connector->display_info;
 	unsigned int format;
+
+	if (vc4_state->requested_output_format != VC4_HDMI_OUTPUT_AUTO) {
+		drm_dbg(dev, "Trying with user requested output %u\n",
+			vc4_state->requested_output_format);
+
+		format = vc4_state->requested_output_format;
+		if (vc4_hdmi_sink_supports_format_bpc(vc4_hdmi, info, mode,
+						      format, bpc)) {
+			int ret;
+
+			ret = vc4_hdmi_encoder_compute_clock(vc4_hdmi, vc4_state,
+							     mode, bpc, format);
+			if (!ret) {
+				vc4_state->output_format = format;
+				return 0;
+			}
+		}
+
+		return -EINVAL;
+	}
 
 	drm_dbg(dev, "Trying with an RGB output\n");
 
