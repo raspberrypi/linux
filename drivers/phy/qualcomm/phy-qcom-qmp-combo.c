@@ -767,6 +767,7 @@ struct qcom_qmp {
 	struct regulator_bulk_data *vregs;
 
 	struct qmp_phy **phys;
+	struct qmp_phy *usb_phy;
 
 	struct mutex phy_mutex;
 	int init_count;
@@ -1607,7 +1608,7 @@ static int qcom_qmp_phy_combo_com_init(struct qmp_phy *qphy)
 {
 	struct qcom_qmp *qmp = qphy->qmp;
 	const struct qmp_phy_cfg *cfg = qphy->cfg;
-	void __iomem *pcs = qphy->pcs;
+	struct qmp_phy *usb_phy = qmp->usb_phy;
 	void __iomem *dp_com = qmp->dp_com;
 	int ret;
 
@@ -1663,13 +1664,13 @@ static int qcom_qmp_phy_combo_com_init(struct qmp_phy *qphy)
 		qphy_clrbits(dp_com, QPHY_V3_DP_COM_SW_RESET, SW_RESET);
 	}
 
-	if (cfg->regs[QPHY_PCS_POWER_DOWN_CONTROL])
-		qphy_setbits(pcs,
-				cfg->regs[QPHY_PCS_POWER_DOWN_CONTROL],
-				cfg->pwrdn_ctrl);
+	if (usb_phy->cfg->regs[QPHY_PCS_POWER_DOWN_CONTROL])
+		qphy_setbits(usb_phy->pcs,
+				usb_phy->cfg->regs[QPHY_PCS_POWER_DOWN_CONTROL],
+				usb_phy->cfg->pwrdn_ctrl);
 	else
-		qphy_setbits(pcs, QPHY_V2_PCS_POWER_DOWN_CONTROL,
-				cfg->pwrdn_ctrl);
+		qphy_setbits(usb_phy->pcs, QPHY_V2_PCS_POWER_DOWN_CONTROL,
+				usb_phy->cfg->pwrdn_ctrl);
 
 	mutex_unlock(&qmp->phy_mutex);
 
@@ -2576,6 +2577,8 @@ static int qcom_qmp_phy_combo_probe(struct platform_device *pdev)
 				goto err_node_put;
 			}
 
+			qmp->usb_phy = qmp->phys[id];
+
 			/*
 			 * Register the pipe clock provided by phy.
 			 * See function description to see details of this pipe clock.
@@ -2590,6 +2593,9 @@ static int qcom_qmp_phy_combo_probe(struct platform_device *pdev)
 
 		id++;
 	}
+
+	if (!qmp->usb_phy)
+		return -EINVAL;
 
 	phy_provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
 	if (!IS_ERR(phy_provider))
