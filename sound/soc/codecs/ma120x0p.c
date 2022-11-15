@@ -893,8 +893,8 @@ static SOC_VALUE_ENUM_SINGLE_DECL(pwr_mode_ctrl,
 	pwr_mode_texts,
 	pwr_mode_values);
 
-static const DECLARE_TLV_DB_SCALE(ma120x0p_vol_tlv, -5000, 100,  0);
-static const DECLARE_TLV_DB_SCALE(ma120x0p_lim_tlv, -14400, 100,  0);
+static const DECLARE_TLV_DB_SCALE(ma120x0p_vol_tlv, -14400, 100,  0);
+static const DECLARE_TLV_DB_SCALE(ma120x0p_lim_tlv, -5000, 100,  0);
 static const DECLARE_TLV_DB_SCALE(ma120x0p_lr_tlv, -5000, 100,  0);
 
 static const struct snd_kcontrol_new ma120x0p_snd_controls[] = {
