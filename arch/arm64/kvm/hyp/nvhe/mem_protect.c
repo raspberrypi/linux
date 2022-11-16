@@ -271,7 +271,6 @@ static int reclaim_walker(const struct kvm_pgtable_visit_ctx *ctx,
 {
 	kvm_pte_t pte = *ctx->ptep;
 	struct hyp_page *page;
-	u64 *pa = ctx->arg;
 
 	if (!kvm_pte_valid(pte))
 		return 0;
@@ -283,8 +282,6 @@ static int reclaim_walker(const struct kvm_pgtable_visit_ctx *ctx,
 		fallthrough;
 	case PKVM_PAGE_SHARED_BORROWED:
 	case PKVM_PAGE_SHARED_OWNED:
-		if (pa)
-			*pa = kvm_pte_to_phys(pte);
 		page->flags |= HOST_PAGE_PENDING_RECLAIM;
 		break;
 	default:
@@ -324,13 +321,44 @@ void reclaim_guest_pages(struct pkvm_hyp_vm *vm, struct kvm_hyp_memcache *mc)
 	}
 }
 
+struct relinquish_data {
+	enum pkvm_page_state expected_state;
+	u64 pa;
+};
+
+static int relinquish_walker(const struct kvm_pgtable_visit_ctx *ctx,
+			     enum kvm_pgtable_walk_flags visit)
+{
+	kvm_pte_t pte = *ctx->ptep;
+	struct hyp_page *page;
+	struct relinquish_data *data = ctx->arg;
+	enum pkvm_page_state state;
+
+	if (!kvm_pte_valid(pte))
+		return 0;
+
+	state = pkvm_getstate(kvm_pgtable_stage2_pte_prot(pte));
+	if (state != data->expected_state)
+		return -EPERM;
+
+	page = hyp_phys_to_page(kvm_pte_to_phys(pte));
+	if (state == PKVM_PAGE_OWNED)
+		page->flags |= HOST_PAGE_NEED_POISONING;
+	page->flags |= HOST_PAGE_PENDING_RECLAIM;
+
+	data->pa = kvm_pte_to_phys(pte);
+
+	return 0;
+}
+
 int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 				    u64 ipa, u64 *ppa)
 {
+	struct relinquish_data data;
 	struct kvm_pgtable_walker walker = {
-		.cb     = reclaim_walker,
-		.arg    = ppa,
-		.flags  = KVM_PGTABLE_WALK_LEAF
+		.cb     = relinquish_walker,
+		.flags  = KVM_PGTABLE_WALK_LEAF,
+		.arg    = &data,
 	};
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	int ret;
@@ -338,8 +366,13 @@ int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 	host_lock_component();
 	guest_lock_component(vm);
 
+	/* Expected page state depends on VM type. */
+	data.expected_state = pkvm_hyp_vcpu_is_protected(vcpu) ?
+		PKVM_PAGE_OWNED :
+		PKVM_PAGE_SHARED_BORROWED;
+
 	/* Set default pa value to "not found". */
-	*ppa = 0;
+	data.pa = 0;
 
 	/* If ipa is mapped: sets page flags, and gets the pa. */
 	ret = kvm_pgtable_walk(&vm->pgt, ipa, PAGE_SIZE, &walker);
@@ -351,6 +384,7 @@ int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 	guest_unlock_component(vm);
 	host_unlock_component();
 
+	*ppa = data.pa;
 	return ret;
 }
 
