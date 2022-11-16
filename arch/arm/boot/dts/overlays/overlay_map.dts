@@ -77,6 +77,10 @@
 		renamed = "miniuart-bt";
 	};
 
+	pwm1 {
+		bcm2711;
+	};
+
 	ramoops {
 		bcm2835;
 		bcm2711 = "ramoops-pi4";
