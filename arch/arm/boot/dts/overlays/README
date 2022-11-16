@@ -3216,6 +3216,24 @@ Params: gpio_pin                Output GPIO (default 18)
         func                    Pin function (default 2 = Alt5)
 
 
+Name:   pwm1
+Info:   Configures one or two PWM channel on PWM1 (BCM2711 only)
+        N.B.:
+          1) The onboard analogue audio output uses both PWM channels.
+          2) So be careful mixing audio and PWM.
+        Note that even when only one pin is enabled, both channels are available
+        from the PWM driver, so be careful to use the correct one.
+Load:   dtoverlay=pwm1,<param>=<val>
+Params: clock                   PWM clock frequency (informational)
+        pins_40                 Enable channel 0 (PWM1_0) on GPIO 40
+        pins_41                 Enable channel 1 (PWM1_1) on GPIO 41
+        pins_40_41              Enable channels 0 (PWM1_0) and 1 (PW1_1) on
+                                GPIOs 40 and 41 (default)
+        pull_up                 Enable pull-ups on the PWM pins (default)
+        pull_down               Enable pull-downs on the PWM pins
+        pull_off                Disable pulls on the PWM pins
+
+
 Name:   qca7000
 Info:   in-tech's Evaluation Board for PLC Stamp micro
         This uses spi0 and a separate GPIO interrupt to connect the QCA7000.
