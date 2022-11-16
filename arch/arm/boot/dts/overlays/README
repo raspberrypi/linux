@@ -3231,7 +3231,7 @@ Params: clock                   PWM clock frequency (informational)
                                 GPIOs 40 and 41 (default)
         pull_up                 Enable pull-ups on the PWM pins (default)
         pull_down               Enable pull-downs on the PWM pins
-        pull_off                Disable pull-downs on the PWM pins
+        pull_off                Disable pulls on the PWM pins
 
 
 Name:   qca7000
