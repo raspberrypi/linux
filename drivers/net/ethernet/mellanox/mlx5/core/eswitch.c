@@ -1363,6 +1363,9 @@ void mlx5_eswitch_disable_sriov(struct mlx5_eswitch *esw, bool clear_vf)
 		esw_offloads_del_send_to_vport_meta_rules(esw);
 		devl_rate_nodes_destroy(devlink);
 	}
+	/* Destroy legacy fdb when disabling sriov in legacy mode. */
+	if (esw->mode == MLX5_ESWITCH_LEGACY)
+		mlx5_eswitch_disable_locked(esw);
 
 	esw->esw_funcs.num_vfs = 0;
 
