@@ -83,12 +83,22 @@ pkvm_hyp_vcpu_to_hyp_vm(struct pkvm_hyp_vcpu *hyp_vcpu)
 	return container_of(hyp_vcpu->vcpu.kvm, struct pkvm_hyp_vm, kvm);
 }
 
-static inline bool vcpu_is_protected(struct kvm_vcpu *vcpu)
+static inline bool kvm_is_protected(struct kvm *kvm)
 {
 	if (!is_protected_kvm_enabled())
 		return false;
 
-	return vcpu->kvm->arch.pkvm.enabled;
+	return kvm->arch.pkvm.enabled;
+}
+
+static inline bool vcpu_is_protected(struct kvm_vcpu *vcpu)
+{
+	return kvm_is_protected(vcpu->kvm);
+}
+
+static inline bool pkvm_hyp_vm_is_protected(struct pkvm_hyp_vm *hyp_vm)
+{
+	return kvm_is_protected(&hyp_vm->kvm);
 }
 
 static inline bool pkvm_hyp_vcpu_is_protected(struct pkvm_hyp_vcpu *hyp_vcpu)
