@@ -3,6 +3,7 @@
  * Implementation of the IOMMU SVA API for the ARM SMMUv3
  */
 
+#include <linux/io-pgtable-arm.h>
 #include <linux/mm.h>
 #include <linux/mmu_context.h>
 #include <linux/mmu_notifier.h>
@@ -11,7 +12,6 @@
 
 #include "arm-smmu-v3.h"
 #include "../../iommu-sva.h"
-#include "../../io-pgtable-arm.h"
 
 struct arm_smmu_mmu_notifier {
 	struct mmu_notifier		mn;
