@@ -20,6 +20,7 @@
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pkvm.h>
 #include <asm/kvm_pkvm_module.h>
+#include <asm/setup.h>
 
 #include "hyp_constants.h"
 
@@ -389,12 +390,21 @@ static int __init pkvm_drop_host_privileges(void)
 	return ret;
 }
 
+static int __init pkvm_firmware_rmem_clear(void);
+
 static int __init finalize_pkvm(void)
 {
 	int ret;
 
 	if (!is_protected_kvm_enabled() || !is_kvm_arm_initialised())
 		return 0;
+
+	/*
+	 * Modules can play an essential part in the pKVM protection. All of
+	 * them must properly load to enable protected VMs.
+	 */
+	if (pkvm_load_early_modules())
+		pkvm_firmware_rmem_clear();
 
 	/*
 	 * Exclude HYP sections from kmemleak so that they don't get peeked
@@ -553,9 +563,14 @@ int pkvm_vm_ioctl_enable_cap(struct kvm *kvm, struct kvm_enable_cap *cap)
 }
 
 #ifdef CONFIG_MODULES
-static int __init early_pkvm_enable_modules(char *arg)
+static char early_pkvm_modules[COMMAND_LINE_SIZE] __initdata;
+
+static int __init pkvm_enable_module_late_loading(void)
 {
 	extern unsigned long kvm_nvhe_sym(pkvm_priv_hcall_limit);
+
+	WARN(1, "Loading pKVM modules with kvm-arm.protected_modules is deprecated\n"
+	     "Use kvm-arm.protected_modules=<module1>,<module2>");
 
 	/*
 	 * Move the limit to allow module loading HVCs. It will be moved back to
@@ -565,7 +580,106 @@ static int __init early_pkvm_enable_modules(char *arg)
 
 	return 0;
 }
-early_param("kvm-arm.protected_modules", early_pkvm_enable_modules);
+
+static int __init early_pkvm_modules_cfg(char *arg)
+{
+	if (!arg)
+		return pkvm_enable_module_late_loading();
+
+	strscpy(early_pkvm_modules, arg, COMMAND_LINE_SIZE);
+
+	return 0;
+}
+early_param("kvm-arm.protected_modules", early_pkvm_modules_cfg);
+
+static void free_modprobe_argv(struct subprocess_info *info)
+{
+	kfree(info->argv[3]);
+	kfree(info->argv);
+}
+
+/*
+ * Heavily inspired by request_module(). The latest couldn't be reused though as
+ * the feature can be disabled depending on umh configuration. Here some
+ * security is enforced by making sure this can be called only when pKVM is
+ * enabled, not yet completely initialized.
+ */
+static int __init pkvm_request_early_module(char *module_name)
+{
+	char *modprobe_path = CONFIG_MODPROBE_PATH;
+	struct subprocess_info *info;
+	static char *envp[] = {
+		"HOME=/",
+		"TERM=linux",
+		"PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+		NULL
+	};
+	char **argv;
+
+	if (!is_protected_kvm_enabled())
+		return -EACCES;
+
+	if (static_branch_likely(&kvm_protected_mode_initialized))
+		return -EACCES;
+
+	argv = kmalloc(sizeof(char *[5]), GFP_KERNEL);
+	if (!argv)
+		return -ENOMEM;
+
+	module_name = kstrdup(module_name, GFP_KERNEL);
+	if (!module_name)
+		goto free_argv;
+
+	argv[0] = modprobe_path;
+	argv[1] = "-q";
+	argv[2] = "--";
+	argv[3] = module_name;
+	argv[4] = NULL;
+
+	info = call_usermodehelper_setup(modprobe_path, argv, envp, GFP_KERNEL,
+					 NULL, free_modprobe_argv, NULL);
+	if (!info)
+		goto free_module_name;
+
+	/* Even with CONFIG_STATIC_USERMODEHELPER we really want this path */
+	info->path = modprobe_path;
+
+	return call_usermodehelper_exec(info, UMH_WAIT_PROC | UMH_KILLABLE);
+
+free_module_name:
+	kfree(module_name);
+free_argv:
+	kfree(argv);
+
+	return -ENOMEM;
+}
+
+int __init pkvm_load_early_modules(void)
+{
+	char *token, *buf = early_pkvm_modules;
+	int err;
+
+	while (true) {
+		token = strsep(&buf, ",");
+
+		if (!token)
+			break;
+
+		if (*token) {
+			err = pkvm_request_early_module(token);
+			if (err) {
+				pr_err("Failed to load pkvm module %s: %d\n",
+				       token, err);
+				return err;
+			}
+		}
+
+		if (buf)
+			*(buf - 1) = ',';
+	}
+
+	return 0;
+}
 
 struct pkvm_mod_sec_mapping {
 	struct pkvm_module_section *sec;
