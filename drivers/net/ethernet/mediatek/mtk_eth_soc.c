@@ -4107,12 +4107,12 @@ static int mtk_probe(struct platform_device *pdev)
 		eth->ppe = mtk_ppe_init(eth, eth->base + MTK_ETH_PPE_BASE, 2);
 		if (!eth->ppe) {
 			err = -ENOMEM;
-			goto err_free_dev;
+			goto err_deinit_mdio;
 		}
 
 		err = mtk_eth_offload_init(eth);
 		if (err)
-			goto err_free_dev;
+			goto err_deinit_mdio;
 	}
 
 	for (i = 0; i < MTK_MAX_DEVS; i++) {
