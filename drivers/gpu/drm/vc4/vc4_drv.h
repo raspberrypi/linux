@@ -25,6 +25,9 @@
 struct drm_device;
 struct drm_gem_object;
 
+extern const struct drm_driver vc4_drm_driver;
+extern const struct drm_driver vc5_drm_driver;
+
 /* Don't forget to update vc4_bo.c: bo_type_names[] when adding to
  * this.
  */
@@ -528,6 +531,8 @@ struct vc4_crtc_data {
 	int hvs_output;
 };
 
+extern const struct vc4_crtc_data vc4_txp_crtc_data;
+
 struct vc4_pv_data {
 	struct vc4_crtc_data	base;
 
@@ -539,6 +544,15 @@ struct vc4_pv_data {
 
 	enum vc4_encoder_type encoder_types[4];
 };
+
+extern const struct vc4_pv_data bcm2835_pv0_data;
+extern const struct vc4_pv_data bcm2835_pv1_data;
+extern const struct vc4_pv_data bcm2835_pv2_data;
+extern const struct vc4_pv_data bcm2711_pv0_data;
+extern const struct vc4_pv_data bcm2711_pv1_data;
+extern const struct vc4_pv_data bcm2711_pv2_data;
+extern const struct vc4_pv_data bcm2711_pv3_data;
+extern const struct vc4_pv_data bcm2711_pv4_data;
 
 struct vc5_gamma_entry {
 	u32 x_c_terms;
@@ -944,6 +958,8 @@ int vc4_page_flip(struct drm_crtc *crtc,
 		  struct drm_pending_vblank_event *event,
 		  uint32_t flags,
 		  struct drm_modeset_acquire_ctx *ctx);
+int vc4_crtc_atomic_check(struct drm_crtc *crtc,
+			  struct drm_atomic_state *state);
 struct drm_crtc_state *vc4_crtc_duplicate_state(struct drm_crtc *crtc);
 void vc4_crtc_destroy_state(struct drm_crtc *crtc,
 			    struct drm_crtc_state *state);
