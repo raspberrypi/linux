@@ -709,8 +709,8 @@ void vc4_crtc_get_margins(struct drm_crtc_state *state,
 	}
 }
 
-static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
-				 struct drm_atomic_state *state)
+int vc4_crtc_atomic_check(struct drm_crtc *crtc,
+			  struct drm_atomic_state *state)
 {
 	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state,
 									  crtc);
@@ -1156,7 +1156,7 @@ static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
 	.get_scanout_position = vc4_crtc_get_scanout_position,
 };
 
-static const struct vc4_pv_data bcm2835_pv0_data = {
+const struct vc4_pv_data bcm2835_pv0_data = {
 	.base = {
 		.name = "pixelvalve-0",
 		.debugfs_name = "crtc0_regs",
@@ -1171,7 +1171,7 @@ static const struct vc4_pv_data bcm2835_pv0_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2835_pv1_data = {
+const struct vc4_pv_data bcm2835_pv1_data = {
 	.base = {
 		.name = "pixelvalve-1",
 		.debugfs_name = "crtc1_regs",
@@ -1186,7 +1186,7 @@ static const struct vc4_pv_data bcm2835_pv1_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2835_pv2_data = {
+const struct vc4_pv_data bcm2835_pv2_data = {
 	.base = {
 		.name = "pixelvalve-2",
 		.debugfs_name = "crtc2_regs",
@@ -1201,7 +1201,7 @@ static const struct vc4_pv_data bcm2835_pv2_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2711_pv0_data = {
+const struct vc4_pv_data bcm2711_pv0_data = {
 	.base = {
 		.name = "pixelvalve-0",
 		.debugfs_name = "crtc0_regs",
@@ -1216,7 +1216,7 @@ static const struct vc4_pv_data bcm2711_pv0_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2711_pv1_data = {
+const struct vc4_pv_data bcm2711_pv1_data = {
 	.base = {
 		.name = "pixelvalve-1",
 		.debugfs_name = "crtc1_regs",
@@ -1231,7 +1231,7 @@ static const struct vc4_pv_data bcm2711_pv1_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2711_pv2_data = {
+const struct vc4_pv_data bcm2711_pv2_data = {
 	.base = {
 		.name = "pixelvalve-2",
 		.debugfs_name = "crtc2_regs",
@@ -1245,7 +1245,7 @@ static const struct vc4_pv_data bcm2711_pv2_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2711_pv3_data = {
+const struct vc4_pv_data bcm2711_pv3_data = {
 	.base = {
 		.name = "pixelvalve-3",
 		.debugfs_name = "crtc3_regs",
@@ -1259,7 +1259,7 @@ static const struct vc4_pv_data bcm2711_pv3_data = {
 	},
 };
 
-static const struct vc4_pv_data bcm2711_pv4_data = {
+const struct vc4_pv_data bcm2711_pv4_data = {
 	.base = {
 		.name = "pixelvalve-4",
 		.debugfs_name = "crtc4_regs",
