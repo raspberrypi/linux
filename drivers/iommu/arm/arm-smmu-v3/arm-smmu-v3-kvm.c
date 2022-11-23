@@ -4,7 +4,9 @@
  *
  * Copyright (C) 2022 Linaro Ltd.
  */
+#include <asm/kvm_pkvm.h>
 #include <asm/kvm_mmu.h>
+#include <linux/local_lock.h>
 #include <linux/of_platform.h>
 
 #include <kvm/arm_smmu_v3.h>
@@ -23,6 +25,85 @@ struct host_arm_smmu_device {
 static size_t				kvm_arm_smmu_cur;
 static size_t				kvm_arm_smmu_count;
 static struct hyp_arm_smmu_v3_device	*kvm_arm_smmu_array;
+static struct kvm_hyp_iommu_memcache	*kvm_arm_smmu_memcache;
+
+static DEFINE_PER_CPU(local_lock_t, memcache_lock) =
+				INIT_LOCAL_LOCK(memcache_lock);
+
+static void *kvm_arm_smmu_alloc_page(void *opaque)
+{
+	struct arm_smmu_device *smmu = opaque;
+	struct page *p;
+
+	/* No __GFP_ZERO because KVM zeroes the page */
+	p = alloc_pages_node(dev_to_node(smmu->dev), GFP_ATOMIC, 0);
+	if (!p)
+		return NULL;
+
+	return page_address(p);
+}
+
+static void kvm_arm_smmu_free_page(void *va, void *opaque)
+{
+	free_page((unsigned long)va);
+}
+
+static phys_addr_t kvm_arm_smmu_host_pa(void *va)
+{
+	return __pa(va);
+}
+
+static void *kvm_arm_smmu_host_va(phys_addr_t pa)
+{
+	return __va(pa);
+}
+
+__maybe_unused
+static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu, int ret)
+{
+	struct kvm_hyp_memcache *mc;
+	int cpu = raw_smp_processor_id();
+
+	lockdep_assert_held(this_cpu_ptr(&memcache_lock));
+	mc = &kvm_arm_smmu_memcache[cpu].pages;
+
+	if (kvm_arm_smmu_memcache[cpu].needs_page) {
+		kvm_arm_smmu_memcache[cpu].needs_page = false;
+		return  __topup_hyp_memcache(mc, 1, kvm_arm_smmu_alloc_page,
+					     kvm_arm_smmu_host_pa, smmu);
+	} else if (ret == -ENOMEM) {
+		return __pkvm_topup_hyp_alloc(1);
+	}
+
+	return -EBADE;
+}
+
+__maybe_unused
+static void kvm_arm_smmu_reclaim_memcache(void)
+{
+	struct kvm_hyp_memcache *mc;
+	int cpu = raw_smp_processor_id();
+
+	lockdep_assert_held(this_cpu_ptr(&memcache_lock));
+	mc = &kvm_arm_smmu_memcache[cpu].pages;
+
+	__free_hyp_memcache(mc, kvm_arm_smmu_free_page,
+			    kvm_arm_smmu_host_va, NULL);
+}
+
+/*
+ * Issue hypercall, and retry after filling the memcache if necessary.
+ * After the call, reclaim pages pushed in the memcache by the hypervisor.
+ */
+#define kvm_call_hyp_nvhe_mc(smmu, ...)				\
+({								\
+	int __ret;						\
+	do {							\
+		__ret = kvm_call_hyp_nvhe(__VA_ARGS__);		\
+	} while (!kvm_arm_smmu_topup_memcache(smmu, __ret));	\
+	kvm_arm_smmu_reclaim_memcache();			\
+	__ret;							\
+})
 
 static bool kvm_arm_smmu_validate_features(struct arm_smmu_device *smmu)
 {
@@ -214,7 +295,7 @@ static struct platform_driver kvm_arm_smmu_driver = {
 
 static int kvm_arm_smmu_array_alloc(void)
 {
-	int smmu_order;
+	int smmu_order, mc_order;
 	struct device_node *np;
 
 	kvm_arm_smmu_count = 0;
@@ -231,7 +312,17 @@ static int kvm_arm_smmu_array_alloc(void)
 	if (!kvm_arm_smmu_array)
 		return -ENOMEM;
 
+	mc_order = get_order(NR_CPUS * sizeof(*kvm_arm_smmu_memcache));
+	kvm_arm_smmu_memcache = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+							 mc_order);
+	if (!kvm_arm_smmu_memcache)
+		goto err_free_array;
+
 	return 0;
+
+err_free_array:
+	free_pages((unsigned long)kvm_arm_smmu_array, smmu_order);
+	return -ENOMEM;
 }
 
 static void kvm_arm_smmu_array_free(void)
@@ -240,6 +331,8 @@ static void kvm_arm_smmu_array_free(void)
 
 	order = get_order(kvm_arm_smmu_count * sizeof(*kvm_arm_smmu_array));
 	free_pages((unsigned long)kvm_arm_smmu_array, order);
+	order = get_order(NR_CPUS * sizeof(*kvm_arm_smmu_memcache));
+	free_pages((unsigned long)kvm_arm_smmu_memcache, order);
 }
 
 /**
@@ -275,9 +368,12 @@ int kvm_arm_smmu_v3_init(unsigned int *count)
 	 * These variables are stored in the nVHE image, and won't be accessible
 	 * after KVM initialization. Ownership of kvm_arm_smmu_array will be
 	 * transferred to the hypervisor as well.
+	 *
+	 * kvm_arm_smmu_memcache is shared between hypervisor and host.
 	 */
 	kvm_hyp_arm_smmu_v3_smmus = kvm_arm_smmu_array;
 	kvm_hyp_arm_smmu_v3_count = kvm_arm_smmu_count;
+	kvm_hyp_iommu_memcaches = kern_hyp_va(kvm_arm_smmu_memcache);
 	return 0;
 
 err_free:
