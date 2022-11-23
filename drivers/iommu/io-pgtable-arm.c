@@ -118,6 +118,18 @@ out_free_data:
 	return NULL;
 }
 
+static int arm_64_lpae_configure_s1(struct io_pgtable_cfg *cfg, size_t *pgd_size)
+{
+	int ret;
+	struct arm_lpae_io_pgtable data = {};
+
+	ret = arm_lpae_init_pgtable_s1(cfg, &data);
+	if (ret)
+		return ret;
+	*pgd_size = sizeof(arm_lpae_iopte) << data.pgd_bits;
+	return 0;
+}
+
 static struct io_pgtable *
 arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
 {
@@ -146,6 +158,18 @@ arm_64_lpae_alloc_pgtable_s2(struct io_pgtable_cfg *cfg, void *cookie)
 out_free_data:
 	kfree(data);
 	return NULL;
+}
+
+static int arm_64_lpae_configure_s2(struct io_pgtable_cfg *cfg, size_t *pgd_size)
+{
+	int ret;
+	struct arm_lpae_io_pgtable data = {};
+
+	ret = arm_lpae_init_pgtable_s2(cfg, &data);
+	if (ret)
+		return ret;
+	*pgd_size = sizeof(arm_lpae_iopte) << data.pgd_bits;
+	return 0;
 }
 
 static struct io_pgtable *
@@ -231,28 +255,30 @@ out_free_data:
 }
 
 struct io_pgtable_init_fns io_pgtable_arm_64_lpae_s1_init_fns = {
-	.alloc	= arm_64_lpae_alloc_pgtable_s1,
-	.free	= arm_lpae_free_pgtable,
+	.alloc		= arm_64_lpae_alloc_pgtable_s1,
+	.free		= arm_lpae_free_pgtable,
+	.configure	= arm_64_lpae_configure_s1,
 };
 
 struct io_pgtable_init_fns io_pgtable_arm_64_lpae_s2_init_fns = {
-	.alloc	= arm_64_lpae_alloc_pgtable_s2,
-	.free	= arm_lpae_free_pgtable,
+	.alloc		= arm_64_lpae_alloc_pgtable_s2,
+	.free		= arm_lpae_free_pgtable,
+	.configure	= arm_64_lpae_configure_s2,
 };
 
 struct io_pgtable_init_fns io_pgtable_arm_32_lpae_s1_init_fns = {
-	.alloc	= arm_32_lpae_alloc_pgtable_s1,
-	.free	= arm_lpae_free_pgtable,
+	.alloc		= arm_32_lpae_alloc_pgtable_s1,
+	.free		= arm_lpae_free_pgtable,
 };
 
 struct io_pgtable_init_fns io_pgtable_arm_32_lpae_s2_init_fns = {
-	.alloc	= arm_32_lpae_alloc_pgtable_s2,
-	.free	= arm_lpae_free_pgtable,
+	.alloc		= arm_32_lpae_alloc_pgtable_s2,
+	.free		= arm_lpae_free_pgtable,
 };
 
 struct io_pgtable_init_fns io_pgtable_arm_mali_lpae_init_fns = {
-	.alloc	= arm_mali_lpae_alloc_pgtable,
-	.free	= arm_lpae_free_pgtable,
+	.alloc		= arm_mali_lpae_alloc_pgtable,
+	.free		= arm_lpae_free_pgtable,
 };
 
 #ifdef CONFIG_IOMMU_IO_PGTABLE_LPAE_SELFTEST
