@@ -347,7 +347,6 @@
 			jc42: jc42@18 {
 				compatible = "jedec,jc-42.4-temp";
 				reg = <0x18>;
-				smbus-timeout-disable;
 			};
 		};
 	};
@@ -383,5 +382,6 @@
 			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
 			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0";
+		no_timeout = <&jc42>, "smbus-timeout-disable?";
 	};
 };
