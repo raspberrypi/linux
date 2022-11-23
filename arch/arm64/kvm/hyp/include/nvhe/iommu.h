@@ -3,6 +3,10 @@
 #define __ARM64_KVM_NVHE_IOMMU_H__
 
 #if IS_ENABLED(CONFIG_KVM_IOMMU)
+int kvm_iommu_init(void);
+void *kvm_iommu_donate_page(void);
+void kvm_iommu_reclaim_page(void *p);
+
 /* Hypercall handlers */
 int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			   unsigned long pgd_hva);
