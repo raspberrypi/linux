@@ -12,6 +12,12 @@
 #include <nvhe/mm.h>
 
 struct kvm_hyp_iommu_memcache __ro_after_init *kvm_hyp_iommu_memcaches;
+#define KVM_IOMMU_PADDR_CACHE_MAX		((size_t)511)
+struct kvm_iommu_paddr_cache {
+	unsigned short	ptr;
+	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
+};
+static DEFINE_PER_CPU(struct kvm_iommu_paddr_cache, kvm_iommu_unmap_cache);
 
 void *kvm_iommu_donate_page(void)
 {
@@ -176,6 +182,162 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 out_unlock:
 	hyp_spin_unlock(&iommu->lock);
 	return ret;
+}
+
+#define IOMMU_PROT_MASK (IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE |\
+			 IOMMU_NOEXEC | IOMMU_MMIO | IOMMU_PRIV)
+
+size_t kvm_iommu_map_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			   unsigned long iova, phys_addr_t paddr, size_t pgsize,
+			   size_t pgcount, int prot)
+{
+	size_t size;
+	size_t mapped;
+	size_t granule;
+	int ret = -EINVAL;
+	size_t total_mapped = 0;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	if (prot & ~IOMMU_PROT_MASK)
+		return 0;
+
+	if (__builtin_mul_overflow(pgsize, pgcount, &size) ||
+	    iova + size < iova || paddr + size < paddr)
+		return 0;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return 0;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain)
+		goto err_unlock;
+
+	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	if (!IS_ALIGNED(iova | paddr | pgsize, granule))
+		goto err_unlock;
+
+	ret = __pkvm_host_use_dma(paddr, size);
+	if (ret)
+		goto err_unlock;
+
+	while (pgcount && !ret) {
+		mapped = 0;
+		ret = domain->pgtable->ops.map_pages(&domain->pgtable->ops, iova, paddr, pgsize, pgcount, prot, 0, &mapped);
+
+		WARN_ON(!IS_ALIGNED(mapped, pgsize));
+		WARN_ON(mapped > pgcount * pgsize);
+
+		pgcount -= mapped / pgsize;
+		total_mapped += mapped;
+		iova += mapped;
+		paddr += mapped;
+	}
+
+	/*
+	 * unuse the bits that haven't been mapped yet. The host calls back
+	 * either to continue mapping, or to unmap and unuse what's been done
+	 * so far.
+	 */
+	if (pgcount)
+		__pkvm_host_unuse_dma(paddr, pgcount * pgsize);
+err_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return total_mapped;
+}
+
+static void kvm_iommu_flush_unmap_cache(struct kvm_iommu_paddr_cache *cache,
+					size_t pgsize)
+{
+	while (cache->ptr)
+		WARN_ON(__pkvm_host_unuse_dma(cache->paddr[--cache->ptr], PAGE_SIZE));
+}
+
+static void kvm_iommu_unmap_walker(struct io_pgtable_ctxt *ctxt)
+{
+	struct kvm_iommu_paddr_cache *cache = (struct kvm_iommu_paddr_cache *)ctxt->arg;
+
+	cache->paddr[cache->ptr++] = ctxt->addr;
+
+	/* Make more space. */
+	if(cache->ptr == KVM_IOMMU_PADDR_CACHE_MAX)
+		kvm_iommu_flush_unmap_cache(cache, ctxt->size);
+}
+
+size_t kvm_iommu_unmap_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+			     unsigned long iova, size_t pgsize, size_t pgcount)
+{
+	size_t size;
+	size_t granule;
+	size_t unmapped;
+	size_t total_unmapped = 0;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+	size_t max_pgcount;
+	struct kvm_iommu_paddr_cache *cache = this_cpu_ptr(&kvm_iommu_unmap_cache);
+	struct io_pgtable_walker walker = {
+		.cb = kvm_iommu_unmap_walker,
+		.arg = cache,
+	};
+
+	if (!pgsize || !pgcount)
+		return 0;
+
+	if (__builtin_mul_overflow(pgsize, pgcount, &size) ||
+	    iova + size < iova)
+		return 0;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return 0;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (!domain)
+		goto out_unlock;
+
+	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	if (!IS_ALIGNED(iova | pgsize, granule))
+		goto out_unlock;
+
+	while (total_unmapped < size) {
+		max_pgcount = min_t(size_t, pgcount, KVM_IOMMU_PADDR_CACHE_MAX);
+		unmapped = domain->pgtable->ops.unmap_pages_walk(&domain->pgtable->ops, iova, pgsize,
+								 max_pgcount, NULL, &walker);
+		if (!unmapped)
+			goto out_unlock;
+
+		kvm_iommu_flush_unmap_cache(cache, pgsize);
+		iova += unmapped;
+		total_unmapped += unmapped;
+		pgcount -= unmapped / pgsize;
+	}
+
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return total_unmapped;
+}
+
+phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
+				   pkvm_handle_t domain_id, unsigned long iova)
+{
+	phys_addr_t phys = 0;
+	struct kvm_hyp_iommu *iommu;
+	struct kvm_hyp_iommu_domain *domain;
+
+	iommu = kvm_iommu_ops.get_iommu_by_id(iommu_id);
+	if (!iommu)
+		return 0;
+
+	hyp_spin_lock(&iommu->lock);
+	domain = handle_to_domain(iommu, domain_id);
+	if (domain)
+		phys = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
+
+	hyp_spin_unlock(&iommu->lock);
+	return phys;
 }
 
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
