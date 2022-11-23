@@ -1999,6 +1999,11 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 use the "jc42" option.
                                 Valid addresses are 0x18-0x1f (default 0x18)
 
+        no_timeout              Disable the SMBUS timeout. N.B. Only supported
+                                by some jc42 devices - using with an
+                                incompatible device can stop it from being
+                                activated.
+
         sht3x                   Select the Sensiron SHT3x temperature and
                                 humidity sensor. Valid addresses 0x44-0x45,
                                 default 0x44
