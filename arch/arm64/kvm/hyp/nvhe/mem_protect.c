@@ -806,6 +806,7 @@ static enum pkvm_page_state host_get_page_state(kvm_pte_t pte, u64 addr)
 {
 	enum pkvm_page_state state = 0;
 	enum kvm_pgtable_prot prot;
+	phys_addr_t phys;
 
 	if (!addr_is_allowed_memory(addr))
 		return PKVM_NOPAGE;
@@ -814,8 +815,11 @@ static enum pkvm_page_state host_get_page_state(kvm_pte_t pte, u64 addr)
 		return PKVM_NOPAGE;
 
 	prot = kvm_pgtable_stage2_pte_prot(pte);
-	if (kvm_pte_valid(pte) && ((prot & KVM_PGTABLE_PROT_RWX) != PKVM_HOST_MEM_PROT))
-		state = PKVM_PAGE_RESTRICTED_PROT;
+	if (kvm_pte_valid(pte)) {
+		phys = kvm_pte_to_phys(pte);
+		if ((prot & KVM_PGTABLE_PROT_RWX) != default_host_prot(addr_is_memory(phys)))
+			state = PKVM_PAGE_RESTRICTED_PROT;
+	}
 
 	return state | pkvm_getstate(prot);
 }
