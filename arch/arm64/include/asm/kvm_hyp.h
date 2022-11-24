@@ -165,4 +165,7 @@ struct kvm_nvhe_clock_data {
 	u64 epoch_ns;
 	u64 epoch_cyc;
 };
+
+extern bool kvm_nvhe_sym(__pkvm_modules_enabled);
+
 #endif /* __ARM64_KVM_HYP_H__ */
