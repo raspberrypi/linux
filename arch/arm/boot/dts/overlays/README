@@ -1606,7 +1606,7 @@ Params: <None>
 
 
 Name:   hifiberry-digi-pro
-Info:   Configures the HifiBerry Digi+ Pro audio card
+Info:   Configures the HifiBerry Digi+ Pro and Digi2 Pro audio card
 Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
