@@ -121,6 +121,46 @@ static const struct file_operations hyp_event_id_fops = {
 	.release = single_release,
 };
 
+static int hyp_event_format_show(struct seq_file *m, void *v)
+{
+	struct hyp_event *evt = (struct hyp_event *)m->private;
+	struct trace_event_fields *field;
+	unsigned int offset = sizeof(struct hyp_entry_hdr);
+
+	seq_printf(m, "name: %s\n", evt->name);
+	seq_printf(m, "ID: %d\n", evt->id);
+	seq_puts(m, "format:\n\tfield:unsigned short common_type;\toffset:0;\tsize:2;\tsigned:0;\n");
+	seq_puts(m, "\n");
+
+	field = &evt->fields[0];
+	while (field->name) {
+		seq_printf(m, "\tfield:%s %s;\toffset:%u;\tsize:%u;\tsigned:%d;\n",
+			  field->type, field->name, offset, field->size,
+			  !!field->is_signed);
+		offset += field->size;
+		field++;
+	}
+
+	if (field != &evt->fields[0])
+		seq_puts(m, "\n");
+
+	seq_printf(m, "print fmt: %s\n", evt->print_fmt);
+
+	return 0;
+}
+
+static int hyp_event_format_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, hyp_event_format_show, inode->i_private);
+}
+
+static const struct file_operations hyp_event_format_fops = {
+	.open = hyp_event_format_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static char early_events[COMMAND_LINE_SIZE];
 
 static __init int setup_hyp_event_early(char *str)
@@ -193,6 +233,8 @@ void hyp_trace_init_event_tracefs(struct dentry *parent)
 				    &hyp_event_fops);
 		tracefs_create_file("id", 0400, event_dir, (void *)event,
 				    &hyp_event_id_fops);
+		tracefs_create_file("format", 0400, event_dir, (void *)event,
+				    &hyp_event_format_fops);
 	}
 }
 
