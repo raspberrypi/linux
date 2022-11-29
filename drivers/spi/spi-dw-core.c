@@ -240,8 +240,11 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 */
 	if (irq_status & DW_SPI_INT_TXEI) {
 		dw_writer(dws);
-		if (!dws->tx_len)
+		if (!dws->tx_len) {
 			dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
+			if (!dws->rx_len)
+				spi_finalize_current_transfer(dws->host);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -368,8 +371,11 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 
 	dws->transfer_handler = dw_spi_transfer_handler;
 
-	imask = DW_SPI_INT_TXEI | DW_SPI_INT_TXOI |
-		DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
+	imask = 0;
+	if (dws->tx_len)
+		imask |= DW_SPI_INT_TXEI | DW_SPI_INT_TXOI;
+	if (dws->rx_len)
+		imask |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
 	dw_spi_umask_intr(dws, imask);
 }
 
