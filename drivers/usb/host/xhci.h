@@ -1630,6 +1630,7 @@ struct xhci_hcd {
 /* Downstream VLI fixes */
 #define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(56)
 #define XHCI_VLI_SS_BULK_OUT_BUG	BIT_ULL(57)
+#define XHCI_VLI_HUB_TT_QUIRK	BIT_ULL(58)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
