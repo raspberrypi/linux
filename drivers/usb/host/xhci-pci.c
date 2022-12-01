@@ -27,6 +27,8 @@
 #define SPARSE_DISABLE_BIT	17
 #define SPARSE_CNTL_ENABLE	0xC12C
 
+#define VL805_FW_VER_0138C0	0x0138C0
+
 /* Device for a quirk */
 #define PCI_VENDOR_ID_FRESCO_LOGIC	0x1b73
 #define PCI_DEVICE_ID_FRESCO_LOGIC_PDK	0x1000
@@ -231,6 +233,16 @@ static int xhci_pci_reinit(struct xhci_hcd *xhci, struct pci_dev *pdev)
 	return 0;
 }
 
+static u32 xhci_vl805_get_fw_version(struct pci_dev *dev)
+{
+	int ret;
+	u32 ver;
+
+	ret = pci_read_config_dword(dev, 0x50, &ver);
+	/* Default to a fw version of 0 instead of ~0 */
+	return ret ? 0 : ver;
+}
+
 static void xhci_pci_quirks(struct device *dev, struct xhci_hcd *xhci)
 {
 	struct pci_dev                  *pdev = to_pci_dev(dev);
@@ -425,6 +437,8 @@ static void xhci_pci_quirks(struct device *dev, struct xhci_hcd *xhci)
 		xhci->quirks |= XHCI_AVOID_DQ_ON_LINK;
 		xhci->quirks |= XHCI_ZHAOXIN_TRB_FETCH;
 		xhci->quirks |= XHCI_VLI_SS_BULK_OUT_BUG;
+		if (xhci_vl805_get_fw_version(pdev) < VL805_FW_VER_0138C0)
+			xhci->quirks |= XHCI_VLI_HUB_TT_QUIRK;
 	}
 
 	if (pdev->vendor == PCI_VENDOR_ID_ASMEDIA &&
