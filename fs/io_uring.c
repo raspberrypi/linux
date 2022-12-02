@@ -5464,6 +5464,9 @@ static int io_poll_check_events(struct io_kiocb *req)
 			return 0;
 		}
 
+		/* force the next iteration to vfs_poll() */
+		req->result = 0;
+
 		/*
 		 * Release all references, retry if someone tried to restart
 		 * task_work while we were executing it.
