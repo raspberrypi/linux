@@ -3405,7 +3405,8 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_PKEY:
-			if (match_hex(args, &token)) {
+			ret = match_hex(args, &token);
+			if (ret) {
 				pr_warn("bad P_Key parameter '%s'\n", p);
 				goto out;
 			}
@@ -3465,7 +3466,8 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_MAX_SECT:
-			if (match_int(args, &token)) {
+			ret = match_int(args, &token);
+			if (ret) {
 				pr_warn("bad max sect parameter '%s'\n", p);
 				goto out;
 			}
@@ -3473,8 +3475,15 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_QUEUE_SIZE:
-			if (match_int(args, &token) || token < 1) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for queue_size parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1) {
 				pr_warn("bad queue_size parameter '%s'\n", p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->scsi_host->can_queue = token;
@@ -3485,25 +3494,40 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_MAX_CMD_PER_LUN:
-			if (match_int(args, &token) || token < 1) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for max cmd_per_lun parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1) {
 				pr_warn("bad max cmd_per_lun parameter '%s'\n",
 					p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->scsi_host->cmd_per_lun = token;
 			break;
 
 		case SRP_OPT_TARGET_CAN_QUEUE:
-			if (match_int(args, &token) || token < 1) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for max target_can_queue parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1) {
 				pr_warn("bad max target_can_queue parameter '%s'\n",
 					p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->target_can_queue = token;
 			break;
 
 		case SRP_OPT_IO_CLASS:
-			if (match_hex(args, &token)) {
+			ret = match_hex(args, &token);
+			if (ret) {
 				pr_warn("bad IO class parameter '%s'\n", p);
 				goto out;
 			}
@@ -3512,6 +3536,7 @@ static int srp_parse_options(struct net *net, const char *buf,
 				pr_warn("unknown IO class parameter value %x specified (use %x or %x).\n",
 					token, SRP_REV10_IB_IO_CLASS,
 					SRP_REV16A_IB_IO_CLASS);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->io_class = token;
@@ -3534,16 +3559,24 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_CMD_SG_ENTRIES:
-			if (match_int(args, &token) || token < 1 || token > 255) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for max cmd_sg_entries parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1 || token > 255) {
 				pr_warn("bad max cmd_sg_entries parameter '%s'\n",
 					p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->cmd_sg_cnt = token;
 			break;
 
 		case SRP_OPT_ALLOW_EXT_SG:
-			if (match_int(args, &token)) {
+			ret = match_int(args, &token);
+			if (ret) {
 				pr_warn("bad allow_ext_sg parameter '%s'\n", p);
 				goto out;
 			}
@@ -3551,43 +3584,77 @@ static int srp_parse_options(struct net *net, const char *buf,
 			break;
 
 		case SRP_OPT_SG_TABLESIZE:
-			if (match_int(args, &token) || token < 1 ||
-					token > SG_MAX_SEGMENTS) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for max sg_tablesize parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1 || token > SG_MAX_SEGMENTS) {
 				pr_warn("bad max sg_tablesize parameter '%s'\n",
 					p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->sg_tablesize = token;
 			break;
 
 		case SRP_OPT_COMP_VECTOR:
-			if (match_int(args, &token) || token < 0) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for comp_vector parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 0) {
 				pr_warn("bad comp_vector parameter '%s'\n", p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->comp_vector = token;
 			break;
 
 		case SRP_OPT_TL_RETRY_COUNT:
-			if (match_int(args, &token) || token < 2 || token > 7) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for tl_retry_count parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 2 || token > 7) {
 				pr_warn("bad tl_retry_count parameter '%s' (must be a number between 2 and 7)\n",
 					p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->tl_retry_count = token;
 			break;
 
 		case SRP_OPT_MAX_IT_IU_SIZE:
-			if (match_int(args, &token) || token < 0) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for max it_iu_size parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 0) {
 				pr_warn("bad maximum initiator to target IU size '%s'\n", p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->max_it_iu_size = token;
 			break;
 
 		case SRP_OPT_CH_COUNT:
-			if (match_int(args, &token) || token < 1) {
+			ret = match_int(args, &token);
+			if (ret) {
+				pr_warn("match_int() failed for channel count parameter '%s', Error %d\n",
+					p, ret);
+				goto out;
+			}
+			if (token < 1) {
 				pr_warn("bad channel count %s\n", p);
+				ret = -EINVAL;
 				goto out;
 			}
 			target->ch_count = token;
@@ -3596,6 +3663,7 @@ static int srp_parse_options(struct net *net, const char *buf,
 		default:
 			pr_warn("unknown parameter or missing value '%s' in target creation request\n",
 				p);
+			ret = -EINVAL;
 			goto out;
 		}
 	}
