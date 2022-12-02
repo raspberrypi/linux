@@ -5440,6 +5440,13 @@ static int io_poll_check_events(struct io_kiocb *req)
 			return 0;
 		if (v & IO_POLL_CANCEL_FLAG)
 			return -ECANCELED;
+		/*
+		 * cqe.res contains only events of the first wake up
+		 * and all others are be lost. Redo vfs_poll() to get
+		 * up to date state.
+		 */
+		if ((v & IO_POLL_REF_MASK) != 1)
+			req->result = 0;
 
 		if (!req->result) {
 			struct poll_table_struct pt = { ._key = poll->events };
