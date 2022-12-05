@@ -1171,7 +1171,7 @@ submit:
 
 		atomic_inc(&dcc->issued_discard);
 
-		f2fs_update_iostat(sbi, FS_DISCARD, 1);
+		f2fs_update_iostat(sbi, FS_DISCARD, len * F2FS_BLKSIZE);
 
 		lstart += len;
 		start += len;
