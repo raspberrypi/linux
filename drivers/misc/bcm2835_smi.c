@@ -666,6 +666,12 @@ out:
 }
 EXPORT_SYMBOL(bcm2835_smi_user_dma);
 
+struct bcm2835_smi_bounce_info* bcm2835_smi_get_bounce(struct bcm2835_smi_instance* inst)
+{
+	return &inst->bounce;
+}
+EXPORT_SYMBOL(bcm2835_smi_get_bounce);
+
 
 /****************************************************************************
 *
