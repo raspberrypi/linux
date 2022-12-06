@@ -2327,8 +2327,10 @@ static int mtk_open(struct net_device *dev)
 		int err;
 
 		err = mtk_start_dma(eth);
-		if (err)
+		if (err) {
+			phylink_disconnect_phy(mac->phylink);
 			return err;
+		}
 
 		if (eth->soc->offload_version && mtk_ppe_start(&eth->ppe) == 0)
 			gdm_config = MTK_GDMA_TO_PPE;
