@@ -1,0 +1,119 @@
+/*
+ * crystalfontz-cfaf7201280a0_050tx.dts
+ * Configures the Crystalfontz CFAF7201280A0-050TC/TN modules
+ */
+/dts-v1/;
+/plugin/;
+/{
+// CM4
+	compatible = "brcm,bcm2835";
+// PCF8574 I2C GPIO EXPANDER
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			pcf8574a: pcf8574a@38 {
+				reg = <0x38>;
+				compatible = "nxp,pcf8574";
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <8>;
+				gpio-line-names = "TFT_RESET", "TOUCH_RESET", "EXT_P2", "EXT_P3",
+					"EXT_P4", "EXT_P5", "EXT_P6", "EXT_P7";
+			};
+		};
+	};
+// LM3630a BACKLIGHT LED CONTROLLER
+	fragment@1 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			lm3630a: backlight@36 {
+				reg = <0x36>;
+				compatible = "ti,lm3630a";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				led@0 {
+					reg = <0>;
+					led-sources = <0 1>;
+					label = "lcd-backlight";
+					default-brightness = <128>;
+					max-brightness = <255>;
+				};
+			};
+		};
+	};
+// CFAF7201280A0_050TN TFT DSI PANEL
+	fragment@2 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+			dsi_panel: dsi_panel@0 {
+				compatible = "crystalfontz,cfaf7201280a0_050tx";
+				reg = <0>;
+				reset-gpios = <&pcf8574a 0 1>;
+				backlight = <&lm3630a>;
+				fps = <60>;
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+// GPIO INPUT FOR TOUCH IC IRQ
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			gt928intpins: gt928intpins {
+				brcm,pins = <26>;
+				brcm,function = <0>; //GPIO-IN
+				brcm,pull = <1>; //DOWN
+			};
+		};
+	};
+// GT928 TOUCH CONTROLLER IC
+	fragment@4 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			gt928@5d {
+				compatible = "goodix,gt928";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio>;
+				interrupts = <26 2>;
+				irq-gpios = <&gpio 26 0>;
+				reset-gpios = <&pcf8574a 1 1>;
+				touchscreen-inverted-x;
+				touchscreen-inverted-y;
+			};
+		};
+	};
+// PCF85063a RTC on I2C
+	fragment@5 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			pcf85063a@51 {
+				compatible = "nxp,pcf85063a";
+				reg = <0x51>;
+			};
+		};
+	};
+};

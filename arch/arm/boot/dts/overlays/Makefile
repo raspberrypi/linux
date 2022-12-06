@@ -40,6 +40,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	chipdip-dac.dtbo \
 	cirrus-wm5102.dtbo \
 	cma.dtbo \
+	crystalfontz-cfaf7201280a0_050tx.dtbo \
 	cutiepi-panel.dtbo \
 	dacberry400.dtbo \
 	dht11.dtbo \
