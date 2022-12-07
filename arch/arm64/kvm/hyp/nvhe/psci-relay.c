@@ -25,6 +25,23 @@ void __noreturn __host_enter(struct kvm_cpu_context *host_ctxt);
 /* Config options set by the host. */
 struct kvm_host_psci_config __ro_after_init kvm_host_psci_config;
 
+static void (*pkvm_psci_notifier)(enum pkvm_psci_notification, struct user_pt_regs *);
+static void pkvm_psci_notify(enum pkvm_psci_notification notif, struct kvm_cpu_context *host_ctxt)
+{
+	if (smp_load_acquire(&pkvm_psci_notifier))
+		pkvm_psci_notifier(notif, &host_ctxt->regs);
+}
+
+int __pkvm_register_psci_notifier(void (*cb)(enum pkvm_psci_notification, struct user_pt_regs *))
+{
+	/*
+	 * Paired with smp_load_acquire(&pkvm_psci_notifier) in
+	 * pkvm_psci_notify(). Ensure memory stores hapenning during a pKVM module
+	 * init are observed before executing the callback.
+	 */
+	return cmpxchg_release(&pkvm_psci_notifier, NULL, cb) ? -EBUSY : 0;
+}
+
 #define INVALID_CPU_ID	UINT_MAX
 
 struct psci_boot_args {
@@ -171,7 +188,9 @@ static int psci_cpu_suspend(u64 func_id, struct kvm_cpu_context *host_ctxt)
 	boot_args->pc = pc;
 	boot_args->r0 = r0;
 
+	pkvm_psci_notify(PKVM_PSCI_CPU_SUSPEND, host_ctxt);
 	trace_hyp_exit();
+
 	/*
 	 * Will either return if shallow sleep state, or wake up into the entry
 	 * point if it is a deep sleep state.
@@ -201,6 +220,8 @@ static int psci_system_suspend(u64 func_id, struct kvm_cpu_context *host_ctxt)
 	boot_args->pc = pc;
 	boot_args->r0 = r0;
 
+	pkvm_psci_notify(PKVM_PSCI_SYSTEM_SUSPEND, host_ctxt);
+
 	/* Will only return on error. */
 	return psci_call(func_id,
 			 __hyp_pa(&kvm_hyp_cpu_resume),
@@ -227,6 +248,7 @@ asmlinkage void __noreturn __kvm_host_psci_cpu_entry(bool is_cpu_on)
 	if (is_cpu_on)
 		release_boot_args(boot_args);
 
+	pkvm_psci_notify(PKVM_PSCI_CPU_ENTRY, host_ctxt);
 	trace_hyp_exit();
 	__host_enter(host_ctxt);
 }
