@@ -634,11 +634,21 @@ unlock:
 	return ret;
 }
 
+static void (*illegal_abt_notifier)(struct user_pt_regs *regs);
+
+int __pkvm_register_illegal_abt_notifier(void (*cb)(struct user_pt_regs *))
+{
+	return cmpxchg(&illegal_abt_notifier, NULL, cb) ? -EBUSY : 0;
+}
+
 static void host_inject_abort(struct kvm_cpu_context *host_ctxt)
 {
 	u64 spsr = read_sysreg_el2(SYS_SPSR);
 	u64 esr = read_sysreg_el2(SYS_ESR);
 	u64 ventry, ec;
+
+	if (READ_ONCE(illegal_abt_notifier))
+		illegal_abt_notifier(&host_ctxt->regs);
 
 	/* Repaint the ESR to report a same-level fault if taken from EL1 */
 	if ((spsr & PSR_MODE_MASK) != PSR_MODE_EL0t) {
