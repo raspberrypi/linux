@@ -5954,7 +5954,7 @@ enable:
 	/* Just return zero, not the number of registered triggers */
 	ret = 0;
  out:
-	if (ret == 0)
+	if (ret == 0 && glob[0])
 		hist_err_clear();
 
 	return ret;
