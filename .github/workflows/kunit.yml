@@ -1,0 +1,57 @@
+name: KUnit Tests
+
+on:
+  pull_request:
+    branches: [ "rpi-*"]
+
+  push:
+    branches: [ "rpi-*"]
+
+jobs:
+  core:
+    name: Generic DRM/KMS Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Generic DRM Tests
+        run: |
+          ./tools/testing/kunit/kunit.py run \
+              --kunitconfig=drivers/gpu/drm/tests
+
+  vc4-arm:
+    name: VC4 Unit Tests on ARM
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
+
+      - name: Run VC4 Tests
+        run: |
+          ./tools/testing/kunit/kunit.py run \
+              --kunitconfig=drivers/gpu/drm/vc4/tests \
+              --cross_compile=arm-linux-gnueabihf- --arch=arm
+
+  vc4-arm64:
+    name: VC4 Unit Tests on ARM64
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-system-arm
+
+      - name: Run VC4 Tests
+        run: |
+          ./tools/testing/kunit/kunit.py run \
+              --kunitconfig=drivers/gpu/drm/vc4/tests \
+              --cross_compile=aarch64-linux-gnu- --arch=arm64
