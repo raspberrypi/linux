@@ -556,9 +556,11 @@ retry:
 		 * disable itself again.
 		 */
 		dev->mode_config.delayed_event = true;
-		if (dev->mode_config.poll_enabled)
+		if (dev->mode_config.poll_enabled) {
+			cancel_delayed_work_sync(&dev->mode_config.output_poll_work);
 			schedule_delayed_work(&dev->mode_config.output_poll_work,
 					      0);
+		}
 	}
 
 	/* Re-enable polling in case the global poll config changed. */
