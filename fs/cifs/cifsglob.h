@@ -13,6 +13,8 @@
 #include <linux/in6.h>
 #include <linux/inet.h>
 #include <linux/slab.h>
+#include <linux/scatterlist.h>
+#include <linux/mm.h>
 #include <linux/mempool.h>
 #include <linux/workqueue.h>
 #include "cifs_fs_sb.h"
@@ -21,6 +23,7 @@
 #include <linux/scatterlist.h>
 #include <uapi/linux/cifs/cifs_mount.h>
 #include "smb2pdu.h"
+#include "smb2glob.h"
 
 #define CIFS_MAGIC_NUMBER 0xFF534D42      /* the first four bytes of SMB PDUs */
 
@@ -1970,6 +1973,72 @@ static inline bool cifs_is_referral_server(struct cifs_tcon *tcon,
 	 * MS-DFSC 2.2.4 RESP_GET_DFS_REFERRAL.
 	 */
 	return is_tcon_dfs(tcon) || (ref && (ref->flags & DFSREF_REFERRAL_SERVER));
+}
+
+static inline unsigned int cifs_get_num_sgs(const struct smb_rqst *rqst,
+					    int num_rqst,
+					    const u8 *sig)
+{
+	unsigned int len, skip;
+	unsigned int nents = 0;
+	unsigned long addr;
+	int i, j;
+
+	/* Assumes the first rqst has a transform header as the first iov.
+	 * I.e.
+	 * rqst[0].rq_iov[0]  is transform header
+	 * rqst[0].rq_iov[1+] data to be encrypted/decrypted
+	 * rqst[1+].rq_iov[0+] data to be encrypted/decrypted
+	 */
+	for (i = 0; i < num_rqst; i++) {
+		/*
+		 * The first rqst has a transform header where the
+		 * first 20 bytes are not part of the encrypted blob.
+		 */
+		for (j = 0; j < rqst[i].rq_nvec; j++) {
+			struct kvec *iov = &rqst[i].rq_iov[j];
+
+			skip = (i == 0) && (j == 0) ? 20 : 0;
+			addr = (unsigned long)iov->iov_base + skip;
+			if (unlikely(is_vmalloc_addr((void *)addr))) {
+				len = iov->iov_len - skip;
+				nents += DIV_ROUND_UP(offset_in_page(addr) + len,
+						      PAGE_SIZE);
+			} else {
+				nents++;
+			}
+		}
+		nents += rqst[i].rq_npages;
+	}
+	nents += DIV_ROUND_UP(offset_in_page(sig) + SMB2_SIGNATURE_SIZE, PAGE_SIZE);
+	return nents;
+}
+
+/* We can not use the normal sg_set_buf() as we will sometimes pass a
+ * stack object as buf.
+ */
+static inline struct scatterlist *cifs_sg_set_buf(struct scatterlist *sg,
+						  const void *buf,
+						  unsigned int buflen)
+{
+	unsigned long addr = (unsigned long)buf;
+	unsigned int off = offset_in_page(addr);
+
+	addr &= PAGE_MASK;
+	if (unlikely(is_vmalloc_addr((void *)addr))) {
+		do {
+			unsigned int len = min_t(unsigned int, buflen, PAGE_SIZE - off);
+
+			sg_set_page(sg++, vmalloc_to_page((void *)addr), len, off);
+
+			off = 0;
+			addr += PAGE_SIZE;
+			buflen -= len;
+		} while (buflen);
+	} else {
+		sg_set_page(sg++, virt_to_page(addr), buflen, off);
+	}
+	return sg;
 }
 
 #endif	/* _CIFS_GLOB_H */
