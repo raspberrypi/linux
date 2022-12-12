@@ -11,6 +11,7 @@
 #include <linux/memblock.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
+#include <linux/of_address.h>
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/sort.h>
@@ -101,6 +102,7 @@ static void __init sort_moveable_regs(void)
 static int __init register_moveable_regions(void)
 {
 	struct memblock_region *reg;
+	struct device_node *np;
 	int i = 0;
 
 	for_each_mem_region(reg) {
@@ -111,6 +113,30 @@ static int __init register_moveable_regions(void)
 		moveable_regs[i].type = PKVM_MREG_MEMORY;
 		i++;
 	}
+
+	for_each_compatible_node(np, NULL, "pkvm,protected-region") {
+		struct resource res;
+		u64 start, size;
+		int ret;
+
+		if (i >= PKVM_NR_MOVEABLE_REGS)
+			return -ENOMEM;
+
+		ret = of_address_to_resource(np, 0, &res);
+		if (ret)
+			return ret;
+
+		start = res.start;
+		size = resource_size(&res);
+		if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
+			return -EINVAL;
+
+		moveable_regs[i].start = start;
+		moveable_regs[i].size = size;
+		moveable_regs[i].type = PKVM_MREG_PROTECTED_RANGE;
+		i++;
+	}
+
 	kvm_nvhe_sym(pkvm_moveable_regs_nr) = i;
 	sort_moveable_regs();
 
