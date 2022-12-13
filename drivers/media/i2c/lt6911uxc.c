@@ -77,6 +77,7 @@ struct lt6911uxc_state {
 	u8 bank;		/* active reg-bank for I2C */
 	bool enable_i2c;
 	bool signal_present;
+	bool device_present;
 	/* expose audio capabilities */
 	struct v4l2_ctrl *audio_sampling_rate_ctrl;
 	struct v4l2_ctrl *audio_present_ctrl;
@@ -850,12 +851,37 @@ static const struct v4l2_ctrl_config lt6911uxc_ctrl_audio_present = {
 
 /* ------ Driver setup ------------------------------------------------------ */
 
+static bool lt6911uxc_detect_chip(struct v4l2_subdev *sd)
+{
+	u8 b8100, b8101;
+	unsigned int nChipId;
+	
+	lt6911uxc_i2c_wr8(sd, 0x80EE, 0x01);
+	b8100 = lt6911uxc_i2c_rd8(sd, 0x8100);
+	b8101 = lt6911uxc_i2c_rd8(sd, 0x8101);
+	nChipId = ((b8100 << 8) | b8101);
+	return nChipId == 0x1704;
+}
+
 static void lt6911uxc_initial_setup(struct lt6911uxc_state *state)
 {
 	state->mbus_fmt_code = MEDIA_BUS_FMT_UYVY8_1X16;
 	state->signal_present = false;
 	state->enable_i2c = false;
 	mutex_init(&state->lock);
+
+	dev_info(&state->i2c_client->dev, "Probing lt6911uxc\n");
+	if (lt6911uxc_detect_chip(&state->sd)) {
+		dev_info(&state->i2c_client->dev, "lt6911uxc chip found @ 7h%02X (%s)\n",
+			state->i2c_client->addr, state->i2c_client->adapter->name);
+		state->device_present = true;
+	}
+	else {
+		dev_err(&state->i2c_client->dev, "lt6911uxc chip not found @ 7h%02X (%s)\n",
+			state->i2c_client->addr, state->i2c_client->adapter->name);
+		state->device_present = false;
+		return;
+	}
 
 	/* Init Timings */
 	lt6911uxc_s_dv_timings(&state->sd, &default_timing);
@@ -874,7 +900,6 @@ static int lt6911uxc_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	int err = 0;
 
-	dev_info(&client->dev, "Probing lt6911uxc\n");
 	state = devm_kzalloc(&client->dev, sizeof(struct lt6911uxc_state),
 			     GFP_KERNEL);
 	if (!state)
@@ -884,11 +909,11 @@ static int lt6911uxc_probe(struct i2c_client *client,
 	sd = &state->sd;
 	v4l2_i2c_subdev_init(sd, client, &lt6911uxc_ops);
 
-	dev_info(&client->dev, "Chip found @ 7h%02X (%s)\n", client->addr,
-		 client->adapter->name);
-
 	/* initial setup */
 	lt6911uxc_initial_setup(state);
+	if (!state->device_present) {
+		return -ENXIO;
+	}
 
 	/* get interrupt */
 	if (client->irq) {
