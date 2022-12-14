@@ -912,6 +912,7 @@ static int lt6911uxc_probe(struct i2c_client *client,
 	/* initial setup */
 	lt6911uxc_initial_setup(state);
 	if (!state->device_present) {
+		mutex_destroy(&state->lock);
 		return -ENXIO;
 	}
 
@@ -924,6 +925,7 @@ static int lt6911uxc_probe(struct i2c_client *client,
 						IRQF_ONESHOT, sd->name,
 						(void *)sd);
 		if (err) {
+			mutex_destroy(&state->lock);
 			dev_err(&client->dev, "Could not request interrupt %d!\n",
 				client->irq);
 			return err;
@@ -971,17 +973,30 @@ static int lt6911uxc_probe(struct i2c_client *client,
 	}
 	return 0;
 
- err_ctrl_handler:
+err_ctrl_handler:
+	if (!state->i2c_client->irq) {
+		del_timer_sync(&state->timer);
+		flush_work(&state->work_i2c_poll);
+	}
 	v4l2_ctrl_handler_free(&state->ctrl_handler);
+	mutex_destroy(&state->lock);
 	return err;
 }
 
 static int lt6911uxc_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct lt6911uxc_state *state = to_state(sd);
+
+	if (!state->i2c_client->irq) {
+		del_timer_sync(&state->timer);
+		flush_work(&state->work_i2c_poll);
+	}
 
 	v4l2_async_unregister_subdev(sd);
 	v4l2_ctrl_handler_free(sd->ctrl_handler);
+
+	mutex_destroy(&state->lock);
 
 	if (IS_ENABLED(CONFIG_MEDIA_CONTROLLER))
 		media_entity_cleanup(&sd->entity);
