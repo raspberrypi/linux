@@ -2,8 +2,12 @@
 #include "bcm270x-rpi.dtsi"
 
 / {
+	chosen: chosen {
+	};
+
 	__overrides__ {
 		arm_freq;
+		eee = <&chosen>,"bootargs{on='',off='genet.eee=N'}";
 		hdmi = <&hdmi0>,"status",
 		       <&hdmi1>,"status";
 		pcie = <&pcie0>,"status";
