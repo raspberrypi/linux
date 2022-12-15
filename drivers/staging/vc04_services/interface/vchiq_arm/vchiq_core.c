@@ -498,6 +498,7 @@ vchiq_set_conn_state(struct vchiq_state *state, enum vchiq_connstate newstate)
 	vchiq_platform_conn_state_changed(state, oldstate, newstate);
 }
 
+/* FIXME */
 static inline void
 remote_event_create(wait_queue_head_t *wq, struct remote_event *event)
 {
@@ -536,6 +537,7 @@ remote_event_wait(wait_queue_head_t *wq, struct remote_event *event)
 	return 1;
 }
 
+/* FIXME */
 static inline void
 remote_event_signal_local(wait_queue_head_t *wq, struct remote_event *event)
 {
@@ -544,6 +546,7 @@ remote_event_signal_local(wait_queue_head_t *wq, struct remote_event *event)
 	wake_up_all(wq);
 }
 
+/* FIXME */
 static inline void
 remote_event_poll(wait_queue_head_t *wq, struct remote_event *event)
 {
@@ -551,6 +554,7 @@ remote_event_poll(wait_queue_head_t *wq, struct remote_event *event)
 		remote_event_signal_local(wq, event);
 }
 
+/* FIXME */
 void
 remote_event_pollall(struct vchiq_state *state)
 {
