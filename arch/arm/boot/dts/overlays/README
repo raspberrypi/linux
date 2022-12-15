@@ -146,12 +146,12 @@ Params:
 
         cam0_reg                Enables CAM 0 regulator. CM1 & 3 only.
 
-        cam0_reg_gpio           Set GPIO for CAM 0 regulator. Default 30.
+        cam0_reg_gpio           Set GPIO for CAM 0 regulator. Default 31.
                                 CM1 & 3 only.
 
         cam1_reg                Enables CAM 1 regulator. CM1 & 3 only.
 
-        cam1_reg_gpio           Set GPIO for CAM 1 regulator. Default 2.
+        cam1_reg_gpio           Set GPIO for CAM 1 regulator. Default 3.
                                 CM1 & 3 only.
 
         eee                     Enable Energy Efficient Ethernet support for
