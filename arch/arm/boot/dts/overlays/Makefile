@@ -39,6 +39,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
 	cirrus-wm5102.dtbo \
+	cm-swap-i2c0.dtbo \
 	cma.dtbo \
 	crystalfontz-cfa050_pi_m.dtbo \
 	cutiepi-panel.dtbo \
