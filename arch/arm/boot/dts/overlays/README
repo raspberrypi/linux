@@ -144,15 +144,21 @@ Params:
                                 See /sys/kernel/debug/raspberrypi_axi_monitor
                                 for the results.
 
-        cam0_reg                Enables CAM 0 regulator. CM1 & 3 only.
+        cam0_reg                Enables CAM 0 regulator.
+                                Only required on CM1 & 3.
 
-        cam0_reg_gpio           Set GPIO for CAM 0 regulator. Default 31.
-                                CM1 & 3 only.
+        cam0_reg_gpio           Set GPIO for CAM 0 regulator.
+                                Default 31 on CM1 & 3.
+                                Default of GPIO expander 5 on CM4, but override
+                                switches to normal GPIO.
 
-        cam1_reg                Enables CAM 1 regulator. CM1 & 3 only.
+        cam1_reg                Enables CAM 1 regulator.
+                                Only required on CM1 & 3.
 
-        cam1_reg_gpio           Set GPIO for CAM 1 regulator. Default 3.
-                                CM1 & 3 only.
+        cam1_reg_gpio           Set GPIO for CAM 1 regulator.
+                                Default 3 on CM1 & 3.
+                                Default of GPIO expander 5 on CM4, but override
+                                switches to normal GPIO.
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
