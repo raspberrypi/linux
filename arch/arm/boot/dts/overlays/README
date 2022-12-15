@@ -148,7 +148,7 @@ Params:
                                 Only required on CM1 & 3.
 
         cam0_reg_gpio           Set GPIO for CAM 0 regulator.
-                                Default 31 on CM1 & 3.
+                                Default 31 on CM1, 3, and 4S.
                                 Default of GPIO expander 5 on CM4, but override
                                 switches to normal GPIO.
 
@@ -156,7 +156,7 @@ Params:
                                 Only required on CM1 & 3.
 
         cam1_reg_gpio           Set GPIO for CAM 1 regulator.
-                                Default 3 on CM1 & 3.
+                                Default 3 on CM1, 3, and 4S.
                                 Default of GPIO expander 5 on CM4, but override
                                 switches to normal GPIO.
 

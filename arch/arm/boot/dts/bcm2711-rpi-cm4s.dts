@@ -403,12 +403,12 @@
 };
 
 &cam1_reg {
-	gpio = <&gpio 2 GPIO_ACTIVE_HIGH>;
+	gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
 	status = "disabled";
 };
 
 cam0_reg: &cam0_regulator {
-	gpio = <&gpio 30 GPIO_ACTIVE_HIGH>;
+	gpio = <&gpio 31 GPIO_ACTIVE_HIGH>;
 	status = "disabled";
 };
 
@@ -423,5 +423,10 @@ cam0_reg: &cam0_regulator {
 		sd_poll_once = <&emmc2>, "non-removable?";
 		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
 			   <&spi0>, "dmas:8=", <&dma40>;
+
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpio:4";
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpio:4";
 	};
 };
