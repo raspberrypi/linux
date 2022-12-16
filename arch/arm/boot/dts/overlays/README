@@ -895,6 +895,14 @@ Load:   dtoverlay=disable-bt
 Params: <None>
 
 
+Name:   disable-emmc2
+Info:   Disable EMMC2 controller on BCM2711.
+        The allows the onboard EMMC storage on Compute Module 4 to be disabled
+        e.g. if a fault has occurred.
+Load:   dtoverlay=disable-emmc2
+Params: <None>
+
+
 Name:   disable-wifi
 Info:   Disable onboard WLAN on Pi 3B, 3B+, 3A+, 4B and Zero W.
 Load:   dtoverlay=disable-wifi

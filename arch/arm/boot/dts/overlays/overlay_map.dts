@@ -9,6 +9,10 @@
 		bcm2711;
 	};
 
+	disable-emmc2 {
+		bcm2711;
+	};
+
 	highperi {
 		bcm2711;
 	};
