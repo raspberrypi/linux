@@ -37,7 +37,7 @@ extern void **kvm_nvhe_sym(kvm_hyp_iommu_domains);
 
 struct kvm_hyp_iommu_domain {
 	struct io_pgtable	*pgtable;
-	u32			refs;
+	atomic_t		refs;
 	pkvm_handle_t		domain_id;
 	void			*priv;
 };

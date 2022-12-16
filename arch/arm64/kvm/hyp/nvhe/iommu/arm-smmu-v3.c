@@ -413,7 +413,9 @@ static void smmu_tlb_flush_all(void *cookie)
 		.tlbi.vmid = domain->domain_id,
 	};
 
+	hyp_spin_lock(&smmu->iommu.lock);
 	WARN_ON(smmu_send_cmd(smmu, &cmd));
+	hyp_spin_unlock(&smmu->iommu.lock);
 }
 
 static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
@@ -429,6 +431,7 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 		.tlbi.leaf = leaf,
 	};
 
+	hyp_spin_lock(&smmu->iommu.lock);
 	/*
 	 * There are no mappings at high addresses since we don't use TTB1, so
 	 * no overflow possible.
@@ -441,6 +444,7 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 		BUG_ON(iova + granule < iova);
 		iova += granule;
 	}
+	hyp_spin_unlock(&smmu->iommu.lock);
 }
 
 static void smmu_tlb_flush_walk(unsigned long iova, size_t size,
