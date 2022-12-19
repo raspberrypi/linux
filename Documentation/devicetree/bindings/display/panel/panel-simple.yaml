@@ -178,6 +178,8 @@ properties:
       - ivo,m133nwf4-r0
         # Innolux AT043TN24 4.3" WQVGA TFT LCD panel
       - innolux,at043tn24
+        # Innolux AT056tN53V1 5.6" VGA (640x480) TFT LCD panel
+      - innolux,at056tn53v1
         # Innolux AT070TN92 7.0" WQVGA TFT LCD panel
       - innolux,at070tn92
         # Innolux G070ACE-L01 7" WVGA (800x480) TFT LCD panel
