@@ -627,7 +627,7 @@ The following tables list existing packed RGB formats.
     * .. _MEDIA_BUS_FMT_RGB565_1X24_CPADHI:
 
       - MEDIA_BUS_FMT_RGB565_1X24_CPADHI
-      - 0x1020
+      - 0x1022
       -
       -
       -
@@ -951,8 +951,8 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`3`
     * .. _MEDIA-BUS-FMT-BGR666-1X18:
 
-      - MEDIA_BUS_FMT_RGB666_1X18
-      - 0x101f
+      - MEDIA_BUS_FMT-BGR666_1X18
+      - 0x1023
       -
       -
       -
@@ -1063,7 +1063,7 @@ The following tables list existing packed RGB formats.
     * .. _MEDIA-BUS-FMT-BGR666-1X24_CPADHI:
 
       - MEDIA_BUS_FMT_BGR666_1X24_CPADHI
-      - 0x101e
+      - 0x1024
       -
       -
       -
