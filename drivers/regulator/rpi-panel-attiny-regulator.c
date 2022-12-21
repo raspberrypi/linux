@@ -93,11 +93,13 @@ static u8 attiny_get_port_state(struct attiny_lcd *state, int reg)
 static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
+	u8 val;
 
 	mutex_lock(&state->lock);
 
-	/* Ensure bridge, and tp stay in reset */
-	attiny_set_port_state(state, REG_PORTC, 0);
+	val = attiny_get_port_state(state, REG_PORTC);
+	val &= ~(PC_LED_EN);
+	attiny_set_port_state(state, REG_PORTC, val);
 	usleep_range(5000, 10000);
 
 	/* Default to the same orientation as the closed source
@@ -105,14 +107,22 @@ static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 	 * configuration will be supported using VC4's plane
 	 * orientation bits.
 	 */
-	attiny_set_port_state(state, REG_PORTA, PA_LCD_LR);
+	val = attiny_get_port_state(state, REG_PORTA);
+	val &= ~(PA_LCD_UD);
+	val |= PA_LCD_LR;
+	attiny_set_port_state(state, REG_PORTA, val);
 	usleep_range(5000, 10000);
-	/* Main regulator on, and power to the panel (LCD_VCC_N) */
-	attiny_set_port_state(state, REG_PORTB, PB_LCD_MAIN);
-	usleep_range(5000, 10000);
-	/* Bring controllers out of reset */
-	attiny_set_port_state(state, REG_PORTC, PC_LED_EN);
 
+	/* Main regulator on, and power to the panel (LCD_VCC_N) */
+	val = attiny_get_port_state(state, REG_PORTB);
+	val &= ~(PB_LCD_VCC_N);
+	val |= PB_LCD_MAIN;
+	attiny_set_port_state(state, REG_PORTB, val);
+	usleep_range(5000, 10000);
+
+	val = attiny_get_port_state(state, REG_PORTC);
+	val |= PC_LED_EN;
+	attiny_set_port_state(state, REG_PORTC, val);
 	msleep(80);
 
 	mutex_unlock(&state->lock);
@@ -123,17 +133,27 @@ static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 static int attiny_lcd_power_disable(struct regulator_dev *rdev)
 {
 	struct attiny_lcd *state = rdev_get_drvdata(rdev);
+	u8 val;
 
 	mutex_lock(&state->lock);
 
-	regmap_write(rdev->regmap, REG_PWM, 0);
+	//regmap_write(rdev->regmap, REG_PWM, 0);
+	//usleep_range(5000, 10000);
+
+	val = attiny_get_port_state(state, REG_PORTA);
+	val &= ~(PA_LCD_UD | PA_LCD_LR);
+	attiny_set_port_state(state, REG_PORTA, val);
 	usleep_range(5000, 10000);
 
-	attiny_set_port_state(state, REG_PORTA, 0);
+	val = attiny_get_port_state(state, REG_PORTB);
+	val &= ~(PB_LCD_MAIN);
+	val |= PB_LCD_VCC_N;
+	attiny_set_port_state(state, REG_PORTB, val);
 	usleep_range(5000, 10000);
-	attiny_set_port_state(state, REG_PORTB, PB_LCD_VCC_N);
-	usleep_range(5000, 10000);
-	attiny_set_port_state(state, REG_PORTC, 0);
+
+	val = attiny_get_port_state(state, REG_PORTC);
+	val &= ~(PC_LED_EN);
+	attiny_set_port_state(state, REG_PORTC, val);
 	msleep(30);
 
 	mutex_unlock(&state->lock);
