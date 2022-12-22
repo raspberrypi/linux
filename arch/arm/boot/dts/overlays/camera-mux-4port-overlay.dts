@@ -170,6 +170,16 @@
 					#undef cam_endpoint
 					#undef cam1_clk
 
+					#define cam_node imx708_0
+					#define cam_endpoint imx708_0_ep
+					#define vcm_node imx708_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
 					#define cam_node ov5647_0
 					#define cam_endpoint ov5647_0_ep
 					#define cam1_clk clk_25mhz
@@ -238,6 +248,16 @@
 					#include "imx477_378.dtsi"
 					#undef cam_node
 					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx708_1
+					#define cam_endpoint imx708_1_ep
+					#define vcm_node imx708_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
 					#undef cam1_clk
 
 					#define cam_node ov5647_1
@@ -310,6 +330,16 @@
 					#undef cam_endpoint
 					#undef cam1_clk
 
+					#define cam_node imx708_2
+					#define cam_endpoint imx708_2_ep
+					#define vcm_node imx708_2_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
 					#define cam_node ov5647_2
 					#define cam_endpoint ov5647_2_ep
 					#define cam1_clk clk_25mhz
@@ -378,6 +408,16 @@
 					#include "imx477_378.dtsi"
 					#undef cam_node
 					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx708_3
+					#define cam_endpoint imx708_3_ep
+					#define vcm_node imx708_3_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
 					#undef cam1_clk
 
 					#define cam_node ov5647_3
@@ -568,6 +608,12 @@
 			      <&imx477_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&mux_in0>, "clock-noncontinuous?",
 			      <&imx477_0>, "status=okay";
+		cam0-imx708 = <&mux_in0>, "remote-endpoint:0=",<&imx708_0_ep>,
+			      <&imx708_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&imx708_0>, "status=okay",
+			      <&imx708_0_vcm>, "status=okay",
+			      <&imx708_0>,"lens-focus:0=", <&imx708_0_vcm>;
 		cam0-ov5647 = <&mux_in0>, "remote-endpoint:0=",<&ov5647_0_ep>,
 			      <&ov5647_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&ov5647_0>, "status=okay";
@@ -596,6 +642,12 @@
 			      <&imx477_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&mux_in1>, "clock-noncontinuous?",
 			      <&imx477_1>, "status=okay";
+		cam1-imx708 = <&mux_in1>, "remote-endpoint:0=",<&imx708_1_ep>,
+			      <&imx708_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&imx708_1>, "status=okay",
+			      <&imx708_1_vcm>, "status=okay",
+			      <&imx708_1>,"lens-focus:0=", <&imx708_1_vcm>;
 		cam1-ov5647 = <&mux_in1>, "remote-endpoint:0=",<&ov5647_1_ep>,
 			      <&ov5647_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&ov5647_1>, "status=okay";
@@ -624,6 +676,12 @@
 			      <&imx477_2_ep>, "remote-endpoint:0=",<&mux_in2>,
 			      <&mux_in2>, "clock-noncontinuous?",
 			      <&imx477_2>, "status=okay";
+		cam2-imx708 = <&mux_in2>, "remote-endpoint:0=",<&imx708_2_ep>,
+			      <&imx708_2_ep>, "remote-endpoint:0=",<&mux_in2>,
+			      <&mux_in2>, "clock-noncontinuous?",
+			      <&imx708_2>, "status=okay",
+			      <&imx708_2_vcm>, "status=okay",
+			      <&imx708_2>,"lens-focus:0=", <&imx708_2_vcm>;
 		cam2-ov5647 = <&mux_in2>, "remote-endpoint:0=",<&ov5647_2_ep>,
 			      <&ov5647_2_ep>, "remote-endpoint:0=",<&mux_in2>,
 			      <&ov5647_2>, "status=okay";
@@ -652,6 +710,12 @@
 			      <&imx477_3_ep>, "remote-endpoint:0=",<&mux_in3>,
 			      <&mux_in3>, "clock-noncontinuous?",
 			      <&imx477_3>, "status=okay";
+		cam3-imx708 = <&mux_in3>, "remote-endpoint:0=",<&imx708_3_ep>,
+			      <&imx708_3_ep>, "remote-endpoint:0=",<&mux_in3>,
+			      <&mux_in3>, "clock-noncontinuous?",
+			      <&imx708_3>, "status=okay",
+			      <&imx708_3_vcm>, "status=okay",
+			      <&imx708_3>,"lens-focus:0=", <&imx708_3_vcm>;
 		cam3-ov5647 = <&mux_in3>, "remote-endpoint:0=",<&ov5647_3_ep>,
 			      <&ov5647_3_ep>, "remote-endpoint:0=",<&mux_in3>,
 			      <&ov5647_3>, "status=okay";
