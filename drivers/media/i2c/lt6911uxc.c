@@ -453,12 +453,16 @@ static void lt6911uxc_hdmi_int_handler(struct lt6911uxc_state *state,
 		if (!state->detected_timings.bt.width) {
 			state->detected_timings = timings;
 			dev_dbg(dev, "store new timings");
+			v4l2_subdev_notify_event(&state->sd,
+						&lt6911uxc_ev_source_change);
 		} else if (v4l2_match_dv_timings(&timings,
 				&state->detected_timings, 250000, false)) {
 			dev_dbg(dev, "ignore timings change");
 		} else {
 			state->detected_timings = timings;
 			dev_dbg(dev, "detected timings updated");
+			v4l2_subdev_notify_event(&state->sd,
+						&lt6911uxc_ev_source_change);
 		}
 
 		if (handled)
@@ -855,7 +859,7 @@ static bool lt6911uxc_detect_chip(struct v4l2_subdev *sd)
 {
 	u8 b8100, b8101;
 	unsigned int nChipId;
-	
+
 	lt6911uxc_i2c_wr8(sd, 0x80EE, 0x01);
 	b8100 = lt6911uxc_i2c_rd8(sd, 0x8100);
 	b8101 = lt6911uxc_i2c_rd8(sd, 0x8101);
