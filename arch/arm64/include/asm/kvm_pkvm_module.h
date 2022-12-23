@@ -34,6 +34,7 @@ struct pkvm_module_ops {
 	int (*register_default_trap_handler)(bool (*cb)(struct user_pt_regs *));
 	int (*register_illegal_abt_notifier)(void (*cb)(struct user_pt_regs *));
 	int (*register_psci_notifier)(void (*cb)(enum pkvm_psci_notification, struct user_pt_regs *));
+	int (*register_hyp_panic_notifier)(void (*cb)(struct user_pt_regs *));
 };
 
 int __pkvm_load_el2_module(struct module *this, unsigned long *token);
