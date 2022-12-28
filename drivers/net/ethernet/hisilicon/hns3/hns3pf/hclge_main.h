@@ -972,7 +972,13 @@ enum HCLGE_VPORT_STATE {
 	HCLGE_VPORT_STATE_MAC_TBL_CHANGE,
 	HCLGE_VPORT_STATE_PROMISC_CHANGE,
 	HCLGE_VPORT_STATE_VLAN_FLTR_CHANGE,
+	HCLGE_VPORT_STATE_INITED,
 	HCLGE_VPORT_STATE_MAX
+};
+
+enum HCLGE_VPORT_NEED_NOTIFY {
+	HCLGE_VPORT_NEED_NOTIFY_RESET,
+	HCLGE_VPORT_NEED_NOTIFY_VF_VLAN,
 };
 
 struct hclge_vlan_info {
@@ -1021,6 +1027,7 @@ struct hclge_vport {
 	struct hnae3_handle roce;
 
 	unsigned long state;
+	unsigned long need_notify;
 	unsigned long last_active_jiffies;
 	u32 mps; /* Max packet size */
 	struct hclge_vf_info vf_info;
