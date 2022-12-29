@@ -8,6 +8,7 @@
                 target = <&audio_pins>;
                 frag0: __overlay__ {
                         brcm,pins = <12 13>;
+                        brcm,function = <4>; /* alt0 alt0 */
                 };
         };
 
