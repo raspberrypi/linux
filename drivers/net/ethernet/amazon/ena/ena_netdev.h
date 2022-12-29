@@ -404,6 +404,8 @@ int ena_update_queue_sizes(struct ena_adapter *adapter,
 
 int ena_update_queue_count(struct ena_adapter *adapter, u32 new_channel_count);
 
+int ena_set_rx_copybreak(struct ena_adapter *adapter, u32 rx_copybreak);
+
 int ena_get_sset_count(struct net_device *netdev, int sset);
 
 enum ena_xdp_errors_t {
