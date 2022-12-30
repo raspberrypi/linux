@@ -661,9 +661,7 @@ init_thread:
 				"f2fs_flush-%u:%u", MAJOR(dev), MINOR(dev));
 	if (IS_ERR(fcc->f2fs_issue_flush)) {
 		err = PTR_ERR(fcc->f2fs_issue_flush);
-		kfree(fcc);
-		SM_I(sbi)->fcc_info = NULL;
-		return err;
+		fcc->f2fs_issue_flush = NULL;
 	}
 
 	return err;
@@ -5060,11 +5058,9 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 
 	init_f2fs_rwsem(&sm_info->curseg_lock);
 
-	if (!f2fs_readonly(sbi->sb)) {
-		err = f2fs_create_flush_cmd_control(sbi);
-		if (err)
-			return err;
-	}
+	err = f2fs_create_flush_cmd_control(sbi);
+	if (err)
+		return err;
 
 	err = create_discard_cmd_control(sbi);
 	if (err)
