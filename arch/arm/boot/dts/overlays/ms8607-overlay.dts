@@ -1,0 +1,25 @@
+// ms8607 pressure sensor
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2835";
+
+        fragment@0 {
+                target = <&i2c_arm>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+                        ms8607: ms8607@76 {
+                                compatible = "meas,ms8607-temppressure";
+                                reg = <0x76>;
+                        };
+                };
+        };
+
+        __overrides__ {
+                addr = <&ms8607>,"reg:0";
+        };
+};
+

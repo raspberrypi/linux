@@ -2880,6 +2880,36 @@ Params: interrupt               GPIO pin for interrupt (default 4)
         addr                    I2C address of the device (default 0x68)
 
 
+Name:   ms5637
+Info:   Overlay for ms5637 pressure sensor
+Load:   dtoverlay=ms5637,<param>=<val>
+Params: addr                    I2C address of the device (default 0x76)
+
+
+Name:   ms5803
+Info:   Overlay for ms5803 pressure sensor
+Load:   dtoverlay=ms5803,<param>=<val>
+Params: addr                    I2C address of the device (default 0x76)
+
+
+Name:   ms5805
+Info:   Overlay for ms5805 pressure sensor
+Load:   dtoverlay=ms5805,<param>=<val>
+Params: addr                    I2C address of the device (default 0x76)
+
+
+Name:   ms5837
+Info:   Overlay for ms5837 pressure sensor
+Load:   dtoverlay=ms5837,<param>=<val>
+Params: addr                    I2C address of the device (default 0x76)
+
+
+Name:   ms8607
+Info:   Overlay for ms8607 pressure sensor
+Load:   dtoverlay=ms8607,<param>=<val>
+Params: addr                    I2C address of the device (default 0x76)
+
+
 Name:   mz61581
 Info:   MZ61581 display by Tontec
 Load:   dtoverlay=mz61581,<param>=<val>
