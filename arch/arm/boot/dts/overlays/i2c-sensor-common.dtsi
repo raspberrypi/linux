@@ -2,6 +2,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -455,6 +457,27 @@
 		};
 	};
 
+	fragment@30 {
+		target = <&bno055>;
+		__dormant__ {
+			reset-gpios = <&gpio 5 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	fragment@31 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bno055: bno055@29 {
+				compatible = "bosch,bno055";
+				reg = <0x29>;
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -487,6 +510,7 @@
 		ms8607 = <0>,"+27";
 		mpu6050 = <0>,"+28";
 		mpu9250 = <0>,"+29";
+		bno055 = <0>,"+31";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -494,10 +518,12 @@
 			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0",
 			<&ms5637>,"reg:0", <&ms5803>,"reg:0", <&ms5805>,"reg:0",
 			<&ms5837>,"reg:0", <&ms8607>,"reg:0",
-			<&mpu6050>, "reg:0", <&mpu9250>, "reg:0";
+			<&mpu6050>,"reg:0", <&mpu9250>,"reg:0",
+			<&bno055>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0",
 			<&mpu6050>, "interrupts:0",
 			<&mpu9250>, "interrupts:0";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";
+		reset_pin = <&bno055>,"reset-gpios:4", <0>,"+30";
 	};
 };
