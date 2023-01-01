@@ -1,0 +1,26 @@
+// bno055 overlay
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+        compatible = "brcm,bcm2835";
+        fragment@0 {
+                target = <&i2c1>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+
+			bno055: bno055@29 {
+                                compatible = "bosch,bno055";
+                                reg = <0x29>;
+                        };
+                };
+        };
+
+        __overrides__ {
+                addr = <&bno055>,"reg:0";
+        };
+};

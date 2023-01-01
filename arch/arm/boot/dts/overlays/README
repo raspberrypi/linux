@@ -707,6 +707,13 @@ Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
 
+Name:   bno055
+Info:   Overlay for enabling bosch BNO055 IMU with i2c bus.
+Load:   dtoverlay=bno055,<param>=<val>
+Params: addr                    Overrides the I2C address.
+                                Valid addresses are 0x28 and 0x29 (default 0x29)
+
+
 Name:   camera-mux-2port
 Info:   Configures a 2 port camera multiplexer
         Note that currently ALL IMX290 modules share a common clock, therefore
