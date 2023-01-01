@@ -2005,6 +2005,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         bmp280                  Select the Bosch Sensortronic BMP280
                                 Valid addresses 0x76-0x77, default 0x76
 
+        bno055                  Select the Bosch Sensortronic BNO055 IMU
+                                Valid address 0x28-0x29, default 0x29
+
         ccs811                  Select the AMS CCS811 digital gas sensor
                                 Valid addresses 0x5a-0x5b, default 0x5b
 
@@ -2070,6 +2073,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 by some jc42 devices - using with an
                                 incompatible device can stop it from being
                                 activated.
+
+        reset_pin               GPIO to be used to reset the device (bno055
+                                only, disabled by default)
 
         sht3x                   Select the Sensiron SHT3x temperature and
                                 humidity sensor. Valid addresses 0x44-0x45,
