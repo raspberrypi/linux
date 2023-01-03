@@ -27,6 +27,10 @@ properties:
   reg:
     maxItems: 1
 
+  VDD-supply:
+    description:
+      Definition of the regulator used as VDD power supply to the driver.
+
 required:
   - compatible
   - reg
