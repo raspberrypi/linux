@@ -62,6 +62,7 @@ struct dw9807_device {
 	u16 idle_pos;
 	struct regulator *vdd;
 	struct notifier_block notifier;
+	bool first;
 };
 
 static inline struct dw9807_device *sd_to_dw9807_vcm(
@@ -176,6 +177,8 @@ static int dw9807_active(struct dw9807_device *dw9807_dev)
 		return ret;
 	}
 
+	dw9807_dev->first = true;
+
 	return dw9807_ramp(client, dw9807_dev->idle_pos, dw9807_dev->current_val);
 }
 
@@ -230,9 +233,11 @@ static int dw9807_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	if (ctrl->id == V4L2_CID_FOCUS_ABSOLUTE) {
 		struct i2c_client *client = v4l2_get_subdevdata(&dev_vcm->sd);
+		int start = (dev_vcm->first) ? dev_vcm->current_val : ctrl->val;
 
+		dev_vcm->first = false;
 		dev_vcm->current_val = ctrl->val;
-		return dw9807_ramp(client, ctrl->val, ctrl->val);
+		return dw9807_ramp(client, start, ctrl->val);
 	}
 
 	return -EINVAL;
