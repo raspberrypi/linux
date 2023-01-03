@@ -301,6 +301,10 @@ static void dw9807_remove(struct i2c_client *client)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct dw9807_device *dw9807_dev = sd_to_dw9807_vcm(sd);
 
+	if (dw9807_dev->vdd)
+		regulator_unregister_notifier(dw9807_dev->vdd,
+					      &dw9807_dev->notifier);
+
 	pm_runtime_disable(&client->dev);
 
 	dw9807_subdev_cleanup(dw9807_dev);
