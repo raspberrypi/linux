@@ -348,11 +348,13 @@ void __blk_queue_split(struct bio **bio, unsigned int *nr_segs)
 			break;
 		}
 		split = blk_bio_segment_split(q, *bio, &q->bio_split, nr_segs);
+		if (IS_ERR(split))
+			*bio = split = NULL;
 		break;
 	}
 
 	if (split) {
-		/* there isn't chance to merge the splitted bio */
+		/* there isn't chance to merge the split bio */
 		split->bi_opf |= REQ_NOMERGE;
 
 		bio_chain(split, *bio);
