@@ -1982,8 +1982,9 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the BH1750, BME280, BME680,
-                                BMP280, CCS811, DS1621, HDC100X, LM75, SHT3x or
-                                TMP102
+                                BMP280, CCS811, DS1621, HDC100X, JC42, LM75,
+                                MCP980x, MS5637, MS5803, MS5805, MS5837, MS8607,
+                                SHT3x or TMP102
 
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor
@@ -2043,6 +2044,21 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 MCP9803). N.B. For MCP9804, MCP9805 and MCP9808,
                                 use the "jc42" option.
                                 Valid addresses are 0x18-0x1f (default 0x18)
+
+        ms5637                  Select the Measurement Specialities MS5637
+                                pressure and temperature sensor.
+
+        ms5803                  Select the Measurement Specialities MS5803
+                                pressure and temperature sensor.
+
+        ms5805                  Select the Measurement Specialities MS5805
+                                pressure and temperature sensor.
+
+        ms5837                  Select the Measurement Specialities MS5837
+                                pressure and temperature sensor.
+
+        ms8607                  Select the Measurement Specialities MS8607
+                                pressure and temperature sensor.
 
         no_timeout              Disable the SMBUS timeout. N.B. Only supported
                                 by some jc42 devices - using with an

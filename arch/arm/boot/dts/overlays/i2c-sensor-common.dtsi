@@ -351,6 +351,76 @@
 		};
 	};
 
+	fragment@23 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ms5637: ms5637@76 {
+				compatible = "meas,ms5637";
+				reg = <0x76>;
+			};
+		};
+	};
+
+	fragment@24 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ms5803: ms5803@76 {
+				compatible = "meas,ms5803";
+				reg = <0x76>;
+			};
+		};
+	};
+
+	fragment@25 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ms5805: ms5805@76 {
+				compatible = "meas,ms5805";
+				reg = <0x76>;
+			};
+		};
+	};
+
+	fragment@26 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ms5837: ms5837@76 {
+				compatible = "meas,ms5837";
+				reg = <0x76>;
+			};
+		};
+	};
+
+	fragment@27 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ms8607: ms8607@76 {
+				compatible = "meas,ms8607-temppressure";
+				reg = <0x76>;
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -376,11 +446,18 @@
 		aht10 = <0>,"+20";
 		mcp980x = <0>,"+21";
 		jc42 = <0>,"+22";
+		ms5637 = <0>,"+23";
+		ms5803 = <0>,"+24";
+		ms5805 = <0>,"+25";
+		ms5837 = <0>,"+26";
+		ms8607 = <0>,"+27";
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
 			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
-			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0";
+			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0",
+			<&ms5637>,"reg:0", <&ms5803>,"reg:0", <&ms5805>,"reg:0",
+			<&ms5837>,"reg:0", <&ms8607>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";
 	};
