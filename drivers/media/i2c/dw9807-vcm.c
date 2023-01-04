@@ -371,7 +371,8 @@ static int dw9807_probe(struct i2c_client *client)
 	if (rval < 0)
 		goto err_cleanup;
 
-	pm_runtime_set_active(&client->dev);
+	if (!dw9807_dev->vdd)
+		pm_runtime_set_active(&client->dev);
 	pm_runtime_enable(&client->dev);
 	pm_runtime_idle(&client->dev);
 
