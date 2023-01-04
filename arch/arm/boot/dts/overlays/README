@@ -2377,6 +2377,8 @@ Info:   Sony IMX708 camera module.
 Load:   dtoverlay=imx708,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
         vcm                     Select lens driver state. Default is enabled,
                                 but vcm=off will disable.
         media-controller        Configure use of Media Controller API for
