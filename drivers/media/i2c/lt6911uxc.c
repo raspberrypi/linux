@@ -408,26 +408,22 @@ static void lt6911uxc_hdmi_int_handler(struct lt6911uxc_state *state,
 	switch (int_event) {
 	case INT_HDMI_DISCONNECT:
 		/* stop MIPI output */
-		dev_info(dev, "HDMI signal disconnected\n");
 		lt6911uxc_csi_enable(&state->sd, false);
 
 		if (state->signal_present) {
 			state->signal_present = false;
 			v4l2_subdev_notify_event(&state->sd,
 						&lt6911uxc_ev_source_change);
-			dev_dbg(dev, "event: no signal\n");
 
 			memset(&state->timings, 0, sizeof(state->timings));
 			memset(&state->detected_timings, 0,
-			       sizeof(state->detected_timings));
+				sizeof(state->detected_timings));
 		}
 		if (handled)
 			*handled = true;
 		break;
 
 	case INT_HDMI_STABLE:
-		dev_info(dev, "HDMI signal stable\n");
-
 		/* at each HDMI-stable event renew timings */
 		state->signal_present = true;
 		lt6911uxc_detect_timings(&state->sd, &timings);
@@ -487,13 +483,11 @@ static void lt6911uxc_audio_int_handler(struct lt6911uxc_state *state,
 
 	switch (int_event) {
 	case INT_AUDIO_DISCONNECT:
-		dev_info(dev, "Audio signal disconnected");
 		audio_fs = 0;
 		break;
 	case INT_AUDIO_SR_HIGH:
 	case INT_AUDIO_SR_LOW:
 		if (state->signal_present) {
-			dev_info(dev, "Audio sampling rate changed");
 			audio_fs = lt6911uxc_get_audio_sampling_rate(state);
 		} else
 			audio_fs = 0;
@@ -523,8 +517,6 @@ static int lt6911uxc_isr(struct v4l2_subdev *sd, bool *handled)
 	lt6911uxc_hdmi_int_handler(state, handled);
 
 	lt6911uxc_audio_int_handler(state, handled);
-
-	lt6911uxc_log_status(sd);
 
 	lt6911uxc_ext_control(sd, false);
 
