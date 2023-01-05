@@ -44,6 +44,10 @@
 #define IMX708_REG_FRAME_LENGTH		0x0340
 #define IMX708_FRAME_LENGTH_MAX		0xffff
 
+/* Long exposure multiplier */
+#define IMX708_LONG_EXP_SHIFT_MAX	7
+#define IMX708_LONG_EXP_SHIFT_REG	0x3100
+
 /* Exposure control */
 #define IMX708_REG_EXPOSURE		0x0202
 #define IMX708_EXPOSURE_OFFSET		48
@@ -806,6 +810,9 @@ struct imx708 {
 
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
+
+	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
+	unsigned int long_exp_shift;
 };
 
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
@@ -994,7 +1001,8 @@ static int imx708_set_exposure(struct imx708 *imx708, unsigned int val)
 	 * will automatically divide the medium and short ones by 4,16.
 	 */
 	ret = imx708_write_reg(imx708, IMX708_REG_EXPOSURE,
-			       IMX708_REG_VALUE_16BIT, val);
+			       IMX708_REG_VALUE_16BIT,
+			       val >> imx708->long_exp_shift);
 
 	return ret;
 }
@@ -1027,10 +1035,33 @@ static int imx708_set_analogue_gain(struct imx708 *imx708, unsigned int val)
 	return ret;
 }
 
+static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
+{
+	int ret = 0;
+
+	imx708->long_exp_shift = 0;
+
+	while (val > IMX708_FRAME_LENGTH_MAX) {
+		imx708->long_exp_shift++;
+		val >>= 1;
+	}
+
+	ret = imx708_write_reg(imx708, IMX708_REG_FRAME_LENGTH,
+			       IMX708_REG_VALUE_16BIT, val);
+	if (ret)
+		return ret;
+
+	return imx708_write_reg(imx708, IMX708_LONG_EXP_SHIFT_REG,
+				IMX708_REG_VALUE_08BIT, imx708->long_exp_shift);
+}
+
 static void imx708_set_framing_limits(struct imx708 *imx708)
 {
 	unsigned int hblank;
 	const struct imx708_mode *mode = imx708->mode;
+
+	/* Default to no long exposure multiplier */
+	imx708->long_exp_shift = 0;
 
 	__v4l2_ctrl_modify_range(imx708->pixel_rate,
 				 mode->pixel_rate, mode->pixel_rate,
@@ -1038,7 +1069,8 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
-				 IMX708_FRAME_LENGTH_MAX - mode->height,
+				 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
+					IMX708_FRAME_LENGTH_MAX) - mode->height,
 				 1, mode->vblank_default);
 
 	/*
@@ -1112,9 +1144,8 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 				       imx708->vflip->val << 1);
 		break;
 	case V4L2_CID_VBLANK:
-		ret = imx708_write_reg(imx708, IMX708_REG_FRAME_LENGTH,
-				       IMX708_REG_VALUE_16BIT,
-				       imx708->mode->height + ctrl->val);
+		ret = imx708_set_frame_length(imx708,
+					      imx708->mode->height + ctrl->val);
 		break;
 	case V4L2_CID_NOTIFY_GAINS:
 		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_BLUE,
