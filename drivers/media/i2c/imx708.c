@@ -1041,9 +1041,6 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 				 IMX708_FRAME_LENGTH_MAX - mode->height,
 				 1, mode->vblank_default);
 
-	/* Setting this will adjust the exposure limits as well. */
-	__v4l2_ctrl_s_ctrl(imx708->vblank, mode->vblank_default);
-
 	/*
 	 * Currently PPL is fixed to the mode specified value, so hblank
 	 * depends on mode->width only, and is not changeable in any
