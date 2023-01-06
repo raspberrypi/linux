@@ -2169,3 +2169,14 @@ bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu)
 
 	return ret;
 }
+
+int host_stage2_get_leaf(phys_addr_t phys, kvm_pte_t *ptep, u32 *level)
+{
+	int ret;
+
+	host_lock_component();
+	ret = kvm_pgtable_get_leaf(&host_mmu.pgt, phys, ptep, level);
+	host_unlock_component();
+
+	return ret;
+}
