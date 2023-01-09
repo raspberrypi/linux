@@ -1092,7 +1092,7 @@ static int copy_from_buffer(void *dst, unsigned int offset, unsigned int size,
 
 
 static int copy_uabi_to_xstate(struct xregs_state *xsave, const void *kbuf,
-			       const void __user *ubuf)
+			       const void __user *ubuf, u32 *pkru)
 {
 	unsigned int offset, size;
 	struct xstate_header hdr;
@@ -1161,7 +1161,7 @@ static int copy_uabi_to_xstate(struct xregs_state *xsave, const void *kbuf,
  */
 int copy_uabi_from_kernel_to_xstate(struct xregs_state *xsave, const void *kbuf, u32 *pkru)
 {
-	return copy_uabi_to_xstate(xsave, kbuf, NULL);
+	return copy_uabi_to_xstate(xsave, kbuf, NULL, pkru);
 }
 
 /*
@@ -1172,7 +1172,7 @@ int copy_uabi_from_kernel_to_xstate(struct xregs_state *xsave, const void *kbuf,
 int copy_sigframe_from_user_to_xstate(struct task_struct *tsk,
 				      const void __user *ubuf)
 {
-	return copy_uabi_to_xstate(&tsk->thread.fpu.state.xsave, NULL, ubuf);
+	return copy_uabi_to_xstate(&tsk->thread.fpu.state.xsave, NULL, ubuf, &tsk->thread.pkru);
 }
 
 static bool validate_xsaves_xrstors(u64 mask)
