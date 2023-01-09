@@ -1168,7 +1168,8 @@ static int copy_uabi_to_xstate(struct xregs_state *xsave, const void *kbuf,
 
 		xpkru = __raw_xsave_addr(xsave, XFEATURE_PKRU);
 		*pkru = xpkru->pkru;
-	}
+	} else
+		*pkru = 0;
 
 	/*
 	 * The state that came in from userspace was user-state only.
