@@ -108,6 +108,10 @@
 #define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_SHIFT	8
 #define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_MASK	VC4_MASK(15, 8)
 
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_MASK	VC4_MASK(7, 0)
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_SET_AVMUTE	BIT(0)
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_CLEAR_AVMUTE	BIT(4)
+
 # define VC4_HD_M_SW_RST			BIT(2)
 # define VC4_HD_M_ENABLE			BIT(0)
 
@@ -1539,7 +1543,6 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 					VC4_HDMI_VERTB_VBP));
 	unsigned long flags;
 	unsigned char gcp;
-	bool gcp_en;
 	u32 reg;
 	int idx;
 
@@ -1574,16 +1577,13 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	switch (vc4_state->output_bpc) {
 	case 12:
 		gcp = 6;
-		gcp_en = true;
 		break;
 	case 10:
 		gcp = 5;
-		gcp_en = true;
 		break;
 	case 8:
 	default:
-		gcp = 4;
-		gcp_en = false;
+		gcp = 0;
 		break;
 	}
 
@@ -1592,8 +1592,7 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	 * doesn't signal in GCP
 	 */
 	if (vc4_state->output_format == VC4_HDMI_OUTPUT_YUV422) {
-		gcp = 4;
-		gcp_en = false;
+		gcp = 0;
 	}
 
 	reg = HDMI_READ(HDMI_DEEP_COLOR_CONFIG_1);
@@ -1606,11 +1605,12 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	reg = HDMI_READ(HDMI_GCP_WORD_1);
 	reg &= ~VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_MASK;
 	reg |= VC4_SET_FIELD(gcp, VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1);
+	reg &= ~VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_MASK;
+	reg |= VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_CLEAR_AVMUTE;
 	HDMI_WRITE(HDMI_GCP_WORD_1, reg);
 
 	reg = HDMI_READ(HDMI_GCP_CONFIG);
-	reg &= ~VC5_HDMI_GCP_CONFIG_GCP_ENABLE;
-	reg |= gcp_en ? VC5_HDMI_GCP_CONFIG_GCP_ENABLE : 0;
+	reg |= VC5_HDMI_GCP_CONFIG_GCP_ENABLE;
 	HDMI_WRITE(HDMI_GCP_CONFIG, reg);
 
 	reg = HDMI_READ(HDMI_MISC_CONTROL);
