@@ -889,11 +889,10 @@
 #endif
 
 /*
- * Discard .note.GNU-stack, which is emitted as PROGBITS by the compiler.
+ * Separate note.GNU-stack, which is emitted as PROGBITS by the compiler.
  * Otherwise, the type of .notes section would become PROGBITS instead of NOTES.
  */
 #define NOTES								\
-	/DISCARD/ : { *(.note.GNU-stack) }				\
 	.notes : AT(ADDR(.notes) - LOAD_OFFSET) {			\
 		BOUNDED_SECTION_BY(.note.*, _notes)			\
 	} NOTES_HEADERS							\
@@ -1012,6 +1011,7 @@
 
 #define DISCARDS							\
 	/DISCARD/ : {							\
+	*(.note.GNU-stack)						\
 	EXIT_DISCARDS							\
 	EXIT_CALL							\
 	COMMON_DISCARDS							\
