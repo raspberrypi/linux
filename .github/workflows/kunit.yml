@@ -17,7 +17,7 @@ jobs:
 
       - name: Run Generic DRM Tests
         run: |
-          echo Skipping ./tools/testing/kunit/kunit.py run \
+          ./tools/testing/kunit/kunit.py run \
               --kunitconfig=drivers/gpu/drm/tests
 
   vc4-arm:
