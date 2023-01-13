@@ -161,6 +161,7 @@ int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 {
 	u32 reg;
 	bool coherent = smmu->features & ARM_SMMU_FEAT_COHERENCY;
+	u8 split = smmu->strtab_cfg.split;
 
 	/* IDR0 */
 	reg = readl_relaxed(smmu->base + ARM_SMMU_IDR0);
@@ -292,11 +293,15 @@ int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 	smmu->sid_bits = FIELD_GET(IDR1_SIDSIZE, reg);
 	smmu->iommu.max_pasids = 1UL << smmu->ssid_bits;
 
+	if ((split != 6) && (split != 8) && (split != 10)) {
+		dev_err(smmu->dev, "configured split not supported %d\n", split);
+		return -EINVAL;
+	}
 	/*
 	 * If the SMMU supports fewer bits than would fill a single L2 stream
 	 * table, use a linear table instead.
 	 */
-	if (smmu->sid_bits <= STRTAB_SPLIT)
+	if (smmu->sid_bits <= smmu->strtab_cfg.split)
 		smmu->features &= ~ARM_SMMU_FEAT_2_LVL_STRTAB;
 
 	/* IDR3 */
@@ -538,10 +543,10 @@ static int arm_smmu_init_strtab_2lvl(struct arm_smmu_device *smmu)
 
 	/* Calculate the L1 size, capped to the SIDSIZE. */
 	size = STRTAB_L1_SZ_SHIFT - (ilog2(STRTAB_L1_DESC_DWORDS) + 3);
-	size = min(size, smmu->sid_bits - STRTAB_SPLIT);
+	size = min(size, smmu->sid_bits - smmu->strtab_cfg.split);
 	cfg->num_l1_ents = 1 << size;
 
-	size += STRTAB_SPLIT;
+	size += smmu->strtab_cfg.split;
 	if (size < smmu->sid_bits)
 		dev_warn(smmu->dev,
 			 "2-level strtab only covers %u/%u bits of SID\n",
@@ -561,7 +566,7 @@ static int arm_smmu_init_strtab_2lvl(struct arm_smmu_device *smmu)
 	/* Configure strtab_base_cfg for 2 levels */
 	reg  = FIELD_PREP(STRTAB_BASE_CFG_FMT, STRTAB_BASE_CFG_FMT_2LVL);
 	reg |= FIELD_PREP(STRTAB_BASE_CFG_LOG2SIZE, size);
-	reg |= FIELD_PREP(STRTAB_BASE_CFG_SPLIT, STRTAB_SPLIT);
+	reg |= FIELD_PREP(STRTAB_BASE_CFG_SPLIT, smmu->strtab_cfg.split);
 	cfg->strtab_base_cfg = reg;
 
 	return arm_smmu_init_l1_strtab(smmu);

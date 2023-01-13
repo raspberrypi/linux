@@ -162,6 +162,7 @@ struct arm_smmu_strtab_cfg {
 
 	u64				strtab_base;
 	u32				strtab_base_cfg;
+	u8				split;
 };
 
 /* An SMMUv3 instance */

@@ -1376,16 +1376,17 @@ static int arm_smmu_init_l2_strtab(struct arm_smmu_device *smmu, u32 sid)
 {
 	size_t size;
 	void *strtab;
+	u8 split = smmu->strtab_cfg.split;
 	struct arm_smmu_strtab_cfg *cfg = &smmu->strtab_cfg;
-	struct arm_smmu_strtab_l1_desc *desc = &cfg->l1_desc[sid >> STRTAB_SPLIT];
+	struct arm_smmu_strtab_l1_desc *desc = &cfg->l1_desc[sid >> split];
 
 	if (desc->l2ptr)
 		return 0;
 
-	size = 1 << (STRTAB_SPLIT + ilog2(STRTAB_STE_DWORDS) + 3);
-	strtab = &cfg->strtab[(sid >> STRTAB_SPLIT) * STRTAB_L1_DESC_DWORDS];
+	size = 1 << (split + ilog2(STRTAB_STE_DWORDS) + 3);
+	strtab = &cfg->strtab[(sid >> split) * STRTAB_L1_DESC_DWORDS];
 
-	desc->span = STRTAB_SPLIT + 1;
+	desc->span = split + 1;
 	desc->l2ptr = dmam_alloc_coherent(smmu->dev, size, &desc->l2ptr_dma,
 					  GFP_KERNEL);
 	if (!desc->l2ptr) {
@@ -1395,7 +1396,7 @@ static int arm_smmu_init_l2_strtab(struct arm_smmu_device *smmu, u32 sid)
 		return -ENOMEM;
 	}
 
-	arm_smmu_init_bypass_stes(desc->l2ptr, 1 << STRTAB_SPLIT, false);
+	arm_smmu_init_bypass_stes(desc->l2ptr, 1 << split, false);
 	arm_smmu_write_strtab_l1_desc(strtab, desc);
 	return 0;
 }
@@ -2193,9 +2194,9 @@ static __le64 *arm_smmu_get_step_for_sid(struct arm_smmu_device *smmu, u32 sid)
 		int idx;
 
 		/* Two-level walk */
-		idx = (sid >> STRTAB_SPLIT) * STRTAB_L1_DESC_DWORDS;
+		idx = (sid >> smmu->strtab_cfg.split) * STRTAB_L1_DESC_DWORDS;
 		l1_desc = &cfg->l1_desc[idx];
-		idx = (sid & ((1 << STRTAB_SPLIT) - 1)) * STRTAB_STE_DWORDS;
+		idx = (sid & ((1 << smmu->strtab_cfg.split) - 1)) * STRTAB_STE_DWORDS;
 		step = &l1_desc->l2ptr[idx];
 	} else {
 		/* Simple linear lookup */
@@ -2491,7 +2492,7 @@ static bool arm_smmu_sid_in_range(struct arm_smmu_device *smmu, u32 sid)
 	unsigned long limit = smmu->strtab_cfg.num_l1_ents;
 
 	if (smmu->features & ARM_SMMU_FEAT_2_LVL_STRTAB)
-		limit *= 1UL << STRTAB_SPLIT;
+		limit *= 1UL << smmu->strtab_cfg.split;
 
 	return sid < limit;
 }
@@ -3268,6 +3269,9 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		if (irq > 0)
 			smmu->gerr_irq = irq;
 	}
+
+	smmu->strtab_cfg.split = STRTAB_SPLIT;
+
 	/* Probe the h/w */
 	ret = arm_smmu_device_hw_probe(smmu);
 	if (ret)
