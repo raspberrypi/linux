@@ -505,6 +505,12 @@ static inline bool mlx5_esw_qos_enabled(struct mlx5_eswitch *esw)
 	return esw->qos.enabled;
 }
 
+static inline bool esw_vst_mode_is_steering(struct mlx5_eswitch *esw)
+{
+	return (MLX5_CAP_ESW_EGRESS_ACL(esw->dev, pop_vlan) &&
+		MLX5_CAP_ESW_INGRESS_ACL(esw->dev, push_vlan));
+}
+
 static inline bool mlx5_eswitch_vlan_actions_supported(struct mlx5_core_dev *dev,
 						       u8 vlan_depth)
 {

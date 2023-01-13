@@ -151,21 +151,29 @@ static void set_atomic_seg(const struct ib_send_wr *wr,
 	hr_reg_write(rc_sq_wqe, RC_SEND_WQE_SGE_NUM, valid_num_sge);
 }
 
+static unsigned int get_std_sge_num(struct hns_roce_qp *qp)
+{
+	if (qp->ibqp.qp_type == IB_QPT_GSI || qp->ibqp.qp_type == IB_QPT_UD)
+		return 0;
+
+	return HNS_ROCE_SGE_IN_WQE;
+}
+
 static int fill_ext_sge_inl_data(struct hns_roce_qp *qp,
 				 const struct ib_send_wr *wr,
 				 unsigned int *sge_idx, u32 msg_len)
 {
 	struct ib_device *ibdev = &(to_hr_dev(qp->ibqp.device))->ib_dev;
-	unsigned int dseg_len = sizeof(struct hns_roce_v2_wqe_data_seg);
-	unsigned int ext_sge_sz = qp->sq.max_gs * dseg_len;
 	unsigned int left_len_in_pg;
 	unsigned int idx = *sge_idx;
+	unsigned int std_sge_num;
 	unsigned int i = 0;
 	unsigned int len;
 	void *addr;
 	void *dseg;
 
-	if (msg_len > ext_sge_sz) {
+	std_sge_num = get_std_sge_num(qp);
+	if (msg_len > (qp->sq.max_gs - std_sge_num) * HNS_ROCE_SGE_SIZE) {
 		ibdev_err(ibdev,
 			  "no enough extended sge space for inline data.\n");
 		return -EINVAL;
@@ -185,7 +193,7 @@ static int fill_ext_sge_inl_data(struct hns_roce_qp *qp,
 		if (len <= left_len_in_pg) {
 			memcpy(dseg, addr, len);
 
-			idx += len / dseg_len;
+			idx += len / HNS_ROCE_SGE_SIZE;
 
 			i++;
 			if (i >= wr->num_sge)
@@ -200,7 +208,7 @@ static int fill_ext_sge_inl_data(struct hns_roce_qp *qp,
 
 			len -= left_len_in_pg;
 			addr += left_len_in_pg;
-			idx += left_len_in_pg / dseg_len;
+			idx += left_len_in_pg / HNS_ROCE_SGE_SIZE;
 			dseg = hns_roce_get_extend_sge(qp,
 						idx & (qp->sge.sge_cnt - 1));
 			left_len_in_pg = 1 << HNS_HW_PAGE_SHIFT;
@@ -1249,6 +1257,30 @@ static void update_cmdq_status(struct hns_roce_dev *hr_dev)
 		hr_dev->cmd.state = HNS_ROCE_CMDQ_STATE_FATAL_ERR;
 }
 
+static int hns_roce_cmd_err_convert_errno(u16 desc_ret)
+{
+	struct hns_roce_cmd_errcode errcode_table[] = {
+		{CMD_EXEC_SUCCESS, 0},
+		{CMD_NO_AUTH, -EPERM},
+		{CMD_NOT_EXIST, -EOPNOTSUPP},
+		{CMD_CRQ_FULL, -EXFULL},
+		{CMD_NEXT_ERR, -ENOSR},
+		{CMD_NOT_EXEC, -ENOTBLK},
+		{CMD_PARA_ERR, -EINVAL},
+		{CMD_RESULT_ERR, -ERANGE},
+		{CMD_TIMEOUT, -ETIME},
+		{CMD_HILINK_ERR, -ENOLINK},
+		{CMD_INFO_ILLEGAL, -ENXIO},
+		{CMD_INVALID, -EBADR},
+	};
+	u16 i;
+
+	for (i = 0; i < ARRAY_SIZE(errcode_table); i++)
+		if (desc_ret == errcode_table[i].return_status)
+			return errcode_table[i].errno;
+	return -EIO;
+}
+
 static int __hns_roce_cmq_send(struct hns_roce_dev *hr_dev,
 			       struct hns_roce_cmq_desc *desc, int num)
 {
@@ -1293,7 +1325,7 @@ static int __hns_roce_cmq_send(struct hns_roce_dev *hr_dev,
 			dev_err_ratelimited(hr_dev->dev,
 					    "Cmdq IO error, opcode = %x, return = %x\n",
 					    desc->opcode, desc_ret);
-			ret = -EIO;
+			ret = hns_roce_cmd_err_convert_errno(desc_ret);
 		}
 	} else {
 		/* FW/HW reset or incorrect number of desc */
@@ -2363,6 +2395,9 @@ static int hns_roce_query_pf_caps(struct hns_roce_dev *hr_dev)
 					  V2_QUERY_PF_CAPS_D_RQWQE_HOP_NUM_M,
 					  V2_QUERY_PF_CAPS_D_RQWQE_HOP_NUM_S);
 
+	if (!(caps->page_size_cap & PAGE_SIZE))
+		caps->page_size_cap = HNS_ROCE_V2_PAGE_SIZE_SUPPORTED;
+
 	return 0;
 }
 
@@ -3016,7 +3051,8 @@ static int set_mtpt_pbl(struct hns_roce_dev *hr_dev,
 	int i, count;
 
 	count = hns_roce_mtr_find(hr_dev, &mr->pbl_mtr, 0, pages,
-				  ARRAY_SIZE(pages), &pbl_ba);
+				  min_t(int, ARRAY_SIZE(pages), mr->npages),
+				  &pbl_ba);
 	if (count < 1) {
 		ibdev_err(ibdev, "failed to find PBL mtr, count = %d.\n",
 			  count);
@@ -5121,6 +5157,8 @@ static int hns_roce_v2_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
 
 		rdma_ah_set_sl(&qp_attr->ah_attr,
 			       hr_reg_read(&context, QPC_SL));
+		rdma_ah_set_port_num(&qp_attr->ah_attr, hr_qp->port + 1);
+		rdma_ah_set_ah_flags(&qp_attr->ah_attr, IB_AH_GRH);
 		grh->flow_label = hr_reg_read(&context, QPC_FL);
 		grh->sgid_index = hr_reg_read(&context, QPC_GMV_IDX);
 		grh->hop_limit = hr_reg_read(&context, QPC_HOPLIMIT);
