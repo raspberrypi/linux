@@ -1474,7 +1474,9 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	}
 
 	if (node) {
-		mmc_of_parse(mmc);
+		ret = mmc_of_parse(mmc);
+		if (ret)
+			goto err;
 
 		/* Read any custom properties */
 		of_property_read_u32(node,
