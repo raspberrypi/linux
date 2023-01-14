@@ -2147,7 +2147,7 @@ vc4_hdmi_encoder_compute_config(const struct vc4_hdmi *vc4_hdmi,
 {
 	struct drm_device *dev = vc4_hdmi->connector.dev;
 	struct drm_connector_state *conn_state = &vc4_state->base;
-	unsigned int max_bpc = clamp_t(unsigned int, conn_state->max_bpc, 8, 12);
+	unsigned int max_bpc = clamp_t(unsigned int, conn_state->max_requested_bpc, 8, 12);
 	unsigned int bpc;
 	int ret;
 
