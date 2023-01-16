@@ -13,6 +13,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
+#include <linux/of_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
@@ -177,6 +178,7 @@ struct imx290 {
 	struct clk *xclk;
 	struct regmap *regmap;
 	u8 nlanes;
+	u8 mono;
 
 	struct v4l2_subdev sd;
 	struct media_pad pad;
@@ -415,7 +417,8 @@ static inline int imx290_modes_num(const struct imx290 *imx290)
 }
 
 struct imx290_format_info {
-	u32 code;
+	/* Array of codes. [0] is for colour, [1] is for mono. */
+	u32 code[2];
 	u8 bpp;
 	const struct imx290_regval *regs;
 	unsigned int num_regs;
@@ -423,26 +426,27 @@ struct imx290_format_info {
 
 static const struct imx290_format_info imx290_formats[] = {
 	{
-		.code = MEDIA_BUS_FMT_SRGGB10_1X10,
+		.code = { MEDIA_BUS_FMT_SRGGB10_1X10, MEDIA_BUS_FMT_Y10_1X10 },
 		.bpp = 10,
 		.regs = imx290_10bit_settings,
 		.num_regs = ARRAY_SIZE(imx290_10bit_settings),
 	}, {
-		.code = MEDIA_BUS_FMT_SRGGB12_1X12,
+		.code = { MEDIA_BUS_FMT_SRGGB12_1X12, MEDIA_BUS_FMT_Y12_1X12 },
 		.bpp = 12,
 		.regs = imx290_12bit_settings,
 		.num_regs = ARRAY_SIZE(imx290_12bit_settings),
 	}
 };
 
-static const struct imx290_format_info *imx290_format_info(u32 code)
+static const struct imx290_format_info *
+imx290_format_info(const struct imx290 *imx290, u32 code)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(imx290_formats); ++i) {
 		const struct imx290_format_info *info = &imx290_formats[i];
 
-		if (info->code == code)
+		if (info->code[imx290->mono] == code)
 			return info;
 	}
 
@@ -537,7 +541,7 @@ static int imx290_set_black_level(struct imx290 *imx290,
 				  const struct v4l2_mbus_framefmt *format,
 				  unsigned int black_level, int *err)
 {
-	unsigned int bpp = imx290_format_info(format->code)->bpp;
+	unsigned int bpp = imx290_format_info(imx290, format->code)->bpp;
 
 	return imx290_write(imx290, IMX290_BLKLEVEL,
 			    black_level >> (16 - bpp), err);
@@ -549,7 +553,7 @@ static int imx290_setup_format(struct imx290 *imx290,
 	const struct imx290_format_info *info;
 	int ret;
 
-	info = imx290_format_info(format->code);
+	info = imx290_format_info(imx290, format->code);
 
 	ret = imx290_set_register_array(imx290, info->regs, info->num_regs);
 	if (ret < 0) {
@@ -844,10 +848,12 @@ static int imx290_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
+	const struct imx290 *imx290 = to_imx290(sd);
+
 	if (code->index >= ARRAY_SIZE(imx290_formats))
 		return -EINVAL;
 
-	code->code = imx290_formats[code->index].code;
+	code->code = imx290_formats[code->index].code[imx290->mono];
 
 	return 0;
 }
@@ -859,7 +865,7 @@ static int imx290_enum_frame_size(struct v4l2_subdev *sd,
 	const struct imx290 *imx290 = to_imx290(sd);
 	const struct imx290_mode *imx290_modes = imx290_modes_ptr(imx290);
 
-	if (!imx290_format_info(fse->code))
+	if (!imx290_format_info(imx290, fse->code))
 		return -EINVAL;
 
 	if (fse->index >= imx290_modes_num(imx290))
@@ -888,8 +894,8 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 
-	if (!imx290_format_info(fmt->format.code))
-		fmt->format.code = imx290_formats[0].code;
+	if (!imx290_format_info(imx290, fmt->format.code))
+		fmt->format.code = imx290_formats[0].code[imx290->mono];
 
 	fmt->format.field = V4L2_FIELD_NONE;
 	fmt->format.colorspace = V4L2_COLORSPACE_RAW;
@@ -1192,15 +1198,28 @@ static s64 imx290_check_link_freqs(const struct imx290 *imx290,
 	return 0;
 }
 
+static const struct of_device_id imx290_of_match[] = {
+	{ .compatible = "sony,imx290" },
+	{ .compatible = "sony,imx290-mono", .data = (void *)1 },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, imx290_of_match);
+
 static int imx290_parse_dt(struct imx290 *imx290)
 {
+	struct i2c_client *client = to_i2c_client(imx290->dev);
 	/* Only CSI2 is supported for now: */
 	struct v4l2_fwnode_endpoint ep = {
 		.bus_type = V4L2_MBUS_CSI2_DPHY
 	};
+	const struct of_device_id *match;
 	struct fwnode_handle *endpoint;
 	int ret;
 	s64 fq;
+
+	match = i2c_of_match_device(imx290_of_match, client);
+	if (match)
+		imx290->mono = match->data ? 1 : 0;
 
 	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(imx290->dev), NULL);
 	if (!endpoint) {
@@ -1365,12 +1384,6 @@ static void imx290_remove(struct i2c_client *client)
 		imx290_power_off(imx290);
 	pm_runtime_set_suspended(imx290->dev);
 }
-
-static const struct of_device_id imx290_of_match[] = {
-	{ .compatible = "sony,imx290" },
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, imx290_of_match);
 
 static struct i2c_driver imx290_i2c_driver = {
 	.probe_new  = imx290_probe,
