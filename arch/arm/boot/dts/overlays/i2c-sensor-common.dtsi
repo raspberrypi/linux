@@ -421,6 +421,40 @@
 		};
 	};
 
+	fragment@28 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+                        clock-frequency = <400000>;
+
+                        mpu6050: mpu6050@68 {
+                                compatible = "invensense,mpu6050";
+                                reg = <0x68>;
+                                interrupt-parent = <&gpio>;
+                                interrupts = <4 2>;
+                        };
+		};
+	};
+
+	fragment@29 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+                        clock-frequency = <400000>;
+
+                        mpu9250: mpu9250@68 {
+                                compatible = "invensense,mpu9250";
+                                reg = <0x68>;
+                                interrupt-parent = <&gpio>;
+                                interrupts = <4 2>;
+                        };
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -451,14 +485,19 @@
 		ms5805 = <0>,"+25";
 		ms5837 = <0>,"+26";
 		ms8607 = <0>,"+27";
+		mpu6050 = <0>,"+28";
+		mpu9250 = <0>,"+29";
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
 			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
 			<&bh1750>,"reg:0", <&mcp980x>,"reg:0", <&jc42>,"reg:0",
 			<&ms5637>,"reg:0", <&ms5803>,"reg:0", <&ms5805>,"reg:0",
-			<&ms5837>,"reg:0", <&ms8607>,"reg:0";
-		int_pin = <&max30102>, "interrupts:0";
+			<&ms5837>,"reg:0", <&ms8607>,"reg:0",
+			<&mpu6050>, "reg:0", <&mpu9250>, "reg:0";
+		int_pin = <&max30102>, "interrupts:0",
+			<&mpu6050>, "interrupts:0",
+			<&mpu9250>, "interrupts:0";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";
 	};
 };
