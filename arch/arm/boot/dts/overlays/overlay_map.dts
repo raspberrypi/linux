@@ -61,6 +61,10 @@
 		bcm2711;
 	};
 
+	mpu6050 {
+		deprecated = "use i2c-sensor,mpu6050";
+	};
+
 	pcie-32bit-dma {
 		bcm2711;
 	};
