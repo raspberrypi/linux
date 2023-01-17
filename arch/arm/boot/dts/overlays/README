@@ -1983,8 +1983,8 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 BMP280, CCS811, DS1621, HDC100X, JC42, LM75,
-                                MCP980x, MS5637, MS5803, MS5805, MS5837, MS8607,
-                                SHT3x or TMP102
+                                MCP980x, MPU6050, MPU9250, MS5637, MS5803,
+                                MS5805, MS5837, MS8607, SHT3x or TMP102
 
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor
@@ -2016,8 +2016,8 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         htu21                   Select the HTU21 temperature and humidity sensor
 
-        int_pin                 Set the GPIO to use for interrupts (max30102
-                                only)
+        int_pin                 Set the GPIO to use for interrupts (max30102,
+                                mpu6050 and mpu9250 only)
 
         jc42                    Select any of the many JEDEC JC42.4-compliant
                                 temperature sensors, including:
@@ -2044,6 +2044,12 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
                                 MCP9803). N.B. For MCP9804, MCP9805 and MCP9808,
                                 use the "jc42" option.
                                 Valid addresses are 0x18-0x1f (default 0x18)
+
+        mpu6050                 Select the InvenSense MPU6050 IMU. Valid
+                                valid addresses are 0x68 and 0x69 (default 0x68)
+
+        mpu9250                 Select the InvenSense MPU9250 IMU. Valid
+                                valid addresses are 0x68 and 0x69 (default 0x68)
 
         ms5637                  Select the Measurement Specialities MS5637
                                 pressure and temperature sensor.
@@ -2913,10 +2919,10 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
 
 
 Name:   mpu6050
-Info:   Overlay for i2c connected mpu6050 imu
-Load:   dtoverlay=mpu6050,<param>=<val>
-Params: interrupt               GPIO pin for interrupt (default 4)
-        addr                    I2C address of the device (default 0x68)
+Info:   This overlay has been deprecated - use "dtoverlay=i2c-sensor,mpu6050"
+        instead. Note that "int_pin" is the new name for the "interrupt"
+        parameter.
+Load:   <Deprecated>
 
 
 Name:   mz61581
@@ -3416,7 +3422,7 @@ Params: <None>
 
 
 Name:   rpi-dac
-Info:   This overlay has been renaamed to i2s-dac.
+Info:   This overlay has been renamed to i2s-dac.
 Load:   <Deprecated>
 
 
@@ -3546,7 +3552,7 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
 
 
 Name:   rpi-proto
-Info:   This overlay has been renamaed to proto-codec.
+Info:   This overlay has been renamed to proto-codec.
 Load:   <Deprecated>
 
 
