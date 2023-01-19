@@ -255,7 +255,7 @@ static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 		buffer->import.sgt = NULL;
 	}
 	if (buffer->import.attach) {
-		dma_buf_detach(buffer->dma_buf, buffer->import.attach);
+		dma_buf_detach(buffer->import.dma_buf, buffer->import.attach);
 		buffer->import.attach = NULL;
 	}
 }
