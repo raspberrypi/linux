@@ -1857,7 +1857,6 @@ static int vidioc_g_selection(struct file *file, void *priv,
 		}
 		break;
 	case ISP:
-		break;
 	case DEINTERLACE:
 		if (s->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			switch (s->target) {
@@ -1981,7 +1980,6 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		}
 		break;
 	case ISP:
-		break;
 	case DEINTERLACE:
 		if (s->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			switch (s->target) {
