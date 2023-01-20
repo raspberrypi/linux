@@ -139,6 +139,8 @@ Highest valid capability of the running kernel.  Exports
 ``CAP_LAST_CAP`` from the kernel.
 
 
+.. _core_pattern:
+
 core_pattern
 ============
 
@@ -174,6 +176,7 @@ core_pattern
 	%f      	executable filename
 	%E		executable path
 	%c		maximum size of core file by resource limit RLIMIT_CORE
+	%C		CPU the task ran on
 	%<OTHER>	both are dropped
 	========	==========================================
 
