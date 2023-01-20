@@ -39,6 +39,12 @@ const struct blk_crypto_mode blk_crypto_modes[] = {
 		.security_strength = 32,
 		.ivsize = 32,
 	},
+	[BLK_ENCRYPTION_MODE_SM4_XTS] = {
+		.name = "SM4-XTS",
+		.cipher_str = "xts(sm4)",
+		.keysize = 32,
+		.ivsize = 16,
+	},
 };
 
 /*
