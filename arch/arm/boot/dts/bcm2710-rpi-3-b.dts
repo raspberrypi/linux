@@ -249,12 +249,14 @@
 &leds {
 	act_led: led-act {
 		label = "led0";
+		default-state = "off";
 		linux,default-trigger = "mmc0";
 		gpios = <&virtgpio 0 0>;
 	};
 
 	pwr_led: led-pwr {
 		label = "led1";
+		default-state = "off";
 		linux,default-trigger = "input";
 		gpios = <&expgpio 7 0>;
 	};

@@ -158,6 +158,7 @@
 &leds {
 	act_led: led-act {
 		label = "led0";
+		default-state = "off";
 		linux,default-trigger = "mmc0";
 		gpios = <&gpio 16 1>;
 	};
