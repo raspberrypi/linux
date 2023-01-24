@@ -176,6 +176,7 @@ i2c_csi_dsi: &i2c1 {
 &leds {
 	act_led: led-act {
 		label = "led0";
+		default-state = "off";
 		linux,default-trigger = "mmc0";
 		gpios = <&gpio 16 1>;
 	};
