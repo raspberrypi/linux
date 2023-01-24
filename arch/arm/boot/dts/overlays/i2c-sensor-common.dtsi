@@ -455,6 +455,8 @@
 		};
 	};
 
+	// Fragments 30 and 31 omitted due to BNO055 support in rpi-6.1.y
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -487,6 +489,7 @@
 		ms8607 = <0>,"+27";
 		mpu6050 = <0>,"+28";
 		mpu9250 = <0>,"+29";
+		// Skip 30 and 31
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
