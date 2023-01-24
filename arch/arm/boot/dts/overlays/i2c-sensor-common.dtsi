@@ -457,6 +457,21 @@
 
 	// Fragments 30 and 31 omitted due to BNO055 support in rpi-6.1.y
 
+	fragment@32 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sht4x: sht4x@44 {
+				compatible = "sht4x";
+				reg = <0x44>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -490,6 +505,7 @@
 		mpu6050 = <0>,"+28";
 		mpu9250 = <0>,"+29";
 		// Skip 30 and 31
+		sht4x = <0>,"+32";
 
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
