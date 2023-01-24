@@ -2077,8 +2077,12 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         reset_pin               GPIO to be used to reset the device (bno055
                                 only, disabled by default)
 
-        sht3x                   Select the Sensiron SHT3x temperature and
-                                humidity sensor. Valid addresses 0x44-0x45,
+        sht3x                   Select the Sensirion SHT3x temperature and
+                                humidity sensors. Valid addresses 0x44-0x45,
+                                default 0x44
+
+        sht4x                   Select the Sensirion SHT4x temperature and
+                                humidity sensors. Valid addresses 0x44-0x45,
                                 default 0x44
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
