@@ -514,13 +514,14 @@
 &leds {
 	act_led: led-act {
 		label = "led0";
+		default-state = "off";
 		linux,default-trigger = "default-on";
-		default-state = "on";
 		gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
 	};
 
 	pwr_led: led-pwr {
 		label = "led1";
+		default-state = "off";
 		linux,default-trigger = "default-on";
 		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
 	};
