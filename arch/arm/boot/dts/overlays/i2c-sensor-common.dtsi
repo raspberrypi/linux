@@ -478,6 +478,21 @@
 		};
 	};
 
+	fragment@32 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sht4x: sht4x@44 {
+				compatible = "sht4x";
+				reg = <0x44>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -511,6 +526,7 @@
 		mpu6050 = <0>,"+28";
 		mpu9250 = <0>,"+29";
 		bno055 = <0>,"+31";
+		sht4x = <0>,"+32";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -519,7 +535,7 @@
 			<&ms5637>,"reg:0", <&ms5803>,"reg:0", <&ms5805>,"reg:0",
 			<&ms5837>,"reg:0", <&ms8607>,"reg:0",
 			<&mpu6050>,"reg:0", <&mpu9250>,"reg:0",
-			<&bno055>,"reg:0";
+			<&bno055>,"reg:0", <&sht4x>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0",
 			<&mpu6050>, "interrupts:0",
 			<&mpu9250>, "interrupts:0";
