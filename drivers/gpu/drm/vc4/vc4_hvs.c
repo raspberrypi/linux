@@ -452,6 +452,8 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 	if (!alloc)
 		return ERR_PTR(-ENOMEM);
 
+	INIT_LIST_HEAD(&alloc->node);
+
 	spin_lock_irqsave(&hvs->mm_lock, flags);
 	ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
 				 dlist_count);
