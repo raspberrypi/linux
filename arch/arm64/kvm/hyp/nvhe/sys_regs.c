@@ -303,6 +303,19 @@ static bool pvm_access_id_aarch64(struct kvm_vcpu *vcpu,
 	return true;
 }
 
+static bool pvm_access_unallocated(struct kvm_vcpu *vcpu,
+				   struct sys_reg_params *p,
+				   const struct sys_reg_desc *r)
+{
+	if (p->is_write) {
+		inject_undef64(vcpu);
+		return false;
+	}
+
+	p->regval = 0;
+	return true;
+}
+
 static bool pvm_gic_read_sre(struct kvm_vcpu *vcpu,
 			     struct sys_reg_params *p,
 			     const struct sys_reg_desc *r)
@@ -327,7 +340,16 @@ static bool pvm_gic_read_sre(struct kvm_vcpu *vcpu,
  */
 #define ID_UNALLOCATED(crm, op2) {			\
 	Op0(3), Op1(0), CRn(0), CRm(crm), Op2(op2),	\
-	.access = pvm_access_id_aarch64,		\
+	.access = pvm_access_unallocated,		\
+}
+
+/*
+ * sys_reg_desc initialiser for known ID registers that we hide from guests.
+ * For now, these are handled just like unallocated ID regs.
+ */
+#define ID_HIDDEN(REG) {			\
+	SYS_DESC(REG),				\
+	.access = pvm_access_unallocated,	\
 }
 
 /* Mark the specified system register as Read-As-Zero/Write-Ignored */
