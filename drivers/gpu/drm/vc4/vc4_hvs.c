@@ -466,6 +466,18 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 	return alloc;
 }
 
+static void vc4_hvs_free_dlist_entry_locked(struct vc4_hvs *hvs,
+					    struct vc4_hvs_dlist_allocation *alloc)
+{
+	lockdep_assert_held(&hvs->mm_lock);
+
+	if (!list_empty(&alloc->node))
+		list_del(&alloc->node);
+
+	drm_mm_remove_node(&alloc->mm_node);
+	kfree(alloc);
+}
+
 void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
 				    struct vc4_hvs_dlist_allocation *alloc)
 {
@@ -553,9 +565,7 @@ static void vc4_hvs_dlist_free_work(struct work_struct *work)
 		if (!vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
 			continue;
 
-		list_del(&cur->node);
-		drm_mm_remove_node(&cur->mm_node);
-		kfree(cur);
+		vc4_hvs_free_dlist_entry_locked(hvs, cur);
 	}
 	spin_unlock_irqrestore(&hvs->mm_lock, flags);
 }
