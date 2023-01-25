@@ -490,6 +490,18 @@ void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
 	if (!drm_mm_node_allocated(&alloc->mm_node))
 		return;
 
+	/*
+	 * Kunit tests run with a mock device and we consider any hardware
+	 * access a test failure. Let's free the dlist allocation right away if
+	 * we're running under kunit, we won't risk a dlist corruption anyway.
+	 */
+	if (kunit_get_current_test()) {
+		spin_lock_irqsave(&hvs->mm_lock, flags);
+		vc4_hvs_free_dlist_entry_locked(hvs, alloc);
+		spin_unlock_irqrestore(&hvs->mm_lock, flags);
+		return;
+	}
+
 	frcnt = vc4_hvs_get_fifo_frame_count(hvs, alloc->channel);
 	alloc->target_frame_count = (frcnt + 1) & ((1 << 6) - 1);
 
