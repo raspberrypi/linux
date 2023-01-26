@@ -4,6 +4,22 @@
 #include <asm/kvm_hyp.h>
 
 #include <linux/ring_buffer.h>
+#include <linux/trace_seq.h>
+#include <linux/workqueue.h>
+
+struct ht_iterator {
+	struct trace_buffer	*trace_buffer;
+	int			cpu;
+	struct hyp_entry_hdr	*ent;
+	unsigned long		lost_events;
+	int			ent_cpu;
+	size_t			ent_size;
+	u64			ts;
+	void			*spare;
+	size_t			copy_leftover;
+	struct trace_seq        seq;
+	struct delayed_work     poll_work;
+};
 
 /*
  * Host donations to the hypervisor to store the struct hyp_buffer_page.

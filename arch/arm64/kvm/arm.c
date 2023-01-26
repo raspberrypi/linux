@@ -2489,6 +2489,8 @@ static int __init init_hyp_mode(void)
 
 	kvm_hyp_init_symbols();
 
+	hyp_trace_init_events();
+
 	if (is_protected_kvm_enabled()) {
 		if (IS_ENABLED(CONFIG_ARM64_PTR_AUTH_KERNEL) &&
 		    cpus_have_const_cap(ARM64_HAS_ADDRESS_AUTH))

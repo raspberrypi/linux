@@ -6,10 +6,12 @@
 #include <linux/arm-smccc.h>
 #include <linux/list.h>
 #include <linux/percpu-defs.h>
+#include <linux/trace_events.h>
 #include <linux/tracefs.h>
 
 #include <asm/kvm_host.h>
 #include <asm/kvm_hyptrace.h>
+#include <asm/kvm_hypevents_defs.h>
 
 #include "hyp_constants.h"
 #include "hyp_trace.h"
@@ -456,12 +458,20 @@ static void ht_print_trace_cpu(struct ht_iterator *iter)
 
 static int ht_print_trace_fmt(struct ht_iterator *iter)
 {
+	struct hyp_event *e;
+
 	if (iter->lost_events)
 		trace_seq_printf(&iter->seq, "CPU:%d [LOST %lu EVENTS]\n",
 				 iter->ent_cpu, iter->lost_events);
 
 	ht_print_trace_cpu(iter);
 	ht_print_trace_time(iter);
+
+	e = hyp_trace_find_event(iter->ent->id);
+	if (e)
+		e->trace_func(iter);
+	else
+		trace_seq_printf(&iter->seq, "Unknown event id %d\n", iter->ent->id);
 
 	return trace_seq_has_overflowed(&iter->seq) ? -EOVERFLOW : 0;
 };
@@ -787,6 +797,8 @@ int hyp_trace_init_tracefs(void)
 		tracefs_create_file("trace_pipe_raw", TRACEFS_MODE_READ, per_cpu_dir,
 				    (void *)cpu, &hyp_trace_pipe_fops);
 	}
+
+	hyp_trace_init_event_tracefs(root);
 
 	return 0;
 }
