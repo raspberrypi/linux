@@ -3,6 +3,7 @@
 #define __KVM_ARM_SMMU_V3_H
 
 #include <asm/kvm_asm.h>
+#include <linux/io-pgtable.h>
 #include <kvm/iommu.h>
 
 #if IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM)
@@ -28,6 +29,7 @@ struct hyp_arm_smmu_v3_device {
 	size_t			strtab_num_entries;
 	size_t			strtab_num_l1_entries;
 	u8			strtab_split;
+	struct io_pgtable_cfg	pgtable_cfg;
 };
 
 extern size_t kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_count);
