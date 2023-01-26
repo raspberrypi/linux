@@ -134,6 +134,8 @@ static void pvm_init_traps_aa64pfr1(struct kvm_vcpu *vcpu)
 	const u64 feature_ids = pvm_read_id_reg(vcpu, SYS_ID_AA64PFR1_EL1);
 	u64 hcr_set = 0;
 	u64 hcr_clear = 0;
+	u64 cptr_set = 0;
+	u64 cptr_clear = 0;
 
 	/* Memory Tagging: Trap and Treat as Untagged if not supported. */
 	if (!FIELD_GET(ARM64_FEATURE_MASK(ID_AA64PFR1_EL1_MTE), feature_ids)) {
@@ -141,8 +143,17 @@ static void pvm_init_traps_aa64pfr1(struct kvm_vcpu *vcpu)
 		hcr_clear |= HCR_DCT | HCR_ATA;
 	}
 
+	/* No SME supprot in KVM. */
+	BUG_ON(FIELD_GET(ARM64_FEATURE_MASK(ID_AA64PFR1_EL1_SME), feature_ids));
+	if (has_hvhe())
+		cptr_clear |= CPACR_EL1_SMEN_EL1EN | CPACR_EL1_SMEN_EL0EN;
+	else
+		cptr_set |= CPTR_EL2_TSM;
+
 	vcpu->arch.hcr_el2 |= hcr_set;
 	vcpu->arch.hcr_el2 &= ~hcr_clear;
+	vcpu->arch.cptr_el2 |= cptr_set;
+	vcpu->arch.cptr_el2 &= ~cptr_clear;
 }
 
 /*

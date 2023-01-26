@@ -1256,6 +1256,7 @@ void handle_trap(struct kvm_cpu_context *host_ctxt)
 		break;
 	case ESR_ELx_EC_FP_ASIMD:
 	case ESR_ELx_EC_SVE:
+	case ESR_ELx_EC_SME:
 		fpsimd_host_restore();
 		break;
 	case ESR_ELx_EC_IABT_LOW:
