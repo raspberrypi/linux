@@ -258,7 +258,7 @@ int ion_heap_init_shrinker(struct ion_heap *heap)
 	heap->shrinker.seeks = DEFAULT_SEEKS;
 	heap->shrinker.batch = 0;
 
-	return register_shrinker(&heap->shrinker);
+	return register_shrinker(&heap->shrinker, "android-ion");
 }
 
 int ion_heap_cleanup(struct ion_heap *heap)
