@@ -57,6 +57,8 @@
 #define GOODIX_CONFIG_MAX_LENGTH		240
 #define GOODIX_MAX_KEYS				7
 
+#define GOODIX_NAME_MAX_LEN			38
+
 enum goodix_irq_pin_access_method {
 	IRQ_PIN_ACCESS_NONE,
 	IRQ_PIN_ACCESS_GPIO,
@@ -91,6 +93,7 @@ struct goodix_ts_data {
 	enum gpiod_flags gpiod_rst_flags;
 	char id[GOODIX_ID_MAX_LEN + 1];
 	char cfg_name[64];
+	char name[GOODIX_NAME_MAX_LEN];
 	u16 version;
 	bool reset_controller_at_probe;
 	bool load_cfg_from_disk;
@@ -104,6 +107,8 @@ struct goodix_ts_data {
 	u8 main_clk[GOODIX_MAIN_CLK_LEN];
 	int bak_ref_len;
 	u8 *bak_ref;
+	struct timer_list timer;
+	struct work_struct work_i2c_poll;
 };
 
 int goodix_i2c_read(struct i2c_client *client, u16 reg, u8 *buf, int len);
