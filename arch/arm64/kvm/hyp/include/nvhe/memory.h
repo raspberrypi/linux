@@ -12,6 +12,7 @@
  * Accesses to struct hyp_page flags are serialized by the host stage-2
  * page-table lock.
  */
+#define MODULE_OWNED_PAGE		BIT(0)
 
 struct hyp_page {
 	unsigned short refcount;

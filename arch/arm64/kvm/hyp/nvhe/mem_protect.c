@@ -804,20 +804,22 @@ static int check_page_state_range(struct kvm_pgtable *pgt, u64 addr, u64 size,
 
 static enum pkvm_page_state host_get_page_state(kvm_pte_t pte, u64 addr)
 {
+	bool is_memory = addr_is_memory(addr);
 	enum pkvm_page_state state = 0;
 	enum kvm_pgtable_prot prot;
-	phys_addr_t phys;
 
 	if (!addr_is_allowed_memory(addr))
 		return PKVM_NOPAGE;
+
+	if (is_memory && hyp_phys_to_page(addr)->flags & MODULE_OWNED_PAGE)
+	       return PKVM_MODULE_DONT_TOUCH;
 
 	if (!kvm_pte_valid(pte) && pte)
 		return PKVM_NOPAGE;
 
 	prot = kvm_pgtable_stage2_pte_prot(pte);
 	if (kvm_pte_valid(pte)) {
-		phys = kvm_pte_to_phys(pte);
-		if ((prot & KVM_PGTABLE_PROT_RWX) != default_host_prot(addr_is_memory(phys)))
+		if ((prot & KVM_PGTABLE_PROT_RWX) != default_host_prot(is_memory))
 			state = PKVM_PAGE_RESTRICTED_PROT;
 	}
 
