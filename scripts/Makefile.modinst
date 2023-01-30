@@ -89,7 +89,9 @@ $(dst)/%.ko: $(extmod_prefix)%.ko FORCE
 ifneq ($(KBUILD_EXTMOD),)
 $(dst)/modules.order.$(extmod_suffix): $(MODORDER) FORCE
 	$(call cmd,install)
-	@sed -i "s:^$(KBUILD_EXTMOD):$(INSTALL_MOD_DIR):g" $@
+	@sed -e "s:^$(KBUILD_EXTMOD):$(INSTALL_MOD_DIR):g" \
+	     -e 's:^\(.*\)\.o$$:\1.ko:' \
+	     -i $@
 endif
 
 else
