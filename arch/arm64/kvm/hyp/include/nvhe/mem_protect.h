@@ -93,13 +93,14 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt);
 int hyp_register_host_perm_fault_handler(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr));
 int hyp_pin_shared_mem(void *from, void *to);
 void hyp_unpin_shared_mem(void *from, void *to);
-int hyp_protect_host_page(u64 pfn, enum kvm_pgtable_prot prot);
 int host_stage2_get_leaf(phys_addr_t phys, kvm_pte_t *ptep, u32 *level);
 int refill_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 		    struct kvm_hyp_memcache *host_mc);
 
 void destroy_hyp_vm_pgt(struct pkvm_hyp_vm *vm);
 void drain_hyp_pool(struct pkvm_hyp_vm *vm, struct kvm_hyp_memcache *mc);
+
+int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot);
 
 void psci_mem_protect_inc(u64 n);
 void psci_mem_protect_dec(u64 n);
