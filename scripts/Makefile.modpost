@@ -46,6 +46,7 @@ modpost-args =										\
 	$(if $(CONFIG_MODVERSIONS),-m)							\
 	$(if $(CONFIG_MODULE_SRCVERSION_ALL),-a)					\
 	$(if $(CONFIG_SECTION_MISMATCH_WARN_ONLY),,-E)					\
+	$(if $(KBUILD_MODPOST_WARN),-w)							\
 	$(if $(KBUILD_NSDEPS),-d $(MODULES_NSDEPS))					\
 	$(if $(CONFIG_MODULE_ALLOW_MISSING_NAMESPACE_IMPORTS)$(KBUILD_NSDEPS),-N)	\
 	-o $@
@@ -55,10 +56,6 @@ modpost-deps := $(MODPOST)
 # 'make -i -k' ignores compile errors, and builds as many modules as possible.
 ifneq ($(findstring i,$(filter-out --%,$(MAKEFLAGS))),)
 modpost-args += -n
-endif
-
-ifneq ($(KBUILD_MODPOST_WARN)$(missing-input),)
-modpost-args += -w
 endif
 
 # Read out modules.order to pass in modpost.
@@ -162,6 +159,10 @@ endif
 modpost-args += -e $(addprefix -i , $(KBUILD_EXTRA_SYMBOLS))
 
 endif # ($(KBUILD_EXTMOD),)
+
+ifneq ($(missing-input),)
+modpost-args += -w
+endif
 
 quiet_cmd_modpost = MODPOST $@
       cmd_modpost = \
