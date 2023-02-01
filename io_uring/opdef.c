@@ -313,6 +313,7 @@ const struct io_op_def io_op_defs[] = {
 	},
 	[IORING_OP_MADVISE] = {
 		.name			= "MADVISE",
+		.audit_skip		= 1,
 		.prep			= io_madvise_prep,
 		.issue			= io_madvise,
 	},
