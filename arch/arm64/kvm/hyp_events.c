@@ -161,6 +161,30 @@ static const struct file_operations hyp_event_format_fops = {
 	.release = single_release,
 };
 
+static ssize_t hyp_header_page_read(struct file *filp, char __user *ubuf,
+				   size_t cnt, loff_t *ppos)
+{
+	struct trace_seq *s;
+	ssize_t r;
+
+	s = kmalloc(sizeof(*s), GFP_KERNEL);
+	if (!s)
+		return -ENOMEM;
+
+	trace_seq_init(s);
+	ring_buffer_print_page_header(s);
+	r = simple_read_from_buffer(ubuf, cnt, ppos, s->buffer,
+				    trace_seq_used(s));
+	kfree(s);
+
+	return r;
+}
+
+static const struct file_operations hyp_header_page_fops = {
+	.read = hyp_header_page_read,
+	.llseek = default_llseek,
+};
+
 static char early_events[COMMAND_LINE_SIZE];
 
 static __init int setup_hyp_event_early(char *str)
@@ -215,6 +239,9 @@ void hyp_trace_init_event_tracefs(struct dentry *parent)
 		pr_err("Failed to create tracefs folder for hyp events\n");
 		return;
 	}
+
+	tracefs_create_file("header_page", 0400, parent, NULL,
+			    &hyp_header_page_fops);
 
 	parent = tracefs_create_dir("hyp", parent);
 	if (!parent) {
