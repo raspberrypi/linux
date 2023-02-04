@@ -1,0 +1,151 @@
+/*
+    Device Tree overlay for Galaxycore GC9A01A single chip driver
+    for use on SPI TFT LCD, 240x240 65K RGB
+    Based on Galaxycore's GC9A01A datasheet Rev.1.0 (2019/07/02)
+    Copyright (C) 2022, Julianno F. C. Silva (@juliannojungle)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/agpl-3.0.html>.
+
+    Init sequence partially based on Waveshare team's Arduino LCD_Driver V1.0 (2020/12/09).
+
+    Permission is hereby granted, free of UBYTEge, to any person obtaining a copy
+    of this software and associated documnetation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&spidev0>;
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+
+    fragment@1 {
+        target = <&gpio>;
+        __overlay__ {
+            gc9a01_pins: gc9a01_pins {
+                brcm,pins = <25 27>;
+                brcm,function = <1 1>; /* out */
+                brcm,pull = <0 0>; /* none */
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&spi0>;
+        __overlay__ {
+            /* needed to avoid dtc warning */
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            gc9a01: gc9a01@0 {
+                compatible = "ilitek,ili9340";
+                reg = <0>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&gc9a01_pins>;
+                reset-gpios = <&gpio 27 1>;
+                dc-gpios = <&gpio 25 0>;
+                led-gpios = <&gpio 18 0>;
+                spi-max-frequency = <40000000>;
+                buswidth = <8>;
+                width = <240>;
+                height = <240>;
+                rotate = <0>;
+                fps = <50>;
+                bgr;
+                debug = <0>;
+                init = <
+                    0x01000011 /* Sleep mode OFF */
+                    0x02000078 /* Delay 120ms */
+                    0x010000EF /* Inter register enable 2 */
+                    0x010000EB 0x14
+                    /* BEGIN set inter_command HIGH */
+                    0x010000FE /* Inter register enable 1 */
+                    0x010000EF /* Inter register enable 2 */
+                    /* END set inter_command HIGH */
+                    0x010000EB 0x14
+                    0x01000084 0x40
+                    0x01000085 0xFF
+                    0x01000086 0xFF
+                    0x01000087 0xFF
+                    0x01000088 0x0A
+                    0x01000089 0x21
+                    0x0100008A 0x00
+                    0x0100008B 0x80
+                    0x0100008C 0x01
+                    0x0100008D 0x01
+                    0x0100008E 0xFF
+                    0x0100008F 0xFF
+                    0x010000B6 0x00 0x00 /* Display function control */
+                    0x01000036 0x08 /* Memory access control */
+                    0x0100003A 0x05 /* Pixel format */
+                    0x01000090 0x08 0x08 0x08 0x08
+                    0x010000BD 0x06
+                    0x010000BC 0x00
+                    0x010000FF 0x60 0x01 0x04
+                    0x010000C3 0x13 /* Voltage regulator 1a */
+                    0x010000C4 0x13 /* Voltage regulator 1b */
+                    0x010000C9 0x22 /* Voltage regulator 2a */
+                    0x010000BE 0x11
+                    0x010000E1 0x10 0x0E
+                    0x010000DF 0x21 0x0c 0x02
+                    0x010000F0 0x45 0x09 0x08 0x08 0x26 0x2A /* Set gamma1 */
+                    0x010000F1 0x43 0x70 0x72 0x36 0x37 0x6F /* Set gamma2 */
+                    0x010000F2 0x45 0x09 0x08 0x08 0x26 0x2A /* Set gamma3 */
+                    0x010000F3 0x43 0x70 0x72 0x36 0x37 0x6F /* Set gamma4 */
+                    0x010000ED 0x1B 0x0B
+                    0x010000AE 0x77
+                    0x010000CD 0x63
+                    0x01000070 0x07 0x07 0x04 0x0E 0x0F 0x09 0x07 0x08 0x03
+                    0x010000E8 0x34 /* Frame rate */
+                    0x01000062 0x18 0x0D 0x71 0xED 0x70 0x70 0x18 0x0F 0x71 0xEF 0x70 0x70
+                    0x01000063 0x18 0x11 0x71 0xF1 0x70 0x70 0x18 0x13 0x71 0xF3 0x70 0x70
+                    0x01000064 0x28 0x29 0xF1 0x01 0xF1 0x00 0x07
+                    0x01000066 0x3C 0x00 0xCD 0x67 0x45 0x45 0x10 0x00 0x00 0x00
+                    0x01000067 0x00 0x3C 0x00 0x00 0x00 0x01 0x54 0x10 0x32 0x98
+                    0x01000074 0x10 0x85 0x80 0x00 0x00 0x4E 0x00
+                    0x01000098 0x3e 0x07
+                    0x01000035 /* Tearing effect ON */
+                    0x01000021 /* Display inversion ON */
+                    0x01000011 /* Sleep mode OFF */
+                    0x0200000C /* Delay 12ms */
+                    0x01000029 /* Display ON */
+                    0x02000014 /* Delay 20ms */
+                    >;
+            };
+        };
+    };
+
+    __overrides__ {
+        speed = <&gc9a01>,"spi-max-frequency:0";
+        rotate = <&gc9a01>,"rotate:0";
+        width = <&gc9a01>,"width:0";
+        height = <&gc9a01>,"height:0";
+        fps = <&gc9a01>,"fps:0";
+        debug = <&gc9a01>,"debug:0";
+    };
+};

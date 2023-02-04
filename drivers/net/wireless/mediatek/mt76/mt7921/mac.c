@@ -1476,7 +1476,7 @@ mt7921_mac_update_mib_stats(struct mt7921_phy *phy)
 	mib->rts_retries_cnt += mt76_get_field(dev, MT_MIB_MB_BSDR1(0),
 					       MT_MIB_RTS_FAIL_COUNT_MASK);
 
-	for (i = 0, aggr1 = aggr0 + 4; i < 4; i++) {
+	for (i = 0, aggr1 = aggr0 + 8; i < 4; i++) {
 		u32 val, val2;
 
 		val = mt76_rr(dev, MT_TX_AGG_CNT(0, i));
@@ -1571,34 +1571,6 @@ void mt7921_pm_power_save_work(struct work_struct *work)
 	}
 out:
 	queue_delayed_work(dev->mt76.wq, &dev->pm.ps_work, delta);
-}
-
-int mt7921_mac_set_beacon_filter(struct mt7921_phy *phy,
-				 struct ieee80211_vif *vif,
-				 bool enable)
-{
-	struct mt7921_dev *dev = phy->dev;
-	bool ext_phy = phy != &dev->phy;
-	int err;
-
-	if (!dev->pm.enable)
-		return -EOPNOTSUPP;
-
-	err = mt7921_mcu_set_bss_pm(dev, vif, enable);
-	if (err)
-		return err;
-
-	if (enable) {
-		vif->driver_flags |= IEEE80211_VIF_BEACON_FILTER;
-		mt76_set(dev, MT_WF_RFCR(ext_phy),
-			 MT_WF_RFCR_DROP_OTHER_BEACON);
-	} else {
-		vif->driver_flags &= ~IEEE80211_VIF_BEACON_FILTER;
-		mt76_clear(dev, MT_WF_RFCR(ext_phy),
-			   MT_WF_RFCR_DROP_OTHER_BEACON);
-	}
-
-	return 0;
 }
 
 void mt7921_coredump_work(struct work_struct *work)

@@ -236,6 +236,17 @@ struct dentry *ovl_i_dentry_upper(struct inode *inode)
 	return ovl_upperdentry_dereference(OVL_I(inode));
 }
 
+void ovl_i_path_real(struct inode *inode, struct path *path)
+{
+	path->dentry = ovl_i_dentry_upper(inode);
+	if (!path->dentry) {
+		path->dentry = OVL_I(inode)->lowerpath.dentry;
+		path->mnt = OVL_I(inode)->lowerpath.layer->mnt;
+	} else {
+		path->mnt = ovl_upper_mnt(OVL_FS(inode->i_sb));
+	}
+}
+
 struct inode *ovl_inode_upper(struct inode *inode)
 {
 	struct dentry *upperdentry = ovl_i_dentry_upper(inode);
@@ -245,7 +256,9 @@ struct inode *ovl_inode_upper(struct inode *inode)
 
 struct inode *ovl_inode_lower(struct inode *inode)
 {
-	return OVL_I(inode)->lower;
+	struct dentry *lowerdentry = OVL_I(inode)->lowerpath.dentry;
+
+	return lowerdentry ? d_inode(lowerdentry) : NULL;
 }
 
 struct inode *ovl_inode_real(struct inode *inode)
@@ -443,7 +456,7 @@ static void ovl_dir_version_inc(struct dentry *dentry, bool impurity)
 void ovl_dir_modified(struct dentry *dentry, bool impurity)
 {
 	/* Copy mtime/ctime */
-	ovl_copyattr(d_inode(ovl_dentry_upper(dentry)), d_inode(dentry));
+	ovl_copyattr(d_inode(dentry));
 
 	ovl_dir_version_inc(dentry, impurity);
 }
@@ -1059,4 +1072,34 @@ int ovl_sync_status(struct ovl_fs *ofs)
 		return 0;
 
 	return errseq_check(&mnt->mnt_sb->s_wb_err, ofs->errseq);
+}
+
+/*
+ * ovl_copyattr() - copy inode attributes from layer to ovl inode
+ *
+ * When overlay copies inode information from an upper or lower layer to the
+ * relevant overlay inode it will apply the idmapping of the upper or lower
+ * layer when doing so ensuring that the ovl inode ownership will correctly
+ * reflect the ownership of the idmapped upper or lower layer. For example, an
+ * idmapped upper or lower layer mapping id 1001 to id 1000 will take care to
+ * map any lower or upper inode owned by id 1001 to id 1000. These mapping
+ * helpers are nops when the relevant layer isn't idmapped.
+ */
+void ovl_copyattr(struct inode *inode)
+{
+	struct path realpath;
+	struct inode *realinode;
+	struct user_namespace *real_mnt_userns;
+
+	ovl_i_path_real(inode, &realpath);
+	realinode = d_inode(realpath.dentry);
+	real_mnt_userns = mnt_user_ns(realpath.mnt);
+
+	inode->i_uid = i_uid_into_mnt(real_mnt_userns, realinode);
+	inode->i_gid = i_gid_into_mnt(real_mnt_userns, realinode);
+	inode->i_mode = realinode->i_mode;
+	inode->i_atime = realinode->i_atime;
+	inode->i_mtime = realinode->i_mtime;
+	inode->i_ctime = realinode->i_ctime;
+	i_size_write(inode, i_size_read(realinode));
 }

@@ -615,11 +615,13 @@ static noinline int create_subvol(struct user_namespace *mnt_userns,
 		 * Since we don't abort the transaction in this case, free the
 		 * tree block so that we don't leak space and leave the
 		 * filesystem in an inconsistent state (an extent item in the
-		 * extent tree without backreferences). Also no need to have
-		 * the tree block locked since it is not in any tree at this
-		 * point, so no other task can find it and use it.
+		 * extent tree with a backreference for a root that does not
+		 * exists).
 		 */
-		btrfs_free_tree_block(trans, root, leaf, 0, 1);
+		btrfs_tree_lock(leaf);
+		btrfs_clean_tree_block(leaf);
+		btrfs_tree_unlock(leaf);
+		btrfs_free_tree_block(trans, objectid, leaf, 0, 1);
 		free_extent_buffer(leaf);
 		goto fail;
 	}
@@ -1655,6 +1657,7 @@ static int exclop_start_or_cancel_reloc(struct btrfs_fs_info *fs_info,
 static noinline int btrfs_ioctl_resize(struct file *file,
 					void __user *arg)
 {
+	BTRFS_DEV_LOOKUP_ARGS(args);
 	struct inode *inode = file_inode(file);
 	struct btrfs_fs_info *fs_info = btrfs_sb(inode->i_sb);
 	u64 new_size;
@@ -1710,7 +1713,8 @@ static noinline int btrfs_ioctl_resize(struct file *file,
 		btrfs_info(fs_info, "resizing devid %llu", devid);
 	}
 
-	device = btrfs_find_device(fs_info->fs_devices, devid, NULL, NULL);
+	args.devid = devid;
+	device = btrfs_find_device(fs_info->fs_devices, &args);
 	if (!device) {
 		btrfs_info(fs_info, "resizer unable to find device %llu",
 			   devid);
@@ -2784,6 +2788,8 @@ static int btrfs_ioctl_get_subvol_info(struct file *file, void __user *argp)
 		}
 	}
 
+	btrfs_free_path(path);
+	path = NULL;
 	if (copy_to_user(argp, subvol_info, sizeof(*subvol_info)))
 		ret = -EFAULT;
 
@@ -2876,6 +2882,8 @@ static int btrfs_ioctl_get_subvol_rootref(struct file *file, void __user *argp)
 	}
 
 out:
+	btrfs_free_path(path);
+
 	if (!ret || ret == -EOVERFLOW) {
 		rootrefs->num_items = found;
 		/* update min_treeid for next search */
@@ -2887,7 +2895,6 @@ out:
 	}
 
 	kfree(rootrefs);
-	btrfs_free_path(path);
 
 	return ret;
 }
@@ -3214,6 +3221,7 @@ out:
 
 static long btrfs_ioctl_rm_dev_v2(struct file *file, void __user *arg)
 {
+	BTRFS_DEV_LOOKUP_ARGS(args);
 	struct inode *inode = file_inode(file);
 	struct btrfs_fs_info *fs_info = btrfs_sb(inode->i_sb);
 	struct btrfs_ioctl_vol_args_v2 *vol_args;
@@ -3225,35 +3233,37 @@ static long btrfs_ioctl_rm_dev_v2(struct file *file, void __user *arg)
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	ret = mnt_want_write_file(file);
-	if (ret)
-		return ret;
-
 	vol_args = memdup_user(arg, sizeof(*vol_args));
-	if (IS_ERR(vol_args)) {
-		ret = PTR_ERR(vol_args);
-		goto err_drop;
-	}
+	if (IS_ERR(vol_args))
+		return PTR_ERR(vol_args);
 
 	if (vol_args->flags & ~BTRFS_DEVICE_REMOVE_ARGS_MASK) {
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
 	vol_args->name[BTRFS_SUBVOL_NAME_MAX] = '\0';
-	if (!(vol_args->flags & BTRFS_DEVICE_SPEC_BY_ID) &&
-	    strcmp("cancel", vol_args->name) == 0)
+	if (vol_args->flags & BTRFS_DEVICE_SPEC_BY_ID) {
+		args.devid = vol_args->devid;
+	} else if (!strcmp("cancel", vol_args->name)) {
 		cancel = true;
+	} else {
+		ret = btrfs_get_dev_args_from_path(fs_info, &args, vol_args->name);
+		if (ret)
+			goto out;
+	}
+
+	ret = mnt_want_write_file(file);
+	if (ret)
+		goto out;
 
 	ret = exclop_start_or_cancel_reloc(fs_info, BTRFS_EXCLOP_DEV_REMOVE,
 					   cancel);
 	if (ret)
-		goto out;
-	/* Exclusive operation is now claimed */
+		goto err_drop;
 
-	if (vol_args->flags & BTRFS_DEVICE_SPEC_BY_ID)
-		ret = btrfs_rm_device(fs_info, NULL, vol_args->devid, &bdev, &mode);
-	else
-		ret = btrfs_rm_device(fs_info, vol_args->name, 0, &bdev, &mode);
+	/* Exclusive operation is now claimed */
+	ret = btrfs_rm_device(fs_info, &args, &bdev, &mode);
 
 	btrfs_exclop_finish(fs_info);
 
@@ -3265,54 +3275,62 @@ static long btrfs_ioctl_rm_dev_v2(struct file *file, void __user *arg)
 			btrfs_info(fs_info, "device deleted: %s",
 					vol_args->name);
 	}
-out:
-	kfree(vol_args);
 err_drop:
 	mnt_drop_write_file(file);
 	if (bdev)
 		blkdev_put(bdev, mode);
+out:
+	btrfs_put_dev_args_from_path(&args);
+	kfree(vol_args);
 	return ret;
 }
 
 static long btrfs_ioctl_rm_dev(struct file *file, void __user *arg)
 {
+	BTRFS_DEV_LOOKUP_ARGS(args);
 	struct inode *inode = file_inode(file);
 	struct btrfs_fs_info *fs_info = btrfs_sb(inode->i_sb);
 	struct btrfs_ioctl_vol_args *vol_args;
 	struct block_device *bdev = NULL;
 	fmode_t mode;
 	int ret;
-	bool cancel;
+	bool cancel = false;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
+	vol_args = memdup_user(arg, sizeof(*vol_args));
+	if (IS_ERR(vol_args))
+		return PTR_ERR(vol_args);
+
+	vol_args->name[BTRFS_PATH_NAME_MAX] = '\0';
+	if (!strcmp("cancel", vol_args->name)) {
+		cancel = true;
+	} else {
+		ret = btrfs_get_dev_args_from_path(fs_info, &args, vol_args->name);
+		if (ret)
+			goto out;
+	}
+
 	ret = mnt_want_write_file(file);
 	if (ret)
-		return ret;
-
-	vol_args = memdup_user(arg, sizeof(*vol_args));
-	if (IS_ERR(vol_args)) {
-		ret = PTR_ERR(vol_args);
-		goto out_drop_write;
-	}
-	vol_args->name[BTRFS_PATH_NAME_MAX] = '\0';
-	cancel = (strcmp("cancel", vol_args->name) == 0);
+		goto out;
 
 	ret = exclop_start_or_cancel_reloc(fs_info, BTRFS_EXCLOP_DEV_REMOVE,
 					   cancel);
 	if (ret == 0) {
-		ret = btrfs_rm_device(fs_info, vol_args->name, 0, &bdev, &mode);
+		ret = btrfs_rm_device(fs_info, &args, &bdev, &mode);
 		if (!ret)
 			btrfs_info(fs_info, "disk deleted %s", vol_args->name);
 		btrfs_exclop_finish(fs_info);
 	}
 
-	kfree(vol_args);
-out_drop_write:
 	mnt_drop_write_file(file);
 	if (bdev)
 		blkdev_put(bdev, mode);
+out:
+	btrfs_put_dev_args_from_path(&args);
+	kfree(vol_args);
 	return ret;
 }
 
@@ -3373,22 +3391,21 @@ static long btrfs_ioctl_fs_info(struct btrfs_fs_info *fs_info,
 static long btrfs_ioctl_dev_info(struct btrfs_fs_info *fs_info,
 				 void __user *arg)
 {
+	BTRFS_DEV_LOOKUP_ARGS(args);
 	struct btrfs_ioctl_dev_info_args *di_args;
 	struct btrfs_device *dev;
 	int ret = 0;
-	char *s_uuid = NULL;
 
 	di_args = memdup_user(arg, sizeof(*di_args));
 	if (IS_ERR(di_args))
 		return PTR_ERR(di_args);
 
+	args.devid = di_args->devid;
 	if (!btrfs_is_empty_uuid(di_args->uuid))
-		s_uuid = di_args->uuid;
+		args.uuid = di_args->uuid;
 
 	rcu_read_lock();
-	dev = btrfs_find_device(fs_info->fs_devices, di_args->devid, s_uuid,
-				NULL);
-
+	dev = btrfs_find_device(fs_info->fs_devices, &args);
 	if (!dev) {
 		ret = -ENODEV;
 		goto out;
@@ -3398,13 +3415,10 @@ static long btrfs_ioctl_dev_info(struct btrfs_fs_info *fs_info,
 	di_args->bytes_used = btrfs_device_get_bytes_used(dev);
 	di_args->total_bytes = btrfs_device_get_total_bytes(dev);
 	memcpy(di_args->uuid, dev->uuid, sizeof(di_args->uuid));
-	if (dev->name) {
-		strncpy(di_args->path, rcu_str_deref(dev->name),
-				sizeof(di_args->path) - 1);
-		di_args->path[sizeof(di_args->path) - 1] = 0;
-	} else {
+	if (dev->name)
+		strscpy(di_args->path, rcu_str_deref(dev->name), sizeof(di_args->path));
+	else
 		di_args->path[0] = '\0';
-	}
 
 out:
 	rcu_read_unlock();
@@ -3877,6 +3891,8 @@ static long btrfs_ioctl_ino_to_path(struct btrfs_root *root, void __user *arg)
 		ipath->fspath->val[i] = rel_ptr;
 	}
 
+	btrfs_free_path(path);
+	path = NULL;
 	ret = copy_to_user((void __user *)(unsigned long)ipa->fspath,
 			   ipath->fspath, size);
 	if (ret) {
@@ -3890,26 +3906,6 @@ out:
 	kfree(ipa);
 
 	return ret;
-}
-
-static int build_ino_list(u64 inum, u64 offset, u64 root, void *ctx)
-{
-	struct btrfs_data_container *inodes = ctx;
-	const size_t c = 3 * sizeof(u64);
-
-	if (inodes->bytes_left >= c) {
-		inodes->bytes_left -= c;
-		inodes->val[inodes->elem_cnt] = inum;
-		inodes->val[inodes->elem_cnt + 1] = offset;
-		inodes->val[inodes->elem_cnt + 2] = root;
-		inodes->elem_cnt += 3;
-	} else {
-		inodes->bytes_missing += c - inodes->bytes_left;
-		inodes->bytes_left = 0;
-		inodes->elem_missed += 3;
-	}
-
-	return 0;
 }
 
 static long btrfs_ioctl_logical_to_ino(struct btrfs_fs_info *fs_info,
@@ -3947,21 +3943,20 @@ static long btrfs_ioctl_logical_to_ino(struct btrfs_fs_info *fs_info,
 		size = min_t(u32, loi->size, SZ_16M);
 	}
 
+	inodes = init_data_container(size);
+	if (IS_ERR(inodes)) {
+		ret = PTR_ERR(inodes);
+		goto out_loi;
+	}
+
 	path = btrfs_alloc_path();
 	if (!path) {
 		ret = -ENOMEM;
 		goto out;
 	}
-
-	inodes = init_data_container(size);
-	if (IS_ERR(inodes)) {
-		ret = PTR_ERR(inodes);
-		inodes = NULL;
-		goto out;
-	}
-
 	ret = iterate_inodes_from_logical(loi->logical, fs_info, path,
-					  build_ino_list, inodes, ignore_offset);
+					  inodes, ignore_offset);
+	btrfs_free_path(path);
 	if (ret == -EINVAL)
 		ret = -ENOENT;
 	if (ret < 0)
@@ -3973,7 +3968,6 @@ static long btrfs_ioctl_logical_to_ino(struct btrfs_fs_info *fs_info,
 		ret = -EFAULT;
 
 out:
-	btrfs_free_path(path);
 	kvfree(inodes);
 out_loi:
 	kfree(loi);

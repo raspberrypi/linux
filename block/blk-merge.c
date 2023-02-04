@@ -279,6 +279,16 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 	*segs = nsegs;
 	return NULL;
 split:
+	/*
+	 * We can't sanely support splitting for a REQ_NOWAIT bio. End it
+	 * with EAGAIN if splitting is required and return an error pointer.
+	 */
+	if (bio->bi_opf & REQ_NOWAIT) {
+		bio->bi_status = BLK_STS_AGAIN;
+		bio_endio(bio);
+		return ERR_PTR(-EAGAIN);
+	}
+
 	*segs = nsegs;
 
 	/*
@@ -338,11 +348,13 @@ void __blk_queue_split(struct bio **bio, unsigned int *nr_segs)
 			break;
 		}
 		split = blk_bio_segment_split(q, *bio, &q->bio_split, nr_segs);
+		if (IS_ERR(split))
+			*bio = split = NULL;
 		break;
 	}
 
 	if (split) {
-		/* there isn't chance to merge the splitted bio */
+		/* there isn't chance to merge the split bio */
 		split->bi_opf |= REQ_NOMERGE;
 
 		bio_chain(split, *bio);

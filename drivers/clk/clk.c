@@ -903,10 +903,9 @@ static void clk_core_unprepare(struct clk_core *core)
 	if (core->ops->unprepare)
 		core->ops->unprepare(core->hw);
 
-	clk_pm_runtime_put(core);
-
 	trace_clk_unprepare_complete(core);
 	clk_core_unprepare(core->parent);
+	clk_pm_runtime_put(core);
 }
 
 static void clk_core_unprepare_lock(struct clk_core *core)
@@ -2574,26 +2573,6 @@ int clk_set_max_rate(struct clk *clk, unsigned long rate)
 	return clk_set_rate_range(clk, clk->min_rate, rate);
 }
 EXPORT_SYMBOL_GPL(clk_set_max_rate);
-
-/**
- * clk_get_rate_range - returns the clock rate range for a clock source
- * @clk: clock source
- * @min: Pointer to the variable that will hold the minimum
- * @max: Pointer to the variable that will hold the maximum
- *
- * Fills the @min and @max variables with the minimum and maximum that
- * the clock source can reach.
- */
-void clk_get_rate_range(struct clk *clk, unsigned long *min, unsigned long *max)
-{
-	if (!clk || !min || !max)
-		return;
-
-	clk_prepare_lock();
-	clk_core_get_boundaries(clk->core, min, max);
-	clk_prepare_unlock();
-}
-EXPORT_SYMBOL_GPL(clk_get_rate_range);
 
 /**
  * clk_get_parent - return the parent of a clk

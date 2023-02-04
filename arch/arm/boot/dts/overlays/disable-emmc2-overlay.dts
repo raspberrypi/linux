@@ -1,0 +1,13 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target = <&emmc2>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+};

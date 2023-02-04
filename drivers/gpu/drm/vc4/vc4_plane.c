@@ -108,6 +108,18 @@ static const struct hvs_format {
 		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
 	},
 	{
+		.drm = DRM_FORMAT_YUV444,
+		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
+		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
+	},
+	{
+		.drm = DRM_FORMAT_YVU444,
+		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
+		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
+	},
+	{
 		.drm = DRM_FORMAT_YUV420,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV420_3PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
@@ -436,7 +448,7 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 {
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	struct drm_framebuffer *fb = state->fb;
-	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
+	struct drm_gem_cma_object *bo;
 	int num_planes = fb->format->num_planes;
 	struct drm_crtc_state *crtc_state;
 	u32 h_subsample = fb->format->hsub;
@@ -455,8 +467,10 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 	if (ret)
 		return ret;
 
-	for (i = 0; i < num_planes; i++)
+	for (i = 0; i < num_planes; i++) {
+		bo = drm_fb_cma_get_gem_obj(fb, i);
 		vc4_state->offsets[i] = bo->paddr + fb->offsets[i];
+	}
 
 	vc4_state->src_x = state->src.x1;
 	vc4_state->src_y = state->src.y1;
@@ -1102,6 +1116,12 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	       vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
 		height++;
 
+	/* for YUV444, the hardware wants double the width,
+	 * otherwise it doesn't fetch full width of chroma
+	 */
+	if (format->drm == DRM_FORMAT_YUV444 || format->drm == DRM_FORMAT_YVU444)
+		width <<= 1;
+
 	/* Don't waste cycles mixing with plane alpha if the set alpha
 	 * is opaque or there is no per-pixel alpha information.
 	 * In any case we use the alpha property value as the fixed alpha.
@@ -1641,8 +1661,6 @@ static bool vc4_format_mod_supported(struct drm_plane *plane,
 static const struct drm_plane_funcs vc4_plane_funcs = {
 	.update_plane = drm_atomic_helper_update_plane,
 	.disable_plane = drm_atomic_helper_disable_plane,
-	.destroy = drm_plane_cleanup,
-	.set_property = NULL,
 	.reset = vc4_plane_reset,
 	.atomic_duplicate_state = vc4_plane_duplicate_state,
 	.atomic_destroy_state = vc4_plane_destroy_state,
@@ -1650,14 +1668,14 @@ static const struct drm_plane_funcs vc4_plane_funcs = {
 };
 
 struct drm_plane *vc4_plane_init(struct drm_device *dev,
-				 enum drm_plane_type type)
+				 enum drm_plane_type type,
+				 uint32_t possible_crtcs)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct drm_plane *plane = NULL;
+	struct drm_plane *plane;
 	struct vc4_plane *vc4_plane;
 	u32 formats[ARRAY_SIZE(hvs_formats)];
 	int num_formats = 0;
-	int ret = 0;
 	unsigned i;
 	static const uint64_t modifiers[] = {
 		DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED,
@@ -1668,11 +1686,6 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 		DRM_FORMAT_MOD_INVALID
 	};
 
-	vc4_plane = devm_kzalloc(dev->dev, sizeof(*vc4_plane),
-				 GFP_KERNEL);
-	if (!vc4_plane)
-		return ERR_PTR(-ENOMEM);
-
 	for (i = 0; i < ARRAY_SIZE(hvs_formats); i++) {
 		if (!hvs_formats[i].hvs5_only || vc4->is_vc5) {
 			formats[num_formats] = hvs_formats[i].drm;
@@ -1680,13 +1693,14 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 		}
 	}
 
+	vc4_plane = drmm_universal_plane_alloc(dev, struct vc4_plane, base,
+					       possible_crtcs,
+					       &vc4_plane_funcs,
+					       formats, num_formats,
+					       modifiers, type, NULL);
+	if (IS_ERR(vc4_plane))
+		return ERR_CAST(vc4_plane);
 	plane = &vc4_plane->base;
-	ret = drm_universal_plane_init(dev, plane, 0,
-				       &vc4_plane_funcs,
-				       formats, num_formats,
-				       modifiers, type, NULL);
-	if (ret)
-		return ERR_PTR(ret);
 
 	if (vc4->is_vc5)
 		drm_plane_helper_add(plane, &vc5_plane_helper_funcs);
@@ -1740,13 +1754,11 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	 */
 	for (i = 0; i < VC4_NUM_OVERLAY_PLANES; i++) {
 		struct drm_plane *plane =
-			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY);
+			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
+				       GENMASK(drm->mode_config.num_crtc - 1, 0));
 
 		if (IS_ERR(plane))
 			continue;
-
-		plane->possible_crtcs =
-			GENMASK(drm->mode_config.num_crtc - 1, 0);
 
 		/* Create zpos property. Max of all the overlays + 1 primary +
 		 * 1 cursor plane on a crtc.
@@ -1760,9 +1772,9 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 		 * since the zpos fallback is that planes are rendered by plane
 		 * ID order, and that then puts the cursor on top.
 		 */
-		cursor_plane = vc4_plane_init(drm, DRM_PLANE_TYPE_CURSOR);
+		cursor_plane = vc4_plane_init(drm, DRM_PLANE_TYPE_CURSOR,
+					      drm_crtc_mask(crtc));
 		if (!IS_ERR(cursor_plane)) {
-			cursor_plane->possible_crtcs = drm_crtc_mask(crtc);
 			crtc->cursor = cursor_plane;
 
 			drm_plane_create_zpos_property(cursor_plane,

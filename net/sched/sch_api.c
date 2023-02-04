@@ -1081,11 +1081,12 @@ static int qdisc_graft(struct net_device *dev, struct Qdisc *parent,
 
 skip:
 		if (!ingress) {
-			notify_and_destroy(net, skb, n, classid,
-					   rtnl_dereference(dev->qdisc), new);
+			old = rtnl_dereference(dev->qdisc);
 			if (new && !new->ops->attach)
 				qdisc_refcount_inc(new);
 			rcu_assign_pointer(dev->qdisc, new ? : &noop_qdisc);
+
+			notify_and_destroy(net, skb, n, classid, old, new);
 
 			if (new && new->ops->attach)
 				new->ops->attach(new);
@@ -1111,6 +1112,11 @@ skip:
 		if (!cl) {
 			NL_SET_ERR_MSG(extack, "Specified class not found");
 			return -ENOENT;
+		}
+
+		if (new && new->ops == &noqueue_qdisc_ops) {
+			NL_SET_ERR_MSG(extack, "Cannot assign noqueue to a class");
+			return -EINVAL;
 		}
 
 		err = cops->graft(parent, cl, new, &old, extack);

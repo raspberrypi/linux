@@ -459,6 +459,47 @@ int __must_check devm_clk_bulk_get_all(struct device *dev,
 struct clk *devm_clk_get(struct device *dev, const char *id);
 
 /**
+ * devm_clk_get_prepared - devm_clk_get() + clk_prepare()
+ * @dev: device for clock "consumer"
+ * @id: clock consumer ID
+ *
+ * Context: May sleep.
+ *
+ * Return: a struct clk corresponding to the clock producer, or
+ * valid IS_ERR() condition containing errno.  The implementation
+ * uses @dev and @id to determine the clock consumer, and thereby
+ * the clock producer.  (IOW, @id may be identical strings, but
+ * clk_get may return different clock producers depending on @dev.)
+ *
+ * The returned clk (if valid) is prepared. Drivers must however assume
+ * that the clock is not enabled.
+ *
+ * The clock will automatically be unprepared and freed when the device
+ * is unbound from the bus.
+ */
+struct clk *devm_clk_get_prepared(struct device *dev, const char *id);
+
+/**
+ * devm_clk_get_enabled - devm_clk_get() + clk_prepare_enable()
+ * @dev: device for clock "consumer"
+ * @id: clock consumer ID
+ *
+ * Context: May sleep.
+ *
+ * Return: a struct clk corresponding to the clock producer, or
+ * valid IS_ERR() condition containing errno.  The implementation
+ * uses @dev and @id to determine the clock consumer, and thereby
+ * the clock producer.  (IOW, @id may be identical strings, but
+ * clk_get may return different clock producers depending on @dev.)
+ *
+ * The returned clk (if valid) is prepared and enabled.
+ *
+ * The clock will automatically be disabled, unprepared and freed
+ * when the device is unbound from the bus.
+ */
+struct clk *devm_clk_get_enabled(struct device *dev, const char *id);
+
+/**
  * devm_clk_get_optional - lookup and obtain a managed reference to an optional
  *			   clock producer.
  * @dev: device for clock "consumer"
@@ -468,6 +509,50 @@ struct clk *devm_clk_get(struct device *dev, const char *id);
  * In this case, instead of returning -ENOENT, the function returns NULL.
  */
 struct clk *devm_clk_get_optional(struct device *dev, const char *id);
+
+/**
+ * devm_clk_get_optional_prepared - devm_clk_get_optional() + clk_prepare()
+ * @dev: device for clock "consumer"
+ * @id: clock consumer ID
+ *
+ * Context: May sleep.
+ *
+ * Return: a struct clk corresponding to the clock producer, or
+ * valid IS_ERR() condition containing errno.  The implementation
+ * uses @dev and @id to determine the clock consumer, and thereby
+ * the clock producer.  If no such clk is found, it returns NULL
+ * which serves as a dummy clk.  That's the only difference compared
+ * to devm_clk_get_prepared().
+ *
+ * The returned clk (if valid) is prepared. Drivers must however
+ * assume that the clock is not enabled.
+ *
+ * The clock will automatically be unprepared and freed when the
+ * device is unbound from the bus.
+ */
+struct clk *devm_clk_get_optional_prepared(struct device *dev, const char *id);
+
+/**
+ * devm_clk_get_optional_enabled - devm_clk_get_optional() +
+ *                                 clk_prepare_enable()
+ * @dev: device for clock "consumer"
+ * @id: clock consumer ID
+ *
+ * Context: May sleep.
+ *
+ * Return: a struct clk corresponding to the clock producer, or
+ * valid IS_ERR() condition containing errno.  The implementation
+ * uses @dev and @id to determine the clock consumer, and thereby
+ * the clock producer.  If no such clk is found, it returns NULL
+ * which serves as a dummy clk.  That's the only difference compared
+ * to devm_clk_get_enabled().
+ *
+ * The returned clk (if valid) is prepared and enabled.
+ *
+ * The clock will automatically be disabled, unprepared and freed
+ * when the device is unbound from the bus.
+ */
+struct clk *devm_clk_get_optional_enabled(struct device *dev, const char *id);
 
 /**
  * devm_get_clk_from_child - lookup and obtain a managed reference to a
@@ -714,17 +799,6 @@ bool clk_has_parent(struct clk *clk, struct clk *parent);
 int clk_set_rate_range(struct clk *clk, unsigned long min, unsigned long max);
 
 /**
- * clk_get_rate_range - returns the clock rate range for a clock source
- * @clk: clock source
- * @min: Pointer to the variable that will hold the minimum
- * @max: Pointer to the variable that will hold the maximum
- *
- * Fills the @min and @max variables with the minimum and maximum that
- * the clock source can reach.
- */
-void clk_get_rate_range(struct clk *clk, unsigned long *min, unsigned long *max);
-
-/**
  * clk_set_min_rate - set a minimum clock rate for a clock source
  * @clk: clock source
  * @rate: desired minimum clock rate in Hz, inclusive
@@ -825,8 +899,32 @@ static inline struct clk *devm_clk_get(struct device *dev, const char *id)
 	return NULL;
 }
 
+static inline struct clk *devm_clk_get_prepared(struct device *dev,
+						const char *id)
+{
+	return NULL;
+}
+
+static inline struct clk *devm_clk_get_enabled(struct device *dev,
+					       const char *id)
+{
+	return NULL;
+}
+
 static inline struct clk *devm_clk_get_optional(struct device *dev,
 						const char *id)
+{
+	return NULL;
+}
+
+static inline struct clk *devm_clk_get_optional_prepared(struct device *dev,
+							 const char *id)
+{
+	return NULL;
+}
+
+static inline struct clk *devm_clk_get_optional_enabled(struct device *dev,
+							const char *id)
 {
 	return NULL;
 }
@@ -920,16 +1018,6 @@ static inline int clk_set_rate_range(struct clk *clk, unsigned long min,
 	return 0;
 }
 
-static inline void clk_get_rate_range(struct clk *clk, unsigned long *min,
-				      unsigned long *max)
-{
-	if (!min || !max)
-		return;
-
-	*min = 0;
-	*max = ULONG_MAX;
-}
-
 static inline int clk_set_min_rate(struct clk *clk, unsigned long rate)
 {
 	return 0;
@@ -1017,44 +1105,6 @@ static inline void clk_bulk_disable_unprepare(int num_clks,
 static inline int clk_drop_range(struct clk *clk)
 {
 	return clk_set_rate_range(clk, 0, ULONG_MAX);
-}
-
-/**
- * clk_get_min_rate - returns the minimum clock rate for a clock source
- * @clk: clock source
- *
- * Returns either the minimum clock rate in Hz that clock source can
- * reach, or 0 on error.
- */
-static inline unsigned long clk_get_min_rate(struct clk *clk)
-{
-	unsigned long min, max;
-
-	if (!clk)
-		return 0;
-
-	clk_get_rate_range(clk, &min, &max);
-
-	return min;
-}
-
-/**
- * clk_get_max_rate - returns the maximum clock rate for a clock source
- * @clk: clock source
- *
- * Returns either the maximum clock rate in Hz that clock source can
- * reach, or 0 on error.
- */
-static inline unsigned long clk_get_max_rate(struct clk *clk)
-{
-	unsigned long min, max;
-
-	if (!clk)
-		return 0;
-
-	clk_get_rate_range(clk, &min, &max);
-
-	return max;
 }
 
 /**

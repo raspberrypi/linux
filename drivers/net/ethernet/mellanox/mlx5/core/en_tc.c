@@ -1342,10 +1342,10 @@ int mlx5e_tc_query_route_vport(struct net_device *out_dev, struct net_device *ro
 }
 
 int mlx5e_tc_add_flow_mod_hdr(struct mlx5e_priv *priv,
-			      struct mlx5e_tc_flow_parse_attr *parse_attr,
-			      struct mlx5e_tc_flow *flow)
+			      struct mlx5e_tc_flow *flow,
+			      struct mlx5_flow_attr *attr)
 {
-	struct mlx5e_tc_mod_hdr_acts *mod_hdr_acts = &parse_attr->mod_hdr_acts;
+	struct mlx5e_tc_mod_hdr_acts *mod_hdr_acts = &attr->parse_attr->mod_hdr_acts;
 	struct mlx5_modify_hdr *mod_hdr;
 
 	mod_hdr = mlx5_modify_header_alloc(priv->mdev,
@@ -1355,8 +1355,8 @@ int mlx5e_tc_add_flow_mod_hdr(struct mlx5e_priv *priv,
 	if (IS_ERR(mod_hdr))
 		return PTR_ERR(mod_hdr);
 
-	WARN_ON(flow->attr->modify_hdr);
-	flow->attr->modify_hdr = mod_hdr;
+	WARN_ON(attr->modify_hdr);
+	attr->modify_hdr = mod_hdr;
 
 	return 0;
 }
@@ -1457,7 +1457,7 @@ mlx5e_tc_add_fdb_flow(struct mlx5e_priv *priv,
 	if (attr->action & MLX5_FLOW_CONTEXT_ACTION_MOD_HDR &&
 	    !(attr->ct_attr.ct_action & TCA_CT_ACT_CLEAR)) {
 		if (vf_tun) {
-			err = mlx5e_tc_add_flow_mod_hdr(priv, parse_attr, flow);
+			err = mlx5e_tc_add_flow_mod_hdr(priv, flow, attr);
 			if (err)
 				goto err_out;
 		} else {
@@ -3291,37 +3291,68 @@ out_ok:
 	return true;
 }
 
-static bool actions_match_supported(struct mlx5e_priv *priv,
-				    struct flow_action *flow_action,
-				    struct mlx5e_tc_flow_parse_attr *parse_attr,
-				    struct mlx5e_tc_flow *flow,
-				    struct netlink_ext_ack *extack)
+static bool
+actions_match_supported_fdb(struct mlx5e_priv *priv,
+			    struct mlx5e_tc_flow_parse_attr *parse_attr,
+			    struct mlx5e_tc_flow *flow,
+			    struct netlink_ext_ack *extack)
 {
-	bool ct_flow = false, ct_clear = false;
-	u32 actions;
+	bool ct_flow, ct_clear;
 
-	ct_clear = flow->attr->ct_attr.ct_action &
-		TCA_CT_ACT_CLEAR;
+	ct_clear = flow->attr->ct_attr.ct_action & TCA_CT_ACT_CLEAR;
 	ct_flow = flow_flag_test(flow, CT) && !ct_clear;
-	actions = flow->attr->action;
 
-	if (mlx5e_is_eswitch_flow(flow)) {
-		if (flow->attr->esw_attr->split_count && ct_flow &&
-		    !MLX5_CAP_GEN(flow->attr->esw_attr->in_mdev, reg_c_preserve)) {
-			/* All registers used by ct are cleared when using
-			 * split rules.
-			 */
-			NL_SET_ERR_MSG_MOD(extack,
-					   "Can't offload mirroring with action ct");
-			return false;
-		}
+	if (flow->attr->esw_attr->split_count && ct_flow &&
+	    !MLX5_CAP_GEN(flow->attr->esw_attr->in_mdev, reg_c_preserve)) {
+		/* All registers used by ct are cleared when using
+		 * split rules.
+		 */
+		NL_SET_ERR_MSG_MOD(extack, "Can't offload mirroring with action ct");
+		return false;
 	}
 
-	if (actions & MLX5_FLOW_CONTEXT_ACTION_MOD_HDR)
-		return modify_header_match_supported(priv, &parse_attr->spec,
-						     flow_action, actions,
-						     ct_flow, ct_clear,
-						     extack);
+	return true;
+}
+
+static bool
+actions_match_supported(struct mlx5e_priv *priv,
+			struct flow_action *flow_action,
+			struct mlx5e_tc_flow_parse_attr *parse_attr,
+			struct mlx5e_tc_flow *flow,
+			struct netlink_ext_ack *extack)
+{
+	u32 actions = flow->attr->action;
+	bool ct_flow, ct_clear;
+
+	ct_clear = flow->attr->ct_attr.ct_action & TCA_CT_ACT_CLEAR;
+	ct_flow = flow_flag_test(flow, CT) && !ct_clear;
+
+	if (!(actions &
+	      (MLX5_FLOW_CONTEXT_ACTION_FWD_DEST | MLX5_FLOW_CONTEXT_ACTION_DROP))) {
+		NL_SET_ERR_MSG_MOD(extack, "Rule must have at least one forward/drop action");
+		return false;
+	}
+
+	if (!(~actions &
+	      (MLX5_FLOW_CONTEXT_ACTION_FWD_DEST | MLX5_FLOW_CONTEXT_ACTION_DROP))) {
+		NL_SET_ERR_MSG_MOD(extack, "Rule cannot support forward+drop action");
+		return false;
+	}
+
+	if (actions & MLX5_FLOW_CONTEXT_ACTION_MOD_HDR &&
+	    actions & MLX5_FLOW_CONTEXT_ACTION_DROP) {
+		NL_SET_ERR_MSG_MOD(extack, "Drop with modify header action is not supported");
+		return false;
+	}
+
+	if (actions & MLX5_FLOW_CONTEXT_ACTION_MOD_HDR &&
+	    !modify_header_match_supported(priv, &parse_attr->spec, flow_action,
+					   actions, ct_flow, ct_clear, extack))
+		return false;
+
+	if (mlx5e_is_eswitch_flow(flow) &&
+	    !actions_match_supported_fdb(priv, parse_attr, flow, extack))
+		return false;
 
 	return true;
 }
@@ -3566,7 +3597,8 @@ static int parse_tc_nic_actions(struct mlx5e_priv *priv,
 			if (err)
 				return err;
 
-			action |= MLX5_FLOW_CONTEXT_ACTION_COUNT;
+			action |= MLX5_FLOW_CONTEXT_ACTION_FWD_DEST |
+				  MLX5_FLOW_CONTEXT_ACTION_COUNT;
 			attr->dest_chain = act->chain_index;
 			break;
 		case FLOW_ACTION_CT:
@@ -3601,12 +3633,9 @@ static int parse_tc_nic_actions(struct mlx5e_priv *priv,
 
 	attr->action = action;
 
-	if (attr->dest_chain) {
-		if (attr->action & MLX5_FLOW_CONTEXT_ACTION_FWD_DEST) {
-			NL_SET_ERR_MSG(extack, "Mirroring goto chain rules isn't supported");
-			return -EOPNOTSUPP;
-		}
-		attr->action |= MLX5_FLOW_CONTEXT_ACTION_FWD_DEST;
+	if (attr->dest_chain && parse_attr->mirred_ifindex[0]) {
+		NL_SET_ERR_MSG(extack, "Mirroring goto chain rules isn't supported");
+		return -EOPNOTSUPP;
 	}
 
 	if (attr->action & MLX5_FLOW_CONTEXT_ACTION_MOD_HDR)
@@ -4115,7 +4144,8 @@ static int parse_tc_fdb_actions(struct mlx5e_priv *priv,
 			if (err)
 				return err;
 
-			action |= MLX5_FLOW_CONTEXT_ACTION_COUNT;
+			action |= MLX5_FLOW_CONTEXT_ACTION_FWD_DEST |
+				  MLX5_FLOW_CONTEXT_ACTION_COUNT;
 			attr->dest_chain = act->chain_index;
 			break;
 		case FLOW_ACTION_CT:
@@ -4187,30 +4217,17 @@ static int parse_tc_fdb_actions(struct mlx5e_priv *priv,
 	if (!actions_match_supported(priv, flow_action, parse_attr, flow, extack))
 		return -EOPNOTSUPP;
 
-	if (attr->dest_chain) {
-		if (decap) {
-			/* It can be supported if we'll create a mapping for
-			 * the tunnel device only (without tunnel), and set
-			 * this tunnel id with this decap flow.
-			 *
-			 * On restore (miss), we'll just set this saved tunnel
-			 * device.
-			 */
+	if (attr->dest_chain && decap) {
+		/* It can be supported if we'll create a mapping for
+		 * the tunnel device only (without tunnel), and set
+		 * this tunnel id with this decap flow.
+		 *
+		 * On restore (miss), we'll just set this saved tunnel
+		 * device.
+		 */
 
-			NL_SET_ERR_MSG(extack,
-				       "Decap with goto isn't supported");
-			netdev_warn(priv->netdev,
-				    "Decap with goto isn't supported");
-			return -EOPNOTSUPP;
-		}
-
-		attr->action |= MLX5_FLOW_CONTEXT_ACTION_FWD_DEST;
-	}
-
-	if (!(attr->action &
-	      (MLX5_FLOW_CONTEXT_ACTION_FWD_DEST | MLX5_FLOW_CONTEXT_ACTION_DROP))) {
-		NL_SET_ERR_MSG_MOD(extack,
-				   "Rule must have at least one forward/drop action");
+		NL_SET_ERR_MSG(extack, "Decap with goto isn't supported");
+		netdev_warn(priv->netdev, "Decap with goto isn't supported");
 		return -EOPNOTSUPP;
 	}
 

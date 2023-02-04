@@ -1025,7 +1025,7 @@ static int mxcmci_probe(struct platform_device *pdev)
 	mmc->max_req_size = mmc->max_blk_size * mmc->max_blk_count;
 	mmc->max_seg_size = mmc->max_req_size;
 
-	host->devtype = (enum mxcmci_type)of_device_get_match_data(&pdev->dev);
+	host->devtype = (uintptr_t)of_device_get_match_data(&pdev->dev);
 
 	/* adjust max_segs after devtype detection */
 	if (!is_mpc512x_mmc(host))
@@ -1143,7 +1143,9 @@ static int mxcmci_probe(struct platform_device *pdev)
 
 	timer_setup(&host->watchdog, mxcmci_watchdog, 0);
 
-	mmc_add_host(mmc);
+	ret = mmc_add_host(mmc);
+	if (ret)
+		goto out_free_dma;
 
 	return 0;
 

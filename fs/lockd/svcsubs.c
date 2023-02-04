@@ -176,7 +176,7 @@ nlm_delete_file(struct nlm_file *file)
 	}
 }
 
-static int nlm_unlock_files(struct nlm_file *file)
+static int nlm_unlock_files(struct nlm_file *file, const struct file_lock *fl)
 {
 	struct file_lock lock;
 
@@ -184,11 +184,15 @@ static int nlm_unlock_files(struct nlm_file *file)
 	lock.fl_type  = F_UNLCK;
 	lock.fl_start = 0;
 	lock.fl_end   = OFFSET_MAX;
-	if (file->f_file[O_RDONLY] &&
-	    vfs_lock_file(file->f_file[O_RDONLY], F_SETLK, &lock, NULL))
+	lock.fl_owner = fl->fl_owner;
+	lock.fl_pid   = fl->fl_pid;
+	lock.fl_flags = FL_POSIX;
+
+	lock.fl_file = file->f_file[O_RDONLY];
+	if (lock.fl_file && vfs_lock_file(lock.fl_file, F_SETLK, &lock, NULL))
 		goto out_err;
-	if (file->f_file[O_WRONLY] &&
-	    vfs_lock_file(file->f_file[O_WRONLY], F_SETLK, &lock, NULL))
+	lock.fl_file = file->f_file[O_WRONLY];
+	if (lock.fl_file && vfs_lock_file(lock.fl_file, F_SETLK, &lock, NULL))
 		goto out_err;
 	return 0;
 out_err:
@@ -225,7 +229,7 @@ again:
 		if (match(lockhost, host)) {
 
 			spin_unlock(&flctx->flc_lock);
-			if (nlm_unlock_files(file))
+			if (nlm_unlock_files(file, fl))
 				return 1;
 			goto again;
 		}
@@ -282,11 +286,10 @@ nlm_file_inuse(struct nlm_file *file)
 
 static void nlm_close_files(struct nlm_file *file)
 {
-	struct file *f;
-
-	for (f = file->f_file[0]; f <= file->f_file[1]; f++)
-		if (f)
-			nlmsvc_ops->fclose(f);
+	if (file->f_file[O_RDONLY])
+		nlmsvc_ops->fclose(file->f_file[O_RDONLY]);
+	if (file->f_file[O_WRONLY])
+		nlmsvc_ops->fclose(file->f_file[O_WRONLY]);
 }
 
 /*

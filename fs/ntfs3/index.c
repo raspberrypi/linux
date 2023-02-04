@@ -1017,6 +1017,12 @@ ok:
 		err = 0;
 	}
 
+	/* check for index header length */
+	if (offsetof(struct INDEX_BUFFER, ihdr) + ib->ihdr.used > bytes) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	in->index = ib;
 	*node = in;
 
@@ -1994,7 +2000,7 @@ static int indx_free_children(struct ntfs_index *indx, struct ntfs_inode *ni,
 			      const struct NTFS_DE *e, bool trim)
 {
 	int err;
-	struct indx_node *n;
+	struct indx_node *n = NULL;
 	struct INDEX_HDR *hdr;
 	CLST vbn = de_get_vbn(e);
 	size_t i;

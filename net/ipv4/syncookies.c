@@ -249,12 +249,12 @@ bool cookie_timestamp_decode(const struct net *net,
 		return true;
 	}
 
-	if (!net->ipv4.sysctl_tcp_timestamps)
+	if (!READ_ONCE(net->ipv4.sysctl_tcp_timestamps))
 		return false;
 
 	tcp_opt->sack_ok = (options & TS_OPT_SACK) ? TCP_SACK_SEEN : 0;
 
-	if (tcp_opt->sack_ok && !net->ipv4.sysctl_tcp_sack)
+	if (tcp_opt->sack_ok && !READ_ONCE(net->ipv4.sysctl_tcp_sack))
 		return false;
 
 	if ((options & TS_OPT_WSCALE_MASK) == TS_OPT_WSCALE_MASK)
@@ -263,7 +263,7 @@ bool cookie_timestamp_decode(const struct net *net,
 	tcp_opt->wscale_ok = 1;
 	tcp_opt->snd_wscale = options & TS_OPT_WSCALE_MASK;
 
-	return net->ipv4.sysctl_tcp_window_scaling != 0;
+	return READ_ONCE(net->ipv4.sysctl_tcp_window_scaling) != 0;
 }
 EXPORT_SYMBOL(cookie_timestamp_decode);
 
@@ -275,7 +275,7 @@ bool cookie_ecn_ok(const struct tcp_options_received *tcp_opt,
 	if (!ecn_ok)
 		return false;
 
-	if (net->ipv4.sysctl_tcp_ecn)
+	if (READ_ONCE(net->ipv4.sysctl_tcp_ecn))
 		return true;
 
 	return dst_feature(dst, RTAX_FEATURE_ECN);
@@ -290,12 +290,11 @@ struct request_sock *cookie_tcp_reqsk_alloc(const struct request_sock_ops *ops,
 	struct tcp_request_sock *treq;
 	struct request_sock *req;
 
-#ifdef CONFIG_MPTCP
 	if (sk_is_mptcp(sk))
-		ops = &mptcp_subflow_request_sock_ops;
-#endif
+		req = mptcp_subflow_reqsk_alloc(ops, sk, false);
+	else
+		req = inet_reqsk_alloc(ops, sk, false);
 
-	req = inet_reqsk_alloc(ops, sk, false);
 	if (!req)
 		return NULL;
 
@@ -342,7 +341,8 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 	struct flowi4 fl4;
 	u32 tsoff = 0;
 
-	if (!sock_net(sk)->ipv4.sysctl_tcp_syncookies || !th->ack || th->rst)
+	if (!READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syncookies) ||
+	    !th->ack || th->rst)
 		goto out;
 
 	if (tcp_synq_no_recent_overflow(sk))

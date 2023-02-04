@@ -25,6 +25,8 @@
 #include <media/videobuf2-core.h>
 #include <media/v4l2-mem2mem.h>
 
+#include <soc/bcm2835/raspberrypi-firmware.h>
+
 #include "rpivid.h"
 #include "rpivid_hw.h"
 
@@ -303,6 +305,8 @@ void rpivid_hw_irq_active2_irq(struct rpivid_dev *dev,
 
 int rpivid_hw_probe(struct rpivid_dev *dev)
 {
+	struct rpi_firmware *firmware;
+	struct device_node *node;
 	struct resource *res;
 	__u32 irq_stat;
 	int irq_dec;
@@ -330,6 +334,19 @@ int rpivid_hw_probe(struct rpivid_dev *dev)
 	dev->clock = devm_clk_get(&dev->pdev->dev, "hevc");
 	if (IS_ERR(dev->clock))
 		return PTR_ERR(dev->clock);
+
+	node = rpi_firmware_find_node();
+	if (!node)
+		return -EINVAL;
+
+	firmware = rpi_firmware_get(node);
+	of_node_put(node);
+	if (!firmware)
+		return -EPROBE_DEFER;
+
+	dev->max_clock_rate = rpi_firmware_clk_get_max_rate(firmware,
+							    RPI_FIRMWARE_HEVC_CLK_ID);
+	rpi_firmware_put(firmware);
 
 	dev->cache_align = dma_get_cache_alignment();
 

@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/firmware.h>
 #include <linux/dmi.h>
+#include <linux/of.h>
 #include <asm/unaligned.h>
 
 #include <net/bluetooth/bluetooth.h>
@@ -29,7 +30,7 @@
 #define BDADDR_BCM43341B (&(bdaddr_t) {{0xac, 0x1f, 0x00, 0x1b, 0x34, 0x43}})
 
 #define BCM_FW_NAME_LEN			64
-#define BCM_FW_NAME_COUNT_MAX		2
+#define BCM_FW_NAME_COUNT_MAX		3
 /* For kmalloc-ing the fw-name array instead of putting it on the stack */
 typedef char bcm_fw_name[BCM_FW_NAME_LEN];
 
@@ -453,6 +454,8 @@ static const struct bcm_subver_table bcm_uart_subver_table[] = {
 	{ 0x6606, "BCM4345C5"	},	/* 003.006.006 */
 	{ 0x230f, "BCM4356A2"	},	/* 001.003.015 */
 	{ 0x220e, "BCM20702A1"  },	/* 001.002.014 */
+	{ 0x420d, "BCM4349B1"	},	/* 002.002.013 */
+	{ 0x420e, "BCM4349B1"	},	/* 002.002.014 */
 	{ 0x4217, "BCM4329B1"   },	/* 002.002.023 */
 	{ 0x6106, "BCM4359C0"	},	/* 003.001.006 */
 	{ 0x4106, "BCM4335A0"	},	/* 002.001.006 */
@@ -483,6 +486,8 @@ int btbcm_initialize(struct hci_dev *hdev, bool *fw_load_done)
 	struct hci_rp_read_local_version *ver;
 	const struct bcm_subver_table *bcm_subver_table;
 	const char *hw_name = NULL;
+	struct device_node *root;
+	char *board_type = NULL;
 	char postfix[16] = "";
 	int fw_name_count = 0;
 	bcm_fw_name *fw_name;
@@ -548,6 +553,30 @@ int btbcm_initialize(struct hci_dev *hdev, bool *fw_load_done)
 	if (!fw_name)
 		return -ENOMEM;
 
+	root = of_find_node_by_path("/");
+	if (root) {
+		int i, len;
+		const char *tmp;
+
+		of_property_read_string_index(root, "compatible", 0, &tmp);
+
+		/* convert '/'s in the compatible string to '-'s */
+		len = strlen(tmp) + 1;
+		board_type = kzalloc(len, GFP_KERNEL);
+		strscpy(board_type, tmp, len);
+		for (i = 0; i < board_type[i]; i++) {
+			if (board_type[i] == '/')
+				board_type[i] = '-';
+		}
+
+		of_node_put(root);
+	}
+
+	if (hw_name && board_type &&
+	    snprintf(fw_name[fw_name_count], BCM_FW_NAME_LEN,
+		     "brcm/%s.%s.hcd", hw_name, board_type) < BCM_FW_NAME_LEN)
+		fw_name_count++;
+
 	if (hw_name) {
 		snprintf(fw_name[fw_name_count], BCM_FW_NAME_LEN,
 			 "brcm/%s%s.hcd", hw_name, postfix);
@@ -581,6 +610,7 @@ int btbcm_initialize(struct hci_dev *hdev, bool *fw_load_done)
 	}
 
 	kfree(fw_name);
+	kfree(board_type);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(btbcm_initialize);

@@ -199,8 +199,8 @@ vc4_hvs_get_new_global_state(struct drm_atomic_state *state)
 	struct drm_private_state *priv_state;
 
 	priv_state = drm_atomic_get_new_private_obj_state(state, &vc4->hvs_channels);
-	if (IS_ERR(priv_state))
-		return ERR_CAST(priv_state);
+	if (!priv_state)
+		return ERR_PTR(-EINVAL);
 
 	return to_vc4_hvs_state(priv_state);
 }
@@ -212,8 +212,8 @@ vc4_hvs_get_old_global_state(struct drm_atomic_state *state)
 	struct drm_private_state *priv_state;
 
 	priv_state = drm_atomic_get_old_private_obj_state(state, &vc4->hvs_channels);
-	if (IS_ERR(priv_state))
-		return ERR_CAST(priv_state);
+	if (!priv_state)
+		return ERR_PTR(-EINVAL);
 
 	return to_vc4_hvs_state(priv_state);
 }
@@ -354,7 +354,6 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	struct vc4_hvs_state *new_hvs_state;
 	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
-	unsigned long max_clock_rate = hvs ? clk_get_max_rate(hvs->core_clk) : 0;
 	unsigned int channel;
 	int i;
 
@@ -399,7 +398,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		unsigned long state_rate = max(old_hvs_state->core_clock_rate,
 					       new_hvs_state->core_clock_rate);
 		unsigned long core_rate = clamp_t(unsigned long, state_rate,
-						  500000000, max_clock_rate);
+						  500000000, hvs->max_core_rate);
 
 		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
 	}
@@ -429,8 +428,8 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 
 	if (vc4->is_vc5 && !vc4->firmware_kms) {
 		unsigned long core_rate = min_t(unsigned long,
-					       max_clock_rate,
-					       new_hvs_state->core_clock_rate);
+						hvs->max_core_rate,
+						new_hvs_state->core_clock_rate);
 
 		drm_dbg(dev, "Running the core clock at %lu Hz\n", core_rate);
 

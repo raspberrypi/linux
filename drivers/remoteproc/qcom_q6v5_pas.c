@@ -87,6 +87,9 @@ static void adsp_minidump(struct rproc *rproc)
 {
 	struct qcom_adsp *adsp = rproc->priv;
 
+	if (rproc->dump_conf == RPROC_COREDUMP_DISABLED)
+		return;
+
 	qcom_minidump(rproc, adsp->minidump_id);
 }
 
@@ -383,6 +386,7 @@ static int adsp_alloc_memory_region(struct qcom_adsp *adsp)
 	}
 
 	ret = of_address_to_resource(node, 0, &r);
+	of_node_put(node);
 	if (ret)
 		return ret;
 
@@ -495,6 +499,7 @@ detach_proxy_pds:
 detach_active_pds:
 	adsp_pds_detach(adsp, adsp->active_pds, adsp->active_pd_count);
 free_rproc:
+	device_init_wakeup(adsp->dev, false);
 	rproc_free(rproc);
 
 	return ret;
@@ -510,6 +515,8 @@ static int adsp_remove(struct platform_device *pdev)
 	qcom_remove_sysmon_subdev(adsp->sysmon);
 	qcom_remove_smd_subdev(adsp->rproc, &adsp->smd_subdev);
 	qcom_remove_ssr_subdev(adsp->rproc, &adsp->ssr_subdev);
+	adsp_pds_detach(adsp, adsp->proxy_pds, adsp->proxy_pd_count);
+	device_init_wakeup(adsp->dev, false);
 	rproc_free(adsp->rproc);
 
 	return 0;

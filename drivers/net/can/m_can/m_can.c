@@ -532,7 +532,7 @@ static int m_can_read_fifo(struct net_device *dev, u32 rxfs)
 	stats->rx_packets++;
 	stats->rx_bytes += cf->len;
 
-	timestamp = FIELD_GET(RX_BUF_RXTS_MASK, fifo_header.dlc);
+	timestamp = FIELD_GET(RX_BUF_RXTS_MASK, fifo_header.dlc) << 16;
 
 	m_can_receive_skb(cdev, skb, timestamp);
 
@@ -1043,7 +1043,7 @@ static int m_can_echo_tx_event(struct net_device *dev)
 		}
 
 		msg_mark = FIELD_GET(TX_EVENT_MM_MASK, txe);
-		timestamp = FIELD_GET(TX_EVENT_TXTS_MASK, txe);
+		timestamp = FIELD_GET(TX_EVENT_TXTS_MASK, txe) << 16;
 
 		/* ack txe element */
 		m_can_write(cdev, M_CAN_TXEFA, FIELD_PREP(TXEFA_EFAI_MASK,
@@ -1248,10 +1248,17 @@ static int m_can_set_bittiming(struct net_device *dev)
  * - setup bittiming
  * - configure timestamp generation
  */
-static void m_can_chip_config(struct net_device *dev)
+static int m_can_chip_config(struct net_device *dev)
 {
 	struct m_can_classdev *cdev = netdev_priv(dev);
 	u32 cccr, test;
+	int err;
+
+	err = m_can_init_ram(cdev);
+	if (err) {
+		dev_err(cdev->dev, "Message RAM configuration failed\n");
+		return err;
+	}
 
 	m_can_config_endisable(cdev, true);
 
@@ -1367,24 +1374,33 @@ static void m_can_chip_config(struct net_device *dev)
 	/* enable internal timestamp generation, with a prescalar of 16. The
 	 * prescalar is applied to the nominal bit timing
 	 */
-	m_can_write(cdev, M_CAN_TSCC, FIELD_PREP(TSCC_TCP_MASK, 0xf));
+	m_can_write(cdev, M_CAN_TSCC,
+		    FIELD_PREP(TSCC_TCP_MASK, 0xf) |
+		    FIELD_PREP(TSCC_TSS_MASK, TSCC_TSS_INTERNAL));
 
 	m_can_config_endisable(cdev, false);
 
 	if (cdev->ops->init)
 		cdev->ops->init(cdev);
+
+	return 0;
 }
 
-static void m_can_start(struct net_device *dev)
+static int m_can_start(struct net_device *dev)
 {
 	struct m_can_classdev *cdev = netdev_priv(dev);
+	int ret;
 
 	/* basic m_can configuration */
-	m_can_chip_config(dev);
+	ret = m_can_chip_config(dev);
+	if (ret)
+		return ret;
 
 	cdev->can.state = CAN_STATE_ERROR_ACTIVE;
 
 	m_can_enable_all_interrupts(cdev);
+
+	return 0;
 }
 
 static int m_can_set_mode(struct net_device *dev, enum can_mode mode)
@@ -1822,7 +1838,9 @@ static int m_can_open(struct net_device *dev)
 	}
 
 	/* start the m_can controller */
-	m_can_start(dev);
+	err = m_can_start(dev);
+	if (err)
+		goto exit_irq_fail;
 
 	can_led_event(dev, CAN_LED_EVENT_OPEN);
 
@@ -1929,7 +1947,7 @@ int m_can_class_get_clocks(struct m_can_classdev *cdev)
 	cdev->hclk = devm_clk_get(cdev->dev, "hclk");
 	cdev->cclk = devm_clk_get(cdev->dev, "cclk");
 
-	if (IS_ERR(cdev->cclk)) {
+	if (IS_ERR(cdev->hclk) || IS_ERR(cdev->cclk)) {
 		dev_err(cdev->dev, "no clock found\n");
 		ret = -ENODEV;
 	}
@@ -2080,9 +2098,13 @@ int m_can_class_resume(struct device *dev)
 		ret = m_can_clk_start(cdev);
 		if (ret)
 			return ret;
+		ret  = m_can_start(ndev);
+		if (ret) {
+			m_can_clk_stop(cdev);
 
-		m_can_init_ram(cdev);
-		m_can_start(ndev);
+			return ret;
+		}
+
 		netif_device_attach(ndev);
 		netif_start_queue(ndev);
 	}

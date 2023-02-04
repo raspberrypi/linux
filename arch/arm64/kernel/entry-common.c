@@ -72,7 +72,7 @@ static __always_inline void __exit_to_kernel_mode(struct pt_regs *regs)
 	if (interrupts_enabled(regs)) {
 		if (regs->exit_rcu) {
 			trace_hardirqs_on_prepare();
-			lockdep_hardirqs_on_prepare(CALLER_ADDR0);
+			lockdep_hardirqs_on_prepare();
 			rcu_irq_exit();
 			lockdep_hardirqs_on(CALLER_ADDR0);
 			return;
@@ -117,7 +117,7 @@ static __always_inline void enter_from_user_mode(struct pt_regs *regs)
 static __always_inline void __exit_to_user_mode(void)
 {
 	trace_hardirqs_on_prepare();
-	lockdep_hardirqs_on_prepare(CALLER_ADDR0);
+	lockdep_hardirqs_on_prepare();
 	user_enter_irqoff();
 	lockdep_hardirqs_on(CALLER_ADDR0);
 }
@@ -175,7 +175,7 @@ static void noinstr arm64_exit_nmi(struct pt_regs *regs)
 	ftrace_nmi_exit();
 	if (restore) {
 		trace_hardirqs_on_prepare();
-		lockdep_hardirqs_on_prepare(CALLER_ADDR0);
+		lockdep_hardirqs_on_prepare();
 	}
 
 	rcu_nmi_exit();
@@ -211,7 +211,7 @@ static void noinstr arm64_exit_el1_dbg(struct pt_regs *regs)
 
 	if (restore) {
 		trace_hardirqs_on_prepare();
-		lockdep_hardirqs_on_prepare(CALLER_ADDR0);
+		lockdep_hardirqs_on_prepare();
 	}
 
 	rcu_nmi_exit();
@@ -273,13 +273,13 @@ extern void (*handle_arch_irq)(struct pt_regs *);
 extern void (*handle_arch_fiq)(struct pt_regs *);
 
 static void noinstr __panic_unhandled(struct pt_regs *regs, const char *vector,
-				      unsigned int esr)
+				      unsigned long esr)
 {
 	arm64_enter_nmi(regs);
 
 	console_verbose();
 
-	pr_crit("Unhandled %s exception on CPU%d, ESR 0x%08x -- %s\n",
+	pr_crit("Unhandled %s exception on CPU%d, ESR 0x%016lx -- %s\n",
 		vector, smp_processor_id(), esr,
 		esr_get_class_string(esr));
 
@@ -320,7 +320,8 @@ static void cortex_a76_erratum_1463225_svc_handler(void)
 	__this_cpu_write(__in_cortex_a76_erratum_1463225_wa, 0);
 }
 
-static bool cortex_a76_erratum_1463225_debug_handler(struct pt_regs *regs)
+static __always_inline bool
+cortex_a76_erratum_1463225_debug_handler(struct pt_regs *regs)
 {
 	if (!__this_cpu_read(__in_cortex_a76_erratum_1463225_wa))
 		return false;
@@ -795,7 +796,7 @@ UNHANDLED(el0t, 32, error)
 #ifdef CONFIG_VMAP_STACK
 asmlinkage void noinstr handle_bad_stack(struct pt_regs *regs)
 {
-	unsigned int esr = read_sysreg(esr_el1);
+	unsigned long esr = read_sysreg(esr_el1);
 	unsigned long far = read_sysreg(far_el1);
 
 	arm64_enter_nmi(regs);

@@ -21,13 +21,19 @@ struct module;
 
 #define NFT_JUMP_STACK_SIZE	16
 
+enum {
+	NFT_PKTINFO_L4PROTO	= (1 << 0),
+	NFT_PKTINFO_INNER	= (1 << 1),
+};
+
 struct nft_pktinfo {
 	struct sk_buff			*skb;
 	const struct nf_hook_state	*state;
-	bool				tprot_set;
+	u8				flags;
 	u8				tprot;
 	u16				fragoff;
 	unsigned int			thoff;
+	unsigned int			inneroff;
 };
 
 static inline struct sock *nft_sk(const struct nft_pktinfo *pkt)
@@ -75,7 +81,7 @@ static inline void nft_set_pktinfo(struct nft_pktinfo *pkt,
 
 static inline void nft_set_pktinfo_unspec(struct nft_pktinfo *pkt)
 {
-	pkt->tprot_set = false;
+	pkt->flags = 0;
 	pkt->tprot = 0;
 	pkt->thoff = 0;
 	pkt->fragoff = 0;
@@ -187,13 +193,18 @@ struct nft_ctx {
 	bool				report;
 };
 
-struct nft_data_desc {
-	enum nft_data_types		type;
-	unsigned int			len;
+enum nft_data_desc_flags {
+	NFT_DATA_DESC_SETELEM	= (1 << 0),
 };
 
-int nft_data_init(const struct nft_ctx *ctx,
-		  struct nft_data *data, unsigned int size,
+struct nft_data_desc {
+	enum nft_data_types		type;
+	unsigned int			size;
+	unsigned int			len;
+	unsigned int			flags;
+};
+
+int nft_data_init(const struct nft_ctx *ctx, struct nft_data *data,
 		  struct nft_data_desc *desc, const struct nlattr *nla);
 void nft_data_hold(const struct nft_data *data, enum nft_data_types type);
 void nft_data_release(const struct nft_data *data, enum nft_data_types type);
@@ -272,17 +283,29 @@ struct nft_set_iter {
 /**
  *	struct nft_set_desc - description of set elements
  *
+ *	@ktype: key type
  *	@klen: key length
+ *	@dtype: data type
  *	@dlen: data length
+ *	@objtype: object type
+ *	@flags: flags
  *	@size: number of set elements
+ *	@policy: set policy
+ *	@gc_int: garbage collector interval
  *	@field_len: length of each field in concatenation, bytes
  *	@field_count: number of concatenated fields in element
  *	@expr: set must support for expressions
  */
 struct nft_set_desc {
+	u32			ktype;
 	unsigned int		klen;
+	u32			dtype;
 	unsigned int		dlen;
+	u32			objtype;
 	unsigned int		size;
+	u32			policy;
+	u32			gc_int;
+	u64			timeout;
 	u8			field_len[NFT_REG32_COUNT];
 	u8			field_count;
 	bool			expr;
@@ -539,7 +562,9 @@ void *nft_set_catchall_gc(const struct nft_set *set);
 
 static inline unsigned long nft_set_gc_interval(const struct nft_set *set)
 {
-	return set->gc_int ? msecs_to_jiffies(set->gc_int) : HZ;
+	u32 gc_int = READ_ONCE(set->gc_int);
+
+	return gc_int ? msecs_to_jiffies(gc_int) : HZ;
 }
 
 /**
@@ -636,18 +661,22 @@ static inline void nft_set_ext_prepare(struct nft_set_ext_tmpl *tmpl)
 	tmpl->len = sizeof(struct nft_set_ext);
 }
 
-static inline void nft_set_ext_add_length(struct nft_set_ext_tmpl *tmpl, u8 id,
-					  unsigned int len)
+static inline int nft_set_ext_add_length(struct nft_set_ext_tmpl *tmpl, u8 id,
+					 unsigned int len)
 {
 	tmpl->len	 = ALIGN(tmpl->len, nft_set_ext_types[id].align);
-	BUG_ON(tmpl->len > U8_MAX);
+	if (tmpl->len > U8_MAX)
+		return -EINVAL;
+
 	tmpl->offset[id] = tmpl->len;
 	tmpl->len	+= nft_set_ext_types[id].len + len;
+
+	return 0;
 }
 
-static inline void nft_set_ext_add(struct nft_set_ext_tmpl *tmpl, u8 id)
+static inline int nft_set_ext_add(struct nft_set_ext_tmpl *tmpl, u8 id)
 {
-	nft_set_ext_add_length(tmpl, id, 0);
+	return nft_set_ext_add_length(tmpl, id, 0);
 }
 
 static inline void nft_set_ext_init(struct nft_set_ext *ext,
@@ -1484,6 +1513,9 @@ struct nft_trans_rule {
 struct nft_trans_set {
 	struct nft_set			*set;
 	u32				set_id;
+	u32				gc_int;
+	u64				timeout;
+	bool				update;
 	bool				bound;
 };
 
@@ -1493,6 +1525,12 @@ struct nft_trans_set {
 	(((struct nft_trans_set *)trans->data)->set_id)
 #define nft_trans_set_bound(trans)	\
 	(((struct nft_trans_set *)trans->data)->bound)
+#define nft_trans_set_update(trans)	\
+	(((struct nft_trans_set *)trans->data)->update)
+#define nft_trans_set_timeout(trans)	\
+	(((struct nft_trans_set *)trans->data)->timeout)
+#define nft_trans_set_gc_int(trans)	\
+	(((struct nft_trans_set *)trans->data)->gc_int)
 
 struct nft_trans_chain {
 	bool				update;
@@ -1585,6 +1623,7 @@ struct nftables_pernet {
 	struct list_head	module_list;
 	struct list_head	notify_list;
 	struct mutex		commit_mutex;
+	u64			table_handle;
 	unsigned int		base_seq;
 	u8			validate_state;
 };

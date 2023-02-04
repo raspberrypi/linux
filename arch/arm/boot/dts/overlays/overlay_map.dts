@@ -9,6 +9,10 @@
 		bcm2711;
 	};
 
+	disable-emmc2 {
+		bcm2711;
+	};
+
 	highperi {
 		bcm2711;
 	};
@@ -41,6 +45,26 @@
 		deprecated = "use gpio-ir";
 	};
 
+	midi-uart2 {
+		bcm2711;
+	};
+
+	midi-uart3 {
+		bcm2711;
+	};
+
+	midi-uart4 {
+		bcm2711;
+	};
+
+	midi-uart5 {
+		bcm2711;
+	};
+
+	mpu6050 {
+		deprecated = "use i2c-sensor,mpu6050";
+	};
+
 	pcie-32bit-dma {
 		bcm2711;
 	};
@@ -61,6 +85,10 @@
 		renamed = "miniuart-bt";
 	};
 
+	pwm1 {
+		bcm2711;
+	};
+
 	ramoops {
 		bcm2835;
 		bcm2711 = "ramoops-pi4";
@@ -68,6 +96,22 @@
 
 	ramoops-pi4 {
 		bcm2711;
+	};
+
+	rpi-cirrus-wm5102 {
+		renamed = "cirrus-wm5102";
+	};
+
+	rpi-dac {
+		renamed = "i2s-dac";
+	};
+
+	rpi-display {
+		renamed = "watterott-display";
+	};
+
+	rpi-proto {
+		renamed = "proto-codec";
 	};
 
 	rpivid-v4l2 {
@@ -170,6 +214,10 @@
 	};
 
 	vc4-kms-v3d-pi4 {
+		bcm2711;
+	};
+
+	vl805 {
 		bcm2711;
 	};
 };

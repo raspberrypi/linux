@@ -1375,7 +1375,7 @@ static int rpc_sockname(struct net *net, struct sockaddr *sap, size_t salen,
 		break;
 	default:
 		err = -EAFNOSUPPORT;
-		goto out;
+		goto out_release;
 	}
 	if (err < 0) {
 		dprintk("RPC:       can't bind UDP socket (%d)\n", err);
@@ -1881,7 +1881,7 @@ call_encode(struct rpc_task *task)
 			break;
 		case -EKEYEXPIRED:
 			if (!task->tk_cred_retry) {
-				rpc_exit(task, task->tk_status);
+				rpc_call_rpcerror(task, task->tk_status);
 			} else {
 				task->tk_action = call_refresh;
 				task->tk_cred_retry--;

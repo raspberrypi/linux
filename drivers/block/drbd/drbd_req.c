@@ -1602,6 +1602,8 @@ blk_qc_t drbd_submit_bio(struct bio *bio)
 	struct drbd_device *device = bio->bi_bdev->bd_disk->private_data;
 
 	blk_queue_split(&bio);
+	if (!bio)
+		return BLK_QC_T_NONE;
 
 	/*
 	 * what we "blindly" assume:

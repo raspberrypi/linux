@@ -1235,6 +1235,8 @@ int smu_v11_0_set_fan_speed_rpm(struct smu_context *smu,
 	uint32_t crystal_clock_freq = 2500;
 	uint32_t tach_period;
 
+	if (speed == 0)
+		return -EINVAL;
 	/*
 	 * To prevent from possible overheat, some ASICs may have requirement
 	 * for minimum fan speed:
@@ -1592,6 +1594,10 @@ bool smu_v11_0_baco_is_support(struct smu_context *smu)
 
 	if (amdgpu_sriov_vf(smu->adev) || !smu_baco->platform_support)
 		return false;
+
+	/* return true if ASIC is in BACO state already */
+	if (smu_v11_0_baco_get_state(smu) == SMU_BACO_STATE_ENTER)
+		return true;
 
 	/* Arcturus does not support this bit mask */
 	if (smu_cmn_feature_is_supported(smu, SMU_FEATURE_BACO_BIT) &&

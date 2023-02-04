@@ -657,7 +657,7 @@ struct xhci_stream_info *xhci_alloc_stream_info(struct xhci_hcd *xhci,
 			num_stream_ctxs, &stream_info->ctx_array_dma,
 			mem_flags);
 	if (!stream_info->stream_ctx_array)
-		goto cleanup_ctx;
+		goto cleanup_ring_array;
 	memset(stream_info->stream_ctx_array, 0,
 			sizeof(struct xhci_stream_ctx)*num_stream_ctxs);
 
@@ -718,6 +718,11 @@ cleanup_rings:
 	}
 	xhci_free_command(xhci, stream_info->free_streams_command);
 cleanup_ctx:
+	xhci_free_stream_ctx(xhci,
+		stream_info->num_stream_ctxs,
+		stream_info->stream_ctx_array,
+		stream_info->ctx_array_dma);
+cleanup_ring_array:
 	kfree(stream_info->stream_rings);
 cleanup_info:
 	kfree(stream_info);
@@ -908,15 +913,19 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, int slot_id)
 		if (dev->eps[i].stream_info)
 			xhci_free_stream_info(xhci,
 					dev->eps[i].stream_info);
-		/* Endpoints on the TT/root port lists should have been removed
-		 * when usb_disable_device() was called for the device.
-		 * We can't drop them anyway, because the udev might have gone
-		 * away by this point, and we can't tell what speed it was.
+		/*
+		 * Endpoints are normally deleted from the bandwidth list when
+		 * endpoints are dropped, before device is freed.
+		 * If host is dying or being removed then endpoints aren't
+		 * dropped cleanly, so delete the endpoint from list here.
+		 * Only applicable for hosts with software bandwidth checking.
 		 */
-		if (!list_empty(&dev->eps[i].bw_endpoint_list))
-			xhci_warn(xhci, "Slot %u endpoint %u "
-					"not removed from BW list!\n",
-					slot_id, i);
+
+		if (!list_empty(&dev->eps[i].bw_endpoint_list)) {
+			list_del_init(&dev->eps[i].bw_endpoint_list);
+			xhci_dbg(xhci, "Slot %u endpoint %u not removed from BW list!\n",
+				 slot_id, i);
+		}
 	}
 	/* If this is a hub, free the TT(s) from the TT list */
 	xhci_free_tt_info(xhci, dev, slot_id);
@@ -1437,6 +1446,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int ep_index;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_ring *ep_ring;
+	struct usb_interface_cache *intfc;
 	unsigned int max_packet;
 	enum xhci_ring_type ring_type;
 	u32 max_esit_payload;
@@ -1446,6 +1456,8 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int mult;
 	unsigned int avg_trb_len;
 	unsigned int err_count = 0;
+	unsigned int is_ums_dev = 0;
+	unsigned int i;
 
 	ep_index = xhci_get_endpoint_index(&ep->desc);
 	ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->in_ctx, ep_index);
@@ -1477,8 +1489,34 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 
 	mult = xhci_get_endpoint_mult(udev, ep);
 	max_packet = usb_endpoint_maxp(&ep->desc);
-	max_burst = xhci_get_endpoint_max_burst(udev, ep);
 	avg_trb_len = max_esit_payload;
+
+	/*
+	 * VL805 errata - Bulk OUT bursts to superspeed mass-storage
+	 * devices behind hub ports can cause data corruption with
+	 * non-wMaxPacket-multiple transfers.
+	 */
+	for (i = 0; i < udev->config->desc.bNumInterfaces; i++) {
+		intfc = udev->config->intf_cache[i];
+		/*
+		 * Slight hack - look at interface altsetting 0, which
+		 * should be the UMS bulk-only interface. If the class
+		 * matches, then we disable out bursts for all OUT
+		 * endpoints because endpoint assignments may change
+		 * between alternate settings.
+		 */
+		if (intfc->altsetting[0].desc.bInterfaceClass ==
+		    USB_CLASS_MASS_STORAGE) {
+			is_ums_dev = 1;
+			break;
+		}
+	}
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&ep->desc) && is_ums_dev &&
+	    udev->route)
+		max_burst = 0;
+	else
+		max_burst = xhci_get_endpoint_max_burst(udev, ep);
 
 	/* FIXME dig Mult and streams info out of ep companion desc */
 

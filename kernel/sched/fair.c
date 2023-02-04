@@ -4120,14 +4120,140 @@ done:
 	trace_sched_util_est_se_tp(&p->se);
 }
 
-static inline int task_fits_capacity(struct task_struct *p, long capacity)
+static inline int util_fits_cpu(unsigned long util,
+				unsigned long uclamp_min,
+				unsigned long uclamp_max,
+				int cpu)
 {
-	return fits_capacity(uclamp_task_util(p), capacity);
+	unsigned long capacity_orig, capacity_orig_thermal;
+	unsigned long capacity = capacity_of(cpu);
+	bool fits, uclamp_max_fits;
+
+	/*
+	 * Check if the real util fits without any uclamp boost/cap applied.
+	 */
+	fits = fits_capacity(util, capacity);
+
+	if (!uclamp_is_used())
+		return fits;
+
+	/*
+	 * We must use capacity_orig_of() for comparing against uclamp_min and
+	 * uclamp_max. We only care about capacity pressure (by using
+	 * capacity_of()) for comparing against the real util.
+	 *
+	 * If a task is boosted to 1024 for example, we don't want a tiny
+	 * pressure to skew the check whether it fits a CPU or not.
+	 *
+	 * Similarly if a task is capped to capacity_orig_of(little_cpu), it
+	 * should fit a little cpu even if there's some pressure.
+	 *
+	 * Only exception is for thermal pressure since it has a direct impact
+	 * on available OPP of the system.
+	 *
+	 * We honour it for uclamp_min only as a drop in performance level
+	 * could result in not getting the requested minimum performance level.
+	 *
+	 * For uclamp_max, we can tolerate a drop in performance level as the
+	 * goal is to cap the task. So it's okay if it's getting less.
+	 *
+	 * In case of capacity inversion, which is not handled yet, we should
+	 * honour the inverted capacity for both uclamp_min and uclamp_max all
+	 * the time.
+	 */
+	capacity_orig = capacity_orig_of(cpu);
+	capacity_orig_thermal = capacity_orig - arch_scale_thermal_pressure(cpu);
+
+	/*
+	 * We want to force a task to fit a cpu as implied by uclamp_max.
+	 * But we do have some corner cases to cater for..
+	 *
+	 *
+	 *                                 C=z
+	 *   |                             ___
+	 *   |                  C=y       |   |
+	 *   |_ _ _ _ _ _ _ _ _ ___ _ _ _ | _ | _ _ _ _ _  uclamp_max
+	 *   |      C=x        |   |      |   |
+	 *   |      ___        |   |      |   |
+	 *   |     |   |       |   |      |   |    (util somewhere in this region)
+	 *   |     |   |       |   |      |   |
+	 *   |     |   |       |   |      |   |
+	 *   +----------------------------------------
+	 *         cpu0        cpu1       cpu2
+	 *
+	 *   In the above example if a task is capped to a specific performance
+	 *   point, y, then when:
+	 *
+	 *   * util = 80% of x then it does not fit on cpu0 and should migrate
+	 *     to cpu1
+	 *   * util = 80% of y then it is forced to fit on cpu1 to honour
+	 *     uclamp_max request.
+	 *
+	 *   which is what we're enforcing here. A task always fits if
+	 *   uclamp_max <= capacity_orig. But when uclamp_max > capacity_orig,
+	 *   the normal upmigration rules should withhold still.
+	 *
+	 *   Only exception is when we are on max capacity, then we need to be
+	 *   careful not to block overutilized state. This is so because:
+	 *
+	 *     1. There's no concept of capping at max_capacity! We can't go
+	 *        beyond this performance level anyway.
+	 *     2. The system is being saturated when we're operating near
+	 *        max capacity, it doesn't make sense to block overutilized.
+	 */
+	uclamp_max_fits = (capacity_orig == SCHED_CAPACITY_SCALE) && (uclamp_max == SCHED_CAPACITY_SCALE);
+	uclamp_max_fits = !uclamp_max_fits && (uclamp_max <= capacity_orig);
+	fits = fits || uclamp_max_fits;
+
+	/*
+	 *
+	 *                                 C=z
+	 *   |                             ___       (region a, capped, util >= uclamp_max)
+	 *   |                  C=y       |   |
+	 *   |_ _ _ _ _ _ _ _ _ ___ _ _ _ | _ | _ _ _ _ _ uclamp_max
+	 *   |      C=x        |   |      |   |
+	 *   |      ___        |   |      |   |      (region b, uclamp_min <= util <= uclamp_max)
+	 *   |_ _ _|_ _|_ _ _ _| _ | _ _ _| _ | _ _ _ _ _ uclamp_min
+	 *   |     |   |       |   |      |   |
+	 *   |     |   |       |   |      |   |      (region c, boosted, util < uclamp_min)
+	 *   +----------------------------------------
+	 *         cpu0        cpu1       cpu2
+	 *
+	 * a) If util > uclamp_max, then we're capped, we don't care about
+	 *    actual fitness value here. We only care if uclamp_max fits
+	 *    capacity without taking margin/pressure into account.
+	 *    See comment above.
+	 *
+	 * b) If uclamp_min <= util <= uclamp_max, then the normal
+	 *    fits_capacity() rules apply. Except we need to ensure that we
+	 *    enforce we remain within uclamp_max, see comment above.
+	 *
+	 * c) If util < uclamp_min, then we are boosted. Same as (b) but we
+	 *    need to take into account the boosted value fits the CPU without
+	 *    taking margin/pressure into account.
+	 *
+	 * Cases (a) and (b) are handled in the 'fits' variable already. We
+	 * just need to consider an extra check for case (c) after ensuring we
+	 * handle the case uclamp_min > uclamp_max.
+	 */
+	uclamp_min = min(uclamp_min, uclamp_max);
+	if (util < uclamp_min && capacity_orig != SCHED_CAPACITY_SCALE)
+		fits = fits && (uclamp_min <= capacity_orig_thermal);
+
+	return fits;
+}
+
+static inline int task_fits_cpu(struct task_struct *p, int cpu)
+{
+	unsigned long uclamp_min = uclamp_eff_value(p, UCLAMP_MIN);
+	unsigned long uclamp_max = uclamp_eff_value(p, UCLAMP_MAX);
+	unsigned long util = task_util_est(p);
+	return util_fits_cpu(util, uclamp_min, uclamp_max, cpu);
 }
 
 static inline void update_misfit_status(struct task_struct *p, struct rq *rq)
 {
-	if (!static_branch_unlikely(&sched_asym_cpucapacity))
+	if (!sched_asym_cpucap_active())
 		return;
 
 	if (!p || p->nr_cpus_allowed == 1) {
@@ -4135,7 +4261,7 @@ static inline void update_misfit_status(struct task_struct *p, struct rq *rq)
 		return;
 	}
 
-	if (task_fits_capacity(p, capacity_of(cpu_of(rq)))) {
+	if (task_fits_cpu(p, cpu_of(rq))) {
 		rq->misfit_task_load = 0;
 		return;
 	}
@@ -6280,6 +6406,7 @@ static int select_idle_cpu(struct task_struct *p, struct sched_domain *sd, bool 
 {
 	struct cpumask *cpus = this_cpu_cpumask_var_ptr(select_idle_mask);
 	int i, cpu, idle_cpu = -1, nr = INT_MAX;
+	struct sched_domain_shared *sd_share;
 	struct rq *this_rq = this_rq();
 	int this = smp_processor_id();
 	struct sched_domain *this_sd;
@@ -6317,6 +6444,17 @@ static int select_idle_cpu(struct task_struct *p, struct sched_domain *sd, bool 
 			nr = 4;
 
 		time = cpu_clock(this);
+	}
+
+	if (sched_feat(SIS_UTIL)) {
+		sd_share = rcu_dereference(per_cpu(sd_llc_shared, target));
+		if (sd_share) {
+			/* because !--nr is the condition to stop scan */
+			nr = READ_ONCE(sd_share->nr_idle_scan) + 1;
+			/* overloaded LLC is unlikely to have idle cpu/core */
+			if (nr == 1)
+				return -1;
+		}
 	}
 
 	for_each_cpu_wrap(cpu, cpus, target + 1) {
@@ -6360,21 +6498,23 @@ static int select_idle_cpu(struct task_struct *p, struct sched_domain *sd, bool 
 static int
 select_idle_capacity(struct task_struct *p, struct sched_domain *sd, int target)
 {
-	unsigned long task_util, best_cap = 0;
+	unsigned long task_util, util_min, util_max, best_cap = 0;
 	int cpu, best_cpu = -1;
 	struct cpumask *cpus;
 
 	cpus = this_cpu_cpumask_var_ptr(select_idle_mask);
 	cpumask_and(cpus, sched_domain_span(sd), p->cpus_ptr);
 
-	task_util = uclamp_task_util(p);
+	task_util = task_util_est(p);
+	util_min = uclamp_eff_value(p, UCLAMP_MIN);
+	util_max = uclamp_eff_value(p, UCLAMP_MAX);
 
 	for_each_cpu_wrap(cpu, cpus, target) {
 		unsigned long cpu_cap = capacity_of(cpu);
 
 		if (!available_idle_cpu(cpu) && !sched_idle_cpu(cpu))
 			continue;
-		if (fits_capacity(task_util, cpu_cap))
+		if (util_fits_cpu(task_util, util_min, util_max, cpu))
 			return cpu;
 
 		if (cpu_cap > best_cap) {
@@ -6386,10 +6526,13 @@ select_idle_capacity(struct task_struct *p, struct sched_domain *sd, int target)
 	return best_cpu;
 }
 
-static inline bool asym_fits_capacity(int task_util, int cpu)
+static inline bool asym_fits_cpu(unsigned long util,
+				 unsigned long util_min,
+				 unsigned long util_max,
+				 int cpu)
 {
-	if (static_branch_unlikely(&sched_asym_cpucapacity))
-		return fits_capacity(task_util, capacity_of(cpu));
+	if (sched_asym_cpucap_active())
+		return util_fits_cpu(util, util_min, util_max, cpu);
 
 	return true;
 }
@@ -6401,16 +6544,18 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 {
 	bool has_idle_core = false;
 	struct sched_domain *sd;
-	unsigned long task_util;
+	unsigned long task_util, util_min, util_max;
 	int i, recent_used_cpu;
 
 	/*
 	 * On asymmetric system, update task utilization because we will check
 	 * that the task fits with cpu's capacity.
 	 */
-	if (static_branch_unlikely(&sched_asym_cpucapacity)) {
+	if (sched_asym_cpucap_active()) {
 		sync_entity_load_avg(&p->se);
-		task_util = uclamp_task_util(p);
+		task_util = task_util_est(p);
+		util_min = uclamp_eff_value(p, UCLAMP_MIN);
+		util_max = uclamp_eff_value(p, UCLAMP_MAX);
 	}
 
 	/*
@@ -6419,7 +6564,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	lockdep_assert_irqs_disabled();
 
 	if ((available_idle_cpu(target) || sched_idle_cpu(target)) &&
-	    asym_fits_capacity(task_util, target))
+	    asym_fits_cpu(task_util, util_min, util_max, target))
 		return target;
 
 	/*
@@ -6427,7 +6572,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	 */
 	if (prev != target && cpus_share_cache(prev, target) &&
 	    (available_idle_cpu(prev) || sched_idle_cpu(prev)) &&
-	    asym_fits_capacity(task_util, prev))
+	    asym_fits_cpu(task_util, util_min, util_max, prev))
 		return prev;
 
 	/*
@@ -6442,7 +6587,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	    in_task() &&
 	    prev == smp_processor_id() &&
 	    this_rq()->nr_running <= 1 &&
-	    asym_fits_capacity(task_util, prev)) {
+	    asym_fits_cpu(task_util, util_min, util_max, prev)) {
 		return prev;
 	}
 
@@ -6454,12 +6599,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	    cpus_share_cache(recent_used_cpu, target) &&
 	    (available_idle_cpu(recent_used_cpu) || sched_idle_cpu(recent_used_cpu)) &&
 	    cpumask_test_cpu(p->recent_used_cpu, p->cpus_ptr) &&
-	    asym_fits_capacity(task_util, recent_used_cpu)) {
-		/*
-		 * Replace recent_used_cpu with prev as it is a potential
-		 * candidate for the next wake:
-		 */
-		p->recent_used_cpu = prev;
+	    asym_fits_cpu(task_util, util_min, util_max, recent_used_cpu)) {
 		return recent_used_cpu;
 	}
 
@@ -6467,7 +6607,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	 * For asymmetric CPU capacity systems, our domain of interest is
 	 * sd_asym_cpucapacity rather than sd_llc.
 	 */
-	if (static_branch_unlikely(&sched_asym_cpucapacity)) {
+	if (sched_asym_cpucap_active()) {
 		sd = rcu_dereference(per_cpu(sd_asym_cpucapacity, target));
 		/*
 		 * On an asymmetric CPU capacity system where an exclusive
@@ -8021,7 +8161,7 @@ static int detach_tasks(struct lb_env *env)
 
 		case migrate_misfit:
 			/* This is not a misfit task */
-			if (task_fits_capacity(p, capacity_of(env->src_cpu)))
+			if (task_fits_cpu(p, env->src_cpu))
 				goto next;
 
 			env->imbalance = 0;
@@ -8906,6 +9046,10 @@ static inline void update_sg_wakeup_stats(struct sched_domain *sd,
 
 	memset(sgs, 0, sizeof(*sgs));
 
+	/* Assume that task can't fit any CPU of the group */
+	if (sd->flags & SD_ASYM_CPUCAPACITY)
+		sgs->group_misfit_task_load = 1;
+
 	for_each_cpu(i, sched_group_span(group)) {
 		struct rq *rq = cpu_rq(i);
 		unsigned int local;
@@ -8925,12 +9069,12 @@ static inline void update_sg_wakeup_stats(struct sched_domain *sd,
 		if (!nr_running && idle_cpu_without(i, p))
 			sgs->idle_cpus++;
 
-	}
+		/* Check if task fits in the CPU */
+		if (sd->flags & SD_ASYM_CPUCAPACITY &&
+		    sgs->group_misfit_task_load &&
+		    task_fits_cpu(p, i))
+			sgs->group_misfit_task_load = 0;
 
-	/* Check if task fits in the group */
-	if (sd->flags & SD_ASYM_CPUCAPACITY &&
-	    !task_fits_capacity(p, group->sgc->max_capacity)) {
-		sgs->group_misfit_task_load = 1;
 	}
 
 	sgs->group_capacity = group->sgc->capacity;
@@ -9166,6 +9310,77 @@ find_idlest_group(struct sched_domain *sd, struct task_struct *p, int this_cpu)
 	return idlest;
 }
 
+static void update_idle_cpu_scan(struct lb_env *env,
+				 unsigned long sum_util)
+{
+	struct sched_domain_shared *sd_share;
+	int llc_weight, pct;
+	u64 x, y, tmp;
+	/*
+	 * Update the number of CPUs to scan in LLC domain, which could
+	 * be used as a hint in select_idle_cpu(). The update of sd_share
+	 * could be expensive because it is within a shared cache line.
+	 * So the write of this hint only occurs during periodic load
+	 * balancing, rather than CPU_NEWLY_IDLE, because the latter
+	 * can fire way more frequently than the former.
+	 */
+	if (!sched_feat(SIS_UTIL) || env->idle == CPU_NEWLY_IDLE)
+		return;
+
+	llc_weight = per_cpu(sd_llc_size, env->dst_cpu);
+	if (env->sd->span_weight != llc_weight)
+		return;
+
+	sd_share = rcu_dereference(per_cpu(sd_llc_shared, env->dst_cpu));
+	if (!sd_share)
+		return;
+
+	/*
+	 * The number of CPUs to search drops as sum_util increases, when
+	 * sum_util hits 85% or above, the scan stops.
+	 * The reason to choose 85% as the threshold is because this is the
+	 * imbalance_pct(117) when a LLC sched group is overloaded.
+	 *
+	 * let y = SCHED_CAPACITY_SCALE - p * x^2                       [1]
+	 * and y'= y / SCHED_CAPACITY_SCALE
+	 *
+	 * x is the ratio of sum_util compared to the CPU capacity:
+	 * x = sum_util / (llc_weight * SCHED_CAPACITY_SCALE)
+	 * y' is the ratio of CPUs to be scanned in the LLC domain,
+	 * and the number of CPUs to scan is calculated by:
+	 *
+	 * nr_scan = llc_weight * y'                                    [2]
+	 *
+	 * When x hits the threshold of overloaded, AKA, when
+	 * x = 100 / pct, y drops to 0. According to [1],
+	 * p should be SCHED_CAPACITY_SCALE * pct^2 / 10000
+	 *
+	 * Scale x by SCHED_CAPACITY_SCALE:
+	 * x' = sum_util / llc_weight;                                  [3]
+	 *
+	 * and finally [1] becomes:
+	 * y = SCHED_CAPACITY_SCALE -
+	 *     x'^2 * pct^2 / (10000 * SCHED_CAPACITY_SCALE)            [4]
+	 *
+	 */
+	/* equation [3] */
+	x = sum_util;
+	do_div(x, llc_weight);
+
+	/* equation [4] */
+	pct = env->sd->imbalance_pct;
+	tmp = x * x * pct * pct;
+	do_div(tmp, 10000 * SCHED_CAPACITY_SCALE);
+	tmp = min_t(long, tmp, SCHED_CAPACITY_SCALE);
+	y = SCHED_CAPACITY_SCALE - tmp;
+
+	/* equation [2] */
+	y *= llc_weight;
+	do_div(y, SCHED_CAPACITY_SCALE);
+	if ((int)y != sd_share->nr_idle_scan)
+		WRITE_ONCE(sd_share->nr_idle_scan, (int)y);
+}
+
 /**
  * update_sd_lb_stats - Update sched_domain's statistics for load balancing.
  * @env: The load balancing environment.
@@ -9178,6 +9393,7 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 	struct sched_group *sg = env->sd->groups;
 	struct sg_lb_stats *local = &sds->local_stat;
 	struct sg_lb_stats tmp_sgs;
+	unsigned long sum_util = 0;
 	int sg_status = 0;
 
 	do {
@@ -9210,6 +9426,7 @@ next_group:
 		sds->total_load += sgs->group_load;
 		sds->total_capacity += sgs->group_capacity;
 
+		sum_util += sgs->group_util;
 		sg = sg->next;
 	} while (sg != env->sd->groups);
 
@@ -9235,6 +9452,8 @@ next_group:
 		WRITE_ONCE(rd->overutilized, SG_OVERUTILIZED);
 		trace_sched_overutilized_tp(rd, SG_OVERUTILIZED);
 	}
+
+	update_idle_cpu_scan(env, sum_util);
 }
 
 #define NUMA_IMBALANCE_MIN 2

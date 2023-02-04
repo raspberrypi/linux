@@ -145,6 +145,26 @@ static struct snd_soc_ops snd_rpi_simple_ops = {
 	.hw_params = snd_rpi_simple_hw_params,
 };
 
+static int snd_merus_amp_hw_params(struct snd_pcm_substream *substream,
+		struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	int rate;
+
+	rate = params_rate(params);
+	if (rate > 48000) {
+		dev_err(rtd->card->dev,
+		"Unsupported samplerate %d\n",
+		rate);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static struct snd_soc_ops snd_merus_amp_ops = {
+	.hw_params = snd_merus_amp_hw_params,
+};
+
 enum adau1977_clk_id {
 	ADAU1977_SYSCLK,
 };
@@ -253,6 +273,28 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp = {
 	.fixed_bclk_ratio = 64,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_amp3,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p.1-0020", "ma120x0p-amp")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_hifiberry_amp3_dai[] = {
+	{
+		.name		= "HifiberryAmp3",
+		.stream_name	= "Hifiberry Amp3",
+		.dai_fmt	= SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(hifiberry_amp3),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp3 = {
+	.card_name	 = "snd_rpi_hifiberry_amp3",
+	.dai		 = snd_hifiberry_amp3_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 SND_SOC_DAILINK_DEFS(hifiberry_dac,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC("pcm5102a-codec", "pcm5102a-hifi")),
@@ -272,6 +314,27 @@ static struct snd_soc_dai_link snd_hifiberry_dac_dai[] = {
 static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac = {
 	.card_name = "snd_rpi_hifiberry_dac",
 	.dai       = snd_hifiberry_dac_dai,
+};
+
+SND_SOC_DAILINK_DEFS(dionaudio_kiwi,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("pcm1794a-codec", "pcm1794a-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_dionaudio_kiwi_dai[] = {
+{
+	.name		= "DionAudio KIWI",
+	.stream_name	= "DionAudio KIWI STREAMER",
+	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+				SND_SOC_DAIFMT_CBS_CFS,
+	SND_SOC_DAILINK_REG(dionaudio_kiwi),
+},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_dionaudio_kiwi = {
+	.card_name        = "snd_rpi_dionaudio_kiwi",
+	.dai              = snd_dionaudio_kiwi_dai,
+	.fixed_bclk_ratio = 64,
 };
 
 SND_SOC_DAILINK_DEFS(rpi_dac,
@@ -297,13 +360,14 @@ static struct snd_rpi_simple_drvdata drvdata_rpi_dac = {
 
 SND_SOC_DAILINK_DEFS(merus_amp,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
-	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p.1-0020","ma120x0p-amp")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p.1-0020", "ma120x0p-amp")),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
 static struct snd_soc_dai_link snd_merus_amp_dai[] = {
 	{
 		.name           = "MerusAmp",
 		.stream_name    = "Merus Audio Amp",
+		.ops		= &snd_merus_amp_ops,
 		.dai_fmt        = SND_SOC_DAIFMT_I2S |
 					SND_SOC_DAIFMT_NB_NF |
 					SND_SOC_DAIFMT_CBS_CFS,
@@ -349,8 +413,12 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_hifiberrydacplusdsp },
 	{ .compatible = "hifiberry,hifiberry-amp",
 		.data = (void *) &drvdata_hifiberry_amp },
+	{ .compatible = "hifiberry,hifiberry-amp3",
+		.data = (void *) &drvdata_hifiberry_amp3 },
 	{ .compatible = "hifiberry,hifiberry-dac",
 		.data = (void *) &drvdata_hifiberry_dac },
+	{ .compatible = "dionaudio,dionaudio-kiwi",
+		.data = (void *) &drvdata_dionaudio_kiwi },
 	{ .compatible = "rpi,rpi-dac", &drvdata_rpi_dac},
 	{ .compatible = "merus,merus-amp",
 		.data = (void *) &drvdata_merus_amp },

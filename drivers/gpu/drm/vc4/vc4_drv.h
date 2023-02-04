@@ -76,6 +76,7 @@ struct vc4_perfmon {
 
 struct vc4_dev {
 	struct drm_device base;
+	struct device *dev;
 
 	bool is_vc5;
 
@@ -86,9 +87,6 @@ struct vc4_dev {
 
 	struct vc4_hvs *hvs;
 	struct vc4_v3d *v3d;
-	struct vc4_dpi *dpi;
-	struct vc4_vec *vec;
-	struct vc4_txp *txp;
 	struct vc4_fkms *fkms;
 
 	struct vc4_hang_state *hang_state;
@@ -332,6 +330,8 @@ struct vc4_hvs {
 
 	struct clk *core_clk;
 
+	unsigned long max_core_rate;
+
 	/* Memory manager for CRTCs to allocate space in the display
 	 * list.  Units are dwords.
 	 */
@@ -339,6 +339,9 @@ struct vc4_hvs {
 	/* Memory manager for the LBM memory used by HVS scaling. */
 	struct drm_mm lbm_mm;
 	spinlock_t mm_lock;
+
+	struct list_head stale_dlist_entries;
+	struct work_struct free_dlist_work;
 
 	struct drm_mm_node mitchell_netravali_filter;
 
@@ -350,7 +353,7 @@ struct vc4_hvs {
 	 * config.txt file to be able to do so and thus won't always be
 	 * available.
 	 */
-	bool vc5_hdmi_enable_scrambling;
+	bool vc5_hdmi_enable_hdmi_20;
 
 	/*
 	 * 4096x2160@60 requires a core overclock to work, so register
@@ -476,6 +479,8 @@ to_vc4_encoder(struct drm_encoder *encoder)
 }
 
 struct vc4_crtc_data {
+	const char *debugfs_name;
+
 	/* Bitmask of channels (FIFOs) of the HVS that the output can source from */
 	unsigned int hvs_available_channels;
 
@@ -493,8 +498,6 @@ struct vc4_pv_data {
 	u8 pixels_per_clock;
 
 	enum vc4_encoder_type encoder_types[4];
-	const char *debugfs_name;
-
 };
 
 struct vc5_gamma_entry {
@@ -589,10 +592,16 @@ struct drm_connector *vc4_get_crtc_connector(struct drm_crtc *crtc,
 struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc,
 					 struct drm_crtc_state *state);
 
+struct vc4_hvs_dlist_allocation {
+	struct list_head node;
+	struct drm_mm_node mm_node;
+	unsigned int channel;
+	u8 target_frame_count;
+};
+
 struct vc4_crtc_state {
 	struct drm_crtc_state base;
-	/* Dlist area for this CRTC configuration. */
-	struct drm_mm_node mm;
+	struct vc4_hvs_dlist_allocation *mm;
 	bool txp_armed;
 	unsigned int assigned_channel;
 
@@ -880,6 +889,7 @@ int vc4_bo_inc_usecnt(struct vc4_bo *bo);
 void vc4_bo_dec_usecnt(struct vc4_bo *bo);
 void vc4_bo_add_to_purgeable_pool(struct vc4_bo *bo);
 void vc4_bo_remove_from_purgeable_pool(struct vc4_bo *bo);
+int vc4_bo_debugfs_init(struct drm_minor *minor);
 
 /* vc4_crtc.c */
 extern struct platform_driver vc4_crtc_driver;
@@ -887,7 +897,6 @@ int vc4_crtc_disable_at_boot(struct drm_crtc *crtc);
 int vc4_crtc_init(struct drm_device *drm, struct vc4_crtc *vc4_crtc,
 		  const struct drm_crtc_funcs *crtc_funcs,
 		  const struct drm_crtc_helper_funcs *crtc_helper_funcs);
-void vc4_crtc_destroy(struct drm_crtc *crtc);
 int vc4_page_flip(struct drm_crtc *crtc,
 		  struct drm_framebuffer *fb,
 		  struct drm_pending_vblank_event *event,
@@ -898,6 +907,8 @@ void vc4_crtc_destroy_state(struct drm_crtc *crtc,
 			    struct drm_crtc_state *state);
 void vc4_crtc_reset(struct drm_crtc *crtc);
 void vc4_crtc_handle_vblank(struct vc4_crtc *crtc);
+int vc4_crtc_late_register(struct drm_crtc *crtc);
+void vc4_crtc_send_vblank(struct drm_crtc *crtc);
 void vc4_crtc_get_margins(struct drm_crtc_state *state,
 			  unsigned int *left, unsigned int *right,
 			  unsigned int *top, unsigned int *bottom);
@@ -905,25 +916,27 @@ void vc4_crtc_get_margins(struct drm_crtc_state *state,
 /* vc4_debugfs.c */
 void vc4_debugfs_init(struct drm_minor *minor);
 #ifdef CONFIG_DEBUG_FS
-void vc4_debugfs_add_file(struct drm_device *drm,
-			  const char *filename,
-			  int (*show)(struct seq_file*, void*),
-			  void *data);
-void vc4_debugfs_add_regset32(struct drm_device *drm,
-			      const char *filename,
-			      struct debugfs_regset32 *regset);
+int vc4_debugfs_add_file(struct drm_minor *minor,
+			 const char *filename,
+			 int (*show)(struct seq_file*, void*),
+			 void *data);
+int vc4_debugfs_add_regset32(struct drm_minor *minor,
+			     const char *filename,
+			     struct debugfs_regset32 *regset);
 #else
-static inline void vc4_debugfs_add_file(struct drm_device *drm,
-					const char *filename,
-					int (*show)(struct seq_file*, void*),
-					void *data)
+static inline int vc4_debugfs_add_file(struct drm_minor *minor,
+				       const char *filename,
+				       int (*show)(struct seq_file*, void*),
+				       void *data)
 {
+	return 0;
 }
 
-static inline void vc4_debugfs_add_regset32(struct drm_device *drm,
-					    const char *filename,
-					    struct debugfs_regset32 *regset)
+static inline int vc4_debugfs_add_regset32(struct drm_minor *minor,
+					   const char *filename,
+					   struct debugfs_regset32 *regset)
 {
+	return 0;
 }
 #endif
 
@@ -984,6 +997,8 @@ extern struct platform_driver vc4_hvs_driver;
 void vc4_hvs_stop_channel(struct vc4_hvs *hvs, unsigned int output);
 int vc4_hvs_get_fifo_from_output(struct vc4_hvs *hvs, unsigned int output);
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo);
+void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
+				    struct vc4_hvs_dlist_allocation *alloc);
 int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_begin(struct drm_crtc *crtc, struct drm_atomic_state *state);
 void vc4_hvs_atomic_enable(struct drm_crtc *crtc, struct drm_atomic_state *state);
@@ -992,13 +1007,15 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc, struct drm_atomic_state *state)
 void vc4_hvs_dump_state(struct vc4_hvs *hvs);
 void vc4_hvs_unmask_underrun(struct vc4_hvs *hvs, int channel);
 void vc4_hvs_mask_underrun(struct vc4_hvs *hvs, int channel);
+int vc4_hvs_debugfs_init(struct drm_minor *minor);
 
 /* vc4_kms.c */
 int vc4_kms_load(struct drm_device *dev);
 
 /* vc4_plane.c */
 struct drm_plane *vc4_plane_init(struct drm_device *dev,
-				 enum drm_plane_type type);
+				 enum drm_plane_type type,
+				 uint32_t possible_crtcs);
 int vc4_plane_create_additional_planes(struct drm_device *dev);
 u32 vc4_plane_write_dlist(struct drm_plane *plane, u32 __iomem *dlist);
 u32 vc4_plane_dlist_size(const struct drm_plane_state *state);
@@ -1013,6 +1030,7 @@ int vc4_v3d_bin_bo_get(struct vc4_dev *vc4, bool *used);
 void vc4_v3d_bin_bo_put(struct vc4_dev *vc4);
 int vc4_v3d_pm_get(struct vc4_dev *vc4);
 void vc4_v3d_pm_put(struct vc4_dev *vc4);
+int vc4_v3d_debugfs_init(struct drm_minor *minor);
 
 /* vc4_validate.c */
 int

@@ -129,6 +129,9 @@ next_attr:
 	rsize = attr->non_res ? 0 : le32_to_cpu(attr->res.data_size);
 	asize = le32_to_cpu(attr->size);
 
+	if (le16_to_cpu(attr->name_off) + attr->name_len > asize)
+		goto out;
+
 	switch (attr->type) {
 	case ATTR_STD:
 		if (attr->non_res ||
@@ -364,7 +367,13 @@ next_attr:
 attr_unpack_run:
 	roff = le16_to_cpu(attr->nres.run_off);
 
+	if (roff > asize) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	t64 = le64_to_cpu(attr->nres.svcn);
+
 	err = run_unpack_ex(run, sbi, ino, t64, le64_to_cpu(attr->nres.evcn),
 			    t64, Add2Ptr(attr, roff), asize - roff);
 	if (err < 0)
@@ -430,6 +439,7 @@ end_enum:
 	} else if (fname && fname->home.low == cpu_to_le32(MFT_REC_EXTEND) &&
 		   fname->home.seq == cpu_to_le16(MFT_REC_EXTEND)) {
 		/* Records in $Extend are not a files or general directories. */
+		inode->i_op = &ntfs_file_inode_operations;
 	} else {
 		err = -EINVAL;
 		goto out;
@@ -1941,8 +1951,6 @@ const struct inode_operations ntfs_link_inode_operations = {
 	.setattr	= ntfs3_setattr,
 	.listxattr	= ntfs_listxattr,
 	.permission	= ntfs_permission,
-	.get_acl	= ntfs_get_acl,
-	.set_acl	= ntfs_set_acl,
 };
 
 const struct address_space_operations ntfs_aops = {

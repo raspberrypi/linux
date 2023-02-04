@@ -241,8 +241,8 @@ int mlx5e_tc_match_to_reg_set_and_get_id(struct mlx5_core_dev *mdev,
 					 u32 data);
 
 int mlx5e_tc_add_flow_mod_hdr(struct mlx5e_priv *priv,
-			      struct mlx5e_tc_flow_parse_attr *parse_attr,
-			      struct mlx5e_tc_flow *flow);
+			      struct mlx5e_tc_flow *flow,
+			      struct mlx5_flow_attr *attr);
 
 int alloc_mod_hdr_actions(struct mlx5_core_dev *mdev,
 			  int namespace,

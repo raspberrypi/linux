@@ -160,6 +160,9 @@ static int wacom_raw_event(struct hid_device *hdev, struct hid_report *report,
 {
 	struct wacom *wacom = hid_get_drvdata(hdev);
 
+	if (wacom->wacom_wac.features.type == BOOTLOADER)
+		return 0;
+
 	if (size > WACOM_PKGLEN_MAX)
 		return 1;
 
@@ -2124,7 +2127,7 @@ static int wacom_register_inputs(struct wacom *wacom)
 
 	error = wacom_setup_pad_input_capabilities(pad_input_dev, wacom_wac);
 	if (error) {
-		/* no pad in use on this interface */
+		/* no pad events using this interface */
 		input_free_device(pad_input_dev);
 		wacom_wac->pad_input = NULL;
 		pad_input_dev = NULL;
@@ -2790,6 +2793,11 @@ static int wacom_probe(struct hid_device *hdev,
 	if (error) {
 		hid_err(hdev, "parse failed\n");
 		return error;
+	}
+
+	if (features->type == BOOTLOADER) {
+		hid_warn(hdev, "Using device in hidraw-only mode");
+		return hid_hw_start(hdev, HID_CONNECT_HIDRAW);
 	}
 
 	error = wacom_parse_and_register(wacom, false);

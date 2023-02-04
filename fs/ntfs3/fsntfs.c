@@ -831,9 +831,14 @@ int ntfs_update_mftmirr(struct ntfs_sb_info *sbi, int wait)
 {
 	int err;
 	struct super_block *sb = sbi->sb;
-	u32 blocksize = sb->s_blocksize;
+	u32 blocksize;
 	sector_t block1, block2;
 	u32 bytes;
+
+	if (!sb)
+		return -EINVAL;
+
+	blocksize = sb->s_blocksize;
 
 	if (!(sbi->flags & NTFS_FLAGS_MFTMIRR))
 		return 0;
@@ -1873,9 +1878,10 @@ int ntfs_security_init(struct ntfs_sb_info *sbi)
 		goto out;
 	}
 
-	root_sdh = resident_data(attr);
+	root_sdh = resident_data_ex(attr, sizeof(struct INDEX_ROOT));
 	if (root_sdh->type != ATTR_ZERO ||
-	    root_sdh->rule != NTFS_COLLATION_TYPE_SECURITY_HASH) {
+	    root_sdh->rule != NTFS_COLLATION_TYPE_SECURITY_HASH ||
+	    offsetof(struct INDEX_ROOT, ihdr) + root_sdh->ihdr.used > attr->res.data_size) {
 		err = -EINVAL;
 		goto out;
 	}
@@ -1891,9 +1897,10 @@ int ntfs_security_init(struct ntfs_sb_info *sbi)
 		goto out;
 	}
 
-	root_sii = resident_data(attr);
+	root_sii = resident_data_ex(attr, sizeof(struct INDEX_ROOT));
 	if (root_sii->type != ATTR_ZERO ||
-	    root_sii->rule != NTFS_COLLATION_TYPE_UINT) {
+	    root_sii->rule != NTFS_COLLATION_TYPE_UINT ||
+	    offsetof(struct INDEX_ROOT, ihdr) + root_sii->ihdr.used > attr->res.data_size) {
 		err = -EINVAL;
 		goto out;
 	}

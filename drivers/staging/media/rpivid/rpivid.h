@@ -185,6 +185,7 @@ struct rpivid_dev {
 	void __iomem		*base_h265;
 
 	struct clk		*clock;
+	unsigned long		max_clock_rate;
 
 	int			cache_align;
 

@@ -14,8 +14,10 @@
 	};
 
 	__overrides__ {
+		hdmi = <&hdmi>,"status";
 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+		sd = <&sdhost>,"status";
 		sd_poll_once = <&sdhost>,"non-removable?";
 	};
 };

@@ -34,14 +34,22 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
+	camera-mux-2port.dtbo \
+	camera-mux-4port.dtbo \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
+	cirrus-wm5102.dtbo \
+	cm-swap-i2c0.dtbo \
 	cma.dtbo \
+	crystalfontz-cfa050_pi_m.dtbo \
 	cutiepi-panel.dtbo \
+	dacberry400.dtbo \
 	dht11.dtbo \
+	dionaudio-kiwi.dtbo \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
 	disable-bt.dtbo \
+	disable-emmc2.dtbo \
 	disable-wifi.dtbo \
 	dpi18.dtbo \
 	dpi18cpadhi.dtbo \
@@ -56,6 +64,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	fbtft.dtbo \
 	fe-pi-audio.dtbo \
 	fsm-demo.dtbo \
+	gc9a01.dtbo \
 	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
@@ -73,6 +82,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hdmi-backlight-hwhack-gpio.dtbo \
 	hifiberry-amp.dtbo \
 	hifiberry-amp100.dtbo \
+	hifiberry-amp3.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
 	hifiberry-dacplusadc.dtbo \
@@ -100,15 +110,19 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c4.dtbo \
 	i2c5.dtbo \
 	i2c6.dtbo \
+	i2s-dac.dtbo \
 	i2s-gpio28-31.dtbo \
 	ilitek251x.dtbo \
 	imx219.dtbo \
 	imx258.dtbo \
 	imx290.dtbo \
 	imx296.dtbo \
+	imx327.dtbo \
 	imx378.dtbo \
+	imx462.dtbo \
 	imx477.dtbo \
 	imx519.dtbo \
+	imx708.dtbo \
 	iqaudio-codec.dtbo \
 	iqaudio-dac.dtbo \
 	iqaudio-dacplus.dtbo \
@@ -169,23 +183,26 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pitft28-resistive.dtbo \
 	pitft35-resistive.dtbo \
 	pps-gpio.dtbo \
+	proto-codec.dtbo \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
 	pwm-ir-tx.dtbo \
+	pwm1.dtbo \
 	qca7000.dtbo \
 	qca7000-uart0.dtbo \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
 	rotary-encoder.dtbo \
 	rpi-backlight.dtbo \
-	rpi-cirrus-wm5102.dtbo \
-	rpi-dac.dtbo \
-	rpi-display.dtbo \
+	rpi-codeczero.dtbo \
+	rpi-dacplus.dtbo \
+	rpi-dacpro.dtbo \
+	rpi-digiampplus.dtbo \
 	rpi-ft5406.dtbo \
 	rpi-poe.dtbo \
 	rpi-poe-plus.dtbo \
-	rpi-proto.dtbo \
 	rpi-sense.dtbo \
+	rpi-sense-v2.dtbo \
 	rpi-tv.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
 	sainsmart18.dtbo \
@@ -261,6 +278,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	w1-gpio.dtbo \
 	w1-gpio-pullup.dtbo \
 	w5500.dtbo \
+	watterott-display.dtbo \
 	waveshare-can-fd-hat-mode-a.dtbo \
 	waveshare-can-fd-hat-mode-b.dtbo \
 	wittypi.dtbo \

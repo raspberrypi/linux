@@ -368,6 +368,11 @@ static void mana_gd_process_eq_events(void *arg)
 			break;
 		}
 
+		/* Per GDMA spec, rmb is necessary after checking owner_bits, before
+		 * reading eqe.
+		 */
+		rmb();
+
 		mana_gd_process_eqe(eq);
 
 		eq->head++;
@@ -1096,6 +1101,11 @@ static int mana_gd_read_cqe(struct gdma_queue *cq, struct gdma_comp *comp)
 	if (WARN_ON_ONCE(owner_bits != new_bits))
 		return -1;
 
+	/* Per GDMA spec, rmb is necessary after checking owner_bits, before
+	 * reading completion info
+	 */
+	rmb();
+
 	comp->wq_num = cqe->cqe_info.wq_num;
 	comp->is_sq = cqe->cqe_info.is_sq;
 	memcpy(comp->cqe_data, cqe->cqe_data, GDMA_COMP_DATA_SIZE);
@@ -1185,13 +1195,20 @@ static int mana_gd_setup_irqs(struct pci_dev *pdev)
 		gic->handler = NULL;
 		gic->arg = NULL;
 
+		if (!i)
+			snprintf(gic->name, MANA_IRQ_NAME_SZ, "mana_hwc@pci:%s",
+				 pci_name(pdev));
+		else
+			snprintf(gic->name, MANA_IRQ_NAME_SZ, "mana_q%d@pci:%s",
+				 i - 1, pci_name(pdev));
+
 		irq = pci_irq_vector(pdev, i);
 		if (irq < 0) {
 			err = irq;
 			goto free_irq;
 		}
 
-		err = request_irq(irq, mana_gd_intr, 0, "mana_intr", gic);
+		err = request_irq(irq, mana_gd_intr, 0, gic->name, gic);
 		if (err)
 			goto free_irq;
 	}

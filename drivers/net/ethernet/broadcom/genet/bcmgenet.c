@@ -70,6 +70,9 @@ static void bcmgenet_set_rx_mode(struct net_device *dev);
 static bool skip_umac_reset = false;
 module_param(skip_umac_reset, bool, 0444);
 MODULE_PARM_DESC(skip_umac_reset, "Skip UMAC reset step");
+static bool eee = true;
+module_param(eee, bool, 0444);
+MODULE_PARM_DESC(eee, "Enable EEE (default Y)");
 
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
@@ -3387,6 +3390,17 @@ static int bcmgenet_open(struct net_device *dev)
 	if (ret) {
 		netdev_err(dev, "failed to connect to PHY\n");
 		goto err_irq1;
+	}
+
+	if (!eee) {
+		struct ethtool_eee eee_data;
+
+		ret = bcmgenet_get_eee(dev, &eee_data);
+		if (ret == 0) {
+			eee_data.eee_enabled = 0;
+			bcmgenet_set_eee(dev, &eee_data);
+			netdev_warn(dev, "EEE disabled\n");
+		}
 	}
 
 	bcmgenet_netif_start(dev);

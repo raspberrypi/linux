@@ -75,5 +75,6 @@
 	__overrides__ {
 		gpiopin = <&fan0>,"gpios:4", <&fan0>,"brcm,pins:0";
 		temp = <&cpu_hot>,"temperature:0";
+		hyst = <&cpu_hot>,"hysteresis:0";
 	};
 };

@@ -893,14 +893,14 @@ static SOC_VALUE_ENUM_SINGLE_DECL(pwr_mode_ctrl,
 	pwr_mode_texts,
 	pwr_mode_values);
 
-static const DECLARE_TLV_DB_SCALE(ma120x0p_vol_tlv, -5000, 100,  0);
+static const DECLARE_TLV_DB_SCALE(ma120x0p_vol_tlv, -14400, 100,  0);
 static const DECLARE_TLV_DB_SCALE(ma120x0p_lim_tlv, -5000, 100,  0);
 static const DECLARE_TLV_DB_SCALE(ma120x0p_lr_tlv, -5000, 100,  0);
 
 static const struct snd_kcontrol_new ma120x0p_snd_controls[] = {
 	//Master Volume
 	SOC_SINGLE_RANGE_TLV("A.Mstr Vol Volume",
-		ma_vol_db_master__a, 0, 0x18, 0x4a, 1, ma120x0p_vol_tlv),
+		ma_vol_db_master__a, 0, 0x18, 0xa8, 1, ma120x0p_vol_tlv),
 
 	//L-R Volume ch0
 	SOC_SINGLE_RANGE_TLV("B.L Vol Volume",

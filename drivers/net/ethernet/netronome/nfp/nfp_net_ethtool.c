@@ -483,7 +483,7 @@ static u64 *nfp_vnic_get_sw_stats(struct net_device *netdev, u64 *data)
 		unsigned int start;
 
 		do {
-			start = u64_stats_fetch_begin(&nn->r_vecs[i].rx_sync);
+			start = u64_stats_fetch_begin_irq(&nn->r_vecs[i].rx_sync);
 			data[0] = nn->r_vecs[i].rx_pkts;
 			tmp[0] = nn->r_vecs[i].hw_csum_rx_ok;
 			tmp[1] = nn->r_vecs[i].hw_csum_rx_inner_ok;
@@ -491,10 +491,10 @@ static u64 *nfp_vnic_get_sw_stats(struct net_device *netdev, u64 *data)
 			tmp[3] = nn->r_vecs[i].hw_csum_rx_error;
 			tmp[4] = nn->r_vecs[i].rx_replace_buf_alloc_fail;
 			tmp[5] = nn->r_vecs[i].hw_tls_rx;
-		} while (u64_stats_fetch_retry(&nn->r_vecs[i].rx_sync, start));
+		} while (u64_stats_fetch_retry_irq(&nn->r_vecs[i].rx_sync, start));
 
 		do {
-			start = u64_stats_fetch_begin(&nn->r_vecs[i].tx_sync);
+			start = u64_stats_fetch_begin_irq(&nn->r_vecs[i].tx_sync);
 			data[1] = nn->r_vecs[i].tx_pkts;
 			data[2] = nn->r_vecs[i].tx_busy;
 			tmp[6] = nn->r_vecs[i].hw_csum_tx;
@@ -504,7 +504,7 @@ static u64 *nfp_vnic_get_sw_stats(struct net_device *netdev, u64 *data)
 			tmp[10] = nn->r_vecs[i].hw_tls_tx;
 			tmp[11] = nn->r_vecs[i].tls_tx_fallback;
 			tmp[12] = nn->r_vecs[i].tls_tx_no_fallback;
-		} while (u64_stats_fetch_retry(&nn->r_vecs[i].tx_sync, start));
+		} while (u64_stats_fetch_retry_irq(&nn->r_vecs[i].tx_sync, start));
 
 		data += NN_RVEC_PER_Q_STATS;
 
@@ -1219,6 +1219,11 @@ nfp_port_get_module_info(struct net_device *netdev,
 	u8 data;
 
 	port = nfp_port_from_netdev(netdev);
+	if (!port)
+		return -EOPNOTSUPP;
+
+	/* update port state to get latest interface */
+	set_bit(NFP_PORT_CHANGED, &port->flags);
 	eth_port = nfp_port_get_eth_port(port);
 	if (!eth_port)
 		return -EOPNOTSUPP;
@@ -1262,15 +1267,15 @@ nfp_port_get_module_info(struct net_device *netdev,
 
 		if (data < 0x3) {
 			modinfo->type = ETH_MODULE_SFF_8436;
-			modinfo->eeprom_len = ETH_MODULE_SFF_8436_LEN;
+			modinfo->eeprom_len = ETH_MODULE_SFF_8436_MAX_LEN;
 		} else {
 			modinfo->type = ETH_MODULE_SFF_8636;
-			modinfo->eeprom_len = ETH_MODULE_SFF_8636_LEN;
+			modinfo->eeprom_len = ETH_MODULE_SFF_8636_MAX_LEN;
 		}
 		break;
 	case NFP_INTERFACE_QSFP28:
 		modinfo->type = ETH_MODULE_SFF_8636;
-		modinfo->eeprom_len = ETH_MODULE_SFF_8636_LEN;
+		modinfo->eeprom_len = ETH_MODULE_SFF_8636_MAX_LEN;
 		break;
 	default:
 		netdev_err(netdev, "Unsupported module 0x%x detected\n",

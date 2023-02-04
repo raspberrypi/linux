@@ -741,7 +741,7 @@ static int max98373_sdw_set_tdm_slot(struct snd_soc_dai *dai,
 static const struct snd_soc_dai_ops max98373_dai_sdw_ops = {
 	.hw_params = max98373_sdw_dai_hw_params,
 	.hw_free = max98373_pcm_hw_free,
-	.set_sdw_stream = max98373_set_sdw_stream,
+	.set_stream = max98373_set_sdw_stream,
 	.shutdown = max98373_shutdown,
 	.set_tdm_slot = max98373_sdw_set_tdm_slot,
 };
@@ -862,6 +862,16 @@ static int max98373_sdw_probe(struct sdw_slave *slave,
 	return max98373_init(slave, regmap);
 }
 
+static int max98373_sdw_remove(struct sdw_slave *slave)
+{
+	struct max98373_priv *max98373 = dev_get_drvdata(&slave->dev);
+
+	if (max98373->first_hw_init)
+		pm_runtime_disable(&slave->dev);
+
+	return 0;
+}
+
 #if defined(CONFIG_OF)
 static const struct of_device_id max98373_of_match[] = {
 	{ .compatible = "maxim,max98373", },
@@ -893,7 +903,7 @@ static struct sdw_driver max98373_sdw_driver = {
 		.pm = &max98373_pm,
 	},
 	.probe = max98373_sdw_probe,
-	.remove = NULL,
+	.remove = max98373_sdw_remove,
 	.ops = &max98373_slave_ops,
 	.id_table = max98373_id,
 };

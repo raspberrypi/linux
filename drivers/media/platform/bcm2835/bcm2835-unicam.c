@@ -127,8 +127,11 @@ MODULE_PARM_DESC(media_controller, "Use media controller API");
 #define UNICAM_EMBEDDED_SIZE	16384
 
 /*
- * Size of the dummy buffer. Can be any size really, but the DMA
- * allocation works in units of page sizes.
+ * Size of the dummy buffer allocation.
+ *
+ * Due to a HW bug causing buffer overruns in circular buffer mode under certain
+ * (not yet fully known) conditions, the dummy buffer allocation is set to a
+ * a single page size, but the hardware gets programmed with a buffer size of 0.
  */
 #define DUMMY_BUF_SIZE		(PAGE_SIZE)
 
@@ -844,8 +847,7 @@ static void unicam_schedule_dummy_buffer(struct unicam_node *node)
 	unicam_dbg(3, dev, "Scheduling dummy buffer for node %d\n",
 		   node->pad_id);
 
-	unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, DUMMY_BUF_SIZE,
-			   node->pad_id);
+	unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, 0, node->pad_id);
 	node->next_frm = NULL;
 }
 
@@ -920,7 +922,9 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 		 * to use.
 		 */
 		for (i = 0; i < ARRAY_SIZE(unicam->node); i++) {
-			if (!unicam->node[i].streaming)
+			struct unicam_node *node = &unicam->node[i];
+
+			if (!node->streaming)
 				continue;
 
 			/*
@@ -930,14 +934,24 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			 * + FS + LS). In this case, we cannot signal the buffer
 			 * as complete, as the HW will reuse that buffer.
 			 */
-			if (unicam->node[i].cur_frm &&
-			    unicam->node[i].cur_frm != unicam->node[i].next_frm) {
-				unicam_process_buffer_complete(&unicam->node[i],
-							       sequence);
-				unicam->node[i].cur_frm = unicam->node[i].next_frm;
-				unicam->node[i].next_frm = NULL;
+			if (node->cur_frm && node->cur_frm != node->next_frm) {
+				/*
+				 * This condition checks if FE + FS for the same
+				 * frame has occurred. In such cases, we cannot
+				 * return out the frame, as no buffer handling
+				 * or timestamping has yet been done as part of
+				 * the FS handler.
+				 */
+				if (!node->cur_frm->vb.vb2_buf.timestamp) {
+					unicam_dbg(2, unicam, "ISR: FE without FS, dropping frame\n");
+					continue;
+				}
+
+				unicam_process_buffer_complete(node, sequence);
+				node->cur_frm = node->next_frm;
+				node->next_frm = NULL;
 			} else {
-				unicam->node[i].cur_frm = unicam->node[i].next_frm;
+				node->cur_frm = node->next_frm;
 			}
 		}
 		unicam->sequence++;
@@ -2653,8 +2667,8 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 		 * This is only really needed if the embedded data pad is
 		 * disabled before the image pad.
 		 */
-		unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr,
-				   DUMMY_BUF_SIZE, METADATA_PAD);
+		unicam_wr_dma_addr(dev, node->dummy_buf_dma_addr, 0,
+				   METADATA_PAD);
 	}
 
 	/* Clear all queued buffers for the node */
