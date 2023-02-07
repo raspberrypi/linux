@@ -21,12 +21,63 @@ struct reset_control;
 
 #define V3D_MAX_QUEUES (V3D_CACHE_CLEAN + 1)
 
+static inline char *
+v3d_queue_to_string(enum v3d_queue queue)
+{
+	switch (queue) {
+	case V3D_BIN: return "v3d_bin";
+	case V3D_RENDER: return "v3d_render";
+	case V3D_TFU: return "v3d_tfu";
+	case V3D_CSD: return "v3d_csd";
+	case V3D_CACHE_CLEAN: return "v3d_cache_clean";
+	}
+	return "UNKNOWN";
+}
+
 struct v3d_queue_state {
 	struct drm_gpu_scheduler sched;
 
 	u64 fence_context;
 	u64 emit_seqno;
 };
+
+struct v3d_queue_pid_stats {
+	struct	list_head list;
+	u64	runtime;
+	/* Time in jiffes.to purge the stats of this process. Every time a
+	 * process sends a new job to the queue, this timeout is delayed by
+	 * V3D_QUEUE_STATS_TIMEOUT while the gpu_pid_stats_timeout of the
+	 * queue is not reached.
+	 */
+	unsigned long timeout_purge;
+	u32	jobs_sent;
+	pid_t	pid;
+};
+
+struct v3d_queue_stats {
+	struct mutex lock;
+	u64	last_exec_start;
+	u64	last_exec_end;
+	u64	runtime;
+	u32	jobs_sent;
+	/* Time in jiffes to stop collecting gpu stats by process. This is
+	 * increased by every access to*the debugfs interface gpu_pid_usage.
+	 * If the debugfs is not used stats are not collected.
+	 */
+	unsigned long gpu_pid_stats_timeout;
+	pid_t	last_pid;
+	struct list_head pid_stats_list;
+};
+
+/* pid_stats by process (v3d_queue_pid_stats) are recorded if there is an
+ * access to the gpu_pid_usageare debugfs interface for the last
+ * V3D_QUEUE_STATS_TIMEOUT (70s).
+ *
+ * The same timeout is used to purge the stats by process for those process
+ * that have not sent jobs this period.
+ */
+#define V3D_QUEUE_STATS_TIMEOUT (70 * HZ)
+
 
 /* Performance monitor object. The perform lifetime is controlled by userspace
  * using perfmon related ioctls. A perfmon can be attached to a submit_cl
@@ -147,6 +198,8 @@ struct v3d_dev {
 		u32 num_allocated;
 		u32 pages_allocated;
 	} bo_stats;
+
+	struct v3d_queue_stats gpu_queue_stats[V3D_MAX_QUEUES];
 };
 
 static inline struct v3d_dev *
@@ -243,6 +296,11 @@ struct v3d_job {
 	 * NULL otherwise.
 	 */
 	struct v3d_perfmon *perfmon;
+
+	/* PID of the process that submitted the job that could be used to
+	 * for collecting stats by process of gpu usage.
+	 */
+	pid_t client_pid;
 
 	/* Callback for the freeing of the job on refcount going to 0. */
 	void (*free)(struct kref *ref);
@@ -408,6 +466,7 @@ void v3d_mmu_remove_ptes(struct v3d_bo *bo);
 /* v3d_sched.c */
 int v3d_sched_init(struct v3d_dev *v3d);
 void v3d_sched_fini(struct v3d_dev *v3d);
+void v3d_sched_stats_update(struct v3d_queue_stats *queue_stats);
 
 /* v3d_perfmon.c */
 void v3d_perfmon_get(struct v3d_perfmon *perfmon);
