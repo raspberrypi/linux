@@ -102,7 +102,6 @@
 #define IMX290_TCLKPREPARE				IMX290_REG_16BIT(0x3452)
 #define IMX290_TLPX					IMX290_REG_16BIT(0x3454)
 #define IMX290_X_OUT_SIZE				IMX290_REG_16BIT(0x3472)
-#define IMX290_INCKSEL7					IMX290_REG_8BIT(0x3480)
 
 #define IMX290_PGCTRL_REGEN				BIT(0)
 #define IMX290_PGCTRL_THRU				BIT(1)
@@ -160,25 +159,9 @@
 
 #define IMX290_NUM_SUPPLIES				3
 
-#define CLK_37_125	0
-#define CLK_74_25	1
-#define NUM_CLK		2
-
 struct imx290_regval {
 	u32 reg;
 	u32 val;
-};
-
-/*
- * Clock configuration for registers INCKSEL1 to INCKSEL6.
- */
-struct imx290_clk_cfg {
-	u8 incksel1;
-	u8 incksel2;
-	u8 incksel3;
-	u8 incksel4;
-	u8 incksel5;
-	u8 incksel6;
 };
 
 struct imx290_mode {
@@ -190,8 +173,6 @@ struct imx290_mode {
 
 	const struct imx290_regval *data;
 	u32 data_size;
-
-	const struct imx290_clk_cfg *clk_cfg;
 };
 
 struct imx290_csi_cfg {
@@ -210,7 +191,6 @@ struct imx290 {
 	struct device *dev;
 	struct clk *xclk;
 	struct regmap *regmap;
-	u32 xclk_freq;
 	u8 nlanes;
 	u8 mono;
 
@@ -239,6 +219,7 @@ static inline struct imx290 *to_imx290(struct v4l2_subdev *_sd)
  */
 
 static const struct imx290_regval imx290_global_init_settings[] = {
+	{ IMX290_EXTCK_FREQ, 0x2520 },
 	{ IMX290_WINWV_OB, 12 },
 	{ IMX290_WINPH, 0 },
 	{ IMX290_WINPV, 0 },
@@ -288,16 +269,7 @@ static const struct imx290_regval imx290_global_init_settings[] = {
 	{ IMX290_REG_8BIT(0x33b0), 0x50 },
 	{ IMX290_REG_8BIT(0x33b2), 0x1a },
 	{ IMX290_REG_8BIT(0x33b3), 0x04 },
-};
-
-static const struct imx290_regval imx290_37_125mhz_clock[] = {
-	{ IMX290_EXTCK_FREQ, 0x2520 },
-	{ IMX290_INCKSEL7, 0x49 },
-};
-
-static const struct imx290_regval imx290_74_25mhz_clock[] = {
-	{ IMX290_EXTCK_FREQ, 0x4a40 },
-	{ IMX290_INCKSEL7, 0x92 },
+	{ IMX290_REG_8BIT(0x3480), 0x49 },
 };
 
 static const struct imx290_regval imx290_1080p_settings[] = {
@@ -307,6 +279,12 @@ static const struct imx290_regval imx290_1080p_settings[] = {
 	{ IMX290_OPB_SIZE_V, 10 },
 	{ IMX290_X_OUT_SIZE, 1920 },
 	{ IMX290_Y_OUT_SIZE, 1080 },
+	{ IMX290_INCKSEL1, 0x18 },
+	{ IMX290_INCKSEL2, 0x03 },
+	{ IMX290_INCKSEL3, 0x20 },
+	{ IMX290_INCKSEL4, 0x01 },
+	{ IMX290_INCKSEL5, 0x1a },
+	{ IMX290_INCKSEL6, 0x1a },
 };
 
 static const struct imx290_regval imx290_720p_settings[] = {
@@ -316,6 +294,12 @@ static const struct imx290_regval imx290_720p_settings[] = {
 	{ IMX290_OPB_SIZE_V, 4 },
 	{ IMX290_X_OUT_SIZE, 1280 },
 	{ IMX290_Y_OUT_SIZE, 720 },
+	{ IMX290_INCKSEL1, 0x20 },
+	{ IMX290_INCKSEL2, 0x00 },
+	{ IMX290_INCKSEL3, 0x20 },
+	{ IMX290_INCKSEL4, 0x01 },
+	{ IMX290_INCKSEL5, 0x1a },
+	{ IMX290_INCKSEL6, 0x1a },
 };
 
 static const struct imx290_regval imx290_10bit_settings[] = {
@@ -421,48 +405,6 @@ static inline int imx290_link_freqs_num(const struct imx290 *imx290)
 		return ARRAY_SIZE(imx290_link_freq_4lanes);
 }
 
-static const struct imx290_clk_cfg imx290_1080p_clock_config[NUM_CLK] = {
-	[CLK_37_125] = {
-		/* 37.125MHz clock config */
-		.incksel1 = 0x18,
-		.incksel2 = 0x03,
-		.incksel3 = 0x20,
-		.incksel4 = 0x01,
-		.incksel5 = 0x1a,
-		.incksel6 = 0x1a,
-	},
-	[CLK_74_25] = {
-		/* 74.25MHz clock config */
-		.incksel1 = 0x0c,
-		.incksel2 = 0x03,
-		.incksel3 = 0x10,
-		.incksel4 = 0x01,
-		.incksel5 = 0x1b,
-		.incksel6 = 0x1b,
-	},
-};
-
-static const struct imx290_clk_cfg imx290_720p_clock_config[NUM_CLK] = {
-	[CLK_37_125] = {
-		/* 37.125MHz clock config */
-		.incksel1 = 0x20,
-		.incksel2 = 0x00,
-		.incksel3 = 0x20,
-		.incksel4 = 0x01,
-		.incksel5 = 0x1a,
-		.incksel6 = 0x1a,
-	},
-	[CLK_74_25] = {
-		/* 74.25MHz clock config */
-		.incksel1 = 0x10,
-		.incksel2 = 0x00,
-		.incksel3 = 0x10,
-		.incksel4 = 0x01,
-		.incksel5 = 0x1b,
-		.incksel6 = 0x1b,
-	},
-};
-
 /* Mode configs */
 static const struct imx290_mode imx290_modes_2lanes[] = {
 	{
@@ -473,7 +415,6 @@ static const struct imx290_mode imx290_modes_2lanes[] = {
 		.link_freq_index = FREQ_INDEX_1080P,
 		.data = imx290_1080p_settings,
 		.data_size = ARRAY_SIZE(imx290_1080p_settings),
-		.clk_cfg = imx290_1080p_clock_config,
 	},
 	{
 		.width = 1280,
@@ -483,7 +424,6 @@ static const struct imx290_mode imx290_modes_2lanes[] = {
 		.link_freq_index = FREQ_INDEX_720P,
 		.data = imx290_720p_settings,
 		.data_size = ARRAY_SIZE(imx290_720p_settings),
-		.clk_cfg = imx290_720p_clock_config,
 	},
 };
 
@@ -496,7 +436,6 @@ static const struct imx290_mode imx290_modes_4lanes[] = {
 		.link_freq_index = FREQ_INDEX_1080P,
 		.data = imx290_1080p_settings,
 		.data_size = ARRAY_SIZE(imx290_1080p_settings),
-		.clk_cfg = imx290_1080p_clock_config,
 	},
 	{
 		.width = 1280,
@@ -506,7 +445,6 @@ static const struct imx290_mode imx290_modes_4lanes[] = {
 		.link_freq_index = FREQ_INDEX_720P,
 		.data = imx290_720p_settings,
 		.data_size = ARRAY_SIZE(imx290_720p_settings),
-		.clk_cfg = imx290_720p_clock_config,
 	},
 };
 
@@ -623,23 +561,6 @@ static int imx290_set_register_array(struct imx290 *imx290,
 	usleep_range(10000, 11000);
 
 	return 0;
-}
-
-static int imx290_set_clock(struct imx290 *imx290)
-{
-	int clk_idx = (imx290->xclk_freq == 37125000) ? 0 : 1;
-	const struct imx290_mode *mode = imx290->current_mode;
-	const struct imx290_clk_cfg *clk_cfg = &mode->clk_cfg[clk_idx];
-	int ret = 0;
-
-	imx290_write(imx290, IMX290_INCKSEL1, clk_cfg->incksel1, &ret);
-	imx290_write(imx290, IMX290_INCKSEL2, clk_cfg->incksel2, &ret);
-	imx290_write(imx290, IMX290_INCKSEL3, clk_cfg->incksel3, &ret);
-	imx290_write(imx290, IMX290_INCKSEL4, clk_cfg->incksel4, &ret);
-	imx290_write(imx290, IMX290_INCKSEL5, clk_cfg->incksel5, &ret);
-	imx290_write(imx290, IMX290_INCKSEL6, clk_cfg->incksel6, &ret);
-
-	return ret;
 }
 
 static int imx290_set_data_lanes(struct imx290 *imx290)
@@ -939,13 +860,6 @@ static int imx290_start_streaming(struct imx290 *imx290,
 					ARRAY_SIZE(imx290_global_init_settings));
 	if (ret < 0) {
 		dev_err(imx290->dev, "Could not set init registers\n");
-		return ret;
-	}
-
-	/* Set clock parameters based on mode and xclk */
-	ret = imx290_set_clock(imx290);
-	if (ret < 0) {
-		dev_err(imx290->dev, "Could not set clocks\n");
 		return ret;
 	}
 
@@ -1345,14 +1259,14 @@ static int imx290_init_clk(struct imx290 *imx290)
 	int ret;
 
 	ret = fwnode_property_read_u32(dev_fwnode(imx290->dev),
-				       "clock-frequency", &imx290->xclk_freq);
+				       "clock-frequency", &xclk_freq);
 	if (ret) {
 		dev_err(imx290->dev, "Could not get xclk frequency\n");
 		return ret;
 	}
 
-	/* external clock must be 37.125 MHz or 74.25MHz */
-	if (imx290->xclk_freq != 37125000 && imx290->xclk_freq != 74250000) {
+	/* external clock must be 37.125 MHz */
+	if (xclk_freq != 37125000) {
 		dev_err(imx290->dev, "External clock frequency %u is not supported\n",
 			xclk_freq);
 		return -EINVAL;
