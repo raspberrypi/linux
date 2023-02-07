@@ -19,6 +19,7 @@
  */
 
 #include <linux/kthread.h>
+#include <linux/sched/clock.h>
 
 #include "v3d_drv.h"
 #include "v3d_regs.h"
@@ -72,6 +73,114 @@ v3d_switch_perfmon(struct v3d_dev *v3d, struct v3d_job *job)
 		v3d_perfmon_start(v3d, job->perfmon);
 }
 
+/*
+ * Updates the scheduling stats of the gpu queues runtime for completed jobs.
+ *
+ * It should be called before any new job submission to the queue or before
+ * accessing the stats from the debugfs interface.
+ *
+ * It is expected that calls to this function are done with queue_stats->lock
+ * locked.
+ */
+void
+v3d_sched_stats_update(struct v3d_queue_stats *queue_stats)
+{
+	struct list_head *pid_stats_list = &queue_stats->pid_stats_list;
+	struct v3d_queue_pid_stats *cur, *tmp;
+	u64 runtime = 0;
+	bool store_pid_stats =
+		time_is_after_jiffies(queue_stats->gpu_pid_stats_timeout);
+
+	/* If debugfs stats gpu_pid_usage has not been polled for a period,
+	 * the pid stats collection is stopped and we purge any existing
+	 * pid_stats.
+	 *
+	 * pid_stats are also purged for clients that have reached the
+	 * timeout_purge because the process probably does not exist anymore.
+	 */
+	list_for_each_entry_safe_reverse(cur, tmp, pid_stats_list, list) {
+		if (!store_pid_stats || time_is_before_jiffies(cur->timeout_purge)) {
+			list_del(&cur->list);
+			kfree(cur);
+		} else {
+			break;
+		}
+	}
+	/* If a job has finished its stats are updated. */
+	if (queue_stats->last_pid && queue_stats->last_exec_end) {
+		runtime = queue_stats->last_exec_end -
+			  queue_stats->last_exec_start;
+		queue_stats->runtime += runtime;
+
+		if (store_pid_stats) {
+			struct v3d_queue_pid_stats *pid_stats;
+			/* Last job info is always at the head of the list */
+			pid_stats = list_first_entry_or_null(pid_stats_list,
+				struct v3d_queue_pid_stats, list);
+			if (pid_stats &&
+			    pid_stats->pid == queue_stats->last_pid) {
+				pid_stats->runtime += runtime;
+			}
+		}
+		queue_stats->last_pid = 0;
+	}
+}
+
+/*
+ * Updates the queue usage adding the information of a new job that is
+ * about to be sent to the GPU to be executed.
+ */
+int
+v3d_sched_stats_add_job(struct v3d_queue_stats *queue_stats,
+			struct drm_sched_job *sched_job)
+{
+
+	struct v3d_queue_pid_stats *pid_stats = NULL;
+	struct v3d_job *job = sched_job?to_v3d_job(sched_job):NULL;
+	struct v3d_queue_pid_stats *cur;
+	struct list_head *pid_stats_list = &queue_stats->pid_stats_list;
+	int ret = 0;
+
+	mutex_lock(&queue_stats->lock);
+
+	/* Completion of previous job requires an update of its runtime stats */
+	v3d_sched_stats_update(queue_stats);
+
+	queue_stats->last_exec_start = local_clock();
+	queue_stats->last_exec_end = 0;
+	queue_stats->jobs_sent++;
+	queue_stats->last_pid = job->client_pid;
+
+	/* gpu usage stats by process are being collected */
+	if (time_is_after_jiffies(queue_stats->gpu_pid_stats_timeout)) {
+		list_for_each_entry(cur, pid_stats_list, list) {
+			if (cur->pid == job->client_pid) {
+				pid_stats = cur;
+				break;
+			}
+		}
+		/* pid_stats of this client is moved to the head of the list. */
+		if (pid_stats) {
+			list_move(&pid_stats->list, pid_stats_list);
+		} else {
+			pid_stats = kzalloc(sizeof(struct v3d_queue_pid_stats),
+					    GFP_KERNEL);
+			if (!pid_stats) {
+				ret = -ENOMEM;
+				goto err_mem;
+			}
+			pid_stats->pid = job->client_pid;
+			list_add(&pid_stats->list, pid_stats_list);
+		}
+		pid_stats->jobs_sent++;
+		pid_stats->timeout_purge = jiffies + V3D_QUEUE_STATS_TIMEOUT;
+	}
+
+err_mem:
+	mutex_unlock(&queue_stats->lock);
+	return ret;
+}
+
 static struct dma_fence *v3d_bin_job_run(struct drm_sched_job *sched_job)
 {
 	struct v3d_bin_job *job = to_bin_job(sched_job);
@@ -107,6 +216,7 @@ static struct dma_fence *v3d_bin_job_run(struct drm_sched_job *sched_job)
 	trace_v3d_submit_cl(dev, false, to_v3d_fence(fence)->seqno,
 			    job->start, job->end);
 
+	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_BIN], sched_job);
 	v3d_switch_perfmon(v3d, &job->base);
 
 	/* Set the current and end address of the control list.
@@ -158,6 +268,7 @@ static struct dma_fence *v3d_render_job_run(struct drm_sched_job *sched_job)
 	trace_v3d_submit_cl(dev, true, to_v3d_fence(fence)->seqno,
 			    job->start, job->end);
 
+	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_RENDER], sched_job);
 	v3d_switch_perfmon(v3d, &job->base);
 
 	/* XXX: Set the QCFG */
@@ -190,6 +301,7 @@ v3d_tfu_job_run(struct drm_sched_job *sched_job)
 
 	trace_v3d_submit_tfu(dev, to_v3d_fence(fence)->seqno);
 
+	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_TFU], sched_job);
 	V3D_WRITE(V3D_TFU_IIA, job->args.iia);
 	V3D_WRITE(V3D_TFU_IIS, job->args.iis);
 	V3D_WRITE(V3D_TFU_ICA, job->args.ica);
@@ -231,6 +343,7 @@ v3d_csd_job_run(struct drm_sched_job *sched_job)
 
 	trace_v3d_submit_csd(dev, to_v3d_fence(fence)->seqno);
 
+	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_CSD], sched_job);
 	v3d_switch_perfmon(v3d, &job->base);
 
 	for (i = 1; i <= 6; i++)
@@ -247,7 +360,10 @@ v3d_cache_clean_job_run(struct drm_sched_job *sched_job)
 	struct v3d_job *job = to_v3d_job(sched_job);
 	struct v3d_dev *v3d = job->v3d;
 
+	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_CACHE_CLEAN],
+				sched_job);
 	v3d_clean_caches(v3d);
+	v3d->gpu_queue_stats[V3D_CACHE_CLEAN].last_exec_end = local_clock();
 
 	return NULL;
 }
@@ -385,7 +501,17 @@ v3d_sched_init(struct v3d_dev *v3d)
 	int hw_jobs_limit = 1;
 	int job_hang_limit = 0;
 	int hang_limit_ms = 500;
+	enum v3d_queue q;
 	int ret;
+
+	for (q = 0; q < V3D_MAX_QUEUES; q++) {
+		INIT_LIST_HEAD(&v3d->gpu_queue_stats[q].pid_stats_list);
+		/* Setting timeout before current jiffies disables collecting
+		 * pid_stats on scheduling init.
+		 */
+		v3d->gpu_queue_stats[q].gpu_pid_stats_timeout = jiffies - 1;
+		mutex_init(&v3d->gpu_queue_stats[q].lock);
+	}
 
 	ret = drm_sched_init(&v3d->queue[V3D_BIN].sched,
 			     &v3d_bin_sched_ops,
@@ -440,9 +566,20 @@ void
 v3d_sched_fini(struct v3d_dev *v3d)
 {
 	enum v3d_queue q;
+	struct v3d_queue_stats *queue_stats;
 
 	for (q = 0; q < V3D_MAX_QUEUES; q++) {
-		if (v3d->queue[q].sched.ready)
+		if (v3d->queue[q].sched.ready) {
+			queue_stats = &v3d->gpu_queue_stats[q];
+			mutex_lock(&queue_stats->lock);
+			/* Setting gpu_pid_stats_timeout to jiffies-1 will
+			 * make v3d_sched_stats_update to purge all
+			 * allocated pid_stats.
+			 */
+			queue_stats->gpu_pid_stats_timeout = jiffies - 1;
+			v3d_sched_stats_update(queue_stats);
+			mutex_unlock(&queue_stats->lock);
 			drm_sched_fini(&v3d->queue[q].sched);
+		}
 	}
 }
