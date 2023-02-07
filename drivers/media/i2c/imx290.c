@@ -227,8 +227,6 @@ struct imx290 {
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *exposure;
-	struct v4l2_ctrl *hflip;
-	struct v4l2_ctrl *vflip;
 };
 
 static inline struct imx290 *to_imx290(struct v4l2_subdev *_sd)
@@ -803,24 +801,6 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 				   NULL);
 		break;
 
-	case V4L2_CID_HFLIP:
-	case V4L2_CID_VFLIP:
-	{
-		u32 reg;
-
-		/* WINMODE is in bits [6:4], so need to read-modify-write */
-		ret = imx290_read(imx290, IMX290_CTRL_07, &reg);
-		if (ret)
-			break;
-		reg &= ~(IMX290_HREVERSE | IMX290_VREVERSE);
-		if (imx290->hflip->val)
-			reg |= IMX290_HREVERSE;
-		if (imx290->vflip->val)
-			reg |= IMX290_VREVERSE;
-		ret = imx290_write(imx290, IMX290_CTRL_07, reg, NULL);
-		break;
-	}
-
 	default:
 		ret = -EINVAL;
 		break;
@@ -873,7 +853,7 @@ static int imx290_ctrl_init(struct imx290 *imx290)
 	if (ret < 0)
 		return ret;
 
-	v4l2_ctrl_handler_init(&imx290->ctrls, 11);
+	v4l2_ctrl_handler_init(&imx290->ctrls, 9);
 
 	/*
 	 * The sensor has an analog gain and a digital gain, both controlled
@@ -928,11 +908,6 @@ static int imx290_ctrl_init(struct imx290 *imx290)
 
 	imx290->vblank = v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
 					   V4L2_CID_VBLANK, 1, 1, 1, 1);
-
-	imx290->hflip = v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
-					  V4L2_CID_HFLIP, 0, 1, 1, 0);
-	imx290->vflip = v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
-					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 
 	v4l2_ctrl_new_fwnode_properties(&imx290->ctrls, &imx290_ctrl_ops,
 					&props);
@@ -1055,9 +1030,6 @@ static int imx290_set_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put_autosuspend(imx290->dev);
 	}
 
-	/* vflip and hflip cannot change during streaming */
-	__v4l2_ctrl_grab(imx290->vflip, enable);
-	__v4l2_ctrl_grab(imx290->hflip, enable);
 unlock:
 	v4l2_subdev_unlock_state(state);
 	return ret;
@@ -1143,7 +1115,6 @@ static int imx290_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
-	struct imx290 *imx290 = to_imx290(sd);
 	struct v4l2_mbus_framefmt *format;
 
 	switch (sel->target) {
@@ -1151,11 +1122,9 @@ static int imx290_get_selection(struct v4l2_subdev *sd,
 		format = v4l2_subdev_get_pad_format(sd, sd_state, 0);
 
 		sel->r.top = IMX920_PIXEL_ARRAY_MARGIN_TOP
-			   + (IMX290_PIXEL_ARRAY_RECORDING_HEIGHT - format->height) / 2
-			   + imx290->vflip->val;
+			   + (IMX290_PIXEL_ARRAY_RECORDING_HEIGHT - format->height) / 2;
 		sel->r.left = IMX920_PIXEL_ARRAY_MARGIN_LEFT
-			    + (IMX290_PIXEL_ARRAY_RECORDING_WIDTH - format->width) / 2
-			    + imx290->hflip->val;
+			    + (IMX290_PIXEL_ARRAY_RECORDING_WIDTH - format->width) / 2;
 		sel->r.width = format->width;
 		sel->r.height = format->height;
 
