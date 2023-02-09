@@ -148,6 +148,8 @@ ssize_t bcm2835_smi_user_dma(
 
 struct bcm2835_smi_instance *bcm2835_smi_get(struct device_node *node);
 
+struct bcm2835_smi_bounce_info *bcm2835_smi_get_bounce(struct bcm2835_smi_instance *inst);
+
 #endif /* __KERNEL__ */
 
 /****************************************************************

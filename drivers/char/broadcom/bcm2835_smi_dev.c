@@ -173,12 +173,11 @@ static ssize_t dma_bounce_user(
 		chunk_size = count_left > DMA_BOUNCE_BUFFER_SIZE ?
 			DMA_BOUNCE_BUFFER_SIZE : count_left;
 		buf = bounce->buffer[chunk_no % DMA_BOUNCE_BUFFER_COUNT];
-		if (dma_dir == DMA_DEV_TO_MEM)
+		if (dma_dir == DMA_DEV_TO_MEM) {
 			rv = copy_to_user(user_ptr, buf, chunk_size);
-		else
-			rv = copy_from_user(buf, user_ptr, chunk_size);
-		if (rv)
-			dev_err(inst->dev, "copy_*_user() failed!: %d", rv);
+			if (rv)
+				dev_err(inst->dev, "copy_*_user() failed!: %d", rv);
+		}
 		user_ptr += chunk_size;
 		count_left -= chunk_size;
 		chunk_no++;
@@ -240,7 +239,27 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 	count -= odd_bytes;
 	count_check = count;
 	if (count) {
-		struct bcm2835_smi_bounce_info *bounce;
+		struct bcm2835_smi_bounce_info *bounce = bcm2835_smi_get_bounce(smi_inst);
+
+		{
+			int chunk_size;
+			int chunk_no = 0;
+			int count_left = count;
+			const char __user* ptr = user_ptr;
+
+			while (count_left) {
+				int rv;
+
+				chunk_size = count_left > DMA_BOUNCE_BUFFER_SIZE ?
+					DMA_BOUNCE_BUFFER_SIZE : count_left;
+				rv = copy_from_user(bounce->buffer[chunk_no % DMA_BOUNCE_BUFFER_COUNT], ptr, chunk_size);
+				if (rv)
+					dev_err(inst->dev, "copy_from_user() failed!: %d", rv);
+				ptr += chunk_size;
+				count_left -= chunk_size;
+				chunk_no++;
+			}
+		}
 
 		count = bcm2835_smi_user_dma(smi_inst,
 			DMA_MEM_TO_DEV, (char __user *)user_ptr, count,
