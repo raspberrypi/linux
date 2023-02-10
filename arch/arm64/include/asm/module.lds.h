@@ -40,6 +40,12 @@ SECTIONS {
 		*(.hyp.rodata)
 		. = ALIGN(PAGE_SIZE);
 	}
+
+	.hyp.event_ids : ALIGN(PAGE_SIZE) {
+		*(.hyp.event_ids)
+		. = ALIGN(PAGE_SIZE);
+	}
+
 	.hyp.data : ALIGN(PAGE_SIZE) {
 		*(.hyp.data)
 		. = ALIGN(PAGE_SIZE);
