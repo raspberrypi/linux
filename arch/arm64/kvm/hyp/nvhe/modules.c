@@ -12,6 +12,7 @@
 #include <nvhe/mm.h>
 #include <nvhe/serial.h>
 #include <nvhe/spinlock.h>
+#include <nvhe/trace/trace.h>
 #include <nvhe/trap_handler.h>
 
 static void __kvm_flush_dcache_to_poc(void *addr, size_t size)
@@ -129,6 +130,9 @@ const struct pkvm_module_ops module_ops = {
 	.list_del_entry_valid_or_report = __list_del_entry_valid_or_report,
 #endif
 	.iommu_iotlb_gather_add_page = kvm_iommu_iotlb_gather_add_page,
+	.register_hyp_event_ids = register_hyp_event_ids,
+	.tracing_reserve_entry = tracing_reserve_entry,
+	.tracing_commit_entry = tracing_commit_entry,
 };
 
 int __pkvm_init_module(void *module_init)

@@ -198,6 +198,9 @@ struct pkvm_module_ops {
 #endif
 	void (*iommu_iotlb_gather_add_page)(void *cookie, struct iommu_iotlb_gather *gather,
 					    unsigned long iova, size_t size);
+	int (*register_hyp_event_ids)(unsigned long start, unsigned long end);
+	void* (*tracing_reserve_entry)(unsigned long length);
+	void (*tracing_commit_entry)(void);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
