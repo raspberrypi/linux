@@ -4,3 +4,4 @@ comment "Raspberry Pi media platform drivers"
 
 source "drivers/media/platform/raspberrypi/pisp_be/Kconfig"
 source "drivers/media/platform/raspberrypi/rp1-cfe/Kconfig"
+source "drivers/media/platform/raspberrypi/rp1_cfe/Kconfig"
