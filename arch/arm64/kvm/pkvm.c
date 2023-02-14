@@ -771,8 +771,8 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	void *start, *end, *hyp_va;
 	struct arm_smccc_res res;
 	kvm_nvhe_reloc_t *endrel;
+	int ret, i, secs_first;
 	size_t offset, size;
-	int ret, i;
 
 	/* The pKVM hyp only allows loading before it is fully initialized */
 	if (!is_protected_kvm_enabled() || is_pkvm_initialized())
@@ -790,8 +790,13 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 		return -ENODEV;
 	}
 
+	/* Missing or empty module sections are placed first */
 	sort(secs_map, ARRAY_SIZE(secs_map), sizeof(secs_map[0]), __pkvm_cmp_mod_sec, NULL);
-	start = secs_map[0].sec->start;
+	for (secs_first = 0; secs_first < ARRAY_SIZE(secs_map); secs_first++) {
+		start = secs_map[secs_first].sec->start;
+		if (start)
+			break;
+	}
 	end = secs_map[ARRAY_SIZE(secs_map) - 1].sec->end;
 	size = end - start;
 
@@ -821,7 +826,8 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	 */
 	kmemleak_free_part(start, size);
 
-	ret = pkvm_map_module_sections(secs_map, hyp_va, ARRAY_SIZE(secs_map));
+	ret = pkvm_map_module_sections(secs_map + secs_first, hyp_va,
+				       ARRAY_SIZE(secs_map) - secs_first);
 	if (ret) {
 		kvm_err("Failed to map EL2 module page: %d\n", ret);
 		module_put(this);
