@@ -840,10 +840,14 @@ struct v4l2_pix_format {
 
 /* The pixel format for all our buffers (the precise format is found in the config buffer). */
 #define V4L2_PIX_FMT_RPI_BE		v4l2_fourcc('R', 'P', 'B', 'P')
-#define V4L2_PIX_FMT_PISP_COMP_RGGB	v4l2_fourcc('P', 'C', 'R', 'G')
-#define V4L2_PIX_FMT_PISP_COMP_GRBG	v4l2_fourcc('P', 'C', 'G', 'R')
-#define V4L2_PIX_FMT_PISP_COMP_GBRG	v4l2_fourcc('P', 'C', 'G', 'B')
-#define V4L2_PIX_FMT_PISP_COMP_BGGR	v4l2_fourcc('P', 'C', 'B', 'G')
+#define V4L2_PIX_FMT_PISP_COMP1_RGGB	v4l2_fourcc('P', 'C', '1', 'R')
+#define V4L2_PIX_FMT_PISP_COMP1_GRBG	v4l2_fourcc('P', 'C', '1', 'G')
+#define V4L2_PIX_FMT_PISP_COMP1_GBRG	v4l2_fourcc('P', 'C', '1', 'g')
+#define V4L2_PIX_FMT_PISP_COMP1_BGGR	v4l2_fourcc('P', 'C', '1', 'B')
+#define V4L2_PIX_FMT_PISP_COMP2_RGGB	v4l2_fourcc('P', 'C', '2', 'R')
+#define V4L2_PIX_FMT_PISP_COMP2_GRBG	v4l2_fourcc('P', 'C', '2', 'G')
+#define V4L2_PIX_FMT_PISP_COMP2_GBRG	v4l2_fourcc('P', 'C', '2', 'g')
+#define V4L2_PIX_FMT_PISP_COMP2_BGGR	v4l2_fourcc('P', 'C', '2', 'B')
 
 /* SDR formats - used only for Software Defined Radio devices */
 #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
@@ -877,6 +881,9 @@ struct v4l2_pix_format {
 
 /* Vendor specific - used for RaspberryPi PiSP */
 #define V4L2_META_FMT_RPI_BE_CFG	v4l2_fourcc('R', 'P', 'B', 'C') /* PiSP BE configuration */
+
+/* The metadata format identifier for FE configuration buffers. */
+#define V4L2_META_FMT_RPI_FE_CFG v4l2_fourcc('R', 'P', 'F', 'C')
 
 /* The metadata format identifier for FE configuration buffers. */
 #define V4L2_META_FMT_RPI_FE_STATS v4l2_fourcc('R', 'P', 'F', 'S')
