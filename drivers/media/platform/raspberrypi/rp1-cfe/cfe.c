@@ -1807,12 +1807,31 @@ static int cfe_video_link_validate(struct media_link *link)
 			goto out;
 		}
 
-		fmt = find_format_by_code_and_fourcc(source_fmt->code,
-						     pix_fmt->pixelformat);
+		fmt = find_format_by_code(source_fmt->code);
+
 		if (!fmt) {
-			cfe_err(cfe, "Format mismatch!\n");
+			cfe_err(cfe, "Format mismatch - unknown code!\n");
 			ret = -EINVAL;
 			goto out;
+		}
+
+		if (fmt->fourcc != pix_fmt->pixelformat &&
+		    fmt->remap[CFE_REMAP_16BIT] != pix_fmt->pixelformat &&
+		    fmt->remap[CFE_REMAP_COMPRESSED] != pix_fmt->pixelformat)  {
+			if ((pix_fmt->pixelformat == V4L2_PIX_FMT_BGR24 &&
+			     source_fmt->code == MEDIA_BUS_FMT_BGR888_1X24) ||
+			    (pix_fmt->pixelformat == V4L2_PIX_FMT_RGB24 &&
+			     source_fmt->code == MEDIA_BUS_FMT_RGB888_1X24)) {
+				dev_warn_once(&cfe->pdev->dev,
+					      "Incorrect pixel format %p4cc for 0x%04x. Fix your application to use %p4cc.\n",
+					      &pix_fmt->pixelformat,
+					      source_fmt->code, &fmt->fourcc);
+			} else {
+				cfe_err(cfe, "Format mismatch! Code %u fourcc %p4cc\n",
+					source_fmt->code, &pix_fmt->pixelformat);
+				ret = -EINVAL;
+				goto out;
+			}
 		}
 	} else if (is_csi2_node(node) && is_meta_output_node(node)) {
 		struct v4l2_meta_format *meta_fmt = &node->meta_fmt.fmt.meta;
@@ -2482,7 +2501,7 @@ static const struct dev_pm_ops cfe_pm_ops = {
 };
 
 static const struct of_device_id cfe_of_match[] = {
-	{ .compatible = "raspberrypi,rp1-cfe" },
+	{ .compatible = "raspberrypi,rp1-cfe-upstream" },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, cfe_of_match);
