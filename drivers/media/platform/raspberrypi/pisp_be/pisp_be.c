@@ -203,6 +203,7 @@ struct pispbe_node_group {
 	struct media_pad pad[PISPBE_NUM_NODES]; /* output pads first */
 	struct pisp_be_tiles_config *config;
 	dma_addr_t config_dma_addr;
+	unsigned int sequence;
 };
 
 /* Records details of the jobs currently running or queued on the h/w. */
@@ -703,10 +704,13 @@ static void pispbe_isr_jobdone(struct pispbe_dev *pispbe,
 	for (i = 0; i < PISPBE_NUM_NODES; i++) {
 		if (buf[i]) {
 			buf[i]->vb.vb2_buf.timestamp = ts;
+			buf[i]->vb.sequence = job->node_group->sequence;
 			vb2_buffer_done(&buf[i]->vb.vb2_buf,
 					VB2_BUF_STATE_DONE);
 		}
 	}
+
+	job->node_group->sequence++;
 }
 
 static irqreturn_t pispbe_isr(int irq, void *dev)
@@ -962,6 +966,7 @@ static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	spin_lock_irqsave(&pispbe->hw_lock, flags);
 	node->node_group->streaming_map |=  BIT(node->id);
+	node->node_group->sequence = 0;
 	spin_unlock_irqrestore(&pispbe->hw_lock, flags);
 
 	dev_dbg(pispbe->dev, "%s: for node %s (count %u)\n",
