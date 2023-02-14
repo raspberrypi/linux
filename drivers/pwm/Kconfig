@@ -510,6 +510,15 @@ config PWM_RASPBERRYPI_POE
 	  Enable Raspberry Pi firmware controller PWM bus used to control the
 	  official RPI PoE hat
 
+config PWM_RP1
+	tristate "RP1 PWM support"
+	depends on ARCH_BCM2835 || COMPILE_TEST
+	help
+	  PWM framework driver for Raspberry Pi RP1 controller
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-rp1.
+
 config PWM_RCAR
 	tristate "Renesas R-Car PWM support"
 	depends on ARCH_RENESAS || COMPILE_TEST
