@@ -2,7 +2,8 @@
 /*
  * RP1 Camera Front End formats definition
  *
- * Copyright (C) 2021-2024 - Raspberry Pi Ltd.
+ * Copyright (C) 2021 - Raspberry Pi Ltd.
+ *
  */
 #ifndef _CFE_FMTS_H_
 #define _CFE_FMTS_H_
@@ -196,7 +197,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SBGGR16,
 		.code = MEDIA_BUS_FMT_SBGGR16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR },
 	},
@@ -204,7 +205,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SGBRG16,
 		.code = MEDIA_BUS_FMT_SGBRG16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG },
 	},
@@ -212,7 +213,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SGRBG16,
 		.code = MEDIA_BUS_FMT_SGRBG16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG },
 	},
@@ -220,7 +221,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SRGGB16,
 		.code = MEDIA_BUS_FMT_SRGGB16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB },
 	},
@@ -292,26 +293,11 @@ static const struct cfe_fmt formats[] = {
 		.depth = 8,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
-
-	/* Embedded data formats */
+	/* Embedded data format */
 	{
-		.fourcc = V4L2_META_FMT_GENERIC_8,
-		.code = MEDIA_BUS_FMT_META_8,
+		.fourcc = V4L2_META_FMT_SENSOR_DATA,
+		.code = MEDIA_BUS_FMT_SENSOR_DATA,
 		.depth = 8,
-		.csi_dt = MIPI_CSI2_DT_EMBEDDED_8B,
-		.flags = CFE_FORMAT_FLAG_META_CAP,
-	},
-	{
-		.fourcc = V4L2_META_FMT_GENERIC_CSI2_10,
-		.code = MEDIA_BUS_FMT_META_10,
-		.depth = 10,
-		.csi_dt = MIPI_CSI2_DT_EMBEDDED_8B,
-		.flags = CFE_FORMAT_FLAG_META_CAP,
-	},
-	{
-		.fourcc = V4L2_META_FMT_GENERIC_CSI2_12,
-		.code = MEDIA_BUS_FMT_META_12,
-		.depth = 12,
 		.csi_dt = MIPI_CSI2_DT_EMBEDDED_8B,
 		.flags = CFE_FORMAT_FLAG_META_CAP,
 	},
