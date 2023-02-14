@@ -1,0 +1,5 @@
+source "drivers/gpu/drm/rp1/rp1-dsi/Kconfig"
+
+source "drivers/gpu/drm/rp1/rp1-dpi/Kconfig"
+
+source "drivers/gpu/drm/rp1/rp1-vec/Kconfig"
