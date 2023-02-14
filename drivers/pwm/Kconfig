@@ -607,6 +607,15 @@ config PWM_RENESAS_TPU
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-renesas-tpu.
 
+config PWM_RP1
+	tristate "RP1 PWM support"
+	depends on ARCH_BCM2835 || COMPILE_TEST
+	help
+	  PWM framework driver for Raspberry Pi RP1 controller
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-rp1.
+
 config PWM_ROCKCHIP
 	tristate "Rockchip PWM support"
 	depends on ARCH_ROCKCHIP || COMPILE_TEST
