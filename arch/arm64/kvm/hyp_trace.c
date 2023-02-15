@@ -723,6 +723,24 @@ static const struct file_operations hyp_trace_raw_fops = {
 	.llseek         = no_llseek,
 };
 
+static int hyp_trace_clock_show(struct seq_file *m, void *v)
+{
+	seq_puts(m, "[boot]\n");
+	return 0;
+}
+
+static int hyp_trace_clock_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, hyp_trace_clock_show, NULL);
+}
+
+static const struct file_operations hyp_trace_clock_fops = {
+	.open = hyp_trace_clock_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int hyp_trace_open(struct inode *inode, struct file *file)
 {
 	return file->f_mode & FMODE_WRITE ? hyp_tracing_teardown() : 0;
@@ -771,8 +789,8 @@ int hyp_trace_init_tracefs(void)
 	tracefs_create_file("buffer_size_kb", TRACEFS_MODE_WRITE, root, NULL,
 			    &hyp_buffer_size_fops);
 
-	tracefs_create_file("trace", TRACEFS_MODE_WRITE, root,
-			    (void *)RING_BUFFER_ALL_CPUS, &hyp_trace_fops);
+	tracefs_create_file("trace_clock", TRACEFS_MODE_READ, root, NULL,
+			    &hyp_trace_clock_fops);
 
 	tracefs_create_file("trace_pipe", TRACEFS_MODE_WRITE, root,
 			    (void *)RING_BUFFER_ALL_CPUS, &hyp_trace_pipe_fops);
