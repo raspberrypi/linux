@@ -1,0 +1,121 @@
+/*
+ * Device tree overlay for Microchip mcp3004 10-Bit A/D Converters
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev1>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target-path = "spi1/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target-path = "spi1/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
+		target-path = "spi1/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@5 {
+		target-path = "spi2/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@6 {
+		target-path = "spi2/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@7 {
+		target-path = "spi2/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	mcp3004frag: fragment@8 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mcp3004dev: mcp3004@0 {
+				compatible = "microchip,mcp3004";
+				reg = <0>;
+				spi-max-frequency = <1000000>;
+				vref-supply = <&adc_vref>;
+			};
+		};
+	};
+
+	fragment@9 {
+		target-path = "/";
+		__overlay__ {
+			adc_vref: fixedregulator@0 {
+				compatible = "regulator-fixed";
+				regulator-name = "mcp3004_vref";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+			};
+		};
+	};
+	__overrides__ {
+		spi0-0-present = <0>, "+0",
+			 <&mcp3004frag>,"target:0=",<&spi0>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi0-1-present = <0>, "+1",
+			 <&mcp3004frag>,"target:0=",<&spi0>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi1-0-present = <0>, "+2",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi1-1-present = <0>, "+3",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi1-2-present = <0>, "+4",
+			 <&mcp3004frag>,"target:0=",<&spi1>,
+			 <&mcp3004dev>,"reg:0=2";
+		spi2-0-present = <0>, "+5",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=0";
+		spi2-1-present = <0>, "+6",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=1";
+		spi2-2-present = <0>, "+7",
+			 <&mcp3004frag>,"target:0=",<&spi2>,
+			 <&mcp3004dev>,"reg:0=2";
+	};
+};
