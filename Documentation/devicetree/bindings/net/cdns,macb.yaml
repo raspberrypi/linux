@@ -131,6 +131,22 @@ properties:
       Node containing PHY children. If this node is not present, then PHYs will
       be direct children.
 
+  cdns,aw2w-max-pipe:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Maximum number of outstanding AXI write requests
+
+  cdns,ar2r-max-pipe:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      Maximum number of outstanding AXI read requests
+
+  cdns,use-aw2b-fill:
+    type: boolean
+    description:
+      If set, the maximum number of outstanding write transactions operates
+      between the AW to B AXI channel, instead of the AW to W AXI channel.
+
 patternProperties:
   "^ethernet-phy@[0-9a-f]$":
     type: object
