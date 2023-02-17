@@ -555,6 +555,8 @@ struct vc4_txp_data {
 	unsigned int supports_40bit_addresses:1;
 };
 
+extern const struct vc4_txp_data bcm2712_mop_data;
+extern const struct vc4_txp_data bcm2712_moplet_data;
 extern const struct vc4_txp_data bcm2835_txp_data;
 
 struct vc4_pv_data {
