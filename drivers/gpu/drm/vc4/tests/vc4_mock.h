@@ -52,6 +52,7 @@ struct vc4_dummy_output *vc4_dummy_output(struct kunit *test,
 
 struct vc4_dev *vc4_mock_device(struct kunit *test);
 struct vc4_dev *vc5_mock_device(struct kunit *test);
+struct vc4_dev *vc6_mock_device(struct kunit *test);
 
 struct vc4_dummy_output *
 vc4_mock_atomic_add_output(struct kunit *test,
