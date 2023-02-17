@@ -159,12 +159,26 @@ KUNIT_DEFINE_ACTION_WRAPPER(kunit_action_drm_dev_unregister,
 
 static struct vc4_dev *__mock_device(struct kunit *test, enum vc4_gen gen)
 {
+	const struct vc4_mock_desc *desc;
+	const struct drm_driver *drv;
 	struct drm_device *drm;
-	const struct drm_driver *drv = (gen == VC4_GEN_5) ? &vc5_drm_driver : &vc4_drm_driver;
-	const struct vc4_mock_desc *desc = (gen == VC4_GEN_5) ? &vc5_mock : &vc4_mock;
 	struct vc4_dev *vc4;
 	struct device *dev;
 	int ret;
+
+	switch (gen) {
+	case VC4_GEN_4:
+		drv = &vc4_drm_driver;
+		desc = &vc4_mock;
+		break;
+	case VC4_GEN_5:
+		drv = &vc5_drm_driver;
+		desc = &vc5_mock;
+		break;
+
+	default:
+		return NULL;
+	}
 
 	dev = drm_kunit_helper_alloc_device(test);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, dev);
