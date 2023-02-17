@@ -309,7 +309,9 @@ static int vc4_drm_bind(struct device *dev)
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
-	if (of_device_is_compatible(dev->of_node, "brcm,bcm2711-vc5"))
+	if (of_device_is_compatible(dev->of_node, "brcm,bcm2712-vc6"))
+		gen = VC4_GEN_6;
+	else if (of_device_is_compatible(dev->of_node, "brcm,bcm2711-vc5"))
 		gen = VC4_GEN_5;
 	else
 		gen = VC4_GEN_4;
@@ -471,6 +473,7 @@ static void vc4_platform_drm_remove(struct platform_device *pdev)
 
 static const struct of_device_id vc4_of_match[] = {
 	{ .compatible = "brcm,bcm2711-vc5", },
+	{ .compatible = "brcm,bcm2712-vc6", },
 	{ .compatible = "brcm,bcm2835-vc4", },
 	{ .compatible = "brcm,cygnus-vc4", },
 	{},
