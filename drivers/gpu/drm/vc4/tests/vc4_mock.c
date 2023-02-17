@@ -106,6 +106,26 @@ static const struct vc4_mock_desc vc5_mock =
 							      DRM_MODE_CONNECTOR_HDMIA)),
 );
 
+static const struct vc4_mock_desc vc6_mock =
+	VC4_MOCK_DESC(
+		VC4_MOCK_CRTC_DESC(&bcm2712_mop_data.base,
+				   VC4_MOCK_OUTPUT_DESC(VC4_ENCODER_TYPE_TXP0,
+							DRM_MODE_ENCODER_VIRTUAL,
+							DRM_MODE_CONNECTOR_WRITEBACK)),
+		VC4_MOCK_CRTC_DESC(&bcm2712_moplet_data.base,
+				   VC4_MOCK_OUTPUT_DESC(VC4_ENCODER_TYPE_TXP1,
+							DRM_MODE_ENCODER_VIRTUAL,
+							DRM_MODE_CONNECTOR_WRITEBACK)),
+		VC4_MOCK_PIXELVALVE_DESC(&bcm2712_pv0_data,
+					 VC4_MOCK_OUTPUT_DESC(VC4_ENCODER_TYPE_HDMI0,
+							      DRM_MODE_ENCODER_TMDS,
+							      DRM_MODE_CONNECTOR_HDMIA)),
+		VC4_MOCK_PIXELVALVE_DESC(&bcm2712_pv1_data,
+					 VC4_MOCK_OUTPUT_DESC(VC4_ENCODER_TYPE_HDMI1,
+							      DRM_MODE_ENCODER_TMDS,
+							      DRM_MODE_CONNECTOR_HDMIA)),
+);
+
 static int __build_one_pipe(struct kunit *test, struct drm_device *drm,
 			    const struct vc4_mock_pipe_desc *pipe)
 {
@@ -171,6 +191,10 @@ static struct vc4_dev *__mock_device(struct kunit *test, enum vc4_gen gen)
 		drv = &vc5_drm_driver;
 		desc = &vc5_mock;
 		break;
+	case VC4_GEN_6:
+		drv = &vc5_drm_driver;
+		desc = &vc6_mock;
+		break;
 
 	default:
 		return NULL;
@@ -211,4 +235,9 @@ struct vc4_dev *vc4_mock_device(struct kunit *test)
 struct vc4_dev *vc5_mock_device(struct kunit *test)
 {
 	return __mock_device(test, VC4_GEN_5);
+}
+
+struct vc4_dev *vc6_mock_device(struct kunit *test)
+{
+	return __mock_device(test, VC4_GEN_6);
 }
