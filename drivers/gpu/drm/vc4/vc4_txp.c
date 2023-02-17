@@ -519,7 +519,7 @@ static irqreturn_t vc4_txp_interrupt(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static const struct vc4_txp_data bcm2712_mop_data = {
+const struct vc4_txp_data bcm2712_mop_data = {
 	.base = {
 		.name = "mop",
 		.debugfs_name = "mop_regs",
@@ -533,7 +533,7 @@ static const struct vc4_txp_data bcm2712_mop_data = {
 	.supports_40bit_addresses = true,
 };
 
-static const struct vc4_txp_data bcm2712_moplet_data = {
+const struct vc4_txp_data bcm2712_moplet_data = {
 	.base = {
 		.name = "moplet",
 		.debugfs_name = "moplet_regs",
