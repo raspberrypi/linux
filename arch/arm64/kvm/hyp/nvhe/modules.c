@@ -77,15 +77,6 @@ void __pkvm_close_module_registration(void)
 	 */
 }
 
-int __pkvm_close_late_module_registration(void)
-{
-	__pkvm_close_module_registration();
-
-	return reset_pkvm_priv_hcall_limit();
-
-	/* The fuse is blown! No way back until reset */
-}
-
 static int __pkvm_module_host_donate_hyp(u64 pfn, u64 nr_pages)
 {
 	return ___pkvm_host_donate_hyp(pfn, nr_pages, true);

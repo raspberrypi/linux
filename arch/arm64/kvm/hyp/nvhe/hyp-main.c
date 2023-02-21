@@ -1257,12 +1257,6 @@ static void handle___pkvm_register_hcall(struct kvm_cpu_context *host_ctxt)
 	cpu_reg(host_ctxt, 1) = __pkvm_register_hcall(hfn_hyp_va);
 }
 
-static void
-handle___pkvm_close_module_registration(struct kvm_cpu_context *host_ctxt)
-{
-	cpu_reg(host_ctxt, 1) = __pkvm_close_late_module_registration();
-}
-
 typedef void (*hcall_t)(struct kvm_cpu_context *);
 
 #define HANDLE_FUNC(x)	[__KVM_HOST_SMCCC_FUNC_##x] = (hcall_t)handle_##x
@@ -1282,13 +1276,11 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__kvm_tlb_flush_vmid),
 	HANDLE_FUNC(__kvm_tlb_flush_vmid_range),
 	HANDLE_FUNC(__kvm_flush_cpu_context),
-
 	HANDLE_FUNC(__pkvm_alloc_module_va),
 	HANDLE_FUNC(__pkvm_map_module_page),
 	HANDLE_FUNC(__pkvm_unmap_module_page),
 	HANDLE_FUNC(__pkvm_init_module),
 	HANDLE_FUNC(__pkvm_register_hcall),
-	HANDLE_FUNC(__pkvm_close_module_registration),
 	HANDLE_FUNC(__pkvm_prot_finalize),
 
 	HANDLE_FUNC(__pkvm_host_share_hyp),
@@ -1314,22 +1306,6 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_enable_event),
 };
 
-unsigned long pkvm_priv_hcall_limit __ro_after_init = __KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize;
-
-int reset_pkvm_priv_hcall_limit(void)
-{
-	unsigned long *addr;
-
-	if (pkvm_priv_hcall_limit == __KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize)
-		return -EACCES;
-
-	addr = hyp_fixmap_map(__hyp_pa(&pkvm_priv_hcall_limit));
-	*addr = __KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize;
-	hyp_fixmap_unmap();
-
-	return 0;
-}
-
 static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(unsigned long, id, host_ctxt, 0);
@@ -1349,7 +1325,7 @@ static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
 	 * returns -EPERM after the first call for a given CPU.
 	 */
 	if (static_branch_unlikely(&kvm_protected_mode_initialized))
-		hcall_min = pkvm_priv_hcall_limit;
+		hcall_min = __KVM_HOST_SMCCC_FUNC___pkvm_prot_finalize;
 
 	id &= ~ARM_SMCCC_CALL_HINTS;
 	id -= KVM_HOST_SMCCC_ID(0);
