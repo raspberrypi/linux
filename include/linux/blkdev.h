@@ -1326,7 +1326,17 @@ static inline sector_t bdev_zone_sectors(struct block_device *bdev)
 static inline sector_t bdev_offset_from_zone_start(struct block_device *bdev,
 						   sector_t sector)
 {
-	return sector & (bdev_zone_sectors(bdev) - 1);
+	sector_t zone_sectors = bdev_zone_sectors(bdev);
+	u64 remainder = 0;
+
+	if (!bdev_is_zoned(bdev))
+		return 0;
+
+	if (is_power_of_2(zone_sectors))
+		return sector & (zone_sectors - 1);
+
+	div64_u64_rem(sector, zone_sectors, &remainder);
+	return remainder;
 }
 
 static inline bool bdev_is_zone_start(struct block_device *bdev,
