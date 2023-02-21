@@ -10,6 +10,7 @@
 #include <linux/poll.h>
 #include <linux/syscalls.h>
 #include <linux/fdtable.h>
+#include <linux/filelock.h>
 
 #include <uapi/linux/incrementalfs.h>
 
