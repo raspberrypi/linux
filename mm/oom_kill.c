@@ -780,6 +780,12 @@ static void mark_oom_victim(struct task_struct *tsk)
 }
 
 /**
+ * ANDROID: Exporting tracepoint to assist in tracking OOM kills
+ * in `drivers/android/memhealth.c`.
+ */
+EXPORT_TRACEPOINT_SYMBOL_GPL(mark_victim);
+
+/**
  * exit_oom_victim - note the exit of an OOM victim
  */
 void exit_oom_victim(void)
