@@ -2108,9 +2108,9 @@ static int zram_rw_page(struct block_device *bdev, sector_t sector,
 	bv.bv_offset = 0;
 
 	start_time = bdev_start_io_acct(bdev->bd_disk->part0,
-			SECTORS_PER_PAGE, op, jiffies);
+			op, jiffies);
 	ret = zram_bvec_rw(zram, &bv, index, offset, op, NULL);
-	bdev_end_io_acct(bdev->bd_disk->part0, op, start_time);
+	bdev_end_io_acct(bdev->bd_disk->part0, op, SECTORS_PER_PAGE, start_time);
 out:
 	/*
 	 * If I/O fails, just return error(ie, non-zero) without
