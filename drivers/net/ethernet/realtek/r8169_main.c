@@ -183,6 +183,7 @@ enum rtl_registers {
 	MAR0		= 8,	/* Multicast filter. */
 	CounterAddrLow		= 0x10,
 	CounterAddrHigh		= 0x14,
+	CustomLED	= 0x18,
 	TxDescStartAddrLow	= 0x20,
 	TxDescStartAddrHigh	= 0x24,
 	TxHDescStartAddrLow	= 0x28,
@@ -5274,6 +5275,84 @@ done:
 	rtl_rar_set(tp, mac_addr);
 }
 
+static ssize_t leds_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
+{
+/*
+What each bit does (on a RTL8111 NIC):
+
+0  = LED0 on when 10Mbps
+1  = LED0 on when 100Mbps
+2  = LED0 on when 1000Mbps
+3  = LED0 blink when RX/TX activity
+4  = LED1 on when 10Mbps
+5  = LED1 on when 100Mbps
+6  = LED1 on when 1000Mbps
+7  = LED1 blink when RX/TX activity
+8  = LED2 on when 10Mbps
+9  = LED2 on when 100Mbps
+10 = LED2 on when 1000Mbps
+11 = LED2 blink when RX/TX activity
+12 = LED0 invert
+13 = LED1 invert
+14 = LED2 invert
+15 = N/A
+
+Most NICs only have LED 0 and 2 connected.
+
+$echo xxxx | sudo tee /sys/class/net/INTERFACE/leds
+
+Examples:
+0000:
+ LED0: Off
+ LED1: Off
+ LED2: Off
+f000:
+ LED0: On
+ LED1: On
+ LED2: On
+70c:
+ LED0: On when 1000M & RX/TX blink
+ LED1: Off
+ LED2: On when 10/100/1000M
+40f:
+ LED0: RX/TX blink
+ LED1: Off
+ LED2: On when 1000M
+1808:
+ LED0: RX/TX blink (inverted)
+ LED1: Off
+ LED2: RX/TX blink
+*/
+
+	struct rtl8169_private *tp = netdev_priv(to_net_dev(dev));
+	unsigned int val;
+
+	if(kstrtouint(buf, 16, &val) != 0)
+		return -EINVAL;
+
+	RTL_W16(tp, CustomLED, val);
+
+	return len;
+}
+
+static ssize_t leds_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct rtl8169_private *tp = netdev_priv(to_net_dev(dev));
+	unsigned int val = RTL_R16(tp, CustomLED);
+	return sprintf(buf, "%x\n", val);
+}
+
+static DEVICE_ATTR_RW(leds);
+
+static struct attribute *leds_attrs[] = {
+	&dev_attr_leds.attr,
+	NULL
+};
+
+static const struct attribute_group leds_attr_group = {
+	.attrs = leds_attrs
+};
+
 static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct rtl8169_private *tp;
@@ -5437,6 +5516,8 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 					    GFP_KERNEL);
 	if (!tp->counters)
 		return -ENOMEM;
+
+	dev->sysfs_groups[0] = &leds_attr_group;
 
 	pci_set_drvdata(pdev, tp);
 
