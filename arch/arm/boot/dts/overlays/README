@@ -716,6 +716,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
+        cam0-imx519             Select IMX519 for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
@@ -726,6 +727,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
         cam1-imx477             Select IMX477 for camera on port 1
+        cam1-imx519             Select IMX519 for camera on port 1
         cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
@@ -743,6 +745,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
+        cam0-imx519             Select IMX519 for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
@@ -753,6 +756,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
         cam1-imx477             Select IMX477 for camera on port 1
+        cam1-imx519             Select IMX519 for camera on port 1
         cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
@@ -763,6 +767,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam2-imx258             Select IMX258 for camera on port 2
         cam2-imx290             Select IMX290 for camera on port 2
         cam2-imx477             Select IMX477 for camera on port 2
+        cam2-imx519             Select IMX519 for camera on port 2
         cam2-imx708             Select IMX708 for camera on port 2
         cam2-ov2311             Select OV2311 for camera on port 2
         cam2-ov5647             Select OV5647 for camera on port 2
@@ -773,6 +778,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam3-imx258             Select IMX258 for camera on port 3
         cam3-imx290             Select IMX290 for camera on port 3
         cam3-imx477             Select IMX477 for camera on port 3
+        cam3-imx519             Select IMX519 for camera on port 3
         cam3-imx708             Select IMX708 for camera on port 3
         cam3-ov2311             Select OV2311 for camera on port 3
         cam3-ov5647             Select OV5647 for camera on port 3
