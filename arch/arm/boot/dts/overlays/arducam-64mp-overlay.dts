@@ -39,6 +39,13 @@
 					};
 				};
 			};
+
+			vcm: dw9817@c {
+				compatible = "dongwoon,dw9817-vcm";
+				reg = <0x0c>;
+				status = "disabled";
+				VDD-supply = <&cam1_reg>;
+			};
 		};
 	};
 
@@ -81,6 +88,13 @@
 		};
 	};
 
+	fragment@5 {
+		target = <&arducam_64mp>;
+		__overlay__ {
+			lens-focus = <&vcm>;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&arducam_64mp>,"rotation:0";
 		orientation = <&arducam_64mp>,"orientation:0";
@@ -89,6 +103,13 @@
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&arducam_64mp>, "clocks:0=",<&cam0_clk>,
-		       <&arducam_64mp>, "VANA-supply:0=",<&cam0_reg>;
+		       <&arducam_64mp>, "VANA-supply:0=",<&cam0_reg>,
+		       <&vcm>, "VDD-supply:0=", <&cam0_reg>;
+		vcm = <&vcm>, "status",
+		      <0>, "=5";
 	};
+};
+
+&vcm {
+	status = "okay";
 };
