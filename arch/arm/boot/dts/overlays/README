@@ -613,6 +613,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Select lens driver state. Default is enabled,
+                                but vcm=off will disable.
 
 
 Name:   arducam-pivariety
