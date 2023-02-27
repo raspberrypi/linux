@@ -13,32 +13,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			arducam_64mp: arducam_64mp@1a {
-				compatible = "arducam,64mp";
-				reg = <0x1a>;
-				status = "okay";
-
-				clocks = <&cam1_clk>;
-				clock-names = "xclk";
-
-				VANA-supply = <&cam1_reg>;	/* 2.8v */
-				VDIG-supply = <&cam_dummy_reg>;	/* 1.8v */
-				VDDL-supply = <&cam_dummy_reg>;	/* 1.2v */
-
-				rotation = <0>;
-				orientation = <2>;
-
-				port {
-					arducam_64mp_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
-						clock-lanes = <0>;
-						data-lanes = <1 2>;
-						clock-noncontinuous;
-						link-frequencies =
-							/bits/ 64 <456000000>;
-					};
-				};
-			};
+			#include "arducam-64mp.dtsi"
 		};
 	};
 
@@ -49,8 +24,8 @@
 			brcm,media-controller;
 
 			port{
-				csi1_ep: endpoint{
-					remote-endpoint = <&arducam_64mp_0>;
+				csi_ep: endpoint{
+					remote-endpoint = <&cam_endpoint>;
 					clock-lanes = <0>;
 					data-lanes = <1 2>;
 					clock-noncontinuous;
@@ -81,14 +56,36 @@
 		};
 	};
 
+	fragment@5 {
+		target = <&cam_node>;
+		__overlay__ {
+			lens-focus = <&vcm_node>;
+		};
+	};
+
 	__overrides__ {
-		rotation = <&arducam_64mp>,"rotation:0";
-		orientation = <&arducam_64mp>,"orientation:0";
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
-		       <&arducam_64mp>, "clocks:0=",<&cam0_clk>,
-		       <&arducam_64mp>, "VANA-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>,
+		       <&vcm_node>, "VDD-supply:0=", <&cam0_reg>;
+		vcm = <&vcm_node>, "status",
+		      <0>, "=5";
 	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
+};
+
+&vcm_node {
+	status = "okay";
 };
