@@ -714,7 +714,8 @@ Info:   Configures a 2 port camera multiplexer
         Note that currently ALL IMX290 modules share a common clock, therefore
         all modules will need to have the same clock frequency.
 Load:   dtoverlay=camera-mux-2port,<param>=<val>
-Params: cam0-imx219             Select IMX219 for camera on port 0
+Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
+        cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
@@ -725,6 +726,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
         cam0-ov9281             Select OV9281 for camera on port 0
         cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
+        cam1-arducam-64mp       Select Arducam64MP for camera on port 1
         cam1-imx219             Select IMX219 for camera on port 1
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
@@ -743,7 +745,8 @@ Info:   Configures a 4 port camera multiplexer
         Note that currently ALL IMX290 modules share a common clock, therefore
         all modules will need to have the same clock frequency.
 Load:   dtoverlay=camera-mux-4port,<param>=<val>
-Params: cam0-imx219             Select IMX219 for camera on port 0
+Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
+        cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
@@ -754,6 +757,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
         cam0-ov9281             Select OV9281 for camera on port 0
         cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
+        cam1-arducam-64mp       Select Arducam64MP for camera on port 1
         cam1-imx219             Select IMX219 for camera on port 1
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
@@ -765,6 +769,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam1-ov7251             Select OV7251 for camera on port 1
         cam1-ov9281             Select OV9281 for camera on port 1
         cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
+        cam2-arducam-64mp       Select Arducam64MP for camera on port 2
         cam2-imx219             Select IMX219 for camera on port 2
         cam2-imx258             Select IMX258 for camera on port 2
         cam2-imx290             Select IMX290 for camera on port 2
@@ -776,6 +781,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam2-ov7251             Select OV7251 for camera on port 2
         cam2-ov9281             Select OV9281 for camera on port 2
         cam2-imx290-clk-freq    Set clock frequency for an IMX290 on port 2
+        cam3-arducam-64mp       Select Arducam64MP for camera on port 3
         cam3-imx219             Select IMX219 for camera on port 3
         cam3-imx258             Select IMX258 for camera on port 3
         cam3-imx290             Select IMX290 for camera on port 3
