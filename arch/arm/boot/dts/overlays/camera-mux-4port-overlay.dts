@@ -154,6 +154,16 @@
 					#address-cells = <1>;
 					#size-cells = <0>;
 
+					#define cam_node arducam_64mp_0
+					#define cam_endpoint arducam_64mp_0_ep
+					#define vcm_node arducam_64mp_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
 					#define cam_node imx219_0
 					#define cam_endpoint imx219_0_ep
 					#define cam1_clk clk_24mhz
@@ -243,6 +253,16 @@
 					reg = <1>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+
+					#define cam_node arducam_64mp_1
+					#define cam_endpoint arducam_64mp_1_ep
+					#define vcm_node arducam_64mp_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
 
 					#define cam_node imx219_1
 					#define cam_endpoint imx219_1_ep
@@ -334,6 +354,16 @@
 					#address-cells = <1>;
 					#size-cells = <0>;
 
+					#define cam_node arducam_64mp_2
+					#define cam_endpoint arducam_64mp_2_ep
+					#define vcm_node arducam_64mp_2_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
 					#define cam_node imx219_2
 					#define cam_endpoint imx219_2_ep
 					#define cam1_clk clk_24mhz
@@ -423,6 +453,16 @@
 					reg = <3>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+
+					#define cam_node arducam_64mp_3
+					#define cam_endpoint arducam_64mp_3_ep
+					#define vcm_node arducam_64mp_3_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
 
 					#define cam_node imx219_3
 					#define cam_endpoint imx219_3_ep
@@ -640,6 +680,12 @@
 	};
 
 	__overrides__ {
+		cam0-arducam-64mp = <&mux_in0>, "remote-endpoint:0=",<&arducam_64mp_0_ep>,
+				    <&arducam_64mp_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+				    <&mux_in0>, "clock-noncontinuous?",
+				    <&arducam_64mp_0>, "status=okay",
+				    <&arducam_64mp_0_vcm>, "status=okay",
+				    <&arducam_64mp_0>,"lens-focus:0=", <&arducam_64mp_0_vcm>;
 		cam0-imx219 = <&mux_in0>, "remote-endpoint:0=",<&imx219_0_ep>,
 			      <&imx219_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&mux_in0>, "clock-noncontinuous?",
@@ -680,6 +726,12 @@
 			      <&ov2311_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&ov2311_0>, "status=okay";
 
+		cam1-arducam-64mp = <&mux_in1>, "remote-endpoint:0=",<&arducam_64mp_1_ep>,
+				    <&arducam_64mp_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+				    <&mux_in1>, "clock-noncontinuous?",
+				    <&arducam_64mp_1>, "status=okay",
+				    <&arducam_64mp_1_vcm>, "status=okay",
+				    <&arducam_64mp_1>,"lens-focus:0=", <&arducam_64mp_1_vcm>;
 		cam1-imx219 = <&mux_in1>, "remote-endpoint:0=",<&imx219_1_ep>,
 			      <&imx219_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&mux_in1>, "clock-noncontinuous?",
@@ -720,6 +772,12 @@
 			      <&ov2311_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&ov2311_1>, "status=okay";
 
+		cam2-arducam-64mp = <&mux_in2>, "remote-endpoint:0=",<&arducam_64mp_2_ep>,
+				    <&arducam_64mp_2_ep>, "remote-endpoint:0=",<&mux_in2>,
+				    <&mux_in2>, "clock-noncontinuous?",
+				    <&arducam_64mp_2>, "status=okay",
+				    <&arducam_64mp_2_vcm>, "status=okay",
+				    <&arducam_64mp_2>,"lens-focus:0=", <&arducam_64mp_2_vcm>;
 		cam2-imx219 = <&mux_in2>, "remote-endpoint:0=",<&imx219_2_ep>,
 			      <&imx219_2_ep>, "remote-endpoint:0=",<&mux_in2>,
 			      <&mux_in2>, "clock-noncontinuous?",
@@ -760,6 +818,12 @@
 			      <&ov2311_2_ep>, "remote-endpoint:0=",<&mux_in2>,
 			      <&ov2311_2>, "status=okay";
 
+		cam3-arducam-64mp = <&mux_in3>, "remote-endpoint:0=",<&arducam_64mp_3_ep>,
+				    <&arducam_64mp_3_ep>, "remote-endpoint:0=",<&mux_in3>,
+				    <&mux_in3>, "clock-noncontinuous?",
+				    <&arducam_64mp_3>, "status=okay",
+				    <&arducam_64mp_3_vcm>, "status=okay",
+				    <&arducam_64mp_3>,"lens-focus:0=", <&arducam_64mp_3_vcm>;
 		cam3-imx219 = <&mux_in3>, "remote-endpoint:0=",<&imx219_3_ep>,
 			      <&imx219_3_ep>, "remote-endpoint:0=",<&mux_in3>,
 			      <&mux_in3>, "clock-noncontinuous?",

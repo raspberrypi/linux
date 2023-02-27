@@ -96,6 +96,16 @@
 					#address-cells = <1>;
 					#size-cells = <0>;
 
+					#define cam_node arducam_64mp_0
+					#define cam_endpoint arducam_64mp_0_ep
+					#define vcm_node arducam_64mp_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
 					#define cam_node imx219_0
 					#define cam_endpoint imx219_0_ep
 					#define cam1_clk clk_24mhz
@@ -185,6 +195,16 @@
 					reg = <1>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+
+					#define cam_node arducam_64mp_1
+					#define cam_endpoint arducam_64mp_1_ep
+					#define vcm_node arducam_64mp_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
 
 					#define cam_node imx219_1
 					#define cam_endpoint imx219_1_ep
@@ -385,6 +405,12 @@
 	};
 
 	__overrides__ {
+		cam0-arducam-64mp = <&mux_in0>, "remote-endpoint:0=",<&arducam_64mp_0_ep>,
+				    <&arducam_64mp_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+				    <&mux_in0>, "clock-noncontinuous?",
+				    <&arducam_64mp_0>, "status=okay",
+				    <&arducam_64mp_0_vcm>, "status=okay",
+				    <&arducam_64mp_0>,"lens-focus:0=", <&arducam_64mp_0_vcm>;
 		cam0-imx219 = <&mux_in0>, "remote-endpoint:0=",<&imx219_0_ep>,
 			      <&imx219_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&mux_in0>, "clock-noncontinuous?",
@@ -425,6 +451,12 @@
 			      <&ov2311_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&ov2311_0>, "status=okay";
 
+		cam1-arducam-64mp = <&mux_in1>, "remote-endpoint:0=",<&arducam_64mp_1_ep>,
+				    <&arducam_64mp_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+				    <&mux_in1>, "clock-noncontinuous?",
+				    <&arducam_64mp_1>, "status=okay",
+				    <&arducam_64mp_1_vcm>, "status=okay",
+				    <&arducam_64mp_1>,"lens-focus:0=", <&arducam_64mp_1_vcm>;
 		cam1-imx219 = <&mux_in1>, "remote-endpoint:0=",<&imx219_1_ep>,
 			      <&imx219_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&mux_in1>, "clock-noncontinuous?",
