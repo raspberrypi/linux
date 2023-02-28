@@ -135,7 +135,7 @@ config SND_BCM2708_SOC_RPI_DAC
 config SND_BCM2708_SOC_RPI_PROTO
 	tristate "Support for Rpi-PROTO"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
-	select SND_SOC_WM8731
+	select SND_SOC_WM8731_I2C
 	help
 	  Say Y or M if you want to add support for Audio Codec Board PROTO (WM8731).
 
@@ -206,7 +206,7 @@ config SND_BCM2708_SOC_ADAU1977_ADC
 config SND_AUDIOINJECTOR_PI_SOUNDCARD
 	tristate "Support for audioinjector.net Pi add on soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
-	select SND_SOC_WM8731
+	select SND_SOC_WM8731_I2C
 	help
 	  Say Y or M if you want to add support for audioinjector.net Pi Hat
 
