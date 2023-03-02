@@ -687,7 +687,7 @@ out_err:
 	return err;
 }
 
-static int fuse_mknod(struct user_namespace *, struct inode *, struct dentry *,
+static int fuse_mknod(struct mnt_idmap *, struct inode *, struct dentry *,
 		      umode_t, dev_t);
 static int fuse_atomic_open(struct inode *dir, struct dentry *entry,
 			    struct file *file, unsigned flags,
@@ -728,7 +728,7 @@ out_dput:
 	return err;
 
 mknod:
-	err = fuse_mknod(&init_user_ns, dir, entry, mode, 0);
+	err = fuse_mknod(&nop_mnt_idmap, dir, entry, mode, 0);
 	if (err)
 		goto out_dput;
 no_open:
@@ -815,7 +815,7 @@ static int create_new_entry(struct fuse_mount *fm, struct fuse_args *args,
 	return err;
 }
 
-static int fuse_mknod(struct user_namespace *mnt_userns, struct inode *dir,
+static int fuse_mknod(struct mnt_idmap *idmap, struct inode *dir,
 		      struct dentry *entry, umode_t mode, dev_t rdev)
 {
 	struct fuse_mknod_in inarg;
@@ -838,13 +838,13 @@ static int fuse_mknod(struct user_namespace *mnt_userns, struct inode *dir,
 	return create_new_entry(fm, &args, dir, entry, mode);
 }
 
-static int fuse_create(struct user_namespace *mnt_userns, struct inode *dir,
+static int fuse_create(struct mnt_idmap *idmap, struct inode *dir,
 		       struct dentry *entry, umode_t mode, bool excl)
 {
-	return fuse_mknod(&init_user_ns, dir, entry, mode, 0);
+	return fuse_mknod(&nop_mnt_idmap, dir, entry, mode, 0);
 }
 
-static int fuse_tmpfile(struct user_namespace *mnt_userns, struct inode *dir,
+static int fuse_tmpfile(struct mnt_idmap *idmap, struct inode *dir,
 			struct file *file, umode_t mode)
 {
 	struct fuse_conn *fc = get_fuse_conn(dir);
@@ -861,7 +861,7 @@ static int fuse_tmpfile(struct user_namespace *mnt_userns, struct inode *dir,
 	return err;
 }
 
-static int fuse_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
+static int fuse_mkdir(struct mnt_idmap *idmap, struct inode *dir,
 		      struct dentry *entry, umode_t mode)
 {
 	struct fuse_mkdir_in inarg;
@@ -883,7 +883,7 @@ static int fuse_mkdir(struct user_namespace *mnt_userns, struct inode *dir,
 	return create_new_entry(fm, &args, dir, entry, S_IFDIR);
 }
 
-static int fuse_symlink(struct user_namespace *mnt_userns, struct inode *dir,
+static int fuse_symlink(struct mnt_idmap *idmap, struct inode *dir,
 			struct dentry *entry, const char *link)
 {
 	struct fuse_mount *fm = get_fuse_mount(dir);
@@ -1040,7 +1040,7 @@ static int fuse_rename_common(struct inode *olddir, struct dentry *oldent,
 	return err;
 }
 
-static int fuse_rename2(struct user_namespace *mnt_userns, struct inode *olddir,
+static int fuse_rename2(struct mnt_idmap *idmap, struct inode *olddir,
 			struct dentry *oldent, struct inode *newdir,
 			struct dentry *newent, unsigned int flags)
 {
@@ -1198,7 +1198,7 @@ static int fuse_update_get_attr(struct inode *inode, struct file *file,
 		forget_all_cached_acls(inode);
 		err = fuse_do_getattr(inode, stat, file);
 	} else if (stat) {
-		generic_fillattr(&init_user_ns, inode, stat);
+		generic_fillattr(&nop_mnt_idmap, inode, stat);
 		stat->mode = fi->orig_i_mode;
 		stat->ino = fi->orig_ino;
 	}
@@ -1368,7 +1368,7 @@ static int fuse_perm_getattr(struct inode *inode, int mask)
  * access request is sent.  Execute permission is still checked
  * locally based on file mode.
  */
-static int fuse_permission(struct user_namespace *mnt_userns,
+static int fuse_permission(struct mnt_idmap *idmap,
 			   struct inode *inode, int mask)
 {
 	struct fuse_conn *fc = get_fuse_conn(inode);
@@ -1400,7 +1400,7 @@ static int fuse_permission(struct user_namespace *mnt_userns,
 	}
 
 	if (fc->default_permissions) {
-		err = generic_permission(&init_user_ns, inode, mask);
+		err = generic_permission(&nop_mnt_idmap, inode, mask);
 
 		/* If permission is denied, try to refresh file
 		   attributes.  This is also needed, because the root
@@ -1408,7 +1408,7 @@ static int fuse_permission(struct user_namespace *mnt_userns,
 		if (err == -EACCES && !refreshed) {
 			err = fuse_perm_getattr(inode, mask);
 			if (!err)
-				err = generic_permission(&init_user_ns,
+				err = generic_permission(&nop_mnt_idmap,
 							 inode, mask);
 		}
 
@@ -1732,7 +1732,7 @@ int fuse_do_setattr(struct dentry *dentry, struct iattr *attr,
 	if (!fc->default_permissions)
 		attr->ia_valid |= ATTR_FORCE;
 
-	err = setattr_prepare(&init_user_ns, dentry, attr);
+	err = setattr_prepare(&nop_mnt_idmap, dentry, attr);
 	if (err)
 		return err;
 
@@ -1879,7 +1879,7 @@ error:
 	return err;
 }
 
-static int fuse_setattr(struct user_namespace *mnt_userns, struct dentry *entry,
+static int fuse_setattr(struct mnt_idmap *idmap, struct dentry *entry,
 			struct iattr *attr)
 {
 	struct inode *inode = d_inode(entry);
@@ -1942,7 +1942,7 @@ static int fuse_setattr(struct user_namespace *mnt_userns, struct dentry *entry,
 	return ret;
 }
 
-static int fuse_getattr(struct user_namespace *mnt_userns,
+static int fuse_getattr(struct mnt_idmap *idmap,
 			const struct path *path, struct kstat *stat,
 			u32 request_mask, unsigned int flags)
 {
