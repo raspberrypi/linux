@@ -2367,6 +2367,13 @@ config SENSORS_INTEL_M10_BMC_HWMON
 	  sensors monitor various telemetry data of different components on the
 	  card, e.g. board temperature, FPGA core temperature/voltage/current.
 
+config SENSORS_RP1_ADC
+	tristate "RP1 ADC and temperature sensor driver"
+	depends on MFD_RP1
+	help
+	  Say yes here to enable support for the voltage and temperature
+	  sensors of the Raspberry Pi RP1 peripheral chip.
+
 if ACPI
 
 comment "ACPI drivers"
