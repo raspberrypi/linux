@@ -19,7 +19,6 @@
 #include <trace/hooks/printk.h>
 #include <trace/hooks/epoch.h>
 #include <trace/hooks/cpufreq.h>
-#include <trace/hooks/preemptirq.h>
 #include <trace/hooks/ufshcd.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/sys.h>
@@ -54,10 +53,6 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_printk_hotplug);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_show_suspend_epoch_val);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_show_resume_epoch_val);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_freq_table_limits);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_preempt_disable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_preempt_enable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_irqs_disable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_irqs_enable);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cpu_cgroup_attach);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cpu_cgroup_online);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_fill_prdt);
