@@ -88,6 +88,9 @@ v3d_init_hw_state(struct v3d_dev *v3d)
 static void
 v3d_idle_axi(struct v3d_dev *v3d, int core)
 {
+	if (v3d->ver >= 71)
+		return;
+
 	V3D_CORE_WRITE(core, V3D_GMP_CFG, V3D_GMP_CFG_STOP_REQ);
 
 	if (wait_for((V3D_CORE_READ(core, V3D_GMP_STATUS) &
