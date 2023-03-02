@@ -500,7 +500,7 @@ static void lt6911uxc_audio_int_handler(struct lt6911uxc_state *state,
 
 	v4l2_ctrl_s_ctrl(state->audio_present_ctrl, (audio_fs != 0));
 	v4l2_ctrl_s_ctrl(state->audio_sampling_rate_ctrl, audio_fs);
-	
+
 	if (audio_fs != audio_previous_fs) {
 		dev_dbg(dev, "detected audio sampling rate change\n");
 		v4l2_subdev_notify_event(&state->sd, &lt6911uxc_ev_source_change);
