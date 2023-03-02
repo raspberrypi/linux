@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Lontium lt6911uxc
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			lt6911uxc_a@2b {
+				compatible = "lontium,lt6911uxc";
+				reg = <0x2b>;
+				status = "okay";
+				port {
+					ret = <0>;
+					status = "okay";
+					hdmi2csi_lt6911_out0: endpoint {
+						status = "okay";
+						data-lanes = <1 2 3 4>;
+						remote-endpoint = <&csi1_ep>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@1 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					data-lanes = <1 2 3 4>;
+					remote-endpoint = <&hdmi2csi_lt6911_out0>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@4 {
+		target = <&cam1_clk>;
+		__overlay__ {
+			status = "okay";
+			clock-frequency = <27000000>;
+		};
+	};
+
+	__overrides__ {
+		media-controller = <&csi>,"brcm,media-controller?";
+	};
+};

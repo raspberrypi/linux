@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions to add I2S audio from the Lontium lt6911uxc HDMI to CSI2 bridge.
+// Requires Lontium lt6911uxc overlay to have been loaded to actually function.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			lt6911uxc_codec: lt6911uxc-codec {
+				#sound-dai-cells = <0>;
+				compatible = "linux,spdif-dir";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		sound_overlay: __overlay__ {
+			compatible = "simple-audio-card";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,name = "lt6911uxc";
+			simple-audio-card,bitclock-master = <&dailink0_slave>;
+			simple-audio-card,frame-master = <&dailink0_slave>;
+			status = "okay";
+
+			simple-audio-card,cpu {
+				sound-dai = <&i2s>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+			dailink0_slave: simple-audio-card,codec {
+				sound-dai = <&lt6911uxc_codec>;
+			};
+		};
+	};
+
+	__overrides__ {
+		card-name = <&sound_overlay>,"simple-audio-card,name";
+	};
+};
