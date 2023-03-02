@@ -279,8 +279,10 @@ static int lt6911uxc_get_audio_sampling_rate(struct lt6911uxc_state *state)
 		    (rates_default[idx] + eps > audio_fs))
 			return rates_default[idx];
 	}
-	dev_err(&state->i2c_client->dev, "%s: unhandled sampling rate %d [Hz]",
-		__func__, audio_fs);
+
+	if (audio_fs != 0)
+		dev_err(&state->i2c_client->dev, "%s: unhandled sampling rate %d [Hz]",
+			__func__, audio_fs);
 	return 0;
 }
 
@@ -475,6 +477,7 @@ static void lt6911uxc_audio_int_handler(struct lt6911uxc_state *state,
 {
 	u8 int_event;
 	int audio_fs = 0;
+	int audio_previous_fs = v4l2_ctrl_g_ctrl(state->audio_sampling_rate_ctrl);
 	struct device *dev = &state->i2c_client->dev;
 
 	/* read interrupt event */
@@ -483,8 +486,6 @@ static void lt6911uxc_audio_int_handler(struct lt6911uxc_state *state,
 
 	switch (int_event) {
 	case INT_AUDIO_DISCONNECT:
-		audio_fs = 0;
-		break;
 	case INT_AUDIO_SR_HIGH:
 	case INT_AUDIO_SR_LOW:
 		if (state->signal_present) {
@@ -499,6 +500,11 @@ static void lt6911uxc_audio_int_handler(struct lt6911uxc_state *state,
 
 	v4l2_ctrl_s_ctrl(state->audio_present_ctrl, (audio_fs != 0));
 	v4l2_ctrl_s_ctrl(state->audio_sampling_rate_ctrl, audio_fs);
+	
+	if (audio_fs != audio_previous_fs) {
+		dev_dbg(dev, "detected audio sampling rate change\n");
+		v4l2_subdev_notify_event(&state->sd, &lt6911uxc_ev_source_change);
+	}
 
 	if (handled)
 		*handled = true;
