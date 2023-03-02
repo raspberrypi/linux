@@ -57,6 +57,7 @@
 #define V3D_HUB_INT_MSK_STS                            0x0005c
 #define V3D_HUB_INT_MSK_SET                            0x00060
 #define V3D_HUB_INT_MSK_CLR                            0x00064
+# define V3D_V7_HUB_INT_GMPV                           BIT(6)
 # define V3D_HUB_INT_MMU_WRV                           BIT(5)
 # define V3D_HUB_INT_MMU_PTI                           BIT(4)
 # define V3D_HUB_INT_MMU_CAP                           BIT(3)
@@ -64,6 +65,7 @@
 # define V3D_HUB_INT_TFUC                              BIT(1)
 # define V3D_HUB_INT_TFUF                              BIT(0)
 
+/* GCA registers only exist in V3D < 41 */
 #define V3D_GCA_CACHE_CTRL                             0x0000c
 # define V3D_GCA_CACHE_CTRL_FLUSH                      BIT(0)
 
@@ -87,6 +89,7 @@
 # define V3D_TOP_GR_BRIDGE_SW_INIT_1_V3D_CLK_108_SW_INIT BIT(0)
 
 #define V3D_TFU_CS                                     0x00400
+#define V3D_V7_TFU_CS                                  0x00700
 /* Stops current job, empties input fifo. */
 # define V3D_TFU_CS_TFURST                             BIT(31)
 # define V3D_TFU_CS_CVTCT_MASK                         V3D_MASK(23, 16)
@@ -96,6 +99,7 @@
 # define V3D_TFU_CS_BUSY                               BIT(0)
 
 #define V3D_TFU_SU                                     0x00404
+#define V3D_V7_TFU_SU                                  0x00704
 /* Interrupt when FINTTHR input slots are free (0 = disabled) */
 # define V3D_TFU_SU_FINTTHR_MASK                       V3D_MASK(13, 8)
 # define V3D_TFU_SU_FINTTHR_SHIFT                      8
@@ -107,38 +111,53 @@
 # define V3D_TFU_SU_THROTTLE_SHIFT                     0
 
 #define V3D_TFU_ICFG                                   0x00408
+#define V3D_V7_TFU_ICFG                                0x00708
 /* Interrupt when the conversion is complete. */
 # define V3D_TFU_ICFG_IOC                              BIT(0)
 
 /* Input Image Address */
 #define V3D_TFU_IIA                                    0x0040c
+#define V3D_V7_TFU_IIA                                 0x0070c
 /* Input Chroma Address */
 #define V3D_TFU_ICA                                    0x00410
+#define V3D_V7_TFU_ICA                                 0x00710
 /* Input Image Stride */
 #define V3D_TFU_IIS                                    0x00414
+#define V3D_V7_TFU_IIS                                 0x00714
 /* Input Image U-Plane Address */
 #define V3D_TFU_IUA                                    0x00418
+#define V3D_V7_TFU_IUA                                 0x00718
+/* Image output config (VD 7.x only) */
+#define V3D_V7_TFU_IOC                                 0x0071c
 /* Output Image Address */
 #define V3D_TFU_IOA                                    0x0041c
+#define V3D_V7_TFU_IOA                                 0x00720
 /* Image Output Size */
 #define V3D_TFU_IOS                                    0x00420
+#define V3D_V7_TFU_IOS                                 0x00724
 /* TFU YUV Coefficient 0 */
 #define V3D_TFU_COEF0                                  0x00424
-/* Use these regs instead of the defaults. */
+#define V3D_V7_TFU_COEF0                               0x00728
+/* Use these regs instead of the defaults (V3D 4.x only) */
 # define V3D_TFU_COEF0_USECOEF                         BIT(31)
 /* TFU YUV Coefficient 1 */
 #define V3D_TFU_COEF1                                  0x00428
+#define V3D_V7_TFU_COEF1                               0x0072c
 /* TFU YUV Coefficient 2 */
 #define V3D_TFU_COEF2                                  0x0042c
+#define V3D_V7_TFU_COEF2                               0x00730
 /* TFU YUV Coefficient 3 */
 #define V3D_TFU_COEF3                                  0x00430
+#define V3D_V7_TFU_COEF3                               0x00734
 
+/* V3D 4.x only */
 #define V3D_TFU_CRC                                    0x00434
 
 /* Per-MMU registers. */
 
 #define V3D_MMUC_CONTROL                               0x01000
 # define V3D_MMUC_CONTROL_CLEAR                        BIT(3)
+# define V3D_V7_MMUC_CONTROL_CLEAR                     BIT(11)
 # define V3D_MMUC_CONTROL_FLUSHING                     BIT(2)
 # define V3D_MMUC_CONTROL_FLUSH                        BIT(1)
 # define V3D_MMUC_CONTROL_ENABLE                       BIT(0)
@@ -246,7 +265,6 @@
 
 #define V3D_CTL_L2TCACTL                               0x00030
 # define V3D_L2TCACTL_TMUWCF                           BIT(8)
-# define V3D_L2TCACTL_L2T_NO_WM                        BIT(4)
 /* Invalidates cache lines. */
 # define V3D_L2TCACTL_FLM_FLUSH                        0
 /* Removes cachelines without writing dirty lines back. */
@@ -268,7 +286,9 @@
 # define V3D_INT_QPU_MASK                              V3D_MASK(27, 16)
 # define V3D_INT_QPU_SHIFT                             16
 # define V3D_INT_CSDDONE                               BIT(7)
+# define V3D_V7_INT_CSDDONE                            BIT(6)
 # define V3D_INT_PCTR                                  BIT(6)
+# define V3D_V7_INT_PCTR                               BIT(5)
 # define V3D_INT_GMPV                                  BIT(5)
 # define V3D_INT_TRFB                                  BIT(4)
 # define V3D_INT_SPILLUSE                              BIT(3)
@@ -350,14 +370,19 @@
 #define V3D_V4_PCTR_0_SRC_X(x)                         (V3D_V4_PCTR_0_SRC_0_3 + \
 							4 * (x))
 # define V3D_PCTR_S0_MASK                              V3D_MASK(6, 0)
+# define V3D_V7_PCTR_S0_MASK                           V3D_MASK(7, 0)
 # define V3D_PCTR_S0_SHIFT                             0
 # define V3D_PCTR_S1_MASK                              V3D_MASK(14, 8)
+# define V3D_V7_PCTR_S1_MASK                           V3D_MASK(15, 8)
 # define V3D_PCTR_S1_SHIFT                             8
 # define V3D_PCTR_S2_MASK                              V3D_MASK(22, 16)
+# define V3D_V7_PCTR_S2_MASK                           V3D_MASK(23, 16)
 # define V3D_PCTR_S2_SHIFT                             16
 # define V3D_PCTR_S3_MASK                              V3D_MASK(30, 24)
+# define V3D_V7_PCTR_S3_MASK                           V3D_MASK(31, 24)
 # define V3D_PCTR_S3_SHIFT                             24
 # define V3D_PCTR_CYCLE_COUNT                          32
+# define V3D_V7_PCTR_CYCLE_COUNT                       0
 
 /* Output values of the counters. */
 #define V3D_PCTR_0_PCTR0                               0x00680
@@ -365,6 +390,7 @@
 #define V3D_PCTR_0_PCTRX(x)                            (V3D_PCTR_0_PCTR0 + \
 							4 * (x))
 #define V3D_GMP_STATUS                                 0x00800
+#define V3D_V7_GMP_STATUS                              0x00600
 # define V3D_GMP_STATUS_GMPRST                         BIT(31)
 # define V3D_GMP_STATUS_WR_COUNT_MASK                  V3D_MASK(30, 24)
 # define V3D_GMP_STATUS_WR_COUNT_SHIFT                 24
@@ -378,12 +404,14 @@
 # define V3D_GMP_STATUS_VIO                            BIT(0)
 
 #define V3D_GMP_CFG                                    0x00804
+#define V3D_V7_GMP_CFG                                 0x00604
 # define V3D_GMP_CFG_LBURSTEN                          BIT(3)
 # define V3D_GMP_CFG_PGCRSEN                           BIT()
 # define V3D_GMP_CFG_STOP_REQ                          BIT(1)
 # define V3D_GMP_CFG_PROT_ENABLE                       BIT(0)
 
 #define V3D_GMP_VIO_ADDR                               0x00808
+#define V3D_V7_GMP_VIO_ADDR                            0x00608
 #define V3D_GMP_VIO_TYPE                               0x0080c
 #define V3D_GMP_TABLE_ADDR                             0x00810
 #define V3D_GMP_CLEAR_LOAD                             0x00814
@@ -399,24 +427,28 @@
 # define V3D_CSD_STATUS_HAVE_QUEUED_DISPATCH           BIT(0)
 
 #define V3D_CSD_QUEUED_CFG0                            0x00904
+#define V3D_V7_CSD_QUEUED_CFG0                         0x00930
 # define V3D_CSD_QUEUED_CFG0_NUM_WGS_X_MASK            V3D_MASK(31, 16)
 # define V3D_CSD_QUEUED_CFG0_NUM_WGS_X_SHIFT           16
 # define V3D_CSD_QUEUED_CFG0_WG_X_OFFSET_MASK          V3D_MASK(15, 0)
 # define V3D_CSD_QUEUED_CFG0_WG_X_OFFSET_SHIFT         0
 
 #define V3D_CSD_QUEUED_CFG1                            0x00908
+#define V3D_V7_CSD_QUEUED_CFG1                         0x00934
 # define V3D_CSD_QUEUED_CFG1_NUM_WGS_Y_MASK            V3D_MASK(31, 16)
 # define V3D_CSD_QUEUED_CFG1_NUM_WGS_Y_SHIFT           16
 # define V3D_CSD_QUEUED_CFG1_WG_Y_OFFSET_MASK          V3D_MASK(15, 0)
 # define V3D_CSD_QUEUED_CFG1_WG_Y_OFFSET_SHIFT         0
 
 #define V3D_CSD_QUEUED_CFG2                            0x0090c
+#define V3D_V7_CSD_QUEUED_CFG2                         0x00938
 # define V3D_CSD_QUEUED_CFG2_NUM_WGS_Z_MASK            V3D_MASK(31, 16)
 # define V3D_CSD_QUEUED_CFG2_NUM_WGS_Z_SHIFT           16
 # define V3D_CSD_QUEUED_CFG2_WG_Z_OFFSET_MASK          V3D_MASK(15, 0)
 # define V3D_CSD_QUEUED_CFG2_WG_Z_OFFSET_SHIFT         0
 
 #define V3D_CSD_QUEUED_CFG3                            0x00910
+#define V3D_V7_CSD_QUEUED_CFG3                         0x0093c
 # define V3D_CSD_QUEUED_CFG3_OVERLAP_WITH_PREV         BIT(26)
 # define V3D_CSD_QUEUED_CFG3_MAX_SG_ID_MASK            V3D_MASK(25, 20)
 # define V3D_CSD_QUEUED_CFG3_MAX_SG_ID_SHIFT           20
@@ -429,22 +461,36 @@
 
 /* Number of batches, minus 1 */
 #define V3D_CSD_QUEUED_CFG4                            0x00914
+#define V3D_V7_CSD_QUEUED_CFG4                         0x00940
 
 /* Shader address, pnan, singleseg, threading, like a shader record. */
 #define V3D_CSD_QUEUED_CFG5                            0x00918
+#define V3D_V7_CSD_QUEUED_CFG5                         0x00944
 
 /* Uniforms address (4 byte aligned) */
 #define V3D_CSD_QUEUED_CFG6                            0x0091c
+#define V3D_V7_CSD_QUEUED_CFG6                         0x00948
+
+#define V3D_V7_CSD_QUEUED_CFG7                         0x0094c
 
 #define V3D_CSD_CURRENT_CFG0                          0x00920
+#define V3D_V7_CSD_CURRENT_CFG0                       0x00958
 #define V3D_CSD_CURRENT_CFG1                          0x00924
+#define V3D_V7_CSD_CURRENT_CFG1                       0x0095c
 #define V3D_CSD_CURRENT_CFG2                          0x00928
+#define V3D_V7_CSD_CURRENT_CFG2                       0x00960
 #define V3D_CSD_CURRENT_CFG3                          0x0092c
+#define V3D_V7_CSD_CURRENT_CFG3                       0x00964
 #define V3D_CSD_CURRENT_CFG4                          0x00930
+#define V3D_V7_CSD_CURRENT_CFG4                       0x00968
 #define V3D_CSD_CURRENT_CFG5                          0x00934
+#define V3D_V7_CSD_CURRENT_CFG5                       0x0096c
 #define V3D_CSD_CURRENT_CFG6                          0x00938
+#define V3D_V7_CSD_CURRENT_CFG6                       0x00970
+#define V3D_V7_CSD_CURRENT_CFG7                       0x00974
 
 #define V3D_CSD_CURRENT_ID0                            0x0093c
+#define V3D_V7_CSD_CURRENT_ID0                         0x00978
 # define V3D_CSD_CURRENT_ID0_WG_X_MASK                 V3D_MASK(31, 16)
 # define V3D_CSD_CURRENT_ID0_WG_X_SHIFT                16
 # define V3D_CSD_CURRENT_ID0_WG_IN_SG_MASK             V3D_MASK(11, 8)
@@ -453,6 +499,7 @@
 # define V3D_CSD_CURRENT_ID0_L_IDX_SHIFT               0
 
 #define V3D_CSD_CURRENT_ID1                            0x00940
+#define V3D_V7_CSD_CURRENT_ID1                         0x0097c
 # define V3D_CSD_CURRENT_ID0_WG_Z_MASK                 V3D_MASK(31, 16)
 # define V3D_CSD_CURRENT_ID0_WG_Z_SHIFT                16
 # define V3D_CSD_CURRENT_ID0_WG_Y_MASK                 V3D_MASK(15, 0)
