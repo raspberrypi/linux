@@ -8,14 +8,14 @@
 	fragment@0 {
 		target = <&rtc>;
 		__dormant__ {
-			compatible = "maxim,ds3232";
+			compatible = "dallas,ds3232";
 		};
 	};
 
 	fragment@1 {
 		target = <&rtc>;
 		__dormant__ {
-			compatible = "maxim,ds3234";
+			compatible = "dallas,ds3234";
 		};
 	};
 
