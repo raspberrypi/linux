@@ -14,7 +14,7 @@
 			status = "okay";
 
 			display_temp: lm75@48 {
-				compatible = "lm75b";
+				compatible = "national,lm75b";
 				reg = <0x48>;
 				status = "okay";
 				#thermal-sensor-cells = <0>;
