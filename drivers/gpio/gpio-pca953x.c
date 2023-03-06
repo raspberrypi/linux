@@ -1468,6 +1468,7 @@ static const struct of_device_id pca953x_dt_ids[] = {
 	{ .compatible = "ti,tca9535", .data = OF_953X(16, PCA_INT), },
 	{ .compatible = "ti,tca9538", .data = OF_953X( 8, PCA_INT), },
 	{ .compatible = "ti,tca9539", .data = OF_953X(16, PCA_INT), },
+	{ .compatible = "ti,tca9554", .data = OF_953X( 8, PCA_INT), },
 
 	{ .compatible = "ti,tcal6408", .data = OF_953X( 8, PCA_LATCH_INT), },
 	{ .compatible = "ti,tcal6416", .data = OF_953X(16, PCA_LATCH_INT), },
