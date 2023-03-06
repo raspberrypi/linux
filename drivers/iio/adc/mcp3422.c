@@ -407,7 +407,14 @@ static const struct i2c_device_id mcp3422_id[] = {
 MODULE_DEVICE_TABLE(i2c, mcp3422_id);
 
 static const struct of_device_id mcp3422_of_match[] = {
-	{ .compatible = "mcp3422" },
+	{ .compatible = "microchip,mcp3421" },
+	{ .compatible = "microchip,mcp3422" },
+	{ .compatible = "microchip,mcp3423" },
+	{ .compatible = "microchip,mcp3424" },
+	{ .compatible = "microchip,mcp3425" },
+	{ .compatible = "microchip,mcp3426" },
+	{ .compatible = "microchip,mcp3427" },
+	{ .compatible = "microchip,mcp3428" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, mcp3422_of_match);
