@@ -2774,18 +2774,6 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
         swapxy                  Swap x and y axis
         backlight               Change backlight GPIO pin {e.g. 12, 18}
-        gpio_out_pin            GPIO for output (default "17")
-        gpio_in_pin             GPIO for input (default "18")
-        gpio_in_pull            Pull up/down/off on the input pin
-                                (default "down")
-        sense                   Override the IR receive auto-detection logic:
-                                 "0" = force active-high
-                                 "1" = force active-low
-                                 "-1" = use auto-detection
-                                (default "-1")
-        softcarrier             Turn the software carrier "on" or "off"
-                                (default "on")
-        invert                  "on" = invert the output pin (default "off")
         debug                   "on" = enable additional debug messages
                                 (default "off")
 
