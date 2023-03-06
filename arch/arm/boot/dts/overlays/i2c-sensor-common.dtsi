@@ -76,7 +76,7 @@
 			status = "okay";
 
 			htu21: htu21@40 {
-				compatible = "htu21";
+				compatible = "meas,htu21";
 				reg = <0x40>;
 				status = "okay";
 			};
@@ -91,7 +91,7 @@
 			status = "okay";
 
 			lm75: lm75@4f {
-				compatible = "lm75";
+				compatible = "national,lm75";
 				reg = <0x4f>;
 				status = "okay";
 			};
@@ -106,7 +106,7 @@
 			status = "okay";
 
 			si7020: si7020@40 {
-				compatible = "si7020";
+				compatible = "silabs,si7020";
 				reg = <0x40>;
 				status = "okay";
 			};
@@ -136,7 +136,7 @@
 			status = "okay";
 
 			hdc100x: hdc100x@40 {
-				compatible = "hdc100x";
+				compatible = "ti,hdc1000";
 				reg = <0x40>;
 				status = "okay";
 			};
@@ -151,7 +151,7 @@
 			status = "okay";
 
 			tsl4531: tsl4531@29 {
-				compatible = "tsl4531";
+				compatible = "amstaos,tsl4531";
 				reg = <0x29>;
 				status = "okay";
 			};
@@ -166,7 +166,7 @@
 			status = "okay";
 
 			veml6070: veml6070@38 {
-				compatible = "veml6070";
+				compatible = "vishay,veml6070";
 				reg = <0x38>;
 				status = "okay";
 			};
@@ -181,7 +181,7 @@
 			status = "okay";
 
 			sht3x: sht3x@44 {
-				compatible = "sht3x";
+				compatible = "sensirion,sht3x";
 				reg = <0x44>;
 				status = "okay";
 			};
@@ -196,7 +196,7 @@
 			status = "okay";
 
 			ds1621: ds1621@48 {
-				compatible = "ds1621";
+				compatible = "dallas,ds1621";
 				reg = <0x48>;
 				status = "okay";
 			};
@@ -271,7 +271,7 @@
 			status = "okay";
 
 			ccs811: ccs811@5b {
-				compatible = "ccs811";
+				compatible = "ams,ccs811";
 				reg = <0x5b>;
 				status = "okay";
 			};
@@ -286,7 +286,7 @@
 			status = "okay";
 
 			bh1750: bh1750@23 {
-				compatible = "bh1750";
+				compatible = "rohm,bh1750";
 				reg = <0x23>;
 				status = "okay";
 			};
@@ -486,7 +486,7 @@
 			status = "okay";
 
 			sht4x: sht4x@44 {
-				compatible = "sht4x";
+				compatible = "sensirion,sht4x";
 				reg = <0x44>;
 				status = "okay";
 			};
