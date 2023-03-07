@@ -194,9 +194,16 @@ static const struct i2c_device_id veml6070_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, veml6070_id);
 
+static const struct of_device_id veml6070_of_id[] = {
+	{ .compatible = "vishay,veml6070" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, veml6070_of_id);
+
 static struct i2c_driver veml6070_driver = {
 	.driver = {
 		.name   = VEML6070_DRV_NAME,
+		.of_match_table = veml6070_of_id,
 	},
 	.probe = veml6070_probe,
 	.remove  = veml6070_remove,
