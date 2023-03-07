@@ -943,6 +943,9 @@ MODULE_DEVICE_TABLE(i2c, sht3x_ids);
 static const struct of_device_id sht3x_of_match[] = {
 	{ .compatible = "sensirion,sht30", .data = (void *)(uintptr_t)sht3x },
 	{ .compatible = "sensirion,sts30", .data = (void *)(uintptr_t)sts3x },
+	{ .compatible = "sensirion,sht3x", .data = (void *)(uintptr_t)sht3x },
+	{ .compatible = "sensirion,sts3x", .data = (void *)(uintptr_t)sts3x },
+	{ .compatible = "sensirion,sht85", .data = (void *)(uintptr_t)sht3x },
 	{ }
 };
 
