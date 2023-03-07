@@ -701,9 +701,16 @@ static int ds3234_probe(struct spi_device *spi)
 	return ds3232_probe(&spi->dev, regmap, spi->irq, "ds3234");
 }
 
+static const  __maybe_unused struct of_device_id ds3234_of_match[] = {
+	{ .compatible = "dallas,ds3234" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, ds3234_of_match);
+
 static struct spi_driver ds3234_driver = {
 	.driver = {
 		.name	 = "ds3234",
+		.of_match_table = of_match_ptr(ds3234_of_match),
 	},
 	.probe	 = ds3234_probe,
 };
