@@ -57,6 +57,12 @@ static const struct i2c_device_id aht10_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, aht10_id);
 
+static const struct of_device_id aht10_of_id[] = {
+	{ .compatible = "aosong,aht10", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, aht10_of_id);
+
 /**
  *   struct aht10_data - All the data required to operate an AHT10/AHT20 chip
  *   @client: the i2c client associated with the AHT10/AHT20
@@ -381,6 +387,7 @@ static int aht10_probe(struct i2c_client *client)
 static struct i2c_driver aht10_driver = {
 	.driver = {
 		.name = "aht10",
+		.of_match_table = aht10_of_id,
 	},
 	.probe      = aht10_probe,
 	.id_table   = aht10_id,
