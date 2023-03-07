@@ -232,9 +232,16 @@ static const struct i2c_device_id tsl4531_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, tsl4531_id);
 
+static const struct of_device_id tsl4531_of_id[] = {
+	{ .compatible = "amstaos,tsl4531" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, tsl4531_of_id);
+
 static struct i2c_driver tsl4531_driver = {
 	.driver = {
 		.name   = TSL4531_DRV_NAME,
+		.of_match_table = tsl4531_of_id,
 		.pm	= pm_sleep_ptr(&tsl4531_pm_ops),
 	},
 	.probe = tsl4531_probe,
