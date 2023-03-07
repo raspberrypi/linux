@@ -963,8 +963,18 @@ static int sht3x_probe(struct i2c_client *client)
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 }
 
+static const struct of_device_id sht3x_of_ids[] = {
+	{ .compatible = "sensirion,sht3x" },
+	{ .compatible = "sensirion,sts3x" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, sht3x_of_ids);
+
 static struct i2c_driver sht3x_i2c_driver = {
-	.driver.name = "sht3x",
+	.driver = {
+		.name = "sht3x",
+		.of_match_table = sht3x_of_ids,
+	},
 	.probe       = sht3x_probe,
 	.id_table    = sht3x_ids,
 };
