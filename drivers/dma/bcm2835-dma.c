@@ -331,6 +331,12 @@ static const struct bcm2835_dma_cfg_data bcm2711_dma_cfg = {
 	.dma_mask = DMA_BIT_MASK(36),
 };
 
+static const struct bcm2835_dma_cfg_data bcm2712_dma_cfg = {
+	.chan_40bit_mask = BIT(6) | BIT(7) | BIT(8) | BIT(9) |
+				 BIT(10) | BIT(11),
+	.dma_mask = DMA_BIT_MASK(40),
+};
+
 static inline size_t bcm2835_dma_max_frame_length(struct bcm2835_chan *c)
 {
 	/* lite and normal channels have different max frame length */
@@ -1260,6 +1266,7 @@ EXPORT_SYMBOL(bcm2711_dma40_memcpy);
 static const struct of_device_id bcm2835_dma_of_match[] = {
 	{ .compatible = "brcm,bcm2835-dma", .data = &bcm2835_dma_cfg },
 	{ .compatible = "brcm,bcm2711-dma", .data = &bcm2711_dma_cfg },
+	{ .compatible = "brcm,bcm2712-dma", .data = &bcm2712_dma_cfg },
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2835_dma_of_match);
