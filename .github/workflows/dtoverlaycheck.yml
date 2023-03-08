@@ -1,0 +1,48 @@
+name: Pi dtoverlay checks
+
+on:
+  pull_request:
+    paths-ignore:
+      - '.github/**'
+    branches: [ "rpi-*" ]
+  push:
+    paths-ignore:
+      - '.github/**'
+    branches: [ "rpi-*" ]
+  workflow_dispatch:
+
+env:
+  UTILS_DIR: "${{github.workspace}}/utils"
+
+jobs:
+  dtoverlaycheck:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install toolchain
+      run: |
+        sudo apt update
+        sudo apt-get install gcc-arm-linux-gnueabihf libfdt-dev device-tree-compiler
+      timeout-minutes: 10
+
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        clean: true
+
+    - name: overlaycheck
+      run: |
+        git clone https://github.com/raspberrypi/utils ${{env.UTILS_DIR}}
+        cd ${{env.UTILS_DIR}}
+        pwd
+        mkdir build
+        cd build
+        pwd
+        cmake ..
+        make -j4
+        sudo make install
+        cd ${{github.workspace}}
+        pwd
+        make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- bcm2711_defconfig
+        make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- dtbs
+        ${{env.UTILS_DIR}}/overlaycheck/overlaycheck
