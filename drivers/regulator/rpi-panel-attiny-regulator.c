@@ -48,6 +48,8 @@
 enum gpio_signals {
 	RST_BRIDGE_N,	/* TC358762 bridge reset */
 	RST_TP_N,	/* Touch controller reset */
+	LCD_UD,		/* LCD V flip */
+	LCD_LR,		/* LCD H flip */
 	NUM_GPIO
 };
 
@@ -59,6 +61,8 @@ struct gpio_signal_mappings {
 static const struct gpio_signal_mappings mappings[NUM_GPIO] = {
 	[RST_BRIDGE_N] = { REG_PORTC, PC_RST_BRIDGE_N | PC_RST_LCD_N  },
 	[RST_TP_N] = { REG_PORTC, PC_RST_TP_N },
+	[LCD_UD] = { REG_PORTA, PA_LCD_UD },
+	[LCD_LR] = { REG_PORTA, PA_LCD_LR },
 };
 
 struct attiny_lcd {
@@ -102,17 +106,6 @@ static int attiny_lcd_power_enable(struct regulator_dev *rdev)
 	attiny_set_port_state(state, REG_PORTC, val);
 	usleep_range(5000, 10000);
 
-	/* Default to the same orientation as the closed source
-	 * firmware used for the panel.  Runtime rotation
-	 * configuration will be supported using VC4's plane
-	 * orientation bits.
-	 */
-	val = attiny_get_port_state(state, REG_PORTA);
-	val &= ~(PA_LCD_UD);
-	val |= PA_LCD_LR;
-	attiny_set_port_state(state, REG_PORTA, val);
-	usleep_range(5000, 10000);
-
 	/* Main regulator on, and power to the panel (LCD_VCC_N) */
 	val = attiny_get_port_state(state, REG_PORTB);
 	val &= ~(PB_LCD_VCC_N);
@@ -139,11 +132,6 @@ static int attiny_lcd_power_disable(struct regulator_dev *rdev)
 
 	//regmap_write(rdev->regmap, REG_PWM, 0);
 	//usleep_range(5000, 10000);
-
-	val = attiny_get_port_state(state, REG_PORTA);
-	val &= ~(PA_LCD_UD | PA_LCD_LR);
-	attiny_set_port_state(state, REG_PORTA, val);
-	usleep_range(5000, 10000);
 
 	val = attiny_get_port_state(state, REG_PORTB);
 	val &= ~(PB_LCD_MAIN);
