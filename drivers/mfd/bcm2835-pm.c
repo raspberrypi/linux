@@ -69,11 +69,29 @@ static int bcm2835_pm_get_pdata(struct platform_device *pdev,
 	return 0;
 }
 
+static const struct of_device_id bcm2835_pm_of_match[] = {
+	{ .compatible = "brcm,bcm2835-pm-wdt", },
+	{ .compatible = "brcm,bcm2835-pm", },
+	{ .compatible = "brcm,bcm2711-pm", },
+	{ .compatible = "brcm,bcm2712-pm", .data = (const void *)1},
+	{},
+};
+MODULE_DEVICE_TABLE(of, bcm2835_pm_of_match);
+
 static int bcm2835_pm_probe(struct platform_device *pdev)
 {
+	const struct of_device_id *of_id;
 	struct device *dev = &pdev->dev;
 	struct bcm2835_pm *pm;
+	bool is_2712;
 	int ret;
+
+	of_id = of_match_node(bcm2835_pm_of_match, pdev->dev.of_node);
+	if (!of_id) {
+		dev_err(&pdev->dev, "Failed to match compatible string\n");
+		return -EINVAL;
+	}
+	is_2712 = !!of_id->data;
 
 	pm = devm_kzalloc(dev, sizeof(*pm), GFP_KERNEL);
 	if (!pm)
@@ -97,20 +115,12 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 	 * bcm2835-pm binding as the key for whether we can reference
 	 * the full PM register range and support power domains.
 	 */
-	if (pm->asb)
+	if (pm->asb || is_2712)
 		return devm_mfd_add_devices(dev, -1, bcm2835_power_devs,
 					    ARRAY_SIZE(bcm2835_power_devs),
 					    NULL, 0, NULL);
 	return 0;
 }
-
-static const struct of_device_id bcm2835_pm_of_match[] = {
-	{ .compatible = "brcm,bcm2835-pm-wdt", },
-	{ .compatible = "brcm,bcm2835-pm", },
-	{ .compatible = "brcm,bcm2711-pm", },
-	{},
-};
-MODULE_DEVICE_TABLE(of, bcm2835_pm_of_match);
 
 static struct platform_driver bcm2835_pm_driver = {
 	.probe		= bcm2835_pm_probe,
