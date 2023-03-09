@@ -3354,7 +3354,7 @@ F:	drivers/net/ieee802154/atusb.h
 AUDIT SUBSYSTEM
 M:	Paul Moore <paul@paul-moore.com>
 M:	Eric Paris <eparis@redhat.com>
-L:	linux-audit@redhat.com (moderated for non-subscribers)
+L:	audit@vger.kernel.org
 S:	Supported
 W:	https://github.com/linux-audit
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/pcmoore/audit.git
@@ -11599,7 +11599,7 @@ M:	Mickaël Salaün <mic@digikod.net>
 L:	linux-security-module@vger.kernel.org
 S:	Supported
 W:	https://landlock.io
-T:	git https://github.com/landlock-lsm/linux.git
+T:	git https://git.kernel.org/pub/scm/linux/kernel/git/mic/linux.git
 F:	Documentation/security/landlock.rst
 F:	Documentation/userspace-api/landlock.rst
 F:	include/uapi/linux/landlock.h
@@ -15776,13 +15776,6 @@ F:	Documentation/virt/paravirt_ops.rst
 F:	arch/*/include/asm/paravirt*.h
 F:	arch/*/kernel/paravirt*
 F:	include/linux/hypervisor.h
-
-PARIDE DRIVERS FOR PARALLEL PORT IDE DEVICES
-M:	Tim Waugh <tim@cyberelk.net>
-L:	linux-parport@lists.infradead.org (subscribers-only)
-S:	Maintained
-F:	Documentation/admin-guide/blockdev/paride.rst
-F:	drivers/block/paride/
 
 PARISC ARCHITECTURE
 M:	"James E.J. Bottomley" <James.Bottomley@HansenPartnership.com>
