@@ -213,7 +213,6 @@
 };
 
 &led_act {
-	label = "led0";
 	gpios = <&gpio 47 GPIO_ACTIVE_LOW>;
 	default-state = "off";
 	linux,default-trigger = "actpwr";
