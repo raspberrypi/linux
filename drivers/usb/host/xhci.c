@@ -1627,7 +1627,7 @@ static void xhci_fixup_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 		return;
 	}
 	ctrl_ctx->add_flags = xhci_get_endpoint_flag_from_index(ep_index);
-	ctrl_ctx->drop_flags = 0;
+	ctrl_ctx->drop_flags = ctrl_ctx->add_flags;
 
 	spin_unlock_irqrestore(&xhci->lock, flags);
 
