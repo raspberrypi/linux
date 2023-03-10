@@ -3246,6 +3246,7 @@ static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 							BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
 							BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH)),
 						      V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 						      V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE,
 						      V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
