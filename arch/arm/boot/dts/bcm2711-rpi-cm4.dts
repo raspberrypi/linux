@@ -518,13 +518,11 @@
 };
 
 &led_act {
-	label = "led0";
 	default-state = "off";
 	linux,default-trigger = "mmc0";
 };
 
 &led_pwr {
-	label = "led1";
 	default-state = "off";
 };
 
