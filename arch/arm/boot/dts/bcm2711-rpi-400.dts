@@ -512,16 +512,19 @@
 };
 
 &leds {
+	// Declare the LED but leave it disabled, in case a user wants to map it
+	// to a GPIO on the header
 	act_led: led-act {
 		default-state = "off";
-		linux,default-trigger = "default-on";
-		gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
 	};
 
 	pwr_led: led-pwr {
 		default-state = "off";
 		linux,default-trigger = "default-on";
-		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
+		gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -542,7 +545,8 @@
 	__overrides__ {
 		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_hdmi=0'}";
 
-		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_gpio = <&act_led>,"gpios:4",
+			       <&act_led>,"status=okay";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
 
