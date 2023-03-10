@@ -233,7 +233,6 @@
 };
 
 &led_act {
-	label = "led0";
 	gpios = <&gpio 29 GPIO_ACTIVE_HIGH>;
 	default-state = "off";
 	linux,default-trigger = "mmc0";
@@ -241,7 +240,7 @@
 
 &leds {
 	led_pwr: led-pwr {
-		label = "led1";
+		label = "PWR";
 		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
 		default-state = "off";
 		linux,default-trigger = "default-on";

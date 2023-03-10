@@ -386,7 +386,6 @@
 };
 
 &led_act {
-	label = "led0";
 	default-state = "off";
 	linux,default-trigger = "mmc0";
 };
