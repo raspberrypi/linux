@@ -68,6 +68,9 @@
 	  /delete-property/ gpio;
 };
 
+cam0_reg: &cam_dummy_reg {
+};
+
 / {
 	__overrides__ {
 		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_hdmi=0'}";
