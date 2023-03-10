@@ -21,7 +21,8 @@
 	};
 
 	__overrides__ {
-		gpio = <&frag0>,"gpios:4";
+		gpio = <&frag0>,"gpios:4",
+		       <&frag0>,"status=okay";
 		activelow = <&frag0>,"gpios:8";
 	};
 };
