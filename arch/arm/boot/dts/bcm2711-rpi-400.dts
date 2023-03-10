@@ -537,6 +537,9 @@
 	pinctrl-0 = <&audio_pins>;
 };
 
+cam0_reg: &cam_dummy_reg {
+};
+
 &genet_mdio {
 	clock-frequency = <1950000>;
 };
