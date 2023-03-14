@@ -388,10 +388,36 @@ static const struct v4l2_ctrl_ops imx296_ctrl_ops = {
 	.s_ctrl = imx296_s_ctrl,
 };
 
+static void imx296_setup_hblank(struct imx296 *sensor, unsigned int width)
+{
+	/*
+	 * Horizontal blanking is controlled through the HMAX register, which
+	 * contains a line length in contains a line length in units of an
+	 * internal 74.25 MHz clock derived from the INCLK. The HMAX value is
+	 * currently fixed to 1100, convert it to a number of pixels based on
+	 * the nominal pixel rate.
+	 *
+	 * Horizontal blanking is fixed, regardless of the crop width, so
+	 * ensure the hblank limits are adjusted to account for this.
+	 */
+	unsigned int hblank = 1100 * 1188000000ULL / 10 / 74250000 - width;
+
+	if (!sensor->hblank) {
+		sensor->hblank = v4l2_ctrl_new_std(&sensor->ctrls,
+						   &imx296_ctrl_ops,
+						   V4L2_CID_HBLANK, hblank,
+						   hblank, 1, hblank);
+		if (sensor->hblank)
+			sensor->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	} else {
+		__v4l2_ctrl_modify_range(sensor->hblank, hblank, hblank, 1,
+					 hblank);
+	}
+}
+
 static int imx296_ctrls_init(struct imx296 *sensor)
 {
 	struct v4l2_fwnode_device_properties props;
-	unsigned int hblank;
 	int ret;
 
 	ret = v4l2_fwnode_device_parse(sensor->dev, &props);
@@ -406,19 +432,7 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 			  V4L2_CID_ANALOGUE_GAIN, IMX296_GAIN_MIN,
 			  IMX296_GAIN_MAX, 1, IMX296_GAIN_MIN);
 
-	/*
-	 * Horizontal blanking is controlled through the HMAX register, which
-	 * contains a line length in INCK clock units. The INCK frequency is
-	 * fixed to 74.25 MHz. The HMAX value is currently fixed to 1100,
-	 * convert it to a number of pixels based on the nominal pixel rate.
-	 */
-	hblank = 1100 * 1188000000ULL / 10 / 74250000
-	       - IMX296_PIXEL_ARRAY_WIDTH;
-	sensor->hblank = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
-					   V4L2_CID_HBLANK, hblank, hblank, 1,
-					   hblank);
-	if (sensor->hblank)
-		sensor->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx296_setup_hblank(sensor, IMX296_PIXEL_ARRAY_WIDTH);
 
 	sensor->vblank = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 					   V4L2_CID_VBLANK, 30,
@@ -707,6 +721,8 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 
 	format->width = crop->width;
 	format->height = crop->height;
+
+	imx296_setup_hblank(sensor, format->width);
 
 	format->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
 		     : MEDIA_BUS_FMT_SBGGR10_1X10;
