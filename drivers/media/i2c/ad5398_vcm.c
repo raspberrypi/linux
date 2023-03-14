@@ -253,8 +253,7 @@ static int ad5398_regulator_notifier(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static int ad5398_probe(struct i2c_client *client,
-			const struct i2c_device_id *devid)
+static int ad5398_probe(struct i2c_client *client)
 {
 	struct ad5398_device *coil;
 	int ret;
