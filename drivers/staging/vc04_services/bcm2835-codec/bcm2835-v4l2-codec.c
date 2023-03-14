@@ -705,6 +705,7 @@ struct bcm2835_codec_ctx {
 	struct bcm2835_codec_dev	*dev;
 
 	struct v4l2_ctrl_handler hdl;
+	struct v4l2_ctrl *gop_size;
 
 	struct vchiq_mmal_component  *component;
 	bool component_enabled;
@@ -2286,6 +2287,17 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_MPEG_VIDEO_H264_I_PERIOD:
+		/*
+		 * Incorrect initial implementation meant that H264_I_PERIOD
+		 * was implemented to control intra-I period. As the MMAL
+		 * encoder never produces I-frames that aren't IDR frames, it
+		 * should actually have been GOP_SIZE.
+		 * Support both controls, but writing to H264_I_PERIOD will
+		 * update GOP_SIZE.
+		 */
+		__v4l2_ctrl_s_ctrl(ctx->gop_size, ctrl->val);
+	fallthrough;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		if (!ctx->component)
 			break;
 
@@ -3360,7 +3372,7 @@ static int bcm2835_codec_open(struct file *file)
 	case ENCODE:
 	{
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 12);
+		v4l2_ctrl_handler_init(hdl, 13);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -3425,6 +3437,9 @@ static int bcm2835_codec_open(struct file *file)
 				  V4L2_CID_MPEG_VIDEO_B_FRAMES,
 				  0, 0,
 				  1, 0);
+		ctx->gop_size = v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+						  V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+						  0, 0x7FFFFFFF, 1, 60);
 		if (hdl->error) {
 			rc = hdl->error;
 			goto free_ctrl_handler;
