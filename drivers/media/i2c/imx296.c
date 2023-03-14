@@ -175,6 +175,7 @@ MODULE_PARM_DESC(trigger_mode, "Set trigger mode: 0=default, 1=XTRIG");
 #define IMX296_CKREQSEL					IMX296_REG_8BIT(0x4101)
 #define IMX296_CKREQSEL_HS				BIT(2)
 #define IMX296_GTTABLENUM				IMX296_REG_8BIT(0x4114)
+#define IMX296_MIPIC_AREA3W				IMX296_REG_16BIT(0x4182)
 #define IMX296_CTRL418C					IMX296_REG_8BIT(0x418c)
 
 struct imx296_clk_params {
@@ -530,8 +531,11 @@ static int imx296_setup(struct imx296 *sensor, struct v4l2_subdev_state *state)
 		imx296_write(sensor, IMX296_FID0_ROIPV1, crop->top, &ret);
 		imx296_write(sensor, IMX296_FID0_ROIWH1, crop->width, &ret);
 		imx296_write(sensor, IMX296_FID0_ROIWV1, crop->height, &ret);
+		imx296_write(sensor, IMX296_MIPIC_AREA3W, crop->height, &ret);
 	} else {
 		imx296_write(sensor, IMX296_FID0_ROI, 0, &ret);
+		imx296_write(sensor, IMX296_MIPIC_AREA3W,
+			     IMX296_PIXEL_ARRAY_HEIGHT, &ret);
 	}
 
 	imx296_write(sensor, IMX296_CTRL0D,
