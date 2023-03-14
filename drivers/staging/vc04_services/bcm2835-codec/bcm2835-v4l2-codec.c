@@ -2367,6 +2367,10 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 						    sizeof(u32_value));
 		break;
 	}
+	case V4L2_CID_MPEG_VIDEO_B_FRAMES:
+		ret = 0;
+		break;
+
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		if (!ctx->component)
 			break;
@@ -3356,7 +3360,7 @@ static int bcm2835_codec_open(struct file *file)
 	case ENCODE:
 	{
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 11);
+		v4l2_ctrl_handler_init(hdl, 12);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -3417,6 +3421,10 @@ static int bcm2835_codec_open(struct file *file)
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 				  0, 0, 0, 0);
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_B_FRAMES,
+				  0, 0,
+				  1, 0);
 		if (hdl->error) {
 			rc = hdl->error;
 			goto free_ctrl_handler;
