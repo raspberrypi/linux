@@ -674,11 +674,14 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_state *state,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
+	const struct imx296 *sensor = to_imx296(sd);
 	const struct v4l2_mbus_framefmt *format;
+	/* Binning only works on the mono sensor variant */
+	unsigned int max_index = sensor->mono ? 2 : 1;
 
 	format = v4l2_subdev_get_pad_format(sd, state, fse->pad);
 
-	if (fse->index >= 2 || fse->code != format->code)
+	if (fse->index >= max_index || fse->code != format->code)
 		return -EINVAL;
 
 	fse->min_width = IMX296_PIXEL_ARRAY_WIDTH / (fse->index + 1);
