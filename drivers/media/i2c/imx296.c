@@ -210,6 +210,8 @@ struct imx296 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *vblank;
+	struct v4l2_ctrl *vflip;
+	struct v4l2_ctrl *hflip;
 };
 
 static inline struct imx296 *to_imx296(struct v4l2_subdev *sd)
@@ -249,6 +251,36 @@ static int imx296_write(struct imx296 *sensor, u32 addr, u32 value, int *err)
 	}
 
 	return ret;
+}
+
+/*
+ * The supported formats.
+ * This table MUST contain 4 entries per format, to cover the various flip
+ * combinations in the order
+ * - no flip
+ * - h flip
+ * - v flip
+ * - h&v flips
+ */
+static const u32 mbus_codes[] = {
+	/* 10-bit modes. */
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
+};
+
+static u32 imx296_mbus_code(const struct imx296 *sensor)
+{
+	unsigned int i = 0;
+
+	if (sensor->mono)
+		return MEDIA_BUS_FMT_Y10_1X10;
+
+	if (sensor->vflip && sensor->hflip)
+		i = (sensor->vflip->val ? 2 : 0) | (sensor->hflip->val ? 1 : 0);
+
+	return mbus_codes[i];
 }
 
 static int imx296_power_on(struct imx296 *sensor)
@@ -345,6 +377,13 @@ static int imx296_s_ctrl(struct v4l2_ctrl *ctrl)
 			     &ret);
 		break;
 
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP:
+		imx296_write(sensor, IMX296_CTRL0E,
+			     sensor->vflip->val | (sensor->hflip->val << 1),
+			     &ret);
+		break;
+
 	case V4L2_CID_TEST_PATTERN:
 		if (ctrl->val) {
 			imx296_write(sensor, IMX296_PGHPOS, 8, &ret);
@@ -427,6 +466,16 @@ static int imx296_ctrls_init(struct imx296 *sensor)
 	v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
 			  V4L2_CID_ANALOGUE_GAIN, IMX296_GAIN_MIN,
 			  IMX296_GAIN_MAX, 1, IMX296_GAIN_MIN);
+
+	sensor->hflip = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (sensor->hflip && !sensor->mono)
+		sensor->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	sensor->vflip = v4l2_ctrl_new_std(&sensor->ctrls, &imx296_ctrl_ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (sensor->vflip && !sensor->mono)
+		sensor->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	imx296_setup_hblank(sensor, IMX296_PIXEL_ARRAY_WIDTH);
 
@@ -598,6 +647,10 @@ static int imx296_stream_on(struct imx296 *sensor)
 	usleep_range(2000, 5000);
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(sensor->vflip, 1);
+	__v4l2_ctrl_grab(sensor->hflip, 1);
+
 	return ret;
 }
 
@@ -607,6 +660,9 @@ static int imx296_stream_off(struct imx296 *sensor)
 
 	imx296_write(sensor, IMX296_CTRL0A, IMX296_CTRL0A_XMSTA, &ret);
 	imx296_write(sensor, IMX296_CTRL00, IMX296_CTRL00_STANDBY, &ret);
+
+	__v4l2_ctrl_grab(sensor->vflip, 0);
+	__v4l2_ctrl_grab(sensor->hflip, 0);
 
 	return ret;
 }
@@ -678,8 +734,7 @@ static int imx296_enum_mbus_code(struct v4l2_subdev *sd,
 	if (code->index != 0)
 		return -EINVAL;
 
-	code->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		   : MEDIA_BUS_FMT_SBGGR10_1X10;
+	code->code = imx296_mbus_code(sensor);
 
 	return 0;
 }
@@ -695,7 +750,7 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 
 	format = v4l2_subdev_get_pad_format(sd, state, fse->pad);
 
-	if (fse->index >= max_index || fse->code != format->code)
+	if (fse->index >= max_index || fse->code != imx296_mbus_code(sensor))
 		return -EINVAL;
 
 	fse->min_width = IMX296_PIXEL_ARRAY_WIDTH / (fse->index + 1);
@@ -755,8 +810,7 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 
 	imx296_setup_hblank(sensor, format->width);
 
-	format->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
-		     : MEDIA_BUS_FMT_SBGGR10_1X10;
+	format->code = imx296_mbus_code(sensor);
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_RAW;
 	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
