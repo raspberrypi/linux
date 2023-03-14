@@ -272,6 +272,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	const struct fsl_edma_drvdata *drvdata = NULL;
 	struct fsl_edma_chan *fsl_chan;
 	struct edma_regs *regs;
+	struct resource *res;
 	int len, chans;
 	int ret, i;
 
@@ -297,7 +298,8 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	fsl_edma->n_chans = chans;
 	mutex_init(&fsl_edma->fsl_edma_mutex);
 
-	fsl_edma->membase = devm_platform_ioremap_resource(pdev, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	fsl_edma->membase = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(fsl_edma->membase))
 		return PTR_ERR(fsl_edma->membase);
 
@@ -321,8 +323,8 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	for (i = 0; i < fsl_edma->drvdata->dmamuxs; i++) {
 		char clkname[32];
 
-		fsl_edma->muxbase[i] = devm_platform_ioremap_resource(pdev,
-								      1 + i);
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1 + i);
+		fsl_edma->muxbase[i] = devm_ioremap_resource(&pdev->dev, res);
 		if (IS_ERR(fsl_edma->muxbase[i])) {
 			/* on error: disable all previously enabled clks */
 			fsl_disable_clocks(fsl_edma, i);

@@ -639,6 +639,7 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 	enum mmp_tdma_type type;
 	const struct of_device_id *of_id;
 	struct mmp_tdma_device *tdev;
+	struct resource *iores;
 	int i, ret;
 	int irq = 0, irq_num = 0;
 	int chan_num = TDMA_CHANNEL_NUM;
@@ -662,7 +663,8 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 			irq_num++;
 	}
 
-	tdev->base = devm_platform_ioremap_resource(pdev, 0);
+	iores = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	tdev->base = devm_ioremap_resource(&pdev->dev, iores);
 	if (IS_ERR(tdev->base))
 		return PTR_ERR(tdev->base);
 

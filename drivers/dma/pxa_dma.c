@@ -1346,6 +1346,7 @@ static int pxad_probe(struct platform_device *op)
 	const struct of_device_id *of_id;
 	const struct dma_slave_map *slave_map = NULL;
 	struct mmp_dma_platdata *pdata = dev_get_platdata(&op->dev);
+	struct resource *iores;
 	int ret, dma_channels = 0, nb_requestors = 0, slave_map_cnt = 0;
 	const enum dma_slave_buswidth widths =
 		DMA_SLAVE_BUSWIDTH_1_BYTE   | DMA_SLAVE_BUSWIDTH_2_BYTES |
@@ -1357,7 +1358,8 @@ static int pxad_probe(struct platform_device *op)
 
 	spin_lock_init(&pdev->phy_lock);
 
-	pdev->base = devm_platform_ioremap_resource(op, 0);
+	iores = platform_get_resource(op, IORESOURCE_MEM, 0);
+	pdev->base = devm_ioremap_resource(&op->dev, iores);
 	if (IS_ERR(pdev->base))
 		return PTR_ERR(pdev->base);
 
