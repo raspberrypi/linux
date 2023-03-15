@@ -1355,11 +1355,7 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	}
 #endif
 	mmc->max_segs = 128;
-
-	mmc->max_req_size = min_t(size_t,
-				  mmc->max_blk_size * mmc->max_blk_count,
-				  dma_max_mapping_size(dev));
-
+	mmc->max_req_size = min_t(size_t, 524288, dma_max_mapping_size(dev));
 	mmc->max_seg_size = mmc->max_req_size;
 	mmc->max_blk_size = 512;
 	mmc->max_blk_count =  65535;
