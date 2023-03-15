@@ -1199,7 +1199,6 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	const struct bcm2835_dma_cfg_data *cfg_data;
 	const struct of_device_id *of_id;
 	struct bcm2835_dmadev *od;
-	struct resource *res;
 	void __iomem *base;
 	int rc;
 	int i, j;
@@ -1232,8 +1231,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 
 	dma_set_max_seg_size(&pdev->dev, 0x3FFFFFFF);
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
+	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
