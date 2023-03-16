@@ -580,6 +580,7 @@ static bool get_plt_got_name(GElf_Shdr *shdr, size_t i,
 	const char *sym_name;
 	char *demangled;
 	GElf_Sym sym;
+	bool result;
 	u32 disp;
 
 	if (!di->sorted)
@@ -606,9 +607,11 @@ static bool get_plt_got_name(GElf_Shdr *shdr, size_t i,
 
 	snprintf(buf, buf_sz, "%s@plt", sym_name);
 
+	result = *sym_name;
+
 	free(demangled);
 
-	return *sym_name;
+	return result;
 }
 
 static int dso__synthesize_plt_got_symbols(struct dso *dso, Elf *elf,
