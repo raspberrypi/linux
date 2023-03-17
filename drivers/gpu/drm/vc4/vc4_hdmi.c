@@ -2870,12 +2870,14 @@ static void vc4_hdmi_hpd_con_wq(struct work_struct *work)
 		drm_connector_helper_hpd_irq_event(connector);
 }
 
-#define HPD_DEBOUNCE_DELAY_MS 250
+#define HPD_DEBOUNCE_DELAY_MS 2500
 
 static irqreturn_t vc4_hdmi_hpd_irq_con_thread(int irq, void *priv)
 {
 	struct vc4_hdmi *vc4_hdmi = priv;
+	struct device *pdev = &vc4_hdmi->pdev->dev;
 
+	dev_err(pdev, "HPD IRQ status conn\n");
 	mod_delayed_work(system_wq, &vc4_hdmi->hpd_con_work,
 			 msecs_to_jiffies(HPD_DEBOUNCE_DELAY_MS));
 
@@ -2887,7 +2889,9 @@ static irqreturn_t vc4_hdmi_hpd_irq_disconn_thread(int irq, void *priv)
 	struct vc4_hdmi *vc4_hdmi = priv;
 	struct drm_connector *connector = &vc4_hdmi->connector;
 	struct drm_device *dev = connector->dev;
+	struct device *pdev = &vc4_hdmi->pdev->dev;
 
+	dev_err(pdev, "HPD IRQ status disconn\n");
 	if (dev && dev->registered)
 		drm_connector_helper_hpd_irq_event(connector);
 
