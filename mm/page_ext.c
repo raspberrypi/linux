@@ -514,6 +514,7 @@ struct page_ext *page_ext_get(struct page *page)
 
 	return page_ext;
 }
+EXPORT_SYMBOL_NS_GPL(page_ext_get, MINIDUMP);
 
 /**
  * page_ext_put() - Working with page extended information is done.
@@ -532,3 +533,4 @@ void page_ext_put(struct page_ext *page_ext)
 
 	rcu_read_unlock();
 }
+EXPORT_SYMBOL_NS_GPL(page_ext_put, MINIDUMP);
