@@ -203,6 +203,7 @@ cam0_reg: &cam0_regulator {
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
+	brcm,disable-headphones = <1>;
 };
 
 / {
