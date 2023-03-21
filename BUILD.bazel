@@ -28,10 +28,14 @@ define_common_kernels(target_configs = {
     "kernel_x86_64": {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": COMMON_GKI_MODULES_LIST,
+        "protected_exports_list": "android/abi_gki_protected_exports_x86_64",
+        "protected_modules_list": "android/gki_x86_64_protected_modules",
     },
     "kernel_x86_64_debug": {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": COMMON_GKI_MODULES_LIST,
+        "protected_exports_list": "android/abi_gki_protected_exports_x86_64",
+        "protected_modules_list": "android/gki_x86_64_protected_modules",
     },
 })
 
