@@ -277,6 +277,68 @@ void pkvm_hyp_vm_table_init(void *tbl)
 	vm_table = tbl;
 }
 
+static void *map_donated_memory_noclear(unsigned long host_va, size_t size)
+{
+	void *va = (void *)kern_hyp_va(host_va);
+
+	if (!PAGE_ALIGNED(va))
+		return NULL;
+
+	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(va),
+				   PAGE_ALIGN(size) >> PAGE_SHIFT))
+		return NULL;
+
+	return va;
+}
+
+static void *map_donated_memory(unsigned long host_va, size_t size)
+{
+	void *va = map_donated_memory_noclear(host_va, size);
+
+	if (va)
+		memset(va, 0, size);
+
+	return va;
+}
+
+static void __unmap_donated_memory(void *va, size_t size)
+{
+	kvm_flush_dcache_to_poc(va, size);
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(va),
+				       PAGE_ALIGN(size) >> PAGE_SHIFT));
+}
+
+static void unmap_donated_memory(void *va, size_t size)
+{
+	if (!va)
+		return;
+
+	memset(va, 0, size);
+	__unmap_donated_memory(va, size);
+}
+
+static void unmap_donated_memory_noclear(void *va, size_t size)
+{
+	if (!va)
+		return;
+
+	__unmap_donated_memory(va, size);
+}
+
+static void
+teardown_donated_memory(struct kvm_hyp_memcache *mc, void *addr, size_t size)
+{
+	void *start;
+
+	size = PAGE_ALIGN(size);
+	memset(addr, 0, size);
+
+	for (start = addr; start < addr + size; start += PAGE_SIZE)
+		push_hyp_memcache(mc, start, hyp_virt_to_phys);
+
+	unmap_donated_memory_noclear(addr, size);
+}
+
 /*
  * Return the hyp vm structure corresponding to the handle.
  */
@@ -626,54 +688,6 @@ static size_t pkvm_get_hyp_vm_size(unsigned int nr_vcpus)
 		size_mul(sizeof(struct pkvm_hyp_vcpu *), nr_vcpus));
 }
 
-static void *map_donated_memory_noclear(unsigned long host_va, size_t size)
-{
-	void *va = (void *)kern_hyp_va(host_va);
-
-	if (!PAGE_ALIGNED(va))
-		return NULL;
-
-	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(va),
-				   PAGE_ALIGN(size) >> PAGE_SHIFT))
-		return NULL;
-
-	return va;
-}
-
-static void *map_donated_memory(unsigned long host_va, size_t size)
-{
-	void *va = map_donated_memory_noclear(host_va, size);
-
-	if (va)
-		memset(va, 0, size);
-
-	return va;
-}
-
-static void __unmap_donated_memory(void *va, size_t size)
-{
-	kvm_flush_dcache_to_poc(va, size);
-	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(va),
-				       PAGE_ALIGN(size) >> PAGE_SHIFT));
-}
-
-static void unmap_donated_memory(void *va, size_t size)
-{
-	if (!va)
-		return;
-
-	memset(va, 0, size);
-	__unmap_donated_memory(va, size);
-}
-
-static void unmap_donated_memory_noclear(void *va, size_t size)
-{
-	if (!va)
-		return;
-
-	__unmap_donated_memory(va, size);
-}
-
 /*
  * Initialize the hypervisor copy of the protected VM state using the
  * memory donated by the host.
@@ -810,18 +824,6 @@ unlock_vm:
 		unmap_donated_memory(hyp_vcpu, sizeof(*hyp_vcpu));
 
 	return ret;
-}
-
-static void
-teardown_donated_memory(struct kvm_hyp_memcache *mc, void *addr, size_t size)
-{
-	size = PAGE_ALIGN(size);
-	memset(addr, 0, size);
-
-	for (void *start = addr; start < addr + size; start += PAGE_SIZE)
-		push_hyp_memcache(mc, start, hyp_virt_to_phys);
-
-	unmap_donated_memory_noclear(addr, size);
 }
 
 int __pkvm_teardown_vm(pkvm_handle_t handle)
