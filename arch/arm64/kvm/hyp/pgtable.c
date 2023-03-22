@@ -1170,6 +1170,31 @@ int kvm_pgtable_stage2_unmap(struct kvm_pgtable *pgt, u64 addr, u64 size)
 	return ret;
 }
 
+static int stage2_reclaim_leaf_walker(const struct kvm_pgtable_visit_ctx *ctx,
+				      enum kvm_pgtable_walk_flags visit)
+{
+	struct stage2_map_data *data = ctx->arg;
+
+	stage2_coalesce_walk_table_post(ctx, data);
+
+	return 0;
+}
+
+int kvm_pgtable_stage2_reclaim_leaves(struct kvm_pgtable *pgt, u64 addr, u64 size)
+{
+	struct stage2_map_data map_data = {
+		.phys		= KVM_PHYS_INVALID,
+		.mmu		= pgt->mmu,
+	};
+	struct kvm_pgtable_walker walker = {
+		.cb	= stage2_reclaim_leaf_walker,
+		.arg	= &map_data,
+		.flags	= KVM_PGTABLE_WALK_TABLE_POST,
+	};
+
+	return kvm_pgtable_walk(pgt, addr, size, &walker);
+}
+
 struct stage2_attr_data {
 	kvm_pte_t			attr_set;
 	kvm_pte_t			attr_clr;
