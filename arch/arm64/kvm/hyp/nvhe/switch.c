@@ -112,6 +112,26 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	write_sysreg(__kvm_hyp_host_vector, vbar_el2);
 }
 
+static void __deactivate_fpsimd_traps(struct kvm_vcpu *vcpu)
+{
+	u64 reg;
+	bool trap_sve = vcpu_has_sve(vcpu);
+
+	if (has_hvhe()) {
+		reg = CPACR_EL1_FPEN_EL0EN | CPACR_EL1_FPEN_EL1EN;
+		if (trap_sve)
+			reg |= CPACR_EL1_ZEN_EL0EN | CPACR_EL1_ZEN_EL1EN;
+
+		sysreg_clear_set(cpacr_el1, 0, reg);
+	} else {
+		reg = CPTR_EL2_TFP;
+		if (trap_sve)
+			reg |= CPTR_EL2_TZ;
+
+		sysreg_clear_set(cptr_el2, reg, 0);
+	}
+}
+
 /* Save VGICv3 state on non-VHE systems */
 static void __hyp_vgic_save_state(struct kvm_vcpu *vcpu)
 {
