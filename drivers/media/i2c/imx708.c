@@ -171,7 +171,7 @@ struct imx708_mode {
 	/* Not all modes have the same exposure lines step. */
 	u32 exposure_lines_step;
 
-	/* HDR flag, currently not used at runtime */
+	/* HDR flag, used for checking if the current mode is HDR */
 	bool hdr;
 };
 
@@ -1060,9 +1060,6 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 	unsigned int hblank;
 	const struct imx708_mode *mode = imx708->mode;
 
-	/* Default to no long exposure multiplier */
-	imx708->long_exp_shift = 0;
-
 	__v4l2_ctrl_modify_range(imx708->pixel_rate,
 				 mode->pixel_rate, mode->pixel_rate,
 				 1, mode->pixel_rate);
@@ -1091,12 +1088,33 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 	unsigned int code, num_modes;
 	int ret = 0;
 
-	/*
-	 * The VBLANK control may change the limits of usable exposure, so check
-	 * and adjust if necessary.
-	 */
-	if (ctrl->id == V4L2_CID_VBLANK)
+	switch (ctrl->id) {
+	case V4L2_CID_VBLANK:
+		/*
+		 * The VBLANK control may change the limits of usable exposure,
+		 * so check and adjust if necessary.
+		 */
 		imx708_adjust_exposure_range(imx708, ctrl);
+		break;
+
+	case V4L2_CID_WIDE_DYNAMIC_RANGE:
+		/*
+		 * The WIDE_DYNAMIC_RANGE control can also be applied immediately
+		 * as it doesn't set any registers. Don't do anything if the mode
+		 * already matches.
+		 */
+		if (imx708->mode && imx708->mode->hdr != ctrl->val) {
+			code = imx708_get_format_code(imx708);
+			get_mode_table(code, &mode_list, &num_modes, ctrl->val);
+			imx708->mode = v4l2_find_nearest_size(mode_list,
+							      num_modes,
+							      width, height,
+							      imx708->mode->width,
+							      imx708->mode->height);
+			imx708_set_framing_limits(imx708);
+		}
+		break;
+	}
 
 	/*
 	 * Applying V4L2 control value only happens
@@ -1158,14 +1176,7 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 				       imx708->notify_gains->p_new.p_u32[3]);
 		break;
 	case V4L2_CID_WIDE_DYNAMIC_RANGE:
-		code = imx708_get_format_code(imx708);
-		get_mode_table(code, &mode_list, &num_modes, ctrl->val);
-		imx708->mode = v4l2_find_nearest_size(mode_list,
-						      num_modes,
-						      width, height,
-						      imx708->mode->width,
-						      imx708->mode->height);
-		imx708_set_framing_limits(imx708);
+		/* Already handled above. */
 		break;
 	default:
 		dev_info(&client->dev,
