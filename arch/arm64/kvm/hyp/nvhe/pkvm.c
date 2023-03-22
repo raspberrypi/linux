@@ -486,6 +486,28 @@ static void init_pkvm_hyp_vm(struct kvm *host_kvm, struct pkvm_hyp_vm *hyp_vm,
 	hyp_spin_lock_init(&hyp_vm->vcpus_lock);
 }
 
+static int init_pkvm_hyp_vcpu_sve(struct pkvm_hyp_vcpu *hyp_vcpu, struct kvm_vcpu *host_vcpu)
+{
+	size_t sve_state_size;
+	void *sve_state;
+
+	hyp_vcpu->vcpu.arch.sve_state = READ_ONCE(host_vcpu->arch.sve_state);
+	hyp_vcpu->vcpu.arch.sve_max_vl = READ_ONCE(host_vcpu->arch.sve_max_vl);
+
+	sve_state = kern_hyp_va(hyp_vcpu->vcpu.arch.sve_state);
+	sve_state_size = vcpu_sve_state_size(&hyp_vcpu->vcpu);
+
+	if (!hyp_vcpu->vcpu.arch.sve_state || !sve_state_size ||
+		hyp_pin_shared_mem(sve_state, sve_state + sve_state_size)) {
+		clear_bit(KVM_ARM_VCPU_SVE, hyp_vcpu->vcpu.arch.features);
+		hyp_vcpu->vcpu.arch.sve_state = NULL;
+		hyp_vcpu->vcpu.arch.sve_max_vl = 0;
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 			      struct pkvm_hyp_vm *hyp_vm,
 			      struct kvm_vcpu *host_vcpu,
@@ -525,23 +547,9 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 		goto done;
 
 	if (test_bit(KVM_ARM_VCPU_SVE, hyp_vcpu->vcpu.arch.features)) {
-		size_t sve_state_size;
-		void *sve_state;
-
-		hyp_vcpu->vcpu.arch.sve_state = READ_ONCE(host_vcpu->arch.sve_state);
-		hyp_vcpu->vcpu.arch.sve_max_vl = READ_ONCE(host_vcpu->arch.sve_max_vl);
-
-		sve_state = kern_hyp_va(hyp_vcpu->vcpu.arch.sve_state);
-		sve_state_size = vcpu_sve_state_size(&hyp_vcpu->vcpu);
-
-		if (!hyp_vcpu->vcpu.arch.sve_state || !sve_state_size ||
-		    hyp_pin_shared_mem(sve_state, sve_state + sve_state_size)) {
-			clear_bit(KVM_ARM_VCPU_SVE, hyp_vcpu->vcpu.arch.features);
-			hyp_vcpu->vcpu.arch.sve_state = NULL;
-			hyp_vcpu->vcpu.arch.sve_max_vl = 0;
-			ret = -EINVAL;
+		ret = init_pkvm_hyp_vcpu_sve(hyp_vcpu, host_vcpu);
+		if (ret)
 			goto done;
-		}
 	}
 
 	pkvm_vcpu_init_traps(hyp_vcpu);
