@@ -21,7 +21,7 @@ cam_node: imx519@1a {
 			data-lanes = <1 2>;
 			clock-noncontinuous;
 			link-frequencies =
-				/bits/ 64 <493500000>;
+				/bits/ 64 <408000000>;
 		};
 	};
 };
