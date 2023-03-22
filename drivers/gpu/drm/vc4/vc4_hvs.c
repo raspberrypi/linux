@@ -441,6 +441,8 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 			  unsigned int channel,
 			  size_t dlist_count)
 {
+	struct vc4_dev *vc4 = hvs->vc4;
+	struct drm_device *dev = &vc4->base;
 	struct vc4_hvs_dlist_allocation *alloc;
 	unsigned long flags;
 	int ret;
@@ -458,8 +460,10 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 	ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
 				 dlist_count);
 	spin_unlock_irqrestore(&hvs->mm_lock, flags);
-	if (ret)
+	if (ret) {
+		drm_err(dev, "Failed to allocate DLIST entry: %d\n", ret);
 		return ERR_PTR(ret);
+	}
 
 	alloc->channel = channel;
 
