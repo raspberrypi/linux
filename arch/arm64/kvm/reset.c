@@ -78,15 +78,33 @@ static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
 	return 0;
 }
 
+static int alloc_sve_state(struct kvm_vcpu *vcpu)
+{
+	size_t reg_sz = vcpu_sve_state_size(vcpu);
+	void *buf = kzalloc(reg_sz, GFP_KERNEL_ACCOUNT);
+	int ret;
+
+	if (!buf)
+		return -ENOMEM;
+
+	ret = kvm_share_hyp(buf, buf + reg_sz);
+	if (ret) {
+		kfree(buf);
+		return ret;
+	}
+
+	vcpu->arch.sve_state = buf;
+
+	return 0;
+}
+
 /*
  * Finalize vcpu's maximum SVE vector length, allocating
  * vcpu->arch.sve_state as necessary.
  */
 static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 {
-	void *buf;
 	unsigned int vl;
-	size_t reg_sz;
 	int ret;
 
 	vl = vcpu->arch.sve_max_vl;
@@ -100,18 +118,10 @@ static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 		    vl > VL_ARCH_MAX))
 		return -EIO;
 
-	reg_sz = vcpu_sve_state_size(vcpu);
-	buf = kzalloc(reg_sz, GFP_KERNEL_ACCOUNT);
-	if (!buf)
-		return -ENOMEM;
-
-	ret = kvm_share_hyp(buf, buf + reg_sz);
-	if (ret) {
-		kfree(buf);
+	ret = alloc_sve_state(vcpu);
+	if (ret)
 		return ret;
-	}
 
-	vcpu->arch.sve_state = buf;
 	vcpu_set_flag(vcpu, VCPU_SVE_FINALIZED);
 	return 0;
 }
