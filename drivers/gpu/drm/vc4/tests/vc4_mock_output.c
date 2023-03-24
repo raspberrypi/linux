@@ -78,7 +78,7 @@ int vc4_mock_atomic_add_output(struct kunit *test,
 	if (!encoder)
 		return -ENODEV;
 
-	crtc = vc4_find_crtc_for_encoder(test, drm, encoder);
+	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	if (!crtc)
 		return -ENODEV;
 
@@ -122,7 +122,7 @@ int vc4_mock_atomic_del_output(struct kunit *test,
 	if (!encoder)
 		return -ENODEV;
 
-	crtc = vc4_find_crtc_for_encoder(test, drm, encoder);
+	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	if (!crtc)
 		return -ENODEV;
 
