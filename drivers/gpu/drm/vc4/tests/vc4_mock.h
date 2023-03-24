@@ -7,9 +7,9 @@
 
 static inline
 struct drm_crtc *vc4_find_crtc_for_encoder(struct kunit *test,
-					   struct drm_device *drm,
 					   struct drm_encoder *encoder)
 {
+	struct drm_device *drm = encoder->dev;
 	struct drm_crtc *crtc;
 
 	KUNIT_ASSERT_EQ(test, hweight32(encoder->possible_crtcs), 1);
