@@ -183,8 +183,18 @@ static int rpisense_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	return 0;
 }
 
+static int rpisense_fb_release(struct fb_info *info, int user)
+{
+	/* Flush any pending updates */
+	cancel_delayed_work(&info->deferred_work);
+	schedule_delayed_work(&info->deferred_work, 0);
+
+	return 0;
+}
+
 static struct fb_ops rpisense_fb_ops = {
 	.owner		= THIS_MODULE,
+	.fb_release	= rpisense_fb_release,
 	.fb_read	= fb_sys_read,
 	.fb_write	= rpisense_fb_write,
 	.fb_fillrect	= rpisense_fb_fillrect,
