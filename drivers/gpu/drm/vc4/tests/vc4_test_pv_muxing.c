@@ -132,7 +132,7 @@ get_vc4_crtc_state_for_encoder(struct kunit *test,
 	encoder = vc4_find_encoder_by_type(drm, type);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, encoder);
 
-	crtc = vc4_find_crtc_for_encoder(test, drm, encoder);
+	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, crtc);
 
 	new_crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
