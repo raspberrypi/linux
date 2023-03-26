@@ -118,6 +118,7 @@ int mmc_select_card(struct mmc_card *card)
 
 	return _mmc_select_card(card->host, card);
 }
+EXPORT_SYMBOL_GPL(mmc_select_card);
 
 int mmc_deselect_cards(struct mmc_host *host)
 {
