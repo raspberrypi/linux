@@ -786,8 +786,6 @@ static int rxe_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
 	if (atomic_read(&cq->num_wq))
 		return -EINVAL;
 
-	rxe_cq_disable(cq);
-
 	rxe_cleanup(cq);
 	return 0;
 }
