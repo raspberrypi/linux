@@ -819,20 +819,25 @@ static enum dma_status bcm2835_dma_tx_status(struct dma_chan *chan,
 		struct bcm2835_desc *d = c->desc;
 		dma_addr_t pos;
 
-		if (d->dir == DMA_MEM_TO_DEV && c->is_40bit_channel)
-			pos = readl(c->chan_base + BCM2711_DMA40_SRC) +
-				((readl(c->chan_base + BCM2711_DMA40_SRCI) &
-				  0xff) << 8);
-		else if (d->dir == DMA_MEM_TO_DEV && !c->is_40bit_channel)
+		if (d->dir == DMA_MEM_TO_DEV && c->is_40bit_channel) {
+			u64 lo_bits, hi_bits;
+
+			lo_bits = readl(c->chan_base + BCM2711_DMA40_SRC);
+			hi_bits = readl(c->chan_base + BCM2711_DMA40_SRCI) & 0xff;
+			pos = (hi_bits << 32) | lo_bits;
+		} else if (d->dir == DMA_MEM_TO_DEV && !c->is_40bit_channel) {
 			pos = readl(c->chan_base + BCM2835_DMA_SOURCE_AD);
-		else if (d->dir == DMA_DEV_TO_MEM && c->is_40bit_channel)
-			pos = readl(c->chan_base + BCM2711_DMA40_DEST) +
-				((readl(c->chan_base + BCM2711_DMA40_DESTI) &
-				  0xff) << 8);
-		else if (d->dir == DMA_DEV_TO_MEM && !c->is_40bit_channel)
+		} else if (d->dir == DMA_DEV_TO_MEM && c->is_40bit_channel) {
+			u64 lo_bits, hi_bits;
+
+			lo_bits = readl(c->chan_base + BCM2711_DMA40_DEST);
+			hi_bits = readl(c->chan_base + BCM2711_DMA40_DESTI) & 0xff;
+			pos = (hi_bits << 32) | lo_bits;
+		} else if (d->dir == DMA_DEV_TO_MEM && !c->is_40bit_channel) {
 			pos = readl(c->chan_base + BCM2835_DMA_DEST_AD);
-		else
+		} else {
 			pos = 0;
+		}
 
 		txstate->residue = bcm2835_dma_desc_size_pos(d, pos);
 	} else {
