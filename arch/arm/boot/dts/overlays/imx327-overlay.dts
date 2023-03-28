@@ -15,14 +15,15 @@
 	fragment@101 {
 		target = <&cam_node>;
 		__overlay__ {
-			compatible = "sony,imx327";
+			compatible = "sony,imx327lqr";
 		};
 	};
 
 	fragment@102 {
 		target = <&cam_node>;
 		__dormant__ {
-			compatible = "sony,imx327-mono";
+			// IMX327 mono is undefined in the binding - use imx290
+			compatible = "sony,imx290llr";
 		};
 	};
 

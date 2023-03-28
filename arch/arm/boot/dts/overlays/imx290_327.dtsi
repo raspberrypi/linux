@@ -1,7 +1,7 @@
 // Fragment to configure and IMX290 / IMX327 / IMX462 image sensor
 
 cam_node: imx290@1a {
-	compatible = "sony,imx290";
+	compatible = "sony,imx290lqr";
 	reg = <0x1a>;
 	status = "disabled";
 
