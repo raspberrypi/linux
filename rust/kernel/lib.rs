@@ -17,6 +17,7 @@
 #![feature(dispatch_from_dyn)]
 #![feature(new_uninit)]
 #![feature(offset_of)]
+#![feature(pointer_byte_offsets)]
 #![feature(ptr_metadata)]
 #![feature(receiver_trait)]
 #![feature(unsize)]
@@ -52,6 +53,7 @@ pub mod sync;
 pub mod task;
 pub mod time;
 pub mod types;
+pub mod uaccess;
 pub mod workqueue;
 
 #[doc(hidden)]
