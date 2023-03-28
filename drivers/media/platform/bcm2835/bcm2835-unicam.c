@@ -2524,7 +2524,8 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_streaming;
 	}
 
-	ret = media_pipeline_start(node->video_dev.entity.pads, &node->pipe);
+	ret = media_pipeline_start(dev->node[IMAGE_PAD].video_dev.entity.pads,
+				   &dev->node[IMAGE_PAD].pipe);
 	if (ret < 0) {
 		unicam_err(dev, "Failed to start media pipeline: %d\n", ret);
 		goto err_pm_put;
@@ -2618,7 +2619,8 @@ err_vpu_clock:
 		unicam_err(dev, "failed to reset the VPU clock\n");
 	clk_disable_unprepare(dev->vpu_clock);
 error_pipeline:
-	media_pipeline_stop(node->video_dev.entity.pads);
+	if (node->pad_id == IMAGE_PAD)
+		media_pipeline_stop(dev->node[IMAGE_PAD].video_dev.entity.pads);
 err_pm_put:
 	unicam_runtime_put(dev);
 err_streaming:
