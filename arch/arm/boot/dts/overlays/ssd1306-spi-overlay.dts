@@ -80,5 +80,6 @@
 		reset_pin = <&ssd1306>,"reset-gpios:4",
 		            <&ssd1306_pins>,"brcm,pins:0";
 		height    = <&ssd1306>,"solomon,height:0";
+		inverted = <&ssd1306>,"solomon,com-invdir?";
 	};
 };
