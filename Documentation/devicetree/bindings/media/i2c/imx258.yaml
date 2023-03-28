@@ -34,6 +34,10 @@ properties:
   reg:
     maxItems: 1
 
+  powerdown-gpios:
+    description: |-
+      Reference to the GPIO connected to the PWDN pin, if any.
+
   reset-gpios:
     description: |-
       Reference to the GPIO connected to the XCLR pin, if any.
