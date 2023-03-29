@@ -346,7 +346,8 @@ static void fb_deferred_io_lastclose(struct fb_info *info)
 {
 	unsigned long i;
 
-	flush_delayed_work(&info->deferred_work);
+	if (!list_empty(&info->fbdefio->pagereflist))
+		flush_delayed_work(&info->deferred_work);
 
 	/* clear out the mapping that we setup */
 	for (i = 0; i < info->npagerefs; ++i)
