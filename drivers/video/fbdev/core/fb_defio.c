@@ -337,7 +337,8 @@ EXPORT_SYMBOL_GPL(fb_deferred_io_open);
 
 static void fb_deferred_io_lastclose(struct fb_info *info)
 {
-	flush_delayed_work(&info->deferred_work);
+	if (!list_empty(&info->fbdefio->pagereflist))
+		flush_delayed_work(&info->deferred_work);
 }
 
 void fb_deferred_io_release(struct fb_info *info)
