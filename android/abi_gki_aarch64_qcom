@@ -1381,6 +1381,7 @@
   __sg_page_iter_dma_next
   __sg_page_iter_next
   __sg_page_iter_start
+  shmem_file_setup
   show_regs
   si_meminfo
   simple_attr_open
@@ -1568,6 +1569,7 @@
   __traceiter_android_rvh_schedule
   __traceiter_android_rvh_select_task_rq_fair
   __traceiter_android_rvh_select_task_rq_rt
+  __traceiter_android_rvh_shmem_get_folio
   __traceiter_android_rvh_set_cpus_allowed_by_task
   __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_show_max_freq
@@ -1643,6 +1645,7 @@
   __tracepoint_android_rvh_schedule
   __tracepoint_android_rvh_select_task_rq_fair
   __tracepoint_android_rvh_select_task_rq_rt
+  __tracepoint_android_rvh_shmem_get_folio
   __tracepoint_android_rvh_set_cpus_allowed_by_task
   __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_show_max_freq
