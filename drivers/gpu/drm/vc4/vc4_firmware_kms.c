@@ -519,7 +519,7 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 			   struct drm_plane_state *state)
 {
 	struct drm_framebuffer *fb = state->fb;
-	struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, 0);
+	struct drm_gem_dma_object *bo;
 	const struct drm_format_info *drm_fmt = fb->format;
 	const struct vc_image_format *vc_fmt =
 					vc4_get_vc_image_fmt(drm_fmt->format);
@@ -543,6 +543,7 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 					state->normalized_zpos : -127;
 	mb->plane.num_planes = num_planes;
 	mb->plane.is_vu = vc_fmt->is_vu;
+	bo = drm_fb_dma_get_gem_obj(fb, 0);
 	mb->plane.planes[0] = bo->dma_addr + fb->offsets[0];
 
 	rotation = drm_rotation_simplify(state->rotation,
@@ -563,11 +564,14 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 		/* Makes assumptions on the stride for the chroma planes as we
 		 * can't easily plumb in non-standard pitches.
 		 */
+		bo = drm_fb_dma_get_gem_obj(fb, 1);
 		mb->plane.planes[1] = bo->dma_addr + fb->offsets[1];
-		if (num_planes > 2)
+		if (num_planes > 2) {
+			bo = drm_fb_dma_get_gem_obj(fb, 2);
 			mb->plane.planes[2] = bo->dma_addr + fb->offsets[2];
-		else
+		} else {
 			mb->plane.planes[2] = 0;
+		}
 
 		/* Special case the YUV420 with U and V as line interleaved
 		 * planes as we have special handling for that case.
