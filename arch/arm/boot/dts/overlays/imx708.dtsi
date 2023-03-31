@@ -6,12 +6,12 @@ cam_node: imx708@1a {
 	status = "disabled";
 
 	clocks = <&cam1_clk>;
-	clock-names = "xclk";
+	clock-names = "inclk";
 
-	VANA1-supply = <&cam1_reg>;	/* 2.8v */
-	VANA2-supply = <&cam_dummy_reg>;/* 1.8v */
-	VDIG-supply = <&cam_dummy_reg>;	/* 1.1v */
-	VDDL-supply = <&cam_dummy_reg>;	/* 1.8v */
+	vana1-supply = <&cam1_reg>;	/* 2.8v */
+	vana2-supply = <&cam_dummy_reg>;/* 1.8v */
+	vdig-supply = <&cam_dummy_reg>;	/* 1.1v */
+	vddl-supply = <&cam_dummy_reg>;	/* 1.8v */
 
 	rotation = <180>;
 	orientation = <2>;
