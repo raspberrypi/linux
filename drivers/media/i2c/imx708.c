@@ -825,9 +825,6 @@ struct imx708 {
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
-	struct v4l2_ctrl *red_balance;
-	struct v4l2_ctrl *blue_balance;
-	struct v4l2_ctrl *notify_gains;
 	struct v4l2_ctrl *hdr_mode;
 	struct v4l2_ctrl *link_freq;
 
@@ -1205,12 +1202,12 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_NOTIFY_GAINS:
 		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_BLUE,
 				       IMX708_REG_VALUE_16BIT,
-				       imx708->notify_gains->p_new.p_u32[0]);
+				       ctrl->p_new.p_u32[0]);
 		if (ret)
 			break;
 		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_RED,
 				       IMX708_REG_VALUE_16BIT,
-				       imx708->notify_gains->p_new.p_u32[3]);
+				       ctrl->p_new.p_u32[3]);
 		break;
 	case V4L2_CID_WIDE_DYNAMIC_RANGE:
 		/* Already handled above. */
@@ -1842,8 +1839,7 @@ static int imx708_init_controls(struct imx708 *imx708)
 		/* The "Solid color" pattern is white by default */
 	}
 
-	imx708->notify_gains = v4l2_ctrl_new_custom(ctrl_hdlr,
-						    &imx708_notify_gains_ctrl, NULL);
+	v4l2_ctrl_new_custom(ctrl_hdlr, &imx708_notify_gains_ctrl, NULL);
 
 	imx708->hdr_mode = v4l2_ctrl_new_std(ctrl_hdlr, &imx708_ctrl_ops,
 					     V4L2_CID_WIDE_DYNAMIC_RANGE,
