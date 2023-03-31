@@ -1955,6 +1955,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        link-frequency          Allowable link frequency values to use in Hz:
+                                450000000 (default), 447000000, 453000000.
 
 
 Name:   iqaudio-codec
