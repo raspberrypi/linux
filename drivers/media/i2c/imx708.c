@@ -819,12 +819,14 @@ struct imx708 {
 	/* V4L2 Controls */
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *exposure;
-	struct v4l2_ctrl *vflip;
-	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *hdr_mode;
 	struct v4l2_ctrl *link_freq;
+	struct {
+		struct v4l2_ctrl *hflip;
+		struct v4l2_ctrl *vflip;
+	};
 
 	/* Current mode */
 	const struct imx708_mode *mode;
@@ -1815,6 +1817,7 @@ static int imx708_init_controls(struct imx708 *imx708)
 
 	imx708->vflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx708_ctrl_ops,
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	v4l2_ctrl_cluster(2, &imx708->hflip);
 
 	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx708_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
