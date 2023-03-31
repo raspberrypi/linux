@@ -162,8 +162,9 @@ static void timer_set_cval(struct arch_timer_context *ctxt, u64 cval)
 
 static void timer_set_offset(struct arch_timer_context *ctxt, u64 offset)
 {
-	if (!ctxt->offset.vm_offset) {
-		WARN(offset, "timer %ld\n", arch_timer_ctx_index(ctxt));
+	if (unlikely(!ctxt->offset.vm_offset)) {
+		WARN(offset && !kvm_vm_is_protected(ctxt->vcpu->kvm),
+			"timer %ld\n", arch_timer_ctx_index(ctxt));
 		return;
 	}
 
@@ -991,10 +992,14 @@ static void timer_context_init(struct kvm_vcpu *vcpu, int timerid)
 
 	ctxt->vcpu = vcpu;
 
-	if (timerid == TIMER_VTIMER)
-		ctxt->offset.vm_offset = &kvm->arch.timer_data.voffset;
-	else
-		ctxt->offset.vm_offset = &kvm->arch.timer_data.poffset;
+	if (!kvm_vm_is_protected(vcpu->kvm)) {
+		if (timerid == TIMER_VTIMER)
+			ctxt->offset.vm_offset = &kvm->arch.timer_data.voffset;
+		else
+			ctxt->offset.vm_offset = &kvm->arch.timer_data.poffset;
+	} else {
+		ctxt->offset.vm_offset = NULL;
+	}
 
 	hrtimer_init(&ctxt->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS_HARD);
 	ctxt->hrtimer.function = kvm_hrtimer_expire;
@@ -1658,6 +1663,9 @@ int kvm_vm_ioctl_set_counter_offset(struct kvm *kvm,
 
 	if (offset->reserved)
 		return -EINVAL;
+
+	if (kvm_vm_is_protected(kvm))
+		return -EBUSY;
 
 	mutex_lock(&kvm->lock);
 
