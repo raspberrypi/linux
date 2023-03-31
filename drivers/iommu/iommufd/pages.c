@@ -1140,6 +1140,7 @@ struct iopt_pages *iopt_alloc_pages(void __user *uptr, unsigned long length,
 				    bool writable)
 {
 	struct iopt_pages *pages;
+	unsigned long end;
 
 	/*
 	 * The iommu API uses size_t as the length, and protect the DIV_ROUND_UP
@@ -1147,6 +1148,9 @@ struct iopt_pages *iopt_alloc_pages(void __user *uptr, unsigned long length,
 	 */
 	if (length > SIZE_MAX - PAGE_SIZE || length == 0)
 		return ERR_PTR(-EINVAL);
+
+	if (check_add_overflow((unsigned long)uptr, length, &end))
+		return ERR_PTR(-EOVERFLOW);
 
 	pages = kzalloc(sizeof(*pages), GFP_KERNEL_ACCOUNT);
 	if (!pages)
