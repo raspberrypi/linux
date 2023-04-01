@@ -33,8 +33,8 @@
 #define ETH_TLEN	2		/* Octets in ethernet type field */
 #define ETH_HLEN	14		/* Total octets in header.	 */
 #define ETH_ZLEN	60		/* Min. octets in frame sans FCS */
-#define ETH_DATA_LEN	1500		/* Max. octets in payload	 */
-#define ETH_FRAME_LEN	1514		/* Max. octets in frame sans FCS */
+#define ETH_DATA_LEN	9000		/* Max. octets in payload	 */
+#define ETH_FRAME_LEN	9014		/* Max. octets in frame sans FCS */
 #define ETH_FCS_LEN	4		/* Octets in the FCS		 */
 
 #define ETH_MIN_MTU	68		/* Min IPv4 MTU per RFC791	*/

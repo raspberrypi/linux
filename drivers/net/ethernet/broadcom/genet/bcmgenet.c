@@ -52,7 +52,7 @@
 #define GENET_Q16_TX_BD_CNT	\
 	(TOTAL_DESC - priv->hw_params->tx_queues * priv->hw_params->tx_bds_per_q)
 
-#define RX_BUF_LENGTH		2048
+#define RX_BUF_LENGTH		10240
 #define SKB_ALIGNMENT		32
 
 /* Tx/Rx DMA register offset, skip 256 descriptors */
