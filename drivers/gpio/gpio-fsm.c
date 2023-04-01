@@ -121,7 +121,7 @@ struct gpio_fsm {
 	struct fsm_state *current_state;
 	struct fsm_state *next_state;
 	struct fsm_state *delay_target_state;
-	unsigned int delay_jiffies;
+	unsigned long delay_jiffies;
 	int delay_ms;
 	unsigned int debug;
 	bool shutting_down;
