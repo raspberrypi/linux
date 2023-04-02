@@ -4117,7 +4117,7 @@ static int bcmgenet_probe(struct platform_device *pdev)
 
 	/* Mii wait queue */
 	init_waitqueue_head(&priv->wq);
-	/* Always use RX_BUF_LENGTH (2KB) buffer for all chips */
+	/* Always use RX_BUF_LENGTH buffer for all chips */
 	priv->rx_buf_len = RX_BUF_LENGTH;
 	INIT_WORK(&priv->bcmgenet_irq_work, bcmgenet_irq_task);
 
