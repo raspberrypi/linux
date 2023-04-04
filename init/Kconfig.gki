@@ -64,6 +64,14 @@ config GKI_HIDDEN_SND_SOC_CONFIGS
 	  These are normally selected implicitly when a module
 	  that relies on it is configured.
 
+config GKI_HIDDEN_UFS_CONFIGS
+	bool "Hidden UFS configs needed for GKI"
+	select SCSI_UFS_VARIABLE_SG_ENTRY_SIZE if SCSI_UFS_CRYPTO
+	help
+	  Dummy config option used to enable hidden UFS configs.
+	  These are normally selected implicitly when a module
+	  that relies on it is configured.
+
 config GKI_HIDDEN_MMC_CONFIGS
 	bool "Hidden MMC configs needed for GKI"
 	select MMC_SDHCI_IO_ACCESSORS if (MMC_SDHCI)
@@ -256,6 +264,7 @@ config GKI_HACKS_TO_FIX
 	select GKI_HIDDEN_REGMAP_CONFIGS
 	select GKI_HIDDEN_SND_CONFIGS
 	select GKI_HIDDEN_SND_SOC_CONFIGS
+	select GKI_HIDDEN_UFS_CONFIGS
 	select GKI_HIDDEN_MMC_CONFIGS
 	select GKI_HIDDEN_GPIO_CONFIGS
 	select GKI_HIDDEN_QCOM_CONFIGS
