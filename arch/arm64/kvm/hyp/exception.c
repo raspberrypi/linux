@@ -181,7 +181,8 @@ static void enter_exception64(struct kvm_vcpu *vcpu, unsigned long target_mode,
 	*vcpu_pc(vcpu) = vbar + offset;
 
 	old = *vcpu_cpsr(vcpu);
-	new = get_except64_cpsr(old, kvm_has_mte(vcpu->kvm), sctlr, target_mode);
+	new = get_except64_cpsr(old, kvm_has_mte(kern_hyp_va(vcpu->kvm)), sctlr,
+				target_mode);
 	*vcpu_cpsr(vcpu) = new;
 	__vcpu_write_spsr(vcpu, target_mode, old);
 }
