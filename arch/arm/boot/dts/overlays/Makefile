@@ -68,6 +68,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
+	gpio-charger.dtbo \
 	gpio-fan.dtbo \
 	gpio-hog.dtbo \
 	gpio-ir.dtbo \
