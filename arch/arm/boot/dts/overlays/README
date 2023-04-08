@@ -1248,6 +1248,20 @@ Load:   dtoverlay=googlevoicehat-soundcard
 Params: <None>
 
 
+Name:   gpio-charger
+Info:   This is a generic overlay for detecting charger with GPIO.
+Load:   dtoverlay=gpio-charger,<param>=<val>
+Params: gpio                    GPIO pin to trigger on (default 4)
+        active_low              When this is 1 (active low), a falling
+                                edge generates a charging event and a
+                                rising edge generates a discharging event.
+                                When this is 0 (active high), this is
+                                reversed. The default is 0 (active high)
+        gpio_pull               Desired pull-up/down state (off, down, up)
+                                Default is "down".
+        type                    Set a charger type for the pin. (Default: mains)
+
+
 Name:   gpio-fan
 Info:   Configure a GPIO pin to control a cooling fan.
 Load:   dtoverlay=gpio-fan,<param>=<val>
