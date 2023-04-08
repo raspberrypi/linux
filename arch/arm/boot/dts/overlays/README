@@ -3065,6 +3065,17 @@ Params: addr                    I2C address of expander. Default 0x20.
         xra1202                 Select the Exar XRA1202 (8 bit)
 
 
+Name:   pcf857x
+Info:   NXP PCF857x family of I2C GPIO expanders.
+Load:   dtoverlay=pcf857x,<param>=<val>
+Params: addr                    I2C address of expander. Default
+                                depends on model selected.
+        pcf8574                 Select the NXP PCF8574 (8 bit)
+        pcf8574a                Select the NXP PCF8574A (8 bit)
+        pcf8575                 Select the NXP PCF8575 (16 bit)
+        pca8574                 Select the NXP PCA8574 (8 bit)
+
+
 Name:   pcie-32bit-dma
 Info:   Force PCIe config to support 32bit DMA addresses at the expense of
         having to bounce buffers.
