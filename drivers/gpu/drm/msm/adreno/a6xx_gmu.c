@@ -1514,8 +1514,6 @@ int a6xx_gmu_init(struct a6xx_gpu *a6xx_gpu, struct device_node *node)
 	if (!pdev)
 		return -ENODEV;
 
-	mutex_init(&gmu->lock);
-
 	gmu->dev = &pdev->dev;
 
 	of_dma_configure(gmu->dev, node, true);
