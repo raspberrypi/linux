@@ -4849,7 +4849,7 @@ static inline void *mas_prev_entry(struct ma_state *mas, unsigned long min)
 
 	if (mas->index < min) {
 		mas->index = mas->last = min;
-		mas_pause(mas);
+		mas->node = MAS_NONE;
 		return NULL;
 	}
 retry:
@@ -5911,6 +5911,7 @@ void *mas_prev(struct ma_state *mas, unsigned long min)
 	if (!mas->index) {
 		/* Nothing comes before 0 */
 		mas->last = 0;
+		mas->node = MAS_NONE;
 		return NULL;
 	}
 
@@ -6000,6 +6001,9 @@ void *mas_find(struct ma_state *mas, unsigned long max)
 		mas->node = MAS_START;
 		mas->index = ++mas->last;
 	}
+
+	if (unlikely(mas_is_none(mas)))
+		mas->node = MAS_START;
 
 	if (unlikely(mas_is_start(mas))) {
 		/* First run or continue */
