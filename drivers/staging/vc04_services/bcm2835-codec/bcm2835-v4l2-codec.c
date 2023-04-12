@@ -263,7 +263,7 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 	}, {
 		.fourcc			= V4L2_PIX_FMT_RGBA32,
 		.depth			= 32,
-		.bytesperline_align	= { 32, 32, 32, 32 },
+		.bytesperline_align	= { 32, 32, 32, 32, 32 },
 		.flags			= 0,
 		.mmal_fmt		= MMAL_ENCODING_RGBA,
 		.size_multiplier_x2	= 2,
