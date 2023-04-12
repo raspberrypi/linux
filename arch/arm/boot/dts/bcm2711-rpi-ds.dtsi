@@ -267,6 +267,9 @@
 	interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 };
 
+i2c_arm: &i2c1 {};
+i2c_vc: &i2c0 {};
+
 /delete-node/ &v3d;
 
 / {
