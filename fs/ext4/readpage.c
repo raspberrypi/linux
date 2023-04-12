@@ -43,6 +43,7 @@
 #include <linux/writeback.h>
 #include <linux/backing-dev.h>
 #include <linux/pagevec.h>
+#include <linux/cleancache.h>
 
 #include "ext4.h"
 
@@ -342,6 +343,11 @@ int ext4_mpage_readpages(struct inode *inode,
 			}
 		} else if (fully_mapped) {
 			folio_set_mappedtodisk(folio);
+		}
+		if (fully_mapped && blocks_per_page == 1 &&
+		    !folio_test_uptodate(folio) && cleancache_get_page(&folio->page) == 0) {
+			folio_mark_uptodate(folio);
+			goto confused;
 		}
 
 		/*
