@@ -484,6 +484,11 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 	vc4_state->crtc_w = state->dst.x2 - state->dst.x1;
 	vc4_state->crtc_h = state->dst.y2 - state->dst.y1;
 
+	if (!vc4_state->crtc_w)
+		vc4_state->crtc_w = state->crtc->mode.hdisplay;
+	if (!vc4_state->crtc_h)
+		vc4_state->crtc_h = state->crtc->mode.vdisplay;
+
 	ret = vc4_plane_margins_adj(state);
 	if (ret)
 		return ret;
