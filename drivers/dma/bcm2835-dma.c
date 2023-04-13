@@ -101,6 +101,7 @@ struct bcm2835_chan {
 
 	bool is_lite_channel;
 	bool is_40bit_channel;
+	bool is_2712;
 };
 
 struct bcm2835_desc {
@@ -389,7 +390,7 @@ static inline uint32_t to_bcm2711_dsti(uint32_t info)
 	       BCM2711_DMA40_BURST_LEN(BCM2835_DMA_GET_BURST_LENGTH(info));
 }
 
-static inline uint32_t to_bcm2711_cbaddr(dma_addr_t addr)
+static inline uint32_t to_40bit_cbaddr(dma_addr_t addr)
 {
 	BUG_ON(addr & 0x1f);
 	return (addr >> 5);
@@ -532,7 +533,11 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 			control_block->info = info;
 			control_block->src = src;
 			control_block->dst = dst;
-			control_block->stride = 0;
+			if (c->is_2712)
+				control_block->stride = (upper_32_bits(dst) << 8) |
+							upper_32_bits(src);
+			else
+				control_block->stride = 0;
 			control_block->next = 0;
 		}
 
@@ -555,9 +560,10 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 		if (frame && c->is_40bit_channel)
 			((struct bcm2711_dma40_scb *)
 			 d->cb_list[frame - 1].cb)->next_cb =
-				to_bcm2711_cbaddr(cb_entry->paddr);
+				to_40bit_cbaddr(cb_entry->paddr);
 		if (frame && !c->is_40bit_channel)
-			d->cb_list[frame - 1].cb->next = cb_entry->paddr;
+			d->cb_list[frame - 1].cb->next = c->is_2712 ?
+			to_40bit_cbaddr(cb_entry->paddr) : cb_entry->paddr;
 
 		/* update src and dst and length */
 		if (src && (info & BCM2835_DMA_S_INC)) {
@@ -737,12 +743,15 @@ static void bcm2835_dma_start_desc(struct bcm2835_chan *c)
 	c->desc = d = to_bcm2835_dma_desc(&vd->tx);
 
 	if (c->is_40bit_channel) {
-		writel(to_bcm2711_cbaddr(d->cb_list[0].paddr),
+		writel(to_40bit_cbaddr(d->cb_list[0].paddr),
 		       c->chan_base + BCM2711_DMA40_CB);
 		writel(BCM2711_DMA40_ACTIVE | BCM2711_DMA40_PROT | BCM2711_DMA40_CS_FLAGS(c->dreq),
 		       c->chan_base + BCM2711_DMA40_CS);
 	} else {
-		writel(d->cb_list[0].paddr, c->chan_base + BCM2835_DMA_ADDR);
+		writel(BIT(31), c->chan_base + BCM2835_DMA_CS);
+
+		writel(c->is_2712 ? to_40bit_cbaddr(d->cb_list[0].paddr) : d->cb_list[0].paddr,
+		       c->chan_base + BCM2835_DMA_ADDR);
 		writel(BCM2835_DMA_ACTIVE | BCM2835_DMA_CS_FLAGS(c->dreq),
 		       c->chan_base + BCM2835_DMA_CS);
 	}
@@ -1113,9 +1122,10 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	if (c->is_40bit_channel)
 		((struct bcm2711_dma40_scb *)
 		 d->cb_list[frames - 1].cb)->next_cb =
-			to_bcm2711_cbaddr(d->cb_list[0].paddr);
+			to_40bit_cbaddr(d->cb_list[0].paddr);
 	else
-		d->cb_list[d->frames - 1].cb->next = d->cb_list[0].paddr;
+		d->cb_list[d->frames - 1].cb->next = c->is_2712 ?
+		to_40bit_cbaddr(d->cb_list[0].paddr) : d->cb_list[0].paddr;
 
 	return vchan_tx_prep(&c->vc, &d->vd, flags);
 }
@@ -1182,6 +1192,8 @@ static int bcm2835_dma_chan_init(struct bcm2835_dmadev *d, int chan_id,
 	else if (readl(c->chan_base + BCM2835_DMA_DEBUG) &
 		 BCM2835_DMA_DEBUG_LITE)
 		c->is_lite_channel = true;
+	if (d->cfg_data->dma_mask == DMA_BIT_MASK(40))
+		c->is_2712 = true;
 
 	return 0;
 }
