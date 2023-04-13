@@ -113,7 +113,7 @@ struct item {
 };
 
 #define HASHSZ 256
-static struct item *hashtab[HASHSZ];
+static struct item *config_hashtab[HASHSZ], *file_hashtab[HASHSZ];
 
 static unsigned int strhash(const char *str, unsigned int sz)
 {
@@ -126,24 +126,10 @@ static unsigned int strhash(const char *str, unsigned int sz)
 }
 
 /*
- * Lookup a value in the configuration string.
- */
-static int is_defined_config(const char *name, int len, unsigned int hash)
-{
-	struct item *aux;
-
-	for (aux = hashtab[hash % HASHSZ]; aux; aux = aux->next) {
-		if (aux->hash == hash && aux->len == len &&
-		    memcmp(aux->name, name, len) == 0)
-			return 1;
-	}
-	return 0;
-}
-
-/*
  * Add a new value to the configuration string.
  */
-static void define_config(const char *name, int len, unsigned int hash)
+static void add_to_hashtable(const char *name, int len, unsigned int hash,
+			     struct item *hashtab[])
 {
 	struct item *aux = malloc(sizeof(*aux) + len);
 
@@ -159,16 +145,33 @@ static void define_config(const char *name, int len, unsigned int hash)
 }
 
 /*
+ * Lookup a string in the hash table. If found, just return true.
+ * If not, add it to the hashtable and return false.
+ */
+static bool in_hashtable(const char *name, int len, struct item *hashtab[])
+{
+	struct item *aux;
+	unsigned int hash = strhash(name, len);
+
+	for (aux = hashtab[hash % HASHSZ]; aux; aux = aux->next) {
+		if (aux->hash == hash && aux->len == len &&
+		    memcmp(aux->name, name, len) == 0)
+			return true;
+	}
+
+	add_to_hashtable(name, len, hash, hashtab);
+
+	return false;
+}
+
+/*
  * Record the use of a CONFIG_* word.
  */
 static void use_config(const char *m, int slen)
 {
-	unsigned int hash = strhash(m, slen);
+	if (in_hashtable(m, slen, config_hashtab))
+		return;
 
-	if (is_defined_config(m, slen, hash))
-	    return;
-
-	define_config(m, slen, hash);
 	/* Print out a dependency path from a symbol name. */
 	printf("    $(wildcard include/config/%.*s) \\\n", slen, m);
 }
@@ -245,6 +248,15 @@ static int is_ignored_file(const char *s, int len)
 {
 	return str_ends_with(s, len, "include/generated/autoconf.h") ||
 	       str_ends_with(s, len, "include/generated/autoksyms.h");
+}
+
+/* Do not parse these files */
+static int is_no_parse_file(const char *s, int len)
+{
+	/* rustc may list binary files in dep-info */
+	return str_ends_with(s, len, ".rlib") ||
+	       str_ends_with(s, len, ".rmeta") ||
+	       str_ends_with(s, len, ".so");
 }
 
 /*
@@ -362,6 +374,10 @@ static void parse_dep_file(char *p, const char *target)
 			 * name, which will be the original one, and ignore any
 			 * other source names, which will be intermediate
 			 * temporary files.
+			 *
+			 * rustc emits the same dependency list for each
+			 * emission type. It is enough to list the source name
+			 * just once.
 			 */
 			if (!saw_any_target) {
 				saw_any_target = true;
@@ -369,12 +385,13 @@ static void parse_dep_file(char *p, const char *target)
 				printf("deps_%s := \\\n", target);
 				need_parse = true;
 			}
-		} else if (!is_ignored_file(p, q - p)) {
+		} else if (!is_ignored_file(p, q - p) &&
+			   !in_hashtable(p, q - p, file_hashtab)) {
 			printf("  %s \\\n", p);
 			need_parse = true;
 		}
 
-		if (need_parse) {
+		if (need_parse && !is_no_parse_file(p, q - p)) {
 			void *buf;
 
 			buf = read_file(p);
