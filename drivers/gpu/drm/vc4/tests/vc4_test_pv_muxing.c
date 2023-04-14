@@ -853,7 +853,6 @@ static struct kunit_case vc6_pv_muxing_tests[] = {
 static struct kunit_suite vc6_pv_muxing_test_suite = {
 	.name = "vc6-pv-muxing-combinations",
 	.init = vc4_pv_muxing_test_init,
-	.exit = vc4_pv_muxing_test_exit,
 	.test_cases = vc6_pv_muxing_tests,
 };
 
