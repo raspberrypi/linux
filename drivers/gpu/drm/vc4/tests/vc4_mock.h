@@ -39,6 +39,9 @@ struct vc4_dummy_plane {
 	struct vc4_plane plane;
 };
 
+struct vc4_dummy_plane *vc4_dummy_plane(struct kunit *test,
+					struct drm_device *drm,
+					enum drm_plane_type type);
 struct drm_plane *vc4_dummy_plane(struct kunit *test, struct drm_device *drm,
 				  enum drm_plane_type type);
 
