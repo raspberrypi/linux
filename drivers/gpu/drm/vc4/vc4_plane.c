@@ -280,7 +280,7 @@ static bool plane_enabled(struct drm_plane_state *state)
 	return state->fb && !WARN_ON(!state->crtc);
 }
 
-static struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
+struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct vc4_hvs *hvs = vc4->hvs;
@@ -334,8 +334,8 @@ static void vc4_plane_release_upm_ida(struct vc4_hvs *hvs, unsigned int upm_hand
 	ida_free(&hvs->upm_handles, upm_handle);
 }
 
-static void vc4_plane_destroy_state(struct drm_plane *plane,
-				    struct drm_plane_state *state)
+void vc4_plane_destroy_state(struct drm_plane *plane,
+			     struct drm_plane_state *state)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct vc4_hvs *hvs = vc4->hvs;
@@ -368,7 +368,7 @@ static void vc4_plane_destroy_state(struct drm_plane *plane,
 }
 
 /* Called during init to allocate the plane's atomic state. */
-static void vc4_plane_reset(struct drm_plane *plane)
+void vc4_plane_reset(struct drm_plane *plane)
 {
 	struct vc4_plane_state *vc4_state;
 
@@ -2159,8 +2159,8 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
  * compute the dlist here and have all active plane dlists get updated
  * in the CRTC's flush.
  */
-static int vc4_plane_atomic_check(struct drm_plane *plane,
-				  struct drm_atomic_state *state)
+int vc4_plane_atomic_check(struct drm_plane *plane,
+			   struct drm_atomic_state *state)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
