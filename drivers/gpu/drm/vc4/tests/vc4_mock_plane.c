@@ -21,7 +21,10 @@ static const struct drm_plane_funcs vc4_dummy_plane_funcs = {
 };
 
 static const uint32_t vc4_dummy_plane_formats[] = {
+	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_YUV420,
+	DRM_FORMAT_YUV422,
 };
 
 struct vc4_dummy_plane *vc4_dummy_plane(struct kunit *test,
