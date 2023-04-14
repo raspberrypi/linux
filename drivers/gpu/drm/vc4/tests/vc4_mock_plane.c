@@ -10,12 +10,13 @@
 #include "vc4_mock.h"
 
 static const struct drm_plane_helper_funcs vc4_dummy_plane_helper_funcs = {
+	.atomic_check = vc4_plane_atomic_check,
 };
 
 static const struct drm_plane_funcs vc4_dummy_plane_funcs = {
-	.atomic_destroy_state	= drm_atomic_helper_plane_destroy_state,
-	.atomic_duplicate_state	= drm_atomic_helper_plane_duplicate_state,
-	.reset			= drm_atomic_helper_plane_reset,
+	.atomic_destroy_state	= vc4_plane_destroy_state,
+	.atomic_duplicate_state	= vc4_plane_duplicate_state,
+	.reset			= vc4_plane_reset,
 };
 
 static const uint32_t vc4_dummy_plane_formats[] = {
