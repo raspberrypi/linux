@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 
 #include <drm/drm_atomic_state_helper.h>
+#include <drm/drm_atomic_uapi.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modeset_helper_vtables.h>
 #include <drm/drm_plane.h>
@@ -45,4 +46,25 @@ struct vc4_dummy_plane *vc4_dummy_plane(struct kunit *test,
 	drm_plane_helper_add(plane, &vc4_dummy_plane_helper_funcs);
 
 	return dummy_plane;
+}
+
+struct drm_plane *
+vc4_mock_atomic_add_plane(struct kunit *test,
+			  struct drm_atomic_state *state,
+			  struct drm_crtc *crtc)
+{
+	struct drm_plane_state *plane_state;
+	struct drm_plane *plane;
+	int ret;
+
+	plane = vc4_mock_find_plane_for_crtc(test, crtc);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, plane);
+
+	plane_state = drm_atomic_get_plane_state(state, plane);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, plane_state);
+
+	ret = drm_atomic_set_crtc_for_plane(plane_state, crtc);
+	KUNIT_EXPECT_EQ(test, ret, 0);
+
+	return plane;
 }
