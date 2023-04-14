@@ -21,6 +21,20 @@ struct drm_crtc *vc4_find_crtc_for_encoder(struct kunit *test,
 	return NULL;
 }
 
+static inline
+struct drm_plane *vc4_mock_find_plane_for_crtc(struct kunit *test,
+					       struct drm_crtc *crtc)
+{
+	struct drm_device *drm = crtc->dev;
+	struct drm_plane *plane;
+
+	drm_for_each_plane(plane, drm)
+		if (plane->possible_crtcs & drm_crtc_mask(crtc))
+			return plane;
+
+	return NULL;
+}
+
 struct vc4_dummy_plane {
 	struct vc4_plane plane;
 };
