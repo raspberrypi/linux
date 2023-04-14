@@ -104,6 +104,13 @@ static const struct encoder_constraint vc5_encoder_constraints[] = {
 	ENCODER_CONSTRAINT(VC4_ENCODER_TYPE_HDMI1, 0, 1, 2),
 };
 
+static const struct encoder_constraint vc6_encoder_constraints[] = {
+	ENCODER_CONSTRAINT(VC4_ENCODER_TYPE_HDMI0, 0),
+	ENCODER_CONSTRAINT(VC4_ENCODER_TYPE_HDMI1, 1),
+	ENCODER_CONSTRAINT(VC4_ENCODER_TYPE_TXP1, 1),
+	ENCODER_CONSTRAINT(VC4_ENCODER_TYPE_TXP0, 2),
+};
+
 static bool check_vc4_encoder_constraints(enum vc4_encoder_type type, unsigned int channel)
 {
 	return __check_encoder_constraints(vc4_encoder_constraints,
@@ -115,6 +122,13 @@ static bool check_vc5_encoder_constraints(enum vc4_encoder_type type, unsigned i
 {
 	return __check_encoder_constraints(vc5_encoder_constraints,
 					   ARRAY_SIZE(vc5_encoder_constraints),
+					   type, channel);
+}
+
+static bool check_vc6_encoder_constraints(enum vc4_encoder_type type, unsigned int channel)
+{
+	return __check_encoder_constraints(vc6_encoder_constraints,
+					   ARRAY_SIZE(vc6_encoder_constraints),
 					   type, channel);
 }
 
@@ -194,6 +208,9 @@ static void vc4_test_pv_muxing_desc(const struct pv_muxing_param *t, char *desc)
 
 #define VC5_PV_MUXING_TEST(_name, ...)		\
 	PV_MUXING_TEST(_name, vc5_mock_device, check_vc5_encoder_constraints, __VA_ARGS__)
+
+#define VC6_PV_MUXING_TEST(_name, ...)		\
+	PV_MUXING_TEST(_name, vc6_mock_device, check_vc6_encoder_constraints, __VA_ARGS__)
 
 static const struct pv_muxing_param vc4_test_pv_muxing_params[] = {
 	VC4_PV_MUXING_TEST("1 output: DSI0",
@@ -673,6 +690,54 @@ KUNIT_ARRAY_PARAM(vc5_test_pv_muxing_invalid,
 		  vc5_test_pv_muxing_invalid_params,
 		  vc4_test_pv_muxing_desc);
 
+static const struct pv_muxing_param vc6_test_pv_muxing_params[] = {
+	VC6_PV_MUXING_TEST("1 output: HDMI0",
+			   VC4_ENCODER_TYPE_HDMI0),
+	VC6_PV_MUXING_TEST("1 output: HDMI1",
+			   VC4_ENCODER_TYPE_HDMI1),
+	VC6_PV_MUXING_TEST("1 output: MOPLET",
+			   VC4_ENCODER_TYPE_TXP1),
+	VC6_PV_MUXING_TEST("1 output: MOP",
+			   VC4_ENCODER_TYPE_TXP0),
+	VC6_PV_MUXING_TEST("2 outputs: HDMI0, HDMI1",
+			   VC4_ENCODER_TYPE_HDMI0,
+			   VC4_ENCODER_TYPE_HDMI1),
+	VC6_PV_MUXING_TEST("2 outputs: HDMI0, MOPLET",
+			   VC4_ENCODER_TYPE_HDMI0,
+			   VC4_ENCODER_TYPE_TXP1),
+	VC6_PV_MUXING_TEST("2 outputs: HDMI0, MOP",
+			   VC4_ENCODER_TYPE_HDMI0,
+			   VC4_ENCODER_TYPE_TXP0),
+	VC6_PV_MUXING_TEST("2 outputs: HDMI1, MOP",
+			   VC4_ENCODER_TYPE_HDMI1,
+			   VC4_ENCODER_TYPE_TXP0),
+	VC6_PV_MUXING_TEST("2 outputs: MOPLET, MOP",
+			   VC4_ENCODER_TYPE_TXP1,
+			   VC4_ENCODER_TYPE_TXP0),
+	VC6_PV_MUXING_TEST("3 outputs: HDMI0, HDMI1, MOP",
+			   VC4_ENCODER_TYPE_HDMI0,
+			   VC4_ENCODER_TYPE_HDMI1,
+			   VC4_ENCODER_TYPE_TXP0),
+	VC6_PV_MUXING_TEST("3 outputs: HDMI0, MOPLET, MOP",
+			   VC4_ENCODER_TYPE_HDMI0,
+			   VC4_ENCODER_TYPE_TXP1,
+			   VC4_ENCODER_TYPE_TXP0),
+};
+
+KUNIT_ARRAY_PARAM(vc6_test_pv_muxing,
+		  vc6_test_pv_muxing_params,
+		  vc4_test_pv_muxing_desc);
+
+static const struct pv_muxing_param vc6_test_pv_muxing_invalid_params[] = {
+	VC6_PV_MUXING_TEST("HDMI1/MOPLET Conflict",
+			   VC4_ENCODER_TYPE_HDMI1,
+			   VC4_ENCODER_TYPE_TXP1),
+};
+
+KUNIT_ARRAY_PARAM(vc6_test_pv_muxing_invalid,
+		  vc6_test_pv_muxing_invalid_params,
+		  vc4_test_pv_muxing_desc);
+
 static void drm_vc4_test_pv_muxing(struct kunit *test)
 {
 	const struct pv_muxing_param *params = test->param_value;
@@ -775,6 +840,21 @@ static struct kunit_suite vc5_pv_muxing_test_suite = {
 	.name = "vc5-pv-muxing-combinations",
 	.init = vc4_pv_muxing_test_init,
 	.test_cases = vc5_pv_muxing_tests,
+};
+
+static struct kunit_case vc6_pv_muxing_tests[] = {
+	KUNIT_CASE_PARAM(drm_vc4_test_pv_muxing,
+			 vc6_test_pv_muxing_gen_params),
+	KUNIT_CASE_PARAM(drm_vc4_test_pv_muxing_invalid,
+			 vc6_test_pv_muxing_invalid_gen_params),
+	{}
+};
+
+static struct kunit_suite vc6_pv_muxing_test_suite = {
+	.name = "vc6-pv-muxing-combinations",
+	.init = vc4_pv_muxing_test_init,
+	.exit = vc4_pv_muxing_test_exit,
+	.test_cases = vc6_pv_muxing_tests,
 };
 
 /* See
@@ -1009,5 +1089,6 @@ static struct kunit_suite vc5_pv_muxing_bugs_test_suite = {
 kunit_test_suites(
 	&vc4_pv_muxing_test_suite,
 	&vc5_pv_muxing_test_suite,
+	&vc6_pv_muxing_test_suite,
 	&vc5_pv_muxing_bugs_test_suite
 );
