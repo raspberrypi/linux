@@ -4493,6 +4493,34 @@ Load:   dtoverlay=vc4-kms-dsi-lt070me05000-v2
 Params: <None>
 
 
+Name:   vc4-kms-dsi-waveshare-panel
+Info:   Enable a Waveshare DSI touchscreen
+        Includes the Goodix driver for the touchscreen element.
+        The default is for the display to be using the I2C0 option for control.
+        Use the i2c1 override if using the I2C1 wiring with jumper wires from
+        GPIOs 2&3 (pins 3&5).
+        invx/invy/swapxy should be used with caution as the panel specifier will
+        set the default inversions for that panel. Always use them after the
+        panel specifier, and be aware that you may need to set them as =0, not
+        just adding it.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-waveshare-panel,<param>=<val>
+Params: 2_8_inch                2.8" 480x640
+        3_4_inch                3.4" 800x800 round
+        4_0_inch                4.0" 480x800
+        7_0_inchC               7.0" C 1024x600
+        7_9_inch                7.9" 400x1280
+        8_0_inch                8.0" 1280x800
+        10_1_inch               10.1" 1280x800
+        11_9_inch               11.9" 320x1480
+        i2c1                    Use i2c-1 with jumper wires from GPIOs 2&3
+        disable_touch           Disable the touch controller
+        rotation                Set the panel orientation property
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   vc4-kms-kippah-7inch
 Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,kippah-7inch
 Load:   <Deprecated>
