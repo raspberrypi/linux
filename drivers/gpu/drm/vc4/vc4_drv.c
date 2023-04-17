@@ -456,6 +456,9 @@ static int vc4_platform_drm_probe(struct platform_device *pdev)
 	vc4_match_add_drivers(dev, &match,
 			      component_drivers, ARRAY_SIZE(component_drivers));
 
+	if (!match)
+		return -ENODEV;
+
 	return component_master_add_with_match(dev, &vc4_drm_ops, match);
 }
 
