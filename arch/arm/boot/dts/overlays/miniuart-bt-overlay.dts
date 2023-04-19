@@ -55,11 +55,9 @@
 	};
 
 	fragment@4 {
-		target = <&uart1_pins>;
+		target = <&uart1>;
 		__overlay__ {
-			brcm,pins = <32 33 30 31>;
-			brcm,function = <2>; /* alt5=UART1 */
-			brcm,pull = <0 2 2 0>;
+			pinctrl-0 = <&uart1_bt_pins>;
 		};
 	};
 
@@ -68,6 +66,7 @@
 		__overlay__ {
 			serial0 = "/soc/serial@7e201000";
 			serial1 = "/soc/serial@7e215040";
+			bluetooth = "/soc/serial@7e215040/bluetooth";
 		};
 	};
 
@@ -80,6 +79,5 @@
 
 	__overrides__ {
 		krnbt = <&minibt_frag>,"status";
-		krnbt_baudrate = <&minibt_frag>,"max-speed:0";
 	};
 };
