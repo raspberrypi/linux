@@ -651,10 +651,6 @@ static void bcm2835_dma_abort(struct bcm2835_chan *c)
 {
 	void __iomem *chan_base = c->chan_base;
 	long int timeout = 10000;
-	u32 wait_mask = BCM2835_DMA_WAITING_FOR_WRITES;
-
-	if (c->is_40bit_channel)
-		wait_mask = BCM2711_DMA40_WAITING_FOR_WRITES;
 
 	/*
 	 * A zero control block address means the channel is idle.
@@ -663,19 +659,37 @@ static void bcm2835_dma_abort(struct bcm2835_chan *c)
 	if (!readl(chan_base + BCM2835_DMA_ADDR))
 		return;
 
-	/* Write 0 to the active bit - Pause the DMA */
-	writel(0, chan_base + BCM2835_DMA_CS);
+	if (c->is_40bit_channel) {
+		/* Halt the current DMA */
+		writel(readl(chan_base + BCM2711_DMA40_CS) | BCM2711_DMA40_HALT,
+			     chan_base + BCM2711_DMA40_CS);
 
-	/* Wait for any current AXI transfer to complete */
-	while ((readl(chan_base + BCM2835_DMA_CS) & wait_mask) && --timeout)
-		cpu_relax();
+		while ((readl(chan_base + BCM2711_DMA40_CS) & BCM2711_DMA40_HALT) && --timeout)
+			cpu_relax();
 
-	/* Peripheral might be stuck and fail to signal AXI write responses */
-	if (!timeout)
-		dev_err(c->vc.chan.device->dev,
-			"failed to complete outstanding writes\n");
+		/* Peripheral might be stuck and fail to halt */
+		if (!timeout)
+			dev_err(c->vc.chan.device->dev,
+				"failed to halt dma\n");
 
-	writel(BCM2835_DMA_RESET, chan_base + BCM2835_DMA_CS);
+		writel(0, chan_base + BCM2711_DMA40_CS);
+		writel(0, chan_base + BCM2711_DMA40_CB);
+	} else {
+		/* Write 0 to the active bit - Pause the DMA */
+		writel(0, chan_base + BCM2835_DMA_CS);
+
+		/* Wait for any current AXI transfer to complete */
+		while ((readl(chan_base + BCM2835_DMA_CS) & BCM2835_DMA_WAITING_FOR_WRITES)
+		       && --timeout)
+			cpu_relax();
+
+		/* Peripheral might be stuck and fail to signal AXI write responses */
+		if (!timeout)
+			dev_err(c->vc.chan.device->dev,
+				"failed to complete outstanding writes\n");
+
+		writel(BCM2835_DMA_RESET, chan_base + BCM2835_DMA_CS);
+	}
 }
 
 static void bcm2835_dma_start_desc(struct bcm2835_chan *c)
