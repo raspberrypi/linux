@@ -303,36 +303,36 @@ static int emc2305_get_tz_of(struct device *dev)
 	struct device_node *np = dev->of_node;
 	struct emc2305_data *data = dev_get_drvdata(dev);
 	int ret = 0;
-	u32 val;
+	u8 val;
 	int i;
 
 	/* OF parameters are optional - overwrite default setting
 	 * if some of them are provided.
 	 */
 
-	ret = of_property_read_u32(np, "emc2305,cooling-levels", &val);
+	ret = of_property_read_u8(np, "emc2305,cooling-levels", &val);
 	if (!ret)
-		data->max_state = (u8)val;
+		data->max_state = val;
 	else if (ret != -EINVAL)
 		return ret;
 
-	ret = of_property_read_u32(np, "emc2305,pwm-max", &val);
+	ret = of_property_read_u8(np, "emc2305,pwm-max", &val);
 	if (!ret)
-		data->pwm_max = (u8)val;
+		data->pwm_max = val;
 	else if (ret != -EINVAL)
 		return ret;
 
-	ret = of_property_read_u32(np, "emc2305,pwm-min", &val);
+	ret = of_property_read_u8(np, "emc2305,pwm-min", &val);
 	if (!ret)
 		for (i = 0; i < EMC2305_PWM_MAX; i++)
-			data->pwm_min[i] = (u8)val;
+			data->pwm_min[i] = val;
 	else if (ret != -EINVAL)
 		return ret;
 
 	/* Not defined or 0 means one thermal zone over all cooling devices.
 	 * Otherwise - separated thermal zones for each PWM channel.
 	 */
-	ret = of_property_read_u32(np, "emc2305,pwm-channel", &val);
+	ret = of_property_read_u8(np, "emc2305,pwm-channel", &val);
 	if (!ret)
 		data->pwm_separate = (val != 0);
 	else if (ret != -EINVAL)
