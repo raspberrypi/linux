@@ -766,7 +766,6 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 
 	drm_connector_attach_colorspace_property(connector);
 	drm_connector_attach_tv_margin_properties(connector);
-	drm_connector_attach_max_bpc_property(connector, 8, 12);
 
 	connector->polled = (DRM_CONNECTOR_POLL_CONNECT |
 			     DRM_CONNECTOR_POLL_DISCONNECT);
@@ -775,8 +774,12 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 	connector->doublescan_allowed = 0;
 	connector->stereo_allowed = 1;
 
-	if (vc4_hdmi->variant->supports_hdr)
+	if (vc4_hdmi->variant->supports_hdr) {
+		drm_connector_attach_max_bpc_property(connector, 8, 12);
 		drm_connector_attach_hdr_output_metadata_property(connector);
+	} else {
+		drm_connector_attach_max_bpc_property(connector, 8, 8);
+	}
 
 	vc4_hdmi_attach_broadcast_rgb_property(dev, vc4_hdmi);
 
