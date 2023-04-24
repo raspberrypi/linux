@@ -80,7 +80,7 @@
 			backlight_pwm: backlight_pwm {
 				compatible = "pwm-backlight";
 				brightness-levels = <0 6 8 12 16 24 32 40 48 64 96 128 160 192 224 255>;
-				default-brightness-level = <16>;
+				default-brightness-level = <15>;
 				pwms = <&pwm 0 200000>;
 			};
 		};
