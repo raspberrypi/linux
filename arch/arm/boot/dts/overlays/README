@@ -1833,6 +1833,22 @@ Params: pca9542                 Select the NXP PCA9542 device
 
         addr                    Change I2C address of the device (default 0x70)
 
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+
 
 [ The i2c-mux-pca9548a overlay has been deleted. See i2c-mux. ]
 
