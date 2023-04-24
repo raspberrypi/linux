@@ -657,6 +657,13 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 	connector->doublescan_allowed = 0;
 	connector->stereo_allowed = 1;
 
+	if (vc4_hdmi->variant->supports_hdr) {
+		drm_connector_attach_max_bpc_property(connector, 8, 12);
+		drm_connector_attach_hdr_output_metadata_property(connector);
+	} else {
+		drm_connector_attach_max_bpc_property(connector, 8, 8);
+	}
+
 	ret = drm_connector_attach_broadcast_rgb_property(connector);
 	if (ret)
 		return ret;
