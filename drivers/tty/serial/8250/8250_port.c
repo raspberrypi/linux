@@ -1558,6 +1558,9 @@ static void serial8250_stop_tx(struct uart_port *port)
 		serial_icr_write(up, UART_ACR, up->acr);
 	}
 	serial8250_rpm_put(up);
+
+	if (port->hw_stopped && (up->bugs & UART_BUG_NOMSI))
+		mod_timer(&up->timer, jiffies + 1);
 }
 
 static inline void __start_tx(struct uart_port *port)
@@ -1667,6 +1670,9 @@ static void serial8250_start_tx(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 	struct uart_8250_em485 *em485 = up->em485;
+
+	if (up->bugs & UART_BUG_NOMSI)
+		del_timer(&up->timer);
 
 	if (!port->x_char && uart_circ_empty(&port->state->xmit))
 		return;
@@ -1888,6 +1894,9 @@ unsigned int serial8250_modem_status(struct uart_8250_port *up)
 			uart_handle_cts_change(port, status & UART_MSR_CTS);
 
 		wake_up_interruptible(&port->state->port.delta_msr_wait);
+	} else if (up->bugs & UART_BUG_NOMSI &&	port->hw_stopped &&
+		   status & UART_MSR_CTS) {
+		uart_handle_cts_change(port, status & UART_MSR_CTS);
 	}
 
 	return status;
