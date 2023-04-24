@@ -1857,6 +1857,16 @@ Name:   i2c-pwm-pca9685a
 Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
 Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
 Params: addr                    I2C address of PCA9685A (default 0x40)
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
 
 
 Name:   i2c-rtc
