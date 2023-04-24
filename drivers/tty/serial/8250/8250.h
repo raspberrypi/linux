@@ -93,6 +93,7 @@ struct serial8250_config {
 #define UART_BUG_THRE	BIT(3)	/* UART has buggy THRE reassertion */
 #define UART_BUG_PARITY	BIT(4)	/* UART mishandles parity if FIFO enabled */
 #define UART_BUG_TXRACE	BIT(5)	/* UART Tx fails to set remote DR */
+#define UART_BUG_NOMSI	BIT(6)	/* UART has no modem status interrupt */
 
 
 #ifdef CONFIG_SERIAL_8250_SHARE_IRQ
