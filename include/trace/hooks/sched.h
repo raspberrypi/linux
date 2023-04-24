@@ -355,6 +355,9 @@ DECLARE_RESTRICTED_HOOK(android_rvh_cpu_util_cfs_boost,
 	TP_PROTO(int cpu, unsigned long *util),
 	TP_ARGS(cpu, util), 1);
 
+DECLARE_HOOK(android_vh_account_process_tick_gran,
+	TP_PROTO(struct task_struct *p, struct rq *rq, int user_tick, int *ticks),
+	TP_ARGS(p, rq, user_tick, ticks));
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
