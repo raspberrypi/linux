@@ -1399,7 +1399,7 @@ static void serial8250_stop_tx(struct uart_port *port)
 {
 	struct uart_8250_port *up = up_to_u8250p(port);
 
-	guard(serial8250_rpm)(up);
+	serial8250_rpm_get(up);
 	__stop_tx(up);
 
 	/*
@@ -1409,6 +1409,10 @@ static void serial8250_stop_tx(struct uart_port *port)
 		up->acr |= UART_ACR_TXDIS;
 		serial_icr_write(up, UART_ACR, up->acr);
 	}
+	serial8250_rpm_put(up);
+
+	if (port->hw_stopped && (up->bugs & UART_BUG_NOMSI))
+		mod_timer(&up->timer, jiffies + 1);
 }
 
 static inline void __start_tx(struct uart_port *port)
@@ -1521,6 +1525,9 @@ static void serial8250_start_tx(struct uart_port *port)
 
 	/* Port locked to synchronize UART_IER access against the console. */
 	lockdep_assert_held_once(&port->lock);
+
+	if (up->bugs & UART_BUG_NOMSI)
+		timer_delete(&up->timer);
 
 	if (!port->x_char && kfifo_is_empty(&port->state->port.xmit_fifo))
 		return;
@@ -1749,6 +1756,9 @@ unsigned int serial8250_modem_status(struct uart_8250_port *up)
 			uart_handle_cts_change(port, status & UART_MSR_CTS);
 
 		wake_up_interruptible(&port->state->port.delta_msr_wait);
+	} else if (up->bugs & UART_BUG_NOMSI &&	port->hw_stopped &&
+		   status & UART_MSR_CTS) {
+		uart_handle_cts_change(port, status & UART_MSR_CTS);
 	}
 
 	return status;
