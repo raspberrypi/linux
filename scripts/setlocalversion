@@ -126,6 +126,11 @@ if ! test -e include/config/auto.conf; then
 	exit 1
 fi
 
+if [ -z "${KERNELVERSION}" ]; then
+	echo "KERNELVERSION is not set" >&2
+	exit 1
+fi
+
 # localversion* files in the build and source directory
 res="$(collect_files localversion*)"
 if test ! "$srctree" -ef .; then
@@ -151,9 +156,10 @@ elif [ "${LOCALVERSION+set}" != "set" ]; then
 	res="$res$(scm_version --short)"
 fi
 
-# finally, add the abXXX number if BUILD_NUMBER is set
+# ANDROID: add the abXXX number if BUILD_NUMBER is set
+build_num=""
 if test -n "${BUILD_NUMBER}"; then
-	res="$res-ab${BUILD_NUMBER}"
+	build_num="-ab${BUILD_NUMBER}"
 fi
 
-echo "$res"
+echo "${KERNELVERSION}${res}${build_num}"
