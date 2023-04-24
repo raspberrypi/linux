@@ -259,6 +259,7 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 	up.port.unthrottle = bcm2835aux_unthrottle;
 	up.port.rs485_config = bcm2835aux_rs485_config;
 	up.port.rs485_supported = serial8250_em485_supported;
+	up.bugs |= UART_BUG_NOMSI;
 	up.rs485_start_tx = bcm2835aux_rs485_start_tx;
 	up.rs485_stop_tx = bcm2835aux_rs485_stop_tx;
 
