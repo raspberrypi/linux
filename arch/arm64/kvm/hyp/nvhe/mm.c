@@ -111,6 +111,11 @@ int __pkvm_create_private_mapping(phys_addr_t phys, size_t size,
 	return err;
 }
 
+int __hyp_allocator_map(unsigned long va, phys_addr_t phys)
+{
+	return __pkvm_create_mappings(va, PAGE_SIZE, phys, PAGE_HYP);
+}
+
 #ifdef CONFIG_NVHE_EL2_DEBUG
 static unsigned long mod_range_start = ULONG_MAX;
 static unsigned long mod_range_end;
