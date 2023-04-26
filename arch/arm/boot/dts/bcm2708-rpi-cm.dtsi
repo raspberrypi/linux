@@ -9,6 +9,12 @@
 	};
 };
 
+i2c_arm: &i2c1 {
+};
+
+i2c_vc: &i2c0 {
+};
+
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";

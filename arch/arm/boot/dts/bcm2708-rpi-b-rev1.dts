@@ -197,6 +197,12 @@ i2c_csi_dsi: &i2c1 {
 cam0_reg: &cam_dummy_reg {
 };
 
+i2c_arm: &i2c0 {
+};
+
+i2c_vc: &i2c1 {
+};
+
 / {
 	__overrides__ {
 		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_headphones=1 snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_headphones=0 snd_bcm2835.enable_hdmi=0'}";
@@ -204,5 +210,12 @@ cam0_reg: &cam_dummy_reg {
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		i2c = <&i2c0>,"status";
+		i2c_arm = <&i2c0>,"status";
+		i2c_vc = <&i2c1>,"status";
+		i2c_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c_arm_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c_vc_baudrate = <&i2c1>,"clock-frequency:0";
 	};
 };

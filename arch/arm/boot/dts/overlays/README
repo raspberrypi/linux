@@ -1248,6 +1248,20 @@ Load:   dtoverlay=googlevoicehat-soundcard
 Params: <None>
 
 
+Name:   gpio-charger
+Info:   This is a generic overlay for detecting charger with GPIO.
+Load:   dtoverlay=gpio-charger,<param>=<val>
+Params: gpio                    GPIO pin to trigger on (default 4)
+        active_low              When this is 1 (active low), a falling
+                                edge generates a charging event and a
+                                rising edge generates a discharging event.
+                                When this is 0 (active high), this is
+                                reversed. The default is 0 (active high)
+        gpio_pull               Desired pull-up/down state (off, down, up)
+                                Default is "down".
+        type                    Set a charger type for the pin. (Default: mains)
+
+
 Name:   gpio-fan
 Info:   Configure a GPIO pin to control a cooling fan.
 Load:   dtoverlay=gpio-fan,<param>=<val>
@@ -1819,6 +1833,22 @@ Params: pca9542                 Select the NXP PCA9542 device
 
         addr                    Change I2C address of the device (default 0x70)
 
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+
 
 [ The i2c-mux-pca9548a overlay has been deleted. See i2c-mux. ]
 
@@ -1827,6 +1857,16 @@ Name:   i2c-pwm-pca9685a
 Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
 Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
 Params: addr                    I2C address of PCA9685A (default 0x40)
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c4                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c5                    Choose the I2C5 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
 
 
 Name:   i2c-rtc
@@ -3063,6 +3103,17 @@ Params: addr                    I2C address of expander. Default 0x20.
         cat9554                 Select the Onnn CAT9554 (8 bit)
         pca9654                 Select the Onnn PCA9654 (8 bit)
         xra1202                 Select the Exar XRA1202 (8 bit)
+
+
+Name:   pcf857x
+Info:   NXP PCF857x family of I2C GPIO expanders.
+Load:   dtoverlay=pcf857x,<param>=<val>
+Params: addr                    I2C address of expander. Default
+                                depends on model selected.
+        pcf8574                 Select the NXP PCF8574 (8 bit)
+        pcf8574a                Select the NXP PCF8574A (8 bit)
+        pcf8575                 Select the NXP PCF8575 (16 bit)
+        pca8574                 Select the NXP PCA8574 (8 bit)
 
 
 Name:   pcie-32bit-dma
@@ -4466,6 +4517,34 @@ Info:   Enable a JDI LT070ME05000 DSI display on DSI1 using Harlab's V2
         Requires vc4-kms-v3d to be loaded.
 Load:   dtoverlay=vc4-kms-dsi-lt070me05000-v2
 Params: <None>
+
+
+Name:   vc4-kms-dsi-waveshare-panel
+Info:   Enable a Waveshare DSI touchscreen
+        Includes the Goodix driver for the touchscreen element.
+        The default is for the display to be using the I2C0 option for control.
+        Use the i2c1 override if using the I2C1 wiring with jumper wires from
+        GPIOs 2&3 (pins 3&5).
+        invx/invy/swapxy should be used with caution as the panel specifier will
+        set the default inversions for that panel. Always use them after the
+        panel specifier, and be aware that you may need to set them as =0, not
+        just adding it.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-waveshare-panel,<param>=<val>
+Params: 2_8_inch                2.8" 480x640
+        3_4_inch                3.4" 800x800 round
+        4_0_inch                4.0" 480x800
+        7_0_inchC               7.0" C 1024x600
+        7_9_inch                7.9" 400x1280
+        8_0_inch                8.0" 1280x800
+        10_1_inch               10.1" 1280x800
+        11_9_inch               11.9" 320x1480
+        i2c1                    Use i2c-1 with jumper wires from GPIOs 2&3
+        disable_touch           Disable the touch controller
+        rotation                Set the panel orientation property
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
 
 
 Name:   vc4-kms-kippah-7inch
