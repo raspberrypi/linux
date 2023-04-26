@@ -675,10 +675,18 @@ static void bcm2835_dma_abort(struct bcm2835_chan *c)
 		writel(0, chan_base + BCM2711_DMA40_CS);
 		writel(0, chan_base + BCM2711_DMA40_CB);
 	} else {
-		/* Write 0 to the active bit - Pause the DMA */
-		writel(0, chan_base + BCM2835_DMA_CS);
+		/*
+		 * A zero control block address means the channel is idle.
+		 * (The ACTIVE flag in the CS register is not a reliable indicator.)
+		 */
+		if (!readl(chan_base + BCM2835_DMA_ADDR))
+			return;
 
-		/* Wait for any current AXI transfer to complete */
+		/* Write 0 to the active bit - Pause the DMA */
+		writel(readl(chan_base + BCM2835_DMA_CS) & ~BCM2835_DMA_ACTIVE,
+		       chan_base + BCM2835_DMA_CS);
+
+		/* wait for DMA to be paused */
 		while ((readl(chan_base + BCM2835_DMA_CS) & BCM2835_DMA_WAITING_FOR_WRITES)
 		       && --timeout)
 			cpu_relax();
@@ -686,9 +694,24 @@ static void bcm2835_dma_abort(struct bcm2835_chan *c)
 		/* Peripheral might be stuck and fail to signal AXI write responses */
 		if (!timeout)
 			dev_err(c->vc.chan.device->dev,
-				"failed to complete outstanding writes\n");
+				"failed to pause dma\n");
 
-		writel(BCM2835_DMA_RESET, chan_base + BCM2835_DMA_CS);
+		/* We need to clear the next DMA block pending */
+		writel(0, chan_base + BCM2835_DMA_NEXTCB);
+
+		/* Abort the DMA, which needs to be enabled to complete */
+		writel(readl(chan_base + BCM2835_DMA_CS) | BCM2835_DMA_ABORT | BCM2835_DMA_ACTIVE,
+		chan_base + BCM2835_DMA_CS);
+
+		/* wait for DMA to have been aborted */
+		timeout = 10000;
+		while ((readl(chan_base + BCM2835_DMA_CS) & BCM2835_DMA_ABORT) && --timeout)
+			cpu_relax();
+
+		/* Peripheral might be stuck and fail to signal AXI write responses */
+		if (!timeout)
+			dev_err(c->vc.chan.device->dev,
+				"failed to abort dma\n");
 	}
 }
 
