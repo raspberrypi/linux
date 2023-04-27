@@ -412,10 +412,13 @@ static void vc5_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 	vc5_hvs_lut_load(hvs, vc4_crtc);
 }
 
-static void vc4_hvs_irq_enable_eof(const struct vc4_hvs *hvs,
+static void vc4_hvs_irq_enable_eof(struct vc4_hvs *hvs,
 				   unsigned int channel)
 {
 	struct vc4_dev *vc4 = hvs->vc4;
+
+	if (hvs->eof_irq[channel].enabled)
+		return;
 
 	switch (vc4->gen) {
 	case VC4_GEN_4:
@@ -433,12 +436,17 @@ static void vc4_hvs_irq_enable_eof(const struct vc4_hvs *hvs,
 	default:
 		break;
 	}
+
+	hvs->eof_irq[channel].enabled = true;
 }
 
-static void vc4_hvs_irq_clear_eof(const struct vc4_hvs *hvs,
+static void vc4_hvs_irq_clear_eof(struct vc4_hvs *hvs,
 				  unsigned int channel)
 {
 	struct vc4_dev *vc4 = hvs->vc4;
+
+	if (!hvs->eof_irq[channel].enabled)
+		return;
 
 	switch (vc4->gen) {
 	case VC4_GEN_4:
@@ -456,6 +464,8 @@ static void vc4_hvs_irq_clear_eof(const struct vc4_hvs *hvs,
 	default:
 		break;
 	}
+
+	hvs->eof_irq[channel].enabled = false;
 }
 
 static struct vc4_hvs_dlist_allocation *
