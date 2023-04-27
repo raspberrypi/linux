@@ -319,6 +319,8 @@ struct vc4_v3d {
 	struct debugfs_regset32 regset;
 };
 
+#define HVS_NUM_CHANNELS 3
+
 struct vc4_hvs {
 	struct vc4_dev *vc4;
 	struct platform_device *pdev;
@@ -326,6 +328,10 @@ struct vc4_hvs {
 	u32 __iomem *dlist;
 
 	struct clk *core_clk;
+
+	struct {
+		unsigned int enabled: 1;
+	} eof_irq[HVS_NUM_CHANNELS];
 
 	unsigned long max_core_rate;
 
@@ -358,8 +364,6 @@ struct vc4_hvs {
 	 */
 	bool vc5_hdmi_enable_4096by2160;
 };
-
-#define HVS_NUM_CHANNELS 3
 
 struct vc4_hvs_state {
 	struct drm_private_state base;
