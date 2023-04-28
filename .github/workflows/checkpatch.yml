@@ -6,13 +6,13 @@ jobs:
     name: checkpatch review
     runs-on: ubuntu-latest
     steps:
-    - name: 'Calculate PR commits + 1'
+    - name: 'Calculate PR commits + 0'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> $GITHUB_ENV
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-    - name: Copy checkpatch.conf
+    - name: Copy checkpatch.confs
       run: cp ${{github.workspace}}/.github/workflows/ci_checkpatch.conf ${{github.workspace}}/.checkpatch.conf
     - name: Run checkpatch review
       uses: webispy/checkpatch-action@v9
