@@ -18,6 +18,19 @@ macro_rules! new_mutex {
     };
 }
 
+/// Creates a [`Mutex`] initialiser with the given name and a newly-created lock class,
+/// given an initialiser for the inner type.
+///
+/// It uses the name if one is given, otherwise it generates one based on the file name and line
+/// number.
+#[macro_export]
+macro_rules! new_mutex_pinned {
+    ($inner:expr $(, $name:literal)? $(,)?) => {
+        $crate::sync::Mutex::pin_init(
+            $inner, $crate::optional_name!($($name)?), $crate::static_lock_class!())
+    };
+}
+
 /// A mutual exclusion primitive.
 ///
 /// Exposes the kernel's [`struct mutex`]. When multiple threads attempt to lock the same mutex,
