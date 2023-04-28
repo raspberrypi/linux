@@ -3,16 +3,16 @@ name: Pi kernel build tests
 on:
   pull_request:
     paths-ignore:
-      - '.github/**'
+      - '.github/'
     branches: [ "rpi-*" ]
   push:
     paths-ignore:
-      - '.github/**'
-    branches: [ "rpi-*" ]
+      - '.github/'
+    branches: [ "rpi-" ]
   workflow_dispatch:
 
 env:
-  NUM_JOBS: 3
+  NUM_JOBS: 1
 
 jobs:
   build:
@@ -20,15 +20,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: bcm2835
+          - name: bcm2836
             arch: arm
-            defconfig: bcm2835_defconfig
+            defconfig: bcm2845_defconfig
             kernel: kernel
 
           - name: arm64
             arch: arm64
             defconfig: defconfig
-            kernel: kernel8
+            kernel: kernel7
 
           - name: bcmrpi
             arch: arm
