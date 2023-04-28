@@ -973,7 +973,7 @@ struct vm_area_struct *vma_merge(struct vma_iterator *vmi, struct mm_struct *mm,
 			vma_end = addr;
 			adjust = mid;
 			adj_next = -(vma->vm_end - addr);
-			err = dup_anon_vma(adjust, prev);
+			err = dup_anon_vma(res, adjust);
 		} else {
 			vma = next;			/* case 3 */
 			vma_start = addr;
