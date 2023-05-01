@@ -47,7 +47,6 @@
 #include <kvm/arm_hypercalls.h>
 #include <kvm/arm_pmu.h>
 #include <kvm/arm_psci.h>
-#include <kvm/arm_smmu_v3.h>
 
 static enum kvm_mode kvm_mode = KVM_MODE_DEFAULT;
 
@@ -2136,30 +2135,6 @@ static bool __init init_psci_relay(void)
 	return true;
 }
 
-static int init_stage2_iommu(void)
-{
-	int ret;
-	unsigned int smmu_count;
-
-	ret = kvm_arm_smmu_v3_init(&smmu_count);
-	if (ret)
-		return ret;
-	else if (!smmu_count)
-		return KVM_IOMMU_DRIVER_NONE;
-	return KVM_IOMMU_DRIVER_SMMUV3;
-}
-
-static void remove_stage2_iommu(enum kvm_iommu_driver iommu)
-{
-	switch (iommu) {
-	case KVM_IOMMU_DRIVER_SMMUV3:
-		kvm_arm_smmu_v3_remove();
-		break;
-	default:
-		break;
-	}
-}
-
 static int __init init_subsystems(void)
 {
 	int err = 0;
@@ -2232,7 +2207,7 @@ static void __init teardown_hyp_mode(void)
 	}
 }
 
-static int __init do_pkvm_init(u32 hyp_va_bits, enum kvm_iommu_driver iommu_driver)
+static int __init do_pkvm_init(u32 hyp_va_bits)
 {
 	void *per_cpu_base = kvm_ksym_ref(kvm_nvhe_sym(kvm_arm_hyp_percpu_base));
 	int ret;
@@ -2241,7 +2216,7 @@ static int __init do_pkvm_init(u32 hyp_va_bits, enum kvm_iommu_driver iommu_driv
 	cpu_hyp_init_context();
 	ret = kvm_call_hyp_nvhe(__pkvm_init, hyp_mem_base, hyp_mem_size,
 				num_possible_cpus(), kern_hyp_va(per_cpu_base),
-				hyp_va_bits, iommu_driver);
+				hyp_va_bits);
 	cpu_hyp_init_features();
 
 	/*
@@ -2320,21 +2295,19 @@ static struct shrinker kvm_hyp_shrinker = {
 static int __init kvm_hyp_init_protection(u32 hyp_va_bits)
 {
 	void *addr = phys_to_virt(hyp_mem_base);
-	enum kvm_iommu_driver iommu;
 	int ret;
 
 	ret = create_hyp_mappings(addr, addr + hyp_mem_size, PAGE_HYP);
 	if (ret)
 		return ret;
 
-	ret = init_stage2_iommu();
+	ret = kvm_iommu_init_driver();
 	if (ret < 0)
 		return ret;
-	iommu = ret;
 
-	ret = do_pkvm_init(hyp_va_bits, iommu);
+	ret = do_pkvm_init(hyp_va_bits);
 	if (ret) {
-		remove_stage2_iommu(iommu);
+		kvm_iommu_remove_driver();
 		return ret;
 	}
 

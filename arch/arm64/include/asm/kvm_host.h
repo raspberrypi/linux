@@ -484,9 +484,9 @@ extern s64 kvm_nvhe_sym(hyp_physvirt_offset);
 extern u64 kvm_nvhe_sym(hyp_cpu_logical_map)[NR_CPUS];
 #define hyp_cpu_logical_map CHOOSE_NVHE_SYM(hyp_cpu_logical_map)
 
-enum kvm_iommu_driver {
-	KVM_IOMMU_DRIVER_NONE,
-	KVM_IOMMU_DRIVER_SMMUV3,
+struct kvm_iommu_driver {
+	int (*init_driver)(void);
+	void (*remove_driver)(void);
 };
 
 struct vcpu_reset_state {
@@ -1290,4 +1290,8 @@ static inline void kvm_hyp_reserve(void) { }
 void kvm_arm_vcpu_power_off(struct kvm_vcpu *vcpu);
 bool kvm_arm_vcpu_stopped(struct kvm_vcpu *vcpu);
 
+struct kvm_iommu_ops;
+int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops, struct kvm_iommu_ops *el2_ops);
+int kvm_iommu_init_driver(void);
+void kvm_iommu_remove_driver(void);
 #endif /* __ARM64_KVM_HOST_H__ */

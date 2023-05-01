@@ -40,18 +40,4 @@ extern struct hyp_arm_smmu_v3_device *kvm_nvhe_sym(kvm_hyp_arm_smmu_v3_smmus);
 
 #endif /* CONFIG_ARM_SMMU_V3_PKVM */
 
-#ifndef __KVM_NVHE_HYPERVISOR__
-# if IS_ENABLED(CONFIG_ARM_SMMU_V3_PKVM)
-int kvm_arm_smmu_v3_init(unsigned int *count);
-void kvm_arm_smmu_v3_remove(void);
-
-# else /* CONFIG_ARM_SMMU_V3_PKVM */
-static inline int kvm_arm_smmu_v3_init(unsigned int *count)
-{
-	return 0;
-}
-static void kvm_arm_smmu_v3_remove(void) {}
-# endif /* CONFIG_ARM_SMMU_V3_PKVM */
-#endif /* __KVM_NVHE_HYPERVISOR__ */
-
 #endif /* __KVM_ARM_SMMU_V3_H */

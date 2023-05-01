@@ -49,6 +49,8 @@ static DEFINE_IDA(kvm_arm_smmu_domain_ida);
 static DEFINE_PER_CPU(local_lock_t, memcache_lock) =
 				INIT_LOCAL_LOCK(memcache_lock);
 
+extern struct kvm_iommu_ops kvm_nvhe_sym(smmu_ops);
+
 static void *kvm_arm_smmu_alloc_page(void *opaque)
 {
 	struct arm_smmu_device *smmu = opaque;
@@ -727,12 +729,10 @@ static void kvm_arm_smmu_array_free(void)
 
 /**
  * kvm_arm_smmu_v3_init() - Reserve the SMMUv3 for KVM
- * @count: on success, number of SMMUs successfully initialized
- *
  * Return 0 if all present SMMUv3 were probed successfully, or an error.
  *   If no SMMU was found, return 0, with a count of 0.
  */
-int kvm_arm_smmu_v3_init(unsigned int *count)
+static int kvm_arm_smmu_v3_init(void)
 {
 	int ret;
 
@@ -740,7 +740,6 @@ int kvm_arm_smmu_v3_init(unsigned int *count)
 	 * Check whether any device owned by the host is behind an SMMU.
 	 */
 	ret = kvm_arm_smmu_array_alloc();
-	*count = kvm_arm_smmu_count;
 	if (ret || !kvm_arm_smmu_count)
 		return ret;
 
@@ -771,7 +770,19 @@ err_free:
 	return ret;
 }
 
-void kvm_arm_smmu_v3_remove(void)
+static void kvm_arm_smmu_v3_remove(void)
 {
 	platform_driver_unregister(&kvm_arm_smmu_driver);
 }
+
+struct kvm_iommu_driver kvm_smmu_v3_ops = {
+	.init_driver = kvm_arm_smmu_v3_init,
+	.remove_driver = kvm_arm_smmu_v3_remove
+};
+
+static int kvm_arm_smmu_v3_register(void)
+{
+	return kvm_iommu_register_driver(&kvm_smmu_v3_ops, lm_alias(&kvm_nvhe_sym(smmu_ops)));
+}
+
+core_initcall(kvm_arm_smmu_v3_register);

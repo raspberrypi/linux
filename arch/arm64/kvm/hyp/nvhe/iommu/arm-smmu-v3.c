@@ -615,7 +615,7 @@ void smmu_free_domain(struct kvm_hyp_iommu_domain *domain)
 	kvm_arm_io_pgtable_free(domain->pgtable);
 }
 
-static struct kvm_iommu_ops smmu_ops = {
+struct kvm_iommu_ops smmu_ops = {
 	.init				= smmu_init,
 	.get_iommu_by_id		= smmu_id_to_iommu,
 	.alloc_domain			= smmu_alloc_domain,
@@ -624,8 +624,3 @@ static struct kvm_iommu_ops smmu_ops = {
 	.detach_dev			= smmu_detach_dev,
 };
 
-int kvm_arm_smmu_v3_register(void)
-{
-	kvm_iommu_ops = smmu_ops;
-	return 0;
-}
