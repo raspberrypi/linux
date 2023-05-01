@@ -292,8 +292,7 @@ no-dot-config-targets := $(clean-targets) \
 			 cscope gtags TAGS tags help% %docs check% coccicheck \
 			 $(version_h) headers headers_% archheaders archscripts \
 			 %asm-generic kernelversion %src-pkg dt_binding_check \
-			 outputmakefile rustavailable rustfmt rustfmtcheck \
-			 scripts_package
+			 outputmakefile rustavailable rustfmt rustfmtcheck
 # Installation targets should not require compiler. Unfortunately, vdso_install
 # is an exception where build artifacts may be updated. This must be fixed.
 no-compiler-targets := $(no-dot-config-targets) install dtbs_install \
@@ -1643,7 +1642,7 @@ MRPROPER_FILES += include/config include/generated          \
 		  certs/signing_key.pem \
 		  certs/x509.genkey \
 		  vmlinux-gdb.py \
-		  *.spec \
+		  *.spec rpmbuild \
 		  rust/libmacros.so
 
 # clean - Delete most, but leave enough to build external modules
@@ -1693,10 +1692,6 @@ distclean: mrproper
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.package $@
 %pkg: include/config/kernel.release FORCE
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.package $@
-
-PHONY += scripts_package
-scripts_package: scripts_basic
-	$(Q)$(MAKE) $(build)=scripts scripts/list-gitignored
 
 # Brief documentation of the typical targets used
 # ---------------------------------------------------------------------------
@@ -1923,6 +1918,8 @@ all: scripts_gdb
 endif
 
 else # KBUILD_EXTMOD
+
+filechk_kernel.release = echo $(KERNELRELEASE)
 
 ###
 # External module support.
