@@ -195,7 +195,7 @@ out_unlock:
 }
 
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
-			 u32 endpoint_id)
+			 u32 endpoint_id, u32 pasid, u32 pasid_bits)
 {
 	int ret = -EINVAL;
 	struct kvm_hyp_iommu *iommu;
@@ -210,7 +210,7 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	if (!domain || domain_get(domain))
 		goto out_unlock;
 
-	ret = kvm_iommu_ops->attach_dev(iommu, domain, endpoint_id);
+	ret = kvm_iommu_ops->attach_dev(iommu, domain, endpoint_id, pasid, pasid_bits);
 	if (ret)
 		goto err_put_domain;
 
@@ -225,7 +225,7 @@ out_unlock:
 }
 
 int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
-			 u32 endpoint_id)
+			 u32 endpoint_id, u32 pasid)
 {
 	int ret = -EINVAL;
 	struct kvm_hyp_iommu *iommu;
@@ -240,7 +240,7 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	if (!domain || atomic_read(&domain->refs) <= 1)
 		goto out_unlock;
 
-	ret = kvm_iommu_ops->detach_dev(iommu, domain, endpoint_id);
+	ret = kvm_iommu_ops->detach_dev(iommu, domain, endpoint_id, pasid);
 	if (ret)
 		goto out_unlock;
 

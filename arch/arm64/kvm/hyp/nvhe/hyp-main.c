@@ -1489,8 +1489,10 @@ static void handle___pkvm_host_iommu_attach_dev(struct kvm_cpu_context *host_ctx
 	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
 	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
 	DECLARE_REG(unsigned int, endpoint, host_ctxt, 3);
+	DECLARE_REG(unsigned int, pasid, host_ctxt, 4);
+	DECLARE_REG(unsigned int, pasid_bits, host_ctxt, 5);
 
-	ret = kvm_iommu_attach_dev(iommu, domain, endpoint);
+	ret = kvm_iommu_attach_dev(iommu, domain, endpoint, pasid, pasid_bits);
 	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
@@ -1500,8 +1502,9 @@ static void handle___pkvm_host_iommu_detach_dev(struct kvm_cpu_context *host_ctx
 	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
 	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
 	DECLARE_REG(unsigned int, endpoint, host_ctxt, 3);
+	DECLARE_REG(unsigned int, pasid, host_ctxt, 4);
 
-	ret = kvm_iommu_detach_dev(iommu, domain, endpoint);
+	ret = kvm_iommu_detach_dev(iommu, domain, endpoint, pasid);
 	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 
