@@ -1408,6 +1408,9 @@ static int enum_fmt(struct v4l2_fmtdesc *f, struct bcm2835_codec_ctx *ctx,
 		fmt = &fmts->list[f->index];
 		f->pixelformat = fmt->fourcc;
 		f->flags = fmt->flags;
+		if (ctx->dev->role == DECODE &&
+		    (f->flags & V4L2_FMT_FLAG_COMPRESSED))
+			f->flags |= V4L2_FMT_FLAG_DYN_RESOLUTION;
 		return 0;
 	}
 
