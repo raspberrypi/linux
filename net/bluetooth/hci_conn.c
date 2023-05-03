@@ -1107,11 +1107,11 @@ static void hci_conn_unlink(struct hci_conn *conn)
 	if (!conn->link)
 		return;
 
-	hci_conn_put(conn->parent);
-	conn->parent = NULL;
-
 	list_del_rcu(&conn->link->list);
 	synchronize_rcu();
+
+	hci_conn_put(conn->parent);
+	conn->parent = NULL;
 
 	kfree(conn->link);
 	conn->link = NULL;
