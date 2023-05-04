@@ -97,8 +97,14 @@ static int rp1_adc_read(struct rp1_adc_data *data,
 	       data->base + RP1_ADC_RWTYPE_SET + RP1_ADC_CS);
 
 	ret = rp1_adc_ready_wait(data);
-	if (!ret)
-		*val = readl(data->base + RP1_ADC_RESULT);
+	if (ret)
+		return ret;
+
+	/* Asserted if the completed conversion had a convergence error */
+	if (readl(data->base + RP1_ADC_CS) & RP1_ADC_CS_ERR)
+		return -EIO;
+
+	*val = readl(data->base + RP1_ADC_RESULT);
 
 	spin_unlock(&data->lock);
 
