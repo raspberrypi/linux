@@ -1063,10 +1063,10 @@ static const struct arducam_64mp_reg mode_1920x1080_regs[] = {
 
 /* 720p 120fps mode */
 static const struct arducam_64mp_reg mode_1280x720_regs[] = {
-	{0x0342, 0x1d},
-	{0x0343, 0xc4},
-	{0x0340, 0x03},
-	{0x0341, 0xd8},
+	{0x0342, 0x1b},
+	{0x0343, 0x08},
+	{0x0340, 0x04},
+	{0x0341, 0x3b},
 	{0x0344, 0x08},
 	{0x0345, 0x10},
 	{0x0346, 0x07},
@@ -1209,7 +1209,7 @@ static const struct arducam_64mp_mode supported_modes[] = {
 	}, {
 		.width = 1280,
 		.height = 720,
-		.line_length_pix = 0x1dc4,
+		.line_length_pix = 0x1b08,
 		.crop = {
 			.left = ARDUCAM_64MP_PIXEL_ARRAY_LEFT + 2064,
 			.top = ARDUCAM_64MP_PIXEL_ARRAY_TOP + 2032,
