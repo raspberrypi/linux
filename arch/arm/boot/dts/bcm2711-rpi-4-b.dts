@@ -268,25 +268,6 @@
 		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0";
 	};
 
-	aliases {
-		serial0 = &uart1;
-		serial1 = &uart0;
-		mmc0 = &emmc2;
-		mmc1 = &mmcnr;
-		mmc2 = &sdhost;
-		i2c3 = &i2c3;
-		i2c4 = &i2c4;
-		i2c5 = &i2c5;
-		i2c6 = &i2c6;
-		i2c20 = &ddc0;
-		i2c21 = &ddc1;
-		spi3 = &spi3;
-		spi4 = &spi4;
-		spi5 = &spi5;
-		spi6 = &spi6;
-		/delete-property/ intc;
-	};
-
 	/delete-node/ wifi-pwrseq;
 };
 
@@ -443,6 +424,12 @@
 		brcm,pins;
 		brcm,function;
 		brcm,pull;
+	};
+
+	uart1_bt_pins: uart1_bt_pins {
+		brcm,pins = <32 33 30 31>;
+		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
+		brcm,pull = <0 2 2 0>;
 	};
 
 	uart2_pins: uart2_pins {
