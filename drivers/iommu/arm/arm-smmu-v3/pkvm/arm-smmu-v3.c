@@ -157,8 +157,21 @@ static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 		cmd[0] |= FIELD_PREP(CMDQ_CFGI_0_SID, ent->cfgi.sid);
 		cmd[1] |= FIELD_PREP(CMDQ_CFGI_1_LEAF, ent->cfgi.leaf);
 		break;
+	case CMDQ_OP_TLBI_NH_VA:
+		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_VMID, ent->tlbi.vmid);
+		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_NUM, ent->tlbi.num);
+		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_SCALE, ent->tlbi.scale);
+		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_ASID, ent->tlbi.asid);
+		cmd[1] |= FIELD_PREP(CMDQ_TLBI_1_LEAF, ent->tlbi.leaf);
+		cmd[1] |= FIELD_PREP(CMDQ_TLBI_1_TTL, ent->tlbi.ttl);
+		cmd[1] |= FIELD_PREP(CMDQ_TLBI_1_TG, ent->tlbi.tg);
+		cmd[1] |= ent->tlbi.addr & CMDQ_TLBI_1_VA_MASK;
+		break;
 	case CMDQ_OP_TLBI_NSNH_ALL:
 		break;
+	case CMDQ_OP_TLBI_NH_ASID:
+		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_ASID, ent->tlbi.asid);
+		fallthrough;
 	case CMDQ_OP_TLBI_S12_VMALL:
 		cmd[0] |= FIELD_PREP(CMDQ_TLBI_0_VMID, ent->tlbi.vmid);
 		break;
@@ -462,10 +475,17 @@ static void smmu_tlb_flush_all(void *cookie)
 	struct kvm_hyp_iommu_domain *domain = cookie;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
-	struct arm_smmu_cmdq_ent cmd = {
-		.opcode = CMDQ_OP_TLBI_S12_VMALL,
-		.tlbi.vmid = domain->domain_id,
-	};
+	struct arm_smmu_cmdq_ent cmd;
+
+	if (domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
+		cmd.opcode = CMDQ_OP_TLBI_S12_VMALL;
+		cmd.tlbi.vmid = domain->domain_id;
+	} else {
+		cmd.opcode = CMDQ_OP_TLBI_NH_ASID;
+		cmd.tlbi.asid = domain->domain_id;
+		/* Domain ID is unique across all VMs. */
+		cmd.tlbi.vmid = 0;
+	}
 
 	hyp_spin_lock(&smmu->iommu.lock);
 	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on) {
@@ -484,11 +504,7 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
 	unsigned long end = iova + size;
-	struct arm_smmu_cmdq_ent cmd = {
-		.opcode = CMDQ_OP_TLBI_S2_IPA,
-		.tlbi.vmid = domain->domain_id,
-		.tlbi.leaf = leaf,
-	};
+	struct arm_smmu_cmdq_ent cmd;
 
 	hyp_spin_lock(&smmu->iommu.lock);
 
@@ -497,6 +513,15 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 		return;
 	}
 
+	cmd.tlbi.leaf = leaf;
+	if (domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
+		cmd.opcode = CMDQ_OP_TLBI_S2_IPA;
+		cmd.tlbi.vmid = domain->domain_id;
+	} else {
+		cmd.opcode = CMDQ_OP_TLBI_NH_VA;
+		cmd.tlbi.asid = domain->domain_id;
+		cmd.tlbi.vmid = 0;
+	}
 	/*
 	 * There are no mappings at high addresses since we don't use TTB1, so
 	 * no overflow possible.
