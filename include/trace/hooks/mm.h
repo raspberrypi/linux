@@ -106,6 +106,14 @@ DECLARE_HOOK(android_vh_adjust_kvmalloc_flags,
 DECLARE_HOOK(android_vh_alloc_pages_slowpath,
 	TP_PROTO(gfp_t gfp_mask, unsigned int order, unsigned long delta),
 	TP_ARGS(gfp_mask, order, delta));
+DECLARE_HOOK(android_vh_dm_bufio_shrink_scan_bypass,
+	TP_PROTO(unsigned long dm_bufio_current_allocated, bool *bypass),
+	TP_ARGS(dm_bufio_current_allocated, bypass));
+DECLARE_HOOK(android_vh_cleanup_old_buffers_bypass,
+	TP_PROTO(unsigned long dm_bufio_current_allocated,
+		unsigned long *max_age_hz,
+		bool *bypass),
+	TP_ARGS(dm_bufio_current_allocated, max_age_hz, bypass));
 DECLARE_HOOK(android_vh_mmap_region,
 	TP_PROTO(struct vm_area_struct *vma, unsigned long addr),
 	TP_ARGS(vma, addr));
