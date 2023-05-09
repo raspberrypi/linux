@@ -29,7 +29,7 @@ unsigned long __bootdata(pgalloc_low);
 
 enum populate_mode {
 	POPULATE_NONE,
-	POPULATE_ONE2ONE,
+	POPULATE_DIRECT,
 	POPULATE_ABS_LOWCORE,
 };
 
@@ -102,7 +102,7 @@ static unsigned long _pa(unsigned long addr, enum populate_mode mode)
 	switch (mode) {
 	case POPULATE_NONE:
 		return -1;
-	case POPULATE_ONE2ONE:
+	case POPULATE_DIRECT:
 		return addr;
 	case POPULATE_ABS_LOWCORE:
 		return __abs_lowcore_pa(addr);
@@ -251,9 +251,9 @@ void setup_vmem(unsigned long asce_limit)
 	 * the lowcore and create the identity mapping only afterwards.
 	 */
 	pgtable_populate_init();
-	pgtable_populate(0, sizeof(struct lowcore), POPULATE_ONE2ONE);
+	pgtable_populate(0, sizeof(struct lowcore), POPULATE_DIRECT);
 	for_each_mem_detect_usable_block(i, &start, &end)
-		pgtable_populate(start, end, POPULATE_ONE2ONE);
+		pgtable_populate(start, end, POPULATE_DIRECT);
 	pgtable_populate(__abs_lowcore, __abs_lowcore + sizeof(struct lowcore),
 			 POPULATE_ABS_LOWCORE);
 	pgtable_populate(__memcpy_real_area, __memcpy_real_area + PAGE_SIZE,
