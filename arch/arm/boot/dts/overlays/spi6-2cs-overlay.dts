@@ -20,8 +20,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			pinctrl-names = "default";
-		        pinctrl-0 = <&spi6_pins &spi6_cs_pins>;
 			cs-gpios = <&gpio 18 1>, <&gpio 27 1>;
 			status = "okay";
 
