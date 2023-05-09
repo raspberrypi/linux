@@ -10,6 +10,10 @@
 #include "decompressor.h"
 #include "boot.h"
 
+#ifdef CONFIG_PROC_FS
+atomic_long_t __bootdata_preserved(direct_pages_count[PG_DIRECT_MAP_MAX]);
+#endif
+
 #define init_mm			(*(struct mm_struct *)vmlinux.init_mm_off)
 #define swapper_pg_dir		vmlinux.swapper_pg_dir_off
 #define invalid_pg_dir		vmlinux.invalid_pg_dir_off
@@ -126,7 +130,7 @@ static bool can_large_pmd(pmd_t *pm_dir, unsigned long addr, unsigned long end)
 static void pgtable_pte_populate(pmd_t *pmd, unsigned long addr, unsigned long end,
 				 enum populate_mode mode)
 {
-	unsigned long next;
+	unsigned long pages = 0;
 	pte_t *pte, entry;
 
 	pte = pte_offset_kernel(pmd, addr);
@@ -135,14 +139,17 @@ static void pgtable_pte_populate(pmd_t *pmd, unsigned long addr, unsigned long e
 			entry = __pte(_pa(addr, mode));
 			entry = set_pte_bit(entry, PAGE_KERNEL_EXEC);
 			set_pte(pte, entry);
+			pages++;
 		}
 	}
+	if (mode == POPULATE_DIRECT)
+		update_page_count(PG_DIRECT_MAP_4K, pages);
 }
 
 static void pgtable_pmd_populate(pud_t *pud, unsigned long addr, unsigned long end,
 				 enum populate_mode mode)
 {
-	unsigned long next;
+	unsigned long next, pages = 0;
 	pmd_t *pmd, entry;
 	pte_t *pte;
 
@@ -154,6 +161,7 @@ static void pgtable_pmd_populate(pud_t *pud, unsigned long addr, unsigned long e
 				entry = __pmd(_pa(addr, mode));
 				entry = set_pmd_bit(entry, SEGMENT_KERNEL_EXEC);
 				set_pmd(pmd, entry);
+				pages++;
 				continue;
 			}
 			pte = boot_pte_alloc();
@@ -163,12 +171,14 @@ static void pgtable_pmd_populate(pud_t *pud, unsigned long addr, unsigned long e
 		}
 		pgtable_pte_populate(pmd, addr, next, mode);
 	}
+	if (mode == POPULATE_DIRECT)
+		update_page_count(PG_DIRECT_MAP_1M, pages);
 }
 
 static void pgtable_pud_populate(p4d_t *p4d, unsigned long addr, unsigned long end,
 				 enum populate_mode mode)
 {
-	unsigned long next;
+	unsigned long next, pages = 0;
 	pud_t *pud, entry;
 	pmd_t *pmd;
 
@@ -180,6 +190,7 @@ static void pgtable_pud_populate(p4d_t *p4d, unsigned long addr, unsigned long e
 				entry = __pud(_pa(addr, mode));
 				entry = set_pud_bit(entry, REGION3_KERNEL_EXEC);
 				set_pud(pud, entry);
+				pages++;
 				continue;
 			}
 			pmd = boot_crst_alloc(_SEGMENT_ENTRY_EMPTY);
@@ -189,6 +200,8 @@ static void pgtable_pud_populate(p4d_t *p4d, unsigned long addr, unsigned long e
 		}
 		pgtable_pmd_populate(pud, addr, next, mode);
 	}
+	if (mode == POPULATE_DIRECT)
+		update_page_count(PG_DIRECT_MAP_2G, pages);
 }
 
 static void pgtable_p4d_populate(pgd_t *pgd, unsigned long addr, unsigned long end,
