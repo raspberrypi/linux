@@ -8,8 +8,6 @@
 		target = <&i2c6>;
 		frag0: __overlay__ {
 			status = "okay";
-			pinctrl-names = "default";
-			pinctrl-0 = <&i2c6_pins>;
 			clock-frequency = <100000>;
 		};
 	};
