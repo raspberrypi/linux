@@ -8,8 +8,6 @@
 		target = <&i2c3>;
 		frag0: __overlay__ {
 			status = "okay";
-			pinctrl-names = "default";
-			pinctrl-0 = <&i2c3_pins>;
 			clock-frequency = <100000>;
 		};
 	};
