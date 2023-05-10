@@ -475,6 +475,15 @@ static int fbtft_fb_blank(int blank, struct fb_info *info)
 	return ret;
 }
 
+static int fbtft_fb_release(struct fb_info *info, int user)
+{
+	/* Flush any pending updates */
+	cancel_delayed_work(&info->deferred_work);
+	schedule_delayed_work(&info->deferred_work, 0);
+
+	return 0;
+}
+
 static void fbtft_merge_fbtftops(struct fbtft_ops *dst, struct fbtft_ops *src)
 {
 	if (src->write)
@@ -651,6 +660,7 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	fbops->fb_imageblit =      fbtft_fb_imageblit;
 	fbops->fb_setcolreg =      fbtft_fb_setcolreg;
 	fbops->fb_blank     =      fbtft_fb_blank;
+	fbops->fb_release   =      fbtft_fb_release;
 	fbops->fb_mmap      =      fb_deferred_io_mmap;
 
 	fbdefio->delay =            HZ / fps;
