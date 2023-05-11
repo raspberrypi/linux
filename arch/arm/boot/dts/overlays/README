@@ -226,6 +226,10 @@ Params:
         i2s                     Set to "on" to enable the i2s interface
                                 (default "off")
 
+        i2s_dma4                Use to enable 40-bit DMA on the i2s interface
+                                (the assigned value doesn't matter)
+                                (2711 only)
+
         krnbt                   Set to "off" to disable autoprobing of Bluetooth
                                 driver without need of hciattach/btattach
                                 (default "on")
