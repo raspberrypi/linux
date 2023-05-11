@@ -386,6 +386,13 @@ config VSI_IOMMU
 	  Say Y here if you want to use this IOMMU in front of these
 	  hardware blocks.
 
+config BCM2712_IOMMU
+       bool "BCM2712 IOMMU driver"
+       depends on ARM64 && ARCH_BCM
+       select IOMMU_API
+       help
+	 IOMMU driver for BCM2712
+
 config IOMMU_DEBUG_PAGEALLOC
 	bool "Debug IOMMU mappings against page allocations"
 	depends on DEBUG_PAGEALLOC && IOMMU_API && PAGE_EXTENSION
