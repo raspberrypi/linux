@@ -37,7 +37,12 @@
 			compatible = "hifiberry,hifiberry-digi";
 			i2s-controller = <&i2s>;
 			status = "okay";
-			sys_clk = <12000000>;
+			clock44-gpio = <&gpio 22 0>;
+			clock48-gpio = <&gpio 27 0>;
+			led1-gpio = <&gpio 13 0>;
+			led2-gpio = <&gpio 12 0>;
+			led3-gpio = <&gpio 6 0>;
 		};
 	};
+
 };

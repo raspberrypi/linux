@@ -65,12 +65,15 @@ struct snd_rpi_wm8804_drvdata {
 static struct gpio_desc *snd_clk44gpio;
 static struct gpio_desc *snd_clk48gpio;
 static int wm8804_samplerate = 0;
+static struct gpio_desc *led_gpio_1;
+static struct gpio_desc *led_gpio_2;
+static struct gpio_desc *led_gpio_3;
 
 /* Forward declarations */
 static struct snd_soc_dai_link snd_allo_digione_dai[];
 static struct snd_soc_card snd_rpi_wm8804;
 
-static uint32_t sysclk_freq = 27000000;
+//static uint32_t sysclk_freq = 27000000;
 
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
@@ -96,7 +99,7 @@ static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		struct wm8804_clk_cfg *clk_cfg)
 {
-	clk_cfg->sysclk_freq = sysclk_freq;
+	clk_cfg->sysclk_freq = 27000000;
 
 	if (samplerate <= 96000 ||
 	    snd_rpi_wm8804.dai_link == snd_allo_digione_dai) {
@@ -141,21 +144,39 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case 44100:
 		sampling_freq = 0x00;
+		gpiod_set_value_cansleep(led_gpio_1, 1);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 48000:
 		sampling_freq = 0x02;
+		gpiod_set_value_cansleep(led_gpio_1, 1);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 88200:
 		sampling_freq = 0x08;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 1);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 96000:
 		sampling_freq = 0x0a;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 1);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 176400:
 		sampling_freq = 0x0c;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 1);
 		break;
 	case 192000:
 		sampling_freq = 0x0e;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 1);
 		break;
 	default:
 		dev_err(rtd->card->dev,
@@ -182,7 +203,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 			sampling_freq);
 
 	/* set rx channel 2 */
-	snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 2);
+	snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 0);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
@@ -376,12 +397,18 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 		snd_clk48gpio =
 			devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
 
-		if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
-		{
-			pr_err("Failed to get sys_clk, defaulting to 27MHz");
-			sysclk_freq = 27000000;
-		}
-		pr_info("Setting system clock to %d kHz", sysclk_freq/1000);
+		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
+
+		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
+
+		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
+
+		//if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
+		//{
+		//	pr_err("Failed to get sys_clk, defaulting to 27MHz");
+		//	sysclk_freq = 27000000;
+		//}
+		//pr_info("Setting system clock to ");
 
 		if (drvdata->probe) {
 			ret = drvdata->probe(pdev);

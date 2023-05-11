@@ -224,16 +224,20 @@ static int wm8804_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
 		format = 0x2;
+		pr_err("i2s data format/n");
 		break;
 	case SND_SOC_DAIFMT_RIGHT_J:
 		format = 0x0;
+		pr_err("right justified data format/n");
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
 		format = 0x1;
+		pr_err("left justified data format/n");
 		break;
 	case SND_SOC_DAIFMT_DSP_A:
 	case SND_SOC_DAIFMT_DSP_B:
 		format = 0x3;
+		pr_err("DSP data format/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unknown dai format\n");
@@ -265,12 +269,15 @@ static int wm8804_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		break;
 	case SND_SOC_DAIFMT_IB_IF:
 		bcp = lrp = 1;
+		pr_err("BCLK and LRCLK inversion active/n");
 		break;
 	case SND_SOC_DAIFMT_IB_NF:
 		bcp = 1;
+		pr_err("BCLK inversion active/n");
 		break;
 	case SND_SOC_DAIFMT_NB_IF:
 		lrp = 1;
+		pr_err("LRCLK inversion Active/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unknown polarity configuration\n");
@@ -297,12 +304,15 @@ static int wm8804_hw_params(struct snd_pcm_substream *substream,
 	switch (params_width(params)) {
 	case 16:
 		blen = 0x0;
+		pr_err("16 bit word length selected/n");
 		break;
 	case 20:
 		blen = 0x1;
+		pr_err("20 bit word length selected/n");
 		break;
 	case 24:
 		blen = 0x2;
+		pr_err("24 bit word length selected/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unsupported word length: %u\n",
