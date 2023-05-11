@@ -1401,7 +1401,6 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	struct resource *iomem;
 	struct bcm2835_host *host;
 	struct mmc_host *mmc;
-	const __be32 *addr;
 	int ret;
 
 	mmc = mmc_alloc_host(sizeof(*host), dev);
@@ -1414,24 +1413,13 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	host->timeout = msecs_to_jiffies(1000);
 	spin_lock_init(&host->lock);
 
-	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	host->ioaddr = devm_ioremap_resource(dev, iomem);
+	host->ioaddr = devm_platform_get_and_ioremap_resource(pdev, 0, &iomem);
 	if (IS_ERR(host->ioaddr)) {
 		ret = PTR_ERR(host->ioaddr);
 		goto err;
 	}
 
-	addr = of_get_address(node, 0, NULL, NULL);
-	if (!addr) {
-		dev_err(dev, "could not get DMA-register address\n");
-		ret = -ENODEV;
-		goto err;
-	}
-	host->bus_addr = be32_to_cpup(addr);
-	pr_debug(" - ioaddr %lx, iomem->start %lx, bus_addr %lx\n",
-		 (unsigned long)host->ioaddr,
-		 (unsigned long)iomem->start,
-		 (unsigned long)host->bus_addr);
+	host->bus_addr = iomem->start;
 
 #ifndef FORCE_PIO
 	if (node) {
