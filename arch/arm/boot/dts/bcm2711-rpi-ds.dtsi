@@ -12,6 +12,12 @@
 		       <&hdmi1>,"status";
 		pcie = <&pcie0>,"status";
 		sd = <&emmc2>,"status";
+
+		sd_poll_once = <&emmc2>, "non-removable?";
+		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
+			   <&spi0>, "dmas:8=", <&dma40>;
+		i2s_dma4 = <&i2s>, "dmas:0=", <&dma40>,
+			   <&i2s>, "dmas:8=", <&dma40>;
 	};
 
 	scb: scb {

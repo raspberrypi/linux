@@ -290,10 +290,6 @@ cam0_reg: &cam0_regulator {
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
 
-		sd_poll_once = <&emmc2>, "non-removable?";
-		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
-			   <&spi0>, "dmas:8=", <&dma40>;
-
 		cam0_reg = <&cam0_reg>,"status";
 		cam0_reg_gpio = <&cam0_reg>,"gpio:4";
 		cam1_reg = <&cam1_reg>,"status";
