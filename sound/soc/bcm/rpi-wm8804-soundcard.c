@@ -39,7 +39,18 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kdev_t.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
+#include<linux/slab.h>                 //kmalloc()
+#include<linux/uaccess.h>              //copy_to/from_user()
+#include <linux/ioctl.h>
+#include<linux/proc_fs.h>
+#include <linux/err.h>
 #include "../codecs/wm8804.h"
 
 struct wm8804_clk_cfg {
@@ -47,6 +58,25 @@ struct wm8804_clk_cfg {
 	unsigned int mclk_freq;
 	unsigned int mclk_div;
 };
+
+static struct proc_dir_entry *parent;
+char text_array[25] ="sample rate is 000Khz";
+int len = sizeof(text_array)/sizeof(char);
+
+static ssize_t write_proc(struct file *filp, const char *buff, size_t len, loff_t * off)
+{
+     pr_info("proc file wrote.....\n");
+
+     if (copy_from_user(text_array, buff, len))
+        pr_err("Data Write : Err!\n");
+
+     return len;
+  } 
+
+  static struct proc_ops proc_fops = {
+        .proc_write = write_proc,
+};
+
 
 /* Parameters for generic functions */
 struct snd_rpi_wm8804_drvdata {
@@ -138,11 +168,13 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 			__func__, samplerate, clk_cfg.mclk_freq,
 			clk_cfg.mclk_div, clk_cfg.sysclk_freq);
 
+	proc_remove(parent);
 	switch (samplerate) {
 	case 32000:
 		sampling_freq = 0x03;
 		break;
 	case 44100:
+		
 		sampling_freq = 0x00;
 		gpiod_set_value_cansleep(led_gpio_1, 1);
 		gpiod_set_value_cansleep(led_gpio_2, 0);
@@ -182,6 +214,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 		dev_err(rtd->card->dev,
 		"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
 		samplerate);
+
 	}
 
 	snd_soc_dai_set_clkdiv(codec_dai, WM8804_MCLK_DIV, clk_cfg.mclk_div);
@@ -335,6 +368,8 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	const struct of_device_id *of_id;
+
+	proc_create("rpi-wm8804", 0666, parent, &proc_fops);
 
 	snd_rpi_wm8804.dev = &pdev->dev;
 	of_id = of_match_node(snd_rpi_wm8804_of_match, pdev->dev.of_node);
