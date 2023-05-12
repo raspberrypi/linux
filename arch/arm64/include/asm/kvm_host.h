@@ -965,6 +965,7 @@ static inline bool __vcpu_write_sys_reg_to_cpu(u64 val, int reg)
 
 struct kvm_vm_stat {
 	struct kvm_vm_stat_generic generic;
+	atomic64_t protected_hyp_mem;
 };
 
 struct kvm_vcpu_stat {
