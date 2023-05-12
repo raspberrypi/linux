@@ -1583,16 +1583,42 @@ static int pkvm_host_map_guest(u64 pfn, u64 gfn, enum kvm_pgtable_prot prot)
 	return (ret == -EPERM) ? -EAGAIN : ret;
 }
 
+#define node_ppage(__node) \
+	(container_of(__node, struct kvm_pinned_page, node))
+
+static int cmp_ppage_ipa(const void *key, const struct rb_node *node)
+{
+	return (s64)key - (s64)node_ppage(node)->ipa;
+}
+
 static int cmp_ppages(struct rb_node *node, const struct rb_node *parent)
 {
-	struct kvm_pinned_page *a = container_of(node, struct kvm_pinned_page, node);
-	struct kvm_pinned_page *b = container_of(parent, struct kvm_pinned_page, node);
+	return cmp_ppage_ipa((void *)(node_ppage(node))->ipa, parent);
+}
 
-	if (a->ipa < b->ipa)
-		return -1;
-	if (a->ipa > b->ipa)
-		return 1;
-	return 0;
+static struct kvm_pinned_page *
+find_ppage_or_above(struct kvm *kvm, phys_addr_t ipa)
+{
+	struct rb_node *node = kvm->arch.pkvm.pinned_pages.rb_node;
+
+	while (node) {
+		int ret = cmp_ppage_ipa((void *)ipa, node);
+
+		if (!ret) {
+			break;
+		} else if (ret > 0) {
+			node = node->rb_right;
+		} else if (ret < 0) {
+			if (!node->rb_left)
+				break;
+			node = node->rb_left;
+		}
+	}
+
+	if (!node)
+		return NULL;
+
+	return node_ppage(node);
 }
 
 static int insert_ppage(struct kvm *kvm, struct kvm_pinned_page *ppage)
@@ -1601,11 +1627,6 @@ static int insert_ppage(struct kvm *kvm, struct kvm_pinned_page *ppage)
 		return -EEXIST;
 
 	return 0;
-}
-
-static int cmp_ppage_ipa(const void *key, const struct rb_node *node)
-{
-	return (s64)key - (s64)container_of(node, struct kvm_pinned_page, node)->ipa;
 }
 
 static struct kvm_pinned_page *find_ppage(struct kvm *kvm, u64 ipa)
@@ -1720,6 +1741,64 @@ free_ppage:
 	kfree(ppage);
 
 	return ret;
+}
+
+int pkvm_mem_abort_range(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t size)
+{
+	phys_addr_t ipa_end = fault_ipa + size - 1;
+	struct kvm_pinned_page *ppage;
+	int err = 0, idx;
+
+	if (!PAGE_ALIGNED(size) || !PAGE_ALIGNED(fault_ipa))
+		return -EINVAL;
+
+	if (ipa_end >= BIT_ULL(get_kvm_ipa_limit()) ||
+	    ipa_end >= kvm_phys_size(vcpu->kvm) ||
+	    ipa_end <= fault_ipa)
+		return -EINVAL;
+
+	idx = srcu_read_lock(&vcpu->kvm->srcu);
+
+	read_lock(&vcpu->kvm->mmu_lock);
+	ppage = find_ppage_or_above(vcpu->kvm, fault_ipa);
+
+	while (size) {
+		if (ppage && ppage->ipa == fault_ipa) {
+			ppage = node_ppage(rb_next(&ppage->node));
+		} else {
+			gfn_t gfn = gpa_to_gfn(fault_ipa);
+			struct kvm_memory_slot *memslot;
+			unsigned long hva;
+			bool writable;
+
+			memslot = gfn_to_memslot(vcpu->kvm, gfn);
+			hva = gfn_to_hva_memslot_prot(memslot, gfn, &writable);
+			if (kvm_is_error_hva(hva) || !writable) {
+				err = -EINVAL;
+				goto end;
+			}
+
+			read_unlock(&vcpu->kvm->mmu_lock);
+			err = pkvm_mem_abort(vcpu, fault_ipa, hva);
+			read_lock(&vcpu->kvm->mmu_lock);
+			if (err)
+				goto end;
+
+			/*
+			 * We had to release the mmu_lock so let's update the
+			 * reference.
+			 */
+			ppage = find_ppage_or_above(vcpu->kvm, fault_ipa + PAGE_SIZE);
+		}
+
+		size = size_sub(size, PAGE_SIZE);
+		fault_ipa += PAGE_SIZE;
+	}
+end:
+	read_unlock(&vcpu->kvm->mmu_lock);
+	srcu_read_unlock(&vcpu->kvm->srcu, idx);
+
+	return err;
 }
 
 static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
