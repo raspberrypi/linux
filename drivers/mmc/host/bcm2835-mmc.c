@@ -1422,6 +1422,8 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+	host->bus_addr = iomem->start;
+
 #ifndef FORCE_PIO
 	if (node) {
 		host->dma_chan_rxtx = dma_request_slave_channel(dev, "rx-tx");
