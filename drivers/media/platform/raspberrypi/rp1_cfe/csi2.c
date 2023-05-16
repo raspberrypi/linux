@@ -258,7 +258,7 @@ static void csi2_isr_handle_errors(struct csi2_device *csi2, u32 status)
 	spin_unlock(&csi2->errors_lock);
 }
 
-void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof, bool *lci)
+void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof)
 {
 	unsigned int i;
 	u32 status;
@@ -290,7 +290,6 @@ void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof, bool *lci)
 
 		sof[i] = !!(status & IRQ_FS(i));
 		eof[i] = !!(status & IRQ_FE_ACK(i));
-		lci[i] = !!(status & IRQ_LE_ACK(i));
 	}
 
 	if (csi2_track_errors)
@@ -405,16 +404,12 @@ void csi2_start_channel(struct csi2_device *csi2, unsigned int channel,
 
 	csi2_dbg("%s [%u]\n", __func__, channel);
 
-	/*
-	 * Disable the channel, but ensure N != 0!  Otherwise we end up with a
-	 * spurious LE + LE_ACK interrupt when re-enabling the channel.
-	 */
-	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), 0x100 << __ffs(LC_MASK));
+	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), 0);
 	csi2_reg_write(csi2, CSI2_CH_DEBUG(channel), 0);
 	csi2_reg_write(csi2, CSI2_STATUS, IRQ_CH_MASK(channel));
 
-	/* Enable channel and FS/FE/LE interrupts. */
-	ctrl = DMA_EN | IRQ_EN_FS | IRQ_EN_FE_ACK | IRQ_EN_LE_ACK | PACK_LINE;
+	/* Enable channel and FS/FE interrupts. */
+	ctrl = DMA_EN | IRQ_EN_FS | IRQ_EN_FE_ACK | PACK_LINE;
 	/* PACK_BYTES ensures no striding for embedded data. */
 	if (pack_bytes)
 		ctrl |= PACK_BYTES;
@@ -423,21 +418,11 @@ void csi2_start_channel(struct csi2_device *csi2, unsigned int channel,
 		ctrl |= AUTO_ARM;
 
 	if (width && height) {
-		int line_int_freq = height >> 2;
-
-		line_int_freq = min(max(0x80, line_int_freq), 0x3ff);
-		set_field(&ctrl, line_int_freq, LC_MASK);
 		set_field(&ctrl, mode, CH_MODE_MASK);
 		csi2_reg_write(csi2, CSI2_CH_FRAME_SIZE(channel),
 			       (height << 16) | width);
 	} else {
-		/*
-		 * Do not disable line interrupts for the embedded data channel,
-		 * set it to the maximum value.  This avoids spamming the ISR
-		 * with spurious line interrupts.
-		 */
-		set_field(&ctrl, 0x3ff, LC_MASK);
-		set_field(&ctrl, 0x00, CH_MODE_MASK);
+		set_field(&ctrl, 0x0, CH_MODE_MASK);
 		csi2_reg_write(csi2, CSI2_CH_FRAME_SIZE(channel), 0);
 	}
 
@@ -452,8 +437,7 @@ void csi2_stop_channel(struct csi2_device *csi2, unsigned int channel)
 	csi2_dbg("%s [%u]\n", __func__, channel);
 
 	/* Channel disable.  Use FORCE to allow stopping mid-frame. */
-	csi2_reg_write(csi2, CSI2_CH_CTRL(channel),
-		       (0x100 << __ffs(LC_MASK)) | FORCE);
+	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), FORCE);
 	/* Latch the above change by writing to the ADDR0 register. */
 	csi2_reg_write(csi2, CSI2_CH_ADDR0(channel), 0);
 	/* Write this again, the HW needs it! */
