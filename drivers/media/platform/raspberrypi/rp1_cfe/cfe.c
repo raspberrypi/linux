@@ -734,13 +734,13 @@ static irqreturn_t cfe_isr(int irq, void *dev)
 {
 	struct cfe_device *cfe = dev;
 	unsigned int i;
-	bool sof[NUM_NODES] = {0}, eof[NUM_NODES] = {0}, lci[NUM_NODES] = {0};
+	bool sof[NUM_NODES] = {0}, eof[NUM_NODES] = {0};
 	u32 sts;
 
 	sts = cfg_reg_read(cfe, MIPICFG_INTS);
 
 	if (sts & MIPICFG_INT_CSI_DMA)
-		csi2_isr(&cfe->csi2, sof, eof, lci);
+		csi2_isr(&cfe->csi2, sof, eof);
 
 	if (sts & MIPICFG_INT_PISP_FE)
 		pisp_fe_isr(&cfe->fe, sof + CSI2_NUM_CHANNELS,
@@ -757,7 +757,7 @@ static irqreturn_t cfe_isr(int irq, void *dev)
 		 * generate interrupts even though the node is not streaming.
 		 */
 		if (!check_state(cfe, NODE_STREAMING, i) ||
-		    !(sof[i] || eof[i] || lci[i]))
+		    !(sof[i] || eof[i]))
 			continue;
 
 		/*
