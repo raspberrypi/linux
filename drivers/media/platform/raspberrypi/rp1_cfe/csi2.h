@@ -71,7 +71,7 @@ struct csi2_device {
 	u32 discards_dt_table[DISCARDS_TABLE_NUM_ENTRIES];
 };
 
-void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof, bool *lci);
+void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof);
 void csi2_set_buffer(struct csi2_device *csi2, unsigned int channel,
 		     dma_addr_t dmaaddr, unsigned int stride,
 		     unsigned int size);
