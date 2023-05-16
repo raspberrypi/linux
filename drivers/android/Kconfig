@@ -13,6 +13,17 @@ config ANDROID_BINDER_IPC
 	  Android process, using Binder to identify, invoke and pass arguments
 	  between said processes.
 
+config ANDROID_BINDER_IPC_RUST
+	bool "Android Binder IPC Driver in Rust"
+	depends on MMU && RUST
+	help
+	  Binder is used in Android for both communication between processes,
+	  and remote method invocation.
+
+	  This means one Android process can call a method/routine in another
+	  Android process, using Binder to identify, invoke and pass arguments
+	  between said processes.
+
 config ANDROID_BINDERFS
 	bool "Android Binderfs filesystem"
 	depends on ANDROID_BINDER_IPC
