@@ -59,25 +59,6 @@ struct wm8804_clk_cfg {
 	unsigned int mclk_div;
 };
 
-static struct proc_dir_entry *parent;
-char text_array[25] ="sample rate is 000Khz";
-int len = sizeof(text_array)/sizeof(char);
-
-static ssize_t write_proc(struct file *filp, const char *buff, size_t len, loff_t * off)
-{
-     pr_info("proc file wrote.....\n");
-
-     if (copy_from_user(text_array, buff, len))
-        pr_err("Data Write : Err!\n");
-
-     return len;
-  } 
-
-  static struct proc_ops proc_fops = {
-        .proc_write = write_proc,
-};
-
-
 /* Parameters for generic functions */
 struct snd_rpi_wm8804_drvdata {
 	/* Required - pointer to the DAI structure */
@@ -168,13 +149,11 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 			__func__, samplerate, clk_cfg.mclk_freq,
 			clk_cfg.mclk_div, clk_cfg.sysclk_freq);
 
-	proc_remove(parent);
 	switch (samplerate) {
 	case 32000:
 		sampling_freq = 0x03;
 		break;
 	case 44100:
-		
 		sampling_freq = 0x00;
 		gpiod_set_value_cansleep(led_gpio_1, 1);
 		gpiod_set_value_cansleep(led_gpio_2, 0);
@@ -345,6 +324,37 @@ static struct snd_rpi_wm8804_drvdata drvdata_hifiberry_digi = {
 	.probe     = snd_hifiberry_digi_probe,
 };
 
+SND_SOC_DAILINK_DEFS(interlude_audio_digital,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
+{
+	.name        = "Interlude Audio Digital",
+	.stream_name = "Interlude Audio Digital HiFi",
+	SND_SOC_DAILINK_REG(interlude_audio_digital),
+},
+};
+
+static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
+{
+	pr_debug("%s\n", __func__);
+
+	if (IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio))
+		return 0;
+
+	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
+	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
+	return 0;
+}
+
+static struct snd_rpi_wm8804_drvdata drvdata_interlude_audio_digital = {
+	.card_name = "snd_Interlude Audio Digital Hat",
+	.dai       = snd_Interlude_Audio_Digital_dai,
+	.probe     = snd_Interlude_Audio_Digital_probe,
+};
+
 static const struct of_device_id snd_rpi_wm8804_of_match[] = {
 	{ .compatible = "justboom,justboom-digi",
 		.data = (void *) &drvdata_justboom_digi },
@@ -354,6 +364,8 @@ static const struct of_device_id snd_rpi_wm8804_of_match[] = {
 		.data = (void *) &drvdata_allo_digione },
 	{ .compatible = "hifiberry,hifiberry-digi",
 		.data = (void *) &drvdata_hifiberry_digi },
+	{ .compatible = "interludeaudio,interludeaudio-digital",
+		.data = (void *) &drvdata_interlude_audio_digital },
 	{},
 };
 
@@ -368,8 +380,6 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	const struct of_device_id *of_id;
-
-	proc_create("rpi-wm8804", 0666, parent, &proc_fops);
 
 	snd_rpi_wm8804.dev = &pdev->dev;
 	of_id = of_match_node(snd_rpi_wm8804_of_match, pdev->dev.of_node);
@@ -462,6 +472,8 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 	ret = devm_snd_soc_register_card(&pdev->dev, &snd_rpi_wm8804);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "Failed to register card %d\n", ret);
+
+
 
 	return ret;
 }

@@ -34,7 +34,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
-	brs-fpga-driver.dtbo \
+	interludeaudio-digital.dtbo \
 	camera-mux-2port.dtbo \
 	camera-mux-4port.dtbo \
 	cap1106.dtbo \
