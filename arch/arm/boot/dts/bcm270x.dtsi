@@ -5,7 +5,7 @@
 	chosen: chosen {
 		// Disable audio by default
 		bootargs = "coherent_pool=1M snd_bcm2835.enable_headphones=0";
-		/delete-property/ stdout-path;
+		stdout-path = "serial0:115200n8";
 	};
 
 	soc: soc {
