@@ -63,6 +63,16 @@
 		spi6 = &spi6;
 		/delete-property/ intc;
 	};
+
+	/*
+	 * Add a node with a dma-ranges value that exists only to be found
+	 * by of_dma_get_max_cpu_address, and hence limit the DMA zone.
+	 */
+	zone_dma {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		dma-ranges = <0x0  0x0 0x0  0x40000000>;
+	};
 };
 
 &vc4 {
