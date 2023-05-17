@@ -34,7 +34,7 @@
 	};
 
 	chosen {
-		/delete-property/ stdout-path;
+		stdout-path = "serial0:115200n8";
 	};
 
 	aliases {
