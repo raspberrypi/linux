@@ -36,9 +36,33 @@ config ANDROID_BINDERFS
 	  It can be used to dynamically allocate new binder IPC devices via
 	  ioctls.
 
+config ANDROID_BINDERFS_RUST
+	bool "Android Binderfs filesystem in Rust"
+	depends on ANDROID_BINDER_IPC_RUST
+	default n
+	help
+	  Binderfs is a pseudo-filesystem for the Android Binder IPC driver
+	  which can be mounted per-ipc namespace allowing to run multiple
+	  instances of Android.
+	  Each binderfs mount initially only contains a binder-control device.
+	  It can be used to dynamically allocate new binder IPC devices via
+	  ioctls.
+
 config ANDROID_BINDER_DEVICES
 	string "Android Binder devices"
 	depends on ANDROID_BINDER_IPC
+	default "binder,hwbinder,vndbinder"
+	help
+	  Default value for the binder.devices parameter.
+
+	  The binder.devices parameter is a comma-separated list of strings
+	  that specifies the names of the binder device nodes that will be
+	  created. Each binder device has its own context manager, and is
+	  therefore logically separated from the other devices.
+
+config ANDROID_BINDER_DEVICES_RUST
+	string "Android Binder devices in Rust"
+	depends on ANDROID_BINDER_IPC_RUST
 	default "binder,hwbinder,vndbinder"
 	help
 	  Default value for the binder.devices parameter.
