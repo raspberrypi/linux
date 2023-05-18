@@ -85,6 +85,7 @@ _ARM_GKI_MODULES_LIST = [
 
 _ARM64_GKI_MODULES_LIST = [
     # keep sorted
+    "arch/arm64/geniezone/gzvm.ko",
     "drivers/ptp/ptp_kvm.ko",
 ]
 
