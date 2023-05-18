@@ -87,7 +87,7 @@ find $cpio_dir -type f -print0 |
 # pre-sorted, as --sort=name might not be available.
 find $cpio_dir -printf "./%P\n" | LC_ALL=C sort | \
     tar "${KBUILD_BUILD_TIMESTAMP:+--mtime=$KBUILD_BUILD_TIMESTAMP}" \
-    --owner=0 --group=0 --numeric-owner --no-recursion --dereference \
+    --owner=0 --group=0 --numeric-owner --no-recursion \
     -I $XZ -cf $tarfile -C $cpio_dir/ -T - > /dev/null
 
 echo $headers_md5 > kernel/kheaders.md5
