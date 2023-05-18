@@ -52,6 +52,7 @@
 #include<linux/proc_fs.h>
 #include <linux/err.h>
 #include "../codecs/wm8804.h"
+#include<sound/control.h>
 
 struct wm8804_clk_cfg {
 	unsigned int sysclk_freq;
@@ -215,7 +216,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 			sampling_freq);
 
 	/* set rx channel 2 */
-	snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 0);
+	//snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 0);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
@@ -339,6 +340,9 @@ static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
 
 static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 {
+	
+	
+	
 	pr_debug("%s\n", __func__);
 
 	if (IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio))
@@ -346,11 +350,18 @@ static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 
 	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
 	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
+	
+	
+	
+	
+	
 	return 0;
+
 }
 
+
 static struct snd_rpi_wm8804_drvdata drvdata_interlude_audio_digital = {
-	.card_name = "snd_Interlude Audio Digital Hat",
+	.card_name = "Interlude Audio Digital Hat",
 	.dai       = snd_Interlude_Audio_Digital_dai,
 	.probe     = snd_Interlude_Audio_Digital_probe,
 };
@@ -375,6 +386,8 @@ static struct snd_soc_card snd_rpi_wm8804 = {
 	.dai_link     = NULL,
 	.num_links    = 1,
 };
+
+//static int interlude_audio_input_control(snd_kcontrol *kcontrl,)
 
 static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 {
