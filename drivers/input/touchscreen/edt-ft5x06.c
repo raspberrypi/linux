@@ -330,6 +330,11 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		 * points.
 		 */
 		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
+		if (num_points)
+			error = regmap_bulk_read(tsdata->regmap,
+                                                 tsdata->offset,
+                                                 &rdbuf[tsdata->tdata_offset],
+                                                 tsdata->point_len * num_points);
 	}
 
 	for (i = 0; i < num_points; i++) {
@@ -1103,20 +1108,23 @@ static void edt_ft5x06_ts_get_parameters(struct edt_ft5x06_ts_data *tsdata)
 static void edt_ft5x06_ts_set_tdata_parameters(struct edt_ft5x06_ts_data *tsdata)
 {
 	int crclen;
+	int points;
 
 	if (tsdata->version == EDT_M06) {
 		tsdata->tdata_cmd = 0xf9;
 		tsdata->tdata_offset = 5;
 		tsdata->point_len = 4;
 		crclen = 1;
+		points = tsdata->max_support_points;
 	} else {
 		tsdata->tdata_cmd = 0x0;
 		tsdata->tdata_offset = 3;
 		tsdata->point_len = 6;
 		crclen = 0;
+		points = 0;
 	}
 
-	tsdata->tdata_len = tsdata->point_len * tsdata->max_support_points +
+	tsdata->tdata_len = tsdata->point_len * points +
 		tsdata->tdata_offset + crclen;
 }
 
