@@ -2320,7 +2320,7 @@ static int __init gadget_cfs_init(void)
 	ret = configfs_register_subsystem(&gadget_subsys);
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
-	android_class = class_create(THIS_MODULE, "android_usb");
+	android_class = class_create("android_usb");
 	if (IS_ERR(android_class))
 		return PTR_ERR(android_class);
 #endif
