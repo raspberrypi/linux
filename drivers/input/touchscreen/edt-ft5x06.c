@@ -220,6 +220,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		offset = 5; /* where the actual touch data starts */
 		tplen = 4;  /* data comes in so called frames */
 		crclen = 1; /* length of the crc data */
+		datalen = tplen * tsdata->max_support_points + offset + crclen;
 		break;
 
 	case EDT_M09:
@@ -230,6 +231,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		offset = 3;
 		tplen = 6;
 		crclen = 0;
+		datalen = 3;
 		break;
 
 	default:
@@ -237,7 +239,6 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	}
 
 	memset(rdbuf, 0, sizeof(rdbuf));
-	datalen = tplen * tsdata->max_support_points + offset + crclen;
 
 	error = edt_ft5x06_ts_readwrite(tsdata->client,
 					sizeof(cmd), &cmd,
@@ -267,6 +268,13 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		 * points.
 		 */
 		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
+		if (num_points) {
+			datalen = tplen * num_points + crclen;
+			cmd = offset;
+			error = edt_ft5x06_ts_readwrite(tsdata->client,
+							sizeof(cmd), &cmd,
+							datalen, &rdbuf[offset]);
+		}
 	}
 
 	for (i = 0; i < num_points; i++) {
