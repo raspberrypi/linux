@@ -218,6 +218,19 @@ static int rxsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *u
 
 	snd_soc_component_update_bits(component,e->reg,mask,val);
 
+	if(val == 128 )
+	{
+		snd_soc_component_update_bits(component,WM8804_PLL6,0x7,1);
+		pr_err("select RX1");
+	}
+	else 
+	{
+		snd_soc_component_update_bits(component,WM8804_PLL6,0x7,0);
+		pr_err("select RX0");
+	}
+	pr_err("mask = %d \n",mask);
+	pr_err("val = %d \n",val);
+
 	snd_soc_dapm_mutex_unlock(dapm);
 
 	return 0;
