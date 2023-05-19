@@ -1298,6 +1298,7 @@ void folio_add_new_anon_rmap(struct folio *folio, struct vm_area_struct *vma,
 
 	__lruvec_stat_mod_folio(folio, NR_ANON_MAPPED, nr);
 	__page_set_anon_rmap(folio, &folio->page, vma, address, 1);
+	trace_android_vh_page_add_new_anon_rmap(&folio->page, vma, address);
 }
 
 /**
