@@ -51,22 +51,22 @@ static DEFINE_PER_CPU(local_lock_t, memcache_lock) =
 
 extern struct kvm_iommu_ops kvm_nvhe_sym(smmu_ops);
 
-static void *kvm_arm_smmu_alloc_page(void *opaque)
+static void *kvm_arm_smmu_alloc_page(void *opaque, unsigned long order)
 {
 	struct arm_smmu_device *smmu = opaque;
 	struct page *p;
 
 	/* No __GFP_ZERO because KVM zeroes the page */
-	p = alloc_pages_node(dev_to_node(smmu->dev), GFP_ATOMIC, 0);
+	p = alloc_pages_node(dev_to_node(smmu->dev), GFP_ATOMIC, order);
 	if (!p)
 		return NULL;
 
 	return page_address(p);
 }
 
-static void kvm_arm_smmu_free_page(void *va, void *opaque)
+static void kvm_arm_smmu_free_page(void *va, void *opaque, unsigned long order)
 {
-	free_page((unsigned long)va);
+	free_pages((unsigned long)va, order);
 }
 
 static phys_addr_t kvm_arm_smmu_host_pa(void *va)
@@ -90,7 +90,7 @@ static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu, int ret)
 	if (kvm_arm_smmu_memcache[cpu].needs_page) {
 		kvm_arm_smmu_memcache[cpu].needs_page = false;
 		return  __topup_hyp_memcache(mc, 1, kvm_arm_smmu_alloc_page,
-					     kvm_arm_smmu_host_pa, smmu);
+					     kvm_arm_smmu_host_pa, smmu, 0);
 	} else if (ret == -ENOMEM) {
 		return __pkvm_topup_hyp_alloc(1);
 	}

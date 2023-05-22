@@ -31,6 +31,7 @@ void *kvm_iommu_donate_page(void)
 	void *p;
 	int cpu = hyp_smp_processor_id();
 	struct kvm_hyp_memcache tmp = kvm_hyp_iommu_memcaches[cpu].pages;
+	unsigned long order;
 
 	if (!tmp.nr_pages) {
 		kvm_hyp_iommu_memcaches[cpu].needs_page = true;
@@ -40,7 +41,7 @@ void *kvm_iommu_donate_page(void)
 	if (__pkvm_host_donate_hyp(hyp_phys_to_pfn(tmp.head), 1))
 		return NULL;
 
-	p = pop_hyp_memcache(&tmp, hyp_phys_to_virt);
+	p = pop_hyp_memcache(&tmp, hyp_phys_to_virt, &order);
 	if (!p)
 		return NULL;
 
@@ -54,7 +55,7 @@ void kvm_iommu_reclaim_page(void *p)
 	int cpu = hyp_smp_processor_id();
 
 	memset(p, 0, PAGE_SIZE);
-	push_hyp_memcache(&kvm_hyp_iommu_memcaches[cpu].pages, p, hyp_virt_to_phys);
+	push_hyp_memcache(&kvm_hyp_iommu_memcaches[cpu].pages, p, hyp_virt_to_phys, 0);
 	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1));
 }
 

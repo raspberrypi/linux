@@ -1156,7 +1156,7 @@ void kvm_free_stage2_pgd(struct kvm_s2_mmu *mmu)
 	}
 }
 
-static void hyp_mc_free_fn(void *addr, void *flags)
+static void hyp_mc_free_fn(void *addr, void *flags, unsigned long order)
 {
 	if (!addr)
 		return;
@@ -1164,10 +1164,10 @@ static void hyp_mc_free_fn(void *addr, void *flags)
 	if ((unsigned long)flags & HYP_MEMCACHE_ACCOUNT_STAGE2)
 		kvm_account_pgtable_pages(addr, -1);
 
-	free_page((unsigned long)addr);
+	free_pages((unsigned long)addr, order);
 }
 
-static void *hyp_mc_alloc_fn(void *flags)
+static void *hyp_mc_alloc_fn(void *flags, unsigned long order)
 {
 	unsigned long __flags = (unsigned long)flags;
 	gfp_t gfp_mask;
@@ -1176,7 +1176,7 @@ static void *hyp_mc_alloc_fn(void *flags)
 	gfp_mask = __flags & HYP_MEMCACHE_ACCOUNT_KMEMCG ?
 		   GFP_KERNEL_ACCOUNT : GFP_KERNEL;
 
-	addr = (void *)__get_free_page(gfp_mask);
+	addr = (void *)__get_free_pages(gfp_mask, order);
 
 	if (addr && __flags & HYP_MEMCACHE_ACCOUNT_STAGE2)
 		kvm_account_pgtable_pages(addr, 1);
@@ -1193,15 +1193,19 @@ void free_hyp_memcache(struct kvm_hyp_memcache *mc)
 				    kvm_host_va, (void *)flags);
 }
 
-int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages)
+int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
+		       unsigned long order)
 {
 	unsigned long flags = mc->flags;
 
 	if (!is_protected_kvm_enabled())
 		return 0;
 
+	if (order > PAGE_SHIFT)
+		return -E2BIG;
+
 	return __topup_hyp_memcache(mc, min_pages, hyp_mc_alloc_fn,
-				    kvm_host_pa, (void *)flags);
+				    kvm_host_pa, (void *)flags, order);
 }
 
 /**
@@ -1670,7 +1674,7 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	u64 pfn;
 
 	nr_pages = hyp_memcache->nr_pages;
-	ret = topup_hyp_memcache(hyp_memcache, kvm_mmu_cache_min_pages(kvm));
+	ret = topup_hyp_memcache(hyp_memcache, kvm_mmu_cache_min_pages(kvm), 0);
 	if (ret)
 		return -ENOMEM;
 
