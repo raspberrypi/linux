@@ -463,6 +463,9 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 	    (phydev->dev_flags & PHY_BRCM_CLEAR_RGMII_MODE))
 		bcm_phy_write_shadow(phydev, BCM54XX_SHD_RGMII_MODE, 0);
 
+	if (of_property_read_bool(np, "brcm,powerdown-enable"))
+		phydev->dev_flags |= PHY_BRCM_AUTO_PWRDWN_ENABLE;
+
 	bcm54xx_adjust_rxrefclk(phydev);
 
 	switch (BRCM_PHY_MODEL(phydev)) {
