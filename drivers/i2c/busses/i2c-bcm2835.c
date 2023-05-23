@@ -443,6 +443,7 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 {
 	struct bcm2835_i2c_dev *i2c_dev = i2c_get_adapdata(adap);
 	unsigned long time_left;
+	bool ignore_nak = false;
 	int i;
 
 	if (debug)
@@ -452,12 +453,15 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		for (i = 0; i < num; i++)
 			bcm2835_debug_print_msg(i2c_dev, &msgs[i], i + 1, num, __func__);
 
-	for (i = 0; i < (num - 1); i++)
+	for (i = 0; i < (num - 1); i++) {
 		if (msgs[i].flags & I2C_M_RD) {
 			dev_warn_once(i2c_dev->dev,
 				      "only one read message supported, has to be last\n");
 			return -EOPNOTSUPP;
 		}
+		if (msgs[i].flags & I2C_M_IGNORE_NAK)
+			ignore_nak = true;
+	}
 
 	i2c_dev->curr_msg = msgs;
 	i2c_dev->num_msgs = num;
@@ -470,6 +474,9 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 						adap->timeout);
 
 	bcm2835_i2c_finish_transfer(i2c_dev);
+
+	if (ignore_nak)
+		i2c_dev->msg_err &= ~BCM2835_I2C_S_ERR;
 
 	if (debug > 1 || (debug && (!time_left || i2c_dev->msg_err)))
 		bcm2835_debug_print(i2c_dev);
@@ -496,7 +503,7 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 static u32 bcm2835_i2c_func(struct i2c_adapter *adap)
 {
-	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
+	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL | I2C_FUNC_PROTOCOL_MANGLING;
 }
 
 static const struct i2c_algorithm bcm2835_i2c_algo = {
