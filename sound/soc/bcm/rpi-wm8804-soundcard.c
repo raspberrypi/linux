@@ -39,20 +39,8 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/kdev_t.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
-#include <linux/device.h>
-#include<linux/slab.h>                 //kmalloc()
-#include<linux/uaccess.h>              //copy_to/from_user()
-#include <linux/ioctl.h>
-#include<linux/proc_fs.h>
 #include <linux/err.h>
 #include "../codecs/wm8804.h"
-#include<sound/control.h>
 
 struct wm8804_clk_cfg {
 	unsigned int sysclk_freq;
@@ -80,6 +68,8 @@ static int wm8804_samplerate = 0;
 static struct gpio_desc *led_gpio_1;
 static struct gpio_desc *led_gpio_2;
 static struct gpio_desc *led_gpio_3;
+int interludeaudio_flag = 0;
+int create_control_flag = 0;
 
 /* Forward declarations */
 static struct snd_soc_dai_link snd_allo_digione_dai[];
@@ -89,6 +79,41 @@ static struct snd_soc_card snd_rpi_wm8804;
 
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
+
+
+static const char * const wm8805_input_select_text[] = {
+
+	"Rx 0",
+	"Rx 1"
+};
+
+static const unsigned int wm8805_input_channel_select_value[] = {
+	0 , 1
+};
+
+static const struct soc_enum wm8805_input_channel_sel[] = {
+
+	SOC_VALUE_ENUM_SINGLE(WM8804_PLL6,0,0x1f,ARRAY_SIZE(wm8805_input_select_text),wm8805_input_select_text,wm8805_input_channel_select_value ),
+
+}; 
+
+static const struct snd_kcontrol_new wm8805_input_controls_card[]={
+	SOC_ENUM("Select Input Channel",wm8805_input_channel_sel[0]),
+};
+
+static int wm8805_add_input_controls(struct snd_soc_component *component)
+{	
+	if(create_control_flag == 0){
+
+	
+	snd_soc_add_component_controls(component,wm8805_input_controls_card,ARRAY_SIZE(wm8805_input_controls_card));
+	create_control_flag = 1;
+	pr_err("adding new controls");
+	return 0;
+	}
+	else 
+	return 0;
+}
 
 static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 {
@@ -121,6 +146,7 @@ static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		clk_cfg->mclk_freq = samplerate * 128;
 		clk_cfg->mclk_div = WM8804_MCLKDIV_128FS;
 	}
+	pr_err("MCLK_DIV Function");
 
 	if (!(IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio)))
 		clk_cfg->sysclk_freq = snd_rpi_wm8804_enable_clock(samplerate);
@@ -134,7 +160,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_component *component = asoc_rtd_to_codec(rtd, 0)->component;
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 	int sampling_freq = 1;
-	int ret;
+	int ret,ret_1;
 	struct wm8804_clk_cfg clk_cfg;
 	int samplerate = params_rate(params);
 
@@ -203,6 +229,12 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 			clk_cfg.sysclk_freq, SND_SOC_CLOCK_OUT);
+	if(interludeaudio_flag == 1)
+	{
+	ret_1 = wm8805_add_input_controls(component);
+	if (ret_1 != 0)
+		pr_err("failed to add input controls");
+	}
 	if (ret < 0) {
 		dev_err(rtd->card->dev,
 		"Failed to set WM8804 SYSCLK: %d\n", ret);
@@ -340,17 +372,15 @@ static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
 
 static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 {
-	
-	
-	
 	pr_debug("%s\n", __func__);
 
 	if (IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio))
 		return 0;
 
+
 	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
 	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
-	
+	interludeaudio_flag = 1;
 	
 	
 	
