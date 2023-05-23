@@ -68,8 +68,6 @@ static int wm8804_samplerate = 0;
 static struct gpio_desc *led_gpio_1;
 static struct gpio_desc *led_gpio_2;
 static struct gpio_desc *led_gpio_3;
-int interludeaudio_flag = 0;
-int create_control_flag = 0;
 
 /* Forward declarations */
 static struct snd_soc_dai_link snd_allo_digione_dai[];
@@ -84,16 +82,22 @@ static struct snd_soc_card snd_rpi_wm8804;
 static const char * const wm8805_input_select_text[] = {
 
 	"Rx 0",
-	"Rx 1"
+	"Rx 1",
+	"Rx 2",
+	"Rx 3",
+	"Rx 4",
+	"Rx 5",
+	"Rx 6",
+	"Rx 7"
 };
 
 static const unsigned int wm8805_input_channel_select_value[] = {
-	0 , 1
+	0 , 1 , 2 , 3 , 4 , 5 , 6 , 7
 };
 
 static const struct soc_enum wm8805_input_channel_sel[] = {
 
-	SOC_VALUE_ENUM_SINGLE(WM8804_PLL6,0,0x1f,ARRAY_SIZE(wm8805_input_select_text),wm8805_input_select_text,wm8805_input_channel_select_value ),
+	SOC_VALUE_ENUM_SINGLE(WM8804_PLL6,0,7,ARRAY_SIZE(wm8805_input_select_text),wm8805_input_select_text,wm8805_input_channel_select_value ),
 
 }; 
 
@@ -103,18 +107,11 @@ static const struct snd_kcontrol_new wm8805_input_controls_card[]={
 
 static int wm8805_add_input_controls(struct snd_soc_component *component)
 {	
-	if(create_control_flag == 0){
-
-	
 	snd_soc_add_component_controls(component,wm8805_input_controls_card,ARRAY_SIZE(wm8805_input_controls_card));
-	create_control_flag = 1;
 	pr_err("adding new controls");
 	return 0;
-	}
-	else 
-	return 0;
+	
 }
-
 static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 {
 	switch (samplerate) {
@@ -160,7 +157,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_component *component = asoc_rtd_to_codec(rtd, 0)->component;
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 	int sampling_freq = 1;
-	int ret,ret_1;
+	int ret;
 	struct wm8804_clk_cfg clk_cfg;
 	int samplerate = params_rate(params);
 
@@ -229,12 +226,6 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 			clk_cfg.sysclk_freq, SND_SOC_CLOCK_OUT);
-	if(interludeaudio_flag == 1)
-	{
-	ret_1 = wm8805_add_input_controls(component);
-	if (ret_1 != 0)
-		pr_err("failed to add input controls");
-	}
 	if (ret < 0) {
 		dev_err(rtd->card->dev,
 		"Failed to set WM8804 SYSCLK: %d\n", ret);
@@ -362,13 +353,27 @@ SND_SOC_DAILINK_DEFS(interlude_audio_digital,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
+static int snd_interlude_audio_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_component *component = asoc_rtd_to_codec(rtd, 0)->component;
+	int ret;
+	ret = wm8805_add_input_controls(component);
+	if (ret != 0)
+		pr_err("failed to add input controls");
+	
+	return 0;
+}
+
+
 static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
 {
 	.name        = "Interlude Audio Digital",
 	.stream_name = "Interlude Audio Digital HiFi",
+	.init        = snd_interlude_audio_init,
 	SND_SOC_DAILINK_REG(interlude_audio_digital),
 },
 };
+
 
 static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 {
@@ -380,7 +385,6 @@ static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 
 	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
 	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
-	interludeaudio_flag = 1;
 	
 	
 	
