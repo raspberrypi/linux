@@ -385,7 +385,7 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 	bcm2835_debug_add(i2c_dev, val);
 
 	err = val & (BCM2835_I2C_S_CLKT | BCM2835_I2C_S_ERR);
-	if (err)
+	if (err && !(val & BCM2835_I2C_S_TA))
 		i2c_dev->msg_err = err;
 
 	if (val & BCM2835_I2C_S_DONE) {
