@@ -385,10 +385,8 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 	bcm2835_debug_add(i2c_dev, val);
 
 	err = val & (BCM2835_I2C_S_CLKT | BCM2835_I2C_S_ERR);
-	if (err) {
+	if (err)
 		i2c_dev->msg_err = err;
-		goto complete;
-	}
 
 	if (val & BCM2835_I2C_S_DONE) {
 		if (!i2c_dev->curr_msg) {
@@ -400,8 +398,6 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 
 		if ((val & BCM2835_I2C_S_RXD) || i2c_dev->msg_buf_remaining)
 			i2c_dev->msg_err = BCM2835_I2C_S_LEN;
-		else
-			i2c_dev->msg_err = 0;
 		goto complete;
 	}
 
@@ -465,6 +461,7 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 	i2c_dev->curr_msg = msgs;
 	i2c_dev->num_msgs = num;
+	i2c_dev->msg_err = 0;
 	reinit_completion(&i2c_dev->completion);
 
 	bcm2835_i2c_start_transfer(i2c_dev);
