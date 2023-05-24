@@ -116,12 +116,6 @@ EXPORT_SYMBOL_GPL(__fsverity_verify_signature);
 #ifdef CONFIG_SYSCTL
 static struct ctl_table_header *fsverity_sysctl_header;
 
-static const struct ctl_path fsverity_sysctl_path[] = {
-	{ .procname = "fs", },
-	{ .procname = "verity", },
-	{ }
-};
-
 static struct ctl_table fsverity_sysctl_table[] = {
 	{
 		.procname       = "require_signatures",
@@ -137,8 +131,7 @@ static struct ctl_table fsverity_sysctl_table[] = {
 
 static int __init fsverity_sysctl_init(void)
 {
-	fsverity_sysctl_header = register_sysctl_paths(fsverity_sysctl_path,
-						       fsverity_sysctl_table);
+	fsverity_sysctl_header = register_sysctl("fs/verity", fsverity_sysctl_table);
 	if (!fsverity_sysctl_header) {
 		pr_err("sysctl registration failed!\n");
 		return -ENOMEM;
