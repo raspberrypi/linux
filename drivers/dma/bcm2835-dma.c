@@ -245,6 +245,7 @@ struct bcm2835_desc {
 #define BCM2711_DMA40_ERR		BIT(10)
 #define BCM2711_DMA40_QOS(x)		(((x) & 0x1f) << 16)
 #define BCM2711_DMA40_PANIC_QOS(x)	(((x) & 0x1f) << 20)
+#define BCM2711_DMA40_TRANSACTIONS	BIT(25)
 #define BCM2711_DMA40_WAIT_FOR_WRITES	BIT(28)
 #define BCM2711_DMA40_DISDEBUG		BIT(29)
 #define BCM2711_DMA40_ABORT		BIT(30)
@@ -663,30 +664,37 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 static void bcm2835_dma_abort(struct bcm2835_chan *c)
 {
 	void __iomem *chan_base = c->chan_base;
-	long int timeout = 10000;
-
-	/*
-	 * A zero control block address means the channel is idle.
-	 * (The ACTIVE flag in the CS register is not a reliable indicator.)
-	 */
-	if (!readl(chan_base + BCM2835_DMA_ADDR))
-		return;
+	long timeout = 100;
 
 	if (c->is_40bit_channel) {
-		/* Halt the current DMA */
-		writel(readl(chan_base + BCM2711_DMA40_CS) | BCM2711_DMA40_HALT,
+		/*
+		 * A zero control block address means the channel is idle.
+		 * (The ACTIVE flag in the CS register is not a reliable indicator.)
+		 */
+		if (!readl(chan_base + BCM2711_DMA40_CB))
+			return;
+
+		/* Pause the current DMA */
+		writel(readl(chan_base + BCM2711_DMA40_CS) & ~BCM2711_DMA40_ACTIVE,
 			     chan_base + BCM2711_DMA40_CS);
 
-		while ((readl(chan_base + BCM2711_DMA40_CS) & BCM2711_DMA40_HALT) && --timeout)
+		/* wait for outstanding transactions to complete */
+		while ((readl(chan_base + BCM2711_DMA40_CS) & BCM2711_DMA40_TRANSACTIONS) &&
+			--timeout)
 			cpu_relax();
 
-		/* Peripheral might be stuck and fail to halt */
+		/* Peripheral might be stuck and fail to complete */
 		if (!timeout)
 			dev_err(c->vc.chan.device->dev,
-				"failed to halt dma\n");
+				"failed to complete pause on dma %d (CS:%08x)\n", c->ch,
+				readl(chan_base + BCM2711_DMA40_CS));
 
+		/* Set CS back to default state */
 		writel(BCM2711_DMA40_PROT, chan_base + BCM2711_DMA40_CS);
-		writel(0, chan_base + BCM2711_DMA40_CB);
+
+		/* Reset the DMA */
+		writel(readl(chan_base + BCM2711_DMA40_DEBUG) | BCM2711_DMA40_DEBUG_RESET,
+		       chan_base + BCM2711_DMA40_DEBUG);
 	} else {
 		/*
 		 * A zero control block address means the channel is idle.
@@ -695,36 +703,34 @@ static void bcm2835_dma_abort(struct bcm2835_chan *c)
 		if (!readl(chan_base + BCM2835_DMA_ADDR))
 			return;
 
-		/* Write 0 to the active bit - Pause the DMA */
-		writel(readl(chan_base + BCM2835_DMA_CS) & ~BCM2835_DMA_ACTIVE,
-		       chan_base + BCM2835_DMA_CS);
-
-		/* wait for DMA to be paused */
-		while ((readl(chan_base + BCM2835_DMA_CS) & BCM2835_DMA_WAITING_FOR_WRITES)
-		       && --timeout)
-			cpu_relax();
-
-		/* Peripheral might be stuck and fail to signal AXI write responses */
-		if (!timeout)
-			dev_err(c->vc.chan.device->dev,
-				"failed to pause dma\n");
-
 		/* We need to clear the next DMA block pending */
 		writel(0, chan_base + BCM2835_DMA_NEXTCB);
 
 		/* Abort the DMA, which needs to be enabled to complete */
 		writel(readl(chan_base + BCM2835_DMA_CS) | BCM2835_DMA_ABORT | BCM2835_DMA_ACTIVE,
-		chan_base + BCM2835_DMA_CS);
+		      chan_base + BCM2835_DMA_CS);
 
-		/* wait for DMA to have been aborted */
-		timeout = 10000;
+		/* wait for DMA to be aborted */
 		while ((readl(chan_base + BCM2835_DMA_CS) & BCM2835_DMA_ABORT) && --timeout)
 			cpu_relax();
 
-		/* Peripheral might be stuck and fail to signal AXI write responses */
-		if (!timeout)
+		/* Write 0 to the active bit - Pause the DMA */
+		writel(readl(chan_base + BCM2835_DMA_CS) & ~BCM2835_DMA_ACTIVE,
+		       chan_base + BCM2835_DMA_CS);
+
+		/*
+		 * Peripheral might be stuck and fail to complete
+		 * This is expected when dreqs are enabled but not asserted
+		 * so only report error in non dreq case
+		 */
+		if (!timeout && !(readl(chan_base + BCM2835_DMA_TI) &
+		   (BCM2835_DMA_S_DREQ | BCM2835_DMA_D_DREQ)))
 			dev_err(c->vc.chan.device->dev,
-				"failed to abort dma\n");
+				"failed to complete pause on dma %d (CS:%08x)\n", c->ch,
+				readl(chan_base + BCM2835_DMA_CS));
+
+		/* Set CS back to default state and reset the DMA */
+		writel(BCM2835_DMA_RESET, chan_base + BCM2835_DMA_CS);
 	}
 }
 
