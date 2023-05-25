@@ -725,8 +725,8 @@ void mlx5_esw_set_spec_source_port(struct mlx5_eswitch *esw,
 				   u16 vport,
 				   struct mlx5_flow_spec *spec);
 
-int esw_offloads_load_rep(struct mlx5_eswitch *esw, u16 vport_num);
-void esw_offloads_unload_rep(struct mlx5_eswitch *esw, u16 vport_num);
+int mlx5_esw_offloads_load_rep(struct mlx5_eswitch *esw, u16 vport_num);
+void mlx5_esw_offloads_unload_rep(struct mlx5_eswitch *esw, u16 vport_num);
 
 int mlx5_esw_offloads_rep_load(struct mlx5_eswitch *esw, u16 vport_num);
 void mlx5_esw_offloads_rep_unload(struct mlx5_eswitch *esw, u16 vport_num);
