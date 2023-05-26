@@ -571,8 +571,16 @@ static int st7701_prepare(struct drm_panel *panel)
 		st7701->desc->gip_sequence(st7701);
 
 	/* Disable Command2 */
-	ST7701_DSI(st7701, DSI_CMD2BKX_SEL,
-		   0x77, 0x01, 0x00, 0x00, DSI_CMD2BKX_SEL_NONE);
+	switch (st7701->desc->interface) {
+	case ST7701_CTRL_DSI:
+		ST7701_DSI(st7701, DSI_CMD2BKX_SEL,
+			   0x77, 0x01, 0x00, 0x00, DSI_CMD2BKX_SEL_NONE);
+		break;
+	case ST7701_CTRL_SPI:
+		ST7701_SPI(st7701, DSI_CMD2BKX_SEL,
+			   0x177, 0x101, 0x100, 0x100, SPI_CMD2BKX_SEL_NONE);
+		break;
+	}
 
 	return 0;
 }
