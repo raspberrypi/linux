@@ -20,7 +20,7 @@ use no_lockdep as lockdep;
 pub use arc::{Arc, ArcBorrow, UniqueArc};
 pub use condvar::CondVar;
 pub use lock::{mutex::Mutex, spinlock::SpinLock};
-pub use lockdep::LockClassKey;
+pub use lockdep::{LockClassKey, StaticLockClassKey};
 pub use locked_by::LockedBy;
 
 /// Defines a new static lock class and returns a pointer to it.
@@ -28,8 +28,8 @@ pub use locked_by::LockedBy;
 #[macro_export]
 macro_rules! static_lock_class {
     () => {{
-        static CLASS: $crate::sync::LockClassKey = $crate::sync::LockClassKey::new();
-        &CLASS
+        static CLASS: $crate::sync::StaticLockClassKey = $crate::sync::StaticLockClassKey::new();
+        CLASS.key()
     }};
 }
 

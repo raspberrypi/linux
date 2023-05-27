@@ -103,7 +103,7 @@ unsafe impl<T: ?Sized + Send, B: Backend> Sync for Lock<T, B> {}
 impl<T, B: Backend> Lock<T, B> {
     /// Constructs a new lock initialiser.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(t: T, name: &'static CStr, key: &'static LockClassKey) -> impl PinInit<Self> {
+    pub fn new(t: T, name: &'static CStr, key: LockClassKey) -> impl PinInit<Self> {
         pin_init!(Self {
             data: UnsafeCell::new(t),
             _pin: PhantomPinned,
@@ -119,7 +119,7 @@ impl<T, B: Backend> Lock<T, B> {
     pub fn pin_init<E>(
         t: impl PinInit<T, E>,
         name: &'static CStr,
-        key: &'static LockClassKey,
+        key: LockClassKey,
     ) -> impl PinInit<Self, E>
     where
         E: core::convert::From<core::convert::Infallible>,
