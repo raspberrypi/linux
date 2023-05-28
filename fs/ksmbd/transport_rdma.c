@@ -75,7 +75,7 @@ static int smb_direct_max_fragmented_recv_size = 1024 * 1024;
 /*  The maximum single-message size which can be received */
 static int smb_direct_max_receive_size = 8192;
 
-static int smb_direct_max_read_write_size = 1024 * 1024;
+static int smb_direct_max_read_write_size = SMBD_DEFAULT_IOSIZE;
 
 static int smb_direct_max_outstanding_rw_ops = 8;
 
@@ -200,6 +200,12 @@ struct smb_direct_rdma_rw_msg {
 	struct sg_table		sgt;
 	struct scatterlist	sg_list[0];
 };
+
+void init_smbd_max_io_size(unsigned int sz)
+{
+	sz = clamp_val(sz, SMBD_MIN_IOSIZE, SMBD_MAX_IOSIZE);
+	smb_direct_max_read_write_size = sz;
+}
 
 static inline int get_buf_page_count(void *buf, int size)
 {

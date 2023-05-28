@@ -40,7 +40,9 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	cap1106.dtbo \
 	chipdip-dac.dtbo \
 	cirrus-wm5102.dtbo \
+	cm-swap-i2c0.dtbo \
 	cma.dtbo \
+	crystalfontz-cfa050_pi_m.dtbo \
 	cutiepi-panel.dtbo \
 	dacberry400.dtbo \
 	dht11.dtbo \
@@ -48,6 +50,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
 	disable-bt.dtbo \
+	disable-emmc2.dtbo \
 	disable-wifi.dtbo \
 	dpi18.dtbo \
 	dpi18cpadhi.dtbo \
@@ -120,6 +123,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx462.dtbo \
 	imx477.dtbo \
 	imx519.dtbo \
+	imx708.dtbo \
 	iqaudio-codec.dtbo \
 	iqaudio-dac.dtbo \
 	iqaudio-dacplus.dtbo \
@@ -184,6 +188,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
 	pwm-ir-tx.dtbo \
+	pwm1.dtbo \
 	qca7000.dtbo \
 	qca7000-uart0.dtbo \
 	ramoops.dtbo \

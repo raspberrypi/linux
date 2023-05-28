@@ -117,8 +117,10 @@ static const char * const components[] = {
 
 #define MIN_W		32
 #define MIN_H		32
-#define MAX_W		1920
-#define MAX_H		1920
+#define MAX_W_CODEC	1920
+#define MAX_H_CODEC	1920
+#define MAX_W_ISP	16384
+#define MAX_H_ISP	16384
 #define BPL_ALIGN	32
 /*
  * The decoder spec supports the V4L2_EVENT_SOURCE_CHANGE event, but the docs
@@ -683,6 +685,13 @@ struct bcm2835_codec_dev {
 	enum bcm2835_codec_role	role;
 	/* The list of formats supported on input and output queues. */
 	struct bcm2835_codec_fmt_list	supported_fmts[2];
+
+	/*
+	 * Max size supported varies based on role. Store during
+	 * bcm2835_codec_create for use later.
+	 */
+	unsigned int max_w;
+	unsigned int max_h;
 
 	struct vchiq_mmal_instance	*instance;
 
@@ -1469,10 +1478,10 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	 * The V4L2 specification requires the driver to correct the format
 	 * struct if any of the dimensions is unsupported
 	 */
-	if (f->fmt.pix_mp.width > MAX_W)
-		f->fmt.pix_mp.width = MAX_W;
-	if (f->fmt.pix_mp.height > MAX_H)
-		f->fmt.pix_mp.height = MAX_H;
+	if (f->fmt.pix_mp.width > ctx->dev->max_w)
+		f->fmt.pix_mp.width = ctx->dev->max_w;
+	if (f->fmt.pix_mp.height > ctx->dev->max_h)
+		f->fmt.pix_mp.height = ctx->dev->max_h;
 
 	if (!(fmt->flags & V4L2_FMT_FLAG_COMPRESSED)) {
 		/* Only clip min w/h on capture. Treat 0x0 as unknown. */
@@ -1846,7 +1855,6 @@ static int vidioc_g_selection(struct file *file, void *priv,
 		}
 		break;
 	case ISP:
-		break;
 	case DEINTERLACE:
 		if (s->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			switch (s->target) {
@@ -1970,7 +1978,6 @@ static int vidioc_s_selection(struct file *file, void *priv,
 		}
 		break;
 	case ISP:
-		break;
 	case DEINTERLACE:
 		if (s->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			switch (s->target) {
@@ -2526,6 +2533,7 @@ static int vidioc_encoder_cmd(struct file *file, void *priv,
 static int vidioc_enum_framesizes(struct file *file, void *fh,
 				  struct v4l2_frmsizeenum *fsize)
 {
+	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 	struct bcm2835_codec_fmt *fmt;
 
 	fmt = find_format_pix_fmt(fsize->pixel_format, file2ctx(file)->dev,
@@ -2544,10 +2552,10 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,
 	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 
 	fsize->stepwise.min_width = MIN_W;
-	fsize->stepwise.max_width = MAX_W;
+	fsize->stepwise.max_width = ctx->dev->max_w;
 	fsize->stepwise.step_width = 2;
 	fsize->stepwise.min_height = MIN_H;
-	fsize->stepwise.max_height = MAX_H;
+	fsize->stepwise.max_height = ctx->dev->max_h;
 	fsize->stepwise.step_height = 2;
 
 	return 0;
@@ -3185,6 +3193,89 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 	return vb2_queue_init(dst_vq);
 }
 
+static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
+				  struct v4l2_ctrl_handler *const hdl)
+{
+	unsigned int i;
+	const struct bcm2835_codec_fmt_list *const list = &dev->supported_fmts[0];
+
+	for (i = 0; i < list->num_entries; ++i) {
+		switch (list->list[i].fourcc) {
+		case V4L2_PIX_FMT_H264:
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_H264_LEVEL,
+					       V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
+					       ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_2) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_3) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_0) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_1) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_2) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_0) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_1) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
+						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
+					       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+					       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
+					       ~(BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
+						V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
+			break;
+		case V4L2_PIX_FMT_MPEG2:
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL,
+					       V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH,
+					       ~(BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH)),
+					       V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN);
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE,
+					       V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
+					       ~(BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN)),
+					       V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN);
+			break;
+		case V4L2_PIX_FMT_MPEG4:
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
+					       V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
+					       ~(BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0B) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_1) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_2) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3B) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_4) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_5)),
+					       V4L2_MPEG_VIDEO_MPEG4_LEVEL_4);
+			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+					       V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
+					       V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE,
+					       ~(BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
+						 BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)),
+					       V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE);
+			break;
+		/* No profiles defined by V4L2 */
+		case V4L2_PIX_FMT_H263:
+		case V4L2_PIX_FMT_JPEG:
+		case V4L2_PIX_FMT_MJPEG:
+		case V4L2_PIX_FMT_VC1_ANNEX_G:
+		default:
+			break;
+		}
+	}
+}
+
 /*
  * File operations
  */
@@ -3324,11 +3415,12 @@ static int bcm2835_codec_open(struct file *file)
 	break;
 	case DECODE:
 	{
-		v4l2_ctrl_handler_init(hdl, 1);
+		v4l2_ctrl_handler_init(hdl, 1 + dev->supported_fmts[0].num_entries * 2);
 
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_MIN_BUFFERS_FOR_CAPTURE,
 				  1, 1, 1, 1);
+		dec_add_profile_ctrls(dev, hdl);
 		if (hdl->error) {
 			rc = hdl->error;
 			goto free_ctrl_handler;
@@ -3621,6 +3713,9 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 	if (ret)
 		goto vchiq_finalise;
 
+	dev->max_w = MAX_W_CODEC;
+	dev->max_h = MAX_H_CODEC;
+
 	switch (role) {
 	case DECODE:
 		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
@@ -3643,6 +3738,8 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 		v4l2_disable_ioctl(vfd, VIDIOC_G_PARM);
 		function = MEDIA_ENT_F_PROC_VIDEO_SCALER;
 		video_nr = isp_video_nr;
+		dev->max_w = MAX_W_ISP;
+		dev->max_h = MAX_H_ISP;
 		break;
 	case DEINTERLACE:
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);

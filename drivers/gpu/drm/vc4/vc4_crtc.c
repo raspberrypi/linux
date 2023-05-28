@@ -720,7 +720,7 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 
 		mode = &crtc_state->adjusted_mode;
 		if (vc4_encoder->type == VC4_ENCODER_TYPE_HDMI0) {
-			vc4_state->hvs_load = max(mode->clock * mode->hdisplay / mode->htotal + 1000,
+			vc4_state->hvs_load = max(mode->clock * mode->hdisplay / mode->htotal + 8000,
 						  mode->clock * 9 / 10) * 1000;
 		} else {
 			vc4_state->hvs_load = mode->clock * 1000;
@@ -1052,14 +1052,8 @@ void vc4_crtc_destroy_state(struct drm_crtc *crtc,
 	struct vc4_dev *vc4 = to_vc4_dev(crtc->dev);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
 
-	if (drm_mm_node_allocated(&vc4_state->mm)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&vc4->hvs->mm_lock, flags);
-		drm_mm_remove_node(&vc4_state->mm);
-		spin_unlock_irqrestore(&vc4->hvs->mm_lock, flags);
-
-	}
+	vc4_hvs_mark_dlist_entry_stale(vc4->hvs, vc4_state->mm);
+	vc4_state->mm = NULL;
 
 	drm_atomic_helper_crtc_destroy_state(crtc, state);
 }

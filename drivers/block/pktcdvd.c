@@ -2407,6 +2407,8 @@ static blk_qc_t pkt_submit_bio(struct bio *bio)
 	struct bio *split;
 
 	blk_queue_split(&bio);
+	if (!bio)
+		return BLK_QC_T_NONE;
 
 	pd = bio->bi_bdev->bd_disk->queue->queuedata;
 	if (!pd) {

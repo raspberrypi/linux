@@ -144,15 +144,21 @@ Params:
                                 See /sys/kernel/debug/raspberrypi_axi_monitor
                                 for the results.
 
-        cam0_reg                Enables CAM 0 regulator. CM1 & 3 only.
+        cam0_reg                Enables CAM 0 regulator.
+                                Only required on CM1 & 3.
 
-        cam0_reg_gpio           Set GPIO for CAM 0 regulator. Default 30.
-                                CM1 & 3 only.
+        cam0_reg_gpio           Set GPIO for CAM 0 regulator.
+                                Default 31 on CM1, 3, and 4S.
+                                Default of GPIO expander 5 on CM4, but override
+                                switches to normal GPIO.
 
-        cam1_reg                Enables CAM 1 regulator. CM1 & 3 only.
+        cam1_reg                Enables CAM 1 regulator.
+                                Only required on CM1 & 3.
 
-        cam1_reg_gpio           Set GPIO for CAM 1 regulator. Default 2.
-                                CM1 & 3 only.
+        cam1_reg_gpio           Set GPIO for CAM 1 regulator.
+                                Default 3 on CM1, 3, and 4S.
+                                Default of GPIO expander 5 on CM4, but override
+                                switches to normal GPIO.
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
@@ -680,10 +686,13 @@ Info:   Switches PWM sound output to GPIOs on the 40-pin header
 Load:   dtoverlay=audremap,<param>=<val>
 Params: swap_lr                 Reverse the channel allocation, which will also
                                 swap the audio jack outputs (default off)
-        enable_jack             Don't switch off the audio jack output
-                                (default off)
+        enable_jack             Don't switch off the audio jack output. Does
+                                nothing on BCM2711 (default off)
         pins_12_13              Select GPIOs 12 & 13 (default)
         pins_18_19              Select GPIOs 18 & 19
+        pins_40_41              Select GPIOs 40 & 41
+        pins_40_45              Select GPIOs 40 & 45 (don't use on BCM2711 - the
+                                pins are on different controllers)
 
 
 Name:   balena-fin
@@ -707,6 +716,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
+        cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
@@ -716,6 +726,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
         cam1-imx477             Select IMX477 for camera on port 1
+        cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
         cam1-ov7251             Select OV7251 for camera on port 1
@@ -732,6 +743,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam0-imx258             Select IMX258 for camera on port 0
         cam0-imx290             Select IMX290 for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
+        cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
@@ -741,6 +753,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam1-imx258             Select IMX258 for camera on port 1
         cam1-imx290             Select IMX290 for camera on port 1
         cam1-imx477             Select IMX477 for camera on port 1
+        cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
         cam1-ov7251             Select OV7251 for camera on port 1
@@ -750,6 +763,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam2-imx258             Select IMX258 for camera on port 2
         cam2-imx290             Select IMX290 for camera on port 2
         cam2-imx477             Select IMX477 for camera on port 2
+        cam2-imx708             Select IMX708 for camera on port 2
         cam2-ov2311             Select OV2311 for camera on port 2
         cam2-ov5647             Select OV5647 for camera on port 2
         cam2-ov7251             Select OV7251 for camera on port 2
@@ -759,6 +773,7 @@ Params: cam0-imx219             Select IMX219 for camera on port 0
         cam3-imx258             Select IMX258 for camera on port 3
         cam3-imx290             Select IMX290 for camera on port 3
         cam3-imx477             Select IMX477 for camera on port 3
+        cam3-imx708             Select IMX708 for camera on port 3
         cam3-ov2311             Select OV2311 for camera on port 3
         cam3-ov5647             Select OV5647 for camera on port 3
         cam3-ov7251             Select OV7251 for camera on port 3
@@ -784,6 +799,22 @@ Load:   dtoverlay=cirrus-wm5102
 Params: <None>
 
 
+Name:   cm-swap-i2c0
+Info:   Largely for Compute Modules 1&3 where the original instructions for
+        adding a camera used GPIOs 0&1 for CAM1 and 28&29 for CAM0, whilst all
+        other platforms use 28&29 (or 44&45) for CAM1.
+        The default assignment through using this overlay is for
+        i2c0 to use 28&29, and i2c10 (aka i2c_csi_dsi) to use 28&29, but the
+        overrides allow this to be changed.
+Load:   dtoverlay=cm-swap-i2c0,<param>=<val>
+Params: i2c0-gpio0              Use GPIOs 0&1 for i2c0
+        i2c0-gpio28             Use GPIOs 28&29 for i2c0 (default)
+        i2c0-gpio44             Use GPIOs 44&45 for i2c0
+        i2c10-gpio0             Use GPIOs 0&1 for i2c0 (default)
+        i2c10-gpio28            Use GPIOs 28&29 for i2c0
+        i2c10-gpio44            Use GPIOs 44&45 for i2c0
+
+
 Name:   cma
 Info:   Set custom CMA sizes, only use if you know what you are doing, might
         clash with other overlays like vc4-fkms-v3d and vc4-kms-v3d.
@@ -799,6 +830,15 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-64                  CMA is 64MB
         cma-size                CMA size in bytes, 4MB aligned
         cma-default             Use upstream's default value
+
+
+Name:   crystalfontz-cfa050_pi_m
+Info:   Configures the Crystalfontz CFA050-PI-M series of Raspberry Pi CM4
+        based modules using the CFA7201280A0_050Tx 7" TFT LCD displays,
+        with or without capacitive touch screen.
+        Requires use of vc4-kms-v3d.
+Load:   dtoverlay=crystalfontz-cfa050_pi_m,<param>=<val>
+Params: captouch                Enable capacitive touch display
 
 
 Name:   cutiepi-panel
@@ -858,6 +898,14 @@ Info:   Disable onboard Bluetooth on Pi 3B, 3B+, 3A+, 4B and Zero W, restoring
         N.B. To disable the systemd service that initialises the modem so it
         doesn't use the UART, use 'sudo systemctl disable hciuart'.
 Load:   dtoverlay=disable-bt
+Params: <None>
+
+
+Name:   disable-emmc2
+Info:   Disable EMMC2 controller on BCM2711.
+        The allows the onboard EMMC storage on Compute Module 4 to be disabled
+        e.g. if a fault has occurred.
+Load:   dtoverlay=disable-emmc2
 Params: <None>
 
 
@@ -1603,7 +1651,7 @@ Params: <None>
 
 
 Name:   hifiberry-digi-pro
-Info:   Configures the HifiBerry Digi+ Pro audio card
+Info:   Configures the HifiBerry Digi+ Pro and Digi2 Pro audio card
 Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
@@ -1808,6 +1856,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         rv3028                  Select the Micro Crystal RV3028 device
 
+        rv3032                  Select the Micro Crystal RV3032 device
+
         rv8803                  Select the Micro Crystal RV8803 device
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
@@ -1892,6 +1942,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         rv3028                  Select the Micro Crystal RV3028 device
 
+        rv3032                  Select the Micro Crystal RV3032 device
+
         rv8803                  Select the Micro Crystal RV8803 device
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
@@ -1930,8 +1982,12 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the BH1750, BME280, BME680,
-                                BMP280, CCS811, DS1621, HDC100X, LM75, SHT3x or
-                                TMP102
+                                BMP280, CCS811, DS1621, HDC100X, JC42, LM75,
+                                MCP980x, MPU6050, MPU9250, MS5637, MS5803,
+                                MS5805, MS5837, MS8607, SHT3x or TMP102
+
+        aht10                   Select the Aosong AHT10 temperature and humidity
+                                sensor
 
         bh1750                  Select the Rohm BH1750 ambient light sensor
                                 Valid addresses 0x23 or 0x5c, default 0x23
@@ -1960,8 +2016,17 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         htu21                   Select the HTU21 temperature and humidity sensor
 
-        int_pin                 Set the GPIO to use for interrupts (max30102
-                                only)
+        int_pin                 Set the GPIO to use for interrupts (max30102,
+                                mpu6050 and mpu9250 only)
+
+        jc42                    Select any of the many JEDEC JC42.4-compliant
+                                temperature sensors, including:
+                                  ADT7408, AT30TS00, CAT34TS02, CAT6095,
+                                  MAX6604, MCP9804, MCP9805, MCP9808,
+                                  MCP98242, MCP98243, MCP98244, MCP9843,
+                                  SE97, SE98, STTS424(E), STTS2002, STTS3000,
+                                  TSE2002, TSE2004, TS3000, and TS3001.
+                                The default address is 0x18.
 
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
@@ -1974,8 +2039,44 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         max30102                Select the Maxim Integrated MAX30102 heart-rate
                                 and blood-oxygen sensor
 
-        sht3x                   Select the Sensiron SHT3x temperature and
-                                humidity sensor. Valid addresses 0x44-0x45,
+        mcp980x                 Select the Maxim MCP980x range of temperature
+                                sensors (i.e. MCP9800, MCP9801, MCP9802 and
+                                MCP9803). N.B. For MCP9804, MCP9805 and MCP9808,
+                                use the "jc42" option.
+                                Valid addresses are 0x18-0x1f (default 0x18)
+
+        mpu6050                 Select the InvenSense MPU6050 IMU. Valid
+                                valid addresses are 0x68 and 0x69 (default 0x68)
+
+        mpu9250                 Select the InvenSense MPU9250 IMU. Valid
+                                valid addresses are 0x68 and 0x69 (default 0x68)
+
+        ms5637                  Select the Measurement Specialities MS5637
+                                pressure and temperature sensor.
+
+        ms5803                  Select the Measurement Specialities MS5803
+                                pressure and temperature sensor.
+
+        ms5805                  Select the Measurement Specialities MS5805
+                                pressure and temperature sensor.
+
+        ms5837                  Select the Measurement Specialities MS5837
+                                pressure and temperature sensor.
+
+        ms8607                  Select the Measurement Specialities MS8607
+                                pressure and temperature sensor.
+
+        no_timeout              Disable the SMBUS timeout. N.B. Only supported
+                                by some jc42 devices - using with an
+                                incompatible device can stop it from being
+                                activated.
+
+        sht3x                   Select the Sensirion SHT3x temperature and
+                                humidity sensors. Valid addresses 0x44-0x45,
+                                default 0x44
+
+        sht4x                   Select the Sensirion SHT4x temperature and
+                                humidity sensors. Valid addresses 0x44-0x45,
                                 default 0x44
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
@@ -2183,6 +2284,9 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board, which should be one of 54000000
+                                (the default), 37125000 or 74250000.
 
 
 Name:   imx327
@@ -2270,6 +2374,23 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
         orientation             Sensor orientation (0 = front, 1 = rear,
                                 2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
+Name:   imx708
+Info:   Sony IMX708 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx708,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        vcm                     Select lens driver state. Default is enabled,
+                                but vcm=off will disable.
         media-controller        Configure use of Media Controller API for
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
@@ -2802,10 +2923,10 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
 
 
 Name:   mpu6050
-Info:   Overlay for i2c connected mpu6050 imu
-Load:   dtoverlay=mpu6050,<param>=<val>
-Params: interrupt               GPIO pin for interrupt (default 4)
-        addr                    I2C address of the device (default 0x68)
+Info:   This overlay has been deprecated - use "dtoverlay=i2c-sensor,mpu6050"
+        instead. Note that "int_pin" is the new name for the "interrupt"
+        parameter.
+Load:   <Deprecated>
 
 
 Name:   mz61581
@@ -3189,6 +3310,24 @@ Params: gpio_pin                Output GPIO (default 18)
         func                    Pin function (default 2 = Alt5)
 
 
+Name:   pwm1
+Info:   Configures one or two PWM channel on PWM1 (BCM2711 only)
+        N.B.:
+          1) The onboard analogue audio output uses both PWM channels.
+          2) So be careful mixing audio and PWM.
+        Note that even when only one pin is enabled, both channels are available
+        from the PWM driver, so be careful to use the correct one.
+Load:   dtoverlay=pwm1,<param>=<val>
+Params: clock                   PWM clock frequency (informational)
+        pins_40                 Enable channel 0 (PWM1_0) on GPIO 40
+        pins_41                 Enable channel 1 (PWM1_1) on GPIO 41
+        pins_40_41              Enable channels 0 (PWM1_0) and 1 (PW1_1) on
+                                GPIOs 40 and 41 (default)
+        pull_up                 Enable pull-ups on the PWM pins (default)
+        pull_down               Enable pull-downs on the PWM pins
+        pull_off                Disable pulls on the PWM pins
+
+
 Name:   qca7000
 Info:   in-tech's Evaluation Board for PLC Stamp micro
         This uses spi0 and a separate GPIO interrupt to connect the QCA7000.
@@ -3287,7 +3426,7 @@ Params: <None>
 
 
 Name:   rpi-dac
-Info:   This overlay has been renaamed to i2s-dac.
+Info:   This overlay has been renamed to i2s-dac.
 Load:   <Deprecated>
 
 
@@ -3417,7 +3556,7 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
 
 
 Name:   rpi-proto
-Info:   This overlay has been renamaed to proto-codec.
+Info:   This overlay has been renamed to proto-codec.
 Load:   <Deprecated>
 
 
