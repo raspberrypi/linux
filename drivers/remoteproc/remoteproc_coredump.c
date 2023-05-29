@@ -250,7 +250,7 @@ void rproc_coredump(struct rproc *rproc)
 		return;
 
 	if (class == ELFCLASSNONE) {
-		dev_err(&rproc->dev, "Elf class is not set\n");
+		dev_err(&rproc->dev, "ELF class is not set\n");
 		return;
 	}
 
@@ -363,7 +363,7 @@ void rproc_coredump_using_sections(struct rproc *rproc)
 		return;
 
 	if (class == ELFCLASSNONE) {
-		dev_err(&rproc->dev, "Elf class is not set\n");
+		dev_err(&rproc->dev, "ELF class is not set\n");
 		return;
 	}
 
