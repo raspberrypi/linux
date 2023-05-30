@@ -56,7 +56,7 @@
 #define BCM2835_I2C_CDIV_MIN	0x0002
 #define BCM2835_I2C_CDIV_MAX	0xFFFE
 
-static unsigned int debug = 3;
+static unsigned int debug;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "1=err, 2=isr, 3=xfer");
 
