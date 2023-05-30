@@ -65,6 +65,9 @@ struct snd_rpi_wm8804_drvdata {
 static struct gpio_desc *snd_clk44gpio;
 static struct gpio_desc *snd_clk48gpio;
 static int wm8804_samplerate = 0;
+static struct gpio_desc *led_gpio_1;
+static struct gpio_desc *led_gpio_2;
+static struct gpio_desc *led_gpio_3;
 
 /* Forward declarations */
 static struct snd_soc_dai_link snd_allo_digione_dai[];
@@ -75,6 +78,40 @@ static uint32_t sysclk_freq = 27000000;
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
 
+
+static const char * const wm8805_input_select_text[] = {
+
+	"Rx 0",
+	"Rx 1",
+	"Rx 2",
+	"Rx 3",
+	"Rx 4",
+	"Rx 5",
+	"Rx 6",
+	"Rx 7"
+};
+
+static const unsigned int wm8805_input_channel_select_value[] = {
+	0 , 1 , 2 , 3 , 4 , 5 , 6 , 7
+};
+
+static const struct soc_enum wm8805_input_channel_sel[] = {
+
+	SOC_VALUE_ENUM_SINGLE(WM8804_PLL6,0,7,ARRAY_SIZE(wm8805_input_select_text),wm8805_input_select_text,wm8805_input_channel_select_value ),
+
+}; 
+
+static const struct snd_kcontrol_new wm8805_input_controls_card[]={
+	SOC_ENUM("Select Input Channel",wm8805_input_channel_sel[0]),
+};
+
+static int wm8805_add_input_controls(struct snd_soc_component *component)
+{	
+	snd_soc_add_component_controls(component,wm8805_input_controls_card,ARRAY_SIZE(wm8805_input_controls_card));
+	pr_err("adding new controls");
+	return 0;
+	
+}
 static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 {
 	switch (samplerate) {
@@ -106,6 +143,7 @@ static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		clk_cfg->mclk_freq = samplerate * 128;
 		clk_cfg->mclk_div = WM8804_MCLKDIV_128FS;
 	}
+	pr_err("MCLK_DIV Function");
 
 	if (!(IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio)))
 		clk_cfg->sysclk_freq = snd_rpi_wm8804_enable_clock(samplerate);
@@ -141,26 +179,45 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case 44100:
 		sampling_freq = 0x00;
+		gpiod_set_value_cansleep(led_gpio_1, 1);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 48000:
 		sampling_freq = 0x02;
+		gpiod_set_value_cansleep(led_gpio_1, 1);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 88200:
 		sampling_freq = 0x08;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 1);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 96000:
 		sampling_freq = 0x0a;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 1);
+		gpiod_set_value_cansleep(led_gpio_3, 0);
 		break;
 	case 176400:
 		sampling_freq = 0x0c;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 1);
 		break;
 	case 192000:
 		sampling_freq = 0x0e;
+		gpiod_set_value_cansleep(led_gpio_1, 0);
+		gpiod_set_value_cansleep(led_gpio_2, 0);
+		gpiod_set_value_cansleep(led_gpio_3, 1);
 		break;
 	default:
 		dev_err(rtd->card->dev,
 		"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
 		samplerate);
+
 	}
 
 	snd_soc_dai_set_clkdiv(codec_dai, WM8804_MCLK_DIV, clk_cfg.mclk_div);
@@ -182,7 +239,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 			sampling_freq);
 
 	/* set rx channel 2 */
-	snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 2);
+	//snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 0);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
@@ -291,6 +348,58 @@ static struct snd_rpi_wm8804_drvdata drvdata_hifiberry_digi = {
 	.probe     = snd_hifiberry_digi_probe,
 };
 
+SND_SOC_DAILINK_DEFS(interlude_audio_digital,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static int snd_interlude_audio_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_component *component = asoc_rtd_to_codec(rtd, 0)->component;
+	int ret;
+	ret = wm8805_add_input_controls(component);
+	if (ret != 0)
+		pr_err("failed to add input controls");
+	
+	return 0;
+}
+
+
+static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
+{
+	.name        = "Interlude Audio Digital",
+	.stream_name = "Interlude Audio Digital HiFi",
+	.init        = snd_interlude_audio_init,
+	SND_SOC_DAILINK_REG(interlude_audio_digital),
+},
+};
+
+
+static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
+{
+	pr_debug("%s\n", __func__);
+
+	if (IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio))
+		return 0;
+
+
+	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
+	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
+	
+	
+	
+	
+	return 0;
+
+}
+
+
+static struct snd_rpi_wm8804_drvdata drvdata_interlude_audio_digital = {
+	.card_name = "Interlude Audio Digital Hat",
+	.dai       = snd_Interlude_Audio_Digital_dai,
+	.probe     = snd_Interlude_Audio_Digital_probe,
+};
+
 static const struct of_device_id snd_rpi_wm8804_of_match[] = {
 	{ .compatible = "justboom,justboom-digi",
 		.data = (void *) &drvdata_justboom_digi },
@@ -300,6 +409,8 @@ static const struct of_device_id snd_rpi_wm8804_of_match[] = {
 		.data = (void *) &drvdata_allo_digione },
 	{ .compatible = "hifiberry,hifiberry-digi",
 		.data = (void *) &drvdata_hifiberry_digi },
+	{ .compatible = "interludeaudio,interludeaudio-digital",
+		.data = (void *) &drvdata_interlude_audio_digital },
 	{},
 };
 
@@ -309,6 +420,8 @@ static struct snd_soc_card snd_rpi_wm8804 = {
 	.dai_link     = NULL,
 	.num_links    = 1,
 };
+
+//static int interlude_audio_input_control(snd_kcontrol *kcontrl,)
 
 static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 {
@@ -382,6 +495,10 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 			sysclk_freq = 27000000;
 		}
 		pr_info("Setting system clock to %d kHz", sysclk_freq/1000);
+		
+		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
+		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
+		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
 
 		if (drvdata->probe) {
 			ret = drvdata->probe(pdev);

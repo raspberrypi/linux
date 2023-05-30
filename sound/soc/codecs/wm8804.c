@@ -72,6 +72,8 @@ struct wm8804_priv {
 static int txsrc_put(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol);
 
+//static int rxsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol);
+
 static int wm8804_aif_event(struct snd_soc_dapm_widget *w,
 			    struct snd_kcontrol *kcontrol, int event);
 
@@ -97,20 +99,27 @@ WM8804_REGULATOR_EVENT(1)
 
 static const char *txsrc_text[] = { "S/PDIF RX", "AIF" };
 static SOC_ENUM_SINGLE_DECL(txsrc, WM8804_SPDTX4, 6, txsrc_text);
+//static const char *rxsrc_text[] = {"RX0","RX1"};
+//static SOC_ENUM_SINGLE_DECL(rxsrc,WM8804_PLL6,7,rxsrc_text);
 
 static const struct snd_kcontrol_new wm8804_tx_source_mux[] = {
-	SOC_DAPM_ENUM_EXT("Input Source", txsrc,
+	SOC_DAPM_ENUM_EXT("Output Source", txsrc,
 			  snd_soc_dapm_get_enum_double, txsrc_put),
 };
 
+//static const struct snd_kcontrol_new wm8804_rx_source_mux[] ={
+//	SOC_DAPM_ENUM_EXT("Input source",rxsrc,snd_soc_dapm_get_enum_double,rxsrc_put)
+//};
+
 static const struct snd_soc_dapm_widget wm8804_dapm_widgets[] = {
 SND_SOC_DAPM_OUTPUT("SPDIF Out"),
-SND_SOC_DAPM_INPUT("SPDIF In"),
-
+SND_SOC_DAPM_INPUT("SPDIF IN"),
+//SND_SOC_DAPM_INPUT("RX1")
 SND_SOC_DAPM_PGA("SPDIFTX", WM8804_PWRDN, 2, 1, NULL, 0),
 SND_SOC_DAPM_PGA("SPDIFRX", WM8804_PWRDN, 1, 1, NULL, 0),
 
 SND_SOC_DAPM_MUX("Tx Source", SND_SOC_NOPM, 6, 0, wm8804_tx_source_mux),
+//SND_SOC_DAPM_MUX("Rx Source",SND_SOC_NOPM,6,0,wm8804_rx_source_mux),
 
 SND_SOC_DAPM_AIF_OUT_E("AIFTX", NULL, 0, SND_SOC_NOPM, 0, 0, wm8804_aif_event,
 		       SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
@@ -122,7 +131,7 @@ static const struct snd_soc_dapm_route wm8804_dapm_routes[] = {
 	{ "AIFRX", NULL, "Playback" },
 	{ "Tx Source", "AIF", "AIFRX" },
 
-	{ "SPDIFRX", NULL, "SPDIF In" },
+	{ "SPDIFRX", NULL, "SPDIF IN" },
 	{ "Tx Source", "S/PDIF RX", "SPDIFRX" },
 
 	{ "SPDIFTX", NULL, "Tx Source" },
@@ -130,6 +139,9 @@ static const struct snd_soc_dapm_route wm8804_dapm_routes[] = {
 
 	{ "AIFTX", NULL, "SPDIFRX" },
 	{ "Capture", NULL, "AIFTX" },
+	
+//	{"AIFRX",NULL,"Capture"},
+//	{"Rx Source","RX0","AIFRX"},
 };
 
 static int wm8804_aif_event(struct snd_soc_dapm_widget *w,
@@ -189,9 +201,44 @@ static int txsrc_put(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+/*
+static int rxsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_dapm_kcontrol_component(kcontrol);
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	unsigned int val = ucontrol->value.enumerated.item[0] << e->shift_l;
+	unsigned int mask = 1 << e->shift_l;
+	unsigned int rxpwr;
 
+	if (val !=0 && val != mask)
+		return -EINVAL;
+	
+	//snd_soc_dapm_mutex_lock(dapm);
+
+	//snd_soc_component_update_bits(component,e->reg,0,0);
+
+	if(val == 128 )
+	{
+		//snd_soc_component_update_bits(component,WM8804_PLL6,0x7,1);
+		pr_err("select RX1");
+	}
+	else 
+	{
+		//snd_soc_component_update_bits(component,WM8804_PLL6,0x7,0);
+		pr_err("select RX0");
+	}
+	pr_err("mask = %d \n",mask);
+	pr_err("val = %d \n",val);
+
+	//snd_soc_dapm_mutex_unlock(dapm);
+
+	return 0;
+}
+*/
 static bool wm8804_volatile(struct device *dev, unsigned int reg)
 {
+	struct snd_soc_component *component;
 	switch (reg) {
 	case WM8804_RST_DEVID1:
 	case WM8804_DEVID2:
@@ -224,16 +271,20 @@ static int wm8804_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
 		format = 0x2;
+		pr_err("i2s data format/n");
 		break;
 	case SND_SOC_DAIFMT_RIGHT_J:
 		format = 0x0;
+		pr_err("right justified data format/n");
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
 		format = 0x1;
+		pr_err("left justified data format/n");
 		break;
 	case SND_SOC_DAIFMT_DSP_A:
 	case SND_SOC_DAIFMT_DSP_B:
 		format = 0x3;
+		pr_err("DSP data format/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unknown dai format\n");
@@ -265,12 +316,15 @@ static int wm8804_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		break;
 	case SND_SOC_DAIFMT_IB_IF:
 		bcp = lrp = 1;
+		pr_err("BCLK and LRCLK inversion active/n");
 		break;
 	case SND_SOC_DAIFMT_IB_NF:
 		bcp = 1;
+		pr_err("BCLK inversion active/n");
 		break;
 	case SND_SOC_DAIFMT_NB_IF:
 		lrp = 1;
+		pr_err("LRCLK inversion Active/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unknown polarity configuration\n");
@@ -297,12 +351,15 @@ static int wm8804_hw_params(struct snd_pcm_substream *substream,
 	switch (params_width(params)) {
 	case 16:
 		blen = 0x0;
+		pr_err("16 bit word length selected/n");
 		break;
 	case 20:
 		blen = 0x1;
+		pr_err("20 bit word length selected/n");
 		break;
 	case 24:
 		blen = 0x2;
+		pr_err("24 bit word length selected/n");
 		break;
 	default:
 		dev_err(dai->dev, "Unsupported word length: %u\n",
