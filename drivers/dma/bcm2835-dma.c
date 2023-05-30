@@ -242,6 +242,8 @@ struct bcm2835_desc {
 #define BCM2711_DMA40_WR_PAUSED		BIT(5)  /* Writing is paused */
 #define BCM2711_DMA40_DREQ_PAUSED	BIT(6)  /* Is paused by DREQ flow control */
 #define BCM2711_DMA40_WAITING_FOR_WRITES BIT(7)  /* Waiting for last write */
+// we always want to run in supervisor mode
+#define BCM2711_DMA40_PROT		(BIT(8)|BIT(9))
 #define BCM2711_DMA40_ERR		BIT(10)
 #define BCM2711_DMA40_QOS(x)		(((x) & 0x1f) << 16)
 #define BCM2711_DMA40_PANIC_QOS(x)	(((x) & 0x1f) << 20)
@@ -250,8 +252,6 @@ struct bcm2835_desc {
 #define BCM2711_DMA40_DISDEBUG		BIT(29)
 #define BCM2711_DMA40_ABORT		BIT(30)
 #define BCM2711_DMA40_HALT		BIT(31)
-// we always want to run in supervisor mode
-#define BCM2711_DMA40_PROT		(BIT(8)|BIT(9))
 
 #define BCM2711_DMA40_CS_FLAGS(x) (x & (BCM2711_DMA40_QOS(15) | \
 					BCM2711_DMA40_PANIC_QOS(15) | \
