@@ -379,9 +379,9 @@ static int efx_tc_flower_replace(struct efx_nic *efx,
 	if (old) {
 		netif_dbg(efx, drv, efx->net_dev,
 			  "Already offloaded rule (cookie %lx)\n", tc->cookie);
-		rc = -EEXIST;
 		NL_SET_ERR_MSG_MOD(extack, "Rule already offloaded");
-		goto release;
+		kfree(rule);
+		return -EEXIST;
 	}
 
 	/* Parse actions */
