@@ -1753,11 +1753,11 @@ mlx5e_skb_from_cqe_nonlinear(struct mlx5e_rq *rq, struct mlx5e_wqe_frag_info *wi
 
 	prog = rcu_dereference(rq->xdp_prog);
 	if (prog && mlx5e_xdp_handle(rq, prog, &mxbuf)) {
-		if (test_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
+		if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
 			struct mlx5e_wqe_frag_info *pwi;
 
 			for (pwi = head_wi; pwi < wi; pwi++)
-				pwi->flags |= BIT(MLX5E_WQE_FRAG_SKIP_RELEASE);
+				pwi->frag_page->frags++;
 		}
 		return NULL; /* page/packet was consumed by XDP */
 	}
@@ -1827,12 +1827,8 @@ static void mlx5e_handle_rx_cqe(struct mlx5e_rq *rq, struct mlx5_cqe64 *cqe)
 			      rq, wi, cqe, cqe_bcnt);
 	if (!skb) {
 		/* probably for XDP */
-		if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
-			/* do not return page to cache,
-			 * it will be returned on XDP_TX completion.
-			 */
-			wi->flags |= BIT(MLX5E_WQE_FRAG_SKIP_RELEASE);
-		}
+		if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags))
+			wi->frag_page->frags++;
 		goto wq_cyc_pop;
 	}
 
@@ -1878,12 +1874,8 @@ static void mlx5e_handle_rx_cqe_rep(struct mlx5e_rq *rq, struct mlx5_cqe64 *cqe)
 			      rq, wi, cqe, cqe_bcnt);
 	if (!skb) {
 		/* probably for XDP */
-		if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
-			/* do not return page to cache,
-			 * it will be returned on XDP_TX completion.
-			 */
-			wi->flags |= BIT(MLX5E_WQE_FRAG_SKIP_RELEASE);
-		}
+		if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags))
+			wi->frag_page->frags++;
 		goto wq_cyc_pop;
 	}
 
@@ -2062,12 +2054,12 @@ mlx5e_skb_from_cqe_mpwrq_nonlinear(struct mlx5e_rq *rq, struct mlx5e_mpw_info *w
 	if (prog) {
 		if (mlx5e_xdp_handle(rq, prog, &mxbuf)) {
 			if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
-				int i;
+				struct mlx5e_frag_page *pfp;
 
-				for (i = 0; i < sinfo->nr_frags; i++)
-					/* non-atomic */
-					__set_bit(page_idx + i, wi->skip_release_bitmap);
-				return NULL;
+				for (pfp = head_page; pfp < frag_page; pfp++)
+					pfp->frags++;
+
+				wi->linear_page.frags++;
 			}
 			mlx5e_page_release_fragmented(rq, &wi->linear_page);
 			return NULL; /* page/packet was consumed by XDP */
@@ -2165,7 +2157,7 @@ mlx5e_skb_from_cqe_mpwrq_linear(struct mlx5e_rq *rq, struct mlx5e_mpw_info *wi,
 				 cqe_bcnt, &mxbuf);
 		if (mlx5e_xdp_handle(rq, prog, &mxbuf)) {
 			if (__test_and_clear_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags))
-				__set_bit(page_idx, wi->skip_release_bitmap); /* non-atomic */
+				frag_page->frags++;
 			return NULL; /* page/packet was consumed by XDP */
 		}
 
