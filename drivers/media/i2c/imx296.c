@@ -674,7 +674,11 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 
 	format = v4l2_subdev_get_pad_format(sd, state, fse->pad);
 
-	if (fse->index >= 2 || fse->code != format->code)
+	/*
+	 * Binning does not seem to work on either mono or colour sensor
+	 * variants. Disable enumerating the binned frame size for now.
+	 */
+	if (fse->index >= 1 || fse->code != format->code)
 		return -EINVAL;
 
 	fse->min_width = IMX296_PIXEL_ARRAY_WIDTH / (fse->index + 1);
@@ -696,32 +700,8 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 	crop = v4l2_subdev_get_pad_crop(sd, state, fmt->pad);
 	format = v4l2_subdev_get_pad_format(sd, state, fmt->pad);
 
-	/*
-	 * Binning is only allowed when cropping is disabled according to the
-	 * documentation. This should be double-checked.
-	 */
-	if (crop->width == IMX296_PIXEL_ARRAY_WIDTH &&
-	    crop->height == IMX296_PIXEL_ARRAY_HEIGHT) {
-		unsigned int width;
-		unsigned int height;
-		unsigned int hratio;
-		unsigned int vratio;
-
-		/* Clamp the width and height to avoid dividing by zero. */
-		width = clamp_t(unsigned int, fmt->format.width,
-				crop->width / 2, crop->width);
-		height = clamp_t(unsigned int, fmt->format.height,
-				 crop->height / 2, crop->height);
-
-		hratio = DIV_ROUND_CLOSEST(crop->width, width);
-		vratio = DIV_ROUND_CLOSEST(crop->height, height);
-
-		format->width = crop->width / hratio;
-		format->height = crop->height / vratio;
-	} else {
-		format->width = crop->width;
-		format->height = crop->height;
-	}
+	format->width = crop->width;
+	format->height = crop->height;
 
 	format->code = sensor->mono ? MEDIA_BUS_FMT_Y10_1X10
 		     : MEDIA_BUS_FMT_SBGGR10_1X10;
