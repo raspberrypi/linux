@@ -252,6 +252,18 @@ static void serial8250_timeout(struct timer_list *t)
 	mod_timer(&up->timer, jiffies + uart_poll_timeout(&up->port));
 }
 
+static void serial8250_cts_poll_timeout(struct timer_list *t)
+{
+	struct uart_8250_port *up = from_timer(up, t, timer);
+	unsigned long flags;
+
+	spin_lock_irqsave(&up->port.lock, flags);
+	serial8250_modem_status(up);
+	spin_unlock_irqrestore(&up->port.lock, flags);
+	if (up->port.hw_stopped)
+		mod_timer(&up->timer, jiffies + 1);
+}
+
 static void serial8250_backup_timeout(struct timer_list *t)
 {
 	struct uart_8250_port *up = from_timer(up, t, timer);
@@ -313,6 +325,9 @@ static void univ8250_setup_timer(struct uart_8250_port *up)
 		mod_timer(&up->timer, jiffies +
 			  uart_poll_timeout(port) + HZ / 5);
 	}
+
+	if (up->bugs & UART_BUG_NOMSI)
+		up->timer.function = serial8250_cts_poll_timeout;
 
 	/*
 	 * If the "interrupt" for this port doesn't correspond with any
@@ -1157,6 +1172,7 @@ void serial8250_unregister_port(int line)
 		uart->port.type = PORT_UNKNOWN;
 		uart->port.dev = &serial8250_isa_devs->dev;
 		uart->capabilities = 0;
+		serial8250_init_port(uart);
 		serial8250_apply_quirks(uart);
 		uart_add_one_port(&serial8250_reg, &uart->port);
 	} else {

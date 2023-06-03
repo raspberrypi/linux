@@ -138,6 +138,12 @@
 		brcm,pull;
 	};
 
+	uart1_bt_pins: uart1_bt_pins {
+		brcm,pins = <32 33 30 31>;
+		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
+		brcm,pull = <0 2 2 0>;
+	};
+
 	audio_pins: audio_pins {
 		brcm,pins = <>;
 		brcm,function = <>;
@@ -234,6 +240,9 @@
 
 cam0_reg: &cam_dummy_reg {
 };
+
+i2c_arm: &i2c1 {};
+i2c_vc: &i2c0 {};
 
 / {
 	__overrides__ {

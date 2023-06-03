@@ -94,8 +94,8 @@
 		i2c6 = <&frag100>, "target?=0",
 		       <&frag100>, "target-path=i2c6";
 		addr =		<&emc2301>,"reg:0";
-		minpwm =	<&emc2301>,"emc2305,pwm-min;0";
-		maxpwm =	<&emc2301>,"emc2305,pwm-max;0";
+		minpwm =	<&emc2301>,"emc2305,pwm-min.0";
+		maxpwm =	<&emc2301>,"emc2305,pwm-max.0";
 		midtemp =	<&fanmid0>,"temperature:0";
 		midtemp_hyst =	<&fanmid0>,"hysteresis:0";
 		maxtemp =	<&fanmax0>,"temperature:0";

@@ -277,25 +277,6 @@
 		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0";
 	};
 
-	aliases {
-		serial0 = &uart1;
-		serial1 = &uart0;
-		mmc0 = &emmc2;
-		mmc1 = &mmcnr;
-		mmc2 = &sdhost;
-		i2c3 = &i2c3;
-		i2c4 = &i2c4;
-		i2c5 = &i2c5;
-		i2c6 = &i2c6;
-		i2c20 = &ddc0;
-		i2c21 = &ddc1;
-		spi3 = &spi3;
-		spi4 = &spi4;
-		spi5 = &spi5;
-		spi6 = &spi6;
-		/delete-property/ intc;
-	};
-
 	/delete-node/ wifi-pwrseq;
 };
 
@@ -338,103 +319,6 @@
 };
 
 &gpio {
-	spi0_pins: spi0_pins {
-		brcm,pins = <9 10 11>;
-		brcm,function = <BCM2835_FSEL_ALT0>;
-	};
-
-	spi0_cs_pins: spi0_cs_pins {
-		brcm,pins = <8 7>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-	};
-
-	spi3_pins: spi3_pins {
-		brcm,pins = <1 2 3>;
-		brcm,function = <BCM2835_FSEL_ALT3>;
-	};
-
-	spi3_cs_pins: spi3_cs_pins {
-		brcm,pins = <0 24>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-	};
-
-	spi4_pins: spi4_pins {
-		brcm,pins = <5 6 7>;
-		brcm,function = <BCM2835_FSEL_ALT3>;
-	};
-
-	spi4_cs_pins: spi4_cs_pins {
-		brcm,pins = <4 25>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-	};
-
-	spi5_pins: spi5_pins {
-		brcm,pins = <13 14 15>;
-		brcm,function = <BCM2835_FSEL_ALT3>;
-	};
-
-	spi5_cs_pins: spi5_cs_pins {
-		brcm,pins = <12 26>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-	};
-
-	spi6_pins: spi6_pins {
-		brcm,pins = <19 20 21>;
-		brcm,function = <BCM2835_FSEL_ALT3>;
-	};
-
-	spi6_cs_pins: spi6_cs_pins {
-		brcm,pins = <18 27>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-	};
-
-	i2c0_pins: i2c0 {
-		brcm,pins = <0 1>;
-		brcm,function = <BCM2835_FSEL_ALT0>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2c1_pins: i2c1 {
-		brcm,pins = <2 3>;
-		brcm,function = <BCM2835_FSEL_ALT0>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2c3_pins: i2c3 {
-		brcm,pins = <4 5>;
-		brcm,function = <BCM2835_FSEL_ALT5>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2c4_pins: i2c4 {
-		brcm,pins = <8 9>;
-		brcm,function = <BCM2835_FSEL_ALT5>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2c5_pins: i2c5 {
-		brcm,pins = <12 13>;
-		brcm,function = <BCM2835_FSEL_ALT5>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2c6_pins: i2c6 {
-		brcm,pins = <22 23>;
-		brcm,function = <BCM2835_FSEL_ALT5>;
-		brcm,pull = <BCM2835_PUD_UP>;
-	};
-
-	i2s_pins: i2s {
-		brcm,pins = <18 19 20 21>;
-		brcm,function = <BCM2835_FSEL_ALT0>;
-	};
-
-	sdio_pins: sdio_pins {
-		brcm,pins =     <34 35 36 37 38 39>;
-		brcm,function = <BCM2835_FSEL_ALT3>; // alt3 = SD1
-		brcm,pull =     <0 2 2 2 2 2>;
-	};
-
 	bt_pins: bt_pins {
 		brcm,pins = "-"; // non-empty to keep btuart happy, //4 = 0
 				 // to fool pinctrl
@@ -454,28 +338,10 @@
 		brcm,pull;
 	};
 
-	uart2_pins: uart2_pins {
-		brcm,pins = <0 1>;
-		brcm,function = <BCM2835_FSEL_ALT4>;
-		brcm,pull = <0 2>;
-	};
-
-	uart3_pins: uart3_pins {
-		brcm,pins = <4 5>;
-		brcm,function = <BCM2835_FSEL_ALT4>;
-		brcm,pull = <0 2>;
-	};
-
-	uart4_pins: uart4_pins {
-		brcm,pins = <8 9>;
-		brcm,function = <BCM2835_FSEL_ALT4>;
-		brcm,pull = <0 2>;
-	};
-
-	uart5_pins: uart5_pins {
-		brcm,pins = <12 13>;
-		brcm,function = <BCM2835_FSEL_ALT4>;
-		brcm,pull = <0 2>;
+	uart1_bt_pins: uart1_bt_pins {
+		brcm,pins = <32 33 30 31>;
+		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
+		brcm,pull = <0 2 2 0>;
 	};
 };
 
@@ -570,10 +436,6 @@ cam0_reg: &cam1_reg {
 			<&ant1>, "output-low?=on",
 			<&ant2>, "output-high?=off",
 			<&ant2>, "output-low?=on";
-
-		sd_poll_once = <&emmc2>, "non-removable?";
-		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
-			   <&spi0>, "dmas:8=", <&dma40>;
 
 		cam0_reg = <&cam0_reg>,"status";
 		cam0_reg_gpio = <&cam0_reg>,"gpio:4",

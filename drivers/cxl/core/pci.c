@@ -103,23 +103,57 @@ int devm_cxl_port_enumerate_dports(struct cxl_port *port)
 }
 EXPORT_SYMBOL_NS_GPL(devm_cxl_port_enumerate_dports, CXL);
 
-/*
- * Wait up to @media_ready_timeout for the device to report memory
- * active.
- */
-int cxl_await_media_ready(struct cxl_dev_state *cxlds)
+static int cxl_dvsec_mem_range_valid(struct cxl_dev_state *cxlds, int id)
+{
+	struct pci_dev *pdev = to_pci_dev(cxlds->dev);
+	int d = cxlds->cxl_dvsec;
+	bool valid = false;
+	int rc, i;
+	u32 temp;
+
+	if (id > CXL_DVSEC_RANGE_MAX)
+		return -EINVAL;
+
+	/* Check MEM INFO VALID bit first, give up after 1s */
+	i = 1;
+	do {
+		rc = pci_read_config_dword(pdev,
+					   d + CXL_DVSEC_RANGE_SIZE_LOW(id),
+					   &temp);
+		if (rc)
+			return rc;
+
+		valid = FIELD_GET(CXL_DVSEC_MEM_INFO_VALID, temp);
+		if (valid)
+			break;
+		msleep(1000);
+	} while (i--);
+
+	if (!valid) {
+		dev_err(&pdev->dev,
+			"Timeout awaiting memory range %d valid after 1s.\n",
+			id);
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
+static int cxl_dvsec_mem_range_active(struct cxl_dev_state *cxlds, int id)
 {
 	struct pci_dev *pdev = to_pci_dev(cxlds->dev);
 	int d = cxlds->cxl_dvsec;
 	bool active = false;
-	u64 md_status;
 	int rc, i;
+	u32 temp;
 
+	if (id > CXL_DVSEC_RANGE_MAX)
+		return -EINVAL;
+
+	/* Check MEM ACTIVE bit, up to 60s timeout by default */
 	for (i = media_ready_timeout; i; i--) {
-		u32 temp;
-
 		rc = pci_read_config_dword(
-			pdev, d + CXL_DVSEC_RANGE_SIZE_LOW(0), &temp);
+			pdev, d + CXL_DVSEC_RANGE_SIZE_LOW(id), &temp);
 		if (rc)
 			return rc;
 
@@ -134,6 +168,39 @@ int cxl_await_media_ready(struct cxl_dev_state *cxlds)
 			"timeout awaiting memory active after %d seconds\n",
 			media_ready_timeout);
 		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
+/*
+ * Wait up to @media_ready_timeout for the device to report memory
+ * active.
+ */
+int cxl_await_media_ready(struct cxl_dev_state *cxlds)
+{
+	struct pci_dev *pdev = to_pci_dev(cxlds->dev);
+	int d = cxlds->cxl_dvsec;
+	int rc, i, hdm_count;
+	u64 md_status;
+	u16 cap;
+
+	rc = pci_read_config_word(pdev,
+				  d + CXL_DVSEC_CAP_OFFSET, &cap);
+	if (rc)
+		return rc;
+
+	hdm_count = FIELD_GET(CXL_DVSEC_HDM_COUNT_MASK, cap);
+	for (i = 0; i < hdm_count; i++) {
+		rc = cxl_dvsec_mem_range_valid(cxlds, i);
+		if (rc)
+			return rc;
+	}
+
+	for (i = 0; i < hdm_count; i++) {
+		rc = cxl_dvsec_mem_range_active(cxlds, i);
+		if (rc)
+			return rc;
 	}
 
 	md_status = readq(cxlds->regs.memdev + CXLMDEV_STATUS_OFFSET);
@@ -483,7 +550,7 @@ static struct pci_doe_mb *find_cdat_doe(struct device *uport)
 	return NULL;
 }
 
-#define CDAT_DOE_REQ(entry_handle)					\
+#define CDAT_DOE_REQ(entry_handle) cpu_to_le32				\
 	(FIELD_PREP(CXL_DOE_TABLE_ACCESS_REQ_CODE,			\
 		    CXL_DOE_TABLE_ACCESS_REQ_CODE_READ) |		\
 	 FIELD_PREP(CXL_DOE_TABLE_ACCESS_TABLE_TYPE,			\
@@ -496,8 +563,8 @@ static void cxl_doe_task_complete(struct pci_doe_task *task)
 }
 
 struct cdat_doe_task {
-	u32 request_pl;
-	u32 response_pl[32];
+	__le32 request_pl;
+	__le32 response_pl[32];
 	struct completion c;
 	struct pci_doe_task task;
 };
@@ -531,10 +598,10 @@ static int cxl_cdat_get_length(struct device *dev,
 		return rc;
 	}
 	wait_for_completion(&t.c);
-	if (t.task.rv < sizeof(u32))
+	if (t.task.rv < 2 * sizeof(__le32))
 		return -EIO;
 
-	*length = t.response_pl[1];
+	*length = le32_to_cpu(t.response_pl[1]);
 	dev_dbg(dev, "CDAT length %zu\n", *length);
 
 	return 0;
@@ -545,13 +612,13 @@ static int cxl_cdat_read_table(struct device *dev,
 			       struct cxl_cdat *cdat)
 {
 	size_t length = cdat->length;
-	u32 *data = cdat->table;
+	__le32 *data = cdat->table;
 	int entry_handle = 0;
 
 	do {
 		DECLARE_CDAT_DOE_TASK(CDAT_DOE_REQ(entry_handle), t);
+		struct cdat_entry_header *entry;
 		size_t entry_dw;
-		u32 *entry;
 		int rc;
 
 		rc = pci_doe_submit_task(cdat_doe, &t.task);
@@ -560,25 +627,33 @@ static int cxl_cdat_read_table(struct device *dev,
 			return rc;
 		}
 		wait_for_completion(&t.c);
-		/* 1 DW header + 1 DW data min */
-		if (t.task.rv < (2 * sizeof(u32)))
+
+		/* 1 DW Table Access Response Header + CDAT entry */
+		entry = (struct cdat_entry_header *)(t.response_pl + 1);
+		if ((entry_handle == 0 &&
+		     t.task.rv != sizeof(__le32) + sizeof(struct cdat_header)) ||
+		    (entry_handle > 0 &&
+		     (t.task.rv < sizeof(__le32) + sizeof(*entry) ||
+		      t.task.rv != sizeof(__le32) + le16_to_cpu(entry->length))))
 			return -EIO;
 
 		/* Get the CXL table access header entry handle */
 		entry_handle = FIELD_GET(CXL_DOE_TABLE_ACCESS_ENTRY_HANDLE,
-					 t.response_pl[0]);
-		entry = t.response_pl + 1;
-		entry_dw = t.task.rv / sizeof(u32);
+					 le32_to_cpu(t.response_pl[0]));
+		entry_dw = t.task.rv / sizeof(__le32);
 		/* Skip Header */
 		entry_dw -= 1;
-		entry_dw = min(length / sizeof(u32), entry_dw);
+		entry_dw = min(length / sizeof(__le32), entry_dw);
 		/* Prevent length < 1 DW from causing a buffer overflow */
 		if (entry_dw) {
-			memcpy(data, entry, entry_dw * sizeof(u32));
-			length -= entry_dw * sizeof(u32);
+			memcpy(data, entry, entry_dw * sizeof(__le32));
+			length -= entry_dw * sizeof(__le32);
 			data += entry_dw;
 		}
 	} while (entry_handle != CXL_DOE_TABLE_ACCESS_LAST_ENTRY);
+
+	/* Length in CDAT header may exceed concatenation of CDAT entries */
+	cdat->length -= length;
 
 	return 0;
 }

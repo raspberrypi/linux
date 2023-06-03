@@ -68,6 +68,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
+	gpio-charger.dtbo \
 	gpio-fan.dtbo \
 	gpio-hog.dtbo \
 	gpio-ir.dtbo \
@@ -167,6 +168,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ov9281.dtbo \
 	papirus.dtbo \
 	pca953x.dtbo \
+	pcf857x.dtbo \
 	pcie-32bit-dma.dtbo \
 	pibell.dtbo \
 	pifacedigital.dtbo \
@@ -270,6 +272,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-dsi-7inch.dtbo \
 	vc4-kms-dsi-lt070me05000.dtbo \
 	vc4-kms-dsi-lt070me05000-v2.dtbo \
+	vc4-kms-dsi-waveshare-panel.dtbo \
 	vc4-kms-kippah-7inch.dtbo \
 	vc4-kms-v3d.dtbo \
 	vc4-kms-v3d-pi4.dtbo \

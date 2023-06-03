@@ -21,6 +21,7 @@
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
 		i2c10 = &i2c_csi_dsi;
+		i2c = &i2c_arm;
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &spi2;
@@ -79,8 +80,14 @@
 		spi = <&spi0>,"status";
 		i2c0 = <&i2c0if>,"status",<&i2c0mux>,"status";
 		i2c1 = <&i2c1>,"status";
+		i2c = <&i2c1>,"status";
+		i2c_arm = <&i2c1>,"status";
+		i2c_vc = <&i2c0if>,"status",<&i2c0mux>,"status";
 		i2c0_baudrate = <&i2c0if>,"clock-frequency:0";
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_arm_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_vc_baudrate = <&i2c0if>,"clock-frequency:0";
 
 		watchdog = <&watchdog>,"status";
 		random = <&random>,"status";

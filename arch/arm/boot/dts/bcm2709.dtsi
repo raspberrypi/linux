@@ -8,7 +8,8 @@
 		ranges = <0x7e000000 0x3f000000 0x01000000>,
 		         <0x40000000 0x40000000 0x00040000>;
 
-		/delete-node/ timer@7e003000;
+		dma-ranges = <0xc0000000 0x00000000 0x3f000000>,
+			     <0x7e000000 0x3f000000 0x01000000>;
 	};
 
 	__overrides__ {
@@ -17,6 +18,10 @@
 			   <&v7_cpu2>, "clock-frequency:0",
 			   <&v7_cpu3>, "clock-frequency:0";
 	};
+};
+
+&system_timer {
+	status = "disabled";
 };
 
 &vc4 {

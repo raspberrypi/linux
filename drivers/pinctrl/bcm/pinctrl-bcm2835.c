@@ -90,6 +90,8 @@ struct bcm2835_pinctrl {
 	struct pinctrl_gpio_range gpio_range;
 
 	raw_spinlock_t irq_lock[BCM2835_NUM_BANKS];
+	/* Protect FSEL registers */
+	spinlock_t fsel_lock;
 };
 
 /* pins are just named GPIO0..GPIO53 */
@@ -284,14 +286,19 @@ static inline void bcm2835_pinctrl_fsel_set(
 		struct bcm2835_pinctrl *pc, unsigned pin,
 		enum bcm2835_fsel fsel)
 {
-	u32 val = bcm2835_gpio_rd(pc, FSEL_REG(pin));
-	enum bcm2835_fsel cur = (val >> FSEL_SHIFT(pin)) & BCM2835_FSEL_MASK;
+	u32 val;
+	enum bcm2835_fsel cur;
+	unsigned long flags;
+
+	spin_lock_irqsave(&pc->fsel_lock, flags);
+	val = bcm2835_gpio_rd(pc, FSEL_REG(pin));
+	cur = (val >> FSEL_SHIFT(pin)) & BCM2835_FSEL_MASK;
 
 	dev_dbg(pc->dev, "read %08x (%u => %s)\n", val, pin,
-			bcm2835_functions[cur]);
+		bcm2835_functions[cur]);
 
 	if (cur == fsel)
-		return;
+		goto unlock;
 
 	if (cur != BCM2835_FSEL_GPIO_IN && fsel != BCM2835_FSEL_GPIO_IN) {
 		/* always transition through GPIO_IN */
@@ -309,6 +316,9 @@ static inline void bcm2835_pinctrl_fsel_set(
 	dev_dbg(pc->dev, "write %08x (%u <= %s)\n", val, pin,
 			bcm2835_functions[fsel]);
 	bcm2835_gpio_wr(pc, FSEL_REG(pin), val);
+
+unlock:
+	spin_unlock_irqrestore(&pc->fsel_lock, flags);
 }
 
 static int bcm2835_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
@@ -412,14 +422,31 @@ static void bcm2835_gpio_irq_handle_bank(struct bcm2835_pinctrl *pc,
 	unsigned long events;
 	unsigned offset;
 	unsigned gpio;
+	u32 levs, levs2;
 
 	events = bcm2835_gpio_rd(pc, GPEDS0 + bank * 4);
+	levs = bcm2835_gpio_rd(pc, GPLEV0 + bank * 4);
 	events &= mask;
 	events &= pc->enabled_irq_map[bank];
+	bcm2835_gpio_wr(pc, GPEDS0 + bank * 4, events);
+
+retry:
 	for_each_set_bit(offset, &events, 32) {
 		gpio = (32 * bank) + offset;
 		generic_handle_domain_irq(pc->gpio_chip.irq.domain,
 					  gpio);
+	}
+	events = bcm2835_gpio_rd(pc, GPEDS0 + bank * 4);
+	levs2 = bcm2835_gpio_rd(pc, GPLEV0 + bank * 4);
+
+	events |= levs2 & ~levs & bcm2835_gpio_rd(pc, GPREN0 + bank * 4);
+	events |= ~levs2 & levs & bcm2835_gpio_rd(pc, GPFEN0 + bank * 4);
+	events &= mask;
+	events &= pc->enabled_irq_map[bank];
+	if (events) {
+		bcm2835_gpio_wr(pc, GPEDS0 + bank * 4, events);
+		levs = levs2;
+		goto retry;
 	}
 }
 
@@ -660,11 +687,7 @@ static int bcm2835_gpio_irq_set_type(struct irq_data *data, unsigned int type)
 
 static void bcm2835_gpio_irq_ack(struct irq_data *data)
 {
-	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-	struct bcm2835_pinctrl *pc = gpiochip_get_data(chip);
-	unsigned gpio = irqd_to_hwirq(data);
-
-	bcm2835_gpio_set_bit(pc, GPEDS0, gpio);
+	/* Nothing to do - the main interrupt handler includes the ACK */
 }
 
 static int bcm2835_gpio_irq_set_wake(struct irq_data *data, unsigned int on)
@@ -1248,6 +1271,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 	pc->gpio_chip = *pdata->gpio_chip;
 	pc->gpio_chip.parent = dev;
 
+	spin_lock_init(&pc->fsel_lock);
 	for (i = 0; i < BCM2835_NUM_BANKS; i++) {
 		unsigned long events;
 		unsigned offset;

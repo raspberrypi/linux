@@ -58,6 +58,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ENTRY(mmiocpy)
 ENTRY(memcpy)
+ENTRY(__memcpy)
         memcpy  0
+ENDPROC(__memcpy)
 ENDPROC(memcpy)
 ENDPROC(mmiocpy)
