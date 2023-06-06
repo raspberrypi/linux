@@ -307,7 +307,7 @@ static void btrfs_end_bio_work(struct work_struct *work)
 
 	/* Metadata reads are checked and repaired by the submitter. */
 	if (bbio->bio.bi_opf & REQ_META)
-		bbio->end_io(bbio);
+		btrfs_orig_bbio_end_io(bbio);
 	else
 		btrfs_check_read_bio(bbio, bbio->bio.bi_private);
 }
