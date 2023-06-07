@@ -13,6 +13,15 @@ pub(crate) struct BinderError {
     source: Option<Error>,
 }
 
+impl BinderError {
+    pub(crate) fn new_dead() -> Self {
+        Self {
+            reply: BR_DEAD_REPLY,
+            source: None,
+        }
+    }
+}
+
 /// Convert an errno into a `BinderError` and store the errno used to construct it. The errno
 /// should be stored as the thread's extended error when given to userspace.
 impl From<Error> for BinderError {
