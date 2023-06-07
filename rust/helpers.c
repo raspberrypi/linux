@@ -276,6 +276,12 @@ void rust_helper_security_release_secctx(char *secdata, u32 seclen)
 	security_release_secctx(secdata, seclen);
 }
 EXPORT_SYMBOL_GPL(rust_helper_security_release_secctx);
+
+int rust_helper_security_binder_set_context_mgr(const struct cred *mgr)
+{
+	return security_binder_set_context_mgr(mgr);
+}
+EXPORT_SYMBOL_GPL(rust_helper_security_binder_set_context_mgr);
 #endif
 
 void rust_helper_init_task_work(struct callback_head *twork,

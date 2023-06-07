@@ -22,6 +22,7 @@ use crate::{context::Context, process::Process, thread::Thread};
 mod context;
 mod defs;
 mod error;
+mod node;
 mod process;
 mod thread;
 
@@ -105,7 +106,6 @@ impl<T: ListArcSafe> DTRWrap<T> {
         .map_err(|_| alloc::alloc::AllocError)
     }
 
-    #[allow(dead_code)]
     fn arc_pin_init(init: impl PinInit<T>) -> Result<DLArc<T>, kernel::error::Error> {
         ListArc::pin_init(pin_init!(Self {
             links <- ListLinksSelfPtr::new(),

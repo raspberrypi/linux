@@ -21,14 +21,24 @@ pub_no_prefix!(
     BR_NOOP,
     BR_SPAWN_LOOPER,
     BR_TRANSACTION_COMPLETE,
-    BR_OK
+    BR_OK,
+    BR_INCREFS,
+    BR_ACQUIRE,
+    BR_RELEASE,
+    BR_DECREFS
 );
 
 pub_no_prefix!(
     binder_driver_command_protocol_,
     BC_ENTER_LOOPER,
     BC_EXIT_LOOPER,
-    BC_REGISTER_LOOPER
+    BC_REGISTER_LOOPER,
+    BC_INCREFS,
+    BC_ACQUIRE,
+    BC_RELEASE,
+    BC_DECREFS,
+    BC_INCREFS_DONE,
+    BC_ACQUIRE_DONE
 );
 
 macro_rules! decl_wrapper {
@@ -56,6 +66,9 @@ macro_rules! decl_wrapper {
     };
 }
 
+decl_wrapper!(BinderNodeDebugInfo, bindings::binder_node_debug_info);
+decl_wrapper!(BinderNodeInfoForRef, bindings::binder_node_info_for_ref);
+decl_wrapper!(FlatBinderObject, bindings::flat_binder_object);
 decl_wrapper!(BinderWriteRead, bindings::binder_write_read);
 decl_wrapper!(BinderVersion, bindings::binder_version);
 decl_wrapper!(ExtendedError, bindings::binder_extended_error);
