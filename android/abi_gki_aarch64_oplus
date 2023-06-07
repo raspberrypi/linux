@@ -8,6 +8,7 @@
   blk_rq_map_user
   blk_rq_map_user_iov
   blk_start_plug
+  cgroup_add_legacy_cftypes
   console_printk
   cpufreq_frequency_table_get_index
   cpufreq_policy_transition_delay_us
@@ -43,6 +44,7 @@
   ktime_get_coarse_real_ts64
   memory_cgrp_subsys
   memory_cgrp_subsys_enabled_key
+  mem_cgroup_from_id
   mipi_dsi_generic_write
   mmc_wait_for_cmd
   __mod_zone_page_state
@@ -102,6 +104,11 @@
   __traceiter_android_vh_exit_signal
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_rwsem_downgrade_wake_finish
+  __traceiter_android_vh_mem_cgroup_id_remove
+  __traceiter_android_vh_mem_cgroup_css_offline
+  __traceiter_android_vh_mem_cgroup_css_online
+  __traceiter_android_vh_mem_cgroup_free
+  __traceiter_android_vh_mem_cgroup_alloc
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_look_around
@@ -122,6 +129,11 @@
   __tracepoint_android_vh_exit_signal
   __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
+  __tracepoint_android_vh_mem_cgroup_id_remove
+  __tracepoint_android_vh_mem_cgroup_css_offline
+  __tracepoint_android_vh_mem_cgroup_css_online
+  __tracepoint_android_vh_mem_cgroup_free
+  __tracepoint_android_vh_mem_cgroup_alloc
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_check_folio_look_around_ref
@@ -136,6 +148,7 @@
   __tracepoint_sched_waking
   __tracepoint_task_rename
   __trace_puts
+  try_to_free_mem_cgroup_pages
   typec_mux_get_drvdata
   unregister_memory_notifier
   unregister_tcf_proto_ops
