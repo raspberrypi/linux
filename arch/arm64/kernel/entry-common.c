@@ -894,6 +894,7 @@ asmlinkage void noinstr __noreturn handle_bad_stack(struct pt_regs *regs)
 	unsigned long far = read_sysreg(far_el1);
 
 	arm64_enter_nmi(regs);
+	trace_android_rvh_handle_bad_stack(regs, esr, far);
 	panic_bad_stack(regs, esr, far);
 }
 #endif /* CONFIG_VMAP_STACK */
