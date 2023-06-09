@@ -218,4 +218,52 @@ int ring_buffer_unmap(struct trace_buffer *buffer, int cpu);
 struct page *ring_buffer_map_fault(struct trace_buffer *buffer, int cpu,
 				   unsigned long pgoff);
 int ring_buffer_map_get_reader_page(struct trace_buffer *buffer, int cpu);
+
+struct rb_page_desc {
+	int		cpu;
+	int		nr_page_va; /* exclude the meta page */
+	unsigned long	meta_va;
+	unsigned long	page_va[];
+};
+
+struct trace_page_desc {
+	int		nr_cpus;
+	char		__data[]; /* list of rb_page_desc */
+};
+
+static inline
+struct rb_page_desc *__next_rb_page_desc(struct rb_page_desc *pdesc)
+{
+	size_t len = struct_size(pdesc, page_va, pdesc->nr_page_va);
+
+	return (struct rb_page_desc *)((void *)pdesc + len);
+}
+
+#define for_each_rb_page_desc(__pdesc, __cpu, __trace_pdesc)				\
+	for (__pdesc = (struct rb_page_desc *)&((__trace_pdesc)->__data[0]), __cpu = 0;	\
+	     __cpu < (__trace_pdesc)->nr_cpus;						\
+	     __cpu++, __pdesc = __next_rb_page_desc(__pdesc))
+
+static inline
+struct rb_page_desc *rb_page_desc(struct trace_page_desc *trace_pdesc, int cpu)
+{
+	struct rb_page_desc *pdesc;
+	int i;
+
+	if (!trace_pdesc)
+		return NULL;
+
+	for_each_rb_page_desc(pdesc, i, trace_pdesc) {
+		if (pdesc->cpu == cpu)
+			return pdesc;
+	}
+
+	return NULL;
+}
+
+static inline
+void *rb_page_desc_page(struct rb_page_desc *pdesc, int page_id)
+{
+	return page_id > pdesc->nr_page_va ? NULL : (void *)pdesc->page_va[page_id];
+}
 #endif /* _LINUX_RING_BUFFER_H */
