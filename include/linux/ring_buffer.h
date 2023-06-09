@@ -83,21 +83,24 @@ u64 ring_buffer_event_time_stamp(struct trace_buffer *buffer,
 void ring_buffer_discard_commit(struct trace_buffer *buffer,
 				struct ring_buffer_event *event);
 
+struct ring_buffer_writer;
+
 /*
  * size is in bytes for each per CPU buffer.
  */
 struct trace_buffer *
-__ring_buffer_alloc(unsigned long size, unsigned flags, struct lock_class_key *key);
+__ring_buffer_alloc(unsigned long size, unsigned flags, struct lock_class_key *key,
+		    struct ring_buffer_writer *writer);
 
 /*
  * Because the ring buffer is generic, if other users of the ring buffer get
  * traced by ftrace, it can produce lockdep warnings. We need to keep each
  * ring buffer's lock class separate.
  */
-#define ring_buffer_alloc(size, flags)			\
-({							\
-	static struct lock_class_key __key;		\
-	__ring_buffer_alloc((size), (flags), &__key);	\
+#define ring_buffer_alloc(size, flags)				\
+({								\
+	static struct lock_class_key __key;			\
+	__ring_buffer_alloc((size), (flags), &__key, NULL);	\
 })
 
 int ring_buffer_wait(struct trace_buffer *buffer, int cpu, int full);
@@ -266,4 +269,17 @@ void *rb_page_desc_page(struct rb_page_desc *pdesc, int page_id)
 {
 	return page_id > pdesc->nr_page_va ? NULL : (void *)pdesc->page_va[page_id];
 }
+
+struct ring_buffer_writer {
+	struct trace_page_desc	*pdesc;
+	int (*get_reader_page)(int cpu);
+};
+
+int ring_buffer_poll_writer(struct trace_buffer *buffer, int cpu);
+
+#define ring_buffer_reader(writer)				\
+({								\
+	static struct lock_class_key __key;			\
+	__ring_buffer_alloc(0, RB_FL_OVERWRITE, &__key, writer);\
+})
 #endif /* _LINUX_RING_BUFFER_H */
