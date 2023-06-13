@@ -1207,6 +1207,9 @@ static int sc16is7xx_startup(struct uart_port *port)
 	      SC16IS7XX_IER_MSI_BIT;
 	sc16is7xx_port_write(port, SC16IS7XX_IER_REG, val);
 
+	/* Initialize the Modem Control signals to current status */
+	one->old_mctrl = sc16is7xx_get_hwmctrl(port);
+
 	/* Enable modem status polling */
 	spin_lock_irqsave(&port->lock, flags);
 	sc16is7xx_enable_ms(port);
