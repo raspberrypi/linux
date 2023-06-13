@@ -31,6 +31,15 @@ static phys_addr_t __ro_after_init hyp_idmap_vector;
 
 static unsigned long __ro_after_init io_map_base;
 
+static bool stage2_force_pte_cb(u64 addr, u64 end, enum kvm_pgtable_prot prot);
+static bool stage2_pte_is_counted(kvm_pte_t pte, u32 level);
+
+static struct kvm_pgtable_pte_ops kvm_s2_pte_ops = {
+	.force_pte_cb = stage2_force_pte_cb,
+	.pte_is_counted_cb = stage2_pte_is_counted
+
+};
+
 static phys_addr_t __stage2_range_addr_end(phys_addr_t addr, phys_addr_t end,
 					   phys_addr_t size)
 {
@@ -225,7 +234,8 @@ static void stage2_free_unlinked_table_rcu_cb(struct rcu_head *head)
 	void *pgtable = page_to_virt(page);
 	u32 level = page_private(page);
 
-	kvm_pgtable_stage2_free_unlinked(&kvm_s2_mm_ops, pgtable, level);
+	kvm_pgtable_stage2_free_unlinked(&kvm_s2_mm_ops, &kvm_s2_pte_ops,
+					 pgtable, level);
 }
 
 static void stage2_free_unlinked_table(void *addr, u32 level)
@@ -861,6 +871,17 @@ static int get_user_mapping_size(struct kvm *kvm, u64 addr)
 	return BIT(ARM64_HW_PGTABLE_LEVEL_SHIFT(level));
 }
 
+static bool stage2_force_pte_cb(u64 addr, u64 end, enum kvm_pgtable_prot prot)
+{
+	return false;
+}
+
+static bool stage2_pte_is_counted(kvm_pte_t pte, u32 level)
+
+{
+	return !!pte;
+}
+
 static struct kvm_pgtable_mm_ops kvm_s2_mm_ops = {
 	.zalloc_page		= stage2_memcache_zalloc_page,
 	.zalloc_pages_exact	= kvm_s2_zalloc_pages_exact,
@@ -928,7 +949,8 @@ int kvm_init_stage2_mmu(struct kvm *kvm, struct kvm_s2_mmu *mmu, unsigned long t
 		return -ENOMEM;
 
 	mmu->arch = &kvm->arch;
-	err = kvm_pgtable_stage2_init(pgt, mmu, &kvm_s2_mm_ops);
+	err = kvm_pgtable_stage2_init(pgt, mmu, &kvm_s2_mm_ops,
+				      &kvm_s2_pte_ops);
 	if (err)
 		goto out_free_pgtable;
 

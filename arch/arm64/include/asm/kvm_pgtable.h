@@ -230,6 +230,22 @@ enum kvm_pgtable_prot {
 typedef bool (*kvm_pgtable_force_pte_cb_t)(u64 addr, u64 end,
 					   enum kvm_pgtable_prot prot);
 
+typedef bool (*kvm_pgtable_pte_is_counted_cb_t)(kvm_pte_t pte, u32 level);
+
+/**
+ * struct kvm_pgtable_pte_ops - PTE callbacks.
+ * @force_pte_cb:		Force the mapping granularity to pages and
+ *				return true if we support this instead of
+ *				block mappings.
+ * @pte_is_counted_cb		Verify the attributes of the @pte argument
+ *				and return true if the descriptor needs to be
+ *				refcounted, otherwise return false.
+ */
+struct kvm_pgtable_pte_ops {
+	kvm_pgtable_force_pte_cb_t		force_pte_cb;
+	kvm_pgtable_pte_is_counted_cb_t		pte_is_counted_cb;
+};
+
 /**
  * enum kvm_pgtable_walk_flags - Flags to control a depth-first page-table walk.
  * @KVM_PGTABLE_WALK_LEAF:		Visit leaf entries, including invalid
@@ -265,6 +281,7 @@ struct kvm_pgtable_visit_ctx {
 	void					*arg;
 	struct kvm_pgtable_mm_ops		*mm_ops;
 	u64					start;
+	struct kvm_pgtable_pte_ops		*pte_ops;
 	u64					addr;
 	u64					end;
 	u32					level;
@@ -365,8 +382,7 @@ static inline bool kvm_pgtable_walk_lock_held(void)
  * @mm_ops:		Memory management callbacks.
  * @mmu:		Stage-2 KVM MMU struct. Unused for stage-1 page-tables.
  * @flags:		Stage-2 page-table flags.
- * @force_pte_cb:	Function that returns true if page level mappings must
- *			be used instead of block mappings.
+ * @pte_ops:		PTE callbacks.
  */
 struct kvm_pgtable {
 	u32					ia_bits;
@@ -377,7 +393,7 @@ struct kvm_pgtable {
 	/* Stage-2 only */
 	struct kvm_s2_mmu			*mmu;
 	enum kvm_pgtable_stage2_flags		flags;
-	kvm_pgtable_force_pte_cb_t		force_pte_cb;
+	struct kvm_pgtable_pte_ops		*pte_ops;
 };
 
 /**
@@ -473,18 +489,17 @@ size_t kvm_pgtable_stage2_pgd_size(u64 vtcr);
  * @mmu:	S2 MMU context for this S2 translation
  * @mm_ops:	Memory management callbacks.
  * @flags:	Stage-2 configuration flags.
- * @force_pte_cb: Function that returns true if page level mappings must
- *		be used instead of block mappings.
+ * @pte_ops:	PTE callbacks.
  *
  * Return: 0 on success, negative error code on failure.
  */
 int __kvm_pgtable_stage2_init(struct kvm_pgtable *pgt, struct kvm_s2_mmu *mmu,
 			      struct kvm_pgtable_mm_ops *mm_ops,
 			      enum kvm_pgtable_stage2_flags flags,
-			      kvm_pgtable_force_pte_cb_t force_pte_cb);
+			      struct kvm_pgtable_pte_ops *pte_ops);
 
-#define kvm_pgtable_stage2_init(pgt, mmu, mm_ops) \
-	__kvm_pgtable_stage2_init(pgt, mmu, mm_ops, 0, NULL)
+#define kvm_pgtable_stage2_init(pgt, mmu, mm_ops, pte_ops) \
+	__kvm_pgtable_stage2_init(pgt, mmu, mm_ops, 0, pte_ops)
 
 /**
  * kvm_pgtable_stage2_destroy() - Destroy an unused guest stage-2 page-table.
@@ -498,13 +513,16 @@ void kvm_pgtable_stage2_destroy(struct kvm_pgtable *pgt);
 /**
  * kvm_pgtable_stage2_free_unlinked() - Free an unlinked stage-2 paging structure.
  * @mm_ops:	Memory management callbacks.
+ * @pte_ops:	Pagetable entries management callbacks.
  * @pgtable:	Unlinked stage-2 paging structure to be freed.
  * @level:	Level of the stage-2 paging structure to be freed.
  *
  * The page-table is assumed to be unreachable by any hardware walkers prior to
  * freeing and therefore no TLB invalidation is performed.
  */
-void kvm_pgtable_stage2_free_unlinked(struct kvm_pgtable_mm_ops *mm_ops, void *pgtable, u32 level);
+void kvm_pgtable_stage2_free_unlinked(struct kvm_pgtable_mm_ops *mm_ops,
+				      struct kvm_pgtable_pte_ops *pte_ops,
+				      void *pgtable, u32 level);
 
 /**
  * kvm_pgtable_stage2_create_unlinked() - Create an unlinked stage-2 paging structure.
