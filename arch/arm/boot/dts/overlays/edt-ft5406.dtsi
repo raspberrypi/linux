@@ -23,7 +23,7 @@
 	};
 
 	fragment@12 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -34,6 +34,13 @@
 				touchscreen-size-x = < 800 >;
 				touchscreen-size-y = < 480 >;
 			};
+		};
+	};
+
+	frag13: fragment@13 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
 		};
 	};
 

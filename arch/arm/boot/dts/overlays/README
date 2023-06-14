@@ -1040,9 +1040,11 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
 
 
 Name:   edt-ft5406
-Info:   Overlay for the EDT FT5406 touchscreen on the CSI/DSI I2C interface.
+Info:   Overlay for the EDT FT5406 touchscreen.
         This works with the Raspberry Pi 7" touchscreen when not being polled
         by the firmware.
+        By default the overlay uses the i2c_csi_dsi I2C interface, but this
+        can be overridden
         You MUST use either "disable_touchscreen=1" or "ignore_lcd=1" in
         config.txt to stop the firmware polling the touchscreen.
 Load:   dtoverlay=edt-ft5406,<param>=<val>
@@ -1051,6 +1053,19 @@ Params: sizex                   Touchscreen size x (default 800)
         invx                    Touchscreen inverted x axis
         invy                    Touchscreen inverted y axis
         swapxy                  Touchscreen swapped x y axis
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+        i2c1                    Choose the I2C1 bus on GPIOs 2&3
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c4                    Choose the I2C4 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+        i2c5                    Choose the I2C5 bus (configure with the i2c5
+                                overlay - BCM2711 only)
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+        addr                    Sets the address for the touch controller. Note
+                                that the device must be configured to use the
+                                specified address.
 
 
 Name:   enc28j60
