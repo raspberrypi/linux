@@ -23,4 +23,24 @@
 			status = "okay";
 		};
 	};
+
+	__overrides__ {
+		i2c0 = <&frag13>,"target:0=",<&i2c0>;
+		i2c1 = <&frag13>, "target?=0",
+		       <&frag13>, "target-path=i2c1",
+		       <0>,"-0-1";
+		i2c3 = <&frag13>, "target?=0",
+		       <&frag13>, "target-path=i2c3",
+		       <0>,"-0-1";
+		i2c4 = <&frag13>, "target?=0",
+		       <&frag13>, "target-path=i2c4",
+		       <0>,"-0-1";
+		i2c5 = <&frag13>, "target?=0",
+		       <&frag13>, "target-path=i2c5",
+		       <0>,"-0-1";
+		i2c6 = <&frag13>, "target?=0",
+		       <&frag13>, "target-path=i2c6",
+		       <0>,"-0-1";
+		addr = <&ft5406>,"reg:0";
+	};
 };
