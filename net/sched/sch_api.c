@@ -308,7 +308,7 @@ struct Qdisc *qdisc_lookup(struct net_device *dev, u32 handle)
 
 	if (dev_ingress_queue(dev))
 		q = qdisc_match_from_root(
-			dev_ingress_queue(dev)->qdisc_sleeping,
+			rtnl_dereference(dev_ingress_queue(dev)->qdisc_sleeping),
 			handle);
 out:
 	return q;
@@ -327,7 +327,8 @@ struct Qdisc *qdisc_lookup_rcu(struct net_device *dev, u32 handle)
 
 	nq = dev_ingress_queue_rcu(dev);
 	if (nq)
-		q = qdisc_match_from_root(nq->qdisc_sleeping, handle);
+		q = qdisc_match_from_root(rcu_dereference(nq->qdisc_sleeping),
+					  handle);
 out:
 	return q;
 }
@@ -633,8 +634,13 @@ EXPORT_SYMBOL(qdisc_watchdog_init);
 void qdisc_watchdog_schedule_range_ns(struct qdisc_watchdog *wd, u64 expires,
 				      u64 delta_ns)
 {
-	if (test_bit(__QDISC_STATE_DEACTIVATED,
-		     &qdisc_root_sleeping(wd->qdisc)->state))
+	bool deactivated;
+
+	rcu_read_lock();
+	deactivated = test_bit(__QDISC_STATE_DEACTIVATED,
+			       &qdisc_root_sleeping(wd->qdisc)->state);
+	rcu_read_unlock();
+	if (deactivated)
 		return;
 
 	if (hrtimer_is_queued(&wd->timer)) {
@@ -1241,7 +1247,12 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
 	sch->parent = parent;
 
 	if (handle == TC_H_INGRESS) {
-		sch->flags |= TCQ_F_INGRESS;
+		if (!(sch->flags & TCQ_F_INGRESS)) {
+			NL_SET_ERR_MSG(extack,
+				       "Specified parent ID is reserved for ingress and clsact Qdiscs");
+			err = -EINVAL;
+			goto err_out3;
+		}
 		handle = TC_H_MAKE(TC_H_INGRESS, 0);
 	} else {
 		if (handle == 0) {
@@ -1468,7 +1479,7 @@ static int tc_get_qdisc(struct sk_buff *skb, struct nlmsghdr *n,
 				}
 				q = qdisc_leaf(p, clid);
 			} else if (dev_ingress_queue(dev)) {
-				q = dev_ingress_queue(dev)->qdisc_sleeping;
+				q = rtnl_dereference(dev_ingress_queue(dev)->qdisc_sleeping);
 			}
 		} else {
 			q = rtnl_dereference(dev->qdisc);
@@ -1554,7 +1565,7 @@ replay:
 				}
 				q = qdisc_leaf(p, clid);
 			} else if (dev_ingress_queue_create(dev)) {
-				q = dev_ingress_queue(dev)->qdisc_sleeping;
+				q = rtnl_dereference(dev_ingress_queue(dev)->qdisc_sleeping);
 			}
 		} else {
 			q = rtnl_dereference(dev->qdisc);
@@ -1586,10 +1597,19 @@ replay:
 					NL_SET_ERR_MSG(extack, "Invalid qdisc name");
 					return -EINVAL;
 				}
+				if (q->flags & TCQ_F_INGRESS) {
+					NL_SET_ERR_MSG(extack,
+						       "Cannot regraft ingress or clsact Qdiscs");
+					return -EINVAL;
+				}
 				if (q == p ||
 				    (p && check_loop(q, p, 0))) {
 					NL_SET_ERR_MSG(extack, "Qdisc parent/child loop detected");
 					return -ELOOP;
+				}
+				if (clid == TC_H_INGRESS) {
+					NL_SET_ERR_MSG(extack, "Ingress cannot graft directly");
+					return -EINVAL;
 				}
 				qdisc_refcount_inc(q);
 				goto graft;
@@ -1786,8 +1806,8 @@ static int tc_dump_qdisc(struct sk_buff *skb, struct netlink_callback *cb)
 
 		dev_queue = dev_ingress_queue(dev);
 		if (dev_queue &&
-		    tc_dump_qdisc_root(dev_queue->qdisc_sleeping, skb, cb,
-				       &q_idx, s_q_idx, false,
+		    tc_dump_qdisc_root(rtnl_dereference(dev_queue->qdisc_sleeping),
+				       skb, cb, &q_idx, s_q_idx, false,
 				       tca[TCA_DUMP_INVISIBLE]) < 0)
 			goto done;
 
@@ -2225,8 +2245,8 @@ static int tc_dump_tclass(struct sk_buff *skb, struct netlink_callback *cb)
 
 	dev_queue = dev_ingress_queue(dev);
 	if (dev_queue &&
-	    tc_dump_tclass_root(dev_queue->qdisc_sleeping, skb, tcm, cb,
-				&t, s_t, false) < 0)
+	    tc_dump_tclass_root(rtnl_dereference(dev_queue->qdisc_sleeping),
+				skb, tcm, cb, &t, s_t, false) < 0)
 		goto done;
 
 done:
