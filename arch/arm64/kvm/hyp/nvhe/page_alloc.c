@@ -218,8 +218,13 @@ void *hyp_alloc_pages(struct hyp_pool *pool, u8 order)
 	return hyp_page_to_virt(p);
 }
 
-int hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
-		  unsigned int reserved_pages)
+/*
+ * empty_alloc alloc set true when pool has no pages initially, but we still want
+ * to use it in the future, which means nr_pages only has to be valid to init
+ * the free areas.
+ */
+static int __hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
+			   unsigned int reserved_pages, bool empty_alloc)
 {
 	phys_addr_t phys = hyp_pfn_to_phys(pfn);
 	struct hyp_page *p;
@@ -229,6 +234,14 @@ int hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
 	pool->max_order = min(MAX_ORDER, get_order(nr_pages << PAGE_SHIFT));
 	for (i = 0; i <= pool->max_order; i++)
 		INIT_LIST_HEAD(&pool->free_area[i]);
+
+	if (empty_alloc) {
+		/* All pages are attached from outside. */
+		pool->range_start = -1ULL;
+		pool->range_end = 0;
+		return 0;
+	}
+
 	pool->range_start = phys;
 	pool->range_end = phys + (nr_pages << PAGE_SHIFT);
 
@@ -242,4 +255,15 @@ int hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
 		__hyp_put_page(pool, &p[i]);
 
 	return 0;
+}
+
+int hyp_pool_init(struct hyp_pool *pool, u64 pfn, unsigned int nr_pages,
+		    unsigned int reserved_pages)
+{
+	return __hyp_pool_init(pool, pfn, nr_pages, reserved_pages, false);
+}
+
+int hyp_pool_init_empty(struct hyp_pool *pool, unsigned int nr_pages)
+{
+	return __hyp_pool_init(pool, 0, nr_pages, 0, true);
 }
