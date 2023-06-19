@@ -68,7 +68,6 @@
 				reg = <1>;
 
 				spi-max-frequency = <500000>;
-				irq-gpio = <&gpio 24 0x2>; /* IRQF_TRIGGER_FALLING */
 				interrupts = <24 2>; /* high-to-low edge triggered */
 				interrupt-parent = <&gpio>;
 				interrupt-controller;
