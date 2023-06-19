@@ -912,15 +912,14 @@
 	cs89x0_media=	[HW,NET]
 			Format: { rj45 | aui | bnc }
 
-	csdlock_debug=	[KNL] Enable debug add-ons of cross-CPU function call
-			handling. When switched on, additional debug data is
-			printed to the console in case a hanging CPU is
-			detected, and that CPU is pinged again in order to try
-			to resolve the hang situation.
-			0: disable csdlock debugging (default)
-			1: enable basic csdlock debugging (minor impact)
-			ext: enable extended csdlock debugging (more impact,
-			     but more data)
+	csdlock_debug=	[KNL] Enable or disable debug add-ons of cross-CPU
+			function call handling. When switched on,
+			additional debug data is printed to the console
+			in case a hanging CPU is detected, and that
+			CPU is pinged again in order to try to resolve
+			the hang situation.  The default value of this
+			option depends on the CSD_LOCK_WAIT_DEBUG_DEFAULT
+			Kconfig option.
 
 	dasd=		[HW,NET]
 			See header of drivers/s390/block/dasd_devmap.c.
@@ -3617,7 +3616,10 @@
 			emulation library even if a 387 maths coprocessor
 			is present.
 
-	no5lvl		[X86-64] Disable 5-level paging mode. Forces
+	no4lvl		[RISCV] Disable 4-level and 5-level paging modes. Forces
+			kernel to use 3-level paging instead.
+
+	no5lvl		[X86-64,RISCV] Disable 5-level paging mode. Forces
 			kernel to use 4-level paging instead.
 
 	noaliencache	[MM, NUMA, SLAB] Disables the allocation of alien
