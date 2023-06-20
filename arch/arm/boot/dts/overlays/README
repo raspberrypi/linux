@@ -2399,7 +2399,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
 
 Name:   interludeaudio-analog
 Info:   Configures Interlude Audio Analog Hat audio card
-Load:   dtoverlay=interludeaudio-analog
+Load:   dtoverlay=interludeaudio-analog,<param>=<val>
 Params: gpiopin                 GPIO pin for codec reset
 
 
