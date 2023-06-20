@@ -123,6 +123,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx477.dtbo \
 	imx519.dtbo \
 	imx708.dtbo \
+	interludeaudio-analog.dtbo \
 	interludeaudio-digital.dtbo \
 	iqaudio-codec.dtbo \
 	iqaudio-dac.dtbo \
@@ -283,9 +284,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	waveshare-can-fd-hat-mode-a.dtbo \
 	waveshare-can-fd-hat-mode-b.dtbo \
 	wittypi.dtbo \
-	wm8960-soundcard.dtbo\
-	interludeaudio-analog.dtbo
-
+	wm8960-soundcard.dtbo 
 
 
 targets += dtbs dtbs_install
