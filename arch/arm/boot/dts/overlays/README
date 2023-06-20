@@ -2396,11 +2396,11 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
 
-Name:   interludeaudio-analog
+
+Name:   interludeaudio-Analog   
 Info:   Configures Interlude Audio Analog Hat audio card
 Load:   dtoverlay=interludeaudio-analog
-Params: <None>
-
+Params: gpiopin                 GPIO pin for codec reset
 
 
 Name:   interludeaudio-digital
