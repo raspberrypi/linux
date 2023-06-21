@@ -30,6 +30,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
+			clock-frequency = <50000>;
 
 			allo-katana-codec@30 {
 				#sound-dai-cells = <0>;
