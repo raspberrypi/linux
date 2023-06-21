@@ -1,8 +1,0 @@
-
-if MCTP
-
-menu "MCTP Device Drivers"
-
-endmenu
-
-endif
