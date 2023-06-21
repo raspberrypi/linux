@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "⛔ Question"
+    url: https://www.raspberrypi.org/forums
+    about: "Please do not use GitHub for asking questions. If you simply have a question, then the Raspberry Pi forums are the best place to ask it. Thanks in advance for helping us keep the issue tracker clean!"
+  - name: "⛔ Problems with the Raspbian distribution packages"
+    url: https://github.com/RPi-Distro/repo
+    about: "If you have problems with the Raspbian distribution packages, please report them in the github.com/RPi-Distro/repo."
+

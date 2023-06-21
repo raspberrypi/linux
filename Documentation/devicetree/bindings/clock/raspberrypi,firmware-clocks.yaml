@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/raspberrypi,firmware-clocks.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: RaspberryPi Firmware Clocks Device Tree Bindings
+
+maintainers:
+  - Maxime Ripard <mripard@kernel.org>
+
+properties:
+  "#clock-cells":
+    const: 1
+
+  compatible:
+    const: raspberrypi,firmware-clocks
+
+required:
+  - "#clock-cells"
+  - compatible
+
+additionalProperties: false
+
+examples:
+  - |
+    firmware_clocks: firmware-clocks {
+        compatible = "raspberrypi,firmware-clocks";
+        #clock-cells = <1>;
+    };
+
+...

@@ -1,0 +1,49 @@
+#
+# Broadcom char driver config
+#
+
+menuconfig BRCM_CHAR_DRIVERS
+	bool "Broadcom Char Drivers"
+	help
+	  Broadcom's char drivers
+
+if BRCM_CHAR_DRIVERS
+
+config BCM2708_VCMEM
+	bool "Videocore Memory"
+        default y
+        help
+          Helper for videocore memory access and total size allocation.
+
+config BCM_VCIO
+	tristate "Mailbox userspace access"
+	depends on BCM2835_MBOX
+	help
+	  Gives access to the mailbox property channel from userspace.
+
+endif
+
+config BCM2835_DEVGPIOMEM
+	tristate "/dev/gpiomem rootless GPIO access via mmap() on the BCM2835"
+	default m
+	help
+		Provides users with root-free access to the GPIO registers
+		on the 2835. Calling mmap(/dev/gpiomem) will map the GPIO
+		register page to the user's pointer.
+
+config BCM2835_SMI_DEV
+	tristate "Character device driver for BCM2835 Secondary Memory Interface"
+	depends on BCM2835_SMI
+	default m
+	help
+		This driver provides a character device interface (ioctl + read/write) to
+		Broadcom's Secondary Memory interface. The low-level functionality is provided
+		by the SMI driver itself.
+
+config RPIVID_MEM
+	tristate "Character device driver for the Raspberry Pi RPIVid video decoder hardware"
+	default n
+	help
+		This driver provides a character device interface for memory-map operations
+		so userspace tools can access the control and status registers of the
+		Raspberry Pi RPiVid video decoder hardware.
