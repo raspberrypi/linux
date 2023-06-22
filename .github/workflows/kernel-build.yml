@@ -58,9 +58,9 @@ jobs:
     - name: Install toolchain
       run:
         if [[ "${{matrix.arch}}" == "arm64" ]]; then
-          sudo apt-get install crossbuild-essential-arm64;
+          sudo apt-get install gcc-aarch64-linux-gnu;
         else
-          sudo apt-get install crossbuild-essential-armhf;
+          sudo apt-get install gcc-arm-linux-gnueabihf;
         fi
       timeout-minutes: 5
 
