@@ -118,6 +118,16 @@
 #define IMX219_TESTP_BLUE_DEFAULT	0
 #define IMX219_TESTP_GREENB_DEFAULT	0
 
+/* IMX219 left, top, height, width registers */
+#define IMX219_REG_X_START 0x0164
+#define IMX219_REG_X_END 0x0166
+#define IMX219_REG_Y_START 0x0168
+#define IMX219_REG_Y_END 0x016a
+#define IMX219_REG_WIDTH 0x016c
+#define IMX219_REG_HEIGHT 0x016e
+#define IMX219_REG_TEST_WIDTH 0x0624
+#define IMX219_REG_TEST_HEIGHT 0x0626
+
 /* IMX219 native and active pixel array size. */
 #define IMX219_NATIVE_WIDTH		3296U
 #define IMX219_NATIVE_HEIGHT		2480U
@@ -153,6 +163,11 @@ struct imx219_reg {
 	u8 val;
 };
 
+struct imx219_reg_16bit_val {
+	u16 address;
+	u16 val;
+};
+
 struct imx219_reg_list {
 	unsigned int num_of_regs;
 	const struct imx219_reg *regs;
@@ -170,9 +185,6 @@ struct imx219_mode {
 
 	/* V-timing */
 	unsigned int vts_def;
-
-	/* Default register values */
-	struct imx219_reg_list reg_list;
 
 	/* binning mode based on format code */
 	enum binning_mode binning[BINNING_IDX_MAX];
@@ -223,87 +235,6 @@ static const struct imx219_reg imx219_common_regs[] = {
 	{0x0128, 0x00},	/* DPHY Auto Mode */
 	{0x012a, 0x18},	/* EXCK_Freq */
 	{0x012b, 0x00},
-};
-
-/*
- * Register sets lifted off the i2C interface from the Raspberry Pi firmware
- * driver.
- * 3280x2464 = mode 2, 1920x1080 = mode 1, 1640x1232 = mode 4, 640x480 = mode 7.
- */
-static const struct imx219_reg mode_3280x2464_regs[] = {
-	{0x0164, 0x00},
-	{0x0165, 0x00},
-	{0x0166, 0x0c},
-	{0x0167, 0xcf},
-	{0x0168, 0x00},
-	{0x0169, 0x00},
-	{0x016a, 0x09},
-	{0x016b, 0x9f},
-	{0x016c, 0x0c},
-	{0x016d, 0xd0},
-	{0x016e, 0x09},
-	{0x016f, 0xa0},
-	{0x0624, 0x0c},
-	{0x0625, 0xd0},
-	{0x0626, 0x09},
-	{0x0627, 0xa0},
-};
-
-static const struct imx219_reg mode_1920_1080_regs[] = {
-	{0x0164, 0x02},
-	{0x0165, 0xa8},
-	{0x0166, 0x0a},
-	{0x0167, 0x27},
-	{0x0168, 0x02},
-	{0x0169, 0xb4},
-	{0x016a, 0x06},
-	{0x016b, 0xeb},
-	{0x016c, 0x07},
-	{0x016d, 0x80},
-	{0x016e, 0x04},
-	{0x016f, 0x38},
-	{0x0624, 0x07},
-	{0x0625, 0x80},
-	{0x0626, 0x04},
-	{0x0627, 0x38},
-};
-
-static const struct imx219_reg mode_1640_1232_regs[] = {
-	{0x0164, 0x00},
-	{0x0165, 0x00},
-	{0x0166, 0x0c},
-	{0x0167, 0xcf},
-	{0x0168, 0x00},
-	{0x0169, 0x00},
-	{0x016a, 0x09},
-	{0x016b, 0x9f},
-	{0x016c, 0x06},
-	{0x016d, 0x68},
-	{0x016e, 0x04},
-	{0x016f, 0xd0},
-	{0x0624, 0x06},
-	{0x0625, 0x68},
-	{0x0626, 0x04},
-	{0x0627, 0xd0},
-};
-
-static const struct imx219_reg mode_640_480_regs[] = {
-	{0x0164, 0x03},
-	{0x0165, 0xe8},
-	{0x0166, 0x08},
-	{0x0167, 0xe7},
-	{0x0168, 0x02},
-	{0x0169, 0xf0},
-	{0x016a, 0x06},
-	{0x016b, 0xaf},
-	{0x016c, 0x02},
-	{0x016d, 0x80},
-	{0x016e, 0x01},
-	{0x016f, 0xe0},
-	{0x0624, 0x06},
-	{0x0625, 0x68},
-	{0x0626, 0x04},
-	{0x0627, 0xd0},
 };
 
 static const struct imx219_reg raw8_framefmt_regs[] = {
@@ -409,10 +340,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 2464
 		},
 		.vts_def = IMX219_VTS_15FPS,
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_3280x2464_regs),
-			.regs = mode_3280x2464_regs,
-		},
 		.binning = {
 			[BINNING_IDX_8_BIT] = BINNING_NONE,
 			[BINNING_IDX_10_BIT] = BINNING_NONE,
@@ -429,10 +356,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 1080
 		},
 		.vts_def = IMX219_VTS_30FPS_1080P,
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_1920_1080_regs),
-			.regs = mode_1920_1080_regs,
-		},
 		.binning = {
 			[BINNING_IDX_8_BIT] = BINNING_NONE,
 			[BINNING_IDX_10_BIT] = BINNING_NONE,
@@ -449,10 +372,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 2464
 		},
 		.vts_def = IMX219_VTS_30FPS_BINNED,
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_1640_1232_regs),
-			.regs = mode_1640_1232_regs,
-		},
 		.binning = {
 			[BINNING_IDX_8_BIT] = BINNING_ANALOG_2x2,
 			[BINNING_IDX_10_BIT] = BINNING_DIGITAL_2x2,
@@ -469,10 +388,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 960
 		},
 		.vts_def = IMX219_VTS_30FPS_640x480,
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_640_480_regs),
-			.regs = mode_640_480_regs,
-		},
 		.binning = {
 			[BINNING_IDX_8_BIT] = BINNING_ANALOG_2x2,
 			[BINNING_IDX_10_BIT] = BINNING_ANALOG_2x2,
@@ -1133,10 +1048,55 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static int imx219_apply_crop_reg(struct imx219 *imx219, s32 x_start, s32 x_end,
+			     s32 y_start, s32 y_end, u32 height, u32 width)
+{
+	struct imx219_reg_16bit_val regs[8] = {
+		{ IMX219_REG_X_START, x_start },
+		{ IMX219_REG_X_END, x_end },
+		{ IMX219_REG_Y_START, y_start },
+		{ IMX219_REG_Y_END, y_end },
+		{ IMX219_REG_WIDTH, width },
+		{ IMX219_REG_HEIGHT, height },
+		{ IMX219_REG_TEST_HEIGHT, height },
+		{ IMX219_REG_TEST_WIDTH, width }
+	};
+	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
+	unsigned int i;
+	int ret;
+
+	for (i = 0; i < ARRAY_SIZE(regs); i++) {
+		ret = imx219_write_reg(imx219, regs[i].address,
+				       IMX219_REG_VALUE_16BIT, regs[i].val);
+		if (ret) {
+			dev_err_ratelimited(
+				&client->dev,
+				"Failed to write reg 0x%4.4x. error = %d\n",
+				regs[i].address, ret);
+
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static int imx219_apply_crop(struct imx219 *imx219)
+{
+	u32 width, height, x_start, x_end, y_start, y_end;
+
+	width = imx219->mode->width;
+	height = imx219->mode->height;
+	x_start = imx219->mode->crop.left - IMX219_PIXEL_ARRAY_LEFT;
+	x_end = x_start + imx219->mode->crop.width - 1;
+	y_start = imx219->mode->crop.top - IMX219_PIXEL_ARRAY_TOP;
+	y_end = y_start + imx219->mode->crop.height - 1;
+	return imx219_apply_crop_reg(imx219, x_start, x_end, y_start, y_end,
+				     height, width);
+}
+
 static int imx219_start_streaming(struct imx219 *imx219)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
-	const struct imx219_reg_list *reg_list;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(&client->dev);
@@ -1151,10 +1111,10 @@ static int imx219_start_streaming(struct imx219 *imx219)
 	}
 
 	/* Apply default values of current mode */
-	reg_list = &imx219->mode->reg_list;
-	ret = imx219_write_regs(imx219, reg_list->regs, reg_list->num_of_regs);
+	ret = imx219_apply_crop(imx219);
 	if (ret) {
-		dev_err(&client->dev, "%s failed to set mode\n", __func__);
+		dev_err(&client->dev, "%s failed to set crop registers\n",
+			__func__);
 		goto err_rpm_put;
 	}
 
