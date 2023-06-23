@@ -1095,12 +1095,12 @@ static int imx219_apply_crop(struct imx219 *imx219)
 {
 	u32 width, height, x_start, x_end, y_start, y_end;
 
-	width = imx219->mode->width;
-	height = imx219->mode->height;
-	x_start = imx219->mode->crop.left - IMX219_PIXEL_ARRAY_LEFT;
-	x_end = x_start + imx219->mode->crop.width - 1;
-	y_start = imx219->mode->crop.top - IMX219_PIXEL_ARRAY_TOP;
-	y_end = y_start + imx219->mode->crop.height - 1;
+	width = imx219->compose.width;
+	height = imx219->compose.height;
+	x_start = imx219->crop.left - IMX219_PIXEL_ARRAY_LEFT;
+	x_end = x_start + imx219->crop.width - 1;
+	y_start = imx219->crop.top - IMX219_PIXEL_ARRAY_TOP;
+	y_end = y_start + imx219->crop.height - 1;
 	return imx219_apply_crop_reg(imx219, x_start, x_end, y_start, y_end,
 				     height, width);
 }
