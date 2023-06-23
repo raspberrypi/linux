@@ -854,21 +854,56 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	u64 *dst;
 	int i, ret = -ENODEV;
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	u32 nr_ssid;
+	u64 *cd_table, *cd;
+	u32 cd_order;
 
 	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
 	if (!dst)
 		goto out_unlock;
 
-	dst[0] = 0;
-	ret = smmu_sync_ste(smmu, sid);
-	if (ret)
-		goto out_unlock;
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S1) {
+		nr_ssid = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX, dst[0]);
+		if (pasid >= nr_ssid) {
+			ret = -E2BIG;
+			goto out_unlock;
+		}
+		cd_table = (u64 *)(FIELD_GET(STRTAB_STE_0_S1CTXPTR_MASK, dst[0]) << 6);
+		/* This shouldn't happen*/
+		BUG_ON(!cd_table);
 
-	for (i = 1; i < STRTAB_STE_DWORDS; i++)
-		dst[i] = 0;
+		cd_table = hyp_phys_to_virt((phys_addr_t)cd_table);
+		cd = smmu_get_cd_ptr(cd_table, pasid);
 
-	ret = smmu_sync_ste(smmu, sid);
+		WARN_ON(!FIELD_GET(CTXDESC_CD_0_V, cd[0]));
+
+		/* Invalidate CD. */
+		cd[0] = 0;
+		smmu_sync_cd(smmu, sid, pasid);
+		cd[1] = 0;
+		cd[2] = 0;
+		cd[3] = 0;
+		ret = smmu_sync_cd(smmu, sid, pasid);
+		cd_order  = get_order(nr_ssid * (CTXDESC_CD_DWORDS << 3));
+		/*
+		 * We have to free that as the host can attach stage-2 which requires to
+		 * clear the STE and hence lose the CD.
+		 */
+		kvm_iommu_reclaim_pages(cd_table, cd_order);
+	} else {
+		dst[0] = 0;
+		ret = smmu_sync_ste(smmu, sid);
+		if (ret)
+			goto out_unlock;
+
+		for (i = 1; i < STRTAB_STE_DWORDS; i++)
+			dst[i] = 0;
+
+		ret = smmu_sync_ste(smmu, sid);
+	}
+
 out_unlock:
 	hyp_spin_unlock(&iommu->lock);
 	return ret;
