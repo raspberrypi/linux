@@ -636,7 +636,7 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 		int exposure_max, exposure_def;
 
 		/* Update max exposure while meeting expected vblanking */
-		exposure_max = imx219->mode->height + ctrl->val - 4;
+		exposure_max = imx219->compose.height + ctrl->val - 4;
 		exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 			exposure_max : IMX219_EXPOSURE_DEFAULT;
 		__v4l2_ctrl_modify_range(imx219->exposure,
@@ -684,13 +684,13 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		ret = imx219_write_reg(imx219, IMX219_REG_VTS,
 				       IMX219_REG_VALUE_16BIT,
-				       (imx219->mode->height + ctrl->val) /
+				       (imx219->compose.height + ctrl->val) /
 						rate_factor);
 		break;
 	case V4L2_CID_HBLANK:
 		ret = imx219_write_reg(imx219, IMX219_REG_HTS,
 				       IMX219_REG_VALUE_16BIT,
-				       imx219->mode->width + ctrl->val);
+				       imx219->compose.width + ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN_RED:
 		ret = imx219_write_reg(imx219, IMX219_REG_TESTP_RED,
@@ -897,7 +897,10 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			*framefmt = fmt->format;
 		} else if (imx219->mode != mode ||
 			   imx219->fmt.code != fmt->format.code) {
-			u32 prev_hts = imx219->mode->width + imx219->hblank->val;
+			u32 prev_hts =
+				imx219->compose.width + imx219->hblank->val;
+			u32 prev_vts =
+				imx219->compose.height + imx219->vblank->val;
 
 			imx219->fmt = fmt->format;
 			imx219->mode = mode;
@@ -908,15 +911,14 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			if (rate_factor < 0)
 				return rate_factor;
 			/* Update limits and set FPS to default */
-			__v4l2_ctrl_modify_range(imx219->vblank,
-						 IMX219_VBLANK_MIN,
-						 IMX219_VTS_MAX - mode->height,
-						 1,
-						 mode->vts_def - mode->height);
+			__v4l2_ctrl_modify_range(
+				imx219->vblank, IMX219_VBLANK_MIN,
+				IMX219_VTS_MAX - imx219->compose.height, 1,
+				prev_vts - imx219->compose.height);
 			__v4l2_ctrl_s_ctrl(imx219->vblank,
-					   mode->vts_def - mode->height);
+					   prev_vts - imx219->compose.height);
 			/* Update max exposure while meeting expected vblanking */
-			exposure_max = mode->vts_def - 4;
+			exposure_max = prev_vts - 4;
 			exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 				exposure_max : IMX219_EXPOSURE_DEFAULT;
 			__v4l2_ctrl_modify_range(imx219->exposure,
@@ -931,12 +933,12 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			 * the blanking only, so PPL values need to have the
 			 * mode width subtracted.
 			 */
-			hblank = prev_hts - mode->width;
+			hblank = prev_hts - imx219->compose.width;
 			__v4l2_ctrl_modify_range(imx219->hblank,
-						 IMX219_PPL_MIN - mode->width,
-						 IMX219_PPL_MAX - mode->width,
+						 IMX219_PPL_MIN - imx219->compose.width,
+						 IMX219_PPL_MAX - imx219->compose.width,
 						 1,
-						 IMX219_PPL_MIN - mode->width);
+						 IMX219_PPL_MIN - imx219->compose.width);
 			__v4l2_ctrl_s_ctrl(imx219->hblank, hblank);
 
 			/* Scale the pixel rate based on the mode specific factor */
@@ -1362,7 +1364,7 @@ static int imx219_init_controls(struct imx219 *imx219)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
 	struct v4l2_ctrl_handler *ctrl_hdlr;
-	unsigned int height = imx219->mode->height;
+	unsigned int height = imx219->compose.height;
 	struct v4l2_fwnode_device_properties props;
 	int exposure_max, exposure_def, hblank, pixel_rate, rate_factor;
 	int i, ret;
@@ -1399,7 +1401,7 @@ static int imx219_init_controls(struct imx219 *imx219)
 					   V4L2_CID_VBLANK, IMX219_VBLANK_MIN,
 					   IMX219_VTS_MAX - height, 1,
 					   imx219->mode->vts_def - height);
-	hblank = IMX219_PPL_MIN - imx219->mode->width;
+	hblank = IMX219_PPL_MIN - imx219->compose.width;
 	imx219->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
 					   V4L2_CID_HBLANK, hblank, hblank,
 					   1, hblank);
