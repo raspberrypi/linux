@@ -2557,9 +2557,11 @@ Name:   jedec-spi-nor
 Info:   Adds support for JEDEC-compliant SPI NOR flash devices.  (Note: The
         "jedec,spi-nor" kernel driver was formerly known as "m25p80".)
 Load:   dtoverlay=jedec-spi-nor,<param>=<val>
-Params: flash-spi<n>-<m>        Enables flash device on SPI<n>, CS#<m>.
-        flash-fastr-spi<n>-<m>  Enables flash device with fast read capability
-                                on SPI<n>, CS#<m>.
+Params: spi<n>-<m>              Enable flash device on SPI<n>, CS#<m>
+        fastr                   Add fast read capability to the flash device
+        speed                   Maximum SPI frequency (Hz)
+        flash-spi<n>-<m>        Same as spi<n>-<m> (deprecated)
+        flash-fastr-spi<n>-<m>  Same as spi<n>->m>,fastr (deprecated)
 
 
 Name:   justboom-both
