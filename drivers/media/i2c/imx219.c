@@ -420,6 +420,12 @@ struct imx219 {
 	/* Current mode */
 	const struct imx219_mode *mode;
 
+	/* Current crop rectangle. */
+	struct v4l2_rect crop;
+
+	/* Current compose rectangle. */
+	struct v4l2_rect compose;
+
 	/*
 	 * Mutex for serialized access:
 	 * Protect sensor module set pad format and start/stop streaming safely.
@@ -895,6 +901,9 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 
 			imx219->fmt = fmt->format;
 			imx219->mode = mode;
+			imx219->compose.height = mode->height;
+			imx219->compose.width = mode->width;
+			imx219->crop = mode->crop;
 			rate_factor = imx219_get_rate_factor(imx219);
 			if (rate_factor < 0)
 				return rate_factor;
@@ -1575,6 +1584,11 @@ static int imx219_probe(struct i2c_client *client)
 
 	/* Set default mode to max resolution */
 	imx219->mode = &supported_modes[0];
+	imx219->crop = imx219->mode->crop;
+	imx219->compose.top = 0;
+	imx219->compose.left = 0;
+	imx219->compose.width = imx219->mode->width;
+	imx219->compose.height = imx219->mode->height;
 
 	/* sensor doesn't enter LP-11 state upon power up until and unless
 	 * streaming is started, so upon power up switch the modes to:
