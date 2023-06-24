@@ -1054,7 +1054,7 @@ __imx219_get_pad_crop(struct imx219 *imx219,
 	case V4L2_SUBDEV_FORMAT_TRY:
 		return v4l2_subdev_get_try_crop(&imx219->sd, sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		return &imx219->mode->crop;
+		return &imx219->crop;
 	}
 
 	return NULL;
