@@ -92,10 +92,11 @@
 #define IMX219_REG_ORIENTATION		0x0172
 
 /* Binning  Mode */
-#define IMX219_REG_BINNING_MODE		0x0174
-#define IMX219_BINNING_NONE		0x0000
-#define IMX219_BINNING_2X2		0x0101
-#define IMX219_BINNING_2X2_ANALOG	0x0303
+#define IMX219_REG_BINNING_MODE_X 0x0174
+#define IMX219_REG_BINNING_MODE_Y 0x0175
+#define IMX219_BINNING_NONE 0x00
+#define IMX219_BINNING_2X2 0x01
+#define IMX219_BINNING_2X2_ANALOG 0x03
 
 /* Test Pattern Control */
 #define IMX219_REG_TEST_PATTERN		0x0600
@@ -185,9 +186,6 @@ struct imx219_mode {
 
 	/* V-timing */
 	unsigned int vts_def;
-
-	/* binning mode based on format code */
-	enum binning_mode binning[BINNING_IDX_MAX];
 };
 
 static const struct imx219_reg imx219_common_regs[] = {
@@ -340,10 +338,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 2464
 		},
 		.vts_def = IMX219_VTS_15FPS,
-		.binning = {
-			[BINNING_IDX_8_BIT] = BINNING_NONE,
-			[BINNING_IDX_10_BIT] = BINNING_NONE,
-		},
 	},
 	{
 		/* 1080P 30fps cropped */
@@ -356,10 +350,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 1080
 		},
 		.vts_def = IMX219_VTS_30FPS_1080P,
-		.binning = {
-			[BINNING_IDX_8_BIT] = BINNING_NONE,
-			[BINNING_IDX_10_BIT] = BINNING_NONE,
-		},
 	},
 	{
 		/* 2x2 binned 30fps mode */
@@ -372,10 +362,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 2464
 		},
 		.vts_def = IMX219_VTS_30FPS_BINNED,
-		.binning = {
-			[BINNING_IDX_8_BIT] = BINNING_ANALOG_2x2,
-			[BINNING_IDX_10_BIT] = BINNING_DIGITAL_2x2,
-		},
 	},
 	{
 		/* 640x480 30fps mode */
@@ -388,10 +374,6 @@ static const struct imx219_mode supported_modes[] = {
 			.height = 960
 		},
 		.vts_def = IMX219_VTS_30FPS_640x480,
-		.binning = {
-			[BINNING_IDX_8_BIT] = BINNING_ANALOG_2x2,
-			[BINNING_IDX_10_BIT] = BINNING_ANALOG_2x2,
-		},
 	},
 };
 
@@ -587,34 +569,53 @@ static int imx219_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 
 static int imx219_resolve_binning(struct imx219 *imx219,
-				  enum binning_mode *binning)
+				  enum binning_mode *binning_x,
+				  enum binning_mode *binning_y)
 {
+	__u32 x_ratio = imx219->crop.width / imx219->compose.width;
+	__u32 y_ratio = imx219->crop.height / imx219->compose.height;
+	bool fmt_8bit = false;
+
 	switch (imx219->fmt.code) {
 	case MEDIA_BUS_FMT_SRGGB8_1X8:
 	case MEDIA_BUS_FMT_SGRBG8_1X8:
 	case MEDIA_BUS_FMT_SGBRG8_1X8:
 	case MEDIA_BUS_FMT_SBGGR8_1X8:
-		*binning = imx219->mode->binning[BINNING_IDX_8_BIT];
-		return 0;
-
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-	case MEDIA_BUS_FMT_SGRBG10_1X10:
-	case MEDIA_BUS_FMT_SGBRG10_1X10:
-	case MEDIA_BUS_FMT_SBGGR10_1X10:
-		*binning = imx219->mode->binning[BINNING_IDX_10_BIT];
-		return 0;
+		fmt_8bit = true;
 	}
-	return -EINVAL;
+	if (x_ratio == 1) {
+		*binning_x = BINNING_NONE;
+	} else if (x_ratio == 2) {
+		if (fmt_8bit && imx219->compose.width <= 640)
+			*binning_x = BINNING_ANALOG_2x2;
+		else
+			*binning_x = BINNING_DIGITAL_2x2;
+	} else {
+		return -EINVAL;
+	}
+	if (y_ratio == 1) {
+		*binning_y = BINNING_NONE;
+	} else if (y_ratio == 2) {
+		if (fmt_8bit && imx219->compose.height <= 480)
+			*binning_y = BINNING_ANALOG_2x2;
+		else
+			*binning_y = BINNING_DIGITAL_2x2;
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int imx219_get_rate_factor(struct imx219 *imx219)
 {
-	enum binning_mode binning = BINNING_NONE;
-	int ret = imx219_resolve_binning(imx219, &binning);
+	enum binning_mode binning_x = BINNING_NONE;
+	enum binning_mode binning_y = BINNING_NONE;
+	int ret = imx219_resolve_binning(imx219, &binning_x, &binning_y);
 
 	if (ret < 0)
 		return ret;
-	switch (binning) {
+	switch (binning_y) {
 	case BINNING_NONE:
 	case BINNING_DIGITAL_2x2:
 		return 1;
@@ -985,23 +986,38 @@ static int imx219_set_framefmt(struct imx219 *imx219)
 
 static int imx219_set_binning(struct imx219 *imx219)
 {
-	enum binning_mode binning = BINNING_NONE;
-	int ret = imx219_resolve_binning(imx219, &binning);
+	enum binning_mode binning_x = BINNING_NONE;
+	enum binning_mode binning_y = BINNING_NONE;
+	int ret = imx219_resolve_binning(imx219, &binning_x, &binning_y);
 
 	if (ret < 0)
 		return ret;
-	switch (binning) {
+	switch (binning_x) {
 	case BINNING_NONE:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE,
-					IMX219_REG_VALUE_16BIT,
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
+					IMX219_REG_VALUE_08BIT,
 					IMX219_BINNING_NONE);
 	case BINNING_DIGITAL_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE,
-					IMX219_REG_VALUE_16BIT,
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
+					IMX219_REG_VALUE_08BIT,
 					IMX219_BINNING_2X2);
 	case BINNING_ANALOG_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE,
-					IMX219_REG_VALUE_16BIT,
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
+					IMX219_REG_VALUE_08BIT,
+					IMX219_BINNING_2X2_ANALOG);
+	}
+	switch (binning_y) {
+	case BINNING_NONE:
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
+					IMX219_REG_VALUE_08BIT,
+					IMX219_BINNING_NONE);
+	case BINNING_DIGITAL_2x2:
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
+					IMX219_REG_VALUE_08BIT,
+					IMX219_BINNING_2X2);
+	case BINNING_ANALOG_2x2:
+		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
+					IMX219_REG_VALUE_08BIT,
 					IMX219_BINNING_2X2_ANALOG);
 	}
 	return -EINVAL;
