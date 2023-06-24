@@ -800,11 +800,11 @@ static void imx219_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 }
 
 static void imx219_update_image_pad_format(struct imx219 *imx219,
-					   const struct imx219_mode *mode,
+					   const struct v4l2_rect *compose,
 					   struct v4l2_subdev_format *fmt)
 {
-	fmt->format.width = mode->width;
-	fmt->format.height = mode->height;
+	fmt->format.width = compose->width;
+	fmt->format.height = compose->height;
 	fmt->format.field = V4L2_FIELD_NONE;
 	imx219_reset_colorspace(&fmt->format);
 }
@@ -815,6 +815,24 @@ static void imx219_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
 	fmt->format.height = IMX219_NUM_EMBEDDED_LINES;
 	fmt->format.code = MEDIA_BUS_FMT_SENSOR_DATA;
 	fmt->format.field = V4L2_FIELD_NONE;
+}
+
+static void imx219_update_crop_from_mode(const struct imx219_mode *mode,
+					 struct v4l2_rect *crop)
+{
+	crop->height = mode->crop.height;
+	crop->width = mode->crop.width;
+	crop->top = mode->crop.top;
+	crop->left = mode->crop.left;
+}
+
+static void imx219_update_compose_from_mode(const struct imx219_mode *mode,
+					    struct v4l2_rect *compose)
+{
+	compose->height = mode->height;
+	compose->width = mode->width;
+	compose->top = 0;
+	compose->left = 0;
 }
 
 static int __imx219_get_pad_format(struct imx219 *imx219,
@@ -835,7 +853,7 @@ static int __imx219_get_pad_format(struct imx219 *imx219,
 		fmt->format = *try_fmt;
 	} else {
 		if (fmt->pad == IMAGE_PAD) {
-			imx219_update_image_pad_format(imx219, imx219->mode,
+			imx219_update_image_pad_format(imx219, &imx219->compose,
 						       fmt);
 			fmt->format.code = imx219_get_format_code(imx219,
 								  imx219->fmt.code);
@@ -891,8 +909,11 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 					      width, height,
 					      fmt->format.width,
 					      fmt->format.height);
-		imx219_update_image_pad_format(imx219, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
+			struct v4l2_rect compose;
+
+			imx219_update_compose_from_mode(mode, &compose);
+			imx219_update_image_pad_format(imx219, &compose, fmt);
 			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
@@ -903,11 +924,12 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			u32 prev_vts =
 				imx219->compose.height + imx219->vblank->val;
 
-			imx219->fmt = fmt->format;
 			imx219->mode = mode;
-			imx219->compose.height = mode->height;
-			imx219->compose.width = mode->width;
-			imx219->crop = mode->crop;
+			imx219_update_crop_from_mode(mode, &imx219->crop);
+			imx219_update_compose_from_mode(mode, &imx219->compose);
+			imx219_update_image_pad_format(imx219, &imx219->compose,
+						       fmt);
+			imx219->fmt = fmt->format;
 			rate_factor = imx219_get_rate_factor(imx219);
 			if (rate_factor < 0)
 				return rate_factor;
@@ -1602,11 +1624,8 @@ static int imx219_probe(struct i2c_client *client)
 
 	/* Set default mode to max resolution */
 	imx219->mode = &supported_modes[0];
-	imx219->crop = imx219->mode->crop;
-	imx219->compose.top = 0;
-	imx219->compose.left = 0;
-	imx219->compose.width = imx219->mode->width;
-	imx219->compose.height = imx219->mode->height;
+	imx219_update_crop_from_mode(imx219->mode, &imx219->crop);
+	imx219_update_compose_from_mode(imx219->mode, &imx219->compose);
 
 	/* sensor doesn't enter LP-11 state upon power up until and unless
 	 * streaming is started, so upon power up switch the modes to:
