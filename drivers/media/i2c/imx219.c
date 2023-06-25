@@ -147,10 +147,12 @@ enum pad_types {
 	NUM_PADS
 };
 
+static const u32 binning_ratio[] = { 1, 2 };
+
 enum binning_mode {
 	BINNING_NONE,
 	BINNING_DIGITAL_2x2,
-	BINNING_ANALOG_2x2,
+	BINNING_ANALOG_2x2
 };
 
 enum binning_bit_depths {
@@ -879,6 +881,50 @@ static int imx219_get_pad_format(struct v4l2_subdev *sd,
 	return ret;
 }
 
+static int imx219_refresh_ctrls(struct imx219 *imx219,
+				struct v4l2_rect *prev_compose)
+{
+	int exposure_max, exposure_def, hblank, pixel_rate, rate_factor;
+	u32 prev_hts = prev_compose->width + imx219->hblank->val;
+	u32 prev_vts = prev_compose->height + imx219->vblank->val;
+
+	rate_factor = imx219_get_rate_factor(imx219);
+	if (rate_factor < 0)
+		return rate_factor;
+	/* Update limits and set FPS to default */
+	__v4l2_ctrl_modify_range(imx219->vblank, IMX219_VBLANK_MIN,
+				 IMX219_VTS_MAX - imx219->compose.height, 1,
+				 prev_vts - imx219->compose.height);
+	__v4l2_ctrl_s_ctrl(imx219->vblank, prev_vts - imx219->compose.height);
+	/* Update max exposure while meeting expected vblanking */
+	exposure_max = prev_vts - 4;
+	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
+			       exposure_max :
+			       IMX219_EXPOSURE_DEFAULT;
+	__v4l2_ctrl_modify_range(imx219->exposure, imx219->exposure->minimum,
+				 exposure_max, imx219->exposure->step,
+				 exposure_def);
+	/*
+   * Retain PPL setting from previous mode so that the
+   * line time does not change on a mode change.
+   * Limits have to be recomputed as the controls define
+   * the blanking only, so PPL values need to have the
+   * mode width subtracted.
+   */
+	hblank = prev_hts - imx219->compose.width;
+	__v4l2_ctrl_modify_range(imx219->hblank,
+				 IMX219_PPL_MIN - imx219->compose.width,
+				 IMX219_PPL_MAX - imx219->compose.width, 1,
+				 IMX219_PPL_MIN - imx219->compose.width);
+	__v4l2_ctrl_s_ctrl(imx219->hblank, hblank);
+
+	/* Scale the pixel rate based on the mode specific factor */
+	pixel_rate = IMX219_PIXEL_RATE * rate_factor;
+	__v4l2_ctrl_modify_range(imx219->pixel_rate, pixel_rate, pixel_rate, 1,
+				 pixel_rate);
+	return 0;
+}
+
 static int imx219_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
@@ -886,7 +932,7 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 	struct imx219 *imx219 = to_imx219(sd);
 	const struct imx219_mode *mode;
 	struct v4l2_mbus_framefmt *framefmt;
-	int exposure_max, exposure_def, hblank, pixel_rate, rate_factor;
+	int ret = 0;
 	unsigned int i;
 
 	if (fmt->pad >= NUM_PADS)
@@ -919,10 +965,7 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			*framefmt = fmt->format;
 		} else if (imx219->mode != mode ||
 			   imx219->fmt.code != fmt->format.code) {
-			u32 prev_hts =
-				imx219->compose.width + imx219->hblank->val;
-			u32 prev_vts =
-				imx219->compose.height + imx219->vblank->val;
+			struct v4l2_rect curr_compose = imx219->compose;
 
 			imx219->mode = mode;
 			imx219_update_crop_from_mode(mode, &imx219->crop);
@@ -930,44 +973,9 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 			imx219_update_image_pad_format(imx219, &imx219->compose,
 						       fmt);
 			imx219->fmt = fmt->format;
-			rate_factor = imx219_get_rate_factor(imx219);
-			if (rate_factor < 0)
-				return rate_factor;
-			/* Update limits and set FPS to default */
-			__v4l2_ctrl_modify_range(
-				imx219->vblank, IMX219_VBLANK_MIN,
-				IMX219_VTS_MAX - imx219->compose.height, 1,
-				prev_vts - imx219->compose.height);
-			__v4l2_ctrl_s_ctrl(imx219->vblank,
-					   prev_vts - imx219->compose.height);
-			/* Update max exposure while meeting expected vblanking */
-			exposure_max = prev_vts - 4;
-			exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
-				exposure_max : IMX219_EXPOSURE_DEFAULT;
-			__v4l2_ctrl_modify_range(imx219->exposure,
-						 imx219->exposure->minimum,
-						 exposure_max,
-						 imx219->exposure->step,
-						 exposure_def);
-			/*
-			 * Retain PPL setting from previous mode so that the
-			 * line time does not change on a mode change.
-			 * Limits have to be recomputed as the controls define
-			 * the blanking only, so PPL values need to have the
-			 * mode width subtracted.
-			 */
-			hblank = prev_hts - imx219->compose.width;
-			__v4l2_ctrl_modify_range(imx219->hblank,
-						 IMX219_PPL_MIN - imx219->compose.width,
-						 IMX219_PPL_MAX - imx219->compose.width,
-						 1,
-						 IMX219_PPL_MIN - imx219->compose.width);
-			__v4l2_ctrl_s_ctrl(imx219->hblank, hblank);
-
-			/* Scale the pixel rate based on the mode specific factor */
-			pixel_rate = IMX219_PIXEL_RATE * rate_factor;
-			__v4l2_ctrl_modify_range(imx219->pixel_rate, pixel_rate,
-						 pixel_rate, 1, pixel_rate);
+			ret = imx219_refresh_ctrls(imx219, &curr_compose);
+			if (ret < 0)
+				goto fin;
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
@@ -980,9 +988,10 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 		}
 	}
 
+fin:
 	mutex_unlock(&imx219->mutex);
 
-	return 0;
+	return ret;
 }
 
 static int imx219_set_framefmt(struct imx219 *imx219)
@@ -1064,18 +1073,10 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
+	struct imx219 *imx219 = to_imx219(sd);
+	const struct v4l2_rect *src_crop, *src_compose;
+	int ret = 0;
 	switch (sel->target) {
-	case V4L2_SEL_TGT_CROP: {
-		struct imx219 *imx219 = to_imx219(sd);
-
-		mutex_lock(&imx219->mutex);
-		sel->r = *__imx219_get_pad_crop(imx219, sd_state, sel->pad,
-						sel->which);
-		mutex_unlock(&imx219->mutex);
-
-		return 0;
-	}
-
 	case V4L2_SEL_TGT_NATIVE_SIZE:
 		sel->r.top = 0;
 		sel->r.left = 0;
@@ -1092,9 +1093,193 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 		sel->r.height = IMX219_PIXEL_ARRAY_HEIGHT;
 
 		return 0;
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = IMX219_PIXEL_ARRAY_WIDTH;
+		sel->r.height = IMX219_PIXEL_ARRAY_HEIGHT;
+
+		return 0;
+	}
+	if (sel->which == V4L2_SUBDEV_FORMAT_TRY) {
+		src_crop = v4l2_subdev_get_try_crop(sd, sd_state, sel->pad);
+		src_compose =
+			v4l2_subdev_get_try_compose(sd, sd_state, sel->pad);
+	} else {
+		src_crop = &imx219->crop;
+		src_compose = &imx219->compose;
+	}
+	mutex_lock(&imx219->mutex);
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		sel->r = *__imx219_get_pad_crop(imx219, sd_state, sel->pad,
+						sel->which);
+		break;
+	case V4L2_SEL_TGT_COMPOSE:
+		sel->r.top = src_compose->top;
+		sel->r.left = src_compose->left;
+		sel->r.width = src_compose->width;
+		sel->r.height = src_compose->height;
+		break;
+	default:
+		ret = -EINVAL;
+	}
+	mutex_unlock(&imx219->mutex);
+
+	return ret;
+}
+
+#define IMX219_ROUND(dim, step, flags)               \
+	((flags)&V4L2_SEL_FLAG_GE ?                  \
+		 roundup((dim), (step)) :            \
+		 ((flags)&V4L2_SEL_FLAG_LE ?         \
+			  rounddown((dim), (step)) : \
+			  rounddown((dim) + (step) / 2, (step))))
+
+static int imx219_binning_goodness(struct imx219 *imx219, u32 act, u32 ask,
+				   u32 flags)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
+	struct device *dev = &client->dev;
+
+	const int goodness = 100000;
+	int val = 0;
+
+	if (flags & V4L2_SEL_FLAG_GE)
+		if (act < ask)
+			val -= goodness;
+
+	if (flags & V4L2_SEL_FLAG_LE)
+		if (act > ask)
+			val -= goodness;
+
+	val -= abs(act - ask);
+
+	dev_dbg(dev, "%s: ask %d, size %d, goodness %d\n", __func__, ask, act,
+		val);
+
+	return val;
+}
+
+static void imx219_change_compose(struct imx219 *imx219,
+				  struct v4l2_subdev_state *sd_state, u32 which,
+				  u32 *width, u32 *height, u32 pad, u32 flags)
+{
+	const struct v4l2_rect *cur_crop;
+	struct v4l2_rect *curr_compose;
+	int best_goodness = INT_MIN;
+
+	if (which == V4L2_SUBDEV_FORMAT_TRY) {
+		curr_compose =
+			v4l2_subdev_get_try_compose(&imx219->sd, sd_state, pad);
+		cur_crop = v4l2_subdev_get_try_crop(&imx219->sd, sd_state, pad);
+	} else {
+		curr_compose = &imx219->compose;
+		cur_crop = &imx219->crop;
+	}
+	for (int i = 0; i < ARRAY_SIZE(binning_ratio); ++i) {
+		u32 new_width = cur_crop->width / binning_ratio[i];
+		int goodness = imx219_binning_goodness(imx219, new_width,
+						       *width, flags);
+		if (goodness > best_goodness) {
+			best_goodness = goodness;
+			curr_compose->width = new_width;
+		}
+	}
+	best_goodness = INT_MIN;
+	for (int i = 0; i < ARRAY_SIZE(binning_ratio); ++i) {
+		u32 new_height = cur_crop->height / binning_ratio[i];
+		int goodness = imx219_binning_goodness(imx219, new_height,
+						       *height, flags);
+		if (goodness > best_goodness) {
+			best_goodness = goodness;
+			curr_compose->height = new_height;
+		}
+	}
+	*width = curr_compose->width;
+	*height = curr_compose->height;
+}
+
+static int imx219_set_selection_crop(struct imx219 *imx219,
+				     struct v4l2_subdev_state *sd_state,
+				     struct v4l2_subdev_selection *sel)
+{
+	struct v4l2_rect *tgt_crop;
+	struct v4l2_rect new_crop;
+	struct v4l2_rect curr_compose = imx219->compose;
+	bool size_changed;
+	int ret = 0;
+
+	new_crop.width = min_t(u32, IMX219_ROUND(sel->r.width, 2, sel->flags),
+			       IMX219_PIXEL_ARRAY_WIDTH);
+	new_crop.height = min_t(u32, IMX219_ROUND(sel->r.height, 2, sel->flags),
+				IMX219_PIXEL_ARRAY_HEIGHT);
+	new_crop.left = min_t(u32, IMX219_ROUND(sel->r.left, 2, sel->flags),
+			      IMX219_PIXEL_ARRAY_WIDTH - new_crop.width);
+	new_crop.top = min_t(u32, IMX219_ROUND(sel->r.top, 2, sel->flags),
+			     IMX219_PIXEL_ARRAY_HEIGHT - new_crop.height);
+
+	sel->r = new_crop;
+
+	if (sel->which == V4L2_SUBDEV_FORMAT_TRY)
+		tgt_crop = v4l2_subdev_get_try_crop(&imx219->sd, sd_state,
+						    sel->pad);
+	else
+		tgt_crop = &imx219->crop;
+
+	mutex_lock(&imx219->mutex);
+
+	size_changed = (new_crop.width != tgt_crop->width ||
+			new_crop.height != tgt_crop->height);
+
+	*tgt_crop = new_crop;
+
+	if (size_changed) {
+		imx219_change_compose(imx219, sd_state, sel->which,
+				      &new_crop.width, &new_crop.height,
+				      sel->pad, sel->flags);
+		ret = imx219_refresh_ctrls(imx219, &curr_compose);
+		if (ret < 0)
+			goto fin;
 	}
 
-	return -EINVAL;
+fin:
+	mutex_unlock(&imx219->mutex);
+
+	return ret;
+}
+
+static int imx219_set_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_state *sd_state,
+				struct v4l2_subdev_selection *sel)
+{
+	struct imx219 *imx219 = to_imx219(sd);
+
+	if (sel->pad != IMAGE_PAD)
+		return -EINVAL;
+
+	if (sel->target == V4L2_SEL_TGT_CROP)
+		return imx219_set_selection_crop(imx219, sd_state, sel);
+
+	if (sel->target == V4L2_SEL_TGT_COMPOSE) {
+		int ret;
+		struct v4l2_rect curr_compose;
+
+		mutex_lock(&imx219->mutex);
+		curr_compose = imx219->compose;
+		imx219_change_compose(imx219, sd_state, sel->which,
+				      &sel->r.width, &sel->r.height, sel->pad,
+				      sel->flags);
+		ret = imx219_refresh_ctrls(imx219, &curr_compose);
+		mutex_unlock(&imx219->mutex);
+		if (ret < 0)
+			return ret;
+		sel->r.top = 0;
+		sel->r.left = 0;
+	}
+	return 0;
 }
 
 static int imx219_apply_crop_reg(struct imx219 *imx219, s32 x_start, s32 x_end,
@@ -1384,6 +1569,7 @@ static const struct v4l2_subdev_pad_ops imx219_pad_ops = {
 	.get_fmt = imx219_get_pad_format,
 	.set_fmt = imx219_set_pad_format,
 	.get_selection = imx219_get_selection,
+	.set_selection = imx219_set_selection,
 	.enum_frame_size = imx219_enum_frame_size,
 };
 
