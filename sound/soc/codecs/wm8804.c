@@ -238,7 +238,6 @@ static int rxsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *u
 */
 static bool wm8804_volatile(struct device *dev, unsigned int reg)
 {
-	struct snd_soc_component *component;
 	switch (reg) {
 	case WM8804_RST_DEVID1:
 	case WM8804_DEVID2:
