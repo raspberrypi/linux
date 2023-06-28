@@ -365,7 +365,7 @@ static int snd_interlude_audio_init(struct snd_soc_pcm_runtime *rtd)
 }
 
 
-static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
+static struct snd_soc_dai_link snd_interlude_audio_digital_dai[] = {
 {
 	.name        = "Interlude Audio Digital",
 	.stream_name = "Interlude Audio Digital HiFi",
@@ -375,7 +375,7 @@ static struct snd_soc_dai_link snd_Interlude_Audio_Digital_dai[] = {
 };
 
 
-static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
+static int snd_interlude_audio_digital_probe(struct platform_device *pdev)
 {
 	pr_debug("%s\n", __func__);
 
@@ -383,8 +383,8 @@ static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 		return 0;
 
 
-	snd_Interlude_Audio_Digital_dai->name = "Interlude Audio Digital";
-	snd_Interlude_Audio_Digital_dai->stream_name = "Interlude Audio Digital HiFi";
+	snd_interlude_audio_digital_dai->name = "Interlude Audio Digital";
+	snd_interlude_audio_digital_dai->stream_name = "Interlude Audio Digital HiFi";
 	
 	
 	
@@ -396,8 +396,8 @@ static int snd_Interlude_Audio_Digital_probe(struct platform_device *pdev)
 
 static struct snd_rpi_wm8804_drvdata drvdata_interlude_audio_digital = {
 	.card_name = "Interlude Audio Digital Hat",
-	.dai       = snd_Interlude_Audio_Digital_dai,
-	.probe     = snd_Interlude_Audio_Digital_probe,
+	.dai       = snd_interlude_audio_digital_dai,
+	.probe     = snd_interlude_audio_digital_probe,
 };
 
 static const struct of_device_id snd_rpi_wm8804_of_match[] = {
