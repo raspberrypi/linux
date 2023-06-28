@@ -1,0 +1,8 @@
+KERNEL_DIR=common
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.common
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.aarch64
+
+BRANCH=
+DEFCONFIG=android_rpi4_defconfig
+FILES=
+IN_KERNEL_MODULES=
