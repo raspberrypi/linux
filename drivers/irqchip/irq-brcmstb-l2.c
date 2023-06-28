@@ -51,6 +51,16 @@ static const struct brcmstb_intc_init_params l2_lvl_intc_init = {
 	.cpu_mask_clear		= 0x0C
 };
 
+/* Register offsets in the 2711 L2 level interrupt controller */
+static const struct brcmstb_intc_init_params l2_2711_lvl_intc_init = {
+	.handler		= handle_level_irq,
+	.cpu_status		= 0x00,
+	.cpu_clear		= 0x08,
+	.cpu_mask_status	= 0x0c,
+	.cpu_mask_set		= 0x10,
+	.cpu_mask_clear		= 0x14
+};
+
 /* L2 intc private data structure */
 struct brcmstb_l2_intc_data {
 	struct irq_domain *domain;
@@ -288,11 +298,18 @@ static int __init brcmstb_l2_lvl_intc_of_init(struct device_node *np,
 	return brcmstb_l2_intc_of_init(np, parent, &l2_lvl_intc_init);
 }
 
+static int __init brcmstb_l2_2711_lvl_intc_of_init(struct device_node *np,
+	struct device_node *parent)
+{
+	return brcmstb_l2_intc_of_init(np, parent, &l2_2711_lvl_intc_init);
+}
+
 IRQCHIP_PLATFORM_DRIVER_BEGIN(brcmstb_l2)
 IRQCHIP_MATCH("brcm,l2-intc", brcmstb_l2_edge_intc_of_init)
 IRQCHIP_MATCH("brcm,hif-spi-l2-intc", brcmstb_l2_edge_intc_of_init)
 IRQCHIP_MATCH("brcm,upg-aux-aon-l2-intc", brcmstb_l2_edge_intc_of_init)
 IRQCHIP_MATCH("brcm,bcm7271-l2-intc", brcmstb_l2_lvl_intc_of_init)
+IRQCHIP_MATCH("brcm,bcm2711-l2-intc", brcmstb_l2_2711_lvl_intc_of_init)
 IRQCHIP_PLATFORM_DRIVER_END(brcmstb_l2)
 MODULE_DESCRIPTION("Broadcom STB generic L2 interrupt controller");
 MODULE_LICENSE("GPL v2");
