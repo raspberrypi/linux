@@ -202,7 +202,7 @@ static void *guest_s2_zalloc_page(void *mc)
 	memset(addr, 0, PAGE_SIZE);
 	p = hyp_virt_to_page(addr);
 	memset(p, 0, sizeof(*p));
-	p->refcount = 1;
+	hyp_set_page_refcounted(p);
 
 	return addr;
 }
