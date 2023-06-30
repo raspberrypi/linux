@@ -171,6 +171,9 @@ typedef int (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 /* File supports non-exclusive O_DIRECT writes from multiple threads */
 #define FMODE_DIO_PARALLEL_WRITE	((__force fmode_t)0x1000000)
 
+/* File is embedded in backing_file object */
+#define FMODE_BACKING		((__force fmode_t)0x2000000)
+
 /* File was opened by fanotify and shouldn't generate fanotify events */
 #define FMODE_NONOTIFY		((__force fmode_t)0x4000000)
 
@@ -956,29 +959,35 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
 		index <  ra->start + ra->size);
 }
 
+/*
+ * f_{lock,count,pos_lock} members can be highly contended and share
+ * the same cacheline. f_{lock,mode} are very frequently used together
+ * and so share the same cacheline as well. The read-mostly
+ * f_{path,inode,op} are kept on a separate cacheline.
+ */
 struct file {
 	union {
 		struct llist_node	f_llist;
 		struct rcu_head 	f_rcuhead;
 		unsigned int 		f_iocb_flags;
 	};
-	struct path		f_path;
-	struct inode		*f_inode;	/* cached value */
-	const struct file_operations	*f_op;
 
 	/*
 	 * Protects f_ep, f_flags.
 	 * Must not be taken from IRQ context.
 	 */
 	spinlock_t		f_lock;
-	atomic_long_t		f_count;
-	unsigned int 		f_flags;
 	fmode_t			f_mode;
+	atomic_long_t		f_count;
 	struct mutex		f_pos_lock;
 	loff_t			f_pos;
+	unsigned int		f_flags;
 	struct fown_struct	f_owner;
 	const struct cred	*f_cred;
 	struct file_ra_state	f_ra;
+	struct path		f_path;
+	struct inode		*f_inode;	/* cached value */
+	const struct file_operations	*f_op;
 
 	u64			f_version;
 #ifdef CONFIG_SECURITY
@@ -1242,7 +1251,7 @@ struct super_block {
 	 */
 	atomic_long_t s_fsnotify_connectors;
 
-	/* Being remounted read-only */
+	/* Read-only state of the superblock is being changed */
 	int s_readonly_remount;
 
 	/* per-sb errseq_t for reporting writeback errors via syncfs */
@@ -1672,9 +1681,12 @@ static inline int vfs_whiteout(struct mnt_idmap *idmap,
 			 WHITEOUT_DEV);
 }
 
-struct file *vfs_tmpfile_open(struct mnt_idmap *idmap,
-			const struct path *parentpath,
-			umode_t mode, int open_flag, const struct cred *cred);
+struct file *kernel_tmpfile_open(struct mnt_idmap *idmap,
+				 const struct path *parentpath,
+				 umode_t mode, int open_flag,
+				 const struct cred *cred);
+struct file *kernel_file_open(const struct path *path, int flags,
+			      struct inode *inode, const struct cred *cred);
 
 int vfs_mkobj(struct dentry *, umode_t,
 		int (*f)(struct dentry *, umode_t, void *),
@@ -2349,11 +2361,31 @@ static inline struct file *file_open_root_mnt(struct vfsmount *mnt,
 	return file_open_root(&(struct path){.mnt = mnt, .dentry = mnt->mnt_root},
 			      name, flags, mode);
 }
-extern struct file * dentry_open(const struct path *, int, const struct cred *);
-extern struct file *dentry_create(const struct path *path, int flags,
-				  umode_t mode, const struct cred *cred);
-extern struct file * open_with_fake_path(const struct path *, int,
-					 struct inode*, const struct cred *);
+struct file *dentry_open(const struct path *path, int flags,
+			 const struct cred *creds);
+struct file *dentry_create(const struct path *path, int flags, umode_t mode,
+			   const struct cred *cred);
+struct file *backing_file_open(const struct path *path, int flags,
+			       const struct path *real_path,
+			       const struct cred *cred);
+struct path *backing_file_real_path(struct file *f);
+
+/*
+ * file_real_path - get the path corresponding to f_inode
+ *
+ * When opening a backing file for a stackable filesystem (e.g.,
+ * overlayfs) f_path may be on the stackable filesystem and f_inode on
+ * the underlying filesystem.  When the path associated with f_inode is
+ * needed, this helper should be used instead of accessing f_path
+ * directly.
+*/
+static inline const struct path *file_real_path(struct file *f)
+{
+	if (unlikely(f->f_mode & FMODE_BACKING))
+		return backing_file_real_path(f);
+	return &f->f_path;
+}
+
 static inline struct file *file_clone_open(struct file *file)
 {
 	return dentry_open(&file->f_path, file->f_flags, file->f_cred);
@@ -2669,7 +2701,7 @@ extern void evict_inodes(struct super_block *sb);
 void dump_mapping(const struct address_space *);
 
 /*
- * Userspace may rely on the the inode number being non-zero. For example, glibc
+ * Userspace may rely on the inode number being non-zero. For example, glibc
  * simply ignores files with zero i_ino in unlink() and other places.
  *
  * As an additional complication, if userspace was compiled with

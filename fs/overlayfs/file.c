@@ -36,8 +36,8 @@ static char ovl_whatisit(struct inode *inode, struct inode *realinode)
 		return 'm';
 }
 
-/* No atime modification nor notify on underlying */
-#define OVL_OPEN_FLAGS (O_NOATIME | FMODE_NONOTIFY)
+/* No atime modification on underlying */
+#define OVL_OPEN_FLAGS (O_NOATIME)
 
 static struct file *ovl_open_realfile(const struct file *file,
 				      const struct path *realpath)
@@ -63,8 +63,8 @@ static struct file *ovl_open_realfile(const struct file *file,
 		if (old_cred && !inode_owner_or_capable(real_idmap, realinode))
 			flags &= ~O_NOATIME;
 
-		realfile = open_with_fake_path(&file->f_path, flags, realinode,
-					       current_cred());
+		realfile = backing_file_open(&file->f_path, flags, realpath,
+					     current_cred());
 	}
 	ovl_revert_creds(inode->i_sb, old_cred);
 
