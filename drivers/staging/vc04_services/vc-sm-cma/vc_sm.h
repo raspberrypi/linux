@@ -57,8 +57,8 @@ struct vc_sm_buffer {
 
 	char name[VC_SM_MAX_NAME_LEN];
 
-	int in_use:1;	/* Kernel is still using this resource */
-	int imported:1;	/* Imported dmabuf */
+	bool in_use:1;   /* Kernel is still using this resource */
+	bool imported:1; /* Imported dmabuf */
 
 	enum vc_sm_vpu_mapping_state vpu_state;
 	u32 vc_handle;	/* VideoCore handle for this buffer */
