@@ -19,12 +19,17 @@ use kernel::{
 
 use crate::{context::Context, process::Process, thread::Thread};
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
+mod allocation;
 mod context;
 mod defs;
 mod error;
 mod node;
 mod process;
+mod range_alloc;
 mod thread;
+mod transaction;
 
 module! {
     type: BinderModule,
@@ -112,6 +117,50 @@ impl<T: ListArcSafe> DTRWrap<T> {
             wrapped <- init,
         }))
     }
+}
+
+struct DeliverCode {
+    code: u32,
+    skip: AtomicBool,
+}
+
+kernel::list::impl_list_arc_safe! {
+    impl ListArcSafe<0> for DeliverCode { untracked; }
+}
+
+impl DeliverCode {
+    fn new(code: u32) -> Self {
+        Self {
+            code,
+            skip: AtomicBool::new(false),
+        }
+    }
+
+    /// Disable this DeliverCode and make it do nothing.
+    ///
+    /// This is used instead of removing it from the work list, since `LinkedList::remove` is
+    /// unsafe, whereas this method is not.
+    fn skip(&self) {
+        self.skip.store(true, Ordering::Relaxed);
+    }
+}
+
+impl DeliverToRead for DeliverCode {
+    fn do_work(self: DArc<Self>, _thread: &Thread, writer: &mut UserSliceWriter) -> Result<bool> {
+        if !self.skip.load(Ordering::Relaxed) {
+            writer.write(&self.code)?;
+        }
+        Ok(true)
+    }
+
+    fn should_sync_wakeup(&self) -> bool {
+        false
+    }
+}
+
+const fn ptr_align(value: usize) -> usize {
+    let size = core::mem::size_of::<usize>() - 1;
+    (value + size) & !size
 }
 
 struct BinderModule {}

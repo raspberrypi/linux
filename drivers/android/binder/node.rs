@@ -53,7 +53,6 @@ struct NodeInner {
 pub(crate) struct Node {
     ptr: u64,
     cookie: u64,
-    #[allow(dead_code)]
     pub(crate) flags: u32,
     pub(crate) owner: Arc<Process>,
     inner: LockedBy<NodeInner, ProcessInner>,

@@ -6,6 +6,8 @@ use kernel::prelude::*;
 
 use crate::defs::*;
 
+pub(crate) type BinderResult<T = ()> = core::result::Result<T, BinderError>;
+
 /// An error that will be returned to userspace via the `BINDER_WRITE_READ` ioctl rather than via
 /// errno.
 pub(crate) struct BinderError {
@@ -19,6 +21,14 @@ impl BinderError {
             reply: BR_DEAD_REPLY,
             source: None,
         }
+    }
+
+    pub(crate) fn is_dead(&self) -> bool {
+        self.reply == BR_DEAD_REPLY
+    }
+
+    pub(crate) fn as_errno(&self) -> core::ffi::c_int {
+        self.source.unwrap_or(EINVAL).to_errno()
     }
 }
 

@@ -282,6 +282,13 @@ int rust_helper_security_binder_set_context_mgr(const struct cred *mgr)
 	return security_binder_set_context_mgr(mgr);
 }
 EXPORT_SYMBOL_GPL(rust_helper_security_binder_set_context_mgr);
+
+int rust_helper_security_binder_transaction(const struct cred *from,
+					    const struct cred *to)
+{
+	return security_binder_transaction(from, to);
+}
+EXPORT_SYMBOL_GPL(rust_helper_security_binder_transaction);
 #endif
 
 void rust_helper_init_task_work(struct callback_head *twork,
