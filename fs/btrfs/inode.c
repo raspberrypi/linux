@@ -3618,6 +3618,7 @@ int btrfs_orphan_cleanup(struct btrfs_root *root)
 			if (inode) {
 				ret = btrfs_drop_verity_items(BTRFS_I(inode));
 				iput(inode);
+				inode = NULL;
 				if (ret)
 					goto out;
 			}
