@@ -1018,7 +1018,7 @@ static int ov2311_check_sensor_id(struct ov2311 *ov2311,
 				  struct i2c_client *client)
 {
 	struct device *dev = &ov2311->client->dev;
-	u32 id = 0, id_msb;
+	u32 id = 0, id_msb = 0;
 	int ret;
 
 	ret = ov2311_read_reg(client, OV2311_REG_CHIP_ID + 1,
