@@ -402,7 +402,7 @@ int32_t dwc_otg_hcd_handle_rx_status_q_level_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 			hc->xfer_count += grxsts.b.bcnt;
 			hc->xfer_buff += grxsts.b.bcnt;
 		}
-
+		break;
 	case DWC_GRXSTS_PKTSTS_IN_XFER_COMP:
 	case DWC_GRXSTS_PKTSTS_DATA_TOGGLE_ERR:
 	case DWC_GRXSTS_PKTSTS_CH_HALTED:
