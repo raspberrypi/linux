@@ -25,6 +25,8 @@
 #define RXFFR		0x014
 #define TXFFR		0x018
 
+#define DMACR   0x200
+
 /* Interrupt status register fields */
 #define ISR_TXFO	BIT(5)
 #define ISR_TXFE	BIT(4)
@@ -46,6 +48,17 @@
 #define TFCR(x)		(0x40 * x + 0x04C)
 #define RFF(x)		(0x40 * x + 0x050)
 #define TFF(x)		(0x40 * x + 0x054)
+
+#define DMACR_DMAEN_TX		BIT(17)
+#define DMACR_DMAEN_RX		BIT(16)
+#define DMACR_DMAEN_TXCH3	BIT(11)
+#define DMACR_DMAEN_TXCH2	BIT(10)
+#define DMACR_DMAEN_TXCH1	BIT(9)
+#define DMACR_DMAEN_TXCH0	BIT(8)
+#define DMACR_DMAEN_RXCH3	BIT(3)
+#define DMACR_DMAEN_RXCH2	BIT(2)
+#define DMACR_DMAEN_RXCH1	BIT(1)
+#define DMACR_DMAEN_RXCH0	BIT(0)
 
 /* I2SCOMPRegisters */
 #define I2S_COMP_PARAM_2	0x01F0
