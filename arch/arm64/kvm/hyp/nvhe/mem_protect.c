@@ -30,14 +30,14 @@ static DEFINE_PER_CPU(struct pkvm_hyp_vm *, __current_vm);
 
 static void guest_lock_component(struct pkvm_hyp_vm *vm)
 {
-	hyp_spin_lock(&vm->lock);
+	hyp_spin_lock(&vm->pgtable_lock);
 	current_vm = vm;
 }
 
 static void guest_unlock_component(struct pkvm_hyp_vm *vm)
 {
 	current_vm = NULL;
-	hyp_spin_unlock(&vm->lock);
+	hyp_spin_unlock(&vm->pgtable_lock);
 }
 
 static void host_lock_component(void)
@@ -240,7 +240,7 @@ int kvm_guest_prepare_stage2(struct pkvm_hyp_vm *vm, void *pgd)
 	if (ret)
 		return ret;
 
-	hyp_spin_lock_init(&vm->lock);
+	hyp_spin_lock_init(&vm->pgtable_lock);
 	vm->mm_ops = (struct kvm_pgtable_mm_ops) {
 		.zalloc_pages_exact	= guest_s2_zalloc_pages_exact,
 		.free_pages_exact	= guest_s2_free_pages_exact,
@@ -961,7 +961,7 @@ static int __guest_check_page_state_range(struct pkvm_hyp_vcpu *vcpu, u64 addr,
 		.get_page_state	= guest_get_page_state,
 	};
 
-	hyp_assert_lock_held(&vm->lock);
+	hyp_assert_lock_held(&vm->pgtable_lock);
 	return check_page_state_range(&vm->pgt, addr, size, &d);
 }
 
