@@ -2049,6 +2049,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			} else {
 				st->fsm = FIQ_PER_SSPLIT_QUEUED;
 			}
+			break;
 		default:
 			break;
 	}
