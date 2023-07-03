@@ -524,7 +524,7 @@ static void vc_sm_dma_buf_release(struct dma_buf *dmabuf)
 
 	pr_debug("%s dmabuf %p, buffer %p\n", __func__, dmabuf, buffer);
 
-	buffer->in_use = 0;
+	buffer->in_use = false;
 
 	/* Unmap on the VPU */
 	vc_sm_vpu_free(buffer);
@@ -804,13 +804,13 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	buffer->size = import.size;
 	buffer->vpu_state = VPU_MAPPED;
 
-	buffer->imported = 1;
+	buffer->imported = true;
 	buffer->import.dma_buf = dma_buf;
 
 	buffer->import.attach = attach;
 	buffer->import.sgt = sgt;
 	buffer->dma_addr = dma_addr;
-	buffer->in_use = 1;
+	buffer->in_use = true;
 	buffer->kernel_id = import.kernel_id;
 
 	/*
