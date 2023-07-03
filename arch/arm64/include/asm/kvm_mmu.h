@@ -131,6 +131,9 @@ void kvm_apply_hyp_relocations(void);
 static __always_inline unsigned long __kern_hyp_va(unsigned long v)
 {
 #ifndef __KVM_VHE_HYPERVISOR__
+	if (!is_ttbr1_addr(v))
+		return v;
+
 	asm volatile(ALTERNATIVE_CB("and %0, %0, #1\n"
 				    "ror %0, %0, #1\n"
 				    "add %0, %0, #0\n"
