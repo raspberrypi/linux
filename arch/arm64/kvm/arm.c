@@ -230,6 +230,10 @@ void kvm_arch_destroy_vm(struct kvm *kvm)
 	kvm_unshare_hyp(kvm, kvm + 1);
 
 	kvm_arm_teardown_hypercalls(kvm);
+
+	if (atomic64_read(&kvm->stat.protected_hyp_mem))
+		kvm_err("%lluB of donations to the nVHE hyp are missing\n",
+			atomic64_read(&kvm->stat.protected_hyp_mem));
 }
 
 static int kvm_check_extension(struct kvm *kvm, long ext)
@@ -496,10 +500,13 @@ void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
 	if (vcpu_has_run_once(vcpu) && unlikely(!irqchip_in_kernel(vcpu->kvm)))
 		static_branch_dec(&userspace_irqchip_in_use);
 
-	if (is_protected_kvm_enabled())
+	if (is_protected_kvm_enabled()) {
+		atomic64_sub(vcpu->arch.stage2_mc.nr_pages << PAGE_SHIFT,
+			     &vcpu->kvm->stat.protected_hyp_mem);
 		free_hyp_memcache(&vcpu->arch.stage2_mc);
-	else
+	} else {
 		kvm_mmu_free_memory_cache(&vcpu->arch.mmu_page_cache);
+	}
 
 	kvm_timer_vcpu_terminate(vcpu);
 	kvm_pmu_vcpu_destroy(vcpu);
