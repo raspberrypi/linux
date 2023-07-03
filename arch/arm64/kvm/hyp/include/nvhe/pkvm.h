@@ -57,9 +57,9 @@ struct pkvm_hyp_vm {
 
 	/*
 	 * The number of vcpus initialized and ready to run.
-	 * Modifying this is protected by 'vm_table_lock'.
 	 */
 	unsigned int nr_vcpus;
+	hyp_spinlock_t vcpus_lock;
 
 	/* Array of the hyp vCPU structures for this VM. */
 	struct pkvm_hyp_vcpu *vcpus[];

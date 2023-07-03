@@ -294,7 +294,7 @@ struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 
 	hyp_read_lock(&vm_table_lock);
 	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm || hyp_vm->nr_vcpus <= vcpu_idx)
+	if (!hyp_vm || READ_ONCE(hyp_vm->nr_vcpus) <= vcpu_idx)
 		goto unlock;
 
 	hyp_vcpu = hyp_vm->vcpus[vcpu_idx];
@@ -475,6 +475,7 @@ static void init_pkvm_hyp_vm(struct kvm *host_kvm, struct pkvm_hyp_vm *hyp_vm,
 	hyp_vm->kvm.arch.pkvm.enabled = READ_ONCE(host_kvm->arch.pkvm.enabled);
 	hyp_vm->kvm.arch.mmu.last_vcpu_ran = (int __percpu *)last_ran;
 	memset(last_ran, -1, pkvm_get_last_ran_size());
+	hyp_spin_lock_init(&hyp_vm->vcpus_lock);
 }
 
 static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
@@ -762,28 +763,32 @@ int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu,
 	if (!hyp_vcpu)
 		return -ENOMEM;
 
-	hyp_write_lock(&vm_table_lock);
+	hyp_read_lock(&vm_table_lock);
 
 	hyp_vm = get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
-		goto unlock;
+		goto unlock_vm;
 	}
 
+	hyp_spin_lock(&hyp_vm->vcpus_lock);
 	idx = hyp_vm->nr_vcpus;
 	if (idx >= hyp_vm->kvm.created_vcpus) {
 		ret = -EINVAL;
-		goto unlock;
+		goto unlock_vcpus;
 	}
 
 	ret = init_pkvm_hyp_vcpu(hyp_vcpu, hyp_vm, host_vcpu, idx);
 	if (ret)
-		goto unlock;
+		goto unlock_vcpus;
 
 	hyp_vm->vcpus[idx] = hyp_vcpu;
 	hyp_vm->nr_vcpus++;
-unlock:
-	hyp_write_unlock(&vm_table_lock);
+
+unlock_vcpus:
+	hyp_spin_unlock(&hyp_vm->vcpus_lock);
+unlock_vm:
+	hyp_read_unlock(&vm_table_lock);
 
 	if (ret)
 		unmap_donated_memory(hyp_vcpu, sizeof(*hyp_vcpu));
@@ -905,18 +910,22 @@ void pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *hyp_vm,
 					     u64 mpidr)
 {
+	struct pkvm_hyp_vcpu *hyp_vcpu;
 	int i;
 
 	mpidr &= MPIDR_HWID_BITMASK;
 
+	hyp_spin_lock(&hyp_vm->vcpus_lock);
 	for (i = 0; i < hyp_vm->nr_vcpus; i++) {
-		struct pkvm_hyp_vcpu *hyp_vcpu = hyp_vm->vcpus[i];
+		hyp_vcpu = hyp_vm->vcpus[i];
 
 		if (mpidr == kvm_vcpu_get_mpidr_aff(&hyp_vcpu->vcpu))
-			return hyp_vcpu;
+			goto unlock;
 	}
-
-	return NULL;
+	hyp_vcpu = NULL;
+unlock:
+	hyp_spin_unlock(&hyp_vm->vcpus_lock);
+	return hyp_vcpu;
 }
 
 /*
@@ -1015,6 +1024,7 @@ static bool pvm_psci_vcpu_affinity_info(struct pkvm_hyp_vcpu *hyp_vcpu)
 	 * then if at least one is PENDING_ON then return PENDING_ON.
 	 * Otherwise, return OFF.
 	 */
+	hyp_spin_lock(&hyp_vm->vcpus_lock);
 	for (i = 0; i < hyp_vm->nr_vcpus; i++) {
 		struct pkvm_hyp_vcpu *target = hyp_vm->vcpus[i];
 
@@ -1031,19 +1041,20 @@ static bool pvm_psci_vcpu_affinity_info(struct pkvm_hyp_vcpu *hyp_vcpu)
 				break;
 			case PSCI_0_2_AFFINITY_LEVEL_ON:
 				ret = PSCI_0_2_AFFINITY_LEVEL_ON;
-				goto done;
+				goto unlock;
 			case PSCI_0_2_AFFINITY_LEVEL_OFF:
 				break;
 			default:
 				ret = PSCI_RET_INTERNAL_FAILURE;
-				goto done;
+				goto unlock;
 			}
 		}
 	}
 
 	if (!matching_cpus)
 		ret = PSCI_RET_INVALID_PARAMS;
-
+unlock:
+	hyp_spin_unlock(&hyp_vm->vcpus_lock);
 done:
 	/* Nothing to be handled by the host. Go back to the guest. */
 	smccc_set_retval(vcpu, ret, 0, 0, 0);
