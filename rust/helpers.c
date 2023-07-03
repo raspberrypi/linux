@@ -23,6 +23,7 @@
 #include <kunit/test-bug.h>
 #include <linux/bug.h>
 #include <linux/build_bug.h>
+#include <linux/cred.h>
 #include <linux/err.h>
 #include <linux/errname.h>
 #include <linux/fs.h>
@@ -163,6 +164,18 @@ struct file *rust_helper_get_file(struct file *f)
 	return get_file(f);
 }
 EXPORT_SYMBOL_GPL(rust_helper_get_file);
+
+const struct cred *rust_helper_get_cred(const struct cred *cred)
+{
+	return get_cred(cred);
+}
+EXPORT_SYMBOL_GPL(rust_helper_get_cred);
+
+void rust_helper_put_cred(const struct cred *cred)
+{
+	put_cred(cred);
+}
+EXPORT_SYMBOL_GPL(rust_helper_put_cred);
 
 /*
  * `bindgen` binds the C `size_t` type as the Rust `usize` type, so we can
