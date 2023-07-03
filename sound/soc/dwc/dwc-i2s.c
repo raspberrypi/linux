@@ -248,7 +248,7 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 {
 	u32 ch_reg;
 	struct i2s_clk_config_data *config = &dev->config;
-
+	u32 dmacr = 0;
 
 	i2s_disable_channels(dev, stream);
 
@@ -260,6 +260,7 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 				      dev->fifo_th - 1);
 			i2s_write_reg(dev->i2s_base, TER(ch_reg), TER_TXCHEN |
 				      dev->tdm_mask << TER_TXSLOT_SHIFT);
+			dmacr |= (DMACR_DMAEN_TXCH0 << ch_reg);
 		} else {
 			i2s_write_reg(dev->i2s_base, RCR(ch_reg),
 				      dev->xfer_resolution);
@@ -267,9 +268,15 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 				      dev->fifo_th - 1);
 			i2s_write_reg(dev->i2s_base, RER(ch_reg), RER_RXCHEN |
 				      dev->tdm_mask << RER_RXSLOT_SHIFT);
+			dmacr |= (DMACR_DMAEN_RXCH0 << ch_reg);
 		}
-
 	}
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+		dmacr |= DMACR_DMAEN_TX;
+	else if (stream == SNDRV_PCM_STREAM_CAPTURE)
+		dmacr |= DMACR_DMAEN_RX;
+
+	i2s_write_reg(dev->i2s_base, I2S_DMACR, dmacr);
 }
 
 static int dw_i2s_hw_params(struct snd_pcm_substream *substream,
