@@ -125,8 +125,27 @@ impl ProcessInner {
         } else if self.is_dead {
             Err((BinderError::new_dead(), work))
         } else {
-            // There are no ready threads. Push work to process queue.
+            let sync = work.should_sync_wakeup();
+
+            // Didn't find a thread waiting for proc work; this can happen
+            // in two scenarios:
+            // 1. All threads are busy handling transactions
+            //    In that case, one of those threads should call back into
+            //    the kernel driver soon and pick up this work.
+            // 2. Threads are using the (e)poll interface, in which case
+            //    they may be blocked on the waitqueue without having been
+            //    added to waiting_threads. For this case, we just iterate
+            //    over all threads not handling transaction work, and
+            //    wake them all up. We wake all because we don't know whether
+            //    a thread that called into (e)poll is handling non-binder
+            //    work currently.
             self.work.push_back(work);
+
+            // Wake up polling threads, if any.
+            for thread in self.threads.values() {
+                thread.notify_if_poll_ready(sync);
+            }
+
             Ok(())
         }
     }
@@ -1000,11 +1019,16 @@ impl Process {
     }
 
     pub(crate) fn poll(
-        _this: ArcBorrow<'_, Process>,
-        _file: &File,
-        _table: &mut PollTable,
+        this: ArcBorrow<'_, Process>,
+        file: &File,
+        table: &mut PollTable,
     ) -> Result<u32> {
-        Err(EINVAL)
+        let thread = this.get_current_thread()?;
+        let (from_proc, mut mask) = thread.poll(file, table);
+        if mask == 0 && from_proc && !this.inner.lock().work.is_empty() {
+            mask |= bindings::POLLIN;
+        }
+        Ok(mask)
     }
 }
 
