@@ -73,7 +73,7 @@ int __fsverity_verify_signature(const struct inode *inode, const u8 *signature,
 				unsigned int digest_algorithm)
 {
 	struct fsverity_formatted_digest *d;
-	struct fsverity_hash_alg *hash_alg = fsverity_get_hash_alg(inode,
+	const struct fsverity_hash_alg *hash_alg = fsverity_get_hash_alg(inode,
 							digest_algorithm);
 	int err;
 
