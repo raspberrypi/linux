@@ -275,8 +275,9 @@ struct incfs_status {
  * Metadata record for verity signature. Type = INCFS_MD_VERITY_SIGNATURE
  *
  * This record will only exist for verity-enabled files with signatures. Verity
- * enabled files without signatures do not have this record. This signature is
- * checked by fs-verity identically to any other fs-verity signature.
+ * enabled files without signatures do not have this record.
+ *
+ * This is obsolete, as incfs no longer checks this type of signature.
  */
 struct incfs_file_verity_signature {
 	struct incfs_md_header vs_header;

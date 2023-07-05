@@ -6,15 +6,14 @@
 /*
  * fs-verity integration into incfs
  *
- * Since incfs has its own merkle tree implementation, most of fs-verity code
- * is not needed. The key part that is needed is the signature check, since
- * that is based on the private /proc/sys/fs/verity/require_signatures value
- * and a private keyring. Thus the first change is to modify verity code to
- * export a version of fsverity_verify_signature.
+ * Since incfs has its own merkle tree implementation, most of fs/verity/ is not
+ * needed. incfs also only needs to support the case where
+ * CONFIG_FS_VERITY_BUILTIN_SIGNATURES=n. Therefore, the integration consists of
+ * the following modifications:
  *
- * fs-verity integration then consists of the following modifications:
- *
- * 1. Add the (optional) verity signature to the incfs file format
+ * 1. Add the (optional) verity signature to the incfs file format. (Not really
+ *    needed anymore, but this is kept around since this is the behavior of
+ *    fs/verity/ even when CONFIG_FS_VERITY_BUILTIN_SIGNATURES=n.)
  * 2. Add a pointer to the digest of the fs-verity descriptor struct to the
  *    data_file struct that incfs attaches to each file inode.
  * 3. Add the following ioclts:
@@ -22,12 +21,10 @@
  *  - FS_IOC_GETFLAGS
  *  - FS_IOC_MEASURE_VERITY
  * 4. When FS_IOC_ENABLE_VERITY is called on a non-verity file, the
- *    fs-verity descriptor struct is populated and digested. If it passes the
- *    signature check or the signature is NULL and
- *    fs.verity.require_signatures=0, then the S_VERITY flag is set and the
- *    xattr incfs.verity is set. If the signature is non-NULL, an
- *    INCFS_MD_VERITY_SIGNATURE is added to the backing file containing the
- *    signature.
+ *    fs-verity descriptor struct is populated and digested. Then the S_VERITY
+ *    flag is set and the xattr incfs.verity is set. If the signature is
+ *    non-NULL, an INCFS_MD_VERITY_SIGNATURE is added to the backing file
+ *    containing the signature.
  * 5. When a file with an incfs.verity xattr's inode is initialized, the
  *    inode’s S_VERITY flag is set.
  * 6. When a file with the S_VERITY flag set on its inode is opened, the
@@ -202,14 +199,10 @@ static void incfs_set_verity_digest(struct inode *inode,
 		kfree(verity_file_digest.data);
 }
 
-/*
- * Calculate the digest of the fsverity_descriptor. The signature (if present)
- * is also checked.
- */
+/* Calculate the digest of the fsverity_descriptor. */
 static struct mem_range incfs_calc_verity_digest_from_desc(
 					const struct inode *inode,
-					struct fsverity_descriptor *desc,
-					u8 *signature, size_t sig_size)
+					struct fsverity_descriptor *desc)
 {
 	enum incfs_hash_tree_algorithm incfs_hash_alg;
 	struct mem_range verity_file_digest;
@@ -233,20 +226,12 @@ static struct mem_range incfs_calc_verity_digest_from_desc(
 					verity_file_digest.data);
 	if (err) {
 		pr_err("Error %d computing file digest", err);
-		goto out;
+		kfree(verity_file_digest.data);
+		return range(ERR_PTR(err), 0);
 	}
 	pr_debug("Computed file digest: %s:%*phN\n",
 		 hash_alg->name, (int) verity_file_digest.len,
 		 verity_file_digest.data);
-
-	err = __fsverity_verify_signature(inode, signature, sig_size,
-					  verity_file_digest.data,
-					  desc->hash_algorithm);
-out:
-	if (err) {
-		kfree(verity_file_digest.data);
-		verity_file_digest = range(ERR_PTR(err), 0);
-	}
 	return verity_file_digest;
 }
 
@@ -278,7 +263,6 @@ static struct fsverity_descriptor *incfs_get_fsverity_descriptor(
 
 static struct mem_range incfs_calc_verity_digest(
 					struct inode *inode, struct file *filp,
-					u8 *signature, size_t signature_size,
 					int hash_algorithm)
 {
 	struct fsverity_descriptor *desc = incfs_get_fsverity_descriptor(filp,
@@ -287,8 +271,7 @@ static struct mem_range incfs_calc_verity_digest(
 
 	if (IS_ERR(desc))
 		return range((u8 *)desc, 0);
-	verity_file_digest = incfs_calc_verity_digest_from_desc(inode, desc,
-						signature, signature_size);
+	verity_file_digest = incfs_calc_verity_digest_from_desc(inode, desc);
 	kfree(desc);
 	return verity_file_digest;
 }
@@ -550,8 +533,8 @@ static int incfs_enable_verity(struct file *filp,
 		}
 	}
 
-	verity_file_digest = incfs_calc_verity_digest(inode, filp, signature,
-					arg->sig_size, arg->hash_algorithm);
+	verity_file_digest = incfs_calc_verity_digest(inode, filp,
+					arg->hash_algorithm);
 	if (IS_ERR(verity_file_digest.data)) {
 		err = PTR_ERR(verity_file_digest.data);
 		verity_file_digest.data = NULL;
@@ -658,32 +641,19 @@ err_out:
 static int ensure_verity_info(struct inode *inode, struct file *filp)
 {
 	struct mem_range verity_file_digest;
-	u8 *signature = NULL;
-	size_t sig_size;
-	int err = 0;
 
 	/* See if this file's verity file digest is already cached */
 	verity_file_digest = incfs_get_verity_digest(inode);
 	if (verity_file_digest.data)
 		return 0;
 
-	signature = incfs_get_verity_signature(filp, &sig_size);
-	if (IS_ERR(signature))
-		return PTR_ERR(signature);
-
-	verity_file_digest = incfs_calc_verity_digest(inode, filp, signature,
-						     sig_size,
+	verity_file_digest = incfs_calc_verity_digest(inode, filp,
 						     FS_VERITY_HASH_ALG_SHA256);
-	if (IS_ERR(verity_file_digest.data)) {
-		err = PTR_ERR(verity_file_digest.data);
-		goto out;
-	}
+	if (IS_ERR(verity_file_digest.data))
+		return PTR_ERR(verity_file_digest.data);
 
 	incfs_set_verity_digest(inode, verity_file_digest);
-
-out:
-	kfree(signature);
-	return err;
+	return 0;
 }
 
 /**
