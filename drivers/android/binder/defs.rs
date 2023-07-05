@@ -35,6 +35,8 @@ pub_no_prefix!(
     binder_driver_command_protocol_,
     BC_TRANSACTION,
     BC_TRANSACTION_SG,
+    BC_REPLY,
+    BC_REPLY_SG,
     BC_FREE_BUFFER,
     BC_ENTER_LOOPER,
     BC_EXIT_LOOPER,
