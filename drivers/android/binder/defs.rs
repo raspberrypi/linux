@@ -25,10 +25,13 @@ pub_no_prefix!(
     BR_SPAWN_LOOPER,
     BR_TRANSACTION_COMPLETE,
     BR_OK,
+    BR_ERROR,
     BR_INCREFS,
     BR_ACQUIRE,
     BR_RELEASE,
-    BR_DECREFS
+    BR_DECREFS,
+    BR_DEAD_BINDER,
+    BR_CLEAR_DEATH_NOTIFICATION_DONE
 );
 
 pub_no_prefix!(
@@ -46,7 +49,10 @@ pub_no_prefix!(
     BC_RELEASE,
     BC_DECREFS,
     BC_INCREFS_DONE,
-    BC_ACQUIRE_DONE
+    BC_ACQUIRE_DONE,
+    BC_REQUEST_DEATH_NOTIFICATION,
+    BC_CLEAR_DEATH_NOTIFICATION,
+    BC_DEAD_BINDER_DONE
 );
 
 pub_no_prefix!(flat_binder_object_flags_, FLAT_BINDER_FLAG_TXN_SECURITY_CTX);

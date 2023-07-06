@@ -102,6 +102,13 @@ type DArc<T> = kernel::sync::Arc<DTRWrap<T>>;
 type DLArc<T> = kernel::list::ListArc<DTRWrap<T>>;
 
 impl<T: ListArcSafe> DTRWrap<T> {
+    fn new(val: impl PinInit<T>) -> impl PinInit<Self> {
+        pin_init!(Self {
+            links <- ListLinksSelfPtr::new(),
+            wrapped <- val,
+        })
+    }
+
     #[allow(dead_code)]
     fn arc_try_new(val: T) -> Result<DLArc<T>, alloc::alloc::AllocError> {
         ListArc::pin_init(pin_init!(Self {

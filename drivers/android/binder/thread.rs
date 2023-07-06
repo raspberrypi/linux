@@ -392,8 +392,25 @@ impl Thread {
         res
     }
 
+    /// Attempts to push to given work item to the thread if it's a looper thread (i.e., if it's
+    /// part of a thread pool) and is alive. Otherwise, push the work item to the process instead.
+    pub(crate) fn push_work_if_looper(&self, work: DLArc<dyn DeliverToRead>) -> BinderResult {
+        let mut inner = self.inner.lock();
+        if inner.is_looper() && !inner.is_dead {
+            inner.push_work(work);
+            Ok(())
+        } else {
+            drop(inner);
+            self.process.push_work(work)
+        }
+    }
+
     pub(crate) fn push_work_deferred(&self, work: DLArc<dyn DeliverToRead>) {
         self.inner.lock().push_work_deferred(work);
+    }
+
+    pub(crate) fn push_return_work(&self, reply: u32) {
+        self.inner.lock().push_return_work(reply);
     }
 
     /// This method copies the payload of a transaction into the target process.
@@ -566,7 +583,7 @@ impl Thread {
                 );
             }
 
-            self.inner.lock().push_return_work(err.reply);
+            self.push_return_work(err.reply);
         }
     }
 
@@ -712,6 +729,9 @@ impl Thread {
                 }
                 BC_INCREFS_DONE => self.process.inc_ref_done(&mut reader, false)?,
                 BC_ACQUIRE_DONE => self.process.inc_ref_done(&mut reader, true)?,
+                BC_REQUEST_DEATH_NOTIFICATION => self.process.request_death(&mut reader, self)?,
+                BC_CLEAR_DEATH_NOTIFICATION => self.process.clear_death(&mut reader, self)?,
+                BC_DEAD_BINDER_DONE => self.process.dead_binder_done(reader.read()?, self),
                 BC_REGISTER_LOOPER => {
                     let valid = self.process.register_thread();
                     self.inner.lock().looper_register(valid);
