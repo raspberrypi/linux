@@ -6,13 +6,22 @@ use core::mem::size_of_val;
 
 use kernel::{page::Page, prelude::*, sync::Arc, uaccess::UserSliceReader};
 
-use crate::{node::NodeRef, process::Process};
+use crate::{
+    node::{Node, NodeRef},
+    process::Process,
+    DArc,
+};
 
 #[derive(Default)]
 pub(crate) struct AllocationInfo {
     /// The target node of the transaction this allocation is associated to.
     /// Not set for replies.
     pub(crate) target_node: Option<NodeRef>,
+    /// When this allocation is dropped, call `pending_oneway_finished` on the node.
+    ///
+    /// This is used to serialize oneway transaction on the same node. Binder guarantees that
+    /// oneway transactions to the same node are delivered sequentially in the order they are sent.
+    pub(crate) oneway_node: Option<DArc<Node>>,
     /// Zero the data in the buffer on free.
     pub(crate) clear_on_free: bool,
 }
@@ -115,6 +124,10 @@ impl Allocation {
         self.allocation_info.get_or_insert_with(Default::default)
     }
 
+    pub(crate) fn set_info_oneway_node(&mut self, oneway_node: DArc<Node>) {
+        self.get_or_init_info().oneway_node = Some(oneway_node);
+    }
+
     pub(crate) fn set_info_clear_on_drop(&mut self) {
         self.get_or_init_info().clear_on_free = true;
     }
@@ -131,6 +144,10 @@ impl Drop for Allocation {
         }
 
         if let Some(mut info) = self.allocation_info.take() {
+            if let Some(oneway_node) = info.oneway_node.as_ref() {
+                oneway_node.pending_oneway_finished();
+            }
+
             info.target_node = None;
 
             if info.clear_on_free {

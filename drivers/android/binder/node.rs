@@ -3,7 +3,10 @@
 // Copyright (C) 2024 Google LLC.
 
 use kernel::{
-    list::{AtomicListArcTracker, List, ListArc, ListArcSafe, TryNewListArc},
+    list::{
+        AtomicListArcTracker, HasListLinks, List, ListArc, ListArcSafe, ListItem, ListLinks,
+        TryNewListArc,
+    },
     prelude::*,
     sync::lock::{spinlock::SpinLockBackend, Guard},
     sync::{Arc, LockedBy},
@@ -12,9 +15,11 @@ use kernel::{
 
 use crate::{
     defs::*,
+    error::BinderError,
     process::{NodeRefInfo, Process, ProcessInner},
     thread::Thread,
-    DArc, DeliverToRead,
+    transaction::Transaction,
+    DArc, DLArc, DTRWrap, DeliverToRead,
 };
 
 struct CountState {
@@ -39,6 +44,22 @@ struct NodeInner {
     strong: CountState,
     /// Weak refcounts held on this node by `NodeRef` objects.
     weak: CountState,
+    /// The binder driver guarantees that oneway transactions sent to the same node are serialized,
+    /// that is, userspace will not be given the next one until it has finished processing the
+    /// previous oneway transaction. This is done to avoid the case where two oneway transactions
+    /// arrive in opposite order from the order in which they were sent. (E.g., they could be
+    /// delivered to two different threads, which could appear as-if they were sent in opposite
+    /// order.)
+    ///
+    /// To fix that, we store pending oneway transactions in a separate list in the node, and don't
+    /// deliver the next oneway transaction until userspace signals that it has finished processing
+    /// the previous oneway transaction by calling the `BC_FREE_BUFFER` ioctl.
+    oneway_todo: List<DTRWrap<Transaction>>,
+    /// Keeps track of whether this node has a pending oneway transaction.
+    ///
+    /// When this is true, incoming oneway transactions are stored in `oneway_todo`, instead of
+    /// being delivered directly to the process.
+    has_oneway_transaction: bool,
     /// The number of active BR_INCREFS or BR_ACQUIRE operations. (should be maximum two)
     ///
     /// If this is non-zero, then we postpone any BR_RELEASE or BR_DECREFS notifications until the
@@ -66,6 +87,16 @@ kernel::list::impl_list_arc_safe! {
     }
 }
 
+// These make `oneway_todo` work.
+kernel::list::impl_has_list_links! {
+    impl HasListLinks<0> for DTRWrap<Transaction> { self.links.inner }
+}
+kernel::list::impl_list_item! {
+    impl ListItem<0> for DTRWrap<Transaction> {
+        using ListLinks;
+    }
+}
+
 impl Node {
     pub(crate) fn new(
         ptr: u64,
@@ -79,6 +110,8 @@ impl Node {
                 NodeInner {
                     strong: CountState::new(),
                     weak: CountState::new(),
+                    oneway_todo: List::new(),
+                    has_oneway_transaction: false,
                     active_inc_refs: 0,
                     refs: List::new(),
                 },
@@ -242,6 +275,63 @@ impl Node {
         writer.write(&self.ptr)?;
         writer.write(&self.cookie)?;
         Ok(())
+    }
+
+    pub(crate) fn submit_oneway(
+        &self,
+        transaction: DLArc<Transaction>,
+        guard: &mut Guard<'_, ProcessInner, SpinLockBackend>,
+    ) -> Result<(), (BinderError, DLArc<dyn DeliverToRead>)> {
+        if guard.is_dead {
+            return Err((BinderError::new_dead(), transaction));
+        }
+
+        let inner = self.inner.access_mut(guard);
+        if inner.has_oneway_transaction {
+            inner.oneway_todo.push_back(transaction);
+        } else {
+            inner.has_oneway_transaction = true;
+            guard.push_work(transaction)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn release(&self, guard: &mut Guard<'_, ProcessInner, SpinLockBackend>) {
+        // Move every pending oneshot message to the process todolist. The process
+        // will cancel it later.
+        //
+        // New items can't be pushed after this call, since `submit_oneway` fails when the process
+        // is dead, which is set before `Node::release` is called.
+        //
+        // TODO: Give our linked list implementation the ability to move everything in one go.
+        while let Some(work) = self.inner.access_mut(guard).oneway_todo.pop_front() {
+            guard.push_work_for_release(work);
+        }
+    }
+
+    pub(crate) fn pending_oneway_finished(&self) {
+        let mut guard = self.owner.inner.lock();
+        if guard.is_dead {
+            // Cleanup will happen in `Process::deferred_release`.
+            return;
+        }
+
+        let inner = self.inner.access_mut(&mut guard);
+
+        let transaction = inner.oneway_todo.pop_front();
+        inner.has_oneway_transaction = transaction.is_some();
+        if let Some(transaction) = transaction {
+            match guard.push_work(transaction) {
+                Ok(()) => {}
+                Err((_err, work)) => {
+                    // Process is dead.
+                    // This shouldn't happen due to the `is_dead` check, but if it does, just drop
+                    // the transaction and return.
+                    drop(guard);
+                    drop(work);
+                }
+            }
+        }
     }
 }
 

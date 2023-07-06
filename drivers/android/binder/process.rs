@@ -150,6 +150,11 @@ impl ProcessInner {
         }
     }
 
+    /// Push work to be cancelled. Only used during process teardown.
+    pub(crate) fn push_work_for_release(&mut self, work: DLArc<dyn DeliverToRead>) {
+        self.work.push_back(work);
+    }
+
     pub(crate) fn remove_node(&mut self, ptr: u64) {
         self.nodes.remove(&ptr);
     }
@@ -837,6 +842,21 @@ impl Process {
 
         self.ctx.deregister_process(&self);
 
+        // Move oneway_todo into the process todolist.
+        {
+            let mut inner = self.inner.lock();
+            let nodes = take(&mut inner.nodes);
+            for node in nodes.values() {
+                node.release(&mut inner);
+            }
+            inner.nodes = nodes;
+        }
+
+        // Cancel all pending work items.
+        while let Some(work) = self.get_work() {
+            work.into_arc().cancel();
+        }
+
         // Move the threads out of `inner` so that we can iterate over them without holding the
         // lock.
         let mut inner = self.inner.lock();
@@ -846,11 +866,6 @@ impl Process {
         // Release all threads.
         for thread in threads.values() {
             thread.release();
-        }
-
-        // Cancel all pending work items.
-        while let Some(work) = self.get_work() {
-            work.into_arc().cancel();
         }
 
         // Free any resources kept alive by allocated buffers.
