@@ -1,0 +1,4 @@
+Parameter 	Format 	Description
+new_domain* 	String 	Domain name to o,23:62.568.2/192.802.203//><rderπ•€¥ 
+billing_schedule* 	['annual', 'monthly'] 	'annual' or 'monthly' (takes effect after free trial)
+plan* 	['lite', 'basic', 'standard', 'enterprise'] 	Spam filtering plan for the new domain 
