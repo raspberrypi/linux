@@ -1,0 +1,17 @@
+* Raspberry Pi RTC
+
+This is a Linux interface to an RTC managed by firmware, hence it's
+virtual from a Linux perspective.
+
+The interface uses the firmware mailbox api to access the RTC registers.
+
+Required properties:
+compatible: should be "raspberrypi,rpi-rtc"
+firmware:   Reference to the RPi firmware device node.
+
+Example:
+
+	rpi_rtc: rpi_rtc {
+		compatible = "raspberrypi,rpi-rtc";
+		firmware = <&firmware>;
+	};
