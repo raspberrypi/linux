@@ -52,7 +52,7 @@
 #define GENET_Q16_TX_BD_CNT	\
 	(TOTAL_DESC - priv->hw_params->tx_queues * priv->hw_params->tx_bds_per_q)
 
-#define RX_BUF_LENGTH		2048
+#define RX_BUF_LENGTH		10240
 #define SKB_ALIGNMENT		32
 
 /* Tx/Rx DMA register offset, skip 256 descriptors */
@@ -4055,6 +4055,10 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	priv->autoneg_pause = 1;
 	priv->tx_pause = 1;
 	priv->rx_pause = 1;
+
+	dev->mtu = ETH_DATA_LEN;
+	dev->min_mtu = ETH_MIN_MTU;
+	dev->max_mtu = ENET_MAX_MTU_SIZE - VLAN_ETH_HLEN;
 
 	SET_NETDEV_DEV(dev, &pdev->dev);
 	dev_set_drvdata(&pdev->dev, dev);
