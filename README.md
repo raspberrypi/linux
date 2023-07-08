@@ -8,7 +8,7 @@ additions of `EXPORT_SYMBOL_GPL()` require an in-tree modular driver that uses t
 the new driver or changes to an existing driver in the same patchset as the export.
    - When sending patches upstream, the commit message must contain a clear case for why the patch
 is needed and beneficial to the community. Enabling out-of-tree drivers or functionality is not
-not a persuasive case.
+a persuasive case.
 
 2. LESS GOOD: Develop your patches out-of-tree (from an upstream Linux point-of-view). Unless these are
    fixing an Android-specific bug, these are very unlikely to be accepted unless they have been
