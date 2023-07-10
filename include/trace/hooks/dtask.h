@@ -106,6 +106,16 @@ DECLARE_HOOK(android_vh_record_rwsem_lock_starttime,
 DECLARE_HOOK(android_vh_record_pcpu_rwsem_starttime,
 	TP_PROTO(u64 sem, unsigned long settime_jiffies),
 	TP_ARGS(sem, settime_jiffies));
+struct rt_mutex_waiter;
+struct ww_acquire_ctx;
+DECLARE_HOOK(android_vh_task_blocks_on_rtmutex,
+	TP_PROTO(struct rt_mutex_base *lock, struct rt_mutex_waiter *waiter,
+		struct task_struct *task, struct ww_acquire_ctx *ww_ctx,
+		unsigned int *chwalk),
+	TP_ARGS(lock, waiter, task, ww_ctx, chwalk));
+DECLARE_HOOK(android_vh_rtmutex_waiter_prio,
+	TP_PROTO(struct task_struct *task, int *waiter_prio),
+	TP_ARGS(task, waiter_prio));
 #endif /* _TRACE_HOOK_DTASK_H */
 
 /* This part must be outside protection */
