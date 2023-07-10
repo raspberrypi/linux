@@ -149,7 +149,7 @@ const struct file_operations incfs_file_ops = {
 	.release = file_release,
 	.read_iter = generic_file_read_iter,
 	.mmap = incfs_file_mmap,
-	.splice_read = generic_file_splice_read,
+	.splice_read = filemap_splice_read,
 	.llseek = generic_file_llseek,
 	.unlocked_ioctl = dispatch_ioctl,
 #ifdef CONFIG_COMPAT
