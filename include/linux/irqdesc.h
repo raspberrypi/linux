@@ -5,7 +5,6 @@
 #include <linux/rcupdate.h>
 #include <linux/kobject.h>
 #include <linux/mutex.h>
-#include <linux/android_vendor.h>
 
 /*
  * Core internal functions to deal with irq descriptors
@@ -103,7 +102,6 @@ struct irq_desc {
 	int			parent_irq;
 	struct module		*owner;
 	const char		*name;
-	ANDROID_VENDOR_DATA(1);
 } ____cacheline_internodealigned_in_smp;
 
 #ifdef CONFIG_SPARSE_IRQ
