@@ -40,7 +40,6 @@ static const struct reg_default wm8804_reg_defaults[] = {
 	{ 6,  0x07 },     /* R6  - PLL4 */
 	{ 7,  0x16 },     /* R7  - PLL5 */
 	{ 8,  0x18 },     /* R8  - PLL6 */
-//	{ 8,  0x1a },     /* R8  - PLL6 select RX2 input */
 	{ 9,  0xFF },     /* R9  - SPDMODE */
 	{ 10, 0x00 },     /* R10 - INTMASK */
 	{ 18, 0x00 },     /* R18 - SPDTX1 */
@@ -72,8 +71,6 @@ struct wm8804_priv {
 static int txsrc_put(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol);
 
-//static int rxsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol);
-
 static int wm8804_aif_event(struct snd_soc_dapm_widget *w,
 			    struct snd_kcontrol *kcontrol, int event);
 
@@ -101,17 +98,16 @@ static const char *txsrc_text[] = { "S/PDIF RX", "AIF" };
 static SOC_ENUM_SINGLE_DECL(txsrc, WM8804_SPDTX4, 6, txsrc_text);
 
 static const struct snd_kcontrol_new wm8804_tx_source_mux[] = {
-	SOC_DAPM_ENUM_EXT("Output Source", txsrc,
+	SOC_DAPM_ENUM_EXT("Input Source", txsrc,
 			  snd_soc_dapm_get_enum_double, txsrc_put),
 };
 
 
 static const struct snd_soc_dapm_widget wm8804_dapm_widgets[] = {
 SND_SOC_DAPM_OUTPUT("SPDIF Out"),
-SND_SOC_DAPM_INPUT("SPDIF IN"),
+SND_SOC_DAPM_INPUT("SPDIF In"),
 SND_SOC_DAPM_PGA("SPDIFTX", WM8804_PWRDN, 2, 1, NULL, 0),
 SND_SOC_DAPM_PGA("SPDIFRX", WM8804_PWRDN, 1, 1, NULL, 0),
-
 SND_SOC_DAPM_MUX("Tx Source", SND_SOC_NOPM, 6, 0, wm8804_tx_source_mux),
 SND_SOC_DAPM_AIF_OUT_E("AIFTX", NULL, 0, SND_SOC_NOPM, 0, 0, wm8804_aif_event,
 		       SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD),
@@ -123,7 +119,7 @@ static const struct snd_soc_dapm_route wm8804_dapm_routes[] = {
 	{ "AIFRX", NULL, "Playback" },
 	{ "Tx Source", "AIF", "AIFRX" },
 
-	{ "SPDIFRX", NULL, "SPDIF IN" },
+	{ "SPDIFRX", NULL, "SPDIF In" },
 	{ "Tx Source", "S/PDIF RX", "SPDIFRX" },
 
 	{ "SPDIFTX", NULL, "Tx Source" },
