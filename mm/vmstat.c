@@ -1178,6 +1178,9 @@ const char * const vmstat_text[] = {
 	"nr_bounce",
 	"nr_zspages",
 	"nr_free_cma",
+#ifdef CONFIG_UNACCEPTED_MEMORY
+	"nr_unaccepted",
+#endif
 
 	/* enum numa_stat_item counters */
 #ifdef CONFIG_NUMA
