@@ -16,6 +16,7 @@ COMMON_GKI_MODULES_LIST = [
     "drivers/net/can/dev/can-dev.ko",
     "drivers/net/can/slcan/slcan.ko",
     "drivers/net/can/vcan.ko",
+    "drivers/net/macsec.ko",
     "drivers/net/mii.ko",
     "drivers/net/ppp/bsd_comp.ko",
     "drivers/net/ppp/ppp_deflate.ko",
