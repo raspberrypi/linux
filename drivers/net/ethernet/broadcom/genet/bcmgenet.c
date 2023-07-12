@@ -52,7 +52,7 @@
 #define GENET_Q16_TX_BD_CNT	\
 	(TOTAL_DESC - priv->hw_params->tx_queues * priv->hw_params->tx_bds_per_q)
 
-#define RX_BUF_LENGTH		2048
+#define RX_BUF_LENGTH		10240
 #define SKB_ALIGNMENT		32
 
 /* Tx/Rx DMA register offset, skip 256 descriptors */
@@ -2566,6 +2566,14 @@ static void init_umac(struct bcmgenet_priv *priv)
 	reg |= RBUF_ALIGN_2B | RBUF_64B_EN;
 	bcmgenet_rbuf_writel(priv, reg, RBUF_CTRL);
 
+	/* 8 bit register, units of 16 bytes, and should be aligned to burst
+	 * size (256bytes). So max threshold of 3840 bytes to meet these
+	 * criteria.
+	 * Add the 64 byte status block, and you get 3904 bytes.
+	 */
+	reg = 0xf0;
+	bcmgenet_rbuf_writel(priv, reg, RBUF_PKT_RDY_THLD);
+
 	/* enable rx checksumming */
 	reg = bcmgenet_rbuf_readl(priv, RBUF_CHK_CTRL);
 	reg |= RBUF_RXCHK_EN | RBUF_L3_PARSE_DIS;
@@ -4055,6 +4063,10 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	priv->autoneg_pause = 1;
 	priv->tx_pause = 1;
 	priv->rx_pause = 1;
+
+	dev->mtu = ETH_DATA_LEN;
+	dev->min_mtu = ETH_MIN_MTU;
+	dev->max_mtu = ENET_MAX_MTU_SIZE - VLAN_ETH_HLEN;
 
 	SET_NETDEV_DEV(dev, &pdev->dev);
 	dev_set_drvdata(&pdev->dev, dev);

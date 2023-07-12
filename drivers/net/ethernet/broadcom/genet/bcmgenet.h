@@ -24,12 +24,12 @@
 /* which ring is descriptor based */
 #define DESC_INDEX				16
 
-/* Body(1500) + EH_SIZE(14) + VLANTAG(4) + BRCMTAG(6) + FCS(4) = 1528.
- * 1536 is multiple of 256 bytes
+/* Body(9000) + EH_SIZE(14) + VLANTAG(4) + BRCMTAG(6) + FCS(4) = 9028.
+ * 9216 is multiple of 256 bytes
  */
 #define ENET_BRCM_TAG_LEN	6
-#define ENET_PAD		8
-#define ENET_MAX_MTU_SIZE	(ETH_DATA_LEN + ETH_HLEN + VLAN_HLEN + \
+#define ENET_PAD		188
+#define ENET_MAX_MTU_SIZE	(9000 + ETH_HLEN + VLAN_HLEN + \
 				 ENET_BRCM_TAG_LEN + ETH_FCS_LEN + ENET_PAD)
 #define DMA_MAX_BURST_LENGTH    0x08
 
@@ -191,6 +191,8 @@ struct bcmgenet_mib_counters {
 #define  RBUF_64B_EN			(1 << 0)
 #define  RBUF_ALIGN_2B			(1 << 1)
 #define  RBUF_BAD_DIS			(1 << 2)
+
+#define RBUF_PKT_RDY_THLD		0x08
 
 #define RBUF_STATUS			0x0C
 #define  RBUF_STATUS_WOL		(1 << 0)
