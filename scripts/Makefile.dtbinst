@@ -35,6 +35,6 @@ $(dst)/%.dtbo: $(obj)/%.dtbo
 
 PHONY += $(subdirs)
 $(subdirs):
-	$(Q)$(MAKE) $(dtbinst)=$@ dst=$(if $(CONFIG_ARCH_WANT_FLAT_DTB_INSTALL),$(dst),$(patsubst $(obj)/%,$(dst)/%,$@))
+	$(Q)$(MAKE) $(dtbinst)=$@ dst=$(if $(if $(subst $(obj)/overlays,,$@),$(CONFIG_ARCH_WANT_FLAT_DTB_INSTALL),),$(dst),$(patsubst $(obj)/%,$(dst)/%,$@))
 
 .PHONY: $(PHONY)
