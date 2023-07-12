@@ -79,7 +79,7 @@ jobs:
           export IMAGE=Image.gz
         else
           export CROSS_COMPILE=arm-linux-gnueabihf-
-          export DTS_SUBDIR=
+          export DTS_SUBDIR=broadcom
           export IMAGE=zImage
         fi
         make O=${{github.workspace}}/build ${{matrix.defconfig}}
