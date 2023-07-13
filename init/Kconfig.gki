@@ -95,6 +95,7 @@ config GKI_HIDDEN_QCOM_CONFIGS
 	select QCOM_GDSC if (ARCH_QCOM)
 	select IOMMU_IO_PGTABLE_LPAE if (ARCH_QCOM)
 	select INTERCONNECT_QCOM if (ARCH_QCOM)
+	select AUXILIARY_BUS if (ARCH_QCOM)
 
 	help
 	  Dummy config option used to enable hidden QCOM configs.
