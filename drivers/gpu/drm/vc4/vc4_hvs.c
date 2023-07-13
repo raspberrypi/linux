@@ -1303,6 +1303,10 @@ static int vc4_hvs_hw_init(struct vc4_hvs *hvs)
 	struct vc4_dev *vc4 = hvs->vc4;
 	u32 dispctrl, reg;
 
+	dispctrl = HVS_READ(SCALER_DISPCTRL);
+	dispctrl |= SCALER_DISPCTRL_ENABLE;
+	HVS_WRITE(SCALER_DISPCTRL, dispctrl);
+
 	reg = HVS_READ(SCALER_DISPECTRL);
 	reg &= ~SCALER_DISPECTRL_DSP2_MUX_MASK;
 	HVS_WRITE(SCALER_DISPECTRL,
@@ -1324,8 +1328,6 @@ static int vc4_hvs_hw_init(struct vc4_hvs *hvs)
 		  reg | VC4_SET_FIELD(3, SCALER_DISPDITHER_DSP5_MUX));
 
 	dispctrl = HVS_READ(SCALER_DISPCTRL);
-
-	dispctrl |= SCALER_DISPCTRL_ENABLE;
 	dispctrl |= SCALER_DISPCTRL_DISPEIRQ(0) |
 		    SCALER_DISPCTRL_DISPEIRQ(1) |
 		    SCALER_DISPCTRL_DISPEIRQ(2);
@@ -1521,16 +1523,16 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	else
 		hvs->dlist = hvs->regs + SCALER5_DLIST_START;
 
+	ret = vc4_hvs_hw_init(hvs);
+	if (ret)
+		return ret;
+
 	/* Upload filter kernels.  We only have the one for now, so we
 	 * keep it around for the lifetime of the driver.
 	 */
 	ret = vc4_hvs_upload_linear_kernel(hvs,
 					   &hvs->mitchell_netravali_filter,
 					   mitchell_netravali_1_3_1_3_kernel);
-	if (ret)
-		return ret;
-
-	ret = vc4_hvs_hw_init(hvs);
 	if (ret)
 		return ret;
 
