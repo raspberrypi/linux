@@ -24,6 +24,13 @@ pub fn binder_transaction(from: &Credential, to: &Credential) -> Result {
     to_result(unsafe { bindings::security_binder_transaction(from.as_ptr(), to.as_ptr()) })
 }
 
+/// Calls the security modules to determine if task `from` is allowed to send binder objects
+/// (owned by itself or other processes) to task `to` through a binder transaction.
+pub fn binder_transfer_binder(from: &Credential, to: &Credential) -> Result {
+    // SAFETY: `from` and `to` are valid because the shared references guarantee nonzero refcounts.
+    to_result(unsafe { bindings::security_binder_transfer_binder(from.as_ptr(), to.as_ptr()) })
+}
+
 /// A security context string.
 ///
 /// # Invariants

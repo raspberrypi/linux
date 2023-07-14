@@ -289,6 +289,13 @@ int rust_helper_security_binder_transaction(const struct cred *from,
 	return security_binder_transaction(from, to);
 }
 EXPORT_SYMBOL_GPL(rust_helper_security_binder_transaction);
+
+int rust_helper_security_binder_transfer_binder(const struct cred *from,
+						const struct cred *to)
+{
+	return security_binder_transfer_binder(from, to);
+}
+EXPORT_SYMBOL_GPL(rust_helper_security_binder_transfer_binder);
 #endif
 
 void rust_helper_init_task_work(struct callback_head *twork,

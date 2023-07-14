@@ -2,6 +2,7 @@
 
 // Copyright (C) 2024 Google LLC.
 
+use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use kernel::{
     bindings::{self, *},
@@ -59,11 +60,18 @@ pub_no_prefix!(flat_binder_object_flags_, FLAT_BINDER_FLAG_TXN_SECURITY_CTX);
 
 pub_no_prefix!(transaction_flags_, TF_ONE_WAY, TF_CLEAR_BUF);
 
+pub(crate) use bindings::{
+    BINDER_TYPE_BINDER, BINDER_TYPE_FD, BINDER_TYPE_FDA, BINDER_TYPE_HANDLE, BINDER_TYPE_PTR,
+    BINDER_TYPE_WEAK_BINDER, BINDER_TYPE_WEAK_HANDLE,
+};
+
 macro_rules! decl_wrapper {
     ($newname:ident, $wrapped:ty) => {
-        #[derive(Copy, Clone, Default)]
+        // Define a wrapper around the C type. Use `MaybeUninit` to enforce that the value of
+        // padding bytes must be preserved.
+        #[derive(Copy, Clone)]
         #[repr(transparent)]
-        pub(crate) struct $newname($wrapped);
+        pub(crate) struct $newname(MaybeUninit<$wrapped>);
 
         // SAFETY: This macro is only used with types where this is ok.
         unsafe impl FromBytes for $newname {}
@@ -72,13 +80,24 @@ macro_rules! decl_wrapper {
         impl Deref for $newname {
             type Target = $wrapped;
             fn deref(&self) -> &Self::Target {
-                &self.0
+                // SAFETY: We use `MaybeUninit` only to preserve padding. The value must still
+                // always be valid.
+                unsafe { self.0.assume_init_ref() }
             }
         }
 
         impl DerefMut for $newname {
             fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
+                // SAFETY: We use `MaybeUninit` only to preserve padding. The value must still
+                // always be valid.
+                unsafe { self.0.assume_init_mut() }
+            }
+        }
+
+        impl Default for $newname {
+            fn default() -> Self {
+                // Create a new value of this type where all bytes (including padding) are zeroed.
+                Self(MaybeUninit::zeroed())
             }
         }
     };
@@ -87,6 +106,7 @@ macro_rules! decl_wrapper {
 decl_wrapper!(BinderNodeDebugInfo, bindings::binder_node_debug_info);
 decl_wrapper!(BinderNodeInfoForRef, bindings::binder_node_info_for_ref);
 decl_wrapper!(FlatBinderObject, bindings::flat_binder_object);
+decl_wrapper!(BinderObjectHeader, bindings::binder_object_header);
 decl_wrapper!(BinderTransactionData, bindings::binder_transaction_data);
 decl_wrapper!(
     BinderTransactionDataSecctx,
@@ -102,18 +122,18 @@ decl_wrapper!(ExtendedError, bindings::binder_extended_error);
 
 impl BinderVersion {
     pub(crate) fn current() -> Self {
-        Self(bindings::binder_version {
+        Self(MaybeUninit::new(bindings::binder_version {
             protocol_version: bindings::BINDER_CURRENT_PROTOCOL_VERSION as _,
-        })
+        }))
     }
 }
 
 impl BinderTransactionData {
     pub(crate) fn with_buffers_size(self, buffers_size: u64) -> BinderTransactionDataSg {
-        BinderTransactionDataSg(bindings::binder_transaction_data_sg {
-            transaction_data: self.0,
+        BinderTransactionDataSg(MaybeUninit::new(bindings::binder_transaction_data_sg {
+            transaction_data: *self,
             buffers_size,
-        })
+        }))
     }
 }
 
@@ -130,6 +150,10 @@ impl BinderTransactionDataSecctx {
 
 impl ExtendedError {
     pub(crate) fn new(id: u32, command: u32, param: i32) -> Self {
-        Self(bindings::binder_extended_error { id, command, param })
+        Self(MaybeUninit::new(bindings::binder_extended_error {
+            id,
+            command,
+            param,
+        }))
     }
 }

@@ -549,7 +549,7 @@ impl Process {
         Ok(inner.new_node_ref(node, strong, thread))
     }
 
-    fn insert_or_update_handle(
+    pub(crate) fn insert_or_update_handle(
         self: ArcBorrow<'_, Process>,
         node_ref: NodeRef,
         is_mananger: bool,
@@ -685,6 +685,14 @@ impl Process {
             }
         }
         Ok(())
+    }
+
+    /// Decrements the refcount of the given node, if one exists.
+    pub(crate) fn update_node(&self, ptr: u64, cookie: u64, strong: bool) {
+        let mut inner = self.inner.lock();
+        if let Ok(Some(node)) = inner.get_existing_node(ptr, cookie) {
+            inner.update_node_refcount(&node, false, strong, 1, None);
+        }
     }
 
     pub(crate) fn inc_ref_done(&self, reader: &mut UserSliceReader, strong: bool) -> Result {
