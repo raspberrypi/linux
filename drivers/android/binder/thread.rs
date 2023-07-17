@@ -37,6 +37,184 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+/// Stores the layout of the scatter-gather entries. This is used during the `translate_objects`
+/// call and is discarded when it returns.
+struct ScatterGatherState {
+    /// A struct that tracks the amount of unused buffer space.
+    unused_buffer_space: UnusedBufferSpace,
+    /// Scatter-gather entries to copy.
+    sg_entries: Vec<ScatterGatherEntry>,
+    /// Indexes into `sg_entries` corresponding to the last binder_buffer_object that
+    /// was processed and all of its ancestors. The array is in sorted order.
+    ancestors: Vec<usize>,
+}
+
+/// This entry specifies an additional buffer that should be copied using the scatter-gather
+/// mechanism.
+struct ScatterGatherEntry {
+    /// The index in the offset array of the BINDER_TYPE_PTR that this entry originates from.
+    obj_index: usize,
+    /// Offset in target buffer.
+    offset: usize,
+    /// User address in source buffer.
+    sender_uaddr: usize,
+    /// Number of bytes to copy.
+    length: usize,
+    /// The minimum offset of the next fixup in this buffer.
+    fixup_min_offset: usize,
+    /// The offsets within this buffer that contain pointers which should be translated.
+    pointer_fixups: Vec<PointerFixupEntry>,
+}
+
+/// This entry specifies that a fixup should happen at `target_offset` of the
+/// buffer. If `skip` is nonzero, then the fixup is a `binder_fd_array_object`
+/// and is applied later. Otherwise if `skip` is zero, then the size of the
+/// fixup is `sizeof::<u64>()` and `pointer_value` is written to the buffer.
+struct PointerFixupEntry {
+    /// The number of bytes to skip, or zero for a `binder_buffer_object` fixup.
+    skip: usize,
+    /// The translated pointer to write when `skip` is zero.
+    pointer_value: u64,
+    /// The offset at which the value should be written. The offset is relative
+    /// to the original buffer.
+    target_offset: usize,
+}
+
+/// Return type of `apply_and_validate_fixup_in_parent`.
+struct ParentFixupInfo {
+    /// The index of the parent buffer in `sg_entries`.
+    parent_sg_index: usize,
+    /// The number of ancestors of the buffer.
+    ///
+    /// The buffer is considered an ancestor of itself, so this is always at
+    /// least one.
+    num_ancestors: usize,
+    /// New value of `fixup_min_offset` if this fixup is applied.
+    new_min_offset: usize,
+    /// The offset of the fixup in the target buffer.
+    target_offset: usize,
+}
+
+impl ScatterGatherState {
+    /// Called when a `binder_buffer_object` or `binder_fd_array_object` tries
+    /// to access a region in its parent buffer. These accesses have various
+    /// restrictions, which this method verifies.
+    ///
+    /// The `parent_offset` and `length` arguments describe the offset and
+    /// length of the access in the parent buffer.
+    ///
+    /// # Detailed restrictions
+    ///
+    /// Obviously the fixup must be in-bounds for the parent buffer.
+    ///
+    /// For safety reasons, we only allow fixups inside a buffer to happen
+    /// at increasing offsets; additionally, we only allow fixup on the last
+    /// buffer object that was verified, or one of its parents.
+    ///
+    /// Example of what is allowed:
+    ///
+    /// A
+    ///   B (parent = A, offset = 0)
+    ///   C (parent = A, offset = 16)
+    ///     D (parent = C, offset = 0)
+    ///   E (parent = A, offset = 32) // min_offset is 16 (C.parent_offset)
+    ///
+    /// Examples of what is not allowed:
+    ///
+    /// Decreasing offsets within the same parent:
+    /// A
+    ///   C (parent = A, offset = 16)
+    ///   B (parent = A, offset = 0) // decreasing offset within A
+    ///
+    /// Arcerring to a parent that wasn't the last object or any of its parents:
+    /// A
+    ///   B (parent = A, offset = 0)
+    ///   C (parent = A, offset = 0)
+    ///   C (parent = A, offset = 16)
+    ///     D (parent = B, offset = 0) // B is not A or any of A's parents
+    fn validate_parent_fixup(
+        &self,
+        parent: usize,
+        parent_offset: usize,
+        length: usize,
+    ) -> Result<ParentFixupInfo> {
+        // Using `position` would also be correct, but `rposition` avoids
+        // quadratic running times.
+        let ancestors_i = self
+            .ancestors
+            .iter()
+            .copied()
+            .rposition(|sg_idx| self.sg_entries[sg_idx].obj_index == parent)
+            .ok_or(EINVAL)?;
+        let sg_idx = self.ancestors[ancestors_i];
+        let sg_entry = match self.sg_entries.get(sg_idx) {
+            Some(sg_entry) => sg_entry,
+            None => {
+                pr_err!(
+                    "self.ancestors[{}] is {}, but self.sg_entries.len() is {}",
+                    ancestors_i,
+                    sg_idx,
+                    self.sg_entries.len()
+                );
+                return Err(EINVAL);
+            }
+        };
+        if sg_entry.fixup_min_offset > parent_offset {
+            pr_warn!(
+                "validate_parent_fixup: fixup_min_offset={}, parent_offset={}",
+                sg_entry.fixup_min_offset,
+                parent_offset
+            );
+            return Err(EINVAL);
+        }
+        let new_min_offset = parent_offset.checked_add(length).ok_or(EINVAL)?;
+        if new_min_offset > sg_entry.length {
+            pr_warn!(
+                "validate_parent_fixup: new_min_offset={}, sg_entry.length={}",
+                new_min_offset,
+                sg_entry.length
+            );
+            return Err(EINVAL);
+        }
+        let target_offset = sg_entry.offset.checked_add(parent_offset).ok_or(EINVAL)?;
+        // The `ancestors_i + 1` operation can't overflow since the output of the addition is at
+        // most `self.ancestors.len()`, which also fits in a usize.
+        Ok(ParentFixupInfo {
+            parent_sg_index: sg_idx,
+            num_ancestors: ancestors_i + 1,
+            new_min_offset,
+            target_offset,
+        })
+    }
+}
+
+/// Keeps track of how much unused buffer space is left. The initial amount is the number of bytes
+/// requested by the user using the `buffers_size` field of `binder_transaction_data_sg`. Each time
+/// we translate an object of type `BINDER_TYPE_PTR`, some of the unused buffer space is consumed.
+struct UnusedBufferSpace {
+    /// The start of the remaining space.
+    offset: usize,
+    /// The end of the remaining space.
+    limit: usize,
+}
+impl UnusedBufferSpace {
+    /// Claim the next `size` bytes from the unused buffer space. The offset for the claimed chunk
+    /// into the buffer is returned.
+    fn claim_next(&mut self, size: usize) -> Result<usize> {
+        // We require every chunk to be aligned.
+        let size = ptr_align(size);
+        let new_offset = self.offset.checked_add(size).ok_or(EINVAL)?;
+
+        if new_offset <= self.limit {
+            let offset = self.offset;
+            self.offset = new_offset;
+            Ok(offset)
+        } else {
+            Err(EINVAL)
+        }
+    }
+}
+
 pub(crate) enum PushWorkRes {
     Ok,
     FailedDead(DLArc<dyn DeliverToRead>),
@@ -420,9 +598,11 @@ impl Thread {
 
     fn translate_object(
         &self,
+        obj_index: usize,
         offset: usize,
         object: BinderObjectRef<'_>,
         view: &mut AllocationView<'_>,
+        sg_state: &mut ScatterGatherState,
     ) -> BinderResult {
         match object {
             BinderObjectRef::Binder(obj) => {
@@ -454,13 +634,136 @@ impl Thread {
                 pr_warn!("Using unsupported binder object type fd.");
                 return Err(EINVAL.into());
             }
-            BinderObjectRef::Ptr(_obj) => {
-                pr_warn!("Using unsupported binder object type ptr.");
-                return Err(EINVAL.into());
+            BinderObjectRef::Ptr(obj) => {
+                let obj_length = obj.length.try_into().map_err(|_| EINVAL)?;
+                let alloc_offset = match sg_state.unused_buffer_space.claim_next(obj_length) {
+                    Ok(alloc_offset) => alloc_offset,
+                    Err(err) => {
+                        pr_warn!(
+                            "Failed to claim space for a BINDER_TYPE_PTR. (offset: {}, limit: {}, size: {})",
+                            sg_state.unused_buffer_space.offset,
+                            sg_state.unused_buffer_space.limit,
+                            obj_length,
+                        );
+                        return Err(err.into());
+                    }
+                };
+
+                let sg_state_idx = sg_state.sg_entries.len();
+                sg_state.sg_entries.try_push(ScatterGatherEntry {
+                    obj_index,
+                    offset: alloc_offset,
+                    sender_uaddr: obj.buffer as _,
+                    length: obj_length,
+                    pointer_fixups: Vec::new(),
+                    fixup_min_offset: 0,
+                })?;
+
+                let buffer_ptr_in_user_space = (view.alloc.ptr + alloc_offset) as u64;
+
+                if obj.flags & bindings::BINDER_BUFFER_FLAG_HAS_PARENT == 0 {
+                    sg_state.ancestors.clear();
+                    sg_state.ancestors.try_push(sg_state_idx)?;
+                } else {
+                    // Another buffer also has a pointer to this buffer, and we need to fixup that
+                    // pointer too.
+
+                    let parent_index = usize::try_from(obj.parent).map_err(|_| EINVAL)?;
+                    let parent_offset = usize::try_from(obj.parent_offset).map_err(|_| EINVAL)?;
+
+                    let info = sg_state.validate_parent_fixup(
+                        parent_index,
+                        parent_offset,
+                        size_of::<u64>(),
+                    )?;
+
+                    sg_state.ancestors.truncate(info.num_ancestors);
+                    sg_state.ancestors.try_push(sg_state_idx)?;
+
+                    let parent_entry = match sg_state.sg_entries.get_mut(info.parent_sg_index) {
+                        Some(parent_entry) => parent_entry,
+                        None => {
+                            pr_err!(
+                                "validate_parent_fixup returned index out of bounds for sg.entries"
+                            );
+                            return Err(EINVAL.into());
+                        }
+                    };
+
+                    parent_entry.fixup_min_offset = info.new_min_offset;
+                    parent_entry.pointer_fixups.try_push(PointerFixupEntry {
+                        skip: 0,
+                        pointer_value: buffer_ptr_in_user_space,
+                        target_offset: info.target_offset,
+                    })?;
+                }
+
+                let mut obj_write = BinderBufferObject::default();
+                obj_write.hdr.type_ = BINDER_TYPE_PTR;
+                obj_write.flags = obj.flags;
+                obj_write.buffer = buffer_ptr_in_user_space;
+                obj_write.length = obj.length;
+                obj_write.parent = obj.parent;
+                obj_write.parent_offset = obj.parent_offset;
+                view.write::<BinderBufferObject>(offset, &obj_write)?;
             }
             BinderObjectRef::Fda(_obj) => {
                 pr_warn!("Using unsupported binder object type fda.");
                 return Err(EINVAL.into());
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_sg(&self, alloc: &mut Allocation, sg_state: &mut ScatterGatherState) -> BinderResult {
+        for sg_entry in &mut sg_state.sg_entries {
+            let mut end_of_previous_fixup = sg_entry.offset;
+            let offset_end = sg_entry.offset.checked_add(sg_entry.length).ok_or(EINVAL)?;
+
+            let mut reader = UserSlice::new(sg_entry.sender_uaddr as _, sg_entry.length).reader();
+            for fixup in &mut sg_entry.pointer_fixups {
+                let fixup_len = if fixup.skip == 0 {
+                    size_of::<u64>()
+                } else {
+                    fixup.skip
+                };
+
+                let target_offset_end = fixup.target_offset.checked_add(fixup_len).ok_or(EINVAL)?;
+                if fixup.target_offset < end_of_previous_fixup || offset_end < target_offset_end {
+                    pr_warn!(
+                        "Fixups oob {} {} {} {}",
+                        fixup.target_offset,
+                        end_of_previous_fixup,
+                        offset_end,
+                        target_offset_end
+                    );
+                    return Err(EINVAL.into());
+                }
+
+                let copy_off = end_of_previous_fixup;
+                let copy_len = fixup.target_offset - end_of_previous_fixup;
+                if let Err(err) = alloc.copy_into(&mut reader, copy_off, copy_len) {
+                    pr_warn!("Failed copying into alloc: {:?}", err);
+                    return Err(err.into());
+                }
+                if fixup.skip == 0 {
+                    let res = alloc.write::<u64>(fixup.target_offset, &fixup.pointer_value);
+                    if let Err(err) = res {
+                        pr_warn!("Failed copying ptr into alloc: {:?}", err);
+                        return Err(err.into());
+                    }
+                }
+                if let Err(err) = reader.skip(fixup_len) {
+                    pr_warn!("Failed skipping {} from reader: {:?}", fixup_len, err);
+                    return Err(err.into());
+                }
+                end_of_previous_fixup = target_offset_end;
+            }
+            let copy_off = end_of_previous_fixup;
+            let copy_len = offset_end - end_of_previous_fixup;
+            if let Err(err) = alloc.copy_into(&mut reader, copy_off, copy_len) {
+                pr_warn!("Failed copying remainder into alloc: {:?}", err);
+                return Err(err.into());
             }
         }
         Ok(())
@@ -497,6 +800,8 @@ impl Thread {
         let aligned_data_size = ptr_align(data_size);
         let offsets_size = trd.offsets_size.try_into().map_err(|_| EINVAL)?;
         let aligned_offsets_size = ptr_align(offsets_size);
+        let buffers_size = tr.buffers_size.try_into().map_err(|_| EINVAL)?;
+        let aligned_buffers_size = ptr_align(buffers_size);
         let aligned_secctx_size = secctx
             .as_ref()
             .map(|(_, ctx)| ptr_align(ctx.len()))
@@ -506,11 +811,12 @@ impl Thread {
         let len = usize::max(
             aligned_data_size
                 .checked_add(aligned_offsets_size)
+                .and_then(|sum| sum.checked_add(aligned_buffers_size))
                 .and_then(|sum| sum.checked_add(aligned_secctx_size))
                 .ok_or(ENOMEM)?,
             size_of::<usize>(),
         );
-        let secctx_off = aligned_data_size + aligned_offsets_size;
+        let secctx_off = aligned_data_size + aligned_offsets_size + aligned_buffers_size;
         let mut alloc = match to_process.buffer_alloc(len, is_oneway) {
             Ok(alloc) => alloc,
             Err(err) => {
@@ -528,6 +834,7 @@ impl Thread {
         let trd_data_ptr = unsafe { &trd.data.ptr };
         let mut buffer_reader = UserSlice::new(trd_data_ptr.buffer as _, data_size).reader();
         let mut end_of_previous_object = 0;
+        let mut sg_state = None;
 
         // Copy offsets if there are any.
         if offsets_size > 0 {
@@ -539,9 +846,22 @@ impl Thread {
             let offsets_start = aligned_data_size;
             let offsets_end = aligned_data_size + aligned_offsets_size;
 
+            // This state is used for BINDER_TYPE_PTR objects.
+            let sg_state = sg_state.insert(ScatterGatherState {
+                unused_buffer_space: UnusedBufferSpace {
+                    offset: offsets_end,
+                    limit: len,
+                },
+                sg_entries: Vec::new(),
+                ancestors: Vec::new(),
+            });
+
             // Traverse the objects specified.
             let mut view = AllocationView::new(&mut alloc, data_size);
-            for index_offset in (offsets_start..offsets_end).step_by(size_of::<usize>()) {
+            for (index, index_offset) in (offsets_start..offsets_end)
+                .step_by(size_of::<usize>())
+                .enumerate()
+            {
                 let offset = view.alloc.read(index_offset)?;
 
                 // Copy data between two objects.
@@ -555,7 +875,7 @@ impl Thread {
 
                 let mut object = BinderObject::read_from(&mut buffer_reader)?;
 
-                match self.translate_object(offset, object.as_ref(), &mut view) {
+                match self.translate_object(index, offset, object.as_ref(), &mut view, sg_state) {
                     Ok(()) => end_of_previous_object = offset + object.size(),
                     Err(err) => {
                         pr_warn!("Error while translating object.");
@@ -576,6 +896,13 @@ impl Thread {
             end_of_previous_object,
             data_size - end_of_previous_object,
         )?;
+
+        if let Some(sg_state) = sg_state.as_mut() {
+            if let Err(err) = self.apply_sg(&mut alloc, sg_state) {
+                pr_warn!("Failure in apply_sg: {:?}", err);
+                return Err(err);
+            }
+        }
 
         if let Some((off_out, secctx)) = secctx.as_mut() {
             if let Err(err) = alloc.write(secctx_off, secctx.as_bytes()) {
