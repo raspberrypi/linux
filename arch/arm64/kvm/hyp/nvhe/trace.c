@@ -4,6 +4,7 @@
  * Author: Vincent Donnefort <vdonnefort@google.com>
  */
 
+#include <nvhe/alloc.h>
 #include <nvhe/clock.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
@@ -16,6 +17,14 @@
 #define HYP_RB_PAGE_HEAD		1UL
 #define HYP_RB_PAGE_UPDATE		2UL
 #define HYP_RB_FLAG_MASK		3UL
+
+struct hyp_buffer_page {
+	struct list_head	list;
+	struct buffer_data_page	*page;
+	unsigned long		write;
+	unsigned long		entries;
+	u32			id;
+};
 
 struct hyp_rb_per_cpu {
 	struct ring_buffer_meta	*meta;
@@ -33,7 +42,6 @@ struct hyp_rb_per_cpu {
 #define HYP_RB_READY		1
 #define HYP_RB_WRITING		2
 
-static struct hyp_buffer_pages_backing hyp_buffer_pages_backing;
 DEFINE_PER_CPU(struct hyp_rb_per_cpu, trace_rb);
 DEFINE_HYP_SPINLOCK(trace_rb_lock);
 
@@ -330,17 +338,8 @@ static void rb_cpu_teardown(struct hyp_rb_per_cpu *cpu_buffer)
 				     (void *)bpage->page + PAGE_SIZE);
 	}
 
+	hyp_free(cpu_buffer->bpages);
 	cpu_buffer->bpages = 0;
-}
-
-static bool rb_cpu_fits_backing(unsigned long nr_pages,
-				struct hyp_buffer_page *start)
-{
-	unsigned long max = hyp_buffer_pages_backing.start +
-			    hyp_buffer_pages_backing.size;
-	struct hyp_buffer_page *end = start + nr_pages;
-
-	return (unsigned long)end <= max;
 }
 
 static bool rb_cpu_fits_desc(struct rb_page_desc *pdesc,
@@ -357,29 +356,31 @@ static bool rb_cpu_fits_desc(struct rb_page_desc *pdesc,
 	return (unsigned long)end <= desc_end;
 }
 
-static int rb_cpu_init(struct rb_page_desc *pdesc, struct hyp_buffer_page *start,
-		       struct hyp_rb_per_cpu *cpu_buffer)
+static int rb_cpu_init(struct rb_page_desc *pdesc, struct hyp_rb_per_cpu *cpu_buffer)
 {
-	struct hyp_buffer_page *bpage = start;
+	struct hyp_buffer_page *bpage;
 	int i, ret;
 
 	/* At least 1 reader page and one head */
 	if (pdesc->nr_page_va < 2)
 		return -EINVAL;
 
-	if (!rb_cpu_fits_backing(pdesc->nr_page_va, start))
-		return -EINVAL;
-
 	if (rb_cpu_loaded(cpu_buffer))
 		return -EBUSY;
 
-	cpu_buffer->bpages = start;
+	bpage = hyp_alloc(sizeof(*bpage) * pdesc->nr_page_va);
+	if (!bpage)
+		return hyp_alloc_errno();
+	cpu_buffer->bpages = bpage;
 
 	cpu_buffer->meta = (struct ring_buffer_meta *)kern_hyp_va(pdesc->meta_va);
 	ret = hyp_pin_shared_mem((void *)cpu_buffer->meta,
 				 ((void *)cpu_buffer->meta) + PAGE_SIZE);
-	if (ret)
+	if (ret) {
+		hyp_free(cpu_buffer->bpages);
 		return ret;
+	}
+
 	memset(cpu_buffer->meta, 0, sizeof(*cpu_buffer->meta));
 	cpu_buffer->meta->meta_page_size = PAGE_SIZE;
 	cpu_buffer->meta->nr_data_pages = cpu_buffer->nr_pages;
@@ -423,46 +424,6 @@ err:
 	return ret;
 }
 
-static int rb_setup_bpage_backing(struct hyp_trace_desc *desc)
-{
-	unsigned long start = kern_hyp_va(desc->backing.start);
-	size_t size = desc->backing.size;
-	int ret;
-
-	if (hyp_buffer_pages_backing.size)
-		return -EBUSY;
-
-	if (!PAGE_ALIGNED(start) || !PAGE_ALIGNED(size))
-		return -EINVAL;
-
-	ret = __pkvm_host_donate_hyp(hyp_virt_to_pfn((void *)start), size >> PAGE_SHIFT);
-	if (ret)
-		return ret;
-
-	memset((void *)start, 0, size);
-
-	hyp_buffer_pages_backing.start = start;
-	hyp_buffer_pages_backing.size = size;
-
-	return 0;
-}
-
-static void rb_teardown_bpage_backing(void)
-{
-	unsigned long start = hyp_buffer_pages_backing.start;
-	size_t size = hyp_buffer_pages_backing.size;
-
-	if (!size)
-		return;
-
-	memset((void *)start, 0, size);
-
-	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(start), size >> PAGE_SHIFT));
-
-	hyp_buffer_pages_backing.start = 0;
-	hyp_buffer_pages_backing.size = 0;
-}
-
 int __pkvm_swap_reader_tracing(int cpu)
 {
 	struct hyp_rb_per_cpu *cpu_buffer = per_cpu_ptr(&trace_rb, cpu);
@@ -497,8 +458,6 @@ static void __pkvm_teardown_tracing_locked(void)
 
 		rb_cpu_teardown(cpu_buffer);
 	}
-
-	rb_teardown_bpage_backing();
 }
 
 void __pkvm_teardown_tracing(void)
@@ -512,7 +471,6 @@ int __pkvm_load_tracing(unsigned long desc_hva, size_t desc_size)
 {
 	struct hyp_trace_desc *desc = (struct hyp_trace_desc *)kern_hyp_va(desc_hva);
 	struct trace_page_desc *trace_pdesc = &desc->page_desc;
-	struct hyp_buffer_page *bpage_backing_start;
 	struct rb_page_desc *pdesc;
 	int ret, cpu;
 
@@ -526,13 +484,7 @@ int __pkvm_load_tracing(unsigned long desc_hva, size_t desc_size)
 
 	hyp_spin_lock(&trace_rb_lock);
 
-	ret = rb_setup_bpage_backing(desc);
-	if (ret)
-		goto err;
-
 	trace_clock_update(&desc->clock_data);
-
-	bpage_backing_start = (struct hyp_buffer_page *)hyp_buffer_pages_backing.start;
 
 	for_each_rb_page_desc(pdesc, cpu, trace_pdesc) {
 		struct hyp_rb_per_cpu *cpu_buffer;
@@ -548,13 +500,10 @@ int __pkvm_load_tracing(unsigned long desc_hva, size_t desc_size)
 
 		cpu_buffer = per_cpu_ptr(&trace_rb, cpu);
 
-		ret = rb_cpu_init(pdesc, bpage_backing_start, cpu_buffer);
+		ret = rb_cpu_init(pdesc, cpu_buffer);
 		if (ret)
 			break;
-
-		bpage_backing_start += pdesc->nr_page_va;
 	}
-err:
 	if (ret)
 		__pkvm_teardown_tracing_locked();
 

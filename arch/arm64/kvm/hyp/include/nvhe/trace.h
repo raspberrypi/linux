@@ -4,15 +4,6 @@
 #include <asm/kvm_hyptrace.h>
 #include <asm/kvm_hypevents_defs.h>
 
-/* Internal struct that needs export for hyp-constants.c */
-struct hyp_buffer_page {
-	struct list_head	list;
-	struct buffer_data_page	*page;
-	unsigned long		write;
-	unsigned long		entries;
-	u32			id;
-};
-
 #ifdef CONFIG_TRACING
 void *tracing_reserve_entry(unsigned long length);
 void tracing_commit_entry(void);

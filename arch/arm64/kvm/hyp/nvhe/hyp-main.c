@@ -1249,6 +1249,7 @@ static void handle___pkvm_load_tracing(struct kvm_cpu_context *host_ctxt)
 	 DECLARE_REG(size_t, desc_size, host_ctxt, 2);
 
 	 cpu_reg(host_ctxt, 1) = __pkvm_load_tracing(desc_hva, desc_size);
+	cpu_reg(host_ctxt, 3) = hyp_alloc_missing_donations();
 }
 
 static void handle___pkvm_teardown_tracing(struct kvm_cpu_context *host_ctxt)
