@@ -6602,6 +6602,12 @@
 	unknown_nmi_panic
 			[X86] Cause panic on unknown NMI.
 
+	unwind_debug	[X86-64]
+			Enable unwinder debug output.  This can be
+			useful for debugging certain unwinder error
+			conditions, including corrupt stacks and
+			bad/missing unwinder metadata.
+
 	usbcore.authorized_default=
 			[USB] Default USB device authorization:
 			(default -1 = authorized except for wireless USB,
@@ -6969,6 +6975,18 @@
 			duration in seconds.  The default value is 30 and
 			it can be updated at runtime by writing to the
 			corresponding sysfs file.
+
+	workqueue.cpu_intensive_thresh_us=
+			Per-cpu work items which run for longer than this
+			threshold are automatically considered CPU intensive
+			and excluded from concurrency management to prevent
+			them from noticeably delaying other per-cpu work
+			items. Default is 10000 (10ms).
+
+			If CONFIG_WQ_CPU_INTENSIVE_REPORT is set, the kernel
+			will report the work functions which violate this
+			threshold repeatedly. They are likely good
+			candidates for using WQ_UNBOUND workqueues instead.
 
 	workqueue.disable_numa
 			By default, all work items queued to unbound
