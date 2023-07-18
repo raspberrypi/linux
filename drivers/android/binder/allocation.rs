@@ -7,10 +7,11 @@ use core::ops::Range;
 
 use kernel::{
     bindings,
+    file::{File, FileDescriptorReservation},
     page::Page,
     prelude::*,
     sync::Arc,
-    types::{AsBytes, FromBytes},
+    types::{ARef, AsBytes, FromBytes},
     uaccess::UserSliceReader,
 };
 
@@ -35,6 +36,8 @@ pub(crate) struct AllocationInfo {
     pub(crate) oneway_node: Option<DArc<Node>>,
     /// Zero the data in the buffer on free.
     pub(crate) clear_on_free: bool,
+    /// List of files embedded in this transaction.
+    file_list: FileList,
 }
 
 /// Represents an allocation that the kernel is currently using.
@@ -164,6 +167,38 @@ impl Allocation {
 
     pub(crate) fn set_info_target_node(&mut self, target_node: NodeRef) {
         self.get_or_init_info().target_node = Some(target_node);
+    }
+
+    pub(crate) fn info_add_fd(&mut self, file: ARef<File>, buffer_offset: usize) -> Result {
+        self.get_or_init_info()
+            .file_list
+            .files_to_translate
+            .try_push(FileEntry {
+                file,
+                buffer_offset,
+            })?;
+
+        Ok(())
+    }
+
+    pub(crate) fn translate_fds(&mut self) -> Result<TranslatedFds> {
+        let file_list = match self.allocation_info.as_mut() {
+            Some(info) => &mut info.file_list,
+            None => return Ok(TranslatedFds::new()),
+        };
+
+        let files = core::mem::take(&mut file_list.files_to_translate);
+        let mut reservations = Vec::try_with_capacity(files.len())?;
+        for file_info in files {
+            let res = FileDescriptorReservation::get_unused_fd_flags(bindings::O_CLOEXEC)?;
+            self.write::<u32>(file_info.buffer_offset, &res.reserved_fd())?;
+            reservations.try_push(Reservation {
+                res,
+                file: file_info.file,
+            })?;
+        }
+
+        Ok(TranslatedFds { reservations })
     }
 }
 
@@ -427,6 +462,41 @@ impl BinderObject {
             BINDER_TYPE_PTR => Some(size_of::<bindings::binder_buffer_object>()),
             BINDER_TYPE_FDA => Some(size_of::<bindings::binder_fd_array_object>()),
             _ => None,
+        }
+    }
+}
+
+#[derive(Default)]
+struct FileList {
+    files_to_translate: Vec<FileEntry>,
+}
+
+struct FileEntry {
+    /// The file for which a descriptor will be created in the recipient process.
+    file: ARef<File>,
+    /// The offset in the buffer where the file descriptor is stored.
+    buffer_offset: usize,
+}
+
+pub(crate) struct TranslatedFds {
+    reservations: Vec<Reservation>,
+}
+
+struct Reservation {
+    res: FileDescriptorReservation,
+    file: ARef<File>,
+}
+
+impl TranslatedFds {
+    pub(crate) fn new() -> Self {
+        Self {
+            reservations: Vec::new(),
+        }
+    }
+
+    pub(crate) fn commit(self) {
+        for entry in self.reservations {
+            entry.res.fd_install(entry.file);
         }
     }
 }

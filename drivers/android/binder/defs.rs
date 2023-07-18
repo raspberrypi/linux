@@ -56,9 +56,13 @@ pub_no_prefix!(
     BC_DEAD_BINDER_DONE
 );
 
-pub_no_prefix!(flat_binder_object_flags_, FLAT_BINDER_FLAG_TXN_SECURITY_CTX);
+pub_no_prefix!(
+    flat_binder_object_flags_,
+    FLAT_BINDER_FLAG_ACCEPTS_FDS,
+    FLAT_BINDER_FLAG_TXN_SECURITY_CTX
+);
 
-pub_no_prefix!(transaction_flags_, TF_ONE_WAY, TF_CLEAR_BUF);
+pub_no_prefix!(transaction_flags_, TF_ONE_WAY, TF_ACCEPT_FDS, TF_CLEAR_BUF);
 
 pub(crate) use bindings::{
     BINDER_TYPE_BINDER, BINDER_TYPE_FD, BINDER_TYPE_FDA, BINDER_TYPE_HANDLE, BINDER_TYPE_PTR,
@@ -106,6 +110,7 @@ macro_rules! decl_wrapper {
 decl_wrapper!(BinderNodeDebugInfo, bindings::binder_node_debug_info);
 decl_wrapper!(BinderNodeInfoForRef, bindings::binder_node_info_for_ref);
 decl_wrapper!(FlatBinderObject, bindings::flat_binder_object);
+decl_wrapper!(BinderFdObject, bindings::binder_fd_object);
 decl_wrapper!(BinderObjectHeader, bindings::binder_object_header);
 decl_wrapper!(BinderBufferObject, bindings::binder_buffer_object);
 decl_wrapper!(BinderTransactionData, bindings::binder_transaction_data);

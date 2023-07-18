@@ -12,7 +12,7 @@ use kernel::{
 };
 
 use crate::{
-    allocation::Allocation,
+    allocation::{Allocation, TranslatedFds},
     defs::*,
     error::{BinderError, BinderResult},
     node::{Node, NodeRef},
@@ -51,19 +51,24 @@ impl Transaction {
         tr: &BinderTransactionDataSg,
     ) -> BinderResult<DLArc<Self>> {
         let trd = &tr.transaction_data;
+        let allow_fds = node_ref.node.flags & FLAT_BINDER_FLAG_ACCEPTS_FDS != 0;
         let txn_security_ctx = node_ref.node.flags & FLAT_BINDER_FLAG_TXN_SECURITY_CTX != 0;
         let mut txn_security_ctx_off = if txn_security_ctx { Some(0) } else { None };
         let to = node_ref.node.owner.clone();
-        let mut alloc =
-            match from.copy_transaction_data(to.clone(), tr, txn_security_ctx_off.as_mut()) {
-                Ok(alloc) => alloc,
-                Err(err) => {
-                    if !err.is_dead() {
-                        pr_warn!("Failure in copy_transaction_data: {:?}", err);
-                    }
-                    return Err(err);
+        let mut alloc = match from.copy_transaction_data(
+            to.clone(),
+            tr,
+            allow_fds,
+            txn_security_ctx_off.as_mut(),
+        ) {
+            Ok(alloc) => alloc,
+            Err(err) => {
+                if !err.is_dead() {
+                    pr_warn!("Failure in copy_transaction_data: {:?}", err);
                 }
-            };
+                return Err(err);
+            }
+        };
         if trd.flags & TF_ONE_WAY != 0 {
             if from_parent.is_some() {
                 pr_warn!("Oneway transaction should not be in a transaction stack.");
@@ -98,9 +103,10 @@ impl Transaction {
         from: &Arc<Thread>,
         to: Arc<Process>,
         tr: &BinderTransactionDataSg,
+        allow_fds: bool,
     ) -> BinderResult<DLArc<Self>> {
         let trd = &tr.transaction_data;
-        let mut alloc = match from.copy_transaction_data(to.clone(), tr, None) {
+        let mut alloc = match from.copy_transaction_data(to.clone(), tr, allow_fds, None) {
             Ok(alloc) => alloc,
             Err(err) => {
                 pr_warn!("Failure in copy_transaction_data: {:?}", err);
@@ -211,6 +217,22 @@ impl Transaction {
             }
         }
     }
+
+    fn prepare_file_list(&self) -> Result<TranslatedFds> {
+        let mut alloc = self.allocation.lock().take().ok_or(ESRCH)?;
+
+        match alloc.translate_fds() {
+            Ok(translated) => {
+                *self.allocation.lock() = Some(alloc);
+                Ok(translated)
+            }
+            Err(err) => {
+                // Free the allocation eagerly.
+                drop(alloc);
+                Err(err)
+            }
+        }
+    }
 }
 
 impl DeliverToRead for Transaction {
@@ -221,6 +243,13 @@ impl DeliverToRead for Transaction {
                 self.from.deliver_reply(reply, &self);
             }
         });
+        let files = if let Ok(list) = self.prepare_file_list() {
+            list
+        } else {
+            // On failure to process the list, we send a reply back to the sender and ignore the
+            // transaction on the recipient.
+            return Ok(true);
+        };
 
         let mut tr_sec = BinderTransactionDataSecctx::default();
         let tr = tr_sec.tr_data();
@@ -269,6 +298,8 @@ impl DeliverToRead for Transaction {
         if let Some(alloc) = alloc {
             alloc.keep_alive();
         }
+
+        files.commit();
 
         // When this is not a reply and not a oneway transaction, update `current_transaction`. If
         // it's a reply, `current_transaction` has already been updated appropriately.
