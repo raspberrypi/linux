@@ -5,6 +5,7 @@
 use kernel::{
     prelude::*,
     rbtree::{RBTree, RBTreeNode, RBTreeNodeReservation},
+    task::Pid,
 };
 
 /// Keeps track of allocations in a process' mmap.
@@ -15,7 +16,9 @@ use kernel::{
 pub(crate) struct RangeAllocator<T> {
     tree: RBTree<usize, Descriptor<T>>,
     free_tree: RBTree<FreeKey, ()>,
+    size: usize,
     free_oneway_space: usize,
+    pub(crate) oneway_spam_detected: bool,
 }
 
 impl<T> RangeAllocator<T> {
@@ -28,6 +31,8 @@ impl<T> RangeAllocator<T> {
             free_oneway_space: size / 2,
             tree,
             free_tree,
+            oneway_spam_detected: false,
+            size,
         })
     }
 
@@ -42,6 +47,7 @@ impl<T> RangeAllocator<T> {
         &mut self,
         size: usize,
         is_oneway: bool,
+        pid: Pid,
         alloc: ReserveNewBox<T>,
     ) -> Result<usize> {
         // Compute new value of free_oneway_space, which is set only on success.
@@ -53,6 +59,15 @@ impl<T> RangeAllocator<T> {
         } else {
             self.free_oneway_space
         };
+
+        // Start detecting spammers once we have less than 20%
+        // of async space left (which is less than 10% of total
+        // buffer size).
+        //
+        // (This will short-circut, so `low_oneway_space` is
+        // only called when necessary.)
+        self.oneway_spam_detected =
+            is_oneway && new_oneway_space < self.size / 10 && self.low_oneway_space(pid);
 
         let (found_size, found_off, tree_node, free_tree_node) = match self.find_best_match(size) {
             None => {
@@ -67,7 +82,7 @@ impl<T> RangeAllocator<T> {
                 let new_desc = Descriptor::new(found_offset + size, found_size - size);
                 let (tree_node, free_tree_node, desc_node_res) = alloc.initialize(new_desc);
 
-                desc.state = Some(DescriptorState::new(is_oneway, desc_node_res));
+                desc.state = Some(DescriptorState::new(is_oneway, pid, desc_node_res));
                 desc.size = size;
 
                 (found_size, found_offset, tree_node, free_tree_node)
@@ -226,6 +241,30 @@ impl<T> RangeAllocator<T> {
             }
         }
     }
+
+    /// Find the amount and size of buffers allocated by the current caller.
+    ///
+    /// The idea is that once we cross the threshold, whoever is responsible
+    /// for the low async space is likely to try to send another async transaction,
+    /// and at some point we'll catch them in the act.  This is more efficient
+    /// than keeping a map per pid.
+    fn low_oneway_space(&self, calling_pid: Pid) -> bool {
+        let mut total_alloc_size = 0;
+        let mut num_buffers = 0;
+        for (_, desc) in self.tree.iter() {
+            if let Some(state) = &desc.state {
+                if state.is_oneway() && state.pid() == calling_pid {
+                    total_alloc_size += desc.size;
+                    num_buffers += 1;
+                }
+            }
+        }
+
+        // Warn if this pid has more than 50 transactions, or more than 50% of
+        // async space (which is 25% of total buffer size). Oneway spam is only
+        // detected when the threshold is exceeded.
+        num_buffers > 50 || total_alloc_size > self.size / 4
+    }
 }
 
 struct Descriptor<T> {
@@ -259,16 +298,32 @@ enum DescriptorState<T> {
 }
 
 impl<T> DescriptorState<T> {
-    fn new(is_oneway: bool, free_res: FreeNodeRes) -> Self {
+    fn new(is_oneway: bool, pid: Pid, free_res: FreeNodeRes) -> Self {
         DescriptorState::Reserved(Reservation {
             is_oneway,
+            pid,
             free_res,
         })
+    }
+
+    fn pid(&self) -> Pid {
+        match self {
+            DescriptorState::Reserved(inner) => inner.pid,
+            DescriptorState::Allocated(inner) => inner.pid,
+        }
+    }
+
+    fn is_oneway(&self) -> bool {
+        match self {
+            DescriptorState::Reserved(inner) => inner.is_oneway,
+            DescriptorState::Allocated(inner) => inner.is_oneway,
+        }
     }
 }
 
 struct Reservation {
     is_oneway: bool,
+    pid: Pid,
     free_res: FreeNodeRes,
 }
 
@@ -277,6 +332,7 @@ impl Reservation {
         Allocation {
             data,
             is_oneway: self.is_oneway,
+            pid: self.pid,
             free_res: self.free_res,
         }
     }
@@ -284,6 +340,7 @@ impl Reservation {
 
 struct Allocation<T> {
     is_oneway: bool,
+    pid: Pid,
     free_res: FreeNodeRes,
     data: Option<T>,
 }
@@ -293,6 +350,7 @@ impl<T> Allocation<T> {
         (
             Reservation {
                 is_oneway: self.is_oneway,
+                pid: self.pid,
                 free_res: self.free_res,
             },
             self.data,

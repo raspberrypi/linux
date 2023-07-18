@@ -95,6 +95,8 @@ pub(crate) struct ProcessInner {
     pub(crate) sync_recv: bool,
     /// Process received async transactions since last frozen.
     pub(crate) async_recv: bool,
+    /// Check for oneway spam
+    oneway_spam_detection_enabled: bool,
 }
 
 impl ProcessInner {
@@ -116,6 +118,7 @@ impl ProcessInner {
             is_frozen: false,
             sync_recv: false,
             async_recv: false,
+            oneway_spam_detection_enabled: false,
         }
     }
 
@@ -754,17 +757,21 @@ impl Process {
         self: &Arc<Self>,
         size: usize,
         is_oneway: bool,
+        from_pid: i32,
     ) -> BinderResult<Allocation> {
         let alloc = range_alloc::ReserveNewBox::try_new()?;
         let mut inner = self.inner.lock();
         let mapping = inner.mapping.as_mut().ok_or_else(BinderError::new_dead)?;
-        let offset = mapping.alloc.reserve_new(size, is_oneway, alloc)?;
+        let offset = mapping
+            .alloc
+            .reserve_new(size, is_oneway, from_pid, alloc)?;
         Ok(Allocation::new(
             self.clone(),
             offset,
             size,
             mapping.address + offset,
             mapping.pages.clone(),
+            mapping.alloc.oneway_spam_detected,
         ))
     }
 
@@ -773,7 +780,14 @@ impl Process {
         let mapping = inner.mapping.as_mut()?;
         let offset = ptr.checked_sub(mapping.address)?;
         let (size, odata) = mapping.alloc.reserve_existing(offset).ok()?;
-        let mut alloc = Allocation::new(self.clone(), offset, size, ptr, mapping.pages.clone());
+        let mut alloc = Allocation::new(
+            self.clone(),
+            offset,
+            size,
+            ptr,
+            mapping.pages.clone(),
+            mapping.alloc.oneway_spam_detected,
+        );
         if let Some(data) = odata {
             alloc.set_info(data);
         }
@@ -856,6 +870,14 @@ impl Process {
 
     fn set_max_threads(&self, max: u32) {
         self.inner.lock().max_threads = max;
+    }
+
+    fn set_oneway_spam_detection_enabled(&self, enabled: u32) {
+        self.inner.lock().oneway_spam_detection_enabled = enabled != 0;
+    }
+
+    pub(crate) fn is_oneway_spam_detection_enabled(&self) -> bool {
+        self.inner.lock().oneway_spam_detection_enabled
     }
 
     fn get_node_debug_info(&self, data: UserSlice) -> Result {
@@ -1045,9 +1067,17 @@ impl Process {
         if let Some(mut mapping) = omapping {
             let address = mapping.address;
             let pages = mapping.pages.clone();
+            let oneway_spam_detected = mapping.alloc.oneway_spam_detected;
             mapping.alloc.take_for_each(|offset, size, odata| {
                 let ptr = offset + address;
-                let mut alloc = Allocation::new(self.clone(), offset, size, ptr, pages.clone());
+                let mut alloc = Allocation::new(
+                    self.clone(),
+                    offset,
+                    size,
+                    ptr,
+                    pages.clone(),
+                    oneway_spam_detected,
+                );
                 if let Some(data) = odata {
                     alloc.set_info(data);
                 }
@@ -1248,6 +1278,9 @@ impl Process {
             bindings::BINDER_SET_CONTEXT_MGR => this.set_as_manager(None, &thread)?,
             bindings::BINDER_SET_CONTEXT_MGR_EXT => {
                 this.set_as_manager(Some(reader.read()?), &thread)?
+            }
+            bindings::BINDER_ENABLE_ONEWAY_SPAM_DETECTION => {
+                this.set_oneway_spam_detection_enabled(reader.read()?)
             }
             bindings::BINDER_FREEZE => ioctl_freeze(reader)?,
             _ => return Err(EINVAL),

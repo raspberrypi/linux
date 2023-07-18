@@ -915,7 +915,7 @@ impl Thread {
             size_of::<usize>(),
         );
         let secctx_off = aligned_data_size + aligned_offsets_size + aligned_buffers_size;
-        let mut alloc = match to_process.buffer_alloc(len, is_oneway) {
+        let mut alloc = match to_process.buffer_alloc(len, is_oneway, self.process.task.pid()) {
             Ok(alloc) => alloc,
             Err(err) => {
                 pr_warn!(
@@ -1200,8 +1200,15 @@ impl Thread {
         let handle = unsafe { tr.transaction_data.target.handle };
         let node_ref = self.process.get_transaction_node(handle)?;
         security::binder_transaction(&self.process.cred, &node_ref.node.owner.cred)?;
-        let list_completion = DTRWrap::arc_try_new(DeliverCode::new(BR_TRANSACTION_COMPLETE))?;
         let transaction = Transaction::new(node_ref, None, self, tr)?;
+        let code = if self.process.is_oneway_spam_detection_enabled()
+            && transaction.oneway_spam_detected
+        {
+            BR_ONEWAY_SPAM_SUSPECT
+        } else {
+            BR_TRANSACTION_COMPLETE
+        };
+        let list_completion = DTRWrap::arc_try_new(DeliverCode::new(code))?;
         let completion = list_completion.clone_arc();
         self.inner.lock().push_work(list_completion);
         match transaction.submit() {

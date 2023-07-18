@@ -26,6 +26,7 @@ pub_no_prefix!(
     BR_NOOP,
     BR_SPAWN_LOOPER,
     BR_TRANSACTION_COMPLETE,
+    BR_ONEWAY_SPAM_SUSPECT,
     BR_OK,
     BR_ERROR,
     BR_INCREFS,
