@@ -1338,64 +1338,96 @@ err_undo_psci:
 	return err;
 }
 
-static int __guest_get_completer_addr(u64 *completer_addr, phys_addr_t phys,
-				      const struct pkvm_mem_transition *tx)
+struct guest_request_walker_data {
+	unsigned long		ipa_start;
+	phys_addr_t		phys_start;
+	u64			size;
+	enum pkvm_page_state	desired_state;
+	enum pkvm_page_state	desired_mask;
+	int			max_ptes;
+};
+
+#define GUEST_WALKER_DATA_INIT(__state)			\
+{						 	\
+	.size		= 0,				\
+	.desired_state	= __state,			\
+	.desired_mask	= ~0,				\
+	/*						\
+	 * Arbitrary limit of walked PTEs to restrict	\
+	 * the time spent at EL2			\
+	 */						\
+	.max_ptes	= 512,				\
+}
+
+static int guest_request_walker(const struct kvm_pgtable_visit_ctx *ctx,
+				enum kvm_pgtable_walk_flags visit)
 {
-	switch (tx->completer.id) {
-	case PKVM_ID_HOST:
-		*completer_addr = phys;
-		break;
-	case PKVM_ID_HYP:
-		*completer_addr = (u64)__hyp_va(phys);
-		break;
-	default:
-		return -EINVAL;
+	struct guest_request_walker_data *data = (struct guest_request_walker_data *)ctx->arg;
+	enum pkvm_page_state state;
+	kvm_pte_t pte = *ctx->ptep;
+	u32 level = ctx->level;
+	phys_addr_t phys;
+
+	state = guest_get_page_state(pte, 0);
+	if ((data->desired_state & data->desired_mask) != state)
+		return (state & PKVM_NOPAGE) ? -EFAULT : -EINVAL;
+
+	if (state & PKVM_NOPAGE) {
+		phys = PHYS_ADDR_MAX;
+	} else {
+		phys = kvm_pte_to_phys(pte);
+		if (!addr_is_allowed_memory(phys))
+			return -EINVAL;
 	}
 
-	return 0;
+	data->max_ptes--;
+
+	if (!data->size) {
+		data->phys_start = phys;
+		data->size = kvm_granule_size(level);
+		data->ipa_start = ctx->addr & ~(kvm_granule_size(level) - 1);
+		goto end;
+	}
+
+	/* Can only describe physically contiguous mappings */
+	if ((data->phys_start != PHYS_ADDR_MAX) &&
+	    (phys != data->phys_start + data->size))
+		return -E2BIG;
+
+	data->size += kvm_granule_size(level);
+end:
+	return data->max_ptes > 0 ? 0 : -E2BIG;
 }
 
 static int __guest_request_page_transition(struct pkvm_checked_mem_transition *checked_tx,
 					   enum pkvm_page_state desired)
 {
+	struct guest_request_walker_data data = GUEST_WALKER_DATA_INIT(desired);
 	const struct pkvm_mem_transition *tx = checked_tx->tx;
 	struct pkvm_hyp_vm *vm = tx->initiator.guest.hyp_vm;
-	enum pkvm_page_state state;
-	phys_addr_t phys;
-	kvm_pte_t pte;
-	u32 level;
+	struct kvm_pgtable_walker walker = {
+		.cb     = guest_request_walker,
+		.flags  = KVM_PGTABLE_WALK_LEAF,
+		.arg    = (void *)&data,
+	};
 	int ret;
 
-	if (tx->nr_pages != 1)
-		return -E2BIG;
-
-	ret = kvm_pgtable_get_leaf(&vm->pgt, tx->initiator.addr, &pte, &level);
-	if (ret)
+	ret = kvm_pgtable_walk(&vm->pgt, tx->initiator.addr,
+			       tx->nr_pages * PAGE_SIZE, &walker);
+	/* Walker reached data.max_ptes or a non physically contiguous block */
+	if (ret == -E2BIG)
+		ret = 0;
+	else if (ret)
 		return ret;
 
-	state = guest_get_page_state(pte, tx->initiator.addr);
-	if (state == PKVM_NOPAGE)
-		return -EFAULT;
-
-	if (state != desired)
-		return -EPERM;
-
-	/*
-	 * We only deal with page granular mappings in the guest for now as
-	 * the pgtable code relies on being able to recreate page mappings
-	 * lazily after zapping a block mapping, which doesn't work once the
-	 * pages have been donated.
-	 */
-	if (level != KVM_PGTABLE_MAX_LEVELS - 1)
+	/* Not aligned with a block mapping */
+	if (data.ipa_start != tx->initiator.addr)
 		return -EINVAL;
 
-	phys = kvm_pte_to_phys(pte);
-	if (!addr_is_allowed_memory(phys))
-		return -EINVAL;
+	checked_tx->completer_addr = data.phys_start;
+	checked_tx->nr_pages = min_t(u64, data.size >> PAGE_SHIFT, tx->nr_pages);
 
-	checked_tx->nr_pages = tx->nr_pages;
-
-	return __guest_get_completer_addr(&checked_tx->completer_addr, phys, tx);
+	return 0;
 }
 
 static int guest_request_share(struct pkvm_checked_mem_transition *checked_tx)
@@ -1445,6 +1477,9 @@ static int check_share(struct pkvm_checked_mem_transition *checked_tx)
 {
 	const struct pkvm_mem_transition *tx = checked_tx->tx;
 	int ret;
+
+	if (!tx->nr_pages)
+		return -EINVAL;
 
 	switch (tx->initiator.id) {
 	case PKVM_ID_HOST:
@@ -1563,6 +1598,9 @@ static int check_unshare(struct pkvm_checked_mem_transition *checked_tx)
 {
 	const struct pkvm_mem_transition *tx = checked_tx->tx;
 	int ret;
+
+	if (!tx->nr_pages)
+		return -EINVAL;
 
 	switch (tx->initiator.id) {
 	case PKVM_ID_HOST:
