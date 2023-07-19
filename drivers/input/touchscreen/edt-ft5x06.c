@@ -317,12 +317,6 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	memset(rdbuf, 0, sizeof(rdbuf));
 	error = regmap_bulk_read(tsdata->regmap, tsdata->tdata_cmd, rdbuf,
 				 tsdata->tdata_len);
-	if (error) {
-		dev_err_ratelimited(dev, "Unable to fetch data, error: %d\n",
-				    error);
-		goto out;
-	}
-
 	if (tsdata->version == EDT_M06) {
 		num_points = tsdata->max_support_points;
 	} else {
@@ -330,11 +324,16 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		 * points.
 		 */
 		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
-		if (num_points)
+		if (!error && num_points)
 			error = regmap_bulk_read(tsdata->regmap,
-                                                 tsdata->offset,
-                                                 &rdbuf[tsdata->tdata_offset],
-                                                 tsdata->point_len * num_points);
+						 tsdata->tdata_offset,
+						 &rdbuf[tsdata->tdata_offset],
+						 tsdata->point_len * num_points);
+	}
+	if (error) {
+		dev_err_ratelimited(dev, "Unable to fetch data, error: %d\n",
+				    error);
+		goto out;
 	}
 
 	for (i = 0; i < num_points; i++) {
