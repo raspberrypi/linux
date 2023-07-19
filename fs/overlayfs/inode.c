@@ -81,7 +81,7 @@ int ovl_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
 		inode_lock(upperdentry->d_inode);
 		old_cred = ovl_override_creds(dentry->d_sb);
 		err = ovl_do_notify_change(ofs, upperdentry, attr);
-		ovl_revert_creds(dentry->d_sb, old_cred);
+		revert_creds(old_cred);
 		if (!err)
 			ovl_copyattr(dentry->d_inode);
 		inode_unlock(upperdentry->d_inode);
@@ -273,7 +273,7 @@ int ovl_getattr(struct mnt_idmap *idmap, const struct path *path,
 		stat->nlink = dentry->d_inode->i_nlink;
 
 out:
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	revert_creds(old_cred);
 
 	return err;
 }
@@ -311,7 +311,7 @@ int ovl_permission(struct mnt_idmap *idmap,
 		mask |= MAY_READ;
 	}
 	err = inode_permission(mnt_idmap(realpath.mnt), realinode, mask);
-	ovl_revert_creds(inode->i_sb, old_cred);
+	revert_creds(old_cred);
 
 	return err;
 }
@@ -328,7 +328,7 @@ static const char *ovl_get_link(struct dentry *dentry,
 
 	old_cred = ovl_override_creds(dentry->d_sb);
 	p = vfs_get_link(ovl_dentry_real(dentry), done);
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	revert_creds(old_cred);
 	return p;
 }
 
@@ -362,7 +362,7 @@ int ovl_xattr_set(struct dentry *dentry, struct inode *inode, const char *name,
 		ovl_path_lower(dentry, &realpath);
 		old_cred = ovl_override_creds(dentry->d_sb);
 		err = vfs_getxattr(mnt_idmap(realpath.mnt), realdentry, name, NULL, 0);
-		ovl_revert_creds(dentry->d_sb, old_cred);
+		revert_creds(old_cred);
 		if (err < 0)
 			goto out_drop_write;
 	}
@@ -383,7 +383,7 @@ int ovl_xattr_set(struct dentry *dentry, struct inode *inode, const char *name,
 		WARN_ON(flags != XATTR_REPLACE);
 		err = ovl_do_removexattr(ofs, realdentry, name);
 	}
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	revert_creds(old_cred);
 
 	/* copy c/mtime */
 	ovl_copyattr(inode);
@@ -404,7 +404,7 @@ int ovl_xattr_get(struct dentry *dentry, struct inode *inode, const char *name,
 	ovl_i_path_real(inode, &realpath);
 	old_cred = ovl_override_creds(dentry->d_sb);
 	res = vfs_getxattr(mnt_idmap(realpath.mnt), realpath.dentry, name, value, size);
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	revert_creds(old_cred);
 	return res;
 }
 
@@ -432,7 +432,7 @@ ssize_t ovl_listxattr(struct dentry *dentry, char *list, size_t size)
 
 	old_cred = ovl_override_creds(dentry->d_sb);
 	res = vfs_listxattr(realdentry, list, size);
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	revert_creds(old_cred);
 	if (res <= 0 || size == 0)
 		return res;
 
@@ -587,7 +587,7 @@ struct posix_acl *do_ovl_get_acl(struct mnt_idmap *idmap,
 
 		old_cred = ovl_override_creds(inode->i_sb);
 		acl = ovl_get_acl_path(&realpath, posix_acl_xattr_name(type), noperm);
-		ovl_revert_creds(inode->i_sb, old_cred);
+		revert_creds(old_cred);
 	}
 
 	return acl;
@@ -715,7 +715,7 @@ static int ovl_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 
 	old_cred = ovl_override_creds(inode->i_sb);
 	err = realinode->i_op->fiemap(realinode, fieinfo, start, len);
-	ovl_revert_creds(inode->i_sb, old_cred);
+	revert_creds(old_cred);
 
 	return err;
 }
@@ -786,7 +786,7 @@ int ovl_fileattr_set(struct mnt_idmap *idmap,
 		err = ovl_set_protattr(inode, upperpath.dentry, fa);
 		if (!err)
 			err = ovl_real_fileattr_set(&upperpath, fa);
-		ovl_revert_creds(inode->i_sb, old_cred);
+		revert_creds(old_cred);
 
 		/*
 		 * Merge real inode flags with inode flags read from
@@ -848,7 +848,7 @@ int ovl_fileattr_get(struct dentry *dentry, struct fileattr *fa)
 	old_cred = ovl_override_creds(inode->i_sb);
 	err = ovl_real_fileattr_get(&realpath, fa);
 	ovl_fileattr_prot_flags(inode, fa);
-	ovl_revert_creds(inode->i_sb, old_cred);
+	revert_creds(old_cred);
 
 	return err;
 }
