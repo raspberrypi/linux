@@ -616,8 +616,6 @@ static int cs4271_component_probe(struct snd_soc_component *component)
 		regmap_update_bits(cs4271->regmap, CS4271_MODE2,
 				   CS4271_MODE2_MUTECAEQUB,
 				   CS4271_MODE2_MUTECAEQUB);
-
-	pr_err("cs4271 probe done\n");
 	return 0;
 }
 

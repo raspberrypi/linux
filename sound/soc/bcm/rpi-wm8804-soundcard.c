@@ -73,6 +73,8 @@ static struct gpio_desc *led_gpio_3;
 static struct snd_soc_dai_link snd_allo_digione_dai[];
 static struct snd_soc_card snd_rpi_wm8804;
 
+static uint32_t sysclk_freq = 27000000;
+
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
 
@@ -131,7 +133,7 @@ static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		struct wm8804_clk_cfg *clk_cfg)
 {
-	clk_cfg->sysclk_freq = 27000000;
+	clk_cfg->sysclk_freq = sysclk_freq;
 
 	if (samplerate <= 96000 ||
 	    snd_rpi_wm8804.dai_link == snd_allo_digione_dai) {
@@ -478,6 +480,13 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
 		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
 		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
+		if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
+		{
+			pr_err("Failed to get sys_clk, defaulting to 27MHz");
+			sysclk_freq = 27000000;
+		}
+		pr_info("Setting system clock to %d kHz", sysclk_freq/1000);
+
 
 		if (drvdata->probe) {
 			ret = drvdata->probe(pdev);
