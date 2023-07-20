@@ -817,6 +817,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
+        cam0-ov64a40            Select OV64A40 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
         cam0-ov9281             Select OV9281 for camera on port 0
         cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
@@ -829,6 +830,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
+        cam1-ov64a40            Select OV64A40 for camera on port 1
         cam1-ov7251             Select OV7251 for camera on port 1
         cam1-ov9281             Select OV9281 for camera on port 1
         cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
@@ -850,6 +852,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
+        cam0-ov64a40            Select OV64A40 for camera on port 0
         cam0-ov7251             Select OV7251 for camera on port 0
         cam0-ov9281             Select OV9281 for camera on port 0
         cam0-imx290-clk-freq    Set clock frequency for an IMX290 on port 0
@@ -862,6 +865,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-imx708             Select IMX708 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
+        cam1-ov64a40            Select OV64A40 for camera on port 1
         cam1-ov7251             Select OV7251 for camera on port 1
         cam1-ov9281             Select OV9281 for camera on port 1
         cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
@@ -874,6 +878,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam2-imx708             Select IMX708 for camera on port 2
         cam2-ov2311             Select OV2311 for camera on port 2
         cam2-ov5647             Select OV5647 for camera on port 2
+        cam2-ov64a40            Select OV64A40 for camera on port 2
         cam2-ov7251             Select OV7251 for camera on port 2
         cam2-ov9281             Select OV9281 for camera on port 2
         cam2-imx290-clk-freq    Set clock frequency for an IMX290 on port 2
@@ -886,6 +891,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam3-imx708             Select IMX708 for camera on port 3
         cam3-ov2311             Select OV2311 for camera on port 3
         cam3-ov5647             Select OV5647 for camera on port 3
+        cam3-ov64a40            Select OV64A40 for camera on port 3
         cam3-ov7251             Select OV7251 for camera on port 3
         cam3-ov9281             Select OV9281 for camera on port 3
         cam3-imx290-clk-freq    Set clock frequency for an IMX290 on port 3
@@ -3220,6 +3226,25 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Configure a VCM focus drive on the sensor.
+
+
+Name:   ov64a40
+Info:   Arducam OV64A40 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=ov64a40,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Select lens driver state. Default is enabled,
+                                but vcm=off will disable.
+        link-frequency          Allowable link frequency values to use in Hz:
+                                456000000 (default), 360000000
 
 
 Name:   ov7251
