@@ -655,7 +655,8 @@ impl Thread {
                 const FD_FIELD_OFFSET: usize =
                     ::core::mem::offset_of!(bindings::binder_fd_object, __bindgen_anon_1.fd)
                         as usize;
-                view.alloc.info_add_fd(file, offset + FD_FIELD_OFFSET)?;
+                view.alloc
+                    .info_add_fd(file, offset + FD_FIELD_OFFSET, false)?;
             }
             BinderObjectRef::Ptr(obj) => {
                 let obj_length = obj.length.try_into().map_err(|_| EINVAL)?;
@@ -730,9 +731,78 @@ impl Thread {
                 obj_write.parent_offset = obj.parent_offset;
                 view.write::<BinderBufferObject>(offset, &obj_write)?;
             }
-            BinderObjectRef::Fda(_obj) => {
-                pr_warn!("Using unsupported binder object type fda.");
-                return Err(EINVAL.into());
+            BinderObjectRef::Fda(obj) => {
+                if !allow_fds {
+                    return Err(EPERM.into());
+                }
+                let parent_index = usize::try_from(obj.parent).map_err(|_| EINVAL)?;
+                let parent_offset = usize::try_from(obj.parent_offset).map_err(|_| EINVAL)?;
+                let num_fds = usize::try_from(obj.num_fds).map_err(|_| EINVAL)?;
+                let fds_len = num_fds.checked_mul(size_of::<u32>()).ok_or(EINVAL)?;
+
+                view.alloc.info_add_fd_reserve(num_fds)?;
+
+                let info = sg_state.validate_parent_fixup(parent_index, parent_offset, fds_len)?;
+
+                sg_state.ancestors.truncate(info.num_ancestors);
+                let parent_entry = match sg_state.sg_entries.get_mut(info.parent_sg_index) {
+                    Some(parent_entry) => parent_entry,
+                    None => {
+                        pr_err!(
+                            "validate_parent_fixup returned index out of bounds for sg.entries"
+                        );
+                        return Err(EINVAL.into());
+                    }
+                };
+
+                parent_entry.fixup_min_offset = info.new_min_offset;
+                parent_entry
+                    .pointer_fixups
+                    .try_push(PointerFixupEntry {
+                        skip: fds_len,
+                        pointer_value: 0,
+                        target_offset: info.target_offset,
+                    })
+                    .map_err(|_| ENOMEM)?;
+
+                let fda_uaddr = parent_entry
+                    .sender_uaddr
+                    .checked_add(parent_offset)
+                    .ok_or(EINVAL)?;
+                let mut fda_bytes = Vec::new();
+                UserSlice::new(fda_uaddr as _, fds_len).read_all(&mut fda_bytes)?;
+
+                if fds_len != fda_bytes.len() {
+                    pr_err!("UserSlice::read_all returned wrong length in BINDER_TYPE_FDA");
+                    return Err(EINVAL.into());
+                }
+
+                for i in (0..fds_len).step_by(size_of::<u32>()) {
+                    let fd = {
+                        let mut fd_bytes = [0u8; size_of::<u32>()];
+                        fd_bytes.copy_from_slice(&fda_bytes[i..i + size_of::<u32>()]);
+                        u32::from_ne_bytes(fd_bytes)
+                    };
+
+                    let file = File::fget(fd)?;
+                    security::binder_transfer_file(
+                        &self.process.cred,
+                        &view.alloc.process.cred,
+                        &file,
+                    )?;
+
+                    // The `validate_parent_fixup` call ensuers that this addition will not
+                    // overflow.
+                    view.alloc.info_add_fd(file, info.target_offset + i, true)?;
+                }
+                drop(fda_bytes);
+
+                let mut obj_write = BinderFdArrayObject::default();
+                obj_write.hdr.type_ = BINDER_TYPE_FDA;
+                obj_write.num_fds = obj.num_fds;
+                obj_write.parent = obj.parent;
+                obj_write.parent_offset = obj.parent_offset;
+                view.write::<BinderFdArrayObject>(offset, &obj_write)?;
             }
         }
         Ok(())
@@ -1168,7 +1238,15 @@ impl Thread {
                     let tr = reader.read::<BinderTransactionDataSg>()?;
                     self.transaction(&tr, Self::reply_inner)
                 }
-                BC_FREE_BUFFER => drop(self.process.buffer_get(reader.read()?)),
+                BC_FREE_BUFFER => {
+                    let buffer = self.process.buffer_get(reader.read()?);
+                    if let Some(buffer) = &buffer {
+                        if buffer.looper_need_return_on_free() {
+                            self.inner.lock().looper_need_return = true;
+                        }
+                    }
+                    drop(buffer);
+                }
                 BC_INCREFS => {
                     self.process
                         .as_arc_borrow()

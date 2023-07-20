@@ -111,6 +111,7 @@ decl_wrapper!(BinderNodeDebugInfo, bindings::binder_node_debug_info);
 decl_wrapper!(BinderNodeInfoForRef, bindings::binder_node_info_for_ref);
 decl_wrapper!(FlatBinderObject, bindings::flat_binder_object);
 decl_wrapper!(BinderFdObject, bindings::binder_fd_object);
+decl_wrapper!(BinderFdArrayObject, bindings::binder_fd_array_object);
 decl_wrapper!(BinderObjectHeader, bindings::binder_object_header);
 decl_wrapper!(BinderBufferObject, bindings::binder_buffer_object);
 decl_wrapper!(BinderTransactionData, bindings::binder_transaction_data);

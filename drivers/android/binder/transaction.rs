@@ -289,17 +289,18 @@ impl DeliverToRead for Transaction {
             writer.write(&*tr)?;
         }
 
+        let mut alloc = self.allocation.lock().take().ok_or(ESRCH)?;
+
         // Dismiss the completion of transaction with a failure. No failure paths are allowed from
         // here on out.
         send_failed_reply.dismiss();
 
-        // It is now the user's responsibility to clear the allocation.
-        let alloc = self.allocation.lock().take();
-        if let Some(alloc) = alloc {
-            alloc.keep_alive();
-        }
+        // Commit files, and set FDs in FDA to be closed on buffer free.
+        let close_on_free = files.commit();
+        alloc.set_info_close_on_free(close_on_free);
 
-        files.commit();
+        // It is now the user's responsibility to clear the allocation.
+        alloc.keep_alive();
 
         // When this is not a reply and not a oneway transaction, update `current_transaction`. If
         // it's a reply, `current_transaction` has already been updated appropriately.
