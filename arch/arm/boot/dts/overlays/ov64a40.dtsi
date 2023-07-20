@@ -1,0 +1,34 @@
+// Fragment that configures an OV64A40
+
+cam_node: ov64a40@36 {
+	compatible = "ovti,ov64a40";
+	reg = <0x36>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	avdd-supply = <&cam1_reg>;	/* 2.8v */
+	dovdd-supply = <&cam_dummy_reg>;/* 1.8v */
+	dvdd-supply = <&cam_dummy_reg>;	/* 1.1v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			bus-type = <4>;
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <456000000>;
+		};
+	};
+};
+
+vcm_node: bu64754@76 {
+	compatible = "rohm,bu64754";
+	reg = <0x76>;
+	status = "disabled";
+	vdd-supply = <&cam1_reg>;
+};
