@@ -767,7 +767,8 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	}
 	if (end != vma->vm_end) {
 		if (vma->vm_end > end) {
-			if (!insert || (insert->vm_start != end)) {
+			if ((vma->vm_end + adjust_next != end) &&
+			    (!insert || (insert->vm_start != end))) {
 				vma_mas_szero(&mas, end, vma->vm_end);
 				mas_reset(&mas);
 				VM_WARN_ON(insert &&
@@ -2484,7 +2485,7 @@ do_mas_align_munmap(struct ma_state *mas, struct vm_area_struct *vma,
 			error = mas_store_gfp(&mas_detach, split, GFP_KERNEL);
 			if (error)
 				goto munmap_gather_failed;
-			if (next->vm_flags & VM_LOCKED)
+			if (split->vm_flags & VM_LOCKED)
 				locked_vm += vma_pages(split);
 
 			count++;
