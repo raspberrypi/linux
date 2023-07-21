@@ -29,12 +29,12 @@ obj-$(CONFIG_MODULE_STATS) += stats.o
 # ANDROID: GKI: Generate headerfiles required for gki_module.o
 #
 # Dependencies on generated files need to be listed explicitly
-$(obj)/gki_module.o: $(obj)/gki_module_protected_exports.h \
-			$(obj)/gki_module_unprotected.h
+$(obj)/gki_module.o: include/generated/gki_module_protected_exports.h \
+			include/generated/gki_module_unprotected.h
 
 ALL_KMI_SYMBOLS := all_kmi_symbols
 
-$(obj)/gki_module_unprotected.h: $(ALL_KMI_SYMBOLS) \
+include/generated/gki_module_unprotected.h: $(ALL_KMI_SYMBOLS) \
 				$(srctree)/scripts/gen_gki_modules_headers.sh
 	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/gen_gki_modules_headers.sh $@ \
 	"$(srctree)" \
@@ -52,7 +52,7 @@ else
 	ABI_PROTECTED_EXPORTS_FILE := $(wildcard $(srctree)/android/abi_gki_protected_exports_$(ARCH))
 endif
 
-$(obj)/gki_module_protected_exports.h: $(ABI_PROTECTED_EXPORTS_FILE) \
+include/generated/gki_module_protected_exports.h: $(ABI_PROTECTED_EXPORTS_FILE) \
 				$(srctree)/scripts/gen_gki_modules_headers.sh
 	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/gen_gki_modules_headers.sh $@ \
 	"$(srctree)" \
