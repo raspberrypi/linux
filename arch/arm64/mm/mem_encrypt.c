@@ -49,6 +49,7 @@
 #endif	/* ARM_SMCCC_KVM_FUNC_MEM_UNSHARE */
 
 static unsigned long memshare_granule_sz;
+static bool memshare_has_range;
 
 bool mem_encrypt_active(void)
 {
@@ -65,6 +66,7 @@ void kvm_init_memshare_services(void)
 		ARM_SMCCC_KVM_FUNC_MEM_SHARE,
 		ARM_SMCCC_KVM_FUNC_MEM_UNSHARE,
 	};
+	long ret;
 
 	for (i = 0; i < ARRAY_SIZE(funcs); ++i) {
 		if (!kvm_arm_hyp_service_available(funcs[i]))
@@ -73,41 +75,59 @@ void kvm_init_memshare_services(void)
 
 	arm_smccc_1_1_invoke(ARM_SMCCC_VENDOR_HYP_KVM_HYP_MEMINFO_FUNC_ID,
 			     0, 0, 0, &res);
-	if (res.a0 > PAGE_SIZE) /* Includes error codes */
+	ret = (long)res.a0;
+	if (ret < 0)
 		return;
 
-	memshare_granule_sz = res.a0;
+	memshare_has_range = res.a1 & KVM_FUNC_HAS_RANGE;
+	memshare_granule_sz = ret;
 }
 
-static int arm_smccc_share_unshare_page(u32 func_id, phys_addr_t phys)
+static int __invoke_memshare(unsigned long addr, int nr_granules, int func_id,
+			     u64 *nr_xcrypted)
 {
-	phys_addr_t end = phys + PAGE_SIZE;
+	u64 nr_granules_arg = memshare_has_range ? nr_granules : 0;
+	struct arm_smccc_res res;
 
-	while (phys < end) {
-		struct arm_smccc_res res;
+	arm_smccc_1_1_invoke(func_id, virt_to_phys((void *)addr),
+			     nr_granules_arg, 0, &res);
+	if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS))
+		return -EPERM;
 
-		arm_smccc_1_1_invoke(func_id, phys, 0, 0, &res);
-		if (res.a0 != SMCCC_RET_SUCCESS)
-			return -EPERM;
-
-		phys += memshare_granule_sz;
-	}
+	*nr_xcrypted = memshare_has_range ? res.a1 : 1;
 
 	return 0;
 }
 
 static int set_memory_xcrypted(u32 func_id, unsigned long start, int numpages)
 {
-	void *addr = (void *)start, *end = addr + numpages * PAGE_SIZE;
+	int nr_granules;
 
-	while (addr < end) {
-		int err;
+	if (!memshare_granule_sz)
+		return 0;
 
-		err = arm_smccc_share_unshare_page(func_id, virt_to_phys(addr));
-		if (err)
-			return err;
+	if (WARN_ON(!PAGE_ALIGNED(start)))
+		return -EINVAL;
 
-		addr += PAGE_SIZE;
+	/* Prevent over-sharing when memshare_granule_sz > PAGE_SIZE */
+	if (!IS_ALIGNED(start, memshare_granule_sz) ||
+	    (PAGE_SIZE * numpages) % memshare_granule_sz)
+		return -ERANGE;
+
+	nr_granules = (numpages * PAGE_SIZE) / memshare_granule_sz;
+
+	while (nr_granules > 0) {
+		u64 nr_xcrypted;
+		int ret;
+
+		ret = __invoke_memshare(start, nr_granules, func_id, &nr_xcrypted);
+		if (ret)
+			return ret;
+
+		WARN_ON(nr_xcrypted > nr_granules);
+
+		nr_granules -= nr_xcrypted;
+		start += nr_xcrypted * memshare_granule_sz;
 	}
 
 	return 0;
@@ -115,9 +135,6 @@ static int set_memory_xcrypted(u32 func_id, unsigned long start, int numpages)
 
 int set_memory_encrypted(unsigned long addr, int numpages)
 {
-	if (!memshare_granule_sz || WARN_ON(!PAGE_ALIGNED(addr)))
-		return 0;
-
 	return set_memory_xcrypted(ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID,
 				   addr, numpages);
 }
@@ -125,9 +142,6 @@ EXPORT_SYMBOL_GPL(set_memory_encrypted);
 
 int set_memory_decrypted(unsigned long addr, int numpages)
 {
-	if (!memshare_granule_sz || WARN_ON(!PAGE_ALIGNED(addr)))
-		return 0;
-
 	return set_memory_xcrypted(ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID,
 				   addr, numpages);
 }
