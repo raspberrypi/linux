@@ -271,23 +271,34 @@ static int dw_i2s_hw_params(struct snd_pcm_substream *substream,
 {
 	struct dw_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
 	struct i2s_clk_config_data *config = &dev->config;
+	union dw_i2s_snd_dma_data *dma_data = NULL;
 	int ret;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		dma_data = &dev->play_dma_data;
+	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		dma_data = &dev->capture_dma_data;
+	else
+		return -1;
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		config->data_width = 16;
+		dma_data->dt.addr_width = 2;
 		dev->ccr = 0x00;
 		dev->xfer_resolution = 0x02;
 		break;
 
 	case SNDRV_PCM_FORMAT_S24_LE:
 		config->data_width = 24;
+		dma_data->dt.addr_width = 4;
 		dev->ccr = 0x08;
 		dev->xfer_resolution = 0x04;
 		break;
 
 	case SNDRV_PCM_FORMAT_S32_LE:
 		config->data_width = 32;
+		dma_data->dt.addr_width = 4;
 		dev->ccr = 0x10;
 		dev->xfer_resolution = 0x05;
 		break;
@@ -519,24 +530,21 @@ static int dw_i2s_set_bclk_ratio(struct snd_soc_dai *cpu_dai,
 	struct dw_i2s_dev *dev = snd_soc_dai_get_drvdata(cpu_dai);
 	struct i2s_clk_config_data *config = &dev->config;
 
-	dev_err(dev->dev, "%s(%d)\n", __func__, ratio);
+	dev_dbg(dev->dev, "%s(%d)\n", __func__, ratio);
+	if (ratio < config->data_width * 2)
+		return -EINVAL;
+
 	switch (ratio) {
 	case 32:
-		config->data_width = 16;
 		dev->ccr = 0x00;
-		dev->xfer_resolution = 0x02;
 		break;
 
 	case 48:
-		config->data_width = 24;
 		dev->ccr = 0x08;
-		dev->xfer_resolution = 0x04;
 		break;
 
 	case 64:
-		config->data_width = 32;
 		dev->ccr = 0x10;
-		dev->xfer_resolution = 0x05;
 		break;
 	default:
 		return -EINVAL;
