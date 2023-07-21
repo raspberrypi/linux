@@ -143,7 +143,6 @@ static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		clk_cfg->mclk_freq = samplerate * 128;
 		clk_cfg->mclk_div = WM8804_MCLKDIV_128FS;
 	}
-	pr_err("MCLK_DIV Function");
 
 	if (!(IS_ERR(snd_clk44gpio) || IS_ERR(snd_clk48gpio)))
 		clk_cfg->sysclk_freq = snd_rpi_wm8804_enable_clock(samplerate);
@@ -166,13 +165,7 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 
 	/* clear until all clocks are setup properly */
 	wm8804_samplerate = 0;
-
 	snd_rpi_wm8804_clk_cfg(samplerate, &clk_cfg);
-
-	pr_err("%s samplerate: %d mclk_freq: %u mclk_div: %u sysclk: %u\n",
-			__func__, samplerate, clk_cfg.mclk_freq,
-			clk_cfg.mclk_div, clk_cfg.sysclk_freq);
-
 	switch (samplerate) {
 	case 32000:
 		sampling_freq = 0x03;
@@ -237,9 +230,6 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 	/* set sampling frequency status bits */
 	snd_soc_component_update_bits(component, WM8804_SPDTX4, 0x0f,
 			sampling_freq);
-
-	/* set rx channel 2 */
-	//snd_soc_component_update_bits(component, WM8804_PLL6, 0x7, 0);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
@@ -421,8 +411,6 @@ static struct snd_soc_card snd_rpi_wm8804 = {
 	.num_links    = 1,
 };
 
-//static int interlude_audio_input_control(snd_kcontrol *kcontrl,)
-
 static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -489,16 +477,16 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 		snd_clk48gpio =
 			devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
 
+		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
+		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
+		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
 		if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
 		{
 			pr_err("Failed to get sys_clk, defaulting to 27MHz");
 			sysclk_freq = 27000000;
 		}
 		pr_info("Setting system clock to %d kHz", sysclk_freq/1000);
-		
-		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
-		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
-		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
+
 
 		if (drvdata->probe) {
 			ret = drvdata->probe(pdev);
