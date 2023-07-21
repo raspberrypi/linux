@@ -143,6 +143,7 @@ static int snd_rpi_iqaudio_codec_hw_params(struct snd_pcm_substream *substream,
 					   struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
 	unsigned int samplerate = params_rate(params);
 
 	switch (samplerate) {
@@ -152,15 +153,17 @@ static int snd_rpi_iqaudio_codec_hw_params(struct snd_pcm_substream *substream,
 	case 48000:
 	case 96000:
 		pll_out = DA7213_PLL_FREQ_OUT_98304000;
-		return 0;
+		break;
 	case 44100:
 	case 88200:
 		pll_out = DA7213_PLL_FREQ_OUT_90316800;
-		return 0;
+		break;
 	default:
 		dev_err(rtd->dev,"Unsupported samplerate %d\n", samplerate);
 		return -EINVAL;
 	}
+
+	return snd_soc_dai_set_pll(codec_dai, 0, DA7213_SYSCLK_PLL, 0, pll_out);
 }
 
 static const struct snd_soc_ops snd_rpi_iqaudio_codec_ops = {
