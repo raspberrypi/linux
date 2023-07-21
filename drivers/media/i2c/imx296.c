@@ -20,6 +20,10 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
+static int trigger_mode;
+module_param(trigger_mode, int, 0644);
+MODULE_PARM_DESC(trigger_mode, "Set trigger mode: 0=default, 1=XTRIG");
+
 #define IMX296_PIXEL_ARRAY_WIDTH			1456
 #define IMX296_PIXEL_ARRAY_HEIGHT			1088
 
@@ -578,6 +582,12 @@ static int imx296_stream_on(struct imx296 *sensor)
 
 	imx296_write(sensor, IMX296_CTRL00, 0, &ret);
 	usleep_range(2000, 5000);
+
+	if (trigger_mode == 1) {
+		imx296_write(sensor, IMX296_CTRL0B, IMX296_CTRL0B_TRIGEN, &ret);
+		imx296_write(sensor, IMX296_LOWLAGTRG,  IMX296_LOWLAGTRG_FAST, &ret);
+	}
+
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
 	return ret;
