@@ -119,5 +119,10 @@ else
 	fi
 
 	generate_header "${TARGET}" "${GKI_EXPORTED_SYMBOLS}" "protected_exports"
+
+	# Remove temp file
+	if [ -f "${GKI_EXPORTED_SYMBOLS}" ]; then
+		rm -f -- "${GKI_EXPORTED_SYMBOLS}"
+	fi
 fi
 
