@@ -368,7 +368,9 @@ int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 		kvm_ptp_get_time(vcpu, val);
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID:
-		if (kvm_vm_is_protected(vcpu->kvm) && !topup_hyp_memcache(vcpu))
+		if (kvm_vm_is_protected(vcpu->kvm) &&
+		    !topup_hyp_memcache(&vcpu->arch.pkvm_memcache,
+					kvm_mmu_cache_min_pages(vcpu->kvm)))
 			val[0] = SMCCC_RET_SUCCESS;
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
