@@ -418,12 +418,20 @@ static void handle___kvm_vcpu_run(struct kvm_cpu_context *host_ctxt)
 			 * The guest has used the FP, trap all accesses
 			 * from the host (both FP and SVE).
 			 */
-			u64 reg = CPTR_EL2_TFP;
+			u64 reg;
+			if (has_hvhe()) {
+				reg = CPACR_EL1_FPEN_EL0EN | CPACR_EL1_FPEN_EL1EN;
+				if (system_supports_sve())
+					reg |= CPACR_EL1_ZEN_EL0EN | CPACR_EL1_ZEN_EL1EN;
 
-			if (system_supports_sve())
-				reg |= CPTR_EL2_TZ;
+				sysreg_clear_set(cpacr_el1, reg, 0);
+			} else {
+				reg = CPTR_EL2_TFP;
+				if (system_supports_sve())
+					reg |= CPTR_EL2_TZ;
 
-			sysreg_clear_set(cptr_el2, 0, reg);
+				sysreg_clear_set(cptr_el2, 0, reg);
+			}
 		}
 	} else {
 		/* The host is fully trusted, run its vCPU directly. */
