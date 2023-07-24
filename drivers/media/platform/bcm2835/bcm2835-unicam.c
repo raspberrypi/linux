@@ -430,8 +430,8 @@ static const struct unicam_fmt formats[] = {
 		.valid_colorspaces = MASK_CS_RAW,
 	}, {
 	/*
-	 * Bayer formats greater than 16 bit could be supported, but the formats haven't been 
-  	 * defined in Media Bus or V4L2 yet.
+	 * Bayer formats greater than 16 bit could be supported, but the formats haven't been
+	 * defined in Media Bus or V4L2 yet.
 	 */
 
 	/* Greyscale formats */
