@@ -1957,13 +1957,15 @@ Params: abx80x                  Select one of the ABx80x family:
                                 "schottky" (ABx80x and RV1805 only)
 
         trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
-                                ABx80x, RV1805, RV3028)
+                                ABx80x, BQ32000, RV1805, RV3028, RV3032)
+
+        trickle-voltage-mv      Charge pump voltage for trickle charge (RV3032)
 
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
 
         backup-switchover-mode  Backup power supply switch mode. Must be 0 for
-                                off or 1 for Vdd < VBackup (RV3028 only)
+                                off or 1 for Vdd < VBackup (RV3028, RV3032)
 
 
 Name:   i2c-rtc-gpio
@@ -2027,13 +2029,15 @@ Params: abx80x                  Select one of the ABx80x family:
                                 "schottky" (ABx80x and RV1805 only)
 
         trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
-                                ABx80x, RV1805, RV3028)
+                                ABx80x, BQ32000, RV1805, RV3028, RV3032)
+
+        trickle-voltage-mv      Charge pump voltage for trickle charge (RV3032)
 
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
 
         backup-switchover-mode  Backup power supply switch mode. Must be 0 for
-                                off or 1 for Vdd < VBackup (RV3028 only)
+                                off or 1 for Vdd < VBackup (RV3028, RV3032)
 
         i2c_gpio_sda            GPIO used for I2C data (default "23")
 
