@@ -460,6 +460,10 @@ impl Thread {
         self.inner.lock().current_transaction = Some(transaction);
     }
 
+    pub(crate) fn has_current_transaction(&self) -> bool {
+        self.inner.lock().current_transaction.is_some()
+    }
+
     /// Attempts to fetch a work item from the thread-local queue. The behaviour if the queue is
     /// empty depends on `wait`: if it is true, the function waits for some work to be queued (or a
     /// signal); otherwise it returns indicating that none is available.
@@ -484,7 +488,7 @@ impl Thread {
             }
 
             inner.looper_flags |= LOOPER_WAITING;
-            let signal_pending = self.work_condvar.wait_interruptible(&mut inner);
+            let signal_pending = self.work_condvar.wait_interruptible_freezable(&mut inner);
             inner.looper_flags &= !LOOPER_WAITING;
 
             if signal_pending {
@@ -535,7 +539,7 @@ impl Thread {
             }
 
             inner.looper_flags |= LOOPER_WAITING | LOOPER_WAITING_PROC;
-            let signal_pending = self.work_condvar.wait_interruptible(&mut inner);
+            let signal_pending = self.work_condvar.wait_interruptible_freezable(&mut inner);
             inner.looper_flags &= !(LOOPER_WAITING | LOOPER_WAITING_PROC);
 
             if signal_pending || inner.looper_need_return {
@@ -1050,6 +1054,10 @@ impl Thread {
         reply: Result<DLArc<Transaction>, u32>,
         transaction: &DArc<Transaction>,
     ) -> bool {
+        if let Ok(transaction) = &reply {
+            transaction.set_outstanding(&mut self.process.inner.lock());
+        }
+
         {
             let mut inner = self.inner.lock();
             if !inner.pop_transaction_replied(transaction) {

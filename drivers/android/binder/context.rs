@@ -87,6 +87,18 @@ pub(crate) struct ContextList {
     list: List<Context>,
 }
 
+pub(crate) fn get_all_contexts() -> Result<Vec<Arc<Context>>> {
+    let lock = CONTEXTS.lock();
+
+    let count = lock.list.iter().count();
+
+    let mut ctxs = Vec::try_with_capacity(count)?;
+    for ctx in &lock.list {
+        ctxs.try_push(Arc::from(ctx))?;
+    }
+    Ok(ctxs)
+}
+
 /// This struct keeps track of the processes using this context, and which process is the context
 /// manager.
 struct Manager {
@@ -200,5 +212,32 @@ impl Context {
             .ok_or_else(BinderError::new_dead)?
             .clone(strong)
             .map_err(BinderError::from)
+    }
+
+    pub(crate) fn for_each_proc<F>(&self, mut func: F)
+    where
+        F: FnMut(&Process),
+    {
+        let lock = self.manager.lock();
+        for proc in &lock.all_procs {
+            func(&proc);
+        }
+    }
+
+    pub(crate) fn get_all_procs(&self) -> Result<Vec<Arc<Process>>> {
+        let lock = self.manager.lock();
+        let count = lock.all_procs.iter().count();
+
+        let mut procs = Vec::try_with_capacity(count)?;
+        for proc in &lock.all_procs {
+            procs.try_push(Arc::from(proc))?;
+        }
+        Ok(procs)
+    }
+
+    pub(crate) fn get_procs_with_pid(&self, pid: i32) -> Result<Vec<Arc<Process>>> {
+        let mut procs = self.get_all_procs()?;
+        procs.retain(|proc| proc.task.pid() == pid);
+        Ok(procs)
     }
 }
