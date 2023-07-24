@@ -405,10 +405,33 @@ static const struct unicam_fmt formats[] = {
 		.csi_dt		= MIPI_CSI2_DT_RAW14,
 		.valid_colorspaces = MASK_CS_RAW,
 	}, {
+		.fourcc		= V4L2_PIX_FMT_SBGGR16,
+		.code		= MEDIA_BUS_FMT_SBGGR16_1X16,
+		.depth		= 16,
+		.csi_dt		= MIPI_CSI2_DT_RAW16,
+		.valid_colorspaces = MASK_CS_RAW,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SGBRG16,
+		.code		= MEDIA_BUS_FMT_SGBRG16_1X16,
+		.depth		= 16,
+		.csi_dt		= MIPI_CSI2_DT_RAW16,
+		.valid_colorspaces = MASK_CS_RAW,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SGRBG16,
+		.code		= MEDIA_BUS_FMT_SGRBG16_1X16,
+		.depth		= 16,
+		.csi_dt		= MIPI_CSI2_DT_RAW16,
+		.valid_colorspaces = MASK_CS_RAW,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SRGGB16,
+		.code		= MEDIA_BUS_FMT_SRGGB16_1X16,
+		.depth		= 16,
+		.csi_dt		= MIPI_CSI2_DT_RAW16,
+		.valid_colorspaces = MASK_CS_RAW,
+	}, {
 	/*
-	 * 16 bit Bayer formats could be supported, but there is no CSI2
-	 * data_type defined for raw 16, and no sensors that produce it at
-	 * present.
+	 * Bayer formats greater than 16 bit could be supported, but the formats haven't been 
+  	 * defined in Media Bus or V4L2 yet.
 	 */
 
 	/* Greyscale formats */
