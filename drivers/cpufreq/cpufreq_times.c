@@ -35,7 +35,7 @@ struct cpu_freqs {
 	unsigned int offset;
 	unsigned int max_state;
 	unsigned int last_index;
-	unsigned int freq_table[0];
+	unsigned int freq_table[];
 };
 
 static struct cpu_freqs *all_freqs[NR_CPUS];
@@ -176,8 +176,7 @@ void cpufreq_times_create_policy(struct cpufreq_policy *policy)
 	cpufreq_for_each_valid_entry(pos, table)
 		count++;
 
-	tmp =  kzalloc(sizeof(*freqs) + sizeof(freqs->freq_table[0]) * count,
-		       GFP_KERNEL);
+	tmp = kzalloc(struct_size(freqs, freq_table, count), GFP_KERNEL);
 	if (!tmp)
 		return;
 
