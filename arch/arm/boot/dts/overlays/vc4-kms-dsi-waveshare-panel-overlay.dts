@@ -117,6 +117,8 @@
 		       <0>, "-3-4+5";
 		disable_touch = <&touch>, "status=disabled";
 		rotation = <&panel>, "rotation:0";
+		sizex = <&touch>,"touchscreen-size-x:0";
+		sizey = <&touch>,"touchscreen-size-y:0";
 		invx = <&touch>,"touchscreen-inverted-x?";
 		invy = <&touch>,"touchscreen-inverted-y?";
 		swapxy = <&touch>,"touchscreen-swapped-x-y?";

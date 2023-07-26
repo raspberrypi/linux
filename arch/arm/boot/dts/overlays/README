@@ -5130,6 +5130,8 @@ Params: 2_8_inch                2.8" 480x640
         i2c1                    Use i2c-1 with jumper wires from GPIOs 2&3
         disable_touch           Disable the touch controller
         rotation                Set the panel orientation property
+        sizex                   Touchscreen size x
+        sizey                   Touchscreen size y
         invx                    Touchscreen inverted x axis
         invy                    Touchscreen inverted y axis
         swapxy                  Touchscreen swapped x y axis
