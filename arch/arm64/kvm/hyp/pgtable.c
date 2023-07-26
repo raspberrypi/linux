@@ -16,11 +16,8 @@
 					 KVM_PTE_LEAF_ATTR_LO_S2_S2AP_W | \
 					 KVM_PTE_LEAF_ATTR_HI_S2_XN)
 
-/*
- * Used to indicate a pte for which a 'break-before-make' sequence is in
- * progress.
- */
-#define KVM_INVALID_PTE_LOCKED		BIT(10)
+#define KVM_INVALID_PTE_OWNER_MASK	GENMASK(9, 2)
+#define KVM_MAX_OWNER_ID		FIELD_MAX(KVM_INVALID_PTE_OWNER_MASK)
 
 struct kvm_pgtable_walk_data {
 	struct kvm_pgtable_walker	*walker;
@@ -29,6 +26,9 @@ struct kvm_pgtable_walk_data {
 	u64				addr;
 	const u64			end;
 };
+
+static void stage2_unmap_clear_pte(const struct kvm_pgtable_visit_ctx *ctx,
+				   struct kvm_s2_mmu *mmu);
 
 static bool kvm_pgtable_walk_skip_bbm_tlbi(const struct kvm_pgtable_visit_ctx *ctx)
 {
@@ -764,7 +764,8 @@ static bool stage2_try_break_pte(const struct kvm_pgtable_visit_ctx *ctx,
 	return true;
 }
 
-static void stage2_make_pte(const struct kvm_pgtable_visit_ctx *ctx, kvm_pte_t new)
+static void stage2_make_pte(const struct kvm_pgtable_visit_ctx *ctx,
+			    kvm_pte_t new, struct kvm_s2_mmu *mmu)
 {
 	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
 	struct kvm_pgtable_pte_ops *pte_ops = ctx->pte_ops;
@@ -773,6 +774,8 @@ static void stage2_make_pte(const struct kvm_pgtable_visit_ctx *ctx, kvm_pte_t n
 
 	if (pte_ops->pte_is_counted_cb(new, ctx->level))
 		mm_ops->get_page(ctx->ptep);
+	else
+		stage2_unmap_clear_pte(ctx, mmu);
 
 	smp_store_release(ctx->ptep, new);
 }
@@ -907,7 +910,7 @@ static int stage2_map_walker_try_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	    stage2_pte_executable(new))
 		mm_ops->icache_inval_pou(kvm_pte_follow(new, mm_ops), granule);
 
-	stage2_make_pte(ctx, new);
+	stage2_make_pte(ctx, new, data->mmu);
 
 	return 0;
 }
@@ -962,7 +965,36 @@ static int stage2_map_walk_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	 * will be mapped lazily.
 	 */
 	new = kvm_init_table_pte(childp, mm_ops);
-	stage2_make_pte(ctx, new);
+	stage2_make_pte(ctx, new, data->mmu);
+	return 0;
+}
+
+static int stage2_coalesce_walk_table_post(const struct kvm_pgtable_visit_ctx *ctx,
+					   struct stage2_map_data *data)
+{
+	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
+	kvm_pte_t *childp = kvm_pte_follow(*ctx->ptep, mm_ops);
+
+	/*
+	 * Decrement the refcount only on the set ownership path to avoid a
+	 * loop situation when the following happens:
+	 *  1. We take a host stage2 fault and we create a small mapping which
+	 *  has default attributes (is not refcounted).
+	 *  2. On the way back we execute the post handler and we zap the
+	 *  table that holds our mapping.
+	 */
+	if (kvm_phys_is_valid(data->phys) ||
+	    !kvm_level_supports_block_mapping(ctx->level))
+		return 0;
+
+	/*
+	 * Free a page that is not referenced anymore and drop the reference
+	 * of the page table page.
+	 */
+	if (mm_ops->page_count(childp) == 1) {
+		stage2_unmap_put_pte(ctx, data->mmu, mm_ops);
+		mm_ops->put_page(childp);
+	}
 
 	return 0;
 }
@@ -986,6 +1018,8 @@ static int stage2_map_walker(const struct kvm_pgtable_visit_ctx *ctx,
 		return stage2_map_walk_table_pre(ctx, data);
 	case KVM_PGTABLE_WALK_LEAF:
 		return stage2_map_walk_leaf(ctx, data);
+	case KVM_PGTABLE_WALK_TABLE_POST:
+		return stage2_coalesce_walk_table_post(ctx, data);
 	default:
 		return -EINVAL;
 	}
@@ -1084,7 +1118,10 @@ static int stage2_unmap_walker(const struct kvm_pgtable_visit_ctx *ctx,
 	 * block entry and rely on the remaining portions being faulted
 	 * back lazily.
 	 */
-	stage2_unmap_put_pte(ctx, mmu, mm_ops);
+	if (pte_ops->pte_is_counted_cb(ctx->old, ctx->level))
+		stage2_unmap_put_pte(ctx, mmu, mm_ops);
+	else
+		stage2_unmap_clear_pte(ctx, mmu);
 
 	if (need_flush && mm_ops->dcache_clean_inval_poc)
 		mm_ops->dcache_clean_inval_poc(kvm_pte_follow(ctx->old, mm_ops),
@@ -1357,10 +1394,11 @@ kvm_pte_t *kvm_pgtable_stage2_create_unlinked(struct kvm_pgtable *pgt,
 	if (!pgtable)
 		return ERR_PTR(-ENOMEM);
 
-	ret = __kvm_pgtable_walk(&data, mm_ops, (kvm_pteref_t)pgtable,
-				 level + 1);
+	ret = __kvm_pgtable_walk(&data, mm_ops, pgt->pte_ops,
+				 (kvm_pteref_t)pgtable, level + 1);
 	if (ret) {
-		kvm_pgtable_stage2_free_unlinked(mm_ops, pgtable, level);
+		kvm_pgtable_stage2_free_unlinked(mm_ops, pgt->pte_ops,
+						 pgtable, level);
 		mm_ops->put_page(pgtable);
 		return ERR_PTR(ret);
 	}
@@ -1443,7 +1481,8 @@ static int stage2_split_walker(const struct kvm_pgtable_visit_ctx *ctx,
 		return PTR_ERR(childp);
 
 	if (!stage2_try_break_pte(ctx, mmu)) {
-		kvm_pgtable_stage2_free_unlinked(mm_ops, childp, level);
+		kvm_pgtable_stage2_free_unlinked(mm_ops, ctx->pte_ops,
+						 childp, level);
 		mm_ops->put_page(childp);
 		return -EAGAIN;
 	}
@@ -1454,7 +1493,7 @@ static int stage2_split_walker(const struct kvm_pgtable_visit_ctx *ctx,
 	 * writes the PTE using smp_store_release().
 	 */
 	new = kvm_init_table_pte(childp, mm_ops);
-	stage2_make_pte(ctx, new);
+	stage2_make_pte(ctx, new, mmu);
 	dsb(ishst);
 	return 0;
 }
