@@ -151,7 +151,7 @@ static ssize_t netfs_extract_user_to_sg(struct iov_iter *iter,
 
 failed:
 	while (sgtable->nents > sgtable->orig_nents)
-		put_page(sg_page(&sgtable->sgl[--sgtable->nents]));
+		unpin_user_page(sg_page(&sgtable->sgl[--sgtable->nents]));
 	return res;
 }
 
