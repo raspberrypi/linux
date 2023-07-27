@@ -36,6 +36,8 @@ _COMMON_GKI_MODULES_LIST = [
     "drivers/net/usb/rtl8150.ko",
     "drivers/net/usb/usbnet.ko",
     "drivers/net/wwan/wwan.ko",
+    "drivers/pps/pps_core.ko",
+    "drivers/ptp/ptp.ko",
     "drivers/usb/class/cdc-acm.ko",
     "drivers/usb/serial/ftdi_sio.ko",
     "drivers/usb/serial/usbserial.ko",
@@ -77,6 +79,7 @@ COMMON_GKI_MODULES_LIST = _COMMON_GKI_MODULES_LIST
 
 _ARM64_GKI_MODULES_LIST = [
     # keep sorted
+    "drivers/ptp/ptp_kvm.ko",
 ]
 
 _RISCV64_GKI_MODULES_LIST = [
@@ -85,6 +88,7 @@ _RISCV64_GKI_MODULES_LIST = [
 
 _X86_64_GKI_MODULES_LIST = [
     # keep sorted
+    "drivers/ptp/ptp_kvm.ko",
 ]
 
 # buildifier: disable=unnamed-macro
