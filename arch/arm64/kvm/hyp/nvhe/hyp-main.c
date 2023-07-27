@@ -1474,10 +1474,9 @@ static void handle___pkvm_host_iommu_alloc_domain(struct kvm_cpu_context *host_c
 
 static void handle___pkvm_host_iommu_free_domain(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
-	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_free_domain(iommu, domain);
+	cpu_reg(host_ctxt, 1) = kvm_iommu_free_domain(domain);
 }
 
 static void handle___pkvm_host_iommu_attach_dev(struct kvm_cpu_context *host_ctxt)
@@ -1500,37 +1499,34 @@ static void handle___pkvm_host_iommu_detach_dev(struct kvm_cpu_context *host_ctx
 
 static void handle___pkvm_host_iommu_map_pages(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
-	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
-	DECLARE_REG(unsigned long, iova, host_ctxt, 3);
-	DECLARE_REG(phys_addr_t, paddr, host_ctxt, 4);
-	DECLARE_REG(size_t, pgsize, host_ctxt, 5);
-	DECLARE_REG(size_t, pgcount, host_ctxt, 6);
-	DECLARE_REG(unsigned int, prot, host_ctxt, 7);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
+	DECLARE_REG(phys_addr_t, paddr, host_ctxt, 3);
+	DECLARE_REG(size_t, pgsize, host_ctxt, 4);
+	DECLARE_REG(size_t, pgcount, host_ctxt, 5);
+	DECLARE_REG(unsigned int, prot, host_ctxt, 6);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_map_pages(iommu, domain, iova, paddr,
+	cpu_reg(host_ctxt, 1) = kvm_iommu_map_pages(domain, iova, paddr,
 						    pgsize, pgcount, prot);
 }
 
 static void handle___pkvm_host_iommu_unmap_pages(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
-	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
-	DECLARE_REG(unsigned long, iova, host_ctxt, 3);
-	DECLARE_REG(size_t, pgsize, host_ctxt, 4);
-	DECLARE_REG(size_t, pgcount, host_ctxt, 5);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
+	DECLARE_REG(size_t, pgsize, host_ctxt, 3);
+	DECLARE_REG(size_t, pgcount, host_ctxt, 4);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_unmap_pages(iommu, domain, iova,
+	cpu_reg(host_ctxt, 1) = kvm_iommu_unmap_pages(domain, iova,
 						      pgsize, pgcount);
 }
 
 static void handle___pkvm_host_iommu_iova_to_phys(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
-	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
-	DECLARE_REG(unsigned long, iova, host_ctxt, 3);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, iova, host_ctxt, 2);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_iova_to_phys(iommu, domain, iova);
+	cpu_reg(host_ctxt, 1) = kvm_iommu_iova_to_phys(domain, iova);
 }
 
 static void handle___pkvm_iommu_init(struct kvm_cpu_context *host_ctxt)

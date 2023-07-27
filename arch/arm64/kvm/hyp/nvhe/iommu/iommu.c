@@ -24,6 +24,7 @@ struct kvm_hyp_iommu_memcache *kvm_hyp_iommu_memcaches;
  * these are rare operations, while map/unmap are left lockless.
  */
 static DEFINE_HYP_SPINLOCK(iommu_domains_lock);
+void **kvm_hyp_iommu_domains;
 
 void *kvm_iommu_donate_page(void)
 {
@@ -58,22 +59,22 @@ void kvm_iommu_reclaim_page(void *p)
 }
 
 static struct kvm_hyp_iommu_domain *
-handle_to_domain(struct kvm_hyp_iommu *iommu, pkvm_handle_t domain_id)
+handle_to_domain(pkvm_handle_t domain_id)
 {
 	int idx;
 	struct kvm_hyp_iommu_domain *domains;
 
-	if (domain_id >= iommu->nr_domains)
+	if (domain_id >= KVM_IOMMU_MAX_DOMAINS)
 		return NULL;
-	domain_id = array_index_nospec(domain_id, iommu->nr_domains);
+	domain_id = array_index_nospec(domain_id, KVM_IOMMU_MAX_DOMAINS);
 
 	idx = domain_id >> KVM_IOMMU_DOMAIN_ID_SPLIT;
-	domains = iommu->domains[idx];
+	domains = (struct kvm_hyp_iommu_domain *)kvm_hyp_iommu_domains[idx];
 	if (!domains) {
 		domains = kvm_iommu_donate_page();
 		if (!domains)
 			return NULL;
-		iommu->domains[idx] = domains;
+		kvm_hyp_iommu_domains[idx] = domains;
 	}
 
 	return &domains[domain_id & KVM_IOMMU_DOMAIN_ID_LEAF_MASK];
@@ -91,7 +92,7 @@ int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 		return -EINVAL;
 
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain(domain_id);
 	if (!domain)
 		goto out_unlock;
 
@@ -110,23 +111,17 @@ out_unlock:
 	return ret;
 }
 
-int kvm_iommu_free_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id)
+int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 {
-	int ret = -EINVAL;
-	struct kvm_hyp_iommu *iommu;
+	int ret = 0;
 	struct kvm_hyp_iommu_domain *domain;
 
-	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
-	if (!iommu)
-		return -EINVAL;
-
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
-	if (!domain)
+	domain = handle_to_domain(domain_id);
+	if (!domain || (domain->refs != 1)) {
+		ret = -EINVAL;
 		goto out_unlock;
-
-	if (domain->refs != 1)
-		goto out_unlock;
+	}
 
 	kvm_iommu_ops->free_domain(domain);
 
@@ -151,7 +146,7 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 		return -EINVAL;
 
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain(domain_id);
 	if (!domain || !domain->refs || domain->refs == UINT_MAX)
 		goto out_unlock;
 
@@ -177,7 +172,7 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 		return -EINVAL;
 
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain(domain_id);
 	if (!domain || domain->refs <= 1)
 		goto out_unlock;
 
@@ -194,8 +189,8 @@ out_unlock:
 #define IOMMU_PROT_MASK (IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE |\
 			 IOMMU_NOEXEC | IOMMU_MMIO | IOMMU_PRIV)
 
-size_t kvm_iommu_map_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
-			   unsigned long iova, phys_addr_t paddr, size_t pgsize,
+size_t kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
+			   phys_addr_t paddr, size_t pgsize,
 			   size_t pgcount, int prot)
 {
 	size_t size;
@@ -203,7 +198,6 @@ size_t kvm_iommu_map_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	size_t granule;
 	int ret = -EINVAL;
 	size_t total_mapped = 0;
-	struct kvm_hyp_iommu *iommu;
 	struct kvm_hyp_iommu_domain *domain;
 
 	if (!kvm_iommu_ops)
@@ -216,12 +210,8 @@ size_t kvm_iommu_map_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	    iova + size < iova || paddr + size < paddr)
 		return 0;
 
-	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
-	if (!iommu)
-		return 0;
-
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain(domain_id);
 	if (!domain)
 		goto err_unlock;
 
@@ -276,14 +266,14 @@ static void kvm_iommu_unmap_walker(struct io_pgtable_ctxt *ctxt)
 		kvm_iommu_flush_unmap_cache(cache, ctxt->size);
 }
 
-size_t kvm_iommu_unmap_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
+
+size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 			     unsigned long iova, size_t pgsize, size_t pgcount)
 {
 	size_t size;
 	size_t granule;
 	size_t unmapped;
 	size_t total_unmapped = 0;
-	struct kvm_hyp_iommu *iommu;
 	struct kvm_hyp_iommu_domain *domain;
 	size_t max_pgcount;
 	struct kvm_iommu_paddr_cache *cache = this_cpu_ptr(&kvm_iommu_unmap_cache);
@@ -302,12 +292,8 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 	    iova + size < iova)
 		return 0;
 
-	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
-	if (!iommu)
-		return 0;
-
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain(domain_id);
 	if (!domain)
 		goto out_unlock;
 
@@ -333,19 +319,13 @@ out_unlock:
 	return total_unmapped;
 }
 
-phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
-				   pkvm_handle_t domain_id, unsigned long iova)
+phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 {
 	phys_addr_t phys = 0;
-	struct kvm_hyp_iommu *iommu;
 	struct kvm_hyp_iommu_domain *domain;
 
-	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
-	if (!iommu)
-		return 0;
-
 	hyp_spin_lock(&iommu_domains_lock);
-	domain = handle_to_domain(iommu, domain_id);
+	domain = handle_to_domain( domain_id);
 	if (domain)
 		phys = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
 
@@ -355,15 +335,11 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
 
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 {
-	void *domains;
-
 	/* See struct kvm_hyp_iommu */
 	BUILD_BUG_ON(sizeof(u32) != sizeof(hyp_spinlock_t));
 
-	domains = iommu->domains;
-	iommu->domains = kern_hyp_va(domains);
-	return pkvm_create_mappings(iommu->domains, iommu->domains +
-				    KVM_IOMMU_DOMAINS_ROOT_ENTRIES, PAGE_HYP);
+	/* This function will be used again soon. */
+	return 0;
 }
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
@@ -380,6 +356,11 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
 		return -ENODEV;
 
 	ret = ops->init ? ops->init(init_arg) : 0;
+	if (ret)
+		return ret;
+
+	ret = pkvm_create_mappings(kvm_hyp_iommu_domains, kvm_hyp_iommu_domains +
+				   KVM_IOMMU_DOMAINS_ROOT_ENTRIES, PAGE_HYP);
 	if (ret)
 		return ret;
 

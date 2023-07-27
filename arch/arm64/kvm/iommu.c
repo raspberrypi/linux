@@ -44,6 +44,13 @@ int kvm_iommu_init_driver(void)
 	 */
 	if (!iommu_driver->init_driver)
 		return 0;
+	kvm_hyp_iommu_domains = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+				get_order(KVM_IOMMU_DOMAINS_ROOT_SIZE));
+	kvm_hyp_iommu_domains = kern_hyp_va(kvm_hyp_iommu_domains);
+	if (!kvm_hyp_iommu_domains) {
+		kvm_err("No enough mem for IOMMU domains");
+		return -ENOMEM;
+	}
 
 	return iommu_driver->init_driver();
 }
