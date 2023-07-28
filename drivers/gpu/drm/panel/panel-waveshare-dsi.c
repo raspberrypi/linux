@@ -112,11 +112,11 @@ static const struct drm_display_mode ws_panel_7_9_mode = {
  * https://www.waveshare.com/product/raspberry-pi/displays/10.1inch-dsi-lcd-c.htm
  */
 static const struct drm_display_mode ws_panel_10_1_mode = {
-	.clock = 76800,
+	.clock = 83333,
 	.hdisplay = 1280,
-	.hsync_start = 1280 + 40,
-	.hsync_end = 1280 + 40 + 20,
-	.htotal = 1280 + 40 + 20 + 40,
+	.hsync_start = 1280 + 156,
+	.hsync_end = 1280 + 156 + 20,
+	.htotal = 1280 + 156 + 20 + 40,
 	.vdisplay = 800,
 	.vsync_start = 800 + 40,
 	.vsync_end = 800 + 40 + 48,
