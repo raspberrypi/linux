@@ -590,9 +590,7 @@ static int patch_return(void *addr, struct insn *insn, u8 *bytes)
 {
 	int i = 0;
 
-	if (cpu_feature_enabled(X86_FEATURE_RETHUNK) ||
-	    cpu_feature_enabled(X86_FEATURE_SRSO) ||
-	    cpu_feature_enabled(X86_FEATURE_SRSO_ALIAS)) {
+	if (cpu_feature_enabled(X86_FEATURE_RETHUNK)) {
 		if (x86_return_thunk == __x86_return_thunk)
 			return -1;
 
