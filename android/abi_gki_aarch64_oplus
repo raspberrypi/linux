@@ -97,12 +97,15 @@
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_cgroup_set_task
   __traceiter_android_vh_cpufreq_acct_update_power
+  __traceiter_android_vh_check_folio_look_around_ref
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_exit_signal
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_rwsem_downgrade_wake_finish
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_tune_swappiness
+  __traceiter_android_vh_look_around
+  __traceiter_android_vh_look_around_migrate_folio
   __traceiter_sched_stat_blocked
   __traceiter_sched_stat_iowait
   __traceiter_sched_stat_runtime
@@ -110,6 +113,7 @@
   __traceiter_sched_stat_wait
   __traceiter_sched_waking
   __traceiter_task_rename
+  __traceiter_android_vh_test_clear_look_around_ref
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_cgroup_set_task
@@ -120,6 +124,10 @@
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_tune_swappiness
+  __tracepoint_android_vh_check_folio_look_around_ref
+  __tracepoint_android_vh_look_around
+  __tracepoint_android_vh_look_around_migrate_folio
+  __tracepoint_android_vh_test_clear_look_around_ref
   __tracepoint_sched_stat_blocked
   __tracepoint_sched_stat_iowait
   __tracepoint_sched_stat_sleep
