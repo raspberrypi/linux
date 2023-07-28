@@ -1348,6 +1348,41 @@ struct pipe_ctx *find_idle_secondary_pipe(
 	return secondary_pipe;
 }
 
+bool resource_is_pipe_type(const struct pipe_ctx *pipe_ctx, enum pipe_type type)
+{
+#ifdef DBG
+	if (pipe_ctx->stream == NULL) {
+		/* a free pipe with dangling states */
+		ASSERT(!pipe_ctx->plane_state);
+		ASSERT(!pipe_ctx->prev_odm_pipe);
+		ASSERT(!pipe_ctx->next_odm_pipe);
+		ASSERT(!pipe_ctx->top_pipe);
+		ASSERT(!pipe_ctx->bottom_pipe);
+	} else if (pipe_ctx->top_pipe) {
+		/* a secondary DPP pipe must be signed to a plane */
+		ASSERT(pipe_ctx->plane_state)
+	}
+	/* Add more checks here to prevent corrupted pipe ctx. It is very hard
+	* to debug this issue afterwards because we can't pinpoint the code
+	* location causing inconsistent pipe context states.
+	*/
+#endif
+	switch (type) {
+	case OTG_MASTER:
+		return !pipe_ctx->prev_odm_pipe &&
+				!pipe_ctx->top_pipe &&
+				pipe_ctx->stream;
+	case OPP_HEAD:
+		return !pipe_ctx->top_pipe && pipe_ctx->stream;
+	case DPP_PIPE:
+		return pipe_ctx->plane_state && pipe_ctx->stream;
+	case FREE_PIPE:
+		return !pipe_ctx->plane_state && !pipe_ctx->stream;
+	default:
+		return false;
+	}
+}
+
 struct pipe_ctx *resource_get_head_pipe_for_stream(
 		struct resource_context *res_ctx,
 		struct dc_stream_state *stream)
