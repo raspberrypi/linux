@@ -3606,11 +3606,11 @@ static const struct panel_desc rocktech_rk043fn48h = {
 };
 
 static const struct drm_display_mode raspberrypi_7inch_mode = {
-	.clock = 25979400 / 1000,
+	.clock = 27777,
 	.hdisplay = 800,
-	.hsync_start = 800 + 2,
-	.hsync_end = 800 + 2 + 2,
-	.htotal = 800 + 2 + 2 + 46,
+	.hsync_start = 800 + 59,
+	.hsync_end = 800 + 59 + 2,
+	.htotal = 800 + 59 + 2 + 46,
 	.vdisplay = 480,
 	.vsync_start = 480 + 7,
 	.vsync_end = 480 + 7 + 2,
