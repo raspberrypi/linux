@@ -2052,8 +2052,8 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the BH1750, BME280, BME680,
-                                BMP280, CCS811, DS1621, HDC100X, JC42, LM75,
-                                MCP980x, MPU6050, MPU9250, MS5637, MS5803,
+                                BMP280, BMP380, CCS811, DS1621, HDC100X, JC42,
+                                LM75, MCP980x, MPU6050, MPU9250, MS5637, MS5803,
                                 MS5805, MS5837, MS8607, SHT3x or TMP102
 
         aht10                   Select the Aosong AHT10 temperature and humidity
@@ -2073,6 +2073,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
         bmp180                  Select the Bosch Sensortronic BMP180
 
         bmp280                  Select the Bosch Sensortronic BMP280
+                                Valid addresses 0x76-0x77, default 0x76
+
+        bmp380                  Select the Bosch Sensortronic BMP380
                                 Valid addresses 0x76-0x77, default 0x76
 
         bno055                  Select the Bosch Sensortronic BNO055 IMU
