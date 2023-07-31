@@ -6,6 +6,8 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::{
     list::ListArcSafe,
     prelude::*,
+    seq_file::SeqFile,
+    seq_print,
     sync::{Arc, SpinLock},
     task::Kuid,
     types::ScopeGuard,
@@ -26,10 +28,11 @@ use crate::{
 
 #[pin_data(PinnedDrop)]
 pub(crate) struct Transaction {
+    debug_id: usize,
     target_node: Option<DArc<Node>>,
-    from_parent: Option<DArc<Transaction>>,
+    pub(crate) from_parent: Option<DArc<Transaction>>,
     pub(crate) from: Arc<Thread>,
-    to: Arc<Process>,
+    pub(crate) to: Arc<Process>,
     #[pin]
     allocation: SpinLock<Option<Allocation>>,
     is_outstanding: AtomicBool,
@@ -103,6 +106,7 @@ impl Transaction {
             };
 
         Ok(DTRWrap::arc_pin_init(pin_init!(Transaction {
+            debug_id: super::next_debug_id(),
             target_node: Some(target_node),
             from_parent,
             sender_euid: from.process.cred.euid(),
@@ -142,6 +146,7 @@ impl Transaction {
             alloc.set_info_clear_on_drop();
         }
         Ok(DTRWrap::arc_pin_init(pin_init!(Transaction {
+            debug_id: super::next_debug_id(),
             target_node: None,
             from_parent: None,
             sender_euid: from.process.task.euid(),
@@ -160,6 +165,27 @@ impl Transaction {
             txn_security_ctx_off: None,
             oneway_spam_detected,
         }))?)
+    }
+
+    #[inline(never)]
+    pub(crate) fn debug_print_inner(&self, m: &mut SeqFile, prefix: &str) {
+        seq_print!(
+            m,
+            "{}{}: from {}:{} to {} code {:x} flags {:x} pri {}:{}",
+            prefix,
+            self.debug_id,
+            self.from.process.task.pid(),
+            self.from.id,
+            self.to.task.pid(),
+            self.code,
+            self.flags,
+            self.priority.sched_policy,
+            self.priority.prio
+        );
+        if let Some(target_node) = &self.target_node {
+            seq_print!(m, " node {}", target_node.debug_id);
+        }
+        seq_print!(m, " size {}:{}\n", self.data_size, self.offsets_size);
     }
 
     pub(crate) fn saved_priority(&self) -> BinderPriority {
@@ -473,6 +499,11 @@ impl DeliverToRead for Transaction {
 
     fn should_sync_wakeup(&self) -> bool {
         self.flags & TF_ONE_WAY == 0
+    }
+
+    fn debug_print(&self, m: &mut SeqFile, _prefix: &str, tprefix: &str) -> Result<()> {
+        self.debug_print_inner(m, tprefix);
+        Ok(())
     }
 }
 

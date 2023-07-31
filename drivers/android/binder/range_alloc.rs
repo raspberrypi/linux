@@ -6,6 +6,8 @@ use kernel::{
     page::PAGE_SIZE,
     prelude::*,
     rbtree::{RBTree, RBTreeNode, RBTreeNodeReservation},
+    seq_file::SeqFile,
+    seq_print,
     task::Pid,
 };
 
@@ -53,6 +55,33 @@ impl<T> RangeAllocator<T> {
             oneway_spam_detected: false,
             size,
         })
+    }
+
+    pub(crate) fn debug_print(&self, m: &mut SeqFile) -> Result<()> {
+        for desc in self.tree.values() {
+            let state = match &desc.state {
+                Some(state) => state,
+                None => continue,
+            };
+            seq_print!(
+                m,
+                "  buffer {}: {} size {} pid {} oneway {}",
+                0,
+                desc.offset,
+                desc.size,
+                state.pid(),
+                state.is_oneway()
+            );
+            match state {
+                DescriptorState::Reserved(_res) => {
+                    seq_print!(m, "reserved\n");
+                }
+                DescriptorState::Allocated(_alloc) => {
+                    seq_print!(m, "allocated\n");
+                }
+            }
+        }
+        Ok(())
     }
 
     fn find_best_match(&mut self, size: usize) -> Option<&mut Descriptor<T>> {

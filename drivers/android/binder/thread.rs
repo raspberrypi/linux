@@ -16,6 +16,8 @@ use kernel::{
     },
     prelude::*,
     security,
+    seq_file::SeqFile,
+    seq_print,
     sync::poll::{PollCondVar, PollTable},
     sync::{Arc, SpinLock},
     task::Task,
@@ -464,6 +466,33 @@ impl Thread {
             links <- ListLinks::new(),
             links_track <- AtomicListArcTracker::new(),
         }))
+    }
+
+    #[inline(never)]
+    pub(crate) fn debug_print(self: &Arc<Self>, m: &mut SeqFile) {
+        let inner = self.inner.lock();
+
+        seq_print!(
+            m,
+            "  thread {}: l {:02x} need_return {}\n",
+            self.id,
+            inner.looper_flags,
+            inner.looper_need_return
+        );
+
+        let mut t_opt = inner.current_transaction.clone();
+        while let Some(t) = t_opt {
+            if Arc::ptr_eq(&t.from, self) {
+                t.debug_print_inner(m, "    outgoing transaction ");
+                t_opt = t.from_parent.clone();
+            } else if Arc::ptr_eq(&t.to, &self.process) {
+                t.debug_print_inner(m, "    incoming transaction ");
+                t_opt = t.find_from(self);
+            } else {
+                t.debug_print_inner(m, "    bad transaction ");
+                t_opt = None;
+            }
+        }
     }
 
     pub(crate) fn get_extended_error(&self, data: UserSlice) -> Result {
@@ -1607,6 +1636,16 @@ impl DeliverToRead for ThreadError {
 
     fn should_sync_wakeup(&self) -> bool {
         false
+    }
+
+    fn debug_print(&self, m: &mut SeqFile, prefix: &str, _tprefix: &str) -> Result<()> {
+        seq_print!(
+            m,
+            "{}transaction error: {}\n",
+            prefix,
+            self.error_code.load(Ordering::Relaxed)
+        );
+        Ok(())
     }
 }
 

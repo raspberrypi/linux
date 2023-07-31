@@ -8,6 +8,8 @@ use kernel::{
         TryNewListArc,
     },
     prelude::*,
+    seq_file::SeqFile,
+    seq_print,
     sync::lock::{spinlock::SpinLockBackend, Guard},
     sync::{Arc, LockedBy, SpinLock},
     uaccess::UserSliceWriter,
@@ -76,6 +78,7 @@ struct NodeInner {
 
 #[pin_data]
 pub(crate) struct Node {
+    pub(crate) debug_id: usize,
     ptr: u64,
     cookie: u64,
     pub(crate) flags: u32,
@@ -121,12 +124,47 @@ impl Node {
                     refs: List::new(),
                 },
             ),
+            debug_id: super::next_debug_id(),
             ptr,
             cookie,
             flags,
             owner,
             links_track <- AtomicListArcTracker::new(),
         })
+    }
+
+    #[inline(never)]
+    pub(crate) fn full_debug_print(
+        &self,
+        m: &mut SeqFile,
+        owner_inner: &mut ProcessInner,
+    ) -> Result<()> {
+        let prio = self.node_prio();
+        let inner = self.inner.access_mut(owner_inner);
+        seq_print!(
+            m,
+            "  node {}: u{:016x} c{:016x} pri {}:{} hs {} hw {} cs {} cw {}",
+            self.debug_id,
+            self.ptr,
+            self.cookie,
+            prio.sched_policy,
+            prio.prio,
+            inner.strong.has_count,
+            inner.weak.has_count,
+            inner.strong.count,
+            inner.weak.count,
+        );
+        if !inner.refs.is_empty() {
+            seq_print!(m, " proc");
+            for node_ref in &inner.refs {
+                seq_print!(m, " {}", node_ref.process.task.pid());
+            }
+        }
+        seq_print!(m, "\n");
+        for t in &inner.oneway_todo {
+            t.debug_print_inner(m, "    pending async transaction ");
+        }
+        Ok(())
     }
 
     /// Insert the `NodeRef` into this `refs` list.
@@ -447,6 +485,19 @@ impl DeliverToRead for Node {
     fn should_sync_wakeup(&self) -> bool {
         false
     }
+
+    #[inline(never)]
+    fn debug_print(&self, m: &mut SeqFile, prefix: &str, _tprefix: &str) -> Result<()> {
+        seq_print!(
+            m,
+            "{}node work {}: u{:016x} c{:016x}\n",
+            prefix,
+            self.debug_id,
+            self.ptr,
+            self.cookie,
+        );
+        Ok(())
+    }
 }
 
 /// Represents something that holds one or more ref-counts to a `Node`.
@@ -492,6 +543,10 @@ impl NodeRef {
         other.weak_count = 0;
         other.strong_node_count = 0;
         other.weak_node_count = 0;
+    }
+
+    pub(crate) fn get_count(&self) -> (usize, usize) {
+        (self.strong_count, self.weak_count)
     }
 
     pub(crate) fn clone(&self, strong: bool) -> Result<NodeRef> {
@@ -787,5 +842,24 @@ impl DeliverToRead for NodeDeath {
 
     fn should_sync_wakeup(&self) -> bool {
         false
+    }
+
+    #[inline(never)]
+    fn debug_print(&self, m: &mut SeqFile, prefix: &str, _tprefix: &str) -> Result<()> {
+        let inner = self.inner.lock();
+
+        let dead_binder = inner.dead && !inner.notification_done;
+
+        if dead_binder {
+            if inner.cleared {
+                seq_print!(m, "{}has cleared dead binder\n", prefix);
+            } else {
+                seq_print!(m, "{}has dead binder\n", prefix);
+            }
+        } else {
+            seq_print!(m, "{}has cleared death notification\n", prefix);
+        }
+
+        Ok(())
     }
 }

@@ -21,6 +21,8 @@ use kernel::{
     page_range::ShrinkablePageRange,
     prelude::*,
     rbtree::{self, RBTree},
+    seq_file::SeqFile,
+    seq_print,
     sync::poll::PollTable,
     sync::{
         lock::Guard, Arc, ArcBorrow, CondVar, CondVarTimeoutResult, Mutex, SpinLock, UniqueArc,
@@ -300,6 +302,7 @@ impl ProcessInner {
 /// Used to keep track of a node that this process has a handle to.
 #[pin_data]
 pub(crate) struct NodeRefInfo {
+    debug_id: usize,
     /// The refcount that this process owns to the node.
     node_ref: ListArcField<NodeRef, { Self::LIST_PROC }>,
     death: ListArcField<Option<DArc<NodeDeath>>, { Self::LIST_PROC }>,
@@ -309,7 +312,7 @@ pub(crate) struct NodeRefInfo {
     /// The handle for this `NodeRefInfo`.
     handle: u32,
     /// The process that has a handle to the node.
-    process: Arc<Process>,
+    pub(crate) process: Arc<Process>,
 }
 
 impl NodeRefInfo {
@@ -320,6 +323,7 @@ impl NodeRefInfo {
 
     fn new(node_ref: NodeRef, handle: u32, process: Arc<Process>) -> impl PinInit<Self> {
         pin_init!(Self {
+            debug_id: super::next_debug_id(),
             node_ref: ListArcField::new(node_ref),
             death: ListArcField::new(None),
             links <- ListLinks::new(),
@@ -468,6 +472,80 @@ impl Process {
         process.ctx.register_process(list_process);
 
         Ok(process)
+    }
+
+    #[inline(never)]
+    pub(crate) fn debug_print(&self, m: &mut SeqFile, ctx: &Context) -> Result<()> {
+        seq_print!(m, "proc {}\n", self.task.pid_in_current_ns());
+        seq_print!(m, "context {}\n", &*ctx.name);
+
+        let mut all_threads = Vec::new();
+        let mut all_nodes = Vec::new();
+        loop {
+            let inner = self.inner.lock();
+            let num_threads = inner.threads.iter().count();
+            let num_nodes = inner.nodes.iter().count();
+
+            if all_threads.capacity() < num_threads || all_nodes.capacity() < num_nodes {
+                drop(inner);
+                all_threads.try_reserve(num_threads)?;
+                all_nodes.try_reserve(num_nodes)?;
+                continue;
+            }
+
+            for thread in inner.threads.values() {
+                assert!(all_threads.len() < all_threads.capacity());
+                let _ = all_threads.try_push(thread.clone());
+            }
+
+            for node in inner.nodes.values() {
+                assert!(all_nodes.len() < all_nodes.capacity());
+                let _ = all_nodes.try_push(node.clone());
+            }
+
+            break;
+        }
+
+        for thread in all_threads {
+            thread.debug_print(m);
+        }
+
+        let mut inner = self.inner.lock();
+        for node in all_nodes {
+            node.full_debug_print(m, &mut inner)?;
+        }
+        drop(inner);
+
+        let mut refs = self.node_refs.lock();
+        for r in refs.by_handle.values_mut() {
+            let node_ref = r.node_ref();
+            let dead = node_ref.node.owner.inner.lock().is_dead;
+            let (strong, weak) = node_ref.get_count();
+            let debug_id = node_ref.node.debug_id;
+
+            seq_print!(
+                m,
+                "  ref {}: desc {} {}node {debug_id} s {strong} w {weak}",
+                r.debug_id,
+                r.handle,
+                if dead { "dead " } else { "" },
+            );
+        }
+        drop(refs);
+
+        let inner = self.inner.lock();
+        for work in &inner.work {
+            work.debug_print(m, "  ", "  pending transaction")?;
+        }
+        for _death in &inner.delivered_deaths {
+            seq_print!(m, "  has delivered dead binder\n");
+        }
+        if let Some(mapping) = &inner.mapping {
+            mapping.alloc.debug_print(m)?;
+        }
+        drop(inner);
+
+        Ok(())
     }
 
     /// Attempts to fetch a work item from the process queue.
