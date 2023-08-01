@@ -8,7 +8,7 @@
 #include <linux/workqueue.h>
 
 struct ht_iterator {
-	struct trace_buffer	*trace_buffer;
+	struct hyp_trace_buffer	*hyp_buffer;
 	int			cpu;
 	struct hyp_entry_hdr	*ent;
 	unsigned long		lost_events;
