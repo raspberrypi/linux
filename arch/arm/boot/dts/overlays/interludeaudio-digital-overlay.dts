@@ -42,6 +42,7 @@
 			led1-gpio = <&gpio 13 0>;
 			led2-gpio = <&gpio 12 0>;
 			led3-gpio = <&gpio 6 0>;
+			reset-gpio = <&gpio 23 0>;
 		};
 	};
 
