@@ -918,6 +918,16 @@ config INPUT_RT5120_PWRKEY
 	  To compile this driver as a module, choose M here. the module will
 	  be called rt5120-pwrkey.
 
+config INPUT_RASPBERRYPI_BUTTON
+	tristate "Raspberry Pi button support"
+	depends on RASPBERRYPI_FIRMWARE || (COMPILE_TEST && !RASPBERRYPI_FIRMWARE)
+	help
+	  This enables support for firmware-controlled buttons on Raspberry
+	  Pi devices.
+
+	  To compile this driver as a module, choose M here. the module will
+	  be called raspberrypi-button.
+
 config INPUT_STPMIC1_ONKEY
 	tristate "STPMIC1 PMIC Onkey support"
 	depends on MFD_STPMIC1
