@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/raspberrypi,firmware-button.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Raspberry Pi firmware buttons
+
+maintainers:
+  - Phil Elwell <phil@raspberrypi.com>
+
+description: >
+  The Raspberry Pi 5 firmware exposes the state of the power button. The
+  raspberrypi-button driver generates a keycode when it is pressed.
+
+properties:
+  compatible:
+    enum:
+      - raspberrypi,firmware-button
+
+  id:
+    description: A numeric identifier of the button
+
+  label:
+    description: Descriptive name of the button.
+
+  linux,code:
+    description: Key code to emit.
+
+required:
+  - compatible
+  - linux,code
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/input/raspberrypi-button.h>
+
+    pwr_button: pwr_button {
+        compatible = "raspberrypi,firmware-button";
+        id = <RASPBERRYPI_BUTTON_POWER>;
+        label = "pwr_button";
+        linux,code = <116>; // KEY_POWER
+    };
+
+...
