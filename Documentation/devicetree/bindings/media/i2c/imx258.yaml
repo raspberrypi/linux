@@ -19,8 +19,9 @@ description: |-
 
 properties:
   compatible:
-    const: sony,imx258
-    const: sony,imx258-pdaf
+    enum:
+      - sony,imx258
+      - sony,imx258-pdaf
 
   assigned-clocks: true
   assigned-clock-parents: true
