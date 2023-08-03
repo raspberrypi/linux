@@ -73,6 +73,7 @@ struct gzvm {
 	u16 vm_id;
 };
 
+long gzvm_dev_ioctl_check_extension(struct gzvm *gzvm, unsigned long args);
 int gzvm_dev_ioctl_create_vm(unsigned long vm_type);
 
 int gzvm_err_to_errno(unsigned long err);
@@ -83,9 +84,12 @@ void gzvm_destroy_all_vms(void);
 int gzvm_arch_probe(void);
 int gzvm_arch_set_memregion(u16 vm_id, size_t buf_size,
 			    phys_addr_t region);
+int gzvm_arch_check_extension(struct gzvm *gzvm, __u64 cap, void __user *argp);
 int gzvm_arch_create_vm(unsigned long vm_type);
 int gzvm_arch_destroy_vm(u16 vm_id);
-
+int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
+				  struct gzvm_enable_cap *cap,
+				  void __user *argp);
 u64 gzvm_hva_to_pa_arch(u64 hva);
 u64 hva_to_pa_fast(u64 hva);
 u64 hva_to_pa_slow(u64 hva);
