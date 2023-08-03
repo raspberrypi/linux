@@ -769,7 +769,6 @@ static int expect_vfprintf(int llen, size_t c, const char *expected, const char 
 	lseek(fd, 0, SEEK_SET);
 
 	r = read(fd, buf, sizeof(buf) - 1);
-	buf[r] = '\0';
 
 	fclose(memfile);
 
@@ -779,6 +778,7 @@ static int expect_vfprintf(int llen, size_t c, const char *expected, const char 
 		return 1;
 	}
 
+	buf[r] = '\0';
 	llen += printf(" \"%s\" = \"%s\"", expected, buf);
 	ret = strncmp(expected, buf, c);
 
