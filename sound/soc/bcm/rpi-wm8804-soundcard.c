@@ -34,7 +34,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
-
+#include <linux/delay.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -68,7 +68,7 @@ static int wm8804_samplerate = 0;
 static struct gpio_desc *led_gpio_1;
 static struct gpio_desc *led_gpio_2;
 static struct gpio_desc *led_gpio_3;
-
+static struct gpio_desc *custom_reset;
 /* Forward declarations */
 static struct snd_soc_dai_link snd_allo_digione_dai[];
 static struct snd_soc_card snd_rpi_wm8804;
@@ -480,6 +480,10 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 		led_gpio_1 = devm_gpiod_get(&pdev->dev, "led1", GPIOD_OUT_LOW);
 		led_gpio_2 = devm_gpiod_get(&pdev->dev, "led2", GPIOD_OUT_LOW);
 		led_gpio_3 = devm_gpiod_get(&pdev->dev, "led3", GPIOD_OUT_LOW);
+		custom_reset = devm_gpiod_get(&pdev->dev, "reset", GPIOD_OUT_LOW);
+		gpiod_set_value_cansleep(custom_reset, 0);
+		mdelay(10);
+		gpiod_set_value_cansleep(custom_reset, 1);
 		if(of_property_read_u32(pdev->dev.of_node, "sys_clk", &sysclk_freq))
 		{
 			pr_err("Failed to get sys_clk, defaulting to 27MHz");
