@@ -30,7 +30,7 @@ struct host_arm_smmu_device {
 struct kvm_arm_smmu_master {
 	struct arm_smmu_device		*smmu;
 	struct device			*dev;
-	struct kvm_arm_smmu_domain	*domain;
+	struct xarray			domains;
 	u32				ssid_bits;
 };
 
@@ -143,6 +143,7 @@ static struct iommu_device *kvm_arm_smmu_probe_device(struct device *dev)
 	master->smmu = smmu;
 	device_property_read_u32(dev, "pasid-num-bits", &master->ssid_bits);
 	master->ssid_bits = min(smmu->ssid_bits, master->ssid_bits);
+	xa_init(&master->domains);
 	dev_iommu_priv_set(dev, master);
 
 	if (!device_link_add(dev, smmu->dev,
@@ -163,6 +164,7 @@ static void kvm_arm_smmu_release_device(struct device *dev)
 {
 	struct kvm_arm_smmu_master *master = dev_iommu_priv_get(dev);
 
+	xa_destroy(&master->domains);
 	kfree(master);
 	iommu_fwspec_free(dev);
 }
@@ -244,21 +246,23 @@ static void kvm_arm_smmu_domain_free(struct iommu_domain *domain)
 	kfree(kvm_smmu_domain);
 }
 
-static int kvm_arm_smmu_detach_dev(struct host_arm_smmu_device *host_smmu,
-				   struct kvm_arm_smmu_master *master)
+static int kvm_arm_smmu_detach_dev_pasid(struct host_arm_smmu_device *host_smmu,
+					 struct kvm_arm_smmu_master *master,
+					 ioasid_t pasid)
 {
 	int i, ret;
 	struct arm_smmu_device *smmu = &host_smmu->smmu;
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(master->dev);
+	struct kvm_arm_smmu_domain *domain = xa_load(&master->domains, pasid);
 
-	if (!master->domain)
+	if (!domain)
 		return 0;
 
 	for (i = 0; i < fwspec->num_ids; i++) {
 		int sid = fwspec->ids[i];
 
 		ret = kvm_call_hyp_nvhe(__pkvm_host_iommu_detach_dev,
-					host_smmu->id, master->domain->id, sid, 0);
+					host_smmu->id, domain->id, sid, pasid);
 		if (ret) {
 			dev_err(smmu->dev, "cannot detach device %s (0x%x): %d\n",
 				dev_name(master->dev), sid, ret);
@@ -266,13 +270,27 @@ static int kvm_arm_smmu_detach_dev(struct host_arm_smmu_device *host_smmu,
 		}
 	}
 
-	master->domain = NULL;
+	xa_erase(&master->domains, pasid);
 
 	return ret;
 }
 
-static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
-				   struct device *dev)
+static int kvm_arm_smmu_detach_dev(struct host_arm_smmu_device *host_smmu,
+				   struct kvm_arm_smmu_master *master)
+{
+	return kvm_arm_smmu_detach_dev_pasid(host_smmu, master, 0);
+}
+
+static void kvm_arm_smmu_remove_dev_pasid(struct device *dev, ioasid_t pasid)
+{
+	struct kvm_arm_smmu_master *master = dev_iommu_priv_get(dev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(master->smmu);
+
+	kvm_arm_smmu_detach_dev_pasid(host_smmu, master, pasid);
+}
+
+static int kvm_arm_smmu_set_dev_pasid(struct iommu_domain *domain,
+				      struct device *dev, ioasid_t pasid)
 {
 	int i, ret;
 	struct arm_smmu_device *smmu;
@@ -287,7 +305,7 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 	smmu = master->smmu;
 	host_smmu = smmu_to_host(smmu);
 
-	ret = kvm_arm_smmu_detach_dev(host_smmu, master);
+	ret = kvm_arm_smmu_detach_dev_pasid(host_smmu, master, pasid);
 	if (ret)
 		return ret;
 
@@ -302,19 +320,31 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 
 		ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_attach_dev,
 					   host_smmu->id, kvm_smmu_domain->id,
-					   sid, 0, master->ssid_bits);
+					   sid, pasid, master->ssid_bits);
 		if (ret) {
 			dev_err(smmu->dev, "cannot attach device %s (0x%x): %d\n",
 				dev_name(dev), sid, ret);
 			goto out_ret;
 		}
 	}
-	master->domain = kvm_smmu_domain;
+	ret = xa_insert(&master->domains, pasid, kvm_smmu_domain, GFP_KERNEL);
 
 out_ret:
 	if (ret)
 		kvm_arm_smmu_detach_dev(host_smmu, master);
 	return ret;
+}
+
+static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
+				   struct device *dev)
+{
+	struct kvm_arm_smmu_master *master = dev_iommu_priv_get(dev);
+
+	/* If anything other than pasid 0 attached, we can't support through attach_dev. */
+	if(!xa_empty(&master->domains) && !xa_load(&master->domains, 0))
+		return -EBUSY;
+
+	return kvm_arm_smmu_set_dev_pasid(domain, dev, 0);
 }
 
 static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
@@ -396,6 +426,7 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 	.release_device		= kvm_arm_smmu_release_device,
 	.domain_alloc		= kvm_arm_smmu_domain_alloc,
 	.pgsize_bitmap		= -1UL,
+	.remove_dev_pasid	= kvm_arm_smmu_remove_dev_pasid,
 	.owner			= THIS_MODULE,
 	.default_domain_ops = &(const struct iommu_domain_ops) {
 		.attach_dev	= kvm_arm_smmu_attach_dev,
@@ -403,6 +434,7 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 		.map_pages	= kvm_arm_smmu_map_pages,
 		.unmap_pages	= kvm_arm_smmu_unmap_pages,
 		.iova_to_phys	= kvm_arm_smmu_iova_to_phys,
+		.set_dev_pasid	= kvm_arm_smmu_set_dev_pasid,
 	}
 };
 
