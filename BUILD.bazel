@@ -12,7 +12,7 @@ load(
     "kernel_modules_install",
     "merged_kernel_uapi_headers",
 )
-load(":modules.bzl", "COMMON_GKI_MODULES_LIST")
+load(":modules.bzl", "get_gki_modules_list")
 
 package(
     default_visibility = [
@@ -39,10 +39,38 @@ _GKI_X86_64_MAKE_GOALS = [
     "modules",
 ]
 
+# Deprecated - Use arch specific files from below.
 write_file(
     name = "gki_system_dlkm_modules",
     out = "android/gki_system_dlkm_modules",
-    content = COMMON_GKI_MODULES_LIST + [
+    content = get_gki_modules_list("arm64") + [
+        # Ensure new line at the end.
+        "",
+    ],
+)
+
+write_file(
+    name = "gki_system_dlkm_modules_arm64",
+    out = "android/gki_system_dlkm_modules_arm64",
+    content = get_gki_modules_list("arm64") + [
+        # Ensure new line at the end.
+        "",
+    ],
+)
+
+write_file(
+    name = "gki_system_dlkm_modules_x86_64",
+    out = "android/gki_system_dlkm_modules_x86_64",
+    content = get_gki_modules_list("x86_64") + [
+        # Ensure new line at the end.
+        "",
+    ],
+)
+
+write_file(
+    name = "gki_system_dlkm_modules_risc64",
+    out = "android/gki_system_dlkm_modules_riscv64",
+    content = get_gki_modules_list("riscv64") + [
         # Ensure new line at the end.
         "",
     ],
@@ -50,16 +78,16 @@ write_file(
 
 define_common_kernels(target_configs = {
     "kernel_aarch64": {
-        "module_implicit_outs": COMMON_GKI_MODULES_LIST,
+        "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
     },
     "kernel_riscv64": {
-        "module_implicit_outs": COMMON_GKI_MODULES_LIST,
+        "module_implicit_outs": get_gki_modules_list("riscv64"),
         "make_goals": _GKI_RISCV64_MAKE_GOALS,
     },
     "kernel_x86_64": {
         "kmi_symbol_list_strict_mode": False,
-        "module_implicit_outs": COMMON_GKI_MODULES_LIST,
+        "module_implicit_outs": get_gki_modules_list("x86_64"),
         "make_goals": _GKI_X86_64_MAKE_GOALS,
     },
 })
@@ -411,7 +439,7 @@ kernel_build(
         "modules",
         "rk3399-rock-pi-4b.dtb",
     ],
-    module_outs = COMMON_GKI_MODULES_LIST + _ROCKPI4_MODULE_OUTS + _ROCKPI4_WATCHDOG_MODULE_OUTS,
+    module_outs = get_gki_modules_list("arm64") + _ROCKPI4_MODULE_OUTS + _ROCKPI4_WATCHDOG_MODULE_OUTS,
     visibility = ["//visibility:private"],
 )
 
@@ -434,7 +462,7 @@ kernel_build(
         "modules",
         "rk3399-rock-pi-4b.dtb",
     ],
-    module_outs = COMMON_GKI_MODULES_LIST + _ROCKPI4_MODULE_OUTS,
+    module_outs = get_gki_modules_list("arm64") + _ROCKPI4_MODULE_OUTS,
     visibility = ["//visibility:private"],
 )
 
