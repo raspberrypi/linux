@@ -7,8 +7,24 @@
 #include <linux/rcupdate.h>
 
 #include <asm/kvm_host.h>
-#include <asm/kvm_define_hypevents.h>
 #include <asm/setup.h>
+
+static const char *hyp_printk_fmt_from_id(u8 fmt_id);
+
+#include <asm/kvm_define_hypevents.h>
+
+extern struct hyp_printk_fmt __hyp_printk_fmts_start[];
+extern struct hyp_printk_fmt __hyp_printk_fmts_end[];
+
+static const char *hyp_printk_fmt_from_id(u8 fmt_id)
+{
+	u8 max_ids = __hyp_printk_fmts_end - __hyp_printk_fmts_start;
+
+	if (fmt_id >= max_ids)
+		return "Unknown Format";
+
+	return (const char *)(__hyp_printk_fmts_start + fmt_id);
+}
 
 extern struct hyp_event __hyp_events_start[];
 extern struct hyp_event __hyp_events_end[];
@@ -346,6 +362,11 @@ int hyp_trace_init_events(void)
 {
 	int nr_events = nr_events(__hyp_events_start, __hyp_events_end);
 	int nr_event_ids = nr_events(__hyp_event_ids_start, __hyp_event_ids_end);
+
+	/* __hyp_printk event only supports U8_MAX different formats */
+	WARN_ON(((unsigned long)__hyp_printk_fmts_end -
+		 (unsigned long)__hyp_printk_fmts_start)
+		> U8_MAX);
 
 	if (WARN_ON(nr_events != nr_event_ids))
 		return -EINVAL;

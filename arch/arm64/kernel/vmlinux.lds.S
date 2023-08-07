@@ -227,6 +227,11 @@ SECTIONS
 		*(_hyp_events)
 		__hyp_events_end = .;
 	}
+	.rodata.hyp_printk_fmts : {
+		__hyp_printk_fmts_start = .;
+		*(HYP_SECTION_NAME(.printk_fmts))
+		__hyp_printk_fmts_end = .;
+	}
 #endif
 	/* code sections that are never executed via the kernel mapping */
 	.rodata.text : {

@@ -43,8 +43,10 @@
 
 #undef HYP_EVENT
 #undef HE_PRINTK
+#undef HE_PRINTK_UNKNOWN_FMT
 #define __entry REC
 #define HE_PRINTK(fmt, args...) "\"" fmt "\", " __stringify(args)
+#define HE_PRINTK_UNKNOWN_FMT(fmt, args...) "Unknown"
 #define HYP_EVENT(__name, __proto, __struct, __assign, __printk)	\
 	static char hyp_event_print_fmt_##__name[] = __printk;		\
 	static bool hyp_event_enabled_##__name;				\

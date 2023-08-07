@@ -23,6 +23,11 @@ struct hyp_entry_hdr {
 	unsigned short id;
 };
 
+struct hyp_printk_fmt {
+	/* __MUST__ be the first element */
+	const char	fmt[63];
+};
+
 /*
  * Hyp events definitions common to the hyp and the host
  */
@@ -32,10 +37,11 @@ struct hyp_entry_hdr {
 		__struct				\
 	}
 
-#define HE_PROTO(args...)	args
-#define HE_STRUCT(args...)	args
-#define HE_ASSIGN(args...)	args
-#define HE_PRINTK(args...)	args
+#define HE_PROTO(args...)		args
+#define HE_STRUCT(args...)		args
+#define HE_ASSIGN(args...)		args
+#define HE_PRINTK(args...)		args
+#define HE_PRINTK_UNKNOWN_FMT(args...)	args
 
 #define he_field(type, item)	type item;
 #endif
