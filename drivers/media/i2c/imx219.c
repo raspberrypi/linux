@@ -26,6 +26,7 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
+#include <media/v4l2-rect.h>
 #include <asm/unaligned.h>
 
 #define IMX219_REG_VALUE_08BIT		1
@@ -964,7 +965,10 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 							      fmt->pad);
 			*framefmt = fmt->format;
 		} else if (imx219->mode != mode ||
-			   imx219->fmt.code != fmt->format.code) {
+			   imx219->fmt.code != fmt->format.code ||
+			   !v4l2_rect_equal(&imx219->crop, &mode->crop) ||
+			   imx219->compose.height != mode->height ||
+			   imx219->compose.width != mode->width) {
 			struct v4l2_rect curr_compose = imx219->compose;
 
 			imx219->mode = mode;
