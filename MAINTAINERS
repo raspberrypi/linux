@@ -456,6 +456,8 @@ F:	include/linux/acpi_viot.h
 ACPI WMI DRIVER
 L:	platform-driver-x86@vger.kernel.org
 S:	Orphan
+F:	Documentation/driver-api/wmi.rst
+F:	Documentation/wmi/
 F:	drivers/platform/x86/wmi.c
 F:	include/uapi/linux/wmi.h
 
@@ -2945,7 +2947,6 @@ F:	Documentation/devicetree/bindings/arm/ti/k3.yaml
 F:	Documentation/devicetree/bindings/hwinfo/ti,k3-socinfo.yaml
 F:	arch/arm64/boot/dts/ti/Makefile
 F:	arch/arm64/boot/dts/ti/k3-*
-F:	include/dt-bindings/pinctrl/k3.h
 
 ARM/TOSHIBA VISCONTI ARCHITECTURE
 M:	Nobuhiro Iwamatsu <nobuhiro1.iwamatsu@toshiba.co.jp>
@@ -5842,6 +5843,7 @@ M:	Armin Wolf <W_Armin@gmx.de>
 S:	Maintained
 F:	Documentation/ABI/testing/debugfs-dell-wmi-ddv
 F:	Documentation/ABI/testing/sysfs-platform-dell-wmi-ddv
+F:	Documentation/wmi/devices/dell-wmi-ddv.rst
 F:	drivers/platform/x86/dell/dell-wmi-ddv.c
 
 DELL WMI DESCRIPTOR DRIVER
@@ -8716,6 +8718,9 @@ F:	drivers/input/touchscreen/resistive-adc-touch.c
 GENERIC STRING LIBRARY
 R:	Andy Shevchenko <andy@kernel.org>
 S:	Maintained
+F:	include/linux/string.h
+F:	include/linux/string_choices.h
+F:	include/linux/string_helpers.h
 F:	lib/string.c
 F:	lib/string_helpers.c
 F:	lib/test-string_helpers.c
@@ -13746,6 +13751,7 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/mani/mhi.git
 F:	Documentation/ABI/stable/sysfs-bus-mhi
 F:	Documentation/mhi/
 F:	drivers/bus/mhi/
+F:	drivers/pci/endpoint/functions/pci-epf-mhi.c
 F:	include/linux/mhi.h
 
 MICROBLAZE ARCHITECTURE
@@ -16798,7 +16804,7 @@ PIN CONTROLLER - QUALCOMM
 M:	Bjorn Andersson <andersson@kernel.org>
 L:	linux-arm-msm@vger.kernel.org
 S:	Maintained
-F:	Documentation/devicetree/bindings/pinctrl/qcom,*.txt
+F:	Documentation/devicetree/bindings/pinctrl/qcom,*
 F:	drivers/pinctrl/qcom/
 
 PIN CONTROLLER - RENESAS
@@ -20266,6 +20272,13 @@ F:	Documentation/devicetree/bindings/clock/starfive,jh71*.yaml
 F:	drivers/clk/starfive/clk-starfive-jh71*
 F:	include/dt-bindings/clock/starfive?jh71*.h
 
+STARFIVE CRYPTO DRIVER
+M:	Jia Jie Ho <jiajie.ho@starfivetech.com>
+M:	William Qiu <william.qiu@starfivetech.com>
+S:	Supported
+F:	Documentation/devicetree/bindings/crypto/starfive*
+F:	drivers/crypto/starfive/
+
 STARFIVE JH71X0 PINCTRL DRIVERS
 M:	Emil Renner Berthing <kernel@esmil.dk>
 M:	Jianlong Huang <jianlong.huang@starfivetech.com>
@@ -22255,6 +22268,13 @@ F:	Documentation/filesystems/vfat.rst
 F:	fs/fat/
 F:	tools/testing/selftests/filesystems/fat/
 
+VFIO CDX DRIVER
+M:	Nipun Gupta <nipun.gupta@amd.com>
+M:	Nikhil Agarwal <nikhil.agarwal@amd.com>
+L:	kvm@vger.kernel.org
+S:	Maintained
+F:	drivers/vfio/cdx/*
+
 VFIO DRIVER
 M:	Alex Williamson <alex.williamson@redhat.com>
 L:	kvm@vger.kernel.org
@@ -22916,6 +22936,13 @@ WL3501 WIRELESS PCMCIA CARD DRIVER
 L:	linux-wireless@vger.kernel.org
 S:	Odd fixes
 F:	drivers/net/wireless/legacy/wl3501*
+
+WMI BINARY MOF DRIVER
+L:	platform-drivers-x86@vger.kernel.org
+S:	Orphan
+F:	Documentation/ABI/stable/sysfs-platform-wmi-bmof
+F:	Documentation/wmi/devices/wmi-bmof.rst
+F:	drivers/platform/x86/wmi-bmof.c
 
 WOLFSON MICROELECTRONICS DRIVERS
 L:	patches@opensource.cirrus.com
