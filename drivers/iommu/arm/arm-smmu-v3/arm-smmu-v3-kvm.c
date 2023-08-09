@@ -762,8 +762,9 @@ static int kvm_arm_smmu_v3_init(void)
 	 */
 	kvm_hyp_arm_smmu_v3_smmus = kvm_arm_smmu_array;
 	kvm_hyp_arm_smmu_v3_count = kvm_arm_smmu_count;
-	kvm_hyp_iommu_memcaches = kern_hyp_va(kvm_arm_smmu_memcache);
-	return 0;
+
+	return kvm_iommu_init_hyp(kern_hyp_va(lm_alias(&kvm_nvhe_sym(smmu_ops))),
+				  kvm_arm_smmu_memcache, 0);
 
 err_free:
 	kvm_arm_smmu_array_free();
@@ -782,7 +783,7 @@ struct kvm_iommu_driver kvm_smmu_v3_ops = {
 
 static int kvm_arm_smmu_v3_register(void)
 {
-	return kvm_iommu_register_driver(&kvm_smmu_v3_ops, lm_alias(&kvm_nvhe_sym(smmu_ops)));
+	return kvm_iommu_register_driver(&kvm_smmu_v3_ops);
 }
 
 core_initcall(kvm_arm_smmu_v3_register);

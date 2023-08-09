@@ -488,15 +488,11 @@ static int smmu_init_device(struct hyp_arm_smmu_v3_device *smmu)
 	return kvm_iommu_init_device(&smmu->iommu);
 }
 
-static int smmu_init(void)
+static int smmu_init(unsigned long init_arg)
 {
 	int ret;
 	struct hyp_arm_smmu_v3_device *smmu;
 	int smmu_arr_size = PAGE_ALIGN(sizeof(*kvm_hyp_arm_smmu_v3_smmus) * kvm_hyp_arm_smmu_v3_count);
-
-	ret = kvm_iommu_init();
-	if (ret)
-		return ret;
 
 	kvm_hyp_arm_smmu_v3_smmus = kern_hyp_va(kvm_hyp_arm_smmu_v3_smmus);
 

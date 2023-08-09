@@ -11,13 +11,13 @@
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 
-struct kvm_hyp_iommu_memcache __ro_after_init *kvm_hyp_iommu_memcaches;
 #define KVM_IOMMU_PADDR_CACHE_MAX		((size_t)511)
 struct kvm_iommu_paddr_cache {
 	unsigned short	ptr;
 	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
 };
 static DEFINE_PER_CPU(struct kvm_iommu_paddr_cache, kvm_iommu_unmap_cache);
+struct kvm_hyp_iommu_memcache *kvm_hyp_iommu_memcaches;
 
 void *kvm_iommu_donate_page(void)
 {
@@ -360,19 +360,30 @@ int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 				    KVM_IOMMU_DOMAINS_ROOT_ENTRIES, PAGE_HYP);
 }
 
-int kvm_iommu_init(void)
+int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
+		   unsigned long init_arg)
 {
 	enum kvm_pgtable_prot prot;
+	int ret;
 
-	if (WARN_ON(!kvm_iommu_ops->get_iommu_by_id ||
-		    !kvm_iommu_ops->alloc_domain ||
-		    !kvm_iommu_ops->free_domain ||
-		    !kvm_iommu_ops->attach_dev ||
-		    !kvm_iommu_ops->detach_dev))
+	if (WARN_ON(!ops->get_iommu_by_id ||
+		    !ops->alloc_domain ||
+		    !ops->free_domain ||
+		    !ops->attach_dev ||
+		    !ops->detach_dev))
 		return -ENODEV;
+
+	ret = ops->init ? ops->init(init_arg) : 0;
+	if (ret)
+		return ret;
 
 	/* The memcache is shared with the host */
 	prot = pkvm_mkstate(PAGE_HYP, PKVM_PAGE_SHARED_OWNED);
-	return pkvm_create_mappings(kvm_hyp_iommu_memcaches,
-				    kvm_hyp_iommu_memcaches + NR_CPUS, prot);
+	ret = pkvm_create_mappings(mc, mc + NR_CPUS, prot);
+	if (ret)
+		return ret;
+
+	kvm_iommu_ops = ops;
+	kvm_hyp_iommu_memcaches = mc;
+	return 0;
 }

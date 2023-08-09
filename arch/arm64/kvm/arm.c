@@ -2301,15 +2301,9 @@ static int __init kvm_hyp_init_protection(u32 hyp_va_bits)
 	if (ret)
 		return ret;
 
-	ret = kvm_iommu_init_driver();
-	if (ret < 0)
-		return ret;
-
 	ret = do_pkvm_init(hyp_va_bits);
-	if (ret) {
-		kvm_iommu_remove_driver();
+	if (ret)
 		return ret;
-	}
 
 	free_hyp_pgds();
 

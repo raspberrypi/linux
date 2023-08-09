@@ -1290,8 +1290,16 @@ static inline void kvm_hyp_reserve(void) { }
 void kvm_arm_vcpu_power_off(struct kvm_vcpu *vcpu);
 bool kvm_arm_vcpu_stopped(struct kvm_vcpu *vcpu);
 
-struct kvm_iommu_ops;
-int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops, struct kvm_iommu_ops *el2_ops);
 int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
+
+struct kvm_iommu_ops;
+struct kvm_hyp_iommu_memcache;
+
+int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
+		       struct kvm_hyp_iommu_memcache *mc,
+		       unsigned long init_arg);
+
+int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops);
+
 #endif /* __ARM64_KVM_HOST_H__ */

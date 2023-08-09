@@ -14,7 +14,6 @@
 #include <nvhe/early_alloc.h>
 #include <nvhe/ffa.h>
 #include <nvhe/gfp.h>
-#include <nvhe/iommu.h>
 #include <nvhe/memory.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
@@ -371,12 +370,6 @@ void __noreturn __pkvm_init_finalise(void)
 	if (ret)
 		goto out;
 
-	if (kvm_iommu_ops->init) {
-		ret = kvm_iommu_ops->init();
-		if (ret)
-			goto out;
-	}
-
 	ret = fix_host_ownership();
 	if (ret)
 		goto out;
@@ -431,10 +424,6 @@ int __pkvm_init(phys_addr_t phys, unsigned long size, unsigned long nr_cpus,
 	ret = hyp_alloc_init(SZ_128M);
 	if (ret)
 		return ret;
-
-	kvm_iommu_ops = kern_hyp_va(kvm_iommu_ops);
-	if (!kvm_iommu_ops)
-		return -EINVAL;
 
 	update_nvhe_init_params();
 

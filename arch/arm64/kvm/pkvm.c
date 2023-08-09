@@ -427,6 +427,12 @@ static int __init finalize_pkvm(void)
 	if (pkvm_load_early_modules())
 		pkvm_firmware_rmem_clear();
 
+	ret = kvm_iommu_init_driver();
+	if (ret) {
+		pr_err("Failed to init KVM IOMMU driver: %d\n", ret);
+		pkvm_firmware_rmem_clear();
+	}
+
 	/*
 	 * Exclude HYP sections from kmemleak so that they don't get peeked
 	 * at, which would end badly once inaccessible.
@@ -436,8 +442,10 @@ static int __init finalize_pkvm(void)
 	kmemleak_free_part_phys(hyp_mem_base, hyp_mem_size);
 
 	ret = pkvm_drop_host_privileges();
-	if (ret)
+	if (ret) {
 		pr_err("Failed to finalize Hyp protection: %d\n", ret);
+		kvm_iommu_remove_driver();
+	}
 
 	return ret;
 }
