@@ -437,6 +437,7 @@ static int jdi_panel_add(struct jdi_panel *jdi)
 		return ret;
 	}
 
+	jdi->base.prepare_upstream_first = true;
 	drm_panel_init(&jdi->base, &jdi->dsi->dev, &jdi_panel_funcs,
 		       DRM_MODE_CONNECTOR_DSI);
 
