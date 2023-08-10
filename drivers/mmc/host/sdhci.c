@@ -1095,7 +1095,7 @@ static void sdhci_initialize_data(struct sdhci_host *host,
 	WARN_ON(host->data);
 
 	/* Sanity checks */
-	BUG_ON(data->blksz * data->blocks > 524288);
+	BUG_ON(data->blksz * data->blocks > host->mmc->max_req_size);
 	BUG_ON(data->blksz > host->mmc->max_blk_size);
 	BUG_ON(data->blocks > 65535);
 
@@ -4720,11 +4720,18 @@ int sdhci_setup_host(struct sdhci_host *host)
 
 	/*
 	 * Maximum number of sectors in one transfer. Limited by SDMA boundary
-	 * size (512KiB). Note some tuning modes impose a 4MiB limit, but this
-	 * is less anyway.
+	 * size and by tuning modes on ADMA. On tuning mode 3 16MiB is more than
+	 * enough to cover big data transfers.
 	 */
-	mmc->max_req_size = 524288;
-
+	if (host->flags & SDHCI_USE_ADMA) {
+		if (host->tuning_mode != SDHCI_TUNING_MODE_3)
+			mmc->max_req_size = 4194304;
+		else
+			mmc->max_req_size = 16777216;
+	} else {
+		/* On PIO/SDMA use SDMA boundary size (512KiB). */
+		mmc->max_req_size = 524288;
+	}
 	/*
 	 * Maximum number of segments. Depends on if the hardware
 	 * can do scatter/gather or not.

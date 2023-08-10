@@ -339,11 +339,11 @@ struct sdhci_adma2_64_desc {
 #define ADMA2_END		0x2
 
 /*
- * Maximum segments assuming a 512KiB maximum requisition size and a minimum
+ * Maximum segments assuming a 16MiB maximum requisition size and a minimum
  * 4KiB page size. Note this also allows enough for multiple descriptors in
  * case of PAGE_SIZE >= 64KiB.
  */
-#define SDHCI_MAX_SEGS		128
+#define SDHCI_MAX_SEGS		4096
 
 /* Allow for a a command request and a data request at the same time */
 #define SDHCI_MAX_MRQS		2
