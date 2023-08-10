@@ -520,16 +520,17 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 			   u32 sid)
 {
 	int i;
-	int ret;
+	int ret = -EINVAL;
 	u64 *dst;
 	struct io_pgtable_cfg *cfg;
 	u64 ts, sl, ic, oc, sh, tg, ps;
 	u64 ent[STRTAB_STE_DWORDS] = {};
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
 
+	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
 	if (!dst || dst[0] || !domain->pgtable)
-		return -EINVAL;
+		goto out_unlock;
 
 	cfg = &domain->pgtable->cfg;
 	ps = cfg->arm_lpae_s2_cfg.vtcr.ps;
@@ -564,12 +565,14 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 
 	ret = smmu_sync_ste(smmu, sid);
 	if (ret)
-		return ret;
+		goto out_unlock;
 
 	WRITE_ONCE(dst[0], cpu_to_le64(ent[0]));
 	ret = smmu_sync_ste(smmu, sid);
 	WARN_ON(ret);
 
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
 	return ret;
 }
 
@@ -577,22 +580,26 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 			   u32 sid)
 {
 	u64 *dst;
-	int i, ret;
+	int i, ret = -ENODEV;
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
 
+	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
 	if (!dst)
-		return -ENODEV;
+		goto out_unlock;
 
 	dst[0] = 0;
 	ret = smmu_sync_ste(smmu, sid);
 	if (ret)
-		return ret;
+		goto out_unlock;
 
 	for (i = 1; i < STRTAB_STE_DWORDS; i++)
 		dst[i] = 0;
 
-	return smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, sid);
+out_unlock:
+	hyp_spin_unlock(&iommu->lock);
+	return ret;
 }
 
 int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva)
