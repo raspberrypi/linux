@@ -39,7 +39,7 @@ struct kvm_hyp_iommu_domain {
 	struct io_pgtable	*pgtable;
 	u32			refs;
 	pkvm_handle_t		domain_id;
-	struct kvm_hyp_iommu	*iommu;
+	void			*priv;
 };
 
 /*

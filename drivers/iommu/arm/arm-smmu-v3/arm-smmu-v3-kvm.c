@@ -233,7 +233,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 
 	local_lock_irq(&memcache_lock);
 	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
-				   host_smmu->id, kvm_smmu_domain->id, pgd);
+				   kvm_smmu_domain->id, pgd);
 	local_unlock_irq(&memcache_lock);
 	if (ret)
 		goto err_free_pgd;

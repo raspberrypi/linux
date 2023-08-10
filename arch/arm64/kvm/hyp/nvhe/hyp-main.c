@@ -1465,11 +1465,10 @@ static void handle___pkvm_hyp_alloc_reclaim(struct kvm_cpu_context *host_ctxt)
 
 static void handle___pkvm_host_iommu_alloc_domain(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(pkvm_handle_t, iommu, host_ctxt, 1);
-	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 2);
-	DECLARE_REG(unsigned long, pgd_hva, host_ctxt, 3);
+	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned long, pgd_hva, host_ctxt, 2);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_alloc_domain(iommu, domain, pgd_hva);
+	cpu_reg(host_ctxt, 1) = kvm_iommu_alloc_domain(domain, pgd_hva);
 }
 
 static void handle___pkvm_host_iommu_free_domain(struct kvm_cpu_context *host_ctxt)

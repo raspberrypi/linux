@@ -7,6 +7,7 @@
 #include <asm/arm-smmu-v3-regs.h>
 #include <asm/kvm_hyp.h>
 #include <kvm/arm_smmu_v3.h>
+#include <nvhe/alloc.h>
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
@@ -16,6 +17,12 @@
 
 size_t __ro_after_init kvm_hyp_arm_smmu_v3_count;
 struct hyp_arm_smmu_v3_device *kvm_hyp_arm_smmu_v3_smmus;
+
+struct hyp_arm_smmu_v3_domain {
+	struct kvm_hyp_iommu_domain     *domain;
+	struct kvm_hyp_iommu            *iommu;
+	u64				pgd;
+};
 
 #define for_each_smmu(smmu) \
 	for ((smmu) = kvm_hyp_arm_smmu_v3_smmus; \
@@ -399,7 +406,8 @@ static struct hyp_arm_smmu_v3_device *to_smmu(struct kvm_hyp_iommu *iommu)
 static void smmu_tlb_flush_all(void *cookie)
 {
 	struct kvm_hyp_iommu_domain *domain = cookie;
-	struct hyp_arm_smmu_v3_device *smmu = to_smmu(domain->iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_TLBI_S12_VMALL,
 		.tlbi.vmid = domain->domain_id,
@@ -412,7 +420,8 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 			       unsigned long iova, size_t size, size_t granule,
 			       bool leaf)
 {
-	struct hyp_arm_smmu_v3_device *smmu = to_smmu(domain->iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
 	unsigned long end = iova + size;
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_TLBI_S2_IPA,
@@ -516,6 +525,18 @@ static struct kvm_hyp_iommu *smmu_id_to_iommu(pkvm_handle_t smmu_id)
 	return &kvm_hyp_arm_smmu_v3_smmus[smmu_id].iommu;
 }
 
+int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
+{
+	int ret;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
+
+	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
+						   smmu_domain->pgd, domain, &ret);
+
+	return ret;
+}
+
 static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			   u32 sid)
 {
@@ -526,11 +547,29 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	u64 ts, sl, ic, oc, sh, tg, ps;
 	u64 ent[STRTAB_STE_DWORDS] = {};
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
 	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
-	if (!dst || dst[0] || !domain->pgtable)
+	if (!dst || dst[0])
 		goto out_unlock;
+
+	/*
+	 * First attach to the domain, this is over protected by the all domain locks,
+	 * as there is no per-domain lock now, this can be improved later.
+	 * However, as this operation is not on the hot path, it should be fine.
+	 */
+	if (!domain->pgtable) {
+		smmu_domain->iommu = iommu;
+		ret = smmu_domain_finalise(domain);
+		if (ret)
+			goto out_unlock;
+	}
+
+	if (smmu_domain->iommu != iommu) {
+		ret = -EBUSY;
+		goto out_unlock;
+	}
 
 	cfg = &domain->pgtable->cfg;
 	ps = cfg->arm_lpae_s2_cfg.vtcr.ps;
@@ -604,18 +643,30 @@ out_unlock:
 
 int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva)
 {
-	int ret;
-	struct hyp_arm_smmu_v3_device *smmu = to_smmu(domain->iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain;
 
-	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
-						   pgd_hva, domain, &ret);
+	smmu_domain = hyp_alloc(sizeof(struct hyp_arm_smmu_v3_domain));
+	if (!smmu_domain)
+		return hyp_alloc_errno();
 
-	return ret;
+	/* Can't do much without the IOMMU. */
+	smmu_domain->pgd = pgd_hva;
+	smmu_domain->domain = domain;
+	domain->priv = (void *)smmu_domain;
+
+	return 0;
 }
 
 void smmu_free_domain(struct kvm_hyp_iommu_domain *domain)
 {
-	kvm_arm_io_pgtable_free(domain->pgtable);
+	/*
+	 * As page table allocation is decoupled from alloc_domain, free_domain can
+	 * be called with a domain that have never been attached.
+	 */
+	if (domain->pgtable)
+		kvm_arm_io_pgtable_free(domain->pgtable);
+
+	hyp_free(domain->priv);
 }
 
 struct kvm_iommu_ops smmu_ops = {

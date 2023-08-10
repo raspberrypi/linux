@@ -22,8 +22,7 @@ void *kvm_iommu_donate_page(void);
 void kvm_iommu_reclaim_page(void *p);
 
 /* Hypercall handlers */
-int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
-			   unsigned long pgd_hva);
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, unsigned long pgd_hva);
 int kvm_iommu_free_domain(pkvm_handle_t domain_id);
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id);

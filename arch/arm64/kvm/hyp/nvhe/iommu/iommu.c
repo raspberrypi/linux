@@ -80,27 +80,17 @@ handle_to_domain(pkvm_handle_t domain_id)
 	return &domains[domain_id & KVM_IOMMU_DOMAIN_ID_LEAF_MASK];
 }
 
-int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
-			   unsigned long pgd_hva)
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, unsigned long pgd_hva)
 {
-	int ret;
-	struct kvm_hyp_iommu *iommu;
+	int ret = -EINVAL;
 	struct kvm_hyp_iommu_domain *domain;
-
-	iommu = kvm_iommu_ops->get_iommu_by_id(iommu_id);
-	if (!iommu)
-		return -EINVAL;
 
 	hyp_spin_lock(&iommu_domains_lock);
 	domain = handle_to_domain(domain_id);
-	if (!domain)
-		goto out_unlock;
-
-	if (domain->refs)
+	if (!domain || domain->refs)
 		goto out_unlock;
 
 	domain->domain_id = domain_id;
-	domain->iommu = iommu;
 	ret = kvm_iommu_ops->alloc_domain(domain, pgd_hva);
 	if (ret)
 		goto out_unlock;
@@ -212,7 +202,7 @@ size_t kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 
 	hyp_spin_lock(&iommu_domains_lock);
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || !domain->pgtable || !domain->pgtable->ops.map_pages)
 		goto err_unlock;
 
 	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
@@ -294,7 +284,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 
 	hyp_spin_lock(&iommu_domains_lock);
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || !domain->pgtable || !domain->pgtable->ops.unmap_leaf)
 		goto out_unlock;
 
 	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
@@ -326,7 +316,8 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 
 	hyp_spin_lock(&iommu_domains_lock);
 	domain = handle_to_domain( domain_id);
-	if (domain)
+
+	if (domain && domain->pgtable && domain->pgtable->ops.iova_to_phys)
 		phys = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
 
 	hyp_spin_unlock(&iommu_domains_lock);
