@@ -1479,6 +1479,7 @@ struct dc_link {
 	 * object creation.
 	 */
 	enum engine_id eng_id;
+	enum engine_id dpia_preferred_eng_id;
 
 	bool test_pattern_enabled;
 	union compliance_test_state compliance_test_state;
