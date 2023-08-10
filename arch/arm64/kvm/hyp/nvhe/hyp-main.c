@@ -1469,8 +1469,9 @@ static void handle___pkvm_host_iommu_alloc_domain(struct kvm_cpu_context *host_c
 {
 	int ret;
 	DECLARE_REG(pkvm_handle_t, domain, host_ctxt, 1);
+	DECLARE_REG(unsigned int, type, host_ctxt, 2);
 
-	ret = kvm_iommu_alloc_domain(domain);
+	ret = kvm_iommu_alloc_domain(domain, type);
 	hyp_reqs_smccc_encode(ret, host_ctxt, this_cpu_ptr(&host_hyp_reqs));
 }
 

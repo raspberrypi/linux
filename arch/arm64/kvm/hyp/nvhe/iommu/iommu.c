@@ -146,7 +146,7 @@ static void domain_put(struct kvm_hyp_iommu_domain *domain)
 	BUG_ON(!atomic_dec_return_release(&domain->refs));
 }
 
-int kvm_iommu_alloc_domain(pkvm_handle_t domain_id)
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, u32 type)
 {
 	int ret = -EINVAL;
 	struct kvm_hyp_iommu_domain *domain;
@@ -157,7 +157,7 @@ int kvm_iommu_alloc_domain(pkvm_handle_t domain_id)
 		goto out_unlock;
 
 	domain->domain_id = domain_id;
-	ret = kvm_iommu_ops->alloc_domain(domain);
+	ret = kvm_iommu_ops->alloc_domain(domain, type);
 	if (ret)
 		goto out_unlock;
 

@@ -207,7 +207,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 	kvm_smmu_domain->id = ret;
 
 	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
-				   kvm_smmu_domain->id);
+				   kvm_smmu_domain->id, KVM_ARM_SMMU_DOMAIN_S2);
 	if (ret)
 		return ret;
 

@@ -26,7 +26,7 @@ int kvm_iommu_request(struct kvm_hyp_req *req);
 #define kvm_iommu_donate_pages_request(order)	kvm_iommu_donate_pages(order, true)
 
 /* Hypercall handlers */
-int kvm_iommu_alloc_domain(pkvm_handle_t domain_id);
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, u32 type);
 int kvm_iommu_free_domain(pkvm_handle_t domain_id);
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid, u32 pasid_bits);
@@ -43,12 +43,13 @@ bool kvm_iommu_host_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
 	struct kvm_hyp_iommu *(*get_iommu_by_id)(pkvm_handle_t smmu_id);
-	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain);
+	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain, u32 type);
 	void (*free_domain)(struct kvm_hyp_iommu_domain *domain);
 	int (*attach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			  u32 endpoint_id, u32 pasid, u32 pasid_bits);
 	int (*detach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			  u32 endpoint_id, u32 pasid);
+
 	bool (*dabt_handler)(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
 	int (*suspend)(struct kvm_hyp_iommu *iommu);
 	int (*resume)(struct kvm_hyp_iommu *iommu);
