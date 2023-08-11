@@ -20,6 +20,8 @@ struct host_arm_smmu_device {
 	pkvm_handle_t			id;
 	u32				boot_gbpa;
 	bool				hvc_pd;
+	unsigned long			pgsize_bitmap_s1;
+	unsigned long			pgsize_bitmap_s2;
 };
 
 #define smmu_to_host(_smmu) \
@@ -193,6 +195,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 {
 	int ret = 0;
 	struct arm_smmu_device *smmu = master->smmu;
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
 
 	if (kvm_smmu_domain->smmu) {
 		if (kvm_smmu_domain->smmu != smmu)
@@ -211,7 +214,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 	if (ret)
 		return ret;
 
-	kvm_smmu_domain->domain.pgsize_bitmap = smmu->pgsize_bitmap;
+	kvm_smmu_domain->domain.pgsize_bitmap = host_smmu->pgsize_bitmap_s2;
 	kvm_smmu_domain->domain.geometry.aperture_end = (1UL << smmu->ias) - 1;
 	kvm_smmu_domain->domain.geometry.force_aperture = true;
 	kvm_smmu_domain->smmu = smmu;
@@ -633,13 +636,14 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	bool bypass;
 	struct resource *res;
 	phys_addr_t mmio_addr;
-	struct io_pgtable_cfg cfg;
+	struct io_pgtable_cfg cfg_s1, cfg_s2;
 	size_t mmio_size, pgd_size;
 	struct arm_smmu_device *smmu;
 	struct device *dev = &pdev->dev;
 	struct host_arm_smmu_device *host_smmu;
 	struct hyp_arm_smmu_v3_device *hyp_smmu;
 	struct kvm_power_domain power_domain = {};
+	unsigned long ias;
 
 	if (kvm_arm_smmu_cur >= kvm_arm_smmu_count)
 		return -ENOSPC;
@@ -693,30 +697,43 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	else
 		kvm_arm_smmu_ops.pgsize_bitmap |= smmu->pgsize_bitmap;
 
+	ias = (smmu->features & ARM_SMMU_FEAT_VAX) ? 52 : 48;
+
 	/*
-	 * Stage-1 should be easy to support, though we do need to allocate a
-	 * context descriptor table.
+	 * SMMU will hold possible configuration for both S1 and S2 as any of
+	 * them can be chosen when a device is attached.
 	 */
-	cfg = (struct io_pgtable_cfg) {
-		.fmt = ARM_64_LPAE_S2,
+	cfg_s1 = (struct io_pgtable_cfg) {
+		.fmt = ARM_64_LPAE_S1,
 		.pgsize_bitmap = smmu->pgsize_bitmap,
-		.ias = smmu->ias,
-		.oas = smmu->oas,
+		.ias = min_t(unsigned long, ias, VA_BITS),
+		.oas = smmu->ias,
 		.coherent_walk = smmu->features & ARM_SMMU_FEAT_COHERENCY,
+	};
+	cfg_s2 = (struct io_pgtable_cfg) {
+		  .fmt = ARM_64_LPAE_S2,
+		  .pgsize_bitmap = smmu->pgsize_bitmap,
+		  .ias = smmu->ias,
+		  .oas = smmu->oas,
+		  .coherent_walk = smmu->features & ARM_SMMU_FEAT_COHERENCY,
 	};
 
 	/*
 	 * Choose the page and address size. Compute the PGD size as well, so we
 	 * know how much memory to pre-allocate.
 	 */
-	ret = io_pgtable_configure(&cfg, &pgd_size);
-	if (ret)
-		return ret;
-
-	smmu->pgsize_bitmap = cfg.pgsize_bitmap;
-	smmu->ias = cfg.ias;
-	smmu->oas = cfg.oas;
-
+	if (smmu->features & ARM_SMMU_FEAT_TRANS_S1) {
+		ret = io_pgtable_configure(&cfg_s1, &pgd_size);
+		if (ret)
+			return ret;
+		host_smmu->pgsize_bitmap_s1 = cfg_s1.pgsize_bitmap;
+	}
+	if (smmu->features & ARM_SMMU_FEAT_TRANS_S2) {
+		ret = io_pgtable_configure(&cfg_s2, &pgd_size);
+		if (ret)
+			return ret;
+		host_smmu->pgsize_bitmap_s2 = cfg_s2.pgsize_bitmap;
+	}
 	ret = arm_smmu_init_one_queue(smmu, &smmu->cmdq.q, smmu->base,
 				      ARM_SMMU_CMDQ_PROD, ARM_SMMU_CMDQ_CONS,
 				      CMDQ_ENT_DWORDS, "cmdq");
@@ -746,7 +763,8 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	hyp_smmu->mmio_addr = mmio_addr;
 	hyp_smmu->mmio_size = mmio_size;
 	hyp_smmu->features = smmu->features;
-	hyp_smmu->pgtable_cfg = cfg;
+	hyp_smmu->pgtable_cfg_s1 = cfg_s1;
+	hyp_smmu->pgtable_cfg_s2 = cfg_s2;
 	hyp_smmu->iommu.power_domain = power_domain;
 	hyp_smmu->ssid_bits = smmu->ssid_bits;
 

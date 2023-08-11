@@ -545,7 +545,8 @@ static int smmu_init_device(struct hyp_arm_smmu_v3_device *smmu)
 		return ret;
 
 	smmu->base = hyp_phys_to_virt(smmu->mmio_addr);
-	smmu->pgtable_cfg.tlb = &smmu_tlb_ops;
+	smmu->pgtable_cfg_s1.tlb = &smmu_tlb_ops;
+	smmu->pgtable_cfg_s2.tlb = &smmu_tlb_ops;
 
 	ret = smmu_init_registers(smmu);
 	if (ret)
@@ -629,11 +630,16 @@ int smmu_domain_config_s2(struct kvm_hyp_iommu_domain *domain, u64 *ent)
 int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
 {
 	int ret;
+	struct io_pgtable_cfg *cfg;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
 
-	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
-						   domain, &ret);
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2)
+		cfg = &smmu->pgtable_cfg_s2;
+	else
+		cfg = &smmu->pgtable_cfg_s1;
+
+	domain->pgtable = kvm_arm_io_pgtable_alloc(cfg, domain, &ret);
 
 	return ret;
 }
