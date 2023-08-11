@@ -371,7 +371,7 @@ static const struct adreno_info gpulist[] = {
 		.rev = ADRENO_REV(6, 9, 0, ANY_ID),
 		.fw = {
 			[ADRENO_FW_SQE] = "a660_sqe.fw",
-			[ADRENO_FW_GMU] = "a690_gmu.bin",
+			[ADRENO_FW_GMU] = "a660_gmu.bin",
 		},
 		.gmem = SZ_4M,
 		.inactive_period = DRM_MSM_INACTIVE_PERIOD,
