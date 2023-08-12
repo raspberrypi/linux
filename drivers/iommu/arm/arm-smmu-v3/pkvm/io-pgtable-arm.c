@@ -54,7 +54,12 @@ void __arm_lpae_sync_pte(arm_lpae_iopte *ptep, int num_entries,
 int kvm_arm_io_pgtable_init(struct io_pgtable_cfg *cfg,
 			    struct arm_lpae_io_pgtable *data)
 {
-	int ret = arm_lpae_init_pgtable_s2(cfg, data);
+	int ret = -EINVAL;
+
+	if (cfg->fmt == ARM_64_LPAE_S2)
+		ret = arm_lpae_init_pgtable_s2(cfg, data);
+	else if (cfg->fmt == ARM_64_LPAE_S1)
+		ret = arm_lpae_init_pgtable_s1(cfg, data);
 
 	if (ret)
 		return ret;
