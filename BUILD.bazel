@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (C) 2021 The Android Open Source Project
 
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
+load("//build/bazel_common_rules/zip:zip.bzl", "zip_archive")
 load("//build/kernel/kleaf:common_kernels.bzl", "define_common_kernels")
 load(
     "//build/kernel/kleaf:kernel.bzl",
+    "android_filegroup",
     "checkpatch",
     "ddk_headers",
     "kernel_build",
@@ -13,6 +16,7 @@ load(
     "kernel_modules_install",
     "merged_kernel_uapi_headers",
 )
+load(":abi.bzl", "cc_binary_with_abi")
 load(":modules.bzl", "get_gki_modules_list")
 
 package(
@@ -826,4 +830,100 @@ ddk_headers(
     # Unsafe include directories are appended to ccflags-y.
     includes = [],
     visibility = ["//visibility:private"],
+)
+
+_KSELFTEST_DIR = "testcases/selftests"
+
+config_setting(
+    name = "x86_64",
+    values = {"platforms": "//build/kernel/kleaf/impl:android_x86_64"},
+    visibility = ["//visibility:private"],
+)
+
+config_setting(
+    name = "arm64",
+    values = {"platforms": "//build/kernel/kleaf/impl:android_arm64"},
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "kselftest_headers_lib",
+    hdrs = glob(["tools/testing/selftests/*.h"]),
+    visibility = ["//visibility:private"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_binderfs_test",
+    srcs = ["tools/testing/selftests/filesystems/binderfs/binderfs_test.c"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_breakpoints_tests_step_after_suspend_test",
+    srcs = ["tools/testing/selftests/breakpoints/step_after_suspend_test.c"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_breakpoints_tests_breakpoint_test",
+    srcs = select({
+        ":x86_64": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
+        ":arm64": ["tools/testing/selftests/breakpoints/breakpoint_test_arm64.c"],
+    }),
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+copy_file(
+    name = "kselftest_gen_config",
+    src = select({
+        ":x86_64": "tools/testing/selftests/android/config_x86_64.xml",
+        ":arm64": "tools/testing/selftests/android/config_arm64.xml",
+    }),
+    out = _KSELFTEST_DIR + "/selftests.config",
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
+    name = "kselftest_tests_x86_64",
+    srcs = [
+        ":kselftest_binderfs_test_x86_64",
+        ":kselftest_breakpoints_tests_breakpoint_test_x86_64",
+        ":kselftest_breakpoints_tests_step_after_suspend_test_x86_64",
+        ":kselftest_gen_config",
+    ],
+    cpu = "x86_64",
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
+    name = "kselftest_tests_arm64",
+    srcs = [
+        ":kselftest_binderfs_test_arm64",
+        ":kselftest_breakpoints_tests_breakpoint_test_arm64",
+        ":kselftest_breakpoints_tests_step_after_suspend_test_arm64",
+        ":kselftest_gen_config",
+    ],
+    cpu = "arm64",
+    visibility = ["//visibility:private"],
+)
+
+zip_archive(
+    name = "tests_zip_x86_64",
+    srcs = [":kselftest_tests_x86_64"],
+    out = "tests.zip",
+)
+
+zip_archive(
+    name = "tests_zip_arm64",
+    srcs = [":kselftest_tests_arm64"],
+    out = "tests.zip",
 )
