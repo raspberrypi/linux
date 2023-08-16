@@ -1212,8 +1212,14 @@ static enum pkvm_page_state guest_get_page_state(kvm_pte_t pte, u64 addr)
 	enum pkvm_page_state state = 0;
 	enum kvm_pgtable_prot prot;
 
-	if (!kvm_pte_valid(pte))
-		return PKVM_NOPAGE;
+	if (!kvm_pte_valid(pte)) {
+		state = PKVM_NOPAGE;
+
+		if (pte == KVM_INVALID_PTE_MMIO_NOTE)
+			state |= PKVM_MMIO;
+
+		return state;
+	}
 
 	prot = kvm_pgtable_stage2_pte_prot(pte);
 	if (kvm_pte_valid(pte) && ((prot & KVM_PGTABLE_PROT_RWX) != KVM_PGTABLE_PROT_RWX))
