@@ -5,6 +5,8 @@
 #include <asm/kvm_host.h>
 #include <asm/kvm_pkvm_module.h>
 
+#include <nvhe/alloc.h>
+#include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
@@ -77,11 +79,6 @@ void __pkvm_close_module_registration(void)
 	 */
 }
 
-static int __pkvm_module_host_donate_hyp(u64 pfn, u64 nr_pages)
-{
-	return ___pkvm_host_donate_hyp(pfn, nr_pages, true);
-}
-
 const struct pkvm_module_ops module_ops = {
 	.create_private_mapping = __pkvm_create_private_mapping,
 	.alloc_module_va = __pkvm_alloc_module_va,
@@ -106,7 +103,8 @@ const struct pkvm_module_ops module_ops = {
 	.register_psci_notifier = __pkvm_register_psci_notifier,
 	.register_hyp_panic_notifier = __pkvm_register_hyp_panic_notifier,
 	.register_unmask_serror = __pkvm_register_unmask_serror,
-	.host_donate_hyp = __pkvm_module_host_donate_hyp,
+	.host_donate_hyp = ___pkvm_host_donate_hyp,
+	.host_donate_hyp_prot = ___pkvm_host_donate_hyp_prot,
 	.hyp_donate_host = __pkvm_hyp_donate_host,
 	.host_share_hyp = __pkvm_host_share_hyp,
 	.host_unshare_hyp = __pkvm_host_unshare_hyp,
@@ -117,6 +115,19 @@ const struct pkvm_module_ops module_ops = {
 	.hyp_pa = hyp_virt_to_phys,
 	.hyp_va = hyp_phys_to_virt,
 	.kern_hyp_va = __kern_hyp_va,
+	.hyp_alloc = hyp_alloc,
+	.hyp_alloc_errno = hyp_alloc_errno,
+	.hyp_free = hyp_free,
+	.iommu_donate_pages = kvm_iommu_donate_pages,
+	.iommu_reclaim_pages = kvm_iommu_reclaim_pages,
+	.iommu_request = kvm_iommu_request,
+	.iommu_init_device = kvm_iommu_init_device,
+	.udelay = pkvm_udelay,
+	.hyp_alloc_missing_donations = hyp_alloc_missing_donations,
+#ifdef CONFIG_LIST_HARDENED
+	.list_add_valid_or_report = __list_add_valid_or_report,
+	.list_del_entry_valid_or_report = __list_del_entry_valid_or_report,
+#endif
 };
 
 int __pkvm_init_module(void *module_init)
