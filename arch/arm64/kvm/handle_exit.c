@@ -347,6 +347,12 @@ static int handle_hyp_req_mem(struct kvm_vcpu *vcpu,
 	return -EINVAL;
 }
 
+static int handle_hyp_req_map(struct kvm_vcpu *vcpu,
+			      struct kvm_hyp_req *req)
+{
+	return pkvm_mem_abort_range(vcpu, req->map.guest_ipa, req->map.size);
+}
+
 static int handle_hyp_req(struct kvm_vcpu *vcpu)
 {
 	struct kvm_hyp_req *hyp_req = vcpu->arch.hyp_reqs;
@@ -359,6 +365,9 @@ static int handle_hyp_req(struct kvm_vcpu *vcpu)
 		switch (hyp_req->type) {
 		case KVM_HYP_REQ_TYPE_MEM:
 			ret = handle_hyp_req_mem(vcpu, hyp_req);
+			break;
+		case KVM_HYP_REQ_TYPE_MAP:
+			ret = handle_hyp_req_map(vcpu, hyp_req);
 			break;
 		default:
 			pr_warn("Unknown kvm_hyp_req type: %d\n", hyp_req->type);
