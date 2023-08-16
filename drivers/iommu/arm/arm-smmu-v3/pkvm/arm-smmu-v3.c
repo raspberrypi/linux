@@ -4,9 +4,11 @@
  *
  * Copyright (C) 2022 Linaro Ltd.
  */
+#include "arm_smmu_v3.h"
+
 #include <asm/arm-smmu-v3-regs.h>
 #include <asm/kvm_hyp.h>
-#include <kvm/arm_smmu_v3.h>
+#include <nvhe/iommu.h>
 #include <nvhe/alloc.h>
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>

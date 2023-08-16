@@ -2,9 +2,10 @@
 /*
  * Copyright (C) 2022 Arm Ltd.
  */
+#include "arm_smmu_v3.h"
+
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
-#include <kvm/arm_smmu_v3.h>
 #include <linux/types.h>
 #include <linux/gfp_types.h>
 #include <linux/io-pgtable-arm.h>

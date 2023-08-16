@@ -11,7 +11,7 @@
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
 
-#include <kvm/arm_smmu_v3.h>
+#include "pkvm/arm_smmu_v3.h"
 
 #include "arm-smmu-v3.h"
 
