@@ -14,6 +14,8 @@
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 
+#include "arm-smmu-v3-module.h"
+
 bool __ro_after_init selftest_running;
 
 void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp, struct io_pgtable_cfg *cfg)

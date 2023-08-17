@@ -13,6 +13,8 @@
 #include <linux/sizes.h>
 #include <linux/types.h>
 
+#include "arm/arm-smmu-v3/pkvm/arm-smmu-v3-module.h"
+
 #define iopte_deref(pte, d) __arm_lpae_phys_to_virt(iopte_to_paddr(pte, d))
 
 #define ARM_LPAE_MAX_ADDR_BITS		52
