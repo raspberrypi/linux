@@ -382,7 +382,6 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 
 static bool kvm_arm_smmu_validate_features(struct arm_smmu_device *smmu)
 {
-	unsigned long oas;
 	unsigned int required_features =
 		ARM_SMMU_FEAT_TRANS_S2 |
 		ARM_SMMU_FEAT_TT_LE;
@@ -417,18 +416,6 @@ static bool kvm_arm_smmu_validate_features(struct arm_smmu_device *smmu)
 	}
 
 	smmu->features &= keep_features;
-
-	/*
-	 * This can be relaxed (although the spec says that OAS "must match
-	 * the system physical address size."), but requires some changes. All
-	 * table and queue allocations must use GFP_DMA* to ensure the SMMU can
-	 * access them.
-	 */
-	oas = get_kvm_ipa_limit();
-	if (smmu->oas < oas) {
-		dev_err(smmu->dev, "incompatible address size\n");
-		return false;
-	}
 
 	return true;
 }
