@@ -1225,7 +1225,7 @@ static int bmp380_chip_config(struct bmp280_data *data)
 
 static const int bmp380_oversampling_avail[] = { 1, 2, 4, 8, 16, 32 };
 static const int bmp380_iir_filter_coeffs_avail[] = { 1, 2, 4, 8, 16, 32, 64, 128};
-static const int bmp380_chip_ids[] = { BMP380_CHIP_ID };
+static const int bmp380_chip_ids[] = { BMP380_CHIP_ID, BMP390_CHIP_ID };
 
 const struct bmp280_chip_info bmp380_chip_info = {
 	.id_reg = BMP380_REG_ID,

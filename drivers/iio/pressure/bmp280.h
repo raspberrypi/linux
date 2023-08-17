@@ -293,6 +293,7 @@
 #define BMP180_CHIP_ID			0x55
 #define BMP280_CHIP_ID			0x58
 #define BME280_CHIP_ID			0x60
+#define BMP390_CHIP_ID			0x60
 #define BMP280_SOFT_RESET_VAL		0xB6
 
 /* BMP280 register skipped special values */
