@@ -35,7 +35,7 @@ EXPORT_SYMBOL(kvm_iommu_init_hyp);
 
 int kvm_iommu_init_driver(void)
 {
-	if (WARN_ON(!smp_load_acquire(&iommu_driver)))
+	if (WARN_ON(!smp_load_acquire(&iommu_driver )|| !iommu_driver->get_iommu_id))
 		return -ENODEV;
 	/*
 	 * init_driver is optional as the driver already registered it self.
@@ -59,3 +59,24 @@ void kvm_iommu_remove_driver(void)
 	if (smp_load_acquire(&iommu_driver))
 		iommu_driver->remove_driver();
 }
+
+pkvm_handle_t kvm_get_iommu_id(struct device *dev)
+{
+	return iommu_driver->get_iommu_id(dev);
+}
+
+int pkvm_iommu_suspend(struct device *dev)
+{
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 0);
+}
+EXPORT_SYMBOL(pkvm_iommu_suspend);
+
+int pkvm_iommu_resume(struct device *dev)
+{
+	int device_id = kvm_get_iommu_id(dev);
+
+	return kvm_call_hyp_nvhe(__pkvm_host_hvc_pd, device_id, 1);
+}
+EXPORT_SYMBOL(pkvm_iommu_resume);

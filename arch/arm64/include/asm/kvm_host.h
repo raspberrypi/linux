@@ -501,6 +501,7 @@ extern u64 kvm_nvhe_sym(hyp_cpu_logical_map)[NR_CPUS];
 struct kvm_iommu_driver {
 	int (*init_driver)(void);
 	void (*remove_driver)(void);
+	pkvm_handle_t (*get_iommu_id)(struct device *dev);
 };
 
 struct vcpu_reset_state {
@@ -1317,6 +1318,9 @@ bool kvm_arm_vcpu_stopped(struct kvm_vcpu *vcpu);
 
 int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
+
+int pkvm_iommu_suspend(struct device *dev);
+int pkvm_iommu_resume(struct device *dev);
 
 struct kvm_iommu_ops;
 
