@@ -93,10 +93,10 @@
 				   <&touch>, "touchscreen-size-x:0=800",
 				   <&touch>, "touchscreen-size-y:0=480";
 		7_9_inch = <&panel>, "compatible=waveshare,7.9inch-panel",
-				   <&touch>, "touchscreen-size-x:0=400",
-				   <&touch>, "touchscreen-size-y:0=1280",
+				   <&touch>, "touchscreen-size-x:0=4096",
+				   <&touch>, "touchscreen-size-y:0=4096",
 				   <&touch>, "touchscreen-inverted-x?",
-				   <&touch>, "touchscreen-inverted-y?";
+				   <&touch>, "touchscreen-swapped-x-y?";
 		8_0_inch = <&panel>, "compatible=waveshare,8.0inch-panel",
 				   <&touch>, "touchscreen-size-x:0=800",
 				   <&touch>, "touchscreen-size-y:0=1280",
