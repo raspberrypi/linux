@@ -101,10 +101,11 @@ static const struct inode_operations incfs_dir_inode_ops = {
 	.setattr = incfs_setattr,
 };
 
+WRAP_DIR_ITER(iterate_incfs_dir) // FIXME!
 static const struct file_operations incfs_dir_fops = {
 	.llseek = generic_file_llseek,
 	.read = generic_read_dir,
-	.iterate = iterate_incfs_dir,
+	.iterate_shared	= shared_iterate_incfs_dir,
 	.open = file_open,
 	.release = file_release,
 };
