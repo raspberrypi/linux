@@ -29,6 +29,22 @@ static int trigger_mode;
 module_param(trigger_mode, int, 0644);
 MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 
+static int fstrobe_enable;
+module_param(fstrobe_enable, int, 0644);
+MODULE_PARM_DESC(fstrobe_enable, "Enable fstrobe signal");
+
+static int fstrobe_cont_trig;
+module_param(fstrobe_cont_trig, int, 0644);
+MODULE_PARM_DESC(fstrobe_cont_trig, "Configure fstrobe to be one-shot (0) or continuous (1)");
+
+static int fstrobe_width = 1;
+module_param(fstrobe_width, int, 0644);
+MODULE_PARM_DESC(fstrobe_width, "Set fstrobe pulse width in units of INCK");
+
+static int fstrobe_delay;
+module_param(fstrobe_delay, int, 0644);
+MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting to expose and the start of the strobe pulse");
+
 #define IMX477_REG_VALUE_08BIT		1
 #define IMX477_REG_VALUE_16BIT		2
 
@@ -1791,6 +1807,8 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	const struct imx477_reg_list *reg_list, *freq_regs;
 	const struct imx477_reg_list *extra_regs;
+	unsigned int fst_width;
+	unsigned int fst_mult;
 	int ret, tm;
 
 	if (!imx477->common_regs_written) {
@@ -1824,6 +1842,29 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
+
+	fst_width = max((unsigned int)fstrobe_width, 1U);
+	fst_mult = 1;
+
+	while (fst_width / fst_mult > 0xffff && fst_mult < 255)
+		fst_mult++;
+
+	fst_width /= fst_mult;
+
+	// FLASH_MD_RS
+	imx477_write_reg(imx477, 0x0c1A, IMX477_REG_VALUE_08BIT,
+			 ((!!fstrobe_cont_trig) | (1 << 1)));
+	// FLASH_STRB_WIDTH
+	imx477_write_reg(imx477, 0x0c18, IMX477_REG_VALUE_16BIT, fst_width);
+	// FLASH_STRB_WIDTH adjust
+	imx477_write_reg(imx477, 0x0c12, IMX477_REG_VALUE_08BIT, fst_mult);
+	// FLASH_STRB_START_POINT
+	imx477_write_reg(imx477, 0x0c14, IMX477_REG_VALUE_16BIT, fstrobe_delay);
+	// FLASH_STRB_DLY_RS
+	imx477_write_reg(imx477, 0x0c16, IMX477_REG_VALUE_16BIT, 0);
+	// FLASH_TRIG_RS
+	imx477_write_reg(imx477, 0x0c1B, IMX477_REG_VALUE_08BIT,
+			 !!fstrobe_enable);
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
