@@ -252,7 +252,7 @@ _DB845C_MODULE_OUTS = [
     "drivers/thermal/qcom/qcom-spmi-temp-alarm.ko",
     "drivers/thermal/qcom/qcom_tsens.ko",
     "drivers/tty/serial/msm_serial.ko",
-    "drivers/ufs/host/ufs_qcom.ko",
+    "drivers/ufs/host/ufs-qcom.ko",
     "drivers/usb/common/ulpi.ko",
     "drivers/usb/host/ohci-hcd.ko",
     "drivers/usb/host/ohci-pci.ko",
