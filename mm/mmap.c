@@ -1978,6 +1978,8 @@ static int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 		return -ENOMEM;
 	}
 
+	/* Lock the VMA before expanding to prevent concurrent page faults */
+	vma_start_write(vma);
 	/*
 	 * vma->vm_start/vm_end cannot change under us because the caller
 	 * is required to hold the mmap_lock in read mode.  We need the
@@ -2065,6 +2067,8 @@ int expand_downwards(struct vm_area_struct *vma, unsigned long address)
 		return -ENOMEM;
 	}
 
+	/* Lock the VMA before expanding to prevent concurrent page faults */
+	vma_start_write(vma);
 	/*
 	 * vma->vm_start/vm_end cannot change under us because the caller
 	 * is required to hold the mmap_lock in read mode.  We need the
@@ -2572,6 +2576,7 @@ end_split_failed:
 	__mt_destroy(&mt_detach);
 start_split_failed:
 map_count_exceeded:
+	validate_mm(mm);
 	return error;
 }
 
@@ -2805,6 +2810,8 @@ cannot_expand:
 	if (vma_iter_prealloc(&vmi))
 		goto close_and_free_vma;
 
+	/* Lock the VMA since it is modified after insertion into VMA tree */
+	vma_start_write(vma);
 	if (vma->vm_file)
 		i_mmap_lock_write(vma->vm_file->f_mapping);
 
@@ -3020,12 +3027,9 @@ int do_vma_munmap(struct vma_iterator *vmi, struct vm_area_struct *vma,
 		bool unlock)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	int ret;
 
 	arch_unmap(mm, start, end);
-	ret = do_vmi_align_munmap(vmi, vma, mm, start, end, uf, unlock);
-	validate_mm(mm);
-	return ret;
+	return do_vmi_align_munmap(vmi, vma, mm, start, end, uf, unlock);
 }
 
 /*
