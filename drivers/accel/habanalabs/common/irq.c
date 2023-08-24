@@ -271,6 +271,9 @@ static int handle_registration_node(struct hl_device *hdev, struct hl_user_pendi
 	free_node->cq_cb = pend->ts_reg_info.cq_cb;
 	list_add(&free_node->free_objects_node, *free_list);
 
+	/* Mark TS record as free */
+	pend->ts_reg_info.in_use = false;
+
 	return 0;
 }
 
