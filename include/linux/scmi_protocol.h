@@ -82,6 +82,8 @@ struct scmi_protocol_handle;
  * @enable: enables the specified clock
  * @disable: disables the specified clock
  * @state_get: get the status of the specified clock
+ * @config_oem_get: get the value of an OEM specific clock config
+ * @config_oem_set: set the value of an OEM specific clock config
  */
 struct scmi_clk_proto_ops {
 	int (*count_get)(const struct scmi_protocol_handle *ph);
@@ -98,6 +100,11 @@ struct scmi_clk_proto_ops {
 		       bool atomic);
 	int (*state_get)(const struct scmi_protocol_handle *ph, u32 clk_id,
 			 bool *enabled, bool atomic);
+	int (*config_oem_get)(const struct scmi_protocol_handle *ph, u32 clk_id,
+			      u8 oem_type, u32 *oem_val, u32 *attributes,
+			      bool atomic);
+	int (*config_oem_set)(const struct scmi_protocol_handle *ph, u32 clk_id,
+			      u8 oem_type, u32 oem_val, bool atomic);
 
 	ANDROID_KABI_RESERVE(1);
 };
