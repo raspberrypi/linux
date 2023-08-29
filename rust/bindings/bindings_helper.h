@@ -7,6 +7,7 @@
  */
 
 #include <kunit/test.h>
+#include <linux/capability.h>
 #include <linux/cred.h>
 #include <linux/errname.h>
 #include <linux/fdtable.h>
@@ -26,6 +27,7 @@
 #include <linux/workqueue.h>
 #include <uapi/linux/android/binder.h>
 #include <uapi/linux/android/binderfs.h>
+#include <uapi/linux/sched/types.h>
 
 /* `bindgen` gets confused at certain things. */
 const size_t RUST_CONST_HELPER_ARCH_SLAB_MINALIGN = ARCH_SLAB_MINALIGN;

@@ -313,6 +313,13 @@ void rust_helper_init_task_work(struct callback_head *twork,
 }
 EXPORT_SYMBOL_GPL(rust_helper_init_task_work);
 
+unsigned long rust_helper_task_rlimit(const struct task_struct *task,
+				      unsigned int limit)
+{
+	return task_rlimit(task, limit);
+}
+EXPORT_SYMBOL_GPL(rust_helper_task_rlimit);
+
 void rust_helper_rb_link_node(struct rb_node *node, struct rb_node *parent,
 			      struct rb_node **rb_link)
 {
