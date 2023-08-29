@@ -553,6 +553,100 @@ kernel_build(
     visibility = ["//visibility:private"],
 )
 
+# KUnit test targets
+
+# Modules defined by tools/testing/kunit/configs/android/kunit_defconfig
+_KUNIT_COMMON_MODULES = [
+    # keep sorted
+    "drivers/base/regmap/regmap-kunit.ko",
+    "drivers/base/regmap/regmap-ram.ko",
+    "drivers/base/regmap/regmap-raw-ram.ko",
+    "drivers/hid/hid-uclogic-test.ko",
+    "drivers/iio/test/iio-test-format.ko",
+    "drivers/input/tests/input_test.ko",
+    "drivers/rtc/lib_test.ko",
+    "fs/ext4/ext4-inode-test.ko",
+    "fs/fat/fat_test.ko",
+    "kernel/time/time_test.ko",
+    "lib/kunit/kunit-example-test.ko",
+    "lib/kunit/kunit-test.ko",
+    "mm/kfence/kfence_test.ko",
+    "net/core/dev_addr_lists_test.ko",
+    "sound/soc/soc-topology-test.ko",
+    "sound/soc/soc-utils-test.ko",
+]
+
+_KUNIT_CLK_MODULES = [
+    "drivers/clk/clk-gate_test.ko",
+    "drivers/clk/clk_test.ko",
+]
+
+kernel_build(
+    name = "kunit_aarch64",
+    outs = [],
+    arch = "arm64",
+    base_kernel = ":kernel_aarch64",
+    build_config = "build.config.kunit.aarch64",
+    defconfig_fragments = [
+        "tools/testing/kunit/configs/android/kunit_defconfig",
+        "tools/testing/kunit/configs/android/kunit_clk_defconfig",
+    ],
+    make_goals = ["modules"],
+    module_outs = _KUNIT_COMMON_MODULES + _KUNIT_CLK_MODULES,
+)
+
+copy_to_dist_dir(
+    name = "kunit_aarch64_dist",
+    data = [":kunit_aarch64"],
+    dist_dir = "out/kunit_aarch64/dist",
+    flat = True,
+    log = "info",
+)
+
+kernel_build(
+    name = "kunit_x86_64",
+    outs = [],
+    arch = "x86_64",
+    base_kernel = ":kernel_x86_64",
+    build_config = "build.config.kunit.x86_64",
+    defconfig_fragments = [
+        "tools/testing/kunit/configs/android/kunit_defconfig",
+        # x86_64 does not set CONFIG_COMMON_CLK
+    ],
+    make_goals = ["modules"],
+    module_outs = _KUNIT_COMMON_MODULES,
+)
+
+copy_to_dist_dir(
+    name = "kunit_x86_64_dist",
+    data = [":kunit_x86_64"],
+    dist_dir = "out/kunit_x86_64/dist",
+    flat = True,
+    log = "info",
+)
+
+kernel_build(
+    name = "kunit_riscv64",
+    outs = [],
+    arch = "riscv64",
+    base_kernel = ":kernel_riscv64",
+    build_config = "build.config.kunit.riscv64",
+    defconfig_fragments = [
+        "tools/testing/kunit/configs/android/kunit_defconfig",
+        "tools/testing/kunit/configs/android/kunit_clk_defconfig",
+    ],
+    make_goals = ["modules"],
+    module_outs = _KUNIT_COMMON_MODULES + _KUNIT_CLK_MODULES,
+)
+
+copy_to_dist_dir(
+    name = "kunit_riscv64_dist",
+    data = [":kunit_riscv64"],
+    dist_dir = "out/kunit_riscv64/dist",
+    flat = True,
+    log = "info",
+)
+
 # DDK Headers
 # All headers. These are the public targets for DDK modules to use.
 alias(
