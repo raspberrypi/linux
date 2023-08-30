@@ -222,7 +222,7 @@ struct ioa_registers {
 struct ioc {
 	struct ioa_registers __iomem *ioc_regs;  /* I/O MMU base address */
 	u8  *res_map;	                /* resource map, bit == pdir entry */
-	u64 *pdir_base;	                /* physical base address */
+	__le64 *pdir_base;		/* physical base address */
 	u32 pdir_size;			/* bytes, function of IOV Space size */
 	u32 res_hint;			/* next available IOVP -
 					   circular search */
@@ -347,7 +347,7 @@ ccio_alloc_range(struct ioc *ioc, struct device *dev, size_t size)
 	BUG_ON(pages_needed == 0);
 	BUG_ON((pages_needed * IOVP_SIZE) > DMA_CHUNK_SIZE);
 
-	DBG_RES("%s() size: %d pages_needed %d\n",
+	DBG_RES("%s() size: %zu pages_needed %d\n",
 			__func__, size, pages_needed);
 
 	/*
@@ -435,7 +435,7 @@ ccio_free_range(struct ioc *ioc, dma_addr_t iova, unsigned long pages_mapped)
 	BUG_ON((pages_mapped * IOVP_SIZE) > DMA_CHUNK_SIZE);
 	BUG_ON(pages_mapped > BITS_PER_LONG);
 
-	DBG_RES("%s():  res_idx: %d pages_mapped %d\n", 
+	DBG_RES("%s():  res_idx: %d pages_mapped %lu\n",
 		__func__, res_idx, pages_mapped);
 
 #ifdef CCIO_COLLECT_STATS
@@ -551,7 +551,7 @@ static u32 hint_lookup[] = {
  * index are bits 12:19 of the value returned by LCI.
  */ 
 static void
-ccio_io_pdir_entry(u64 *pdir_ptr, space_t sid, unsigned long vba,
+ccio_io_pdir_entry(__le64 *pdir_ptr, space_t sid, unsigned long vba,
 		   unsigned long hints)
 {
 	register unsigned long pa;
@@ -727,7 +727,7 @@ ccio_map_single(struct device *dev, void *addr, size_t size,
 	unsigned long flags;
 	dma_addr_t iovp;
 	dma_addr_t offset;
-	u64 *pdir_start;
+	__le64 *pdir_start;
 	unsigned long hint = hint_lookup[(int)direction];
 
 	BUG_ON(!dev);
@@ -754,8 +754,8 @@ ccio_map_single(struct device *dev, void *addr, size_t size,
 
 	pdir_start = &(ioc->pdir_base[idx]);
 
-	DBG_RUN("%s() 0x%p -> 0x%lx size: %0x%x\n",
-		__func__, addr, (long)iovp | offset, size);
+	DBG_RUN("%s() %px -> %#lx size: %zu\n",
+		__func__, addr, (long)(iovp | offset), size);
 
 	/* If not cacheline aligned, force SAFE_DMA on the whole mess */
 	if((size % L1_CACHE_BYTES) || ((unsigned long)addr % L1_CACHE_BYTES))
@@ -813,7 +813,7 @@ ccio_unmap_page(struct device *dev, dma_addr_t iova, size_t size,
 		return;
 	}
 
-	DBG_RUN("%s() iovp 0x%lx/%x\n",
+	DBG_RUN("%s() iovp %#lx/%zx\n",
 		__func__, (long)iova, size);
 
 	iova ^= offset;        /* clear offset bits */
@@ -1291,7 +1291,7 @@ ccio_ioc_init(struct ioc *ioc)
 			iova_space_size>>20,
 			iov_order + PAGE_SHIFT);
 
-	ioc->pdir_base = (u64 *)__get_free_pages(GFP_KERNEL, 
+	ioc->pdir_base = (__le64 *)__get_free_pages(GFP_KERNEL,
 						 get_order(ioc->pdir_size));
 	if(NULL == ioc->pdir_base) {
 		panic("%s() could not allocate I/O Page Table\n", __func__);
