@@ -6,6 +6,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -59,9 +61,9 @@
 				fps = <30>;
 				buswidth = <8>;
 				regwidth = <16>;
-				reset-gpios = <&gpio 25 1>;
-				dc-gpios = <&gpio 24 0>;
-				led-gpios = <&gpio 22 0>;
+				reset-gpios = <&gpio 25 GPIO_ACTIVE_LOW>;
+				dc-gpios = <&gpio 24 GPIO_ACTIVE_HIGH>;
+				led-gpios = <&gpio 22 GPIO_ACTIVE_HIGH>;
 				debug = <0>;
 
 				init = <0x10000b0 0x00
@@ -98,5 +100,7 @@
 		fps =		<&piscreen>,"fps:0";
 		debug =		<&piscreen>,"debug:0";
 		xohms =		<&piscreen_ts>,"ti,x-plate-ohms;0";
+		drm =		<&piscreen>,"compatible=waveshare,rpi-lcd-35",
+				<&piscreen>,"reset-gpios:8=",<GPIO_ACTIVE_HIGH>;
 	};
 };
