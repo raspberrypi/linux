@@ -2883,7 +2883,7 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 	}
 
 	if (vb2_plane_size(vb, 0) < q_data->sizeimage) {
-		v4l2_err(&ctx->dev->v4l2_dev, "%s data will not fit into plane (%lu < %lu)\n",
+		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s data will not fit into plane (%lu < %lu)\n",
 			 __func__, vb2_plane_size(vb, 0),
 			 (long)q_data->sizeimage);
 		return -EINVAL;
