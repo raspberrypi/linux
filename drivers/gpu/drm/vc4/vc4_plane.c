@@ -288,7 +288,6 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 	if (!vc4_state)
 		return NULL;
 
-	memset(&vc4_state->lbm, 0, sizeof(vc4_state->lbm));
 	memset(&vc4_state->upm, 0, sizeof(vc4_state->upm));
 
 	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++)
@@ -319,14 +318,6 @@ void vc4_plane_destroy_state(struct drm_plane *plane,
 	struct vc4_hvs *hvs = vc4->hvs;
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	unsigned int i;
-
-	if (drm_mm_node_allocated(&vc4_state->lbm)) {
-		unsigned long irqflags;
-
-		spin_lock_irqsave(&hvs->mm_lock, irqflags);
-		drm_mm_remove_node(&vc4_state->lbm);
-		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
-	}
 
 	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
 		unsigned long irqflags;
@@ -903,12 +894,13 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
 	struct drm_plane *plane = state->plane;
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
-	unsigned long irqflags;
 	u32 lbm_size;
 
 	lbm_size = vc4_lbm_size(state);
-	if (!lbm_size)
+	if (!lbm_size) {
+		vc4_state->lbm_size = 0;
 		return 0;
+	}
 
 	/*
 	 * NOTE: BCM2712 doesn't need to be aligned, since the size
@@ -925,28 +917,10 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 	if (WARN_ON(!vc4_state->lbm_offset))
 		return -EINVAL;
 
-	/* Allocate the LBM memory that the HVS will use for temporary
-	 * storage due to our scaling/format conversion.
+	/* FIXME: Add loop here that ensures that the total LBM assigned in this
+	 *  state is less than the total lbm size
 	 */
-	if (!drm_mm_node_allocated(&vc4_state->lbm)) {
-		int ret;
-
-		spin_lock_irqsave(&vc4->hvs->mm_lock, irqflags);
-		ret = drm_mm_insert_node_generic(&vc4->hvs->lbm_mm,
-						 &vc4_state->lbm,
-						 lbm_size, 1,
-						 0, 0);
-		spin_unlock_irqrestore(&vc4->hvs->mm_lock, irqflags);
-
-		if (ret) {
-			drm_err(drm, "Failed to allocate LBM entry: %d\n", ret);
-			return ret;
-		}
-	} else {
-		WARN_ON_ONCE(lbm_size != vc4_state->lbm.size);
-	}
-
-	vc4_state->dlist[vc4_state->lbm_offset] = vc4_state->lbm.start;
+	vc4_state->lbm_size = lbm_size;
 
 	return 0;
 }
