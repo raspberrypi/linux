@@ -248,7 +248,7 @@ static void drm_vc4_test_vc4_lbm_size(struct kunit *test)
 	ret = drm_atomic_check_only(state);
 	KUNIT_ASSERT_EQ(test, ret, 0);
 
-	KUNIT_EXPECT_EQ(test, vc4_plane_state->lbm.size, params->expected_lbm_size);
+	KUNIT_EXPECT_EQ(test, vc4_plane_state->lbm_size, params->expected_lbm_size);
 
 	for (i = 0; i < 2; i++) {
 		KUNIT_EXPECT_EQ(test,
