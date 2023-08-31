@@ -343,7 +343,8 @@ static void bcm2836_chained_handle_irq(struct irq_desc *desc)
 {
 	u32 hwirq;
 
-	while ((hwirq = get_next_armctrl_hwirq()) != ~0)
+	hwirq = get_next_armctrl_hwirq();
+	if (hwirq != ~0)
 		generic_handle_domain_irq(intc.domain, hwirq);
 }
 
