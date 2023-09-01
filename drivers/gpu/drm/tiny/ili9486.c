@@ -188,7 +188,6 @@ static const struct of_device_id ili9486_of_match[] = {
 MODULE_DEVICE_TABLE(of, ili9486_of_match);
 
 static const struct spi_device_id ili9486_id[] = {
-	{ "ili9486", 0 },
 	{ "rpi-lcd-35", 0 },
 	{ "piscreen", 0 },
 	{ }
