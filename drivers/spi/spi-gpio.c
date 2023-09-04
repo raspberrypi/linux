@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/property.h>
+#include <linux/delay.h>
 
 #include <linux/spi/spi.h>
 #include <linux/spi/spi_bitbang.h>
@@ -110,12 +111,18 @@ static inline int getmiso(const struct spi_device *spi)
 }
 
 /*
- * NOTE:  this clocks "as fast as we can".  It "should" be a function of the
- * requested device clock.  Software overhead means we usually have trouble
- * reaching even one Mbit/sec (except when we can inline bitops), so for now
- * we'll just assume we never need additional per-bit slowdowns.
+ * Generic bit-banged GPIO SPI might free-run at something in the range
+ * 1Mbps ~ 10Mbps (depending on the platform), and some SPI devices may
+ * need to be clocked at a lower rate. ndelay() is often implemented by
+ * udelay() with rounding up, so do the delay only for nsecs >= 500
+ * (<= 1Mbps). The conditional test adds a small overhead.
  */
-#define spidelay(nsecs)	do {} while (0)
+
+static inline void spidelay(unsigned long nsecs)
+{
+	if (nsecs >= 500)
+		ndelay(nsecs);
+}
 
 #include "spi-bitbang-txrx.h"
 
