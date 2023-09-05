@@ -110,6 +110,16 @@ unsafe impl super::Backend for SpinLockBackend {
         unsafe { bindings::spin_lock(ptr) }
     }
 
+    unsafe fn trylock(ptr: *mut Self::State) -> Option<Self::GuardState> {
+        // SAFETY: The safety requirements of this function ensure that `ptr` points to valid
+        // memory, and that it has been initialised before.
+        if unsafe { bindings::spin_trylock(ptr) } != 0 {
+            Some(())
+        } else {
+            None
+        }
+    }
+
     unsafe fn unlock(ptr: *mut Self::State, _guard_state: &Self::GuardState) {
         // SAFETY: The safety requirements of this function ensure that `ptr` is valid and that the
         // caller is the owner of the mutex.

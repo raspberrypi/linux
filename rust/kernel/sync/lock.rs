@@ -57,6 +57,14 @@ pub unsafe trait Backend {
     #[must_use]
     unsafe fn lock(ptr: *mut Self::State) -> Self::GuardState;
 
+    /// Tries to acquire the lock, making the caller its owner.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that [`Backend::init`] has been previously called.
+    #[must_use]
+    unsafe fn trylock(ptr: *mut Self::State) -> Option<Self::GuardState>;
+
     /// Releases the lock, giving up its ownership.
     ///
     /// # Safety
@@ -126,6 +134,22 @@ impl<T: ?Sized, B: Backend> Lock<T, B> {
         let state = unsafe { B::lock(self.state.get()) };
         // SAFETY: The lock was just acquired.
         unsafe { Guard::new(self, state) }
+    }
+
+    /// Acquires the lock and gives the caller access to the data protected by it.
+    pub fn trylock(&self) -> Option<Guard<'_, T, B>> {
+        // SAFETY: The constructor of the type calls `init`, so the existence of the object proves
+        // that `init` was called.
+        let state = unsafe { B::trylock(self.state.get())? };
+        // SAFETY: The lock was just acquired.
+        unsafe { Some(Guard::new(self, state)) }
+    }
+
+    /// Get a raw pointer to the data without touching the lock.
+    ///
+    /// It is up to the user to make sure that the pointer is used correctly.
+    pub fn get_ptr(&self) -> *mut T {
+        self.data.get()
     }
 }
 

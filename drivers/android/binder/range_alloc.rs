@@ -3,6 +3,7 @@
 // Copyright (C) 2024 Google LLC.
 
 use kernel::{
+    page::PAGE_SIZE,
     prelude::*,
     rbtree::{RBTree, RBTreeNode, RBTreeNodeReservation},
     task::Pid,
@@ -19,6 +20,24 @@ pub(crate) struct RangeAllocator<T> {
     size: usize,
     free_oneway_space: usize,
     pub(crate) oneway_spam_detected: bool,
+}
+
+/// Represents a range of pages that have just become completely free.
+#[derive(Copy, Clone)]
+pub(crate) struct FreedRange {
+    pub(crate) start_page_idx: usize,
+    pub(crate) end_page_idx: usize,
+}
+
+impl FreedRange {
+    fn interior_pages(offset: usize, size: usize) -> FreedRange {
+        FreedRange {
+            // Divide round up
+            start_page_idx: (offset + (PAGE_SIZE - 1)) / PAGE_SIZE,
+            // Divide round down
+            end_page_idx: (offset + size) / PAGE_SIZE,
+        }
+    }
 }
 
 impl<T> RangeAllocator<T> {
@@ -99,7 +118,7 @@ impl<T> RangeAllocator<T> {
         Ok(found_off)
     }
 
-    pub(crate) fn reservation_abort(&mut self, offset: usize) -> Result {
+    pub(crate) fn reservation_abort(&mut self, offset: usize) -> Result<FreedRange> {
         let mut cursor = self.tree.cursor_lower_bound(&offset).ok_or_else(|| {
             pr_warn!(
                 "EINVAL from range_alloc.reservation_abort - offset: {}",
@@ -142,9 +161,26 @@ impl<T> RangeAllocator<T> {
 
         self.free_oneway_space += free_oneway_space_add;
 
+        let mut freed_range = FreedRange::interior_pages(offset, size);
+        // Compute how large the next free region needs to be to include one more page in
+        // the newly freed range.
+        let add_next_page_needed = match (offset + size) % PAGE_SIZE {
+            0 => usize::MAX,
+            unalign => PAGE_SIZE - unalign,
+        };
+        // Compute how large the previous free region needs to be to include one more page
+        // in the newly freed range.
+        let add_prev_page_needed = match offset % PAGE_SIZE {
+            0 => usize::MAX,
+            unalign => unalign,
+        };
+
         // Merge next into current if next is free
         let remove_next = match cursor.peek_next() {
             Some((_, next)) if next.state.is_none() => {
+                if next.size >= add_next_page_needed {
+                    freed_range.end_page_idx += 1;
+                }
                 self.free_tree.remove(&(next.size, next.offset));
                 size += next.size;
                 true
@@ -161,6 +197,9 @@ impl<T> RangeAllocator<T> {
         // Merge current into prev if prev is free
         match cursor.peek_prev_mut() {
             Some((_, prev)) if prev.state.is_none() => {
+                if prev.size >= add_prev_page_needed {
+                    freed_range.start_page_idx -= 1;
+                }
                 // merge previous with current, remove current
                 self.free_tree.remove(&(prev.size, prev.offset));
                 offset = prev.offset;
@@ -174,7 +213,7 @@ impl<T> RangeAllocator<T> {
         self.free_tree
             .insert(reservation.free_res.into_node((size, offset), ()));
 
-        Ok(())
+        Ok(freed_range)
     }
 
     pub(crate) fn reservation_commit(&mut self, offset: usize, data: Option<T>) -> Result {

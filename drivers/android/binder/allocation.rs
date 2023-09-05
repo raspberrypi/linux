@@ -8,7 +8,6 @@ use core::ops::Range;
 use kernel::{
     bindings,
     file::{DeferredFdCloser, File, FileDescriptorReservation},
-    page::Page,
     prelude::*,
     sync::Arc,
     types::{ARef, AsBytes, FromBytes},
@@ -43,11 +42,15 @@ pub(crate) struct AllocationInfo {
 /// Represents an allocation that the kernel is currently using.
 ///
 /// When allocations are idle, the range allocator holds the data related to them.
+///
+/// # Invariants
+///
+/// This allocation corresponds to an allocation in the range allocator, so the relevant pages are
+/// marked in use in the page range.
 pub(crate) struct Allocation {
     pub(crate) offset: usize,
     size: usize,
     pub(crate) ptr: usize,
-    pages: Arc<Vec<Page>>,
     pub(crate) process: Arc<Process>,
     allocation_info: Option<AllocationInfo>,
     free_on_drop: bool,
@@ -60,7 +63,6 @@ impl Allocation {
         offset: usize,
         size: usize,
         ptr: usize,
-        pages: Arc<Vec<Page>>,
         oneway_spam_detected: bool,
     ) -> Self {
         Self {
@@ -68,32 +70,17 @@ impl Allocation {
             offset,
             size,
             ptr,
-            pages,
             oneway_spam_detected,
             allocation_info: None,
             free_on_drop: true,
         }
     }
 
-    fn iterate<T>(&self, mut offset: usize, mut size: usize, mut cb: T) -> Result
-    where
-        T: FnMut(&Page, usize, usize) -> Result,
-    {
-        use kernel::page::PAGE_SHIFT;
-
-        // Check that the request is within the buffer.
-        if offset.checked_add(size).ok_or(EINVAL)? > self.size {
-            return Err(EINVAL);
-        }
-        offset += self.offset;
-        let mut page_index = offset >> PAGE_SHIFT;
-        offset &= (1 << PAGE_SHIFT) - 1;
-        while size > 0 {
-            let available = core::cmp::min(size, (1 << PAGE_SHIFT) - offset);
-            cb(&self.pages[page_index], offset, available)?;
-            size -= available;
-            page_index += 1;
-            offset = 0;
+    fn size_check(&self, offset: usize, size: usize) -> Result {
+        let overflow_fail = offset.checked_add(size).is_none();
+        let cmp_size_fail = offset.wrapping_add(size) > self.size;
+        if overflow_fail || cmp_size_fail {
+            return Err(EFAULT);
         }
         Ok(())
     }
@@ -104,42 +91,37 @@ impl Allocation {
         offset: usize,
         size: usize,
     ) -> Result {
-        self.iterate(offset, size, |page, offset, to_copy| {
-            page.copy_into_page(reader, offset, to_copy)
-        })
+        self.size_check(offset, size)?;
+
+        // SAFETY: While this object exists, the range allocator will keep the range allocated, and
+        // in turn, the pages will be marked as in use.
+        unsafe {
+            self.process
+                .pages
+                .copy_from_user_slice(reader, self.offset + offset, size)
+        }
     }
 
     pub(crate) fn read<T: FromBytes>(&self, offset: usize) -> Result<T> {
-        let mut out = MaybeUninit::<T>::uninit();
-        let mut out_offset = 0;
-        self.iterate(offset, size_of::<T>(), |page, offset, to_copy| {
-            // SAFETY: The sum of `offset` and `to_copy` is bounded by the size of T.
-            let obj_ptr = unsafe { (out.as_mut_ptr() as *mut u8).add(out_offset) };
-            // SAFETY: The pointer points is in-bounds of the `out` variable, so it is valid.
-            unsafe { page.read(obj_ptr, offset, to_copy) }?;
-            out_offset += to_copy;
-            Ok(())
-        })?;
-        // SAFETY: We just initialised the data.
-        Ok(unsafe { out.assume_init() })
+        self.size_check(offset, size_of::<T>())?;
+
+        // SAFETY: While this object exists, the range allocator will keep the range allocated, and
+        // in turn, the pages will be marked as in use.
+        unsafe { self.process.pages.read(self.offset + offset) }
     }
 
     pub(crate) fn write<T: ?Sized>(&self, offset: usize, obj: &T) -> Result {
-        let mut obj_offset = 0;
-        self.iterate(offset, size_of_val(obj), |page, offset, to_copy| {
-            // SAFETY: The sum of `offset` and `to_copy` is bounded by the size of T.
-            let obj_ptr = unsafe { (obj as *const T as *const u8).add(obj_offset) };
-            // SAFETY: We have a reference to the object, so the pointer is valid.
-            unsafe { page.write(obj_ptr, offset, to_copy) }?;
-            obj_offset += to_copy;
-            Ok(())
-        })
+        self.size_check(offset, size_of_val::<T>(obj))?;
+
+        // SAFETY: While this object exists, the range allocator will keep the range allocated, and
+        // in turn, the pages will be marked as in use.
+        unsafe { self.process.pages.write(self.offset + offset, obj) }
     }
 
     pub(crate) fn fill_zero(&self) -> Result {
-        self.iterate(0, self.size, |page, offset, len| {
-            page.fill_zero(offset, len)
-        })
+        // SAFETY: While this object exists, the range allocator will keep the range allocated, and
+        // in turn, the pages will be marked as in use.
+        unsafe { self.process.pages.fill_zero(self.offset, self.size) }
     }
 
     pub(crate) fn keep_alive(mut self) {
