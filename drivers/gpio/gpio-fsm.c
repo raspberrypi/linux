@@ -194,131 +194,14 @@ static void free_symbols(struct symtab_entry **symtab)
 	}
 }
 
-static int gpio_fsm_get_direction(struct gpio_chip *gc, unsigned int off)
-{
-	struct gpio_fsm *gf = gpiochip_get_data(gc);
-	struct soft_gpio *sg;
-
-	if (off >= gf->num_soft_gpios)
-		return -EINVAL;
-	sg = &gf->soft_gpios[off];
-
-	return sg->dir;
-}
-
-static int gpio_fsm_get(struct gpio_chip *gc, unsigned int off)
-{
-	struct gpio_fsm *gf = gpiochip_get_data(gc);
-	struct soft_gpio *sg;
-
-	if (off >= gf->num_soft_gpios)
-		return -EINVAL;
-	sg = &gf->soft_gpios[off];
-
-	return sg->value;
-}
-
 static void gpio_fsm_go_to_state(struct gpio_fsm *gf,
-				   struct fsm_state *new_state)
-{
-	struct input_gpio_state *inp_state;
-	struct gpio_event *gp_ev;
-	struct fsm_state *state;
-	int i;
-
-	dev_dbg(gf->dev, "go_to_state(%s)\n",
-		  new_state ? new_state->name : "<unset>");
-
-	spin_lock(&gf->spinlock);
-
-	if (gf->next_state) {
-		/* Something else has already requested a transition */
-		spin_unlock(&gf->spinlock);
-		return;
-	}
-
-	gf->next_state = new_state;
-	state = gf->current_state;
-	gf->delay_target_state = NULL;
-
-	if (state) {
-		/* Disarm any GPIO IRQs */
-		for (i = 0; i < state->num_gpio_events; i++) {
-			gp_ev = &state->gpio_events[i];
-			inp_state = &gf->input_gpio_states[gp_ev->index];
-			inp_state->target = NULL;
-		}
-	}
-
-	spin_unlock(&gf->spinlock);
-
-	if (new_state)
-		schedule_work(&gf->work);
-}
+				 struct fsm_state *new_state);
 
 static void gpio_fsm_set_soft(struct gpio_fsm *gf,
-				unsigned int off, int val)
-{
-	struct soft_gpio *sg = &gf->soft_gpios[off];
-	struct gpio_event *gp_ev;
-	struct fsm_state *state;
-	int i;
-
-	dev_dbg(gf->dev, "set(%d,%d)\n", off, val);
-	state = gf->current_state;
-	sg->value = val;
-	for (i = 0; i < state->num_soft_events; i++) {
-		gp_ev = &state->soft_events[i];
-		if (gp_ev->index == off && gp_ev->value == val) {
-			if (gf->debug)
-				dev_info(gf->dev,
-					 "GF_SOFT %d->%d -> %s\n", gp_ev->index,
-					 gp_ev->value, gp_ev->target->name);
-			gpio_fsm_go_to_state(gf, gp_ev->target);
-			break;
-		}
-	}
-}
-
-static int gpio_fsm_direction_input(struct gpio_chip *gc, unsigned int off)
-{
-	struct gpio_fsm *gf = gpiochip_get_data(gc);
-	struct soft_gpio *sg;
-
-	if (off >= gf->num_soft_gpios)
-		return -EINVAL;
-	sg = &gf->soft_gpios[off];
-	sg->dir = GPIOF_DIR_IN;
-
-	return 0;
-}
-
-static int gpio_fsm_direction_output(struct gpio_chip *gc, unsigned int off,
-				       int value)
-{
-	struct gpio_fsm *gf = gpiochip_get_data(gc);
-	struct soft_gpio *sg;
-
-	if (off >= gf->num_soft_gpios)
-		return -EINVAL;
-	sg = &gf->soft_gpios[off];
-	sg->dir = GPIOF_DIR_OUT;
-	gpio_fsm_set_soft(gf, off, value);
-
-	return 0;
-}
-
-static void gpio_fsm_set(struct gpio_chip *gc, unsigned int off, int val)
-{
-	struct gpio_fsm *gf;
-
-	gf = gpiochip_get_data(gc);
-	if (off < gf->num_soft_gpios)
-		gpio_fsm_set_soft(gf, off, val);
-}
+			      unsigned int off, int val);
 
 static void gpio_fsm_enter_state(struct gpio_fsm *gf,
-				   struct fsm_state *state)
+				 struct fsm_state *state)
 {
 	struct input_gpio_state *inp_state;
 	struct output_signal *signal;
@@ -430,6 +313,44 @@ static void gpio_fsm_enter_state(struct gpio_fsm *gf,
 		gf->delay_ms = state->delay_ms;
 		mod_timer(&gf->timer, gf->delay_jiffies);
 	}
+}
+
+static void gpio_fsm_go_to_state(struct gpio_fsm *gf,
+				 struct fsm_state *new_state)
+{
+	struct input_gpio_state *inp_state;
+	struct gpio_event *gp_ev;
+	struct fsm_state *state;
+	int i;
+
+	dev_dbg(gf->dev, "go_to_state(%s)\n",
+		  new_state ? new_state->name : "<unset>");
+
+	spin_lock(&gf->spinlock);
+
+	if (gf->next_state) {
+		/* Something else has already requested a transition */
+		spin_unlock(&gf->spinlock);
+		return;
+	}
+
+	gf->next_state = new_state;
+	state = gf->current_state;
+	gf->delay_target_state = NULL;
+
+	if (state) {
+		/* Disarm any GPIO IRQs */
+		for (i = 0; i < state->num_gpio_events; i++) {
+			gp_ev = &state->gpio_events[i];
+			inp_state = &gf->input_gpio_states[gp_ev->index];
+			inp_state->target = NULL;
+		}
+	}
+
+	spin_unlock(&gf->spinlock);
+
+	if (new_state)
+		schedule_work(&gf->work);
 }
 
 static void gpio_fsm_work(struct work_struct *work)
@@ -852,6 +773,90 @@ static int resolve_sym_to_state(struct gpio_fsm *gf, struct fsm_state **pstate)
 	return 0;
 }
 
+static void gpio_fsm_set_soft(struct gpio_fsm *gf,
+			      unsigned int off, int val)
+{
+	struct soft_gpio *sg = &gf->soft_gpios[off];
+	struct gpio_event *gp_ev;
+	struct fsm_state *state;
+	int i;
+
+	dev_dbg(gf->dev, "set(%d,%d)\n", off, val);
+	state = gf->current_state;
+	sg->value = val;
+	for (i = 0; i < state->num_soft_events; i++) {
+		gp_ev = &state->soft_events[i];
+		if (gp_ev->index == off && gp_ev->value == val) {
+			if (gf->debug)
+				dev_info(gf->dev,
+					 "GF_SOFT %d->%d -> %s\n", gp_ev->index,
+					 gp_ev->value, gp_ev->target->name);
+			gpio_fsm_go_to_state(gf, gp_ev->target);
+			break;
+		}
+	}
+}
+
+static int gpio_fsm_get(struct gpio_chip *gc, unsigned int off)
+{
+	struct gpio_fsm *gf = gpiochip_get_data(gc);
+	struct soft_gpio *sg;
+
+	if (off >= gf->num_soft_gpios)
+		return -EINVAL;
+	sg = &gf->soft_gpios[off];
+
+	return sg->value;
+}
+
+static void gpio_fsm_set(struct gpio_chip *gc, unsigned int off, int val)
+{
+	struct gpio_fsm *gf;
+
+	gf = gpiochip_get_data(gc);
+	if (off < gf->num_soft_gpios)
+		gpio_fsm_set_soft(gf, off, val);
+}
+
+static int gpio_fsm_get_direction(struct gpio_chip *gc, unsigned int off)
+{
+	struct gpio_fsm *gf = gpiochip_get_data(gc);
+	struct soft_gpio *sg;
+
+	if (off >= gf->num_soft_gpios)
+		return -EINVAL;
+	sg = &gf->soft_gpios[off];
+
+	return sg->dir;
+}
+
+static int gpio_fsm_direction_input(struct gpio_chip *gc, unsigned int off)
+{
+	struct gpio_fsm *gf = gpiochip_get_data(gc);
+	struct soft_gpio *sg;
+
+	if (off >= gf->num_soft_gpios)
+		return -EINVAL;
+	sg = &gf->soft_gpios[off];
+	sg->dir = GPIOF_DIR_IN;
+
+	return 0;
+}
+
+static int gpio_fsm_direction_output(struct gpio_chip *gc, unsigned int off,
+				       int value)
+{
+	struct gpio_fsm *gf = gpiochip_get_data(gc);
+	struct soft_gpio *sg;
+
+	if (off >= gf->num_soft_gpios)
+		return -EINVAL;
+	sg = &gf->soft_gpios[off];
+	sg->dir = GPIOF_DIR_OUT;
+	gpio_fsm_set_soft(gf, off, value);
+
+	return 0;
+}
 
 /*
  * /sys/class/gpio-fsm/<fsm-name>/
