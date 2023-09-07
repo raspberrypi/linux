@@ -472,6 +472,10 @@ extern struct spi_device *spi_new_ancillary_device(struct spi_device *spi, u8 ch
  * @queue_empty: signal green light for opportunistically skipping the queue
  *	for spi_sync transfers.
  * @must_async: disable all fast paths in the core
+*
+ * @num_chip_selects: Number of GPIO's used for chip selects
+ * @num_sub_addr_selects: Number of GPIO's used for sub address selects
+ * @sa_gpiods: Array of GPIOs descriptors to use as sub address select lines
  *
  * Each SPI controller can communicate with one or more @spi_device
  * children.  These make a small bus, sharing MOSI, MISO and SCK signals
@@ -696,6 +700,11 @@ struct spi_controller {
 	/* Flag for enabling opportunistic skipping of the queue in spi_sync */
 	bool			queue_empty;
 	bool			must_async;
+
+    /* gpio sub address select */
+	u16     num_chip_selects;
+	u16     num_sub_addr_selects;
+	struct gpio_desc **sa_gpiods;
 };
 
 static inline void *spi_controller_get_devdata(struct spi_controller *ctlr)
