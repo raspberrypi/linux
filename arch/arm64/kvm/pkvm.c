@@ -302,6 +302,8 @@ static int __pkvm_create_hyp_vm(struct kvm *host_kvm)
 		__pkvm_vcpu_hyp_created(host_vcpu);
 	}
 
+	kvm_account_pgtable_pages(pgd, pgd_sz >> PAGE_SHIFT);
+
 	return 0;
 
 destroy_vm:
