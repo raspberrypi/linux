@@ -552,10 +552,15 @@ static int pkvm_vcpu_init_psci(struct pkvm_hyp_vcpu *hyp_vcpu)
 	return 0;
 }
 
-static void unpin_host_vcpu(struct kvm_vcpu *host_vcpu)
+static void unpin_host_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
+	struct kvm_vcpu *host_vcpu = hyp_vcpu->host_vcpu;
+	void *hyp_reqs = hyp_vcpu->vcpu.arch.hyp_reqs;
+
 	if (host_vcpu)
 		hyp_unpin_shared_mem(host_vcpu, host_vcpu + 1);
+	if (hyp_reqs)
+		hyp_unpin_shared_mem(hyp_reqs, hyp_reqs + 1);
 }
 
 static void unpin_host_sve_state(struct pkvm_hyp_vcpu *hyp_vcpu)
@@ -587,7 +592,7 @@ static void unpin_host_vcpus(struct pkvm_hyp_vcpu *hyp_vcpus[],
 	for (i = 0; i < nr_vcpus; i++) {
 		struct pkvm_hyp_vcpu *hyp_vcpu = hyp_vcpus[i];
 
-		unpin_host_vcpu(hyp_vcpu->host_vcpu);
+		unpin_host_vcpu(hyp_vcpu);
 
 		if (!pkvm_hyp_vcpu_is_protected(hyp_vcpu))
 			unpin_host_sve_state(hyp_vcpu);
@@ -670,6 +675,13 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 	if (hyp_pin_shared_mem(host_vcpu, host_vcpu + 1))
 		return -EBUSY;
 
+	hyp_vcpu->vcpu.arch.hyp_reqs = kern_hyp_va(host_vcpu->arch.hyp_reqs);
+	if (hyp_pin_shared_mem(hyp_vcpu->vcpu.arch.hyp_reqs,
+			       hyp_vcpu->vcpu.arch.hyp_reqs + 1)) {
+		hyp_unpin_shared_mem(host_vcpu, host_vcpu + 1);
+		return -EBUSY;
+	}
+
 	if (host_vcpu->vcpu_idx != vcpu_idx) {
 		ret = -EINVAL;
 		goto done;
@@ -691,6 +703,7 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 	hyp_vcpu->vcpu.arch.cflags = READ_ONCE(host_vcpu->arch.cflags);
 	hyp_vcpu->vcpu.arch.mp_state.mp_state = mp_state;
 	hyp_vcpu->vcpu.arch.debug_ptr = &host_vcpu->arch.vcpu_debug_state;
+	hyp_vcpu->vcpu.arch.hyp_reqs->type = KVM_HYP_LAST_REQ;
 
 	pkvm_vcpu_init_features_from_host(hyp_vcpu);
 
@@ -712,7 +725,7 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 	kvm_reset_pvm_sys_regs(&hyp_vcpu->vcpu);
 done:
 	if (ret)
-		unpin_host_vcpu(host_vcpu);
+		unpin_host_vcpu(hyp_vcpu);
 	return ret;
 }
 
@@ -1102,6 +1115,32 @@ void pkvm_reset_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 	WARN_ON(hyp_vcpu->power_state != PSCI_0_2_AFFINITY_LEVEL_ON_PENDING);
 	WRITE_ONCE(vcpu->arch.mp_state.mp_state, KVM_MP_STATE_RUNNABLE);
 	WRITE_ONCE(hyp_vcpu->power_state, PSCI_0_2_AFFINITY_LEVEL_ON);
+}
+
+struct kvm_hyp_req *pkvm_hyp_req_reserve(struct pkvm_hyp_vcpu *hyp_vcpu, u8 type)
+{
+	struct kvm_hyp_req *next, *hyp_req = hyp_vcpu->vcpu.arch.hyp_reqs;
+	int i;
+
+	for (i = 0; i < KVM_HYP_REQ_MAX; i++) {
+		if (hyp_req->type == KVM_HYP_LAST_REQ)
+			break;
+		hyp_req++;
+	}
+
+	/* The last entry of the page _must_ be a LAST_REQ */
+	WARN_ON(i >= KVM_HYP_REQ_MAX);
+
+	/* We need at least one empty slot to write LAST_REQ */
+	if (i + 1 >= KVM_HYP_REQ_MAX)
+		return NULL;
+
+	hyp_req->type = type;
+
+	next = hyp_req + 1;
+	next->type = KVM_HYP_LAST_REQ;
+
+	return hyp_req;
 }
 
 struct pkvm_hyp_vcpu *pkvm_mpidr_to_hyp_vcpu(struct pkvm_hyp_vm *hyp_vm,

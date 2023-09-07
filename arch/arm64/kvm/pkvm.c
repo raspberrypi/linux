@@ -16,6 +16,7 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/sort.h>
 
+#include <asm/kvm_host.h>
 #include <asm/kvm_hyp.h>
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pkvm.h>
@@ -199,6 +200,8 @@ void __init kvm_hyp_reserve(void)
 static int __pkvm_create_hyp_vcpu(struct kvm *host_kvm, struct kvm_vcpu *host_vcpu, unsigned long idx)
 {
 	pkvm_handle_t handle = host_kvm->arch.pkvm.handle;
+	struct kvm_hyp_req *hyp_reqs;
+	int ret;
 
 	init_hyp_stage2_memcache(&host_vcpu->arch.stage2_mc);
 
@@ -206,8 +209,26 @@ static int __pkvm_create_hyp_vcpu(struct kvm *host_kvm, struct kvm_vcpu *host_vc
 	if (WARN_ON(host_vcpu->vcpu_idx != idx))
 		return -EINVAL;
 
-	return kvm_call_refill_hyp_nvhe(__pkvm_init_vcpu,
-					handle, host_vcpu);
+	hyp_reqs = (struct kvm_hyp_req *)__get_free_page(GFP_KERNEL_ACCOUNT);
+	if (!hyp_reqs)
+		return -ENOMEM;
+
+	ret = kvm_share_hyp(hyp_reqs, hyp_reqs + 1);
+	if (ret)
+		goto err_free_reqs;
+	host_vcpu->arch.hyp_reqs = hyp_reqs;
+
+	ret = kvm_call_refill_hyp_nvhe(__pkvm_init_vcpu,
+				       handle, host_vcpu);
+	if (!ret)
+		return 0;
+
+	kvm_unshare_hyp(hyp_reqs, hyp_reqs + 1);
+err_free_reqs:
+	free_page((unsigned long)hyp_reqs);
+	host_vcpu->arch.hyp_reqs = NULL;
+
+	return ret;
 }
 
 static void __pkvm_vcpu_hyp_created(struct kvm_vcpu *vcpu)
@@ -218,9 +239,11 @@ static void __pkvm_vcpu_hyp_created(struct kvm_vcpu *vcpu)
 
 static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
-	struct kvm_pinned_page *ppage;
 	struct mm_struct *mm = current->mm;
+	struct kvm_pinned_page *ppage;
+	struct kvm_vcpu *host_vcpu;
 	struct rb_node *node;
+	unsigned long idx;
 
 	if (!host_kvm->arch.pkvm.handle)
 		goto out_free;
@@ -247,9 +270,21 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 out_free:
 	host_kvm->arch.pkvm.handle = 0;
+
 	atomic64_sub(host_kvm->arch.pkvm.stage2_teardown_mc.nr_pages << PAGE_SHIFT,
 		     &host_kvm->stat.protected_hyp_mem);
 	free_hyp_memcache(&host_kvm->arch.pkvm.stage2_teardown_mc);
+
+	kvm_for_each_vcpu(idx, host_vcpu, host_kvm) {
+		struct kvm_hyp_req *hyp_reqs = host_vcpu->arch.hyp_reqs;
+
+		if (!hyp_reqs)
+			continue;
+
+		kvm_unshare_hyp(hyp_reqs, hyp_reqs + 1);
+		host_vcpu->arch.hyp_reqs = NULL;
+		free_page((unsigned long)hyp_reqs);
+	}
 }
 
 /*
