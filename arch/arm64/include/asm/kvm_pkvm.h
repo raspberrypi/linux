@@ -420,4 +420,27 @@ static inline size_t pkvm_host_fp_state_size(void)
 		return sizeof(struct user_fpsimd_state);
 }
 
+int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
+unsigned long __pkvm_reclaim_hyp_alloc(unsigned long nr_pages);
+
+#define kvm_call_refill_hyp_nvhe(f, ...)				\
+({									\
+	struct arm_smccc_res res;					\
+	int __ret;							\
+	do {								\
+		__ret = -1; 						\
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(f),		\
+				  ##__VA_ARGS__, &res);			\
+		if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS))		\
+			break;						\
+									\
+		__ret = res.a1;						\
+		if (__ret == -ENOMEM && res.a3) {			\
+			__ret = __pkvm_topup_hyp_alloc(res.a3);		\
+		} else {						\
+			break;						\
+		}							\
+	} while (!__ret);						\
+	__ret;								\
+})
 #endif	/* __ARM64_KVM_PKVM_H__ */

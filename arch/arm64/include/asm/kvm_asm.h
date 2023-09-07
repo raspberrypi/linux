@@ -94,6 +94,9 @@ enum __kvm_host_smccc_func {
 	__KVM_HOST_SMCCC_FUNC___pkvm_enable_tracing,
 	__KVM_HOST_SMCCC_FUNC___pkvm_swap_reader_tracing,
 	__KVM_HOST_SMCCC_FUNC___pkvm_enable_event,
+	__KVM_HOST_SMCCC_FUNC___pkvm_hyp_alloc_refill,
+	__KVM_HOST_SMCCC_FUNC___pkvm_hyp_alloc_reclaimable,
+	__KVM_HOST_SMCCC_FUNC___pkvm_hyp_alloc_reclaim,
 
 	/*
 	 * Start of the dynamically registered hypercalls. Start a bit

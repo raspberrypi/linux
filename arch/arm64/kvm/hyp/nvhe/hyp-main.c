@@ -16,6 +16,7 @@
 #include <asm/kvm_hypevents.h>
 #include <asm/kvm_mmu.h>
 
+#include <nvhe/alloc.h>
 #include <nvhe/ffa.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/modules.h>
@@ -1319,6 +1320,37 @@ static void handle___pkvm_register_hcall(struct kvm_cpu_context *host_ctxt)
 	cpu_reg(host_ctxt, 1) = __pkvm_register_hcall(hfn_hyp_va);
 }
 
+static void handle___pkvm_hyp_alloc_refill(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(phys_addr_t, phys, host_ctxt, 1);
+	DECLARE_REG(unsigned long, nr_pages, host_ctxt, 2);
+	struct kvm_hyp_memcache mc = {
+		.head		= phys,
+		.nr_pages	= nr_pages,
+	};
+
+	cpu_reg(host_ctxt, 1) = hyp_alloc_refill(&mc);
+}
+
+static void handle___pkvm_hyp_alloc_reclaimable(struct kvm_cpu_context *host_ctxt)
+{
+	cpu_reg(host_ctxt, 1) = hyp_alloc_reclaimable();
+}
+
+static void handle___pkvm_hyp_alloc_reclaim(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(int, target, host_ctxt, 1);
+	struct kvm_hyp_memcache mc = {
+		.head		= 0,
+		.nr_pages	= 0,
+	};
+
+	hyp_alloc_reclaim(&mc, target);
+
+	cpu_reg(host_ctxt, 1) = mc.head;
+	cpu_reg(host_ctxt, 2) = mc.nr_pages;
+}
+
 typedef void (*hcall_t)(struct kvm_cpu_context *);
 
 #define HANDLE_FUNC(x)	[__KVM_HOST_SMCCC_FUNC_##x] = (hcall_t)handle_##x
@@ -1366,6 +1398,9 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_enable_tracing),
 	HANDLE_FUNC(__pkvm_swap_reader_tracing),
 	HANDLE_FUNC(__pkvm_enable_event),
+	HANDLE_FUNC(__pkvm_hyp_alloc_refill),
+	HANDLE_FUNC(__pkvm_hyp_alloc_reclaimable),
+	HANDLE_FUNC(__pkvm_hyp_alloc_reclaim),
 };
 
 static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
