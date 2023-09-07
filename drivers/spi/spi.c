@@ -636,8 +636,10 @@ static int __spi_add_device(struct spi_device *spi)
 		return -ENODEV;
 	}
 
-	if (ctlr->cs_gpiods)
-		spi->cs_gpiod = ctlr->cs_gpiods[spi->chip_select];
+	if(ctlr->cs_gpiods)
+    {
+		spi->cs_gpiod = ctlr->cs_gpiods[spi->chip_select % ctlr->num_chip_selects];
+    }
 
 	/*
 	 * Drivers may modify this initial i/o setup, but will
@@ -680,9 +682,16 @@ int spi_add_device(struct spi_device *spi)
 	int status;
 
 	/* Chipselects are numbered 0..max; validate. */
-	if (spi->chip_select >= ctlr->num_chipselect) {
-		dev_err(dev, "cs%d >= max %d\n", spi->chip_select,
-			ctlr->num_chipselect);
+	int num_chip_selects = ctlr->num_chip_selects;
+
+	if(ctlr->num_sub_addr_selects != 0 && num_chip_selects != 0)
+	{
+        num_chip_selects <<= ctlr->num_sub_addr_selects;
+	}
+
+	if(spi->chip_select >= num_chip_selects)
+    {
+		dev_err(dev, "cs%d >= max %d\n", spi->chip_select, num_chip_selects);
 		return -EINVAL;
 	}
 
@@ -976,6 +985,18 @@ static void spi_set_cs(struct spi_device *spi, bool enable, bool force)
 		enable = !enable;
 
 	if (spi->cs_gpiod) {
+        /* Output the sub address value. */
+    	if(spi->controller->sa_gpiods != NULL && activate == true)
+        {
+            int i;
+            int chip_select = spi->chip_select / spi->controller->num_chip_selects;
+
+            for(i = 0; i < spi->controller->num_sub_addr_selects; i++)
+            {
+        		gpiod_set_value_cansleep(spi->controller->sa_gpiods[i], (chip_select >> i) & 1);
+            }
+        }
+
 		if (!(spi->mode & SPI_NO_CS)) {
 			/*
 			 * Historically ACPI has no means of the GPIO polarity and
@@ -2947,8 +2968,9 @@ EXPORT_SYMBOL_GPL(__devm_spi_alloc_controller);
  */
 static int spi_get_gpio_descs(struct spi_controller *ctlr)
 {
-	int nb, i;
+	int nb, i, nsa;
 	struct gpio_desc **cs;
+	struct gpio_desc **sa;
 	struct device *dev = &ctlr->dev;
 	unsigned long native_cs_mask = 0;
 	unsigned int num_cs_gpios = 0;
@@ -2960,6 +2982,14 @@ static int spi_get_gpio_descs(struct spi_controller *ctlr)
 			return 0;
 		return nb;
 	}
+
+    /* get the sub addresses. */
+	nsa = gpiod_count(dev, "sa");
+    ctlr->num_chip_selects = nb;
+	ctlr->num_sub_addr_selects = nsa;
+
+    if(nsa != 0)
+        ctlr->num_chipselect = nb << nsa;
 
 	ctlr->num_chipselect = max_t(int, nb, ctlr->num_chipselect);
 
@@ -3011,6 +3041,53 @@ static int spi_get_gpio_descs(struct spi_controller *ctlr)
 	    ctlr->max_native_cs && ctlr->unused_native_cs >= ctlr->max_native_cs) {
 		dev_err(dev, "No unused native chip select available\n");
 		return -EINVAL;
+	}
+
+	/* No sub address GPIOs at all is fine, else return the error */
+	if(nsa == 0 || nsa == -ENOENT)
+    {
+        ctlr->num_sub_addr_selects = 0;
+		return(0);
+    }
+
+	else if(nsa < 0)
+    {
+		return(nsa);
+    }
+
+	sa = devm_kcalloc(dev, ctlr->num_sub_addr_selects, sizeof(*sa), GFP_KERNEL);
+
+	if(!sa)
+	{
+        devm_kfree(dev, ctlr->cs_gpiods);
+        ctlr->cs_gpiods = NULL;
+		return -ENOMEM;
+    }
+
+    ctlr->sa_gpiods = sa;
+
+	for(i = 0; i < ctlr->num_sub_addr_selects; i++)
+	{
+		sa[i] = devm_gpiod_get_index_optional(dev, "sa", i, GPIOD_OUT_LOW);
+
+		if (IS_ERR(sa[i]))
+			return PTR_ERR(sa[i]);
+
+		if(sa[i])
+		{
+			/*
+			 * If we find a SA GPIO, name it after the device and
+			 * chip select line.
+			 */
+			char *gpioname;
+
+			gpioname = devm_kasprintf(dev, GFP_KERNEL, "%s SA%d", dev_name(dev), i);
+
+			if(!gpioname)
+				return -ENOMEM;
+
+			gpiod_set_consumer_name(sa[i], gpioname);
+		}
 	}
 
 	return 0;
@@ -3637,7 +3714,8 @@ int spi_setup(struct spi_device *spi)
 		return -EINVAL;
 
 	if (ctlr->use_gpio_descriptors && ctlr->cs_gpiods &&
-	    ctlr->cs_gpiods[spi->chip_select] && !(spi->mode & SPI_CS_HIGH)) {
+	    ctlr->cs_gpiods[spi->chip_select % ctlr->num_chip_selects] && !(spi->mode & SPI_CS_HIGH))
+	{
 		dev_dbg(&spi->dev,
 			"setup: forcing CS_HIGH (use_gpio_descriptors)\n");
 		spi->mode |= SPI_CS_HIGH;
