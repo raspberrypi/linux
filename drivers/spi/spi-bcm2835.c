@@ -1276,16 +1276,14 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 	 */
 	if (spi->cs_gpiod)
 		return 0;
-	if (spi->chip_select > 1) {
-		/* error in the case of native CS requested with CS > 1
-		 * officially there is a CS2, but it is not documented
-		 * which GPIO is connected with that...
-		 */
+
+	if(spi->chip_select >= ctlr->num_chip_selects << ctlr->num_sub_addr_selects)
+	{
 		dev_err(&spi->dev,
-			"setup: only two native chip-selects are supported\n");
+			"setup: Too man chip selects\n");
 		ret = -EINVAL;
 		goto err_cleanup;
-	}
+    }
 
 	/*
 	 * Translate native CS to GPIO
@@ -1301,7 +1299,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 	if (!chip)
 		return 0;
 
-	spi->cs_gpiod = gpiochip_request_own_desc(chip, 8 - spi->chip_select,
+	spi->cs_gpiod = gpiochip_request_own_desc(chip, 8 - (spi->chip_select % ctlr->num_chip_selects),
 						  DRV_NAME,
 						  GPIO_LOOKUP_FLAGS_DEFAULT,
 						  GPIOD_OUT_LOW);
