@@ -8,6 +8,7 @@
 #ifndef _ARM_SMMU_V3_H
 #define _ARM_SMMU_V3_H
 
+#include <linux/delay.h>
 #include <linux/iommu.h>
 #include <linux/kernel.h>
 #include <linux/mmzone.h>
@@ -292,6 +293,13 @@ int arm_smmu_init_strtab(struct arm_smmu_device *smmu);
 void arm_smmu_write_strtab_l1_desc(__le64 *dst,
 				   struct arm_smmu_strtab_l1_desc *desc);
 
+void arm_smmu_probe_irq(struct platform_device *pdev,
+			struct arm_smmu_device *smmu);
+void arm_smmu_setup_unique_irqs(struct arm_smmu_device *smmu,
+				irqreturn_t evtqirq(int irq, void *dev),
+				irqreturn_t gerrorirq(int irq, void *dev),
+				irqreturn_t priirq(int irq, void *dev));
+
 int arm_smmu_register_iommu(struct arm_smmu_device *smmu,
 			    struct iommu_ops *ops, phys_addr_t ioaddr);
 void arm_smmu_unregister_iommu(struct arm_smmu_device *smmu);
@@ -361,4 +369,155 @@ static inline void arm_smmu_sva_remove_dev_pasid(struct iommu_domain *domain,
 {
 }
 #endif /* CONFIG_ARM_SMMU_V3_SVA */
+
+/* Queue functions shared with common and kernel drivers */
+static bool __maybe_unused queue_has_space(struct arm_smmu_ll_queue *q, u32 n)
+{
+	u32 space, prod, cons;
+
+	prod = Q_IDX(q, q->prod);
+	cons = Q_IDX(q, q->cons);
+
+	if (Q_WRP(q, q->prod) == Q_WRP(q, q->cons))
+		space = (1 << q->max_n_shift) - (prod - cons);
+	else
+		space = cons - prod;
+
+	return space >= n;
+}
+
+static bool __maybe_unused queue_full(struct arm_smmu_ll_queue *q)
+{
+	return Q_IDX(q, q->prod) == Q_IDX(q, q->cons) &&
+	       Q_WRP(q, q->prod) != Q_WRP(q, q->cons);
+}
+
+static bool __maybe_unused queue_empty(struct arm_smmu_ll_queue *q)
+{
+	return Q_IDX(q, q->prod) == Q_IDX(q, q->cons) &&
+	       Q_WRP(q, q->prod) == Q_WRP(q, q->cons);
+}
+
+static bool __maybe_unused queue_consumed(struct arm_smmu_ll_queue *q, u32 prod)
+{
+	return ((Q_WRP(q, q->cons) == Q_WRP(q, prod)) &&
+		(Q_IDX(q, q->cons) > Q_IDX(q, prod))) ||
+	       ((Q_WRP(q, q->cons) != Q_WRP(q, prod)) &&
+		(Q_IDX(q, q->cons) <= Q_IDX(q, prod)));
+}
+
+static void __maybe_unused queue_sync_cons_out(struct arm_smmu_queue *q)
+{
+	/*
+	 * Ensure that all CPU accesses (reads and writes) to the queue
+	 * are complete before we update the cons pointer.
+	 */
+	__iomb();
+	writel_relaxed(q->llq.cons, q->cons_reg);
+}
+
+static void __maybe_unused queue_sync_cons_ovf(struct arm_smmu_queue *q)
+{
+       struct arm_smmu_ll_queue *llq = &q->llq;
+
+       if (likely(Q_OVF(llq->prod) == Q_OVF(llq->cons)))
+               return;
+
+       llq->cons = Q_OVF(llq->prod) | Q_WRP(llq, llq->cons) |
+                     Q_IDX(llq, llq->cons);
+       queue_sync_cons_out(q);
+}
+
+static void __maybe_unused queue_inc_cons(struct arm_smmu_ll_queue *q)
+{
+	u32 cons = (Q_WRP(q, q->cons) | Q_IDX(q, q->cons)) + 1;
+	q->cons = Q_OVF(q->cons) | Q_WRP(q, cons) | Q_IDX(q, cons);
+}
+
+static int __maybe_unused queue_sync_prod_in(struct arm_smmu_queue *q)
+{
+	u32 prod;
+	int ret = 0;
+
+	/*
+	 * We can't use the _relaxed() variant here, as we must prevent
+	 * speculative reads of the queue before we have determined that
+	 * prod has indeed moved.
+	 */
+	prod = readl(q->prod_reg);
+
+	if (Q_OVF(prod) != Q_OVF(q->llq.prod))
+		ret = -EOVERFLOW;
+
+	q->llq.prod = prod;
+	return ret;
+}
+
+static u32 __maybe_unused queue_inc_prod_n(struct arm_smmu_ll_queue *q, int n)
+{
+	u32 prod = (Q_WRP(q, q->prod) | Q_IDX(q, q->prod)) + n;
+	return Q_OVF(q->prod) | Q_WRP(q, prod) | Q_IDX(q, prod);
+}
+
+static void __maybe_unused queue_poll_init(struct arm_smmu_device *smmu,
+					   struct arm_smmu_queue_poll *qp)
+{
+	qp->delay = 1;
+	qp->spin_cnt = 0;
+	qp->wfe = !!(smmu->features & ARM_SMMU_FEAT_SEV);
+	qp->timeout = ktime_add_us(ktime_get(), ARM_SMMU_POLL_TIMEOUT_US);
+}
+
+static int __maybe_unused queue_poll(struct arm_smmu_queue_poll *qp)
+{
+	if (ktime_compare(ktime_get(), qp->timeout) > 0)
+		return -ETIMEDOUT;
+
+	if (qp->wfe) {
+		wfe();
+	} else if (++qp->spin_cnt < ARM_SMMU_POLL_SPIN_COUNT) {
+		cpu_relax();
+	} else {
+		udelay(qp->delay);
+		qp->delay *= 2;
+		qp->spin_cnt = 0;
+	}
+
+	return 0;
+}
+
+static void __maybe_unused queue_write(__le64 *dst, u64 *src, size_t n_dwords)
+{
+	int i;
+
+	for (i = 0; i < n_dwords; ++i)
+		*dst++ = cpu_to_le64(*src++);
+}
+
+static void __maybe_unused queue_read(u64 *dst, __le64 *src, size_t n_dwords)
+{
+	int i;
+
+	for (i = 0; i < n_dwords; ++i)
+		*dst++ = le64_to_cpu(*src++);
+}
+
+static int __maybe_unused queue_remove_raw(struct arm_smmu_queue *q, u64 *ent)
+{
+	if (queue_empty(&q->llq))
+		return -EAGAIN;
+
+	queue_read(ent, Q_ENT(q, q->llq.cons), q->ent_dwords);
+	queue_inc_cons(&q->llq);
+	queue_sync_cons_out(q);
+	return 0;
+}
+
+enum arm_smmu_msi_index {
+	EVTQ_MSI_INDEX,
+	GERROR_MSI_INDEX,
+	PRIQ_MSI_INDEX,
+	ARM_SMMU_MAX_MSIS,
+};
+
 #endif /* _ARM_SMMU_V3_H */
