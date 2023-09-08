@@ -19,17 +19,21 @@ static void fuse_file_accessed(struct file *dst_file, struct file *src_file)
 {
 	struct inode *dst_inode;
 	struct inode *src_inode;
+	struct timespec64 dst_ts;
+	struct timespec64 src_ts;
 
 	if (dst_file->f_flags & O_NOATIME)
 		return;
 
 	dst_inode = file_inode(dst_file);
 	src_inode = file_inode(src_file);
+	dst_ts = inode_get_ctime(dst_inode);
+	src_ts = inode_get_ctime(src_inode);
 
 	if ((!timespec64_equal(&dst_inode->i_mtime, &src_inode->i_mtime) ||
-	     !timespec64_equal(&dst_inode->i_ctime, &src_inode->i_ctime))) {
+	     !timespec64_equal(&dst_ts, &src_ts))) {
 		dst_inode->i_mtime = src_inode->i_mtime;
-		dst_inode->i_ctime = src_inode->i_ctime;
+		inode_set_ctime_to_ts(dst_inode, inode_get_ctime(src_inode));
 	}
 
 	touch_atime(&dst_file->f_path);
@@ -42,7 +46,7 @@ static void fuse_copyattr(struct file *dst_file, struct file *src_file)
 
 	dst->i_atime = src->i_atime;
 	dst->i_mtime = src->i_mtime;
-	dst->i_ctime = src->i_ctime;
+	inode_set_ctime_to_ts(dst, inode_get_ctime(src));
 	i_size_write(dst, i_size_read(src));
 }
 
