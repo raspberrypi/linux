@@ -1303,9 +1303,7 @@ static bool get_pseudo_inode(int ino, struct inode *inode)
 	if (i == ARRAY_SIZE(incfs_pseudo_file_inodes))
 		return false;
 
-	inode->i_ctime = (struct timespec64){};
-	inode->i_mtime = inode->i_ctime;
-	inode->i_atime = inode->i_ctime;
+	inode->i_mtime = inode->i_atime = inode_set_ctime(inode, 0, 0);
 	inode->i_size = 0;
 	inode->i_ino = ino;
 	inode->i_private = NULL;

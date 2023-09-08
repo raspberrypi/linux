@@ -360,7 +360,7 @@ static int inode_set(struct inode *inode, void *opaque)
 	ihold(backing_inode);
 	node->n_backing_inode = backing_inode;
 	node->n_mount_info = get_mount_info(inode->i_sb);
-	inode->i_ctime = backing_inode->i_ctime;
+	inode_set_ctime_to_ts(inode, inode_get_ctime(backing_inode));
 	inode->i_mtime = backing_inode->i_mtime;
 	inode->i_atime = backing_inode->i_atime;
 	inode->i_ino = backing_inode->i_ino;
@@ -1670,7 +1670,7 @@ static int incfs_getattr(struct mnt_idmap *idmap, const struct path *path,
 {
 	struct inode *inode = d_inode(path->dentry);
 
-	generic_fillattr(idmap, inode, stat);
+	generic_fillattr(idmap, request_mask, inode, stat);
 
 	if (inode->i_ino < INCFS_START_INO_RANGE)
 		return 0;
