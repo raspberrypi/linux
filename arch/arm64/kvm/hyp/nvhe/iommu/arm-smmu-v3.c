@@ -280,7 +280,6 @@ static int smmu_init_registers(struct hyp_arm_smmu_v3_device *smmu)
 	      FIELD_PREP(CR1_QUEUE_IC, CR1_CACHE_WB);
 	writel_relaxed(val, smmu->base + ARM_SMMU_CR1);
 	writel_relaxed(CR2_PTM, smmu->base + ARM_SMMU_CR2);
-	writel_relaxed(0, smmu->base + ARM_SMMU_IRQ_CTRL);
 
 	val = readl_relaxed(smmu->base + ARM_SMMU_GERROR);
 	old = readl_relaxed(smmu->base + ARM_SMMU_GERRORN);
@@ -418,7 +417,7 @@ static int smmu_reset_device(struct hyp_arm_smmu_v3_device *smmu)
 		goto err_disable_cmdq;
 
 	/* Enable translation */
-	return smmu_write_cr0(smmu, CR0_SMMUEN | CR0_CMDQEN | CR0_ATSCHK);
+	return smmu_write_cr0(smmu, CR0_SMMUEN | CR0_CMDQEN | CR0_ATSCHK | CR0_EVTQEN);
 
 err_disable_cmdq:
 	return smmu_write_cr0(smmu, 0);
@@ -633,7 +632,7 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 			FIELD_PREP(STRTAB_STE_2_VTCR_S2SL0, sl) |
 			FIELD_PREP(STRTAB_STE_2_VTCR_S2T0SZ, ts)) |
 		 FIELD_PREP(STRTAB_STE_2_S2VMID, domain->domain_id) |
-		 STRTAB_STE_2_S2AA64;
+		 STRTAB_STE_2_S2AA64 | STRTAB_STE_2_S2R;
 	ent[3] = cfg->arm_lpae_s2_cfg.vttbr & STRTAB_STE_3_S2TTB_MASK;
 
 	/*

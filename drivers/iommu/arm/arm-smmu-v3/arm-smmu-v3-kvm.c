@@ -433,11 +433,121 @@ static bool kvm_arm_smmu_validate_features(struct arm_smmu_device *smmu)
 	return true;
 }
 
+static irqreturn_t kvm_arm_smmu_evt_handler(int irq, void *dev)
+{
+	int i;
+	struct arm_smmu_device *smmu = dev;
+	struct arm_smmu_queue *q = &smmu->evtq.q;
+	struct arm_smmu_ll_queue *llq = &q->llq;
+	static DEFINE_RATELIMIT_STATE(rs, DEFAULT_RATELIMIT_INTERVAL,
+				      DEFAULT_RATELIMIT_BURST);
+	u64 evt[EVTQ_ENT_DWORDS];
+
+	if (pm_runtime_get_if_in_use(smmu->dev) != 1) {
+		dev_err(smmu->dev,"Skip EVTQ as device is OFF\n");
+		return IRQ_HANDLED;
+	}
+
+	do {
+		while (!queue_remove_raw(q, evt)) {
+			u8 id = FIELD_GET(EVTQ_0_ID, evt[0]);
+
+			if (!__ratelimit(&rs))
+				continue;
+
+			dev_info(smmu->dev, "event 0x%02x received:\n", id);
+			for (i = 0; i < ARRAY_SIZE(evt); ++i)
+				dev_info(smmu->dev, "\t0x%016llx\n",
+					 (unsigned long long)evt[i]);
+
+			cond_resched();
+		}
+
+		/*
+		 * Not much we can do on overflow, so scream and pretend we're
+		 * trying harder.
+		 */
+		if (queue_sync_prod_in(q) == -EOVERFLOW)
+			dev_err(smmu->dev, "EVTQ overflow detected -- events lost\n");
+	} while (!queue_empty(llq));
+
+	/* Sync our overflow flag, as we believe we're up to speed */
+	queue_sync_cons_ovf(q);
+	pm_runtime_put(smmu->dev);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t kvm_arm_smmu_gerror_handler(int irq, void *dev)
+{
+	u32 gerror, gerrorn, active;
+	struct arm_smmu_device *smmu = dev;
+
+	if (pm_runtime_get_if_in_use(smmu->dev) != 1) {
+		dev_err(smmu->dev,"Skip GERROR as device is OFF\n");
+		return IRQ_HANDLED;
+	}
+
+	gerror = readl_relaxed(smmu->base + ARM_SMMU_GERROR);
+	gerrorn = readl_relaxed(smmu->base + ARM_SMMU_GERRORN);
+
+	active = gerror ^ gerrorn;
+	if (!(active & GERROR_ERR_MASK)) {
+		pm_runtime_put(smmu->dev);
+		return IRQ_NONE; /* No errors pending */
+	}
+
+	dev_warn(smmu->dev,
+		 "unexpected global error reported (0x%08x), this could be serious\n",
+		 active);
+
+	/* There is no API to reconfigure the device at the moment.*/
+	if (active & GERROR_SFM_ERR)
+		dev_err(smmu->dev, "device has entered Service Failure Mode!\n");
+
+	if (active & GERROR_MSI_GERROR_ABT_ERR)
+		dev_warn(smmu->dev, "GERROR MSI write aborted\n");
+
+	if (active & GERROR_MSI_PRIQ_ABT_ERR)
+		dev_warn(smmu->dev, "PRIQ MSI write aborted\n");
+
+	if (active & GERROR_MSI_EVTQ_ABT_ERR)
+		dev_warn(smmu->dev, "EVTQ MSI write aborted\n");
+
+	if (active & GERROR_MSI_CMDQ_ABT_ERR)
+		dev_warn(smmu->dev, "CMDQ MSI write aborted\n");
+
+	if (active & GERROR_PRIQ_ABT_ERR)
+		dev_err(smmu->dev, "PRIQ write aborted -- events may have been lost\n");
+
+	if (active & GERROR_EVTQ_ABT_ERR)
+		dev_err(smmu->dev, "EVTQ write aborted -- events may have been lost\n");
+
+	if (active & GERROR_CMDQ_ERR) {
+		dev_err(smmu->dev, "CMDQ ERR -- Hypervisor corruption\n");
+		BUG();
+	}
+
+	writel(gerror, smmu->base + ARM_SMMU_GERRORN);
+
+	pm_runtime_put(smmu->dev);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t kvm_arm_smmu_pri_handler(int irq, void *dev)
+{
+	struct arm_smmu_device *smmu = dev;
+
+	dev_err(smmu->dev, "PRI not supported in KVM driver!\n");
+
+	return IRQ_HANDLED;
+}
+
 static int kvm_arm_smmu_device_reset(struct host_arm_smmu_device *host_smmu)
 {
 	int ret;
 	u32 reg;
 	struct arm_smmu_device *smmu = &host_smmu->smmu;
+	u32 irqen_flags = IRQ_CTRL_EVTQ_IRQEN | IRQ_CTRL_GERROR_IRQEN;
 
 	reg = readl_relaxed(smmu->base + ARM_SMMU_CR0);
 	if (reg & CR0_SMMUEN)
@@ -461,6 +571,39 @@ static int kvm_arm_smmu_device_reset(struct host_arm_smmu_device *host_smmu)
 
 	/* Command queue */
 	writeq_relaxed(smmu->cmdq.q.q_base, smmu->base + ARM_SMMU_CMDQ_BASE);
+
+	/* Event queue */
+	writeq_relaxed(smmu->evtq.q.q_base, smmu->base + ARM_SMMU_EVTQ_BASE);
+	writel_relaxed(smmu->evtq.q.llq.prod, smmu->base + SZ_64K + ARM_SMMU_EVTQ_PROD);
+	writel_relaxed(smmu->evtq.q.llq.cons, smmu->base + SZ_64K + ARM_SMMU_EVTQ_CONS);
+
+	/* Disable IRQs first */
+	ret = arm_smmu_write_reg_sync(smmu, 0, ARM_SMMU_IRQ_CTRL,
+				      ARM_SMMU_IRQ_CTRLACK);
+	if (ret) {
+		dev_err(smmu->dev, "failed to disable irqs\n");
+		return ret;
+	}
+
+	/*
+	 * We don't support combined irqs for now, no specific reason, they are uncommon
+	 * so we just try to avoid bloating the code.
+	 */
+	if (smmu->combined_irq)
+		dev_err(smmu->dev, "Combined irqs not supported by this driver\n");
+	else
+		arm_smmu_setup_unique_irqs(smmu, kvm_arm_smmu_evt_handler,
+					   kvm_arm_smmu_gerror_handler,
+					   kvm_arm_smmu_pri_handler);
+
+	if (smmu->features & ARM_SMMU_FEAT_PRI)
+		irqen_flags |= IRQ_CTRL_PRIQ_IRQEN;
+
+	/* Enable interrupt generation on the SMMU */
+	ret = arm_smmu_write_reg_sync(smmu, irqen_flags,
+				      ARM_SMMU_IRQ_CTRL, ARM_SMMU_IRQ_CTRLACK);
+	if (ret)
+		dev_warn(smmu->dev, "failed to enable irqs\n");
 
 	return 0;
 }
@@ -532,6 +675,8 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	if (IS_ERR(smmu->base))
 		return PTR_ERR(smmu->base);
 
+	arm_smmu_probe_irq(pdev, smmu);
+
 	/* Use one page per level-2 table */
 	smmu->strtab_cfg.split = PAGE_SHIFT - (ilog2(STRTAB_STE_DWORDS) + 3);
 
@@ -574,6 +719,13 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	ret = arm_smmu_init_one_queue(smmu, &smmu->cmdq.q, smmu->base,
 				      ARM_SMMU_CMDQ_PROD, ARM_SMMU_CMDQ_CONS,
 				      CMDQ_ENT_DWORDS, "cmdq");
+	if (ret)
+		return ret;
+
+	/* evtq */
+	ret = arm_smmu_init_one_queue(smmu, &smmu->evtq.q, smmu->base + SZ_64K,
+				      ARM_SMMU_EVTQ_PROD, ARM_SMMU_EVTQ_CONS,
+				      EVTQ_ENT_DWORDS, "evtq");
 	if (ret)
 		return ret;
 
