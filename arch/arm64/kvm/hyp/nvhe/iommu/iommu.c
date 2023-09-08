@@ -6,6 +6,9 @@
  */
 
 #include <asm/kvm_hyp.h>
+
+#include <hyp/adjust_pc.h>
+
 #include <kvm/iommu.h>
 #include <nvhe/alloc_mgt.h>
 #include <nvhe/iommu.h>
@@ -404,6 +407,19 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 out_unlock:
 	domain_put(domain);
 	return phys;
+}
+
+bool kvm_iommu_host_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr)
+{
+	bool ret = false;
+
+	if (kvm_iommu_ops && kvm_iommu_ops->dabt_handler)
+		ret = kvm_iommu_ops->dabt_handler(host_ctxt, esr, addr);
+
+	if (ret)
+		kvm_skip_host_instr();
+
+	return ret;
 }
 
 static int iommu_power_on(struct kvm_power_domain *pd)
