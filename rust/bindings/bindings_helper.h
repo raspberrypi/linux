@@ -11,6 +11,7 @@
 #include <linux/errname.h>
 #include <linux/fs.h>
 #include <linux/jiffies.h>
+#include <linux/pid_namespace.h>
 #include <linux/security.h>
 #include <linux/slab.h>
 #include <linux/refcount.h>
