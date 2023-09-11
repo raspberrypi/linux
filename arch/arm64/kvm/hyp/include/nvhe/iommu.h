@@ -48,6 +48,8 @@ struct kvm_iommu_ops {
 			  u32 endpoint_id);
 	int (*detach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			  u32 endpoint_id);
+	int (*suspend)(struct kvm_hyp_iommu *iommu);
+	int (*resume)(struct kvm_hyp_iommu *iommu);
 };
 
 extern struct kvm_iommu_ops *kvm_iommu_ops;
