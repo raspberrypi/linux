@@ -58,6 +58,8 @@ struct pkvm_hyp_vm {
 	/* Primary vCPU pending entry to the pvmfw */
 	struct pkvm_hyp_vcpu *pvmfw_entry_vcpu;
 
+	unsigned short refcount;
+
 	/*
 	 * The number of vcpus initialized and ready to run.
 	 */

@@ -441,7 +441,7 @@ struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 		goto unlock;
 	}
 
-	hyp_page_ref_inc(hyp_virt_to_page(hyp_vm));
+	hyp_refcount_inc(hyp_vm->refcount);
 unlock:
 	hyp_read_unlock(&vm_table_lock);
 
@@ -469,7 +469,7 @@ void pkvm_put_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu)
 	 * so this must come last.
 	 */
 	smp_wmb();
-	hyp_page_ref_dec(hyp_virt_to_page(hyp_vm));
+	hyp_refcount_dec(hyp_vm->refcount);
 }
 
 struct pkvm_hyp_vcpu *pkvm_get_loaded_hyp_vcpu(void)
@@ -949,7 +949,7 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	if (!hyp_vm) {
 		ret = -ENOENT;
 		goto unlock;
-	} else if (WARN_ON(hyp_page_count(hyp_vm))) {
+	} else if (WARN_ON(hyp_refcount_get(hyp_vm->refcount))) {
 		ret = -EBUSY;
 		goto unlock;
 	} else if (hyp_vm->is_dying) {
