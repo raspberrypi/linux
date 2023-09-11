@@ -2069,8 +2069,12 @@ static int imx477_init_controls(struct imx477 *imx477)
 
 	imx477->sd.ctrl_handler = ctrl_hdlr;
 
+	mutex_lock(&imx477->mutex);
+
 	/* Setup exposure and frame/line length limits. */
 	imx477_set_framing_limits(imx477);
+
+	mutex_unlock(&imx477->mutex);
 
 	return 0;
 
