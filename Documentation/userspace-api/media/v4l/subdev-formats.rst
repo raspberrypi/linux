@@ -8665,3 +8665,73 @@ This mbus code are only used for "2-byte simplified tagged data format" (code
 embedded data format codes.
 
 Also see :ref:`CCS driver documentation <media-ccs-routes>`.
+
+Omnivision OV2740 Embedded Data Format
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Omnivision OV2740 camera sensor produces the following embedded data format,
+indicated by mbus code MEDIA_BUS_FMT_OV2740_EMBEDDED. The format conforms to
+:ref:`CCS embedded data format <MEDIA-BUS-FMT-CCS-EMBEDDED>` up to level 1.
+
+.. flat-table:: Omnivision OV2740 Embedded Data Format. Octets at indices marked
+                reserved or unused have been omitted from the table. The values
+                are big endian byte order.
+    :header-rows: 1
+
+    * - Offset
+      - Size in bits (active bits if not the same as size)
+      - Content description
+    * - 4
+      - 16 (10--0)
+      - Analogue gain
+    * - 6
+      - 16
+      - Coarse integration time
+    * - 10
+      - 8
+      - Dpc correction threshold
+    * - 15
+      - 16
+      - Output image width
+    * - 17
+      - 16
+      - Output image height
+    * - 23
+      - 8
+      - MIPI header revision number (2)
+    * - 31
+      - 8
+      - Vertical (bit 1) and horizontal flip (bit 0)
+    * - 32
+      - 8
+      - Frame duration A
+    * - 33
+      - 8
+      - Frame duration B
+    * - 34
+      - 8
+      - Context count (2)
+    * - 35
+      - 8
+      - Context select
+    * - 54
+      - 8
+      - Data pedestal bits 9--2
+    * - 63
+      - 8
+      - Frame average bits 9--2
+    * - 64
+      - 16
+      - Digital gain red
+    * - 66
+      - 16
+      - Digital gain greenr
+    * - 68
+      - 16
+      - Digital gain blue
+    * - 70
+      - 16
+      - Digital gain greenb
+    * - 89
+      - 8
+      - Frame counter (starts at 1, wraps to 0 after 255)
