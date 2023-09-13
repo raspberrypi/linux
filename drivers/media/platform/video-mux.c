@@ -21,11 +21,11 @@
 #include <media/v4l2-subdev.h>
 
 struct video_mux_asd {
-	struct v4l2_async_subdev base;
+	struct v4l2_async_connection base;
 	unsigned int port;
 };
 
-static inline struct video_mux_asd *to_video_mux_asd(struct v4l2_async_subdev *asd)
+static inline struct video_mux_asd *to_video_mux_asd(struct v4l2_async_connection *asd)
 {
 	return container_of(asd, struct video_mux_asd, base);
 }
