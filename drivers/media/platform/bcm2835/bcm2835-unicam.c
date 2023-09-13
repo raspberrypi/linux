@@ -527,7 +527,7 @@ struct unicam_device {
 	struct kref kref;
 
 	/* V4l2 specific parameters */
-	struct v4l2_async_subdev asd;
+	struct v4l2_async_connection asd;
 
 	/* peripheral base address */
 	void __iomem *base;
@@ -2802,7 +2802,7 @@ static const struct v4l2_file_operations unicam_fops = {
 static int
 unicam_async_bound(struct v4l2_async_notifier *notifier,
 		   struct v4l2_subdev *subdev,
-		   struct v4l2_async_subdev *asd)
+		   struct v4l2_async_connection *asd)
 {
 	struct unicam_device *unicam = to_unicam_device(notifier->v4l2_dev);
 
@@ -3335,18 +3335,19 @@ static int of_unicam_connect_subdevs(struct unicam_device *dev)
 		   dev->max_data_lanes, dev->bus_flags);
 
 	/* Initialize and register the async notifier. */
-	v4l2_async_nf_init(&dev->notifier);
+	v4l2_async_nf_init(&dev->notifier, &dev->v4l2_dev);
 	dev->notifier.ops = &unicam_async_ops;
 
-	dev->asd.match_type = V4L2_ASYNC_MATCH_FWNODE;
+	dev->asd.match.type = V4L2_ASYNC_MATCH_TYPE_FWNODE;
 	dev->asd.match.fwnode = fwnode_graph_get_remote_endpoint(of_fwnode_handle(ep_node));
-	ret = __v4l2_async_nf_add_subdev(&dev->notifier, &dev->asd);
+#if 0 // build hack - this api has been removed
+	ret = __v4l2_async_nf_add_connection(&dev->notifier, &dev->asd);
 	if (ret) {
 		unicam_err(dev, "Error adding subdevice: %d\n", ret);
 		goto cleanup_exit;
 	}
-
-	ret = v4l2_async_nf_register(&dev->v4l2_dev, &dev->notifier);
+#endif
+	ret = v4l2_async_nf_register(&dev->notifier);
 	if (ret) {
 		unicam_err(dev, "Error registering async notifier: %d\n", ret);
 		ret = -EINVAL;
