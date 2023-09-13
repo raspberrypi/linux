@@ -821,6 +821,19 @@ config VIDEO_AK7375
 	  capability. This is designed for linear control of
 	  voice coil motors, controlled via I2C serial interface.
 
+config VIDEO_BU64754
+	tristate "BU64754 Motor Driver for Camera Autofocus"
+	depends on I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_ASYNC
+	select V4L2_CCI_I2C
+	help
+	  This is a driver for the BU64754 Motor Driver for Camera
+	  Autofocus. The BU64754GWZ is an actuator driver IC which
+	  can be controlled the actuator position precisely using
+	  with internal Hall Sensor.
+
 config VIDEO_DW9714
 	tristate "DW9714 lens voice coil support"
 	depends on I2C && VIDEO_DEV
