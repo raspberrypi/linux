@@ -20,12 +20,24 @@ enum Value {
     Boolean(bool),
     Number(i32),
     String(String),
+    Array(Vec<Value>),
     Object(Object),
 }
 
 type Object = Vec<(String, Value)>;
 
-/// Minimal "almost JSON" generator (e.g. no `null`s, no arrays, no escaping),
+fn comma_sep<T>(seq: &[T], formatter: &mut Formatter<'_>, f: impl Fn(&mut Formatter<'_>, &T) -> Result) -> Result {
+    if let [ref rest @ .., ref last] = seq[..] {
+        for v in rest {
+            f(formatter, v)?;
+            formatter.write_str(",")?;
+        }
+        f(formatter, last)?;
+    }
+    Ok(())
+}
+
+/// Minimal "almost JSON" generator (e.g. no `null`s, no escaping),
 /// enough for this purpose.
 impl Display for Value {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
@@ -33,14 +45,15 @@ impl Display for Value {
             Value::Boolean(boolean) => write!(formatter, "{}", boolean),
             Value::Number(number) => write!(formatter, "{}", number),
             Value::String(string) => write!(formatter, "\"{}\"", string),
+            Value::Array(values) => {
+                formatter.write_str("[")?;
+                comma_sep(&values[..], formatter, |formatter, v| v.fmt(formatter))?;
+                formatter.write_str("]")
+            }
             Value::Object(object) => {
                 formatter.write_str("{")?;
-                if let [ref rest @ .., ref last] = object[..] {
-                    for (key, value) in rest {
-                        write!(formatter, "\"{}\": {},", key, value)?;
-                    }
-                    write!(formatter, "\"{}\": {}", last.0, last.1)?;
-                }
+                comma_sep(&object[..], formatter, |formatter, v|
+                          write!(formatter, "\"{}\": {}", v.0, v.1))?;
                 formatter.write_str("}")
             }
         }
@@ -77,9 +90,9 @@ impl Push<String> for TargetSpec {
     }
 }
 
-impl Push<&str> for TargetSpec {
-    fn push(&mut self, key: &str, value: &str) {
-        self.push(key, value.to_string());
+impl <T: Into<Value>, const N: usize> From<[T; N]> for Value {
+    fn from(i: [T; N]) -> Self {
+        Self::Array(i.into_iter().map(|v| v.into()).collect())
     }
 }
 
