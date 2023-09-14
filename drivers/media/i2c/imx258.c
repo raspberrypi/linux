@@ -902,9 +902,6 @@ struct imx258 {
 	 */
 	struct mutex mutex;
 
-	/* Streaming on/off */
-	bool streaming;
-
 	struct clk *clk;
 	struct regulator_bulk_data supplies[IMX258_NUM_SUPPLIES];
 };
@@ -1497,7 +1494,6 @@ static int imx258_set_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put(&client->dev);
 	}
 
-	imx258->streaming = enable;
 	mutex_unlock(&imx258->mutex);
 
 	return ret;
@@ -1507,37 +1503,6 @@ err_rpm_put:
 err_unlock:
 	mutex_unlock(&imx258->mutex);
 
-	return ret;
-}
-
-static int __maybe_unused imx258_suspend(struct device *dev)
-{
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct imx258 *imx258 = to_imx258(sd);
-
-	if (imx258->streaming)
-		imx258_stop_streaming(imx258);
-
-	return 0;
-}
-
-static int __maybe_unused imx258_resume(struct device *dev)
-{
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct imx258 *imx258 = to_imx258(sd);
-	int ret;
-
-	if (imx258->streaming) {
-		ret = imx258_start_streaming(imx258);
-		if (ret)
-			goto error;
-	}
-
-	return 0;
-
-error:
-	imx258_stop_streaming(imx258);
-	imx258->streaming = 0;
 	return ret;
 }
 
@@ -1894,7 +1859,6 @@ static void imx258_remove(struct i2c_client *client)
 }
 
 static const struct dev_pm_ops imx258_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(imx258_suspend, imx258_resume)
 	SET_RUNTIME_PM_OPS(imx258_power_off, imx258_power_on, NULL)
 };
 
