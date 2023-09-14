@@ -44,9 +44,6 @@
 static int w1_strong_pullup = 1;
 module_param_named(strong_pullup, w1_strong_pullup, int, 0);
 
-/* Counter for devices supporting bulk reading */
-static u16 bulk_read_device_counter; /* =0 as per C standard */
-
 /* This command should be in public header w1.h but is not */
 #define W1_RECALL_EEPROM	0xB8
 
@@ -938,7 +935,7 @@ static int w1_therm_add_slave(struct w1_slave *sl)
 		 * add the sys entry to trigger bulk_read
 		 * at master level only the 1st time
 		 */
-		if (!bulk_read_device_counter) {
+		if (!sl->master->bulk_slave_count) {
 			int err = device_create_file(&sl->master->dev,
 				&dev_attr_therm_bulk_read);
 
@@ -948,7 +945,7 @@ static int w1_therm_add_slave(struct w1_slave *sl)
 				__func__, err);
 		}
 		/* Increment the counter */
-		bulk_read_device_counter++;
+		sl->master->bulk_slave_count++;
 	}
 
 	/* Getting the power mode of the device {external, parasite} */
@@ -984,9 +981,9 @@ static void w1_therm_remove_slave(struct w1_slave *sl)
 	int refcnt = atomic_sub_return(1, THERM_REFCNT(sl->family_data));
 
 	if (bulk_read_support(sl)) {
-		bulk_read_device_counter--;
+		sl->master->bulk_slave_count--;
 		/* Delete the entry if no more device support the feature */
-		if (!bulk_read_device_counter)
+		if (!sl->master->bulk_slave_count)
 			device_remove_file(&sl->master->dev,
 				&dev_attr_therm_bulk_read);
 	}

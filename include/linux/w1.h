@@ -209,6 +209,7 @@ struct w1_master {
 	struct list_head	slist;
 	struct list_head	async_list;
 	int			max_slave_count, slave_count;
+	int			bulk_slave_count;
 	unsigned long		attempts;
 	int			slave_ttl;
 	int			initialized;
