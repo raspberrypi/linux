@@ -60,33 +60,33 @@ impl Display for Value {
     }
 }
 
-struct TargetSpec(Object);
-
-impl TargetSpec {
-    fn new() -> TargetSpec {
-        TargetSpec(Vec::new())
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Self::Boolean(value)
     }
 }
 
-trait Push<T> {
-    fn push(&mut self, key: &str, value: T);
-}
-
-impl Push<bool> for TargetSpec {
-    fn push(&mut self, key: &str, value: bool) {
-        self.0.push((key.to_string(), Value::Boolean(value)));
+impl From<i32> for Value {
+    fn from(value: i32) -> Self {
+        Self::Number(value)
     }
 }
 
-impl Push<i32> for TargetSpec {
-    fn push(&mut self, key: &str, value: i32) {
-        self.0.push((key.to_string(), Value::Number(value)));
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Self::String(value)
     }
 }
 
-impl Push<String> for TargetSpec {
-    fn push(&mut self, key: &str, value: String) {
-        self.0.push((key.to_string(), Value::String(value)));
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_string())
+    }
+}
+
+impl From<Object> for Value {
+    fn from(object: Object) -> Self {
+        Self::Object(object)
     }
 }
 
@@ -96,9 +96,15 @@ impl <T: Into<Value>, const N: usize> From<[T; N]> for Value {
     }
 }
 
-impl Push<Object> for TargetSpec {
-    fn push(&mut self, key: &str, value: Object) {
-        self.0.push((key.to_string(), Value::Object(value)));
+struct TargetSpec(Object);
+
+impl TargetSpec {
+    fn new() -> TargetSpec {
+        TargetSpec(Vec::new())
+    }
+
+    fn push(&mut self, key: &str, value: impl Into<Value>) {
+        self.0.push((key.to_string(), value.into()));
     }
 }
 
