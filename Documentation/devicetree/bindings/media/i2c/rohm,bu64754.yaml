@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+# Copyright (C) 2023 Ideas on Board Oy.
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/media/i2c/rohm,bu64754.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ROHM BU64754 Actuator Driver for Camera Autofocus
+
+maintainers:
+  - Kieran Bingham <kieran.bingham@ideasonboard.com>
+
+description: |
+  The BU64754GWZ is an actuator driver IC which can control the actuator
+  position precisely using an internal Hall Sensor.
+
+properties:
+  compatible:
+    items:
+      - enum:
+          - rohm,bu64754
+
+  reg:
+    maxItems: 1
+
+  vdd-supply:
+    description:
+      Definition of the regulator used as VDD power supply to the driver.
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        lens@76 {
+            compatible = "rohm,bu64754";
+            reg = <0x76>;
+            vdd-supply = <&cam1_reg>;
+        };
+    };
+...
