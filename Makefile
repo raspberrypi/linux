@@ -1001,8 +1001,19 @@ export CC_FLAGS_LTO
 endif
 
 ifdef CONFIG_CFI_CLANG
-CC_FLAGS_CFI	:= -fsanitize=kcfi
-KBUILD_CFLAGS	+= $(CC_FLAGS_CFI)
+CC_FLAGS_CFI   := -fsanitize=kcfi
+ifdef CONFIG_RUST
+# If Rust is enabled, this flag is required to support cross-language
+# integer types.
+# This addresses the problem that on e.g. i686, int != long, and Rust
+# maps both to i32.
+# See https://rcvalle.com/docs/rust-cfi-design-doc.pdf for details.
+CC_FLAGS_CFI   += -fsanitize-cfi-icall-experimental-normalize-integers
+RS_FLAGS_CFI   := -Zsanitizer=kcfi -Zsanitizer-cfi-normalize-integers
+KBUILD_RUSTFLAGS += $(RS_FLAGS_CFI)
+export RS_FLAGS_CFI
+endif
+KBUILD_CFLAGS  += $(CC_FLAGS_CFI)
 export CC_FLAGS_CFI
 endif
 
