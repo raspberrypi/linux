@@ -44,6 +44,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_iommu_limit_align_shift,
 		unsigned long *shift),
 	TP_ARGS(iovad, size, shift), 1);
 
+DECLARE_HOOK(android_vh_adjust_alloc_flags,
+	TP_PROTO(unsigned int order, gfp_t *alloc_flags),
+	TP_ARGS(order, alloc_flags));
+
 #endif /* _TRACE_HOOK_IOMMU_H */
 
 /* This part must be outside protection */
