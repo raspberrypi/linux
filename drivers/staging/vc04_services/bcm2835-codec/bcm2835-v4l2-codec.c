@@ -242,26 +242,28 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		/* RGB formats */
 		.fourcc			= V4L2_PIX_FMT_RGB24,
 		.depth			= 24,
-		.bytesperline_align	= { 32, 32, 32, 32, 32 },
+		/* Special cased as aligns to a multiple of 96 */
+		.bytesperline_align	= { 0, 0, 0, 0, 0 },
 		.flags			= 0,
 		.mmal_fmt		= MMAL_ENCODING_RGB24,
 		.size_multiplier_x2	= 2,
 	}, {
 		.fourcc			= V4L2_PIX_FMT_BGR24,
 		.depth			= 24,
-		.bytesperline_align	= { 32, 32, 32, 32, 32 },
+		/* Special cased as aligns to a multiple of 96 */
+		.bytesperline_align	= { 0, 0, 0, 0, 0 },
 		.flags			= 0,
 		.mmal_fmt		= MMAL_ENCODING_BGR24,
 		.size_multiplier_x2	= 2,
 	}, {
-		.fourcc			= V4L2_PIX_FMT_BGR32,
+		.fourcc			= V4L2_PIX_FMT_XBGR32,
 		.depth			= 32,
 		.bytesperline_align	= { 32, 32, 32, 32, 32 },
 		.flags			= 0,
 		.mmal_fmt		= MMAL_ENCODING_BGRA,
 		.size_multiplier_x2	= 2,
 	}, {
-		.fourcc			= V4L2_PIX_FMT_RGBA32,
+		.fourcc			= V4L2_PIX_FMT_RGBX32,
 		.depth			= 32,
 		.bytesperline_align	= { 32, 32, 32, 32, 32 },
 		.flags			= 0,
@@ -892,21 +894,37 @@ static inline unsigned int get_sizeimage(int bpl, int width, int height,
 	return (ALIGN(width, 128) * bpl);
 }
 
+static inline unsigned int align_bytesperline(int width_depth, int height,
+					      struct bcm2835_codec_fmt *fmt,
+					      enum bcm2835_codec_role role)
+{
+	switch (fmt->fourcc) {
+	case V4L2_PIX_FMT_NV12_COL128:
+		/*
+		 * V4L2_PIX_FMT_NV12_COL128 passes the column stride in lines via
+		 * bytesperline.
+		 * The minimum value for this is sufficient for the base luma and chroma
+		 * with no padding.
+		 */
+		return (height * 3) >> 1;
+
+	case V4L2_PIX_FMT_RGB24:
+	case V4L2_PIX_FMT_BGR24:
+		return ((width_depth + 95) / 96) * 96;
+	}
+pr_err("%s: Align width_depth of %u to alignment of %u fmt fourcc %08x role %u\n", __func__, width_depth, fmt->bytesperline_align[role],
+	fmt->fourcc, role);
+	return ALIGN(width_depth, fmt->bytesperline_align[role]);
+}
+
 static inline unsigned int get_bytesperline(int width, int height,
 					    struct bcm2835_codec_fmt *fmt,
 					    enum bcm2835_codec_role role)
 {
-	if (fmt->fourcc != V4L2_PIX_FMT_NV12_COL128)
-		return ALIGN((width * fmt->depth) >> 3,
-			     fmt->bytesperline_align[role]);
+	unsigned int aligned = align_bytesperline((width * fmt->depth) >> 3, height, fmt, role);
 
-	/*
-	 * V4L2_PIX_FMT_NV12_COL128 passes the column stride in lines via
-	 * bytesperline.
-	 * The minimum value for this is sufficient for the base luma and chroma
-	 * with no padding.
-	 */
-	return (height * 3) >> 1;
+	pr_err("%s: width %u depth %u aligned to %u\n", __func__, width, fmt->depth, aligned);
+	return aligned;
 }
 
 static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
@@ -935,6 +953,9 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 		}
 		port->es.video.frame_rate.numerator = ctx->framerate_num;
 		port->es.video.frame_rate.denominator = ctx->framerate_denom;
+		v4l2_dbg(0, debug, &ctx->dev->v4l2_dev, "%s: format set to crop %ux%u, size %ux%u\n",
+			__func__, port->es.video.crop.width, port->es.video.crop.height, 
+			port->es.video.width, port->es.video.height);
 	} else {
 		/* Compressed format - leave resolution as 0 for decode */
 		if (ctx->dev->role == DECODE) {
@@ -956,6 +977,8 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 	port->es.video.crop.y = 0;
 
 	port->current_buffer.size = q_data->sizeimage;
+	v4l2_dbg(0, debug, &ctx->dev->v4l2_dev, "%s: format set buffersize %u\n",
+		__func__, port->current_buffer.size);
 };
 
 static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
@@ -1511,9 +1534,11 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 					    fmt, ctx->dev->role);
 	if (f->fmt.pix_mp.plane_fmt[0].bytesperline < min_bytesperline)
 		f->fmt.pix_mp.plane_fmt[0].bytesperline = min_bytesperline;
+
 	f->fmt.pix_mp.plane_fmt[0].bytesperline =
-		ALIGN(f->fmt.pix_mp.plane_fmt[0].bytesperline,
-		      fmt->bytesperline_align[ctx->dev->role]);
+		align_bytesperline(f->fmt.pix_mp.plane_fmt[0].bytesperline,
+				   f->fmt.pix_mp.height, fmt, ctx->dev->role);
+	pr_err("%s: aligned ybtesperline is %u\n", __func__, f->fmt.pix_mp.plane_fmt[0].bytesperline);
 
 	sizeimage = get_sizeimage(f->fmt.pix_mp.plane_fmt[0].bytesperline,
 				  f->fmt.pix_mp.width, f->fmt.pix_mp.height,
@@ -2990,6 +3015,7 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 		}
 	}
 }
+
 static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 					 unsigned int count)
 {
