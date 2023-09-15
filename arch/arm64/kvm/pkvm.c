@@ -723,6 +723,8 @@ int __init pkvm_load_early_modules(void)
 				       token, err);
 				return err;
 			}
+			/* Do it every iteration to iron out the dependencies. */
+			flush_deferred_probe_now();
 		}
 
 		if (buf)

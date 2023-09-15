@@ -133,6 +133,7 @@ void driver_unregister(struct device_driver *drv);
 struct device_driver *driver_find(const char *name, const struct bus_type *bus);
 bool __init driver_probe_done(void);
 void wait_for_device_probe(void);
+void flush_deferred_probe_now(void);
 void __init wait_for_init_devices_probe(void);
 
 /* sysfs interface for exporting driver attributes */
