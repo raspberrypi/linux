@@ -2090,6 +2090,22 @@ static struct edid *edid_filter_invalid_blocks(struct edid *edid,
 	return new;
 }
 
+/*
+ * add a CTA extension (block) comtaining audio support
+ * fix up the base extension to include the extra
+ * extension and report as digital (required for audio)
+ * and fix up checksums.
+ */
+void drm_edid_add_audio_extension(void *block)
+{
+	struct edid *edid = block;
+	edid->input = DRM_EDID_INPUT_DIGITAL;
+	edid->extensions++;
+	edid->checksum = edid_block_compute_checksum(edid);
+	edid = block + EDID_LENGTH;
+	edid->checksum = edid_block_compute_checksum(edid);
+}
+
 #define DDC_SEGMENT_ADDR 0x30
 /**
  * drm_do_probe_ddc_edid() - get EDID information via I2C
