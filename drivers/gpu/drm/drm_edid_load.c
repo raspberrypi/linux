@@ -167,20 +167,53 @@ static int edid_size(const u8 *edid, int data_size)
 	return (edid[0x7e] + 1) * EDID_LENGTH;
 }
 
+/* Minimal edid extension block that reports basic audio support */
+static const u8 generic_edid_audio[] = {
+	0x02, /* CTA extension block */
+	0x03, /* version */
+	0x12, /* 18 bytes are valid */
+	0xc0, /* underscan | basic audio */
+	0x23, /* Audio Data Block, length 3 */
+	0x09, /* Linear PCM, 2 channel */
+	0x07, /* Supported sample rates (kHz): 48 44.1 32 */
+	0x07, /* Supported sample sizes (bits): 24 20 16 */
+	0x83, /* Speaker Allocation Data Block, length 3 */
+	0x01, 0x00, 0x00, /* FL/FR */
+	0x65, /* Vendor-Specific Data Block, length 3 */
+	0x03, 0x0c, 0x00, 0x00, 0x00, /* HDMI PA:0.0.0.0 */
+};
+
 static void *edid_load(struct drm_connector *connector, const char *name,
 			const char *connector_name)
 {
 	const struct firmware *fw = NULL;
 	const u8 *fwdata;
 	u8 *edid;
+	u8 *fwdata2 = NULL;
 	int fwsize, builtin;
 	int i, valid_extensions = 0;
 	bool print_bad_edid = !connector->bad_edid_counter || drm_debug_enabled(DRM_UT_KMS);
+	bool support_audio = false;
 
+	if (strncmp(name, "audio+", 6) == 0) {
+		support_audio = true;
+		name += 6;
+	}
 	builtin = match_string(generic_edid_name, GENERIC_EDIDS, name);
 	if (builtin >= 0) {
 		fwdata = generic_edid[builtin];
 		fwsize = sizeof(generic_edid[builtin]);
+		if (support_audio) {
+			fwdata2 = kzalloc(fwsize + EDID_LENGTH, GFP_KERNEL);
+			if (!fwdata2)
+				return ERR_PTR(-ENOMEM);
+
+			memcpy(fwdata2, fwdata, fwsize);
+			memcpy(fwdata2 + fwsize, generic_edid_audio, sizeof(generic_edid_audio));
+			drm_edid_add_audio_extension(fwdata2);
+			fwsize += EDID_LENGTH;
+			fwdata = fwdata2;
+		}
 	} else {
 		struct platform_device *pdev;
 		int err;
@@ -260,6 +293,7 @@ static void *edid_load(struct drm_connector *connector, const char *name,
 
 out:
 	release_firmware(fw);
+	kfree(fwdata2);
 	return edid;
 }
 

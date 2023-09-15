@@ -614,4 +614,6 @@ int drm_edid_connector_update(struct drm_connector *connector,
 const u8 *drm_find_edid_extension(const struct drm_edid *drm_edid,
 				  int ext_id, int *ext_index);
 
+void drm_edid_add_audio_extension(void *block);
+
 #endif /* __DRM_EDID_H__ */
