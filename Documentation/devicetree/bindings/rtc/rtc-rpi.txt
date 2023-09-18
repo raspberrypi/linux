@@ -9,9 +9,14 @@ Required properties:
 compatible: should be "raspberrypi,rpi-rtc"
 firmware:   Reference to the RPi firmware device node.
 
+Optional property:
+trickle-charge-microvolt: specify a trickle charge voltage for the backup
+                          battery in microvolts.
+
 Example:
 
 	rpi_rtc: rpi_rtc {
 		compatible = "raspberrypi,rpi-rtc";
 		firmware = <&firmware>;
+		trickle-charge-microvolt = <3000000>;
 	};
