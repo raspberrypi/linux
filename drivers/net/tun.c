@@ -80,6 +80,8 @@
 
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
+//kwlee
+#include <linux/scone.h>
 
 static void tun_default_link_ksettings(struct net_device *dev,
 				       struct ethtool_link_ksettings *cmd);
@@ -1541,6 +1543,16 @@ static void tun_rx_batched(struct tun_struct *tun, struct tun_file *tfile,
 	u32 rx_batched = tun->rx_batched;
 	bool rcv = false;
 
+#ifdef FCRACKER
+	int err;
+	if(skb->ft != NULL && skb->ft->xmit_simple == 1){
+		err = netif_simple_path(skb);
+//		printk("FC_LG: [%s] netif simple path err = %d\n", __func__, err);
+		if (err == NET_RX_SUCCESS)
+			return;
+	}
+#endif
+	
 	if (!rx_batched || (!more && skb_queue_empty(queue))) {
 		local_bh_disable();
 		skb_record_rx_queue(skb, tfile->queue_index);
@@ -1902,6 +1914,10 @@ static ssize_t tun_get_user(struct tun_struct *tun, struct tun_file *tfile,
 	skb_probe_transport_header(skb);
 	skb_record_rx_queue(skb, tfile->queue_index);
 
+	#ifdef FCRACKER
+		probe_ft(skb);
+	#endif
+	
 	if (skb_xdp) {
 		struct bpf_prog *xdp_prog;
 		int ret;
@@ -2833,6 +2849,12 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 
 		tun->ifr = ifr;
 		tun->file = file;
+
+#ifdef FCRACKER
+		tun->dev->ft = NULL;
+		INIT_LIST_HEAD(&tun->dev->ctable_list);
+		printk("FC_LG: [%s] device name=%s\n", __func__, tun->dev->name);
+#endif
 
 		tun_net_initialize(dev);
 
