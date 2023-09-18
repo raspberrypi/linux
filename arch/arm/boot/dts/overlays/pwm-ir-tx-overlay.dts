@@ -28,7 +28,7 @@
 		__overlay__ {
 			pwm-ir-transmitter {
 				compatible = "pwm-ir-tx";
-				pwms = <&pwm 0 100>;
+				pwms = <&pwm 0 100 0>;
 			};
 		};
 	};
