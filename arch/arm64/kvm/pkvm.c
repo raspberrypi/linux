@@ -718,6 +718,36 @@ int __init pkvm_load_early_modules(void)
 	return 0;
 }
 
+#ifdef CONFIG_PROTECTED_NVHE_STACKTRACE
+static LIST_HEAD(pkvm_modules);
+
+static void pkvm_el2_mod_add(struct pkvm_el2_module *mod)
+{
+	INIT_LIST_HEAD(&mod->node);
+	list_add(&mod->node, &pkvm_modules);
+}
+
+unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
+{
+	struct pkvm_el2_module *mod;
+
+	list_for_each_entry(mod, &pkvm_modules, node) {
+		size_t len = (unsigned long)mod->sections.end -
+			     (unsigned long)mod->sections.start;
+
+		if (addr >= (unsigned long)mod->token &&
+		    addr < (unsigned long)mod->token + len)
+			return (unsigned long)mod->sections.start +
+				(addr - mod->token);
+	}
+
+	return 0;
+}
+#else
+static void pkvm_el2_mod_add(struct pkvm_el2_module *mod) { }
+unsigned long pkvm_el2_mod_kern_va(unsigned long addr) { return 0; }
+#endif
+
 struct pkvm_mod_sec_mapping {
 	struct pkvm_module_section *sec;
 	enum kvm_pgtable_prot prot;
@@ -850,6 +880,10 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 	if (token)
 		*token = (unsigned long)hyp_va;
 
+	mod->token = (unsigned long)hyp_va;
+	mod->sections.start = start;
+	mod->sections.end = end;
+
 	endrel = (void *)mod->relocs + mod->nr_relocs * sizeof(*endrel);
 	kvm_apply_hyp_module_relocations(start, hyp_va, mod->relocs, endrel);
 
@@ -875,6 +909,8 @@ int __pkvm_load_el2_module(struct module *this, unsigned long *token)
 		module_put(this);
 		return ret;
 	}
+
+	pkvm_el2_mod_add(mod);
 
 	return 0;
 }

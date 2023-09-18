@@ -201,6 +201,8 @@ struct pkvm_module_ops {
 int __pkvm_load_el2_module(struct module *this, unsigned long *token);
 
 int __pkvm_register_el2_call(unsigned long hfn_hyp_va);
+
+unsigned long pkvm_el2_mod_kern_va(unsigned long addr);
 #else
 static inline int __pkvm_load_el2_module(struct module *this,
 					 unsigned long *token)
@@ -211,6 +213,11 @@ static inline int __pkvm_load_el2_module(struct module *this,
 static inline int __pkvm_register_el2_call(unsigned long hfn_hyp_va)
 {
 	return -ENOSYS;
+}
+
+static inline unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
+{
+	return 0;
 }
 #endif /* CONFIG_MODULES */
 

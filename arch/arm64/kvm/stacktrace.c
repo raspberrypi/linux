@@ -20,6 +20,7 @@
 #include <linux/kvm_host.h>
 
 #include <asm/stacktrace/nvhe.h>
+#include <asm/kvm_pkvm_module.h>
 
 static struct stack_info stackinfo_get_overflow(void)
 {
@@ -147,10 +148,18 @@ static bool kvm_nvhe_dump_backtrace_entry(void *arg, unsigned long where)
 {
 	unsigned long va_mask = GENMASK_ULL(vabits_actual - 1, 0);
 	unsigned long hyp_offset = (unsigned long)arg;
+	unsigned long mod_addr = pkvm_el2_mod_kern_va(where & va_mask);
+	unsigned long where_kaslr;
 
-	/* Mask tags and convert to kern addr */
-	where = (where & va_mask) + hyp_offset;
-	kvm_err(" [<%016lx>] %pB\n", where, (void *)(where + kaslr_offset()));
+	if (mod_addr) {
+		where_kaslr = where = mod_addr;
+	} else {
+		/* Mask tags and convert to kern addr */
+		where = (where & va_mask) + hyp_offset;
+		where_kaslr = where + kaslr_offset();
+	}
+
+	kvm_err(" [<%016lx>] %pB\n", where, (void *)(where_kaslr));
 
 	return true;
 }
