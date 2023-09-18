@@ -36,7 +36,8 @@ static size_t oom_victim_removed_count;
 static DEFINE_MUTEX(memhealth_mutex);
 /* List of new oom victims not yet added into oom_victim_list */
 static struct list_head new_oom_victims_list;
-/* Lock protecting new_oom_victims_list */
+static size_t new_oom_victims_count;
+/* Lock protecting new_oom_victims_list and  new_oom_victims_count */
 static DEFINE_SPINLOCK(memhealth_spin_lock);
 
 struct oom_victim {
@@ -64,8 +65,9 @@ static void oom_list_move_victims(struct work_struct *work)
 		return;
 	}
 
-	total_new_nodes = list_count_nodes(&new_oom_victims_list);
+	total_new_nodes = new_oom_victims_count;
 	list_splice_tail_init(&new_oom_victims_list, &oom_victim_list);
+	new_oom_victims_count = 0;
 
 	spin_unlock(&memhealth_spin_lock);
 
@@ -143,6 +145,7 @@ static int add_oom_victim_to_list(pid_t pid, ktime_t timestamp)
 	 * block the caller of mark victim
 	 */
 	list_add_tail(&new_node->list, &new_oom_victims_list);
+	new_oom_victims_count++;
 	spin_unlock(&memhealth_spin_lock);
 
 	schedule_work(&memhealth_oom_work);
@@ -274,6 +277,7 @@ static int __init memhealthmod_start(void)
 	init_waitqueue_head(&memhealth_wq);
 	oom_victim_count = 0;
 	oom_victim_removed_count = 0;
+	new_oom_victims_count = 0;
 
 	ret = register_trace_mark_victim(mark_victim_probe, NULL);
 	if (ret) {
