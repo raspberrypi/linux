@@ -75,6 +75,20 @@ struct udp_tunnel_nic;
 struct bpf_prog;
 struct xdp_buff;
 
+#ifdef SIMPLE_PATH
+extern struct iphdr *iph;
+int netif_simple_path(struct sk_buff *skb);
+int netif_simple_netfilter(u_int8_t pf, unsigned int hook,
+				 struct sk_buff *skb);
+int pre_routing_netfilter(struct sk_buff* skb);
+int forward_netfilter(struct sk_buff* skb);
+int post_routing_netfilter(struct sk_buff* skb);
+struct neighbour* get_neighbour(struct sk_buff* skb, struct net_device *dev);
+int netif_simple_route(struct sk_buff* skb, struct iphdr *iph);
+int netif_simple_forward(struct sk_buff* skb, struct iphdr *iph);
+#endif
+
+
 void synchronize_net(void);
 void netdev_set_default_ethtool_ops(struct net_device *dev,
 				    const struct ethtool_ops *ops);
@@ -2361,6 +2375,11 @@ struct net_device {
 	netdevice_tracker	watchdog_dev_tracker;
 	netdevice_tracker	dev_registered_tracker;
 	struct rtnl_hw_stats64	*offload_xstats_l3;
+
+#ifdef FCRACKER
+	struct scone_flow_table *ft;
+	struct list_head ctable_list;
+#endif
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
