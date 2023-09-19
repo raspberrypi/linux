@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config DRM_RP1_VEC
+	tristate "DRM Support for RP1 VEC"
+	depends on DRM
+	select MFD_RP1
+	select DRM_GEM_DMA_HELPER
+	select DRM_KMS_HELPER
+	select DRM_VRAM_HELPER
+	select DRM_TTM
+	select DRM_TTM_HELPER
+	help
+	  Choose this option to enable Video Out on RP1
