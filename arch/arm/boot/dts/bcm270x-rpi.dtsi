@@ -127,6 +127,9 @@
 	status = "disabled";
 };
 
+i2s_clk_producer: &i2s {};
+i2s_clk_consumer: &i2s {};
+
 &clocks {
 	firmware = <&firmware>;
 };
