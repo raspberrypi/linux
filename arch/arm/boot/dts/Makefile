@@ -18,7 +18,8 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2709-rpi-cm2.dtb \
 	bcm2710-rpi-cm3.dtb \
 	bcm2711-rpi-cm4.dtb \
-	bcm2711-rpi-cm4s.dtb
+	bcm2711-rpi-cm4s.dtb \
+	bcm2712-rpi-5-b.dtb
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb

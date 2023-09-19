@@ -11,7 +11,7 @@
 / {
 	/* No compatible as it will have come from edt-ft5406.dtsi */
 
-	fragment@0 {
+	dsi_frag: fragment@0 {
 		target = <&dsi1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -51,8 +51,8 @@
 	fragment@1 {
 		target-path = "/";
 		__overlay__ {
-			panel_disp1: panel_disp1@0 {
-				reg = <0>;
+			panel_disp: panel_disp@1 {
+				reg = <1>;
 				compatible = "raspberrypi,7inch-dsi", "simple-panel";
 				backlight = <&reg_display>;
 				power-supply = <&reg_display>;
@@ -64,8 +64,8 @@
 				};
 			};
 
-			reg_bridge: reg_bridge@0 {
-				reg = <0>;
+			reg_bridge: reg_bridge@1 {
+				reg = <1>;
 				compatible = "regulator-fixed";
 				regulator-name = "bridge_reg";
 				gpio = <&reg_display 0 0>;
@@ -75,7 +75,7 @@
 		};
 	};
 
-	fragment@2 {
+	i2c_frag: fragment@2 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -113,6 +113,12 @@
 	};
 
 	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&ts_i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&panel_disp>, "reg:0=0",
+		       <&reg_bridge>, "reg:0=0",
+		       <&reg_bridge>, "regulator-name=bridge_reg_0";
 		disable_touch = <0>, "-10-11-12";
 	};
 };
