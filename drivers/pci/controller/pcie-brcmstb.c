@@ -140,6 +140,7 @@
 
 #define PCIE_MISC_HARD_PCIE_HARD_DEBUG	pcie->reg_offsets[PCIE_HARD_DEBUG]
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK	0x2
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK		0x8
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x08000000
 #define  PCIE_BMIPS_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x00800000
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK		0x00200000
@@ -354,6 +355,7 @@ struct brcm_pcie {
 	bool			(*rc_mode)(struct brcm_pcie *pcie);
 	struct subdev_regulators *sr;
 	bool			ep_wakeup_capable;
+	u32			tperst_clk_ms;
 };
 
 static inline bool is_bmips(const struct brcm_pcie *pcie)
@@ -1386,9 +1388,28 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	u16 nlw, cls, lnksta;
 	bool ssc_good = false;
 	int ret, i;
+	u32 tmp;
 
 	/* Unassert the fundamental reset */
-	pcie->perst_set(pcie, 0);
+	if (pcie->tperst_clk_ms) {
+		/*
+		 * Increase Tperst_clk time by forcing PERST# output low while
+		 * the internal reset is released, so the PLL generates stable
+		 * refclk output further in advance of PERST# deassertion.
+		 */
+		tmp = readl(base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+		u32p_replace_bits(&tmp, 1, PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK);
+		writel(tmp, base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+
+		pcie->perst_set(pcie, 0);
+		msleep(pcie->tperst_clk_ms);
+
+		tmp = readl(base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+		u32p_replace_bits(&tmp, 0, PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK);
+		writel(tmp, base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+	} else {
+		pcie->perst_set(pcie, 0);
+	}
 
 	/*
 	 * Wait for 100ms after PERST# deassertion; see PCIe CEM specification
@@ -1919,6 +1940,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	pcie->ssc = of_property_read_bool(np, "brcm,enable-ssc");
 	pcie->l1ss = of_property_read_bool(np, "brcm,enable-l1ss");
 	pcie->rcb_mps_mode = of_property_read_bool(np, "brcm,enable-mps-rcb");
+	of_property_read_u32(np, "brcm,tperst-clk-ms", &pcie->tperst_clk_ms);
 
 	ret = clk_prepare_enable(pcie->clk);
 	if (ret) {
