@@ -887,7 +887,11 @@ static int imx219_refresh_ctrls(struct imx219 *imx219,
 {
 	int exposure_max, exposure_def, hblank, pixel_rate, rate_factor;
 	u32 prev_hts = prev_compose->width + imx219->hblank->val;
-	u32 prev_vts = prev_compose->height + imx219->vblank->val;
+	u32 vts = imx219->vblank->val + prev_compose->height <
+				  IMX219_VBLANK_MIN + imx219->compose.height ?
+			  IMX219_VBLANK_MIN :
+			  imx219->vblank->val + prev_compose->height -
+				  imx219->compose.height;
 
 	rate_factor = imx219_get_rate_factor(imx219);
 	if (rate_factor < 0)
@@ -895,10 +899,10 @@ static int imx219_refresh_ctrls(struct imx219 *imx219,
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx219->vblank, IMX219_VBLANK_MIN,
 				 IMX219_VTS_MAX - imx219->compose.height, 1,
-				 prev_vts - imx219->compose.height);
-	__v4l2_ctrl_s_ctrl(imx219->vblank, prev_vts - imx219->compose.height);
+				 vts);
+	__v4l2_ctrl_s_ctrl(imx219->vblank, vts);
 	/* Update max exposure while meeting expected vblanking */
-	exposure_max = prev_vts - 4;
+	exposure_max = vts - 4;
 	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 			       exposure_max :
 			       IMX219_EXPOSURE_DEFAULT;
