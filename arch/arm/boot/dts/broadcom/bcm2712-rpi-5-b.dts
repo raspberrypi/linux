@@ -815,6 +815,8 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		pciex1 = <&pciex1>, "status";
 		pciex1_gen = <&pciex1> , "max-link-speed:0";
 		pciex1_no_l0s = <&pciex1>, "aspm-no-l0s?";
+		pciex1_tperst_clk_ms = <&pciex1>, "brcm,tperst-clk-ms:0";
+		pcie_tperst_clk_ms = <&pciex1>, "brcm,tperst-clk-ms:0";
 		random = <&random>, "status";
 		rtc_bbat_vchg = <&rpi_rtc>, "trickle-charge-microvolt:0";
 		spi = <&spi0>, "status";
