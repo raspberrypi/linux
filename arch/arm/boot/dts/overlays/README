@@ -280,6 +280,10 @@ Params:
                                 (2711 only, but not applicable on CM4S)
                                 N.B. USB-A ports on 4B are subsequently disabled
 
+        pcie_tperst_clk_ms      Add N milliseconds between PCIe reference clock
+                                activation and PERST# deassertion
+                                (CM4 and 2712, default "0")
+
         pciex1                  Set to "on" to enable the external PCIe link
                                 (2712 only, default "off")
 
@@ -289,6 +293,9 @@ Params:
         pciex1_no_l0s           Set to "on" to disable ASPM L0s on the external
                                 PCIe link for devices that have broken
                                 implementations (2712 only, default "off")
+
+        pciex1_tperst_clk_ms    Alias for pcie_tperst_clk_ms
+                                (2712 only, default "0")
 
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
