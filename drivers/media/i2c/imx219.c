@@ -1023,39 +1023,45 @@ static int imx219_set_binning(struct imx219 *imx219)
 {
 	enum binning_mode binning_x = BINNING_NONE;
 	enum binning_mode binning_y = BINNING_NONE;
+	u32 binning_x_val = IMX219_BINNING_NONE;
+	u32 binning_y_val = IMX219_BINNING_NONE;
+
 	int ret = imx219_resolve_binning(imx219, &binning_x, &binning_y);
 
 	if (ret < 0)
 		return ret;
 	switch (binning_x) {
-	case BINNING_NONE:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_NONE);
 	case BINNING_DIGITAL_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_2X2);
+		binning_x_val = IMX219_BINNING_2X2;
+		break;
 	case BINNING_ANALOG_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_2X2_ANALOG);
+		binning_x_val = IMX219_BINNING_2X2_ANALOG;
+		break;
+	case BINNING_NONE:
+		binning_x_val = IMX219_BINNING_NONE;
+		break;
+	default:
+		return -EINVAL;
 	}
 	switch (binning_y) {
-	case BINNING_NONE:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_NONE);
 	case BINNING_DIGITAL_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_2X2);
+		binning_y_val = IMX219_BINNING_2X2;
+		break;
 	case BINNING_ANALOG_2x2:
-		return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
-					IMX219_REG_VALUE_08BIT,
-					IMX219_BINNING_2X2_ANALOG);
+		binning_y_val = IMX219_BINNING_2X2_ANALOG;
+		break;
+	case BINNING_NONE:
+		binning_y_val = IMX219_BINNING_NONE;
+		break;
+	default:
+		return -EINVAL;
 	}
-	return -EINVAL;
+	ret = imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_X,
+			       IMX219_REG_VALUE_08BIT, binning_x_val);
+	if (ret < 0)
+		return ret;
+	return imx219_write_reg(imx219, IMX219_REG_BINNING_MODE_Y,
+				IMX219_REG_VALUE_08BIT, binning_y_val);
 }
 
 static const struct v4l2_rect *
