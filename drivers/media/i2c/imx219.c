@@ -634,15 +634,19 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 		container_of(ctrl->handler, struct imx219, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
 	int ret;
-	int rate_factor;
+	int rate_factor = imx219_get_rate_factor(imx219);
+	if (rate_factor < 0)
+		return rate_factor;
 
 	if (ctrl->id == V4L2_CID_VBLANK) {
 		int exposure_max, exposure_def;
 
 		/* Update max exposure while meeting expected vblanking */
-		exposure_max = imx219->compose.height + ctrl->val - 4;
+		exposure_max =
+			imx219->compose.height + ctrl->val - 4 * rate_factor;
 		exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
-			exposure_max : IMX219_EXPOSURE_DEFAULT;
+				       exposure_max :
+				       IMX219_EXPOSURE_DEFAULT;
 		__v4l2_ctrl_modify_range(imx219->exposure,
 					 imx219->exposure->minimum,
 					 exposure_max, imx219->exposure->step,
@@ -655,10 +659,6 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 	 */
 	if (pm_runtime_get_if_in_use(&client->dev) == 0)
 		return 0;
-
-	rate_factor = imx219_get_rate_factor(imx219);
-	if (rate_factor < 0)
-		return rate_factor;
 
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
@@ -682,14 +682,13 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_HFLIP:
 	case V4L2_CID_VFLIP:
 		ret = imx219_write_reg(imx219, IMX219_REG_ORIENTATION, 1,
-				       imx219->hflip->val |
-				       imx219->vflip->val << 1);
+				       imx219->hflip->val | imx219->vflip->val
+								    << 1);
 		break;
 	case V4L2_CID_VBLANK:
-		ret = imx219_write_reg(imx219, IMX219_REG_VTS,
-				       IMX219_REG_VALUE_16BIT,
-				       (imx219->compose.height + ctrl->val) /
-						rate_factor);
+		ret = imx219_write_reg(
+			imx219, IMX219_REG_VTS, IMX219_REG_VALUE_16BIT,
+			(imx219->compose.height + ctrl->val) / rate_factor);
 		break;
 	case V4L2_CID_HBLANK:
 		ret = imx219_write_reg(imx219, IMX219_REG_HTS,
@@ -714,8 +713,8 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	default:
 		dev_info(&client->dev,
-			 "ctrl(id:0x%x,val:0x%x) is not handled\n",
-			 ctrl->id, ctrl->val);
+			 "ctrl(id:0x%x,val:0x%x) is not handled\n", ctrl->id,
+			 ctrl->val);
 		ret = -EINVAL;
 		break;
 	}
@@ -902,7 +901,7 @@ static int imx219_refresh_ctrls(struct imx219 *imx219,
 				 vts);
 	__v4l2_ctrl_s_ctrl(imx219->vblank, vts);
 	/* Update max exposure while meeting expected vblanking */
-	exposure_max = vts - 4;
+	exposure_max = vts - 4 * rate_factor;
 	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 			       exposure_max :
 			       IMX219_EXPOSURE_DEFAULT;
@@ -1643,7 +1642,7 @@ static int imx219_init_controls(struct imx219 *imx219)
 	imx219->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
 					   V4L2_CID_HBLANK, hblank, hblank,
 					   1, hblank);
-	exposure_max = imx219->mode->vts_def - 4;
+	exposure_max = imx219->mode->vts_def - 4 * rate_factor;
 	exposure_def = (exposure_max < IMX219_EXPOSURE_DEFAULT) ?
 		exposure_max : IMX219_EXPOSURE_DEFAULT;
 	imx219->exposure = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
