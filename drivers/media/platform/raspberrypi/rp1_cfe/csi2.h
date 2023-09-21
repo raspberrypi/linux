@@ -79,7 +79,7 @@ void csi2_set_compression(struct csi2_device *csi2, unsigned int channel,
 			  enum csi2_compression_mode mode, unsigned int shift,
 			  unsigned int offset);
 void csi2_start_channel(struct csi2_device *csi2, unsigned int channel,
-			u16 dt, enum csi2_mode mode, bool auto_arm,
+			enum csi2_mode mode, bool auto_arm,
 			bool pack_bytes, unsigned int width,
 			unsigned int height);
 void csi2_stop_channel(struct csi2_device *csi2, unsigned int channel);
