@@ -838,7 +838,7 @@ static void cfe_start_channel(struct cfe_node *node)
 		 * this is handled by the CSI2 AUTO_ARM mode.
 		 */
 		csi2_start_channel(&cfe->csi2, cfe->fe_csi2_channel,
-				   fmt->csi_dt, CSI2_MODE_FE_STREAMING,
+				   CSI2_MODE_FE_STREAMING,
 				   true, false, width, height);
 		csi2_set_buffer(&cfe->csi2, cfe->fe_csi2_channel, 0, 0, -1);
 		pisp_fe_start(&cfe->fe);
@@ -872,7 +872,7 @@ static void cfe_start_channel(struct cfe_node *node)
 			}
 		}
 		/* Unconditionally start this CSI2 channel. */
-		csi2_start_channel(&cfe->csi2, node->id, fmt->csi_dt,
+		csi2_start_channel(&cfe->csi2, node->id,
 				   mode,
 				   /* Auto arm */
 				   false,
