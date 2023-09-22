@@ -132,12 +132,14 @@ static inline void pisp_fe_reg_write(struct pisp_fe_device *fe, u32 offset,
 				     u32 val)
 {
 	writel(val, fe->base + offset);
+	pisp_fe_dbg_verbose("fe: write 0x%04x -> 0x%03x\n", val, offset);
 }
 
 static inline void pisp_fe_reg_write_relaxed(struct pisp_fe_device *fe, u32 offset,
 					     u32 val)
 {
 	writel_relaxed(val, fe->base + offset);
+	pisp_fe_dbg_verbose("fe: write 0x%04x -> 0x%03x\n", val, offset);
 }
 
 static int pisp_regs_show(struct seq_file *s, void *data)
