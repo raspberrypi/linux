@@ -527,7 +527,7 @@ struct unicam_device {
 	struct kref kref;
 
 	/* V4l2 specific parameters */
-	struct v4l2_async_connection asd;
+	struct v4l2_async_connection *asd;
 
 	/* peripheral base address */
 	void __iomem *base;
@@ -3338,15 +3338,14 @@ static int of_unicam_connect_subdevs(struct unicam_device *dev)
 	v4l2_async_nf_init(&dev->notifier, &dev->v4l2_dev);
 	dev->notifier.ops = &unicam_async_ops;
 
-	dev->asd.match.type = V4L2_ASYNC_MATCH_TYPE_FWNODE;
-	dev->asd.match.fwnode = fwnode_graph_get_remote_endpoint(of_fwnode_handle(ep_node));
-#if 0 // build hack - this api has been removed
-	ret = __v4l2_async_nf_add_connection(&dev->notifier, &dev->asd);
-	if (ret) {
+	dev->asd = v4l2_async_nf_add_fwnode(&dev->notifier,
+					    of_fwnode_handle(sensor_node),
+					    struct v4l2_async_connection);
+	if (IS_ERR(dev->asd)) {
 		unicam_err(dev, "Error adding subdevice: %d\n", ret);
 		goto cleanup_exit;
 	}
-#endif
+
 	ret = v4l2_async_nf_register(&dev->notifier);
 	if (ret) {
 		unicam_err(dev, "Error registering async notifier: %d\n", ret);
