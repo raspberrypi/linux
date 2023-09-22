@@ -518,8 +518,8 @@ static void cfe_schedule_next_csi2_job(struct cfe_device *cfe)
 		node->next_frm = buf;
 		list_del(&buf->list);
 
-		cfe_dbg("%s: [%s] buffer:%p\n",
-			__func__, node_desc[node->id].name, &buf->vb.vb2_buf);
+		cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__,
+			    node_desc[node->id].name, &buf->vb.vb2_buf);
 
 		if (is_meta_node(node)) {
 			size = node->fmt.fmt.meta.buffersize;
