@@ -92,6 +92,7 @@ static inline u32 csi2_reg_read(struct csi2_device *csi2, u32 offset)
 static inline void csi2_reg_write(struct csi2_device *csi2, u32 offset, u32 val)
 {
 	writel(val, csi2->base + offset);
+	csi2_dbg_verbose("csi2: write 0x%04x -> 0x%03x\n", val, offset);
 }
 
 static inline void set_field(u32 *valp, u32 field, u32 mask)
