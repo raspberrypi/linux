@@ -148,6 +148,12 @@
 #define IMX219_PIXEL_ARRAY_WIDTH	3280U
 #define IMX219_PIXEL_ARRAY_HEIGHT	2464U
 
+enum binning_bit_depths {
+	BINNING_IDX_8_BIT,
+	BINNING_IDX_10_BIT,
+	BINNING_IDX_MAX
+};
+
 /* Mode : resolution and related config&values */
 struct imx219_mode {
 	/* Frame width */
@@ -157,6 +163,9 @@ struct imx219_mode {
 
 	/* V-timing */
 	unsigned int vts_def;
+
+	/* binning mode based on format code */
+	unsigned int binning[BINNING_IDX_MAX];
 };
 
 static const struct cci_reg_sequence imx219_common_regs[] = {
@@ -316,24 +325,40 @@ static const struct imx219_mode supported_modes[] = {
 		.width = 3280,
 		.height = 2464,
 		.vts_def = 3526,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_NONE,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_NONE,
+		},
 	},
 	{
 		/* 1080P 30fps cropped */
 		.width = 1920,
 		.height = 1080,
 		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_NONE,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_NONE,
+		},
 	},
 	{
 		/* 2x2 binned 60fps mode */
 		.width = 1640,
 		.height = 1232,
 		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_X2_ANALOG,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_X2,
+		},
 	},
 	{
 		/* 640x480 60fps mode */
 		.width = 640,
 		.height = 480,
 		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_X2_ANALOG,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_X2_ANALOG,
+		},
 	},
 };
 
@@ -411,12 +436,33 @@ static unsigned int imx219_get_binning(struct imx219 *imx219, u8 *bin_h,
 	const struct v4l2_mbus_framefmt *format =
 		v4l2_subdev_state_get_format(state, 0);
 	const struct v4l2_rect *crop = v4l2_subdev_state_get_crop(state, 0);
+	unsigned int bin_mode = IMX219_BINNING_NONE;
+	const struct imx219_mode *mode =
+		v4l2_find_nearest_size(supported_modes,
+				       ARRAY_SIZE(supported_modes),
+				       width, height,
+				       format->width, format->height);
+	switch (format->code) {
+	case MEDIA_BUS_FMT_SRGGB8_1X8:
+	case MEDIA_BUS_FMT_SGRBG8_1X8:
+	case MEDIA_BUS_FMT_SGBRG8_1X8:
+	case MEDIA_BUS_FMT_SBGGR8_1X8:
+		bin_mode = mode->binning[BINNING_IDX_8_BIT];
+		break;
+
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		bin_mode = mode->binning[BINNING_IDX_10_BIT];
+		break;
+	}
 
 	*bin_h = crop->width / format->width;
 	*bin_v = crop->height / format->height;
 
 	if (*bin_h == 2 && *bin_v == 2)
-		return IMX219_BINNING_X2_ANALOG;
+		return bin_mode;
 	else if (*bin_h == 2 || *bin_v == 2)
 		/*
 		 * Don't use analog binning if only one dimension
