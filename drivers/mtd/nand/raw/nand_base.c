@@ -5109,6 +5109,9 @@ static void rawnand_check_cont_read_support(struct nand_chip *chip)
 {
 	struct mtd_info *mtd = nand_to_mtd(chip);
 
+	if (!chip->parameters.supports_read_cache)
+		return;
+
 	if (chip->read_retries)
 		return;
 
