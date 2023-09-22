@@ -146,6 +146,12 @@
 #define IMX219_PIXEL_ARRAY_WIDTH	3280U
 #define IMX219_PIXEL_ARRAY_HEIGHT	2464U
 
+enum binning_bit_depths {
+	BINNING_IDX_8_BIT,
+	BINNING_IDX_10_BIT,
+	BINNING_IDX_MAX
+};
+
 /* Mode : resolution and related config&values */
 struct imx219_mode {
 	/* Frame width */
@@ -155,6 +161,10 @@ struct imx219_mode {
 
 	/* V-timing */
 	unsigned int fll_def;
+	unsigned int vts_def;
+
+	/* binning mode based on format code */
+	unsigned int binning[BINNING_IDX_MAX];
 };
 
 static const struct cci_reg_sequence imx219_common_regs[] = {
@@ -313,24 +323,44 @@ static const struct imx219_mode supported_modes[] = {
 		.width = 3280,
 		.height = 2464,
 		.fll_def = 3526,
+		.vts_def = 3526,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_NONE,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_NONE,
+		},
 	},
 	{
 		/* 1080P 30fps cropped */
 		.width = 1920,
 		.height = 1080,
 		.fll_def = 1763,
+		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_NONE,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_NONE,
+		},
 	},
 	{
 		/* 2x2 binned 60fps mode */
 		.width = 1640,
 		.height = 1232,
 		.fll_def = 1707,
+		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_X2_ANALOG,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_X2,
+		},
 	},
 	{
 		/* 640x480 60fps mode */
 		.width = 640,
 		.height = 480,
 		.fll_def = 1707,
+		.vts_def = 1763,
+		.binning = {
+			[BINNING_IDX_8_BIT] = IMX219_BINNING_X2_ANALOG,
+			[BINNING_IDX_10_BIT] = IMX219_BINNING_X2_ANALOG,
+		},
 	},
 };
 
@@ -431,7 +461,7 @@ static unsigned int imx219_get_binning(struct v4l2_subdev_state *state,
 	*bin_v = IMX219_BINNING_NONE;
 
 	if (*bin_h == 2 && *bin_v == 2)
-		return IMX219_BINNING_X2_ANALOG;
+		return bin_mode;
 	else if (*bin_h == 2 || *bin_v == 2)
 		/*
 		 * Don't use analog binning if only one dimension
