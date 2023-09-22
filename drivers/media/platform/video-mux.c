@@ -397,8 +397,6 @@ static int video_mux_async_register(struct video_mux *vmux,
 
 		asd = v4l2_async_nf_add_fwnode_remote(&vmux->notifier, ep,
 						      struct video_mux_asd);
-		asd->port = i;
-
 		fwnode_handle_put(ep);
 
 		if (IS_ERR(asd)) {
@@ -407,6 +405,8 @@ static int video_mux_async_register(struct video_mux *vmux,
 			if (ret != -EEXIST)
 				goto err_nf_cleanup;
 		}
+
+		asd->port = i;
 	}
 
 	vmux->notifier.ops = &video_mux_notify_ops;
@@ -479,6 +479,10 @@ static int video_mux_probe(struct platform_device *pdev)
 	vmux->pads = devm_kcalloc(dev, num_pads, sizeof(*vmux->pads),
 				  GFP_KERNEL);
 	if (!vmux->pads)
+		return -ENOMEM;
+
+	vmux->cfg = devm_kcalloc(dev, num_pads, sizeof(*vmux->cfg), GFP_KERNEL);
+	if (!vmux->cfg)
 		return -ENOMEM;
 
 	for (i = 0; i < num_pads; i++) {
