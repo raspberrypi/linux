@@ -199,13 +199,20 @@ static const struct node_description node_desc[NUM_NODES] = {
 
 #define is_fe_node(node) (((node)->id) >= FE_OUT0)
 #define is_csi2_node(node) (!is_fe_node(node))
-#define is_image_output_node(node)                                               \
+
+#define is_image_output_node(node) \
 	(node_desc[(node)->id].buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
-#define is_meta_output_node(node)                                                \
+#define is_image_input_node(node) \
+	(node_desc[(node)->id].buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+#define is_image_node(node) \
+	(is_image_output_node(node) || is_image_input_node(node))
+
+#define is_meta_output_node(node) \
 	(node_desc[(node)->id].buf_type == V4L2_BUF_TYPE_META_CAPTURE)
-#define is_meta_input_node(node)                                                 \
+#define is_meta_input_node(node) \
 	(node_desc[(node)->id].buf_type == V4L2_BUF_TYPE_META_OUTPUT)
-#define is_meta_node(node) (is_meta_output_node(node) || is_meta_input_node(node))
+#define is_meta_node(node) \
+	(is_meta_output_node(node) || is_meta_input_node(node))
 
 /* To track state across all nodes. */
 #define NUM_STATES		5
@@ -426,7 +433,7 @@ static int format_show(struct seq_file *s, void *data)
 		seq_printf(s, "\nNode %u (%s) state: 0x%lx\n", i,
 			   node_desc[i].name, state);
 
-		if (is_image_output_node(node))
+		if (is_image_node(node))
 			seq_printf(s, "format: " V4L2_FOURCC_CONV " 0x%x\n"
 				      "resolution: %ux%u\nbpl: %u\nsize: %u\n",
 				   V4L2_FOURCC_CONV_ARGS(node->fmt.fmt.pix.pixelformat),
@@ -940,9 +947,8 @@ static int cfe_queue_setup(struct vb2_queue *vq, unsigned int *nbuffers,
 {
 	struct cfe_node *node = vb2_get_drv_priv(vq);
 	struct cfe_device *cfe = node->cfe;
-	unsigned int size = is_image_output_node(node) ?
-					  node->fmt.fmt.pix.sizeimage :
-					  node->fmt.fmt.meta.buffersize;
+	unsigned int size = is_image_node(node) ? node->fmt.fmt.pix.sizeimage :
+						  node->fmt.fmt.meta.buffersize;
 
 	cfe_dbg("%s: [%s]\n", __func__, node_desc[node->id].name);
 
@@ -973,8 +979,8 @@ static int cfe_buffer_prepare(struct vb2_buffer *vb)
 	cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
 			node_desc[node->id].name, vb);
 
-	size = is_image_output_node(node) ? node->fmt.fmt.pix.sizeimage :
-					    node->fmt.fmt.meta.buffersize;
+	size = is_image_node(node) ? node->fmt.fmt.pix.sizeimage :
+				     node->fmt.fmt.meta.buffersize;
 	if (vb2_plane_size(vb, 0) < size) {
 		cfe_err("data will not fit into plane (%lu < %lu)\n",
 			vb2_plane_size(vb, 0), size);
@@ -1757,7 +1763,7 @@ static int cfe_register_node(struct cfe_device *cfe, int id)
 	node->cfe = cfe;
 	node->id = id;
 
-	if (is_image_output_node(node)) {
+	if (is_image_node(node)) {
 		fmt = find_format_by_code(cfe_default_format.code);
 		if (!fmt) {
 			cfe_err("Failed to find format code\n");
