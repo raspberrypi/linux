@@ -103,7 +103,7 @@ struct ipu_property_names {
 struct ipu_node_names {
 	char port[7];
 	char endpoint[11];
-	char remote_port[7];
+	char remote_port[9];
 	char vcm[16];
 };
 
