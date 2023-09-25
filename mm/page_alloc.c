@@ -60,6 +60,10 @@
 #include "internal.h"
 #include "shuffle.h"
 #include "page_reporting.h"
+#include <trace/hooks/mm.h>
+
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
 
 /* Free Page Internal flags: for internal, non-pcp variants of free_pages(). */
 typedef int __bitwise fpi_t;
@@ -3320,6 +3324,7 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 	if (!mutex_trylock(&oom_lock)) {
 		*did_some_progress = 1;
 		schedule_timeout_uninterruptible(1);
+		trace_android_vh_mm_may_oom_exit(&oc, *did_some_progress);
 		return NULL;
 	}
 
@@ -3382,6 +3387,7 @@ __alloc_pages_may_oom(gfp_t gfp_mask, unsigned int order,
 	}
 out:
 	mutex_unlock(&oom_lock);
+	trace_android_vh_mm_may_oom_exit(&oc, *did_some_progress);
 	return page;
 }
 
@@ -3670,10 +3676,12 @@ __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
 		unsigned long *did_some_progress)
 {
+	int retry_times = 0;
 	struct page *page = NULL;
 	unsigned long pflags;
 	bool drained = false;
 
+	trace_android_vh_mm_direct_reclaim_enter(order);
 	psi_memstall_enter(&pflags);
 	*did_some_progress = __perform_reclaim(gfp_mask, order, ac);
 	if (unlikely(!(*did_some_progress)))
@@ -3691,11 +3699,12 @@ retry:
 		unreserve_highatomic_pageblock(ac, false);
 		drain_all_pages(NULL);
 		drained = true;
+		++retry_times;
 		goto retry;
 	}
 out:
 	psi_memstall_leave(&pflags);
-
+	trace_android_vh_mm_direct_reclaim_exit(*did_some_progress, retry_times);
 	return page;
 }
 
