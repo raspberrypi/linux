@@ -27,7 +27,6 @@ static int cs35l56_i2c_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	cs35l56->dev = dev;
-	cs35l56->can_hibernate = true;
 
 	i2c_set_clientdata(client, cs35l56);
 	cs35l56->regmap = devm_regmap_init_i2c(client, regmap_config);
