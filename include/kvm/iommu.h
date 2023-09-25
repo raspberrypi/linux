@@ -12,6 +12,17 @@
 #define HYP_SPINLOCK_SIZE	4
 
 /*
+ * Domain ID for identity mapped domain that the host can attach
+ * to get the same mapping available to the CPU page table.
+ */
+#define KVM_IOMMU_DOMAIN_IDMAP_ID		0
+
+/* Used in alloc_domain type argument. */
+#define KVM_IOMMU_DOMAIN_IDMAP_TYPE		0
+
+#define KVM_IOMMU_DOMAIN_NR_START		(KVM_IOMMU_DOMAIN_IDMAP_ID + 1)
+
+/*
  * Parameters from the trusted host:
  * @pgtable_cfg:	page table configuration
  * @power_domain:	power domain information

@@ -214,8 +214,8 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 		return 0;
 	}
 
-	ret = ida_alloc_range(&kvm_arm_smmu_domain_ida, 0, KVM_IOMMU_MAX_DOMAINS,
-			      GFP_KERNEL);
+	ret = ida_alloc_range(&kvm_arm_smmu_domain_ida, KVM_IOMMU_DOMAIN_NR_START,
+			      KVM_IOMMU_MAX_DOMAINS, GFP_KERNEL);
 	if (ret < 0)
 		return ret;
 

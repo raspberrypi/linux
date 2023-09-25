@@ -135,6 +135,7 @@ const struct pkvm_module_ops module_ops = {
 	.tracing_commit_entry = tracing_commit_entry,
 	.iommu_donate_pages_atomic = kvm_iommu_donate_pages_atomic,
 	.iommu_reclaim_pages_atomic = kvm_iommu_reclaim_pages_atomic,
+	.iommu_snapshot_host_stage2 = kvm_iommu_snapshot_host_stage2,
 };
 
 int __pkvm_init_module(void *module_init)

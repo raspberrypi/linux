@@ -52,6 +52,7 @@ void kvm_iommu_iotlb_gather_add_page(void *cookie,
 				     size_t size);
 void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 				 enum kvm_pgtable_prot prot);
+int kvm_iommu_snapshot_host_stage2(struct kvm_hyp_iommu_domain *domain);
 
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
@@ -68,6 +69,8 @@ struct kvm_iommu_ops {
 	int (*resume)(struct kvm_hyp_iommu *iommu);
 	void (*iotlb_sync)(void *cookie,
 			   struct iommu_iotlb_gather *gather);
+	void (*host_stage2_idmap)(struct kvm_hyp_iommu_domain *domain,
+				  phys_addr_t start, phys_addr_t end, int prot);
 };
 
 extern struct kvm_iommu_ops *kvm_iommu_ops;

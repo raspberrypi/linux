@@ -41,6 +41,18 @@ static struct hyp_pool iommu_atomic_pool;
 
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
+static atomic_t kvm_iommu_idmap_initialized;
+
+static inline void kvm_iommu_idmap_init_done(void)
+{
+	atomic_set_release(&kvm_iommu_idmap_initialized, 1);
+}
+
+static inline bool kvm_iommu_is_ready(void)
+{
+	return atomic_read_acquire(&kvm_iommu_idmap_initialized) == 1;
+}
+
 void *__kvm_iommu_donate_pages(struct hyp_pool *pool, u8 order, bool request)
 {
 	void *p;
@@ -150,7 +162,11 @@ handle_to_domain(pkvm_handle_t domain_id)
 	idx = domain_id >> KVM_IOMMU_DOMAIN_ID_SPLIT;
 	domains = (struct kvm_hyp_iommu_domain *)READ_ONCE(kvm_hyp_iommu_domains[idx]);
 	if (!domains) {
-		domains = kvm_iommu_donate_page();
+		if (domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
+			domains = kvm_iommu_donate_pages_atomic(0);
+		else
+			domains = kvm_iommu_donate_page();
+
 		if (!domains)
 			return NULL;
 		/*
@@ -162,7 +178,10 @@ handle_to_domain(pkvm_handle_t domain_id)
 		 */
 		if (WARN_ON(cmpxchg64_relaxed(&kvm_hyp_iommu_domains[idx], 0,
 					      (void *)domains) != 0)) {
-			kvm_iommu_reclaim_page(domains);
+			if (domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
+				kvm_iommu_reclaim_pages_atomic(domains, 0);
+			else
+				kvm_iommu_reclaim_page(domains);
 			return NULL;
 		}
 	}
@@ -562,7 +581,7 @@ int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 	return pkvm_init_power_domain(&iommu->power_domain, &iommu_power_ops);
 }
 
-static int kvm_iommu_init_atomic_pool(struct kvm_hyp_memcache *atomic_mc)
+static int kvm_iommu_init_idmap(struct kvm_hyp_memcache *atomic_mc)
 {
 	int ret;
 
@@ -573,7 +592,13 @@ static int kvm_iommu_init_atomic_pool(struct kvm_hyp_memcache *atomic_mc)
 	if (ret)
 		return ret;
 
-	return refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
+	ret = refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
+
+	if (ret)
+		return ret;
+
+	/* The host must guarantee that the allocator can be used from this context. */
+	return kvm_iommu_alloc_domain(KVM_IOMMU_DOMAIN_IDMAP_ID, KVM_IOMMU_DOMAIN_IDMAP_TYPE);
 }
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc,
@@ -601,18 +626,79 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 	if (ret)
 		return ret;
 
-	ret = kvm_iommu_init_atomic_pool(atomic_mc);
-	if (ret)
-		return ret;
-
 	/* Ensure iommu_host_pool is ready _before_ iommu_ops is set */
 	smp_wmb();
 	kvm_iommu_ops = ops;
 
-	return ret;
+	return kvm_iommu_init_idmap(atomic_mc);
 }
 
+static inline int pkvm_to_iommu_prot(int prot)
+{
+	switch (prot) {
+	case PKVM_HOST_MEM_PROT:
+		return IOMMU_READ | IOMMU_WRITE;
+	case PKVM_HOST_MMIO_PROT:
+		return IOMMU_READ | IOMMU_WRITE | IOMMU_MMIO;
+	case 0:
+		return 0;
+	default:
+		/* We don't understand that, it might cause corruption, so panic. */
+		BUG();
+	}
+
+	return 0;
+}
 void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 				 enum kvm_pgtable_prot prot)
 {
+	struct kvm_hyp_iommu_domain *domain;
+
+	if (!kvm_iommu_is_ready())
+		return;
+
+	domain = handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID);
+	if (!domain)
+		return;
+
+	kvm_iommu_ops->host_stage2_idmap(domain, start, end, pkvm_to_iommu_prot(prot));
+}
+
+static int __snapshot_host_stage2(const struct kvm_pgtable_visit_ctx *ctx,
+				  enum kvm_pgtable_walk_flags visit)
+{
+	u64 start = ctx->addr;
+	kvm_pte_t pte = *ctx->ptep;
+	u32 level = ctx->level;
+	struct kvm_hyp_iommu_domain *domain = ctx->arg;
+	u64 end = start + kvm_granule_size(level);
+	int prot = IOMMU_READ | IOMMU_WRITE;
+
+	if (!addr_is_memory(start))
+		prot |= IOMMU_MMIO;
+
+	if (!pte || kvm_pte_valid(pte))
+		kvm_iommu_ops->host_stage2_idmap(domain, start, end, prot);
+
+	return 0;
+}
+
+int kvm_iommu_snapshot_host_stage2(struct kvm_hyp_iommu_domain *domain)
+{
+	int ret;
+	struct kvm_pgtable_walker walker = {
+		.cb	= __snapshot_host_stage2,
+		.flags	= KVM_PGTABLE_WALK_LEAF,
+		.arg = domain,
+	};
+	struct kvm_pgtable *pgt = &host_mmu.pgt;
+
+	hyp_spin_lock(&host_mmu.lock);
+	ret = kvm_pgtable_walk(pgt, 0, BIT(pgt->ia_bits), &walker);
+	/* Start receiving calls to host_stage2_idmap. */
+	if (!ret)
+		kvm_iommu_idmap_init_done();
+	hyp_spin_unlock(&host_mmu.lock);
+
+	return ret;
 }
