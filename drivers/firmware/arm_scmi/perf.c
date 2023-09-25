@@ -801,6 +801,7 @@ static int scmi_dvfs_device_opps_add(const struct scmi_protocol_handle *ph,
 {
 	int idx, ret;
 	unsigned long freq;
+	struct dev_pm_opp_data data = {};
 	struct perf_dom_info *dom;
 
 	dom = scmi_perf_domain_lookup(ph, domain);
@@ -813,7 +814,10 @@ static int scmi_dvfs_device_opps_add(const struct scmi_protocol_handle *ph,
 		else
 			freq = dom->opp[idx].indicative_freq * dom->mult_factor;
 
-		ret = dev_pm_opp_add(dev, freq, 0);
+		data.level = dom->opp[idx].perf;
+		data.freq = freq;
+
+		ret = dev_pm_opp_add_dynamic(dev, &data);
 		if (ret) {
 			dev_warn(dev, "failed to add opp %luHz\n", freq);
 			dev_pm_opp_remove_all_dynamic(dev);
