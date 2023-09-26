@@ -44,6 +44,7 @@
 
 #include <linux/debugfs.h>
 #include <trace/events/kmem.h>
+#include <trace/hooks/mm.h>
 
 #include "internal.h"
 
@@ -1880,6 +1881,8 @@ static inline struct slab *alloc_slab_page(gfp_t flags, int node,
 	smp_wmb();
 	if (folio_is_pfmemalloc(folio))
 		slab_set_pfmemalloc(slab);
+
+	trace_android_vh_slab_folio_alloced(order, flags);
 
 	return slab;
 }
