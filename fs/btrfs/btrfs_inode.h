@@ -102,6 +102,14 @@ struct btrfs_inode {
 	/* held while logging the inode in tree-log.c */
 	struct mutex log_mutex;
 
+	/*
+	 * Counters to keep track of the number of extent item's we may use due
+	 * to delalloc and such.  outstanding_extents is the number of extent
+	 * items we think we'll end up using, and reserved_extents is the number
+	 * of extent items we've reserved metadata for.
+	 */
+	unsigned outstanding_extents;
+
 	/* used to order data wrt metadata */
 	struct btrfs_ordered_inode_tree ordered_tree;
 
@@ -222,14 +230,6 @@ struct btrfs_inode {
 	u32 flags;
 	/* Read-only compatibility flags, upper half of inode_item::flags */
 	u32 ro_flags;
-
-	/*
-	 * Counters to keep track of the number of extent item's we may use due
-	 * to delalloc and such.  outstanding_extents is the number of extent
-	 * items we think we'll end up using, and reserved_extents is the number
-	 * of extent items we've reserved metadata for.
-	 */
-	unsigned outstanding_extents;
 
 	struct btrfs_block_rsv block_rsv;
 
