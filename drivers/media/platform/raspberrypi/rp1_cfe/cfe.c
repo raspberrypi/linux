@@ -763,20 +763,16 @@ static void cfe_start_channel(struct cfe_node *node)
 	struct v4l2_mbus_framefmt *source_fmt;
 	const struct cfe_fmt *fmt;
 	unsigned long flags;
-	unsigned int width = 0, height = 0;
 	bool start_fe = is_fe_enabled(cfe) &&
 			test_all_nodes(cfe, NODE_ENABLED, NODE_STREAMING);
 
 	cfe_dbg("%s: [%s]\n", __func__, node_desc[node->id].name);
 
-	if (start_fe || is_image_output_node(node)) {
-		width = node->fmt.fmt.pix.width;
-		height = node->fmt.fmt.pix.height;
-	}
-
 	state = v4l2_subdev_lock_and_get_active_state(&cfe->csi2.sd);
 
 	if (start_fe) {
+		unsigned int width, height;
+
 		WARN_ON(!is_fe_enabled(cfe));
 		cfe_dbg("%s: %s using csi2 channel %d\n",
 			__func__, node_desc[FE_OUT0].name,
@@ -784,6 +780,9 @@ static void cfe_start_channel(struct cfe_node *node)
 
 		source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state, cfe->fe_csi2_channel);
 		fmt = find_format_by_code(source_fmt->code);
+
+		width = source_fmt->width;
+		height = source_fmt->height;
 
 		/*
 		 * Start the associated CSI2 Channel as well.
@@ -800,6 +799,8 @@ static void cfe_start_channel(struct cfe_node *node)
 	}
 
 	if (is_csi2_node(node)) {
+		unsigned int width = 0, height = 0;
+
 		u32 mode = CSI2_MODE_NORMAL;
 
 		source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state,
@@ -807,6 +808,9 @@ static void cfe_start_channel(struct cfe_node *node)
 		fmt = find_format_by_code(source_fmt->code);
 
 		if (is_image_output_node(node)) {
+			width = source_fmt->width;
+			height = source_fmt->height;
+
 			if (node->fmt.fmt.pix.pixelformat ==
 					fmt->remap[CFE_REMAP_16BIT])
 				mode = CSI2_MODE_REMAP;
