@@ -102,7 +102,8 @@ static void dmub_replay_enable(struct dmub_replay *dmub, bool enable, bool wait,
 					break;
 			}
 
-			fsleep(500);
+			/* must *not* be fsleep - this can be called from high irq levels */
+			udelay(500);
 		}
 
 		/* assert if max retry hit */
