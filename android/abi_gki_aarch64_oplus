@@ -22,6 +22,7 @@
   filp_close
   folio_add_lru
   folio_mapping
+  folio_referenced
   for_each_kernel_tracepoint
   freq_qos_add_notifier
   freq_qos_remove_notifier
@@ -43,11 +44,13 @@
   jiffies_64_to_clock_t
   kick_process
   ktime_get_coarse_real_ts64
+  mem_cgroup_update_lru_size
   memory_cgrp_subsys
   memory_cgrp_subsys_enabled_key
   mem_cgroup_from_id
   mipi_dsi_generic_write
   mmc_wait_for_cmd
+  __mod_lruvec_state
   __mod_zone_page_state
   nf_ct_attach
   nf_ct_delete
@@ -73,6 +76,7 @@
   register_tcf_proto_ops
   regulator_map_voltage_linear_range
   remove_proc_subtree
+  root_mem_cgroup
   rtc_read_alarm
   rtc_set_alarm
   __rtnl_link_unregister
