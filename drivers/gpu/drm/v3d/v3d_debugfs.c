@@ -205,8 +205,8 @@ static int v3d_debugfs_bo_stats(struct seq_file *m, void *unused)
 
 static int v3d_debugfs_gpu_usage(struct seq_file *m, void *unused)
 {
-	struct drm_info_node *node = (struct drm_info_node *)m->private;
-	struct drm_device *dev = node->minor->dev;
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
 	struct v3d_dev *v3d = to_v3d_dev(dev);
 	struct v3d_queue_stats *queue_stats;
 	enum v3d_queue queue;
@@ -240,8 +240,8 @@ static int v3d_debugfs_gpu_usage(struct seq_file *m, void *unused)
 
 static int v3d_debugfs_gpu_pid_usage(struct seq_file *m, void *unused)
 {
-	struct drm_info_node *node = (struct drm_info_node *)m->private;
-	struct drm_device *dev = node->minor->dev;
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
 	struct v3d_dev *v3d = to_v3d_dev(dev);
 	struct v3d_queue_stats *queue_stats;
 	struct v3d_queue_pid_stats *cur;
