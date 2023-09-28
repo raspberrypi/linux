@@ -105,8 +105,6 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip_id
 	}
 	trip_type = trip.type;
 
-	trend = get_tz_trend(tz, trip_id);
-
 	dev_dbg(&tz->device,
 		"Trip%d[type=%d,temp=%d,hyst=%d]:trend=%d,throttle=%d\n",
 		trip_id, trip_type, trip.temperature, hyst_temp, trend, throttle);
