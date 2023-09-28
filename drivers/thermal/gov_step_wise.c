@@ -98,7 +98,7 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip_id
 		trace_thermal_zone_trip(tz, trip_id, trip.type);
 	}
 
-	hyst_temp = trip.temperature;
+	hyst_temp = trip_temp = trip.temperature;
 	if (tz->ops->get_trip_hyst) {
 		tz->ops->get_trip_hyst(tz, trip_id, &hyst_temp);
 		hyst_temp = trip_temp - hyst_temp;
