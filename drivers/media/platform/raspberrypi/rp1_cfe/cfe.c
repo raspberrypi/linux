@@ -292,7 +292,6 @@ struct cfe_device {
 	struct csi2_device csi2;
 	struct pisp_fe_device fe;
 
-	bool sensor_embedded_data;
 	int fe_csi2_channel;
 
 	unsigned int sequence;
@@ -1820,8 +1819,6 @@ static int cfe_probe_complete(struct cfe_device *cfe)
 	int ret;
 
 	cfe->v4l2_dev.notify = cfe_notify;
-
-	cfe->sensor_embedded_data = (cfe->sensor->entity.num_pads >= 2);
 
 	for (i = 0; i < NUM_NODES; i++) {
 		ret = cfe_register_node(cfe, i);
