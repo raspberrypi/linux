@@ -1532,6 +1532,7 @@ static int smb3_fs_context_parse_param(struct fs_context *fc,
 
  cifs_parse_mount_err:
 	kfree_sensitive(ctx->password);
+	ctx->password = NULL;
 	return -EINVAL;
 }
 
