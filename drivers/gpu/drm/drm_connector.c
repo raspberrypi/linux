@@ -81,6 +81,7 @@ struct drm_conn_prop_enum_list {
 	int type;
 	const char *name;
 	struct ida ida;
+	int first_dyn_num;
 };
 
 /*
@@ -110,12 +111,41 @@ static struct drm_conn_prop_enum_list drm_connector_enum_list[] = {
 	{ DRM_MODE_CONNECTOR_USB, "USB" },
 };
 
+#define MAX_DT_NODE_NAME_LEN	20
+#define DT_DRM_NODE_PREFIX	"drm_"
+
+static void drm_connector_get_of_name(int type, char *node_name, int length)
+{
+	int i = 0;
+
+	strcpy(node_name, DT_DRM_NODE_PREFIX);
+
+	do {
+		node_name[i + strlen(DT_DRM_NODE_PREFIX)] =
+				tolower(drm_connector_enum_list[type].name[i]);
+
+	} while (drm_connector_enum_list[type].name[i++] &&
+		 i < length);
+
+	node_name[length - 1] = '\0';
+}
+
 void drm_connector_ida_init(void)
 {
-	int i;
+	int i, id;
+	char node_name[MAX_DT_NODE_NAME_LEN];
 
-	for (i = 0; i < ARRAY_SIZE(drm_connector_enum_list); i++)
+	for (i = 0; i < ARRAY_SIZE(drm_connector_enum_list); i++) {
 		ida_init(&drm_connector_enum_list[i].ida);
+
+		drm_connector_get_of_name(i, node_name, MAX_DT_NODE_NAME_LEN);
+
+		id = of_alias_get_highest_id(node_name);
+		if (id > 0)
+			drm_connector_enum_list[i].first_dyn_num = id + 1;
+		else
+			drm_connector_enum_list[i].first_dyn_num = 1;
+	}
 }
 
 void drm_connector_ida_destroy(void)
@@ -222,7 +252,9 @@ static int __drm_connector_init(struct drm_device *dev,
 				struct i2c_adapter *ddc)
 {
 	struct drm_mode_config *config = &dev->mode_config;
+	char node_name[MAX_DT_NODE_NAME_LEN];
 	int ret;
+	int id;
 	struct ida *connector_ida =
 		&drm_connector_enum_list[connector_type].ida;
 
@@ -252,8 +284,28 @@ static int __drm_connector_init(struct drm_device *dev,
 	ret = 0;
 
 	connector->connector_type = connector_type;
-	connector->connector_type_id =
-		ida_alloc_min(connector_ida, 1, GFP_KERNEL);
+	connector->connector_type_id = 0;
+
+	drm_connector_get_of_name(connector_type, node_name, MAX_DT_NODE_NAME_LEN);
+	id = of_alias_get_id(dev->dev->of_node, node_name);
+	if (id > 0) {
+		/* Try and allocate the requested ID
+		 * Valid range is 1 to 31, hence ignoring 0 as an error
+		 */
+		int type_id = ida_alloc_range(connector_ida, id, id, GFP_KERNEL);
+
+		if (type_id > 0)
+			connector->connector_type_id = type_id;
+		else
+			drm_err(dev, "Failed to acquire type ID %d for interface type %s, ret %d\n",
+				id, drm_connector_enum_list[connector_type].name,
+				type_id);
+	}
+	if (!connector->connector_type_id)
+		connector->connector_type_id =
+				ida_alloc_min(connector_ida,
+					      drm_connector_enum_list[connector_type].first_dyn_num,
+					      GFP_KERNEL);
 	if (connector->connector_type_id < 0) {
 		ret = connector->connector_type_id;
 		goto out_put_id;
