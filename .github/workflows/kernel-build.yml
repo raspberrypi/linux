@@ -50,6 +50,11 @@ jobs:
             defconfig: bcm2711_defconfig
             kernel: kernel8
 
+          - name: bcm2712
+            arch: arm64
+            defconfig: bcm2712_defconfig
+            kernel: kernel2712
+
     steps:
     - name: Update install
       run:
