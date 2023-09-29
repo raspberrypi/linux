@@ -433,26 +433,63 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 
 	switch (format->pad) {
 	case FE_STREAM_PAD:
-	case FE_OUTPUT0_PAD:
-	case FE_OUTPUT1_PAD:
 		cfe_fmt = find_format_by_code(format->format.code);
 		if (!cfe_fmt || !(cfe_fmt->flags & CFE_FORMAT_FLAG_FE_OUT))
 			cfe_fmt = find_format_by_code(MEDIA_BUS_FMT_SRGGB16_1X16);
 
 		format->format.code = cfe_fmt->code;
+		format->format.field = V4L2_FIELD_NONE;
 
-		break;
+		fmt = v4l2_subdev_get_pad_format(sd, state, FE_STREAM_PAD);
+		*fmt = format->format;
 
-	case FE_STATS_PAD:
-	case FE_CONFIG_PAD:
-		format->format.code = MEDIA_BUS_FMT_FIXED;
-		break;
+		fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT0_PAD);
+		*fmt = format->format;
+
+		fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT1_PAD);
+		*fmt = format->format;
+
+		return 0;
+
+	case FE_OUTPUT0_PAD:
+	case FE_OUTPUT1_PAD: {
+		/*
+		 * TODO: we should allow scaling and cropping by allowing the
+		 * user to set the size here.
+		 */
+		struct v4l2_mbus_framefmt *sink_fmt, *source_fmt;
+		u32 sink_code;
+		u32 code;
+
+		sink_fmt = v4l2_subdev_get_pad_format(sd, state, FE_STREAM_PAD);
+		if (!sink_fmt)
+			return -EINVAL;
+
+		source_fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		if (!source_fmt)
+			return -EINVAL;
+
+		sink_code = sink_fmt->code;
+		code = format->format.code;
+
+		/*
+		 * If the source code from the user does not match the code in
+		 * the sink pad, check that the source code matches the
+		 * compressed version of the sink code.
+		 */
+
+		if (code != sink_code &&
+		    code == cfe_find_compressed_code(sink_code))
+			source_fmt->code = code;
+
+		return 0;
 	}
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
-	*fmt = format->format;
-
-	return 0;
+	case FE_CONFIG_PAD:
+	case FE_STATS_PAD:
+	default:
+		return v4l2_subdev_get_fmt(sd, state, format);
+	}
 }
 
 static int pisp_fe_link_validate(struct v4l2_subdev *sd,
