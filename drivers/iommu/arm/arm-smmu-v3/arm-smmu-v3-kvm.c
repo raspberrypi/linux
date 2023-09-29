@@ -79,22 +79,37 @@ static void *kvm_arm_smmu_host_va(phys_addr_t pa)
 	return __va(pa);
 }
 
-static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu, int ret)
+static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
+				       struct arm_smccc_res *res)
 {
 	struct kvm_hyp_memcache *mc;
 	int cpu = raw_smp_processor_id();
+	struct kvm_hyp_req req;
+
+	hyp_reqs_smccc_decode(res, &req);
+
+	if ((res->a1 == -ENOMEM) && (req.type != KVM_HYP_REQ_TYPE_MEM)) {
+		/*
+		 * There is no way for drivers to populate hyp_alloc requests,
+		 * so -ENOMEM + no request indicates that.
+		 */
+		return __pkvm_topup_hyp_alloc(1);
+	} else if (req.type != KVM_HYP_REQ_TYPE_MEM) {
+		return -EBADE;
+	}
 
 	lockdep_assert_held(this_cpu_ptr(&memcache_lock));
 	mc = &kvm_arm_smmu_memcache[cpu].pages;
 
-	if (kvm_arm_smmu_memcache[cpu].needs_page) {
-		kvm_arm_smmu_memcache[cpu].needs_page = false;
-		return  __topup_hyp_memcache(mc, 1, kvm_arm_smmu_alloc_page,
+	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
+		return  __topup_hyp_memcache(mc, req.mem.nr_pages, kvm_arm_smmu_alloc_page,
 					     kvm_arm_smmu_host_pa, smmu, 0);
-	} else if (ret == -ENOMEM) {
-		return __pkvm_topup_hyp_alloc(1);
+	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
+		/* Fill hyp alloc*/
+		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);
 	}
 
+	dev_err(smmu->dev, "Bogus mem request");
 	return -EBADE;
 }
 
@@ -114,14 +129,14 @@ static void kvm_arm_smmu_reclaim_memcache(void)
  * Issue hypercall, and retry after filling the memcache if necessary.
  * After the call, reclaim pages pushed in the memcache by the hypervisor.
  */
-#define kvm_call_hyp_nvhe_mc(smmu, ...)				\
-({								\
-	int __ret;						\
-	do {							\
-		__ret = kvm_call_hyp_nvhe(__VA_ARGS__);		\
-	} while (!kvm_arm_smmu_topup_memcache(smmu, __ret));	\
-	kvm_arm_smmu_reclaim_memcache();			\
-	__ret;							\
+#define kvm_call_hyp_nvhe_mc(smmu, ...)					\
+({									\
+	struct arm_smccc_res __res;					\
+	do {								\
+		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);		\
+	} while (__res.a1 && !kvm_arm_smmu_topup_memcache(smmu, &__res));\
+	kvm_arm_smmu_reclaim_memcache();				\
+	__res.a1;							\
 })
 
 static struct platform_driver kvm_arm_smmu_driver;
@@ -359,19 +374,21 @@ static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
+	struct arm_smccc_res res;
 
 	local_lock_irqsave(&memcache_lock, irqflags);
 	do {
-		mapped = kvm_call_hyp_nvhe(__pkvm_host_iommu_map_pages,
-					   kvm_smmu_domain->id,
-					   iova, paddr, pgsize, pgcount, prot);
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_pages,
+					      kvm_smmu_domain->id,
+					      iova, paddr, pgsize, pgcount, prot);
+		mapped = res.a1;
 		iova += mapped;
 		paddr += mapped;
 		WARN_ON(mapped % pgsize);
 		WARN_ON(mapped > pgcount * pgsize);
 		pgcount -= mapped / pgsize;
 		*total_mapped += mapped;
-	} while (*total_mapped < size && !kvm_arm_smmu_topup_memcache(smmu, 0));
+	} while (*total_mapped < size && !kvm_arm_smmu_topup_memcache(smmu, &res));
 	kvm_arm_smmu_reclaim_memcache();
 	local_unlock_irqrestore(&memcache_lock, irqflags);
 	if (*total_mapped < size)
@@ -391,12 +408,14 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
+	struct arm_smccc_res res;
 
 	local_lock_irqsave(&memcache_lock, irqflags);
 	do {
-		unmapped = kvm_call_hyp_nvhe(__pkvm_host_iommu_unmap_pages,
-					     kvm_smmu_domain->id,
-					     iova, pgsize, pgcount);
+		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_unmap_pages,
+					      kvm_smmu_domain->id,
+					      iova, pgsize, pgcount);
+		unmapped = res.a1;
 		total_unmapped += unmapped;
 		iova += unmapped;
 		WARN_ON(unmapped % pgsize);
@@ -409,7 +428,7 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 		 * block mapping.
 		 */
 	} while (total_unmapped < size &&
-		 (unmapped || !kvm_arm_smmu_topup_memcache(smmu, 0)));
+		 (unmapped || !kvm_arm_smmu_topup_memcache(smmu, &res)));
 	kvm_arm_smmu_reclaim_memcache();
 	local_unlock_irqrestore(&memcache_lock, irqflags);
 

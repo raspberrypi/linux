@@ -26,15 +26,21 @@ struct kvm_hyp_iommu_memcache *kvm_hyp_iommu_memcaches;
 static DEFINE_HYP_SPINLOCK(iommu_domains_lock);
 void **kvm_hyp_iommu_domains;
 
+DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
+
 void *kvm_iommu_donate_page(void)
 {
 	void *p;
 	int cpu = hyp_smp_processor_id();
 	struct kvm_hyp_memcache tmp = kvm_hyp_iommu_memcaches[cpu].pages;
 	unsigned long order;
+	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
 
 	if (!tmp.nr_pages) {
-		kvm_hyp_iommu_memcaches[cpu].needs_page = true;
+		req->type = KVM_HYP_REQ_TYPE_MEM;
+		req->mem.dest = REQ_MEM_DEST_HYP_IOMMU;
+		req->mem.sz_alloc = PAGE_SIZE;
+		req->mem.nr_pages = 1;
 		return NULL;
 	}
 
