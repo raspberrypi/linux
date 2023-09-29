@@ -22,11 +22,13 @@
 		};
 	};
 
-	fragment@12 {
-		target = <&i2cbus>;
+	ts_i2c_frag: fragment@12 {
+		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
+
 			ft5406: ts@38 {
 				compatible = "edt,edt-ft5506";
 				reg = <0x38>;
@@ -34,13 +36,6 @@
 				touchscreen-size-x = < 800 >;
 				touchscreen-size-y = < 480 >;
 			};
-		};
-	};
-
-	ts_i2c_frag: fragment@13 {
-		target = <&i2c_csi_dsi>;
-		i2cbus: __overlay__ {
-			status = "okay";
 		};
 	};
 
