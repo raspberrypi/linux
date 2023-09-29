@@ -473,6 +473,46 @@ const struct cfe_fmt *find_format_by_pix(u32 pixelformat)
 	return NULL;
 }
 
+/*
+ * Given the mbus code, find the 16 bit remapped code. Returns 0 if no remap
+ * possible.
+ */
+u32 cfe_find_16bit_code(u32 code)
+{
+	const struct cfe_fmt *cfe_fmt;
+
+	cfe_fmt = find_format_by_code(code);
+
+	if (!cfe_fmt || !cfe_fmt->remap[CFE_REMAP_16BIT])
+		return 0;
+
+	cfe_fmt = find_format_by_pix(cfe_fmt->remap[CFE_REMAP_16BIT]);
+	if (!cfe_fmt)
+		return 0;
+
+	return cfe_fmt->code;
+}
+
+/*
+ * Given the mbus code, find the 8 bit compressed code. Returns 0 if no remap
+ * possible.
+ */
+u32 cfe_find_compressed_code(u32 code)
+{
+	const struct cfe_fmt *cfe_fmt;
+
+	cfe_fmt = find_format_by_code(code);
+
+	if (!cfe_fmt || !cfe_fmt->remap[CFE_REMAP_COMPRESSED])
+		return 0;
+
+	cfe_fmt = find_format_by_pix(cfe_fmt->remap[CFE_REMAP_COMPRESSED]);
+	if (!cfe_fmt)
+		return 0;
+
+	return cfe_fmt->code;
+}
+
 static int cfe_calc_format_size_bpl(struct cfe_device *cfe,
 				    const struct cfe_fmt *fmt,
 				    struct v4l2_format *f)
