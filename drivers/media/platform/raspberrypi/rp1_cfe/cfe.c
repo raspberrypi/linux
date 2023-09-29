@@ -461,7 +461,7 @@ const struct cfe_fmt *find_format_by_code(u32 code)
 	return NULL;
 }
 
-static const struct cfe_fmt *find_format_by_pix(u32 pixelformat)
+const struct cfe_fmt *find_format_by_pix(u32 pixelformat)
 {
 	unsigned int i;
 
