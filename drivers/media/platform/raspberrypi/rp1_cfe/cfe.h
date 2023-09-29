@@ -37,5 +37,7 @@ extern const struct v4l2_mbus_framefmt cfe_default_meta_format;
 
 const struct cfe_fmt *find_format_by_code(u32 code);
 const struct cfe_fmt *find_format_by_pix(u32 pixelformat);
+u32 cfe_find_16bit_code(u32 code);
+u32 cfe_find_compressed_code(u32 code);
 
 #endif
