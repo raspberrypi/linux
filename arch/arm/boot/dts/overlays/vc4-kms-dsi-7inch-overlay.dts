@@ -119,6 +119,6 @@
 		       <&panel_disp>, "reg:0=0",
 		       <&reg_bridge>, "reg:0=0",
 		       <&reg_bridge>, "regulator-name=bridge_reg_0";
-		disable_touch = <0>, "-10-11-12";
+		disable_touch = <&ft5406>, "status=disabled";
 	};
 };
