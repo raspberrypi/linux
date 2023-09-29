@@ -438,25 +438,60 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 			    struct v4l2_subdev_state *state,
 			    struct v4l2_subdev_format *format)
 {
-	struct v4l2_mbus_framefmt *fmt;
-	const struct cfe_fmt *cfe_fmt;
-
-	/* TODO: format validation */
-
-	cfe_fmt = find_format_by_code(format->format.code);
-	if (!cfe_fmt)
-		cfe_fmt = find_format_by_code(MEDIA_BUS_FMT_SBGGR10_1X10);
-
-	format->format.code = cfe_fmt->code;
-
-	fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
-	*fmt = format->format;
-
 	if (format->pad < CSI2_NUM_CHANNELS) {
-		/* Propagate to the source pad */
-		fmt = v4l2_subdev_get_pad_format(sd, state,
-						 format->pad + CSI2_NUM_CHANNELS);
+		/*
+		 * Store the sink pad format and propagate it to the source pad.
+		 */
+
+		struct v4l2_mbus_framefmt *fmt;
+
+		fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		if (!fmt)
+			return -EINVAL;
+
 		*fmt = format->format;
+
+		fmt = v4l2_subdev_get_pad_format(sd, state,
+			format->pad + CSI2_NUM_CHANNELS);
+		if (!fmt)
+			return -EINVAL;
+
+		format->format.field = V4L2_FIELD_NONE;
+
+		*fmt = format->format;
+	} else {
+		/*
+		 * Only allow changing the source pad mbus code.
+		 */
+
+		struct v4l2_mbus_framefmt *sink_fmt, *source_fmt;
+		u32 sink_code;
+		u32 code;
+
+		sink_fmt = v4l2_subdev_get_pad_format(sd, state,
+			format->pad - CSI2_NUM_CHANNELS);
+		if (!sink_fmt)
+			return -EINVAL;
+
+		source_fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		if (!source_fmt)
+			return -EINVAL;
+
+		sink_code = sink_fmt->code;
+		code = format->format.code;
+
+		/*
+		 * If the source code from the user does not match the code in
+		 * the sink pad, check that the source code matches either the
+		 * 16-bit version or the compressed version of the sink code.
+		 */
+
+		if (code != sink_code &&
+		    (code == cfe_find_16bit_code(sink_code) ||
+		     code == cfe_find_compressed_code(sink_code)))
+			source_fmt->code = code;
+
+		format->format.code = source_fmt->code;
 	}
 
 	return 0;
