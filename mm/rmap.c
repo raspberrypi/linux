@@ -1159,7 +1159,6 @@ void page_move_anon_rmap(struct page *page, struct vm_area_struct *vma)
 	 * folio_test_anon()) will not see one without the other.
 	 */
 	WRITE_ONCE(folio->mapping, anon_vma);
-	SetPageAnonExclusive(page);
 }
 
 /**
