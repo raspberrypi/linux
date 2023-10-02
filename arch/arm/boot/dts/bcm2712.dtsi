@@ -1158,6 +1158,7 @@
 			clocks = <&firmware_clocks 11>;
 			clock-names = "hevc";
 			status = "disabled";
+			iommus = <&iommu2>;
 		};
 
 		sdio1: mmc@fff000 {
