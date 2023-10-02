@@ -360,6 +360,13 @@ static int rpivid_probe(struct platform_device *pdev)
 	snprintf(vfd->name, sizeof(vfd->name), "%s", rpivid_video_device.name);
 	video_set_drvdata(vfd, dev);
 
+	ret = dma_set_mask_and_coherent(dev->dev, DMA_BIT_MASK(36));
+	if (ret) {
+		v4l2_err(&dev->v4l2_dev,
+			 "Failed dma_set_mask_and_coherent\n");
+		goto err_v4l2;
+	}
+
 	dev->m2m_dev = v4l2_m2m_init(&rpivid_m2m_ops);
 	if (IS_ERR(dev->m2m_dev)) {
 		v4l2_err(&dev->v4l2_dev,
