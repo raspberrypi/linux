@@ -2495,11 +2495,19 @@ static int rpivid_h265_start(struct rpivid_ctx *ctx)
 	for (i = 0; i != ARRAY_SIZE(ctx->pu_bufs); ++i) {
 		// Don't actually need a kernel mapping here
 		if (gptr_alloc(dev, ctx->pu_bufs + i, pu_alloc,
-			       DMA_ATTR_NO_KERNEL_MAPPING))
+			       DMA_ATTR_NO_KERNEL_MAPPING)) {
+			v4l2_err(&dev->v4l2_dev,
+				 "Failed to alloc %#zx PU%d buffer\n",
+				 pu_alloc, i);
 			goto fail;
+		}
 		if (gptr_alloc(dev, ctx->coeff_bufs + i, coeff_alloc,
-			       DMA_ATTR_NO_KERNEL_MAPPING))
+			       DMA_ATTR_NO_KERNEL_MAPPING)) {
+			v4l2_err(&dev->v4l2_dev,
+				 "Failed to alloc %#zx Coeff%d buffer\n",
+				 pu_alloc, i);
 			goto fail;
+		}
 	}
 	aux_q_init(ctx);
 
