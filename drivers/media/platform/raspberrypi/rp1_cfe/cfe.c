@@ -110,6 +110,7 @@ const struct v4l2_mbus_framefmt cfe_default_meta_format = {
 	.width = 8192,
 	.height = 1,
 	.code = MEDIA_BUS_FMT_SENSOR_DATA,
+	.field = V4L2_FIELD_NONE,
 };
 
 enum node_ids {
