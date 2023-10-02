@@ -531,7 +531,7 @@ static int hdmi_codec_fill_codec_params(struct snd_soc_dai *dai,
 	hp->sample_rate = sample_rate;
 	hp->channels = channels;
 
-	hcp->chmap_idx = ca_id;
+	hcp->chmap_idx = idx;
 
 	return 0;
 }
