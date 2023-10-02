@@ -1156,6 +1156,7 @@
 
 			clocks = <&firmware_clocks 11>;
 			clock-names = "hevc";
+			iommus = <&iommu2>;
 			status = "disabled";
 		};
 
