@@ -388,11 +388,6 @@ void pisp_fe_stop(struct pisp_fe_device *fe)
 	pisp_fe_reg_write(fe, FE_INT_STATUS, ~0);
 }
 
-static struct pisp_fe_device *to_pisp_fe_device(struct v4l2_subdev *subdev)
-{
-	return container_of(subdev, struct pisp_fe_device, sd);
-}
-
 static int pisp_fe_init_cfg(struct v4l2_subdev *sd,
 			    struct v4l2_subdev_state *state)
 {
@@ -492,40 +487,11 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 	}
 }
 
-static int pisp_fe_link_validate(struct v4l2_subdev *sd,
-				 struct media_link *link,
-				 struct v4l2_subdev_format *source_fmt,
-				 struct v4l2_subdev_format *sink_fmt)
-{
-	struct pisp_fe_device *fe = to_pisp_fe_device(sd);
-
-	pisp_fe_dbg("%s: link \"%s\":%u -> \"%s\":%u\n", __func__,
-		    link->source->entity->name, link->source->index,
-		    link->sink->entity->name, link->sink->index);
-
-	/* The width, height and code must match. */
-	if (source_fmt->format.width != sink_fmt->format.width ||
-	    source_fmt->format.width != sink_fmt->format.width ||
-	    source_fmt->format.code != sink_fmt->format.code) {
-		pisp_fe_err("%s: format does not match (source %ux%u 0x%x, sink %ux%u 0x%x)\n",
-			    __func__,
-			     source_fmt->format.width,
-			     source_fmt->format.height,
-			     source_fmt->format.code,
-			     sink_fmt->format.width,
-			     sink_fmt->format.height,
-			     sink_fmt->format.code);
-		return -EPIPE;
-	}
-
-	return 0;
-}
-
 static const struct v4l2_subdev_pad_ops pisp_fe_subdev_pad_ops = {
 	.init_cfg = pisp_fe_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = pisp_fe_pad_set_fmt,
-	.link_validate = pisp_fe_link_validate,
+	.link_validate = v4l2_subdev_link_validate_default,
 };
 
 static const struct media_entity_operations pisp_fe_entity_ops = {
