@@ -1327,4 +1327,9 @@ int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
 
 int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops);
 
+/* Allocator interface IDs. */
+#define HYP_ALLOC_MGT_HEAP_ID		0
+
+unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages);
+
 #endif /* __ARM64_KVM_HOST_H__ */

@@ -66,4 +66,6 @@ int hyp_alloc_refill(struct kvm_hyp_memcache *host_mc);
 int hyp_alloc_reclaimable(void);
 void hyp_alloc_reclaim(struct kvm_hyp_memcache *host_mc, int target);
 u8 hyp_alloc_missing_donations(void);
+
+extern struct hyp_mgt_allocator_ops hyp_alloc_ops;
 #endif

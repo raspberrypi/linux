@@ -17,6 +17,7 @@
 #include <asm/kvm_mmu.h>
 
 #include <nvhe/alloc.h>
+#include <nvhe/alloc_mgt.h>
 #include <nvhe/ffa.h>
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
@@ -1432,24 +1433,25 @@ static void handle___pkvm_register_hcall(struct kvm_cpu_context *host_ctxt)
 	cpu_reg(host_ctxt, 1) = __pkvm_register_hcall(hfn_hyp_va);
 }
 
-static void handle___pkvm_hyp_alloc_refill(struct kvm_cpu_context *host_ctxt)
+static void handle___pkvm_hyp_alloc_mgt_refill(struct kvm_cpu_context *host_ctxt)
 {
-	DECLARE_REG(phys_addr_t, phys, host_ctxt, 1);
-	DECLARE_REG(unsigned long, nr_pages, host_ctxt, 2);
+	DECLARE_REG(unsigned long, id, host_ctxt, 1);
+	DECLARE_REG(phys_addr_t, phys, host_ctxt, 2);
+	DECLARE_REG(unsigned long, nr_pages, host_ctxt, 3);
 	struct kvm_hyp_memcache mc = {
 		.head		= phys,
 		.nr_pages	= nr_pages,
 	};
 
-	cpu_reg(host_ctxt, 1) = hyp_alloc_refill(&mc);
+	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_refill(id, &mc);
 }
 
-static void handle___pkvm_hyp_alloc_reclaimable(struct kvm_cpu_context *host_ctxt)
+static void handle___pkvm_hyp_alloc_mgt_reclaimable(struct kvm_cpu_context *host_ctxt)
 {
-	cpu_reg(host_ctxt, 1) = hyp_alloc_reclaimable();
+	cpu_reg(host_ctxt, 1) = hyp_alloc_mgt_reclaimable();
 }
 
-static void handle___pkvm_hyp_alloc_reclaim(struct kvm_cpu_context *host_ctxt)
+static void handle___pkvm_hyp_alloc_mgt_reclaim(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(int, target, host_ctxt, 1);
 	struct kvm_hyp_memcache mc = {
@@ -1457,7 +1459,7 @@ static void handle___pkvm_hyp_alloc_reclaim(struct kvm_cpu_context *host_ctxt)
 		.nr_pages	= 0,
 	};
 
-	hyp_alloc_reclaim(&mc, target);
+	hyp_alloc_mgt_reclaim(&mc, target);
 
 	cpu_reg(host_ctxt, 1) = mc.head;
 	cpu_reg(host_ctxt, 2) = mc.nr_pages;
@@ -1603,9 +1605,9 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_enable_tracing),
 	HANDLE_FUNC(__pkvm_swap_reader_tracing),
 	HANDLE_FUNC(__pkvm_enable_event),
-	HANDLE_FUNC(__pkvm_hyp_alloc_refill),
-	HANDLE_FUNC(__pkvm_hyp_alloc_reclaimable),
-	HANDLE_FUNC(__pkvm_hyp_alloc_reclaim),
+	HANDLE_FUNC(__pkvm_hyp_alloc_mgt_refill),
+	HANDLE_FUNC(__pkvm_hyp_alloc_mgt_reclaimable),
+	HANDLE_FUNC(__pkvm_hyp_alloc_mgt_reclaim),
 	HANDLE_FUNC(__pkvm_host_iommu_alloc_domain),
 	HANDLE_FUNC(__pkvm_host_iommu_free_domain),
 	HANDLE_FUNC(__pkvm_host_iommu_attach_dev),

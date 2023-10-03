@@ -898,7 +898,8 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
 	if (ret)
 		return ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_refill, mc.head, mc.nr_pages);
+	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_refill, HYP_ALLOC_MGT_HEAP_ID,
+				mc.head, mc.nr_pages);
 	if (ret)
 		free_hyp_memcache(&mc);
 
@@ -906,7 +907,7 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
 }
 EXPORT_SYMBOL(__pkvm_topup_hyp_alloc);
 
-unsigned long __pkvm_reclaim_hyp_alloc(unsigned long nr_pages)
+unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages)
 {
 	unsigned long ratelimit, last_reclaim, reclaimed = 0;
 	struct kvm_hyp_memcache mc;
@@ -918,7 +919,7 @@ unsigned long __pkvm_reclaim_hyp_alloc(unsigned long nr_pages)
 		/* Arbitrary upper bound to limit the time spent at EL2 */
 		ratelimit = min(nr_pages, 16UL);
 
-		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_hyp_alloc_reclaim),
+		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(__pkvm_hyp_alloc_mgt_reclaim),
 				  ratelimit, &res);
 		if (WARN_ON(res.a0 != SMCCC_RET_SUCCESS))
 			break;
