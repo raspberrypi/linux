@@ -462,11 +462,6 @@ void csi2_close_rx(struct csi2_device *csi2)
 	csi2_reg_write(csi2, CSI2_IRQ_MASK, 0);
 }
 
-static struct csi2_device *to_csi2_device(struct v4l2_subdev *subdev)
-{
-	return container_of(subdev, struct csi2_device, sd);
-}
-
 static int csi2_init_cfg(struct v4l2_subdev *sd,
 			 struct v4l2_subdev_state *state)
 {
@@ -554,45 +549,11 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int csi2_link_validate(struct v4l2_subdev *sd, struct media_link *link,
-			      struct v4l2_subdev_format *source_fmt,
-			      struct v4l2_subdev_format *sink_fmt)
-{
-	struct csi2_device *csi2 = to_csi2_device(sd);
-
-	csi2_dbg("%s: link \"%s\":%u -> \"%s\":%u\n", __func__,
-		 link->source->entity->name, link->source->index,
-		 link->sink->entity->name, link->sink->index);
-
-	if ((link->source->entity == &csi2->sd.entity &&
-	     link->source->index == 1) ||
-	    (link->sink->entity == &csi2->sd.entity &&
-	     link->sink->index == 1)) {
-		csi2_dbg("Ignore metadata pad for now\n");
-		return 0;
-	}
-
-	/* The width, height and code must match. */
-	if (source_fmt->format.width != sink_fmt->format.width ||
-	    source_fmt->format.width != sink_fmt->format.width ||
-	    source_fmt->format.code != sink_fmt->format.code) {
-		csi2_err("%s: format does not match (source %ux%u 0x%x, sink %ux%u 0x%x)\n",
-			 __func__,
-			 source_fmt->format.width, source_fmt->format.height,
-			 source_fmt->format.code,
-			 sink_fmt->format.width, sink_fmt->format.height,
-			 sink_fmt->format.code);
-		return -EPIPE;
-	}
-
-	return 0;
-}
-
 static const struct v4l2_subdev_pad_ops csi2_subdev_pad_ops = {
 	.init_cfg = csi2_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = csi2_pad_set_fmt,
-	.link_validate = csi2_link_validate,
+	.link_validate = v4l2_subdev_link_validate_default,
 };
 
 static const struct media_entity_operations csi2_entity_ops = {
