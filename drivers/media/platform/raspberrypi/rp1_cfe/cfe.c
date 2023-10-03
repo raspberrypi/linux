@@ -1715,17 +1715,29 @@ static int cfe_video_link_validate(struct media_link *link)
 		}
 	} else if (is_csi2_node(node) && is_meta_output_node(node)) {
 		struct v4l2_meta_format *meta_fmt = &node->meta_fmt.fmt.meta;
+		const struct cfe_fmt *fmt;
+		u32 source_size;
 
-		if (source_fmt->width * source_fmt->height !=
-							meta_fmt->buffersize ||
-		    source_fmt->code != MEDIA_BUS_FMT_SENSOR_DATA) {
-			cfe_err("WARNING: Wrong metadata width/height/code %ux%u %08x (remote pad set to %ux%u %08x)\n",
-				meta_fmt->buffersize, 1,
-				MEDIA_BUS_FMT_SENSOR_DATA,
-				source_fmt->width,
-				source_fmt->height,
-				source_fmt->code);
-			/* TODO: this should throw an error eventually */
+		fmt = find_format_by_code(source_fmt->code);
+		if (!fmt || fmt->fourcc != meta_fmt->dataformat) {
+			cfe_err("Metadata format mismatch!\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		source_size = DIV_ROUND_UP(source_fmt->width * source_fmt->height * fmt->depth, 8);
+
+		if (source_fmt->code != MEDIA_BUS_FMT_SENSOR_DATA) {
+			cfe_err("Bad metadata mbus format\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		if (source_size > meta_fmt->buffersize) {
+			cfe_err("Metadata buffer too small: %u < %u\n",
+				meta_fmt->buffersize, source_size);
+			ret = -EINVAL;
+			goto out;
 		}
 	}
 
