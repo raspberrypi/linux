@@ -49,11 +49,11 @@
 #define CFE_MODULE_NAME	"rp1-cfe"
 #define CFE_VERSION	"1.0"
 
-bool cfe_debug_irq;
+bool cfe_debug_verbose;
 
-#define cfe_dbg_irq(fmt, arg...)                              \
+#define cfe_dbg_verbose(fmt, arg...)                          \
 	do {                                                  \
-		if (cfe_debug_irq)                            \
+		if (cfe_debug_verbose)                        \
 			dev_dbg(&cfe->pdev->dev, fmt, ##arg); \
 	} while (0)
 #define cfe_dbg(fmt, arg...) dev_dbg(&cfe->pdev->dev, fmt, ##arg)
@@ -518,8 +518,8 @@ static void cfe_schedule_next_csi2_job(struct cfe_device *cfe)
 		node->next_frm = buf;
 		list_del(&buf->list);
 
-		cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__,
-			    node_desc[node->id].name, &buf->vb.vb2_buf);
+		cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
+				node_desc[node->id].name, &buf->vb.vb2_buf);
 
 		if (is_meta_node(node)) {
 			size = node->fmt.fmt.meta.buffersize;
@@ -550,8 +550,8 @@ static void cfe_schedule_next_pisp_job(struct cfe_device *cfe)
 		buf = list_first_entry(&node->dma_queue, struct cfe_buffer,
 				       list);
 
-		cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__,
-			    node_desc[node->id].name, &buf->vb.vb2_buf);
+		cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
+				node_desc[node->id].name, &buf->vb.vb2_buf);
 
 		node->next_frm = buf;
 		vb2_bufs[node_desc[i].link_pad] = &buf->vb.vb2_buf;
@@ -573,8 +573,8 @@ static bool cfe_check_job_ready(struct cfe_device *cfe)
 			continue;
 
 		if (list_empty(&node->dma_queue)) {
-			cfe_dbg_irq("%s: [%s] has no buffer, unable to schedule job\n",
-				    __func__, node_desc[i].name);
+			cfe_dbg_verbose("%s: [%s] has no buffer, unable to schedule job\n",
+				__func__, node_desc[i].name);
 			return false;
 		}
 	}
@@ -592,7 +592,7 @@ static void cfe_prepare_next_job(struct cfe_device *cfe)
 	/* Flag if another job is ready after this. */
 	cfe->job_ready = cfe_check_job_ready(cfe);
 
-	cfe_dbg_irq("%s: end with scheduled job\n", __func__);
+	cfe_dbg_verbose("%s: end with scheduled job\n", __func__);
 }
 
 static void cfe_process_buffer_complete(struct cfe_node *node,
@@ -600,8 +600,8 @@ static void cfe_process_buffer_complete(struct cfe_node *node,
 {
 	struct cfe_device *cfe = node->cfe;
 
-	cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__, node_desc[node->id].name,
-		    &node->cur_frm->vb.vb2_buf);
+	cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
+			node_desc[node->id].name, &node->cur_frm->vb.vb2_buf);
 
 	node->cur_frm->vb.sequence = sequence;
 	vb2_buffer_done(&node->cur_frm->vb.vb2_buf, VB2_BUF_STATE_DONE);
@@ -621,8 +621,8 @@ static void cfe_sof_isr_handler(struct cfe_node *node)
 {
 	struct cfe_device *cfe = node->cfe;
 
-	cfe_dbg_irq("%s: [%s] seq %u\n", __func__, node_desc[node->id].name,
-		    cfe->sequence);
+	cfe_dbg_verbose("%s: [%s] seq %u\n", __func__, node_desc[node->id].name,
+			cfe->sequence);
 
 	node->cur_frm = node->next_frm;
 	node->next_frm = NULL;
@@ -651,8 +651,8 @@ static void cfe_eof_isr_handler(struct cfe_node *node)
 {
 	struct cfe_device *cfe = node->cfe;
 
-	cfe_dbg_irq("%s: [%s] seq %u\n", __func__, node_desc[node->id].name,
-		    cfe->sequence);
+	cfe_dbg_verbose("%s: [%s] seq %u\n", __func__, node_desc[node->id].name,
+			cfe->sequence);
 
 	if (node->cur_frm)
 		cfe_process_buffer_complete(node, cfe->sequence);
@@ -921,8 +921,8 @@ static int cfe_buffer_prepare(struct vb2_buffer *vb)
 	struct cfe_buffer *buf = to_cfe_buffer(vb);
 	unsigned long size;
 
-	cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__, node_desc[node->id].name,
-		    vb);
+	cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
+			node_desc[node->id].name, vb);
 
 	size = is_image_output_node(node) ? node->fmt.fmt.pix.sizeimage :
 					    node->fmt.fmt.meta.buffersize;
@@ -954,8 +954,8 @@ static void cfe_buffer_queue(struct vb2_buffer *vb)
 	struct cfe_buffer *buf = to_cfe_buffer(vb);
 	unsigned long flags;
 
-	cfe_dbg_irq("%s: [%s] buffer:%p\n", __func__, node_desc[node->id].name,
-		    vb);
+	cfe_dbg_verbose("%s: [%s] buffer:%p\n", __func__,
+			node_desc[node->id].name, vb);
 
 	spin_lock_irqsave(&cfe->state_lock, flags);
 
