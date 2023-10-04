@@ -16,9 +16,9 @@
 #include "csi2.h"
 #include "cfe.h"
 
-#define csi2_dbg_irq(fmt, arg...)                                 \
+#define csi2_dbg_verbose(fmt, arg...)                             \
 	do {                                                      \
-		if (cfe_debug_irq)                                \
+		if (cfe_debug_verbose)                            \
 			dev_dbg(csi2->v4l2_dev->dev, fmt, ##arg); \
 	} while (0)
 #define csi2_dbg(fmt, arg...) dev_dbg(csi2->v4l2_dev->dev, fmt, ##arg)
@@ -154,7 +154,7 @@ void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof, bool *lci)
 	u32 status;
 
 	status = csi2_reg_read(csi2, CSI2_STATUS);
-	csi2_dbg_irq("ISR: STA: 0x%x\n", status);
+	csi2_dbg_verbose("ISR: STA: 0x%x\n", status);
 
 	/* Write value back to clear the interrupts */
 	csi2_reg_write(csi2, CSI2_STATUS, status);
@@ -167,16 +167,16 @@ void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof, bool *lci)
 
 		dbg = csi2_reg_read(csi2, CSI2_CH_DEBUG(i));
 
-		csi2_dbg_irq("ISR: [%u], %s%s%s%s%s frame: %u line: %u\n", i,
-			     (status & IRQ_FS(i)) ? "FS " : "",
-			     (status & IRQ_FE(i)) ? "FE " : "",
-			     (status & IRQ_FE_ACK(i)) ? "FE_ACK " : "",
-			     (status & IRQ_LE(i)) ? "LE " : "",
-			     (status & IRQ_LE_ACK(i)) ? "LE_ACK " : "",
-			     dbg >> 16,
-			     csi2->num_lines[i] ?
-				     ((dbg & 0xffff) % csi2->num_lines[i]) :
-				     0);
+		csi2_dbg_verbose("ISR: [%u], %s%s%s%s%s frame: %u line: %u\n",
+				 i, (status & IRQ_FS(i)) ? "FS " : "",
+				 (status & IRQ_FE(i)) ? "FE " : "",
+				 (status & IRQ_FE_ACK(i)) ? "FE_ACK " : "",
+				 (status & IRQ_LE(i)) ? "LE " : "",
+				 (status & IRQ_LE_ACK(i)) ? "LE_ACK " : "",
+				 dbg >> 16,
+				 csi2->num_lines[i] ?
+					 ((dbg & 0xffff) % csi2->num_lines[i]) :
+					 0);
 
 		sof[i] = !!(status & IRQ_FS(i));
 		eof[i] = !!(status & IRQ_FE_ACK(i));
