@@ -974,8 +974,8 @@ static void cfe_buffer_queue(struct vb2_buffer *vb)
 
 	if (!cfe->job_queued && cfe->job_ready &&
 	    test_all_nodes(cfe, NODE_ENABLED, NODE_STREAMING)) {
-		cfe_dbg("Preparing job immediately for channel %u\n",
-			node->id);
+		cfe_dbg_verbose("Preparing job immediately for channel %u\n",
+				node->id);
 		cfe_prepare_next_job(cfe);
 	}
 
