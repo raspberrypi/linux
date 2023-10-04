@@ -114,9 +114,9 @@ static const struct pisp_fe_config_param pisp_fe_config_map[] = {
 					sizeof(struct pisp_fe_output_config)         },
 };
 
-#define pisp_fe_dbg_irq(fmt, arg...)                            \
+#define pisp_fe_dbg_verbose(fmt, arg...)                        \
 	do {                                                    \
-		if (cfe_debug_irq)                              \
+		if (cfe_debug_verbose)                          \
 			dev_dbg(fe->v4l2_dev->dev, fmt, ##arg); \
 	} while (0)
 #define pisp_fe_dbg(fmt, arg...) dev_dbg(fe->v4l2_dev->dev, fmt, ##arg)
@@ -202,9 +202,9 @@ void pisp_fe_isr(struct pisp_fe_device *fe, bool *sof, bool *eof)
 	int_status = pisp_fe_reg_read(fe, FE_INT_STATUS);
 	pisp_fe_reg_write(fe, FE_INT_STATUS, int_status);
 
-	pisp_fe_dbg_irq("%s: status 0x%x out 0x%x frame 0x%x error 0x%x int 0x%x\n",
-			__func__, status, out_status, frame_status, error_status,
-			int_status);
+	pisp_fe_dbg_verbose("%s: status 0x%x out 0x%x frame 0x%x error 0x%x int 0x%x\n",
+		__func__, status, out_status, frame_status, error_status,
+		int_status);
 
 	/* We do not report interrupts for the input/stream pad. */
 	for (i = 0; i < FE_NUM_PADS - 1; i++) {
@@ -339,7 +339,7 @@ void pisp_fe_submit_job(struct pisp_fe_device *fe, struct vb2_buffer **vb2_bufs,
 	 * sequence of relaxed writes which follow.
 	 */
 	status = pisp_fe_reg_read(fe, FE_STATUS);
-	pisp_fe_dbg_irq("%s: status = 0x%x\n", __func__, status);
+	pisp_fe_dbg_verbose("%s: status = 0x%x\n", __func__, status);
 	if (WARN_ON(status & FE_STATUS_QUEUED))
 		return;
 
