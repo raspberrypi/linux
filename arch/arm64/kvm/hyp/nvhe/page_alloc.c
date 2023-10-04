@@ -157,9 +157,13 @@ static struct hyp_page *__hyp_extract_page(struct hyp_pool *pool,
 
 static void __hyp_put_page(struct hyp_pool *pool, struct hyp_page *p)
 {
+	u64 free_pages;
+
 	if (hyp_page_ref_dec_and_test(p)) {
 		hyp_spin_lock(&pool->lock);
 		__hyp_attach_page(pool, p);
+		free_pages = pool->free_pages + (1 << p->order);
+		WRITE_ONCE(pool->free_pages, free_pages);
 		hyp_spin_unlock(&pool->lock);
 	}
 }
@@ -197,6 +201,7 @@ void *hyp_alloc_pages(struct hyp_pool *pool, u8 order)
 {
 	struct hyp_page *p;
 	u8 i = order;
+	u64 free_pages;
 
 	hyp_spin_lock(&pool->lock);
 
@@ -213,9 +218,24 @@ void *hyp_alloc_pages(struct hyp_pool *pool, u8 order)
 	p = __hyp_extract_page(pool, p, order);
 
 	hyp_set_page_refcounted(p);
+
+	free_pages = pool->free_pages - (1 << p->order);
+	WRITE_ONCE(pool->free_pages, free_pages);
 	hyp_spin_unlock(&pool->lock);
 
 	return hyp_page_to_virt(p);
+}
+
+/*
+ * Return how many pages are free at the moment.
+ * Instead of walking the free areas list + synchronization
+ * we can just keep track for allocation/deallocation in one variable
+ * with free_pages size, all updates to this variable are protected only
+ * read is not.
+ */
+u64 hyp_pool_free_pages(struct hyp_pool *pool)
+{
+	return READ_ONCE(pool->free_pages);
 }
 
 /*
