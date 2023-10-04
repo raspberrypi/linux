@@ -18,8 +18,11 @@ int kvm_arm_io_pgtable_free(struct io_pgtable *iop);
 int kvm_iommu_init(struct kvm_iommu_ops *ops,
 		   unsigned long init_arg);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
-void *kvm_iommu_donate_page(void);
-void kvm_iommu_reclaim_page(void *p);
+void *kvm_iommu_donate_pages(u8 order);
+void kvm_iommu_reclaim_pages(void *p, u8 order);
+
+#define kvm_iommu_donate_page()			kvm_iommu_donate_pages(0)
+#define kvm_iommu_reclaim_page(p)		kvm_iommu_reclaim_pages(p, 0)
 
 /* Hypercall handlers */
 int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, unsigned long pgd_hva);
