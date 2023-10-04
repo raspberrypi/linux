@@ -10,9 +10,9 @@
 #include <linux/mm.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-
-#include <trace/events/geniezone.h>
 #include <linux/gzvm_drv.h>
+#include <trace/events/geniezone.h>
+#include <trace/hooks/gzvm.h>
 
 /* maximum size needed for holding an integer */
 #define ITOA_MAX_LEN 12
@@ -144,11 +144,10 @@ static long gzvm_vcpu_run(struct gzvm_vcpu *vcpu, void __user *argp)
 		default:
 			pr_err("vcpu unknown exit\n");
 			need_userspace = true;
-			goto out;
 		}
+		trace_android_vh_gzvm_vcpu_exit_reason(vcpu, &need_userspace);
 	}
 
-out:
 	if (copy_to_user(argp, vcpu->run, sizeof(struct gzvm_vcpu_run)))
 		return -EFAULT;
 	if (signal_pending(current)) {
