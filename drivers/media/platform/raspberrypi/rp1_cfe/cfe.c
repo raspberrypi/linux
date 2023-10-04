@@ -50,6 +50,8 @@
 #define CFE_VERSION	"1.0"
 
 bool cfe_debug_verbose;
+module_param_named(verbose_debug, cfe_debug_verbose, bool, 0644);
+MODULE_PARM_DESC(verbose_debug, "verbose debugging messages");
 
 #define cfe_dbg_verbose(fmt, arg...)                          \
 	do {                                                  \
