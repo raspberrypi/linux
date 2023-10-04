@@ -997,6 +997,14 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_streaming;
 	}
 
+	/* When using the Frontend, we must enable the FE_CONFIG node. */
+	if (is_fe_enabled(cfe) &&
+	    !check_state(cfe, NODE_ENABLED, cfe->node[FE_CONFIG].id)) {
+		cfe_err("FE enabled, but FE_CONFIG node is not\n");
+		ret = -EINVAL;
+		goto err_streaming;
+	}
+
 	ret = media_pipeline_start(&node->pad, &cfe->pipe);
 	if (ret < 0) {
 		cfe_err("Failed to start media pipeline: %d\n", ret);
