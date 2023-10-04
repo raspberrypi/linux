@@ -297,7 +297,7 @@ int arm_lpae_map_pages(struct io_pgtable_ops *ops, unsigned long iova,
 }
 
 void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
-			     arm_lpae_iopte *ptep, bool only_children)
+			     arm_lpae_iopte *ptep)
 {
 	arm_lpae_iopte *start, *end;
 	unsigned long table_size;
@@ -321,12 +321,10 @@ void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
 		if (!pte || iopte_leaf(pte, lvl, data->iop.fmt))
 			continue;
 
-		__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data),
-					false);
+		__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data));
 	}
 
-	if (!only_children)
-		__arm_lpae_free_pages(start, table_size, &data->iop.cfg);
+	__arm_lpae_free_pages(start, table_size, &data->iop.cfg);
 }
 
 static size_t arm_lpae_split_blk_unmap(struct arm_lpae_io_pgtable *data,
@@ -434,8 +432,7 @@ static size_t __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
 				/* Also flush any partial walks */
 				io_pgtable_tlb_flush_walk(iop, iova + i * size, size,
 							  ARM_LPAE_GRANULE(data));
-				__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data),
-							false);
+				__arm_lpae_free_pgtable(data, lvl + 1, iopte_deref(pte, data));
 			} else {
 				if (!iommu_iotlb_gather_queued(gather))
 					io_pgtable_tlb_add_page(iop, gather, iova + i * size, size);

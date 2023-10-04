@@ -17,11 +17,12 @@ bool __ro_after_init selftest_running;
 
 void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp, struct io_pgtable_cfg *cfg)
 {
-	void *addr = kvm_iommu_donate_page();
+	void *addr;
 
-	if(size != PAGE_SIZE)
+	if(!PAGE_ALIGNED(size))
 		return NULL;
 
+	addr = kvm_iommu_donate_pages(get_order(size));
 	if (addr && !cfg->coherent_walk)
 		kvm_flush_dcache_to_poc(addr, size);
 
@@ -30,12 +31,14 @@ void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp, struct io_pgtable_cfg *cfg)
 
 void __arm_lpae_free_pages(void *addr, size_t size, struct io_pgtable_cfg *cfg)
 {
-	BUG_ON(size != PAGE_SIZE);
+	u8 order = get_order(size);
+
+	BUG_ON(size != (1 << order) * PAGE_SIZE);
 
 	if (!cfg->coherent_walk)
 		kvm_flush_dcache_to_poc(addr, size);
 
-	kvm_iommu_reclaim_page(addr);
+	kvm_iommu_reclaim_pages(addr, order);
 }
 
 void __arm_lpae_sync_pte(arm_lpae_iopte *ptep, int num_entries,
@@ -60,7 +63,6 @@ int kvm_arm_io_pgtable_init(struct io_pgtable_cfg *cfg,
 }
 
 struct io_pgtable *kvm_arm_io_pgtable_alloc(struct io_pgtable_cfg *cfg,
-					   unsigned long pgd_hva,
 					   void *cookie,
 					   int *out_ret)
 {
@@ -79,26 +81,20 @@ struct io_pgtable *kvm_arm_io_pgtable_alloc(struct io_pgtable_cfg *cfg,
 		goto out_free;
 
 	pgd_size = ARM_LPAE_PGD_SIZE(data);
-	data->pgd = (void *)kern_hyp_va(pgd_hva);
+	data->pgd = __arm_lpae_alloc_pages(pgd_size, 0, cfg);
+	if (!data->pgd) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
 	/*
 	 * If it has eight or more entries, the table must be aligned on
 	 * its size. Otherwise 64 bytes.
 	 */
 	alignment = max(pgd_size, 8 * sizeof(arm_lpae_iopte));
-	if (!IS_ALIGNED(hyp_virt_to_phys(data->pgd), alignment)) {
-		ret = -EINVAL;
-		goto out_free;
-	}
-
-	ret = __pkvm_host_donate_hyp(hyp_virt_to_pfn(data->pgd), pgd_size >> PAGE_SHIFT);
-	if (ret)
-		goto out_free;
-	memset(data->pgd, 0, pgd_size);
+	BUG_ON(!IS_ALIGNED(hyp_virt_to_phys(data->pgd), alignment));
 
 	data->iop.cookie = cookie;
 	data->iop.cfg.arm_lpae_s2_cfg.vttbr = __arm_lpae_virt_to_phys(data->pgd);
-	if (!data->iop.cfg.coherent_walk)
-		kvm_flush_dcache_to_poc(data->pgd, pgd_size);
 
 	/* Ensure the empty pgd is visible before any actual TTBR write */
 	wmb();
@@ -119,9 +115,6 @@ int kvm_arm_io_pgtable_free(struct io_pgtable *iopt)
 	if (!data->iop.cfg.coherent_walk)
 		kvm_flush_dcache_to_poc(data->pgd, pgd_size);
 
-	/* Free all tables but the pgd */
-	__arm_lpae_free_pgtable(data, data->start_level, data->pgd, true);
-	memset(data->pgd, 0, pgd_size);
-	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(data->pgd), pgd_size >> PAGE_SHIFT));
+	__arm_lpae_free_pgtable(data, data->start_level, data->pgd);
 	return 0;
 }

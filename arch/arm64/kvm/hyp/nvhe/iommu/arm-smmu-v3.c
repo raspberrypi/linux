@@ -21,7 +21,6 @@ struct hyp_arm_smmu_v3_device *kvm_hyp_arm_smmu_v3_smmus;
 struct hyp_arm_smmu_v3_domain {
 	struct kvm_hyp_iommu_domain     *domain;
 	struct kvm_hyp_iommu            *iommu;
-	u64				pgd;
 };
 
 #define for_each_smmu(smmu) \
@@ -536,7 +535,7 @@ int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
 
 	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
-						   smmu_domain->pgd, domain, &ret);
+						   domain, &ret);
 
 	return ret;
 }
@@ -645,7 +644,7 @@ out_unlock:
 	return ret;
 }
 
-int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva)
+int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain)
 {
 	struct hyp_arm_smmu_v3_domain *smmu_domain;
 
@@ -654,7 +653,6 @@ int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva
 		return hyp_alloc_errno();
 
 	/* Can't do much without the IOMMU. */
-	smmu_domain->pgd = pgd_hva;
 	smmu_domain->domain = domain;
 	domain->priv = (void *)smmu_domain;
 

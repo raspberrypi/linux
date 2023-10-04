@@ -9,7 +9,6 @@
 #include <linux/io-pgtable-arm.h>
 
 struct io_pgtable *kvm_arm_io_pgtable_alloc(struct io_pgtable_cfg *cfg,
-					    unsigned long pgd_hva,
 					    void *cookie,
 					    int *out_ret);
 int kvm_arm_io_pgtable_free(struct io_pgtable *iop);
@@ -25,7 +24,7 @@ void kvm_iommu_reclaim_pages(void *p, u8 order);
 #define kvm_iommu_reclaim_page(p)		kvm_iommu_reclaim_pages(p, 0)
 
 /* Hypercall handlers */
-int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, unsigned long pgd_hva);
+int kvm_iommu_alloc_domain(pkvm_handle_t domain_id);
 int kvm_iommu_free_domain(pkvm_handle_t domain_id);
 int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id);
@@ -41,7 +40,7 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova);
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
 	struct kvm_hyp_iommu *(*get_iommu_by_id)(pkvm_handle_t smmu_id);
-	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain, unsigned long pgd_hva);
+	int (*alloc_domain)(struct kvm_hyp_iommu_domain *domain);
 	void (*free_domain)(struct kvm_hyp_iommu_domain *domain);
 	int (*attach_dev)(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
 			  u32 endpoint_id);

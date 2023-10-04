@@ -17,7 +17,6 @@ struct host_arm_smmu_device {
 	struct arm_smmu_device		smmu;
 	pkvm_handle_t			id;
 	u32				boot_gbpa;
-	unsigned int			pgd_order;
 };
 
 #define smmu_to_host(_smmu) \
@@ -33,7 +32,6 @@ struct kvm_arm_smmu_domain {
 	struct iommu_domain		domain;
 	struct arm_smmu_device		*smmu;
 	struct mutex			init_mutex;
-	unsigned long			pgd;
 	pkvm_handle_t			id;
 };
 
@@ -165,10 +163,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 					struct kvm_arm_smmu_master *master)
 {
 	int ret = 0;
-	struct page *p;
-	unsigned long pgd;
 	struct arm_smmu_device *smmu = master->smmu;
-	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
 
 	if (kvm_smmu_domain->smmu) {
 		if (kvm_smmu_domain->smmu != smmu)
@@ -182,37 +177,17 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 		return ret;
 	kvm_smmu_domain->id = ret;
 
-	/*
-	 * PGD allocation does not use the memcache because it may be of higher
-	 * order when concatenated. No __GFP_ZERO because KVM zeroes the pgd.
-	 */
-	p = alloc_pages_node(dev_to_node(smmu->dev), GFP_KERNEL,
-			     host_smmu->pgd_order);
-	if (!p) {
-		ret = -ENOMEM;
-		goto err_free_id;
-	}
-
-	pgd = (unsigned long)page_to_virt(p);
-
 	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
-				   kvm_smmu_domain->id, pgd);
+				   kvm_smmu_domain->id);
 	if (ret)
-		goto err_free_pgd;
+		return ret;
 
 	kvm_smmu_domain->domain.pgsize_bitmap = smmu->pgsize_bitmap;
 	kvm_smmu_domain->domain.geometry.aperture_end = (1UL << smmu->ias) - 1;
 	kvm_smmu_domain->domain.geometry.force_aperture = true;
 	kvm_smmu_domain->smmu = smmu;
-	kvm_smmu_domain->pgd = pgd;
 
 	return 0;
-
-err_free_pgd:
-	free_pages(pgd, host_smmu->pgd_order);
-err_free_id:
-	ida_free(&kvm_arm_smmu_domain_ida, kvm_smmu_domain->id);
-	return ret;
 }
 
 static void kvm_arm_smmu_domain_free(struct iommu_domain *domain)
@@ -222,15 +197,7 @@ static void kvm_arm_smmu_domain_free(struct iommu_domain *domain)
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 
 	if (smmu) {
-		struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
-
 		ret = kvm_call_hyp_nvhe(__pkvm_host_iommu_free_domain, kvm_smmu_domain->id);
-		/*
-		 * On failure, leak the pgd because it probably hasn't been
-		 * reclaimed by the host.
-		 */
-		if (!WARN_ON(ret))
-			free_pages(kvm_smmu_domain->pgd, host_smmu->pgd_order);
 		ida_free(&kvm_arm_smmu_domain_ida, kvm_smmu_domain->id);
 	}
 	kfree(kvm_smmu_domain);
@@ -560,7 +527,6 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	host_smmu->pgd_order = get_order(pgd_size);
 	smmu->pgsize_bitmap = cfg.pgsize_bitmap;
 	smmu->ias = cfg.ias;
 	smmu->oas = cfg.oas;

@@ -174,7 +174,7 @@ static inline bool iopte_leaf(arm_lpae_iopte pte, int lvl,
 
 /* Generic functions */
 void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
-			     arm_lpae_iopte *ptep, bool only_children);
+			     arm_lpae_iopte *ptep);
 
 int arm_lpae_init_pgtable(struct io_pgtable_cfg *cfg,
 			  struct arm_lpae_io_pgtable *data);
