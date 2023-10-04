@@ -1349,27 +1349,25 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	WARN_ON(!vc4_state->mm);
 	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm->mm_node.size);
 
-	if (enable_bg_fill) {
+	if (vc4->gen >= VC4_GEN_6) {
 		/* This sets a black background color fill, as is the case
 		 * with other DRM drivers.
 		 */
-		if (vc4->gen >= VC4_GEN_6)
+		if (enable_bg_fill)
 			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
 				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) |
 				  SCALER6_DISPX_CTRL1_BGENB);
 		else
-			HVS_WRITE(SCALER_DISPBKGNDX(channel),
-				  HVS_READ(SCALER_DISPBKGNDX(channel)) |
-				  SCALER_DISPBKGND_FILL);
-	} else {
-		if (vc4->gen >= VC4_GEN_6)
 			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
 				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) &
 				  ~SCALER6_DISPX_CTRL1_BGENB);
-		else
-			HVS_WRITE(SCALER_DISPBKGNDX(channel),
-				  HVS_READ(SCALER_DISPBKGNDX(channel)) &
-				  ~SCALER_DISPBKGND_FILL);
+	} else {
+		/* we can actually run with a lower core clock when background
+		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
+		 */
+		HVS_WRITE(SCALER_DISPBKGNDX(channel),
+			  HVS_READ(SCALER_DISPBKGNDX(channel)) |
+			  SCALER_DISPBKGND_FILL);
 	}
 
 	/* Only update DISPLIST if the CRTC was already running and is not
