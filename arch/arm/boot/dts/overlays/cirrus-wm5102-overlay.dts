@@ -9,7 +9,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -165,7 +165,7 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "wlf,rpi-cirrus";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_consumer>;
 			status = "okay";
 		};
 	};

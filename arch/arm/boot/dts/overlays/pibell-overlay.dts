@@ -24,7 +24,7 @@
     };
 
     fragment@1 {
-        target = <&i2s>;
+        target = <&i2s_clk_producer>;
         __overlay__ {
             #sound-dai-cells = <0>;
             status = "okay";
@@ -43,7 +43,7 @@
                 format = "i2s";
 
                 r_cpu_dai: cpu {
-                    sound-dai = <&i2s>;
+                    sound-dai = <&i2s_clk_producer>;
 
 /* example TDM slot configuration
                     dai-tdm-slot-num = <2>;
@@ -60,7 +60,7 @@
                 format = "i2s";
 
                 p_cpu_dai: cpu {
-                    sound-dai = <&i2s>;
+                    sound-dai = <&i2s_clk_producer>;
 
 /* example TDM slot configuration
                     dai-tdm-slot-num = <2>;

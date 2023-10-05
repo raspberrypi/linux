@@ -94,7 +94,7 @@
 		rotation = <&imx296>,"rotation:0";
 		orientation = <&imx296>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
-		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&imx296>, "clocks:0=",<&cam0_clk>,
