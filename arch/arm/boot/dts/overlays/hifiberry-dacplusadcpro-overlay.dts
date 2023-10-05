@@ -15,8 +15,8 @@
 		};
 	};
 
-	fragment@1 {
-		target = <&i2s>;
+	frag1: fragment@1 {
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -56,7 +56,7 @@
 		hifiberry_dacplusadcpro: __overlay__ {
 			compatible = "hifiberry,hifiberry-dacplusadcpro";
 			audio-codec = <&hb_dac &hb_adc>;
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_consumer>;
 			status = "okay";
 		};
 	};
@@ -64,7 +64,9 @@
 	__overrides__ {
 		24db_digital_gain =
 			<&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,24db_digital_gain?";
-		slave = <&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,slave?";
+		slave = <&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,slave?",
+			<&frag1>,"target:0=",<&i2s_clk_producer>,
+			<&hifiberry_dacplusadcpro>,"i2s-controller:0=",<&i2s_clk_producer>;
 		leds_off = <&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,leds_off?";
 	};
 };
