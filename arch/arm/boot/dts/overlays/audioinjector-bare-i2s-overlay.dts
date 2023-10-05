@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -27,7 +27,7 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "simple-audio-card";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			status = "okay";
 
 			simple-audio-card,name = "audioinjector-bare";
@@ -37,7 +37,7 @@
 			simple-audio-card,frame-master = <&dailink0_master>;
 
 			dailink0_master: simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+				sound-dai = <&i2s_clk_producer>;
 				dai-tdm-slot-num = <2>;
 				dai-tdm-slot-width = <32>;
 			};
