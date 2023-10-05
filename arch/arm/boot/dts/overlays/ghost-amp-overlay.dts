@@ -14,7 +14,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -43,7 +43,7 @@
 		target = <&sound>;
 		iqaudio_dac: __overlay__ {
 			compatible = "iqaudio,iqaudio-dac";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			mute-gpios = <&amp 0 0>;
 			iqaudio-dac,auto-mute-amp;
 			status = "okay";
