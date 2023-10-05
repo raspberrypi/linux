@@ -242,6 +242,7 @@ cam0_reg: &cam_dummy_reg {
 
 i2c_arm: &i2c1 {};
 i2c_vc: &i2c0 {};
+i2c_csi_dsi0: &i2c0 {};
 
 / {
 	__overrides__ {

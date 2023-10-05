@@ -1,32 +1,100 @@
 /dts-v1/;
 
 / {
+	audremap {
+		bcm2835;
+		bcm2711;
+	};
+
+	balena-fin {
+		bcm2835;
+		bcm2711;
+	};
+
 	bmp085_i2c-sensor {
 		deprecated = "use i2c-sensor,bmp085";
+	};
+
+	cm-swap-i2c0 {
+		bcm2835;
+		bcm2711;
 	};
 
 	cutiepi-panel {
 		bcm2711;
 	};
 
+	disable-bt {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "disable-bt-pi5";
+	};
+
+	disable-bt-pi5 {
+		bcm2712;
+	};
+
 	disable-emmc2 {
 		bcm2711;
+	};
+
+	disable-wifi {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "disable-wifi-pi5";
+	};
+
+	disable-wifi-pi5 {
+		bcm2712;
 	};
 
 	highperi {
 		bcm2711;
 	};
 
+	i2c0 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "i2c0-pi5";
+	};
+
 	i2c0-bcm2708 {
 		deprecated = "use i2c0";
+	};
+
+	i2c0-pi5 {
+		bcm2712;
+	};
+
+	i2c1 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "i2c1-pi5";
 	};
 
 	i2c1-bcm2708 {
 		deprecated = "use i2c1";
 	};
 
+	i2c1-pi5 {
+		bcm2712;
+	};
+
+	i2c2 {
+		bcm2712 = "i2c2-pi5";
+	};
+
+	i2c2-pi5 {
+		bcm2712;
+	};
+
 	i2c3 {
 		bcm2711;
+		bcm2712 = "i2c3-pi5";
+	};
+
+	i2c3-pi5 {
+		bcm2712;
 	};
 
 	i2c4 {
@@ -41,23 +109,73 @@
 		bcm2711;
 	};
 
+	i2s-gpio28-31 {
+		bcm2835;
+		bcm2711;
+	};
+
 	lirc-rpi {
 		deprecated = "use gpio-ir";
 	};
 
+	midi-uart0 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "midi-uart0-pi5";
+	};
+
+	midi-uart0-pi5 {
+		bcm2712;
+	};
+
+	midi-uart1 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "midi-uart1-pi5";
+	};
+
+	midi-uart1-pi5 {
+		bcm2712;
+	};
+
 	midi-uart2 {
 		bcm2711;
+		bcm2712 = "midi-uart2-pi5";
+	};
+
+	midi-uart2-pi5 {
+		bcm2712;
 	};
 
 	midi-uart3 {
 		bcm2711;
+		bcm2712 = "midi-uart3-pi5";
+	};
+
+	midi-uart3-pi5 {
+		bcm2712;
 	};
 
 	midi-uart4 {
 		bcm2711;
+		bcm2712 = "midi-uart4-pi5";
+	};
+
+	midi-uart4-pi5 {
+		bcm2712;
 	};
 
 	midi-uart5 {
+		bcm2711;
+	};
+
+	miniuart-bt {
+		bcm2835;
+		bcm2711;
+	};
+
+	mmc {
+		bcm2835;
 		bcm2711;
 	};
 
@@ -118,12 +236,37 @@
 		deprecated = "no longer necessary";
 	};
 
+	sdhost {
+		bcm2835;
+		bcm2711;
+	};
+
+	sdio {
+		bcm2835;
+		bcm2711;
+	};
+
 	sdio-1bit {
 		deprecated = "use sdio,bus_width=1,gpios_22_25";
 	};
 
 	sdtweak {
 		deprecated = "use 'dtparam=sd_poll_once' etc.";
+	};
+
+	smi {
+		bcm2835;
+		bcm2711;
+	};
+
+	smi-dev {
+		bcm2835;
+		bcm2711;
+	};
+
+	smi-nand {
+		bcm2835;
+		bcm2711;
 	};
 
 	spi0-cs {
@@ -134,12 +277,42 @@
 		deprecated = "no longer necessary";
 	};
 
+	spi2-1cs {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "spi2-1cs-pi5";
+	};
+
+	spi2-1cs-pi5 {
+		bcm2712;
+	};
+
+	spi2-2cs {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "spi2-2cs-pi5";
+	};
+
+	spi2-2cs-pi5 {
+		bcm2712;
+	};
+
 	spi3-1cs {
 		bcm2711;
+		bcm2712 = "spi3-1cs-pi5";
+	};
+
+	spi3-1cs-pi5 {
+		bcm2712;
 	};
 
 	spi3-2cs {
 		bcm2711;
+		bcm2712 = "spi3-2cs-pi5";
+	};
+
+	spi3-2cs-pi5 {
+		bcm2712;
 	};
 
 	spi4-1cs {
@@ -152,10 +325,20 @@
 
 	spi5-1cs {
 		bcm2711;
+		bcm2712 = "spi5-1cs-pi5";
+	};
+
+	spi5-1cs-pi5 {
+		bcm2712;
 	};
 
 	spi5-2cs {
 		bcm2711;
+		bcm2712 = "spi5-2cs-pi5";
+	};
+
+	spi5-2cs-pi5 {
+		bcm2712;
 	};
 
 	spi6-1cs {
@@ -166,16 +349,51 @@
 		bcm2711;
 	};
 
+	uart0 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "uart0-pi5";
+	};
+
+	uart0-pi5 {
+		bcm2712;
+	};
+
+	uart1 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "uart1-pi5";
+	};
+
+	uart1-pi5 {
+		bcm2712;
+	};
+
 	uart2 {
 		bcm2711;
+		bcm2712 = "uart2-pi5";
+	};
+
+	uart2-pi5 {
+		bcm2712;
 	};
 
 	uart3 {
 		bcm2711;
+		bcm2712 = "uart3-pi5";
+	};
+
+	uart3-pi5 {
+		bcm2712;
 	};
 
 	uart4 {
 		bcm2711;
+		bcm2712 = "uart4-pi5";
+	};
+
+	uart4-pi5 {
+		bcm2712;
 	};
 
 	uart5 {
@@ -198,10 +416,12 @@
 	vc4-fkms-v3d {
 		bcm2835;
 		bcm2711 = "vc4-fkms-v3d-pi4";
+		bcm2712 = "vc4-fkms-v3d-pi4";
 	};
 
 	vc4-fkms-v3d-pi4 {
 		bcm2711;
+		bcm2712;
 	};
 
 	vc4-kms-dpi-at056tn53v1 {
@@ -211,10 +431,16 @@
 	vc4-kms-v3d {
 		bcm2835;
 		bcm2711 = "vc4-kms-v3d-pi4";
+		bcm2712 = "vc4-kms-v3d-pi5";
 	};
 
 	vc4-kms-v3d-pi4 {
 		bcm2711;
+		bcm2712 = "vc4-kms-v3d-pi5";
+	};
+
+	vc4-kms-v3d-pi5 {
+		bcm2712;
 	};
 
 	vl805 {
