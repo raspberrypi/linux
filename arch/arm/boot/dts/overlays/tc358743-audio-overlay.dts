@@ -8,7 +8,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -31,16 +31,16 @@
 			compatible = "simple-audio-card";
 			simple-audio-card,format = "i2s";
 			simple-audio-card,name = "tc358743";
-			simple-audio-card,bitclock-master = <&dailink0_slave>;
-			simple-audio-card,frame-master = <&dailink0_slave>;
+			simple-audio-card,bitclock-master = <&dailink0_master>;
+			simple-audio-card,frame-master = <&dailink0_master>;
 			status = "okay";
 
 			simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+				sound-dai = <&i2s_clk_consumer>;
 				dai-tdm-slot-num = <2>;
 				dai-tdm-slot-width = <32>;
 			};
-			dailink0_slave: simple-audio-card,codec {
+			dailink0_master: simple-audio-card,codec {
 				sound-dai = <&tc358743_codec>;
 			};
 		};
