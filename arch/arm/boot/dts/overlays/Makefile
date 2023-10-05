@@ -49,8 +49,10 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
 	disable-bt.dtbo \
+	disable-bt-pi5.dtbo \
 	disable-emmc2.dtbo \
 	disable-wifi.dtbo \
+	disable-wifi-pi5.dtbo \
 	dpi18.dtbo \
 	dpi18cpadhi.dtbo \
 	dpi24.dtbo \
@@ -106,8 +108,12 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c-rtc-gpio.dtbo \
 	i2c-sensor.dtbo \
 	i2c0.dtbo \
+	i2c0-pi5.dtbo \
 	i2c1.dtbo \
+	i2c1-pi5.dtbo \
+	i2c2-pi5.dtbo \
 	i2c3.dtbo \
+	i2c3-pi5.dtbo \
 	i2c4.dtbo \
 	i2c5.dtbo \
 	i2c6.dtbo \
@@ -150,10 +156,15 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	media-center.dtbo \
 	merus-amp.dtbo \
 	midi-uart0.dtbo \
+	midi-uart0-pi5.dtbo \
 	midi-uart1.dtbo \
+	midi-uart1-pi5.dtbo \
 	midi-uart2.dtbo \
+	midi-uart2-pi5.dtbo \
 	midi-uart3.dtbo \
+	midi-uart3-pi5.dtbo \
 	midi-uart4.dtbo \
+	midi-uart4-pi5.dtbo \
 	midi-uart5.dtbo \
 	minipitft13.dtbo \
 	miniuart-bt.dtbo \
@@ -231,14 +242,20 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi1-2cs.dtbo \
 	spi1-3cs.dtbo \
 	spi2-1cs.dtbo \
+	spi2-1cs-pi5.dtbo \
 	spi2-2cs.dtbo \
+	spi2-2cs-pi5.dtbo \
 	spi2-3cs.dtbo \
 	spi3-1cs.dtbo \
+	spi3-1cs-pi5.dtbo \
 	spi3-2cs.dtbo \
+	spi3-2cs-pi5.dtbo \
 	spi4-1cs.dtbo \
 	spi4-2cs.dtbo \
 	spi5-1cs.dtbo \
+	spi5-1cs-pi5.dtbo \
 	spi5-2cs.dtbo \
+	spi5-2cs-pi5.dtbo \
 	spi6-1cs.dtbo \
 	spi6-2cs.dtbo \
 	ssd1306.dtbo \
@@ -253,10 +270,15 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tpm-slb9670.dtbo \
 	tpm-slb9673.dtbo \
 	uart0.dtbo \
+	uart0-pi5.dtbo \
 	uart1.dtbo \
+	uart1-pi5.dtbo \
 	uart2.dtbo \
+	uart2-pi5.dtbo \
 	uart3.dtbo \
+	uart3-pi5.dtbo \
 	uart4.dtbo \
+	uart4-pi5.dtbo \
 	uart5.dtbo \
 	udrc.dtbo \
 	ugreen-dabboard.dtbo \
@@ -276,6 +298,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-kippah-7inch.dtbo \
 	vc4-kms-v3d.dtbo \
 	vc4-kms-v3d-pi4.dtbo \
+	vc4-kms-v3d-pi5.dtbo \
 	vc4-kms-vga666.dtbo \
 	vga666.dtbo \
 	vl805.dtbo \
