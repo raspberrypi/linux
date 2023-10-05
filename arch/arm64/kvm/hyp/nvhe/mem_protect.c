@@ -379,13 +379,16 @@ int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 
 	/* If ipa is mapped: poisons the page, and gets the pa. */
 	ret = kvm_pgtable_walk(&vm->pgt, ipa, PAGE_SIZE, &walker);
+	if (ret || !data.pa)
+		goto end;
 
 	/* Zap the guest stage2 pte and return ownership to the host */
-	if (!ret && data.pa) {
-		WARN_ON(host_stage2_set_owner_locked(data.pa, PAGE_SIZE, PKVM_ID_HOST));
-		WARN_ON(kvm_pgtable_stage2_unmap(&vm->pgt, ipa, PAGE_SIZE));
-	}
+	ret = kvm_pgtable_stage2_unmap(&vm->pgt, ipa, PAGE_SIZE);
+	if (ret)
+		goto end;
 
+	WARN_ON(host_stage2_set_owner_locked(data.pa, PAGE_SIZE, PKVM_ID_HOST));
+end:
 	guest_unlock_component(vm);
 	host_unlock_component();
 
