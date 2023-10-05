@@ -101,7 +101,7 @@
 		4lane = <0>, "-2+3-7+8";
 		link-frequency = <&tc358743_0>,"link-frequencies#0";
 		media-controller = <&csi>,"brcm,media-controller?";
-		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&tc358743>, "clocks:0=",<&cam0_clk>;

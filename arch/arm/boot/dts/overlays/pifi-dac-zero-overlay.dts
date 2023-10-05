@@ -16,7 +16,7 @@
 				format = "i2s";
 
 				cpu {
-					sound-dai = <&i2s>;
+					sound-dai = <&i2s_clk_producer>;
 					dai-tdm-slot-num = <2>;
 					dai-tdm-slot-width = <32>;
 				};
@@ -40,7 +40,7 @@
 	};
 
 	fragment@2 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			#sound-dai-cells = <0>;
 			status = "okay";

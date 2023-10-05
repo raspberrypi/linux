@@ -15,13 +15,13 @@
 		target = <&sound>;
 		frag0: __overlay__ {
 			compatible = "dionaudio,dionaudio-loco-v2";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			status = "okay";
 		};
 	};
 
 	fragment@1 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};

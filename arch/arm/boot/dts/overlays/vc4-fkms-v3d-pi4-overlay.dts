@@ -41,4 +41,10 @@
 			status = "okay";
 		};
 	};
+	fragment@5 {
+		target-path = "/chosen";
+		__overlay__  {
+			bootargs = "clk_ignore_unused";
+		};
+	};
 };
