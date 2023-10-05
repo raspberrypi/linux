@@ -75,7 +75,7 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "blokaslabs,pisound";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_consumer>;
 			status = "okay";
 
 			pinctrl-names = "default";
@@ -108,7 +108,7 @@
 	};
 
 	fragment@7 {
-		target = <&i2s>;
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};

@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -38,7 +38,7 @@
 			simple-audio-card,dai-link@1 {
 				format = "i2s";
 				cpu {
-					sound-dai = <&i2s>;
+					sound-dai = <&i2s_clk_producer>;
 				};
 				codec {
 					sound-dai = <&pcm5142>;

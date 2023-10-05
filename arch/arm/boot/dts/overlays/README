@@ -151,6 +151,9 @@ Params:
                                 bdaddr=06:05:04:03:02:01
                                 will set the BDADDR to 01:02:03:04:05:06.
 
+        button_debounce         Set the debounce delay (in ms) on the power/
+                                shutdown button (default 50ms)
+
         cam0_reg                Enables CAM 0 regulator.
                                 Only required on CM1 & 3.
 
@@ -166,6 +169,9 @@ Params:
                                 Default 3 on CM1, 3, and 4S.
                                 Default of GPIO expander 5 on CM4, but override
                                 switches to normal GPIO.
+
+        cooling_fan             Enables the Pi 5 cooling fan (enabled
+                                automatically by the firmware)
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
@@ -206,22 +212,28 @@ Params:
         hdmi                    Set to "off" to disable the HDMI interface
                                 (default "on")
 
+        i2c                     An alias for i2c_arm
+
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
+
+        i2c_arm_baudrate        Set the baudrate of the ARM's i2c interface
+                                (default "100000")
+
+        i2c_baudrate            An alias for i2c_arm_baudrate
+
+        i2c_csi_dsi             Set to "on" to enable the i2c_csi_dsi interface
+
+        i2c_csi_dsi0            Set to "on" to enable the i2c_csi_dsi0 interface
+
+        i2c_csi_dsi1            Set to "on" to enable the i2c_csi_dsi1 interface
 
         i2c_vc                  Set to "on" to enable the i2c interface
                                 usually reserved for the VideoCore processor
                                 (default "off")
 
-        i2c                     An alias for i2c_arm
-
-        i2c_arm_baudrate        Set the baudrate of the ARM's i2c interface
-                                (default "100000")
-
         i2c_vc_baudrate         Set the baudrate of the VideoCore i2c interface
                                 (default "100000")
-
-        i2c_baudrate            An alias for i2c_arm_baudrate
 
         i2s                     Set to "on" to enable the i2s interface
                                 (default "off")
@@ -237,10 +249,22 @@ Params:
         krnbt_baudrate          Set the baudrate of the PL011 UART when used
                                 with krnbt=on
 
+        nvme                    Alias for "pciex1" (2712 only)
+
         pcie                    Set to "off" to disable the PCIe interface
                                 (default "on")
                                 (2711 only, but not applicable on CM4S)
                                 N.B. USB-A ports on 4B are subsequently disabled
+
+        pciex1                  Set to "on" to enable the external PCIe link
+                                (2712 only, default "off")
+
+        pciex1_gen              Sets the PCIe "GEN"/speed for the external PCIe
+                                link (2712 only, default "2")
+
+        pciex1_no_l0s           Set to "on" to disable ASPM L0s on the external
+                                PCIe link for devices that have broken
+                                implementations (2712 only, default "off")
 
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
@@ -251,6 +275,11 @@ Params:
 
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
+
+        rtc_bbat_vchg           Set the RTC backup battery charging voltage in
+                                microvolts. If set to 0 or not specified, the
+                                trickle charger is disabled.
+                                (2712 only, default "0")
 
         sd                      Set to "off" to disable the SD card (or eMMC on
                                 non-lite SKU of CM4).
@@ -276,17 +305,29 @@ Params:
         sdio_overclock          Clock (in MHz) to use when the MMC framework
                                 requests 50MHz for the SDIO/WLAN interface.
 
+        suspend                 Make the power button trigger a suspend rather
+                                than a power-off (2712 only, default "off")
+
         tx_lpi_timer            Set the delay in microseconds between going idle
                                 and entering the low power state (default 600).
                                 Requires EEE to be enabled - see "eee".
 
         uart0                   Set to "off" to disable uart0 (default "on")
 
+        uart0_console           Move the kernel boot console to UART0 on pins
+                                6, 8 and 10 of the 40-way header (2712 only,
+                                default "off")
+
         uart1                   Set to "on" or "off" to enable or disable uart1
                                 (default varies)
 
         watchdog                Set to "on" to enable the hardware watchdog
                                 (default "off")
+
+        wifiaddr                Set an alternative WiFi MAC address.
+                                The value should be a 6-byte hexadecimal value,
+                                with or without colon separators, written in the
+                                natural (big-endian) order.
 
         act_led_trigger         Choose which activity the LED tracks.
                                 Use "heartbeat" for a nice load indicator.
@@ -919,12 +960,14 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
 
 
 Name:   disable-bt
-Info:   Disable onboard Bluetooth on Pi 3B, 3B+, 3A+, 4B and Zero W, restoring
-        UART0/ttyAMA0 over GPIOs 14 & 15.
-        N.B. To disable the systemd service that initialises the modem so it
-        doesn't use the UART, use 'sudo systemctl disable hciuart'.
+Info:   Disable onboard Bluetooth on Bluetooth-capable Raspberry Pis. On Pis
+        prior to Pi 5 this restores UART0/ttyAMA0 over GPIOs 14 & 15.
 Load:   dtoverlay=disable-bt
 Params: <None>
+
+
+Name:   disable-bt-pi5
+Info:   See disable-bt
 
 
 Name:   disable-emmc2
@@ -936,9 +979,13 @@ Params: <None>
 
 
 Name:   disable-wifi
-Info:   Disable onboard WLAN on Pi 3B, 3B+, 3A+, 4B and Zero W.
+Info:   Disable onboard WLAN on WiFi-capable Raspberry Pis.
 Load:   dtoverlay=disable-wifi
 Params: <None>
+
+
+Name:   disable-wifi-pi5
+Info:   See disable-wifi
 
 
 Name:   dpi18
@@ -2233,6 +2280,15 @@ Info:   Deprecated, legacy version of i2c0.
 Load:   <Deprecated>
 
 
+Name:   i2c0-pi5
+Info:   Enable i2c0 (Pi 5 only)
+Load:   dtoverlay=i2c0-pi5,<param>=<val>
+Params: pins_0_1                Use GPIOs 0 and 1 (default)
+        pins_8_9                Use GPIOs 8 and 9
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
+
+
 Name:   i2c1
 Info:   Change i2c1 pin usage. Not all pin combinations are usable on all
         platforms - platforms other then Compute Modules can only use this
@@ -2249,11 +2305,39 @@ Info:   Deprecated, legacy version of i2c1.
 Load:   <Deprecated>
 
 
+Name:   i2c1-pi5
+Info:   Enable i2c1 (Pi 5 only)
+Load:   dtoverlay=i2c1-pi5,<param>=<val>
+Params: pins_2_3                Use GPIOs 2 and 3 (default)
+        pins_10_11              Use GPIOs 10 and 11
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
+
+
+Name:   i2c2-pi5
+Info:   Enable i2c2 (Pi 5 only)
+Load:   dtoverlay=i2c2-pi5,<param>=<val>
+Params: pins_4_5                Use GPIOs 4 and 5 (default)
+        pins_12_13              Use GPIOs 12 and 13
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
+
+
 Name:   i2c3
 Info:   Enable the i2c3 bus. BCM2711 only.
 Load:   dtoverlay=i2c3,<param>
 Params: pins_2_3                Use GPIOs 2 and 3
         pins_4_5                Use GPIOs 4 and 5 (default)
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
+
+
+Name:   i2c3-pi5
+Info:   Enable i2c3 (Pi 5 only)
+Load:   dtoverlay=i2c3-pi5,<param>=<val>
+Params: pins_6_7                Use GPIOs 6 and 7 (default)
+        pins_14_15              Use GPIOs 14 and 15
+        pins_22_23              Use GPIOs 22 and 23
         baudrate                Set the baudrate for the interface (default
                                 "100000")
 
@@ -2869,6 +2953,10 @@ Load:   dtoverlay=midi-uart0
 Params: <None>
 
 
+Name:   midi-uart0-pi5
+Info:   See midi-uart0 (this is the Pi 5 version)
+
+
 Name:   midi-uart1
 Info:   Configures UART1 (ttyS0) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
@@ -2876,29 +2964,45 @@ Load:   dtoverlay=midi-uart1
 Params: <None>
 
 
+Name:   midi-uart1-pi5
+Info:   See midi-uart1 (this is the Pi 5 version)
+
+
 Name:   midi-uart2
-Info:   Configures UART2 (ttyAMA1) so that a requested 38.4kbaud actually gets
+Info:   Configures UART2 (ttyAMA2) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
 Load:   dtoverlay=midi-uart2
 Params: <None>
 
 
+Name:   midi-uart2-pi5
+Info:   See midi-uart2 (this is the Pi 5 version)
+
+
 Name:   midi-uart3
-Info:   Configures UART3 (ttyAMA2) so that a requested 38.4kbaud actually gets
+Info:   Configures UART3 (ttyAMA3) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
 Load:   dtoverlay=midi-uart3
 Params: <None>
 
 
+Name:   midi-uart3-pi5
+Info:   See midi-uart3 (this is the Pi 5 version)
+
+
 Name:   midi-uart4
-Info:   Configures UART4 (ttyAMA3) so that a requested 38.4kbaud actually gets
+Info:   Configures UART4 (ttyAMA4) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
 Load:   dtoverlay=midi-uart4
 Params: <None>
 
 
+Name:   midi-uart4-pi5
+Info:   See midi-uart4 (this is the Pi 5 version)
+
+
 Name:   midi-uart5
-Info:   Configures UART5 (ttyAMA4) so that a requested 38.4kbaud actually gets
+Info:   Configures UART5 (ttyAMA5) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
 Load:   dtoverlay=midi-uart5
 Params: <None>
@@ -3921,105 +4025,131 @@ Name:   spi1-1cs
 Info:   Enables spi1 with a single chip select (CS) line and associated spidev
         dev node. The gpio pin number for the CS line and spidev device node
         creation are configurable.
-        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
-              A+, B+, Zero and PI2 B; as well as the Compute Module.
+        N.B.: spi1 is not accessible on old Pis without a 40-pin header.
 Load:   dtoverlay=spi1-1cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.0 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
 
 
 Name:   spi1-2cs
 Info:   Enables spi1 with two chip select (CS) lines and associated spidev
         dev nodes. The gpio pin numbers for the CS lines and spidev device node
         creation are configurable.
-        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
-              A+, B+, Zero and PI2 B; as well as the Compute Module.
+        N.B.: spi1 is not accessible on old Pis without a 40-pin header.
 Load:   dtoverlay=spi1-2cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
         cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.0 (default
-                                is 'okay' or enabled).
-        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.1 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
 
 
 Name:   spi1-3cs
 Info:   Enables spi1 with three chip select (CS) lines and associated spidev
         dev nodes. The gpio pin numbers for the CS lines and spidev device node
         creation are configurable.
-        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
-              A+, B+, Zero and PI2 B; as well as the Compute Module.
+        N.B.: spi1 is not accessible on old Pis without a 40-pin header.
 Load:   dtoverlay=spi1-3cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
         cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
         cs2_pin                 GPIO pin for CS2 (default 16 - BCM SPI1_CE2).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.0 (default
-                                is 'okay' or enabled).
-        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.1 (default
-                                is 'okay' or enabled).
-        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs2_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev1.2 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
 
 
 Name:   spi2-1cs
-Info:   Enables spi2 with a single chip select (CS) line and associated spidev
-        dev node. The gpio pin number for the CS line and spidev device node
-        creation are configurable.
-        N.B.: spi2 is only accessible with the Compute Module.
+Info:   Enables spi2 on GPIOs 40-42 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin number for the CS line and
+        spidev device node creation are configurable. spi2-2cs-pi5 is
+        substituted on a Pi 5.
+        N.B.: spi2 is only accessible with the Compute Module or Pi 5.
 Load:   dtoverlay=spi2-1cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.0 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
+
+
+Name:   spi2-1cs-pi5
+Info:   Enables spi2 on GPIOs 1-3 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin number for the CS line and
+        spidev device node creation are configurable. Pi 5 only.
+Load:   dtoverlay=spi2-1cs-pi5,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 0).
+        cs0_spidev              Set to 'off' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'on' or enabled).
 
 
 Name:   spi2-2cs
-Info:   Enables spi2 with two chip select (CS) lines and associated spidev
-        dev nodes. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable.
-        N.B.: spi2 is only accessible with the Compute Module.
+Info:   Enables spi2 on GPIOs 40-42 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. spi2-2cs-pi5 is
+        substituted on a Pi 5.
+        N.B.: spi2 is only accessible with the Compute Module or Pi 5.
 Load:   dtoverlay=spi2-2cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
         cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.0 (default
-                                is 'okay' or enabled).
-        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.1 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
+
+
+Name:   spi2-2cs-pi5
+Info:   Enables spi2 on GPIOs 1-3 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. Pi 5 only.
+Load:   dtoverlay=spi2-2cs-pi5,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 0).
+        cs1_pin                 GPIO pin for CS1 (default 24).
+        cs0_spidev              Set to 'off' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to stop the creation of a
+                                userspace device node /dev/spidev2.1 (default
+                                is 'on' or enabled).
 
 
 Name:   spi2-3cs
-Info:   Enables spi2 with three chip select (CS) lines and associated spidev
-        dev nodes. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable.
-        N.B.: spi2 is only accessible with the Compute Module.
+Info:   Enables spi2 on GPIOs 40-42 with three chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module or Pi 5.
 Load:   dtoverlay=spi2-3cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
         cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
         cs2_pin                 GPIO pin for CS2 (default 45 - BCM SPI2_CE2).
-        cs0_spidev              Set to 'disabled' to stop the creation of a
+        cs0_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.0 (default
-                                is 'okay' or enabled).
-        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.1 (default
-                                is 'okay' or enabled).
-        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                is 'on' or enabled).
+        cs2_spidev              Set to 'off' to stop the creation of a
                                 userspace device node /dev/spidev2.2 (default
-                                is 'okay' or enabled).
+                                is 'on' or enabled).
 
 
 Name:   spi3-1cs
-Info:   Enables spi3 with a single chip select (CS) line and associated spidev
-        dev node. The gpio pin number for the CS line and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi3 on GPIOs 1-3 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin number for the CS line and
+        spidev device node creation are configurable. BCM2711 only,
+        spi3-1cs-pi5 is substituted on Pi 5.
 Load:   dtoverlay=spi3-1cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
         cs0_spidev              Set to 'off' to prevent the creation of a
@@ -4027,10 +4157,22 @@ Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
                                 is 'on' or enabled).
 
 
+Name:   spi3-1cs-pi5
+Info:   Enables spi3 on GPIOs 5-7 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin number for the CS line and
+        spidev device node creation are configurable. Pi 5 only.
+Load:   dtoverlay=spi3-1cs-pi5,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 4).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.0 (default
+                                is 'on' or enabled).
+
+
 Name:   spi3-2cs
-Info:   Enables spi3 with two chip select (CS) lines and associated spidev
-        dev nodes. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi3 on GPIO2 1-3 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. BCM2711 only,
+        spi3-2cs-pi5 is substituted on Pi 5.
 Load:   dtoverlay=spi3-2cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
         cs1_pin                 GPIO pin for CS1 (default 24 - BCM SPI3_CE1).
@@ -4042,10 +4184,25 @@ Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
                                 is 'on' or enabled).
 
 
+Name:   spi3-2cs-pi5
+Info:   Enables spi3 on GPIOs 5-7 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. Pi 5 only.
+Load:   dtoverlay=spi3-2cs-pi5,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 4).
+        cs1_pin                 GPIO pin for CS1 (default 25).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.1 (default
+                                is 'on' or enabled).
+
+
 Name:   spi4-1cs
-Info:   Enables spi4 with a single chip select (CS) line and associated spidev
-        dev node. The gpio pin number for the CS line and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi4 on GPIOs 5-7 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin number for the CS line and
+        spidev device node creation are configurable. BCM2711 only.
 Load:   dtoverlay=spi4-1cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
         cs0_spidev              Set to 'off' to prevent the creation of a
@@ -4054,9 +4211,9 @@ Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
 
 
 Name:   spi4-2cs
-Info:   Enables spi4 with two chip select (CS) lines and associated spidev
-        dev nodes. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi4 on GPIOs 5-6 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. BCM2711 only.
 Load:   dtoverlay=spi4-2cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
         cs1_pin                 GPIO pin for CS1 (default 25 - BCM SPI4_CE1).
@@ -4069,29 +4226,37 @@ Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
 
 
 Name:   spi5-1cs
-Info:   Enables spi5 with a single chip select (CS) line and associated spidev
-        dev node. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi5 on GPIOs 13-15 with a single chip select (CS) line and
+        associated spidev dev node. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. BCM2711 and Pi 5.
 Load:   dtoverlay=spi5-1cs,<param>=<val>
-Params: cs0_pin                 GPIO pin for CS0 (default 12 - BCM SPI5_CE0).
+Params: cs0_pin                 GPIO pin for CS0 (default 12).
         cs0_spidev              Set to 'off' to prevent the creation of a
                                 userspace device node /dev/spidev5.0 (default
                                 is 'on' or enabled).
 
 
+Name:   spi5-1cs-pi5
+Info:   See spi5-1cs
+
+
 Name:   spi5-2cs
-Info:   Enables spi5 with two chip select (CS) lines and associated spidev
-        dev nodes. The gpio pin numbers for the CS lines and spidev device node
-        creation are configurable. BCM2711 only.
+Info:   Enables spi5 on GPIOs 13-15 with two chip select (CS) lines and
+        associated spidev dev nodes. The gpio pin numbers for the CS lines and
+        spidev device node creation are configurable. BCM2711 and Pi 5.
 Load:   dtoverlay=spi5-2cs,<param>=<val>
-Params: cs0_pin                 GPIO pin for CS0 (default 12 - BCM SPI5_CE0).
-        cs1_pin                 GPIO pin for CS1 (default 26 - BCM SPI5_CE1).
+Params: cs0_pin                 GPIO pin for CS0 (default 12).
+        cs1_pin                 GPIO pin for CS1 (default 26).
         cs0_spidev              Set to 'off' to prevent the creation of a
                                 userspace device node /dev/spidev5.0 (default
                                 is 'on' or enabled).
         cs1_spidev              Set to 'off' to prevent the creation of a
                                 userspace device node /dev/spidev5.1 (default
                                 is 'on' or enabled).
+
+
+Name:   spi5-2cs-pi5
+Info:   See spi5-2cs
 
 
 Name:   spi6-1cs
@@ -4296,6 +4461,12 @@ Params: txd0_pin                GPIO pin for TXD0 (14, 32 or 36 - default 14)
                                 7(Alt3) for 32&33, 6(Alt2) for 36&37
 
 
+Name:   uart0-pi5
+Info:   Enable uart 0 on GPIOs 14-15. Pi 5 only.
+Load:   dtoverlay=uart0-pi5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 16-17 (default off)
+
+
 Name:   uart1
 Info:   Change the pin usage of uart1
 Load:   dtoverlay=uart1,<param>=<val>
@@ -4304,10 +4475,22 @@ Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
         rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
 
 
+Name:   uart1-pi5
+Info:   Enable uart 1 on GPIOs 0-1. Pi 5 only.
+Load:   dtoverlay=uart1-pi5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
+
+
 Name:   uart2
 Info:   Enable uart 2 on GPIOs 0-3. BCM2711 only.
 Load:   dtoverlay=uart2,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
+
+
+Name:   uart2-pi5
+Info:   Enable uart 2 on GPIOs 4-5. Pi 5 only.
+Load:   dtoverlay=uart2-pi5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
 
 
 Name:   uart3
@@ -4316,10 +4499,22 @@ Load:   dtoverlay=uart3,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
 
 
+Name:   uart3-pi5
+Info:   Enable uart 3 on GPIOs 8-9. Pi 5 only.
+Load:   dtoverlay=uart3-pi5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
+
+
 Name:   uart4
 Info:   Enable uart 4 on GPIOs 8-11. BCM2711 only.
 Load:   dtoverlay=uart4,<param>
 Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
+
+
+Name:   uart4-pi5
+Info:   Enable uart 4 on GPIOs 12-13. Pi 5 only.
+Load:   dtoverlay=uart4-pi5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 14-15 (default off)
 
 
 Name:   uart5
@@ -4530,6 +4725,8 @@ Params: sizex                   Touchscreen size x (default 800)
         invy                    Touchscreen inverted y axis
         swapxy                  Touchscreen swapped x y axis
         disable_touch           Disables the touch screen overlay driver
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
 
 
 Name:   vc4-kms-dsi-lt070me05000
@@ -4579,6 +4776,8 @@ Params: 2_8_inch                2.8" 480x640
         invx                    Touchscreen inverted x axis
         invy                    Touchscreen inverted y axis
         swapxy                  Touchscreen swapped x y axis
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
 
 
 Name:   vc4-kms-kippah-7inch
@@ -4632,6 +4831,9 @@ Params: cma-512                 CMA is 512MB
         nohdmi0                 Disable HDMI 0 output
         nohdmi1                 Disable HDMI 1 output
 
+
+Name:   vc4-kms-v3d-pi5
+Info:   See vc4-kms-v3d-pi4 (this is the Pi 5 version)
 
 
 Name:   vc4-kms-vga666

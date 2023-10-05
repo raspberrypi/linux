@@ -9,7 +9,7 @@
 / {
     compatible = "brcm,bcm2835";
     fragment@0 {
-        target = <&i2s>;
+        target = <&i2s_clk_producer>;
         __overlay__ {
             status = "okay";
         };
@@ -131,7 +131,7 @@
         target = <&sound>;
         snd: __overlay__ {
             compatible = "simple-audio-card";
-            i2s-controller = <&i2s>;
+            i2s-controller = <&i2s_clk_producer>;
             status = "okay";
 
             simple-audio-card,name = "draws";
@@ -153,7 +153,7 @@
                 "Line Out", "LOL";
 
             dailink0_master: simple-audio-card,cpu {
-                sound-dai = <&i2s>;
+                sound-dai = <&i2s_clk_producer>;
             };
 
             simple-audio-card,codec {
