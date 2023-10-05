@@ -53,7 +53,7 @@
 	};
 
 	fragment@3 {
-		target = <&i2s>;
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -63,7 +63,7 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "fe-pi,fe-pi-audio";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_consumer>;
 			status = "okay";
 		};
 	};

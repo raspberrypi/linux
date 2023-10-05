@@ -10,7 +10,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -50,7 +50,7 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "hifiberry,hifiberry-amp3";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			status = "okay";
 		};
 	};
