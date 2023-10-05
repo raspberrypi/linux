@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -42,7 +42,7 @@
 		pifi_40: __overlay__ {
 			compatible = "pifi,pifi-40";
 			audio-codec = <&tas5711l &tas5711r>;
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			pdn-gpios = <&gpio 23 1>;
 			status = "okay";
 		};

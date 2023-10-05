@@ -9,7 +9,7 @@
 / {
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	dsi_frag: fragment@0 {
 		target = <&dsi1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -29,7 +29,7 @@
 		};
 	};
 
-	frag2: fragment@2 {
+	i2c_frag: fragment@2 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -112,12 +112,14 @@
 				   <&touch>, "touchscreen-size-y:0=1480",
 				   <&touch>, "touchscreen-inverted-x?",
 				   <&touch>, "touchscreen-swapped-x-y?";
-		i2c1 = <&frag2>, "target:0=",<&i2c1>,
+		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
 		       <0>, "-3-4+5";
 		disable_touch = <&touch>, "status=disabled";
 		rotation = <&panel>, "rotation:0";
 		invx = <&touch>,"touchscreen-inverted-x?";
 		invy = <&touch>,"touchscreen-inverted-y?";
 		swapxy = <&touch>,"touchscreen-swapped-x-y?";
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
 	};
 };
