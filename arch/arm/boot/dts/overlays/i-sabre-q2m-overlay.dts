@@ -9,13 +9,13 @@
 		target = <&sound>;
 		frag0: __overlay__ {
 			compatible = "audiophonics,i-sabre-q2m";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			status = "okay";
 		};
 	};
 
 	fragment@1 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};

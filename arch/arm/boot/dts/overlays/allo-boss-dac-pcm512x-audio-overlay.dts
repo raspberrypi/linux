@@ -18,8 +18,8 @@
 		};
 	};
 
-	fragment@1 {
-		target = <&i2s>;
+	frag1: fragment@1 {
+		target = <&i2s_clk_consumer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -46,7 +46,7 @@
 		target = <&sound>;
 		boss_dac: __overlay__ {
 			compatible = "allo,boss-dac";
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_consumer>;
 			mute-gpios = <&gpio 6 1>;
 			status = "okay";
 		};
@@ -54,6 +54,8 @@
 
 	__overrides__ {
 		24db_digital_gain = <&boss_dac>,"allo,24db_digital_gain?";
-		slave = <&boss_dac>,"allo,slave?";
+		slave = <&boss_dac>,"allo,slave?",
+			<&frag1>,"target:0=",<&i2s_clk_producer>,
+			<&boss_dac>,"i2s-controller:0=",<&i2s_clk_producer>;
 	};
 };

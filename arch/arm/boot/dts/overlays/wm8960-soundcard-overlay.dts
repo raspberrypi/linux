@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -65,7 +65,7 @@
 				"RINPUT2", "Mic Jack";
 
 			simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+				sound-dai = <&i2s_clk_producer>;
 			};
 			dailink0_slave: simple-audio-card,codec {
 				sound-dai = <&wm8960>;

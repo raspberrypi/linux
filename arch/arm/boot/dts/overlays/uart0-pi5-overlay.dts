@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&uart0>;
+		frag0: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		ctsrts = <&frag0>,"pinctrl-0:4=",<&uart0_ctsrts_pins>;
+	};
+};

@@ -12,7 +12,7 @@
 
 	/* Enable I2S */
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -52,7 +52,7 @@
 			simple-audio-card,name = "MAX98357A";
 			status = "okay";
 			simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+				sound-dai = <&i2s_clk_producer>;
 			};
 			simple-audio-card,codec {
 				sound-dai = <&max98357a_dac>;
@@ -69,7 +69,7 @@
 			simple-audio-card,name = "MAX98357A";
 			status = "okay";
 			simple-audio-card,cpu {
-				sound-dai = <&i2s>;
+				sound-dai = <&i2s_clk_producer>;
 			};
 			simple-audio-card,codec {
 				sound-dai = <&max98357a_nsd>;

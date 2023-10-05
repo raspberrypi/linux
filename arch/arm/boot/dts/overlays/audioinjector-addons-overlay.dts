@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2s>;
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -48,7 +48,7 @@
 			mult-gpios = <&gpio 27 0>, <&gpio 22 0>, <&gpio 23 0>,
 				     <&gpio 24 0>;
 			reset-gpios = <&gpio 5 0>;
-			i2s-controller = <&i2s>;
+			i2s-controller = <&i2s_clk_producer>;
 			codec = <&cs42448>;
 			status = "okay";
 		};
