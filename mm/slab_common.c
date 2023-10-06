@@ -864,11 +864,13 @@ void __init setup_kmalloc_cache_index_table(void)
 
 static unsigned int __kmalloc_minalign(void)
 {
+	unsigned int minalign = dma_get_cache_alignment();
+
 #ifdef CONFIG_DMA_BOUNCE_UNALIGNED_KMALLOC
 	if (io_tlb_default_mem.nslabs)
-		return ARCH_KMALLOC_MINALIGN;
+		minalign = ARCH_KMALLOC_MINALIGN;
 #endif
-	return dma_get_cache_alignment();
+	return max(minalign, arch_slab_minalign());
 }
 
 void __init
