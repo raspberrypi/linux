@@ -36,6 +36,10 @@ use macros::pin_data;
 
 mod std_vendor;
 
+// Use Rust implementations of refcount methods in Arc.
+mod refcount_t;
+use self::refcount_t::{refcount_dec_and_test, refcount_inc, REFCOUNT_INIT};
+
 /// A reference-counted pointer to an instance of `T`.
 ///
 /// The reference count is incremented when new instances of [`Arc`] are created, and decremented
@@ -166,7 +170,7 @@ impl<T> Arc<T> {
         // INVARIANT: The refcount is initialised to a non-zero value.
         let value = ArcInner {
             // SAFETY: There are no safety requirements for this FFI call.
-            refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            refcount: Opaque::new(unsafe { REFCOUNT_INIT(1) }),
             data: contents,
         };
 
@@ -271,11 +275,11 @@ impl<T: ?Sized> Arc<T> {
         // SAFETY: If the refcount reaches a non-zero value, then we have destroyed this `Arc` and
         // will return without running its destructor. If the refcount reaches zero, then there are
         // no other arcs, and we can create a `UniqueArc`.
-        let is_zero = unsafe { bindings::refcount_dec_and_test(refcount) };
+        let is_zero = unsafe { refcount_dec_and_test(refcount) };
         if is_zero {
             // SAFETY: We have exclusive access to the arc, so we can perform unsynchronized
             // accesses to the refcount.
-            unsafe { core::ptr::write(refcount, bindings::REFCOUNT_INIT(1)) };
+            unsafe { core::ptr::write(refcount, REFCOUNT_INIT(1)) };
 
             // SAFETY: We own one refcount, so we can create a `UniqueArc`. It needs to be pinned,
             // since an `Arc` is pinned.
@@ -367,7 +371,7 @@ impl<T: ?Sized> Clone for Arc<T> {
         // INVARIANT: C `refcount_inc` saturates the refcount, so it cannot overflow to zero.
         // SAFETY: By the type invariant, there is necessarily a reference to the object, so it is
         // safe to increment the refcount.
-        unsafe { bindings::refcount_inc(self.ptr.as_ref().refcount.get()) };
+        unsafe { refcount_inc(self.ptr.as_ref().refcount.get()) };
 
         // SAFETY: We just incremented the refcount. This increment is now owned by the new `Arc`.
         unsafe { Self::from_inner(self.ptr) }
@@ -385,7 +389,7 @@ impl<T: ?Sized> Drop for Arc<T> {
         // INVARIANT: If the refcount reaches zero, there are no other instances of `Arc`, and
         // this instance is being dropped, so the broken invariant is not observable.
         // SAFETY: Also by the type invariant, we are allowed to decrement the refcount.
-        let is_zero = unsafe { bindings::refcount_dec_and_test(refcount) };
+        let is_zero = unsafe { refcount_dec_and_test(refcount) };
         if is_zero {
             // The count reached zero, we must free the memory.
             //
@@ -637,7 +641,7 @@ impl<T> UniqueArc<T> {
         // INVARIANT: The refcount is initialised to a non-zero value.
         let inner = Box::try_init::<AllocError>(try_init!(ArcInner {
             // SAFETY: There are no safety requirements for this FFI call.
-            refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            refcount: Opaque::new(unsafe { REFCOUNT_INIT(1) }),
             data <- init::uninit::<T, AllocError>(),
         }? AllocError))?;
         Ok(UniqueArc {

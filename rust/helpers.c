@@ -123,24 +123,6 @@ void rust_helper_kunmap_local(const void *addr)
 }
 EXPORT_SYMBOL_GPL(rust_helper_kunmap_local);
 
-refcount_t rust_helper_REFCOUNT_INIT(int n)
-{
-	return (refcount_t)REFCOUNT_INIT(n);
-}
-EXPORT_SYMBOL_GPL(rust_helper_REFCOUNT_INIT);
-
-void rust_helper_refcount_inc(refcount_t *r)
-{
-	refcount_inc(r);
-}
-EXPORT_SYMBOL_GPL(rust_helper_refcount_inc);
-
-bool rust_helper_refcount_dec_and_test(refcount_t *r)
-{
-	return refcount_dec_and_test(r);
-}
-EXPORT_SYMBOL_GPL(rust_helper_refcount_dec_and_test);
-
 __force void *rust_helper_ERR_PTR(long err)
 {
 	return ERR_PTR(err);
