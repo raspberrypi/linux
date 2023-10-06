@@ -3202,6 +3202,21 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
 	count_vm_event(PGREUSE);
 }
 
+static vm_fault_t vmf_anon_prepare(struct vm_fault *vmf)
+{
+	struct vm_area_struct *vma = vmf->vma;
+
+	if (likely(vma->anon_vma))
+		return 0;
+	if (vmf->flags & FAULT_FLAG_VMA_LOCK) {
+		vma_end_read(vma);
+		return VM_FAULT_RETRY;
+	}
+	if (__anon_vma_prepare(vma))
+		return VM_FAULT_OOM;
+	return 0;
+}
+
 /*
  * Handle the case of a page which we actually need to copy to a new page,
  * either due to COW or unsharing.
@@ -3229,15 +3244,16 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	pte_t entry;
 	int page_copied = 0;
 	struct mmu_notifier_range range;
-	int ret;
+	vm_fault_t ret;
 	bool pfn_is_zero;
 
 	delayacct_wpcopy_start();
 
 	if (vmf->page)
 		old_folio = page_folio(vmf->page);
-	if (unlikely(anon_vma_prepare(vma)))
-		goto oom;
+	ret = vmf_anon_prepare(vmf);
+	if (unlikely(ret))
+		goto out;
 
 	pfn_is_zero = is_zero_pfn(pte_pfn(vmf->orig_pte));
 	new_folio = folio_prealloc(mm, vma, vmf->address, pfn_is_zero);
@@ -3246,8 +3262,8 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 
 	if (!pfn_is_zero) {
 
-		ret = __wp_page_copy_user(&new_folio->page, vmf->page, vmf);
-		if (ret) {
+		int err = __wp_page_copy_user(&new_folio->page, vmf->page, vmf);
+		if (err) {
 			/*
 			 * COW failed, if the fault was solved by other,
 			 * it's fine. If not, userspace would re-fault on
@@ -3260,7 +3276,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 				folio_put(old_folio);
 
 			delayacct_wpcopy_end();
-			return ret == -EHWPOISON ? VM_FAULT_HWPOISON : 0;
+			return err == -EHWPOISON ? VM_FAULT_HWPOISON : 0;
 		}
 		kmsan_copy_page_meta(&new_folio->page, vmf->page);
 	}
@@ -3364,11 +3380,13 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	delayacct_wpcopy_end();
 	return 0;
 oom:
+	ret = VM_FAULT_OOM;
+out:
 	if (old_folio)
 		folio_put(old_folio);
 
 	delayacct_wpcopy_end();
-	return VM_FAULT_OOM;
+	return ret;
 }
 
 /**
@@ -3608,12 +3626,6 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		wp_page_reuse(vmf);
 		return 0;
 	}
-	if ((vmf->flags & FAULT_FLAG_VMA_LOCK) && !vma->anon_vma) {
-		pte_unmap_unlock(vmf->pte, vmf->ptl);
-		vma_end_read(vmf->vma);
-		return VM_FAULT_RETRY;
-	}
-
 	/*
 	 * Ok, we need to copy. Oh, well..
 	 */
