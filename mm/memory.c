@@ -4912,13 +4912,11 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 	struct folio *folio;
 	vm_fault_t ret;
 
-	if (vmf->flags & FAULT_FLAG_VMA_LOCK) {
-		vma_end_read(vma);
-		return VM_FAULT_RETRY;
-	}
-
-	if (unlikely(anon_vma_prepare(vma)))
-		return VM_FAULT_OOM;
+	ret = vmf_can_call_fault(vmf);
+	if (!ret)
+		ret = vmf_anon_prepare(vmf);
+	if (ret)
+		return ret;
 
 	folio = folio_prealloc(vma->vm_mm, vma, vmf->address, false);
 	if (!folio)
