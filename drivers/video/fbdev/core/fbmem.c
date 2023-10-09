@@ -33,6 +33,7 @@ struct class *fb_class;
 DEFINE_MUTEX(registration_lock);
 struct fb_info *registered_fb[FB_MAX] __read_mostly;
 int num_registered_fb __read_mostly;
+int min_dynamic_fb __read_mostly;
 #define for_each_registered_fb(i)		\
 	for (i = 0; i < FB_MAX; i++)		\
 		if (!registered_fb[i]) {} else
@@ -445,9 +446,12 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 	if (num_registered_fb == FB_MAX)
 		return -ENXIO;
 
-	for (i = 0 ; i < FB_MAX; i++)
-		if (!registered_fb[i])
-			break;
+	i = fb_info->node;
+	if (!fb_info->custom_fb_num || fb_info->node >= FB_MAX || registered_fb[fb_info->node]) {
+		for (i = min_dynamic_fb ; i < FB_MAX; i++)
+			if (!registered_fb[i])
+				break;
+	}
 
 	if (i >= FB_MAX)
 		return -ENXIO;
@@ -560,6 +564,12 @@ static void do_unregister_framebuffer(struct fb_info *fb_info)
 	/* this may free fb info */
 	put_fb_info(fb_info);
 }
+
+void fb_set_lowest_dynamic_fb(int min_fb_dev)
+{
+	min_dynamic_fb = min_fb_dev;
+}
+EXPORT_SYMBOL(fb_set_lowest_dynamic_fb);
 
 /**
  *	register_framebuffer - registers a frame buffer device
