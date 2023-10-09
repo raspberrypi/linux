@@ -1840,7 +1840,7 @@ __drm_fb_helper_initial_config_and_unlock(struct drm_fb_helper *fb_helper)
 	struct drm_device *dev = fb_helper->dev;
 	struct fb_info *info;
 	unsigned int width, height;
-	int ret;
+	int ret, id;
 
 	width = dev->mode_config.max_width;
 	height = dev->mode_config.max_height;
@@ -1868,6 +1868,15 @@ __drm_fb_helper_initial_config_and_unlock(struct drm_fb_helper *fb_helper)
 	 * register the fbdev emulation instance in kernel_fb_helper_list. */
 	mutex_unlock(&fb_helper->lock);
 
+	id = of_alias_get_highest_id("drm-fb");
+	if (id >= 0)
+		fb_set_lowest_dynamic_fb(id + 1);
+
+	id = of_alias_get_id(dev->dev->of_node, "drm-fb");
+	if (id >= 0) {
+		info->node = id;
+		info->custom_fb_num = true;
+	}
 	ret = register_framebuffer(info);
 	if (ret < 0)
 		return ret;
