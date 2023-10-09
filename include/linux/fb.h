@@ -501,6 +501,7 @@ struct fb_info {
 	void *par;
 
 	bool skip_vt_switch; /* no VT switch on suspend/resume required */
+	bool custom_fb_num; /* Use value in node as the preferred node number */
 };
 
 /* This will go away
@@ -590,6 +591,7 @@ extern ssize_t fb_sys_write(struct fb_info *info, const char __user *buf,
 	.fb_imageblit	= sys_imageblit
 
 /* fbmem.c */
+extern void fb_set_lowest_dynamic_fb(int min_fb_dev);
 extern int register_framebuffer(struct fb_info *fb_info);
 extern void unregister_framebuffer(struct fb_info *fb_info);
 extern char* fb_get_buffer_offset(struct fb_info *info, struct fb_pixmap *buf, u32 size);
