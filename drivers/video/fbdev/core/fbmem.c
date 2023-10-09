@@ -50,6 +50,7 @@ static DEFINE_MUTEX(registration_lock);
 
 struct fb_info *registered_fb[FB_MAX] __read_mostly;
 int num_registered_fb __read_mostly;
+int min_dynamic_fb __read_mostly;
 #define for_each_registered_fb(i)		\
 	for (i = 0; i < FB_MAX; i++)		\
 		if (!registered_fb[i]) {} else
@@ -1474,19 +1475,22 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 		return -ENXIO;
 
 	num_registered_fb++;
-	for (i = 0 ; i < FB_MAX; i++)
-		if (!registered_fb[i])
-			break;
-	fb_info->node = i;
+	if (!fb_info->custom_fb_num || fb_info->node >= FB_MAX || registered_fb[fb_info->node]) {
+		for (i = min_dynamic_fb ; i < FB_MAX; i++)
+			if (!registered_fb[i])
+				break;
+		fb_info->node = i;
+	}
 	refcount_set(&fb_info->count, 1);
 	mutex_init(&fb_info->lock);
 	mutex_init(&fb_info->mm_lock);
 
 	fb_info->dev = device_create(fb_class, fb_info->device,
-				     MKDEV(FB_MAJOR, i), NULL, "fb%d", i);
+				     MKDEV(FB_MAJOR, fb_info->node), NULL, "fb%d", fb_info->node);
 	if (IS_ERR(fb_info->dev)) {
 		/* Not fatal */
-		printk(KERN_WARNING "Unable to create device for framebuffer %d; errno = %ld\n", i, PTR_ERR(fb_info->dev));
+		printk(KERN_WARNING "Unable to create device for framebuffer %d; errno = %ld\n",
+		       fb_info->node, PTR_ERR(fb_info->dev));
 		fb_info->dev = NULL;
 	} else
 		fb_init_device(fb_info);
@@ -1519,7 +1523,7 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 
 	fb_var_to_videomode(&mode, &fb_info->var);
 	fb_add_videomode(&mode, &fb_info->modelist);
-	registered_fb[i] = fb_info;
+	registered_fb[fb_info->node] = fb_info;
 
 #ifdef CONFIG_GUMSTIX_AM200EPD
 	{
@@ -1587,6 +1591,12 @@ static void do_unregister_framebuffer(struct fb_info *fb_info)
 	/* this may free fb info */
 	put_fb_info(fb_info);
 }
+
+void fb_set_lowest_dynamic_fb(int min_fb_dev)
+{
+	min_dynamic_fb = min_fb_dev;
+}
+EXPORT_SYMBOL(fb_set_lowest_dynamic_fb);
 
 /**
  *	register_framebuffer - registers a frame buffer device
