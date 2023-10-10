@@ -404,7 +404,7 @@ static int pisp_fe_init_cfg(struct v4l2_subdev *sd,
 
 	fmt = v4l2_subdev_get_pad_format(sd, state, FE_CONFIG_PAD);
 	*fmt = cfe_default_meta_format;
-	fmt->code = MEDIA_BUS_FMT_PISP_FE_CONFIG;
+	fmt->code = MEDIA_BUS_FMT_FIXED;
 
 	fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT0_PAD);
 	*fmt = cfe_default_format;
@@ -416,7 +416,7 @@ static int pisp_fe_init_cfg(struct v4l2_subdev *sd,
 
 	fmt = v4l2_subdev_get_pad_format(sd, state, FE_STATS_PAD);
 	*fmt = cfe_default_meta_format;
-	fmt->code = MEDIA_BUS_FMT_PISP_FE_STATS;
+	fmt->code = MEDIA_BUS_FMT_FIXED;
 
 	return 0;
 }
@@ -443,12 +443,9 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 
 		break;
 
-	case FE_CONFIG_PAD:
-		format->format.code = MEDIA_BUS_FMT_PISP_FE_CONFIG;
-		break;
-
 	case FE_STATS_PAD:
-		format->format.code = MEDIA_BUS_FMT_PISP_FE_STATS;
+	case FE_CONFIG_PAD:
+		format->format.code = MEDIA_BUS_FMT_FIXED;
 		break;
 	}
 
