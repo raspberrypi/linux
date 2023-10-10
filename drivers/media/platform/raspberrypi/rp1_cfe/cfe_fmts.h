@@ -215,25 +215,25 @@ static const struct cfe_fmt formats[] = {
 	/* PiSP Compressed Mode 1 */
 	{
 		.fourcc = V4L2_PIX_FMT_PISP_COMP1_RGGB,
-		.code = MEDIA_BUS_FMT_PISP_COMP1_RGGB,
+		.code = MEDIA_BUS_FMT_SRGGB16_1X16,
 		.depth = 8,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_PISP_COMP1_BGGR,
-		.code = MEDIA_BUS_FMT_PISP_COMP1_BGGR,
+		.code = MEDIA_BUS_FMT_SBGGR16_1X16,
 		.depth = 8,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_PISP_COMP1_GBRG,
-		.code = MEDIA_BUS_FMT_PISP_COMP1_GBRG,
+		.code = MEDIA_BUS_FMT_SGBRG16_1X16,
 		.depth = 8,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_PISP_COMP1_GRBG,
-		.code = MEDIA_BUS_FMT_PISP_COMP1_GRBG,
+		.code = MEDIA_BUS_FMT_SGRBG16_1X16,
 		.depth = 8,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
@@ -283,10 +283,12 @@ static const struct cfe_fmt formats[] = {
 	/* Frontend formats */
 	{
 		.fourcc = V4L2_META_FMT_RPI_FE_CFG,
+		.code = MEDIA_BUS_FMT_FIXED,
 		.flags = CFE_FORMAT_FLAG_META_OUT,
 	},
 	{
 		.fourcc = V4L2_META_FMT_RPI_FE_STATS,
+		.code = MEDIA_BUS_FMT_FIXED,
 		.flags = CFE_FORMAT_FLAG_META_CAP,
 	},
 };
