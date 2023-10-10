@@ -616,7 +616,6 @@ impl<A: OpenAdapter<T::OpenData>, T: Operations> OperationsVtable<A, T> {
             None
         },
         get_unmapped_area: None,
-        iterate: None,
         iterate_shared: None,
         iopoll: None,
         lock: None,
@@ -654,6 +653,7 @@ impl<A: OpenAdapter<T::OpenData>, T: Operations> OperationsVtable<A, T> {
         } else {
             None
         },
+        uring_cmd_iopoll: None,
     };
 
     /// Builds an instance of [`struct file_operations`].

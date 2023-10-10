@@ -10,7 +10,7 @@ use core::{cmp::min, time::Duration};
 const MILLIS_PER_SEC: u64 = 1_000;
 
 fn coarse_sleep_conversion(duration: Duration) -> core::ffi::c_uint {
-    let milli_as_nanos = Duration::MILLISECOND.subsec_nanos();
+    let milli_as_nanos = Duration::from_millis(1).subsec_nanos();
 
     // Rounds the nanosecond component of `duration` up to the nearest millisecond.
     let nanos_as_millis = duration.subsec_nanos().wrapping_add(milli_as_nanos - 1) / milli_as_nanos;

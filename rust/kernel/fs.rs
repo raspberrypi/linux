@@ -227,7 +227,7 @@ impl<T: Type + ?Sized> Tables<T> {
             Super::SingleReconf => unsafe {
                 // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
                 // the right type and is a valid callback.
-                bindings::get_tree_single_reconf(fc, Some(Self::fill_super_callback))
+                bindings::get_tree_single(fc, Some(Self::fill_super_callback))
             },
             Super::Independent => unsafe {
                 // SAFETY: `fc` is valid per the callback contract. `fill_super_callback` also has
@@ -528,7 +528,7 @@ impl Registration {
                         align_of::<INodeWithData<T::INodeData>>() as _,
                         bindings::SLAB_RECLAIM_ACCOUNT
                             | bindings::SLAB_MEM_SPREAD
-                            | bindings::SLAB_ACCOUNT,
+                            | bindings::BINDINGS_SLAB_ACCOUNT,
                         Some(Self::inode_init_once_callback::<T>),
                     )
                 };
@@ -538,7 +538,7 @@ impl Registration {
             }
         }
 
-        let mut fs = this.fs.get();
+        let fs = this.fs.get();
         // SAFETY: `fs` is valid as it points to the `self.fs`.
         unsafe {
             (*fs).owner = module.0;
@@ -1100,7 +1100,7 @@ impl<T: Type + ?Sized> SuperBlock<T> {
             let time = unsafe { bindings::current_time(&mut outer.inode) };
             outer.inode.i_mtime = time;
             outer.inode.i_atime = time;
-            outer.inode.i_ctime = time;
+            outer.inode.__i_ctime = time;
 
             outer.inode.i_ino = params.ino;
             outer.inode.i_mode = params.mode & 0o777 | mode_type;
@@ -1278,7 +1278,7 @@ pub struct Module<T: Type> {
 }
 
 impl<T: Type + Sync> crate::Module for Module<T> {
-    fn init(_name: &'static CStr, module: &'static ThisModule) -> Result<Self> {
+    fn init(module: &'static ThisModule) -> Result<Self> {
         let mut reg = Pin::from(Box::try_new(Registration::new())?);
         reg.as_mut().register::<T>(module)?;
         Ok(Self {
