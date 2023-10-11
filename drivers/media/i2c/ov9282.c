@@ -973,12 +973,16 @@ static int ov9282_disable_streams(struct v4l2_subdev *sd,
 static int ov9282_detect(struct ov9282 *ov9282)
 {
 	int ret;
-	u64 val;
+	u64 val, msb;
 
-	ret = cci_read(ov9282->regmap, OV9282_REG_ID, &val, NULL);
+	ret = cci_read(ov9282->regmap, CCI_REG8(0x300b), &val, NULL);
+	if (ret)
+		return ret;
+	ret = cci_read(ov9282->regmap, CCI_REG8(0x300a), &msb, NULL);
 	if (ret)
 		return ret;
 
+	val |= (msb << 8);
 	if (val != OV9282_ID) {
 		dev_err(ov9282->dev, "chip id mismatch: %x!=%llx",
 			OV9282_ID, val);
