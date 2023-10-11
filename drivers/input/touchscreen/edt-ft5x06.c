@@ -75,6 +75,8 @@
 #define EDT_DEFAULT_NUM_X		1024
 #define EDT_DEFAULT_NUM_Y		1024
 
+#define RESET_DELAY_MS			300	/* reset deassert to I2C */
+#define FIRST_POLL_DELAY_MS		300	/* in addition to the above */
 #define POLL_INTERVAL_MS		17	/* 17ms = 60fps */
 
 enum edt_pmode {
@@ -134,6 +136,7 @@ struct edt_ft5x06_ts_data {
 
 	char name[EDT_NAME_LEN];
 	char fw_version[EDT_NAME_LEN];
+	int init_td_status;
 
 	struct edt_reg_addr reg_addr;
 	enum edt_ver version;
@@ -268,12 +271,33 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		 * points.
 		 */
 		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
+
+		/* When polling FT5x06 without IRQ: initial register contents
+		 * could be stale or undefined; discard all readings until
+		 * TD_STATUS changes for the first time (or num_points is 0).
+		 */
+		if (tsdata->init_td_status) {
+			if (tsdata->init_td_status < 0)
+				tsdata->init_td_status = rdbuf[2];
+
+			if (num_points && rdbuf[2] == tsdata->init_td_status)
+				goto out;
+
+			tsdata->init_td_status = 0;
+		}
+
 		if (num_points) {
 			datalen = tplen * num_points + crclen;
 			cmd = offset;
 			error = edt_ft5x06_ts_readwrite(tsdata->client,
 							sizeof(cmd), &cmd,
 							datalen, &rdbuf[offset]);
+			if (error) {
+				dev_err_ratelimited(dev,
+						    "Unable to fetch data, error: %d\n",
+						    error);
+				goto out;
+			}
 		}
 	}
 
@@ -1294,7 +1318,7 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	if (tsdata->reset_gpio) {
 		usleep_range(5000, 6000);
 		gpiod_set_value_cansleep(tsdata->reset_gpio, 0);
-		msleep(300);
+		msleep(RESET_DELAY_MS);
 	}
 
 	input = devm_input_allocate_device(&client->dev);
@@ -1384,11 +1408,12 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 			return error;
 		}
 	} else {
+		tsdata->init_td_status = -1; /* filter bogus initial data */
 		INIT_WORK(&tsdata->work_i2c_poll,
 			  edt_ft5x06_ts_work_i2c_poll);
 		timer_setup(&tsdata->timer, edt_ft5x06_ts_irq_poll_timer, 0);
-		tsdata->timer.expires = jiffies +
-					msecs_to_jiffies(POLL_INTERVAL_MS);
+		tsdata->timer.expires =
+			jiffies + msecs_to_jiffies(FIRST_POLL_DELAY_MS);
 		add_timer(&tsdata->timer);
 	}
 
