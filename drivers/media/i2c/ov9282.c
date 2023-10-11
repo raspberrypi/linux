@@ -1069,12 +1069,16 @@ error_unlock:
 static int ov9282_detect(struct ov9282 *ov9282)
 {
 	int ret;
-	u32 val;
+	u32 val, msb;
 
-	ret = ov9282_read_reg(ov9282, OV9282_REG_ID, 2, &val);
+	ret = ov9282_read_reg(ov9282, OV9282_REG_ID + 1, 1, &val);
+	if (ret)
+		return ret;
+	ret = ov9282_read_reg(ov9282, OV9282_REG_ID, 1, &msb);
 	if (ret)
 		return ret;
 
+	val |= (msb << 8);
 	if (val != OV9282_ID) {
 		dev_err(ov9282->dev, "chip id mismatch: %x!=%x",
 			OV9282_ID, val);
