@@ -3,6 +3,7 @@
  * Copyright (C) 2023 Google, Inc.
  */
 
+#include <linux/atomic.h>
 #include <linux/cred.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -18,9 +19,11 @@
 #include <linux/workqueue.h>
 
 #include <trace/events/oom.h>
+#include <trace/events/vmscan.h>
 
 #define MEMHEALTH_DIRECTORY "memhealth"
 #define OOM_VICTIM_LIST_ENTRY "oom_victim_list"
+#define PROCS_IN_DIRECT_RECLAIM_ENTRY "direct_reclaim_state"
 
 static wait_queue_head_t memhealth_wq;
 static struct proc_dir_entry *proc_memhealth_dir;
@@ -37,7 +40,11 @@ static DEFINE_MUTEX(memhealth_mutex);
 /* List of new oom victims not yet added into oom_victim_list */
 static struct list_head new_oom_victims_list;
 static size_t new_oom_victims_count;
-/* Lock protecting new_oom_victims_list and  new_oom_victims_count */
+
+/* Total processes in direct reclaim */
+static atomic_t procs_in_direct_reclaim = ATOMIC_INIT(0);
+
+/* Lock protecting new_oom_victims_list and new_oom_victims_count */
 static DEFINE_SPINLOCK(memhealth_spin_lock);
 
 struct oom_victim {
@@ -51,6 +58,65 @@ struct oom_victim {
 
 #define OOM_VICTIM_LIST_MAX_SIZE ((PAGE_SIZE/sizeof(struct oom_victim)))
 
+
+/* Direct Reclaim state */
+static ssize_t direct_reclaim_state_read(struct file *file, char __user *buf,
+	size_t count, loff_t *offset)
+{
+	return simple_read_from_buffer(buf, count, offset,
+		atomic_read(&procs_in_direct_reclaim) > 0 ? "1\n" : "0\n", 2);
+}
+
+static __poll_t direct_reclaim_state_poll(struct file *file, poll_table *wait)
+{
+	__poll_t mask = DEFAULT_POLLMASK;
+	bool in_direct_reclaim, last_in_direct_reclaim;
+
+	last_in_direct_reclaim = (bool)file->private_data;
+	poll_wait(file, &memhealth_wq, wait);
+
+	in_direct_reclaim = atomic_read(&procs_in_direct_reclaim) > 0;
+	if (last_in_direct_reclaim != in_direct_reclaim) {
+		file->private_data = (void *)in_direct_reclaim;
+		mask |= EPOLLPRI;
+	}
+
+	return mask;
+}
+
+static int direct_reclaim_state_open(struct inode *inode, struct file *file)
+{
+	bool in_direct_reclaim;
+
+	if (!capable(CAP_SYS_PTRACE))
+		return -EPERM;
+
+	in_direct_reclaim = atomic_read(&procs_in_direct_reclaim) > 0;
+	file->private_data = (void *) in_direct_reclaim;
+
+	return 0;
+}
+
+static const struct proc_ops direct_reclaim_state_proc_ops = {
+	.proc_read	= direct_reclaim_state_read,
+	.proc_lseek	= default_llseek,
+	.proc_poll	= direct_reclaim_state_poll,
+	.proc_open	= direct_reclaim_state_open,
+};
+
+static void mm_vmscan_direct_reclaim_begin_probe(void *data, int order, gfp_t gfp_flags)
+{
+	if (atomic_inc_return(&procs_in_direct_reclaim) == 1)
+		wake_up_interruptible(&memhealth_wq);
+}
+
+static void mm_vmscan_direct_reclaim_end_probe(void *data, unsigned long nr_reclaimed)
+{
+	if (atomic_dec_return(&procs_in_direct_reclaim) == 0)
+		wake_up_interruptible(&memhealth_wq);
+}
+
+/* OOM */
 static void oom_list_move_victims(struct work_struct *work)
 {
 	struct oom_victim *head;
@@ -277,10 +343,18 @@ static int __init memhealthmod_start(void)
 			OOM_VICTIM_LIST_ENTRY);
 		goto err_create_oom_entry;
 	}
+	entry = proc_create(PROCS_IN_DIRECT_RECLAIM_ENTRY, 0444,
+		proc_memhealth_dir, &direct_reclaim_state_proc_ops);
+	if (!entry) {
+		pr_err("memhealth failed to create proc entry: %s\n",
+			PROCS_IN_DIRECT_RECLAIM_ENTRY);
+		goto err_create_direct_reclaim_entry;
+	}
 
+	init_waitqueue_head(&memhealth_wq);
+	/* OOM */
 	INIT_LIST_HEAD(&oom_victim_list);
 	INIT_LIST_HEAD(&new_oom_victims_list);
-	init_waitqueue_head(&memhealth_wq);
 	oom_victim_count = 0;
 	oom_victim_removed_count = 0;
 	new_oom_victims_count = 0;
@@ -288,12 +362,27 @@ static int __init memhealthmod_start(void)
 	ret = register_trace_mark_victim(mark_victim_probe, NULL);
 	if (ret) {
 		pr_err("memhealth failed to hook a probe to the mark_victim tracepoint\n");
-		goto err_register_victim;
+		goto err_register_probe;
+	}
+	ret = register_trace_mm_vmscan_direct_reclaim_begin(
+		mm_vmscan_direct_reclaim_begin_probe, NULL);
+	if (ret) {
+		pr_err("memhealth failed to hook probe to the mm_vmscan_direct_reclaim_begin" \
+				" tracepoint\n");
+		goto err_register_probe;
+	}
+	ret = register_trace_mm_vmscan_direct_reclaim_end(mm_vmscan_direct_reclaim_end_probe, NULL);
+	if (ret) {
+		pr_err("memhealth failed to hook probe to the mm_vmscan_direct_reclaim_end" \
+				" tracepoint\n");
+		goto err_register_probe;
 	}
 
 	return 0;
 
-err_register_victim:
+err_register_probe:
+	remove_proc_entry(PROCS_IN_DIRECT_RECLAIM_ENTRY, proc_memhealth_dir);
+err_create_direct_reclaim_entry:
 	remove_proc_entry(OOM_VICTIM_LIST_ENTRY, proc_memhealth_dir);
 err_create_oom_entry:
 	remove_proc_entry(MEMHEALTH_DIRECTORY, NULL);
@@ -305,6 +394,7 @@ static void __exit memhealthmod_end(void)
 {
 	struct oom_victim *entry, *tmp;
 
+	/* OOM */
 	if (unregister_trace_mark_victim(mark_victim_probe, NULL))
 		pr_warn("memhealth failed to unhook a probe from the mark_victim tracepoint\n");
 
@@ -313,6 +403,16 @@ static void __exit memhealthmod_end(void)
 		kfree(entry);
 	}
 
+	/* Direct Reclaim state */
+	if (unregister_trace_mm_vmscan_direct_reclaim_begin(mm_vmscan_direct_reclaim_begin_probe,
+		NULL))
+		pr_warn("memhealth failed to unhook a probe from the" \
+				" mm_vmscan_direct_reclaim_begin tracepoint\n");
+	if (unregister_trace_mm_vmscan_direct_reclaim_end(mm_vmscan_direct_reclaim_end_probe, NULL))
+		pr_warn("memhealth failed to unhook a probe from the" \
+				" mm_vmscan_direct_reclaim_end tracepoint\n");
+
+	remove_proc_entry(PROCS_IN_DIRECT_RECLAIM_ENTRY, proc_memhealth_dir);
 	remove_proc_entry(OOM_VICTIM_LIST_ENTRY, proc_memhealth_dir);
 	remove_proc_entry(MEMHEALTH_DIRECTORY, NULL);
 }

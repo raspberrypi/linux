@@ -26,3 +26,18 @@ Description:
         45439 618 1000 999 system_server
         46866 1546 0 995 sh
         73596 2401 10025 990 oid.documentsui
+
+What:       /proc/memhealth/direct_reclaim_state
+Date:       October 2023
+Contact:    carlosgalo@google.com
+Description:
+        This attribute shows information on whether or not we are
+        currently in direct reclaim. The format is "%d\n", we output
+        1 if we are currently in direct reclaim, otherwise 0.
+
+        The file is read only, and requires CAP_SYS_PTRACE capability.
+        The file can also be seeked to, but it will only accept seeks
+        to the start of the file.
+
+        Example of output::
+        1
