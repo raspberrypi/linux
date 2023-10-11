@@ -2302,6 +2302,20 @@ static int init_pkvm_host_fp_state(void)
 	return 0;
 }
 
+/*
+ * Finalizes the initialization of hyp mode, once everything else is initialized
+ * and the initialziation process cannot fail.
+ */
+static void finalize_init_hyp_mode(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		kvm_nvhe_sym(kvm_arm_hyp_host_fp_state)[cpu] =
+			kern_hyp_va(kvm_nvhe_sym(kvm_arm_hyp_host_fp_state)[cpu]);
+	}
+}
+
 static void pkvm_hyp_init_ptrauth(void)
 {
 	struct kvm_cpu_context *hyp_ctxt;
@@ -2621,6 +2635,13 @@ static __init int kvm_arm_init(void)
 	err = kvm_init(sizeof(struct kvm_vcpu), 0, THIS_MODULE);
 	if (err)
 		goto out_subs;
+
+	/*
+	 * This should be called after initialization is done and failure isn't
+	 * possible anymore.
+	 */
+	if (!in_hyp_mode)
+		finalize_init_hyp_mode();
 
 	kvm_arm_initialised = true;
 
