@@ -121,6 +121,7 @@
   __traceiter_android_vh_mem_cgroup_css_online
   __traceiter_android_vh_mem_cgroup_free
   __traceiter_android_vh_mem_cgroup_alloc
+  __traceiter_android_vh_adjust_alloc_flags
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_sched_setaffinity_early
   __traceiter_android_rvh_set_cpus_allowed_comm
@@ -170,6 +171,7 @@
   __tracepoint_android_vh_check_folio_look_around_ref
   __tracepoint_android_vh_look_around
   __tracepoint_android_vh_look_around_migrate_folio
+  __tracepoint_android_vh_adjust_alloc_flags
   __tracepoint_android_vh_test_clear_look_around_ref
   __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_sched_stat_blocked
