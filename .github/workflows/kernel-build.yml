@@ -53,7 +53,7 @@ jobs:
           - name: bcm2712
             arch: arm64
             defconfig: bcm2712_defconfig
-            kernel: kernel2712
+            kernel: kernel_2712
 
     steps:
     - name: Update install
