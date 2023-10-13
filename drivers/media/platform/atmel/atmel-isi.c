@@ -559,7 +559,8 @@ static const struct isi_format *find_format_by_fourcc(struct atmel_isi *isi,
 static void isi_try_fse(struct atmel_isi *isi, const struct isi_format *isi_fmt,
 			struct v4l2_subdev_state *sd_state)
 {
-	int ret;
+	struct v4l2_rect *try_crop =
+		v4l2_subdev_state_get_crop(sd_state, 0);
 	struct v4l2_subdev_frame_size_enum fse = {
 		.code = isi_fmt->mbus_code,
 		.which = V4L2_SUBDEV_FORMAT_TRY,

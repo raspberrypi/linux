@@ -930,7 +930,7 @@ static int irs1125_detect(struct v4l2_subdev *sd)
 static int irs1125_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_mbus_framefmt *format =
-	v4l2_subdev_get_try_format(sd, fh->state, 0);
+	v4l2_subdev_state_get_format(fh->state, 0);
 
 	format->code = MEDIA_BUS_FMT_Y12_1X12;
 	format->width = IRS1125_WINDOW_WIDTH_DEF;
