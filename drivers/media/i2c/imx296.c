@@ -362,7 +362,7 @@ static int imx296_s_ctrl(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	state = v4l2_subdev_get_locked_active_state(&sensor->subdev);
-	format = v4l2_subdev_get_pad_format(&sensor->subdev, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
@@ -579,8 +579,8 @@ static int imx296_setup(struct imx296 *sensor, struct v4l2_subdev_state *state)
 	unsigned int i;
 	int ret = 0;
 
-	format = v4l2_subdev_get_pad_format(&sensor->subdev, state, 0);
-	crop = v4l2_subdev_get_pad_crop(&sensor->subdev, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
+	crop = v4l2_subdev_state_get_crop(state, 0);
 
 	for (i = 0; i < ARRAY_SIZE(imx296_init_table); ++i)
 		imx296_write(sensor, imx296_init_table[i].reg,
@@ -757,7 +757,7 @@ static int imx296_enum_frame_size(struct v4l2_subdev *sd,
 	const struct v4l2_mbus_framefmt *format;
 	struct imx296 *sensor = to_imx296(sd);
 
-	format = v4l2_subdev_get_pad_format(sd, state, fse->pad);
+	format = v4l2_subdev_state_get_format(state, fse->pad);
 
 	/*
 	 * Binning does not seem to work on either mono or colour sensor
@@ -782,8 +782,8 @@ static int imx296_set_format(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *format;
 	struct v4l2_rect *crop;
 
-	crop = v4l2_subdev_get_pad_crop(sd, state, fmt->pad);
-	format = v4l2_subdev_get_pad_format(sd, state, fmt->pad);
+	crop = v4l2_subdev_state_get_crop(state, fmt->pad);
+	format = v4l2_subdev_state_get_format(state, fmt->pad);
 
 	format->width = crop->width;
 	format->height = crop->height;
@@ -808,7 +808,7 @@ static int imx296_get_selection(struct v4l2_subdev *sd,
 {
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP:
-		sel->r = *v4l2_subdev_get_pad_crop(sd, state, sel->pad);
+		sel->r = *v4l2_subdev_state_get_crop(state, sel->pad);
 		break;
 
 	case V4L2_SEL_TGT_CROP_DEFAULT:
@@ -856,14 +856,14 @@ static int imx296_set_selection(struct v4l2_subdev *sd,
 	rect.height = min_t(unsigned int, rect.height,
 			    IMX296_PIXEL_ARRAY_HEIGHT - rect.top);
 
-	crop = v4l2_subdev_get_pad_crop(sd, state, sel->pad);
+	crop = v4l2_subdev_state_get_crop(state, sel->pad);
 
 	if (rect.width != crop->width || rect.height != crop->height) {
 		/*
 		 * Reset the output image size if the crop rectangle size has
 		 * been modified.
 		 */
-		format = v4l2_subdev_get_pad_format(sd, state, sel->pad);
+		format = v4l2_subdev_state_get_format(state, sel->pad);
 		format->width = rect.width;
 		format->height = rect.height;
 	}

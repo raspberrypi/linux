@@ -1157,9 +1157,9 @@ static int imx519_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct imx519 *imx519 = to_imx519(sd);
 	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
+		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
 	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
+		v4l2_subdev_state_get_format(fh->state, METADATA_PAD);
 	struct v4l2_rect *try_crop;
 
 	mutex_lock(&imx519->mutex);
@@ -1177,7 +1177,7 @@ static int imx519_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt_meta->field = V4L2_FIELD_NONE;
 
 	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
+	try_crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
 	try_crop->left = IMX519_PIXEL_ARRAY_LEFT;
 	try_crop->top = IMX519_PIXEL_ARRAY_TOP;
 	try_crop->width = IMX519_PIXEL_ARRAY_WIDTH;
@@ -1402,8 +1402,7 @@ static int imx519_get_pad_format(struct v4l2_subdev *sd,
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&imx519->sd, sd_state,
-						   fmt->pad);
+			v4l2_subdev_state_get_format(sd_state, fmt->pad);
 		/* update the code which could change due to vflip or hflip: */
 		try_fmt->code = fmt->pad == IMAGE_PAD ?
 				imx519_get_format_code(imx519) :
@@ -1494,8 +1493,8 @@ static int imx519_set_pad_format(struct v4l2_subdev *sd,
 					      fmt->format.height);
 		imx519_update_image_pad_format(imx519, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
+			framefmt = v4l2_subdev_state_get_format(sd_state,
+								fmt->pad);
 			*framefmt = fmt->format;
 		} else {
 			imx519->mode = mode;
@@ -1504,8 +1503,8 @@ static int imx519_set_pad_format(struct v4l2_subdev *sd,
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
+			framefmt = v4l2_subdev_state_get_format(sd_state,
+								fmt->pad);
 			*framefmt = fmt->format;
 		} else {
 			/* Only one embedded data mode is supported */
@@ -1524,7 +1523,7 @@ __imx519_get_pad_crop(struct imx519 *imx519, struct v4l2_subdev_state *sd_state,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx519->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx519->mode->crop;
 	}
