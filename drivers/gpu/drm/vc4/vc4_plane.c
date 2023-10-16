@@ -1447,9 +1447,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	vc4_state->ptr0_offset[0] = vc4_state->dlist_count;
 
 	for (i = 0; i < num_planes; i++) {
-		dma_addr_t paddr = drm_fb_dma_get_gem_addr(fb, state, i);
+		struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, i);
 
-		vc4_dlist_write(vc4_state, paddr + offsets[i]);
+		vc4_dlist_write(vc4_state, bo->dma_addr + fb->offsets[i] + offsets[i]);
 	}
 
 	/* Pointer Context Word 0/1/2: Written by the HVS */
@@ -1842,9 +1842,8 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	 * TODO: This only covers Raster Scan Order planes
 	 */
 	for (i = 0; i < num_planes; i++) {
-		dma_addr_t paddr = drm_fb_dma_get_gem_addr(fb, state, i);
-
-		paddr += offsets[i];
+		struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, i);
+		dma_addr_t paddr = bo->dma_addr + fb->offsets[i] + offsets[i];
 
 		/* Pointer Word 0 */
 		vc4_state->ptr0_offset[i] = vc4_state->dlist_count;
