@@ -79,6 +79,10 @@
 #define FIRST_POLL_DELAY_MS		300	/* in addition to the above */
 #define POLL_INTERVAL_MS		17	/* 17ms = 60fps */
 
+#define RDBUF_SIZE			64
+#define STATE_INITIAL			1
+#define STATE_COMPARE			2
+
 enum edt_pmode {
 	EDT_PMODE_NOT_SUPPORTED,
 	EDT_PMODE_HIBERNATE,
@@ -136,7 +140,8 @@ struct edt_ft5x06_ts_data {
 
 	char name[EDT_NAME_LEN];
 	char fw_version[EDT_NAME_LEN];
-	int init_td_status;
+	u8 rdbuf_initial[RDBUF_SIZE];
+	int init_state;
 
 	struct edt_reg_addr reg_addr;
 	enum edt_ver version;
@@ -208,7 +213,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	struct edt_ft5x06_ts_data *tsdata = dev_id;
 	struct device *dev = &tsdata->client->dev;
 	u8 cmd;
-	u8 rdbuf[63];
+	u8 rdbuf[RDBUF_SIZE];
 	int i, type, x, y, id;
 	int offset, tplen, datalen, crclen;
 	int error;
@@ -271,23 +276,9 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		 * points.
 		 */
 		num_points = min(rdbuf[2] & 0xf, tsdata->max_support_points);
-
-		/* When polling FT5x06 without IRQ: initial register contents
-		 * could be stale or undefined; discard all readings until
-		 * TD_STATUS changes for the first time (or num_points is 0).
-		 */
-		if (tsdata->init_td_status) {
-			if (tsdata->init_td_status < 0)
-				tsdata->init_td_status = rdbuf[2];
-
-			if (num_points && rdbuf[2] == tsdata->init_td_status)
-				goto out;
-
-			tsdata->init_td_status = 0;
-		}
+		datalen = tplen * num_points + crclen;
 
 		if (num_points) {
-			datalen = tplen * num_points + crclen;
 			cmd = offset;
 			error = edt_ft5x06_ts_readwrite(tsdata->client,
 							sizeof(cmd), &cmd,
@@ -298,6 +289,25 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 						    error);
 				goto out;
 			}
+		}
+
+		/* When polling FT5x06 without IRQ: initial register contents
+		 * could be stale or undefined; discard all readings until
+		 * something changes for the first time (or num_points is 0).
+		 */
+		if (tsdata->init_state) {
+			if (num_points) {
+				if (tsdata->init_state == STATE_INITIAL) {
+					memcpy(tsdata->rdbuf_initial, rdbuf,
+					       sizeof(tsdata->rdbuf_initial));
+					tsdata->init_state = STATE_COMPARE;
+					goto out;
+				} else if (!memcmp(tsdata->rdbuf_initial,
+						   rdbuf, offset + datalen)) {
+					goto out;
+				}
+			}
+			tsdata->init_state = 0;
 		}
 	}
 
@@ -1408,7 +1418,7 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 			return error;
 		}
 	} else {
-		tsdata->init_td_status = -1; /* filter bogus initial data */
+		tsdata->init_state = STATE_INITIAL; /* suppress initial state */
 		INIT_WORK(&tsdata->work_i2c_poll,
 			  edt_ft5x06_ts_work_i2c_poll);
 		timer_setup(&tsdata->timer, edt_ft5x06_ts_irq_poll_timer, 0);
