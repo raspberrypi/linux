@@ -341,6 +341,7 @@ struct relinquish_data {
 static int relinquish_walker(const struct kvm_pgtable_visit_ctx *ctx,
 			     enum kvm_pgtable_walk_flags visit)
 {
+	u64 addr = ALIGN_DOWN(ctx->addr, kvm_granule_size(ctx->level));
 	kvm_pte_t pte = *ctx->ptep;
 	struct relinquish_data *data = ctx->arg;
 	enum pkvm_page_state state;
@@ -354,6 +355,8 @@ static int relinquish_walker(const struct kvm_pgtable_visit_ctx *ctx,
 		return -EPERM;
 
 	phys = kvm_pte_to_phys(pte);
+	phys += ctx->addr - addr;
+
 	if (state == PKVM_PAGE_OWNED) {
 		hyp_poison_page(phys);
 		psci_mem_protect_dec(1);
