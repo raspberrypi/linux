@@ -1522,6 +1522,7 @@ static int __guest_request_page_transition(struct pkvm_checked_mem_transition *c
 		.flags  = KVM_PGTABLE_WALK_LEAF,
 		.arg    = (void *)&data,
 	};
+	u64 phys_offset;
 	int ret;
 
 	ret = kvm_pgtable_walk(&vm->pgt, tx->initiator.addr,
@@ -1532,12 +1533,31 @@ static int __guest_request_page_transition(struct pkvm_checked_mem_transition *c
 	else if (ret)
 		return ret;
 
-	/* Not aligned with a block mapping */
-	if (data.ipa_start != tx->initiator.addr)
+	if (data.ipa_start > tx->initiator.addr)
 		return -EINVAL;
 
-	checked_tx->completer_addr = data.phys_start;
-	checked_tx->nr_pages = min_t(u64, data.size >> PAGE_SHIFT, tx->nr_pages);
+	/*
+	 * transition not aligned with block memory mapping. They'll be broken
+	 * down and memory donation will be needed.
+	 */
+	phys_offset = tx->initiator.addr - data.ipa_start;
+	if (phys_offset || (tx->nr_pages * PAGE_SIZE < data.size)) {
+		struct pkvm_hyp_vcpu *hyp_vcpu = pkvm_get_loaded_hyp_vcpu();
+		int min_pages;
+
+		if (WARN_ON(!hyp_vcpu))
+			return -EINVAL;
+
+		min_pages = kvm_mmu_cache_min_pages(hyp_vcpu->vcpu.kvm);
+		if (hyp_vcpu->vcpu.arch.stage2_mc.nr_pages < min_pages)
+			return -ENOMEM;
+	}
+
+	checked_tx->completer_addr = data.phys_start + phys_offset;
+
+
+	checked_tx->nr_pages = min_t(u64, (data.size - phys_offset) >> PAGE_SHIFT,
+				     tx->nr_pages);
 
 	return 0;
 }
@@ -1568,18 +1588,21 @@ static int __guest_initiate_page_transition(const struct pkvm_checked_mem_transi
 	const struct pkvm_mem_transition *tx = checked_tx->tx;
 	struct kvm_hyp_memcache *mc = tx->initiator.guest.mc;
 	struct pkvm_hyp_vm *vm = tx->initiator.guest.hyp_vm;
-	u64 size = checked_tx->nr_pages * PAGE_SIZE;
+	u64 offset, size = checked_tx->nr_pages * PAGE_SIZE;
 	u64 addr = tx->initiator.addr;
 	enum kvm_pgtable_prot prot;
 	phys_addr_t phys;
 	kvm_pte_t pte;
+	u32 level;
 	int ret;
 
-	ret = kvm_pgtable_get_leaf(&vm->pgt, addr, &pte, NULL);
+	ret = kvm_pgtable_get_leaf(&vm->pgt, addr, &pte, &level);
 	if (ret)
 		return ret;
 
-	phys = kvm_pte_to_phys(pte);
+	offset = addr - ALIGN_DOWN(addr, kvm_granule_size(level));
+
+	phys = kvm_pte_to_phys(pte) + offset;
 	prot = pkvm_mkstate(kvm_pgtable_stage2_pte_prot(pte), state);
 	return kvm_pgtable_stage2_map(&vm->pgt, addr, size, phys, prot, mc, 0);
 }
