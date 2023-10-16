@@ -204,11 +204,13 @@ uart4: &rp1_uart4 { };
 i2c_vc: &i2c0 {      // This is pins 27,28 on the header (not MIPI)
 	pinctrl-0 = <&rp1_i2c0_0_1>;
 	pinctrl-names = "default";
+	clock-frequency = <100000>;
 };
 
 i2c_arm: &i2c1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&rp1_i2c1_2_3>;
+	clock-frequency = <100000>;
 };
 
 &i2c2 {
