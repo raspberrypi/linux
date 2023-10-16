@@ -84,7 +84,6 @@ static bool kvm_smccc_default_allowed(u32 func_id)
 	 */
 	case ARM_SMCCC_VERSION_FUNC_ID:
 	case ARM_SMCCC_ARCH_FEATURES_FUNC_ID:
-	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID:
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID:
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID:
 		return true;
@@ -270,7 +269,6 @@ int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 	struct kvm_smccc_features *smccc_feat = &vcpu->kvm->arch.smccc_feat;
 	u32 func_id = smccc_get_function(vcpu);
 	u64 val[4] = {SMCCC_RET_NOT_SUPPORTED};
-	int nr_pages;
 	u32 feature;
 	u8 action;
 	gpa_t gpa;
@@ -369,19 +367,6 @@ int kvm_smccc_call_handler(struct kvm_vcpu *vcpu)
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_PTP_FUNC_ID:
 		kvm_ptp_get_time(vcpu, val);
-		break;
-	case ARM_SMCCC_VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID:
-		if (!kvm_vm_is_protected(vcpu->kvm))
-			break;
-
-		nr_pages = vcpu->arch.stage2_mc.nr_pages;
-		if (!topup_hyp_memcache(&vcpu->arch.stage2_mc,
-					kvm_mmu_cache_min_pages(vcpu->kvm))) {
-			nr_pages = vcpu->arch.stage2_mc.nr_pages - nr_pages;
-			atomic64_add(nr_pages << PAGE_SHIFT,
-				     &vcpu->kvm->stat.protected_hyp_mem);
-			val[0] = SMCCC_RET_SUCCESS;
-		}
 		break;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
 		pkvm_host_reclaim_page(vcpu->kvm, smccc_get_arg1(vcpu));

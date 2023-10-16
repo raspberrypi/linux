@@ -1423,6 +1423,25 @@ static u64 __pkvm_memshare_page_req(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa)
 	return ARM_EXCEPTION_TRAP;
 }
 
+static int pkvm_handle_empty_memcache(struct pkvm_hyp_vcpu *hyp_vcpu,
+				      u64 *exit_code)
+{
+	struct kvm_hyp_req *req;
+
+	req = pkvm_hyp_req_reserve(hyp_vcpu, KVM_HYP_REQ_TYPE_MEM);
+	if (!req)
+		return -ENOMEM;
+
+	req->mem.dest = REQ_MEM_DEST_VCPU_MEMCACHE;
+	req->mem.nr_pages = kvm_mmu_cache_min_pages(hyp_vcpu->vcpu.kvm);
+
+	write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
+
+	*exit_code = ARM_EXCEPTION_HYP_REQ;
+
+	return 0;
+}
+
 static bool pkvm_memshare_call(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 {
 	struct kvm_vcpu *vcpu = &hyp_vcpu->vcpu;
@@ -1445,6 +1464,11 @@ static bool pkvm_memshare_call(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 		 * being shared is mapped into the guest next time.
 		 */
 		*exit_code = __pkvm_memshare_page_req(hyp_vcpu, ipa);
+		goto out_host;
+	case -ENOMEM:
+		if (pkvm_handle_empty_memcache(hyp_vcpu, exit_code))
+			goto out_guest_err;
+
 		goto out_host;
 	}
 
@@ -1485,16 +1509,8 @@ static bool pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_
 	int ret;
 
 	ret = __pkvm_install_ioguard_page(hyp_vcpu, ipa);
-	if (ret == -ENOMEM) {
-		/*
-		 * We ran out of memcache, let's ask for more. Cancel
-		 * the effects of the HVC that took us here, and
-		 * forward the hypercall to the host for page donation
-		 * purposes.
-		 */
-		write_sysreg_el2(read_sysreg_el2(SYS_ELR) - 4, SYS_ELR);
-		return false;
-	}
+	if (ret == -ENOMEM && !pkvm_handle_empty_memcache(hyp_vcpu, exit_code))
+		return true;
 
 	if (ret)
 		retval = SMCCC_RET_INVALID_PARAMETER;
