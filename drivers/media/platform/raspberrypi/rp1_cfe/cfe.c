@@ -786,6 +786,9 @@ static void cfe_start_channel(struct cfe_node *node)
 		width = source_fmt->width;
 		height = source_fmt->height;
 
+		/* Must have a valid CSI2 datatype. */
+		WARN_ON(!fmt->csi_dt);
+
 		/*
 		 * Start the associated CSI2 Channel as well.
 		 *
@@ -808,6 +811,9 @@ static void cfe_start_channel(struct cfe_node *node)
 		source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state,
 			node_desc[node->id].link_pad - CSI2_NUM_CHANNELS);
 		fmt = find_format_by_code(source_fmt->code);
+
+		/* Must have a valid CSI2 datatype. */
+		WARN_ON(!fmt->csi_dt);
 
 		if (is_image_output_node(node)) {
 			width = source_fmt->width;
@@ -1504,7 +1510,8 @@ static int cfe_video_link_validate(struct media_link *link)
 
 	if (is_image_output_node(node)) {
 		struct v4l2_pix_format *pix_fmt = &node->fmt.fmt.pix;
-		const struct cfe_fmt *fmt;
+		const struct cfe_fmt *fmt = NULL;
+		unsigned int i;
 
 		if (source_fmt->width != pix_fmt->width ||
 		    source_fmt->height != pix_fmt->height) {
@@ -1516,8 +1523,14 @@ static int cfe_video_link_validate(struct media_link *link)
 			goto out;
 		}
 
-		fmt = find_format_by_code(source_fmt->code);
-		if (!fmt || fmt->fourcc != pix_fmt->pixelformat) {
+		for (i = 0; i < ARRAY_SIZE(formats); i++) {
+			if (formats[i].code == source_fmt->code &&
+			    formats[i].fourcc == pix_fmt->pixelformat) {
+				fmt = &formats[i];
+				break;
+			}
+		}
+		if (!fmt) {
 			cfe_err("Format mismatch!\n");
 			ret = -EINVAL;
 			goto out;
