@@ -1319,17 +1319,18 @@ int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
 
 struct kvm_iommu_ops;
-struct kvm_hyp_iommu_memcache;
 
 int kvm_iommu_init_hyp(struct kvm_iommu_ops *hyp_ops,
-		       struct kvm_hyp_iommu_memcache *mc,
 		       unsigned long init_arg);
 
 int kvm_iommu_register_driver(struct kvm_iommu_driver *kern_ops);
 
 /* Allocator interface IDs. */
 #define HYP_ALLOC_MGT_HEAP_ID		0
+#define HYP_ALLOC_MGT_IOMMU_ID		1
 
 unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages);
+int __pkvm_topup_hyp_alloc_mgt(unsigned long id, unsigned long nr_pages,
+			       unsigned long sz_alloc);
 
 #endif /* __ARM64_KVM_HOST_H__ */

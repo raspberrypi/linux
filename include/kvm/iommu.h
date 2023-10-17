@@ -24,14 +24,6 @@ struct kvm_hyp_iommu {
 #endif
 };
 
-struct kvm_hyp_iommu_memcache {
-	struct kvm_hyp_memcache	pages;
-	bool needs_page;
-} ____cacheline_aligned_in_smp;
-
-extern struct kvm_hyp_iommu_memcache *kvm_nvhe_sym(kvm_hyp_iommu_memcaches);
-#define kvm_hyp_iommu_memcaches kvm_nvhe_sym(kvm_hyp_iommu_memcaches)
-
 extern void **kvm_nvhe_sym(kvm_hyp_iommu_domains);
 #define kvm_hyp_iommu_domains kvm_nvhe_sym(kvm_hyp_iommu_domains)
 

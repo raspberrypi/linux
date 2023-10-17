@@ -7,6 +7,7 @@
 
 #include <asm/kvm_hyp.h>
 #include <kvm/iommu.h>
+#include <nvhe/alloc_mgt.h>
 #include <nvhe/iommu.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
@@ -17,7 +18,7 @@ struct kvm_iommu_paddr_cache {
 	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
 };
 static DEFINE_PER_CPU(struct kvm_iommu_paddr_cache, kvm_iommu_unmap_cache);
-struct kvm_hyp_iommu_memcache *kvm_hyp_iommu_memcaches;
+
 /*
  * This lock protect domain operations, that can't be done using the atomic refcount
  * It is used for alloc/free domains, so it shouldn't have a lot of overhead as
@@ -26,44 +27,51 @@ struct kvm_hyp_iommu_memcache *kvm_hyp_iommu_memcaches;
 static DEFINE_HYP_SPINLOCK(iommu_domains_lock);
 void **kvm_hyp_iommu_domains;
 
+static struct hyp_pool iommu_host_pool;
+
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
 void *kvm_iommu_donate_page(void)
 {
 	void *p;
-	int cpu = hyp_smp_processor_id();
-	struct kvm_hyp_memcache tmp = kvm_hyp_iommu_memcaches[cpu].pages;
-	unsigned long order;
 	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
 
-	if (!tmp.nr_pages) {
-		req->type = KVM_HYP_REQ_TYPE_MEM;
-		req->mem.dest = REQ_MEM_DEST_HYP_IOMMU;
-		req->mem.sz_alloc = PAGE_SIZE;
-		req->mem.nr_pages = 1;
-		return NULL;
-	}
+	p = hyp_alloc_pages(&iommu_host_pool, 0);
+	if (p)
+		return p;
 
-	if (__pkvm_host_donate_hyp(hyp_phys_to_pfn(tmp.head), 1))
-		return NULL;
-
-	p = pop_hyp_memcache(&tmp, hyp_phys_to_virt, &order);
-	if (!p)
-		return NULL;
-
-	kvm_hyp_iommu_memcaches[cpu].pages = tmp;
-	memset(p, 0, PAGE_SIZE);
-	return p;
+	req->type = KVM_HYP_REQ_TYPE_MEM;
+	req->mem.dest = REQ_MEM_DEST_HYP_IOMMU;
+	req->mem.sz_alloc = PAGE_SIZE;
+	req->mem.nr_pages = 1;
+	return NULL;
 }
 
 void kvm_iommu_reclaim_page(void *p)
 {
-	int cpu = hyp_smp_processor_id();
-
-	memset(p, 0, PAGE_SIZE);
-	push_hyp_memcache(&kvm_hyp_iommu_memcaches[cpu].pages, p, hyp_virt_to_phys, 0);
-	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1));
+	hyp_put_page(&iommu_host_pool, p);
 }
+
+int kvm_iommu_refill(struct kvm_hyp_memcache *host_mc)
+{
+	return refill_hyp_pool(&iommu_host_pool, host_mc);
+}
+
+void kvm_iommu_reclaim(struct kvm_hyp_memcache *host_mc, int target)
+{
+	reclaim_hyp_pool(&iommu_host_pool, host_mc, target);
+}
+
+int kvm_iommu_reclaimable(void)
+{
+	return hyp_pool_free_pages(&iommu_host_pool);
+}
+
+struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops = {
+	.refill = kvm_iommu_refill,
+	.reclaim = kvm_iommu_reclaim,
+	.reclaimable = kvm_iommu_reclaimable,
+};
 
 static struct kvm_hyp_iommu_domain *
 handle_to_domain(pkvm_handle_t domain_id)
@@ -386,10 +394,8 @@ int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 	return 0;
 }
 
-int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
-		   unsigned long init_arg)
+int kvm_iommu_init(struct kvm_iommu_ops *ops, unsigned long init_arg)
 {
-	enum kvm_pgtable_prot prot;
 	int ret;
 
 	if (WARN_ON(!ops->get_iommu_by_id ||
@@ -408,13 +414,8 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
 	if (ret)
 		return ret;
 
-	/* The memcache is shared with the host */
-	prot = pkvm_mkstate(PAGE_HYP, PKVM_PAGE_SHARED_OWNED);
-	ret = pkvm_create_mappings(mc, mc + NR_CPUS, prot);
-	if (ret)
-		return ret;
+	ret = hyp_pool_init_empty(&iommu_host_pool, 64 /* order = 6*/);
 
 	kvm_iommu_ops = ops;
-	kvm_hyp_iommu_memcaches = mc;
-	return 0;
+	return ret;
 }

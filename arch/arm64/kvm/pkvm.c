@@ -887,23 +887,29 @@ int __pkvm_register_el2_call(unsigned long hfn_hyp_va)
 EXPORT_SYMBOL(__pkvm_register_el2_call);
 #endif /* CONFIG_MODULES */
 
-int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
+int __pkvm_topup_hyp_alloc_mgt(unsigned long id, unsigned long nr_pages, unsigned long sz_alloc)
 {
 	struct kvm_hyp_memcache mc;
 	int ret;
 
 	init_hyp_memcache(&mc);
 
-	ret = topup_hyp_memcache(&mc, nr_pages, 0);
+	ret = topup_hyp_memcache(&mc, nr_pages, get_order(sz_alloc));
 	if (ret)
 		return ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_refill, HYP_ALLOC_MGT_HEAP_ID,
+	ret = kvm_call_hyp_nvhe(__pkvm_hyp_alloc_mgt_refill, id,
 				mc.head, mc.nr_pages);
 	if (ret)
 		free_hyp_memcache(&mc);
 
 	return ret;
+}
+EXPORT_SYMBOL(__pkvm_topup_hyp_alloc_mgt);
+
+int __pkvm_topup_hyp_alloc(unsigned long nr_pages)
+{
+	return __pkvm_topup_hyp_alloc_mgt(HYP_ALLOC_MGT_HEAP_ID, nr_pages, PAGE_SIZE);
 }
 EXPORT_SYMBOL(__pkvm_topup_hyp_alloc);
 

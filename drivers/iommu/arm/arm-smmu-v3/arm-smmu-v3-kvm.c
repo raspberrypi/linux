@@ -43,47 +43,13 @@ struct kvm_arm_smmu_domain {
 static size_t				kvm_arm_smmu_cur;
 static size_t				kvm_arm_smmu_count;
 static struct hyp_arm_smmu_v3_device	*kvm_arm_smmu_array;
-static struct kvm_hyp_iommu_memcache	*kvm_arm_smmu_memcache;
 static DEFINE_IDA(kvm_arm_smmu_domain_ida);
 
-static DEFINE_PER_CPU(local_lock_t, memcache_lock) =
-				INIT_LOCAL_LOCK(memcache_lock);
-
 extern struct kvm_iommu_ops kvm_nvhe_sym(smmu_ops);
-
-static void *kvm_arm_smmu_alloc_page(void *opaque, unsigned long order)
-{
-	struct arm_smmu_device *smmu = opaque;
-	struct page *p;
-
-	/* No __GFP_ZERO because KVM zeroes the page */
-	p = alloc_pages_node(dev_to_node(smmu->dev), GFP_ATOMIC, order);
-	if (!p)
-		return NULL;
-
-	return page_address(p);
-}
-
-static void kvm_arm_smmu_free_page(void *va, void *opaque, unsigned long order)
-{
-	free_pages((unsigned long)va, order);
-}
-
-static phys_addr_t kvm_arm_smmu_host_pa(void *va)
-{
-	return __pa(va);
-}
-
-static void *kvm_arm_smmu_host_va(phys_addr_t pa)
-{
-	return __va(pa);
-}
 
 static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
 				       struct arm_smccc_res *res)
 {
-	struct kvm_hyp_memcache *mc;
-	int cpu = raw_smp_processor_id();
 	struct kvm_hyp_req req;
 
 	hyp_reqs_smccc_decode(res, &req);
@@ -98,12 +64,9 @@ static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
 		return -EBADE;
 	}
 
-	lockdep_assert_held(this_cpu_ptr(&memcache_lock));
-	mc = &kvm_arm_smmu_memcache[cpu].pages;
-
 	if (req.mem.dest == REQ_MEM_DEST_HYP_IOMMU) {
-		return  __topup_hyp_memcache(mc, req.mem.nr_pages, kvm_arm_smmu_alloc_page,
-					     kvm_arm_smmu_host_pa, smmu, 0);
+		return __pkvm_topup_hyp_alloc_mgt(HYP_ALLOC_MGT_IOMMU_ID,
++					 	  req.mem.nr_pages, req.mem.sz_alloc);
 	} else if (req.mem.dest == REQ_MEM_DEST_HYP_ALLOC) {
 		/* Fill hyp alloc*/
 		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);
@@ -113,21 +76,8 @@ static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
 	return -EBADE;
 }
 
-static void kvm_arm_smmu_reclaim_memcache(void)
-{
-	struct kvm_hyp_memcache *mc;
-	int cpu = raw_smp_processor_id();
-
-	lockdep_assert_held(this_cpu_ptr(&memcache_lock));
-	mc = &kvm_arm_smmu_memcache[cpu].pages;
-
-	__free_hyp_memcache(mc, kvm_arm_smmu_free_page,
-			    kvm_arm_smmu_host_va, NULL);
-}
-
 /*
  * Issue hypercall, and retry after filling the memcache if necessary.
- * After the call, reclaim pages pushed in the memcache by the hypervisor.
  */
 #define kvm_call_hyp_nvhe_mc(smmu, ...)					\
 ({									\
@@ -135,7 +85,6 @@ static void kvm_arm_smmu_reclaim_memcache(void)
 	do {								\
 		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);		\
 	} while (__res.a1 && !kvm_arm_smmu_topup_memcache(smmu, &__res));\
-	kvm_arm_smmu_reclaim_memcache();				\
 	__res.a1;							\
 })
 
@@ -246,10 +195,8 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 
 	pgd = (unsigned long)page_to_virt(p);
 
-	local_lock_irq(&memcache_lock);
 	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
 				   kvm_smmu_domain->id, pgd);
-	local_unlock_irq(&memcache_lock);
 	if (ret)
 		goto err_free_pgd;
 
@@ -342,7 +289,6 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 	if (ret)
 		return ret;
 
-	local_lock_irq(&memcache_lock);
 	for (i = 0; i < fwspec->num_ids; i++) {
 		int sid = fwspec->ids[i];
 
@@ -352,15 +298,14 @@ static int kvm_arm_smmu_attach_dev(struct iommu_domain *domain,
 		if (ret) {
 			dev_err(smmu->dev, "cannot attach device %s (0x%x): %d\n",
 				dev_name(dev), sid, ret);
-			goto out_unlock;
+			goto out_ret;
 		}
 	}
 	master->domain = kvm_smmu_domain;
 
-out_unlock:
+out_ret:
 	if (ret)
 		kvm_arm_smmu_detach_dev(host_smmu, master);
-	local_unlock_irq(&memcache_lock);
 	return ret;
 }
 
@@ -370,13 +315,11 @@ static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
 				  gfp_t gfp, size_t *total_mapped)
 {
 	size_t mapped;
-	unsigned long irqflags;
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 	struct arm_smccc_res res;
 
-	local_lock_irqsave(&memcache_lock, irqflags);
 	do {
 		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_map_pages,
 					      kvm_smmu_domain->id,
@@ -389,8 +332,6 @@ static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
 		pgcount -= mapped / pgsize;
 		*total_mapped += mapped;
 	} while (*total_mapped < size && !kvm_arm_smmu_topup_memcache(smmu, &res));
-	kvm_arm_smmu_reclaim_memcache();
-	local_unlock_irqrestore(&memcache_lock, irqflags);
 	if (*total_mapped < size)
 		return -EINVAL;
 
@@ -403,14 +344,12 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 				       struct iommu_iotlb_gather *iotlb_gather)
 {
 	size_t unmapped;
-	unsigned long irqflags;
 	size_t total_unmapped = 0;
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
 	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 	struct arm_smccc_res res;
 
-	local_lock_irqsave(&memcache_lock, irqflags);
 	do {
 		res = kvm_call_hyp_nvhe_smccc(__pkvm_host_iommu_unmap_pages,
 					      kvm_smmu_domain->id,
@@ -429,8 +368,6 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 		 */
 	} while (total_unmapped < size &&
 		 (unmapped || !kvm_arm_smmu_topup_memcache(smmu, &res)));
-	kvm_arm_smmu_reclaim_memcache();
-	local_unlock_irqrestore(&memcache_lock, irqflags);
 
 	return total_unmapped;
 }
@@ -689,7 +626,7 @@ static struct platform_driver kvm_arm_smmu_driver = {
 
 static int kvm_arm_smmu_array_alloc(void)
 {
-	int smmu_order, mc_order;
+	int smmu_order;
 	struct device_node *np;
 
 	kvm_arm_smmu_count = 0;
@@ -706,17 +643,7 @@ static int kvm_arm_smmu_array_alloc(void)
 	if (!kvm_arm_smmu_array)
 		return -ENOMEM;
 
-	mc_order = get_order(NR_CPUS * sizeof(*kvm_arm_smmu_memcache));
-	kvm_arm_smmu_memcache = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
-							 mc_order);
-	if (!kvm_arm_smmu_memcache)
-		goto err_free_array;
-
 	return 0;
-
-err_free_array:
-	free_pages((unsigned long)kvm_arm_smmu_array, smmu_order);
-	return -ENOMEM;
 }
 
 static void kvm_arm_smmu_array_free(void)
@@ -725,8 +652,6 @@ static void kvm_arm_smmu_array_free(void)
 
 	order = get_order(kvm_arm_smmu_count * sizeof(*kvm_arm_smmu_array));
 	free_pages((unsigned long)kvm_arm_smmu_array, order);
-	order = get_order(NR_CPUS * sizeof(*kvm_arm_smmu_memcache));
-	free_pages((unsigned long)kvm_arm_smmu_memcache, order);
 }
 
 /**
@@ -765,8 +690,7 @@ static int kvm_arm_smmu_v3_init(void)
 	kvm_hyp_arm_smmu_v3_smmus = kvm_arm_smmu_array;
 	kvm_hyp_arm_smmu_v3_count = kvm_arm_smmu_count;
 
-	return kvm_iommu_init_hyp(kern_hyp_va(lm_alias(&kvm_nvhe_sym(smmu_ops))),
-				  kvm_arm_smmu_memcache, 0);
+	return kvm_iommu_init_hyp(kern_hyp_va(lm_alias(&kvm_nvhe_sym(smmu_ops))), 0);
 
 err_free:
 	kvm_arm_smmu_array_free();

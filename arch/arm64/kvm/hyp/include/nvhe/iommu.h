@@ -15,7 +15,7 @@ struct io_pgtable *kvm_arm_io_pgtable_alloc(struct io_pgtable_cfg *cfg,
 int kvm_arm_io_pgtable_free(struct io_pgtable *iop);
 #endif /* CONFIG_ARM_SMMU_V3_PKVM */
 
-int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_iommu_memcache *mc,
+int kvm_iommu_init(struct kvm_iommu_ops *ops,
 		   unsigned long init_arg);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 void *kvm_iommu_donate_page(void);
@@ -47,5 +47,6 @@ struct kvm_iommu_ops {
 };
 
 extern struct kvm_iommu_ops *kvm_iommu_ops;
+extern struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops;
 
 #endif /* __ARM64_KVM_NVHE_IOMMU_H__ */

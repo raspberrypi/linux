@@ -1547,10 +1547,9 @@ static void handle___pkvm_host_iommu_iova_to_phys(struct kvm_cpu_context *host_c
 static void handle___pkvm_iommu_init(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(struct kvm_iommu_ops *, ops, host_ctxt, 1);
-	DECLARE_REG(struct kvm_hyp_iommu_memcache *, memcache, host_ctxt, 2);
-	DECLARE_REG(unsigned long, init_arg, host_ctxt, 3);
+	DECLARE_REG(unsigned long, init_arg, host_ctxt, 2);
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_init(ops, memcache, init_arg);
+	cpu_reg(host_ctxt, 1) = kvm_iommu_init(ops, init_arg);
 }
 
 typedef void (*hcall_t)(struct kvm_cpu_context *);
