@@ -52,7 +52,7 @@
 
 / {
 	compatible = "raspberrypi,5-model-b", "brcm,bcm2712";
-	model = "Raspberry Pi 5 Model B";
+	model = "Raspberry Pi 5";
 
 	/* Will be filled by the bootloader */
 	memory@0 {
