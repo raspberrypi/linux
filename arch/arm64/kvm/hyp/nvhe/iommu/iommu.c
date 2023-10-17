@@ -31,7 +31,7 @@ static struct hyp_pool iommu_host_pool;
 
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
-void *kvm_iommu_donate_pages(u8 order)
+void *kvm_iommu_donate_pages(u8 order, bool request)
 {
 	void *p;
 	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
@@ -40,10 +40,12 @@ void *kvm_iommu_donate_pages(u8 order)
 	if (p)
 		return p;
 
-	req->type = KVM_HYP_REQ_TYPE_MEM;
-	req->mem.dest = REQ_MEM_DEST_HYP_IOMMU;
-	req->mem.sz_alloc = (1 << order) * PAGE_SIZE;
-	req->mem.nr_pages = 1;
+	if (request) {
+		req->type = KVM_HYP_REQ_TYPE_MEM;
+		req->mem.dest = REQ_MEM_DEST_HYP_IOMMU;
+		req->mem.sz_alloc = (1 << order) * PAGE_SIZE;
+		req->mem.nr_pages = 1;
+	}
 	return NULL;
 }
 
@@ -56,6 +58,19 @@ void kvm_iommu_reclaim_pages(void *p, u8 order)
 	BUG_ON(order > hyp_virt_to_page(p)->order);
 
 	hyp_put_page(&iommu_host_pool, p);
+}
+
+/* Request to hypervisor. */
+int kvm_iommu_request(struct kvm_hyp_req *req)
+{
+	struct kvm_hyp_req *cur_req = this_cpu_ptr(&host_hyp_reqs);
+
+	if (cur_req->type != KVM_HYP_LAST_REQ)
+		return -EBUSY;
+
+	memcpy(cur_req, req, sizeof(struct kvm_hyp_req));
+
+	return 0;
 }
 
 int kvm_iommu_refill(struct kvm_hyp_memcache *host_mc)
