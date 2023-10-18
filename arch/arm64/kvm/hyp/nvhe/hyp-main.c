@@ -1554,9 +1554,12 @@ static void handle___pkvm_host_iommu_iova_to_phys(struct kvm_cpu_context *host_c
 static void handle___pkvm_iommu_init(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(struct kvm_iommu_ops *, ops, host_ctxt, 1);
-	DECLARE_REG(unsigned long, init_arg, host_ctxt, 2);
+	DECLARE_REG(unsigned long, mc_head, host_ctxt, 2);
+	DECLARE_REG(unsigned long, nr_pages, host_ctxt, 3);
+	DECLARE_REG(unsigned long, init_arg, host_ctxt, 4);
+	struct kvm_hyp_memcache mc = {.head = mc_head, .nr_pages = nr_pages};
 
-	cpu_reg(host_ctxt, 1) = kvm_iommu_init(ops, init_arg);
+	cpu_reg(host_ctxt, 1) = kvm_iommu_init(ops, &mc, init_arg);
 }
 
 static void handle___pkvm_host_hvc_pd(struct kvm_cpu_context *host_ctxt)

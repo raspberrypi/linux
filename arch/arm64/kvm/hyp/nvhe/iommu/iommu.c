@@ -37,6 +37,7 @@ static DEFINE_HYP_SPINLOCK(iommu_domains_lock);
 void **kvm_hyp_iommu_domains;
 
 static struct hyp_pool iommu_host_pool;
+static struct hyp_pool iommu_atomic_pool;
 
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
@@ -541,7 +542,22 @@ int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu)
 	return pkvm_init_power_domain(&iommu->power_domain, &iommu_power_ops);
 }
 
-int kvm_iommu_init(struct kvm_iommu_ops *ops, unsigned long init_arg)
+static int kvm_iommu_init_atomic_pool(struct kvm_hyp_memcache *atomic_mc)
+{
+	int ret;
+
+	/* atomic_mc is optional. */
+	if (!atomic_mc->head)
+		return 0;
+	ret = hyp_pool_init_empty(&iommu_atomic_pool, 64 /* order = 6*/);
+	if (ret)
+		return ret;
+
+	return refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
+}
+
+int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc,
+		   unsigned long init_arg)
 {
 	int ret;
 
@@ -562,11 +578,16 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, unsigned long init_arg)
 		return ret;
 
 	ret = hyp_pool_init_empty(&iommu_host_pool, 64 /* order = 6*/);
-	if (!ret) {
-		/* Ensure iommu_host_pool is ready _before_ iommu_ops is set */
-		smp_wmb();
-		kvm_iommu_ops = ops;
-	}
+	if (ret)
+		return ret;
+
+	ret = kvm_iommu_init_atomic_pool(atomic_mc);
+	if (ret)
+		return ret;
+
+	/* Ensure iommu_host_pool is ready _before_ iommu_ops is set */
+	smp_wmb();
+	kvm_iommu_ops = ops;
 
 	return ret;
 }

@@ -17,6 +17,7 @@ int kvm_arm_io_pgtable_free(struct io_pgtable *iop);
 #endif /* CONFIG_ARM_SMMU_V3_PKVM */
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops,
+		   struct kvm_hyp_memcache *atomic_mc,
 		   unsigned long init_arg);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 void *kvm_iommu_donate_pages(u8 order, bool request);
