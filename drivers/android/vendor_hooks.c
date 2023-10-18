@@ -72,6 +72,7 @@
 #include <trace/hooks/fuse.h>
 #include <trace/hooks/psi.h>
 #include <trace/hooks/blk.h>
+#include <trace/hooks/suspend.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -416,3 +417,6 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_usb_dev_suspend);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_usb_dev_resume);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_bd_link_disk_holder);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_use_amu_fie);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_resume_begin);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_resume_end);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_early_resume_begin);
