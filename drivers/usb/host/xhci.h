@@ -1650,7 +1650,7 @@ struct urb_priv {
 };
 
 /* Reasonable limit for number of Event Ring segments (spec allows 32k) */
-#define	ERST_MAX_SEGS	2
+#define	ERST_MAX_SEGS	8
 /* Poll every 60 seconds */
 #define	POLL_TIMEOUT	60
 /* Stop endpoint command timeout (secs) for URB cancellation watchdog timer */
