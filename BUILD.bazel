@@ -399,6 +399,7 @@ _ROCKPI4_MODULE_OUTS = [
     "drivers/iio/adc/rockchip_saradc.ko",
     "drivers/iio/buffer/industrialio-triggered-buffer.ko",
     "drivers/iio/buffer/kfifo_buf.ko",
+    "drivers/mfd/rk8xx-core.ko",
     "drivers/mfd/rk8xx-i2c.ko",
     "drivers/mfd/rk8xx-spi.ko",
     "drivers/mmc/core/pwrseq_simple.ko",
