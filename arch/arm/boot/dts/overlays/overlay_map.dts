@@ -48,6 +48,16 @@
 		bcm2712;
 	};
 
+	dwc2 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "dwc2-pi5";
+	};
+
+	dwc2-pi5 {
+		bcm2712;
+	};
+
 	highperi {
 		bcm2711;
 	};
