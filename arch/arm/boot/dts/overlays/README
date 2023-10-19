@@ -3742,7 +3742,7 @@ Name:   rpi-ft5406
 Info:   Official Raspberry Pi display touchscreen
 Load:   dtoverlay=rpi-ft5406,<param>=<val>
 Params: touchscreen-size-x      Touchscreen X resolution (default 800)
-        touchscreen-size-y      Touchscreen Y resolution (default 600);
+        touchscreen-size-y      Touchscreen Y resolution (default 480);
         touchscreen-inverted-x  Invert touchscreen X coordinates (default 0);
         touchscreen-inverted-y  Invert touchscreen Y coordinates (default 0);
         touchscreen-swapped-x-y Swap X and Y cordinates (default 0);
