@@ -1392,7 +1392,7 @@ struct urb_priv {
 };
 
 /* Number of Event Ring segments to allocate, when amount is not specified. (spec allows 32k) */
-#define	ERST_DEFAULT_SEGS	2
+#define	ERST_DEFAULT_SEGS	8
 /* Poll every 60 seconds */
 #define	POLL_TIMEOUT	60
 /* Stop endpoint command timeout (secs) for URB cancellation watchdog timer */
