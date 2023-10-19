@@ -2,7 +2,7 @@
 
 /{
 	fragment@1 {
-		target = <&soc>;
+		target-path = "/";
 		__overlay__ {
 			/*
 			 * Add a node with a dma-ranges value that exists only to be found
