@@ -115,7 +115,7 @@ static struct drm_conn_prop_enum_list drm_connector_enum_list[] = {
 };
 
 #define MAX_DT_NODE_NAME_LEN	20
-#define DT_DRM_NODE_PREFIX	"drm_"
+#define DT_DRM_NODE_PREFIX	"drm-"
 
 static void drm_connector_get_of_name(int type, char *node_name, int length)
 {
