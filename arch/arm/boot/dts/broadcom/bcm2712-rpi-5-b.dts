@@ -809,6 +809,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		i2c_baudrate = <&i2c_arm>, "clock-frequency:0";
 		i2c_arm_baudrate = <&i2c_arm>, "clock-frequency:0";
 		i2c_vc_baudrate = <&i2c_vc>, "clock-frequency:0";
+		krnbt = <&bluetooth>, "status";
 		nvme = <&pciex1>, "status";
 		pciex1 = <&pciex1>, "status";
 		pciex1_gen = <&pciex1> , "max-link-speed:0";
