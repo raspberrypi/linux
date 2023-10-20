@@ -103,7 +103,7 @@
 		};
 
 		firmwarekms: firmwarekms@7d503000 {
-			compatible = "raspberrypi,rpi-firmware-kms";
+			compatible = "raspberrypi,rpi-firmware-kms-2712";
 			/* SUN_L2 interrupt reg */
 			reg = <0x7d503000 0x18>;
 			interrupt-parent = <&cpu_l2_irq>;
