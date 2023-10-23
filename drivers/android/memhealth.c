@@ -98,6 +98,11 @@ static int add_oom_victim_to_list(pid_t pid, ktime_t timestamp)
 	 * prevent blocking while allocating for the new node
 	 */
 	new_node = kmalloc(sizeof(*new_node), GFP_ATOMIC);
+	if (!new_node) {
+		pr_err("memhealth failed to create new oom node for pid %d\n", pid);
+		ret = -ENOMEM;
+		goto err_create_oom_node;
+	}
 
 	pid_struct = find_get_pid(pid);
 	if (!pid_struct) {
@@ -159,6 +164,7 @@ err_get_cred:
 err_get_task:
 err_get_pid:
 	kfree(new_node);
+err_create_oom_node:
 	return ret;
 }
 
