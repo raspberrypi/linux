@@ -1,7 +1,7 @@
 /* Downstream modifications to bcm2835-rpi.dtsi */
 
 / {
-	aliases {
+	aliases: aliases {
 		aux = &aux;
 		sound = &sound;
 		soc = &soc;
@@ -98,6 +98,9 @@
 		sdio_overclock = <&mmc>,"brcm,overclock-50:0",
 				 <&mmcnr>,"brcm,overclock-50:0";
 		axiperf      = <&axiperf>,"status";
+		drm_fb0_vc4 = <&aliases>, "drm-fb0=",&vc4;
+		drm_fb1_vc4 = <&aliases>, "drm-fb1=",&vc4;
+		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
 	};
 };
 
