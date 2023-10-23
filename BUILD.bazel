@@ -305,6 +305,7 @@ _DB845C_WATCHDOG_MODULE_OUTS = [
 
 kernel_build(
     name = "db845c_no_kgdb",
+    srcs = [":kernel_aarch64_sources"],
     outs = [
         "arch/arm64/boot/dts/qcom/qrb5165-rb5.dtb",
         "arch/arm64/boot/dts/qcom/sdm845-db845c.dtb",
@@ -325,6 +326,7 @@ kernel_build(
 
 kernel_build(
     name = "db845c_with_kgdb",
+    srcs = [":kernel_aarch64_sources"],
     outs = [
         "arch/arm64/boot/dts/qcom/qrb5165-rb5.dtb",
         "arch/arm64/boot/dts/qcom/sdm845-db845c.dtb",
@@ -446,6 +448,7 @@ _ROCKPI4_WATCHDOG_MODULE_OUTS = [
 # TODO(b/258259749): Convert rockpi4 to mixed build
 kernel_build(
     name = "rockpi4_no_kgdb",
+    srcs = [":kernel_aarch64_sources"],
     outs = [
         "Image",
         "System.map",
@@ -469,6 +472,7 @@ kernel_build(
 # TODO(b/258259749): Convert rockpi4 to mixed build
 kernel_build(
     name = "rockpi4_with_kgdb",
+    srcs = [":kernel_aarch64_sources"],
     outs = [
         "Image",
         "System.map",
@@ -529,6 +533,7 @@ copy_to_dist_dir(
 # tools/bazel build --allow_undeclared_modules //common:kernel_aarch64_allmodconfig
 kernel_build(
     name = "kernel_aarch64_allmodconfig",
+    srcs = [":kernel_aarch64_sources"],
     # Hack to actually check the build.
     # Otherwise, Bazel thinks that there are no output files, and skip building.
     outs = [".config"],
@@ -539,6 +544,7 @@ kernel_build(
 # tools/bazel build --allow_undeclared_modules //common:kernel_x86_64_allmodconfig
 kernel_build(
     name = "kernel_x86_64_allmodconfig",
+    srcs = [":kernel_x86_64_sources"],
     # Hack to actually check the build.
     # Otherwise, Bazel thinks that there are no output files, and skip building.
     outs = [".config"],
@@ -550,6 +556,8 @@ kernel_build(
 # tools/bazel build --allow_undeclared_modules //common:kernel_arm_allmodconfig
 kernel_build(
     name = "kernel_arm_allmodconfig",
+    # We don't have an arm-specific source list, so use the common one.
+    srcs = [":common_kernel_sources"],
     # Hack to actually check the build.
     # Otherwise, Bazel thinks that there are no output files, and skip building.
     outs = [".config"],
@@ -588,6 +596,7 @@ _KUNIT_CLK_MODULES = [
 
 kernel_build(
     name = "kunit_aarch64",
+    srcs = [":kernel_aarch64_sources"],
     outs = [],
     arch = "arm64",
     base_kernel = ":kernel_aarch64",
@@ -610,6 +619,7 @@ copy_to_dist_dir(
 
 kernel_build(
     name = "kunit_x86_64",
+    srcs = [":kernel_x86_64_sources"],
     outs = [],
     arch = "x86_64",
     base_kernel = ":kernel_x86_64",
@@ -632,6 +642,7 @@ copy_to_dist_dir(
 
 kernel_build(
     name = "kunit_riscv64",
+    srcs = [":kernel_riscv64_sources"],
     outs = [],
     arch = "riscv64",
     base_kernel = ":kernel_riscv64",
