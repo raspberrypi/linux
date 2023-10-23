@@ -1,7 +1,7 @@
 /* Downstream modifications to bcm2835-rpi.dtsi */
 
 / {
-	aliases {
+	aliases: aliases {
 		aux = &aux;
 		sound = &sound;
 		soc = &soc;
@@ -30,6 +30,9 @@
 		fb = &fb;
 		thermal = &thermal;
 		axiperf = &axiperf;
+		drm_fb0_vc4 = <&aliases>, "drm-fb0=",&vc4;
+		drm_fb1_vc4 = <&aliases>, "drm-fb1=",&vc4;
+		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
 	};
 
 	/* Define these notional regulators for use by overlays */
