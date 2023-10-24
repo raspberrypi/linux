@@ -3902,7 +3902,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi0_variant = {
 		PHY_LANE_2,
 		PHY_LANE_CK,
 	},
-	.unsupported_odd_h_timings	= true,
+	.unsupported_odd_h_timings	= false,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3929,7 +3929,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi1_variant = {
 		PHY_LANE_2,
 		PHY_LANE_CK,
 	},
-	.unsupported_odd_h_timings	= true,
+	.unsupported_odd_h_timings	= false,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
