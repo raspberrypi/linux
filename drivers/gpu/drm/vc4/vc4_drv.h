@@ -568,6 +568,8 @@ struct vc4_pv_data {
 
 	/* Number of pixels output per clock period */
 	u8 pixels_per_clock;
+	/* Number of pixels output per clock period when in an interlaced mode */
+	u8 pixels_per_clock_int;
 
 	enum vc4_encoder_type encoder_types[4];
 };
