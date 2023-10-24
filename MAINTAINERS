@@ -6118,7 +6118,7 @@ F:	include/video/udlfb.h
 DISTRIBUTED LOCK MANAGER (DLM)
 M:	Christine Caulfield <ccaulfie@redhat.com>
 M:	David Teigland <teigland@redhat.com>
-L:	cluster-devel@redhat.com
+L:	gfs2@lists.linux.dev
 S:	Supported
 W:	http://sources.redhat.com/cluster/
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/teigland/linux-dlm.git
@@ -7164,6 +7164,14 @@ S:	Maintained
 T:	git git://anongit.freedesktop.org/drm/drm-misc
 F:	drivers/gpu/drm/ttm/
 F:	include/drm/ttm/
+
+DRM AUTOMATED TESTING
+M:	Helen Koike <helen.koike@collabora.com>
+L:	dri-devel@lists.freedesktop.org
+S:	Maintained
+T:	git git://anongit.freedesktop.org/drm/drm-misc
+F:	Documentation/gpu/automated_testing.rst
+F:	drivers/gpu/drm/ci/
 
 DSBR100 USB FM RADIO DRIVER
 M:	Alexey Klimov <klimov.linux@gmail.com>
@@ -8774,7 +8782,7 @@ F:	scripts/get_maintainer.pl
 GFS2 FILE SYSTEM
 M:	Bob Peterson <rpeterso@redhat.com>
 M:	Andreas Gruenbacher <agruenba@redhat.com>
-L:	cluster-devel@redhat.com
+L:	gfs2@lists.linux.dev
 S:	Supported
 B:	https://bugzilla.kernel.org/enter_bug.cgi?product=File%20System&component=gfs2
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/gfs2/linux-gfs2.git
@@ -11596,6 +11604,8 @@ F:	arch/x86/include/uapi/asm/svm.h
 F:	arch/x86/include/uapi/asm/vmx.h
 F:	arch/x86/kvm/
 F:	arch/x86/kvm/*/
+F:	tools/testing/selftests/kvm/*/x86_64/
+F:	tools/testing/selftests/kvm/x86_64/
 
 KERNFS
 M:	Greg Kroah-Hartman <gregkh@linuxfoundation.org>
@@ -16768,6 +16778,8 @@ L:	linux-kernel@vger.kernel.org
 S:	Supported
 W:	https://perf.wiki.kernel.org/
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git perf/core
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/perf/perf-tools.git perf-tools
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/perf/perf-tools-next.git perf-tools-next
 F:	arch/*/events/*
 F:	arch/*/events/*/*
 F:	arch/*/include/asm/perf_event.h
@@ -18089,7 +18101,6 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/abelloni/linux.git
 F:	Documentation/admin-guide/rtc.rst
 F:	Documentation/devicetree/bindings/rtc/
 F:	drivers/rtc/
-F:	include/linux/platform_data/rtc-*
 F:	include/linux/rtc.h
 F:	include/linux/rtc/
 F:	include/uapi/linux/rtc.h
@@ -20412,6 +20423,13 @@ S:	Supported
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/staging.git
 F:	drivers/staging/
 
+STANDALONE CACHE CONTROLLER DRIVERS
+M:	Conor Dooley <conor@kernel.org>
+L:	linux-riscv@lists.infradead.org
+S:	Maintained
+T:	git https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux.git/
+F:	drivers/cache
+
 STARFIRE/DURALAN NETWORK DRIVER
 M:	Ion Badulescu <ionut@badula.org>
 S:	Odd Fixes
@@ -21250,7 +21268,7 @@ F:	sound/soc/ti/
 TEXAS INSTRUMENTS AUDIO (ASoC/HDA) DRIVERS
 M:	Shenghao Ding <shenghao-ding@ti.com>
 M:	Kevin Lu <kevin-lu@ti.com>
-M:	Baojun Xu <x1077012@ti.com>
+M:	Baojun Xu <baojun.xu@ti.com>
 L:	alsa-devel@alsa-project.org (moderated for non-subscribers)
 S:	Maintained
 F:	Documentation/devicetree/bindings/sound/tas2552.txt
