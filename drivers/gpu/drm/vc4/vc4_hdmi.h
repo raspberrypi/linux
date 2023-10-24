@@ -48,6 +48,10 @@ struct vc4_hdmi_variant {
 
 	/* The BCM2711 cannot deal with odd horizontal pixel timings */
 	bool unsupported_odd_h_timings;
+	/* The BCM2712 can handle odd horizontal pixel timings, but not in
+	 * interlaced modes
+	 */
+	bool unsupported_int_odd_h_timings;
 
 	/*
 	 * The BCM2711 CEC/hotplug IRQ controller is shared between the
