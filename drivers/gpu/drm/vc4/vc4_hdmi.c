@@ -1765,7 +1765,9 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 	unsigned long long tmds_char_rate = mode->clock * 1000;
 	unsigned long long tmds_bit_rate;
 
-	if (vc4_hdmi->variant->unsupported_odd_h_timings) {
+	if (vc4_hdmi->variant->unsupported_odd_h_timings ||
+	    (vc4_hdmi->variant->unsupported_int_odd_h_timings &&
+		(mode->flags & DRM_MODE_FLAG_INTERLACE))) {
 		if (mode->flags & DRM_MODE_FLAG_DBLCLK) {
 			/* Only try to fixup DBLCLK modes to get 480i and 576i
 			 * working.
@@ -3481,6 +3483,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= true,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3510,6 +3513,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 		PHY_LANE_2,
 	},
 	.unsupported_odd_h_timings	= true,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3539,6 +3543,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi0_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= false,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
@@ -3566,6 +3571,7 @@ static const struct vc4_hdmi_variant bcm2712_hdmi1_variant = {
 		PHY_LANE_CK,
 	},
 	.unsupported_odd_h_timings	= false,
+	.unsupported_int_odd_h_timings	= true,
 	.external_irq_controller	= true,
 
 	.init_resources		= vc5_hdmi_init_resources,
