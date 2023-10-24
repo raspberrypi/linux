@@ -378,7 +378,9 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 	bool is_dsi1 = vc4_encoder->type == VC4_ENCODER_TYPE_DSI1;
 	bool is_vec = vc4_encoder->type == VC4_ENCODER_TYPE_VEC;
 	u32 format = is_dsi1 ? PV_CONTROL_FORMAT_DSIV_24 : PV_CONTROL_FORMAT_24;
-	u8 ppc = pv_data->pixels_per_clock;
+	u8 ppc = (mode->flags & DRM_MODE_FLAG_INTERLACE) ?
+			pv_data->pixels_per_clock_int :
+			pv_data->pixels_per_clock;
 
 	u16 vert_bp = mode->crtc_vtotal - mode->crtc_vsync_end;
 	u16 vert_sync = mode->crtc_vsync_end - mode->crtc_vsync_start;
@@ -399,12 +401,6 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 
 	vc4_crtc_pixelvalve_reset(crtc);
 
-	/*
-	 * NOTE: The BCM2712 has a H_OTE (Horizontal Odd Timing Enable)
-	 * bit that, when set, will allow to specify the timings in
-	 * pixels instead of cycles, thus allowing to specify odd
-	 * timings.
-	 */
 	CRTC_WRITE(PV_HORZA,
 		   VC4_SET_FIELD((mode->htotal - mode->hsync_end) * pixel_rep / ppc,
 				 PV_HORZA_HBP) |
@@ -449,6 +445,8 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 		 */
 		CRTC_WRITE(PV_V_CONTROL,
 			   PV_VCONTROL_CONTINUOUS |
+			   (vc4->gen >= VC4_GEN_6 && ppc == 1 ?
+					PV_VCONTROL_ODD_TIMING : 0) |
 			   (is_dsi ? PV_VCONTROL_DSI : 0) |
 			   PV_VCONTROL_INTERLACE |
 			   (odd_field_first
@@ -460,6 +458,8 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc, struct drm_encoder *encode
 	} else {
 		CRTC_WRITE(PV_V_CONTROL,
 			   PV_VCONTROL_CONTINUOUS |
+			   (vc4->gen >= VC4_GEN_6 && ppc == 1 ?
+					PV_VCONTROL_ODD_TIMING : 0) |
 			   (is_dsi ? PV_VCONTROL_DSI : 0));
 		CRTC_WRITE(PV_VSYNCD_EVEN, 0);
 	}
@@ -1217,6 +1217,7 @@ const struct vc4_pv_data bcm2835_pv0_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DSI] = VC4_ENCODER_TYPE_DSI0,
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_DPI,
@@ -1232,6 +1233,7 @@ const struct vc4_pv_data bcm2835_pv1_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DSI] = VC4_ENCODER_TYPE_DSI1,
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_SMI,
@@ -1247,6 +1249,7 @@ const struct vc4_pv_data bcm2835_pv2_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI] = VC4_ENCODER_TYPE_HDMI0,
 		[PV_CONTROL_CLK_SELECT_VEC] = VC4_ENCODER_TYPE_VEC,
@@ -1262,6 +1265,7 @@ const struct vc4_pv_data bcm2711_pv0_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_DSI0,
 		[1] = VC4_ENCODER_TYPE_DPI,
@@ -1277,6 +1281,7 @@ const struct vc4_pv_data bcm2711_pv1_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_DSI1,
 		[1] = VC4_ENCODER_TYPE_SMI,
@@ -1292,6 +1297,7 @@ const struct vc4_pv_data bcm2711_pv2_data = {
 	},
 	.fifo_depth = 256,
 	.pixels_per_clock = 2,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI0,
 	},
@@ -1306,6 +1312,7 @@ const struct vc4_pv_data bcm2711_pv3_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 1,
 	.encoder_types = {
 		[PV_CONTROL_CLK_SELECT_VEC] = VC4_ENCODER_TYPE_VEC,
 	},
@@ -1320,6 +1327,7 @@ const struct vc4_pv_data bcm2711_pv4_data = {
 	},
 	.fifo_depth = 64,
 	.pixels_per_clock = 2,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI1,
 	},
@@ -1332,7 +1340,8 @@ const struct vc4_pv_data bcm2712_pv0_data = {
 		.hvs_output = 0,
 	},
 	.fifo_depth = 64,
-	.pixels_per_clock = 2,
+	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI0,
 	},
@@ -1345,7 +1354,8 @@ const struct vc4_pv_data bcm2712_pv1_data = {
 		.hvs_output = 1,
 	},
 	.fifo_depth = 64,
-	.pixels_per_clock = 2,
+	.pixels_per_clock = 1,
+	.pixels_per_clock_int = 2,
 	.encoder_types = {
 		[0] = VC4_ENCODER_TYPE_HDMI1,
 	},
