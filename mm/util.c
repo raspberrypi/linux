@@ -26,7 +26,7 @@
 #include <linux/page_size_compat.h>
 
 #include <linux/uaccess.h>
-
+#include <trace/hooks/mm.h>
 #include "internal.h"
 #include "swap.h"
 
@@ -619,6 +619,7 @@ void *kvmalloc_node(size_t size, gfp_t flags, int node)
 		/* nofail semantic is implemented by the vmalloc fallback */
 		kmalloc_flags &= ~__GFP_NOFAIL;
 	}
+	trace_android_vh_adjust_kvmalloc_flags(get_order(size), &kmalloc_flags);
 
 	ret = kmalloc_node(size, kmalloc_flags, node);
 
