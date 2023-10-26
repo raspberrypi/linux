@@ -274,6 +274,7 @@ _DB845C_MODULE_OUTS = [
     "sound/soc/codecs/snd-soc-max98927.ko",
     "sound/soc/codecs/snd-soc-rl6231.ko",
     "sound/soc/codecs/snd-soc-rt5663.ko",
+    "sound/soc/codecs/snd-soc-wcd-classh.ko",
     "sound/soc/codecs/snd-soc-wcd-mbhc.ko",
     "sound/soc/codecs/snd-soc-wcd9335.ko",
     "sound/soc/codecs/snd-soc-wcd934x.ko",
