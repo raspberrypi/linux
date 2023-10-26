@@ -697,7 +697,8 @@ static void vc4_hvs_schedule_dlist_sweep(struct vc4_hvs *hvs,
 	if (!list_empty(&hvs->stale_dlist_entries))
 		queue_work(system_unbound_wq, &hvs->free_dlist_work);
 
-	vc4_hvs_irq_clear_eof(hvs, channel);
+	if (list_empty(&hvs->stale_dlist_entries))
+		vc4_hvs_irq_clear_eof(hvs, channel);
 
 	spin_unlock_irqrestore(&hvs->mm_lock, flags);
 }
@@ -710,6 +711,27 @@ static void vc4_hvs_schedule_dlist_sweep(struct vc4_hvs *hvs,
 static bool vc4_hvs_frcnt_lte(u8 cnt1, u8 cnt2)
 {
 	return (s8)((cnt1 << 2) - (cnt2 << 2)) <= 0;
+}
+
+static bool vc4_hvs_check_channel_active(struct vc4_hvs *hvs, unsigned int fifo)
+{
+	struct vc4_dev *vc4 = hvs->vc4;
+	struct drm_device *drm = &vc4->base;
+	bool enabled = false;
+	int idx;
+
+	WARN_ON_ONCE(vc4->gen > VC4_GEN_6);
+
+	if (!drm_dev_enter(drm, &idx))
+		return 0;
+
+	if (vc4->gen >= VC4_GEN_6)
+		enabled = HVS_READ(SCALER6_DISPX_CTRL0(fifo)) & SCALER6_DISPX_CTRL0_ENB;
+	else
+		enabled = HVS_READ(SCALER_DISPCTRLX(fifo)) & SCALER_DISPCTRLX_ENABLE;
+
+	drm_dev_exit(idx);
+	return enabled;
 }
 
 /*
@@ -746,7 +768,8 @@ static void vc4_hvs_dlist_free_work(struct work_struct *work)
 		u8 frcnt;
 
 		frcnt = vc4_hvs_get_fifo_frame_count(hvs, cur->channel);
-		if (!vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
+		if (vc4_hvs_check_channel_active(hvs, cur->channel) &&
+		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
 			continue;
 
 		vc4_hvs_free_dlist_entry_locked(hvs, cur);
