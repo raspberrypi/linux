@@ -661,6 +661,8 @@ static void vc4_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	vc4_crtc_disable(crtc, encoder, state, old_vc4_state->assigned_channel);
 
+	vc4_hvs_atomic_disable(crtc, state);
+
 	/*
 	 * Make sure we issue a vblank event after disabling the CRTC if
 	 * someone was waiting it.
