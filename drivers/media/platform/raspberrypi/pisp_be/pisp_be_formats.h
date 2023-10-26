@@ -457,6 +457,11 @@ static const struct pisp_be_format supported_formats[] = {
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
 		.colorspace_default = V4L2_COLORSPACE_RAW,
 	},
+	/* Opaque BE format for HW verification. */
+	{
+		.fourcc		    = V4L2_PIX_FMT_RPI_BE,
+		.align		    = 32,
+	},
 };
 
 static const struct pisp_be_format meta_out_supported_formats[] = {
