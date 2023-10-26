@@ -19,11 +19,12 @@
         <option name="cleanup" value="true" />
         <option name="push-file" key="selftests" value="/data/selftests" />
         <option name="skip-abi-filtering" value="true" />
+        <option name="post-push" value='chmod -R 755 /data/selftests; find /data/selftests; -type f | xargs grep -l -e "bin/sh" -e "bin/bash" | xargs sed -i -e "s?/bin/echo?echo?" -i -e "s?#!/bin/sh?#!/system/bin/sh?" -i -e "s?#!/bin/bash?#!/system/bin/sh?" || echo "There were no files to process"' />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.binary.ExecutableTargetTest" >
-        <option name="test-command-line" key="kselftest_binderfs_test" value="chmod 755 /data/selftests/x86_64/kselftest_binderfs_test;/data/selftests/x86_64/kselftest_binderfs_test;" />
-        <option name="test-command-line" key="kselftest_breakpoints_tests_breakpoint_test" value="chmod 755 /data/selftests/x86_64/kselftest_breakpoints_tests_breakpoint_test;/data/selftests/x86_64/kselftest_breakpoints_tests_breakpoint_test;" />
-        <option name="test-command-line" key="kselftest_breakpoints_tests_step_after_suspend_test" value="chmod 755 /data/selftests/x86_64/kselftest_breakpoints_tests_step_after_suspend_test;/data/selftests/x86_64/kselftest_breakpoints_tests_step_after_suspend_test;" />
+        <option name="test-command-line" key="kselftest_binderfs_test" value="/data/selftests/x86_64/kselftest_binderfs_test" />
+        <option name="test-command-line" key="kselftest_breakpoints_tests_breakpoint_test" value="/data/selftests/x86_64/kselftest_breakpoints_tests_breakpoint_test" />
+        <option name="test-command-line" key="kselftest_breakpoints_tests_step_after_suspend_test" value="/data/selftests/x86_64/kselftest_breakpoints_tests_step_after_suspend_test" />
     </test>
 </configuration>
