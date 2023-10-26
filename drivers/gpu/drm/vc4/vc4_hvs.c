@@ -1005,10 +1005,6 @@ static void __vc4_hvs_stop_channel(struct vc4_hvs *hvs, unsigned int chan)
 				   SCALER_DISPSTATX_MODE) !=
 		     SCALER_DISPSTATX_MODE_DISABLED);
 
-	WARN_ON_ONCE((HVS_READ(SCALER_DISPSTATX(chan)) &
-		      (SCALER_DISPSTATX_FULL | SCALER_DISPSTATX_EMPTY)) !=
-		     SCALER_DISPSTATX_EMPTY);
-
 out:
 	drm_dev_exit(idx);
 }
