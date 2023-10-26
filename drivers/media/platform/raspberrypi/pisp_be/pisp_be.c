@@ -1230,8 +1230,11 @@ static int try_format(struct v4l2_format *f, struct pispbe_node *node)
 		return verify_be_pix_format(f, node);
 
 	fmt = find_format(pixfmt);
-	if (!fmt)
-		fmt = find_format(V4L2_PIX_FMT_YUV420M);
+	if (!fmt) {
+		dev_dbg(pispbe->dev, "%s: [%s] Format not found, defaulting to YUV420\n",
+			__func__, NODE_NAME(node));
+		fmt = find_format(V4L2_PIX_FMT_YUV420);
+	}
 
 	f->fmt.pix_mp.pixelformat = fmt->fourcc;
 	f->fmt.pix_mp.num_planes = fmt->num_planes;
@@ -1576,7 +1579,7 @@ static void node_set_default_format(struct pispbe_node *node)
 	} else {
 		struct v4l2_format f = {0};
 
-		f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUV420M;
+		f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUV420;
 		f.fmt.pix_mp.width = 1920;
 		f.fmt.pix_mp.height = 1080;
 		f.type = node->buf_type;
