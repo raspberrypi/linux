@@ -347,6 +347,36 @@ static int vc5_hvs_debugfs_gamma(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int vc4_hvs_debugfs_dlist_allocs(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	struct vc4_hvs_dlist_allocation *cur, *next;
+	struct drm_mm_node *mm_node;
+	unsigned long flags;
+
+	spin_lock_irqsave(&hvs->mm_lock, flags);
+
+	drm_printf(&p, "Allocated nodes:\n");
+	list_for_each_entry(mm_node, drm_mm_nodes(&hvs->dlist_mm), node_list) {
+		drm_printf(&p, "node [%08llx + %08llx]\n", mm_node->start, mm_node->size);
+	}
+
+	drm_printf(&p, "Stale nodes:\n");
+	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
+		drm_printf(&p, "node [%08llx + %08llx] channel %u frcnt %u\n",
+			   cur->mm_node.start, cur->mm_node.size, cur->channel,
+			   cur->target_frame_count);
+	}
+
+	spin_unlock_irqrestore(&hvs->mm_lock, flags);
+
+	return 0;
+}
+
 /* The filter kernel is composed of dwords each containing 3 9-bit
  * signed integers packed next to each other.
  */
@@ -1595,6 +1625,8 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 		drm_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist, NULL);
 
 	drm_debugfs_add_file(drm, "hvs_underrun", vc4_hvs_debugfs_underrun, NULL);
+
+	drm_debugfs_add_file(drm, "hvs_dlist_allocs", vc4_hvs_debugfs_dlist_allocs, NULL);
 
 	vc4_debugfs_add_regset32(drm, "hvs_regs", &hvs->regset);
 
