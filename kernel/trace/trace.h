@@ -1656,6 +1656,9 @@ extern void event_trigger_unregister(struct event_command *cmd_ops,
 				     char *glob,
 				     struct event_trigger_data *trigger_data);
 
+extern void event_file_get(struct trace_event_file *file);
+extern void event_file_put(struct trace_event_file *file);
+
 /**
  * struct event_trigger_ops - callbacks for trace event triggers
  *
