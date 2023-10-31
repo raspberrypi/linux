@@ -224,8 +224,6 @@ static int c_show(struct seq_file *m, void *v)
 		seq_printf(m, "CPU revision\t: %d\n\n", MIDR_REVISION(midr));
 	}
 
-	seq_printf(m, "Hardware\t: BCM2835\n");
-
 	np = of_find_node_by_path("/system");
 	if (np) {
 		if (!of_property_read_u32(np, "linux,revision", &revision))
