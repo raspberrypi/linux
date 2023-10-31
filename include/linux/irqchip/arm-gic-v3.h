@@ -656,6 +656,10 @@ static inline bool gic_enable_sre(void)
 	return !!(val & ICC_SRE_EL1_SRE);
 }
 
+void gic_v3_dist_init(void);
+void gic_v3_cpu_init(void);
+void gic_v3_dist_wait_for_rwp(void);
+
 #endif
 
 #endif
