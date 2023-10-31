@@ -659,7 +659,8 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 				 dlist_count);
 	spin_unlock_irqrestore(&hvs->mm_lock, flags);
 	if (ret) {
-		drm_err(dev, "Failed to allocate DLIST entry: %d\n", ret);
+		drm_err(dev, "Failed to allocate DLIST entry. Requested size=%zu. ret=%d\n",
+			dlist_count, ret);
 		return ERR_PTR(ret);
 	}
 
