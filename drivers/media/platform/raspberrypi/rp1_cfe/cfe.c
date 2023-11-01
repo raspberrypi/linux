@@ -780,7 +780,8 @@ static void cfe_start_channel(struct cfe_node *node)
 			__func__, node_desc[FE_OUT0].name,
 			cfe->fe_csi2_channel);
 
-		source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state, cfe->fe_csi2_channel);
+		source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state,
+							cfe->fe_csi2_channel);
 		fmt = find_format_by_code(source_fmt->code);
 
 		width = source_fmt->width;
@@ -982,6 +983,59 @@ static void cfe_buffer_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&cfe->state_lock, flags);
 }
 
+static u64 sensor_link_frequency(struct cfe_device *cfe)
+{
+	struct v4l2_mbus_framefmt *source_fmt;
+	struct v4l2_subdev_state *state;
+	struct media_entity *entity;
+	struct v4l2_subdev *subdev;
+	const struct cfe_fmt *fmt;
+	struct media_pad *pad;
+	s64 link_freq;
+
+	state = v4l2_subdev_lock_and_get_active_state(&cfe->csi2.sd);
+	source_fmt = v4l2_subdev_get_pad_format(&cfe->csi2.sd, state, 0);
+	fmt = find_format_by_code(source_fmt->code);
+	v4l2_subdev_unlock_state(state);
+
+	/*
+	 * Walk up the media graph to find either the sensor entity, or another
+	 * entity that advertises the V4L2_CID_LINK_FREQ or V4L2_CID_PIXEL_RATE
+	 * control through the subdev.
+	 */
+	entity = &cfe->csi2.sd.entity;
+	while (1) {
+		pad = &entity->pads[0];
+		if (!(pad->flags & MEDIA_PAD_FL_SINK))
+			goto err;
+
+		pad = media_pad_remote_pad_first(pad);
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+			goto err;
+
+		entity = pad->entity;
+		subdev = media_entity_to_v4l2_subdev(entity);
+		if (entity->function == MEDIA_ENT_F_CAM_SENSOR ||
+		    v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_LINK_FREQ) ||
+		    v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_PIXEL_RATE))
+			break;
+	}
+
+	link_freq = v4l2_get_link_freq(subdev->ctrl_handler, fmt->depth,
+				       cfe->csi2.active_data_lanes * 2);
+	if (link_freq < 0)
+		goto err;
+
+	/* x2 for DDR. */
+	link_freq *= 2;
+	cfe_info("Using a link frequency of %lld Hz\n", link_freq);
+	return link_freq;
+
+err:
+	cfe_err("Unable to determine sensor link frequency, using 999 MHz\n");
+	return 999 * 1000000UL;
+}
+
 static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct v4l2_mbus_config mbus_config = { 0 };
@@ -1049,10 +1103,11 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_disable_cfe;
 	}
 
-	cfe_dbg("Starting sensor streaming\n");
-
+	cfe_dbg("Configuring CSI-2 block\n");
+	cfe->csi2.dphy.dphy_freq = sensor_link_frequency(cfe) / 1000000UL;
 	csi2_open_rx(&cfe->csi2);
 
+	cfe_dbg("Starting sensor streaming\n");
 	cfe->sequence = 0;
 	ret = v4l2_subdev_call(cfe->sensor, video, s_stream, 1);
 	if (ret < 0) {
@@ -1945,8 +2000,6 @@ static int of_cfe_connect_subdevs(struct cfe_device *cfe)
 		}
 	}
 
-	/* TODO: Get the frequency from devicetree */
-	cfe->csi2.dphy.dphy_freq = 999;
 	cfe->csi2.dphy.num_lanes = ep.bus.mipi_csi2.num_data_lanes;
 	cfe->csi2.bus_flags = ep.bus.mipi_csi2.flags;
 
