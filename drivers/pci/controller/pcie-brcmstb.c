@@ -336,6 +336,7 @@ struct brcm_pcie {
 	struct device_node	*np;
 	bool			ssc;
 	bool			l1ss;
+	bool			rcb_mps_mode;
 	int			gen;
 	u64			msi_target_addr;
 	struct brcm_msi		*msi;
@@ -1196,14 +1197,14 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 
 	/*
 	 * Set SCB_MAX_BURST_SIZE, CFG_READ_UR_MODE, SCB_ACCESS_EN,
-	 * RCB_MPS_MODE, RCB_64B_MODE
+	 * RCB_MPS_MODE
 	 */
 	tmp = readl(base + PCIE_MISC_MISC_CTRL);
 	u32p_replace_bits(&tmp, 1, PCIE_MISC_MISC_CTRL_SCB_ACCESS_EN_MASK);
 	u32p_replace_bits(&tmp, 1, PCIE_MISC_MISC_CTRL_CFG_READ_UR_MODE_MASK);
 	u32p_replace_bits(&tmp, burst, PCIE_MISC_MISC_CTRL_MAX_BURST_SIZE_MASK);
-	u32p_replace_bits(&tmp, 1, PCIE_MISC_MISC_CTRL_PCIE_RCB_MPS_MODE_MASK);
-	u32p_replace_bits(&tmp, 1, PCIE_MISC_MISC_CTRL_PCIE_RCB_64B_MODE_MASK);
+	if (pcie->rcb_mps_mode)
+		u32p_replace_bits(&tmp, 1, PCIE_MISC_MISC_CTRL_PCIE_RCB_MPS_MODE_MASK);
 	writel(tmp, base + PCIE_MISC_MISC_CTRL);
 
 	brcm_pcie_set_tc_qos(pcie);
@@ -1917,6 +1918,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 
 	pcie->ssc = of_property_read_bool(np, "brcm,enable-ssc");
 	pcie->l1ss = of_property_read_bool(np, "brcm,enable-l1ss");
+	pcie->rcb_mps_mode = of_property_read_bool(np, "brcm,enable-mps-rcb");
 
 	ret = clk_prepare_enable(pcie->clk);
 	if (ret) {
