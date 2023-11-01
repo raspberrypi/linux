@@ -160,6 +160,7 @@
 };
 
 rp1_target: &pcie2 {
+	brcm,enable-mps-rcb;
 	brcm,vdm-qos-map = <0xbbaa9888>;
 	aspm-no-l0s;
 	status = "okay";
