@@ -450,6 +450,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_blocked_fair,
 	TP_PROTO(struct rq *rq),
 	TP_ARGS(rq), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_update_load_sum,
+	TP_PROTO(struct sched_avg *sa, u64 *delta, unsigned int *sched_pelt_lshift),
+	TP_ARGS(sa, delta, sched_pelt_lshift), 1);
+
 struct sched_attr;
 
 DECLARE_HOOK(android_vh_set_sugov_sched_attr,
