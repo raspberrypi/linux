@@ -187,7 +187,7 @@
 			interrupts = <RP1_INT_SPI1 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			clock-names = "ssi_clk";
-			#address-cells = <0>;
+			#address-cells = <1>;
 			#size-cells = <0>;
 			num-cs = <2>;
 			dmas = <&rp1_dma RP1_DMA_SPI1_TX>,
@@ -259,6 +259,21 @@
 			num-cs = <2>;
 			dmas = <&rp1_dma RP1_DMA_SPI5_TX>,
 			       <&rp1_dma RP1_DMA_SPI5_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi6: spi@68000 {
+			reg = <0xc0 0x40068000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI6 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI6_TX>,
+			       <&rp1_dma RP1_DMA_SPI6_RX>;
 			dma-names = "tx", "rx";
 			status = "disabled";
 		};
