@@ -8,6 +8,7 @@
 		target = <&uart4>;
 		frag0: __overlay__ {
 			status = "okay";
+			pinctrl-0 = <&uart4_pins>;
 		};
 	};
 
