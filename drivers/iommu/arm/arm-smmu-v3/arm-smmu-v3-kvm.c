@@ -39,6 +39,7 @@ struct kvm_arm_smmu_domain {
 	struct arm_smmu_device		*smmu;
 	struct mutex			init_mutex;
 	pkvm_handle_t			id;
+	unsigned long			type;
 };
 
 #define to_kvm_smmu_domain(_domain) \
@@ -207,14 +208,22 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 			      GFP_KERNEL);
 	if (ret < 0)
 		return ret;
+
 	kvm_smmu_domain->id = ret;
 
+	/* Default to stage-1. */
+	if (smmu->features & ARM_SMMU_FEAT_TRANS_S1) {
+		kvm_smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S1;
+		kvm_smmu_domain->domain.pgsize_bitmap = host_smmu->pgsize_bitmap_s1;
+	} else {
+		kvm_smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
+		kvm_smmu_domain->domain.pgsize_bitmap = host_smmu->pgsize_bitmap_s2;
+	}
 	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
-				   kvm_smmu_domain->id, KVM_ARM_SMMU_DOMAIN_S2);
+				   kvm_smmu_domain->id, kvm_smmu_domain->type);
 	if (ret)
 		return ret;
 
-	kvm_smmu_domain->domain.pgsize_bitmap = host_smmu->pgsize_bitmap_s2;
 	kvm_smmu_domain->domain.geometry.aperture_end = (1UL << smmu->ias) - 1;
 	kvm_smmu_domain->domain.geometry.force_aperture = true;
 	kvm_smmu_domain->smmu = smmu;
@@ -400,7 +409,6 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 static bool kvm_arm_smmu_validate_features(struct arm_smmu_device *smmu)
 {
 	unsigned int required_features =
-		ARM_SMMU_FEAT_TRANS_S2 |
 		ARM_SMMU_FEAT_TT_LE;
 	unsigned int forbidden_features =
 		ARM_SMMU_FEAT_STALL_FORCE;
