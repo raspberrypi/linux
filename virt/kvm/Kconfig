@@ -93,5 +93,3 @@ config HAVE_KVM_PM_NOTIFIER
 config KVM_GENERIC_HARDWARE_ENABLING
        bool
 
-config KVM_IOMMU
-       bool

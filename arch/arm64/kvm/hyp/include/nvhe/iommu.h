@@ -22,7 +22,6 @@ static inline int kvm_arm_smmu_v3_register(void)
 }
 #endif /* CONFIG_ARM_SMMU_V3_PKVM */
 
-#if IS_ENABLED(CONFIG_KVM_IOMMU)
 int kvm_iommu_init(void);
 int kvm_iommu_init_device(struct kvm_hyp_iommu *iommu);
 void *kvm_iommu_donate_page(void);
@@ -43,57 +42,6 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			     unsigned long iova, size_t pgsize, size_t pgcount);
 phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
 				   pkvm_handle_t domain_id, unsigned long iova);
-#else /* !CONFIG_KVM_IOMMU */
-static inline int kvm_iommu_alloc_domain(pkvm_handle_t iommu_id,
-					 pkvm_handle_t domain_id,
-					 unsigned long pgd_hva)
-{
-	return -ENODEV;
-}
-
-static inline int kvm_iommu_free_domain(pkvm_handle_t iommu_id,
-					pkvm_handle_t domain_id)
-{
-	return -ENODEV;
-}
-
-static inline int kvm_iommu_attach_dev(pkvm_handle_t iommu_id,
-				       pkvm_handle_t domain_id,
-				       u32 endpoint_id)
-{
-	return -ENODEV;
-}
-
-static inline int kvm_iommu_detach_dev(pkvm_handle_t iommu_id,
-				       pkvm_handle_t domain_id,
-				       u32 endpoint_id)
-{
-	return -ENODEV;
-}
-
-static inline size_t kvm_iommu_map_pages(pkvm_handle_t iommu_id,
-					 pkvm_handle_t domain_id,
-					 unsigned long iova, phys_addr_t paddr,
-					 size_t pgsize, size_t pgcount, int prot)
-{
-	return 0;
-}
-
-static inline size_t kvm_iommu_unmap_pages(pkvm_handle_t iommu_id,
-					   pkvm_handle_t domain_id,
-					   unsigned long iova, size_t pgsize,
-					   size_t pgcount)
-{
-	return 0;
-}
-
-static inline phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t iommu_id,
-						 pkvm_handle_t domain_id,
-						 unsigned long iova)
-{
-	return 0;
-}
-#endif /* CONFIG_KVM_IOMMU */
 
 struct kvm_iommu_ops {
 	int (*init)(void);

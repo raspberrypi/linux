@@ -415,7 +415,6 @@ config ARM_SMMU_V3_SVA
 config ARM_SMMU_V3_PKVM
 	bool "ARM SMMUv3 support for protected Virtual Machines"
 	depends on KVM && ARM64
-	select KVM_IOMMU
 	help
 	  Enable a SMMUv3 driver in the KVM hypervisor, to protect VMs against
 	  memory accesses from devices owned by the host.
