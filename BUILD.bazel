@@ -539,6 +539,10 @@ kernel_build(
     # Otherwise, Bazel thinks that there are no output files, and skip building.
     outs = [".config"],
     build_config = "build.config.allmodconfig.aarch64",
+    make_goals = [
+        "Image",
+        "modules",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -551,6 +555,10 @@ kernel_build(
     outs = [".config"],
     arch = "x86_64",
     build_config = "build.config.allmodconfig.x86_64",
+    make_goals = [
+        "bzImage",
+        "modules",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -564,6 +572,10 @@ kernel_build(
     outs = [".config"],
     arch = "arm",
     build_config = "build.config.allmodconfig.arm",
+    make_goals = [
+        "zImage",
+        "modules",
+    ],
     visibility = ["//visibility:private"],
 )
 
