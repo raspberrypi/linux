@@ -594,51 +594,10 @@ static struct kvm_hyp_iommu *smmu_id_to_iommu(pkvm_handle_t smmu_id)
 	return &kvm_hyp_arm_smmu_v3_smmus[smmu_id].iommu;
 }
 
-int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
+int smmu_domain_config_s2(struct kvm_hyp_iommu_domain *domain, u64 *ent)
 {
-	int ret;
-	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
-	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
-
-	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
-						   domain, &ret);
-
-	return ret;
-}
-
-static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
-			   u32 sid, u32 pasid, u32 pasid_bits)
-{
-	int i;
-	int ret = -EINVAL;
-	u64 *dst;
 	struct io_pgtable_cfg *cfg;
 	u64 ts, sl, ic, oc, sh, tg, ps;
-	u64 ent[STRTAB_STE_DWORDS] = {};
-	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
-	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
-
-	hyp_spin_lock(&iommu->lock);
-	dst = smmu_get_ste_ptr(smmu, sid);
-	if (!dst || dst[0])
-		goto out_unlock;
-
-	/*
-	 * First attach to the domain, this is over protected by the all domain locks,
-	 * as there is no per-domain lock now, this can be improved later.
-	 * However, as this operation is not on the hot path, it should be fine.
-	 */
-	if (!domain->pgtable) {
-		smmu_domain->iommu = iommu;
-		ret = smmu_domain_finalise(domain);
-		if (ret)
-			goto out_unlock;
-	}
-
-	if (smmu_domain->iommu != iommu) {
-		ret = -EBUSY;
-		goto out_unlock;
-	}
 
 	cfg = &domain->pgtable->cfg;
 	ps = cfg->arm_lpae_s2_cfg.vtcr.ps;
@@ -664,6 +623,61 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		 STRTAB_STE_2_S2AA64 | STRTAB_STE_2_S2R;
 	ent[3] = cfg->arm_lpae_s2_cfg.vttbr & STRTAB_STE_3_S2TTB_MASK;
 
+	return 0;
+}
+
+int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
+{
+	int ret;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(smmu_domain->iommu);
+
+	domain->pgtable = kvm_arm_io_pgtable_alloc(&smmu->pgtable_cfg,
+						   domain, &ret);
+
+	return ret;
+}
+
+static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_domain *domain,
+			   u32 sid, u32 pasid, u32 pasid_bits)
+{
+	int i;
+	int ret = -EINVAL;
+	u64 *dst;
+	u64 ent[STRTAB_STE_DWORDS] = {};
+	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+
+	hyp_spin_lock(&iommu->lock);
+	dst = smmu_get_ste_ptr(smmu, sid);
+	if (!dst)
+		goto out_unlock;
+
+	/*
+	 * First attach to the domain, this is over protected by the all domain locks,
+	 * as there is no per-domain lock now, this can be improved later.
+	 * However, as this operation is not on the hot path, it should be fine.
+	 */
+	if (!domain->pgtable) {
+		smmu_domain->iommu = iommu;
+		ret = smmu_domain_finalise(domain);
+		if (ret)
+			goto out_unlock;
+	}
+
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2) {
+		/* Device already attached or pasid for s2. */
+		if (dst[0]  || pasid) {
+			ret = -EBUSY;
+			goto out_unlock;
+		}
+		ret = smmu_domain_config_s2(domain, ent);
+	} else {
+		ret = -ENODEV;
+		goto out_unlock;
+	}
+	if (ret)
+		goto out_unlock;
 	/*
 	 * The SMMU may cache a disabled STE.
 	 * Initialize all fields, sync, then enable it.
