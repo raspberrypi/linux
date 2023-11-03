@@ -688,6 +688,80 @@ int smmu_domain_config_s2(struct kvm_hyp_iommu_domain *domain, u64 *ent)
 	return 0;
 }
 
+int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
+			  struct kvm_hyp_iommu_domain *domain,
+			  u32 sid, u32 pasid, u32 pasid_bits,
+			  u64 *ent, bool *update_ste)
+{
+	u64 *cd_table;
+	u64 *ste;
+	u32 nr_entries;
+	u64 val;
+	u64 *cd_entry;
+	struct io_pgtable_cfg *cfg;
+
+	cfg = &domain->pgtable->cfg;
+	ste = smmu_get_ste_ptr(smmu, sid);
+	val = le64_to_cpu(ste[0]);
+
+	/* The host trying to attach stage-1 domain to an already stage-2 attached device. */
+	if (FIELD_GET(STRTAB_STE_0_CFG, val) == STRTAB_STE_0_CFG_S2_TRANS)
+		return -EBUSY;
+
+	cd_table = (u64 *)(FIELD_GET(STRTAB_STE_0_S1CTXPTR_MASK, val) << 6);
+	nr_entries = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX, val);
+	*update_ste = false;
+	/* This is the first pasid attached to this device. */
+	if (!cd_table) {
+		cd_table = smmu_alloc_cd(pasid_bits);
+		if (!cd_table)
+			return -ENOMEM;
+		nr_entries = 1 << pasid_bits;
+		ent[1] = FIELD_PREP(STRTAB_STE_1_S1DSS, STRTAB_STE_1_S1DSS_SSID0) |
+			 FIELD_PREP(STRTAB_STE_1_S1CIR, STRTAB_STE_1_S1C_CACHE_WBRA) |
+			 FIELD_PREP(STRTAB_STE_1_S1COR, STRTAB_STE_1_S1C_CACHE_WBRA) |
+			 FIELD_PREP(STRTAB_STE_1_S1CSH, ARM_SMMU_SH_ISH);
+		ent[0] = ((u64)cd_table & STRTAB_STE_0_S1CTXPTR_MASK) |
+			 FIELD_PREP(STRTAB_STE_0_CFG, STRTAB_STE_0_CFG_S1_TRANS) |
+			 FIELD_PREP(STRTAB_STE_0_S1CDMAX, pasid_bits) |
+			 FIELD_PREP(STRTAB_STE_0_S1FMT, STRTAB_STE_0_S1FMT_LINEAR) |
+			 STRTAB_STE_0_V;
+		*update_ste = true;
+	}
+
+	if (pasid >= nr_entries)
+		return -E2BIG;
+	/* Write CD. */
+	cd_entry = smmu_get_cd_ptr(hyp_phys_to_virt((u64)cd_table), pasid);
+
+	/* CD already used by another device. */
+	if (cd_entry[0])
+		return -EBUSY;
+
+	cd_entry[1] = cpu_to_le64(cfg->arm_lpae_s1_cfg.ttbr & CTXDESC_CD_1_TTB0_MASK);
+	cd_entry[2] = 0;
+	cd_entry[3] = cpu_to_le64(cfg->arm_lpae_s1_cfg.mair);
+	/* STE is live. */
+	if (!(*update_ste))
+		smmu_sync_cd(smmu, sid, pasid);
+	val =  FIELD_PREP(CTXDESC_CD_0_TCR_T0SZ, cfg->arm_lpae_s1_cfg.tcr.tsz) |
+	       FIELD_PREP(CTXDESC_CD_0_TCR_TG0, cfg->arm_lpae_s1_cfg.tcr.tg) |
+	       FIELD_PREP(CTXDESC_CD_0_TCR_IRGN0, cfg->arm_lpae_s1_cfg.tcr.irgn) |
+	       FIELD_PREP(CTXDESC_CD_0_TCR_ORGN0, cfg->arm_lpae_s1_cfg.tcr.orgn) |
+	       FIELD_PREP(CTXDESC_CD_0_TCR_SH0, cfg->arm_lpae_s1_cfg.tcr.sh) |
+	       FIELD_PREP(CTXDESC_CD_0_TCR_IPS, cfg->arm_lpae_s1_cfg.tcr.ips) |
+	       CTXDESC_CD_0_TCR_EPD1 | CTXDESC_CD_0_AA64 |
+	       CTXDESC_CD_0_R | CTXDESC_CD_0_A |
+	       CTXDESC_CD_0_ASET |
+	       FIELD_PREP(CTXDESC_CD_0_ASID, domain->domain_id) |
+	       CTXDESC_CD_0_V;
+	WRITE_ONCE(cd_entry[0], cpu_to_le64(val));
+	/* STE is live. */
+	if (!(*update_ste))
+		smmu_sync_cd(smmu, sid, pasid);
+	return 0;
+}
+
 int smmu_domain_finalise(struct kvm_hyp_iommu_domain *domain)
 {
 	int ret;
@@ -714,6 +788,7 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	u64 ent[STRTAB_STE_DWORDS] = {};
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	bool update_ste = true; /* Some S1 attaches might not update STE. */
 
 	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
@@ -740,10 +815,18 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		}
 		ret = smmu_domain_config_s2(domain, ent);
 	} else {
-		ret = -ENODEV;
-		goto out_unlock;
+		/*
+		 * One drawback to this is that the first attach to this sid dictates
+		 * how many pasid bits needed as we don't relocated CDs.
+		 */
+		pasid_bits = min(pasid_bits, smmu->ssid_bits);
+		ret = smmu_domain_config_s1(smmu, domain, sid, pasid, pasid_bits,
+					    ent, &update_ste);
 	}
 	if (ret)
+		goto out_unlock;
+
+	if (!update_ste)
 		goto out_unlock;
 	/*
 	 * The SMMU may cache a disabled STE.
