@@ -153,6 +153,9 @@ static int smmu_add_cmd(struct hyp_arm_smmu_v3_device *smmu,
 	case CMDQ_OP_CFGI_ALL:
 		cmd[1] |= FIELD_PREP(CMDQ_CFGI_1_RANGE, 31);
 		break;
+	case CMDQ_OP_CFGI_CD:
+		cmd[0] |= FIELD_PREP(CMDQ_CFGI_0_SSID, ent->cfgi.ssid);
+		fallthrough;
 	case CMDQ_OP_CFGI_STE:
 		cmd[0] |= FIELD_PREP(CMDQ_CFGI_0_SID, ent->cfgi.sid);
 		cmd[1] |= FIELD_PREP(CMDQ_CFGI_1_LEAF, ent->cfgi.leaf);
@@ -239,6 +242,19 @@ static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 	return smmu_send_cmd(smmu, &cmd);
 }
 
+static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u32 sid, u32 ssid)
+{
+	struct arm_smmu_cmdq_ent cmd = {
+		.opcode = CMDQ_OP_CFGI_CD,
+		.cfgi.sid	= sid,
+		.cfgi.ssid	= ssid,
+		.cfgi.leaf = true,
+	};
+	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
+		return 0;
+	return smmu_send_cmd(smmu, &cmd);
+}
+
 static int smmu_alloc_l2_strtab(struct hyp_arm_smmu_v3_device *smmu, u32 idx)
 {
 	void *table;
@@ -299,6 +315,26 @@ static u64 *smmu_get_ste_ptr(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 
 	base = hyp_phys_to_virt(l1std & STRTAB_L1_DESC_L2PTR_MASK);
 	return base + idx * STRTAB_STE_DWORDS;
+}
+
+static u64 *smmu_get_cd_ptr(u64 *cdtab, u32 ssid)
+{
+	/* Assume linear for now. */
+	return cdtab + ssid * CTXDESC_CD_DWORDS;
+}
+
+static u64 *smmu_alloc_cd(u32 pasid_bits)
+{
+	u64 *cd_table;
+	u32 requested_order  = get_order((1 << pasid_bits) * (CTXDESC_CD_DWORDS << 3));
+
+	/* We support max of 64K linear tables only, this should be enough for 128 pasids */
+	BUG_ON(requested_order > 4);
+
+	cd_table = kvm_iommu_donate_pages(requested_order, true);
+	if (!cd_table)
+		return NULL;
+	return (u64 *)hyp_virt_to_phys(cd_table);
 }
 
 static int smmu_init_registers(struct hyp_arm_smmu_v3_device *smmu)
