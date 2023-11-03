@@ -1142,10 +1142,10 @@ struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *vma)
  */
 static inline unsigned long round_hint_to_min(unsigned long hint)
 {
-	hint &= PAGE_MASK;
+	hint &= __PAGE_MASK;
 	if (((void *)hint != NULL) &&
 	    (hint < mmap_min_addr))
-		return PAGE_ALIGN(mmap_min_addr);
+		return __PAGE_ALIGN(mmap_min_addr);
 	return hint;
 }
 
