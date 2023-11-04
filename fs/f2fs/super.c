@@ -2319,9 +2319,9 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 	unsigned long old_sb_flags;
 	int err;
 	bool need_restart_gc = false, need_stop_gc = false;
-	bool need_restart_ckpt = false, need_stop_ckpt = false;
 	bool need_restart_flush = false, need_stop_flush = false;
 	bool need_restart_discard = false, need_stop_discard = false;
+	bool need_enable_checkpoint = false, need_disable_checkpoint = false;
 	bool no_read_extent_cache = !test_opt(sbi, READ_EXTENT_CACHE);
 	bool no_age_extent_cache = !test_opt(sbi, AGE_EXTENT_CACHE);
 	bool enable_checkpoint = !test_opt(sbi, DISABLE_CHECKPOINT);
@@ -2485,24 +2485,6 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 		clear_sbi_flag(sbi, SBI_IS_CLOSE);
 	}
 
-	if ((*flags & SB_RDONLY) || test_opt(sbi, DISABLE_CHECKPOINT) ||
-			!test_opt(sbi, MERGE_CHECKPOINT)) {
-		f2fs_stop_ckpt_thread(sbi);
-		need_restart_ckpt = true;
-	} else {
-		/* Flush if the prevous checkpoint, if exists. */
-		f2fs_flush_ckpt_thread(sbi);
-
-		err = f2fs_start_ckpt_thread(sbi);
-		if (err) {
-			f2fs_err(sbi,
-			    "Failed to start F2FS issue_checkpoint_thread (%d)",
-			    err);
-			goto restore_gc;
-		}
-		need_stop_ckpt = true;
-	}
-
 	/*
 	 * We stop issue flush thread if FS is mounted as RO
 	 * or if flush_merge is not passed in mount option.
@@ -2514,7 +2496,7 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 	} else {
 		err = f2fs_create_flush_cmd_control(sbi);
 		if (err)
-			goto restore_ckpt;
+			goto restore_gc;
 		need_stop_flush = true;
 	}
 
@@ -2536,8 +2518,31 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 			err = f2fs_disable_checkpoint(sbi);
 			if (err)
 				goto restore_discard;
+			need_enable_checkpoint = true;
 		} else {
 			f2fs_enable_checkpoint(sbi);
+			need_disable_checkpoint = true;
+		}
+	}
+
+	/*
+	 * Place this routine at the end, since a new checkpoint would be
+	 * triggered while remount and we need to take care of it before
+	 * returning from remount.
+	 */
+	if ((*flags & SB_RDONLY) || test_opt(sbi, DISABLE_CHECKPOINT) ||
+			!test_opt(sbi, MERGE_CHECKPOINT)) {
+		f2fs_stop_ckpt_thread(sbi);
+	} else {
+		/* Flush if the prevous checkpoint, if exists. */
+		f2fs_flush_ckpt_thread(sbi);
+
+		err = f2fs_start_ckpt_thread(sbi);
+		if (err) {
+			f2fs_err(sbi,
+			    "Failed to start F2FS issue_checkpoint_thread (%d)",
+			    err);
+			goto restore_checkpoint;
 		}
 	}
 
@@ -2555,6 +2560,13 @@ skip:
 	adjust_unusable_cap_perc(sbi);
 	*flags = (*flags & ~SB_LAZYTIME) | (sb->s_flags & SB_LAZYTIME);
 	return 0;
+restore_checkpoint:
+	if (need_enable_checkpoint) {
+		f2fs_enable_checkpoint(sbi);
+	} else if (need_disable_checkpoint) {
+		if (f2fs_disable_checkpoint(sbi))
+			f2fs_warn(sbi, "checkpoint has not been disabled");
+	}
 restore_discard:
 	if (need_restart_discard) {
 		if (f2fs_start_discard_thread(sbi))
@@ -2569,13 +2581,6 @@ restore_flush:
 	} else if (need_stop_flush) {
 		clear_opt(sbi, FLUSH_MERGE);
 		f2fs_destroy_flush_cmd_control(sbi, false);
-	}
-restore_ckpt:
-	if (need_restart_ckpt) {
-		if (f2fs_start_ckpt_thread(sbi))
-			f2fs_warn(sbi, "background ckpt thread has stopped");
-	} else if (need_stop_ckpt) {
-		f2fs_stop_ckpt_thread(sbi);
 	}
 restore_gc:
 	if (need_restart_gc) {
@@ -3502,7 +3507,7 @@ static int sanity_check_raw_super(struct f2fs_sb_info *sbi,
 		return -EFSCORRUPTED;
 	}
 
-	/* Currently, support 512/1024/2048/4096 bytes sector size */
+	/* Currently, support 512/1024/2048/4096/16K bytes sector size */
 	if (le32_to_cpu(raw_super->log_sectorsize) >
 				F2FS_MAX_LOG_SECTOR_SIZE ||
 		le32_to_cpu(raw_super->log_sectorsize) <
@@ -4948,7 +4953,7 @@ static int __init init_f2fs_fs(void)
 	int err;
 
 	if (PAGE_SIZE != F2FS_BLKSIZE) {
-		printk("F2FS not supported on PAGE_SIZE(%lu) != %d\n",
+		printk("F2FS not supported on PAGE_SIZE(%lu) != BLOCK_SIZE(%lu)\n",
 				PAGE_SIZE, F2FS_BLKSIZE);
 		return -EINVAL;
 	}
