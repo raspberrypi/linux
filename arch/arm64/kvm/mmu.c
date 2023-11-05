@@ -1207,6 +1207,7 @@ int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 	return __topup_hyp_memcache(mc, min_pages, hyp_mc_alloc_fn,
 				    kvm_host_pa, (void *)flags, order);
 }
+EXPORT_SYMBOL(topup_hyp_memcache);
 
 /**
  * kvm_phys_addr_ioremap - map a device range to guest IPA
