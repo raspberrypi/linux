@@ -86,9 +86,7 @@ static int arm_lpae_init_pte(struct arm_lpae_io_pgtable *data,
 
 	for (i = 0; i < num_entries; i++)
 		if (iopte_leaf(ptep[i], lvl, data->iop.fmt)) {
-			/* We require an unmap first */
-			WARN_ON(!selftest_running);
-			return -EEXIST;
+			return arm_lpae_mapping_exists(data);
 		} else if (iopte_type(ptep[i]) == ARM_LPAE_PTE_TYPE_TABLE) {
 			/*
 			 * We need to unmap and free the old table before
@@ -189,9 +187,7 @@ int __arm_lpae_map(struct arm_lpae_io_pgtable *data, unsigned long iova,
 	if (pte && !iopte_leaf(pte, lvl, data->iop.fmt)) {
 		cptep = iopte_deref(pte, data);
 	} else if (pte) {
-		/* We require an unmap first */
-		WARN_ON(!selftest_running);
-		return -EEXIST;
+		return arm_lpae_mapping_exists(data);
 	}
 
 	/* Rinse, repeat */

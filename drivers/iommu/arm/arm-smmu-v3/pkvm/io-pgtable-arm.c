@@ -16,7 +16,6 @@
 
 #include "arm-smmu-v3-module.h"
 
-bool __ro_after_init selftest_running;
 #define io_pgtable_cfg_to_pgtable(x) container_of((x), struct io_pgtable, cfg)
 
 #define io_pgtable_cfg_to_data(x)					\
@@ -138,4 +137,15 @@ int kvm_arm_io_pgtable_free(struct io_pgtable *iopt)
 
 	__arm_lpae_free_pgtable(data, data->start_level, data->pgd);
 	return 0;
+}
+
+int arm_lpae_mapping_exists(struct arm_lpae_io_pgtable *data)
+{
+	/*
+	 * Sometime the hypervisor forces mapping in the host page table, for example,
+	 * on teardown we force pages to host even if they were shared.
+	 * If this is not an idmapped domain, then this is a host bug.
+	 */
+	WARN_ON(!data->idmapped);
+	return -EEXIST;
 }
