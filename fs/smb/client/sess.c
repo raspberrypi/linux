@@ -108,6 +108,7 @@ cifs_chan_clear_in_reconnect(struct cifs_ses *ses,
 			     struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -119,6 +120,7 @@ cifs_chan_in_reconnect(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -130,6 +132,7 @@ cifs_chan_set_need_reconnect(struct cifs_ses *ses,
 			     struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -143,6 +146,7 @@ cifs_chan_clear_need_reconnect(struct cifs_ses *ses,
 			       struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -156,6 +160,7 @@ cifs_chan_needs_reconnect(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -167,6 +172,7 @@ cifs_chan_is_iface_active(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -677,8 +683,7 @@ static __u32 cifs_ssetup_hdr(struct cifs_ses *ses,
 
 	/* Now no need to set SMBFLG_CASELESS or obsolete CANONICAL PATH */
 
-	/* BB verify whether signing required on neg or just on auth frame
-	   (and NTLM case) */
+	/* BB verify whether signing required on neg or just auth frame (and NTLM case) */
 
 	capabilities = CAP_LARGE_FILES | CAP_NT_SMBS | CAP_LEVEL_II_OPLOCKS |
 			CAP_LARGE_WRITE_X | CAP_LARGE_READ_X;
@@ -735,8 +740,10 @@ static void unicode_domain_string(char **pbcc_area, struct cifs_ses *ses,
 
 	/* copy domain */
 	if (ses->domainName == NULL) {
-		/* Sending null domain better than using a bogus domain name (as
-		we did briefly in 2.6.18) since server will use its default */
+		/*
+		 * Sending null domain better than using a bogus domain name (as
+		 * we did briefly in 2.6.18) since server will use its default
+		 */
 		*bcc_ptr = 0;
 		*(bcc_ptr+1) = 0;
 		bytes_ret = 0;
@@ -755,8 +762,7 @@ static void unicode_ssetup_strings(char **pbcc_area, struct cifs_ses *ses,
 	char *bcc_ptr = *pbcc_area;
 	int bytes_ret = 0;
 
-	/* BB FIXME add check that strings total less
-	than 335 or will need to send them as arrays */
+	/* BB FIXME add check that strings less than 335 or will need to send as arrays */
 
 	/* copy user */
 	if (ses->user_name == NULL) {
