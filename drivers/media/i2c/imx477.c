@@ -2001,6 +2001,8 @@ static int imx477_init_controls(struct imx477 *imx477)
 					       IMX477_PIXEL_RATE,
 					       IMX477_PIXEL_RATE, 1,
 					       IMX477_PIXEL_RATE);
+	if (imx477->pixel_rate)
+		imx477->pixel_rate->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/* LINK_FREQ is also read only */
 	imx477->link_freq =
