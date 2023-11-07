@@ -144,8 +144,10 @@ static struct hyp_page *__hyp_extract_page(struct hyp_pool *pool,
 		 * __find_buddy_nocheck() to find it and inject it in the
 		 * free_list[n - 1], effectively splitting @p in half.
 		 */
+		buddy = __find_buddy_nocheck(pool, p, p->order - 1);
+		if (!buddy)
+			return p;
 		p->order--;
-		buddy = __find_buddy_nocheck(pool, p, p->order);
 		buddy->order = p->order;
 		page_add_to_list(buddy, &pool->free_area[buddy->order]);
 	}
@@ -166,6 +168,7 @@ void hyp_put_page(struct hyp_pool *pool, void *addr)
 {
 	struct hyp_page *p = hyp_virt_to_page(addr);
 
+	BUG_ON(p->order > pool->max_order);
 	__hyp_put_page(pool, p);
 }
 
