@@ -1452,7 +1452,6 @@
 				    "llcc_broadcast_base",
 				    "multi_channel_register";
 			interrupts = <GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>;
-			multi-ch-bit-off = <24 2>;
 		};
 	};
 
