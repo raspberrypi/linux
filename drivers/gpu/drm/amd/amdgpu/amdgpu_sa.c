@@ -70,7 +70,7 @@ int amdgpu_sa_bo_manager_init(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memset(sa_manager->cpu_ptr, 0, sa_manager->size);
+	memset_io(sa_manager->cpu_ptr, 0, sa_manager->size);
 	return r;
 }
 
