@@ -2151,6 +2151,7 @@ static int vc4_hvs_cob_init(struct vc4_hvs *hvs)
 		#define VC6_COB_NUM_LINES	4
 		reg = 0;
 		top = 3840;
+		base = 0;
 
 		HVS_WRITE(SCALER6(DISP2_COB),
 			  VC4_SET_FIELD(top, SCALER6_DISPX_COB_TOP) |

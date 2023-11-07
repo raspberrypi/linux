@@ -343,7 +343,7 @@ static void vc6_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 		struct vc4_encoder *vc4_encoder;
 		struct drm_encoder *encoder;
-		unsigned char mux;
+		unsigned char mux = 0;
 		u32 reg;
 
 		if (!vc4_state->update_muxing)
