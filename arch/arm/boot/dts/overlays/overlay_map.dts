@@ -260,6 +260,10 @@
 		deprecated = "use sdio,bus_width=1,gpios_22_25";
 	};
 
+	sdio-pi5 {
+		bcm2712;
+	};
+
 	sdtweak {
 		deprecated = "use 'dtparam=sd_poll_once' etc.";
 	};
