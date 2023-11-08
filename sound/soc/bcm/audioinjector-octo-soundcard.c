@@ -252,6 +252,7 @@ static const struct snd_soc_dapm_route audioinjector_octo_route[] = {
 
 static struct snd_soc_card snd_soc_audioinjector_octo = {
 	.name = "audioinjector-octo-soundcard",
+	.owner = THIS_MODULE,
 	.dai_link = audioinjector_octo_dai,
 	.num_links = ARRAY_SIZE(audioinjector_octo_dai),
 
