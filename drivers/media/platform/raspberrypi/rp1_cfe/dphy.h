@@ -15,7 +15,7 @@ struct dphy_data {
 
 	void __iomem *base;
 
-	u32 dphy_freq;
+	u32 dphy_rate;
 	u32 num_lanes;
 };
 

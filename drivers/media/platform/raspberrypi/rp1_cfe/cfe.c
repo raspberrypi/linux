@@ -983,7 +983,7 @@ static void cfe_buffer_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&cfe->state_lock, flags);
 }
 
-static u64 sensor_link_frequency(struct cfe_device *cfe)
+static u64 sensor_link_rate(struct cfe_device *cfe)
 {
 	struct v4l2_mbus_framefmt *source_fmt;
 	struct v4l2_subdev_state *state;
@@ -1028,11 +1028,11 @@ static u64 sensor_link_frequency(struct cfe_device *cfe)
 
 	/* x2 for DDR. */
 	link_freq *= 2;
-	cfe_info("Using a link frequency of %lld Hz\n", link_freq);
+	cfe_info("Using a link rate of %lld Mbps\n", link_freq / (1000 * 1000));
 	return link_freq;
 
 err:
-	cfe_err("Unable to determine sensor link frequency, using 999 MHz\n");
+	cfe_err("Unable to determine sensor link rate, using 999 Mbps\n");
 	return 999 * 1000000UL;
 }
 
@@ -1104,7 +1104,7 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 	}
 
 	cfe_dbg("Configuring CSI-2 block\n");
-	cfe->csi2.dphy.dphy_freq = sensor_link_frequency(cfe) / 1000000UL;
+	cfe->csi2.dphy.dphy_rate = sensor_link_rate(cfe) / 1000000UL;
 	csi2_open_rx(&cfe->csi2);
 
 	cfe_dbg("Starting sensor streaming\n");
