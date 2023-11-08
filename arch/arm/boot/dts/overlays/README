@@ -3936,6 +3936,13 @@ Info:   This overlay is now deprecated. Use
 Load:   <Deprecated>
 
 
+Name:   sdio-pi5
+Info:   Selects the rp1_mmc0 interface and enables it on GPIOs 22-27.
+        Pi 5 only.
+Load:   dtoverlay=sdio-pi5
+Params: <None>
+
+
 Name:   sdtweak
 Info:   This overlay is now deprecated. Use the sd_* dtparams in the
         base DTB, e.g. "dtoverlay=sdtweak,poll_once" becomes
