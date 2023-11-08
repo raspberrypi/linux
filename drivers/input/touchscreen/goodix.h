@@ -57,6 +57,8 @@
 #define GOODIX_CONFIG_MAX_LENGTH		240
 #define GOODIX_MAX_KEYS				7
 
+#define GOODIX_NAME_MAX_LEN			38
+
 enum goodix_irq_pin_access_method {
 	IRQ_PIN_ACCESS_NONE,
 	IRQ_PIN_ACCESS_GPIO,
@@ -90,6 +92,7 @@ struct goodix_ts_data {
 	int gpio_int_idx;
 	char id[GOODIX_ID_MAX_LEN + 1];
 	char cfg_name[64];
+	char name[GOODIX_NAME_MAX_LEN];
 	u16 version;
 	bool reset_controller_at_probe;
 	bool load_cfg_from_disk;
