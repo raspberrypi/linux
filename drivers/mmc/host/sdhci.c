@@ -1713,6 +1713,12 @@ static bool sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if (host->use_external_dma)
 		sdhci_external_dma_pre_transfer(host, cmd);
 
+	if (host->quirks2 & SDHCI_QUIRK2_SPURIOUS_INT_RESP) {
+		host->ier |= SDHCI_INT_RESPONSE;
+		sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+		sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+	}
+
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->opcode, flags), SDHCI_COMMAND);
 
 	return true;
@@ -3307,6 +3313,11 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask, u32 *intmask_p)
 		if (intmask & SDHCI_INT_TIMEOUT) {
 			host->cmd->error = -ETIMEDOUT;
 			sdhci_err_stats_inc(host, CMD_TIMEOUT);
+			if (host->quirks2 & SDHCI_QUIRK2_SPURIOUS_INT_RESP) {
+				host->ier &= ~SDHCI_INT_RESPONSE;
+				sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+				sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+			}
 		} else {
 			host->cmd->error = -EILSEQ;
 			if (!mmc_op_tuning(host->cmd->opcode))
