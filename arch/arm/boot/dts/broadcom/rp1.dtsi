@@ -962,7 +962,7 @@
 
 		rp1_mmc0: mmc@180000 {
 			reg = <0xc0 0x40180000  0x0 0x100>;
-			compatible = "snps,dwcmshc-sdhci";
+			compatible = "raspberrypi,rp1-dwcmshc";
 			interrupts = <RP1_INT_SDIO0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS &sdhci_core
 			          &rp1_clocks RP1_CLK_SDIO_TIMER
@@ -978,7 +978,7 @@
 
 		rp1_mmc1: mmc@184000 {
 			reg = <0xc0 0x40184000  0x0 0x100>;
-			compatible = "snps,dwcmshc-sdhci";
+			compatible = "raspberrypi,rp1-dwcmshc";
 			interrupts = <RP1_INT_SDIO1 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS &sdhci_core
 			          &rp1_clocks RP1_CLK_SDIO_TIMER
