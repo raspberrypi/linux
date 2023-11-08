@@ -490,6 +490,9 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_NO_SDR50  (1<<20)
 #define SDHCI_QUIRK2_NO_SDR104	(1<<21)
 
+/* Command timeouts may generate a trailing INT_RESPONSE later */
+#define SDHCI_QUIRK2_SPURIOUS_INT_RESP			(1<<31)
+
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
 	phys_addr_t mapbase;	/* physical address base */
