@@ -23,6 +23,7 @@ properties:
           - const: sophgo,sg2044-dwcmshc
           - const: sophgo,sg2042-dwcmshc
       - enum:
+          - raspberrypi,rp1-dwcmshc
           - rockchip,rk3568-dwcmshc
           - rockchip,rk3588-dwcmshc
           - snps,dwcmshc-sdhci
@@ -101,6 +102,8 @@ allOf:
             - description: axi clock for rockchip specified
             - description: block clock for rockchip specified
             - description: timer clock for rockchip specified
+            - description: timeout clock for rp1 specified
+            - description: sdio clock generator for rp1 specified
         clock-names:
           minItems: 1
           items:
@@ -109,6 +112,8 @@ allOf:
             - const: axi
             - const: block
             - const: timer
+            - const: timeout
+            - const: sdio
 
   - if:
       properties:
