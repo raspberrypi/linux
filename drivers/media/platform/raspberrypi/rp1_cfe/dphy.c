@@ -96,7 +96,7 @@ static uint8_t dphy_transaction(struct dphy_data *dphy, u8 test_code,
 	return get_tstdout(dphy);
 }
 
-static void dphy_set_hsfreqrange(struct dphy_data *dphy, uint32_t freq_mhz)
+static void dphy_set_hsfreqrange(struct dphy_data *dphy, uint32_t mbps)
 {
 	/* See Table 5-1 on page 65 of dphy databook */
 	static const u16 hsfreqrange_table[][2] = {
@@ -116,11 +116,11 @@ static void dphy_set_hsfreqrange(struct dphy_data *dphy, uint32_t freq_mhz)
 	};
 	unsigned int i;
 
-	if (freq_mhz < 80 || freq_mhz > 1500)
-		dphy_err("DPHY: Frequency %u MHz out of range\n", freq_mhz);
+	if (mbps < 80 || mbps > 1500)
+		dphy_err("DPHY: Datarate %u Mbps out of range\n", mbps);
 
 	for (i = 0; i < ARRAY_SIZE(hsfreqrange_table) - 1; i++) {
-		if (freq_mhz <= hsfreqrange_table[i][0])
+		if (mbps <= hsfreqrange_table[i][0])
 			break;
 	}
 
@@ -139,7 +139,7 @@ static void dphy_init(struct dphy_data *dphy)
 	set_tstclr(dphy, 0);
 	usleep_range(15, 20);
 
-	dphy_set_hsfreqrange(dphy, dphy->dphy_freq);
+	dphy_set_hsfreqrange(dphy, dphy->dphy_rate);
 
 	usleep_range(5, 10);
 	dw_csi2_host_write(dphy, PHY_SHUTDOWNZ, 1);
