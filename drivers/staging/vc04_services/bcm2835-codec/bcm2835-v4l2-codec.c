@@ -2925,8 +2925,8 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 		if (!buf->mmal.dma_buf) {
 			ret = vb2_core_expbuf_dmabuf(vb->vb2_queue,
 						     vb->vb2_queue->type,
-						     vb->index, 0,
-						     O_CLOEXEC,
+						     vb->index, vb->num_planes,
+						     0, O_CLOEXEC,
 						     &buf->mmal.dma_buf);
 			if (ret)
 				v4l2_err(&ctx->dev->v4l2_dev,
