@@ -135,6 +135,8 @@ void __pkvm_init_switch_pgd(phys_addr_t phys, unsigned long size,
 int __pkvm_init(phys_addr_t phys, unsigned long size, unsigned long nr_cpus,
 		unsigned long *per_cpu_base, u32 hyp_va_bits);
 void __noreturn __host_enter(struct kvm_cpu_context *host_ctxt);
+void __hyp_enter(void);
+void __hyp_exit(void);
 #endif
 
 #ifdef __KVM_NVHE_HYPERVISOR__

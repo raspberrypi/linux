@@ -105,6 +105,7 @@ const struct pkvm_module_ops module_ops = {
 	.register_illegal_abt_notifier = __pkvm_register_illegal_abt_notifier,
 	.register_psci_notifier = __pkvm_register_psci_notifier,
 	.register_hyp_panic_notifier = __pkvm_register_hyp_panic_notifier,
+	.register_unmask_serror = __pkvm_register_unmask_serror,
 	.host_donate_hyp = __pkvm_module_host_donate_hyp,
 	.hyp_donate_host = __pkvm_hyp_donate_host,
 	.host_share_hyp = __pkvm_host_share_hyp,

@@ -35,6 +35,7 @@ DEFINE_PER_CPU(struct kvm_cpu_context, kvm_hyp_ctxt);
 DEFINE_PER_CPU(unsigned long, kvm_hyp_vector);
 
 extern void kvm_nvhe_prepare_backtrace(unsigned long fp, unsigned long pc);
+extern void __pkvm_unmask_serror(void);
 
 static void __activate_traps(struct kvm_vcpu *vcpu)
 {
@@ -403,6 +404,8 @@ int __kvm_vcpu_run(struct kvm_vcpu *vcpu)
 		gic_write_pmr(GIC_PRIO_IRQOFF);
 
 	host_ctxt->__hyp_running_vcpu = NULL;
+
+	__pkvm_unmask_serror();
 
 	return exit_code;
 }

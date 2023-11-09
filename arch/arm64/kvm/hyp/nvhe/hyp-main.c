@@ -35,6 +35,8 @@ void __kvm_hyp_host_forward_smc(struct kvm_cpu_context *host_ctxt);
 
 static bool (*default_host_smc_handler)(struct user_pt_regs *regs);
 static bool (*default_trap_handler)(struct user_pt_regs *regs);
+static bool (*unmask_serror)(void);
+static void (*mask_serror)(void);
 
 int __pkvm_register_host_smc_handler(bool (*cb)(struct user_pt_regs *))
 {
@@ -49,6 +51,66 @@ int __pkvm_register_host_smc_handler(bool (*cb)(struct user_pt_regs *))
 int __pkvm_register_default_trap_handler(bool (*cb)(struct user_pt_regs *))
 {
 	return cmpxchg(&default_trap_handler, NULL, cb) ? -EBUSY : 0;
+}
+
+void __pkvm_unmask_serror(void)
+{
+	u64 hcr = read_sysreg(HCR_EL2);
+
+	if (!unmask_serror || !unmask_serror())
+		return;
+
+	write_sysreg(hcr | HCR_AMO, HCR_EL2);
+	asm volatile("msr daifclr, #4");
+	isb();
+}
+
+static void __pkvm_mask_serror(void)
+{
+	u64 hcr = read_sysreg(HCR_EL2);
+
+	if (!mask_serror)
+		return;
+
+	mask_serror();
+
+	write_sysreg(hcr & ~HCR_AMO, HCR_EL2);
+	asm volatile("msr daifset, #4");
+	isb();
+}
+
+int __pkvm_register_unmask_serror(bool (*unmask)(void),
+				  void (*mask)(void))
+{
+	static bool registered;
+
+	if (!unmask || !mask)
+		return -EINVAL;
+
+	if (cmpxchg(&registered, false, true))
+		return -EBUSY;
+
+	mask_serror = mask;
+	/*
+	 * Paired with the CB + isb() in __pkvm_unmask_serror(). Makes sure a
+	 * reader can't unmask serrors before being able to mask them.
+	 */
+	smp_wmb();
+	unmask_serror = unmask;
+
+	return 0;
+}
+
+void __hyp_enter(void)
+{
+	trace_hyp_enter();
+	__pkvm_unmask_serror();
+}
+
+void __hyp_exit(void)
+{
+	__pkvm_mask_serror();
+	trace_hyp_exit();
 }
 
 static int pkvm_refill_memcache(struct pkvm_hyp_vcpu *hyp_vcpu)
@@ -1366,9 +1428,9 @@ static void handle_host_smc(struct kvm_cpu_context *host_ctxt)
 	if (!handled && smp_load_acquire(&default_host_smc_handler))
 		handled = default_host_smc_handler(&host_ctxt->regs);
 	if (!handled) {
-		trace_hyp_exit();
+		__hyp_exit();
 		__kvm_hyp_host_forward_smc(host_ctxt);
-		trace_hyp_enter();
+		__hyp_enter();
 	}
 
 	trace_host_smc(func_id, !handled);
@@ -1381,7 +1443,7 @@ void handle_trap(struct kvm_cpu_context *host_ctxt)
 {
 	u64 esr = read_sysreg_el2(SYS_ESR);
 
-	trace_hyp_enter();
+	__hyp_enter();
 
 	switch (ESR_ELx_EC(esr)) {
 	case ESR_ELx_EC_HVC64:
@@ -1403,5 +1465,5 @@ void handle_trap(struct kvm_cpu_context *host_ctxt)
 		BUG_ON(!READ_ONCE(default_trap_handler) || !default_trap_handler(&host_ctxt->regs));
 	}
 
-	trace_hyp_exit();
+	__hyp_exit();
 }

@@ -7,7 +7,7 @@
 #undef arm_smccc_1_1_smc
 #define arm_smccc_1_1_smc(...)					\
 	do {							\
-		trace_hyp_exit();				\
+		__hyp_exit();					\
 		__arm_smccc_1_1(SMCCC_SMC_INST, __VA_ARGS__);	\
-		trace_hyp_enter();				\
+		__hyp_enter();					\
 	} while (0)
