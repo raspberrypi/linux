@@ -134,6 +134,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ilitek251x.dtbo \
 	imx219.dtbo \
 	imx258.dtbo \
+	imx283.dtbo \
 	imx290.dtbo \
 	imx296.dtbo \
 	imx327.dtbo \
