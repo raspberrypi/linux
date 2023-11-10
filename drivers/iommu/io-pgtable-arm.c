@@ -261,6 +261,11 @@ int arm_lpae_mapping_exists(struct arm_lpae_io_pgtable *data)
 	return -EEXIST;
 }
 
+void arm_lpae_mapping_missing(struct arm_lpae_io_pgtable *data)
+{
+	WARN_ON(1);
+}
+
 struct io_pgtable_init_fns io_pgtable_arm_64_lpae_s1_init_fns = {
 	.alloc		= arm_64_lpae_alloc_pgtable_s1,
 	.free		= arm_lpae_free_pgtable,

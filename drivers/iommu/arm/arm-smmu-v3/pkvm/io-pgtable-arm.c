@@ -149,3 +149,9 @@ int arm_lpae_mapping_exists(struct arm_lpae_io_pgtable *data)
 	WARN_ON(!data->idmapped);
 	return -EEXIST;
 }
+
+void arm_lpae_mapping_missing(struct arm_lpae_io_pgtable *data)
+{
+	/* Similar to arm_lpae_mapping_exists() */
+	WARN_ON(!data->idmapped);
+}
