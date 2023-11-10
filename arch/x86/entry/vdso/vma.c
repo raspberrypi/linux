@@ -15,6 +15,7 @@
 #include <linux/cpu.h>
 #include <linux/ptrace.h>
 #include <linux/time_namespace.h>
+#include <linux/page_size_compat.h>
 
 #include <asm/pvclock.h>
 #include <asm/vgtod.h>
@@ -295,7 +296,7 @@ static unsigned long vdso_addr(unsigned long start, unsigned len)
 	 * Round up the start address.  It can start out unaligned as a result
 	 * of stack start randomization.
 	 */
-	start = PAGE_ALIGN(start);
+	start = __PAGE_ALIGN(start);
 
 	/* Round the lowest possible end address up to a PMD boundary. */
 	end = (start + len + PMD_SIZE - 1) & PMD_MASK;
@@ -304,8 +305,8 @@ static unsigned long vdso_addr(unsigned long start, unsigned len)
 	end -= len;
 
 	if (end > start) {
-		offset = get_random_u32_below(((end - start) >> PAGE_SHIFT) + 1);
-		addr = start + (offset << PAGE_SHIFT);
+		offset = get_random_u32_below(((end - start) >> __PAGE_SHIFT) + 1);
+		addr = start + (offset << __PAGE_SHIFT);
 	} else {
 		addr = start;
 	}
