@@ -40,6 +40,7 @@ pub mod device;
 pub mod delay;
 pub mod error;
 pub mod driver;
+pub mod platform;
 pub mod file;
 pub mod fs;
 pub mod init;
