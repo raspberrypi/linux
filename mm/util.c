@@ -23,6 +23,7 @@
 #include <linux/processor.h>
 #include <linux/sizes.h>
 #include <linux/compat.h>
+#include <linux/page_size_compat.h>
 
 #include <linux/uaccess.h>
 
@@ -355,20 +356,20 @@ unsigned long randomize_stack_top(unsigned long stack_top)
  */
 unsigned long randomize_page(unsigned long start, unsigned long range)
 {
-	if (!PAGE_ALIGNED(start)) {
-		range -= PAGE_ALIGN(start) - start;
-		start = PAGE_ALIGN(start);
+	if (!__PAGE_ALIGNED(start)) {
+		range -= __PAGE_ALIGN(start) - start;
+		start = __PAGE_ALIGN(start);
 	}
 
 	if (start > ULONG_MAX - range)
 		range = ULONG_MAX - start;
 
-	range >>= PAGE_SHIFT;
+	range >>= __PAGE_SHIFT;
 
 	if (range == 0)
 		return start;
 
-	return start + (get_random_long() % range << PAGE_SHIFT);
+	return start + (get_random_long() % range << __PAGE_SHIFT);
 }
 
 #ifdef CONFIG_ARCH_WANT_DEFAULT_TOPDOWN_MMAP_LAYOUT
