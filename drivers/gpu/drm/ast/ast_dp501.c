@@ -272,9 +272,11 @@ static bool ast_launch_m68k(struct drm_device *dev)
 	return true;
 }
 
-bool ast_dp501_is_connected(struct ast_device *ast)
+bool ast_dp501_read_edid(struct drm_device *dev, u8 *ediddata)
 {
-	u32 boot_address, offset, data;
+	struct ast_device *ast = to_ast_device(dev);
+	u32 i, boot_address, offset, data;
+	u32 *pEDIDidx;
 
 	if (ast->config_mode == ast_use_p2a) {
 		boot_address = get_fw_base(ast);
@@ -290,6 +292,14 @@ bool ast_dp501_is_connected(struct ast_device *ast)
 		data = ast_mindwm(ast, boot_address + offset);
 		if (!(data & AST_DP501_PNP_CONNECTED))
 			return false;
+
+		/* Read EDID */
+		offset = AST_DP501_EDID_DATA;
+		for (i = 0; i < 128; i += 4) {
+			data = ast_mindwm(ast, boot_address + offset + i);
+			pEDIDidx = (u32 *)(ediddata + i);
+			*pEDIDidx = data;
+		}
 	} else {
 		if (!ast->dp501_fw_buf)
 			return false;
@@ -309,30 +319,7 @@ bool ast_dp501_is_connected(struct ast_device *ast)
 		data = readl(ast->dp501_fw_buf + offset);
 		if (!(data & AST_DP501_PNP_CONNECTED))
 			return false;
-	}
-	return true;
-}
 
-bool ast_dp501_read_edid(struct drm_device *dev, u8 *ediddata)
-{
-	struct ast_device *ast = to_ast_device(dev);
-	u32 i, boot_address, offset, data;
-	u32 *pEDIDidx;
-
-	if (!ast_dp501_is_connected(ast))
-		return false;
-
-	if (ast->config_mode == ast_use_p2a) {
-		boot_address = get_fw_base(ast);
-
-		/* Read EDID */
-		offset = AST_DP501_EDID_DATA;
-		for (i = 0; i < 128; i += 4) {
-			data = ast_mindwm(ast, boot_address + offset + i);
-			pEDIDidx = (u32 *)(ediddata + i);
-			*pEDIDidx = data;
-		}
-	} else {
 		/* Read EDID */
 		offset = AST_DP501_EDID_DATA;
 		for (i = 0; i < 128; i += 4) {
