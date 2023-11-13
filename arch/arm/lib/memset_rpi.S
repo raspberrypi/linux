@@ -81,14 +81,14 @@ ENTRY(__memset64)
         rsb     DAT3, S, #0   /* bits 0-3 = number of leading bytes until aligned */
         movs    DAT2, DAT3, lsl #31
         submi   N, N, #1
-        strmib  DAT0, [S], #1
+        strbmi  DAT0, [S], #1
         subcs   N, N, #2
-        strcsh  DAT0, [S], #2
+        strhcs  DAT0, [S], #2
         movs    DAT2, DAT3, lsl #29
         submi   N, N, #4
         strmi   DAT0, [S], #4
         subcs   N, N, #8
-        stmcsia S!, {DAT0, DAT1}
+        stmiacs S!, {DAT0, DAT1}
 164:    /* Delayed set up of DAT2 and DAT3 so we could use them as scratch registers above */
         mov     DAT2, DAT0
         mov     DAT3, DAT1
@@ -98,11 +98,11 @@ ENTRY(__memset64)
         bhs     165b
 166:    /* Trailing words and bytes */
         movs    N, N, lsl #29
-        stmcsia S!, {DAT0, DAT1}
+        stmiacs S!, {DAT0, DAT1}
         strmi   DAT0, [S], #4
         movs    N, N, lsl #2
-        strcsh  DAT0, [S], #2
-        strmib  DAT0, [S]
+        strhcs  DAT0, [S], #2
+        strbmi  DAT0, [S]
 199:    pop     {S, pc}
 
 170:    /* Short case */
@@ -116,7 +116,7 @@ ENTRY(__memset64)
         tst     S, #3
         bne     172b
 174:    tst     N, #16
-        stmneia S!, {DAT0, DAT1, DAT2, DAT3}
+        stmiane S!, {DAT0, DAT1, DAT2, DAT3}
         b       166b
 
         .unreq  S

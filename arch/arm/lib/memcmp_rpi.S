@@ -42,7 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     .p2align 2
 
 .macro memcmp_process_head  unaligned
- .if unaligned
+ .if \unaligned
         ldr     DAT0, [S_1], #4
         ldr     DAT1, [S_1], #4
         ldr     DAT2, [S_1], #4
@@ -63,10 +63,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 .macro memcmp_leading_31bytes
         movs    DAT0, OFF, lsl #31
-        ldrmib  DAT0, [S_1], #1
-        ldrcsh  DAT1, [S_1], #2
-        ldrmib  DAT4, [S_2], #1
-        ldrcsh  DAT5, [S_2], #2
+        ldrbmi  DAT0, [S_1], #1
+        ldrhcs  DAT1, [S_1], #2
+        ldrbmi  DAT4, [S_2], #1
+        ldrhcs  DAT5, [S_2], #2
         movpl   DAT0, #0
         movcc   DAT1, #0
         movpl   DAT4, #0
@@ -81,7 +81,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         ldrcs   DAT1, [S_1], #4
         ldrcs   DAT2, [S_1], #4
         ldrmi   DAT4, [S_2], #4
-        ldmcsia S_2!, {DAT5, DAT6}
+        ldmiacs S_2!, {DAT5, DAT6}
         movpl   DAT0, #0
         movcc   DAT1, #0
         movcc   DAT2, #0
@@ -104,14 +104,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 .macro memcmp_trailing_15bytes  unaligned
         movs    N, N, lsl #29
- .if unaligned
+ .if \unaligned
         ldrcs   DAT0, [S_1], #4
         ldrcs   DAT1, [S_1], #4
  .else
-        ldmcsia S_1!, {DAT0, DAT1}
+        ldmiacs S_1!, {DAT0, DAT1}
  .endif
         ldrmi   DAT2, [S_1], #4
-        ldmcsia S_2!, {DAT4, DAT5}
+        ldmiacs S_2!, {DAT4, DAT5}
         ldrmi   DAT6, [S_2], #4
         movcc   DAT0, #0
         movcc   DAT1, #0
@@ -124,10 +124,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         cmpeq   DAT2, DAT6
         bne     200f
         movs    N, N, lsl #2
-        ldrcsh  DAT0, [S_1], #2
-        ldrmib  DAT1, [S_1]
-        ldrcsh  DAT4, [S_2], #2
-        ldrmib  DAT5, [S_2]
+        ldrhcs  DAT0, [S_1], #2
+        ldrbmi  DAT1, [S_1]
+        ldrhcs  DAT4, [S_2], #2
+        ldrbmi  DAT5, [S_2]
         movcc   DAT0, #0
         movpl   DAT1, #0
         movcc   DAT4, #0
@@ -139,10 +139,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 .macro memcmp_long_inner_loop  unaligned
 110:
-        memcmp_process_head  unaligned
+        memcmp_process_head  \unaligned
         pld     [S_2, #prefetch_distance*32 + 16]
         memcmp_process_tail
-        memcmp_process_head  unaligned
+        memcmp_process_head  \unaligned
         pld     [S_1, OFF]
         memcmp_process_tail
         subs    N, N, #32
@@ -153,14 +153,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         preload_trailing  0, S_2, N, DAT0
         add     N, N, #(prefetch_distance+2)*32 - 16
 120:
-        memcmp_process_head  unaligned
+        memcmp_process_head  \unaligned
         memcmp_process_tail
         subs    N, N, #16
         bhs     120b
         /* Trailing words and bytes */
         tst     N, #15
         beq     199f
-        memcmp_trailing_15bytes  unaligned
+        memcmp_trailing_15bytes  \unaligned
 199:    /* Reached end without detecting a difference */
         mov     a1, #0
         setend  le
@@ -171,14 +171,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         subs    N, N, #16     /* simplifies inner loop termination */
         blo     122f
 120:
-        memcmp_process_head  unaligned
+        memcmp_process_head  \unaligned
         memcmp_process_tail
         subs    N, N, #16
         bhs     120b
 122:    /* Trailing words and bytes */
         tst     N, #15
         beq     199f
-        memcmp_trailing_15bytes  unaligned
+        memcmp_trailing_15bytes  \unaligned
 199:    /* Reached end without detecting a difference */
         mov     a1, #0
         setend  le
