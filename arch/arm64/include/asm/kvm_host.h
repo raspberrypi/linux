@@ -1032,6 +1032,7 @@ struct kvm_vm_stat {
 	struct kvm_vm_stat_generic generic;
 	atomic64_t protected_hyp_mem;
 	atomic64_t protected_shared_mem;
+	atomic64_t protected_pgtable_mem;
 };
 
 struct kvm_vcpu_stat {
