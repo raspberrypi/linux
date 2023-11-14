@@ -93,6 +93,7 @@ struct vc4_dev {
 	struct device *dev;
 
 	enum vc4_gen gen;
+	bool step_d0;
 
 	unsigned int irq;
 
@@ -714,6 +715,12 @@ struct vc4_crtc_state {
 		kunit_fail_current_test("Accessing a register in a unit test!\n");	\
 		writel(val, hvs->regs + (offset));					\
 	} while (0)
+
+#define HVS_READ6(offset) \
+	HVS_READ(hvs->vc4->step_d0 ? SCALER6_ ## offset : SCALER6D0_ ## offset)		\
+
+#define HVS_WRITE6(offset, val) \
+	HVS_WRITE(hvs->vc4->step_d0 ? SCALER6_ ## offset : SCALER6D0_ ## offset, val)	\
 
 #define VC4_REG32(reg) { .name = #reg, .offset = reg }
 
