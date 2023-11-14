@@ -104,7 +104,6 @@ static const struct debugfs_reg32 vc6_hvs_regs[] = {
 	VC4_REG32(SCALER6_DISP2_RUN),
 	VC4_REG32(SCALER6_EOLN),
 	VC4_REG32(SCALER6_DL_STATUS),
-	VC4_REG32(SCALER6_BFG_MISC),
 	VC4_REG32(SCALER6_QOS0),
 	VC4_REG32(SCALER6_PROF0),
 	VC4_REG32(SCALER6_QOS1),
@@ -139,6 +138,66 @@ static const struct debugfs_reg32 vc6_hvs_regs[] = {
 	VC4_REG32(SCALER6_BAD_LBM),
 	VC4_REG32(SCALER6_BAD_UPM),
 	VC4_REG32(SCALER6_BAD_AXI),
+};
+
+static const struct debugfs_reg32 vc6_hvs_regs_d0[] = {
+	VC4_REG32(SCALER6D0_VERSION),
+	VC4_REG32(SCALER6D0_CXM_SIZE),
+	VC4_REG32(SCALER6D0_LBM_SIZE),
+	VC4_REG32(SCALER6D0_UBM_SIZE),
+	VC4_REG32(SCALER6D0_COBA_SIZE),
+	VC4_REG32(SCALER6D0_COB_SIZE),
+	VC4_REG32(SCALER6D0_CONTROL),
+	VC4_REG32(SCALER6D0_FETCHER_STATUS),
+	VC4_REG32(SCALER6D0_FETCH_STATUS),
+	VC4_REG32(SCALER6D0_HANDLE_ERROR),
+	VC4_REG32(SCALER6D0_DISP0_CTRL0),
+	VC4_REG32(SCALER6D0_DISP0_CTRL1),
+	VC4_REG32(SCALER6D0_DISP0_BGND0),
+	VC4_REG32(SCALER6D0_DISP0_BGND1),
+	VC4_REG32(SCALER6D0_DISP0_LPTRS),
+	VC4_REG32(SCALER6D0_DISP0_COB),
+	VC4_REG32(SCALER6D0_DISP0_STATUS),
+	VC4_REG32(SCALER6D0_DISP0_DL),
+	VC4_REG32(SCALER6D0_DISP0_RUN),
+	VC4_REG32(SCALER6D0_DISP1_CTRL0),
+	VC4_REG32(SCALER6D0_DISP1_CTRL1),
+	VC4_REG32(SCALER6D0_DISP1_BGND0),
+	VC4_REG32(SCALER6D0_DISP1_BGND1),
+	VC4_REG32(SCALER6D0_DISP1_LPTRS),
+	VC4_REG32(SCALER6D0_DISP1_COB),
+	VC4_REG32(SCALER6D0_DISP1_STATUS),
+	VC4_REG32(SCALER6D0_DISP1_DL),
+	VC4_REG32(SCALER6D0_DISP1_RUN),
+	VC4_REG32(SCALER6D0_DISP2_CTRL0),
+	VC4_REG32(SCALER6D0_DISP2_CTRL1),
+	VC4_REG32(SCALER6D0_DISP2_BGND0),
+	VC4_REG32(SCALER6D0_DISP2_BGND1),
+	VC4_REG32(SCALER6D0_DISP2_LPTRS),
+	VC4_REG32(SCALER6D0_DISP2_COB),
+	VC4_REG32(SCALER6D0_DISP2_STATUS),
+	VC4_REG32(SCALER6D0_DISP2_DL),
+	VC4_REG32(SCALER6D0_DISP2_RUN),
+	VC4_REG32(SCALER6D0_EOLN),
+	VC4_REG32(SCALER6D0_DL_STATUS),
+	VC4_REG32(SCALER6D0_QOS0),
+	VC4_REG32(SCALER6D0_PROF0),
+	VC4_REG32(SCALER6D0_QOS1),
+	VC4_REG32(SCALER6D0_PROF1),
+	VC4_REG32(SCALER6D0_QOS2),
+	VC4_REG32(SCALER6D0_PROF2),
+	VC4_REG32(SCALER6D0_PRI_MAP0),
+	VC4_REG32(SCALER6D0_PRI_MAP1),
+	VC4_REG32(SCALER6D0_HISTCTRL),
+	VC4_REG32(SCALER6D0_HISTBIN0),
+	VC4_REG32(SCALER6D0_HISTBIN1),
+	VC4_REG32(SCALER6D0_HISTBIN2),
+	VC4_REG32(SCALER6D0_HISTBIN3),
+	VC4_REG32(SCALER6D0_HISTBIN4),
+	VC4_REG32(SCALER6D0_HISTBIN5),
+	VC4_REG32(SCALER6D0_HISTBIN6),
+	VC4_REG32(SCALER6D0_HISTBIN7),
+	VC4_REG32(SCALER6D0_HVS_ID),
 };
 
 void vc4_hvs_dump_state(struct vc4_hvs *hvs)
@@ -234,18 +293,18 @@ static int vc6_hvs_debugfs_dlist(struct seq_file *m, void *data)
 		unsigned int active_dlist, dispstat;
 		unsigned int j;
 
-		dispstat = VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_STATUS(i)),
-					 SCALER6_DISPX_STATUS_MODE);
-		if (dispstat == SCALER6_DISPX_STATUS_MODE_DISABLED ||
-		    dispstat == SCALER6_DISPX_STATUS_MODE_EOF) {
+		dispstat = VC4_GET_FIELD6(HVS_READ(SCALER6_DISPX_STATUS(i)),
+					 DISPX_STATUS_MODE);
+		if (dispstat == SCALER6(DISPX_STATUS_MODE_DISABLED) ||
+		    dispstat == SCALER6(DISPX_STATUS_MODE_EOF)) {
 			drm_printf(&p, "HVS chan %u disabled\n", i);
 			continue;
 		}
 
 		drm_printf(&p, "HVS chan %u:\n", i);
 
-		active_dlist = VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_DL(i)),
-					     SCALER6_DISPX_DL_LACT);
+		active_dlist = VC4_GET_FIELD6(HVS_READ(SCALER6_DISPX_DL(i)),
+					     DISPX_DL_LACT);
 		next_entry_start = 0;
 
 		for (j = active_dlist; j < dlist_mem_size; j++) {
@@ -760,7 +819,7 @@ static bool vc4_hvs_check_channel_active(struct vc4_hvs *hvs, unsigned int fifo)
 		return 0;
 
 	if (vc4->gen >= VC4_GEN_6)
-		enabled = HVS_READ(SCALER6_DISPX_CTRL0(fifo)) & SCALER6_DISPX_CTRL0_ENB;
+		enabled = HVS_READ(SCALER6_DISPX_CTRL0(fifo)) & SCALER6(DISPX_CTRL0_ENB);
 	else
 		enabled = HVS_READ(SCALER_DISPCTRLX(fifo)) & SCALER_DISPCTRLX_ENABLE;
 
@@ -825,8 +884,8 @@ u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo)
 
 	switch (vc4->gen) {
 	case VC4_GEN_6:
-		field = VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_STATUS(fifo)),
-				      SCALER6_DISPX_STATUS_FRCNT);
+		field = VC4_GET_FIELD6(HVS_READ(SCALER6_DISPX_STATUS(fifo)),
+				      DISPX_STATUS_FRCNT);
 		break;
 	case VC4_GEN_5:
 		switch (fifo) {
@@ -1037,20 +1096,20 @@ static int vc6_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	if (!drm_dev_enter(drm, &idx))
 		return -ENODEV;
 
-	HVS_WRITE(SCALER6_DISPX_CTRL0(chan), SCALER6_DISPX_CTRL0_RESET);
+	HVS_WRITE(SCALER6_DISPX_CTRL0(chan), SCALER6(DISPX_CTRL0_RESET));
 
 	disp_ctrl1 = HVS_READ(SCALER6_DISPX_CTRL1(chan));
-	disp_ctrl1 &= ~SCALER6_DISPX_CTRL1_INTLACE;
+	disp_ctrl1 &= ~SCALER6(DISPX_CTRL1_INTLACE);
 	HVS_WRITE(SCALER6_DISPX_CTRL1(chan),
-		  disp_ctrl1 | (interlace ? SCALER6_DISPX_CTRL1_INTLACE : 0));
+		  disp_ctrl1 | (interlace ? SCALER6(DISPX_CTRL1_INTLACE) : 0));
 
 	HVS_WRITE(SCALER6_DISPX_CTRL0(chan),
-		  SCALER6_DISPX_CTRL0_ENB |
-		  VC4_SET_FIELD(mode->hdisplay - 1,
-				SCALER6_DISPX_CTRL0_FWIDTH) |
-		  (oneshot ? SCALER6_DISPX_CTRL0_ONESHOT : 0) |
-		  VC4_SET_FIELD(mode->vdisplay - 1,
-				SCALER6_DISPX_CTRL0_LINES));
+		  SCALER6(DISPX_CTRL0_ENB) |
+		  VC4_SET_FIELD6(mode->hdisplay - 1,
+				DISPX_CTRL0_FWIDTH) |
+		  (oneshot ? SCALER6(DISPX_CTRL0_ONESHOT) : 0) |
+		  VC4_SET_FIELD6(mode->vdisplay - 1,
+				DISPX_CTRL0_LINES));
 
 	drm_dev_exit(idx);
 
@@ -1096,18 +1155,18 @@ static void __vc6_hvs_stop_channel(struct vc4_hvs *hvs, unsigned int chan)
 	if (!drm_dev_enter(drm, &idx))
 		return;
 
-	if (!(HVS_READ(SCALER6_DISPX_CTRL0(chan)) & SCALER6_DISPX_CTRL0_ENB))
+	if (!(HVS_READ(SCALER6_DISPX_CTRL0(chan)) & SCALER6(DISPX_CTRL0_ENB)))
 		goto out;
 
 	HVS_WRITE(SCALER6_DISPX_CTRL0(chan),
-		  HVS_READ(SCALER6_DISPX_CTRL0(chan)) | SCALER6_DISPX_CTRL0_RESET);
+		  HVS_READ(SCALER6_DISPX_CTRL0(chan)) | SCALER6(DISPX_CTRL0_RESET));
 
 	HVS_WRITE(SCALER6_DISPX_CTRL0(chan),
-		  HVS_READ(SCALER6_DISPX_CTRL0(chan)) & ~SCALER6_DISPX_CTRL0_ENB);
+		  HVS_READ(SCALER6_DISPX_CTRL0(chan)) & ~SCALER6(DISPX_CTRL0_ENB));
 
-	WARN_ON_ONCE(VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_STATUS(chan)),
-				   SCALER6_DISPX_STATUS_MODE) !=
-		     SCALER6_DISPX_STATUS_MODE_DISABLED);
+	WARN_ON_ONCE(VC4_GET_FIELD6(HVS_READ(SCALER6_DISPX_STATUS(chan)),
+				   DISPX_STATUS_MODE) !=
+		     SCALER6(DISPX_STATUS_MODE_DISABLED));
 
 out:
 	drm_dev_exit(idx);
@@ -1227,8 +1286,8 @@ static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
 
 	if (vc4->gen >= VC4_GEN_6)
 		HVS_WRITE(SCALER6_DISPX_LPTRS(vc4_state->assigned_channel),
-			  VC4_SET_FIELD(vc4_state->mm->mm_node.start,
-					SCALER6_DISPX_LPTRS_HEADE));
+			  VC4_SET_FIELD6(vc4_state->mm->mm_node.start,
+					DISPX_LPTRS_HEADE));
 	else
 		HVS_WRITE(SCALER_DISPLISTX(vc4_state->assigned_channel),
 			  vc4_state->mm->mm_node.start);
@@ -1427,11 +1486,11 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		if (enable_bg_fill)
 			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
 				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) |
-				  SCALER6_DISPX_CTRL1_BGENB);
+				  SCALER6(DISPX_CTRL1_BGENB));
 		else
 			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
 				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) &
-				  ~SCALER6_DISPX_CTRL1_BGENB);
+				  ~SCALER6(DISPX_CTRL1_BGENB));
 	} else {
 		/* we can actually run with a lower core clock when background
 		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
@@ -1701,7 +1760,7 @@ struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
 		 * access a register. Use a plausible size then.
 		 */
 		if (!kunit_get_current_test())
-			dlist_size = HVS_READ(SCALER6_CXM_SIZE);
+			dlist_size = HVS_READ(SCALER6(CXM_SIZE));
 		else
 			dlist_size = 4096;
 
@@ -1935,14 +1994,17 @@ static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 	const struct vc6_csc_coeff_entry *coeffs;
 	unsigned int i;
 
-	HVS_WRITE(SCALER6_CONTROL,
+	HVS_WRITE6(CONTROL,
 		  SCALER6_CONTROL_HVS_EN |
-		  VC4_SET_FIELD(8, SCALER6_CONTROL_PF_LINES) |
+		  VC4_SET_FIELD(8, SCALER6_CONTROL_PF_LINES)|
 		  VC4_SET_FIELD(15, SCALER6_CONTROL_MAX_REQS));
 
 	/* Set HVS arbiter priority to max */
-	HVS_WRITE(SCALER6_PRI_MAP0, 0xffffffff);
-	HVS_WRITE(SCALER6_PRI_MAP1, 0xffffffff);
+	HVS_WRITE(SCALER6(PRI_MAP0), 0xffffffff);
+	HVS_WRITE(SCALER6(PRI_MAP1), 0xffffffff);
+
+	if (hvs->vc4->step_d0)
+		return;
 
 	for (i = 0; i < 6; i++) {
 		coeffs = &csc_coeffs[i / 3][i % 3];
@@ -2041,21 +2103,21 @@ static int vc4_hvs_cob_init(struct vc4_hvs *hvs)
 		reg = 0;
 		top = 3840;
 
-		HVS_WRITE(SCALER6_DISP2_COB,
+		HVS_WRITE(SCALER6(DISP2_COB),
 			  VC4_SET_FIELD(top, SCALER6_DISPX_COB_TOP) |
 			  VC4_SET_FIELD(base, SCALER6_DISPX_COB_BASE));
 
 		base = top + 16;
 		top += VC6_COB_LINE_WIDTH * VC6_COB_NUM_LINES;
 
-		HVS_WRITE(SCALER6_DISP1_COB,
+		HVS_WRITE(SCALER6(DISP1_COB),
 			  VC4_SET_FIELD(top, SCALER6_DISPX_COB_TOP) |
 			  VC4_SET_FIELD(base, SCALER6_DISPX_COB_BASE));
 
 		base = top + 16;
 		top += VC6_COB_LINE_WIDTH * VC6_COB_NUM_LINES;
 
-		HVS_WRITE(SCALER6_DISP0_COB,
+		HVS_WRITE(SCALER6(DISP0_COB),
 			  VC4_SET_FIELD(top, SCALER6_DISPX_COB_TOP) |
 			  VC4_SET_FIELD(base, SCALER6_DISPX_COB_BASE));
 		break;
@@ -2086,7 +2148,10 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 
 	hvs->regset.base = hvs->regs;
 
-	if (vc4->gen >= VC4_GEN_6) {
+	if (vc4->gen >= VC4_GEN_6 && vc4->step_d0) {
+		hvs->regset.regs = vc6_hvs_regs_d0;
+		hvs->regset.nregs = ARRAY_SIZE(vc6_hvs_regs_d0);
+	} else if (vc4->gen >= VC4_GEN_6) {
 		hvs->regset.regs = vc6_hvs_regs;
 		hvs->regset.nregs = ARRAY_SIZE(vc6_hvs_regs);
 	} else {
@@ -2253,6 +2318,7 @@ static void vc4_hvs_dev_remove(struct platform_device *pdev)
 static const struct of_device_id vc4_hvs_dt_match[] = {
 	{ .compatible = "brcm,bcm2711-hvs" },
 	{ .compatible = "brcm,bcm2712-hvs" },
+	{ .compatible = "brcm,bcm2712d0-hvs" },
 	{ .compatible = "brcm,bcm2835-hvs" },
 	{}
 };
