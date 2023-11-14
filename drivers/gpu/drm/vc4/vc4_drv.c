@@ -322,9 +322,13 @@ static int vc4_drm_bind(struct device *dev)
 	struct device_node *node;
 	struct drm_crtc *crtc;
 	enum vc4_gen gen;
+	bool step_d0 = false;
 	int ret = 0;
 
-	if (of_device_is_compatible(dev->of_node, "brcm,bcm2712-vc6"))
+	if (of_device_is_compatible(dev->of_node, "brcm,bcm2712d0-vc6")) {
+		gen = VC4_GEN_6;
+		step_d0 = true;
+	} else if (of_device_is_compatible(dev->of_node, "brcm,bcm2712-vc6"))
 		gen = VC4_GEN_6;
 	else if (of_device_is_compatible(dev->of_node, "brcm,bcm2711-vc5"))
 		gen = VC4_GEN_5;
@@ -355,6 +359,7 @@ static int vc4_drm_bind(struct device *dev)
 	if (IS_ERR(vc4))
 		return PTR_ERR(vc4);
 	vc4->gen = gen;
+	vc4->step_d0 = step_d0;
 	vc4->dev = dev;
 
 	drm = &vc4->base;
@@ -503,6 +508,7 @@ static void vc4_platform_drm_shutdown(struct platform_device *pdev)
 static const struct of_device_id vc4_of_match[] = {
 	{ .compatible = "brcm,bcm2711-vc5", },
 	{ .compatible = "brcm,bcm2712-vc6", },
+	{ .compatible = "brcm,bcm2712d0-vc6", },
 	{ .compatible = "brcm,bcm2835-vc4", },
 	{ .compatible = "brcm,cygnus-vc4", },
 	{},
