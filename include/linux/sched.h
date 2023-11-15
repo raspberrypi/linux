@@ -554,7 +554,7 @@ struct sched_entity {
 	struct load_weight		load;
 	struct rb_node			run_node;
 	u64				deadline;
-	u64				min_deadline;
+	u64				min_vruntime;
 
 	struct list_head		group_node;
 	unsigned int			on_rq;
