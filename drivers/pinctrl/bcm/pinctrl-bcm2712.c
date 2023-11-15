@@ -906,8 +906,13 @@ static int bcm2712_pmx_set(struct pinctrl_dev *pctldev,
 		unsigned group_selector)
 {
 	struct bcm2712_pinctrl *pc = pinctrl_dev_get_drvdata(pctldev);
+	const struct pinctrl_desc *pctldesc = &pc->pctl_desc;
+	const struct pinctrl_pin_desc *pindesc;
 
-	bcm2712_pinctrl_fsel_set(pc, group_selector, func_selector);
+	if (group_selector >= pctldesc->npins)
+		return -EINVAL;
+	pindesc = &pctldesc->pins[group_selector];
+	bcm2712_pinctrl_fsel_set(pc, pindesc->number, func_selector);
 
 	return 0;
 }
