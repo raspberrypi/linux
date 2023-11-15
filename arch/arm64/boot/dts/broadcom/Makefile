@@ -21,6 +21,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += bcm2710-rpi-cm3.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2711-rpi-cm4.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2711-rpi-cm4s.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2712-rpi-5-b.dtb
+dtb-$(CONFIG_ARCH_BCM2835) += bcm2712d0-rpi-5-b.dtb
 
 subdir-y	+= bcmbca
 subdir-y	+= northstar2
