@@ -249,28 +249,34 @@ static const struct cfe_fmt formats[] = {
 		.code = MEDIA_BUS_FMT_Y10_1X10,
 		.depth = 10,
 		.csi_dt = 0x2b,
-		.remap = { V4L2_PIX_FMT_Y16 },
+		.remap = { V4L2_PIX_FMT_Y16, V4L2_PIX_FMT_PISP_COMP1_MONO },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_Y12P,
 		.code = MEDIA_BUS_FMT_Y12_1X12,
 		.depth = 12,
 		.csi_dt = 0x2c,
-		.remap = { V4L2_PIX_FMT_Y16 },
+		.remap = { V4L2_PIX_FMT_Y16, V4L2_PIX_FMT_PISP_COMP1_MONO },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_Y14P,
 		.code = MEDIA_BUS_FMT_Y14_1X14,
 		.depth = 14,
 		.csi_dt = 0x2d,
-		.remap = { V4L2_PIX_FMT_Y16 },
+		.remap = { V4L2_PIX_FMT_Y16, V4L2_PIX_FMT_PISP_COMP1_MONO },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_Y16,
+		.code = MEDIA_BUS_FMT_Y16_1X16,
 		.depth = 16,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
-
+	{
+		.fourcc = V4L2_PIX_FMT_PISP_COMP1_MONO,
+		.code = MEDIA_BUS_FMT_Y16_1X16,
+		.depth = 8,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
 	/* Embedded data format */
 	{
 		.fourcc = V4L2_META_FMT_SENSOR_DATA,
