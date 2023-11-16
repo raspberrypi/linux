@@ -197,28 +197,6 @@
 			status = "disabled";
 		};
 
-		uart3: serial@7d001600 {
-			compatible = "arm,pl011", "arm,primecell";
-			reg = <0x7d001600 0x200>;
-			interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_uart>,
-				 <&clk_vpu>;
-			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
-			status = "disabled";
-		};
-
-		uart4: serial@7d001800 {
-			compatible = "arm,pl011", "arm,primecell";
-			reg = <0x7d001800 0x200>;
-			interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_uart>,
-				 <&clk_vpu>;
-			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
-			status = "disabled";
-		};
-
 		uart5: serial@7d001a00 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x7d001a00 0x200>;
@@ -539,17 +517,6 @@
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			interrupts = <GIC_SPI 277 IRQ_TYPE_LEVEL_HIGH>;
-			skip-init;
-			status = "disabled";
-		};
-
-		uartc: serial@7d50e000 {
-			compatible = "brcm,bcm7271-uart";
-			reg = <0x7d50e000 0x20>;
-			reg-names = "uart";
-			reg-shift = <2>;
-			reg-io-width = <4>;
-			interrupts = <GIC_SPI 278 IRQ_TYPE_LEVEL_HIGH>;
 			skip-init;
 			status = "disabled";
 		};
@@ -1103,30 +1070,6 @@
 			brcm,msi-pci-addr = <0xff 0xffffe000>;
 		};
 
-		genet: ethernet@1300000 {
-			compatible = "brcm,bcm2711-genet-v5";
-			reg = <0x10 0x01300000  0x0 0x20010>;
-			#address-cells = <0x1>;
-			#size-cells = <0x0>;
-			interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
-			phy-mode = "rgmii";
-			fixed-link = <0x0 0x1 0x3e8 0x0 0x0>;
-	                  phy-speed = <0x3e8>;
-	                  phy-id = <0x101>;
-	                  phy-type = <0x6>;
-	                  local-mac-address = [ 00 10 18 d8 45 de ];
-	                  device_type = "network";
-
-			genet_mdio: mdio@e14 {
-				compatible = "brcm,genet-mdio-v5";
-				reg = <0xe14 0x8>;
-				#address-cells = <0x1>;
-				#size-cells = <0x0>;
-			};
-		};
-
 		syscon_piarbctl: syscon@400018 {
 			compatible = "brcm,syscon-piarbctl", "syscon", "simple-mfd";
 			reg = <0x10 0x00400018  0x0 0x18>;
@@ -1185,15 +1128,6 @@
 			sdhci-caps-mask = <0x0000C000 0x0>;
 			sdhci-caps = <0x0 0x0>;
 			supports-cqe;
-			mmc-ddr-3_3v;
-			status = "disabled";
-		};
-
-		sdio0: mmc@1108000 {
-			compatible = "brcm,bcm2711-emmc2";
-			reg = <0x10 0x01108000  0x0 0x100>;
-			interrupts = <GIC_SPI 272 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_emmc2>;
 			mmc-ddr-3_3v;
 			status = "disabled";
 		};
