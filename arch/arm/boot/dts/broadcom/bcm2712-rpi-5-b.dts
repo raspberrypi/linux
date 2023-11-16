@@ -24,8 +24,6 @@
 #define spi6 _spi6
 #define uart0 _uart0
 #define uart2 _uart2
-#define uart3 _uart3
-#define uart4 _uart4
 #define uart5 _uart5
 
 #include "bcm2712.dtsi"
