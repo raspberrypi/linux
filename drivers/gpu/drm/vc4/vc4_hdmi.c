@@ -2612,7 +2612,13 @@ static int vc4_hdmi_audio_prepare(struct device *dev, void *data,
 					     VC4_HDMI_AUDIO_PACKET_CEA_MASK);
 
 	/* Set the MAI threshold */
-	if (vc4->gen >= VC4_GEN_5)
+	if (vc4->gen >= VC4_GEN_5 && vc4->step_d0)
+		HDMI_WRITE(HDMI_MAI_THR,
+			VC4_SET_FIELD(0x10, VC4_D0_HD_MAI_THR_PANICHIGH) |
+			VC4_SET_FIELD(0x10, VC4_D0_HD_MAI_THR_PANICLOW) |
+			VC4_SET_FIELD(0x1c, VC4_D0_HD_MAI_THR_DREQHIGH) |
+			VC4_SET_FIELD(0x1c, VC4_D0_HD_MAI_THR_DREQLOW));
+	else if (vc4->gen >= VC4_GEN_5)
 		HDMI_WRITE(HDMI_MAI_THR,
 			VC4_SET_FIELD(0x10, VC4_HD_MAI_THR_PANICHIGH) |
 			VC4_SET_FIELD(0x10, VC4_HD_MAI_THR_PANICLOW) |
