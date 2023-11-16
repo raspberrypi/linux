@@ -1304,6 +1304,8 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_BGRX32:	descr = "32-bit XBGR 8-8-8-8"; break;
 	case V4L2_PIX_FMT_RGBA32:	descr = "32-bit RGBA 8-8-8-8"; break;
 	case V4L2_PIX_FMT_RGBX32:	descr = "32-bit RGBX 8-8-8-8"; break;
+	case V4L2_PIX_FMT_BGR48:	descr = "48-bit BGR 16-16-16"; break;
+	case V4L2_PIX_FMT_RGB48:	descr = "48-bit RGB 16-16-16"; break;
 	case V4L2_PIX_FMT_GREY:		descr = "8-bit Greyscale"; break;
 	case V4L2_PIX_FMT_Y4:		descr = "4-bit Greyscale"; break;
 	case V4L2_PIX_FMT_Y6:		descr = "6-bit Greyscale"; break;
@@ -1510,11 +1512,13 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_PISP_COMP1_RGGB:
 		case V4L2_PIX_FMT_PISP_COMP1_GRBG:
 		case V4L2_PIX_FMT_PISP_COMP1_GBRG:
-		case V4L2_PIX_FMT_PISP_COMP1_BGGR: descr = "PiSP Bayer Comp 1"; break;
+		case V4L2_PIX_FMT_PISP_COMP1_BGGR:
+		case V4L2_PIX_FMT_PISP_COMP1_MONO: descr = "PiSP Bayer Comp 1"; break;
 		case V4L2_PIX_FMT_PISP_COMP2_RGGB:
 		case V4L2_PIX_FMT_PISP_COMP2_GRBG:
 		case V4L2_PIX_FMT_PISP_COMP2_GBRG:
-		case V4L2_PIX_FMT_PISP_COMP2_BGGR: descr = "PiSP Bayer Comp 2"; break;
+		case V4L2_PIX_FMT_PISP_COMP2_BGGR:
+		case V4L2_PIX_FMT_PISP_COMP2_MONO: descr = "PiSP Bayer Comp 2"; break;
 		default:
 			if (fmt->description[0])
 				return;
