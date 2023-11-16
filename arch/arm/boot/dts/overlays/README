@@ -826,6 +826,12 @@ Load:   dtoverlay=balena-fin
 Params: <None>
 
 
+Name:   bcm2712d0
+Info:   Overlay encapsulating the BCM2712 C0->D0 differences
+Load:   dtoverlay=bcm2712d0
+Params: <None>
+
+
 Name:   bmp085_i2c-sensor
 Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
