@@ -1108,6 +1108,12 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
+	if (!width || !height) {
+		/* 0 source size probably means the plane is offscreen */
+		vc4_state->dlist_initialized = 1;
+		return 0;
+	}
+
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
 	 * the scaler do the same thing.  For YUV, the Y plane needs
@@ -1623,6 +1629,12 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
+	if (!width || !height) {
+		/* 0 source size probably means the plane is offscreen */
+		vc4_state->dlist_initialized = 1;
+		return 0;
+	}
+
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
 	 * the scaler do the same thing.  For YUV, the Y plane needs
@@ -1993,6 +2005,9 @@ int vc4_plane_atomic_check(struct drm_plane *plane,
 		ret = vc4_plane_mode_set(plane, new_plane_state);
 	if (ret)
 		return ret;
+
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0])
+		return 0;
 
 	ret = vc4_plane_allocate_lbm(new_plane_state);
 	if (ret)
