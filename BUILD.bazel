@@ -17,7 +17,7 @@ load(
     "kernel_modules_install",
     "merged_kernel_uapi_headers",
 )
-load(":abi.bzl", "cc_binary_with_abi")
+load(":abi.bzl", "cc_binary_with_abi", "sh_binary_with_abi")
 load(":modules.bzl", "get_gki_modules_list")
 
 package(
@@ -1101,6 +1101,231 @@ cc_binary_with_abi(
     ],
 )
 
+cc_library(
+    name = "kselftest_futex_headers_lib",
+    hdrs = glob(["tools/testing/selftests/futex/include/*.h"]),
+    visibility = ["//visibility:private"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_requeue_pi_mismatched_ops",
+    srcs = ["tools/testing/selftests/futex/functional/futex_requeue_pi_mismatched_ops.c"],
+    out = "futex_requeue_pi_mismatched_ops",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_requeue_pi_signal_restart",
+    srcs = ["tools/testing/selftests/futex/functional/futex_requeue_pi_signal_restart.c"],
+    out = "futex_requeue_pi_signal_restart",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_requeue_pi",
+    srcs = ["tools/testing/selftests/futex/functional/futex_requeue_pi.c"],
+    out = "futex_requeue_pi",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_requeue",
+    srcs = ["tools/testing/selftests/futex/functional/futex_requeue.c"],
+    out = "futex_requeue",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_wait_private_mapped_file",
+    srcs = ["tools/testing/selftests/futex/functional/futex_wait_private_mapped_file.c"],
+    out = "futex_wait_private_mapped_file",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_wait_timeout",
+    srcs = ["tools/testing/selftests/futex/functional/futex_wait_timeout.c"],
+    out = "futex_wait_timeout",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_wait_uninitialized_heap",
+    srcs = ["tools/testing/selftests/futex/functional/futex_wait_uninitialized_heap.c"],
+    out = "futex_wait_uninitialized_heap",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_wait_wouldblock",
+    srcs = ["tools/testing/selftests/futex/functional/futex_wait_wouldblock.c"],
+    out = "futex_wait_wouldblock",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_wait",
+    srcs = ["tools/testing/selftests/futex/functional/futex_wait.c"],
+    out = "futex_wait",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_futex_futex_waitv",
+    srcs = ["tools/testing/selftests/futex/functional/futex_waitv.c"],
+    out = "futex_waitv",
+    copts = [
+        "-D_GNU_SOURCE",
+        "-pthread",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/futex/include",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_futex_headers_lib",
+        ":kselftest_headers_lib",
+    ],
+)
+
+sh_binary_with_abi(
+    name = "kselftest_futex_run",
+    src = "tools/testing/selftests/futex/functional/run.sh",
+    out = "kselftest_futex_run",
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+)
+
 cc_binary_with_abi(
     name = "kselftest_size_test_get_size",
     srcs = ["tools/testing/selftests/size/get_size.c"],
@@ -1135,6 +1360,17 @@ android_filegroup(
         ":kselftest_binderfs_binderfs_test_x86_64",
         ":kselftest_breakpoints_breakpoint_test_x86_64",
         ":kselftest_breakpoints_step_after_suspend_test_x86_64",
+        ":kselftest_futex_futex_requeue_pi_mismatched_ops_x86_64",
+        ":kselftest_futex_futex_requeue_pi_signal_restart_x86_64",
+        ":kselftest_futex_futex_requeue_pi_x86_64",
+        ":kselftest_futex_futex_requeue_x86_64",
+        ":kselftest_futex_futex_wait_private_mapped_file_x86_64",
+        ":kselftest_futex_futex_wait_timeout_x86_64",
+        ":kselftest_futex_futex_wait_uninitialized_heap_x86_64",
+        ":kselftest_futex_futex_wait_wouldblock_x86_64",
+        ":kselftest_futex_futex_wait_x86_64",
+        ":kselftest_futex_futex_waitv_x86_64",
+        ":kselftest_futex_run_x86_64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_x86_64",
         ":kselftest_ptrace_peeksiginfo_x86_64",
@@ -1154,6 +1390,17 @@ android_filegroup(
         ":kselftest_binderfs_binderfs_test_arm64",
         ":kselftest_breakpoints_breakpoint_test_arm64",
         ":kselftest_breakpoints_step_after_suspend_test_arm64",
+        ":kselftest_futex_futex_requeue_arm64",
+        ":kselftest_futex_futex_requeue_pi_arm64",
+        ":kselftest_futex_futex_requeue_pi_mismatched_ops_arm64",
+        ":kselftest_futex_futex_requeue_pi_signal_restart_arm64",
+        ":kselftest_futex_futex_wait_arm64",
+        ":kselftest_futex_futex_wait_private_mapped_file_arm64",
+        ":kselftest_futex_futex_wait_timeout_arm64",
+        ":kselftest_futex_futex_wait_uninitialized_heap_arm64",
+        ":kselftest_futex_futex_wait_wouldblock_arm64",
+        ":kselftest_futex_futex_waitv_arm64",
+        ":kselftest_futex_run_arm64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_arm64",
         ":kselftest_ptrace_peeksiginfo_arm64",
