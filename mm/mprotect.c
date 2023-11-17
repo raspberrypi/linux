@@ -17,6 +17,7 @@
 #include <linux/highmem.h>
 #include <linux/security.h>
 #include <linux/mempolicy.h>
+#include <linux/page_size_compat.h>
 #include <linux/personality.h>
 #include <linux/syscalls.h>
 #include <linux/swap.h>
@@ -705,11 +706,11 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 	if (grows == (PROT_GROWSDOWN|PROT_GROWSUP)) /* can't be both */
 		return -EINVAL;
 
-	if (start & ~PAGE_MASK)
+	if (!__PAGE_ALIGNED(start))
 		return -EINVAL;
 	if (!len)
 		return 0;
-	len = PAGE_ALIGN(len);
+	len = __PAGE_ALIGN(len);
 	end = start + len;
 	if (end <= start)
 		return -ENOMEM;
