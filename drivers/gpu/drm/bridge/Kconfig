@@ -73,6 +73,7 @@ config DRM_CROS_EC_ANX7688
 config DRM_DISPLAY_CONNECTOR
 	tristate "Display connector support"
 	depends on OF
+	select DRM_KMS_HELPER
 	help
 	  Driver for display connectors with support for DDC and hot-plug
 	  detection. Most display controllers handle display connectors
