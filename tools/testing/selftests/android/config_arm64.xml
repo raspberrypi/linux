@@ -23,8 +23,16 @@
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.binary.ExecutableTargetTest" >
-        <option name="test-command-line" key="kselftest_binderfs_test" value="/data/selftests/arm64/kselftest_binderfs_test" />
-        <option name="test-command-line" key="kselftest_breakpoints_tests_breakpoint_test" value="/data/selftests/arm64/kselftest_breakpoints_tests_breakpoint_test" />
-        <option name="test-command-line" key="kselftest_breakpoints_tests_step_after_suspend_test" value="/data/selftests/arm64/kselftest_breakpoints_tests_step_after_suspend_test" />
+        <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="/data/selftests/arm64/kselftest_binderfs_binderfs_test" />
+        <option name="test-command-line" key="kselftest_breakpoints_breakpoint_test" value="/data/selftests/arm64/kselftest_breakpoints_breakpoint_test" />
+        <option name="test-command-line" key="kselftest_breakpoints_step_after_suspend_test" value="/data/selftests/arm64/kselftest_breakpoints_step_after_suspend_test" />
+        <option name="test-command-line" key="kselftest_kcmp_kcmp_test" value="/data/selftests/arm64/kselftest_kcmp_kcmp_test" />
+        <option name="test-command-line" key="kselftest_ptrace_peeksiginfo" value="/data/selftests/arm64/kselftest_ptrace_peeksiginfo" />
+        <option name="test-command-line" key="kselftest_rtc_rtctest" value="/data/selftests/arm64/kselftest_rtc_rtctest" />
+        <option name="test-command-line" key="kselftest_vdso_vdso_test_abi" value="/data/selftests/arm64/kselftest_vdso_vdso_test_abi" />
+        <option name="test-command-line" key="kselftest_vdso_vdso_test_clock_getres" value="/data/selftests/arm64/kselftest_vdso_vdso_test_clock_getres" />
+        <option name="test-command-line" key="kselftest_vdso_vdso_test_getcpu" value="/data/selftests/arm64/kselftest_vdso_vdso_test_getcpu" />
+        <option name="test-command-line" key="kselftest_vdso_vdso_test_gettimeofday" value="/data/selftests/arm64/kselftest_vdso_vdso_test_gettimeofday" />
+        <option name="test-command-line" key="kselftest_size_test_get_size" value="/data/selftests/arm64/kselftest_size_test_get_size" />
     </test>
 </configuration>
