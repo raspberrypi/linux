@@ -436,6 +436,9 @@ static void vc4_vec_connector_reset(struct drm_connector *connector)
 	/* preserve TV standard */
 	if (connector->state)
 		connector->state->tv.mode = vc4_vec_get_default_mode(connector);
+
+	/* apply TV margins from the cmdline_mode */
+	drm_atomic_helper_connector_tv_reset(connector);
 }
 
 static int vc4_vec_connector_atomic_check(struct drm_connector *conn,
@@ -482,6 +485,8 @@ static int vc4_vec_connector_init(struct drm_device *dev, struct vc4_vec *vec)
 		return ret;
 
 	drm_connector_helper_add(connector, &vc4_vec_connector_helper_funcs);
+
+	drm_connector_attach_tv_margin_properties(connector);
 
 	drm_object_attach_property(&connector->base,
 				   dev->mode_config.tv_mode_property,
