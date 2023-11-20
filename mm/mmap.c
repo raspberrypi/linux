@@ -217,8 +217,8 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 			      mm->end_data, mm->start_data))
 		goto out;
 
-	newbrk = PAGE_ALIGN(brk);
-	oldbrk = PAGE_ALIGN(mm->brk);
+	newbrk = __PAGE_ALIGN(brk);
+	oldbrk = __PAGE_ALIGN(mm->brk);
 	if (oldbrk == newbrk) {
 		mm->brk = brk;
 		goto success;
@@ -251,8 +251,8 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 * expansion area
 	 */
 	vma_iter_init(&vmi, mm, oldbrk);
-	next = vma_find(&vmi, newbrk + PAGE_SIZE + stack_guard_gap);
-	if (next && newbrk + PAGE_SIZE > vm_start_gap(next))
+	next = vma_find(&vmi, newbrk + __PAGE_SIZE + stack_guard_gap);
+	if (next && newbrk + __PAGE_SIZE > vm_start_gap(next))
 		goto out;
 
 	brkvma = vma_prev_limit(&vmi, mm->start_brk);
