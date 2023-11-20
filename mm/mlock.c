@@ -25,6 +25,7 @@
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h>
 #include <linux/secretmem.h>
+#include <linux/page_size_compat.h>
 
 #include "internal.h"
 
@@ -481,8 +482,8 @@ static int apply_vma_lock_flags(unsigned long start, size_t len,
 	struct vm_area_struct *vma, *prev;
 	VMA_ITERATOR(vmi, current->mm, start);
 
-	VM_BUG_ON(offset_in_page(start));
-	VM_BUG_ON(len != PAGE_ALIGN(len));
+	VM_BUG_ON(__offset_in_page_log(start));
+	VM_BUG_ON(len != __PAGE_ALIGN(len));
 	end = start + len;
 	if (end < start)
 		return -EINVAL;
@@ -583,8 +584,8 @@ static __must_check int do_mlock(unsigned long start, size_t len, vm_flags_t fla
 	if (!can_do_mlock())
 		return -EPERM;
 
-	len = PAGE_ALIGN(len + (offset_in_page(start)));
-	start &= PAGE_MASK;
+	len = __PAGE_ALIGN(len + (__offset_in_page(start)));
+	start &= __PAGE_MASK;
 
 	lock_limit = rlimit(RLIMIT_MEMLOCK);
 	lock_limit >>= PAGE_SHIFT;
@@ -643,8 +644,8 @@ SYSCALL_DEFINE2(munlock, unsigned long, start, size_t, len)
 
 	start = untagged_addr(start);
 
-	len = PAGE_ALIGN(len + (offset_in_page(start)));
-	start &= PAGE_MASK;
+	len = __PAGE_ALIGN(len + (__offset_in_page(start)));
+	start &= __PAGE_MASK;
 
 	if (mmap_write_lock_killable(current->mm))
 		return -EINTR;
