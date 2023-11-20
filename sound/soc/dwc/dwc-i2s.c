@@ -528,11 +528,8 @@ static int dw_i2s_set_bclk_ratio(struct snd_soc_dai *cpu_dai,
 				 unsigned int ratio)
 {
 	struct dw_i2s_dev *dev = snd_soc_dai_get_drvdata(cpu_dai);
-	struct i2s_clk_config_data *config = &dev->config;
 
 	dev_dbg(dev->dev, "%s(%d)\n", __func__, ratio);
-	if (ratio < config->data_width * 2)
-		return -EINVAL;
 
 	switch (ratio) {
 	case 32:
