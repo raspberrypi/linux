@@ -15,7 +15,7 @@
 
 			#include "ov5647.dtsi"
 
-			vcm: ad5398@c {
+			vcm_node: ad5398@c {
 				compatible = "adi,ad5398";
 				reg = <0x0c>;
 				status = "disabled";
@@ -78,8 +78,8 @@
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&cam_node>, "clocks:0=",<&cam0_clk>,
 		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>;
-		vcm = <&vcm>, "status=okay",
-		      <&cam_node>,"lens-focus:0=", <&vcm>;
+		vcm = <&vcm_node>, "status=okay",
+		       <&cam_node>,"lens-focus:0=", <&vcm_node>;
 	};
 };
 
