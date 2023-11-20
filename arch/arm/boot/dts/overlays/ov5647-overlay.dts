@@ -77,7 +77,8 @@
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&cam_node>, "clocks:0=",<&cam0_clk>,
-		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>,
+		       <&vcm_node>, "VANA-supply:0=",<&cam0_reg>;
 		vcm = <&vcm_node>, "status=okay",
 		       <&cam_node>,"lens-focus:0=", <&vcm_node>;
 	};
