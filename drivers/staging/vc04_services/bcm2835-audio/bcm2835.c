@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright 2011 Broadcom Corporation.  All rights reserved. */
 
+#include <linux/platform_device.h>
+
 #include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 
-#include "../interface/vchiq_arm/vchiq_bus.h"
 #include "bcm2835.h"
 
 static bool enable_hdmi;
@@ -268,9 +269,9 @@ static int snd_add_child_devices(struct device *device, u32 numchans)
 	return 0;
 }
 
-static int snd_bcm2835_alsa_probe(struct vchiq_device *device)
+static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
-	struct device *dev = &device->dev;
+	struct device *dev = &pdev->dev;
 	int err;
 
 	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
@@ -298,32 +299,32 @@ static int snd_bcm2835_alsa_probe(struct vchiq_device *device)
 
 #ifdef CONFIG_PM
 
-static int snd_bcm2835_alsa_suspend(struct vchiq_device *device,
+static int snd_bcm2835_alsa_suspend(struct platform_device *pdev,
 				    pm_message_t state)
 {
 	return 0;
 }
 
-static int snd_bcm2835_alsa_resume(struct vchiq_device *device)
+static int snd_bcm2835_alsa_resume(struct platform_device *pdev)
 {
 	return 0;
 }
 
 #endif
 
-static struct vchiq_driver bcm2835_alsa_driver = {
+static struct platform_driver bcm2835_alsa_driver = {
 	.probe = snd_bcm2835_alsa_probe,
 #ifdef CONFIG_PM
 	.suspend = snd_bcm2835_alsa_suspend,
 	.resume = snd_bcm2835_alsa_resume,
 #endif
 	.driver = {
-		.name = "bcm2835-audio",
+		.name = "bcm2835_audio",
 	},
 };
-module_vchiq_driver(bcm2835_alsa_driver);
+module_platform_driver(bcm2835_alsa_driver);
 
 MODULE_AUTHOR("Dom Cobley");
 MODULE_DESCRIPTION("Alsa driver for BCM2835 chip");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("bcm2835-audio");
+MODULE_ALIAS("platform:bcm2835_audio");
