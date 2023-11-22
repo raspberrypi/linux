@@ -44,7 +44,7 @@ static int gpio_poweroff_do_poweroff(struct sys_off_data *data)
 	/* give it some time */
 	mdelay(gpio_poweroff->timeout_ms);
 
-	WARN_ON(1);
+	//WARN_ON(1);
 
 	return NOTIFY_DONE;
 }
