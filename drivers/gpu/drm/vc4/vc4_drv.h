@@ -668,6 +668,7 @@ struct vc4_hvs_dlist_allocation {
 	struct drm_mm_node mm_node;
 	unsigned int channel;
 	u8 target_frame_count;
+	bool dlist_programmed;
 };
 
 struct vc4_crtc_state {
