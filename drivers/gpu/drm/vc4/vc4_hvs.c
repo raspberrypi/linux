@@ -697,8 +697,11 @@ void vc4_hvs_mark_dlist_entry_stale(struct vc4_hvs *hvs,
 	 * Kunit tests run with a mock device and we consider any hardware
 	 * access a test failure. Let's free the dlist allocation right away if
 	 * we're running under kunit, we won't risk a dlist corruption anyway.
+	 *
+	 * Likewise if the allocation was only checked and never programmed, we
+	 * can destroy the allocation immediately.
 	 */
-	if (kunit_get_current_test()) {
+	if (kunit_get_current_test() || !alloc->dlist_programmed) {
 		spin_lock_irqsave(&hvs->mm_lock, flags);
 		vc4_hvs_free_dlist_entry_locked(hvs, alloc);
 		spin_unlock_irqrestore(&hvs->mm_lock, flags);
@@ -1201,6 +1204,7 @@ static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
 		return;
 
 	WARN_ON(!vc4_state->mm);
+	vc4_state->mm->dlist_programmed = true;
 
 	if (vc4->gen >= VC4_GEN_6)
 		HVS_WRITE(SCALER6_DISPX_LPTRS(vc4_state->assigned_channel),
