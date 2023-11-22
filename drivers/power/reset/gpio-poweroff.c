@@ -50,7 +50,7 @@ static int gpio_poweroff_do_poweroff(struct sys_off_data *data)
 	 * Warn the user that the attempt to poweroff via gpio-poweroff
 	 * has gone wrong.
 	 */
-	WARN(1, "Failed to poweroff via gpio-poweroff mechanism\n");
+	//WARN(1, "Failed to poweroff via gpio-poweroff mechanism\n");
 
 	return NOTIFY_DONE;
 }
