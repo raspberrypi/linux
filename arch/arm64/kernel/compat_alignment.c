@@ -318,7 +318,7 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
 	int thumb2_32b = 0;
 
 	instrptr = instruction_pointer(regs);
-
+	printk("Alignment fixup\n");
 	if (compat_thumb_mode(regs)) {
 		__le16 __user *ptr = (__le16 __user *)(instrptr & ~1);
 		u16 tinstr, tinst2;
@@ -380,4 +380,315 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
 	arm64_skip_faulting_instruction(regs, isize);
 
 	return 0;
+}
+
+// arm64#
+
+/*
+ *Happens with The Long Dark
+ *
+ *[ 6012.660803] Faulting instruction: 0x3d800020
+[ 6012.660813] Load/Store: op0 0x3 op1 0x1 op2 0x3 op3 0x0 op4 0x0
+ */
+
+struct fixupDescription{
+	void* addr;
+	//
+	u64 data1;
+	u64 data1_simd;
+	u64 data2;
+	u64 data2_simd;
+
+	int Rs;		// used for atomics (which don't get handled atomically)
+
+	int simd;	// wether or not this is a vector instruction
+	int load;	// 1 is it's a load, 0 if it's a store
+	int pair;	// 1 if it's a l/s pair instruction
+	int width;	// width of the access in bits
+};
+
+static int alignment_get_arm64(struct pt_regs *regs, __le64 __user *ip, u32 *inst)
+{
+	__le32 instr = 0;
+	int fault;
+
+	fault = get_user(instr, ip);
+	if (fault)
+		return fault;
+
+	*inst = __le32_to_cpu(instr);
+	return 0;
+}
+
+/*int ldpstp_offset_fixup(u32 instr, struct pt_regs *regs){
+	uint8_t load = (instr >> 22) & 1;
+	uint8_t simd = (instr >> 26) & 1;
+	uint16_t imm7 = (instr >> 15) & 0x7f;
+	uint8_t Rt2 = (instr >> 10) & 0x1f;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
+
+	int16_t imm = 0xffff & imm7;
+	printk("Variant: 0x%x Load: %x SIMD: %x IMM: 0x%x Rt: 0x%x Rt2: 0x%x Rn: 0x%x\n", ((instr >> 30) & 3),load, simd, imm, Rt, Rt2, Rn);
+	if(((instr >> 30) & 3) == 2){
+		// 64bit
+		if(!load){
+			if(!simd){
+				// 64bit store
+				u64 val1, val2;
+				val1 = regs->regs[Rt];
+				val2 = regs->regs[Rt2];
+				u64 addr = regs->regs[Rn] + imm;
+				printk("STP 64bit storing 0x%llx 0x%llx at 0x%llx\n", val1, val2, addr);
+				// for the first reg. Byte by byte to avoid any alignment issues
+				for(int i = 0; i < 8; i++){
+					uint8_t v = (val1 >> (i*8)) & 0xff;
+					put_user(v, (uint8_t __user *)addr);
+					addr++;
+				}
+				// second reg
+				for(int i = 0; i < 8; i++){
+					uint8_t v = (val2 >> (i*8)) & 0xff;
+					put_user(v, (uint8_t __user *)addr);
+					addr++;
+				}
+				arm64_skip_faulting_instruction(regs, 4);
+			}
+		}
+	}
+	return 0;
+}*/
+
+int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	int r;
+	if(!desc->load){
+		uint8_t* addr = desc->addr;
+		int bcount = desc->width / 8;	// since the field stores the width in bits. Honestly, there's no particular reason for that
+		printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
+		for(int i = 0; i < bcount; i++){
+			if((r=put_user(desc->data1 & 0xff, (uint8_t __user *)addr)))
+				return r;
+			desc->data1 >>= 8;
+			addr++;
+		}
+
+		if(desc->pair){
+			for(int i = 0; i < bcount; i++){
+				if((r=put_user(desc->data2 & 0xff, (uint8_t __user *)addr)))
+					return r;
+				desc->data2 >>= 8;
+				addr++;
+			}
+		}
+		arm64_skip_faulting_instruction(regs, 4);
+	} else {
+		printk("Loading is currently not implemented (addr 0x%llx)\n", desc->addr);
+		return -1;
+	}
+	return 0;
+}
+
+int ls_cas_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t size = (instr >> 30) & 3;
+	uint8_t load = (instr >> 22) & 1;	// acquire semantics, has no effect here, since it's not atomic anymore
+	uint8_t Rs = (instr >> 16) & 0x1f;
+	uint8_t Rt2 = (instr >> 10) & 0x1f;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
+
+	uint8_t o0 = (instr >> 15) & 1;	// L, release semantics, has no effect here, since it's not atomic anymore
+
+	if(Rt2 != 0x1f){
+		return -1;
+	}
+
+	switch(size){
+	case 0:
+		desc->width = 8;
+		break;
+	case 1:
+			desc->width = 16;
+			break;
+	case 2:
+			desc->width = 32;
+			break;
+	case 3:
+			desc->width = 64;
+			break;
+	}
+
+	desc->addr = (void*)regs->regs[Rn];
+	desc->data1 = regs->regs[Rt];
+
+	// nearly everything from here on could be moved into another function if needed
+	u64 cmpmask = (1 << desc->width) - 1;
+	u64 cmpval = regs->regs[Rs] & cmpmask;
+
+	u64 readval = 0;
+	int bcount = desc->width / 8;
+	u64 addr = desc->addr;
+	int r;
+	uint8_t  tmp;
+
+	printk("Atomic CAS not being done atomically at 0x%llx, size %d\n",desc->addr, desc->width);
+
+	for(int i = 0; i < bcount; i++){
+		if((r=get_user(tmp, (uint8_t __user *)addr)))
+			return r;
+		readval |= tmp;
+		readval <<= 8;	// maybe this could be read directly into regs->regs[Rs]
+		addr++;
+	}
+
+	if((readval & cmpmask) == cmpval){
+		// swap
+		addr = (u64)desc->addr;
+
+		for(int i = 0; i < bcount; i++){
+			if((r=put_user(desc->data1 & 0xff, (uint8_t __user *)addr)))
+				return r;
+			desc->data1 >>= 8;
+			addr++;
+		}
+
+		regs->regs[Rs] = readval;
+	}
+
+	arm64_skip_faulting_instruction(regs, 4);
+
+	return 0;
+}
+
+int ls_pair_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t op2;
+	uint8_t opc;
+	op2 = (instr >> 23) & 3;
+	opc = (instr >> 30) & 3;
+
+	uint8_t load = (instr >> 22) & 1;
+	uint8_t simd = (instr >> 26) & 1;
+	uint16_t imm7 = (instr >> 15) & 0x7f;
+	uint8_t Rt2 = (instr >> 10) & 0x1f;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
+
+	int16_t imm = 0xffff & imm7;
+
+	desc->load = load;
+	desc->simd = simd;
+
+	// opc controls the width
+	switch(opc){
+	case 0:
+		desc->width = 32;
+		imm <<= 2;
+		break;
+	case 2:
+		desc->width = 64;
+		imm <<= 3;
+		break;
+	default:
+		return -1;
+	}
+
+	// op2 controls the indexing
+	switch(op2){
+	case 2:
+		// offset
+		desc->addr = (void*)(regs->regs[Rn] + imm);
+		break;
+	default:
+			return -1;
+	}
+	desc->data1 = regs->regs[Rt];
+	desc->data2 = regs->regs[Rt2];
+
+	return do_ls_fixup(instr, regs, desc);
+
+}
+
+int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t size = (instr >> 30) & 3;
+	uint8_t simd = (instr >> 26) & 1;
+	uint8_t opc = (instr >> 22) & 3;
+
+	switch(size){
+	case 0:
+		desc->width = 8;
+		break;
+	case 1:
+			desc->width = 16;
+			break;
+	case 2:
+			desc->width = 32;
+			break;
+	case 3:
+			desc->width = 64;
+			break;
+	}
+	return 0;
+}
+
+int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t op0;
+	uint8_t op1;
+	uint8_t op2;
+	uint8_t op3;
+	uint8_t op4;
+
+	op0 = (instr >> 28) & 0xf;
+	op1 = (instr >> 26) & 1;
+	op2 = (instr >> 23) & 3;
+	op3 = (instr >> 16) & 0x3f;
+	op4 = (instr >> 10) & 3;
+	printk("Load/Store: op0 0x%x op1 0x%x op2 0x%x op3 0x%x op4 0x%x\n", op0, op1, op2, op3, op4);
+	if((op0 & 3) == 2){
+		desc->pair = 1;
+		return ls_pair_fixup(instr, regs, desc);
+	}
+	if((op0 & 3) == 0 && op1 == 0 && op2 == 1 && (op3 & 0x20) == 0x20){
+		// compare and swap
+		return ls_cas_fixup(instr, regs, desc);
+	}
+	if((op0 & 3) == 3 && (op2 & 3) == 3){
+		//load/store unsigned immediate
+		desc->pair = 0;
+
+	}
+	if((op0 & 3) == 2 && (op2 == 2)){
+		// Load/store pair offset
+		//ldpstp_offset_fixup(instr, regs);
+		return ls_reg_unsigned_imm(instr, regs, desc);
+	}
+	return 0;
+}
+
+int do_alignment_fixup(unsigned long addr, struct pt_regs *regs){
+	unsigned long long instrptr;
+	u32 instr = 0;
+
+	instrptr = instruction_pointer(regs);
+	printk("Alignment fixup\n");
+
+	if (alignment_get_arm64(regs, (__le64 __user *)instrptr, &instr)){
+		printk("Failed to get aarch64 instruction\n");
+		return 1;
+	}
+	printk("Faulting instruction: 0x%lx\n", instr);
+	/**
+	 * List of seen faults: 020c00a9 (0xa9000c02) stp x2, x3, [x0]
+	 *
+	 */
+
+	uint8_t op0;
+	struct fixupDescription desc = {0};
+
+	op0 = ((instr & 0x1E000000) >> 25);
+	if((op0 & 5) == 0x4){
+		printk("Load/Store\n");
+		return ls_fixup(instr, regs, &desc);
+	} else {
+		printk("Not handling instruction with op0 0x%x ",op0);
+	}
+	return -1;
 }
