@@ -2148,10 +2148,14 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BH1750, BME280, BME680,
-                                BMP280, BMP380, CCS811, DS1621, HDC100X, JC42,
-                                LM75, MCP980x, MPU6050, MPU9250, MS5637, MS5803,
-                                MS5805, MS5837, MS8607, SHT3x or TMP102
+Params: addr                    Set the address for the ADT7410, BH1750, BME280,
+                                BME680, BMP280, BMP380, CCS811, DS1621, HDC100X,
+                                JC42, LM75, MCP980x, MPU6050, MPU9250, MS5637,
+                                MS5803, MS5805, MS5837, MS8607, SHT3x or TMP102
+
+        adt7410                 Select the Analog Devices ADT7410 and ADT7420
+                                temperature sensors
+                                Valid address 0x48-0x4b, default 0x48
 
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor

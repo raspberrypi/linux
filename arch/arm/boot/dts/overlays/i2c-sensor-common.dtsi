@@ -508,6 +508,21 @@
 		};
 	};
 
+	fragment@34 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			adt7410: adt7410@48 {
+				compatible = "adi,adt7410", "adi,adt7420";
+				reg = <0x48>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -543,6 +558,7 @@
 		mpu9250 = <0>,"+29";
 		bno055 = <0>,"+31";
 		sht4x = <0>,"+32";
+		adt7410 = <0>,"+34";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -552,7 +568,7 @@
 			<&ms5837>,"reg:0", <&ms8607>,"reg:0",
 			<&mpu6050>,"reg:0", <&mpu9250>,"reg:0",
 			<&bno055>,"reg:0", <&sht4x>,"reg:0",
-			<&bmp380>,"reg:0";
+			<&bmp380>,"reg:0", <&adt7410>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0",
 			<&mpu6050>, "interrupts:0",
 			<&mpu9250>, "interrupts:0";
