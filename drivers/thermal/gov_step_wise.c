@@ -98,15 +98,9 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip_id
 		trace_thermal_zone_trip(tz, trip_id, trip.type);
 	}
 
-	hyst_temp = trip_temp = trip.temperature;
+	trip_temp = trip.temperature;
+	hyst_temp = trip_temp - trip.hysteresis;
 	trip_type = trip.type;
-
-	if (trip.hysteresis)
-		hyst_temp = trip_temp - trip.hysteresis;
-	else
-		dev_info_once(&tz->device,
-			"Zero hysteresis value for Trip%d[type=%d]\n",
-			trip_id, trip_type);
 
 	dev_dbg(&tz->device,
 		"Trip%d[type=%d,temp=%d,hyst=%d]:trend=%d,throttle=%d\n",
