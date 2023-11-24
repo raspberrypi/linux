@@ -1826,7 +1826,7 @@ static void cfe_unregister_nodes(struct cfe_device *cfe)
 
 static int cfe_link_node_pads(struct cfe_device *cfe)
 {
-	unsigned int i;
+	unsigned int i, source_pad = 0;
 	int ret;
 
 	for (i = 0; i < CSI2_NUM_CHANNELS; i++) {
@@ -1835,14 +1835,23 @@ static int cfe_link_node_pads(struct cfe_device *cfe)
 		if (!check_state(cfe, NODE_REGISTERED, i))
 			continue;
 
-		if (i < cfe->sensor->entity.num_pads) {
+		/* Find next source pad */
+		while (source_pad < cfe->sensor->entity.num_pads &&
+		       !(cfe->sensor->entity.pads[source_pad].flags &
+							MEDIA_PAD_FL_SOURCE))
+			source_pad++;
+
+		if (source_pad < cfe->sensor->entity.num_pads) {
 			/* Sensor -> CSI2 */
-			ret = media_create_pad_link(&cfe->sensor->entity, i,
+			ret = media_create_pad_link(&cfe->sensor->entity, source_pad,
 						    &cfe->csi2.sd.entity, i,
 						    MEDIA_LNK_FL_IMMUTABLE |
 						    MEDIA_LNK_FL_ENABLED);
 			if (ret)
 				return ret;
+
+			/* Dealt with that source_pad, look at the next one next time */
+			source_pad++;
 		}
 
 		/* CSI2 channel # -> /dev/video# */
