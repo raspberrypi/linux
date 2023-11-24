@@ -580,6 +580,8 @@ static int vc4_vec_connector_init(struct drm_device *dev, struct vc4_vec *vec)
 
 	drm_object_attach_property(&connector->base, prop, legacy_default_mode);
 
+	drm_connector_attach_tv_margin_properties(connector);
+
 	drm_connector_attach_encoder(connector, &vec->encoder.base);
 
 	return 0;
