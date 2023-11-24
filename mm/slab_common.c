@@ -33,6 +33,8 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/kmem.h>
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
 
 enum slab_state slab_state;
 LIST_HEAD(slab_caches);
@@ -1170,6 +1172,8 @@ static void *__kmalloc_large_node(size_t size, gfp_t flags, int node)
 		mod_lruvec_page_state(page, NR_SLAB_UNRECLAIMABLE_B,
 				      PAGE_SIZE << order);
 	}
+
+	trace_android_vh_kmalloc_large_alloced(page, order, flags);
 
 	ptr = kasan_kmalloc_large(ptr, size, flags);
 	/* As ptr might get tagged, call kmemleak hook after KASAN. */
