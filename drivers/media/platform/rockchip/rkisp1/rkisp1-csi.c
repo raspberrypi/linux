@@ -285,8 +285,8 @@ static int rkisp1_csi_enum_mbus_code(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
-static int rkisp1_csi_init_config(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_state *sd_state)
+static int rkisp1_csi_init_state(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *sd_state)
 {
 	struct v4l2_mbus_framefmt *sink_fmt, *src_fmt;
 
@@ -420,7 +420,6 @@ static const struct v4l2_subdev_video_ops rkisp1_csi_video_ops = {
 
 static const struct v4l2_subdev_pad_ops rkisp1_csi_pad_ops = {
 	.enum_mbus_code = rkisp1_csi_enum_mbus_code,
-	.init_cfg = rkisp1_csi_init_config,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = rkisp1_csi_set_fmt,
 };
@@ -428,6 +427,10 @@ static const struct v4l2_subdev_pad_ops rkisp1_csi_pad_ops = {
 static const struct v4l2_subdev_ops rkisp1_csi_ops = {
 	.video = &rkisp1_csi_video_ops,
 	.pad = &rkisp1_csi_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops rkisp1_csi_internal_ops = {
+	.init_state = rkisp1_csi_init_state,
 };
 
 int rkisp1_csi_register(struct rkisp1_device *rkisp1)
@@ -441,6 +444,7 @@ int rkisp1_csi_register(struct rkisp1_device *rkisp1)
 
 	sd = &csi->sd;
 	v4l2_subdev_init(sd, &rkisp1_csi_ops);
+	sd->internal_ops = &rkisp1_csi_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	sd->entity.ops = &rkisp1_csi_media_ops;
 	sd->entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
