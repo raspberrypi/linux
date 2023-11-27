@@ -388,8 +388,8 @@ void pisp_fe_stop(struct pisp_fe_device *fe)
 	pisp_fe_reg_write(fe, FE_INT_STATUS, ~0);
 }
 
-static int pisp_fe_init_cfg(struct v4l2_subdev *sd,
-			    struct v4l2_subdev_state *state)
+static int pisp_fe_init_state(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_state *state)
 {
 	struct v4l2_mbus_framefmt *fmt;
 
@@ -488,7 +488,6 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 }
 
 static const struct v4l2_subdev_pad_ops pisp_fe_subdev_pad_ops = {
-	.init_cfg = pisp_fe_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = pisp_fe_pad_set_fmt,
 	.link_validate = v4l2_subdev_link_validate_default,
@@ -500,6 +499,11 @@ static const struct media_entity_operations pisp_fe_entity_ops = {
 
 static const struct v4l2_subdev_ops pisp_fe_subdev_ops = {
 	.pad = &pisp_fe_subdev_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops pisp_fe_internal_ops = {
+	.init_state = &pisp_fe_init_state,
+
 };
 
 int pisp_fe_init(struct pisp_fe_device *fe, struct dentry *debugfs)
@@ -527,6 +531,7 @@ int pisp_fe_init(struct pisp_fe_device *fe, struct dentry *debugfs)
 
 	/* Initialize subdev */
 	v4l2_subdev_init(&fe->sd, &pisp_fe_subdev_ops);
+	fe->sd.internal_ops = &pisp_fe_internal_ops;
 	fe->sd.entity.function = MEDIA_ENT_F_PROC_VIDEO_SCALER;
 	fe->sd.entity.ops = &pisp_fe_entity_ops;
 	fe->sd.entity.name = "pisp-fe";

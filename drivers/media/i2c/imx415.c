@@ -891,8 +891,8 @@ static int imx415_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
-static int imx415_init_cfg(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_state *state)
+static int imx415_init_state(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *state)
 {
 	struct v4l2_subdev_format format = {
 		.format = {
@@ -916,12 +916,15 @@ static const struct v4l2_subdev_pad_ops imx415_subdev_pad_ops = {
 	.get_fmt = imx415_get_format,
 	.set_fmt = imx415_set_format,
 	.get_selection = imx415_get_selection,
-	.init_cfg = imx415_init_cfg,
 };
 
 static const struct v4l2_subdev_ops imx415_subdev_ops = {
 	.video = &imx415_subdev_video_ops,
 	.pad = &imx415_subdev_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops imx415_internal_ops = {
+	.init_state = imx415_init_state,
 };
 
 static int imx415_subdev_init(struct imx415 *sensor)
@@ -930,6 +933,7 @@ static int imx415_subdev_init(struct imx415 *sensor)
 	int ret;
 
 	v4l2_i2c_subdev_init(&sensor->subdev, client, &imx415_subdev_ops);
+	sensor->subdev.internal_ops = &imx415_internal_ops;
 
 	ret = imx415_ctrls_init(sensor);
 	if (ret)

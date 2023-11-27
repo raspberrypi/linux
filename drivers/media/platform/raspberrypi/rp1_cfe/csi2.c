@@ -462,8 +462,8 @@ void csi2_close_rx(struct csi2_device *csi2)
 	csi2_reg_write(csi2, CSI2_IRQ_MASK, 0);
 }
 
-static int csi2_init_cfg(struct v4l2_subdev *sd,
-			 struct v4l2_subdev_state *state)
+static int csi2_init_state(struct v4l2_subdev *sd,
+			   struct v4l2_subdev_state *state)
 {
 	struct v4l2_mbus_framefmt *fmt;
 
@@ -550,7 +550,6 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 }
 
 static const struct v4l2_subdev_pad_ops csi2_subdev_pad_ops = {
-	.init_cfg = csi2_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = csi2_pad_set_fmt,
 	.link_validate = v4l2_subdev_link_validate_default,
@@ -562,6 +561,10 @@ static const struct media_entity_operations csi2_entity_ops = {
 
 static const struct v4l2_subdev_ops csi2_subdev_ops = {
 	.pad = &csi2_subdev_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops csi2_internal_ops = {
+	.init_state = csi2_init_state,
 };
 
 int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
@@ -590,6 +593,7 @@ int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 
 	/* Initialize subdev */
 	v4l2_subdev_init(&csi2->sd, &csi2_subdev_ops);
+	csi2->sd.internal_ops = &csi2_internal_ops;
 	csi2->sd.entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
 	csi2->sd.entity.ops = &csi2_entity_ops;
 	csi2->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
