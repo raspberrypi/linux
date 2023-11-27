@@ -796,7 +796,7 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 	u32 idx2;
 	int ret;
 
-	ret = dw_configure_dai(dev, dw_i2s_dai, SNDRV_PCM_RATE_8000_192000);
+	ret = dw_configure_dai(dev, dw_i2s_dai, SNDRV_PCM_RATE_8000_384000);
 	if (ret < 0)
 		return ret;
 
