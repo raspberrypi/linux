@@ -77,7 +77,7 @@
 	};
 
 	/* Mux define */
-	fragment@200 {
+	i2c_frag: fragment@200 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -294,7 +294,7 @@
 		};
 	};
 
-	fragment@201 {
+	csi_frag: fragment@201 {
 		target = <&csi1>;
 		__overlay__ {
 			status = "okay";
@@ -501,5 +501,8 @@
 				       <&imx290_0>,"clock-frequency:0";
 		cam1-imx290-clk-freq = <&clk_imx290>,"clock-frequency:0",
 				       <&imx290_1>,"clock-frequency:0";
+
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>;
 	};
 };
