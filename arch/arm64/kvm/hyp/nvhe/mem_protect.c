@@ -685,7 +685,14 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 	int ret = 0;
 
 	esr = read_sysreg_el2(SYS_ESR);
-	BUG_ON(!__get_fault_info(esr, &fault));
+	if (!__get_fault_info(esr, &fault)) {
+		addr = (u64)-1;
+		/*
+		 * We've presumably raced with a page-table change which caused
+		 * AT to fail, try again.
+		 */
+		goto return_to_host;
+	}
 
 	addr = (fault.hpfar_el2 & HPFAR_MASK) << 8;
 	ret = host_stage2_idmap(addr);
@@ -695,6 +702,7 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 	else
 		BUG_ON(ret && ret != -EAGAIN);
 
+return_to_host:
 	trace_host_mem_abort(esr, addr);
 }
 
