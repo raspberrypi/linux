@@ -1345,6 +1345,7 @@ static int imx219_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	v4l2_i2c_subdev_init(&imx219->sd, client, &imx219_subdev_ops);
+	imx219->sd.internal_ops = &imx219_internal_ops;
 
 	/* Check the hardware configuration in device tree */
 	if (imx219_check_hwcfg(dev, imx219))

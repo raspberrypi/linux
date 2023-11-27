@@ -242,8 +242,7 @@ done:
 	return ret;
 }
 
-const struct v4l2_subdev_pad_ops vsp1_rwpf_pad_ops = {
-	.init_cfg = vsp1_entity_init_cfg,
+static const struct v4l2_subdev_pad_ops vsp1_rwpf_pad_ops = {
 	.enum_mbus_code = vsp1_rwpf_enum_mbus_code,
 	.enum_frame_size = vsp1_rwpf_enum_frame_size,
 	.get_fmt = vsp1_subdev_get_pad_format,
