@@ -235,9 +235,16 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 {
 	u32 ch_reg;
 	struct i2s_clk_config_data *config = &dev->config;
-	u32 dmacr = 0;
+	u32 dmacr;
 
 	i2s_disable_channels(dev, stream);
+
+	dmacr = i2s_read_reg(dev->i2s_base, I2S_DMACR);
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+		dmacr &= ~(DMACR_DMAEN_TXCH0 * 0xf);
+	else
+		dmacr &= ~(DMACR_DMAEN_RXCH0 * 0xf);
 
 	for (ch_reg = 0; ch_reg < (config->chan_nr / 2); ch_reg++) {
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -258,10 +265,6 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 			dmacr |= (DMACR_DMAEN_RXCH0 << ch_reg);
 		}
 	}
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		dmacr |= DMACR_DMAEN_TX;
-	else if (stream == SNDRV_PCM_STREAM_CAPTURE)
-		dmacr |= DMACR_DMAEN_RX;
 
 	i2s_write_reg(dev->i2s_base, I2S_DMACR, dmacr);
 }
@@ -370,10 +373,13 @@ static int dw_i2s_startup(struct snd_pcm_substream *substream,
 
 	dw_i2s_config(dev, substream->stream);
 	dmacr = i2s_read_reg(dev->i2s_base, I2S_DMACR);
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		dma_data = &dev->play_dma_data;
-	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		dmacr |= DMACR_DMAEN_TX;
+	} else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		dma_data = &dev->capture_dma_data;
+		dmacr |= DMACR_DMAEN_RX;
+	}
 
 	snd_soc_dai_set_dma_data(cpu_dai, substream, (void *)dma_data);
 	i2s_write_reg(dev->i2s_base, I2S_DMACR, dmacr);
