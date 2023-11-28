@@ -1065,6 +1065,11 @@ impl Thread {
             {
                 let offset = view.alloc.read(index_offset)?;
 
+                if offset < end_of_previous_object {
+                    pr_warn!("Got transaction with invalid offset.");
+                    return Err(EINVAL.into());
+                }
+
                 // Copy data between two objects.
                 if end_of_previous_object < offset {
                     view.alloc.copy_into(
