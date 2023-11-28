@@ -489,6 +489,16 @@ Params: addr                    I2C bus address of device. Set based on how the
         cha_gain                Set the gain of the Programmable Gain
                                 Amplifier for this channel. (Default 1 sets the
                                 full scale of the channel to 4.096 Volts)
+        i2c0                    Choose the I2C0 bus on GPIOs 0&1
+        i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c4                    Choose the I2C4 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+        i2c5                    Choose the I2C5 bus (configure with the i2c5
+                                overlay - BCM2711 only)
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
 
         Channel parameters can be set for each enabled channel.
         A maximum of 4 channels can be enabled (letters a thru d).
