@@ -34,4 +34,5 @@
         <option name="test-command-line" key="kselftest_vdso_vdso_test_getcpu" value="/data/selftests/x86_64/kselftest_vdso_vdso_test_getcpu" />
         <option name="test-command-line" key="kselftest_vdso_vdso_test_gettimeofday" value="/data/selftests/x86_64/kselftest_vdso_vdso_test_gettimeofday" />
         <option name="test-command-line" key="kselftest_size_test_get_size" value="/data/selftests/x86_64/kselftest_size_test_get_size" />
+    </test>
 </configuration>

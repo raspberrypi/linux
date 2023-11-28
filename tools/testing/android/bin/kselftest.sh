@@ -14,6 +14,7 @@ print_help() {
     echo "Available options:"
     echo "  --skip-kernel-build    Skip the kernel building step"
     echo "  --skip-cvd-launch      Skip the CVD launch step"
+    echo "  --skip-cvd-kill        Do not kill CVD launched by running this script"
     echo "  --dist-dir             The kernel dist dir (default is /tmp/kernel_dist)"
     echo "  --help                 Display this help message and exit"
     echo ""
@@ -22,6 +23,7 @@ print_help() {
 
 BUILD_KERNEL=true
 LAUNCH_CVD=true
+KILL_CVD=true
 DIST_DIR=/tmp/kernel_dist
 
 for arg in "$@"; do
@@ -32,6 +34,10 @@ for arg in "$@"; do
             ;;
         --skip-cvd-launch)
             LAUNCH_CVD=false
+            shift
+            ;;
+        --skip-cvd-kill)
+            KILL_CVD=false
             shift
             ;;
         --dist-dir)
@@ -64,7 +70,7 @@ $BAZEL build //common:kselftest_tests_x86_64
 $TRADEFED run commandAndExit template/local_min --template:map test=suite/test_mapping_suite \
 --include-filter selftests --extra-file testsdir=$TESTSDIR --primary-abi-only
 
-if $LAUNCH_CVD; then
+if $LAUNCH_CVD && $KILL_CVD; then
     echo "Test finished. Deleting cvd..."
     $ACLOUD delete --instance-names $INSTANCE_NAME
 fi
