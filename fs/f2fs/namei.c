@@ -1106,7 +1106,7 @@ static int f2fs_rename(struct mnt_idmap *idmap, struct inode *old_dir,
 	}
 
 	if (old_is_dir) {
-		if (old_dir_entry && !whiteout)
+		if (old_dir_entry)
 			f2fs_set_link(old_inode, old_dir_entry,
 						old_dir_page, new_dir);
 		else
