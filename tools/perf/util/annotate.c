@@ -1843,7 +1843,6 @@ static int symbol__disassemble_bpf(struct symbol *sym,
 				   struct annotate_args *args)
 {
 	struct annotation *notes = symbol__annotation(sym);
-	struct annotation_options *opts = args->options;
 	struct bpf_prog_linfo *prog_linfo = NULL;
 	struct bpf_prog_info_node *info_node;
 	int len = sym->end - sym->start;
@@ -1953,7 +1952,7 @@ static int symbol__disassemble_bpf(struct symbol *sym,
 		prev_buf_size = buf_size;
 		fflush(s);
 
-		if (!opts->hide_src_code && srcline) {
+		if (!annotate_opts.hide_src_code && srcline) {
 			args->offset = -1;
 			args->line = strdup(srcline);
 			args->line_nr = 0;
@@ -2076,7 +2075,7 @@ static char *expand_tabs(char *line, char **storage, size_t *storage_len)
 
 static int symbol__disassemble(struct symbol *sym, struct annotate_args *args)
 {
-	struct annotation_options *opts = args->options;
+	struct annotation_options *opts = &annotate_opts;
 	struct map *map = args->ms.map;
 	struct dso *dso = map__dso(map);
 	char *command;
@@ -2326,13 +2325,13 @@ void symbol__calc_percent(struct symbol *sym, struct evsel *evsel)
 }
 
 int symbol__annotate(struct map_symbol *ms, struct evsel *evsel,
-		     struct annotation_options *options, struct arch **parch)
+		     struct arch **parch)
 {
 	struct symbol *sym = ms->sym;
 	struct annotation *notes = symbol__annotation(sym);
 	struct annotate_args args = {
 		.evsel		= evsel,
-		.options	= options,
+		.options	= &annotate_opts,
 	};
 	struct perf_env *env = evsel__env(evsel);
 	const char *arch_name = perf_env__arch(env);
@@ -2360,7 +2359,7 @@ int symbol__annotate(struct map_symbol *ms, struct evsel *evsel,
 	}
 
 	args.ms = *ms;
-	if (notes->options && notes->options->full_addr)
+	if (annotate_opts.full_addr)
 		notes->start = map__objdump_2mem(ms->map, ms->sym->start);
 	else
 		notes->start = map__rip_2objdump(ms->map, ms->sym->start);
@@ -2368,12 +2367,12 @@ int symbol__annotate(struct map_symbol *ms, struct evsel *evsel,
 	return symbol__disassemble(sym, &args);
 }
 
-static void insert_source_line(struct rb_root *root, struct annotation_line *al,
-			       struct annotation_options *opts)
+static void insert_source_line(struct rb_root *root, struct annotation_line *al)
 {
 	struct annotation_line *iter;
 	struct rb_node **p = &root->rb_node;
 	struct rb_node *parent = NULL;
+	unsigned int percent_type = annotate_opts.percent_type;
 	int i, ret;
 
 	while (*p != NULL) {
@@ -2384,7 +2383,7 @@ static void insert_source_line(struct rb_root *root, struct annotation_line *al,
 		if (ret == 0) {
 			for (i = 0; i < al->data_nr; i++) {
 				iter->data[i].percent_sum += annotation_data__percent(&al->data[i],
-										      opts->percent_type);
+										      percent_type);
 			}
 			return;
 		}
@@ -2397,7 +2396,7 @@ static void insert_source_line(struct rb_root *root, struct annotation_line *al,
 
 	for (i = 0; i < al->data_nr; i++) {
 		al->data[i].percent_sum = annotation_data__percent(&al->data[i],
-								   opts->percent_type);
+								   percent_type);
 	}
 
 	rb_link_node(&al->rb_node, parent, p);
@@ -2519,8 +2518,7 @@ static int annotated_source__addr_fmt_width(struct list_head *lines, u64 start)
 	return 0;
 }
 
-int symbol__annotate_printf(struct map_symbol *ms, struct evsel *evsel,
-			    struct annotation_options *opts)
+int symbol__annotate_printf(struct map_symbol *ms, struct evsel *evsel)
 {
 	struct map *map = ms->map;
 	struct symbol *sym = ms->sym;
@@ -2531,6 +2529,7 @@ int symbol__annotate_printf(struct map_symbol *ms, struct evsel *evsel,
 	struct annotation *notes = symbol__annotation(sym);
 	struct sym_hist *h = annotation__histogram(notes, evsel->core.idx);
 	struct annotation_line *pos, *queue = NULL;
+	struct annotation_options *opts = &annotate_opts;
 	u64 start = map__rip_2objdump(map, sym->start);
 	int printed = 2, queue_len = 0, addr_fmt_width;
 	int more = 0;
@@ -2659,8 +2658,7 @@ static void FILE__write_graph(void *fp, int graph)
 	fputs(s, fp);
 }
 
-static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp,
-				     struct annotation_options *opts)
+static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp)
 {
 	struct annotation *notes = symbol__annotation(sym);
 	struct annotation_write_ops wops = {
@@ -2677,7 +2675,7 @@ static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp,
 	list_for_each_entry(al, &notes->src->source, node) {
 		if (annotation_line__filter(al, notes))
 			continue;
-		annotation_line__write(al, notes, &wops, opts);
+		annotation_line__write(al, notes, &wops);
 		fputc('\n', fp);
 		wops.first_line = false;
 	}
@@ -2685,8 +2683,7 @@ static int symbol__annotate_fprintf2(struct symbol *sym, FILE *fp,
 	return 0;
 }
 
-int map_symbol__annotation_dump(struct map_symbol *ms, struct evsel *evsel,
-				struct annotation_options *opts)
+int map_symbol__annotation_dump(struct map_symbol *ms, struct evsel *evsel)
 {
 	const char *ev_name = evsel__name(evsel);
 	char buf[1024];
@@ -2708,7 +2705,7 @@ int map_symbol__annotation_dump(struct map_symbol *ms, struct evsel *evsel,
 
 	fprintf(fp, "%s() %s\nEvent: %s\n\n",
 		ms->sym->name, map__dso(ms->map)->long_name, ev_name);
-	symbol__annotate_fprintf2(ms->sym, fp, opts);
+	symbol__annotate_fprintf2(ms->sym, fp);
 
 	fclose(fp);
 	err = 0;
@@ -2884,24 +2881,24 @@ void annotation__init_column_widths(struct annotation *notes, struct symbol *sym
 
 void annotation__update_column_widths(struct annotation *notes)
 {
-	if (notes->options->use_offset)
+	if (annotate_opts.use_offset)
 		notes->widths.target = notes->widths.min_addr;
-	else if (notes->options->full_addr)
+	else if (annotate_opts.full_addr)
 		notes->widths.target = BITS_PER_LONG / 4;
 	else
 		notes->widths.target = notes->widths.max_addr;
 
 	notes->widths.addr = notes->widths.target;
 
-	if (notes->options->show_nr_jumps)
+	if (annotate_opts.show_nr_jumps)
 		notes->widths.addr += notes->widths.jumps + 1;
 }
 
 void annotation__toggle_full_addr(struct annotation *notes, struct map_symbol *ms)
 {
-	notes->options->full_addr = !notes->options->full_addr;
+	annotate_opts.full_addr = !annotate_opts.full_addr;
 
-	if (notes->options->full_addr)
+	if (annotate_opts.full_addr)
 		notes->start = map__objdump_2mem(ms->map, ms->sym->start);
 	else
 		notes->start = map__rip_2objdump(ms->map, ms->sym->start);
@@ -2910,8 +2907,7 @@ void annotation__toggle_full_addr(struct annotation *notes, struct map_symbol *m
 }
 
 static void annotation__calc_lines(struct annotation *notes, struct map *map,
-				   struct rb_root *root,
-				   struct annotation_options *opts)
+				   struct rb_root *root)
 {
 	struct annotation_line *al;
 	struct rb_root tmp_root = RB_ROOT;
@@ -2924,7 +2920,7 @@ static void annotation__calc_lines(struct annotation *notes, struct map *map,
 			double percent;
 
 			percent = annotation_data__percent(&al->data[i],
-							   opts->percent_type);
+							   annotate_opts.percent_type);
 
 			if (percent > percent_max)
 				percent_max = percent;
@@ -2935,22 +2931,20 @@ static void annotation__calc_lines(struct annotation *notes, struct map *map,
 
 		al->path = get_srcline(map__dso(map), notes->start + al->offset, NULL,
 				       false, true, notes->start + al->offset);
-		insert_source_line(&tmp_root, al, opts);
+		insert_source_line(&tmp_root, al);
 	}
 
 	resort_source_line(root, &tmp_root);
 }
 
-static void symbol__calc_lines(struct map_symbol *ms, struct rb_root *root,
-			       struct annotation_options *opts)
+static void symbol__calc_lines(struct map_symbol *ms, struct rb_root *root)
 {
 	struct annotation *notes = symbol__annotation(ms->sym);
 
-	annotation__calc_lines(notes, ms->map, root, opts);
+	annotation__calc_lines(notes, ms->map, root);
 }
 
-int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel,
-			  struct annotation_options *opts)
+int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel)
 {
 	struct dso *dso = map__dso(ms->map);
 	struct symbol *sym = ms->sym;
@@ -2959,7 +2953,7 @@ int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel,
 	char buf[1024];
 	int err;
 
-	err = symbol__annotate2(ms, evsel, opts, NULL);
+	err = symbol__annotate2(ms, evsel, NULL);
 	if (err) {
 		char msg[BUFSIZ];
 
@@ -2969,31 +2963,31 @@ int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel,
 		return -1;
 	}
 
-	if (opts->print_lines) {
-		srcline_full_filename = opts->full_path;
-		symbol__calc_lines(ms, &source_line, opts);
+	if (annotate_opts.print_lines) {
+		srcline_full_filename = annotate_opts.full_path;
+		symbol__calc_lines(ms, &source_line);
 		print_summary(&source_line, dso->long_name);
 	}
 
 	hists__scnprintf_title(hists, buf, sizeof(buf));
 	fprintf(stdout, "%s, [percent: %s]\n%s() %s\n",
-		buf, percent_type_str(opts->percent_type), sym->name, dso->long_name);
-	symbol__annotate_fprintf2(sym, stdout, opts);
+		buf, percent_type_str(annotate_opts.percent_type), sym->name,
+		dso->long_name);
+	symbol__annotate_fprintf2(sym, stdout);
 
 	annotated_source__purge(symbol__annotation(sym)->src);
 
 	return 0;
 }
 
-int symbol__tty_annotate(struct map_symbol *ms, struct evsel *evsel,
-			 struct annotation_options *opts)
+int symbol__tty_annotate(struct map_symbol *ms, struct evsel *evsel)
 {
 	struct dso *dso = map__dso(ms->map);
 	struct symbol *sym = ms->sym;
 	struct rb_root source_line = RB_ROOT;
 	int err;
 
-	err = symbol__annotate(ms, evsel, opts, NULL);
+	err = symbol__annotate(ms, evsel, NULL);
 	if (err) {
 		char msg[BUFSIZ];
 
@@ -3005,13 +2999,13 @@ int symbol__tty_annotate(struct map_symbol *ms, struct evsel *evsel,
 
 	symbol__calc_percent(sym, evsel);
 
-	if (opts->print_lines) {
-		srcline_full_filename = opts->full_path;
-		symbol__calc_lines(ms, &source_line, opts);
+	if (annotate_opts.print_lines) {
+		srcline_full_filename = annotate_opts.full_path;
+		symbol__calc_lines(ms, &source_line);
 		print_summary(&source_line, dso->long_name);
 	}
 
-	symbol__annotate_printf(ms, evsel, opts);
+	symbol__annotate_printf(ms, evsel);
 
 	annotated_source__purge(symbol__annotation(sym)->src);
 
@@ -3072,7 +3066,7 @@ call_like:
 		obj__printf(obj, "  ");
 	}
 
-	disasm_line__scnprintf(dl, bf, size, !notes->options->use_offset, notes->widths.max_ins_name);
+	disasm_line__scnprintf(dl, bf, size, !annotate_opts.use_offset, notes->widths.max_ins_name);
 }
 
 static void ipc_coverage_string(char *bf, int size, struct annotation *notes)
@@ -3154,7 +3148,7 @@ static void __annotation_line__write(struct annotation_line *al, struct annotati
 		else
 			obj__printf(obj, "%*s ", ANNOTATION__IPC_WIDTH - 1, "IPC");
 
-		if (!notes->options->show_minmax_cycle) {
+		if (!annotate_opts.show_minmax_cycle) {
 			if (al->cycles && al->cycles->avg)
 				obj__printf(obj, "%*" PRIu64 " ",
 					   ANNOTATION__CYCLES_WIDTH - 1, al->cycles->avg);
@@ -3198,7 +3192,7 @@ static void __annotation_line__write(struct annotation_line *al, struct annotati
 	if (!*al->line)
 		obj__printf(obj, "%-*s", width - pcnt_width - cycles_width, " ");
 	else if (al->offset == -1) {
-		if (al->line_nr && notes->options->show_linenr)
+		if (al->line_nr && annotate_opts.show_linenr)
 			printed = scnprintf(bf, sizeof(bf), "%-*d ", notes->widths.addr + 1, al->line_nr);
 		else
 			printed = scnprintf(bf, sizeof(bf), "%-*s  ", notes->widths.addr, " ");
@@ -3208,15 +3202,15 @@ static void __annotation_line__write(struct annotation_line *al, struct annotati
 		u64 addr = al->offset;
 		int color = -1;
 
-		if (!notes->options->use_offset)
+		if (!annotate_opts.use_offset)
 			addr += notes->start;
 
-		if (!notes->options->use_offset) {
+		if (!annotate_opts.use_offset) {
 			printed = scnprintf(bf, sizeof(bf), "%" PRIx64 ": ", addr);
 		} else {
 			if (al->jump_sources &&
-			    notes->options->offset_level >= ANNOTATION__OFFSET_JUMP_TARGETS) {
-				if (notes->options->show_nr_jumps) {
+			    annotate_opts.offset_level >= ANNOTATION__OFFSET_JUMP_TARGETS) {
+				if (annotate_opts.show_nr_jumps) {
 					int prev;
 					printed = scnprintf(bf, sizeof(bf), "%*d ",
 							    notes->widths.jumps,
@@ -3230,9 +3224,9 @@ print_addr:
 				printed = scnprintf(bf, sizeof(bf), "%*" PRIx64 ": ",
 						    notes->widths.target, addr);
 			} else if (ins__is_call(&disasm_line(al)->ins) &&
-				   notes->options->offset_level >= ANNOTATION__OFFSET_CALL) {
+				   annotate_opts.offset_level >= ANNOTATION__OFFSET_CALL) {
 				goto print_addr;
-			} else if (notes->options->offset_level == ANNOTATION__MAX_OFFSET_LEVEL) {
+			} else if (annotate_opts.offset_level == ANNOTATION__MAX_OFFSET_LEVEL) {
 				goto print_addr;
 			} else {
 				printed = scnprintf(bf, sizeof(bf), "%-*s  ",
@@ -3254,19 +3248,18 @@ print_addr:
 }
 
 void annotation_line__write(struct annotation_line *al, struct annotation *notes,
-			    struct annotation_write_ops *wops,
-			    struct annotation_options *opts)
+			    struct annotation_write_ops *wops)
 {
 	__annotation_line__write(al, notes, wops->first_line, wops->current_entry,
 				 wops->change_color, wops->width, wops->obj,
-				 opts->percent_type,
+				 annotate_opts.percent_type,
 				 wops->set_color, wops->set_percent_color,
 				 wops->set_jumps_percent_color, wops->printf,
 				 wops->write_graph);
 }
 
 int symbol__annotate2(struct map_symbol *ms, struct evsel *evsel,
-		      struct annotation_options *options, struct arch **parch)
+		      struct arch **parch)
 {
 	struct symbol *sym = ms->sym;
 	struct annotation *notes = symbol__annotation(sym);
@@ -3280,11 +3273,11 @@ int symbol__annotate2(struct map_symbol *ms, struct evsel *evsel,
 	if (evsel__is_group_event(evsel))
 		nr_pcnt = evsel->core.nr_members;
 
-	err = symbol__annotate(ms, evsel, options, parch);
+	err = symbol__annotate(ms, evsel, parch);
 	if (err)
 		goto out_free_offsets;
 
-	notes->options = options;
+	notes->options = &annotate_opts;
 
 	symbol__calc_percent(sym, evsel);
 
@@ -3412,10 +3405,9 @@ static unsigned int parse_percent_type(char *str1, char *str2)
 	return type;
 }
 
-int annotate_parse_percent_type(const struct option *opt, const char *_str,
+int annotate_parse_percent_type(const struct option *opt __maybe_unused, const char *_str,
 				int unset __maybe_unused)
 {
-	struct annotation_options *opts = opt->value;
 	unsigned int type;
 	char *str1, *str2;
 	int err = -1;
@@ -3434,7 +3426,7 @@ int annotate_parse_percent_type(const struct option *opt, const char *_str,
 	if (type == (unsigned int) -1)
 		type = parse_percent_type(str2, str1);
 	if (type != (unsigned int) -1) {
-		opts->percent_type = type;
+		annotate_opts.percent_type = type;
 		err = 0;
 	}
 
