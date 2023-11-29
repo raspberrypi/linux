@@ -1,4 +1,4 @@
-BRANCH=android-mainline
+BRANCH=android15-6.6
 CLANG_VERSION=r498229b
 AARCH64_NDK_TRIPLE=aarch64-linux-android31
 X86_64_NDK_TRIPLE=x86_64-linux-android31
