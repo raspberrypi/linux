@@ -128,6 +128,7 @@
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
+  __traceiter_mm_vmscan_kswapd_wake
   __traceiter_sched_stat_blocked
   __traceiter_sched_stat_iowait
   __traceiter_sched_stat_runtime
@@ -170,6 +171,7 @@
   __tracepoint_android_vh_look_around
   __tracepoint_android_vh_look_around_migrate_folio
   __tracepoint_android_vh_test_clear_look_around_ref
+  __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_sched_stat_blocked
   __tracepoint_sched_stat_iowait
   __tracepoint_sched_stat_sleep
