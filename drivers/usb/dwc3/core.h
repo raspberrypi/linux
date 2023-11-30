@@ -237,11 +237,6 @@
 #define DWC31_TXTHRNUMPKT_PRD(n)		(((n) & 0x1f) << 5)
 #define DWC31_MAXTXBURSTSIZE_PRD(n)		((n) & 0x1f)
 
-/* Global TX Threshold Configuration Register for DWC_usb3 only */
-#define DWC3_GTXTHRCFG_MAXTXBURSTSIZE(n)	(((n) & 0x1f) << 16)
-#define DWC3_GTXTHRCFG_TXPKTCNT(n)		(((n) & 0x0f) << 24)
-#define DWC3_GTXTHRCFG_PKTCNTSEL		BIT(29)
-
 /* Global Configuration Register */
 #define DWC3_GCTL_PWRDNSCALE(n)	((n) << 19)
 #define DWC3_GCTL_PWRDNSCALE_MASK	GENMASK(31, 19)
