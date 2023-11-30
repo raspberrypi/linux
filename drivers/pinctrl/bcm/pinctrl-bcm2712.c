@@ -60,22 +60,24 @@
 		}, \
 	}
 
-#define REG_BIT_INVALID 0xffff
+#define MUX_BIT_VALID	0x8000
+#define REG_BIT_INVALID	0xffff
 
 #define BIT_TO_REG(b) (((b) >> 5) << 2)
 #define BIT_TO_SHIFT(b) ((b) & 0x1f)
 
+#define MUX_BIT(mr, mb) (MUX_BIT_VALID + ((mr)*4)*8 + (mb)*4)
 #define GPIO_REGS(n, mr, mb, pr, pb) \
-	[n] = { ((mr)*4)*8 + (mb)*4, ((pr)*4)*8 + (pb)*2 }
+	[n] = { MUX_BIT(mr, mb), ((pr)*4)*8 + (pb)*2 }
 
-#define EMMC_REGS(n, r, b) \
-	[n] = { 0, ((r)*4)*8 + (b)*2 }
+#define EMMC_REGS(n, pr, pb) \
+	[n] = { 0, ((pr)*4)*8 + (pb)*2 }
 
 #define AGPIO_REGS(n, mr, mb, pr, pb) \
-	[n] = { ((mr)*4)*8 + (mb)*4, ((pr)*4)*8 + (pb)*2 }
+	[n] = { MUX_BIT(mr, mb), ((pr)*4)*8 + (pb)*2 }
 
 #define SGPIO_REGS(n, mr, mb) \
-	[n+32] = { ((mr)*4)*8 + (mb)*4, REG_BIT_INVALID }
+	[n+32] = { MUX_BIT(mr, mb), REG_BIT_INVALID }
 
 #define GPIO_PIN(a) PINCTRL_PIN(a, "gpio" #a)
 #define AGPIO_PIN(a) PINCTRL_PIN(a, "aon_gpio" #a)
@@ -740,6 +742,7 @@ static enum bcm2712_funcs bcm2712_pinctrl_fsel_get(
 
 	if (!bit)
 		return func_gpio;
+	bit &= ~MUX_BIT_VALID;
 
 	val = bcm2712_reg_rd(pc, BIT_TO_REG(bit));
 	fsel = (val >> BIT_TO_SHIFT(bit)) & BCM2712_FSEL_MASK;
@@ -767,6 +770,7 @@ static void bcm2712_pinctrl_fsel_set(
 
 	if (!bit || func >= func_count)
 		return;
+	bit &= ~MUX_BIT_VALID;
 
 	fsel = BCM2712_FSEL_COUNT;
 
