@@ -724,7 +724,7 @@ static void check_alias_paths(struct check *c, struct dt_info *dti,
 			continue;
 		}
 		if (strspn(prop->name, LOWERCASE DIGITS "-") != strlen(prop->name))
-			FAIL(c, dti, node, "aliases property name must include only lowercase and '-'");
+		    FAIL(c, dti, node, "aliases property name (%s) must include only lowercase and '-'", prop->name);
 	}
 }
 WARNING(alias_paths, check_alias_paths, NULL);
