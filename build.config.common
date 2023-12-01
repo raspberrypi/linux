@@ -1,5 +1,7 @@
 . ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
 
+KMI_GENERATION=0
+
 LLVM=1
 DEPMOD=depmod
 CLANG_PREBUILT_BIN=prebuilts/clang/host/linux-x86/clang-${CLANG_VERSION}/bin
