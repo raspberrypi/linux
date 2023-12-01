@@ -22,7 +22,9 @@
         <option name="post-push" value='chmod -R 755 /data/selftests; find /data/selftests; -type f | xargs grep -l -e "bin/sh" -e "bin/bash" | xargs sed -i -e "s?/bin/echo?echo?" -i -e "s?#!/bin/sh?#!/system/bin/sh?" -i -e "s?#!/bin/bash?#!/system/bin/sh?" || echo "There were no files to process"' />
     </target_preparer>
 
-    <test class="com.android.tradefed.testtype.binary.ExecutableTargetTest" >
+    <test class="com.android.tradefed.testtype.binary.KernelTargetTest" >
+        <option name="exit-code-skip" value="4" />
+        <option name="skip-binary-check" value="true" />
         <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="/data/selftests/x86_64/kselftest_binderfs_binderfs_test" />
         <option name="test-command-line" key="kselftest_breakpoints_breakpoint_test" value="/data/selftests/x86_64/kselftest_breakpoints_breakpoint_test" />
         <option name="test-command-line" key="kselftest_breakpoints_step_after_suspend_test" value="/data/selftests/x86_64/kselftest_breakpoints_step_after_suspend_test" />
