@@ -385,10 +385,23 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
 // arm64#
 
 /*
- *Happens with The Long Dark
+ *Happens with The Long Dark (also with steam)
  *
  *[ 6012.660803] Faulting instruction: 0x3d800020
 [ 6012.660813] Load/Store: op0 0x3 op1 0x1 op2 0x3 op3 0x0 op4 0x0
+ *
+ *[  555.449651] Load/Store: op0 0x3 op1 0x1 op2 0x1 op3 0x1 op4 0x0
+[  555.449654] Faulting instruction: 0x3c810021
+ *
+ *
+ *[  555.449663] Load/Store: op0 0x3 op1 0x1 op2 0x1 op3 0x2 op4 0x0
+[  555.449666] Faulting instruction: 0x3c820020
+ *
+ *[  555.449674] Load/Store: op0 0x3 op1 0x1 op2 0x1 op3 0x3 op4 0x0
+[  555.449677] Faulting instruction: 0x3c830021
+ *
+ *
+ *
  */
 
 struct fixupDescription{
@@ -405,6 +418,8 @@ struct fixupDescription{
 	int load;	// 1 is it's a load, 0 if it's a store
 	int pair;	// 1 if it's a l/s pair instruction
 	int width;	// width of the access in bits
+	int extendSign;
+	int extend_width;
 };
 
 static int alignment_get_arm64(struct pt_regs *regs, __le64 __user *ip, u32 *inst)
@@ -464,7 +479,7 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	if(!desc->load){
 		uint8_t* addr = desc->addr;
 		int bcount = desc->width / 8;	// since the field stores the width in bits. Honestly, there's no particular reason for that
-		printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
+		//printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
 		for(int i = 0; i < bcount; i++){
 			if((r=put_user(desc->data1 & 0xff, (uint8_t __user *)addr)))
 				return r;
@@ -626,6 +641,84 @@ int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription
 			desc->width = 64;
 			break;
 	}
+	return 1;
+}
+
+
+u64 extend_reg(u64 reg, int type, int shift){
+
+	uint8_t is_signed = (type & 4) >> 2;
+	uint8_t input_width = type & 1;
+
+	u64 tmp;
+	if(!is_signed){
+		tmp = reg;
+	} else {
+		if(input_width == 0){
+			// 32bit, needs to be extended to 64
+			// I hope the compiler just does this kind of automatically with these types
+			int32_t stmpw = reg;
+			int64_t stmpdw = stmpw;
+			tmp = (u64)stmpdw;
+		}
+	}
+
+	return tmp << shift;
+}
+
+int lsr_offset_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t size = (instr >> 30) & 3;
+	uint8_t simd = (instr >> 26) & 1;
+	uint8_t opc = (instr >> 22) & 3;
+	uint8_t option = (instr >> 13) & 5;
+	uint8_t Rm = (instr >> 16) & 0x1f;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
+	uint8_t S = (instr >> 12) & 1;
+	// size==0 seems to be a bit special
+	// opc&2 is sign, opc&1 is load	(for most instructions anyways)
+
+	uint8_t load = opc & 1;
+	uint8_t extend_sign = (opc & 2) >> 1;
+	desc->pair = 0;
+
+	desc->simd = simd;
+	desc->width = 8 << size;
+
+	// the simd instructions make this a bit weird
+	if(!simd){
+		if(extend_sign){
+			if(load){
+				desc->extend_width = 32;
+			} else {
+				desc->extend_width = 64;
+			}
+			desc->load = 1;
+		} else {
+			desc->load = load;
+		}
+
+		desc->extendSign = extend_sign;	// needed for load, which isn't implemented yet
+
+
+		u64 addr = regs->regs[Rn];
+
+		int shift = 0;
+		if(S) shift = 2 << ((size & 1) & ((size >> 1) & 1));
+
+		u64 offset = extend_reg(regs->regs[Rm], option, S);
+
+		addr += offset;
+
+		desc->data1 = regs->regs[Rt];
+		desc->addr = (void*)addr;
+
+		return do_ls_fixup(instr, regs, desc);
+
+	} else {
+		printk("Load/Store register offset decode doesn't support simd yet\n");
+		return 1;
+	}
 	return 0;
 }
 
@@ -636,19 +729,21 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	uint8_t op3;
 	uint8_t op4;
 
+	int r = 1;
+
 	op0 = (instr >> 28) & 0xf;
 	op1 = (instr >> 26) & 1;
 	op2 = (instr >> 23) & 3;
 	op3 = (instr >> 16) & 0x3f;
 	op4 = (instr >> 10) & 3;
-	printk("Load/Store: op0 0x%x op1 0x%x op2 0x%x op3 0x%x op4 0x%x\n", op0, op1, op2, op3, op4);
+
 	if((op0 & 3) == 2){
 		desc->pair = 1;
-		return ls_pair_fixup(instr, regs, desc);
+		r = ls_pair_fixup(instr, regs, desc);
 	}
 	if((op0 & 3) == 0 && op1 == 0 && op2 == 1 && (op3 & 0x20) == 0x20){
 		// compare and swap
-		return ls_cas_fixup(instr, regs, desc);
+		r = ls_cas_fixup(instr, regs, desc);
 	}
 	if((op0 & 3) == 3 && (op2 & 3) == 3){
 		//load/store unsigned immediate
@@ -658,9 +753,16 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	if((op0 & 3) == 2 && (op2 == 2)){
 		// Load/store pair offset
 		//ldpstp_offset_fixup(instr, regs);
-		return ls_reg_unsigned_imm(instr, regs, desc);
+		//r = ls_reg_unsigned_imm(instr, regs, desc);
 	}
-	return 0;
+	if((op0 & 3) == 3 && (op2 & 2) == 0 && (op3 & 0x20) == 0x20 && op4 == 2){
+		// register offset load/store
+		r = lsr_offset_fixup(instr, regs, desc);
+	}
+	if(r){
+		printk("Load/Store: op0 0x%x op1 0x%x op2 0x%x op3 0x%x op4 0x%x\n", op0, op1, op2, op3, op4);
+	}
+	return r;
 }
 
 int do_alignment_fixup(unsigned long addr, struct pt_regs *regs){
@@ -668,25 +770,30 @@ int do_alignment_fixup(unsigned long addr, struct pt_regs *regs){
 	u32 instr = 0;
 
 	instrptr = instruction_pointer(regs);
-	printk("Alignment fixup\n");
+	//printk("Alignment fixup\n");
 
 	if (alignment_get_arm64(regs, (__le64 __user *)instrptr, &instr)){
 		printk("Failed to get aarch64 instruction\n");
 		return 1;
 	}
-	printk("Faulting instruction: 0x%lx\n", instr);
+
 	/**
 	 * List of seen faults: 020c00a9 (0xa9000c02) stp x2, x3, [x0]
 	 *
 	 */
 
 	uint8_t op0;
+	int r;
 	struct fixupDescription desc = {0};
 
 	op0 = ((instr & 0x1E000000) >> 25);
 	if((op0 & 5) == 0x4){
-		printk("Load/Store\n");
-		return ls_fixup(instr, regs, &desc);
+		//printk("Load/Store\n");
+		r = ls_fixup(instr, regs, &desc);
+		if(r){
+			printk("Faulting instruction: 0x%lx\n", instr);
+		}
+		return r;
 	} else {
 		printk("Not handling instruction with op0 0x%x ",op0);
 	}
