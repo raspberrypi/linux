@@ -1128,10 +1128,6 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
                                 mode
 
 
-Name:   dwc2-pi5
-Info:   See dwc2 (this is the Pi 5 version)
-
-
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 
 
