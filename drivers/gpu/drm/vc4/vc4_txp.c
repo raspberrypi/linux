@@ -145,7 +145,8 @@
 /* Number of lines received and committed to memory. */
 #define TXP_PROGRESS		0x10
 
-#define TXP_DST_PTR_HIGH	0x1c
+#define TXP_DST_PTR_HIGH_MOPLET	0x1c
+#define TXP_DST_PTR_HIGH_MOP	0x24
 
 #define TXP_READ(offset)								\
 	({										\
@@ -334,10 +335,11 @@ static void vc4_txp_connector_atomic_commit(struct drm_connector *conn,
 
 	gem = drm_fb_dma_get_gem_obj(fb, 0);
 	addr = gem->dma_addr + fb->offsets[0];
+
 	TXP_WRITE(TXP_DST_PTR, lower_32_bits(addr));
 
 	if (txp_data->supports_40bit_addresses)
-		TXP_WRITE(TXP_DST_PTR_HIGH, upper_32_bits(addr) & 0xff);
+		TXP_WRITE(txp_data->high_addr_ptr_reg, upper_32_bits(addr) & 0xff);
 
 	TXP_WRITE(TXP_DST_PITCH, fb->pitches[0]);
 
@@ -516,6 +518,7 @@ const struct vc4_txp_data bcm2712_mop_data = {
 		.hvs_output = 2,
 	},
 	.encoder_type = VC4_ENCODER_TYPE_TXP0,
+	.high_addr_ptr_reg = TXP_DST_PTR_HIGH_MOP,
 	.has_byte_enable = true,
 	.size_minus_one = true,
 	.supports_40bit_addresses = true,
@@ -529,6 +532,7 @@ const struct vc4_txp_data bcm2712_moplet_data = {
 		.hvs_output = 4,
 	},
 	.encoder_type = VC4_ENCODER_TYPE_TXP1,
+	.high_addr_ptr_reg = TXP_DST_PTR_HIGH_MOPLET,
 	.size_minus_one = true,
 	.supports_40bit_addresses = true,
 };
