@@ -359,7 +359,7 @@ static void vc6_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 			mux = 0;
 			break;
 
-		case VC4_ENCODER_TYPE_TXP0:
+		case VC4_ENCODER_TYPE_TXP1:
 			mux = 2;
 			break;
 
