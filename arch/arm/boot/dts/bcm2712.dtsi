@@ -135,7 +135,7 @@
 
 		mop: mop@7c500000 {
 			compatible = "brcm,bcm2712-mop";
-			reg = <0x7c500000 0x20>;
+			reg = <0x7c500000 0x28>;
 			interrupt-parent = <&disp_intr>;
 			interrupts = <1>;
 			status = "disabled";
