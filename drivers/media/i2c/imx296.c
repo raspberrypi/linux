@@ -583,10 +583,11 @@ static int imx296_stream_on(struct imx296 *sensor)
 	imx296_write(sensor, IMX296_CTRL00, 0, &ret);
 	usleep_range(2000, 5000);
 
-	if (trigger_mode == 1) {
-		imx296_write(sensor, IMX296_CTRL0B, IMX296_CTRL0B_TRIGEN, &ret);
-		imx296_write(sensor, IMX296_LOWLAGTRG,  IMX296_LOWLAGTRG_FAST, &ret);
-	}
+	/* external trigger mode: 0=normal, 1=triggered */
+	imx296_write(sensor, IMX296_CTRL0B,
+		     (trigger_mode == 1) ? IMX296_CTRL0B_TRIGEN : 0, &ret);
+	imx296_write(sensor, IMX296_LOWLAGTRG,
+		     (trigger_mode == 1) ? IMX296_LOWLAGTRG_FAST : 0, &ret);
 
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
