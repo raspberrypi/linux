@@ -1327,6 +1327,231 @@ sh_binary_with_abi(
 )
 
 cc_binary_with_abi(
+    name = "kselftest_mm_compaction_test",
+    srcs = ["tools/testing/selftests/mm/compaction_test.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_hugepage_mmap",
+    srcs = ["tools/testing/selftests/mm/hugepage-mmap.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_hugepage_shm",
+    srcs = ["tools/testing/selftests/mm/hugepage-shm.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_map_hugetlb",
+    srcs = ["tools/testing/selftests/mm/map_hugetlb.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_mlock_random_test",
+    srcs = [
+        "tools/testing/selftests/mm/mlock-random-test.c",
+        "tools/testing/selftests/mm/mlock2.h",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/mm",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_mlock2_tests",
+    srcs = [
+        "tools/testing/selftests/mm/mlock2.h",
+        "tools/testing/selftests/mm/mlock2-tests.c",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/mm",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_on_fault_limit",
+    srcs = ["tools/testing/selftests/mm/on-fault-limit.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_mremap_dontunmap",
+    srcs = ["tools/testing/selftests/mm/mremap_dontunmap.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_mremap_test",
+    srcs = ["tools/testing/selftests/mm/mremap_test.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
+cc_library(
+    name = "kselftest_mm_vm_util",
+    srcs = ["tools/testing/selftests/mm/vm_util.c"],
+    hdrs = ["tools/testing/selftests/mm/vm_util.h"],
+    copts = [
+        "-D_GNU_SOURCE",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_thuge_gen",
+    srcs = [
+        "tools/testing/selftests/mm/mlock2.h",
+        "tools/testing/selftests/mm/thuge-gen.c",
+    ],
+    copts = [
+        "-D_GNU_SOURCE",
+    ],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        ":kselftest_mm_vm_util",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_transhuge_stress",
+    srcs = [
+        "tools/testing/selftests/mm/mlock2.h",
+        "tools/testing/selftests/mm/transhuge-stress.c",
+    ],
+    copts = [
+        "-D_GNU_SOURCE",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/mm/",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        ":kselftest_mm_vm_util",
+        "@libcap",
+    ],
+)
+
+cc_library(
+    name = "kselftest_mm_uffd_common",
+    srcs = ["tools/testing/selftests/mm/uffd-common.c"],
+    hdrs = [
+        "include/uapi/linux/userfaultfd.h",
+        "mm/gup_test.h",
+        "tools/testing/selftests/kselftest.h",
+        "tools/testing/selftests/mm/uffd-common.h",
+    ],
+    includes = [
+        "include/uapi/",
+        "tools/testing/selftests/mm/",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        ":kselftest_mm_vm_util",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_mm_uffd_unit_tests",
+    srcs = [
+        "tools/testing/selftests/mm/uffd-unit-tests.c",
+    ],
+    includes = [
+        "tools/testing/selftests",
+        "tools/testing/selftests/mm/",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        ":kselftest_mm_uffd_common",
+        ":kselftest_mm_vm_util",
+        "@libcap",
+    ],
+)
+
+cc_binary_with_abi(
     name = "kselftest_size_test_get_size",
     srcs = ["tools/testing/selftests/size/get_size.c"],
     copts = select({
@@ -1620,6 +1845,18 @@ android_filegroup(
         ":kselftest_futex_run_x86_64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_x86_64",
+        ":kselftest_mm_compaction_test_x86_64",
+        ":kselftest_mm_hugepage_mmap_x86_64",
+        ":kselftest_mm_hugepage_shm_x86_64",
+        ":kselftest_mm_map_hugetlb_x86_64",
+        ":kselftest_mm_mlock2_tests_x86_64",
+        ":kselftest_mm_mlock_random_test_x86_64",
+        ":kselftest_mm_mremap_dontunmap_x86_64",
+        ":kselftest_mm_mremap_test_x86_64",
+        ":kselftest_mm_on_fault_limit_x86_64",
+        ":kselftest_mm_thuge_gen_x86_64",
+        ":kselftest_mm_transhuge_stress_x86_64",
+        ":kselftest_mm_uffd_unit_tests_x86_64",
         ":kselftest_ptrace_peeksiginfo_x86_64",
         ":kselftest_rtc_rtctest_x86_64",
         ":kselftest_timers_adjtick_x86_64",
@@ -1669,6 +1906,18 @@ android_filegroup(
         ":kselftest_futex_run_arm64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_arm64",
+        ":kselftest_mm_compaction_test_arm64",
+        ":kselftest_mm_hugepage_mmap_arm64",
+        ":kselftest_mm_hugepage_shm_arm64",
+        ":kselftest_mm_map_hugetlb_arm64",
+        ":kselftest_mm_mlock2_tests_arm64",
+        ":kselftest_mm_mlock_random_test_arm64",
+        ":kselftest_mm_mremap_dontunmap_arm64",
+        ":kselftest_mm_mremap_test_arm64",
+        ":kselftest_mm_on_fault_limit_arm64",
+        ":kselftest_mm_thuge_gen_arm64",
+        ":kselftest_mm_transhuge_stress_arm64",
+        ":kselftest_mm_uffd_unit_tests_arm64",
         ":kselftest_ptrace_peeksiginfo_arm64",
         ":kselftest_rtc_rtctest_arm64",
         ":kselftest_timers_adjtick_arm64",
