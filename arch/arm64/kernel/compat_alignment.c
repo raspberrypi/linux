@@ -12,6 +12,8 @@
 #include <asm/ptrace.h>
 #include <asm/traps.h>
 
+#include <asm/fpsimd.h>
+
 /*
  * 32-bit misaligned trap handler (c) 1998 San Mehat (CCC) -July 1998
  *
@@ -399,6 +401,9 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
  *
  *[  555.449674] Load/Store: op0 0x3 op1 0x1 op2 0x1 op3 0x3 op4 0x0
 [  555.449677] Faulting instruction: 0x3c830021
+
+stur	q1, [x1, #16]
+potentially also ldur	q0, [x1, #32] and ldur	q1, [x1, #48]
  *
  *
  *
@@ -406,7 +411,8 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
 
 struct fixupDescription{
 	void* addr;
-	//
+
+	// datax_simd has to be located directly after datax in memory
 	u64 data1;
 	u64 data1_simd;
 	u64 data2;
@@ -474,24 +480,40 @@ static int alignment_get_arm64(struct pt_regs *regs, __le64 __user *ip, u32 *ins
 	return 0;
 }*/
 
+// saves the contents of the simd register reg to dst
+void read_simd_reg(int reg, __uint128_t* dst){
+	struct user_fpsimd_state st;
+	fpsimd_save_state(&st);
+	*dst = st.vregs[reg];
+}
+
 int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	int r;
+	/*if(desc->width > 64){
+		printk("Currently cannot process ls_fixup with a size of %d bits\n", desc->width);
+		return 1;
+	}*/
 	if(!desc->load){
 		uint8_t* addr = desc->addr;
 		int bcount = desc->width / 8;	// since the field stores the width in bits. Honestly, there's no particular reason for that
+
 		//printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
+		int addrIt = 0;
 		for(int i = 0; i < bcount; i++){
-			if((r=put_user(desc->data1 & 0xff, (uint8_t __user *)addr)))
+			if((r=put_user( (*(((uint8_t*)(&desc->data1)) + addrIt) & 0xff), (uint8_t __user *)addr)))
 				return r;
-			desc->data1 >>= 8;
+			//desc->data1 >>= 8;
+			addrIt++;
 			addr++;
 		}
 
+		addrIt = 0;
 		if(desc->pair){
 			for(int i = 0; i < bcount; i++){
-				if((r=put_user(desc->data2 & 0xff, (uint8_t __user *)addr)))
+				if((r=put_user((*(((uint8_t*)(&desc->data2)) + addrIt) & 0xff) & 0xff, (uint8_t __user *)addr)))
 					return r;
-				desc->data2 >>= 8;
+				//desc->data2 >>= 8;
+				addrIt++;
 				addr++;
 			}
 		}
@@ -722,6 +744,43 @@ int lsr_offset_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* d
 	return 0;
 }
 
+int lsr_unscaled_immediate_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
+	uint8_t size = (instr >> 30) & 3;
+	uint8_t simd = (instr >> 26) & 1;
+	uint8_t opc = (instr >> 22) & 3;
+	uint16_t imm9 = (instr >> 12) & 0x1ff;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
+
+	int16_t fullImm = 0;
+	// sign extend it
+	if(imm9 & 0x100){
+		fullImm = 0xfe00 | imm9;
+	} else {
+		fullImm = imm9;
+	}
+	u64 addr = regs->regs[Rn];
+	desc->addr = addr + fullImm;
+	desc->pair = 0;
+
+	int load = opc & 1;
+	if(load){
+		return 1;
+	}
+	if(simd){
+		desc->simd = 1;
+		desc->width = 8 << (size | (opc << 1));
+		// assuming store
+		__uint128_t tmp;
+		read_simd_reg(Rt, &tmp);
+		desc->data1 = tmp;
+		desc->data1_simd = *(((u64*)&tmp) + 1);
+		return do_ls_fixup(instr, regs, desc);
+	}
+	printk("SIMD: %d\n", simd);
+	return 1;
+}
+
 int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	uint8_t op0;
 	uint8_t op1;
@@ -758,6 +817,16 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	if((op0 & 3) == 3 && (op2 & 2) == 0 && (op3 & 0x20) == 0x20 && op4 == 2){
 		// register offset load/store
 		r = lsr_offset_fixup(instr, regs, desc);
+	}
+	if((op0 & 3) == 3 && (op2 & 2) == 0 && (op3 & 0x20) == 0x0 && op4 == 0){
+		// register load/store unscaled immediate
+		r = lsr_unscaled_immediate_fixup(instr, regs, desc);
+		printk("Likely SIMD stuff, which isn't being handled properly at all!\n");
+		if(r){
+			arm64_skip_faulting_instruction(regs, 4);
+			// skip anyways
+		}
+		//r = 0;
 	}
 	if(r){
 		printk("Load/Store: op0 0x%x op1 0x%x op2 0x%x op3 0x%x op4 0x%x\n", op0, op1, op2, op3, op4);

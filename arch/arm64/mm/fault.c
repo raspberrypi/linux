@@ -683,9 +683,10 @@ static int do_alignment_fault(unsigned long far, unsigned long esr,
 
 	if(user_mode(regs)){
 		// aarch64 user mode
-		if(!do_alignment_fixup(far, regs)){
+		if(do_alignment_fixup(far, regs) == 0){
 			return 0;
 		}
+		printk("Unfixed alignment issue\n");
 	}
 	do_bad_area(far, esr, regs);
 	return 0;
