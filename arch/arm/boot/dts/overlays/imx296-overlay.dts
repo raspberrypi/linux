@@ -37,6 +37,13 @@
 		};
 	};
 
+	reg_alwayson_frag: fragment@99 {
+		target = <&cam1_reg>;
+		__dormant__ {
+			regulator-always-on;
+		};
+	};
+
 	i2c_frag: fragment@100 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -98,8 +105,10 @@
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&reg_alwayson_frag>, "target:0=",<&cam0_reg>,
 		       <&imx296>, "clocks:0=",<&cam0_clk>,
 		       <&imx296>, "avdd-supply:0=",<&cam0_reg>;
 		clock-frequency = <&clk_over>, "clock-frequency:0";
+		always-on = <0>, "+99";
 	};
 };
