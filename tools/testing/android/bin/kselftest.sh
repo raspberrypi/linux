@@ -68,7 +68,7 @@ echo "Building selftests..."
 $BAZEL build //common:kselftest_tests_x86_64
 
 $TRADEFED run commandAndExit template/local_min --template:map test=suite/test_mapping_suite \
---include-filter selftests --extra-file testsdir=$TESTSDIR --primary-abi-only
+--include-filter selftests --tests-dir=$TESTSDIR --primary-abi-only
 
 if $LAUNCH_CVD && $KILL_CVD; then
     echo "Test finished. Deleting cvd..."
