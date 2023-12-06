@@ -2520,6 +2520,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         clock-frequency         Sets the clock frequency to match that used on
                                 the board, which should be one of 54000000
                                 (the default), 37125000 or 74250000.
+        always-on               Leave the regulator powered up, to stop the
+                                camera clamping I/Os such as XTRIG to 0V.
 
 
 Name:   imx327
@@ -2558,6 +2560,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        always-on               Leave the regulator powered up, to stop the
+                                camera clamping I/Os such as XVS to 0V.
 
 
 Name:   imx462
@@ -2596,6 +2600,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 configuring the sensor (default on)
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
+        always-on               Leave the regulator powered up, to stop the
+                                camera clamping I/Os such as XVS to 0V.
 
 
 Name:   imx519
