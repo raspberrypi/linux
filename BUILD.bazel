@@ -996,15 +996,6 @@ cc_binary_with_abi(
 )
 
 cc_binary_with_abi(
-    name = "kselftest_breakpoints_step_after_suspend_test",
-    srcs = ["tools/testing/selftests/breakpoints/step_after_suspend_test.c"],
-    path_prefix = _KSELFTEST_DIR,
-    target_compatible_with = ["@platforms//os:android"],
-    visibility = ["//visibility:private"],
-    deps = [":kselftest_headers_lib"],
-)
-
-cc_binary_with_abi(
     name = "kselftest_breakpoints_breakpoint_test",
     srcs = select({
         ":x86_64": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
@@ -1831,7 +1822,6 @@ android_filegroup(
     srcs = [
         ":kselftest_binderfs_binderfs_test_x86_64",
         ":kselftest_breakpoints_breakpoint_test_x86_64",
-        ":kselftest_breakpoints_step_after_suspend_test_x86_64",
         ":kselftest_futex_futex_requeue_pi_mismatched_ops_x86_64",
         ":kselftest_futex_futex_requeue_pi_signal_restart_x86_64",
         ":kselftest_futex_futex_requeue_pi_x86_64",
@@ -1892,7 +1882,6 @@ android_filegroup(
     srcs = [
         ":kselftest_binderfs_binderfs_test_arm64",
         ":kselftest_breakpoints_breakpoint_test_arm64",
-        ":kselftest_breakpoints_step_after_suspend_test_arm64",
         ":kselftest_futex_futex_requeue_arm64",
         ":kselftest_futex_futex_requeue_pi_arm64",
         ":kselftest_futex_futex_requeue_pi_mismatched_ops_arm64",

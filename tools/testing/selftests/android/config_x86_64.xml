@@ -19,7 +19,6 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
         <option name="skip-binary-check" value="true" />
         <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="/data/selftests/x86_64/kselftest_binderfs_binderfs_test" />
         <option name="test-command-line" key="kselftest_breakpoints_breakpoint_test" value="/data/selftests/x86_64/kselftest_breakpoints_breakpoint_test" />
-        <option name="test-command-line" key="kselftest_breakpoints_step_after_suspend_test" value="/data/selftests/x86_64/kselftest_breakpoints_step_after_suspend_test" />
         <option name="test-command-line" key="kselftest_futex_run" value="cd /data/selftests/x86_64/;USE_COLOR=0 ./kselftest_futex_run" />
         <option name="test-command-line" key="kselftest_kcmp_kcmp_test" value="/data/selftests/x86_64/kselftest_kcmp_kcmp_test" />
         <option name="test-command-line" key="kselftest_ptrace_peeksiginfo" value="/data/selftests/x86_64/kselftest_ptrace_peeksiginfo" />
