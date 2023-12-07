@@ -2183,3 +2183,17 @@ zip_archive(
     srcs = [":kselftest_tests_arm64"],
     out = "tests.zip",
 )
+
+copy_to_dist_dir(
+    name = "tests_zip_x86_64_dist",
+    data = [":tests_zip_x86_64"],
+    dist_dir = "out/tests_x86_64/dist",
+    flat = True,
+)
+
+copy_to_dist_dir(
+    name = "tests_zip_arm64_dist",
+    data = [":tests_zip_arm64"],
+    dist_dir = "out/tests_arm64/dist",
+    flat = True,
+)
