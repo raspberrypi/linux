@@ -12,6 +12,9 @@
 const struct pkvm_module_ops module_ops = {
 	.create_private_mapping = __pkvm_create_private_mapping,
 	.register_serial_driver = __pkvm_register_serial_driver,
+	.putc = hyp_putc,
+	.puts = hyp_puts,
+	.putx64 = hyp_putx64,
 };
 
 int __pkvm_init_module(void *module_init)

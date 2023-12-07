@@ -11,6 +11,9 @@ struct pkvm_module_ops {
 				      enum kvm_pgtable_prot prot,
 				      unsigned long *haddr);
 	int (*register_serial_driver)(void (*hyp_putc_cb)(char));
+	void (*putc)(char c);
+	void (*puts)(const char *s);
+	void (*putx64)(u64 x);
 };
 
 struct pkvm_module_section {
