@@ -1341,8 +1341,10 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			 * buffer.
 			 */
 			wLength = ((uint16_t *)urb->setup_packet)[3];
+			#if 0
 			if (hc->ep_is_in && wLength < 4)
 				ptr = hc->xfer_buff;
+			#endif
 
 			hc->data_pid_start = qtd->data_toggle;
 			break;
