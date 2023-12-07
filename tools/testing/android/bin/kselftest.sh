@@ -65,7 +65,19 @@ if $LAUNCH_CVD; then
 fi
 
 echo "Building selftests..."
-$BAZEL build //common:kselftest_tests_x86_64
+ABI=$(adb shell getprop ro.product.cpu.abi)
+case $ABI in
+	arm64*)
+		$BAZEL build //common:kselftest_tests_arm64
+		;;
+	x86_64*)
+		$BAZEL build //common:kselftest_tests_x86_64
+		;;
+	*)
+		echo "$ABI not supported"
+		exit 1
+		;;
+esac
 
 $TRADEFED run commandAndExit template/local_min --template:map test=suite/test_mapping_suite \
 --include-filter selftests --tests-dir=$TESTSDIR --primary-abi-only
