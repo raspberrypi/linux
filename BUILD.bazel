@@ -1288,27 +1288,6 @@ cc_binary_with_abi(
 )
 
 cc_binary_with_abi(
-    name = "kselftest_futex_futex_waitv",
-    srcs = ["tools/testing/selftests/futex/functional/futex_waitv.c"],
-    out = "futex_waitv",
-    copts = [
-        "-D_GNU_SOURCE",
-        "-pthread",
-    ],
-    includes = [
-        "tools/testing/selftests",
-        "tools/testing/selftests/futex/include",
-    ],
-    path_prefix = _KSELFTEST_DIR,
-    target_compatible_with = ["@platforms//os:android"],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":kselftest_futex_headers_lib",
-        ":kselftest_headers_lib",
-    ],
-)
-
-cc_binary_with_abi(
     name = "kselftest_mm_compaction_test",
     srcs = ["tools/testing/selftests/mm/compaction_test.c"],
     includes = ["tools/testing/selftests"],
@@ -1822,7 +1801,6 @@ android_filegroup(
         ":kselftest_futex_futex_wait_uninitialized_heap_x86_64",
         ":kselftest_futex_futex_wait_wouldblock_x86_64",
         ":kselftest_futex_futex_wait_x86_64",
-        ":kselftest_futex_futex_waitv_x86_64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_x86_64",
         ":kselftest_mm_compaction_test_x86_64",
@@ -1882,7 +1860,6 @@ android_filegroup(
         ":kselftest_futex_futex_wait_timeout_arm64",
         ":kselftest_futex_futex_wait_uninitialized_heap_arm64",
         ":kselftest_futex_futex_wait_wouldblock_arm64",
-        ":kselftest_futex_futex_waitv_arm64",
         ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_arm64",
         ":kselftest_mm_compaction_test_arm64",
