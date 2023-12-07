@@ -19,7 +19,34 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
         <option name="skip-binary-check" value="true" />
         <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="/data/selftests/x86_64/kselftest_binderfs_binderfs_test" />
         <option name="test-command-line" key="kselftest_breakpoints_breakpoint_test" value="/data/selftests/x86_64/kselftest_breakpoints_breakpoint_test" />
-        <option name="test-command-line" key="kselftest_futex_run" value="cd /data/selftests/x86_64/;USE_COLOR=0 ./kselftest_futex_run" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi" value="/data/selftests/x86_64/futex_requeue_pi" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_b" value="/data/selftests/x86_64/futex_requeue_pi -b" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bl" value="/data/selftests/x86_64/futex_requeue_pi -b -l" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bo" value="/data/selftests/x86_64/futex_requeue_pi -b -o" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_l" value="/data/selftests/x86_64/futex_requeue_pi -l" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_o" value="/data/selftests/x86_64/futex_requeue_pi -o" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_5k" value="/data/selftests/x86_64/futex_requeue_pi -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_b_5k" value="/data/selftests/x86_64/futex_requeue_pi -b -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bl_5k" value="/data/selftests/x86_64/futex_requeue_pi -b -l -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bo_5k" value="/data/selftests/x86_64/futex_requeue_pi -b -o -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_l_5k" value="/data/selftests/x86_64/futex_requeue_pi -l -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_o_5k" value="/data/selftests/x86_64/futex_requeue_pi -o -t 5000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_500k" value="/data/selftests/x86_64/futex_requeue_pi -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_b_500k" value="/data/selftests/x86_64/futex_requeue_pi -b -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bl_500k" value="/data/selftests/x86_64/futex_requeue_pi -b -l -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bo_500k" value="/data/selftests/x86_64/futex_requeue_pi -b -o -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_l_500k" value="/data/selftests/x86_64/futex_requeue_pi -l -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_o_500k" value="/data/selftests/x86_64/futex_requeue_pi -o -t 500000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_bl_2G" value="/data/selftests/x86_64/futex_requeue_pi -b -l -t 2000000000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_l_2G" value="/data/selftests/x86_64/futex_requeue_pi -l -t 2000000000" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_mismatched_ops" value="/data/selftests/x86_64/futex_requeue_pi_mismatched_ops" />
+        <option name="test-command-line" key="kselftest_futex_requeue_pi_signal_restart" value="/data/selftests/x86_64/futex_requeue_pi_signal_restart" />
+        <option name="test-command-line" key="kselftest_futex_wait_timeout" value="/data/selftests/x86_64/futex_wait_timeout" />
+        <option name="test-command-line" key="kselftest_futex_wait_wouldblock" value="/data/selftests/x86_64/futex_wait_wouldblock" />
+        <option name="test-command-line" key="kselftest_futex_wait_uninitialized_heap" value="/data/selftests/x86_64/futex_wait_uninitialized_heap" />
+        <option name="test-command-line" key="kselftest_futex_wait_private_mapped_file" value="/data/selftests/x86_64/futex_wait_private_mapped_file" />
+        <option name="test-command-line" key="kselftest_futex_wait" value="/data/selftests/x86_64/futex_wait" />
+        <option name="test-command-line" key="kselftest_futex_requeue" value="/data/selftests/x86_64/futex_requeue" />
         <option name="test-command-line" key="kselftest_kcmp_kcmp_test" value="/data/selftests/x86_64/kselftest_kcmp_kcmp_test" />
         <option name="test-command-line" key="kselftest_ptrace_peeksiginfo" value="/data/selftests/x86_64/kselftest_ptrace_peeksiginfo" />
         <option name="test-command-line" key="kselftest_rtc_rtctest" value="/data/selftests/x86_64/kselftest_rtc_rtctest" />
