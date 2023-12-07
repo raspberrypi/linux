@@ -1344,6 +1344,253 @@ cc_binary_with_abi(
     deps = [":kselftest_headers_lib"],
 )
 
+cc_binary_with_abi(
+    name = "kselftest_timers_adjtick",
+    srcs = ["tools/testing/selftests/timers/adjtick.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_alarmtimer_suspend",
+    srcs = ["tools/testing/selftests/timers/alarmtimer-suspend.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_change_skew",
+    srcs = ["tools/testing/selftests/timers/change_skew.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_clocksource_switch",
+    srcs = ["tools/testing/selftests/timers/clocksource-switch.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_freq_step",
+    srcs = ["tools/testing/selftests/timers/freq-step.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_inconsistency_check",
+    srcs = ["tools/testing/selftests/timers/inconsistency-check.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_leap_a_day",
+    srcs = ["tools/testing/selftests/timers/leap-a-day.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_leapcrash",
+    srcs = ["tools/testing/selftests/timers/leapcrash.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_nanosleep",
+    srcs = ["tools/testing/selftests/timers/nanosleep.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_nsleep_lat",
+    srcs = ["tools/testing/selftests/timers/nsleep-lat.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_posix_timers",
+    srcs = ["tools/testing/selftests/timers/posix_timers.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_tests_raw_skew",
+    srcs = ["tools/testing/selftests/timers/raw_skew.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_set_2038",
+    srcs = ["tools/testing/selftests/timers/set-2038.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_set_tai",
+    srcs = ["tools/testing/selftests/timers/set-tai.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_set_timer_lat",
+    srcs = ["tools/testing/selftests/timers/set-timer-lat.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_set_tz",
+    srcs = ["tools/testing/selftests/timers/set-tz.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_skew_consistency",
+    srcs = ["tools/testing/selftests/timers/skew_consistency.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_threadtest",
+    srcs = ["tools/testing/selftests/timers/threadtest.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_timers_valid_adjtimex",
+    srcs = ["tools/testing/selftests/timers/valid-adjtimex.c"],
+    copts = [
+        "-O3",
+        "-DKTEST",
+    ],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
 copy_file(
     name = "kselftest_gen_config",
     src = select({
@@ -1375,6 +1622,25 @@ android_filegroup(
         ":kselftest_kcmp_kcmp_test_x86_64",
         ":kselftest_ptrace_peeksiginfo_x86_64",
         ":kselftest_rtc_rtctest_x86_64",
+        ":kselftest_timers_adjtick_x86_64",
+        ":kselftest_timers_alarmtimer_suspend_x86_64",
+        ":kselftest_timers_change_skew_x86_64",
+        ":kselftest_timers_clocksource_switch_x86_64",
+        ":kselftest_timers_freq_step_x86_64",
+        ":kselftest_timers_inconsistency_check_x86_64",
+        ":kselftest_timers_leap_a_day_x86_64",
+        ":kselftest_timers_leapcrash_x86_64",
+        ":kselftest_timers_nanosleep_x86_64",
+        ":kselftest_timers_nsleep_lat_x86_64",
+        ":kselftest_timers_posix_timers_x86_64",
+        ":kselftest_timers_set_2038_x86_64",
+        ":kselftest_timers_set_tai_x86_64",
+        ":kselftest_timers_set_timer_lat_x86_64",
+        ":kselftest_timers_set_tz_x86_64",
+        ":kselftest_timers_skew_consistency_x86_64",
+        ":kselftest_timers_tests_raw_skew_x86_64",
+        ":kselftest_timers_threadtest_x86_64",
+        ":kselftest_timers_valid_adjtimex_x86_64",
         ":kselftest_vdso_vdso_test_abi_x86_64",
         ":kselftest_vdso_vdso_test_clock_getres_x86_64",
         ":kselftest_vdso_vdso_test_getcpu_x86_64",
@@ -1405,6 +1671,25 @@ android_filegroup(
         ":kselftest_kcmp_kcmp_test_arm64",
         ":kselftest_ptrace_peeksiginfo_arm64",
         ":kselftest_rtc_rtctest_arm64",
+        ":kselftest_timers_adjtick_arm64",
+        ":kselftest_timers_alarmtimer_suspend_arm64",
+        ":kselftest_timers_change_skew_arm64",
+        ":kselftest_timers_clocksource_switch_arm64",
+        ":kselftest_timers_freq_step_arm64",
+        ":kselftest_timers_inconsistency_check_arm64",
+        ":kselftest_timers_leap_a_day_arm64",
+        ":kselftest_timers_leapcrash_arm64",
+        ":kselftest_timers_nanosleep_arm64",
+        ":kselftest_timers_nsleep_lat_arm64",
+        ":kselftest_timers_posix_timers_arm64",
+        ":kselftest_timers_set_2038_arm64",
+        ":kselftest_timers_set_tai_arm64",
+        ":kselftest_timers_set_timer_lat_arm64",
+        ":kselftest_timers_set_tz_arm64",
+        ":kselftest_timers_skew_consistency_arm64",
+        ":kselftest_timers_tests_raw_skew_arm64",
+        ":kselftest_timers_threadtest_arm64",
+        ":kselftest_timers_valid_adjtimex_arm64",
         ":kselftest_vdso_vdso_test_abi_arm64",
         ":kselftest_vdso_vdso_test_clock_getres_arm64",
         ":kselftest_vdso_vdso_test_getcpu_arm64",

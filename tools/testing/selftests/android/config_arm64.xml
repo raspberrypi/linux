@@ -37,5 +37,24 @@
         <option name="test-command-line" key="kselftest_vdso_vdso_test_getcpu" value="/data/selftests/arm64/kselftest_vdso_vdso_test_getcpu" />
         <option name="test-command-line" key="kselftest_vdso_vdso_test_gettimeofday" value="/data/selftests/arm64/kselftest_vdso_vdso_test_gettimeofday" />
         <option name="test-command-line" key="kselftest_size_test_get_size" value="/data/selftests/arm64/kselftest_size_test_get_size" />
+        <option name="test-command-line" key="kselftest_timers_adjtick" value="/data/selftests/arm64/kselftest_timers_adjtick" />
+        <option name="test-command-line" key="kselftest_timers_alarmtimer_suspend" value="/data/selftests/arm64/kselftest_timers_alarmtimer_suspend" />
+        <option name="test-command-line" key="kselftest_timers_change_skew" value="/data/selftests/arm64/kselftest_timers_change_skew" />
+        <option name="test-command-line" key="kselftest_timers_clocksource_switch" value="/data/selftests/arm64/kselftest_timers_clocksource_switch" />
+        <option name="test-command-line" key="kselftest_timers_freq_step" value="/data/selftests/arm64/kselftest_timers_freq_step" />
+        <option name="test-command-line" key="kselftest_timers_inconsistency_check" value="/data/selftests/arm64/kselftest_timers_inconsistency_check" />
+        <option name="test-command-line" key="kselftest_timers_leap_a_day" value="/data/selftests/arm64/kselftest_timers_leap_a_day" />
+        <option name="test-command-line" key="kselftest_timers_leapcrash" value="/data/selftests/arm64/kselftest_timers_leapcrash" />
+        <option name="test-command-line" key="kselftest_timers_nanosleep" value="/data/selftests/arm64/kselftest_timers_nanosleep" />
+        <option name="test-command-line" key="kselftest_timers_nsleep_lat" value="/data/selftests/arm64/kselftest_timers_nsleep_lat" />
+        <option name="test-command-line" key="kselftest_timers_posix_timers" value="/data/selftests/arm64/kselftest_timers_posix_timers" />
+        <option name="test-command-line" key="kselftest_timers_set_2038" value="/data/selftests/arm64/kselftest_timers_set_2038" />
+        <option name="test-command-line" key="kselftest_timers_set_tai" value="/data/selftests/arm64/kselftest_timers_set_tai" />
+        <option name="test-command-line" key="kselftest_timers_set_timer_lat" value="/data/selftests/arm64/kselftest_timers_set_timer_lat" />
+        <option name="test-command-line" key="kselftest_timers_set_tz" value="/data/selftests/arm64/kselftest_timers_set_tz" />
+        <option name="test-command-line" key="kselftest_timers_skew_consistency" value="/data/selftests/arm64/kselftest_timers_skew_consistency" />
+        <option name="test-command-line" key="kselftest_timers_tests_raw_skew" value="/data/selftests/arm64/kselftest_timers_tests_raw_skew" />
+        <option name="test-command-line" key="kselftest_timers_threadtest" value="/data/selftests/arm64/kselftest_timers_threadtest" />
+        <option name="test-command-line" key="kselftest_timers_valid_adjtimex" value="/data/selftests/arm64/kselftest_timers_valid_adjtimex" />
     </test>
 </configuration>
