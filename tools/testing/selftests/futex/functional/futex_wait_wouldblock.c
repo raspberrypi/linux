@@ -98,10 +98,15 @@ int main(int argc, char *argv[])
 	info("Calling futex_waitv on f1: %u @ %p with val=%u\n", f1, &f1, f1+1);
 	res = futex_waitv(&waitv, 1, 0, &to, CLOCK_MONOTONIC);
 	if (!res || errno != EWOULDBLOCK) {
-		ksft_test_result_pass("futex_waitv returned: %d %s\n",
-				      res ? errno : res,
-				      res ? strerror(errno) : "");
-		ret = RET_FAIL;
+		if (errno == ENOSYS) {
+			ksft_test_result_skip("futex_waitv returned %d\n",
+					      errno);
+		} else {
+			ksft_test_result_fail("futex_waitv returned: %d %s\n",
+					      res ? errno : res,
+					      res ? strerror(errno) : "");
+			ret = RET_FAIL;
+		}
 	} else {
 		ksft_test_result_pass("futex_waitv\n");
 	}
