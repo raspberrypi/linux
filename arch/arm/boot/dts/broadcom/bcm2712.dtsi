@@ -628,7 +628,7 @@
 		pwm_aon: pwm@7d517a80 {
 			compatible = "brcm,bcm7038-pwm";
 			reg = <0x7d517a80 0x28>;
-			#pwm-cells = <2>;
+			#pwm-cells = <3>;
 			clocks = <&clk_27MHz>;
 		};
 
