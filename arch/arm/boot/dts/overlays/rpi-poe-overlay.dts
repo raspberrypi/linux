@@ -14,7 +14,7 @@
 				compatible = "pwm-fan";
 				cooling-levels = <0 1 10 100 255>;
 				#cooling-cells = <2>;
-				pwms = <&fwpwm 0 80000>;
+				pwms = <&fwpwm 0 80000 0>;
 			};
 		};
 	};
