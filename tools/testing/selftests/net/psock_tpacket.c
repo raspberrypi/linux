@@ -33,7 +33,9 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h>
+#ifndef __ANDROID__
 #include <bits/wordsize.h>
+#endif
 #include <net/ethernet.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
