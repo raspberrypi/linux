@@ -1906,6 +1906,7 @@ struct xhci_hcd {
 #define XHCI_VLI_SS_BULK_OUT_BUG	BIT_ULL(57)
 #define XHCI_VLI_HUB_TT_QUIRK	BIT_ULL(58)
 #define XHCI_VLI_TRB_CACHE_BUG	BIT_ULL(59)
+#define XHCI_NO_NONSTREAM_IN_BURSTS	BIT_ULL(60)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;

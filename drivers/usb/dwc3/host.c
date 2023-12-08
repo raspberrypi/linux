@@ -67,7 +67,7 @@ out:
 int dwc3_host_init(struct dwc3 *dwc)
 {
 	struct platform_device	*pdev = to_platform_device(dwc->dev);
-	struct property_entry	props[4];
+	struct property_entry	props[5];
 	struct platform_device	*xhci;
 	int			ret, irq;
 	int			prop_idx = 0;
@@ -107,6 +107,9 @@ int dwc3_host_init(struct dwc3 *dwc)
 	if (dwc->usb2_lpm_disable)
 		props[prop_idx++] = PROPERTY_ENTRY_BOOL("usb2-lpm-disable");
 
+	/* Hack for matching RP1 */
+	if (DWC3_VER_IS(DWC3, 330B))
+		props[prop_idx++] = PROPERTY_ENTRY_BOOL("quirk-no-nonstream-in-bursts");
 	/**
 	 * WORKAROUND: dwc3 revisions <=3.00a have a limitation
 	 * where Port Disable command doesn't work.

@@ -1482,6 +1482,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	max_packet = usb_endpoint_maxp(&ep->desc);
 	avg_trb_len = max_esit_payload;
 
+	max_burst = xhci_get_endpoint_max_burst(udev, ep);
 	/*
 	 * VL805 errata - Bulk OUT bursts to superspeed mass-storage
 	 * devices behind hub ports can cause data corruption with
@@ -1506,8 +1507,11 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	    usb_endpoint_is_bulk_out(&ep->desc) && is_ums_dev &&
 	    udev->route)
 		max_burst = 0;
-	else
-		max_burst = xhci_get_endpoint_max_burst(udev, ep);
+
+	if ((xhci->quirks & XHCI_NO_NONSTREAM_IN_BURSTS) &&
+	    usb_endpoint_is_bulk_in(&ep->desc) &&
+	    !usb_ss_max_streams(&ep->ss_ep_comp))
+		max_burst = 0;
 
 	/* FIXME dig Mult and streams info out of ep companion desc */
 
