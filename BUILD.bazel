@@ -1783,6 +1783,41 @@ cc_binary_with_abi(
     deps = [":kselftest_headers_lib"],
 )
 
+cc_binary_with_abi(
+    name = "kselftest_net_socket",
+    srcs = ["tools/testing/selftests/net/socket.c"],
+    copts = ["-Wno-gnu-variable-sized-type-not-at-end"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_net_reuseaddr_conflict",
+    srcs = ["tools/testing/selftests/net/reuseaddr_conflict.c"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_net_psock_tpacket",
+    srcs = [
+        "tools/testing/selftests/net/psock_lib.h",
+        "tools/testing/selftests/net/psock_tpacket.c",
+    ],
+    copts = ["-Wno-gnu-variable-sized-type-not-at-end"],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [":kselftest_headers_lib"],
+)
+
 copy_file(
     name = "kselftest_gen_config",
     src = select({
@@ -1821,6 +1856,9 @@ android_filegroup(
         ":kselftest_mm_thuge_gen_x86_64",
         ":kselftest_mm_transhuge_stress_x86_64",
         ":kselftest_mm_uffd_unit_tests_x86_64",
+        ":kselftest_net_psock_tpacket_x86_64",
+        ":kselftest_net_reuseaddr_conflict_x86_64",
+        ":kselftest_net_socket_x86_64",
         ":kselftest_ptrace_peeksiginfo_x86_64",
         ":kselftest_rtc_rtctest_x86_64",
         ":kselftest_size_test_get_size_x86_64",
@@ -1880,6 +1918,9 @@ android_filegroup(
         ":kselftest_mm_thuge_gen_arm64",
         ":kselftest_mm_transhuge_stress_arm64",
         ":kselftest_mm_uffd_unit_tests_arm64",
+        ":kselftest_net_psock_tpacket_arm64",
+        ":kselftest_net_reuseaddr_conflict_arm64",
+        ":kselftest_net_socket_arm64",
         ":kselftest_ptrace_peeksiginfo_arm64",
         ":kselftest_rtc_rtctest_arm64",
         ":kselftest_size_test_get_size_arm64",
