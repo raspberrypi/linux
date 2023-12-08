@@ -1290,6 +1290,12 @@ unsigned long ufshcd_mcq_poll_cqe_lock(struct ufs_hba *hba,
 void ufshcd_mcq_make_queues_operational(struct ufs_hba *hba);
 void ufshcd_mcq_enable_esi(struct ufs_hba *hba);
 void ufshcd_mcq_config_esi(struct ufs_hba *hba, struct msi_msg *msg);
+void ufshcd_complete_requests(struct ufs_hba *hba, bool force_compl);
+void ufshcd_release_scsi_cmd(struct ufs_hba *hba,
+				    struct ufshcd_lrb *lrbp);
+void ufshcd_err_handling_prepare(struct ufs_hba *hba);
+void ufshcd_err_handling_unprepare(struct ufs_hba *hba);
+
 
 /**
  * ufshcd_set_variant - set variant specific data to the hba
