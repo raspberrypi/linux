@@ -22,6 +22,7 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
         <option name="skip-binary-check" value="true" />
         <option name="test-command-line" key="kselftest_binderfs_binderfs_test" value="cd &ktest_dir;; ./kselftest_binderfs_binderfs_test" />
         <option name="test-command-line" key="kselftest_breakpoints_breakpoint_test" value="cd &ktest_dir;; ./kselftest_breakpoints_breakpoint_test" />
+        <option name="test-command-line" key="kselftest_capabilities_test_execve" value="cd &ktest_dir;; ./kselftest_capabilities_test_execve" />
         <option name="test-command-line" key="kselftest_futex_requeue" value="cd &ktest_dir;; ./futex_requeue" />
         <option name="test-command-line" key="kselftest_futex_requeue_pi" value="cd &ktest_dir;; ./futex_requeue_pi" />
         <option name="test-command-line" key="kselftest_futex_requeue_pi_b" value="cd &ktest_dir;; ./futex_requeue_pi -b" />
@@ -59,6 +60,7 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
         <option name="test-command-line" key="kselftest_net_reuseaddr_conflict" value="cd &ktest_dir;; ./kselftest_net_reuseaddr_conflict" />
         <option name="test-command-line" key="kselftest_ptrace_peeksiginfo" value="cd &ktest_dir;; ./kselftest_ptrace_peeksiginfo" />
         <option name="test-command-line" key="kselftest_rtc_rtctest" value="cd &ktest_dir;; ./kselftest_rtc_rtctest" />
+        <option name="test-command-line" key="kselftest_seccomp_seccomp_bpf" value="cd &ktest_dir;; ./kselftest_seccomp_seccomp_bpf" />
         <option name="test-command-line" key="kselftest_size_test_get_size" value="cd &ktest_dir;; ./kselftest_size_test_get_size" />
         <option name="test-command-line" key="kselftest_timers_adjtick" value="cd &ktest_dir;; ./kselftest_timers_adjtick" />
         <option name="test-command-line" key="kselftest_timers_alarmtimer_suspend" value="cd &ktest_dir;; ./kselftest_timers_alarmtimer_suspend" />

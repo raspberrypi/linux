@@ -1818,6 +1818,52 @@ cc_binary_with_abi(
     deps = [":kselftest_headers_lib"],
 )
 
+cc_binary_with_abi(
+    name = "kselftest_capabilities_test_execve",
+    srcs = ["tools/testing/selftests/capabilities/test_execve.c"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_capabilities_validate_cap",
+        ":kselftest_headers_lib",
+        "@libcap_ng//:libcap-ng",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_capabilities_validate_cap",
+    srcs = ["tools/testing/selftests/capabilities/validate_cap.c"],
+    out = "validate_cap",
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap_ng//:libcap-ng",
+    ],
+)
+
+cc_binary_with_abi(
+    name = "kselftest_seccomp_seccomp_bpf",
+    srcs = [
+        "tools/testing/selftests/clone3/clone3_selftests.h",
+        "tools/testing/selftests/seccomp/seccomp_bpf.c",
+    ],
+    copts = [
+        "-Wno-unused-function",
+        "-D__GLIBC_PREREQ(a,b)",
+    ],
+    includes = ["tools/testing/selftests"],
+    path_prefix = _KSELFTEST_DIR,
+    target_compatible_with = ["@platforms//os:android"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":kselftest_headers_lib",
+        "@libcap",
+    ],
+)
+
 copy_file(
     name = "kselftest_gen_config",
     src = select({
@@ -1833,6 +1879,8 @@ android_filegroup(
     srcs = [
         ":kselftest_binderfs_binderfs_test_x86_64",
         ":kselftest_breakpoints_breakpoint_test_x86_64",
+        ":kselftest_capabilities_test_execve_x86_64",
+        ":kselftest_capabilities_validate_cap_x86_64",
         ":kselftest_futex_futex_requeue_pi_mismatched_ops_x86_64",
         ":kselftest_futex_futex_requeue_pi_signal_restart_x86_64",
         ":kselftest_futex_futex_requeue_pi_x86_64",
@@ -1861,6 +1909,7 @@ android_filegroup(
         ":kselftest_net_socket_x86_64",
         ":kselftest_ptrace_peeksiginfo_x86_64",
         ":kselftest_rtc_rtctest_x86_64",
+        ":kselftest_seccomp_seccomp_bpf_x86_64",
         ":kselftest_size_test_get_size_x86_64",
         ":kselftest_timers_adjtick_x86_64",
         ":kselftest_timers_alarmtimer_suspend_x86_64",
@@ -1895,6 +1944,8 @@ android_filegroup(
     srcs = [
         ":kselftest_binderfs_binderfs_test_arm64",
         ":kselftest_breakpoints_breakpoint_test_arm64",
+        ":kselftest_capabilities_test_execve_arm64",
+        ":kselftest_capabilities_validate_cap_arm64",
         ":kselftest_futex_futex_requeue_arm64",
         ":kselftest_futex_futex_requeue_pi_arm64",
         ":kselftest_futex_futex_requeue_pi_mismatched_ops_arm64",
@@ -1923,6 +1974,7 @@ android_filegroup(
         ":kselftest_net_socket_arm64",
         ":kselftest_ptrace_peeksiginfo_arm64",
         ":kselftest_rtc_rtctest_arm64",
+        ":kselftest_seccomp_seccomp_bpf_arm64",
         ":kselftest_size_test_get_size_arm64",
         ":kselftest_timers_adjtick_arm64",
         ":kselftest_timers_alarmtimer_suspend_arm64",
