@@ -13,6 +13,8 @@
 #include <asm/traps.h>
 
 #include <asm/fpsimd.h>
+#include <asm/neon.h>
+#include <asm/simd.h>
 
 /*
  * 32-bit misaligned trap handler (c) 1998 San Mehat (CCC) -July 1998
@@ -413,10 +415,13 @@ struct fixupDescription{
 	void* addr;
 
 	// datax_simd has to be located directly after datax in memory
-	u64 data1;
+	/*u64 data1;
 	u64 data1_simd;
 	u64 data2;
-	u64 data2_simd;
+	u64 data2_simd;*/
+
+	int reg1;
+	int reg2;
 
 	int Rs;		// used for atomics (which don't get handled atomically)
 
@@ -481,14 +486,42 @@ static int alignment_get_arm64(struct pt_regs *regs, __le64 __user *ip, u32 *ins
 }*/
 
 // saves the contents of the simd register reg to dst
-void read_simd_reg(int reg, __uint128_t* dst){
-	struct user_fpsimd_state st;
-	fpsimd_save_state(&st);
-	*dst = st.vregs[reg];
+void read_simd_reg(int reg, u64 dst[2]){
+	struct user_fpsimd_state st = {0};
+	//fpsimd_save_state(&st);
+
+	if(!may_use_simd()){
+		printk("may_use_simd returned false!\n");
+	}
+	kernel_neon_begin();
+	if(current->thread.sve_state){
+		printk("SVE state is not NULL!\n");
+	}
+
+	dst[0] = *((u64*)(&current->thread.uw.fpsimd_state.vregs[reg]));
+	dst[1] = *(((u64*)(&current->thread.uw.fpsimd_state.vregs[reg])) + 1);
+
+	kernel_neon_end();
 }
 
 int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	int r;
+	u64 data1[2];
+	u64 data2[2];
+
+	// the reg indices have to always be valid, even if the reg isn't being used
+	if(desc->simd){
+		// At least currently, there aren't any simd instructions supported that use more than one data register
+		//__uint128_t tmp;
+		read_simd_reg(desc->reg1, data1);
+		//data1[0] = tmp;
+		//data1[1] = *(((u64*)&tmp) + 1);
+		printk("SIMD: storing 0x%llx %llx (%d bits) at 0x%px", data1[1], data1[0], desc->width, desc->addr);
+	} else {
+		data1[0] = regs->regs[desc->reg1];
+		data2[0] = regs->regs[desc->reg2];
+	}
+
 	/*if(desc->width > 64){
 		printk("Currently cannot process ls_fixup with a size of %d bits\n", desc->width);
 		return 1;
@@ -500,8 +533,10 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 		//printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
 		int addrIt = 0;
 		for(int i = 0; i < bcount; i++){
-			if((r=put_user( (*(((uint8_t*)(&desc->data1)) + addrIt) & 0xff), (uint8_t __user *)addr)))
+			if((r=put_user( (*(((uint8_t*)(data1)) + addrIt) & 0xff), (uint8_t __user *)addr))){
+				printk("Failed to write data at 0x%px (base was 0x%px)\n", addr, desc->addr);
 				return r;
+			}
 			//desc->data1 >>= 8;
 			addrIt++;
 			addr++;
@@ -510,8 +545,10 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 		addrIt = 0;
 		if(desc->pair){
 			for(int i = 0; i < bcount; i++){
-				if((r=put_user((*(((uint8_t*)(&desc->data2)) + addrIt) & 0xff) & 0xff, (uint8_t __user *)addr)))
+				if((r=put_user((*(((uint8_t*)(data2)) + addrIt) & 0xff) & 0xff, (uint8_t __user *)addr))){
+					printk("Failed to write data at 0x%px (base was 0x%px)\n", addr, desc->addr);
 					return r;
+				}
 				//desc->data2 >>= 8;
 				addrIt++;
 				addr++;
@@ -519,7 +556,7 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 		}
 		arm64_skip_faulting_instruction(regs, 4);
 	} else {
-		printk("Loading is currently not implemented (addr 0x%llx)\n", desc->addr);
+		printk("Loading is currently not implemented (addr 0x%px)\n", desc->addr);
 		return -1;
 	}
 	return 0;
@@ -555,7 +592,7 @@ int ls_cas_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc)
 	}
 
 	desc->addr = (void*)regs->regs[Rn];
-	desc->data1 = regs->regs[Rt];
+	u64 data1 = regs->regs[Rt];
 
 	// nearly everything from here on could be moved into another function if needed
 	u64 cmpmask = (1 << desc->width) - 1;
@@ -567,7 +604,7 @@ int ls_cas_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc)
 	int r;
 	uint8_t  tmp;
 
-	printk("Atomic CAS not being done atomically at 0x%llx, size %d\n",desc->addr, desc->width);
+	printk("Atomic CAS not being done atomically at 0x%px, size %d\n",desc->addr, desc->width);
 
 	for(int i = 0; i < bcount; i++){
 		if((r=get_user(tmp, (uint8_t __user *)addr)))
@@ -582,9 +619,9 @@ int ls_cas_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc)
 		addr = (u64)desc->addr;
 
 		for(int i = 0; i < bcount; i++){
-			if((r=put_user(desc->data1 & 0xff, (uint8_t __user *)addr)))
+			if((r=put_user(data1 & 0xff, (uint8_t __user *)addr)))
 				return r;
-			desc->data1 >>= 8;
+			data1 >>= 8;
 			addr++;
 		}
 
@@ -637,8 +674,10 @@ int ls_pair_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc
 	default:
 			return -1;
 	}
-	desc->data1 = regs->regs[Rt];
-	desc->data2 = regs->regs[Rt2];
+	//desc->data1 = regs->regs[Rt];
+	//desc->data2 = regs->regs[Rt2];
+	desc->reg1 = Rt;
+	desc->reg2 = Rt2;
 
 	return do_ls_fixup(instr, regs, desc);
 
@@ -648,22 +687,29 @@ int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription
 	uint8_t size = (instr >> 30) & 3;
 	uint8_t simd = (instr >> 26) & 1;
 	uint8_t opc = (instr >> 22) & 3;
+	uint16_t imm12 = (instr >> 10) & 0xfff;
+	uint8_t Rn = (instr >> 5) & 0x1f;
+	uint8_t Rt = instr & 0x1f;
 
-	switch(size){
-	case 0:
-		desc->width = 8;
-		break;
-	case 1:
-			desc->width = 16;
-			break;
-	case 2:
-			desc->width = 32;
-			break;
-	case 3:
-			desc->width = 64;
-			break;
+	uint8_t load = opc & 1;
+	uint8_t extend_sign = ((opc & 2) >> 1 ) & !simd;
+	printk("size: %d simd: %d opc: %d imm12: 0x%x Rn: %d Rt: %d\n", size, simd, opc, imm12, Rn, Rt);
+	// when in simd mode, opc&2 is a third size bit. Otherwise, it's there for sign extension
+	int width_shift = (size | (((opc & 2) & (simd << 1)) << 1));
+	desc->width = 8 << width_shift;
+
+	if((size & 1) && simd && (opc & 2)){
+		return 1;
 	}
-	return 1;
+
+	desc->reg1 = Rt;
+	desc->simd = simd;
+	desc->extendSign = extend_sign;
+	u64 addr = regs->regs[Rn];
+	desc->addr = addr + (imm12 << width_shift);
+	printk("unsigned imm\n");
+
+	return do_ls_fixup(instr, regs, desc);
 }
 
 
@@ -697,50 +743,52 @@ int lsr_offset_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* d
 	uint8_t Rn = (instr >> 5) & 0x1f;
 	uint8_t Rt = instr & 0x1f;
 	uint8_t S = (instr >> 12) & 1;
+	int width_shift = (size | (((opc & 2) & (simd << 1)) << 1));
 	// size==0 seems to be a bit special
 	// opc&2 is sign, opc&1 is load	(for most instructions anyways)
 
 	uint8_t load = opc & 1;
-	uint8_t extend_sign = (opc & 2) >> 1;
+	uint8_t extend_sign = ((opc & 2) >> 1 ) & !simd;
 	desc->pair = 0;
 
 	desc->simd = simd;
-	desc->width = 8 << size;
+	desc->width = 8 << width_shift;
 
 	// the simd instructions make this a bit weird
-	if(!simd){
-		if(extend_sign){
-			if(load){
-				desc->extend_width = 32;
-			} else {
-				desc->extend_width = 64;
-			}
-			desc->load = 1;
+	if(extend_sign){
+		if(load){
+			desc->extend_width = 32;
 		} else {
-			desc->load = load;
+			desc->extend_width = 64;
 		}
+		desc->load = 1;
+	} else {
+		desc->load = load;
+	}
 
-		desc->extendSign = extend_sign;	// needed for load, which isn't implemented yet
+	desc->extendSign = extend_sign;	// needed for load, which isn't implemented yet
 
-
-		u64 addr = regs->regs[Rn];
-
+	u64 offset = 0;
+	u64 addr = 0;
+	addr = regs->regs[Rn];
+	if(simd){
+		int shift = 0;
+		if(S) shift = width_shift;
+		offset = extend_reg(regs->regs[Rm], option, shift);
+	} else {
 		int shift = 0;
 		if(S) shift = 2 << ((size & 1) & ((size >> 1) & 1));
 
-		u64 offset = extend_reg(regs->regs[Rm], option, S);
-
-		addr += offset;
-
-		desc->data1 = regs->regs[Rt];
-		desc->addr = (void*)addr;
-
-		return do_ls_fixup(instr, regs, desc);
-
-	} else {
-		printk("Load/Store register offset decode doesn't support simd yet\n");
-		return 1;
+		offset = extend_reg(regs->regs[Rm], option, shift);
 	}
+
+	addr += offset;
+
+	//desc->data1 = regs->regs[Rt];
+	desc->reg1 = Rt;
+	desc->addr = (void*)addr;
+
+	return do_ls_fixup(instr, regs, desc);
 	return 0;
 }
 
@@ -767,14 +815,15 @@ int lsr_unscaled_immediate_fixup(u32 instr, struct pt_regs *regs, struct fixupDe
 	if(load){
 		return 1;
 	}
+	desc->reg1 = Rt;
 	if(simd){
 		desc->simd = 1;
-		desc->width = 8 << (size | (opc << 1));
+		desc->width = 8 << (size | ((opc & 2) << 1));
 		// assuming store
-		__uint128_t tmp;
+		/*__uint128_t tmp;
 		read_simd_reg(Rt, &tmp);
 		desc->data1 = tmp;
-		desc->data1_simd = *(((u64*)&tmp) + 1);
+		desc->data1_simd = *(((u64*)&tmp) + 1);*/
 		return do_ls_fixup(instr, regs, desc);
 	}
 	printk("SIMD: %d\n", simd);
@@ -809,10 +858,9 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 		desc->pair = 0;
 
 	}
-	if((op0 & 3) == 2 && (op2 == 2)){
-		// Load/store pair offset
-		//ldpstp_offset_fixup(instr, regs);
-		//r = ls_reg_unsigned_imm(instr, regs, desc);
+	if((op0 & 3) == 3 && ((op2 & 2) == 2)){
+		// register unsigned immediate
+		r = ls_reg_unsigned_imm(instr, regs, desc);
 	}
 	if((op0 & 3) == 3 && (op2 & 2) == 0 && (op3 & 0x20) == 0x20 && op4 == 2){
 		// register offset load/store
@@ -821,12 +869,6 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	if((op0 & 3) == 3 && (op2 & 2) == 0 && (op3 & 0x20) == 0x0 && op4 == 0){
 		// register load/store unscaled immediate
 		r = lsr_unscaled_immediate_fixup(instr, regs, desc);
-		printk("Likely SIMD stuff, which isn't being handled properly at all!\n");
-		if(r){
-			arm64_skip_faulting_instruction(regs, 4);
-			// skip anyways
-		}
-		//r = 0;
 	}
 	if(r){
 		printk("Load/Store: op0 0x%x op1 0x%x op2 0x%x op3 0x%x op4 0x%x\n", op0, op1, op2, op3, op4);
