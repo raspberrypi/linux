@@ -972,6 +972,10 @@ struct balance_callback {
 	void (*func)(struct rq *rq);
 };
 
+typedef enum misfit_reason {
+	MISFIT_PERF,		/* Requires moving to a more performant CPU */
+} misfit_reason_t;
+
 /*
  * This is the main, per-CPU runqueue data structure.
  *
@@ -1186,6 +1190,10 @@ struct rq {
 #if defined(CONFIG_CFS_BANDWIDTH) && defined(CONFIG_SMP)
 	call_single_data_t	cfsb_csd;
 	struct list_head	cfsb_csd_list;
+#endif
+
+#ifdef CONFIG_SMP
+	misfit_reason_t		misfit_reason;
 #endif
 
 	ANDROID_OEM_DATA_ARRAY(1, 16);
