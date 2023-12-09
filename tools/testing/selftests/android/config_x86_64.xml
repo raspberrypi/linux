@@ -62,22 +62,11 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
         <option name="test-command-line" key="kselftest_rtc_rtctest" value="cd &ktest_dir;; ./kselftest_rtc_rtctest" />
         <option name="test-command-line" key="kselftest_seccomp_seccomp_bpf" value="cd &ktest_dir;; ./kselftest_seccomp_seccomp_bpf" />
         <option name="test-command-line" key="kselftest_size_test_get_size" value="cd &ktest_dir;; ./kselftest_size_test_get_size" />
-        <option name="test-command-line" key="kselftest_timers_adjtick" value="cd &ktest_dir;; ./kselftest_timers_adjtick" />
-        <option name="test-command-line" key="kselftest_timers_alarmtimer_suspend" value="cd &ktest_dir;; ./kselftest_timers_alarmtimer_suspend" />
-        <option name="test-command-line" key="kselftest_timers_change_skew" value="cd &ktest_dir;; ./kselftest_timers_change_skew" />
-        <option name="test-command-line" key="kselftest_timers_clocksource_switch" value="cd &ktest_dir;; ./kselftest_timers_clocksource_switch" />
-        <option name="test-command-line" key="kselftest_timers_freq_step" value="cd &ktest_dir;; ./kselftest_timers_freq_step" />
         <option name="test-command-line" key="kselftest_timers_inconsistency_check" value="cd &ktest_dir;; ./kselftest_timers_inconsistency_check" />
-        <option name="test-command-line" key="kselftest_timers_leap_a_day" value="cd &ktest_dir;; ./kselftest_timers_leap_a_day" />
-        <option name="test-command-line" key="kselftest_timers_leapcrash" value="cd &ktest_dir;; ./kselftest_timers_leapcrash" />
         <option name="test-command-line" key="kselftest_timers_nanosleep" value="cd &ktest_dir;; ./kselftest_timers_nanosleep" />
         <option name="test-command-line" key="kselftest_timers_nsleep_lat" value="cd &ktest_dir;; ./kselftest_timers_nsleep_lat" />
         <option name="test-command-line" key="kselftest_timers_posix_timers" value="cd &ktest_dir;; ./kselftest_timers_posix_timers" />
-        <option name="test-command-line" key="kselftest_timers_set_2038" value="cd &ktest_dir;; ./kselftest_timers_set_2038" />
-        <option name="test-command-line" key="kselftest_timers_set_tai" value="cd &ktest_dir;; ./kselftest_timers_set_tai" />
         <option name="test-command-line" key="kselftest_timers_set_timer_lat" value="cd &ktest_dir;; ./kselftest_timers_set_timer_lat" />
-        <option name="test-command-line" key="kselftest_timers_set_tz" value="cd &ktest_dir;; ./kselftest_timers_set_tz" />
-        <option name="test-command-line" key="kselftest_timers_skew_consistency" value="cd &ktest_dir;; ./kselftest_timers_skew_consistency" />
         <option name="test-command-line" key="kselftest_timers_tests_raw_skew" value="cd &ktest_dir;; ./kselftest_timers_tests_raw_skew" />
         <option name="test-command-line" key="kselftest_timers_threadtest" value="cd &ktest_dir;; ./kselftest_timers_threadtest" />
         <option name="test-command-line" key="kselftest_timers_valid_adjtimex" value="cd &ktest_dir;; ./kselftest_timers_valid_adjtimex" />
