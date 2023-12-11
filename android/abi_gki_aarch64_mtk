@@ -2701,6 +2701,13 @@
   __traceiter_android_vh_setscheduler_uclamp
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
+  __traceiter_android_vh_ufs_abort_success_ctrl
+  __traceiter_android_vh_ufs_compl_rsp_check_done
+  __traceiter_android_vh_ufs_err_check_ctrl
+  __traceiter_android_vh_ufs_err_handler
+  __traceiter_android_vh_ufs_err_print_ctrl
+  __traceiter_android_vh_ufs_perf_huristic_ctrl
+  __traceiter_android_vh_ufs_send_command_post_change
   __traceiter_cpu_frequency
   __traceiter_gpu_mem_total
   __traceiter_ipi_entry
@@ -2775,6 +2782,13 @@
   __tracepoint_android_vh_setscheduler_uclamp
   __tracepoint_android_vh_show_resume_epoch_val
   __tracepoint_android_vh_show_suspend_epoch_val
+  __tracepoint_android_vh_ufs_abort_success_ctrl
+  __tracepoint_android_vh_ufs_compl_rsp_check_done
+  __tracepoint_android_vh_ufs_err_check_ctrl
+  __tracepoint_android_vh_ufs_err_handler
+  __tracepoint_android_vh_ufs_err_print_ctrl
+  __tracepoint_android_vh_ufs_perf_huristic_ctrl
+  __tracepoint_android_vh_ufs_send_command_post_change
   __tracepoint_cpu_frequency
   __tracepoint_gpu_mem_total
   __tracepoint_ipi_entry
@@ -2876,12 +2890,15 @@
   udp_tunnel6_xmit_skb
   udp_tunnel_sock_release
   udp_tunnel_xmit_skb
+  ufshcd_complete_requests
   ufshcd_config_pwr_mode
   ufshcd_delay_us
   ufshcd_dme_configure_adapt
   ufshcd_dme_get_attr
   ufshcd_dme_set_attr
   ufshcd_dump_regs
+  ufshcd_err_handling_unprepare
+  ufshcd_err_handling_prepare
   ufshcd_fixup_dev_quirks
   ufshcd_get_pwr_dev_param
   ufshcd_hba_enable
