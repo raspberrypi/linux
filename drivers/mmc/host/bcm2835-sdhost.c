@@ -247,19 +247,22 @@ static void log_init(struct device *dev)
 	struct device_node *np;
 
 	spin_lock_init(&log_lock);
-	sdhost_log_buf = dma_alloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
-					     GFP_KERNEL);
-	if (sdhost_log_buf) {
-		np = of_find_compatible_node(NULL, NULL,
-					     "brcm,bcm2835-system-timer");
-		pr_info("sdhost: log_buf @ %p (%llx)\n",
-			sdhost_log_buf, (u64)sdhost_log_addr);
-		timer_base = of_iomap(np, 0);
-		if (!timer_base)
-			pr_err("sdhost: failed to remap timer\n");
+
+	np = of_find_compatible_node(NULL, NULL,
+				     "brcm,bcm2835-system-timer");
+	timer_base = of_iomap(np, 0);
+
+	if (timer_base) {
+		sdhost_log_buf = dma_alloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
+							GFP_KERNEL);
+		if (sdhost_log_buf)
+			pr_info("sdhost: log_buf @ %p (%llx)\n",
+				sdhost_log_buf, (u64)sdhost_log_addr);
+		else
+			pr_err("sdhost: failed to allocate log buf\n");
+	} else {
+		pr_err("sdhost: failed to remap timer - wrong dtb?\n");
 	}
-	else
-		pr_err("sdhost: failed to allocate log buf\n");
 }
 
 static void log_event_impl(const char *event, u32 param1, u32 param2)
