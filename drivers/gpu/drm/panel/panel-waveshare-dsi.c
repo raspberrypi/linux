@@ -361,7 +361,16 @@ static void ws_panel_remove(struct i2c_client *i2c)
 {
 	struct ws_panel *ts = i2c_get_clientdata(i2c);
 
+	ws_panel_disable(&ts->base);
+
 	drm_panel_remove(&ts->base);
+}
+
+static void ws_panel_shutdown(struct i2c_client *i2c)
+{
+	struct ws_panel *ts = i2c_get_clientdata(i2c);
+
+	ws_panel_disable(&ts->base);
 }
 
 static const struct of_device_id ws_panel_of_ids[] = {
@@ -402,6 +411,7 @@ static struct i2c_driver ws_panel_driver = {
 	},
 	.probe = ws_panel_probe,
 	.remove = ws_panel_remove,
+	.shutdown = ws_panel_shutdown,
 };
 module_i2c_driver(ws_panel_driver);
 
