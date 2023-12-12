@@ -107,6 +107,7 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	}
 
 	__deactivate_traps_common(vcpu);
+	__deactivate_traps_hfgxtr(vcpu);
 
 	write_sysreg(this_cpu_ptr(&kvm_init_params)->hcr_el2, hcr_el2);
 

@@ -158,6 +158,7 @@ void deactivate_traps_vhe_put(struct kvm_vcpu *vcpu)
 
 	local_irq_save(flags);
 	__deactivate_traps_common(vcpu);
+	__deactivate_traps_hfgxtr(vcpu);
 	local_irq_restore(flags);
 }
 
