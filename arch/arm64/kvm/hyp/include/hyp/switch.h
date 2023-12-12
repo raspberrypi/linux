@@ -235,8 +235,6 @@ static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 
 		write_sysreg_s(hcrx, SYS_HCRX_EL2);
 	}
-
-	__activate_traps_hfgxtr(vcpu);
 }
 
 static inline void __deactivate_traps_common(struct kvm_vcpu *vcpu)

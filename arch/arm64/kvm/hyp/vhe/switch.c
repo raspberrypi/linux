@@ -148,6 +148,7 @@ void activate_traps_vhe_load(struct kvm_vcpu *vcpu)
 
 	local_irq_save(flags);
 	__activate_traps_common(vcpu);
+	__activate_traps_hfgxtr(vcpu);
 	local_irq_restore(flags);
 }
 
