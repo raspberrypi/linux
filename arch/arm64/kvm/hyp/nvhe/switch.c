@@ -43,6 +43,7 @@ static void __activate_traps(struct kvm_vcpu *vcpu)
 
 	___activate_traps(vcpu);
 	__activate_traps_common(vcpu);
+	__activate_traps_hcrx(vcpu);
 	__activate_traps_hfgxtr(vcpu);
 
 	val = vcpu->arch.cptr_el2;
