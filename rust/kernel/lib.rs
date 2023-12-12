@@ -41,6 +41,7 @@ pub mod init;
 pub mod ioctl;
 #[cfg(CONFIG_KUNIT)]
 pub mod kunit;
+pub mod page;
 pub mod prelude;
 pub mod print;
 pub mod rbtree;
