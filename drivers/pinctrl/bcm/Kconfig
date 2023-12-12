@@ -10,7 +10,7 @@ config PINCTRL_BCM2712
 	select PINCONF
 	select GENERIC_PINCONF
 	help
-	   Say Y here to enable the Broadcom BCM2835 GPIO driver.
+	   Say Y here to enable the Broadcom BCM2712 PINCONF driver.
 
 config PINCTRL_BCM281XX
 	bool "Broadcom BCM281xx pinctrl driver"
