@@ -546,10 +546,6 @@ config VIDEO_OV5695
 
 config VIDEO_OV64A40
 	tristate "OmniVision OV64A40 sensor support"
-	depends on I2C && VIDEO_DEV
-	select MEDIA_CONTROLLER
-	select VIDEO_V4L2_SUBDEV_API
-	select V4L2_FWNODE
 	select V4L2_CCI_I2C
 	help
 	  This is a Video4Linux2 sensor driver for the OmniVision
