@@ -4558,7 +4558,8 @@ static void run_state_machine(struct tcpm_port *port)
 			tcpm_set_current_limit(port,
 					       tcpm_get_current_limit(port),
 					       5000);
-			tcpm_set_charge(port, true);
+			/* Not sink vbus if operational current is 0mA */
+			tcpm_set_charge(port, !!pdo_max_current(port->snk_pdo[0]));
 		}
 		if (port->ams == HARD_RESET)
 			tcpm_ams_finish(port);
@@ -4861,7 +4862,8 @@ static void run_state_machine(struct tcpm_port *port)
 		break;
 	case PORT_RESET:
 		tcpm_reset_port(port);
-		tcpm_set_cc(port, TYPEC_CC_OPEN);
+		tcpm_set_cc(port, tcpm_default_state(port) == SNK_UNATTACHED ?
+			    TYPEC_CC_RD : tcpm_rp_cc(port));
 		tcpm_set_state(port, PORT_RESET_WAIT_OFF,
 			       PD_T_ERROR_RECOVERY);
 		break;
