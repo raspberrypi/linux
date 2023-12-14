@@ -103,6 +103,8 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 	ARM64_FEATURE_MASK(ID_AA64PFR1_EL1_SSBS) \
 	)
 
+#define PVM_ID_AA64PFR2_ALLOW (0ULL)
+
 /*
  * Allow for protected VMs:
  * - Mixed-endian
@@ -135,6 +137,7 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
  * - Privileged Access Never
  * - SError interrupt exceptions from speculative reads
  * - Enhanced Translation Synchronization
+ * - Control for cache maintenance permission
  */
 #define PVM_ID_AA64MMFR1_ALLOW (\
 	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_HAFDBS) | \
@@ -142,7 +145,8 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_HPDS) | \
 	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_PAN) | \
 	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_SpecSEI) | \
-	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_ETS) \
+	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_ETS) | \
+	ARM64_FEATURE_MASK(ID_AA64MMFR1_EL1_CMOW) \
 	)
 
 /*
@@ -166,6 +170,8 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 	ARM64_FEATURE_MASK(ID_AA64MMFR2_EL1_BBM) | \
 	ARM64_FEATURE_MASK(ID_AA64MMFR2_EL1_E0PD) \
 	)
+
+#define PVM_ID_AA64MMFR3_ALLOW (0ULL)
 
 /*
  * No restrictions for Scalable Vectors (SVE).
@@ -239,7 +245,8 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa);
 
 #define PVM_ID_AA64ISAR2_ALLOW (\
 	ARM64_FEATURE_MASK(ID_AA64ISAR2_EL1_GPA3) | \
-	ARM64_FEATURE_MASK(ID_AA64ISAR2_EL1_APA3) \
+	ARM64_FEATURE_MASK(ID_AA64ISAR2_EL1_APA3) | \
+	ARM64_FEATURE_MASK(ID_AA64ISAR2_EL1_MOPS) \
 	)
 
 /*
