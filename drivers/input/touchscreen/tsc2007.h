@@ -62,6 +62,7 @@ struct tsc2007 {
 	char			phys[32];
 
 	struct i2c_client	*client;
+	struct touchscreen_properties	prop;
 
 	u16			model;
 	u16			x_plate_ohms;
