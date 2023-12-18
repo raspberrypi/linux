@@ -938,7 +938,7 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 	char *model_name = tsdata->name;
 	char *fw_version = tsdata->fw_version;
 
-	snprintf(model_name, EDT_NAME_PREFIX_LEN, "%s ", dev_name(&client->dev));
+	snprintf(model_name, EDT_NAME_PREFIX_LEN + 1, "%s ", dev_name(&client->dev));
 	model_name += strlen(model_name);
 
 	/* see what we find if we assume it is a M06 *
