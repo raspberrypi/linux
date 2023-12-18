@@ -1599,6 +1599,7 @@
   spi_register_controller
   __spi_register_driver
   spi_setup
+  spi_slave_abort
   spi_sync
   spi_sync_locked
   spi_unregister_controller
