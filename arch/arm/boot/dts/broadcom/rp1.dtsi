@@ -305,6 +305,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -313,6 +319,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C1 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -321,6 +333,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C2 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -329,6 +347,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C3 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -337,6 +361,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C4 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -345,6 +375,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C5 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
@@ -353,6 +389,12 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C6 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			snps,ss_hcnt = <978>;
+			snps,ss_lcnt = <990>;
+			snps,fs_hcnt = <200>;
+			snps,fs_lcnt = <268>;
+			snps,fp_hcnt = <60>;
+			snps,fp_lcnt = <107>;
 			status = "disabled";
 		};
 
