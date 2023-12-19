@@ -93,6 +93,7 @@ int io_uring_cmd_sock(struct io_uring_cmd *cmd, unsigned int issue_flags);
 void io_uring_cmd_mark_cancelable(struct io_uring_cmd *cmd,
 		unsigned int issue_flags);
 struct task_struct *io_uring_cmd_get_task(struct io_uring_cmd *cmd);
+bool io_is_uring_fops(struct file *file);
 #else
 static inline int io_uring_cmd_import_fixed(u64 ubuf, unsigned long len, int rw,
 			      struct iov_iter *iter, void *ioucmd)
@@ -110,10 +111,6 @@ static inline void io_uring_cmd_complete_in_task(struct io_uring_cmd *ioucmd,
 static inline void io_uring_cmd_do_in_task_lazy(struct io_uring_cmd *ioucmd,
 			void (*task_work_cb)(struct io_uring_cmd *, unsigned))
 {
-}
-static inline struct sock *io_uring_get_socket(struct file *file)
-{
-	return NULL;
 }
 static inline void io_uring_task_cancel(void)
 {
@@ -140,6 +137,10 @@ static inline void io_uring_cmd_mark_cancelable(struct io_uring_cmd *cmd,
 static inline struct task_struct *io_uring_cmd_get_task(struct io_uring_cmd *cmd)
 {
 	return NULL;
+}
+static inline bool io_is_uring_fops(struct file *file)
+{
+	return false;
 }
 #endif
 
