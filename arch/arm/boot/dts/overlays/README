@@ -307,6 +307,9 @@ Params:
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
 
+        rtc                     Set to "off" to disable the onboard Real Time
+                                Clock (2712 only, default "on")
+
         rtc_bbat_vchg           Set the RTC backup battery charging voltage in
                                 microvolts. If set to 0 or not specified, the
                                 trickle charger is disabled.
