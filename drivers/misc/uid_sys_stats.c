@@ -376,7 +376,7 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 	}
 
 	rcu_read_lock();
-	do_each_thread(temp, task) {
+	for_each_process_thread(temp, task) {
 		uid = from_kuid_munged(user_ns, task_uid(task));
 		lock_uid(uid);
 
@@ -396,7 +396,7 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 			uid_entry->active_stime += stime;
 		}
 		unlock_uid(uid);
-	} while_each_thread(temp, task);
+	}
 	rcu_read_unlock();
 
 	for (bkt = 0, uid_entry = NULL; uid_entry == NULL &&
@@ -530,7 +530,7 @@ static void update_io_stats_all(void)
 	}
 
 	rcu_read_lock();
-	do_each_thread(temp, task) {
+	for_each_process_thread(temp, task) {
 		uid = from_kuid_munged(user_ns, task_uid(task));
 		lock_uid(uid);
 		if (!uid_entry || uid_entry->uid != uid)
@@ -541,7 +541,7 @@ static void update_io_stats_all(void)
 		}
 		add_uid_io_stats(uid_entry, task, UID_STATE_TOTAL_CURR);
 		unlock_uid(uid);
-	} while_each_thread(temp, task);
+	}
 	rcu_read_unlock();
 
 	for (bkt = 0, uid_entry = NULL; uid_entry == NULL && bkt < HASH_SIZE(hash_table);
@@ -572,11 +572,11 @@ static void update_io_stats_uid_locked(struct uid_entry *uid_entry)
 	set_io_uid_tasks_zero(uid_entry);
 
 	rcu_read_lock();
-	do_each_thread(temp, task) {
+	for_each_process_thread(temp, task) {
 		if (from_kuid_munged(user_ns, task_uid(task)) != uid_entry->uid)
 			continue;
 		add_uid_io_stats(uid_entry, task, UID_STATE_TOTAL_CURR);
-	} while_each_thread(temp, task);
+	}
 	rcu_read_unlock();
 
 	compute_io_bucket_stats(&uid_entry->io[uid_entry->state],
@@ -677,7 +677,7 @@ static ssize_t uid_procstat_write(struct file *file,
 #ifndef CONFIG_UID_SYS_STATS_DEBUG
 	/*
 	 * Update_io_stats_uid_locked would take a long lock-time of uid_lock
-	 * due to call do_each_thread to compute uid_entry->io, which would
+	 * due to call for_each_process_thread to compute uid_entry->io, which would
 	 * cause to lock competition sometime.
 	 *
 	 * Using uid_entry_tmp to get the result of Update_io_stats_uid,
