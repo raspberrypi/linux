@@ -1112,7 +1112,8 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (!check_state(cfe, NODE_ENABLED, node->id)) {
 		cfe_err("%s node link is not enabled.\n",
 			node_desc[node->id].name);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_streaming;
 	}
 
 	ret = pm_runtime_resume_and_get(&cfe->pdev->dev);
@@ -1126,7 +1127,7 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 	    !check_state(cfe, NODE_ENABLED, cfe->node[FE_CONFIG].id)) {
 		cfe_err("FE enabled, but FE_CONFIG node is not\n");
 		ret = -EINVAL;
-		goto err_streaming;
+		goto err_pm_put;
 	}
 
 	ret = media_pipeline_start(&node->pad, &cfe->pipe);
