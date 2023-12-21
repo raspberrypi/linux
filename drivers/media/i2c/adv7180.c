@@ -732,10 +732,15 @@ static int adv7180_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_state *sd_state,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct adv7180_state *state = to_state(sd);
+
 	if (code->index != 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_UYVY8_2X8;
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+		code->code = MEDIA_BUS_FMT_UYVY8_1X16;
+	else
+		code->code = MEDIA_BUS_FMT_UYVY8_2X8;
 
 	return 0;
 }
@@ -745,7 +750,10 @@ static int adv7180_mbus_fmt(struct v4l2_subdev *sd,
 {
 	struct adv7180_state *state = to_state(sd);
 
-	fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+		fmt->code = MEDIA_BUS_FMT_UYVY8_1X16;
+	else
+		fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	fmt->colorspace = V4L2_COLORSPACE_SMPTE170M;
 	fmt->width = 720;
 	fmt->height = state->curr_norm & V4L2_STD_525_60 ? 480 : 576;
