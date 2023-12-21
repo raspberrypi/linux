@@ -161,7 +161,7 @@ ifndef KBUILD_MIXED_TREE
 all:	$(notdir $(KBUILD_IMAGE))
 endif
 
-
+vmlinuz.efi: Image
 Image vmlinuz.efi: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
