@@ -85,13 +85,14 @@ static int brcmvirt_gpio_probe(struct platform_device *pdev)
 	struct brcmvirt_gpio *ucb;
 	u32 gpiovirtbuf;
 
-	fw_node = of_parse_phandle(np, "firmware", 0);
+	fw_node = of_get_parent(np);
 	if (!fw_node) {
 		dev_err(dev, "Missing firmware node\n");
 		return -ENOENT;
 	}
 
-	fw = rpi_firmware_get(fw_node);
+	fw = devm_rpi_firmware_get(&pdev->dev, fw_node);
+	of_node_put(fw_node);
 	if (!fw)
 		return -EPROBE_DEFER;
 
@@ -145,10 +146,10 @@ static int brcmvirt_gpio_probe(struct platform_device *pdev)
 		}
 		ucb->bus_addr = 0;
 	}
+	ucb->gc.parent = dev;
 	ucb->gc.label = MODULE_NAME;
 	ucb->gc.owner = THIS_MODULE;
-	//ucb->gc.dev = dev;
-	ucb->gc.base = 100;
+	ucb->gc.base = -1;
 	ucb->gc.ngpio = NUM_GPIO;
 
 	ucb->gc.direction_input = brcmvirt_gpio_dir_in;
