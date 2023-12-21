@@ -189,6 +189,16 @@
 /* Initial number of frames to skip to avoid possible garbage */
 #define ADV7180_NUM_OF_SKIP_FRAMES       2
 
+enum adv7180_link_freq_idx {
+	INTERLACED_IDX,
+	I2P_IDX,
+};
+
+static const s64 adv7180_link_freqs[] = {
+	[INTERLACED_IDX] = 108000000,
+	[I2P_IDX] = 216000000,
+};
+
 static int dbg_input;
 module_param(dbg_input, int, 0644);
 MODULE_PARM_DESC(dbg_input, "Input number (0-31)");
@@ -228,6 +238,7 @@ struct adv7180_state {
 	const struct adv7180_chip_info *chip_info;
 	enum v4l2_field		field;
 	bool			force_bt656_4;
+	struct v4l2_ctrl	*link_freq;
 };
 #define to_adv7180_sd(_ctrl) (&container_of(_ctrl->handler,		\
 					    struct adv7180_state,	\
@@ -601,6 +612,9 @@ static int adv7180_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	lockdep_assert_held(&state->mutex);
 
+	if (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY)
+		return 0;
+
 	val = ctrl->val;
 	switch (ctrl->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -661,7 +675,7 @@ static const struct v4l2_ctrl_config adv7180_ctrl_fast_switch = {
 
 static int adv7180_init_controls(struct adv7180_state *state)
 {
-	v4l2_ctrl_handler_init(&state->ctrl_hdl, 4);
+	v4l2_ctrl_handler_init(&state->ctrl_hdl, 5);
 	state->ctrl_hdl.lock = &state->mutex;
 
 	v4l2_ctrl_new_std(&state->ctrl_hdl, &adv7180_ctrl_ops,
@@ -686,6 +700,17 @@ static int adv7180_init_controls(struct adv7180_state *state)
 					     0,
 					     ARRAY_SIZE(test_pattern_menu) - 1,
 					     test_pattern_menu);
+	}
+
+	if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2) {
+		state->link_freq =
+			v4l2_ctrl_new_int_menu(&state->ctrl_hdl,
+					       &adv7180_ctrl_ops,
+					       V4L2_CID_LINK_FREQ,
+					       ARRAY_SIZE(adv7180_link_freqs) - 1,
+					       0, adv7180_link_freqs);
+		if (state->link_freq)
+			state->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 	}
 
 	state->sd.ctrl_handler = &state->ctrl_hdl;
@@ -815,6 +840,12 @@ static int adv7180_set_pad_format(struct v4l2_subdev *sd,
 
 	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
 		state->field = format->format.field;
+
+		if (state->chip_info->flags & ADV7180_FLAG_MIPI_CSI2)
+			__v4l2_ctrl_s_ctrl(state->link_freq,
+					   (state->field == V4L2_FIELD_NONE) ?
+						I2P_IDX : INTERLACED_IDX);
+
 	} else {
 		framefmt = v4l2_subdev_state_get_format(sd_state, 0);
 		*framefmt = format->format;
