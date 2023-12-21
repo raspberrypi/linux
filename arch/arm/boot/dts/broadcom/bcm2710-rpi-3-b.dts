@@ -168,17 +168,6 @@
 	};
 };
 
-&soc {
-	virtgpio: virtgpio {
-		compatible = "brcm,bcm2835-virtgpio";
-		gpio-controller;
-		#gpio-cells = <2>;
-		firmware = <&firmware>;
-		status = "okay";
-	};
-
-};
-
 &firmware {
 	expgpio: expgpio {
 		compatible = "raspberrypi,firmware-gpio";
@@ -192,6 +181,13 @@
 				  "CAM_GPIO0",
 				  "CAM_GPIO1",
 				  "PWR_LOW_N";
+		status = "okay";
+	};
+
+	virtgpio: virtgpio {
+		compatible = "brcm,bcm2835-virtgpio";
+		gpio-controller;
+		#gpio-cells = <2>;
 		status = "okay";
 	};
 };
