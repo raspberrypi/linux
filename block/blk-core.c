@@ -828,8 +828,36 @@ end_io:
 }
 EXPORT_SYMBOL(submit_bio_noacct);
 
+#ifdef CONFIG_BLK_DEV_ZONED
+/**
+ * blk_bio_is_seq_zoned_write() - Check if @bio requires write serialization.
+ * @bio: Bio to examine.
+ *
+ * Note: REQ_OP_ZONE_APPEND bios do not require serialization.
+ */
+static bool blk_bio_is_seq_zoned_write(struct bio *bio)
+{
+	return disk_zone_is_seq(bio->bi_bdev->bd_disk,
+				bio->bi_iter.bi_sector) &&
+	       op_needs_zoned_write_locking(bio_op(bio));
+}
+#else
+static bool blk_bio_is_seq_zoned_write(struct bio *bio)
+{
+	return false;
+}
+#endif
+
 static void bio_set_ioprio(struct bio *bio)
 {
+	/*
+	 * Do not set the I/O priority of sequential zoned write bios because
+	 * this could lead to reordering by the mq-deadline I/O scheduler and
+	 * hence to unaligned write errors.
+	 */
+	if (blk_bio_is_seq_zoned_write(bio))
+		return;
+
 	/* Nobody set ioprio so far? Initialize it based on task's nice value */
 	if (IOPRIO_PRIO_CLASS(bio->bi_ioprio) == IOPRIO_CLASS_NONE)
 		bio->bi_ioprio = get_current_ioprio();
