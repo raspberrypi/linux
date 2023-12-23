@@ -552,8 +552,6 @@ struct unicam_device {
 
 	/* ptr to  sub device */
 	struct v4l2_subdev *sensor;
-	/* Pad config for the sensor */
-	struct v4l2_subdev_state *sensor_state;
 
 	enum v4l2_mbus_type bus_type;
 	/*
@@ -706,8 +704,7 @@ static int __subdev_get_format(struct unicam_device *dev,
 	};
 	int ret;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, get_fmt, dev->sensor_state,
-			       &sd_fmt);
+	ret = v4l2_subdev_call_state_active(dev->sensor, pad, get_fmt, &sd_fmt);
 	if (ret < 0)
 		return ret;
 
@@ -730,8 +727,7 @@ static int __subdev_set_format(struct unicam_device *dev,
 
 	sd_fmt.format = *fmt;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_state,
-			       &sd_fmt);
+	ret = v4l2_subdev_call_state_active(dev->sensor, pad, set_fmt, &sd_fmt);
 	if (ret < 0)
 		return ret;
 
@@ -1282,8 +1278,7 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 	 */
 	mbus_fmt->field = V4L2_FIELD_NONE;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_state,
-			       &sd_fmt);
+	ret = v4l2_subdev_call_state_try(dev->sensor, pad, set_fmt, &sd_fmt);
 	if (ret && ret != -ENOIOCTLCMD && ret != -ENODEV)
 		return ret;
 
@@ -1303,8 +1298,8 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 			fmt = get_first_supported_format(dev);
 			mbus_fmt->code = fmt->code;
 
-			ret = v4l2_subdev_call(dev->sensor, pad, set_fmt,
-					       dev->sensor_state, &sd_fmt);
+			ret = v4l2_subdev_call_state_try(dev->sensor, pad,
+							 set_fmt, &sd_fmt);
 			if (ret && ret != -ENOIOCTLCMD && ret != -ENODEV)
 				return ret;
 
@@ -1587,7 +1582,8 @@ static int unicam_s_selection(struct file *file, void *priv,
 	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	return v4l2_subdev_call(dev->sensor, pad, set_selection, NULL, &sdsel);
+	return v4l2_subdev_call_state_active(dev->sensor, pad, set_selection,
+					     &sdsel);
 }
 
 static int unicam_g_selection(struct file *file, void *priv,
@@ -1604,7 +1600,8 @@ static int unicam_g_selection(struct file *file, void *priv,
 	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, get_selection, NULL, &sdsel);
+	ret = v4l2_subdev_call_state_active(dev->sensor, pad, get_selection,
+					    &sdsel);
 	if (!ret)
 		sel->r = sdsel.r;
 
@@ -1633,7 +1630,8 @@ static int unicam_enum_framesizes(struct file *file, void *priv,
 	fse.index = fsize->index;
 	fse.pad = node->src_pad_id;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, enum_frame_size, NULL, &fse);
+	ret = v4l2_subdev_call_state_active(dev->sensor, pad, enum_frame_size,
+					    &fse);
 	if (ret)
 		return ret;
 
@@ -1668,8 +1666,8 @@ static int unicam_enum_frameintervals(struct file *file, void *priv,
 		return -EINVAL;
 
 	fie.code = fmt->code;
-	ret = v4l2_subdev_call(dev->sensor, pad, enum_frame_interval,
-			       NULL, &fie);
+	ret = v4l2_subdev_call_state_active(dev->sensor, pad,
+					    enum_frame_interval, &fie);
 	if (ret)
 		return ret;
 
@@ -2826,9 +2824,6 @@ static void unicam_release(struct kref *kref)
 	v4l2_ctrl_handler_free(&unicam->ctrl_handler);
 	media_device_cleanup(&unicam->mdev);
 
-	if (unicam->sensor_state)
-		__v4l2_subdev_state_free(unicam->sensor_state);
-
 	kfree(unicam);
 }
 
@@ -3162,17 +3157,11 @@ static void unregister_nodes(struct unicam_device *unicam)
 
 static int unicam_async_complete(struct v4l2_async_notifier *notifier)
 {
-	static struct lock_class_key key;
 	struct unicam_device *unicam = to_unicam_device(notifier->v4l2_dev);
 	unsigned int i, source_pads = 0;
 	int ret;
 
 	unicam->v4l2_dev.notify = unicam_notify;
-
-	unicam->sensor_state = __v4l2_subdev_state_alloc(unicam->sensor,
-							 "unicam:async->lock", &key);
-	if (!unicam->sensor_state)
-		return -ENOMEM;
 
 	for (i = 0; i < unicam->sensor->entity.num_pads; i++) {
 		if (unicam->sensor->entity.pads[i].flags & MEDIA_PAD_FL_SOURCE) {
