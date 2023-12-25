@@ -413,7 +413,13 @@ static __always_inline int rt_waiter_node_equal(struct rt_waiter_node *left,
 static inline bool rt_mutex_steal(struct rt_mutex_waiter *waiter,
 				  struct rt_mutex_waiter *top_waiter)
 {
+	bool ret = false;
+
 	if (rt_waiter_node_less(&waiter->tree, &top_waiter->tree))
+		return true;
+
+	trace_android_vh_rt_mutex_steal(waiter->tree.prio, top_waiter->tree.prio, &ret);
+	if (ret)
 		return true;
 
 #ifdef RT_MUTEX_BUILD_SPINLOCKS
