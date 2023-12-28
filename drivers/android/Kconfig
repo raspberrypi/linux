@@ -59,7 +59,6 @@ config ANDROID_VENDOR_HOOKS
 config ANDROID_DEBUG_KINFO
 	bool "Android Debug Kernel Information Support"
 	depends on KALLSYMS
-	depends on BROKEN
 	help
 	  This supports kernel information backup for bootloader usage.
 	  Specifics:
