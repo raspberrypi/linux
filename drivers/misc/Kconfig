@@ -570,6 +570,15 @@ config TPS6594_PFSM
 	  This driver can also be built as a module.  If so, the module
 	  will be called tps6594-pfsm.
 
+config PKVM_SMC_FILTER
+	tristate "pKVM SMC Filter"
+	depends on KVM && ARM64
+	help
+	  Support SMC filtering from hypervisor, through a hardcoded configuration in the
+	  driver, this is intended to be a template and not shipped as is.
+
+	  Say N here unless you know what you are doing.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
