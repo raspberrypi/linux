@@ -326,6 +326,10 @@ DECLARE_HOOK(android_vh_dup_task_struct,
 	TP_PROTO(struct task_struct *tsk, struct task_struct *orig),
 	TP_ARGS(tsk, orig));
 
+DECLARE_RESTRICTED_HOOK(android_rvh_set_task_comm,
+	TP_PROTO(struct task_struct *tsk, bool exec),
+	TP_ARGS(tsk, exec), 1);
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
