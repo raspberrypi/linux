@@ -2170,6 +2170,10 @@ void resource_log_pipe_topology_update(struct dc *dc, struct dc_state *state)
 	for (stream_idx = 0; stream_idx < state->stream_count; stream_idx++) {
 		otg_master = resource_get_otg_master_for_stream(
 				&state->res_ctx, state->streams[stream_idx]);
+		if (!otg_master	|| otg_master->stream_res.tg == NULL) {
+			DC_LOG_DC("topology update: otg_master NULL stream_idx %d!\n", stream_idx);
+			return;
+		}
 		slice_count = resource_get_opp_heads_for_otg_master(otg_master,
 				&state->res_ctx, opp_heads);
 		for (slice_idx = 0; slice_idx < slice_count; slice_idx++) {
@@ -2990,7 +2994,8 @@ bool dc_add_plane_to_context(
 
 	otg_master_pipe = resource_get_otg_master_for_stream(
 			&context->res_ctx, stream);
-	added = resource_append_dpp_pipes_for_plane_composition(context,
+	if (otg_master_pipe)
+		added = resource_append_dpp_pipes_for_plane_composition(context,
 			dc->current_state, pool, otg_master_pipe, plane_state);
 
 	if (added) {
