@@ -355,8 +355,8 @@ static void show_free_areas(unsigned int filter, nodemask_t *nodemask, int max_z
 
 	for_each_populated_zone(zone) {
 		unsigned int order;
-		unsigned long nr[MAX_ORDER + 1], flags, total = 0;
-		unsigned char types[MAX_ORDER + 1];
+		unsigned long nr[NR_PAGE_ORDERS], flags, total = 0;
+		unsigned char types[NR_PAGE_ORDERS];
 
 		if (zone_idx(zone) > max_zone_idx)
 			continue;
@@ -366,7 +366,7 @@ static void show_free_areas(unsigned int filter, nodemask_t *nodemask, int max_z
 		printk(KERN_CONT "%s: ", zone->name);
 
 		spin_lock_irqsave(&zone->lock, flags);
-		for (order = 0; order <= MAX_ORDER; order++) {
+		for (order = 0; order < NR_PAGE_ORDERS; order++) {
 			struct free_area *area = &zone->free_area[order];
 			int type;
 
@@ -380,7 +380,7 @@ static void show_free_areas(unsigned int filter, nodemask_t *nodemask, int max_z
 			}
 		}
 		spin_unlock_irqrestore(&zone->lock, flags);
-		for (order = 0; order <= MAX_ORDER; order++) {
+		for (order = 0; order < NR_PAGE_ORDERS; order++) {
 			printk(KERN_CONT "%lu*%lukB ",
 			       nr[order], K(1UL) << order);
 			if (nr[order])
