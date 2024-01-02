@@ -575,7 +575,8 @@ static ssize_t rescan_store(const struct bus_type *bus,
 		pd = of_find_device_by_node(np);
 		if (!pd) {
 			of_node_put(np);
-			return -EINVAL;
+			count = -EINVAL;
+			goto unlock;
 		}
 
 		cdx = platform_get_drvdata(pd);
@@ -585,6 +586,7 @@ static ssize_t rescan_store(const struct bus_type *bus,
 		put_device(&pd->dev);
 	}
 
+unlock:
 	mutex_unlock(&cdx_controller_lock);
 
 	return count;
