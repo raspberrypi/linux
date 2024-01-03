@@ -686,9 +686,10 @@ acpi_status wmi_install_notify_handler(const char *guid,
 			block->handler_data = data;
 
 			wmi_status = wmi_method_enable(block, true);
-			if ((wmi_status != AE_OK) ||
-			    ((wmi_status == AE_OK) && (status == AE_NOT_EXIST)))
-				status = wmi_status;
+			if (ACPI_FAILURE(wmi_status))
+				dev_warn(&block->dev.dev, "Failed to enable device\n");
+
+			status = AE_OK;
 		}
 	}
 
@@ -729,12 +730,13 @@ acpi_status wmi_remove_notify_handler(const char *guid)
 				status = AE_OK;
 			} else {
 				wmi_status = wmi_method_enable(block, false);
+				if (ACPI_FAILURE(wmi_status))
+					dev_warn(&block->dev.dev, "Failed to disable device\n");
+
 				block->handler = NULL;
 				block->handler_data = NULL;
-				if ((wmi_status != AE_OK) ||
-				    ((wmi_status == AE_OK) &&
-				     (status == AE_NOT_EXIST)))
-					status = wmi_status;
+
+				status = AE_OK;
 			}
 		}
 	}
