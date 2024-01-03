@@ -128,6 +128,7 @@ struct dw_i2s_dev {
 	unsigned int quirks;
 	unsigned int i2s_reg_comp1;
 	unsigned int i2s_reg_comp2;
+	unsigned int bclk_ratio;
 	struct device *dev;
 	u32 ccr;
 	u32 xfer_resolution;
