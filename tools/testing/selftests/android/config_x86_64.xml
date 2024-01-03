@@ -10,6 +10,10 @@ SPDX-License-Identifier: GPL-2.0 OR Apache-2.0
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.StopServicesSetup" />
 
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.KernelTestModuleController" >
+        <option name="arch" value="x86_64"/>
+    </object>
+
     <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
         <option name="cleanup" value="true" />
         <option name="push-file" key="selftests" value="/data/selftests" />
