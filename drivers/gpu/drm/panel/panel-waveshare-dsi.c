@@ -339,9 +339,8 @@ static int ws_panel_probe(struct i2c_client *i2c)
 	 */
 	drm_panel_add(&ts->base);
 
-	ts->dsi->mode_flags = (MIPI_DSI_MODE_VIDEO |
-			   MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
-			   MIPI_DSI_MODE_LPM);
+	ts->dsi->mode_flags =  MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO |
+			   MIPI_DSI_CLOCK_NON_CONTINUOUS;
 	ts->dsi->format = MIPI_DSI_FMT_RGB888;
 	ts->dsi->lanes = 2;
 
