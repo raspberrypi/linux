@@ -314,6 +314,25 @@ static int dw_i2s_hw_params(struct snd_pcm_substream *substream,
 	if (dev->tdm_slots)
 		config->data_width = 32;
 
+	if ((dev->capability & DW_I2S_MASTER) && dev->bclk_ratio) {
+		switch (dev->bclk_ratio) {
+		case 32:
+			dev->ccr = 0x00;
+			break;
+
+		case 48:
+			dev->ccr = 0x08;
+			break;
+
+		case 64:
+			dev->ccr = 0x10;
+			break;
+
+		default:
+			return -EINVAL;
+		}
+	}
+
 	config->chan_nr = params_channels(params);
 
 	switch (config->chan_nr) {
@@ -537,23 +556,7 @@ static int dw_i2s_set_bclk_ratio(struct snd_soc_dai *cpu_dai,
 
 	dev_dbg(dev->dev, "%s(%d)\n", __func__, ratio);
 
-	switch (ratio) {
-	case 32:
-		dev->ccr = 0x00;
-		break;
-
-	case 48:
-		dev->ccr = 0x08;
-		break;
-
-	case 64:
-		dev->ccr = 0x10;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	i2s_write_reg(dev->i2s_base, CCR, dev->ccr);
+	dev->bclk_ratio = ratio;
 
 	return 0;
 }
@@ -1068,6 +1071,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 		}
 	}
 
+	dev->bclk_ratio = 0;
 	dev->i2s_reg_comp1 = I2S_COMP_PARAM_1;
 	dev->i2s_reg_comp2 = I2S_COMP_PARAM_2;
 	if (pdata) {
