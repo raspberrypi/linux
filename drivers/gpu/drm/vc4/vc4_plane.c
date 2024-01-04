@@ -1877,7 +1877,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 				 * The UPM buffer will be allocated in
 				 * vc6_plane_allocate_upm().
 				 */
-				VC4_SET_FIELD(upper_32_bits(paddr) & 0xf,
+				VC4_SET_FIELD(upper_32_bits(paddr) & 0xff,
 					      SCALER6_PTR0_UPPER_ADDR));
 
 		/* Pointer Word 1 */
@@ -2079,7 +2079,8 @@ void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 {
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(plane->state);
 	struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, 0);
-	uint32_t addr;
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	dma_addr_t dma_addr = bo->dma_addr + fb->offsets[0];
 	int idx;
 
 	if (!drm_dev_enter(plane->dev, &idx))
@@ -2089,19 +2090,38 @@ void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 	 * because this is only called on the primary plane.
 	 */
 	WARN_ON_ONCE(plane->state->crtc_x < 0 || plane->state->crtc_y < 0);
-	addr = bo->dma_addr + fb->offsets[0];
 
-	/* Write the new address into the hardware immediately.  The
-	 * scanout will start from this address as soon as the FIFO
-	 * needs to refill with pixels.
-	 */
-	writel(addr, &vc4_state->hw_dlist[vc4_state->ptr0_offset[0]]);
+	if (vc4->gen == VC4_GEN_6) {
+		u32 value;
 
-	/* Also update the CPU-side dlist copy, so that any later
-	 * atomic updates that don't do a new modeset on our plane
-	 * also use our updated address.
-	 */
-	vc4_state->dlist[vc4_state->ptr0_offset[0]] = addr;
+		value = vc4_state->dlist[vc4_state->ptr0_offset[0]] &
+					~SCALER6_PTR0_UPPER_ADDR_MASK;
+		value |= VC4_SET_FIELD(upper_32_bits(dma_addr) & 0xff,
+				       SCALER6_PTR0_UPPER_ADDR);
+
+		writel(value, &vc4_state->hw_dlist[vc4_state->ptr0_offset[0]]);
+		vc4_state->dlist[vc4_state->ptr0_offset[0]] = value;
+
+		value = lower_32_bits(dma_addr);
+		writel(value, &vc4_state->hw_dlist[vc4_state->ptr0_offset[0] + 1]);
+		vc4_state->dlist[vc4_state->ptr0_offset[0] + 1] = value;
+	} else {
+		u32 addr;
+
+		addr = (u32)dma_addr;
+
+		/* Write the new address into the hardware immediately.  The
+		 * scanout will start from this address as soon as the FIFO
+		 * needs to refill with pixels.
+		 */
+		writel(addr, &vc4_state->hw_dlist[vc4_state->ptr0_offset[0]]);
+
+		/* Also update the CPU-side dlist copy, so that any later
+		 * atomic updates that don't do a new modeset on our plane
+		 * also use our updated address.
+		 */
+		vc4_state->dlist[vc4_state->ptr0_offset[0]] = addr;
+	}
 
 	drm_dev_exit(idx);
 }
