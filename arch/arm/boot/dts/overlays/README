@@ -207,7 +207,7 @@ Params:
                                 0 means never downshift (default 2). Pi3B+ only.
 
         eth_led0                Set mode of LED0 - amber on Pi3B+ (default "1"),
-                                green on Pi4 (default "0").
+                                green on Pi4/5 (default "0").
                                 The legal values are:
 
                                 Pi3B+
@@ -217,7 +217,7 @@ Params:
                                 4=link100/1000/activity  5=link10/1000/activity
                                 6=link10/100/activity    14=off    15=on
 
-                                Pi4
+                                Pi4/5
 
                                 0=Speed/Activity         1=Speed
                                 2=Flash activity         3=FDX
@@ -226,7 +226,7 @@ Params:
                                 8=Link                   9=Activity
 
         eth_led1                Set mode of LED1 - green on Pi3B+ (default "6"),
-                                amber on Pi4 (default "8"). See eth_led0 for
+                                amber on Pi4/5 (default "8"). See eth_led0 for
                                 legal values.
 
         eth_max_speed           Set the maximum speed a link is allowed
