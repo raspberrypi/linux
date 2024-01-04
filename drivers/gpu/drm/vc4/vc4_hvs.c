@@ -855,14 +855,19 @@ static void vc4_hvs_dlist_free_work(struct work_struct *work)
 	struct vc4_hvs *hvs = container_of(work, struct vc4_hvs, free_dlist_work);
 	struct vc4_hvs_dlist_allocation *cur, *next;
 	unsigned long flags;
+	bool active[3];
+	u8 frcnt[3];
+	int i;
+
 
 	spin_lock_irqsave(&hvs->mm_lock, flags);
+	for (i = 0; i < 3; i++) {
+		frcnt[i] = vc4_hvs_get_fifo_frame_count(hvs, i);
+		active[i] = vc4_hvs_check_channel_active(hvs, i);
+	}
 	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
-		u8 frcnt;
-
-		frcnt = vc4_hvs_get_fifo_frame_count(hvs, cur->channel);
-		if (vc4_hvs_check_channel_active(hvs, cur->channel) &&
-		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
+		if (active[cur->channel] &&
+		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt[cur->channel]))
 			continue;
 
 		vc4_hvs_free_dlist_entry_locked(hvs, cur);
