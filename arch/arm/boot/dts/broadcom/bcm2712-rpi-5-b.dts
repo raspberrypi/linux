@@ -844,5 +844,18 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		drm_fb2_rp1_dsi1 = <&aliases>, "drm-fb2=",&dsi1;
 		drm_fb2_rp1_dpi = <&aliases>, "drm-fb2=",&dpi;
 		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+
+		fan_temp0 = <&cpu_tepid>,"temperature:0";
+		fan_temp1 = <&cpu_warm>,"temperature:0";
+		fan_temp2 = <&cpu_hot>,"temperature:0";
+		fan_temp3 = <&cpu_vhot>,"temperature:0";
+		fan_temp0_hyst = <&cpu_tepid>,"hysteresis:0";
+		fan_temp1_hyst = <&cpu_warm>,"hysteresis:0";
+		fan_temp2_hyst = <&cpu_hot>,"hysteresis:0";
+		fan_temp3_hyst = <&cpu_vhot>,"hysteresis:0";
+		fan_temp0_speed = <&fan>, "cooling-levels:4";
+		fan_temp1_speed = <&fan>, "cooling-levels:8";
+		fan_temp2_speed = <&fan>, "cooling-levels:12";
+		fan_temp3_speed = <&fan>, "cooling-levels:16";
 	};
 };
