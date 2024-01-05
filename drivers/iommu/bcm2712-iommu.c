@@ -237,7 +237,8 @@ static int bcm2712_iommu_attach_dev(struct iommu_domain *domain, struct device *
 }
 
 static int bcm2712_iommu_map(struct iommu_domain *domain, unsigned long iova,
-			     phys_addr_t pa, size_t bytes, int prot, gfp_t gfp)
+			     phys_addr_t pa, size_t bytes, size_t count,
+			     int prot, gfp_t gfp, size_t *mapped)
 {
 	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
 
@@ -276,12 +277,14 @@ static int bcm2712_iommu_map(struct iommu_domain *domain, unsigned long iova,
 			 (unsigned long long)pa, (unsigned long long)bytes);
 		return -EINVAL;
 	}
+	*mapped = bytes;
 
 	return 0;
 }
 
 static size_t bcm2712_iommu_unmap(struct iommu_domain *domain, unsigned long iova,
-				  size_t bytes, struct iommu_iotlb_gather *gather)
+				  size_t bytes, size_t count,
+				  struct iommu_iotlb_gather *gather)
 {
 	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
 
@@ -318,7 +321,7 @@ static size_t bcm2712_iommu_unmap(struct iommu_domain *domain, unsigned long iov
 	return bytes;
 }
 
-static void bcm2712_iommu_sync_range(struct iommu_domain *domain,
+static int bcm2712_iommu_sync_range(struct iommu_domain *domain,
 				     unsigned long iova, size_t size)
 {
 	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
@@ -326,7 +329,7 @@ static void bcm2712_iommu_sync_range(struct iommu_domain *domain,
 	unsigned int i, p4;
 
 	if (!mmu || !mmu->dirty)
-		return;
+		return 0;
 
 	/* Ensure tables are cleaned from CPU cache or write-buffer */
 	dma_sync_sgtable_for_device(mmu->dev, mmu->sgt, DMA_TO_DEVICE);
@@ -371,6 +374,8 @@ static void bcm2712_iommu_sync_range(struct iommu_domain *domain,
 			}
 		}
 	}
+
+	return 0;
 }
 
 static void bcm2712_iommu_sync(struct iommu_domain *domain,
@@ -412,8 +417,8 @@ static void bcm2712_iommu_domain_free(struct iommu_domain *domain)
 
 static const struct iommu_domain_ops bcm2712_iommu_domain_ops = {
 	.attach_dev	 = bcm2712_iommu_attach_dev,
-	.map		 = bcm2712_iommu_map,
-	.unmap		 = bcm2712_iommu_unmap,
+	.map_pages	 = bcm2712_iommu_map,
+	.unmap_pages	 = bcm2712_iommu_unmap,
 	.iotlb_sync      = bcm2712_iommu_sync,
 	.iotlb_sync_map  = bcm2712_iommu_sync_range,
 	.flush_iotlb_all = bcm2712_iommu_sync_all,
