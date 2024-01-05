@@ -15,7 +15,7 @@ config VHOST_RING
 
 config VHOST_TASK
 	bool
-	default y
+	default n
 
 config VHOST
 	tristate
