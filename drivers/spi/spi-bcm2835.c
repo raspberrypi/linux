@@ -1222,6 +1222,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 	struct bcm2835_spi *bs = spi_controller_get_devdata(ctlr);
 	struct bcm2835_spidev *target = spi_get_ctldata(spi);
 	struct gpio_chip *chip;
+	int len;
 	int ret;
 	u32 cs;
 
@@ -1286,6 +1287,10 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 		ret = -EINVAL;
 		goto err_cleanup;
 	}
+
+	/* Skip forced CS conversion if controller has an empty cs-gpios property */
+	if (of_find_property(ctlr->dev.of_node, "cs-gpios", &len) && len == 0)
+		return 0;
 
 	/*
 	 * Translate native CS to GPIO
