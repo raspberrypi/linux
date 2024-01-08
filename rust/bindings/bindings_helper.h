@@ -8,6 +8,7 @@
 
 #include <kunit/test.h>
 #include <linux/errname.h>
+#include <linux/jiffies.h>
 #include <linux/slab.h>
 #include <linux/refcount.h>
 #include <linux/wait.h>
