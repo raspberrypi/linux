@@ -225,6 +225,8 @@ struct kernfs_node {
 	umode_t			mode;
 	struct kernfs_iattrs	*iattr;
 
+	struct rcu_head		rcu;
+
 	ANDROID_KABI_RESERVE(1);
 };
 
