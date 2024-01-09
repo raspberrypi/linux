@@ -102,6 +102,7 @@ filegroup(
     name = "aarch64_additional_kmi_symbol_lists",
     srcs = [
         # keep sorted
+        "android/abi_gki_aarch64_unisoc",
     ],
     visibility = ["//visibility:public"],
 )
