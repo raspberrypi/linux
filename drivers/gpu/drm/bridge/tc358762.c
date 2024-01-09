@@ -53,6 +53,12 @@
 #define LCDCTRL_VSPOL		BIT(19) /* Polarity of VSYNC signal */
 #define LCDCTRL_VSDELAY(v)	(((v) & 0xfff) << 20) /* VSYNC delay */
 
+/* First parameter is in the 16bits, second is in the top 16bits */
+#define LCD_HS_HBP		0x0424
+#define LCD_HDISP_HFP		0x0428
+#define LCD_VS_VBP		0x042c
+#define LCD_VDISP_VFP		0x0430
+
 /* SPI Master Registers */
 #define SPICMR			0x0450
 #define SPITCR			0x0454
@@ -139,6 +145,15 @@ static int tc358762_init(struct tc358762 *ctx)
 	tc358762_write(ctx, LCDCTRL, lcdctrl);
 
 	tc358762_write(ctx, SYSCTRL, 0x040f);
+
+	tc358762_write(ctx, LCD_HS_HBP, (ctx->mode.hsync_end - ctx->mode.hsync_start) |
+		       ((ctx->mode.htotal - ctx->mode.hsync_end) << 16));
+	tc358762_write(ctx, LCD_HDISP_HFP, ctx->mode.hdisplay |
+		       ((ctx->mode.hsync_start - ctx->mode.hdisplay) << 16));
+	tc358762_write(ctx, LCD_VS_VBP, (ctx->mode.vsync_end - ctx->mode.vsync_start) |
+		       ((ctx->mode.vtotal - ctx->mode.vsync_end) << 16));
+	tc358762_write(ctx, LCD_VDISP_VFP, ctx->mode.vdisplay |
+		       ((ctx->mode.vsync_start - ctx->mode.vdisplay) << 16));
 	msleep(100);
 
 	tc358762_write(ctx, PPI_STARTPPI, PPI_START_FUNCTION);
