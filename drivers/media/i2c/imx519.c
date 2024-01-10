@@ -145,6 +145,10 @@ struct imx519_mode {
 	struct imx519_reg_list reg_list;
 };
 
+static const s64 imx519_link_freq_menu[] = {
+	IMX519_DEFAULT_LINK_FREQ,
+};
+
 static const struct imx519_reg mode_common_regs[] = {
 	{0x0100, 0x00},
 	{0x0136, 0x18},
@@ -1819,6 +1823,7 @@ static int imx519_init_controls(struct imx519 *imx519)
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct i2c_client *client = v4l2_get_subdevdata(&imx519->sd);
 	struct v4l2_fwnode_device_properties props;
+	struct v4l2_ctrl *link_freq;
 	unsigned int i;
 	int ret;
 
@@ -1836,6 +1841,15 @@ static int imx519_init_controls(struct imx519 *imx519)
 					       IMX519_PIXEL_RATE,
 					       IMX519_PIXEL_RATE, 1,
 					       IMX519_PIXEL_RATE);
+
+	/* LINK_FREQ is also read only */
+	link_freq =
+		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx519_ctrl_ops,
+				       V4L2_CID_LINK_FREQ,
+				       ARRAY_SIZE(imx519_link_freq_menu) - 1, 0,
+				       imx519_link_freq_menu);
+	if (link_freq)
+		link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/*
 	 * Create the controls here, but mode specific limits are setup
