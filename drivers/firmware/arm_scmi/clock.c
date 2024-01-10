@@ -164,6 +164,15 @@ static enum scmi_clock_protocol_cmd evt_2_cmd[] = {
 	CLOCK_RATE_CHANGE_REQUESTED_NOTIFY,
 };
 
+static inline struct scmi_clock_info *
+scmi_clock_domain_lookup(struct clock_info *ci, u32 clk_id)
+{
+	if (clk_id >= ci->num_clocks)
+		return ERR_PTR(-EINVAL);
+
+	return ci->clk + clk_id;
+}
+
 static int
 scmi_clock_protocol_attributes_get(const struct scmi_protocol_handle *ph,
 				   struct clock_info *ci)
@@ -577,10 +586,9 @@ scmi_clock_set_parent(const struct scmi_protocol_handle *ph, u32 clk_id,
 	struct clock_info *ci = ph->get_priv(ph);
 	struct scmi_clock_info *clk;
 
-	if (clk_id >= ci->num_clocks)
-		return -EINVAL;
-
-	clk = ci->clk + clk_id;
+	clk = scmi_clock_domain_lookup(ci, clk_id);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
 
 	if (parent_id >= clk->num_parents)
 		return -EINVAL;
@@ -797,10 +805,10 @@ scmi_clock_info_get(const struct scmi_protocol_handle *ph, u32 clk_id)
 	struct scmi_clock_info *clk;
 	struct clock_info *ci = ph->get_priv(ph);
 
-	if (clk_id >= ci->num_clocks)
+	clk = scmi_clock_domain_lookup(ci, clk_id);
+	if (IS_ERR(clk))
 		return NULL;
 
-	clk = ci->clk + clk_id;
 	if (!clk->name[0])
 		return NULL;
 
