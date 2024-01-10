@@ -12,6 +12,7 @@ load(
     "android_filegroup",
     "checkpatch",
     "ddk_headers",
+    "kernel_abi",
     "kernel_build",
     "kernel_images",
     "kernel_modules_install",
@@ -102,6 +103,7 @@ filegroup(
     name = "aarch64_additional_kmi_symbol_lists",
     srcs = [
         # keep sorted
+        "android/abi_gki_aarch64_db845c",
         "android/abi_gki_aarch64_unisoc",
         "android/abi_gki_aarch64_virtual_device",
     ],
@@ -427,6 +429,8 @@ kernel_build(
     # Enable mixed build.
     base_kernel = ":kernel_aarch64",
     build_config = "build.config.db845c",
+    collect_unstripped_modules = True,
+    kmi_symbol_list = "android/abi_gki_aarch64_db845c",
     make_goals = [
         "modules",
         "qcom/sdm845-db845c.dtb",
@@ -464,6 +468,11 @@ alias(
         "//build/kernel/kleaf:kgdb_is_true": "db845c_with_kgdb",
         "//conditions:default": "db845c_no_kgdb",
     }),
+)
+
+kernel_abi(
+    name = "db845c_abi",
+    kernel_build = ":db845c",
 )
 
 kernel_modules_install(
