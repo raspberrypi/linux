@@ -143,6 +143,10 @@ struct arducam_64mp_mode {
 	struct arducam_64mp_reg_list reg_list;
 };
 
+static const s64 arducam_64mp_link_freq_menu[] = {
+	ARDUCAM_64MP_DEFAULT_LINK_FREQ,
+};
+
 static const struct arducam_64mp_reg mode_common_regs[] = {
 	{0x0100, 0x00},
 	{0x0136, 0x18},
@@ -2272,9 +2276,11 @@ static int arducam_64mp_init_controls(struct arducam_64mp *arducam_64mp)
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct i2c_client *client = v4l2_get_subdevdata(&arducam_64mp->sd);
 	struct v4l2_fwnode_device_properties props;
+	struct v4l2_ctrl *link_freq;
 	unsigned int i;
 	int ret;
 	u8 test_pattern_max;
+	u8 link_freq_max;
 
 	ctrl_hdlr = &arducam_64mp->ctrl_handler;
 	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 16);
@@ -2291,6 +2297,16 @@ static int arducam_64mp_init_controls(struct arducam_64mp *arducam_64mp)
 						     ARDUCAM_64MP_PIXEL_RATE,
 						     ARDUCAM_64MP_PIXEL_RATE, 1,
 						     ARDUCAM_64MP_PIXEL_RATE);
+
+	/* LINK_FREQ is also read only */
+	link_freq_max = ARRAY_SIZE(arducam_64mp_link_freq_menu) - 1;
+	link_freq =
+		v4l2_ctrl_new_int_menu(ctrl_hdlr, &arducam_64mp_ctrl_ops,
+				       V4L2_CID_LINK_FREQ,
+				       link_freq_max, 0,
+				       arducam_64mp_link_freq_menu);
+	if (link_freq)
+		link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/*
 	 * Create the controls here, but mode specific limits are setup
