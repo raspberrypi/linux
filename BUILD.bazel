@@ -994,6 +994,12 @@ config_setting(
 )
 
 config_setting(
+    name = "i386",
+    values = {"platforms": "//build/kernel/kleaf/impl:android_i386"},
+    visibility = ["//visibility:private"],
+)
+
+config_setting(
     name = "arm64",
     values = {"platforms": "//build/kernel/kleaf/impl:android_arm64"},
     visibility = ["//visibility:private"],
@@ -1024,7 +1030,7 @@ cc_binary_with_abi(
     name = "kselftest_breakpoints_breakpoint_test",
     srcs = select({
         ":x86_64": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
-        ":x86": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
+        ":i386": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
         ":arm64": ["tools/testing/selftests/breakpoints/breakpoint_test_arm64.c"],
         "//conditions:default": [],
     }),
@@ -1911,7 +1917,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/helpers.h",
         "tools/testing/selftests/x86/single_step_syscall.c",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -1933,7 +1942,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/helpers.h",
         "tools/testing/selftests/x86/syscall_nt.c",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -1955,7 +1967,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/helpers.h",
         "tools/testing/selftests/x86/ptrace_syscall.c",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -1977,7 +1992,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/helpers.h",
         "tools/testing/selftests/x86/test_mremap_vdso.c",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -1999,7 +2017,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/check_initial_reg_state.c",
         "tools/testing/selftests/x86/helpers.h",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -2025,7 +2046,10 @@ cc_binary_with_abi(
         "tools/testing/selftests/x86/helpers.h",
         "tools/testing/selftests/x86/ldt_gdt.c",
     ],
-    abis = ["x86_64"],
+    abis = [
+        "x86_64",
+        "x86",
+    ],
     copts = [
         "-std=gnu99",
         "-O2",
@@ -2045,6 +2069,7 @@ copy_file(
     name = "kselftest_gen_config",
     src = select({
         ":x86_64": "tools/testing/selftests/android/config_x86_64.xml",
+        ":i386": "tools/testing/selftests/android/config_x86.xml",
         ":arm64": "tools/testing/selftests/android/config_arm64.xml",
         ":arm": "tools/testing/selftests/android/config_arm.xml",
     }),
@@ -2120,6 +2145,77 @@ android_filegroup(
         ":kselftest_x86_test_mremap_vdso_x86_64",
     ],
     cpu = "x86_64",
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
+    name = "kselftest_tests_x86",
+    srcs = [
+        ":kselftest_binderfs_binderfs_test_x86",
+        ":kselftest_breakpoints_breakpoint_test_x86",
+        ":kselftest_capabilities_test_execve_x86",
+        ":kselftest_capabilities_validate_cap_x86",
+        ":kselftest_futex_futex_requeue_pi_mismatched_ops_x86",
+        ":kselftest_futex_futex_requeue_pi_signal_restart_x86",
+        ":kselftest_futex_futex_requeue_pi_x86",
+        ":kselftest_futex_futex_requeue_x86",
+        ":kselftest_futex_futex_wait_private_mapped_file_x86",
+        ":kselftest_futex_futex_wait_timeout_x86",
+        ":kselftest_futex_futex_wait_uninitialized_heap_x86",
+        ":kselftest_futex_futex_wait_wouldblock_x86",
+        ":kselftest_futex_futex_wait_x86",
+        ":kselftest_gen_config",
+        ":kselftest_kcmp_kcmp_test_x86",
+        ":kselftest_mm_compaction_test_x86",
+        ":kselftest_mm_hugepage_mmap_x86",
+        ":kselftest_mm_hugepage_shm_x86",
+        ":kselftest_mm_map_hugetlb_x86",
+        ":kselftest_mm_mlock2_tests_x86",
+        ":kselftest_mm_mlock_random_test_x86",
+        ":kselftest_mm_mremap_dontunmap_x86",
+        ":kselftest_mm_mremap_test_x86",
+        ":kselftest_mm_on_fault_limit_x86",
+        ":kselftest_mm_thuge_gen_x86",
+        ":kselftest_mm_transhuge_stress_x86",
+        ":kselftest_mm_uffd_unit_tests_x86",
+        ":kselftest_net_psock_tpacket_x86",
+        ":kselftest_net_reuseaddr_conflict_x86",
+        ":kselftest_net_socket_x86",
+        ":kselftest_ptrace_peeksiginfo_x86",
+        ":kselftest_rtc_rtctest_x86",
+        ":kselftest_seccomp_seccomp_bpf_x86",
+        ":kselftest_size_test_get_size_x86",
+        ":kselftest_timers_adjtick_x86",
+        ":kselftest_timers_alarmtimer_suspend_x86",
+        ":kselftest_timers_change_skew_x86",
+        ":kselftest_timers_clocksource_switch_x86",
+        ":kselftest_timers_freq_step_x86",
+        ":kselftest_timers_inconsistency_check_x86",
+        ":kselftest_timers_leap_a_day_x86",
+        ":kselftest_timers_leapcrash_x86",
+        ":kselftest_timers_nanosleep_x86",
+        ":kselftest_timers_nsleep_lat_x86",
+        ":kselftest_timers_posix_timers_x86",
+        ":kselftest_timers_set_2038_x86",
+        ":kselftest_timers_set_tai_x86",
+        ":kselftest_timers_set_timer_lat_x86",
+        ":kselftest_timers_set_tz_x86",
+        ":kselftest_timers_skew_consistency_x86",
+        ":kselftest_timers_tests_raw_skew_x86",
+        ":kselftest_timers_threadtest_x86",
+        ":kselftest_timers_valid_adjtimex_x86",
+        ":kselftest_vdso_vdso_test_abi_x86",
+        ":kselftest_vdso_vdso_test_clock_getres_x86",
+        ":kselftest_vdso_vdso_test_getcpu_x86",
+        ":kselftest_vdso_vdso_test_gettimeofday_x86",
+        ":kselftest_x86_check_initial_reg_state_x86",
+        ":kselftest_x86_ldt_gdt_x86",
+        ":kselftest_x86_ptrace_syscall_x86",
+        ":kselftest_x86_single_step_syscall_x86",
+        ":kselftest_x86_syscall_nt_x86",
+        ":kselftest_x86_test_mremap_vdso_x86",
+    ],
+    cpu = "i386",
     visibility = ["//visibility:private"],
 )
 
@@ -2254,7 +2350,10 @@ android_filegroup(
 
 zip_archive(
     name = "tests_zip_x86_64",
-    srcs = [":kselftest_tests_x86_64"],
+    srcs = [
+        ":kselftest_tests_x86",
+        ":kselftest_tests_x86_64",
+    ],
     out = "tests.zip",
 )
 
