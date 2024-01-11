@@ -11,7 +11,7 @@ load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 
 visibility("private")
 
-_ALL_ABIS = ["arm64", "x86_64"]
+_ALL_ABIS = ["arm", "arm64", "x86_64"]
 
 def _copy_with_abi(
         name,

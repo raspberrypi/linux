@@ -999,6 +999,12 @@ config_setting(
     visibility = ["//visibility:private"],
 )
 
+config_setting(
+    name = "arm",
+    values = {"platforms": "//build/kernel/kleaf/impl:android_arm"},
+    visibility = ["//visibility:private"],
+)
+
 cc_library(
     name = "kselftest_headers_lib",
     hdrs = glob(["tools/testing/selftests/*.h"]),
@@ -1018,7 +1024,9 @@ cc_binary_with_abi(
     name = "kselftest_breakpoints_breakpoint_test",
     srcs = select({
         ":x86_64": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
+        ":x86": ["tools/testing/selftests/breakpoints/breakpoint_test.c"],
         ":arm64": ["tools/testing/selftests/breakpoints/breakpoint_test_arm64.c"],
+        "//conditions:default": [],
     }),
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -2038,6 +2046,7 @@ copy_file(
     src = select({
         ":x86_64": "tools/testing/selftests/android/config_x86_64.xml",
         ":arm64": "tools/testing/selftests/android/config_arm64.xml",
+        ":arm": "tools/testing/selftests/android/config_arm.xml",
     }),
     out = _KSELFTEST_DIR + "/selftests.config",
     visibility = ["//visibility:private"],
@@ -2115,6 +2124,70 @@ android_filegroup(
 )
 
 android_filegroup(
+    name = "kselftest_tests_arm",
+    srcs = [
+        ":kselftest_binderfs_binderfs_test_arm",
+        ":kselftest_capabilities_test_execve_arm",
+        ":kselftest_capabilities_validate_cap_arm",
+        ":kselftest_futex_futex_requeue_arm",
+        ":kselftest_futex_futex_requeue_pi_arm",
+        ":kselftest_futex_futex_requeue_pi_mismatched_ops_arm",
+        ":kselftest_futex_futex_requeue_pi_signal_restart_arm",
+        ":kselftest_futex_futex_wait_arm",
+        ":kselftest_futex_futex_wait_private_mapped_file_arm",
+        ":kselftest_futex_futex_wait_timeout_arm",
+        ":kselftest_futex_futex_wait_uninitialized_heap_arm",
+        ":kselftest_futex_futex_wait_wouldblock_arm",
+        ":kselftest_gen_config",
+        ":kselftest_kcmp_kcmp_test_arm",
+        ":kselftest_mm_compaction_test_arm",
+        ":kselftest_mm_hugepage_mmap_arm",
+        ":kselftest_mm_hugepage_shm_arm",
+        ":kselftest_mm_map_hugetlb_arm",
+        ":kselftest_mm_mlock2_tests_arm",
+        #":kselftest_mm_mlock_random_test_arm",
+        ":kselftest_mm_mremap_dontunmap_arm",
+        ":kselftest_mm_mremap_test_arm",
+        ":kselftest_mm_on_fault_limit_arm",
+        ":kselftest_mm_thuge_gen_arm",
+        ":kselftest_mm_transhuge_stress_arm",
+        ":kselftest_mm_uffd_unit_tests_arm",
+        #":kselftest_net_psock_tpacket_arm",
+        ":kselftest_net_reuseaddr_conflict_arm",
+        ":kselftest_net_socket_arm",
+        ":kselftest_ptrace_peeksiginfo_arm",
+        ":kselftest_rtc_rtctest_arm",
+        #":kselftest_seccomp_seccomp_bpf_arm",
+        ":kselftest_size_test_get_size_arm",
+        ":kselftest_timers_adjtick_arm",
+        ":kselftest_timers_alarmtimer_suspend_arm",
+        ":kselftest_timers_change_skew_arm",
+        ":kselftest_timers_clocksource_switch_arm",
+        #":kselftest_timers_freq_step_arm",
+        ":kselftest_timers_inconsistency_check_arm",
+        ":kselftest_timers_leap_a_day_arm",
+        ":kselftest_timers_leapcrash_arm",
+        ":kselftest_timers_nanosleep_arm",
+        ":kselftest_timers_nsleep_lat_arm",
+        ":kselftest_timers_posix_timers_arm",
+        ":kselftest_timers_set_2038_arm",
+        ":kselftest_timers_set_tai_arm",
+        ":kselftest_timers_set_timer_lat_arm",
+        ":kselftest_timers_set_tz_arm",
+        ":kselftest_timers_skew_consistency_arm",
+        ":kselftest_timers_tests_raw_skew_arm",
+        ":kselftest_timers_threadtest_arm",
+        ":kselftest_timers_valid_adjtimex_arm",
+        ":kselftest_vdso_vdso_test_abi_arm",
+        ":kselftest_vdso_vdso_test_clock_getres_arm",
+        ":kselftest_vdso_vdso_test_getcpu_arm",
+        ":kselftest_vdso_vdso_test_gettimeofday_arm",
+    ],
+    cpu = "arm",
+    visibility = ["//visibility:private"],
+)
+
+android_filegroup(
     name = "kselftest_tests_arm64",
     srcs = [
         ":kselftest_binderfs_binderfs_test_arm64",
@@ -2187,7 +2260,10 @@ zip_archive(
 
 zip_archive(
     name = "tests_zip_arm64",
-    srcs = [":kselftest_tests_arm64"],
+    srcs = [
+        ":kselftest_tests_arm",
+        ":kselftest_tests_arm64",
+    ],
     out = "tests.zip",
 )
 
