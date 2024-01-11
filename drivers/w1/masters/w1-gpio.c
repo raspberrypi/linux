@@ -90,6 +90,9 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		if (of_property_present(np, "linux,open-drain"))
 			gflags = GPIOD_OUT_LOW;
 
+		if (of_property_present(np, "raspberrypi,delay-needs-poll"))
+			master->delay_needs_poll = true;
+
 		pdev->dev.platform_data = pdata;
 	}
 	pdata = dev_get_platdata(dev);
