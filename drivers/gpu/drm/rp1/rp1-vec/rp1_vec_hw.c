@@ -11,7 +11,6 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/printk.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_print.h>
 #include <drm/drm_vblank.h>
@@ -82,13 +81,13 @@ static const struct rp1vec_ipixfmt my_formats[] = {
 /*
  * Hardware mode descriptions (@ 108 MHz clock rate).
  * These rely largely on "canned" register settings.
- * TODO: Port the generating software from FP to integer,
- * or better factorize the differences between modes.
  */
 
 struct rp1vec_hwmode {
-	u16  total_cols;	/* active columns, plus padding for filter context  */
+	u16  total_cols;	/* max active columns incl. padding and windowing   */
 	u16  rows_per_field;	/* active lines per field (including partial ones)  */
+	u16  ref_hfp;		/* nominal (hsync_start - hdisplay) when max width  */
+	u16  ref_vfp;		/* nominal (vsync_start - vdisplay) when max height */
 	bool interlaced;	/* set for interlaced				    */
 	bool first_field_odd;	/* set for interlaced and 30fps			    */
 	u32  yuv_scaling;	/* three 10-bit fields {Y, U, V} in 2.8 format	    */
@@ -103,6 +102,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 240,
+				.ref_hfp = 12,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x1071d0cf,
@@ -118,6 +119,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 815,
 				.rows_per_field = 240,
+				.ref_hfp = 16,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x1c131962,
@@ -135,6 +138,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 243,
+				.ref_hfp = 12,
+				.ref_vfp = 3,
 				.interlaced = true,
 				.first_field_odd = true,
 				.yuv_scaling = 0x1071d0cf,
@@ -150,6 +155,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 815,
 				.rows_per_field = 243,
+				.ref_hfp = 16,
+				.ref_vfp = 3,
 				.interlaced = true,
 				.first_field_odd = true,
 				.yuv_scaling = 0x1c131962,
@@ -170,6 +177,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 288,
+				.ref_hfp = 16,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x11c1f8e0,
@@ -185,6 +194,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 804,
 				.rows_per_field = 288,
+				.ref_hfp = 24,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x1e635d7f,
@@ -202,6 +213,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 288,
+				.ref_hfp = 16,
+				.ref_vfp = 5,
 				.interlaced = true,
 				.first_field_odd = false,
 				.yuv_scaling = 0x11c1f8e0,
@@ -217,6 +230,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 804,
 				.rows_per_field = 288,
+				.ref_hfp = 24,
+				.ref_vfp = 5,
 				.interlaced = true,
 				.first_field_odd = false,
 				.yuv_scaling = 0x1e635d7f,
@@ -237,6 +252,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 240,
+				.ref_hfp = 12,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x11c1f8e0,
@@ -252,6 +269,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 815,
 				.rows_per_field = 240,
+				.ref_hfp = 16,
+				.ref_vfp = 2,
 				.interlaced = false,
 				.first_field_odd = false,
 				.yuv_scaling = 0x1e635d7f,
@@ -269,6 +288,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			{
 				.total_cols = 724,
 				.rows_per_field = 243,
+				.ref_hfp = 12,
+				.ref_vfp = 3,
 				.interlaced = true,
 				.first_field_odd = true,
 				.yuv_scaling = 0x11c1f8e0,
@@ -284,6 +305,8 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 			}, {
 				.total_cols = 815,
 				.rows_per_field = 243,
+				.ref_hfp = 16,
+				.ref_vfp = 3,
 				.interlaced = true,
 				.first_field_odd = true,
 				.yuv_scaling = 0x1e635d7f,
@@ -308,11 +331,11 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 {
 	unsigned int i, mode_family, mode_ilaced, mode_narrow;
 	const struct rp1vec_hwmode *hwm;
-	unsigned int w, h;
+	int w, h, hpad, vpad;
 
 	/* Pick the appropriate "base" mode, which we may modify */
 	mode_ilaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
-	if (mode->vtotal > 263 * (1 + mode_ilaced))
+	if (mode->vtotal >= 272 * (1 + mode_ilaced))
 		mode_family = 1;
 	else
 		mode_family = (tvstd == RP1VEC_TVSTD_PAL_M || tvstd == RP1VEC_TVSTD_PAL60) ? 2 : 0;
@@ -326,13 +349,28 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 		tvstd, rp1vec_tvstd_names[tvstd]);
 
 	w = mode->hdisplay;
-	h = mode->vdisplay;
-	if (mode_ilaced)
-		h >>= 1;
+	h = mode->vdisplay >> mode_ilaced;
 	if (w > hwm->total_cols)
 		w = hwm->total_cols;
 	if (h > hwm->rows_per_field)
-		w = hwm->rows_per_field;
+		h = hwm->rows_per_field;
+
+	/*
+	 * Add padding so a framebuffer with the given dimensions and
+	 * [hv]sync_start can be displayed in the chosen hardware mode.
+	 *
+	 *          |<----- mode->hsync_start ----->|
+	 *          |<------ w ------>|             |
+	 *          |                 |         >|--|<  ref_hfp
+	 *                            |<- hpad ->|
+	 * |<------------ total_cols ----------->|
+	 *  ________FRAMEBUFFERCONTENTS__________
+	 * '                                     `--\____/-<\/\/\>-'
+	 */
+	hpad = max(0, mode->hsync_start - hwm->ref_hfp - w);
+	hpad = min(hpad, hwm->total_cols - w);
+	vpad = max(0, ((mode->vsync_start - hwm->ref_vfp) >> mode_ilaced) - h);
+	vpad = min(vpad, hwm->rows_per_field - h);
 
 	/* Configure the hardware */
 	VEC_WRITE(VEC_APB_TIMEOUT, 0x38);
@@ -347,18 +385,18 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 		  BITS(VEC_DMA_AREA_ROWS_PER_FIELD_MINUS1, h - 1));
 	VEC_WRITE(VEC_YUV_SCALING, hwm->yuv_scaling);
 	VEC_WRITE(VEC_BACK_PORCH,
-		  BITS(VEC_BACK_PORCH_HBP_MINUS1, (hwm->total_cols - w - 1) >> 1) |
-		  BITS(VEC_BACK_PORCH_VBP_MINUS1, (hwm->rows_per_field - h - 1) >> 1));
+		  BITS(VEC_BACK_PORCH_HBP_MINUS1, hwm->total_cols - w - hpad - 1) |
+		  BITS(VEC_BACK_PORCH_VBP_MINUS1, hwm->rows_per_field - h - vpad - 1));
 	VEC_WRITE(VEC_FRONT_PORCH,
-		  BITS(VEC_FRONT_PORCH_HFP_MINUS1, (hwm->total_cols - w - 2) >> 1) |
-		  BITS(VEC_FRONT_PORCH_VFP_MINUS1, (hwm->rows_per_field - h - 2) >> 1));
+		  BITS(VEC_FRONT_PORCH_HFP_MINUS1, hpad - 1) |
+		  BITS(VEC_FRONT_PORCH_VFP_MINUS1, vpad - 1));
 	VEC_WRITE(VEC_MODE,
 		  BITS(VEC_MODE_HIGH_WATER, 0xE0)			  |
 		  BITS(VEC_MODE_ALIGN16, !((w | mode->hdisplay) & 15))	  |
-		  BITS(VEC_MODE_VFP_EN, (hwm->rows_per_field > h + 1))	  |
-		  BITS(VEC_MODE_VBP_EN, (hwm->rows_per_field > h))	  |
-		  BITS(VEC_MODE_HFP_EN, (hwm->total_cols > w + 1))          |
-		  BITS(VEC_MODE_HBP_EN, (hwm->total_cols > w))		  |
+		  BITS(VEC_MODE_VFP_EN, (vpad > 0))			  |
+		  BITS(VEC_MODE_VBP_EN, (hwm->rows_per_field > h + vpad)) |
+		  BITS(VEC_MODE_HFP_EN, (hpad > 0))			  |
+		  BITS(VEC_MODE_HBP_EN, (hwm->total_cols > w + hpad))	  |
 		  BITS(VEC_MODE_FIELDS_PER_FRAME_MINUS1, hwm->interlaced) |
 		  BITS(VEC_MODE_FIRST_FIELD_ODD, hwm->first_field_odd));
 	for (i = 0; i < ARRAY_SIZE(hwm->back_end_regs); ++i) {
