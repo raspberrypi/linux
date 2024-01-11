@@ -19,7 +19,6 @@
 #include <linux/list.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-#include <linux/printk.h>
 #include <linux/console.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
@@ -208,26 +207,26 @@ static void rp1vec_connector_destroy(struct drm_connector *connector)
 static const struct drm_display_mode rp1vec_modes[4] = {
 	{ /* Full size 525/60i with Rec.601 pixel rate */
 		DRM_MODE("720x480i", DRM_MODE_TYPE_DRIVER, 13500,
-			 720, 720 + 14, 720 + 14 + 64, 858, 0,
-			 480, 480 + 7, 480 + 7 + 6, 525, 0,
+			 720, 720 + 16, 720 + 16 + 64, 858, 0,
+			 480, 480 + 6, 480 + 6 + 6, 525, 0,
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Cropped and horizontally squashed to be TV-safe */
 		DRM_MODE("704x432i", DRM_MODE_TYPE_DRIVER, 15429,
-			 704, 704 + 72, 704 + 72 + 72, 980, 0,
-			 432, 432 + 31, 432 + 31 + 6, 525, 0,
+			 704, 704 + 76, 704 + 76 + 72, 980, 0,
+			 432, 432 + 30, 432 + 30 + 6, 525, 0,
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Full size 625/50i with Rec.601 pixel rate */
 		DRM_MODE("720x576i", DRM_MODE_TYPE_DRIVER, 13500,
 			 720, 720 + 20, 720 + 20 + 64, 864, 0,
-			 576, 576 + 4, 576 + 4 + 6, 625, 0,
+			 576, 576 + 5, 576 + 5 + 5, 625, 0,
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Cropped and squashed, for square(ish) pixels */
 		DRM_MODE("704x512i", DRM_MODE_TYPE_DRIVER, 15429,
 			 704, 704 + 80, 704 + 80 + 72, 987, 0,
-			 512, 512 + 36, 512 + 36 + 6, 625, 0,
+			 512, 512 + 37, 512 + 37 + 5, 625, 0,
 			 DRM_MODE_FLAG_INTERLACE)
 	}
 };
@@ -298,27 +297,42 @@ static enum drm_mode_status rp1vec_mode_valid(struct drm_device *dev,
 					      const struct drm_display_mode *mode)
 {
 	/*
-	 * Check the mode roughly matches one of our standard modes
-	 * (optionally half-height and progressive). Ignore H/V sync
-	 * timings which for interlaced TV are approximate at best.
+	 * Check the mode roughly matches something we can generate.
+	 * The hardware driver is very prescriptive about pixel clocks,
+	 * line and frame durations, but we'll tolerate rounding errors.
+	 * Within each hardware mode, allow image size and position to vary
+	 * (to fine-tune overscan correction or emulate retro devices).
+	 * Don't check sync timings here: the HW driver will sanitize them.
 	 */
-	int i, prog;
 
-	prog = !(mode->flags & DRM_MODE_FLAG_INTERLACE);
+	int prog = !(mode->flags & DRM_MODE_FLAG_INTERLACE);
+	int vtotal_full = mode->vtotal << prog;
+	int vdisplay_full = mode->vdisplay << prog;
 
-	for (i = 0; i < ARRAY_SIZE(rp1vec_modes); i++) {
-		const struct drm_display_mode *ref = rp1vec_modes + i;
+	/* Reject very small frames */
+	if (vtotal_full < 256 || mode->hdisplay < 256)
+		return MODE_BAD;
 
-		if (mode->hdisplay == ref->hdisplay           &&
-		    mode->vdisplay == (ref->vdisplay >> prog) &&
-		    mode->clock + 2 >= ref->clock             &&
-		    mode->clock <= ref->clock + 2             &&
-		    mode->htotal + 2 >= ref->htotal           &&
-		    mode->htotal <= ref->htotal + 2           &&
-		    mode->vtotal + 2 >= (ref->vtotal >> prog) &&
-		    mode->vtotal <= (ref->vtotal >> prog) + 2)
-			return MODE_OK;
-	}
+	/* Check lines, frame period (ms) and vertical size limit */
+	if (vtotal_full >= 524 && vtotal_full <= 526 &&
+	    mode->htotal * vtotal_full > 33 * mode->clock &&
+	    mode->htotal * vtotal_full < 34 * mode->clock &&
+	    vdisplay_full <= 480)
+		goto vgood;
+	if (vtotal_full >= 624 && vtotal_full <= 626 &&
+	    mode->htotal * vtotal_full > 39 * mode->clock &&
+	    mode->htotal * vtotal_full < 41 * mode->clock &&
+	    vdisplay_full <= 576)
+		goto vgood;
+	return MODE_BAD;
+
+vgood:
+	/* Check pixel rate (kHz) and horizontal size limit */
+	if (mode->clock == 13500 && mode->hdisplay <= 720)
+		return MODE_OK;
+	if (mode->clock >= 15428 && mode->clock <= 15429 &&
+	    mode->hdisplay <= 800)
+		return MODE_OK;
 	return MODE_BAD;
 }
 
@@ -440,7 +454,7 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 	ret = drmm_mode_config_init(drm);
 	if (ret)
 		goto err_free_drm;
-	drm->mode_config.max_width  = 768;
+	drm->mode_config.max_width  = 800;
 	drm->mode_config.max_height = 576;
 	drm->mode_config.preferred_depth = 32;
 	drm->mode_config.prefer_shadow	 = 0;
