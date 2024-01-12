@@ -123,6 +123,11 @@ define_common_kernels(target_configs = {
         "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
     },
+    "kernel_aarch64_16k": {
+        "kmi_symbol_list_strict_mode": False,
+        "module_implicit_outs": get_gki_modules_list("arm64"),
+        "make_goals": _GKI_AARCH64_MAKE_GOALS,
+    },
     "kernel_riscv64": {
         "module_implicit_outs": get_gki_modules_list("riscv64"),
         "make_goals": _GKI_RISCV64_MAKE_GOALS,
