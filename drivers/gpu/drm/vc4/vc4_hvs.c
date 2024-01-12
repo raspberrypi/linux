@@ -1933,6 +1933,17 @@ static int vc4_hvs_hw_init(struct vc4_hvs *hvs)
 #define CFC1_N_MA_CSC_COEFF_C23(x)	(0xa03c + ((x) * 0x3000))
 #define CFC1_N_MA_CSC_COEFF_C24(x)	(0xa040 + ((x) * 0x3000))
 
+#define SCALER_PI_CMP_CSC_RED0(x)		(0x200 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_RED1(x)		(0x204 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_RED_CLAMP(x)		(0x208 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_CFG(x)		(0x20c + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_GREEN0(x)		(0x210 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_GREEN1(x)		(0x214 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_GREEN_CLAMP(x)	(0x218 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_BLUE0(x)		(0x220 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_BLUE1(x)		(0x224 + ((x) * 0x40))
+#define SCALER_PI_CMP_CSC_BLUE_CLAMP(x)		(0x228 + ((x) * 0x40))
+
 /* 4 S2.22 multiplication factors, and 1 S9.15 addititive element for each of 3
  * output components
  */
@@ -2003,31 +2014,43 @@ static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 	HVS_WRITE(SCALER6(PRI_MAP0), 0xffffffff);
 	HVS_WRITE(SCALER6(PRI_MAP1), 0xffffffff);
 
-	if (hvs->vc4->step_d0)
-		return;
+	if (hvs->vc4->step_d0) {
+		for (i = 0; i < 8; i++) {
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED0(i), 0x1f002566);
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED1(i), 0x3994);
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED_CLAMP(i), 0xfff00000);
+			HVS_WRITE(SCALER_PI_CMP_CSC_CFG(i), 0x1);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN0(i), 0x18002566);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN1(i), 0xf927eee2);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN_CLAMP(i), 0xfff00000);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE0(i), 0x18002566);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE1(i), 0x43d80000);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE_CLAMP(i), 0xfff00000);
+		}
+	} else {
+		for (i = 0; i < 6; i++) {
+			coeffs = &csc_coeffs[i / 3][i % 3];
 
-	for (i = 0; i < 6; i++) {
-		coeffs = &csc_coeffs[i / 3][i % 3];
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C00(i), coeffs->csc[0][0]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C01(i), coeffs->csc[0][1]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C02(i), coeffs->csc[0][2]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C03(i), coeffs->csc[0][3]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C04(i), coeffs->csc[0][4]);
 
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C00(i), coeffs->csc[0][0]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C01(i), coeffs->csc[0][1]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C02(i), coeffs->csc[0][2]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C03(i), coeffs->csc[0][3]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C04(i), coeffs->csc[0][4]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C10(i), coeffs->csc[1][0]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C11(i), coeffs->csc[1][1]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C12(i), coeffs->csc[1][2]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C13(i), coeffs->csc[1][3]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C14(i), coeffs->csc[1][4]);
 
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C10(i), coeffs->csc[1][0]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C11(i), coeffs->csc[1][1]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C12(i), coeffs->csc[1][2]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C13(i), coeffs->csc[1][3]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C14(i), coeffs->csc[1][4]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C20(i), coeffs->csc[2][0]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C21(i), coeffs->csc[2][1]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C22(i), coeffs->csc[2][2]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C23(i), coeffs->csc[2][3]);
+			HVS_WRITE(CFC1_N_MA_CSC_COEFF_C24(i), coeffs->csc[2][4]);
 
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C20(i), coeffs->csc[2][0]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C21(i), coeffs->csc[2][1]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C22(i), coeffs->csc[2][2]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C23(i), coeffs->csc[2][3]);
-		HVS_WRITE(CFC1_N_MA_CSC_COEFF_C24(i), coeffs->csc[2][4]);
-
-		HVS_WRITE(CFC1_N_NL_CSC_CTRL(i), BIT(15));
+			HVS_WRITE(CFC1_N_NL_CSC_CTRL(i), BIT(15));
+		}
 	}
 
 	return 0;
