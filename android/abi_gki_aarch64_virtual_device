@@ -1137,6 +1137,7 @@
   __ClearPageMovable
   init_on_free
   mutex_trylock
+  page_relinquish
   page_reporting_register
   page_reporting_unregister
   register_oom_notifier
@@ -1147,6 +1148,7 @@
   system_freezable_wq
   unregister_oom_notifier
   unregister_shrinker
+  virtqueue_disable_dma_api_for_buffers
   vm_event_states
   vm_node_stat
 
