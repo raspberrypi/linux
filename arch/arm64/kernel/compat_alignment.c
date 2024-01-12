@@ -446,6 +446,15 @@ static int alignment_get_arm64(struct pt_regs *regs, __le64 __user *ip, u32 *ins
 	return 0;
 }
 
+int64_t extend_sign(int64_t in, int bits){
+	bits--;
+	if(in & (1 << bits)){
+		// extend sign
+		return (0xffffffffffffffff << bits) | in;
+	}
+	return in;
+}
+
 /*int ldpstp_offset_fixup(u32 instr, struct pt_regs *regs){
 	uint8_t load = (instr >> 22) & 1;
 	uint8_t simd = (instr >> 26) & 1;
@@ -513,10 +522,16 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	if(desc->simd){
 		// At least currently, there aren't any simd instructions supported that use more than one data register
 		//__uint128_t tmp;
+
+		// probably better for performance to read both registers with one function to kernel_neon_* doesn't have to be called more than once
 		read_simd_reg(desc->reg1, data1);
+		read_simd_reg(desc->reg2, data2);
 		//data1[0] = tmp;
 		//data1[1] = *(((u64*)&tmp) + 1);
-		printk("SIMD: storing 0x%llx %llx (%d bits) at 0x%px", data1[1], data1[0], desc->width, desc->addr);
+		///printk("SIMD: storing 0x%llx %llx (%d bits) at 0x%px", data1[1], data1[0], desc->width, desc->addr);
+		if(desc->width < 128){
+			return -1;
+		}
 	} else {
 		data1[0] = regs->regs[desc->reg1];
 		data2[0] = regs->regs[desc->reg2];
@@ -646,23 +661,29 @@ int ls_pair_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc
 	uint8_t Rn = (instr >> 5) & 0x1f;
 	uint8_t Rt = instr & 0x1f;
 
-	int16_t imm = 0xffff & imm7;
-
+	int64_t imm = extend_sign(imm7, 7);
+	int immshift = 0;
 	desc->load = load;
 	desc->simd = simd;
 
 	// opc controls the width
-	switch(opc){
-	case 0:
-		desc->width = 32;
-		imm <<= 2;
-		break;
-	case 2:
-		desc->width = 64;
-		imm <<= 3;
-		break;
-	default:
-		return -1;
+	if(simd){
+		desc->width = 32 << opc;
+		immshift = 4 << opc;
+		imm <<= immshift;
+	} else {
+		switch(opc){
+		case 0:
+			desc->width = 32;
+			imm <<= 2;
+			break;
+		case 2:
+			desc->width = 64;
+			imm <<= 3;
+			break;
+		default:
+			return -1;
+		}
 	}
 
 	// op2 controls the indexing
@@ -687,15 +708,25 @@ int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription
 	uint8_t size = (instr >> 30) & 3;
 	uint8_t simd = (instr >> 26) & 1;
 	uint8_t opc = (instr >> 22) & 3;
-	uint16_t imm12 = (instr >> 10) & 0xfff;
+	uint64_t imm12 = (instr >> 10) & 0xfff;
 	uint8_t Rn = (instr >> 5) & 0x1f;
 	uint8_t Rt = instr & 0x1f;
 
 	uint8_t load = opc & 1;
-	uint8_t extend_sign = ((opc & 2) >> 1 ) & !simd;
-	printk("size: %d simd: %d opc: %d imm12: 0x%x Rn: %d Rt: %d\n", size, simd, opc, imm12, Rn, Rt);
+	uint8_t extend_sign = 0;// = ((opc & 2) >> 1 ) & !simd;
+	int width_shift = 0;
+
+	if(simd){
+		extend_sign = 0;
+		width_shift = size | ((opc & 2) << 1);
+	} else {
+		extend_sign = ((opc & 2) >> 1 );
+		width_shift = size;
+	}
+
+	///printk("size: %d simd: %d opc: %d imm12: 0x%x Rn: %d Rt: %d\n", size, simd, opc, imm12, Rn, Rt);
 	// when in simd mode, opc&2 is a third size bit. Otherwise, it's there for sign extension
-	int width_shift = (size | (((opc & 2) & (simd << 1)) << 1));
+	//width_shift = (size | (((opc & 2) & (simd << 1)) << 1));
 	desc->width = 8 << width_shift;
 
 	if((size & 1) && simd && (opc & 2)){
@@ -707,7 +738,7 @@ int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription
 	desc->extendSign = extend_sign;
 	u64 addr = regs->regs[Rn];
 	desc->addr = addr + (imm12 << width_shift);
-	printk("unsigned imm\n");
+	///printk("unsigned imm\n");
 
 	return do_ls_fixup(instr, regs, desc);
 }
@@ -728,8 +759,13 @@ u64 extend_reg(u64 reg, int type, int shift){
 			int32_t stmpw = reg;
 			int64_t stmpdw = stmpw;
 			tmp = (u64)stmpdw;
+		} else {
+			printk("Other branch I forgor about previously!\n");
+			tmp = reg;	// since the size stays the same, I don't think this makes a difference
 		}
 	}
+
+	///printk("extend_reg: reg 0x%lx out (before shift) 0x%lx signed: %x\n", reg, tmp, is_signed);
 
 	return tmp << shift;
 }
@@ -826,7 +862,7 @@ int lsr_unscaled_immediate_fixup(u32 instr, struct pt_regs *regs, struct fixupDe
 		desc->data1_simd = *(((u64*)&tmp) + 1);*/
 		return do_ls_fixup(instr, regs, desc);
 	}
-	printk("SIMD: %d\n", simd);
+	///printk("SIMD: %d\n", simd);
 	return 1;
 }
 
@@ -876,6 +912,31 @@ int ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	return r;
 }
 
+uint32_t*  seenCMDs;
+size_t seenCMDCount = 0;
+size_t seenCMDSize = 0;
+
+void instrDBG(u32 instr){
+	for(size_t i = 0; i < seenCMDCount; i++){
+		if(seenCMDs[i] == instr){
+			return;
+		}
+	}
+	if(seenCMDSize == 0){
+		seenCMDs = krealloc(seenCMDs, 1, GFP_KERNEL);
+		seenCMDSize = 1;
+	}
+
+	if(seenCMDCount >= seenCMDSize){
+		seenCMDs = krealloc(seenCMDs, seenCMDSize*2, GFP_KERNEL);
+		seenCMDSize *= 2;
+	}
+
+	seenCMDs[seenCMDCount] = instr;
+	seenCMDCount++;
+	printk("New instruction: %x", instr);
+}
+
 int do_alignment_fixup(unsigned long addr, struct pt_regs *regs){
 	unsigned long long instrptr;
 	u32 instr = 0;
@@ -892,6 +953,8 @@ int do_alignment_fixup(unsigned long addr, struct pt_regs *regs){
 	 * List of seen faults: 020c00a9 (0xa9000c02) stp x2, x3, [x0]
 	 *
 	 */
+
+	instrDBG(instr);
 
 	uint8_t op0;
 	int r;
