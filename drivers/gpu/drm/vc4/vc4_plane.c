@@ -1054,6 +1054,12 @@ static u32 vc4_hvs5_get_alpha_blend_mode(struct drm_plane_state *state)
 
 	WARN_ON_ONCE(vc4->gen != VC4_GEN_5 && vc4->gen != VC4_GEN_6);
 
+	if (vc4->gen == VC4_GEN_6 && vc4->step_d0) {
+		return state->pixel_blend_mode == DRM_MODE_BLEND_PREMULTI ?
+			SCALER5_CTL2_ALPHA_PREMULT : 0;
+	}
+
+
 	if (!state->fb->format->has_alpha)
 		return VC4_SET_FIELD(SCALER5_CTL2_ALPHA_MODE_FIXED,
 				     SCALER5_CTL2_ALPHA_MODE);
@@ -1569,13 +1575,12 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 static u32 vc6_plane_get_csc_mode(struct vc4_plane_state *vc4_state)
 {
 	struct drm_plane_state *state = &vc4_state->base;
+	struct vc4_dev *vc4 = to_vc4_dev(state->plane->dev);
 	u32 ret = 0;
 
 	if (vc4_state->is_yuv) {
 		enum drm_color_encoding color_encoding = state->color_encoding;
 		enum drm_color_range color_range = state->color_range;
-
-		ret |= SCALER6_CTL2_CSC_ENABLE;
 
 		/* CSC pre-loaded with:
 		 * 0 = BT601 limited range
@@ -1590,8 +1595,15 @@ static u32 vc6_plane_get_csc_mode(struct vc4_plane_state *vc4_state)
 		if (color_range > DRM_COLOR_YCBCR_FULL_RANGE)
 			color_range = DRM_COLOR_YCBCR_LIMITED_RANGE;
 
-		ret |= VC4_SET_FIELD(color_encoding + (color_range * 3),
-				     SCALER6_CTL2_BRCM_CFC_CONTROL);
+		if (vc4->step_d0) {
+			ret |= SCALER6D0_CTL2_CSC_ENABLE;
+			ret |= VC4_SET_FIELD(color_encoding + (color_range * 3),
+					SCALER6D0_CTL2_BRCM_CFC_CONTROL);
+		} else {
+			ret |= SCALER6_CTL2_CSC_ENABLE;
+			ret |= VC4_SET_FIELD(color_encoding + (color_range * 3),
+					SCALER6_CTL2_BRCM_CFC_CONTROL);
+		}
 	}
 
 	return ret;
