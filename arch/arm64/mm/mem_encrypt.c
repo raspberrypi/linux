@@ -121,6 +121,7 @@ int set_memory_encrypted(unsigned long addr, int numpages)
 	return set_memory_xcrypted(ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID,
 				   addr, numpages);
 }
+EXPORT_SYMBOL_GPL(set_memory_encrypted);
 
 int set_memory_decrypted(unsigned long addr, int numpages)
 {
@@ -130,3 +131,4 @@ int set_memory_decrypted(unsigned long addr, int numpages)
 	return set_memory_xcrypted(ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID,
 				   addr, numpages);
 }
+EXPORT_SYMBOL_GPL(set_memory_decrypted);
