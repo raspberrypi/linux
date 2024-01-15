@@ -72,6 +72,15 @@
 struct task_struct;
 struct pt_regs;
 
+/*
+ * We use a flag to track in-kernel Vector context. Currently the flag has the
+ * following meaning:
+ *
+ *  - bit 0: indicates whether the in-kernel Vector context is active. The
+ *    activation of this state disables the preemption.
+ */
+#define RISCV_KERNEL_MODE_V	0x1
+
 /* CPU-specific state of a task */
 struct thread_struct {
 	/* Callee-saved registers */
@@ -80,7 +89,8 @@ struct thread_struct {
 	unsigned long s[12];	/* s[0]: frame pointer */
 	struct __riscv_d_ext_state fstate;
 	unsigned long bad_cause;
-	unsigned long vstate_ctrl;
+	u32 riscv_v_flags;
+	u32 vstate_ctrl;
 	struct __riscv_v_ext_state vstate;
 };
 
