@@ -473,7 +473,6 @@
   vring_interrupt
   vring_notification_data
   vring_transport_features
-  wait_for_completion
   __wake_up
   wake_up_process
   __warn_printk
@@ -629,7 +628,6 @@
   power_supply_unregister
 
 # required by goldfish_pipe.ko
-  devm_kfree
   pin_user_pages_fast
   unpin_user_pages_dirty_lock
 
@@ -1229,6 +1227,7 @@
   __splice_from_pipe
   unlock_page
   __unregister_chrdev
+  wait_for_completion
 
 # required by virtio_mmio.ko
   device_for_each_child
@@ -1346,35 +1345,6 @@
   snd_pcm_set_managed_buffer_all
   snd_pcm_set_ops
   wait_for_completion_interruptible_timeout
-
-# required by virtiofs.ko
-  deactivate_locked_super
-  flush_dcache_page
-  flush_delayed_work
-  fs_param_is_enum
-  __fs_parse
-  fuse_conn_destroy
-  fuse_conn_init
-  fuse_dequeue_forget
-  fuse_dev_alloc
-  fuse_dev_free
-  fuse_dev_install
-  fuse_fill_super_common
-  fuse_free_conn
-  fuse_get_unique
-  fuse_init_fs_context_submount
-  fuse_len_args
-  fuse_mount_destroy
-  fuse_mount_remove
-  fuse_request_end
-  fuse_send_init
-  kill_anon_super
-  lockref_get
-  memchr
-  register_filesystem
-  set_anon_super_fc
-  sget_fc
-  unregister_filesystem
 
 # required by vkms.ko
   crc32_le
