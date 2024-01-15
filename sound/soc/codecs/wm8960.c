@@ -660,6 +660,7 @@ int wm8960_configure_sysclk(struct wm8960_priv *wm8960, int mclk,
 		if (j != ARRAY_SIZE(dac_divs))
 			break;
 	}
+	pr_err("%s(%d) -> %d, %d, %d\n", __func__, mclk, *sysclk_idx, *dac_idx, *bclk_idx);
 	return *bclk_idx;
 }
 
@@ -746,6 +747,7 @@ static int wm8960_configure_clocking(struct snd_soc_component *component)
 	int i, j, k;
 	int ret;
 
+	pr_err("%s:\n", __func__);
 	/*
 	 * For Slave mode clocking should still be configured,
 	 * so this if statement should be removed, but some platform
@@ -782,6 +784,8 @@ static int wm8960_configure_clocking(struct snd_soc_component *component)
 		return -EINVAL;
 	}
 
+	pr_err("%s: clk_id %d, freq_in %d, freq_out %d\n", __func__,
+		wm8960->clk_id, freq_in, freq_out);
 	if (wm8960->clk_id != WM8960_SYSCLK_PLL) {
 		ret = wm8960_configure_sysclk(wm8960, freq_out, &i, &j, &k);
 		if (ret >= 0) {
@@ -1298,6 +1302,7 @@ static int wm8960_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
 	struct snd_soc_component *component = dai->component;
 	struct wm8960_priv *wm8960 = snd_soc_component_get_drvdata(component);
 
+	pr_err("%s(%d, %d, %d)\n", __func__, clk_id, freq, dir);
 	switch (clk_id) {
 	case WM8960_SYSCLK_MCLK:
 		snd_soc_component_update_bits(component, WM8960_CLOCK1,
@@ -1316,6 +1321,7 @@ static int wm8960_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
 	wm8960->sysclk = freq;
 	wm8960->clk_id = clk_id;
 
+	pr_err("%s() -> OK\n", __func__);
 	return 0;
 }
 
