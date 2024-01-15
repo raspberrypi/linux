@@ -513,28 +513,47 @@ void read_simd_reg(int reg, u64 dst[2]){
 	kernel_neon_end();
 }
 
+
+void write_simd_reg(int reg, u64 src[2]){
+
+	if(!may_use_simd()){
+		printk("may_use_simd returned false!\n");
+	}
+	kernel_neon_begin();
+	if(current->thread.sve_state){
+		printk("SVE state is not NULL!\n");
+	}
+
+	*((u64*)(&current->thread.uw.fpsimd_state.vregs[reg])) = src[0];
+	*(((u64*)(&current->thread.uw.fpsimd_state.vregs[reg])) + 1) = src[1];
+
+	kernel_neon_end();
+}
+
 int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 	int r;
-	u64 data1[2];
-	u64 data2[2];
+	u64 data1[2] = {0,0};
+	u64 data2[2] = {0,0};
 
 	// the reg indices have to always be valid, even if the reg isn't being used
-	if(desc->simd){
-		// At least currently, there aren't any simd instructions supported that use more than one data register
-		//__uint128_t tmp;
+	if(!desc->load){
+		if(desc->simd){
+			// At least currently, there aren't any simd instructions supported that use more than one data register
+			//__uint128_t tmp;
 
-		// probably better for performance to read both registers with one function to kernel_neon_* doesn't have to be called more than once
-		read_simd_reg(desc->reg1, data1);
-		read_simd_reg(desc->reg2, data2);
-		//data1[0] = tmp;
-		//data1[1] = *(((u64*)&tmp) + 1);
-		///printk("SIMD: storing 0x%llx %llx (%d bits) at 0x%px", data1[1], data1[0], desc->width, desc->addr);
-		if(desc->width < 128){
-			return -1;
+			// probably better for performance to read both registers with one function to kernel_neon_* doesn't have to be called more than once
+			read_simd_reg(desc->reg1, data1);
+			read_simd_reg(desc->reg2, data2);
+			//data1[0] = tmp;
+			//data1[1] = *(((u64*)&tmp) + 1);
+			///printk("SIMD: storing 0x%llx %llx (%d bits) at 0x%px", data1[1], data1[0], desc->width, desc->addr);
+			/*if(desc->width < 128){
+				return -1;
+			}*/
+		} else {
+			data1[0] = regs->regs[desc->reg1];
+			data2[0] = regs->regs[desc->reg2];
 		}
-	} else {
-		data1[0] = regs->regs[desc->reg1];
-		data2[0] = regs->regs[desc->reg2];
 	}
 
 	/*if(desc->width > 64){
@@ -571,8 +590,54 @@ int do_ls_fixup(u32 instr, struct pt_regs *regs, struct fixupDescription* desc){
 		}
 		arm64_skip_faulting_instruction(regs, 4);
 	} else {
-		printk("Loading is currently not implemented (addr 0x%px)\n", desc->addr);
-		return -1;
+		//printk("Loading is currently not implemented (addr 0x%px)\n", desc->addr);
+
+		uint8_t* addr = desc->addr;
+		int bcount = desc->width / 8;	// since the field stores the width in bits. Honestly, there's no particular reason for that
+
+		//printk("Storing %d bytes (pair: %d) to 0x%llx",bcount, desc->pair, desc->addr);
+		int addrIt = 0;
+		for(int i = 0; i < bcount; i++){
+			uint8_t val;
+			if((r=get_user( val, (uint8_t __user *)addr))){
+				printk("Failed to write data at 0x%px (base was 0x%px)\n", addr, desc->addr);
+				return r;
+			}
+			*(((uint8_t*)data1) + addrIt) = val;
+			//desc->data1 >>= 8;
+			addrIt++;
+			addr++;
+		}
+
+		if(desc->simd){
+			write_simd_reg(desc->reg1, data1);
+		} else {
+			regs->regs[desc->reg1] = data1[0];
+		}
+
+		addrIt = 0;
+		if(desc->pair){
+			for(int i = 0; i < bcount; i++){
+				uint8_t val;
+				if((r=get_user(val, (uint8_t __user *)addr))){
+					printk("Failed to write data at 0x%px (base was 0x%px)\n", addr, desc->addr);
+					return r;
+				}
+				*(((uint8_t*)data2) + addrIt) = val;
+				//desc->data2 >>= 8;
+				addrIt++;
+				addr++;
+			}
+
+			if(desc->simd){
+				write_simd_reg(desc->reg2, data1);
+			} else {
+				regs->regs[desc->reg2] = data1[0];
+			}
+		}
+		arm64_skip_faulting_instruction(regs, 4);
+
+
 	}
 	return 0;
 }
@@ -732,7 +797,7 @@ int ls_reg_unsigned_imm(u32 instr, struct pt_regs *regs, struct fixupDescription
 	if((size & 1) && simd && (opc & 2)){
 		return 1;
 	}
-
+	desc->load = load;
 	desc->reg1 = Rt;
 	desc->simd = simd;
 	desc->extendSign = extend_sign;
@@ -848,9 +913,10 @@ int lsr_unscaled_immediate_fixup(u32 instr, struct pt_regs *regs, struct fixupDe
 	desc->pair = 0;
 
 	int load = opc & 1;
-	if(load){
+	desc->load = load;
+	/*if(load){
 		return 1;
-	}
+	}*/
 	desc->reg1 = Rt;
 	if(simd){
 		desc->simd = 1;
@@ -860,6 +926,10 @@ int lsr_unscaled_immediate_fixup(u32 instr, struct pt_regs *regs, struct fixupDe
 		read_simd_reg(Rt, &tmp);
 		desc->data1 = tmp;
 		desc->data1_simd = *(((u64*)&tmp) + 1);*/
+		return do_ls_fixup(instr, regs, desc);
+	} else {
+		desc->simd = 0;
+		desc->width = 8 << size;
 		return do_ls_fixup(instr, regs, desc);
 	}
 	///printk("SIMD: %d\n", simd);
