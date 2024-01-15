@@ -1038,6 +1038,12 @@ static void clear_buddies(struct cfs_rq *cfs_rq, struct sched_entity *se);
  */
 static void update_deadline(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	bool skip_preempt = false;
+
+	trace_android_rvh_update_deadline(cfs_rq, se, &skip_preempt);
+	if (skip_preempt)
+		return;
+
 	if ((s64)(se->vruntime - se->deadline) < 0)
 		return;
 
