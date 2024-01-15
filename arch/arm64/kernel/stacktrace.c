@@ -207,6 +207,7 @@ noinline noinstr void arch_stack_walk(stack_trace_consume_fn consume_entry,
 
 	unwind(&state, consume_entry, cookie);
 }
+EXPORT_SYMBOL_GPL(arch_stack_walk);
 
 static bool dump_backtrace_entry(void *arg, unsigned long where)
 {
