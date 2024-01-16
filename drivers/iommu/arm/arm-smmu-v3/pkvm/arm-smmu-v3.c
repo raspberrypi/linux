@@ -228,7 +228,7 @@ static int smmu_send_cmd(struct hyp_arm_smmu_v3_device *smmu,
 	return smmu_sync_cmd(smmu);
 }
 
-static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
+static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u64 *step, u32 sid)
 {
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_CFGI_STE,
@@ -236,13 +236,16 @@ static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 		.cfgi.leaf = true,
 	};
 
+	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
+		kvm_flush_dcache_to_poc(step, STRTAB_STE_DWORDS << 3);
+
 	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
 		return 0;
 
 	return smmu_send_cmd(smmu, &cmd);
 }
 
-static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u32 sid, u32 ssid)
+static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u64 *cd, u32 sid, u32 ssid)
 {
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_CFGI_CD,
@@ -250,8 +253,13 @@ static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u32 sid, u32 ssid)
 		.cfgi.ssid	= ssid,
 		.cfgi.leaf = true,
 	};
+
+	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
+		kvm_flush_dcache_to_poc(cd, CTXDESC_CD_DWORDS << 3);
+
 	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
 		return 0;
+
 	return smmu_send_cmd(smmu, &cmd);
 }
 
@@ -743,7 +751,7 @@ int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	cd_entry[3] = cpu_to_le64(cfg->arm_lpae_s1_cfg.mair);
 	/* STE is live. */
 	if (!(*update_ste))
-		smmu_sync_cd(smmu, sid, pasid);
+		smmu_sync_cd(smmu, cd_entry, sid, pasid);
 	val =  FIELD_PREP(CTXDESC_CD_0_TCR_T0SZ, cfg->arm_lpae_s1_cfg.tcr.tsz) |
 	       FIELD_PREP(CTXDESC_CD_0_TCR_TG0, cfg->arm_lpae_s1_cfg.tcr.tg) |
 	       FIELD_PREP(CTXDESC_CD_0_TCR_IRGN0, cfg->arm_lpae_s1_cfg.tcr.irgn) |
@@ -758,7 +766,7 @@ int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	WRITE_ONCE(cd_entry[0], cpu_to_le64(val));
 	/* STE is live. */
 	if (!(*update_ste))
-		smmu_sync_cd(smmu, sid, pasid);
+		smmu_sync_cd(smmu, cd_entry, sid, pasid);
 	return 0;
 }
 
@@ -835,12 +843,12 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	for (i = 1; i < STRTAB_STE_DWORDS; i++)
 		dst[i] = cpu_to_le64(ent[i]);
 
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst, sid);
 	if (ret)
 		goto out_unlock;
 
 	WRITE_ONCE(dst[0], cpu_to_le64(ent[0]));
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst, sid);
 	WARN_ON(ret);
 
 out_unlock:
@@ -881,11 +889,11 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 
 		/* Invalidate CD. */
 		cd[0] = 0;
-		smmu_sync_cd(smmu, sid, pasid);
+		smmu_sync_cd(smmu, cd, sid, pasid);
 		cd[1] = 0;
 		cd[2] = 0;
 		cd[3] = 0;
-		ret = smmu_sync_cd(smmu, sid, pasid);
+		ret = smmu_sync_cd(smmu, cd, sid, pasid);
 		cd_order  = get_order(nr_ssid * (CTXDESC_CD_DWORDS << 3));
 		/*
 		 * We have to free that as the host can attach stage-2 which requires to
@@ -894,14 +902,14 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		kvm_iommu_reclaim_pages(cd_table, cd_order);
 	} else {
 		dst[0] = 0;
-		ret = smmu_sync_ste(smmu, sid);
+		ret = smmu_sync_ste(smmu, dst, sid);
 		if (ret)
 			goto out_unlock;
 
 		for (i = 1; i < STRTAB_STE_DWORDS; i++)
 			dst[i] = 0;
 
-		ret = smmu_sync_ste(smmu, sid);
+		ret = smmu_sync_ste(smmu, dst, sid);
 	}
 
 out_unlock:
