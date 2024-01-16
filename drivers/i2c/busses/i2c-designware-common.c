@@ -360,6 +360,9 @@ static void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev)
 {
 	u32 acpi_speed = i2c_dw_acpi_round_bus_speed(dev->dev);
 	struct i2c_timings *t = &dev->timings;
+	u32 wanted_speed;
+	u32 legal_speed = 0;
+	int i;
 
 	/*
 	 * Find bus speed from the "clock-frequency" device property, ACPI
@@ -371,6 +374,30 @@ static void i2c_dw_adjust_bus_speed(struct dw_i2c_dev *dev)
 		t->bus_freq_hz = max(t->bus_freq_hz, acpi_speed);
 	else
 		t->bus_freq_hz = I2C_MAX_FAST_MODE_FREQ;
+
+	wanted_speed = t->bus_freq_hz;
+
+	/* For unsupported speeds, scale down the lowest speed which is faster. */
+	for (i = 0; i < ARRAY_SIZE(supported_speeds); i++) {
+		/* supported speeds is in decreasing order */
+		if (wanted_speed == supported_speeds[i]) {
+			legal_speed = 0;
+			break;
+		}
+		if (wanted_speed > supported_speeds[i])
+			break;
+
+		legal_speed = supported_speeds[i];
+	}
+
+	if (legal_speed) {
+		/*
+		 * Pretend this was the requested speed, but preserve the preferred
+		 * speed so the clock counts can be scaled.
+		 */
+		t->bus_freq_hz = legal_speed;
+		dev->wanted_bus_speed = wanted_speed;
+	}
 }
 
 int i2c_dw_fw_parse_and_configure(struct dw_i2c_dev *dev)
