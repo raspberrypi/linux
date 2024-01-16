@@ -211,6 +211,19 @@ impl kernel::Module for BinderModule {
         // will not be moved after this call.
         unsafe { crate::context::CONTEXTS.init() };
 
+        #[cfg(CONFIG_ANDROID_BINDER_IPC)]
+        unsafe {
+            extern "C" {
+                static mut binder_use_rust: bool;
+                static mut binder_driver_initialized: bool;
+            }
+
+            if !binder_use_rust {
+                return Ok(Self {});
+            }
+            binder_driver_initialized = true;
+        }
+
         BINDER_SHRINKER.register(kernel::c_str!("android-binder"))?;
 
         // SAFETY: The module is being loaded, so we can initialize binderfs.
