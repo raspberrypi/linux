@@ -305,6 +305,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -313,6 +315,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C1 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -321,6 +325,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C2 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -329,6 +335,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C3 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -337,6 +345,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C4 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -345,6 +355,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C5 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
@@ -353,6 +365,8 @@
 			compatible = "snps,designware-i2c";
 			interrupts = <RP1_INT_I2C6 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
 			status = "disabled";
 		};
 
