@@ -41,7 +41,7 @@ static void i2c_dw_configure_fifo_master(struct dw_i2c_dev *dev)
 static u16 clock_calc(struct dw_i2c_dev *dev, bool want_high)
 {
 	struct i2c_timings *t = &dev->timings;
-	u32 wanted_speed = t->bus_freq_hz;
+	u32 wanted_speed = dev->wanted_bus_speed ?: t->bus_freq_hz;
 	u32 clk_khz = i2c_dw_clk_rate(dev);
 	u32 extra_ns = want_high ? t->scl_fall_ns : t->scl_rise_ns;
 	u32 extra_cycles = (u32)((u64)clk_khz * extra_ns / 1000000);
