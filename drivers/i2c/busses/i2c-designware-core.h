@@ -291,6 +291,7 @@ struct dw_i2c_dev {
 	u16			fp_lcnt;
 	u16			hs_hcnt;
 	u16			hs_lcnt;
+	u32			wanted_bus_speed;
 	int			(*acquire_lock)(void);
 	void			(*release_lock)(void);
 	int			semaphore_idx;
