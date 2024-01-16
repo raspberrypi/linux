@@ -38,20 +38,32 @@ static void i2c_dw_configure_fifo_master(struct dw_i2c_dev *dev)
 	regmap_write(dev->map, DW_IC_CON, dev->master_cfg);
 }
 
-static u16 clock_calc(struct dw_i2c_dev *dev, bool want_high)
+static u32 linear_interpolate(u32 x, u32 x1, u32 x2, u32 y1, u32 y2)
+{
+	return ((x - x1) * y2 + (x2 - x) * y1) / (x2 - x1);
+}
+
+static u16 u16_clamp(u32 v)
+{
+	return (u16)min(v, 0xffff);
+}
+
+static void clock_calc(struct dw_i2c_dev *dev, u32 *hcnt, u32 *lcnt)
 {
 	struct i2c_timings *t = &dev->timings;
-	u32 wanted_speed = t->bus_freq_hz;
+	u32 wanted_khz = (dev->wanted_bus_speed ?: t->bus_freq_hz)/1000;
 	u32 clk_khz = i2c_dw_clk_rate(dev);
-	u32 extra_ns = want_high ? t->scl_fall_ns : t->scl_rise_ns;
-	u32 extra_cycles = (u32)((u64)clk_khz * extra_ns / 1000000);
-	u32 period = ((u64)clk_khz * 1000 + wanted_speed - 1) / wanted_speed;
-	u32 cycles = (period + want_high)/2 - extra_cycles;
+	u32 min_high_ns = (wanted_khz <= 100) ? 4000 :
+			  (wanted_khz <= 400) ?
+				linear_interpolate(wanted_khz, 100, 400, 4000, 600) :
+				linear_interpolate(wanted_khz, 400, 1000, 600, 260);
+	u32 high_cycles = (u32)(((u64)clk_khz * min_high_ns + 999999) / 1000000) + 1;
+	u32 extra_high_cycles = (u32)((u64)clk_khz * t->scl_fall_ns / 1000000);
+	u32 extra_low_cycles = (u32)((u64)clk_khz * t->scl_rise_ns / 1000000);
+	u32 period = ((u64)clk_khz + wanted_khz - 1) / wanted_khz;
 
-	if (cycles > 0xffff)
-		cycles = 0xffff;
-
-	return (u16)cycles;
+	*hcnt = u16_clamp(high_cycles - extra_high_cycles);
+	*lcnt = u16_clamp(period - high_cycles - extra_low_cycles);
 }
 
 static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
@@ -77,8 +89,7 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 	sda_falling_time = t->sda_fall_ns ?: 300; /* ns */
 	scl_falling_time = t->scl_fall_ns ?: 300; /* ns */
 
-	hcnt = clock_calc(dev, true);
-	lcnt = clock_calc(dev, false);
+	clock_calc(dev, &hcnt, &lcnt);
 
 	/* Calculate SCL timing parameters for standard mode if not set */
 	if (!dev->ss_hcnt || !dev->ss_lcnt) {
