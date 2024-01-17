@@ -2205,11 +2205,15 @@ static int vc4_plane_atomic_async_check(struct drm_plane *plane,
 {
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
 										 plane);
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct vc4_plane_state *old_vc4_state, *new_vc4_state;
 	int ret;
 	u32 i;
 
-	ret = vc4_plane_mode_set(plane, new_plane_state);
+	if (vc4->gen >= VC4_GEN_6)
+		ret = vc6_plane_mode_set(plane, new_plane_state);
+	else
+		ret = vc4_plane_mode_set(plane, new_plane_state);
 	if (ret)
 		return ret;
 
