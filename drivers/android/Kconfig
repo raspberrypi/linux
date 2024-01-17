@@ -102,16 +102,4 @@ config ANDROID_VENDOR_OEM_DATA
 
 	  If even slightly unsure, say Y.
 
-config ANDROID_MEMHEALTH
-	tristate "Android memory health module"
-	depends on MMU && TRACEPOINTS
-	help
-	  Android module to expose memory health-related events to userspace.
-	  Creates a proc/memhealth directory with pollable event files
-	  (currenty only oom_victim_list) to notify userspace of memory
-	  critical events.
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called android_memhealth.
-
 endmenu
