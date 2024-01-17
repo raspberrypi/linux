@@ -866,6 +866,9 @@ static int wm8960_hw_params(struct snd_pcm_substream *substream,
 						    alc_rates[i].val);
 	}
 
+	pr_err("%s: channels %d, width %d, bclk %d, rate/lrclk %d\n", __func__,
+		params_channels(params), params_width(params), wm8960->bclk, wm8960->lrclk);
+
 	/* set iface */
 	snd_soc_component_write(component, WM8960_IFACE1, iface);
 
