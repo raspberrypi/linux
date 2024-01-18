@@ -209,15 +209,13 @@ static int mip_init_domains(struct mip_priv *priv,
 		return -ENXIO;
 	}
 
-	middle_domain = irq_domain_add_tree(NULL,
-					    &mip_irq_domain_ops,
-					    priv);
+	middle_domain = irq_domain_add_hierarchy(gic_domain, 0, 0, NULL,
+						 &mip_irq_domain_ops,
+						 priv);
 	if (!middle_domain) {
 		pr_err("Failed to create the MIP middle domain\n");
 		return -ENOMEM;
 	}
-
-	middle_domain->parent = gic_domain;
 
 	msi_domain = pci_msi_create_irq_domain(of_node_to_fwnode(node),
 					       &mip_msi_domain_info,
