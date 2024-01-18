@@ -57,6 +57,7 @@
 
 /* For mmc_card_blockaddr */
 #include "../core/card.h"
+#include "mmc_hsq.h"
 
 #define DRIVER_NAME "sdhost-bcm2835"
 
@@ -1891,13 +1892,16 @@ static void bcm2835_sdhost_tasklet_finish(unsigned long param)
 				mmc_hostname(host->mmc));
 	}
 
-	mmc_request_done(host->mmc, mrq);
+	if (!mmc_hsq_finalize_request(host->mmc, mrq))
+		mmc_request_done(host->mmc, mrq);
 	log_event("TSK>", mrq, 0);
 }
 
-int bcm2835_sdhost_add_host(struct bcm2835_host *host)
+static int bcm2835_sdhost_add_host(struct platform_device *pdev)
 {
+	struct bcm2835_host *host = platform_get_drvdata(pdev);
 	struct mmc_host *mmc;
+	struct mmc_hsq *hsq;
 	struct dma_slave_config cfg;
 	char pio_limit_string[20];
 	int ret;
@@ -1992,6 +1996,16 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 		goto untasklet;
 	}
 
+	hsq = devm_kzalloc(&pdev->dev, sizeof(*hsq), GFP_KERNEL);
+	if (!hsq) {
+		ret = -ENOMEM;
+		goto free_irq;
+	}
+
+	ret = mmc_hsq_init(hsq, host->mmc);
+	if (ret)
+		goto free_irq;
+
 	mmc_add_host(mmc);
 
 	pio_limit_string[0] = '\0';
@@ -2003,6 +2017,9 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 		pio_limit_string);
 
 	return 0;
+
+free_irq:
+	free_irq(host->irq, host);
 
 untasklet:
 	tasklet_kill(&host->finish_tasklet);
@@ -2134,11 +2151,11 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 
 	host->firmware_sets_cdiv = (msg[1] != ~0);
 
-	ret = bcm2835_sdhost_add_host(host);
+	platform_set_drvdata(pdev, host);
+
+	ret = bcm2835_sdhost_add_host(pdev);
 	if (ret)
 		goto err;
-
-	platform_set_drvdata(pdev, host);
 
 	pr_debug("bcm2835_sdhost_probe -> OK\n");
 
