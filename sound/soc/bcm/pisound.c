@@ -857,7 +857,6 @@ static int pisnd_ctl_uninit(void)
 
 static struct gpio_desc *osr0, *osr1, *osr2;
 static struct gpio_desc *reset;
-static struct gpio_desc *button;
 
 static int pisnd_hw_params(
 	struct snd_pcm_substream *substream,
@@ -1016,8 +1015,6 @@ static int pisnd_init_gpio(struct device *dev)
 
 	reset = gpiod_get_index(dev, "reset", 0, GPIOD_ASIS);
 
-	button = gpiod_get_index(dev, "button", 0, GPIOD_ASIS);
-
 	gpiod_direction_output(osr0,  1);
 	gpiod_direction_output(osr1,  1);
 	gpiod_direction_output(osr2,  1);
@@ -1029,8 +1026,6 @@ static int pisnd_init_gpio(struct device *dev)
 	gpiod_set_value(osr2,  false);
 	gpiod_set_value(reset,  true);
 
-	gpiod_export(button, false);
-
 	return 0;
 }
 
@@ -1039,10 +1034,8 @@ static int pisnd_uninit_gpio(void)
 	int i;
 
 	struct gpio_desc **gpios[] = {
-		&osr0, &osr1, &osr2, &reset, &button,
+		&osr0, &osr1, &osr2, &reset,
 	};
-
-	gpiod_unexport(button);
 
 	for (i = 0; i < ARRAY_SIZE(gpios); ++i) {
 		if (*gpios[i] == NULL) {
