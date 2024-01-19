@@ -427,8 +427,7 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 		 * This shouldn't happen; pispbe_schedule_internal should insist
 		 * on an input.
 		 */
-		dev_warn(node_group->pispbe->dev,
-			"ISP-BE missing input\n");
+		dev_warn(node_group->pispbe->dev, "ISP-BE missing input\n");
 		hw_enables[0] = 0;
 		hw_enables[1] = 0;
 		return;
@@ -1678,9 +1677,8 @@ pispbe_init_node(struct pispbe_node_group *node_group, unsigned int id)
 	if (ret)
 		goto err_unregister_video_dev;
 
-	dev_dbg(pispbe->dev,
-		 "%s device node registered as /dev/video%d\n",
-		 NODE_NAME(node), node->vfd.num);
+	dev_dbg(pispbe->dev, "%s device node registered as /dev/video%d\n",
+		NODE_NAME(node), node->vfd.num);
 	return 0;
 
 err_unregister_video_dev:
