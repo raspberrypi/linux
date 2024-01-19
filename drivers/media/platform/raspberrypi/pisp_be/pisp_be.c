@@ -251,7 +251,7 @@ static int hw_init(struct pispbe_dev *pispbe)
 
 	/* Check the HW is present and has a known version */
 	u = read_reg(pispbe, PISP_BE_VERSION_OFFSET);
-	dev_info(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
+	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
 	pispbe->hw_version = u;
 	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
 		return -ENODEV;
@@ -259,11 +259,11 @@ static int hw_init(struct pispbe_dev *pispbe)
 	/* Clear leftover interrupts */
 	write_reg(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, 0xFFFFFFFFu);
 	u = read_reg(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
-	dev_info(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
+	dev_dbg(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
 	pispbe->done = (uint8_t)u;
 	pispbe->started = (uint8_t)(u >> 8);
 	u = read_reg(pispbe, PISP_BE_STATUS_OFFSET);
-	dev_info(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
+	dev_dbg(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
 	if (u != 0 || pispbe->done != pispbe->started) {
 		dev_err(pispbe->dev, "pispbe_probe: HW is stuck or busy\n");
 		return -EBUSY;
@@ -1483,7 +1483,7 @@ static int pispbe_enum_framesizes(struct file *file, void *priv,
 		return -EINVAL;
 
 	if (!find_format(fsize->pixel_format)) {
-		dev_err(pispbe->dev, "Invalid pixel code: %x\n",
+		dev_dbg(pispbe->dev, "Invalid pixel code: %x\n",
 			fsize->pixel_format);
 		return -EINVAL;
 	}
@@ -1678,7 +1678,7 @@ pispbe_init_node(struct pispbe_node_group *node_group, unsigned int id)
 	if (ret)
 		goto err_unregister_video_dev;
 
-	dev_info(pispbe->dev,
+	dev_dbg(pispbe->dev,
 		 "%s device node registered as /dev/video%d\n",
 		 NODE_NAME(node), node->vfd.num);
 	return 0;
@@ -1744,7 +1744,7 @@ static int pispbe_init_group(struct pispbe_dev *pispbe, unsigned int id)
 	node_group->pispbe = pispbe;
 	node_group->streaming_map = 0;
 
-	dev_info(pispbe->dev, "Register nodes for group %u\n", id);
+	dev_dbg(pispbe->dev, "Register nodes for group %u\n", id);
 
 	/* Register v4l2_device and media_device */
 	mdev = &node_group->mdev;
@@ -1821,7 +1821,7 @@ static void pispbe_destroy_node_group(struct pispbe_node_group *node_group)
 				  node_group->config_dma_addr);
 	}
 
-	dev_info(pispbe->dev, "Unregister from media controller\n");
+	dev_dbg(pispbe->dev, "Unregister from media controller\n");
 
 	v4l2_device_unregister_subdev(&node_group->sd);
 	media_entity_cleanup(&node_group->sd.entity);
