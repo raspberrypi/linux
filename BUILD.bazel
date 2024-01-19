@@ -3,8 +3,13 @@
 
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_files",
+    "strip_prefix",
+)
+load("@rules_pkg//pkg:pkg.bzl", "pkg_zip")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
-load("//build/bazel_common_rules/zip:zip.bzl", "zip_archive")
 load("//build/kernel/kleaf:common_kernels.bzl", "define_common_kernels")
 load("//build/kernel/kleaf:constants.bzl", "X86_64_OUTS")
 load(
@@ -2165,7 +2170,6 @@ android_filegroup(
         ":kselftest_futex_futex_wait_uninitialized_heap_x86",
         ":kselftest_futex_futex_wait_wouldblock_x86",
         ":kselftest_futex_futex_wait_x86",
-        ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_x86",
         ":kselftest_mm_compaction_test_x86",
         ":kselftest_mm_hugepage_mmap_x86",
@@ -2235,7 +2239,6 @@ android_filegroup(
         ":kselftest_futex_futex_wait_timeout_arm",
         ":kselftest_futex_futex_wait_uninitialized_heap_arm",
         ":kselftest_futex_futex_wait_wouldblock_arm",
-        ":kselftest_gen_config",
         ":kselftest_kcmp_kcmp_test_arm",
         ":kselftest_mm_compaction_test_arm",
         ":kselftest_mm_hugepage_mmap_arm",
@@ -2349,22 +2352,36 @@ android_filegroup(
     visibility = ["//visibility:private"],
 )
 
-zip_archive(
-    name = "tests_zip_x86_64",
+pkg_files(
+    name = "kselftest_tests_x86_64_pkg_files",
     srcs = [
         ":kselftest_tests_x86",
         ":kselftest_tests_x86_64",
     ],
-    out = "tests.zip",
+    strip_prefix = strip_prefix.from_pkg(),
+    visibility = ["//visibility:private"],
 )
 
-zip_archive(
-    name = "tests_zip_arm64",
+pkg_files(
+    name = "kselftest_tests_arm64_pkg_files",
     srcs = [
         ":kselftest_tests_arm",
         ":kselftest_tests_arm64",
     ],
-    out = "tests.zip",
+    strip_prefix = strip_prefix.from_pkg(),
+    visibility = ["//visibility:private"],
+)
+
+pkg_zip(
+    name = "tests_zip_x86_64",
+    srcs = [":kselftest_tests_x86_64_pkg_files"],
+    out = "x86_64/tests.zip",
+)
+
+pkg_zip(
+    name = "tests_zip_arm64",
+    srcs = [":kselftest_tests_arm64_pkg_files"],
+    out = "arm64/tests.zip",
 )
 
 copy_to_dist_dir(
