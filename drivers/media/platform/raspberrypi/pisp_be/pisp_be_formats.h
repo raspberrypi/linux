@@ -27,14 +27,13 @@ struct pisp_be_format {
 
 #define V4L2_COLORSPACE_MASK(colorspace) BIT(colorspace)
 
-#define V4L2_COLORSPACE_MASK_JPEG V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_JPEG)
 #define V4L2_COLORSPACE_MASK_SMPTE170M V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_SMPTE170M)
 #define V4L2_COLORSPACE_MASK_REC709 V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_REC709)
 #define V4L2_COLORSPACE_MASK_SRGB V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_SRGB)
 #define V4L2_COLORSPACE_MASK_RAW V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_RAW)
 
 /*
- * All three colour spaces JPEG, SMPTE170M and REC709 are fundamentally sRGB
+ * All three colour spaces SRGB, SMPTE170M and REC709 are fundamentally sRGB
  * underneath (as near as makes no difference to us), just with different YCbCr
  * encodings. Therefore the ISP can generate sRGB on its main output and any of
  * the others on its low resolution output. Applications should, when using both
@@ -43,8 +42,7 @@ struct pisp_be_format {
  * producing an RGB format. In turn this requires us to allow all these colour
  * spaces for every YUV/RGB output format.
  */
-#define V4L2_COLORSPACE_MASK_ALL_SRGB (V4L2_COLORSPACE_MASK_JPEG |	\
-				       V4L2_COLORSPACE_MASK_SRGB |	\
+#define V4L2_COLORSPACE_MASK_ALL_SRGB (V4L2_COLORSPACE_MASK_SRGB |	\
 				       V4L2_COLORSPACE_MASK_SMPTE170M |	\
 				       V4L2_COLORSPACE_MASK_REC709)
 
@@ -58,7 +56,7 @@ static const struct pisp_be_format supported_formats[] = {
 		.plane_factor	    = { P3(1), P3(0.25), P3(0.25) },
 		.num_planes	    = 1,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
-		.colorspace_default = V4L2_COLORSPACE_JPEG,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
 	{
 		.fourcc		    = V4L2_PIX_FMT_YVU420,
@@ -132,7 +130,7 @@ static const struct pisp_be_format supported_formats[] = {
 		.plane_factor	    = { P3(1), P3(0.25), P3(0.25) },
 		.num_planes	    = 3,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
-		.colorspace_default = V4L2_COLORSPACE_JPEG,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
 	{
 		.fourcc		    = V4L2_PIX_FMT_NV12M,
@@ -168,7 +166,7 @@ static const struct pisp_be_format supported_formats[] = {
 		.plane_factor	    = { P3(1), P3(0.5), P3(0.5) },
 		.num_planes	    = 3,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
-		.colorspace_default = V4L2_COLORSPACE_JPEG,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
 	{
 		.fourcc		    = V4L2_PIX_FMT_YVU422M,
@@ -186,7 +184,7 @@ static const struct pisp_be_format supported_formats[] = {
 		.plane_factor	    = { P3(1), P3(1), P3(1) },
 		.num_planes	    = 3,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
-		.colorspace_default = V4L2_COLORSPACE_JPEG,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
 	{
 		.fourcc		    = V4L2_PIX_FMT_YVU444M,
