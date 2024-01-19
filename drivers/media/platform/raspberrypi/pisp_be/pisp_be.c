@@ -540,9 +540,9 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 
 	config_index = buf[CONFIG_NODE]->vb.vb2_buf.index;
 	config_tiles_buffer = &node_group->config[config_index];
-	tiles = (dma_addr_t)node_group->config_dma_addr +
-			config_index * sizeof(struct pisp_be_tiles_config) +
-			offsetof(struct pisp_be_tiles_config, tiles);
+	tiles = node_group->config_dma_addr +
+		config_index * sizeof(struct pisp_be_tiles_config) +
+		offsetof(struct pisp_be_tiles_config, tiles);
 
 	/* remember: srcimages, captures then metadata */
 	for (i = 0; i < PISPBE_NUM_NODES; i++) {
