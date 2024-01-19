@@ -87,6 +87,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hifiberry-amp.dtbo \
 	hifiberry-amp100.dtbo \
 	hifiberry-amp3.dtbo \
+	hifiberry-amp4pro.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
 	hifiberry-dacplusadc.dtbo \
