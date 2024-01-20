@@ -351,7 +351,7 @@
   _dev_notice
   dev_pm_domain_attach_by_name
   dev_pm_domain_detach
-  dev_pm_opp_add
+  dev_pm_opp_add_dynamic
   dev_pm_opp_clear_config
   dev_pm_opp_disable
   dev_pm_opp_find_freq_ceil

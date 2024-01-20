@@ -165,7 +165,7 @@
   dev_pm_genpd_add_notifier
   dev_pm_genpd_remove_notifier
   dev_pm_genpd_set_performance_state
-  dev_pm_opp_add
+  dev_pm_opp_add_dynamic
   dev_pm_opp_find_freq_ceil
   dev_pm_opp_find_freq_exact
   dev_pm_opp_find_freq_floor
