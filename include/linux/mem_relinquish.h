@@ -14,6 +14,7 @@
 #else	/* !CONFIG_MEMORY_RELINQUISH */
 
 static inline void page_relinquish(struct page *page) { }
+static inline void post_page_relinquish_tlb_inv(void) { }
 
 #endif	/* CONFIG_MEMORY_RELINQUISH */
 
