@@ -203,6 +203,16 @@
 		renamed = "miniuart-bt";
 	};
 
+	pisound {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "pisound-pi5";
+	};
+
+	pisound-pi5 {
+		bcm2712;
+	};
+
 	pwm1 {
 		bcm2711;
 	};
