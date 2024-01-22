@@ -194,6 +194,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
 	pisound.dtbo \
+	pisound-pi5.dtbo \
 	pitft22.dtbo \
 	pitft28-capacitive.dtbo \
 	pitft28-resistive.dtbo \
