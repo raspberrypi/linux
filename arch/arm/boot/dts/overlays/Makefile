@@ -308,7 +308,9 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vga666.dtbo \
 	vl805.dtbo \
 	w1-gpio.dtbo \
+	w1-gpio-pi5.dtbo \
 	w1-gpio-pullup.dtbo \
+	w1-gpio-pullup-pi5.dtbo \
 	w5500.dtbo \
 	watterott-display.dtbo \
 	waveshare-can-fd-hat-mode-a.dtbo \
