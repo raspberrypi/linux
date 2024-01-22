@@ -5056,6 +5056,10 @@ Params: gpiopin                 GPIO for I/O (default "4")
         pullup                  Now enabled by default (ignored)
 
 
+Name:   w1-gpio-pi5
+Info:   See w1-gpio (this is the Pi 5 version)
+
+
 Name:   w1-gpio-pullup
 Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *do* need a GPIO to drive an external pullup.
@@ -5063,6 +5067,10 @@ Load:   dtoverlay=w1-gpio-pullup,<param>=<val>
 Params: gpiopin                 GPIO for I/O (default "4")
         extpullup               GPIO for external pullup (default "5")
         pullup                  Now enabled by default (ignored)
+
+
+Name:   w1-gpio-pullup-pi5
+Info:   See w1-gpio-pullup (this is the Pi 5 version)
 
 
 Name:   w5500
