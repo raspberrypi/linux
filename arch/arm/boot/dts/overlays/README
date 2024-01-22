@@ -3492,8 +3492,14 @@ Params: speed                   Display SPI bus speed
 
 
 Name:   pisound
-Info:   Configures the Blokas Labs pisound card
+Info:   Configures the Blokas Labs Pisound card
 Load:   dtoverlay=pisound
+Params: <None>
+
+
+Name:   pisound-pi5
+Info:   Pi 5 specific overlay override for Blokas Labs Pisound card, see pisound
+Load:   dtoverlay=pisound-pi5
 Params: <None>
 
 
