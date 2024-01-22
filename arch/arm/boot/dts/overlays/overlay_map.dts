@@ -460,4 +460,25 @@
 	vl805 {
 		bcm2711;
 	};
+
+	w1-gpio {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "w1-gpio-pi5";
+	};
+
+	w1-gpio-pi5 {
+		bcm2712;
+	};
+
+	w1-gpio-pullup {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "w1-gpio-pullup-pi5";
+	};
+
+	w1-gpio-pullup-pi5 {
+		bcm2712;
+	};
+
 };
