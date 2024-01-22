@@ -226,6 +226,40 @@ static void __pkvm_vcpu_hyp_created(struct kvm_vcpu *vcpu)
 		vcpu->arch.sve_state = NULL;
 }
 
+static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
+{
+	struct kvm_pinned_page *ppage;
+	struct mm_struct *mm = current->mm;
+	struct rb_node *node;
+
+	if (!host_kvm->arch.pkvm.handle)
+		goto out_free;
+
+	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
+
+	node = rb_first(&host_kvm->arch.pkvm.pinned_pages);
+	while (node) {
+		ppage = rb_entry(node, struct kvm_pinned_page, node);
+		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
+					  host_kvm->arch.pkvm.handle,
+					  page_to_pfn(ppage->page),
+					  ppage->ipa));
+		cond_resched();
+
+		account_locked_vm(mm, 1, false);
+		unpin_user_pages_dirty_lock(&ppage->page, 1, true);
+		node = rb_next(node);
+		rb_erase(&ppage->node, &host_kvm->arch.pkvm.pinned_pages);
+		kfree(ppage);
+	}
+
+	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
+
+out_free:
+	host_kvm->arch.pkvm.handle = 0;
+	free_hyp_memcache(&host_kvm->arch.pkvm.teardown_mc);
+}
+
 /*
  * Allocates and donates memory for hypervisor VM structs at EL2.
  *
@@ -297,7 +331,7 @@ static int __pkvm_create_hyp_vm(struct kvm *host_kvm)
 	return 0;
 
 destroy_vm:
-	pkvm_destroy_hyp_vm(host_kvm);
+	__pkvm_destroy_hyp_vm(host_kvm);
 	return ret;
 free_last_ran:
 	free_pages_exact(last_ran, last_ran_sz);
@@ -312,46 +346,19 @@ int pkvm_create_hyp_vm(struct kvm *host_kvm)
 {
 	int ret = 0;
 
-	mutex_lock(&host_kvm->lock);
+	mutex_lock(&host_kvm->arch.config_lock);
 	if (!host_kvm->arch.pkvm.handle)
 		ret = __pkvm_create_hyp_vm(host_kvm);
-	mutex_unlock(&host_kvm->lock);
+	mutex_unlock(&host_kvm->arch.config_lock);
 
 	return ret;
 }
 
 void pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
-	struct kvm_pinned_page *ppage;
-	struct mm_struct *mm = current->mm;
-	struct rb_node *node;
-
-	if (!host_kvm->arch.pkvm.handle)
-		goto out_free;
-
-	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
-
-	node = rb_first(&host_kvm->arch.pkvm.pinned_pages);
-	while (node) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
-		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
-					  host_kvm->arch.pkvm.handle,
-					  page_to_pfn(ppage->page),
-					  ppage->ipa));
-		cond_resched();
-
-		account_locked_vm(mm, 1, false);
-		unpin_user_pages_dirty_lock(&ppage->page, 1, true);
-		node = rb_next(node);
-		rb_erase(&ppage->node, &host_kvm->arch.pkvm.pinned_pages);
-		kfree(ppage);
-	}
-
-	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
-
-out_free:
-	host_kvm->arch.pkvm.handle = 0;
-	free_hyp_memcache(&host_kvm->arch.pkvm.teardown_mc);
+	mutex_lock(&host_kvm->arch.config_lock);
+	__pkvm_destroy_hyp_vm(host_kvm);
+	mutex_unlock(&host_kvm->arch.config_lock);
 }
 
 int pkvm_init_host_vm(struct kvm *host_kvm, unsigned long type)
