@@ -183,6 +183,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pca953x.dtbo \
 	pcf857x.dtbo \
 	pcie-32bit-dma.dtbo \
+	pcie-32bit-dma-pi5.dtbo \
 	pibell.dtbo \
 	pifacedigital.dtbo \
 	pifi-40.dtbo \
