@@ -20,20 +20,13 @@
 #define RP1VEC_HW_BLOCK_CFG   1
 #define RP1VEC_NUM_HW_BLOCKS  2
 
-enum {
-	RP1VEC_TVSTD_NTSC = 0,	/* +525 => NTSC       625 => PAL   */
-	RP1VEC_TVSTD_NTSC_J,	/* +525 => NTSC-J     625 => PAL   */
-	RP1VEC_TVSTD_NTSC_443,	/* +525 => NTSC-443  +625 => PAL   */
-	RP1VEC_TVSTD_PAL,	/*  525 => NTSC      +625 => PAL   */
-	RP1VEC_TVSTD_PAL_M,	/* +525 => PAL-M      625 => PAL   */
-	RP1VEC_TVSTD_PAL_N,	/*  525 => NTSC      +625 => PAL-N */
-	RP1VEC_TVSTD_PAL60,	/* +525 => PAL60     +625 => PAL   */
-	RP1VEC_TVSTD_DEFAULT,	/* +525 => NTSC      +625 => PAL   */
-};
-
-/* Which standards support which modes? Those marked with + above */
-#define RP1VEC_TVSTD_SUPPORT_525(n) ((0xD7 >> (n)) & 1)
-#define RP1VEC_TVSTD_SUPPORT_625(n) ((0xEC >> (n)) & 1)
+#define RP1VEC_SUPPORTED_TV_MODES	  \
+	(BIT(DRM_MODE_TV_MODE_NTSC)     | \
+	 BIT(DRM_MODE_TV_MODE_NTSC_443) | \
+	 BIT(DRM_MODE_TV_MODE_NTSC_J)   | \
+	 BIT(DRM_MODE_TV_MODE_PAL)      | \
+	 BIT(DRM_MODE_TV_MODE_PAL_M)    | \
+	 BIT(DRM_MODE_TV_MODE_PAL_N))
 
 /* ---------------------------------------------------------------------- */
 
@@ -52,12 +45,9 @@ struct rp1_vec {
 	/* Block (VCC, CFG) base addresses, and current state */
 	void __iomem *hw_base[RP1VEC_NUM_HW_BLOCKS];
 	u32 cur_fmt;
-	int tv_norm;
 	bool vec_running, pipe_enabled;
 	struct completion finished;
 };
-
-extern const char * const rp1vec_tvstd_names[];
 
 /* ---------------------------------------------------------------------- */
 /* Functions to control the VEC/DMA block				  */
