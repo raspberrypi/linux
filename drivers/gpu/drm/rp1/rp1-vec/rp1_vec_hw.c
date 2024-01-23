@@ -337,16 +337,17 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 	mode_ilaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
 	if (mode->vtotal >= 272 * (1 + mode_ilaced))
 		mode_family = 1;
+	else if (tvstd == DRM_MODE_TV_MODE_PAL_M || tvstd == DRM_MODE_TV_MODE_PAL)
+		mode_family = 2;
 	else
-		mode_family = (tvstd == RP1VEC_TVSTD_PAL_M || tvstd == RP1VEC_TVSTD_PAL60) ? 2 : 0;
+		mode_family = 0;
 	mode_narrow = (mode->clock >= 14336);
 	hwm = &rp1vec_hwmodes[mode_family][mode_ilaced][mode_narrow];
 	dev_info(&vec->pdev->dev,
-		 "%s: in_fmt=\'%c%c%c%c\' mode=%dx%d%s [%d%d%d] tvstd=%d (%s)",
+		 "%s: in_fmt=\'%c%c%c%c\' mode=%dx%d%s [%d%d%d] tvstd=%d",
 		__func__, in_format, in_format >> 8, in_format >> 16, in_format >> 24,
 		mode->hdisplay, mode->vdisplay, (mode_ilaced) ? "i" : "",
-		mode_family, mode_ilaced, mode_narrow,
-		tvstd, rp1vec_tvstd_names[tvstd]);
+		mode_family, mode_ilaced, mode_narrow, tvstd);
 
 	w = mode->hdisplay;
 	h = mode->vdisplay >> mode_ilaced;
@@ -405,7 +406,7 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 	}
 
 	/* Apply modifications */
-	if (tvstd == RP1VEC_TVSTD_NTSC_J && mode_family == 0) {
+	if (tvstd == DRM_MODE_TV_MODE_NTSC_J && mode_family == 0) {
 		/* Reduce pedestal (not quite to zero, for FIR overshoot); increase gain */
 		VEC_WRITE(VEC_DAC_BC,
 			  BITS(VEC_DAC_BC_S11_PEDESTAL, 10) |
@@ -414,14 +415,14 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 			  BITS(VEC_DAC_C8_U16_SCALE_LUMA, 0x9400) |
 			  (hwm->back_end_regs[(0xC8 - 0x80) / 4] &
 							~VEC_DAC_C8_U16_SCALE_LUMA_BITS));
-	} else if ((tvstd == RP1VEC_TVSTD_NTSC_443 || tvstd == RP1VEC_TVSTD_PAL60) &&
+	} else if ((tvstd == DRM_MODE_TV_MODE_NTSC_443 || tvstd == DRM_MODE_TV_MODE_PAL) &&
 		   mode_family != 1) {
 		/* Change colour carrier frequency to 4433618.75 Hz; disable hard sync */
 		VEC_WRITE(VEC_DAC_D4, 0xcc48c1d1);
 		VEC_WRITE(VEC_DAC_D8, 0x0a8262b2);
 		VEC_WRITE(VEC_DAC_EC,
 			  hwm->back_end_regs[(0xEC - 0x80) / 4] & ~VEC_DAC_EC_SEQ_EN_BITS);
-	} else if (tvstd == RP1VEC_TVSTD_PAL_N && mode_family == 1) {
+	} else if (tvstd == DRM_MODE_TV_MODE_PAL_N && mode_family == 1) {
 		/* Change colour carrier frequency to 3582056.25 Hz */
 		VEC_WRITE(VEC_DAC_D4, 0x9ce075f7);
 		VEC_WRITE(VEC_DAC_D8, 0x087da511);
