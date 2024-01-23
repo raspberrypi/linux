@@ -4063,6 +4063,8 @@ static int __spi_validate(struct spi_device *spi, struct spi_message *message)
 	if (list_empty(&message->transfers))
 		return -EINVAL;
 
+	message->spi = spi;
+
 	/*
 	 * If an SPI controller does not support toggling the CS line on each
 	 * transfer (indicated by the SPI_CS_WORD flag) or we are using a GPIO
@@ -4074,9 +4076,6 @@ static int __spi_validate(struct spi_device *spi, struct spi_message *message)
 					  spi_is_csgpiod(spi))) {
 		size_t maxsize = BITS_TO_BYTES(spi->bits_per_word);
 		int ret;
-
-		/* spi_split_transfers_maxsize() requires message->spi */
-		message->spi = spi;
 
 		ret = spi_split_transfers_maxsize(ctlr, message, maxsize,
 						  GFP_KERNEL);
@@ -4213,8 +4212,6 @@ static int __spi_async(struct spi_device *spi, struct spi_message *message)
 	 */
 	if (!ctlr->transfer)
 		return -ENOTSUPP;
-
-	message->spi = spi;
 
 	SPI_STATISTICS_INCREMENT_FIELD(ctlr->pcpu_statistics, spi_async);
 	SPI_STATISTICS_INCREMENT_FIELD(spi->pcpu_statistics, spi_async);
@@ -4394,8 +4391,6 @@ static int __spi_sync(struct spi_device *spi, struct spi_message *message)
 	status = __spi_validate(spi, message);
 	if (status != 0)
 		return status;
-
-	message->spi = spi;
 
 	SPI_STATISTICS_INCREMENT_FIELD(ctlr->pcpu_statistics, spi_sync);
 	SPI_STATISTICS_INCREMENT_FIELD(spi->pcpu_statistics, spi_sync);
