@@ -185,6 +185,11 @@
 
 	pcie-32bit-dma {
 		bcm2711;
+		bcm2712 = "pcie-32bit-dma-pi5";
+	};
+
+	pcie-32bit-dma-pi5 {
+		bcm2712;
 	};
 
 	pi3-act-led {
