@@ -3398,6 +3398,12 @@ Load:   dtoverlay=pcie-32bit-dma
 Params: <None>
 
 
+Name:   pcie-32bit-dma-pi5
+Info:   Force PCIe config to support 32bit DMA addresses at the expense of
+        having to bounce buffers (on the Pi 5).
+Load:   dtoverlay=pcie-32bit-dma-pi5
+Params: <None>
+
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
 
 
