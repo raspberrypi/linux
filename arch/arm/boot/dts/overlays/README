@@ -2112,7 +2112,13 @@ Params: abx80x                  Select one of the ABx80x family:
                                 source
 
         backup-switchover-mode  Backup power supply switch mode. Must be 0 for
-                                off or 1 for Vdd < VBackup (RV3028, RV3032)
+                                "Switchover disabled", 1 for "Direct Switching"
+                                (if Vdd < VBackup), 2 for "Standby
+                                Mode" (if Vdd < Vbackup,
+                                does not draw current) or 3 for
+                                "Level Switching" (if Vdd < Vbackup
+                                and Vdd < Vddsw and Vbackup > Vddsw)
+                                (RV3028, RV3032)
 
 
 Name:   i2c-rtc-gpio
