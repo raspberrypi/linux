@@ -2108,9 +2108,9 @@ Params: abx80x                  Select one of the ABx80x family:
         backup-switchover-mode  Backup power supply switch mode. Must be 0 for
                                 "Switchover disabled", 1 for "Direct Switching" 
                                 (switchover when Vdd < VBackup), 2 for "Standby
-                                 Mode" (go into standby when Vdd < Vbackup, 
-                                does not draw current) or 3 (recommended) for 
-                                "Level Switching" (switchover when Vdd < Vbackup 
+                                Mode" (go into standby when Vdd < Vbackup,
+                                does not draw current) or 3 (recommended) for
+                                "Level Switching" (switchover when Vdd < Vbackup
                                 and Vdd < Vddsw and Vbackup > Vddsw)
                                 (RV3028, RV3032)
 
