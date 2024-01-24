@@ -233,12 +233,17 @@ properties:
 
   snps,parkmode-disable-ss-quirk:
     description:
-      When set, all SuperSpeed bus instances in park mode are disabled.
+      When set, disable park mode for all Superspeed bus instances.
     type: boolean
 
   snps,parkmode-disable-hs-quirk:
     description:
-      When set, all HighSpeed bus instances in park mode are disabled.
+      When set, disable park mode for all Highspeed bus instances.
+    type: boolean
+
+  snps,parkmode-disable-fsls-quirk:
+    description:
+      When set, disable park mode for all Full/Lowspeed bus instances.
     type: boolean
 
   snps,dis_metastability_quirk:
