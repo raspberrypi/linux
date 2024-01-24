@@ -1185,7 +1185,8 @@ static int pispbe_try_format(struct v4l2_format *f, struct pispbe_node *node)
 
 	fmt = pispbe_find_fmt(pixfmt);
 	if (!fmt) {
-		dev_dbg(pispbe->dev, "%s: [%s] Format not found, defaulting to YUV420\n",
+		dev_dbg(pispbe->dev,
+			"%s: [%s] Format not found, defaulting to YUV420\n",
 			__func__, NODE_NAME(node));
 		fmt = pispbe_find_fmt(V4L2_PIX_FMT_YUV420);
 	}
@@ -1203,7 +1204,8 @@ static int pispbe_try_format(struct v4l2_format *f, struct pispbe_node *node)
 	 * not supported. This also catches the case when the "default"
 	 * colour space was requested (as that's never in the mask).
 	 */
-	if (!(V4L2_COLORSPACE_MASK(f->fmt.pix_mp.colorspace) & fmt->colorspace_mask))
+	if (!(V4L2_COLORSPACE_MASK(f->fmt.pix_mp.colorspace) &
+	    fmt->colorspace_mask))
 		f->fmt.pix_mp.colorspace = fmt->colorspace_default;
 
 	/* In all cases, we only support the defaults for these: */
