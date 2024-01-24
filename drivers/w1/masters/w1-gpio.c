@@ -76,6 +76,11 @@ static int w1_gpio_probe(struct platform_device *pdev)
 	enum gpiod_flags gflags = GPIOD_OUT_LOW_OPEN_DRAIN;
 	int err;
 
+	master = devm_kzalloc(dev, sizeof(struct w1_bus_master),
+			GFP_KERNEL);
+	if (!master)
+		return -ENOMEM;
+
 	if (of_have_populated_dt()) {
 		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 		if (!pdata)
@@ -101,11 +106,6 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		dev_err(dev, "No configuration data\n");
 		return -ENXIO;
 	}
-
-	master = devm_kzalloc(dev, sizeof(struct w1_bus_master),
-			GFP_KERNEL);
-	if (!master)
-		return -ENOMEM;
 
 	pdata->gpiod = devm_gpiod_get_index(dev, NULL, 0, gflags);
 	if (IS_ERR(pdata->gpiod)) {
