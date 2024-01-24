@@ -183,7 +183,6 @@ struct pispbe_node {
 /* For logging only, use the entity name with "pispbe" and separator removed */
 #define NODE_NAME(node) \
 		(node_desc[(node)->id].ent_name + sizeof(PISPBE_NAME))
-#define NODE_GET_V4L2(node) ((node)->node_group->v4l2_dev)
 
 /*
  * Node group structure, which comprises all the input and output nodes that a
