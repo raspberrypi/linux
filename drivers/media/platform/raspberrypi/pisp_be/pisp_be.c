@@ -62,7 +62,7 @@ MODULE_LICENSE("GPL v2");
  * context it means an input to the hardware (source image or metadata).
  * Elsewhere it means an output from the hardware.
  */
-enum node_ids {
+enum pispbe_node_ids {
 	MAIN_INPUT_NODE,
 	TDN_INPUT_NODE,
 	STITCH_INPUT_NODE,
@@ -75,13 +75,13 @@ enum node_ids {
 	PISPBE_NUM_NODES
 };
 
-struct node_description {
+struct pispbe_node_description {
 	const char *ent_name;
 	enum v4l2_buf_type buf_type;
 	unsigned int caps;
 };
 
-static const struct node_description node_desc[PISPBE_NUM_NODES] = {
+static const struct pispbe_node_description node_desc[PISPBE_NUM_NODES] = {
 	/* MAIN_INPUT_NODE */
 	{
 		.ent_name = PISPBE_NAME "-input",
