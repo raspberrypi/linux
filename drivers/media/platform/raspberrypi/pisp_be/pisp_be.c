@@ -301,9 +301,9 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	 */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
 		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0_LO_OFFSET + 8 * u,
-			  (u32)(hw_dma_addrs[u]));
+			  hw_dma_addrs[u]);
 		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0_LO_OFFSET + 8 * u + 4,
-			  (u32)(hw_dma_addrs[u] >> 32));
+			  hw_dma_addrs[u] >> 32);
 	}
 	write_reg(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE_OFFSET, hw_enables[0]);
 	write_reg(pispbe, PISP_BE_GLOBAL_RGB_ENABLE_OFFSET, hw_enables[1]);
