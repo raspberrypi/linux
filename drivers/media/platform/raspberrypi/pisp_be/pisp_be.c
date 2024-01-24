@@ -241,7 +241,7 @@ static inline void write_reg(struct pispbe_dev *pispbe, unsigned int offset,
 }
 
 /* Check and initialize hardware. */
-static int hw_init(struct pispbe_dev *pispbe)
+static int pispbe_hw_init(struct pispbe_dev *pispbe)
 {
 	u32 u;
 
@@ -1912,7 +1912,7 @@ static int pispbe_probe(struct platform_device *pdev)
 
 	pispbe->hw_busy = 0;
 	spin_lock_init(&pispbe->hw_lock);
-	ret = hw_init(pispbe);
+	ret = pispbe_hw_init(pispbe);
 	if (ret)
 		goto pm_runtime_put_err;
 
