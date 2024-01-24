@@ -11,15 +11,15 @@
 #include <linux/bits.h>
 #include <linux/videodev2.h>
 
-#define MAX_PLANES 3
-#define P3(x) ((x) * 8)
+#define PISPBE_MAX_PLANES	3
+#define P3(x)			((x) * 8)
 
 struct pisp_be_format {
 	unsigned int fourcc;
 	unsigned int align;
 	unsigned int bit_depth;
 	/* 0P3 factor for plane sizing */
-	unsigned int plane_factor[MAX_PLANES];
+	unsigned int plane_factor[PISPBE_MAX_PLANES];
 	unsigned int num_planes;
 	unsigned int colorspace_mask;
 	enum v4l2_colorspace colorspace_default;
