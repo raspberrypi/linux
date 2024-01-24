@@ -404,7 +404,8 @@ static void pispbe_xlate_addrs(dma_addr_t addrs[N_HW_ADDRESSES],
 			       struct pispbe_buffer *buf[PISPBE_NUM_NODES],
 			       struct pispbe_node_group *node_group)
 {
-	int ret, i;
+	unsigned int i;
+	int ret;
 
 	/* Take a copy of the "enable" bitmaps so we can modify them. */
 	hw_enables[0] = config->config.global.bayer_enables;
