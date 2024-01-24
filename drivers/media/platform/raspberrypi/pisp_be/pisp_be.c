@@ -255,42 +255,6 @@ static void pispbe_wr(struct pispbe_dev *pispbe, unsigned int offset, u32 val)
 	writel(val, pispbe->be_reg_base + offset);
 }
 
-/* Check and initialize hardware. */
-static int pispbe_hw_init(struct pispbe_dev *pispbe)
-{
-	u32 u;
-
-	/* Check the HW is present and has a known version */
-	u = pispbe_rd(pispbe, PISP_BE_VERSION_REG);
-	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
-	pispbe->hw_version = u;
-	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
-		return -ENODEV;
-
-	/* Clear leftover interrupts */
-	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_REG, 0xFFFFFFFFu);
-	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_REG);
-	dev_dbg(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
-	pispbe->done = (uint8_t)u;
-	pispbe->started = (uint8_t)(u >> 8);
-	u = pispbe_rd(pispbe, PISP_BE_STATUS_REG);
-	dev_dbg(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
-	if (u != 0 || pispbe->done != pispbe->started) {
-		dev_err(pispbe->dev, "pispbe_probe: HW is stuck or busy\n");
-		return -EBUSY;
-	}
-	/*
-	 * AXI QOS=0, CACHE=4'b0010, PROT=3'b011
-	 * Also set "chicken bits" 22:20 which enable sub-64-byte bursts
-	 * and AXI AWID/BID variability (on versions which support this).
-	 */
-	pispbe_wr(pispbe, PISP_BE_AXI_REG, 0x32703200u);
-
-	/* Enable both interrupt flags */
-	pispbe_wr(pispbe, PISP_BE_INTERRUPT_EN_REG, 0x00000003u);
-	return 0;
-}
-
 /*
  * Queue a job to the h/w. If the h/w is idle it will begin immediately.
  * Caller must ensure it is "safe to queue", i.e. we don't already have a
@@ -1847,6 +1811,41 @@ static int pispbe_runtime_resume(struct device *dev)
 	dev_dbg(dev, "%s: Enabled clock, rate=%lu\n",
 		__func__, clk_get_rate(pispbe->clk));
 
+	return 0;
+}
+
+static int pispbe_hw_init(struct pispbe_dev *pispbe)
+{
+	u32 u;
+
+	/* Check the HW is present and has a known version */
+	u = pispbe_rd(pispbe, PISP_BE_VERSION_REG);
+	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
+	pispbe->hw_version = u;
+	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
+		return -ENODEV;
+
+	/* Clear leftover interrupts */
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_REG, 0xFFFFFFFFu);
+	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_REG);
+	dev_dbg(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
+	pispbe->done = (uint8_t)u;
+	pispbe->started = (uint8_t)(u >> 8);
+	u = pispbe_rd(pispbe, PISP_BE_STATUS_REG);
+	dev_dbg(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
+	if (u != 0 || pispbe->done != pispbe->started) {
+		dev_err(pispbe->dev, "pispbe_probe: HW is stuck or busy\n");
+		return -EBUSY;
+	}
+	/*
+	 * AXI QOS=0, CACHE=4'b0010, PROT=3'b011
+	 * Also set "chicken bits" 22:20 which enable sub-64-byte bursts
+	 * and AXI AWID/BID variability (on versions which support this).
+	 */
+	pispbe_wr(pispbe, PISP_BE_AXI_REG, 0x32703200u);
+
+	/* Enable both interrupt flags */
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_EN_REG, 0x00000003u);
 	return 0;
 }
 
