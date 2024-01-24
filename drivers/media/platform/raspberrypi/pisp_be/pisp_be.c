@@ -47,9 +47,9 @@ MODULE_LICENSE("GPL v2");
 #define PISP_BE_INTERRUPT_STATUS_OFFSET		0x1c
 #define PISP_BE_AXI_OFFSET			0x20
 #define PISP_BE_CONFIG_BASE_OFFSET		0x40
-#define PISP_BE_IO_INPUT_ADDR0_LO_OFFSET 	PISP_BE_CONFIG_BASE_OFFSET
-#define PISP_BE_GLOBAL_BAYER_ENABLE_OFFSET (PISP_BE_CONFIG_BASE_OFFSET + 0x70)
-#define PISP_BE_GLOBAL_RGB_ENABLE_OFFSET   (PISP_BE_CONFIG_BASE_OFFSET + 0x74)
+#define PISP_BE_IO_INPUT_ADDR0(n)		(0x40 + 8 * (n))
+#define PISP_BE_GLOBAL_BAYER_ENABLE		0xb0
+#define PISP_BE_GLOBAL_RGB_ENABLE		0xb4
 #define N_HW_ADDRESSES				14
 #define N_HW_ENABLES				2
 
@@ -300,13 +300,13 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	 * the mmap'd buffer.
 	 */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
-		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0_LO_OFFSET + 8 * u,
+		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0(u),
 			  hw_dma_addrs[u]);
-		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0_LO_OFFSET + 8 * u + 4,
+		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0(u) + 4,
 			  hw_dma_addrs[u] >> 32);
 	}
-	write_reg(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE_OFFSET, hw_enables[0]);
-	write_reg(pispbe, PISP_BE_GLOBAL_RGB_ENABLE_OFFSET, hw_enables[1]);
+	write_reg(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE, hw_enables[0]);
+	write_reg(pispbe, PISP_BE_GLOBAL_RGB_ENABLE, hw_enables[1]);
 
 	/*
 	 * Everything else is as supplied by the user. XXX Buffer sizes not
@@ -323,7 +323,7 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 
 	/* Read back the addresses -- an error here could be fatal */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
-		unsigned int offset = PISP_BE_IO_INPUT_ADDR0_LO_OFFSET + 8 * u;
+		unsigned int offset = PISP_BE_IO_INPUT_ADDR0(u);
 		u64 along = read_reg(pispbe, offset);
 
 		along += ((u64)read_reg(pispbe, offset + 4)) << 32;
