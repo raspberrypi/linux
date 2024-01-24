@@ -519,10 +519,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	 */
 	if (((BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE)) &
 		node_group->streaming_map) !=
-			(BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE))) {
-		dev_dbg(pispbe->dev, "Nothing to do\n");
+			(BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE)))
 		return 0;
-	}
 
 	node = &node_group->node[CONFIG_NODE];
 	spin_lock_irqsave(&node->ready_lock, flags1);
@@ -586,10 +584,9 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 						  struct pispbe_buffer,
 						  ready_list);
 		spin_unlock_irqrestore(&node->ready_lock, flags1);
-		if (!buf[i] && !ignore_buffers) {
-			dev_dbg(pispbe->dev, "Nothing to do\n");
+
+		if (!buf[i] && !ignore_buffers)
 			return 0;
-		}
 	}
 
 	/* Pull a buffer from each V4L2 queue to form the queued job */
@@ -633,7 +630,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 		 * (started,done) counters by more than 1, but we seem to
 		 * survive...
 		 */
-		dev_err(pispbe->dev, "PROBLEM: Bad job");
+		dev_err(pispbe->dev, "Bad job: invalid number of tiles: %d\n",
+			num_tiles);
 		num_tiles = 0;
 	}
 	pispbe_queue_job(pispbe, hw_dma_addrs, hw_enables,
