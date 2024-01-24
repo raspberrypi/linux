@@ -391,7 +391,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	if (WARN_ON(IS_ERR(new_hvs_state)))
 		return;
 
-	if (vc4->gen < VC4_GEN_6) {
+	if (0 && vc4->gen < VC4_GEN_6) {
 		struct drm_crtc_state *new_crtc_state;
 		struct drm_crtc *crtc;
 		int i;
