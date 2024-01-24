@@ -4,6 +4,7 @@
  */
 
 #include <linux/tracefs.h>
+#include <linux/rcupdate.h>
 
 #include <asm/kvm_host.h>
 #include <asm/kvm_define_hypevents.h>
@@ -230,27 +231,60 @@ bool hyp_trace_init_event_early(void)
 	return enabled;
 }
 
-void hyp_trace_init_event_tracefs(struct dentry *parent)
+static struct dentry *event_tracefs;
+static unsigned int last_event_id;
+
+struct hyp_event_table {
+	struct hyp_event	*start;
+	unsigned long		nr_events;
+};
+static struct hyp_event_mod_tables {
+	struct hyp_event_table *tables;
+	unsigned long		nr_tables;
+} mod_event_tables;
+
+#define nr_events(__start, __stop) \
+	(((unsigned long)__stop - (unsigned long)__start) / sizeof(*__start))
+
+struct hyp_event *hyp_trace_find_event(int id)
 {
-	struct hyp_event *event = __hyp_events_start;
+	struct hyp_event *event = __hyp_events_start + id;
 
-	parent = tracefs_create_dir("events", parent);
-	if (!parent) {
-		pr_err("Failed to create tracefs folder for hyp events\n");
-		return;
+	if ((unsigned long)event >= (unsigned long)__hyp_events_end) {
+		struct hyp_event_table *table;
+
+		event = NULL;
+		id -= nr_events(__hyp_events_start, __hyp_events_end);
+
+		rcu_read_lock();
+		table = rcu_dereference(mod_event_tables.tables);
+
+		for (int i = 0; i < mod_event_tables.nr_tables; i++) {
+			if (table->nr_events < id) {
+				id -= table->nr_events;
+				table++;
+				continue;
+			}
+
+			event = table->start + id;
+			break;
+		}
+		rcu_read_unlock();
 	}
 
-	tracefs_create_file("header_page", 0400, parent, NULL,
-			    &hyp_header_page_fops);
+	return event;
+}
 
-	parent = tracefs_create_dir("hyp", parent);
-	if (!parent) {
-		pr_err("Failed to create tracefs folder for hyp events\n");
+static void hyp_event_table_init_tracefs(struct hyp_event *event, int nr_events)
+{
+	struct dentry *event_dir;
+	int i;
+
+	if (!event_tracefs)
 		return;
-	}
 
-	for (; (unsigned long)event < (unsigned long)__hyp_events_end; event++) {
-		struct dentry *event_dir = tracefs_create_dir(event->name, parent);
+	for (i = 0; i < nr_events; event++, i++) {
+		event_dir = tracefs_create_dir(event->name, event_tracefs);
 		if (!event_dir) {
 			pr_err("Failed to create events/hyp/%s\n", event->name);
 			continue;
@@ -265,35 +299,89 @@ void hyp_trace_init_event_tracefs(struct dentry *parent)
 	}
 }
 
-struct hyp_event *hyp_trace_find_event(int id)
-{
-	struct hyp_event *event = __hyp_events_start + id;
-
-	if ((unsigned long)event >= (unsigned long)__hyp_events_end)
-		return NULL;
-
-	return event;
-}
-
 /*
  * Register hyp events and write their id into the hyp section _hyp_event_ids.
  */
-int hyp_trace_init_events(void)
+static int hyp_event_table_init(struct hyp_event *event,
+				struct hyp_event_id *event_id, int nr_events)
 {
-	struct hyp_event_id *hyp_event_id = __hyp_event_ids_start;
-	struct hyp_event *event = __hyp_events_start;
-	int id = 0;
-
-	for (; (unsigned long)event < (unsigned long)__hyp_events_end;
-		event++, hyp_event_id++, id++) {
-
+	while (nr_events--) {
 		/*
-		 * Both the host and the hypervisor relies on the same hyp event
+		 * Both the host and the hypervisor rely on the same hyp event
 		 * declarations from kvm_hypevents.h. We have then a 1:1
 		 * mapping.
 		 */
-		event->id = hyp_event_id->id = id;
+		event->id = event_id->id = last_event_id++;
+
+		event++;
+		event_id++;
 	}
+
+	return 0;
+}
+
+void hyp_trace_init_event_tracefs(struct dentry *parent)
+{
+	int nr_events = nr_events(__hyp_events_start, __hyp_events_end);
+
+	parent = tracefs_create_dir("events", parent);
+	if (!parent) {
+		pr_err("Failed to create tracefs folder for hyp events\n");
+		return;
+	}
+
+	tracefs_create_file("header_page", 0400, parent, NULL,
+			    &hyp_header_page_fops);
+
+	event_tracefs = tracefs_create_dir("hyp", parent);
+	if (!event_tracefs) {
+		pr_err("Failed to create tracefs folder for hyp events\n");
+		return;
+	}
+
+	hyp_event_table_init_tracefs(__hyp_events_start, nr_events);
+}
+
+int hyp_trace_init_events(void)
+{
+	int nr_events = nr_events(__hyp_events_start, __hyp_events_end);
+	int nr_event_ids = nr_events(__hyp_event_ids_start, __hyp_event_ids_end);
+
+	if (WARN_ON(nr_events != nr_event_ids))
+		return -EINVAL;
+
+	return hyp_event_table_init(__hyp_events_start, __hyp_event_ids_start,
+				    nr_events);
+}
+
+int hyp_trace_init_mod_events(struct hyp_event *event,
+			      struct hyp_event_id *event_id, int nr_events)
+{
+	struct hyp_event_table *tables;
+	int ret, i;
+
+	ret = hyp_event_table_init(event, event_id, nr_events);
+	if (ret)
+		return ret;
+
+	tables = kmalloc_array(mod_event_tables.nr_tables + 1,
+			       sizeof(*tables), GFP_KERNEL);
+	if (!tables)
+		return -ENOMEM;
+
+	for (i = 0; i < mod_event_tables.nr_tables; i++) {
+		tables[i].start = mod_event_tables.tables[i].start;
+		tables[i].nr_events = mod_event_tables.tables[i].nr_events;
+	}
+	tables[i].start = event;
+	tables[i].nr_events = nr_events;
+
+	tables = rcu_replace_pointer(mod_event_tables.tables, tables, true);
+	synchronize_rcu();
+	mod_event_tables.nr_tables++;
+	kfree(tables);
+
+	hyp_event_table_init_tracefs(event, nr_events);
 
 	return 0;
 }
