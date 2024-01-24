@@ -38,20 +38,20 @@ MODULE_LICENSE("GPL v2");
 #define PISPBE_NAME "pispbe"
 
 /* Some ISP-BE registers */
-#define PISP_BE_VERSION_OFFSET			0x0
-#define PISP_BE_CONTROL_OFFSET			0x4
+#define PISP_BE_VERSION_REG			0x0
+#define PISP_BE_CONTROL_REG			0x4
 #define PISP_BE_CONTROL_COPY_CONFIG		BIT(1)
 #define PISP_BE_CONTROL_QUEUE_JOB		BIT(0)
 #define PISP_BE_CONTROL_NUM_TILES(n)		((n) << 16)
-#define PISP_BE_TILE_ADDR_LO_OFFSET		0x8
-#define PISP_BE_TILE_ADDR_HI_OFFSET		0xc
-#define PISP_BE_STATUS_OFFSET			0x10
+#define PISP_BE_TILE_ADDR_LO_REG		0x8
+#define PISP_BE_TILE_ADDR_HI_REG		0xc
+#define PISP_BE_STATUS_REG			0x10
 #define PISP_BE_STATUS_QUEUED			BIT(0)
-#define PISP_BE_BATCH_STATUS_OFFSET		0x14
-#define PISP_BE_INTERRUPT_EN_OFFSET		0x18
-#define PISP_BE_INTERRUPT_STATUS_OFFSET		0x1c
-#define PISP_BE_AXI_OFFSET			0x20
-#define PISP_BE_CONFIG_BASE_OFFSET		0x40
+#define PISP_BE_BATCH_STATUS_REG		0x14
+#define PISP_BE_INTERRUPT_EN_REG		0x18
+#define PISP_BE_INTERRUPT_STATUS_REG		0x1c
+#define PISP_BE_AXI_REG				0x20
+#define PISP_BE_CONFIG_BASE_REG			0x40
 #define PISP_BE_IO_INPUT_ADDR0(n)		(0x40 + 8 * (n))
 #define PISP_BE_GLOBAL_BAYER_ENABLE		0xb0
 #define PISP_BE_GLOBAL_RGB_ENABLE		0xb4
@@ -261,19 +261,19 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
 	u32 u;
 
 	/* Check the HW is present and has a known version */
-	u = pispbe_rd(pispbe, PISP_BE_VERSION_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_VERSION_REG);
 	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
 	pispbe->hw_version = u;
 	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
 		return -ENODEV;
 
 	/* Clear leftover interrupts */
-	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, 0xFFFFFFFFu);
-	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_REG, 0xFFFFFFFFu);
+	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_REG);
 	dev_dbg(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
 	pispbe->done = (uint8_t)u;
 	pispbe->started = (uint8_t)(u >> 8);
-	u = pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_STATUS_REG);
 	dev_dbg(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
 	if (u != 0 || pispbe->done != pispbe->started) {
 		dev_err(pispbe->dev, "pispbe_probe: HW is stuck or busy\n");
@@ -284,10 +284,10 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
 	 * Also set "chicken bits" 22:20 which enable sub-64-byte bursts
 	 * and AXI AWID/BID variability (on versions which support this).
 	 */
-	pispbe_wr(pispbe, PISP_BE_AXI_OFFSET, 0x32703200u);
+	pispbe_wr(pispbe, PISP_BE_AXI_REG, 0x32703200u);
 
 	/* Enable both interrupt flags */
-	pispbe_wr(pispbe, PISP_BE_INTERRUPT_EN_OFFSET, 0x00000003u);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_EN_REG, 0x00000003u);
 	return 0;
 }
 
@@ -302,7 +302,7 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	unsigned int begin, end;
 	unsigned int u;
 
-	if (pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET) & PISP_BE_STATUS_QUEUED)
+	if (pispbe_rd(pispbe, PISP_BE_STATUS_REG) & PISP_BE_STATUS_QUEUED)
 		dev_err(pispbe->dev, "ERROR: not safe to queue new job!\n");
 
 	/*
@@ -328,7 +328,7 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	      / sizeof(u32);
 	end = offsetof(struct pisp_be_config, axi) / sizeof(u32);
 	for (u = begin; u < end; u++)
-		pispbe_wr(pispbe, PISP_BE_CONFIG_BASE_OFFSET + 4 * u,
+		pispbe_wr(pispbe, PISP_BE_CONFIG_BASE_REG + 4 * u,
 			  ((u32 *)job->config)[u]);
 
 	/* Read back the addresses -- an error here could be fatal */
@@ -348,11 +348,11 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	 * Write tile pointer to hardware. Tile offsets and sizes not checked
 	 * (and even if checked, the user could subsequently modify them)!
 	 */
-	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_OFFSET, (u32)job->tiles);
-	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_OFFSET, (u32)(job->tiles >> 32));
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_REG, (u32)job->tiles);
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_REG, (u32)(job->tiles >> 32));
 
 	/* Enqueue the job */
-	pispbe_wr(pispbe, PISP_BE_CONTROL_OFFSET,
+	pispbe_wr(pispbe, PISP_BE_CONTROL_REG,
 		  PISP_BE_CONTROL_COPY_CONFIG | PISP_BE_CONTROL_QUEUE_JOB |
 		  PISP_BE_CONTROL_NUM_TILES(job->config->num_tiles));
 }
@@ -715,12 +715,12 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	u8 started, done;
 	u32 u;
 
-	u = pispbe_rd(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_INTERRUPT_STATUS_REG);
 	if (u == 0)
 		return IRQ_NONE;
 
-	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, u);
-	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_REG, u);
+	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_REG);
 	done = (uint8_t)u;
 	started = (uint8_t)(u >> 8);
 
