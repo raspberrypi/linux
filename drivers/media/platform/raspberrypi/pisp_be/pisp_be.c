@@ -39,6 +39,9 @@ MODULE_LICENSE("GPL v2");
 /* Some ISP-BE registers */
 #define PISP_BE_VERSION_OFFSET			0x0
 #define PISP_BE_CONTROL_OFFSET			0x4
+#define PISP_BE_CONTROL_COPY_CONFIG		BIT(1)
+#define PISP_BE_CONTROL_QUEUE_JOB		BIT(0)
+#define PISP_BE_CONTROL_NUM_TILES(n)		((n) << 16)
 #define PISP_BE_TILE_ADDR_LO_OFFSET		0x8
 #define PISP_BE_TILE_ADDR_HI_OFFSET		0xc
 #define PISP_BE_STATUS_OFFSET			0x10
@@ -342,7 +345,9 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_OFFSET, (u32)(tiles >> 32));
 
 	/* Enqueue the job */
-	pispbe_wr(pispbe, PISP_BE_CONTROL_OFFSET, 3 + 65536 * num_tiles);
+	pispbe_wr(pispbe, PISP_BE_CONTROL_OFFSET,
+		  PISP_BE_CONTROL_COPY_CONFIG | PISP_BE_CONTROL_QUEUE_JOB |
+		  PISP_BE_CONTROL_NUM_TILES(num_tiles));
 }
 
 struct pispbe_buffer {
