@@ -269,7 +269,7 @@ struct hyp_event *hyp_trace_find_event(int id)
 {
 	struct hyp_event *event = __hyp_events_start + id;
 
-	if ((unsigned long)event > (unsigned long)__hyp_events_end)
+	if ((unsigned long)event >= (unsigned long)__hyp_events_end)
 		return NULL;
 
 	return event;
