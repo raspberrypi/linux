@@ -312,8 +312,8 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	 * Everything else is as supplied by the user. XXX Buffer sizes not
 	 * checked!
 	 */
-	begin =	offsetof(struct pisp_be_config, global.bayer_order) /
-								sizeof(u32);
+	begin =	offsetof(struct pisp_be_config, global.bayer_order)
+	      / sizeof(u32);
 	end = offsetof(struct pisp_be_config, axi) / sizeof(u32);
 	for (u = begin; u < end; u++) {
 		unsigned int val = ((u32 *)config)[u];
