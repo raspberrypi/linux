@@ -492,7 +492,7 @@ static void pispbe_xlate_addrs(dma_addr_t addrs[N_HW_ADDRESSES],
 }
 
 /*
- * Internal function. Called from pispbe_schedule_one/all. Returns non-zero if
+ * Internal function. Called from pispbe_schedule. Returns non-zero if
  * we started a job.
  *
  * Warning: needs to be called with hw_lock taken, and releases it if it
@@ -646,47 +646,39 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	return 1;
 }
 
-/* Try and schedule a job for just a single node group. */
-static void pispbe_schedule_one(struct pispbe_node_group *node_group)
-{
-	struct pispbe_dev *pispbe = node_group->pispbe;
-	unsigned long flags;
-	int ret;
-
-	spin_lock_irqsave(&pispbe->hw_lock, flags);
-	if (pispbe->hw_busy) {
-		spin_unlock_irqrestore(&pispbe->hw_lock, flags);
-		return;
-	}
-
-	/* A non-zero return means the lock was released. */
-	ret = pispbe_schedule_internal(node_group, flags);
-	if (!ret)
-		spin_unlock_irqrestore(&pispbe->hw_lock, flags);
-}
-
-/* Try and schedule a job for any of the node groups. */
-static void pispbe_schedule_any(struct pispbe_dev *pispbe, int clear_hw_busy)
+static void pispbe_schedule(struct pispbe_dev *pispbe,
+			    struct pispbe_node_group *node_group,
+			    bool clear_hw_busy)
 {
 	unsigned long flags;
+	unsigned int i;
 
 	spin_lock_irqsave(&pispbe->hw_lock, flags);
 
 	if (clear_hw_busy)
 		pispbe->hw_busy = 0;
-	if (pispbe->hw_busy == 0) {
-		unsigned int i;
 
-		for (i = 0; i < PISPBE_NUM_NODE_GROUPS; i++) {
-			/*
-			 * A non-zero return from pispbe_schedule_internal means
-			 * the lock was released.
-			 */
-			if (pispbe_schedule_internal(&pispbe->node_group[i],
-						     flags))
-				return;
-		}
+	if (pispbe->hw_busy) {
+		spin_unlock_irqrestore(&pispbe->hw_lock, flags);
+		return;
 	}
+
+	for (i = 0; i < PISPBE_NUM_NODE_GROUPS; i++) {
+
+		/* Schedule jobs only for a specific group. */
+		if (node_group &&
+		    &pispbe->node_group[i] != node_group)
+			continue;
+
+		/*
+		 * A non-zero return from pispbe_schedule_internal means
+		 * the lock was released.
+		 */
+		if (pispbe_schedule_internal(&pispbe->node_group[i],
+					     flags))
+			return;
+	}
+
 	spin_unlock_irqrestore(&pispbe->hw_lock, flags);
 }
 
@@ -712,8 +704,8 @@ static void pispbe_isr_jobdone(struct pispbe_dev *pispbe,
 static irqreturn_t pispbe_isr(int irq, void *dev)
 {
 	struct pispbe_dev *pispbe = (struct pispbe_dev *)dev;
+	bool can_queue_another = false;
 	u8 started, done;
-	int can_queue_another = 0;
 	u32 u;
 
 	u = pispbe_rd(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET);
@@ -765,7 +757,7 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	}
 
 	/* check if there's more to do before going to sleep */
-	pispbe_schedule_any(pispbe, can_queue_another);
+	pispbe_schedule(pispbe, NULL, can_queue_another);
 
 	return IRQ_HANDLED;
 }
@@ -945,7 +937,7 @@ static void pispbe_node_buffer_queue(struct vb2_buffer *buf)
 	 * Every time we add a buffer, check if there's now some work for the hw
 	 * to do, but only for this client.
 	 */
-	pispbe_schedule_one(node_group);
+	pispbe_schedule(node_group->pispbe, node_group, false);
 }
 
 static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -971,7 +963,7 @@ static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
 		node->node_group->streaming_map);
 
 	/* Maybe we're ready to run. */
-	pispbe_schedule_one(node_group);
+	pispbe_schedule(node_group->pispbe, node_group, false);
 
 	return 0;
 }
