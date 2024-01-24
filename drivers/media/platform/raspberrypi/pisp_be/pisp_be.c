@@ -315,11 +315,9 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	begin =	offsetof(struct pisp_be_config, global.bayer_order)
 	      / sizeof(u32);
 	end = offsetof(struct pisp_be_config, axi) / sizeof(u32);
-	for (u = begin; u < end; u++) {
-		unsigned int val = ((u32 *)config)[u];
-
-		write_reg(pispbe, PISP_BE_CONFIG_BASE_OFFSET + 4 * u, val);
-	}
+	for (u = begin; u < end; u++)
+		write_reg(pispbe, PISP_BE_CONFIG_BASE_OFFSET + 4 * u,
+			  ((u32 *)config)[u]);
 
 	/* Read back the addresses -- an error here could be fatal */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
