@@ -171,8 +171,11 @@ struct pispbe_node {
 	struct media_intf_devnode *intf_devnode;
 	struct media_link *intf_link;
 	struct pispbe_node_group *node_group;
+	/* Video device lock */
 	struct mutex node_lock;
+	/* vb2_queue lock */
 	struct mutex queue_lock;
+	/* Protect pispbe_node->ready_queue and pispbe_buffer->ready_list */
 	spinlock_t ready_lock;
 	struct list_head ready_queue;
 	struct vb2_queue queue;
@@ -308,7 +311,7 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	pispbe_wr(pispbe, PISP_BE_GLOBAL_RGB_ENABLE, hw_enables[1]);
 
 	/*
-	 * Everything else is as supplied by the user. XXX Buffer sizes not
+	 * Everything else is as supplied by the user. Buffer sizes not
 	 * checked!
 	 */
 	begin =	offsetof(struct pisp_be_config, global.bayer_order)
@@ -332,9 +335,8 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	}
 
 	/*
-	 * Write tile pointer to hardware. XXX Tile offsets and sizes not
-	 * checked (and even if checked, the user could subsequently modify
-	 * them)!
+	 * Write tile pointer to hardware. Tile offsets and sizes not checked
+	 * (and even if checked, the user could subsequently modify them)!
 	 */
 	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_OFFSET, (u32)tiles);
 	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_OFFSET, (u32)(tiles >> 32));
@@ -615,10 +617,7 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	/* Convert buffers to DMA addresses for the hardware */
 	fixup_addrs_enables(hw_dma_addrs, hw_enables,
 			    config_tiles_buffer, buf, node_group);
-	/*
-	 * This could be a spot to fill in the
-	 * buf[i]->vb.vb2_buf.planes[j].bytesused fields?
-	 */
+
 	i = config_tiles_buffer->num_tiles;
 	if (i <= 0 || i > PISP_BACK_END_NUM_TILES ||
 	    !((hw_enables[0] | hw_enables[1]) &
@@ -627,11 +626,10 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 		 * Bad job. We can't let it proceed as it could lock up
 		 * the hardware, or worse!
 		 *
-		 * XXX How to deal with this most cleanly? For now, just
-		 * force num_tiles to 0, which causes the H/W to do
-		 * something bizarre but survivable. It increments
-		 * (started,done) counters by more than 1, but we seem
-		 * to survive...
+		 * For now, just force num_tiles to 0, which causes the H/W to
+		 * do something bizarre but survivable. It increments
+		 * (started,done) counters by more than 1, but we seem to
+		 * survive...
 		 */
 		dev_err(pispbe->dev, "PROBLEM: Bad job");
 		i = 0;
@@ -986,7 +984,8 @@ static void pispbe_node_stop_streaming(struct vb2_queue *q)
 	 * partial set of buffers was queued and cannot be run. For now, just
 	 * cancel all buffers stuck in the "ready queue", then wait for any
 	 * running job.
-	 * XXX This may return buffers out of order.
+	 *
+	 * This may return buffers out of order.
 	 */
 	dev_dbg(pispbe->dev, "%s: for node %s\n", __func__, NODE_NAME(node));
 	spin_lock_irqsave(&pispbe->hw_lock, flags);
