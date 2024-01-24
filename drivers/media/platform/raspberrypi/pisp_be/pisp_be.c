@@ -19,11 +19,6 @@
 #include "pisp_be_config.h"
 #include "pisp_be_formats.h"
 
-MODULE_DESCRIPTION("PiSP Back End driver");
-MODULE_AUTHOR("David Plowman <david.plowman@raspberrypi.com>");
-MODULE_AUTHOR("Nick Hollinghurst <nick.hollinghurst@raspberrypi.com>");
-MODULE_LICENSE("GPL v2");
-
 /* Maximum number of config buffers possible */
 #define PISP_BE_NUM_CONFIG_BUFFERS VB2_MAX_FRAME
 
@@ -1978,3 +1973,8 @@ static struct platform_driver pispbe_pdrv = {
 };
 
 module_platform_driver(pispbe_pdrv);
+
+MODULE_DESCRIPTION("PiSP Back End driver");
+MODULE_AUTHOR("David Plowman <david.plowman@raspberrypi.com>");
+MODULE_AUTHOR("Nick Hollinghurst <nick.hollinghurst@raspberrypi.com>");
+MODULE_LICENSE("GPL v2");
