@@ -1326,6 +1326,9 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		if (dwc->parkmode_disable_hs_quirk)
 			reg |= DWC3_GUCTL1_PARKMODE_DISABLE_HS;
 
+		if (dwc->parkmode_disable_fsls_quirk)
+			reg |= DWC3_GUCTL1_PARKMODE_DISABLE_FSLS;
+
 		if (DWC3_VER_IS_WITHIN(DWC3, 290A, ANY) &&
 		    (dwc->maximum_speed == USB_SPEED_HIGH ||
 		     dwc->maximum_speed == USB_SPEED_FULL))
@@ -1636,6 +1639,8 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,parkmode-disable-ss-quirk");
 	dwc->parkmode_disable_hs_quirk = device_property_read_bool(dev,
 				"snps,parkmode-disable-hs-quirk");
+	dwc->parkmode_disable_fsls_quirk = device_property_read_bool(dev,
+				"snps,parkmode-disable-fsls-quirk");
 	dwc->gfladj_refclk_lpm_sel = device_property_read_bool(dev,
 				"snps,gfladj-refclk-lpm-sel-quirk");
 
