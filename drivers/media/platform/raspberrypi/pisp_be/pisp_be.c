@@ -283,11 +283,11 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
  * Caller must ensure it is "safe to queue", i.e. we don't already have a
  * queued, unstarted job.
  */
-static void hw_queue_job(struct pispbe_dev *pispbe,
-			 dma_addr_t hw_dma_addrs[N_HW_ADDRESSES],
-			 u32 hw_enables[N_HW_ENABLES],
-			 struct pisp_be_config *config, dma_addr_t tiles,
-			 unsigned int num_tiles)
+static void pispbe_queue_job(struct pispbe_dev *pispbe,
+			     dma_addr_t hw_dma_addrs[N_HW_ADDRESSES],
+			     u32 hw_enables[N_HW_ENABLES],
+			     struct pisp_be_config *config, dma_addr_t tiles,
+			     unsigned int num_tiles)
 {
 	unsigned int begin, end;
 	unsigned int u;
@@ -351,8 +351,8 @@ struct pispbe_buffer {
 	unsigned int config_index;
 };
 
-static int get_addr_3(dma_addr_t addr[3], struct pispbe_buffer *buf,
-		      struct pispbe_node *node)
+static int pispbe_get_planes_addr(dma_addr_t addr[3], struct pispbe_buffer *buf,
+				  struct pispbe_node *node)
 {
 	unsigned int num_planes = node->format.fmt.pix_mp.num_planes;
 	unsigned int plane_factor = 0;
@@ -369,15 +369,15 @@ static int get_addr_3(dma_addr_t addr[3], struct pispbe_buffer *buf,
 	 * as node->format.fmt.pix_mp.plane_fmt[0].sizeimage for a single
 	 * plane buffer in an mplane format.
 	 */
-	size = node->format.fmt.pix_mp.plane_fmt[0].bytesperline *
-					node->format.fmt.pix_mp.height;
+	size = node->format.fmt.pix_mp.plane_fmt[0].bytesperline
+	     * node->format.fmt.pix_mp.height;
 
-	for (p = 0; p < num_planes && p < 3; p++) {
+	for (p = 0; p < num_planes && p < PISPBE_MAX_PLANES; p++) {
 		addr[p] = vb2_dma_contig_plane_dma_addr(&buf->vb.vb2_buf, p);
 		plane_factor += node->pisp_format->plane_factor[p];
 	}
 
-	for (; p < MAX_PLANES && node->pisp_format->plane_factor[p]; p++) {
+	for (; p < PISPBE_MAX_PLANES && node->pisp_format->plane_factor[p]; p++) {
 		/*
 		 * Calculate the address offset of this plane as needed
 		 * by the hardware. This is specifically for non-mplane
@@ -391,19 +391,18 @@ static int get_addr_3(dma_addr_t addr[3], struct pispbe_buffer *buf,
 	return num_planes;
 }
 
-static dma_addr_t get_addr(struct pispbe_buffer *buf)
+static dma_addr_t pispbe_get_addr(struct pispbe_buffer *buf)
 {
 	if (buf)
 		return vb2_dma_contig_plane_dma_addr(&buf->vb.vb2_buf, 0);
 	return 0;
 }
 
-static void
-fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
-		    u32 hw_enables[N_HW_ENABLES],
-		    struct pisp_be_tiles_config *config,
-		    struct pispbe_buffer *buf[PISPBE_NUM_NODES],
-		    struct pispbe_node_group *node_group)
+static void pispbe_xlate_addrs(dma_addr_t addrs[N_HW_ADDRESSES],
+			       u32 hw_enables[N_HW_ENABLES],
+			       struct pisp_be_tiles_config *config,
+			       struct pispbe_buffer *buf[PISPBE_NUM_NODES],
+			       struct pispbe_node_group *node_group)
 {
 	int ret, i;
 
@@ -415,8 +414,8 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 	 * Main input first. There are 3 address pointers, corresponding to up
 	 * to 3 planes.
 	 */
-	ret = get_addr_3(addrs, buf[MAIN_INPUT_NODE],
-			 &node_group->node[MAIN_INPUT_NODE]);
+	ret = pispbe_get_planes_addr(addrs, buf[MAIN_INPUT_NODE],
+				     &node_group->node[MAIN_INPUT_NODE]);
 	if (ret <= 0) {
 		/*
 		 * This shouldn't happen; pispbe_schedule_internal should insist
@@ -434,7 +433,7 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 	 * of the processing stages, otherwise the hardware can lock up!
 	 */
 	if (hw_enables[0] & PISP_BE_BAYER_ENABLE_INPUT) {
-		addrs[3] = get_addr(buf[TDN_INPUT_NODE]);
+		addrs[3] = pispbe_get_addr(buf[TDN_INPUT_NODE]);
 		if (addrs[3] == 0 ||
 		    !(hw_enables[0] & PISP_BE_BAYER_ENABLE_TDN_INPUT) ||
 		    !(hw_enables[0] & PISP_BE_BAYER_ENABLE_TDN) ||
@@ -445,7 +444,7 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 				hw_enables[0] &= ~PISP_BE_BAYER_ENABLE_TDN;
 		}
 
-		addrs[4] = get_addr(buf[STITCH_INPUT_NODE]);
+		addrs[4] = pispbe_get_addr(buf[STITCH_INPUT_NODE]);
 		if (addrs[4] == 0 ||
 		    !(hw_enables[0] & PISP_BE_BAYER_ENABLE_STITCH_INPUT) ||
 		    !(hw_enables[0] & PISP_BE_BAYER_ENABLE_STITCH)) {
@@ -455,12 +454,12 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 				  PISP_BE_BAYER_ENABLE_STITCH);
 		}
 
-		addrs[5] = get_addr(buf[TDN_OUTPUT_NODE]);
+		addrs[5] = pispbe_get_addr(buf[TDN_OUTPUT_NODE]);
 		if (addrs[5] == 0)
 			hw_enables[0] &= ~(PISP_BE_BAYER_ENABLE_TDN_COMPRESS |
 					   PISP_BE_BAYER_ENABLE_TDN_OUTPUT);
 
-		addrs[6] = get_addr(buf[STITCH_OUTPUT_NODE]);
+		addrs[6] = pispbe_get_addr(buf[STITCH_OUTPUT_NODE]);
 		if (addrs[6] == 0)
 			hw_enables[0] &=
 				~(PISP_BE_BAYER_ENABLE_STITCH_COMPRESS |
@@ -472,14 +471,15 @@ fixup_addrs_enables(dma_addr_t addrs[N_HW_ADDRESSES],
 
 	/* Main image output channels. */
 	for (i = 0; i < PISP_BACK_END_NUM_OUTPUTS; i++) {
-		ret = get_addr_3(addrs + 7 + 3 * i, buf[OUTPUT0_NODE + i],
-				 &node_group->node[OUTPUT0_NODE + i]);
+		ret = pispbe_get_planes_addr(addrs + 7 + 3 * i,
+					     buf[OUTPUT0_NODE + i],
+					     &node_group->node[OUTPUT0_NODE + i]);
 		if (ret <= 0)
 			hw_enables[1] &= ~(PISP_BE_RGB_ENABLE_OUTPUT0 << i);
 	}
 
 	/* HoG output (always single plane). */
-	addrs[13] = get_addr(buf[HOG_OUTPUT_NODE]);
+	addrs[13] = pispbe_get_addr(buf[HOG_OUTPUT_NODE]);
 	if (addrs[13] == 0)
 		hw_enables[1] &= ~PISP_BE_RGB_ENABLE_HOG;
 }
@@ -615,8 +615,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	dev_dbg(pispbe->dev, "Have buffers - starting hardware\n");
 
 	/* Convert buffers to DMA addresses for the hardware */
-	fixup_addrs_enables(hw_dma_addrs, hw_enables,
-			    config_tiles_buffer, buf, node_group);
+	pispbe_xlate_addrs(hw_dma_addrs, hw_enables, config_tiles_buffer, buf,
+			   node_group);
 
 	i = config_tiles_buffer->num_tiles;
 	if (i <= 0 || i > PISP_BACK_END_NUM_TILES ||
@@ -634,8 +634,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 		dev_err(pispbe->dev, "PROBLEM: Bad job");
 		i = 0;
 	}
-	hw_queue_job(pispbe, hw_dma_addrs, hw_enables,
-		     &config_tiles_buffer->config, tiles, i);
+	pispbe_queue_job(pispbe, hw_dma_addrs, hw_enables,
+			 &config_tiles_buffer->config, tiles, i);
 
 	return 1;
 }
@@ -1142,7 +1142,7 @@ static int verify_be_pix_format(const struct v4l2_format *f,
 		return -EINVAL;
 	}
 
-	if (nplanes == 0 || nplanes > MAX_PLANES) {
+	if (nplanes == 0 || nplanes > PISPBE_MAX_PLANES) {
 		dev_err(pispbe->dev,
 			"Bad number of planes for output node %s, req =%d\n",
 			NODE_NAME(node), nplanes);
@@ -1185,7 +1185,7 @@ static void set_plane_params(struct v4l2_format *f,
 	unsigned int total_plane_factor = 0;
 	unsigned int i;
 
-	for (i = 0; i < MAX_PLANES; i++)
+	for (i = 0; i < PISPBE_MAX_PLANES; i++)
 		total_plane_factor += fmt->plane_factor[i];
 
 	for (i = 0; i < nplanes; i++) {
