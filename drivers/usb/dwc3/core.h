@@ -280,6 +280,7 @@
 #define DWC3_GUCTL1_DEV_L1_EXIT_BY_HW		BIT(24)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_SS		BIT(17)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_HS		BIT(16)
+#define DWC3_GUCTL1_PARKMODE_DISABLE_FSLS	BIT(15)
 #define DWC3_GUCTL1_RESUME_OPMODE_HS_HOST	BIT(10)
 
 /* Global Status Register */
@@ -1132,10 +1133,12 @@ struct dwc3_scratchpad_array {
  *			generation after resume from suspend.
  * @ulpi_ext_vbus_drv: Set to confiure the upli chip to drives CPEN pin
  *			VBUS with an external supply.
- * @parkmode_disable_ss_quirk: set if we need to disable all SuperSpeed
- *			instances in park mode.
- * @parkmode_disable_hs_quirk: set if we need to disable all HishSpeed
- *			instances in park mode.
+ * @parkmode_disable_ss_quirk: If set, disable park mode feature for all
+ *			Superspeed instances.
+ * @parkmode_disable_hs_quirk: If set, disable park mode feature for all
+ *			Highspeed instances.
+ * @parkmode_disable_fsls_quirk: If set, disable park mode feature for all
+ *			Full/Lowspeed instances.
  * @gfladj_refclk_lpm_sel: set if we need to enable SOF/ITP counter
  *                          running based on ref_clk
  * @tx_de_emphasis_quirk: set if we enable Tx de-emphasis quirk
@@ -1366,6 +1369,7 @@ struct dwc3 {
 	unsigned		ulpi_ext_vbus_drv:1;
 	unsigned		parkmode_disable_ss_quirk:1;
 	unsigned		parkmode_disable_hs_quirk:1;
+	unsigned		parkmode_disable_fsls_quirk:1;
 	unsigned		gfladj_refclk_lpm_sel:1;
 
 	unsigned		tx_de_emphasis_quirk:1;
