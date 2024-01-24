@@ -45,6 +45,7 @@ MODULE_LICENSE("GPL v2");
 #define PISP_BE_TILE_ADDR_LO_OFFSET		0x8
 #define PISP_BE_TILE_ADDR_HI_OFFSET		0xc
 #define PISP_BE_STATUS_OFFSET			0x10
+#define PISP_BE_STATUS_QUEUED			BIT(0)
 #define PISP_BE_BATCH_STATUS_OFFSET		0x14
 #define PISP_BE_INTERRUPT_EN_OFFSET		0x18
 #define PISP_BE_INTERRUPT_STATUS_OFFSET		0x1c
@@ -295,7 +296,7 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	unsigned int begin, end;
 	unsigned int u;
 
-	if (pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET) & 1)
+	if (pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET) & PISP_BE_STATUS_QUEUED)
 		dev_err(pispbe->dev, "ERROR: not safe to queue new job!\n");
 
 	/*
