@@ -19,7 +19,7 @@ void tracing_commit_entry(void);
 #define HYP_EVENT(__name, __proto, __struct, __assign, __printk)		\
 	HYP_EVENT_FORMAT(__name, __struct);					\
 	extern atomic_t __name##_enabled;					\
-	extern unsigned short hyp_event_id_##__name;				\
+	extern struct hyp_event_id hyp_event_id_##__name;			\
 	static inline void trace_##__name(__proto)				\
 	{									\
 		size_t length = sizeof(struct trace_hyp_format_##__name);	\
@@ -30,7 +30,7 @@ void tracing_commit_entry(void);
 		__entry = tracing_reserve_entry(length);			\
 		if (!__entry)							\
 			return;							\
-		__entry->hdr.id = hyp_event_id_##__name;			\
+		__entry->hdr.id = hyp_event_id_##__name.id;			\
 		__assign							\
 		tracing_commit_entry();						\
 	}
