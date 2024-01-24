@@ -720,14 +720,9 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 		return IRQ_NONE;
 
 	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, u);
-	dev_dbg(pispbe->dev, "Hardware interrupt\n");
 	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
 	done = (uint8_t)u;
 	started = (uint8_t)(u >> 8);
-	dev_dbg(pispbe->dev,
-		"H/W started %d done %d, previously started %d done %d\n",
-		(int)started, (int)done, (int)pispbe->started,
-		(int)pispbe->done);
 
 	/*
 	 * Be aware that done can go up by 2 and started by 1 when: a job that
@@ -738,18 +733,15 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 		pispbe_isr_jobdone(pispbe, &pispbe->running_job);
 		memset(&pispbe->running_job, 0, sizeof(pispbe->running_job));
 		pispbe->done++;
-		dev_dbg(pispbe->dev, "Job done (1)\n");
 	}
 
 	if (pispbe->started != started) {
 		pispbe->started++;
 		can_queue_another = 1;
-		dev_dbg(pispbe->dev, "Job started\n");
 
 		if (pispbe->done != done && pispbe->queued_job.node_group) {
 			pispbe_isr_jobdone(pispbe, &pispbe->queued_job);
 			pispbe->done++;
-			dev_dbg(pispbe->dev, "Job done (2)\n");
 		} else {
 			pispbe->running_job = pispbe->queued_job;
 		}
@@ -758,7 +750,9 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	}
 
 	if (pispbe->done != done || pispbe->started != started) {
-		dev_err(pispbe->dev, "PROBLEM: counters not matching!\n");
+		dev_err(pispbe->dev,
+			"Job counters not matching: done = %u, expected %u - started = %u, expected %u\n",
+			pispbe->done, done, pispbe->started, started);
 		pispbe->started = started;
 		pispbe->done = done;
 	}
