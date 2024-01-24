@@ -504,7 +504,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	struct pispbe_node *node;
 	unsigned long flags1;
 	unsigned int config_index;
-	int i;
+	unsigned int i;
+	int num_tiles;
 
 	/*
 	 * To schedule a job, we need all streaming nodes (apart from Output0,
@@ -619,8 +620,8 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 	pispbe_xlate_addrs(hw_dma_addrs, hw_enables, config_tiles_buffer, buf,
 			   node_group);
 
-	i = config_tiles_buffer->num_tiles;
-	if (i <= 0 || i > PISP_BACK_END_NUM_TILES ||
+	num_tiles = config_tiles_buffer->num_tiles;
+	if (num_tiles <= 0 || num_tiles > PISP_BACK_END_NUM_TILES ||
 	    !((hw_enables[0] | hw_enables[1]) &
 	      PISP_BE_BAYER_ENABLE_INPUT)) {
 		/*
@@ -633,10 +634,10 @@ static int pispbe_schedule_internal(struct pispbe_node_group *node_group,
 		 * survive...
 		 */
 		dev_err(pispbe->dev, "PROBLEM: Bad job");
-		i = 0;
+		num_tiles = 0;
 	}
 	pispbe_queue_job(pispbe, hw_dma_addrs, hw_enables,
-			 &config_tiles_buffer->config, tiles, i);
+			 &config_tiles_buffer->config, tiles, num_tiles);
 
 	return 1;
 }
