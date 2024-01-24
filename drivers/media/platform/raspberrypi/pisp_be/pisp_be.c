@@ -229,13 +229,12 @@ struct pispbe_dev {
 	spinlock_t hw_lock; /* protects "hw_busy" flag and streaming_map */
 };
 
-static inline u32 read_reg(struct pispbe_dev *pispbe, unsigned int offset)
+static u32 pispbe_rd(struct pispbe_dev *pispbe, unsigned int offset)
 {
 	return readl(pispbe->be_reg_base + offset);
 }
 
-static inline void write_reg(struct pispbe_dev *pispbe, unsigned int offset,
-			     u32 val)
+static void pispbe_wr(struct pispbe_dev *pispbe, unsigned int offset, u32 val)
 {
 	writel(val, pispbe->be_reg_base + offset);
 }
@@ -246,19 +245,19 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
 	u32 u;
 
 	/* Check the HW is present and has a known version */
-	u = read_reg(pispbe, PISP_BE_VERSION_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_VERSION_OFFSET);
 	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
 	pispbe->hw_version = u;
 	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
 		return -ENODEV;
 
 	/* Clear leftover interrupts */
-	write_reg(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, 0xFFFFFFFFu);
-	u = read_reg(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, 0xFFFFFFFFu);
+	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
 	dev_dbg(pispbe->dev, "pispbe_probe: BatchStatus: 0x%08x", u);
 	pispbe->done = (uint8_t)u;
 	pispbe->started = (uint8_t)(u >> 8);
-	u = read_reg(pispbe, PISP_BE_STATUS_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET);
 	dev_dbg(pispbe->dev, "pispbe_probe: Status:      0x%08x", u);
 	if (u != 0 || pispbe->done != pispbe->started) {
 		dev_err(pispbe->dev, "pispbe_probe: HW is stuck or busy\n");
@@ -269,10 +268,10 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
 	 * Also set "chicken bits" 22:20 which enable sub-64-byte bursts
 	 * and AXI AWID/BID variability (on versions which support this).
 	 */
-	write_reg(pispbe, PISP_BE_AXI_OFFSET, 0x32703200u);
+	pispbe_wr(pispbe, PISP_BE_AXI_OFFSET, 0x32703200u);
 
 	/* Enable both interrupt flags */
-	write_reg(pispbe, PISP_BE_INTERRUPT_EN_OFFSET, 0x00000003u);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_EN_OFFSET, 0x00000003u);
 	return 0;
 }
 
@@ -290,7 +289,7 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	unsigned int begin, end;
 	unsigned int u;
 
-	if (read_reg(pispbe, PISP_BE_STATUS_OFFSET) & 1)
+	if (pispbe_rd(pispbe, PISP_BE_STATUS_OFFSET) & 1)
 		dev_err(pispbe->dev, "ERROR: not safe to queue new job!\n");
 
 	/*
@@ -300,13 +299,13 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	 * the mmap'd buffer.
 	 */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
-		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0(u),
+		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u),
 			  hw_dma_addrs[u]);
-		write_reg(pispbe, PISP_BE_IO_INPUT_ADDR0(u) + 4,
+		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u) + 4,
 			  hw_dma_addrs[u] >> 32);
 	}
-	write_reg(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE, hw_enables[0]);
-	write_reg(pispbe, PISP_BE_GLOBAL_RGB_ENABLE, hw_enables[1]);
+	pispbe_wr(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE, hw_enables[0]);
+	pispbe_wr(pispbe, PISP_BE_GLOBAL_RGB_ENABLE, hw_enables[1]);
 
 	/*
 	 * Everything else is as supplied by the user. XXX Buffer sizes not
@@ -316,15 +315,15 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	      / sizeof(u32);
 	end = offsetof(struct pisp_be_config, axi) / sizeof(u32);
 	for (u = begin; u < end; u++)
-		write_reg(pispbe, PISP_BE_CONFIG_BASE_OFFSET + 4 * u,
+		pispbe_wr(pispbe, PISP_BE_CONFIG_BASE_OFFSET + 4 * u,
 			  ((u32 *)config)[u]);
 
 	/* Read back the addresses -- an error here could be fatal */
 	for (u = 0; u < N_HW_ADDRESSES; ++u) {
 		unsigned int offset = PISP_BE_IO_INPUT_ADDR0(u);
-		u64 along = read_reg(pispbe, offset);
+		u64 along = pispbe_rd(pispbe, offset);
 
-		along += ((u64)read_reg(pispbe, offset + 4)) << 32;
+		along += ((u64)pispbe_rd(pispbe, offset + 4)) << 32;
 		if (along != (u64)(hw_dma_addrs[u])) {
 			dev_err(pispbe->dev,
 				"ISP BE config error: check if ISP RAMs enabled?\n");
@@ -337,11 +336,11 @@ static void hw_queue_job(struct pispbe_dev *pispbe,
 	 * checked (and even if checked, the user could subsequently modify
 	 * them)!
 	 */
-	write_reg(pispbe, PISP_BE_TILE_ADDR_LO_OFFSET, (u32)tiles);
-	write_reg(pispbe, PISP_BE_TILE_ADDR_HI_OFFSET, (u32)(tiles >> 32));
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_OFFSET, (u32)tiles);
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_OFFSET, (u32)(tiles >> 32));
 
 	/* Enqueue the job */
-	write_reg(pispbe, PISP_BE_CONTROL_OFFSET, 3 + 65536 * num_tiles);
+	pispbe_wr(pispbe, PISP_BE_CONTROL_OFFSET, 3 + 65536 * num_tiles);
 }
 
 struct pispbe_buffer {
@@ -713,13 +712,13 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	int can_queue_another = 0;
 	u32 u;
 
-	u = read_reg(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET);
 	if (u == 0)
 		return IRQ_NONE;
 
-	write_reg(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, u);
+	pispbe_wr(pispbe, PISP_BE_INTERRUPT_STATUS_OFFSET, u);
 	dev_dbg(pispbe->dev, "Hardware interrupt\n");
-	u = read_reg(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
+	u = pispbe_rd(pispbe, PISP_BE_BATCH_STATUS_OFFSET);
 	done = (uint8_t)u;
 	started = (uint8_t)(u >> 8);
 	dev_dbg(pispbe->dev,
