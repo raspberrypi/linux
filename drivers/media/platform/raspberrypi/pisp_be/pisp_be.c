@@ -471,9 +471,9 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 {
 	struct pispbe_dev *pispbe = node_group->pispbe;
 	struct pispbe_buffer *buf[PISPBE_NUM_NODES];
+	unsigned int config_index;
 	struct pispbe_node *node;
 	unsigned long flags;
-	unsigned int config_index;
 
 	lockdep_assert_held(&pispbe->hw_lock);
 
@@ -888,10 +888,10 @@ static void pispbe_node_buffer_queue(struct vb2_buffer *buf)
 
 static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
 {
-	unsigned long flags;
 	struct pispbe_node *node = vb2_get_drv_priv(q);
 	struct pispbe_node_group *node_group = node->node_group;
 	struct pispbe_dev *pispbe = node_group->pispbe;
+	unsigned long flags;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(pispbe->dev);
@@ -1153,9 +1153,9 @@ static void pispbe_set_plane_params(struct v4l2_format *f,
 static int pispbe_try_format(struct v4l2_format *f, struct pispbe_node *node)
 {
 	struct pispbe_dev *pispbe = node->node_group->pispbe;
+	u32 pixfmt = f->fmt.pix_mp.pixelformat;
 	const struct pisp_be_format *fmt;
 	bool is_rgb;
-	u32 pixfmt = f->fmt.pix_mp.pixelformat;
 
 	dev_dbg(pispbe->dev,
 		"%s: [%s] req %ux%u " V4L2_FOURCC_CONV ", planes %d\n",
@@ -1542,8 +1542,8 @@ static int pispbe_init_node(struct pispbe_node_group *node_group,
 {
 	bool output = NODE_DESC_IS_OUTPUT(&node_desc[id]);
 	struct pispbe_node *node = &node_group->node[id];
-	struct pispbe_dev *pispbe = node_group->pispbe;
 	struct media_entity *entity = &node->vfd.entity;
+	struct pispbe_dev *pispbe = node_group->pispbe;
 	struct video_device *vdev = &node->vfd;
 	struct vb2_queue *q = &node->queue;
 	int ret;
@@ -1674,9 +1674,9 @@ error:
 static int pispbe_init_group(struct pispbe_dev *pispbe, unsigned int id)
 {
 	struct pispbe_node_group *node_group = &pispbe->node_group[id];
+	unsigned int num_registered = 0;
 	struct v4l2_device *v4l2_dev;
 	struct media_device *mdev;
-	unsigned int num_registered = 0;
 	int ret;
 
 	node_group->id = id;
