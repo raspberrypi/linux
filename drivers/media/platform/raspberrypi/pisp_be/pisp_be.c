@@ -332,8 +332,6 @@ static int pispbe_get_planes_addr(dma_addr_t addr[3], struct pispbe_buffer *buf,
 	if (!buf || !node->pisp_format)
 		return 0;
 
-	WARN_ON(!NODE_IS_MPLANE(node));
-
 	/*
 	 * Determine the base plane size. This will not be the same
 	 * as node->format.fmt.pix_mp.plane_fmt[0].sizeimage for a single
