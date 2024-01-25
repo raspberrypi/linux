@@ -1571,7 +1571,7 @@ static int pispbe_init_node(struct pispbe_node_group *node_group,
 	ret = vb2_queue_init(q);
 	if (ret < 0) {
 		dev_err(pispbe->dev, "vb2_queue_init failed\n");
-		return ret;
+		goto err_mutex_destroy;
 	}
 
 	*vdev = pispbe_videodev; /* default initialization */
@@ -1620,6 +1620,9 @@ err_unregister_video_dev:
 	video_unregister_device(&node->vfd);
 err_unregister_queue:
 	vb2_queue_release(&node->queue);
+err_mutex_destroy:
+	mutex_destroy(&node->node_lock);
+	mutex_destroy(&node->queue_lock);
 	return ret;
 }
 
@@ -1761,6 +1764,8 @@ static void pispbe_destroy_node_group(struct pispbe_node_group *node_group)
 	for (int i = PISPBE_NUM_NODES - 1; i >= 0; i--) {
 		video_unregister_device(&node_group->node[i].vfd);
 		vb2_queue_release(&node_group->node[i].queue);
+		mutex_destroy(&node_group->node[i].node_lock);
+		mutex_destroy(&node_group->node[i].queue_lock);
 	}
 
 	media_device_cleanup(&node_group->mdev);
