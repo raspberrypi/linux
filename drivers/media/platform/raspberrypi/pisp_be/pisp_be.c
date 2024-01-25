@@ -488,9 +488,12 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 
 	node = &node_group->node[CONFIG_NODE];
 	spin_lock_irqsave(&node->ready_lock, flags);
-	buf[CONFIG_NODE] =
-	   list_first_entry_or_null(&node->ready_queue, struct pispbe_buffer,
-				    ready_list);
+	buf[CONFIG_NODE] = list_first_entry_or_null(&node->ready_queue,
+						    struct pispbe_buffer,
+						    ready_list);
+	if (buf[CONFIG_NODE])
+		list_del(&buf[CONFIG_NODE]->ready_list);
+	pispbe->queued_job.buf[CONFIG_NODE] = buf[CONFIG_NODE];
 	spin_unlock_irqrestore(&node->ready_lock, flags);
 
 	/* Exit early if no config buffer has been queued. */
@@ -542,26 +545,18 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 
 		node = &node_group->node[i];
 
+		/* Pull a buffer from each V4L2 queue to form the queued job */
 		spin_lock_irqsave(&node->ready_lock, flags);
 		buf[i] = list_first_entry_or_null(&node->ready_queue,
 						  struct pispbe_buffer,
 						  ready_list);
+		if (buf[i])
+			list_del(&buf[i]->ready_list);
 		spin_unlock_irqrestore(&node->ready_lock, flags);
 
 		if (!buf[i] && !ignore_buffers)
 			return -ENODEV;
-	}
 
-	/* Pull a buffer from each V4L2 queue to form the queued job */
-	for (unsigned int i = 0; i < PISPBE_NUM_NODES; i++) {
-		if (buf[i]) {
-			node = &node_group->node[i];
-
-			spin_lock_irqsave(&node->ready_lock, flags);
-			list_del(&buf[i]->ready_list);
-			spin_unlock_irqrestore(&node->ready_lock,
-					       flags);
-		}
 		pispbe->queued_job.buf[i] = buf[i];
 	}
 
