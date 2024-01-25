@@ -404,10 +404,6 @@ static void vc4_vec_connector_reset(struct drm_connector *connector)
 {
 	drm_atomic_helper_connector_reset(connector);
 	drm_atomic_helper_connector_tv_reset(connector);
-
-	/* preserve TV standard */
-	if (connector->state)
-		connector->state->tv.mode = vc4_vec_get_default_mode(connector);
 }
 
 static int
