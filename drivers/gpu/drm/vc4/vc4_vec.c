@@ -370,7 +370,9 @@ static const struct drm_prop_enum_list legacy_tv_mode_names[] = {
 static enum drm_connector_tv_mode
 vc4_vec_get_default_mode(struct drm_connector *connector)
 {
-	if (vc4_vec_tv_norm) {
+	if (connector->cmdline_mode.tv_mode_specified) {
+		return connector->cmdline_mode.tv_mode;
+	} else if (vc4_vec_tv_norm) {
 		int ret;
 
 		ret = drm_get_tv_mode_from_name(vc4_vec_tv_norm, strlen(vc4_vec_tv_norm));
