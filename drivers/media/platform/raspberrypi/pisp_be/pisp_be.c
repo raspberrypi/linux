@@ -998,6 +998,7 @@ static int pispbe_node_querycap(struct file *file, void *priv,
 	dev_dbg(pispbe->dev, "Caps for node %s: %x and %x (dev %x)\n",
 		NODE_NAME(node), cap->capabilities, cap->device_caps,
 		node->vfd.device_caps);
+
 	return 0;
 }
 
@@ -1016,6 +1017,7 @@ static int pispbe_node_g_fmt_vid_cap(struct file *file, void *priv,
 	*f = node->format;
 	dev_dbg(pispbe->dev, "Get capture format for node %s\n",
 		NODE_NAME(node));
+
 	return 0;
 }
 
@@ -1034,6 +1036,7 @@ static int pispbe_node_g_fmt_vid_out(struct file *file, void *priv,
 	*f = node->format;
 	dev_dbg(pispbe->dev, "Get output format for node %s\n",
 		NODE_NAME(node));
+
 	return 0;
 }
 
@@ -1070,6 +1073,7 @@ static int pispbe_node_g_fmt_meta_cap(struct file *file, void *priv,
 	*f = node->format;
 	dev_dbg(pispbe->dev, "Get output format for meta node %s\n",
 		NODE_NAME(node));
+
 	return 0;
 }
 
@@ -1311,6 +1315,7 @@ static int pispbe_node_s_fmt_vid_cap(struct file *file, void *priv,
 		"Set capture format for node %s to " V4L2_FOURCC_CONV "\n",
 		NODE_NAME(node),
 		V4L2_FOURCC_CONV_ARGS(f->fmt.pix_mp.pixelformat));
+
 	return 0;
 }
 
@@ -1331,6 +1336,7 @@ static int pispbe_node_s_fmt_vid_out(struct file *file, void *priv,
 		"Set output format for node %s to " V4L2_FOURCC_CONV "\n",
 		NODE_NAME(node),
 		V4L2_FOURCC_CONV_ARGS(f->fmt.pix_mp.pixelformat));
+
 	return 0;
 }
 
@@ -1351,6 +1357,7 @@ static int pispbe_node_s_fmt_meta_out(struct file *file, void *priv,
 		"Set output format for meta node %s to " V4L2_FOURCC_CONV "\n",
 		NODE_NAME(node),
 		V4L2_FOURCC_CONV_ARGS(f->fmt.meta.dataformat));
+
 	return 0;
 }
 
@@ -1371,6 +1378,7 @@ static int pispbe_node_s_fmt_meta_cap(struct file *file, void *priv,
 		"Set capture format for meta node %s to " V4L2_FOURCC_CONV "\n",
 		NODE_NAME(node),
 		V4L2_FOURCC_CONV_ARGS(f->fmt.meta.dataformat));
+
 	return 0;
 }
 
@@ -1609,6 +1617,7 @@ static int pispbe_init_node(struct pispbe_node_group *node_group,
 
 	dev_dbg(pispbe->dev, "%s device node registered as /dev/video%d\n",
 		NODE_NAME(node), node->vfd.num);
+
 	return 0;
 
 err_unregister_video_dev:
