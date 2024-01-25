@@ -5,6 +5,9 @@
 /* This ignores the intensely annoying "mapping symbols" found in ELF files. */
 static inline int is_mapping_symbol(const char *str)
 {
+	if (!strncmp("__kvm_nvhe_", str, 11))
+		str += 11;
+
 	if (str[0] == '.' && str[1] == 'L')
 		return true;
 	if (str[0] == 'L' && str[1] == '0')
