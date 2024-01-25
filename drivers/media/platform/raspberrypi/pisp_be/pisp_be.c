@@ -1109,12 +1109,9 @@ static int pispbe_validate_pixfmt(const struct v4l2_format *f,
 
 static const struct pisp_be_format *pispbe_find_fmt(unsigned int fourcc)
 {
-	const struct pisp_be_format *fmt;
-
 	for (unsigned int i = 0; i < ARRAY_SIZE(supported_formats); i++) {
-		fmt = &supported_formats[i];
-		if (fmt->fourcc == fourcc)
-			return fmt;
+		if (supported_formats[i].fourcc == fourcc)
+			return &supported_formats[i];
 	}
 
 	return NULL;
