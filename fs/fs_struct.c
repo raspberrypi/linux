@@ -91,6 +91,7 @@ void free_fs_struct(struct fs_struct *fs)
 	path_put(&fs->pwd);
 	kmem_cache_free(fs_cachep, fs);
 }
+EXPORT_SYMBOL_NS_GPL(free_fs_struct, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 void exit_fs(struct task_struct *tsk)
 {
@@ -129,6 +130,7 @@ struct fs_struct *copy_fs_struct(struct fs_struct *old)
 	}
 	return fs;
 }
+EXPORT_SYMBOL_NS_GPL(copy_fs_struct, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 int unshare_fs_struct(void)
 {
