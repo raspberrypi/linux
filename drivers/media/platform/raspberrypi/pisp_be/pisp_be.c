@@ -834,8 +834,8 @@ static int pispbe_node_buffer_prepare(struct vb2_buffer *vb)
 	struct pispbe_node *node = vb2_get_drv_priv(vb->vb2_queue);
 	struct pispbe_dev *pispbe = node->node_group->pispbe;
 	unsigned long size = 0;
-	unsigned int num_planes = NODE_IS_MPLANE(node) ?
-					node->format.fmt.pix_mp.num_planes : 1;
+	unsigned int num_planes = NODE_IS_MPLANE(node)
+				? node->format.fmt.pix_mp.num_planes : 1;
 
 	for (unsigned int i = 0; i < num_planes; i++) {
 		size = NODE_IS_MPLANE(node)
