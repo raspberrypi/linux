@@ -3536,6 +3536,10 @@ Params: speed                   Display SPI bus speed
 
         debug                   Debug output level {0-7}
 
+        drm                     Force the use of the mi0283qt DRM driver (by
+                                default the ili9340 framebuffer driver will
+                                be used in preference if available)
+
 
 Name:   pitft28-capacitive
 Info:   Adafruit PiTFT 2.8" capacitive touch screen
@@ -3547,6 +3551,10 @@ Params: speed                   Display SPI bus speed
         fps                     Delay between frame updates
 
         debug                   Debug output level {0-7}
+
+        drm                     Force the use of the mi0283qt DRM driver (by
+                                default the ili9340 framebuffer driver will
+                                be used in preference if available)
 
         touch-sizex             Touchscreen size x (default 240)
 
@@ -3574,6 +3582,12 @@ Params: speed                   Display SPI bus speed
                                 default the ili9340 framebuffer driver will
                                 be used in preference if available)
 
+        touch-invx              Touchscreen inverted x axis
+
+        touch-invy              Touchscreen inverted y axis
+
+        touch-swapxy            Touchscreen swapped x y axis
+
 
 Name:   pitft35-resistive
 Info:   Adafruit PiTFT 3.5" resistive touch screen
@@ -3589,6 +3603,12 @@ Params: speed                   Display SPI bus speed
         drm                     Force the use of the hx8357d DRM driver (by
                                 default the fb_hx8357d framebuffer driver will
                                 be used in preference if available)
+
+        touch-invx              Touchscreen inverted x axis
+
+        touch-invy              Touchscreen inverted y axis
+
+        touch-swapxy            Touchscreen swapped x y axis
 
 
 Name:   pps-gpio
