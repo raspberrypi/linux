@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
+#include <linux/pisp_be_config.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <media/v4l2-device.h>
@@ -17,7 +18,6 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-vmalloc.h>
 
-#include "pisp_be_config.h"
 #include "pisp_be_formats.h"
 
 /* Maximum number of config buffers possible */
