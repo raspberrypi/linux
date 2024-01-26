@@ -8,7 +8,7 @@
 #ifndef _PISP_FE_CONFIG_
 #define _PISP_FE_CONFIG_
 
-#include <media/raspberrypi/pisp_common.h>
+#include <linux/media/raspberrypi/pisp_common.h>
 
 #include "pisp_statistics.h"
 

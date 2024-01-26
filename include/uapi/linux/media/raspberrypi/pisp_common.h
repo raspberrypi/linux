@@ -1,25 +1,25 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Raspberry Pi PiSP common types.
+ * RP1 PiSP common definitions.
  *
- * Copyright (C) 2021 - Raspberry Pi (Trading) Ltd.
+ * Copyright (C) 2021 - Raspberry Pi Ltd.
  *
  */
-#ifndef _PISP_TYPES_H_
-#define _PISP_TYPES_H_
+#ifndef _UAPI_PISP_COMMON_H_
+#define _UAPI_PISP_COMMON_H_
 
-/* This definition must match the format description in the hardware exactly! */
+#include <linux/types.h>
+
 struct pisp_image_format_config {
 	/* size in pixels */
-	uint16_t width, height;
+	__u16 width;
+	__u16 height;
 	/* must match struct pisp_image_format below */
-	uint32_t format;
-	int32_t stride;
+	__u32 format;
+	__s32 stride;
 	/* some planar image formats will need a second stride */
-	int32_t stride2;
-};
-
-static_assert(sizeof(struct pisp_image_format_config) == 16);
+	__s32 stride2;
+} __attribute__((packed));
 
 enum pisp_bayer_order {
 	/*
@@ -86,59 +86,114 @@ enum pisp_image_format {
 
 	/* Lastly a few specific instantiations of the above. */
 	PISP_IMAGE_FORMAT_SINGLE_16 = PISP_IMAGE_FORMAT_BPS_16,
-	PISP_IMAGE_FORMAT_THREE_16 =
-		PISP_IMAGE_FORMAT_BPS_16 | PISP_IMAGE_FORMAT_THREE_CHANNEL
+	PISP_IMAGE_FORMAT_THREE_16 = PISP_IMAGE_FORMAT_BPS_16 |
+				     PISP_IMAGE_FORMAT_THREE_CHANNEL
 };
 
 #define PISP_IMAGE_FORMAT_bps_8(fmt)                                           \
-	(((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_8)
+	(((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_8)
 #define PISP_IMAGE_FORMAT_bps_10(fmt)                                          \
-	(((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_10)
+	(((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_10)
 #define PISP_IMAGE_FORMAT_bps_12(fmt)                                          \
-	(((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_12)
+	(((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_12)
 #define PISP_IMAGE_FORMAT_bps_16(fmt)                                          \
-	(((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_16)
+	(((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) == PISP_IMAGE_FORMAT_BPS_16)
 #define PISP_IMAGE_FORMAT_bps(fmt)                                             \
-	(((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) ?                                  \
-		       8 + (2 << (((fmt)&PISP_IMAGE_FORMAT_BPS_MASK) - 1)) :   \
-		       8)
+	(((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) ?                                \
+	       8 + (2 << (((fmt) & PISP_IMAGE_FORMAT_BPS_MASK) - 1)) : 8)
 #define PISP_IMAGE_FORMAT_shift(fmt)                                           \
-	(((fmt)&PISP_IMAGE_FORMAT_SHIFT_MASK) / PISP_IMAGE_FORMAT_SHIFT_1)
+	(((fmt) & PISP_IMAGE_FORMAT_SHIFT_MASK) / PISP_IMAGE_FORMAT_SHIFT_1)
 #define PISP_IMAGE_FORMAT_three_channel(fmt)                                   \
-	((fmt)&PISP_IMAGE_FORMAT_THREE_CHANNEL)
+	((fmt) & PISP_IMAGE_FORMAT_THREE_CHANNEL)
 #define PISP_IMAGE_FORMAT_single_channel(fmt)                                  \
-	(!((fmt)&PISP_IMAGE_FORMAT_THREE_CHANNEL))
+	(!((fmt) & PISP_IMAGE_FORMAT_THREE_CHANNEL))
 #define PISP_IMAGE_FORMAT_compressed(fmt)                                      \
-	(((fmt)&PISP_IMAGE_FORMAT_COMPRESSION_MASK) !=                         \
+	(((fmt) & PISP_IMAGE_FORMAT_COMPRESSION_MASK) !=                       \
 	 PISP_IMAGE_FORMAT_UNCOMPRESSED)
 #define PISP_IMAGE_FORMAT_sampling_444(fmt)                                    \
-	(((fmt)&PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                            \
+	(((fmt) & PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                          \
 	 PISP_IMAGE_FORMAT_SAMPLING_444)
 #define PISP_IMAGE_FORMAT_sampling_422(fmt)                                    \
-	(((fmt)&PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                            \
+	(((fmt) & PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                          \
 	 PISP_IMAGE_FORMAT_SAMPLING_422)
 #define PISP_IMAGE_FORMAT_sampling_420(fmt)                                    \
-	(((fmt)&PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                            \
+	(((fmt) & PISP_IMAGE_FORMAT_SAMPLING_MASK) ==                          \
 	 PISP_IMAGE_FORMAT_SAMPLING_420)
 #define PISP_IMAGE_FORMAT_order_normal(fmt)                                    \
-	(!((fmt)&PISP_IMAGE_FORMAT_ORDER_SWAPPED))
+	(!((fmt) & PISP_IMAGE_FORMAT_ORDER_SWAPPED))
 #define PISP_IMAGE_FORMAT_order_swapped(fmt)                                   \
-	((fmt)&PISP_IMAGE_FORMAT_ORDER_SWAPPED)
+	((fmt) & PISP_IMAGE_FORMAT_ORDER_SWAPPED)
 #define PISP_IMAGE_FORMAT_interleaved(fmt)                                     \
-	(((fmt)&PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                           \
+	(((fmt) & PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                         \
 	 PISP_IMAGE_FORMAT_PLANARITY_INTERLEAVED)
 #define PISP_IMAGE_FORMAT_semiplanar(fmt)                                      \
-	(((fmt)&PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                           \
+	(((fmt) & PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                         \
 	 PISP_IMAGE_FORMAT_PLANARITY_SEMI_PLANAR)
 #define PISP_IMAGE_FORMAT_planar(fmt)                                          \
-	(((fmt)&PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                           \
+	(((fmt) & PISP_IMAGE_FORMAT_PLANARITY_MASK) ==                         \
 	 PISP_IMAGE_FORMAT_PLANARITY_PLANAR)
 #define PISP_IMAGE_FORMAT_wallpaper(fmt)                                       \
-	((fmt)&PISP_IMAGE_FORMAT_WALLPAPER_ROLL)
+	((fmt) & PISP_IMAGE_FORMAT_WALLPAPER_ROLL)
 #define PISP_IMAGE_FORMAT_HOG(fmt)                                             \
 	((fmt) &                                                               \
 	 (PISP_IMAGE_FORMAT_HOG_SIGNED | PISP_IMAGE_FORMAT_HOG_UNSIGNED))
 
-#define PISP_WALLPAPER_WIDTH 128 // in bytes
+#define PISP_WALLPAPER_WIDTH 128 /* in bytes */
 
-#endif /* _PISP_TYPES_H_ */
+struct pisp_bla_config {
+	__u16 black_level_r;
+	__u16 black_level_gr;
+	__u16 black_level_gb;
+	__u16 black_level_b;
+	__u16 output_black_level;
+	__u8 pad[2];
+} __attribute__((packed));
+
+struct pisp_wbg_config {
+	__u16 gain_r;
+	__u16 gain_g;
+	__u16 gain_b;
+	__u8 pad[2];
+} __attribute__((packed));
+
+struct pisp_compress_config {
+	/* value subtracted from incoming data */
+	__u16 offset;
+	__u8 pad;
+	/* 1 => Companding; 2 => Delta (recommended); 3 => Combined (for HDR) */
+	__u8 mode;
+} __attribute__((packed));
+
+struct pisp_decompress_config {
+	/* value added to reconstructed data */
+	__u16 offset;
+	__u8 pad;
+	/* 1 => Companding; 2 => Delta (recommended); 3 => Combined (for HDR) */
+	__u8 mode;
+} __attribute__((packed));
+
+enum pisp_axi_flags {
+	/*
+	 * round down bursts to end at a 32-byte boundary, to align following
+	 * bursts
+	 */
+	PISP_AXI_FLAG_ALIGN = 128,
+	/* for FE writer: force WSTRB high, to pad output to 16-byte boundary */
+	PISP_AXI_FLAG_PAD = 64,
+	/* for FE writer: Use Output FIFO level to trigger "panic" */
+	PISP_AXI_FLAG_PANIC = 32,
+};
+
+struct pisp_axi_config {
+	/*
+	 * burst length minus one, which must be in the range 0:15; OR'd with
+	 * flags
+	 */
+	__u8 maxlen_flags;
+	/* { prot[2:0], cache[3:0] } fields, echoed on AXI bus */
+	__u8 cache_prot;
+	/* QoS field(s) (4x4 bits for FE writer; 4 bits for other masters) */
+	__u16 qos;
+} __attribute__((packed));
+
+#endif /* _UAPI_PISP_COMMON_H_ */
