@@ -7,6 +7,7 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/kernel.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -271,9 +272,9 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	 */
 	for (unsigned int u = 0; u < N_HW_ADDRESSES; ++u) {
 		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u),
-			  job->hw_dma_addrs[u]);
+			  lower_32_bits(job->hw_dma_addrs[u]));
 		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u) + 4,
-			  job->hw_dma_addrs[u] >> 32);
+			  upper_32_bits(job->hw_dma_addrs[u]));
 	}
 	pispbe_wr(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE, job->hw_enables[0]);
 	pispbe_wr(pispbe, PISP_BE_GLOBAL_RGB_ENABLE, job->hw_enables[1]);
@@ -306,8 +307,8 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	 * Write tile pointer to hardware. Tile offsets and sizes not checked
 	 * (and even if checked, the user could subsequently modify them)!
 	 */
-	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_REG, (u32)job->tiles);
-	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_REG, (u32)(job->tiles >> 32));
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_REG, lower_32_bits(job->tiles));
+	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_REG, upper_32_bits(job->tiles));
 
 	/* Enqueue the job */
 	pispbe_wr(pispbe, PISP_BE_CONTROL_REG,
