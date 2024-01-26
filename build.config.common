@@ -5,7 +5,9 @@ KMI_GENERATION=0
 LLVM=1
 DEPMOD=depmod
 CLANG_PREBUILT_BIN=prebuilts/clang/host/linux-x86/clang-${CLANG_VERSION}/bin
+CLANGTOOLS_PREBUILT_BIN=prebuilts/clang-tools/linux-x86/bin
 BUILDTOOLS_PREBUILT_BIN=build/kernel/build-tools/path/linux-x86
+RUST_PREBUILT_BIN=prebuilts/rust/linux-x86/${RUSTC_VERSION}/bin
 
 # TODO(b/296265825): Turn this into a proper error
 DTC=$(command -v dtc || { echo "WARNING: $BUILD_CONFIG loaded without Kleaf hermetic tools.
