@@ -131,7 +131,7 @@ static const struct drm_display_mode ws_panel_11_9_mode = {
 	.hdisplay = 320,
 	.hsync_start = 320 + 60,
 	.hsync_end = 320 + 60 + 60,
-	.htotal = 320 + 60 + 60 + 120,
+	.htotal = 320 + 60 + 60 + 60,
 	.vdisplay = 1480,
 	.vsync_start = 1480 + 60,
 	.vsync_end = 1480 + 60 + 60,
@@ -340,9 +340,8 @@ static int ws_panel_probe(struct i2c_client *i2c,
 	 */
 	drm_panel_add(&ts->base);
 
-	ts->dsi->mode_flags = (MIPI_DSI_MODE_VIDEO |
-			   MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
-			   MIPI_DSI_MODE_LPM);
+	ts->dsi->mode_flags =  MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO |
+			   MIPI_DSI_CLOCK_NON_CONTINUOUS;
 	ts->dsi->format = MIPI_DSI_FMT_RGB888;
 	ts->dsi->lanes = 2;
 

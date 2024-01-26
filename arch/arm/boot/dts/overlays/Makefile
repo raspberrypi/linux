@@ -182,6 +182,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pca953x.dtbo \
 	pcf857x.dtbo \
 	pcie-32bit-dma.dtbo \
+	pcie-32bit-dma-pi5.dtbo \
 	pibell.dtbo \
 	pifacedigital.dtbo \
 	pifi-40.dtbo \
@@ -192,6 +193,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
 	pisound.dtbo \
+	pisound-pi5.dtbo \
 	pitft22.dtbo \
 	pitft28-capacitive.dtbo \
 	pitft28-resistive.dtbo \

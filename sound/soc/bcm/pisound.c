@@ -1,6 +1,6 @@
 /*
  * Pisound Linux kernel module.
- * Copyright (C) 2016-2020  Vilniaus Blokas UAB, https://blokas.io/pisound
+ * Copyright (C) 2016-2024  Vilniaus Blokas UAB, https://blokas.io/pisound
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -142,14 +142,14 @@ static void pisnd_input_trigger(struct snd_rawmidi_substream *substream, int up)
 	}
 }
 
-static struct snd_rawmidi_ops pisnd_output_ops = {
+static const struct snd_rawmidi_ops pisnd_output_ops = {
 	.open = pisnd_output_open,
 	.close = pisnd_output_close,
 	.trigger = pisnd_output_trigger,
 	.drain = pisnd_output_drain,
 };
 
-static struct snd_rawmidi_ops pisnd_input_ops = {
+static const struct snd_rawmidi_ops pisnd_input_ops = {
 	.open = pisnd_input_open,
 	.close = pisnd_input_close,
 	.trigger = pisnd_input_trigger,
@@ -226,6 +226,7 @@ static char g_id[25];
 enum { MAX_VERSION_STR_LEN = 6 };
 static char g_fw_version[MAX_VERSION_STR_LEN];
 static char g_hw_version[MAX_VERSION_STR_LEN];
+static u32 g_spi_speed_hz;
 
 static uint8_t g_ledFlashDuration;
 static bool    g_ledFlashDurationChanged;
@@ -329,7 +330,7 @@ static void spi_transfer(const uint8_t *txbuf, uint8_t *rxbuf, int len)
 	transfer.tx_buf = txbuf;
 	transfer.rx_buf = rxbuf;
 	transfer.len = len;
-	transfer.speed_hz = 150000;
+	transfer.speed_hz = g_spi_speed_hz;
 	transfer.delay.value = 10;
 	transfer.delay.unit = SPI_DELAY_UNIT_USECS;
 
@@ -646,6 +647,26 @@ static int pisnd_spi_init(struct device *dev)
 	memset(g_fw_version, 0, sizeof(g_fw_version));
 	memset(g_hw_version, 0, sizeof(g_hw_version));
 
+	g_spi_speed_hz = 150000;
+	if (dev->of_node) {
+		struct device_node *spi_node;
+
+		spi_node = of_parse_phandle(
+			dev->of_node,
+			"spi-controller",
+			0
+			);
+
+		if (spi_node) {
+			ret = of_property_read_u32(spi_node, "spi-speed-hz", &g_spi_speed_hz);
+			if (ret != 0)
+				printe("Failed reading spi-speed-hz! (%d)\n", ret);
+
+			of_node_put(spi_node);
+		}
+	}
+	printi("Using SPI speed: %u\n", g_spi_speed_hz);
+
 	spi = pisnd_spi_find_device();
 
 	if (spi != NULL) {
@@ -857,7 +878,6 @@ static int pisnd_ctl_uninit(void)
 
 static struct gpio_desc *osr0, *osr1, *osr2;
 static struct gpio_desc *reset;
-static struct gpio_desc *button;
 
 static int pisnd_hw_params(
 	struct snd_pcm_substream *substream,
@@ -951,7 +971,7 @@ static int pisnd_startup(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static struct snd_soc_ops pisnd_ops = {
+static const struct snd_soc_ops pisnd_ops = {
 	.startup = pisnd_startup,
 	.hw_params = pisnd_hw_params,
 };
@@ -1016,8 +1036,6 @@ static int pisnd_init_gpio(struct device *dev)
 
 	reset = gpiod_get_index(dev, "reset", 0, GPIOD_ASIS);
 
-	button = gpiod_get_index(dev, "button", 0, GPIOD_ASIS);
-
 	gpiod_direction_output(osr0,  1);
 	gpiod_direction_output(osr1,  1);
 	gpiod_direction_output(osr2,  1);
@@ -1029,8 +1047,6 @@ static int pisnd_init_gpio(struct device *dev)
 	gpiod_set_value(osr2,  false);
 	gpiod_set_value(reset,  true);
 
-	gpiod_export(button, false);
-
 	return 0;
 }
 
@@ -1039,10 +1055,8 @@ static int pisnd_uninit_gpio(void)
 	int i;
 
 	struct gpio_desc **gpios[] = {
-		&osr0, &osr1, &osr2, &reset, &button,
+		&osr0, &osr1, &osr2, &reset,
 	};
-
-	gpiod_unexport(button);
 
 	for (i = 0; i < ARRAY_SIZE(gpios); ++i) {
 		if (*gpios[i] == NULL) {

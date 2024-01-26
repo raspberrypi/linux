@@ -634,6 +634,9 @@ static void vc4_hvs_irq_clear_eof(struct vc4_hvs *hvs,
 	hvs->eof_irq[channel].enabled = false;
 }
 
+static void vc4_hvs_free_dlist_entry_locked(struct vc4_hvs *hvs,
+					    struct vc4_hvs_dlist_allocation *alloc);
+
 static struct vc4_hvs_dlist_allocation *
 vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 			  unsigned int channel,
@@ -642,6 +645,7 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 	struct vc4_dev *vc4 = hvs->vc4;
 	struct drm_device *dev = &vc4->base;
 	struct vc4_hvs_dlist_allocation *alloc;
+	struct vc4_hvs_dlist_allocation *cur, *next;
 	unsigned long flags;
 	int ret;
 
@@ -659,9 +663,26 @@ vc4_hvs_alloc_dlist_entry(struct vc4_hvs *hvs,
 				 dlist_count);
 	spin_unlock_irqrestore(&hvs->mm_lock, flags);
 	if (ret) {
-		drm_err(dev, "Failed to allocate DLIST entry. Requested size=%zu. ret=%d\n",
-			dlist_count, ret);
-		return ERR_PTR(ret);
+		drm_err(dev, "Failed to allocate DLIST entry. Requested size=%zu. ret=%d. DISPCTRL is %08x\n",
+			dlist_count, ret, HVS_READ(SCALER_DISPCTRL));
+
+		/* This should never happen as stale entries should get released
+		 * as the frame counter interrupt triggers.
+		 * However we've seen this fail for reasons currently unknown.
+		 * Free all stale entries now so we should be able to complete
+		 * this allocation.
+		 */
+		spin_lock_irqsave(&hvs->mm_lock, flags);
+		list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
+			vc4_hvs_free_dlist_entry_locked(hvs, cur);
+		}
+
+		ret = drm_mm_insert_node(&hvs->dlist_mm, &alloc->mm_node,
+					 dlist_count);
+		spin_unlock_irqrestore(&hvs->mm_lock, flags);
+
+		if (ret)
+			return ERR_PTR(ret);
 	}
 
 	alloc->channel = channel;
@@ -796,14 +817,19 @@ static void vc4_hvs_dlist_free_work(struct work_struct *work)
 	struct vc4_hvs *hvs = container_of(work, struct vc4_hvs, free_dlist_work);
 	struct vc4_hvs_dlist_allocation *cur, *next;
 	unsigned long flags;
+	bool active[3];
+	u8 frcnt[3];
+	int i;
+
 
 	spin_lock_irqsave(&hvs->mm_lock, flags);
+	for (i = 0; i < 3; i++) {
+		frcnt[i] = vc4_hvs_get_fifo_frame_count(hvs, i);
+		active[i] = vc4_hvs_check_channel_active(hvs, i);
+	}
 	list_for_each_entry_safe(cur, next, &hvs->stale_dlist_entries, node) {
-		u8 frcnt;
-
-		frcnt = vc4_hvs_get_fifo_frame_count(hvs, cur->channel);
-		if (vc4_hvs_check_channel_active(hvs, cur->channel) &&
-		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt))
+		if (active[cur->channel] &&
+		    !vc4_hvs_frcnt_lte(cur->target_frame_count, frcnt[cur->channel]))
 			continue;
 
 		vc4_hvs_free_dlist_entry_locked(hvs, cur);
