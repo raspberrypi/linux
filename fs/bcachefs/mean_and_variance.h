@@ -14,7 +14,7 @@
  * type
  */
 
-#ifdef __SIZEOF_INT128__
+#if defined(__SIZEOF_INT128__) && defined(__KERNEL__) && !defined(CONFIG_PARISC)
 
 typedef struct {
 	unsigned __int128 v;
