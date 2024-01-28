@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+config HAVE_PREEMPT_LAZY
+	bool
+
+config PREEMPT_LAZY
+	def_bool y if HAVE_PREEMPT_LAZY && PREEMPT_RT
+
 config PREEMPT_NONE_BUILD
 	bool
 

@@ -278,7 +278,7 @@ static void __aspeed_vuart_set_throttle(struct uart_8250_port *up,
 	up->ier &= ~irqs;
 	if (!throttle)
 		up->ier |= irqs;
-	serial_out(up, UART_IER, up->ier);
+	serial8250_set_IER(up, up->ier);
 }
 static void aspeed_vuart_set_throttle(struct uart_port *port, bool throttle)
 {

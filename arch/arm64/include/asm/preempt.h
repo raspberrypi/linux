@@ -71,13 +71,36 @@ static inline bool __preempt_count_dec_and_test(void)
 	 * interrupt occurring between the non-atomic READ_ONCE/WRITE_ONCE
 	 * pair.
 	 */
-	return !pc || !READ_ONCE(ti->preempt_count);
+	if (!pc || !READ_ONCE(ti->preempt_count))
+		return true;
+#ifdef CONFIG_PREEMPT_LAZY
+	if ((pc & ~PREEMPT_NEED_RESCHED))
+		return false;
+	if (current_thread_info()->preempt_lazy_count)
+		return false;
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+#else
+	return false;
+#endif
 }
 
 static inline bool should_resched(int preempt_offset)
 {
+#ifdef CONFIG_PREEMPT_LAZY
+	u64 pc = READ_ONCE(current_thread_info()->preempt_count);
+	if (pc == preempt_offset)
+		return true;
+
+	if ((pc & ~PREEMPT_NEED_RESCHED) != preempt_offset)
+		return false;
+
+	if (current_thread_info()->preempt_lazy_count)
+		return false;
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+#else
 	u64 pc = READ_ONCE(current_thread_info()->preempt_count);
 	return pc == preempt_offset;
+#endif
 }
 
 #ifdef CONFIG_PREEMPTION

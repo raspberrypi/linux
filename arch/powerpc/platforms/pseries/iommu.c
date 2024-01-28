@@ -24,6 +24,7 @@
 #include <linux/of.h>
 #include <linux/iommu.h>
 #include <linux/rculist.h>
+#include <linux/local_lock.h>
 #include <asm/io.h>
 #include <asm/prom.h>
 #include <asm/rtas.h>
@@ -200,7 +201,13 @@ static int tce_build_pSeriesLP(unsigned long liobn, long tcenum, long tceshift,
 	return ret;
 }
 
-static DEFINE_PER_CPU(__be64 *, tce_page);
+struct tce_page {
+	__be64 * page;
+	local_lock_t lock;
+};
+static DEFINE_PER_CPU(struct tce_page, tce_page) = {
+	.lock = INIT_LOCAL_LOCK(lock),
+};
 
 static int tce_buildmulti_pSeriesLP(struct iommu_table *tbl, long tcenum,
 				     long npages, unsigned long uaddr,
@@ -223,9 +230,10 @@ static int tce_buildmulti_pSeriesLP(struct iommu_table *tbl, long tcenum,
 		                           direction, attrs);
 	}
 
-	local_irq_save(flags);	/* to protect tcep and the page behind it */
+	/* to protect tcep and the page behind it */
+	local_lock_irqsave(&tce_page.lock, flags);
 
-	tcep = __this_cpu_read(tce_page);
+	tcep = __this_cpu_read(tce_page.page);
 
 	/* This is safe to do since interrupts are off when we're called
 	 * from iommu_alloc{,_sg}()
@@ -234,12 +242,12 @@ static int tce_buildmulti_pSeriesLP(struct iommu_table *tbl, long tcenum,
 		tcep = (__be64 *)__get_free_page(GFP_ATOMIC);
 		/* If allocation fails, fall back to the loop implementation */
 		if (!tcep) {
-			local_irq_restore(flags);
+			local_unlock_irqrestore(&tce_page.lock, flags);
 			return tce_build_pSeriesLP(tbl->it_index, tcenum,
 					tceshift,
 					npages, uaddr, direction, attrs);
 		}
-		__this_cpu_write(tce_page, tcep);
+		__this_cpu_write(tce_page.page, tcep);
 	}
 
 	rpn = __pa(uaddr) >> tceshift;
@@ -269,7 +277,7 @@ static int tce_buildmulti_pSeriesLP(struct iommu_table *tbl, long tcenum,
 		tcenum += limit;
 	} while (npages > 0 && !rc);
 
-	local_irq_restore(flags);
+	local_unlock_irqrestore(&tce_page.lock, flags);
 
 	if (unlikely(rc == H_NOT_ENOUGH_RESOURCES)) {
 		ret = (int)rc;
@@ -454,16 +462,17 @@ static int tce_setrange_multi_pSeriesLP(unsigned long start_pfn,
 				DMA_BIDIRECTIONAL, 0);
 	}
 
-	local_irq_disable();	/* to protect tcep and the page behind it */
-	tcep = __this_cpu_read(tce_page);
+	/* to protect tcep and the page behind it */
+	local_lock_irq(&tce_page.lock);
+	tcep = __this_cpu_read(tce_page.page);
 
 	if (!tcep) {
 		tcep = (__be64 *)__get_free_page(GFP_ATOMIC);
 		if (!tcep) {
-			local_irq_enable();
+			local_unlock_irq(&tce_page.lock);
 			return -ENOMEM;
 		}
-		__this_cpu_write(tce_page, tcep);
+		__this_cpu_write(tce_page.page, tcep);
 	}
 
 	proto_tce = TCE_PCI_READ | TCE_PCI_WRITE;
@@ -506,7 +515,7 @@ static int tce_setrange_multi_pSeriesLP(unsigned long start_pfn,
 
 	/* error cleanup: caller will clear whole range */
 
-	local_irq_enable();
+	local_unlock_irq(&tce_page.lock);
 	return rc;
 }
 

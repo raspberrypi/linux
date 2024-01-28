@@ -2630,11 +2630,19 @@ unsigned int tracing_gen_ctx_irq_test(unsigned int irqs_status)
 	if (softirq_count() >> (SOFTIRQ_SHIFT + 1))
 		trace_flags |= TRACE_FLAG_BH_OFF;
 
-	if (tif_need_resched())
+	if (tif_need_resched_now())
 		trace_flags |= TRACE_FLAG_NEED_RESCHED;
+#ifdef CONFIG_PREEMPT_LAZY
+	/* Run out of bits. Share the LAZY and PREEMPT_RESCHED */
+	if (need_resched_lazy())
+		trace_flags |= TRACE_FLAG_NEED_RESCHED_LAZY;
+#else
 	if (test_preempt_need_resched())
 		trace_flags |= TRACE_FLAG_PREEMPT_RESCHED;
-	return (trace_flags << 16) | (min_t(unsigned int, pc & 0xff, 0xf)) |
+#endif
+
+	return (trace_flags << 24) | (min_t(unsigned int, pc & 0xff, 0xf)) |
+		(preempt_lazy_count() & 0xff) << 16 |
 		(min_t(unsigned int, migration_disable_value(), 0xf)) << 4;
 }
 
@@ -4226,15 +4234,17 @@ unsigned long trace_total_entries(struct trace_array *tr)
 
 static void print_lat_help_header(struct seq_file *m)
 {
-	seq_puts(m, "#                    _------=> CPU#            \n"
-		    "#                   / _-----=> irqs-off/BH-disabled\n"
-		    "#                  | / _----=> need-resched    \n"
-		    "#                  || / _---=> hardirq/softirq \n"
-		    "#                  ||| / _--=> preempt-depth   \n"
-		    "#                  |||| / _-=> migrate-disable \n"
-		    "#                  ||||| /     delay           \n"
-		    "#  cmd     pid     |||||| time  |   caller     \n"
-		    "#     \\   /        ||||||  \\    |    /       \n");
+	seq_puts(m, "#                    _--------=> CPU#            \n"
+		    "#                   / _-------=> irqs-off/BH-disabled\n"
+		    "#                  | / _------=> need-resched    \n"
+		    "#                  || / _-----=> need-resched-lazy\n"
+		    "#                  ||| / _----=> hardirq/softirq \n"
+		    "#                  |||| / _---=> preempt-depth   \n"
+		    "#                  ||||| / _--=> preempt-lazy-depth\n"
+		    "#                  |||||| / _-=> migrate-disable \n"
+		    "#                  ||||||| /     delay           \n"
+		    "#  cmd     pid     |||||||| time  |   caller     \n"
+		    "#     \\   /        ||||||||  \\    |    /       \n");
 }
 
 static void print_event_info(struct array_buffer *buf, struct seq_file *m)
@@ -4268,14 +4278,16 @@ static void print_func_help_header_irq(struct array_buffer *buf, struct seq_file
 
 	print_event_info(buf, m);
 
-	seq_printf(m, "#                            %.*s  _-----=> irqs-off/BH-disabled\n", prec, space);
-	seq_printf(m, "#                            %.*s / _----=> need-resched\n", prec, space);
-	seq_printf(m, "#                            %.*s| / _---=> hardirq/softirq\n", prec, space);
-	seq_printf(m, "#                            %.*s|| / _--=> preempt-depth\n", prec, space);
-	seq_printf(m, "#                            %.*s||| / _-=> migrate-disable\n", prec, space);
-	seq_printf(m, "#                            %.*s|||| /     delay\n", prec, space);
-	seq_printf(m, "#           TASK-PID  %.*s CPU#  |||||  TIMESTAMP  FUNCTION\n", prec, "     TGID   ");
-	seq_printf(m, "#              | |    %.*s   |   |||||     |         |\n", prec, "       |    ");
+	seq_printf(m, "#                            %.*s  _-------=> irqs-off/BH-disabled\n", prec, space);
+	seq_printf(m, "#                            %.*s / _------=> need-resched\n", prec, space);
+	seq_printf(m, "#                            %.*s| / _-----=> need-resched-lazy\n", prec, space);
+	seq_printf(m, "#                            %.*s|| / _----=> hardirq/softirq\n", prec, space);
+	seq_printf(m, "#                            %.*s||| / _---=> preempt-depth\n", prec, space);
+	seq_printf(m, "#                            %.*s|||| / _--=> preempt-lazy-depth\n", prec, space);
+	seq_printf(m, "#                            %.*s||||| / _-=> migrate-disable\n", prec, space);
+	seq_printf(m, "#                            %.*s|||||| /     delay\n", prec, space);
+	seq_printf(m, "#           TASK-PID  %.*s CPU#  |||||||  TIMESTAMP  FUNCTION\n", prec, "     TGID   ");
+	seq_printf(m, "#              | |    %.*s   |   |||||||      |         |\n", prec, "       |    ");
 }
 
 void

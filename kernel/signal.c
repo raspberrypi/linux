@@ -2302,13 +2302,13 @@ static int ptrace_stop(int exit_code, int why, unsigned long message,
 	/*
 	 * Don't want to allow preemption here, because
 	 * sys_ptrace() needs this task to be inactive.
-	 *
-	 * XXX: implement read_unlock_no_resched().
 	 */
-	preempt_disable();
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
+		preempt_disable();
 	read_unlock(&tasklist_lock);
 	cgroup_enter_frozen();
-	preempt_enable_no_resched();
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
+		preempt_enable_no_resched();
 	schedule();
 	cgroup_leave_frozen(true);
 

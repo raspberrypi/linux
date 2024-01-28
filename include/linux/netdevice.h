@@ -3169,7 +3169,11 @@ struct softnet_data {
 	int			defer_count;
 	int			defer_ipi_scheduled;
 	struct sk_buff		*defer_list;
+#ifndef CONFIG_PREEMPT_RT
 	call_single_data_t	defer_csd;
+#else
+	struct work_struct	defer_work;
+#endif
 };
 
 static inline void input_queue_head_incr(struct softnet_data *sd)
