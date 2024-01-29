@@ -132,18 +132,9 @@ static int mscc_twi_set_sda_hold_time(struct dw_i2c_dev *dev)
 	return 0;
 }
 
-static void dw_i2c_read_of_cnt(struct device_node *np, const char *name, u16 *pval)
-{
-	u32 val;
-
-	if (!of_property_read_u32(np, name, &val))
-		*pval = (u16)val;
-}
-
 static int dw_i2c_of_configure(struct platform_device *pdev)
 {
 	struct dw_i2c_dev *dev = platform_get_drvdata(pdev);
-	struct device_node *np = pdev->dev.of_node;
 
 	switch (dev->flags & MODEL_MASK) {
 	case MODEL_MSCC_OCELOT:
@@ -154,15 +145,6 @@ static int dw_i2c_of_configure(struct platform_device *pdev)
 	default:
 		break;
 	}
-
-	dw_i2c_read_of_cnt(np, "snps,ss_hcnt", &dev->ss_hcnt);
-	dw_i2c_read_of_cnt(np, "snps,ss_lcnt", &dev->ss_lcnt);
-	dw_i2c_read_of_cnt(np, "snps,fs_hcnt", &dev->fs_hcnt);
-	dw_i2c_read_of_cnt(np, "snps,fs_lcnt", &dev->fs_lcnt);
-	dw_i2c_read_of_cnt(np, "snps,fp_hcnt", &dev->fp_hcnt);
-	dw_i2c_read_of_cnt(np, "snps,fp_lcnt", &dev->fp_lcnt);
-	dw_i2c_read_of_cnt(np, "snps,hs_hcnt", &dev->hs_hcnt);
-	dw_i2c_read_of_cnt(np, "snps,hs_lcnt", &dev->hs_lcnt);
 
 	return 0;
 }
