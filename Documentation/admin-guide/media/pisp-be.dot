@@ -1,0 +1,22 @@
+digraph board {
+	rankdir=TB
+	n00000001 [label="{{<port0> 0 | <port1> 1 | <port2> 2 | <port8> 8} | pispbe\n | {<port3> 3 | <port4> 4 | <port5> 5 | <port6> 6 | <port7> 7}}", shape=Mrecord, style=filled, fillcolor=green]
+	n00000001:port3 -> n0000001d [style=bold]
+	n00000001:port4 -> n00000023 [style=bold]
+	n00000001:port5 -> n00000029 [style=bold]
+	n00000001:port6 -> n0000002f [style=bold]
+	n00000001:port7 -> n00000035 [style=bold]
+	n0000000b [label="pispbe-input\n/dev/video0", shape=box, style=filled, fillcolor=yellow]
+	n0000000b -> n00000001:port0 [style=bold]
+	n00000011 [label="pispbe-tdn_input\n/dev/video1", shape=box, style=filled, fillcolor=yellow]
+	n00000011 -> n00000001:port1 [style=bold]
+	n00000017 [label="pispbe-stitch_input\n/dev/video2", shape=box, style=filled, fillcolor=yellow]
+	n00000017 -> n00000001:port2 [style=bold]
+	n0000001d [label="pispbe-hog_output\n/dev/video3", shape=box, style=filled, fillcolor=yellow]
+	n00000023 [label="pispbe-output0\n/dev/video4", shape=box, style=filled, fillcolor=yellow]
+	n00000029 [label="pispbe-output1\n/dev/video5", shape=box, style=filled, fillcolor=yellow]
+	n0000002f [label="pispbe-tdn_output\n/dev/video6", shape=box, style=filled, fillcolor=yellow]
+	n00000035 [label="pispbe-stitch_output\n/dev/video7", shape=box, style=filled, fillcolor=yellow]
+	n0000003b [label="pispbe-config\n/dev/video8", shape=box, style=filled, fillcolor=yellow]
+	n0000003b -> n00000001:port8 [style=bold]
+}
