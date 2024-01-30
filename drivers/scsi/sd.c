@@ -3725,7 +3725,7 @@ static int sd_probe(struct device *dev)
 	blk_pm_runtime_init(sdp->request_queue, dev);
 	if (sdp->rpm_autosuspend) {
 		pm_runtime_set_autosuspend_delay(dev,
-			sdp->host->hostt->rpm_autosuspend_delay);
+			sdp->host->rpm_autosuspend_delay);
 	}
 
 	error = device_add_disk(dev, gd, NULL);
