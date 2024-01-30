@@ -468,7 +468,7 @@ static void pispbe_xlate_addrs(dma_addr_t addrs[N_HW_ADDRESSES],
  * Returns 0 if a job has been successfully prepared, < 0 otherwise.
  */
 static int pispbe_prepare_job(struct pispbe_node_group *node_group,
-			       struct pispbe_job_descriptor *job)
+			      struct pispbe_job_descriptor *job)
 {
 	struct pispbe_dev *pispbe = node_group->pispbe;
 	struct pispbe_buffer *buf[PISPBE_NUM_NODES];
@@ -800,7 +800,6 @@ static int pispbe_node_queue_setup(struct vb2_queue *q, unsigned int *nbuffers,
 
 	*nplanes = 1;
 	if (NODE_IS_MPLANE(node)) {
-
 		*nplanes = node->format.fmt.pix_mp.num_planes;
 		for (unsigned int i = 0; i < *nplanes; i++) {
 			unsigned int size =
@@ -1123,7 +1122,7 @@ static const struct pisp_be_format *pispbe_find_fmt(unsigned int fourcc)
 }
 
 static void pispbe_set_plane_params(struct v4l2_format *f,
-			     const struct pisp_be_format *fmt)
+				    const struct pisp_be_format *fmt)
 {
 	unsigned int nplanes = f->fmt.pix_mp.num_planes;
 	unsigned int total_plane_factor = 0;
@@ -1970,4 +1969,4 @@ module_platform_driver(pispbe_pdrv);
 MODULE_DESCRIPTION("PiSP Back End driver");
 MODULE_AUTHOR("David Plowman <david.plowman@raspberrypi.com>");
 MODULE_AUTHOR("Nick Hollinghurst <nick.hollinghurst@raspberrypi.com>");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
