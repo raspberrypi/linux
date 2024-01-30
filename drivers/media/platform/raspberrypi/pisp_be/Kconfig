@@ -1,5 +1,6 @@
 config VIDEO_RASPBERRYPI_PISP_BE
 	tristate "Raspberry Pi PiSP Backend (BE) ISP driver"
+	depends on V4L_PLATFORM_DRIVERS
 	depends on VIDEO_DEV && PM
 	select VIDEO_V4L2_SUBDEV_API
 	select MEDIA_CONTROLLER
