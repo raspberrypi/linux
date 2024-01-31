@@ -152,7 +152,6 @@ static int rp1_pwm_probe(struct platform_device *pdev)
 
 	pc->chip.dev = &pdev->dev;
 	pc->chip.ops = &rp1_pwm_ops;
-	pc->chip.base = -1;
 	pc->chip.npwm = 4;
 	pc->chip.of_xlate = of_pwm_xlate_with_flags;
 	pc->chip.of_pwm_n_cells = 3;
