@@ -107,6 +107,12 @@ struct v3d_dev {
 	void __iomem *bridge_regs;
 	void __iomem *gca_regs;
 	struct clk *clk;
+	struct delayed_work clk_down_work;
+	unsigned long clk_up_rate, clk_down_rate;
+	struct mutex clk_lock;
+	u32 clk_refcount;
+	bool clk_up;
+
 	struct reset_control *reset;
 
 	/* Virtual and DMA addresses of the single shared page table. */
@@ -579,3 +585,4 @@ int v3d_perfmon_get_values_ioctl(struct drm_device *dev, void *data,
 /* v3d_sysfs.c */
 int v3d_sysfs_init(struct device *dev);
 void v3d_sysfs_destroy(struct device *dev);
+void v3d_submit_init(struct drm_device *dev);
