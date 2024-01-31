@@ -5,10 +5,51 @@
  */
 
 #include <drm/drm_syncobj.h>
+#include <linux/clk.h>
 
 #include "v3d_drv.h"
 #include "v3d_regs.h"
 #include "v3d_trace.h"
+
+static void
+v3d_clock_down_work(struct work_struct *work)
+{
+	struct v3d_dev *v3d =
+		container_of(work, struct v3d_dev, clk_down_work.work);
+	int ret;
+
+	ret = clk_set_min_rate(v3d->clk, v3d->clk_down_rate);
+	v3d->clk_up = false;
+	WARN_ON_ONCE(ret != 0);
+}
+
+static void
+v3d_clock_up_get(struct v3d_dev *v3d)
+{
+	mutex_lock(&v3d->clk_lock);
+	if (v3d->clk_refcount++ == 0) {
+		cancel_delayed_work_sync(&v3d->clk_down_work);
+		if (!v3d->clk_up)  {
+			int ret;
+
+			ret = clk_set_min_rate(v3d->clk, v3d->clk_up_rate);
+			WARN_ON_ONCE(ret != 0);
+			v3d->clk_up = true;
+		}
+	}
+	mutex_unlock(&v3d->clk_lock);
+}
+
+static void
+v3d_clock_up_put(struct v3d_dev *v3d)
+{
+	mutex_lock(&v3d->clk_lock);
+	if (--v3d->clk_refcount == 0) {
+		schedule_delayed_work(&v3d->clk_down_work,
+			msecs_to_jiffies(100));
+	}
+	mutex_unlock(&v3d->clk_lock);
+}
 
 /* Takes the reservation lock on all the BOs being referenced, so that
  * we can attach fences and update the reservations after pushing the job
@@ -85,9 +126,10 @@ v3d_lookup_bos(struct drm_device *dev,
 }
 
 static void
-v3d_job_free(struct kref *ref)
+v3d_job_free_common(struct v3d_job *job,
+		    bool is_gpu_job)
 {
-	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+	struct v3d_dev *v3d = job->v3d;
 	int i;
 
 	if (job->bo) {
@@ -99,10 +141,29 @@ v3d_job_free(struct kref *ref)
 	dma_fence_put(job->irq_fence);
 	dma_fence_put(job->done_fence);
 
+	if (is_gpu_job)
+		v3d_clock_up_put(v3d);
+
 	if (job->perfmon)
 		v3d_perfmon_put(job->perfmon);
 
 	kfree(job);
+}
+
+static void
+v3d_job_free(struct kref *ref)
+{
+	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+
+	v3d_job_free_common(job, true);
+}
+
+static void
+v3d_cpu_job_free(struct kref *ref)
+{
+	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+
+	v3d_job_free_common(job, false);
 }
 
 static void
@@ -199,6 +260,8 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 		if (ret && ret != -ENOENT)
 			goto fail_deps;
 	}
+	if (queue != V3D_CPU)
+		v3d_clock_up_get(v3d);
 
 	kref_init(&job->refcount);
 
@@ -1316,7 +1379,7 @@ v3d_submit_cpu_ioctl(struct drm_device *dev, void *data,
 	trace_v3d_submit_cpu_ioctl(&v3d->drm, cpu_job->job_type);
 
 	ret = v3d_job_init(v3d, file_priv, &cpu_job->base,
-			   v3d_job_free, 0, &se, V3D_CPU);
+			   v3d_cpu_job_free, 0, &se, V3D_CPU);
 	if (ret) {
 		v3d_job_deallocate((void *)&cpu_job);
 		goto fail;
@@ -1403,4 +1466,15 @@ fail:
 	kvfree(cpu_job->performance_query.queries);
 
 	return ret;
+}
+
+void v3d_submit_init(struct drm_device *dev) {
+	struct v3d_dev *v3d = to_v3d_dev(dev);
+
+	mutex_init(&v3d->clk_lock);
+	INIT_DELAYED_WORK(&v3d->clk_down_work, v3d_clock_down_work);
+
+	/* kick the clock so firmware knows we are using firmware clock interface */
+	v3d_clock_up_get(v3d);
+	v3d_clock_up_put(v3d);
 }
