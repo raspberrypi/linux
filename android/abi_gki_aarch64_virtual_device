@@ -450,6 +450,7 @@
   virtio_device_freeze
   virtio_device_restore
   virtio_reset_device
+  virtio_transport_notify_set_rcvlowat
   virtqueue_add_inbuf
   virtqueue_add_outbuf
   virtqueue_add_sgs
