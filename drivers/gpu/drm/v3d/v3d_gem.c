@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
+#include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
@@ -267,6 +268,8 @@ v3d_gem_init(struct drm_device *dev)
 	ret = drmm_mutex_init(dev, &v3d->cache_clean_lock);
 	if (ret)
 		return ret;
+
+	v3d_submit_init(dev);
 
 	/* Note: We don't allocate address 0.  Various bits of HW
 	 * treat 0 as special, such as the occlusion query counters
