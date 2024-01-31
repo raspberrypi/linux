@@ -294,7 +294,6 @@ unsigned long thp_get_unmapped_area(struct file *filp, unsigned long addr,
 		unsigned long len, unsigned long pgoff, unsigned long flags);
 
 void folio_prep_large_rmappable(struct folio *folio);
-bool can_split_folio(struct folio *folio, int *pextra_pins);
 int split_huge_page_to_list(struct page *page, struct list_head *list);
 static inline int split_huge_page(struct page *page)
 {
@@ -446,11 +445,6 @@ static inline void folio_prep_large_rmappable(struct folio *folio) {}
 
 #define thp_get_unmapped_area	NULL
 
-static inline bool
-can_split_folio(struct folio *folio, int *pextra_pins)
-{
-	return false;
-}
 static inline int
 split_huge_page_to_list(struct page *page, struct list_head *list)
 {

@@ -276,7 +276,9 @@ IF_HAVE_VM_SOFTDIRTY(VM_SOFTDIRTY,	"softdirty"	)		\
 	IFDEF_ZONE_DMA32(	EM (ZONE_DMA32,	 "DMA32"))	\
 				EM (ZONE_NORMAL, "Normal")	\
 	IFDEF_ZONE_HIGHMEM(	EM (ZONE_HIGHMEM,"HighMem"))	\
-				EMe(ZONE_MOVABLE,"Movable")
+				EM (ZONE_MOVABLE,"Movable")	\
+				EM (ZONE_NOSPLIT,"NoSplit")	\
+				EMe(ZONE_NOMERGE,"NoMerge")
 
 #define LRU_NAMES		\
 		EM (LRU_INACTIVE_ANON, "inactive_anon") \

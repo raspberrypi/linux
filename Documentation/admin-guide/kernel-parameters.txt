@@ -3500,6 +3500,16 @@
 			allocations which rules out almost all kernel
 			allocations. Use with caution!
 
+	nosplit=X,Y	[MM] Set the minimum order of the nosplit zone. Pages in
+			this zone can't be split down below order Y, while free
+			or in use.
+			Like movablecore, X should be either nn[KMGTPE] or n%.
+
+	nomerge=X,Y	[MM] Set the exact orders of the nomerge zone. Pages in
+			this zone are always order Y, meaning they can't be
+			split or merged while free or in use.
+			Like movablecore, X should be either nn[KMGTPE] or n%.
+
 	MTD_Partition=	[MTD]
 			Format: <name>,<region-number>,<size>,<offset>
 

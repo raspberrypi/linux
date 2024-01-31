@@ -217,12 +217,18 @@ postcore_initcall(mm_sysfs_init);
 
 static unsigned long arch_zone_lowest_possible_pfn[MAX_NR_ZONES] __initdata;
 static unsigned long arch_zone_highest_possible_pfn[MAX_NR_ZONES] __initdata;
-static unsigned long zone_movable_pfn[MAX_NUMNODES] __initdata;
 
-static unsigned long required_kernelcore __initdata;
-static unsigned long required_kernelcore_percent __initdata;
-static unsigned long required_movablecore __initdata;
-static unsigned long required_movablecore_percent __initdata;
+static unsigned long virt_zones[LAST_VIRT_ZONE - LAST_PHYS_ZONE][MAX_NUMNODES] __initdata;
+#define pfn_of(zid, nid) (virt_zones[(zid) - LAST_PHYS_ZONE - 1][nid])
+
+static unsigned long zone_nr_pages[LAST_VIRT_ZONE - LAST_PHYS_ZONE + 1] __initdata;
+#define nr_pages_of(zid) (zone_nr_pages[(zid) - LAST_PHYS_ZONE])
+
+static unsigned long zone_percentage[LAST_VIRT_ZONE - LAST_PHYS_ZONE + 1] __initdata;
+#define percentage_of(zid) (zone_percentage[(zid) - LAST_PHYS_ZONE])
+
+int zone_nosplit_order __read_mostly;
+int zone_nomerge_order __read_mostly;
 
 static unsigned long nr_kernel_pages __initdata;
 static unsigned long nr_all_pages __initdata;
@@ -273,10 +279,12 @@ static int __init cmdline_parse_kernelcore(char *p)
 		return 0;
 	}
 
-	return cmdline_parse_core(p, &required_kernelcore,
-				  &required_kernelcore_percent);
+	return cmdline_parse_core(p, &nr_pages_of(LAST_PHYS_ZONE),
+				  &percentage_of(LAST_PHYS_ZONE));
 }
 early_param("kernelcore", cmdline_parse_kernelcore);
+
+DEFINE_STATIC_KEY_FALSE(movablecore_enabled);
 
 /*
  * movablecore=size sets the amount of memory for use for allocations that
@@ -284,14 +292,58 @@ early_param("kernelcore", cmdline_parse_kernelcore);
  */
 static int __init cmdline_parse_movablecore(char *p)
 {
-	return cmdline_parse_core(p, &required_movablecore,
-				  &required_movablecore_percent);
+	static_branch_enable(&movablecore_enabled);
+
+	return cmdline_parse_core(p, &nr_pages_of(ZONE_MOVABLE),
+				  &percentage_of(ZONE_MOVABLE));
 }
 early_param("movablecore", cmdline_parse_movablecore);
 
+static int __init parse_zone_order(char *p, unsigned long *nr_pages,
+				   unsigned long *percent, int *order)
+{
+	int err;
+	unsigned long n;
+	char *s = strchr(p, ',');
+
+	if (!s)
+		return -EINVAL;
+
+	*s++ = '\0';
+
+	err = kstrtoul(s, 0, &n);
+	if (err)
+		return err;
+
+	if (n < 2 || n > MAX_ORDER)
+		return -EINVAL;
+
+	err = cmdline_parse_core(p, nr_pages, percent);
+	if (err)
+		return err;
+
+	*order = n;
+
+	return 0;
+}
+
+static int __init parse_zone_nosplit(char *p)
+{
+	return parse_zone_order(p, &nr_pages_of(ZONE_NOSPLIT),
+				&percentage_of(ZONE_NOSPLIT), &zone_nosplit_order);
+}
+early_param("nosplit", parse_zone_nosplit);
+
+static int __init parse_zone_nomerge(char *p)
+{
+	return parse_zone_order(p, &nr_pages_of(ZONE_NOMERGE),
+				&percentage_of(ZONE_NOMERGE), &zone_nomerge_order);
+}
+early_param("nomerge", parse_zone_nomerge);
+
 /*
  * early_calculate_totalpages()
- * Sum pages in active regions for movable zone.
+ * Sum pages in active regions for virtual zones.
  * Populate N_MEMORY for calculating usable_nodes.
  */
 static unsigned long __init early_calculate_totalpages(void)
@@ -311,24 +363,110 @@ static unsigned long __init early_calculate_totalpages(void)
 }
 
 /*
- * This finds a zone that can be used for ZONE_MOVABLE pages. The
+ * This finds a physical zone that can be used for virtual zones. The
  * assumption is made that zones within a node are ordered in monotonic
  * increasing memory addresses so that the "highest" populated zone is used
  */
-static void __init find_usable_zone_for_movable(void)
+static void __init find_usable_zone(void)
 {
 	int zone_index;
-	for (zone_index = MAX_NR_ZONES - 1; zone_index >= 0; zone_index--) {
-		if (zone_index == ZONE_MOVABLE)
-			continue;
-
+	for (zone_index = LAST_PHYS_ZONE; zone_index >= 0; zone_index--) {
 		if (arch_zone_highest_possible_pfn[zone_index] >
 				arch_zone_lowest_possible_pfn[zone_index])
 			break;
 	}
 
 	VM_BUG_ON(zone_index == -1);
-	movable_zone = zone_index;
+	virt_zone = zone_index;
+}
+
+static void __init find_virt_zone(unsigned long occupied, unsigned long *zone_pfn)
+{
+	int i, nid;
+	unsigned long node_avg, remaining;
+	int usable_nodes = nodes_weight(node_states[N_MEMORY]);
+	/* usable_startpfn is the lowest possible pfn virtual zones can be at */
+	unsigned long usable_startpfn = arch_zone_lowest_possible_pfn[virt_zone];
+
+restart:
+	/* Carve out memory as evenly as possible throughout nodes */
+	node_avg = occupied / usable_nodes;
+	for_each_node_state(nid, N_MEMORY) {
+		unsigned long start_pfn, end_pfn;
+
+		/*
+		 * Recalculate node_avg if the division per node now exceeds
+		 * what is necessary to satisfy the amount of memory to carve
+		 * out.
+		 */
+		if (occupied < node_avg)
+			node_avg = occupied / usable_nodes;
+
+		/*
+		 * As the map is walked, we track how much memory is usable
+		 * using remaining. When it is 0, the rest of the node is
+		 * usable.
+		 */
+		remaining = node_avg;
+
+		/* Go through each range of PFNs within this node */
+		for_each_mem_pfn_range(i, nid, &start_pfn, &end_pfn, NULL) {
+			unsigned long size_pages;
+
+			start_pfn = max(start_pfn, zone_pfn[nid]);
+			if (start_pfn >= end_pfn)
+				continue;
+
+			/* Account for what is only usable when carving out */
+			if (start_pfn < usable_startpfn) {
+				unsigned long nr_pages = min(end_pfn, usable_startpfn) - start_pfn;
+
+				remaining -= min(nr_pages, remaining);
+				occupied -= min(nr_pages, occupied);
+
+				/* Continue if range is now fully accounted */
+				if (end_pfn <= usable_startpfn) {
+
+					/*
+					 * Push zone_pfn to the end so that if
+					 * we have to carve out more across
+					 * nodes, we will not double account
+					 * here.
+					 */
+					zone_pfn[nid] = end_pfn;
+					continue;
+				}
+				start_pfn = usable_startpfn;
+			}
+
+			/*
+			 * The usable PFN range is from start_pfn->end_pfn.
+			 * Calculate size_pages as the number of pages used.
+			 */
+			size_pages = end_pfn - start_pfn;
+			if (size_pages > remaining)
+				size_pages = remaining;
+			zone_pfn[nid] = start_pfn + size_pages;
+
+			/*
+			 * Some memory was carved out, update counts and break
+			 * if the request for this node has been satisfied.
+			 */
+			occupied -= min(occupied, size_pages);
+			remaining -= size_pages;
+			if (!remaining)
+				break;
+		}
+	}
+
+	/*
+	 * If there is still more to carve out, we do another pass with one less
+	 * node in the count. This will push zone_pfn[nid] further along on the
+	 * nodes that still have memory until the request is fully satisfied.
+	 */
+	usable_nodes--;
+	if (usable_nodes && occupied > usable_nodes)
+		goto restart;
 }
 
 /*
@@ -337,19 +475,19 @@ static void __init find_usable_zone_for_movable(void)
  * memory. When they don't, some nodes will have more kernelcore than
  * others
  */
-static void __init find_zone_movable_pfns_for_nodes(void)
+static void __init find_virt_zones(void)
 {
-	int i, nid;
+	int i;
+	int nid;
 	unsigned long usable_startpfn;
-	unsigned long kernelcore_node, kernelcore_remaining;
 	/* save the state before borrow the nodemask */
 	nodemask_t saved_node_state = node_states[N_MEMORY];
 	unsigned long totalpages = early_calculate_totalpages();
-	int usable_nodes = nodes_weight(node_states[N_MEMORY]);
 	struct memblock_region *r;
+	unsigned long occupied = 0;
 
-	/* Need to find movable_zone earlier when movable_node is specified. */
-	find_usable_zone_for_movable();
+	/* Need to find virt_zone earlier when movable_node is specified. */
+	find_usable_zone();
 
 	/*
 	 * If movable_node is specified, ignore kernelcore and movablecore
@@ -363,8 +501,8 @@ static void __init find_zone_movable_pfns_for_nodes(void)
 			nid = memblock_get_region_node(r);
 
 			usable_startpfn = PFN_DOWN(r->base);
-			zone_movable_pfn[nid] = zone_movable_pfn[nid] ?
-				min(usable_startpfn, zone_movable_pfn[nid]) :
+			pfn_of(ZONE_MOVABLE, nid) = pfn_of(ZONE_MOVABLE, nid) ?
+				min(usable_startpfn, pfn_of(ZONE_MOVABLE, nid)) :
 				usable_startpfn;
 		}
 
@@ -400,8 +538,8 @@ static void __init find_zone_movable_pfns_for_nodes(void)
 				continue;
 			}
 
-			zone_movable_pfn[nid] = zone_movable_pfn[nid] ?
-				min(usable_startpfn, zone_movable_pfn[nid]) :
+			pfn_of(ZONE_MOVABLE, nid) = pfn_of(ZONE_MOVABLE, nid) ?
+				min(usable_startpfn, pfn_of(ZONE_MOVABLE, nid)) :
 				usable_startpfn;
 		}
 
@@ -411,151 +549,92 @@ static void __init find_zone_movable_pfns_for_nodes(void)
 		goto out2;
 	}
 
+	if (zone_nomerge_order > pageblock_order) {
+		nr_pages_of(ZONE_NOMERGE) = 0;
+		percentage_of(ZONE_NOMERGE) = 0;
+		zone_nomerge_order = 0;
+		pr_warn("zone %s order %d cannot be higher than pageblock order %d\n",
+			zone_names[ZONE_NOMERGE], zone_nomerge_order, pageblock_order);
+	}
+
+	if (zone_nosplit_order > pageblock_order) {
+		nr_pages_of(ZONE_NOSPLIT) = 0;
+		percentage_of(ZONE_NOSPLIT) = 0;
+		zone_nosplit_order = 0;
+		pr_warn("zone %s order %d cannot be higher than pageblock order %d\n",
+			zone_names[ZONE_NOSPLIT], zone_nosplit_order, pageblock_order);
+	}
+
+	if (zone_nomerge_order && zone_nomerge_order <= zone_nosplit_order) {
+		nr_pages_of(ZONE_NOSPLIT) = nr_pages_of(ZONE_NOMERGE) = 0;
+		percentage_of(ZONE_NOSPLIT) = percentage_of(ZONE_NOMERGE) = 0;
+		zone_nosplit_order = zone_nomerge_order = 0;
+		pr_warn("zone %s order %d cannot be higher than zone %s order %d\n",
+			zone_names[ZONE_NOSPLIT], zone_nosplit_order,
+			zone_names[ZONE_NOMERGE], zone_nomerge_order);
+	}
+
 	/*
 	 * If kernelcore=nn% or movablecore=nn% was specified, calculate the
 	 * amount of necessary memory.
 	 */
-	if (required_kernelcore_percent)
-		required_kernelcore = (totalpages * 100 * required_kernelcore_percent) /
-				       10000UL;
-	if (required_movablecore_percent)
-		required_movablecore = (totalpages * 100 * required_movablecore_percent) /
-					10000UL;
+	for (i = LAST_PHYS_ZONE; i <= LAST_VIRT_ZONE; i++) {
+		if (percentage_of(i))
+			nr_pages_of(i) = totalpages * percentage_of(i) / 100;
+
+		nr_pages_of(i) = roundup(nr_pages_of(i), MAX_ORDER_NR_PAGES);
+		occupied += nr_pages_of(i);
+	}
 
 	/*
 	 * If movablecore= was specified, calculate what size of
 	 * kernelcore that corresponds so that memory usable for
 	 * any allocation type is evenly spread. If both kernelcore
 	 * and movablecore are specified, then the value of kernelcore
-	 * will be used for required_kernelcore if it's greater than
-	 * what movablecore would have allowed.
+	 * will be used if it's greater than what movablecore would have
+	 * allowed.
 	 */
-	if (required_movablecore) {
-		unsigned long corepages;
+	if (occupied < totalpages) {
+		enum zone_type zid;
 
-		/*
-		 * Round-up so that ZONE_MOVABLE is at least as large as what
-		 * was requested by the user
-		 */
-		required_movablecore =
-			roundup(required_movablecore, MAX_ORDER_NR_PAGES);
-		required_movablecore = min(totalpages, required_movablecore);
-		corepages = totalpages - required_movablecore;
-
-		required_kernelcore = max(required_kernelcore, corepages);
+		zid = !nr_pages_of(LAST_PHYS_ZONE) || nr_pages_of(ZONE_MOVABLE) ?
+		      LAST_PHYS_ZONE : ZONE_MOVABLE;
+		nr_pages_of(zid) += totalpages - occupied;
 	}
 
 	/*
 	 * If kernelcore was not specified or kernelcore size is larger
-	 * than totalpages, there is no ZONE_MOVABLE.
+	 * than totalpages, there are not virtual zones.
 	 */
-	if (!required_kernelcore || required_kernelcore >= totalpages)
+	occupied = nr_pages_of(LAST_PHYS_ZONE);
+	if (!occupied || occupied >= totalpages)
 		goto out;
 
-	/* usable_startpfn is the lowest possible pfn ZONE_MOVABLE can be at */
-	usable_startpfn = arch_zone_lowest_possible_pfn[movable_zone];
+	for (i = LAST_PHYS_ZONE + 1; i <= LAST_VIRT_ZONE; i++) {
+		if (!nr_pages_of(i))
+			continue;
 
-restart:
-	/* Spread kernelcore memory as evenly as possible throughout nodes */
-	kernelcore_node = required_kernelcore / usable_nodes;
-	for_each_node_state(nid, N_MEMORY) {
-		unsigned long start_pfn, end_pfn;
-
-		/*
-		 * Recalculate kernelcore_node if the division per node
-		 * now exceeds what is necessary to satisfy the requested
-		 * amount of memory for the kernel
-		 */
-		if (required_kernelcore < kernelcore_node)
-			kernelcore_node = required_kernelcore / usable_nodes;
-
-		/*
-		 * As the map is walked, we track how much memory is usable
-		 * by the kernel using kernelcore_remaining. When it is
-		 * 0, the rest of the node is usable by ZONE_MOVABLE
-		 */
-		kernelcore_remaining = kernelcore_node;
-
-		/* Go through each range of PFNs within this node */
-		for_each_mem_pfn_range(i, nid, &start_pfn, &end_pfn, NULL) {
-			unsigned long size_pages;
-
-			start_pfn = max(start_pfn, zone_movable_pfn[nid]);
-			if (start_pfn >= end_pfn)
-				continue;
-
-			/* Account for what is only usable for kernelcore */
-			if (start_pfn < usable_startpfn) {
-				unsigned long kernel_pages;
-				kernel_pages = min(end_pfn, usable_startpfn)
-								- start_pfn;
-
-				kernelcore_remaining -= min(kernel_pages,
-							kernelcore_remaining);
-				required_kernelcore -= min(kernel_pages,
-							required_kernelcore);
-
-				/* Continue if range is now fully accounted */
-				if (end_pfn <= usable_startpfn) {
-
-					/*
-					 * Push zone_movable_pfn to the end so
-					 * that if we have to rebalance
-					 * kernelcore across nodes, we will
-					 * not double account here
-					 */
-					zone_movable_pfn[nid] = end_pfn;
-					continue;
-				}
-				start_pfn = usable_startpfn;
-			}
-
-			/*
-			 * The usable PFN range for ZONE_MOVABLE is from
-			 * start_pfn->end_pfn. Calculate size_pages as the
-			 * number of pages used as kernelcore
-			 */
-			size_pages = end_pfn - start_pfn;
-			if (size_pages > kernelcore_remaining)
-				size_pages = kernelcore_remaining;
-			zone_movable_pfn[nid] = start_pfn + size_pages;
-
-			/*
-			 * Some kernelcore has been met, update counts and
-			 * break if the kernelcore for this node has been
-			 * satisfied
-			 */
-			required_kernelcore -= min(required_kernelcore,
-								size_pages);
-			kernelcore_remaining -= size_pages;
-			if (!kernelcore_remaining)
-				break;
-		}
+		find_virt_zone(occupied, &pfn_of(i, 0));
+		occupied += nr_pages_of(i);
 	}
-
-	/*
-	 * If there is still required_kernelcore, we do another pass with one
-	 * less node in the count. This will push zone_movable_pfn[nid] further
-	 * along on the nodes that still have memory until kernelcore is
-	 * satisfied
-	 */
-	usable_nodes--;
-	if (usable_nodes && required_kernelcore > usable_nodes)
-		goto restart;
-
 out2:
-	/* Align start of ZONE_MOVABLE on all nids to MAX_ORDER_NR_PAGES */
+	/* Align starts of virtual zones on all nids to MAX_ORDER_NR_PAGES */
 	for (nid = 0; nid < MAX_NUMNODES; nid++) {
 		unsigned long start_pfn, end_pfn;
-
-		zone_movable_pfn[nid] =
-			roundup(zone_movable_pfn[nid], MAX_ORDER_NR_PAGES);
+		unsigned long prev_virt_zone_pfn = 0;
 
 		get_pfn_range_for_nid(nid, &start_pfn, &end_pfn);
-		if (zone_movable_pfn[nid] >= end_pfn)
-			zone_movable_pfn[nid] = 0;
-	}
 
+		for (i = LAST_PHYS_ZONE + 1; i <= LAST_VIRT_ZONE; i++) {
+			pfn_of(i, nid) = roundup(pfn_of(i, nid), MAX_ORDER_NR_PAGES);
+
+			if (pfn_of(i, nid) <= prev_virt_zone_pfn || pfn_of(i, nid) >= end_pfn)
+				pfn_of(i, nid) = 0;
+
+			if (pfn_of(i, nid))
+				prev_virt_zone_pfn = pfn_of(i, nid);
+		}
+	}
 out:
 	/* restore the node_state */
 	node_states[N_MEMORY] = saved_node_state;
@@ -1104,38 +1183,54 @@ void __ref memmap_init_zone_device(struct zone *zone,
 #endif
 
 /*
- * The zone ranges provided by the architecture do not include ZONE_MOVABLE
- * because it is sized independent of architecture. Unlike the other zones,
- * the starting point for ZONE_MOVABLE is not fixed. It may be different
- * in each node depending on the size of each node and how evenly kernelcore
- * is distributed. This helper function adjusts the zone ranges
+ * The zone ranges provided by the architecture do not include virtual zones
+ * because they are sized independent of architecture. Unlike physical zones,
+ * the starting point for the first populated virtual zone is not fixed. It may
+ * be different in each node depending on the size of each node and how evenly
+ * kernelcore is distributed. This helper function adjusts the zone ranges
  * provided by the architecture for a given node by using the end of the
- * highest usable zone for ZONE_MOVABLE. This preserves the assumption that
- * zones within a node are in order of monotonic increases memory addresses
+ * highest usable zone for the first populated virtual zone. This preserves the
+ * assumption that zones within a node are in order of monotonic increases
+ * memory addresses.
  */
-static void __init adjust_zone_range_for_zone_movable(int nid,
+static void __init adjust_zone_range(int nid,
 					unsigned long zone_type,
 					unsigned long node_end_pfn,
 					unsigned long *zone_start_pfn,
 					unsigned long *zone_end_pfn)
 {
-	/* Only adjust if ZONE_MOVABLE is on this node */
-	if (zone_movable_pfn[nid]) {
-		/* Size ZONE_MOVABLE */
-		if (zone_type == ZONE_MOVABLE) {
-			*zone_start_pfn = zone_movable_pfn[nid];
-			*zone_end_pfn = min(node_end_pfn,
-				arch_zone_highest_possible_pfn[movable_zone]);
+	int i = max_t(int, zone_type, LAST_PHYS_ZONE);
+	unsigned long next_virt_zone_pfn = 0;
 
-		/* Adjust for ZONE_MOVABLE starting within this range */
-		} else if (!mirrored_kernelcore &&
-			*zone_start_pfn < zone_movable_pfn[nid] &&
-			*zone_end_pfn > zone_movable_pfn[nid]) {
-			*zone_end_pfn = zone_movable_pfn[nid];
+	while (i++ < LAST_VIRT_ZONE) {
+		if (pfn_of(i, nid)) {
+			next_virt_zone_pfn = pfn_of(i, nid);
+			break;
+		}
+	}
 
-		/* Check if this whole range is within ZONE_MOVABLE */
-		} else if (*zone_start_pfn >= zone_movable_pfn[nid])
+	if (zone_type <= LAST_PHYS_ZONE) {
+		if (!next_virt_zone_pfn)
+			return;
+
+		if (!mirrored_kernelcore &&
+		    *zone_start_pfn < next_virt_zone_pfn &&
+		    *zone_end_pfn > next_virt_zone_pfn)
+			*zone_end_pfn = next_virt_zone_pfn;
+		else if (*zone_start_pfn >= next_virt_zone_pfn)
 			*zone_start_pfn = *zone_end_pfn;
+	} else if (zone_type <= LAST_VIRT_ZONE) {
+		if (!pfn_of(zone_type, nid))
+			return;
+
+		if (next_virt_zone_pfn)
+			*zone_end_pfn = min3(next_virt_zone_pfn,
+					     node_end_pfn,
+					     arch_zone_highest_possible_pfn[virt_zone]);
+		else
+			*zone_end_pfn = min(node_end_pfn,
+					    arch_zone_highest_possible_pfn[virt_zone]);
+		*zone_start_pfn = min(*zone_end_pfn, pfn_of(zone_type, nid));
 	}
 }
 
@@ -1191,7 +1286,7 @@ static unsigned long __init zone_absent_pages_in_node(int nid,
 	 * Treat pages to be ZONE_MOVABLE in ZONE_NORMAL as absent pages
 	 * and vice versa.
 	 */
-	if (mirrored_kernelcore && zone_movable_pfn[nid]) {
+	if (mirrored_kernelcore && pfn_of(ZONE_MOVABLE, nid)) {
 		unsigned long start_pfn, end_pfn;
 		struct memblock_region *r;
 
@@ -1231,8 +1326,7 @@ static unsigned long __init zone_spanned_pages_in_node(int nid,
 	/* Get the start and end of the zone */
 	*zone_start_pfn = clamp(node_start_pfn, zone_low, zone_high);
 	*zone_end_pfn = clamp(node_end_pfn, zone_low, zone_high);
-	adjust_zone_range_for_zone_movable(nid, zone_type, node_end_pfn,
-					   zone_start_pfn, zone_end_pfn);
+	adjust_zone_range(nid, zone_type, node_end_pfn, zone_start_pfn, zone_end_pfn);
 
 	/* Check that this node has pages within the zone's required range */
 	if (*zone_end_pfn < node_start_pfn || *zone_start_pfn > node_end_pfn)
@@ -1297,6 +1391,10 @@ static void __init calculate_node_totalpages(struct pglist_data *pgdat,
 #if defined(CONFIG_MEMORY_HOTPLUG)
 		zone->present_early_pages = real_size;
 #endif
+		if (i == ZONE_NOSPLIT)
+			zone->order = zone_nosplit_order;
+		if (i == ZONE_NOMERGE)
+			zone->order = zone_nomerge_order;
 
 		totalpages += spanned;
 		realtotalpages += real_size;
@@ -1748,7 +1846,7 @@ static void __init check_for_memory(pg_data_t *pgdat)
 {
 	enum zone_type zone_type;
 
-	for (zone_type = 0; zone_type <= ZONE_MOVABLE - 1; zone_type++) {
+	for (zone_type = 0; zone_type <= LAST_PHYS_ZONE; zone_type++) {
 		struct zone *zone = &pgdat->node_zones[zone_type];
 		if (populated_zone(zone)) {
 			if (IS_ENABLED(CONFIG_HIGHMEM))
@@ -1798,7 +1896,7 @@ static bool arch_has_descending_max_zone_pfns(void)
 void __init free_area_init(unsigned long *max_zone_pfn)
 {
 	unsigned long start_pfn, end_pfn;
-	int i, nid, zone;
+	int i, j, nid, zone;
 	bool descending;
 
 	/* Record where the zone boundaries are */
@@ -1810,14 +1908,11 @@ void __init free_area_init(unsigned long *max_zone_pfn)
 	start_pfn = PHYS_PFN(memblock_start_of_DRAM());
 	descending = arch_has_descending_max_zone_pfns();
 
-	for (i = 0; i < MAX_NR_ZONES; i++) {
+	for (i = 0; i <= LAST_PHYS_ZONE; i++) {
 		if (descending)
-			zone = MAX_NR_ZONES - i - 1;
+			zone = LAST_PHYS_ZONE - i;
 		else
 			zone = i;
-
-		if (zone == ZONE_MOVABLE)
-			continue;
 
 		end_pfn = max(max_zone_pfn[zone], start_pfn);
 		arch_zone_lowest_possible_pfn[zone] = start_pfn;
@@ -1826,15 +1921,17 @@ void __init free_area_init(unsigned long *max_zone_pfn)
 		start_pfn = end_pfn;
 	}
 
-	/* Find the PFNs that ZONE_MOVABLE begins at in each node */
-	memset(zone_movable_pfn, 0, sizeof(zone_movable_pfn));
-	find_zone_movable_pfns_for_nodes();
+	/* Initialise every node */
+	mminit_verify_pageflags_layout();
+	setup_nr_node_ids();
+	set_pageblock_order();
+
+	/* Find the PFNs that virtual zones begin at in each node */
+	find_virt_zones();
 
 	/* Print out the zone ranges */
 	pr_info("Zone ranges:\n");
-	for (i = 0; i < MAX_NR_ZONES; i++) {
-		if (i == ZONE_MOVABLE)
-			continue;
+	for (i = 0; i <= LAST_PHYS_ZONE; i++) {
 		pr_info("  %-8s ", zone_names[i]);
 		if (arch_zone_lowest_possible_pfn[i] ==
 				arch_zone_highest_possible_pfn[i])
@@ -1847,12 +1944,14 @@ void __init free_area_init(unsigned long *max_zone_pfn)
 					<< PAGE_SHIFT) - 1);
 	}
 
-	/* Print out the PFNs ZONE_MOVABLE begins at in each node */
-	pr_info("Movable zone start for each node\n");
-	for (i = 0; i < MAX_NUMNODES; i++) {
-		if (zone_movable_pfn[i])
-			pr_info("  Node %d: %#018Lx\n", i,
-			       (u64)zone_movable_pfn[i] << PAGE_SHIFT);
+	/* Print out the PFNs virtual zones begin at in each node */
+	for (; i <= LAST_VIRT_ZONE; i++) {
+		pr_info("%s zone start for each node\n", zone_names[i]);
+		for (j = 0; j < MAX_NUMNODES; j++) {
+			if (pfn_of(i, j))
+				pr_info("  Node %d: %#018Lx\n",
+					j, (u64)pfn_of(i, j) << PAGE_SHIFT);
+		}
 	}
 
 	/*
@@ -1867,11 +1966,6 @@ void __init free_area_init(unsigned long *max_zone_pfn)
 			((u64)end_pfn << PAGE_SHIFT) - 1);
 		subsection_map_init(start_pfn, end_pfn - start_pfn);
 	}
-
-	/* Initialise every node */
-	mminit_verify_pageflags_layout();
-	setup_nr_node_ids();
-	set_pageblock_order();
 
 	for_each_node(nid) {
 		pg_data_t *pgdat;

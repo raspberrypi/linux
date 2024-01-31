@@ -2228,7 +2228,7 @@ static bool virtio_mem_bbm_bb_is_movable(struct virtio_mem *vm,
 		page = pfn_to_online_page(pfn);
 		if (!page)
 			continue;
-		if (page_zonenum(page) != ZONE_MOVABLE)
+		if (!is_zone_movable_page(page))
 			return false;
 	}
 

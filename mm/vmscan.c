@@ -1918,18 +1918,13 @@ retry:
 					goto keep_locked;
 				if (folio_maybe_dma_pinned(folio))
 					goto keep_locked;
-				if (folio_test_large(folio)) {
-					/* cannot split folio, skip it */
-					if (!can_split_folio(folio, NULL))
-						goto activate_locked;
-					/*
-					 * Split partially mapped folios right away.
-					 * We can free the unmapped pages without IO.
-					 */
-					if (data_race(!list_empty(&folio->_deferred_list)) &&
-					    split_folio_to_list(folio, folio_list))
-						goto activate_locked;
-				}
+				/*
+				 * Split partially mapped folios right away.
+				 * We can free the unmapped pages without IO.
+				 */
+				if (folio_test_large(folio) &&
+				    data_race(!list_empty(&folio->_deferred_list)))
+					split_folio_to_list(folio, folio_list);
 				if (!add_to_swap(folio)) {
 					int __maybe_unused order = folio_order(folio);
 
@@ -6824,7 +6819,7 @@ static void shrink_zones(struct zonelist *zonelist, struct scan_control *sc)
 	orig_mask = sc->gfp_mask;
 	if (buffer_heads_over_limit) {
 		sc->gfp_mask |= __GFP_HIGHMEM;
-		sc->reclaim_idx = gfp_zone(sc->gfp_mask);
+		sc->reclaim_idx = gfp_order_zone(sc->gfp_mask, sc->order);
 	}
 
 	for_each_zone_zonelist_nodemask(zone, z, zonelist,
@@ -7154,7 +7149,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 	struct scan_control sc = {
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
 		.gfp_mask = current_gfp_context(gfp_mask),
-		.reclaim_idx = gfp_zone(gfp_mask),
+		.reclaim_idx = gfp_order_zone(gfp_mask, order),
 		.order = order,
 		.nodemask = nodemask,
 		.priority = DEF_PRIORITY,
@@ -7920,6 +7915,10 @@ void wakeup_kswapd(struct zone *zone, gfp_t gfp_flags, int order,
 	if (!cpuset_zone_allowed(zone, gfp_flags))
 		return;
 
+	curr_idx = gfp_order_zone(gfp_flags, order);
+	if (highest_zoneidx > curr_idx)
+		highest_zoneidx = curr_idx;
+
 	pgdat = zone->zone_pgdat;
 	curr_idx = READ_ONCE(pgdat->kswapd_highest_zoneidx);
 
@@ -8129,7 +8128,7 @@ static int __node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned in
 		.may_writepage = !!(node_reclaim_mode & RECLAIM_WRITE),
 		.may_unmap = !!(node_reclaim_mode & RECLAIM_UNMAP),
 		.may_swap = 1,
-		.reclaim_idx = gfp_zone(gfp_mask),
+		.reclaim_idx = gfp_order_zone(gfp_mask, order),
 	};
 	unsigned long pflags;
 

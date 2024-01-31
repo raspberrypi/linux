@@ -1163,6 +1163,7 @@ int fragmentation_index(struct zone *zone, unsigned int order)
 
 #define TEXTS_FOR_ZONES(xx) TEXT_FOR_DMA(xx) TEXT_FOR_DMA32(xx) xx "_normal", \
 					TEXT_FOR_HIGHMEM(xx) xx "_movable", \
+					xx "_nosplit", xx "_nomerge", \
 					TEXT_FOR_DEVICE(xx)
 
 const char * const vmstat_text[] = {
@@ -1692,7 +1693,8 @@ static void zoneinfo_show_print(struct seq_file *m, pg_data_t *pgdat,
 		   "\n        spanned  %lu"
 		   "\n        present  %lu"
 		   "\n        managed  %lu"
-		   "\n        cma      %lu",
+		   "\n        cma      %lu"
+		   "\n        order    %u",
 		   zone_page_state(zone, NR_FREE_PAGES),
 		   zone->watermark_boost,
 		   min_wmark_pages(zone),
@@ -1701,7 +1703,8 @@ static void zoneinfo_show_print(struct seq_file *m, pg_data_t *pgdat,
 		   zone->spanned_pages,
 		   zone->present_pages,
 		   zone_managed_pages(zone),
-		   zone_cma_pages(zone));
+		   zone_cma_pages(zone),
+		   zone->order);
 
 	seq_printf(m,
 		   "\n        protection: (%ld",
