@@ -28,6 +28,7 @@
 #include <linux/usb/webusb.h>
 #include <linux/log2.h>
 #include <linux/configfs.h>
+#include <linux/usb/android_configfs_uevent.h>
 
 /*
  * USB function drivers should return USB_GADGET_DELAYED_STATUS if they
@@ -493,6 +494,8 @@ struct usb_composite_dev {
 
 	/* protects deactivations and delayed_status counts*/
 	spinlock_t			lock;
+
+	struct android_uevent_opts	android_opts;
 
 	/* public: */
 	unsigned int			setup_pending:1;
