@@ -1,0 +1,16 @@
+Android USB devices (eg. /sys/class/android_usb/android0/)
+
+What:		/sys/class/android_usb/<android_device>/state
+Date:		Feb 2024
+Contact:	Neill Kapron <nkapron@google.com>
+Description:
+		The state of the USB connection. This attribute is likely
+		redundant with the /sys/class/UDC/state attribute, and should
+		be deprecated/removed when userspace can be refactored.
+		Change on the state will also generate uevent KOBJ_CHANGE on
+		the port with the new state included in the message as
+		"USB_STATE=<STATE>". Note this is not the correct usage of
+		uevents, but necessary due to the requirement to maintaine
+		userspace API compatibility.
+
+		Valid values: CONNECTED, DISCONNECTED, CONFIGURED

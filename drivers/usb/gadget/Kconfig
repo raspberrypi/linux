@@ -234,6 +234,17 @@ config USB_CONFIGFS
 	  appropriate symbolic links.
 	  For more information see Documentation/usb/gadget_configfs.rst.
 
+config ANDROID_USB_CONFIGFS_UEVENT
+	bool "Uevent notification of Gadget State"
+	depends on USB_CONFIGFS
+	help
+	  Enable uevent notifications to userspace when gadget state changes.
+	  The gadget can be in any of the following three states:
+	  "CONNECTED", "DISCONNECTED" or "CONFIGURED".
+	  Additionally, selecting this will create the android_usb class of
+	  devices, including a "state" attribute for the android_device which
+	  shows the gadget state.
+
 config USB_CONFIGFS_SERIAL
 	bool "Generic serial bulk in/out"
 	depends on USB_CONFIGFS
