@@ -324,6 +324,56 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2][2] = {
 	},
 };
 
+/*
+ * Derived from Andrew H's 405-line mode @ 6.75 MHz pixclk
+ * with slightly extended horizontal active region to show 544 columns
+ * and two more scanlines stolen from vertical blanking to give 380 rows
+ * (which all seems to fall within the original 405-line specifications).
+ * Corrected with first_field_odd = true.
+ */
+static const struct rp1vec_hwmode vintage_405line_mode = {
+	.total_cols = 552,
+	.rows_per_field = 190,
+	.ref_hfp = 8,
+	.ref_vfp = 0,
+	.interlaced = true,
+	.first_field_odd = true,
+	.yuv_scaling = 0x11c00000,
+	.back_end_regs = {
+		0x06802900, 0x06f01430, 0x14d503cc, 0x00000000,
+		0x000010de, 0x00000000, 0x00000007, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00d90195, 0x000e00ca, 0x00cb00d8, 0x000a0195,
+		0x00000000, 0x007bffff, 0x3b1389d8, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x0be20200, 0x20f0f800, 0x265c7f00, 0x000843fe,
+	},
+};
+
+/*
+ * First plausible attempt at an 819-line mode (System E) @ 21.6 MHz.
+ * (NB: Pixels are not square; due to the currently-fixed 108 MHz VDAC
+ * rate and 1024-column width limit, we can't conveniently do better.)
+ */
+static const struct rp1vec_hwmode vintage_819line_mode = {
+	.total_cols = 856,
+	.rows_per_field = 369,
+	.ref_hfp = 22,
+	.ref_vfp = 6,
+	.interlaced = true,
+	.first_field_odd = true,
+	.yuv_scaling = 0x1d200000,
+	.back_end_regs = {
+		0x03a7145f, 0x03c10a08, 0x0a4d0114, 0x00000000,
+		0x000008a6, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x01c10330, 0x00270196, 0x019701c0, 0x000c0333,
+		0x00000000, 0x007bffff, 0x3b1389d8, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x0be20200, 0x20f0f800, 0x265c7f00, 0x00084126,
+	},
+};
+
 void rp1vec_hw_setup(struct rp1_vec *vec,
 		     u32 in_format,
 		     struct drm_display_mode const *mode,
@@ -335,12 +385,22 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 
 	/* Pick the appropriate "base" mode, which we may modify */
 	mode_ilaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
-	if (mode->vtotal >= 272 * (1 + mode_ilaced))
-		mode_family = 1;
-	else
-		mode_family = (tvstd == RP1VEC_TVSTD_PAL_M || tvstd == RP1VEC_TVSTD_PAL60) ? 2 : 0;
 	mode_narrow = (mode->clock >= 14336);
-	hwm = &rp1vec_hwmodes[mode_family][mode_ilaced][mode_narrow];
+	if (mode->vtotal == 405 && mode_ilaced) { /* somewhat tested */
+		hwm = &vintage_405line_mode;
+		mode_family = 1;
+	} else if (mode->vtotal == 819 && mode_ilaced) { /* XXXperimental */
+		hwm = &vintage_819line_mode;
+		mode_family = 1;
+	} else {
+		if (mode->vtotal >= 272 * (1 + mode_ilaced))
+			mode_family = 1;
+		else if (tvstd == RP1VEC_TVSTD_PAL_M || tvstd == RP1VEC_TVSTD_PAL60)
+			mode_family = 2;
+		else
+			mode_family = 0;
+		hwm = &rp1vec_hwmodes[mode_family][mode_ilaced][mode_narrow];
+	}
 	dev_info(&vec->pdev->dev,
 		 "%s: in_fmt=\'%c%c%c%c\' mode=%dx%d%s [%d%d%d] tvstd=%d (%s)",
 		__func__, in_format, in_format >> 8, in_format >> 16, in_format >> 24,
