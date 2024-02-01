@@ -36,7 +36,6 @@
 
 #include "hci_request.h"
 #include "smp.h"
-#include "a2mp.h"
 #include "eir.h"
 
 struct sco_param {
@@ -1145,9 +1144,6 @@ void hci_conn_del(struct hci_conn *conn)
 				hdev->acl_cnt += conn->sent;
 		}
 	}
-
-	if (conn->amp_mgr)
-		amp_mgr_put(conn->amp_mgr);
 
 	skb_queue_purge(&conn->data_q);
 
