@@ -105,6 +105,7 @@ filegroup(
         # keep sorted
         "android/abi_gki_aarch64_amlogic",
         "android/abi_gki_aarch64_db845c",
+        "android/abi_gki_aarch64_exynos",
         "android/abi_gki_aarch64_oplus",
         "android/abi_gki_aarch64_pixel",
         "android/abi_gki_aarch64_unisoc",
