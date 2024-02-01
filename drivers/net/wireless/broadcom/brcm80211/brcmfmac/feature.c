@@ -47,6 +47,7 @@ static const struct brcmf_feat_fwcap brcmf_fwcap_map[] = {
 	{ BRCMF_FEAT_SAE_EXT, "sae_ext" },
 	{ BRCMF_FEAT_FBT, "fbt " },
 	{ BRCMF_FEAT_OKC, "okc" },
+	{ BRCMF_FEAT_SAE_EXT, "extsae" },
 };
 
 #ifdef DEBUG
