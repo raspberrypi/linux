@@ -824,8 +824,10 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		uart0 = <&uart0>, "status";
 		wifiaddr = <&wifi>, "local-mac-address[";
 
-		act_led_activelow = <&led_act>, "active-low?";
+		act_led_gpio = <&led_act>,"gpios:4",<&led_act>,"gpios:0=",<&gpio>;
+		act_led_activelow = <&led_act>,"gpios:8";
 		act_led_trigger = <&led_act>, "linux,default-trigger";
+		pwr_led_gpio = <&led_pwr>,"gpios:4";
 		pwr_led_activelow = <&led_pwr>, "gpios:8";
 		pwr_led_trigger = <&led_pwr>, "linux,default-trigger";
 		eth_led0 = <&phy1>,"led-modes:0";
