@@ -701,7 +701,7 @@ static const struct dma_buf_ops dma_buf_import_ops = {
 };
 
 /* Import a dma_buf to be shared with VC. */
-int
+static int
 vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 				 struct dma_buf *dma_buf,
 				 int fd,
@@ -1090,7 +1090,7 @@ out:
  * Allocate a shared memory handle and block.
  * Allocation is from CMA, and then imported into the VPU mappings.
  */
-int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
+static int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 			  struct vc_sm_cma_ioctl_alloc *ioparam)
 {
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
