@@ -40,6 +40,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/irqchip.h>
+#include <linux/irqchip/irq-bcm2836.h>
 #include <linux/irqdomain.h>
 
 #include <asm/exception.h>
@@ -153,7 +154,6 @@ static void armctrl_unmask_irq(struct irq_data *d)
 }
 
 #ifdef CONFIG_ARM64
-void bcm2836_arm_irqchip_spin_gpu_irq(void);
 
 static void armctrl_ack_irq(struct irq_data *d)
 {
