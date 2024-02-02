@@ -334,7 +334,7 @@ static int csi2_get_vc_dt_fallback(struct csi2_device *csi2,
 	state = v4l2_subdev_get_locked_active_state(sd);
 
 	/* Without Streams API, the channel number matches the sink pad */
-	fmt = v4l2_subdev_get_pad_format(sd, state, channel);
+	fmt = v4l2_subdev_state_get_format(state, channel);
 	if (!fmt)
 		return -EINVAL;
 
@@ -476,10 +476,10 @@ static int csi2_init_cfg(struct v4l2_subdev *sd,
 		else
 			def_fmt = &cfe_default_format;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, i);
+		fmt = v4l2_subdev_state_get_format(state, i);
 		*fmt = *def_fmt;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, i + CSI2_NUM_CHANNELS);
+		fmt = v4l2_subdev_state_get_format(state, i + CSI2_NUM_CHANNELS);
 		*fmt = *def_fmt;
 	}
 
@@ -497,13 +497,13 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 
 		struct v4l2_mbus_framefmt *fmt;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		fmt = v4l2_subdev_state_get_format(state, format->pad);
 		if (!fmt)
 			return -EINVAL;
 
 		*fmt = format->format;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state,
+		fmt = v4l2_subdev_state_get_format(state,
 			format->pad + CSI2_NUM_CHANNELS);
 		if (!fmt)
 			return -EINVAL;
@@ -520,12 +520,12 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 		u32 sink_code;
 		u32 code;
 
-		sink_fmt = v4l2_subdev_get_pad_format(sd, state,
+		sink_fmt = v4l2_subdev_state_get_format(state,
 			format->pad - CSI2_NUM_CHANNELS);
 		if (!sink_fmt)
 			return -EINVAL;
 
-		source_fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		source_fmt = v4l2_subdev_state_get_format(state, format->pad);
 		if (!source_fmt)
 			return -EINVAL;
 
@@ -549,8 +549,11 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static const struct v4l2_subdev_internal_ops csi2_internal_ops = {
+	.init_state = csi2_init_cfg,
+};
+
 static const struct v4l2_subdev_pad_ops csi2_subdev_pad_ops = {
-	.init_cfg = csi2_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = csi2_pad_set_fmt,
 	.link_validate = v4l2_subdev_link_validate_default,
@@ -590,6 +593,7 @@ int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 
 	/* Initialize subdev */
 	v4l2_subdev_init(&csi2->sd, &csi2_subdev_ops);
+	csi2->sd.internal_ops = &csi2_internal_ops;
 	csi2->sd.entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
 	csi2->sd.entity.ops = &csi2_entity_ops;
 	csi2->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
