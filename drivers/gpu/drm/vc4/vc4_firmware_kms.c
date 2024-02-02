@@ -32,6 +32,7 @@
 #include <linux/clk.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
+#include <linux/platform_device.h>
 
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
