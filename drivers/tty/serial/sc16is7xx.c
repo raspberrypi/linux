@@ -810,6 +810,8 @@ static bool sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 
 		if (rxlen)
 			sc16is7xx_handle_rx(port, rxlen, iir);
+		else
+			rc = false;
 		break;
 		/* CTSRTS interrupt comes only when CTS goes inactive */
 	case SC16IS7XX_IIR_CTSRTS_SRC:
