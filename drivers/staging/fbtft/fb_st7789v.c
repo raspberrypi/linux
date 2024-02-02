@@ -415,7 +415,7 @@ static struct fbtft_display display = {
 	},
 };
 
-int variant_minipitft13(struct fbtft_display *display)
+static int variant_minipitft13(struct fbtft_display *display)
 {
 	display->fbtftops.set_addr_win = minipitft13_set_addr_win;
 	return 0;
