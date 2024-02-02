@@ -373,12 +373,12 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, bi);
 
 	adap = &bi->adapter;
-	adap->class = I2C_CLASS_HWMON | I2C_CLASS_DDC;
+	adap->class = I2C_CLASS_HWMON;
 	adap->algo = &bcm2708_i2c_algorithm;
 	adap->algo_data = bi;
 	adap->dev.parent = &pdev->dev;
 	adap->nr = pdev->id;
-	strlcpy(adap->name, dev_name(&pdev->dev), sizeof(adap->name));
+	strscpy(adap->name, dev_name(&pdev->dev), sizeof(adap->name));
 	adap->dev.of_node = pdev->dev.of_node;
 
 	switch (pdev->id) {
@@ -386,10 +386,10 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		adap->class = I2C_CLASS_HWMON;
 		break;
 	case 1:
-		adap->class = I2C_CLASS_DDC;
+		adap->class = I2C_CLASS_HWMON;
 		break;
 	case 2:
-		adap->class = I2C_CLASS_DDC;
+		adap->class = I2C_CLASS_HWMON;
 		break;
 	default:
 		dev_err(&pdev->dev, "can only bind to BSC 0, 1 or 2\n");
