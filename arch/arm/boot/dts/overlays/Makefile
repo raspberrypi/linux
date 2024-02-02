@@ -173,7 +173,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mipi-dbi-spi.dtbo \
 	mlx90640.dtbo \
 	mmc.dtbo \
-	mpu6050.dtbo \
 	mz61581.dtbo \
 	ov2311.dtbo \
 	ov5647.dtbo \
