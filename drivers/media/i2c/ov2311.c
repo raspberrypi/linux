@@ -484,7 +484,7 @@ static int ov2311_set_fmt(struct v4l2_subdev *sd,
 		V4L2_MAP_XFER_FUNC_DEFAULT(fmt->format.colorspace);
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		*v4l2_subdev_get_try_format(sd, sd_state, fmt->pad) =
+		*v4l2_subdev_state_get_format(sd_state, fmt->pad) =
 								fmt->format;
 	} else {
 		ov2311->cur_mode = mode;
@@ -519,7 +519,7 @@ static int ov2311_get_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&ov2311->mutex);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		fmt->format = *v4l2_subdev_get_try_format(sd, sd_state, fmt->pad);
+		fmt->format = *v4l2_subdev_state_get_format(sd_state, fmt->pad);
 	} else {
 		fmt->format.width = mode->width;
 		fmt->format.height = mode->height;
@@ -596,7 +596,7 @@ __ov2311_get_pad_crop(struct ov2311 *ov2311, struct v4l2_subdev_state *sd_state,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&ov2311->subdev, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &ov2311->cur_mode->crop;
 	}
@@ -802,7 +802,7 @@ static int ov2311_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct ov2311 *ov2311 = to_ov2311(sd);
 	struct v4l2_mbus_framefmt *try_fmt =
-				v4l2_subdev_get_try_format(sd, fh->state, 0);
+				v4l2_subdev_state_get_format(fh->state, 0);
 	const struct ov2311_mode *def_mode = &supported_modes[0];
 
 	mutex_lock(&ov2311->mutex);
