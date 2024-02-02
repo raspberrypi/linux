@@ -1012,7 +1012,7 @@ static int imx258_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt->field = V4L2_FIELD_NONE;
 
 	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, 0);
+	try_crop = v4l2_subdev_state_get_crop(fh->state, 0);
 	try_crop->left = IMX258_PIXEL_ARRAY_LEFT;
 	try_crop->top = IMX258_PIXEL_ARRAY_TOP;
 	try_crop->width = IMX258_PIXEL_ARRAY_WIDTH;
@@ -1307,7 +1307,7 @@ __imx258_get_pad_crop(struct imx258 *imx258,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx258->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx258->cur_mode->crop;
 	}
