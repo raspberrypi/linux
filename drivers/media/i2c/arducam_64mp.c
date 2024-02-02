@@ -1555,9 +1555,9 @@ static int arducam_64mp_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
+		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
 	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
+		v4l2_subdev_state_get_format(fh->state, METADATA_PAD);
 	struct v4l2_rect *try_crop;
 
 	mutex_lock(&arducam_64mp->mutex);
@@ -1575,7 +1575,7 @@ static int arducam_64mp_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt_meta->field = V4L2_FIELD_NONE;
 
 	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
+	try_crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
 	try_crop->left = ARDUCAM_64MP_PIXEL_ARRAY_LEFT;
 	try_crop->top = ARDUCAM_64MP_PIXEL_ARRAY_TOP;
 	try_crop->width = ARDUCAM_64MP_PIXEL_ARRAY_WIDTH;
@@ -1825,7 +1825,7 @@ static int arducam_64mp_get_pad_format(struct v4l2_subdev *sd,
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&arducam_64mp->sd, sd_state,
+			v4l2_subdev_state_get_format(sd_state,
 						   fmt->pad);
 		/* update the code which could change due to vflip or hflip: */
 		try_fmt->code = fmt->pad == IMAGE_PAD ?
@@ -1925,7 +1925,7 @@ static int arducam_64mp_set_pad_format(struct v4l2_subdev *sd,
 					      fmt->format.height);
 		arducam_64mp_update_image_pad_format(arducam_64mp, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
+			framefmt = v4l2_subdev_state_get_format(sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
 		} else {
@@ -1935,7 +1935,7 @@ static int arducam_64mp_set_pad_format(struct v4l2_subdev *sd,
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
+			framefmt = v4l2_subdev_state_get_format(sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
 		} else {
@@ -1957,7 +1957,7 @@ __arducam_64mp_get_pad_crop(struct arducam_64mp *arducam_64mp,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&arducam_64mp->sd, sd_state,
+		return v4l2_subdev_state_get_crop(sd_state,
 						pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &arducam_64mp->mode->crop;
