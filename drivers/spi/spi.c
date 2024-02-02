@@ -3931,7 +3931,7 @@ int spi_setup(struct spi_device *spi)
 		return -EINVAL;
 
 	if (ctlr->use_gpio_descriptors && ctlr->cs_gpiods &&
-	    ctlr->cs_gpiods[spi->chip_select] && !(spi->mode & SPI_CS_HIGH)) {
+	    ctlr->cs_gpiods[spi->chip_select[0]] && !(spi->mode & SPI_CS_HIGH)) {
 		dev_dbg(&spi->dev,
 			"setup: forcing CS_HIGH (use_gpio_descriptors)\n");
 		spi->mode |= SPI_CS_HIGH;
