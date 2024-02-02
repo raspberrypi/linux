@@ -3086,12 +3086,12 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 			v4l2_disable_ioctl(&node->video_dev,
 					   VIDIOC_ENUM_FRAMEINTERVALS);
 		if (pad_id == METADATA_PAD ||
-		    !v4l2_subdev_has_op(unicam->sensor, video,
-					g_frame_interval))
+		    !v4l2_subdev_has_op(unicam->sensor, pad,
+					get_frame_interval))
 			v4l2_disable_ioctl(&node->video_dev, VIDIOC_G_PARM);
 		if (pad_id == METADATA_PAD ||
-		    !v4l2_subdev_has_op(unicam->sensor, video,
-					s_frame_interval))
+		    !v4l2_subdev_has_op(unicam->sensor, pad,
+					set_frame_interval))
 			v4l2_disable_ioctl(&node->video_dev, VIDIOC_S_PARM);
 
 		if (pad_id == METADATA_PAD ||
