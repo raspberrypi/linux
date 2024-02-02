@@ -393,23 +393,23 @@ static int pisp_fe_init_cfg(struct v4l2_subdev *sd,
 {
 	struct v4l2_mbus_framefmt *fmt;
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, FE_STREAM_PAD);
+	fmt = v4l2_subdev_state_get_format(state, FE_STREAM_PAD);
 	*fmt = cfe_default_format;
 	fmt->code = MEDIA_BUS_FMT_SRGGB16_1X16;
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, FE_CONFIG_PAD);
+	fmt = v4l2_subdev_state_get_format(state, FE_CONFIG_PAD);
 	*fmt = cfe_default_meta_format;
 	fmt->code = MEDIA_BUS_FMT_FIXED;
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT0_PAD);
+	fmt = v4l2_subdev_state_get_format(state, FE_OUTPUT0_PAD);
 	*fmt = cfe_default_format;
 	fmt->code = MEDIA_BUS_FMT_SRGGB16_1X16;
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT1_PAD);
+	fmt = v4l2_subdev_state_get_format(state, FE_OUTPUT1_PAD);
 	*fmt = cfe_default_format;
 	fmt->code = MEDIA_BUS_FMT_SRGGB16_1X16;
 
-	fmt = v4l2_subdev_get_pad_format(sd, state, FE_STATS_PAD);
+	fmt = v4l2_subdev_state_get_format(state, FE_STATS_PAD);
 	*fmt = cfe_default_meta_format;
 	fmt->code = MEDIA_BUS_FMT_FIXED;
 
@@ -435,13 +435,13 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 		format->format.code = cfe_fmt->code;
 		format->format.field = V4L2_FIELD_NONE;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, FE_STREAM_PAD);
+		fmt = v4l2_subdev_state_get_format(state, FE_STREAM_PAD);
 		*fmt = format->format;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT0_PAD);
+		fmt = v4l2_subdev_state_get_format(state, FE_OUTPUT0_PAD);
 		*fmt = format->format;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, FE_OUTPUT1_PAD);
+		fmt = v4l2_subdev_state_get_format(state, FE_OUTPUT1_PAD);
 		*fmt = format->format;
 
 		return 0;
@@ -456,11 +456,11 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 		u32 sink_code;
 		u32 code;
 
-		sink_fmt = v4l2_subdev_get_pad_format(sd, state, FE_STREAM_PAD);
+		sink_fmt = v4l2_subdev_state_get_format(state, FE_STREAM_PAD);
 		if (!sink_fmt)
 			return -EINVAL;
 
-		source_fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		source_fmt = v4l2_subdev_state_get_format(state, format->pad);
 		if (!source_fmt)
 			return -EINVAL;
 
@@ -487,8 +487,11 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 	}
 }
 
+static const struct v4l2_subdev_internal_ops pisp_fe_internal_ops = {
+	.init_state = pisp_fe_init_cfg,
+};
+
 static const struct v4l2_subdev_pad_ops pisp_fe_subdev_pad_ops = {
-	.init_cfg = pisp_fe_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = pisp_fe_pad_set_fmt,
 	.link_validate = v4l2_subdev_link_validate_default,
@@ -527,6 +530,7 @@ int pisp_fe_init(struct pisp_fe_device *fe, struct dentry *debugfs)
 
 	/* Initialize subdev */
 	v4l2_subdev_init(&fe->sd, &pisp_fe_subdev_ops);
+	fe->sd.internal_ops = &pisp_fe_internal_ops;
 	fe->sd.entity.function = MEDIA_ENT_F_PROC_VIDEO_SCALER;
 	fe->sd.entity.ops = &pisp_fe_entity_ops;
 	fe->sd.entity.name = "pisp-fe";
