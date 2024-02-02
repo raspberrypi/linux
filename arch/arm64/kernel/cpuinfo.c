@@ -17,6 +17,7 @@
 #include <linux/elf.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/personality.h>
 #include <linux/preempt.h>
