@@ -7,6 +7,7 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/of.h>
 
 #include "bcm2835.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>
