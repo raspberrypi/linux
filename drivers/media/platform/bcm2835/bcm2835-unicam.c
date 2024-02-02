@@ -3010,7 +3010,7 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 	q->buf_struct_size = sizeof(struct unicam_buffer);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->lock = &node->lock;
-	q->min_buffers_needed = 1;
+	q->min_queued_buffers = 1;
 	q->dev = &unicam->pdev->dev;
 
 	ret = vb2_queue_init(q);
