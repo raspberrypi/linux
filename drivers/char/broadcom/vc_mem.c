@@ -24,6 +24,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/broadcom/vc_mem.h>
 #include <linux/compat.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
 #include <linux/platform_data/dma-bcm2708.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
