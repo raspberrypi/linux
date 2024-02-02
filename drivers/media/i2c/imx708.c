@@ -1007,9 +1007,9 @@ static int imx708_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct imx708 *imx708 = to_imx708(sd);
 	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
+		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
 	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
+		v4l2_subdev_state_get_format(fh->state, METADATA_PAD);
 	struct v4l2_rect *try_crop;
 
 	mutex_lock(&imx708->mutex);
@@ -1032,7 +1032,7 @@ static int imx708_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt_meta->field = V4L2_FIELD_NONE;
 
 	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
+	try_crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
 	try_crop->left = IMX708_PIXEL_ARRAY_LEFT;
 	try_crop->top = IMX708_PIXEL_ARRAY_TOP;
 	try_crop->width = IMX708_PIXEL_ARRAY_WIDTH;
@@ -1349,7 +1349,7 @@ static int imx708_get_pad_format(struct v4l2_subdev *sd,
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&imx708->sd, sd_state,
+			v4l2_subdev_state_get_format(sd_state,
 						   fmt->pad);
 		/* update the code which could change due to vflip or hflip */
 		try_fmt->code = fmt->pad == IMAGE_PAD ?
@@ -1400,7 +1400,7 @@ static int imx708_set_pad_format(struct v4l2_subdev *sd,
 					      fmt->format.height);
 		imx708_update_image_pad_format(imx708, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
+			framefmt = v4l2_subdev_state_get_format(sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
 		} else {
@@ -1409,7 +1409,7 @@ static int imx708_set_pad_format(struct v4l2_subdev *sd,
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
+			framefmt = v4l2_subdev_state_get_format(sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
 		} else {
@@ -1429,7 +1429,7 @@ __imx708_get_pad_crop(struct imx708 *imx708, struct v4l2_subdev_state *sd_state,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx708->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx708->mode->crop;
 	}
