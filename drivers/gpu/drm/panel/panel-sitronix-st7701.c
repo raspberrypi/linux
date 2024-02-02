@@ -1312,7 +1312,9 @@ static void st7701_dsi_remove(struct mipi_dsi_device *dsi)
 
 static const struct of_device_id st7701_of_match[] = {
 	{ .compatible = "anbernic,rg-arc-panel", .data = &rg_arc_desc },
-}
+	{ }
+};
+MODULE_DEVICE_TABLE(of, st7701_of_match);
 
 static const struct of_device_id st7701_dsi_of_match[] = {
 	{ .compatible = "densitron,dmt028vghmcmi-1a", .data = &dmt028vghmcmi_1a_desc },
