@@ -1558,7 +1558,7 @@ static void vc4_fkms_connector_destroy(struct drm_connector *connector)
  *
  * Returns: The newly allocated connector state, or NULL on failure.
  */
-struct drm_connector_state *
+static struct drm_connector_state *
 vc4_connector_duplicate_state(struct drm_connector *connector)
 {
 	struct vc4_fkms_connector_state *state;
@@ -1580,7 +1580,7 @@ vc4_connector_duplicate_state(struct drm_connector *connector)
  *
  * Returns the atomic property value for a digital connector.
  */
-int vc4_connector_atomic_get_property(struct drm_connector *connector,
+static int vc4_connector_atomic_get_property(struct drm_connector *connector,
 				      const struct drm_connector_state *state,
 				      struct drm_property *property,
 				      uint64_t *val)
@@ -1610,7 +1610,7 @@ int vc4_connector_atomic_get_property(struct drm_connector *connector,
  *
  * Sets the atomic property value for a digital connector.
  */
-int vc4_connector_atomic_set_property(struct drm_connector *connector,
+static int vc4_connector_atomic_set_property(struct drm_connector *connector,
 				      struct drm_connector_state *state,
 				      struct drm_property *property,
 				      uint64_t val)
@@ -1630,7 +1630,7 @@ int vc4_connector_atomic_set_property(struct drm_connector *connector,
 	return -EINVAL;
 }
 
-int vc4_connector_atomic_check(struct drm_connector *connector,
+static int vc4_connector_atomic_check(struct drm_connector *connector,
 			       struct drm_atomic_state *state)
 {
 	struct drm_connector_state *old_state =
