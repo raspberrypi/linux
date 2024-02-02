@@ -20,6 +20,7 @@
 #include <linux/completion.h>
 #include <linux/list.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/compat.h>
 #include <linux/dma-mapping.h>
