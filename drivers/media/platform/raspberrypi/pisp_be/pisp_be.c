@@ -1044,40 +1044,6 @@ static int pispbe_node_g_fmt_meta_out(struct file *file, void *priv,
 	return 0;
 }
 
-static int pispbe_validate_pixfmt(const struct v4l2_format *f,
-				  struct pispbe_node *node)
-{
-	struct pispbe_dev *pispbe = node->node_group->pispbe;
-	unsigned int nplanes = f->fmt.pix_mp.num_planes;
-
-	if (f->fmt.pix_mp.width == 0 || f->fmt.pix_mp.height == 0) {
-		dev_err(pispbe->dev, "Details incorrect for output node %s\n",
-			NODE_NAME(node));
-		return -EINVAL;
-	}
-
-	if (nplanes == 0 || nplanes > PISPBE_MAX_PLANES) {
-		dev_err(pispbe->dev,
-			"Bad number of planes for output node %s, req =%d\n",
-			NODE_NAME(node), nplanes);
-		return -EINVAL;
-	}
-
-	for (unsigned int i = 0; i < nplanes; i++) {
-		const struct v4l2_plane_pix_format *p;
-
-		p = &f->fmt.pix_mp.plane_fmt[i];
-		if (p->bytesperline == 0 || p->sizeimage == 0) {
-			dev_err(pispbe->dev,
-				"Invalid plane %d for output node %s\n",
-				i, NODE_NAME(node));
-			return -EINVAL;
-		}
-	}
-
-	return 0;
-}
-
 static const struct pisp_be_format *pispbe_find_fmt(unsigned int fourcc)
 {
 	for (unsigned int i = 0; i < ARRAY_SIZE(supported_formats); i++) {
@@ -1129,9 +1095,6 @@ static int pispbe_try_format(struct v4l2_format *f, struct pispbe_node *node)
 		__func__, NODE_NAME(node), f->fmt.pix_mp.width,
 		f->fmt.pix_mp.height, V4L2_FOURCC_CONV_ARGS(pixfmt),
 		f->fmt.pix_mp.num_planes);
-
-	if (pixfmt == V4L2_PIX_FMT_RPI_BE)
-		return pispbe_validate_pixfmt(f, node);
 
 	fmt = pispbe_find_fmt(pixfmt);
 	if (!fmt) {
