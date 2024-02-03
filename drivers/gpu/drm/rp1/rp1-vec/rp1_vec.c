@@ -361,29 +361,17 @@ static struct drm_driver rp1vec_driver = {
 static int rp1vec_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct drm_device *drm;
 	struct rp1_vec *vec;
 	int i, ret;
 
 	dev_info(dev, __func__);
-	drm = drm_dev_alloc(&rp1vec_driver, dev);
-	if (IS_ERR(drm)) {
-		ret = PTR_ERR(drm);
-		dev_err(dev, "%s drm_dev_alloc %d", __func__, ret);
+	vec = devm_drm_dev_alloc(dev, &rp1vec_driver, struct rp1_vec, drm);
+	if (IS_ERR(vec)) {
+		ret = PTR_ERR(vec);
+		dev_err(dev, "%s devm_drm_dev_alloc %d", __func__, ret);
 		return ret;
 	}
-
-	vec = drmm_kzalloc(drm, sizeof(*vec), GFP_KERNEL);
-	if (!vec) {
-		dev_err(dev, "%s drmm_kzalloc failed", __func__);
-		ret = -ENOMEM;
-		goto err_free_drm;
-	}
-	init_completion(&vec->finished);
-	vec->drm = drm;
 	vec->pdev = pdev;
-	drm->dev_private = vec;
-	platform_set_drvdata(pdev, drm);
 
 	for (i = 0; i < RP1VEC_NUM_HW_BLOCKS; i++) {
 		vec->hw_base[i] =
@@ -392,7 +380,7 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 		if (IS_ERR(vec->hw_base[i])) {
 			ret = PTR_ERR(vec->hw_base[i]);
 			dev_err(dev, "Error memory mapping regs[%d]\n", i);
-			goto err_free_drm;
+			goto done_err;
 		}
 	}
 	ret = platform_get_irq(vec->pdev, 0);
@@ -402,48 +390,53 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(dev, "Unable to request interrupt\n");
 		ret = -EINVAL;
-		goto err_free_drm;
+		goto done_err;
 	}
-	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 
 	vec->vec_clock = devm_clk_get(dev, NULL);
 	if (IS_ERR(vec->vec_clock)) {
 		ret = PTR_ERR(vec->vec_clock);
-		goto err_free_drm;
+		goto done_err;
 	}
 	ret = clk_prepare_enable(vec->vec_clock);
 
-	ret = drmm_mode_config_init(drm);
+	ret = drmm_mode_config_init(&vec->drm);
 	if (ret)
-		goto err_free_drm;
-	drm->mode_config.max_width  = 800;
-	drm->mode_config.max_height = 576;
-	drm->mode_config.preferred_depth = 32;
-	drm->mode_config.prefer_shadow	 = 0;
-	//drm->mode_config.fbdev_use_iomem = false;
-	drm->mode_config.quirk_addfb_prefer_host_byte_order = true;
-	drm->mode_config.funcs = &rp1vec_mode_funcs;
-	drm_vblank_init(drm, 1);
+		goto done_err;
 
-	ret = drm_mode_create_tv_properties(drm, RP1VEC_SUPPORTED_TV_MODES);
+	/* Now we have all our resources, finish driver initialization */
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	init_completion(&vec->finished);
+	vec->drm.dev_private = vec;
+	platform_set_drvdata(pdev, &vec->drm);
+
+	vec->drm.mode_config.max_width  = 800;
+	vec->drm.mode_config.max_height = 576;
+	vec->drm.mode_config.preferred_depth = 32;
+	vec->drm.mode_config.prefer_shadow   = 0;
+	vec->drm.mode_config.quirk_addfb_prefer_host_byte_order = true;
+	vec->drm.mode_config.funcs = &rp1vec_mode_funcs;
+	drm_vblank_init(&vec->drm, 1);
+
+	ret = drm_mode_create_tv_properties(&vec->drm, RP1VEC_SUPPORTED_TV_MODES);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
-	drm_connector_init(drm, &vec->connector, &rp1vec_connector_funcs,
+	drm_connector_init(&vec->drm, &vec->connector, &rp1vec_connector_funcs,
 			   DRM_MODE_CONNECTOR_Composite);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
 	vec->connector.interlace_allowed = true;
 	drm_connector_helper_add(&vec->connector, &rp1vec_connector_helper_funcs);
 
 	drm_object_attach_property(&vec->connector.base,
-				   drm->mode_config.tv_mode_property,
+				   vec->drm.mode_config.tv_mode_property,
 				   (vec->connector.cmdline_mode.tv_mode_specified) ?
 					   vec->connector.cmdline_mode.tv_mode :
 					   DRM_MODE_TV_MODE_NTSC);
 
-	ret = drm_simple_display_pipe_init(drm,
+	ret = drm_simple_display_pipe_init(&vec->drm,
 					   &vec->pipe,
 					   &rp1vec_pipe_funcs,
 					   rp1vec_formats,
@@ -451,20 +444,19 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 					   NULL,
 					   &vec->connector);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
-	drm_mode_config_reset(drm);
+	drm_mode_config_reset(&vec->drm);
 
-	ret = drm_dev_register(drm, 0);
+	ret = drm_dev_register(&vec->drm, 0);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
-	drm_fbdev_generic_setup(drm, 32); /* the "32" is preferred BPP */
+	drm_fbdev_generic_setup(&vec->drm, 32);
 	return ret;
 
-err_free_drm:
-	dev_info(dev, "%s fail %d", __func__, ret);
-	drm_dev_put(drm);
+done_err:
+	dev_err(dev, "%s fail %d", __func__, ret);
 	return ret;
 }
 

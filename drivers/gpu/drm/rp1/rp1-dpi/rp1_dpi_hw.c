@@ -451,7 +451,7 @@ void rp1dpi_hw_stop(struct rp1_dpi *dpi)
 	ctrl &= ~(DPI_DMA_CONTROL_ARM_MASK | DPI_DMA_CONTROL_AUTO_REPEAT_MASK);
 	rp1dpi_hw_write(dpi, DPI_DMA_CONTROL, ctrl);
 	if (!wait_for_completion_timeout(&dpi->finished, HZ / 10))
-		drm_err(dpi->drm, "%s: timed out waiting for idle\n", __func__);
+		drm_err(&dpi->drm, "%s: timed out waiting for idle\n", __func__);
 	rp1dpi_hw_write(dpi, DPI_DMA_IRQ_EN, 0);
 }
 
@@ -473,7 +473,7 @@ irqreturn_t rp1dpi_hw_isr(int irq, void *dev)
 		rp1dpi_hw_write(dpi, DPI_DMA_IRQ_FLAGS, u);
 		if (dpi) {
 			if (u & DPI_DMA_IRQ_FLAGS_UNDERFLOW_MASK)
-				drm_err_ratelimited(dpi->drm,
+				drm_err_ratelimited(&dpi->drm,
 						    "Underflow! (panics=0x%08x)\n",
 						    rp1dpi_hw_read(dpi, DPI_DMA_PANICS));
 			if (u & DPI_DMA_IRQ_FLAGS_DMA_READY_MASK)
