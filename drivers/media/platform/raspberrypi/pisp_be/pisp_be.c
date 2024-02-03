@@ -477,9 +477,10 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 	buf[CONFIG_NODE] = list_first_entry_or_null(&node->ready_queue,
 						    struct pispbe_buffer,
 						    ready_list);
-	if (buf[CONFIG_NODE])
+	if (buf[CONFIG_NODE]) {
 		list_del(&buf[CONFIG_NODE]->ready_list);
-	pispbe->queued_job.buf[CONFIG_NODE] = buf[CONFIG_NODE];
+		pispbe->queued_job.buf[CONFIG_NODE] = buf[CONFIG_NODE];
+	}
 	spin_unlock_irqrestore(&node->ready_lock, flags);
 
 	/* Exit early if no config buffer has been queued. */
@@ -536,14 +537,14 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 		buf[i] = list_first_entry_or_null(&node->ready_queue,
 						  struct pispbe_buffer,
 						  ready_list);
-		if (buf[i])
+		if (buf[i]) {
 			list_del(&buf[i]->ready_list);
+			pispbe->queued_job.buf[i] = buf[i];
+		}
 		spin_unlock_irqrestore(&node->ready_lock, flags);
 
 		if (!buf[i] && !ignore_buffers)
 			return -ENODEV;
-
-		pispbe->queued_job.buf[i] = buf[i];
 	}
 
 	pispbe->queued_job.node_group = node_group;
