@@ -51,7 +51,7 @@
 #define PISP_BE_IO_INPUT_ADDR0(n)		(0x40 + 8 * (n))
 #define PISP_BE_GLOBAL_BAYER_ENABLE		0xb0
 #define PISP_BE_GLOBAL_RGB_ENABLE		0xb4
-#define N_HW_ADDRESSES				14
+#define N_HW_ADDRESSES				13
 #define N_HW_ENABLES				2
 
 #define PISP_BE_VERSION_2712C1			0x02252700
@@ -67,7 +67,6 @@ enum pispbe_node_ids {
 	MAIN_INPUT_NODE,
 	TDN_INPUT_NODE,
 	STITCH_INPUT_NODE,
-	HOG_OUTPUT_NODE,
 	OUTPUT0_NODE,
 	OUTPUT1_NODE,
 	TDN_OUTPUT_NODE,
@@ -100,12 +99,6 @@ static const struct pispbe_node_description node_desc[PISPBE_NUM_NODES] = {
 		.ent_name = PISPBE_NAME "-stitch_input",
 		.buf_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 		.caps = V4L2_CAP_VIDEO_OUTPUT_MPLANE,
-	},
-	/* HOG_OUTPUT_NODE */
-	{
-		.ent_name = PISPBE_NAME "-hog_output",
-		.buf_type = V4L2_BUF_TYPE_META_CAPTURE,
-		.caps = V4L2_CAP_META_CAPTURE,
 	},
 	/* OUTPUT0_NODE */
 	{
@@ -145,14 +138,12 @@ static const struct pispbe_node_description node_desc[PISPBE_NUM_NODES] = {
 	((desc)->buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE))
 
 #define NODE_IS_META(node) ( \
-	((node)->buf_type == V4L2_BUF_TYPE_META_OUTPUT) || \
-	((node)->buf_type == V4L2_BUF_TYPE_META_CAPTURE))
+	((node)->buf_type == V4L2_BUF_TYPE_META_OUTPUT))
 #define NODE_IS_OUTPUT(node) ( \
 	((node)->buf_type == V4L2_BUF_TYPE_META_OUTPUT) || \
 	((node)->buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT) || \
 	((node)->buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE))
 #define NODE_IS_CAPTURE(node) ( \
-	((node)->buf_type == V4L2_BUF_TYPE_META_CAPTURE) || \
 	((node)->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE) || \
 	((node)->buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE))
 #define NODE_IS_MPLANE(node) ( \
@@ -446,11 +437,6 @@ static void pispbe_xlate_addrs(dma_addr_t addrs[N_HW_ADDRESSES],
 		if (ret <= 0)
 			hw_enables[1] &= ~(PISP_BE_RGB_ENABLE_OUTPUT0 << i);
 	}
-
-	/* HoG output (always single plane). */
-	addrs[13] = pispbe_get_addr(buf[HOG_OUTPUT_NODE]);
-	if (addrs[13] == 0)
-		hw_enables[1] &= ~PISP_BE_RGB_ENABLE_HOG;
 }
 
 /*
@@ -992,7 +978,7 @@ static int pispbe_node_querycap(struct file *file, void *priv,
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
 			    V4L2_CAP_VIDEO_OUTPUT_MPLANE |
 			    V4L2_CAP_STREAMING | V4L2_CAP_DEVICE_CAPS |
-			    V4L2_CAP_META_OUTPUT | V4L2_CAP_META_CAPTURE;
+			    V4L2_CAP_META_OUTPUT;
 	cap->device_caps = node->vfd.device_caps;
 
 	dev_dbg(pispbe->dev, "Caps for node %s: %x and %x (dev %x)\n",
@@ -1055,25 +1041,6 @@ static int pispbe_node_g_fmt_meta_out(struct file *file, void *priv,
 	*f = node->format;
 	dev_dbg(pispbe->dev, "Get output format for meta node %s\n",
 		NODE_NAME(node));
-	return 0;
-}
-
-static int pispbe_node_g_fmt_meta_cap(struct file *file, void *priv,
-				      struct v4l2_format *f)
-{
-	struct pispbe_node *node = video_drvdata(file);
-	struct pispbe_dev *pispbe = node->node_group->pispbe;
-
-	if (!NODE_IS_META(node) || NODE_IS_OUTPUT(node)) {
-		dev_err(pispbe->dev,
-			"Cannot get capture fmt for meta output node %s\n",
-			NODE_NAME(node));
-		return -EINVAL;
-	}
-	*f = node->format;
-	dev_dbg(pispbe->dev, "Get output format for meta node %s\n",
-		NODE_NAME(node));
-
 	return 0;
 }
 
@@ -1278,26 +1245,6 @@ static int pispbe_node_try_fmt_meta_out(struct file *file, void *priv,
 	return 0;
 }
 
-static int pispbe_node_try_fmt_meta_cap(struct file *file, void *priv,
-					struct v4l2_format *f)
-{
-	struct pispbe_node *node = video_drvdata(file);
-	struct pispbe_dev *pispbe = node->node_group->pispbe;
-
-	if (!NODE_IS_META(node) || NODE_IS_OUTPUT(node)) {
-		dev_err(pispbe->dev,
-			"Cannot set capture fmt for meta output node %s\n",
-			NODE_NAME(node));
-		return -EINVAL;
-	}
-
-	f->fmt.meta.dataformat = V4L2_PIX_FMT_RPI_BE;
-	if (!f->fmt.meta.buffersize)
-		f->fmt.meta.buffersize = BIT(20);
-
-	return 0;
-}
-
 static int pispbe_node_s_fmt_vid_cap(struct file *file, void *priv,
 				     struct v4l2_format *f)
 {
@@ -1361,27 +1308,6 @@ static int pispbe_node_s_fmt_meta_out(struct file *file, void *priv,
 	return 0;
 }
 
-static int pispbe_node_s_fmt_meta_cap(struct file *file, void *priv,
-				      struct v4l2_format *f)
-{
-	struct pispbe_node *node = video_drvdata(file);
-	struct pispbe_dev *pispbe = node->node_group->pispbe;
-	int ret = pispbe_node_try_fmt_meta_cap(file, priv, f);
-
-	if (ret < 0)
-		return ret;
-
-	node->format = *f;
-	node->pisp_format = pispbe_find_fmt(f->fmt.meta.dataformat);
-
-	dev_dbg(pispbe->dev,
-		"Set capture format for meta node %s to " V4L2_FOURCC_CONV "\n",
-		NODE_NAME(node),
-		V4L2_FOURCC_CONV_ARGS(f->fmt.meta.dataformat));
-
-	return 0;
-}
-
 static int pispbe_node_enum_fmt(struct file *file, void  *priv,
 				struct v4l2_fmtdesc *f)
 {
@@ -1394,10 +1320,7 @@ static int pispbe_node_enum_fmt(struct file *file, void  *priv,
 		if (f->index)
 			return -EINVAL;
 
-		if (NODE_IS_OUTPUT(node))
-			f->pixelformat = V4L2_META_FMT_RPI_BE_CFG;
-		else
-			f->pixelformat = V4L2_PIX_FMT_RPI_BE;
+		f->pixelformat = V4L2_META_FMT_RPI_BE_CFG;
 		f->flags = 0;
 		return 0;
 	}
@@ -1469,18 +1392,14 @@ static const struct v4l2_ioctl_ops pispbe_node_ioctl_ops = {
 	.vidioc_g_fmt_vid_cap_mplane = pispbe_node_g_fmt_vid_cap,
 	.vidioc_g_fmt_vid_out_mplane = pispbe_node_g_fmt_vid_out,
 	.vidioc_g_fmt_meta_out = pispbe_node_g_fmt_meta_out,
-	.vidioc_g_fmt_meta_cap = pispbe_node_g_fmt_meta_cap,
 	.vidioc_try_fmt_vid_cap_mplane = pispbe_node_try_fmt_vid_cap,
 	.vidioc_try_fmt_vid_out_mplane = pispbe_node_try_fmt_vid_out,
 	.vidioc_try_fmt_meta_out = pispbe_node_try_fmt_meta_out,
-	.vidioc_try_fmt_meta_cap = pispbe_node_try_fmt_meta_cap,
 	.vidioc_s_fmt_vid_cap_mplane = pispbe_node_s_fmt_vid_cap,
 	.vidioc_s_fmt_vid_out_mplane = pispbe_node_s_fmt_vid_out,
 	.vidioc_s_fmt_meta_out = pispbe_node_s_fmt_meta_out,
-	.vidioc_s_fmt_meta_cap = pispbe_node_s_fmt_meta_cap,
 	.vidioc_enum_fmt_vid_cap = pispbe_node_enum_fmt,
 	.vidioc_enum_fmt_vid_out = pispbe_node_enum_fmt,
-	.vidioc_enum_fmt_meta_cap = pispbe_node_enum_fmt,
 	.vidioc_enum_fmt_meta_out = pispbe_node_enum_fmt,
 	.vidioc_enum_framesizes = pispbe_enum_framesizes,
 	.vidioc_create_bufs = vb2_ioctl_create_bufs,
@@ -1511,13 +1430,6 @@ static void pispbe_node_def_fmt(struct pispbe_node *node)
 
 		f->fmt.meta.dataformat = V4L2_META_FMT_RPI_BE_CFG;
 		f->fmt.meta.buffersize = sizeof(struct pisp_be_tiles_config);
-		f->type = node->buf_type;
-	} else if (NODE_IS_META(node) && NODE_IS_CAPTURE(node)) {
-		/* HOG output node */
-		struct v4l2_format *f = &node->format;
-
-		f->fmt.meta.dataformat = V4L2_PIX_FMT_RPI_BE;
-		f->fmt.meta.buffersize = BIT(20);
 		f->type = node->buf_type;
 	} else {
 		struct v4l2_format f = {0};
