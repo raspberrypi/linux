@@ -55,7 +55,7 @@
 #define N_HW_ADDRESSES			13
 #define N_HW_ENABLES			2
 
-#define PISP_BE_VERSION_2712C1		0x02252700
+#define PISP_BE_VERSION_2712		0x02252700
 #define PISP_BE_VERSION_MINOR_BITS	0xf
 
 /*
@@ -1686,7 +1686,7 @@ static int pispbe_hw_init(struct pispbe_dev *pispbe)
 	u = pispbe_rd(pispbe, PISP_BE_VERSION_REG);
 	dev_dbg(pispbe->dev, "pispbe_probe: HW version:  0x%08x", u);
 	pispbe->hw_version = u;
-	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712C1)
+	if ((u & ~PISP_BE_VERSION_MINOR_BITS) != PISP_BE_VERSION_2712)
 		return -ENODEV;
 
 	/* Clear leftover interrupts */
