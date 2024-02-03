@@ -296,8 +296,8 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	}
 
 	/*
-	 * Write tile pointer to hardware. Tile offsets and sizes not checked
-	 * (and even if checked, the user could subsequently modify them)!
+	 * Write tile pointer to hardware. The IOMMU should prevent
+	 * out-of-bounds offsets reaching non-ISP buffers.
 	 */
 	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_LO_REG, lower_32_bits(job->tiles));
 	pispbe_wr(pispbe, PISP_BE_TILE_ADDR_HI_REG, upper_32_bits(job->tiles));
