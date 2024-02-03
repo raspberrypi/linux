@@ -28,8 +28,8 @@
 /* ---------------------------------------------------------------------- */
 
 struct rp1_dpi {
-	/* DRM and platform device pointers */
-	struct drm_device *drm;
+	/* DRM base and platform device pointer */
+	struct drm_device drm;
 	struct platform_device *pdev;
 
 	/* Framework and helper objects */
