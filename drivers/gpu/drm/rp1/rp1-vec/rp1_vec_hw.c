@@ -480,7 +480,7 @@ void rp1vec_hw_stop(struct rp1_vec *vec)
 	reinit_completion(&vec->finished);
 	VEC_WRITE(VEC_CONTROL, 0);
 	if (!wait_for_completion_timeout(&vec->finished, HZ / 10))
-		drm_err(vec->drm, "%s: timed out waiting for idle\n", __func__);
+		drm_err(&vec->drm, "%s: timed out waiting for idle\n", __func__);
 	VEC_WRITE(VEC_IRQ_ENABLES, 0);
 }
 
