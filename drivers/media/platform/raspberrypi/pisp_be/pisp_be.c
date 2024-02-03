@@ -34,28 +34,29 @@
 #define PISPBE_NAME "pispbe"
 
 /* Some ISP-BE registers */
-#define PISP_BE_VERSION_REG			0x0
-#define PISP_BE_CONTROL_REG			0x4
-#define PISP_BE_CONTROL_COPY_CONFIG		BIT(1)
-#define PISP_BE_CONTROL_QUEUE_JOB		BIT(0)
-#define PISP_BE_CONTROL_NUM_TILES(n)		((n) << 16)
-#define PISP_BE_TILE_ADDR_LO_REG		0x8
-#define PISP_BE_TILE_ADDR_HI_REG		0xc
-#define PISP_BE_STATUS_REG			0x10
-#define PISP_BE_STATUS_QUEUED			BIT(0)
-#define PISP_BE_BATCH_STATUS_REG		0x14
-#define PISP_BE_INTERRUPT_EN_REG		0x18
-#define PISP_BE_INTERRUPT_STATUS_REG		0x1c
-#define PISP_BE_AXI_REG				0x20
-#define PISP_BE_CONFIG_BASE_REG			0x40
-#define PISP_BE_IO_INPUT_ADDR0(n)		(0x40 + 8 * (n))
-#define PISP_BE_GLOBAL_BAYER_ENABLE		0xb0
-#define PISP_BE_GLOBAL_RGB_ENABLE		0xb4
-#define N_HW_ADDRESSES				13
-#define N_HW_ENABLES				2
+#define PISP_BE_VERSION_REG		0x0
+#define PISP_BE_CONTROL_REG		0x4
+#define PISP_BE_CONTROL_COPY_CONFIG	BIT(1)
+#define PISP_BE_CONTROL_QUEUE_JOB	BIT(0)
+#define PISP_BE_CONTROL_NUM_TILES(n)	((n) << 16)
+#define PISP_BE_TILE_ADDR_LO_REG	0x8
+#define PISP_BE_TILE_ADDR_HI_REG	0xc
+#define PISP_BE_STATUS_REG		0x10
+#define PISP_BE_STATUS_QUEUED		BIT(0)
+#define PISP_BE_BATCH_STATUS_REG	0x14
+#define PISP_BE_INTERRUPT_EN_REG	0x18
+#define PISP_BE_INTERRUPT_STATUS_REG	0x1c
+#define PISP_BE_AXI_REG			0x20
+#define PISP_BE_CONFIG_BASE_REG		0x40
+#define PISP_BE_IO_ADDR_LOW(n)		(PISP_BE_CONFIG_BASE_REG + 8 * (n))
+#define PISP_BE_IO_ADDR_HIGH(n)		(PISP_BE_IO_ADDR_LOW((n)) + 4)
+#define PISP_BE_GLOBAL_BAYER_ENABLE	0xb0
+#define PISP_BE_GLOBAL_RGB_ENABLE	0xb4
+#define N_HW_ADDRESSES			13
+#define N_HW_ENABLES			2
 
-#define PISP_BE_VERSION_2712C1			0x02252700
-#define PISP_BE_VERSION_MINOR_BITS		0xf
+#define PISP_BE_VERSION_2712C1		0x02252700
+#define PISP_BE_VERSION_MINOR_BITS	0xf
 
 /*
  * This maps our nodes onto the inputs/outputs of the actual PiSP Back End.
@@ -262,9 +263,9 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 	 * the mmap'd buffer.
 	 */
 	for (unsigned int u = 0; u < N_HW_ADDRESSES; ++u) {
-		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u),
+		pispbe_wr(pispbe, PISP_BE_IO_ADDR_LOW(u),
 			  lower_32_bits(job->hw_dma_addrs[u]));
-		pispbe_wr(pispbe, PISP_BE_IO_INPUT_ADDR0(u) + 4,
+		pispbe_wr(pispbe, PISP_BE_IO_ADDR_HIGH(u) + 4,
 			  upper_32_bits(job->hw_dma_addrs[u]));
 	}
 	pispbe_wr(pispbe, PISP_BE_GLOBAL_BAYER_ENABLE, job->hw_enables[0]);
@@ -283,7 +284,7 @@ static void pispbe_queue_job(struct pispbe_dev *pispbe,
 
 	/* Read back the addresses -- an error here could be fatal */
 	for (unsigned int u = 0; u < N_HW_ADDRESSES; ++u) {
-		unsigned int offset = PISP_BE_IO_INPUT_ADDR0(u);
+		unsigned int offset = PISP_BE_IO_ADDR_LOW(u);
 		u64 along = pispbe_rd(pispbe, offset);
 
 		along += ((u64)pispbe_rd(pispbe, offset + 4)) << 32;
