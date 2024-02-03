@@ -607,8 +607,7 @@ static void pispbe_schedule(struct pispbe_dev *pispbe,
 			 * For now, just force num_tiles to 0, which causes the
 			 * H/W to do something bizarre but survivable. It
 			 * increments (started,done) counters by more than 1,
-			 * but we seem to
-			 * survive...
+			 * but we seem to survive...
 			 */
 			dev_err(pispbe->dev,
 				"Bad job: invalid number of tiles: %d\n",
