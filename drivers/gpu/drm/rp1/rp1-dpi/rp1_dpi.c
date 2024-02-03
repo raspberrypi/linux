@@ -268,7 +268,6 @@ static const u32 rp1dpi_formats[] = {
 static int rp1dpi_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct drm_device *drm;
 	struct rp1_dpi *dpi;
 	struct drm_bridge *bridge = NULL;
 	struct drm_panel *panel;
@@ -287,24 +286,13 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 			return PTR_ERR(bridge);
 	}
 
-	drm = drm_dev_alloc(&rp1dpi_driver, dev);
-	if (IS_ERR(drm)) {
-		dev_info(dev, "%s %d", __func__, (int)__LINE__);
-		ret = PTR_ERR(drm);
+	dpi = devm_drm_dev_alloc(dev, &rp1dpi_driver, struct rp1_dpi, drm);
+	if (IS_ERR(dpi)) {
+		ret = PTR_ERR(dpi);
+		dev_err(dev, "%s devm_drm_dev_alloc %d", __func__, ret);
 		return ret;
 	}
-	dpi = drmm_kzalloc(drm, sizeof(*dpi), GFP_KERNEL);
-	if (!dpi) {
-		dev_info(dev, "%s %d", __func__, (int)__LINE__);
-		drm_dev_put(drm);
-		return -ENOMEM;
-	}
-
-	init_completion(&dpi->finished);
-	dpi->drm = drm;
 	dpi->pdev = pdev;
-	drm->dev_private = dpi;
-	platform_set_drvdata(pdev, drm);
 
 	dpi->bus_fmt = default_bus_fmt;
 	ret = of_property_read_u32(dev->of_node, "default_bus_fmt", &dpi->bus_fmt);
@@ -314,9 +302,8 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 			devm_ioremap_resource(dev,
 					      platform_get_resource(dpi->pdev, IORESOURCE_MEM, i));
 		if (IS_ERR(dpi->hw_base[i])) {
-			ret = PTR_ERR(dpi->hw_base[i]);
 			dev_err(dev, "Error memory mapping regs[%d]\n", i);
-			goto err_free_drm;
+			return PTR_ERR(dpi->hw_base[i]);
 		}
 	}
 	ret = platform_get_irq(dpi->pdev, 0);
@@ -325,10 +312,8 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 				       IRQF_SHARED, "rp1-dpi", dpi);
 	if (ret) {
 		dev_err(dev, "Unable to request interrupt\n");
-		ret = -EINVAL;
-		goto err_free_drm;
+		return -EINVAL;
 	}
-	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 
 	for (i = 0; i < RP1DPI_NUM_CLOCKS; i++) {
 		static const char * const myclocknames[RP1DPI_NUM_CLOCKS] = {
@@ -336,24 +321,30 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 		};
 		dpi->clocks[i] = devm_clk_get(dev, myclocknames[i]);
 		if (IS_ERR(dpi->clocks[i])) {
-			ret = PTR_ERR(dpi->clocks[i]);
-			goto err_free_drm;
+			dev_err(dev, "Unable to request clock %s\n", myclocknames[i]);
+			return PTR_ERR(dpi->clocks[i]);
 		}
 	}
 
-	ret = drmm_mode_config_init(drm);
+	ret = drmm_mode_config_init(&dpi->drm);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
-	drm->mode_config.max_width  = 4096;
-	drm->mode_config.max_height = 4096;
-	drm->mode_config.preferred_depth = 32;
-	drm->mode_config.prefer_shadow	 = 0;
-	drm->mode_config.quirk_addfb_prefer_host_byte_order = true;
-	drm->mode_config.funcs = &rp1dpi_mode_funcs;
-	drm_vblank_init(drm, 1);
+	/* Now we have all our resources, finish driver initialization */
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	init_completion(&dpi->finished);
+	dpi->drm.dev_private = dpi;
+	platform_set_drvdata(pdev, &dpi->drm);
 
-	ret = drm_simple_display_pipe_init(drm,
+	dpi->drm.mode_config.max_width  = 4096;
+	dpi->drm.mode_config.max_height = 4096;
+	dpi->drm.mode_config.preferred_depth = 32;
+	dpi->drm.mode_config.prefer_shadow   = 0;
+	dpi->drm.mode_config.quirk_addfb_prefer_host_byte_order = true;
+	dpi->drm.mode_config.funcs = &rp1dpi_mode_funcs;
+	drm_vblank_init(&dpi->drm, 1);
+
+	ret = drm_simple_display_pipe_init(&dpi->drm,
 					   &dpi->pipe,
 					   &rp1dpi_pipe_funcs,
 					   rp1dpi_formats,
@@ -362,22 +353,19 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	if (!ret)
 		ret = drm_simple_display_pipe_attach_bridge(&dpi->pipe, bridge);
 	if (ret)
-		goto err_free_drm;
+		goto done_err;
 
-	drm_mode_config_reset(drm);
+	drm_mode_config_reset(&dpi->drm);
 
-	ret = drm_dev_register(drm, 0);
+	ret = drm_dev_register(&dpi->drm, 0);
 	if (ret)
-		goto err_free_drm;
+		return ret;
 
-	drm_fbdev_generic_setup(drm, 32);
-
-	dev_info(dev, "%s success\n", __func__);
+	drm_fbdev_generic_setup(&dpi->drm, 32);
 	return ret;
 
-err_free_drm:
+done_err:
 	dev_err(dev, "%s fail %d\n", __func__, ret);
-	drm_dev_put(drm);
 	return ret;
 }
 
