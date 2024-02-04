@@ -392,10 +392,9 @@ static long bch2_ioctl_data(struct bch_fs *c,
 		goto err;
 	}
 
-	fd_install(fd, file);
-
 	get_task_struct(ctx->thread);
 	wake_up_process(ctx->thread);
+	fd_install(fd, file);
 
 	return fd;
 err:
