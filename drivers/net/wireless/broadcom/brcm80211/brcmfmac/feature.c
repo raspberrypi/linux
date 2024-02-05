@@ -44,7 +44,7 @@ static const struct brcmf_feat_fwcap brcmf_fwcap_map[] = {
 	{ BRCMF_FEAT_DOT11H, "802.11h" },
 	{ BRCMF_FEAT_SAE, "sae" },
 	{ BRCMF_FEAT_FWAUTH, "idauth" },
-	{ BRCMF_FEAT_SAE_EXT, "sae_ext " },
+	{ BRCMF_FEAT_SAE_EXT, "sae_ext" },
 };
 
 #ifdef DEBUG
@@ -241,7 +241,14 @@ static void brcmf_feat_firmware_capabilities(struct brcmf_if *ifp)
 	brcmf_dbg(INFO, "[ %s]\n", caps);
 
 	for (i = 0; i < ARRAY_SIZE(brcmf_fwcap_map); i++) {
-		if (strnstr(caps, brcmf_fwcap_map[i].fwcap_id, sizeof(caps))) {
+		const char *match = strnstr(caps, brcmf_fwcap_map[i].fwcap_id, sizeof(caps));
+		if (match) {
+			char endc;
+			if (match != caps && match[-1] != ' ')
+				continue;
+			endc = match[strlen(brcmf_fwcap_map[i].fwcap_id)];
+			if (endc != '\0' && endc != ' ')
+				continue;
 			id = brcmf_fwcap_map[i].feature;
 			brcmf_dbg(INFO, "enabling feature: %s\n",
 				  brcmf_feat_names[id]);
