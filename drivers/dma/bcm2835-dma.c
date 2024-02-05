@@ -1226,55 +1226,6 @@ static void bcm2835_dma_free(struct bcm2835_dmadev *od)
 			     DMA_TO_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
 }
 
-int bcm2711_dma40_memcpy_init(void)
-{
-	if (!memcpy_parent)
-		return -EPROBE_DEFER;
-
-	if (!memcpy_chan)
-		return -EINVAL;
-
-	if (!memcpy_scb)
-		return -ENOMEM;
-
-	return 0;
-}
-EXPORT_SYMBOL(bcm2711_dma40_memcpy_init);
-
-void bcm2711_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size)
-{
-	struct bcm2711_dma40_scb *scb = memcpy_scb;
-	unsigned long flags;
-
-	if (!scb) {
-		pr_err("bcm2711_dma40_memcpy not initialised!\n");
-		return;
-	}
-
-	spin_lock_irqsave(&memcpy_lock, flags);
-
-	scb->ti = 0;
-	scb->src = lower_32_bits(src);
-	scb->srci = upper_32_bits(src) | BCM2711_DMA40_MEMCPY_XFER_INFO;
-	scb->dst = lower_32_bits(dst);
-	scb->dsti = upper_32_bits(dst) | BCM2711_DMA40_MEMCPY_XFER_INFO;
-	scb->len = size;
-	scb->next_cb = 0;
-
-	writel(to_40bit_cbaddr(memcpy_scb_dma), memcpy_chan + BCM2711_DMA40_CB);
-	writel(BCM2711_DMA40_MEMCPY_FLAGS | BCM2711_DMA40_ACTIVE | BCM2711_DMA40_PROT,
-	       memcpy_chan + BCM2711_DMA40_CS);
-
-	/* Poll for completion */
-	while (!(readl(memcpy_chan + BCM2711_DMA40_CS) & BCM2711_DMA40_END))
-		cpu_relax();
-
-	writel(BCM2711_DMA40_END | BCM2711_DMA40_PROT, memcpy_chan + BCM2711_DMA40_CS);
-
-	spin_unlock_irqrestore(&memcpy_lock, flags);
-}
-EXPORT_SYMBOL(bcm2711_dma40_memcpy);
-
 static const struct of_device_id bcm2835_dma_of_match[] = {
 	{ .compatible = "brcm,bcm2835-dma", .data = &bcm2835_dma_cfg },
 	{ .compatible = "brcm,bcm2711-dma", .data = &bcm2711_dma_cfg },
