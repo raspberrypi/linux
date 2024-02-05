@@ -228,3 +228,7 @@
   __traceiter_android_rvh_psci_tos_resident_on
   __tracepoint_android_rvh_psci_cpu_suspend
   __tracepoint_android_rvh_psci_tos_resident_on
+
+# required by iowait.ko
+  __traceiter_sched_stat_iowait
+  __tracepoint_sched_stat_iowait
