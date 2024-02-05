@@ -3522,6 +3522,8 @@ static int bcm2835_codec_open(struct file *file)
 	v4l2_m2m_set_src_buffered(ctx->fh.m2m_ctx, true);
 	v4l2_m2m_set_dst_buffered(ctx->fh.m2m_ctx, true);
 
+	ctx->fh.m2m_ctx->ignore_cap_streaming = true;
+
 	v4l2_fh_add(&ctx->fh);
 	atomic_inc(&dev->num_inst);
 
