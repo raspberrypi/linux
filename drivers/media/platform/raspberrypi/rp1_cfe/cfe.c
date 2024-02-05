@@ -93,7 +93,7 @@ MODULE_PARM_DESC(verbose_debug, "verbose debugging messages");
 #define MIN_WIDTH 16
 #define MIN_HEIGHT 16
 /* Default size of the embedded buffer */
-#define DEFAULT_EMBEDDED_SIZE 8192
+#define DEFAULT_EMBEDDED_SIZE 16384
 
 const struct v4l2_mbus_framefmt cfe_default_format = {
 	.width = 640,
@@ -107,7 +107,7 @@ const struct v4l2_mbus_framefmt cfe_default_format = {
 };
 
 const struct v4l2_mbus_framefmt cfe_default_meta_format = {
-	.width = 8192,
+	.width = DEFAULT_EMBEDDED_SIZE,
 	.height = 1,
 	.code = MEDIA_BUS_FMT_SENSOR_DATA,
 	.field = V4L2_FIELD_NONE,
