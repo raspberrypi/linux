@@ -58,6 +58,9 @@
 #define  PCIE_RC_TL_VDM_CTL1_VDM_VNDRID0_MASK		0x0000ffff
 #define  PCIE_RC_TL_VDM_CTL1_VDM_VNDRID1_MASK		0xffff0000
 
+#define PCIE_RC_CFG_PRIV1_ROOT_CAP			0x4f8
+#define  PCIE_RC_CFG_PRIV1_ROOT_CAP_L1SS_MODE_MASK	0xf8
+
 #define PCIE_RC_DL_MDIO_ADDR				0x1100
 #define PCIE_RC_DL_MDIO_WR_DATA				0x1104
 #define PCIE_RC_DL_MDIO_RD_DATA				0x1108
@@ -141,9 +144,13 @@
 #define PCIE_MISC_HARD_PCIE_HARD_DEBUG	pcie->reg_offsets[PCIE_HARD_DEBUG]
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK	0x2
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK		0x8
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK		0x200000
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x08000000
 #define  PCIE_BMIPS_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x00800000
-#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK		0x00200000
+#define  PCIE_CLKREQ_MASK \
+	  (PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK | \
+	   PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK)
+
 
 #define PCIE_MISC_CTRL_1					0x40A0
 #define  PCIE_MISC_CTRL_1_OUTBOUND_TC_MASK			0xf
@@ -601,44 +608,6 @@ static void brcm_pcie_set_tc_qos(struct brcm_pcie *pcie)
 			PCIE_RC_TL_VDM_CTL0_VDM_IGNOREVNDRID_MASK;
 		writel(reg, pcie->base + PCIE_RC_TL_VDM_CTL0);
 	}
-}
-
-static void brcm_pcie_config_clkreq(struct brcm_pcie *pcie)
-{
-	void __iomem *base = pcie->base;
-	struct pci_host_bridge *bridge = pci_host_bridge_from_priv(pcie);
-	int domain = pci_domain_nr(bridge->bus);
-	const struct pci_bus *bus = pci_find_bus(domain, 1);
-	struct pci_dev *pdev = (struct pci_dev *)bus->devices.next;
-	u32 tmp, link_cap = 0;
-	u16 link_ctl = 0;
-	int clkpm = 0;
-	int substates = 0;
-
-	pcie_capability_read_dword(pdev, PCI_EXP_LNKCAP, &link_cap);
-	if ((link_cap & PCI_EXP_LNKCAP_CLKPM))
-		clkpm = 1;
-
-	pcie_capability_read_word(pdev, PCI_EXP_LNKCTL, &link_ctl);
-	if (!(link_ctl & PCI_EXP_LNKCTL_CLKREQ_EN))
-		clkpm = 0;
-
-	if (pcie->l1ss && pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_L1SS))
-		substates = 1;
-
-	tmp = readl(base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
-	tmp &= ~PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
-	tmp &= ~PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK;
-
-	if (substates)
-		tmp |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK;
-	else if (clkpm)
-		tmp |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
-
-	writel(tmp, base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
-
-	if (substates || clkpm)
-		dev_info(pcie->dev, "clkreq control enabled\n");
 }
 
 static struct irq_chip brcm_msi_irq_chip = {
@@ -1381,6 +1350,83 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	return 0;
 }
 
+/*
+ * This extends the timeout period for an access to an internal bus.  This
+ * access timeout may occur during L1SS sleep periods, even without the
+ * presence of a PCIe access.
+ */
+static void brcm_extend_rbus_timeout(struct brcm_pcie *pcie)
+{
+	/* TIMEOUT register is two registers before RGR1_SW_INIT_1 */
+	const unsigned int REG_OFFSET = PCIE_RGR1_SW_INIT_1(pcie) - 8;
+	u32 timeout_us = 4000000; /* 4 seconds, our setting for L1SS */
+
+	/* Each unit in timeout register is 1/216,000,000 seconds */
+	writel(216 * timeout_us, pcie->base + REG_OFFSET);
+}
+
+static void brcm_config_clkreq(struct brcm_pcie *pcie)
+{
+	static const char err_msg[] = "invalid 'brcm,clkreq-mode' DT string\n";
+	const char *mode = "default";
+	u32 clkreq_cntl;
+	int ret, tmp;
+
+	ret = of_property_read_string(pcie->np, "brcm,clkreq-mode", &mode);
+	if (ret && ret != -EINVAL) {
+		dev_err(pcie->dev, err_msg);
+		mode = "safe";
+	}
+
+	/* Start out assuming safe mode (both mode bits cleared) */
+	clkreq_cntl = readl(pcie->base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+	clkreq_cntl &= ~PCIE_CLKREQ_MASK;
+
+	if (strcmp(mode, "no-l1ss") == 0) {
+		/*
+		 * "no-l1ss" -- Provides Clock Power Management, L0s, and
+		 * L1, but cannot provide L1 substate (L1SS) power
+		 * savings. If the downstream device connected to the RC is
+		 * L1SS capable AND the OS enables L1SS, all PCIe traffic
+		 * may abruptly halt, potentially hanging the system.
+		 */
+		clkreq_cntl |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
+		/*
+		 * We want to un-advertise L1 substates because if the OS
+		 * tries to configure the controller into using L1 substate
+		 * power savings it may fail or hang when the RC HW is in
+		 * "no-l1ss" mode.
+		 */
+		tmp = readl(pcie->base + PCIE_RC_CFG_PRIV1_ROOT_CAP);
+		u32p_replace_bits(&tmp, 2, PCIE_RC_CFG_PRIV1_ROOT_CAP_L1SS_MODE_MASK);
+		writel(tmp, pcie->base + PCIE_RC_CFG_PRIV1_ROOT_CAP);
+
+	} else if (strcmp(mode, "default") == 0) {
+		/*
+		 * "default" -- Provides L0s, L1, and L1SS, but not
+		 * compliant to provide Clock Power Management;
+		 * specifically, may not be able to meet the Tclron max
+		 * timing of 400ns as specified in "Dynamic Clock Control",
+		 * section 3.2.5.2.2 of the PCIe spec.  This situation is
+		 * atypical and should happen only with older devices.
+		 */
+		clkreq_cntl |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK;
+		brcm_extend_rbus_timeout(pcie);
+
+	} else {
+		/*
+		 * "safe" -- No power savings; refclk is driven by RC
+		 * unconditionally.
+		 */
+		if (strcmp(mode, "safe") != 0)
+			dev_err(pcie->dev, err_msg);
+		mode = "safe";
+	}
+	writel(clkreq_cntl, pcie->base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
+
+	dev_info(pcie->dev, "clkreq-mode set to %s\n", mode);
+}
+
 static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
@@ -1429,6 +1475,8 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 		dev_err(dev, "link down\n");
 		return -ENODEV;
 	}
+
+	brcm_config_clkreq(pcie);
 
 	if (pcie->gen)
 		brcm_pcie_set_gen(pcie, pcie->gen);
@@ -2035,8 +2083,6 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 		brcm_pcie_remove(pdev);
 		return ret;
 	}
-
-	brcm_pcie_config_clkreq(pcie);
 
 	return 0;
 
