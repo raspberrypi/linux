@@ -1140,7 +1140,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height) {
+	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen */
 		vc4_state->dlist_initialized = 1;
 		return 0;
@@ -1667,8 +1667,10 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height) {
-		/* 0 source size probably means the plane is offscreen */
+	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
+		/* 0 source size probably means the plane is offscreen.
+		 * 0 destination size is a redundant plane.
+		 */
 		vc4_state->dlist_initialized = 1;
 		return 0;
 	}
@@ -2044,7 +2046,8 @@ int vc4_plane_atomic_check(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
-	if (!vc4_state->src_w[0] || !vc4_state->src_h[0])
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
+	    !vc4_state->crtc_w || !vc4_state->crtc_h)
 		return 0;
 
 	ret = vc4_plane_allocate_lbm(new_plane_state);
