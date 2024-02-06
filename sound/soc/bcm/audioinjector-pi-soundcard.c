@@ -53,6 +53,7 @@ static int snd_audioinjector_pi_soundcard_hw_params(struct snd_pcm_substream *su
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 
+	pr_err("%s(rate %d)\n", __func__, params_rate(params));
 	switch (params_rate(params)){
 		case 8000:
 			return snd_soc_dai_set_bclk_ratio(cpu_dai, 1);

@@ -356,6 +356,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	odd_slot_offset = 0;
 	mode = 0;
 
+	pr_err("%s(width %d)\n", __func__, data_length);
 	if (dev->tdm_slots) {
 		slots = dev->tdm_slots;
 		slot_width = dev->slot_width;
@@ -371,16 +372,24 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 
 		frame_length = snd_soc_params_to_frame_size(params);
 		if (frame_length < 0)
+		{
+			pr_err("  snd_soc_params_to_frame_size -> %d\n", frame_length);
 			return frame_length;
-
+		}
 		bclk_rate = snd_soc_params_to_bclk(params);
 		if (bclk_rate < 0)
+		{
+			pr_err("  snd_soc_params_to_bclk -> %d\n", bclk_rate);
 			return bclk_rate;
+		}
 	}
 
 	/* Check if data fits into slots */
 	if (data_length > slot_width)
+	{
+		pr_err("  data_length(%d) > slot_width(%d)\n", data_length, slot_width);
 		return -EINVAL;
+	}
 
 	/* Check if CPU is bit clock provider */
 	switch (dev->fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) {
@@ -393,6 +402,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		bit_clock_provider = false;
 		break;
 	default:
+		pr_err("  clock provider bits %x\n", dev->fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK);
 		return -EINVAL;
 	}
 
@@ -419,7 +429,10 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		if (dev->clk_rate != bclk_rate) {
 			ret = clk_set_rate(dev->clk, bclk_rate);
 			if (ret)
+			{
+				pr_err("  clk_set_rate(%d) -> %d\n", bclk_rate, ret);
 				return ret;
+			}
 			dev->clk_rate = bclk_rate;
 		}
 
@@ -441,7 +454,10 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	case SND_SOC_DAIFMT_I2S:
 		/* I2S mode needs an even number of slots */
 		if (slots & 1)
+		{
+			pr_err("  odd slots (I2S) %d\n", slots);
 			return -EINVAL;
+		}
 
 		/*
 		 * Use I2S-style logical slot numbering: even slots
@@ -458,7 +474,10 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
 		if (slots & 1)
+		{
+			pr_err("  odd slots (LEFT_J) %d\n", slots);
 			return -EINVAL;
+		}
 
 		odd_slot_offset = slots >> 1;
 		data_delay = 0;
@@ -467,11 +486,17 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case SND_SOC_DAIFMT_RIGHT_J:
 		if (slots & 1)
+		{
+			pr_err("  odd slots (RIGHT_J) %d\n", slots);
 			return -EINVAL;
+		}
 
 		/* Odd frame lengths aren't supported */
 		if (frame_length & 1)
+		{
+			pr_err("  odd frame length %d\n", frame_length);
 			return -EINVAL;
+		}
 
 		odd_slot_offset = slots >> 1;
 		data_delay = slot_width - data_length;
@@ -489,6 +514,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		frame_start_falling_edge = false;
 		break;
 	default:
+		pr_err("  Unknown format %x\n", dev->fmt & SND_SOC_DAIFMT_FORMAT_MASK);
 		return -EINVAL;
 	}
 
@@ -554,6 +580,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	case SND_SOC_DAIFMT_IB_IF:
 		break;
 	default:
+		pr_err("  Unknown clock invert bits %x\n", dev->fmt & SND_SOC_DAIFMT_INV_MASK);
 		return -EINVAL;
 	}
 
@@ -590,20 +617,20 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	/* Clear FIFOs */
 	bcm2835_i2s_clear_fifos(dev, true, true);
 
-	dev_dbg(dev->dev,
+	dev_err(dev->dev,
 		"slots: %d width: %d rx mask: 0x%02x tx_mask: 0x%02x\n",
 		slots, slot_width, rx_mask, tx_mask);
 
-	dev_dbg(dev->dev, "frame len: %d sync len: %d data len: %d\n",
+	dev_err(dev->dev, "frame len: %d sync len: %d data len: %d\n",
 		frame_length, framesync_length, data_length);
 
-	dev_dbg(dev->dev, "rx pos: %d,%d tx pos: %d,%d\n",
+	dev_err(dev->dev, "rx pos: %d,%d tx pos: %d,%d\n",
 		rx_ch1_pos, rx_ch2_pos, tx_ch1_pos, tx_ch2_pos);
 
-	dev_dbg(dev->dev, "sampling rate: %d bclk rate: %d\n",
+	dev_err(dev->dev, "sampling rate: %d bclk rate: %d\n",
 		params_rate(params), bclk_rate);
 
-	dev_dbg(dev->dev, "CLKM: %d CLKI: %d FSM: %d FSI: %d frame start: %s edge\n",
+	dev_err(dev->dev, "CLKM: %d CLKI: %d FSM: %d FSI: %d frame start: %s edge\n",
 		!!(mode & BCM2835_I2S_CLKM),
 		!!(mode & BCM2835_I2S_CLKI),
 		!!(mode & BCM2835_I2S_FSM),
