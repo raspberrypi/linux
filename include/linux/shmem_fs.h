@@ -32,7 +32,7 @@ struct shmem_inode_info {
 	struct timespec64	i_crtime;	/* file creation time */
 	unsigned int		fsflags;	/* flags for FS_IOC_[SG]ETFLAGS */
 #ifdef CONFIG_TMPFS_QUOTA
-	struct dquot		*i_dquot[MAXQUOTAS];
+	struct dquot __rcu	*i_dquot[MAXQUOTAS];
 #endif
 	struct offset_ctx	dir_offsets;	/* stable entry offsets */
 	struct inode		vfs_inode;
