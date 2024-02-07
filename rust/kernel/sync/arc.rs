@@ -232,29 +232,13 @@ impl<T: ?Sized> Arc<T> {
     /// `ptr` must have been returned by a previous call to [`Arc::into_raw`]. Additionally, it
     /// must not be called more than once for each previous call to [`Arc::into_raw`].
     pub unsafe fn from_raw(ptr: *const T) -> Self {
-        let refcount_layout = Layout::new::<bindings::refcount_t>();
-        // SAFETY: The caller guarantees that the pointer is valid.
-        let val_layout = Layout::for_value(unsafe { &*ptr });
-        // SAFETY: We're computing the layout of a real struct that existed when compiling this
-        // binary, so its layout is not so large that it can trigger arithmetic overflow.
-        let val_offset = unsafe { refcount_layout.extend(val_layout).unwrap_unchecked().1 };
-
-        let metadata: <T as Pointee>::Metadata = core::ptr::metadata(ptr);
-        // SAFETY: The metadata of `T` and `ArcInner<T>` is the same because `ArcInner` is a struct
-        // with `T` as its last field.
-        //
-        // This is documented at:
-        // <https://doc.rust-lang.org/std/ptr/trait.Pointee.html>.
-        let metadata: <ArcInner<T> as Pointee>::Metadata =
-            unsafe { core::mem::transmute_copy(&metadata) };
-        // SAFETY: The pointer is in-bounds of an allocation both before and after offsetting the
-        // pointer, since it originates from a previous call to `Arc::into_raw` and is still valid.
-        let ptr = unsafe { (ptr as *mut u8).sub(val_offset) as *mut () };
-        let ptr = core::ptr::from_raw_parts_mut(ptr, metadata);
+        // SAFETY: The pointer returned by `into_raw` points at the `data` field of an
+        // `ArcInner<T>`.
+        let ptr = unsafe { raw_to_inner_ptr(ptr) };
 
         // SAFETY: By the safety requirements we know that `ptr` came from `Arc::into_raw`, so the
         // reference count held then will be owned by the new `Arc` object.
-        unsafe { Self::from_inner(NonNull::new_unchecked(ptr)) }
+        unsafe { Self::from_inner(ptr) }
     }
 
     /// Returns an [`ArcBorrow`] from the given [`Arc`].
@@ -273,6 +257,37 @@ impl<T: ?Sized> Arc<T> {
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         core::ptr::eq(this.ptr.as_ptr(), other.ptr.as_ptr())
     }
+}
+
+/// Converts a pointer to the contents of an [`Arc`] into a pointer to the [`ArcInner`].
+///
+/// # Safety
+///
+/// The provided pointer must point the `data` field of an `ArcInner<T>` value.
+unsafe fn raw_to_inner_ptr<T: ?Sized>(ptr: *const T) -> NonNull<ArcInner<T>> {
+    let refcount_layout = Layout::new::<bindings::refcount_t>();
+    // SAFETY: The caller guarantees that the pointer is valid.
+    let val_layout = Layout::for_value(unsafe { &*ptr });
+    // SAFETY: We're computing the layout of a real struct that existed when compiling this
+    // binary, so its layout is not so large that it can trigger arithmetic overflow.
+    let val_offset = unsafe { refcount_layout.extend(val_layout).unwrap_unchecked().1 };
+
+    let metadata: <T as Pointee>::Metadata = core::ptr::metadata(ptr);
+    // SAFETY: The metadata of `T` and `ArcInner<T>` is the same because `ArcInner` is a struct
+    // with `T` as its last field.
+    //
+    // This is documented at:
+    // <https://doc.rust-lang.org/std/ptr/trait.Pointee.html>.
+    let metadata: <ArcInner<T> as Pointee>::Metadata =
+        unsafe { core::mem::transmute_copy(&metadata) };
+    // SAFETY: The pointer is in-bounds of an allocation both before and after offsetting the
+    // pointer, since it originates from a previous call to `Arc::into_raw` and is still valid.
+    let ptr = unsafe { (ptr as *mut u8).sub(val_offset) as *mut () };
+    let ptr = core::ptr::from_raw_parts_mut(ptr, metadata);
+
+    // SAFETY: The pointer can't be null since you can't have an `ArcInner<T>` value at the null
+    // address.
+    unsafe { NonNull::new_unchecked(ptr) }
 }
 
 impl<T: 'static> ForeignOwnable for Arc<T> {
@@ -454,6 +469,27 @@ impl<T: ?Sized> ArcBorrow<'_, T> {
             inner,
             _p: PhantomData,
         }
+    }
+
+    /// Creates an [`ArcBorrow`] to an [`Arc`] that has previously been deconstructed with
+    /// [`Arc::into_raw`].
+    ///
+    /// # Safety
+    ///
+    /// * The provided pointer must originate from a call to [`Arc::into_raw`].
+    /// * For the duration of the lifetime annotated on this `ArcBorrow`, the reference count must
+    ///   not hit zero.
+    /// * For the duration of the lifetime annotated on this `ArcBorrow`, there must not be a
+    ///   [`UniqueArc`] reference to this value.
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        // SAFETY: The pointer returned by `into_raw` points at the `data` field of an
+        // `ArcInner<T>`.
+        let ptr = unsafe { raw_to_inner_ptr(ptr) };
+
+        // SAFETY: The caller promises that the value remains valid since the reference count must
+        // not hit zero, and no mutable reference will be created since that would involve a
+        // `UniqueArc`.
+        unsafe { Self::new(ptr) }
     }
 }
 
