@@ -257,6 +257,37 @@ impl<T: ?Sized> Arc<T> {
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         core::ptr::eq(this.ptr.as_ptr(), other.ptr.as_ptr())
     }
+
+    /// Converts this [`Arc`] into a [`UniqueArc`], or destroys it if it is not unique.
+    ///
+    /// This method properly avoids races, so when this destroys the `Arc`, it never runs the
+    /// destructor of the value.
+    pub fn into_unique_or_drop(self) -> Option<Pin<UniqueArc<T>>> {
+        // We will manually manage the refcount in this method, so we disable the destructor.
+        let me = ManuallyDrop::new(self);
+        // SAFETY: The `Arc` cannot be destroyed during this method, so this is safe.
+        let refcount = unsafe { me.ptr.as_ref() }.refcount.get();
+
+        // SAFETY: If the refcount reaches a non-zero value, then we have destroyed this `Arc` and
+        // will return without running its destructor. If the refcount reaches zero, then there are
+        // no other arcs, and we can create a `UniqueArc`.
+        let is_zero = unsafe { bindings::refcount_dec_and_test(refcount) };
+        if is_zero {
+            // SAFETY: We have exclusive access to the arc, so we can perform unsynchronized
+            // accesses to the refcount.
+            unsafe { core::ptr::write(refcount, bindings::REFCOUNT_INIT(1)) };
+
+            // SAFETY: We own one refcount, so we can create a `UniqueArc`. It needs to be pinned,
+            // since an `Arc` is pinned.
+            unsafe {
+                Some(Pin::new_unchecked(UniqueArc {
+                    inner: Arc::from_inner(me.ptr),
+                }))
+            }
+        } else {
+            None
+        }
+    }
 }
 
 /// Converts a pointer to the contents of an [`Arc`] into a pointer to the [`ArcInner`].
