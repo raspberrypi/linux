@@ -59,4 +59,31 @@ static __always_inline unsigned __page_shift(void)
 
 #define __PAGE_ALIGNED(addr)    (!__offset_in_page_log(addr))
 
+/*
+ * Increases @size by an adequate amount to allow __PAGE_SIZE alignment
+ * by rounding up; given that @size is already a multiple of the
+ * base page size (PAGE_SIZE).
+ *
+ * Example:
+ *     If __PAGE_SHIFT == PAGE_SHIFT == 12
+ *         @size is increased by 0
+ *             ((1 << (0)) - 1) << PAGE_SHIFT
+ *             (1        ) - 1) << PAGE_SHIFT
+ *             (0             ) << PAGE_SHIFT
+ *
+ *     If __PAGE_SHIFT == 13 and PAGE_SHIFT == 12
+ *         @size is increased by PAGE_SIZE (4KB):
+ *             ((1 << (1)) - 1) << PAGE_SHIFT
+ *             (2        ) - 1) << PAGE_SHIFT
+ *             (1             ) << PAGE_SHIFT
+ *     If __PAGE_SHIFT == 14 and PAGE_SHIFT == 12
+ *         @size is increased by 3xPAGE_SIZE (12KB):
+ *             ((1 << (2)) - 1) << PAGE_SHIFT
+ *             (4        ) - 1) << PAGE_SHIFT
+ *             (3             ) << PAGE_SHIFT
+ *     ...
+ */
+#define __PAGE_SIZE_ROUND_UP_ADJ(size) \
+	((size) + (((1 << (__PAGE_SHIFT - PAGE_SHIFT)) - 1) << PAGE_SHIFT))
+
 #endif /* __LINUX_PAGE_SIZE_COMPAT_H */
