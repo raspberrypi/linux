@@ -438,7 +438,6 @@ l2tp_tunnel_inc_refcount
 l2tp_tunnel_register
 l2tp_udp_encap_recv
 l2tp_xmit_skb
-lockdep_sta_mutex_held
 lowpan_header_compress
 lowpan_header_decompress
 lowpan_nhc_add
