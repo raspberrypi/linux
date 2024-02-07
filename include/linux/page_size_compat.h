@@ -87,14 +87,60 @@ static __always_inline unsigned __page_shift(void)
 #define __PAGE_SIZE_ROUND_UP_ADJ(size) \
 	((size) + (((1 << (__PAGE_SHIFT - PAGE_SHIFT)) - 1) << PAGE_SHIFT))
 
-/* VMA is exempt from emulated page align requirements */
+/*
+ * VMA is exempt from emulated page align requirements
+ *
+ * NOTE: __MAP_NO_COMPAT is not new UABI it is only ever set by the kernel
+ *       in ___filemap_fixup()
+ */
 #define __VM_NO_COMPAT      (_AC(1,ULL) << 63)
 #define __MAP_NO_COMPAT     (_AC(1,ULL) << 63)
 
-/* Combine the mmap "flags" argument into "vm_flags" add translation of the no-compat flag. */
-static inline unsigned long __calc_vm_flag_bits(unsigned long flags)
+/*
+ * Conditional page-alignment based on mmap flags
+ *
+ * If the VMA is allowed to not respect the emulated page size, align using the
+ * base PAGE_SIZE, else align using the emulated __PAGE_SIZE.
+ */
+#define __COMPAT_PAGE_ALIGN(size, flags) \
+	(flags & __MAP_NO_COMPAT) ? PAGE_ALIGN(size) : __PAGE_ALIGN(size)
+
+/*
+ * Combines the mmap "flags" argument into "vm_flags"
+ *
+ * If page size emulation is enabled, adds translation of the no-compat flag.
+ */
+static __always_inline unsigned long calc_vm_flag_bits(unsigned long flags)
 {
-    return calc_vm_flag_bits(flags) | _calc_vm_trans(flags, __MAP_NO_COMPAT,  __VM_NO_COMPAT );
+	unsigned long flag_bits = __calc_vm_flag_bits(flags);
+
+	if (static_branch_unlikely(&page_shift_compat_enabled))
+		flag_bits |= _calc_vm_trans(flags, __MAP_NO_COMPAT,  __VM_NO_COMPAT );
+
+	return flag_bits;
+}
+
+extern unsigned long ___filemap_len(struct inode *inode, unsigned long pgoff,
+				    unsigned long len, unsigned long flags);
+
+extern void ___filemap_fixup(unsigned long addr, unsigned long prot, unsigned long old_len,
+			     unsigned long new_len);
+
+static __always_inline unsigned long __filemap_len(struct inode *inode, unsigned long pgoff,
+						   unsigned long len, unsigned long flags)
+{
+	if (static_branch_unlikely(&page_shift_compat_enabled))
+		return ___filemap_len(inode, pgoff, len, flags);
+	else
+		return len;
+}
+
+static __always_inline void __filemap_fixup(unsigned long addr, unsigned long prot,
+					    unsigned long old_len, unsigned long new_len)
+{
+
+	if (static_branch_unlikely(&page_shift_compat_enabled))
+		___filemap_fixup(addr, prot, old_len, new_len);
 }
 
 #endif /* __LINUX_PAGE_SIZE_COMPAT_H */
