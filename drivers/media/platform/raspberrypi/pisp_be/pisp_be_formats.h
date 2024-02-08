@@ -27,6 +27,8 @@ struct pisp_be_format {
 
 #define V4L2_COLORSPACE_MASK(colorspace) BIT(colorspace)
 
+#define V4L2_COLORSPACE_MASK_JPEG	\
+	V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_JPEG)
 #define V4L2_COLORSPACE_MASK_SMPTE170M	\
 	V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_SMPTE170M)
 #define V4L2_COLORSPACE_MASK_REC709	\
@@ -46,8 +48,9 @@ struct pisp_be_format {
  * producing an RGB format. In turn this requires us to allow all these colour
  * spaces for every YUV/RGB output format.
  */
-#define V4L2_COLORSPACE_MASK_ALL_SRGB (V4L2_COLORSPACE_MASK_SRGB |	\
-				       V4L2_COLORSPACE_MASK_SMPTE170M |	\
+#define V4L2_COLORSPACE_MASK_ALL_SRGB (V4L2_COLORSPACE_MASK_JPEG	| \
+				       V4L2_COLORSPACE_MASK_SRGB 	| \
+				       V4L2_COLORSPACE_MASK_SMPTE170M 	| \
 				       V4L2_COLORSPACE_MASK_REC709)
 
 static const struct pisp_be_format supported_formats[] = {
