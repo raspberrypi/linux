@@ -984,19 +984,29 @@ static int stage2_map_walk_table_pre(const struct kvm_pgtable_visit_ctx *ctx,
 	return 0;
 }
 
-static void stage2_map_prefault_idmap(u64 addr, u32 level, kvm_pte_t *ptep,
-				      kvm_pte_t attr)
+static void stage2_map_prefault_idmap(struct kvm_pgtable_pte_ops *pte_ops,
+				      const struct kvm_pgtable_visit_ctx *ctx,
+				      kvm_pte_t *ptep)
 {
-	u64 granule = kvm_granule_size(level);
+	kvm_pte_t block_pte = ctx->old;
+	u64 pa, granule;
 	int i;
 
-	if (!kvm_pte_valid(attr))
+	WARN_ON(pte_ops->pte_is_counted_cb(block_pte, ctx->level));
+
+	if (!kvm_pte_valid(block_pte))
 		return;
 
-	for (i = 0; i < PTRS_PER_PTE; ++i, ++ptep, addr += granule) {
-		kvm_pte_t pte = kvm_init_valid_leaf_pte(addr, attr, level);
-		/* We can write non-atomically: ptep isn't yet live. */
-		*ptep = pte;
+	pa = ALIGN_DOWN(ctx->addr, kvm_granule_size(ctx->level));
+	granule = kvm_granule_size(ctx->level + 1);
+	for (i = 0; i < PTRS_PER_PTE; ++i, ++ptep, pa += granule) {
+		kvm_pte_t pte = kvm_init_valid_leaf_pte(
+			pa, block_pte, ctx->level + 1);
+		/* Skip ptes in the range being modified by the caller. */
+		if ((pa < ctx->addr) || (pa >= ctx->end)) {
+			/* We can write non-atomically: ptep isn't yet live. */
+			*ptep = pte;
+		}
 	}
 }
 
@@ -1024,10 +1034,7 @@ static int stage2_map_walk_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 		return -ENOMEM;
 
 	if (pgt->flags & KVM_PGTABLE_S2_IDMAP) {
-		WARN_ON(pte_ops->pte_is_counted_cb(ctx->old, ctx->level));
-		stage2_map_prefault_idmap(
-			ALIGN_DOWN(ctx->addr, kvm_granule_size(ctx->level)),
-			ctx->level + 1, childp, ctx->old);
+		stage2_map_prefault_idmap(pte_ops, ctx, childp);
 	}
 
 	if (!stage2_try_break_pte(ctx, data->mmu)) {
