@@ -321,8 +321,7 @@ static void fb_deferred_io_lastclose(struct fb_info *info)
 	struct page *page;
 	int i;
 
-	if (!list_empty(&info->fbdefio->pagereflist))
-		cancel_delayed_work_sync(&info->deferred_work);
+	cancel_delayed_work_sync(&info->deferred_work);
 
 	/* clear out the mapping that we setup */
 	for (i = 0 ; i < info->fix.smem_len; i += PAGE_SIZE) {
