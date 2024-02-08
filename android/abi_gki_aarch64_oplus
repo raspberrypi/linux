@@ -113,3 +113,7 @@
   wakeup_source_remove
   zero_pfn
 
+  __traceiter_android_vh_alter_mutex_list_add
+  __traceiter_android_vh_mutex_unlock_slowpath
+  __tracepoint_android_vh_alter_mutex_list_add
+  __tracepoint_android_vh_mutex_unlock_slowpath
