@@ -1080,6 +1080,10 @@ static int free_tail_page_prepare(struct page *head_page, struct page *page)
 			bad_page(page, "nonzero pincount");
 			goto out;
 		}
+		if (unlikely(folio->_private_1)) {
+			bad_page(page, "nonzero _private_1");
+			goto out;
+		}
 		break;
 	case 2:
 		/*

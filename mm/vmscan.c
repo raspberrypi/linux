@@ -1950,6 +1950,15 @@ retry:
 				goto keep_locked;
 		}
 
+		if (folio_ref_count(folio) == 1) {
+			folio_unlock(folio);
+			if (folio_put_testzero(folio))
+				goto free_it;
+
+			nr_reclaimed += nr_pages;
+			continue;
+		}
+
 		/*
 		 * If the folio was split above, the tail pages will make
 		 * their own pass through this function and be accounted

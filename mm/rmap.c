@@ -2274,6 +2274,10 @@ static bool try_to_migrate_one(struct folio *folio, struct vm_area_struct *vma,
 						hsz);
 			else
 				set_pte_at(mm, address, pvmw.pte, swp_pte);
+			if (vma->vm_flags & VM_LOCKED)
+				set_src_usage(subpage, SRC_PAGE_MLOCKED);
+			else
+				set_src_usage(subpage, SRC_PAGE_MAPPED);
 			trace_set_migration_pte(address, pte_val(swp_pte),
 						compound_order(&folio->page));
 			/*

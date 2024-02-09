@@ -1416,4 +1416,43 @@ struct vma_prepare {
 	struct vm_area_struct *remove;
 	struct vm_area_struct *remove2;
 };
+
+#define SRC_PAGE_MAPPED		BIT(0)
+#define SRC_PAGE_MLOCKED	BIT(1)
+#define SRC_PAGE_CLEAN		BIT(2)
+#define SRC_PAGE_USAGE_MASK	(BIT(3) - 1)
+
+static inline unsigned long src_page_usage(struct page *page)
+{
+	struct folio *src = page_folio(page);
+	int i = folio_page_idx(src, page);
+
+	if (folio_can_split(src) || !src->_dst_ul)
+		return 0;
+
+	return src->_dst_ul[i] & SRC_PAGE_USAGE_MASK;
+}
+
+static inline bool can_discard_src(struct page *page)
+{
+	return src_page_usage(page) & SRC_PAGE_CLEAN;
+}
+
+static inline void set_src_usage(struct page *page, unsigned long usage)
+{
+	struct folio *src = page_folio(page);
+	int i = folio_page_idx(src, page);
+
+	if (!folio_can_split(src) && src->_dst_ul)
+		src->_dst_ul[i] |= usage;
+}
+
+static inline struct page *folio_dst_page(struct folio *src, int i)
+{
+	if (folio_can_split(src) || !src->_dst_ul)
+		return folio_page(src, i);
+
+	return (void *)(src->_dst_ul[i] & ~SRC_PAGE_USAGE_MASK);
+}
+
 #endif	/* __MM_INTERNAL_H */
