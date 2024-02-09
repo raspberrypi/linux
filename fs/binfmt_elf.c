@@ -84,11 +84,7 @@ static int elf_core_dump(struct coredump_params *cprm);
 #define elf_core_dump	NULL
 #endif
 
-#if ELF_EXEC_PAGESIZE > PAGE_SIZE
 #define ELF_MIN_ALIGN	ELF_EXEC_PAGESIZE
-#else
-#define ELF_MIN_ALIGN	PAGE_SIZE
-#endif
 
 #ifndef ELF_CORE_EFLAGS
 #define ELF_CORE_EFLAGS	0
@@ -104,7 +100,8 @@ static struct linux_binfmt elf_format = {
 	.load_shlib	= load_elf_library,
 #ifdef CONFIG_COREDUMP
 	.core_dump	= elf_core_dump,
-	.min_coredump	= ELF_EXEC_PAGESIZE,
+	/* init_elf_binfmt() overrides .min_coredump with the correct emulated page-size. */
+	.min_coredump	= PAGE_SIZE,
 #endif
 };
 
@@ -2162,6 +2159,7 @@ end_coredump:
 
 static int __init init_elf_binfmt(void)
 {
+	elf_format.min_coredump = ELF_EXEC_PAGESIZE;
 	register_binfmt(&elf_format);
 	return 0;
 }
