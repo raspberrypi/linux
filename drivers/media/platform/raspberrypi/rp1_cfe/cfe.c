@@ -1086,7 +1086,7 @@ static u64 sensor_link_rate(struct cfe_device *cfe)
 	}
 
 	link_freq = v4l2_get_link_freq(subdev->ctrl_handler, fmt->depth,
-				       cfe->csi2.active_data_lanes * 2);
+				       cfe->csi2.dphy.active_lanes * 2);
 	if (link_freq < 0)
 		goto err;
 
@@ -1149,9 +1149,6 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 	cfg_reg_write(cfe, MIPICFG_CFG, MIPICFG_CFG_SEL_CSI);
 	cfg_reg_write(cfe, MIPICFG_INTE, MIPICFG_INT_CSI_DMA | MIPICFG_INT_PISP_FE);
 
-	cfe->csi2.active_data_lanes = cfe->csi2.dphy.num_lanes;
-	cfe_dbg("Running with %u data lanes\n", cfe->csi2.active_data_lanes);
-
 	ret = v4l2_subdev_call(cfe->sensor, pad, get_mbus_config, 0,
 			       &mbus_config);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
@@ -1159,17 +1156,17 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_pm_put;
 	}
 
-	cfe->csi2.active_data_lanes = mbus_config.bus.mipi_csi2.num_data_lanes;
-	if (!cfe->csi2.active_data_lanes)
-		cfe->csi2.active_data_lanes = cfe->csi2.dphy.num_lanes;
-	if (cfe->csi2.active_data_lanes > cfe->csi2.dphy.num_lanes) {
+	cfe->csi2.dphy.active_lanes = mbus_config.bus.mipi_csi2.num_data_lanes;
+	if (!cfe->csi2.dphy.active_lanes)
+		cfe->csi2.dphy.active_lanes = cfe->csi2.dphy.max_lanes;
+	if (cfe->csi2.dphy.active_lanes > cfe->csi2.dphy.max_lanes) {
 		cfe_err("Device has requested %u data lanes, which is >%u configured in DT\n",
-			cfe->csi2.active_data_lanes, cfe->csi2.dphy.num_lanes);
+			cfe->csi2.dphy.active_lanes, cfe->csi2.dphy.max_lanes);
 		ret = -EINVAL;
 		goto err_disable_cfe;
 	}
 
-	cfe_dbg("Configuring CSI-2 block\n");
+	cfe_dbg("Configuring CSI-2 block - %u data lanes\n", cfe->csi2.dphy.active_lanes);
 	cfe->csi2.dphy.dphy_rate = sensor_link_rate(cfe) / 1000000UL;
 	csi2_open_rx(&cfe->csi2);
 
@@ -2167,11 +2164,11 @@ static int of_cfe_connect_subdevs(struct cfe_device *cfe)
 		}
 	}
 
-	cfe->csi2.dphy.num_lanes = ep.bus.mipi_csi2.num_data_lanes;
+	cfe->csi2.dphy.max_lanes = ep.bus.mipi_csi2.num_data_lanes;
 	cfe->csi2.bus_flags = ep.bus.mipi_csi2.flags;
 
 	cfe_dbg("subdevice %pOF: %u data lanes, flags=0x%08x, multipacket_line=%u\n",
-		sensor_node, cfe->csi2.dphy.num_lanes, cfe->csi2.bus_flags,
+		sensor_node, cfe->csi2.dphy.max_lanes, cfe->csi2.bus_flags,
 		cfe->csi2.multipacket_line);
 
 	/* Initialize and register the async notifier. */

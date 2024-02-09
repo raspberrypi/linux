@@ -149,7 +149,7 @@ static void dphy_init(struct dphy_data *dphy)
 
 void dphy_start(struct dphy_data *dphy)
 {
-	dw_csi2_host_write(dphy, N_LANES, (dphy->num_lanes - 1));
+	dw_csi2_host_write(dphy, N_LANES, (dphy->active_lanes - 1));
 	dphy_init(dphy);
 	dw_csi2_host_write(dphy, RESETN, 0xffffffff);
 	usleep_range(10, 50);

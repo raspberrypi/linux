@@ -57,7 +57,6 @@ struct csi2_device {
 
 	enum v4l2_mbus_type bus_type;
 	unsigned int bus_flags;
-	u32 active_data_lanes;
 	bool multipacket_line;
 	unsigned int num_lines[CSI2_NUM_CHANNELS];
 
