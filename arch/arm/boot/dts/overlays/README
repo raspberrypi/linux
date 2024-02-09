@@ -868,6 +868,10 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-ov7251             Select OV7251 for camera on port 1
         cam1-ov9281             Select OV9281 for camera on port 1
         cam1-imx290-clk-freq    Set clock frequency for an IMX290 on port 1
+        cam0-sync-source        Set camera on port 0 as vsync source
+        cam0-sync-sink          Set camera on port 0 as vsync sink
+        cam1-sync-source        Set camera on port 1 as vsync source
+        cam1-sync-sink          Set camera on port 1 as vsync sink
 
         cam0                    Connect the mux to CAM0 port (default is CAM1)
 
@@ -929,6 +933,14 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam3-ov7251             Select OV7251 for camera on port 3
         cam3-ov9281             Select OV9281 for camera on port 3
         cam3-imx290-clk-freq    Set clock frequency for an IMX290 on port 3
+        cam0-sync-source        Set camera on port 0 as vsync source
+        cam0-sync-sink          Set camera on port 0 as vsync sink
+        cam1-sync-source        Set camera on port 1 as vsync source
+        cam1-sync-sink          Set camera on port 1 as vsync sink
+        cam2-sync-source        Set camera on port 2 as vsync source
+        cam2-sync-sink          Set camera on port 2 as vsync sink
+        cam3-sync-source        Set camera on port 3 as vsync source
+        cam3-sync-sink          Set camera on port 3 as vsync sink
 
         cam0                    Connect the mux to CAM0 port (default is CAM1)
 
@@ -2648,6 +2660,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         always-on               Leave the regulator powered up, to stop the
                                 camera clamping I/Os such as XVS to 0V.
+        sync-source             Configure as vsync source
+        sync-sink               Configure as vsync sink
 
 
 Name:   imx462
@@ -2688,6 +2702,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         always-on               Leave the regulator powered up, to stop the
                                 camera clamping I/Os such as XVS to 0V.
+        sync-source             Configure as vsync source
+        sync-sink               Configure as vsync sink
 
 
 Name:   imx519

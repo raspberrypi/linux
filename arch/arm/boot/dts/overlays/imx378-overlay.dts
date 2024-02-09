@@ -8,3 +8,10 @@
 &cam_node {
 	compatible = "sony,imx378";
 };
+
+/{
+	__overrides__ {
+		sync-sink = <&cam_node>,"trigger-mode:0=2";
+		sync-source = <&cam_node>,"trigger-mode:0=1";
+	};
+};

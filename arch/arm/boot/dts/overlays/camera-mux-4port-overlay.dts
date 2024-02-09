@@ -939,5 +939,14 @@
 
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&csi_frag>, "target:0=",<&csi0>;
+
+		cam0-sync-source = <&imx477_0>, "trigger-mode:0=1";
+		cam0-sync-sink = <&imx477_0>, "trigger-mode:0=2";
+		cam1-sync-source = <&imx477_1>, "trigger-mode:0=1";
+		cam1-sync-sink = <&imx477_1>, "trigger-mode:0=2";
+		cam2-sync-source = <&imx477_2>, "trigger-mode:0=1";
+		cam2-sync-sink = <&imx477_2>, "trigger-mode:0=2";
+		cam3-sync-source = <&imx477_3>, "trigger-mode:0=1";
+		cam3-sync-sink = <&imx477_3>, "trigger-mode:0=2";
 	};
 };
