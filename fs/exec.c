@@ -66,6 +66,7 @@
 #include <linux/coredump.h>
 #include <linux/time_namespace.h>
 #include <linux/user_events.h>
+#include <linux/page_size_compat.h>
 
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
@@ -275,7 +276,7 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
 	 */
 	BUILD_BUG_ON(VM_STACK_FLAGS & VM_STACK_INCOMPLETE_SETUP);
 	vma->vm_end = STACK_TOP_MAX;
-	vma->vm_start = vma->vm_end - PAGE_SIZE;
+	vma->vm_start = vma->vm_end - __PAGE_SIZE;
 	vm_flags_init(vma, VM_SOFTDIRTY | VM_STACK_FLAGS | VM_STACK_INCOMPLETE_SETUP);
 	vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
 
@@ -777,14 +778,14 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	if (vma->vm_end - vma->vm_start > stack_base)
 		return -ENOMEM;
 
-	stack_base = PAGE_ALIGN(stack_top - stack_base);
+	stack_base = __PAGE_ALIGN(stack_top - stack_base);
 
 	stack_shift = vma->vm_start - stack_base;
 	mm->arg_start = bprm->p - stack_shift;
 	bprm->p = vma->vm_end - stack_shift;
 #else
 	stack_top = arch_align_stack(stack_top);
-	stack_top = PAGE_ALIGN(stack_top);
+	stack_top = __PAGE_ALIGN(stack_top);
 
 	if (unlikely(stack_top < mmap_min_addr) ||
 	    unlikely(vma->vm_end - vma->vm_start >= stack_top - mmap_min_addr))
@@ -849,7 +850,7 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	 * Align this down to a page boundary as expand_stack
 	 * will align it up.
 	 */
-	rlim_stack = bprm->rlim_stack.rlim_cur & PAGE_MASK;
+	rlim_stack = bprm->rlim_stack.rlim_cur & __PAGE_MASK;
 
 	stack_expand = min(rlim_stack, stack_size + stack_expand);
 
