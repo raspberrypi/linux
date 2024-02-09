@@ -359,7 +359,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	sd-uhs-sdr50;
 	sd-uhs-ddr50;
 	sd-uhs-sdr104;
-	//broken-cd;
+	cd-gpios = <&gio_aon 5 GPIO_ACTIVE_LOW>;
 	//no-1-8-v;
 	status = "okay";
 };
@@ -396,7 +396,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	};
 
 	emmc_sd_pulls: emmc_sd_pulls {
-		function = "emmc_dat0", "emmc_dat1", "emmc_dat2", "emmc_dat3";
+		pins = "emmc_cmd", "emmc_dat0", "emmc_dat1", "emmc_dat2", "emmc_dat3";
 		bias-pull-up;
 	};
 };
