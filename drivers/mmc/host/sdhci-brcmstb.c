@@ -40,7 +40,8 @@
 
 #define SDIO_CFG_SD_PIN_SEL			0x44
 #define  SDIO_CFG_SD_PIN_SEL_MASK		0x3
-#define  SDIO_CFG_SD_PIN_SEL_CARD		BIT(1)
+#define  SDIO_CFG_SD_PIN_SEL_SD			BIT(1)
+#define  SDIO_CFG_SD_PIN_SEL_MMC		BIT(0)
 
 #define SDIO_CFG_MAX_50MHZ_MODE			0x1ac
 #define  SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE	BIT(31)
@@ -148,6 +149,42 @@ static void sdhci_brcmstb_hs400es(struct mmc_host *mmc, struct mmc_ios *ios)
 	writel(reg, host->ioaddr + SDHCI_VENDOR);
 }
 
+static void sdhci_bcm2712_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	u16 clk;
+	u32 reg;
+	bool is_emmc_rate = false;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_brcmstb_priv *brcmstb_priv = sdhci_pltfm_priv(pltfm_host);
+
+	host->mmc->actual_clock = 0;
+
+	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
+
+	switch (host->mmc->ios.timing) {
+	case MMC_TIMING_MMC_HS400:
+	case MMC_TIMING_MMC_HS200:
+	case MMC_TIMING_MMC_DDR52:
+	case MMC_TIMING_MMC_HS:
+	is_emmc_rate = true;
+	break;
+	}
+
+	reg = readl(brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
+	reg &= ~SDIO_CFG_SD_PIN_SEL_MASK;
+	if (is_emmc_rate)
+		reg |= SDIO_CFG_SD_PIN_SEL_MMC;
+	else
+		reg |= SDIO_CFG_SD_PIN_SEL_SD;
+	writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
+
+	if (clock == 0)
+		return;
+
+	clk = sdhci_calc_clk(host, clock, &host->mmc->actual_clock);
+	sdhci_enable_clk(host, clk);
+}
+
 static void sdhci_brcmstb_set_clock(struct sdhci_host *host, unsigned int clock)
 {
 	u16 clk;
@@ -207,22 +244,16 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_brcmstb_priv *brcmstb_priv = sdhci_pltfm_priv(pltfm_host);
-	bool want_dll = false;
 	u32 uhs_mask = (MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104);
 	u32 hsemmc_mask = (MMC_CAP2_HS200_1_8V_SDR | MMC_CAP2_HS200_1_2V_SDR |
 			   MMC_CAP2_HS400_1_8V | MMC_CAP2_HS400_1_2V);
 	u32 reg;
 
-	if (!(host->quirks2 & SDHCI_QUIRK2_NO_1_8_V)) {
-	    if((host->mmc->caps & uhs_mask) || (host->mmc->caps2 & hsemmc_mask))
-		want_dll = true;
-	}
-
 	/*
-	 * If we want a speed that requires tuning,
-	 * then select the delay line PHY as the clock source.
-	 */
-	if (want_dll) {
+	* If we support a speed that requires tuning,
+	* then select the delay line PHY as the clock source.
+	*/
+	if ((host->mmc->caps & uhs_mask) || (host->mmc->caps2 & hsemmc_mask)) {
 		reg = readl(brcmstb_priv->cfg_regs + SDIO_CFG_MAX_50MHZ_MODE);
 		reg &= ~SDIO_CFG_MAX_50MHZ_MODE_ENABLE;
 		reg |= SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE;
@@ -236,12 +267,6 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 		reg &= ~SDIO_CFG_CTRL_SDCD_N_TEST_LEV;
 		reg |= SDIO_CFG_CTRL_SDCD_N_TEST_EN;
 		writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_CTRL);
-	} else {
-		/* Enable card detection line */
-		reg = readl(brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
-		reg &= ~SDIO_CFG_SD_PIN_SEL_MASK;
-		reg |= SDIO_CFG_SD_PIN_SEL_CARD;
-		writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
 	}
 }
 
@@ -376,7 +401,7 @@ static struct sdhci_ops sdhci_brcmstb_ops = {
 };
 
 static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
-	.set_clock = sdhci_set_clock,
+	.set_clock = sdhci_bcm2712_set_clock,
 	.set_power = sdhci_brcmstb_set_power,
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_reset,
