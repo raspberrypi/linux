@@ -1124,6 +1124,9 @@ struct imx477 {
 	/* Current mode */
 	const struct imx477_mode *mode;
 
+	/* Trigger mode */
+	int trigger_mode_of;
+
 	/*
 	 * Mutex for serialized access:
 	 * Protect sensor module set pad format and start/stop streaming safely.
@@ -1711,7 +1714,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	const struct imx477_reg_list *reg_list;
 	const struct imx477_reg_list *extra_regs;
-	int ret;
+	int ret, tm;
 
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
@@ -1748,14 +1751,15 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		return ret;
 
 	/* Set vsync trigger mode: 0=standalone, 1=source, 2=sink */
+	tm = (imx477->trigger_mode_of >= 0) ? imx477->trigger_mode_of : trigger_mode;
 	imx477_write_reg(imx477, IMX477_REG_MC_MODE,
-			 IMX477_REG_VALUE_08BIT, (trigger_mode > 0) ? 1 : 0);
+			 IMX477_REG_VALUE_08BIT, (tm > 0) ? 1 : 0);
 	imx477_write_reg(imx477, IMX477_REG_MS_SEL,
-			 IMX477_REG_VALUE_08BIT, (trigger_mode <= 1) ? 1 : 0);
+			 IMX477_REG_VALUE_08BIT, (tm <= 1) ? 1 : 0);
 	imx477_write_reg(imx477, IMX477_REG_XVS_IO_CTRL,
-			 IMX477_REG_VALUE_08BIT, (trigger_mode == 1) ? 1 : 0);
+			 IMX477_REG_VALUE_08BIT, (tm == 1) ? 1 : 0);
 	imx477_write_reg(imx477, IMX477_REG_EXTOUT_EN,
-			 IMX477_REG_VALUE_08BIT, (trigger_mode == 1) ? 1 : 0);
+			 IMX477_REG_VALUE_08BIT, (tm == 1) ? 1 : 0);
 
 	/* set stream on register */
 	return imx477_write_reg(imx477, IMX477_REG_MODE_SELECT,
@@ -2187,6 +2191,7 @@ static int imx477_probe(struct i2c_client *client)
 	struct imx477 *imx477;
 	const struct of_device_id *match;
 	int ret;
+	u32 tm_of;
 
 	imx477 = devm_kzalloc(&client->dev, sizeof(*imx477), GFP_KERNEL);
 	if (!imx477)
@@ -2203,6 +2208,10 @@ static int imx477_probe(struct i2c_client *client)
 	/* Check the hardware configuration in device tree */
 	if (imx477_check_hwcfg(dev))
 		return -EINVAL;
+
+	/* Default the trigger mode from OF to -1, which means invalid */
+	ret = of_property_read_u32(dev->of_node, "trigger-mode", &tm_of);
+	imx477->trigger_mode_of = (ret == 0) ? tm_of : -1;
 
 	/* Get system clock (xclk) */
 	imx477->xclk = devm_clk_get(dev, NULL);
