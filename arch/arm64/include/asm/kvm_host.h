@@ -500,8 +500,10 @@ struct kvm_hyp_req {
 		struct {
 #define REQ_MEM_DEST_HYP_ALLOC		1
 #define REQ_MEM_DEST_VCPU_MEMCACHE	2
+#define REQ_MEM_DEST_HYP_IOMMU		3
 			u8	dest;
 			int	nr_pages;
+			int	sz_alloc; /* Size of the page. */
 		} mem;
 		struct {
 			unsigned long	guest_ipa;
