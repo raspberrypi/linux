@@ -416,6 +416,17 @@ static const struct pin_regs bcm2712_d0_gpio_pin_regs[] = {
 	GPIO_REGS(33, 3, 1, 6, 0),
 	GPIO_REGS(34, 3, 2, 6, 1),
 	GPIO_REGS(35, 3, 3, 6, 2),
+	EMMC_REGS(36, 6, 3), /* EMMC_CMD */
+	EMMC_REGS(37, 6, 4), /* EMMC_DS */
+	EMMC_REGS(38, 6, 5), /* EMMC_CLK */
+	EMMC_REGS(39, 6, 6), /* EMMC_DAT0 */
+	EMMC_REGS(40, 6, 7), /* EMMC_DAT1 */
+	EMMC_REGS(41, 6, 8), /* EMMC_DAT2 */
+	EMMC_REGS(42, 6, 9), /* EMMC_DAT3 */
+	EMMC_REGS(43, 6, 10), /* EMMC_DAT4 */
+	EMMC_REGS(44, 6, 11), /* EMMC_DAT5 */
+	EMMC_REGS(45, 6, 12), /* EMMC_DAT6 */
+	EMMC_REGS(46, 6, 13), /* EMMC_DAT7 */
 };
 
 static struct pin_regs bcm2712_d0_aon_gpio_pin_regs[] = {
@@ -468,6 +479,17 @@ static const struct pinctrl_pin_desc bcm2712_d0_gpio_pins[] = {
 	GPIO_PIN(33),
 	GPIO_PIN(34),
 	GPIO_PIN(35),
+	PINCTRL_PIN(36, "emmc_cmd"),
+	PINCTRL_PIN(37, "emmc_ds"),
+	PINCTRL_PIN(38, "emmc_clk"),
+	PINCTRL_PIN(39, "emmc_dat0"),
+	PINCTRL_PIN(40, "emmc_dat1"),
+	PINCTRL_PIN(41, "emmc_dat2"),
+	PINCTRL_PIN(42, "emmc_dat3"),
+	PINCTRL_PIN(43, "emmc_dat4"),
+	PINCTRL_PIN(44, "emmc_dat5"),
+	PINCTRL_PIN(45, "emmc_dat6"),
+	PINCTRL_PIN(46, "emmc_dat7"),
 };
 
 static struct pinctrl_pin_desc bcm2712_d0_aon_gpio_pins[] = {
