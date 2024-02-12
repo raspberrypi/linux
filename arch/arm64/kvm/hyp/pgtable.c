@@ -992,6 +992,8 @@ static void stage2_map_prefault_idmap(struct kvm_pgtable_pte_ops *pte_ops,
 	u64 pa, granule;
 	int i;
 
+	return; /* ANDROID: Bug 324648175 workaround */
+
 	WARN_ON(pte_ops->pte_is_counted_cb(block_pte, ctx->level));
 
 	if (!kvm_pte_valid(block_pte))
