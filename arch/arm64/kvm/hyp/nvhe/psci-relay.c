@@ -189,7 +189,6 @@ static int psci_cpu_suspend(u64 func_id, struct kvm_cpu_context *host_ctxt)
 	boot_args->r0 = r0;
 
 	pkvm_psci_notify(PKVM_PSCI_CPU_SUSPEND, host_ctxt);
-	trace_hyp_exit();
 
 	/*
 	 * Will either return if shallow sleep state, or wake up into the entry
