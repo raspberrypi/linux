@@ -206,6 +206,16 @@ static inline bool cma_redirect_restricted(void)
 	return static_key_enabled(&restrict_cma_redirect);
 }
 
+/*
+ * Return true if CMA has pcplist. We use the PCP list for CMA only if
+ * this returns true. For now, rather than define a new flag, reuse the
+ * restrict_cma_redirect flag itself to select this behavior.
+ */
+static inline bool cma_has_pcplist(void)
+{
+	return static_key_enabled(&restrict_cma_redirect);
+}
+
 #ifdef CONFIG_HAVE_MEMORYLESS_NODES
 /*
  * N.B., Do NOT reference the '_numa_mem_' per cpu variable directly.
@@ -314,10 +324,10 @@ const char * const migratetype_names[MIGRATE_TYPES] = {
 	"Unmovable",
 	"Movable",
 	"Reclaimable",
-	"HighAtomic",
 #ifdef CONFIG_CMA
 	"CMA",
 #endif
+	"HighAtomic",
 #ifdef CONFIG_MEMORY_ISOLATION
 	"Isolate",
 #endif
@@ -576,6 +586,13 @@ out:
 
 static inline unsigned int order_to_pindex(int migratetype, int order)
 {
+	/*
+	 * We shouldn't get here for MIGRATE_CMA if those pages don't
+	 * have their own pcp list. For instance, free_unref_page() sets
+	 * pcpmigratetype to MIGRATE_MOVABLE.
+	 */
+	VM_BUG_ON(!cma_has_pcplist() && migratetype == MIGRATE_CMA);
+
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	if (order > PAGE_ALLOC_COSTLY_ORDER) {
 		VM_BUG_ON(order != pageblock_order);
@@ -2480,19 +2497,21 @@ void free_unref_page(struct page *page, unsigned int order)
 		return;
 
 	/*
-	 * We only track unmovable, reclaimable and movable on pcp lists.
+	 * We only track unmovable, reclaimable, movable and if restrict cma
+	 * fallback flag is set, CMA on pcp lists.
 	 * Place ISOLATE pages on the isolated list because they are being
 	 * offlined but treat HIGHATOMIC and CMA as movable pages so we can
 	 * get those areas back if necessary. Otherwise, we may have to free
 	 * excessively into the page allocator
 	 */
 	migratetype = pcpmigratetype = get_pcppage_migratetype(page);
-	if (unlikely(migratetype >= MIGRATE_PCPTYPES)) {
+	if (unlikely(migratetype > MIGRATE_RECLAIMABLE)) {
 		if (unlikely(is_migrate_isolate(migratetype))) {
 			free_one_page(page_zone(page), page, pfn, order, migratetype, FPI_NONE);
 			return;
 		}
-		pcpmigratetype = MIGRATE_MOVABLE;
+		if (!cma_has_pcplist() || migratetype != MIGRATE_CMA)
+			pcpmigratetype = MIGRATE_MOVABLE;
 	}
 
 	zone = page_zone(page);
@@ -2578,8 +2597,10 @@ void free_unref_page_list(struct list_head *list)
 		 * Non-isolated types over MIGRATE_PCPTYPES get added
 		 * to the MIGRATE_MOVABLE pcp list.
 		 */
-		if (unlikely(migratetype >= MIGRATE_PCPTYPES))
-			migratetype = MIGRATE_MOVABLE;
+		if (unlikely(migratetype > MIGRATE_RECLAIMABLE)) {
+			if (!cma_has_pcplist() || migratetype != MIGRATE_CMA)
+				migratetype = MIGRATE_MOVABLE;
+		}
 
 		trace_mm_page_free_batched(page);
 		free_unref_page_commit(zone, pcp, page, migratetype, 0);
@@ -2801,8 +2822,12 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 
 	if (cma_redirect_restricted() && alloc_flags & ALLOC_CMA) {
 		struct page *page;
+		int cma_migratetype;
 
-		page = ___rmqueue_pcplist(zone, order, get_cma_migrate_type(),
+		/* Use CMA pcp list */
+		cma_migratetype = get_cma_migrate_type();
+		list = &pcp->lists[order_to_pindex(cma_migratetype, order)];
+		page = ___rmqueue_pcplist(zone, order, cma_migratetype,
 					  alloc_flags, pcp, list);
 		if (page)
 			return page;
@@ -2992,6 +3017,14 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 			continue;
 
 		for (mt = 0; mt < MIGRATE_PCPTYPES; mt++) {
+#ifdef CONFIG_CMA
+			/*
+			 * Note that this check is needed only
+			 * when MIGRATE_CMA < MIGRATE_PCPTYPES.
+			 */
+			if (mt == MIGRATE_CMA)
+				continue;
+#endif
 			if (!free_area_empty(area, mt))
 				return true;
 		}
