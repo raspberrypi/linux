@@ -917,6 +917,7 @@ static int stage2_map_walker_try_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	struct kvm_pgtable *pgt = data->mmu->pgt;
 	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
 	struct kvm_pgtable_pte_ops *pte_ops = pgt->pte_ops;
+	bool old_is_counted;
 
 	if (!stage2_leaf_mapping_allowed(ctx, data))
 		return -E2BIG;
@@ -926,7 +927,8 @@ static int stage2_map_walker_try_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	else
 		new = data->annotation;
 
-	if (pte_ops->pte_is_counted_cb(ctx->old, ctx->level)) {
+	old_is_counted = pte_ops->pte_is_counted_cb(ctx->old, ctx->level);
+	if (old_is_counted) {
 		/*
 		 * Skip updating a guest PTE if we are trying to recreate the
 		 * exact same mapping or change only the access permissions.
@@ -944,6 +946,13 @@ static int stage2_map_walker_try_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	/* If we're only changing software bits, then store them and go! */
 	if (!kvm_pgtable_walk_shared(ctx) &&
 	    !((ctx->old ^ new) & ~KVM_PTE_LEAF_ATTR_HI_SW)) {
+		if (old_is_counted !=
+		    pte_ops->pte_is_counted_cb(new, ctx->level)) {
+			if (old_is_counted)
+				mm_ops->put_page(ctx->ptep);
+			else
+				mm_ops->get_page(ctx->ptep);
+		}
 		WRITE_ONCE(*ctx->ptep, new);
 		return 0;
 	}
