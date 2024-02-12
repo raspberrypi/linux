@@ -650,8 +650,6 @@ static bool host_stage2_pte_is_counted(kvm_pte_t pte, u32 level)
 {
 	u64 phys;
 
-	return !!pte; /* ANDROID: Bug 324648175 workaround */
-
 	if (!kvm_pte_valid(pte))
 		return !!pte;
 
