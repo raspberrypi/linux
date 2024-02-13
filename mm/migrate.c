@@ -176,6 +176,7 @@ void putback_movable_pages(struct list_head *l)
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(putback_movable_pages);
 
 /*
  * Restore a potential migration pte to a working pte entry
@@ -1987,6 +1988,7 @@ out:
 
 	return rc_gather;
 }
+EXPORT_SYMBOL_GPL(migrate_pages);
 
 struct folio *alloc_migration_target(struct folio *src, unsigned long private)
 {
