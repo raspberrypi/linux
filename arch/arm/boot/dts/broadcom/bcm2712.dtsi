@@ -442,7 +442,7 @@
 			reg = <0x7d508200 0x58>;
 			interrupt-parent = <&bsc_irq>;
 			interrupts = <1>;
-			clock-frequency = <200000>;
+			clock-frequency = <97500>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -453,7 +453,7 @@
 			reg = <0x7d508280 0x58>;
 			interrupt-parent = <&bsc_irq>;
 			interrupts = <2>;
-			clock-frequency = <200000>;
+			clock-frequency = <97500>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
