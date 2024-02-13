@@ -1419,7 +1419,7 @@ int kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
 	u32 level;
 	kvm_pte_t set = 0, clr = 0;
 
-	if (prot & !KVM_PGTABLE_PROT_RWX)
+	if (prot & ~KVM_PGTABLE_PROT_RWX)
 		return -EINVAL;
 
 	if (prot & KVM_PGTABLE_PROT_R)
