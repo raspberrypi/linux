@@ -206,6 +206,9 @@
 #define  VDM_PRIORITY_TO_QOS_MAP_MASK			0xf
 
 #define PCIE_MISC_AXI_INTF_CTRL 0x416C
+#define  AXI_EN_RCLK_QOS_ARRAY_FIX			BIT(13)
+#define  AXI_EN_QOS_UPDATE_TIMING_FIX			BIT(12)
+#define  AXI_DIS_QOS_GATING_IN_MASTER			BIT(11)
 #define  AXI_REQFIFO_EN_QOS_PROPAGATION			BIT(7)
 #define  AXI_BRIDGE_LOW_LATENCY_MODE			BIT(6)
 #define  AXI_MASTER_MAX_OUTSTANDING_REQUESTS_MASK	0x3f
@@ -565,9 +568,11 @@ static void brcm_pcie_set_tc_qos(struct brcm_pcie *pcie)
 	if (pcie->type != BCM2712)
 		return;
 
-	/* XXX: BCM2712C0 is broken, disable the forwarding search */
+	/* Disable broken QOS forwarding search. Set chicken bits for 2712D0 */
 	reg = readl(pcie->base + PCIE_MISC_AXI_INTF_CTRL);
 	reg &= ~AXI_REQFIFO_EN_QOS_PROPAGATION;
+	reg |= AXI_EN_RCLK_QOS_ARRAY_FIX | AXI_EN_QOS_UPDATE_TIMING_FIX |
+		AXI_DIS_QOS_GATING_IN_MASTER;
 	writel(reg, pcie->base + PCIE_MISC_AXI_INTF_CTRL);
 
 	/* Disable VDM reception by default - QoS map defaults to 0 */
