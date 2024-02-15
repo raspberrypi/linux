@@ -247,10 +247,21 @@ enum kvm_pgtable_prot {
 };
 
 /*
+ * Stage-2 invalid-PTE annotations. These are non-overlapping bitfields which
+ * define mutually-exclusive PTE states.
+ */
+
+/* (Host S2) The owner of the corresponding physical page. */
+#define KVM_INVALID_PTE_OWNER_MASK	GENMASK(9, 2)
+
+/*
  * Used to indicate a pte for which a 'break-before-make' sequence is in
  * progress.
  */
 #define KVM_INVALID_PTE_LOCKED		BIT(10)
+
+/* Indicates a valid MMIO mapping registered via ioguard. */
+#define KVM_INVALID_PTE_MMIO_NOTE	BIT(11)
 
 #define KVM_PGTABLE_PROT_RW	(KVM_PGTABLE_PROT_R | KVM_PGTABLE_PROT_W)
 #define KVM_PGTABLE_PROT_RWX	(KVM_PGTABLE_PROT_RW | KVM_PGTABLE_PROT_X)
