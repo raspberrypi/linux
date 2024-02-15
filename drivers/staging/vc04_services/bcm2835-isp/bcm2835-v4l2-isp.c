@@ -1050,8 +1050,10 @@ static int bcm2835_isp_node_try_fmt(struct file *file, void *priv,
 		f->fmt.pix.quantization = V4L2_MAP_QUANTIZATION_DEFAULT(is_rgb, f->fmt.pix.colorspace,
 									f->fmt.pix.ycbcr_enc);
 
-		f->fmt.pix.bytesperline = get_bytesperline(f->fmt.pix.width,
-							   fmt);
+		/* Respect any stride value (suitably aligned) that was requested. */
+		f->fmt.pix.bytesperline = max(get_bytesperline(f->fmt.pix.width, fmt),
+					      ALIGN(f->fmt.pix.bytesperline,
+						    fmt->bytesperline_align));
 		f->fmt.pix.field = V4L2_FIELD_NONE;
 		f->fmt.pix.sizeimage =
 			get_sizeimage(f->fmt.pix.bytesperline, f->fmt.pix.width,
