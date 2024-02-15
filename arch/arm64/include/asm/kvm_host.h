@@ -136,8 +136,12 @@ static inline void __free_hyp_memcache(struct kvm_hyp_memcache *mc,
 		free_fn(pop_hyp_memcache(mc, to_va), arg);
 }
 
-void free_hyp_memcache(struct kvm_hyp_memcache *mc);
-int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages);
+#define HYP_MEMCACHE_ACCOUNT_KMEMCG BIT(1)
+
+void free_hyp_memcache(struct kvm_hyp_memcache *mc,
+		       unsigned long flags);
+int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
+		       unsigned long flags);
 
 struct kvm_vmid {
 	atomic64_t id;
