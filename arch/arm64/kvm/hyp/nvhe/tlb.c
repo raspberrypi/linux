@@ -29,24 +29,6 @@ static void enter_vmid_context(struct kvm_s2_mmu *mmu,
 	cxt->mmu = NULL;
 
 	/*
-	 * If we're already in the desired context, then there's nothing
-	 * to do.
-	 */
-	if (vcpu) {
-		/* We're in guest context */
-		if (mmu == vcpu->arch.hw_mmu || WARN_ON(mmu != host_s2_mmu))
-			return;
-
-		cxt->mmu = vcpu->arch.hw_mmu;
-	} else {
-		/* We're in host context */
-		if (mmu == host_s2_mmu)
-			return;
-
-		cxt->mmu = host_s2_mmu;
-	}
-
-	/*
 	 * We have two requirements:
 	 *
 	 * - ensure that the page table updates are visible to all
@@ -67,6 +49,24 @@ static void enter_vmid_context(struct kvm_s2_mmu *mmu,
 		dsb(nsh);
 	else
 		dsb(ish);
+
+	/*
+	 * If we're already in the desired context, then there's nothing
+	 * to do.
+	 */
+	if (vcpu) {
+		/* We're in guest context */
+		if (mmu == vcpu->arch.hw_mmu || WARN_ON(mmu != host_s2_mmu))
+			return;
+
+		cxt->mmu = vcpu->arch.hw_mmu;
+	} else {
+		/* We're in host context */
+		if (mmu == host_s2_mmu)
+			return;
+
+		cxt->mmu = host_s2_mmu;
+	}
 
 	if (cpus_have_final_cap(ARM64_WORKAROUND_SPECULATIVE_AT)) {
 		u64 val;
