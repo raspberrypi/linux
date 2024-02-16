@@ -150,11 +150,36 @@ struct io_pgtable_cfg {
 };
 
 /**
+ * struct io_pgtable_ctxt - Structure describing a leaf context for page table walk.
+ *
+ * @arg:	Arg passed from the walker.
+ * @addr:	Phys address pointed by in this leaf.
+ * @size:	Size of the leaf addr.
+ */
+struct io_pgtable_ctxt {
+	void *arg;
+	u64 addr;
+	size_t size;
+};
+
+/**
+ * struct io_pgtable_walker - Structure describing a leaf page table walker.
+ *
+ * @cb:		Callback for the leaf entry.
+ * @arg:	Arg to pass to the walker.
+ */
+struct io_pgtable_walker {
+	void (*cb)(struct io_pgtable_ctxt *ctxt);
+	void * const arg;
+};
+
+/**
  * struct io_pgtable_ops - Page table manipulation API for IOMMU drivers.
  *
  * @map_pages:    Map a physically contiguous range of pages of the same size.
  * @unmap_pages:  Unmap a range of virtually contiguous pages of the same size.
  * @iova_to_phys: Translate iova to physical address.
+ * @unmap_pages_walk: Similar to unmap_pages but calls the walker at unmapped leafs.
  *
  * These functions map directly onto the iommu_ops member functions with
  * the same names.
@@ -166,6 +191,10 @@ struct io_pgtable_ops {
 	size_t (*unmap_pages)(struct io_pgtable_ops *ops, unsigned long iova,
 			      size_t pgsize, size_t pgcount,
 			      struct iommu_iotlb_gather *gather);
+	size_t (*unmap_pages_walk)(struct io_pgtable_ops *ops, unsigned long iova,
+				   size_t pgsize, size_t pgcount,
+				   struct iommu_iotlb_gather *gather,
+				   struct io_pgtable_walker *walker);
 	phys_addr_t (*iova_to_phys)(struct io_pgtable_ops *ops,
 				    unsigned long iova);
 };
