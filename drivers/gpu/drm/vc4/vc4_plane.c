@@ -733,7 +733,7 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	if (!components)
 		return 0;
 
-	if (state->alpha != DRM_BLEND_ALPHA_OPAQUE)
+	if (state->alpha != DRM_BLEND_ALPHA_OPAQUE && info->has_alpha)
 		components -= 1;
 
 	words = width * wpc * components;
