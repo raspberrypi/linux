@@ -85,6 +85,7 @@
   cgroup_taskset_first
   cgroup_taskset_next
   __check_object_size
+  check_move_unevictable_folios
   check_preempt_curr
   class_create
   class_destroy
@@ -493,6 +494,7 @@
   flush_delayed_work
   flush_work
   __flush_workqueue
+  __folio_batch_release
   __folio_put
   fortify_panic
   fput
@@ -1221,6 +1223,7 @@
   rdev_get_drvdata
   reboot_mode
   rebuild_sched_domains
+  reclaim_shmem_address_space
   refcount_dec_not_one
   refcount_warn_saturate
   regcache_mark_dirty
