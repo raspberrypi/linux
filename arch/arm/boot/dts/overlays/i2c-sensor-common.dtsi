@@ -524,6 +524,23 @@
 		};
 	};
 
+	fragment@35 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			hts221: hts221@5f {
+				compatible = "st,hts221-humid", "st,hts221";
+				reg = <0x5f>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
+			};
+		};
+	};
+
+
 	__overrides__ {
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
@@ -560,6 +577,7 @@
 		bno055 = <0>,"+31";
 		sht4x = <0>,"+32";
 		adt7410 = <0>,"+34";
+		hts221 = <0>,"+35";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -572,7 +590,8 @@
 			<&bmp380>,"reg:0", <&adt7410>,"reg:0";
 		int_pin = <&max30102>, "interrupts:0",
 			<&mpu6050>, "interrupts:0",
-			<&mpu9250>, "interrupts:0";
+			<&mpu9250>, "interrupts:0",
+			<&hts221>, "interrupts:0";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";
 		reset_pin = <&bno055>,"reset-gpios:4", <0>,"+30";
 	};
