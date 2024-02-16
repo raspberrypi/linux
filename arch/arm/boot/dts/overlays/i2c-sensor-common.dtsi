@@ -3,6 +3,7 @@
 /plugin/;
 
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 
 / {
 	compatible = "brcm,bcm2835";
@@ -306,7 +307,7 @@
 				maxim,red-led-current-microamp = <7000>;
 				maxim,ir-led-current-microamp  = <7000>;
 				interrupt-parent = <&gpio>;
-				interrupts = <4 2>;
+				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
 			};
 		};
 	};
@@ -435,7 +436,7 @@
 				compatible = "invensense,mpu6050";
 				reg = <0x68>;
 				interrupt-parent = <&gpio>;
-				interrupts = <4 2>;
+				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
 			};
 		};
 	};
@@ -452,7 +453,7 @@
 				compatible = "invensense,mpu9250";
 				reg = <0x68>;
 				interrupt-parent = <&gpio>;
-				interrupts = <4 2>;
+				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
 			};
 		};
 	};
