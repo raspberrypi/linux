@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/jiffies.h>
+#include <trace/hooks/thermal.h>
 
 #include "thermal_core.h"
 
@@ -876,6 +877,12 @@ static void cooling_device_stats_setup(struct thermal_cooling_device *cdev)
 	/* Total number of states is highest state + 1 */
 	unsigned long states = cdev->max_state + 1;
 	int var;
+	bool disable_cdev_stats = false;
+
+	trace_android_vh_disable_thermal_cooling_stats(cdev,
+						&disable_cdev_stats);
+	if (disable_cdev_stats)
+		goto out;
 
 	var = sizeof(*stats);
 	var += sizeof(*stats->time_in_state) * states;
