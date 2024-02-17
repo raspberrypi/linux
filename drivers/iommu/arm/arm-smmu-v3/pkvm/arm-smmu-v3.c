@@ -541,6 +541,80 @@ static void smmu_tlb_flush_all(void *cookie)
 	hyp_spin_unlock(&smmu->iommu.lock);
 }
 
+static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
+				   struct kvm_hyp_iommu_domain *domain,
+				   struct arm_smmu_cmdq_ent *cmd,
+				   unsigned long iova, size_t size, size_t granule)
+{
+	int ret = 0;
+	unsigned long end = iova + size, num_pages = 0, tg = 0;
+	size_t inv_range = granule;
+
+	hyp_spin_lock(&smmu->iommu.lock);
+	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
+		goto out_ret;
+
+	/* Almost copy-paste from the kernel dirver. */
+	if (smmu->features & ARM_SMMU_FEAT_RANGE_INV) {
+		/* Get the leaf page size */
+		tg = __ffs(domain->pgtable->cfg.pgsize_bitmap);
+
+		num_pages = size >> tg;
+
+		/* Convert page size of 12,14,16 (log2) to 1,2,3 */
+		cmd->tlbi.tg = (tg - 10) / 2;
+
+		/*
+		 * Determine what level the granule is at. For non-leaf, both
+		 * io-pgtable and SVA pass a nominal last-level granule because
+		 * they don't know what level(s) actually apply, so ignore that
+		 * and leave TTL=0. However for various errata reasons we still
+		 * want to use a range command, so avoid the SVA corner case
+		 * where both scale and num could be 0 as well.
+		 */
+		if (cmd->tlbi.leaf)
+			cmd->tlbi.ttl = 4 - ((ilog2(granule) - 3) / (tg - 3));
+		else if ((num_pages & CMDQ_TLBI_RANGE_NUM_MAX) == 1)
+			num_pages++;
+	}
+
+	while (iova < end) {
+		if (smmu->features & ARM_SMMU_FEAT_RANGE_INV) {
+			/*
+			 * On each iteration of the loop, the range is 5 bits
+			 * worth of the aligned size remaining.
+			 * The range in pages is:
+			 *
+			 * range = (num_pages & (0x1f << __ffs(num_pages)))
+			 */
+			unsigned long scale, num;
+
+			/* Determine the power of 2 multiple number of pages */
+			scale = __ffs(num_pages);
+			cmd->tlbi.scale = scale;
+
+			/* Determine how many chunks of 2^scale size we have */
+			num = (num_pages >> scale) & CMDQ_TLBI_RANGE_NUM_MAX;
+			cmd->tlbi.num = num - 1;
+
+			/* range is num * 2^scale * pgsize */
+			inv_range = num << (scale + tg);
+
+			/* Clear out the lower order bits for the next iteration */
+			num_pages -= num << scale;
+		}
+		cmd->tlbi.addr = iova;
+		WARN_ON(smmu_add_cmd(smmu, cmd));
+		BUG_ON(iova + inv_range < iova);
+		iova += inv_range;
+	}
+
+	ret = smmu_sync_cmd(smmu);
+out_ret:
+	hyp_spin_unlock(&smmu->iommu.lock);
+	return ret;
+}
+
 static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 			       unsigned long iova, size_t size, size_t granule,
 			       bool leaf)
@@ -571,13 +645,8 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	 * no overflow possible.
 	 */
 	BUG_ON(end < iova);
+	WARN_ON(smmu_tlb_inv_range_smmu(smmu, domain, &cmd, iova, size, granule));
 
-	while (iova < end) {
-		cmd.tlbi.addr = iova;
-		WARN_ON(smmu_send_cmd(smmu, &cmd));
-		BUG_ON(iova + granule < iova);
-		iova += granule;
-	}
 	hyp_spin_unlock(&smmu->iommu.lock);
 }
 
