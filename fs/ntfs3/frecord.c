@@ -2457,7 +2457,9 @@ int ni_read_frame(struct ntfs_inode *ni, u64 frame_vbo, struct page **pages,
 	struct ATTR_LIST_ENTRY *le = NULL;
 	struct runs_tree *run = &ni->file.run;
 	u64 valid_size = ni->i_valid;
+#ifdef CONFIG_NTFS3_LZX_XPRESS
 	loff_t i_size = i_size_read(&ni->vfs_inode);
+#endif
 	u64 vbo_disk;
 	size_t unc_size;
 	u32 frame_size, i, npages_disk, ondisk_size;
