@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
     
 	fragment@0 {
-        	target = <&i2c>;
+		target = <&i2c1>;
         	
 		__overlay__ {
 			#address-cells = <1>;
