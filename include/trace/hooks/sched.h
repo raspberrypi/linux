@@ -255,6 +255,11 @@ DECLARE_HOOK(android_vh_free_task,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p));
 
+DECLARE_HOOK(android_vh_copy_process,
+	TP_PROTO(struct task_struct *p, int nr_threads),
+	TP_ARGS(p, nr_threads));
+
+
 enum uclamp_id;
 struct uclamp_se;
 DECLARE_RESTRICTED_HOOK(android_rvh_uclamp_eff_get,
