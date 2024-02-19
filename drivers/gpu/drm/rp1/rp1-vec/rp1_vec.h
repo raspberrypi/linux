@@ -26,7 +26,8 @@
 	 BIT(DRM_MODE_TV_MODE_NTSC_J)   | \
 	 BIT(DRM_MODE_TV_MODE_PAL)      | \
 	 BIT(DRM_MODE_TV_MODE_PAL_M)    | \
-	 BIT(DRM_MODE_TV_MODE_PAL_N))
+	 BIT(DRM_MODE_TV_MODE_PAL_N)    | \
+	 BIT(DRM_MODE_TV_MODE_MONOCHROME))
 
 /* ---------------------------------------------------------------------- */
 
