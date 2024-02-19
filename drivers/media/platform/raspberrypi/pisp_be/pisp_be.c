@@ -544,7 +544,7 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 		spin_unlock_irqrestore(&node->ready_lock, flags);
 
 		if (!buf[i] && !ignore_buffers)
-			return -ENODEV;
+			goto err_return_buffers;
 	}
 
 	pispbe->queued_job.node_group = node_group;
@@ -554,6 +554,23 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 			   job->config, buf, node_group);
 
 	return 0;
+
+err_return_buffers:
+	for (unsigned int i = 0; i < PISPBE_NUM_NODES; i++) {
+		struct pispbe_node *n =  &node_group->node[i];
+
+		if (!buf[i])
+			continue;
+
+		/* Return the buffer to the ready_list queue */
+		spin_lock_irqsave(&n->ready_lock, flags);
+		list_add(&buf[i]->ready_list, &n->ready_queue);
+		spin_unlock_irqrestore(&n->ready_lock, flags);
+	}
+
+	memset(&pispbe->queued_job, 0, sizeof(pispbe->queued_job));
+
+	return -ENODEV;
 }
 
 static void pispbe_schedule(struct pispbe_dev *pispbe,
