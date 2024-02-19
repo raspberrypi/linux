@@ -83,18 +83,20 @@ static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
 static int alloc_sve_state(struct kvm_vcpu *vcpu)
 {
 	size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
-	void *buf = alloc_pages_exact(reg_sz, GFP_KERNEL_ACCOUNT);
+	void *buf;
+	int ret;
 
+	if (kvm_vm_is_protected(vcpu->kvm))
+		return 0;
+
+	buf = alloc_pages_exact(reg_sz, GFP_KERNEL_ACCOUNT);
 	if (!buf)
 		return -ENOMEM;
 
-	if (!kvm_vm_is_protected(vcpu->kvm)) {
-		int ret = kvm_share_hyp(buf, buf + reg_sz);
-
-		if (ret) {
-			kfree(buf);
-			return ret;
-		}
+	ret = kvm_share_hyp(buf, buf + reg_sz);
+	if (ret) {
+		kfree(buf);
+		return ret;
 	}
 
 	vcpu->arch.sve_state = buf;
@@ -163,9 +165,10 @@ void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu)
 	if (sve_state) {
 		size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
 
-		if (!kvm_vm_is_protected(vcpu->kvm))
-			kvm_unshare_hyp(sve_state, sve_state + reg_sz);
+		/* sve_allocate within the hypervisor when protected */
+		BUG_ON(kvm_vm_is_protected(vcpu->kvm));
 
+		kvm_unshare_hyp(sve_state, sve_state + reg_sz);
 		free_pages_exact(sve_state, reg_sz);
 	}
 
