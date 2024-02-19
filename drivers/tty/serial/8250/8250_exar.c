@@ -718,6 +718,7 @@ static void exar_pci_remove(struct pci_dev *pcidev)
 	for (i = 0; i < priv->nr; i++)
 		serial8250_unregister_port(priv->line[i]);
 
+	/* Ensure that every init quirk is properly torn down */
 	if (priv->board->exit)
 		priv->board->exit(pcidev);
 }
@@ -731,10 +732,6 @@ static int __maybe_unused exar_suspend(struct device *dev)
 	for (i = 0; i < priv->nr; i++)
 		if (priv->line[i] >= 0)
 			serial8250_suspend_port(priv->line[i]);
-
-	/* Ensure that every init quirk is properly torn down */
-	if (priv->board->exit)
-		priv->board->exit(pcidev);
 
 	return 0;
 }
