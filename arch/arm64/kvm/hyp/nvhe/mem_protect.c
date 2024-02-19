@@ -2495,60 +2495,94 @@ static bool __check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa)
 		pte == KVM_INVALID_PTE_MMIO_NOTE);
 }
 
-int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa)
+int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
+				u64 nr_pages, u64 *nr_guarded)
 {
+	struct guest_request_walker_data data = GUEST_WALKER_DATA_INIT(PKVM_NOPAGE);
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
-	kvm_pte_t pte;
-	u32 level;
+	struct kvm_pgtable_walker walker = {
+		.cb     = guest_request_walker,
+		.flags  = KVM_PGTABLE_WALK_LEAF,
+		.arg    = (void *)&data,
+	};
+	u64 size = nr_pages * PAGE_SIZE;
 	int ret;
 
 	if (!test_bit(KVM_ARCH_FLAG_MMIO_GUARD, &vm->kvm.arch.flags))
 		return -EINVAL;
 
-	if (ipa & ~PAGE_MASK)
+	if (!PAGE_ALIGNED(ipa) || !PAGE_ALIGNED(size) || !size)
 		return -EINVAL;
 
 	guest_lock_component(vm);
 
-	ret = kvm_pgtable_get_leaf(&vm->pgt, ipa, &pte, &level);
-	if (ret)
+	/* Check we either have NOMAP or NOMAP|MMIO in this range */
+	data.desired_mask = ~PKVM_MMIO;
+	ret = kvm_pgtable_walk(&vm->pgt, ipa, size, &walker);
+	/* Walker reached data.max_ptes */
+	if (ret == -E2BIG)
+		ret = 0;
+	else if (ret)
 		goto unlock;
 
-	if (pte && BIT(ARM64_HW_PGTABLE_LEVEL_SHIFT(level)) == PAGE_SIZE) {
-		/*
-		 * Already flagged as MMIO, let's accept it, and fail
-		 * otherwise
-		 */
-		if (pte != KVM_INVALID_PTE_MMIO_NOTE)
-			ret = -EBUSY;
-
-		goto unlock;
-	}
-
-	ret = kvm_pgtable_stage2_annotate(&vm->pgt, ipa, PAGE_SIZE,
+	/*
+	 * Intersection between the requested region and what has been verified
+	 */
+	size = min(data.size - (ipa - data.ipa_start), size);
+	ret = kvm_pgtable_stage2_annotate(&vm->pgt, ipa, size,
 					  &hyp_vcpu->vcpu.arch.stage2_mc,
 					  KVM_INVALID_PTE_MMIO_NOTE);
-
+	if (nr_guarded)
+		*nr_guarded = size >> PAGE_SHIFT;
 unlock:
 	guest_unlock_component(vm);
 	return ret;
 }
 
-int __pkvm_remove_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa)
+int __pkvm_remove_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
+			       u64 nr_pages, u64 *nr_unguarded)
 {
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
+	struct guest_request_walker_data data =
+		GUEST_WALKER_DATA_INIT(PKVM_NOPAGE | PKVM_MMIO);
+	struct kvm_pgtable_walker walker = {
+		.cb     = guest_request_walker,
+		.flags  = KVM_PGTABLE_WALK_LEAF,
+		.arg    = (void *)&data,
+	};
+	u64 size = nr_pages * PAGE_SIZE;
+	int ret;
 
 	if (!test_bit(KVM_ARCH_FLAG_MMIO_GUARD, &vm->kvm.arch.flags))
 		return -EINVAL;
 
+	if (!PAGE_ALIGNED(ipa) || !PAGE_ALIGNED(size) || !size)
+		return -EINVAL;
+
 	guest_lock_component(vm);
 
-	if (__check_ioguard_page(hyp_vcpu, ipa))
-		WARN_ON(kvm_pgtable_stage2_unmap(&vm->pgt,
-				ALIGN_DOWN(ipa, PAGE_SIZE), PAGE_SIZE));
+	ret = kvm_pgtable_walk(&vm->pgt, ipa, size, &walker);
+	/* Walker reached data.max_ptes */
+	if (ret == -E2BIG)
+		ret = 0;
+	else if (ret)
+		goto unlock;
+
+	/*
+	 * Ioguard is using annotation which has force_pte on.
+	 * We shouldn't get any block mapping
+	 */
+	WARN_ON(data.ipa_start != ipa);
+	WARN_ON(data.size > size);
+
+	ret = kvm_pgtable_stage2_unmap(&vm->pgt, data.ipa_start, data.size);
 
 	guest_unlock_component(vm);
-	return 0;
+
+	if (nr_unguarded)
+		*nr_unguarded = data.size >> PAGE_SHIFT;
+unlock:
+	return WARN_ON(ret);
 }
 
 bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu)
