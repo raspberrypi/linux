@@ -17,6 +17,7 @@
 
 static DEFINE_PER_CPU(int, hyp_allocator_errno);
 static DEFINE_PER_CPU(struct kvm_hyp_memcache, hyp_allocator_mc);
+static DEFINE_PER_CPU(u8, hyp_allocator_missing_donations);
 
 static struct hyp_allocator {
 	struct list_head	chunks;
@@ -177,8 +178,14 @@ static int hyp_allocator_map(struct hyp_allocator *allocator,
 	if (va_end < va || va_end > (allocator->start + allocator->size))
 		return -E2BIG;
 
-	if (mc->nr_pages < (size >> PAGE_SHIFT))
+	if (mc->nr_pages < (size >> PAGE_SHIFT)) {
+		u8 *missing_donations = this_cpu_ptr(&hyp_allocator_missing_donations);
+		u32 delta = (size >> PAGE_SHIFT) - mc->nr_pages;
+
+		*missing_donations = (u8)min(delta, (u32)~((u8)0));
+
 		return -ENOMEM;
+	}
 
 	while (nr_pages < (size >> PAGE_SHIFT)) {
 		void *page;
@@ -781,3 +788,12 @@ int hyp_alloc_errno(void)
 	return *errno;
 }
 
+u8 hyp_alloc_missing_donations(void)
+{
+	u8 *missing = (this_cpu_ptr(&hyp_allocator_missing_donations));
+	u8 __missing = *missing;
+
+	*missing = 0;
+
+	return __missing;
+}
