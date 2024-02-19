@@ -427,6 +427,10 @@ void rp1vec_hw_setup(struct rp1_vec *vec,
 		VEC_WRITE(VEC_DAC_D4, 0x9ce075f7);
 		VEC_WRITE(VEC_DAC_D8, 0x087da511);
 	}
+	if (tvstd == DRM_MODE_TV_MODE_MONOCHROME) {
+		/* Set burst and chroma gains to zero */
+		VEC_WRITE(VEC_DAC_CC, 0);
+	}
 
 	/* Input pixel format conversion */
 	for (i = 0; i < ARRAY_SIZE(my_formats); ++i) {

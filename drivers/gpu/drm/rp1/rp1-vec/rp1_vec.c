@@ -208,7 +208,8 @@ static int rp1vec_connector_get_modes(struct drm_connector *connector)
 						   &val))
 		prefer625 = (val == DRM_MODE_TV_MODE_PAL   ||
 			     val == DRM_MODE_TV_MODE_PAL_N ||
-			     val == DRM_MODE_TV_MODE_SECAM);
+			     val == DRM_MODE_TV_MODE_SECAM ||
+			     val == DRM_MODE_TV_MODE_MONOCHROME);
 
 	for (i = 0; i < ARRAY_SIZE(rp1vec_modes); i++) {
 		for (prog = 0; prog < 2; prog++) {
