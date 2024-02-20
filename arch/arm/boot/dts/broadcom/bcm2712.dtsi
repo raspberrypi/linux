@@ -112,6 +112,14 @@
 			status = "disabled";
 		};
 
+		axiperf: axiperf {
+			compatible = "brcm,bcm2712-axiperf";
+			reg = <0x7c012800 0x100>,
+				<0x7e000000 0x100>;
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+
 		mailbox: mailbox@7c013880 {
 			compatible = "brcm,bcm2835-mbox";
 			reg = <0x7c013880 0x40>;
