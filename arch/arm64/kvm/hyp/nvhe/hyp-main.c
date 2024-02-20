@@ -32,6 +32,33 @@
 
 DEFINE_PER_CPU(struct kvm_nvhe_init_params, kvm_init_params);
 
+/*
+ * Holds one request only, in theory we can compress more, but
+ * typically HVC returns on first failure.
+ */
+DEFINE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
+
+/* Serialize request in SMCCC return context. */
+static inline void hyp_reqs_smccc_encode(unsigned long ret, struct kvm_cpu_context *host_ctxt,
+					 struct kvm_hyp_req *req)
+{
+	cpu_reg(host_ctxt, 1) = ret;
+	cpu_reg(host_ctxt, 2) = 0;
+	cpu_reg(host_ctxt, 3) = 0;
+
+	if (req->type == KVM_HYP_REQ_TYPE_MEM) {
+		cpu_reg(host_ctxt, 2) = FIELD_PREP(SMCCC_REQ_TYPE_MASK, req->type) |
+					FIELD_PREP(SMCCC_REQ_DEST_MASK, req->mem.dest);
+
+		cpu_reg(host_ctxt, 3) = FIELD_PREP(SMCCC_REQ_NR_PAGES_MASK, req->mem.nr_pages) |
+					FIELD_PREP(SMCCC_REQ_SZ_ALLOC_MASK, req->mem.sz_alloc);
+	}
+
+	/* We can't encode others */
+	WARN_ON((req->type != KVM_HYP_REQ_TYPE_MEM) && ((req->type != KVM_HYP_LAST_REQ)));
+	req->type = KVM_HYP_LAST_REQ;
+}
+
 void __kvm_hyp_host_forward_smc(struct kvm_cpu_context *host_ctxt);
 
 static bool (*default_host_smc_handler)(struct user_pt_regs *regs);

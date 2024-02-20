@@ -513,6 +513,25 @@ struct kvm_hyp_req {
 };
 
 #define KVM_HYP_REQ_MAX (PAGE_SIZE / sizeof(struct kvm_hyp_req))
+/*
+ * De-serialize request from SMCCC return.
+ * See hyp-main.c for serialization.
+ */
+/* Register a2. */
+#define	SMCCC_REQ_TYPE_MASK		GENMASK_ULL(7, 0)
+#define SMCCC_REQ_DEST_MASK		GENMASK_ULL(15 , 8)
+/* Register a3. */
+#define SMCCC_REQ_NR_PAGES_MASK		GENMASK_ULL(31 , 0)
+#define SMCCC_REQ_SZ_ALLOC_MASK		GENMASK_ULL(63 , 32)
+
+static inline void hyp_reqs_smccc_decode(struct arm_smccc_res *res,
+					 struct kvm_hyp_req *req)
+{
+	req->type = FIELD_GET(SMCCC_REQ_TYPE_MASK, res->a2);
+	req->mem.dest = FIELD_GET(SMCCC_REQ_DEST_MASK, res->a2);
+	req->mem.nr_pages = FIELD_GET(SMCCC_REQ_NR_PAGES_MASK, res->a3);
+	req->mem.sz_alloc = FIELD_GET(SMCCC_REQ_SZ_ALLOC_MASK, res->a3);
+}
 
 struct kvm_vcpu_arch {
 	struct kvm_cpu_context ctxt;
