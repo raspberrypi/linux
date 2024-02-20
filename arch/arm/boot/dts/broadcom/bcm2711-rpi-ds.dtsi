@@ -505,6 +505,10 @@ i2c_vc: &i2c0 {};
 	pinctrl-names = "default";
 };
 
+&axiperf {
+	compatible = "brcm,bcm2711-axiperf";
+};
+
 /delete-node/ &v3d;
 
 / {
