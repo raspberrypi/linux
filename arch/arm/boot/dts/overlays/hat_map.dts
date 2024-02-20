@@ -6,6 +6,11 @@
 		overlay = "iqaudio-codec";
 	};
 
+	iqaudio-pi-codeczero {
+		uuid = [ e15c739c 877d 4e29 ab36 4dc73c21127c ];
+		overlay = "iqaudio-codec";
+	};
+
 	pisound {
 		uuid = [ a7ee5d28 da03 41f5 bbd7 20438a4bec5d ];
 		overlay = "pisound";
