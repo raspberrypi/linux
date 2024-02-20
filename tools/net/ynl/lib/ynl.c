@@ -462,6 +462,8 @@ ynl_gemsg_start_dump(struct ynl_sock *ys, __u32 id, __u8 cmd, __u8 version)
 
 int ynl_recv_ack(struct ynl_sock *ys, int ret)
 {
+	struct ynl_parse_arg yarg = { .ys = ys, };
+
 	if (!ret) {
 		yerr(ys, YNL_ERROR_EXPECT_ACK,
 		     "Expecting an ACK but nothing received");
@@ -474,7 +476,7 @@ int ynl_recv_ack(struct ynl_sock *ys, int ret)
 		return ret;
 	}
 	return mnl_cb_run(ys->rx_buf, ret, ys->seq, ys->portid,
-			  ynl_cb_null, ys);
+			  ynl_cb_null, &yarg);
 }
 
 int ynl_cb_null(const struct nlmsghdr *nlh, void *data)
@@ -737,11 +739,14 @@ err_free:
 
 static int ynl_ntf_trampoline(const struct nlmsghdr *nlh, void *data)
 {
-	return ynl_ntf_parse((struct ynl_sock *)data, nlh);
+	struct ynl_parse_arg *yarg = data;
+
+	return ynl_ntf_parse(yarg->ys, nlh);
 }
 
 int ynl_ntf_check(struct ynl_sock *ys)
 {
+	struct ynl_parse_arg yarg = { .ys = ys, };
 	ssize_t len;
 	int err;
 
@@ -763,7 +768,7 @@ int ynl_ntf_check(struct ynl_sock *ys)
 			return len;
 
 		err = mnl_cb_run2(ys->rx_buf, len, ys->seq, ys->portid,
-				  ynl_ntf_trampoline, ys,
+				  ynl_ntf_trampoline, &yarg,
 				  ynl_cb_array, NLMSG_MIN_TYPE);
 		if (err < 0)
 			return err;
