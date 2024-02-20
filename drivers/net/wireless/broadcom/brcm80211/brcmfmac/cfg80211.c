@@ -2481,7 +2481,7 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 				brcmf_dbg(INFO, "using PSK offload\n");
 				profile->use_fwsup = BRCMF_PROFILE_FWSUP_PSK;
 			}
-		} else {
+		} else if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_1X) {
 			profile->use_fwsup = BRCMF_PROFILE_FWSUP_NONE;
 		}
 
