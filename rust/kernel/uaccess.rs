@@ -285,15 +285,16 @@ impl UserSliceReader {
     ///
     /// Fails with `EFAULT` if the read encounters a page fault.
     pub fn read_all(mut self, buf: &mut Vec<u8>) -> Result<()> {
-        buf.try_reserve(self.length)?;
+        let len = self.length;
+        buf.try_reserve(len)?;
 
         // SAFETY: The call to `try_reserve` was successful, so the spare
         // capacity is at least `self.length` bytes long.
-        unsafe { self.read_raw(buf.spare_capacity_mut().as_mut_ptr().cast(), self.length)? };
+        unsafe { self.read_raw(buf.spare_capacity_mut().as_mut_ptr().cast(), len)? };
 
         // SAFETY: Since the call to `read_raw` was successful, so the next
         // `len` bytes of the vector have been initialized.
-        unsafe { buf.set_len(buf.len() + self.length) };
+        unsafe { buf.set_len(buf.len() + len) };
         Ok(())
     }
 }
