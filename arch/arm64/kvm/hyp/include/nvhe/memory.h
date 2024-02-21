@@ -9,7 +9,7 @@
 #include <nvhe/refcount.h>
 
 /*
- * SW bits 0-1 are reserved to track the memory ownership state of each page:
+ * Bits 0-1 are reserved to track the memory ownership state of each page:
  *   00: The page is owned exclusively by the page-table owner.
  *   01: The page is owned by the page-table owner, but is shared
  *       with another entity.
@@ -22,10 +22,15 @@ enum pkvm_page_state {
 	PKVM_PAGE_SHARED_BORROWED	= BIT(1),
 	__PKVM_PAGE_RESERVED		= BIT(0) | BIT(1),
 
-	/* Meta-states which aren't encoded directly in the PTE's SW bits */
-	PKVM_NOPAGE			= BIT(2),
-	PKVM_PAGE_RESTRICTED_PROT	= BIT(3),
-	PKVM_MODULE_DONT_TOUCH		= BIT(4),
+	/* Special non-meta state that only applies to host pages. Will not go in PTE SW bits. */
+	PKVM_MODULE_OWNED_PAGE		= BIT(2),
+	PKVM_NOPAGE			= BIT(3),
+
+	/*
+	 * Meta-states which aren't encoded directly in the PTE's SW bits (or
+	 * the hyp_vmemmap entry for the host)
+	 */
+	PKVM_PAGE_RESTRICTED_PROT	= BIT(4),
 };
 #define PKVM_PAGE_META_STATES_MASK	(~(BIT(0) | BIT(1)))
 
@@ -44,16 +49,12 @@ static inline enum pkvm_page_state pkvm_getstate(enum kvm_pgtable_prot prot)
 	return FIELD_GET(PKVM_PAGE_STATE_PROT_MASK, prot);
 }
 
-/*
- * Accesses to struct hyp_page flags are serialized by the host stage-2
- * page-table lock.
- */
-#define MODULE_OWNED_PAGE		BIT(0)
-
 struct hyp_page {
 	unsigned short refcount;
 	u8 order;
-	u8 flags;
+
+	/* Host (non-meta) state. Guarded by the host stage-2 lock. */
+	enum pkvm_page_state host_state : 8;
 };
 
 extern u64 __hyp_vmemmap;
