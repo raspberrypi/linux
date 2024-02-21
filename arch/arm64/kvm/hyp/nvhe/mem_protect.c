@@ -21,6 +21,7 @@
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 #include <nvhe/modules.h>
+#include <nvhe/pkvm.h>
 
 #define KVM_HOST_S2_FLAGS (KVM_PGTABLE_S2_NOFWB | KVM_PGTABLE_S2_IDMAP)
 
@@ -2776,3 +2777,77 @@ int host_stage2_get_leaf(phys_addr_t phys, kvm_pte_t *ptep, u32 *level)
 
 	return ret;
 }
+
+#ifdef CONFIG_NVHE_EL2_DEBUG
+static void *snap_zalloc_page(void *mc)
+{
+	void *addr;
+	struct kvm_pgtable_snapshot *snap;
+	phys_addr_t *used_pg;
+	unsigned long order;
+
+	snap = container_of(mc, struct kvm_pgtable_snapshot, mc);
+	used_pg = kern_hyp_va(snap->used_pages_hva);
+
+	/* Check if we have space to track the used page */
+	if (snap->used_pages_idx * sizeof(*used_pg) >= snap->num_used_pages * PAGE_SIZE)
+		return NULL;
+
+	addr = pop_hyp_memcache(mc, hyp_phys_to_virt, &order);
+	if (!addr)
+		return addr;
+	used_pg[snap->used_pages_idx++] = hyp_virt_to_phys(addr);
+
+	memset(addr, 0, PAGE_SIZE);
+	return addr;
+}
+
+static void pkvm_stage2_initialize_snapshot(const struct kvm_pgtable *from_pgt,
+					    struct kvm_pgtable *dest_pgt,
+					    struct kvm_pgtable_mm_ops *mm_ops)
+{
+	memset(mm_ops, 0, sizeof(struct kvm_pgtable_mm_ops));
+
+	mm_ops->zalloc_page		= snap_zalloc_page;
+	mm_ops->phys_to_virt		= hyp_phys_to_virt;
+	mm_ops->virt_to_phys		= hyp_virt_to_phys;
+	mm_ops->page_count		= hyp_page_count;
+
+	dest_pgt->mm_ops	= mm_ops;
+	dest_pgt->ia_bits	= from_pgt->ia_bits;
+	dest_pgt->start_level	= from_pgt->start_level;
+	dest_pgt->flags		= from_pgt->flags;
+	dest_pgt->pte_ops	= from_pgt->pte_ops;
+}
+
+int __pkvm_guest_stage2_snapshot(struct kvm_pgtable_snapshot *snap,
+				 struct pkvm_hyp_vm *vm)
+{
+	int ret;
+	size_t required_pgd_len;
+	struct kvm_pgtable_mm_ops mm_ops;
+	struct kvm_pgtable *to_pgt, *from_pgt;
+
+	if (snap->used_pages_idx != 0)
+		return -EINVAL;
+
+	guest_lock_component(vm);
+
+	required_pgd_len = kvm_pgtable_stage2_pgd_size(vm->kvm.arch.vtcr);
+	if (snap->pgd_pages < (required_pgd_len >> PAGE_SHIFT)) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	from_pgt = &vm->pgt;
+	to_pgt = &snap->pgtable;
+
+	pkvm_stage2_initialize_snapshot(from_pgt, to_pgt, &mm_ops);
+
+	to_pgt->pgd = kern_hyp_va(snap->pgd_hva);
+	ret = kvm_pgtable_stage2_snapshot(snap, from_pgt, required_pgd_len);
+unlock:
+	guest_unlock_component(vm);
+	return ret;
+}
+#endif /* CONFIG_NVHE_EL2_DEBUG */

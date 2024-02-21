@@ -1751,3 +1751,118 @@ bool kvm_hyp_handle_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 
 	return false;
 }
+
+#ifdef CONFIG_NVHE_EL2_DEBUG
+static inline phys_addr_t get_next_memcache_page(phys_addr_t head)
+{
+	return FIELD_GET(HYP_MC_PTR_MASK,
+			 *((phys_addr_t *)hyp_phys_to_virt(head)));
+}
+
+static void *pkvm_setup_snapshot(struct kvm_pgtable_snapshot *snap_hva)
+{
+	unsigned long i;
+	void *pgd, *used_pg;
+	phys_addr_t mc_page, next_mc_page;
+	struct kvm_pgtable_snapshot *snap;
+
+	snap = (void *)kern_hyp_va(snap_hva);
+	if (!PAGE_ALIGNED(snap))
+		return NULL;
+
+	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(snap), 1))
+		return NULL;
+
+	pgd = kern_hyp_va(snap->pgd_hva);
+	if (!PAGE_ALIGNED(pgd))
+		goto error_with_snapshot;
+
+	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(pgd), snap->pgd_pages))
+		goto error_with_snapshot;
+
+	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	for (i = 0; i < snap->mc.nr_pages; i++) {
+		if (!PAGE_ALIGNED(mc_page))
+			goto error_with_memcache;
+
+		if (__pkvm_host_donate_hyp(hyp_phys_to_pfn(mc_page), 1))
+			goto error_with_memcache;
+
+		mc_page = get_next_memcache_page(mc_page);
+	}
+
+	used_pg = kern_hyp_va(snap->used_pages_hva);
+	if (!PAGE_ALIGNED(used_pg))
+		goto error_with_memcache;
+
+	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(used_pg), snap->num_used_pages))
+		goto error_with_memcache;
+
+	return snap;
+error_with_memcache:
+	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	for (; i >= 0; i--) {
+		next_mc_page = get_next_memcache_page(mc_page);
+		WARN_ON(__pkvm_hyp_donate_host(hyp_phys_to_pfn(mc_page), 1));
+		mc_page = next_mc_page;
+	}
+
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(pgd), snap->pgd_pages));
+error_with_snapshot:
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(snap), 1));
+	return NULL;
+}
+
+static void pkvm_teardown_snapshot(struct kvm_pgtable_snapshot *snap)
+{
+	size_t i;
+	phys_addr_t mc_page, next_mc_page;
+	u64 *used_pg = kern_hyp_va(snap->used_pages_hva);
+	void *pgd = kern_hyp_va(snap->pgd_hva);
+
+	for (i = 0; i < snap->used_pages_idx; i++) {
+		mc_page = used_pg[i];
+		WARN_ON(__pkvm_hyp_donate_host(hyp_phys_to_pfn(mc_page), 1));
+	}
+
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(used_pg),
+				       snap->num_used_pages));
+
+	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	for (i = 0; i < snap->mc.nr_pages; i++) {
+		next_mc_page = get_next_memcache_page(mc_page);
+		WARN_ON(__pkvm_hyp_donate_host(hyp_phys_to_pfn(mc_page), 1));
+		mc_page = next_mc_page;
+	}
+
+	snap->pgtable.mm_ops = NULL;
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(pgd), snap->pgd_pages));
+	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(snap), 1));
+}
+
+int pkvm_stage2_snapshot_by_handle(struct kvm_pgtable_snapshot *snap_hva,
+				   pkvm_handle_t handle)
+{
+	int ret = -EINVAL;
+	struct pkvm_hyp_vm *vm;
+	kvm_pte_t *pgd;
+	struct kvm_pgtable_snapshot *snap;
+
+	snap = pkvm_setup_snapshot(snap_hva);
+	if (!snap)
+		return -EINVAL;
+
+	hyp_read_lock(&vm_table_lock);
+	vm = get_vm_by_handle(handle);
+	if (vm)
+		ret = __pkvm_guest_stage2_snapshot(snap, vm);
+	hyp_read_unlock(&vm_table_lock);
+
+	if (!ret) {
+		pgd = snap->pgtable.pgd;
+		snap->pgtable.pgd = (kvm_pte_t *)__hyp_pa(pgd);
+	}
+	pkvm_teardown_snapshot(snap);
+	return ret;
+}
+#endif /* CONFIG_NVHE_EL2_DEBUG */

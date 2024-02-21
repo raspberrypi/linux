@@ -195,4 +195,8 @@ static inline int pkvm_init_power_domain(struct kvm_power_domain *pd,
 	}
 }
 
+#ifdef CONFIG_NVHE_EL2_DEBUG
+int pkvm_stage2_snapshot_by_handle(struct kvm_pgtable_snapshot *snap,
+				   pkvm_handle_t handle);
+#endif /* CONFIG_NVHE_EL2_DEBUG */
 #endif /* __ARM64_KVM_NVHE_PKVM_H__ */
