@@ -22,6 +22,7 @@
   __arch_copy_from_user
   __arch_copy_to_user
   arch_freq_scale
+  arch_stack_walk
   arch_timer_read_counter
   argv_free
   argv_split
