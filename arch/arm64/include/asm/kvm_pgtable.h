@@ -458,6 +458,28 @@ struct kvm_pgtable {
 };
 
 /**
+ * struct kvm_pgtable_snapshot - Snapshot page-table.
+ * @pgtable:		The page-table configuration.
+ * @mc:			Memcache used for pagetable pages allocation.
+ * @pgd_hva:		Host virtual address of a physically contiguous buffer
+ *			used for storing the PGD.
+ * @pgd_pages:		The size of the phyisically contiguous buffer in pages.
+ * @used_pages_hva:	Host virtual address of a physically contiguous buffer
+ *			used for storing the consumed pages from the memcache.
+ * @num_used_pages		The size of the used buffer in pages.
+ * @used_pages_idx		The current index of the used pages array.
+ */
+struct kvm_pgtable_snapshot {
+	struct kvm_pgtable			pgtable;
+	struct kvm_hyp_memcache			mc;
+	void					*pgd_hva;
+	size_t					pgd_pages;
+	phys_addr_t				*used_pages_hva;
+	size_t					num_used_pages;
+	size_t					used_pages_idx;
+};
+
+/**
  * kvm_pgtable_hyp_init() - Initialise a hypervisor stage-1 page-table.
  * @pgt:	Uninitialised page-table structure to initialise.
  * @va_bits:	Maximum virtual address bits.
@@ -903,4 +925,24 @@ enum kvm_pgtable_prot kvm_pgtable_hyp_pte_prot(kvm_pte_t pte);
  */
 void kvm_tlb_flush_vmid_range(struct kvm_s2_mmu *mmu,
 				phys_addr_t addr, size_t size);
+
+#ifdef CONFIG_NVHE_EL2_DEBUG
+/**
+ * kvm_pgtable_stage2_snapshot() - Snapshot the pagetable
+ *
+ * @dest_pgt:	Destination pagetable
+ * @src_pgt:	Source pagetable
+ * @pgd_len:	The size of the PGD
+ */
+int kvm_pgtable_stage2_snapshot(struct kvm_pgtable_snapshot *dest_pgt,
+				struct kvm_pgtable *src_pgt,
+				size_t pgd_len);
+#else
+static inline int kvm_pgtable_stage2_snapshot(struct kvm_pgtable_snapshot *dest_pgt,
+					      struct kvm_pgtable *src_pgt,
+					      size_t pgd_len)
+{
+	return -EPERM;
+}
+#endif	/* CONFIG_NVHE_EL2_DEBUG */
 #endif	/* __ARM64_KVM_PGTABLE_H__ */
