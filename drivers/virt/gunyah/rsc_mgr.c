@@ -10,8 +10,10 @@
 #include <linux/notifier.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/miscdevice.h>
 
 #include "rsc_mgr.h"
+#include "vm_mgr.h"
 
 /* clang-format off */
 #define RM_RPC_API_VERSION_MASK		GENMASK(3, 0)
@@ -118,6 +120,7 @@ struct gunyah_rm_message {
  * @send_lock: synchronization to allow only one request to be sent at a time
  * @send_ready: completed when we know Tx message queue can take more messages
  * @nh: notifier chain for clients interested in RM notification messages
+ * @miscdev: /dev/gunyah
  */
 struct gunyah_rm {
 	struct device *dev;
@@ -133,6 +136,8 @@ struct gunyah_rm {
 	struct mutex send_lock;
 	struct completion send_ready;
 	struct blocking_notifier_head nh;
+
+	struct miscdevice miscdev;
 };
 
 /**
@@ -613,6 +618,36 @@ int gunyah_rm_notifier_unregister(struct gunyah_rm *rm,
 }
 EXPORT_SYMBOL_GPL(gunyah_rm_notifier_unregister);
 
+struct device *gunyah_rm_get(struct gunyah_rm *rm)
+{
+	return get_device(rm->miscdev.this_device);
+}
+EXPORT_SYMBOL_GPL(gunyah_rm_get);
+
+void gunyah_rm_put(struct gunyah_rm *rm)
+{
+	put_device(rm->miscdev.this_device);
+}
+EXPORT_SYMBOL_GPL(gunyah_rm_put);
+
+static long gunyah_dev_ioctl(struct file *filp, unsigned int cmd,
+			     unsigned long arg)
+{
+	struct miscdevice *miscdev = filp->private_data;
+	struct gunyah_rm *rm = container_of(miscdev, struct gunyah_rm, miscdev);
+
+	return gunyah_dev_vm_mgr_ioctl(rm, cmd, arg);
+}
+
+static const struct file_operations gunyah_dev_fops = {
+	/* clang-format off */
+	.owner		= THIS_MODULE,
+	.unlocked_ioctl	= gunyah_dev_ioctl,
+	.compat_ioctl	= compat_ptr_ioctl,
+	.llseek		= noop_llseek,
+	/* clang-format on */
+};
+
 static int gunyah_platform_probe_capability(struct platform_device *pdev,
 					    int idx,
 					    struct gunyah_resource *ghrsc)
@@ -699,7 +734,19 @@ static int gunyah_rm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	return 0;
+	rm->miscdev.parent = &pdev->dev;
+	rm->miscdev.name = "gunyah";
+	rm->miscdev.minor = MISC_DYNAMIC_MINOR;
+	rm->miscdev.fops = &gunyah_dev_fops;
+
+	return misc_register(&rm->miscdev);
+}
+
+static void gunyah_rm_remove(struct platform_device *pdev)
+{
+	struct gunyah_rm *rm = platform_get_drvdata(pdev);
+
+	misc_deregister(&rm->miscdev);
 }
 
 static const struct of_device_id gunyah_rm_of_match[] = {
@@ -710,6 +757,7 @@ MODULE_DEVICE_TABLE(of, gunyah_rm_of_match);
 
 static struct platform_driver gunyah_rm_driver = {
 	.probe = gunyah_rm_probe,
+	.remove_new = gunyah_rm_remove,
 	.driver = {
 		.name = "gunyah_rsc_mgr",
 		.of_match_table = gunyah_rm_of_match,

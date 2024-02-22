@@ -17,6 +17,8 @@ int gunyah_rm_notifier_register(struct gunyah_rm *rm,
 				struct notifier_block *nb);
 int gunyah_rm_notifier_unregister(struct gunyah_rm *rm,
 				  struct notifier_block *nb);
+struct device *gunyah_rm_get(struct gunyah_rm *rm);
+void gunyah_rm_put(struct gunyah_rm *rm);
 
 
 int gunyah_rm_call(struct gunyah_rm *rsc_mgr, u32 message_id,
