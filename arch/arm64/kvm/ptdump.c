@@ -184,6 +184,9 @@ static struct kvm_pgtable_snapshot *kvm_ptdump_get_snapshot(pkvm_handle_t handle
 
 	memset(snapshot, 0, sizeof(struct kvm_pgtable_snapshot));
 
+	if (!mc_pages && !pgd_pages)
+		goto copy_pgt_config;
+
 	pgd_hva = alloc_pages_exact(pgd_pages * PAGE_SIZE, GFP_KERNEL_ACCOUNT);
 	if (!pgd_hva)
 		goto err_out;
@@ -203,6 +206,7 @@ static struct kvm_pgtable_snapshot *kvm_ptdump_get_snapshot(pkvm_handle_t handle
 	snapshot->used_pages_hva = used_pages_hva;
 	snapshot->num_used_pages = used_buf_sz >> PAGE_SHIFT;
 
+copy_pgt_config:
 	ret = kvm_call_hyp_nvhe(__pkvm_stage2_snapshot, snapshot, handle);
 	if (ret) {
 		pr_err("%d snapshot pagetables\n", ret);
@@ -389,26 +393,47 @@ static int kvm_pgtable_debugfs_open(struct inode *m, struct file *file)
 	struct kvm *kvm = m->i_private;
 	struct kvm_s2_mmu *mmu;
 	struct kvm_pgtable *pgtable;
-	int ret;
-
-	if (is_protected_kvm_enabled())
-		return -EPERM;
+	struct kvm_pgtable_snapshot *snap;
+	int ret = -EINVAL;
 
 	if (!kvm_get_kvm_safe(kvm))
 		return -ENOENT;
 
-	mmu = &kvm->arch.mmu;
-	pgtable = mmu->pgt;
+	if (is_protected_kvm_enabled()) {
+		snap = kvm_ptdump_get_snapshot(kvm->arch.pkvm.handle, 0, 0);
+		if (IS_ERR(snap))
+			goto free_with_kvm_ref;
+		pgtable = &snap->pgtable;
+	} else {
+		mmu = &kvm->arch.mmu;
+		pgtable = mmu->pgt;
+	}
 
 	ret = single_open(file, kvm_pgtable_debugfs_show, pgtable);
-	if (ret < 0)
-		kvm_put_kvm(kvm);
+	if (!ret)
+		return 0;
+
+	if (is_protected_kvm_enabled())
+		kvm_ptdump_put_snapshot(snap);
+free_with_kvm_ref:
+	kvm_put_kvm(kvm);
 	return ret;
 }
 
 static int kvm_pgtable_debugfs_close(struct inode *m, struct file *file)
 {
 	struct kvm *kvm = m->i_private;
+	struct kvm_pgtable_snapshot *snap;
+	struct seq_file *seq;
+	struct kvm_pgtable *pgtable;
+
+	if (is_protected_kvm_enabled()) {
+		seq = (struct seq_file *)file->private_data;
+		pgtable = seq->private;
+		snap = container_of(pgtable, struct kvm_pgtable_snapshot,
+				    pgtable);
+		kvm_ptdump_put_snapshot(snap);
+	}
 
 	kvm_put_kvm(kvm);
 	return single_release(m, file);
