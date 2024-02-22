@@ -27,3 +27,12 @@ config GUNYAH_QCOM_PLATFORM
 	  extra platform-specific support.
 
 	  Say Y/M here to use Gunyah on Qualcomm platforms.
+
+config GUNYAH_IRQFD
+	tristate "Gunyah irqfd interface"
+	depends on GUNYAH
+	help
+	  Enable kernel support for creating irqfds which can raise an interrupt
+	  on Gunyah virtual machine.
+
+	  Say Y/M here if unsure and you want to support Gunyah VMMs.

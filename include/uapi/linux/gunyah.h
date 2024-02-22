@@ -63,9 +63,12 @@ struct gunyah_vm_dtb_config {
  * @GUNYAH_FN_VCPU: create a vCPU instance to control a vCPU
  *              &struct gunyah_fn_desc.arg is a pointer to &struct gunyah_fn_vcpu_arg
  *              Return: file descriptor to manipulate the vcpu.
+ * @GUNYAH_FN_IRQFD: register eventfd to assert a Gunyah doorbell
+ *               &struct gunyah_fn_desc.arg is a pointer to &struct gunyah_fn_irqfd_arg
  */
 enum gunyah_fn_type {
 	GUNYAH_FN_VCPU = 1,
+	GUNYAH_FN_IRQFD,
 };
 
 #define GUNYAH_FN_MAX_ARG_SIZE		256
@@ -83,6 +86,38 @@ enum gunyah_fn_type {
  */
 struct gunyah_fn_vcpu_arg {
 	__u32 id;
+};
+
+/**
+ * enum gunyah_irqfd_flags - flags for use in gunyah_fn_irqfd_arg
+ * @GUNYAH_IRQFD_FLAGS_LEVEL: make the interrupt operate like a level triggered
+ *                        interrupt on guest side. Triggering IRQFD before
+ *                        guest handles the interrupt causes interrupt to
+ *                        stay asserted.
+ */
+enum gunyah_irqfd_flags {
+	GUNYAH_IRQFD_FLAGS_LEVEL		= 1UL << 0,
+};
+
+/**
+ * struct gunyah_fn_irqfd_arg - Arguments to create an irqfd function.
+ *
+ * Create this function with &GUNYAH_VM_ADD_FUNCTION using type &GUNYAH_FN_IRQFD.
+ *
+ * Allows setting an eventfd to directly trigger a guest interrupt.
+ * irqfd.fd specifies the file descriptor to use as the eventfd.
+ * irqfd.label corresponds to the doorbell label used in the guest VM's devicetree.
+ *
+ * @fd: an eventfd which when written to will raise a doorbell
+ * @label: Label of the doorbell created on the guest VM
+ * @flags: see &enum gunyah_irqfd_flags
+ * @padding: padding bytes
+ */
+struct gunyah_fn_irqfd_arg {
+	__u32 fd;
+	__u32 label;
+	__u32 flags;
+	__u32 padding;
 };
 
 /**
