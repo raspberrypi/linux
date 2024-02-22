@@ -17,7 +17,10 @@
 #define MARKERS_LEN		(2)
 
 struct kvm_ptdump_guest_state {
-	struct kvm		*kvm;
+	union {
+		struct kvm			*kvm;
+		struct kvm_pgtable_snapshot	*snap;
+	};
 	struct pg_state		parser_state;
 	struct addr_marker	ipa_marker[MARKERS_LEN];
 	struct pg_level		level[KVM_PGTABLE_MAX_LEVELS];
@@ -121,17 +124,152 @@ static int kvm_ptdump_build_levels(struct pg_level *level, u32 start_lvl)
 	return 0;
 }
 
+static phys_addr_t get_host_pa(void *addr)
+{
+	return __pa(addr);
+}
+
+static void *get_host_va(phys_addr_t pa)
+{
+	return __va(pa);
+}
+
+static struct kvm_pgtable_mm_ops ptdump_mmops = {
+	.phys_to_virt	= get_host_va,
+	.virt_to_phys	= get_host_pa,
+};
+
+static void kvm_ptdump_put_snapshot(struct kvm_pgtable_snapshot *snap)
+{
+	void *mc_page;
+	size_t i;
+
+	if (!snap)
+		return;
+
+	free_hyp_memcache(&snap->mc);
+
+	if (snap->pgd_hva)
+		free_pages_exact(snap->pgd_hva, snap->pgd_pages * PAGE_SIZE);
+
+	if (snap->used_pages_hva) {
+		for (i = 0; i < snap->used_pages_idx; i++) {
+			mc_page = get_host_va(snap->used_pages_hva[i]);
+			free_page((unsigned long)mc_page);
+		}
+
+		free_pages_exact(snap->used_pages_hva, snap->num_used_pages * PAGE_SIZE);
+	}
+
+	free_page((unsigned long)snap);
+}
+
+static struct kvm_pgtable_snapshot *kvm_ptdump_get_snapshot(pkvm_handle_t handle,
+							    size_t mc_pages,
+							    size_t pgd_pages)
+{
+	struct kvm_pgtable_snapshot *snapshot;
+	size_t used_buf_sz;
+	void *pgd_hva, *used_pages_hva;
+	int ret = -EINVAL;
+
+	if (!(IS_ENABLED(CONFIG_NVHE_EL2_DEBUG))) {
+		pr_warn("stage-2 snapshot not available under !NVHE_EL2_DEBUG\n");
+		return ERR_PTR(-EINVAL);
+	}
+
+	snapshot = (void *)__get_free_page(GFP_KERNEL_ACCOUNT);
+	if (!snapshot)
+		return ERR_PTR(-ENOMEM);
+
+	memset(snapshot, 0, sizeof(struct kvm_pgtable_snapshot));
+
+	pgd_hva = alloc_pages_exact(pgd_pages * PAGE_SIZE, GFP_KERNEL_ACCOUNT);
+	if (!pgd_hva)
+		goto err_out;
+
+	snapshot->pgd_hva = pgd_hva;
+	snapshot->pgd_pages = pgd_pages;
+
+	ret = topup_hyp_memcache(&snapshot->mc, mc_pages, 0);
+	if (ret)
+		goto err_out;
+
+	used_buf_sz = PAGE_ALIGN(sizeof(phys_addr_t) * mc_pages);
+	used_pages_hva = alloc_pages_exact(used_buf_sz, GFP_KERNEL_ACCOUNT);
+	if (!used_pages_hva)
+		goto err_out;
+
+	snapshot->used_pages_hva = used_pages_hva;
+	snapshot->num_used_pages = used_buf_sz >> PAGE_SHIFT;
+
+	ret = kvm_call_hyp_nvhe(__pkvm_stage2_snapshot, snapshot, handle);
+	if (ret) {
+		pr_err("%d snapshot pagetables\n", ret);
+		goto err_out;
+	}
+
+	snapshot->pgtable.pgd =
+		(kvm_pteref_t)get_host_va((__force phys_addr_t)snapshot->pgtable.pgd);
+	snapshot->pgtable.mm_ops = &ptdump_mmops;
+
+	return snapshot;
+err_out:
+	kvm_ptdump_put_snapshot(snapshot);
+	return ERR_PTR(ret);
+}
+
+static struct kvm_pgtable_snapshot *kvm_ptdump_get_guest_snapshot(struct kvm *kvm)
+{
+	pkvm_handle_t handle = kvm->arch.pkvm.handle;
+	struct kvm_pgtable_snapshot *snap;
+	size_t mc_pages, pgd_pages, new_mc_pages;
+
+retry_mc_alloc:
+	mc_pages = atomic64_read(&kvm->stat.protected_pgtable_mem) >> PAGE_SHIFT;
+	pgd_pages = kvm_pgtable_stage2_pgd_size(kvm->arch.vtcr) >> PAGE_SHIFT;
+
+	snap = kvm_ptdump_get_snapshot(handle, mc_pages, pgd_pages);
+	if (PTR_ERR_OR_ZERO(snap) == -ENOMEM) {
+		/* If we are accounting for memory and a fault happens at the
+		 * same time we might need more memory for the snapshot.
+		 */
+		new_mc_pages = atomic64_read(&kvm->stat.protected_pgtable_mem);
+		new_mc_pages = new_mc_pages >> PAGE_SHIFT;
+
+		if (mc_pages < new_mc_pages)
+			goto retry_mc_alloc;
+	}
+
+	return snap;
+}
+
 static struct kvm_ptdump_guest_state
 *kvm_ptdump_parser_init(struct kvm *kvm)
 {
 	struct kvm_ptdump_guest_state *st;
 	struct kvm_s2_mmu *mmu = &kvm->arch.mmu;
-	struct kvm_pgtable *pgtable = mmu->pgt;
+	struct kvm_pgtable *pgtable;
+	struct kvm_pgtable_snapshot *snap;
 	int ret;
 
 	st = kzalloc(sizeof(struct kvm_ptdump_guest_state), GFP_KERNEL_ACCOUNT);
 	if (!st)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
+
+	if (!is_protected_kvm_enabled()) {
+		pgtable = mmu->pgt;
+		st->kvm = kvm;
+	} else {
+		snap = kvm_ptdump_get_guest_snapshot(kvm);
+		if (IS_ERR(snap)) {
+			ret = PTR_ERR(snap);
+			goto free_with_state;
+		}
+
+		pgtable = &snap->pgtable;
+		st->snap = snap;
+	}
 
 	ret = kvm_ptdump_build_levels(&st->level[0], pgtable->start_level);
 	if (ret)
@@ -141,7 +279,6 @@ static struct kvm_ptdump_guest_state
 	st->ipa_marker[1].start_address = BIT(pgtable->ia_bits);
 	st->range[0].end		= BIT(pgtable->ia_bits);
 
-	st->kvm				= kvm;
 	st->parser_state = (struct pg_state) {
 		.marker		= &st->ipa_marker[0],
 		.level		= -1,
@@ -152,7 +289,7 @@ static struct kvm_ptdump_guest_state
 	return st;
 free_with_state:
 	kfree(st);
-	return NULL;
+	return ERR_PTR(ret);
 }
 
 static int kvm_ptdump_guest_show(struct seq_file *m, void *unused)
@@ -171,28 +308,43 @@ static int kvm_ptdump_guest_show(struct seq_file *m, void *unused)
 	return ret;
 }
 
+static int kvm_ptdump_protected_guest_show(struct seq_file *m, void *unused)
+{
+	struct kvm_ptdump_guest_state *st = m->private;
+	struct kvm_pgtable_snapshot *snap = st->snap;
+
+	st->parser_state.seq = m;
+
+	return kvm_ptdump_show_common(m, &snap->pgtable, &st->parser_state);
+}
+
 static int kvm_ptdump_guest_open(struct inode *m, struct file *file)
 {
 	struct kvm *kvm = m->i_private;
 	struct kvm_ptdump_guest_state *st;
 	int ret;
+	int (*kvm_ptdump_show)(struct seq_file *file, void *arg);
 
 	if (is_protected_kvm_enabled())
-		return -EPERM;
+		kvm_ptdump_show = kvm_ptdump_protected_guest_show;
+	else
+		kvm_ptdump_show = kvm_ptdump_guest_show;
 
 	if (!kvm_get_kvm_safe(kvm))
 		return -ENOENT;
 
 	st = kvm_ptdump_parser_init(kvm);
-	if (!st) {
-		ret = -ENOMEM;
+	if (IS_ERR(st)) {
+		ret = PTR_ERR(st);
 		goto free_with_kvm_ref;
 	}
 
-	ret = single_open(file, kvm_ptdump_guest_show, st);
+	ret = single_open(file, kvm_ptdump_show, st);
 	if (!ret)
 		return 0;
 
+	if (is_protected_kvm_enabled())
+		kvm_ptdump_put_snapshot(st->snap);
 	kfree(st);
 free_with_kvm_ref:
 	kvm_put_kvm(kvm);
@@ -202,7 +354,11 @@ free_with_kvm_ref:
 static int kvm_ptdump_guest_close(struct inode *m, struct file *file)
 {
 	struct kvm *kvm = m->i_private;
-	void *st = ((struct seq_file *)file->private_data)->private;
+	struct seq_file *seq = (struct seq_file *)file->private_data;
+	struct kvm_ptdump_guest_state *st = seq->private;
+
+	if (is_protected_kvm_enabled())
+		kvm_ptdump_put_snapshot(st->snap);
 
 	kfree(st);
 	kvm_put_kvm(kvm);
