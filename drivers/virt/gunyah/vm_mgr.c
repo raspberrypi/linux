@@ -404,6 +404,8 @@ static __must_check struct gunyah_vm *gunyah_vm_alloc(struct gunyah_rm *rm)
 	INIT_LIST_HEAD(&ghvm->resource_tickets);
 
 	mt_init(&ghvm->mm);
+	mt_init(&ghvm->bindings);
+	init_rwsem(&ghvm->bindings_lock);
 
 	ghvm->addrspace_ticket.resource_type = GUNYAH_RESOURCE_TYPE_ADDR_SPACE;
 	ghvm->addrspace_ticket.label = GUNYAH_VM_ADDRSPACE_LABEL;
@@ -556,6 +558,14 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 		r = gunyah_vm_rm_function_instance(ghvm, &f);
 		break;
 	}
+	case GUNYAH_VM_MAP_MEM: {
+		struct gunyah_map_mem_args args;
+
+		if (copy_from_user(&args, argp, sizeof(args)))
+			return -EFAULT;
+
+		return gunyah_gmem_modify_mapping(ghvm, &args);
+	}
 	default:
 		r = -ENOTTY;
 		break;
@@ -573,6 +583,8 @@ EXPORT_SYMBOL_GPL(gunyah_vm_get);
 static void _gunyah_vm_put(struct kref *kref)
 {
 	struct gunyah_vm *ghvm = container_of(kref, struct gunyah_vm, kref);
+	struct gunyah_gmem_binding *b;
+	unsigned long idx = 0;
 	int ret;
 
 	/**
@@ -584,6 +596,13 @@ static void _gunyah_vm_put(struct kref *kref)
 
 	gunyah_vm_remove_functions(ghvm);
 
+	down_write(&ghvm->bindings_lock);
+	mt_for_each(&ghvm->bindings, b, idx, ULONG_MAX) {
+		gunyah_gmem_remove_binding(b);
+	}
+	up_write(&ghvm->bindings_lock);
+	WARN_ON(!mtree_empty(&ghvm->bindings));
+	mtree_destroy(&ghvm->bindings);
 	/**
 	 * If this fails, we're going to lose the memory for good and is
 	 * BUG_ON-worthy, but not unrecoverable (we just lose memory).
@@ -615,6 +634,7 @@ static void _gunyah_vm_put(struct kref *kref)
 		/* clang-format on */
 	}
 
+	WARN_ON(!mtree_empty(&ghvm->mm));
 	mtree_destroy(&ghvm->mm);
 
 	if (ghvm->vm_status > GUNYAH_RM_VM_STATUS_NO_STATE) {

@@ -87,6 +87,47 @@ struct gunyah_fn_desc {
 #define GUNYAH_VM_ADD_FUNCTION	_IOW(GUNYAH_IOCTL_TYPE, 0x4, struct gunyah_fn_desc)
 #define GUNYAH_VM_REMOVE_FUNCTION	_IOW(GUNYAH_IOCTL_TYPE, 0x7, struct gunyah_fn_desc)
 
+/**
+ * enum gunyah_map_flags- Possible flags on &struct gunyah_map_mem_args
+ * @GUNYAH_MEM_DEFAULT_SHARE: Use default host access for the VM type
+ * @GUNYAH_MEM_FORCE_LEND: Force unmapping the memory once the guest starts to use
+ * @GUNYAH_MEM_FORCE_SHARE: Allow host to continue accessing memory when guest starts to use
+ * @GUNYAH_MEM_ALLOW_READ: Allow guest to read memory
+ * @GUNYAH_MEM_ALLOW_WRITE: Allow guest to write to the memory
+ * @GUNYAH_MEM_ALLOW_EXEC: Allow guest to execute instructions in the memory
+ */
+enum gunyah_map_flags {
+	GUNYAH_MEM_DEFAULT_ACCESS = 0,
+	GUNYAH_MEM_FORCE_LEND = 1,
+	GUNYAH_MEM_FORCE_SHARE = 2,
+#define GUNYAH_MEM_ACCESS_MASK 0x7
+
+	GUNYAH_MEM_ALLOW_READ = 1UL << 4,
+	GUNYAH_MEM_ALLOW_WRITE = 1UL << 5,
+	GUNYAH_MEM_ALLOW_EXEC = 1UL << 6,
+	GUNYAH_MEM_ALLOW_RWX =
+		(GUNYAH_MEM_ALLOW_READ | GUNYAH_MEM_ALLOW_WRITE | GUNYAH_MEM_ALLOW_EXEC),
+
+	GUNYAH_MEM_UNMAP = 1UL << 8,
+};
+
+/**
+ * struct gunyah_map_mem_args - Description to provide guest memory into a VM
+ * @guest_addr: Location in guest address space to place the memory
+ * @flags: See &enum gunyah_map_flags.
+ * @guest_mem_fd: File descriptor created by GUNYAH_CREATE_GUEST_MEM
+ * @offset: Offset into the guest memory file
+ */
+struct gunyah_map_mem_args {
+	__u64 guest_addr;
+	__u32 flags;
+	__u32 guest_mem_fd;
+	__u64 offset;
+	__u64 size;
+};
+
+#define GUNYAH_VM_MAP_MEM _IOW(GUNYAH_IOCTL_TYPE, 0x9, struct gunyah_map_mem_args)
+
 /*
  * ioctls for vCPU fds
  */

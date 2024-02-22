@@ -38,6 +38,9 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
  * @mm: A maple tree of all memory that has been mapped to a VM.
  *      Indices are guest frame numbers; entries are either folios or
  *      RM mem parcels
+ * @bindings: A maple tree of guest memfd bindings. Indices are guest frame
+ *            numbers; entries are &struct gunyah_gmem_binding
+ * @bindings_lock: For serialization to @bindings
  * @addrspace_ticket: Resource ticket to the capability for guest VM's
  *                    address space
  * @host_private_extent_ticket: Resource ticket to the capability for our
@@ -77,6 +80,8 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
 struct gunyah_vm {
 	u16 vmid;
 	struct maple_tree mm;
+	struct maple_tree bindings;
+	struct rw_semaphore bindings_lock;
 	struct gunyah_vm_resource_ticket addrspace_ticket,
 		host_private_extent_ticket, host_shared_extent_ticket,
 		guest_private_extent_ticket, guest_shared_extent_ticket;
@@ -172,5 +177,9 @@ int gunyah_vm_reclaim_folio(struct gunyah_vm *ghvm, u64 gfn, struct folio *folio
 int gunyah_vm_reclaim_range(struct gunyah_vm *ghvm, u64 gfn, u64 nr);
 
 int gunyah_guest_mem_create(struct gunyah_create_mem_args *args);
+int gunyah_gmem_modify_mapping(struct gunyah_vm *ghvm,
+			       struct gunyah_map_mem_args *args);
+struct gunyah_gmem_binding;
+void gunyah_gmem_remove_binding(struct gunyah_gmem_binding *binding);
 
 #endif
