@@ -181,5 +181,11 @@ int gunyah_gmem_modify_mapping(struct gunyah_vm *ghvm,
 			       struct gunyah_map_mem_args *args);
 struct gunyah_gmem_binding;
 void gunyah_gmem_remove_binding(struct gunyah_gmem_binding *binding);
+int gunyah_gmem_share_parcel(struct gunyah_vm *ghvm,
+			     struct gunyah_rm_mem_parcel *parcel, u64 *gfn,
+			     u64 *nr);
+int gunyah_gmem_reclaim_parcel(struct gunyah_vm *ghvm,
+			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
+			       u64 nr);
 
 #endif

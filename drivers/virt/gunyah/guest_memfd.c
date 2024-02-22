@@ -684,3 +684,210 @@ err_file:
 		fput(file);
 	return ret;
 }
+
+int gunyah_gmem_share_parcel(struct gunyah_vm *ghvm, struct gunyah_rm_mem_parcel *parcel,
+			     u64 *gfn, u64 *nr)
+{
+	struct folio *folio, *prev_folio;
+	unsigned long nr_entries, i, j, start, end;
+	struct gunyah_gmem_binding *b;
+	bool lend;
+	int ret;
+
+	parcel->mem_handle = GUNYAH_MEM_HANDLE_INVAL;
+
+	if (!*nr)
+		return -EINVAL;
+
+	down_read(&ghvm->bindings_lock);
+	b = mtree_load(&ghvm->bindings, *gfn);
+	if (!b || *gfn > b->gfn + b->nr || *gfn < b->gfn) {
+		ret = -ENOENT;
+		goto unlock;
+	}
+
+	/**
+	 * Generally, indices can be based on gfn, guest_memfd offset, or
+	 * offset into binding. start and end are based on offset into binding.
+	 */
+	start = *gfn - b->gfn;
+
+	if (start + *nr > b->nr) {
+		ret = -ENOENT;
+		goto unlock;
+	}
+
+	end = start + *nr;
+	lend = gunyah_guest_mem_is_lend(ghvm, b->flags);
+
+	/**
+	 * First, calculate the number of physically discontiguous regions
+	 * the parcel covers. Each memory entry corresponds to one folio.
+	 * In future, each memory entry could correspond to contiguous
+	 * folios that are also adjacent in guest_memfd, but parcels
+	 * are only being used for small amounts of memory for now, so
+	 * this optimization is premature.
+	 */
+	nr_entries = 0;
+	prev_folio = NULL;
+	for (i = start + b->i_off; i < end + b->i_off;) {
+		folio = gunyah_gmem_get_folio(file_inode(b->file), i); /* A */
+		if (!folio) {
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		if (lend) {
+			/* don't lend a folio that is mapped by host */
+			if (!gunyah_folio_lend_safe(folio)) {
+				folio_unlock(folio);
+				folio_put(folio);
+				ret = -EPERM;
+				goto out;
+			}
+			folio_set_private(folio);
+		}
+
+		nr_entries++;
+		i = folio_index(folio) + folio_nr_pages(folio);
+	}
+	end = i - b->i_off;
+
+	parcel->mem_entries =
+		kcalloc(nr_entries, sizeof(*parcel->mem_entries), GFP_KERNEL);
+	if (!parcel->mem_entries) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	/**
+	 * Walk through all the folios again, now filling the mem_entries array.
+	 */
+	j = 0;
+	prev_folio = NULL;
+	for (i = start + b->i_off; i < end + b->i_off; j++) {
+		folio = filemap_get_folio(file_inode(b->file)->i_mapping, i); /* B */
+		if (WARN_ON(IS_ERR(folio))) {
+			ret = PTR_ERR(folio);
+			i = end + b->i_off;
+			goto out;
+		}
+
+		parcel->mem_entries[j].size = cpu_to_le64(folio_size(folio));
+		parcel->mem_entries[j].phys_addr = cpu_to_le64(PFN_PHYS(folio_pfn(folio)));
+		i = folio_index(folio) + folio_nr_pages(folio);
+		folio_put(folio); /* B */
+	}
+	BUG_ON(j != nr_entries);
+	parcel->n_mem_entries = nr_entries;
+
+	if (lend)
+		parcel->n_acl_entries = 1;
+
+	parcel->acl_entries = kcalloc(parcel->n_acl_entries,
+				      sizeof(*parcel->acl_entries), GFP_KERNEL);
+	if (!parcel->n_acl_entries) {
+		ret = -ENOMEM;
+		goto free_entries;
+	}
+
+	parcel->acl_entries[0].vmid = cpu_to_le16(ghvm->vmid);
+	if (b->flags & GUNYAH_MEM_ALLOW_READ)
+		parcel->acl_entries[0].perms |= GUNYAH_RM_ACL_R;
+	if (b->flags & GUNYAH_MEM_ALLOW_WRITE)
+		parcel->acl_entries[0].perms |= GUNYAH_RM_ACL_W;
+	if (b->flags & GUNYAH_MEM_ALLOW_EXEC)
+		parcel->acl_entries[0].perms |= GUNYAH_RM_ACL_X;
+
+	if (!lend) {
+		u16 host_vmid;
+
+		ret = gunyah_rm_get_vmid(ghvm->rm, &host_vmid);
+		if (ret)
+			goto free_acl;
+
+		parcel->acl_entries[1].vmid = cpu_to_le16(host_vmid);
+		parcel->acl_entries[1].perms = GUNYAH_RM_ACL_R | GUNYAH_RM_ACL_W | GUNYAH_RM_ACL_X;
+	}
+
+	parcel->mem_handle = GUNYAH_MEM_HANDLE_INVAL;
+	folio = filemap_get_folio(file_inode(b->file)->i_mapping, start); /* C */
+	*gfn = folio_index(folio) - b->i_off + b->gfn;
+	*nr = end - (folio_index(folio) - b->i_off);
+	folio_put(folio); /* C */
+
+	ret = gunyah_rm_mem_share(ghvm->rm, parcel);
+	goto out;
+free_acl:
+	kfree(parcel->acl_entries);
+	parcel->acl_entries = NULL;
+free_entries:
+	kfree(parcel->mem_entries);
+	parcel->mem_entries = NULL;
+	parcel->n_mem_entries = 0;
+out:
+	/* unlock the folios */
+	for (j = start + b->i_off; j < i;) {
+		folio = filemap_get_folio(file_inode(b->file)->i_mapping, j); /* D */
+		if (WARN_ON(IS_ERR(folio)))
+			continue;
+		j = folio_index(folio) + folio_nr_pages(folio);
+		folio_unlock(folio); /* A */
+		if (ret) {
+			if (folio_test_private(folio)) {
+				gunyah_folio_host_reclaim(folio);
+				folio_clear_private(folio);
+			}
+			folio_put(folio); /* A */
+		}
+		folio_put(folio); /* D */
+		/* matching folio_put for A is done at
+		 * (1) gunyah_gmem_reclaim_parcel or
+		 * (2) after gunyah_gmem_parcel_to_paged, gunyah_vm_reclaim_folio
+		 */
+	}
+unlock:
+	up_read(&ghvm->bindings_lock);
+	return ret;
+}
+
+int gunyah_gmem_reclaim_parcel(struct gunyah_vm *ghvm,
+			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
+			       u64 nr)
+{
+	struct gunyah_rm_mem_entry *entry;
+	struct folio *folio;
+	pgoff_t i;
+	int ret;
+
+	if (parcel->mem_handle != GUNYAH_MEM_HANDLE_INVAL) {
+		ret = gunyah_rm_mem_reclaim(ghvm->rm, parcel);
+		if (ret) {
+			dev_err(ghvm->parent, "Failed to reclaim parcel: %d\n",
+				ret);
+			/* We can't reclaim the pages -- hold onto the pages
+			 * forever because we don't know what state the memory
+			 * is in
+			 */
+			return ret;
+		}
+		parcel->mem_handle = GUNYAH_MEM_HANDLE_INVAL;
+
+		for (i = 0; i < parcel->n_mem_entries; i++) {
+			entry = &parcel->mem_entries[i];
+
+			folio = pfn_folio(PHYS_PFN(le64_to_cpu(entry->phys_addr)));
+
+			if (folio_test_private(folio))
+				gunyah_folio_host_reclaim(folio);
+
+			folio_clear_private(folio);
+			folio_put(folio); /* A */
+		}
+
+		kfree(parcel->mem_entries);
+		kfree(parcel->acl_entries);
+	}
+
+	return 0;
+}
