@@ -20,6 +20,25 @@
  */
 #define GUNYAH_CREATE_VM _IO(GUNYAH_IOCTL_TYPE, 0x0) /* Returns a Gunyah VM fd */
 
+enum gunyah_mem_flags {
+	GHMF_CLOEXEC = (1UL << 0),
+	GHMF_ALLOW_HUGEPAGE = (1UL << 1),
+};
+
+/**
+ * struct gunyah_create_mem_args - Description of guest memory to create
+ * @flags: See GHMF_*.
+ */
+struct gunyah_create_mem_args {
+	__u64 flags;
+	__u64 size;
+	__u64 reserved[6];
+};
+
+#define GUNYAH_CREATE_GUEST_MEM      \
+	_IOW(GUNYAH_IOCTL_TYPE, 0x8, \
+	     struct gunyah_create_mem_args) /* Returns a Gunyah memory fd */
+
 /*
  * ioctls for gunyah-vm fds (returned by GUNYAH_CREATE_VM)
  */

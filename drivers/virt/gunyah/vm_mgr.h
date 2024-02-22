@@ -171,4 +171,6 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 int gunyah_vm_reclaim_folio(struct gunyah_vm *ghvm, u64 gfn, struct folio *folio);
 int gunyah_vm_reclaim_range(struct gunyah_vm *ghvm, u64 gfn, u64 nr);
 
+int gunyah_guest_mem_create(struct gunyah_create_mem_args *args);
+
 #endif

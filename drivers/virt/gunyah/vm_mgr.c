@@ -696,6 +696,15 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
 	switch (cmd) {
 	case GUNYAH_CREATE_VM:
 		return gunyah_dev_ioctl_create_vm(rm, arg);
+	case GUNYAH_CREATE_GUEST_MEM: {
+		struct gunyah_create_mem_args args;
+
+		if (copy_from_user(&args, (const void __user *)arg,
+				   sizeof(args)))
+			return -EFAULT;
+
+		return gunyah_guest_mem_create(&args);
+	}
 	default:
 		return -ENOTTY;
 	}
