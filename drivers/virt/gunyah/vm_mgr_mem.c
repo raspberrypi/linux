@@ -9,6 +9,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
+#include "rsc_mgr.h"
 #include "vm_mgr.h"
 
 #define WRITE_TAG (1 << 0)
@@ -107,7 +108,7 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 	size_t size = folio_size(folio);
 	enum gunyah_error gunyah_error;
 	unsigned long tag = 0;
-	int ret;
+	int ret, tmp;
 
 	/* clang-format off */
 	if (share) {
@@ -158,6 +159,11 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 	else /* !share && !write */
 		access = GUNYAH_PAGETABLE_ACCESS_RX;
 
+	ret = gunyah_rm_platform_pre_demand_page(ghvm->rm, ghvm->vmid, access,
+						 folio);
+	if (ret)
+		goto reclaim_host;
+
 	gunyah_error = gunyah_hypercall_memextent_donate(donate_flags(share),
 							 host_extent->capid,
 							 guest_extent->capid,
@@ -166,7 +172,7 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 		pr_err("Failed to donate memory for guest address 0x%016llx: %d\n",
 		       gpa, gunyah_error);
 		ret = gunyah_error_remap(gunyah_error);
-		goto remove;
+		goto platform_release;
 	}
 
 	extent_attrs =
@@ -197,6 +203,16 @@ memextent_reclaim:
 	if (gunyah_error != GUNYAH_ERROR_OK)
 		pr_err("Failed to reclaim memory donation for guest address 0x%016llx: %d\n",
 		       gpa, gunyah_error);
+platform_release:
+	tmp = gunyah_rm_platform_reclaim_demand_page(ghvm->rm, ghvm->vmid,
+						     access, folio);
+	if (tmp) {
+		pr_err("Platform failed to reclaim memory for guest address 0x%016llx: %d",
+		       gpa, tmp);
+		return ret;
+	}
+reclaim_host:
+	gunyah_folio_host_reclaim(folio);
 remove:
 	mtree_erase(&ghvm->mm, gfn);
 	return ret;
@@ -207,6 +223,7 @@ static int __gunyah_vm_reclaim_folio_locked(struct gunyah_vm *ghvm, void *entry,
 {
 	u32 map_flags = BIT(GUNYAH_ADDRSPACE_MAP_FLAG_PARTIAL);
 	struct gunyah_resource *guest_extent, *host_extent, *addrspace;
+	enum gunyah_pagetable_access access;
 	enum gunyah_error gunyah_error;
 	struct folio *folio;
 	bool write, share;
@@ -261,6 +278,24 @@ static int __gunyah_vm_reclaim_folio_locked(struct gunyah_vm *ghvm, void *entry,
 			"Failed to reclaim memory donation for guest address 0x%016llx: %d\n",
 			gunyah_gfn_to_gpa(gfn), gunyah_error);
 		ret = gunyah_error_remap(gunyah_error);
+		goto err;
+	}
+
+	if (share && write)
+		access = GUNYAH_PAGETABLE_ACCESS_RW;
+	else if (share && !write)
+		access = GUNYAH_PAGETABLE_ACCESS_R;
+	else if (!share && write)
+		access = GUNYAH_PAGETABLE_ACCESS_RWX;
+	else /* !share && !write */
+		access = GUNYAH_PAGETABLE_ACCESS_RX;
+
+	ret = gunyah_rm_platform_reclaim_demand_page(ghvm->rm, ghvm->vmid,
+						     access, folio);
+	if (ret) {
+		pr_err_ratelimited(
+			"Platform failed to reclaim memory for guest address 0x%016llx: %d",
+			gunyah_gfn_to_gpa(gfn), ret);
 		goto err;
 	}
 
