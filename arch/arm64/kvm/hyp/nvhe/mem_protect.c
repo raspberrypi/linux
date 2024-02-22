@@ -2818,6 +2818,7 @@ static void pkvm_stage2_initialize_snapshot(const struct kvm_pgtable *from_pgt,
 	dest_pgt->start_level	= from_pgt->start_level;
 	dest_pgt->flags		= from_pgt->flags;
 	dest_pgt->pte_ops	= from_pgt->pte_ops;
+	dest_pgt->pgd		= NULL;
 }
 
 int __pkvm_guest_stage2_snapshot(struct kvm_pgtable_snapshot *snap,
@@ -2833,16 +2834,21 @@ int __pkvm_guest_stage2_snapshot(struct kvm_pgtable_snapshot *snap,
 
 	guest_lock_component(vm);
 
+	from_pgt = &vm->pgt;
+	to_pgt = &snap->pgtable;
+
+	pkvm_stage2_initialize_snapshot(from_pgt, to_pgt, &mm_ops);
+
+	if (snap->pgd_pages == 0 || snap->num_used_pages == 0) {
+		ret = 0;
+		goto unlock;
+	}
+
 	required_pgd_len = kvm_pgtable_stage2_pgd_size(vm->kvm.arch.vtcr);
 	if (snap->pgd_pages < (required_pgd_len >> PAGE_SHIFT)) {
 		ret = -EINVAL;
 		goto unlock;
 	}
-
-	from_pgt = &vm->pgt;
-	to_pgt = &snap->pgtable;
-
-	pkvm_stage2_initialize_snapshot(from_pgt, to_pgt, &mm_ops);
 
 	to_pgt->pgd = kern_hyp_va(snap->pgd_hva);
 	ret = kvm_pgtable_stage2_snapshot(snap, from_pgt, required_pgd_len);
