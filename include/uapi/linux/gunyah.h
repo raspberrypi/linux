@@ -25,7 +25,32 @@
  */
 #define GUNYAH_VM_START		_IO(GUNYAH_IOCTL_TYPE, 0x3)
 
+/**
+ * enum gunyah_fn_type - Valid types of Gunyah VM functions
+ * @GUNYAH_FN_VCPU: create a vCPU instance to control a vCPU
+ *              &struct gunyah_fn_desc.arg is a pointer to &struct gunyah_fn_vcpu_arg
+ *              Return: file descriptor to manipulate the vcpu.
+ */
+enum gunyah_fn_type {
+	GUNYAH_FN_VCPU = 1,
+};
+
 #define GUNYAH_FN_MAX_ARG_SIZE		256
+
+/**
+ * struct gunyah_fn_vcpu_arg - Arguments to create a vCPU.
+ * @id: vcpu id
+ *
+ * Create this function with &GUNYAH_VM_ADD_FUNCTION using type &GUNYAH_FN_VCPU.
+ *
+ * The vcpu type will register with the VM Manager to expect to control
+ * vCPU number `vcpu_id`. It returns a file descriptor allowing interaction with
+ * the vCPU. See the Gunyah vCPU API description sections for interacting with
+ * the Gunyah vCPU file descriptors.
+ */
+struct gunyah_fn_vcpu_arg {
+	__u32 id;
+};
 
 /**
  * struct gunyah_fn_desc - Arguments to create a VM function
@@ -42,5 +67,143 @@ struct gunyah_fn_desc {
 
 #define GUNYAH_VM_ADD_FUNCTION	_IOW(GUNYAH_IOCTL_TYPE, 0x4, struct gunyah_fn_desc)
 #define GUNYAH_VM_REMOVE_FUNCTION	_IOW(GUNYAH_IOCTL_TYPE, 0x7, struct gunyah_fn_desc)
+
+/*
+ * ioctls for vCPU fds
+ */
+
+/**
+ * enum gunyah_vm_status - Stores status reason why VM is not runnable (exited).
+ * @GUNYAH_VM_STATUS_LOAD_FAILED: VM didn't start because it couldn't be loaded.
+ * @GUNYAH_VM_STATUS_EXITED: VM requested shutdown/reboot.
+ *                       Use &struct gunyah_vm_exit_info.reason for further details.
+ * @GUNYAH_VM_STATUS_CRASHED: VM state is unknown and has crashed.
+ */
+enum gunyah_vm_status {
+	GUNYAH_VM_STATUS_LOAD_FAILED	= 1,
+	GUNYAH_VM_STATUS_EXITED		= 2,
+	GUNYAH_VM_STATUS_CRASHED		= 3,
+};
+
+/*
+ * Gunyah presently sends max 4 bytes of exit_reason.
+ * If that changes, this macro can be safely increased without breaking
+ * userspace so long as struct gunyah_vcpu_run < PAGE_SIZE.
+ */
+#define GUNYAH_VM_MAX_EXIT_REASON_SIZE	8u
+
+/**
+ * struct gunyah_vm_exit_info - Reason for VM exit as reported by Gunyah
+ * See Gunyah documentation for values.
+ * @type: Describes how VM exited
+ * @padding: padding bytes
+ * @reason_size: Number of bytes valid for `reason`
+ * @reason: See Gunyah documentation for interpretation. Note: these values are
+ *          not interpreted by Linux and need to be converted from little-endian
+ *          as applicable.
+ */
+struct gunyah_vm_exit_info {
+	__u16 type;
+	__u16 padding;
+	__u32 reason_size;
+	__u8 reason[GUNYAH_VM_MAX_EXIT_REASON_SIZE];
+};
+
+/**
+ * enum gunyah_vcpu_exit - Stores reason why &GUNYAH_VCPU_RUN ioctl recently exited with status 0
+ * @GUNYAH_VCPU_EXIT_UNKNOWN: Not used, status != 0
+ * @GUNYAH_VCPU_EXIT_MMIO: vCPU performed a read or write that could not be handled
+ *                     by hypervisor or Linux. Use @struct gunyah_vcpu_run.mmio for
+ *                     details of the read/write.
+ * @GUNYAH_VCPU_EXIT_STATUS: vCPU not able to run because the VM has exited.
+ *                       Use @struct gunyah_vcpu_run.status for why VM has exited.
+ * @GUNYAH_VCPU_EXIT_PAGE_FAULT: vCPU tried to execute an instruction at an address
+ *                               for which memory hasn't been provided. Use
+ *                               @struct gunyah_vcpu_run.page_fault for details.
+ */
+enum gunyah_vcpu_exit {
+	GUNYAH_VCPU_EXIT_UNKNOWN,
+	GUNYAH_VCPU_EXIT_MMIO,
+	GUNYAH_VCPU_EXIT_STATUS,
+	GUNYAH_VCPU_EXIT_PAGE_FAULT,
+};
+
+/**
+ * enum gunyah_vcpu_resume_action - Provide resume action after an MMIO or page fault
+ * @GUNYAH_VCPU_RESUME_HANDLED: The mmio or page fault has been handled, continue
+ *                              normal operation of vCPU
+ * @GUNYAH_VCPU_RESUME_FAULT: The mmio or page fault could not be satisfied and
+ *                            inject the original fault back to the guest.
+ * @GUNYAH_VCPU_RESUME_RETRY: Retry the faulting instruction. Perhaps you added
+ *                            memory binding to satisfy the request.
+ */
+enum gunyah_vcpu_resume_action {
+	GUNYAH_VCPU_RESUME_HANDLED = 0,
+	GUNYAH_VCPU_RESUME_FAULT,
+	GUNYAH_VCPU_RESUME_RETRY,
+};
+
+/**
+ * struct gunyah_vcpu_run - Application code obtains a pointer to the gunyah_vcpu_run
+ *                      structure by mmap()ing a vcpu fd.
+ * @immediate_exit: polled when scheduling the vcpu. If set, immediately returns -EINTR.
+ * @padding: padding bytes
+ * @exit_reason: Set when GUNYAH_VCPU_RUN returns successfully and gives reason why
+ *               GUNYAH_VCPU_RUN has stopped running the vCPU. See &enum gunyah_vcpu_exit.
+ * @mmio: Used when exit_reason == GUNYAH_VCPU_EXIT_MMIO
+ *        The guest has faulted on an memory-mapped I/O that
+ *        couldn't be satisfied by gunyah.
+ * @mmio.phys_addr: Address guest tried to access
+ * @mmio.data: the value that was written if `is_write == 1`. Filled by
+ *        user for reads (`is_write == 0`).
+ * @mmio.len: Length of write. Only the first `len` bytes of `data`
+ *       are considered by Gunyah.
+ * @mmio.is_write: 1 if VM tried to perform a write, 0 for a read
+ * @mmio.resume_action: See &enum gunyah_vcpu_resume_action
+ * @status: Used when exit_reason == GUNYAH_VCPU_EXIT_STATUS.
+ *          The guest VM is no longer runnable. This struct informs why.
+ * @status.status: See &enum gunyah_vm_status for possible values
+ * @status.exit_info: Used when status == GUNYAH_VM_STATUS_EXITED
+ * @page_fault: Used when EXIT_REASON == GUNYAH_VCPU_EXIT_PAGE_FAULT
+ *              The guest has faulted on a region that can only be provided
+ *              by mapping memory at phys_addr.
+ * @page_fault.phys_addr: Address guest tried to access.
+ * @page_fault.attempt: Error code why Linux wasn't able to handle fault itself
+ *                      Typically, if no memory was mapped: -ENOENT,
+ *                      If permission bits weren't what the VM wanted: -EPERM
+ * @page_fault.resume_action: See &enum gunyah_vcpu_resume_action
+ */
+struct gunyah_vcpu_run {
+	/* in */
+	__u8 immediate_exit;
+	__u8 padding[7];
+
+	/* out */
+	__u32 exit_reason;
+
+	union {
+		struct {
+			__u64 phys_addr;
+			__u8  data[8];
+			__u32 len;
+			__u8  is_write;
+			__u8  resume_action;
+		} mmio;
+
+		struct {
+			enum gunyah_vm_status status;
+			struct gunyah_vm_exit_info exit_info;
+		} status;
+
+		struct {
+			__u64 phys_addr;
+			__s32 attempt;
+			__u8  resume_action;
+		} page_fault;
+	};
+};
+
+#define GUNYAH_VCPU_RUN		_IO(GUNYAH_IOCTL_TYPE, 0x5)
+#define GUNYAH_VCPU_MMAP_SIZE	_IO(GUNYAH_IOCTL_TYPE, 0x6)
 
 #endif
