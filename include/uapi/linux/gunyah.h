@@ -65,10 +65,13 @@ struct gunyah_vm_dtb_config {
  *              Return: file descriptor to manipulate the vcpu.
  * @GUNYAH_FN_IRQFD: register eventfd to assert a Gunyah doorbell
  *               &struct gunyah_fn_desc.arg is a pointer to &struct gunyah_fn_irqfd_arg
+ * @GUNYAH_FN_IOEVENTFD: register ioeventfd to trigger when VM faults on parameter
+ *                   &struct gunyah_fn_desc.arg is a pointer to &struct gunyah_fn_ioeventfd_arg
  */
 enum gunyah_fn_type {
 	GUNYAH_FN_VCPU = 1,
 	GUNYAH_FN_IRQFD,
+	GUNYAH_FN_IOEVENTFD,
 };
 
 #define GUNYAH_FN_MAX_ARG_SIZE		256
@@ -116,6 +119,40 @@ enum gunyah_irqfd_flags {
 struct gunyah_fn_irqfd_arg {
 	__u32 fd;
 	__u32 label;
+	__u32 flags;
+	__u32 padding;
+};
+
+/**
+ * enum gunyah_ioeventfd_flags - flags for use in gunyah_fn_ioeventfd_arg
+ * @GUNYAH_IOEVENTFD_FLAGS_DATAMATCH: the event will be signaled only if the
+ *                                written value to the registered address is
+ *                                equal to &struct gunyah_fn_ioeventfd_arg.datamatch
+ */
+enum gunyah_ioeventfd_flags {
+	GUNYAH_IOEVENTFD_FLAGS_DATAMATCH	= 1UL << 0,
+};
+
+/**
+ * struct gunyah_fn_ioeventfd_arg - Arguments to create an ioeventfd function
+ * @datamatch: data used when GUNYAH_IOEVENTFD_DATAMATCH is set
+ * @addr: Address in guest memory
+ * @len: Length of access
+ * @fd: When ioeventfd is matched, this eventfd is written
+ * @flags: See &enum gunyah_ioeventfd_flags
+ * @padding: padding bytes
+ *
+ * Create this function with &GUNYAH_VM_ADD_FUNCTION using type &GUNYAH_FN_IOEVENTFD.
+ *
+ * Attaches an ioeventfd to a legal mmio address within the guest. A guest write
+ * in the registered address will signal the provided event instead of triggering
+ * an exit on the GUNYAH_VCPU_RUN ioctl.
+ */
+struct gunyah_fn_ioeventfd_arg {
+	__u64 datamatch;
+	__u64 addr;        /* legal mmio address */
+	__u32 len;         /* 1, 2, 4, or 8 bytes; or 0 to ignore length */
+	__s32 fd;
 	__u32 flags;
 	__u32 padding;
 };
