@@ -155,6 +155,35 @@ int gunyah_vm_add_resource_ticket(struct gunyah_vm *ghvm,
 void gunyah_vm_remove_resource_ticket(struct gunyah_vm *ghvm,
 				      struct gunyah_vm_resource_ticket *ticket);
 
+/*
+ * gunyah_vm_io_handler contains the info about an io device and its associated
+ * addr and the ops associated with the io device.
+ */
+struct gunyah_vm_io_handler {
+	struct rb_node node;
+	u64 addr;
+
+	bool datamatch;
+	u8 len;
+	u64 data;
+	struct gunyah_vm_io_handler_ops *ops;
+};
+
+/*
+ * gunyah_vm_io_handler_ops contains function pointers associated with an iodevice.
+ */
+struct gunyah_vm_io_handler_ops {
+	int (*read)(struct gunyah_vm_io_handler *io_dev, u64 addr, u32 len,
+		    u64 data);
+	int (*write)(struct gunyah_vm_io_handler *io_dev, u64 addr, u32 len,
+		     u64 data);
+};
+
+int gunyah_vm_add_io_handler(struct gunyah_vm *ghvm,
+			     struct gunyah_vm_io_handler *io_dev);
+void gunyah_vm_remove_io_handler(struct gunyah_vm *ghvm,
+				 struct gunyah_vm_io_handler *io_dev);
+
 #define GUNYAH_RM_ACL_X BIT(0)
 #define GUNYAH_RM_ACL_W BIT(1)
 #define GUNYAH_RM_ACL_R BIT(2)

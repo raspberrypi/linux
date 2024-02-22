@@ -11,6 +11,7 @@
 #include <linux/maple_tree.h>
 #include <linux/mutex.h>
 #include <linux/pagemap.h>
+#include <linux/rbtree.h>
 #include <linux/rwsem.h>
 #include <linux/set_memory.h>
 #include <linux/wait.h>
@@ -58,6 +59,9 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
  * @guest_shared_extent_ticket: Resource ticket to the capability for
  *                              the memory extent that represents
  *                              memory shared with the guest.
+ * @mmio_handler_root: RB tree of MMIO handlers.
+ *                     Entries are &struct gunyah_vm_io_handler
+ * @mmio_handler_lock: Serialization of traversing @mmio_handler_root
  * @rm: Pointer to the resource manager struct to make RM calls
  * @parent: For logging
  * @nb: Notifier block for RM notifications
@@ -93,6 +97,8 @@ struct gunyah_vm {
 	struct gunyah_vm_resource_ticket addrspace_ticket,
 		host_private_extent_ticket, host_shared_extent_ticket,
 		guest_private_extent_ticket, guest_shared_extent_ticket;
+	struct rb_root mmio_handler_root;
+	struct rw_semaphore mmio_handler_lock;
 
 	struct gunyah_rm *rm;
 
@@ -118,6 +124,8 @@ struct gunyah_vm {
 	} dtb;
 	struct xarray boot_context;
 };
+
+int gunyah_vm_mmio_write(struct gunyah_vm *ghvm, u64 addr, u32 len, u64 data);
 
 /**
  * folio_mmapped() - Returns true if the folio is mapped into any vma

@@ -133,6 +133,10 @@ gunyah_handle_mmio(struct gunyah_vcpu *vcpu, unsigned long resume_data[3],
 		vcpu->state = GUNYAH_VCPU_RUN_STATE_MMIO_READ;
 		vcpu->mmio_read_len = len;
 	} else { /* GUNYAH_VCPU_ADDRSPACE_VMMIO_WRITE */
+		if (!gunyah_vm_mmio_write(vcpu->ghvm, addr, len, data)) {
+			resume_data[0] = GUNYAH_ADDRSPACE_VMMIO_ACTION_EMULATE;
+			return true;
+		}
 		vcpu->vcpu_run->mmio.is_write = 1;
 		memcpy(vcpu->vcpu_run->mmio.data, &data, len);
 		vcpu->state = GUNYAH_VCPU_RUN_STATE_MMIO_WRITE;
