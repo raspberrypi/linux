@@ -452,8 +452,23 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 	ghvm->vmid = ret;
 	ghvm->vm_status = GUNYAH_RM_VM_STATUS_LOAD;
 
-	ret = gunyah_rm_vm_configure(ghvm->rm, ghvm->vmid, ghvm->auth, 0, 0, 0,
-				     0, 0);
+	ghvm->dtb.parcel_start = ghvm->dtb.config.guest_phys_addr >> PAGE_SHIFT;
+	ghvm->dtb.parcel_pages = ghvm->dtb.config.size >> PAGE_SHIFT;
+	ret = gunyah_gmem_share_parcel(ghvm, &ghvm->dtb.parcel,
+				       &ghvm->dtb.parcel_start,
+				       &ghvm->dtb.parcel_pages);
+	if (ret) {
+		dev_warn(ghvm->parent,
+			 "Failed to allocate parcel for DTB: %d\n", ret);
+		goto err;
+	}
+
+	ret = gunyah_rm_vm_configure(ghvm->rm, ghvm->vmid, ghvm->auth,
+				     ghvm->dtb.parcel.mem_handle, 0, 0,
+				     ghvm->dtb.config.guest_phys_addr -
+					     (ghvm->dtb.parcel_start
+					      << PAGE_SHIFT),
+				     ghvm->dtb.config.size);
 	if (ret) {
 		dev_warn(ghvm->parent, "Failed to configure VM: %d\n", ret);
 		goto err;
@@ -536,6 +551,21 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 	long r;
 
 	switch (cmd) {
+	case GUNYAH_VM_SET_DTB_CONFIG: {
+		struct gunyah_vm_dtb_config dtb_config;
+
+		if (copy_from_user(&dtb_config, argp, sizeof(dtb_config)))
+			return -EFAULT;
+
+		if (overflows_type(dtb_config.guest_phys_addr + dtb_config.size,
+				   u64))
+			return -EOVERFLOW;
+
+		ghvm->dtb.config = dtb_config;
+
+		r = 0;
+		break;
+	}
 	case GUNYAH_VM_START: {
 		r = gunyah_vm_ensure_started(ghvm);
 		break;
@@ -593,6 +623,17 @@ static void _gunyah_vm_put(struct kref *kref)
 	 */
 	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_RUNNING)
 		gunyah_vm_stop(ghvm);
+
+	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_LOAD ||
+	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_READY ||
+	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_INIT_FAILED) {
+		ret = gunyah_gmem_reclaim_parcel(ghvm, &ghvm->dtb.parcel,
+						 ghvm->dtb.parcel_start,
+						 ghvm->dtb.parcel_pages);
+		if (ret)
+			dev_err(ghvm->parent,
+				"Failed to reclaim DTB parcel: %d\n", ret);
+	}
 
 	gunyah_vm_remove_functions(ghvm);
 

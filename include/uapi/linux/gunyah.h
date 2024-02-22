@@ -42,6 +42,20 @@ struct gunyah_create_mem_args {
 /*
  * ioctls for gunyah-vm fds (returned by GUNYAH_CREATE_VM)
  */
+
+/**
+ * struct gunyah_vm_dtb_config - Set the location of the VM's devicetree blob
+ * @guest_phys_addr: Address of the VM's devicetree in guest memory.
+ * @size: Maximum size of the devicetree including space for overlays.
+ *        Resource manager applies an overlay to the DTB and dtb_size should
+ *        include room for the overlay. A page of memory is typicaly plenty.
+ */
+struct gunyah_vm_dtb_config {
+	__u64 guest_phys_addr;
+	__u64 size;
+};
+#define GUNYAH_VM_SET_DTB_CONFIG	_IOW(GUNYAH_IOCTL_TYPE, 0x2, struct gunyah_vm_dtb_config)
+
 #define GUNYAH_VM_START		_IO(GUNYAH_IOCTL_TYPE, 0x3)
 
 /**
