@@ -6,14 +6,174 @@
 #define pr_fmt(fmt) "gunyah_vm_mgr: " fmt
 
 #include <linux/anon_inodes.h>
+#include <linux/compat.h>
 #include <linux/file.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
+#include <linux/xarray.h>
 
 #include <uapi/linux/gunyah.h>
 
 #include "rsc_mgr.h"
 #include "vm_mgr.h"
+
+static DEFINE_XARRAY(gunyah_vm_functions);
+
+static void gunyah_vm_put_function(struct gunyah_vm_function *fn)
+{
+	module_put(fn->mod);
+}
+
+static struct gunyah_vm_function *gunyah_vm_get_function(u32 type)
+{
+	struct gunyah_vm_function *fn;
+
+	fn = xa_load(&gunyah_vm_functions, type);
+	if (!fn) {
+		request_module("ghfunc:%d", type);
+
+		fn = xa_load(&gunyah_vm_functions, type);
+	}
+
+	if (!fn || !try_module_get(fn->mod))
+		fn = ERR_PTR(-ENOENT);
+
+	return fn;
+}
+
+static void
+gunyah_vm_remove_function_instance(struct gunyah_vm_function_instance *inst)
+	__must_hold(&inst->ghvm->fn_lock)
+{
+	inst->fn->unbind(inst);
+	list_del(&inst->vm_list);
+	gunyah_vm_put_function(inst->fn);
+	kfree(inst->argp);
+	kfree(inst);
+}
+
+static void gunyah_vm_remove_functions(struct gunyah_vm *ghvm)
+{
+	struct gunyah_vm_function_instance *inst, *iiter;
+
+	mutex_lock(&ghvm->fn_lock);
+	list_for_each_entry_safe(inst, iiter, &ghvm->functions, vm_list) {
+		gunyah_vm_remove_function_instance(inst);
+	}
+	mutex_unlock(&ghvm->fn_lock);
+}
+
+static long gunyah_vm_add_function_instance(struct gunyah_vm *ghvm,
+					    struct gunyah_fn_desc *f)
+{
+	struct gunyah_vm_function_instance *inst;
+	void __user *argp;
+	long r = 0;
+
+	if (f->arg_size > GUNYAH_FN_MAX_ARG_SIZE) {
+		dev_err_ratelimited(ghvm->parent, "%s: arg_size > %d\n",
+				    __func__, GUNYAH_FN_MAX_ARG_SIZE);
+		return -EINVAL;
+	}
+
+	inst = kzalloc(sizeof(*inst), GFP_KERNEL);
+	if (!inst)
+		return -ENOMEM;
+
+	inst->arg_size = f->arg_size;
+	if (inst->arg_size) {
+		inst->argp = kzalloc(inst->arg_size, GFP_KERNEL);
+		if (!inst->argp) {
+			r = -ENOMEM;
+			goto free;
+		}
+
+		argp = u64_to_user_ptr(f->arg);
+		if (copy_from_user(inst->argp, argp, f->arg_size)) {
+			r = -EFAULT;
+			goto free_arg;
+		}
+	}
+
+	inst->fn = gunyah_vm_get_function(f->type);
+	if (IS_ERR(inst->fn)) {
+		r = PTR_ERR(inst->fn);
+		goto free_arg;
+	}
+
+	inst->ghvm = ghvm;
+	inst->rm = ghvm->rm;
+
+	mutex_lock(&ghvm->fn_lock);
+	r = inst->fn->bind(inst);
+	if (r < 0) {
+		mutex_unlock(&ghvm->fn_lock);
+		gunyah_vm_put_function(inst->fn);
+		goto free_arg;
+	}
+
+	list_add(&inst->vm_list, &ghvm->functions);
+	mutex_unlock(&ghvm->fn_lock);
+
+	return r;
+free_arg:
+	kfree(inst->argp);
+free:
+	kfree(inst);
+	return r;
+}
+
+static long gunyah_vm_rm_function_instance(struct gunyah_vm *ghvm,
+					   struct gunyah_fn_desc *f)
+{
+	struct gunyah_vm_function_instance *inst, *iter;
+	void __user *user_argp;
+	void *argp __free(kfree) = NULL;
+	long r = 0;
+
+	if (f->arg_size) {
+		argp = kzalloc(f->arg_size, GFP_KERNEL);
+		if (!argp)
+			return -ENOMEM;
+
+		user_argp = u64_to_user_ptr(f->arg);
+		if (copy_from_user(argp, user_argp, f->arg_size))
+			return -EFAULT;
+	}
+
+	r = mutex_lock_interruptible(&ghvm->fn_lock);
+	if (r)
+		return r;
+
+	r = -ENOENT;
+	list_for_each_entry_safe(inst, iter, &ghvm->functions, vm_list) {
+		if (inst->fn->type == f->type &&
+		    inst->fn->compare(inst, argp, f->arg_size)) {
+			gunyah_vm_remove_function_instance(inst);
+			r = 0;
+		}
+	}
+
+	mutex_unlock(&ghvm->fn_lock);
+	return r;
+}
+
+int gunyah_vm_function_register(struct gunyah_vm_function *fn)
+{
+	if (!fn->bind || !fn->unbind)
+		return -EINVAL;
+
+	return xa_err(xa_store(&gunyah_vm_functions, fn->type, fn, GFP_KERNEL));
+}
+EXPORT_SYMBOL_GPL(gunyah_vm_function_register);
+
+void gunyah_vm_function_unregister(struct gunyah_vm_function *fn)
+{
+	/* Expecting unregister to only come when unloading a module */
+	WARN_ON(fn->mod && module_refcount(fn->mod));
+	xa_erase(&gunyah_vm_functions, fn->type);
+}
+EXPORT_SYMBOL_GPL(gunyah_vm_function_unregister);
 
 int gunyah_vm_add_resource_ticket(struct gunyah_vm *ghvm,
 				  struct gunyah_vm_resource_ticket *ticket)
@@ -198,7 +358,11 @@ static __must_check struct gunyah_vm *gunyah_vm_alloc(struct gunyah_rm *rm)
 
 	init_rwsem(&ghvm->status_lock);
 	init_waitqueue_head(&ghvm->vm_status_wait);
+	kref_init(&ghvm->kref);
 	ghvm->vm_status = GUNYAH_RM_VM_STATUS_NO_STATE;
+
+	INIT_LIST_HEAD(&ghvm->functions);
+	mutex_init(&ghvm->fn_lock);
 	mutex_init(&ghvm->resources_lock);
 	INIT_LIST_HEAD(&ghvm->resources);
 	INIT_LIST_HEAD(&ghvm->resource_tickets);
@@ -311,11 +475,30 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
 	struct gunyah_vm *ghvm = filp->private_data;
+	void __user *argp = (void __user *)arg;
 	long r;
 
 	switch (cmd) {
 	case GUNYAH_VM_START: {
 		r = gunyah_vm_ensure_started(ghvm);
+		break;
+	}
+	case GUNYAH_VM_ADD_FUNCTION: {
+		struct gunyah_fn_desc f;
+
+		if (copy_from_user(&f, argp, sizeof(f)))
+			return -EFAULT;
+
+		r = gunyah_vm_add_function_instance(ghvm, &f);
+		break;
+	}
+	case GUNYAH_VM_REMOVE_FUNCTION: {
+		struct gunyah_fn_desc f;
+
+		if (copy_from_user(&f, argp, sizeof(f)))
+			return -EFAULT;
+
+		r = gunyah_vm_rm_function_instance(ghvm, &f);
 		break;
 	}
 	default:
@@ -326,9 +509,15 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 	return r;
 }
 
-static int gunyah_vm_release(struct inode *inode, struct file *filp)
+int __must_check gunyah_vm_get(struct gunyah_vm *ghvm)
 {
-	struct gunyah_vm *ghvm = filp->private_data;
+	return kref_get_unless_zero(&ghvm->kref);
+}
+EXPORT_SYMBOL_GPL(gunyah_vm_get);
+
+static void _gunyah_vm_put(struct kref *kref)
+{
+	struct gunyah_vm *ghvm = container_of(kref, struct gunyah_vm, kref);
 	int ret;
 
 	/**
@@ -338,6 +527,7 @@ static int gunyah_vm_release(struct inode *inode, struct file *filp)
 	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_RUNNING)
 		gunyah_vm_stop(ghvm);
 
+	gunyah_vm_remove_functions(ghvm);
 	gunyah_vm_clean_resources(ghvm);
 
 	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_EXITED ||
@@ -364,6 +554,19 @@ static int gunyah_vm_release(struct inode *inode, struct file *filp)
 
 	gunyah_rm_put(ghvm->rm);
 	kfree(ghvm);
+}
+
+void gunyah_vm_put(struct gunyah_vm *ghvm)
+{
+	kref_put(&ghvm->kref, _gunyah_vm_put);
+}
+EXPORT_SYMBOL_GPL(gunyah_vm_put);
+
+static int gunyah_vm_release(struct inode *inode, struct file *filp)
+{
+	struct gunyah_vm *ghvm = filp->private_data;
+
+	gunyah_vm_put(ghvm);
 	return 0;
 }
 
