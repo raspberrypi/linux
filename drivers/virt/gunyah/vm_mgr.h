@@ -199,4 +199,7 @@ int gunyah_gmem_reclaim_parcel(struct gunyah_vm *ghvm,
 			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
 			       u64 nr);
 
+int gunyah_gmem_setup_demand_paging(struct gunyah_vm *ghvm);
+int gunyah_gmem_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write);
+
 #endif

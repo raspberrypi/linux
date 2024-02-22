@@ -891,3 +891,97 @@ int gunyah_gmem_reclaim_parcel(struct gunyah_vm *ghvm,
 
 	return 0;
 }
+
+int gunyah_gmem_setup_demand_paging(struct gunyah_vm *ghvm)
+{
+	struct gunyah_rm_mem_entry *entries;
+	struct gunyah_gmem_binding *b;
+	unsigned long index = 0;
+	u32 count = 0, i;
+	int ret = 0;
+
+	down_read(&ghvm->bindings_lock);
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX)
+		if (gunyah_guest_mem_is_lend(ghvm, b->flags))
+			count++;
+
+	if (!count)
+		goto out;
+
+	entries = kcalloc(count, sizeof(*entries), GFP_KERNEL);
+	if (!entries) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	index = i = 0;
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
+		if (!gunyah_guest_mem_is_lend(ghvm, b->flags))
+			continue;
+		entries[i].phys_addr = cpu_to_le64(gunyah_gfn_to_gpa(b->gfn));
+		entries[i].size = cpu_to_le64(b->nr << PAGE_SHIFT);
+		if (++i == count)
+			break;
+	}
+
+	ret = gunyah_rm_vm_set_demand_paging(ghvm->rm, ghvm->vmid, i, entries);
+	kfree(entries);
+out:
+	up_read(&ghvm->bindings_lock);
+	return ret;
+}
+
+int gunyah_gmem_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write)
+{
+	unsigned long gfn = gunyah_gpa_to_gfn(gpa);
+	struct gunyah_gmem_binding *b;
+	struct folio *folio;
+	int ret;
+
+	down_read(&ghvm->bindings_lock);
+	b = mtree_load(&ghvm->bindings, gfn);
+	if (!b) {
+		ret = -ENOENT;
+		goto unlock;
+	}
+
+	if (write && !(b->flags & GUNYAH_MEM_ALLOW_WRITE)) {
+		ret = -EPERM;
+		goto unlock;
+	}
+
+	folio = gunyah_gmem_get_folio(file_inode(b->file),
+				      gunyah_gfn_to_off(b, gfn));
+	if (!folio) {
+		ret = -ENOMEM;
+		pr_err_ratelimited("Failed to obtain memory for guest addr %016llx\n", gpa);
+		goto unlock;
+	}
+
+	/**
+	 * the folio covers the requested guest address, but the folio may not
+	 * start at the requested guest address. recompute the gfn based on the
+	 * folio itself.
+	 */
+	gfn = gunyah_off_to_gfn(b, folio_index(folio));
+
+	filemap_invalidate_lock_shared(b->file->f_mapping);
+	ret = gunyah_vm_provide_folio(ghvm, folio, gfn,
+				      !gunyah_guest_mem_is_lend(ghvm, b->flags),
+				      !!(b->flags & GUNYAH_MEM_ALLOW_WRITE));
+	filemap_invalidate_unlock_shared(b->file->f_mapping);
+	if (ret) {
+		if (ret != -EAGAIN)
+			pr_err_ratelimited(
+				"Failed to provide folio for guest addr: %016llx: %d\n",
+				gpa, ret);
+		goto out;
+	}
+out:
+	folio_unlock(folio);
+	folio_put(folio);
+unlock:
+	up_read(&ghvm->bindings_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(gunyah_gmem_demand_page);

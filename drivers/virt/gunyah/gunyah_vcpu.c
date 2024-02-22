@@ -89,28 +89,43 @@ static irqreturn_t gunyah_vcpu_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void gunyah_handle_page_fault(
+static bool gunyah_handle_page_fault(
 	struct gunyah_vcpu *vcpu,
 	const struct gunyah_hypercall_vcpu_run_resp *vcpu_run_resp)
 {
 	u64 addr = vcpu_run_resp->state_data[0];
+	bool write = !!vcpu_run_resp->state_data[1];
+	int ret = 0;
+
+	ret = gunyah_gmem_demand_page(vcpu->ghvm, addr, write);
+	if (!ret || ret == -EAGAIN)
+		return true;
 
 	vcpu->vcpu_run->page_fault.resume_action = GUNYAH_VCPU_RESUME_FAULT;
-	vcpu->vcpu_run->page_fault.attempt = 0;
+	vcpu->vcpu_run->page_fault.attempt = ret;
 	vcpu->vcpu_run->page_fault.phys_addr = addr;
 	vcpu->vcpu_run->exit_reason = GUNYAH_VCPU_EXIT_PAGE_FAULT;
+	return false;
 }
 
-static void
-gunyah_handle_mmio(struct gunyah_vcpu *vcpu,
+static bool
+gunyah_handle_mmio(struct gunyah_vcpu *vcpu, unsigned long resume_data[3],
 		   const struct gunyah_hypercall_vcpu_run_resp *vcpu_run_resp)
 {
 	u64 addr = vcpu_run_resp->state_data[0],
 	    len = vcpu_run_resp->state_data[1],
 	    data = vcpu_run_resp->state_data[2];
+	int ret;
 
 	if (WARN_ON(len > sizeof(u64)))
 		len = sizeof(u64);
+
+	ret = gunyah_gmem_demand_page(vcpu->ghvm, addr,
+				      vcpu->vcpu_run->mmio.is_write);
+	if (!ret || ret == -EAGAIN) {
+		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_RETRY;
+		return true;
+	}
 
 	if (vcpu_run_resp->state == GUNYAH_VCPU_ADDRSPACE_VMMIO_READ) {
 		vcpu->vcpu_run->mmio.is_write = 0;
@@ -128,11 +143,15 @@ gunyah_handle_mmio(struct gunyah_vcpu *vcpu,
 	vcpu->mmio_addr = vcpu->vcpu_run->mmio.phys_addr = addr;
 	vcpu->vcpu_run->mmio.len = len;
 	vcpu->vcpu_run->exit_reason = GUNYAH_VCPU_EXIT_MMIO;
+
+	return false;
 }
 
 static int gunyah_handle_mmio_resume(struct gunyah_vcpu *vcpu,
 				     unsigned long resume_data[3])
 {
+	bool write = vcpu->state == GUNYAH_VCPU_RUN_STATE_MMIO_WRITE;
+
 	switch (vcpu->vcpu_run->mmio.resume_action) {
 	case GUNYAH_VCPU_RESUME_HANDLED:
 		if (vcpu->state == GUNYAH_VCPU_RUN_STATE_MMIO_READ) {
@@ -148,6 +167,8 @@ static int gunyah_handle_mmio_resume(struct gunyah_vcpu *vcpu,
 		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_FAULT;
 		break;
 	case GUNYAH_VCPU_RESUME_RETRY:
+		/* userspace probably added a memory binding */
+		gunyah_gmem_demand_page(vcpu->ghvm, vcpu->mmio_addr, write);
 		resume_data[1] = GUNYAH_ADDRSPACE_VMMIO_ACTION_RETRY;
 		break;
 	default:
@@ -310,11 +331,15 @@ static int gunyah_vcpu_run(struct gunyah_vcpu *vcpu)
 				break;
 			case GUNYAH_VCPU_ADDRSPACE_VMMIO_READ:
 			case GUNYAH_VCPU_ADDRSPACE_VMMIO_WRITE:
-				gunyah_handle_mmio(vcpu, &vcpu_run_resp);
-				goto out;
+				if (!gunyah_handle_mmio(vcpu, resume_data,
+							&vcpu_run_resp))
+					goto out;
+				break;
 			case GUNYAH_VCPU_ADDRSPACE_PAGE_FAULT:
-				gunyah_handle_page_fault(vcpu, &vcpu_run_resp);
-				goto out;
+				if (!gunyah_handle_page_fault(vcpu,
+							      &vcpu_run_resp))
+					goto out;
+				break;
 			default:
 				pr_warn_ratelimited(
 					"Unknown vCPU state: %llx\n",
