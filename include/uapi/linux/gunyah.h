@@ -142,6 +142,29 @@ struct gunyah_map_mem_args {
 
 #define GUNYAH_VM_MAP_MEM _IOW(GUNYAH_IOCTL_TYPE, 0x9, struct gunyah_map_mem_args)
 
+enum gunyah_vm_boot_context_reg {
+	REG_SET_X		= 0,
+	REG_SET_PC		= 1,
+	REG_SET_SP		= 2,
+};
+
+#define GUNYAH_VM_BOOT_CONTEXT_REG_SHIFT	8
+#define GUNYAH_VM_BOOT_CONTEXT_REG(reg, idx) (((reg & 0xff) << GUNYAH_VM_BOOT_CONTEXT_REG_SHIFT) |\
+					      (idx & 0xff))
+
+/**
+ * struct gunyah_vm_boot_context - Set an initial register for the VM
+ * @reg: Register to set. See GUNYAH_VM_BOOT_CONTEXT_REG_* macros
+ * @reserved: reserved for alignment
+ * @value: value to fill in the register
+ */
+struct gunyah_vm_boot_context {
+	__u32 reg;
+	__u32 reserved;
+	__u64 value;
+};
+#define GUNYAH_VM_SET_BOOT_CONTEXT	_IOW(GUNYAH_IOCTL_TYPE, 0xa, struct gunyah_vm_boot_context)
+
 /*
  * ioctls for vCPU fds
  */

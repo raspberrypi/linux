@@ -81,6 +81,7 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
  *                    folio; parcel_start is start of the folio)
  * @dtb.parcel_pages: Number of pages lent for the memory parcel
  * @dtb.parcel: Data for resource manager to lend the parcel
+ * @boot_context: Requested initial boot context to set when launching the VM
  *
  * Members are grouped by hot path.
  */
@@ -115,6 +116,7 @@ struct gunyah_vm {
 		u64 parcel_start, parcel_pages;
 		struct gunyah_rm_mem_parcel parcel;
 	} dtb;
+	struct xarray boot_context;
 };
 
 /**
