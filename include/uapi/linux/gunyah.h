@@ -20,4 +20,9 @@
  */
 #define GUNYAH_CREATE_VM _IO(GUNYAH_IOCTL_TYPE, 0x0) /* Returns a Gunyah VM fd */
 
+/*
+ * ioctls for gunyah-vm fds (returned by GUNYAH_CREATE_VM)
+ */
+#define GUNYAH_VM_START		_IO(GUNYAH_IOCTL_TYPE, 0x3)
+
 #endif
