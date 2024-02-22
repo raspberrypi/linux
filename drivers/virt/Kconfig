@@ -56,4 +56,6 @@ source "drivers/virt/coco/tdx-guest/Kconfig"
 
 source "drivers/virt/geniezone/Kconfig"
 
+source "drivers/virt/gunyah/Kconfig"
+
 endif
