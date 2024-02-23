@@ -2345,7 +2345,7 @@ bool dcn20_wait_for_blank_complete(
 	int counter;
 
 	for (counter = 0; counter < 1000; counter++) {
-		if (opp->funcs->dpg_is_blanked(opp))
+		if (!opp->funcs->dpg_is_pending(opp))
 			break;
 
 		udelay(100);
@@ -2356,7 +2356,7 @@ bool dcn20_wait_for_blank_complete(
 		return false;
 	}
 
-	return true;
+	return opp->funcs->dpg_is_blanked(opp);
 }
 
 bool dcn20_dmdata_status_done(struct pipe_ctx *pipe_ctx)

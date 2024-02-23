@@ -333,6 +333,7 @@ struct timing_generator_funcs {
 
 	void (*init_odm)(struct timing_generator *tg);
 	void (*wait_drr_doublebuffer_pending_clear)(struct timing_generator *tg);
+	void (*wait_odm_doublebuffer_pending_clear)(struct timing_generator *tg);
 };
 
 #endif
