@@ -51,6 +51,7 @@
   nf_register_net_hooks
   nf_unregister_net_hook
   nf_unregister_net_hooks
+  nr_running
   of_css
   __page_file_index
   pm_get_active_wakeup_sources
@@ -111,6 +112,7 @@
   wait_for_completion_io_timeout
   wait_for_completion_killable_timeout
   wakeup_source_remove
+  wake_up_state
   zero_pfn
   __traceiter_android_vh_binder_reply
   __traceiter_android_vh_binder_trans
@@ -137,6 +139,9 @@
   __traceiter_android_vh_futex_wake_this
   __traceiter_android_vh_futex_wake_traverse_plist
   __traceiter_android_vh_futex_wake_up_q_finish
+  __traceiter_android_vh_exit_check
+  __traceiter_android_vh_exit_signal_whether_wake
+  __traceiter_android_vh_freeze_whether_wake
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_opt_spin_start
@@ -154,3 +159,6 @@
   __tracepoint_android_vh_futex_wake_this
   __tracepoint_android_vh_futex_wake_traverse_plist
   __tracepoint_android_vh_futex_wake_up_q_finish
+  __tracepoint_android_vh_exit_check
+  __tracepoint_android_vh_exit_signal_whether_wake
+  __tracepoint_android_vh_freeze_whether_wake
