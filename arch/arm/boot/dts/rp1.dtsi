@@ -648,6 +648,13 @@
 				bias-disable;
 			};
 
+			rp1_i2s0_18_27: rp1_i2s0_18_27 {
+				function = "i2s0";
+				pins = "gpio18", "gpio19", "gpio20", "gpio21", "gpio22",
+				       "gpio23", "gpio24", "gpio25", "gpio26", "gpio27";
+				bias-disable;
+			};
+
 			rp1_i2s1_18_21: rp1_i2s1_18_21 {
 				function = "i2s1";
 				pins = "gpio18", "gpio19", "gpio20", "gpio21";
