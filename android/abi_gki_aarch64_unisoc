@@ -54,6 +54,22 @@
   sysfs_emit
   system_cpucaps
   system_wq
+  __traceiter_android_vh_alter_rwsem_list_add
+  __traceiter_android_vh_rwsem_downgrade_wake_finish
+  __traceiter_android_vh_rwsem_read_wait_start
+  __traceiter_android_vh_rwsem_read_wait_finish
+  __traceiter_android_vh_rwsem_wake
+  __traceiter_android_vh_rwsem_wake_finish
+  __traceiter_android_vh_rwsem_write_wait_start
+  __traceiter_android_vh_rwsem_write_wait_finish
+  __tracepoint_android_vh_alter_rwsem_list_add
+  __tracepoint_android_vh_rwsem_downgrade_wake_finish
+  __tracepoint_android_vh_rwsem_read_wait_start
+  __tracepoint_android_vh_rwsem_read_wait_finish
+  __tracepoint_android_vh_rwsem_wake
+  __tracepoint_android_vh_rwsem_wake_finish
+  __tracepoint_android_vh_rwsem_write_wait_start
+  __tracepoint_android_vh_rwsem_write_wait_finish
   unregister_chrdev_region
   __wake_up
   __warn_printk
