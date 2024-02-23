@@ -11,6 +11,8 @@
 #include <linux/errno.h>
 #include <trace/events/lock.h>
 
+#include <trace/hooks/dtask.h>
+
 int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 			const char *name, struct lock_class_key *key)
 {
@@ -152,6 +154,7 @@ static void percpu_rwsem_wait(struct percpu_rw_semaphore *sem, bool reader)
 	if (wait) {
 		wq_entry.flags |= WQ_FLAG_EXCLUSIVE | reader * WQ_FLAG_CUSTOM;
 		__add_wait_queue_entry_tail(&sem->waiters, &wq_entry);
+		trace_android_vh_percpu_rwsem_wq_add(sem, reader);
 	}
 	spin_unlock_irq(&sem->waiters.lock);
 
