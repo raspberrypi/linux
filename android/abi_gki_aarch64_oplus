@@ -130,6 +130,13 @@
   __traceiter_android_vh_rwsem_can_spin_on_owner
   __traceiter_android_vh_copy_process
   __traceiter_android_vh_binder_alloc_new_buf_locked
+  __traceiter_android_vh_do_futex
+  __traceiter_android_vh_futex_sleep_start
+  __traceiter_android_vh_futex_wait_end
+  __traceiter_android_vh_futex_wait_start
+  __traceiter_android_vh_futex_wake_this
+  __traceiter_android_vh_futex_wake_traverse_plist
+  __traceiter_android_vh_futex_wake_up_q_finish
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_opt_spin_start
@@ -140,3 +147,10 @@
   __tracepoint_android_vh_rwsem_can_spin_on_owner
   __tracepoint_android_vh_copy_process
   __tracepoint_android_vh_binder_alloc_new_buf_locked
+  __tracepoint_android_vh_do_futex
+  __tracepoint_android_vh_futex_sleep_start
+  __tracepoint_android_vh_futex_wait_end
+  __tracepoint_android_vh_futex_wait_start
+  __tracepoint_android_vh_futex_wake_this
+  __tracepoint_android_vh_futex_wake_traverse_plist
+  __tracepoint_android_vh_futex_wake_up_q_finish
