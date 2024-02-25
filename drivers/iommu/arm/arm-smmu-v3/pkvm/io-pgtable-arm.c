@@ -17,15 +17,24 @@
 #include "arm-smmu-v3-module.h"
 
 bool __ro_after_init selftest_running;
+#define io_pgtable_cfg_to_pgtable(x) container_of((x), struct io_pgtable, cfg)
+
+#define io_pgtable_cfg_to_data(x)					\
+	io_pgtable_to_data(io_pgtable_cfg_to_pgtable(x))
 
 void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp, struct io_pgtable_cfg *cfg)
 {
 	void *addr;
+	struct arm_lpae_io_pgtable *data = io_pgtable_cfg_to_data(cfg);
 
 	if(!PAGE_ALIGNED(size))
 		return NULL;
 
-	addr = kvm_iommu_donate_pages_request(get_order(size));
+	if (data->idmapped)
+		addr = kvm_iommu_donate_pages_atomic(get_order(size));
+	else
+		addr = kvm_iommu_donate_pages_request(get_order(size));
+
 	if (addr && !cfg->coherent_walk)
 		kvm_flush_dcache_to_poc(addr, size);
 
@@ -35,13 +44,17 @@ void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp, struct io_pgtable_cfg *cfg)
 void __arm_lpae_free_pages(void *addr, size_t size, struct io_pgtable_cfg *cfg)
 {
 	u8 order = get_order(size);
+	struct arm_lpae_io_pgtable *data = io_pgtable_cfg_to_data(cfg);
 
 	BUG_ON(size != (1 << order) * PAGE_SIZE);
 
 	if (!cfg->coherent_walk)
 		kvm_flush_dcache_to_poc(addr, size);
 
-	kvm_iommu_reclaim_pages(addr, order);
+	if (data->idmapped)
+		kvm_iommu_reclaim_pages_atomic(addr, order);
+	else
+		kvm_iommu_reclaim_pages(addr, order);
 }
 
 void __arm_lpae_sync_pte(arm_lpae_iopte *ptep, int num_entries,
@@ -89,7 +102,7 @@ struct io_pgtable *kvm_arm_io_pgtable_alloc(struct io_pgtable_cfg *cfg,
 		goto out_free;
 
 	pgd_size = ARM_LPAE_PGD_SIZE(data);
-	data->pgd = __arm_lpae_alloc_pages(pgd_size, 0, cfg);
+	data->pgd = __arm_lpae_alloc_pages(pgd_size, 0, &data->iop.cfg);
 	if (!data->pgd) {
 		ret = -ENOMEM;
 		goto out_free;

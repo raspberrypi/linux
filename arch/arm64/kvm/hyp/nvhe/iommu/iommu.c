@@ -41,12 +41,12 @@ static struct hyp_pool iommu_atomic_pool;
 
 DECLARE_PER_CPU(struct kvm_hyp_req, host_hyp_reqs);
 
-void *kvm_iommu_donate_pages(u8 order, bool request)
+void *__kvm_iommu_donate_pages(struct hyp_pool *pool, u8 order, bool request)
 {
 	void *p;
 	struct kvm_hyp_req *req = this_cpu_ptr(&host_hyp_reqs);
 
-	p = hyp_alloc_pages(&iommu_host_pool, order);
+	p = hyp_alloc_pages(pool, order);
 	if (p)
 		return p;
 
@@ -59,7 +59,7 @@ void *kvm_iommu_donate_pages(u8 order, bool request)
 	return NULL;
 }
 
-void kvm_iommu_reclaim_pages(void *p, u8 order)
+void __kvm_iommu_reclaim_pages(struct hyp_pool *pool, void *p, u8 order)
 {
 	/*
 	 * Order MUST be same allocated page, however the buddy allocator
@@ -67,7 +67,27 @@ void kvm_iommu_reclaim_pages(void *p, u8 order)
 	 */
 	BUG_ON(order > hyp_virt_to_page(p)->order);
 
-	hyp_put_page(&iommu_host_pool, p);
+	hyp_put_page(pool, p);
+}
+
+void *kvm_iommu_donate_pages(u8 order, bool request)
+{
+	return __kvm_iommu_donate_pages(&iommu_host_pool, order, request);
+}
+
+void kvm_iommu_reclaim_pages(void *p, u8 order)
+{
+	__kvm_iommu_reclaim_pages(&iommu_host_pool, p, order);
+}
+
+void *kvm_iommu_donate_pages_atomic(u8 order)
+{
+	return __kvm_iommu_donate_pages(&iommu_atomic_pool, order, false);
+}
+
+void kvm_iommu_reclaim_pages_atomic(void *p, u8 order)
+{
+	__kvm_iommu_reclaim_pages(&iommu_atomic_pool, p, order);
 }
 
 /* Request to hypervisor. */

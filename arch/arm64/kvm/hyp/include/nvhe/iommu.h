@@ -28,6 +28,10 @@ int kvm_iommu_request(struct kvm_hyp_req *req);
 #define kvm_iommu_reclaim_page(p)		kvm_iommu_reclaim_pages(p, 0)
 #define kvm_iommu_donate_pages_request(order)	kvm_iommu_donate_pages(order, true)
 
+/* alloc/free from atomic pool. */
+void *kvm_iommu_donate_pages_atomic(u8 order);
+void kvm_iommu_reclaim_pages_atomic(void *p, u8 order);
+
 /* Hypercall handlers */
 int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, u32 type);
 int kvm_iommu_free_domain(pkvm_handle_t domain_id);

@@ -16,6 +16,8 @@ struct arm_lpae_io_pgtable {
 	int			bits_per_level;
 
 	void			*pgd;
+
+	bool			idmapped; /* Used by hypervisor */
 };
 
 /* Struct accessors */
