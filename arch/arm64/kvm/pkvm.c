@@ -245,7 +245,7 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 out_free:
 	host_kvm->arch.pkvm.handle = 0;
-	free_hyp_memcache(&host_kvm->arch.pkvm.teardown_mc, 0);
+	free_hyp_memcache(&host_kvm->arch.pkvm.stage2_teardown_mc, 0);
 }
 
 /*

@@ -210,7 +210,7 @@ typedef unsigned int pkvm_handle_t;
 
 struct kvm_protected_vm {
 	pkvm_handle_t handle;
-	struct kvm_hyp_memcache teardown_mc;
+	struct kvm_hyp_memcache stage2_teardown_mc;
 	struct rb_root pinned_pages;
 	gpa_t pvmfw_load_addr;
 	bool enabled;
@@ -590,7 +590,7 @@ struct kvm_vcpu_arch {
 		/* Cache some mmu pages needed inside spinlock regions */
 		struct kvm_mmu_memory_cache mmu_page_cache;
 		/* Pages to be donated to pkvm/EL2 if it runs out */
-		struct kvm_hyp_memcache pkvm_memcache;
+		struct kvm_hyp_memcache stage2_mc;
 	};
 
 	/* feature flags */

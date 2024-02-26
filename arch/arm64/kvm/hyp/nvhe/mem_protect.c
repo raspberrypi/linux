@@ -1199,7 +1199,7 @@ static int guest_complete_share(u64 addr, const struct pkvm_mem_transition *tx,
 
 	prot = pkvm_mkstate(perms, PKVM_PAGE_SHARED_BORROWED);
 	return kvm_pgtable_stage2_map(&vm->pgt, addr, size, tx->completer.guest.phys,
-				      prot, &vcpu->vcpu.arch.pkvm_memcache, 0);
+				      prot, &vcpu->vcpu.arch.stage2_mc, 0);
 }
 
 static int guest_complete_donation(u64 addr, const struct pkvm_mem_transition *tx)
@@ -1231,7 +1231,7 @@ static int guest_complete_donation(u64 addr, const struct pkvm_mem_transition *t
 	 * owned by the guest but not mapped into its stage-2 page-table.
 	 */
 	return kvm_pgtable_stage2_map(&vm->pgt, addr, size, phys, prot,
-				      &vcpu->vcpu.arch.pkvm_memcache, 0);
+				      &vcpu->vcpu.arch.stage2_mc, 0);
 
 err_undo_psci:
 	if (tx->initiator.id == PKVM_ID_HOST)
@@ -1317,7 +1317,7 @@ static int __guest_initiate_page_transition(u64 *completer_addr,
 					    enum pkvm_page_state state)
 {
 	struct pkvm_hyp_vcpu *vcpu = tx->initiator.guest.hyp_vcpu;
-	struct kvm_hyp_memcache *mc = &vcpu->vcpu.arch.pkvm_memcache;
+	struct kvm_hyp_memcache *mc = &vcpu->vcpu.arch.stage2_mc;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	u64 size = tx->nr_pages * PAGE_SIZE;
 	u64 addr = tx->initiator.addr;
@@ -2243,7 +2243,7 @@ int __pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa)
 	}
 
 	ret = kvm_pgtable_stage2_annotate(&vm->pgt, ipa, PAGE_SIZE,
-					  &hyp_vcpu->vcpu.arch.pkvm_memcache,
+					  &hyp_vcpu->vcpu.arch.stage2_mc,
 					  KVM_INVALID_PTE_MMIO_NOTE);
 
 unlock:

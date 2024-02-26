@@ -1482,9 +1482,9 @@ static int insert_ppage(struct kvm *kvm, struct kvm_pinned_page *ppage)
 static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 			  unsigned long hva)
 {
-	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.pkvm_memcache;
 	struct mm_struct *mm = current->mm;
 	unsigned int flags = FOLL_HWPOISON | FOLL_LONGTERM | FOLL_WRITE;
+	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
 	struct kvm_pinned_page *ppage;
 	struct kvm *kvm = vcpu->kvm;
 	struct page *page;

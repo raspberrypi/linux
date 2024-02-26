@@ -387,7 +387,7 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 ipa)
 	if (ret)
 		goto unlock;
 
-	drain_hyp_pool(hyp_vm, &hyp_vm->host_kvm->arch.pkvm.teardown_mc);
+	drain_hyp_pool(hyp_vm, &hyp_vm->host_kvm->arch.pkvm.stage2_teardown_mc);
 unlock:
 	hyp_read_unlock(&vm_table_lock);
 
@@ -574,12 +574,8 @@ static void teardown_sve_state(struct pkvm_hyp_vcpu *hyp_vcpu)
 {
 	void *sve_state = hyp_vcpu->vcpu.arch.sve_state;
 
-	if (sve_state) {
-		struct kvm_hyp_memcache *vcpu_mc;
-
-		vcpu_mc = &hyp_vcpu->vcpu.arch.pkvm_memcache;
+	if (sve_state)
 		hyp_free(sve_state);
-	}
 }
 
 static void unpin_host_vcpus(struct pkvm_hyp_vcpu *hyp_vcpus[],
@@ -969,7 +965,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	 * worrying about anybody else.
 	 */
 
-	mc = &host_kvm->arch.pkvm.teardown_mc;
+	mc = &host_kvm->arch.pkvm.stage2_teardown_mc;
 	destroy_hyp_vm_pgt(hyp_vm);
 	drain_hyp_pool(hyp_vm, mc);
 	unpin_host_vcpus(hyp_vm->vcpus, hyp_vm->nr_vcpus);
@@ -980,7 +976,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 		struct kvm_hyp_memcache *vcpu_mc;
 		void *addr;
 
-		vcpu_mc = &hyp_vcpu->vcpu.arch.pkvm_memcache;
+		vcpu_mc = &hyp_vcpu->vcpu.arch.stage2_mc;
 		while (vcpu_mc->nr_pages) {
 			addr = pop_hyp_memcache(vcpu_mc, hyp_phys_to_virt);
 			push_hyp_memcache(mc, addr, hyp_virt_to_phys);
