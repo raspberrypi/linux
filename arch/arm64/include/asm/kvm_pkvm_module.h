@@ -10,6 +10,7 @@
 
 typedef void (*dyn_hcall_t)(struct user_pt_regs *);
 struct kvm_hyp_iommu;
+struct iommu_iotlb_gather;
 
 #ifdef CONFIG_MODULES
 enum pkvm_psci_notification {
@@ -141,6 +142,7 @@ enum pkvm_psci_notification {
  * @__list_add_valid_or_report: Needed if the code uses linked lists.
  * @__list_del_entry_valid_or_report:
 				Needed if the code uses linked lists.
+* @iommu_iotlb_gather_add_page:	Add a page to the iotlb_gather druing unmap for the IOMMU.
  */
 struct pkvm_module_ops {
 	int (*create_private_mapping)(phys_addr_t phys, size_t size,
@@ -194,6 +196,8 @@ struct pkvm_module_ops {
 	typeof(__list_add_valid_or_report) *list_add_valid_or_report;
 	typeof(__list_del_entry_valid_or_report) *list_del_entry_valid_or_report;
 #endif
+	void (*iommu_iotlb_gather_add_page)(void *cookie, struct iommu_iotlb_gather *gather,
+					    unsigned long iova, size_t size);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);

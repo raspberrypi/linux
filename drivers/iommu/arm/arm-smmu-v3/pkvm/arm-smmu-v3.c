@@ -660,7 +660,21 @@ static void smmu_tlb_add_page(struct iommu_iotlb_gather *gather,
 			      unsigned long iova, size_t granule,
 			      void *cookie)
 {
-	smmu_tlb_inv_range(cookie, iova, granule, granule, true);
+	if (gather)
+		kvm_iommu_iotlb_gather_add_page(cookie, gather, iova, granule);
+	else
+		smmu_tlb_inv_range(cookie, iova, granule, granule, true);
+}
+
+static void smmu_iotlb_sync(void *cookie,
+			    struct iommu_iotlb_gather *gather)
+{
+	size_t size;
+
+	if (!gather->pgsize)
+		return;
+	size = gather->end - gather->start + 1;
+	smmu_tlb_inv_range(cookie, gather->start, size,  gather->pgsize, true);
 }
 
 static const struct iommu_flush_ops smmu_tlb_ops = {
@@ -1116,5 +1130,6 @@ struct kvm_iommu_ops smmu_ops = {
 	.dabt_handler			= smmu_dabt_handler,
 	.suspend			= smmu_suspend,
 	.resume				= smmu_resume,
+	.iotlb_sync			= smmu_iotlb_sync,
 };
 
