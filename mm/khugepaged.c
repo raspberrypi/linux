@@ -2602,7 +2602,7 @@ static void set_recommended_min_free_kbytes(void)
 	 * MIGRATE_TYPES we care about.
 	 */
 	recommended_min += pageblock_nr_pages * nr_zones *
-			   MIGRATE_PCPTYPES * MIGRATE_PCPTYPES;
+			   MIGRATE_FALLBACKS * MIGRATE_FALLBACKS;
 
 	/* don't ever allow to reserve more than 5% of the lowmem */
 	recommended_min = min(recommended_min,
