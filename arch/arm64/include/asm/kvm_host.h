@@ -85,6 +85,7 @@ void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu);
 struct kvm_hyp_memcache {
 	phys_addr_t head;
 	unsigned long nr_pages;
+	unsigned long flags;
 };
 
 static inline void push_hyp_memcache(struct kvm_hyp_memcache *mc,
@@ -138,10 +139,19 @@ static inline void __free_hyp_memcache(struct kvm_hyp_memcache *mc,
 
 #define HYP_MEMCACHE_ACCOUNT_KMEMCG BIT(1)
 
-void free_hyp_memcache(struct kvm_hyp_memcache *mc,
-		       unsigned long flags);
-int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
-		       unsigned long flags);
+void free_hyp_memcache(struct kvm_hyp_memcache *mc);
+int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages);
+
+static inline void init_hyp_memcache(struct kvm_hyp_memcache *mc)
+{
+	memset(mc, 0, sizeof(*mc));
+}
+
+static inline void init_hyp_stage2_memcache(struct kvm_hyp_memcache *mc)
+{
+	init_hyp_memcache(mc);
+	mc->flags = HYP_MEMCACHE_ACCOUNT_KMEMCG;
+}
 
 struct kvm_vmid {
 	atomic64_t id;
