@@ -77,8 +77,8 @@
 
 	__overrides__ {
 		2_8_inch = <&panel>, "compatible=waveshare,2.8inch-panel",
-				   <&touch>, "touchscreen-size-x:0=640",
-				   <&touch>, "touchscreen-size-y:0=480",
+				   <&touch>, "touchscreen-size-x:0=480",
+				   <&touch>, "touchscreen-size-y:0=640",
 				   <&touch>, "touchscreen-inverted-y?",
 				   <&touch>, "touchscreen-swapped-x-y?";
 		3_4_inch = <&panel>, "compatible=waveshare,3.4inch-panel",
