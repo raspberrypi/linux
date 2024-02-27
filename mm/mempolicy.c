@@ -607,12 +607,11 @@ static int queue_folios_hugetlb(pte_t *pte, unsigned long hmask,
 	 * With MPOL_MF_MOVE, we try to migrate only unshared folios. If it
 	 * is shared it is likely not worth migrating.
 	 *
-	 * To check if the folio is shared, ideally we want to make sure
-	 * every page is mapped to the same process. Doing that is very
-	 * expensive, so check the estimated mapcount of the folio instead.
+	 * See folio_likely_mapped_shared() on possible imprecision when we
+	 * cannot easily detect if a folio is shared.
 	 */
 	if (flags & (MPOL_MF_MOVE_ALL) ||
-	    (flags & MPOL_MF_MOVE && folio_estimated_sharers(folio) == 1 &&
+	    (flags & MPOL_MF_MOVE && !folio_likely_mapped_shared(folio) &&
 	     !hugetlb_pmd_shared(pte))) {
 		if (!isolate_hugetlb(folio, qp->pagelist) &&
 			(flags & MPOL_MF_STRICT))
@@ -1039,11 +1038,10 @@ static int migrate_folio_add(struct folio *folio, struct list_head *foliolist,
 	 * We try to migrate only unshared folios. If it is shared it
 	 * is likely not worth migrating.
 	 *
-	 * To check if the folio is shared, ideally we want to make sure
-	 * every page is mapped to the same process. Doing that is very
-	 * expensive, so check the estimated mapcount of the folio instead.
+	 * See folio_likely_mapped_shared() on possible imprecision when we
+	 * cannot easily detect if a folio is shared.
 	 */
-	if ((flags & MPOL_MF_MOVE_ALL) || folio_estimated_sharers(folio) == 1) {
+	if ((flags & MPOL_MF_MOVE_ALL) || !folio_likely_mapped_shared(folio)) {
 		if (folio_isolate_lru(folio)) {
 			list_add_tail(&folio->lru, foliolist);
 			node_stat_mod_folio(folio,
