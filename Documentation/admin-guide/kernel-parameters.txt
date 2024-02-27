@@ -500,11 +500,12 @@
 	bgrt_disable	[ACPI][X86]
 			Disable BGRT to avoid flickering OEM logo.
 
-	binder.impl= [KNL]
+	binder.impl=    [KNL]
 			Determines whether the Android Binder driver should use
 			the C implementation or the Rust implementation. Valid
-			values are 'c' or 'rust'. If unspecified, this
-			parameter defaults to 'c'.
+			values are 'c' or 'rust'. The config option
+			CONFIG_ANDROID_BINDER_IPC_DEFAULT_IS_RUST determines
+			the default value.
 
 	blkdevparts=	Manual partition parsing of block device(s) for
 			embedded devices based on command line input.

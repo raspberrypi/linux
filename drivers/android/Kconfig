@@ -13,16 +13,39 @@ config ANDROID_BINDER_IPC
 	  Android process, using Binder to identify, invoke and pass arguments
 	  between said processes.
 
+config ANDROID_BINDER_IPC_C
+	bool "Android Binder IPC Driver in C"
+	depends on ANDROID_BINDER_IPC
+	default y
+	help
+	  Enable the C implementation of the Android Binder IPC Driver.
+
+	  See the ANDROID_BINDER_IPC config option for more details on the
+	  Android Binder IPC driver.
+
+	  If unsure, pick the C implementation.
+
 config ANDROID_BINDER_IPC_RUST
 	bool "Android Binder IPC Driver in Rust"
-	depends on MMU && RUST
+	depends on ANDROID_BINDER_IPC && RUST
 	help
-	  Binder is used in Android for both communication between processes,
-	  and remote method invocation.
+	  Enable the Rust implementation of the Android Binder IPC Driver.
 
-	  This means one Android process can call a method/routine in another
-	  Android process, using Binder to identify, invoke and pass arguments
-	  between said processes.
+	  See the ANDROID_BINDER_IPC config option for more details on the
+	  Android Binder IPC driver.
+
+	  If unsure, pick the C implementation.
+
+config ANDROID_BINDER_IPC_DEFAULT_IS_RUST
+	bool "Android Binder driver default implementation is Rust"
+	depends on ANDROID_BINDER_IPC_RUST
+	default y if !ANDROID_BINDER_IPC_C
+	help
+	  The kernel commandline parameter binder.impl is used to choose which
+	  implementation of the Android Binder driver to use. This option
+	  determines the default value of binder.impl.
+
+	  If unsure, say n.
 
 config ANDROID_BINDERFS
 	bool "Android Binderfs filesystem"
@@ -36,17 +59,15 @@ config ANDROID_BINDERFS
 	  It can be used to dynamically allocate new binder IPC devices via
 	  ioctls.
 
+config ANDROID_BINDERFS_C
+	bool
+	depends on ANDROID_BINDER_IPC_C && ANDROID_BINDERFS
+	default y
+
 config ANDROID_BINDERFS_RUST
-	bool "Android Binderfs filesystem in Rust"
-	depends on ANDROID_BINDER_IPC_RUST
-	default n
-	help
-	  Binderfs is a pseudo-filesystem for the Android Binder IPC driver
-	  which can be mounted per-ipc namespace allowing to run multiple
-	  instances of Android.
-	  Each binderfs mount initially only contains a binder-control device.
-	  It can be used to dynamically allocate new binder IPC devices via
-	  ioctls.
+	bool
+	depends on ANDROID_BINDER_IPC_RUST && ANDROID_BINDERFS
+	default y
 
 config ANDROID_BINDER_DEVICES
 	string "Android Binder devices"
@@ -60,21 +81,9 @@ config ANDROID_BINDER_DEVICES
 	  created. Each binder device has its own context manager, and is
 	  therefore logically separated from the other devices.
 
-config ANDROID_BINDER_DEVICES_RUST
-	string "Android Binder devices in Rust"
-	depends on ANDROID_BINDER_IPC_RUST
-	default "binder,hwbinder,vndbinder"
-	help
-	  Default value for the binder.devices parameter.
-
-	  The binder.devices parameter is a comma-separated list of strings
-	  that specifies the names of the binder device nodes that will be
-	  created. Each binder device has its own context manager, and is
-	  therefore logically separated from the other devices.
-
 config ANDROID_BINDER_IPC_SELFTEST
 	bool "Android Binder IPC Driver Selftest"
-	depends on ANDROID_BINDER_IPC
+	depends on ANDROID_BINDER_IPC_C
 	help
 	  This feature allows binder selftest to run.
 

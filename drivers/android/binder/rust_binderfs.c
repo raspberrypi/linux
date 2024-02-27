@@ -61,7 +61,7 @@ extern rust_binder_device rust_binder_new_device(char *name);
 extern void rust_binder_remove_device(rust_binder_device device);
 /* === END DEFINED IN RUST === */
 
-char *rust_binder_devices_param = CONFIG_ANDROID_BINDER_DEVICES_RUST;
+char *rust_binder_devices_param = CONFIG_ANDROID_BINDER_DEVICES;
 module_param_named(rust_devices, rust_binder_devices_param, charp, 0444);
 
 static dev_t binderfs_dev;
