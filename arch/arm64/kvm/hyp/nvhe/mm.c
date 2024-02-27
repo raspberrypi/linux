@@ -521,3 +521,44 @@ phys_addr_t __pkvm_private_range_pa(void *va)
 
 	return kvm_pte_to_phys(pte) + offset_in_page(va);
 }
+
+/* The host passed a mc, fill a pool with the pages in it. */
+int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
+{
+	unsigned long order;
+	void *p;
+
+	while (host_mc->nr_pages) {
+		order = host_mc->head & (PAGE_SIZE - 1);
+		p = admit_host_page(host_mc, order);
+		hyp_virt_to_page(p)->order = order;
+		hyp_set_page_refcounted(hyp_virt_to_page(p));
+		hyp_put_page(pool, p);
+	}
+
+	return 0;
+}
+
+/*
+ * Remove target pages from the pool and put them in a memcache,
+ * so the host can reclaim them.
+ */
+int reclaim_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc,
+		     int nr_pages)
+{
+	void *p;
+	struct hyp_page *page;
+
+	while (nr_pages > 0) {
+		p = hyp_alloc_pages(pool, 0);
+		if (!p)
+			return -ENOMEM;
+		page = hyp_virt_to_page(p);
+		nr_pages -= (1 << page->order);
+		push_hyp_memcache(host_mc, p, hyp_virt_to_phys, page->order);
+		WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(p), 1 << page->order));
+		memset(page, 0, sizeof(struct hyp_page));
+	}
+
+	return 0;
+}
