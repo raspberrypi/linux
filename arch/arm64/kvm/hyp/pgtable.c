@@ -1416,6 +1416,15 @@ bool kvm_pgtable_stage2_test_clear_young(struct kvm_pgtable *pgt, u64 addr,
 int kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
 				   enum kvm_pgtable_prot prot)
 {
+	return __kvm_pgtable_stage2_relax_perms(pgt, addr, prot,
+						KVM_PGTABLE_WALK_HANDLE_FAULT |
+						KVM_PGTABLE_WALK_SHARED);
+}
+
+int __kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
+				     enum kvm_pgtable_prot prot,
+				     enum kvm_pgtable_walk_flags flags)
+{
 	int ret;
 	u32 level;
 	kvm_pte_t set = 0, clr = 0;
@@ -1432,9 +1441,7 @@ int kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
 	if (prot & KVM_PGTABLE_PROT_X)
 		clr |= KVM_PTE_LEAF_ATTR_HI_S2_XN;
 
-	ret = stage2_update_leaf_attrs(pgt, addr, 1, set, clr, NULL, &level,
-				       KVM_PGTABLE_WALK_HANDLE_FAULT |
-				       KVM_PGTABLE_WALK_SHARED);
+	ret = stage2_update_leaf_attrs(pgt, addr, 1, set, clr, NULL, &level, flags);
 	if (!ret)
 		kvm_call_hyp(__kvm_tlb_flush_vmid_ipa_nsh, pgt->mmu, addr, level);
 	return ret;

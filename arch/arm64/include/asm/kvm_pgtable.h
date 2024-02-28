@@ -775,6 +775,28 @@ int kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
 				   enum kvm_pgtable_prot prot);
 
 /**
+ * __kvm_pgtable_stage2_relax_perms() - Relax the permissions enforced by a
+ *				        page-table entry.
+ * @pgt:	Page-table structure initialised by kvm_pgtable_stage2_init*().
+ * @addr:	Intermediate physical address to identify the page-table entry.
+ * @prot:	Additional permissions to grant for the mapping.
+ * @flags:	Flags for the page-table walker
+ *
+ * The offset of @addr within a page is ignored.
+ *
+ * If there is a valid, leaf page-table entry used to translate @addr, then
+ * relax the permissions in that entry according to the read, write and
+ * execute permissions specified by @prot. No permissions are removed, and
+ * TLB invalidation is performed after updating the entry. Software bits cannot
+ * be set or cleared using kvm_pgtable_stage2_relax_perms().
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int __kvm_pgtable_stage2_relax_perms(struct kvm_pgtable *pgt, u64 addr,
+				     enum kvm_pgtable_prot prot,
+				     enum kvm_pgtable_walk_flags flags);
+
+/**
  * kvm_pgtable_stage2_flush_range() - Clean and invalidate data cache to Point
  * 				      of Coherency for guest stage-2 address
  *				      range.
