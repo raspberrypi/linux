@@ -1778,6 +1778,12 @@ Load:   dtoverlay=hifiberry-dac
 Params: <None>
 
 
+Name:   hifiberry-dac8x
+Info:   Configures the HifiBerry DAC8X audio cards (only on PI5)
+Load:   dtoverlay=hifiberry-dac8x
+Params: <None>
+
+
 Name:   hifiberry-dacplus
 Info:   Configures the HifiBerry DAC+ audio card
 Load:   dtoverlay=hifiberry-dacplus,<param>=<val>
