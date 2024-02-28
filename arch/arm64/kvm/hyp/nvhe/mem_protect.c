@@ -1175,8 +1175,7 @@ static int hyp_complete_donation(u64 addr,
 				 const struct pkvm_mem_transition *tx)
 {
 	void *start = (void *)addr, *end = start + (tx->nr_pages * PAGE_SIZE);
-	phys_addr_t phys = hyp_virt_to_phys(start);
-	enum kvm_pgtable_prot prot = default_hyp_prot(phys);
+	enum kvm_pgtable_prot prot = tx->completer.prot;
 
 	prot = pkvm_mkstate(prot, PKVM_PAGE_OWNED);
 	return pkvm_create_mappings_locked(start, end, prot);
@@ -1816,7 +1815,9 @@ int __pkvm_host_donate_hyp(u64 pfn, u64 nr_pages)
 	return ___pkvm_host_donate_hyp(pfn, nr_pages, false);
 }
 
-int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio)
+/* The swiss knife of memory donation. */
+int ___pkvm_host_donate_hyp_prot(u64 pfn, u64 nr_pages,
+				 bool accept_mmio, enum kvm_pgtable_prot prot)
 {
 	phys_addr_t start = hyp_pfn_to_phys(pfn);
 	phys_addr_t end = start + (nr_pages << PAGE_SHIFT);
@@ -1826,13 +1827,19 @@ int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio)
 		return -EPERM;
 
 	host_lock_component();
-	ret = __pkvm_host_donate_hyp_locked(pfn, nr_pages);
+	ret = __pkvm_host_donate_hyp_locked(pfn, nr_pages, prot);
 	host_unlock_component();
 
 	return ret;
 }
 
-int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages)
+int ___pkvm_host_donate_hyp(u64 pfn, u64 nr_pages, bool accept_mmio)
+{
+	return ___pkvm_host_donate_hyp_prot(pfn, nr_pages, accept_mmio,
+					    default_hyp_prot(hyp_pfn_to_phys(pfn)));
+}
+
+int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages, enum kvm_pgtable_prot prot)
 {
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
@@ -1848,6 +1855,7 @@ int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages)
 		},
 		.completer	= {
 			.id	= PKVM_ID_HYP,
+			.prot = prot,
 		},
 	};
 
