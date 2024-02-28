@@ -835,16 +835,9 @@ struct pkvm_mem_transition {
 				phys_addr_t phys;
 			} guest;
 		};
+
+		const enum kvm_pgtable_prot		prot;
 	} completer;
-};
-
-struct pkvm_mem_share {
-	const struct pkvm_mem_transition	tx;
-	const enum kvm_pgtable_prot		completer_prot;
-};
-
-struct pkvm_mem_donation {
-	const struct pkvm_mem_transition	tx;
 };
 
 struct check_walk_data {
@@ -1404,9 +1397,8 @@ static int guest_initiate_unshare(u64 *completer_addr,
 						PKVM_PAGE_OWNED);
 }
 
-static int check_share(struct pkvm_mem_share *share)
+static int check_share(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &share->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1426,10 +1418,10 @@ static int check_share(struct pkvm_mem_share *share)
 
 	switch (tx->completer.id) {
 	case PKVM_ID_HOST:
-		ret = host_ack_share(completer_addr, tx, share->completer_prot);
+		ret = host_ack_share(completer_addr, tx, tx->completer.prot);
 		break;
 	case PKVM_ID_HYP:
-		ret = hyp_ack_share(completer_addr, tx, share->completer_prot);
+		ret = hyp_ack_share(completer_addr, tx, tx->completer.prot);
 		break;
 	case PKVM_ID_FFA:
 		/*
@@ -1439,7 +1431,7 @@ static int check_share(struct pkvm_mem_share *share)
 		ret = 0;
 		break;
 	case PKVM_ID_GUEST:
-		ret = guest_ack_share(completer_addr, tx, share->completer_prot);
+		ret = guest_ack_share(completer_addr, tx, tx->completer.prot);
 		break;
 	default:
 		ret = -EINVAL;
@@ -1448,9 +1440,8 @@ static int check_share(struct pkvm_mem_share *share)
 	return ret;
 }
 
-static int __do_share(struct pkvm_mem_share *share)
+static int __do_share(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &share->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1470,10 +1461,10 @@ static int __do_share(struct pkvm_mem_share *share)
 
 	switch (tx->completer.id) {
 	case PKVM_ID_HOST:
-		ret = host_complete_share(completer_addr, tx, share->completer_prot);
+		ret = host_complete_share(completer_addr, tx, tx->completer.prot);
 		break;
 	case PKVM_ID_HYP:
-		ret = hyp_complete_share(completer_addr, tx, share->completer_prot);
+		ret = hyp_complete_share(completer_addr, tx, tx->completer.prot);
 		break;
 	case PKVM_ID_FFA:
 		/*
@@ -1483,7 +1474,7 @@ static int __do_share(struct pkvm_mem_share *share)
 		ret = 0;
 		break;
 	case PKVM_ID_GUEST:
-		ret = guest_complete_share(completer_addr, tx, share->completer_prot);
+		ret = guest_complete_share(completer_addr, tx, tx->completer.prot);
 		break;
 	default:
 		ret = -EINVAL;
@@ -1501,7 +1492,7 @@ static int __do_share(struct pkvm_mem_share *share)
  * Initiator: OWNED	=> SHARED_OWNED
  * Completer: NOPAGE	=> SHARED_BORROWED
  */
-static int do_share(struct pkvm_mem_share *share)
+static int do_share(struct pkvm_mem_transition *share)
 {
 	int ret;
 
@@ -1512,9 +1503,8 @@ static int do_share(struct pkvm_mem_share *share)
 	return WARN_ON(__do_share(share));
 }
 
-static int check_unshare(struct pkvm_mem_share *share)
+static int check_unshare(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &share->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1550,9 +1540,8 @@ static int check_unshare(struct pkvm_mem_share *share)
 	return ret;
 }
 
-static int __do_unshare(struct pkvm_mem_share *share)
+static int __do_unshare(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &share->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1597,7 +1586,7 @@ static int __do_unshare(struct pkvm_mem_share *share)
  * Initiator: SHARED_OWNED	=> OWNED
  * Completer: SHARED_BORROWED	=> NOPAGE
  */
-static int do_unshare(struct pkvm_mem_share *share)
+static int do_unshare(struct pkvm_mem_transition *share)
 {
 	int ret;
 
@@ -1608,9 +1597,8 @@ static int do_unshare(struct pkvm_mem_share *share)
 	return WARN_ON(__do_unshare(share));
 }
 
-static int check_donation(struct pkvm_mem_donation *donation)
+static int check_donation(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &donation->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1645,9 +1633,8 @@ static int check_donation(struct pkvm_mem_donation *donation)
 	return ret;
 }
 
-static int __do_donate(struct pkvm_mem_donation *donation)
+static int __do_donate(struct pkvm_mem_transition *tx)
 {
-	const struct pkvm_mem_transition *tx = &donation->tx;
 	u64 completer_addr;
 	int ret;
 
@@ -1691,7 +1678,7 @@ static int __do_donate(struct pkvm_mem_donation *donation)
  * Initiator: OWNED	=> NOPAGE
  * Completer: NOPAGE	=> OWNED
  */
-static int do_donate(struct pkvm_mem_donation *donation)
+static int do_donate(struct pkvm_mem_transition *donation)
 {
 	int ret;
 
@@ -1707,21 +1694,19 @@ int __pkvm_host_share_hyp(u64 pfn)
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 hyp_addr = (u64)__hyp_va(host_addr);
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= host_addr,
-				.host	= {
-					.completer_addr = hyp_addr,
-				},
-			},
-			.completer	= {
-				.id	= PKVM_ID_HYP,
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = hyp_addr,
 			},
 		},
-		.completer_prot	= default_hyp_prot(host_addr),
+		.completer	= {
+			.id	= PKVM_ID_HYP,
+			.prot = default_hyp_prot(host_addr),
+		},
 	};
 
 	host_lock_component();
@@ -1739,21 +1724,19 @@ int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
 {
 	int ret;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_GUEST,
-				.addr	= ipa,
-				.guest	= {
-					.hyp_vcpu = vcpu,
-				},
-			},
-			.completer	= {
-				.id	= PKVM_ID_HOST,
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_GUEST,
+			.addr	= ipa,
+			.guest	= {
+				.hyp_vcpu = vcpu,
 			},
 		},
-		.completer_prot	= PKVM_HOST_MEM_PROT,
+		.completer	= {
+			.id	= PKVM_ID_HOST,
+			.prot = PKVM_HOST_MEM_PROT,
+		},
 	};
 
 	host_lock_component();
@@ -1771,21 +1754,19 @@ int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
 {
 	int ret;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_GUEST,
-				.addr	= ipa,
-				.guest	= {
-					.hyp_vcpu = vcpu,
-				},
-			},
-			.completer	= {
-				.id	= PKVM_ID_HOST,
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_GUEST,
+			.addr	= ipa,
+			.guest	= {
+				.hyp_vcpu = vcpu,
 			},
 		},
-		.completer_prot	= PKVM_HOST_MEM_PROT,
+		.completer	= {
+			.id	= PKVM_ID_HOST,
+			.prot = PKVM_HOST_MEM_PROT,
+		},
 	};
 
 	host_lock_component();
@@ -1804,21 +1785,19 @@ int __pkvm_host_unshare_hyp(u64 pfn)
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 hyp_addr = (u64)__hyp_va(host_addr);
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= host_addr,
-				.host	= {
-					.completer_addr = hyp_addr,
-				},
-			},
-			.completer	= {
-				.id	= PKVM_ID_HYP,
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = hyp_addr,
 			},
 		},
-		.completer_prot	= default_hyp_prot(host_addr),
+		.completer	= {
+			.id	= PKVM_ID_HYP,
+			.prot = default_hyp_prot(host_addr),
+		},
 	};
 
 	host_lock_component();
@@ -1858,19 +1837,17 @@ int __pkvm_host_donate_hyp_locked(u64 pfn, u64 nr_pages)
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 hyp_addr = (u64)__hyp_va(host_addr);
-	struct pkvm_mem_donation donation = {
-		.tx	= {
-			.nr_pages	= nr_pages,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= host_addr,
-				.host	= {
-					.completer_addr = hyp_addr,
-				},
+	struct pkvm_mem_transition donation = {
+		.nr_pages	= nr_pages,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = hyp_addr,
 			},
-			.completer	= {
-				.id	= PKVM_ID_HYP,
-			},
+		},
+		.completer	= {
+			.id	= PKVM_ID_HYP,
 		},
 	};
 
@@ -1889,19 +1866,17 @@ int __pkvm_hyp_donate_host(u64 pfn, u64 nr_pages)
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 hyp_addr = (u64)__hyp_va(host_addr);
-	struct pkvm_mem_donation donation = {
-		.tx	= {
-			.nr_pages	= nr_pages,
-			.initiator	= {
-				.id	= PKVM_ID_HYP,
-				.addr	= hyp_addr,
-				.hyp	= {
-					.completer_addr = host_addr,
-				},
+	struct pkvm_mem_transition donation = {
+		.nr_pages	= nr_pages,
+		.initiator	= {
+			.id	= PKVM_ID_HYP,
+			.addr	= hyp_addr,
+			.hyp	= {
+				.completer_addr = host_addr,
 			},
-			.completer	= {
-				.id	= PKVM_ID_HOST,
-			},
+		},
+		.completer	= {
+			.id	= PKVM_ID_HOST,
 		},
 	};
 
@@ -2045,16 +2020,14 @@ void hyp_unpin_shared_mem(void *from, void *to)
 int __pkvm_host_share_ffa(u64 pfn, u64 nr_pages)
 {
 	int ret;
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= nr_pages,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= hyp_pfn_to_phys(pfn),
-			},
-			.completer	= {
-				.id	= PKVM_ID_FFA,
-			},
+	struct pkvm_mem_transition share = {
+		.nr_pages	= nr_pages,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= hyp_pfn_to_phys(pfn),
+		},
+		.completer	= {
+			.id	= PKVM_ID_FFA,
 		},
 	};
 
@@ -2068,16 +2041,14 @@ int __pkvm_host_share_ffa(u64 pfn, u64 nr_pages)
 int __pkvm_host_unshare_ffa(u64 pfn, u64 nr_pages)
 {
 	int ret;
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= nr_pages,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= hyp_pfn_to_phys(pfn),
-			},
-			.completer	= {
-				.id	= PKVM_ID_FFA,
-			},
+	struct pkvm_mem_transition share = {
+		.nr_pages	= nr_pages,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= hyp_pfn_to_phys(pfn),
+		},
+		.completer	= {
+			.id	= PKVM_ID_FFA,
 		},
 	};
 
@@ -2094,26 +2065,25 @@ int __pkvm_host_share_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu)
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
-	struct pkvm_mem_share share = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= host_addr,
-				.host	= {
-					.completer_addr = guest_addr,
-				},
-			},
-			.completer	= {
-				.id	= PKVM_ID_GUEST,
-				.guest	= {
-					.hyp_vcpu = vcpu,
-					.phys = host_addr,
-				},
+	struct pkvm_mem_transition share = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = guest_addr,
 			},
 		},
-		.completer_prot	= KVM_PGTABLE_PROT_RWX,
+		.completer	= {
+			.id	= PKVM_ID_GUEST,
+			.prot = KVM_PGTABLE_PROT_RWX,
+			.guest	= {
+				.hyp_vcpu = vcpu,
+				.phys = host_addr,
+			},
+		},
 	};
+
 
 	host_lock_component();
 	guest_lock_component(vm);
@@ -2132,22 +2102,20 @@ int __pkvm_host_donate_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu)
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
-	struct pkvm_mem_donation donation = {
-		.tx	= {
-			.nr_pages	= 1,
-			.initiator	= {
-				.id	= PKVM_ID_HOST,
-				.addr	= host_addr,
-				.host	= {
-					.completer_addr = guest_addr,
-				},
+	struct pkvm_mem_transition donation = {
+		.nr_pages	= 1,
+		.initiator	= {
+			.id	= PKVM_ID_HOST,
+			.addr	= host_addr,
+			.host	= {
+				.completer_addr = guest_addr,
 			},
-			.completer	= {
-				.id	= PKVM_ID_GUEST,
-				.guest	= {
-					.hyp_vcpu = vcpu,
-					.phys = host_addr,
-				},
+		},
+		.completer	= {
+			.id	= PKVM_ID_GUEST,
+			.guest	= {
+				.hyp_vcpu = vcpu,
+				.phys = host_addr,
 			},
 		},
 	};
