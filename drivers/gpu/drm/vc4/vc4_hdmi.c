@@ -50,6 +50,7 @@
 #include <linux/reset.h>
 #include <sound/dmaengine_pcm.h>
 #include <sound/hdmi-codec.h>
+#include <sound/jack.h>
 #include <sound/pcm_drm_eld.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -383,7 +384,7 @@ static void vc4_hdmi_handle_hotplug(struct vc4_hdmi *vc4_hdmi,
 				    enum drm_connector_status status)
 {
 	struct drm_connector *connector = &vc4_hdmi->connector;
-	const struct drm_edid *drm_edid;
+	const struct drm_edid *drm_edid = NULL;
 	int ret;
 
 	/*
@@ -400,12 +401,24 @@ static void vc4_hdmi_handle_hotplug(struct vc4_hdmi *vc4_hdmi,
 	 * the lock for now.
 	 */
 
+	if (status != connector_status_disconnected)
+		drm_edid = drm_edid_read_ddc(connector, vc4_hdmi->ddc);
+
+	/*
+	 * Report plugged/unplugged events to ALSA jack detection.  Do this
+	 * *after* EDID probing, otherwise userspace might try to bring up
+	 * audio before it's ready.
+	 */
+	mutex_lock(&vc4_hdmi->update_plugged_status_lock);
+	if (vc4_hdmi->plugged_cb && vc4_hdmi->codec_dev)
+		vc4_hdmi->plugged_cb(vc4_hdmi->codec_dev,
+				     status != connector_status_disconnected);
+	mutex_unlock(&vc4_hdmi->update_plugged_status_lock);
+
 	if (status == connector_status_disconnected) {
 		cec_phys_addr_invalidate(vc4_hdmi->cec_adap);
 		return;
 	}
-
-	drm_edid = drm_edid_read_ddc(connector, vc4_hdmi->ddc);
 
 	drm_edid_connector_update(connector, drm_edid);
 	cec_s_phys_addr(vc4_hdmi->cec_adap,
@@ -2228,8 +2241,23 @@ static int vc4_hdmi_audio_get_eld(struct device *dev, void *data,
 	return 0;
 }
 
+static int vc4_hdmi_audio_hook_plugged_cb(struct device *dev, void *data,
+					   hdmi_codec_plugged_cb fn,
+					   struct device *codec_dev)
+{
+	struct vc4_hdmi *vc4_hdmi = dev_get_drvdata(dev);
+
+	mutex_lock(&vc4_hdmi->update_plugged_status_lock);
+	vc4_hdmi->plugged_cb = fn;
+	vc4_hdmi->codec_dev = codec_dev;
+	mutex_unlock(&vc4_hdmi->update_plugged_status_lock);
+
+	return 0;
+}
+
 static const struct hdmi_codec_ops vc4_hdmi_codec_ops = {
 	.get_eld = vc4_hdmi_audio_get_eld,
+	.hook_plugged_cb = vc4_hdmi_audio_hook_plugged_cb,
 	.prepare = vc4_hdmi_audio_prepare,
 	.audio_shutdown = vc4_hdmi_audio_shutdown,
 	.audio_startup = vc4_hdmi_audio_startup,
@@ -2247,6 +2275,22 @@ static void vc4_hdmi_audio_codec_release(void *ptr)
 
 	platform_device_unregister(vc4_hdmi->audio.codec_pdev);
 	vc4_hdmi->audio.codec_pdev = NULL;
+}
+
+static int vc4_hdmi_codec_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct vc4_hdmi *vc4_hdmi = snd_soc_card_get_drvdata(rtd->card);
+	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
+	int ret;
+
+	ret = snd_soc_card_jack_new(rtd->card, "HDMI Jack", SND_JACK_LINEOUT,
+				    &vc4_hdmi->hdmi_jack);
+	if (ret) {
+		dev_err(rtd->dev, "HDMI Jack creation failed: %d\n", ret);
+		return ret;
+	}
+
+	return snd_soc_component_set_jack(component, &vc4_hdmi->hdmi_jack, NULL);
 }
 
 static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
@@ -2373,6 +2417,8 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	dai_link->cpus->dai_name = dev_name(dev);
 	dai_link->codecs->name = dev_name(&codec_pdev->dev);
 	dai_link->platforms->name = dev_name(dev);
+
+	dai_link->init = vc4_hdmi_codec_init;
 
 	card->dai_link = dai_link;
 	card->num_links = 1;
@@ -3234,6 +3280,8 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
+	mutex_init(&vc4_hdmi->update_plugged_status_lock);
+
 	spin_lock_init(&vc4_hdmi->hw_lock);
 	INIT_DELAYED_WORK(&vc4_hdmi->scrambling_work, vc4_hdmi_scrambling_wq);
 
@@ -3346,8 +3394,16 @@ err_put_runtime_pm:
 	return ret;
 }
 
+static void vc4_hdmi_unbind(struct device *dev, struct device *master, void *data)
+{
+	struct vc4_hdmi *vc4_hdmi = dev_get_drvdata(dev);
+
+	mutex_destroy(&vc4_hdmi->update_plugged_status_lock);
+}
+
 static const struct component_ops vc4_hdmi_ops = {
 	.bind   = vc4_hdmi_bind,
+	.unbind = vc4_hdmi_unbind,
 };
 
 static int vc4_hdmi_dev_probe(struct platform_device *pdev)
