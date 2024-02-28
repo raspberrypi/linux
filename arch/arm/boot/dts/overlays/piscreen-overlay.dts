@@ -96,7 +96,8 @@
 	};
 	__overrides__ {
 		speed =		<&piscreen>,"spi-max-frequency:0";
-		rotate =	<&piscreen>,"rotate:0";
+		rotate =	<&piscreen>,"rotate:0",
+				<&piscreen>,"rotation:0";
 		fps =		<&piscreen>,"fps:0";
 		debug =		<&piscreen>,"debug:0";
 		xohms =		<&piscreen_ts>,"ti,x-plate-ohms;0";
