@@ -316,6 +316,37 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac = {
 	.dai       = snd_hifiberry_dac_dai,
 };
 
+static int hifiberry_dac8x_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
+
+	/* override the defaults to reflect 4 x PCM5102A on the card
+	 * and limit the sample rate to 192ksps
+	 */
+	codec_dai->driver->playback.channels_max = 8;
+	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_192000;
+
+	return 0;
+}
+
+static struct snd_soc_dai_link snd_hifiberry_dac8x_dai[] = {
+	{
+		.name           = "HifiBerry DAC8x",
+		.stream_name    = "HifiBerry DAC8x HiFi",
+		.dai_fmt        = SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		.init           = hifiberry_dac8x_init,
+		SND_SOC_DAILINK_REG(hifiberry_dac),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac8x = {
+	.card_name = "snd_rpi_hifiberry_dac8x",
+	.dai       = snd_hifiberry_dac8x_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 SND_SOC_DAILINK_DEFS(dionaudio_kiwi,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC("pcm1794a-codec", "pcm1794a-hifi")),
@@ -417,6 +448,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_hifiberry_amp3 },
 	{ .compatible = "hifiberry,hifiberry-dac",
 		.data = (void *) &drvdata_hifiberry_dac },
+	{ .compatible = "hifiberry,hifiberry-dac8x",
+		.data = (void *) &drvdata_hifiberry_dac8x },
 	{ .compatible = "dionaudio,dionaudio-kiwi",
 		.data = (void *) &drvdata_dionaudio_kiwi },
 	{ .compatible = "rpi,rpi-dac", &drvdata_rpi_dac},
