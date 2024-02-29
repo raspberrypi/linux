@@ -366,3 +366,9 @@
 # required by iowait.ko
   __traceiter_sched_stat_iowait
   __tracepoint_sched_stat_iowait
+
+# required inode_info.ko
+  __traceiter_mm_filemap_delete_from_page_cache
+  __traceiter_mm_filemap_add_to_page_cache
+  __tracepoint_mm_filemap_delete_from_page_cache
+  __tracepoint_mm_filemap_add_to_page_cache
