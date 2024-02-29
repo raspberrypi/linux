@@ -3457,8 +3457,8 @@ static int ov64a40_parse_dt(struct ov64a40 *ov64a40)
 		.bus_type = V4L2_MBUS_CSI2_DPHY
 	};
 	struct fwnode_handle *endpoint;
-	int ret = -EINVAL;
 	unsigned int i;
+	int ret;
 
 	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(ov64a40->dev),
 						  NULL);
@@ -3467,27 +3467,31 @@ static int ov64a40_parse_dt(struct ov64a40 *ov64a40)
 		return -EINVAL;
 	}
 
-	if (v4l2_fwnode_endpoint_alloc_parse(endpoint, &v4l2_fwnode)) {
+	ret = v4l2_fwnode_endpoint_alloc_parse(endpoint, &v4l2_fwnode);
+	fwnode_handle_put(endpoint);
+	if (ret) {
 		dev_err(ov64a40->dev, "Failed to parse endpoint\n");
-		goto error_put_fwnode;
-
+		return ret;
 	}
 
 	if (v4l2_fwnode.bus.mipi_csi2.num_data_lanes != 2) {
 		dev_err(ov64a40->dev, "Unsupported number of data lanes: %u\n",
 			v4l2_fwnode.bus.mipi_csi2.num_data_lanes);
-		goto error_free_fwnode;
+		v4l2_fwnode_endpoint_free(&v4l2_fwnode);
+		return -EINVAL;
 	}
 
 	if (!v4l2_fwnode.nr_of_link_frequencies) {
 		dev_warn(ov64a40->dev, "no link frequencies defined\n");
-		goto error_free_fwnode;
+		v4l2_fwnode_endpoint_free(&v4l2_fwnode);
+		return -EINVAL;
 	}
 
 	if (v4l2_fwnode.nr_of_link_frequencies > 2) {
 		dev_warn(ov64a40->dev,
 			 "Unsupported number of link frequencies\n");
-		goto error_free_fwnode;
+		v4l2_fwnode_endpoint_free(&v4l2_fwnode);
+		return -EINVAL;
 	}
 
 	ov64a40->link_frequencies =
@@ -3495,8 +3499,8 @@ static int ov64a40_parse_dt(struct ov64a40 *ov64a40)
 			     sizeof(v4l2_fwnode.link_frequencies[0]),
 			     GFP_KERNEL);
 	if (!ov64a40->link_frequencies)  {
-		ret = -ENOMEM;
-		goto error_free_fwnode;
+		v4l2_fwnode_endpoint_free(&v4l2_fwnode);
+		return -ENOMEM;
 	}
 	ov64a40->num_link_frequencies = v4l2_fwnode.nr_of_link_frequencies;
 
@@ -3506,7 +3510,8 @@ static int ov64a40_parse_dt(struct ov64a40 *ov64a40)
 			dev_err(ov64a40->dev,
 				"Unsupported link frequency %lld\n",
 				v4l2_fwnode.link_frequencies[i]);
-			goto error_free_fwnode;
+			v4l2_fwnode_endpoint_free(&v4l2_fwnode);
+			return -EINVAL;
 		}
 
 		ov64a40->link_frequencies[i] = v4l2_fwnode.link_frequencies[i];
@@ -3514,16 +3519,7 @@ static int ov64a40_parse_dt(struct ov64a40 *ov64a40)
 
 	v4l2_fwnode_endpoint_free(&v4l2_fwnode);
 
-	/* Register the subdev on the endpoint, so don't put it yet. */
-	ov64a40->sd.fwnode = endpoint;
-
 	return 0;
-
-error_free_fwnode:
-	v4l2_fwnode_endpoint_free(&v4l2_fwnode);
-error_put_fwnode:
-	fwnode_handle_put(endpoint);
-	return ret;
 }
 
 static int ov64a40_get_regulators(struct ov64a40 *ov64a40)
@@ -3586,7 +3582,7 @@ static int ov64a40_probe(struct i2c_client *client)
 
 	ret = ov64a40_power_on(&client->dev);
 	if (ret)
-		goto error_put_fwnode;
+		return ret;
 
 	ret = ov64a40_identify(ov64a40);
 	if (ret)
@@ -3644,8 +3640,6 @@ error_handler_free:
 error_poweroff:
 	ov64a40_power_off(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
-error_put_fwnode:
-	fwnode_handle_put(ov64a40->sd.fwnode);
 
 	return ret;
 }
@@ -3653,10 +3647,8 @@ error_put_fwnode:
 static void ov64a40_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov64a40 *ov64a40 = sd_to_ov64a40(sd);
 
 	v4l2_async_unregister_subdev(sd);
-	fwnode_handle_put(ov64a40->sd.fwnode);
 	v4l2_subdev_cleanup(sd);
 	media_entity_cleanup(&sd->entity);
 	v4l2_ctrl_handler_free(sd->ctrl_handler);
