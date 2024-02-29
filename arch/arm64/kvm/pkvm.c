@@ -379,8 +379,6 @@ void pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 int pkvm_init_host_vm(struct kvm *host_kvm, unsigned long type)
 {
-	mutex_init(&host_kvm->lock);
-
 	if (!(type & KVM_VM_TYPE_ARM_PROTECTED))
 		return 0;
 
