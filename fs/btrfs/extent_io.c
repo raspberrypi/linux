@@ -1000,7 +1000,7 @@ static int btrfs_do_readpage(struct page *page, struct extent_map **em_cached,
 			BUG_ON(blocksize != PAGE_SIZE);
 			unlock_extent(tree, start, end, NULL);
 			unlock_page(page);
-			goto out;
+			return ret;
 		}
 	}
 
