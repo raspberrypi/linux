@@ -2858,7 +2858,7 @@ struct ov64a40 {
 
 static inline struct ov64a40 *sd_to_ov64a40(struct v4l2_subdev *sd)
 {
-	return container_of(sd, struct ov64a40, sd);
+	return container_of_const(sd, struct ov64a40, sd);
 }
 
 static const struct ov64a40_timings *
