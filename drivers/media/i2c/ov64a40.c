@@ -3675,7 +3675,7 @@ static struct i2c_driver ov64a40_i2c_driver = {
 		.of_match_table	= ov64a40_of_ids,
 		.pm = &ov64a40_pm_ops,
 	},
-	.probe = ov64a40_probe,
+	.probe	= ov64a40_probe,
 	.remove	= ov64a40_remove,
 };
 
