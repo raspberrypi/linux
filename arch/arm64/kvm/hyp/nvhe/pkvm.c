@@ -380,7 +380,7 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 ipa)
 
 	hyp_read_lock(&vm_table_lock);
 	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm || !READ_ONCE(hyp_vm->is_dying))
+	if (!hyp_vm || !hyp_vm->is_dying)
 		goto unlock;
 
 	ret = __pkvm_host_reclaim_page(hyp_vm, pfn, ipa);
@@ -406,7 +406,7 @@ struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 
 	hyp_read_lock(&vm_table_lock);
 	hyp_vm = get_vm_by_handle(handle);
-	if (!hyp_vm || READ_ONCE(hyp_vm->is_dying) || READ_ONCE(hyp_vm->nr_vcpus) <= vcpu_idx)
+	if (!hyp_vm || hyp_vm->is_dying || READ_ONCE(hyp_vm->nr_vcpus) <= vcpu_idx)
 		goto unlock;
 
 	hyp_vcpu = hyp_vm->vcpus[vcpu_idx];
@@ -933,7 +933,7 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	struct pkvm_hyp_vm *hyp_vm;
 	int ret = 0;
 
-	hyp_read_lock(&vm_table_lock);
+	hyp_write_lock(&vm_table_lock);
 	hyp_vm = get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
@@ -949,7 +949,7 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	hyp_vm->is_dying = true;
 
 unlock:
-	hyp_read_unlock(&vm_table_lock);
+	hyp_write_unlock(&vm_table_lock);
 
 	return ret;
 }
