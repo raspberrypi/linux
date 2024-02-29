@@ -28,6 +28,7 @@
 #include <linux/irqreturn.h>
 #include <linux/iopoll.h>
 #include <linux/refcount.h>
+#include <linux/android_kabi.h>
 
 #include <linux/atomic.h>
 
@@ -761,6 +762,11 @@ struct phy_device {
 	/* MACsec management functions */
 	const struct macsec_ops *macsec_ops;
 #endif
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 /* Generic phy_device::dev_flags */
@@ -1142,6 +1148,8 @@ struct phy_driver {
 	int (*led_hw_control_get)(struct phy_device *dev, u8 index,
 				  unsigned long *rules);
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 #define to_phy_driver(d) container_of(to_mdio_common_driver(d),		\
 				      struct phy_driver, mdiodrv)

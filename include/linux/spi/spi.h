@@ -17,6 +17,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/u64_stats_sync.h>
+#include <linux/android_kabi.h>
 
 #include <uapi/linux/spi/spi.h>
 
@@ -223,6 +224,9 @@ struct spi_device {
 	/* The statistics */
 	struct spi_statistics __percpu	*pcpu_statistics;
 
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+
 	/*
 	 * Likely need more hooks for more protocol options affecting how
 	 * the controller talks to each chip, like:
@@ -328,6 +332,8 @@ struct spi_driver {
 	void			(*remove)(struct spi_device *spi);
 	void			(*shutdown)(struct spi_device *spi);
 	struct device_driver	driver;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 static inline struct spi_driver *to_spi_driver(struct device_driver *drv)
@@ -741,6 +747,9 @@ struct spi_controller {
 	/* Flag for enabling opportunistic skipping of the queue in spi_sync */
 	bool			queue_empty;
 	bool			must_async;
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 static inline void *spi_controller_get_devdata(struct spi_controller *ctlr)
@@ -1069,6 +1078,8 @@ struct spi_transfer {
 	struct ptp_system_timestamp *ptp_sts;
 
 	struct list_head transfer_list;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /**
@@ -1143,6 +1154,8 @@ struct spi_message {
 
 	/* List of spi_res resources when the SPI message is processed */
 	struct list_head        resources;
+
+	ANDROID_KABI_RESERVE(1);
 
 	/* For embedding transfers into the memory of the message */
 	struct spi_transfer	t[];
@@ -1588,6 +1601,8 @@ struct spi_board_info {
 	 * needed to behave without being bound to a driver:
 	 *  - quirks like clock rate mattering when not selected
 	 */
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 #ifdef	CONFIG_SPI

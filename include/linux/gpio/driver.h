@@ -12,6 +12,7 @@
 #include <linux/property.h>
 #include <linux/spinlock_types.h>
 #include <linux/types.h>
+#include <linux/android_kabi.h>
 
 #ifdef CONFIG_GENERIC_MSI_IRQ
 #include <asm/msi.h>
@@ -315,6 +316,9 @@ struct gpio_irq_chip {
 	 * Store old irq_chip irq_mask callback
 	 */
 	void		(*irq_mask)(struct irq_data *data);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 /**
@@ -527,6 +531,9 @@ struct gpio_chip {
 	int (*of_xlate)(struct gpio_chip *gc,
 			const struct of_phandle_args *gpiospec, u32 *flags);
 #endif /* CONFIG_OF_GPIO */
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 extern const char *gpiochip_is_requested(struct gpio_chip *gc,

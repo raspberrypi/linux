@@ -6,6 +6,7 @@
 #include <asm/kvm_pgtable.h>
 #include <linux/android_kabi.h>
 #include <linux/export.h>
+#include <linux/android_kabi.h>
 
 typedef void (*dyn_hcall_t)(struct user_pt_regs *);
 

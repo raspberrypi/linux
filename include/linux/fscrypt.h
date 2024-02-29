@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <uapi/linux/fscrypt.h>
+#include <linux/android_kabi.h>
 
 /*
  * The lengths of all file contents blocks must be divisible by this value.
@@ -190,6 +191,11 @@ struct fscrypt_operations {
 	 */
 	struct block_device **(*get_devices)(struct super_block *sb,
 					     unsigned int *num_devs);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 
 	ANDROID_OEM_DATA_ARRAY(1, 4);
 };
