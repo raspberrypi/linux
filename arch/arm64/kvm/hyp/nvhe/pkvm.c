@@ -1510,7 +1510,7 @@ static bool pkvm_install_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_
 
 	ret = __pkvm_install_ioguard_page(hyp_vcpu, ipa);
 	if (ret == -ENOMEM && !pkvm_handle_empty_memcache(hyp_vcpu, exit_code))
-		return true;
+		return false;
 
 	if (ret)
 		retval = SMCCC_RET_INVALID_PARAMETER;
