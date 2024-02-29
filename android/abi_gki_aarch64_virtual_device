@@ -1056,6 +1056,7 @@
   dma_fence_unwrap_next
   dma_fence_wait_timeout
   dma_map_resource
+  dma_max_mapping_size
   dma_resv_add_fence
   dma_resv_reserve_fences
   dma_resv_test_signaled
