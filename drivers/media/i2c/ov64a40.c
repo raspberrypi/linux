@@ -3072,7 +3072,7 @@ static int ov64a40_init_cfg(struct v4l2_subdev *sd,
 }
 
 static int ov64a40_enum_mbus_code(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_state *sd_state,
+				  struct v4l2_subdev_state *state,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ov64a40 *ov64a40 = sd_to_ov64a40(sd);
@@ -3086,7 +3086,7 @@ static int ov64a40_enum_mbus_code(struct v4l2_subdev *sd,
 }
 
 static int ov64a40_enum_frame_size(struct v4l2_subdev *sd,
-				   struct v4l2_subdev_state *sd_state,
+				   struct v4l2_subdev_state *state,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct ov64a40 *ov64a40 = sd_to_ov64a40(sd);
@@ -3110,12 +3110,12 @@ static int ov64a40_enum_frame_size(struct v4l2_subdev *sd,
 }
 
 static int ov64a40_get_selection(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_state *state,
 				 struct v4l2_subdev_selection *sel)
 {
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP:
-		sel->r = *v4l2_subdev_get_pad_crop(sd, sd_state, 0);
+		sel->r = *v4l2_subdev_get_pad_crop(sd, state, 0);
 
 		return 0;
 
@@ -3141,7 +3141,7 @@ static int ov64a40_get_selection(struct v4l2_subdev *sd,
 }
 
 static int ov64a40_set_format(struct v4l2_subdev *sd,
-			      struct v4l2_subdev_state *sd_state,
+			      struct v4l2_subdev_state *state,
 			      struct v4l2_subdev_format *fmt)
 {
 	struct ov64a40 *ov64a40 = sd_to_ov64a40(sd);
@@ -3155,7 +3155,7 @@ static int ov64a40_set_format(struct v4l2_subdev *sd,
 
 	ov64a40_update_pad_fmt(ov64a40, mode, &fmt->format);
 
-	format = v4l2_subdev_get_pad_format(sd, sd_state, 0);
+	format = v4l2_subdev_get_pad_format(sd, state, 0);
 	if (ov64a40->mode == mode && format->code == fmt->format.code)
 		return 0;
 
@@ -3166,7 +3166,7 @@ static int ov64a40_set_format(struct v4l2_subdev *sd,
 		int exp_max;
 
 		ov64a40->mode = mode;
-		*v4l2_subdev_get_pad_crop(sd, sd_state, 0) = mode->analogue_crop;
+		*v4l2_subdev_get_pad_crop(sd, state, 0) = mode->analogue_crop;
 
 		/* Update control limits according to the new mode. */
 		timings = ov64a40_get_timings(ov64a40,
