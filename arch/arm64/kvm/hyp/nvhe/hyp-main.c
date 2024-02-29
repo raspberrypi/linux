@@ -372,10 +372,6 @@ static void handle_pvm_exit_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 		n = 1;
 		break;
 
-	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID:
-		fallthrough;
-	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID:
-		fallthrough;
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
 		n = 4;
 		break;

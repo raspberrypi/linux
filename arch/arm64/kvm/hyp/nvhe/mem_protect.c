@@ -1832,12 +1832,13 @@ int __pkvm_host_share_hyp(u64 pfn)
 	return ret;
 }
 
-int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
+int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa, u64 nr_pages,
+			    u64 *nr_shared)
 {
 	int ret;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	struct pkvm_mem_transition share = {
-		.nr_pages	= 1,
+		.nr_pages	= nr_pages,
 		.initiator	= {
 			.id	= PKVM_ID_GUEST,
 			.addr	= ipa,
@@ -1851,12 +1852,11 @@ int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
 			.prot = PKVM_HOST_MEM_PROT,
 		},
 	};
-	u64 nr_shared;
 
 	host_lock_component();
 	guest_lock_component(vm);
 
-	ret = do_share(&share, &nr_shared);
+	ret = do_share(&share, nr_shared);
 
 	guest_unlock_component(vm);
 	host_unlock_component();
@@ -1864,12 +1864,13 @@ int __pkvm_guest_share_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
 	return ret;
 }
 
-int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
+int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa, u64 nr_pages,
+			      u64 *nr_unshared)
 {
 	int ret;
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	struct pkvm_mem_transition share = {
-		.nr_pages	= 1,
+		.nr_pages	= nr_pages,
 		.initiator	= {
 			.id	= PKVM_ID_GUEST,
 			.addr	= ipa,
@@ -1883,12 +1884,11 @@ int __pkvm_guest_unshare_host(struct pkvm_hyp_vcpu *vcpu, u64 ipa)
 			.prot = PKVM_HOST_MEM_PROT,
 		},
 	};
-	u64 nr_unshared;
 
 	host_lock_component();
 	guest_lock_component(vm);
 
-	ret = do_unshare(&share, &nr_unshared);
+	ret = do_unshare(&share, nr_unshared);
 
 	guest_unlock_component(vm);
 	host_unlock_component();
