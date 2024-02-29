@@ -2604,8 +2604,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 0,
 			.top = 0,
-			.width = 9279,
-			.height = 6975,
+			.width = 9280,
+			.height = 6976,
 		},
 		.digital_crop = {
 			.left = 17,
@@ -2645,8 +2645,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 624,
 			.top = 472,
-			.width = 8047,
-			.height = 6031,
+			.width = 8048,
+			.height = 6032,
 		},
 		.digital_crop = {
 			.left = 17,
@@ -2686,8 +2686,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 0,
 			.top = 0,
-			.width = 9279,
-			.height = 6975,
+			.width = 9280,
+			.height = 6976,
 		},
 		.digital_crop = {
 			.left = 9,
@@ -2727,8 +2727,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 784,
 			.top = 1312,
-			.width = 7711,
-			.height = 4351,
+			.width = 7712,
+			.height = 4352,
 		},
 		.digital_crop = {
 			.left = 9,
@@ -2768,8 +2768,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 0,
 			.top = 0,
-			.width = 9279,
-			.height = 6975,
+			.width = 9280,
+			.height = 6976,
 		},
 		.digital_crop = {
 			.left = 5,
@@ -2809,8 +2809,8 @@ static struct ov64a40_mode {
 		.analogue_crop = {
 			.left = 784,
 			.top = 1312,
-			.width = 7711,
-			.height = 4351,
+			.width = 7712,
+			.height = 4352,
 		},
 		.digital_crop = {
 			.left = 7,
@@ -2886,9 +2886,9 @@ static int ov64a40_program_geometry(struct ov64a40 *ov64a40)
 	cci_write(ov64a40->cci, OV64A40_REG_TIMING_CTRL2,
 		  anacrop->top, &ret);
 	cci_write(ov64a40->cci, OV64A40_REG_TIMING_CTRL4,
-		  anacrop->width + anacrop->left, &ret);
+		  anacrop->width + anacrop->left - 1, &ret);
 	cci_write(ov64a40->cci, OV64A40_REG_TIMING_CTRL6,
-		  anacrop->height + anacrop->top, &ret);
+		  anacrop->height + anacrop->top - 1, &ret);
 
 	/* ISP windowing. */
 	cci_write(ov64a40->cci, OV64A40_REG_TIMING_CTRL10,
