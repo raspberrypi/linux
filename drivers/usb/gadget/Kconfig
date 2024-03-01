@@ -450,15 +450,6 @@ config USB_CONFIGFS_F_MIDI
 	  connections can then be made on the gadget system, using
 	  ALSA's aconnect utility etc.
 
-config ANDROID_USB_F_MIDI_INFO
-	bool "Android MIDI function information"
-	depends on ANDROID_USB_CONFIGFS_UEVENT
-	help
-	  Creates a f_midi device in sysfs under the androidN device
-	  within the android_usb class which provides information
-	  about the PCM card and rmidi device created as part of the
-	  f_midi gadget.
-
 config USB_CONFIGFS_F_MIDI2
 	bool "MIDI 2.0 function"
 	depends on USB_CONFIGFS

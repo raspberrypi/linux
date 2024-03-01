@@ -14,7 +14,6 @@
 #define U_MIDI_H
 
 #include <linux/usb/composite.h>
-#include "android_f_midi_info.h"
 
 struct f_midi_opts {
 	struct usb_function_instance	func_inst;
@@ -32,7 +31,6 @@ struct f_midi_opts {
 	 */
 	struct mutex			lock;
 	int				refcnt;
-	struct f_midi_info		android_midi_info;
 };
 
 #endif /* U_MIDI_H */
