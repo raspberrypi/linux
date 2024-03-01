@@ -895,7 +895,7 @@ static int pisnd_hw_params(
 	printd("rate   = %d\n", params_rate(params));
 	printd("ch     = %d\n", params_channels(params));
 	printd("bits   = %u\n",
-		snd_pcm_format_physical_width(params_format(params)));
+		snd_pcm_format_width(params_format(params)));
 	printd("format = %d\n", params_format(params));
 
 	gpiod_set_value(reset, false);
