@@ -356,6 +356,10 @@ class JsonEvent:
         ('UMask', 'umask='),
         ('NodeType', 'type='),
         ('RdWrMask', 'rdwrmask='),
+        ('EnAllCores', 'enallcores='),
+        ('EnAllSlices', 'enallslices='),
+        ('SliceId', 'sliceid='),
+        ('ThreadMask', 'threadmask='),
     ]
     for key, value in event_fields:
       if key in jd and jd[key] != '0':
