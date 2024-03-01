@@ -32,7 +32,7 @@ static int snd_rpi_dionaudio_loco_hw_params(
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 
 	unsigned int sample_bits =
-		snd_pcm_format_physical_width(params_format(params));
+		snd_pcm_format_width(params_format(params));
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 }

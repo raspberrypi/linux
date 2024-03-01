@@ -140,9 +140,7 @@ static int snd_pifi_40_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
-	unsigned int sample_bits;
 
-	sample_bits = snd_pcm_format_physical_width(params_format(params));
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
 

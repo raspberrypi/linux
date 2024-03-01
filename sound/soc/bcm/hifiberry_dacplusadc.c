@@ -234,7 +234,7 @@ static int snd_rpi_hifiberry_dacplusadc_hw_params(
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
 
-		width = snd_pcm_format_physical_width(params_format(params));
+		width = snd_pcm_format_width(params_format(params));
 
 		snd_rpi_hifiberry_dacplusadc_set_sclk(component,
 			params_rate(params));

@@ -295,7 +295,7 @@ static int snd_rpi_hifiberry_dacplus_hw_params(
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	int channels = params_channels(params);
-	int width = snd_pcm_format_physical_width(params_format(params));
+	int width = snd_pcm_format_width(params_format(params));
 
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;

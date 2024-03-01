@@ -137,7 +137,7 @@ static int snd_rpi_simple_hw_params(struct snd_pcm_substream *substream,
 	 * hard-code this for now. More complex drivers could just replace
 	 * the hw_params routine.
 	 */
-	sample_bits = snd_pcm_format_physical_width(params_format(params));
+	sample_bits = snd_pcm_format_width(params_format(params));
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 }
 
