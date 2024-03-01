@@ -704,8 +704,7 @@ static int rpi_cirrus_hw_params(struct snd_pcm_substream *substream,
 
 	int ret;
 
-	unsigned int width = snd_pcm_format_physical_width(
-		params_format(params));
+	unsigned int width = snd_pcm_format_width(params_format(params));
 	unsigned int rate = params_rate(params);
 	unsigned int clk_freq = calc_sysclk(rate);
 
