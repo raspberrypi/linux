@@ -327,10 +327,11 @@ static struct rb_node *find_first_ppage_node(struct rb_root *root, u64 ipa)
 	return prev;
 }
 
-#define for_ppage_node_in_range(kvm, start, end, __node)				\
-	for (__node = find_first_ppage_node(&(kvm)->arch.pkvm.pinned_pages, start);	\
+#define for_ppage_node_in_range(kvm, start, end, __node, temp)				\
+	for (__node = find_first_ppage_node(&(kvm)->arch.pkvm.pinned_pages, start),	\
+	     temp = __node ? rb_next(__node) : NULL;					\
 	     __node;									\
-	     __node = rb_next(__node))							\
+	     __node = temp)								\
 		if (rb_entry(__node, struct kvm_pinned_page, node)->ipa < start)	\
 			continue;							\
 		else if (rb_entry(__node, struct kvm_pinned_page, node)->ipa >= end)	\
@@ -340,10 +341,10 @@ static struct rb_node *find_first_ppage_node(struct rb_root *root, u64 ipa)
 static int pkvm_unmap_range(struct kvm *kvm, u64 start, u64 end)
 {
 	struct kvm_pinned_page *ppage;
-	struct rb_node *node;
+	struct rb_node *node, *temp;
 	int ret;
 
-	for_ppage_node_in_range(kvm, start, end, node) {
+	for_ppage_node_in_range(kvm, start, end, node, temp) {
 		ppage = rb_entry(node, struct kvm_pinned_page, node);
 		ret = pkvm_unmap_guest(kvm, ppage);
 		if (ret)
@@ -1252,10 +1253,10 @@ int kvm_phys_addr_ioremap(struct kvm *kvm, phys_addr_t guest_ipa,
 static int pkvm_wp_range(struct kvm *kvm, u64 start, u64 end)
 {
 	struct kvm_pinned_page *ppage;
-	struct rb_node *node;
+	struct rb_node *node, *temp;
 	int ret;
 
-	for_ppage_node_in_range(kvm, start, end, node) {
+	for_ppage_node_in_range(kvm, start, end, node, temp) {
 		ppage = rb_entry(node, struct kvm_pinned_page, node);
 		ret = kvm_call_hyp_nvhe(__pkvm_wrprotect,
 					kvm->arch.pkvm.handle,
