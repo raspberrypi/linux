@@ -998,4 +998,26 @@ struct mmal_parameter_crop {
 	struct vchiq_mmal_rect rect;
 };
 
+// @ref MMAL_PARAMETER_VIDEO_INTRA_REFRESH_TYPE
+enum mmal_parameter_intra_refresh_type {
+	MMAL_VIDEO_INTRA_REFRESH_CYCLIC,
+	MMAL_VIDEO_INTRA_REFRESH_ADAPTIVE,
+	MMAL_VIDEO_INTRA_REFRESH_BOTH,
+	MMAL_VIDEO_INTRA_REFRESH_KHRONOSEXTENSIONS = 0x6F000000,
+	MMAL_VIDEO_INTRA_REFRESH_VENDORSTARTUNUSED = 0x7F000000,
+	MMAL_VIDEO_INTRA_REFRESH_CYCLIC_MROWS,
+	MMAL_VIDEO_INTRA_REFRESH_PSEUDO_RAND,
+	MMAL_VIDEO_INTRA_REFRESH_MAX,
+	MMAL_VIDEO_INTRA_REFRESH_DUMMY         = 0x7FFFFFFF
+};
+
+// @ref MMAL_PARAMETER_VIDEO_INTRA_REFRESH
+struct mmal_parameter_intra_refresh{
+	enum mmal_parameter_intra_refresh_type refresh_mode;
+	uint32_t air_mbs;
+	uint32_t air_ref;
+	uint32_t cir_mbs;
+	uint32_t pir_mbs;
+};
+
 #endif

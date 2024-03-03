@@ -2219,6 +2219,101 @@ static int bcm2835_codec_set_level_profile(struct bcm2835_codec_ctx *ctx,
 	return ret;
 }
 
+/**
+ * Returns the n of consecutive macro blocks to be encoded as intra such that a whole frame
+ * is refreshed after the specified intra refresh period (accounting for rounding errors)
+ */
+static int helper_calculate_macroblocks(struct bcm2835_codec_ctx *ctx,int width,int height,int intra_refresh_period){
+	u32 mbs=0;
+	mbs = ALIGN(width, 16) * ALIGN(height, 16);
+	mbs /= 16 * 16;
+	if (mbs % intra_refresh_period)
+		mbs++;
+	mbs /= intra_refresh_period;
+	v4l2_err(&ctx->dev->v4l2_dev, "helper_calculate_macroblocks: %dx%d@%d->%d\n",width,height,intra_refresh_period,mbs);
+	return mbs;
+}
+
+static void helper_print_mmal_parameter_intra_refresh(struct bcm2835_codec_ctx *ctx,const char* TAG,struct mmal_parameter_intra_refresh* param){
+	v4l2_err(&ctx->dev->v4l2_dev, "%s mmal_parameter_intra_refresh:{refresh_mode:%d air_mbs:%d air_ref:%d cir_mbs:%d pir_mbs:%d}\n",
+		 TAG,(int)param->refresh_mode,param->air_mbs,param->air_ref,param->cir_mbs,param->pir_mbs);
+}
+
+static int helper_set_h264_intra(struct bcm2835_codec_ctx *ctx,int intra_value){
+	struct mmal_parameter_intra_refresh param;
+	u32 param_size;
+	int get_status;
+	int ret;
+	// To calculate cir_mbs param, we need to know width and height
+	int width_px=ctx->q_data[0].crop_width;
+	int height_px=ctx->q_data[0].crop_height;
+	v4l2_err(&ctx->dev->v4l2_dev, "helper_set_h264_intra %d\n",intra_value);
+	if(intra_value<=0){
+	    // No need to change anything in mmal.
+	    return 0;
+	}
+	// Get first so we don't overwrite anything unexpectedly
+	param_size = sizeof(struct mmal_parameter_intra_refresh);
+	get_status = vchiq_mmal_port_parameter_get(ctx->dev->instance,
+						   &ctx->component->output[0],
+						   MMAL_PARAMETER_VIDEO_INTRA_REFRESH,
+						   &param,
+						   &param_size);
+	if (get_status != 0)
+	{
+		v4l2_err(&ctx->dev->v4l2_dev, "Unable to get existing H264 intra-refresh values. Please update your firmware %d\n",
+			 get_status);
+		// Set some defaults, don't just pass random stack data
+		param.air_mbs = param.air_ref = param.cir_mbs = param.pir_mbs = 0;
+	}else{
+		helper_print_mmal_parameter_intra_refresh(ctx,"Get from mmal first",&param);
+		helper_calculate_macroblocks(ctx,width_px,height_px,10);
+	}
+	// TODO map types
+	param.refresh_mode=MMAL_VIDEO_INTRA_REFRESH_CYCLIC_MROWS;
+	param.cir_mbs=intra_value;
+	ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+					    &ctx->component->output[0],
+					    MMAL_PARAMETER_VIDEO_INTRA_REFRESH,
+					    &param,
+					    sizeof(struct mmal_parameter_intra_refresh));
+	// After setting, get the stuff again and print it out for debugging
+	param_size = sizeof(struct mmal_parameter_intra_refresh);
+	get_status = vchiq_mmal_port_parameter_get(ctx->dev->instance,
+						   &ctx->component->output[0],
+						   MMAL_PARAMETER_VIDEO_INTRA_REFRESH,
+						   &param,
+						   &param_size);
+	if(get_status!=0){
+		v4l2_err(&ctx->dev->v4l2_dev, "After setting mmal get fails ?\n");
+	}else{
+		helper_print_mmal_parameter_intra_refresh(ctx,"Get from mmal second",&param);
+	}
+	return ret;
+}
+
+#define VCOS_ALIGN_DOWN(p,n) (((ptrdiff_t)(p)) & ~((n)-1))
+#define VCOS_ALIGN_UP(p,n) VCOS_ALIGN_DOWN((ptrdiff_t)(p)+(n)-1,(n))
+
+static int helper_set_h264_slice(struct bcm2835_codec_ctx *ctx,int slice_value){
+	u32 mmal_param;
+	int ret;
+	v4l2_err(&ctx->dev->v4l2_dev, "helper_set_h264_slice %d\n",slice_value);
+	if(slice_value<=0)return 0; // Nothing to do
+	mmal_param=slice_value;
+	ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+					    &ctx->component->output[0],
+					    MMAL_PARAMETER_MB_ROWS_PER_SLICE,
+					    &mmal_param,
+					    sizeof(u32));
+	if (ret != 0){
+		v4l2_err(&ctx->dev->v4l2_dev, "helper_set_h264_slice %d failed\n",mmal_param);
+	}else{
+		v4l2_err(&ctx->dev->v4l2_dev, "helper_set_h264_slice %d success\n",mmal_param);
+	}
+	return ret;
+}
+
 static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct bcm2835_codec_ctx *ctx =
@@ -2382,7 +2477,37 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_B_FRAMES:
 		ret = 0;
 		break;
-
+	// Consti10 intra hack
+	case V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD:
+		if (!ctx->component)
+			break;
+		{
+			int value=ctrl->val;
+			ret = helper_set_h264_intra(ctx,value);
+		}
+		break;
+	// Consti10 add AUD
+	case V4L2_CID_MPEG_VIDEO_AU_DELIMITER:
+		if (!ctx->component)
+			break;
+		{
+			u32 mmal_bool = ctrl->val ? 1 : 0;
+			ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+							    &ctx->component->output[0],
+							    MMAL_PARAMETER_VIDEO_ENCODE_H264_AU_DELIMITERS,
+							    &mmal_bool,
+							    sizeof(mmal_bool));
+		}
+		break;
+	// Consti10 add slicing
+	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB:
+		if (!ctx->component)
+			break;
+		{
+			int value=ctrl->val;
+			ret = helper_set_h264_slice(ctx,value);
+		}
+		break;
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		if (!ctx->component)
 			break;
@@ -2763,6 +2888,14 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 						      &ctx->component->control,
 						      MMAL_PARAMETER_MINIMISE_FRAGMENTATION,
 						      &param, sizeof(param));
+			/*
+			 * It is better to give SEI to the user (he can drop them if he wants to) instead of not
+			 * providing SEI NALUs.
+			 */
+			ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+							    &ctx->component->output[0],
+							    MMAL_PARAMETER_VIDEO_ENCODE_SEI_ENABLE,
+							    &param, sizeof(param));
 		}
 	} else {
 		if (ctx->q_data[V4L2_M2M_DST].sizeimage <
@@ -2883,7 +3016,7 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 	}
 
 	if (vb2_plane_size(vb, 0) < q_data->sizeimage) {
-		v4l2_err(&ctx->dev->v4l2_dev, "%s data will not fit into plane (%lu < %lu)\n",
+		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s data will not fit into plane (%lu < %lu)\n",
 			 __func__, vb2_plane_size(vb, 0),
 			 (long)q_data->sizeimage);
 		return -EINVAL;
@@ -3372,7 +3505,7 @@ static int bcm2835_codec_open(struct file *file)
 	case ENCODE:
 	{
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 13);
+		v4l2_ctrl_handler_init(hdl, 15);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -3437,6 +3570,21 @@ static int bcm2835_codec_open(struct file *file)
 				  V4L2_CID_MPEG_VIDEO_B_FRAMES,
 				  0, 0,
 				  1, 0);
+		// Consti10 HACK add intra
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_INTRA_REFRESH_PERIOD,
+				  -1, 30000,
+				  1, -1);
+		// Consti10 add AUD
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_AU_DELIMITER,
+				  0, 1,
+				  1, 0);
+		// Consti10 add SLICE
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
+				  -1, 30000,
+				  1, -1);
 		ctx->gop_size = v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 						  V4L2_CID_MPEG_VIDEO_GOP_SIZE,
 						  0, 0x7FFFFFFF, 1, 60);
