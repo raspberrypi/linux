@@ -472,7 +472,7 @@ static const struct {
 	{ IMX296_REG_8BIT(0x30a4), 0x5f },
 	{ IMX296_REG_8BIT(0x30a8), 0x91 },
 	{ IMX296_REG_8BIT(0x30ac), 0x28 },
-	{ IMX296_REG_8BIT(0x30af), 0x09 },
+	{ IMX296_REG_8BIT(0x30af), 0x0b },
 	{ IMX296_REG_8BIT(0x30df), 0x00 },
 	{ IMX296_REG_8BIT(0x3165), 0x00 },
 	{ IMX296_REG_8BIT(0x3169), 0x10 },
