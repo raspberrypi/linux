@@ -9,6 +9,8 @@
 
 #include <trace/hooks/vendor_hooks.h>
 
+struct trace_seq;
+
 DECLARE_HOOK(android_vh_ftrace_oops_enter,
 	TP_PROTO(bool *ftrace_check),
 	TP_ARGS(ftrace_check));
