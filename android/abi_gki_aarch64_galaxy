@@ -1,4 +1,12 @@
 [abi_symbol_list]
+  __devm_alloc_percpu
+  getboottime64
+  gpiochip_find
+  param_get_uint
+  param_set_uint
+  proc_set_size
+  pstore_register
+  pstore_unregister
   __traceiter_android_rvh_arm64_serror_panic
   __traceiter_android_rvh_die_kernel_fault
   __traceiter_android_rvh_do_el1_bti
@@ -8,9 +16,12 @@
   __traceiter_android_rvh_do_sp_pc_abort
   __traceiter_android_rvh_panic_unhandled
   __traceiter_android_rvh_report_bug
+  __traceiter_android_vh_is_fpsimd_save
   __traceiter_android_vh_try_to_freeze_todo
   __traceiter_android_vh_try_to_freeze_todo_unfrozen
   __traceiter_android_vh_watchdog_timer_softlockup
+  __traceiter_console
+  __traceiter_workqueue_execute_start
   __tracepoint_android_rvh_arm64_serror_panic
   __tracepoint_android_rvh_die_kernel_fault
   __tracepoint_android_rvh_do_el1_bti
@@ -20,6 +31,10 @@
   __tracepoint_android_rvh_do_sp_pc_abort
   __tracepoint_android_rvh_panic_unhandled
   __tracepoint_android_rvh_report_bug
+  __tracepoint_android_vh_is_fpsimd_save
   __tracepoint_android_vh_try_to_freeze_todo
   __tracepoint_android_vh_try_to_freeze_todo_unfrozen
   __tracepoint_android_vh_watchdog_timer_softlockup
+  __tracepoint_console
+  __tracepoint_workqueue_execute_start
+  yield
