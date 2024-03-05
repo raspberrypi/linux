@@ -665,7 +665,7 @@ static int init_pkvm_hyp_vcpu_sve(struct pkvm_hyp_vcpu *hyp_vcpu, struct kvm_vcp
 	if (pkvm_hyp_vcpu_is_protected(hyp_vcpu)) {
 		struct pkvm_hyp_vm *hyp_vm = pkvm_hyp_vcpu_to_hyp_vm(hyp_vcpu);
 
-		sve_state = hyp_alloc_account(sve_state_size,
+		sve_state = hyp_alloc_account(PAGE_ALIGN(sve_state_size),
 					      hyp_vm->host_kvm);
 		if (!sve_state) {
 			ret = hyp_alloc_errno();
