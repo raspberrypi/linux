@@ -20,6 +20,19 @@
 
 #include "rsc_mgr.h"
 
+enum gunyah_vm_mem_share_type {
+	VM_MEM_SHARE,
+	VM_MEM_LEND,
+};
+
+struct gunyah_vm_gup_binding {
+	enum gunyah_vm_mem_share_type share_type;
+	u64 guest_phys_addr;
+	u64 userspace_addr;
+	u64 size;
+	u32 flags;
+};
+
 static inline u64 gunyah_gpa_to_gfn(u64 gpa)
 {
 	return gpa >> PAGE_SHIFT;
@@ -42,6 +55,7 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
  * @bindings: A maple tree of guest memfd bindings. Indices are guest frame
  *            numbers; entries are &struct gunyah_gmem_binding
  * @bindings_lock: For serialization to @bindings
+ * @mm_s: Userspace tied to this vm
  * @addrspace_ticket: Resource ticket to the capability for guest VM's
  *                    address space
  * @host_private_extent_ticket: Resource ticket to the capability for our
@@ -94,6 +108,7 @@ struct gunyah_vm {
 	struct maple_tree mm;
 	struct maple_tree bindings;
 	struct rw_semaphore bindings_lock;
+	struct mm_struct *mm_s;
 	struct gunyah_vm_resource_ticket addrspace_ticket,
 		host_private_extent_ticket, host_shared_extent_ticket,
 		guest_private_extent_ticket, guest_shared_extent_ticket;
@@ -197,19 +212,13 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 int gunyah_vm_reclaim_folio(struct gunyah_vm *ghvm, u64 gfn, struct folio *folio);
 int gunyah_vm_reclaim_range(struct gunyah_vm *ghvm, u64 gfn, u64 nr);
 
-int gunyah_guest_mem_create(struct gunyah_create_mem_args *args);
-int gunyah_gmem_modify_mapping(struct gunyah_vm *ghvm,
-			       struct gunyah_map_mem_args *args);
-struct gunyah_gmem_binding;
-void gunyah_gmem_remove_binding(struct gunyah_gmem_binding *binding);
-int gunyah_gmem_share_parcel(struct gunyah_vm *ghvm,
-			     struct gunyah_rm_mem_parcel *parcel, u64 *gfn,
-			     u64 *nr);
-int gunyah_gmem_reclaim_parcel(struct gunyah_vm *ghvm,
-			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
-			       u64 nr);
-
-int gunyah_gmem_setup_demand_paging(struct gunyah_vm *ghvm);
-int gunyah_gmem_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write);
+int gunyah_vm_binding_alloc(struct gunyah_vm *ghvm,
+			    struct gunyah_userspace_memory_region *region,
+			    bool lend);
+int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm);
+int gunyah_gup_share_parcel(struct gunyah_vm *ghvm,
+			      struct gunyah_rm_mem_parcel *parcel,
+			      u64 *gfn, u64 *nr);
+int gunyah_gup_demand_page(struct gunyah_vm *ghvm, u64 gpa, bool write);
 
 #endif

@@ -20,25 +20,6 @@
  */
 #define GUNYAH_CREATE_VM _IO(GUNYAH_IOCTL_TYPE, 0x0) /* Returns a Gunyah VM fd */
 
-enum gunyah_mem_flags {
-	GHMF_CLOEXEC = (1UL << 0),
-	GHMF_ALLOW_HUGEPAGE = (1UL << 1),
-};
-
-/**
- * struct gunyah_create_mem_args - Description of guest memory to create
- * @flags: See GHMF_*.
- */
-struct gunyah_create_mem_args {
-	__u64 flags;
-	__u64 size;
-	__u64 reserved[6];
-};
-
-#define GUNYAH_CREATE_GUEST_MEM      \
-	_IOW(GUNYAH_IOCTL_TYPE, 0x8, \
-	     struct gunyah_create_mem_args) /* Returns a Gunyah memory fd */
-
 /*
  * ioctls for gunyah-vm fds (returned by GUNYAH_CREATE_VM)
  */
@@ -183,16 +164,15 @@ struct gunyah_fn_desc {
  * @GUNYAH_MEM_ALLOW_EXEC: Allow guest to execute instructions in the memory
  */
 enum gunyah_map_flags {
-	GUNYAH_MEM_DEFAULT_ACCESS = 0,
-	GUNYAH_MEM_FORCE_LEND = 1,
-	GUNYAH_MEM_FORCE_SHARE = 2,
-#define GUNYAH_MEM_ACCESS_MASK 0x7
-
-	GUNYAH_MEM_ALLOW_READ = 1UL << 4,
-	GUNYAH_MEM_ALLOW_WRITE = 1UL << 5,
-	GUNYAH_MEM_ALLOW_EXEC = 1UL << 6,
+	GUNYAH_MEM_ALLOW_READ = 1UL << 0,
+	GUNYAH_MEM_ALLOW_WRITE = 1UL << 1,
+	GUNYAH_MEM_ALLOW_EXEC = 1UL << 2,
 	GUNYAH_MEM_ALLOW_RWX =
 		(GUNYAH_MEM_ALLOW_READ | GUNYAH_MEM_ALLOW_WRITE | GUNYAH_MEM_ALLOW_EXEC),
+	GUNYAH_MEM_DEFAULT_ACCESS = 0x00,
+	GUNYAH_MEM_FORCE_LEND = 0x10,
+	GUNYAH_MEM_FORCE_SHARE = 0x20,
+#define GUNYAH_MEM_ACCESS_MASK 0x70
 
 	GUNYAH_MEM_UNMAP = 1UL << 8,
 };
@@ -374,5 +354,30 @@ struct gunyah_vcpu_run {
 
 #define GUNYAH_VCPU_RUN		_IO(GUNYAH_IOCTL_TYPE, 0x5)
 #define GUNYAH_VCPU_MMAP_SIZE	_IO(GUNYAH_IOCTL_TYPE, 0x6)
+
+/**
+ * struct gunyah_userspace_memory_region - Userspace memory descripion for GH_VM_SET_USER_MEM_REGION
+ * @label: Identifer to the region which is unique to the VM.
+ * @flags: Flags for memory parcel behavior. See &enum gh_mem_flags.
+ * @guest_phys_addr: Location of the memory region in guest's memory space (page-aligned)
+ * @memory_size: Size of the region (page-aligned)
+ * @userspace_addr: Location of the memory region in caller (userspace)'s memory
+ *
+ * See Documentation/virt/gunyah/vm-manager.rst for further details.
+ */
+struct gunyah_userspace_memory_region {
+	__u32 label;
+	__u32 flags;
+	__u64 guest_phys_addr;
+	__u64 memory_size;
+	__u64 userspace_addr;
+};
+
+#define GH_VM_SET_USER_MEM_REGION	_IOW(GUNYAH_IOCTL_TYPE, 0x1, \
+						struct gunyah_userspace_memory_region)
+#define GH_ANDROID_IOCTL_TYPE		'A'
+
+#define GH_VM_ANDROID_LEND_USER_MEM	_IOW(GH_ANDROID_IOCTL_TYPE, 0x11, \
+						struct gunyah_userspace_memory_region)
 
 #endif

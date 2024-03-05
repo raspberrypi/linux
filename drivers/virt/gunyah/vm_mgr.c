@@ -504,6 +504,8 @@ static __must_check struct gunyah_vm *gunyah_vm_alloc(struct gunyah_rm *rm)
 	ghvm->vmid = GUNYAH_VMID_INVAL;
 	ghvm->rm = rm;
 
+	mmgrab(current->mm);
+	ghvm->mm_s = current->mm;
 	init_rwsem(&ghvm->status_lock);
 	init_waitqueue_head(&ghvm->vm_status_wait);
 	kref_init(&ghvm->kref);
@@ -603,6 +605,45 @@ static inline int gunyah_vm_fill_boot_context(struct gunyah_vm *ghvm)
 	return 0;
 }
 
+int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm)
+{
+	struct gunyah_rm_mem_entry *entries;
+	struct gunyah_vm_gup_binding *b;
+	unsigned long index = 0;
+	u32 count = 0, i;
+	int ret = 0;
+
+	down_read(&ghvm->bindings_lock);
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX)
+		if (b->share_type == VM_MEM_LEND)
+			count++;
+
+	if (!count)
+		goto out;
+
+	entries = kcalloc(count, sizeof(*entries), GFP_KERNEL);
+	if (!entries) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	index = i = 0;
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
+		if (b->share_type != VM_MEM_LEND)
+			continue;
+		entries[i].phys_addr = cpu_to_le64(b->guest_phys_addr);
+		entries[i].size = cpu_to_le64(b->size);
+		if (++i == count)
+			break;
+	}
+
+	ret = gunyah_rm_vm_set_demand_paging(ghvm->rm, ghvm->vmid, i, entries);
+	kfree(entries);
+out:
+	up_read(&ghvm->bindings_lock);
+	return ret;
+}
+
 static int gunyah_vm_start(struct gunyah_vm *ghvm)
 {
 	struct gunyah_rm_hyp_resources *resources;
@@ -630,9 +671,9 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 
 	ghvm->dtb.parcel_start = ghvm->dtb.config.guest_phys_addr >> PAGE_SHIFT;
 	ghvm->dtb.parcel_pages = ghvm->dtb.config.size >> PAGE_SHIFT;
-	ret = gunyah_gmem_share_parcel(ghvm, &ghvm->dtb.parcel,
-				       &ghvm->dtb.parcel_start,
-				       &ghvm->dtb.parcel_pages);
+	ret = gunyah_gup_share_parcel(ghvm, &ghvm->dtb.parcel,
+					&ghvm->dtb.parcel_start,
+					&ghvm->dtb.parcel_pages);
 	if (ret) {
 		dev_warn(ghvm->parent,
 			 "Failed to allocate parcel for DTB: %d\n", ret);
@@ -650,7 +691,7 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 		goto err;
 	}
 
-	ret = gunyah_gmem_setup_demand_paging(ghvm);
+	ret = gunyah_gup_setup_demand_paging(ghvm);
 	if (ret) {
 		dev_warn(ghvm->parent,
 			 "Failed to set up gmem demand paging: %d\n", ret);
@@ -761,6 +802,7 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 	struct gunyah_vm *ghvm = filp->private_data;
 	void __user *argp = (void __user *)arg;
 	long r;
+	bool lend = false;
 
 	switch (cmd) {
 	case GUNYAH_VM_SET_DTB_CONFIG: {
@@ -800,13 +842,25 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 		r = gunyah_vm_rm_function_instance(ghvm, &f);
 		break;
 	}
-	case GUNYAH_VM_MAP_MEM: {
-		struct gunyah_map_mem_args args;
+	case GH_VM_ANDROID_LEND_USER_MEM:
+		lend = true;
+		fallthrough;
+	case GH_VM_SET_USER_MEM_REGION: {
+		struct gunyah_userspace_memory_region region;
 
-		if (copy_from_user(&args, argp, sizeof(args)))
+		/* only allow owner task to add memory */
+		if (ghvm->mm_s != current->mm)
+			return -EPERM;
+		if (copy_from_user(&region, argp, sizeof(region)))
 			return -EFAULT;
 
-		return gunyah_gmem_modify_mapping(ghvm, &args);
+		if (region.flags & ~(GUNYAH_MEM_ALLOW_READ |
+					GUNYAH_MEM_ALLOW_WRITE |
+					GUNYAH_MEM_ALLOW_EXEC))
+			return -EINVAL;
+
+		r = gunyah_vm_binding_alloc(ghvm, &region, lend);
+		break;
 	}
 	case GUNYAH_VM_SET_BOOT_CONTEXT: {
 		struct gunyah_vm_boot_context boot_ctx;
@@ -830,11 +884,51 @@ int __must_check gunyah_vm_get(struct gunyah_vm *ghvm)
 }
 EXPORT_SYMBOL_GPL(gunyah_vm_get);
 
+int gunyah_gup_reclaim_parcel(struct gunyah_vm *ghvm,
+			       struct gunyah_rm_mem_parcel *parcel, u64 gfn,
+			       u64 nr)
+{
+	struct gunyah_rm_mem_entry *entry;
+	struct folio *folio;
+	pgoff_t i;
+	int ret;
+
+	if (parcel->mem_handle != GUNYAH_MEM_HANDLE_INVAL) {
+		ret = gunyah_rm_mem_reclaim(ghvm->rm, parcel);
+		if (ret) {
+			dev_err(ghvm->parent, "Failed to reclaim parcel: %d\n",
+				ret);
+			/* We can't reclaim the pages -- hold onto the pages
+			 * forever because we don't know what state the memory
+			 * is in
+			 */
+			return ret;
+		}
+		parcel->mem_handle = GUNYAH_MEM_HANDLE_INVAL;
+
+		for (i = 0; i < parcel->n_mem_entries; i++) {
+			entry = &parcel->mem_entries[i];
+
+			folio = pfn_folio(PHYS_PFN(le64_to_cpu(entry->phys_addr)));
+
+			if (folio_test_private(folio))
+				gunyah_folio_host_reclaim(folio);
+
+			folio_put(folio);
+		}
+
+		kfree(parcel->mem_entries);
+		kfree(parcel->acl_entries);
+	}
+
+	return 0;
+}
+
 static void _gunyah_vm_put(struct kref *kref)
 {
 	struct gunyah_vm *ghvm = container_of(kref, struct gunyah_vm, kref);
-	struct gunyah_gmem_binding *b;
-	unsigned long idx = 0;
+	struct gunyah_vm_gup_binding *b;
+	unsigned long index = 0;
 	int ret;
 
 	/**
@@ -847,7 +941,7 @@ static void _gunyah_vm_put(struct kref *kref)
 	if (ghvm->vm_status == GUNYAH_RM_VM_STATUS_LOAD ||
 	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_READY ||
 	    ghvm->vm_status == GUNYAH_RM_VM_STATUS_INIT_FAILED) {
-		ret = gunyah_gmem_reclaim_parcel(ghvm, &ghvm->dtb.parcel,
+		ret = gunyah_gup_reclaim_parcel(ghvm, &ghvm->dtb.parcel,
 						 ghvm->dtb.parcel_start,
 						 ghvm->dtb.parcel_pages);
 		if (ret)
@@ -858,12 +952,14 @@ static void _gunyah_vm_put(struct kref *kref)
 	gunyah_vm_remove_functions(ghvm);
 
 	down_write(&ghvm->bindings_lock);
-	mt_for_each(&ghvm->bindings, b, idx, ULONG_MAX) {
-		gunyah_gmem_remove_binding(b);
+	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
+		mtree_erase(&ghvm->bindings, gunyah_gpa_to_gfn(b->guest_phys_addr));
+		kfree(b);
 	}
 	up_write(&ghvm->bindings_lock);
 	WARN_ON(!mtree_empty(&ghvm->bindings));
 	mtree_destroy(&ghvm->bindings);
+
 	/**
 	 * If this fails, we're going to lose the memory for good and is
 	 * BUG_ON-worthy, but not unrecoverable (we just lose memory).
@@ -909,6 +1005,7 @@ static void _gunyah_vm_put(struct kref *kref)
 
 	xa_destroy(&ghvm->boot_context);
 	gunyah_rm_put(ghvm->rm);
+	mmdrop(ghvm->mm_s);
 	kfree(ghvm);
 }
 
@@ -978,15 +1075,6 @@ long gunyah_dev_vm_mgr_ioctl(struct gunyah_rm *rm, unsigned int cmd,
 	switch (cmd) {
 	case GUNYAH_CREATE_VM:
 		return gunyah_dev_ioctl_create_vm(rm, arg);
-	case GUNYAH_CREATE_GUEST_MEM: {
-		struct gunyah_create_mem_args args;
-
-		if (copy_from_user(&args, (const void __user *)arg,
-				   sizeof(args)))
-			return -EFAULT;
-
-		return gunyah_guest_mem_create(&args);
-	}
 	default:
 		return -ENOTTY;
 	}
