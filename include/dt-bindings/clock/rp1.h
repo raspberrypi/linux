@@ -50,3 +50,7 @@
 #define RP1_CLK_DPI			40
 #define RP1_CLK_MIPI0_DPI		41
 #define RP1_CLK_MIPI1_DPI		42
+
+/* Extra PLL output channels - RP1B0 only */
+#define RP1_PLL_VIDEO_PRI_PH		43
+#define RP1_PLL_AUDIO_TERN		44
