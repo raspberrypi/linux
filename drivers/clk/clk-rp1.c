@@ -254,6 +254,7 @@
 const char * const fc0_ref_clk_name = "clk_slow_sys";
 
 #define ABS_DIFF(a, b) ((a) > (b) ? (a) - (b) : (b) - (a))
+#define DIV_NEAREST(a, b) (((a) + ((b) >> 1)) / (b))
 #define DIV_U64_NEAREST(a, b) div_u64(((a) + ((b) >> 1)), (b))
 
 /*
@@ -392,6 +393,18 @@ struct rp1_clock {
 	const struct rp1_clock_data *data;
 	unsigned long cached_rate;
 };
+
+
+struct rp1_clk_change {
+	struct clk_hw *hw;
+	unsigned long new_rate;
+};
+
+struct rp1_clk_change rp1_clk_chg_tree[3];
+
+static struct clk_hw *clk_xosc;
+static struct clk_hw *clk_audio;
+static struct clk_hw *clk_i2s;
 
 static void rp1_debugfs_regset(struct rp1_clockman *clockman, u32 base,
 			       const struct debugfs_reg32 *regs,
@@ -749,7 +762,11 @@ static unsigned long rp1_pll_recalc_rate(struct clk_hw *hw,
 static long rp1_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 			       unsigned long *parent_rate)
 {
+	const struct rp1_clk_change *chg = &rp1_clk_chg_tree[1];
 	u32 div1, div2;
+
+	if (chg->hw == hw && chg->new_rate == rate)
+		*parent_rate = chg[1].new_rate;
 
 	get_pll_prim_dividers(rate, *parent_rate, &div1, &div2);
 
@@ -1188,6 +1205,59 @@ static int rp1_clock_set_rate(struct clk_hw *hw, unsigned long rate,
 	return rp1_clock_set_rate_and_parent(hw, rate, parent_rate, 0xff);
 }
 
+static unsigned long calc_core_pll_rate(struct clk_hw *pll_hw,
+					unsigned long target_rate,
+					int *pdiv_prim, int *pdiv_clk)
+{
+	static const int prim_divs[] = {
+		2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 16,
+		18, 20, 21, 24, 25, 28, 30, 35, 36, 42, 49,
+	};
+	const unsigned long xosc_rate = clk_hw_get_rate(clk_xosc);
+	const unsigned long core_max = 2400000000;
+	const unsigned long core_min = xosc_rate * 16;
+	unsigned long best_rate = core_max + 1;
+	int best_div_prim = 1, best_div_clk = 1;
+	unsigned long core_rate = 0;
+	int div_int, div_frac;
+	u64 div;
+	int i;
+
+	/* Given the target rate, choose a set of divisors/multipliers */
+	for (i = 0; i < ARRAY_SIZE(prim_divs); i++) {
+		int div_prim = prim_divs[i];
+		int div_clk;
+
+		for (div_clk = 1; div_clk <= 256; div_clk++) {
+			core_rate = target_rate * div_clk * div_prim;
+			if (core_rate >= core_min) {
+				if (core_rate < best_rate) {
+					best_rate = core_rate;
+					best_div_prim = div_prim;
+					best_div_clk = div_clk;
+				}
+				break;
+			}
+		}
+	}
+
+	if (best_rate < core_max) {
+		div = ((best_rate << 24) + xosc_rate / 2) / xosc_rate;
+		div_int = div >> 24;
+		div_frac = div % (1 << 24);
+		core_rate = (xosc_rate * ((div_int << 24) + div_frac) + (1 << 23)) >> 24;
+	} else {
+		core_rate = 0;
+	}
+
+	if (pdiv_prim)
+		*pdiv_prim = best_div_prim;
+	if (pdiv_clk)
+		*pdiv_clk = best_div_clk;
+
+	return core_rate;
+}
+
 static void rp1_clock_choose_div_and_prate(struct clk_hw *hw,
 					   int parent_idx,
 					   unsigned long rate,
@@ -1199,8 +1269,43 @@ static void rp1_clock_choose_div_and_prate(struct clk_hw *hw,
 	struct clk_hw *parent;
 	u32 div;
 	u64 tmp;
+	int i;
 
 	parent = clk_hw_get_parent_by_index(hw, parent_idx);
+
+	for (i = 0; i < ARRAY_SIZE(rp1_clk_chg_tree); i++) {
+		const struct rp1_clk_change *chg = &rp1_clk_chg_tree[i];
+
+		if (chg->hw == hw && chg->new_rate == rate) {
+			if (i == 2)
+				*prate = clk_hw_get_rate(clk_xosc);
+			else if (parent == rp1_clk_chg_tree[i + 1].hw)
+				*prate = rp1_clk_chg_tree[i + 1].new_rate;
+			else
+				continue;
+			*calc_rate = chg->new_rate;
+			return;
+		}
+	}
+
+	if (hw == clk_i2s && parent == clk_audio) {
+		unsigned long core_rate, audio_rate, i2s_rate;
+		int div_prim, div_clk;
+
+		core_rate = calc_core_pll_rate(parent, rate, &div_prim, &div_clk);
+		audio_rate = DIV_NEAREST(core_rate, div_prim);
+		i2s_rate = DIV_NEAREST(audio_rate, div_clk);
+		rp1_clk_chg_tree[2].hw = clk_hw_get_parent(parent);
+		rp1_clk_chg_tree[2].new_rate = core_rate;
+		rp1_clk_chg_tree[1].hw = clk_audio;
+		rp1_clk_chg_tree[1].new_rate = audio_rate;
+		rp1_clk_chg_tree[0].hw = clk_i2s;
+		rp1_clk_chg_tree[0].new_rate = i2s_rate;
+		*prate = audio_rate;
+		*calc_rate = i2s_rate;
+		return;
+	}
+
 	*prate = clk_hw_get_rate(parent);
 	div = rp1_clock_choose_div(rate, *prate, data);
 
@@ -1608,6 +1713,7 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.source_pll = "pll_audio_core",
 				.ctrl_reg = PLL_AUDIO_PRIM,
 				.fc0_src = FC_NUM(4, 2),
+				.flags = CLK_SET_RATE_PARENT,
 				),
 
 	[RP1_PLL_VIDEO] = REGISTER_PLL(
@@ -1850,6 +1956,7 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.div_int_max = DIV_INT_8BIT_MAX,
 				.max_freq = 50 * MHz,
 				.fc0_src = FC_NUM(4, 4),
+				.flags = CLK_SET_RATE_PARENT,
 				),
 
 	[RP1_CLK_MIPI0_CFG] = REGISTER_CLK(
@@ -2272,8 +2379,14 @@ static int rp1_clk_probe(struct platform_device *pdev)
 
 	for (i = 0; i < asize; i++) {
 		desc = &clk_desc_array[i];
-		if (desc->clk_register && desc->data)
+		if (desc->clk_register && desc->data) {
 			hws[i] = desc->clk_register(clockman, desc->data);
+			if (!strcmp(clk_hw_get_name(hws[i]), "clk_i2s")) {
+				clk_i2s = hws[i];
+				clk_xosc = clk_hw_get_parent_by_index(clk_i2s, 0);
+				clk_audio = clk_hw_get_parent_by_index(clk_i2s, 1);
+			}
+		}
 	}
 
 	ret = of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
