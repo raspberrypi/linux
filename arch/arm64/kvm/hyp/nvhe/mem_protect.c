@@ -602,7 +602,7 @@ static int host_stage2_adjust_range(u64 addr, struct kvm_mem_range *range)
 
 	if (pte) {
 		WARN_ON(addr_is_memory(addr) &&
-			!(hyp_phys_to_page(addr)->host_state | PKVM_NOPAGE));
+			!(hyp_phys_to_page(addr)->host_state & PKVM_NOPAGE));
 		return -EPERM;
 	}
 
