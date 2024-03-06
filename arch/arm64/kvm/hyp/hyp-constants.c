@@ -3,7 +3,6 @@
 #include <linux/kbuild.h>
 #include <nvhe/memory.h>
 #include <nvhe/pkvm.h>
-#include <nvhe/trace.h>
 
 int main(void)
 {

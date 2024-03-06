@@ -4,7 +4,7 @@
 #define __ARM64_KVM_HYPEVENTS_H_
 
 #ifdef __KVM_NVHE_HYPERVISOR__
-#include <nvhe/trace.h>
+#include <nvhe/trace/trace.h>
 #endif
 
 /*

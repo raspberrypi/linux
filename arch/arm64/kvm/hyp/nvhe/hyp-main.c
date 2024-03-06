@@ -24,7 +24,7 @@
 #include <nvhe/modules.h>
 #include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
-#include <nvhe/trace.h>
+#include <nvhe/trace/trace.h>
 #include <nvhe/trap_handler.h>
 
 #include <linux/irqchip/arm-gic-v3.h>

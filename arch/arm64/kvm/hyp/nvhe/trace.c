@@ -8,7 +8,7 @@
 #include <nvhe/clock.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
-#include <nvhe/trace.h>
+#include <nvhe/trace/trace.h>
 
 #include <asm/percpu.h>
 #include <asm/kvm_mmu.h>
