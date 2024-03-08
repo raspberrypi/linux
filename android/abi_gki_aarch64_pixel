@@ -1162,6 +1162,8 @@
   of_reserved_mem_lookup
   of_root
   of_usb_host_tpl_support
+  page_pinner_inited
+  __page_pinner_put_page
   panic
   panic_notifier_list
   param_array_ops

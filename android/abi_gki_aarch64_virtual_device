@@ -278,6 +278,8 @@
   of_device_is_compatible
   of_find_property
   of_property_read_variable_u32_array
+  page_pinner_inited
+  __page_pinner_put_page
   page_pool_alloc_frag
   page_pool_destroy
   page_pool_put_defragged_page
