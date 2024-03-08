@@ -472,6 +472,7 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			gpio-ranges = <&rp1_gpio 0 0 54>;
 
 			rp1_uart0_14_15: rp1_uart0_14_15 {
 				pin_txd {
