@@ -469,12 +469,6 @@ static int pmic_glink_altmode_probe(struct auxiliary_device *adev,
 		alt_port->bridge.ops = DRM_BRIDGE_OP_HPD;
 		alt_port->bridge.type = DRM_MODE_CONNECTOR_DisplayPort;
 
-		ret = devm_drm_bridge_add(dev, &alt_port->bridge);
-		if (ret) {
-			fwnode_handle_put(fwnode);
-			return ret;
-		}
-
 		alt_port->dp_alt.svid = USB_TYPEC_DP_SID;
 		alt_port->dp_alt.mode = USB_TYPEC_DP_MODE;
 		alt_port->dp_alt.active = 1;
@@ -523,6 +517,16 @@ static int pmic_glink_altmode_probe(struct auxiliary_device *adev,
 			fwnode_handle_put(fwnode);
 			return ret;
 		}
+	}
+
+	for (port = 0; port < ARRAY_SIZE(altmode->ports); port++) {
+		alt_port = &altmode->ports[port];
+		if (!alt_port->altmode)
+			continue;
+
+		ret = devm_drm_bridge_add(dev, &alt_port->bridge);
+		if (ret)
+			return ret;
 	}
 
 	altmode->client = devm_pmic_glink_register_client(dev,
