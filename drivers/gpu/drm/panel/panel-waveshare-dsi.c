@@ -138,6 +138,18 @@ static const struct drm_display_mode ws_panel_11_9_mode = {
 	.vtotal = 1480 + 60 + 60 + 60,
 };
 
+static const struct drm_display_mode ws_panel_4_mode = {
+	.clock = 50000,
+	.hdisplay = 720,
+	.hsync_start = 720 + 32,
+	.hsync_end = 720 + 32 + 200,
+	.htotal = 720 + 32 + 200 + 120,
+	.vdisplay = 720,
+	.vsync_start = 720 + 8,
+	.vsync_end = 720 + 8 + 4,
+	.vtotal = 720 + 8 + 4 + 16,
+};
+
 static struct ws_panel *panel_to_ts(struct drm_panel *panel)
 {
 	return container_of(panel, struct ws_panel, base);
@@ -397,6 +409,9 @@ static const struct of_device_id ws_panel_of_ids[] = {
 	}, {
 		.compatible = "waveshare,11.9inch-panel",
 		.data = &ws_panel_11_9_mode,
+	}, {
+		.compatible = "waveshare,4inch-panel",
+		.data = &ws_panel_4_mode,
 	}, {
 		/* sentinel */
 	}
