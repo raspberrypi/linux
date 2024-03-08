@@ -8,6 +8,7 @@
 struct bcm2835_pm {
 	struct device *dev;
 	void __iomem *base;
+	void __iomem *wdt_base;
 	void __iomem *asb;
 	void __iomem *rpivid_asb;
 };

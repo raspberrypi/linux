@@ -374,8 +374,9 @@
 
 		pm: watchdog@7d200000 {
 			compatible = "brcm,bcm2712-pm";
-			reg = <0x7d200000 0x308>;
-			reg-names = "pm";
+			reg = <0x7d200000 0x308>,
+				  <0x7d508040 0x40>;
+			reg-names = "pm", "wdt";
 			#power-domain-cells = <1>;
 			#reset-cells = <1>;
 			//clocks = <&cprman BCM2835_CLOCK_V3D>,

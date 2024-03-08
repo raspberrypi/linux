@@ -21,6 +21,10 @@ static const struct mfd_cell bcm2835_pm_devs[] = {
 	{ .name = "bcm2835-wdt" },
 };
 
+static const struct mfd_cell bcm2711_pm_devs[] = {
+	{ .name = "bcm2711-wdt" },
+};
+
 static const struct mfd_cell bcm2835_power_devs[] = {
 	{ .name = "bcm2835-power" },
 };
@@ -34,6 +38,13 @@ static int bcm2835_pm_get_pdata(struct platform_device *pdev,
 		pm->base = devm_platform_ioremap_resource_byname(pdev, "pm");
 		if (IS_ERR(pm->base))
 			return PTR_ERR(pm->base);
+
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "wdt");
+		if (res) {
+			pm->wdt_base = devm_ioremap_resource(&pdev->dev, res);
+			if (IS_ERR(pm->wdt_base))
+				pm->wdt_base = NULL;
+		}
 
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "asb");
 		if (res) {
@@ -72,8 +83,8 @@ static int bcm2835_pm_get_pdata(struct platform_device *pdev,
 static const struct of_device_id bcm2835_pm_of_match[] = {
 	{ .compatible = "brcm,bcm2835-pm-wdt", },
 	{ .compatible = "brcm,bcm2835-pm", },
-	{ .compatible = "brcm,bcm2711-pm", },
-	{ .compatible = "brcm,bcm2712-pm", .data = (const void *)1},
+	{ .compatible = "brcm,bcm2711-pm", .data = (const void *)2711},
+	{ .compatible = "brcm,bcm2712-pm", .data = (const void *)2712},
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2835_pm_of_match);
@@ -83,6 +94,7 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 	const struct of_device_id *of_id;
 	struct device *dev = &pdev->dev;
 	struct bcm2835_pm *pm;
+	bool is_2711;
 	bool is_2712;
 	int ret;
 
@@ -91,7 +103,8 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to match compatible string\n");
 		return -EINVAL;
 	}
-	is_2712 = !!of_id->data;
+	is_2711 = (uintptr_t)of_id->data == 2711;
+	is_2712 = (uintptr_t)of_id->data == 2712;
 
 	pm = devm_kzalloc(dev, sizeof(*pm), GFP_KERNEL);
 	if (!pm)
@@ -104,9 +117,14 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = devm_mfd_add_devices(dev, -1,
-				   bcm2835_pm_devs, ARRAY_SIZE(bcm2835_pm_devs),
-				   NULL, 0, NULL);
+	if (is_2711 || is_2712)
+		ret = devm_mfd_add_devices(dev, -1,
+					bcm2711_pm_devs, ARRAY_SIZE(bcm2711_pm_devs),
+					NULL, 0, NULL);
+	else
+		ret = devm_mfd_add_devices(dev, -1,
+					bcm2835_pm_devs, ARRAY_SIZE(bcm2835_pm_devs),
+					NULL, 0, NULL);
 	if (ret)
 		return ret;
 

@@ -1773,6 +1773,17 @@ config OCTEON_WDT
 	  from the first interrupt, it is then only poked when the
 	  device is written.
 
+config BCM2711_WDT
+	tristate "Broadcom BCM2711 hardware watchdog"
+	depends on ARCH_BCM2835 || (OF && COMPILE_TEST)
+	select WATCHDOG_CORE
+	help
+	  Watchdog driver for the built in watchdog hardware in Broadcom
+	  BCM2711 SoC.
+
+	  To compile this driver as a loadable module, choose M here.
+	  The module will be called bcm2711_wdt.
+
 config BCM2835_WDT
 	tristate "Broadcom BCM2835 hardware watchdog"
 	depends on ARCH_BCM2835 || (OF && COMPILE_TEST)
