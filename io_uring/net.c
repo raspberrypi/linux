@@ -78,19 +78,6 @@ struct io_sr_msg {
  */
 #define MULTISHOT_MAX_RETRY	32
 
-static inline bool io_check_multishot(struct io_kiocb *req,
-				      unsigned int issue_flags)
-{
-	/*
-	 * When ->locked_cq is set we only allow to post CQEs from the original
-	 * task context. Usual request completions will be handled in other
-	 * generic paths but multipoll may decide to post extra cqes.
-	 */
-	return !(issue_flags & IO_URING_F_IOWQ) ||
-		!(req->flags & REQ_F_APOLL_MULTISHOT) ||
-		!req->ctx->task_complete;
-}
-
 int io_shutdown_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 {
 	struct io_shutdown *shutdown = io_kiocb_to_cmd(req, struct io_shutdown);
@@ -837,9 +824,6 @@ int io_recvmsg(struct io_kiocb *req, unsigned int issue_flags)
 	    (sr->flags & IORING_RECVSEND_POLL_FIRST))
 		return io_setup_async_msg(req, kmsg, issue_flags);
 
-	if (!io_check_multishot(req, issue_flags))
-		return io_setup_async_msg(req, kmsg, issue_flags);
-
 retry_multishot:
 	if (io_do_buffer_select(req)) {
 		void __user *buf;
@@ -933,9 +917,6 @@ int io_recv(struct io_kiocb *req, unsigned int issue_flags)
 
 	if (!(req->flags & REQ_F_POLLED) &&
 	    (sr->flags & IORING_RECVSEND_POLL_FIRST))
-		return -EAGAIN;
-
-	if (!io_check_multishot(req, issue_flags))
 		return -EAGAIN;
 
 	sock = sock_from_file(req->file);
@@ -1386,8 +1367,6 @@ int io_accept(struct io_kiocb *req, unsigned int issue_flags)
 	struct file *file;
 	int ret, fd;
 
-	if (!io_check_multishot(req, issue_flags))
-		return -EAGAIN;
 retry:
 	if (!fixed) {
 		fd = __get_unused_fd_flags(accept->flags, accept->nofile);
