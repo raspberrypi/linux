@@ -1634,9 +1634,6 @@ static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
 	unsigned long hcall_min = 0;
 	hcall_t hfn;
 
-	if (handle_host_dynamic_hcall(host_ctxt) == HCALL_HANDLED)
-		goto end;
-
 	/*
 	 * If pKVM has been initialised then reject any calls to the
 	 * early "privileged" hypercalls. Note that we cannot reject
@@ -1651,6 +1648,9 @@ static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)
 
 	id &= ~ARM_SMCCC_CALL_HINTS;
 	id -= KVM_HOST_SMCCC_ID(0);
+
+	if (handle_host_dynamic_hcall(&host_ctxt->regs, id) == HCALL_HANDLED)
+		goto end;
 
 	if (unlikely(id < hcall_min || id >= ARRAY_SIZE(host_hcall)))
 		goto inval;
