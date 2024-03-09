@@ -6,7 +6,7 @@
 
 	fragment@0 {
 		target = <&uart0>;
-		__overlay__ {
+		frag0: __overlay__ {
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart0_pins>;
 			status = "okay";
@@ -28,5 +28,6 @@
 		txd0_pin = <&uart0_pins>,"brcm,pins:0";
 		rxd0_pin = <&uart0_pins>,"brcm,pins:4";
 		pin_func = <&uart0_pins>,"brcm,function:0";
+		disable_fifos = <&frag0>,"disable-fifos?";
 	};
 };

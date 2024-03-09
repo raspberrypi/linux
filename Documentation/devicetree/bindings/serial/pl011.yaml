@@ -106,6 +106,12 @@ properties:
       CTS-induced TX lockup.
     type: boolean
 
+  disable-fifos:
+    description:
+      Disable FIFOs (character mode) that is, the FIFOs become 1-byte-deep
+      holding registers.
+    type: boolean
+
 required:
   - compatible
   - reg

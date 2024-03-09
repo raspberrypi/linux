@@ -2824,9 +2824,14 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	    dev_info(&dev->dev, "cts_event_workaround enabled\n");
 	}
 
+	if (of_property_read_bool(dev->dev.of_node, "disable-fifos")) {
+		uap->fifosize = 1;
+		dev_info(&dev->dev, "FIFOs disabled (character mode)\n");
+	} else
+		uap->fifosize = vendor->get_fifosize(dev);
+
 	uap->reg_offset = vendor->reg_offset;
 	uap->vendor = vendor;
-	uap->fifosize = vendor->get_fifosize(dev);
 	uap->port.iotype = vendor->access_32b ? UPIO_MEM32 : UPIO_MEM;
 	uap->port.irq = dev->irq[0];
 	uap->port.ops = &amba_pl011_pops;
@@ -2933,8 +2938,13 @@ static int sbsa_uart_probe(struct platform_device *pdev)
 #endif
 		uap->vendor = &vendor_sbsa;
 
+	if (of_property_read_bool(pdev->dev.of_node, "disable-fifos")) {
+		uap->fifosize = 1;
+		dev_info(&pdev->dev, "FIFOs disabled (character mode)\n");
+	} else
+		uap->fifosize = 32;
+
 	uap->reg_offset	= uap->vendor->reg_offset;
-	uap->fifosize	= 32;
 	uap->port.iotype = uap->vendor->access_32b ? UPIO_MEM32 : UPIO_MEM;
 	uap->port.ops	= &sbsa_uart_pops;
 	uap->fixed_baud = baudrate;
@@ -3020,9 +3030,14 @@ static int pl011_axi_probe(struct platform_device *pdev)
 	of_property_read_u32(pdev->dev.of_node, "arm,primecell-periphid",
 			     &periphid);
 
+	if (of_property_read_bool(pdev->dev.of_node, "disable-fifos")) {
+		uap->fifosize = 1;
+		dev_info(&pdev->dev, "FIFOs disabled (character mode)\n");
+	} else
+		uap->fifosize = (AMBA_REV_BITS(periphid) < 3) ? 16 : 32;
+
 	uap->reg_offset = vendor->reg_offset;
 	uap->vendor = vendor;
-	uap->fifosize = (AMBA_REV_BITS(periphid) < 3) ? 16 : 32;
 	uap->port.iotype = vendor->access_32b ? UPIO_MEM32 : UPIO_MEM;
 	uap->port.irq = irq;
 	uap->port.ops = &amba_pl011_pops;
