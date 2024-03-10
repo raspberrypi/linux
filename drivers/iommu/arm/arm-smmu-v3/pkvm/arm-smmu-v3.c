@@ -870,6 +870,7 @@ int smmu_domain_finalise(struct hyp_arm_smmu_v3_device *smmu,
 	int ret;
 	struct io_pgtable_cfg *cfg;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct arm_lpae_io_pgtable *data;
 
 	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2)
 		cfg = &smmu->pgtable_cfg_s2;
@@ -877,6 +878,16 @@ int smmu_domain_finalise(struct hyp_arm_smmu_v3_device *smmu,
 		cfg = &smmu->pgtable_cfg_s1;
 
 	domain->pgtable = kvm_arm_io_pgtable_alloc(cfg, domain, &ret);
+	if (!domain->pgtable)
+		return ret;
+
+	data = io_pgtable_to_data(domain->pgtable);
+	if (domain->domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID) {
+		data->idmapped = true;
+		ret = kvm_iommu_snapshot_host_stage2(domain);
+		if (ret)
+			return ret;
+	}
 
 	return ret;
 }
@@ -979,6 +990,21 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	dst = smmu_get_ste_ptr(smmu, sid);
 	if (!dst)
 		goto out_unlock;
+
+
+	/*
+	 * BYPASS domains only supported on stage-2 instances, that is over restrictive
+	 * but for now as stage-1 is limited to VA_BITS to match the kernel, it might
+	 * not cover the ia bits, we don't support it.
+	 */
+	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_BYPASS) {
+		if (smmu->features & ARM_SMMU_FEAT_TRANS_S2) {
+			smmu_domain->type = KVM_ARM_SMMU_DOMAIN_S2;
+		} else {
+			ret = -EINVAL;
+			goto out_unlock;
+		}
+	}
 
 	if (!smmu_existing_in_domain(smmu, smmu_domain)) {
 		if (!smmu_domain_compat(smmu, smmu_domain)) {
@@ -1223,6 +1249,66 @@ int smmu_resume(struct kvm_hyp_iommu *iommu)
 	return 0;
 }
 
+/*
+ * Although SMMU can support multiple granules, it must at least support PAGE_SIZE
+ * as the CPU, and for the IDMAP domains, we only use this granule.
+ * As we optimize for memory usage and performance, we try to use block mappings
+ * when possible.
+ */
+static size_t smmu_pgsize(size_t size)
+{
+	size_t pgsizes;
+	const size_t pgsize_bitmask = PAGE_SIZE | (PAGE_SIZE * PTRS_PER_PTE) |
+				      (PAGE_SIZE * PTRS_PER_PTE * PTRS_PER_PTE);
+
+	pgsizes = pgsize_bitmask & GENMASK_ULL(__fls(size), 0);
+	WARN_ON(!pgsizes);
+
+	return BIT(__fls(pgsizes));
+}
+
+static void smmu_host_stage2_idmap(struct kvm_hyp_iommu_domain *domain,
+				   phys_addr_t start, phys_addr_t end, int prot)
+{
+	size_t size = end - start;
+	size_t pgsize, pgcount;
+	size_t mapped, unmapped;
+	int ret;
+	struct io_pgtable *pgtable = domain->pgtable;
+
+	end = min(end, BIT(pgtable->cfg.oas));
+	if (start >= end)
+		return;
+
+	if (prot) {
+		if (!(prot & IOMMU_MMIO) && pgtable->cfg.coherent_walk)
+			prot |= IOMMU_CACHE;
+
+		while (size) {
+			mapped = 0;
+			pgsize = smmu_pgsize(size);
+			pgcount = size / pgsize;
+			ret = pgtable->ops.map_pages(&pgtable->ops, start, start,
+						     pgsize, pgcount, prot, 0, &mapped);
+			size -= mapped;
+			start += mapped;
+			if (!mapped || ret)
+				return;
+		}
+	} else {
+		while (size) {
+			pgsize = smmu_pgsize(size);
+			pgcount = size / pgsize;
+			unmapped = pgtable->ops.unmap_pages(&pgtable->ops, start,
+							    pgsize, pgcount, NULL);
+			size -= unmapped;
+			start += unmapped;
+			if (!unmapped)
+				return;
+		}
+	}
+}
+
 #ifdef MODULE
 int smmu_init_hyp_module(const struct pkvm_module_ops *ops)
 {
@@ -1245,5 +1331,6 @@ struct kvm_iommu_ops smmu_ops = {
 	.suspend			= smmu_suspend,
 	.resume				= smmu_resume,
 	.iotlb_sync			= smmu_iotlb_sync,
+	.host_stage2_idmap		= smmu_host_stage2_idmap,
 };
 
