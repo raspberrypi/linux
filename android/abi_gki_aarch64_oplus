@@ -122,6 +122,7 @@
   __traceiter_android_vh_rwsem_opt_spin_finish
   __traceiter_android_vh_rwsem_can_spin_on_owner
   __traceiter_android_vh_copy_process
+  __traceiter_android_vh_binder_alloc_new_buf_locked
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_opt_spin_start
@@ -131,3 +132,4 @@
   __tracepoint_android_vh_rwsem_opt_spin_finish
   __tracepoint_android_vh_rwsem_can_spin_on_owner
   __tracepoint_android_vh_copy_process
+  __tracepoint_android_vh_binder_alloc_new_buf_locked
