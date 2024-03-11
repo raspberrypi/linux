@@ -283,6 +283,8 @@
   page_pool_alloc_frag
   page_pool_destroy
   page_pool_put_defragged_page
+  page_shift_compat_enabled
+  page_shift_compat
   param_ops_bool
   param_ops_int
   param_ops_uint
