@@ -1969,6 +1969,8 @@
   wiphy_unregister
   woken_wake_function
   work_busy
+  ww_mutex_lock
+  ww_mutex_unlock
   __xfrm_state_destroy
   xfrm_state_lookup_byspi
   xfrm_stateonly_find
