@@ -537,10 +537,6 @@ static int gunyah_rm_send_request(struct gunyah_rm *rm, u32 message_id,
 	hdr_template.seq = cpu_to_le16(message->reply.seq);
 	hdr_template.msg_id = cpu_to_le32(message_id);
 
-	ret = mutex_lock_interruptible(&rm->send_lock);
-	if (ret)
-		return ret;
-
 	do {
 		*hdr = hdr_template;
 
@@ -562,7 +558,6 @@ static int gunyah_rm_send_request(struct gunyah_rm *rm, u32 message_id,
 			FIELD_PREP(RM_RPC_FRAGMENTS_MASK, cont_fragments);
 	} while (buf_size_remaining);
 
-	mutex_unlock(&rm->send_lock);
 	return ret;
 }
 
@@ -610,6 +605,7 @@ int gunyah_rm_call(struct gunyah_rm *rm, u32 message_id, const void *req_buf,
 		return ret;
 	message.reply.seq = lower_16_bits(seq_id);
 
+	mutex_lock(&rm->send_lock);
 	/* Send the request to the Resource Manager */
 	ret = gunyah_rm_send_request(rm, message_id, req_buf, req_buf_size,
 				     &message);
@@ -653,6 +649,7 @@ int gunyah_rm_call(struct gunyah_rm *rm, u32 message_id, const void *req_buf,
 	}
 
 out:
+	mutex_unlock(&rm->send_lock);
 	xa_erase(&rm->call_xarray, message.reply.seq);
 	return ret;
 }
