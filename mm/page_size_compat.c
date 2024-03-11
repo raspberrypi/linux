@@ -18,8 +18,10 @@
 #define __MMAP_RND_BITS(x)      (x - (__PAGE_SHIFT - PAGE_SHIFT))
 
 DEFINE_STATIC_KEY_FALSE(page_shift_compat_enabled);
+EXPORT_SYMBOL_GPL(page_shift_compat_enabled);
 
 int page_shift_compat = MIN_PAGE_SHIFT_COMPAT;
+EXPORT_SYMBOL_GPL(page_shift_compat);
 
 static int __init early_page_shift_compat(char *buf)
 {
