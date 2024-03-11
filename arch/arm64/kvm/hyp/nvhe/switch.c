@@ -213,12 +213,12 @@ static void kvm_hyp_handle_fpsimd_host(struct kvm_vcpu *vcpu)
 	 */
 	if (unlikely(is_protected_kvm_enabled() && system_supports_sve())) {
 		struct kvm_host_sve_state *sve_state = get_host_sve_state(vcpu);
-		u64 vq_len = sve_vq_from_vl(kvm_host_sve_max_vl) - 1;
+		u64 zcr_el2 = sve_vq_from_vl(kvm_host_sve_max_vl) - 1;
 
 		sve_state->zcr_el1 = read_sysreg_el1(SYS_ZCR);
-		sve_cond_update_zcr_vq(vq_len, SYS_ZCR_EL2);
+		sve_cond_update_zcr_vq(zcr_el2, SYS_ZCR_EL2);
 		__sve_save_state(sve_state->sve_regs +
-					 sve_ffr_offset(kvm_host_sve_max_vl),
+				 sve_ffr_offset(kvm_host_sve_max_vl),
 				 &sve_state->fpsr);
 
 		/* Still trap SVE since it's handled by hyp in pKVM. */
