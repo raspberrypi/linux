@@ -457,6 +457,14 @@
 #define X86_FEATURE_SRSO_NO		(20*32+29) /* "" CPU is not affected by SRSO */
 
 /*
+ * Extended auxiliary flags: Linux defined - for features scattered in various
+ * CPUID levels like 0x80000022, etc and Linux defined features.
+ *
+ * Reuse free bits when adding new feature flags!
+ */
+#define X86_FEATURE_CLEAR_BHB_LOOP	(21*32+ 1) /* "" Clear branch history at syscall entry using SW loop */
+
+/*
  * BUG word(s)
  */
 #define X86_BUG(x)			(NCAPINTS*32 + (x))
