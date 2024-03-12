@@ -383,7 +383,7 @@
 			#pwm-cells = <3>;
 			clocks = <&rp1_clocks RP1_CLK_PWM0>;
 			assigned-clocks = <&rp1_clocks RP1_CLK_PWM0>;
-			assigned-clock-rates = <6144000>;
+			assigned-clock-rates = <50000000>;
 			status = "disabled";
 		};
 
@@ -393,7 +393,7 @@
 			#pwm-cells = <3>;
 			clocks = <&rp1_clocks RP1_CLK_PWM1>;
 			assigned-clocks = <&rp1_clocks RP1_CLK_PWM1>;
-			assigned-clock-rates = <6144000>;
+			assigned-clock-rates = <50000000>;
 			status = "disabled";
 		};
 
