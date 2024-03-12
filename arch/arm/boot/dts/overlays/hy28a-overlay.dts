@@ -73,7 +73,7 @@
 				spi-max-frequency = <2000000>;
 				interrupts = <17 2>; /* high-to-low edge triggered */
 				interrupt-parent = <&gpio>;
-				pendown-gpio = <&gpio 17 0>;
+				pendown-gpio = <&gpio 17 1>;
 				ti,x-plate-ohms = /bits/ 16 <100>;
 				ti,pressure-max = /bits/ 16 <255>;
 			};
