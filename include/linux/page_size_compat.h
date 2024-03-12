@@ -94,7 +94,7 @@ static __always_inline unsigned __page_shift(void)
  *       in ___filemap_fixup()
  */
 #define __VM_NO_COMPAT      (_AC(1,ULL) << 63)
-#define __MAP_NO_COMPAT     (_AC(1,ULL) << 63)
+#define __MAP_NO_COMPAT     (_AC(1,UL) << 31)
 
 /*
  * Conditional page-alignment based on mmap flags
