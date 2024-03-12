@@ -57,7 +57,7 @@
 				spi-max-frequency = <2000000>;
 				interrupts = <255 2>; /* high-to-low edge triggered */
 				interrupt-parent = <&gpio>;
-				pendown-gpio = <&gpio 255 0>;
+				pendown-gpio = <&gpio 255 1>;
 
 				/* driver defaults */
 				ti,x-min = /bits/ 16 <0>;
