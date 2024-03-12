@@ -42,7 +42,6 @@
 		target = <&pwm1>;
 		pwm: __overlay__ {
 			status = "okay";
-			assigned-clock-rates = <100000000>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pins>;
 		};

@@ -345,7 +345,7 @@
 		pwm0: pwm@7d00c000 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7d00c000 0x28>;
-			assigned-clock-rates = <10000000>;
+			assigned-clock-rates = <50000000>;
 			#pwm-cells = <3>;
 			status = "disabled";
 		};
@@ -353,7 +353,7 @@
 		pwm1: pwm@7d00c800 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7d00c800 0x28>;
-			assigned-clock-rates = <10000000>;
+			assigned-clock-rates = <50000000>;
 			#pwm-cells = <3>;
 			status = "disabled";
 		};
