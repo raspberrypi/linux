@@ -539,6 +539,9 @@ struct ov2740 {
 
 	/* True if the device has been identified */
 	bool identified;
+
+	/* Track streaming state */
+	u8 streaming;
 };
 
 static inline struct ov2740 *to_ov2740(struct v4l2_subdev *subdev)
@@ -929,6 +932,11 @@ static int ov2740_enable_streams(struct v4l2_subdev *sd,
 	int link_freq_index;
 	int ret;
 
+	if (ov2740->streaming) {
+		ov2740->streaming |= streams_mask;
+		return 0;
+	}
+
 	ret = pm_runtime_resume_and_get(&client->dev);
 	if (ret < 0)
 		return ret;
@@ -975,6 +983,8 @@ static int ov2740_enable_streams(struct v4l2_subdev *sd,
 		goto out_pm_put;
 	}
 
+	ov2740->streaming |= streams_mask;
+
 	return 0;
 
 out_pm_put:
@@ -990,6 +1000,10 @@ static int ov2740_disable_streams(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov2740 *ov2740 = to_ov2740(sd);
 	int ret;
+
+	ov2740->streaming &= ~streams_mask;
+	if (ov2740->streaming)
+		return 0;
 
 	ret = ov2740_write_reg(ov2740, OV2740_REG_MODE_SELECT, 1,
 			       OV2740_MODE_STANDBY);
