@@ -1,4 +1,4 @@
-// Definitions for HiFiBerry DAC+ADC
+// Definitions for HiFiBerry DAC+ADC, no onboard clocks
 /dts-v1/;
 /plugin/;
 
@@ -15,8 +15,8 @@
 		};
 	};
 
-	frag1: fragment@1 {
-		target = <&i2s_clk_consumer>;
+	fragment@1 {
+		target = <&i2s_clk_producer>;
 		__overlay__ {
 			status = "okay";
 		};
@@ -58,7 +58,8 @@
 		target = <&sound>;
 		hifiberry_dacplusadc: __overlay__ {
 			compatible = "hifiberry,hifiberry-dacplusadc";
-			i2s-controller = <&i2s_clk_consumer>;
+			i2s-controller = <&i2s_clk_producer>;
+			hifiberry-dacplusadc,slave;
 			status = "okay";
 		};
 	};
@@ -66,9 +67,6 @@
 	__overrides__ {
 		24db_digital_gain =
 			<&hifiberry_dacplusadc>,"hifiberry,24db_digital_gain?";
-		slave = <&hifiberry_dacplusadc>,"hifiberry-dacplusadc,slave?",
-			<&frag1>,"target:0=",<&i2s_clk_producer>,
-			<&hifiberry_dacplusadc>,"i2s-controller:0=",<&i2s_clk_producer>;
 		leds_off = <&hifiberry_dacplusadc>,"hifiberry-dacplusadc,leds_off?";
 	};
 };
