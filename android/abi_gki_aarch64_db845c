@@ -31,7 +31,7 @@
   __cfg80211_alloc_reply_skb
   cfg80211_find_elem_match
   cfg80211_find_vendor_elem
-  cfg80211_get_bss
+  __cfg80211_get_bss
   cfg80211_put_bss
   __cfg80211_send_event_skb
   cfg80211_vendor_cmd_reply

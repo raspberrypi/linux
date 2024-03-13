@@ -119,7 +119,7 @@
   cfg80211_disconnected
   cfg80211_find_elem_match
   cfg80211_ft_event
-  cfg80211_get_bss
+  __cfg80211_get_bss
   cfg80211_inform_bss_data
   cfg80211_mgmt_tx_status_ext
   cfg80211_michael_mic_failure

@@ -1,5 +1,6 @@
 __cfg80211_alloc_event_skb
 __cfg80211_alloc_reply_skb
+__cfg80211_get_bss
 __cfg80211_radar_event
 __cfg80211_send_event_skb
 __hci_cmd_send
@@ -132,7 +133,6 @@ cfg80211_find_elem_match
 cfg80211_find_vendor_elem
 cfg80211_free_nan_func
 cfg80211_ft_event
-cfg80211_get_bss
 cfg80211_get_drvinfo
 cfg80211_get_ies_channel_number
 cfg80211_get_iftype_ext_capa
