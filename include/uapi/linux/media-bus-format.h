@@ -183,7 +183,8 @@
 #define MEDIA_BUS_FMT_META_20			0x8006
 #define MEDIA_BUS_FMT_META_24			0x8007
 
-/* Specific metadata formats. Next is 0x9002. */
+/* Specific metadata formats. Next is 0x9003. */
 #define MEDIA_BUS_FMT_CCS_EMBEDDED		0x9001
+#define MEDIA_BUS_FMT_OV2740_EMBEDDED		0x9002
 
 #endif /* __LINUX_MEDIA_BUS_FORMAT_H */
