@@ -572,7 +572,8 @@ internal pad always has a single stream only (0).
 Routes from an internal source pad to an external source pad are typically not
 modifiable but they can be activated and deactivated using the
 :ref:`V4L2_SUBDEV_ROUTE_FL_ACTIVE <v4l2-subdev-routing-flags>` flag, depending
-on driver capabilities.
+on driver capabilities. This capatibility is indicated by the
+:ref:`V4L2_SUBDEV_ROUTE_FL_IMMUTABLE <v4l2-subdev-routing-flags>` flag.
 
 Interaction between routes, streams, formats and selections
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
