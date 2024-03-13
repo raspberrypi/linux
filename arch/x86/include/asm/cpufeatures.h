@@ -463,6 +463,7 @@
  * Reuse free bits when adding new feature flags!
  */
 #define X86_FEATURE_CLEAR_BHB_LOOP	(21*32+ 1) /* "" Clear branch history at syscall entry using SW loop */
+#define X86_FEATURE_BHI_CTRL		(21*32+ 2) /* "" BHI_DIS_S HW control available */
 
 /*
  * BUG word(s)
