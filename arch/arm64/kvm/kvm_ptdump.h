@@ -13,8 +13,10 @@
 
 #ifdef CONFIG_PTDUMP_STAGE2_DEBUGFS
 void kvm_ptdump_guest_register(struct kvm *kvm);
+void kvm_ptdump_host_register(void);
 #else
 static inline void kvm_ptdump_guest_register(struct kvm *kvm) {}
+static inline void kvm_ptdump_host_register(void) {}
 #endif /* CONFIG_PTDUMP_STAGE2_DEBUGFS */
 
 #endif /* __KVM_PTDUMP_H */

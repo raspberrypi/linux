@@ -11,6 +11,7 @@
 #include <linux/seq_file.h>
 
 #include <asm/kvm_pgtable.h>
+#include <asm/kvm_pkvm.h>
 #include <kvm_ptdump.h>
 
 
@@ -248,11 +249,27 @@ retry_mc_alloc:
 	return snap;
 }
 
+static size_t host_stage2_get_pgd_size(void)
+{
+	u32 phys_shift = get_kvm_ipa_limit();
+	u64 vtcr = kvm_get_vtcr(read_sanitised_ftr_reg(SYS_ID_AA64MMFR0_EL1),
+				read_sanitised_ftr_reg(SYS_ID_AA64MMFR1_EL1),
+				phys_shift);
+	return kvm_pgtable_stage2_pgd_size(vtcr);
+}
+
+static struct kvm_pgtable_snapshot *kvm_ptdump_get_host_snapshot(void *data)
+{
+	size_t mc_pages, pgd_pages;
+	mc_pages = (size_t)data;
+	pgd_pages = host_stage2_get_pgd_size() >> PAGE_SHIFT;
+	return kvm_ptdump_get_snapshot(0, (size_t)data, pgd_pages);
+}
+
 static struct kvm_ptdump_guest_state
-*kvm_ptdump_parser_init(struct kvm *kvm)
+*kvm_ptdump_parser_init(struct kvm *kvm, char *decorator, void *data)
 {
 	struct kvm_ptdump_guest_state *st;
-	struct kvm_s2_mmu *mmu = &kvm->arch.mmu;
 	struct kvm_pgtable *pgtable;
 	struct kvm_pgtable_snapshot *snap;
 	int ret;
@@ -262,10 +279,14 @@ static struct kvm_ptdump_guest_state
 		return ERR_PTR(-ENOMEM);
 
 	if (!is_protected_kvm_enabled()) {
-		pgtable = mmu->pgt;
+		pgtable = kvm->arch.mmu.pgt;
 		st->kvm = kvm;
 	} else {
-		snap = kvm_ptdump_get_guest_snapshot(kvm);
+		if (!data)
+			snap = kvm_ptdump_get_guest_snapshot(kvm);
+		else
+			snap = kvm_ptdump_get_host_snapshot(data);
+
 		if (IS_ERR(snap)) {
 			ret = PTR_ERR(snap);
 			goto free_with_state;
@@ -279,7 +300,7 @@ static struct kvm_ptdump_guest_state
 	if (ret)
 		goto free_with_state;
 
-	st->ipa_marker[0].name		= "Guest IPA";
+	st->ipa_marker[0].name		= decorator;
 	st->ipa_marker[1].start_address = BIT(pgtable->ia_bits);
 	st->range[0].end		= BIT(pgtable->ia_bits);
 
@@ -337,7 +358,7 @@ static int kvm_ptdump_guest_open(struct inode *m, struct file *file)
 	if (!kvm_get_kvm_safe(kvm))
 		return -ENOENT;
 
-	st = kvm_ptdump_parser_init(kvm);
+	st = kvm_ptdump_parser_init(kvm, "Guest IPA", NULL);
 	if (IS_ERR(st)) {
 		ret = PTR_ERR(st);
 		goto free_with_kvm_ref;
@@ -454,4 +475,45 @@ void kvm_ptdump_guest_register(struct kvm *kvm)
 			    &kvm_pgtable_debugfs_fops);
 	debugfs_create_file("stage2_levels", 0400, kvm->debugfs_dentry,
 			    kvm, &kvm_pgtable_debugfs_fops);
+}
+
+static int kvm_ptdump_host_open(struct inode *m, struct file *file)
+{
+	struct kvm_ptdump_guest_state *st;
+	int ret;
+
+	st = kvm_ptdump_parser_init(NULL, "Host IPA", m->i_private);
+	if (IS_ERR(st))
+		return PTR_ERR(st);
+
+	ret = single_open(file, kvm_ptdump_protected_guest_show, st);
+	if (!ret)
+		return 0;
+
+	kvm_ptdump_put_snapshot(st->snap);
+	kfree(st);
+	return ret;
+}
+
+static int kvm_ptdump_host_close(struct inode *m, struct file *file)
+{
+	struct seq_file *seq = (struct seq_file *)file->private_data;
+	struct kvm_ptdump_guest_state *st = seq->private;
+
+	kvm_ptdump_put_snapshot(st->snap);
+	kfree(st);
+	return single_release(m, file);
+}
+
+static const struct file_operations kvm_ptdump_host_fops = {
+	.open		= kvm_ptdump_host_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= kvm_ptdump_host_close,
+};
+
+void kvm_ptdump_host_register(void)
+{
+	debugfs_create_file("host_stage2_page_tables", 0400, kvm_debugfs_dir,
+			    (void *)host_s2_pgtable_pages(), &kvm_ptdump_host_fops);
 }
