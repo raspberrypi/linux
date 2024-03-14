@@ -360,7 +360,7 @@ int i2c_mux_add_adapter(struct i2c_mux_core *muxc,
 
 		of_property_read_u32(dev_node, "base-nr", &base_nr);
 		if (!force_nr)
-			force_nr = base_nr;
+			force_nr = base_nr + chan_id;
 
 		if (muxc->arbitrator)
 			mux_node = of_get_child_by_name(dev_node, "i2c-arb");
