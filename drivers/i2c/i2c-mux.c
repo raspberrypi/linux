@@ -369,6 +369,14 @@ int i2c_mux_add_adapter(struct i2c_mux_core *muxc,
 	else
 		priv->adap.lock_ops = &i2c_parent_lock_ops;
 
+	if (muxc->dev->of_node) {
+		u32 base_nr = 0;
+
+		of_property_read_u32(muxc->dev->of_node, "base-nr", &base_nr);
+		if (!force_nr && base_nr)
+			force_nr = base_nr + chan_id;
+	}
+
 	/* Associate the mux adapter with its channel firmware node. */
 	priv->channel_node = i2c_mux_get_channel_node(muxc, chan_id);
 	device_set_node(&priv->adap.dev, priv->channel_node);
