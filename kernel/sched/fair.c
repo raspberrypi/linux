@@ -7670,6 +7670,12 @@ unsigned long cpu_util_cfs(int cpu)
 
 unsigned long cpu_util_cfs_boost(int cpu)
 {
+	unsigned long util = INT_MAX;
+
+	trace_android_rvh_cpu_util_cfs_boost(cpu, &util);
+	if (util != INT_MAX)
+		return util;
+
 	return cpu_util(cpu, NULL, -1, 1);
 }
 
