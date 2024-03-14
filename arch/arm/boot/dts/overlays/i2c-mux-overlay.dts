@@ -3,6 +3,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/mux/mux.h>
+
 /{
 	compatible = "brcm,bcm2835";
 
@@ -169,5 +171,9 @@
 		       <&frag100>, "target-path=i2c5";
 		i2c6 = <&frag100>, "target?=0",
 		       <&frag100>, "target-path=i2c6";
+		disconnect_on_idle =
+			<&pca9542>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,
+			<&pca9545>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,
+			<&pca9548>,"idle-state:0=", <MUX_IDLE_DISCONNECT>;
 	};
 };

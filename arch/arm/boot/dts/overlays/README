@@ -2042,6 +2042,9 @@ Params: pca9542                 Select the NXP PCA9542 device
         i2c6                    Choose the I2C6 bus (configure with the i2c6
                                 overlay - BCM2711 only)
 
+        disconnect_on_idle      Force the mux to disconnect all child buses
+                                after every transaction.
+
 
 [ The i2c-mux-pca9548a overlay has been deleted. See i2c-mux. ]
 
