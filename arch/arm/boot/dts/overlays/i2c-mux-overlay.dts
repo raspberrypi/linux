@@ -159,6 +159,10 @@
 			<&pca9545>,"reg:0",
 			<&pca9548>,"reg:0";
 
+		base =  <&pca9542>,"base-nr:0",
+			<&pca9545>,"base-nr:0",
+			<&pca9548>,"base-nr:0";
+
 		i2c0 = <&frag100>, "target:0=",<&i2c0>,
 			      <0>,"+101+102";
 		i2c_csi_dsi = <&frag100>, "target:0=",<&i2c_csi_dsi>,
