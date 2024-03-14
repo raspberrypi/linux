@@ -93,12 +93,14 @@
   tcf_exts_validate
   tcf_queue_work
   __traceiter_android_rvh_post_init_entity_util_avg
+  __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_cgroup_set_task
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_rwsem_downgrade_wake_finish
   __traceiter_android_vh_tune_swappiness
   __traceiter_sched_stat_iowait
   __tracepoint_android_rvh_post_init_entity_util_avg
+  __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_cgroup_set_task
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
