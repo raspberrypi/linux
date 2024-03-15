@@ -1696,6 +1696,7 @@
   tasklet_setup
   tasklet_unlock_wait
   tasklist_lock
+  task_sched_runtime
   thermal_cooling_device_unregister
   thermal_of_cooling_device_register
   thermal_zone_device_unregister
