@@ -1015,8 +1015,8 @@ static bool mmc_sd_card_using_v18(struct mmc_card *card)
 	       (SD_MODE_UHS_SDR50 | SD_MODE_UHS_SDR104 | SD_MODE_UHS_DDR50);
 }
 
-static int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
-			    u8 reg_data)
+int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
+		     u8 reg_data)
 {
 	struct mmc_host *host = card->host;
 	struct mmc_request mrq = {};
@@ -1174,8 +1174,14 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 		card->ext_perf.feature_support |= SD_EXT_PERF_CACHE;
 
 	/* Command queue support indicated via queue depth bits (0 to 4). */
-	if (reg_buf[6] & 0x1f)
+	if (reg_buf[6] & 0x1f) {
 		card->ext_perf.feature_support |= SD_EXT_PERF_CMD_QUEUE;
+		card->ext_csd.cmdq_depth = reg_buf[6] & 0x1f;
+		card->ext_csd.cmdq_support = true;
+		pr_debug("%s: Command Queue supported depth %u\n",
+			 mmc_hostname(card->host),
+			 card->ext_csd.cmdq_depth);
+	}
 
 	card->ext_perf.fno = fno;
 	card->ext_perf.page = page;
@@ -1559,13 +1565,41 @@ cont:
 			goto free_card;
 	}
 
+	/* Enable command queueing if supported */
+	if (card->ext_csd.cmdq_support && host->caps2 & MMC_CAP2_CQE) {
+		/*
+		 * Right now the MMC block layer uses DCMDs to issue
+		 * cache-flush commands specific to eMMC devices.
+		 * Turning off DCMD support avoids generating Illegal Command
+		 * errors on SD, and flushing is instead done synchronously
+		 * by mmc_blk_issue_flush().
+		 */
+		host->caps2 &= ~MMC_CAP2_CQE_DCMD;
+		err = mmc_sd_cmdq_enable(card);
+		if (err && err != -EBADMSG)
+			goto free_card;
+		if (err) {
+			pr_warn("%s: Enabling CMDQ failed\n",
+				mmc_hostname(card->host));
+			card->ext_csd.cmdq_support = false;
+			card->ext_csd.cmdq_depth = 0;
+		}
+	}
+	card->reenable_cmdq = card->ext_csd.cmdq_en;
+
 	if (host->cqe_ops && !host->cqe_enabled) {
 		err = host->cqe_ops->cqe_enable(host, card);
 		if (!err) {
 			host->cqe_enabled = true;
-			host->hsq_enabled = true;
-			pr_info("%s: Host Software Queue enabled\n",
-				mmc_hostname(host));
+
+			if (card->ext_csd.cmdq_en) {
+				pr_info("%s: Command Queue Engine enabled\n",
+					mmc_hostname(host));
+			} else {
+				host->hsq_enabled = true;
+				pr_info("%s: Host Software Queue enabled\n",
+					mmc_hostname(host));
+			}
 		}
 	}
 
