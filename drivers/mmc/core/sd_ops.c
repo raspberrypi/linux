@@ -393,3 +393,40 @@ int mmc_app_sd_status(struct mmc_card *card, void *ssr)
 
 	return 0;
 }
+
+int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
+		     u8 reg_data);
+
+static int mmc_sd_cmdq_switch(struct mmc_card *card, bool enable)
+{
+	int err;
+	u8 reg = 0;
+	/*
+	 * SD offers two command queueing modes - sequential (in-order) and
+	 * voluntary (out-of-order). Apps Class A2 performance is only
+	 * guaranteed for voluntary CQ (bit 1 = 0), so use that in preference
+	 * to sequential.
+	 */
+	if (enable)
+		reg = BIT(0);
+
+	/* Performance enhancement register byte 262 controls command queueing */
+	err = sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
+			       card->ext_perf.offset + 262, reg);
+	if (!err)
+		card->ext_csd.cmdq_en = enable;
+
+	return err;
+}
+
+int mmc_sd_cmdq_enable(struct mmc_card *card)
+{
+	return mmc_sd_cmdq_switch(card, true);
+}
+EXPORT_SYMBOL_GPL(mmc_sd_cmdq_enable);
+
+int mmc_sd_cmdq_disable(struct mmc_card *card)
+{
+	return mmc_sd_cmdq_switch(card, false);
+}
+EXPORT_SYMBOL_GPL(mmc_sd_cmdq_disable);

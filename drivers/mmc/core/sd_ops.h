@@ -21,6 +21,8 @@ int mmc_send_relative_addr(struct mmc_host *host, unsigned int *rca);
 int mmc_app_send_scr(struct mmc_card *card);
 int mmc_app_sd_status(struct mmc_card *card, void *ssr);
 int mmc_app_cmd(struct mmc_host *host, struct mmc_card *card);
+int mmc_sd_cmdq_enable(struct mmc_card *card);
+int mmc_sd_cmdq_disable(struct mmc_card *card);
 
 #endif
 
