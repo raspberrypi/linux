@@ -586,6 +586,8 @@ static int dp_hpd_plug_handle(struct dp_display_private *dp, u32 data)
 	u32 state;
 	int ret;
 
+	dp_aux_enable_xfers(dp->aux, true);
+
 	mutex_lock(&dp->event_mutex);
 
 	state =  dp->hpd_state;
@@ -641,6 +643,8 @@ static void dp_display_handle_plugged_change(struct msm_dp *dp_display,
 static int dp_hpd_unplug_handle(struct dp_display_private *dp, u32 data)
 {
 	u32 state;
+
+	dp_aux_enable_xfers(dp->aux, false);
 
 	mutex_lock(&dp->event_mutex);
 
