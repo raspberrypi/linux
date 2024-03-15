@@ -24,6 +24,8 @@ int mmc_app_sd_status(struct mmc_card *card, void *ssr);
 int mmc_app_cmd(struct mmc_host *host, struct mmc_card *card);
 int mmc_send_ext_addr(struct mmc_host *host, u32 addr);
 void mmc_uhs2_prepare_cmd(struct mmc_host *host, struct mmc_request *mrq);
+int mmc_sd_cmdq_enable(struct mmc_card *card);
+int mmc_sd_cmdq_disable(struct mmc_card *card);
 
 #endif
 
