@@ -453,7 +453,6 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 	phys_addr_t phys = 0;
 	struct kvm_hyp_iommu_domain *domain;
 
-	hyp_spin_lock(&iommu_domains_lock);
 	domain = handle_to_domain( domain_id);
 
 	if (!domain || domain_get(domain))
@@ -463,7 +462,6 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 		goto out_unlock;
 
 	phys = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
-
 
 out_unlock:
 	domain_put(domain);
