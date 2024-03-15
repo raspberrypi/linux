@@ -29,6 +29,9 @@
 #define SD_APP_OP_COND           41   /* bcr  [31:0] OCR         R3  */
 #define SD_APP_SEND_SCR          51   /* adtc                    R1  */
 
+  /* class 1 */
+#define SD_CMDQ_TASK_MGMT        43   /* ac   See below          R1b */
+
   /* class 11 */
 #define SD_READ_EXTR_SINGLE      48   /* adtc [31:0]             R1  */
 #define SD_WRITE_EXTR_SINGLE     49   /* adtc [31:0]             R1  */
@@ -59,6 +62,15 @@
  *	[31:12] Reserved (0)
  *	[11:8] Host Voltage Supply Flags
  *	[7:0] Check Pattern (0xAA)
+ */
+
+/*
+ * SD_CMDQ_TASK_MGMT argument format:
+ *
+ * [31:21] Reserved (0)
+ * [20:16] Task ID
+ * [15:4] Reserved (0)
+ * [3:0] Operation - 0x1 = abort all tasks, 0x2 = abort Task ID
  */
 
 /*
