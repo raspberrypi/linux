@@ -359,7 +359,7 @@ int i2c_mux_add_adapter(struct i2c_mux_core *muxc,
 		u32 reg;
 
 		of_property_read_u32(dev_node, "base-nr", &base_nr);
-		if (!force_nr)
+		if (!force_nr && base_nr)
 			force_nr = base_nr + chan_id;
 
 		if (muxc->arbitrator)
