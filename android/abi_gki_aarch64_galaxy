@@ -1,6 +1,12 @@
 [abi_symbol_list]
+  blkdev_get_by_path
+  blkdev_issue_flush
   __devm_alloc_percpu
+  file_ra_state_init
+  file_write_and_wait_range
+  generic_perform_write
   getboottime64
+  __get_task_ioprio
   gpiochip_find
   param_get_uint
   param_set_uint
