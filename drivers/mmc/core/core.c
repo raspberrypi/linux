@@ -556,7 +556,11 @@ int mmc_cqe_recovery(struct mmc_host *host)
 	mmc_poll_for_busy(host->card, MMC_CQE_RECOVERY_TIMEOUT, true, MMC_BUSY_IO);
 
 	memset(&cmd, 0, sizeof(cmd));
-	cmd.opcode       = MMC_CMDQ_TASK_MGMT;
+	if (mmc_card_sd(host->card))
+		cmd.opcode = SD_CMDQ_TASK_MGMT;
+	else
+		cmd.opcode = MMC_CMDQ_TASK_MGMT;
+
 	cmd.arg          = 1; /* Discard entire queue */
 	cmd.flags        = MMC_RSP_R1B | MMC_CMD_AC;
 	cmd.flags       &= ~MMC_RSP_CRC; /* Ignore CRC */
