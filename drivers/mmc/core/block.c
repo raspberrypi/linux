@@ -887,7 +887,10 @@ static int mmc_blk_part_switch_pre(struct mmc_card *card,
 
 	if ((part_type & mask) == rpmb) {
 		if (card->ext_csd.cmdq_en) {
-			ret = mmc_cmdq_disable(card);
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_disable(card);
+			else
+				ret = mmc_cmdq_disable(card);
 			if (ret)
 				return ret;
 		}
@@ -906,8 +909,12 @@ static int mmc_blk_part_switch_post(struct mmc_card *card,
 
 	if ((part_type & mask) == rpmb) {
 		mmc_retune_unpause(card->host);
-		if (card->reenable_cmdq && !card->ext_csd.cmdq_en)
-			ret = mmc_cmdq_enable(card);
+		if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_enable(card);
+			else
+				ret = mmc_cmdq_enable(card);
+		}
 	}
 
 	return ret;
@@ -1103,7 +1110,10 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	switch (mq_rq->drv_op) {
 	case MMC_DRV_OP_IOCTL:
 		if (card->ext_csd.cmdq_en) {
-			ret = mmc_cmdq_disable(card);
+			if (mmc_card_sd(card))
+				ret = mmc_sd_cmdq_disable(card);
+			else
+				ret = mmc_cmdq_disable(card);
 			if (ret)
 				break;
 		}
@@ -1121,8 +1131,12 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 		/* Always switch back to main area after RPMB access */
 		if (rpmb_ioctl)
 			mmc_blk_part_switch(card, 0);
-		else if (card->reenable_cmdq && !card->ext_csd.cmdq_en)
-			mmc_cmdq_enable(card);
+		else if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			if (mmc_card_sd(card))
+				mmc_sd_cmdq_enable(card);
+			else
+				mmc_cmdq_enable(card);
+		}
 		break;
 	case MMC_DRV_OP_BOOT_WP:
 		ret = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_BOOT_WP,
