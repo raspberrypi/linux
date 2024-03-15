@@ -1859,11 +1859,15 @@ int pkvm_stage2_snapshot_by_handle(struct kvm_pgtable_snapshot *snap_hva,
 	if (!snap)
 		return -EINVAL;
 
-	hyp_read_lock(&vm_table_lock);
-	vm = get_vm_by_handle(handle);
-	if (vm)
-		ret = __pkvm_guest_stage2_snapshot(snap, vm);
-	hyp_read_unlock(&vm_table_lock);
+	if (!handle)
+		ret = __pkvm_host_stage2_snapshot(snap);
+	else {
+		hyp_read_lock(&vm_table_lock);
+		vm = get_vm_by_handle(handle);
+		if (vm)
+			ret = __pkvm_guest_stage2_snapshot(snap, vm);
+		hyp_read_unlock(&vm_table_lock);
+	}
 
 	if (!ret) {
 		pgd = snap->pgtable.pgd;
