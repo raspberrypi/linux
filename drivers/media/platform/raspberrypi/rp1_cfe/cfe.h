@@ -11,7 +11,7 @@
 #include <linux/media-bus-format.h>
 #include <linux/videodev2.h>
 
-extern bool cfe_debug_verbose;
+extern bool cfe_debug_irq;
 
 enum cfe_remap_types {
 	CFE_REMAP_16BIT,
