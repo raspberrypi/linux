@@ -1837,10 +1837,17 @@ static int cfe_probe_complete(struct cfe_device *cfe)
 		goto unregister;
 	}
 
+	/*
+	 * Release the initial reference, all references are now owned by the
+	 * video devices.
+	 */
+	cfe_put(cfe);
 	return 0;
 
 unregister:
 	cfe_unregister_nodes(cfe);
+	cfe_put(cfe);
+
 	return ret;
 }
 
@@ -2121,8 +2128,6 @@ static int cfe_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 
 	v4l2_device_unregister(&cfe->v4l2_dev);
-
-	cfe_put(cfe);
 
 	return 0;
 }
