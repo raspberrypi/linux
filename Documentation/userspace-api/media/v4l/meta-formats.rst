@@ -16,7 +16,6 @@ These formats are used for the :ref:`metadata` interface only.
     metafmt-d4xx
     metafmt-intel-ipu3
     metafmt-rkisp1
-    metafmt-sensor-data
     metafmt-uvc
     metafmt-vsp1-hgo
     metafmt-vsp1-hgt
