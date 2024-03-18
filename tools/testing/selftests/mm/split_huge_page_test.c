@@ -253,7 +253,7 @@ void split_file_backed_thp(void)
 		goto cleanup;
 	}
 
-	fd = open(testfile, O_CREAT|O_WRONLY);
+	fd = open(testfile, O_CREAT|O_WRONLY, 0664);
 	if (fd == -1) {
 		perror("Cannot open testing file\n");
 		goto cleanup;
