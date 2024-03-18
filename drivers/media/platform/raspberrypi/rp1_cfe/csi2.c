@@ -253,7 +253,6 @@ void csi2_start_channel(struct csi2_device *csi2, unsigned int channel,
 		 */
 		set_field(&ctrl, 0x3ff, LC_MASK);
 		set_field(&ctrl, 0x00, CH_MODE_MASK);
-		csi2_reg_write(csi2, CSI2_CH_FRAME_SIZE(channel), 0);
 	}
 
 	set_field(&ctrl, dt, DT_MASK);
@@ -278,8 +277,8 @@ void csi2_open_rx(struct csi2_device *csi2)
 {
 	dphy_start(&csi2->dphy);
 
-	csi2_reg_write(csi2, CSI2_CTRL,
-		       csi2->multipacket_line ? 0 : EOP_IS_EOL);
+	if (!csi2->multipacket_line)
+		csi2_reg_write(csi2, CSI2_CTRL, EOP_IS_EOL);
 }
 
 void csi2_close_rx(struct csi2_device *csi2)
