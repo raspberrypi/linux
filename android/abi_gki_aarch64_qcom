@@ -1363,6 +1363,7 @@
   __rcu_read_lock
   __rcu_read_unlock
   rdev_get_drvdata
+  readahead_gfp_mask
   reboot_mode
   rebuild_sched_domains
   reclaim_shmem_address_space
@@ -1772,6 +1773,8 @@
   __traceiter_android_rvh_select_task_rq_fair
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_set_cpus_allowed_by_task
+  __traceiter_android_rvh_set_gfp_zone_flags
+  __traceiter_android_rvh_set_readahead_gfp_mask
   __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_shmem_get_folio
   __traceiter_android_rvh_show_max_freq
@@ -1863,6 +1866,8 @@
   __tracepoint_android_rvh_select_task_rq_fair
   __tracepoint_android_rvh_select_task_rq_rt
   __tracepoint_android_rvh_set_cpus_allowed_by_task
+  __tracepoint_android_rvh_set_gfp_zone_flags
+  __tracepoint_android_rvh_set_readahead_gfp_mask
   __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_shmem_get_folio
   __tracepoint_android_rvh_show_max_freq
