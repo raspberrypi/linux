@@ -20,7 +20,6 @@ obj-y += microchip/
 obj-y += nvidia/
 obj-y += nxp/
 obj-y += qcom/
-obj-y += raspberrypi/
 obj-y += renesas/
 obj-y += rockchip/
 obj-y += samsung/
