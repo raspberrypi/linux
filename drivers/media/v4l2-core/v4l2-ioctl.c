@@ -1521,17 +1521,6 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_AV1_FRAME:	descr = "AV1 Frame"; break;
 		case V4L2_PIX_FMT_MT2110T:	descr = "Mediatek 10bit Tile Mode"; break;
 		case V4L2_PIX_FMT_MT2110R:	descr = "Mediatek 10bit Raster Mode"; break;
-		case V4L2_PIX_FMT_RPI_BE:	descr = "PiSP Opaque Format"; break;
-		case V4L2_PIX_FMT_PISP_COMP1_RGGB:
-		case V4L2_PIX_FMT_PISP_COMP1_GRBG:
-		case V4L2_PIX_FMT_PISP_COMP1_GBRG:
-		case V4L2_PIX_FMT_PISP_COMP1_BGGR: 
-		case V4L2_PIX_FMT_PISP_COMP1_MONO: descr = "PiSP Bayer Compressed Format"; break;
-		case V4L2_PIX_FMT_PISP_COMP2_RGGB:
-		case V4L2_PIX_FMT_PISP_COMP2_GRBG:
-		case V4L2_PIX_FMT_PISP_COMP2_GBRG:
-		case V4L2_PIX_FMT_PISP_COMP2_BGGR:
-		case V4L2_PIX_FMT_PISP_COMP2_MONO: descr = "PiSP Bayer Comp 2"; break;
 		default:
 			if (fmt->description[0])
 				return;
