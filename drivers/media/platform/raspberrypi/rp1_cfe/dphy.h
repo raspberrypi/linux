@@ -16,8 +16,7 @@ struct dphy_data {
 	void __iomem *base;
 
 	u32 dphy_rate;
-	u32 max_lanes;
-	u32 active_lanes;
+	u32 num_lanes;
 };
 
 void dphy_probe(struct dphy_data *dphy);
