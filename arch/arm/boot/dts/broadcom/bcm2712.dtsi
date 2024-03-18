@@ -720,9 +720,6 @@
 			dma-names = "audio-rx";
 			status = "disabled";
 		};
-
-		sound: sound {
-		};
 	};
 
 	arm-pmu {

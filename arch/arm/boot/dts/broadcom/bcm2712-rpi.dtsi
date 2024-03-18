@@ -158,6 +158,10 @@ pciex4: &pcie2 { };
 		reg = <0x7d510700 0x20>;
 		chardev-name = "gpiomem4";
 	};
+
+	sound: sound {
+		status = "disabled";
+	};
 };
 
 i2c0: &rp1_i2c0 { };
