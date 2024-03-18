@@ -348,6 +348,7 @@
 				<&ds3231>,"wakeup-source?",
 				<&mcp7940x>,"wakeup-source?",
 				<&mcp7941x>,"wakeup-source?",
-				<&m41t62>,"wakeup-source?";
+				<&m41t62>,"wakeup-source?",
+				<&pcf8563>,"wakeup-source?";
 	};
 };
