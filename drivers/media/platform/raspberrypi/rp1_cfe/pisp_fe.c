@@ -443,9 +443,12 @@ static int pisp_fe_pad_set_fmt(struct v4l2_subdev *sd,
 
 		break;
 
-	case FE_STATS_PAD:
 	case FE_CONFIG_PAD:
-		format->format.code = MEDIA_BUS_FMT_FIXED;
+		format->format.code = MEDIA_BUS_FMT_PISP_FE_CONFIG;
+		break;
+
+	case FE_STATS_PAD:
+		format->format.code = MEDIA_BUS_FMT_PISP_FE_STATS;
 		break;
 	}
 
