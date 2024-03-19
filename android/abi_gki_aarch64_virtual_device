@@ -64,6 +64,9 @@
   devm_request_threaded_irq
   _dev_notice
   __dev_queue_xmit
+  devres_add
+  __devres_alloc_node
+  devres_free
   _dev_warn
   dma_alloc_attrs
   dma_buf_export
@@ -283,8 +286,6 @@
   page_pool_alloc_frag
   page_pool_destroy
   page_pool_put_defragged_page
-  page_shift_compat_enabled
-  page_shift_compat
   param_ops_bool
   param_ops_int
   param_ops_uint
@@ -297,7 +298,6 @@
   pci_iounmap
   pci_read_config_byte
   pci_read_config_dword
-  pci_read_config_word
   __pci_register_driver
   pci_release_region
   pci_request_region
@@ -353,6 +353,7 @@
   sched_set_fifo_low
   schedule
   schedule_timeout
+  scnprintf
   seq_lseek
   seq_printf
   seq_puts
@@ -401,6 +402,7 @@
   synchronize_irq
   synchronize_net
   sysfs_create_group
+  sysfs_emit
   sysfs_remove_group
   system_cpucaps
   system_wq
@@ -455,7 +457,6 @@
   virtio_device_freeze
   virtio_device_restore
   virtio_reset_device
-  virtio_transport_notify_set_rcvlowat
   virtqueue_add_inbuf
   virtqueue_add_outbuf
   virtqueue_add_sgs
@@ -611,7 +612,6 @@
   cpufreq_unregister_driver
 
 # required by dummy_hcd.ko
-  scnprintf
   strstr
   usb_add_gadget_udc
   usb_del_gadget_udc
@@ -626,6 +626,8 @@
 # required by goldfish_address_space.ko
   memremap
   memunmap
+  page_shift_compat
+  page_shift_compat_enabled
 
 # required by goldfish_battery.ko
   power_supply_changed
@@ -680,6 +682,17 @@
   hci_suspend_dev
   iov_iter_revert
   skb_queue_head
+
+# required by kfifo_buf.ko
+  iio_buffer_init
+  iio_buffer_put
+  iio_device_attach_buffer
+  __kfifo_alloc
+  __kfifo_free
+  __kfifo_from_user
+  __kfifo_in
+  __kfifo_out
+  __kfifo_to_user
 
 # required by mac80211_hwsim.ko
   alloc_netdev_mqs
@@ -929,6 +942,17 @@
   rtc_tm_to_time64
   rtc_update_irq
 
+# required by scmi_iio.ko
+  devm_iio_device_alloc
+  __devm_iio_device_register
+  iio_device_claim_direct_mode
+  iio_device_release_direct_mode
+  iio_push_to_buffers
+  int_pow
+  scmi_driver_register
+  scmi_driver_unregister
+  strrchr
+
 # required by system_heap.ko
   dma_heap_add
   dma_heap_get_dev
@@ -980,9 +1004,6 @@
   vzalloc
 
 # required by vexpress-config.ko
-  devres_add
-  __devres_alloc_node
-  devres_free
   of_find_compatible_node
   of_get_next_parent
   __of_parse_phandle_with_args
@@ -1208,7 +1229,6 @@
   sg_alloc_table_chained
   sg_free_table_chained
   string_get_size
-  sysfs_emit
   __sysfs_match_string
   unregister_blkdev
   virtio_max_dma_size
@@ -1323,6 +1343,7 @@
   pci_free_irq_vectors
   pci_irq_get_affinity
   pci_irq_vector
+  pci_read_config_word
   pci_set_master
   pci_vfs_assigned
 
@@ -1421,6 +1442,7 @@
   virtio_transport_notify_send_post_enqueue
   virtio_transport_notify_send_pre_block
   virtio_transport_notify_send_pre_enqueue
+  virtio_transport_notify_set_rcvlowat
   virtio_transport_purge_skbs
   virtio_transport_read_skb
   virtio_transport_recv_pkt
