@@ -697,7 +697,7 @@ struct drm_plane {
 	 * @index: Position inside the mode_config.list, can be used as an array
 	 * index. It is invariant over the lifetime of the plane.
 	 */
-	unsigned index;
+	uint64_t index;
 
 	/** @helper_private: mid-layer private data */
 	const struct drm_plane_helper_funcs *helper_private;
@@ -905,9 +905,9 @@ static inline unsigned int drm_plane_index(const struct drm_plane *plane)
  * drm_plane_mask - find the mask of a registered plane
  * @plane: plane to find mask for
  */
-static inline u32 drm_plane_mask(const struct drm_plane *plane)
+static inline u64 drm_plane_mask(const struct drm_plane *plane)
 {
-	return 1 << drm_plane_index(plane);
+	return 1ULL << drm_plane_index(plane);
 }
 
 struct drm_plane * drm_plane_from_index(struct drm_device *dev, int idx);
