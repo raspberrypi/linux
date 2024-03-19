@@ -43,6 +43,12 @@
 // =============================================
 // Downstream rpi- changes
 
+/ {
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
 &audio_pins {
 	brcm,pins = <>;
 	brcm,function = <>;
