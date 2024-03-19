@@ -249,7 +249,7 @@ i2c_csi_dsi0: &i2c6 { // Note: This is for MIPI0 connector only
 i2c_csi_dsi1: &i2c0 { // Note: This is for MIPI1 connector
 };
 
-i2c_csi_dsi: &i2c_csi_dsi0 { }; // An alias for compatibility
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // An alias for compatibility
 
 cam1_reg: &cam0_reg { // Shares CAM_GPIO with cam0_reg
 };
