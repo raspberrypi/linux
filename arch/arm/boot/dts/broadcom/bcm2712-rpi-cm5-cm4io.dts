@@ -3,8 +3,6 @@
 
 #include "bcm2712-rpi-cm5.dtsi"
 
-i2c_csi_dsi: &i2c_csi_dsi0 { }; // An alias for compatibility
-
 // The RP1 USB3 interfaces are not usable on CM4IO
 
 &rp1_usb0 {
