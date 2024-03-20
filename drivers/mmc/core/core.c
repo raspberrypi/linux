@@ -455,6 +455,7 @@ int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq)
 		goto out_err;
 
 	trace_mmc_request_start(host, mrq);
+	led_trigger_event(host->led, LED_FULL);
 
 	return 0;
 
