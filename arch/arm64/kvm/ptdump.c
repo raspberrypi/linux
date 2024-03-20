@@ -88,6 +88,9 @@ static int kvm_ptdump_show_common(struct seq_file *m,
 		.flags	= KVM_PGTABLE_WALK_LEAF,
 	};
 
+	parser_state->level = -1;
+	parser_state->start_address = 0;
+
 	return kvm_pgtable_walk(pgtable, 0, BIT(pgtable->ia_bits), &walker);
 }
 
