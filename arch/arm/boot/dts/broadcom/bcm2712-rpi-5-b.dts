@@ -819,6 +819,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		random = <&random>, "status";
 		rtc = <&rpi_rtc>, "status";
 		rtc_bbat_vchg = <&rpi_rtc>, "trickle-charge-microvolt:0";
+		sd_cqe = <&sdio1>, "supports-cqe?";
 		spi = <&spi0>, "status";
 		suspend = <&pwr_key>, "linux,code:0=205";
 		uart0 = <&uart0>, "status";

@@ -1119,7 +1119,6 @@
 			clocks = <&clk_emmc2>;
 			sdhci-caps-mask = <0x0000C000 0x0>;
 			sdhci-caps = <0x0 0x0>;
-			supports-cqe;
 			mmc-ddr-3_3v;
 		};
 
