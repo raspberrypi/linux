@@ -266,6 +266,8 @@ static void mmc_release_card(struct device *dev)
 
 	sdio_free_common_cis(card);
 
+	kfree(card->ext_reg_buf);
+
 	kfree(card->info);
 
 	kfree(card);
