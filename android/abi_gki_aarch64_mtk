@@ -422,6 +422,7 @@
   device_release_driver
   device_remove_bin_file
   device_remove_file
+  device_remove_file_self
   device_rename
   __device_reset
   device_set_node
@@ -433,6 +434,22 @@
   device_unregister
   device_wakeup_disable
   device_wakeup_enable
+  devlink_alloc_ns
+  devlink_flash_update_status_notify
+  devlink_fmsg_binary_pair_nest_end
+  devlink_fmsg_binary_pair_nest_start
+  devlink_fmsg_binary_put
+  devlink_free
+  devlink_health_report
+  devlink_health_reporter_create
+  devlink_health_reporter_destroy
+  devlink_health_reporter_priv
+  devlink_health_reporter_state_update
+  devlink_priv
+  devlink_region_create
+  devlink_region_destroy
+  devlink_register
+  devlink_unregister
   _dev_info
   dev_kfree_skb_any_reason
   dev_kfree_skb_irq_reason
@@ -1735,6 +1752,7 @@
   out_of_line_wait_on_bit_timeout
   overflowgid
   overflowuid
+  page_frag_free
   page_pool_alloc_pages
   page_pool_create
   page_pool_destroy
@@ -1770,8 +1788,10 @@
   pci_dev_put
   pci_disable_ats
   pci_disable_device
+  pcie_capability_read_dword
   pci_enable_ats
   pci_find_ext_capability
+  pci_free_irq
   pci_free_irq_vectors
   pci_generic_config_read32
   pci_generic_config_write32
@@ -1792,6 +1812,7 @@
   pci_read_config_word
   __pci_register_driver
   pci_remove_root_bus
+  pci_request_irq
   pci_restore_state
   pci_save_state
   pci_set_master
@@ -1924,6 +1945,7 @@
   __pm_runtime_set_status
   __pm_runtime_suspend
   __pm_runtime_use_autosuspend
+  pm_schedule_suspend
   __pm_stay_awake
   pm_stay_awake
   pm_suspend_default_s2idle
@@ -1989,6 +2011,7 @@
   queue_delayed_work_on
   queue_work_on
   radix_tree_delete
+  radix_tree_gang_lookup
   radix_tree_insert
   radix_tree_lookup
   radix_tree_maybe_preload
@@ -3235,6 +3258,12 @@
   work_busy
   work_on_cpu_key
   __write_overflow_field
+  wwan_create_port
+  wwan_port_rx
+  wwan_port_get_drvdata
+  wwan_register_ops
+  wwan_remove_port
+  wwan_unregister_ops
   ww_mutex_lock
   ww_mutex_trylock
   ww_mutex_unlock
