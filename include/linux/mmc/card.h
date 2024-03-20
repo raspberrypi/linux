@@ -354,6 +354,7 @@ struct mmc_card {
 	struct sd_switch_caps	sw_caps;	/* switch (CMD6) caps */
 	struct sd_ext_reg	ext_power;	/* SD extension reg for PM */
 	struct sd_ext_reg	ext_perf;	/* SD extension reg for PERF */
+	u8			*ext_reg_buf;	/* 512 byte block for extension register R/W */
 
 	struct sd_uhs2_config	uhs2_config;	/* SD UHS-II config */
 
