@@ -43,6 +43,9 @@
 #define  SDIO_CFG_SD_PIN_SEL_SD			BIT(1)
 #define  SDIO_CFG_SD_PIN_SEL_MMC		BIT(0)
 
+#define SDIO_CFG_CQ_CAPABILITY			0x4c
+#define  SDIO_CFG_CQ_CAPABILITY_FMUL_SHIFT	12
+
 #define SDIO_CFG_MAX_50MHZ_MODE			0x1ac
 #define  SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE	BIT(31)
 #define  SDIO_CFG_MAX_50MHZ_MODE_ENABLE		BIT(0)
@@ -247,7 +250,7 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 	u32 uhs_mask = (MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104);
 	u32 hsemmc_mask = (MMC_CAP2_HS200_1_8V_SDR | MMC_CAP2_HS200_1_2V_SDR |
 			   MMC_CAP2_HS400_1_8V | MMC_CAP2_HS400_1_2V);
-	u32 reg;
+	u32 reg, base_clk_mhz;
 
 	/*
 	* If we support a speed that requires tuning,
@@ -268,6 +271,11 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 		reg |= SDIO_CFG_CTRL_SDCD_N_TEST_EN;
 		writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_CTRL);
 	}
+
+	/* Guesstimate the timer frequency (controller base clock) */
+	base_clk_mhz = max_t(u32, clk_get_rate(pltfm_host->clk) / (1000 * 1000), 1);
+	reg = (3 << SDIO_CFG_CQ_CAPABILITY_FMUL_SHIFT) | base_clk_mhz;
+	writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_CQ_CAPABILITY);
 }
 
 static int bcm2712_init_sd_express(struct sdhci_host *host, struct mmc_ios *ios)
@@ -553,6 +561,8 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 		return PTR_ERR(host);
 
 	pltfm_host = sdhci_priv(host);
+	pltfm_host->clk = clk;
+
 	priv = sdhci_pltfm_priv(pltfm_host);
 	if (device_property_read_bool(&pdev->dev, "supports-cqe")) {
 		priv->flags |= BRCMSTB_PRIV_FLAGS_HAS_CQE;
@@ -686,7 +696,6 @@ add_host:
 	if (res)
 		goto err;
 
-	pltfm_host->clk = clk;
 	return res;
 
 err:
