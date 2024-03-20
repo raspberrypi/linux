@@ -987,7 +987,7 @@
 		};
 
 		rp1_csi0: csi@110000 {
-			compatible = "raspberrypi,rp1-cfe";
+			compatible = "raspberrypi,rpi5-rp1-cfe";
 			reg = <0xc0 0x40110000  0x0 0x100>, // CSI2 DMA address
 			      <0xc0 0x40114000  0x0 0x100>, // PHY/CSI Host address
 			      <0xc0 0x40120000  0x0 0x100>, // MIPI CFG address
@@ -1006,7 +1006,7 @@
 		};
 
 		rp1_csi1: csi@128000 {
-			compatible = "raspberrypi,rp1-cfe";
+			compatible = "raspberrypi,rpi5-rp1-cfe";
 			reg = <0xc0 0x40128000  0x0 0x100>, // CSI2 DMA address
 			      <0xc0 0x4012c000  0x0 0x100>, // PHY/CSI Host address
 			      <0xc0 0x40138000  0x0 0x100>, // MIPI CFG address
