@@ -1021,9 +1021,8 @@ int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
 	struct scatterlist sg;
 	u8 *reg_buf;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
+	memset(reg_buf, 0, 512);
 
 	mrq.cmd = &cmd;
 	mrq.data = &data;
@@ -1054,8 +1053,6 @@ int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
 
 	mmc_set_data_timeout(&data, card);
 	mmc_wait_for_req(host, &mrq);
-
-	kfree(reg_buf);
 
 	/*
 	 * Note that, the SD card is allowed to signal busy on DAT0 up to 1s
@@ -1097,9 +1094,7 @@ static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 	int err;
 	u8 *reg_buf;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
 
 	/* Read the extension register for power management function. */
 	err = sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
@@ -1129,7 +1124,6 @@ static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 	card->ext_power.offset = offset;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
@@ -1139,9 +1133,7 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	int err;
 	u8 *reg_buf;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
 
 	err = sd_read_ext_reg(card, fno, page, offset, 512, reg_buf);
 	if (err) {
@@ -1184,7 +1176,6 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	card->ext_perf.offset = offset;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
@@ -1255,6 +1246,12 @@ static int sd_read_ext_regs(struct mmc_card *card)
 	if (!gen_info_buf)
 		return -ENOMEM;
 
+	card->ext_reg_buf = kzalloc(512, GFP_KERNEL);
+	if (!card->ext_reg_buf) {
+		err = -ENOMEM;
+		goto out;
+	}
+
 	/*
 	 * Read 512 bytes of general info, which is found at function number 0,
 	 * at page 0 and with no offset.
@@ -1321,9 +1318,7 @@ static int sd_flush_cache(struct mmc_host *host)
 	if (!sd_cache_enabled(host))
 		return 0;
 
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
+	reg_buf = card->ext_reg_buf;
 
 	/*
 	 * Set Flush Cache at bit 0 in the performance enhancement register at
@@ -1359,20 +1354,14 @@ static int sd_flush_cache(struct mmc_host *host)
 	if (reg_buf[0] & BIT(0))
 		err = -ETIMEDOUT;
 out:
-	kfree(reg_buf);
 	return err;
 }
 
 static int sd_enable_cache(struct mmc_card *card)
 {
-	u8 *reg_buf;
 	int err;
 
 	card->ext_perf.feature_enabled &= ~SD_EXT_PERF_CACHE;
-
-	reg_buf = kzalloc(512, GFP_KERNEL);
-	if (!reg_buf)
-		return -ENOMEM;
 
 	/*
 	 * Set Cache Enable at bit 0 in the performance enhancement register at
@@ -1392,7 +1381,6 @@ static int sd_enable_cache(struct mmc_card *card)
 		card->ext_perf.feature_enabled |= SD_EXT_PERF_CACHE;
 
 out:
-	kfree(reg_buf);
 	return err;
 }
 
