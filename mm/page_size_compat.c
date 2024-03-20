@@ -10,7 +10,6 @@
 #include <linux/init.h>
 #include <linux/kstrtox.h>
 #include <linux/mm.h>
-#include <linux/mm_inline.h>
 #include <linux/page_size_compat.h>
 
 #define MIN_PAGE_SHIFT_COMPAT (PAGE_SHIFT + 1)
@@ -138,14 +137,4 @@ void ___filemap_fixup(unsigned long addr, unsigned long prot, unsigned long old_
 	anon_addr = do_mmap(NULL, anon_addr, anon_len, prot,
 					MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED|__MAP_NO_COMPAT,
 					0, 0, &populate, NULL);
-
-	if (!IS_ERR_VALUE(anon_addr)) {
-		struct anon_vma_name *anon_name = anon_vma_name_alloc("filemap_fixup");
-
-		if (!anon_name)
-			return;
-
-		/* Label the fixup VMA */
-		madvise_set_anon_name(mm, anon_addr, anon_len, anon_name);
-	}
 }
