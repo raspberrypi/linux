@@ -99,6 +99,8 @@
   __traceiter_android_vh_rwsem_downgrade_wake_finish
   __traceiter_android_vh_tune_swappiness
   __traceiter_sched_stat_iowait
+  __traceiter_sched_stat_sleep
+  __traceiter_sched_waking
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_cgroup_set_task
@@ -106,6 +108,8 @@
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
   __tracepoint_android_vh_tune_swappiness
   __tracepoint_sched_stat_iowait
+  __tracepoint_sched_stat_sleep
+  __tracepoint_sched_waking
   __trace_puts
   typec_mux_get_drvdata
   unregister_memory_notifier
