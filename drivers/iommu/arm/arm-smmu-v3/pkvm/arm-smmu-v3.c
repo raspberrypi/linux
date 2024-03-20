@@ -624,13 +624,6 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	unsigned long end = iova + size;
 	struct arm_smmu_cmdq_ent cmd;
 
-	hyp_spin_lock(&smmu->iommu.lock);
-
-	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on) {
-		hyp_spin_unlock(&smmu->iommu.lock);
-		return;
-	}
-
 	cmd.tlbi.leaf = leaf;
 	if (domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
 		cmd.opcode = CMDQ_OP_TLBI_S2_IPA;
@@ -646,8 +639,6 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	 */
 	BUG_ON(end < iova);
 	WARN_ON(smmu_tlb_inv_range_smmu(smmu, domain, &cmd, iova, size, granule));
-
-	hyp_spin_unlock(&smmu->iommu.lock);
 }
 
 static void smmu_tlb_flush_walk(unsigned long iova, size_t size,
