@@ -122,7 +122,9 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_switch);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_waking);
 #if defined(CONFIG_SCHEDSTATS)
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_sleep);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_wait);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_iowait);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_blocked);
 #endif
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
