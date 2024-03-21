@@ -140,6 +140,7 @@
 
 #include <trace/events/sock.h>
 #include <trace/hooks/sched.h>
+#include <trace/hooks/net.h>
 
 #include <net/tcp.h>
 #include <net/busy_poll.h>
@@ -2102,6 +2103,8 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 		if (security_sk_alloc(sk, family, priority))
 			goto out_free;
 
+		trace_android_rvh_sk_alloc(sk);
+
 		if (!try_module_get(prot->owner))
 			goto out_free_sec;
 	}
@@ -2110,6 +2113,7 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 
 out_free_sec:
 	security_sk_free(sk);
+	trace_android_rvh_sk_free(sk);
 out_free:
 	if (slab != NULL)
 		kmem_cache_free(slab, sk);
@@ -2129,6 +2133,7 @@ static void sk_prot_free(struct proto *prot, struct sock *sk)
 	cgroup_sk_free(&sk->sk_cgrp_data);
 	mem_cgroup_sk_free(sk);
 	security_sk_free(sk);
+	trace_android_rvh_sk_free(sk);
 	if (slab != NULL)
 		kmem_cache_free(slab, sk);
 	else
