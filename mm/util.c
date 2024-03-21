@@ -356,7 +356,7 @@ unsigned long randomize_stack_top(unsigned long stack_top)
  */
 unsigned long randomize_page(unsigned long start, unsigned long range)
 {
-	if (!__PAGE_ALIGNED(start)) {
+	if (__offset_in_page(start)) {
 		range -= __PAGE_ALIGN(start) - start;
 		start = __PAGE_ALIGN(start);
 	}
