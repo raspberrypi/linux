@@ -2696,6 +2696,8 @@
   __traceiter_android_vh_binder_transaction_init
   __traceiter_android_vh_cgroup_attach
   __traceiter_android_vh_cgroup_set_task
+  __traceiter_android_vh_compaction_exit
+  __traceiter_android_vh_compaction_try_to_compact_exit
   __traceiter_android_vh_cpufreq_fast_switch
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
@@ -2703,6 +2705,9 @@
   __traceiter_android_vh_iommu_iovad_alloc_iova
   __traceiter_android_vh_iommu_iovad_free_iova
   __traceiter_android_vh_is_fpsimd_save
+  __traceiter_android_vh_mm_direct_reclaim_enter
+  __traceiter_android_vh_mm_direct_reclaim_exit
+  __traceiter_android_vh_mm_may_oom_exit
   __traceiter_android_vh_rwsem_init
   __traceiter_android_vh_rwsem_read_wait_finish
   __traceiter_android_vh_rwsem_read_wait_start
@@ -2720,6 +2725,7 @@
   __traceiter_android_vh_ufs_err_print_ctrl
   __traceiter_android_vh_ufs_perf_huristic_ctrl
   __traceiter_android_vh_ufs_send_command_post_change
+  __traceiter_android_vh_vmscan_kswapd_done
   __traceiter_cpu_frequency
   __traceiter_gpu_mem_total
   __traceiter_ipi_entry
@@ -2789,6 +2795,8 @@
   __tracepoint_android_vh_binder_transaction_init
   __tracepoint_android_vh_cgroup_attach
   __tracepoint_android_vh_cgroup_set_task
+  __tracepoint_android_vh_compaction_exit
+  __tracepoint_android_vh_compaction_try_to_compact_exit
   __tracepoint_android_vh_cpufreq_fast_switch
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
@@ -2796,6 +2804,9 @@
   __tracepoint_android_vh_iommu_iovad_alloc_iova
   __tracepoint_android_vh_iommu_iovad_free_iova
   __tracepoint_android_vh_is_fpsimd_save
+  __tracepoint_android_vh_mm_direct_reclaim_enter
+  __tracepoint_android_vh_mm_direct_reclaim_exit
+  __tracepoint_android_vh_mm_may_oom_exit
   __tracepoint_android_vh_rwsem_init
   __tracepoint_android_vh_rwsem_read_wait_finish
   __tracepoint_android_vh_rwsem_read_wait_start
@@ -2813,6 +2824,7 @@
   __tracepoint_android_vh_ufs_err_print_ctrl
   __tracepoint_android_vh_ufs_perf_huristic_ctrl
   __tracepoint_android_vh_ufs_send_command_post_change
+  __tracepoint_android_vh_vmscan_kswapd_done
   __tracepoint_cpu_frequency
   __tracepoint_gpu_mem_total
   __tracepoint_ipi_entry
