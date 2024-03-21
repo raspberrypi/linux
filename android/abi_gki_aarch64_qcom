@@ -245,6 +245,7 @@
   devfreq_remove_governor
   __dev_fwnode
   dev_get_by_name
+  dev_get_by_name_rcu
   dev_get_regmap
   dev_get_stats
   device_add
@@ -278,7 +279,6 @@
   device_wakeup_disable
   device_wakeup_enable
   _dev_info
-  dev_get_by_name_rcu
   dev_kfree_skb_any_reason
   __devm_add_action
   devm_backlight_device_register
@@ -474,12 +474,12 @@
   drm_client_init
   drm_client_modeset_commit_locked
   drm_client_register
-  drm_crtc_vblank_reset
   drm_connector_register
   drm_connector_unregister
   drm_crtc_add_crc_entry
   __drm_crtc_commit_free
   drm_crtc_commit_wait
+  drm_crtc_vblank_reset
   drm_crtc_wait_one_vblank
   ___drm_dbg
   __drm_debug
@@ -503,9 +503,9 @@
   drm_mode_create_dp_colorspace_property
   drm_mode_is_420_only
   drm_mode_object_put
-  drm_mode_set_name
   drm_modeset_lock
   drm_modeset_lock_single_interruptible
+  drm_mode_set_name
   drm_modeset_unlock
   drm_object_property_set_value
   drm_printf
@@ -960,6 +960,7 @@
   memcpy
   __memcpy_fromio
   __memcpy_toio
+  memdup_user
   memmove
   memory_block_size_bytes
   memory_read_from_buffer
@@ -1147,10 +1148,10 @@
   pci_dev_get
   pci_device_group
   pci_device_is_present
+  pci_dev_present
   pci_dev_put
   pcie_capability_clear_and_set_word_unlocked
   pcie_capability_read_word
-  pci_dev_present
   pci_enable_device
   pci_find_ext_capability
   pci_get_device
@@ -1709,7 +1710,6 @@
   trace_event_reg
   trace_get_event_file
   trace_handle_return
-  tracing_off
   __traceiter_android_rvh_account_irq
   __traceiter_android_rvh_build_perf_domains
   __traceiter_android_rvh_can_migrate_task
@@ -1896,6 +1896,7 @@
   trace_seq_printf
   trace_seq_putc
   __trace_trigger_soft_disabled
+  tracing_off
   try_module_get
   try_wait_for_completion
   tty_flip_buffer_push
