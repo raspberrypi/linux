@@ -376,6 +376,7 @@ static size_t chunk_dec_map(struct chunk_hdr *chunk,
 
 	end = chunk_unmapped_region(chunk);
 	reclaimable = min(end - start, reclaim_target);
+	start = end - reclaimable;
 
 	hyp_allocator_unmap(allocator, start, reclaimable);
 
