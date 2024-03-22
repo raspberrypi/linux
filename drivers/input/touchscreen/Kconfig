@@ -1399,4 +1399,15 @@ config TOUCHSCREEN_HIMAX_HX83112B
 	  To compile this driver as a module, choose M here: the
 	  module will be called himax_hx83112b.
 
+config TOUCHSCREEN_DFROBOT_GT911
+	tristate "DFRobot 8.8inch touchscreen driver"
+	depends on I2C
+	help
+	  Say Y here to enable support for DFRobot 8.8inch touchscreens.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called dfrobot_gt911.
+
 endif
