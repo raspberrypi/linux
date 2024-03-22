@@ -384,6 +384,7 @@ static void sdhci_brcmstb_dumpregs(struct mmc_host *mmc)
 static void sdhci_brcmstb_cqe_enable(struct mmc_host *mmc)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
+	struct cqhci_host *cq_host = mmc->cqe_private;
 	u32 reg;
 
 	reg = sdhci_readl(host, SDHCI_PRESENT_STATE);
@@ -393,6 +394,9 @@ static void sdhci_brcmstb_cqe_enable(struct mmc_host *mmc)
 	}
 
 	sdhci_cqe_enable(mmc);
+
+	/* Reset CMD13 polling timer back to eMMC specification default */
+	cqhci_writel(cq_host, 0x00011000, CQHCI_SSC1);
 }
 
 static const struct cqhci_host_ops sdhci_brcmstb_cqhci_ops = {
