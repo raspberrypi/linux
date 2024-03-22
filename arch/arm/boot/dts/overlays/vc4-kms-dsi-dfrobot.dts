@@ -1,0 +1,84 @@
+/*
+ * Device Tree overlay for dfrobot DSI Touchscreens
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+		};
+	};
+
+	frag2: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+		
+			panel: panel_disp1@1e {
+				reg = <0x1e>;
+				compatible = "DFRobot,8.8inch-panel";
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+
+			gt911: gt911@5d {
+				compatible = "gt911";
+				reg = <0x5d>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "okay";
+				touch@0 {
+					compatible = "gt911-touch";
+					reg = <0>;
+				};
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+};
+
