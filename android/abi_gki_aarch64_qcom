@@ -1562,6 +1562,15 @@
   snd_soc_get_pcm_runtime
   snd_soc_lookup_component
   snd_soc_rtdcom_lookup
+  snd_usb_autoresume
+  snd_usb_autosuspend
+  snd_usb_endpoint_prepare
+  snd_usb_hw_free
+  snd_usb_hw_params
+  snd_usb_lock_shutdown
+  snd_usb_register_platform_ops
+  snd_usb_unlock_shutdown
+  snd_usb_unregister_platform_ops
   snprintf
   soc_device_register
   soc_device_unregister
@@ -1978,6 +1987,7 @@
   usb_function_register
   usb_function_unregister
   usb_gadget_wakeup
+  usb_hcd_is_primary_hcd
   usb_interface_id
   usb_phy_set_charger_current
   usb_put_function_instance
@@ -2058,4 +2068,8 @@
   xas_load
   xa_store
   xfrm_lookup
+  xhci_create_secondary_interrupter
+  xhci_initialize_ring_info
+  xhci_remove_secondary_interrupter
+  xhci_stop_endpoint_sync
   zap_vma_ptes
