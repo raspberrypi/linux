@@ -793,7 +793,7 @@ static inline void f_midi_unregister_card(struct f_midi *midi)
 	if (midi->card) {
 		opts = container_of(midi->func.fi, struct f_midi_opts,
 				func_inst);
-		android_remove_midi_device(&opts->android_midi_info);
+		android_clear_midi_device_info(&opts->android_midi_info);
 		snd_card_free(midi->card);
 		midi->card = NULL;
 	}
@@ -1261,6 +1261,7 @@ static void f_midi_free_inst(struct usb_function_instance *f)
 	mutex_lock(&opts->lock);
 	if (!--opts->refcnt) {
 		free = true;
+		android_remove_midi_device(&opts->android_midi_info);
 	}
 	mutex_unlock(&opts->lock);
 
@@ -1311,7 +1312,7 @@ static void f_midi_free(struct usb_function *f)
 	midi = func_to_midi(f);
 	opts = container_of(f->fi, struct f_midi_opts, func_inst);
 	mutex_lock(&opts->lock);
-	android_remove_midi_device(&opts->android_midi_info);
+	android_clear_midi_device_info(&opts->android_midi_info);
 	if (!--midi->free_ref) {
 		kfree(midi->id);
 		kfifo_free(&midi->in_req_fifo);

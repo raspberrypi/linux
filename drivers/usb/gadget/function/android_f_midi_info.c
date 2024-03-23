@@ -28,6 +28,18 @@ int android_set_midi_device_info(struct f_midi_info *ctx, int card_number,
 }
 EXPORT_SYMBOL_GPL(android_set_midi_device_info);
 
+void android_clear_midi_device_info(struct f_midi_info *ctx)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ctx->lock, flags);
+	ctx->card_number = 0;
+	ctx->rmidi_device = 0;
+	ctx->configured = false;
+	spin_unlock_irqrestore(&ctx->lock, flags);
+}
+EXPORT_SYMBOL_GPL(android_clear_midi_device_info);
+
 static ssize_t alsa_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -91,20 +103,22 @@ EXPORT_SYMBOL_GPL(android_create_midi_device);
 void android_remove_midi_device(struct f_midi_info *ctx)
 {
 	unsigned long flags;
-	struct device *dev;
+	struct device *dev = NULL;
 
 	spin_lock_irqsave(&ctx->lock, flags);
 	if (ctx->dev) {
 		dev = ctx->dev;
 		ctx->dev = NULL;
-		// Matches with get_device in android_create_midi_device()
-		put_device(dev);
-		android_remove_function_device(dev);
 	}
 
 	ctx->configured = false;
 	ctx->card_number = 0;
 	ctx->rmidi_device = 0;
 	spin_unlock_irqrestore(&ctx->lock, flags);
+	if (dev) {
+		// Matches with get_device in android_create_midi_device()
+		put_device(dev);
+		android_remove_function_device(dev);
+	}
 }
 EXPORT_SYMBOL_GPL(android_remove_midi_device);

@@ -56,6 +56,19 @@ int android_set_midi_device_info(struct f_midi_info *ctx, int card_number,
 	       unsigned int rmidi_device);
 
 /**
+ * android_clear_midi_device_info - used to unconfigure the internal data of
+ * f_midi_info when the f_midi device is being torn down.
+ * @ctx: contextual data for the android_f_midi_info library
+ *
+ * This function should be called in the f_midi driver prior to removing the
+ * necessary snd_card and snd_rawmidi objects. May be called several times in
+ * the cleanup process due to separate lifecycles for the snd_card and
+ * snd_rawmidi objects, however, both objects must exist for userspace, so if
+ * one goes away, clear both.
+ */
+void android_clear_midi_device_info(struct f_midi_info *ctx);
+
+/**
  * android_create_midi_device - performs the necessary initialization for the
  * android_f_midi_info library and registers a f_midi device with the android_usb
  * class.
@@ -71,11 +84,8 @@ int android_create_midi_device(struct f_midi_info *ctx);
  * f_midi_info when the related objects are being removed.
  * @ctx: contextual data for the android_f_midi_info library
  *
- * This function should be called in the f_midi driver prior to removing the
- * necessary snd_card and snd_rawmidi objects. May be called several times in
- * the cleanup process due to separate lifecycles for the snd_card and
- * snd_rawmidi objects, however, both objects must exist for userspace, so if
- * one goes away, clear both.
+ * This function should be called in the f_midi driver prior to freeing the
+ * midi function instance.
  */
 void android_remove_midi_device(struct f_midi_info *ctx);
 
