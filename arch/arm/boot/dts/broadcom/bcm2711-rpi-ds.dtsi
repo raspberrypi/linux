@@ -18,6 +18,9 @@
 			   <&spi0>, "dmas:8=", <&dma40>;
 		i2s_dma4 = <&i2s>, "dmas:0=", <&dma40>,
 			   <&i2s>, "dmas:8=", <&dma40>;
+
+		nvmem_customer_writeable = <&nvmem_customer>,"writeable?";
+		nvmem_priv_writeable = <&nvmem_priv>,"writeable?";
 	};
 
 	scb: scb {

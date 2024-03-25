@@ -300,6 +300,12 @@ Params:
 
         nvme                    Alias for "pciex1" (2712 only)
 
+        nvmem_customer_writeable Allow write access to customer otp through nvmem driver
+
+        nvmem_mac_writeable      Allow write access to mac otp through nvmem driver
+
+        nvmem_priv_writeable     Allow write access to priv otp through nvmem driver
+
         pcie                    Set to "off" to disable the PCIe interface
                                 (default "on")
                                 (2711 only, but not applicable on CM4S)

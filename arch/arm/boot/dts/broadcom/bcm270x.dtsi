@@ -175,6 +175,15 @@
 		};
 	};
 
+#ifndef BCM2711
+	nvmem_otp: nvmem_otp {
+		compatible = "raspberrypi,rpi-otp";
+		firmware = <&firmware>;
+		reg = <0 192>;
+		status = "okay";
+	};
+#endif
+
 	cam1_reg: cam1_regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "cam1-reg";
