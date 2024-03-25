@@ -1005,6 +1005,7 @@
   stack_trace_save_tsk
   touch_softlockup_watchdog
   __traceiter_android_rvh_arm64_serror_panic
+  __traceiter_android_rvh_handle_bad_stack
   __traceiter_android_vh_ipi_stop
   __traceiter_irq_handler_entry
   __traceiter_irq_handler_exit
@@ -1013,6 +1014,7 @@
   __traceiter_rwmmio_write
   __traceiter_sched_switch
   __tracepoint_android_rvh_arm64_serror_panic
+  __tracepoint_android_rvh_handle_bad_stack
   __tracepoint_android_vh_ipi_stop
   __tracepoint_irq_handler_entry
   __tracepoint_irq_handler_exit
