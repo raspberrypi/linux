@@ -391,7 +391,9 @@ static void umac_reset(struct bcmasp_intf *intf)
 	umac_wl(intf, 0x0, UMC_CMD);
 	umac_wl(intf, UMC_CMD_SW_RESET, UMC_CMD);
 	usleep_range(10, 100);
-	umac_wl(intf, 0x0, UMC_CMD);
+	/* We hold the umac in reset and bring it out of
+	 * reset when phy link is up.
+	 */
 }
 
 static void umac_set_hw_addr(struct bcmasp_intf *intf,
@@ -411,6 +413,8 @@ static void umac_enable_set(struct bcmasp_intf *intf, u32 mask,
 	u32 reg;
 
 	reg = umac_rl(intf, UMC_CMD);
+	if (reg & UMC_CMD_SW_RESET)
+		return;
 	if (enable)
 		reg |= mask;
 	else
@@ -429,7 +433,6 @@ static void umac_init(struct bcmasp_intf *intf)
 	umac_wl(intf, 0x800, UMC_FRM_LEN);
 	umac_wl(intf, 0xffff, UMC_PAUSE_CNTRL);
 	umac_wl(intf, 0x800, UMC_RX_MAX_PKT_SZ);
-	umac_enable_set(intf, UMC_CMD_PROMISC, 1);
 }
 
 static int bcmasp_tx_poll(struct napi_struct *napi, int budget)
@@ -656,6 +659,12 @@ static void bcmasp_adj_link(struct net_device *dev)
 			UMC_CMD_HD_EN | UMC_CMD_RX_PAUSE_IGNORE |
 			UMC_CMD_TX_PAUSE_IGNORE);
 		reg |= cmd_bits;
+		if (reg & UMC_CMD_SW_RESET) {
+			reg &= ~UMC_CMD_SW_RESET;
+			umac_wl(intf, reg, UMC_CMD);
+			udelay(2);
+			reg |= UMC_CMD_TX_EN | UMC_CMD_RX_EN | UMC_CMD_PROMISC;
+		}
 		umac_wl(intf, reg, UMC_CMD);
 
 		intf->eee.eee_active = phy_init_eee(phydev, 0) >= 0;
@@ -1063,9 +1072,6 @@ static int bcmasp_netif_init(struct net_device *dev, bool phy_connect)
 
 	umac_init(intf);
 
-	/* Disable the UniMAC RX/TX */
-	umac_enable_set(intf, (UMC_CMD_RX_EN | UMC_CMD_TX_EN), 0);
-
 	umac_set_hw_addr(intf, dev->dev_addr);
 
 	intf->old_duplex = -1;
@@ -1084,9 +1090,6 @@ static int bcmasp_netif_init(struct net_device *dev, bool phy_connect)
 		goto err_reclaim_tx;
 
 	bcmasp_enable_rx(intf, 1);
-
-	/* Turn on UniMAC TX/RX */
-	umac_enable_set(intf, (UMC_CMD_RX_EN | UMC_CMD_TX_EN), 1);
 
 	intf->crc_fwd = !!(umac_rl(intf, UMC_CMD) & UMC_CMD_CRC_FWD);
 
@@ -1324,7 +1327,14 @@ static void bcmasp_suspend_to_wol(struct bcmasp_intf *intf)
 	if (intf->wolopts & WAKE_FILTER)
 		bcmasp_netfilt_suspend(intf);
 
-	/* UniMAC receive needs to be turned on */
+	/* Bring UniMAC out of reset if needed and enable RX */
+	reg = umac_rl(intf, UMC_CMD);
+	if (reg & UMC_CMD_SW_RESET)
+		reg &= ~UMC_CMD_SW_RESET;
+
+	reg |= UMC_CMD_RX_EN | UMC_CMD_PROMISC;
+	umac_wl(intf, reg, UMC_CMD);
+
 	umac_enable_set(intf, UMC_CMD_RX_EN, 1);
 
 	if (intf->parent->wol_irq > 0) {
