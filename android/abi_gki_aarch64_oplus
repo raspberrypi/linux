@@ -96,6 +96,7 @@
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_cgroup_set_task
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_exit_signal
   __traceiter_android_vh_rwsem_downgrade_wake_finish
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_tune_swappiness
@@ -109,6 +110,7 @@
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_cgroup_set_task
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_exit_signal
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_tune_swappiness
