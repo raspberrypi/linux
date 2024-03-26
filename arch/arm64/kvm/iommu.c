@@ -35,8 +35,11 @@ EXPORT_SYMBOL(kvm_iommu_init_hyp);
 
 int kvm_iommu_init_driver(void)
 {
-	if (WARN_ON(!smp_load_acquire(&iommu_driver )|| !iommu_driver->get_iommu_id))
+	if (!smp_load_acquire(&iommu_driver) || !iommu_driver->get_iommu_id) {
+		kvm_err("pKVM enabled with no IOMMU driver, do not run confidential" \
+			 " workloads in virtual machines\n");
 		return -ENODEV;
+	}
 	/*
 	 * init_driver is optional as the driver already registered it self.
 	 * This call mainly notify the driver we are about to drop privilege.
