@@ -394,8 +394,83 @@ int mmc_app_sd_status(struct mmc_card *card, void *ssr)
 	return 0;
 }
 
-int sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
-		     u8 reg_data);
+
+int mmc_sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
+		     u8 reg_data)
+{
+	struct mmc_host *host = card->host;
+	struct mmc_request mrq = {};
+	struct mmc_command cmd = {};
+	struct mmc_data data = {};
+	struct scatterlist sg;
+	u8 *reg_buf;
+
+	reg_buf = card->ext_reg_buf;
+	memset(reg_buf, 0, 512);
+
+	mrq.cmd = &cmd;
+	mrq.data = &data;
+
+	/*
+	 * Arguments of CMD49:
+	 * [31:31] MIO (0 = memory).
+	 * [30:27] FNO (function number).
+	 * [26:26] MW - mask write mode (0 = disable).
+	 * [25:18] page number.
+	 * [17:9] offset address.
+	 * [8:0] length (0 = 1 byte).
+	 */
+	cmd.arg = fno << 27 | page << 18 | offset << 9;
+
+	/* The first byte in the buffer is the data to be written. */
+	reg_buf[0] = reg_data;
+
+	data.flags = MMC_DATA_WRITE;
+	data.blksz = 512;
+	data.blocks = 1;
+	data.sg = &sg;
+	data.sg_len = 1;
+	sg_init_one(&sg, reg_buf, 512);
+
+	cmd.opcode = SD_WRITE_EXTR_SINGLE;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	mmc_set_data_timeout(&data, card);
+	mmc_wait_for_req(host, &mrq);
+
+	/*
+	 * Note that, the SD card is allowed to signal busy on DAT0 up to 1s
+	 * after the CMD49. Although, let's leave this to be managed by the
+	 * caller.
+	 */
+
+	if (cmd.error)
+		return cmd.error;
+	if (data.error)
+		return data.error;
+
+	return 0;
+}
+
+int mmc_sd_read_ext_reg(struct mmc_card *card, u8 fno, u8 page,
+			u16 offset, u16 len, u8 *reg_buf)
+{
+	u32 cmd_args;
+
+	/*
+	 * Command arguments of CMD48:
+	 * [31:31] MIO (0 = memory).
+	 * [30:27] FNO (function number).
+	 * [26:26] reserved (0).
+	 * [25:18] page number.
+	 * [17:9] offset address.
+	 * [8:0] length (0 = 1 byte, 1ff = 512 bytes).
+	 */
+	cmd_args = fno << 27 | page << 18 | offset << 9 | (len - 1);
+
+	return mmc_send_adtc_data(card, card->host, SD_READ_EXTR_SINGLE,
+				  cmd_args, reg_buf, 512);
+}
 
 static int mmc_sd_cmdq_switch(struct mmc_card *card, bool enable)
 {
@@ -411,8 +486,8 @@ static int mmc_sd_cmdq_switch(struct mmc_card *card, bool enable)
 		reg = BIT(0);
 
 	/* Performance enhancement register byte 262 controls command queueing */
-	err = sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
-			       card->ext_perf.offset + 262, reg);
+	err = mmc_sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
+				   card->ext_perf.offset + 262, reg);
 	if (!err)
 		card->ext_csd.cmdq_en = enable;
 
