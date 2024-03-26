@@ -329,6 +329,23 @@
   bcmp
   memmove
 
+# required by zram.ko
+  bio_add_page
+  bio_alloc_bioset
+  bio_chain
+  bio_init
+  bio_put
+  blkdev_get_by_dev
+  blkdev_put
+  file_path
+  filp_close
+  fs_bio_set
+  kvfree
+  kvmalloc_node
+  rb_prev
+  submit_bio
+  submit_bio_wait
+
 # required by zsmalloc.ko
   __alloc_pages
   __ClearPageMovable
