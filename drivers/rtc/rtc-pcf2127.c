@@ -900,10 +900,25 @@ static ssize_t timestamp3_show(struct device *dev,
 	return timestamp_show(dev, attr, buf, 3);
 };
 
+static ssize_t battery_low_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct pcf2127 *pcf2127 = dev_get_drvdata(dev->parent);
+	unsigned int ctrl3;
+	int ret;
+
+	ret = regmap_read(pcf2127->regmap, PCF2127_REG_CTRL3, &ctrl3);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n", (ctrl3 & PCF2127_BIT_CTRL3_BLF) ? 1 : 0);
+};
+
 static DEVICE_ATTR_RW(timestamp0);
 static DEVICE_ATTR_RW(timestamp1);
 static DEVICE_ATTR_RW(timestamp2);
 static DEVICE_ATTR_RW(timestamp3);
+static DEVICE_ATTR_RO(battery_low);
 
 static struct attribute *pcf2127_attrs[] = {
 	&dev_attr_timestamp0.attr,
@@ -915,6 +930,7 @@ static struct attribute *pcf2131_attrs[] = {
 	&dev_attr_timestamp1.attr,
 	&dev_attr_timestamp2.attr,
 	&dev_attr_timestamp3.attr,
+	&dev_attr_battery_low.attr,
 	NULL
 };
 
