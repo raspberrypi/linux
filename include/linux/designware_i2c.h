@@ -47,6 +47,8 @@
 #define DW_IC_TX_ABRT_SOURCE			0x80
 #define DW_IC_ENABLE_STATUS			0x9c
 #define DW_IC_CLR_RESTART_DET			0xa8
+#define DW_IC_SCL_STUCK_AT_LOW_TIMEOUT  0xac
+#define DW_IC_SDA_STUCK_AT_LOW_TIMEOUT  0xb0
 #define DW_IC_SMBUS_INTR_STAT			0xc8
 #define DW_IC_SMBUS_INTR_MASK			0xcc
 #define DW_IC_CLR_SMBUS_INTR			0xd4
@@ -92,6 +94,7 @@
 /* DW_IC_ENABLE bits */
 #define DW_IC_ENABLE_ENABLE			BIT(0)
 #define DW_IC_ENABLE_ABORT			BIT(1)
+#define DW_IC_ENABLE_BUS_RECOVERY   BIT(3)
 
 /* DW_IC_STATUS bits */
 #define DW_IC_STATUS_ACTIVITY			BIT(0)
