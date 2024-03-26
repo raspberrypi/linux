@@ -285,23 +285,19 @@ static int snd_allo_boss_hw_params(
 		snd_allo_boss_set_sclk(component, params_rate(params));
 
 		ret = snd_allo_boss_update_rate_den(substream, params);
-		
-		if (ret) {
+		if (ret) 
 			goto error;
-		}
 	}
 
 	ret = snd_soc_dai_set_bclk_ratio(asoc_rtd_to_cpu(rtd, 0), channels * width);
 
-	if (ret) {
+	if (ret)
 		goto error;
-	}
 
 	ret = snd_soc_dai_set_bclk_ratio(asoc_rtd_to_codec(rtd, 0), channels * width);
 
-	if (ret) {
+	if (ret)
 		goto error;
-	}
 
 	/* Unmute after setting parameters or having an error */
 error:
