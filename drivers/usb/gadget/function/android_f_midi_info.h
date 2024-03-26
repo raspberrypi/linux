@@ -98,6 +98,10 @@ static inline int android_set_midi_device_info(struct f_midi_info *ctx,
 	return 0;
 }
 
+static inline void android_clear_midi_device_info(struct f_midi_info *ctx)
+{
+}
+
 static inline int android_create_midi_device(struct f_midi_info *ctx)
 {
 	return 0;
