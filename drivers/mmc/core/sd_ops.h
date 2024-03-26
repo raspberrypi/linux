@@ -26,6 +26,10 @@ int mmc_send_ext_addr(struct mmc_host *host, u32 addr);
 void mmc_uhs2_prepare_cmd(struct mmc_host *host, struct mmc_request *mrq);
 int mmc_sd_cmdq_enable(struct mmc_card *card);
 int mmc_sd_cmdq_disable(struct mmc_card *card);
+int mmc_sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
+			 u8 reg_data);
+int mmc_sd_read_ext_reg(struct mmc_card *card, u8 fno, u8 page,
+			u16 offset, u16 len, u8 *reg_buf);
 
 #endif
 
