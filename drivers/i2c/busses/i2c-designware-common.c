@@ -63,6 +63,8 @@ static char *abort_sources[] = {
 		"slave lost the bus while transmitting data to a remote master",
 	[ABRT_SLAVE_RD_INTX] =
 		"incorrect slave-transmitter mode configuration",
+	[ABRT_SLAVE_SDA_STUCK_AT_LOW] =
+		"SDA stuck at low",
 };
 
 static int dw_reg_read(void *context, unsigned int reg, unsigned int *val)
@@ -692,8 +694,16 @@ int i2c_dw_wait_bus_not_busy(struct dw_i2c_dev *dev)
 int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 {
 	unsigned long abort_source = dev->abort_source;
+	unsigned int reg;
 	int i;
 
+	if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW) {
+		regmap_write(dev->map, DW_IC_ENABLE,
+			     DW_IC_ENABLE_ENABLE | DW_IC_ENABLE_BUS_RECOVERY);
+		regmap_read_poll_timeout(dev->map, DW_IC_ENABLE, reg,
+					 !(reg & DW_IC_ENABLE_BUS_RECOVERY),
+					 1100, 200000);
+	}
 	if (abort_source & DW_IC_TX_ABRT_NOACK) {
 		for_each_set_bit(i, &abort_source, ARRAY_SIZE(abort_sources))
 			dev_dbg(dev->dev,
@@ -708,6 +718,8 @@ int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 		return -EAGAIN;
 	else if (abort_source & DW_IC_TX_ABRT_GCALL_READ)
 		return -EINVAL; /* wrong msgs[] data */
+	else if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW)
+		return -EREMOTEIO;
 	else
 		return -EIO;
 }

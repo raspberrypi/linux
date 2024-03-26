@@ -231,6 +231,7 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
  */
 static int i2c_dw_init_master(struct dw_i2c_dev *dev)
 {
+	unsigned int timeout = 0;
 	int ret;
 
 	ret = i2c_dw_acquire_lock(dev);
@@ -252,6 +253,17 @@ static int i2c_dw_init_master(struct dw_i2c_dev *dev)
 	if (dev->hs_hcnt && dev->hs_lcnt) {
 		regmap_write(dev->map, DW_IC_HS_SCL_HCNT, dev->hs_hcnt);
 		regmap_write(dev->map, DW_IC_HS_SCL_LCNT, dev->hs_lcnt);
+	}
+
+	if (dev->master_cfg & DW_IC_CON_BUS_CLEAR_CTRL) {
+		/* Set a sensible timeout if not already configured */
+		regmap_read(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, &timeout);
+		if (timeout == ~0) {
+			/* Use 10ms as a timeout, which is 1000 cycles at 100kHz */
+			timeout = i2c_dw_clk_rate(dev) * 10; /* clock rate is in kHz */
+			regmap_write(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, timeout);
+			regmap_write(dev->map, DW_IC_SCL_STUCK_AT_LOW_TIMEOUT, timeout);
+		}
 	}
 
 	/* Write SDA hold time if supported */
@@ -1033,6 +1045,7 @@ int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 	struct i2c_adapter *adap = &dev->adapter;
 	unsigned long irq_flags;
 	unsigned int ic_con;
+	unsigned int id_ver;
 	int ret;
 
 	init_completion(&dev->cmd_complete);
@@ -1067,7 +1080,11 @@ int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 	if (ret)
 		return ret;
 
-	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL)
+	ret = regmap_read(dev->map, DW_IC_COMP_VERSION, &id_ver);
+	if (ret)
+		return ret;
+
+	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL || id_ver >= DW_IC_BUS_CLEAR_MIN_VERS)
 		dev->master_cfg |= DW_IC_CON_BUS_CLEAR_CTRL;
 
 	ret = dev->init(dev);
