@@ -23,6 +23,10 @@ int mmc_app_sd_status(struct mmc_card *card, void *ssr);
 int mmc_app_cmd(struct mmc_host *host, struct mmc_card *card);
 int mmc_sd_cmdq_enable(struct mmc_card *card);
 int mmc_sd_cmdq_disable(struct mmc_card *card);
+int mmc_sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
+			 u8 reg_data);
+int mmc_sd_read_ext_reg(struct mmc_card *card, u8 fno, u8 page,
+			u16 offset, u16 len, u8 *reg_buf);
 
 #endif
 
