@@ -1088,8 +1088,12 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	if ((reg_buf[4] & BIT(0)) && !mmc_card_broken_sd_cache(card))
 		card->ext_perf.feature_support |= SD_EXT_PERF_CACHE;
 
-	/* Command queue support indicated via queue depth bits (0 to 4). */
-	if (reg_buf[6] & 0x1f) {
+	/*
+	 * Command queue support indicated via queue depth bits (0 to 4).
+	 * Qualify this with the other mandatory required features.
+	 */
+	if (reg_buf[6] & 0x1f && card->ext_power.feature_support & SD_EXT_POWER_OFF_NOTIFY &&
+	    card->ext_perf.feature_support & SD_EXT_PERF_CACHE) {
 		card->ext_perf.feature_support |= SD_EXT_PERF_CMD_QUEUE;
 		card->ext_csd.cmdq_depth = reg_buf[6] & 0x1f;
 		card->ext_csd.cmdq_support = true;
