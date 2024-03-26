@@ -1966,14 +1966,16 @@ retry:
 			if (folio_test_pmd_mappable(folio))
 				flags |= TTU_SPLIT_HUGE_PMD;
 			/*
-			 * Without TTU_SYNC, try_to_unmap will only begin to hold PTL
-			 * from the first present PTE within a large folio. Some initial
-			 * PTEs might be skipped due to races with parallel PTE writes
-			 * in which PTEs can be cleared temporarily before being written
-			 * new present values. This will lead to a large folio is still
-			 * mapped while some subpages have been partially unmapped after
-			 * try_to_unmap; TTU_SYNC helps try_to_unmap acquire PTL from the
-			 * first PTE, eliminating the influence of temporary PTE values.
+			 * Without TTU_SYNC, try_to_unmap will only begin to
+			 * hold PTL from the first present PTE within a large
+			 * folio. Some initial PTEs might be skipped due to
+			 * races with parallel PTE writes in which PTEs can be
+			 * cleared temporarily before being written new present
+			 * values. This will lead to a large folio is still
+			 * mapped while some subpages have been partially
+			 * unmapped after try_to_unmap; TTU_SYNC helps
+			 * try_to_unmap acquire PTL from the first PTE,
+			 * eliminating the influence of temporary PTE values.
 			 */
 			if (folio_test_large(folio) && list_empty(&folio->_deferred_list))
 				flags |= TTU_SYNC;
