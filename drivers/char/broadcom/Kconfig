@@ -1,0 +1,33 @@
+#
+# Broadcom char driver config
+#
+
+menuconfig BRCM_CHAR_DRIVERS
+	bool "Broadcom Char Drivers"
+	help
+	  Broadcom's char drivers
+
+if BRCM_CHAR_DRIVERS
+
+config BCM2708_VCMEM
+	bool "Videocore Memory"
+        default y
+        help
+          Helper for videocore memory access and total size allocation.
+
+config BCM_VCIO
+	tristate "Mailbox userspace access"
+	depends on BCM2835_MBOX
+	help
+	  Gives access to the mailbox property channel from userspace.
+
+endif
+
+config BCM2835_SMI_DEV
+	tristate "Character device driver for BCM2835 Secondary Memory Interface"
+	depends on BCM2835_SMI
+	default m
+	help
+		This driver provides a character device interface (ioctl + read/write) to
+		Broadcom's Secondary Memory interface. The low-level functionality is provided
+		by the SMI driver itself.
