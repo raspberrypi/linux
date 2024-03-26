@@ -285,7 +285,7 @@ static int snd_allo_boss_hw_params(
 		snd_allo_boss_set_sclk(component, params_rate(params));
 
 		ret = snd_allo_boss_update_rate_den(substream, params);
-		if (ret) 
+		if (ret)
 			goto error;
 	}
 
