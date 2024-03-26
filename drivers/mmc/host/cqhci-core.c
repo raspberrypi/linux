@@ -388,9 +388,11 @@ static void cqhci_off(struct mmc_host *mmc)
 
 	err = readx_poll_timeout(cqhci_read_ctl, cq_host, reg,
 				 reg & CQHCI_HALT, 0, CQHCI_OFF_TIMEOUT);
-	if (err < 0)
+	if (err < 0) {
 		pr_err("%s: cqhci: CQE stuck on\n", mmc_hostname(mmc));
-	else
+		/* eMMC v5.1 B.2.8 recommends writing 0 to CQHCI_CTL if stuck */
+		cqhci_writel(cq_host, 0, CQHCI_CTL);
+	} else
 		pr_debug("%s: cqhci: CQE off\n", mmc_hostname(mmc));
 
 	if (cq_host->ops->post_disable)
@@ -980,8 +982,11 @@ static bool cqhci_halt(struct mmc_host *mmc, unsigned int timeout)
 
 	ret = cqhci_halted(cq_host);
 
-	if (!ret)
+	if (!ret) {
 		pr_warn("%s: cqhci: Failed to halt\n", mmc_hostname(mmc));
+		/* eMMC v5.1 B.2.8 recommends writing 0 to CQHCI_CTL if stuck */
+		cqhci_writel(cq_host, 0, CQHCI_CTL);
+	}
 
 	return ret;
 }
