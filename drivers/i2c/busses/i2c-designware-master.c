@@ -1075,6 +1075,7 @@ static int i2c_dw_init_recovery_info(struct dw_i2c_dev *dev)
 int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 {
 	unsigned int ic_con;
+	unsigned int id_ver;
 	int ret;
 
 	init_completion(&dev->cmd_complete);
@@ -1099,7 +1100,11 @@ int i2c_dw_probe_master(struct dw_i2c_dev *dev)
 	if (ret)
 		return ret;
 
-	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL)
+	ret = regmap_read(dev->map, DW_IC_COMP_VERSION, &id_ver);
+	if (ret)
+		return ret;
+
+	if (ic_con & DW_IC_CON_BUS_CLEAR_CTRL || id_ver >= DW_IC_BUS_CLEAR_MIN_VERS)
 		dev->master_cfg |= DW_IC_CON_BUS_CLEAR_CTRL;
 
 	return i2c_dw_init_recovery_info(dev);
