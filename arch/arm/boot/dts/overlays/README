@@ -2151,6 +2151,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf2129                 Select the PCF2129 device
 
+        pcf2131                 Select the PCF2131 device
+
         pcf85063                Select the PCF85063 device
 
         pcf85063a               Select the PCF85063A device
@@ -2244,6 +2246,8 @@ Params: abx80x                  Select one of the ABx80x family:
         pcf2127                 Select the PCF2127 device
 
         pcf2129                 Select the PCF2129 device
+
+        pcf2131                 Select the PCF2131 device
 
         pcf85063                Select the PCF85063 device
 
