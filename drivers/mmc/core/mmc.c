@@ -1929,8 +1929,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			host->cqe_enabled = true;
 
 			if (card->ext_csd.cmdq_en) {
-				pr_info("%s: Command Queue Engine enabled\n",
-					mmc_hostname(host));
+				pr_info("%s: Command Queue Engine enabled, %u tags\n",
+					mmc_hostname(host), card->ext_csd.cmdq_depth);
 			} else {
 				host->hsq_enabled = true;
 				pr_info("%s: Host Software Queue enabled\n",
