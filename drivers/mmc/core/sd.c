@@ -710,7 +710,8 @@ MMC_DEV_ATTR(oemid, "0x%04x\n", card->cid.oemid);
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(ocr, "0x%08x\n", card->ocr);
 MMC_DEV_ATTR(rca, "0x%04x\n", card->rca);
-
+MMC_DEV_ATTR(ext_perf, "%02x\n", card->ext_perf.feature_support);
+MMC_DEV_ATTR(ext_power, "%02x\n", card->ext_power.feature_support);
 
 static ssize_t mmc_dsr_show(struct device *dev, struct device_attribute *attr,
 			    char *buf)
@@ -772,6 +773,8 @@ static struct attribute *sd_std_attrs[] = {
 	&dev_attr_ocr.attr,
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
+	&dev_attr_ext_perf.attr,
+	&dev_attr_ext_power.attr,
 	NULL,
 };
 
@@ -1507,8 +1510,8 @@ cont:
 			host->cqe_enabled = true;
 
 			if (card->ext_csd.cmdq_en) {
-				pr_info("%s: Command Queue Engine enabled\n",
-					mmc_hostname(host));
+				pr_info("%s: Command Queue Engine enabled, %u tags\n",
+					mmc_hostname(host), card->ext_csd.cmdq_depth);
 			} else {
 				host->hsq_enabled = true;
 				pr_info("%s: Host Software Queue enabled\n",
