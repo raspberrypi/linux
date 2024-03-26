@@ -275,23 +275,34 @@ static int snd_allo_boss_hw_params(
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	int channels = params_channels(params);
 	int width = snd_pcm_format_width(params_format(params));
+	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
+	struct snd_soc_card *card = rtd->card;
+
+	/* Mute before changing sample rate */
+	snd_allo_boss_gpio_mute(card);
 
 	if (snd_soc_allo_boss_master) {
-		struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
+		snd_allo_boss_set_sclk(component, params_rate(params));
 
-		snd_allo_boss_set_sclk(component,
-			params_rate(params));
-
-		ret = snd_allo_boss_update_rate_den(
-			substream, params);
+		ret = snd_allo_boss_update_rate_den(substream, params);
 		if (ret)
-			return ret;
+			goto error;
 	}
 
 	ret = snd_soc_dai_set_bclk_ratio(snd_soc_rtd_to_cpu(rtd, 0), channels * width);
+
 	if (ret)
-		return ret;
+		goto error;
+
 	ret = snd_soc_dai_set_bclk_ratio(snd_soc_rtd_to_codec(rtd, 0), channels * width);
+
+	if (ret)
+		goto error;
+
+	/* Unmute after setting parameters or having an error */
+error:
+	snd_allo_boss_gpio_unmute(card);
+
 	return ret;
 }
 
