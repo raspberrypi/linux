@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/export.h>
+#include <linux/ktime.h>
 #include <linux/scatterlist.h>
 
 #include <linux/mmc/host.h>
@@ -448,6 +449,8 @@ static int mmc_sd_cmdq_switch(struct mmc_card *card, bool enable)
 {
 	int err;
 	u8 reg = 0;
+	u8 *reg_buf = card->ext_reg_buf;
+	ktime_t timeout;
 	/*
 	 * SD offers two command queueing modes - sequential (in-order) and
 	 * voluntary (out-of-order). Apps Class A2 performance is only
@@ -460,6 +463,25 @@ static int mmc_sd_cmdq_switch(struct mmc_card *card, bool enable)
 	/* Performance enhancement register byte 262 controls command queueing */
 	err = mmc_sd_write_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
 				   card->ext_perf.offset + 262, reg);
+	if (err)
+		goto out;
+
+	/* Poll the register - cards may have a lazy init/deinit sequence. */
+	timeout = ktime_add_ms(ktime_get(), 10);
+	while (1) {
+		err = mmc_sd_read_ext_reg(card, card->ext_perf.fno, card->ext_perf.page,
+					  card->ext_perf.offset + 262, 1, reg_buf);
+		if (err)
+			break;
+		if ((reg_buf[0] & BIT(0)) == reg)
+			break;
+		if (ktime_after(ktime_get(), timeout)) {
+			err = -EBADMSG;
+			break;
+		}
+		usleep_range(100, 200);
+	}
+out:
 	if (!err)
 		card->ext_csd.cmdq_en = enable;
 
