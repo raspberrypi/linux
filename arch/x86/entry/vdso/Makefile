@@ -37,6 +37,7 @@ KCSAN_SANITIZE_vma.o			:= y
 
 OBJECT_FILES_NON_STANDARD_extable.o		:= n
 OBJECT_FILES_NON_STANDARD_vdso-image-32.o 	:= n
+OBJECT_FILES_NON_STANDARD_vdso-image-x32.o	:= n
 OBJECT_FILES_NON_STANDARD_vdso-image-64.o 	:= n
 OBJECT_FILES_NON_STANDARD_vdso32-setup.o	:= n
 OBJECT_FILES_NON_STANDARD_vma.o			:= n
