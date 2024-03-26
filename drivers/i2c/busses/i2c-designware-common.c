@@ -68,6 +68,8 @@ static const char *const abort_sources[] = {
 		"slave lost the bus while transmitting data to a remote master",
 	[ABRT_SLAVE_RD_INTX] =
 		"incorrect slave-transmitter mode configuration",
+	[ABRT_SLAVE_SDA_STUCK_AT_LOW] =
+		"SDA stuck at low",
 };
 
 static int dw_reg_read(void *context, unsigned int reg, unsigned int *val)
@@ -432,6 +434,7 @@ void i2c_dw_set_mode(struct dw_i2c_dev *dev, int mode)
  */
 int i2c_dw_init(struct dw_i2c_dev *dev)
 {
+	unsigned int timeout = 0;
 	int ret;
 
 	ret = i2c_dw_acquire_lock(dev);
@@ -449,6 +452,17 @@ int i2c_dw_init(struct dw_i2c_dev *dev)
 	regmap_write(dev->map, DW_IC_SMBUS_INTR_MASK, 0);
 
 	i2c_dw_write_timings(dev);
+
+       if (dev->master_cfg & DW_IC_CON_BUS_CLEAR_CTRL) {
+		/* Set a sensible timeout if not already configured */
+		regmap_read(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, &timeout);
+		if (timeout == ~0) {
+			/* Use 10ms as a timeout, which is 1000 cycles at 100kHz */
+			timeout = i2c_dw_clk_rate(dev) * 10; /* clock rate is in kHz */
+			regmap_write(dev->map, DW_IC_SDA_STUCK_AT_LOW_TIMEOUT, timeout);
+			regmap_write(dev->map, DW_IC_SCL_STUCK_AT_LOW_TIMEOUT, timeout);
+		}
+	}
 
 	/* Write SDA hold time if supported */
 	if (dev->sda_hold_time)
@@ -791,8 +805,16 @@ int i2c_dw_wait_bus_not_busy(struct dw_i2c_dev *dev)
 int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 {
 	unsigned long abort_source = dev->abort_source;
+	unsigned int reg;
 	int i;
 
+	if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW) {
+		regmap_write(dev->map, DW_IC_ENABLE,
+			     DW_IC_ENABLE_ENABLE | DW_IC_ENABLE_BUS_RECOVERY);
+		regmap_read_poll_timeout(dev->map, DW_IC_ENABLE, reg,
+					 !(reg & DW_IC_ENABLE_BUS_RECOVERY),
+					 1100, 200000);
+	}
 	if (abort_source & DW_IC_TX_ABRT_NOACK) {
 		for_each_set_bit(i, &abort_source, ARRAY_SIZE(abort_sources))
 			dev_dbg(dev->dev,
@@ -807,6 +829,8 @@ int i2c_dw_handle_tx_abort(struct dw_i2c_dev *dev)
 		return -EAGAIN;
 	if (abort_source & DW_IC_TX_ABRT_GCALL_READ)
 		return -EINVAL; /* wrong msgs[] data */
+	if (abort_source & DW_IC_TX_ABRT_SLAVE_SDA_STUCK_AT_LOW)
+		return -EREMOTEIO;
 
 	return -EIO;
 }
