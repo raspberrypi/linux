@@ -48,6 +48,7 @@
 #define PCF2127_BIT_CTRL3_BLF			BIT(2)
 #define PCF2127_BIT_CTRL3_BF			BIT(3)
 #define PCF2127_BIT_CTRL3_BTSE			BIT(4)
+#define PCF2127_CTRL3_PWRMNG_MASK		GENMASK(7, 5)
 /* Time and date registers */
 #define PCF2127_REG_TIME_BASE		0x03
 #define PCF2127_BIT_SC_OSF			BIT(7)
@@ -1185,6 +1186,18 @@ static int pcf2127_probe(struct device *dev, struct regmap *regmap,
 	 */
 	ret = regmap_clear_bits(pcf2127->regmap, PCF2127_REG_CTRL1,
 				PCF2127_BIT_CTRL1_POR_OVRD);
+	if (ret < 0)
+		return ret;
+
+	/* Make sure PWRMNG[2:0] is set to 000b. This is the default for
+	 * PCF2127/29, but not for PCF2131 (default of 111b).
+	 *
+	 * PWRMNG[2:0]  = 000b:
+	 *   battery switch-over function is enabled in standard mode;
+	 *   battery low detection function is enabled
+	 */
+	ret = regmap_clear_bits(pcf2127->regmap, PCF2127_REG_CTRL3,
+				PCF2127_CTRL3_PWRMNG_MASK);
 	if (ret < 0)
 		return ret;
 
