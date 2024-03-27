@@ -23,6 +23,7 @@
   for_each_kernel_tracepoint
   freq_qos_add_notifier
   freq_qos_remove_notifier
+  get_wchan
   gov_attr_set_get
   gpiod_to_chip
   have_governor_per_policy
