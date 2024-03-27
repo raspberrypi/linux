@@ -296,6 +296,18 @@
 		};
 	};
 
+	fragment@22 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf2131@53 {
+				compatible = "nxp,pcf2131";
+				reg = <0x53>;
+			};
+		};
+	};
 
 	__overrides__ {
 		abx80x = <0>,"+0";
@@ -320,6 +332,7 @@
 		bq32000 = <0>,"+19";
 		rv8803 = <0>,"+20";
 		rv3032 = <0>,"+21";
+		pcf2131 = <0>,"+22";
 
 		addr = <&abx80x>, "reg:0",
 		       <&ds1307>, "reg:0",
