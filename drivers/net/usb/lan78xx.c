@@ -2428,11 +2428,14 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 
 	if (of_property_read_bool(phydev->mdio.dev.of_node,
 				  "microchip,eee-enabled")) {
-		struct ethtool_eee edata;
+		struct ethtool_keee edata;
 		memset(&edata, 0, sizeof(edata));
-		edata.cmd = ETHTOOL_SEEE;
-		edata.advertised = ADVERTISED_1000baseT_Full |
-				   ADVERTISED_100baseT_Full;
+
+		linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+			edata.advertised);
+		linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+			edata.advertised);
+
 		edata.eee_enabled = true;
 		edata.tx_lpi_enabled = true;
 		if (of_property_read_u32(dev->udev->dev.of_node,
