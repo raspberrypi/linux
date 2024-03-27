@@ -2420,14 +2420,15 @@ int __pkvm_host_unuse_dma(phys_addr_t phys_addr, size_t size)
 	return ret;
 }
 
-int __pkvm_host_share_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu, enum kvm_pgtable_prot prot)
+int __pkvm_host_share_guest(struct pkvm_hyp_vcpu *vcpu, u64 pfn, u64 gfn,
+			    u64 nr_pages, enum kvm_pgtable_prot prot)
 {
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	struct pkvm_mem_transition share = {
-		.nr_pages	= 1,
+		.nr_pages	= nr_pages,
 		.initiator	= {
 			.id	= PKVM_ID_HOST,
 			.addr	= host_addr,
@@ -2585,14 +2586,15 @@ unlock:
 	return ret;
 }
 
-int __pkvm_host_donate_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vcpu *vcpu)
+int __pkvm_host_donate_guest(struct pkvm_hyp_vcpu *vcpu, u64 pfn, u64 gfn,
+			     u64 nr_pages)
 {
 	int ret;
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
 	struct pkvm_hyp_vm *vm = pkvm_hyp_vcpu_to_hyp_vm(vcpu);
 	struct pkvm_mem_transition donation = {
-		.nr_pages	= 1,
+		.nr_pages	= nr_pages,
 		.initiator	= {
 			.id	= PKVM_ID_HOST,
 			.addr	= host_addr,
