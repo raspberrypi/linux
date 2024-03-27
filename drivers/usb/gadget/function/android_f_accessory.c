@@ -262,7 +262,7 @@ static struct usb_gadget_strings *acc_strings[] = {
 	NULL,
 };
 
-static DEFINE_MUTEX(acc_dev_instance_lock);
+static DEFINE_SPINLOCK(acc_dev_instance_lock);
 static struct acc_dev *acc_dev_instance;
 
 struct acc_instance {
@@ -272,10 +272,12 @@ struct acc_instance {
 
 static struct acc_dev *get_acc_dev(void)
 {
-	mutex_lock(&acc_dev_instance_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&acc_dev_instance_lock, flags);
 	if (acc_dev_instance)
 		kref_get(&acc_dev_instance->kref);
-	mutex_unlock(&acc_dev_instance_lock);
+	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 
 	return acc_dev_instance;
 }
@@ -297,8 +299,17 @@ static void __acc_dev_instance_release(struct kref *kref)
 
 static void put_acc_dev(struct acc_dev *dev)
 {
-	kref_put_mutex(&acc_dev_instance->kref, __acc_dev_instance_release,
-		       &acc_dev_instance_lock);
+	unsigned long flags;
+
+	/*
+	 * This is not best engineering practice, and does cause coupling with
+	 * kref internal structure. It might cause an issue if kref internal
+	 * refcount structure is changed. We will remove this implementation
+	 * in the next kernel version.
+	 */
+	if (refcount_dec_and_lock_irqsave(&acc_dev_instance->kref.refcount,
+		&acc_dev_instance_lock, &flags))
+		__acc_dev_instance_release(&acc_dev_instance->kref);
 }
 
 static inline struct acc_dev *func_to_dev(struct usb_function *f)
@@ -1243,15 +1254,16 @@ static int acc_init(void)
 {
 	struct acc_dev *dev;
 	int ret;
+	unsigned long flags;
 
-	mutex_lock(&acc_dev_instance_lock);
+	spin_lock_irqsave(&acc_dev_instance_lock, flags);
 	if (acc_dev_instance) {
-		mutex_unlock(&acc_dev_instance_lock);
+		spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 		return -EBUSY;
 	}
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev) {
-		mutex_unlock(&acc_dev_instance_lock);
+		spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 		return -ENOMEM;
 	}
 
@@ -1273,12 +1285,12 @@ static int acc_init(void)
 
 	kref_init(&dev->kref);
 	acc_dev_instance = dev;
-	mutex_unlock(&acc_dev_instance_lock);
+	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 	return 0;
 
 err_free_dev:
 	kfree(dev);
-	mutex_unlock(&acc_dev_instance_lock);
+	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 	pr_err("USB accessory gadget driver failed to initialize\n");
 	return ret;
 }
