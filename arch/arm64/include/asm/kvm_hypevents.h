@@ -91,4 +91,29 @@ HYP_EVENT(__hyp_printk,
 	HE_PRINTK_UNKNOWN_FMT(hyp_printk_fmt_from_id(__entry->fmt_id),
 		__entry->a, __entry->b, __entry->c, __entry->d)
 );
+
+HYP_EVENT(host_ffa_call,
+	HE_PROTO(u64 func_id, u64 res_a1, u64 res_a2, u64 res_a3, u64 res_a4, int handled, int err),
+	HE_STRUCT(
+		he_field(u64, func_id)
+		he_field(u64, res_a1)
+		he_field(u64, res_a2)
+		he_field(u64, res_a3)
+		he_field(u64, res_a4)
+		he_field(int, handled)
+		he_field(int, err)
+	),
+	HE_ASSIGN(
+		__entry->func_id = func_id;
+		__entry->res_a1 = res_a1;
+		__entry->res_a2 = res_a2;
+		__entry->res_a3 = res_a3;
+		__entry->res_a4 = res_a4;
+		__entry->handled = handled;
+		__entry->err = err;
+		),
+	HE_PRINTK("ffa_func=0x%llx a1=0x%llx a2=0x%llx a3=0x%llx a4=%llx handled=%d err=%d",
+		  __entry->func_id, __entry->res_a1, __entry->res_a2,
+		  __entry->res_a3, __entry->res_a4, __entry->handled, __entry->err)
+);
 #endif
