@@ -7,6 +7,7 @@
   add_timer
   add_uevent_var
   add_wait_queue
+  adjust_managed_page_count
   alloc_chrdev_region
   alloc_io_pgtable_ops
   __alloc_pages
