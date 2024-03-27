@@ -744,6 +744,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 / {
 	aliases: aliases {
 		blconfig = &blconfig;
+		blpubkey = &blpubkey;
 		bluetooth = &bluetooth;
 		console = &uart10;
 		ethernet0 = &rp1_eth;
