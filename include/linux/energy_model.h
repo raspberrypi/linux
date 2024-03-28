@@ -55,6 +55,8 @@ struct em_perf_table {
  * struct em_perf_domain - Performance domain
  * @em_table:		Pointer to the runtime modifiable em_perf_table
  * @nr_perf_states:	Number of performance states
+ * @min_ps:		Minimum available performance state index
+ * @max_ps:		Maximum available performance state index
  * @flags:		See "em_perf_domain flags"
  * @cpus:		Cpumask covering the CPUs of the domain. It's here
  *			for performance reasons to avoid potential cache
@@ -70,6 +72,8 @@ struct em_perf_table {
 struct em_perf_domain {
 	struct em_perf_table __rcu *em_table;
 	int nr_perf_states;
+	int min_ps;
+	int max_ps;
 	unsigned long flags;
 	unsigned long cpus[];
 };
@@ -173,6 +177,8 @@ void em_table_free(struct em_perf_table __rcu *table);
 int em_dev_compute_costs(struct device *dev, struct em_perf_state *table,
 			 int nr_states);
 int em_dev_update_chip_binning(struct device *dev);
+int em_update_performance_limits(struct em_perf_domain *pd,
+		unsigned long freq_min_khz, unsigned long freq_max_khz);
 
 /**
  * em_pd_get_efficient_state() - Get an efficient performance state from the EM
@@ -189,12 +195,13 @@ int em_dev_update_chip_binning(struct device *dev);
  */
 static inline int
 em_pd_get_efficient_state(struct em_perf_state *table, int nr_perf_states,
-			  unsigned long max_util, unsigned long pd_flags)
+			  unsigned long max_util, unsigned long pd_flags,
+			  int min_ps, int max_ps)
 {
 	struct em_perf_state *ps;
 	int i;
 
-	for (i = 0; i < nr_perf_states; i++) {
+	for (i = min_ps; i <= max_ps; i++) {
 		ps = &table[i];
 		if (ps->performance >= max_util) {
 			if (pd_flags & EM_PERF_DOMAIN_SKIP_INEFFICIENCIES &&
@@ -204,7 +211,7 @@ em_pd_get_efficient_state(struct em_perf_state *table, int nr_perf_states,
 		}
 	}
 
-	return nr_perf_states - 1;
+	return max_ps;
 }
 
 /**
@@ -255,7 +262,8 @@ static inline unsigned long em_cpu_energy(struct em_perf_domain *pd,
 	 */
 	em_table = rcu_dereference(pd->em_table);
 	i = em_pd_get_efficient_state(em_table->state, pd->nr_perf_states,
-				      max_util, pd->flags);
+				      max_util, pd->flags, pd->min_ps,
+				      pd->max_ps);
 	ps = &em_table->state[i];
 
 	/*
@@ -389,6 +397,12 @@ int em_dev_compute_costs(struct device *dev, struct em_perf_state *table,
 	return -EINVAL;
 }
 static inline int em_dev_update_chip_binning(struct device *dev)
+{
+	return -EINVAL;
+}
+static inline
+int em_update_performance_limits(struct em_perf_domain *pd,
+		unsigned long freq_min_khz, unsigned long freq_max_khz)
 {
 	return -EINVAL;
 }
