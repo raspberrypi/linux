@@ -446,6 +446,7 @@ cmd_dtco = mkdir -p $(dir ${dtc-tmp}) ; \
 		-Wno-i2c_bus_reg \
 		-Wno-spi_bus_reg \
 		-Wno-avoid_default_addr_size \
+		-Wno-interrupt_provider \
 		-d $(depfile).dtc.tmp $(dtc-tmp) ; \
 	cat $(depfile).pre.tmp $(depfile).dtc.tmp > $(depfile)
 
