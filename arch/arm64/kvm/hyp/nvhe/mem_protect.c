@@ -2151,10 +2151,15 @@ update:
 		goto unlock;
 
 	for (i = 0; i < nr_pages; i++) {
-		if (prot != KVM_PGTABLE_PROT_RWX)
+		if (prot != KVM_PGTABLE_PROT_RWX) {
+			/*
+			 * The MODULE_OWNED state is additive to the NOPAGE
+			 * state set by host_stage2_set_owner_locked() above.
+			 */
 			page[i].host_state |= PKVM_MODULE_OWNED_PAGE;
-		else
-			page[i].host_state &= ~PKVM_MODULE_OWNED_PAGE;
+		} else {
+			page[i].host_state = PKVM_PAGE_OWNED;
+		}
 	}
 
 unlock:
