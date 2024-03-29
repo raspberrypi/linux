@@ -29,6 +29,7 @@
   arm64_use_ng_mappings
   __arm_smccc_hvc
   __arm_smccc_smc
+  async_schedule_node
   atomic_notifier_call_chain
   atomic_notifier_chain_register
   atomic_notifier_chain_unregister
@@ -264,6 +265,7 @@
   crypto_skcipher_encrypt
   crypto_skcipher_setkey
   crypto_unregister_ahash
+  crypto_unregister_ahashes
   crypto_unregister_shash
   crypto_unregister_skcipher
   __crypto_xor
@@ -602,6 +604,7 @@
   drm_connector_cleanup
   drm_connector_init
   drm_connector_list_iter_begin
+  drm_connector_list_iter_end
   drm_connector_list_iter_next
   drm_connector_set_vrr_capable_property
   drm_connector_unregister
@@ -718,6 +721,7 @@
   drm_sysfs_connector_property_event
   drm_universal_plane_init
   drm_vblank_init
+  drm_wait_one_vblank
   drm_writeback_connector_init
   drm_writeback_queue_job
   drm_writeback_signal_completion
@@ -1371,6 +1375,7 @@
   of_clk_hw_onecell_get
   of_clk_set_defaults
   of_clk_src_onecell_get
+  of_count_phandle_with_args
   of_device_get_match_data
   of_device_is_available
   of_device_is_compatible
@@ -1500,6 +1505,7 @@
   pci_write_config_byte
   pci_write_config_dword
   pci_write_config_word
+  pcpu_nr_pages
   __per_cpu_offset
   perf_trace_buf_alloc
   perf_trace_run_bpf_submit
@@ -1868,10 +1874,12 @@
   sg_copy_from_buffer
   sg_copy_to_buffer
   sget_dev
+  sget_fc
   sg_free_table
   sg_init_one
   sg_init_table
   sg_nents
+  sg_nents_for_len
   sg_next
   __sg_page_iter_next
   __sg_page_iter_start
@@ -1879,6 +1887,8 @@
   sg_pcopy_to_buffer
   show_class_attr_string
   show_regs
+  si_mem_available
+  si_meminfo
   simple_attr_open
   simple_attr_read
   simple_attr_release
@@ -2119,6 +2129,7 @@
   __traceiter_android_rvh_place_entity
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_schedule
+  __traceiter_android_rvh_select_task_rq_fair
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_tick_entry
   __traceiter_android_vh_cpu_idle_enter
@@ -2152,6 +2163,7 @@
   __tracepoint_android_rvh_place_entity
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_schedule
+  __tracepoint_android_rvh_select_task_rq_fair
   __tracepoint_android_rvh_select_task_rq_rt
   __tracepoint_android_rvh_tick_entry
   __tracepoint_android_vh_cpu_idle_enter
@@ -2404,6 +2416,7 @@
   __video_register_device
   video_unregister_device
   vmalloc
+  vmalloc_nr_pages
   vmalloc_to_page
   vmalloc_to_pfn
   vmalloc_user
@@ -2412,6 +2425,7 @@
   vmf_insert_pfn_prot
   vm_get_page_prot
   vm_insert_page
+  vm_node_stat
   vm_unmap_aliases
   vm_zone_stat
   vprintk
