@@ -51,6 +51,7 @@
   bitmap_print_to_pagebuf
   bitmap_release_region
   __bitmap_set
+  bitmap_zalloc
   blk_execute_rq_nowait
   blk_get_queue
   blk_mq_free_request
