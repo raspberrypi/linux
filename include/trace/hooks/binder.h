@@ -31,8 +31,8 @@ DECLARE_HOOK(android_vh_binder_alloc_new_buf_locked,
 struct binder_proc;
 struct binder_thread;
 DECLARE_HOOK(android_vh_binder_preset,
-	TP_PROTO(struct hlist_head *hhead, struct mutex *lock),
-	TP_ARGS(hhead, lock));
+	TP_PROTO(struct hlist_head *hhead, struct mutex *lock, struct binder_proc *proc),
+	TP_ARGS(hhead, lock, proc));
 struct binder_transaction_data;
 DECLARE_HOOK(android_vh_binder_reply,
 	TP_PROTO(struct binder_proc *target_proc, struct binder_proc *proc,
