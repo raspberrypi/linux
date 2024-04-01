@@ -3564,4 +3564,13 @@ static inline void init_sched_mm_cid(struct task_struct *t) { }
 extern u64 avg_vruntime(struct cfs_rq *cfs_rq);
 extern int entity_eligible(struct cfs_rq *cfs_rq, struct sched_entity *se);
 
+#ifdef CONFIG_RT_SOFTIRQ_AWARE_SCHED
+extern bool cpu_busy_with_softirqs(int cpu);
+#else
+static inline bool cpu_busy_with_softirqs(int cpu)
+{
+	return false;
+}
+#endif /* CONFIG_RT_SOFTIRQ_AWARE_SCHED */
+
 #endif /* _KERNEL_SCHED_SCHED_H */
