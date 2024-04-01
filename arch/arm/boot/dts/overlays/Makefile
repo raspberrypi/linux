@@ -38,6 +38,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	camera-mux-2port.dtbo \
 	camera-mux-4port.dtbo \
 	cap1106.dtbo \
+	chipcap2.dtbo \
 	chipdip-dac.dtbo \
 	cirrus-wm5102.dtbo \
 	cm-swap-i2c0.dtbo \
