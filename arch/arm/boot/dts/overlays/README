@@ -951,6 +951,21 @@ Load:   dtoverlay=cap1106,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
 
+Name:   chipcap2
+Info:   Enables the Chipcap 2 humidity and temperature sensor. This device
+        provides low and high humidity alarms and requires a 3V3 dedicated
+        regulator to operate.
+Load:   dtoverlay=chipcap2,<param>=<val>
+Params: ready_pin               GPIO pin for ready signal (default 4)
+
+        low_pin                 GPIO pin for low humidity signal (default 5)
+
+        high_pin                GPIO pin for high humidity signal (default 6)
+
+        reg_pin                 GPIO pin to control the dedicated regulator
+                                that powers the device (default 26)
+
+
 Name:   chipdip-dac
 Info:   Configures Chip Dip audio cards.
 Load:   dtoverlay=chipdip-dac
