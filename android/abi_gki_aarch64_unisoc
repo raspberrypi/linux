@@ -8,6 +8,7 @@
   __check_object_size
   class_create
   class_destroy
+  cpu_busy_with_softirqs
   _dev_err
   device_create
   device_destroy
