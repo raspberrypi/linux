@@ -116,6 +116,7 @@
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_free_oem_binder_struct
   __traceiter_android_vh_rwsem_downgrade_wake_finish
+  __traceiter_android_vh_map_util_freq
   __traceiter_android_vh_mem_cgroup_id_remove
   __traceiter_android_vh_mem_cgroup_css_offline
   __traceiter_android_vh_mem_cgroup_css_online
@@ -158,6 +159,7 @@
   __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_free_oem_binder_struct
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
+  __tracepoint_android_vh_map_util_freq
   __tracepoint_android_vh_mem_cgroup_id_remove
   __tracepoint_android_vh_mem_cgroup_css_offline
   __tracepoint_android_vh_mem_cgroup_css_online
