@@ -22,7 +22,6 @@
   __arch_copy_to_user
   arm64_use_ng_mappings
   __arm_smccc_smc
-  asoc_dummy_dlc
   atomic_notifier_call_chain
   atomic_notifier_chain_register
   atomic_notifier_chain_unregister
@@ -1858,6 +1857,7 @@
   snd_soc_dapm_sync_unlocked
   snd_soc_dlc_use_cpu_as_platform
   snd_soc_dpcm_get_substream
+  snd_soc_dummy_dlc
   snd_soc_get_dai_id
   snd_soc_get_dai_via_args
   snd_soc_get_dlc
