@@ -111,6 +111,7 @@ struct binder_alloc {
 	int pid;
 	size_t pages_high;
 	bool oneway_spam_detected;
+	ANDROID_OEM_DATA(1);
 };
 
 #ifdef CONFIG_ANDROID_BINDER_IPC_SELFTEST
