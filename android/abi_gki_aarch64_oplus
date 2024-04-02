@@ -156,6 +156,7 @@
   __tracepoint_android_vh_cpufreq_acct_update_power
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_exit_signal
+  __tracepoint_android_vh_do_shrink_slab
   __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_free_oem_binder_struct
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
@@ -203,6 +204,7 @@
   __tracepoint_android_vh_binder_preset
   __tracepoint_android_vh_do_send_sig_info
   __traceiter_android_vh_alter_mutex_list_add
+  __traceiter_android_vh_do_shrink_slab
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_opt_spin_start
   __traceiter_android_vh_mutex_opt_spin_finish
