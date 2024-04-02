@@ -891,11 +891,14 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 
 	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2) {
 		/* Device already attached or pasid for s2. */
-		if (dst[0]  || pasid) {
+		if ((dst[0] & ~STRTAB_STE_0_S1CTXPTR_MASK) || pasid) {
 			ret = -EBUSY;
 			goto out_unlock;
 		}
 		ret = smmu_domain_config_s2(domain, ent);
+
+		/* Don't lost the CD as we never free it. */
+		ent[0] |= dst[0];
 	} else {
 		/*
 		 * One drawback to this is that the first attach to this sid dictates
@@ -939,7 +942,6 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	u32 nr_ssid;
 	u64 *cd_table, *cd;
-	u32 cd_order;
 
 	hyp_spin_lock(&iommu->lock);
 	dst = smmu_get_ste_ptr(smmu, sid);
@@ -968,14 +970,9 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		cd[2] = 0;
 		cd[3] = 0;
 		ret = smmu_sync_cd(smmu, cd, sid, pasid);
-		cd_order  = get_order(nr_ssid * (CTXDESC_CD_DWORDS << 3));
-		/*
-		 * We have to free that as the host can attach stage-2 which requires to
-		 * clear the STE and hence lose the CD.
-		 */
-		kvm_iommu_reclaim_pages(cd_table, cd_order);
 	} else {
-		dst[0] = 0;
+		/* Don't clear CD ptr, as it would leak memory. */
+		dst[0] &= STRTAB_STE_0_S1CTXPTR_MASK;
 		ret = smmu_sync_ste(smmu, dst, sid);
 		if (ret)
 			goto out_unlock;
