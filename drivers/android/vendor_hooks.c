@@ -23,6 +23,7 @@
 #include <trace/hooks/printk.h>
 #include <trace/hooks/epoch.h>
 #include <trace/hooks/cpufreq.h>
+#include <trace/hooks/fips140.h>
 #include <trace/hooks/ufshcd.h>
 #include <trace/hooks/mmc.h>
 #include <trace/hooks/cgroup.h>
@@ -224,6 +225,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_futex_wake_traverse_plist);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_futex_wake_this);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_futex_wake_up_q_finish);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_ctl_dirty_rate);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sha256);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_mmc_resume);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_mmc_suspend);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmc_update_mmc_queue);
