@@ -8801,7 +8801,7 @@ F:	Documentation/devicetree/bindings/hypervisor/mediatek,geniezone-hyp.yaml
 F:	Documentation/virt/geniezone/
 F:	arch/arm64/geniezone/
 F:	drivers/virt/geniezone/
-F:	include/linux/gzvm_drv.h
+F:	include/linux/soc/mediatek/gzvm_drv.h
 F:	include/uapi/linux/gzvm.h
 
 GENWQE (IBM Generic Workqueue Card)

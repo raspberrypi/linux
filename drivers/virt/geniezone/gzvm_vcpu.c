@@ -10,8 +10,8 @@
 #include <linux/mm.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/gzvm_drv.h>
 #include <trace/events/geniezone.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include <trace/hooks/gzvm.h>
 
 /* maximum size needed for holding an integer */

@@ -7,7 +7,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include <linux/wait.h>
 #include <linux/poll.h>
 #include <linux/module.h>

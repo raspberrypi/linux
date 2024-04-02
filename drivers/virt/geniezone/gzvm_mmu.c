@@ -3,7 +3,7 @@
  * Copyright (c) 2023 MediaTek Inc.
  */
 
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 
 /**
  * hva_to_pa_fast() - converts hva to pa in generic fast way
@@ -60,7 +60,8 @@ static u64 __gzvm_gfn_to_pfn_memslot(struct gzvm_memslot *memslot, u64 gfn)
 {
 	u64 hva, pa;
 
-	hva = gzvm_gfn_to_hva_memslot(memslot, gfn);
+	if (gzvm_gfn_to_hva_memslot(memslot, gfn, &hva) != 0)
+		return GZVM_PA_ERR_BAD;
 
 	pa = gzvm_hva_to_pa_arch(hva);
 	if (pa != GZVM_PA_ERR_BAD)
@@ -123,6 +124,14 @@ static int cmp_ppages(struct rb_node *node, const struct rb_node *parent)
 	return 0;
 }
 
+/* Invoker of this function is responsible for locking */
+static int gzvm_insert_ppage(struct gzvm *vm, struct gzvm_pinned_page *ppage)
+{
+	if (rb_find_add(&ppage->node, &vm->pinned_pages, cmp_ppages))
+		return -EEXIST;
+	return 0;
+}
+
 static int rb_ppage_cmp(const void *key, const struct rb_node *node)
 {
 	struct gzvm_pinned_page *p = container_of(node,
@@ -131,14 +140,6 @@ static int rb_ppage_cmp(const void *key, const struct rb_node *node)
 	phys_addr_t ipa = (phys_addr_t)key;
 
 	return (ipa < p->ipa) ? -1 : (ipa > p->ipa);
-}
-
-/* Invoker of this function is responsible for locking */
-static int gzvm_insert_ppage(struct gzvm *vm, struct gzvm_pinned_page *ppage)
-{
-	if (rb_find_add(&ppage->node, &vm->pinned_pages, cmp_ppages))
-		return -EEXIST;
-	return 0;
 }
 
 /* Invoker of this function is responsible for locking */
@@ -234,7 +235,9 @@ int gzvm_vm_allocate_guest_page(struct gzvm *vm, struct gzvm_memslot *slot,
 	if (gzvm_gfn_to_pfn_memslot(slot, gfn, pfn) != 0)
 		return -EFAULT;
 
-	hva = gzvm_gfn_to_hva_memslot(slot, gfn);
+	if (gzvm_gfn_to_hva_memslot(slot, gfn, (u64 *)&hva) != 0)
+		return -EINVAL;
+
 	return pin_one_page(vm, hva, PFN_PHYS(gfn));
 }
 
@@ -249,7 +252,13 @@ static int handle_block_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
 	u32 total_pages = memslot->npages;
 	u64 base_gfn = memslot->base_gfn;
 
-	/* if the demand region is less than a block, adjust the nr_entries */
+	/*
+	 * If the start/end gfn of this demand paging block is outside the
+	 * memory region of memslot, adjust the start_gfn/nr_entries.
+	 */
+	if (start_gfn < base_gfn)
+		start_gfn = base_gfn;
+
 	if (start_gfn + nr_entries > base_gfn + total_pages)
 		nr_entries = base_gfn + total_pages - start_gfn;
 
@@ -309,6 +318,9 @@ int gzvm_handle_page_fault(struct gzvm_vcpu *vcpu)
 	gfn = PHYS_PFN(vcpu->run->exception.fault_gpa);
 	memslot_id = gzvm_find_memslot(vm, gfn);
 	if (unlikely(memslot_id < 0))
+		return -EFAULT;
+
+	if (unlikely(vm->mem_alloc_mode == GZVM_FULLY_POPULATED))
 		return -EFAULT;
 
 	if (vm->demand_page_gran == PAGE_SIZE)

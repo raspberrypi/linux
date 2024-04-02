@@ -4,7 +4,7 @@
  */
 
 #include <linux/device.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 
 /**
  * gzvm_handle_guest_exception() - Handle guest exception

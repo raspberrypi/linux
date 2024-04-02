@@ -10,7 +10,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include <linux/debugfs.h>
 #include "gzvm_common.h"
 
@@ -19,11 +19,17 @@ static LIST_HEAD(gzvm_list);
 
 static struct dentry *gzvm_debugfs_dir;
 
-u64 gzvm_gfn_to_hva_memslot(struct gzvm_memslot *memslot, u64 gfn)
+int gzvm_gfn_to_hva_memslot(struct gzvm_memslot *memslot, u64 gfn,
+			    u64 *hva_memslot)
 {
-	u64 offset = gfn - memslot->base_gfn;
+	u64 offset;
 
-	return memslot->userspace_addr + offset * PAGE_SIZE;
+	if (gfn < memslot->base_gfn)
+		return -EINVAL;
+
+	offset = gfn - memslot->base_gfn;
+	*hva_memslot = memslot->userspace_addr + offset * PAGE_SIZE;
+	return 0;
 }
 
 /**
@@ -82,7 +88,10 @@ register_memslot_addr_range(struct gzvm *gzvm, struct gzvm_memslot *memslot)
 	}
 
 	free_pages_exact(region, buf_size);
-	return 0;
+
+	if (gzvm->mem_alloc_mode == GZVM_DEMAND_PAGING)
+		return 0;
+	return gzvm_vm_populate_mem_region(gzvm, memslot->slot_id);
 }
 
 /**
@@ -104,12 +113,11 @@ gzvm_vm_ioctl_set_memory_region(struct gzvm *gzvm,
 	struct vm_area_struct *vma;
 	struct gzvm_memslot *memslot;
 	unsigned long size;
-	__u32 slot;
 
-	slot = mem->slot;
-	if (slot >= GZVM_MAX_MEM_REGION)
+	if (mem->slot >= GZVM_MAX_MEM_REGION)
 		return -ENXIO;
-	memslot = &gzvm->memslot[slot];
+
+	memslot = &gzvm->memslot[mem->slot];
 
 	vma = vma_lookup(gzvm->mm, mem->userspace_addr);
 	if (!vma)
@@ -227,10 +235,9 @@ static long gzvm_vm_ioctl(struct file *filp, unsigned int ioctl,
 	case GZVM_SET_USER_MEMORY_REGION: {
 		struct gzvm_userspace_memory_region userspace_mem;
 
-		if (copy_from_user(&userspace_mem, argp, sizeof(userspace_mem))) {
-			ret = -EFAULT;
-			goto out;
-		}
+		if (copy_from_user(&userspace_mem, argp, sizeof(userspace_mem)))
+			return -EFAULT;
+
 		ret = gzvm_vm_ioctl_set_memory_region(gzvm, &userspace_mem);
 		break;
 	}
@@ -509,6 +516,24 @@ static int gzvm_create_vm_debugfs(struct gzvm *vm)
 	return 0;
 }
 
+static int setup_mem_alloc_mode(struct gzvm *vm)
+{
+	int ret;
+	struct gzvm_enable_cap cap = {0};
+
+	cap.cap = GZVM_CAP_ENABLE_DEMAND_PAGING;
+
+	ret = gzvm_vm_ioctl_enable_cap(vm, &cap, NULL);
+	if (!ret) {
+		vm->mem_alloc_mode = GZVM_DEMAND_PAGING;
+		setup_vm_demand_paging(vm);
+	} else {
+		vm->mem_alloc_mode = GZVM_FULLY_POPULATED;
+	}
+
+	return 0;
+}
+
 static struct gzvm *gzvm_create_vm(unsigned long vm_type)
 {
 	int ret;
@@ -544,7 +569,7 @@ static struct gzvm *gzvm_create_vm(unsigned long vm_type)
 		return ERR_PTR(ret);
 	}
 
-	setup_vm_demand_paging(gzvm);
+	setup_mem_alloc_mode(gzvm);
 
 	mutex_lock(&gzvm_list_lock);
 	list_add(&gzvm->vm_list, &gzvm_list);

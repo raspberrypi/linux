@@ -5,7 +5,7 @@
 #if !defined(_TRACE_HOOK_GZVM_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_HOOK_GZVM_H
 #include <trace/hooks/vendor_hooks.h>
-#include <linux/gzvm_drv.h>
+struct gzvm_vcpu;
 
 DECLARE_HOOK(android_vh_gzvm_vcpu_exit_reason,
 	     TP_PROTO(struct gzvm_vcpu *vcpu, bool *userspace),

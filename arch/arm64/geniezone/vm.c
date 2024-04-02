@@ -10,10 +10,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/geniezone.h>
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_arch_common.h"
 
-#define PAR_PA47_MASK ((((1UL << 48) - 1) >> 12) << 12)
+#define PAR_PA47_MASK GENMASK_ULL(47, 12)
 
 /**
  * gzvm_hypcall_wrapper() - the wrapper for hvc calls
@@ -35,8 +35,23 @@ int gzvm_hypcall_wrapper(unsigned long a0, unsigned long a1,
 			 unsigned long a6, unsigned long a7,
 			 struct arm_smccc_res *res)
 {
+	struct arm_smccc_1_2_regs res_1_2;
+	struct arm_smccc_1_2_regs args = {
+		.a0 = a0,
+		.a1 = a1,
+		.a2 = a2,
+		.a3 = a3,
+		.a4 = a4,
+		.a5 = a5,
+		.a6 = a6,
+		.a7 = a7,
+	};
 	trace_mtk_hypcall_enter(a0);
-	arm_smccc_hvc(a0, a1, a2, a3, a4, a5, a6, a7, res);
+	arm_smccc_1_2_hvc(&args, &res_1_2);
+	res->a0 = res_1_2.a0;
+	res->a1 = res_1_2.a1;
+	res->a2 = res_1_2.a2;
+	res->a3 = res_1_2.a3;
 	trace_mtk_hypcall_leave(a0, (res->a0 != ERR_NOT_SUPPORTED) ? 0 : 1);
 
 	return gzvm_err_to_errno(res->a0);
@@ -366,6 +381,9 @@ int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 	case GZVM_CAP_PROTECTED_VM:
 		ret = gzvm_vm_ioctl_cap_pvm(gzvm, cap, argp);
 		return ret;
+
+	case GZVM_CAP_ENABLE_DEMAND_PAGING:
+		fallthrough;
 	case GZVM_CAP_BLOCK_BASED_DEMAND_PAGING:
 		ret = gzvm_vm_arch_enable_cap(gzvm, cap, &res);
 		return ret;

@@ -5,7 +5,7 @@
 
 #include <linux/eventfd.h>
 #include <linux/syscalls.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_common.h"
 
 struct gzvm_irq_ack_notifier {

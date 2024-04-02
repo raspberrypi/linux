@@ -5,7 +5,7 @@
 #include <linux/clocksource.h>
 #include <linux/kernel.h>
 #include <linux/timekeeping.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_arch_common.h"
 
 #define GZVM_PTP_VIRT_COUNTER 0

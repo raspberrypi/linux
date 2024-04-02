@@ -20,6 +20,7 @@
 #define GZVM_CAP_PROTECTED_VM	0xffbadab1
 /* query hypervisor supported block-based demand page */
 #define GZVM_CAP_BLOCK_BASED_DEMAND_PAGING	0x9201
+#define GZVM_CAP_ENABLE_DEMAND_PAGING	0x9202
 
 /* sub-commands put in args[0] for GZVM_CAP_PROTECTED_VM */
 #define GZVM_CAP_PVM_SET_PVMFW_GPA		0
@@ -83,14 +84,19 @@ struct gzvm_memory_region {
  */
 #define GZVM_CREATE_VCPU           _IO(GZVM_IOC_MAGIC,   0x41)
 
-/* for GZVM_SET_USER_MEMORY_REGION */
+/**
+ * struct gzvm_userspace_memory_region: gzvm userspace memory region descriptor
+ * @slot: memory slot
+ * @flags: describe the usage of userspace memory region
+ * @guest_phys_addr: guest vm's physical address
+ * @memory_size: memory size in bytes
+ * @userspace_addr: start of the userspace allocated memory
+ */
 struct gzvm_userspace_memory_region {
 	__u32 slot;
 	__u32 flags;
 	__u64 guest_phys_addr;
-	/* bytes */
 	__u64 memory_size;
-	/* start of the userspace allocated memory */
 	__u64 userspace_addr;
 };
 

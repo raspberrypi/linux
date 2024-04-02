@@ -10,7 +10,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 
 /**
  * gzvm_err_to_errno() - Convert geniezone return value to standard errno
@@ -31,7 +31,7 @@ int gzvm_err_to_errno(unsigned long err)
 	case ERR_INVALID_ARGS:
 		return -EINVAL;
 	case ERR_NOT_SUPPORTED:
-		return -EOPNOTSUPP;
+		fallthrough;
 	case ERR_NOT_IMPLEMENTED:
 		return -EOPNOTSUPP;
 	case ERR_FAULT:
@@ -68,17 +68,13 @@ long gzvm_dev_ioctl_check_extension(struct gzvm *gzvm, unsigned long args)
 static long gzvm_dev_ioctl(struct file *filp, unsigned int cmd,
 			   unsigned long user_args)
 {
-	long ret;
-
 	switch (cmd) {
 	case GZVM_CREATE_VM:
-		ret = gzvm_dev_ioctl_create_vm(user_args);
-		return ret;
+		return gzvm_dev_ioctl_create_vm(user_args);
 	case GZVM_CHECK_EXTENSION:
 		if (!user_args)
 			return -EINVAL;
-		ret = gzvm_dev_ioctl_check_extension(NULL, user_args);
-		return ret;
+		return gzvm_dev_ioctl_check_extension(NULL, user_args);
 	default:
 		break;
 	}

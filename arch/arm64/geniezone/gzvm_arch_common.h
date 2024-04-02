@@ -59,14 +59,14 @@ enum {
 
 /**
  * gzvm_hypcall_wrapper() - the wrapper for hvc calls
- * @a0: arguments passed in registers 0
- * @a1: arguments passed in registers 1
- * @a2: arguments passed in registers 2
- * @a3: arguments passed in registers 3
- * @a4: arguments passed in registers 4
- * @a5: arguments passed in registers 5
- * @a6: arguments passed in registers 6
- * @a7: arguments passed in registers 7
+ * @a0: argument passed in registers 0
+ * @a1: argument passed in registers 1
+ * @a2: argument passed in registers 2
+ * @a3: argument passed in registers 3
+ * @a4: argument passed in registers 4
+ * @a5: argument passed in registers 5
+ * @a6: argument passed in registers 6
+ * @a7: argument passed in registers 7
  * @res: result values from registers 0 to 3
  *
  * Return: The wrapper helps caller to convert geniezone errno to Linux errno.
@@ -76,16 +76,6 @@ int gzvm_hypcall_wrapper(unsigned long a0, unsigned long a1,
 			 unsigned long a4, unsigned long a5,
 			 unsigned long a6, unsigned long a7,
 			 struct arm_smccc_res *res);
-
-static inline u16 get_vmid_from_tuple(unsigned int tuple)
-{
-	return (u16)(tuple >> 16);
-}
-
-static inline u16 get_vcpuid_from_tuple(unsigned int tuple)
-{
-	return (u16)(tuple & 0xffff);
-}
 
 /**
  * struct gzvm_vcpu_hwstate: Sync architecture state back to host for handling
@@ -110,13 +100,6 @@ static inline unsigned int
 assemble_vm_vcpu_tuple(u16 vmid, u16 vcpuid)
 {
 	return ((unsigned int)vmid << 16 | vcpuid);
-}
-
-static inline void
-disassemble_vm_vcpu_tuple(unsigned int tuple, u16 *vmid, u16 *vcpuid)
-{
-	*vmid = get_vmid_from_tuple(tuple);
-	*vcpuid = get_vcpuid_from_tuple(tuple);
 }
 
 #endif /* __GZVM_ARCH_COMMON_H__ */

@@ -8,7 +8,7 @@
 #include <linux/uaccess.h>
 
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_arch_common.h"
 
 int gzvm_arch_vcpu_update_one_reg(struct gzvm_vcpu *vcpu, __u64 reg_id,

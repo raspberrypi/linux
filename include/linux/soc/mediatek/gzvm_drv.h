@@ -50,11 +50,19 @@
 #define GZVM_MAX_DEBUGFS_DIR_NAME_SIZE  20
 #define GZVM_MAX_DEBUGFS_VALUE_SIZE	20
 
-/* struct mem_region_addr_range - Identical to ffa memory constituent */
+enum gzvm_demand_paging_mode {
+	GZVM_FULLY_POPULATED = 0,
+	GZVM_DEMAND_PAGING = 1,
+};
+
+/**
+ * struct mem_region_addr_range: identical to ffa memory constituent
+ * @address: the base IPA of the constituent memory region, aligned to 4 kiB
+ * @pg_cnt: the number of 4 kiB pages in the constituent memory region
+ * @reserved: reserved for 64bit alignment
+ */
 struct mem_region_addr_range {
-	/* the base IPA of the constituent memory region, aligned to 4 kiB */
 	__u64 address;
-	/* the number of 4 kiB pages in the constituent memory region. */
 	__u32 pg_cnt;
 	__u32 reserved;
 };
@@ -67,12 +75,21 @@ struct gzvm_memory_region_ranges {
 	struct mem_region_addr_range constituents[];
 };
 
-/* struct gzvm_memslot - VM's memory slot descriptor */
+/**
+ * struct gzvm_memslot: VM's memory slot descriptor
+ * @base_gfn: begin of guest page frame
+ * @npages: number of pages this slot covers
+ * @userspace_addr: corresponding userspace va
+ * @vma: vma related to this userspace addr
+ * @flags: define the usage of memory region. Ex. guest memory or
+ * firmware protection
+ * @slot_id: the id is used to identify the memory slot
+ */
 struct gzvm_memslot {
-	u64 base_gfn;			/* begin of guest page frame */
-	unsigned long npages;		/* number of pages this slot covers */
-	unsigned long userspace_addr;	/* corresponding userspace va */
-	struct vm_area_struct *vma;	/* vma related to this userspace addr */
+	u64 base_gfn;
+	unsigned long npages;
+	unsigned long userspace_addr;
+	struct vm_area_struct *vma;
 	u32 flags;
 	u32 slot_id;
 };
@@ -97,20 +114,41 @@ struct gzvm_vm_stat {
 	u64 protected_shared_mem;
 };
 
+/**
+ * struct gzvm: the following data structures are for data transferring between
+ * driver and hypervisor, and they're aligned with hypervisor definitions.
+ * @vcpus: VM's cpu descriptors
+ * @mm: userspace tied to this vm
+ * @memslot: VM's memory slot descriptor
+ * @lock: lock for list_add
+ * @irqfds: the data structure is used to keep irqfds's information
+ * @ioevents: list head for ioevents
+ * @vm_list: list head for vm list
+ * @vm_id: vm id
+ * @irq_ack_notifier_list: list head for irq ack notifier
+ * @irq_srcu: structure data for SRCU(sleepable rcu)
+ * @irq_lock: lock for irq injection
+ * @mem_alloc_mode: memory allocation mode - fully allocated or demand paging
+ * @demand_page_gran: demand page granularity: how much memory we allocate for
+ * VM in a single page fault
+ * @demand_page_buffer: the mailbox for transferring large portion pages
+ * @demand_paging_lock: lock for preventing multiple cpu using the same demand
+ * page mailbox at the same time
+ * @pinned_pages: use rb-tree to record pin/unpin page
+ * @mem_lock: lock for memory operations
+ * @stat: information for VM memory statistics
+ * @debug_dir: debugfs directory node for VM memory statistics
+ */
 struct gzvm {
 	struct gzvm_vcpu *vcpus[GZVM_MAX_VCPUS];
-	/* userspace tied to this vm */
 	struct mm_struct *mm;
 	struct gzvm_memslot memslot[GZVM_MAX_MEM_REGION];
-	/* lock for list_add*/
 	struct mutex lock;
 
 	struct {
-		/* lock for irqfds list operation */
 		spinlock_t        lock;
 		struct list_head  items;
 		struct list_head  resampler_list;
-		/* lock for irqfds resampler */
 		struct mutex      resampler_lock;
 	} irqfds;
 
@@ -121,25 +159,14 @@ struct gzvm {
 
 	struct hlist_head irq_ack_notifier_list;
 	struct srcu_struct irq_srcu;
-	/* lock for irq injection */
 	struct mutex irq_lock;
+	u32 mem_alloc_mode;
 
-	/*
-	 * demand page granularity: how much memory we allocate for VM in a
-	 * single page fault
-	 */
 	u32 demand_page_gran;
-	/* the mailbox for transferring large portion pages */
 	u64 *demand_page_buffer;
-	/*
-	 * lock for preventing multiple cpu using the same demand page mailbox
-	 * at the same time
-	 */
 	struct mutex  demand_paging_lock;
 
-	/* Use rb-tree to record pin/unpin page */
 	struct rb_root pinned_pages;
-	/* lock for memory operations */
 	struct mutex mem_lock;
 
 	struct gzvm_vm_stat stat;
@@ -174,7 +201,8 @@ u64 gzvm_hva_to_pa_arch(u64 hva);
 u64 hva_to_pa_fast(u64 hva);
 u64 hva_to_pa_slow(u64 hva);
 int gzvm_gfn_to_pfn_memslot(struct gzvm_memslot *memslot, u64 gfn, u64 *pfn);
-u64 gzvm_gfn_to_hva_memslot(struct gzvm_memslot *memslot, u64 gfn);
+int gzvm_gfn_to_hva_memslot(struct gzvm_memslot *memslot, u64 gfn,
+			    u64 *hva_memslot);
 int gzvm_vm_populate_mem_region(struct gzvm *gzvm, int slot_id);
 int gzvm_vm_allocate_guest_page(struct gzvm *gzvm, struct gzvm_memslot *slot,
 				u64 gfn, u64 *pfn);

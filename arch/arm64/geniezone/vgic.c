@@ -5,7 +5,7 @@
 
 #include <linux/irqchip/arm-gic-v3.h>
 #include <linux/gzvm.h>
-#include <linux/gzvm_drv.h>
+#include <linux/soc/mediatek/gzvm_drv.h>
 #include "gzvm_arch_common.h"
 
 int gzvm_arch_create_device(u16 vm_id, struct gzvm_create_device *gzvm_dev)
