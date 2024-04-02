@@ -1852,42 +1852,6 @@
 
 # required by scsc_wlan.ko
   arp_tbl
-  __cfg80211_alloc_event_skb
-  __cfg80211_alloc_reply_skb
-  cfg80211_chandef_create
-  cfg80211_chandef_valid
-  cfg80211_check_station_change
-  cfg80211_ch_switch_notify
-  cfg80211_classify8021d
-  cfg80211_connect_done
-  cfg80211_conn_failed
-  cfg80211_del_sta_sinfo
-  cfg80211_disconnected
-  cfg80211_external_auth_request
-  cfg80211_find_elem_match
-  cfg80211_find_vendor_elem
-  __cfg80211_get_bss
-  cfg80211_inform_bss_data
-  cfg80211_inform_bss_frame_data
-  cfg80211_is_element_inherited
-  cfg80211_merge_profile
-  cfg80211_mgmt_tx_status_ext
-  cfg80211_michael_mic_failure
-  cfg80211_new_sta
-  cfg80211_put_bss
-  cfg80211_ready_on_channel
-  cfg80211_ref_bss
-  cfg80211_register_netdevice
-  cfg80211_remain_on_channel_expired
-  cfg80211_roamed
-  cfg80211_rx_mgmt_ext
-  cfg80211_scan_done
-  cfg80211_sched_scan_results
-  cfg80211_sched_scan_stopped
-  __cfg80211_send_event_skb
-  cfg80211_unregister_wdev
-  cfg80211_update_owe_info_event
-  cfg80211_vendor_cmd_reply
   __cpuhp_state_add_instance
   __cpuhp_state_remove_instance
   dev_alloc_name
@@ -1899,10 +1863,6 @@
   dst_release
   ether_setup
   for_each_kernel_tracepoint
-  ieee80211_channel_to_freq_khz
-  ieee80211_freq_khz_to_channel
-  ieee80211_get_channel_khz
-  ieee80211_operating_class_to_band
   in4_pton
   in6_pton
   ip_route_output_flow
@@ -1933,7 +1893,6 @@
   register_inet6addr_notifier
   register_inetaddr_notifier
   register_netdevice
-  regulatory_set_wiphy_regd
   rtnl_is_locked
   skb_copy
   skb_copy_bits
@@ -1943,10 +1902,6 @@
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
   unregister_netdevice_queue
-  wiphy_free
-  wiphy_new_nm
-  wiphy_register
-  wiphy_unregister
 
 # required by sec_ts.ko
   input_allocate_device
