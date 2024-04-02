@@ -77,7 +77,7 @@
 #define arch_raw_cpu_ptr(_ptr)					\
 ({								\
 	unsigned long tcp_ptr__ = __raw_my_cpu_offset;		\
-	tcp_ptr__ += (unsigned long)(_ptr);			\
+	tcp_ptr__ += (__force unsigned long)(_ptr);		\
 	(typeof(*(_ptr)) __kernel __force *)tcp_ptr__;		\
 })
 #else
