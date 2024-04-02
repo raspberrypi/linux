@@ -59,6 +59,7 @@ impl Mapping {
     }
 }
 
+// bitflags for defer_work.
 const PROC_DEFER_FLUSH: u8 = 1;
 const PROC_DEFER_RELEASE: u8 = 2;
 
@@ -1225,22 +1226,6 @@ impl Process {
         }
     }
 
-    pub(crate) fn flush(this: ArcBorrow<'_, Process>) -> Result {
-        let should_schedule;
-        {
-            let mut inner = this.inner.lock();
-            should_schedule = inner.defer_work == 0;
-            inner.defer_work |= PROC_DEFER_FLUSH;
-        }
-
-        if should_schedule {
-            // Ignore failures to schedule to the workqueue. Those just mean that we're already
-            // scheduled for execution.
-            let _ = workqueue::system().enqueue(Arc::from(this));
-        }
-        Ok(())
-    }
-
     pub(crate) fn drop_outstanding_txn(&self) {
         let wake = {
             let mut inner = self.inner.lock();
@@ -1425,6 +1410,22 @@ impl Process {
             // scheduled for execution.
             let _ = workqueue::system().enqueue(this);
         }
+    }
+
+    pub(crate) fn flush(this: ArcBorrow<'_, Process>) -> Result {
+        let should_schedule;
+        {
+            let mut inner = this.inner.lock();
+            should_schedule = inner.defer_work == 0;
+            inner.defer_work |= PROC_DEFER_FLUSH;
+        }
+
+        if should_schedule {
+            // Ignore failures to schedule to the workqueue. Those just mean that we're already
+            // scheduled for execution.
+            let _ = workqueue::system().enqueue(Arc::from(this));
+        }
+        Ok(())
     }
 
     pub(crate) fn ioctl(

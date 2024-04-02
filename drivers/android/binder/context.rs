@@ -154,9 +154,7 @@ impl Context {
     pub(crate) fn deregister(&self) {
         // SAFETY: We never add the context to any other linked list than this one, so it is either
         // in this list, or not in any list.
-        unsafe {
-            CONTEXTS.lock().list.remove(self);
-        }
+        unsafe { CONTEXTS.lock().list.remove(self) };
     }
 
     pub(crate) fn register_process(self: &Arc<Self>, proc: ListArc<Process>) {
@@ -173,9 +171,7 @@ impl Context {
             return;
         }
         // SAFETY: We just checked that this is the right list.
-        unsafe {
-            self.manager.lock().all_procs.remove(proc);
-        }
+        unsafe { self.manager.lock().all_procs.remove(proc) };
     }
 
     pub(crate) fn set_manager_node(&self, node_ref: NodeRef) -> Result {

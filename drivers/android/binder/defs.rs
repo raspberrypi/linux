@@ -10,7 +10,7 @@ use kernel::{
 };
 
 macro_rules! pub_no_prefix {
-    ($prefix:ident, $($newname:ident),+) => {
+    ($prefix:ident, $($newname:ident),+ $(,)?) => {
         $(pub(crate) const $newname: u32 = kernel::macros::concat_idents!($prefix, $newname);)+
     };
 }
@@ -34,7 +34,7 @@ pub_no_prefix!(
     BR_RELEASE,
     BR_DECREFS,
     BR_DEAD_BINDER,
-    BR_CLEAR_DEATH_NOTIFICATION_DONE
+    BR_CLEAR_DEATH_NOTIFICATION_DONE,
 );
 
 pub_no_prefix!(
@@ -55,7 +55,7 @@ pub_no_prefix!(
     BC_ACQUIRE_DONE,
     BC_REQUEST_DEATH_NOTIFICATION,
     BC_CLEAR_DEATH_NOTIFICATION,
-    BC_DEAD_BINDER_DONE
+    BC_DEAD_BINDER_DONE,
 );
 
 pub_no_prefix!(

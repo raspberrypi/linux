@@ -207,10 +207,11 @@ struct BinderModule {}
 impl kernel::Module for BinderModule {
     fn init(_module: &'static kernel::ThisModule) -> Result<Self> {
         // SAFETY: This is the very first thing that happens in this module, so nothing else has
-        // called `init` yet. Furthermore, we cannot move a value in a global, so the `Contexts`
-        // will not be moved after this call.
+        // called `Contexts::init` yet. Furthermore, we cannot move a value in a global, so the
+        // `Contexts` will not be moved after this call.
         unsafe { crate::context::CONTEXTS.init() };
 
+        // SAFETY: This just accesses global booleans.
         #[cfg(CONFIG_ANDROID_BINDER_IPC)]
         unsafe {
             extern "C" {
@@ -301,10 +302,9 @@ unsafe extern "C" fn rust_binder_open(
         Ok(process) => process,
         Err(err) => return err.to_errno(),
     };
+
     // SAFETY: This file is associated with Rust binder, so we own the `private_data` field.
-    unsafe {
-        (*file_ptr).private_data = process.into_foreign().cast_mut();
-    }
+    unsafe { (*file_ptr).private_data = process.into_foreign().cast_mut() };
     0
 }
 

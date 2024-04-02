@@ -835,8 +835,8 @@ impl DeliverToRead for NodeDeath {
 
         writer.write(&cmd)?;
         writer.write(&cookie)?;
-        // Mimic the original code: we stop processing work items when we get to a death
-        // notification.
+        // DEAD_BINDER notifications can cause transactions, so stop processing work items when we
+        // get to a death notification.
         Ok(cmd != BR_DEAD_BINDER)
     }
 
