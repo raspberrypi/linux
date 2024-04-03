@@ -97,6 +97,19 @@
 		drm_fb0_vc4 = <&aliases>, "drm-fb0=",&vc4;
 		drm_fb1_vc4 = <&aliases>, "drm-fb1=",&vc4;
 		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+
+		cam1_sync = <&csi1>, "sync-gpios:0=", <&gpio>,
+			    <&csi1>, "sync-gpios:4",
+			    <&csi1>, "sync-gpios:8=0", <GPIO_ACTIVE_HIGH>;
+		cam1_sync_inverted = <&csi1>, "sync-gpios:0=", <&gpio>,
+			    <&csi1>, "sync-gpios:4",
+			    <&csi1>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
+		cam0_sync = <&csi0>, "sync-gpios:0=", <&gpio>,
+			    <&csi0>, "sync-gpios:4",
+			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_HIGH>;
+		cam0_sync_inverted = <&csi0>, "sync-gpios:0=", <&gpio>,
+			    <&csi0>, "sync-gpios:4",
+			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
 	};
 };
 
