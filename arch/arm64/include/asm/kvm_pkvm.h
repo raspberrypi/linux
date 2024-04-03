@@ -442,4 +442,8 @@ int __pkvm_topup_hyp_alloc(unsigned long nr_pages);
 	} while (!__ret);						\
 	__ret;								\
 })
+
+int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
+			     int (*call_hyp_nvhe)(u64, u64, u8, void*),
+			     void *args, bool unmap);
 #endif	/* __ARM64_KVM_PKVM_H__ */
