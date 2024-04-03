@@ -141,11 +141,20 @@ static int rp1_irq_set_type(struct irq_data *irqd, unsigned int type)
 	return ret;
 }
 
+static int rp1_irq_set_affinity(struct irq_data *irqd, const struct cpumask *dest, bool force)
+{
+	struct rp1_dev *rp1 = irqd->domain->host_data;
+	struct irq_data *pcie_irqd = rp1->pcie_irqds[irqd->hwirq];
+
+	return msi_domain_set_affinity(pcie_irqd, dest, force);
+}
+
 static struct irq_chip rp1_irq_chip = {
 	.name            = "rp1_irq_chip",
 	.irq_mask        = rp1_mask_irq,
 	.irq_unmask      = rp1_unmask_irq,
 	.irq_set_type    = rp1_irq_set_type,
+	.irq_set_affinity = rp1_irq_set_affinity,
 };
 
 static void rp1_chained_handle_irq(struct irq_desc *desc)
