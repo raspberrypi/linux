@@ -419,7 +419,7 @@ cmd_gen_order = { $(foreach m, $(real-prereqs), \
 $(obj)/modules.order: $(obj-m) FORCE
 	$(call if_changed,gen_order)
 
-$(obj)/dtbs-list: $(dtb-y) FORCE
+$(obj)/dtbs-list: $(dtb-y) $(dtbo-y) FORCE
 	$(call if_changed,gen_order)
 
 #
