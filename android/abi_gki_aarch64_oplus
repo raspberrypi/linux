@@ -129,6 +129,8 @@
   __traceiter_android_vh_freq_qos_remove_request
   __traceiter_android_vh_freq_qos_update_request
   __traceiter_android_vh_freq_qos_add_request
+  __tracepoint_android_vh_get_page_wmark
+  __tracepoint_android_vh_page_add_new_anon_rmap
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_kmalloc_slab
   __traceiter_android_vh_free_oem_binder_struct
@@ -196,6 +198,8 @@
   __tracepoint_android_vh_cpufreq_acct_update_power
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_exit_signal
+  __traceiter_android_vh_get_page_wmark
+  __traceiter_android_vh_page_add_new_anon_rmap
   __tracepoint_android_vh_do_shrink_slab
   __tracepoint_android_vh_freq_qos_remove_request
   __tracepoint_android_vh_freq_qos_update_request
