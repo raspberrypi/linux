@@ -1,0 +1,12 @@
+{
+  "presubmit": [
+    {
+      "name": "CtsJobSchedulerTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    }
+  ]
+}

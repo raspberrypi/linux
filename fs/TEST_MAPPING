@@ -1,39 +1,33 @@
 {
+  "imports": [
+    {
+      "path": "frameworks/base/packages/PackageInstaller"
+    },
+    {
+      "path": "packages/modules/AdServices/sdksandbox"
+    },
+    {
+      "path": "frameworks/base/core/java/android/content"
+    }
+ ],
   "presubmit": [
     {
-      "name": "CtsHostsideNetworkTests",
+      "name": "CtsPackageInstallTestCases",
       "options": [
         {
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         }
       ]
-    },
+    }
+  ],
+  "presubmit-large": [
     {
-      "name": "CtsNetTestCases",
+      "name": "CtsContentTestCases",
       "options": [
         {
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         }
       ]
-    },
-    {
-      "name": "CtsNetTestCasesLatestSdk",
-      "options": [
-        {
-          "exclude-annotation": "com.android.testutils.SkipPresubmit"
-        }
-      ]
-    },
-    {
-      "name": "CtsTelecomTestCases",
-      "options": [
-        {
-          "exclude-annotation": "com.android.testutils.SkipPresubmit"
-        }
-      ]
-    },
-    {
-      "name": "vts_kernel_net_tests"
     }
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "imports": [
+    {
+      "path": "frameworks/base/apex/jobscheduler/service/java/com/android/server/job/"
+    },
+    {
+      "path": "system/memory/libmeminfo"
+    },
+    {
+      "path": "system/memory/libmeminfo/libdmabufinfo"
+    },
+    {
+      "path": "system/memory/libmemunreachable"
+    }
+ ],
+  "presubmit": [
+    {
+      "name": "CtsJobSchedulerTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    }
+  ]
+}

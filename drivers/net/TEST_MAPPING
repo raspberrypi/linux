@@ -1,13 +1,16 @@
 {
-  "presubmit": [
+  "imports": [
     {
-      "name": "CtsHostsideNetworkTests",
-      "options": [
-        {
-          "exclude-annotation": "com.android.testutils.SkipPresubmit"
-        }
-      ]
+      "path": "packages/modules/Connectivity"
     },
+    {
+      "path": "packages/services/Telecomm"
+    },
+    {
+      "path": "system/netd"
+    }
+ ],
+ "presubmit": [
     {
       "name": "CtsNetTestCases",
       "options": [
@@ -25,7 +28,7 @@
       ]
     },
     {
-      "name": "CtsTelecomTestCases",
+      "name": "CtsUsbManagerTestCases",
       "options": [
         {
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
@@ -34,6 +37,24 @@
     },
     {
       "name": "vts_kernel_net_tests"
+    }
+  ],
+  "presubmit-large": [
+    {
+      "name": "CtsHostsideNetworkTests",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "CtsTelecomTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
     }
   ]
 }
