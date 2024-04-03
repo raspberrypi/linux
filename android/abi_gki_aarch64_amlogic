@@ -785,6 +785,7 @@
   _find_next_zero_bit
   find_task_by_vpid
   find_vma
+  find_vm_area
   find_vpid
   finish_no_open
   finish_open
@@ -1080,6 +1081,7 @@
   irq_stat
   irq_to_desc
   is_bad_inode
+  is_dma_buf_file
   is_vmalloc_addr
   iter_file_splice_write
   iwe_stream_add_event
