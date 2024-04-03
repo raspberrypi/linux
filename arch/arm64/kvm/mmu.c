@@ -16,6 +16,7 @@
 #include <asm/kvm_arm.h>
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pgtable.h>
+#include <asm/kvm_pkvm.h>
 #include <asm/kvm_ras.h>
 #include <asm/kvm_asm.h>
 #include <asm/kvm_emulate.h>
@@ -288,14 +289,19 @@ static void invalidate_icache_guest_page(void *va, size_t size)
 	__invalidate_icache_guest_page(va, size);
 }
 
+static int __pkvm_unmap_guest_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *kvm = args;
+
+	return kvm_call_hyp_nvhe(__pkvm_host_unmap_guest, kvm->arch.pkvm.handle,
+				 pfn, gfn, order);
+}
+
 static int pkvm_unmap_guest(struct kvm *kvm, struct kvm_pinned_page *ppage)
 {
 	int ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_host_unmap_guest,
-				kvm->arch.pkvm.handle,
-				page_to_pfn(ppage->page),
-				ppage->ipa >> PAGE_SHIFT);
+	ret = pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_unmap_guest_call, kvm, true);
 	if (ret)
 		return ret;
 

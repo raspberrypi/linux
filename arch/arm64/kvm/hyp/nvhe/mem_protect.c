@@ -2527,36 +2527,51 @@ static int guest_get_valid_pte(struct pkvm_hyp_vm *vm, u64 pfn, u64 ipa,
 	return 0;
 }
 
-int __pkvm_host_unshare_guest(u64 pfn, u64 gfn, struct pkvm_hyp_vm *vm)
+/*
+ * Ideally we would like to use check_unshare()... but this wouldn't let us
+ * restrict the unshare range to the actual guest stage-2 mapping.
+ */
+static int __check_host_unshare_guest_order(struct pkvm_hyp_vm *vm, u64 pfn,
+					    u64 guest_addr, u8 order)
 {
+	u64 host_addr = hyp_pfn_to_phys(pfn);
+	enum pkvm_page_state state;
+	kvm_pte_t pte;
 	int ret;
+
+	ret = guest_get_valid_pte(vm, pfn, guest_addr, order, &pte);
+	if (ret)
+		return ret;
+
+	state = guest_get_page_state(pte, guest_addr) & ~PKVM_PAGE_RESTRICTED_PROT;
+	if (state != PKVM_PAGE_SHARED_BORROWED)
+		return -EPERM;
+
+	return __host_check_page_state_range(host_addr, PAGE_SIZE << order,
+					     PKVM_PAGE_SHARED_OWNED);
+}
+
+int __pkvm_host_unshare_guest(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn,
+			      u8 order)
+{
 	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
-	struct pkvm_mem_transition share = {
-		.nr_pages	= 1,
-		.initiator	= {
-			.id	= PKVM_ID_HOST,
-			.addr	= host_addr,
-			.host	= {
-				.completer_addr = guest_addr,
-			},
-		},
-		.completer	= {
-			.id	= PKVM_ID_GUEST,
-			.guest	= {
-				.hyp_vm = vm,
-				.mc = NULL,
-				.phys = host_addr,
-			},
-		},
-	};
-	u64 nr_unshared;
+	int ret;
 
 	host_lock_component();
 	guest_lock_component(vm);
 
-	ret = do_unshare(&share, &nr_unshared);
+	ret = __check_host_unshare_guest_order(vm, pfn, guest_addr, order);
+	if (ret)
+		goto unlock;
 
+	ret = kvm_pgtable_stage2_unmap(&vm->pgt, guest_addr, PAGE_SIZE << order);
+	if (ret)
+		goto unlock;
+
+	WARN_ON(__host_set_page_state_range(host_addr, PAGE_SIZE << order,
+					    PKVM_PAGE_OWNED));
+unlock:
 	guest_unlock_component(vm);
 	host_unlock_component();
 
