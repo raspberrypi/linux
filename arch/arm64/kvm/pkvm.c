@@ -307,6 +307,15 @@ int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
 	return 0;
 }
 
+static int __reclaim_dying_guest_page_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *host_kvm = args;
+
+	return kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
+				 host_kvm->arch.pkvm.handle,
+				 pfn, gfn, order);
+}
+
 static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
 	struct mm_struct *mm = current->mm;
@@ -320,10 +329,9 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
 	mt_for_each(&host_kvm->arch.pkvm.pinned_pages, ppage, ipa, ULONG_MAX) {
-		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
-					  host_kvm->arch.pkvm.handle,
-					  page_to_pfn(ppage->page),
-					  ppage->ipa >> PAGE_SHIFT));
+		WARN_ON(pkvm_call_hyp_nvhe_ppage(ppage,
+						 __reclaim_dying_guest_page_call,
+						 host_kvm, true));
 		cond_resched();
 
 		account_locked_vm(mm, 1, false);
