@@ -55,7 +55,7 @@ bool __pkvm_check_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu);
 int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 				    u64 ipa, u64 *ppa);
 int __pkvm_relax_perms(u64 pfn, u64 gfn, enum kvm_pgtable_prot prot, struct pkvm_hyp_vcpu *vcpu);
-int __pkvm_wrprotect(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn);
+int __pkvm_wrprotect(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn, u8 order);
 int __pkvm_host_use_dma(u64 phys_addr, size_t size);
 int __pkvm_host_unuse_dma(u64 phys_addr, size_t size);
 int __pkvm_guest_stage2_snapshot(struct kvm_pgtable_snapshot *snap, struct pkvm_hyp_vm *vm);

@@ -2625,42 +2625,20 @@ unlock:
 	return ret;
 }
 
-int __pkvm_wrprotect(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn)
+int __pkvm_wrprotect(struct pkvm_hyp_vm *vm, u64 pfn, u64 gfn, u8 order)
 {
-	int ret;
-	u64 host_addr = hyp_pfn_to_phys(pfn);
 	u64 guest_addr = hyp_pfn_to_phys(gfn);
-	struct pkvm_mem_transition share = {
-		.nr_pages	= 1,
-		.initiator	= {
-			.id	= PKVM_ID_HOST,
-			.addr	= host_addr,
-			.host	= {
-				.completer_addr = guest_addr,
-			},
-		},
-		.completer	= {
-			.id	= PKVM_ID_GUEST,
-			.guest	= {
-				.hyp_vm = vm,
-				.mc = NULL,
-				.phys = host_addr,
-			},
-		},
-	};
-	struct pkvm_checked_mem_transition checked_tx = {
-		.tx		= &share,
-		.nr_pages	= 0,
-	};
+	int ret;
 
 	host_lock_component();
 	guest_lock_component(vm);
 
-	ret = check_unshare(&checked_tx);
+	ret = __check_host_unshare_guest_order(vm, pfn, guest_addr, order);
 	if (ret)
 		goto unlock;
 
-	ret = kvm_pgtable_stage2_wrprotect(&vm->pgt, guest_addr, PAGE_SIZE);
+	ret = kvm_pgtable_stage2_wrprotect(&vm->pgt, guest_addr,
+					   PAGE_SIZE << order);
 unlock:
 	guest_unlock_component(vm);
 	host_unlock_component();

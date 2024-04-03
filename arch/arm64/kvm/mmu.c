@@ -1249,6 +1249,14 @@ int kvm_phys_addr_ioremap(struct kvm *kvm, phys_addr_t guest_ipa,
 	return ret;
 }
 
+static int __pkvm_wrprotect_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *kvm = (struct kvm *)args;
+
+	return kvm_call_hyp_nvhe(__pkvm_wrprotect, kvm->arch.pkvm.handle, pfn,
+				 gfn, order);
+}
+
 static int pkvm_wp_range(struct kvm *kvm, u64 start, u64 end)
 {
 	unsigned long index = start;
@@ -1256,10 +1264,9 @@ static int pkvm_wp_range(struct kvm *kvm, u64 start, u64 end)
 
 	mt_for_each(&kvm->arch.pkvm.pinned_pages, entry, index, end - 1) {
 		struct kvm_pinned_page *ppage = entry;
-		int ret = kvm_call_hyp_nvhe(__pkvm_wrprotect,
-					    kvm->arch.pkvm.handle,
-					    page_to_pfn(ppage->page),
-					    ppage->ipa >> PAGE_SHIFT);
+		int ret = pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_wrprotect_call,
+						   kvm, false);
+
 		if (ret)
 			return ret;
 	}
