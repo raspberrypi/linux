@@ -143,9 +143,6 @@ enum {
  *
  * WR: wq->mutex protected for writes.  RCU protected for reads.
  *
- * WO: wq->mutex protected for writes. Updated with WRITE_ONCE() and can be read
- *     with READ_ONCE() without locking.
- *
  * MD: wq_mayday_lock protected.
  *
  * WD: Used internally by the watchdog.
@@ -253,6 +250,7 @@ struct pool_workqueue {
 	 * is marked with WORK_STRUCT_INACTIVE iff it is in pwq->inactive_works.
 	 */
 	int			nr_active;	/* L: nr of active works */
+	int			max_active;	/* L: max active works */
 	struct list_head	inactive_works;	/* L: inactive works */
 	struct list_head	pwqs_node;	/* WR: node on wq->pwqs */
 	struct list_head	mayday_node;	/* MD: node on wq->maydays */
@@ -300,8 +298,7 @@ struct workqueue_struct {
 	struct worker		*rescuer;	/* MD: rescue worker */
 
 	int			nr_drainers;	/* WQ: drain in progress */
-	int			max_active;	/* WO: max active works */
-	int			saved_max_active; /* WQ: saved max_active */
+	int			saved_max_active; /* WQ: saved pwq max_active */
 
 	struct workqueue_attrs	*unbound_attrs;	/* PW: only for unbound wqs */
 	struct pool_workqueue	*dfl_pwq;	/* PW: only for unbound wqs */
@@ -1495,7 +1492,7 @@ static void pwq_dec_nr_in_flight(struct pool_workqueue *pwq, unsigned long work_
 		pwq->nr_active--;
 		if (!list_empty(&pwq->inactive_works)) {
 			/* one down, submit an inactive one */
-			if (pwq->nr_active < READ_ONCE(pwq->wq->max_active))
+			if (pwq->nr_active < pwq->max_active)
 				pwq_activate_first_inactive(pwq);
 		}
 	}
@@ -1796,13 +1793,7 @@ retry:
 	pwq->nr_in_flight[pwq->work_color]++;
 	work_flags = work_color_to_flags(pwq->work_color);
 
-	/*
-	 * Limit the number of concurrently active work items to max_active.
-	 * @work must also queue behind existing inactive work items to maintain
-	 * ordering when max_active changes. See wq_adjust_max_active().
-	 */
-	if (list_empty(&pwq->inactive_works) &&
-	    pwq->nr_active < READ_ONCE(pwq->wq->max_active)) {
+	if (likely(pwq->nr_active < pwq->max_active)) {
 		if (list_empty(&pool->worklist))
 			pool->watchdog_ts = jiffies;
 
@@ -4151,6 +4142,50 @@ static void pwq_release_workfn(struct kthread_work *work)
 	}
 }
 
+/**
+ * pwq_adjust_max_active - update a pwq's max_active to the current setting
+ * @pwq: target pool_workqueue
+ *
+ * If @pwq isn't freezing, set @pwq->max_active to the associated
+ * workqueue's saved_max_active and activate inactive work items
+ * accordingly.  If @pwq is freezing, clear @pwq->max_active to zero.
+ */
+static void pwq_adjust_max_active(struct pool_workqueue *pwq)
+{
+	struct workqueue_struct *wq = pwq->wq;
+	bool freezable = wq->flags & WQ_FREEZABLE;
+	unsigned long flags;
+
+	/* for @wq->saved_max_active */
+	lockdep_assert_held(&wq->mutex);
+
+	/* fast exit for non-freezable wqs */
+	if (!freezable && pwq->max_active == wq->saved_max_active)
+		return;
+
+	/* this function can be called during early boot w/ irq disabled */
+	raw_spin_lock_irqsave(&pwq->pool->lock, flags);
+
+	/*
+	 * During [un]freezing, the caller is responsible for ensuring that
+	 * this function is called at least once after @workqueue_freezing
+	 * is updated and visible.
+	 */
+	if (!freezable || !workqueue_freezing) {
+		pwq->max_active = wq->saved_max_active;
+
+		while (!list_empty(&pwq->inactive_works) &&
+		       pwq->nr_active < pwq->max_active)
+			pwq_activate_first_inactive(pwq);
+
+		kick_pool(pwq->pool);
+	} else {
+		pwq->max_active = 0;
+	}
+
+	raw_spin_unlock_irqrestore(&pwq->pool->lock, flags);
+}
+
 /* initialize newly allocated @pwq which is associated with @wq and @pool */
 static void init_pwq(struct pool_workqueue *pwq, struct workqueue_struct *wq,
 		     struct worker_pool *pool)
@@ -4182,6 +4217,9 @@ static void link_pwq(struct pool_workqueue *pwq)
 
 	/* set the matching work_color */
 	pwq->work_color = wq->work_color;
+
+	/* sync max_active to the current setting */
+	pwq_adjust_max_active(pwq);
 
 	/* link in @pwq */
 	list_add_rcu(&pwq->pwqs_node, &wq->pwqs);
@@ -4620,52 +4658,6 @@ static int init_rescuer(struct workqueue_struct *wq)
 	return 0;
 }
 
-/**
- * wq_adjust_max_active - update a wq's max_active to the current setting
- * @wq: target workqueue
- *
- * If @wq isn't freezing, set @wq->max_active to the saved_max_active and
- * activate inactive work items accordingly. If @wq is freezing, clear
- * @wq->max_active to zero.
- */
-static void wq_adjust_max_active(struct workqueue_struct *wq)
-{
-	struct pool_workqueue *pwq;
-
-	lockdep_assert_held(&wq->mutex);
-
-	if ((wq->flags & WQ_FREEZABLE) && workqueue_freezing) {
-		WRITE_ONCE(wq->max_active, 0);
-		return;
-	}
-
-	if (wq->max_active == wq->saved_max_active)
-		return;
-
-	/*
-	 * Update @wq->max_active and then kick inactive work items if more
-	 * active work items are allowed. This doesn't break work item ordering
-	 * because new work items are always queued behind existing inactive
-	 * work items if there are any.
-	 */
-	WRITE_ONCE(wq->max_active, wq->saved_max_active);
-
-	for_each_pwq(pwq, wq) {
-		unsigned long flags;
-
-		/* this function can be called during early boot w/ irq disabled */
-		raw_spin_lock_irqsave(&pwq->pool->lock, flags);
-
-		while (!list_empty(&pwq->inactive_works) &&
-		       pwq->nr_active < wq->max_active)
-			pwq_activate_first_inactive(pwq);
-
-		kick_pool(pwq->pool);
-
-		raw_spin_unlock_irqrestore(&pwq->pool->lock, flags);
-	}
-}
-
 __printf(1, 4)
 struct workqueue_struct *alloc_workqueue(const char *fmt,
 					 unsigned int flags,
@@ -4673,6 +4665,7 @@ struct workqueue_struct *alloc_workqueue(const char *fmt,
 {
 	va_list args;
 	struct workqueue_struct *wq;
+	struct pool_workqueue *pwq;
 	int len;
 
 	/*
@@ -4711,7 +4704,6 @@ struct workqueue_struct *alloc_workqueue(const char *fmt,
 
 	/* init wq */
 	wq->flags = flags;
-	wq->max_active = max_active;
 	wq->saved_max_active = max_active;
 	mutex_init(&wq->mutex);
 	atomic_set(&wq->nr_pwqs_to_flush, 0);
@@ -4740,7 +4732,8 @@ struct workqueue_struct *alloc_workqueue(const char *fmt,
 	mutex_lock(&wq_pool_mutex);
 
 	mutex_lock(&wq->mutex);
-	wq_adjust_max_active(wq);
+	for_each_pwq(pwq, wq)
+		pwq_adjust_max_active(pwq);
 	mutex_unlock(&wq->mutex);
 
 	list_add_tail_rcu(&wq->list, &workqueues);
@@ -4878,6 +4871,8 @@ EXPORT_SYMBOL_GPL(destroy_workqueue);
  */
 void workqueue_set_max_active(struct workqueue_struct *wq, int max_active)
 {
+	struct pool_workqueue *pwq;
+
 	/* disallow meddling with max_active for ordered workqueues */
 	if (WARN_ON(wq->flags & __WQ_ORDERED_EXPLICIT))
 		return;
@@ -4888,7 +4883,9 @@ void workqueue_set_max_active(struct workqueue_struct *wq, int max_active)
 
 	wq->flags &= ~__WQ_ORDERED;
 	wq->saved_max_active = max_active;
-	wq_adjust_max_active(wq);
+
+	for_each_pwq(pwq, wq)
+		pwq_adjust_max_active(pwq);
 
 	mutex_unlock(&wq->mutex);
 }
@@ -5135,8 +5132,8 @@ static void show_pwq(struct pool_workqueue *pwq)
 	pr_info("  pwq %d:", pool->id);
 	pr_cont_pool_info(pool);
 
-	pr_cont(" active=%d refcnt=%d%s\n",
-		pwq->nr_active, pwq->refcnt,
+	pr_cont(" active=%d/%d refcnt=%d%s\n",
+		pwq->nr_active, pwq->max_active, pwq->refcnt,
 		!list_empty(&pwq->mayday_node) ? " MAYDAY" : "");
 
 	hash_for_each(pool->busy_hash, bkt, worker, hentry) {
@@ -5684,6 +5681,7 @@ EXPORT_SYMBOL_GPL(work_on_cpu_safe_key);
 void freeze_workqueues_begin(void)
 {
 	struct workqueue_struct *wq;
+	struct pool_workqueue *pwq;
 
 	mutex_lock(&wq_pool_mutex);
 
@@ -5692,7 +5690,8 @@ void freeze_workqueues_begin(void)
 
 	list_for_each_entry(wq, &workqueues, list) {
 		mutex_lock(&wq->mutex);
-		wq_adjust_max_active(wq);
+		for_each_pwq(pwq, wq)
+			pwq_adjust_max_active(pwq);
 		mutex_unlock(&wq->mutex);
 	}
 
@@ -5757,6 +5756,7 @@ out_unlock:
 void thaw_workqueues(void)
 {
 	struct workqueue_struct *wq;
+	struct pool_workqueue *pwq;
 
 	mutex_lock(&wq_pool_mutex);
 
@@ -5768,7 +5768,8 @@ void thaw_workqueues(void)
 	/* restore max_active and repopulate worklist */
 	list_for_each_entry(wq, &workqueues, list) {
 		mutex_lock(&wq->mutex);
-		wq_adjust_max_active(wq);
+		for_each_pwq(pwq, wq)
+			pwq_adjust_max_active(pwq);
 		mutex_unlock(&wq->mutex);
 	}
 
