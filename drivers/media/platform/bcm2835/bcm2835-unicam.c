@@ -49,6 +49,7 @@
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -543,6 +544,8 @@ struct unicam_device {
 	struct v4l2_device v4l2_dev;
 	struct media_device mdev;
 
+	struct gpio_desc *sync_gpio;
+
 	/* parent device */
 	struct platform_device *pdev;
 	/* subdevice async Notifier */
@@ -943,6 +946,8 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 	if (fe) {
 		bool inc_seq = unicam->frame_started;
 
+		if (unicam->sync_gpio)
+			gpiod_set_value(unicam->sync_gpio, 0);
 		/*
 		 * Ensure we have swapped buffers already as we can't
 		 * stop the peripheral. If no buffer is available, use a
@@ -1003,6 +1008,10 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 		 * aka frame start.
 		 */
 		ts = ktime_get_ns();
+
+		if (unicam->sync_gpio)
+			gpiod_set_value(unicam->sync_gpio, 1);
+
 		for (i = 0; i < ARRAY_SIZE(unicam->node); i++) {
 			if (!unicam->node[i].streaming)
 				continue;
@@ -3406,6 +3415,9 @@ static int unicam_probe(struct platform_device *pdev)
 		ret = PTR_ERR(unicam->vpu_clock);
 		goto err_unicam_put;
 	}
+
+	unicam->sync_gpio = devm_gpiod_get_optional(&pdev->dev, "sync",
+						    GPIOD_OUT_LOW);
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret <= 0) {
