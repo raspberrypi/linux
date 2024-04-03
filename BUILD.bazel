@@ -136,20 +136,24 @@ define_common_kernels(target_configs = {
         "protected_modules_list": "android/gki_aarch64_protected_modules",
         "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
+        "extra_dist": [":test_mappings_zip"],
     },
     "kernel_aarch64_16k": {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
+        "extra_dist": [":test_mappings_zip"],
     },
     "kernel_riscv64": {
         "module_implicit_outs": get_gki_modules_list("riscv64"),
         "make_goals": _GKI_RISCV64_MAKE_GOALS,
+        "extra_dist": [":test_mappings_zip"],
     },
     "kernel_x86_64": {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": get_gki_modules_list("x86_64"),
         "make_goals": _GKI_X86_64_MAKE_GOALS,
+        "extra_dist": [":test_mappings_zip"],
     },
 })
 
@@ -2412,5 +2416,15 @@ pkg_files(
     srcs = _TEST_MAPPINGS,
     prefix = package_name(),
     renames = {file: file for file in _TEST_MAPPINGS},
-    visibility = ["//kernel/tests/test_mappings:__pkg__"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_zip(
+    name = "test_mappings_zip",
+    srcs = [
+        ":test_mappings",
+        "//kernel/tests/test_mappings:non_kernel_test_mappings",
+    ],
+    out = "test_mappings.zip",
+    visibility = ["//common-modules/virtual-device:__pkg__"],
 )
