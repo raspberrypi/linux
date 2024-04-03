@@ -1293,9 +1293,9 @@ static void handle___pkvm_reclaim_dying_guest_page(struct kvm_cpu_context *host_
 {
 	DECLARE_REG(pkvm_handle_t, handle, host_ctxt, 1);
 	DECLARE_REG(u64, pfn, host_ctxt, 2);
-	DECLARE_REG(u64, ipa, host_ctxt, 3);
+	DECLARE_REG(u64, gfn, host_ctxt, 3);
 
-	cpu_reg(host_ctxt, 1) = __pkvm_reclaim_dying_guest_page(handle, pfn, ipa);
+	cpu_reg(host_ctxt, 1) = __pkvm_reclaim_dying_guest_page(handle, pfn, gfn);
 }
 
 static void handle___pkvm_create_private_mapping(struct kvm_cpu_context *host_ctxt)
