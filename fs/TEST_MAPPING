@@ -8,7 +8,14 @@
     },
     {
       "path": "frameworks/base/core/java/android/content"
+    },
+    {
+      "path": "system/core/fs_mgr"
+    },
+    {
+      "path": "test/vts-testcase/kernel/dynamic_partitions"
     }
+
  ],
   "presubmit": [
     {
@@ -28,6 +35,26 @@
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         }
       ]
+    }
+  ],
+  "kernel-presubmit": [
+    {
+      "name": "libdm_test"
+    },
+    {
+      "name": "liblp_test"
+    },
+    {
+      "name": "vab_legacy_tests"
+    },
+    {
+      "name": "snapuserd_test"
+    },
+    {
+      "name": "KernelApiSysfsTest"
+    },
+    {
+      "name": "KernelDynamicPartitionsTest"
     }
   ]
 }
