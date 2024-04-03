@@ -1618,13 +1618,27 @@ static struct kvm_pinned_page *find_ppage(struct kvm *kvm, u64 ipa)
 	return mt_find(&kvm->arch.pkvm.pinned_pages, &index, ipa + PAGE_SIZE - 1);
 }
 
-static int pkvm_relax_perms(struct kvm *kvm, u64 pfn, u64 gfn,
-			    enum kvm_pgtable_prot prot)
+static int __pkvm_relax_perms_call(u64 pfn, u64 gfn, u8 order, void *args)
 {
-	struct kvm_pinned_page *ppage;
-	int ret;
+	enum kvm_pgtable_prot prot = (enum kvm_pgtable_prot)args;
 
-	/* read_lock(kvm->mmu_lock) protects against structural changes to the RB tree. */
+	return kvm_call_hyp_nvhe(__pkvm_relax_perms, pfn, gfn, order, prot);
+}
+
+static int pkvm_relax_perms(struct kvm_vcpu *vcpu, u64 pfn, u64 gfn, u8 order,
+			    enum kvm_pgtable_prot prot, bool logging_active)
+{
+	unsigned long host_addr, guest_addr;
+	struct kvm_pinned_page *ppage;
+	struct kvm *kvm = vcpu->kvm;
+
+	host_addr = ALIGN_DOWN(pfn << PAGE_SHIFT, PAGE_SIZE << order);
+	guest_addr = ALIGN_DOWN(gfn << PAGE_SHIFT, PAGE_SIZE << order);
+
+	pfn = host_addr >> PAGE_SHIFT;
+	gfn = guest_addr >> PAGE_SHIFT;
+
+	/* read_lock(kvm->mmu_lock) protects against structural changes to the maple tree. */
 	ppage = find_ppage(kvm, gfn << PAGE_SHIFT);
 	if (!ppage || page_to_pfn(ppage->page) != pfn)
 		return -EFAULT;
@@ -1632,11 +1646,19 @@ static int pkvm_relax_perms(struct kvm *kvm, u64 pfn, u64 gfn,
 	if (!PageSwapBacked(ppage->page))
 		return -EIO;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_relax_perms, pfn, gfn, prot);
-	if (ret)
-		return ret;
+	if (logging_active) {
+		struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
+		int ret = topup_hyp_memcache(hyp_memcache,
+					     kvm_mmu_cache_min_pages(kvm), 0);
 
-	return 0;
+		if (ret)
+			return ret;
+
+		return kvm_call_hyp_nvhe(__pkvm_dirty_log, pfn, gfn);
+	}
+
+	return pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_relax_perms_call,
+					(void *)prot, false);
 }
 
 static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
@@ -1977,24 +1999,29 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	else if (cpus_have_const_cap(ARM64_HAS_CACHE_DIC))
 		prot |= KVM_PGTABLE_PROT_X;
 
+	if (is_protected_kvm_enabled()) {
+		if (WARN_ON(fault_status != ESR_ELx_FSC_PERM))
+			ret = -EINVAL;
+		else
+			ret = pkvm_relax_perms(vcpu, pfn, gfn, get_order(fault_granule),
+					       prot, logging_active);
+		goto mark_dirty;
+	}
+
 	/*
 	 * Under the premise of getting a FSC_PERM fault, we just need to relax
 	 * permissions only if vma_pagesize equals fault_granule. Otherwise,
 	 * kvm_pgtable_stage2_map() should be called to change block size.
 	 */
-	if (fault_status == ESR_ELx_FSC_PERM && vma_pagesize == fault_granule) {
-		if (!is_protected_kvm_enabled())
-			ret = kvm_pgtable_stage2_relax_perms(pgt, fault_ipa, prot);
-		else
-			ret = pkvm_relax_perms(kvm, pfn, gfn, prot);
-	} else {
+	if (fault_status == ESR_ELx_FSC_PERM && vma_pagesize == fault_granule)
+		ret = kvm_pgtable_stage2_relax_perms(pgt, fault_ipa, prot);
+	else
 		ret = kvm_pgtable_stage2_map(pgt, fault_ipa, vma_pagesize,
 					     __pfn_to_phys(pfn), prot,
 					     memcache,
 					     KVM_PGTABLE_WALK_HANDLE_FAULT |
 					     KVM_PGTABLE_WALK_SHARED);
-	}
-
+mark_dirty:
 	/* Mark the page dirty only if the fault is handled successfully */
 	if (writable && !ret) {
 		kvm_set_pfn_dirty(pfn);
