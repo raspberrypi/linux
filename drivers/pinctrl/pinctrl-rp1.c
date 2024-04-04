@@ -781,12 +781,12 @@ static void rp1_gpio_irq_handler(struct irq_desc *desc)
 
 	ints = readl(pc->gpio_base + bank->ints_offset);
 	for_each_set_bit(b, &ints, 32) {
-		struct rp1_pin_info *pin = rp1_get_pin(chip, b);
+		struct rp1_pin_info *pin = rp1_get_pin(chip, bank->min_gpio + b);
 
 		writel(RP1_GPIO_CTRL_IRQRESET,
 		       pin->gpio + RP1_SET_OFFSET + RP1_GPIO_CTRL);
 		generic_handle_irq(irq_linear_revmap(pc->gpio_chip.irq.domain,
-						     bank->gpio_offset + b));
+						     bank->min_gpio + b));
 	}
 
 	chained_irq_exit(host_chip, desc);
