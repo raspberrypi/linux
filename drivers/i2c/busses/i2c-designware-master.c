@@ -194,6 +194,9 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 			dev->hs_hcnt, dev->hs_lcnt);
 	}
 
+	if (!dev->sda_hold_time)
+		dev->sda_hold_time = lcnt / 2;
+
 	ret = i2c_dw_set_sda_hold(dev);
 	if (ret)
 		return ret;
