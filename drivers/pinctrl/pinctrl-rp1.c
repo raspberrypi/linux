@@ -981,7 +981,16 @@ static int rp1_pctl_legacy_map_func(struct rp1_pinctrl *pc,
 		return -EINVAL;
 	}
 
-	func = legacy_fsel_map[pin][fnum];
+	if (pin < ARRAY_SIZE(legacy_fsel_map)) {
+		func = legacy_fsel_map[pin][fnum];
+	} else if (fnum < 2) {
+		func = func_gpio;
+	} else {
+		dev_err(pc->dev, "%pOF: invalid brcm,pins value %d\n",
+			np, pin);
+		return -EINVAL;
+	}
+
 	if (func == func_invalid) {
 		dev_err(pc->dev, "%pOF: brcm,function %d not supported on pin %d\n",
 			np, fnum, pin);
@@ -1104,13 +1113,6 @@ static int rp1_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 		err = of_property_read_u32_index(np, "brcm,pins", i, &pin);
 		if (err)
 			goto out;
-		if (pin >= ARRAY_SIZE(legacy_fsel_map)) {
-			dev_err(pc->dev, "%pOF: invalid brcm,pins value %d\n",
-				np, pin);
-			err = -EINVAL;
-			goto out;
-		}
-
 		if (num_funcs) {
 			err = of_property_read_u32_index(np, "brcm,function",
 							 (num_funcs > 1) ? i : 0,
