@@ -848,10 +848,13 @@ static int rp1_irq_set_type(struct rp1_pin_info *pin, unsigned int type)
 		return -EINVAL;
 	}
 
-	/* Clear them all */
+	/* Clear the event enables */
 	writel(RP1_INT_MASK << RP1_GPIO_EVENTS_SHIFT_RAW,
 	       pin->gpio + RP1_CLR_OFFSET + RP1_GPIO_CTRL);
-	/* Set those that are needed */
+	/* Clear any latched events */
+	writel(RP1_GPIO_CTRL_IRQRESET,
+		pin->gpio + RP1_SET_OFFSET + RP1_GPIO_CTRL);
+	/* Enable the events that are needed */
 	writel(irq_flags << RP1_GPIO_EVENTS_SHIFT_RAW,
 	       pin->gpio + RP1_SET_OFFSET + RP1_GPIO_CTRL);
 	pin->irq_type = type;
