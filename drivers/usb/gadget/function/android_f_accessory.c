@@ -1261,7 +1261,7 @@ static int acc_init(void)
 		spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 		return -EBUSY;
 	}
-	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+	dev = kzalloc(sizeof(*dev), GFP_ATOMIC);
 	if (!dev) {
 		spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 		return -ENOMEM;
@@ -1279,18 +1279,18 @@ static int acc_init(void)
 	INIT_WORK(&dev->getprotocol_work, acc_getprotocol_work);
 	INIT_WORK(&dev->sendstring_work, acc_sendstring_work);
 
+	kref_init(&dev->kref);
+	acc_dev_instance = dev;
+	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
+
 	ret = misc_register(&acc_device);
 	if (ret)
 		goto err_free_dev;
 
-	kref_init(&dev->kref);
-	acc_dev_instance = dev;
-	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 	return 0;
 
 err_free_dev:
 	kfree(dev);
-	spin_unlock_irqrestore(&acc_dev_instance_lock, flags);
 	pr_err("USB accessory gadget driver failed to initialize\n");
 	return ret;
 }
