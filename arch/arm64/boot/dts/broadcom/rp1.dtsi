@@ -307,7 +307,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -318,7 +317,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -329,7 +327,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -340,7 +337,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -351,7 +347,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -362,7 +357,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
@@ -373,7 +367,6 @@
 			clocks = <&rp1_clocks RP1_CLK_SYS>;
 			i2c-scl-rising-time-ns = <65>;
 			i2c-scl-falling-time-ns = <100>;
-			i2c-sda-hold-time-ns = <300>;
 			status = "disabled";
 		};
 
