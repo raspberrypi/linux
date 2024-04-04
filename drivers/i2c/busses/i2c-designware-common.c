@@ -947,6 +947,9 @@ int i2c_dw_probe(struct dw_i2c_dev *dev)
 	if (ret)
 		return ret;
 
+	if (!dev->sda_hold_time)
+		dev->sda_hold_time = dev->fs_lcnt / 2;
+
 	ret = i2c_dw_set_sda_hold(dev);
 	if (ret)
 		return ret;
