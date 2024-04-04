@@ -1782,6 +1782,7 @@ static void uart_tty_port_shutdown(struct tty_port *port)
 	 * Free the transmit buffer.
 	 */
 	spin_lock_irq(&uport->lock);
+	uart_circ_clear(&state->xmit);
 	buf = state->xmit.buf;
 	state->xmit.buf = NULL;
 	spin_unlock_irq(&uport->lock);
