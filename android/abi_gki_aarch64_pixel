@@ -1697,6 +1697,8 @@
   tcpm_sink_frs
   tcpm_sourcing_vbus
   tcpm_vbus_change
+  teo_cpu_get_util_threshold
+  teo_cpu_set_util_threshold
   thermal_cdev_update
   thermal_cooling_device_unregister
   thermal_of_cooling_device_register
@@ -1721,6 +1723,7 @@
   trace_event_raw_init
   trace_event_reg
   trace_handle_return
+  __traceiter_android_rvh_cgroup_force_kthread_migration
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_ipi_stop
@@ -1743,6 +1746,7 @@
   __traceiter_mmap_lock_start_locking
   __traceiter_suspend_resume
   trace_output_call
+  __tracepoint_android_rvh_cgroup_force_kthread_migration
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_ipi_stop
