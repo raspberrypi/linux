@@ -504,6 +504,7 @@ struct vc4_encoder {
 
 	void (*post_crtc_disable)(struct drm_encoder *encoder, struct drm_atomic_state *state);
 	void (*post_crtc_powerdown)(struct drm_encoder *encoder, struct drm_atomic_state *state);
+	void (*vblank)(struct drm_encoder *encoder);
 };
 
 #define to_vc4_encoder(_encoder)				\
