@@ -17,6 +17,7 @@ bool map_shared;
 bool test_uffdio_wp = true;
 unsigned long long *count_verify;
 uffd_test_ops_t *uffd_test_ops;
+atomic_bool ready_for_fork;
 
 static int uffd_mem_fd_create(off_t mem_size, bool hugetlb)
 {
@@ -506,6 +507,8 @@ void *uffd_poll_thread(void *arg)
 	pollfd[0].events = POLLIN;
 	pollfd[1].fd = pipefd[cpu*2];
 	pollfd[1].events = POLLIN;
+
+	ready_for_fork = true;
 
 	for (;;) {
 		ret = poll(pollfd, 2, -1);

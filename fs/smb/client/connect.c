@@ -119,14 +119,22 @@ static int reconn_set_ipaddr_from_hostname(struct TCP_Server_Info *server)
 static void smb2_query_server_interfaces(struct work_struct *work)
 {
 	int rc;
+	int xid;
 	struct cifs_tcon *tcon = container_of(work,
 					struct cifs_tcon,
 					query_interfaces.work);
+	struct TCP_Server_Info *server = tcon->ses->server;
 
 	/*
 	 * query server network interfaces, in case they change
 	 */
-	rc = SMB3_request_interfaces(0, tcon, false);
+	if (!server->ops->query_server_interfaces)
+		return;
+
+	xid = get_xid();
+	rc = server->ops->query_server_interfaces(xid, tcon, false);
+	free_xid(xid);
+
 	if (rc) {
 		if (rc == -EOPNOTSUPP)
 			return;
