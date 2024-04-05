@@ -811,12 +811,15 @@ static void vc4_disable_vblank(struct drm_crtc *crtc)
 {
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
+	struct drm_encoder *encoder = vc4_get_crtc_encoder(crtc, crtc->state);
+	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
 	int idx;
 
 	if (!drm_dev_enter(dev, &idx))
 		return;
 
-	CRTC_WRITE(PV_INTEN, 0);
+	if (!vc4_encoder || vc4_encoder->type != VC4_ENCODER_TYPE_DSI0)
+		CRTC_WRITE(PV_INTEN, 0);
 
 	drm_dev_exit(idx);
 }
@@ -861,7 +864,14 @@ static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
 
 void vc4_crtc_handle_vblank(struct vc4_crtc *crtc)
 {
+	struct drm_encoder *encoder = vc4_get_crtc_encoder(&crtc->base, crtc->base.state);
+	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
+
 	crtc->t_vblank = ktime_get();
+
+	if (vc4_encoder && vc4_encoder->vblank)
+		vc4_encoder->vblank(encoder);
+
 	drm_crtc_handle_vblank(&crtc->base);
 	vc4_crtc_handle_page_flip(crtc);
 }
