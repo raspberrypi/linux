@@ -2082,3 +2082,4 @@
   xhci_remove_secondary_interrupter
   xhci_stop_endpoint_sync
   zap_vma_ptes
+  kvfree_sensitive
