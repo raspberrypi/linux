@@ -411,7 +411,8 @@
 # define DSI1_CTRL_DISABLE_DISP_ECCC	BIT(1)
 # define DSI0_CTRL_CTRL0		BIT(0)
 # define DSI1_CTRL_EN			BIT(0)
-# define DSI0_CTRL_RESET_FIFOS		(DSI_CTRL_CLR_LDF | \
+# define DSI0_CTRL_RESET_FIFOS		(DSI0_CTRL_CTRL0 | \
+					 DSI_CTRL_CLR_LDF | \
 					 DSI0_CTRL_CLR_PBCF | \
 					 DSI0_CTRL_CLR_CPBCF |	\
 					 DSI0_CTRL_CLR_PDF | \
@@ -966,12 +967,17 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 
 	hs_clock = clk_get_rate(dsi->pll_phy_clock);
 
-	/* Reset the DSI and all its fifos. */
+	/*
+	 * Reset the DSI and all its fifos. The block must be enabled for the
+	 * FIFO resets to trigger.
+	 */
 	DSI_PORT_WRITE(CTRL,
 		       DSI_CTRL_SOFT_RESET_CFG |
 		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
 
 	DSI_PORT_WRITE(CTRL,
+		       ((dsi->variant->port == 0) ?
+					DSI0_CTRL_CTRL0 : DSI1_CTRL_EN) |
 		       DSI_CTRL_HSDT_EOT_DISABLE |
 		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
 
@@ -1144,12 +1150,6 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 			       VC4_SET_FIELD(DSI_PORT_BIT(DISP1_PFORMAT_24BIT),
 					     DSI_DISP1_PFORMAT) |
 			       DSI_DISP1_ENABLE);
-
-	/* Ungate the block. */
-	if (dsi->variant->port == 0)
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
-	else
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
 
 	/* Bring AFE out of reset. */
 	DSI_PORT_WRITE(PHY_AFEC0,
