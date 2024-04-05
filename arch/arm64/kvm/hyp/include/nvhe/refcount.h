@@ -28,6 +28,8 @@ static inline s16 __ll_sc_refcount_fetch_add_16(u16 *refcount, s16 addend)
 	return new;
 }
 
+#ifdef CONFIG_ARM64_LSE_ATOMICS
+
 static inline s16 __lse_refcount_fetch_add_16(u16 *refcount, s16 addend)
 {
 	s16 old;
@@ -40,6 +42,8 @@ static inline s16 __lse_refcount_fetch_add_16(u16 *refcount, s16 addend)
 
 	return old + addend;
 }
+
+#endif /* CONFIG_ARM64_LSE_ATOMICS */
 
 static inline u64 __hyp_refcount_fetch_add(void *refcount, const size_t size,
 					   const s64 addend)
