@@ -1462,6 +1462,15 @@ static const struct drm_bridge_funcs vc4_dsi_bridge_funcs = {
 	.mode_fixup = vc4_dsi_bridge_mode_fixup,
 };
 
+static void vc4_dsi_reset_fifo(struct drm_encoder *encoder)
+{
+	struct vc4_dsi *dsi = to_vc4_dsi(encoder);
+	u32 val;
+
+	val = DSI_PORT_READ(CTRL);
+	DSI_PORT_WRITE(CTRL, val | DSI0_CTRL_CLR_PBCF);
+}
+
 static int vc4_dsi_late_register(struct drm_encoder *encoder)
 {
 	struct drm_device *drm = encoder->dev;
@@ -1709,6 +1718,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 	dsi->encoder.type = dsi->variant->port ?
 		VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
+
+	if (dsi->encoder.type == VC4_ENCODER_TYPE_DSI0)
+		dsi->encoder.vblank = vc4_dsi_reset_fifo;
 
 	dsi->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(dsi->regs))
