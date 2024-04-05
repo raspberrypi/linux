@@ -2327,8 +2327,9 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the ADT7410, BH1750, BME280,
                                 BME680, BMP280, BMP380, CCS811, DS1621, HDC100X,
-                                JC42, LM75, MCP980x, MPU6050, MPU9250, MS5637,
-                                MS5803, MS5805, MS5837, MS8607, SHT3x or TMP102
+                                HDC3020, JC42, LM75, MCP980x, MPU6050, MPU9250,
+                                MS5637, MS5803, MS5805, MS5837, MS8607, SHT3x
+                                or TMP102
 
         adt7410                 Select the Analog Devices ADT7410 and ADT7420
                                 temperature sensors
@@ -2368,13 +2369,16 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
+        hdc3020                 Select the Texas Instruments HDC3020 temp sensor
+                                Valid addresses 0x44-0x47, default 0x44
+
         hts221                  Select the HTS221 temperature and humidity
                                 sensor
 
         htu21                   Select the HTU21 temperature and humidity sensor
 
-        int_pin                 Set the GPIO to use for interrupts (hts221,
-                                max30102, mpu6050 and mpu9250 only)
+        int_pin                 Set the GPIO to use for interrupts (hdc3020,
+                                hts221, max30102, mpu6050 and mpu9250 only)
 
         jc42                    Select any of the many JEDEC JC42.4-compliant
                                 temperature sensors, including:
