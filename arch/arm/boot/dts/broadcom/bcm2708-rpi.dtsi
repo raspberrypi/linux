@@ -19,8 +19,25 @@
 		hdmi = <&hdmi>,"status";
 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+		nvmem_cust_rw = <&nvmem_cust>,"rw?";
 		sd = <&sdhost>,"status";
 		sd_poll_once = <&sdhost>,"non-removable?";
+	};
+};
+
+&soc {
+	nvmem_otp: nvmem_otp {
+		compatible = "raspberrypi,rpi-otp";
+		firmware = <&firmware>;
+		reg = <0 192>;
+		status = "okay";
+	};
+
+	nvmem_cust: nvmem_cust {
+		compatible = "raspberrypi,rpi-otp";
+		firmware = <&firmware>;
+		reg = <1 8>;
+		status = "okay";
 	};
 };
 
