@@ -2326,10 +2326,10 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the ADT7410, AS73211,
-                                BH1750, BME280, BME680, BMP280, BMP380, CCS811,
-                                DS1621, HDC100X, HDC3020, JC42, LM75, MCP980x,
-                                MPU6050, MPU9250, MS5637, MS5803, MS5805,
-                                MS5837, MS8607, SHT3x or TMP102
+                                AS7331, BH1750, BME280, BME680, BMP280, BMP380,
+                                CCS811, DS1621, HDC100X, HDC3020, JC42, LM75,
+                                MCP980x, MPU6050, MPU9250, MS5637, MS5803,
+                                MS5805, MS5837, MS8607, SHT3x or TMP102
 
         adt7410                 Select the Analog Devices ADT7410 and ADT7420
                                 temperature sensors
@@ -2339,6 +2339,9 @@ Params: addr                    Set the address for the ADT7410, AS73211,
                                 sensor
 
         as73211                 Select the AMS AS73211 XYZ true color sensor
+                                Valid addresses 0x74-0x77, default 0x74
+
+        as7331                  Select the AMS AS7331 spectral UV sensor
                                 Valid addresses 0x74-0x77, default 0x74
 
         bh1750                  Select the Rohm BH1750 ambient light sensor
@@ -2381,8 +2384,8 @@ Params: addr                    Set the address for the ADT7410, AS73211,
         htu21                   Select the HTU21 temperature and humidity sensor
 
         int_pin                 Set the GPIO to use for interrupts (as73211,
-                                hdc3020, hts221, max30102, mpu6050 and mpu9250
-                                only)
+                                as7331, hdc3020, hts221, max30102, mpu6050 and
+                                mpu9250 only)
 
         jc42                    Select any of the many JEDEC JC42.4-compliant
                                 temperature sensors, including:
