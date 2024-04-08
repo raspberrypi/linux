@@ -1635,12 +1635,13 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 				folio_remove_rmap_pte(folio, page, vma);
 			folio_put(folio);
 		} else if (!non_swap_entry(entry)) {
-			/* Genuine swap entry, hence a private anon page */
+			max_nr = (end - addr) / PAGE_SIZE;
+			nr = swap_pte_batch(pte, max_nr, ptent);
+			/* Genuine swap entries, hence a private anon pages */
 			if (!should_zap_cows(details))
 				continue;
-			rss[MM_SWAPENTS]--;
-			if (unlikely(!free_swap_and_cache(entry)))
-				print_bad_pte(vma, addr, ptent, NULL);
+			rss[MM_SWAPENTS] -= nr;
+			free_swap_and_cache_nr(entry, nr);
 		} else if (is_migration_entry(entry)) {
 			folio = pfn_swap_entry_folio(entry);
 			if (!should_zap_folio(details, folio))
@@ -1662,8 +1663,8 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
 			/* We should have covered all the swap entry types */
 			WARN_ON_ONCE(1);
 		}
-		pte_clear_not_present_full(mm, addr, pte, tlb->fullmm);
-		zap_install_uffd_wp_if_needed(vma, addr, pte, 1, details, ptent);
+		clear_not_present_full_ptes(mm, addr, pte, nr, tlb->fullmm);
+		zap_install_uffd_wp_if_needed(vma, addr, pte, nr, details, ptent);
 	} while (pte += nr, addr += PAGE_SIZE * nr, addr != end);
 
 	add_mm_rss_vec(mm, rss);
