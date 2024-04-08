@@ -2769,9 +2769,6 @@ static void __split_huge_page(struct page *page, struct list_head *list,
 		shmem_uncharge(head->mapping->host, nr_dropped);
 	remap_page(folio, nr);
 
-	if (folio_test_swapcache(folio))
-		split_swap_cluster(folio->swap);
-
 	for (i = 0; i < nr; i++) {
 		struct page *subpage = head + i;
 		if (subpage == page)
