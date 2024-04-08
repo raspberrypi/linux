@@ -2734,11 +2734,10 @@ int __pkvm_remove_ioguard_page(struct pkvm_hyp_vcpu *hyp_vcpu, u64 ipa,
 
 	ret = kvm_pgtable_stage2_unmap(&vm->pgt, data.ipa_start, data.size);
 
-	guest_unlock_component(vm);
-
 	if (nr_unguarded)
 		*nr_unguarded = data.size >> PAGE_SHIFT;
 unlock:
+	guest_unlock_component(vm);
 	return WARN_ON(ret);
 }
 
