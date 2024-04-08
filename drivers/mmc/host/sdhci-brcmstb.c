@@ -459,6 +459,7 @@ static struct brcmstb_match_priv match_priv_74165b0 = {
 };
 
 static const struct brcmstb_match_priv match_priv_2712 = {
+	.hs400es = sdhci_brcmstb_hs400es,
 	.cfginit = sdhci_brcmstb_cfginit_2712,
 	.ops = &sdhci_brcmstb_ops_2712,
 };
