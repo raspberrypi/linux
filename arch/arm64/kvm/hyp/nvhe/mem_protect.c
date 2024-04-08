@@ -1090,7 +1090,7 @@ static int host_complete_share(const struct pkvm_checked_mem_transition *checked
 		return err;
 
 	if (checked_tx->tx->initiator.id == PKVM_ID_GUEST)
-		psci_mem_protect_dec(checked_tx->nr_pages * PAGE_SIZE);
+		psci_mem_protect_dec(checked_tx->nr_pages);
 
 	return 0;
 }
@@ -1101,7 +1101,7 @@ static int host_complete_unshare(const struct pkvm_checked_mem_transition *check
 	u8 owner_id = checked_tx->tx->initiator.id;
 
 	if (checked_tx->tx->initiator.id == PKVM_ID_GUEST)
-		psci_mem_protect_inc(checked_tx->nr_pages * PAGE_SIZE);
+		psci_mem_protect_inc(checked_tx->nr_pages);
 
 	return host_stage2_set_owner_locked(checked_tx->completer_addr, size,
 					    owner_id);
