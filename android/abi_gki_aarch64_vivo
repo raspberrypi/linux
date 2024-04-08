@@ -23,6 +23,7 @@
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_free_task
   __traceiter_android_vh_irqtime_account_process_tick
+  __traceiter_android_vh_mutex_init
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_wait_finish
   __traceiter_android_vh_mutex_wait_start
@@ -57,6 +58,7 @@
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_irqtime_account_process_tick
+  __tracepoint_android_vh_mutex_init
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_wait_finish
   __tracepoint_android_vh_mutex_wait_start
