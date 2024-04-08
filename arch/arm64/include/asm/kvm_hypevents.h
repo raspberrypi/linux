@@ -116,4 +116,17 @@ HYP_EVENT(host_ffa_call,
 		  __entry->func_id, __entry->res_a1, __entry->res_a2,
 		  __entry->res_a3, __entry->res_a4, __entry->handled, __entry->err)
 );
+
+HYP_EVENT(psci_mem_protect,
+	HE_PROTO(u64 count, u64 was),
+	HE_STRUCT(
+		he_field(u64, count)
+		he_field(u64, was)
+	),
+	HE_ASSIGN(
+		__entry->count = count;
+		__entry->was = was;
+	),
+	HE_PRINTK("count=%llu was=%llu", __entry->count, __entry->was)
+);
 #endif
