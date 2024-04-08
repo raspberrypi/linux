@@ -4663,6 +4663,13 @@ Params: speed                   SPI bus speed (default 4500000)
         reset_pin               GPIO pin for RESET (default 25)
 
 
+Name:   sunfounder-pironman5
+Info:   Overlay for SunFounder Pironman 5
+Load:   dtoverlay=sunfounder-pironman5,<param>=<val>
+Params: ir                      Enable IR or not (on or off, default on)
+        ir_pins                 Change IR receiver pin (default 12)
+
+
 Name:   superaudioboard
 Info:   Configures the SuperAudioBoard sound card
 Load:   dtoverlay=superaudioboard,<param>=<val>
