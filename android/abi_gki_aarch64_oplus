@@ -132,6 +132,7 @@
   __traceiter_android_rvh_set_cpus_allowed_comm
   __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_save_track_hash
+  __traceiter_android_vh_shrink_slab_bypass
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
@@ -189,6 +190,7 @@
   __tracepoint_android_rvh_set_cpus_allowed_comm
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_save_track_hash
+  __tracepoint_android_vh_shrink_slab_bypass
   __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_check_folio_look_around_ref
   __tracepoint_android_vh_look_around
