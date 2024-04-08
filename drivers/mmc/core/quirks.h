@@ -34,6 +34,14 @@ static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 		   MMC_QUIRK_BROKEN_SD_CACHE | MMC_QUIRK_BROKEN_SD_POWEROFF_NOTIFY,
 		   EXT_CSD_REV_ANY),
 
+	/*
+	 * Samsung Pro Plus/EVO Plus/Pro Ultimate SD cards (2023) claim to cache
+	 * flush OK, but become unresponsive afterwards.
+	 */
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_SAMSUNG_SD, 0x534d, 2023, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
 	END_FIXUP
 };
 
