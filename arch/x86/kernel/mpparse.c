@@ -196,12 +196,12 @@ static int __init smp_read_mpc(struct mpc_table *mpc, unsigned early)
 	if (!smp_check_mpc(mpc, oem, str))
 		return 0;
 
-	if (early) {
-		/* Initialize the lapic mapping */
-		if (!acpi_lapic)
-			register_lapic_address(mpc->lapic);
+	/* Initialize the lapic mapping */
+	if (!acpi_lapic)
+		register_lapic_address(mpc->lapic);
+
+	if (early)
 		return 1;
-	}
 
 	/* Now process the configuration blocks. */
 	while (count < mpc->length) {
