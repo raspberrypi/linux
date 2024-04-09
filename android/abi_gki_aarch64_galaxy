@@ -23,6 +23,8 @@
   __traceiter_android_rvh_panic_unhandled
   __traceiter_android_rvh_report_bug
   __traceiter_android_vh_is_fpsimd_save
+  __traceiter_android_vh_logbuf
+  __traceiter_android_vh_logbuf_pr_cont
   __traceiter_android_vh_try_to_freeze_todo
   __traceiter_android_vh_try_to_freeze_todo_unfrozen
   __traceiter_android_vh_watchdog_timer_softlockup
@@ -38,6 +40,8 @@
   __tracepoint_android_rvh_panic_unhandled
   __tracepoint_android_rvh_report_bug
   __tracepoint_android_vh_is_fpsimd_save
+  __tracepoint_android_vh_logbuf
+  __tracepoint_android_vh_logbuf_pr_cont
   __tracepoint_android_vh_try_to_freeze_todo
   __tracepoint_android_vh_try_to_freeze_todo_unfrozen
   __tracepoint_android_vh_watchdog_timer_softlockup
