@@ -387,6 +387,20 @@ DECLARE_HOOK(android_vh_map_util_freq,
 		unsigned long cap, unsigned long *next_freq),
 	TP_ARGS(util, freq, cap, next_freq));
 
+struct cgroup_subsys_state;
+DECLARE_HOOK(android_vh_sched_move_task,
+	TP_PROTO(struct task_struct *tsk),
+	TP_ARGS(tsk));
+DECLARE_HOOK(android_vh_cpu_cgroup_css_alloc,
+	TP_PROTO(struct task_group *tg, struct cgroup_subsys_state *parent_css),
+	TP_ARGS(tg, parent_css));
+DECLARE_HOOK(android_vh_cpu_cgroup_css_alloc_early,
+	TP_PROTO(struct task_group *parent),
+	TP_ARGS(parent));
+DECLARE_HOOK(android_vh_cpu_cgroup_css_free,
+	TP_PROTO(struct cgroup_subsys_state *css),
+	TP_ARGS(css));
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
