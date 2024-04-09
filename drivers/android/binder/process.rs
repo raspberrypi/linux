@@ -38,7 +38,7 @@ use crate::{
     context::Context,
     defs::*,
     error::{BinderError, BinderResult},
-    node::{Node, NodeDeath, NodeRef},
+    node::{CouldNotDeliverCriticalIncrement, Node, NodeDeath, NodeRef},
     prio::{self, BinderPriority},
     range_alloc::{self, RangeAllocator},
     thread::{PushWorkRes, Thread},
@@ -216,6 +216,20 @@ impl ProcessInner {
         NodeRef::new(node, strong_count, 1 - strong_count)
     }
 
+    pub(crate) fn new_node_ref_with_thread(
+        &mut self,
+        node: DArc<Node>,
+        strong: bool,
+        thread: &Thread,
+    ) -> Result<NodeRef, CouldNotDeliverCriticalIncrement> {
+        let push = node.incr_refcount_allow_zero2one(strong, self)?;
+        if let Some(node) = push {
+            thread.push_work_deferred(node);
+        }
+        let strong_count = if strong { 1 } else { 0 };
+        Ok(NodeRef::new(node, strong_count, 1 - strong_count))
+    }
+
     /// Returns an existing node with the given pointer and cookie, if one exists.
     ///
     /// Returns an error if a node with the given pointer but a different cookie exists.
@@ -231,21 +245,6 @@ impl ProcessInner {
                 }
             }
         }
-    }
-
-    /// Returns a reference to an existing node with the given pointer and cookie. It requires a
-    /// mutable reference because it needs to increment the ref count on the node, which may
-    /// require pushing work to the work queue (to notify userspace of 0 to 1 transitions).
-    fn get_existing_node_ref(
-        &mut self,
-        ptr: u64,
-        cookie: u64,
-        strong: bool,
-        thread: Option<&Thread>,
-    ) -> Result<Option<NodeRef>> {
-        Ok(self
-            .get_existing_node(ptr, cookie)?
-            .map(|node| self.new_node_ref(node, strong, thread)))
     }
 
     fn register_thread(&mut self) -> bool {
@@ -632,7 +631,7 @@ impl Process {
         } else {
             (0, 0, 0)
         };
-        let node_ref = self.get_node(ptr, cookie, flags as _, true, Some(thread))?;
+        let node_ref = self.get_node(ptr, cookie, flags as _, true, thread)?;
         let node = node_ref.node.clone();
         self.ctx.set_manager_node(node_ref)?;
         self.inner.lock().is_manager = true;
@@ -643,19 +642,19 @@ impl Process {
         Ok(())
     }
 
-    pub(crate) fn get_node(
+    fn get_node_inner(
         self: ArcBorrow<'_, Self>,
         ptr: u64,
         cookie: u64,
         flags: u32,
         strong: bool,
-        thread: Option<&Thread>,
-    ) -> Result<NodeRef> {
+        thread: &Thread,
+    ) -> Result<Result<NodeRef, CouldNotDeliverCriticalIncrement>> {
         // Try to find an existing node.
         {
             let mut inner = self.inner.lock();
-            if let Some(node) = inner.get_existing_node_ref(ptr, cookie, strong, thread)? {
-                return Ok(node);
+            if let Some(node) = inner.get_existing_node(ptr, cookie)? {
+                return Ok(inner.new_node_ref_with_thread(node, strong, thread));
             }
         }
 
@@ -663,12 +662,33 @@ impl Process {
         let node = DTRWrap::arc_pin_init(Node::new(ptr, cookie, flags, self.into()))?.into_arc();
         let rbnode = RBTree::try_allocate_node(ptr, node.clone())?;
         let mut inner = self.inner.lock();
-        if let Some(node) = inner.get_existing_node_ref(ptr, cookie, strong, thread)? {
-            return Ok(node);
+        if let Some(node) = inner.get_existing_node(ptr, cookie)? {
+            return Ok(inner.new_node_ref_with_thread(node, strong, thread));
         }
 
         inner.nodes.insert(rbnode);
-        Ok(inner.new_node_ref(node, strong, thread))
+        // This can only fail if someone has already pushed the node to a list, but we just created
+        // it and still hold the lock, so it can't fail right now.
+        let node_ref = inner
+            .new_node_ref_with_thread(node, strong, thread)
+            .unwrap();
+
+        Ok(Ok(node_ref))
+    }
+
+    pub(crate) fn get_node(
+        self: ArcBorrow<'_, Self>,
+        ptr: u64,
+        cookie: u64,
+        flags: u32,
+        strong: bool,
+        thread: &Thread,
+    ) -> Result<NodeRef> {
+        match self.get_node_inner(ptr, cookie, flags, strong, thread) {
+            Err(err) => Err(err),
+            Ok(Ok(node_ref)) => Ok(node_ref),
+            Ok(Err(CouldNotDeliverCriticalIncrement)) => todo!(),
+        }
     }
 
     pub(crate) fn insert_or_update_handle(

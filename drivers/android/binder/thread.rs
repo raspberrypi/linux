@@ -749,13 +749,10 @@ impl Thread {
                 let ptr = unsafe { obj.__bindgen_anon_1.binder } as _;
                 let cookie = obj.cookie as _;
                 let flags = obj.flags as _;
-                let node = self.process.as_arc_borrow().get_node(
-                    ptr,
-                    cookie,
-                    flags,
-                    strong,
-                    Some(self),
-                )?;
+                let node = self
+                    .process
+                    .as_arc_borrow()
+                    .get_node(ptr, cookie, flags, strong, self)?;
                 security::binder_transfer_binder(&self.process.cred, &view.alloc.process.cred)?;
                 view.transfer_binder_object(offset, obj, strong, node)?;
             }
