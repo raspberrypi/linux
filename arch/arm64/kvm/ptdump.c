@@ -69,6 +69,21 @@ static const struct prot_bits stage2_pte_bits[] = {
 		.val	= PTE_VALID,
 		.set	= "BLK",
 		.clear	= "   ",
+	}, {
+		.mask	= KVM_INVALID_PTE_OWNER_MASK,
+		.val	= FIELD_PREP_CONST(KVM_INVALID_PTE_OWNER_MASK,
+					   PKVM_ID_HYP),
+		.set	= "HYP",
+	}, {
+		.mask	= KVM_INVALID_PTE_OWNER_MASK,
+		.val	= FIELD_PREP_CONST(KVM_INVALID_PTE_OWNER_MASK,
+					   PKVM_ID_FFA),
+		.set	= "FF-A",
+	}, {
+		.mask	= KVM_INVALID_PTE_OWNER_MASK,
+		.val	= FIELD_PREP_CONST(KVM_INVALID_PTE_OWNER_MASK,
+					   PKVM_ID_GUEST),
+		.set	= "GUEST",
 	}
 };
 

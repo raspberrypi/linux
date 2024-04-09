@@ -260,6 +260,16 @@ enum kvm_pgtable_prot {
  */
 #define KVM_INVALID_PTE_LOCKED		BIT(10)
 
+/* This corresponds to page-table locking order */
+enum pkvm_component_id {
+	PKVM_ID_HOST,
+	PKVM_ID_HYP,
+	PKVM_ID_FFA,
+	PKVM_ID_GUEST,
+	PKVM_ID_PROTECTED,
+	PKVM_ID_MAX = PKVM_ID_PROTECTED,
+};
+
 /* Indicates a valid MMIO mapping registered via ioguard. */
 #define KVM_INVALID_PTE_MMIO_NOTE	BIT(11)
 
