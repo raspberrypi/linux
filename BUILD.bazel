@@ -2424,7 +2424,6 @@ pkg_zip(
     name = "test_mappings_zip",
     srcs = [
         ":test_mappings",
-        "//kernel/tests/test_mappings:non_kernel_test_mappings",
     ],
     out = "test_mappings.zip",
     visibility = ["//common-modules/virtual-device:__pkg__"],
