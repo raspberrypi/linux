@@ -194,17 +194,13 @@ impl ProcessInner {
 
         // If we decided that we need to push work, push either to the process or to a thread if
         // one is specified.
-        if push {
-            // It's not a problem if creating the ListArc fails, because that just means that
-            // it is already queued to a worklist.
-            if let Some(node) = ListArc::try_from_arc_or_drop(node.clone()) {
-                if let Some(thread) = othread {
-                    thread.push_work_deferred(node);
-                } else {
-                    let _ = self.push_work(node);
-                    // Nothing to do: `push_work` may fail if the process is dead, but that's ok as in
-                    // that case, it doesn't care about the notification.
-                }
+        if let Some(node) = push {
+            if let Some(thread) = othread {
+                thread.push_work_deferred(node);
+            } else {
+                let _ = self.push_work(node);
+                // Nothing to do: `push_work` may fail if the process is dead, but that's ok as in
+                // that case, it doesn't care about the notification.
             }
         }
     }
@@ -826,13 +822,9 @@ impl Process {
         let cookie = reader.read::<u64>()?;
         let mut inner = self.inner.lock();
         if let Ok(Some(node)) = inner.get_existing_node(ptr, cookie) {
-            if node.inc_ref_done_locked(strong, &mut inner) {
-                // It's not a problem if creating the ListArc fails, because that just means that
-                // it is already queued to a worklist.
-                if let Some(node) = ListArc::try_from_arc_or_drop(node) {
-                    // This only fails if the process is dead.
-                    let _ = inner.push_work(node);
-                }
+            if let Some(node) = node.inc_ref_done_locked(strong, &mut inner) {
+                // This only fails if the process is dead.
+                let _ = inner.push_work(node);
             }
         }
         Ok(())

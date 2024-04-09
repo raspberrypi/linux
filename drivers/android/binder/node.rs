@@ -248,14 +248,14 @@ impl Node {
     }
 
     pub(crate) fn inc_ref_done_locked(
-        &self,
+        self: &DArc<Node>,
         _strong: bool,
         owner_inner: &mut ProcessInner,
-    ) -> bool {
+    ) -> Option<DLArc<Node>> {
         let inner = self.inner.access_mut(owner_inner);
         if inner.active_inc_refs == 0 {
             pr_err!("inc_ref_done called when no active inc_refs");
-            return false;
+            return None;
         }
 
         inner.active_inc_refs -= 1;
@@ -272,19 +272,26 @@ impl Node {
 
             // If we want to drop the ref-count again, tell the caller to schedule a work node for
             // that.
-            should_drop_weak || should_drop_strong
+            let need_push = should_drop_weak || should_drop_strong;
+
+            if need_push {
+                let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+                Some(list_arc)
+            } else {
+                None
+            }
         } else {
-            false
+            None
         }
     }
 
     pub(crate) fn update_refcount_locked(
-        &self,
+        self: &DArc<Node>,
         inc: bool,
         strong: bool,
         count: usize,
         owner_inner: &mut ProcessInner,
-    ) -> bool {
+    ) -> Option<DLArc<Node>> {
         let is_dead = owner_inner.is_dead;
         let inner = self.inner.access_mut(owner_inner);
 
@@ -296,16 +303,24 @@ impl Node {
         };
 
         // Update the count and determine whether we need to push work.
-        if inc {
+        let need_push = if inc {
             state.count += count;
+            // TODO: This method shouldn't be used for zero-to-one increments.
             !is_dead && !state.has_count
         } else {
             if state.count < count {
                 pr_err!("Failure: refcount underflow!");
-                return false;
+                return None;
             }
             state.count -= count;
             !is_dead && state.count == 0 && state.has_count
+        };
+
+        if need_push {
+            let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+            Some(list_arc)
+        } else {
+            None
         }
     }
 
