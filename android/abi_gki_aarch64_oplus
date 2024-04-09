@@ -131,6 +131,7 @@
   __traceiter_android_vh_adjust_alloc_flags
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_sched_setaffinity_early
+  __traceiter_android_vh_tick_nohz_idle_stop_tick
   __traceiter_android_rvh_set_cpus_allowed_comm
   __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_save_track_hash
@@ -189,6 +190,7 @@
   __tracepoint_android_vh_mem_cgroup_alloc
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_sched_setaffinity_early
+  __tracepoint_android_vh_tick_nohz_idle_stop_tick
   __tracepoint_android_rvh_set_cpus_allowed_comm
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_save_track_hash
