@@ -135,6 +135,9 @@
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
+  __traceiter_android_vh_meminfo_cache_adjust
+  __traceiter_android_vh_si_mem_available_adjust
+  __traceiter_android_vh_si_meminfo_adjust
   __traceiter_mm_vmscan_kswapd_wake
   __traceiter_block_bio_queue
   __traceiter_block_getrq
@@ -192,6 +195,9 @@
   __tracepoint_android_vh_look_around_migrate_folio
   __tracepoint_android_vh_adjust_alloc_flags
   __tracepoint_android_vh_test_clear_look_around_ref
+  __tracepoint_android_vh_meminfo_cache_adjust
+  __tracepoint_android_vh_si_mem_available_adjust
+  __tracepoint_android_vh_si_meminfo_adjust
   __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_block_bio_queue
   __tracepoint_block_getrq
