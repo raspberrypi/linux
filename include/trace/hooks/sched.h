@@ -378,6 +378,10 @@ DECLARE_HOOK(android_vh_sched_setaffinity_early,
 	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask, bool *retval),
 	TP_ARGS(p, new_mask, retval));
 
+DECLARE_HOOK(android_vh_tick_nohz_idle_stop_tick,
+	TP_PROTO(void *unused),
+	TP_ARGS(unused));
+
 DECLARE_HOOK(android_vh_map_util_freq,
 	TP_PROTO(unsigned long util, unsigned long freq,
 		unsigned long cap, unsigned long *next_freq),
