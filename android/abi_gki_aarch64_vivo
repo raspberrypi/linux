@@ -1,9 +1,15 @@
 [abi_symbol_list]
+  blkdev_get_by_dev
+  blkdev_put
+  __brelse
+  class_find_device
   end_buffer_read_sync
+  end_buffer_write_sync
   __getblk_gfp
   __lock_buffer
   mipi_dsi_dcs_write
   profile_event_register
+  put_device
   regulator_get_drvdata
   set_blocksize
   submit_bh
