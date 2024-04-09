@@ -38,7 +38,7 @@ use crate::{
     context::Context,
     defs::*,
     error::{BinderError, BinderResult},
-    node::{CouldNotDeliverCriticalIncrement, Node, NodeDeath, NodeRef},
+    node::{CouldNotDeliverCriticalIncrement, CritIncrWrapper, Node, NodeDeath, NodeRef},
     prio::{self, BinderPriority},
     range_alloc::{self, RangeAllocator},
     thread::{PushWorkRes, Thread},
@@ -221,8 +221,14 @@ impl ProcessInner {
         node: DArc<Node>,
         strong: bool,
         thread: &Thread,
+        wrapper: Option<CritIncrWrapper>,
     ) -> Result<NodeRef, CouldNotDeliverCriticalIncrement> {
-        let push = node.incr_refcount_allow_zero2one(strong, self)?;
+        let push = match wrapper {
+            None => node
+                .incr_refcount_allow_zero2one(strong, self)?
+                .map(|node| node as _),
+            Some(wrapper) => node.incr_refcount_allow_zero2one_with_wrapper(strong, wrapper, self),
+        };
         if let Some(node) = push {
             thread.push_work_deferred(node);
         }
@@ -649,12 +655,13 @@ impl Process {
         flags: u32,
         strong: bool,
         thread: &Thread,
+        wrapper: Option<CritIncrWrapper>,
     ) -> Result<Result<NodeRef, CouldNotDeliverCriticalIncrement>> {
         // Try to find an existing node.
         {
             let mut inner = self.inner.lock();
             if let Some(node) = inner.get_existing_node(ptr, cookie)? {
-                return Ok(inner.new_node_ref_with_thread(node, strong, thread));
+                return Ok(inner.new_node_ref_with_thread(node, strong, thread, wrapper));
             }
         }
 
@@ -663,14 +670,14 @@ impl Process {
         let rbnode = RBTree::try_allocate_node(ptr, node.clone())?;
         let mut inner = self.inner.lock();
         if let Some(node) = inner.get_existing_node(ptr, cookie)? {
-            return Ok(inner.new_node_ref_with_thread(node, strong, thread));
+            return Ok(inner.new_node_ref_with_thread(node, strong, thread, wrapper));
         }
 
         inner.nodes.insert(rbnode);
         // This can only fail if someone has already pushed the node to a list, but we just created
         // it and still hold the lock, so it can't fail right now.
         let node_ref = inner
-            .new_node_ref_with_thread(node, strong, thread)
+            .new_node_ref_with_thread(node, strong, thread, wrapper)
             .unwrap();
 
         Ok(Ok(node_ref))
@@ -684,11 +691,19 @@ impl Process {
         strong: bool,
         thread: &Thread,
     ) -> Result<NodeRef> {
-        match self.get_node_inner(ptr, cookie, flags, strong, thread) {
-            Err(err) => Err(err),
-            Ok(Ok(node_ref)) => Ok(node_ref),
-            Ok(Err(CouldNotDeliverCriticalIncrement)) => todo!(),
+        let mut wrapper = None;
+        for _ in 0..2 {
+            match self.get_node_inner(ptr, cookie, flags, strong, thread, wrapper) {
+                Err(err) => return Err(err),
+                Ok(Ok(node_ref)) => return Ok(node_ref),
+                Ok(Err(CouldNotDeliverCriticalIncrement)) => {
+                    wrapper = Some(CritIncrWrapper::new()?);
+                }
+            }
         }
+        // We only get a `CouldNotDeliverCriticalIncrement` error if `wrapper` is `None`, so the
+        // loop should run at most twice.
+        unreachable!()
     }
 
     pub(crate) fn insert_or_update_handle(
