@@ -55,6 +55,7 @@ struct kernel_info {
 
 	/* For module kallsyms */
 	__u32 enabled_modules_tree_lookup;
+	__u32 mod_mem_offset;
 	__u32 mod_kallsyms_offset;
 } __packed;
 
