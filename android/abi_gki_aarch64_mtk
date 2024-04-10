@@ -2658,16 +2658,20 @@
   __traceiter_android_rvh_find_busiest_queue
   __traceiter_android_rvh_find_energy_efficient_cpu
   __traceiter_android_rvh_find_lowest_rq
+  __traceiter_android_rvh_find_new_ilb
   __traceiter_android_rvh_finish_prio_fork
+  __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_get_nohz_timer_target
   __traceiter_android_rvh_is_cpu_allowed
   __traceiter_android_rvh_new_task_stats
   __traceiter_android_rvh_override_creds
+  __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_prepare_prio_fork
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_revert_creds
   __traceiter_android_rvh_rtmutex_prepare_setprio
   __traceiter_android_rvh_rto_next_cpu
+  __traceiter_android_rvh_sched_cpu_starting
   __traceiter_android_rvh_sched_fork_init
   __traceiter_android_rvh_sched_newidle_balance
   __traceiter_android_rvh_schedule
@@ -2675,11 +2679,18 @@
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_set_cpus_allowed_by_task
   __traceiter_android_rvh_setscheduler
+  __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_set_task_comm
   __traceiter_android_rvh_set_user_nice
+  __traceiter_android_rvh_tick_entry
+  __traceiter_android_rvh_try_to_wake_up
+  __traceiter_android_rvh_try_to_wake_up_success
+  __traceiter_android_rvh_update_cpu_capacity
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_alter_futex_plist_add
   __traceiter_android_vh_alter_rwsem_list_add
+  __traceiter_android_vh_cpufreq_target
+  __traceiter_android_vh_arch_set_freq_scale
   __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_binder_set_priority
   __traceiter_android_vh_binder_transaction_init
@@ -2697,6 +2708,7 @@
   __traceiter_android_vh_rwsem_read_wait_start
   __traceiter_android_vh_rwsem_write_wait_finish
   __traceiter_android_vh_rwsem_write_wait_start
+  __traceiter_android_vh_sched_pelt_multiplier
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_setscheduler_uclamp
   __traceiter_android_vh_show_resume_epoch_val
@@ -2739,16 +2751,20 @@
   __tracepoint_android_rvh_find_busiest_queue
   __tracepoint_android_rvh_find_energy_efficient_cpu
   __tracepoint_android_rvh_find_lowest_rq
+  __tracepoint_android_rvh_find_new_ilb
   __tracepoint_android_rvh_finish_prio_fork
+  __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_get_nohz_timer_target
   __tracepoint_android_rvh_is_cpu_allowed
   __tracepoint_android_rvh_new_task_stats
   __tracepoint_android_rvh_override_creds
+  __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_prepare_prio_fork
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_revert_creds
   __tracepoint_android_rvh_rtmutex_prepare_setprio
   __tracepoint_android_rvh_rto_next_cpu
+  __tracepoint_android_rvh_sched_cpu_starting
   __tracepoint_android_rvh_sched_fork_init
   __tracepoint_android_rvh_sched_newidle_balance
   __tracepoint_android_rvh_schedule
@@ -2757,10 +2773,17 @@
   __tracepoint_android_rvh_set_cpus_allowed_by_task
   __tracepoint_android_rvh_setscheduler
   __tracepoint_android_rvh_set_task_comm
+  __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_set_user_nice
+  __tracepoint_android_rvh_tick_entry
+  __tracepoint_android_rvh_try_to_wake_up
+  __tracepoint_android_rvh_try_to_wake_up_success
+  __tracepoint_android_rvh_update_cpu_capacity
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_alter_futex_plist_add
   __tracepoint_android_vh_alter_rwsem_list_add
+  __tracepoint_android_vh_cpufreq_target
+  __tracepoint_android_vh_arch_set_freq_scale
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_set_priority
   __tracepoint_android_vh_binder_transaction_init
@@ -2778,6 +2801,7 @@
   __tracepoint_android_vh_rwsem_read_wait_start
   __tracepoint_android_vh_rwsem_write_wait_finish
   __tracepoint_android_vh_rwsem_write_wait_start
+  __tracepoint_android_vh_sched_pelt_multiplier
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_setscheduler_uclamp
   __tracepoint_android_vh_show_resume_epoch_val
