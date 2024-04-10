@@ -14,17 +14,24 @@
 
 static unsigned long pkvm_module_token;
 int kvm_nvhe_sym(pkvm_smc_filter_hyp_init)(const struct pkvm_module_ops *ops);
+extern int kvm_nvhe_sym(permissive);
+
+static bool permissive;
+module_param(permissive, bool, 0444);
+MODULE_PARM_DESC(permissive, "Only log SMC filter violations.");
 
 static int __init smc_filter_init(void)
 {
 	int ret;
 
+	kvm_nvhe_sym(permissive) = permissive;
 	ret = pkvm_load_el2_module(kvm_nvhe_sym(pkvm_smc_filter_hyp_init),
 				   &pkvm_module_token);
 	if (ret)
 		pr_err("Failed to register pKVM SMC filter: %d\n", ret);
 	else
-		pr_info("pKVM SMC filter registered successfully\n");
+		pr_info("pKVM SMC filter registered successfully with permissive = %s\n",
+			permissive ? "true" : "false");
 
 	return ret;
 }
