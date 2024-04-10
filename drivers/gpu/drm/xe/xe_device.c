@@ -389,8 +389,14 @@ mask_err:
 	return err;
 }
 
-/*
- * Initialize MMIO resources that don't require any knowledge about tile count.
+/**
+ * xe_device_probe_early: Device early probe
+ * @xe: xe device instance
+ *
+ * Initialize MMIO resources that don't require any
+ * knowledge about tile count. Also initialize pcode
+ *
+ * Return: 0 on success, error code on failure
  */
 int xe_device_probe_early(struct xe_device *xe)
 {
@@ -401,6 +407,10 @@ int xe_device_probe_early(struct xe_device *xe)
 		return err;
 
 	err = xe_mmio_root_tile_init(xe);
+	if (err)
+		return err;
+
+	err = xe_pcode_probe_early(xe);
 	if (err)
 		return err;
 
@@ -482,11 +492,8 @@ int xe_device_probe(struct xe_device *xe)
 	if (err)
 		return err;
 
-	for_each_gt(gt, xe, id) {
-		err = xe_pcode_probe(gt);
-		if (err)
-			return err;
-	}
+	for_each_gt(gt, xe, id)
+		xe_pcode_init(gt);
 
 	err = xe_display_init_noirq(xe);
 	if (err)
