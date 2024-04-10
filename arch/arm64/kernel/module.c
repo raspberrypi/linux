@@ -651,9 +651,13 @@ static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
 		} else {
 			hyp_mod->hyp_events = NULL;
 			hyp_mod->nr_hyp_events = 0;
-			pr_warn("%s contains _hyp_events but no .hyp.event_ids",
+			WARN(1, "%s: Did you forget define_events.h in the EL2 (hyp) code?",
 				mod->name);
 		}
+	} else {
+		WARN(find_section(hdr, sechdrs, ".hyp.event_ids"),
+		     "%s: Did you forget kvm_define_hypevents.h in the EL1 code?",
+		     mod->name);
 	}
 #endif
 	return 0;
