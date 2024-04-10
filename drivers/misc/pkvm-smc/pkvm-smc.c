@@ -9,6 +9,9 @@
 #include <linux/kernel.h>
 #include <asm/kvm_pkvm_module.h>
 
+#define HYP_EVENT_FILE ../../../../drivers/misc/pkvm-smc/pkvm/events.h
+#include <asm/kvm_define_hypevents.h>
+
 static unsigned long pkvm_module_token;
 int kvm_nvhe_sym(pkvm_smc_filter_hyp_init)(const struct pkvm_module_ops *ops);
 
