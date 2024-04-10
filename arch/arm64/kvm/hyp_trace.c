@@ -789,34 +789,26 @@ unlock:
 static void hyp_trace_buffer_printk(struct hyp_trace_buffer *hyp_buffer)
 {
 	struct ht_iterator *ht_iter = hyp_buffer->printk_iter;
-	int prev_len = 0;
 
 	if (!hyp_trace_buffer.printk_on)
 		return;
-again:
+
 	trace_seq_init(&ht_iter->seq);
 
 	while (ht_next_pipe_event(ht_iter)) {
-		prev_len = ht_iter->seq.seq.len;
+		ht_print_trace_fmt(ht_iter);
 
-		if (ht_print_trace_fmt(ht_iter)) {
-			ht_iter->seq.seq.len = prev_len;
-			break;
-		}
+		/* Nothing has been written in the seq_buf */
+		if (!ht_iter->seq.seq.len)
+			return;
 
+		ht_iter->seq.buffer[ht_iter->seq.seq.len] = '\0';
+		printk("%s", ht_iter->seq.buffer);
+
+		ht_iter->seq.seq.len = 0;
 		ring_buffer_consume(hyp_buffer->trace_buffer, ht_iter->ent_cpu,
 				    NULL, NULL);
 	}
-
-	/* Nothing has been written in the seq_buf */
-	if (!ht_iter->seq.seq.len)
-		return;
-
-	printk("%s", ht_iter->seq.buffer);
-
-	/* trace_seq has overflown */
-	if (prev_len == ht_iter->seq.seq.len)
-		goto again;
 }
 
 int hyp_trace_init_tracefs(void)
