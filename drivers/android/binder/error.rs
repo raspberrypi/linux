@@ -30,6 +30,13 @@ impl BinderError {
         }
     }
 
+    pub(crate) fn new_frozen_oneway() -> Self {
+        Self {
+            reply: BR_TRANSACTION_PENDING_FROZEN,
+            source: None,
+        }
+    }
+
     pub(crate) fn is_dead(&self) -> bool {
         self.reply == BR_DEAD_REPLY
     }
@@ -86,6 +93,7 @@ impl core::fmt::Debug for BinderError {
             },
             BR_DEAD_REPLY => f.pad("BR_DEAD_REPLY"),
             BR_FROZEN_REPLY => f.pad("BR_FROZEN_REPLY"),
+            BR_TRANSACTION_PENDING_FROZEN => f.pad("BR_TRANSACTION_PENDING_FROZEN"),
             BR_TRANSACTION_COMPLETE => f.pad("BR_TRANSACTION_COMPLETE"),
             _ => f
                 .debug_struct("BinderError")

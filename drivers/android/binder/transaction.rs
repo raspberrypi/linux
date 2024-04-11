@@ -282,13 +282,19 @@ impl Transaction {
                     }
                 }
                 match target_node.submit_oneway(self, &mut process_inner) {
-                    Ok(()) => return Ok(()),
+                    Ok(()) => {}
                     Err((err, work)) => {
                         drop(process_inner);
                         // Drop work after releasing process lock.
                         drop(work);
                         return Err(err);
                     }
+                }
+
+                if process_inner.is_frozen {
+                    return Err(BinderError::new_frozen_oneway());
+                } else {
+                    return Ok(());
                 }
             } else {
                 pr_err!("Failed to submit oneway transaction to node.");
