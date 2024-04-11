@@ -1243,7 +1243,7 @@ impl Process {
     }
 
     pub(crate) fn ioctl_freeze(&self, info: &BinderFreezeInfo) -> Result {
-        if info.enable != 0 {
+        if info.enable == 0 {
             let mut inner = self.inner.lock();
             inner.sync_recv = false;
             inner.async_recv = false;
