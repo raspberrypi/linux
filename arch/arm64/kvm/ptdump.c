@@ -65,11 +65,11 @@ static const struct prot_bits stage2_pte_bits[] = {
 		.set	= "CON",
 		.clear	= "   ",
 	}, {
-		.mask	= PTE_TABLE_BIT,
-		.val	= PTE_TABLE_BIT,
-		.set	= "   ",
-		.clear	= "BLK",
-	},
+		.mask	= PTE_TABLE_BIT | PTE_VALID,
+		.val	= PTE_VALID,
+		.set	= "BLK",
+		.clear	= "   ",
+	}
 };
 
 static int kvm_ptdump_visitor(const struct kvm_pgtable_visit_ctx *ctx,
