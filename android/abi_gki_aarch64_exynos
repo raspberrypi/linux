@@ -16,7 +16,6 @@
   argv_free
   argv_split
   arm64_use_ng_mappings
-  __arm_smccc_hvc
   __arm_smccc_smc
   atomic_notifier_call_chain
   atomic_notifier_chain_register
@@ -88,7 +87,6 @@
   cpufreq_quick_get
   cpufreq_register_notifier
   cpufreq_unregister_notifier
-  __cpuhp_remove_state
   __cpuhp_setup_state
   cpu_number
   __cpu_online_mask
@@ -357,6 +355,7 @@
   ida_alloc_range
   ida_free
   idr_alloc
+  idr_remove
   init_dummy_netdev
   init_net
   __init_rwsem
@@ -730,12 +729,13 @@
   simple_attr_write
   simple_open
   simple_read_from_buffer
-  simple_strtoul
   simple_write_to_buffer
   single_open
   single_release
   skb_clone
+  skb_copy_expand
   skb_dequeue
+  skb_dequeue_tail
   skb_pull
   skb_push
   skb_put
@@ -968,7 +968,6 @@
   dev_get_by_name
   __napi_alloc_skb
   napi_build_skb
-  skb_dequeue_tail
 
 # required by cs_dsp.ko
   regmap_async_complete
@@ -1074,6 +1073,7 @@
   cpufreq_register_governor
   cpufreq_remove_update_util_hook
   cpufreq_this_cpu_can_update
+  __cpuhp_remove_state
   cpuidle_governor_latency_req
   cpuidle_register_governor
   cpupri_find_fitness
@@ -1182,6 +1182,9 @@
   uclamp_eff_value
   update_rq_clock
   wake_up_if_idle
+
+# required by exynos-adv-tracer-s2d.ko
+  simple_strtoul
 
 # required by exynos-chipid_v2.ko
   soc_device_register
@@ -1365,6 +1368,7 @@
   pm_genpd_init
 
 # required by exynos-pkvm-module.ko
+  __arm_smccc_hvc
   kimage_vaddr
   on_each_cpu_cond_mask
   __pkvm_load_el2_module
@@ -1827,6 +1831,21 @@
   v4l_bound_align_image
   work_busy
 
+# required by scsc_bt.ko
+  crc_ccitt
+  param_ops_ullong
+  skb_split
+  tty_dev_name_to_number
+  tty_kclose
+  tty_kopen_exclusive
+  tty_lock
+  tty_mode_ioctl
+  tty_register_ldisc
+  tty_set_ldisc
+  tty_set_termios
+  tty_unlock
+  tty_unregister_ldisc
+
 # required by scsc_logring.ko
   dev_vprintk_emit
   vprintk_emit
@@ -1852,8 +1871,6 @@
 
 # required by scsc_wlan.ko
   arp_tbl
-  __cpuhp_state_add_instance
-  __cpuhp_state_remove_instance
   dev_alloc_name
   __dev_queue_xmit
   dev_set_threaded
@@ -1896,7 +1913,6 @@
   rtnl_is_locked
   skb_copy
   skb_copy_bits
-  skb_copy_expand
   synchronize_net
   __tasklet_hi_schedule
   unregister_inet6addr_notifier
@@ -1983,7 +1999,6 @@
   idr_find
   idr_for_each
   idr_get_next
-  idr_remove
   idr_replace
   jiffies64_to_msecs
   mark_page_accessed
