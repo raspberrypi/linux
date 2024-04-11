@@ -9,6 +9,9 @@
 #include <linux/rcu_sync.h>
 #include <linux/lockdep.h>
 
+void _trace_android_vh_record_pcpu_rwsem_starttime(
+		struct task_struct *tsk, unsigned long settime);
+
 struct percpu_rw_semaphore {
 	struct rcu_sync		rss;
 	unsigned int __percpu	*read_count;
@@ -49,7 +52,7 @@ static inline void percpu_down_read(struct percpu_rw_semaphore *sem)
 	might_sleep();
 
 	rwsem_acquire_read(&sem->dep_map, 0, 0, _RET_IP_);
-
+	_trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
 	preempt_disable();
 	/*
 	 * We are in an RCU-sched read-side critical section, so the writer
@@ -88,8 +91,10 @@ static inline bool percpu_down_read_trylock(struct percpu_rw_semaphore *sem)
 	 * bleeding the critical section out.
 	 */
 
-	if (ret)
+	if (ret) {
+		_trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
 		rwsem_acquire_read(&sem->dep_map, 0, 1, _RET_IP_);
+	}
 
 	return ret;
 }
@@ -118,6 +123,7 @@ static inline void percpu_up_read(struct percpu_rw_semaphore *sem)
 		this_cpu_dec(*sem->read_count);
 		rcuwait_wake_up(&sem->writer);
 	}
+	_trace_android_vh_record_pcpu_rwsem_starttime(current, 0);
 	preempt_enable();
 }
 
