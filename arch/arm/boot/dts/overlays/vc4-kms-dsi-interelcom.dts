@@ -1,0 +1,31 @@
+/dts-v1/;
+/plugin/;
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+#address-cells = <1>;
+#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+			dsi_panel: dsi_panel@0 {
+				compatible = "interelcom,IE0009504", "ilitek,ili9881c";
+				reg = <0>;
+				//power-supply = <&reg_display>;
+				//<&gpio 20 GPIO_ACTIVE_LOW>
+				reset-gpios=<&gpio 20 1>;
+				//backlight = <&backlight>;
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+};
