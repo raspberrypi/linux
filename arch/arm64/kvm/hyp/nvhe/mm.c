@@ -531,6 +531,8 @@ int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
 	while (host_mc->nr_pages) {
 		order = host_mc->head & (PAGE_SIZE - 1);
 		p = admit_host_page(host_mc, order);
+		if (!p)
+			return -EINVAL;
 		hyp_virt_to_page(p)->order = order;
 		hyp_set_page_refcounted(hyp_virt_to_page(p));
 		hyp_put_page(pool, p);
