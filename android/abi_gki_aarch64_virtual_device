@@ -12,6 +12,8 @@
   __arch_copy_to_user
   arm64_use_ng_mappings
   bcmp
+  blk_mq_freeze_queue
+  blk_mq_unfreeze_queue
   bpf_trace_run1
   bpf_trace_run2
   bpf_trace_run3
