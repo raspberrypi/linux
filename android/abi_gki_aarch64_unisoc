@@ -95,6 +95,8 @@
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_alter_rwsem_list_add
+  __traceiter_android_vh_binder_proc_transaction_finish
+  __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_check_uninterruptible_tasks
   __traceiter_android_vh_check_uninterruptible_tasks_dn
   __traceiter_android_vh_cpu_idle_enter
@@ -117,6 +119,7 @@
   __traceiter_android_vh_sched_show_task
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_setscheduler_uclamp
+  __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_update_topology_flags_workfn
   __traceiter_clock_set_rate
   __traceiter_cpu_frequency_limits
@@ -161,6 +164,8 @@
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_alter_rwsem_list_add
+  __tracepoint_android_vh_binder_proc_transaction_finish
+  __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_check_uninterruptible_tasks
   __tracepoint_android_vh_check_uninterruptible_tasks_dn
   __tracepoint_android_vh_cpu_idle_enter
@@ -183,6 +188,7 @@
   __tracepoint_android_vh_sched_show_task
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_setscheduler_uclamp
+  __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_update_topology_flags_workfn
   __tracepoint_clock_set_rate
   __tracepoint_cpu_frequency_limits
