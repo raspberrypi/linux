@@ -1011,8 +1011,17 @@ static void stage2_map_prefault_idmap(struct kvm_pgtable_pte_ops *pte_ops,
 	for (i = 0; i < PTRS_PER_PTE; ++i, ++ptep, pa += granule) {
 		kvm_pte_t pte = kvm_init_valid_leaf_pte(
 			pa, block_pte, ctx->level + 1);
-		/* Skip ptes in the range being modified by the caller. */
-		if ((pa < ctx->addr) || (pa >= ctx->end)) {
+		/*
+		 * Skip ptes in the range being modified by the caller if we're
+		 * installing last level entries. Otherwise, we need to
+		 * temporarily put in a valid mapping to make sure the
+		 * prefaulting logic is triggered on the next
+		 * stage2_map_walk_leaf(). This adds an unnecessary TLBI as we'll
+		 * presumably re-break the freshly installed block, but that
+		 * should happen very infrequently.
+		 */
+		if ((ctx->level < (KVM_PGTABLE_MAX_LEVELS - 2)) ||
+				(pa < ctx->addr) || (pa >= ctx->end)) {
 			/* We can write non-atomically: ptep isn't yet live. */
 			*ptep = pte;
 		}
