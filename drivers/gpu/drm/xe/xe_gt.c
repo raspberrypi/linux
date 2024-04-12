@@ -384,7 +384,9 @@ static int gt_fw_domain_init(struct xe_gt *gt)
 			 err);
 
 	/* Initialize CCS mode sysfs after early initialization of HW engines */
-	xe_gt_ccs_mode_sysfs_init(gt);
+	err = xe_gt_ccs_mode_sysfs_init(gt);
+	if (err)
+		goto err_force_wake;
 
 	err = xe_force_wake_put(gt_to_fw(gt), XE_FW_GT);
 	XE_WARN_ON(err);
