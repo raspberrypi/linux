@@ -1,6 +1,7 @@
 [abi_symbol_list]
   blkdev_get_by_path
   blkdev_issue_flush
+  _dev_alert
   __devm_alloc_percpu
   file_ra_state_init
   file_write_and_wait_range
@@ -13,6 +14,12 @@
   proc_set_size
   pstore_register
   pstore_unregister
+  rfkill_find_type
+  rfkill_get_led_trigger_name
+  rfkill_pause_polling
+  rfkill_set_led_trigger_name
+  rfkill_set_states
+  rfkill_soft_blocked
   __traceiter_android_rvh_arm64_serror_panic
   __traceiter_android_rvh_die_kernel_fault
   __traceiter_android_rvh_do_el1_bti
@@ -47,4 +54,5 @@
   __tracepoint_android_vh_watchdog_timer_softlockup
   __tracepoint_console
   __tracepoint_workqueue_execute_start
+  usb_set_device_state
   yield
