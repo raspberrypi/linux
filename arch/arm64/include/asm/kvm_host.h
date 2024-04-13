@@ -83,8 +83,6 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu);
 void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu);
 
 /* Head holds page head and it's order. */
-#define HYP_MC_PTR_MASK			GENMASK_ULL(63, PAGE_SHIFT)
-#define HYP_MC_ORDER_MASK		GENMASK_ULL(PAGE_SHIFT - 1, 0)
 struct kvm_hyp_memcache {
 	phys_addr_t head;
 	unsigned long nr_pages;
@@ -97,8 +95,8 @@ static inline void push_hyp_memcache(struct kvm_hyp_memcache *mc,
 				     unsigned long order)
 {
 	*p = mc->head;
-	mc->head = FIELD_PREP(HYP_MC_PTR_MASK, to_pa(p)) |
-		   FIELD_PREP(HYP_MC_ORDER_MASK, order);
+	mc->head = (to_pa(p) & PAGE_MASK) |
+		   FIELD_PREP(~PAGE_MASK, order);
 	mc->nr_pages++;
 }
 
@@ -106,12 +104,12 @@ static inline void *pop_hyp_memcache(struct kvm_hyp_memcache *mc,
 				     void *(*to_va)(phys_addr_t phys),
 				     unsigned long *order)
 {
-	phys_addr_t *p = to_va(FIELD_GET(HYP_MC_PTR_MASK, mc->head));
+	phys_addr_t *p = to_va(mc->head & PAGE_MASK);
 
 	if (!mc->nr_pages)
 		return NULL;
 
-	*order = FIELD_GET(HYP_MC_ORDER_MASK, mc->head);
+	*order = FIELD_GET(~PAGE_MASK, mc->head);
 
 	mc->head = *p;
 	mc->nr_pages--;

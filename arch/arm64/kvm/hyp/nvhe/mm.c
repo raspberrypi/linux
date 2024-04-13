@@ -478,10 +478,10 @@ static void *admit_host_page(void *arg, unsigned long order)
 	if (!host_mc->nr_pages)
 		return NULL;
 
-	mc_order = FIELD_GET(HYP_MC_ORDER_MASK, host_mc->head);
+	mc_order = FIELD_GET(~PAGE_MASK, host_mc->head);
 	BUG_ON(order != mc_order);
 
-	p = FIELD_GET(HYP_MC_PTR_MASK, host_mc->head);
+	p = host_mc->head & PAGE_MASK;
 	/*
 	 * The host still owns the pages in its memcache, so we need to go
 	 * through a full host-to-hyp donation cycle to change it. Fortunately,
@@ -529,7 +529,7 @@ int refill_hyp_pool(struct hyp_pool *pool, struct kvm_hyp_memcache *host_mc)
 	void *p;
 
 	while (host_mc->nr_pages) {
-		order = host_mc->head & (PAGE_SIZE - 1);
+		order = FIELD_GET(~PAGE_MASK, host_mc->head);
 		p = admit_host_page(host_mc, order);
 		if (!p)
 			return -EINVAL;

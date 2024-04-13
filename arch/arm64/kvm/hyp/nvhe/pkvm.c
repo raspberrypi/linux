@@ -1755,8 +1755,7 @@ bool kvm_hyp_handle_hvc64(struct kvm_vcpu *vcpu, u64 *exit_code)
 #ifdef CONFIG_NVHE_EL2_DEBUG
 static inline phys_addr_t get_next_memcache_page(phys_addr_t head)
 {
-	return FIELD_GET(HYP_MC_PTR_MASK,
-			 *((phys_addr_t *)hyp_phys_to_virt(head)));
+	return *((phys_addr_t *)hyp_phys_to_virt(head)) & PAGE_MASK;
 }
 
 static void *pkvm_setup_snapshot(struct kvm_pgtable_snapshot *snap_hva)
@@ -1783,7 +1782,7 @@ static void *pkvm_setup_snapshot(struct kvm_pgtable_snapshot *snap_hva)
 	if (__pkvm_host_donate_hyp(hyp_virt_to_pfn(pgd), snap->pgd_pages))
 		goto error_with_snapshot;
 
-	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	mc_page = snap->mc.head & PAGE_MASK;
 	for (i = 0; i < snap->mc.nr_pages; i++) {
 		if (!PAGE_ALIGNED(mc_page))
 			goto error_with_memcache;
@@ -1803,7 +1802,7 @@ static void *pkvm_setup_snapshot(struct kvm_pgtable_snapshot *snap_hva)
 
 	return snap;
 error_with_memcache:
-	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	mc_page = snap->mc.head & PAGE_MASK;
 	for (; i >= 0; i--) {
 		next_mc_page = get_next_memcache_page(mc_page);
 		WARN_ON(__pkvm_hyp_donate_host(hyp_phys_to_pfn(mc_page), 1));
@@ -1834,7 +1833,7 @@ static void pkvm_teardown_snapshot(struct kvm_pgtable_snapshot *snap)
 	WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(used_pg),
 				       snap->num_used_pages));
 
-	mc_page = FIELD_GET(HYP_MC_PTR_MASK, snap->mc.head);
+	mc_page = snap->mc.head & PAGE_MASK;
 	for (i = 0; i < snap->mc.nr_pages; i++) {
 		next_mc_page = get_next_memcache_page(mc_page);
 		WARN_ON(__pkvm_hyp_donate_host(hyp_phys_to_pfn(mc_page), 1));
