@@ -160,7 +160,7 @@ handle_to_domain(pkvm_handle_t domain_id)
 		return NULL;
 	domain_id = array_index_nospec(domain_id, KVM_IOMMU_MAX_DOMAINS);
 
-	idx = domain_id >> KVM_IOMMU_DOMAIN_ID_SPLIT;
+	idx = domain_id / KVM_IOMMU_DOMAINS_PER_PAGE;
 	domains = (struct kvm_hyp_iommu_domain *)READ_ONCE(kvm_hyp_iommu_domains[idx]);
 	if (!domains) {
 		if (domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
@@ -186,8 +186,7 @@ handle_to_domain(pkvm_handle_t domain_id)
 			return NULL;
 		}
 	}
-
-	return &domains[domain_id & KVM_IOMMU_DOMAIN_ID_LEAF_MASK];
+	return &domains[domain_id % KVM_IOMMU_DOMAINS_PER_PAGE];
 }
 
 static int domain_get(struct kvm_hyp_iommu_domain *domain)
