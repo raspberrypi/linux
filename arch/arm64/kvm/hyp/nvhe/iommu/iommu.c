@@ -19,6 +19,7 @@
 struct kvm_iommu_paddr_cache {
 	unsigned short	ptr;
 	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
+	size_t		pgsize[KVM_IOMMU_PADDR_CACHE_MAX];
 };
 static DEFINE_PER_CPU(struct kvm_iommu_paddr_cache, kvm_iommu_unmap_cache);
 
@@ -416,11 +417,13 @@ void kvm_iommu_iotlb_gather_add_page(void *cookie,
 	kvm_iommu_iotlb_gather_add_range(gather, iova, size);
 }
 
-static void kvm_iommu_flush_unmap_cache(struct kvm_iommu_paddr_cache *cache,
-					size_t pgsize)
+static void kvm_iommu_flush_unmap_cache(struct kvm_iommu_paddr_cache *cache)
 {
-	while (cache->ptr)
-		WARN_ON(__pkvm_host_unuse_dma(cache->paddr[--cache->ptr], pgsize));
+	while (cache->ptr) {
+		cache->ptr--;
+		WARN_ON(__pkvm_host_unuse_dma(cache->paddr[cache->ptr],
+					      cache->pgsize[cache->ptr]));
+	}
 }
 
 static void kvm_iommu_unmap_walker(struct io_pgtable_ctxt *ctxt)
@@ -428,13 +431,14 @@ static void kvm_iommu_unmap_walker(struct io_pgtable_ctxt *ctxt)
 	struct kvm_iommu_walk_data *data = (struct kvm_iommu_walk_data *)ctxt->arg;
 	struct kvm_iommu_paddr_cache *cache = data->cache;
 
-	cache->paddr[cache->ptr++] = ctxt->addr;
+	cache->paddr[cache->ptr] = ctxt->addr;
+	cache->pgsize[cache->ptr++] = ctxt->size;
 
 	/* Make more space. */
 	if(cache->ptr == KVM_IOMMU_PADDR_CACHE_MAX) {
 		/* Must invalidate TLB first. */
 		kvm_iommu_iotlb_sync(data->cookie, data->iotlb_gather);
-		kvm_iommu_flush_unmap_cache(cache, ctxt->size);
+		kvm_iommu_flush_unmap_cache(cache);
 	}
 }
 
@@ -490,7 +494,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 		if (!unmapped)
 			goto out_put_domain;
 		kvm_iommu_iotlb_sync(domain->pgtable->cookie, &iotlb_gather);
-		kvm_iommu_flush_unmap_cache(cache, pgsize);
+		kvm_iommu_flush_unmap_cache(cache);
 		iova += unmapped;
 		total_unmapped += unmapped;
 		pgcount -= unmapped / pgsize;
