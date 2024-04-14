@@ -620,8 +620,8 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 	if (ret)
 		return ret;
 
-	ret = pkvm_create_mappings(kvm_hyp_iommu_domains, kvm_hyp_iommu_domains +
-				   KVM_IOMMU_DOMAINS_ROOT_ENTRIES, PAGE_HYP);
+	ret = __pkvm_host_donate_hyp(__hyp_pa(kvm_hyp_iommu_domains) >> PAGE_SHIFT,
+				     1 << get_order(KVM_IOMMU_DOMAINS_ROOT_SIZE));
 	if (ret)
 		return ret;
 
