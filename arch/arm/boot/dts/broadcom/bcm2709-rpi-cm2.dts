@@ -124,17 +124,6 @@ i2c_csi_dsi0: &i2c0 {
 	};
 };
 
-&soc {
-	virtgpio: virtgpio {
-		compatible = "brcm,bcm2835-virtgpio";
-		gpio-controller;
-		#gpio-cells = <2>;
-		firmware = <&firmware>;
-		status = "okay";
-	};
-
-};
-
 &firmware {
 	expgpio: expgpio {
 		compatible = "raspberrypi,firmware-gpio";
@@ -148,6 +137,13 @@ i2c_csi_dsi0: &i2c0 {
 				  "NC",
 				  "NC",
 				  "NC";
+		status = "okay";
+	};
+
+	virtgpio: virtgpio {
+		compatible = "brcm,bcm2835-virtgpio";
+		gpio-controller;
+		#gpio-cells = <2>;
 		status = "okay";
 	};
 };
