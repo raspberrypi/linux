@@ -655,7 +655,8 @@ static int module_init_hyp(const Elf_Ehdr *hdr, const Elf_Shdr *sechdrs,
 				mod->name);
 		}
 	} else {
-		WARN(find_section(hdr, sechdrs, ".hyp.event_ids"),
+		s = find_section(hdr, sechdrs, ".hyp.event_ids");
+		WARN(s && s->sh_size,
 		     "%s: Did you forget kvm_define_hypevents.h in the EL1 code?",
 		     mod->name);
 	}
