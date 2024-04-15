@@ -139,14 +139,6 @@
 	soc {
 		/delete-node/ pixelvalve@7e807000;
 		/delete-node/ hdmi@7e902000;
-
-		virtgpio: virtgpio {
-			compatible = "brcm,bcm2835-virtgpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			firmware = <&firmware>;
-			status = "okay";
-		};
 	};
 };
 
@@ -167,6 +159,15 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
+};
+
+&firmware {
+		virtgpio: virtgpio {
+			compatible = "brcm,bcm2835-virtgpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			status = "okay";
+		};
 };
 
 &uart0 {
