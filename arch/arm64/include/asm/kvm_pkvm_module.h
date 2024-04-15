@@ -68,9 +68,12 @@ enum pkvm_psci_notification {
  * @register_host_perm_fault_handler:
  *				@cb is called whenever the host generates an
  *				abort with the fault status code Permission
- *				Fault. Returning -EPERM lets pKVM handle the
- *				abort. This is useful when a module changes the
+ *				Fault. This is useful when a module changes the
  *				host stage-2 permissions for certain pages.
+ *				Up-to 16 handlers can be registered. Returning
+ *				-EPERM lets pKVM handle the abort while on 0,
+ *				the next handler will be called. The handler
+ *				order depends on the registration order.
  * @host_stage2_mod_prot:	Apply @prot to the page @pfn. This requires a
  *				permission fault handler to be registered (see
  *				@register_host_perm_fault_handler), otherwise
