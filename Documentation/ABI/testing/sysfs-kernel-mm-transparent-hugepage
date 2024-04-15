@@ -4,6 +4,7 @@ Contact:	Linux memory management mailing list <linux-mm@kvack.org>
 Description:
 		/sys/kernel/mm/transparent_hugepage/ contains a number of files and
 		subdirectories,
+
 			- defrag
 			- enabled
 			- hpage_pmd_size
