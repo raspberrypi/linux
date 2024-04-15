@@ -670,6 +670,22 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		output-high;
 		line-name = "RP1 RUN pin";
 	};
+
+	ant1: ant1-hog {
+		gpio-hog;
+		gpios = <5 GPIO_ACTIVE_HIGH>;
+		/* internal antenna enabled */
+		output-high;
+		line-name = "ant1";
+	};
+
+	ant2: ant2-hog {
+		gpio-hog;
+		gpios = <6 GPIO_ACTIVE_HIGH>;
+		/* external antenna disabled */
+		output-low;
+		line-name = "ant2";
+	};
 };
 
 &rp1_gpio {
@@ -839,6 +855,19 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		drm_fb2_rp1_dsi1 = <&aliases>, "drm-fb2=",&dsi1;
 		drm_fb2_rp1_dpi = <&aliases>, "drm-fb2=",&dpi;
 		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+
+		ant1 =  <&ant1>,"output-high?=on",
+			<&ant1>, "output-low?=off",
+			<&ant2>, "output-high?=off",
+			<&ant2>, "output-low?=on";
+		ant2 =  <&ant1>,"output-high?=off",
+			<&ant1>, "output-low?=on",
+			<&ant2>, "output-high?=on",
+			<&ant2>, "output-low?=off";
+		noant = <&ant1>,"output-high?=off",
+			<&ant1>, "output-low?=on",
+			<&ant2>, "output-high?=off",
+			<&ant2>, "output-low?=on";
 
 		fan_temp0 = <&cpu_tepid>,"temperature:0";
 		fan_temp1 = <&cpu_warm>,"temperature:0";
