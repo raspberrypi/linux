@@ -4,3 +4,10 @@
   __tracepoint_android_vh_logbuf
   tracepoint_probe_register
   tracepoint_probe_unregister
+
+# required by shrink memory module
+  shrink_slab
+  __tracepoint_android_vh_do_shrink_slab
+  __tracepoint_android_vh_shrink_slab_bypass
+  __traceiter_android_vh_do_shrink_slab
+  __traceiter_android_vh_shrink_slab_bypass
