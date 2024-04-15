@@ -130,11 +130,11 @@ Name:   <The base DTB>
 Info:   Configures the base Raspberry Pi hardware
 Load:   <loaded automatically>
 Params:
-        ant1                    Select antenna 1 (default). CM4 only.
+        ant1                    Select antenna 1 (default). CM4/5 only.
 
-        ant2                    Select antenna 2. CM4 only.
+        ant2                    Select antenna 2. CM4/5 only.
 
-        noant                   Disable both antennas. CM4 only.
+        noant                   Disable both antennas. CM4/5 only.
 
         audio                   Set to "on" to enable the onboard ALSA audio
                                 interface (default "off")
