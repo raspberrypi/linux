@@ -8,7 +8,7 @@ jobs:
     steps:
     - name: 'Calculate PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> $GITHUB_ENV
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
