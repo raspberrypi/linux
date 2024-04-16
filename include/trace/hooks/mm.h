@@ -86,6 +86,9 @@ DECLARE_HOOK(android_vh_kmalloc_slab,
 DECLARE_HOOK(android_vh_adjust_kvmalloc_flags,
 	TP_PROTO(unsigned int order, gfp_t *alloc_flags),
 	TP_ARGS(order, alloc_flags));
+DECLARE_HOOK(android_vh_alloc_pages_slowpath,
+	TP_PROTO(gfp_t gfp_mask, unsigned int order, unsigned long delta),
+	TP_ARGS(gfp_mask, order, delta));
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */
