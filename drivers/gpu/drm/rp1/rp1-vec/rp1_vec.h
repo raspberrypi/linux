@@ -21,12 +21,15 @@
 #define RP1VEC_NUM_HW_BLOCKS  2
 
 #define RP1VEC_SUPPORTED_TV_MODES	  \
-	(BIT(DRM_MODE_TV_MODE_NTSC)     | \
+	(BIT(DRM_MODE_TV_MODE_NTSC)	| \
 	 BIT(DRM_MODE_TV_MODE_NTSC_443) | \
-	 BIT(DRM_MODE_TV_MODE_NTSC_J)   | \
-	 BIT(DRM_MODE_TV_MODE_PAL)      | \
-	 BIT(DRM_MODE_TV_MODE_PAL_M)    | \
-	 BIT(DRM_MODE_TV_MODE_PAL_N))
+	 BIT(DRM_MODE_TV_MODE_NTSC_J)	| \
+	 BIT(DRM_MODE_TV_MODE_PAL)	| \
+	 BIT(DRM_MODE_TV_MODE_PAL_M)	| \
+	 BIT(DRM_MODE_TV_MODE_PAL_N)	| \
+	 BIT(DRM_MODE_TV_MODE_MONOCHROME))
+
+#define RP1VEC_VDAC_KHZ 108000
 
 /* ---------------------------------------------------------------------- */
 
@@ -45,7 +48,7 @@ struct rp1_vec {
 	/* Block (VCC, CFG) base addresses, and current state */
 	void __iomem *hw_base[RP1VEC_NUM_HW_BLOCKS];
 	u32 cur_fmt;
-	bool vec_running, pipe_enabled;
+	bool fake_31khz, vec_running, pipe_enabled;
 	struct completion finished;
 };
 
@@ -54,8 +57,8 @@ struct rp1_vec {
 
 void rp1vec_hw_setup(struct rp1_vec *vec,
 		     u32 in_format,
-		struct drm_display_mode const *mode,
-		int tvstd);
+		     struct drm_display_mode const *mode,
+		     int tvstd);
 void rp1vec_hw_update(struct rp1_vec *vec, dma_addr_t addr, u32 offset, u32 stride);
 void rp1vec_hw_stop(struct rp1_vec *vec);
 int rp1vec_hw_busy(struct rp1_vec *vec);
