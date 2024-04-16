@@ -308,3 +308,6 @@
   __tracepoint_android_vh_rtmutex_waiter_prio
   __tracepoint_android_vh_task_blocks_on_rtmutex
   wq_worker_comm
+  is_dma_buf_file
+  dma_buf_get_each
+  is_ashmem_file
