@@ -482,6 +482,9 @@ impl DeliverToRead for Node {
         Ok(true)
     }
 
+    fn cancel(self: DArc<Self>) {}
+    fn on_thread_selected(&self, _thread: &Thread) {}
+
     fn should_sync_wakeup(&self) -> bool {
         false
     }
@@ -839,6 +842,9 @@ impl DeliverToRead for NodeDeath {
         // get to a death notification.
         Ok(cmd != BR_DEAD_BINDER)
     }
+
+    fn cancel(self: DArc<Self>) {}
+    fn on_thread_selected(&self, _thread: &Thread) {}
 
     fn should_sync_wakeup(&self) -> bool {
         false
