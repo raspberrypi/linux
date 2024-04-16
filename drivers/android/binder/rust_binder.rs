@@ -391,12 +391,18 @@ unsafe extern "C" fn rust_binder_flush(
 }
 
 #[no_mangle]
-unsafe extern "C" fn rust_binder_stats_show(_: *mut seq_file) -> core::ffi::c_int {
+unsafe extern "C" fn rust_binder_stats_show(
+    _: *mut seq_file,
+    _: *mut core::ffi::c_void,
+) -> core::ffi::c_int {
     0
 }
 
 #[no_mangle]
-unsafe extern "C" fn rust_binder_state_show(ptr: *mut seq_file) -> core::ffi::c_int {
+unsafe extern "C" fn rust_binder_state_show(
+    ptr: *mut seq_file,
+    _: *mut core::ffi::c_void,
+) -> core::ffi::c_int {
     // SAFETY: The caller ensures that the pointer is valid and exclusive for the duration in which
     // this method is called.
     let m = unsafe { SeqFile::from_raw(ptr) };
@@ -407,12 +413,18 @@ unsafe extern "C" fn rust_binder_state_show(ptr: *mut seq_file) -> core::ffi::c_
 }
 
 #[no_mangle]
-unsafe extern "C" fn rust_binder_transactions_show(_: *mut seq_file) -> core::ffi::c_int {
+unsafe extern "C" fn rust_binder_transactions_show(
+    _: *mut seq_file,
+    _: *mut core::ffi::c_void,
+) -> core::ffi::c_int {
     0
 }
 
 #[no_mangle]
-unsafe extern "C" fn rust_binder_transaction_log_show(_: *mut seq_file) -> core::ffi::c_int {
+unsafe extern "C" fn rust_binder_transaction_log_show(
+    _: *mut seq_file,
+    _: *mut core::ffi::c_void,
+) -> core::ffi::c_int {
     0
 }
 
