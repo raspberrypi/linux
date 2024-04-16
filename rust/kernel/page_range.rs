@@ -630,7 +630,7 @@ unsafe extern "C" fn rust_shrink_scan(
     unsafe {
         bindings::list_lru_walk(
             shrinker.list_lru.get(),
-            Some(rust_shrink_free_page),
+            Some(bindings::rust_shrink_free_page_wrap),
             ptr::null_mut(),
             nr_to_scan,
         )

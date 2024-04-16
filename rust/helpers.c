@@ -29,6 +29,7 @@
 #include <linux/fs.h>
 #include <linux/gfp.h>
 #include <linux/highmem.h>
+#include <linux/list_lru.h>
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 #include <linux/sched/signal.h>
@@ -37,6 +38,19 @@
 #include <linux/task_work.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+
+unsigned int rust_shrink_free_page(struct list_head *item,
+				   struct list_lru_one *list, spinlock_t *lock,
+				   void *cb_arg);
+
+enum lru_status
+rust_helper_rust_shrink_free_page_wrap(struct list_head *item,
+				       struct list_lru_one *list,
+				       spinlock_t *lock, void *cb_arg)
+{
+	return rust_shrink_free_page(item, list, lock, cb_arg);
+}
+EXPORT_SYMBOL_GPL(rust_helper_rust_shrink_free_page_wrap);
 
 __noreturn void rust_helper_BUG(void)
 {
