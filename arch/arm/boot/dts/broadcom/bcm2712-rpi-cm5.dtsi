@@ -344,7 +344,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 
 /* SDIO1 is used to drive the eMMC/SD card */
 &sdio1 {
-	pinctrl-0 = <&emmc_cmddat_pulls>, <&emmc_ds_pull>, <&emmc_aon_cd_pins>;
+	pinctrl-0 = <&emmc_cmddat_pulls>, <&emmc_ds_pull>;
 	pinctrl-names = "default";
 	vqmmc-supply = <&sd_io_1v8_reg>;
 	vmmc-supply = <&sd_vcc_reg>;
@@ -359,10 +359,6 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 };
 
 &pinctrl_aon {
-	emmc_aon_cd_pins: emmc_aon_cd_pins {
-		function = "sd_card_g";
-		pins = "aon_gpio5";
-		bias-pull-up;
 	};
 
 	/* Slight hack - only one PWM pin (status LED) is usable */
