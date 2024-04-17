@@ -1,6 +1,7 @@
 [abi_symbol_list]
   blkdev_get_by_path
   blkdev_issue_flush
+  caches_clean_inval_pou
   _dev_alert
   __devm_alloc_percpu
   file_ra_state_init
@@ -9,6 +10,7 @@
   getboottime64
   __get_task_ioprio
   gpiochip_find
+  kick_all_cpus_sync
   param_get_uint
   param_set_uint
   proc_set_size
