@@ -134,10 +134,13 @@ static int snd_rpi_simple_hw_params(struct snd_pcm_substream *substream,
 		return 0; // BCLK is configured in .init
 
 	/* The simple drivers just set the bclk_ratio to sample_bits * 2 so
-	 * hard-code this for now. More complex drivers could just replace
+	 * hard-code this for now, but sticking to powers of 2 to allow for
+	 * integer clock divisors. More complex drivers could just replace
 	 * the hw_params routine.
 	 */
 	sample_bits = snd_pcm_format_width(params_format(params));
+	sample_bits = sample_bits <= 16 ? 16 : 32;
+
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 }
 
