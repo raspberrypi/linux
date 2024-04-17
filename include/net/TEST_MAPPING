@@ -55,7 +55,7 @@
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         },
         {
-          "include-filter": "CallRedirectionServiceTest"
+          "include-filter": "android.telecom.cts.CallRedirectionServiceTest"
         }
       ]
     }
