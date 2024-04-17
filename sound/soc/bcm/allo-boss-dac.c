@@ -278,6 +278,9 @@ static int snd_allo_boss_hw_params(
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
 	struct snd_soc_card *card = rtd->card;
 
+	/* Using powers of 2 allows for an integer clock divisor */
+	width = width <= 16 ? 16 : 32;
+
 	/* Mute before changing sample rate */
 	snd_allo_boss_gpio_mute(card);
 
