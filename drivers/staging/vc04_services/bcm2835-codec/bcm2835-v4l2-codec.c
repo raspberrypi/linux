@@ -2038,6 +2038,9 @@ static int vidioc_s_parm(struct file *file, void *priv,
 			 struct v4l2_streamparm *parm)
 {
 	struct bcm2835_codec_ctx *ctx = file2ctx(file);
+	struct bcm2835_codec_q_data *q_data = &ctx->q_data[V4L2_M2M_DST];
+	struct vchiq_mmal_port *port;
+	int ret;
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
@@ -2053,7 +2056,44 @@ static int vidioc_s_parm(struct file *file, void *priv,
 
 	parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 
-	return 0;
+	/*
+	 * If we have a component then setup the port as well.
+	 * NB Framerate is passed to MMAL via the DST port, whilst V4L2 uses the
+	 * OUTPUT queue.
+	 */
+	port = get_port_data(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	if (!port)
+		return 0;
+
+	if (port->enabled) {
+		struct s32_fract frame_rate = { ctx->framerate_num,
+						ctx->framerate_denom };
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->output[0],
+						    MMAL_PARAMETER_VIDEO_FRAME_RATE,
+						    &frame_rate,
+						    sizeof(frame_rate));
+
+		return ret;
+	}
+
+	setup_mmal_port_format(ctx, q_data, port);
+	ret = vchiq_mmal_port_set_format(ctx->dev->instance, port);
+	if (ret) {
+		v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed vchiq_mmal_port_set_format on port, ret %d\n",
+			 __func__, ret);
+		ret = -EINVAL;
+	}
+
+	if (q_data->sizeimage < port->minimum_buffer.size) {
+		v4l2_err(&ctx->dev->v4l2_dev, "%s: Current buffer size of %u < min buf size %u - driver mismatch to MMAL\n",
+			 __func__, q_data->sizeimage,
+			 port->minimum_buffer.size);
+		ret = -EINVAL;
+	}
+
+	return ret;
 }
 
 static int vidioc_g_parm(struct file *file, void *priv,
