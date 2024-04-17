@@ -34,6 +34,9 @@ static int snd_rpi_dionaudio_loco_hw_params(
 	unsigned int sample_bits =
 		snd_pcm_format_width(params_format(params));
 
+	/* Using powers of 2 allows for an integer clock divisor */
+	sample_bits = sample_bits <= 16 ? 16 : 32;
+
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 }
 

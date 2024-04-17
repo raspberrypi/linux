@@ -231,6 +231,9 @@ static int snd_rpi_hifiberry_dacplusadc_hw_params(
 	int channels = params_channels(params);
 	int width = snd_pcm_format_width(params_format(params));
 
+	/* Using powers of 2 allows for an integer clock divisor */
+	width = width <= 16 ? 16 : 32;
+
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
 
