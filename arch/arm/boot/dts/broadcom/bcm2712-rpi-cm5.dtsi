@@ -359,6 +359,9 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 };
 
 &pinctrl_aon {
+	ant_pins: ant_pins {
+		function = "gpio";
+		pins = "aon_gpio5", "aon_gpio6";
 	};
 
 	/* Slight hack - only one PWM pin (status LED) is usable */
@@ -461,7 +464,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 
 /* SDIO2 drives the WLAN interface */
 &sdio2 {
-	pinctrl-0 = <&sdio2_30_pins>;
+	pinctrl-0 = <&sdio2_30_pins>, <&ant_pins>;
 	pinctrl-names = "default";
 	bus-width = <4>;
 	vmmc-supply = <&wl_on_reg>;
