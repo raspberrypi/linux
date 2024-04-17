@@ -1753,7 +1753,7 @@ static struct clk_branch gcc_gmac0_sys_clk = {
 	.halt_check = BRANCH_HALT_DELAY,
 	.halt_bit = 31,
 	.clkr = {
-		.enable_reg = 0x683190,
+		.enable_reg = 0x68190,
 		.enable_mask = BIT(0),
 		.hw.init = &(struct clk_init_data) {
 			.name = "gcc_gmac0_sys_clk",
@@ -2179,7 +2179,7 @@ static struct clk_branch gcc_pcie1_axi_s_clk = {
 };
 
 static struct clk_branch gcc_pcie1_pipe_clk = {
-	.halt_reg = 8,
+	.halt_reg = 0x76018,
 	.halt_check = BRANCH_HALT_DELAY,
 	.halt_bit = 31,
 	.clkr = {
@@ -3631,7 +3631,7 @@ static const struct qcom_reset_map gcc_ipq5018_resets[] = {
 	[GCC_SYSTEM_NOC_BCR] = { 0x26000, 0 },
 	[GCC_TCSR_BCR] = { 0x28000, 0 },
 	[GCC_TLMM_BCR] = { 0x34000, 0 },
-	[GCC_UBI0_AXI_ARES] = { 0x680},
+	[GCC_UBI0_AXI_ARES] = { 0x68010, 0 },
 	[GCC_UBI0_AHB_ARES] = { 0x68010, 1 },
 	[GCC_UBI0_NC_AXI_ARES] = { 0x68010, 2 },
 	[GCC_UBI0_DBG_ARES] = { 0x68010, 3 },

@@ -36,7 +36,6 @@
 
 #include "hci_request.h"
 #include "smp.h"
-#include "a2mp.h"
 #include "eir.h"
 
 struct sco_param {
@@ -1145,9 +1144,6 @@ void hci_conn_del(struct hci_conn *conn)
 				hdev->acl_cnt += conn->sent;
 		}
 	}
-
-	if (conn->amp_mgr)
-		amp_mgr_put(conn->amp_mgr);
 
 	skb_queue_purge(&conn->data_q);
 
@@ -2940,7 +2936,7 @@ int hci_abort_conn(struct hci_conn *conn, u8 reason)
 		case HCI_EV_LE_CONN_COMPLETE:
 		case HCI_EV_LE_ENHANCED_CONN_COMPLETE:
 		case HCI_EVT_LE_CIS_ESTABLISHED:
-			hci_cmd_sync_cancel(hdev, -ECANCELED);
+			hci_cmd_sync_cancel(hdev, ECANCELED);
 			break;
 		}
 	}
