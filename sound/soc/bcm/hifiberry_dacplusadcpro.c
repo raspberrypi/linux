@@ -389,6 +389,9 @@ static int snd_rpi_hifiberry_dacplusadcpro_hw_params(
 	struct snd_soc_dai_driver *drv = dai->driver;
 	const struct snd_soc_dai_ops *ops = drv->ops;
 
+	/* Using powers of 2 allows for an integer clock divisor */
+	width = width <= 16 ? 16 : 32;
+
 	if (snd_rpi_hifiberry_is_dacpro) {
 		snd_rpi_hifiberry_dacplusadcpro_set_sclk(dac,
 			params_rate(params));

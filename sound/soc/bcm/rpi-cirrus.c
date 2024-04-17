@@ -708,6 +708,9 @@ static int rpi_cirrus_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
 	unsigned int clk_freq = calc_sysclk(rate);
 
+	/* Using powers of 2 allows for an integer clock divisor */
+	width = width <= 16 ? 16 : 32;
+
 	mutex_lock(&priv->lock);
 
 	dev_dbg(card->dev, "hw_params: setting rate to %d\n", rate);
