@@ -165,6 +165,7 @@
   consume_skb
   contig_page_data
   _copy_from_iter
+  copy_from_kernel_nofault
   __copy_overflow
   _copy_to_iter
   __cpu_active_mask
