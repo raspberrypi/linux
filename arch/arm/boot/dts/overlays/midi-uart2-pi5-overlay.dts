@@ -5,10 +5,10 @@
 
 /*
  * Fake a higher clock rate to get a larger divisor, and thereby a lower
- * baudrate. The real clock is 100MHz, which we scale so that requesting
+ * baudrate. The real clock is 50MHz, which we scale so that requesting
  * 38.4kHz results in an actual 31.25kHz.
  *
- *   100000000*38400/31250 = 122880000
+ *   50000000*38400/31250 = 61440000
  */
 
 /{
@@ -21,7 +21,7 @@
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-output-names = "uart2_pclk";
-				clock-frequency = <122880000>;
+				clock-frequency = <61440000>;
 			};
 		};
 	};
