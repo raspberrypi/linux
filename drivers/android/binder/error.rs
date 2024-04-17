@@ -37,6 +37,10 @@ impl BinderError {
         }
     }
 
+    pub(crate) fn should_pr_warn(&self) -> bool {
+        self.source.is_some()
+    }
+
     pub(crate) fn is_dead(&self) -> bool {
         self.reply == BR_DEAD_REPLY
     }

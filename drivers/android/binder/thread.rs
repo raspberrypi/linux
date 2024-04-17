@@ -1248,7 +1248,7 @@ impl Thread {
         T: FnOnce(&Arc<Self>, &BinderTransactionDataSg) -> BinderResult,
     {
         if let Err(err) = inner(self, tr) {
-            if err.reply != BR_TRANSACTION_COMPLETE {
+            if err.should_pr_warn() {
                 let mut ee = self.inner.lock().extended_error;
                 ee.command = err.reply;
                 ee.param = err.as_errno();
