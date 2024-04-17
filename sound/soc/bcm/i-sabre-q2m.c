@@ -53,8 +53,9 @@ static int snd_rpi_i_sabre_q2m_hw_params(
 	struct snd_soc_dai         *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int bclk_ratio;
 
-	bclk_ratio = snd_pcm_format_width(
-			params_format(params)) * params_channels(params);
+	/* Using powers of 2 allows for an integer clock divisor */
+	bclk_ratio = (snd_pcm_format_width(params_format(params)) <= 16 ? 16 : 32) *
+				 params_channels(params);
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, bclk_ratio);
 }
 
