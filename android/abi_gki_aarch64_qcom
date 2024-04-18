@@ -79,6 +79,7 @@
   bus_get_dev_root
   bus_register
   bus_unregister
+  cache_line_size
   cancel_delayed_work
   cancel_delayed_work_sync
   cancel_work_sync
@@ -873,6 +874,7 @@
   kmalloc_caches
   kmalloc_large
   kmalloc_node_trace
+  kmalloc_size_roundup
   kmalloc_trace
   kmem_cache_alloc
   kmem_cache_create
