@@ -24,6 +24,10 @@ DECLARE_HOOK(android_vh_binder_set_priority,
 DECLARE_HOOK(android_vh_binder_restore_priority,
 	TP_PROTO(struct binder_transaction *t, struct task_struct *task),
 	TP_ARGS(t, task));
+
+DECLARE_HOOK(android_vh_binder_alloc_new_buf_locked,
+	TP_PROTO(size_t size, size_t *free_async_space, int is_async, bool *should_fail),
+	TP_ARGS(size, free_async_space, is_async, should_fail));
 struct binder_proc;
 struct binder_thread;
 DECLARE_HOOK(android_vh_binder_preset,

@@ -252,6 +252,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_alloc);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_adjust_alloc_flags);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_adjust_kvmalloc_flags);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_kmalloc_slab);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_alloc_new_buf_locked);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_preset);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_reply);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_trans);
