@@ -116,6 +116,7 @@ static const struct snd_soc_dapm_route audioinjector_isolated_route[] = {
 
 static struct snd_soc_card snd_soc_audioinjector_isolated = {
 	.name = "audioinjector-isolated-soundcard",
+	.owner = THIS_MODULE,
 	.dai_link = audioinjector_isolated_dai,
 	.num_links = ARRAY_SIZE(audioinjector_isolated_dai),
 
