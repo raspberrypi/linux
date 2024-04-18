@@ -125,6 +125,7 @@ static const struct snd_soc_dapm_route audioinjector_audio_map[] = {
 
 static struct snd_soc_card snd_soc_audioinjector = {
 	.name = "audioinjector-pi-soundcard",
+	.owner = THIS_MODULE,
 	.dai_link = audioinjector_pi_soundcard_dai,
 	.num_links = ARRAY_SIZE(audioinjector_pi_soundcard_dai),
 

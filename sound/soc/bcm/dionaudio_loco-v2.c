@@ -59,6 +59,7 @@ static struct snd_soc_dai_link snd_rpi_dionaudio_loco_v2_dai[] = {
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_dionaudio_loco_v2 = {
 	.name         = "Dion Audio LOCO-V2",
+	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_dionaudio_loco_v2_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_dionaudio_loco_v2_dai),
 };
