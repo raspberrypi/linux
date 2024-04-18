@@ -1070,37 +1070,70 @@ static int stage2_map_walk_leaf(const struct kvm_pgtable_visit_ctx *ctx,
 	return 0;
 }
 
+static void debug_check_table_before_coalescing(
+	const struct kvm_pgtable_visit_ctx *ctx,
+	struct stage2_map_data *data,
+	kvm_pte_t *ptep, u64 pa)
+{
+#ifdef CONFIG_NVHE_EL2_DEBUG
+	u64 granule = kvm_granule_size(ctx->level + 1);
+	int i;
+
+	for (i = 0; i < PTRS_PER_PTE; i++, ptep++, pa += granule) {
+		kvm_pte_t pte = kvm_init_valid_leaf_pte(
+			pa, data->attr, ctx->level + 1);
+		WARN_ON(pte != *ptep);
+	}
+#endif
+}
+
 static int stage2_coalesce_walk_table_post(const struct kvm_pgtable_visit_ctx *ctx,
 					   struct stage2_map_data *data)
 {
 	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
-	kvm_pte_t *childp = kvm_pte_follow(*ctx->ptep, mm_ops);
+	kvm_pte_t new, *childp = kvm_pte_follow(ctx->old, mm_ops);
+	u64 size, addr;
 
 	/*
-	 * Decrement the refcount only on the set ownership path to avoid a
-	 * loop situation when the following happens:
-	 *  1. We take a host stage2 fault and we create a small mapping which
-	 *  has default attributes (is not refcounted).
-	 *  2. On the way back we execute the post handler and we zap the
-	 *  table that holds our mapping.
+	 * We don't want to coalesce during pkvm initialisation, before the
+	 * overall structure of the host S2 table is created.
 	 */
-	if (kvm_phys_is_valid(data->phys) ||
-	    !kvm_level_supports_block_mapping(ctx->level))
+	if (!static_branch_likely(&kvm_protected_mode_initialized))
 		return 0;
 
 	/*
-	 * Free a page that is not referenced anymore and drop the reference
-	 * of the page table page.
+	 * If we installed a non-refcounted valid mapping, and the table has no
+	 * other raised references, then we can immediately collapse to a block
+	 * mapping.
 	 */
-	if (mm_ops->page_count(childp) == 1) {
-		u64 size = kvm_granule_size(ctx->level);
-		u64 addr = ALIGN_DOWN(ctx->addr, size);
+	if (!kvm_phys_is_valid(data->phys) ||
+	    !kvm_level_supports_block_mapping(ctx->level) ||
+	    (mm_ops->page_count(childp) != 1))
+		return 0;
 
-		kvm_clear_pte(ctx->ptep);
-		kvm_tlb_flush_vmid_range(data->mmu, addr, size);
-		mm_ops->put_page(ctx->ptep);
-		mm_ops->put_page(childp);
-	}
+	/*
+	 * This should apply only to the host S2, which does not refcount its
+	 * default memory and mmio mappings.
+	 */
+	WARN_ON(!(data->mmu->pgt->flags & KVM_PGTABLE_S2_IDMAP));
+
+	size = kvm_granule_size(ctx->level);
+	addr = ALIGN_DOWN(ctx->addr, size);
+
+	debug_check_table_before_coalescing(ctx, data, childp, addr);
+
+	new = kvm_init_valid_leaf_pte(addr, data->attr, ctx->level);
+
+	/* Breaking must succeed, as this is not a shared walk. */
+	WARN_ON(!stage2_try_break_pte(ctx, data->mmu));
+
+	/* Host doesn't require CMOs. */
+	WARN_ON(mm_ops->dcache_clean_inval_poc || mm_ops->icache_inval_pou);
+
+	stage2_make_pte(ctx, new, data->mmu);
+
+	/* Finally, free the unlinked table. */
+	mm_ops->put_page(childp);
 
 	return 0;
 }
@@ -1148,7 +1181,8 @@ int kvm_pgtable_stage2_map(struct kvm_pgtable *pgt, u64 addr, u64 size,
 		.cb		= stage2_map_walker,
 		.flags		= flags |
 				  KVM_PGTABLE_WALK_TABLE_PRE |
-				  KVM_PGTABLE_WALK_LEAF,
+				  KVM_PGTABLE_WALK_LEAF |
+				  KVM_PGTABLE_WALK_TABLE_POST,
 		.arg		= &map_data,
 	};
 
@@ -1181,8 +1215,7 @@ int kvm_pgtable_stage2_annotate(struct kvm_pgtable *pgt, u64 addr, u64 size,
 	struct kvm_pgtable_walker walker = {
 		.cb		= stage2_map_walker,
 		.flags		= KVM_PGTABLE_WALK_TABLE_PRE |
-				  KVM_PGTABLE_WALK_LEAF |
-				  KVM_PGTABLE_WALK_TABLE_POST,
+				  KVM_PGTABLE_WALK_LEAF,
 		.arg		= &map_data,
 	};
 
@@ -1261,8 +1294,28 @@ static int stage2_reclaim_leaf_walker(const struct kvm_pgtable_visit_ctx *ctx,
 				      enum kvm_pgtable_walk_flags visit)
 {
 	struct stage2_map_data *data = ctx->arg;
+	struct kvm_pgtable_mm_ops *mm_ops = ctx->mm_ops;
+	kvm_pte_t *childp = kvm_pte_follow(ctx->old, mm_ops);
+	u64 size, addr;
 
-	stage2_coalesce_walk_table_post(ctx, data);
+	/*
+	 * If this table's refcount is not raised, we can safely discard it.
+	 * Any mappings that it contains can be re-created on demand.
+	 */
+	if (!kvm_level_supports_block_mapping(ctx->level) ||
+	    (mm_ops->page_count(childp) != 1))
+		return 0;
+
+	size = kvm_granule_size(ctx->level);
+	addr = ALIGN_DOWN(ctx->addr, size);
+
+	/* Unlink the table and flush TLBs. */
+	kvm_clear_pte(ctx->ptep);
+	kvm_tlb_flush_vmid_range(data->mmu, addr, size);
+
+	/* Free the unlinked table, and drop its reference in the parent. */
+	mm_ops->put_page(ctx->ptep);
+	mm_ops->put_page(childp);
 
 	return 0;
 }
