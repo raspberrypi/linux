@@ -33,6 +33,7 @@
   __traceiter_android_vh_irqtime_account_process_tick
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
+  __traceiter_android_vh_mmap_region
   __traceiter_android_vh_mutex_init
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_wait_finish
@@ -47,6 +48,7 @@
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_test_clear_look_around_ref
+  __traceiter_android_vh_try_to_unmap_one
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
   __traceiter_sched_waking
@@ -73,6 +75,7 @@
   __tracepoint_android_vh_irqtime_account_process_tick
   __tracepoint_android_vh_look_around
   __tracepoint_android_vh_look_around_migrate_folio
+  __tracepoint_android_vh_mmap_region
   __tracepoint_android_vh_mutex_init
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_wait_finish
@@ -87,6 +90,7 @@
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_test_clear_look_around_ref
+  __tracepoint_android_vh_try_to_unmap_one
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
   __tracepoint_sched_waking
