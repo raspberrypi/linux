@@ -16,6 +16,12 @@
 				brcm,pins = <18>;
 				brcm,function = <1>; /* output */
 			};
+
+			int_pins: int_pins@18 {
+					brcm,pins = <24>;
+					brcm,function = <0>; /* in */
+					brcm,pull = <0>; /* none */
+			};
 		};
 	};
 
@@ -35,6 +41,8 @@
 				clocks = <&sc16is752_clk>;
 				interrupt-parent = <&gpio>;
 				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 				gpio-controller;
 				#gpio-cells = <2>;
 				spi-max-frequency = <4000000>;
@@ -61,7 +69,8 @@
 	};
 
 	__overrides__ {
-		int_pin = <&sc16is752>,"interrupts:0";
+		int_pin = <&sc16is752>,"interrupts:0", <&int_pins>,"brcm,pins:0",
+			  <&int_pins>,"reg:0";
 		xtal = <&sc16is752_clk>,"clock-frequency:0";
 	};
 };
