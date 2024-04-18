@@ -680,7 +680,7 @@ config USB_RENESAS_USBHS_HCD
 
 config USB_DWCOTG
 	bool "Synopsis DWC host support"
-	depends on USB && (FIQ || ARM64)
+	depends on USB=y && (FIQ || ARM64)
 	help
 	  The Synopsis DWC controller is a dual-role
 	  host/peripheral/OTG ("On The Go") USB controllers.
