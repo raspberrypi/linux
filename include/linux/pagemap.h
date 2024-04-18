@@ -1270,6 +1270,7 @@ struct readahead_control {
 	unsigned int _batch_count;
 	bool _workingset;
 	unsigned long _pflags;
+	ANDROID_OEM_DATA(1);
 };
 
 #define DEFINE_READAHEAD(ractl, f, r, m, i)				\
