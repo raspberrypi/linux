@@ -87,10 +87,13 @@ static int io_install_fixed_file(struct io_ring_ctx *ctx, struct file *file,
 		io_file_bitmap_clear(&ctx->file_table, slot_index);
 	}
 
-	*io_get_tag_slot(ctx->file_data, slot_index) = 0;
-	io_fixed_file_set(file_slot, file);
-	io_file_bitmap_set(&ctx->file_table, slot_index);
-	return 0;
+	ret = io_scm_file_account(ctx, file);
+	if (!ret) {
+		*io_get_tag_slot(ctx->file_data, slot_index) = 0;
+		io_fixed_file_set(file_slot, file);
+		io_file_bitmap_set(&ctx->file_table, slot_index);
+	}
+	return ret;
 }
 
 int __io_fixed_fd_install(struct io_ring_ctx *ctx, struct file *file,
