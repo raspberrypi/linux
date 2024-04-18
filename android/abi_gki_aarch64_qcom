@@ -1,4 +1,8 @@
 [abi_symbol_list]
+  __traceiter_android_vh_mmap_region
+  __traceiter_android_vh_try_to_unmap_one
+  __tracepoint_android_vh_mmap_region
+  __tracepoint_android_vh_try_to_unmap_one
   account_locked_vm
   activate_task
   add_cpu
