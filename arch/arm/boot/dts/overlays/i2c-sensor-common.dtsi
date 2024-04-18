@@ -308,6 +308,8 @@
 				maxim,ir-led-current-microamp  = <7000>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -437,6 +439,8 @@
 				reg = <0x68>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -454,6 +458,8 @@
 				reg = <0x68>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -536,6 +542,8 @@
 				reg = <0x5f>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -567,7 +575,8 @@
 				reg = <0x44>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
-				status = "okay";
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -584,7 +593,8 @@
 				reg = <0x74>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
-				status = "okay";
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -601,11 +611,22 @@
 				reg = <0x74>;
 				interrupt-parent = <&gpio>;
 				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
-				status = "okay";
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
 
+	fragment@99 {
+		target = <&gpio>;
+		__dormant__ {
+			int_pins: int_pins@4 {
+					brcm,pins = <4>;
+					brcm,function = <0>; /* in */
+					brcm,pull = <0>; /* none */
+			};
+		};
+	};
 
 	__overrides__ {
 		bme280 = <0>,"+0";
@@ -629,7 +650,7 @@
 		sgp30 = <0>,"+16";
 		ccs811 = <0>, "+17";
 		bh1750 = <0>, "+18";
-		max30102 = <0>,"+19";
+		max30102 = <0>,"+19+99";
 		aht10 = <0>,"+20";
 		mcp980x = <0>,"+21";
 		jc42 = <0>,"+22";
@@ -638,16 +659,16 @@
 		ms5805 = <0>,"+25";
 		ms5837 = <0>,"+26";
 		ms8607 = <0>,"+27";
-		mpu6050 = <0>,"+28";
-		mpu9250 = <0>,"+29";
+		mpu6050 = <0>,"+28+99";
+		mpu9250 = <0>,"+29+99";
 		bno055 = <0>,"+31";
 		sht4x = <0>,"+32";
 		adt7410 = <0>,"+34";
-		hts221 = <0>,"+35";
+		hts221 = <0>,"+35+99";
 		veml6075 = <0>,"+36";
-		hdc3020 = <0>,"+37";
-		as73211 = <0>,"+38";
-		as7331 = <0>,"+39";
+		hdc3020 = <0>,"+37+99";
+		as73211 = <0>,"+38+99";
+		as7331 = <0>,"+39+99";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -660,7 +681,9 @@
 			<&bmp380>,"reg:0", <&adt7410>,"reg:0",
 			<&hdc3020>,"reg:0", <&as73211>,"reg:0",
 			<&as7331>,"reg:0";
-		int_pin = <&max30102>, "interrupts:0",
+		int_pin = <&int_pins>, "brcm,pins:0",
+			<&int_pins>, "reg:0",
+			<&max30102>, "interrupts:0",
 			<&mpu6050>, "interrupts:0",
 			<&mpu9250>, "interrupts:0",
 			<&hts221>, "interrupts:0",
