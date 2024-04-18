@@ -601,7 +601,8 @@ static int kvm_iommu_init_idmap(struct kvm_hyp_memcache *atomic_mc)
 		return ret;
 
 	/* The host must guarantee that the allocator can be used from this context. */
-	return kvm_iommu_alloc_domain(KVM_IOMMU_DOMAIN_IDMAP_ID, KVM_IOMMU_DOMAIN_IDMAP_TYPE);
+	return WARN_ON(kvm_iommu_alloc_domain(KVM_IOMMU_DOMAIN_IDMAP_ID,
+					      KVM_IOMMU_DOMAIN_IDMAP_TYPE));
 }
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc,

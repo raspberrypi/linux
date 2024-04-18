@@ -1191,6 +1191,7 @@ void free_hyp_memcache(struct kvm_hyp_memcache *mc)
 		__free_hyp_memcache(mc, hyp_mc_free_fn,
 				    kvm_host_va, (void *)flags);
 }
+EXPORT_SYMBOL(free_hyp_memcache);
 
 int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages,
 		       unsigned long order)
