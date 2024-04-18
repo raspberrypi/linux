@@ -729,7 +729,7 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 	if (ret || bypass)
 		return ret ?: -EINVAL;
 
-	platform_set_drvdata(pdev, host_smmu);
+	platform_set_drvdata(pdev, smmu);
 
 	ret = kvm_arm_probe_power_domain(dev, &power_domain);
 	if (ret)
@@ -867,8 +867,8 @@ static int kvm_arm_smmu_probe(struct platform_device *pdev)
 
 static int kvm_arm_smmu_remove(struct platform_device *pdev)
 {
-	struct host_arm_smmu_device *host_smmu = platform_get_drvdata(pdev);
-	struct arm_smmu_device *smmu = &host_smmu->smmu;
+	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
+	struct host_arm_smmu_device *host_smmu = smmu_to_host(smmu);
 
 	/*
 	 * There was an error during hypervisor setup. The hyp driver may
