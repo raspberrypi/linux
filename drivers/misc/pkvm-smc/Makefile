@@ -8,7 +8,7 @@ $(obj)/pkvm/kvm_nvhe.o: FORCE
 	$(Q)$(MAKE) $(build)=$(obj)/pkvm $(obj)/pkvm/kvm_nvhe.o
 else
 all:
-        make -C $(KDIR) M=$(PWD) modules
+	make -C $(KDIR) M=$(PWD) modules
 clean:
-        make -C $(KDIR) M=$(PWD) clean
+	make -C $(KDIR) M=$(PWD) clean
 endif
