@@ -22,6 +22,8 @@
   rfkill_set_led_trigger_name
   rfkill_set_states
   rfkill_soft_blocked
+  scsi_device_quiesce
+  scsi_device_resume
   __traceiter_android_rvh_arm64_serror_panic
   __traceiter_android_rvh_die_kernel_fault
   __traceiter_android_rvh_do_el1_bti
