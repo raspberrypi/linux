@@ -409,6 +409,12 @@ Params:
                                 (the assigned value doesn't matter)
                                 (2711 only)
 
+        strict_gpiod            Return GPIOs to inputs when they are released.
+                                If using the gpiod utilities, it is necessary
+                                to keep a gpioset running (e.g. with
+                                --mode=wait) in order for an output value to
+                                persist.
+
         suspend                 Make the power button trigger a suspend rather
                                 than a power-off (2712 only, default "off")
 
