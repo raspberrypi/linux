@@ -110,6 +110,8 @@
 		cam0_sync_inverted = <&csi0>, "sync-gpios:0=", <&gpio>,
 			    <&csi0>, "sync-gpios:4",
 			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
+
+		strict_gpiod = <&chosen>, "bootargs=pinctrl_bcm2835.strict_gpiod=y";
 	};
 };
 
