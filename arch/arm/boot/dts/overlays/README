@@ -4878,8 +4878,10 @@ Params: <None>
 
 
 Name:   vc4-fkms-v3d
-Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
+Info:   Enable the kernel DRM VC4 V3D driver on top of the dispmanx
         display stack.
+        NB The firmware will not allow this overlay to load on a Pi with less
+        than 512MB as memory is too tight.
 Load:   dtoverlay=vc4-fkms-v3d,<param>
 Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-448                 CMA is 448MB (needs 1GB)
@@ -4895,7 +4897,7 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
 
 
 Name:   vc4-fkms-v3d-pi4
-Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
+Info:   Enable the kernel DRM VC4 V3D driver on top of the dispmanx
         display stack.
 Load:   dtoverlay=vc4-fkms-v3d-pi4,<param>
 Params: cma-512                 CMA is 512MB (needs 1GB)
@@ -5164,7 +5166,9 @@ Load:   <Deprecated>
 
 
 Name:   vc4-kms-v3d
-Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver.
+Info:   Enable the kernel DRM VC4 HDMI/HVS/V3D driver.
+        NB The firmware will not allow this overlay to load on a Pi with less
+        than 512MB as memory is too tight.
 Load:   dtoverlay=vc4-kms-v3d,<param>
 Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-448                 CMA is 448MB (needs 1GB)
@@ -5185,7 +5189,7 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
 
 
 Name:   vc4-kms-v3d-pi4
-Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver for Pi4.
+Info:   Enable the kernel DRM VC4 HDMI/HVS/V3D driver for Pi4.
 Load:   dtoverlay=vc4-kms-v3d-pi4,<param>
 Params: cma-512                 CMA is 512MB
         cma-448                 CMA is 448MB
