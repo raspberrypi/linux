@@ -3,6 +3,8 @@
   blkdev_put
   __brelse
   class_find_device
+  crypto_register_alg
+  crypto_unregister_alg
   end_buffer_read_sync
   end_buffer_write_sync
   __getblk_gfp
