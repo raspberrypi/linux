@@ -869,7 +869,10 @@
   int_sqrt
   iomem_resource
   iommu_alloc_resv_region
+  iommu_attach_device
+  iommu_attach_device_pasid
   iommu_attach_group
+  iommu_detach_device_pasid
   iommu_device_register
   iommu_device_sysfs_add
   iommu_device_sysfs_remove
@@ -955,6 +958,7 @@
   kmem_cache_destroy
   kmem_cache_free
   kmemdup
+  kmemdup_nul
   kobject_add
   kobject_create_and_add
   kobject_del
