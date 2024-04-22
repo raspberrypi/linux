@@ -1336,10 +1336,17 @@ static u32 get_colorcode(enum mipi_dsi_pixel_format fmt)
 	return 0x005;
 }
 
+/* Maximum frequency for LP escape clock (20MHz), and some magic numbers */
+#define RP1DSI_ESC_CLK_KHZ      20000
+#define RP1DSI_TO_CLK_DIV           5
+#define RP1DSI_HSTX_TO_MIN      0x200
+#define RP1DSI_LPRX_TO_VAL      0x400
+#define RP1DSI_BTA_TO_VAL       0xd00
+
 void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 {
 	u32 timeout, mask, vid_mode_cfg;
-	u32 freq_khz;
+	int lane_kbps;
 	unsigned int bpp = mipi_dsi_pixel_format_to_bpp(dsi->display_format);
 
 	DSI_WRITE(DSI_PHY_IF_CFG, dsi->lanes - 1);
@@ -1349,28 +1356,33 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	/* a conservative guess (LP escape is slow!) */
 	DSI_WRITE(DSI_DPI_LP_CMD_TIM, 0x00100000);
 
-	/* Drop to LP where possible */
+	/* Drop to LP where possible; use LP Escape for all commands */
 	vid_mode_cfg = 0xbf00;
 	if (!(dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
 		vid_mode_cfg |= 0x01;
 	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_BURST)
 		vid_mode_cfg |= 0x02;
 	DSI_WRITE(DSI_VID_MODE_CFG, vid_mode_cfg);
-
-	/* Use LP Escape Data signalling for all commands */
 	DSI_WRITE(DSI_CMD_MODE_CFG, 0x10F7F00);
+
 	/* Select Command Mode */
 	DSI_WRITE(DSI_MODE_CFG, 1);
-	/* XXX magic number */
-	DSI_WRITE(DSI_TO_CNT_CFG, 0x02000200);
-	/* XXX magic number */
-	DSI_WRITE(DSI_BTA_TO_CNT, 0x800);
 
+	/* Set timeouts and clock dividers */
+	DSI_WRITE(DSI_TO_CNT_CFG,
+		  (max((bpp * mode->htotal) / (7 * RP1DSI_TO_CLK_DIV * dsi->lanes),
+		       RP1DSI_HSTX_TO_MIN) << 16) |
+		  RP1DSI_LPRX_TO_VAL);
+	DSI_WRITE(DSI_BTA_TO_CNT, RP1DSI_BTA_TO_VAL);
+	lane_kbps = (bpp *  mode->clock) / dsi->lanes;
+	DSI_WRITE(DSI_CLKMGR_CFG,
+		  (RP1DSI_TO_CLK_DIV << 8) |
+		  max(2, lane_kbps / (8 * RP1DSI_ESC_CLK_KHZ) + 1));
+
+	/* Configure video timings */
 	DSI_WRITE(DSI_VID_PKT_SIZE, mode->hdisplay);
 	DSI_WRITE(DSI_VID_NUM_CHUNKS, 0);
 	DSI_WRITE(DSI_VID_NULL_SIZE, 0);
-
-	/* Note, unlike Argon firmware, here we DON'T consider sync to be concurrent with porch */
 	DSI_WRITE(DSI_VID_HSA_TIME,
 		  (bpp * (mode->hsync_end - mode->hsync_start)) / (8 * dsi->lanes));
 	DSI_WRITE(DSI_VID_HBP_TIME,
@@ -1381,9 +1393,8 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_VID_VFP_LINES, (mode->vsync_start - mode->vdisplay));
 	DSI_WRITE(DSI_VID_VACTIVE_LINES, mode->vdisplay);
 
-	freq_khz = (bpp *  mode->clock) / dsi->lanes;
-
-	dphy_init_khz(dsi, rp1dsi_refclk_freq(dsi) / 1000, freq_khz);
+	/* Init PHY */
+	dphy_init_khz(dsi, rp1dsi_refclk_freq(dsi) / 1000, lane_kbps);
 
 	DSI_WRITE(DSI_PHY_TMR_LPCLK_CFG,
 		  (hsfreq_table[dsi->hsfreq_index].clk_lp2hs << DSI_PHY_TMR_LP2HS_LSB) |
@@ -1391,8 +1402,6 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_PHY_TMR_CFG,
 		  (hsfreq_table[dsi->hsfreq_index].data_lp2hs << DSI_PHY_TMR_LP2HS_LSB) |
 		  (hsfreq_table[dsi->hsfreq_index].data_hs2lp << DSI_PHY_TMR_HS2LP_LSB));
-
-	DSI_WRITE(DSI_CLKMGR_CFG, 0x00000505);
 
 	/* Wait for PLL lock */
 	for (timeout = (1 << 14); timeout != 0; --timeout) {
