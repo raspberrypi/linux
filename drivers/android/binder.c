@@ -2983,7 +2983,7 @@ static int binder_proc_transaction(struct binder_transaction *t,
 		thread = binder_select_thread_ilocked(proc);
 
 	trace_android_vh_binder_proc_transaction(current, proc->tsk,
-		thread ? thread->task : NULL, node->debug_id, t->code,
+		thread ? thread->task : NULL, node->debug_id, t,
 		pending_async);
 
 	if (thread) {

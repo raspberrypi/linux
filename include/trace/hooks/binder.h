@@ -97,8 +97,8 @@ DECLARE_HOOK(android_vh_binder_has_special_work_ilocked,
 DECLARE_HOOK(android_vh_binder_proc_transaction,
 	TP_PROTO(struct task_struct *caller_task, struct task_struct *binder_proc_task,
 		struct task_struct *binder_th_task, int node_debug_id,
-		unsigned int code, bool pending_async),
-	TP_ARGS(caller_task, binder_proc_task, binder_th_task, node_debug_id, code, pending_async));
+		struct binder_transaction *t, bool pending_async),
+	TP_ARGS(caller_task, binder_proc_task, binder_th_task, node_debug_id, t, pending_async));
 DECLARE_HOOK(android_vh_binder_new_ref,
 	TP_PROTO(struct task_struct *proc, uint32_t ref_desc, int node_debug_id),
 	TP_ARGS(proc, ref_desc, node_debug_id));
