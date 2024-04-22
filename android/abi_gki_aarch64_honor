@@ -13,3 +13,28 @@
   tcp_sync_mss
   netdev_get_name
   tcp_send_active_reset
+  fwnode_usb_role_switch_get 
+  usb_for_each_dev
+  dev_valid_name
+  sock_from_file
+  tcp_done
+  udp4_lib_lookup
+  udp6_lib_lookup
+  rtc_time64_to_tm
+  proc_create_net_single
+  proc_create_net_single_write
+  snmp_fold_field
+  call_usermodehelper
+  nla_append
+  skb_append
+  sysctl_max_skb_frags
+  find_vm_area
+  profile_event_unregister
+  __tracepoint_android_vh_do_shrink_slab
+  __traceiter_android_vh_do_shrink_slab
+  __tracepoint_android_vh_shrink_slab_bypass
+  __traceiter_android_vh_shrink_slab_bypass
+  __tracepoint_android_vh_si_mem_available_adjust
+  __traceiter_android_vh_si_mem_available_adjust
+  __tracepoint_android_vh_si_meminfo_adjust
+  __traceiter_android_vh_si_meminfo_adjust
