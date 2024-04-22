@@ -72,6 +72,7 @@
   bpf_trace_run6
   bpf_trace_run7
   bpf_trace_run8
+  bpf_trace_run9
   build_skb
   bus_find_device
   bus_for_each_dev
@@ -190,8 +191,10 @@
   crypto_alloc_aead
   crypto_alloc_shash
   crypto_alloc_skcipher
+  crypto_alloc_sync_skcipher
   crypto_destroy_tfm
   __crypto_memneq
+  crypto_req_done
   crypto_shash_digest
   crypto_shash_finup
   crypto_shash_setkey
@@ -449,6 +452,7 @@
   dma_unmap_sg_attrs
   do_SAK
   do_trace_netlink_extack
+  do_wait_intr_irq
   down
   downgrade_write
   down_interruptible
@@ -826,6 +830,13 @@
   idr_get_next
   idr_preload
   idr_remove
+  ieee802154_alloc_hw
+  ieee802154_free_hw
+  ieee802154_register_hw
+  ieee802154_rx_irqsafe
+  ieee802154_unregister_hw
+  ieee802154_xmit_complete
+  ieee802154_xmit_hw_error
   iio_buffer_enabled
   iio_device_unregister
   import_iovec
@@ -981,9 +992,11 @@
   kstrtos8
   kstrtou16
   kstrtou8
+  kstrtou8_from_user
   kstrtouint
   kstrtouint_from_user
   kstrtoull
+  kstrtoull_from_user
   kthread_bind
   kthread_bind_mask
   kthread_cancel_delayed_work_sync
@@ -1018,6 +1031,11 @@
   ktime_get_snapshot
   ktime_get_ts64
   ktime_get_with_offset
+  __kunit_abort
+  kunit_binary_assert_format
+  __kunit_do_failed_assertion
+  kunit_kmalloc_array
+  kunit_ptr_not_err_assert_format
   kvfree
   kvfree_call_rcu
   kvmalloc_node
@@ -1130,6 +1148,7 @@
   nla_put_64bit
   nla_put_nohdr
   nla_reserve
+  nla_strscpy
   __nla_validate
   __nlmsg_put
   nonseekable_open
@@ -1262,6 +1281,7 @@
   perf_event_create_kernel_counter
   perf_event_disable
   perf_event_enable
+  perf_event_pause
   perf_event_read_value
   perf_event_release_kernel
   perf_event_update_userpage
@@ -2037,10 +2057,12 @@
   vzalloc
   vzalloc_node
   wait_for_completion
+  wait_for_completion_interruptible
   wait_for_completion_interruptible_timeout
   wait_for_completion_timeout
   wait_woken
   __wake_up
+  __wake_up_locked
   wake_up_process
   wakeup_source_add
   wakeup_source_create
