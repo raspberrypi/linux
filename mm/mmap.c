@@ -24,6 +24,7 @@
 #include <linux/init.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/pgsize_migration.h>
 #include <linux/personality.h>
 #include <linux/security.h>
 #include <linux/hugetlb.h>
@@ -742,6 +743,8 @@ static inline bool is_mergeable_vma(struct vm_area_struct *vma,
 	if (!is_mergeable_vm_userfaultfd_ctx(vma, vm_userfaultfd_ctx))
 		return false;
 	if (!anon_vma_name_eq(anon_vma_name(vma), anon_name))
+		return false;
+	if (!is_mergable_pad_vma(vma, vm_flags))
 		return false;
 	return true;
 }
@@ -2431,6 +2434,8 @@ int __split_vma(struct vma_iterator *vmi, struct vm_area_struct *vma,
 	/* Success. */
 	if (new_below)
 		vma_next(vmi);
+
+	split_pad_vma(vma, new, addr, new_below);
 	return 0;
 
 out_free_mpol:
