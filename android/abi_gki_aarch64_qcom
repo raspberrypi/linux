@@ -992,6 +992,10 @@
   __migrate_task
   mipi_dsi_dcs_set_tear_off
   mipi_dsi_dcs_write
+  mipi_dsi_attach
+  mipi_dsi_detach
+  mipi_dsi_device_register_full
+  mipi_dsi_device_unregister
   misc_deregister
   misc_register
   __mmap_lock_do_trace_acquire_returned
