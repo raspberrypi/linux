@@ -8,6 +8,7 @@
 #include <linux/err.h>
 #include <linux/kdev_t.h>
 #include <linux/spinlock.h>
+#include <trace/hooks/usb.h>
 
 static struct android_uevent_opts *android_opts;
 
@@ -117,6 +118,9 @@ static void android_work(struct work_struct *data)
 		 */
 		dev_dbg(dev, "did not send uevent\n");
 	}
+
+	trace_android_vh_configfs_uevent_work(connected,
+		disconnected, configured, uevent_sent);
 }
 
 static ssize_t state_show(struct device *pdev,
