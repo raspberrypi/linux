@@ -1497,6 +1497,8 @@ int __udp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb)
 	spinlock_t *busy = NULL;
 	int size;
 
+	trace_android_vh_udp_enqueue_schedule_skb(sk, skb);
+
 	/* try to avoid the costly atomic add/sub pair when the receive
 	 * queue is full; always allow at least a packet
 	 */

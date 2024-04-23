@@ -17,6 +17,7 @@ DECLARE_HOOK(android_vh_ptype_head,
 struct nf_conn;
 struct sock;
 struct msghdr;
+struct sk_buff;
 DECLARE_RESTRICTED_HOOK(android_rvh_nf_conn_alloc,
 	TP_PROTO(struct nf_conn *nf_conn), TP_ARGS(nf_conn), 1);
 DECLARE_RESTRICTED_HOOK(android_rvh_nf_conn_free,
@@ -43,6 +44,18 @@ DECLARE_RESTRICTED_HOOK(android_rvh_udpv6_sendmsg,
 DECLARE_RESTRICTED_HOOK(android_rvh_udpv6_recvmsg,
 	TP_PROTO(struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len),
 	TP_ARGS(sk, msg, len, flags, addr_len), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_tcp_select_window,
+	TP_PROTO(struct sock *sk, u32 *new_win), TP_ARGS(sk, new_win), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_inet_sock_create,
+	TP_PROTO(struct sock *sk), TP_ARGS(sk), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_inet_sock_release,
+	TP_PROTO(struct sock *sk), TP_ARGS(sk), 1);
+DECLARE_HOOK(android_vh_tcp_rtt_estimator,
+	TP_PROTO(struct sock *sk, long mrtt_us), TP_ARGS(sk, mrtt_us));
+DECLARE_HOOK(android_vh_udp_enqueue_schedule_skb,
+	TP_PROTO(struct sock *sk, struct sk_buff *skb), TP_ARGS(sk, skb));
+DECLARE_HOOK(android_vh_build_skb_around,
+	TP_PROTO(struct sk_buff *skb), TP_ARGS(skb));
 
 /* macro versions of hooks are no longer required */
 

@@ -46,6 +46,7 @@
 #include <linux/static_key.h>
 
 #include <trace/events/tcp.h>
+#include <trace/hooks/net.h>
 
 /* Refresh clocks of a TCP socket,
  * ensuring monotically increasing values.
@@ -287,6 +288,8 @@ static u16 tcp_select_window(struct sock *sk)
 
 	tp->rcv_wnd = new_win;
 	tp->rcv_wup = tp->rcv_nxt;
+
+	trace_android_rvh_tcp_select_window(sk, &new_win);
 
 	/* Make sure we do not exceed the maximum possible
 	 * scaled window.
