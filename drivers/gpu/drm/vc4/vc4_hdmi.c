@@ -2927,7 +2927,7 @@ static irqreturn_t vc4_hdmi_hpd_irq_thread(int irq, void *priv)
 	struct drm_connector *connector = &vc4_hdmi->connector;
 	struct drm_device *dev = connector->dev;
 
-	if (dev && dev->registered)
+	if (dev && dev->registered && !force_hotplug)
 		drm_connector_helper_hpd_irq_event(connector);
 
 	return IRQ_HANDLED;
