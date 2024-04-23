@@ -277,6 +277,18 @@ rust_common_cmd = \
 	--crate-name $(basename $(notdir $@)) \
 	--out-dir $(dir $@) --emit=dep-info=$(depfile)
 
+CARGO_BUILD_RUSTFLAGS =  $(rust_flags)  \
+			-Zunstable-options --extern force:alloc --extern kernel \
+			-L $(abspath $(objtree))/rust/ \
+			--sysroot=/dev/null \
+			--emit=dep-info,obj \
+
+
+# remove flags edition
+CARGO_BUILD_RUSTFLAGS := $(shell echo $(CARGO_BUILD_RUSTFLAGS) | sed 's/--edition=[0-9]\{4\}//g')
+
+export CARGO_BUILD_RUSTFLAGS
+
 # `--emit=obj`, `--emit=asm` and `--emit=llvm-ir` imply a single codegen unit
 # will be used. We explicitly request `-Ccodegen-units=1` in any case, and
 # the compiler shows a warning if it is not 1. However, if we ever stop
@@ -310,6 +322,17 @@ quiet_cmd_rustc_ll_rs = $(RUSTC_OR_CLIPPY_QUIET) $(quiet_modtag) $@
 
 $(obj)/%.ll: $(src)/%.rs FORCE
 	$(call if_changed_dep,rustc_ll_rs)
+
+cmd_cargo_build = RUST_MODFILE=$(modfile) $(CARGO) build \
+	         --target-dir $(dir $@)target \
+	         --manifest-path $(srctree)/$(dir $@)/Cargo.toml \
+	         --release --verbose 
+
+#$(obj)/cargo-%.o: $(srctree)/$(src)/$*/src/lib.rs FORCE
+$(obj)/cargo-%.o: $(src)/src/lib.rs FORCE
+	$(call if_changed,cargo_build)
+	ld.lld -r $$(ls -d $(dir $@)target/release/deps/* | grep '.*[\.o]$$') \
+	-o $@
 
 # Compile assembler sources (.S)
 # ---------------------------------------------------------------------------
