@@ -11,6 +11,8 @@
 #include <linux/android_debug_symbols.h>
 #include <asm/sections.h>
 #include <asm/stacktrace.h>
+#include <linux/memblock.h>
+#include <linux/mm_types.h>
 
 struct ads_entry {
 	char *name;
@@ -35,6 +37,8 @@ static const struct ads_entry ads_entries[ADS_END] = {
 	ADS_ENTRY(ADS_PER_CPU_END, __per_cpu_end),
 	ADS_ENTRY(ADS_TEXT, _text),
 	ADS_ENTRY(ADS_SEND, _end),
+	ADS_ENTRY(ADS_MEM_BLOCK, &memblock),
+	ADS_ENTRY(ADS_INIT_MM, &init_mm),
 };
 
 /*

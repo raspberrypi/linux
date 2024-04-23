@@ -12,6 +12,8 @@ enum android_debug_symbol {
 	ADS_PER_CPU_END,
 	ADS_TEXT,
 	ADS_SEND,
+	ADS_MEM_BLOCK,
+	ADS_INIT_MM,
 	ADS_END
 };
 
