@@ -256,6 +256,7 @@ static const struct cfe_fmt formats[] = {
 		.code = MEDIA_BUS_FMT_Y8_1X8,
 		.depth = 8,
 		.csi_dt = MIPI_CSI2_DT_RAW8,
+		.remap = { V4L2_PIX_FMT_Y16, V4L2_PIX_FMT_PISP_COMP1_MONO },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_Y10P,
@@ -284,6 +285,7 @@ static const struct cfe_fmt formats[] = {
 		.depth = 16,
 		.csi_dt = MIPI_CSI2_DT_RAW16,
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
+		.remap = { V4L2_PIX_FMT_Y16, V4L2_PIX_FMT_PISP_COMP1_MONO },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_PISP_COMP1_MONO,
