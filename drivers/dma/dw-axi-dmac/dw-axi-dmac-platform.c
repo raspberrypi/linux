@@ -963,6 +963,9 @@ dw_axi_dma_chan_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 		mem = sg_dma_address(sg);
 		len = sg_dma_len(sg);
 		num_segments = DIV_ROUND_UP(sg_dma_len(sg), axi_block_len);
+		if (!num_segments)
+			continue;
+
 		segment_len = DIV_ROUND_UP(sg_dma_len(sg), num_segments);
 
 		do {
