@@ -443,6 +443,7 @@ binder_enqueue_work_ilocked(struct binder_work *work,
 {
 	BUG_ON(target_list == NULL);
 	BUG_ON(work->entry.next && !list_empty(&work->entry));
+	trace_android_vh_binder_list_add_work(work, target_list);
 	list_add_tail(&work->entry, target_list);
 }
 
@@ -5309,6 +5310,7 @@ static int binder_ioctl_write_read(struct file *filp, unsigned long arg,
 	struct binder_proc *proc = filp->private_data;
 	void __user *ubuf = (void __user *)arg;
 	struct binder_write_read bwr;
+	bool has_special_work = false;
 
 	if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
 		ret = -EFAULT;
@@ -5340,7 +5342,9 @@ static int binder_ioctl_write_read(struct file *filp, unsigned long arg,
 					 filp->f_flags & O_NONBLOCK);
 		trace_binder_read_done(ret);
 		binder_inner_proc_lock(proc);
-		if (!binder_worklist_empty_ilocked(&proc->todo))
+		trace_android_vh_binder_has_proc_work_ilocked(
+			thread, true, &has_special_work);
+		if (!binder_worklist_empty_ilocked(&proc->todo) || has_special_work)
 			binder_wakeup_proc_ilocked(proc);
 		binder_inner_proc_unlock(proc);
 		if (ret < 0) {
@@ -6084,6 +6088,7 @@ static void binder_deferred_release(struct binder_proc *proc)
 	struct binder_context *context = proc->context;
 	struct rb_node *n;
 	int threads, nodes, incoming_refs, outgoing_refs, active_transactions;
+	struct list_head *special_list = NULL;
 
 	mutex_lock(&binder_procs_lock);
 	hlist_del(&proc->proc_node);
@@ -6156,6 +6161,9 @@ static void binder_deferred_release(struct binder_proc *proc)
 	binder_proc_unlock(proc);
 
 	binder_release_work(proc, &proc->todo);
+	trace_android_vh_binder_release_special_work(proc, &special_list);
+	if (special_list)
+		binder_release_work(proc, special_list);
 	binder_release_work(proc, &proc->delivered_death);
 
 	binder_debug(BINDER_DEBUG_OPEN_CLOSE,
