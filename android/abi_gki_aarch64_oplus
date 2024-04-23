@@ -176,6 +176,9 @@
   __traceiter_sched_waking
   __traceiter_task_rename
   __traceiter_android_vh_test_clear_look_around_ref
+  __traceiter_android_vh_binder_list_add_work
+  __traceiter_android_vh_binder_has_proc_work_ilocked
+  __traceiter_android_vh_binder_release_special_work
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_alloc_oem_binder_struct
@@ -251,6 +254,9 @@
   __tracepoint_sched_stat_wait
   __tracepoint_sched_waking
   __tracepoint_task_rename
+  __tracepoint_android_vh_binder_list_add_work
+  __tracepoint_android_vh_binder_has_proc_work_ilocked
+  __tracepoint_android_vh_binder_release_special_work
   __trace_puts
   try_to_free_mem_cgroup_pages
   typec_mux_get_drvdata
