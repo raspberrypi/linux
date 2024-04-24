@@ -673,7 +673,8 @@ static void __host_update_page_state(phys_addr_t addr, u64 size, enum pkvm_page_
 		hyp_phys_to_page(addr)->host_state = state;
 }
 
-int host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id)
+static int __host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id, bool is_memory,
+					  enum pkvm_page_state nopage_state)
 {
 	kvm_pte_t annotation;
 	enum kvm_pgtable_prot prot;
@@ -691,19 +692,24 @@ int host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id)
 				      &host_mmu.pgt,
 				      addr, size, &host_s2_pool, annotation);
 	}
-	if (ret || !addr_is_memory(addr))
+	if (ret || !is_memory)
 		return ret;
 
 	/* Don't forget to update the vmemmap tracking for the host */
 	if (owner_id == PKVM_ID_HOST)
 		__host_update_page_state(addr, size, PKVM_PAGE_OWNED);
 	else
-		__host_update_page_state(addr, size, PKVM_NOPAGE);
+		__host_update_page_state(addr, size, PKVM_NOPAGE | nopage_state);
 
 	prot = owner_id == PKVM_ID_HOST ? PKVM_HOST_MEM_PROT : 0;
 	kvm_iommu_host_stage2_idmap(addr, addr + size, prot);
 
 	return 0;
+}
+
+int host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id)
+{
+	return __host_stage2_set_owner_locked(addr, size, owner_id, addr_is_memory(addr), 0);
 }
 
 static bool host_stage2_force_pte(u64 addr, u64 end, enum kvm_pgtable_prot prot)
@@ -998,21 +1004,15 @@ static enum pkvm_page_state host_get_mmio_page_state(kvm_pte_t pte, u64 addr)
 	return state | pkvm_getstate(prot);
 }
 
-static int __host_check_page_state_range(u64 addr, u64 size,
-					 enum pkvm_page_state state)
+static int ___host_check_page_state_range(u64 addr, u64 size,
+					  enum pkvm_page_state state,
+					  struct memblock_region *reg)
 {
 	struct check_walk_data d = {
 		.desired	= state,
 		.get_page_state	= host_get_mmio_page_state,
 	};
-	struct memblock_region *reg;
-	struct kvm_mem_range range;
 	u64 end = addr + size;
-
-	/* Can't check the state of both MMIO and memory regions at once */
-	reg = find_mem_range(addr, &range);
-	if (!is_in_mem_range(end - 1, &range))
-		return -EINVAL;
 
 	hyp_assert_lock_held(&host_mmu.lock);
 
@@ -1035,6 +1035,21 @@ static int __host_check_page_state_range(u64 addr, u64 size,
 	 */
 
 	return 0;
+}
+
+static int __host_check_page_state_range(u64 addr, u64 size,
+					 enum pkvm_page_state state)
+{
+	struct memblock_region *reg;
+	struct kvm_mem_range range;
+	u64 end = addr + size;
+
+	/* Can't check the state of both MMIO and memory regions at once */
+	reg = find_mem_range(addr, &range);
+	if (!is_in_mem_range(end - 1, &range))
+		return -EINVAL;
+
+	return ___host_check_page_state_range(addr, size, state, reg);
 }
 
 static int __host_set_page_state_range(u64 addr, u64 size,
@@ -2174,13 +2189,13 @@ int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pag
 	u64 end = addr + nr_pages * PAGE_SIZE;
 	struct hyp_page *page = NULL;
 	struct kvm_mem_range range;
-	bool is_mmio;
+	struct memblock_region *reg;
 	int ret;
 
 	if ((prot & MODULE_PROT_ALLOWLIST) != prot)
 		return -EINVAL;
 
-	is_mmio = !find_mem_range(addr, &range);
+	reg = find_mem_range(addr, &range);
 	if (end > range.end) {
 		/* Specified range not in a single mmio or memory block. */
 		return -EPERM;
@@ -2193,7 +2208,7 @@ int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pag
 	 * of module-owned MMIO regions hard, so we trust the modules not to
 	 * mess things up.
 	 */
-	if (is_mmio)
+	if (!reg)
 		goto update;
 
 	/* Range is memory: we can track module ownership. */
@@ -2212,31 +2227,28 @@ int module_change_host_page_prot(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pag
 		}
 	} else {
 		/* The entire range must be pristine. */
-		ret = __host_check_page_state_range(
-			addr, nr_pages << PAGE_SHIFT, PKVM_PAGE_OWNED);
+		ret = ___host_check_page_state_range(
+				addr, nr_pages << PAGE_SHIFT, PKVM_PAGE_OWNED, reg);
 		if (ret)
 			goto unlock;
 	}
 
 update:
 	if (!prot) {
-		ret = host_stage2_set_owner_locked(
-			addr, nr_pages << PAGE_SHIFT, PKVM_ID_PROTECTED);
+		ret = __host_stage2_set_owner_locked(addr, nr_pages << PAGE_SHIFT,
+						     PKVM_ID_PROTECTED, !!reg,
+						     PKVM_MODULE_OWNED_PAGE);
 	} else {
 		ret = host_stage2_idmap_locked(
 			addr, nr_pages << PAGE_SHIFT, prot, false);
 	}
 
-	if (WARN_ON(ret) || !page)
+	if (WARN_ON(ret) || !page || !prot)
 		goto unlock;
 
 	for (i = 0; i < nr_pages; i++) {
 		if (prot != KVM_PGTABLE_PROT_RWX) {
-			/*
-			 * The MODULE_OWNED state is additive to the NOPAGE
-			 * state set by host_stage2_set_owner_locked() above.
-			 */
-			page[i].host_state |= PKVM_MODULE_OWNED_PAGE;
+			page[i].host_state = PKVM_MODULE_OWNED_PAGE;
 		} else {
 			page[i].host_state = PKVM_PAGE_OWNED;
 		}
