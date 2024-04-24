@@ -196,6 +196,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pifi-dac-zero.dtbo \
 	pifi-mini-210.dtbo \
 	piglow.dtbo \
+	pineboards-hat-ai.dtbo \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
 	pisound.dtbo \
