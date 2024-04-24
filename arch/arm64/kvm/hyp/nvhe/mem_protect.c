@@ -2299,6 +2299,8 @@ static int __pkvm_host_use_dma_page(phys_addr_t phys_addr)
 	int ret;
 	struct hyp_page *p = hyp_phys_to_page(phys_addr);
 	enum pkvm_page_state state;
+	kvm_pte_t pte;
+	enum kvm_pgtable_prot prot;
 
 	hyp_assert_lock_held(&host_mmu.lock);
 
@@ -2306,14 +2308,24 @@ static int __pkvm_host_use_dma_page(phys_addr_t phys_addr)
 	 * Some differences between handling of RAM and device memory:
 	 * - The hyp vmemmap area for device memory is not backed by physical
 	 *   pages in the hyp page tables.
-	 * - Device memory is unmapped automatically under memory pressure
-	 *   (host_stage2_try()) and the ownership information would be
-	 *   discarded.
-	 * We don't need to deal with that at the moment, because the host
-	 * cannot share or donate device memory, only RAM.
+	 * - However, in some cases modules can donate MMIO, as they can't be
+	 *   refcounted, taint them by marking them as dma(new state), and that
+	 *   will prevent any future transition, this is too restrictive at the,
+	 *   moment which can be improved with more infrastructure to track MMIO
+	 *   pages that ideally comes with device assignment support.
 	 */
-	if (!addr_is_memory(phys_addr))
-		return 0;
+	if (!addr_is_memory(phys_addr)) {
+		ret = kvm_pgtable_get_leaf(&host_mmu.pgt, phys_addr, &pte, NULL);
+		if (ret)
+			return ret;
+		state = host_get_mmio_page_state(pte, phys_addr);
+		if (state == PKVM_PAGE_MMIO_DMA)
+			return 0;
+		if (state != PKVM_PAGE_OWNED)
+			return -EPERM;
+		prot = pkvm_mkstate(KVM_HOST_S2_DEFAULT_MMIO_PTE, PKVM_PAGE_MMIO_DMA);
+		return host_stage2_idmap_locked(phys_addr, PAGE_SIZE, prot, false);
+	}
 
 	state = hyp_phys_to_page(phys_addr)->host_state;
 
