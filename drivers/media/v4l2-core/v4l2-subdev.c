@@ -2102,6 +2102,7 @@ int v4l2_subdev_enable_streams(struct v4l2_subdev *sd, u32 pad,
 {
 	struct device *dev = sd->entity.graph_obj.mdev->dev;
 	struct v4l2_subdev_state *state;
+	bool already_streaming;
 	u64 found_streams = 0;
 	unsigned int i;
 	int ret;
@@ -2150,6 +2151,8 @@ int v4l2_subdev_enable_streams(struct v4l2_subdev *sd, u32 pad,
 
 	dev_dbg(dev, "enable streams %u:%#llx\n", pad, streams_mask);
 
+	already_streaming = v4l2_subdev_is_streaming(sd);
+
 	/* Call the .enable_streams() operation. */
 	ret = v4l2_subdev_call(sd, pad, enable_streams, state, pad,
 			       streams_mask);
@@ -2167,6 +2170,9 @@ int v4l2_subdev_enable_streams(struct v4l2_subdev *sd, u32 pad,
 		if (cfg->pad == pad && (streams_mask & BIT_ULL(cfg->stream)))
 			cfg->enabled = true;
 	}
+
+	if (!already_streaming)
+		v4l2_subdev_enable_privacy_led(sd);
 
 done:
 	v4l2_subdev_unlock_state(state);
@@ -2292,6 +2298,9 @@ int v4l2_subdev_disable_streams(struct v4l2_subdev *sd, u32 pad,
 	}
 
 done:
+	if (!v4l2_subdev_is_streaming(sd))
+		v4l2_subdev_disable_privacy_led(sd);
+
 	v4l2_subdev_unlock_state(state);
 
 	return ret;
