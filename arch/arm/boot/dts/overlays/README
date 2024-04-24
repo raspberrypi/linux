@@ -3624,6 +3624,12 @@ Load:   dtoverlay=piglow
 Params: <None>
 
 
+Name:   pineboards-hat-ai
+Info:   Pineboards Hat Ai! overlay for the Google Coral Edge TPU
+Load:   dtoverlay=pineboards-hat-ai
+Params: <None>
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
