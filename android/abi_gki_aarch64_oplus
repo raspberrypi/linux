@@ -142,6 +142,7 @@
   __traceiter_android_vh_mem_cgroup_free
   __traceiter_android_vh_mem_cgroup_alloc
   __traceiter_android_vh_adjust_alloc_flags
+  __traceiter_android_vh_reweight_entity
   __traceiter_android_vh_sched_move_task
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_sched_setaffinity_early
@@ -214,6 +215,7 @@
   __tracepoint_android_vh_mem_cgroup_css_online
   __tracepoint_android_vh_mem_cgroup_free
   __tracepoint_android_vh_mem_cgroup_alloc
+  __tracepoint_android_vh_reweight_entity
   __tracepoint_android_vh_sched_move_task
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_sched_setaffinity_early
