@@ -68,6 +68,7 @@
 #include <scsi/scsi_ioctl.h>
 #include <scsi/scsicam.h>
 #include <scsi/scsi_common.h>
+#include <trace/hooks/sd.h>
 
 #include "sd.h"
 #include "scsi_priv.h"
@@ -912,6 +913,7 @@ static blk_status_t sd_setup_unmap_cmnd(struct scsi_cmnd *cmd)
 	cmd->transfersize = data_len;
 	rq->timeout = SD_TIMEOUT;
 
+	trace_android_vh_sd_setup_unmap_multi_segment(cmd, buf);
 	return scsi_alloc_sgtables(cmd);
 }
 
@@ -3078,6 +3080,8 @@ static void sd_read_block_limits(struct scsi_disk *sdkp)
 		if (vpd->data[32] & 0x80)
 			sdkp->unmap_alignment =
 				get_unaligned_be32(&vpd->data[32]) & ~(1 << 31);
+
+		trace_android_vh_sd_init_unmap_multi_segment(sdkp, vpd);
 
 		if (!sdkp->lbpvpd) { /* LBP VPD page not provided */
 
