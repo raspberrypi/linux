@@ -140,3 +140,4 @@
   __tracepoint_android_vh_tcp_rtt_estimator
   __tracepoint_android_vh_udp_enqueue_schedule_skb
   __tracepoint_android_vh_build_skb_around
+  debugfs_print_regs32
