@@ -370,6 +370,14 @@ static void attiny_i2c_remove(struct i2c_client *client)
 	mutex_destroy(&state->lock);
 }
 
+static void attiny_i2c_shutdown(struct i2c_client *client)
+{
+	struct attiny_lcd *state = i2c_get_clientdata(client);
+
+	regmap_write(state->regmap, REG_PWM, 0);
+	regmap_write(state->regmap, REG_POWERON, 0);
+}
+
 static const struct of_device_id attiny_dt_ids[] = {
 	{ .compatible = "raspberrypi,7inch-touchscreen-panel-regulator" },
 	{},
@@ -384,6 +392,7 @@ static struct i2c_driver attiny_regulator_driver = {
 	},
 	.probe = attiny_i2c_probe,
 	.remove	= attiny_i2c_remove,
+	.shutdown = attiny_i2c_shutdown,
 };
 
 module_i2c_driver(attiny_regulator_driver);
