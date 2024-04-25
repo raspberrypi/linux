@@ -95,6 +95,12 @@
 #define IF_HAVE_PG_ARCH_X(_name)
 #endif
 
+#ifdef CONFIG_64BIT
+#define IF_HAVE_PG_OEM_RESERVED(_name) ,{1UL << PG_##_name, __stringify(_name)}
+#else
+#define IF_HAVE_PG_OEM_RESERVED(_name)
+#endif
+
 #define DEF_PAGEFLAG_NAME(_name) { 1UL <<  PG_##_name, __stringify(_name) }
 
 #define __def_pageflag_names						\
@@ -125,7 +131,11 @@ IF_HAVE_PG_HWPOISON(hwpoison)						\
 IF_HAVE_PG_IDLE(idle)							\
 IF_HAVE_PG_IDLE(young)							\
 IF_HAVE_PG_ARCH_X(arch_2)						\
-IF_HAVE_PG_ARCH_X(arch_3)
+IF_HAVE_PG_ARCH_X(arch_3)						\
+IF_HAVE_PG_OEM_RESERVED(oem_reserved_1)					\
+IF_HAVE_PG_OEM_RESERVED(oem_reserved_2)					\
+IF_HAVE_PG_OEM_RESERVED(oem_reserved_3)					\
+IF_HAVE_PG_OEM_RESERVED(oem_reserved_4)
 
 #define show_page_flags(flags)						\
 	(flags) ? __print_flags(flags, "|",				\
