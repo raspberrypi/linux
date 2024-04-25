@@ -54,6 +54,7 @@ static void rp1_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 	struct rp1_dsi *dsi = bridge_to_rp1_dsi(bridge);
 
 	rp1dsi_dsi_setup(dsi, &dsi->pipe.crtc.state->adjusted_mode);
+	dsi->dsi_running = true;
 }
 
 static void rp1_dsi_bridge_enable(struct drm_bridge *bridge,
@@ -443,7 +444,7 @@ static int rp1dsi_platform_probe(struct platform_device *pdev)
 	/* Hardware resources */
 	for (i = 0; i < RP1DSI_NUM_CLOCKS; i++) {
 		static const char * const myclocknames[RP1DSI_NUM_CLOCKS] = {
-			"cfgclk", "dpiclk", "byteclk", "refclk"
+			"cfgclk", "dpiclk", "byteclk", "refclk", "pllsys"
 		};
 		dsi->clocks[i] = devm_clk_get(dev, myclocknames[i]);
 		if (IS_ERR(dsi->clocks[i])) {
