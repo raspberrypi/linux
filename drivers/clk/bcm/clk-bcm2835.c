@@ -107,6 +107,7 @@
 #define CM_UARTDIV		0x0f4
 #define CM_VECCTL		0x0f8
 #define CM_VECDIV		0x0fc
+#define CM_DSI0HSCK		0x120
 #define CM_PULSECTL		0x190
 #define CM_PULSEDIV		0x194
 #define CM_SDCCTL		0x1a8
@@ -2351,6 +2352,9 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	cprman->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(cprman->regs))
 		return PTR_ERR(cprman->regs);
+
+	/* Mux DSI0 clock to PLLD */
+	cprman_write(cprman, CM_DSI0HSCK, 1);
 
 	fw_node = of_parse_phandle(dev->of_node, "firmware", 0);
 	if (fw_node) {
