@@ -129,6 +129,7 @@
   __traceiter_android_vh_cgroup_set_task
   __traceiter_android_vh_cpufreq_acct_update_power
   __traceiter_android_vh_check_folio_look_around_ref
+  __traceiter_android_vh_customize_alloc_gfp
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_exit_signal
   __traceiter_android_vh_freq_qos_remove_request
@@ -206,6 +207,7 @@
   __tracepoint_android_vh_cpu_cgroup_css_free
   __tracepoint_android_vh_cgroup_set_task
   __tracepoint_android_vh_cpufreq_acct_update_power
+  __tracepoint_android_vh_customize_alloc_gfp
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_exit_signal
   __traceiter_android_vh_get_page_wmark
