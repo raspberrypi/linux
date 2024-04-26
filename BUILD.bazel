@@ -40,13 +40,6 @@ _GKI_AARCH64_MAKE_GOALS = [
     "modules",
 ]
 
-_GKI_RISCV64_MAKE_GOALS = [
-    "Image",
-    "Image.lz4",
-    "Image.gz",
-    "modules",
-]
-
 _GKI_X86_64_MAKE_GOALS = [
     "bzImage",
     "modules",
@@ -96,15 +89,6 @@ write_file(
     ],
 )
 
-write_file(
-    name = "gki_system_dlkm_modules_risc64",
-    out = "android/gki_system_dlkm_modules_riscv64",
-    content = get_gki_modules_list("riscv64") + [
-        # Ensure new line at the end.
-        "",
-    ],
-)
-
 filegroup(
     name = "aarch64_additional_kmi_symbol_lists",
     srcs = [
@@ -147,11 +131,6 @@ define_common_kernels(target_configs = {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
-        "extra_dist": [":test_mappings_zip"],
-    },
-    "kernel_riscv64": {
-        "module_implicit_outs": get_gki_modules_list("riscv64"),
-        "make_goals": _GKI_RISCV64_MAKE_GOALS,
         "extra_dist": [":test_mappings_zip"],
     },
     "kernel_x86_64": {
@@ -806,29 +785,6 @@ copy_to_dist_dir(
     log = "info",
 )
 
-kernel_build(
-    name = "kunit_riscv64",
-    srcs = [":kernel_riscv64_sources"],
-    outs = [],
-    arch = "riscv64",
-    base_kernel = ":kernel_riscv64",
-    build_config = "build.config.kunit.riscv64",
-    defconfig_fragments = [
-        "tools/testing/kunit/configs/android/kunit_defconfig",
-        "tools/testing/kunit/configs/android/kunit_clk_defconfig",
-    ],
-    make_goals = ["modules"],
-    module_outs = _KUNIT_COMMON_MODULES + _KUNIT_CLK_MODULES,
-)
-
-copy_to_dist_dir(
-    name = "kunit_riscv64_dist",
-    data = [":kunit_riscv64"],
-    dist_dir = "out/kunit_riscv64/dist",
-    flat = True,
-    log = "info",
-)
-
 # DDK Headers
 # All headers. These are the public targets for DDK modules to use.
 alias(
@@ -857,15 +813,6 @@ ddk_headers_archive(
 ddk_headers(
     name = "all_headers_arm",
     hdrs = [":all_headers_allowlist_arm"] + select({
-        "//build/kernel/kleaf:allow_ddk_unsafe_headers_set": [":all_headers_unsafe"],
-        "//conditions:default": [],
-    }),
-    visibility = ["//visibility:public"],
-)
-
-ddk_headers(
-    name = "all_headers_riscv64",
-    hdrs = [":all_headers_allowlist_riscv64"] + select({
         "//build/kernel/kleaf:allow_ddk_unsafe_headers_set": [":all_headers_unsafe"],
         "//conditions:default": [],
     }),
@@ -923,24 +870,6 @@ ddk_headers(
 )
 
 ddk_headers(
-    name = "all_headers_allowlist_riscv64",
-    hdrs = [
-        ":all_headers_allowlist_common_globs",
-        ":all_headers_allowlist_riscv64_globs",
-    ],
-    # The list of include directories where source files can #include headers
-    # from. In other words, these are the `-I` option to the C compiler.
-    # These are prepended to LINUXINCLUDE.
-    linux_includes = [
-        "arch/riscv/include",
-        "arch/riscv/include/uapi",
-        "include",
-        "include/uapi",
-    ],
-    visibility = ["//visibility:private"],
-)
-
-ddk_headers(
     name = "all_headers_allowlist_x86_64",
     hdrs = [
         ":all_headers_allowlist_common_globs",
@@ -975,13 +904,6 @@ filegroup(
 filegroup(
     name = "all_headers_allowlist_arm_globs",
     srcs = glob(["arch/arm/include/**/*.h"]),
-    visibility = ["//visibility:private"],
-)
-
-# globs() for riscv64 only
-filegroup(
-    name = "all_headers_allowlist_riscv64_globs",
-    srcs = glob(["arch/riscv/include/**/*.h"]),
     visibility = ["//visibility:private"],
 )
 
