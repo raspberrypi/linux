@@ -25,6 +25,7 @@
 #define GUNYAH_RM_RPC_VM_GET_HYP_RESOURCES	0x56000020
 #define GUNYAH_RM_RPC_VM_GET_VMID		0x56000024
 #define GUNYAH_RM_RPC_VM_SET_BOOT_CONTEXT	0x56000031
+#define GUNYAH_RM_RPC_VM_SET_FIRMWARE_MEM	0x56000032
 #define GUNYAH_RM_RPC_VM_SET_DEMAND_PAGING	0x56000033
 #define GUNYAH_RM_RPC_VM_SET_ADDRESS_LAYOUT	0x56000034
 /* clang-format on */
@@ -130,6 +131,15 @@ struct gunyah_rm_vm_set_address_layout_req {
 	__le32 range_id;
 	__le64 range_base;
 	__le64 range_size;
+} __packed;
+
+/* Call: VM_SET_FIRMWARE_MEM */
+struct gunyah_vm_set_firmware_mem_req {
+	__le16 vmid;
+	__le16 reserved;
+	__le32 mem_handle;
+	__le64 fw_offset;
+	__le64 fw_size;
 } __packed;
 
 /*
@@ -600,3 +610,25 @@ int gunyah_rm_vm_set_address_layout(struct gunyah_rm *rm, u16 vmid,
 			      sizeof(req), NULL, NULL);
 }
 ALLOW_ERROR_INJECTION(gunyah_rm_vm_set_address_layout, ERRNO);
+
+/**
+ * gunyah_rm_vm_set_firmware_mem() - Set the location of firmware for GH_RM_VM_AUTH_QCOM_ANDROID_PVM VMs
+ * @rm: Handle to a Gunyah resource manager.
+ * @vmid: VM identifier allocated with gh_rm_alloc_vmid.
+ * @parcel: Memory parcel where the firmware should be loaded.
+ * @fw_offset: offset into the memory parcel where the firmware should be loaded.
+ * @fw_size: Maxmimum size of the fw that can be loaded.
+ */
+int gunyah_rm_vm_set_firmware_mem(struct gunyah_rm *rm, u16 vmid, struct gunyah_rm_mem_parcel *parcel,
+				u64 fw_offset, u64 fw_size)
+{
+	struct gunyah_vm_set_firmware_mem_req req = {
+		.vmid = cpu_to_le16(vmid),
+		.mem_handle = cpu_to_le32(parcel->mem_handle),
+		.fw_offset = cpu_to_le64(fw_offset),
+		.fw_size = cpu_to_le64(fw_size),
+	};
+
+	return gunyah_rm_call(rm, GUNYAH_RM_RPC_VM_SET_FIRMWARE_MEM, &req, sizeof(req), NULL, NULL);
+}
+ALLOW_ERROR_INJECTION(gunyah_rm_vm_set_firmware_mem, ERRNO);

@@ -615,7 +615,8 @@ int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm)
 
 	down_read(&ghvm->bindings_lock);
 	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX)
-		if (b->share_type == VM_MEM_LEND)
+		if (b->share_type == VM_MEM_LEND &&
+			(b->guest_phys_addr != ghvm->fw.config.guest_phys_addr))
 			count++;
 
 	if (!count)
@@ -629,7 +630,8 @@ int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm)
 
 	index = i = 0;
 	mt_for_each(&ghvm->bindings, b, index, ULONG_MAX) {
-		if (b->share_type != VM_MEM_LEND)
+		if (b->share_type != VM_MEM_LEND ||
+			(b->guest_phys_addr == ghvm->fw.config.guest_phys_addr))
 			continue;
 		entries[i].phys_addr = cpu_to_le64(b->guest_phys_addr);
 		entries[i].size = cpu_to_le64(b->size);
@@ -680,6 +682,18 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 		goto err;
 	}
 
+	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
+		ghvm->fw.parcel_start = ghvm->fw.config.guest_phys_addr >> PAGE_SHIFT;
+		ghvm->fw.parcel_pages = ghvm->fw.config.size >> PAGE_SHIFT;
+		ret = gunyah_gup_share_parcel(ghvm, &ghvm->fw.parcel,
+				&ghvm->fw.parcel_start,
+				&ghvm->fw.parcel_pages);
+		if (ret) {
+			dev_warn(ghvm->parent,
+					"Failed to allocate parcel for FW: %d\n", ret);
+			goto err;
+		}
+	}
 	ret = gunyah_rm_vm_configure(ghvm->rm, ghvm->vmid, ghvm->auth,
 				     ghvm->dtb.parcel.mem_handle, 0, 0,
 				     ghvm->dtb.config.guest_phys_addr -
@@ -689,6 +703,16 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 	if (ret) {
 		dev_warn(ghvm->parent, "Failed to configure VM: %d\n", ret);
 		goto err;
+	}
+
+	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
+		ret = gunyah_rm_vm_set_firmware_mem(ghvm->rm, ghvm->vmid, &ghvm->fw.parcel,
+				ghvm->fw.config.guest_phys_addr - (ghvm->fw.parcel_start << PAGE_SHIFT),
+				ghvm->fw.config.size);
+		if (ret) {
+			pr_warn("Failed to configure pVM firmware\n");
+			goto err;
+		}
 	}
 
 	ret = gunyah_gup_setup_demand_paging(ghvm);
@@ -716,11 +740,13 @@ static int gunyah_vm_start(struct gunyah_vm *ghvm)
 	}
 	ghvm->vm_status = GUNYAH_RM_VM_STATUS_READY;
 
-	ret = gunyah_vm_fill_boot_context(ghvm);
-	if (ret) {
-		dev_warn(ghvm->parent, "Failed to setup boot context: %d\n",
-			 ret);
-		goto err;
+	if (ghvm->auth != GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
+		ret = gunyah_vm_fill_boot_context(ghvm);
+		if (ret) {
+			dev_warn(ghvm->parent, "Failed to setup boot context: %d\n",
+				 ret);
+			goto err;
+		}
 	}
 
 	ret = gunyah_rm_get_hyp_resources(ghvm->rm, ghvm->vmid, &resources);
@@ -817,6 +843,21 @@ static long gunyah_vm_ioctl(struct file *filp, unsigned int cmd,
 
 		ghvm->dtb.config = dtb_config;
 
+		r = 0;
+		break;
+	}
+	case GH_VM_ANDROID_SET_FW_CONFIG: {
+		struct gunyah_vm_firmware_config fw_config;
+
+		if (copy_from_user(&fw_config, argp, sizeof(fw_config)))
+			return -EFAULT;
+
+		if (overflows_type(fw_config.guest_phys_addr + fw_config.size,
+				   u64))
+			return -EOVERFLOW;
+
+		ghvm->fw.config = fw_config;
+		ghvm->auth = GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM;
 		r = 0;
 		break;
 	}
@@ -993,6 +1034,15 @@ static void _gunyah_vm_put(struct kref *kref)
 
 	WARN_ON(!mtree_empty(&ghvm->mm));
 	mtree_destroy(&ghvm->mm);
+
+	if (ghvm->auth == GUNYAH_RM_VM_AUTH_QCOM_ANDROID_PVM) {
+		ret = gunyah_gup_reclaim_parcel(ghvm, &ghvm->fw.parcel,
+				ghvm->fw.parcel_start,
+				ghvm->fw.parcel_pages);
+		if (ret)
+			dev_err(ghvm->parent,
+					"Failed to reclaim firmware parcel: %d\n", ret);
+	}
 
 	if (ghvm->vm_status > GUNYAH_RM_VM_STATUS_NO_STATE) {
 		gunyah_rm_notifier_unregister(ghvm->rm, &ghvm->nb);

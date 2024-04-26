@@ -118,6 +118,9 @@ enum gunyah_rm_range_id {
 	GUNYAH_RM_RANGE_ID_FIRMWARE = 1,
 };
 
+int gunyah_rm_vm_set_firmware_mem(struct gunyah_rm *rm, u16 vmid, struct gunyah_rm_mem_parcel *parcel,
+				u64 fw_offset, u64 fw_size);
+
 int gunyah_rm_vm_set_address_layout(struct gunyah_rm *rm, u16 vmid,
 				    enum gunyah_rm_range_id range_id,
 				    u64 base_address, u64 size);

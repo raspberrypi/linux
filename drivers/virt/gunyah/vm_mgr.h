@@ -137,6 +137,11 @@ struct gunyah_vm {
 		u64 parcel_start, parcel_pages;
 		struct gunyah_rm_mem_parcel parcel;
 	} dtb;
+	struct {
+		struct gunyah_vm_firmware_config config;
+		u64 parcel_start, parcel_pages;
+		struct gunyah_rm_mem_parcel parcel;
+	} fw;
 	struct xarray boot_context;
 };
 
