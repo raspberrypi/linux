@@ -363,7 +363,7 @@
 			#size-cells = <0>;
 			#clock-cells = <1>;
 
-			clocks = <&clocks BCM2835_PLLA_DSI0>,
+			clocks = <&clocks BCM2835_PLLD_DSI0>,
 				 <&clocks BCM2835_CLOCK_DSI0E>,
 				 <&clocks BCM2835_CLOCK_DSI0P>;
 			clock-names = "phy", "escape", "pixel";
