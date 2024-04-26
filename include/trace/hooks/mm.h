@@ -124,6 +124,12 @@ DECLARE_HOOK(android_vh_page_add_new_anon_rmap,
 DECLARE_HOOK(android_vh_customize_alloc_gfp,
 	TP_PROTO(gfp_t *alloc_gfp, unsigned int order),
 	TP_ARGS(alloc_gfp, order));
+DECLARE_HOOK(android_vh_madvise_swapin_walk_pmd_entry,
+	TP_PROTO(swp_entry_t entry),
+	TP_ARGS(entry));
+DECLARE_HOOK(android_vh_process_madvise,
+	TP_PROTO(int behavior, ssize_t *ret, void *priv),
+	TP_ARGS(behavior, ret, priv));
 
 #endif /* _TRACE_HOOK_MM_H */
 

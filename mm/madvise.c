@@ -33,6 +33,7 @@
 #include <linux/swapops.h>
 #include <linux/shmem_fs.h>
 #include <linux/mmu_notifier.h>
+#include <trace/hooks/mm.h>
 
 #include <asm/tlb.h>
 
@@ -217,6 +218,7 @@ static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
 
 		pte_unmap_unlock(ptep, ptl);
 		ptep = NULL;
+		trace_android_vh_madvise_swapin_walk_pmd_entry(entry);
 
 		page = read_swap_cache_async(entry, GFP_HIGHUSER_MOVABLE,
 					     vma, addr, &splug);
@@ -1564,5 +1566,6 @@ release_task:
 free_iov:
 	kfree(iov);
 out:
+	trace_android_vh_process_madvise(behavior, &ret, NULL);
 	return ret;
 }
