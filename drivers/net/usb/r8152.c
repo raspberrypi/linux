@@ -10017,6 +10017,9 @@ static const struct usb_device_id rtl8152_table[] = {
 	{ USB_DEVICE(VENDOR_ID_TPLINK,  0x0601) },
 	{ USB_DEVICE(VENDOR_ID_DLINK,   0xb301) },
 	{ USB_DEVICE(VENDOR_ID_ASUS,    0x1976) },
+	
+	/* ELECOM */
+	{ USB_DEVICE(VENDOR_ID_ELECOM,  0x4017) },
 	{}
 };
 
