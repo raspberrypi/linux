@@ -871,6 +871,7 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	unsigned long pixel_clock_hz = mode->clock * 1000;
 	unsigned long pll_clock = pixel_clock_hz * dsi->divider;
 	int divider;
+	u16 htotal;
 
 	/* Find what divider gets us a faster clock than the requested
 	 * pixel clock.
@@ -887,12 +888,27 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	pixel_clock_hz = pll_clock / dsi->divider;
 
 	adjusted_mode->clock = pixel_clock_hz / 1000;
+	htotal = mode->htotal;
+
+	if (dsi->variant->port == 0 && mode->clock == 30000 &&
+	    mode->hdisplay == 800 && mode->htotal == (800 + 59 + 2 + 45) &&
+	    mode->vdisplay == 480 && mode->vtotal == (480 + 7 + 2 + 22)) {
+		/*
+		 * Raspberry Pi 7" panel via TC358762 seems to have an issue on
+		 * DSI0 that it doesn't actually follow the vertical timing that
+		 * is otherwise identical to that produced on DSI1.
+		 * Fixup the mode.
+		 */
+		htotal = 800 + 59 + 2 + 47;
+		adjusted_mode->vtotal = 480 + 7 + 2 + 45;
+		adjusted_mode->crtc_vtotal = 480 + 7 + 2 + 45;
+	}
 
 	/* Given the new pixel clock, adjust HFP to keep vrefresh the same. */
-	adjusted_mode->htotal = adjusted_mode->clock * mode->htotal /
+	adjusted_mode->htotal = adjusted_mode->clock * htotal /
 				mode->clock;
-	adjusted_mode->hsync_end += adjusted_mode->htotal - mode->htotal;
-	adjusted_mode->hsync_start += adjusted_mode->htotal - mode->htotal;
+	adjusted_mode->hsync_end += adjusted_mode->htotal - htotal;
+	adjusted_mode->hsync_start += adjusted_mode->htotal - htotal;
 
 	return true;
 }
