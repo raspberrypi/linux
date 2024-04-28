@@ -330,6 +330,7 @@ static size_t parse_elf(void *output)
 	return ehdr.e_entry - LOAD_PHYSICAL_ADDR;
 }
 
+const unsigned long kernel_text_size = VO___start_rodata - VO__text;
 const unsigned long kernel_total_size = VO__end - VO__text;
 
 static u8 boot_heap[BOOT_HEAP_SIZE] __aligned(4);
@@ -355,6 +356,19 @@ unsigned long decompress_kernel(unsigned char *outbuf, unsigned long virt_addr,
 	handle_relocations(outbuf, output_len, virt_addr);
 
 	return entry;
+}
+
+/*
+ * Set the memory encryption xloadflag based on the mem_encrypt= command line
+ * parameter, if provided.
+ */
+static void parse_mem_encrypt(struct setup_header *hdr)
+{
+	int on = cmdline_find_option_bool("mem_encrypt=on");
+	int off = cmdline_find_option_bool("mem_encrypt=off");
+
+	if (on > off)
+		hdr->xloadflags |= XLF_MEM_ENCRYPTION;
 }
 
 /*
@@ -386,6 +400,8 @@ asmlinkage __visible void *extract_kernel(void *rmode, unsigned char *output)
 
 	/* Clear flags intended for solely in-kernel use. */
 	boot_params->hdr.loadflags &= ~KASLR_FLAG;
+
+	parse_mem_encrypt(&boot_params->hdr);
 
 	sanitize_boot_params(boot_params);
 
