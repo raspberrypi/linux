@@ -192,6 +192,11 @@ struct cifs_open_info_data {
 		bool symlink;
 	};
 	struct {
+		/* ioctl response buffer */
+		struct {
+			int buftype;
+			struct kvec iov;
+		} io;
 		__u32 tag;
 		union {
 			struct reparse_data_buffer *buf;
@@ -216,11 +221,6 @@ static inline bool cifs_open_data_reparse(struct cifs_open_info_data *data)
 		attrs |= ATTR_REPARSE;
 	fi->Attributes = cpu_to_le32(attrs);
 	return ret;
-}
-
-static inline void cifs_free_open_info(struct cifs_open_info_data *data)
-{
-	kfree(data->symlink_target);
 }
 
 /*
