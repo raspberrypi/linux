@@ -13,8 +13,11 @@
   device_create
   device_destroy
   device_initialize
+  devm_extcon_register_notifier_all
+  devm_hwspin_lock_request_specific
   _dev_info
   dev_set_name
+  __dynamic_netdev_dbg
   finish_wait
   fortify_panic
   idr_alloc
@@ -27,6 +30,7 @@
   __kmalloc
   kmalloc_caches
   kmalloc_trace
+  ktime_get_boot_fast_ns
   __list_add_valid_or_report
   __list_del_entry_valid_or_report
   memcpy
@@ -48,6 +52,9 @@
   __rcu_read_lock
   __rcu_read_unlock
   schedule
+  si_swapinfo
+  snd_ctl_find_id
+  snd_info_get_line
   snprintf
   __stack_chk_fail
   strcmp
@@ -198,8 +205,63 @@
   tracepoint_probe_unregister
   __tracepoint_sched_switch
   unregister_chrdev_region
+  usb_phy_get_charger_current
+  vmalloc_nr_pages
+  vsscanf
   __wake_up
   __warn_printk
+
+# required by apsys-dvfs.ko
+  devfreq_update_status
+
+# required by audio-codec.ko
+  regulator_register
+
+# required by audio-platform.ko
+  snd_pcm_rate_bit_to_rate
+
+# required by audio-misc.ko
+  __kfifo_from_user_r
+  __kfifo_to_user_r
+
+# required by gzvm.ko
+  __traceiter_android_vh_gzvm_vcpu_exit_reason
+  __tracepoint_android_vh_gzvm_vcpu_exit_reason
+
+# required by ims_bridge.ko
+  icmp6_send
+  inet_select_addr
+  ip6_find_1stfragopt
+  ip6_route_output_flags
+  ipv6_dev_get_saddr
+  ipv6_select_ident
+  nf_ct_get_tuplepr
+  nf_ct_invert_tuple
+  xfrm_state_afinfo_get_rcu
+
+# required by iolimit.ko
+  blkcg_policy_register
+  __traceiter_android_rvh_ctl_dirty_rate
+  __tracepoint_android_rvh_ctl_dirty_rate
+
+# required by ledtrig-pattern.ko
+  led_get_default_pattern
+  led_set_brightness
+
+# required by mmc_swcq.ko
+  __blk_mq_end_request
+  blk_mq_run_hw_queues
+  blk_queue_flag_clear
+  blk_update_request
+  mmc_cqe_post_req
+
+# required by mmdvfs.ko
+  devfreq_event_get_event
+
+# required by pinctrl-sprd.ko
+  pinctrl_register
+  pinctrl_unregister
+  pinctrl_utils_add_map_mux
 
 # required by ppp_generic.ko
   add_wait_queue
@@ -310,6 +372,10 @@
   timecounter_init
   timecounter_read
 
+# required by regmap-hook.ko
+  __traceiter_android_vh_regmap_update
+  __tracepoint_android_vh_regmap_update
+
 # required by rfkill.ko
   add_uevent_var
   cancel_delayed_work_sync
@@ -334,9 +400,133 @@
   strlen
   system_power_efficient_wq
 
+# required by sc2731_charger.ko
+  power_supply_get_battery_info
+  power_supply_put_battery_info
+
+# required by sc8546-charger.ko
+  __regmap_init_i2c
+
+# required by sdhci-sprd.ko
+  mmc_regulator_disable_vqmmc
+  mmc_regulator_enable_vqmmc
+  mmc_send_status
+  sdhci_enable_v4_mode
+  __sdhci_read_caps
+  sdhci_request
+  sdhci_request_atomic
+
+# required by sensorhub.ko
+  iio_pollfunc_store_time
+
+# required by sfp_core.ko
+  nf_conntrack_find_get
+  nf_ct_destroy
+  pskb_trim_rcsum_slow
+  rt6_lookup
+
+# required by sipa-core.ko
+  alarm_forward
+
 # required by slhc.ko
   bcmp
   memmove
+
+# required by sprdbt_tty.ko
+  tty_port_link_device
+
+# required by sprd_camera.ko
+  of_irq_to_resource
+
+# required by sprd-charger-manager.ko
+  alarm_expires_remaining
+
+# required by sprd-dma.ko
+  of_dma_simple_xlate
+
+# required by sprd-drm.ko
+  drm_ioctl_kernel
+  drm_send_event_timestamp_locked
+  mipi_dsi_set_maximum_return_packet_size
+  of_get_drm_display_mode
+  regmap_get_reg_stride
+
+# required by sprd_noc_trace.ko
+  sysfs_unmerge_group
+
+# required by sprd_pmic_adc.ko
+  nvmem_cell_read_u16
+
+# required by sprd_soc_thm.ko
+  thermal_zone_bind_cooling_device
+  thermal_zone_unbind_cooling_device
+
+# required by sprd_tcpm.ko
+  typec_altmode_attention
+  typec_altmode_notify
+  typec_altmode_update_active
+  typec_altmode_vdm
+  typec_find_port_data_role
+  typec_find_port_power_role
+  typec_find_power_role
+  typec_match_altmode
+  typec_partner_register_altmode
+  typec_port_register_altmode
+  typec_set_mode
+  typec_unregister_altmode
+  usb_role_switch_put
+
+# required by sprd_time_sync_cp.ko
+  pvclock_gtod_register_notifier
+  pvclock_gtod_unregister_notifier
+
+# required by sprd_usb_f_rndis.ko
+  gether_cleanup
+  gether_connect
+  gether_disconnect
+  gether_get_dev_addr
+  gether_get_host_addr
+  gether_get_host_addr_u8
+  gether_get_ifname
+  gether_get_qmult
+  gether_register_netdev
+  gether_set_dev_addr
+  gether_set_gadget
+  gether_set_host_addr
+  gether_set_ifname
+  gether_set_qmult
+  gether_setup_name_default
+
+# required by sprd-vibra.ko
+  input_ff_create_memless
+
+# required by sysdump.ko
+  node_states
+
+# required by ufs_sprd.ko
+  __scsi_add_device
+  scsi_test_unit_ready
+  ufshcd_query_attr
+
+# required by unisoc_last_kmsg.ko
+  blockdev_superblock
+  pcpu_nr_pages
+  vm_memory_committed
+
+# required by unisoc_mm_emem.ko
+  get_slabinfo
+  __traceiter_android_vh_kmalloc_large_alloced
+  __traceiter_android_vh_slab_folio_alloced
+  __tracepoint_android_vh_kmalloc_large_alloced
+  __tracepoint_android_vh_slab_folio_alloced
+
+# required by unisoc_multi_control.ko
+  refresh_frequency_limits
+
+# required by unisoc-sched.ko
+  tick_nohz_get_idle_calls_cpu
+  __traceiter_android_rvh_effective_cpu_util
+  __tracepoint_android_rvh_effective_cpu_util
 
 # required by zram.ko
   bio_add_page
