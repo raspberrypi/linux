@@ -94,8 +94,8 @@ xchk_setup_inode(
 	if (!xfs_verify_ino(sc->mp, sc->sm->sm_ino))
 		return -ENOENT;
 
-	/* Try a regular untrusted iget. */
-	error = xchk_iget(sc, sc->sm->sm_ino, &ip);
+	/* Try a safe untrusted iget. */
+	error = xchk_iget_safe(sc, sc->sm->sm_ino, &ip);
 	if (!error)
 		return xchk_install_handle_iscrub(sc, ip);
 	if (error == -ENOENT)
@@ -335,6 +335,10 @@ xchk_inode_flags2(
 
 	/* no bigtime iflag without the bigtime feature */
 	if (xfs_dinode_has_bigtime(dip) && !xfs_has_bigtime(mp))
+		goto bad;
+
+	/* no large extent counts without the filesystem feature */
+	if ((flags2 & XFS_DIFLAG2_NREXT64) && !xfs_has_large_extent_counts(mp))
 		goto bad;
 
 	return;
