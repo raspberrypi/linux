@@ -1054,6 +1054,9 @@ static int sd_parse_ext_reg_power(struct mmc_card *card, u8 fno, u8 page,
 	card->ext_power.page = page;
 	card->ext_power.offset = offset;
 
+	pr_info("%s: Power Extension Registers: %02x %02x %02x\n", mmc_hostname(card->host),
+		reg_buf[0], reg_buf[1], reg_buf[2]);
+
 out:
 	return err;
 }
@@ -1096,15 +1099,18 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 	 * Command queue support indicated via queue depth bits (0 to 4).
 	 * Qualify this with the other mandatory required features.
 	 */
-	if (reg_buf[6] & 0x1f && card->ext_power.feature_support & SD_EXT_POWER_OFF_NOTIFY &&
+	if (reg_buf[6] & 0x1f && /* card->ext_power.feature_support & SD_EXT_POWER_OFF_NOTIFY && */
 	    card->ext_perf.feature_support & SD_EXT_PERF_CACHE) {
 		card->ext_perf.feature_support |= SD_EXT_PERF_CMD_QUEUE;
 		card->ext_csd.cmdq_depth = reg_buf[6] & 0x1f;
 		card->ext_csd.cmdq_support = true;
-		pr_debug("%s: Command Queue supported depth %u\n",
+		pr_info("%s: Command Queue supported depth %u\n",
 			 mmc_hostname(card->host),
 			 card->ext_csd.cmdq_depth);
 	}
+
+	pr_info("%s: Performance Extension Registers: %02x %02x %02x %02x %02x %02x %02x\n", mmc_hostname(card->host),
+		reg_buf[0], reg_buf[1], reg_buf[2], reg_buf[3], reg_buf[4], reg_buf[5], reg_buf[6]);
 
 	card->ext_perf.fno = fno;
 	card->ext_perf.page = page;
@@ -1155,12 +1161,18 @@ static int sd_parse_ext_reg(struct mmc_card *card, u8 *gen_info_buf,
 	fno = reg_addr >> 18 & 0xf;
 
 	/* Standard Function Code for power management. */
-	if (sfc == 0x1)
+	if (sfc == 0x1) {
+		pr_info("%s: found Power Extension register at function=%u page=%u offset=%u\n",
+			mmc_hostname(card->host), fno, page, offset);
 		return sd_parse_ext_reg_power(card, fno, page, offset);
+	}
 
 	/* Standard Function Code for performance enhancement. */
-	if (sfc == 0x2)
+	if (sfc == 0x2) {
+		pr_info("%s: found Performance Extension register at function=%u page=%u offset=%u\n",
+			mmc_hostname(card->host), fno, page, offset);
 		return sd_parse_ext_reg_perf(card, fno, page, offset);
+	}
 
 	return 0;
 }
@@ -1228,6 +1240,8 @@ static int mmc_sd_read_ext_regs(struct mmc_card *card)
 		goto out;
 	}
 
+	pr_info("%s: found %u SD extension registers in gen_info size of %u\n",
+		mmc_hostname(card->host), num_ext, len);
 	/*
 	 * Parse the extension registers. The first extension should start
 	 * immediately after the general info header (16 bytes).
