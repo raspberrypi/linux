@@ -49,6 +49,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <sys/utsname.h>
 #endif
 
 #ifndef ARRAY_SIZE
@@ -325,6 +326,23 @@ static inline int ksft_exit_skip(const char *msg, ...)
 	if (ksft_test_num())
 		ksft_print_cnts();
 	exit(KSFT_SKIP);
+}
+
+static inline int ksft_min_kernel_version(unsigned int min_major,
+					  unsigned int min_minor)
+{
+#ifdef NOLIBC
+	ksft_print_msg("NOLIBC: Can't check kernel version: Function not implemented\n");
+	return 0;
+#else
+	unsigned int major, minor;
+	struct utsname info;
+
+	if (uname(&info) || sscanf(info.release, "%u.%u.", &major, &minor) != 2)
+		ksft_exit_fail_msg("Can't parse kernel version\n");
+
+	return major > min_major || (major == min_major && minor >= min_minor);
+#endif
 }
 
 #endif /* __KSELFTEST_H */
