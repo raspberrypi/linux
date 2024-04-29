@@ -53,6 +53,8 @@ ifneq ($(kernrel3),2.6.20)
 ccflags-y += $(CPPFLAGS)
 endif
 
+CFLAGS_dwc_otg_fiq_fsm.o += -Wno-fortify-source
+
 else
 
 PWD		:= $(shell pwd)
