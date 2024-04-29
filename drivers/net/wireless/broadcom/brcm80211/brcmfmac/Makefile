@@ -60,3 +60,6 @@ brcmfmac-$(CONFIG_BRCMFMAC) += wcc/core.o
 brcmfmac-$(CONFIG_BRCMFMAC) += cyw/core.o
 brcmfmac-$(CONFIG_BRCMFMAC) += bca/core.o
 endif
+
+CFLAGS_common.o += -Wno-array-bounds
+CFLAGS_fweh.o += -Wno-array-bounds
