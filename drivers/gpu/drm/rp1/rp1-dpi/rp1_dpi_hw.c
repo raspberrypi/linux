@@ -319,8 +319,14 @@ static u32 set_output_format(u32 bus_format, u32 *shift, u32 *imask, u32 *rgbsz)
 		*shift |= OSHIFT_RGB(29, 19, 9);
 		return OMASK_RGB(0x3fc, 0x3fc, 0x3fc);
 
+	case MEDIA_BUS_FMT_RGB565_1X24_CPADHI:
+		/* This should match Raspberry Pi legacy "mode 3" */
+		*shift |= OSHIFT_RGB(26, 17, 6);
+		*rgbsz &= DPI_DMA_RGBSZ_BPP_MASK;
+		return OMASK_RGB(0x3e0, 0x3f0, 0x3e0);
+
 	default:
-		/* RGB666_1x24_CPADHI, BGR666_1X24_CPADHI and "RGB565_666" formats */
+		/* RGB666_1x24_CPADHI, BGR666_1X24_CPADHI and "mode 4" formats */
 		*shift |= OSHIFT_RGB(27, 17, 7);
 		*rgbsz &= DPI_DMA_RGBSZ_BPP_MASK;
 		return OMASK_RGB(0x3f0, 0x3f0, 0x3f0);
