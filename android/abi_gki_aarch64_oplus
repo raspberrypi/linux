@@ -19,6 +19,7 @@
   devres_destroy
   down_read_trylock
   drm_crtc_vblank_waitqueue
+  down_write_killable
   filp_close
   folio_add_lru
   folio_mapping
@@ -30,6 +31,7 @@
   gov_attr_set_get
   gpiod_to_chip
   have_governor_per_policy
+  iterate_dir
   i2c_smbus_read_word_data
   i2c_smbus_write_word_data
   iio_channel_get
@@ -80,6 +82,7 @@
   rtc_read_alarm
   rtc_set_alarm
   __rtnl_link_unregister
+  security_file_ioctl
   sdio_memcpy_fromio
   sdio_memcpy_toio
   sdio_set_block_size
@@ -102,6 +105,7 @@
   tcf_exts_dump_stats
   tcf_exts_validate
   tcf_queue_work
+  vfs_llseek
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_alloc_oem_binder_struct
