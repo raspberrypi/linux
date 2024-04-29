@@ -65,8 +65,7 @@ menu "Media device types"
 # Multimedia support - automatically enable V4L2 and DVB core
 #
 config MEDIA_CAMERA_SUPPORT
-	bool
-	prompt "Cameras and video grabbers" if MEDIA_SUPPORT_FILTER
+	bool "Cameras and video grabbers"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable support for webcams and video grabbers.
@@ -74,8 +73,7 @@ config MEDIA_CAMERA_SUPPORT
 	  Say Y when you have a webcam or a video capture grabber board.
 
 config MEDIA_ANALOG_TV_SUPPORT
-	bool
-	prompt "Analog TV" if MEDIA_SUPPORT_FILTER
+	bool "Analog TV"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable analog TV support.
@@ -88,8 +86,7 @@ config MEDIA_ANALOG_TV_SUPPORT
 		will disable support for them.
 
 config MEDIA_DIGITAL_TV_SUPPORT
-	bool
-	prompt "Digital TV" if MEDIA_SUPPORT_FILTER
+	bool "Digital TV"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable digital TV support.
@@ -98,8 +95,7 @@ config MEDIA_DIGITAL_TV_SUPPORT
 	  hybrid digital TV and analog TV.
 
 config MEDIA_RADIO_SUPPORT
-	bool
-	prompt "AM/FM radio receivers/transmitters" if MEDIA_SUPPORT_FILTER
+	bool "AM/FM radio receivers/transmitters"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable AM/FM radio support.
@@ -114,8 +110,7 @@ config MEDIA_RADIO_SUPPORT
 		disable support for them.
 
 config MEDIA_SDR_SUPPORT
-	bool
-	prompt "Software defined radio" if MEDIA_SUPPORT_FILTER
+	bool "Software defined radio"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable software defined radio support.
@@ -123,8 +118,7 @@ config MEDIA_SDR_SUPPORT
 	  Say Y when you have a software defined radio device.
 
 config MEDIA_PLATFORM_SUPPORT
-	bool
-	prompt "Platform-specific devices" if MEDIA_SUPPORT_FILTER
+	bool "Platform-specific devices"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  Enable support for complex cameras, codecs, and other hardware
@@ -137,8 +131,7 @@ config MEDIA_PLATFORM_SUPPORT
 	  Say Y when you want to be able to see such devices.
 
 config MEDIA_TEST_SUPPORT
-	bool
-	prompt "Test drivers" if MEDIA_SUPPORT_FILTER
+	bool "Test drivers"
 	default y if !MEDIA_SUPPORT_FILTER
 	help
 	  These drivers should not be used on production kernels, but

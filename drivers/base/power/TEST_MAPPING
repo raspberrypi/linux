@@ -1,0 +1,47 @@
+{
+  "imports": [
+    {
+      "path": "frameworks/base/packages/PackageInstaller"
+    },
+    {
+      "path": "frameworks/base/core/java/android/content/pm"
+    },
+    {
+      "path": "frameworks/base/services/core/java/com/android/server"
+    },
+    {
+      "path": "frameworks/base/core/java/com/android/internal/app"
+    },
+    {
+      "path": "frameworks/base/apex/jobscheduler/service/java/com/android/server/job"
+    }
+ ],
+  "presubmit": [
+    {
+      "name": "CtsSilentUpdateHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "CtsJobSchedulerTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    }
+  ],
+  "presubmit-large": [
+    {
+      "name": "CtsSuspendAppsTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    }
+  ]
+}

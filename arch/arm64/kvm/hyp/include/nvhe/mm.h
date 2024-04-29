@@ -12,10 +12,12 @@
 
 extern struct kvm_pgtable pkvm_pgtable;
 extern hyp_spinlock_t pkvm_pgd_lock;
+extern const struct pkvm_module_ops module_ops;
 
 int hyp_create_pcpu_fixmap(void);
 void *hyp_fixmap_map(phys_addr_t phys);
 void hyp_fixmap_unmap(void);
+void hyp_poison_page(phys_addr_t phys);
 
 int hyp_create_idmap(u32 hyp_va_bits);
 int hyp_map_vectors(void);
@@ -28,5 +30,16 @@ int __pkvm_create_private_mapping(phys_addr_t phys, size_t size,
 				  unsigned long *haddr);
 int pkvm_create_stack(phys_addr_t phys, unsigned long *haddr);
 int pkvm_alloc_private_va_range(size_t size, unsigned long *haddr);
+void pkvm_remove_mappings(void *from, void *to);
+phys_addr_t __pkvm_private_range_pa(void *va);
+int __hyp_allocator_map(unsigned long start, phys_addr_t phys);
 
+int __pkvm_map_module_page(u64 pfn, void *va, enum kvm_pgtable_prot prot, bool is_protected);
+void __pkvm_unmap_module_page(u64 pfn, void *va);
+void *__pkvm_alloc_module_va(u64 nr_pages);
+#ifdef CONFIG_NVHE_EL2_DEBUG
+void assert_in_mod_range(unsigned long addr);
+#else
+static inline void assert_in_mod_range(unsigned long addr) { }
+#endif /* CONFIG_NVHE_EL2_DEBUG */
 #endif /* __KVM_HYP_MM_H */

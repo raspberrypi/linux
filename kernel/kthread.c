@@ -541,6 +541,7 @@ void kthread_bind_mask(struct task_struct *p, const struct cpumask *mask)
 {
 	__kthread_bind_mask(p, mask, TASK_UNINTERRUPTIBLE);
 }
+EXPORT_SYMBOL_GPL(kthread_bind_mask);
 
 /**
  * kthread_bind - bind a just-created kthread to a cpu.
@@ -600,6 +601,7 @@ void kthread_set_per_cpu(struct task_struct *k, int cpu)
 	kthread->cpu = cpu;
 	set_bit(KTHREAD_IS_PER_CPU, &kthread->flags);
 }
+EXPORT_SYMBOL_GPL(kthread_set_per_cpu);
 
 bool kthread_is_per_cpu(struct task_struct *p)
 {

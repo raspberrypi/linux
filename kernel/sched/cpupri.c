@@ -196,6 +196,7 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(cpupri_find_fitness);
 
 /**
  * cpupri_set - update the CPU priority setting

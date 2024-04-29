@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <clocksource/hyperv_timer.h>
+#include <asm/mem_encrypt.h>
 #include <asm/mshyperv.h>
 #include <linux/set_memory.h>
 #include "hyperv_vmbus.h"

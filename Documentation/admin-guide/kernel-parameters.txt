@@ -500,6 +500,13 @@
 	bgrt_disable	[ACPI][X86]
 			Disable BGRT to avoid flickering OEM logo.
 
+	binder.impl=    [KNL]
+			Determines whether the Android Binder driver should use
+			the C implementation or the Rust implementation. Valid
+			values are 'c' or 'rust'. The config option
+			CONFIG_ANDROID_BINDER_IPC_DEFAULT_IS_RUST determines
+			the default value.
+
 	blkdevparts=	Manual partition parsing of block device(s) for
 			embedded devices based on command line input.
 			See Documentation/block/cmdline-partition.rst
@@ -1072,6 +1079,10 @@
 			causes the kernel to fall back to 256MB segments which
 			can be useful when debugging issues that require an SLB
 			miss to occur.
+
+	disable_dma32=	[KNL]
+			Dynamically disable ZONE_DMA32 on kernels compiled with
+			CONFIG_ZONE_DMA32=y.
 
 	disable=	[IPV6]
 			See Documentation/networking/ipv6.rst.
@@ -1856,6 +1867,10 @@
 				If specified, z/VM IUCV HVC accepts connections
 				from listed z/VM user IDs only.
 
+	hvc_dcc.enable=	[ARM,ARM64]	Enable DCC driver at runtime. For GKI,
+				disabled at runtime by default to prevent
+				crashes in devices which do not support DCC.
+
 	hv_nopvspin	[X86,HYPER_V] Disables the paravirt spinlock optimizations
 				      which allow the hypervisor to 'idle' the
 				      guest on lock contention.
@@ -2262,6 +2277,9 @@
 			1 - Bypass the IOMMU for DMA.
 			unset - Use value of CONFIG_IOMMU_DEFAULT_PASSTHROUGH.
 
+	ioremap_guard	[ARM64] enable the KVM MMIO guard functionality
+			if available.
+
 	io7=		[HW] IO7 for Marvel-based Alpha systems
 			See comment before marvel_specify_io7 in
 			arch/alpha/kernel/core_marvel.c.
@@ -2550,7 +2568,7 @@
 			CONFIG_KUNIT to be set to be fully enabled. The
 			default value can be overridden via
 			KUNIT_DEFAULT_ENABLED.
-			Default is 1 (enabled)
+			Default is 0 (disabled)
 
 	kvm.ignore_msrs=[KVM] Ignore guest accesses to unhandled MSRs.
 			Default is 0 (don't ignore, but inject #GP)
@@ -2626,7 +2644,9 @@
 			      protected guests.
 
 			protected: nVHE-based mode with support for guests whose
-				   state is kept private from the host.
+				   state is kept private from the host. See
+				   Documentation/virt/kvm/arm/pkvm.rst for more
+				   information about this mode of operation.
 
 			nested: VHE-based mode with support for nested
 				virtualization. Requires at least ARMv8.3
@@ -2636,6 +2656,13 @@
 			mode to "protected" will disable kexec and hibernation
 			for the host. "nested" is experimental and should be
 			used with extreme caution.
+
+	kvm-arm.protected_modules=
+			[KVM,ARM] List of pKVM modules to load before the host
+			is deprevileged.
+
+			This option only applies when booting with
+			kvm-arm.mode=protected.
 
 	kvm-arm.vgic_v3_group0_trap=
 			[KVM,ARM] Trap guest accesses to GICv3 group-0
@@ -4965,6 +4992,11 @@
 			this kernel boot parameter, forcibly setting it
 			to zero.
 
+	rcutree.enable_rcu_lazy= [KNL]
+			To save power, batch RCU callbacks and flush after
+			delay, memory pressure or callback list growing too
+			big.
+
 	rcuscale.gp_async= [KNL]
 			Measure performance of asynchronous
 			grace-period primitives such as call_rcu().
@@ -5241,6 +5273,21 @@
 
 	rcutorture.verbose= [KNL]
 			Enable additional printk() statements.
+
+	rcupdate.rcu_boot_end_delay= [KNL]
+			Minimum time in milliseconds from the start of boot
+			that must elapse before the boot sequence can be marked
+			complete from RCU's perspective, after which RCU's
+			behavior becomes more relaxed. The default value is also
+			configurable via CONFIG_RCU_BOOT_END_DELAY.
+			Userspace can also mark the boot as completed
+			sooner by writing the time in milliseconds, say once
+			userspace considers the system as booted, to:
+			/sys/module/rcupdate/parameters/rcu_boot_end_delay
+			Or even just writing a value of 0 to this sysfs node.
+			The sysfs node can also be used to extend the delay
+			to be larger than the default, assuming the marking
+			of boot complete has not yet occurred.
 
 	rcupdate.rcu_cpu_stall_ftrace_dump= [KNL]
 			Dump ftrace buffer after reporting RCU CPU
@@ -7131,6 +7178,15 @@
 			will report the work functions which violate this
 			threshold repeatedly. They are likely good
 			candidates for using WQ_UNBOUND workqueues instead.
+
+	workqueue.cpu_intensive_warning_thresh=<uint>
+			If CONFIG_WQ_CPU_INTENSIVE_REPORT is set, the kernel
+			will report the work functions which violate the
+			intensive_threshold_us repeatedly. In order to prevent
+			spurious warnings, start printing only after a work
+			function has violated this threshold number of times.
+
+			The default is 4 times. 0 disables the warning.
 
 	workqueue.power_efficient
 			Per-cpu workqueues are generally preferred because

@@ -33,24 +33,14 @@
 /* Maximum phys_shift supported for any VM on this host */
 static u32 __ro_after_init kvm_ipa_limit;
 
-/*
- * ARMv8 Reset Values
- */
-#define VCPU_RESET_PSTATE_EL1	(PSR_MODE_EL1h | PSR_A_BIT | PSR_I_BIT | \
-				 PSR_F_BIT | PSR_D_BIT)
-
-#define VCPU_RESET_PSTATE_EL2	(PSR_MODE_EL2h | PSR_A_BIT | PSR_I_BIT | \
-				 PSR_F_BIT | PSR_D_BIT)
-
-#define VCPU_RESET_PSTATE_SVC	(PSR_AA32_MODE_SVC | PSR_AA32_A_BIT | \
-				 PSR_AA32_I_BIT | PSR_AA32_F_BIT)
-
 unsigned int __ro_after_init kvm_sve_max_vl;
+unsigned int __ro_after_init kvm_host_sve_max_vl;
 
 int __init kvm_arm_init_sve(void)
 {
 	if (system_supports_sve()) {
 		kvm_sve_max_vl = sve_max_virtualisable_vl();
+		kvm_host_sve_max_vl = sve_max_vl();
 
 		/*
 		 * The get_sve_reg()/set_sve_reg() ioctl interface will need
@@ -90,15 +80,37 @@ static int kvm_vcpu_enable_sve(struct kvm_vcpu *vcpu)
 	return 0;
 }
 
+static int alloc_sve_state(struct kvm_vcpu *vcpu)
+{
+	size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
+	void *buf;
+	int ret;
+
+	if (kvm_vm_is_protected(vcpu->kvm))
+		return 0;
+
+	buf = alloc_pages_exact(reg_sz, GFP_KERNEL_ACCOUNT);
+	if (!buf)
+		return -ENOMEM;
+
+	ret = kvm_share_hyp(buf, buf + reg_sz);
+	if (ret) {
+		kfree(buf);
+		return ret;
+	}
+
+	vcpu->arch.sve_state = buf;
+
+	return 0;
+}
+
 /*
  * Finalize vcpu's maximum SVE vector length, allocating
  * vcpu->arch.sve_state as necessary.
  */
 static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 {
-	void *buf;
 	unsigned int vl;
-	size_t reg_sz;
 	int ret;
 
 	vl = vcpu->arch.sve_max_vl;
@@ -112,18 +124,10 @@ static int kvm_vcpu_finalize_sve(struct kvm_vcpu *vcpu)
 		    vl > VL_ARCH_MAX))
 		return -EIO;
 
-	reg_sz = vcpu_sve_state_size(vcpu);
-	buf = kzalloc(reg_sz, GFP_KERNEL_ACCOUNT);
-	if (!buf)
-		return -ENOMEM;
-
-	ret = kvm_share_hyp(buf, buf + reg_sz);
-	if (ret) {
-		kfree(buf);
+	ret = alloc_sve_state(vcpu);
+	if (ret)
 		return ret;
-	}
-	
-	vcpu->arch.sve_state = buf;
+
 	vcpu_set_flag(vcpu, VCPU_SVE_FINALIZED);
 	return 0;
 }
@@ -156,34 +160,25 @@ void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu)
 {
 	void *sve_state = vcpu->arch.sve_state;
 
-	kvm_vcpu_unshare_task_fp(vcpu);
 	kvm_unshare_hyp(vcpu, vcpu + 1);
-	if (sve_state)
-		kvm_unshare_hyp(sve_state, sve_state + vcpu_sve_state_size(vcpu));
-	kfree(sve_state);
+
+	if (sve_state) {
+		size_t reg_sz = PAGE_ALIGN(vcpu_sve_state_size(vcpu));
+
+		/* sve_allocate within the hypervisor when protected */
+		BUG_ON(kvm_vm_is_protected(vcpu->kvm));
+
+		kvm_unshare_hyp(sve_state, sve_state + reg_sz);
+		free_pages_exact(sve_state, reg_sz);
+	}
+
 	kfree(vcpu->arch.ccsidr);
 }
 
 static void kvm_vcpu_reset_sve(struct kvm_vcpu *vcpu)
 {
-	if (vcpu_has_sve(vcpu))
+	if (!kvm_vm_is_protected(vcpu->kvm) && vcpu_has_sve(vcpu))
 		memset(vcpu->arch.sve_state, 0, vcpu_sve_state_size(vcpu));
-}
-
-static int kvm_vcpu_enable_ptrauth(struct kvm_vcpu *vcpu)
-{
-	/*
-	 * For now make sure that both address/generic pointer authentication
-	 * features are requested by the userspace together and the system
-	 * supports these capabilities.
-	 */
-	if (!test_bit(KVM_ARM_VCPU_PTRAUTH_ADDRESS, vcpu->arch.features) ||
-	    !test_bit(KVM_ARM_VCPU_PTRAUTH_GENERIC, vcpu->arch.features) ||
-	    !system_has_full_ptr_auth())
-		return -EINVAL;
-
-	vcpu_set_flag(vcpu, GUEST_HAS_PTRAUTH);
-	return 0;
 }
 
 /**
@@ -209,7 +204,6 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 	struct vcpu_reset_state reset_state;
 	int ret;
 	bool loaded;
-	u32 pstate;
 
 	spin_lock(&vcpu->arch.mp_state_lock);
 	reset_state = vcpu->arch.reset_state;
@@ -248,26 +242,13 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 		}
 	}
 
-	if (vcpu_el1_is_32bit(vcpu))
-		pstate = VCPU_RESET_PSTATE_SVC;
-	else if (vcpu_has_nv(vcpu))
-		pstate = VCPU_RESET_PSTATE_EL2;
-	else
-		pstate = VCPU_RESET_PSTATE_EL1;
-
 	if (kvm_vcpu_has_pmu(vcpu) && !kvm_arm_support_pmu_v3()) {
 		ret = -EINVAL;
 		goto out;
 	}
 
 	/* Reset core registers */
-	memset(vcpu_gp_regs(vcpu), 0, sizeof(*vcpu_gp_regs(vcpu)));
-	memset(&vcpu->arch.ctxt.fp_regs, 0, sizeof(vcpu->arch.ctxt.fp_regs));
-	vcpu->arch.ctxt.spsr_abt = 0;
-	vcpu->arch.ctxt.spsr_und = 0;
-	vcpu->arch.ctxt.spsr_irq = 0;
-	vcpu->arch.ctxt.spsr_fiq = 0;
-	vcpu_gp_regs(vcpu)->pstate = pstate;
+	kvm_reset_vcpu_core(vcpu);
 
 	/* Reset system registers */
 	kvm_reset_sys_regs(vcpu);
@@ -276,22 +257,8 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 	 * Additional reset state handling that PSCI may have imposed on us.
 	 * Must be done after all the sys_reg reset.
 	 */
-	if (reset_state.reset) {
-		unsigned long target_pc = reset_state.pc;
-
-		/* Gracefully handle Thumb2 entry point */
-		if (vcpu_mode_is_32bit(vcpu) && (target_pc & 1)) {
-			target_pc &= ~1UL;
-			vcpu_set_thumb(vcpu);
-		}
-
-		/* Propagate caller endianness */
-		if (reset_state.be)
-			kvm_vcpu_set_be(vcpu);
-
-		*vcpu_pc(vcpu) = target_pc;
-		vcpu_set_reg(vcpu, 0, reset_state.r0);
-	}
+	if (reset_state.reset)
+		kvm_reset_vcpu_psci(vcpu, &reset_state);
 
 	/* Reset timer */
 	ret = kvm_timer_vcpu_reset(vcpu);

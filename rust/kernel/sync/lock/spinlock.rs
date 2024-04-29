@@ -82,7 +82,7 @@ macro_rules! new_spinlock {
 /// }
 /// ```
 ///
-/// [`spinlock_t`]: ../../../../include/linux/spinlock.h
+/// [`spinlock_t`]: srctree/include/linux/spinlock.h
 pub type SpinLock<T> = super::Lock<T, SpinLockBackend>;
 
 /// A kernel `spinlock_t` lock backend.
@@ -108,6 +108,16 @@ unsafe impl super::Backend for SpinLockBackend {
         // SAFETY: The safety requirements of this function ensure that `ptr` points to valid
         // memory, and that it has been initialised before.
         unsafe { bindings::spin_lock(ptr) }
+    }
+
+    unsafe fn trylock(ptr: *mut Self::State) -> Option<Self::GuardState> {
+        // SAFETY: The safety requirements of this function ensure that `ptr` points to valid
+        // memory, and that it has been initialised before.
+        if unsafe { bindings::spin_trylock(ptr) } != 0 {
+            Some(())
+        } else {
+            None
+        }
     }
 
     unsafe fn unlock(ptr: *mut Self::State, _guard_state: &Self::GuardState) {

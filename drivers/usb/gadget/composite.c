@@ -17,11 +17,13 @@
 #include <linux/uuid.h>
 
 #include <linux/usb/composite.h>
+#include <linux/usb/android_accessory.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/webusb.h>
 #include <asm/unaligned.h>
 
 #include "u_os_desc.h"
+#include "android_configfs_uevent.h"
 
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
@@ -941,6 +943,7 @@ static void reset_config(struct usb_composite_dev *cdev)
 		bitmap_zero(f->endpoints, 32);
 	}
 	cdev->config = NULL;
+	android_set_unconfigured(&cdev->android_opts);
 	cdev->delayed_status = 0;
 }
 
@@ -1788,6 +1791,8 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	struct usb_function		*iter;
 	u8				endp;
 
+	android_set_connected(&cdev->android_opts);
+
 	if (w_length > USB_COMP_EP0_BUFSIZ) {
 		if (ctrl->bRequestType & USB_DIR_IN) {
 			/* Cast away the const, we are going to overwrite on purpose. */
@@ -1922,6 +1927,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		spin_lock(&cdev->lock);
 		value = set_config(cdev, ctrl, w_value);
 		spin_unlock(&cdev->lock);
+		android_set_configured(&cdev->android_opts);
 		break;
 	case USB_REQ_GET_CONFIGURATION:
 		if (ctrl->bRequestType != USB_DIR_IN)
@@ -2224,6 +2230,23 @@ unknown:
 		}
 		f = NULL;
 
+		/*
+		 * Android: The accessory function can handle some control
+		 * requests despite not being allocated to a config. Therefore,
+		 * the upstream logic for checking req_match will not work until
+		 * the attached device issues an ACCESSORY_START command and
+		 * userspace tears down the gadget, adds the accessory function
+		 * to the config, and binds the config to the UDC again.
+		 *
+		 * To workaround the existing userspace limitiations, check to
+		 * see if the f_accessory driver can handle the ctrl request,
+		 * and if so, pass it along.
+		 */
+		if (android_acc_req_match_composite(cdev, ctrl)) {
+			value = android_acc_setup_composite(cdev, ctrl);
+			goto done;
+		}
+
 		switch (ctrl->bRequestType & USB_RECIP_MASK) {
 		case USB_RECIP_INTERFACE:
 			if (!cdev->config || intf >= MAX_CONFIG_INTERFACES)
@@ -2298,6 +2321,14 @@ static void __composite_disconnect(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 	unsigned long			flags;
+
+	/*
+	 * Android: f_accessory can handle HID packets without being bound to a
+	 *  config so we unfortunately require this hook to clean it up.
+	 */
+	android_acc_disconnect();
+
+	android_set_disconnected(&cdev->android_opts);
 
 	/* REVISIT:  should we have config and device level
 	 * disconnect callbacks?

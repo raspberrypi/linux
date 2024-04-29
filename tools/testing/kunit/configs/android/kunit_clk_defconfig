@@ -1,0 +1,3 @@
+# Only for architectures that set CONFIG_COMMON_CLK
+CONFIG_CLK_KUNIT_TEST=m
+CONFIG_CLK_GATE_KUNIT_TEST=m

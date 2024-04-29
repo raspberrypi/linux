@@ -68,7 +68,7 @@ if [ "$building_out_of_srctree" ]; then
 		cd $srctree
 		for f in $dir_list
 			do find "$f" -name "*.h";
-		done | cpio --quiet -pd $cpio_dir
+		done | cpio --quiet -L -pd $cpio_dir
 	)
 fi
 
@@ -76,7 +76,7 @@ fi
 # of tree builds having stale headers in srctree. Just silence CPIO for now.
 for f in $dir_list;
 	do find "$f" -name "*.h";
-done | cpio --quiet -pdu $cpio_dir >/dev/null 2>&1
+done | cpio --quiet -L -pdu $cpio_dir >/dev/null 2>&1
 
 # Remove comments except SDPX lines
 find $cpio_dir -type f -print0 |

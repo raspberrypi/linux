@@ -9,6 +9,7 @@
 #include <linux/dma-map-ops.h>
 #include <linux/iommu.h>
 #include <xen/xen.h>
+#include <trace/hooks/iommu.h>
 
 #include <asm/cacheflush.h>
 #include <asm/xen/xen-ops.h>
@@ -58,8 +59,10 @@ void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 		   ARCH_DMA_MINALIGN, cls);
 
 	dev->dma_coherent = coherent;
-	if (iommu)
+	if (iommu) {
 		iommu_setup_dma_ops(dev, dma_base, dma_base + size - 1);
+		trace_android_rvh_iommu_setup_dma_ops(dev, dma_base, dma_base + size - 1);
+	}
 
 	xen_setup_dma_ops(dev);
 }

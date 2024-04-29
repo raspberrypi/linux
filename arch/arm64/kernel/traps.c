@@ -49,6 +49,8 @@
 #include <asm/system_misc.h>
 #include <asm/sysreg.h>
 
+#include <trace/hooks/traps.h>
+
 static bool __kprobes __check_eq(unsigned long pstate)
 {
 	return (pstate & PSR_Z_BIT) != 0;
@@ -483,6 +485,7 @@ void do_el1_undef(struct pt_regs *regs, unsigned long esr)
 		return;
 
 out_err:
+	trace_android_rvh_do_el1_undef(regs, esr);
 	die("Oops - Undefined instruction", regs, esr);
 }
 
@@ -497,6 +500,8 @@ void do_el1_bti(struct pt_regs *regs, unsigned long esr)
 		regs->pstate &= ~PSR_BTYPE_MASK;
 		return;
 	}
+
+	trace_android_rvh_do_el1_bti(regs, esr);
 	die("Oops - BTI", regs, esr);
 }
 
@@ -511,6 +516,7 @@ void do_el1_fpac(struct pt_regs *regs, unsigned long esr)
 	 * Unexpected FPAC exception in the kernel: kill the task before it
 	 * does any more harm.
 	 */
+	trace_android_rvh_do_el1_fpac(regs, esr);
 	die("Oops - FPAC", regs, esr);
 }
 
@@ -957,6 +963,8 @@ void __noreturn arm64_serror_panic(struct pt_regs *regs, unsigned long esr)
 
 	pr_crit("SError Interrupt on CPU%d, code 0x%016lx -- %s\n",
 		smp_processor_id(), esr, esr_get_class_string(esr));
+
+	trace_android_rvh_arm64_serror_panic(regs, esr);
 	if (regs)
 		__show_regs(regs);
 

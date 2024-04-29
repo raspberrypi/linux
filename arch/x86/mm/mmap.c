@@ -11,6 +11,7 @@
  * Copyright 2007 Jiri Kosina, SUSE Labs.
  */
 
+#include <linux/page_size_compat.h>
 #include <linux/personality.h>
 #include <linux/mm.h>
 #include <linux/random.h>
@@ -71,7 +72,7 @@ static unsigned long arch_rnd(unsigned int rndbits)
 {
 	if (!(current->flags & PF_RANDOMIZE))
 		return 0;
-	return (get_random_long() & ((1UL << rndbits) - 1)) << PAGE_SHIFT;
+	return (get_random_long() & ((1UL << rndbits) - 1)) << __PAGE_SHIFT;
 }
 
 unsigned long arch_mmap_rnd(void)

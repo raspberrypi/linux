@@ -24,17 +24,21 @@ use crate::{
 };
 use alloc::boxed::Box;
 use core::{
-    alloc::AllocError,
+    alloc::{AllocError, Layout},
     fmt,
     marker::{PhantomData, Unsize},
     mem::{ManuallyDrop, MaybeUninit},
     ops::{Deref, DerefMut},
     pin::Pin,
-    ptr::NonNull,
+    ptr::{NonNull, Pointee},
 };
 use macros::pin_data;
 
 mod std_vendor;
+
+// Use Rust implementations of refcount methods in Arc.
+mod refcount_t;
+use self::refcount_t::{refcount_dec_and_test, refcount_inc, REFCOUNT_INIT};
 
 /// A reference-counted pointer to an instance of `T`.
 ///
@@ -166,7 +170,7 @@ impl<T> Arc<T> {
         // INVARIANT: The refcount is initialised to a non-zero value.
         let value = ArcInner {
             // SAFETY: There are no safety requirements for this FFI call.
-            refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            refcount: Opaque::new(unsafe { REFCOUNT_INIT(1) }),
             data: contents,
         };
 
@@ -215,6 +219,32 @@ impl<T: ?Sized> Arc<T> {
         }
     }
 
+    /// Convert the [`Arc`] into a raw pointer.
+    ///
+    /// The raw pointer has ownership of the refcount that this Arc object owned.
+    pub fn into_raw(self) -> *const T {
+        let ptr = self.ptr.as_ptr();
+        core::mem::forget(self);
+        // SAFETY: The pointer is valid.
+        unsafe { core::ptr::addr_of!((*ptr).data) }
+    }
+
+    /// Recreates an [`Arc`] instance previously deconstructed via [`Arc::into_raw`].
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must have been returned by a previous call to [`Arc::into_raw`]. Additionally, it
+    /// must not be called more than once for each previous call to [`Arc::into_raw`].
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        // SAFETY: The pointer returned by `into_raw` points at the `data` field of an
+        // `ArcInner<T>`.
+        let ptr = unsafe { raw_to_inner_ptr(ptr) };
+
+        // SAFETY: By the safety requirements we know that `ptr` came from `Arc::into_raw`, so the
+        // reference count held then will be owned by the new `Arc` object.
+        unsafe { Self::from_inner(ptr) }
+    }
+
     /// Returns an [`ArcBorrow`] from the given [`Arc`].
     ///
     /// This is useful when the argument of a function call is an [`ArcBorrow`] (e.g., in a method
@@ -231,6 +261,68 @@ impl<T: ?Sized> Arc<T> {
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         core::ptr::eq(this.ptr.as_ptr(), other.ptr.as_ptr())
     }
+
+    /// Converts this [`Arc`] into a [`UniqueArc`], or destroys it if it is not unique.
+    ///
+    /// This method properly avoids races, so when this destroys the `Arc`, it never runs the
+    /// destructor of the value.
+    pub fn into_unique_or_drop(self) -> Option<Pin<UniqueArc<T>>> {
+        // We will manually manage the refcount in this method, so we disable the destructor.
+        let me = ManuallyDrop::new(self);
+        // SAFETY: The `Arc` cannot be destroyed during this method, so this is safe.
+        let refcount = unsafe { me.ptr.as_ref() }.refcount.get();
+
+        // SAFETY: If the refcount reaches a non-zero value, then we have destroyed this `Arc` and
+        // will return without running its destructor. If the refcount reaches zero, then there are
+        // no other arcs, and we can create a `UniqueArc`.
+        let is_zero = unsafe { refcount_dec_and_test(refcount) };
+        if is_zero {
+            // SAFETY: We have exclusive access to the arc, so we can perform unsynchronized
+            // accesses to the refcount.
+            unsafe { core::ptr::write(refcount, REFCOUNT_INIT(1)) };
+
+            // SAFETY: We own one refcount, so we can create a `UniqueArc`. It needs to be pinned,
+            // since an `Arc` is pinned.
+            unsafe {
+                Some(Pin::new_unchecked(UniqueArc {
+                    inner: Arc::from_inner(me.ptr),
+                }))
+            }
+        } else {
+            None
+        }
+    }
+}
+
+/// Converts a pointer to the contents of an [`Arc`] into a pointer to the [`ArcInner`].
+///
+/// # Safety
+///
+/// The provided pointer must point the `data` field of an `ArcInner<T>` value.
+unsafe fn raw_to_inner_ptr<T: ?Sized>(ptr: *const T) -> NonNull<ArcInner<T>> {
+    let refcount_layout = Layout::new::<bindings::refcount_t>();
+    // SAFETY: The caller guarantees that the pointer is valid.
+    let val_layout = Layout::for_value(unsafe { &*ptr });
+    // SAFETY: We're computing the layout of a real struct that existed when compiling this
+    // binary, so its layout is not so large that it can trigger arithmetic overflow.
+    let val_offset = unsafe { refcount_layout.extend(val_layout).unwrap_unchecked().1 };
+
+    let metadata: <T as Pointee>::Metadata = core::ptr::metadata(ptr);
+    // SAFETY: The metadata of `T` and `ArcInner<T>` is the same because `ArcInner` is a struct
+    // with `T` as its last field.
+    //
+    // This is documented at:
+    // <https://doc.rust-lang.org/std/ptr/trait.Pointee.html>.
+    let metadata: <ArcInner<T> as Pointee>::Metadata =
+        unsafe { core::mem::transmute_copy(&metadata) };
+    // SAFETY: The pointer is in-bounds of an allocation both before and after offsetting the
+    // pointer, since it originates from a previous call to `Arc::into_raw` and is still valid.
+    let ptr = unsafe { (ptr as *mut u8).sub(val_offset) as *mut () };
+    let ptr = core::ptr::from_raw_parts_mut(ptr, metadata);
+
+    // SAFETY: The pointer can't be null since you can't have an `ArcInner<T>` value at the null
+    // address.
+    unsafe { NonNull::new_unchecked(ptr) }
 }
 
 impl<T: 'static> ForeignOwnable for Arc<T> {
@@ -279,7 +371,7 @@ impl<T: ?Sized> Clone for Arc<T> {
         // INVARIANT: C `refcount_inc` saturates the refcount, so it cannot overflow to zero.
         // SAFETY: By the type invariant, there is necessarily a reference to the object, so it is
         // safe to increment the refcount.
-        unsafe { bindings::refcount_inc(self.ptr.as_ref().refcount.get()) };
+        unsafe { refcount_inc(self.ptr.as_ref().refcount.get()) };
 
         // SAFETY: We just incremented the refcount. This increment is now owned by the new `Arc`.
         unsafe { Self::from_inner(self.ptr) }
@@ -297,7 +389,7 @@ impl<T: ?Sized> Drop for Arc<T> {
         // INVARIANT: If the refcount reaches zero, there are no other instances of `Arc`, and
         // this instance is being dropped, so the broken invariant is not observable.
         // SAFETY: Also by the type invariant, we are allowed to decrement the refcount.
-        let is_zero = unsafe { bindings::refcount_dec_and_test(refcount) };
+        let is_zero = unsafe { refcount_dec_and_test(refcount) };
         if is_zero {
             // The count reached zero, we must free the memory.
             //
@@ -412,6 +504,27 @@ impl<T: ?Sized> ArcBorrow<'_, T> {
             inner,
             _p: PhantomData,
         }
+    }
+
+    /// Creates an [`ArcBorrow`] to an [`Arc`] that has previously been deconstructed with
+    /// [`Arc::into_raw`].
+    ///
+    /// # Safety
+    ///
+    /// * The provided pointer must originate from a call to [`Arc::into_raw`].
+    /// * For the duration of the lifetime annotated on this `ArcBorrow`, the reference count must
+    ///   not hit zero.
+    /// * For the duration of the lifetime annotated on this `ArcBorrow`, there must not be a
+    ///   [`UniqueArc`] reference to this value.
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        // SAFETY: The pointer returned by `into_raw` points at the `data` field of an
+        // `ArcInner<T>`.
+        let ptr = unsafe { raw_to_inner_ptr(ptr) };
+
+        // SAFETY: The caller promises that the value remains valid since the reference count must
+        // not hit zero, and no mutable reference will be created since that would involve a
+        // `UniqueArc`.
+        unsafe { Self::new(ptr) }
     }
 }
 
@@ -528,7 +641,7 @@ impl<T> UniqueArc<T> {
         // INVARIANT: The refcount is initialised to a non-zero value.
         let inner = Box::try_init::<AllocError>(try_init!(ArcInner {
             // SAFETY: There are no safety requirements for this FFI call.
-            refcount: Opaque::new(unsafe { bindings::REFCOUNT_INIT(1) }),
+            refcount: Opaque::new(unsafe { REFCOUNT_INIT(1) }),
             data <- init::uninit::<T, AllocError>(),
         }? AllocError))?;
         Ok(UniqueArc {

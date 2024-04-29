@@ -1498,12 +1498,13 @@ static bool cfg80211_bss_type_match(u16 capability,
 }
 
 /* Returned bss is reference counted and must be cleaned up appropriately. */
-struct cfg80211_bss *cfg80211_get_bss(struct wiphy *wiphy,
-				      struct ieee80211_channel *channel,
-				      const u8 *bssid,
-				      const u8 *ssid, size_t ssid_len,
-				      enum ieee80211_bss_type bss_type,
-				      enum ieee80211_privacy privacy)
+struct cfg80211_bss *__cfg80211_get_bss(struct wiphy *wiphy,
+					struct ieee80211_channel *channel,
+					const u8 *bssid,
+					const u8 *ssid, size_t ssid_len,
+					enum ieee80211_bss_type bss_type,
+					enum ieee80211_privacy privacy,
+					u32 use_for)
 {
 	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
 	struct cfg80211_internal_bss *bss, *res = NULL;
@@ -1528,6 +1529,8 @@ struct cfg80211_bss *cfg80211_get_bss(struct wiphy *wiphy,
 			continue;
 		if (!is_valid_ether_addr(bss->pub.bssid))
 			continue;
+		if ((bss->pub.use_for & use_for) != use_for)
+			continue;
 		/* Don't get expired BSS structs */
 		if (time_after(now, bss->ts + IEEE80211_SCAN_RESULT_EXPIRE) &&
 		    !atomic_read(&bss->hold))
@@ -1545,7 +1548,7 @@ struct cfg80211_bss *cfg80211_get_bss(struct wiphy *wiphy,
 	trace_cfg80211_return_bss(&res->pub);
 	return &res->pub;
 }
-EXPORT_SYMBOL(cfg80211_get_bss);
+EXPORT_SYMBOL(__cfg80211_get_bss);
 
 static void rb_insert_bss(struct cfg80211_registered_device *rdev,
 			  struct cfg80211_internal_bss *bss)
@@ -1711,7 +1714,9 @@ cfg80211_update_known_bss(struct cfg80211_registered_device *rdev,
 				   new->pub.proberesp_ies);
 		if (old)
 			kfree_rcu((struct cfg80211_bss_ies *)old, rcu_head);
-	} else if (rcu_access_pointer(new->pub.beacon_ies)) {
+	}
+
+	if (rcu_access_pointer(new->pub.beacon_ies)) {
 		const struct cfg80211_bss_ies *old;
 
 		if (known->pub.hidden_beacon_bss &&
@@ -1765,6 +1770,8 @@ cfg80211_update_known_bss(struct cfg80211_registered_device *rdev,
 	ether_addr_copy(known->parent_bssid, new->parent_bssid);
 	known->pub.max_bssid_indicator = new->pub.max_bssid_indicator;
 	known->pub.bssid_index = new->pub.bssid_index;
+	known->pub.use_for &= new->pub.use_for;
+	known->pub.cannot_use_reasons = new->pub.cannot_use_reasons;
 
 	return true;
 }
@@ -1776,15 +1783,15 @@ __cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 		      bool signal_valid, unsigned long ts)
 {
 	struct cfg80211_internal_bss *found = NULL;
+	struct cfg80211_bss_ies *ies;
 
 	if (WARN_ON(!tmp->pub.channel))
-		return NULL;
+		goto free_ies;
 
 	tmp->ts = ts;
 
-	if (WARN_ON(!rcu_access_pointer(tmp->pub.ies))) {
-		return NULL;
-	}
+	if (WARN_ON(!rcu_access_pointer(tmp->pub.ies)))
+		goto free_ies;
 
 	found = rb_find_bss(rdev, tmp, BSS_CMP_REGULAR);
 
@@ -1794,7 +1801,6 @@ __cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 	} else {
 		struct cfg80211_internal_bss *new;
 		struct cfg80211_internal_bss *hidden;
-		struct cfg80211_bss_ies *ies;
 
 		/*
 		 * create a copy -- the "res" variable that is passed in
@@ -1803,15 +1809,8 @@ __cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 		 */
 		new = kzalloc(sizeof(*new) + rdev->wiphy.bss_priv_size,
 			      GFP_ATOMIC);
-		if (!new) {
-			ies = (void *)rcu_dereference(tmp->pub.beacon_ies);
-			if (ies)
-				kfree_rcu(ies, rcu_head);
-			ies = (void *)rcu_dereference(tmp->pub.proberesp_ies);
-			if (ies)
-				kfree_rcu(ies, rcu_head);
-			return NULL;
-		}
+		if (!new)
+			goto free_ies;
 		memcpy(new, tmp, sizeof(*new));
 		new->refcount = 1;
 		INIT_LIST_HEAD(&new->hidden_list);
@@ -1871,6 +1870,16 @@ __cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 	bss_ref_get(rdev, found);
 
 	return found;
+
+free_ies:
+	ies = (void *)rcu_dereference(tmp->pub.beacon_ies);
+	if (ies)
+		kfree_rcu(ies, rcu_head);
+	ies = (void *)rcu_dereference(tmp->pub.proberesp_ies);
+	if (ies)
+		kfree_rcu(ies, rcu_head);
+
+	return NULL;
 }
 
 struct cfg80211_internal_bss *
@@ -2024,6 +2033,9 @@ struct cfg80211_inform_single_bss_data {
 	struct cfg80211_bss *source_bss;
 	u8 max_bssid_indicator;
 	u8 bssid_index;
+
+	u8 use_for;
+	u64 cannot_use_reasons;
 };
 
 /* Returned bss is reference counted and must be cleaned up appropriately. */
@@ -2071,6 +2083,8 @@ cfg80211_inform_single_bss_data(struct wiphy *wiphy,
 	tmp.ts_boottime = drv_data->boottime_ns;
 	tmp.parent_tsf = drv_data->parent_tsf;
 	ether_addr_copy(tmp.parent_bssid, drv_data->parent_bssid);
+	tmp.pub.use_for = data->use_for;
+	tmp.pub.cannot_use_reasons = data->cannot_use_reasons;
 
 	if (data->bss_source != BSS_SOURCE_DIRECT) {
 		tmp.pub.transmitted_bss = data->source_bss;
@@ -2241,6 +2255,8 @@ cfg80211_parse_mbssid_data(struct wiphy *wiphy,
 		.beacon_interval = tx_data->beacon_interval,
 		.source_bss = source_bss,
 		.bss_source = BSS_SOURCE_MBSSID,
+		.use_for = tx_data->use_for,
+		.cannot_use_reasons = tx_data->cannot_use_reasons,
 	};
 	const u8 *mbssid_index_ie;
 	const struct element *elem, *sub;
@@ -2503,7 +2519,7 @@ error:
 	return NULL;
 }
 
-static bool
+static u8
 cfg80211_tbtt_info_for_mld_ap(const u8 *ie, size_t ielen, u8 mld_id, u8 link_id,
 			      const struct ieee80211_neighbor_ap_info **ap_info,
 			      const u8 **tbtt_info)
@@ -2522,6 +2538,7 @@ cfg80211_tbtt_info_for_mld_ap(const u8 *ie, size_t ielen, u8 mld_id, u8 link_id,
 			u16 params;
 			u8 length, i, count, mld_params_offset;
 			u8 type, lid;
+			u32 use_for;
 
 			info = (void *)pos;
 			count = u8_get_bits(info->tbtt_info_hdr,
@@ -2531,20 +2548,22 @@ cfg80211_tbtt_info_for_mld_ap(const u8 *ie, size_t ielen, u8 mld_id, u8 link_id,
 			pos += sizeof(*info);
 
 			if (count * length > end - pos)
-				return false;
+				return 0;
 
 			type = u8_get_bits(info->tbtt_info_hdr,
 					   IEEE80211_AP_INFO_TBTT_HDR_TYPE);
 
-			/* Only accept full TBTT information. NSTR mobile APs
-			 * use the shortened version, but we ignore them here.
-			 */
 			if (type == IEEE80211_TBTT_INFO_TYPE_TBTT &&
 			    length >=
 			    offsetofend(struct ieee80211_tbtt_info_ge_11,
 					mld_params)) {
 				mld_params_offset =
 					offsetof(struct ieee80211_tbtt_info_ge_11, mld_params);
+				use_for = NL80211_BSS_USE_FOR_ALL;
+			} else if (type == IEEE80211_TBTT_INFO_TYPE_MLD &&
+				   length >= sizeof(struct ieee80211_rnr_mld_params)) {
+				mld_params_offset = 0;
+				use_for = NL80211_BSS_USE_FOR_MLD_LINK;
 			} else {
 				pos += count * length;
 				continue;
@@ -2562,7 +2581,7 @@ cfg80211_tbtt_info_for_mld_ap(const u8 *ie, size_t ielen, u8 mld_id, u8 link_id,
 					*ap_info = info;
 					*tbtt_info = pos;
 
-					return true;
+					return use_for;
 				}
 
 				pos += length;
@@ -2570,7 +2589,7 @@ cfg80211_tbtt_info_for_mld_ap(const u8 *ie, size_t ielen, u8 mld_id, u8 link_id,
 		}
 	}
 
-	return false;
+	return 0;
 }
 
 static void
@@ -2654,7 +2673,7 @@ cfg80211_parse_ml_elem_sta_data(struct wiphy *wiphy,
 		const u8 *profile;
 		const u8 *tbtt_info;
 		ssize_t profile_len;
-		u8 link_id;
+		u8 link_id, use_for;
 
 		if (!ieee80211_mle_basic_sta_prof_size_ok((u8 *)mle->sta_prof[i],
 							  mle->sta_prof_len[i]))
@@ -2696,9 +2715,11 @@ cfg80211_parse_ml_elem_sta_data(struct wiphy *wiphy,
 		profile_len -= 2;
 
 		/* Find in RNR to look up channel information */
-		if (!cfg80211_tbtt_info_for_mld_ap(tx_data->ie, tx_data->ielen,
-						   mld_id, link_id,
-						   &ap_info, &tbtt_info))
+		use_for = cfg80211_tbtt_info_for_mld_ap(tx_data->ie,
+							tx_data->ielen,
+							mld_id, link_id,
+							&ap_info, &tbtt_info);
+		if (!use_for)
 			continue;
 
 		/* We could sanity check the BSSID is included */
@@ -2709,6 +2730,14 @@ cfg80211_parse_ml_elem_sta_data(struct wiphy *wiphy,
 
 		freq = ieee80211_channel_to_freq_khz(ap_info->channel, band);
 		data.channel = ieee80211_get_channel_khz(wiphy, freq);
+
+		if (use_for == NL80211_BSS_USE_FOR_MLD_LINK &&
+		    !(wiphy->flags & WIPHY_FLAG_SUPPORTS_NSTR_NONPRIMARY)) {
+			use_for = 0;
+			data.cannot_use_reasons =
+				NL80211_BSS_CANNOT_USE_NSTR_NONPRIMARY;
+		}
+		data.use_for = use_for;
 
 		/* Generate new elements */
 		memset(new_ie, 0, IEEE80211_MAX_DATA_LEN);
@@ -2766,6 +2795,10 @@ cfg80211_inform_bss_data(struct wiphy *wiphy,
 		.beacon_interval = beacon_interval,
 		.ie = ie,
 		.ielen = ielen,
+		.use_for = data->restrict_use ?
+				data->use_for :
+				NL80211_BSS_USE_FOR_ALL,
+		.cannot_use_reasons = data->cannot_use_reasons,
 	};
 	struct cfg80211_bss *res;
 
@@ -2898,6 +2931,10 @@ cfg80211_inform_single_bss_frame_data(struct wiphy *wiphy,
 	tmp.pub.chains = data->chains;
 	memcpy(tmp.pub.chain_signal, data->chain_signal, IEEE80211_MAX_CHAINS);
 	ether_addr_copy(tmp.parent_bssid, data->parent_bssid);
+	tmp.pub.use_for = data->restrict_use ?
+				data->use_for :
+				NL80211_BSS_USE_FOR_ALL;
+	tmp.pub.cannot_use_reasons = data->cannot_use_reasons;
 
 	signal_valid = data->chan == channel;
 	spin_lock_bh(&rdev->bss_lock);
@@ -2929,6 +2966,10 @@ cfg80211_inform_bss_frame_data(struct wiphy *wiphy,
 		.ie = mgmt->u.probe_resp.variable,
 		.ielen = len - offsetof(struct ieee80211_mgmt,
 					u.probe_resp.variable),
+		.use_for = data->restrict_use ?
+				data->use_for :
+				NL80211_BSS_USE_FOR_ALL,
+		.cannot_use_reasons = data->cannot_use_reasons,
 	};
 	struct cfg80211_bss *res;
 
@@ -3079,10 +3120,9 @@ void cfg80211_update_assoc_bss_entry(struct wireless_dev *wdev,
 
 	if (new) {
 		/* to save time, update IEs for transmitting bss only */
-		if (cfg80211_update_known_bss(rdev, cbss, new, false)) {
-			new->pub.proberesp_ies = NULL;
-			new->pub.beacon_ies = NULL;
-		}
+		cfg80211_update_known_bss(rdev, cbss, new, false);
+		new->pub.proberesp_ies = NULL;
+		new->pub.beacon_ies = NULL;
 
 		list_for_each_entry_safe(nontrans_bss, tmp,
 					 &new->pub.nontrans_list,

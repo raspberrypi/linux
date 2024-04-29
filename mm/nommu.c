@@ -29,6 +29,7 @@
 #include <linux/backing-dev.h>
 #include <linux/compiler.h>
 #include <linux/mount.h>
+#include <linux/page_size_compat.h>
 #include <linux/personality.h>
 #include <linux/security.h>
 #include <linux/syscalls.h>

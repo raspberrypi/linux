@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <linux/mm_types.h>
 #include <linux/blkdev.h>
+#include <linux/android_kabi.h>
 
 struct address_space;
 struct fiemap_extent_info;
@@ -103,6 +104,8 @@ struct iomap {
 	void			*private; /* filesystem private */
 	const struct iomap_folio_ops *folio_ops;
 	u64			validity_cookie; /* used with .iomap_valid() */
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 static inline sector_t iomap_sector(const struct iomap *iomap, loff_t pos)
@@ -197,6 +200,9 @@ struct iomap_ops {
 	 */
 	int (*iomap_end)(struct inode *inode, loff_t pos, loff_t length,
 			ssize_t written, unsigned flags, struct iomap *iomap);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 /**

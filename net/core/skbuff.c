@@ -84,6 +84,8 @@
 #include <linux/indirect_call_wrapper.h>
 #include <linux/textsearch.h>
 
+#include <trace/hooks/net.h>
+
 #include "dev.h"
 #include "sock_destructor.h"
 
@@ -402,6 +404,8 @@ struct sk_buff *slab_build_skb(void *data)
 	data = __slab_build_skb(skb, data, &size);
 	__finalize_skb_around(skb, data, size);
 
+	trace_android_vh_build_skb_around(skb);
+
 	return skb;
 }
 EXPORT_SYMBOL(slab_build_skb);
@@ -419,6 +423,8 @@ static void __build_skb_around(struct sk_buff *skb, void *data,
 		data = __slab_build_skb(skb, data, &size);
 
 	__finalize_skb_around(skb, data, size);
+
+	trace_android_vh_build_skb_around(skb);
 }
 
 /**

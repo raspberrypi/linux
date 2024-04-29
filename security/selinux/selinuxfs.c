@@ -14,6 +14,7 @@
 
 #include <linux/kernel.h>
 #include <linux/pagemap.h>
+#include <linux/page_size_compat.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/fs.h>
@@ -248,7 +249,7 @@ static int sel_mmap_handle_status(struct file *filp,
 	BUG_ON(!status);
 
 	/* only allows one page from the head */
-	if (vma->vm_pgoff > 0 || size != PAGE_SIZE)
+	if (vma->vm_pgoff > 0 || size != __PAGE_SIZE)
 		return -EIO;
 	/* disallow writable mapping */
 	if (vma->vm_flags & VM_WRITE)

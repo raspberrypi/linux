@@ -912,6 +912,7 @@ void lru_add_drain_all(void)
 #endif /* CONFIG_SMP */
 
 atomic_t lru_disable_count = ATOMIC_INIT(0);
+EXPORT_SYMBOL_GPL(lru_disable_count);
 
 /*
  * lru_cache_disable() needs to be called before we start compiling
@@ -923,7 +924,12 @@ atomic_t lru_disable_count = ATOMIC_INIT(0);
  */
 void lru_cache_disable(void)
 {
-	atomic_inc(&lru_disable_count);
+	/*
+	 * If someone is already disabled lru_cache, just return with
+	 * increasing the lru_disable_count.
+	 */
+	if (atomic_inc_not_zero(&lru_disable_count))
+		return;
 	/*
 	 * Readers of lru_disable_count are protected by either disabling
 	 * preemption or rcu_read_lock:
@@ -943,7 +949,9 @@ void lru_cache_disable(void)
 #else
 	lru_add_and_bh_lrus_drain();
 #endif
+	atomic_inc(&lru_disable_count);
 }
+EXPORT_SYMBOL_GPL(lru_cache_disable);
 
 /**
  * release_pages - batched put_page()
@@ -967,10 +975,16 @@ void release_pages(release_pages_arg arg, int nr)
 	unsigned int lock_batch;
 
 	for (i = 0; i < nr; i++) {
+		unsigned int nr_refs = 1;
 		struct folio *folio;
 
 		/* Turn any of the argument types into a folio */
 		folio = page_folio(encoded_page_ptr(encoded[i]));
+
+		/* Is our next entry actually "nr_pages" -> "nr_refs" ? */
+		if (unlikely(encoded_page_flags(encoded[i]) &
+			     ENCODED_PAGE_BIT_NR_PAGES_NEXT))
+			nr_refs = encoded_nr_pages(encoded[++i]);
 
 		/*
 		 * Make sure the IRQ-safe lock-holding time does not get
@@ -990,14 +1004,14 @@ void release_pages(release_pages_arg arg, int nr)
 				unlock_page_lruvec_irqrestore(lruvec, flags);
 				lruvec = NULL;
 			}
-			if (put_devmap_managed_page(&folio->page))
+			if (put_devmap_managed_page_refs(&folio->page, nr_refs))
 				continue;
-			if (folio_put_testzero(folio))
+			if (folio_ref_sub_and_test(folio, nr_refs))
 				free_zone_device_page(&folio->page);
 			continue;
 		}
 
-		if (!folio_put_testzero(folio))
+		if (!folio_ref_sub_and_test(folio, nr_refs))
 			continue;
 
 		if (folio_test_large(folio)) {

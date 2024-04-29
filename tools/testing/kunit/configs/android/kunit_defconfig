@@ -1,0 +1,37 @@
+# Defconfig fragment for Android Kunit targets
+#
+# Instead of setting CONFIG_KUNIT_ALL_TESTS=m, we enable individual tests
+# because:
+# - The defconfig fragment is applied after make defconfig
+# - If additional tests are added to CONFIG_KUNIT_ALL_TESTS in the future,
+#   //common:kunit_* module_outs needs to be updated.
+
+# CONFIG_MODULE_SIG_ALL is not set
+
+# Corresponds to BUILD.bazel, _KUNIT_COMMON_MODULES
+CONFIG_TIME_KUNIT_TEST=m
+CONFIG_NETDEV_ADDR_LIST_TEST=m
+CONFIG_REGMAP_KUNIT=m
+CONFIG_INPUT_KUNIT_TEST=m
+CONFIG_SND_SOC_TOPOLOGY_KUNIT_TEST=m
+CONFIG_SND_SOC_UTILS_KUNIT_TEST=m
+CONFIG_HID_KUNIT_TEST=m
+CONFIG_RTC_LIB_KUNIT_TEST=m
+CONFIG_IIO_FORMAT_KUNIT_TEST=m
+CONFIG_EXT4_KUNIT_TESTS=m
+CONFIG_FAT_KUNIT_TEST=m
+CONFIG_KFENCE_KUNIT_TEST=m
+CONFIG_KUNIT_TEST=m
+CONFIG_KUNIT_EXAMPLE_TEST=m
+
+# CONFIG_NET_HANDSHAKE is not enabled in gki_defconfig.
+# CONFIG_NET_HANDSHAKE_KUNIT_TEST=m
+
+# TODO(b/296116800): Enable these tests
+# CONFIG_DRM_KUNIT_TEST=m
+# CONFIG_KASAN_KUNIT_TEST=m
+
+# TODO(b/296116800): These are booleans, not tristates.
+# CONFIG_BINFMT_ELF_KUNIT_TEST=y
+# CONFIG_PM_QOS_KUNIT_TEST=y
+# CONFIG_DRIVER_PE_KUNIT_TEST=y

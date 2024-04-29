@@ -68,6 +68,7 @@
 #include <scsi/scsi_ioctl.h>
 #include <scsi/scsicam.h>
 #include <scsi/scsi_common.h>
+#include <trace/hooks/sd.h>
 
 #include "sd.h"
 #include "scsi_priv.h"
@@ -912,6 +913,7 @@ static blk_status_t sd_setup_unmap_cmnd(struct scsi_cmnd *cmd)
 	cmd->transfersize = data_len;
 	rq->timeout = SD_TIMEOUT;
 
+	trace_android_vh_sd_setup_unmap_multi_segment(cmd, buf);
 	return scsi_alloc_sgtables(cmd);
 }
 
@@ -3079,6 +3081,8 @@ static void sd_read_block_limits(struct scsi_disk *sdkp)
 			sdkp->unmap_alignment =
 				get_unaligned_be32(&vpd->data[32]) & ~(1 << 31);
 
+		trace_android_vh_sd_init_unmap_multi_segment(sdkp, vpd);
+
 		if (!sdkp->lbpvpd) { /* LBP VPD page not provided */
 
 			if (sdkp->max_unmap_blocks)
@@ -3749,7 +3753,7 @@ static int sd_probe(struct device *dev)
 	blk_pm_runtime_init(sdp->request_queue, dev);
 	if (sdp->rpm_autosuspend) {
 		pm_runtime_set_autosuspend_delay(dev,
-			sdp->host->hostt->rpm_autosuspend_delay);
+			sdp->host->rpm_autosuspend_delay);
 	}
 
 	error = device_add_disk(dev, gd, NULL);

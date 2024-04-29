@@ -7,6 +7,7 @@
 #include <linux/vmalloc.h>
 #include <linux/kmemleak.h>
 #include <linux/page_owner.h>
+#include <linux/page_pinner.h>
 #include <linux/page_idle.h>
 #include <linux/page_table_check.h>
 #include <linux/rcupdate.h>
@@ -81,6 +82,9 @@ static struct page_ext_operations *page_ext_ops[] __initdata = {
 #endif
 #if defined(CONFIG_PAGE_IDLE_FLAG) && !defined(CONFIG_64BIT)
 	&page_idle_ops,
+#endif
+#ifdef CONFIG_PAGE_PINNER
+	&page_pinner_ops,
 #endif
 #ifdef CONFIG_PAGE_TABLE_CHECK
 	&page_table_check_ops,
@@ -514,6 +518,7 @@ struct page_ext *page_ext_get(struct page *page)
 
 	return page_ext;
 }
+EXPORT_SYMBOL_NS_GPL(page_ext_get, MINIDUMP);
 
 /**
  * page_ext_put() - Working with page extended information is done.
@@ -532,3 +537,4 @@ void page_ext_put(struct page_ext *page_ext)
 
 	rcu_read_unlock();
 }
+EXPORT_SYMBOL_NS_GPL(page_ext_put, MINIDUMP);

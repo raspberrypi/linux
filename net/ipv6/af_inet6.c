@@ -68,6 +68,8 @@
 #include <linux/uaccess.h>
 #include <linux/mroute6.h>
 
+#include <trace/hooks/net.h>
+
 #include "ip6_offload.h"
 
 MODULE_AUTHOR("Cast of dozens");
@@ -270,6 +272,9 @@ lookup_protocol:
 			goto out;
 		}
 	}
+
+	trace_android_rvh_inet_sock_create(sk);
+
 out:
 	return err;
 out_rcu_unlock:

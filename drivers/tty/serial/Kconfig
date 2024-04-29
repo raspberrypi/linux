@@ -238,7 +238,6 @@ config SERIAL_CLPS711X_CONSOLE
 
 config SERIAL_SAMSUNG
 	tristate "Samsung SoC serial support"
-	depends on PLAT_SAMSUNG || ARCH_S5PV210 || ARCH_EXYNOS || ARCH_APPLE || ARCH_ARTPEC || COMPILE_TEST
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on the Samsung
@@ -1582,3 +1581,5 @@ endmenu
 
 config SERIAL_MCTRL_GPIO
 	tristate
+
+source "drivers/tty/serial/pkvm-pl011/Kconfig"

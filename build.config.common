@@ -1,0 +1,25 @@
+. ${ROOT_DIR}/${KERNEL_DIR}/build.config.constants
+
+KMI_GENERATION=4
+
+BRANCH=android15-6.6
+LLVM=1
+DEPMOD=depmod
+CLANG_PREBUILT_BIN=prebuilts/clang/host/linux-x86/clang-${CLANG_VERSION}/bin
+CLANGTOOLS_PREBUILT_BIN=prebuilts/clang-tools/linux-x86/bin
+BUILDTOOLS_PREBUILT_BIN=build/kernel/build-tools/path/linux-x86
+RUST_PREBUILT_BIN=prebuilts/rust/linux-x86/${RUSTC_VERSION}/bin
+
+# TODO(b/296265825): Turn this into a proper error
+DTC=$(command -v dtc || { echo "WARNING: $BUILD_CONFIG loaded without Kleaf hermetic tools.
+    This will become an error in the future." >&2;
+    echo "${ROOT_DIR}/${BUILDTOOLS_PREBUILT_BIN}/dtc";
+})
+
+KCFLAGS="${KCFLAGS} -D__ANDROID_COMMON_KERNEL__"
+EXTRA_CMDS=''
+STOP_SHIP_TRACEPRINTK=1
+IN_KERNEL_MODULES=1
+DO_NOT_STRIP_MODULES=1
+
+HERMETIC_TOOLCHAIN=${HERMETIC_TOOLCHAIN:-1}

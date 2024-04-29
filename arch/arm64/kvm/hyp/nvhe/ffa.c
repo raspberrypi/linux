@@ -26,10 +26,10 @@
  * the duration and are therefore serialised.
  */
 
-#include <linux/arm-smccc.h>
 #include <linux/arm_ffa.h>
 #include <asm/kvm_pkvm.h>
 
+#include <nvhe/arm-smccc.h>
 #include <nvhe/ffa.h>
 #include <nvhe/mem_protect.h>
 #include <nvhe/memory.h>
@@ -634,9 +634,15 @@ out_handled:
 	return true;
 }
 
-bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
+bool kvm_host_ffa_handler(struct kvm_cpu_context *ctxt, u32 func_id)
 {
+	DECLARE_REG(u64, arg1, ctxt, 1);
+	DECLARE_REG(u64, arg2, ctxt, 2);
+	DECLARE_REG(u64, arg3, ctxt, 3);
+	DECLARE_REG(u64, arg4, ctxt, 4);
 	struct arm_smccc_res res;
+	bool handled = true;
+	int err = 0;
 
 	/*
 	 * There's no way we can tell what a non-standard SMC call might
@@ -656,39 +662,46 @@ bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 
 	switch (func_id) {
 	case FFA_FEATURES:
-		if (!do_ffa_features(&res, host_ctxt))
-			return false;
-		goto out_handled;
+		if (!do_ffa_features(&res, ctxt)) {
+			handled = false;
+			goto unhandled;
+		}
+		break;
 	/* Memory management */
 	case FFA_FN64_RXTX_MAP:
-		do_ffa_rxtx_map(&res, host_ctxt);
-		goto out_handled;
+		do_ffa_rxtx_map(&res, ctxt);
+		break;
 	case FFA_RXTX_UNMAP:
-		do_ffa_rxtx_unmap(&res, host_ctxt);
-		goto out_handled;
+		do_ffa_rxtx_unmap(&res, ctxt);
+		break;
 	case FFA_MEM_SHARE:
 	case FFA_FN64_MEM_SHARE:
-		do_ffa_mem_xfer(FFA_FN64_MEM_SHARE, &res, host_ctxt);
-		goto out_handled;
+		do_ffa_mem_xfer(FFA_FN64_MEM_SHARE, &res, ctxt);
+		break;
 	case FFA_MEM_RECLAIM:
-		do_ffa_mem_reclaim(&res, host_ctxt);
-		goto out_handled;
+		do_ffa_mem_reclaim(&res, ctxt);
+		break;
 	case FFA_MEM_LEND:
 	case FFA_FN64_MEM_LEND:
-		do_ffa_mem_xfer(FFA_FN64_MEM_LEND, &res, host_ctxt);
-		goto out_handled;
+		do_ffa_mem_xfer(FFA_FN64_MEM_LEND, &res, ctxt);
+		break;
 	case FFA_MEM_FRAG_TX:
-		do_ffa_mem_frag_tx(&res, host_ctxt);
-		goto out_handled;
+		do_ffa_mem_frag_tx(&res, ctxt);
+		break;
+	default:
+		if (ffa_call_supported(func_id)) {
+			handled = false;
+			goto unhandled;
+		}
+
+		ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
 	}
 
-	if (ffa_call_supported(func_id))
-		return false; /* Pass through */
-
-	ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
-out_handled:
-	ffa_set_retval(host_ctxt, &res);
-	return true;
+	ffa_set_retval(ctxt, &res);
+	err = res.a0 == FFA_SUCCESS ? 0 : res.a2;
+unhandled:
+	trace_host_ffa_call(func_id, arg1, arg2, arg3, arg4, handled, err);
+	return handled;
 }
 
 int hyp_ffa_init(void *pages)
@@ -697,7 +710,7 @@ int hyp_ffa_init(void *pages)
 	size_t min_rxtx_sz;
 	void *tx, *rx;
 
-	if (kvm_host_psci_config.smccc_version < ARM_SMCCC_VERSION_1_2)
+	if (kvm_host_psci_config.smccc_version < ARM_SMCCC_VERSION_1_1)
 		return 0;
 
 	arm_smccc_1_1_smc(FFA_VERSION, FFA_VERSION_1_0, 0, 0, 0, 0, 0, 0, &res);

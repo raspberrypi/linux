@@ -19,6 +19,7 @@
 #include <linux/wait.h>
 #include <linux/rwsem.h>
 #include <linux/cache.h>
+#include <linux/android_kabi.h>
 
 struct file;
 struct dentry;
@@ -223,6 +224,10 @@ struct kernfs_node {
 	unsigned short		flags;
 	umode_t			mode;
 	struct kernfs_iattrs	*iattr;
+
+	struct rcu_head		rcu;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 /*
@@ -242,6 +247,11 @@ struct kernfs_syscall_ops {
 		      const char *new_name);
 	int (*show_path)(struct seq_file *sf, struct kernfs_node *kn,
 			 struct kernfs_root *root);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 struct kernfs_node *kernfs_root_to_node(struct kernfs_root *root);
@@ -264,6 +274,8 @@ struct kernfs_open_file {
 	bool			mmapped:1;
 	bool			released:1;
 	const struct vm_operations_struct *vm_ops;
+
+	ANDROID_KABI_RESERVE(1);
 };
 
 struct kernfs_ops {
@@ -316,6 +328,9 @@ struct kernfs_ops {
 			 struct poll_table_struct *pt);
 
 	int (*mmap)(struct kernfs_open_file *of, struct vm_area_struct *vma);
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 /*

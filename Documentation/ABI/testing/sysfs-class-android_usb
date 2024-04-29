@@ -1,0 +1,32 @@
+Android USB devices (eg. /sys/class/android_usb/android0/)
+
+What:		/sys/class/android_usb/<android_device>/state
+Date:		Feb 2024
+Contact:	Neill Kapron <nkapron@google.com>
+Description:
+		The state of the USB connection. This attribute is likely
+		redundant with the /sys/class/UDC/state attribute, and should
+		be deprecated/removed when userspace can be refactored.
+		Change on the state will also generate uevent KOBJ_CHANGE on
+		the port with the new state included in the message as
+		"USB_STATE=<STATE>". Note this is not the correct usage of
+		uevents, but necessary due to the requirement to maintaine
+		userspace API compatibility.
+
+		Valid values: CONNECTED, DISCONNECTED, CONFIGURED
+
+Android USB MIDI Function devices (eg. /sys/class/android_usb/androidN/f_midi/)
+
+What:		/sys/class/android_usb/<android_device>/f_midi/alsa
+Date:		Feb 2024
+Contact		Neill Kapron <nkapron@google.com>
+Description:
+		The PCM card and device numbers created by the f_midi driver.
+		This is not the correct use of sysfs due to passing multiple
+		values through a single file, which is directly against the
+		"one value per file" nature of sysfs, however Android userspace
+		code currently relies on this functionality as-is.
+
+		Valid values: card and device numbers in the format of
+		<PCM_card_number> <device number>", or "-1 -1" if the attr
+		is read prior to binding the f_midi device.
