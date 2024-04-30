@@ -25,8 +25,6 @@ struct io_buffer_list {
 	__u16 head;
 	__u16 mask;
 
-	atomic_t refs;
-
 	/* ring mapped provided buffers */
 	__u8 is_mapped;
 	/* ring mapped provided buffers, but mmap'ed by application */
