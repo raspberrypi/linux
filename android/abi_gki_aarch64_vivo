@@ -32,6 +32,9 @@
   __traceiter_android_vh_check_folio_look_around_ref
   __traceiter_android_vh_clear_rwsem_reader_owned
   __traceiter_android_vh_clear_rwsem_writer_owned
+  __traceiter_android_vh_do_anonymous_page
+  __traceiter_android_vh_do_swap_page
+  __traceiter_android_vh_do_wp_page
   __traceiter_android_vh_dup_task_struct
   __traceiter_android_vh_free_task
   __traceiter_android_vh_irqtime_account_process_tick
@@ -55,9 +58,11 @@
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_sd_init_unmap_multi_segment
   __traceiter_android_vh_sd_setup_unmap_multi_segment
+  __traceiter_android_vh_shmem_swapin_folio
   __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_test_clear_look_around_ref
   __traceiter_android_vh_try_to_unmap_one
+  __traceiter_android_vh_uprobes_replace_page
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
   __traceiter_sched_waking
@@ -81,6 +86,9 @@
   __tracepoint_android_vh_check_folio_look_around_ref
   __tracepoint_android_vh_clear_rwsem_reader_owned
   __tracepoint_android_vh_clear_rwsem_writer_owned
+  __tracepoint_android_vh_do_anonymous_page
+  __tracepoint_android_vh_do_swap_page
+  __tracepoint_android_vh_do_wp_page
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_irqtime_account_process_tick
@@ -104,9 +112,11 @@
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_sd_init_unmap_multi_segment
   __tracepoint_android_vh_sd_setup_unmap_multi_segment
+  __tracepoint_android_vh_shmem_swapin_folio
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_test_clear_look_around_ref
   __tracepoint_android_vh_try_to_unmap_one
+  __tracepoint_android_vh_uprobes_replace_page
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
   __tracepoint_sched_waking
