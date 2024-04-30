@@ -90,6 +90,7 @@
   __cpuhp_setup_state
   cpu_number
   __cpu_online_mask
+  cpu_pm_register_notifier
   __cpu_possible_mask
   cpus_read_lock
   cpus_read_unlock
@@ -105,6 +106,7 @@
   debugfs_create_symlink
   debugfs_create_u32
   debugfs_create_x32
+  debugfs_lookup
   debugfs_remove
   default_llseek
   delayed_work_timer_fn
@@ -114,6 +116,7 @@
   _dev_emerg
   _dev_err
   dev_err_probe
+  devfreq_get_devfreq_by_phandle
   device_create
   device_create_bin_file
   device_create_file
@@ -132,6 +135,7 @@
   __devm_add_action
   devm_backlight_device_register
   devm_clk_get
+  devm_clk_put
   __devm_drm_dev_alloc
   devm_free_irq
   devm_gen_pool_create
@@ -310,10 +314,12 @@
   gen_pool_create
   gen_pool_destroy
   gen_pool_free_owner
+  gen_pool_has_addr
   gen_pool_size
   get_cpu_device
   get_device
   __get_free_pages
+  get_pid_task
   get_random_bytes
   get_task_mm
   get_thermal_instance
@@ -461,12 +467,14 @@
   log_read_mmio
   log_write_mmio
   loops_per_jiffy
+  lzo1x_decompress_safe
   memchr
   memcmp
   memcpy
   __memcpy_fromio
   __memcpy_toio
   memdup_user
+  memmove
   mem_section
   memset
   __memset_io
@@ -520,6 +528,7 @@
   of_find_device_by_node
   of_find_matching_node_and_match
   of_find_node_by_name
+  of_find_node_by_type
   of_find_node_opts_by_path
   of_find_property
   of_fwnode_ops
@@ -576,7 +585,10 @@
   pci_store_saved_state
   pci_write_config_dword
   __per_cpu_offset
+  perf_event_create_kernel_counter
+  perf_event_enable
   perf_event_read_local
+  perf_event_release_kernel
   perf_trace_buf_alloc
   perf_trace_run_bpf_submit
   phy_power_off
@@ -829,6 +841,7 @@
   system_unbound_wq
   system_wq
   sys_tz
+  __tasklet_hi_schedule
   tasklet_init
   tasklet_kill
   __tasklet_schedule
@@ -845,6 +858,7 @@
   trace_event_raw_init
   trace_event_reg
   trace_handle_return
+  __traceiter_android_rvh_sched_fork_init
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_cpuidle_psci_enter
@@ -853,6 +867,7 @@
   __traceiter_device_pm_callback_end
   __traceiter_device_pm_callback_start
   __traceiter_suspend_resume
+  __tracepoint_android_rvh_sched_fork_init
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_cpuidle_psci_enter
@@ -907,13 +922,21 @@
   v4l2_m2m_buf_remove
   v4l2_m2m_ctx_init
   v4l2_m2m_ctx_release
+  v4l2_m2m_dqbuf
   v4l2_m2m_get_curr_priv
   v4l2_m2m_get_vq
   v4l2_m2m_init
   v4l2_m2m_job_finish
+  v4l2_m2m_mmap
   v4l2_m2m_next_buf
+  v4l2_m2m_poll
   v4l2_m2m_qbuf
+  v4l2_m2m_querybuf
   v4l2_m2m_release
+  v4l2_m2m_reqbufs
+  v4l2_m2m_streamoff
+  v4l2_m2m_streamon
+  v4l_bound_align_image
   vb2_buffer_done
   vb2_dma_sg_memops
   vb2_dqbuf
@@ -1081,7 +1104,6 @@
   cpu_topology
   deactivate_task
   double_rq_lock
-  get_pid_task
   get_task_cred
   __hrtimer_get_remaining
   irq_work_queue
@@ -1091,9 +1113,6 @@
   memory_read_from_buffer
   migrate_swap
   ns_capable
-  perf_event_create_kernel_counter
-  perf_event_enable
-  perf_event_release_kernel
   pfn_is_map_memory
   pick_highest_pushable_task
   __put_cred
@@ -1127,7 +1146,6 @@
   __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_new_task_stats
   __traceiter_android_rvh_replace_next_task_fair
-  __traceiter_android_rvh_sched_fork_init
   __traceiter_android_rvh_sched_newidle_balance
   __traceiter_android_rvh_sched_nohz_balancer_kick
   __traceiter_android_rvh_sched_rebalance_domains
@@ -1159,7 +1177,6 @@
   __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_new_task_stats
   __tracepoint_android_rvh_replace_next_task_fair
-  __tracepoint_android_rvh_sched_fork_init
   __tracepoint_android_rvh_sched_newidle_balance
   __tracepoint_android_rvh_sched_nohz_balancer_kick
   __tracepoint_android_rvh_sched_rebalance_domains
@@ -1186,14 +1203,17 @@
 # required by exynos-adv-tracer-s2d.ko
   simple_strtoul
 
+# required by exynos-afm.ko
+  jiffies_64_to_clock_t
+  kobject_del
+  smp_call_function_any
+
 # required by exynos-chipid_v2.ko
   soc_device_register
 
-# required by exynos-coresight.ko
-  cpu_pm_register_notifier
+# required by exynos-coresight-etm.ko
+  __cpuhp_setup_state_cpuslocked
 
-# required by exynos-cpif-iommu_v9.ko
-  gen_pool_has_addr
 
 # required by exynos-cpufreq.ko
   cpufreq_freq_transition_begin
@@ -1210,7 +1230,6 @@
 # required by exynos-cpupm.ko
   cpuidle_get_cpu_driver
   cpuidle_get_driver
-  of_find_node_by_type
   __traceiter_ipi_entry
   __traceiter_ipi_exit
   __traceiter_ipi_raise
@@ -1440,9 +1459,6 @@
   perf_event_read_value
   update_devfreq
 
-# required by exynos_esca.ko
-  debugfs_lookup
-
 # required by exynos_mct_v3.ko
   clockevents_config_and_register
   __clocksource_register_scale
@@ -1549,6 +1565,16 @@
   __tracepoint_android_vh_do_wake_up_sync
   __tracepoint_android_vh_set_wake_flags
 
+# required by hts.ko
+  devm_devfreq_register_notifier
+  kernel_cpustat
+  kernfs_path_from_node
+  __traceiter_android_rvh_cpufreq_transition
+  __traceiter_android_vh_free_task
+  __traceiter_android_vh_is_fpsimd_save
+  __tracepoint_android_rvh_cpufreq_transition
+  __tracepoint_android_vh_free_task
+  __tracepoint_android_vh_is_fpsimd_save
 # required by i2c-dev.ko
   bus_register_notifier
   bus_unregister_notifier
@@ -1633,7 +1659,6 @@
 
 # required by npu.ko
   class_register
-  devm_clk_put
   vsprintf
 
 # required by pablo-libs.ko
@@ -1645,6 +1670,7 @@
   kstrdup_const
   kthread_delayed_work_timer_fn
   kvmemdup
+  kvrealloc
   llist_add_batch
   rb_first
   tasklet_setup
@@ -1821,14 +1847,7 @@
   sg_nents_for_len
   sync_file_get_fence
   v4l2_ctrl_handler_setup
-  v4l2_m2m_dqbuf
-  v4l2_m2m_mmap
-  v4l2_m2m_poll
-  v4l2_m2m_reqbufs
-  v4l2_m2m_streamoff
-  v4l2_m2m_streamon
   v4l2_m2m_try_schedule
-  v4l_bound_align_image
   work_busy
 
 # required by scsc_bt.ko
@@ -1886,7 +1905,6 @@
   ip_send_check
   linkwatch_fire_event
   __local_bh_enable_ip
-  memmove
   napi_disable
   napi_gro_flush
   neigh_destroy
@@ -1914,7 +1932,6 @@
   skb_copy
   skb_copy_bits
   synchronize_net
-  __tasklet_hi_schedule
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
   unregister_netdevice_queue
@@ -2218,7 +2235,6 @@
 # required by ufs-exynos-core.ko
   blk_mq_unique_tag
   blk_queue_update_dma_alignment
-  devfreq_get_devfreq_by_phandle
   kobject_add
   kobject_init
   of_cpu_node_to_id
@@ -2276,7 +2292,48 @@
 # required by usb_notify_layer.ko
   kthread_complete_and_exit
   usb_speed_string
-  usb_unregister_notify
+
+# required by vendor_zram.ko
+  bio_endio
+  bio_end_io_acct_remapped
+  bio_start_io_acct
+  __blk_alloc_disk
+  blk_queue_flag_set
+  blk_queue_io_min
+  blk_queue_io_opt
+  blk_queue_logical_block_size
+  blk_queue_max_discard_sectors
+  blk_queue_max_write_zeroes_sectors
+  blk_queue_physical_block_size
+  __cpuhp_state_add_instance
+  __cpuhp_state_remove_instance
+  crypto_alloc_base
+  crypto_comp_compress
+  crypto_comp_decompress
+  crypto_has_alg
+  del_gendisk
+  device_add_disk
+  flush_dcache_page
+  kstrtou16
+  memparse
+  memset64
+  put_disk
+  __register_blkdev
+  set_capacity
+  set_capacity_and_notify
+  sync_blockdev
+  sysfs_streq
+  unregister_blkdev
+  zs_compact
+  zs_create_pool
+  zs_destroy_pool
+  zs_free
+  zs_get_total_pages
+  zs_huge_class_size
+  zs_malloc
+  zs_map_object
+  zs_pool_stats
+  zs_unmap_object
 
 # required by xhci-exynos-audio.ko
   dma_pool_alloc

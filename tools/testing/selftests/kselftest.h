@@ -48,7 +48,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <string.h>
 #include <stdio.h>
+#include <sys/utsname.h>
 #endif
 
 #ifndef ARRAY_SIZE
@@ -153,6 +155,19 @@ static inline void ksft_print_msg(const char *msg, ...)
 	errno = saved_errno;
 	vprintf(msg, args);
 	va_end(args);
+}
+
+static inline void ksft_perror(const char *msg)
+{
+#ifndef NOLIBC
+	ksft_print_msg("%s: %s (%d)\n", msg, strerror(errno), errno);
+#else
+	/*
+	 * nolibc doesn't provide strerror() and it seems
+	 * inappropriate to add one, just print the errno.
+	 */
+	ksft_print_msg("%s: %d)\n", msg, errno);
+#endif
 }
 
 static inline void ksft_test_result_pass(const char *msg, ...)
@@ -325,6 +340,23 @@ static inline int ksft_exit_skip(const char *msg, ...)
 	if (ksft_test_num())
 		ksft_print_cnts();
 	exit(KSFT_SKIP);
+}
+
+static inline int ksft_min_kernel_version(unsigned int min_major,
+					  unsigned int min_minor)
+{
+#ifdef NOLIBC
+	ksft_print_msg("NOLIBC: Can't check kernel version: Function not implemented\n");
+	return 0;
+#else
+	unsigned int major, minor;
+	struct utsname info;
+
+	if (uname(&info) || sscanf(info.release, "%u.%u.", &major, &minor) != 2)
+		ksft_exit_fail_msg("Can't parse kernel version\n");
+
+	return major > min_major || (major == min_major && minor >= min_minor);
+#endif
 }
 
 #endif /* __KSELFTEST_H */

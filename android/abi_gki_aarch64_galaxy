@@ -1,6 +1,7 @@
 [abi_symbol_list]
   blkdev_get_by_path
   blkdev_issue_flush
+  blk_queue_rq_timeout
   caches_clean_inval_pou
   _dev_alert
   __devm_alloc_percpu
