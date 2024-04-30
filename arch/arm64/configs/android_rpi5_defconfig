@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 6.6.23 Kernel Configuration
+# Linux/arm64 6.6.25 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="Android (11368308, +pgo, +bolt, +lto, +mlgo, based on r510928) clang version 18.0.0 (https://android.googlesource.com/toolchain/llvm-project 477610d4d0d988e69dbc3fae4fe86bff3f07f2b5)"
 CONFIG_GCC_VERSION=0
@@ -164,7 +164,7 @@ CONFIG_ARCH_SUPPORTS_NUMA_BALANCING=y
 CONFIG_ARCH_WANT_BATCHED_UNMAP_TLB_FLUSH=y
 CONFIG_CC_HAS_INT128=y
 CONFIG_CC_IMPLICIT_FALLTHROUGH="-Wimplicit-fallthrough"
-CONFIG_GCC11_NO_ARRAY_BOUNDS=y
+CONFIG_GCC10_NO_ARRAY_BOUNDS=y
 CONFIG_ARCH_SUPPORTS_INT128=y
 CONFIG_CGROUPS=y
 CONFIG_PAGE_COUNTER=y
