@@ -125,7 +125,10 @@ define_common_kernels(target_configs = {
         "module_implicit_outs": get_gki_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
         "ddk_headers_archive": ":kernel_aarch64_ddk_headers_archive",
-        "extra_dist": [":test_mappings_zip"],
+        "extra_dist": [
+            ":test_mappings_zip",
+            ":tests_zip_arm64",
+        ],
     },
     "kernel_aarch64_16k": {
         "kmi_symbol_list_strict_mode": False,
@@ -137,7 +140,10 @@ define_common_kernels(target_configs = {
         "kmi_symbol_list_strict_mode": False,
         "module_implicit_outs": get_gki_modules_list("x86_64"),
         "make_goals": _GKI_X86_64_MAKE_GOALS,
-        "extra_dist": [":test_mappings_zip"],
+        "extra_dist": [
+            ":test_mappings_zip",
+            ":tests_zip_x86_64",
+        ],
     },
 })
 
@@ -2324,12 +2330,14 @@ pkg_zip(
     name = "tests_zip_x86_64",
     srcs = [":kselftest_tests_x86_64_pkg_files"],
     out = "x86_64/tests.zip",
+    visibility = ["//visibility:public"],
 )
 
 pkg_zip(
     name = "tests_zip_arm64",
     srcs = [":kselftest_tests_arm64_pkg_files"],
     out = "arm64/tests.zip",
+    visibility = ["//visibility:public"],
 )
 
 copy_to_dist_dir(
