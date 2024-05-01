@@ -3850,7 +3850,7 @@ Params: clock                   PWM clock frequency (informational)
 
 
 Name:   qca7000
-Info:   in-tech's Evaluation Board for PLC Stamp micro
+Info:   Evaluation Board for PLC Stamp micro
         This uses spi0 and a separate GPIO interrupt to connect the QCA7000.
 Load:   dtoverlay=qca7000,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
@@ -3859,7 +3859,7 @@ Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
 
 Name:   qca7000-uart0
-Info:   in-tech's Evaluation Board for PLC Stamp micro (UART)
+Info:   Evaluation Board for PLC Stamp micro (UART)
         This uses uart0/ttyAMA0 over GPIOs 14 & 15 to connect the QCA7000.
         But it requires disabling of onboard Bluetooth on
         Pi 3B, 3B+, 3A+, 4B and Zero W.
