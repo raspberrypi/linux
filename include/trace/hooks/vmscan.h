@@ -29,6 +29,10 @@ DECLARE_HOOK(android_vh_vmscan_kswapd_done,
 	        unsigned int reclaim_order),
 	TP_ARGS(node_id, highest_zoneidx, alloc_order, reclaim_order));
 
+enum scan_balance;
+DECLARE_HOOK(android_vh_tune_scan_type,
+	TP_PROTO(enum scan_balance *scan_type),
+	TP_ARGS(scan_type));
 #endif /* _TRACE_HOOK_VMSCAN_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>

@@ -334,12 +334,22 @@ static int handle_trap_exceptions(struct kvm_vcpu *vcpu)
 static int handle_hyp_req_mem(struct kvm_vcpu *vcpu,
 			   struct kvm_hyp_req *req)
 {
+	struct kvm *kvm = vcpu->kvm;
+	unsigned long nr_pages;
+	int ret;
+
 	switch (req->mem.dest) {
 	case REQ_MEM_DEST_HYP_ALLOC:
 		return __pkvm_topup_hyp_alloc(req->mem.nr_pages);
 	case REQ_MEM_DEST_VCPU_MEMCACHE:
-		return topup_hyp_memcache(&vcpu->arch.stage2_mc,
-					  req->mem.nr_pages, 0);
+		nr_pages = vcpu->arch.stage2_mc.nr_pages;
+		ret = topup_hyp_memcache(&vcpu->arch.stage2_mc,
+					 req->mem.nr_pages, 0);
+		nr_pages = vcpu->arch.stage2_mc.nr_pages - nr_pages;
+		atomic64_add(nr_pages << PAGE_SHIFT, &kvm->stat.protected_hyp_mem);
+		atomic64_add(nr_pages << PAGE_SHIFT, &kvm->stat.protected_pgtable_mem);
+
+		return ret;
 	};
 
 	pr_warn("Unknown kvm_hyp_req mem dest: %d\n", req->mem.dest);
