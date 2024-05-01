@@ -933,6 +933,7 @@ _RPI_OVERLAY_OUTS = [
     "arch/arm64/boot/dts/overlays/ssd1306-spi.dtbo",
     "arch/arm64/boot/dts/overlays/ssd1331-spi.dtbo",
     "arch/arm64/boot/dts/overlays/ssd1351-spi.dtbo",
+    "arch/arm64/boot/dts/overlays/sunfounder-pironman5.dtbo",
     "arch/arm64/boot/dts/overlays/superaudioboard.dtbo",
     "arch/arm64/boot/dts/overlays/sx150x.dtbo",
     "arch/arm64/boot/dts/overlays/tc358743-audio.dtbo",

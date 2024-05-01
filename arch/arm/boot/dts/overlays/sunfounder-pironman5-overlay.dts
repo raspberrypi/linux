@@ -1,0 +1,51 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&i2c1>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+    fragment@1 {
+        target = <&spi0>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            gpio_ir: ir-receiver@c {
+                compatible = "gpio-ir-receiver";
+                pinctrl-names = "default";
+                pinctrl-0 = <&gpio_ir_pins>;
+
+                // pin number, high or low
+                gpios = <&gpio 12 1>;
+
+                // parameter for keymap name
+                linux,rc-map-name = "rc-rc6-mce";
+
+                status = "okay";
+            };
+        };
+    };
+    fragment@3 {
+        target = <&gpio>;
+        __overlay__ {
+            gpio_ir_pins: gpio_ir_pins@c {
+                brcm,pins = <12>;
+                brcm,function = <0>;
+                brcm,pull = <2>;
+            };
+        };
+    };
+    __overrides__ {
+        ir = <&gpio_ir>,"status";
+        ir_pins = <&gpio_ir>,"gpios:4", <&gpio_ir>,"reg:0", <&gpio_ir_pins>,"brcm,pins:0", <&gpio_ir_pins>,"reg:0";
+    };
+};
