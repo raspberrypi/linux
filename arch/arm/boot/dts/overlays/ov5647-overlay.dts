@@ -34,6 +34,7 @@
 				csi_ep: endpoint {
 					remote-endpoint = <&cam_endpoint>;
 					data-lanes = <1 2>;
+					clock-noncontinuous;
 				};
 			};
 		};

@@ -344,7 +344,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 
 /* SDIO1 is used to drive the eMMC/SD card */
 &sdio1 {
-	pinctrl-0 = <&emmc_cmddat_pulls>, <&emmc_ds_pull>, <&emmc_aon_cd_pins>;
+	pinctrl-0 = <&emmc_cmddat_pulls>, <&emmc_ds_pull>;
 	pinctrl-names = "default";
 	vqmmc-supply = <&sd_io_1v8_reg>;
 	vmmc-supply = <&sd_vcc_reg>;
@@ -359,10 +359,9 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 };
 
 &pinctrl_aon {
-	emmc_aon_cd_pins: emmc_aon_cd_pins {
-		function = "sd_card_g";
-		pins = "aon_gpio5";
-		bias-pull-up;
+	ant_pins: ant_pins {
+		function = "gpio";
+		pins = "aon_gpio5", "aon_gpio6";
 	};
 
 	/* Slight hack - only one PWM pin (status LED) is usable */
@@ -465,7 +464,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 
 /* SDIO2 drives the WLAN interface */
 &sdio2 {
-	pinctrl-0 = <&sdio2_30_pins>;
+	pinctrl-0 = <&sdio2_30_pins>, <&ant_pins>;
 	pinctrl-names = "default";
 	bus-width = <4>;
 	vmmc-supply = <&wl_on_reg>;
@@ -674,6 +673,22 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		output-high;
 		line-name = "RP1 RUN pin";
 	};
+
+	ant1: ant1-hog {
+		gpio-hog;
+		gpios = <5 GPIO_ACTIVE_HIGH>;
+		/* internal antenna enabled */
+		output-high;
+		line-name = "ant1";
+	};
+
+	ant2: ant2-hog {
+		gpio-hog;
+		gpios = <6 GPIO_ACTIVE_HIGH>;
+		/* external antenna disabled */
+		output-low;
+		line-name = "ant2";
+	};
 };
 
 &rp1_gpio {
@@ -843,6 +858,19 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		drm_fb2_rp1_dsi1 = <&aliases>, "drm-fb2=",&dsi1;
 		drm_fb2_rp1_dpi = <&aliases>, "drm-fb2=",&dpi;
 		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+
+		ant1 =  <&ant1>,"output-high?=on",
+			<&ant1>, "output-low?=off",
+			<&ant2>, "output-high?=off",
+			<&ant2>, "output-low?=on";
+		ant2 =  <&ant1>,"output-high?=off",
+			<&ant1>, "output-low?=on",
+			<&ant2>, "output-high?=on",
+			<&ant2>, "output-low?=off";
+		noant = <&ant1>,"output-high?=off",
+			<&ant1>, "output-low?=on",
+			<&ant2>, "output-high?=off",
+			<&ant2>, "output-low?=on";
 
 		fan_temp0 = <&cpu_tepid>,"temperature:0";
 		fan_temp1 = <&cpu_warm>,"temperature:0";
