@@ -53,6 +53,8 @@ _COMMON_GKI_MODULES_LIST = [
     "net/6lowpan/nhc_routing.ko",
     "net/6lowpan/nhc_udp.ko",
     "net/8021q/8021q.ko",
+    "net/9p/9pnet.ko",
+    "net/9p/9pnet_fd.ko",
     "net/bluetooth/bluetooth.ko",
     "net/bluetooth/hidp/hidp.ko",
     "net/bluetooth/rfcomm/rfcomm.ko",
