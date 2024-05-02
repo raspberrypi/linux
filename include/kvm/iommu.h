@@ -47,12 +47,6 @@ struct kvm_hyp_iommu_domain {
 	atomic_t		refs;
 	pkvm_handle_t		domain_id;
 	void			*priv;
-#ifdef __KVM_NVHE_HYPERVISOR__
-	hyp_spinlock_t		lock;
-#else
-	/* see kvm_hyp_iommu.lock */
-	u32			unused;
-#endif
 };
 
 /*

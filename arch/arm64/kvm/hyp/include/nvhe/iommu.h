@@ -54,6 +54,13 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 				 enum kvm_pgtable_prot prot);
 int kvm_iommu_snapshot_host_stage2(struct kvm_hyp_iommu_domain *domain);
 
+#define KVM_IOMMU_PADDR_CACHE_MAX		((size_t)511)
+struct kvm_iommu_paddr_cache {
+	unsigned short	ptr;
+	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
+	size_t		pgsize[KVM_IOMMU_PADDR_CACHE_MAX];
+};
+
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
 	struct kvm_hyp_iommu *(*get_iommu_by_id)(pkvm_handle_t smmu_id);
@@ -71,6 +78,14 @@ struct kvm_iommu_ops {
 			   struct iommu_iotlb_gather *gather);
 	void (*host_stage2_idmap)(struct kvm_hyp_iommu_domain *domain,
 				  phys_addr_t start, phys_addr_t end, int prot);
+	int (*map_pages)(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
+			 phys_addr_t paddr, size_t pgsize,
+			 size_t pgcount, int prot, size_t *total_mapped);
+	size_t (*unmap_pages)(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
+			      size_t pgsize, size_t pgcount,
+			      struct iommu_iotlb_gather *gather,
+			      struct kvm_iommu_paddr_cache *cache);
+	phys_addr_t (*iova_to_phys)(struct kvm_hyp_iommu_domain *domain, unsigned long iova);
 };
 
 extern struct kvm_iommu_ops *kvm_iommu_ops;

@@ -59,6 +59,13 @@ struct hyp_arm_smmu_v3_domain {
 	struct list_head		iommu_list;
 	u32				type;
 	hyp_rwlock_t			lock; /* Protects iommu_list. */
+	hyp_spinlock_t			pgt_lock; /* protects page table. */
+};
+
+struct kvm_iommu_walk_data {
+	struct kvm_iommu_paddr_cache *cache;
+	struct iommu_iotlb_gather *iotlb_gather;
+	void *cookie;
 };
 
 #define for_each_smmu(smmu) \
@@ -1152,6 +1159,7 @@ int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, u32 type)
 	smmu_domain->domain = domain;
 	smmu_domain->type = type;
 	hyp_rwlock_init(&smmu_domain->lock);
+	hyp_spin_lock_init(&smmu_domain->pgt_lock);
 	domain->priv = (void *)smmu_domain;
 
 	return 0;
@@ -1249,6 +1257,95 @@ int smmu_resume(struct kvm_hyp_iommu *iommu)
 	return 0;
 }
 
+int smmu_map_pages(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
+		   phys_addr_t paddr, size_t pgsize,
+		   size_t pgcount, int prot, size_t *total_mapped)
+{
+	size_t mapped;
+	size_t granule;
+	int ret;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+
+	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	if (!IS_ALIGNED(iova | paddr | pgsize, granule))
+		return -EINVAL;
+
+	hyp_spin_lock(&smmu_domain->pgt_lock);
+	while (pgcount && !ret) {
+		mapped = 0;
+		ret = domain->pgtable->ops.map_pages(&domain->pgtable->ops, iova, paddr, pgsize,
+						     pgcount, prot, 0, &mapped);
+		if (ret)
+			break;
+		WARN_ON(!IS_ALIGNED(mapped, pgsize));
+		WARN_ON(mapped > pgcount * pgsize);
+
+		pgcount -= mapped / pgsize;
+		*total_mapped += mapped;
+		iova += mapped;
+		paddr += mapped;
+	}
+	hyp_spin_unlock(&smmu_domain->pgt_lock);
+
+	return 0;
+}
+
+static void kvm_iommu_unmap_walker(struct io_pgtable_ctxt *ctxt)
+{
+	struct kvm_iommu_walk_data *data = (struct kvm_iommu_walk_data *)ctxt->arg;
+	struct kvm_iommu_paddr_cache *cache = data->cache;
+
+	cache->paddr[cache->ptr] = ctxt->addr;
+	cache->pgsize[cache->ptr++] = ctxt->size;
+
+	/*
+	 * It is guaranteed unmap is called with max of the cache size,
+	 * see kvm_iommu_unmap_pages()
+	 */
+	WARN_ON(cache->ptr == KVM_IOMMU_PADDR_CACHE_MAX);
+}
+
+static size_t smmu_unmap_pages(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
+			       size_t pgsize, size_t pgcount,
+			       struct iommu_iotlb_gather *gather,
+			       struct kvm_iommu_paddr_cache *cache)
+{
+	size_t granule, unmapped;
+	struct kvm_iommu_walk_data data = {
+		.iotlb_gather = gather,
+		.cookie = domain->pgtable->cookie,
+		.cache = cache,
+	};
+	struct io_pgtable_walker walker = {
+		.cb = kvm_iommu_unmap_walker,
+		.arg = &data,
+	};
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+
+	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	if (!IS_ALIGNED(iova | pgsize, granule))
+		return 0;
+
+	hyp_spin_lock(&smmu_domain->pgt_lock);
+	unmapped = domain->pgtable->ops.unmap_pages_walk(&domain->pgtable->ops, iova, pgsize,
+							 pgcount, gather, &walker);
+	hyp_spin_unlock(&smmu_domain->pgt_lock);
+	return unmapped;
+}
+
+static phys_addr_t smmu_iova_to_phys(struct kvm_hyp_iommu_domain *domain,
+				     unsigned long iova)
+{
+	phys_addr_t paddr;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+
+	hyp_spin_lock(&smmu_domain->pgt_lock);
+	paddr = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
+	hyp_spin_unlock(&smmu_domain->pgt_lock);
+
+	return paddr;
+}
+
 /*
  * Although SMMU can support multiple granules, it must at least support PAGE_SIZE
  * as the CPU, and for the IDMAP domains, we only use this granule.
@@ -1332,5 +1429,8 @@ struct kvm_iommu_ops smmu_ops = {
 	.resume				= smmu_resume,
 	.iotlb_sync			= smmu_iotlb_sync,
 	.host_stage2_idmap		= smmu_host_stage2_idmap,
+	.map_pages			= smmu_map_pages,
+	.unmap_pages			= smmu_unmap_pages,
+	.iova_to_phys			= smmu_iova_to_phys,
 };
 
