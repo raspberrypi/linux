@@ -323,26 +323,16 @@ static int uart_startup(struct tty_struct *tty, struct uart_state *state,
 			bool init_hw)
 {
 	struct tty_port *port = &state->port;
-	struct uart_port *uport;
 	int retval;
 
 	if (tty_port_initialized(port))
-		goto out_base_port_startup;
+		return 0;
 
 	retval = uart_port_startup(tty, state, init_hw);
-	if (retval) {
+	if (retval)
 		set_bit(TTY_IO_ERROR, &tty->flags);
-		return retval;
-	}
 
-out_base_port_startup:
-	uport = uart_port_check(state);
-	if (!uport)
-		return -EIO;
-
-	serial_base_port_startup(uport);
-
-	return 0;
+	return retval;
 }
 
 /*
@@ -364,9 +354,6 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 	 */
 	if (tty)
 		set_bit(TTY_IO_ERROR, &tty->flags);
-
-	if (uport)
-		serial_base_port_shutdown(uport);
 
 	if (tty_port_initialized(port)) {
 		tty_port_set_initialized(port, false);
@@ -1782,7 +1769,6 @@ static void uart_tty_port_shutdown(struct tty_port *port)
 	uport->ops->stop_rx(uport);
 	spin_unlock_irq(&uport->lock);
 
-	serial_base_port_shutdown(uport);
 	uart_port_shutdown(port);
 
 	/*
