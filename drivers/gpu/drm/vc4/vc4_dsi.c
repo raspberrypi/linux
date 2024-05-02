@@ -823,6 +823,13 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
 	disp0_ctrl &= ~DSI_DISP0_ENABLE;
 	DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+}
+
+static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
+					struct drm_bridge_state *state)
+{
+	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
+	struct device *dev = &dsi->pdev->dev;
 
 	/* Reset the DSI and all its fifos. */
 	DSI_PORT_WRITE(CTRL, DSI_CTRL_SOFT_RESET_CFG |
@@ -832,14 +839,6 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	DSI_PORT_WRITE(PHY_AFEC0, DSI_PORT_BIT(PHY_AFEC0_RESET) |
 		       DSI_PORT_BIT(PHY_AFEC0_PD) |
 		       DSI_PORT_BIT(AFEC0_PD_ALL_LANES));
-
-}
-
-static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
-					struct drm_bridge_state *state)
-{
-	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
-	struct device *dev = &dsi->pdev->dev;
 
 	clk_disable_unprepare(dsi->pll_phy_clock);
 	clk_disable_unprepare(dsi->escape_clock);
