@@ -60,6 +60,7 @@ struct hyp_arm_smmu_v3_domain {
 	u32				type;
 	hyp_rwlock_t			lock; /* Protects iommu_list. */
 	hyp_spinlock_t			pgt_lock; /* protects page table. */
+	struct io_pgtable		*pgtable;
 };
 
 struct kvm_iommu_walk_data {
@@ -537,7 +538,7 @@ static void smmu_tlb_flush_all(void *cookie)
 	struct domain_iommu_node *iommu_node;
 	struct arm_smmu_cmdq_ent cmd;
 
-	if (domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
+	if (smmu_domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
 		cmd.opcode = CMDQ_OP_TLBI_S12_VMALL;
 		cmd.tlbi.vmid = domain->domain_id;
 	} else {
@@ -569,6 +570,7 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
 	int ret = 0;
 	unsigned long end = iova + size, num_pages = 0, tg = 0;
 	size_t inv_range = granule;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
 	hyp_spin_lock(&smmu->iommu.lock);
 	if (smmu->iommu.power_is_off && smmu->caches_clean_on_power_on)
@@ -577,7 +579,7 @@ static int smmu_tlb_inv_range_smmu(struct hyp_arm_smmu_v3_device *smmu,
 	/* Almost copy-paste from the kernel dirver. */
 	if (smmu->features & ARM_SMMU_FEAT_RANGE_INV) {
 		/* Get the leaf page size */
-		tg = __ffs(domain->pgtable->cfg.pgsize_bitmap);
+		tg = __ffs(smmu_domain->pgtable->cfg.pgsize_bitmap);
 
 		num_pages = size >> tg;
 
@@ -646,7 +648,7 @@ static void smmu_tlb_inv_range(struct kvm_hyp_iommu_domain *domain,
 	struct arm_smmu_cmdq_ent cmd;
 
 	cmd.tlbi.leaf = leaf;
-	if (domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
+	if (smmu_domain->pgtable->cfg.fmt == ARM_64_LPAE_S2) {
 		cmd.opcode = CMDQ_OP_TLBI_S2_IPA;
 		cmd.tlbi.vmid = domain->domain_id;
 	} else {
@@ -684,7 +686,7 @@ static void smmu_tlb_add_page(struct iommu_iotlb_gather *gather,
 		smmu_tlb_inv_range(cookie, iova, granule, granule, true);
 }
 
-static void smmu_iotlb_sync(void *cookie,
+static void smmu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
 			    struct iommu_iotlb_gather *gather)
 {
 	size_t size;
@@ -692,7 +694,7 @@ static void smmu_iotlb_sync(void *cookie,
 	if (!gather->pgsize)
 		return;
 	size = gather->end - gather->start + 1;
-	smmu_tlb_inv_range(cookie, gather->start, size,  gather->pgsize, true);
+	smmu_tlb_inv_range(domain, gather->start, size,  gather->pgsize, true);
 }
 
 static const struct iommu_flush_ops smmu_tlb_ops = {
@@ -769,8 +771,9 @@ int smmu_domain_config_s2(struct kvm_hyp_iommu_domain *domain, u64 *ent)
 {
 	struct io_pgtable_cfg *cfg;
 	u64 ts, sl, ic, oc, sh, tg, ps;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
-	cfg = &domain->pgtable->cfg;
+	cfg = &smmu_domain->pgtable->cfg;
 	ps = cfg->arm_lpae_s2_cfg.vtcr.ps;
 	tg = cfg->arm_lpae_s2_cfg.vtcr.tg;
 	sh = cfg->arm_lpae_s2_cfg.vtcr.sh;
@@ -808,8 +811,9 @@ int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	u64 val;
 	u64 *cd_entry;
 	struct io_pgtable_cfg *cfg;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
-	cfg = &domain->pgtable->cfg;
+	cfg = &smmu_domain->pgtable->cfg;
 	ste = smmu_get_ste_ptr(smmu, sid);
 	val = le64_to_cpu(ste[0]);
 
@@ -884,11 +888,11 @@ int smmu_domain_finalise(struct hyp_arm_smmu_v3_device *smmu,
 	else
 		cfg = &smmu->pgtable_cfg_s1;
 
-	domain->pgtable = kvm_arm_io_pgtable_alloc(cfg, domain, &ret);
-	if (!domain->pgtable)
+	smmu_domain->pgtable = kvm_arm_io_pgtable_alloc(cfg, domain, &ret);
+	if (!smmu_domain->pgtable)
 		return ret;
 
-	data = io_pgtable_to_data(domain->pgtable);
+	data = io_pgtable_to_data(smmu_domain->pgtable);
 	if (domain->domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID) {
 		data->idmapped = true;
 		ret = kvm_iommu_snapshot_host_stage2(domain);
@@ -905,7 +909,7 @@ static bool smmu_domain_compat(struct hyp_arm_smmu_v3_device *smmu,
 	struct io_pgtable_cfg *cfg1, *cfg2;
 
 	/* Domain is empty. */
-	if (!smmu_domain->domain->pgtable)
+	if (!smmu_domain->pgtable)
 		return true;
 
 	if (smmu_domain->type == KVM_ARM_SMMU_DOMAIN_S2) {
@@ -918,7 +922,7 @@ static bool smmu_domain_compat(struct hyp_arm_smmu_v3_device *smmu,
 		cfg1 = &smmu->pgtable_cfg_s1;
 	}
 
-	cfg2 = &smmu_domain->domain->pgtable->cfg;
+	cfg2 = &smmu_domain->pgtable->cfg;
 
 	/* Best effort. */
 	return (cfg1->ias == cfg2->ias) && (cfg1->oas == cfg2->oas) && (cfg1->fmt && cfg2->fmt) &&
@@ -1034,7 +1038,7 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	 * as there is no per-domain lock now, this can be improved later.
 	 * However, as this operation is not on the hot path, it should be fine.
 	 */
-	if (!domain->pgtable) {
+	if (!smmu_domain->pgtable) {
 		ret = smmu_domain_finalise(smmu, domain);
 		if (ret)
 			goto out_unlock;
@@ -1167,14 +1171,15 @@ int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, u32 type)
 
 void smmu_free_domain(struct kvm_hyp_iommu_domain *domain)
 {
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	/*
 	 * As page table allocation is decoupled from alloc_domain, free_domain can
 	 * be called with a domain that have never been attached.
 	 */
-	if (domain->pgtable)
-		kvm_arm_io_pgtable_free(domain->pgtable);
+	if (smmu_domain->pgtable)
+		kvm_arm_io_pgtable_free(smmu_domain->pgtable);
 
-	hyp_free(domain->priv);
+	hyp_free(smmu_domain);
 }
 
 bool smmu_dabt_device(struct hyp_arm_smmu_v3_device *smmu,
@@ -1266,15 +1271,15 @@ int smmu_map_pages(struct kvm_hyp_iommu_domain *domain, unsigned long iova,
 	int ret;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
-	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	granule = 1UL << __ffs(smmu_domain->pgtable->cfg.pgsize_bitmap);
 	if (!IS_ALIGNED(iova | paddr | pgsize, granule))
 		return -EINVAL;
 
 	hyp_spin_lock(&smmu_domain->pgt_lock);
 	while (pgcount && !ret) {
 		mapped = 0;
-		ret = domain->pgtable->ops.map_pages(&domain->pgtable->ops, iova, paddr, pgsize,
-						     pgcount, prot, 0, &mapped);
+		ret = smmu_domain->pgtable->ops.map_pages(&smmu_domain->pgtable->ops, iova,
+							  paddr, pgsize, pgcount, prot, 0, &mapped);
 		if (ret)
 			break;
 		WARN_ON(!IS_ALIGNED(mapped, pgsize));
@@ -1311,24 +1316,24 @@ static size_t smmu_unmap_pages(struct kvm_hyp_iommu_domain *domain, unsigned lon
 			       struct kvm_iommu_paddr_cache *cache)
 {
 	size_t granule, unmapped;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 	struct kvm_iommu_walk_data data = {
 		.iotlb_gather = gather,
-		.cookie = domain->pgtable->cookie,
+		.cookie = smmu_domain->pgtable->cookie,
 		.cache = cache,
 	};
 	struct io_pgtable_walker walker = {
 		.cb = kvm_iommu_unmap_walker,
 		.arg = &data,
 	};
-	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
-	granule = 1UL << __ffs(domain->pgtable->cfg.pgsize_bitmap);
+	granule = 1UL << __ffs(smmu_domain->pgtable->cfg.pgsize_bitmap);
 	if (!IS_ALIGNED(iova | pgsize, granule))
 		return 0;
 
 	hyp_spin_lock(&smmu_domain->pgt_lock);
-	unmapped = domain->pgtable->ops.unmap_pages_walk(&domain->pgtable->ops, iova, pgsize,
-							 pgcount, gather, &walker);
+	unmapped = smmu_domain->pgtable->ops.unmap_pages_walk(&smmu_domain->pgtable->ops, iova,
+							      pgsize, pgcount, gather, &walker);
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
 	return unmapped;
 }
@@ -1340,7 +1345,7 @@ static phys_addr_t smmu_iova_to_phys(struct kvm_hyp_iommu_domain *domain,
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
 
 	hyp_spin_lock(&smmu_domain->pgt_lock);
-	paddr = domain->pgtable->ops.iova_to_phys(&domain->pgtable->ops, iova);
+	paddr = smmu_domain->pgtable->ops.iova_to_phys(&smmu_domain->pgtable->ops, iova);
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
 
 	return paddr;
@@ -1371,7 +1376,8 @@ static void smmu_host_stage2_idmap(struct kvm_hyp_iommu_domain *domain,
 	size_t pgsize, pgcount;
 	size_t mapped, unmapped;
 	int ret;
-	struct io_pgtable *pgtable = domain->pgtable;
+	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	struct io_pgtable *pgtable = smmu_domain->pgtable;
 
 	end = min(end, BIT(pgtable->cfg.oas));
 	if (start >= end)

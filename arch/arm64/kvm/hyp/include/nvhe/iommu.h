@@ -46,7 +46,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 			     unsigned long iova, size_t pgsize, size_t pgcount);
 phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova);
 bool kvm_iommu_host_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
-void kvm_iommu_iotlb_gather_add_page(void *cookie,
+void kvm_iommu_iotlb_gather_add_page(struct kvm_hyp_iommu_domain *domain,
 				     struct iommu_iotlb_gather *gather,
 				     unsigned long iova,
 				     size_t size);
@@ -74,7 +74,7 @@ struct kvm_iommu_ops {
 	bool (*dabt_handler)(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr);
 	int (*suspend)(struct kvm_hyp_iommu *iommu);
 	int (*resume)(struct kvm_hyp_iommu *iommu);
-	void (*iotlb_sync)(void *cookie,
+	void (*iotlb_sync)(struct kvm_hyp_iommu_domain *domain,
 			   struct iommu_iotlb_gather *gather);
 	void (*host_stage2_idmap)(struct kvm_hyp_iommu_domain *domain,
 				  phys_addr_t start, phys_addr_t end, int prot);

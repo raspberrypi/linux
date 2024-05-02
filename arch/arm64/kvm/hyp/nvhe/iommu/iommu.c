@@ -336,11 +336,11 @@ size_t kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 }
 
 /* Based on  the kernel iommu_iotlb* but with some tweak, this can be unified later. */
-static inline void kvm_iommu_iotlb_sync(void *cookie,
+static inline void kvm_iommu_iotlb_sync(struct kvm_hyp_iommu_domain *domain,
 					struct iommu_iotlb_gather *iotlb_gather)
 {
 	if (kvm_iommu_ops->iotlb_sync)
-		kvm_iommu_ops->iotlb_sync(cookie, iotlb_gather);
+		kvm_iommu_ops->iotlb_sync(domain, iotlb_gather);
 
 	iommu_iotlb_gather_init(iotlb_gather);
 }
@@ -365,14 +365,14 @@ static inline void kvm_iommu_iotlb_gather_add_range(struct iommu_iotlb_gather *g
 		gather->end = end;
 }
 
-void kvm_iommu_iotlb_gather_add_page(void *cookie,
+void kvm_iommu_iotlb_gather_add_page(struct kvm_hyp_iommu_domain *domain,
 				     struct iommu_iotlb_gather *gather,
 				     unsigned long iova,
 				     size_t size)
 {
 	if ((gather->pgsize && gather->pgsize != size) ||
 	    kvm_iommu_iotlb_gather_is_disjoint(gather, iova, size))
-		kvm_iommu_iotlb_sync(cookie, gather);
+		kvm_iommu_iotlb_sync(domain, gather);
 
 	gather->pgsize = size;
 	kvm_iommu_iotlb_gather_add_range(gather, iova, size);
@@ -420,7 +420,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 						      max_pgcount, &iotlb_gather, cache);
 		if (!unmapped)
 			break;
-		kvm_iommu_iotlb_sync(domain->pgtable->cookie, &iotlb_gather);
+		kvm_iommu_iotlb_sync(domain, &iotlb_gather);
 		kvm_iommu_flush_unmap_cache(cache);
 		iova += unmapped;
 		total_unmapped += unmapped;
