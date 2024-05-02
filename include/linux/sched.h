@@ -469,6 +469,7 @@ struct sched_avg {
 	unsigned long			runnable_avg;
 	unsigned long			util_avg;
 	unsigned int			util_est;
+	u32                             reserved;
 } ____cacheline_aligned;
 
 /*
