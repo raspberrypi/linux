@@ -1111,13 +1111,14 @@
 
 			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,  // required, config bus clock
 				 <&rp1_clocks RP1_CLK_MIPI0_DPI>,  // required, pixel clock
-				 <&clksrc_mipi0_dsi_byteclk>,      // internal, parent for DPI divider
+				 <&rp1_clocks RP1_CLK_MIPI0_DSI_BYTECLOCK>, // required clock source
 				 <&clk_xosc>,                      // hardwired to DSI "refclk"
 				 <&rp1_clocks RP1_PLL_SYS>;        // alternative parent for divider
 			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk", "pllsys";
 
 			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
-					  <&rp1_clocks RP1_CLK_MIPI0_DPI>;
+					  <&rp1_clocks RP1_CLK_MIPI0_DPI>,
+					  <&rp1_clocks RP1_CLK_MIPI0_DSI_BYTECLOCK>;
 			assigned-clock-rates = <25000000>;
 		};
 
@@ -1132,13 +1133,14 @@
 
 			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,  // required, config bus clock
 				 <&rp1_clocks RP1_CLK_MIPI1_DPI>,  // required, pixel clock
-				 <&clksrc_mipi1_dsi_byteclk>,      // internal, parent for DPI divider
+				 <&rp1_clocks RP1_CLK_MIPI1_DSI_BYTECLOCK>, // required clock source
 				 <&clk_xosc>,                      // hardwired to DSI "refclk"
 				 <&rp1_clocks RP1_PLL_SYS>;        // alternative parent for divider
 			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk", "pllsys";
 
 			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,
-					  <&rp1_clocks RP1_CLK_MIPI1_DPI>;
+					  <&rp1_clocks RP1_CLK_MIPI1_DPI>,
+					  <&rp1_clocks RP1_CLK_MIPI1_DSI_BYTECLOCK>;
 			assigned-clock-rates = <25000000>;
 		};
 
@@ -1215,24 +1217,6 @@
 		#clock-cells = <0>;
 		clock-output-names = "core";
 		clock-frequency = <50000000>;
-	};
-	clksrc_mipi0_dsi_byteclk: clksrc_mipi0_dsi_byteclk {
-		// This clock is synthesized by MIPI0 D-PHY, when DSI is running.
-		// Its frequency is not known a priori (until a panel driver attaches)
-		// so assign a made-up frequency of 72kHz so it can be divided for DPI.
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "clksrc_mipi0_dsi_byteclk";
-		clock-frequency = <72000>;
-	};
-	clksrc_mipi1_dsi_byteclk: clksrc_mipi1_dsi_byteclk {
-		// This clock is synthesized by MIPI1 D-PHY, when DSI is running.
-		// Its frequency is not known a priori (until a panel driver attaches)
-		// so assign a made-up frequency of 72kHz so it can be divided for DPI.
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "clksrc_mipi1_dsi_byteclk";
-		clock-frequency = <72000>;
 	};
 	/* GPIO derived clock sources. Each GPIO with a GPCLK function
 	 * can drive its output from the respective GPCLK

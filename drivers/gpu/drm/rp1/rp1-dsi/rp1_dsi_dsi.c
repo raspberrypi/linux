@@ -1304,22 +1304,27 @@ static unsigned long rp1dsi_refclk_freq(struct rp1_dsi *dsi)
 static void rp1dsi_dpiclk_start(struct rp1_dsi *dsi, u32 byte_clock,
 				unsigned int bpp, unsigned int lanes)
 {
-	if (!dsi->clocks[RP1DSI_CLOCK_DPI])
-		return;
+	/* Dummy clk_set_rate() to declare the actual DSI byte-clock rate */
+	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_BYTE], byte_clock);
 
-	if (bpp >= 8 * lanes && dsi->clocks[RP1DSI_CLOCK_BYTE] &&
-	    !clk_set_parent(dsi->clocks[RP1DSI_CLOCK_DPI], dsi->clocks[RP1DSI_CLOCK_BYTE]))
-		byte_clock = clk_get_rate(dsi->clocks[RP1DSI_CLOCK_BYTE]); /* dummy/nominal rate */
+	/*
+	 * Prefer the DSI byte-clock source where possible, so that DSI and DPI
+	 * clocks will be in an exact ratio and downstream devices can recover
+	 * perfect timings. But when DPI clock is faster, fall back on PLL_SYS.
+	 * To defeat rounding errors, specify explicitly which source to use.
+	 */
+	if (bpp >= 8 * lanes)
+		clk_set_parent(dsi->clocks[RP1DSI_CLOCK_DPI], dsi->clocks[RP1DSI_CLOCK_BYTE]);
 	else if (dsi->clocks[RP1DSI_CLOCK_PLLSYS])
 		clk_set_parent(dsi->clocks[RP1DSI_CLOCK_DPI], dsi->clocks[RP1DSI_CLOCK_PLLSYS]);
 
 	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_DPI], (4 * lanes * byte_clock) / (bpp >> 1));
 	clk_prepare_enable(dsi->clocks[RP1DSI_CLOCK_DPI]);
-	drm_dbg_driver(dsi->drm,
-		       "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)",
-		       byte_clock,
-		       clk_get_rate(dsi->clocks[RP1DSI_CLOCK_DPI]),
-		       clk_get_rate(clk_get_parent(dsi->clocks[RP1DSI_CLOCK_DPI])));
+	drm_info(dsi->drm,
+		 "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)",
+		 byte_clock,
+		 clk_get_rate(dsi->clocks[RP1DSI_CLOCK_DPI]),
+		 clk_get_rate(clk_get_parent(dsi->clocks[RP1DSI_CLOCK_DPI])));
 }
 
 static void rp1dsi_dpiclk_stop(struct rp1_dsi *dsi)
