@@ -113,6 +113,7 @@
 		gpio3 = &pinctrl;
 		gpio4 = &pinctrl_aon;
 		gpiochip0 = &gpio;
+		gpiochip10 = &gio;
 		i2c = &i2c_arm;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
