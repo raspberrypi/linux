@@ -12,6 +12,7 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
+#include <linux/auxiliary_bus.h>
 
 #include <asm/gunyah.h>
 
@@ -141,6 +142,7 @@ struct gunyah_rm {
 	struct completion send_ready;
 	struct blocking_notifier_head nh;
 
+	struct auxiliary_device adev;
 	struct miscdevice miscdev;
 	struct fwnode_handle *parent_fwnode;
 };
@@ -653,6 +655,7 @@ out:
 	xa_erase(&rm->call_xarray, message.reply.seq);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(gunyah_rm_call);
 
 int gunyah_rm_notifier_register(struct gunyah_rm *rm, struct notifier_block *nb)
 {
@@ -754,6 +757,32 @@ static int gunyah_rm_probe_rx_msgq(struct gunyah_rm *rm,
 					 "gunyah_rm_rx", rm);
 }
 
+static void gunyah_adev_release(struct device *dev)
+{
+	/* no-op */
+}
+
+static int gunyah_adev_init(struct gunyah_rm *rm, const char *name)
+{
+	struct auxiliary_device *adev = &rm->adev;
+	int ret = 0;
+
+	adev->name = name;
+	adev->dev.parent = rm->dev;
+	adev->dev.release = gunyah_adev_release;
+	ret = auxiliary_device_init(adev);
+	if (ret)
+		return ret;
+
+	ret = auxiliary_device_add(adev);
+	if (ret) {
+		auxiliary_device_uninit(adev);
+		return ret;
+	}
+
+	return ret;
+}
+
 static int gunyah_rm_probe(struct platform_device *pdev)
 {
 	struct device_node *parent_irq_node;
@@ -803,7 +832,17 @@ static int gunyah_rm_probe(struct platform_device *pdev)
 	rm->miscdev.minor = MISC_DYNAMIC_MINOR;
 	rm->miscdev.fops = &gunyah_dev_fops;
 
-	return misc_register(&rm->miscdev);
+	ret = misc_register(&rm->miscdev);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to register gunyah misc device\n");
+	} else {
+		ret = gunyah_adev_init(rm, "gh_rm_core");
+		if (ret) {
+			dev_err(&pdev->dev, "Failed to add gh_rm_core device\n");
+			return ret;
+		}
+	}
+	return 0;
 }
 
 static void gunyah_rm_remove(struct platform_device *pdev)
