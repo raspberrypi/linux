@@ -279,9 +279,9 @@ static int jdi_panel_enable(struct drm_panel *panel)
 	if (jdi->enabled)
 		return 0;
 
-	backlight_enable(jdi->backlight);
-
 	jdi->enabled = true;
+
+	backlight_enable(jdi->backlight);
 
 	return 0;
 }
@@ -326,9 +326,13 @@ static int jdi_panel_get_modes(struct drm_panel *panel,
 
 static int dsi_dcs_bl_get_brightness(struct backlight_device *bl)
 {
-	struct mipi_dsi_device *dsi = bl_get_data(bl);
+	struct jdi_panel *jdi = bl_get_data(bl);
+	struct mipi_dsi_device *dsi = jdi->dsi;
 	int ret;
 	u16 brightness = bl->props.brightness;
+
+	if (!jdi->enabled)
+		return brightness;
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
@@ -343,8 +347,12 @@ static int dsi_dcs_bl_get_brightness(struct backlight_device *bl)
 
 static int dsi_dcs_bl_update_status(struct backlight_device *bl)
 {
-	struct mipi_dsi_device *dsi = bl_get_data(bl);
+	struct jdi_panel *jdi = bl_get_data(bl);
+	struct mipi_dsi_device *dsi = jdi->dsi;
 	int ret;
+
+	if (!jdi->enabled)
+		return 0;
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
@@ -363,8 +371,9 @@ static const struct backlight_ops dsi_bl_ops = {
 };
 
 static struct backlight_device *
-drm_panel_create_dsi_backlight(struct mipi_dsi_device *dsi)
+drm_panel_create_dsi_backlight(struct jdi_panel *jdi)
 {
+	struct mipi_dsi_device *dsi = jdi->dsi;
 	struct device *dev = &dsi->dev;
 	struct backlight_properties props;
 
@@ -373,7 +382,7 @@ drm_panel_create_dsi_backlight(struct mipi_dsi_device *dsi)
 	props.brightness = 255;
 	props.max_brightness = 255;
 
-	return devm_backlight_device_register(dev, dev_name(dev), dev, dsi,
+	return devm_backlight_device_register(dev, dev_name(dev), dev, jdi,
 					      &dsi_bl_ops, &props);
 }
 
@@ -424,7 +433,7 @@ static int jdi_panel_add(struct jdi_panel *jdi)
 		return dev_err_probe(dev, PTR_ERR(jdi->dcdc_en_gpio),
 				     "cannot get dcdc-en-gpio %d\n", ret);
 
-	jdi->backlight = drm_panel_create_dsi_backlight(jdi->dsi);
+	jdi->backlight = drm_panel_create_dsi_backlight(jdi);
 	if (IS_ERR(jdi->backlight))
 		return dev_err_probe(dev, PTR_ERR(jdi->backlight),
 				     "failed to register backlight %d\n", ret);
