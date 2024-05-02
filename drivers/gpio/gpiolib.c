@@ -118,6 +118,7 @@ static int gpiochip_irqchip_init_valid_mask(struct gpio_chip *gc);
 static void gpiochip_irqchip_free_valid_mask(struct gpio_chip *gc);
 
 static bool gpiolib_initialized;
+static int first_dynamic_gpiochip_num = -1;
 
 const char *gpiod_get_label(struct gpio_desc *desc)
 {
@@ -1038,6 +1039,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	unsigned int desc_index;
 	int base = 0;
 	int ret;
+	int id;
 
 	/*
 	 * First: allocate and populate the internal stat container, and
@@ -1057,7 +1059,16 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 
 	device_set_node(&gdev->dev, gpiochip_choose_fwnode(gc));
 
-	ret = ida_alloc(&gpio_ida, GFP_KERNEL);
+	if (first_dynamic_gpiochip_num < 0) {
+		id = of_alias_get_highest_id("gpiochip");
+		first_dynamic_gpiochip_num = (id >= 0) ? (id + 1) : 0;
+	}
+
+	id = of_alias_get_id(gdev->dev.of_node, "gpiochip");
+	if (id < 0)
+		id = first_dynamic_gpiochip_num;
+
+	ret = ida_alloc_range(&gpio_ida, id, ~0, GFP_KERNEL);
 	if (ret < 0)
 		goto err_free_gdev;
 	gdev->id = ret;
