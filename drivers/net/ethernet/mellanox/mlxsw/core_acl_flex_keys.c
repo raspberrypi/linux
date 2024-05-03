@@ -5,6 +5,7 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/errno.h>
+#include <linux/refcount.h>
 
 #include "item.h"
 #include "core_acl_flex_keys.h"
@@ -105,7 +106,7 @@ EXPORT_SYMBOL(mlxsw_afk_destroy);
 
 struct mlxsw_afk_key_info {
 	struct list_head list;
-	unsigned int ref_count;
+	refcount_t ref_count;
 	unsigned int blocks_count;
 	int element_to_block[MLXSW_AFK_ELEMENT_MAX]; /* index is element, value
 						      * is index inside "blocks"
@@ -282,7 +283,7 @@ mlxsw_afk_key_info_create(struct mlxsw_afk *mlxsw_afk,
 	if (err)
 		goto err_picker;
 	list_add(&key_info->list, &mlxsw_afk->key_info_list);
-	key_info->ref_count = 1;
+	refcount_set(&key_info->ref_count, 1);
 	return key_info;
 
 err_picker:
@@ -304,7 +305,7 @@ mlxsw_afk_key_info_get(struct mlxsw_afk *mlxsw_afk,
 
 	key_info = mlxsw_afk_key_info_find(mlxsw_afk, elusage);
 	if (key_info) {
-		key_info->ref_count++;
+		refcount_inc(&key_info->ref_count);
 		return key_info;
 	}
 	return mlxsw_afk_key_info_create(mlxsw_afk, elusage);
@@ -313,7 +314,7 @@ EXPORT_SYMBOL(mlxsw_afk_key_info_get);
 
 void mlxsw_afk_key_info_put(struct mlxsw_afk_key_info *key_info)
 {
-	if (--key_info->ref_count)
+	if (!refcount_dec_and_test(&key_info->ref_count))
 		return;
 	mlxsw_afk_key_info_destroy(key_info);
 }
