@@ -1449,6 +1449,7 @@
   rb_first
   rb_insert_color
   rb_next
+  rb_prev
   rcu_barrier
   __rcu_read_lock
   __rcu_read_unlock
