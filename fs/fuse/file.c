@@ -2768,9 +2768,9 @@ static int fuse_file_flock(struct file *file, int cmd, struct file_lock *fl)
 static ssize_t fuse_splice_read(struct file *in, loff_t *ppos,
 		struct pipe_inode_info *pipe, size_t len, unsigned int flags)
 {
+#ifdef CONFIG_FUSE_BPF
 	struct fuse_file *ff = in->private_data;
 
-#ifdef CONFIG_FUSE_BPF
 	/* TODO - this is simply passthrough, not a proper BPF filter */
 	if (ff->backing_file)
 		return fuse_splice_read_backing(in, ppos, pipe, len, flags);
