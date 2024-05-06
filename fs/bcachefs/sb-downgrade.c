@@ -134,7 +134,8 @@ downgrade_entry_next_c(const struct bch_sb_field_downgrade_entry *e)
 #define for_each_downgrade_entry(_d, _i)						\
 	for (const struct bch_sb_field_downgrade_entry *_i = (_d)->entries;		\
 	     (void *) _i	< vstruct_end(&(_d)->field) &&				\
-	     (void *) &_i->errors[0] < vstruct_end(&(_d)->field);			\
+	     (void *) &_i->errors[0] <= vstruct_end(&(_d)->field) &&			\
+	     (void *) downgrade_entry_next_c(_i) <= vstruct_end(&(_d)->field);		\
 	     _i = downgrade_entry_next_c(_i))
 
 static int bch2_sb_downgrade_validate(struct bch_sb *sb, struct bch_sb_field *f,
@@ -142,7 +143,9 @@ static int bch2_sb_downgrade_validate(struct bch_sb *sb, struct bch_sb_field *f,
 {
 	struct bch_sb_field_downgrade *e = field_to_type(f, downgrade);
 
-	for_each_downgrade_entry(e, i) {
+	for (const struct bch_sb_field_downgrade_entry *i = e->entries;
+	     (void *) i	< vstruct_end(&e->field);
+	     i = downgrade_entry_next_c(i)) {
 		if (BCH_VERSION_MAJOR(le16_to_cpu(i->version)) !=
 		    BCH_VERSION_MAJOR(le16_to_cpu(sb->version))) {
 			prt_printf(err, "downgrade entry with mismatched major version (%u != %u)",
