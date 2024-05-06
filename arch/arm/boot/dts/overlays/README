@@ -4134,6 +4134,14 @@ Params: int_pin                 GPIO used for IRQ (default 24)
         xtal                    On-board crystal frequency (default 14745600)
 
 
+Name:   sc16is750-spi0
+Info:   Overlay for the NXP SC16IS750 UART with SPI Interface
+        Enables the chip on SPI0.
+Load:   dtoverlay=sc16is750-spi0,<param>=<val>
+Params: int_pin                 GPIO used for IRQ (default 24)
+        xtal                    On-board crystal frequency (default 14745600)
+
+
 Name:   sc16is752-i2c
 Info:   Overlay for the NXP SC16IS752 dual UART with I2C Interface
         Enables the chip on I2C1 at 0x48 (or the "addr" parameter value). To
