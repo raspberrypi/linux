@@ -213,6 +213,7 @@ struct gendisk {
 	 */
 	struct blk_independent_access_ranges *ia_ranges;
 
+	ANDROID_OEM_DATA(1);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
