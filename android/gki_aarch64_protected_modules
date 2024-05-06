@@ -30,6 +30,7 @@ drivers/pps/pps_core.ko
 drivers/ptp/ptp.ko
 drivers/ptp/ptp_kvm.ko
 drivers/usb/class/cdc-acm.ko
+drivers/usb/mon/usbmon.ko
 drivers/usb/serial/ftdi_sio.ko
 drivers/usb/serial/usbserial.ko
 lib/crypto/libarc4.ko

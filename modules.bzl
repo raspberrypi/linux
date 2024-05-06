@@ -39,6 +39,7 @@ _COMMON_GKI_MODULES_LIST = [
     "drivers/pps/pps_core.ko",
     "drivers/ptp/ptp.ko",
     "drivers/usb/class/cdc-acm.ko",
+    "drivers/usb/mon/usbmon.ko",
     "drivers/usb/serial/ftdi_sio.ko",
     "drivers/usb/serial/usbserial.ko",
     "kernel/kheaders.ko",
