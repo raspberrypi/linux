@@ -573,9 +573,9 @@ static const char * const irq_type_names[] = {
 	[IRQ_TYPE_LEVEL_LOW] = "level-low",
 };
 
-static bool strict_gpiod;
-module_param(strict_gpiod, bool, 0644);
-MODULE_PARM_DESC(strict_gpiod, "unless true, outputs remain outputs when freed");
+static bool persist_gpio_outputs = true;
+module_param(persist_gpio_outputs, bool, 0644);
+MODULE_PARM_DESC(persist_gpio_outputs, "Enable GPIO_OUT persistence when pin is freed");
 
 static int rp1_pinconf_set(struct pinctrl_dev *pctldev,
 			   unsigned int offset, unsigned long *configs,
@@ -1205,11 +1205,12 @@ static int rp1_pmx_free(struct pinctrl_dev *pctldev, unsigned offset)
 	struct rp1_pin_info *pin = rp1_get_pin_pctl(pctldev, offset);
 	u32 fsel = rp1_get_fsel(pin);
 
-	/* Return non-GPIOs to GPIO_IN, unless strict_gpiod is set */
-	if (strict_gpiod || fsel != RP1_FSEL_GPIO) {
-		rp1_set_dir(pin, RP1_DIR_INPUT);
-		rp1_set_fsel(pin, RP1_FSEL_GPIO);
-	}
+	/* Return all pins to GPIO_IN, unless persist_gpio_outputs is set */
+	if (persist_gpio_outputs && fsel == RP1_FSEL_GPIO)
+		return 0;
+
+	rp1_set_dir(pin, RP1_DIR_INPUT);
+	rp1_set_fsel(pin, RP1_FSEL_GPIO);
 
 	return 0;
 }
