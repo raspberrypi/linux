@@ -834,7 +834,7 @@ static void vc4_disable_vblank(struct drm_crtc *crtc)
 	if (!drm_dev_enter(dev, &idx))
 		return;
 
-	if (vc4_encoder->type != VC4_ENCODER_TYPE_DSI0)
+	if (!vc4_encoder || vc4_encoder->type != VC4_ENCODER_TYPE_DSI0)
 		CRTC_WRITE(PV_INTEN, 0);
 
 	drm_dev_exit(idx);
