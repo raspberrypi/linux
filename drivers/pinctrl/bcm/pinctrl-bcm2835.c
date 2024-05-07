@@ -245,7 +245,7 @@ static const char * const irq_type_names[] = {
 	[IRQ_TYPE_LEVEL_LOW] = "level-low",
 };
 
-static bool persist_gpio_outputs;
+static bool persist_gpio_outputs = true;
 module_param(persist_gpio_outputs, bool, 0444);
 MODULE_PARM_DESC(persist_gpio_outputs, "Enable GPIO_OUT persistence when pin is freed");
 
