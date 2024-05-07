@@ -36,6 +36,14 @@
       ]
     },
     {
+      "name": "CtsWifiBroadcastsHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
       "name": "vts_kernel_net_tests"
     }
   ]

@@ -23,6 +23,14 @@
       ]
     },
     {
+      "name": "CtsWifiBroadcastsHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
       "name": "selftests",
       "options": [
         {
