@@ -64,7 +64,7 @@
 #define KEEPALIVE_VER 1
 #define KEEPALIVE_VER_MIN KEEPALIVE_VER
 
-DEFINE_SPINLOCK(msg_queue_spinlock); /* FIXME */
+DEFINE_SPINLOCK(msg_queue_spinlock); /* serialise access to the message queues to userspace */
 struct vchiq_state g_state;
 
 static struct platform_device *bcm2835_camera;

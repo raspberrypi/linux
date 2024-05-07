@@ -149,8 +149,8 @@ static inline void check_sizes(void)
 	BUILD_BUG_ON_NOT_POWER_OF_2(VCHIQ_MAX_SERVICES);
 }
 
-DEFINE_SPINLOCK(bulk_waiter_spinlock); /* FIXME */
-static DEFINE_SPINLOCK(quota_spinlock); /* FIXME */
+DEFINE_SPINLOCK(bulk_waiter_spinlock); /* serialiase completion of blocking transfers */
+static DEFINE_SPINLOCK(quota_spinlock); /* serialise updates to slot quota data */
 
 static unsigned int handle_seq;
 

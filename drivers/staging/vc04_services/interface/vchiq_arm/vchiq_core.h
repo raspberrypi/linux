@@ -195,7 +195,7 @@ struct vchiq_service {
 
 	struct completion remove_event;
 	struct completion bulk_remove_event;
-	struct mutex bulk_mutex; /* FIXME */
+	struct mutex bulk_mutex; /* serialise access to the bulk transfer queues */
 
 	struct service_stats_struct {
 		int quota_stalls;
@@ -312,7 +312,7 @@ struct vchiq_state {
 	struct completion connect;
 
 	/* Mutex protecting services */
-	struct mutex mutex; /* FIXME */
+	struct mutex mutex; /* serialise service creation */
 	struct vchiq_instance **instance;
 
 	/* Processes incoming messages */
@@ -340,13 +340,13 @@ struct vchiq_state {
 	char *rx_data;
 	struct vchiq_slot_info *rx_info;
 
-	struct mutex slot_mutex; /* FIXME */
+	struct mutex slot_mutex; /* serialise access to the main message slots */
 
-	struct mutex recycle_mutex; /* FIXME */
+	struct mutex recycle_mutex; /* serialise slot refcount updates */
 
-	struct mutex sync_mutex; /* FIXME */
+	struct mutex sync_mutex; /* serialise access to the single synchronous message slot */
 
-	struct mutex bulk_transfer_mutex; /* FIXME */
+	struct mutex bulk_transfer_mutex; /* Unused, following upstream changes */
 
 	/*
 	 * Indicates the byte position within the stream from where the next
