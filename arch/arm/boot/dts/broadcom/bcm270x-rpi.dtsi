@@ -111,7 +111,7 @@
 			    <&csi0>, "sync-gpios:4",
 			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
 
-		strict_gpiod = <&chosen>, "bootargs=pinctrl_bcm2835.strict_gpiod=y";
+		strict_gpiod = <&chosen>, "bootargs=pinctrl_bcm2835.persist_gpio_outputs=n";
 	};
 };
 
