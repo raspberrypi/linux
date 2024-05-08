@@ -4277,7 +4277,7 @@ static int ptp_ocp_dpll_direction_set(const struct dpll_pin *pin,
 		return -EOPNOTSUPP;
 	mode = direction == DPLL_PIN_DIRECTION_INPUT ?
 			    SMA_MODE_IN : SMA_MODE_OUT;
-	return ptp_ocp_sma_store_val(bp, 0, mode, sma_nr);
+	return ptp_ocp_sma_store_val(bp, 0, mode, sma_nr + 1);
 }
 
 static int ptp_ocp_dpll_frequency_set(const struct dpll_pin *pin,
@@ -4298,7 +4298,7 @@ static int ptp_ocp_dpll_frequency_set(const struct dpll_pin *pin,
 	tbl = bp->sma_op->tbl[sma->mode];
 	for (i = 0; tbl[i].name; i++)
 		if (tbl[i].frequency == frequency)
-			return ptp_ocp_sma_store_val(bp, i, sma->mode, sma_nr);
+			return ptp_ocp_sma_store_val(bp, i, sma->mode, sma_nr + 1);
 	return -EINVAL;
 }
 
@@ -4315,7 +4315,7 @@ static int ptp_ocp_dpll_frequency_get(const struct dpll_pin *pin,
 	u32 val;
 	int i;
 
-	val = bp->sma_op->get(bp, sma_nr);
+	val = bp->sma_op->get(bp, sma_nr + 1);
 	tbl = bp->sma_op->tbl[sma->mode];
 	for (i = 0; tbl[i].name; i++)
 		if (val == tbl[i].value) {
