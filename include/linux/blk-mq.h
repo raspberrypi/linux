@@ -192,6 +192,8 @@ struct request {
 	rq_end_io_fn *end_io;
 	void *end_io_data;
 
+	ANDROID_OEM_DATA(1);
+
 	ANDROID_KABI_RESERVE(1);
 };
 
