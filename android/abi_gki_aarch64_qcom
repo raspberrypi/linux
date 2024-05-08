@@ -828,11 +828,15 @@
   int_sqrt
   iomem_resource
   iommu_alloc_resv_region
+  iommu_attach_device
+  iommu_detach_device
   iommu_device_register
   iommu_device_sysfs_add
   iommu_device_sysfs_remove
   iommu_device_unregister
   iommu_dma_get_resv_regions
+  iommu_domain_alloc
+  iommu_domain_free
   iommu_fwspec_add_ids
   iommu_fwspec_free
   iommu_get_domain_for_dev
@@ -2152,6 +2156,7 @@
   up_read
   up_write
   usb_add_phy_dev
+  usb_alloc_coherent
   usb_assign_descriptors
   usb_composite_setup_continue
   usb_decode_ctrl
@@ -2164,10 +2169,12 @@
   usb_ep_queue
   usb_ep_set_halt
   usb_free_all_descriptors
+  usb_free_coherent
   usb_function_register
   usb_function_unregister
   usb_gadget_wakeup
   usb_hcd_is_primary_hcd
+  usb_ifnum_to_if
   usb_interface_id
   usb_phy_set_charger_current
   usb_put_function_instance
@@ -2255,6 +2262,7 @@
   xfrm_lookup
   xhci_create_secondary_interrupter
   xhci_disable_interrupter
+  xhci_get_endpoint_index
   xhci_initialize_ring_info
   xhci_remove_secondary_interrupter
   xhci_set_interrupter_moderation
