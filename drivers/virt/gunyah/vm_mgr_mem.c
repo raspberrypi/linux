@@ -88,14 +88,22 @@ static inline u32 donate_flags(bool share)
 					GUNYAH_MEMEXTENT_DONATE_TO_PROTECTED);
 }
 
-static inline u32 reclaim_flags(bool share)
+static inline u32 reclaim_flags(bool share, bool sync)
 {
+	u32 flags = 0;
+
 	if (share)
-		return FIELD_PREP_CONST(GUNYAH_MEMEXTENT_OPTION_TYPE_MASK,
-					GUNYAH_MEMEXTENT_DONATE_TO_SIBLING);
+		flags |= FIELD_PREP_CONST(GUNYAH_MEMEXTENT_OPTION_TYPE_MASK,
+					  GUNYAH_MEMEXTENT_DONATE_TO_SIBLING);
 	else
-		return FIELD_PREP_CONST(GUNYAH_MEMEXTENT_OPTION_TYPE_MASK,
-					GUNYAH_MEMEXTENT_DONATE_FROM_PROTECTED);
+		flags |= FIELD_PREP_CONST(
+			GUNYAH_MEMEXTENT_OPTION_TYPE_MASK,
+			GUNYAH_MEMEXTENT_DONATE_FROM_PROTECTED);
+
+	if (!sync)
+		flags |= GUNYAH_MEMEXTENT_OPTION_NOSYNC;
+
+	return flags;
 }
 
 int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
@@ -188,10 +196,9 @@ int gunyah_vm_provide_folio(struct gunyah_vm *ghvm, struct folio *folio,
 	folio_get(folio);
 	return 0;
 memextent_reclaim:
-	gunyah_error = gunyah_hypercall_memextent_donate(reclaim_flags(share),
-							 guest_extent->capid,
-							 host_extent->capid, pa,
-							 size);
+	gunyah_error = gunyah_hypercall_memextent_donate(
+		reclaim_flags(share, true), guest_extent->capid,
+		host_extent->capid, pa, size);
 	if (gunyah_error != GUNYAH_ERROR_OK)
 		pr_err("Failed to reclaim memory donation for guest address 0x%016llx: %d\n",
 		       gpa, gunyah_error);
@@ -260,10 +267,9 @@ static int __gunyah_vm_reclaim_folio_locked(struct gunyah_vm *ghvm, void *entry,
 		goto err;
 	}
 
-	gunyah_error = gunyah_hypercall_memextent_donate(reclaim_flags(share),
-							 guest_extent->capid,
-							 host_extent->capid, pa,
-							 size);
+	gunyah_error = gunyah_hypercall_memextent_donate(
+		reclaim_flags(share, sync), guest_extent->capid,
+		host_extent->capid, pa, size);
 	if (gunyah_error != GUNYAH_ERROR_OK) {
 		pr_err_ratelimited(
 			"Failed to reclaim memory donation for guest address 0x%016llx: %d\n",
