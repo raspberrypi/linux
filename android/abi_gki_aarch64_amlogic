@@ -318,6 +318,7 @@
   device_create
   device_create_file
   device_create_managed_software_node
+  device_create_with_groups
   device_del
   device_destroy
   device_for_each_child
@@ -442,6 +443,7 @@
   devres_add
   __devres_alloc_node
   devres_free
+  devres_release
   dev_set_name
   _dev_warn
   d_find_alias
@@ -513,6 +515,7 @@
   dma_pool_destroy
   dma_pool_free
   dma_resv_add_fence
+  dma_resv_get_singleton
   dma_set_coherent_mask
   dma_set_mask
   dma_sync_sg_for_cpu
@@ -658,6 +661,7 @@
   drm_gem_private_object_init
   drm_gem_vm_close
   drm_gem_vm_open
+  drm_get_format_info
   drm_helper_hpd_irq_event
   drm_helper_mode_fill_fb_struct
   drm_helper_probe_single_connector_modes
@@ -911,12 +915,16 @@
   gpiochip_generic_free
   gpiochip_generic_request
   gpiochip_get_data
+  gpiochip_line_is_valid
+  gpiochip_lock_as_irq
+  gpiochip_unlock_as_irq
   gpiod_cansleep
   gpiod_count
   gpiod_direction_input
   gpiod_direction_output
   gpiod_direction_output_raw
   gpiod_get
+  gpiod_get_direction
   gpiod_get_index
   gpiod_get_index_optional
   gpiod_get_optional
@@ -1101,6 +1109,9 @@
   kernel_param_unlock
   kernel_restart
   kernel_sigaction
+  kernfs_find_and_get_ns
+  kernfs_notify
+  kernfs_put
   kern_mount
   kern_unmount
   key_create_or_update
@@ -1448,6 +1459,8 @@
   overflowuid
   pagecache_get_page
   page_mapping
+  page_pinner_inited
+  __page_pinner_put_page
   page_pool_alloc_pages
   page_pool_create
   page_pool_destroy
@@ -1759,6 +1772,7 @@
   remove_cpu
   remove_proc_entry
   remove_wait_queue
+  request_any_context_irq
   request_firmware
   request_firmware_direct
   request_firmware_nowait
@@ -2102,12 +2116,17 @@
   task_sched_runtime
   thermal_cooling_device_unregister
   thermal_of_cooling_device_register
+  thermal_zone_bind_cooling_device
+  thermal_zone_device_disable
+  thermal_zone_device_enable
+  thermal_zone_device_register_with_trips
   thermal_zone_device_unregister
   thermal_zone_device_update
   thermal_zone_get_num_trips
   __thermal_zone_get_trip
   thermal_zone_get_trip
   thermal_zone_get_zone_by_name
+  thermal_zone_unbind_cooling_device
   time64_to_tm
   timer_delete
   timer_delete_sync
@@ -2448,6 +2467,7 @@
   wakeup_source_register
   wakeup_source_unregister
   __wake_up_sync
+  __warn_flushing_systemwide_wq
   __warn_printk
   wireless_nlevent_flush
   wireless_send_event
