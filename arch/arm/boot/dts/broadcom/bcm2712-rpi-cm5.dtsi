@@ -425,7 +425,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 
 / {
 	chosen: chosen {
-		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe";
 		stdout-path = "serial10:115200n8";
 	};
 
