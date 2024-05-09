@@ -1359,8 +1359,8 @@ static u32 get_colorcode(enum mipi_dsi_pixel_format fmt)
 #define RP1DSI_BYTE_CLK_MIN  10000000
 #define RP1DSI_BYTE_CLK_MAX 187500000
 #define RP1DSI_ESC_CLK_MAX   20000000
-#define RP1DSI_TO_CLK_DIV           5
-#define RP1DSI_LPRX_TO_VAL      0x400
+#define RP1DSI_TO_CLK_DIV        0x50
+#define RP1DSI_LPRX_TO_VAL       0x40
 #define RP1DSI_BTA_TO_VAL       0xd00
 
 void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
@@ -1381,6 +1381,8 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	vid_mode_cfg = 0xbf00;
 	if (!(dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
 		vid_mode_cfg |= 0x01;
+	else if (8 * dsi->lanes > bpp)
+		vid_mode_cfg &= ~0x400; /* PULSE && inexact DPICLK => fix HBP time */
 	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_BURST)
 		vid_mode_cfg |= 0x02;
 	DSI_WRITE(DSI_VID_MODE_CFG, vid_mode_cfg);
@@ -1390,9 +1392,10 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_MODE_CFG, 1);
 
 	/* Set timeouts and clock dividers */
-	DSI_WRITE(DSI_TO_CNT_CFG,
-		  (((bpp * mode->htotal) / (7 * RP1DSI_TO_CLK_DIV * dsi->lanes)) << 16) |
-		  RP1DSI_LPRX_TO_VAL);
+	timeout = (bpp * mode->htotal * mode->vdisplay) / (7 * RP1DSI_TO_CLK_DIV * dsi->lanes);
+	if (timeout > 0xFFFFu)
+		timeout = 0;
+	DSI_WRITE(DSI_TO_CNT_CFG, (timeout << 16) | RP1DSI_LPRX_TO_VAL);
 	DSI_WRITE(DSI_BTA_TO_CNT, RP1DSI_BTA_TO_VAL);
 	DSI_WRITE(DSI_CLKMGR_CFG,
 		  (RP1DSI_TO_CLK_DIV << 8) |
