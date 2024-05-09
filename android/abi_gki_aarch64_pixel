@@ -175,6 +175,7 @@
   cpu_number
   __cpu_online_mask
   cpu_pm_register_notifier
+  cpu_pm_unregister_notifier
   __cpu_possible_mask
   cpu_scale
   cpus_read_lock
@@ -230,6 +231,7 @@
   desc_to_gpio
   destroy_workqueue
   dev_addr_mod
+  _dev_alert
   dev_alloc_name
   __dev_change_net_namespace
   dev_close
@@ -275,6 +277,7 @@
   device_property_present
   device_property_read_string
   device_property_read_u32_array
+  device_property_read_u8_array
   device_register
   device_remove_file
   device_remove_groups
@@ -340,10 +343,12 @@
   devm_platform_ioremap_resource_byname
   devm_pm_runtime_enable
   devm_power_supply_register
+  devm_regmap_add_irq_chip
   __devm_regmap_init
   __devm_regmap_init_i2c
   __devm_regmap_init_spi
   devm_regulator_bulk_get
+  devm_regulator_bulk_get_const
   devm_regulator_get
   devm_regulator_get_exclusive
   devm_regulator_get_optional
@@ -402,6 +407,7 @@
   dma_buf_fd
   dma_buf_get
   dma_buf_map_attachment
+  dma_buf_map_attachment_unlocked
   dma_buf_mmap
   dmabuf_page_pool_alloc
   dmabuf_page_pool_create
@@ -409,7 +415,9 @@
   dmabuf_page_pool_free
   dmabuf_page_pool_get_size
   dma_buf_put
+  dma_buf_set_name
   dma_buf_unmap_attachment
+  dma_buf_unmap_attachment_unlocked
   dma_buf_vmap
   dma_buf_vunmap
   dmaengine_unmap_put
@@ -577,6 +585,7 @@
   drm_kms_helper_hotplug_event
   drm_kms_helper_poll_fini
   drm_kms_helper_poll_init
+  __drmm_crtc_alloc_with_planes
   drmm_kmalloc
   drmm_mode_config_init
   drm_mode_config_reset
@@ -919,6 +928,7 @@
   irq_domain_get_irq_data
   irq_domain_remove
   irq_domain_set_info
+  irq_domain_simple_ops
   irq_domain_xlate_twocell
   irq_get_irq_data
   irq_modify_status
@@ -1441,6 +1451,7 @@
   register_inet6addr_notifier
   register_inetaddr_notifier
   register_kernel_break_hook
+  register_kretprobe
   register_netdev
   register_netdevice
   register_netdevice_notifier
@@ -1459,6 +1470,7 @@
   regmap_bulk_read
   regmap_bulk_write
   regmap_get_device
+  regmap_irq_get_virq
   regmap_multi_reg_write
   regmap_multi_reg_write_bypassed
   regmap_raw_read
@@ -1533,6 +1545,8 @@
   rtnl_unlock
   sched_clock
   sched_setattr_nocheck
+  sched_set_fifo
+  sched_set_normal
   sched_setscheduler
   sched_setscheduler_nocheck
   sched_show_task
@@ -1717,6 +1731,7 @@
   stop_machine
   strcasecmp
   strchr
+  strchrnul
   strcmp
   strcpy
   strcspn
@@ -1917,6 +1932,7 @@
   unregister_chrdev_region
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
+  unregister_kretprobe
   unregister_netdev
   unregister_netdevice_notifier
   unregister_netdevice_queue

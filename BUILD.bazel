@@ -97,6 +97,7 @@ filegroup(
         "android/abi_gki_aarch64_db845c",
         "android/abi_gki_aarch64_exynos",
         "android/abi_gki_aarch64_exynosauto",
+        "android/abi_gki_aarch64_fips140",
         "android/abi_gki_aarch64_galaxy",
         "android/abi_gki_aarch64_honor",
         "android/abi_gki_aarch64_imx",
@@ -660,6 +661,30 @@ copy_to_dist_dir(
         ":rockpi4_modules_install",
     ],
     dist_dir = "out/rockpi4/dist",
+    flat = True,
+)
+
+kernel_build(
+    name = "fips140",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    build_config = "build.config.gki.aarch64.fips140",
+    kmi_symbol_list = "android/abi_gki_aarch64_fips140",
+    module_outs = ["crypto/fips140.ko"],
+)
+
+kernel_abi(
+    name = "fips140_abi",
+    kernel_build = ":fips140",
+    kmi_symbol_list_add_only = True,
+)
+
+copy_to_dist_dir(
+    name = "fips140_dist",
+    data = [
+        ":fips140",
+    ],
+    dist_dir = "out/fips140/dist",
     flat = True,
 )
 

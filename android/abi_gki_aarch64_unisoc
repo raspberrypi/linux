@@ -33,6 +33,9 @@
   ktime_get_boot_fast_ns
   __list_add_valid_or_report
   __list_del_entry_valid_or_report
+  match_int
+  match_token
+  match_strdup
   memcpy
   memset
   module_layout
@@ -211,6 +214,10 @@
   __wake_up
   __warn_printk
 
+# required by 9pnet.ko
+  recalc_sigpending
+  sock_alloc_file
+
 # required by apsys-dvfs.ko
   devfreq_update_status
 
@@ -227,6 +234,9 @@
 # required by gzvm.ko
   __traceiter_android_vh_gzvm_vcpu_exit_reason
   __tracepoint_android_vh_gzvm_vcpu_exit_reason
+
+# required by hci_uart.ko
+  _trace_android_vh_record_pcpu_rwsem_starttime
 
 # required by ims_bridge.ko
   icmp6_send
@@ -420,6 +430,7 @@
   iio_pollfunc_store_time
 
 # required by sfp_core.ko
+  inet_proto_csum_replace4
   nf_conntrack_find_get
   nf_ct_destroy
   pskb_trim_rcsum_slow
@@ -523,6 +534,10 @@
 # required by unisoc_multi_control.ko
   refresh_frequency_limits
 
+# required by unisoc_pnp.ko
+  __traceiter_cpu_idle
+  __tracepoint_cpu_idle
+
 # required by unisoc-sched.ko
   tick_nohz_get_idle_calls_cpu
   __traceiter_android_rvh_effective_cpu_util
@@ -538,6 +553,7 @@
   blkdev_put
   file_path
   filp_close
+  filp_open_block
   fs_bio_set
   kvfree
   kvmalloc_node
@@ -588,3 +604,99 @@
   __traceiter_mm_filemap_add_to_page_cache
   __tracepoint_mm_filemap_delete_from_page_cache
   __tracepoint_mm_filemap_add_to_page_cache
+
+# required by mali_gondul.ko
+  anon_inode_getfd
+  __arch_clear_user
+  cache_line_size
+  clear_page
+  __clk_is_enabled
+  clk_put
+  devfreq_recommended_opp
+  devfreq_register_opp_notifier
+  devfreq_resume_device
+  devfreq_suspend_device
+  devfreq_unregister_opp_notifier
+  dev_pm_opp_clear_config
+  dev_pm_opp_disable
+  dev_pm_opp_find_freq_exact
+  dev_pm_opp_find_freq_floor
+  dev_pm_opp_of_add_table
+  dev_pm_opp_set_config
+  dma_buf_attach
+  dma_buf_detach
+  dma_buf_get
+  dma_buf_map_attachment
+  dma_buf_mmap
+  dma_buf_put
+  dma_buf_unmap_attachment
+  dma_fence_add_callback
+  dma_fence_context_alloc
+  dma_fence_default_wait
+  dma_fence_get_status
+  dma_fence_init
+  dma_fence_release
+  dma_fence_remove_callback
+  dma_fence_signal
+  downgrade_write
+  down_trylock
+  fd_install
+  find_vma_intersection
+  __folio_lock
+  get_unused_fd_flags
+  get_user_pages
+  iomem_resource
+  kstrtouint_from_user
+  ktime_get_raw
+  ktime_get_raw_ts64
+  mas_empty_area_rev
+  __mmdrop
+  msleep_interruptible
+  of_clk_get
+  of_clk_get_parent_count
+  of_devfreq_cooling_register_power
+  of_dma_is_coherent
+  of_machine_is_compatible
+  of_property_read_variable_u64_array
+  of_property_read_variable_u8_array
+  param_array_ops
+  param_get_int
+  param_ops_byte
+  percpu_counter_add_batch
+  percpu_counter_batch
+  pin_user_pages
+  pin_user_pages_remote
+  _raw_spin_trylock
+  rb_prev
+  rb_replace_node
+  regulator_get_optional
+  regulator_put
+  __release_region
+  remap_vmalloc_range
+  __request_region
+  seq_open
+  seq_release
+  seq_write
+  set_page_dirty_lock
+  static_key_slow_dec
+  static_key_slow_inc
+  strcspn
+  __sw_hweight64
+  sync_file_create
+  sync_file_get_fence
+  synchronize_irq
+  sysfs_remove_file_ns
+  timer_delete
+  timer_delete_sync
+  __traceiter_gpu_mem_total
+  __tracepoint_gpu_mem_total
+  trace_print_flags_seq
+  unmap_mapping_range
+  unpin_user_page
+  vmalloc_user
+  vmf_insert_pfn_prot
+
+# required by mali_kbase.ko
+  devfreq_cooling_em_register
+  dev_pm_qos_read_value
+  regcache_cache_only

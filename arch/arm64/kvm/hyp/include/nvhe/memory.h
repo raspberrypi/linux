@@ -14,13 +14,13 @@
  *   01: The page is owned by the page-table owner, but is shared
  *       with another entity.
  *   10: The page is shared with, but not owned by the page-table owner.
- *   11: Reserved for future use (lending).
+ *   11: This is an MMIO page that is mapped in the host IOMMU.
  */
 enum pkvm_page_state {
 	PKVM_PAGE_OWNED			= 0ULL,
 	PKVM_PAGE_SHARED_OWNED		= BIT(0),
 	PKVM_PAGE_SHARED_BORROWED	= BIT(1),
-	__PKVM_PAGE_RESERVED		= BIT(0) | BIT(1),
+	PKVM_PAGE_MMIO_DMA		= BIT(0) | BIT(1),
 
 	/* Special non-meta state that only applies to host pages. Will not go in PTE SW bits. */
 	PKVM_MODULE_OWNED_PAGE		= BIT(2),

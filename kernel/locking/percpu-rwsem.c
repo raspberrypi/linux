@@ -19,10 +19,10 @@
  * will result to build-err. So we create
  * func:_trace_android_vh_record_pcpu_rwsem_starttime for percpu-rwsem.h to call.
  */
-void _trace_android_vh_record_pcpu_rwsem_starttime(struct task_struct *tsk,
+void _trace_android_vh_record_pcpu_rwsem_starttime(struct percpu_rw_semaphore *sem,
 		unsigned long settime)
 {
-	trace_android_vh_record_pcpu_rwsem_starttime(tsk, settime);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, settime);
 }
 EXPORT_SYMBOL_GPL(_trace_android_vh_record_pcpu_rwsem_starttime);
 
@@ -274,7 +274,7 @@ void __sched percpu_down_write(struct percpu_rw_semaphore *sem)
 	if (!complete)
 		rcuwait_wait_event(&sem->writer, readers_active_check(sem), TASK_UNINTERRUPTIBLE);
 	trace_contention_end(sem, 0);
-	trace_android_vh_record_pcpu_rwsem_starttime(current, jiffies);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, jiffies);
 }
 EXPORT_SYMBOL_GPL(percpu_down_write);
 
@@ -307,6 +307,6 @@ void percpu_up_write(struct percpu_rw_semaphore *sem)
 	 * exclusive write lock because its counting.
 	 */
 	rcu_sync_exit(&sem->rss);
-	trace_android_vh_record_pcpu_rwsem_starttime(current, 0);
+	trace_android_vh_record_pcpu_rwsem_starttime(sem, 0);
 }
 EXPORT_SYMBOL_GPL(percpu_up_write);

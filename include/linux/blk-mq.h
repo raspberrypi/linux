@@ -8,6 +8,7 @@
 #include <linux/scatterlist.h>
 #include <linux/prefetch.h>
 #include <linux/srcu.h>
+#include <linux/rw_hint.h>
 #include <linux/android_kabi.h>
 
 struct blk_mq_tags;
@@ -138,6 +139,7 @@ struct request {
 	struct blk_crypto_keyslot *crypt_keyslot;
 #endif
 
+	enum rw_hint write_hint;
 	unsigned short ioprio;
 
 	enum mq_rq_state state;
@@ -758,6 +760,7 @@ struct blk_mq_tags {
 	 * request pool
 	 */
 	spinlock_t lock;
+	ANDROID_OEM_DATA(1);
 };
 
 static inline struct request *blk_mq_tag_to_rq(struct blk_mq_tags *tags,

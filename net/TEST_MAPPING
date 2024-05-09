@@ -29,6 +29,9 @@
       "options": [
         {
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        },
+        {
+          "include-filter": "android.telecom.cts.ExtendedInCallServiceTest"
         }
       ]
     },

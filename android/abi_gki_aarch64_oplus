@@ -17,6 +17,7 @@
   device_create_bin_file
   device_remove_bin_file
   devres_destroy
+  dev_get_by_index_rcu
   down_read_trylock
   drm_crtc_vblank_waitqueue
   down_write_killable
@@ -37,16 +38,22 @@
   iio_channel_get
   iio_channel_release
   iio_get_channel_type
+  __inet6_lookup_established
+  __inet_lookup_established
   iov_iter_advance
   ip6_local_out
   ip6_route_me_harder
   ip_local_deliver
+  ip_local_out
   ip_route_me_harder
   ipv6_find_hdr
+  iov_iter_advance
   jiffies_64_to_clock_t
   kick_process
   ktime_get_coarse_real_ts64
   mem_cgroup_update_lru_size
+  ktime_get_real_ts64
+  ktime_get_raw_ts64
   memory_cgrp_subsys
   memory_cgrp_subsys_enabled_key
   mem_cgroup_from_id
@@ -54,18 +61,31 @@
   mmc_wait_for_cmd
   __mod_lruvec_state
   __mod_zone_page_state
+  neigh_xmit
+  netif_receive_skb_core
   nf_ct_attach
   nf_ct_delete
   nf_register_net_hook
   nf_register_net_hooks
   nf_unregister_net_hook
   nf_unregister_net_hooks
+  nla_find
+  nla_memcpy
+  __nla_parse
+  nla_put
+  nla_put_64bit
+  nla_reserve
+  nla_reserve_64bit
   nr_running
   of_css
   osq_lock
   osq_unlock
   __page_file_index
   pm_get_active_wakeup_sources
+  platform_device_add
+  platform_device_alloc
+  platform_device_put
+  platform_driver_unregister
   prepare_to_wait_exclusive
   __printk_ratelimit
   proc_symlink
@@ -81,6 +101,7 @@
   root_mem_cgroup
   rtc_read_alarm
   rtc_set_alarm
+  __rtnl_link_register
   __rtnl_link_unregister
   security_file_ioctl
   sdio_memcpy_fromio
@@ -91,6 +112,7 @@
   send_sig_info
   set_blocksize
   __skb_checksum_complete
+  skb_dump
   snd_pcm_hw_constraint_mask64
   snd_soc_find_dai
   spi_bus_type
@@ -98,6 +120,7 @@
   static_key_disable
   static_key_enable
   stpcpy
+  strncmp
   task_rq_lock
   tcf_action_exec
   tcf_exts_destroy
@@ -106,6 +129,7 @@
   tcf_exts_validate
   tcf_queue_work
   vfs_llseek
+  tcp_hashinfo
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_alloc_oem_binder_struct
@@ -269,7 +293,12 @@
   __trace_puts
   try_to_free_mem_cgroup_pages
   typec_mux_get_drvdata
+  __udp4_lib_lookup
+  __udp6_lib_lookup
+  udp_table
   unregister_memory_notifier
+  unregister_net_sysctl_table
+  unregister_sysctl_table
   unregister_tcf_proto_ops
   v4l2_i2c_subdev_init
   wait_for_completion_io_timeout
@@ -353,3 +382,5 @@
   is_dma_buf_file
   dma_buf_get_each
   is_ashmem_file
+  xt_register_match
+  xt_unregister_match
