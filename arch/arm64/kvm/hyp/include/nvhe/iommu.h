@@ -86,6 +86,14 @@ struct kvm_iommu_ops {
 			      struct iommu_iotlb_gather *gather,
 			      struct kvm_iommu_paddr_cache *cache);
 	phys_addr_t (*iova_to_phys)(struct kvm_hyp_iommu_domain *domain, unsigned long iova);
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
+	ANDROID_KABI_RESERVE(5);
+	ANDROID_KABI_RESERVE(6);
+	ANDROID_KABI_RESERVE(7);
+	ANDROID_KABI_RESERVE(8);
 };
 
 extern struct kvm_iommu_ops *kvm_iommu_ops;

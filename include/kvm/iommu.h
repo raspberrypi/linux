@@ -37,6 +37,10 @@ struct kvm_hyp_iommu {
 	u32						unused; /* This is verified in kvm_iommu_init_device() */
 #endif
 	bool				power_is_off;
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
+	ANDROID_KABI_RESERVE(3);
+	ANDROID_KABI_RESERVE(4);
 };
 
 extern void **kvm_nvhe_sym(kvm_hyp_iommu_domains);
@@ -46,6 +50,8 @@ struct kvm_hyp_iommu_domain {
 	atomic_t		refs;
 	pkvm_handle_t		domain_id;
 	void			*priv;
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 /*
