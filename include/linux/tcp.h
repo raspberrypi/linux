@@ -454,6 +454,7 @@ struct tcp_sock {
 	struct request_sock __rcu *fastopen_rsk;
 	struct saved_syn *saved_syn;
 
+	ANDROID_OEM_DATA(1);
 	ANDROID_KABI_RESERVE(1);
 };
 
