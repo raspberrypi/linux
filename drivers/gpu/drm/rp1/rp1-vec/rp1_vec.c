@@ -48,6 +48,63 @@
 
 #include "rp1_vec.h"
 
+/*
+ * Linux doesn't make it easy to create custom video modes for the console
+ * with non-CVT timings; so add a module parameter for it. The format is:
+ * "<pclk>,<hact>,<hfp>,<hsync>,<hbp>,<vact>,<vfp>,<vsync>,<vbp>[,i]"
+ * (where each comma may be replaced by any sequence of punctuation).
+ * pclk should be 108000/n for 5 <= n <= 16 (twice this for "fake" modes).
+ */
+
+static char *rp1vec_cmode_str;
+module_param_named(cmode, rp1vec_cmode_str, charp, 0600);
+MODULE_PARM_DESC(cmode, "Custom video mode:\n"
+		 "\t\t<pclk>,<hact>,<hfp>,<hsync>,<hbp>,<vact>,<vfp>,<vsync>,<vbp>[,i]\n");
+
+static struct drm_display_mode *rp1vec_parse_custom_mode(struct drm_device *dev)
+{
+	char const *p = rp1vec_cmode_str;
+	struct drm_display_mode *mode;
+	unsigned int n, vals[9];
+
+	if (!p)
+		return NULL;
+
+	for (n = 0; n < 9; n++) {
+		unsigned int v = 0;
+
+		if (!isdigit(*p))
+			return NULL;
+		do {
+			v = 10u * v + (*p - '0');
+		} while (isdigit(*++p));
+
+		vals[n] = v;
+		while (ispunct(*p))
+			p++;
+	}
+
+	mode = drm_mode_create(dev);
+	if (!mode)
+		return NULL;
+
+	mode->clock	  = vals[0];
+	mode->hdisplay	  = vals[1];
+	mode->hsync_start = mode->hdisplay + vals[2];
+	mode->hsync_end	  = mode->hsync_start + vals[3];
+	mode->htotal	  = mode->hsync_end + vals[4];
+	mode->vdisplay	  = vals[5];
+	mode->vsync_start = mode->vdisplay + vals[6];
+	mode->vsync_end	  = mode->vsync_start + vals[7];
+	mode->vtotal	  = mode->vsync_end + vals[8];
+	mode->type  = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+	mode->flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC;
+	if (strchr(p, 'i'))
+		mode->flags |= DRM_MODE_FLAG_INTERLACE;
+
+	return mode;
+}
+
 static void rp1vec_pipe_update(struct drm_simple_display_pipe *pipe,
 			       struct drm_plane_state *old_state)
 {
@@ -158,63 +215,143 @@ static void rp1vec_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
-static const struct drm_display_mode rp1vec_modes[4] = {
+/*
+ * Check the mode roughly matches something we can generate.
+ * The choice of hardware TV mode depends on total lines and frame rate.
+ * Within each hardware mode, allow pixel clock, image size and offsets
+ * to vary, up to a maximum horizontal active period and line count.
+ * Don't check sync timings here: the HW driver will sanitize them.
+ */
+
+static enum drm_mode_status rp1vec_mode_valid(struct drm_device *dev,
+					      const struct drm_display_mode *mode)
+{
+	int prog	  = !(mode->flags & DRM_MODE_FLAG_INTERLACE);
+	int fake_31khz	  = prog && mode->vtotal >= 500;
+	int vtotal_2fld	  = mode->vtotal << (prog && !fake_31khz);
+	int vdisplay_2fld = mode->vdisplay << (prog && !fake_31khz);
+	int real_clock	  = mode->clock >> fake_31khz;
+
+	/* Check pixel clock is in the permitted range */
+	if (real_clock < 6750)
+		return MODE_CLOCK_LOW;
+	else if (real_clock > 21600)
+		return MODE_CLOCK_HIGH;
+
+	/* Try to match against the 525-line 60Hz mode (System M) */
+	if (vtotal_2fld >= 524 && vtotal_2fld <= 526 && vdisplay_2fld <= 486 &&
+	    mode->htotal * vtotal_2fld > 32 * real_clock &&
+	    mode->htotal * vtotal_2fld < 34 * real_clock &&
+	    37 * mode->hdisplay <= 2 * real_clock) /* 54us */
+		return MODE_OK;
+
+	/* All other supported TV Systems (625-, 405-, 819-line) are 50Hz */
+	if (mode->htotal * vtotal_2fld > 39 * real_clock &&
+	    mode->htotal * vtotal_2fld < 41 * real_clock) {
+		if (vtotal_2fld >= 624 && vtotal_2fld <= 626 && vdisplay_2fld <= 576 &&
+		    37 * mode->hdisplay <= 2 * real_clock) /* 54us */
+			return MODE_OK;
+
+		if (vtotal_2fld == 405 && vdisplay_2fld <= 380 &&
+		    49 * mode->hdisplay <= 4 * real_clock) /* 81.6us */
+			return MODE_OK;
+
+		if (vtotal_2fld == 819 && vdisplay_2fld <= 738 &&
+		    25 * mode->hdisplay <= real_clock) /* 40us */
+			return MODE_OK;
+	}
+
+	return MODE_BAD;
+}
+
+static const struct drm_display_mode rp1vec_modes[6] = {
 	{ /* Full size 525/60i with Rec.601 pixel rate */
 		DRM_MODE("720x480i", DRM_MODE_TYPE_DRIVER, 13500,
 			 720, 720 + 16, 720 + 16 + 64, 858, 0,
 			 480, 480 + 6, 480 + 6 + 6, 525, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Cropped and horizontally squashed to be TV-safe */
 		DRM_MODE("704x432i", DRM_MODE_TYPE_DRIVER, 15429,
 			 704, 704 + 76, 704 + 76 + 72, 980, 0,
 			 432, 432 + 30, 432 + 30 + 6, 525, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Full size 625/50i with Rec.601 pixel rate */
 		DRM_MODE("720x576i", DRM_MODE_TYPE_DRIVER, 13500,
 			 720, 720 + 12, 720 + 12 + 64, 864, 0,
 			 576, 576 + 5, 576 + 5 + 5, 625, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
 			 DRM_MODE_FLAG_INTERLACE)
 	},
 	{ /* Cropped and squashed, for square(ish) pixels */
 		DRM_MODE("704x512i", DRM_MODE_TYPE_DRIVER, 15429,
 			 704, 704 + 72, 704 + 72 + 72, 987, 0,
 			 512, 512 + 37, 512 + 37 + 5, 625, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
+			 DRM_MODE_FLAG_INTERLACE)
+	},
+	{ /* System A (405 lines) */
+		DRM_MODE("544x380i", DRM_MODE_TYPE_DRIVER, 6750,
+			 544, 544 + 12, 544 + 12 + 60, 667, 0,
+			 380, 380 + 0,	380 + 0 + 8, 405, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
+			 DRM_MODE_FLAG_INTERLACE)
+	},
+	{ /* System E (819 lines) */
+		DRM_MODE("848x738i", DRM_MODE_TYPE_DRIVER, 21600,
+			 848, 848 + 12, 848 + 12 + 54, 1055, 0,
+			 738, 738 + 6, 738 + 6 + 1, 819, 0,
+			 DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC |
 			 DRM_MODE_FLAG_INTERLACE)
 	}
 };
 
 /*
- * Advertise standard and preferred video modes.
+ * Advertise a custom mode, if specified; then those from the table above.
+ * From each interlaced mode above, derive a half-height progressive one.
  *
- * From each interlaced mode in the table above, derive a progressive one.
+ * This driver always supports all 525-line and 625-line standard modes
+ * regardless of connector's tv_mode; non-standard combinations generally
+ * default to PAL[-BDGHIK] or NTSC[-M] (with a special case for "PAL60").
  *
- * This driver always supports all 50Hz and 60Hz video modes, regardless
- * of connector's tv_mode; nonstandard combinations generally default
- * to PAL[-BDGHIKL] or NTSC[-M] depending on resolution and field-rate
- * (except that "PAL" with 525/60 will be implemented as "PAL60").
- * However, the preferred mode will depend on the default TV mode.
+ * The "vintage" standards (System A, System E) are advertised only when
+ * the default tv_mode was DRM_MODE_TV_MODE_MONOCHROME, and only interlaced.
  */
 
 static int rp1vec_connector_get_modes(struct drm_connector *connector)
 {
-	u64 val;
-	int i, prog, n = 0;
-	bool prefer625 = false;
+	u64 tvstd;
+	int i, prog, limit, n = 0, preferred_lines = 525;
+	struct drm_display_mode *mode;
 
 	if (!drm_object_property_get_default_value(&connector->base,
 						   connector->dev->mode_config.tv_mode_property,
-						   &val))
-		prefer625 = (val == DRM_MODE_TV_MODE_PAL   ||
-			     val == DRM_MODE_TV_MODE_PAL_N ||
-			     val == DRM_MODE_TV_MODE_SECAM);
+						   &tvstd))
+		preferred_lines = (tvstd == DRM_MODE_TV_MODE_PAL   ||
+				   tvstd == DRM_MODE_TV_MODE_PAL_N ||
+				   tvstd >= DRM_MODE_TV_MODE_SECAM) ? 625 : 525;
 
-	for (i = 0; i < ARRAY_SIZE(rp1vec_modes); i++) {
+	mode = rp1vec_parse_custom_mode(connector->dev);
+	if (mode) {
+		if (rp1vec_mode_valid(connector->dev, mode) == 0) {
+			drm_mode_set_name(mode);
+			drm_mode_probed_add(connector, mode);
+			n++;
+			preferred_lines = 0;
+		} else {
+			drm_mode_destroy(connector->dev, mode);
+		}
+	}
+
+	limit = (tvstd < DRM_MODE_TV_MODE_MONOCHROME) ? 4 : ARRAY_SIZE(rp1vec_modes);
+	for (i = 0; i < limit; i++) {
 		for (prog = 0; prog < 2; prog++) {
-			struct drm_display_mode *mode =
-				drm_mode_duplicate(connector->dev,
-						   &rp1vec_modes[i]);
+			mode = drm_mode_duplicate(connector->dev, &rp1vec_modes[i]);
+			if (!mode)
+				return n;
 
 			if (prog) {
 				mode->flags &= ~DRM_MODE_FLAG_INTERLACE;
@@ -222,15 +359,15 @@ static int rp1vec_connector_get_modes(struct drm_connector *connector)
 				mode->vsync_start >>= 1;
 				mode->vsync_end	  >>= 1;
 				mode->vtotal	  >>= 1;
-			}
-
-			if (mode->hdisplay == 704 &&
-			    mode->vtotal == (prefer625 ? 625 : 525))
+			} else if (mode->hdisplay == 704 && mode->vtotal == preferred_lines) {
 				mode->type |= DRM_MODE_TYPE_PREFERRED;
-
+			}
 			drm_mode_set_name(mode);
 			drm_mode_probed_add(connector, mode);
 			n++;
+
+			if (mode->vtotal == 405 || mode->vtotal == 819)
+				break; /* Don't offer progressive for Systems A, E */
 		}
 	}
 
@@ -258,49 +395,6 @@ static int rp1vec_connector_atomic_check(struct drm_connector *conn,
 	}
 
 	return 0;
-}
-
-static enum drm_mode_status rp1vec_mode_valid(struct drm_device *dev,
-					      const struct drm_display_mode *mode)
-{
-	/*
-	 * Check the mode roughly matches something we can generate.
-	 * The hardware driver is very prescriptive about pixel clocks,
-	 * line and frame durations, but we'll tolerate rounding errors.
-	 * Within each hardware mode, allow image size and position to vary
-	 * (to fine-tune overscan correction or emulate retro devices).
-	 * Don't check sync timings here: the HW driver will sanitize them.
-	 */
-
-	int prog = !(mode->flags & DRM_MODE_FLAG_INTERLACE);
-	int vtotal_full = mode->vtotal << prog;
-	int vdisplay_full = mode->vdisplay << prog;
-
-	/* Reject very small frames */
-	if (vtotal_full < 256 || mode->hdisplay < 256)
-		return MODE_BAD;
-
-	/* Check lines, frame period (ms) and vertical size limit */
-	if (vtotal_full >= 524 && vtotal_full <= 526 &&
-	    mode->htotal * vtotal_full > 33 * mode->clock &&
-	    mode->htotal * vtotal_full < 34 * mode->clock &&
-	    vdisplay_full <= 480)
-		goto vgood;
-	if (vtotal_full >= 624 && vtotal_full <= 626 &&
-	    mode->htotal * vtotal_full > 39 * mode->clock &&
-	    mode->htotal * vtotal_full < 41 * mode->clock &&
-	    vdisplay_full <= 576)
-		goto vgood;
-	return MODE_BAD;
-
-vgood:
-	/* Check pixel rate (kHz) and horizontal size limit */
-	if (mode->clock == 13500 && mode->hdisplay <= 720)
-		return MODE_OK;
-	if (mode->clock >= 15428 && mode->clock <= 15429 &&
-	    mode->hdisplay <= 800)
-		return MODE_OK;
-	return MODE_BAD;
 }
 
 static const struct drm_connector_helper_funcs rp1vec_connector_helper_funcs = {
@@ -410,10 +504,12 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 	vec->drm.dev_private = vec;
 	platform_set_drvdata(pdev, &vec->drm);
 
-	vec->drm.mode_config.max_width  = 800;
-	vec->drm.mode_config.max_height = 576;
+	vec->drm.mode_config.min_width	= 256;
+	vec->drm.mode_config.min_height = 128;
+	vec->drm.mode_config.max_width	= 848; /* for System E */
+	vec->drm.mode_config.max_height = 738; /* for System E */
 	vec->drm.mode_config.preferred_depth = 32;
-	vec->drm.mode_config.prefer_shadow   = 0;
+	vec->drm.mode_config.prefer_shadow = 0;
 	vec->drm.mode_config.quirk_addfb_prefer_host_byte_order = true;
 	vec->drm.mode_config.funcs = &rp1vec_mode_funcs;
 	drm_vblank_init(&vec->drm, 1);

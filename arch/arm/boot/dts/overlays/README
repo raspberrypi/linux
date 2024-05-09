@@ -3618,6 +3618,12 @@ Load:   dtoverlay=piglow
 Params: <None>
 
 
+Name:   pineboards-hat-ai
+Info:   Pineboards Hat Ai! overlay for the Google Coral Edge TPU
+Load:   dtoverlay=pineboards-hat-ai
+Params: <None>
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
@@ -3838,7 +3844,7 @@ Params: clock                   PWM clock frequency (informational)
 
 
 Name:   qca7000
-Info:   in-tech's Evaluation Board for PLC Stamp micro
+Info:   Evaluation Board for PLC Stamp micro
         This uses spi0 and a separate GPIO interrupt to connect the QCA7000.
 Load:   dtoverlay=qca7000,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
@@ -3847,7 +3853,7 @@ Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
 
 Name:   qca7000-uart0
-Info:   in-tech's Evaluation Board for PLC Stamp micro (UART)
+Info:   Evaluation Board for PLC Stamp micro (UART)
         This uses uart0/ttyAMA0 over GPIOs 14 & 15 to connect the QCA7000.
         But it requires disabling of onboard Bluetooth on
         Pi 3B, 3B+, 3A+, 4B and Zero W.
@@ -4119,6 +4125,14 @@ Info:   Overlay for the NXP SC16IS750 UART with I2C Interface
 Load:   dtoverlay=sc16is750-i2c,<param>=<val>
 Params: int_pin                 GPIO used for IRQ (default 24)
         addr                    Address (default 0x48)
+        xtal                    On-board crystal frequency (default 14745600)
+
+
+Name:   sc16is750-spi0
+Info:   Overlay for the NXP SC16IS750 UART with SPI Interface
+        Enables the chip on SPI0.
+Load:   dtoverlay=sc16is750-spi0,<param>=<val>
+Params: int_pin                 GPIO used for IRQ (default 24)
         xtal                    On-board crystal frequency (default 14745600)
 
 

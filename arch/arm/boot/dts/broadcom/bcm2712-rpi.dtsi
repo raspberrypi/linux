@@ -99,7 +99,7 @@
 		nvmem_cust_rw = <&nvmem_cust>,"rw?";
 		nvmem_priv_rw = <&nvmem_priv>,"rw?";
 		nvmem_mac_rw = <&nvmem_mac>,"rw?";
-		strict_gpiod = <&chosen>, "bootargs=pinctrl_rp1.strict_gpiod=y";
+		strict_gpiod = <&chosen>, "bootargs=pinctrl_rp1.persist_gpio_outputs=n";
 	};
 };
 

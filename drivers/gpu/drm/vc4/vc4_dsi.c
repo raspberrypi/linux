@@ -358,6 +358,16 @@
 # define DSI_PHY_AFEC0_CTATADJ_MASK		VC4_MASK(3, 0)
 # define DSI_PHY_AFEC0_CTATADJ_SHIFT		0
 
+# define DSI0_AFEC0_PD_ALL_LANES	(DSI0_PHY_AFEC0_PD | \
+					 DSI0_PHY_AFEC0_PD_BG | \
+					 DSI0_PHY_AFEC0_PD_DLANE1)
+
+# define DSI1_AFEC0_PD_ALL_LANES	(DSI1_PHY_AFEC0_PD | \
+					 DSI1_PHY_AFEC0_PD_BG | \
+					 DSI1_PHY_AFEC0_PD_DLANE3 | \
+					 DSI1_PHY_AFEC0_PD_DLANE2 | \
+					 DSI1_PHY_AFEC0_PD_DLANE1)
+
 #define DSI0_PHY_AFEC1		0x68
 # define DSI0_PHY_AFEC1_IDR_DLANE1_MASK		VC4_MASK(10, 8)
 # define DSI0_PHY_AFEC1_IDR_DLANE1_SHIFT	8
@@ -398,7 +408,8 @@
 # define DSI1_CTRL_DISABLE_DISP_ECCC	BIT(1)
 # define DSI0_CTRL_CTRL0		BIT(0)
 # define DSI1_CTRL_EN			BIT(0)
-# define DSI0_CTRL_RESET_FIFOS		(DSI_CTRL_CLR_LDF | \
+# define DSI0_CTRL_RESET_FIFOS		(DSI0_CTRL_CTRL0 | \
+					 DSI_CTRL_CLR_LDF | \
 					 DSI0_CTRL_CLR_PBCF | \
 					 DSI0_CTRL_CLR_CPBCF |	\
 					 DSI0_CTRL_CLR_PDF | \
@@ -807,6 +818,16 @@ static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 	disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
 	disp0_ctrl &= ~DSI_DISP0_ENABLE;
 	DSI_PORT_WRITE(DISP0_CTRL, disp0_ctrl);
+
+	/* Reset the DSI and all its fifos. */
+	DSI_PORT_WRITE(CTRL, DSI_CTRL_SOFT_RESET_CFG |
+		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
+
+	/* Power down the analogue front end. */
+	DSI_PORT_WRITE(PHY_AFEC0, DSI_PORT_BIT(PHY_AFEC0_RESET) |
+		       DSI_PORT_BIT(PHY_AFEC0_PD) |
+		       DSI_PORT_BIT(AFEC0_PD_ALL_LANES));
+
 }
 
 static void vc4_dsi_bridge_post_disable(struct drm_bridge *bridge,
@@ -845,6 +866,7 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	unsigned long pixel_clock_hz = mode->clock * 1000;
 	unsigned long pll_clock = pixel_clock_hz * dsi->divider;
 	int divider;
+	u16 htotal;
 
 	/* Find what divider gets us a faster clock than the requested
 	 * pixel clock.
@@ -861,12 +883,27 @@ static bool vc4_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 	pixel_clock_hz = pll_clock / dsi->divider;
 
 	adjusted_mode->clock = pixel_clock_hz / 1000;
+	htotal = mode->htotal;
+
+	if (dsi->variant->port == 0 && mode->clock == 30000 &&
+	    mode->hdisplay == 800 && mode->htotal == (800 + 59 + 2 + 45) &&
+	    mode->vdisplay == 480 && mode->vtotal == (480 + 7 + 2 + 22)) {
+		/*
+		 * Raspberry Pi 7" panel via TC358762 seems to have an issue on
+		 * DSI0 that it doesn't actually follow the vertical timing that
+		 * is otherwise identical to that produced on DSI1.
+		 * Fixup the mode.
+		 */
+		htotal = 800 + 59 + 2 + 47;
+		adjusted_mode->vtotal = 480 + 7 + 2 + 45;
+		adjusted_mode->crtc_vtotal = 480 + 7 + 2 + 45;
+	}
 
 	/* Given the new pixel clock, adjust HFP to keep vrefresh the same. */
-	adjusted_mode->htotal = adjusted_mode->clock * mode->htotal /
+	adjusted_mode->htotal = adjusted_mode->clock * htotal /
 				mode->clock;
-	adjusted_mode->hsync_end += adjusted_mode->htotal - mode->htotal;
-	adjusted_mode->hsync_start += adjusted_mode->htotal - mode->htotal;
+	adjusted_mode->hsync_end += adjusted_mode->htotal - htotal;
+	adjusted_mode->hsync_start += adjusted_mode->htotal - htotal;
 
 	return true;
 }
@@ -926,12 +963,31 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
 	}
 
-	/* Reset the DSI and all its fifos. */
+	ret = clk_prepare_enable(dsi->escape_clock);
+	if (ret) {
+		DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
+		return;
+	}
+
+	ret = clk_prepare_enable(dsi->pll_phy_clock);
+	if (ret) {
+		DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
+		return;
+	}
+
+	hs_clock = clk_get_rate(dsi->pll_phy_clock);
+
+	/*
+	 * Reset the DSI and all its fifos. The block must be enabled for the
+	 * FIFO resets to trigger.
+	 */
 	DSI_PORT_WRITE(CTRL,
 		       DSI_CTRL_SOFT_RESET_CFG |
 		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
 
 	DSI_PORT_WRITE(CTRL,
+		       ((dsi->variant->port == 0) ?
+					DSI0_CTRL_CTRL0 : DSI1_CTRL_EN) |
 		       DSI_CTRL_HSDT_EOT_DISABLE |
 		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
 
@@ -983,20 +1039,6 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 		/* AFEC reset hold time */
 		mdelay(1);
 	}
-
-	ret = clk_prepare_enable(dsi->escape_clock);
-	if (ret) {
-		DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
-		return;
-	}
-
-	ret = clk_prepare_enable(dsi->pll_phy_clock);
-	if (ret) {
-		DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
-		return;
-	}
-
-	hs_clock = clk_get_rate(dsi->pll_phy_clock);
 
 	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
 	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
@@ -1112,12 +1154,6 @@ static void vc4_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
 				     DSI_DISP1_PFORMAT) |
 		       DSI_DISP1_ENABLE);
-
-	/* Ungate the block. */
-	if (dsi->variant->port == 0)
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
-	else
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
 
 	/* Bring AFE out of reset. */
 	DSI_PORT_WRITE(PHY_AFEC0,
@@ -1418,6 +1454,15 @@ static const struct drm_bridge_funcs vc4_dsi_bridge_funcs = {
 	.mode_fixup = vc4_dsi_bridge_mode_fixup,
 };
 
+static void vc4_dsi_reset_fifo(struct drm_encoder *encoder)
+{
+	struct vc4_dsi *dsi = to_vc4_dsi(encoder);
+	u32 val;
+
+	val = DSI_PORT_READ(CTRL);
+	DSI_PORT_WRITE(CTRL, val | DSI0_CTRL_CLR_PBCF);
+}
+
 static int vc4_dsi_late_register(struct drm_encoder *encoder)
 {
 	struct drm_device *drm = encoder->dev;
@@ -1661,6 +1706,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 	dsi->encoder.type = dsi->variant->port ?
 		VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
+
+	if (dsi->encoder.type == VC4_ENCODER_TYPE_DSI0)
+		dsi->encoder.vblank = vc4_dsi_reset_fifo;
 
 	dsi->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(dsi->regs))

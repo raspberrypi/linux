@@ -196,6 +196,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pifi-dac-zero.dtbo \
 	pifi-mini-210.dtbo \
 	piglow.dtbo \
+	pineboards-hat-ai.dtbo \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
 	pisound.dtbo \
@@ -229,6 +230,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rra-digidac1-wm8741-audio.dtbo \
 	sainsmart18.dtbo \
 	sc16is750-i2c.dtbo \
+	sc16is750-spi0.dtbo \
 	sc16is752-i2c.dtbo \
 	sc16is752-spi0.dtbo \
 	sc16is752-spi1.dtbo \
