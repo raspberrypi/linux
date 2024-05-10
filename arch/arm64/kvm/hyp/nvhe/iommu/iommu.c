@@ -183,6 +183,19 @@ handle_to_domain(pkvm_handle_t domain_id)
 	return &domains[domain_id % KVM_IOMMU_DOMAINS_PER_PAGE];
 }
 
+static int domain_get(struct kvm_hyp_iommu_domain *domain)
+{
+	int old = atomic_fetch_inc_acquire(&domain->refs);
+
+	BUG_ON(!old || (old + 1 < 0));
+	return 0;
+}
+
+static void domain_put(struct kvm_hyp_iommu_domain *domain)
+{
+	BUG_ON(!atomic_dec_return_release(&domain->refs));
+}
+
 int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, u32 type)
 {
 	int ret = -EINVAL;
@@ -191,16 +204,16 @@ int kvm_iommu_alloc_domain(pkvm_handle_t domain_id, u32 type)
 	domain = handle_to_domain(domain_id);
 	if (!domain)
 		return -ENOMEM;
-	hyp_spin_lock(&domain->lock);
-	if (domain->refs)
-		goto out_unlock;
 
+	hyp_spin_lock(&domain->lock);
+	if (atomic_read(&domain->refs))
+		goto out_unlock;
 	domain->domain_id = domain_id;
 	ret = kvm_iommu_ops->alloc_domain(domain, type);
 	if (ret)
 		goto out_unlock;
 
-	domain->refs = 1;
+	atomic_set_release(&domain->refs, 1);
 out_unlock:
 	hyp_spin_unlock(&domain->lock);
 	return ret;
@@ -216,7 +229,7 @@ int kvm_iommu_free_domain(pkvm_handle_t domain_id)
 		return -EINVAL;
 
 	hyp_spin_lock(&domain->lock);
-	if (domain->refs != 1) {
+	if (WARN_ON(atomic_cmpxchg_acquire(&domain->refs, 1, 0) != 1)) {
 		ret = -EINVAL;
 		goto out_unlock;
 	}
@@ -244,13 +257,13 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 		return -EINVAL;
 
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || domain_get(domain))
 		return -EINVAL;
 
 	hyp_spin_lock(&domain->lock);
 	ret = kvm_iommu_ops->attach_dev(iommu, domain, endpoint_id, pasid, pasid_bits);
-	if (!ret)
-		domain->refs++;
+	if (ret)
+		domain_put(domain);
 	hyp_spin_unlock(&domain->lock);
 	return ret;
 }
@@ -258,7 +271,7 @@ int kvm_iommu_attach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 			 u32 endpoint_id, u32 pasid)
 {
-	int ret = -EINVAL;
+	int ret;
 	struct kvm_hyp_iommu *iommu;
 	struct kvm_hyp_iommu_domain *domain;
 
@@ -267,18 +280,14 @@ int kvm_iommu_detach_dev(pkvm_handle_t iommu_id, pkvm_handle_t domain_id,
 		return -EINVAL;
 
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || atomic_read(&domain->refs) <= 1)
 		return -EINVAL;
 
 	hyp_spin_lock(&domain->lock);
-	if (domain->refs <= 1)
-		goto out_unlock;
-
 	ret = kvm_iommu_ops->detach_dev(iommu, domain, endpoint_id, pasid);
 	if (ret)
 		goto out_unlock;
-
-	domain->refs--;
+	domain_put(domain);
 
 out_unlock:
 	hyp_spin_unlock(&domain->lock);
@@ -310,7 +319,7 @@ size_t kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 		return 0;
 
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || domain_get(domain))
 		return 0;
 
 	hyp_spin_lock(&domain->lock);
@@ -347,6 +356,7 @@ size_t kvm_iommu_map_pages(pkvm_handle_t domain_id, unsigned long iova,
 		__pkvm_host_unuse_dma(paddr, pgcount * pgsize);
 out_put_domain:
 	hyp_spin_unlock(&domain->lock);
+	domain_put(domain);
 	return total_mapped;
 }
 
@@ -446,7 +456,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 		return 0;
 
 	domain = handle_to_domain(domain_id);
-	if (!domain)
+	if (!domain || domain_get(domain))
 		return 0;
 
 	hyp_spin_lock(&domain->lock);
@@ -479,6 +489,7 @@ size_t kvm_iommu_unmap_pages(pkvm_handle_t domain_id,
 
 out_put_domain:
 	hyp_spin_unlock(&domain->lock);
+	domain_put(domain);
 	return total_unmapped;
 }
 
@@ -489,7 +500,7 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 
 	domain = handle_to_domain( domain_id);
 
-	if (!domain)
+	if (!domain || domain_get(domain))
 		return 0;
 
 	hyp_spin_lock(&domain->lock);
@@ -500,7 +511,7 @@ phys_addr_t kvm_iommu_iova_to_phys(pkvm_handle_t domain_id, unsigned long iova)
 
 out_unlock:
 	hyp_spin_unlock(&domain->lock);
-
+	domain_put(domain);
 	return phys;
 }
 
