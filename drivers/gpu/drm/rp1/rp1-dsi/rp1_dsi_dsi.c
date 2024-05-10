@@ -7,6 +7,7 @@
 
 #include <linux/delay.h>
 #include <linux/errno.h>
+#include <linux/math64.h>
 #include <linux/platform_device.h>
 #include <linux/rp1_platform.h>
 #include "drm/drm_print.h"
@@ -1110,7 +1111,7 @@ static void dphy_transaction(struct rp1_dsi *dsi, uint8_t test_code, uint8_t tes
 	DSI_WRITE(DSI_PHY_TST_CTRL0, DPHY_CTRL0_PHY_TESTCLK_BITS);
 }
 
-static uint8_t dphy_get_div(u32 refclk_khz, u32 vco_freq_khz, u32 *ptr_m, u32 *ptr_n)
+static u64 dphy_get_div(u32 refclk, u64 vco_freq, u32 *ptr_m, u32 *ptr_n)
 {
 	/*
 	 * See pg 77-78 of dphy databook
@@ -1123,19 +1124,23 @@ static uint8_t dphy_get_div(u32 refclk_khz, u32 vco_freq_khz, u32 *ptr_m, u32 *p
 	 * In practice, given a 50MHz reference clock, it can produce any
 	 * multiple of 10MHz, 11.1111MHz, 12.5MHz, 14.286MHz or 16.667MHz
 	 * with < 1% error for all frequencies above 495MHz.
+	 *
+	 * vco_freq should be set to the lane bit rate (not the MIPI clock
+	 * which is half of this). These frequencies are now measured in Hz.
+	 * They should fit within u32, but u64 is needed for calculations.
 	 */
 
-	static const u32 REF_DIVN_MAX = 40000u;
-	static const u32 REF_DIVN_MIN =  5000u;
-	u32 best_n, best_m, best_err = 0x7fffffff;
-	unsigned int n;
+	static const u32 REF_DIVN_MAX = 40000000;
+	static const u32 REF_DIVN_MIN =  5000000;
+	u32 n, best_n, best_m;
+	u64 best_err = vco_freq;
 
-	for (n = 1 + refclk_khz / REF_DIVN_MAX; n * REF_DIVN_MIN <= refclk_khz && n < 100; ++n) {
-		u32 half_m = (n * vco_freq_khz + refclk_khz) / (2 * refclk_khz);
+	for (n = 1 + refclk / REF_DIVN_MAX; n * REF_DIVN_MIN <= refclk && n < 100; ++n) {
+		u32 half_m = DIV_U64_ROUND_CLOSEST(n * vco_freq, 2 * refclk);
 
 		if (half_m < 150) {
-			u32 f = (2 * half_m * refclk_khz) / n;
-			u32 err = (f > vco_freq_khz) ? f - vco_freq_khz : vco_freq_khz - f;
+			u64 f = div_u64(mul_u32_u32(2 * half_m, refclk), n);
+			u64 err = (f > vco_freq) ? f - vco_freq : vco_freq - f;
 
 			if (err < best_err) {
 				best_n = n;
@@ -1147,12 +1152,12 @@ static uint8_t dphy_get_div(u32 refclk_khz, u32 vco_freq_khz, u32 *ptr_m, u32 *p
 		}
 	}
 
-	if (64 * best_err < vco_freq_khz) { /* tolerate small error */
-		*ptr_n = best_n;
-		*ptr_m = best_m;
-		return 1;
-	}
-	return 0;
+	if (64 * best_err >= vco_freq)
+		return 0;
+
+	*ptr_n = best_n;
+	*ptr_m = best_m;
+	return div_u64(mul_u32_u32(best_m, refclk), best_n);
 }
 
 struct hsfreq_range {
@@ -1225,13 +1230,14 @@ static void dphy_set_hsfreqrange(struct rp1_dsi *dsi, u32 freq_mhz)
 			 hsfreq_table[i].hsfreqrange << 1);
 }
 
-static void dphy_configure_pll(struct rp1_dsi *dsi, u32 refclk_khz, u32 vco_freq_khz)
+static u32 dphy_configure_pll(struct rp1_dsi *dsi, u32 refclk, u32 vco_freq)
 {
 	u32 m = 0;
 	u32 n = 0;
+	u32 actual_vco_freq = dphy_get_div(refclk, vco_freq, &m, &n);
 
-	if (dphy_get_div(refclk_khz, vco_freq_khz, &m, &n)) {
-		dphy_set_hsfreqrange(dsi, vco_freq_khz / 1000);
+	if (actual_vco_freq) {
+		dphy_set_hsfreqrange(dsi, actual_vco_freq / 1000000);
 		/* Program m,n from registers */
 		dphy_transaction(dsi, DPHY_PLL_DIV_CTRL_OFFSET, 0x30);
 		/* N (program N-1) */
@@ -1241,18 +1247,21 @@ static void dphy_configure_pll(struct rp1_dsi *dsi, u32 refclk_khz, u32 vco_freq
 		/* M[4:0] (program M-1) */
 		dphy_transaction(dsi, DPHY_PLL_LOOP_DIV_OFFSET, ((m - 1) & 0x1F));
 		drm_dbg_driver(dsi->drm,
-			       "DPHY: vco freq want %dkHz got %dkHz = %d * (%dkHz / %d), hsfreqrange = 0x%02x\r\n",
-			       vco_freq_khz, refclk_khz * m / n, m, refclk_khz,
-			       n, hsfreq_table[dsi->hsfreq_index].hsfreqrange);
+			       "DPHY: vco freq want %uHz got %uHz = %d * (%uHz / %d), hsfreqrange = 0x%02x\n",
+			       vco_freq, actual_vco_freq, m, refclk, n,
+			       hsfreq_table[dsi->hsfreq_index].hsfreqrange);
 	} else {
-		drm_info(dsi->drm,
-			 "rp1dsi: Error configuring DPHY PLL! %dkHz = %d * (%dkHz / %d)\r\n",
-			 vco_freq_khz, m, refclk_khz, n);
+		drm_warn(dsi->drm,
+			 "rp1dsi: Error configuring DPHY PLL %uHz\n", vco_freq);
 	}
+
+	return actual_vco_freq;
 }
 
-static void dphy_init_khz(struct rp1_dsi *dsi, u32 ref_freq, u32 vco_freq)
+static u32 dphy_init(struct rp1_dsi *dsi, u32 ref_freq, u32 vco_freq)
 {
+	u32 actual_vco_freq;
+
 	/* Reset the PHY */
 	DSI_WRITE(DSI_PHYRSTZ, 0);
 	DSI_WRITE(DSI_PHY_TST_CTRL0, DPHY_CTRL0_PHY_TESTCLK_BITS);
@@ -1262,13 +1271,15 @@ static void dphy_init_khz(struct rp1_dsi *dsi, u32 ref_freq, u32 vco_freq)
 	DSI_WRITE(DSI_PHY_TST_CTRL0, DPHY_CTRL0_PHY_TESTCLK_BITS);
 	udelay(1);
 	/* Since we are in DSI (not CSI2) mode here, start the PLL */
-	dphy_configure_pll(dsi, ref_freq, vco_freq);
+	actual_vco_freq = dphy_configure_pll(dsi, ref_freq, vco_freq);
 	udelay(1);
 	/* Unreset */
 	DSI_WRITE(DSI_PHYRSTZ, DSI_PHYRSTZ_SHUTDOWNZ_BITS);
 	udelay(1);
 	DSI_WRITE(DSI_PHYRSTZ, (DSI_PHYRSTZ_SHUTDOWNZ_BITS | DSI_PHYRSTZ_RSTZ_BITS));
 	udelay(1); /* so we can see PLL coming up? */
+
+	return actual_vco_freq;
 }
 
 void rp1dsi_mipicfg_setup(struct rp1_dsi *dsi)
@@ -1289,23 +1300,30 @@ static unsigned long rp1dsi_refclk_freq(struct rp1_dsi *dsi)
 	return u;
 }
 
-static void rp1dsi_dpiclk_start(struct rp1_dsi *dsi, unsigned int bpp, unsigned int lanes)
+static void rp1dsi_dpiclk_start(struct rp1_dsi *dsi, u32 byte_clock,
+				unsigned int bpp, unsigned int lanes)
 {
-	unsigned long u;
+	/* Dummy clk_set_rate() to declare the actual DSI byte-clock rate */
+	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_BYTE], byte_clock);
 
-	if (dsi->clocks[RP1DSI_CLOCK_DPI]) {
-		u = (dsi->clocks[RP1DSI_CLOCK_BYTE]) ?
-				clk_get_rate(dsi->clocks[RP1DSI_CLOCK_BYTE]) : 0;
-		drm_info(dsi->drm,
-			 "rp1dsi: Nominal byte clock %lu; scale by %u/%u",
-			 u, 4 * lanes, (bpp >> 1));
-		if (u < 1 || u >= (1ul << 28))
-			u = 72000000ul; /* default DUMMY frequency for byteclock */
-
+	/*
+	 * Prefer the DSI byte-clock source where possible, so that DSI and DPI
+	 * clocks will be in an exact ratio and downstream devices can recover
+	 * perfect timings. But when DPI clock is faster, fall back on PLL_SYS.
+	 * To defeat rounding errors, specify explicitly which source to use.
+	 */
+	if (bpp >= 8 * lanes)
 		clk_set_parent(dsi->clocks[RP1DSI_CLOCK_DPI], dsi->clocks[RP1DSI_CLOCK_BYTE]);
-		clk_set_rate(dsi->clocks[RP1DSI_CLOCK_DPI], (4 * lanes * u) / (bpp >> 1));
-		clk_prepare_enable(dsi->clocks[RP1DSI_CLOCK_DPI]);
-	}
+	else if (dsi->clocks[RP1DSI_CLOCK_PLLSYS])
+		clk_set_parent(dsi->clocks[RP1DSI_CLOCK_DPI], dsi->clocks[RP1DSI_CLOCK_PLLSYS]);
+
+	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_DPI], (4 * lanes * byte_clock) / (bpp >> 1));
+	clk_prepare_enable(dsi->clocks[RP1DSI_CLOCK_DPI]);
+	drm_info(dsi->drm,
+		 "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)",
+		 byte_clock,
+		 clk_get_rate(dsi->clocks[RP1DSI_CLOCK_DPI]),
+		 clk_get_rate(clk_get_parent(dsi->clocks[RP1DSI_CLOCK_DPI])));
 }
 
 static void rp1dsi_dpiclk_stop(struct rp1_dsi *dsi)
@@ -1335,18 +1353,21 @@ static u32 get_colorcode(enum mipi_dsi_pixel_format fmt)
 	return 0x005;
 }
 
-/* Maximum frequency for LP escape clock (20MHz), and some magic numbers */
-#define RP1DSI_ESC_CLK_KHZ      20000
-#define RP1DSI_TO_CLK_DIV           5
-#define RP1DSI_HSTX_TO_MIN      0x200
-#define RP1DSI_LPRX_TO_VAL      0x400
+/* Frequency limits for DPI, HS and LP clocks, and some magic numbers */
+#define RP1DSI_DPI_MAX_KHZ     200000
+#define RP1DSI_BYTE_CLK_MIN  10000000
+#define RP1DSI_BYTE_CLK_MAX 187500000
+#define RP1DSI_ESC_CLK_MAX   20000000
+#define RP1DSI_TO_CLK_DIV        0x50
+#define RP1DSI_LPRX_TO_VAL       0x40
 #define RP1DSI_BTA_TO_VAL       0xd00
 
 void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 {
 	u32 timeout, mask, vid_mode_cfg;
-	int lane_kbps;
 	unsigned int bpp = mipi_dsi_pixel_format_to_bpp(dsi->display_format);
+	u32 byte_clock = clamp((bpp * 125 * min(mode->clock, RP1DSI_DPI_MAX_KHZ)) / dsi->lanes,
+			       RP1DSI_BYTE_CLK_MIN, RP1DSI_BYTE_CLK_MAX);
 
 	DSI_WRITE(DSI_PHY_IF_CFG, dsi->lanes - 1);
 	DSI_WRITE(DSI_DPI_CFG_POL, 0);
@@ -1359,6 +1380,8 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	vid_mode_cfg = 0xbf00;
 	if (!(dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
 		vid_mode_cfg |= 0x01;
+	else if (8 * dsi->lanes > bpp)
+		vid_mode_cfg &= ~0x400; /* PULSE && inexact DPICLK => fix HBP time */
 	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_BURST)
 		vid_mode_cfg |= 0x02;
 	DSI_WRITE(DSI_VID_MODE_CFG, vid_mode_cfg);
@@ -1368,15 +1391,14 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_MODE_CFG, 1);
 
 	/* Set timeouts and clock dividers */
-	DSI_WRITE(DSI_TO_CNT_CFG,
-		  (max((bpp * mode->htotal) / (7 * RP1DSI_TO_CLK_DIV * dsi->lanes),
-		       RP1DSI_HSTX_TO_MIN) << 16) |
-		  RP1DSI_LPRX_TO_VAL);
+	timeout = (bpp * mode->htotal * mode->vdisplay) / (7 * RP1DSI_TO_CLK_DIV * dsi->lanes);
+	if (timeout > 0xFFFFu)
+		timeout = 0;
+	DSI_WRITE(DSI_TO_CNT_CFG, (timeout << 16) | RP1DSI_LPRX_TO_VAL);
 	DSI_WRITE(DSI_BTA_TO_CNT, RP1DSI_BTA_TO_VAL);
-	lane_kbps = (bpp *  mode->clock) / dsi->lanes;
 	DSI_WRITE(DSI_CLKMGR_CFG,
 		  (RP1DSI_TO_CLK_DIV << 8) |
-		  max(2, lane_kbps / (8 * RP1DSI_ESC_CLK_KHZ) + 1));
+		  max(2u, 1u + byte_clock / RP1DSI_ESC_CLK_MAX));
 
 	/* Configure video timings */
 	DSI_WRITE(DSI_VID_PKT_SIZE, mode->hdisplay);
@@ -1393,7 +1415,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_VID_VACTIVE_LINES, mode->vdisplay);
 
 	/* Init PHY */
-	dphy_init_khz(dsi, rp1dsi_refclk_freq(dsi) / 1000, lane_kbps);
+	byte_clock = dphy_init(dsi, rp1dsi_refclk_freq(dsi), 8 * byte_clock) >> 3;
 
 	DSI_WRITE(DSI_PHY_TMR_LPCLK_CFG,
 		  (hsfreq_table[dsi->hsfreq_index].clk_lp2hs << DSI_PHY_TMR_LP2HS_LSB) |
@@ -1417,7 +1439,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_PWR_UP, 0x1);		/* power up */
 
 	/* Now it should be safe to start the external DPI clock divider */
-	rp1dsi_dpiclk_start(dsi, bpp, dsi->lanes);
+	rp1dsi_dpiclk_start(dsi, byte_clock, bpp, dsi->lanes);
 
 	/* Wait for all lane(s) to be in Stopstate */
 	mask = (1 << 4);
