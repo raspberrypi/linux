@@ -95,6 +95,8 @@ struct vc4_dpi {
 	struct clk *core_clock;
 
 	struct debugfs_regset32 regset;
+
+	int rgb_order_override;
 };
 
 #define to_vc4_dpi(_encoder)						\
@@ -205,6 +207,11 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 			}
 		}
 
+		if (dpi->rgb_order_override >= 0) {
+			dpi_c &= ~DPI_ORDER_MASK;
+			dpi_c |= VC4_SET_FIELD(dpi->rgb_order_override, DPI_ORDER);
+		}
+
 		if (connector->display_info.bus_flags & DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE)
 			dpi_c |= DPI_PIXEL_CLK_INVERT;
 
@@ -313,6 +320,7 @@ static int vc4_dpi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct drm_device *drm = dev_get_drvdata(master);
+	const char *rgb_order = NULL;
 	struct vc4_dpi *dpi;
 	int ret;
 
@@ -360,6 +368,20 @@ static int vc4_dpi_bind(struct device *dev, struct device *master, void *data)
 	ret = devm_add_action_or_reset(dev, vc4_dpi_disable_clock, dpi);
 	if (ret)
 		return ret;
+
+	dpi->rgb_order_override = -1;
+	if (!of_property_read_string(dev->of_node, "rgb_order", &rgb_order)) {
+		if (!strcmp(rgb_order, "rgb"))
+			dpi->rgb_order_override = DPI_ORDER_RGB;
+		else if (!strcmp(rgb_order, "bgr"))
+			dpi->rgb_order_override = DPI_ORDER_BGR;
+		else if (!strcmp(rgb_order, "grb"))
+			dpi->rgb_order_override = DPI_ORDER_GRB;
+		else if (!strcmp(rgb_order, "brg"))
+			dpi->rgb_order_override = DPI_ORDER_BRG;
+		else
+			DRM_ERROR("Invalid dpi order %s - ignored\n", rgb_order);
+	}
 
 	ret = drmm_encoder_init(drm, &dpi->encoder.base,
 				&vc4_dpi_encoder_funcs,
