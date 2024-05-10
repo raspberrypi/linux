@@ -30,7 +30,8 @@
 #define RP1DSI_CLOCK_DPI     1
 #define RP1DSI_CLOCK_BYTE    2
 #define RP1DSI_CLOCK_REF     3
-#define RP1DSI_NUM_CLOCKS    4
+#define RP1DSI_CLOCK_PLLSYS  4
+#define RP1DSI_NUM_CLOCKS    5
 
 /* ---------------------------------------------------------------------- */
 
