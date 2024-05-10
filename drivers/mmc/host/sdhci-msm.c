@@ -2631,6 +2631,9 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	/* Set the timeout value to max possible */
 	host->max_timeout_count = 0xF;
 
+	/* Enable force hw reset during cqe recovery */
+	msm_host->mmc->cqe_recovery_reset_always = true;
+
 	pm_runtime_get_noresume(&pdev->dev);
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
