@@ -135,6 +135,10 @@ static struct fips140_alg {
 	{ .cra_name = "sha256", .approved = true },
 	{ .cra_name = "sha384", .approved = true },
 	{ .cra_name = "sha512", .approved = true },
+	{ .cra_name = "sha3-224", .approved = true },
+	{ .cra_name = "sha3-256", .approved = true },
+	{ .cra_name = "sha3-384", .approved = true },
+	{ .cra_name = "sha3-512", .approved = true },
 	{ .cra_name = "stdrng", .approved = true },
 	{ .cra_name = "xts(aes)", .approved = true },
 

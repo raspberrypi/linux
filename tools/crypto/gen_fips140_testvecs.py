@@ -107,7 +107,7 @@ def generate_aes_testvecs():
 
 def generate_sha_testvecs():
     print_value('hmac_key', hmac_key)
-    for alg in ['sha1', 'sha256', 'hmac_sha256', 'sha512']:
+    for alg in ['sha1', 'sha256', 'hmac_sha256', 'sha512', 'sha3_256']:
         if alg.startswith('hmac_'):
             h = hmac.new(hmac_key, message, alg.removeprefix('hmac_'))
         else:
