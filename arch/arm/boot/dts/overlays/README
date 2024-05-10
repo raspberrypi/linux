@@ -5002,6 +5002,10 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 Set the default brightness. Normal range 1-16.
                                 (default 16).
         rotate                  Display rotation {0,90,180,270} (default 0)
+        rgb-order               Allow override of RGB order from DPI.
+                                Options for vc4 are "rgb", "bgr", "grb", and
+                                "brg". Other values will be ignored.
+
 
 
 Name:   vc4-kms-dpi-hyperpixel2r
