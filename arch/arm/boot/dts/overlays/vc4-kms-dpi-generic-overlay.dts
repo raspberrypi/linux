@@ -77,5 +77,6 @@
 		rgb888 = <&panel_generic>, "bus-format:0=0x100a",
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_gpio0>;
 		bus-format = <&panel_generic>, "bus-format:0";
+		rgb-order = <&dpi_node_generic>, "rgb_order";
 	};
 };
