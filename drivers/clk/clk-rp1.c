@@ -394,6 +394,11 @@ struct rp1_clock {
 	unsigned long cached_rate;
 };
 
+struct rp1_varsrc {
+	struct clk_hw hw;
+	struct rp1_clockman *clockman;
+	unsigned long rate;
+};
 
 struct rp1_clk_change {
 	struct clk_hw *hw;
@@ -1414,6 +1419,34 @@ static void rp1_clk_debug_init(struct clk_hw *hw, struct dentry *dentry)
 	rp1_debugfs_regset(clockman, 0, regs, i, dentry);
 }
 
+static int rp1_varsrc_set_rate(struct clk_hw *hw,
+			       unsigned long rate, unsigned long parent_rate)
+{
+	struct rp1_varsrc *varsrc = container_of(hw, struct rp1_varsrc, hw);
+
+	/*
+	 * "varsrc" exists purely to let clock dividers know the frequency
+	 * of an externally-managed clock source (such as MIPI DSI byte-clock)
+	 * which may change at run-time as a side-effect of some other driver.
+	 */
+	varsrc->rate = rate;
+	return 0;
+}
+
+static unsigned long rp1_varsrc_recalc_rate(struct clk_hw *hw,
+					    unsigned long parent_rate)
+{
+	struct rp1_varsrc *varsrc = container_of(hw, struct rp1_varsrc, hw);
+
+	return varsrc->rate;
+}
+
+static long rp1_varsrc_round_rate(struct clk_hw *hw, unsigned long rate,
+				  unsigned long *parent_rate)
+{
+	return rate;
+}
+
 static const struct clk_ops rp1_pll_core_ops = {
 	.is_prepared = rp1_pll_core_is_on,
 	.prepare = rp1_pll_core_on,
@@ -1462,6 +1495,12 @@ static const struct clk_ops rp1_clk_ops = {
 	.set_rate = rp1_clock_set_rate,
 	.determine_rate = rp1_clock_determine_rate,
 	.debug_init = rp1_clk_debug_init,
+};
+
+static const struct clk_ops rp1_varsrc_ops = {
+	.set_rate = rp1_varsrc_set_rate,
+	.recalc_rate = rp1_varsrc_recalc_rate,
+	.round_rate = rp1_varsrc_round_rate,
 };
 
 static bool rp1_clk_is_claimed(const char *name);
@@ -1647,6 +1686,35 @@ static struct clk_hw *rp1_register_clock(struct rp1_clockman *clockman,
 	return &clock->hw;
 }
 
+static struct clk_hw *rp1_register_varsrc(struct rp1_clockman *clockman,
+					  const void *data)
+{
+	const char *name = *(char const * const *)data;
+	struct rp1_varsrc *clock;
+	struct clk_init_data init;
+	int ret;
+
+	memset(&init, 0, sizeof(init));
+	init.parent_names = &ref_clock;
+	init.num_parents = 1;
+	init.name = name;
+	init.flags = CLK_IGNORE_UNUSED;
+	init.ops = &rp1_varsrc_ops;
+
+	clock = devm_kzalloc(clockman->dev, sizeof(*clock), GFP_KERNEL);
+	if (!clock)
+		return NULL;
+
+	clock->clockman = clockman;
+	clock->hw.init = &init;
+
+	ret = devm_clk_hw_register(clockman->dev, &clock->hw);
+	if (ret)
+		return ERR_PTR(ret);
+
+	return &clock->hw;
+}
+
 struct rp1_clk_desc {
 	struct clk_hw *(*clk_register)(struct rp1_clockman *clockman,
 				       const void *data);
@@ -1675,6 +1743,8 @@ struct rp1_clk_desc {
 #define REGISTER_CLK(...)	_REGISTER(&rp1_register_clock,		\
 					  &(struct rp1_clock_data)	\
 					  {__VA_ARGS__})
+
+#define REGISTER_VARSRC(n)	_REGISTER(&rp1_register_varsrc,	&(const char *){n})
 
 static const struct rp1_clk_desc clk_desc_array[] = {
 	[RP1_PLL_SYS_CORE] = REGISTER_PLL_CORE(
@@ -2318,6 +2388,9 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.max_freq = 200 * MHz,
 				.fc0_src = FC_NUM(3, 6),
 				),
+
+	[RP1_CLK_MIPI0_DSI_BYTECLOCK] = REGISTER_VARSRC("clksrc_mipi0_dsi_byteclk"),
+	[RP1_CLK_MIPI1_DSI_BYTECLOCK] = REGISTER_VARSRC("clksrc_mipi1_dsi_byteclk"),
 };
 
 static bool rp1_clk_claimed[ARRAY_SIZE(clk_desc_array)];
