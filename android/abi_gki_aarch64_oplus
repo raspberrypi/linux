@@ -188,6 +188,8 @@
   __traceiter_android_vh_si_mem_available_adjust
   __traceiter_android_vh_si_meminfo_adjust
   __traceiter_android_vh_tune_scan_type
+  __traceiter_android_vh_cleanup_old_buffers_bypass
+  __traceiter_android_vh_dm_bufio_shrink_scan_bypass
   __traceiter_mm_vmscan_kswapd_wake
   __traceiter_block_bio_queue
   __traceiter_block_getrq
@@ -244,6 +246,8 @@
   __tracepoint_android_vh_customize_alloc_gfp
   __tracepoint_android_vh_dup_task_struct
   __tracepoint_android_vh_exit_signal
+  __tracepoint_android_vh_dm_bufio_shrink_scan_bypass
+  __tracepoint_android_vh_cleanup_old_buffers_bypass
   __traceiter_android_vh_get_page_wmark
   __traceiter_android_vh_page_add_new_anon_rmap
   __tracepoint_android_vh_do_shrink_slab
