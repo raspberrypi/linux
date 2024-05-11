@@ -457,9 +457,12 @@
   dma_buf_put
   dma_buf_unmap_attachment
   dma_buf_unmap_attachment_unlocked
+  dma_contiguous_default_area
   dma_fence_array_ops
   dma_fence_chain_init
   dma_fence_enable_sw_signaling
+  dma_fence_release
+  dma_fence_signal
   dma_fence_signal_timestamp_locked
   dma_free_attrs
   dma_free_pages
@@ -482,6 +485,8 @@
   dma_request_chan
   dma_resv_fini
   dma_resv_init
+  dma_resv_iter_first
+  dma_resv_iter_next
   dma_set_coherent_mask
   dma_set_mask
   dma_sync_sg_for_cpu
@@ -1676,6 +1681,7 @@
   shmem_read_folio_gfp
   shmem_read_mapping_page_gfp
   show_regs
+  si_mem_available
   si_meminfo
   simple_attr_open
   simple_attr_release
