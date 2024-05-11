@@ -1,0 +1,110 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-0 = <&i2c0_pins>;
+			pinctrl-names = "default";
+			status = "okay";
+
+			axp22x: pmic@34 {
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				compatible = "x-powers,axp221";
+				reg = <0x34>; /* i2c address */
+				interrupt-parent = <&gpio>;
+				interrupts = <2 8>;  /* IRQ_TYPE_EDGE_FALLING */
+				irq-gpios = <&gpio 2 0>;
+
+				regulators {
+
+					x-powers,dcdc-freq = <3000>;
+
+					reg_aldo1: aldo1 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "audio-vdd";
+					};
+
+					reg_aldo2: aldo2 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "display-vcc";
+					};
+
+					reg_dldo2: dldo2 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo2";
+					};
+
+					reg_dldo3: dldo3 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo3";
+					};
+
+					reg_dldo4: dldo4 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo4";
+					};
+
+				};
+
+				battery_power_supply: battery-power-supply {
+					compatible = "x-powers,axp221-battery-power-supply";
+					monitored-battery = <&battery>;
+				};
+
+				ac_power_supply: ac_power_supply {
+					compatible = "x-powers,axp221-ac-power-supply";
+				};
+
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0if>;
+		__overlay__ {
+			compatible = "brcm,bcm2708-i2c";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/";
+		__overlay__  {
+			battery: battery@0 {
+				compatible = "simple-battery";
+				device-chemistry = "lithium-ion";
+				constant-charge-current-max-microamp = <2100000>;
+				voltage-max-design-microvolt = <4200000>;
+				re-charge-voltage-microvolt = <4000000>;
+				// adjust the following params according to your battery specs
+				voltage-min-design-microvolt = <3300000>;
+				energy-full-design-microwatt-hours = <24790000>; // 2x3350mAh * 3.7v
+				charge-full-design-microamp-hours = <6700000>; // 2x3350mAh
+			};
+		};
+	};
+
+};

@@ -1,0 +1,100 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pins>;
+			status = "okay";
+
+			adc101c: adc@54 {
+				reg = <0x54>;
+				compatible = "ti,adc101c";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi4_pins &spi4_cs_pins>;
+			cs-gpios = <&gpio 4 1>;
+			status = "okay";
+
+			spidev4_0: spidev@0 {
+				compatible = "spidev";
+				reg = <0>;      /* CE0 */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <125000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&uart1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+
+			i2c1_pins: i2c1 {
+				brcm,pins = <44 45>;
+				brcm,function = <6>;
+			};
+
+			spi4_pins: spi4_pins {
+				brcm,pins = <6 7>;
+				brcm,function = <7>;
+			};
+
+			spi4_cs_pins: spi0_cs_pins {
+				brcm,pins = <4>;
+				brcm,function = <1>;
+			};
+
+			uart1_pins: uart1_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <2>;
+				brcm,pull = <0 2>;
+			};
+
+		};
+	};
+
+	fragment@4 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "8250.nr_uarts=1";
+		};
+	};
+	
+	fragment@5 {
+		target = <&pcie0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@6 {
+		target = <&genet>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+};

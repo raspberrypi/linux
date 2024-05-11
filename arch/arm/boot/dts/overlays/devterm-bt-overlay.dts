@@ -1,0 +1,40 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins &bt_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			uart0_pins: uart0_pins {
+				brcm,pins = <14 15 16 17>;
+				brcm,function = <4 4 7 7>;
+				brcm,pull = <0 2 0 2>;
+			};
+
+			bt_pins: bt_pins {
+				brcm,pins = <5 6 7>;
+				brcm,function = <1 0 1>;
+				brcm,pull = <0 2 0>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/aliases";
+		__overlay__ {
+			serial1 = "/soc/serial@7e201000";
+			serial0 = "/soc/serial@7e215040";
+		};
+	};
+};

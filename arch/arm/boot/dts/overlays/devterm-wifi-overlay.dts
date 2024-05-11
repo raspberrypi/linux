@@ -1,0 +1,41 @@
+/dts-v1/;
+/plugin/;
+
+/* Enable SDIO from MMC interface via various GPIO groups */
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&mmc>;
+		sdio_ovl: __overlay__ {
+			pinctrl-0 = <&sdio_ovl_pins>;
+			pinctrl-names = "default";
+			non-removable;
+			bus-width = <4>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			sdio_ovl_pins: sdio_ovl_pins {
+				brcm,pins = <22 23 24 25 26 27>;
+				brcm,function = <7>; /* ALT3 = SD1 */
+				brcm,pull = <0 2 2 2 2 2>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__  {
+			wifi_pwrseq: wifi-pwrseq {
+				compatible = "mmc-pwrseq-simple";
+				reset-gpios = <&gpio 3 0>;
+			};
+		};
+	};
+
+};
