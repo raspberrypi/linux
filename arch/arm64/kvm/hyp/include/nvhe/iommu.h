@@ -55,12 +55,39 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 int kvm_iommu_snapshot_host_stage2(struct kvm_hyp_iommu_domain *domain);
 
 #define KVM_IOMMU_PADDR_CACHE_MAX		((size_t)511)
+/**
+ * struct kvm_iommu_paddr_cache - physical address cache, passed with unmap calls
+ *  which is expected to hold all the unmapped physical addresses so the
+ *  hypervisor can keep track of available pages for donation.
+ *  It is guaranteed the unmap call will not unmap more tham KVM_IOMMU_PADDR_CACHE_MAX
+ * @ptr: Current pointer to empty entry.
+ * @paddr: Physical address.
+ * @pgsize: Size of physical address.
+ */
 struct kvm_iommu_paddr_cache {
 	unsigned short	ptr;
 	u64		paddr[KVM_IOMMU_PADDR_CACHE_MAX];
 	size_t		pgsize[KVM_IOMMU_PADDR_CACHE_MAX];
 };
 
+/**
+ * struct kvm_iommu_ops - KVM iommu ops
+ * @init: init the driver called once before the kernel de-privilege
+ * @get_iommu_by_id: Return kvm_hyp_iommu from an ID passed from the kernel.
+ *		     It is driver specific how the driver assign IDs.
+ * @alloc_domain: allocate iommu domain.
+ * @free_domain: free iommu domain.
+ * @attach_dev: Attach a device to a domain.
+ * @detach_dev: Detach a device from a domain.
+ * @dabt_handler: data abort for MMIO, can be used for emulating access to IOMMU.
+ * @suspend: Power suspended.
+ * @resume: Power resumed.
+ * @iotlb_sync: Sync iotlb_gather (similar to the kernel).
+ * @host_stage2_idmap: Identity map a range.
+ * @map_pages: Map pages in a domain.
+ * @unmap_pages: Unmap pages from a domain.
+ * @iova_to_phys: get physical address from IOVA in a domain.
+ */
 struct kvm_iommu_ops {
 	int (*init)(unsigned long arg);
 	struct kvm_hyp_iommu *(*get_iommu_by_id)(pkvm_handle_t smmu_id);
