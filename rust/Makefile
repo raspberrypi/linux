@@ -15,7 +15,7 @@ always-$(CONFIG_RUST) += libmacros.so
 no-clean-files += libmacros.so
 
 always-$(CONFIG_RUST) += bindings/bindings_generated.rs bindings/bindings_helpers_generated.rs
-obj-$(CONFIG_RUST) += alloc.o bindings.o kernel.o
+obj-$(CONFIG_RUST) += alloc.o bindings.o kernel.o cargo_driver.o
 always-$(CONFIG_RUST) += exports_alloc_generated.h exports_bindings_generated.h \
     exports_kernel_generated.h
 
@@ -245,7 +245,7 @@ quiet_cmd_rustsysroot = RUSTSYSROOT
 		>> $(objtree)/$(obj)/test/rustc_sysroot; \
 	chmod u+x $(objtree)/$(obj)/test/rustc_sysroot; \
 	$(CARGO) -q new $(objtree)/$(obj)/test/dummy; \
-	RUSTC=$(objtree)/$(obj)/test/rustc_sysroot $(CARGO) $(cargo_quiet) \
+	RUSTC=$(objtree)/$(obj)/test/rustc_sysroot $(CARGO) $(argo_quiet) \
 		test -Zbuild-std --target $(rustc_host_target) \
 		--manifest-path $(objtree)/$(obj)/test/dummy/Cargo.toml; \
 	rm $(objtree)/$(obj)/test/sysroot/lib/rustlib/$(rustc_host_target)/lib/*; \
@@ -467,4 +467,55 @@ $(obj)/kernel.o: private rustc_target_flags = --extern alloc \
 $(obj)/kernel.o: $(src)/kernel/lib.rs $(obj)/alloc.o $(obj)/build_error.o \
     $(obj)/libmacros.so $(obj)/bindings.o $(obj)/uapi.o FORCE
 	$(call if_changed_dep,rustc_library)
+
+obj-$(CONFIG_RUST) += cargo_driver.o
+
+# When adding a cargo project, you must add the binaries
+# that need to be excluded here. 
+# They will be removed when the cargo_driver is actually generated.
+CARGO_EXCLUDE_OBJ := i2c_dw_linux_adapt
+
+# get target from rust_flags
+cargo_target = $(shell echo $(rust_flags) | sed 's/\(.*\) --target=\([^ ]*\) \(.*\)/\2/')
+cargo_deps_dir = $(objtree)/rust/cargo_driver/target/$(cargo_target)/release/deps
+
+CARGO_BUILD_ORI_RUSTFLAGS =  $(rust_flags) \
+			--extern alloc --extern kernel \
+			--extern core --extern proc_macro --extern alloc \
+			-L $(abspath $(objtree))/rust/ \
+			--sysroot=/dev/null \
+			--crate-type rlib \
+			--cfg 'feature="linux"' \
+			--emit=obj \
+			--emit=dep-info 
+			
+
+# remove dup flags edition=xx/target=xxx, and remove -Dwarnings
+# edition: added by cargo,no need add in rust_flags
+# target: must be add in cargo command line, no need add in rust_flags
+# -Dwarnings: cargo will depend on many external libraries and currently cannot require them so strictly
+CARGO_BUILD_RUSTFLAGS = $(shell echo $(CARGO_BUILD_ORI_RUSTFLAGS) | sed 's/--edition=[0-9]\{4\}//g' | sed 's/ --target=[^ ]*//')
+
+export CARGO_BUILD_RUSTFLAGS
+
+quiet_cmd_cargo_build = Cargo build $@
+      cmd_cargo_build =  RUST_MODFILE=cargo_driver  $(CARGO) build\
+		 --target $(cargo_target) \
+	         --target-dir $(objtree)/rust/cargo_driver/target \
+	         --manifest-path $(srctree)/rust/cargo_driver/Cargo.toml \
+	         --release --verbose 
+
+quiet_cmd_cargo_clean = Cargo clean $@
+      cmd_cargo_clean = rm -rf $(objtree)/rust/cargo_driver/target
+
+EXCLUDE_PATTERNS := $(addprefix -e , $(addsuffix .*, $(CARGO_EXCLUDE_OBJ)))
+
+quiet_cmd_cargo_link = Cargo link exclude $(CARGO_EXCLUDE_OBJ) objs: $$(ls -d $(cargo_deps_dir)/* | grep '.*[\.o]$$' | grep -v $(EXCLUDE_PATTERNS))) 
+cmd_cargo_link = ld.lld -r  $$(ls -d $(cargo_deps_dir)/* | grep '.*[\.o]$$' | grep -v $(EXCLUDE_PATTERNS)) -o $@
+
+$(obj)/cargo_driver.o: $(obj)/kernel.o FORCE
+	$(call cmd,cargo_clean)
+	$(call cmd,cargo_build)
+	$(call cmd,cargo_link)
+
 endif # CONFIG_RUST

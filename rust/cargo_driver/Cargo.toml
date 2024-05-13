@@ -1,0 +1,12 @@
+[package]
+name = "cargo_driver"
+version = "0.1.0"
+edition = "2021"
+authors = ["Guoweikang <guoweikang.kernel@gmail.com>"]
+description = "Used to collect driver dependencies"
+license = "GPL-3.0-or-later OR Apache-2.0"
+homepage = ""
+
+[dependencies]
+i2c_dw_linux_adapt  = { path = "../../drivers/i2c/busses/i2c-dw-linux-adapter"}
+

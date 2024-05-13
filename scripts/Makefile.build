@@ -278,27 +278,6 @@ rust_common_cmd = \
 	--sysroot=/dev/null \
 	--out-dir $(dir $@) --emit=dep-info=$(depfile)
 
-
-CARGO_BUILD_RUSTFLAGS =  $(rust_flags)  \
-			--extern alloc --extern kernel \
-			--extern core --extern proc_macro --extern alloc \
-			-L $(abspath $(objtree))/rust/ \
-			--sysroot=/dev/null \
-			--crate-type rlib \
-			--cfg 'feature="linux"' \
-			--emit=obj \
-			--emit=dep-info 
-
-
-CARGO_TARGET := $(shell echo $(CARGO_BUILD_RUSTFLAGS) | sed 's/\(.*\) --target=\([^ ]*\) \(.*\)/\2/')
-# remove dup flags edition=xx/target=xxx, and remove -Dwarnings
-# edition: added by cargo,no need add in rust_flags
-# target: must be add in cargo command line, no need add in rust_flags
-# -Dwarnings: cargo will depend on many external libraries and currently cannot require them so strictly
-CARGO_BUILD_RUSTFLAGS := $(shell echo $(CARGO_BUILD_RUSTFLAGS) | sed 's/--edition=[0-9]\{4\}//g' \
-			 | sed 's/ --target=[^ ]*//')
-export CARGO_BUILD_RUSTFLAGS
-
 # `--emit=obj`, `--emit=asm` and `--emit=llvm-ir` imply a single codegen unit
 # will be used. We explicitly request `-Ccodegen-units=1` in any case, and
 # the compiler shows a warning if it is not 1. However, if we ever stop
@@ -333,23 +312,14 @@ quiet_cmd_rustc_ll_rs = $(RUSTC_OR_CLIPPY_QUIET) $(quiet_modtag) $@
 $(obj)/%.ll: $(src)/%.rs FORCE
 	$(call if_changed_dep,rustc_ll_rs)
 
-quiet_cmd_cargo_build = Cargo build $@
-      cmd_cargo_build =  RUST_MODFILE=$(modfile)  $(CARGO) build \
-		 --target $(CARGO_TARGET) \
-	         --target-dir $(dir $@)target \
-	         --manifest-path $(srctree)/$(dir $@)/Cargo.toml \
-	         --release --verbose 
+cargo_target = $(shell echo $(rust_flags) | sed 's/\(.*\) --target=\([^ ]*\) \(.*\)/\2/')
+cargo_deps_dir = $(objtree)/rust/cargo_driver/target/$(cargo_target)/release/deps
 
-quiet_cmd_cargo_clean = Cargo clean $@
-      cmd_cargo_clean = rm -rf $(dir $@)target/
-
-cmd_cargo_link = ld.lld -r $$(ls -d $(dir $@)target/$(CARGO_TARGET)/release/deps/* | grep '.*[\.o]$$' ) -o $@
+quiet_cmd_cargo_link_copy = Cargo link copy single $@
+cmd_cargo_link_copy = cp $$(ls -d $(cargo_deps_dir)/*.o | grep $*)  $@
 
 $(obj)/cargo-%.o: FORCE
-	$(call cmd,cargo_clean)
-	$(call cmd,cargo_build)
-	$(call cmd,cargo_link)
-
+	$(call cmd,cargo_link_copy)
 
 # Compile assembler sources (.S)
 # ---------------------------------------------------------------------------
