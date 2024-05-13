@@ -145,7 +145,7 @@ static int __invoke_mmioguard(phys_addr_t phys_addr, int nr_granules, bool map,
 	if (res.a0 != SMCCC_RET_SUCCESS)
 		return -EINVAL;
 
-	*done = guard_has_range ? res.a1 : guard_granule;
+	*done = guard_has_range ? res.a1 : 1;
 
 	return 0;
 }
@@ -165,7 +165,7 @@ static int __do_xmap_granules(phys_addr_t phys_addr, int nr_granules, bool map)
 		if (WARN_ON(__nr_xmapped > nr_granules))
 			break;
 
-		phys_addr += __nr_xmapped;
+		phys_addr += __nr_xmapped * guard_granule;
 		nr_granules -= __nr_xmapped;
 	}
 
