@@ -78,6 +78,7 @@
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
   __traceiter_sched_waking
+  __traceiter_sys_exit
   __traceiter_task_rename
   __traceiter_workqueue_execute_end
   __traceiter_workqueue_execute_start
@@ -144,6 +145,7 @@
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
   __tracepoint_sched_waking
+  __tracepoint_sys_exit
   __tracepoint_task_rename
   __tracepoint_workqueue_execute_end
   __tracepoint_workqueue_execute_start
