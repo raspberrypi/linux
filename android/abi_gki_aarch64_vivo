@@ -150,6 +150,7 @@
   __tracepoint_workqueue_execute_end
   __tracepoint_workqueue_execute_start
   ucsi_send_command
+  ufshcd_query_descriptor_retry
   unlock_buffer
   __wait_on_buffer
   __traceiter_android_rvh_tcp_sendmsg
