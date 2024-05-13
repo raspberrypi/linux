@@ -516,7 +516,7 @@ static int kvm_iommu_init_idmap(struct kvm_hyp_memcache *atomic_mc)
 	/* atomic_mc is optional. */
 	if (!atomic_mc->head)
 		return 0;
-	ret = hyp_pool_init_empty(&iommu_atomic_pool, 64 /* order = 6*/);
+	ret = hyp_pool_init_empty(&iommu_atomic_pool, 1024 /* order = 10 */);
 	if (ret)
 		return ret;
 
