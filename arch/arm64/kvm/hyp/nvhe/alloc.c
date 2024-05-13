@@ -787,6 +787,7 @@ void hyp_alloc_reclaim(struct kvm_hyp_memcache *mc, int target)
 
 		WARN_ON(order);
 		memset(page, 0, PAGE_SIZE);
+		kvm_flush_dcache_to_poc(page, PAGE_SIZE);
 		push_hyp_memcache(mc, page, hyp_virt_to_phys, 0);
 		WARN_ON(__pkvm_hyp_donate_host(hyp_virt_to_pfn(page), 1));
 	}
