@@ -338,12 +338,15 @@ void iounmap_phys_range_hook(phys_addr_t phys_addr, size_t size)
 		mas_intersect(&mas, phys_addr, size);
 		sub_size = mas_size(&mas);
 
-		mas_store_refcount(&mas, refcount - 1);
-
-		if (refcount <= 1) {
-			if (WARN_ON(!mas_find(&mas, mas_end(phys_addr, sub_size))))
+		if (refcount == 1) {
+			if (WARN_ON(ioremap_unregister_phys_range(phys_addr, sub_size)))
 				break;
+
+			/* Split the existing mas if needed before deletion */
+			mas_store_refcount(&mas, refcount - 1);
 			mas_erase(&mas);
+		} else {
+			mas_store_refcount(&mas, refcount - 1);
 		}
 next:
 		size = size_sub(size, sub_size);
