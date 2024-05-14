@@ -603,6 +603,7 @@
   find_vpid
   finish_wait
   firmware_request_nowarn
+  flow_keys_dissector
   flush_delayed_fput
   flush_delayed_work
   flush_work
@@ -1243,6 +1244,11 @@
   page_frag_free
   page_pinner_inited
   __page_pinner_put_page
+  page_pool_alloc_frag
+  page_pool_alloc_pages
+  page_pool_create
+  page_pool_destroy
+  page_pool_put_defragged_page
   panic
   panic_notifier_list
   panic_timeout
@@ -1677,6 +1683,7 @@
   simple_read_from_buffer
   single_open
   single_release
+  __siphash_unaligned
   si_swapinfo
   sk_alloc
   skb_add_rx_frag
@@ -1692,6 +1699,7 @@
   skb_csum_hwoffload_help
   skb_dequeue
   skb_ensure_writable
+  __skb_flow_get_ports
   skb_free_datagram
   __skb_get_hash
   __skb_gso_segment
