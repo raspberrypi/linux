@@ -4,6 +4,7 @@
   __tracepoint_android_vh_logbuf
   tracepoint_probe_register
   tracepoint_probe_unregister
+  cgroup_rm_cftypes
 
 # required by shrink memory module
   shrink_slab
