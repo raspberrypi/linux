@@ -61,6 +61,11 @@ module_param_named(cmode, rp1vec_cmode_str, charp, 0600);
 MODULE_PARM_DESC(cmode, "Custom video mode:\n"
 		 "\t\t<pclk>,<hact>,<hfp>,<hsync>,<hbp>,<vact>,<vfp>,<vsync>,<vbp>[,i]\n");
 
+int par;
+module_param_named(par, par, int, 0600);
+MODULE_PARM_DESC(par, "Picture Aspect Ratio for DRM modes:\n"
+		 "\t\t0 => Unspecified; 1 => 4:3; 2 => 16:9\n");
+
 static struct drm_display_mode *rp1vec_parse_custom_mode(struct drm_device *dev)
 {
 	char const *p = rp1vec_cmode_str;
@@ -101,6 +106,7 @@ static struct drm_display_mode *rp1vec_parse_custom_mode(struct drm_device *dev)
 	mode->flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC;
 	if (strchr(p, 'i'))
 		mode->flags |= DRM_MODE_FLAG_INTERLACE;
+	mode->picture_aspect_ratio = par;
 
 	return mode;
 }
@@ -362,11 +368,13 @@ static int rp1vec_connector_get_modes(struct drm_connector *connector)
 			} else if (mode->hdisplay == 704 && mode->vtotal == preferred_lines) {
 				mode->type |= DRM_MODE_TYPE_PREFERRED;
 			}
+			mode->picture_aspect_ratio = par;
 			drm_mode_set_name(mode);
+
 			drm_mode_probed_add(connector, mode);
 			n++;
 
-			if (mode->vtotal == 405 || mode->vtotal == 819)
+			if (i >= 4)
 				break; /* Don't offer progressive for Systems A, E */
 		}
 	}
