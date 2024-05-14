@@ -249,17 +249,14 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
 	struct kvm_vcpu *host_vcpu;
-	struct rb_node *node;
-	unsigned long idx;
+	unsigned long idx, ipa = 0;
 
 	if (!host_kvm->arch.pkvm.handle)
 		goto out_free;
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
-	node = rb_first(&host_kvm->arch.pkvm.pinned_pages);
-	while (node) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
+	mt_for_each(&host_kvm->arch.pkvm.pinned_pages, ppage, ipa, ULONG_MAX) {
 		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
 					  host_kvm->arch.pkvm.handle,
 					  page_to_pfn(ppage->page),
@@ -268,10 +265,9 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 		account_locked_vm(mm, 1, false);
 		unpin_user_pages_dirty_lock(&ppage->page, 1, host_kvm->arch.pkvm.enabled);
-		node = rb_next(node);
-		rb_erase(&ppage->node, &host_kvm->arch.pkvm.pinned_pages);
 		kfree(ppage);
 	}
+	mtree_destroy(&host_kvm->arch.pkvm.pinned_pages);
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
 
@@ -459,32 +455,30 @@ static int __init finalize_pkvm(void)
 }
 device_initcall_sync(finalize_pkvm);
 
-static int rb_ppage_cmp(const void *key, const struct rb_node *node)
-{
-       struct kvm_pinned_page *p = container_of(node, struct kvm_pinned_page, node);
-       phys_addr_t ipa = (phys_addr_t)key;
-
-       return (ipa < p->ipa) ? -1 : (ipa > p->ipa);
-}
-
 void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 {
-	struct kvm_pinned_page *ppage;
 	struct mm_struct *mm = current->mm;
-	struct rb_node *node;
+	struct kvm_pinned_page *ppage;
+	unsigned long index = ipa;
 
 	write_lock(&host_kvm->mmu_lock);
-	node = rb_find((void *)ipa, &host_kvm->arch.pkvm.pinned_pages,
-		       rb_ppage_cmp);
-	if (node)
-		rb_erase(node, &host_kvm->arch.pkvm.pinned_pages);
+	ppage = mt_find(&host_kvm->arch.pkvm.pinned_pages, &index,
+			index + PAGE_SIZE - 1);
+	if (ppage) {
+		if (ppage->pins)
+			ppage->pins--;
+		else
+			WARN_ON(1);
+
+		if (!ppage->pins)
+			mtree_erase(&host_kvm->arch.pkvm.pinned_pages, ipa);
+	}
 	write_unlock(&host_kvm->mmu_lock);
 
-	WARN_ON(!node);
-	if (!node)
+	WARN_ON(!ppage);
+	if (!ppage || ppage->pins)
 		return;
 
-	ppage = container_of(node, struct kvm_pinned_page, node);
 	account_locked_vm(mm, 1, false);
 	unpin_user_pages_dirty_lock(&ppage->page, 1, host_kvm->arch.pkvm.enabled);
 	kfree(ppage);
