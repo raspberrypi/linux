@@ -32,7 +32,6 @@ unsigned long __bootdata_preserved(max_mappable);
 unsigned long __bootdata(ident_map_size);
 
 u64 __bootdata_preserved(stfle_fac_list[16]);
-u64 __bootdata_preserved(alt_stfle_fac_list[16]);
 struct oldmem_data __bootdata_preserved(oldmem_data);
 
 struct machine_info machine;
