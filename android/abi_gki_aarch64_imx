@@ -329,6 +329,7 @@
   devm_alloc_etherdev_mqs
   __devm_alloc_percpu
   devm_backlight_device_register
+  devm_bitmap_zalloc
   devm_blk_crypto_profile_init
   devm_clk_bulk_get
   devm_clk_bulk_get_all
@@ -650,6 +651,7 @@
   drm_bridge_attach
   drm_bridge_connector_init
   drm_bridge_detect
+  drm_bridge_edid_read
   drm_bridge_get_edid
   drm_bridge_hpd_disable
   drm_bridge_hpd_enable
@@ -704,6 +706,8 @@
   drm_display_mode_from_videomode
   drm_display_mode_to_videomode
   drm_do_get_edid
+  drm_edid_connector_add_modes
+  drm_edid_connector_update
   drm_edid_dup
   drm_edid_duplicate
   drm_edid_free
@@ -944,6 +948,7 @@
   gen_pool_dma_alloc
   gen_pool_free_owner
   gen_pool_virt_to_phys
+  get_cached_msi_msg
   get_cpu_device
   get_device
   get_device_system_crosststamp
@@ -1125,8 +1130,10 @@
   iommu_fwspec_add_ids
   iommu_fwspec_free
   iommu_get_domain_for_dev
+  iommu_get_domain_for_dev_pasid
   iommu_group_ref_get
   iommu_iova_to_phys
+  iommu_report_device_fault
   ioremap_prot
   iounmap
   __iowrite32_copy
@@ -1370,6 +1377,7 @@
   module_layout
   module_put
   __msecs_to_jiffies
+  msi_domain_get_virq
   msleep
   msleep_interruptible
   mul_u64_u64_div_u64
@@ -1590,14 +1598,17 @@
   param_ops_ulong
   param_ops_ushort
   pci_alloc_irq_vectors
+  pci_ats_supported
   pci_bus_type
   pci_choose_state
   pci_device_group
+  pci_disable_ats
   pci_disable_device
   pci_disable_msi
   pci_disable_msix
   pci_disable_sriov
   pcie_flr
+  pci_enable_ats
   pci_enable_device
   pci_enable_device_mem
   pci_enable_msi
@@ -1772,6 +1783,8 @@
   platform_irqchip_probe
   platform_irq_count
   platform_msi_create_irq_domain
+  platform_msi_domain_alloc_irqs
+  platform_msi_domain_free_irqs
   pm_genpd_add_subdomain
   pm_genpd_init
   pm_genpd_remove
@@ -2701,6 +2714,8 @@
   ww_mutex_lock_interruptible
   ww_mutex_unlock
   x509_load_certificate_list
+  __xa_alloc
+  xa_erase
   xdp_convert_zc_to_xdp_frame
   xdp_do_flush
   xdp_do_redirect
