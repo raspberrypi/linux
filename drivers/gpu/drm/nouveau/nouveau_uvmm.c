@@ -1320,6 +1320,7 @@ nouveau_uvmm_bind_job_submit(struct nouveau_job *job)
 
 		drm_gpuva_for_each_op(va_op, op->ops) {
 			struct drm_gem_object *obj = op_gem_obj(va_op);
+			struct nouveau_bo *nvbo;
 
 			if (unlikely(!obj))
 				continue;
@@ -1330,8 +1331,9 @@ nouveau_uvmm_bind_job_submit(struct nouveau_job *job)
 			if (unlikely(va_op->op == DRM_GPUVA_OP_UNMAP))
 				continue;
 
-			ret = nouveau_bo_validate(nouveau_gem_object(obj),
-						  true, false);
+			nvbo = nouveau_gem_object(obj);
+			nouveau_bo_placement_set(nvbo, nvbo->valid_domains, 0);
+			ret = nouveau_bo_validate(nvbo, true, false);
 			if (ret) {
 				op = list_last_op(&bind_job->ops);
 				goto unwind;
