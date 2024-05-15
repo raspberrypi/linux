@@ -170,6 +170,10 @@ rp1_target: &pcie2 {
 	status = "okay";
 };
 
+&pcie1 {
+	brcm,vdm-qos-map = <0x33333333>;
+};
+
 // Add some labels to 2712 device
 
 // The system UART
