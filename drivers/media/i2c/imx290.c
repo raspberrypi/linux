@@ -13,6 +13,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
@@ -41,6 +42,9 @@
 #define IMX290_WINMODE_720P				(1 << 4)
 #define IMX290_WINMODE_CROP				(4 << 4)
 #define IMX290_FR_FDG_SEL				CCI_REG8(0x3009)
+#define IMX290_FDG_HCG					BIT(4)
+#define IMX290_FRSEL_60FPS				BIT(0)
+#define IMX290_FDG_LCG					0
 #define IMX290_BLKLEVEL					CCI_REG16_LE(0x300a)
 #define IMX290_GAIN					CCI_REG8(0x3014)
 #define IMX290_VMAX					CCI_REG24_LE(0x3018)
@@ -161,6 +165,10 @@
 #define IMX290_BLACK_LEVEL_DEFAULT			3840
 
 #define IMX290_NUM_SUPPLIES				3
+
+static bool hcg_mode;
+module_param(hcg_mode, bool, 0664);
+MODULE_PARM_DESC(hcg_mode, "Enable HCG mode");
 
 enum imx290_colour_variant {
 	IMX290_VARIANT_COLOUR,
@@ -697,7 +705,8 @@ static int imx290_set_data_lanes(struct imx290 *imx290)
 		  &ret);
 	cci_write(imx290->regmap, IMX290_CSI_LANE_MODE, imx290->nlanes - 1,
 		  &ret);
-	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, 0x01, &ret);
+	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, IMX290_FRSEL_60FPS |
+		  (hcg_mode ? IMX290_FDG_HCG : IMX290_FDG_LCG), &ret);
 
 	return ret;
 }
