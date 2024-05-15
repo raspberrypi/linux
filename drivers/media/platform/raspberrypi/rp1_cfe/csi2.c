@@ -533,14 +533,14 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 		code = format->format.code;
 
 		/*
-		 * If the source code from the user does not match the code in
-		 * the sink pad, check that the source code matches either the
-		 * 16-bit version or the compressed version of the sink code.
+		 * Only allow changing the mbus code to:
+		 * - The sink's mbus code
+		 * - The 16-bit version of the sink's mbus code
+		 * - The compressed version of the sink's mbus code
 		 */
-
-		if (code != sink_code &&
-		    (code == cfe_find_16bit_code(sink_code) ||
-		     code == cfe_find_compressed_code(sink_code)))
+		if (code == sink_code ||
+		    code == cfe_find_16bit_code(sink_code) ||
+		    code == cfe_find_compressed_code(sink_code))
 			source_fmt->code = code;
 
 		format->format.code = source_fmt->code;
