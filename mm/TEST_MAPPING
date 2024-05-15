@@ -34,6 +34,9 @@
       "name": "selftests",
       "options": [
         {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        },
+        {
           "include-filter": "kselftest_mm_mremap_dontunmap"
         },
         {

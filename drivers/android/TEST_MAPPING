@@ -36,6 +36,14 @@
       ]
     },
     {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        }
+      ]
+    },
+    {
       "name": "vts_kernel_net_tests"
     }
   ],
