@@ -94,6 +94,7 @@ filegroup(
     srcs = [
         # keep sorted
         "android/abi_gki_aarch64_amlogic",
+        "android/abi_gki_aarch64_asus",
         "android/abi_gki_aarch64_db845c",
         "android/abi_gki_aarch64_exynos",
         "android/abi_gki_aarch64_exynosauto",
