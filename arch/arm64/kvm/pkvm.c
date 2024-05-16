@@ -244,34 +244,101 @@ static void __pkvm_vcpu_hyp_created(struct kvm_vcpu *vcpu)
 		vcpu->arch.sve_state = NULL;
 }
 
+/*
+ * Handle broken down huge pages which have not been reported to the
+ * kvm_pinned_page.
+ */
+int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
+			     int (*call_hyp_nvhe)(u64 pfn, u64 gfn, u8 order, void* args),
+			     void *args, bool unmap)
+{
+	size_t page_size, size = PAGE_SIZE << ppage->order;
+	u64 pfn = page_to_pfn(ppage->page);
+	u8 order = ppage->order;
+	u64 gfn = ppage->ipa >> PAGE_SHIFT;
+
+	/* We already know this huge-page has been broken down in the stage-2 */
+	if (ppage->pins < (1 << order))
+		order = 0;
+
+	while (size) {
+		int err = call_hyp_nvhe(pfn, gfn, order, args);
+
+		switch (err) {
+		/* The stage-2 huge page has been broken down */
+		case -E2BIG:
+			if (order)
+				order = 0;
+			else
+				/* Something is really wrong ... */
+				return -EINVAL;
+			break;
+		/* This has been unmapped already */
+		case -ENOENT:
+			/*
+			 * We are not supposed to lose track of PAGE_SIZE pinned
+			 * page.
+			 */
+			if (!ppage->order)
+				return -EINVAL;
+
+			fallthrough;
+		case 0:
+			page_size = PAGE_SIZE << order;
+			gfn += 1 << order;
+			pfn += 1 << order;
+
+			if (page_size > size)
+				return -EINVAL;
+
+			if (unmap)
+				ppage->pins -= 1 << order;
+
+			if (!ppage->pins)
+				return 0;
+
+			size -= page_size;
+			break;
+		default:
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+static int __reclaim_dying_guest_page_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *host_kvm = args;
+
+	return kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
+				 host_kvm->arch.pkvm.handle,
+				 pfn, gfn, order);
+}
+
 static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
 	struct kvm_vcpu *host_vcpu;
-	struct rb_node *node;
-	unsigned long idx;
+	unsigned long idx, ipa = 0;
 
 	if (!host_kvm->arch.pkvm.handle)
 		goto out_free;
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
-	node = rb_first(&host_kvm->arch.pkvm.pinned_pages);
-	while (node) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
-		WARN_ON(kvm_call_hyp_nvhe(__pkvm_reclaim_dying_guest_page,
-					  host_kvm->arch.pkvm.handle,
-					  page_to_pfn(ppage->page),
-					  ppage->ipa));
+	mt_for_each(&host_kvm->arch.pkvm.pinned_pages, ppage, ipa, ULONG_MAX) {
+		WARN_ON(pkvm_call_hyp_nvhe_ppage(ppage,
+						 __reclaim_dying_guest_page_call,
+						 host_kvm, true));
 		cond_resched();
 
 		account_locked_vm(mm, 1, false);
 		unpin_user_pages_dirty_lock(&ppage->page, 1, host_kvm->arch.pkvm.enabled);
-		node = rb_next(node);
-		rb_erase(&ppage->node, &host_kvm->arch.pkvm.pinned_pages);
 		kfree(ppage);
 	}
+	mtree_destroy(&host_kvm->arch.pkvm.pinned_pages);
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
 
@@ -423,8 +490,10 @@ static int __init finalize_pkvm(void)
 {
 	int ret;
 
-	if (!is_protected_kvm_enabled() || !is_kvm_arm_initialised())
+	if (!is_protected_kvm_enabled() || !is_kvm_arm_initialised()) {
+		pkvm_firmware_rmem_clear();
 		return 0;
+	}
 
 	/*
 	 * Modules can play an essential part in the pKVM protection. All of
@@ -452,39 +521,37 @@ static int __init finalize_pkvm(void)
 	ret = pkvm_drop_host_privileges();
 	if (ret) {
 		pr_err("Failed to finalize Hyp protection: %d\n", ret);
-		kvm_iommu_remove_driver();
+		BUG();
 	}
 
-	return ret;
+	return 0;
 }
 device_initcall_sync(finalize_pkvm);
 
-static int rb_ppage_cmp(const void *key, const struct rb_node *node)
-{
-       struct kvm_pinned_page *p = container_of(node, struct kvm_pinned_page, node);
-       phys_addr_t ipa = (phys_addr_t)key;
-
-       return (ipa < p->ipa) ? -1 : (ipa > p->ipa);
-}
-
 void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 {
-	struct kvm_pinned_page *ppage;
 	struct mm_struct *mm = current->mm;
-	struct rb_node *node;
+	struct kvm_pinned_page *ppage;
+	unsigned long index = ipa;
 
 	write_lock(&host_kvm->mmu_lock);
-	node = rb_find((void *)ipa, &host_kvm->arch.pkvm.pinned_pages,
-		       rb_ppage_cmp);
-	if (node)
-		rb_erase(node, &host_kvm->arch.pkvm.pinned_pages);
+	ppage = mt_find(&host_kvm->arch.pkvm.pinned_pages, &index,
+			index + PAGE_SIZE - 1);
+	if (ppage) {
+		if (ppage->pins)
+			ppage->pins--;
+		else
+			WARN_ON(1);
+
+		if (!ppage->pins)
+			mtree_erase(&host_kvm->arch.pkvm.pinned_pages, ipa);
+	}
 	write_unlock(&host_kvm->mmu_lock);
 
-	WARN_ON(!node);
-	if (!node)
+	WARN_ON(!ppage);
+	if (!ppage || ppage->pins)
 		return;
 
-	ppage = container_of(node, struct kvm_pinned_page, node);
 	account_locked_vm(mm, 1, false);
 	unpin_user_pages_dirty_lock(&ppage->page, 1, host_kvm->arch.pkvm.enabled);
 	kfree(ppage);
@@ -532,10 +599,10 @@ static int __init pkvm_firmware_rmem_clear(void)
 	void *addr;
 	phys_addr_t size;
 
-	if (likely(!pkvm_firmware_mem) || is_protected_kvm_enabled())
+	if (likely(!pkvm_firmware_mem))
 		return 0;
 
-	kvm_info("Clearing unused pKVM firmware memory\n");
+	kvm_info("Clearing pKVM firmware memory\n");
 	size = pkvm_firmware_mem->size;
 	addr = memremap(pkvm_firmware_mem->base, size, MEMREMAP_WB);
 	if (!addr)
@@ -546,7 +613,6 @@ static int __init pkvm_firmware_rmem_clear(void)
 	memunmap(addr);
 	return 0;
 }
-device_initcall_sync(pkvm_firmware_rmem_clear);
 
 static int pkvm_vm_ioctl_set_fw_ipa(struct kvm *kvm, u64 ipa)
 {

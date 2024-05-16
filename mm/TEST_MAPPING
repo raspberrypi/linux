@@ -12,13 +12,38 @@
     {
       "path": "system/memory/libmemunreachable"
     }
- ],
+  ],
   "presubmit": [
     {
       "name": "CtsJobSchedulerTestCases",
       "options": [
         {
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "CtsWifiBroadcastsHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        },
+        {
+          "include-filter": "kselftest_mm_mremap_dontunmap"
+        },
+        {
+          "include-filter": "kselftest_mm_mremap_test"
+        },
+        {
+          "include-filter": "kselftest_mm_uffd_unit_tests"
         }
       ]
     }

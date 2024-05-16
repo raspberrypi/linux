@@ -82,6 +82,7 @@ enum __kvm_host_smccc_func {
 	__KVM_HOST_SMCCC_FUNC___pkvm_host_unmap_guest,
 	__KVM_HOST_SMCCC_FUNC___pkvm_relax_perms,
 	__KVM_HOST_SMCCC_FUNC___pkvm_wrprotect,
+	__KVM_HOST_SMCCC_FUNC___pkvm_dirty_log,
 	__KVM_HOST_SMCCC_FUNC___pkvm_tlb_flush_vmid,
 	__KVM_HOST_SMCCC_FUNC___kvm_adjust_pc,
 	__KVM_HOST_SMCCC_FUNC___kvm_vcpu_run,

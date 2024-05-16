@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/gfp.h>
 #include <net/tcp.h>
+#include <trace/hooks/net.h>
 
 static u32 tcp_clamp_rto_to_user_timeout(const struct sock *sk)
 {
@@ -254,6 +255,7 @@ static int tcp_write_timeout(struct sock *sk)
 		if (retransmits_timed_out(sk, READ_ONCE(net->ipv4.sysctl_tcp_retries1), 0)) {
 			/* Black hole detection */
 			tcp_mtu_probing(icsk, sk);
+			trace_android_vh_tcp_write_timeout_estab_retrans(sk);
 
 			__dst_negative_advice(sk);
 		}

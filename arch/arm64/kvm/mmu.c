@@ -4,6 +4,7 @@
  * Author: Christoffer Dall <c.dall@virtualopensystems.com>
  */
 
+#include <linux/maple_tree.h>
 #include <linux/mman.h>
 #include <linux/kvm_host.h>
 #include <linux/io.h>
@@ -15,6 +16,7 @@
 #include <asm/kvm_arm.h>
 #include <asm/kvm_mmu.h>
 #include <asm/kvm_pgtable.h>
+#include <asm/kvm_pkvm.h>
 #include <asm/kvm_ras.h>
 #include <asm/kvm_asm.h>
 #include <asm/kvm_emulate.h>
@@ -287,14 +289,19 @@ static void invalidate_icache_guest_page(void *va, size_t size)
 	__invalidate_icache_guest_page(va, size);
 }
 
+static int __pkvm_unmap_guest_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *kvm = args;
+
+	return kvm_call_hyp_nvhe(__pkvm_host_unmap_guest, kvm->arch.pkvm.handle,
+				 pfn, gfn, order);
+}
+
 static int pkvm_unmap_guest(struct kvm *kvm, struct kvm_pinned_page *ppage)
 {
 	int ret;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_host_unmap_guest,
-				kvm->arch.pkvm.handle,
-				page_to_pfn(ppage->page),
-				ppage->ipa >> PAGE_SHIFT);
+	ret = pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_unmap_guest_call, kvm, true);
 	if (ret)
 		return ret;
 
@@ -303,48 +310,22 @@ static int pkvm_unmap_guest(struct kvm *kvm, struct kvm_pinned_page *ppage)
 	 * no update needed from here.
 	 */
 	unpin_user_pages(&ppage->page, 1);
-	rb_erase(&ppage->node, &kvm->arch.pkvm.pinned_pages);
+	mtree_erase(&kvm->arch.pkvm.pinned_pages, ppage->ipa);
 	kfree(ppage);
 
 	return 0;
 }
 
-static struct rb_node *find_first_ppage_node(struct rb_root *root, u64 ipa)
-{
-	struct rb_node *node = root->rb_node, *prev = NULL;
-	struct kvm_pinned_page *ppage;
-
-	while (node) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
-		if (ppage->ipa == ipa)
-			return node;
-		prev = node;
-		node = (ipa < ppage->ipa) ? node->rb_left : node->rb_right;
-	}
-
-	return prev;
-}
-
-#define for_ppage_node_in_range(kvm, start, end, __node, temp)				\
-	for (__node = find_first_ppage_node(&(kvm)->arch.pkvm.pinned_pages, start);	\
-	     __node && ({ temp = rb_next(__node); 1; });				\
-	     __node = temp)								\
-		if (rb_entry(__node, struct kvm_pinned_page, node)->ipa < start)	\
-			continue;							\
-		else if (rb_entry(__node, struct kvm_pinned_page, node)->ipa >= end)	\
-			break;								\
-		else
-
 static int pkvm_unmap_range(struct kvm *kvm, u64 start, u64 end)
 {
 	struct mm_struct *mm = kvm->mm;
-	struct kvm_pinned_page *ppage;
-	struct rb_node *node, *temp;
+	unsigned long index = start;
 	unsigned long cnt = 0;
-	int ret;
+	void *entry;
+	int ret = 0;
 
-	for_ppage_node_in_range(kvm, start, end, node, temp) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
+	mt_for_each(&kvm->arch.pkvm.pinned_pages, entry, index, end - 1) {
+		struct kvm_pinned_page *ppage = entry;
 		ret = pkvm_unmap_guest(kvm, ppage);
 		if (ret)
 			break;
@@ -432,8 +413,8 @@ static void unmap_stage2_range(struct kvm_s2_mmu *mmu, phys_addr_t start, u64 si
 
 static void pkvm_stage2_flush(struct kvm *kvm)
 {
-	struct kvm_pinned_page *ppage;
-	struct rb_node *node;
+	unsigned long index = 0;
+	void *entry;
 
 	/*
 	 * Contrary to stage2_apply_range(), we don't need to check
@@ -441,8 +422,9 @@ static void pkvm_stage2_flush(struct kvm *kvm)
 	 * from a vcpu thread, and the list is only ever freed on VM
 	 * destroy (which only occurs when all vcpu are gone).
 	 */
-	for (node = rb_first(&kvm->arch.pkvm.pinned_pages); node; node = rb_next(node)) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
+	mt_for_each(&kvm->arch.pkvm.pinned_pages, entry, index, ULONG_MAX) {
+		struct kvm_pinned_page *ppage = entry;
+
 		__clean_dcache_guest_page(page_address(ppage->page), PAGE_SIZE);
 		cond_resched_rwlock_write(&kvm->mmu_lock);
 	}
@@ -1025,7 +1007,7 @@ int kvm_init_stage2_mmu(struct kvm *kvm, struct kvm_s2_mmu *mmu, unsigned long t
 	mmfr0 = read_sanitised_ftr_reg(SYS_ID_AA64MMFR0_EL1);
 	mmfr1 = read_sanitised_ftr_reg(SYS_ID_AA64MMFR1_EL1);
 	kvm->arch.vtcr = kvm_get_vtcr(mmfr0, mmfr1, phys_shift);
-	kvm->arch.pkvm.pinned_pages = RB_ROOT;
+	mt_init(&kvm->arch.pkvm.pinned_pages);
 	mmu->arch = &kvm->arch;
 
 	if (is_protected_kvm_enabled())
@@ -1267,18 +1249,24 @@ int kvm_phys_addr_ioremap(struct kvm *kvm, phys_addr_t guest_ipa,
 	return ret;
 }
 
+static int __pkvm_wrprotect_call(u64 pfn, u64 gfn, u8 order, void *args)
+{
+	struct kvm *kvm = (struct kvm *)args;
+
+	return kvm_call_hyp_nvhe(__pkvm_wrprotect, kvm->arch.pkvm.handle, pfn,
+				 gfn, order);
+}
+
 static int pkvm_wp_range(struct kvm *kvm, u64 start, u64 end)
 {
-	struct kvm_pinned_page *ppage;
-	struct rb_node *node, *temp;
-	int ret;
+	unsigned long index = start;
+	void *entry;
 
-	for_ppage_node_in_range(kvm, start, end, node, temp) {
-		ppage = rb_entry(node, struct kvm_pinned_page, node);
-		ret = kvm_call_hyp_nvhe(__pkvm_wrprotect,
-					kvm->arch.pkvm.handle,
-					page_to_pfn(ppage->page),
-					ppage->ipa >> PAGE_SHIFT);
+	mt_for_each(&kvm->arch.pkvm.pinned_pages, entry, index, end - 1) {
+		struct kvm_pinned_page *ppage = entry;
+		int ret = pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_wrprotect_call,
+						   kvm, false);
+
 		if (ret)
 			return ret;
 	}
@@ -1588,78 +1576,72 @@ static bool kvm_vma_mte_allowed(struct vm_area_struct *vma)
 	return vma->vm_flags & VM_MTE_ALLOWED;
 }
 
-static int pkvm_host_map_guest(u64 pfn, u64 gfn, enum kvm_pgtable_prot prot)
+static int pkvm_host_map_guest(u64 pfn, u64 gfn, u64 nr_pages,
+			       enum kvm_pgtable_prot prot)
 {
-	int ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn, prot);
+	int ret = kvm_call_hyp_nvhe(__pkvm_host_map_guest, pfn, gfn, nr_pages, prot);
 
 	/*
 	 * Getting -EPERM at this point implies that the pfn has already been
 	 * mapped. This should only ever happen when two vCPUs faulted on the
-	 * same page, and the current one lost the race to do the mapping.
+	 * same page, and the current one lost the race to do the mapping...
+	 *
+	 * ...or if we've tried to map a region containing an already mapped
+	 * entry.
 	 */
 	return (ret == -EPERM) ? -EAGAIN : ret;
-}
-
-#define node_ppage(__node) \
-	(container_of(__node, struct kvm_pinned_page, node))
-
-static int cmp_ppage_ipa(const void *key, const struct rb_node *node)
-{
-	return (s64)key - (s64)node_ppage(node)->ipa;
-}
-
-static int cmp_ppages(struct rb_node *node, const struct rb_node *parent)
-{
-	return cmp_ppage_ipa((void *)(node_ppage(node))->ipa, parent);
 }
 
 static struct kvm_pinned_page *
 find_ppage_or_above(struct kvm *kvm, phys_addr_t ipa)
 {
-	struct rb_node *node = kvm->arch.pkvm.pinned_pages.rb_node;
+	unsigned long index = ipa;
+	void *entry;
 
-	while (node) {
-		int ret = cmp_ppage_ipa((void *)ipa, node);
+	mt_for_each(&kvm->arch.pkvm.pinned_pages, entry, index, ULONG_MAX)
+		return entry;
 
-		if (!ret) {
-			break;
-		} else if (ret > 0) {
-			node = node->rb_right;
-		} else if (ret < 0) {
-			if (!node->rb_left)
-				break;
-			node = node->rb_left;
-		}
-	}
-
-	if (!node)
-		return NULL;
-
-	return node_ppage(node);
+	return NULL;
 }
 
 static int insert_ppage(struct kvm *kvm, struct kvm_pinned_page *ppage)
 {
-	if (rb_find_add(&ppage->node, &kvm->arch.pkvm.pinned_pages, cmp_ppages))
-		return -EEXIST;
+	size_t size = PAGE_SIZE << ppage->order;
+	unsigned long start = ppage->ipa;
+	unsigned long end = start + size - 1;
 
-	return 0;
+	return mtree_insert_range(&kvm->arch.pkvm.pinned_pages, start, end,
+				  ppage, GFP_KERNEL);
 }
 
 static struct kvm_pinned_page *find_ppage(struct kvm *kvm, u64 ipa)
 {
-	struct rb_node *node = rb_find((void *)ipa, &kvm->arch.pkvm.pinned_pages, cmp_ppage_ipa);
+	unsigned long index = ipa;
 
-	return node ? container_of(node, struct kvm_pinned_page, node) : NULL;
+	return mt_find(&kvm->arch.pkvm.pinned_pages, &index, ipa + PAGE_SIZE - 1);
 }
 
-static int pkvm_relax_perms(struct kvm *kvm, u64 pfn, u64 gfn,
-			    enum kvm_pgtable_prot prot)
+static int __pkvm_relax_perms_call(u64 pfn, u64 gfn, u8 order, void *args)
 {
-	struct kvm_pinned_page *ppage;
-	int ret;
+	enum kvm_pgtable_prot prot = (enum kvm_pgtable_prot)args;
 
-	/* read_lock(kvm->mmu_lock) protects against structural changes to the RB tree. */
+	return kvm_call_hyp_nvhe(__pkvm_relax_perms, pfn, gfn, order, prot);
+}
+
+static int pkvm_relax_perms(struct kvm_vcpu *vcpu, u64 pfn, u64 gfn, u8 order,
+			    enum kvm_pgtable_prot prot, bool logging_active)
+{
+	unsigned long host_addr, guest_addr;
+	struct kvm_pinned_page *ppage;
+	struct kvm *kvm = vcpu->kvm;
+
+	host_addr = ALIGN_DOWN(pfn << PAGE_SHIFT, PAGE_SIZE << order);
+	guest_addr = ALIGN_DOWN(gfn << PAGE_SHIFT, PAGE_SIZE << order);
+
+	pfn = host_addr >> PAGE_SHIFT;
+	gfn = guest_addr >> PAGE_SHIFT;
+
+	/* read_lock(kvm->mmu_lock) protects against structural changes to the maple tree. */
 	ppage = find_ppage(kvm, gfn << PAGE_SHIFT);
 	if (!ppage || page_to_pfn(ppage->page) != pfn)
 		return -EFAULT;
@@ -1667,19 +1649,29 @@ static int pkvm_relax_perms(struct kvm *kvm, u64 pfn, u64 gfn,
 	if (!PageSwapBacked(ppage->page))
 		return -EIO;
 
-	ret = kvm_call_hyp_nvhe(__pkvm_relax_perms, pfn, gfn, prot);
-	if (ret)
-		return ret;
+	if (logging_active) {
+		struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
+		int ret = topup_hyp_memcache(hyp_memcache,
+					     kvm_mmu_cache_min_pages(kvm), 0);
 
-	return 0;
+		if (ret)
+			return ret;
+
+		return kvm_call_hyp_nvhe(__pkvm_dirty_log, pfn, gfn);
+	}
+
+	return pkvm_call_hyp_nvhe_ppage(ppage, __pkvm_relax_perms_call,
+					(void *)prot, false);
 }
 
-static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
-			  unsigned long hva)
+static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t *fault_ipa,
+			  struct kvm_memory_slot *memslot, unsigned long hva,
+			  size_t *size)
 {
-	struct mm_struct *mm = current->mm;
 	unsigned int flags = FOLL_HWPOISON | FOLL_LONGTERM | FOLL_WRITE;
 	struct kvm_hyp_memcache *hyp_memcache = &vcpu->arch.stage2_mc;
+	unsigned long index, pmd_offset, page_size;
+	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
 	struct kvm *kvm = vcpu->kvm;
 	int ret, nr_pages;
@@ -1699,10 +1691,6 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	if (!ppage)
 		return -ENOMEM;
 
-	ret = account_locked_vm(mm, 1, true);
-	if (ret)
-		goto free_ppage;
-
 	mmap_read_lock(mm);
 	ret = pin_user_pages(hva, 1, flags, &page);
 	mmap_read_unlock(mm);
@@ -1710,10 +1698,10 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	if (ret == -EHWPOISON) {
 		kvm_send_hwpoison_signal(hva, PAGE_SHIFT);
 		ret = 0;
-		goto dec_account;
+		goto free_ppage;
 	} else if (ret != 1) {
 		ret = -EFAULT;
-		goto dec_account;
+		goto free_ppage;
 	} else if (kvm->arch.pkvm.enabled && !PageSwapBacked(page)) {
 		/*
 		 * We really can't deal with page-cache pages returned by GUP
@@ -1733,28 +1721,63 @@ static int pkvm_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 		goto unpin;
 	}
 
-	write_lock(&kvm->mmu_lock);
 	pfn = page_to_pfn(page);
-	ret = pkvm_host_map_guest(pfn, fault_ipa >> PAGE_SHIFT, KVM_PGTABLE_PROT_R);
+	pmd_offset = *fault_ipa & (PMD_SIZE - 1);
+	page_size = transparent_hugepage_adjust(kvm, memslot,
+						hva, &pfn,
+						fault_ipa);
+	page = pfn_to_page(pfn);
+
+	if (size)
+		*size = page_size;
+
+retry:
+	ret = account_locked_vm(mm, page_size >> PAGE_SHIFT, true);
+	if (ret)
+		goto unpin;
+
+	write_lock(&kvm->mmu_lock);
+	/*
+	 * If we already have a mapping in the middle of the THP, we have no
+	 * other choice than enforcing PAGE_SIZE for pkvm_host_map_guest() to
+	 * succeed.
+	 */
+	index = *fault_ipa;
+	if (page_size > PAGE_SIZE &&
+	    mt_find(&kvm->arch.pkvm.pinned_pages, &index, index + page_size - 1)) {
+		write_unlock(&kvm->mmu_lock);
+		*fault_ipa += pmd_offset;
+		pfn += pmd_offset >> PAGE_SHIFT;
+		page = pfn_to_page(pfn);
+		page_size = PAGE_SIZE;
+		account_locked_vm(mm, page_size >> PAGE_SHIFT, false);
+		goto retry;
+	}
+
+	ret = pkvm_host_map_guest(pfn, *fault_ipa >> PAGE_SHIFT,
+				  page_size >> PAGE_SHIFT, KVM_PGTABLE_PROT_R);
 	if (ret) {
 		if (ret == -EAGAIN)
 			ret = 0;
-		goto unlock;
+
+		goto dec_account;
 	}
 
 	ppage->page = page;
-	ppage->ipa = fault_ipa;
+	ppage->ipa = *fault_ipa;
+	ppage->order = get_order(page_size);
+	ppage->pins = 1 << ppage->order;
 	WARN_ON(insert_ppage(kvm, ppage));
+
 	write_unlock(&kvm->mmu_lock);
 
 	return 0;
 
-unlock:
+dec_account:
 	write_unlock(&kvm->mmu_lock);
+	account_locked_vm(mm, page_size >> PAGE_SHIFT, false);
 unpin:
 	unpin_user_pages(&page, 1);
-dec_account:
-	account_locked_vm(mm, 1, false);
 free_ppage:
 	kfree(ppage);
 
@@ -1765,6 +1788,7 @@ int pkvm_mem_abort_range(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t si
 {
 	phys_addr_t ipa_end = fault_ipa + size - 1;
 	struct kvm_pinned_page *ppage;
+	unsigned long page_size;
 	int err = 0, idx;
 
 	if (!PAGE_ALIGNED(size) || !PAGE_ALIGNED(fault_ipa))
@@ -1782,7 +1806,9 @@ int pkvm_mem_abort_range(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t si
 
 	while (size) {
 		if (ppage && ppage->ipa == fault_ipa) {
-			ppage = node_ppage(rb_next(&ppage->node));
+			page_size = PAGE_SIZE << ppage->order;
+			ppage = mt_next(&vcpu->kvm->arch.pkvm.pinned_pages,
+					ppage->ipa, ULONG_MAX);
 		} else {
 			gfn_t gfn = gpa_to_gfn(fault_ipa);
 			struct kvm_memory_slot *memslot;
@@ -1797,7 +1823,7 @@ int pkvm_mem_abort_range(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa, size_t si
 			}
 
 			read_unlock(&vcpu->kvm->mmu_lock);
-			err = pkvm_mem_abort(vcpu, fault_ipa, hva);
+			err = pkvm_mem_abort(vcpu, &fault_ipa, memslot, hva, &page_size);
 			read_lock(&vcpu->kvm->mmu_lock);
 			if (err)
 				goto end;
@@ -1880,7 +1906,7 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	 * logging_active is guaranteed to never be true for VM_PFNMAP
 	 * memslots.
 	 */
-	if (logging_active || is_protected_kvm_enabled()) {
+	if (logging_active) {
 		force_pte = true;
 		vma_shift = PAGE_SHIFT;
 	} else {
@@ -2009,24 +2035,29 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	else if (cpus_have_const_cap(ARM64_HAS_CACHE_DIC))
 		prot |= KVM_PGTABLE_PROT_X;
 
+	if (is_protected_kvm_enabled()) {
+		if (WARN_ON(fault_status != ESR_ELx_FSC_PERM))
+			ret = -EINVAL;
+		else
+			ret = pkvm_relax_perms(vcpu, pfn, gfn, get_order(fault_granule),
+					       prot, logging_active);
+		goto mark_dirty;
+	}
+
 	/*
 	 * Under the premise of getting a FSC_PERM fault, we just need to relax
 	 * permissions only if vma_pagesize equals fault_granule. Otherwise,
 	 * kvm_pgtable_stage2_map() should be called to change block size.
 	 */
-	if (fault_status == ESR_ELx_FSC_PERM && vma_pagesize == fault_granule) {
-		if (!is_protected_kvm_enabled())
-			ret = kvm_pgtable_stage2_relax_perms(pgt, fault_ipa, prot);
-		else
-			ret = pkvm_relax_perms(kvm, pfn, gfn, prot);
-	} else {
+	if (fault_status == ESR_ELx_FSC_PERM && vma_pagesize == fault_granule)
+		ret = kvm_pgtable_stage2_relax_perms(pgt, fault_ipa, prot);
+	else
 		ret = kvm_pgtable_stage2_map(pgt, fault_ipa, vma_pagesize,
 					     __pfn_to_phys(pfn), prot,
 					     memcache,
 					     KVM_PGTABLE_WALK_HANDLE_FAULT |
 					     KVM_PGTABLE_WALK_SHARED);
-	}
-
+mark_dirty:
 	/* Mark the page dirty only if the fault is handled successfully */
 	if (writable && !ret) {
 		kvm_set_pfn_dirty(pfn);
@@ -2189,7 +2220,7 @@ int kvm_handle_guest_abort(struct kvm_vcpu *vcpu)
 	}
 
 	if (is_protected_kvm_enabled() && fault_status != ESR_ELx_FSC_PERM)
-		ret = pkvm_mem_abort(vcpu, fault_ipa, hva);
+		ret = pkvm_mem_abort(vcpu, &fault_ipa, memslot, hva, NULL);
 	else
 		ret = user_mem_abort(vcpu, fault_ipa, memslot, hva, fault_status);
 

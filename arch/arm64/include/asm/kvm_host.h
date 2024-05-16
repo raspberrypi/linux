@@ -224,9 +224,10 @@ struct kvm_smccc_features {
 };
 
 struct kvm_pinned_page {
-	struct rb_node		node;
 	struct page		*page;
 	u64			ipa;
+	u8			order;
+	u16			pins;
 };
 
 typedef unsigned int pkvm_handle_t;
@@ -234,7 +235,7 @@ typedef unsigned int pkvm_handle_t;
 struct kvm_protected_vm {
 	pkvm_handle_t handle;
 	struct kvm_hyp_memcache stage2_teardown_mc;
-	struct rb_root pinned_pages;
+	struct maple_tree pinned_pages;
 	gpa_t pvmfw_load_addr;
 	bool enabled;
 };
@@ -446,6 +447,7 @@ enum vcpu_sysreg {
 	HFGITR_EL2,
 	HDFGRTR_EL2,
 	HDFGWTR_EL2,
+	HAFGRTR_EL2,
 	CNTHP_CTL_EL2,
 	CNTHP_CVAL_EL2,
 	CNTHV_CTL_EL2,

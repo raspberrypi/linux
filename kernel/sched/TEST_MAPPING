@@ -32,6 +32,22 @@
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         }
       ]
+    },
+    {
+      "name": "CtsWifiBroadcastsHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        }
+      ]
     }
   ],
   "presubmit-large": [

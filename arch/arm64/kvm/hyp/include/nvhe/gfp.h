@@ -12,7 +12,7 @@
 struct hyp_pool {
 	/* lock protecting concurrent changes to the memory pool. */
 	hyp_spinlock_t lock;
-	struct list_head free_area[MAX_ORDER + 1];
+	struct list_head free_area[NR_PAGE_ORDERS];
 	phys_addr_t range_start;
 	phys_addr_t range_end;
 	u64 free_pages;

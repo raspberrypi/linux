@@ -1,0 +1,12 @@
+{
+    "presubmit": [
+        {
+            "name": "selftests",
+            "options": [
+                {
+                    "include-filter": "kselftest_binderfs_binderfs_test"
+                }
+            ]
+        }
+    ]
+}

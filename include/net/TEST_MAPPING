@@ -36,6 +36,22 @@
       ]
     },
     {
+      "name": "CtsWifiBroadcastsHostTestCases",
+      "options": [
+        {
+          "exclude-annotation": "com.android.testutils.SkipPresubmit"
+        }
+      ]
+    },
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        }
+      ]
+    },
+    {
       "name": "vts_kernel_net_tests"
     }
   ],
@@ -55,7 +71,7 @@
           "exclude-annotation": "com.android.testutils.SkipPresubmit"
         },
         {
-          "include-filter": "CallRedirectionServiceTest"
+          "include-filter": "android.telecom.cts.CallRedirectionServiceTest"
         }
       ]
     }

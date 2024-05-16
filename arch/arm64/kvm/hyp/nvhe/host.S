@@ -183,7 +183,7 @@ SYM_FUNC_END(__host_hvc)
 .endif
 .endm
 
-.macro invalid_host_el2_vect
+.macro __host_el2_vect handler:req
 	.align 7
 
 	/*
@@ -196,19 +196,14 @@ SYM_FUNC_END(__host_hvc)
 	tbz	x0, #PAGE_SHIFT, .L__hyp_sp_overflow\@
 	sub	x0, sp, x0			// x0'' = sp' - x0' = (sp + x0) - sp = x0
 	sub	sp, sp, x0			// sp'' = sp' - x0 = (sp + x0) - x0 = sp
-
 	/* If a guest is loaded, panic out of it. */
-	stp	x0, x1, [sp, #-16]!
-	get_loaded_vcpu x0, x1
-	cbnz	x0, __guest_exit_panic
-	add	sp, sp, #16
-
 	/*
 	 * The panic may not be clean if the exception is taken before the host
 	 * context has been saved by __host_exit or after the hyp context has
 	 * been partially clobbered by __host_enter.
 	 */
-	b	hyp_panic
+	stp	x0, x1, [sp, #-16]!
+	b	\handler
 
 .L__hyp_sp_overflow\@:
 	/* Switch to the overflow stack */
@@ -218,6 +213,10 @@ SYM_FUNC_END(__host_hvc)
 	ASM_BUG()
 .endm
 
+.macro host_el2_sync_vect
+	__host_el2_vect __hyp_panic
+.endm
+
 .macro invalid_host_el1_vect
 	.align 7
 	mov	x0, xzr		/* restore_host = false */
@@ -225,6 +224,10 @@ SYM_FUNC_END(__host_hvc)
 	mrs	x2, elr_el2
 	mrs	x3, par_el1
 	b	__hyp_do_panic
+.endm
+
+.macro invalid_host_el2_vect
+	__host_el2_vect __hyp_panic
 .endm
 
 /*
@@ -244,7 +247,7 @@ SYM_CODE_START(__kvm_hyp_host_vector)
 	invalid_host_el2_vect			// FIQ EL2t
 	invalid_host_el2_vect			// Error EL2t
 
-	invalid_host_el2_vect			// Synchronous EL2h
+	host_el2_sync_vect			// Synchronous EL2h
 	invalid_host_el2_vect			// IRQ EL2h
 	invalid_host_el2_vect			// FIQ EL2h
 	invalid_host_el2_vect			// Error EL2h

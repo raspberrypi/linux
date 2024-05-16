@@ -603,6 +603,7 @@
   find_vpid
   finish_wait
   firmware_request_nowarn
+  flow_keys_dissector
   flush_delayed_fput
   flush_delayed_work
   flush_work
@@ -1013,6 +1014,7 @@
   kvfree_call_rcu
   kvfree_sensitive
   kvmalloc_node
+  kvmemdup
   led_mc_calc_color_components
   __list_add_valid_or_report
   __list_del_entry_valid_or_report
@@ -1242,6 +1244,11 @@
   page_frag_free
   page_pinner_inited
   __page_pinner_put_page
+  page_pool_alloc_frag
+  page_pool_alloc_pages
+  page_pool_create
+  page_pool_destroy
+  page_pool_put_defragged_page
   panic
   panic_notifier_list
   panic_timeout
@@ -1676,6 +1683,7 @@
   simple_read_from_buffer
   single_open
   single_release
+  __siphash_unaligned
   si_swapinfo
   sk_alloc
   skb_add_rx_frag
@@ -1691,6 +1699,7 @@
   skb_csum_hwoffload_help
   skb_dequeue
   skb_ensure_writable
+  __skb_flow_get_ports
   skb_free_datagram
   __skb_get_hash
   __skb_gso_segment
@@ -2156,10 +2165,12 @@
   up_read
   up_write
   usb_add_phy_dev
+  usb_alloc_dev
   usb_alloc_coherent
   usb_assign_descriptors
   usb_composite_setup_continue
   usb_decode_ctrl
+  usb_device_match_id
   usb_ep_alloc_request
   usb_ep_autoconfig
   usb_ep_dequeue
@@ -2185,6 +2196,7 @@
   usb_role_switch_register
   usb_role_switch_set_role
   usb_role_switch_unregister
+  usb_set_device_state
   usb_speed_string
   usb_string_id
   usb_unregister_notify
