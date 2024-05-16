@@ -2165,10 +2165,12 @@
   up_read
   up_write
   usb_add_phy_dev
+  usb_alloc_dev
   usb_alloc_coherent
   usb_assign_descriptors
   usb_composite_setup_continue
   usb_decode_ctrl
+  usb_device_match_id
   usb_ep_alloc_request
   usb_ep_autoconfig
   usb_ep_dequeue
@@ -2194,6 +2196,7 @@
   usb_role_switch_register
   usb_role_switch_set_role
   usb_role_switch_unregister
+  usb_set_device_state
   usb_speed_string
   usb_string_id
   usb_unregister_notify
