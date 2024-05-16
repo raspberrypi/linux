@@ -34,6 +34,8 @@
 		target = <&mcp23017>;
 		mcp23017_irq: __overlay__ {
 			#interrupt-cells=<2>;
+			pinctrl-name = "default";
+			pinctrl-0 = <&mcp23017_pins>;
 			interrupt-parent = <&gpio>;
 			interrupts = <4 2>;
 			interrupt-controller;
@@ -49,8 +51,6 @@
 
 			mcp23017: mcp@20 {
 				compatible = "microchip,mcp23017";
-				pinctrl-name = "default";
-				pinctrl-0 = <&mcp23017_pins>;
 				reg = <0x20>;
 				gpio-controller;
 				#gpio-cells = <2>;
