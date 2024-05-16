@@ -44,7 +44,6 @@
 #include <trace/hooks/psci.h>
 #include <trace/hooks/timer.h>
 #include <trace/hooks/fpsimd.h>
-#include <trace/hooks/preemptirq.h>
 #include <trace/hooks/mm.h>
 #include <trace/hooks/dtask.h>
 #include <trace/hooks/ftrace_dump.h>
@@ -206,10 +205,6 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_bpf_syscall);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rproc_recovery);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rproc_recovery_set);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_timer_calc_index);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_preempt_disable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_preempt_enable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_irqs_disable);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_irqs_enable);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_is_fpsimd_save);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_slab_folio_alloced);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_kmalloc_large_alloced);
