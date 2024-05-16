@@ -105,6 +105,7 @@
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_alloc_pages_slowpath
+  __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_binder_proc_transaction_finish
   __traceiter_android_vh_binder_restore_priority
@@ -120,6 +121,8 @@
   __traceiter_android_vh_ftrace_oops_exit
   __traceiter_android_vh_ftrace_size_check
   __traceiter_android_vh_ipi_stop
+  __traceiter_android_vh_mutex_unlock_slowpath
+  __traceiter_android_vh_mutex_wait_start
   __traceiter_android_vh_rwsem_downgrade_wake_finish
   __traceiter_android_vh_rwsem_read_wait_start
   __traceiter_android_vh_rwsem_read_wait_finish
@@ -175,6 +178,7 @@
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_alloc_pages_slowpath
+  __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_binder_proc_transaction_finish
   __tracepoint_android_vh_binder_restore_priority
@@ -190,6 +194,8 @@
   __tracepoint_android_vh_ftrace_oops_exit
   __tracepoint_android_vh_ftrace_size_check
   __tracepoint_android_vh_ipi_stop
+  __tracepoint_android_vh_mutex_unlock_slowpath
+  __tracepoint_android_vh_mutex_wait_start
   __tracepoint_android_vh_rwsem_downgrade_wake_finish
   __tracepoint_android_vh_rwsem_read_wait_start
   __tracepoint_android_vh_rwsem_read_wait_finish
