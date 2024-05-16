@@ -521,11 +521,10 @@ static int __init finalize_pkvm(void)
 	ret = pkvm_drop_host_privileges();
 	if (ret) {
 		pr_err("Failed to finalize Hyp protection: %d\n", ret);
-		kvm_iommu_remove_driver();
-		pkvm_firmware_rmem_clear();
+		BUG();
 	}
 
-	return ret;
+	return 0;
 }
 device_initcall_sync(finalize_pkvm);
 
