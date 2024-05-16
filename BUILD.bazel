@@ -923,6 +923,7 @@ _RPI_OVERLAY_OUTS = [
     "arch/arm64/boot/dts/overlays/rra-digidac1-wm8741-audio.dtbo",
     "arch/arm64/boot/dts/overlays/sainsmart18.dtbo",
     "arch/arm64/boot/dts/overlays/sc16is750-i2c.dtbo",
+    "arch/arm64/boot/dts/overlays/sc16is750-spi0.dtbo",
     "arch/arm64/boot/dts/overlays/sc16is752-i2c.dtbo",
     "arch/arm64/boot/dts/overlays/sc16is752-spi0.dtbo",
     "arch/arm64/boot/dts/overlays/sc16is752-spi1.dtbo",
