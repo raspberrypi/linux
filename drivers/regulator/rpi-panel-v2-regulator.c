@@ -104,6 +104,7 @@ static int rpi_panel_v2_i2c_probe(struct i2c_client *i2c)
 		return -ENOMEM;
 
 	mutex_init(&state->lock);
+	i2c_set_clientdata(i2c, state);
 
 	regmap = devm_regmap_init_i2c(i2c, &rpi_panel_regmap_config);
 	if (IS_ERR(regmap)) {
@@ -168,6 +169,21 @@ error:
 	return ret;
 }
 
+static void rpi_panel_v2_i2c_remove(struct i2c_client *client)
+{
+	struct rpi_panel_v2_lcd *state = i2c_get_clientdata(client);
+
+	mutex_destroy(&state->lock);
+}
+
+static void rpi_panel_v2_i2c_shutdown(struct i2c_client *client)
+{
+	struct rpi_panel_v2_lcd *state = i2c_get_clientdata(client);
+
+	regmap_write(state->regmap, REG_PWM, 0);
+	regmap_write(state->regmap, REG_POWERON, 0);
+}
+
 static const struct of_device_id rpi_panel_v2_dt_ids[] = {
 	{ .compatible = "raspberrypi,v2-touchscreen-panel-regulator" },
 	{},
@@ -180,6 +196,8 @@ static struct i2c_driver rpi_panel_v2_regulator_driver = {
 		.of_match_table = of_match_ptr(rpi_panel_v2_dt_ids),
 	},
 	.probe = rpi_panel_v2_i2c_probe,
+	.remove	= rpi_panel_v2_i2c_remove,
+	.shutdown = rpi_panel_v2_i2c_shutdown,
 };
 
 module_i2c_driver(rpi_panel_v2_regulator_driver);
