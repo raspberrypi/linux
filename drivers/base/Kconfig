@@ -230,6 +230,13 @@ config GENERIC_ARCH_NUMA
 	  Enable support for generic NUMA implementation. Currently, RISC-V
 	  and ARM64 use it.
 
+config GENERIC_ARCH_NUMA_EMULATION
+	bool
+	depends on GENERIC_ARCH_NUMA
+	help
+	  Enable NUMA emulation. Note that NUMA emulation will only be used if
+	  the machine has no NUMA node.
+
 config FW_DEVLINK_SYNC_STATE_TIMEOUT
 	bool "sync_state() behavior defaults to timeout instead of strict"
 	help

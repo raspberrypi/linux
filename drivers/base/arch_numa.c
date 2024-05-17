@@ -15,6 +15,8 @@
 
 #include <asm/sections.h>
 
+#include "numa_emulation.h"
+
 struct pglist_data *node_data[MAX_NUMNODES] __read_mostly;
 EXPORT_SYMBOL(node_data);
 nodemask_t numa_nodes_parsed __initdata;
@@ -30,6 +32,8 @@ static __init int numa_parse_early_param(char *opt)
 		return -EINVAL;
 	if (str_has_prefix(opt, "off"))
 		numa_off = true;
+	if (str_has_prefix(opt, "fake="))
+		return numa_emu_cmdline(opt + 5);
 
 	return 0;
 }
@@ -470,6 +474,8 @@ void __init arch_numa_init(void)
 		if (!acpi_disabled && !numa_init(arch_acpi_numa_init))
 			return;
 		if (acpi_disabled && !numa_init(of_numa_init))
+			return;
+		if (!numa_init(numa_emu_init))
 			return;
 	}
 
