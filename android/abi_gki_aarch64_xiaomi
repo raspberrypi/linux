@@ -50,3 +50,8 @@
   android_rvh_probe_register
   __traceiter_android_rvh_context_switch
   __tracepoint_android_rvh_context_switch
+
+# required by dw_wdt.ko
+  android_rvh_probe_register
+  __traceiter_android_rvh_fiq_dump
+  __tracepoint_android_rvh_fiq_dump
