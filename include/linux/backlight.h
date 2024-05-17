@@ -255,6 +255,13 @@ struct backlight_properties {
 	 * @scale: The type of the brightness scale.
 	 */
 	enum backlight_scale scale;
+
+#define BL_DISPLAY_NAME_LEN 32
+	/**
+	 * @display_name: Optional name that can be registered to associate a
+	 * backlight device with a display device.
+	 */
+	char display_name[BL_DISPLAY_NAME_LEN];
 };
 
 /**
@@ -459,12 +466,20 @@ of_find_backlight_by_node(struct device_node *node)
 
 #if IS_ENABLED(CONFIG_BACKLIGHT_CLASS_DEVICE)
 struct backlight_device *devm_of_find_backlight(struct device *dev);
+int backlight_set_display_name(struct backlight_device *bd, const char *name);
 #else
 static inline struct backlight_device *
 devm_of_find_backlight(struct device *dev)
 {
 	return NULL;
 }
+
+static inline int backlight_set_display_name(struct backlight_device *bd,
+					     const char *name)
+{
+	return 0;
+}
+
 #endif
 
 #endif
