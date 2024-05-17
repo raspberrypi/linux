@@ -285,6 +285,15 @@ static ssize_t max_brightness_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(max_brightness);
 
+static ssize_t display_name_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct backlight_device *bd = to_backlight_device(dev);
+
+	return sprintf(buf, "%s\n", bd->props.display_name);
+}
+static DEVICE_ATTR_RO(display_name);
+
 static ssize_t actual_brightness_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -365,6 +374,7 @@ static struct attribute *bl_device_attrs[] = {
 	&dev_attr_max_brightness.attr,
 	&dev_attr_scale.attr,
 	&dev_attr_type.attr,
+	&dev_attr_display_name.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(bl_device);
@@ -661,6 +671,17 @@ static int of_parent_match(struct device *dev, const void *data)
 {
 	return dev->parent && dev->parent->of_node == data;
 }
+
+int backlight_set_display_name(struct backlight_device *bd, const char *name)
+{
+	if (!bd)
+		return -EINVAL;
+
+	strscpy_pad(bd->props.display_name, name, sizeof(bd->props.display_name));
+
+	return 0;
+}
+EXPORT_SYMBOL(backlight_set_display_name);
 
 /**
  * of_find_backlight_by_node() - find backlight device by device-tree node
