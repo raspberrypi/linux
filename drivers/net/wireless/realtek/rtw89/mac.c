@@ -4757,6 +4757,9 @@ rtw89_mac_c2h_scanofld_rsp(struct rtw89_dev *rtwdev, struct sk_buff *skb,
 		}
 		return;
 	case RTW89_SCAN_END_SCAN_NOTIFY:
+		if (rtwdev->scan_info.abort)
+			return;
+
 		if (rtwvif && rtwvif->scan_req &&
 		    last_chan < rtwvif->scan_req->n_channels) {
 			ret = rtw89_hw_scan_offload(rtwdev, vif, true);
@@ -4765,7 +4768,7 @@ rtw89_mac_c2h_scanofld_rsp(struct rtw89_dev *rtwdev, struct sk_buff *skb,
 				rtw89_warn(rtwdev, "HW scan failed: %d\n", ret);
 			}
 		} else {
-			rtw89_hw_scan_complete(rtwdev, vif, rtwdev->scan_info.abort);
+			rtw89_hw_scan_complete(rtwdev, vif, false);
 		}
 		break;
 	case RTW89_SCAN_ENTER_OP_NOTIFY:
