@@ -45,3 +45,8 @@
   __traceiter_android_rvh_refrigerator
   __tracepoint_android_rvh_refrigerator
   freezer_cgrp_subsys
+
+# required by trace_hook.ko
+  android_rvh_probe_register
+  __traceiter_android_rvh_context_switch
+  __tracepoint_android_rvh_context_switch
