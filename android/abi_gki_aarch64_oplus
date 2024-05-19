@@ -126,6 +126,7 @@
   tcf_exts_destroy
   tcf_exts_dump
   tcf_exts_dump_stats
+  tcf_exts_init_ex
   tcf_exts_validate
   tcf_queue_work
   vfs_llseek
