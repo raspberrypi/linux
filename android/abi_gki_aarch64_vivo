@@ -3,17 +3,25 @@
   blkdev_put
   __brelse
   class_find_device
+  cpufreq_unregister_notifier
   crypto_register_alg
   crypto_unregister_alg
   end_buffer_read_sync
   end_buffer_write_sync
+  filp_close
   __getblk_gfp
+  __irq_regs
+  kernfs_path_from_node
   __lock_buffer
   mipi_dsi_dcs_write
   profile_event_register
+  profile_event_unregister
   put_device
   regulator_get_drvdata
+  sched_setattr_nocheck
+  schedule_timeout_killable
   set_blocksize
+  static_key_enable
   submit_bh
   __kmalloc_node
   __sbitmap_queue_get
@@ -25,11 +33,13 @@
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_set_user_nice
   __traceiter_android_rvh_try_to_wake_up
+  __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_binder_preset
   __traceiter_android_vh_binder_restore_priority
+  __traceiter_android_vh_binder_special_task
   __traceiter_android_vh_binder_wait_for_work
   __traceiter_android_vh_cgroup_attach
   __traceiter_android_vh_check_folio_look_around_ref
@@ -54,6 +64,7 @@
   __traceiter_android_vh_oom_swapmem_gather_init
   __traceiter_android_vh_percpu_rwsem_down_read
   __traceiter_android_vh_percpu_rwsem_up_write
+  __traceiter_android_vh_percpu_rwsem_wq_add
   __traceiter_android_vh_record_rwsem_reader_owned
   __traceiter_android_vh_record_rwsem_writer_owned
   __traceiter_android_vh_rwsem_init
@@ -89,6 +100,7 @@
   __traceiter_block_rq_issue
   __traceiter_block_rq_requeue
   __traceiter_cpu_frequency_limits
+  __traceiter_sched_stat_runtime
   __traceiter_sched_switch
   __traceiter_sched_waking
   __traceiter_sys_exit
@@ -103,11 +115,13 @@
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_set_user_nice
   __tracepoint_android_rvh_try_to_wake_up
+  __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_binder_preset
   __tracepoint_android_vh_binder_restore_priority
+  __tracepoint_android_vh_binder_special_task
   __tracepoint_android_vh_binder_wait_for_work
   __tracepoint_android_vh_cgroup_attach
   __tracepoint_android_vh_check_folio_look_around_ref
@@ -132,6 +146,7 @@
   __tracepoint_android_vh_oom_swapmem_gather_init
   __tracepoint_android_vh_percpu_rwsem_down_read
   __tracepoint_android_vh_percpu_rwsem_up_write
+  __tracepoint_android_vh_percpu_rwsem_wq_add
   __tracepoint_android_vh_record_rwsem_reader_owned
   __tracepoint_android_vh_record_rwsem_writer_owned
   __tracepoint_android_vh_rwsem_init
@@ -167,6 +182,7 @@
   __tracepoint_block_rq_issue
   __tracepoint_block_rq_requeue
   __tracepoint_cpu_frequency_limits
+  __tracepoint_sched_stat_runtime
   __tracepoint_sched_switch
   __tracepoint_sched_waking
   __tracepoint_sys_exit
