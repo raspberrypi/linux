@@ -207,7 +207,6 @@ static int stm32_romem_probe(struct platform_device *pdev)
 	priv->cfg.priv = priv;
 	priv->cfg.owner = THIS_MODULE;
 	priv->cfg.type = NVMEM_TYPE_OTP;
-	priv->cfg.add_legacy_fixed_of_cells = true;
 
 	priv->lower = 0;
 
