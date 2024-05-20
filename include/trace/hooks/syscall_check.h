@@ -12,6 +12,8 @@
  */
 struct file;
 union bpf_attr;
+struct timespec64;
+
 DECLARE_HOOK(android_vh_check_mmap_file,
 	TP_PROTO(const struct file *file, unsigned long prot,
 		unsigned long flag, unsigned long ret),
@@ -24,6 +26,10 @@ DECLARE_HOOK(android_vh_check_file_open,
 DECLARE_HOOK(android_vh_check_bpf_syscall,
 	TP_PROTO(int cmd, const union bpf_attr *attr, unsigned int size),
 	TP_ARGS(cmd, attr, size));
+
+DECLARE_HOOK(android_vh_check_nanosleep_syscall,
+    TP_PROTO(struct timespec64 *tu),
+    TP_ARGS(tu));
 
 #endif /* _TRACE_HOOK_SYSCALL_CHECK_H */
 /* This part must be outside protection */
