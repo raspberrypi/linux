@@ -32,6 +32,7 @@
 #include <linux/wait.h>
 #include <linux/fs_parser.h>
 #include <linux/highmem.h>
+#include <linux/uaccess.h>
 
 __noreturn void rust_helper_BUG(void)
 {
@@ -219,6 +220,18 @@ void *rust_helper_alloc_inode_sb(struct super_block *sb,
 	return alloc_inode_sb(sb, cache, gfp);
 }
 EXPORT_SYMBOL_GPL(rust_helper_alloc_inode_sb);
+
+unsigned long rust_helper_copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	return copy_from_user(to, from, n);
+}
+EXPORT_SYMBOL_GPL(rust_helper_copy_from_user);
+
+unsigned long rust_helper_copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	return copy_to_user(to, from, n);
+}
+EXPORT_SYMBOL_GPL(rust_helper_copy_to_user);
 
 /*
  * `bindgen` binds the C `size_t` type as the Rust `usize` type, so we can
