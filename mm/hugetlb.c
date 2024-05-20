@@ -1747,8 +1747,6 @@ static void add_hugetlb_folio(struct hstate *h, struct folio *folio,
 static void __update_and_free_hugetlb_folio(struct hstate *h,
 						struct folio *folio)
 {
-	bool clear_dtor = folio_test_hugetlb_vmemmap_optimized(folio);
-
 	if (hstate_is_gigantic(h) && !gigantic_page_runtime_supported())
 		return;
 
@@ -1782,7 +1780,7 @@ static void __update_and_free_hugetlb_folio(struct hstate *h,
 	 * If vmemmap pages were allocated above, then we need to clear the
 	 * hugetlb destructor under the hugetlb lock.
 	 */
-	if (clear_dtor) {
+	if (folio_test_hugetlb(folio)) {
 		spin_lock_irq(&hugetlb_lock);
 		__clear_hugetlb_destructor(h, folio);
 		spin_unlock_irq(&hugetlb_lock);
