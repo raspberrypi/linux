@@ -3546,6 +3546,18 @@ Info:   Force PCIe config to support 32bit DMA addresses at the expense of
 Load:   dtoverlay=pcie-32bit-dma-pi5
 Params: <None>
 
+
+Name:   pciex1-compat-pi5
+Info:   Compatibility features for pciex1 on Pi 5.
+Load:   dtoverlay=pciex1-compat-pi5,<param>=<val>
+Params: l1ss                    Enable ASPM L1 sub-state support
+        no-l0s                  Disable ASPM L0s
+        no-mip                  Revert to the MSI target in the RC, instead of
+                                the MSI-MIP peripheral. Use if a) more than 8
+                                interrupt vectors are required or b) the EP
+                                requires DMA and MSI addresses to be 32bit.
+
+
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
 
 
