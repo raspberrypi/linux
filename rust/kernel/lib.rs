@@ -62,6 +62,8 @@ pub mod sync;
 pub mod task;
 pub mod types;
 pub mod user_ptr;
+pub mod completion;
+pub mod irq;
 
 #[doc(hidden)]
 pub use bindings;

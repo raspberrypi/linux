@@ -24,6 +24,14 @@ fn coarse_sleep_conversion(duration: Duration) -> core::ffi::c_uint {
     seconds_as_millis.saturating_add(nanos_as_millis)
 }
 
+/// usleep_range_state - Sleep for an approximate time in a given state
+/// @min:        Minimum time in usecs to sleep
+/// @max:        Maximum time in usecs to sleep
+pub fn usleep_range(min: u64, max: u64) {
+    // SAFETY: call ffi
+    unsafe{bindings::usleep_range_state(min, max, bindings::TASK_UNINTERRUPTIBLE)}
+}
+
 /// Sleeps safely even with waitqueue interruptions.
 ///
 /// This function forwards the call to the C side `msleep` function. As a result,

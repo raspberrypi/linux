@@ -267,6 +267,12 @@ void rust_helper_platform_set_drvdata(struct platform_device *pdev, void *data)
 }
 EXPORT_SYMBOL_GPL(rust_helper_platform_set_drvdata);
 
+void __iomem *rust_helper_ioremap(resource_size_t offset, unsigned long size)
+{
+	return ioremap(offset, size);
+}
+EXPORT_SYMBOL_GPL(rust_helper_ioremap);
+
 /*
  * `bindgen` binds the C `size_t` type as the Rust `usize` type, so we can
  * use it in contexts where Rust expects a `usize` like slice (array) indices.

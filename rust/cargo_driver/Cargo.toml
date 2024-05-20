@@ -8,5 +8,5 @@ license = "GPL-3.0-or-later OR Apache-2.0"
 homepage = ""
 
 [dependencies]
-i2c_dw_linux_adapt  = { path = "../../drivers/i2c/busses/i2c-dw-linux-adapter"}
+gpio_rpbled_linux_adapt  = { path = "../../drivers/gpio/exercise-3-gpio/gpio-rpbled-adapter"}
 
