@@ -70,6 +70,21 @@ pub(crate) fn expect_end(it: &mut token_stream::IntoIter) {
     }
 }
 
+pub(crate) fn expect_string_initcall(it: &mut token_stream::IntoIter) -> String {
+    let string = try_string(it).expect("Expected string");
+    let initcall = match string.as_str() {
+        "core"     => ".initcall1.init".to_string(),
+        "postcore" => ".initcall2.init".to_string(),
+        "arch"     => ".initcall3.init".to_string(),
+        "subsys"   => ".initcall4.init".to_string(),
+        "fs"       => ".initcall5.init".to_string(),
+        "device"   => ".initcall6.init".to_string(),
+        "late"     => ".initcall7.init".to_string(),
+        _ => panic!("Expected Initcall"),
+    };
+    initcall
+}
+
 pub(crate) struct Generics {
     pub(crate) impl_generics: Vec<TokenTree>,
     pub(crate) ty_generics: Vec<TokenTree>,

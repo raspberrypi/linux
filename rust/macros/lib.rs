@@ -61,6 +61,9 @@ use proc_macro::TokenStream;
 ///   - `author`: byte array of the author of the kernel module.
 ///   - `description`: byte array of the description of the kernel module.
 ///   - `license`: byte array of the license of the kernel module (required).
+///   - `initcall`: byte array indicating the initcall priority of the kernel module.
+///     Options to choose from: "core", "postcore", "arch", "subsys",
+///     "fs", "device", "late",  defaulting to "device".
 ///   - `alias`: byte array of alias name of the kernel module.
 #[proc_macro]
 pub fn module(ts: TokenStream) -> TokenStream {
