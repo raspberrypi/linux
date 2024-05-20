@@ -1,0 +1,40 @@
+/*
+ * Various feature switches for the 1-lane PCIe controller on Pi 5
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	/* Enable L1 sub-state support */
+	fragment@0 {
+		target = <&pciex1>;
+		__dormant__ {
+			brcm,enable-l1ss;
+		};
+	};
+
+	/* Disable ASPM L0s */
+	fragment@1 {
+		target = <&pciex1>;
+		__dormant__ {
+			aspm-no-l0s;
+		};
+	};
+
+	/* Use RC MSI target instead of MIP MSIx target */
+	fragment@2 {
+		target = <&pciex1>;
+		__dormant__ {
+			msi-parent = <&pciex1>;
+		};
+	};
+
+	__overrides__ {
+		l1ss = <0>, "+0";
+		no-l0s = <0>, "+1";
+		no-mip = <0>, "+2";
+	};
+};
