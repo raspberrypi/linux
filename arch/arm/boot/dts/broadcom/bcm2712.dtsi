@@ -1063,7 +1063,6 @@
 				      0x00 0x00000000
 				      0x10 0x00000000>;
 
-			brcm,enable-l1ss;
 			status = "disabled";
 		};
 
@@ -1124,7 +1123,6 @@
 				      0x00 0x00000000
 				      0x10 0x00000000>;
 
-			brcm,enable-l1ss;
 			status = "disabled";
 		};
 
