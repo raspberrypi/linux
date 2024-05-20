@@ -196,6 +196,10 @@
 		bcm2712;
 	};
 
+	pcie-compat-pi5 {
+		bcm2712;
+	};
+
 	pi3-act-led {
 		renamed = "act-led";
 	};
