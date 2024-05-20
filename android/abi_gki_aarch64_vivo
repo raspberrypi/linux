@@ -177,6 +177,7 @@
   __traceiter_android_vh_tcp_rtt_estimator
   __traceiter_android_vh_udp_enqueue_schedule_skb
   __traceiter_android_vh_build_skb_around
+  __traceiter_android_rvh_bpf_skb_load_bytes
   __tracepoint_android_rvh_tcp_sendmsg
   __tracepoint_android_rvh_tcp_recvmsg
   __tracepoint_android_rvh_udp_sendmsg
@@ -189,4 +190,5 @@
   __tracepoint_android_vh_tcp_rtt_estimator
   __tracepoint_android_vh_udp_enqueue_schedule_skb
   __tracepoint_android_vh_build_skb_around
+  __tracepoint_android_rvh_bpf_skb_load_bytes
   debugfs_print_regs32
