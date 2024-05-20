@@ -264,11 +264,14 @@ struct swap_cluster_info {
 				 */
 	unsigned int count:12;
 	unsigned int state:3;
+	unsigned int order:4;
 	struct list_head list;	/* Protected by swap_info_struct->lock */
 };
 
 #define CLUSTER_STATE_FREE	1 /* This cluster is free */
 #define CLUSTER_STATE_PER_CPU	2 /* This cluster on per_cpu_cluster  */
+#define CLUSTER_STATE_SCANNED	3 /* This cluster off per_cpu_cluster */
+#define CLUSTER_STATE_NONFULL	4 /* This cluster is on nonfull list */
 
 
 /*
@@ -307,6 +310,8 @@ struct swap_info_struct {
 	unsigned char *swap_map;	/* vmalloc'ed array of usage counts */
 	struct swap_cluster_info *cluster_info; /* cluster info. Only for SSD */
 	struct list_head free_clusters; /* free clusters list */
+	struct list_head nonfull_clusters[SWAP_NR_ORDERS];
+					/* list of cluster that contains at least one free slot */
 	unsigned int lowest_bit;	/* index of first free in swap_map */
 	unsigned int highest_bit;	/* index of last free in swap_map */
 	unsigned int pages;		/* total of usable pages of swap */
