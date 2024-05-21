@@ -873,6 +873,18 @@ config SPI_RB4XX
 	help
 	  SPI controller driver for the Mikrotik RB4xx series boards.
 
+config SPI_RP2040_GPIO_BRIDGE
+	tristate "Raspberry Pi RP2040 GPIO Bridge"
+	depends on I2C && SPI && GPIOLIB
+	help
+	  Support for the Raspberry Pi RP2040 GPIO bridge.
+
+	  This driver provides support for the Raspberry Pi PR2040 GPIO bridge.
+	  It can be used as a GPIO expander and a Tx-only SPI master.
+
+	  Optionally, this driver is able to take advantage of Raspberry Pi RP1
+	  GPIOs to achieve faster than I2C data transfer rates.
+
 config SPI_RPCIF
 	tristate "Renesas RPC-IF SPI driver"
 	depends on RENESAS_RPCIF
