@@ -156,7 +156,7 @@ static struct usb_ss_ep_comp_descriptor acc_superspeedplus_comp_desc = {
 	.bDescriptorType        = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 2 values can be tweaked if necessary */
-	/* .bMaxBurst =         0, */
+	.bMaxBurst              = 6,
 	/* .bmAttributes =      0, */
 };
 
@@ -181,7 +181,7 @@ static struct usb_ss_ep_comp_descriptor acc_superspeed_comp_desc = {
 	.bDescriptorType        = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 2 values can be tweaked if necessary */
-	/* .bMaxBurst =         0, */
+	.bMaxBurst              = 6,
 	/* .bmAttributes =      0, */
 };
 
