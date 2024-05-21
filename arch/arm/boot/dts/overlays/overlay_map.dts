@@ -267,6 +267,7 @@
 	sdio {
 		bcm2835;
 		bcm2711;
+		bcm2712 = "sdio-pi5";
 	};
 
 	sdio-1bit {
