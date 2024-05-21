@@ -19355,6 +19355,7 @@ RASPBERRY PI RP2040 GPIO BRIDGE DRIVER
 M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
 S:	Maintained
 F:	Documentation/devicetree/bindings/spi/raspberrypi,rp2040-gpio-bridge.yaml
+F:	drivers/spi/spi-rp2040-gpio-bridge.c
 
 RASPBERRY PI PISP BACK END
 M:	Jacopo Mondi <jacopo.mondi@ideasonboard.com>
