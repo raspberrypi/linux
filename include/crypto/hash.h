@@ -11,6 +11,7 @@
 #include <linux/atomic.h>
 #include <linux/crypto.h>
 #include <linux/string.h>
+#include <linux/android_kabi.h>
 
 struct crypto_ahash;
 
@@ -240,6 +241,9 @@ struct shash_alg {
 	int (*clone_tfm)(struct crypto_shash *dst, struct crypto_shash *src);
 
 	unsigned int descsize;
+
+	ANDROID_BACKPORT_RESERVE(1);
+	ANDROID_BACKPORT_RESERVE(2);
 
 	union {
 		struct HASH_ALG_COMMON;
