@@ -17,7 +17,8 @@ obj-y        +=	ttpci/		\
 		saa7146/	\
 		smipcie/	\
 		netup_unidvb/	\
-		intel/
+		intel/		\
+		hailo/
 
 # Please keep it alphabetically sorted by Kconfig name
 # (e. g. LC_ALL=C sort Makefile)
