@@ -74,6 +74,7 @@ config VIDEO_PCI_SKELETON
 	  when developing new drivers.
 
 source "drivers/media/pci/intel/Kconfig"
+source "drivers/media/pci/hailo/Kconfig"
 
 endif #MEDIA_PCI_SUPPORT
 endif #PCI
