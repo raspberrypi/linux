@@ -141,7 +141,7 @@ struct mem_cgroup_per_node {
 	struct mem_cgroup	*memcg;		/* Back pointer, we cannot */
 						/* use container_of	   */
 
-	ANDROID_BACKPORT_RESERVED(1);
+	ANDROID_BACKPORT_RESERVE(1);
 };
 
 struct mem_cgroup_threshold {
@@ -337,8 +337,8 @@ struct mem_cgroup {
 #endif
 
 	// These must be before the flexible array member nodeinfo below
-	ANDROID_BACKPORT_RESERVED(1);
-	ANDROID_BACKPORT_RESERVED(2);
+	ANDROID_BACKPORT_RESERVE(1);
+	ANDROID_BACKPORT_RESERVE(2);
 	ANDROID_OEM_DATA_ARRAY(1, 2);
 
 	struct mem_cgroup_per_node *nodeinfo[];
