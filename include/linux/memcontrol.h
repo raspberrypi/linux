@@ -21,7 +21,7 @@
 #include <linux/vmstat.h>
 #include <linux/writeback.h>
 #include <linux/page-flags.h>
-#include <linux/android_vendor.h>
+#include <linux/android_kabi.h>
 
 struct mem_cgroup;
 struct obj_cgroup;
