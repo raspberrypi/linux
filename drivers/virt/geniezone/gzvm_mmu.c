@@ -5,109 +5,6 @@
 
 #include <linux/soc/mediatek/gzvm_drv.h>
 
-/**
- * hva_to_pa_fast() - converts hva to pa in generic fast way
- * @hva: Host virtual address.
- *
- * Return: GZVM_PA_ERR_BAD for translation error
- */
-u64 hva_to_pa_fast(u64 hva)
-{
-	struct page *page[1];
-	u64 pfn;
-
-	if (get_user_page_fast_only(hva, 0, page)) {
-		pfn = page_to_phys(page[0]);
-		put_page(page[0]);
-		return pfn;
-	}
-	return GZVM_PA_ERR_BAD;
-}
-
-/**
- * hva_to_pa_slow() - converts hva to pa in a slow way
- * @hva: Host virtual address
- *
- * This function converts HVA to PA in a slow way because the target hva is not
- * yet allocated and mapped in the host stage1 page table, we cannot find it
- * directly from current page table.
- * Thus, we have to allocate it and this operation is much slower than directly
- * find via current page table.
- *
- * Context: This function may sleep
- * Return: PA or GZVM_PA_ERR_BAD for translation error
- */
-u64 hva_to_pa_slow(u64 hva)
-{
-	struct page *page = NULL;
-	u64 pfn = 0;
-	int npages;
-
-	npages = get_user_pages_unlocked(hva, 1, &page, 0);
-	if (npages != 1)
-		return GZVM_PA_ERR_BAD;
-
-	if (page) {
-		pfn = page_to_phys(page);
-		put_page(page);
-		return pfn;
-	}
-
-	return GZVM_PA_ERR_BAD;
-}
-
-static u64 __gzvm_gfn_to_pfn_memslot(struct gzvm_memslot *memslot, u64 gfn)
-{
-	u64 hva, pa;
-
-	if (gzvm_gfn_to_hva_memslot(memslot, gfn, &hva) != 0)
-		return GZVM_PA_ERR_BAD;
-
-	pa = gzvm_hva_to_pa_arch(hva);
-	if (pa != GZVM_PA_ERR_BAD)
-		return PHYS_PFN(pa);
-
-	pa = hva_to_pa_fast(hva);
-	if (pa != GZVM_PA_ERR_BAD)
-		return PHYS_PFN(pa);
-
-	pa = hva_to_pa_slow(hva);
-	if (pa != GZVM_PA_ERR_BAD)
-		return PHYS_PFN(pa);
-
-	return GZVM_PA_ERR_BAD;
-}
-
-/**
- * gzvm_gfn_to_pfn_memslot() - Translate gfn (guest ipa) to pfn (host pa),
- *			       result is in @pfn
- * @memslot: Pointer to struct gzvm_memslot.
- * @gfn: Guest frame number.
- * @pfn: Host page frame number.
- *
- * Return:
- * * 0			- Succeed
- * * -EFAULT		- Failed to convert
- */
-int gzvm_gfn_to_pfn_memslot(struct gzvm_memslot *memslot, u64 gfn,
-			    u64 *pfn)
-{
-	u64 __pfn;
-
-	if (!memslot)
-		return -EFAULT;
-
-	__pfn = __gzvm_gfn_to_pfn_memslot(memslot, gfn);
-	if (__pfn == GZVM_PA_ERR_BAD) {
-		*pfn = 0;
-		return -EFAULT;
-	}
-
-	*pfn = __pfn;
-
-	return 0;
-}
-
 static int cmp_ppages(struct rb_node *node, const struct rb_node *parent)
 {
 	struct gzvm_pinned_page *a = container_of(node,
@@ -162,7 +59,8 @@ static int gzvm_remove_ppage(struct gzvm *vm, phys_addr_t ipa)
 	return 0;
 }
 
-static int pin_one_page(struct gzvm *vm, unsigned long hva, u64 gpa)
+static int pin_one_page(struct gzvm *vm, unsigned long hva, u64 gpa,
+			struct page **out_page)
 {
 	unsigned int flags = FOLL_HWPOISON | FOLL_LONGTERM | FOLL_WRITE;
 	struct gzvm_pinned_page *ppage = NULL;
@@ -175,10 +73,10 @@ static int pin_one_page(struct gzvm *vm, unsigned long hva, u64 gpa)
 		return -ENOMEM;
 
 	mmap_read_lock(mm);
-	pin_user_pages(hva, 1, flags, &page);
+	ret = pin_user_pages(hva, 1, flags, &page);
 	mmap_read_unlock(mm);
 
-	if (!page) {
+	if (ret != 1 || !page) {
 		kfree(ppage);
 		return -EFAULT;
 	}
@@ -204,6 +102,7 @@ static int pin_one_page(struct gzvm *vm, unsigned long hva, u64 gpa)
 		ret = 0;
 	}
 	mutex_unlock(&vm->mem_lock);
+	*out_page = page;
 
 	return ret;
 }
@@ -230,15 +129,42 @@ int gzvm_handle_relinquish(struct gzvm_vcpu *vcpu, phys_addr_t ipa)
 int gzvm_vm_allocate_guest_page(struct gzvm *vm, struct gzvm_memslot *slot,
 				u64 gfn, u64 *pfn)
 {
+	struct page *page = NULL;
 	unsigned long hva;
-
-	if (gzvm_gfn_to_pfn_memslot(slot, gfn, pfn) != 0)
-		return -EFAULT;
+	int ret;
 
 	if (gzvm_gfn_to_hva_memslot(slot, gfn, (u64 *)&hva) != 0)
 		return -EINVAL;
 
-	return pin_one_page(vm, hva, PFN_PHYS(gfn));
+	ret = pin_one_page(vm, hva, PFN_PHYS(gfn), &page);
+	if (ret != 0)
+		return ret;
+
+	if (page == NULL)
+		return -EFAULT;
+	/**
+	 * As `pin_user_pages` already gets the page struct, we don't need to
+	 * call other APIs to reduce function call overhead.
+	 */
+	*pfn = page_to_pfn(page);
+
+	return 0;
+}
+
+static int handle_single_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
+{
+	int ret;
+	u64 pfn;
+
+	ret = gzvm_vm_allocate_guest_page(vm, &vm->memslot[memslot_id], gfn, &pfn);
+	if (unlikely(ret))
+		return -EFAULT;
+
+	ret = gzvm_arch_map_guest(vm->vm_id, memslot_id, pfn, gfn, 1);
+	if (unlikely(ret))
+		return -EFAULT;
+
+	return ret;
 }
 
 static int handle_block_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
@@ -266,6 +192,8 @@ static int handle_block_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
 	for (i = 0, __gfn = start_gfn; i < nr_entries; i++, __gfn++) {
 		ret = gzvm_vm_allocate_guest_page(vm, memslot, __gfn, &pfn);
 		if (unlikely(ret)) {
+			pr_notice("VM-%u failed to allocate page for GFN 0x%llx (%d)\n",
+				  vm->vm_id, __gfn, ret);
 			ret = -ERR_FAULT;
 			goto err_unlock;
 		}
@@ -282,21 +210,6 @@ static int handle_block_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
 err_unlock:
 	mutex_unlock(&vm->demand_paging_lock);
 
-	return ret;
-}
-
-static int handle_single_demand_page(struct gzvm *vm, int memslot_id, u64 gfn)
-{
-	int ret;
-	u64 pfn;
-
-	ret = gzvm_vm_allocate_guest_page(vm, &vm->memslot[memslot_id], gfn, &pfn);
-	if (unlikely(ret))
-		return -EFAULT;
-
-	ret = gzvm_arch_map_guest(vm->vm_id, memslot_id, pfn, gfn, 1);
-	if (unlikely(ret))
-		return -EFAULT;
 	return ret;
 }
 

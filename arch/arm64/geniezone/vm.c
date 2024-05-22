@@ -394,31 +394,6 @@ int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 	return -EINVAL;
 }
 
-/**
- * gzvm_hva_to_pa_arch() - converts hva to pa with arch-specific way
- * @hva: Host virtual address.
- *
- * Return: GZVM_PA_ERR_BAD for translation error
- */
-u64 gzvm_hva_to_pa_arch(u64 hva)
-{
-	unsigned long flags;
-	u64 par;
-
-	local_irq_save(flags);
-	asm volatile("at s1e1r, %0" :: "r" (hva));
-	isb();
-	par = read_sysreg_par();
-	local_irq_restore(flags);
-
-	if (par & SYS_PAR_EL1_F)
-		return GZVM_PA_ERR_BAD;
-	par = par & PAR_PA47_MASK;
-	if (!par)
-		return GZVM_PA_ERR_BAD;
-	return par;
-}
-
 int gzvm_arch_map_guest(u16 vm_id, int memslot_id, u64 pfn, u64 gfn,
 			u64 nr_pages)
 {

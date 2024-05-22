@@ -75,6 +75,12 @@ struct gzvm_memory_region_ranges {
 	struct mem_region_addr_range constituents[];
 };
 
+/*
+ * A reasonable and large enough limit for the maximum number of pages a
+ * guest can use.
+ */
+#define GZVM_MEM_MAX_NR_PAGES		((1UL << 31) - 1)
+
 /**
  * struct gzvm_memslot: VM's memory slot descriptor
  * @base_gfn: begin of guest page frame
@@ -123,19 +129,20 @@ struct gzvm_vm_stat {
  * @lock: lock for list_add
  * @irqfds: the data structure is used to keep irqfds's information
  * @ioevents: list head for ioevents
+ * @ioevent_lock: lock for ioevent list
  * @vm_list: list head for vm list
  * @vm_id: vm id
  * @irq_ack_notifier_list: list head for irq ack notifier
  * @irq_srcu: structure data for SRCU(sleepable rcu)
  * @irq_lock: lock for irq injection
+ * @pinned_pages: use rb-tree to record pin/unpin page
+ * @mem_lock: lock for memory operations
  * @mem_alloc_mode: memory allocation mode - fully allocated or demand paging
  * @demand_page_gran: demand page granularity: how much memory we allocate for
  * VM in a single page fault
  * @demand_page_buffer: the mailbox for transferring large portion pages
  * @demand_paging_lock: lock for preventing multiple cpu using the same demand
  * page mailbox at the same time
- * @pinned_pages: use rb-tree to record pin/unpin page
- * @mem_lock: lock for memory operations
  * @stat: information for VM memory statistics
  * @debug_dir: debugfs directory node for VM memory statistics
  */
@@ -153,6 +160,7 @@ struct gzvm {
 	} irqfds;
 
 	struct list_head ioevents;
+	struct mutex ioevent_lock;
 
 	struct list_head vm_list;
 	u16 vm_id;
@@ -162,12 +170,12 @@ struct gzvm {
 	struct mutex irq_lock;
 	u32 mem_alloc_mode;
 
+	struct rb_root pinned_pages;
+	struct mutex mem_lock;
+
 	u32 demand_page_gran;
 	u64 *demand_page_buffer;
 	struct mutex  demand_paging_lock;
-
-	struct rb_root pinned_pages;
-	struct mutex mem_lock;
 
 	struct gzvm_vm_stat stat;
 	struct dentry *debug_dir;
@@ -197,10 +205,6 @@ int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 				  struct gzvm_enable_cap *cap,
 				  void __user *argp);
 
-u64 gzvm_hva_to_pa_arch(u64 hva);
-u64 hva_to_pa_fast(u64 hva);
-u64 hva_to_pa_slow(u64 hva);
-int gzvm_gfn_to_pfn_memslot(struct gzvm_memslot *memslot, u64 gfn, u64 *pfn);
 int gzvm_gfn_to_hva_memslot(struct gzvm_memslot *memslot, u64 gfn,
 			    u64 *hva_memslot);
 int gzvm_vm_populate_mem_region(struct gzvm *gzvm, int slot_id);
