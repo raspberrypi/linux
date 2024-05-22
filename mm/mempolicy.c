@@ -3146,7 +3146,9 @@ void __init numa_policy_init(void)
 /* Reset policy of current process to default */
 void numa_default_policy(void)
 {
-	do_set_mempolicy(MPOL_DEFAULT, 0, NULL);
+	struct mempolicy *pol = &default_policy;
+
+	do_set_mempolicy(pol->mode, pol->flags, &pol->nodes);
 }
 
 /*
@@ -3163,7 +3165,6 @@ static const char * const policy_modes[] =
 	[MPOL_PREFERRED_MANY]  = "prefer (many)",
 };
 
-#ifdef CONFIG_TMPFS
 /**
  * mpol_parse_str - parse string to mempolicy, for tmpfs mpol mount option.
  * @str:  string containing mempolicy to parse
@@ -3176,12 +3177,17 @@ static const char * const policy_modes[] =
  */
 int mpol_parse_str(char *str, struct mempolicy **mpol)
 {
-	struct mempolicy *new = NULL;
+	struct mempolicy *new;
 	unsigned short mode_flags;
 	nodemask_t nodes;
 	char *nodelist = strchr(str, ':');
 	char *flags = strchr(str, '=');
 	int err = 1, mode;
+
+	if (*mpol)
+		new = *mpol;
+	else
+		new = NULL;
 
 	if (flags)
 		*flags++ = '\0';	/* terminate mode string */
@@ -3262,9 +3268,16 @@ int mpol_parse_str(char *str, struct mempolicy **mpol)
 			goto out;
 	}
 
-	new = mpol_new(mode, mode_flags, &nodes);
-	if (IS_ERR(new))
-		goto out;
+	if (!new) {
+		new = mpol_new(mode, mode_flags, &nodes);
+		if (IS_ERR(new))
+			goto out;
+	} else {
+		atomic_set(&new->refcnt, 1);
+		new->mode = mode;
+		new->flags = mode_flags;
+		new->home_node = NUMA_NO_NODE;
+	}
 
 	/*
 	 * Save nodes for mpol_to_str() to show the tmpfs mount options
@@ -3297,7 +3310,29 @@ out:
 		*mpol = new;
 	return err;
 }
-#endif /* CONFIG_TMPFS */
+
+static int __init setup_numapolicy(char *str)
+{
+	struct mempolicy pol = { }, *ppol = &pol;
+	char buf[128];
+	int ret;
+
+	if (str)
+		ret = mpol_parse_str(str, &ppol);
+	else
+		ret = -EINVAL;
+
+	if (!ret) {
+		default_policy = pol;
+		mpol_to_str(buf, sizeof(buf), &pol);
+		pr_info("NUMA default policy overridden to '%s'\n", buf);
+	} else {
+		pr_warn("Unable to parse numa_policy=\n");
+	}
+
+	return ret == 0;
+}
+__setup("numa_policy=", setup_numapolicy);
 
 /**
  * mpol_to_str - format a mempolicy structure for printing
