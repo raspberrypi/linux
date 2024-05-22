@@ -100,16 +100,16 @@
 
 		cam1_sync = <&csi1>, "sync-gpios:0=", <&gpio>,
 			    <&csi1>, "sync-gpios:4",
-			    <&csi1>, "sync-gpios:8=0", <GPIO_ACTIVE_HIGH>;
+			    <&csi1>, "sync-gpios:8=", <GPIO_ACTIVE_HIGH>;
 		cam1_sync_inverted = <&csi1>, "sync-gpios:0=", <&gpio>,
 			    <&csi1>, "sync-gpios:4",
-			    <&csi1>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
+			    <&csi1>, "sync-gpios:8=", <GPIO_ACTIVE_LOW>;
 		cam0_sync = <&csi0>, "sync-gpios:0=", <&gpio>,
 			    <&csi0>, "sync-gpios:4",
-			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_HIGH>;
+			    <&csi0>, "sync-gpios:8=", <GPIO_ACTIVE_HIGH>;
 		cam0_sync_inverted = <&csi0>, "sync-gpios:0=", <&gpio>,
 			    <&csi0>, "sync-gpios:4",
-			    <&csi0>, "sync-gpios:8=0", <GPIO_ACTIVE_LOW>;
+			    <&csi0>, "sync-gpios:8=", <GPIO_ACTIVE_LOW>;
 
 		strict_gpiod = <&chosen>, "bootargs=pinctrl_bcm2835.persist_gpio_outputs=n";
 	};
