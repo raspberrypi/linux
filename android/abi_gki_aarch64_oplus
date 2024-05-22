@@ -426,6 +426,8 @@
   __tracepoint_sched_stat_wait
   __tracepoint_sched_waking
   __tracepoint_task_rename
+  folio_total_mapcount
+  page_mapping
   __trace_puts
   truncate_inode_pages
   try_to_free_mem_cgroup_pages
