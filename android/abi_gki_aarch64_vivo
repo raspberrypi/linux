@@ -15,6 +15,8 @@
   regulator_get_drvdata
   set_blocksize
   submit_bh
+  __kmalloc_node
+  __sbitmap_queue_get
   __traceiter_android_rvh_check_preempt_wakeup
   __traceiter_android_rvh_cpufreq_transition
   __traceiter_android_rvh_dequeue_task_fair
@@ -81,6 +83,10 @@
   __traceiter_android_vh_ra_tuning_max_page
   __traceiter_android_vh_try_to_unmap_one
   __traceiter_android_vh_uprobes_replace_page
+  __traceiter_block_rq_complete
+  __traceiter_block_rq_insert
+  __traceiter_block_rq_issue
+  __traceiter_block_rq_requeue
   __traceiter_cpu_frequency_limits
   __traceiter_sched_switch
   __traceiter_sched_waking
@@ -154,6 +160,10 @@
   __tracepoint_android_vh_ra_tuning_max_page
   __tracepoint_android_vh_try_to_unmap_one
   __tracepoint_android_vh_uprobes_replace_page
+  __tracepoint_block_rq_complete
+  __tracepoint_block_rq_insert
+  __tracepoint_block_rq_issue
+  __tracepoint_block_rq_requeue
   __tracepoint_cpu_frequency_limits
   __tracepoint_sched_switch
   __tracepoint_sched_waking
@@ -192,3 +202,27 @@
   __tracepoint_android_vh_build_skb_around
   __tracepoint_android_rvh_bpf_skb_load_bytes
   debugfs_print_regs32
+  blk_bio_list_merge
+  blk_mq_debugfs_rq_show
+  blk_mq_run_hw_queue
+  blk_queue_flag_clear
+  blk_stat_disable_accounting
+  blk_stat_enable_accounting
+  blkcg_policy_register
+  blkcg_policy_unregister
+  elv_register
+  elv_unregister
+  elevator_alloc
+  of_css
+  sbitmap_add_wait_queue
+  sbitmap_any_bit_set
+  sbitmap_del_wait_queue
+  sbitmap_init_node
+  sbitmap_queue_clear
+  sbitmap_queue_init_node
+  sbitmap_queue_min_shallow_depth
+  sbitmap_queue_resize
+  sbitmap_queue_show
+  seq_list_next
+  seq_list_start
+  timer_reduce
