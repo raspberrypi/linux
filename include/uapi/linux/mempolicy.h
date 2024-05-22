@@ -24,6 +24,7 @@ enum {
 	MPOL_LOCAL,
 	MPOL_PREFERRED_MANY,
 	MPOL_WEIGHTED_INTERLEAVE,
+	MPOL_RANDOM,
 	MPOL_MAX,	/* always last member of enum */
 };
 
