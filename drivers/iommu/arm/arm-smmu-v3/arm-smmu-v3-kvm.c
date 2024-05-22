@@ -449,6 +449,7 @@ static struct iommu_ops kvm_arm_smmu_ops = {
 	.capable		= arm_smmu_capable,
 	.device_group		= arm_smmu_device_group,
 	.of_xlate		= arm_smmu_of_xlate,
+	.get_resv_regions	= arm_smmu_get_resv_regions,
 	.probe_device		= kvm_arm_smmu_probe_device,
 	.release_device		= kvm_arm_smmu_release_device,
 	.domain_alloc		= kvm_arm_smmu_domain_alloc,
