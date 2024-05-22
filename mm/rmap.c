@@ -1163,6 +1163,7 @@ int folio_total_mapcount(struct folio *folio)
 	mapcount += nr_pages;
 	return mapcount;
 }
+EXPORT_SYMBOL_GPL(folio_total_mapcount);
 
 static __always_inline unsigned int __folio_add_rmap(struct folio *folio,
 		struct page *page, int nr_pages, enum rmap_level level,
