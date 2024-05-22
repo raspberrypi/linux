@@ -34,6 +34,10 @@
   __traceiter_android_vh_do_shrink_slab
   __tracepoint_android_vh_shrink_slab_bypass
   __traceiter_android_vh_shrink_slab_bypass
+  __tracepoint_android_vh_slab_alloc_node
+  __traceiter_android_vh_slab_alloc_node
+  __tracepoint_android_vh_slab_free
+  __traceiter_android_vh_slab_free
   __traceiter_android_vh_tcp_write_timeout_estab_retrans
   __tracepoint_android_vh_tcp_write_timeout_estab_retrans
   __tracepoint_android_vh_si_mem_available_adjust
