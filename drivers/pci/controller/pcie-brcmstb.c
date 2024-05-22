@@ -568,6 +568,18 @@ static void brcm_pcie_set_tc_qos(struct brcm_pcie *pcie)
 		AXI_DIS_QOS_GATING_IN_MASTER;
 	writel(reg, pcie->base + PCIE_MISC_AXI_INTF_CTRL);
 
+	/*
+	 * If the QOS_UPDATE_TIMING_FIX bit is Reserved-0, then this is a
+	 * 2712C1 chip, or a single-lane RC. Use the best-effort alternative
+	 * which is to partially throttle AXI requests in-flight to the SDC.
+	 */
+	reg = readl(pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+	if (!(reg & AXI_EN_QOS_UPDATE_TIMING_FIX)) {
+		reg &= ~AXI_MASTER_MAX_OUTSTANDING_REQUESTS_MASK;
+		reg |= 15;
+		writel(reg, pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+	}
+
 	/* Disable VDM reception by default - QoS map defaults to 0 */
 	reg = readl(pcie->base + PCIE_MISC_CTRL_1);
 	reg &= ~PCIE_MISC_CTRL_1_EN_VDM_QOS_CONTROL_MASK;
