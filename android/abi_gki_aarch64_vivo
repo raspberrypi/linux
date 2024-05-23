@@ -35,6 +35,8 @@
   __traceiter_android_rvh_try_to_wake_up
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_adjust_kvmalloc_flags
+  __traceiter_android_vh_alloc_pages_adjust_wmark
+  __traceiter_android_vh_alloc_pages_reset_wmark
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_binder_preset
@@ -119,6 +121,8 @@
   __tracepoint_android_rvh_try_to_wake_up
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_adjust_kvmalloc_flags
+  __tracepoint_android_vh_alloc_pages_adjust_wmark
+  __tracepoint_android_vh_alloc_pages_reset_wmark
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_binder_preset
