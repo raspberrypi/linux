@@ -19,10 +19,6 @@ DECLARE_HOOK(android_vh_check_mmap_file,
 		unsigned long flag, unsigned long ret),
 	TP_ARGS(file, prot, flag, ret));
 
-DECLARE_HOOK(android_vh_check_file_open,
-	TP_PROTO(const struct file *file),
-	TP_ARGS(file));
-
 DECLARE_HOOK(android_vh_check_bpf_syscall,
 	TP_PROTO(int cmd, const union bpf_attr *attr, unsigned int size),
 	TP_ARGS(cmd, attr, size));
