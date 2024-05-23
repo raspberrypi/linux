@@ -210,7 +210,7 @@ static inline void count_swpout_vm_event(struct folio *folio)
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	if (unlikely(folio_test_pmd_mappable(folio)))
 		count_vm_event(THP_SWPOUT);
-	count_mthp_stat(folio_order(folio), MTHP_STAT_ANON_SWPOUT);
+	count_mthp_stat(folio_order(folio), MTHP_STAT_SWPOUT);
 #endif
 	count_vm_events(PSWPOUT, folio_nr_pages(folio));
 }
