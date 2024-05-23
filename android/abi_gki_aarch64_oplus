@@ -8,26 +8,39 @@
   blk_rq_map_user
   blk_rq_map_user_iov
   blk_start_plug
+  __break_lease
   cgroup_add_legacy_cftypes
   cpu_cgrp_subsys
   console_printk
+  config_item_init_type_name
+  copy_fs_struct
   cpufreq_frequency_table_get_index
   cpufreq_policy_transition_delay_us
   cpufreq_update_util_data
+  d_drop
+  d_invalidate
+  dentry_open
   device_create_bin_file
   device_remove_bin_file
   devres_destroy
   dev_get_by_index_rcu
+  dget_parent
   down_read_trylock
+  d_rehash
   drm_crtc_vblank_waitqueue
+  d_set_d_op
   down_write_killable
   filp_close
   folio_add_lru
   folio_mapping
   folio_referenced
   for_each_kernel_tracepoint
+  free_fs_struct
   freq_qos_add_notifier
   freq_qos_remove_notifier
+  fsstack_copy_inode_size
+  generic_delete_inode
+  __generic_file_fsync
   get_wchan
   gov_attr_set_get
   gpiod_to_chip
@@ -35,6 +48,7 @@
   iterate_dir
   i2c_smbus_read_word_data
   i2c_smbus_write_word_data
+  igrab
   iio_channel_get
   iio_channel_release
   iio_get_channel_type
@@ -54,13 +68,17 @@
   mem_cgroup_update_lru_size
   ktime_get_real_ts64
   ktime_get_raw_ts64
+  lock_rename
+  lookup_one_len_unlocked
   memory_cgrp_subsys
   memory_cgrp_subsys_enabled_key
   mem_cgroup_from_id
   mipi_dsi_generic_write
   mmc_wait_for_cmd
+  mntget
   __mod_lruvec_state
   __mod_zone_page_state
+  mount_nodev
   neigh_xmit
   netif_receive_skb_core
   nf_ct_attach
@@ -77,15 +95,20 @@
   nla_reserve
   nla_reserve_64bit
   nr_running
+  nop_mnt_idmap
+  notify_change
   of_css
   osq_lock
   osq_unlock
+  override_creds
   __page_file_index
+  path_get
   pm_get_active_wakeup_sources
   platform_device_add
   platform_device_alloc
   platform_device_put
   platform_driver_unregister
+  prepare_creds
   prepare_to_wait_exclusive
   __printk_ratelimit
   proc_symlink
@@ -98,6 +121,7 @@
   register_tcf_proto_ops
   regulator_map_voltage_linear_range
   remove_proc_subtree
+  revert_creds
   root_mem_cgroup
   rtc_read_alarm
   rtc_set_alarm
@@ -131,6 +155,7 @@
   tcf_queue_work
   vfs_llseek
   tcp_hashinfo
+  touch_atime
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_alloc_oem_binder_struct
@@ -321,16 +346,28 @@
   __tracepoint_android_vh_binder_release_special_work
   __tracepoint_android_vh_binder_free_proc
   __trace_puts
+  truncate_inode_pages
   try_to_free_mem_cgroup_pages
   typec_mux_get_drvdata
   __udp4_lib_lookup
   __udp6_lib_lookup
   udp_table
+  unlock_rename
   unregister_memory_notifier
   unregister_net_sysctl_table
   unregister_sysctl_table
   unregister_tcf_proto_ops
   v4l2_i2c_subdev_init
+  vfs_create
+  vfs_getattr
+  vfs_iter_read
+  vfs_iter_write
+  vfs_mkdir
+  vfs_path_lookup
+  vfs_rename
+  vfs_rmdir
+  vfs_statfs
+  vfs_unlink
   wait_for_completion_io_timeout
   wait_for_completion_killable_timeout
   wakeup_source_remove
