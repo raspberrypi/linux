@@ -164,6 +164,7 @@
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_rtmutex_force_update
   __traceiter_android_rvh_set_cpus_allowed_comm
+  __traceiter_android_rvh_set_balance_anon_file_reclaim
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_add_page_to_lrulist
   __traceiter_android_vh_adjust_alloc_flags
@@ -306,6 +307,7 @@
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_rtmutex_force_update
   __tracepoint_android_rvh_set_cpus_allowed_comm
+  __tracepoint_android_rvh_set_balance_anon_file_reclaim
   __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_add_page_to_lrulist
   __tracepoint_android_vh_adjust_alloc_flags
