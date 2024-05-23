@@ -73,6 +73,7 @@
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/vmscan.h>
+#include <trace/hooks/mm.h>
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(mm_vmscan_kswapd_wake);
 
@@ -2395,6 +2396,8 @@ static unsigned long isolate_lru_folios(unsigned long nr_to_scan,
 		}
 
 		nr_taken += nr_pages;
+
+		trace_android_vh_del_page_from_lrulist(folio, false, lru);
 		nr_zone_taken[folio_zonenum(folio)] += nr_pages;
 		move_to = dst;
 move:
