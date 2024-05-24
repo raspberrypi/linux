@@ -35,6 +35,7 @@ extern crate self as kernel;
 mod allocator;
 mod build_assert;
 pub mod cred;
+pub mod device;
 pub mod delay;
 pub mod error;
 pub mod file;
