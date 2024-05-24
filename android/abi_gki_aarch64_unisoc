@@ -43,6 +43,7 @@
   mutex_lock
   mutex_unlock
   __per_cpu_offset
+  perf_aux_output_skip
   prepare_to_wait_event
   _printk
   put_device
