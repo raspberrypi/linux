@@ -15,6 +15,7 @@
 #![feature(allocator_api)]
 #![feature(associated_type_defaults)]
 #![feature(coerce_unsized)]
+#![feature(const_refs_to_cell)]
 #![feature(c_size_t)]
 #![feature(dispatch_from_dyn)]
 #![feature(new_uninit)]
@@ -38,6 +39,7 @@ pub mod cred;
 pub mod device;
 pub mod delay;
 pub mod error;
+pub mod driver;
 pub mod file;
 pub mod fs;
 pub mod init;
@@ -45,6 +47,7 @@ pub mod io_buffer;
 pub mod ioctl;
 #[cfg(CONFIG_KUNIT)]
 pub mod kunit;
+pub mod of;
 pub mod iov_iter;
 pub mod mm;
 pub mod pages;

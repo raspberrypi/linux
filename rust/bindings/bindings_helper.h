@@ -20,6 +20,7 @@
 #include <linux/uio.h>
 #include <linux/uaccess.h>
 #include <linux/delay.h>
+#include <linux/of.h>
 
 /* `bindgen` gets confused at certain things. */
 const size_t BINDINGS_ARCH_SLAB_MINALIGN = ARCH_SLAB_MINALIGN;
