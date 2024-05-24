@@ -3582,6 +3582,8 @@ Params: l1ss                    Enable ASPM L1 sub-state support
                                 the MSI-MIP peripheral. Use if a) more than 8
                                 interrupt vectors are required or b) the EP
                                 requires DMA and MSI addresses to be 32bit.
+        mmio-hi                 Move the start of outbound 32bit addresses to
+                                2GB and expand 64bit outbound space to 14GB.
 
 
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
