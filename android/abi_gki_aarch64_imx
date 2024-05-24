@@ -1528,7 +1528,7 @@
   of_irq_find_parent
   of_irq_get
   of_irq_get_byname
-  of_machine_is_compatible
+  of_machine_compatible_match
   of_match_device
   of_match_node
   __of_mdiobus_register

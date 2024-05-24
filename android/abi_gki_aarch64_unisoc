@@ -670,7 +670,6 @@
   of_clk_get_parent_count
   of_devfreq_cooling_register_power
   of_dma_is_coherent
-  of_machine_is_compatible
   of_property_read_variable_u64_array
   of_property_read_variable_u8_array
   param_array_ops

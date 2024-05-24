@@ -1317,7 +1317,6 @@
   of_irq_get
   of_irq_get_byname
   of_irq_parse_one
-  of_machine_is_compatible
   of_match_device
   of_match_node
   of_n_addr_cells

@@ -1562,7 +1562,7 @@
   of_graph_get_next_endpoint
   of_graph_get_remote_port_parent
   of_icc_get
-  of_machine_is_compatible
+  of_machine_compatible_match
   of_property_read_u64_index
   param_ops_ullong
   phy_calibrate
