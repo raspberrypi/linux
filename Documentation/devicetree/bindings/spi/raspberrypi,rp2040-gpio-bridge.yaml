@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/spi/raspberrypi,rp2040-gpio-bridge.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Raspberry Pi RP2040 GPIO Bridge
+
+maintainers:
+  - Raspberry Pi <kernel-list@raspberrypi.com>
+
+description: |-
+  The Raspberry Pi PR2040 GPIO bridge can be used as a GPIO expander and
+  Tx-only SPI master.
+
+properties:
+  reg:
+    description: I2C slave address
+    const: 0x40
+
+  compatible:
+    const: raspberrypi,rp2040-gpio-bridge
+
+  power-supply:
+    description: Phandle to the regulator that powers the RP2040.
+
+  '#address-cells':
+    const: 1
+
+  '#size-cells':
+    const: 0
+
+  '#gpio-cells':
+    const: 2
+
+  gpio-controller: true
+
+  fast_xfer_requires_i2c_lock:
+    description: Set if I2C bus should be locked during fast transfer.
+
+  fast_xfer_recv_gpio_base:
+    description: RP2040 GPIO base for fast transfer pair.
+
+  fast_xfer-gpios:
+    description: RP1 GPIOs to use for fast transfer clock and data.
+
+required:
+  - reg
+  - compatible
+  - power-supply
+  - '#gpio-cells'
+  - gpio-controller
+
+additionalProperties: false
+
+examples:
+  - |
+    i2c {
+      #address-cells = <1>;
+      #size-cells = <0>;
+
+      spi@40 {
+        reg = <0x40>;
+        compatible = "raspberrypi,rp2040-gpio-bridge";
+        status = "disabled";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        power-supply = <&cam_dummy_reg>;
+
+        #gpio-cells = <2>;
+        gpio-controller;
+      };
+    };
+
+...
+
