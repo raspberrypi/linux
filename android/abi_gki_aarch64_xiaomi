@@ -20,6 +20,45 @@
 # required by memory
   ufshcd_alloc_host
   ufshcd_dealloc_host
+  scsi_dma_unmap
+  scsi_done
+  blk_mq_destroy_queue
+  scsi_remove_host
+  scsi_host_put
+  scsi_host_alloc
+  blk_mq_init_queue
+  scsi_register_driver
+  sbitmap_weight
+  wait_for_completion_io_timeout
+  blk_crypto_keyslot_index
+  dev_pm_opp_remove
+  scsi_dma_map
+  scsi_print_command
+  scsi_change_queue_depth
+  blk_queue_update_dma_pad
+  blk_mq_wait_quiesce_done
+  blk_mq_tagset_busy_iter
+  scsi_report_bus_reset
+  scsi_add_host_with_dma
+  async_schedule_node
+  scsi_scan_host
+  __scsi_add_device
+  scsi_remove_device
+  blk_pm_runtime_init
+  scsi_device_quiesce
+  scsi_print_sense_hdr
+  scsi_execute_cmd
+  blk_crypto_reprogram_all_keys
+  blk_crypto_register
+  bsg_remove_queue
+  bsg_setup_queue
+  bsg_job_done
+  scsi_is_host_device
+  param_set_uint_minmax
+  scsi_host_lookup
+  scsi_device_lookup
+  scsi_host_lookup
+  scsi_device_lookup
 
 #required by metis.ko module
   __traceiter_android_vh_rwsem_read_wait_start
