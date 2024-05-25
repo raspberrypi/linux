@@ -146,6 +146,14 @@ static int bch2_sb_downgrade_validate(struct bch_sb *sb, struct bch_sb_field *f,
 	for (const struct bch_sb_field_downgrade_entry *i = e->entries;
 	     (void *) i	< vstruct_end(&e->field);
 	     i = downgrade_entry_next_c(i)) {
+		/*
+		 * Careful: sb_field_downgrade_entry is only 2 byte aligned, but
+		 * section sizes are 8 byte aligned - an empty entry spanning
+		 * the end of the section is allowed (and ignored):
+		 */
+		if ((void *) &i->errors[0] > vstruct_end(&e->field))
+			break;
+
 		if (BCH_VERSION_MAJOR(le16_to_cpu(i->version)) !=
 		    BCH_VERSION_MAJOR(le16_to_cpu(sb->version))) {
 			prt_printf(err, "downgrade entry with mismatched major version (%u != %u)",
