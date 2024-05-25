@@ -327,7 +327,7 @@ static int hifiberry_dac8x_init(struct snd_soc_pcm_runtime *rtd)
 	 * and limit the sample rate to 192ksps
 	 */
 	codec_dai->driver->playback.channels_max = 8;
-	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_192000;
+	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_384000;
 
 	return 0;
 }
