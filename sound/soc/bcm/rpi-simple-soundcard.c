@@ -324,10 +324,10 @@ static int hifiberry_dac8x_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
 
 	/* override the defaults to reflect 4 x PCM5102A on the card
-	 * and limit the sample rate to 192ksps
+	 * and limit the sample rate to 384ksps
 	 */
 	codec_dai->driver->playback.channels_max = 8;
-	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_192000;
+	codec_dai->driver->playback.rates = SNDRV_PCM_RATE_8000_384000;
 
 	return 0;
 }
