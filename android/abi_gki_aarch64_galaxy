@@ -3,6 +3,8 @@
   blkdev_issue_flush
   blk_queue_rq_timeout
   caches_clean_inval_pou
+  cleancache_register_ops
+  copy_page
   _dev_alert
   __devm_alloc_percpu
   file_ra_state_init
