@@ -57,7 +57,7 @@ void fsstack_copy_inode_size(struct inode *dst, struct inode *src)
 	if (sizeof(i_size) > sizeof(long) || sizeof(i_blocks) > sizeof(long))
 		spin_unlock(&dst->i_lock);
 }
-EXPORT_SYMBOL_GPL(fsstack_copy_inode_size);
+EXPORT_SYMBOL_NS_GPL(fsstack_copy_inode_size, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /* copy all attributes */
 void fsstack_copy_attr_all(struct inode *dest, const struct inode *src)

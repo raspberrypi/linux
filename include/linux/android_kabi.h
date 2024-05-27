@@ -70,6 +70,7 @@
 #endif /* __GENKSYMS__ */
 
 #define _ANDROID_KABI_RESERVE(n)		u64 android_kabi_reserved##n
+#define _ANDROID_BACKPORT_RESERVE(n)		u64 android_backport_reserved##n
 
 
 /*
@@ -78,15 +79,21 @@
 
 /*
  * ANDROID_KABI_RESERVE
- *   Reserve some "padding" in a structure for potential future use.
+ *   Reserve some "padding" in a structure for use by LTS backports.
  *   This normally placed at the end of a structure.
  *   number: the "number" of the padding variable in the structure.  Start with
  *   1 and go up.
+ *
+ * ANDROID_BACKPORT_RESERVE
+ *   Similar to ANDROID_KABI_RESERVE, but this is for planned feature backports
+ *   (not for LTS).
  */
 #ifdef CONFIG_ANDROID_KABI_RESERVE
-#define ANDROID_KABI_RESERVE(number)	_ANDROID_KABI_RESERVE(number)
+#define ANDROID_KABI_RESERVE(number)	  _ANDROID_KABI_RESERVE(number)
+#define ANDROID_BACKPORT_RESERVE(number)  _ANDROID_BACKPORT_RESERVE(number)
 #else
 #define ANDROID_KABI_RESERVE(number)
+#define ANDROID_BACKPORT_RESERVE(number)
 #endif
 
 
@@ -113,5 +120,23 @@
 #define ANDROID_KABI_USE2(number, _new1, _new2)			\
 	_ANDROID_KABI_REPLACE(_ANDROID_KABI_RESERVE(number), struct{ _new1; _new2; })
 
+/*
+ * ANDROID_BACKPORT_USE(number, _new)
+ *   Use a previous padding entry that was defined with ANDROID_BACKPORT_RESERVE
+ *   number: the previous "number" of the padding variable
+ *   _new: the variable to use now instead of the padding variable
+ */
+#define ANDROID_BACKPORT_USE(number, _new)		\
+	_ANDROID_KABI_REPLACE(_ANDROID_BACKPORT_RESERVE(number), _new)
+
+/*
+ * ANDROID_BACKPORT_USE2(number, _new1, _new2)
+ *   Use a previous padding entry that was defined with ANDROID_BACKPORT_RESERVE
+ *   for two new variables that fit into 64 bits.  This is good for when you do
+ *   not want to "burn" a 64bit padding variable for a smaller variable size if
+ *   not needed.
+ */
+#define ANDROID_BACKPORT_USE2(number, _new1, _new2)			\
+	_ANDROID_KABI_REPLACE(_ANDROID_BACKPORT_RESERVE(number), struct{ _new1; _new2; })
 
 #endif /* _ANDROID_KABI_H */

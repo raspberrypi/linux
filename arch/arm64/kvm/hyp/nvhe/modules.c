@@ -15,6 +15,16 @@
 #include <nvhe/trace/trace.h>
 #include <nvhe/trap_handler.h>
 
+static void *__pkvm_module_memcpy(void *to, const void *from, size_t count)
+{
+	return memcpy(to, from, count);
+}
+
+static void *__pkvm_module_memset(void *dst, int c, size_t count)
+{
+	return memset(dst, c, count);
+}
+
 static void __kvm_flush_dcache_to_poc(void *addr, size_t size)
 {
 	kvm_flush_dcache_to_poc((unsigned long)addr, (unsigned long)size);
@@ -80,6 +90,11 @@ void __pkvm_close_module_registration(void)
 	 */
 }
 
+static int _hyp_smp_processor_id(void)
+{
+	return hyp_smp_processor_id();
+}
+
 const struct pkvm_module_ops module_ops = {
 	.create_private_mapping = __pkvm_create_private_mapping,
 	.alloc_module_va = __pkvm_alloc_module_va,
@@ -111,8 +126,8 @@ const struct pkvm_module_ops module_ops = {
 	.host_unshare_hyp = __pkvm_host_unshare_hyp,
 	.pin_shared_mem = hyp_pin_shared_mem,
 	.unpin_shared_mem = hyp_unpin_shared_mem,
-	.memcpy = memcpy,
-	.memset = memset,
+	.memcpy = __pkvm_module_memcpy,
+	.memset = __pkvm_module_memset,
 	.hyp_pa = hyp_virt_to_phys,
 	.hyp_va = hyp_phys_to_virt,
 	.kern_hyp_va = __kern_hyp_va,
@@ -136,6 +151,7 @@ const struct pkvm_module_ops module_ops = {
 	.iommu_donate_pages_atomic = kvm_iommu_donate_pages_atomic,
 	.iommu_reclaim_pages_atomic = kvm_iommu_reclaim_pages_atomic,
 	.iommu_snapshot_host_stage2 = kvm_iommu_snapshot_host_stage2,
+	.hyp_smp_processor_id = _hyp_smp_processor_id,
 };
 
 int __pkvm_init_module(void *module_init)

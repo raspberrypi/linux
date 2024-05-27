@@ -463,6 +463,7 @@ struct binder_proc {
 	spinlock_t outer_lock;
 	struct dentry *binderfs_entry;
 	bool oneway_spam_detection_enabled;
+	ANDROID_OEM_DATA(1);
 };
 
 /**

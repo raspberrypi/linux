@@ -457,9 +457,12 @@
   dma_buf_put
   dma_buf_unmap_attachment
   dma_buf_unmap_attachment_unlocked
+  dma_contiguous_default_area
   dma_fence_array_ops
   dma_fence_chain_init
   dma_fence_enable_sw_signaling
+  dma_fence_release
+  dma_fence_signal
   dma_fence_signal_timestamp_locked
   dma_free_attrs
   dma_free_pages
@@ -482,6 +485,8 @@
   dma_request_chan
   dma_resv_fini
   dma_resv_init
+  dma_resv_iter_first
+  dma_resv_iter_next
   dma_set_coherent_mask
   dma_set_mask
   dma_sync_sg_for_cpu
@@ -1676,6 +1681,7 @@
   shmem_read_folio_gfp
   shmem_read_mapping_page_gfp
   show_regs
+  si_mem_available
   si_meminfo
   simple_attr_open
   simple_attr_release
@@ -1929,6 +1935,7 @@
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_update_thermal_stats
   __traceiter_android_rvh_wake_up_new_task
+  __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_binder_set_priority
   __traceiter_android_vh_check_uninterruptible_tasks
@@ -2024,6 +2031,7 @@
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_update_thermal_stats
   __tracepoint_android_rvh_wake_up_new_task
+  __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_set_priority
   __tracepoint_android_vh_check_uninterruptible_tasks
@@ -2280,3 +2288,8 @@
   xhci_set_interrupter_moderation
   xhci_stop_endpoint_sync
   zap_vma_ptes
+  gunyah_rm_call
+  gunyah_rm_notifier_register
+  gunyah_rm_notifier_unregister
+  gunyah_rm_register_platform_ops
+  gunyah_rm_unregister_platform_ops

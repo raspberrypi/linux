@@ -1674,7 +1674,7 @@ struct dentry *mount_nodev(struct file_system_type *fs_type,
 	s->s_flags |= SB_ACTIVE;
 	return dget(s->s_root);
 }
-EXPORT_SYMBOL(mount_nodev);
+EXPORT_SYMBOL_NS(mount_nodev, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 int reconfigure_single(struct super_block *s,
 		       int flags, void *data)

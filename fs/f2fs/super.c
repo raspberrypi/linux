@@ -3886,7 +3886,7 @@ static int init_blkz_info(struct f2fs_sb_info *sbi, int devi)
 	sbi->blocks_per_blkz = SECTOR_TO_BLOCK(zone_sectors);
 	FDEV(devi).nr_blkz = div_u64(SECTOR_TO_BLOCK(nr_sectors),
 					sbi->blocks_per_blkz);
-	if (nr_sectors & (zone_sectors - 1))
+	if (!bdev_is_zone_start(bdev, nr_sectors))
 		FDEV(devi).nr_blkz++;
 
 	FDEV(devi).blkz_seq = f2fs_kvzalloc(sbi,

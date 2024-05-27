@@ -20,6 +20,7 @@
 #include <linux/osq_lock.h>
 #include <linux/debug_locks.h>
 #include <linux/cleanup.h>
+#include <linux/android_vendor.h>
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 # define __DEP_MAP_MUTEX_INITIALIZER(lockname)			\
@@ -74,6 +75,7 @@ struct mutex {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map	dep_map;
 #endif
+	ANDROID_OEM_DATA_ARRAY(1, 2);
 };
 
 #ifdef CONFIG_DEBUG_MUTEXES

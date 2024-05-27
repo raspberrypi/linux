@@ -3,18 +3,28 @@
   blkdev_put
   __brelse
   class_find_device
+  cpufreq_unregister_notifier
   crypto_register_alg
   crypto_unregister_alg
   end_buffer_read_sync
   end_buffer_write_sync
+  filp_close
   __getblk_gfp
+  __irq_regs
+  kernfs_path_from_node
   __lock_buffer
   mipi_dsi_dcs_write
   profile_event_register
+  profile_event_unregister
   put_device
   regulator_get_drvdata
+  sched_setattr_nocheck
+  schedule_timeout_killable
   set_blocksize
+  static_key_enable
   submit_bh
+  __kmalloc_node
+  __sbitmap_queue_get
   __traceiter_android_rvh_check_preempt_wakeup
   __traceiter_android_rvh_cpufreq_transition
   __traceiter_android_rvh_dequeue_task_fair
@@ -23,16 +33,20 @@
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_set_user_nice
   __traceiter_android_rvh_try_to_wake_up
+  __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alter_mutex_list_add
   __traceiter_android_vh_alter_rwsem_list_add
   __traceiter_android_vh_binder_preset
   __traceiter_android_vh_binder_restore_priority
+  __traceiter_android_vh_binder_special_task
   __traceiter_android_vh_binder_wait_for_work
   __traceiter_android_vh_cgroup_attach
   __traceiter_android_vh_check_folio_look_around_ref
+  __traceiter_android_vh_check_nanosleep_syscall
   __traceiter_android_vh_clear_rwsem_reader_owned
   __traceiter_android_vh_clear_rwsem_writer_owned
+  __traceiter_android_vh_count_workingset_refault
   __traceiter_android_vh_do_anonymous_page
   __traceiter_android_vh_do_swap_page
   __traceiter_android_vh_do_wp_page
@@ -46,8 +60,11 @@
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_mutex_wait_finish
   __traceiter_android_vh_mutex_wait_start
+  __traceiter_android_vh_oom_swapmem_gather_finish
+  __traceiter_android_vh_oom_swapmem_gather_init
   __traceiter_android_vh_percpu_rwsem_down_read
   __traceiter_android_vh_percpu_rwsem_up_write
+  __traceiter_android_vh_percpu_rwsem_wq_add
   __traceiter_android_vh_record_rwsem_reader_owned
   __traceiter_android_vh_record_rwsem_writer_owned
   __traceiter_android_vh_rwsem_init
@@ -62,6 +79,9 @@
   __traceiter_android_vh_sd_init_unmap_multi_segment
   __traceiter_android_vh_sd_setup_unmap_multi_segment
   __traceiter_android_vh_shmem_swapin_folio
+  __traceiter_android_vh_swapmem_gather_add_bypass
+  __traceiter_android_vh_swapmem_gather_finish
+  __traceiter_android_vh_swapmem_gather_init
   __traceiter_android_vh_sync_txn_recvd
   __traceiter_android_vh_test_clear_look_around_ref
   __traceiter_android_vh_alloc_pages_reclaim_bypass
@@ -75,7 +95,12 @@
   __traceiter_android_vh_ra_tuning_max_page
   __traceiter_android_vh_try_to_unmap_one
   __traceiter_android_vh_uprobes_replace_page
+  __traceiter_block_rq_complete
+  __traceiter_block_rq_insert
+  __traceiter_block_rq_issue
+  __traceiter_block_rq_requeue
   __traceiter_cpu_frequency_limits
+  __traceiter_sched_stat_runtime
   __traceiter_sched_switch
   __traceiter_sched_waking
   __traceiter_sys_exit
@@ -90,16 +115,20 @@
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_set_user_nice
   __tracepoint_android_rvh_try_to_wake_up
+  __tracepoint_android_vh_account_process_tick_gran
   __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alter_mutex_list_add
   __tracepoint_android_vh_alter_rwsem_list_add
   __tracepoint_android_vh_binder_preset
   __tracepoint_android_vh_binder_restore_priority
+  __tracepoint_android_vh_binder_special_task
   __tracepoint_android_vh_binder_wait_for_work
   __tracepoint_android_vh_cgroup_attach
   __tracepoint_android_vh_check_folio_look_around_ref
+  __tracepoint_android_vh_check_nanosleep_syscall
   __tracepoint_android_vh_clear_rwsem_reader_owned
   __tracepoint_android_vh_clear_rwsem_writer_owned
+  __tracepoint_android_vh_count_workingset_refault
   __tracepoint_android_vh_do_anonymous_page
   __tracepoint_android_vh_do_swap_page
   __tracepoint_android_vh_do_wp_page
@@ -113,8 +142,11 @@
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_mutex_wait_finish
   __tracepoint_android_vh_mutex_wait_start
+  __tracepoint_android_vh_oom_swapmem_gather_finish
+  __tracepoint_android_vh_oom_swapmem_gather_init
   __tracepoint_android_vh_percpu_rwsem_down_read
   __tracepoint_android_vh_percpu_rwsem_up_write
+  __tracepoint_android_vh_percpu_rwsem_wq_add
   __tracepoint_android_vh_record_rwsem_reader_owned
   __tracepoint_android_vh_record_rwsem_writer_owned
   __tracepoint_android_vh_rwsem_init
@@ -129,6 +161,9 @@
   __tracepoint_android_vh_sd_init_unmap_multi_segment
   __tracepoint_android_vh_sd_setup_unmap_multi_segment
   __tracepoint_android_vh_shmem_swapin_folio
+  __tracepoint_android_vh_swapmem_gather_add_bypass
+  __tracepoint_android_vh_swapmem_gather_finish
+  __tracepoint_android_vh_swapmem_gather_init
   __tracepoint_android_vh_sync_txn_recvd
   __tracepoint_android_vh_test_clear_look_around_ref
   __tracepoint_android_vh_alloc_pages_reclaim_bypass
@@ -142,7 +177,12 @@
   __tracepoint_android_vh_ra_tuning_max_page
   __tracepoint_android_vh_try_to_unmap_one
   __tracepoint_android_vh_uprobes_replace_page
+  __tracepoint_block_rq_complete
+  __tracepoint_block_rq_insert
+  __tracepoint_block_rq_issue
+  __tracepoint_block_rq_requeue
   __tracepoint_cpu_frequency_limits
+  __tracepoint_sched_stat_runtime
   __tracepoint_sched_switch
   __tracepoint_sched_waking
   __tracepoint_sys_exit
@@ -165,6 +205,7 @@
   __traceiter_android_vh_tcp_rtt_estimator
   __traceiter_android_vh_udp_enqueue_schedule_skb
   __traceiter_android_vh_build_skb_around
+  __traceiter_android_rvh_bpf_skb_load_bytes
   __tracepoint_android_rvh_tcp_sendmsg
   __tracepoint_android_rvh_tcp_recvmsg
   __tracepoint_android_rvh_udp_sendmsg
@@ -177,4 +218,29 @@
   __tracepoint_android_vh_tcp_rtt_estimator
   __tracepoint_android_vh_udp_enqueue_schedule_skb
   __tracepoint_android_vh_build_skb_around
+  __tracepoint_android_rvh_bpf_skb_load_bytes
   debugfs_print_regs32
+  blk_bio_list_merge
+  blk_mq_debugfs_rq_show
+  blk_mq_run_hw_queue
+  blk_queue_flag_clear
+  blk_stat_disable_accounting
+  blk_stat_enable_accounting
+  blkcg_policy_register
+  blkcg_policy_unregister
+  elv_register
+  elv_unregister
+  elevator_alloc
+  of_css
+  sbitmap_add_wait_queue
+  sbitmap_any_bit_set
+  sbitmap_del_wait_queue
+  sbitmap_init_node
+  sbitmap_queue_clear
+  sbitmap_queue_init_node
+  sbitmap_queue_min_shallow_depth
+  sbitmap_queue_resize
+  sbitmap_queue_show
+  seq_list_next
+  seq_list_start
+  timer_reduce

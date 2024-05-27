@@ -28,6 +28,7 @@
 #include <asm/system_misc.h>
 
 #include <trace/hooks/traps.h>
+#include <trace/hooks/gic.h>
 
 /*
  * Handle IRQ/context state management when entering from kernel mode.
@@ -527,6 +528,7 @@ asmlinkage void noinstr el1h_64_irq_handler(struct pt_regs *regs)
 
 asmlinkage void noinstr el1h_64_fiq_handler(struct pt_regs *regs)
 {
+	trace_android_rvh_fiq_dump(regs);
 	el1_interrupt(regs, handle_arch_fiq);
 }
 

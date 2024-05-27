@@ -94,6 +94,7 @@ filegroup(
     srcs = [
         # keep sorted
         "android/abi_gki_aarch64_amlogic",
+        "android/abi_gki_aarch64_asus",
         "android/abi_gki_aarch64_db845c",
         "android/abi_gki_aarch64_exynos",
         "android/abi_gki_aarch64_exynosauto",
@@ -530,7 +531,6 @@ copy_to_dist_dir(
 
 _ROCKPI4_MODULE_OUTS = [
     # keep sorted
-    "drivers/block/virtio_blk.ko",
     "drivers/char/hw_random/virtio-rng.ko",
     "drivers/clk/clk-rk808.ko",
     "drivers/cpufreq/cpufreq-dt.ko",
@@ -575,9 +575,7 @@ _ROCKPI4_MODULE_OUTS = [
     "drivers/thermal/rockchip_thermal.ko",
     "drivers/usb/host/ohci-hcd.ko",
     "drivers/usb/host/ohci-platform.ko",
-    "drivers/virtio/virtio_pci.ko",
     "drivers/virtio/virtio_pci_legacy_dev.ko",
-    "drivers/virtio/virtio_pci_modern_dev.ko",
     "net/core/failover.ko",
 ]
 

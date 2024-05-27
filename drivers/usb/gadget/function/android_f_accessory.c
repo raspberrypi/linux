@@ -156,7 +156,7 @@ static struct usb_ss_ep_comp_descriptor acc_superspeedplus_comp_desc = {
 	.bDescriptorType        = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 2 values can be tweaked if necessary */
-	/* .bMaxBurst =         0, */
+	.bMaxBurst              = 6,
 	/* .bmAttributes =      0, */
 };
 
@@ -181,7 +181,7 @@ static struct usb_ss_ep_comp_descriptor acc_superspeed_comp_desc = {
 	.bDescriptorType        = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 2 values can be tweaked if necessary */
-	/* .bMaxBurst =         0, */
+	.bMaxBurst              = 6,
 	/* .bmAttributes =      0, */
 };
 
@@ -1306,7 +1306,6 @@ void android_acc_disconnect(void)
 	kill_all_hid_devices(dev);
 	put_acc_dev(dev);
 }
-EXPORT_SYMBOL_GPL(android_acc_disconnect);
 
 static void acc_cleanup(void)
 {
@@ -1448,7 +1447,6 @@ bool android_acc_req_match_composite(struct usb_composite_dev *cdev,
 {
 	return __acc_req_match(ctrl);
 }
-EXPORT_SYMBOL_GPL(android_acc_req_match_composite);
 
 static int __acc_setup(struct usb_composite_dev *cdev,
 		const struct usb_ctrlrequest *ctrl)
@@ -1582,7 +1580,6 @@ int android_acc_setup_composite(struct usb_composite_dev *cdev,
 	}
 	return __acc_setup(cdev, ctrl);
 }
-EXPORT_SYMBOL_GPL(android_acc_setup_composite);
 
 static int acc_setup(struct usb_function *f,
 			const struct usb_ctrlrequest *ctrl)

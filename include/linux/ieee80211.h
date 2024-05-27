@@ -2680,6 +2680,7 @@ static inline bool ieee80211_he_capa_size_ok(const u8 *data, u8 len)
 
 #define IEEE80211_6GHZ_CTRL_REG_LPI_AP	0
 #define IEEE80211_6GHZ_CTRL_REG_SP_AP	1
+#define IEEE80211_6GHZ_CTRL_REG_VLP_AP	2
 
 /**
  * struct ieee80211_he_6ghz_oper - HE 6 GHz operation Information field
@@ -4844,18 +4845,43 @@ static inline u8 ieee80211_mle_common_size(const u8 *data)
 }
 
 /**
+ * ieee80211_mle_get_link_id - returns the link ID
+ * @data: the basic multi link element
+ *
+ * The element is assumed to be of the correct type (BASIC) and big enough,
+ * this must be checked using ieee80211_mle_type_ok().
+ *
+ * If the BSS link ID can't be found, -1 will be returned
+ */
+static inline int ieee80211_mle_get_link_id(const u8 *data)
+{
+	const struct ieee80211_multi_link_elem *mle = (const void *)data;
+	u16 control = le16_to_cpu(mle->control);
+	const u8 *common = mle->variable;
+
+	/* common points now at the beginning of ieee80211_mle_basic_common_info */
+	common += sizeof(struct ieee80211_mle_basic_common_info);
+
+	if (!(control & IEEE80211_MLC_BASIC_PRES_LINK_ID))
+		return -1;
+
+	return *common;
+}
+
+/**
  * ieee80211_mle_get_bss_param_ch_cnt - returns the BSS parameter change count
- * @mle: the basic multi link element
+ * @data: pointer to the basic multi link element
  *
  * The element is assumed to be of the correct type (BASIC) and big enough,
  * this must be checked using ieee80211_mle_type_ok().
  *
  * If the BSS parameter change count value can't be found (the presence bit
- * for it is clear), 0 will be returned.
+ * for it is clear), -1 will be returned.
  */
-static inline u8
-ieee80211_mle_get_bss_param_ch_cnt(const struct ieee80211_multi_link_elem *mle)
+static inline int
+ieee80211_mle_get_bss_param_ch_cnt(const u8 *data)
 {
+	const struct ieee80211_multi_link_elem *mle = (const void *)data;
 	u16 control = le16_to_cpu(mle->control);
 	const u8 *common = mle->variable;
 
@@ -4863,7 +4889,7 @@ ieee80211_mle_get_bss_param_ch_cnt(const struct ieee80211_multi_link_elem *mle)
 	common += sizeof(struct ieee80211_mle_basic_common_info);
 
 	if (!(control & IEEE80211_MLC_BASIC_PRES_BSS_PARAM_CH_CNT))
-		return 0;
+		return -1;
 
 	if (control & IEEE80211_MLC_BASIC_PRES_LINK_ID)
 		common += 1;
@@ -4933,6 +4959,44 @@ static inline u16 ieee80211_mle_get_eml_cap(const u8 *data)
 }
 
 /**
+ * ieee80211_mle_get_mld_id - returns the MLD ID
+ * @data: pointer to the multi link element
+ *
+ * The element is assumed to be of the correct type (BASIC) and big enough,
+ * this must be checked using ieee80211_mle_type_ok().
+ *
+ * If the MLD ID is not present, 0 will be returned.
+ */
+static inline u8 ieee80211_mle_get_mld_id(const u8 *data)
+{
+	const struct ieee80211_multi_link_elem *mle = (const void *)data;
+	u16 control = le16_to_cpu(mle->control);
+	const u8 *common = mle->variable;
+
+	/*
+	 * common points now at the beginning of
+	 * ieee80211_mle_basic_common_info
+	 */
+	common += sizeof(struct ieee80211_mle_basic_common_info);
+
+	if (!(control & IEEE80211_MLC_BASIC_PRES_MLD_ID))
+		return 0;
+
+	if (control & IEEE80211_MLC_BASIC_PRES_LINK_ID)
+		common += 1;
+	if (control & IEEE80211_MLC_BASIC_PRES_BSS_PARAM_CH_CNT)
+		common += 1;
+	if (control & IEEE80211_MLC_BASIC_PRES_MED_SYNC_DELAY)
+		common += 2;
+	if (control & IEEE80211_MLC_BASIC_PRES_EML_CAPA)
+		common += 2;
+	if (control & IEEE80211_MLC_BASIC_PRES_MLD_CAPA_OP)
+		common += 2;
+
+	return *common;
+}
+
+/**
  * ieee80211_mle_size_ok - validate multi-link element size
  * @data: pointer to the element data
  * @len: length of the containing element
@@ -4945,7 +5009,7 @@ static inline bool ieee80211_mle_size_ok(const u8 *data, size_t len)
 	bool check_common_len = false;
 	u16 control;
 
-	if (len < fixed)
+	if (!data || len < fixed)
 		return false;
 
 	control = le16_to_cpu(mle->control);
@@ -5081,7 +5145,7 @@ static inline bool ieee80211_mle_basic_sta_prof_size_ok(const u8 *data,
 		info_len += 1;
 
 	return prof->sta_info_len >= info_len &&
-	       fixed + prof->sta_info_len <= len;
+	       fixed + prof->sta_info_len - 1 <= len;
 }
 
 /**

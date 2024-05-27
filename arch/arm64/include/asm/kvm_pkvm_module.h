@@ -149,6 +149,7 @@ enum pkvm_psci_notification {
  * @iommu_iotlb_gather_add_page: Add a page to the iotlb_gather druing unmap for the IOMMU.
  * @iommu_donate_pages_atomic:	Allocate memory from IOMMU identity pool.
  * @iommu_reclaim_pages_atomic:	Reclaim memory from iommu_donate_pages_atomic()
+ * @hyp_smp_processor_id:	Current CPU id
  */
 struct pkvm_module_ops {
 	int (*create_private_mapping)(phys_addr_t phys, size_t size,
@@ -202,7 +203,8 @@ struct pkvm_module_ops {
 	typeof(__list_add_valid_or_report) *list_add_valid_or_report;
 	typeof(__list_del_entry_valid_or_report) *list_del_entry_valid_or_report;
 #endif
-	void (*iommu_iotlb_gather_add_page)(void *cookie, struct iommu_iotlb_gather *gather,
+	void (*iommu_iotlb_gather_add_page)(struct kvm_hyp_iommu_domain *domain,
+					    struct iommu_iotlb_gather *gather,
 					    unsigned long iova, size_t size);
 	int (*register_hyp_event_ids)(unsigned long start, unsigned long end);
 	void* (*tracing_reserve_entry)(unsigned long length);
@@ -210,7 +212,7 @@ struct pkvm_module_ops {
 	void * (*iommu_donate_pages_atomic)(u8 order);
 	void (*iommu_reclaim_pages_atomic)(void *p, u8 order);
 	int (*iommu_snapshot_host_stage2)(struct kvm_hyp_iommu_domain *domain);
-
+	int (*hyp_smp_processor_id)(void);
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);

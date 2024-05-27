@@ -549,7 +549,7 @@ void path_get(const struct path *path)
 	mntget(path->mnt);
 	dget(path->dentry);
 }
-EXPORT_SYMBOL(path_get);
+EXPORT_SYMBOL_NS(path_get, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * path_put - put a reference to a path
@@ -2655,7 +2655,7 @@ int vfs_path_lookup(struct dentry *dentry, struct vfsmount *mnt,
 	putname(filename);
 	return ret;
 }
-EXPORT_SYMBOL(vfs_path_lookup);
+EXPORT_SYMBOL_NS(vfs_path_lookup, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static int lookup_one_common(struct mnt_idmap *idmap,
 			     const char *name, struct dentry *base, int len,
@@ -3044,7 +3044,7 @@ struct dentry *lock_rename(struct dentry *p1, struct dentry *p2)
 	mutex_lock(&p1->d_sb->s_vfs_rename_mutex);
 	return lock_two_directories(p1, p2);
 }
-EXPORT_SYMBOL(lock_rename);
+EXPORT_SYMBOL_NS(lock_rename, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * c1 and p2 should be on the same fs.
@@ -3096,7 +3096,7 @@ void unlock_rename(struct dentry *p1, struct dentry *p2)
 		mutex_unlock(&p1->d_sb->s_vfs_rename_mutex);
 	}
 }
-EXPORT_SYMBOL(unlock_rename);
+EXPORT_SYMBOL_NS(unlock_rename, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * mode_strip_umask - handle vfs umask stripping

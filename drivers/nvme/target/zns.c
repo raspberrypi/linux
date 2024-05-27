@@ -49,7 +49,7 @@ bool nvmet_bdev_zns_enable(struct nvmet_ns *ns)
 	 * not supported by ZNS. Exclude zoned drives that have such smaller
 	 * last zone.
 	 */
-	if (get_capacity(bd_disk) & (bdev_zone_sectors(ns->bdev) - 1))
+	if (!bdev_is_zone_start(bd_disk->part0, get_capacity(bd_disk)))
 		return false;
 	/*
 	 * ZNS does not define a conventional zone type. If the underlying
@@ -502,7 +502,7 @@ static void nvmet_bdev_zmgmt_send_work(struct work_struct *w)
 		goto out;
 	}
 
-	if (sect & (zone_sectors - 1)) {
+	if (!bdev_is_zone_start(bdev, sect)) {
 		req->error_loc = offsetof(struct nvme_zone_mgmt_send_cmd, slba);
 		status = NVME_SC_INVALID_FIELD | NVME_SC_DNR;
 		goto out;
@@ -560,7 +560,7 @@ void nvmet_bdev_execute_zone_append(struct nvmet_req *req)
 		goto out;
 	}
 
-	if (sect & (bdev_zone_sectors(req->ns->bdev) - 1)) {
+	if (!bdev_is_zone_start(req->ns->bdev, sect)) {
 		req->error_loc = offsetof(struct nvme_rw_command, slba);
 		status = NVME_SC_INVALID_FIELD | NVME_SC_DNR;
 		goto out;

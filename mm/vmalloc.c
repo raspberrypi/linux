@@ -47,6 +47,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmalloc.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 #include "internal.h"
 #include "pgalloc-track.h"
 
@@ -2558,6 +2561,7 @@ static inline void setup_vmalloc_vm_locked(struct vm_struct *vm,
 	vm->size = va->va_end - va->va_start;
 	vm->caller = caller;
 	va->vm = vm;
+	trace_android_vh_save_vmalloc_stack(flags, vm);
 }
 
 static void setup_vmalloc_vm(struct vm_struct *vm, struct vmap_area *va,
@@ -4431,6 +4435,7 @@ static int s_show(struct seq_file *m, void *p)
 		seq_puts(m, " vpages");
 
 	show_numa_info(m, v);
+	trace_android_vh_show_stack_hash(m, v);
 	seq_putc(m, '\n');
 
 	/*

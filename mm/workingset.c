@@ -16,6 +16,7 @@
 #include <linux/dax.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
+#include <trace/hooks/mm.h>
 
 /*
  *		Double CLOCK lists
@@ -513,6 +514,8 @@ void workingset_refault(struct folio *folio, void *shadow)
 	struct lruvec *lruvec;
 	bool workingset;
 	long nr;
+
+	trace_android_vh_count_workingset_refault(folio);
 
 	if (lru_gen_enabled()) {
 		lru_gen_refault(folio, shadow);

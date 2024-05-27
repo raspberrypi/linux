@@ -8,11 +8,14 @@ This module contains a full list of kernel modules
 
 _COMMON_GKI_MODULES_LIST = [
     # keep sorted
+    "drivers/block/virtio_blk.ko",
     "drivers/block/zram/zram.ko",
     "drivers/bluetooth/btbcm.ko",
     "drivers/bluetooth/btqca.ko",
     "drivers/bluetooth/btsdio.ko",
     "drivers/bluetooth/hci_uart.ko",
+    "drivers/char/virtio_console.ko",
+    "drivers/misc/vcpu_stall_detector.ko",
     "drivers/net/can/dev/can-dev.ko",
     "drivers/net/can/slcan/slcan.ko",
     "drivers/net/can/vcan.ko",
@@ -39,8 +42,12 @@ _COMMON_GKI_MODULES_LIST = [
     "drivers/pps/pps_core.ko",
     "drivers/ptp/ptp.ko",
     "drivers/usb/class/cdc-acm.ko",
+    "drivers/usb/mon/usbmon.ko",
     "drivers/usb/serial/ftdi_sio.ko",
     "drivers/usb/serial/usbserial.ko",
+    "drivers/virtio/virtio_balloon.ko",
+    "drivers/virtio/virtio_pci.ko",
+    "drivers/virtio/virtio_pci_modern_dev.ko",
     "kernel/kheaders.ko",
     "lib/crypto/libarc4.ko",
     "mm/zsmalloc.ko",
@@ -72,6 +79,7 @@ _COMMON_GKI_MODULES_LIST = [
     "net/rfkill/rfkill.ko",
     "net/tipc/diag.ko",
     "net/tipc/tipc.ko",
+    "net/vmw_vsock/vmw_vsock_virtio_transport.ko",
 ]
 
 # Deprecated - Use `get_gki_modules_list` function instead.
@@ -85,6 +93,8 @@ _ARM_GKI_MODULES_LIST = [
 _ARM64_GKI_MODULES_LIST = [
     # keep sorted
     "arch/arm64/geniezone/gzvm.ko",
+    "drivers/char/hw_random/cctrng.ko",
+    "drivers/misc/open-dice.ko",
     "drivers/ptp/ptp_kvm.ko",
 ]
 
@@ -96,6 +106,7 @@ _X86_GKI_MODULES_LIST = [
 _X86_64_GKI_MODULES_LIST = [
     # keep sorted
     "drivers/ptp/ptp_kvm.ko",
+    "drivers/virtio/virtio_pci_legacy_dev.ko",
 ]
 
 # buildifier: disable=unnamed-macro

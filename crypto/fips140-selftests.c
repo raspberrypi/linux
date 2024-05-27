@@ -9,8 +9,8 @@
  * module load time to fulfill FIPS 140 and NIAP FPT_TST_EXT.1 requirements.
  *
  * The actual requirements for these self-tests are somewhat vague, but
- * section 9 ("Self-Tests") of the FIPS 140-2 Implementation Guidance document
- * (https://csrc.nist.gov/csrc/media/projects/cryptographic-module-validation-program/documents/fips140-2/fips1402ig.pdf)
+ * section 10 ("Self-Tests") of the FIPS 140-3 Implementation Guidance document
+ * (https://csrc.nist.gov/csrc/media/Projects/cryptographic-module-validation-program/documents/fips%20140-3/FIPS%20140-3%20IG.pdf)
  * is somewhat helpful.  Basically, all implementations of all FIPS approved
  * algorithms (including modes of operation) must be tested.  However:
  *
@@ -550,9 +550,9 @@ out:
 #include "fips140-generated-testvecs.h"
 
 /*
- * List of all self-tests.  Keep this in sync with fips140_algorithms[].
+ * List of all self-tests.  Keep this in sync with fips140_algs[].
  *
- * When possible, we have followed the FIPS 140-2 Implementation Guidance (IG)
+ * When possible, we have followed the FIPS 140-3 Implementation Guidance (IG)
  * document when creating this list of tests.  The result is intended to be a
  * list of tests that is near-minimal (and thus minimizes runtime overhead)
  * while complying with all requirements.  For additional details, see the
@@ -874,12 +874,34 @@ static const struct fips_test fips140_selftests[] __initconst = {
 		}
 	},
 	/*
+	 * Test for SHA-3.  As per the IG, only one SHA-3 variant needs to be
+	 * tested.
+	 */
+	{
+		.alg		= "sha3-256",
+		.impls		= {
+			/* All implementations of "sha3-256" */
+			"sha3-256-generic",
+			/*
+			 * CONFIG_CRYPTO_SHA3_ARM64 is not currently enabled,
+			 * since SHA-3 is only needed by jitterentropy.
+			 */
+		},
+		.func		= fips_test_hash,
+		.hash		= {
+			.message	= fips_message,
+			.message_size	= sizeof(fips_message),
+			.digest		= fips_sha3_256_digest,
+			.digest_size	= sizeof(fips_sha3_256_digest)
+		}
+	},
+	/*
 	 * Known-answer tests for the SP800-90A DRBG algorithms.
 	 *
 	 * These test vectors were manually extracted from
 	 * https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/drbg/drbgtestvectors.zip.
 	 *
-	 * The selection of these tests follows the FIPS 140-2 IG as well as
+	 * The selection of these tests follows the FIPS 140-3 IG as well as
 	 * Section 11 of SP800-90A:
 	 *
 	 * - We must test all DRBG types (HMAC, Hash, and CTR) that the module

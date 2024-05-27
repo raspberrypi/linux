@@ -45,3 +45,35 @@
   __traceiter_android_rvh_refrigerator
   __tracepoint_android_rvh_refrigerator
   freezer_cgrp_subsys
+
+# required by trace_hook.ko
+  android_rvh_probe_register
+  __traceiter_android_rvh_context_switch
+  __tracepoint_android_rvh_context_switch
+
+# required by dw_wdt.ko
+  android_rvh_probe_register
+  __traceiter_android_rvh_fiq_dump
+  __tracepoint_android_rvh_fiq_dump
+
+#required by mi_sched.ko
+  __traceiter_android_vh_scheduler_tick
+  __traceiter_android_vh_free_user
+  __traceiter_android_vh_alloc_uid
+  __tracepoint_android_vh_scheduler_tick
+  __tracepoint_android_vh_free_user
+  __tracepoint_android_vh_alloc_uid
+  free_uid
+  find_user
+
+#required by mi_freqwdg.ko
+  __traceiter_android_vh_freq_qos_remove_request
+  __traceiter_android_vh_freq_qos_update_request
+  __traceiter_android_vh_freq_qos_add_request
+  __traceiter_android_rvh_entity_tick
+  __traceiter_android_rvh_dequeue_task_fair
+  __tracepoint_android_vh_freq_qos_remove_request
+  __tracepoint_android_vh_freq_qos_update_request
+  __tracepoint_android_vh_freq_qos_add_request
+  __tracepoint_android_rvh_dequeue_task_fair
+  __tracepoint_android_rvh_entity_tick

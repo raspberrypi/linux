@@ -622,6 +622,11 @@ struct cfs_rq {
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 #endif /* CONFIG_SMP */
 
+	/*
+	 * Store whether last update_load_avg() has decayed
+	 */
+	bool			decayed;
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	struct rq		*rq;	/* CPU runqueue to which this cfs_rq is attached */
 
@@ -972,6 +977,10 @@ struct balance_callback {
 	void (*func)(struct rq *rq);
 };
 
+typedef enum misfit_reason {
+	MISFIT_PERF,		/* Requires moving to a more performant CPU */
+} misfit_reason_t;
+
 /*
  * This is the main, per-CPU runqueue data structure.
  *
@@ -1186,6 +1195,10 @@ struct rq {
 #if defined(CONFIG_CFS_BANDWIDTH) && defined(CONFIG_SMP)
 	call_single_data_t	cfsb_csd;
 	struct list_head	cfsb_csd_list;
+#endif
+
+#ifdef CONFIG_SMP
+	misfit_reason_t		misfit_reason;
 #endif
 
 	ANDROID_OEM_DATA_ARRAY(1, 16);
