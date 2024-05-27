@@ -40,6 +40,8 @@
 #include "internal.h"
 #include "swap.h"
 
+#include <trace/hooks/madvise.h>
+
 struct madvise_walk_private {
 	struct mmu_gather *tlb;
 	bool pageout;
@@ -1320,6 +1322,7 @@ static int madvise_vma_anon_name(struct vm_area_struct *vma,
 	if (vma->vm_file && !vma_is_anon_shmem(vma))
 		return -EBADF;
 
+	trace_android_vh_update_vma_flags(vma);
 	error = madvise_update_vma(vma, prev, start, end, vma->vm_flags,
 				   (struct anon_vma_name *)anon_name);
 

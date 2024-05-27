@@ -2351,7 +2351,9 @@ static int prctl_set_vma(unsigned long opt, unsigned long addr,
 		}
 
 		mmap_write_lock(mm);
+		trace_android_vh_anon_vma_name_recog(mm, anon_name);
 		error = madvise_set_anon_name(mm, addr, size, anon_name);
+		trace_android_vh_restore_mm_flags(mm);
 		mmap_write_unlock(mm);
 		anon_vma_name_put(anon_name);
 		break;
