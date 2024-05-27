@@ -1,0 +1,18 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_net_psock_tpacket"
+        },
+        {
+          "include-filter": "kselftest_net_reuseaddr_conflict"
+        },
+        {
+          "include-filter": "kselftest_net_socket"
+        }
+      ]
+    }
+  ]
+}

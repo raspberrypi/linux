@@ -1,0 +1,33 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_timers_inconsistency_check"
+        },
+        {
+          "include-filter": "kselftest_timers_nanosleep"
+        },
+        {
+          "include-filter": "kselftest_timers_nsleep_lat"
+        },
+        {
+          "include-filter": "kselftest_timers_posix_timers"
+        },
+        {
+          "include-filter": "kselftest_timers_set_timer_lat"
+        },
+        {
+          "include-filter": "kselftest_timers_tests_raw_skew"
+        },
+        {
+          "include-filter": "kselftest_timers_threadtest"
+        },
+        {
+          "include-filter": "kselftest_timers_valid_adjtimex"
+        }
+      ]
+    }
+  ]
+}
