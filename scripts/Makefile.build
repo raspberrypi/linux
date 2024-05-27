@@ -272,14 +272,15 @@ rust_common_cmd = \
 	-Zallow-features=$(rust_allowed_features) \
 	-Zcrate-attr=no_std \
 	-Zcrate-attr='feature($(rust_allowed_features))' \
-	-Zunstable-options --extern force:alloc --extern kernel \
+	--extern alloc --extern kernel \
 	--crate-type rlib -L $(objtree)/rust/ \
 	--crate-name $(basename $(notdir $@)) \
+	--sysroot=/dev/null \
 	--out-dir $(dir $@) --emit=dep-info=$(depfile)
 
 
 CARGO_BUILD_RUSTFLAGS =  $(rust_flags)  \
-			-Zunstable-options --extern force:alloc --extern kernel \
+			--extern alloc --extern kernel \
 			--extern core --extern proc_macro --extern alloc \
 			-L $(abspath $(objtree))/rust/ \
 			--sysroot=/dev/null \
