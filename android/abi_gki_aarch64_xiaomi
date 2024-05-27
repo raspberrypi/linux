@@ -5,6 +5,9 @@
   tracepoint_probe_register
   tracepoint_probe_unregister
   cgroup_rm_cftypes
+  down_read_trylock
+  access_process_vm
+  file_path
 
 # required by shrink memory module
   shrink_slab
@@ -240,3 +243,21 @@
   proc_create_net_single
   put_cmsg
   sock_recv_errqueue
+
+# required by printk_enhance.ko
+  __tracepoint_android_vh_printk_caller
+  __tracepoint_android_vh_printk_caller_id
+  __traceiter_android_vh_printk_caller
+  __traceiter_android_vh_printk_caller_id
+
+# required by block2mtd.ko
+  bdi_register
+  lookup_bdev
+  bdi_alloc
+  bdi_put
+  bdi_unregister
+  nvmem_register
+  of_node_name_prefix
+  nvmem_unregister
+  blkdev_put
+  blkdev_get_by_path
