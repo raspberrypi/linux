@@ -1080,8 +1080,7 @@ fsck_err:
 
 static inline int btree_id_gc_phase_cmp(enum btree_id l, enum btree_id r)
 {
-	return  (int) btree_id_to_gc_phase(l) -
-		(int) btree_id_to_gc_phase(r);
+	return cmp_int(gc_btree_order(l), gc_btree_order(r));
 }
 
 static int bch2_gc_btrees(struct bch_fs *c, bool initial, bool metadata_only)
@@ -1126,7 +1125,7 @@ static void mark_metadata_sectors(struct bch_fs *c, struct bch_dev *ca,
 			min_t(u64, bucket_to_sector(ca, b + 1), end) - start;
 
 		bch2_mark_metadata_bucket(c, ca, b, type, sectors,
-					  gc_phase(GC_PHASE_SB), flags);
+					  gc_phase(GC_PHASE_sb), flags);
 		b++;
 		start += sectors;
 	} while (start < end);
@@ -1155,14 +1154,14 @@ static void bch2_mark_dev_superblock(struct bch_fs *c, struct bch_dev *ca,
 		b = ca->journal.buckets[i];
 		bch2_mark_metadata_bucket(c, ca, b, BCH_DATA_journal,
 					  ca->mi.bucket_size,
-					  gc_phase(GC_PHASE_SB), flags);
+					  gc_phase(GC_PHASE_sb), flags);
 	}
 }
 
 static void bch2_mark_superblocks(struct bch_fs *c)
 {
 	mutex_lock(&c->sb_lock);
-	gc_pos_set(c, gc_phase(GC_PHASE_SB));
+	gc_pos_set(c, gc_phase(GC_PHASE_sb));
 
 	for_each_online_member(c, ca)
 		bch2_mark_dev_superblock(c, ca, BTREE_TRIGGER_GC);
@@ -1773,7 +1772,7 @@ int bch2_gc(struct bch_fs *c, bool initial, bool metadata_only)
 	if (ret)
 		goto out;
 again:
-	gc_pos_set(c, gc_phase(GC_PHASE_START));
+	gc_pos_set(c, gc_phase(GC_PHASE_start));
 
 	bch2_mark_superblocks(c);
 
@@ -1800,7 +1799,7 @@ again:
 		 */
 		bch_info(c, "Second GC pass needed, restarting:");
 		clear_bit(BCH_FS_need_another_gc, &c->flags);
-		__gc_pos_set(c, gc_phase(GC_PHASE_NOT_RUNNING));
+		__gc_pos_set(c, gc_phase(GC_PHASE_not_running));
 
 		bch2_gc_stripes_reset(c, metadata_only);
 		bch2_gc_alloc_reset(c, metadata_only);
@@ -1827,7 +1826,7 @@ out:
 
 	percpu_down_write(&c->mark_lock);
 	/* Indicates that gc is no longer in progress: */
-	__gc_pos_set(c, gc_phase(GC_PHASE_NOT_RUNNING));
+	__gc_pos_set(c, gc_phase(GC_PHASE_not_running));
 
 	bch2_gc_free(c);
 	percpu_up_write(&c->mark_lock);

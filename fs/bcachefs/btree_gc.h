@@ -3,6 +3,7 @@
 #define _BCACHEFS_BTREE_GC_H
 
 #include "bkey.h"
+#include "btree_gc_types.h"
 #include "btree_types.h"
 
 int bch2_check_topology(struct bch_fs *);
@@ -35,38 +36,17 @@ int bch2_gc_thread_start(struct bch_fs *);
 /* Position of (the start of) a gc phase: */
 static inline struct gc_pos gc_phase(enum gc_phase phase)
 {
-	return (struct gc_pos) {
-		.phase	= phase,
-		.pos	= POS_MIN,
-		.level	= 0,
-	};
+	return (struct gc_pos) { .phase	= phase, };
 }
 
-static inline int gc_pos_cmp(struct gc_pos l, struct gc_pos r)
-{
-	return  cmp_int(l.phase, r.phase) ?:
-		bpos_cmp(l.pos, r.pos) ?:
-		cmp_int(l.level, r.level);
-}
-
-static inline enum gc_phase btree_id_to_gc_phase(enum btree_id id)
-{
-	switch (id) {
-#define x(name, v, ...) case BTREE_ID_##name: return GC_PHASE_BTREE_##name;
-	BCH_BTREE_IDS()
-#undef x
-	default:
-		BUG();
-	}
-}
-
-static inline struct gc_pos gc_pos_btree(enum btree_id id,
+static inline struct gc_pos gc_pos_btree(enum btree_id btree,
 					 struct bpos pos, unsigned level)
 {
 	return (struct gc_pos) {
-		.phase	= btree_id_to_gc_phase(id),
-		.pos	= pos,
+		.phase	= GC_PHASE_btree,
+		.btree	= btree,
 		.level	= level,
+		.pos	= pos,
 	};
 }
 
@@ -89,6 +69,22 @@ static inline struct gc_pos gc_pos_btree_node(struct btree *b)
 static inline struct gc_pos gc_pos_btree_root(enum btree_id id)
 {
 	return gc_pos_btree(id, SPOS_MAX, BTREE_MAX_DEPTH);
+}
+
+static inline int gc_btree_order(enum btree_id btree)
+{
+	if (btree == BTREE_ID_stripes)
+		return -1;
+	return btree;
+}
+
+static inline int gc_pos_cmp(struct gc_pos l, struct gc_pos r)
+{
+	return   cmp_int(l.phase, r.phase) ?:
+		 cmp_int(gc_btree_order(l.btree),
+			 gc_btree_order(r.btree)) ?:
+		-cmp_int(l.level, r.level) ?:
+		 bpos_cmp(l.pos, r.pos);
 }
 
 static inline bool gc_visited(struct bch_fs *c, struct gc_pos pos)
