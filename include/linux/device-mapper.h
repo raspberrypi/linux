@@ -401,6 +401,21 @@ struct dm_target {
 	 */
 	bool needs_bio_set_dev:1;
 
+	/*
+	 * Set if the target supports flush optimization. If all the targets in
+	 * a table have flush_bypasses_map set, the dm core will not send
+	 * flushes to the targets via a ->map method. It will iterate over
+	 * dm_table->devices and send flushes to the devices directly. This
+	 * optimization reduces the number of flushes being sent when multiple
+	 * targets in a table use the same underlying device.
+	 *
+	 * This optimization may be enabled on targets that just pass the
+	 * flushes to the underlying devices without performing any other
+	 * actions on the flush request. Currently, dm-linear and dm-stripe
+	 * support it.
+	 */
+	bool flush_bypasses_map:1;
+
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 };
