@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menuconfig GPIO_EXERCISE_RUST
+	bool "Rust gpio-led exerscise in rpbi4B"
+	depends on RUST
+	help
+	  You can build sample Rust kernel code here.
+
+	  If unsure, say N.
+
+if GPIO_EXERCISE_RUST
+
+config GPIO_LED_SAMPLE
+	tristate "Led_rpbi4B"
+	help
+	  This option builds the Rust gpio rpbi4B module sample in C.
+	  To compile this as a module, choose M here:
+	  If unsure, say N.
+
+config GPIO_LED_RUST
+	tristate "Led_rpbi4B in Rust"
+	help
+	  This option builds the Rust gpio rpbi4B module sample in C.
+	  To compile this as a module, choose M here:
+	  If unsure, say N.
+
+endif # GPIO_EXERCISE_RUST

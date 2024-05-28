@@ -124,6 +124,8 @@ config GPIO_IDIO_16
 menu "Memory mapped GPIO drivers"
 	depends on HAS_IOMEM
 
+source "drivers/gpio/exercise-3-gpio/Kconfig"
+
 config GPIO_74XX_MMIO
 	tristate "GPIO driver for 74xx-ICs with MMIO access"
 	depends on OF_GPIO
