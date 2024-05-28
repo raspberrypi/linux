@@ -2,6 +2,13 @@
   is_vmalloc_or_module_addr
   kfree
   __kmalloc
+  arch_vma_name
+  anon_vma_name
+  walk_page_range
+  vm_normal_page
+  pmd_clear_bad
+  __pmd_trans_huge_lock
+  __pte_offset_map_lock
   mod_node_page_state
   page_cache_sync_ra
   proc_create
