@@ -3589,10 +3589,10 @@ static void virtnet_rx_dim_work(struct work_struct *work)
 			if (err)
 				pr_debug("%s: Failed to send dim parameters on rxq%d\n",
 					 dev->name, qnum);
-			dim->state = DIM_START_MEASURE;
 		}
 	}
 
+	dim->state = DIM_START_MEASURE;
 	rtnl_unlock();
 }
 
