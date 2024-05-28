@@ -204,6 +204,8 @@
   __traceiter_android_vh_do_shrink_slab
   __traceiter_android_vh_drain_all_pages_bypass
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_rvh_dequeue_entity
+  __traceiter_android_rvh_enqueue_entity
   __traceiter_android_vh_exit_check
   __traceiter_android_vh_exit_signal
   __traceiter_android_vh_exit_signal_whether_wake
@@ -256,6 +258,7 @@
   __traceiter_android_vh_save_track_hash
   __traceiter_android_vh_save_vmalloc_stack
   __traceiter_android_vh_sched_move_task
+  __traceiter_android_rvh_sched_setaffinity
   __traceiter_android_vh_sched_setaffinity_early
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_should_alloc_pages_retry
@@ -335,6 +338,8 @@
   __tracepoint_android_vh_do_shrink_slab
   __tracepoint_android_vh_drain_all_pages_bypass
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_rvh_dequeue_entity
+  __tracepoint_android_rvh_enqueue_entity
   __tracepoint_android_vh_exit_check
   __tracepoint_android_vh_exit_signal
   __tracepoint_android_vh_exit_signal_whether_wake
@@ -387,6 +392,7 @@
   __tracepoint_android_vh_save_track_hash
   __tracepoint_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_sched_move_task
+  __tracepoint_android_rvh_sched_setaffinity
   __tracepoint_android_vh_sched_setaffinity_early
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_should_alloc_pages_retry
