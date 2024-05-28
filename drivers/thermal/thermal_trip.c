@@ -152,7 +152,7 @@ void thermal_zone_set_trip_temp(struct thermal_zone_device *tz,
 	if (trip->temperature == temp)
 		return;
 
-	trip->temperature = temp;
+	WRITE_ONCE(trip->temperature, temp);
 	thermal_notify_tz_trip_change(tz, trip);
 
 	if (temp == THERMAL_TEMP_INVALID) {
