@@ -107,3 +107,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cpu_cgroup_css_alloc);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cpu_cgroup_css_free);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_reweight_entity);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_context_switch);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmput);
