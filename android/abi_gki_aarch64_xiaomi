@@ -160,3 +160,44 @@
   __break_lease
   __d_lookup_unhash_wake
   __fs_parse
+
+# required by tls.ko
+  tcp_rate_check_app_limited
+  __sk_mem_reclaim
+  tcp_register_ulp
+  tcp_unregister_ulp
+  sk_msg_free
+  sk_msg_zerocopy_from_iter
+  sk_msg_trim
+  sk_msg_memcopy_from_iter
+  sk_stream_wait_memory
+  sk_stream_error
+  sk_msg_recvmsg
+  sk_psock_tls_strp_read
+  skb_splice_bits
+  sk_msg_alloc
+  sk_psock_msg_verdict
+  sk_msg_return_zero
+  tcp_bpf_sendmsg_redir
+  sk_msg_free_nocharge
+  sk_msg_free_partial
+  sk_msg_clone
+  iov_iter_npages
+  skb_copy_header
+  __sk_flush_backlog
+  sk_psock_drop
+  tcp_read_done
+  tcp_recv_skb
+  memcg_sockets_enabled_key
+  tcp_memory_pressure
+  memory_cgrp_subsys_on_dfl_key
+  iov_iter_bvec
+  tcp_sendmsg_locked
+  tcp_poll
+  iov_iter_extract_pages
+  iov_iter_get_pages2
+  tcp_read_sock
+  crypto_req_done
+  proc_create_net_single
+  put_cmsg
+  sock_recv_errqueue
