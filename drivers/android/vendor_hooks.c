@@ -68,6 +68,7 @@
 #include <trace/hooks/sd.h>
 #include <trace/hooks/user.h>
 #include <trace/hooks/fuse.h>
+#include <trace/hooks/psi.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -391,3 +392,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_traversal_lruvec);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_should_be_protected);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mark_page_accessed);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_madvise_cold_pageout_skip);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_psi_event);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_psi_group);
