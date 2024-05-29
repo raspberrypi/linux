@@ -37,6 +37,7 @@
   sysctl_max_skb_frags
   find_vm_area
   profile_event_unregister
+  binder_alloc_copy_from_buffer
   ufshcd_query_descriptor_retry
   ufshcd_query_attr
   nvmem_device_find
