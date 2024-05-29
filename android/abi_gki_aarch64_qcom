@@ -146,7 +146,9 @@
   __clk_mux_determine_rate_closest
   clk_prepare
   clk_put
+  clk_restore_context
   clk_round_rate
+  clk_save_context
   clk_set_parent
   clk_set_rate
   clk_sync_state
