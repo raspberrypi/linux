@@ -47,6 +47,7 @@
 #include <trace/hooks/fpsimd.h>
 #include <trace/hooks/preemptirq.h>
 #include <trace/hooks/mm.h>
+#include <trace/hooks/fs.h>
 #include <trace/hooks/dtask.h>
 #include <trace/hooks/ftrace_dump.h>
 #include <trace/hooks/traps.h>
@@ -387,6 +388,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapmem_gather_add_bypass);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapmem_gather_finish);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_oom_swapmem_gather_init);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_oom_swapmem_gather_finish);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_f2fs_file_open);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_alloc_uid);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_free_user);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_save_vmalloc_stack);
