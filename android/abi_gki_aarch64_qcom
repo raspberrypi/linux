@@ -806,6 +806,7 @@
   idr_preload
   idr_remove
   iio_read_channel_processed
+  iio_write_channel_raw
   in4_pton
   inc_node_page_state
   in_egroup_p
