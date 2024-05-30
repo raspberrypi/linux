@@ -83,6 +83,7 @@
   __mod_lruvec_state
   __mod_zone_page_state
   mount_nodev
+  memcg_kmem_online_key
   neigh_xmit
   netif_receive_skb_core
   nf_ct_attach
@@ -149,6 +150,7 @@
   static_key_enable
   stpcpy
   strncmp
+  stack_depot_print
   task_rq_lock
   tcf_action_exec
   tcf_exts_destroy
