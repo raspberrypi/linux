@@ -390,3 +390,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_del_page_from_lrulist);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_traversal_lruvec);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_page_should_be_protected);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mark_page_accessed);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_madvise_cold_pageout_skip);
