@@ -90,26 +90,31 @@
 	/* Add the physical <-> DMA mapping for the I/O space */
 	dma-ranges = <0xc0000000  0x0 0x00000000  0x40000000>,
 		     <0x7c000000  0x0 0xfc000000  0x03800000>;
+	nvmem {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
 
-	nvmem_otp: nvmem_otp {
-		compatible = "raspberrypi,rpi-otp";
-		firmware = <&firmware>;
-		reg = <0 166>;
-		status = "okay";
-	};
+		nvmem_otp: nvmem_otp {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <0 166>;
+			status = "okay";
+		};
 
-	nvmem_cust: nvmem_cust {
-		compatible = "raspberrypi,rpi-otp";
-		firmware = <&firmware>;
-		reg = <1 8>;
-		status = "okay";
-	};
+		nvmem_cust: nvmem_cust {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <1 8>;
+			status = "okay";
+		};
 
-	nvmem_priv: nvmem_priv {
-		compatible = "raspberrypi,rpi-otp";
-		firmware = <&firmware>;
-		reg = <3 8>;
-		status = "okay";
+		nvmem_priv: nvmem_priv {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <3 8>;
+			status = "okay";
+		};
 	};
 };
 
