@@ -1450,7 +1450,6 @@ cc_library(
 cc_binary_with_abi(
     name = "kselftest_mm_thuge_gen",
     srcs = [
-        "tools/testing/selftests/mm/mlock2.h",
         "tools/testing/selftests/mm/thuge-gen.c",
     ],
     copts = [
@@ -1470,7 +1469,6 @@ cc_binary_with_abi(
 cc_binary_with_abi(
     name = "kselftest_mm_transhuge_stress",
     srcs = [
-        "tools/testing/selftests/mm/mlock2.h",
         "tools/testing/selftests/mm/transhuge-stress.c",
     ],
     copts = [
