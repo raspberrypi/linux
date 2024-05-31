@@ -1090,11 +1090,26 @@
   __mmap_lock_do_trace_released
   __mmap_lock_do_trace_start_locking
   mmc_cqe_request_done
+  mmc_execute_tuning
+  mmc_hs200_tuning
+  mmc_issue_type
   mmc_of_parse
   mmc_regulator_get_supply
   mmc_regulator_set_ocr
   mmc_regulator_set_vqmmc
+  mmc_retune_hold
+  mmc_select_bus_width
+  mmc_select_card
+  mmc_select_hs
+  mmc_select_hs400
+  mmc_select_hs_ddr
+  mmc_select_timing
   mmc_send_tuning
+  mmc_set_bus_mode
+  mmc_set_bus_width
+  mmc_set_clock
+  mmc_set_initial_state
+  mmc_set_timing
   __mmdrop
   mmput
   mod_delayed_work_on
@@ -1962,6 +1977,7 @@
   __traceiter_android_vh_ipi_stop
   __traceiter_android_vh_jiffies_update
   __traceiter_android_vh_mmap_region
+  __traceiter_android_vh_mmc_sdio_pm_flag_set
   __traceiter_android_vh_mpam_set
   __traceiter_android_vh_printk_hotplug
   __traceiter_android_vh_rproc_recovery
@@ -2058,6 +2074,7 @@
   __tracepoint_android_vh_ipi_stop
   __tracepoint_android_vh_jiffies_update
   __tracepoint_android_vh_mmap_region
+  __tracepoint_android_vh_mmc_sdio_pm_flag_set
   __tracepoint_android_vh_mpam_set
   __tracepoint_android_vh_printk_hotplug
   __tracepoint_android_vh_rproc_recovery
