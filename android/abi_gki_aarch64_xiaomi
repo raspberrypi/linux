@@ -261,3 +261,17 @@
   nvmem_unregister
   blkdev_put
   blkdev_get_by_path
+  generic_shutdown_super
+  sget_dev
+  deactivate_locked_super
+  fixed_size_llseek
+  blk_mq_alloc_sq_tag_set
+  blk_queue_flag_clear
+  blk_mq_freeze_queue
+  blk_mq_unfreeze_queue
+  blk_update_request
+  __blk_mq_end_request
+  ktime_get_coarse_real_ts64
+  set_capacity
+  blk_queue_flag_clear
+  blk_mq_unfreeze_queue
