@@ -281,3 +281,16 @@
   set_capacity
   blk_queue_flag_clear
   blk_mq_unfreeze_queue
+
+#required by mi_mempool.ko
+  __traceiter_android_vh_mmput
+  __tracepoint_android_vh_mmput
+  __traceiter_android_vh_madvise_cold_pageout_skip
+  __tracepoint_android_vh_madvise_cold_pageout_skip
+
+#required by io_limit.ko
+  __traceiter_android_vh_psi_event
+  __traceiter_android_vh_psi_group
+  __tracepoint_android_vh_psi_event
+  __tracepoint_android_vh_psi_group
+
