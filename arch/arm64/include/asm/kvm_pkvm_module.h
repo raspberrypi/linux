@@ -292,10 +292,11 @@ int pkvm_load_early_modules(void);
 	__pkvm_load_el2_module(THIS_MODULE, token);			\
 })
 
-#define pkvm_register_el2_mod_call(hfn, token)				\
-({									\
-	__pkvm_register_el2_call(pkvm_el2_mod_va(hfn, token));		\
-})
+static inline int pkvm_register_el2_mod_call(dyn_hcall_t hfn,
+					     unsigned long token)
+{
+	return __pkvm_register_el2_call(pkvm_el2_mod_va(hfn, token));
+}
 
 #define pkvm_el2_mod_call(id, ...)					\
 	({								\
