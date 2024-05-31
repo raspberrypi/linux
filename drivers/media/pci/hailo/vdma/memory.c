@@ -8,11 +8,11 @@
 #include "memory.h"
 #include "utils/compact.h"
 
+#include <linux/highmem-internal.h>
 #include <linux/slab.h>
 #include <linux/scatterlist.h>
 #include <linux/sched.h>
 #include <linux/module.h>
-
 
 #define SGL_MAX_SEGMENT_SIZE 	(0x10000)
 // See linux/mm.h
@@ -498,6 +498,38 @@ void hailo_vdma_clear_continuous_buffer_list(struct hailo_vdma_file_context *con
         kfree(cur);
     }
 }
+
+/**
+ * follow_pfn - look up PFN at a user virtual address
+ * @vma: memory mapping
+ * @address: user virtual address
+ * @pfn: location to store found PFN
+ *
+ * Only IO mappings and raw PFN mappings are allowed.
+ *
+ * This function does not allow the caller to read the permissions
+ * of the PTE.  Do not use it.
+ *
+ * Return: zero and the pfn at @pfn on success, -ve otherwise.
+ */
+static int follow_pfn(struct vm_area_struct *vma, unsigned long address,
+       unsigned long *pfn)
+{
+       int ret = -EINVAL;
+       spinlock_t *ptl;
+       pte_t *ptep;
+
+       if (!(vma->vm_flags & (VM_IO | VM_PFNMAP)))
+               return ret;
+
+       ret = follow_pte(vma, address, &ptep, &ptl);
+       if (ret)
+               return ret;
+       *pfn = pte_pfn(ptep_get(ptep));
+       pte_unmap_unlock(ptep, ptl);
+       return 0;
+}
+
 
 // Assumes the provided user_address belongs to the vma and that MMIO_AND_NO_PAGES_VMA_MASK bits are set under
 // vma->vm_flags. This is validated in hailo_vdma_buffer_map, and won't be checked here
