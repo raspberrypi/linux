@@ -62,6 +62,12 @@
   scsi_device_lookup
   scsi_host_lookup
   scsi_device_lookup
+  __traceiter_android_vh_anon_vma_name_recog
+  __traceiter_android_vh_restore_mm_flags
+  __traceiter_android_vh_update_vma_flags
+  __tracepoint_android_vh_anon_vma_name_recog
+  __tracepoint_android_vh_restore_mm_flags
+  __tracepoint_android_vh_update_vma_flags
 
 #required by metis.ko module
   __traceiter_android_vh_rwsem_read_wait_start
