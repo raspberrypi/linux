@@ -77,7 +77,7 @@ static int rpi_panel_v2_update_status(struct backlight_device *bl)
 	int brightness = bl->props.brightness;
 
 	if (bl->props.power != FB_BLANK_UNBLANK ||
-	    bl->props.fb_blank != FB_BLANK_UNBLANK)
+	    bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
 		brightness = 0;
 
 	return regmap_write(regmap, REG_PWM, brightness | PWM_BL_ENABLE);
