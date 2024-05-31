@@ -30,7 +30,6 @@
 
 &genet_mdio {
 	clock-frequency = <1950000>;
-	/delete-node/ leds;
 };
 
 &led_pwr {
