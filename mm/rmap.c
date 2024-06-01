@@ -81,8 +81,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/tlb.h>
 #include <trace/events/migrate.h>
-#undef CREATE_TRACE_POINTS
-#include <trace/hooks/mm.h>
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/mm.h>
@@ -187,8 +185,6 @@ static void anon_vma_chain_link(struct vm_area_struct *vma,
  * for the new allocation. At the same time, we do not want
  * to do any locking for the common case of already having
  * an anon_vma.
- *
- * This must be called with the mmap_lock held for reading.
  */
 int __anon_vma_prepare(struct vm_area_struct *vma)
 {
@@ -196,6 +192,7 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	struct anon_vma *anon_vma, *allocated;
 	struct anon_vma_chain *avc;
 
+	mmap_assert_locked(mm);
 	might_sleep();
 
 	avc = anon_vma_chain_alloc(GFP_KERNEL);
@@ -1163,6 +1160,7 @@ int folio_total_mapcount(struct folio *folio)
 	mapcount += nr_pages;
 	return mapcount;
 }
+EXPORT_SYMBOL_GPL(folio_total_mapcount);
 
 static __always_inline unsigned int __folio_add_rmap(struct folio *folio,
 		struct page *page, int nr_pages, enum rmap_level level,
@@ -1170,13 +1168,16 @@ static __always_inline unsigned int __folio_add_rmap(struct folio *folio,
 {
 	atomic_t *mapped = &folio->_nr_pages_mapped;
 	int first, nr = 0;
-
+	bool success = false;
 	__folio_rmap_sanity_checks(folio, page, nr_pages, level);
 
 	switch (level) {
 	case RMAP_LEVEL_PTE:
 		do {
-			first = atomic_inc_and_test(&page->_mapcount);
+			trace_android_vh_update_page_mapcount(page, true,
+				false, &first, &success);
+			if (!success)
+				first = atomic_inc_and_test(&page->_mapcount);
 			if (first && folio_test_large(folio)) {
 				first = atomic_inc_return_relaxed(mapped);
 				first = (first < ENTIRELY_MAPPED);
@@ -1513,13 +1514,17 @@ static __always_inline void __folio_remove_rmap(struct folio *folio,
 	atomic_t *mapped = &folio->_nr_pages_mapped;
 	int last, nr = 0, nr_pmdmapped = 0;
 	enum node_stat_item idx;
+	bool success = false;
 
 	__folio_rmap_sanity_checks(folio, page, nr_pages, level);
 
 	switch (level) {
 	case RMAP_LEVEL_PTE:
 		do {
-			last = atomic_add_negative(-1, &page->_mapcount);
+			trace_android_vh_update_page_mapcount(page, false,
+				false, &last, &success);
+			if (!success)
+				last = atomic_add_negative(-1, &page->_mapcount);
 			if (last && folio_test_large(folio)) {
 				last = atomic_dec_return_relaxed(mapped);
 				last = (last < ENTIRELY_MAPPED);

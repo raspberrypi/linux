@@ -4,6 +4,7 @@
   alt_cb_patch_nops
   __arch_copy_from_user
   __arch_copy_to_user
+  blk_crypto_reprogram_all_keys
   capable
   __check_object_size
   class_create
@@ -43,6 +44,7 @@
   mutex_lock
   mutex_unlock
   __per_cpu_offset
+  perf_aux_output_skip
   prepare_to_wait_event
   _printk
   put_device

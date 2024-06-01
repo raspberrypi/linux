@@ -3283,13 +3283,15 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 {
 	struct rq_flags rf;
 	struct rq *rq;
+	bool skip_user_ptr = false;
 
+	trace_android_rvh_set_cpus_allowed_ptr(p, ctx, &skip_user_ptr);
 	rq = task_rq_lock(p, &rf);
 	/*
 	 * Masking should be skipped if SCA_USER or any of the SCA_MIGRATE_*
 	 * flags are set.
 	 */
-	if (p->user_cpus_ptr &&
+	if (!skip_user_ptr && p->user_cpus_ptr &&
 	    !(ctx->flags & (SCA_USER | SCA_MIGRATE_ENABLE | SCA_MIGRATE_DISABLE)) &&
 	    cpumask_and(rq->scratch_mask, ctx->new_mask, p->user_cpus_ptr))
 		ctx->new_mask = rq->scratch_mask;

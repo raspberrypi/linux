@@ -9,6 +9,9 @@
 #include <linux/userfaultfd_k.h>
 #include <linux/swapops.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 /**
  * folio_is_file_lru - Should the folio be on a file LRU or anon LRU?
  * @folio: The folio to test.
@@ -322,6 +325,7 @@ void lruvec_add_folio(struct lruvec *lruvec, struct folio *folio)
 	if (lru_gen_add_folio(lruvec, folio, false))
 		return;
 
+	trace_android_vh_add_page_to_lrulist(folio, false, lru);
 	update_lru_size(lruvec, lru, folio_zonenum(folio),
 			folio_nr_pages(folio));
 	if (lru != LRU_UNEVICTABLE)
@@ -336,6 +340,7 @@ void lruvec_add_folio_tail(struct lruvec *lruvec, struct folio *folio)
 	if (lru_gen_add_folio(lruvec, folio, true))
 		return;
 
+	trace_android_vh_add_page_to_lrulist(folio, false, lru);
 	update_lru_size(lruvec, lru, folio_zonenum(folio),
 			folio_nr_pages(folio));
 	/* This is not expected to be used on LRU_UNEVICTABLE */
@@ -350,6 +355,7 @@ void lruvec_del_folio(struct lruvec *lruvec, struct folio *folio)
 	if (lru_gen_del_folio(lruvec, folio, false))
 		return;
 
+	trace_android_vh_del_page_from_lrulist(folio, false, lru);
 	if (lru != LRU_UNEVICTABLE)
 		list_del(&folio->lru);
 	update_lru_size(lruvec, lru, folio_zonenum(folio),

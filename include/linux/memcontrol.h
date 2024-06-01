@@ -366,6 +366,8 @@ enum page_memcg_data_flags {
 
 static inline bool folio_memcg_kmem(struct folio *folio);
 
+void do_traversal_all_lruvec(void);
+
 /*
  * After the initialization objcg->memcg is always pointing at
  * a valid memcg, but can be atomically swapped to the parent memcg.
@@ -1196,6 +1198,10 @@ static inline bool folio_memcg_kmem(struct folio *folio)
 static inline bool PageMemcgKmem(struct page *page)
 {
 	return false;
+}
+
+static inline void do_traversal_all_lruvec(void)
+{
 }
 
 static inline bool mem_cgroup_is_root(struct mem_cgroup *memcg)
