@@ -22,6 +22,7 @@
 #include "smb2proto.h"
 #include "fs_context.h"
 #include "cached_dir.h"
+#include "reparse.h"
 
 /*
  * To be safe - for UCS to UTF-8 with strings loaded with the rare long
@@ -54,23 +55,6 @@ static inline void dump_cifs_file_struct(struct file *file, char *label)
 {
 }
 #endif /* DEBUG2 */
-
-/*
- * Match a reparse point inode if reparse tag and ctime haven't changed.
- *
- * Windows Server updates ctime of reparse points when their data have changed.
- * The server doesn't allow changing reparse tags from existing reparse points,
- * though it's worth checking.
- */
-static inline bool reparse_inode_match(struct inode *inode,
-				       struct cifs_fattr *fattr)
-{
-	struct timespec64 ctime = inode_get_ctime(inode);
-
-	return (CIFS_I(inode)->cifsAttrs & ATTR_REPARSE) &&
-		CIFS_I(inode)->reparse_tag == fattr->cf_cifstag &&
-		timespec64_equal(&ctime, &fattr->cf_ctime);
-}
 
 /*
  * Attempt to preload the dcache with the results from the FIND_FIRST/NEXT
@@ -133,14 +117,16 @@ retry:
 				 * Query dir responses don't provide enough
 				 * information about reparse points other than
 				 * their reparse tags.  Save an invalidation by
-				 * not clobbering the existing mode, size and
-				 * symlink target (if any) when reparse tag and
-				 * ctime haven't changed.
+				 * not clobbering some existing attributes when
+				 * reparse tag and ctime haven't changed.
 				 */
 				rc = 0;
 				if (fattr->cf_cifsattrs & ATTR_REPARSE) {
 					if (likely(reparse_inode_match(inode, fattr))) {
 						fattr->cf_mode = inode->i_mode;
+						fattr->cf_rdev = inode->i_rdev;
+						fattr->cf_uid = inode->i_uid;
+						fattr->cf_gid = inode->i_gid;
 						fattr->cf_eof = CIFS_I(inode)->server_eof;
 						fattr->cf_symlink_target = NULL;
 					} else {
@@ -647,10 +633,10 @@ static int cifs_entry_is_dot(struct cifs_dirent *de, bool is_unicode)
 static int is_dir_changed(struct file *file)
 {
 	struct inode *inode = file_inode(file);
-	struct cifsInodeInfo *cifsInfo = CIFS_I(inode);
+	struct cifsInodeInfo *cifs_inode_info = CIFS_I(inode);
 
-	if (cifsInfo->time == 0)
-		return 1; /* directory was changed, perhaps due to unlink */
+	if (cifs_inode_info->time == 0)
+		return 1; /* directory was changed, e.g. unlink or new file */
 	else
 		return 0;
 

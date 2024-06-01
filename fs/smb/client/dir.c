@@ -627,11 +627,18 @@ int cifs_mknod(struct mnt_idmap *idmap, struct inode *inode,
 		goto mknod_out;
 	}
 
+	trace_smb3_mknod_enter(xid, tcon->ses->Suid, tcon->tid, full_path);
+
 	rc = tcon->ses->server->ops->make_node(xid, inode, direntry, tcon,
 					       full_path, mode,
 					       device_number);
 
 mknod_out:
+	if (rc)
+		trace_smb3_mknod_err(xid,  tcon->ses->Suid, tcon->tid, rc);
+	else
+		trace_smb3_mknod_done(xid, tcon->ses->Suid, tcon->tid);
+
 	free_dentry_path(page);
 	free_xid(xid);
 	cifs_put_tlink(tlink);
@@ -695,9 +702,10 @@ cifs_lookup(struct inode *parent_dir_inode, struct dentry *direntry,
 		 full_path, d_inode(direntry));
 
 again:
-	if (pTcon->posix_extensions)
-		rc = smb311_posix_get_inode_info(&newInode, full_path, parent_dir_inode->i_sb, xid);
-	else if (pTcon->unix_ext) {
+	if (pTcon->posix_extensions) {
+		rc = smb311_posix_get_inode_info(&newInode, full_path, NULL,
+						 parent_dir_inode->i_sb, xid);
+	} else if (pTcon->unix_ext) {
 		rc = cifs_get_inode_info_unix(&newInode, full_path,
 					      parent_dir_inode->i_sb, xid);
 	} else {

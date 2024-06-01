@@ -1102,14 +1102,16 @@ reopen_success:
 		if (!is_interrupt_error(rc))
 			mapping_set_error(inode->i_mapping, rc);
 
-		if (tcon->posix_extensions)
-			rc = smb311_posix_get_inode_info(&inode, full_path, inode->i_sb, xid);
-		else if (tcon->unix_ext)
+		if (tcon->posix_extensions) {
+			rc = smb311_posix_get_inode_info(&inode, full_path,
+							 NULL, inode->i_sb, xid);
+		} else if (tcon->unix_ext) {
 			rc = cifs_get_inode_info_unix(&inode, full_path,
 						      inode->i_sb, xid);
-		else
+		} else {
 			rc = cifs_get_inode_info(&inode, full_path, NULL,
 						 inode->i_sb, xid, NULL);
+		}
 	}
 	/*
 	 * Else we are writing out data to server already and could deadlock if
@@ -1149,6 +1151,19 @@ void smb2_deferred_work_close(struct work_struct *work)
 	_cifsFileInfo_put(cfile, true, false);
 }
 
+static bool
+smb2_can_defer_close(struct inode *inode, struct cifs_deferred_close *dclose)
+{
+	struct cifs_sb_info *cifs_sb = CIFS_SB(inode->i_sb);
+	struct cifsInodeInfo *cinode = CIFS_I(inode);
+
+	return (cifs_sb->ctx->closetimeo && cinode->lease_granted && dclose &&
+			(cinode->oplock == CIFS_CACHE_RHW_FLG ||
+			 cinode->oplock == CIFS_CACHE_RH_FLG) &&
+			!test_bit(CIFS_INO_CLOSE_ON_LOCK, &cinode->flags));
+
+}
+
 int cifs_close(struct inode *inode, struct file *file)
 {
 	struct cifsFileInfo *cfile;
@@ -1162,10 +1177,8 @@ int cifs_close(struct inode *inode, struct file *file)
 		cfile = file->private_data;
 		file->private_data = NULL;
 		dclose = kmalloc(sizeof(struct cifs_deferred_close), GFP_KERNEL);
-		if ((cifs_sb->ctx->closetimeo && cinode->oplock == CIFS_CACHE_RHW_FLG)
-		    && cinode->lease_granted &&
-		    !test_bit(CIFS_INO_CLOSE_ON_LOCK, &cinode->flags) &&
-		    dclose) {
+		if ((cfile->status_file_deleted == false) &&
+		    (smb2_can_defer_close(inode, dclose))) {
 			if (test_and_clear_bit(CIFS_INO_MODIFIED_ATTR, &cinode->flags)) {
 				inode_set_mtime_to_ts(inode,
 						      inode_set_ctime_current(inode));
@@ -3202,8 +3215,15 @@ static int cifs_write_end(struct file *file, struct address_space *mapping,
 	if (rc > 0) {
 		spin_lock(&inode->i_lock);
 		if (pos > inode->i_size) {
+			loff_t additional_blocks = (512 - 1 + copied) >> 9;
+
 			i_size_write(inode, pos);
-			inode->i_blocks = (512 - 1 + pos) >> 9;
+			/*
+			 * Estimate new allocation size based on the amount written.
+			 * This will be updated from server on close (and on queryinfo)
+			 */
+			inode->i_blocks = min_t(blkcnt_t, (512 - 1 + pos) >> 9,
+						inode->i_blocks + additional_blocks);
 		}
 		spin_unlock(&inode->i_lock);
 	}
@@ -3411,6 +3431,7 @@ cifs_resend_wdata(struct cifs_writedata *wdata, struct list_head *wdata_list,
 			if (wdata->cfile->invalidHandle)
 				rc = -EAGAIN;
 			else {
+				wdata->replay = true;
 #ifdef CONFIG_CIFS_SMB_DIRECT
 				if (wdata->mr) {
 					wdata->mr->need_invalidate = true;
