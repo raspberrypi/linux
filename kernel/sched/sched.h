@@ -622,9 +622,7 @@ struct cfs_rq {
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 #endif /* CONFIG_SMP */
 
-	/*
-	 * Store whether last update_load_avg() has decayed
-	 */
+	 /* Unused, only kept here to preserve the KMI after revert. */
 	bool			decayed;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
