@@ -196,6 +196,10 @@
 		bcm2712;
 	};
 
+	pcie-compat-pi5 {
+		bcm2712;
+	};
+
 	pi3-act-led {
 		renamed = "act-led";
 	};
@@ -263,6 +267,7 @@
 	sdio {
 		bcm2835;
 		bcm2711;
+		bcm2712 = "sdio-pi5";
 	};
 
 	sdio-1bit {

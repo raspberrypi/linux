@@ -881,6 +881,7 @@ _RPI_OVERLAY_OUTS = [
     "arch/arm64/boot/dts/overlays/pcf857x.dtbo",
     "arch/arm64/boot/dts/overlays/pcie-32bit-dma.dtbo",
     "arch/arm64/boot/dts/overlays/pcie-32bit-dma-pi5.dtbo",
+    "arch/arm64/boot/dts/overlays/pciex1-compat-pi5.dtbo",
     "arch/arm64/boot/dts/overlays/pibell.dtbo",
     "arch/arm64/boot/dts/overlays/pifacedigital.dtbo",
     "arch/arm64/boot/dts/overlays/pifi-40.dtbo",

@@ -87,6 +87,39 @@ static const struct backlight_ops rpi_panel_v2_bl = {
 	.update_status	= rpi_panel_v2_update_status,
 };
 
+static int rpi_panel_v2_i2c_read(struct i2c_client *client, u8 reg, unsigned int *buf)
+{
+	struct i2c_msg msgs[1];
+	u8 addr_buf[1] = { reg };
+	u8 data_buf[1] = { 0, };
+	int ret;
+
+	/* Write register address */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = ARRAY_SIZE(addr_buf);
+	msgs[0].buf = addr_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	usleep_range(5000, 10000);
+
+	/* Read data from register */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = I2C_M_RD;
+	msgs[0].len = 1;
+	msgs[0].buf = data_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	*buf = data_buf[0];
+	return 0;
+}
+
 /*
  * I2C driver interface functions
  */
@@ -104,6 +137,7 @@ static int rpi_panel_v2_i2c_probe(struct i2c_client *i2c)
 		return -ENOMEM;
 
 	mutex_init(&state->lock);
+	i2c_set_clientdata(i2c, state);
 
 	regmap = devm_regmap_init_i2c(i2c, &rpi_panel_regmap_config);
 	if (IS_ERR(regmap)) {
@@ -113,7 +147,7 @@ static int rpi_panel_v2_i2c_probe(struct i2c_client *i2c)
 		goto error;
 	}
 
-	ret = regmap_read(regmap, REG_ID, &data);
+	ret = rpi_panel_v2_i2c_read(i2c, REG_ID, &data);
 	if (ret < 0) {
 		dev_err(&i2c->dev, "Failed to read REG_ID reg: %d\n", ret);
 		goto error;
@@ -168,6 +202,21 @@ error:
 	return ret;
 }
 
+static void rpi_panel_v2_i2c_remove(struct i2c_client *client)
+{
+	struct rpi_panel_v2_lcd *state = i2c_get_clientdata(client);
+
+	mutex_destroy(&state->lock);
+}
+
+static void rpi_panel_v2_i2c_shutdown(struct i2c_client *client)
+{
+	struct rpi_panel_v2_lcd *state = i2c_get_clientdata(client);
+
+	regmap_write(state->regmap, REG_PWM, 0);
+	regmap_write(state->regmap, REG_POWERON, 0);
+}
+
 static const struct of_device_id rpi_panel_v2_dt_ids[] = {
 	{ .compatible = "raspberrypi,v2-touchscreen-panel-regulator" },
 	{},
@@ -180,6 +229,8 @@ static struct i2c_driver rpi_panel_v2_regulator_driver = {
 		.of_match_table = of_match_ptr(rpi_panel_v2_dt_ids),
 	},
 	.probe = rpi_panel_v2_i2c_probe,
+	.remove	= rpi_panel_v2_i2c_remove,
+	.shutdown = rpi_panel_v2_i2c_shutdown,
 };
 
 module_i2c_driver(rpi_panel_v2_regulator_driver);
