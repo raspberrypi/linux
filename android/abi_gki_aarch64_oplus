@@ -26,6 +26,7 @@
   dget_parent
   d_invalidate
   dma_buf_get_each
+  do_traversal_all_lruvec
   down_read_trylock
   down_write_killable
   d_rehash
@@ -82,6 +83,7 @@
   __mod_lruvec_state
   __mod_zone_page_state
   mount_nodev
+  memcg_kmem_online_key
   neigh_xmit
   netif_receive_skb_core
   nf_ct_attach
@@ -148,6 +150,7 @@
   static_key_enable
   stpcpy
   strncmp
+  stack_depot_print
   task_rq_lock
   tcf_action_exec
   tcf_exts_destroy
@@ -161,7 +164,9 @@
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_rtmutex_force_update
   __traceiter_android_rvh_set_cpus_allowed_comm
+  __traceiter_android_rvh_set_balance_anon_file_reclaim
   __traceiter_android_vh_account_process_tick_gran
+  __traceiter_android_vh_add_page_to_lrulist
   __traceiter_android_vh_adjust_alloc_flags
   __traceiter_android_vh_alloc_oem_binder_struct
   __traceiter_android_vh_alloc_pages_failure_bypass
@@ -198,12 +203,16 @@
   __traceiter_android_vh_cpu_cgroup_css_free
   __traceiter_android_vh_cpufreq_acct_update_power
   __traceiter_android_vh_customize_alloc_gfp
+  __traceiter_android_vh_del_page_from_lrulist
   __traceiter_android_vh_dm_bufio_shrink_scan_bypass
   __traceiter_android_vh_do_futex
   __traceiter_android_vh_do_send_sig_info
   __traceiter_android_vh_do_shrink_slab
+  __traceiter_android_vh_do_traversal_lruvec
   __traceiter_android_vh_drain_all_pages_bypass
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_rvh_dequeue_entity
+  __traceiter_android_rvh_enqueue_entity
   __traceiter_android_vh_exit_check
   __traceiter_android_vh_exit_signal
   __traceiter_android_vh_exit_signal_whether_wake
@@ -226,6 +235,7 @@
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
   __traceiter_android_vh_map_util_freq
+  __traceiter_android_vh_mark_page_accessed
   __traceiter_android_vh_mem_cgroup_alloc
   __traceiter_android_vh_mem_cgroup_css_offline
   __traceiter_android_vh_mem_cgroup_css_online
@@ -237,6 +247,8 @@
   __traceiter_android_vh_mutex_opt_spin_start
   __traceiter_android_vh_mutex_unlock_slowpath
   __traceiter_android_vh_page_add_new_anon_rmap
+  __traceiter_android_vh_page_referenced_check_bypass
+  __traceiter_android_vh_page_should_be_protected
   __traceiter_android_vh_percpu_rwsem_wq_add
   __traceiter_android_vh_ra_tuning_max_page
   __traceiter_android_vh_record_mutex_lock_starttime
@@ -256,9 +268,11 @@
   __traceiter_android_vh_save_track_hash
   __traceiter_android_vh_save_vmalloc_stack
   __traceiter_android_vh_sched_move_task
+  __traceiter_android_rvh_sched_setaffinity
   __traceiter_android_vh_sched_setaffinity_early
   __traceiter_android_vh_sched_stat_runtime_rt
   __traceiter_android_vh_should_alloc_pages_retry
+  __traceiter_android_vh_show_mapcount_pages
   __traceiter_android_vh_show_stack_hash
   __traceiter_android_vh_shrink_slab_bypass
   __traceiter_android_vh_si_mem_available_adjust
@@ -271,6 +285,7 @@
   __traceiter_android_vh_tune_scan_type
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_unreserve_highatomic_bypass
+  __traceiter_android_vh_update_page_mapcount
   __traceiter_block_bio_queue
   __traceiter_block_getrq
   __traceiter_block_rq_complete
@@ -292,7 +307,9 @@
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_rtmutex_force_update
   __tracepoint_android_rvh_set_cpus_allowed_comm
+  __tracepoint_android_rvh_set_balance_anon_file_reclaim
   __tracepoint_android_vh_account_process_tick_gran
+  __tracepoint_android_vh_add_page_to_lrulist
   __tracepoint_android_vh_adjust_alloc_flags
   __tracepoint_android_vh_alloc_oem_binder_struct
   __tracepoint_android_vh_alloc_pages_failure_bypass
@@ -329,12 +346,16 @@
   __tracepoint_android_vh_cpu_cgroup_css_free
   __tracepoint_android_vh_cpufreq_acct_update_power
   __tracepoint_android_vh_customize_alloc_gfp
+  __tracepoint_android_vh_del_page_from_lrulist
   __tracepoint_android_vh_dm_bufio_shrink_scan_bypass
   __tracepoint_android_vh_do_futex
   __tracepoint_android_vh_do_send_sig_info
   __tracepoint_android_vh_do_shrink_slab
+  __tracepoint_android_vh_do_traversal_lruvec
   __tracepoint_android_vh_drain_all_pages_bypass
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_rvh_dequeue_entity
+  __tracepoint_android_rvh_enqueue_entity
   __tracepoint_android_vh_exit_check
   __tracepoint_android_vh_exit_signal
   __tracepoint_android_vh_exit_signal_whether_wake
@@ -357,6 +378,7 @@
   __tracepoint_android_vh_look_around
   __tracepoint_android_vh_look_around_migrate_folio
   __tracepoint_android_vh_map_util_freq
+  __tracepoint_android_vh_mark_page_accessed
   __tracepoint_android_vh_mem_cgroup_alloc
   __tracepoint_android_vh_mem_cgroup_css_offline
   __tracepoint_android_vh_mem_cgroup_css_online
@@ -368,6 +390,8 @@
   __tracepoint_android_vh_mutex_opt_spin_start
   __tracepoint_android_vh_mutex_unlock_slowpath
   __tracepoint_android_vh_page_add_new_anon_rmap
+  __tracepoint_android_vh_page_referenced_check_bypass
+  __tracepoint_android_vh_page_should_be_protected
   __tracepoint_android_vh_percpu_rwsem_wq_add
   __tracepoint_android_vh_ra_tuning_max_page
   __tracepoint_android_vh_record_mutex_lock_starttime
@@ -387,9 +411,11 @@
   __tracepoint_android_vh_save_track_hash
   __tracepoint_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_sched_move_task
+  __tracepoint_android_rvh_sched_setaffinity
   __tracepoint_android_vh_sched_setaffinity_early
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_should_alloc_pages_retry
+  __tracepoint_android_vh_show_mapcount_pages
   __tracepoint_android_vh_show_stack_hash
   __tracepoint_android_vh_shrink_slab_bypass
   __tracepoint_android_vh_si_mem_available_adjust
@@ -402,6 +428,7 @@
   __tracepoint_android_vh_tune_scan_type
   __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_unreserve_highatomic_bypass
+  __tracepoint_android_vh_update_page_mapcount
   __tracepoint_block_bio_queue
   __tracepoint_block_getrq
   __tracepoint_block_rq_complete
@@ -420,6 +447,8 @@
   __tracepoint_sched_stat_wait
   __tracepoint_sched_waking
   __tracepoint_task_rename
+  folio_total_mapcount
+  page_mapping
   __trace_puts
   truncate_inode_pages
   try_to_free_mem_cgroup_pages

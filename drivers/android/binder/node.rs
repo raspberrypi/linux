@@ -25,6 +25,108 @@ use crate::{
     DArc, DLArc, DTRWrap, DeliverToRead,
 };
 
+mod wrapper;
+pub(crate) use self::wrapper::CritIncrWrapper;
+
+#[derive(Debug)]
+pub(crate) struct CouldNotDeliverCriticalIncrement;
+
+/// Keeps track of how this node is scheduled.
+///
+/// There are two ways to schedule a node to a work list. Just schedule the node itself, or
+/// allocate a wrapper that references the node and schedule the wrapper. These wrappers exists to
+/// make it possible to "move" a node from one list to another - when `do_work` is called directly
+/// on the `Node`, then it's a no-op if there's also a pending wrapper.
+///
+/// Wrappers are generally only needed for zero-to-one refcount increments, and there are two cases
+/// of this: weak increments and strong increments. We call such increments "critical" because it
+/// is critical that they are delivered to the thread doing the increment. Some examples:
+///
+/// * One thread makes a zero-to-one strong increment, and another thread makes a zero-to-one weak
+///   increment. Delivering the node to the thread doing the weak increment is wrong, since the
+///   thread doing the strong increment may have ended a long time ago when the command is actually
+///   processed by userspace.
+///
+/// * We have a weak reference and are about to drop it on one thread. But then another thread does
+///   a zero-to-one strong increment. If the strong increment gets sent to the thread that was
+///   about to drop the weak reference, then the strong increment could be processed after the
+///   other thread has already exited, which would be too late.
+///
+/// Note that trying to create a `ListArc` to the node can succeed even if `has_normal_push` is
+/// set. This is because another thread might just have popped the node from a todo list, but not
+/// yet called `do_work`. However, if `has_normal_push` is false, then creating a `ListArc` should
+/// always succeed.
+///
+/// Like the other fields in `NodeInner`, the delivery state is protected by the process lock.
+struct DeliveryState {
+    /// Is the `Node` currently scheduled?
+    has_pushed_node: bool,
+
+    /// Is a wrapper currently scheduled?
+    ///
+    /// The wrapper is used only for strong zero2one increments.
+    has_pushed_wrapper: bool,
+
+    /// Is the currently scheduled `Node` scheduled due to a weak zero2one increment?
+    ///
+    /// Weak zero2one operations are always scheduled using the `Node`.
+    has_weak_zero2one: bool,
+
+    /// Is the currently scheduled wrapper/`Node` scheduled due to a strong zero2one increment?
+    ///
+    /// If `has_pushed_wrapper` is set, then the strong zero2one increment was scheduled using the
+    /// wrapper. Otherwise, `has_pushed_node` must be set and it was scheduled using the `Node`.
+    has_strong_zero2one: bool,
+}
+
+impl DeliveryState {
+    fn should_normal_push(&self) -> bool {
+        !self.has_pushed_node && !self.has_pushed_wrapper
+    }
+
+    fn did_normal_push(&mut self) {
+        assert!(self.should_normal_push());
+        self.has_pushed_node = true;
+    }
+
+    fn should_push_weak_zero2one(&self) -> bool {
+        !self.has_weak_zero2one && !self.has_strong_zero2one
+    }
+
+    fn can_push_weak_zero2one_normally(&self) -> bool {
+        !self.has_pushed_node
+    }
+
+    fn did_push_weak_zero2one(&mut self) {
+        assert!(self.should_push_weak_zero2one());
+        assert!(self.can_push_weak_zero2one_normally());
+        self.has_pushed_node = true;
+        self.has_weak_zero2one = true;
+    }
+
+    fn should_push_strong_zero2one(&self) -> bool {
+        !self.has_strong_zero2one
+    }
+
+    fn can_push_strong_zero2one_normally(&self) -> bool {
+        !self.has_pushed_node
+    }
+
+    fn did_push_strong_zero2one(&mut self) {
+        assert!(self.should_push_strong_zero2one());
+        assert!(self.can_push_strong_zero2one_normally());
+        self.has_pushed_node = true;
+        self.has_strong_zero2one = true;
+    }
+
+    fn did_push_strong_zero2one_wrapper(&mut self) {
+        assert!(self.should_push_strong_zero2one());
+        assert!(!self.can_push_strong_zero2one_normally());
+        self.has_pushed_wrapper = true;
+        self.has_strong_zero2one = true;
+    }
+}
+
 struct CountState {
     /// The reference count.
     count: usize,
@@ -47,6 +149,7 @@ struct NodeInner {
     strong: CountState,
     /// Weak refcounts held on this node by `NodeRef` objects.
     weak: CountState,
+    delivery_state: DeliveryState,
     /// The binder driver guarantees that oneway transactions sent to the same node are serialized,
     /// that is, userspace will not be given the next one until it has finished processing the
     /// previous oneway transaction. This is done to avoid the case where two oneway transactions
@@ -117,6 +220,12 @@ impl Node {
                 NodeInner {
                     strong: CountState::new(),
                     weak: CountState::new(),
+                    delivery_state: DeliveryState {
+                        has_pushed_node: false,
+                        has_pushed_wrapper: false,
+                        has_weak_zero2one: false,
+                        has_strong_zero2one: false,
+                    },
                     death_list: List::new(),
                     oneway_todo: List::new(),
                     has_oneway_transaction: false,
@@ -248,14 +357,14 @@ impl Node {
     }
 
     pub(crate) fn inc_ref_done_locked(
-        &self,
+        self: &DArc<Node>,
         _strong: bool,
         owner_inner: &mut ProcessInner,
-    ) -> bool {
+    ) -> Option<DLArc<Node>> {
         let inner = self.inner.access_mut(owner_inner);
         if inner.active_inc_refs == 0 {
             pr_err!("inc_ref_done called when no active inc_refs");
-            return false;
+            return None;
         }
 
         inner.active_inc_refs -= 1;
@@ -272,19 +381,27 @@ impl Node {
 
             // If we want to drop the ref-count again, tell the caller to schedule a work node for
             // that.
-            should_drop_weak || should_drop_strong
+            let need_push = should_drop_weak || should_drop_strong;
+
+            if need_push && inner.delivery_state.should_normal_push() {
+                let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+                inner.delivery_state.did_normal_push();
+                Some(list_arc)
+            } else {
+                None
+            }
         } else {
-            false
+            None
         }
     }
 
     pub(crate) fn update_refcount_locked(
-        &self,
+        self: &DArc<Node>,
         inc: bool,
         strong: bool,
         count: usize,
         owner_inner: &mut ProcessInner,
-    ) -> bool {
+    ) -> Option<DLArc<Node>> {
         let is_dead = owner_inner.is_dead;
         let inner = self.inner.access_mut(owner_inner);
 
@@ -296,16 +413,86 @@ impl Node {
         };
 
         // Update the count and determine whether we need to push work.
-        if inc {
+        let need_push = if inc {
             state.count += count;
+            // TODO: This method shouldn't be used for zero-to-one increments.
             !is_dead && !state.has_count
         } else {
             if state.count < count {
                 pr_err!("Failure: refcount underflow!");
-                return false;
+                return None;
             }
             state.count -= count;
             !is_dead && state.count == 0 && state.has_count
+        };
+
+        if need_push && inner.delivery_state.should_normal_push() {
+            let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+            inner.delivery_state.did_normal_push();
+            Some(list_arc)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn incr_refcount_allow_zero2one(
+        self: &DArc<Self>,
+        strong: bool,
+        owner_inner: &mut ProcessInner,
+    ) -> Result<Option<DLArc<Node>>, CouldNotDeliverCriticalIncrement> {
+        let is_dead = owner_inner.is_dead;
+        let inner = self.inner.access_mut(owner_inner);
+
+        // Get a reference to the state we'll update.
+        let state = if strong {
+            &mut inner.strong
+        } else {
+            &mut inner.weak
+        };
+
+        // Update the count and determine whether we need to push work.
+        state.count += 1;
+        if is_dead || state.has_count {
+            return Ok(None);
+        }
+
+        // Userspace needs to be notified of this.
+        if !strong && inner.delivery_state.should_push_weak_zero2one() {
+            assert!(inner.delivery_state.can_push_weak_zero2one_normally());
+            let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+            inner.delivery_state.did_push_weak_zero2one();
+            Ok(Some(list_arc))
+        } else if strong && inner.delivery_state.should_push_strong_zero2one() {
+            if inner.delivery_state.can_push_strong_zero2one_normally() {
+                let list_arc = ListArc::try_from_arc(self.clone()).ok().unwrap();
+                inner.delivery_state.did_push_strong_zero2one();
+                Ok(Some(list_arc))
+            } else {
+                state.count -= 1;
+                Err(CouldNotDeliverCriticalIncrement)
+            }
+        } else {
+            // Work is already pushed, and we don't need to push again.
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn incr_refcount_allow_zero2one_with_wrapper(
+        self: &DArc<Self>,
+        strong: bool,
+        wrapper: CritIncrWrapper,
+        owner_inner: &mut ProcessInner,
+    ) -> Option<DLArc<dyn DeliverToRead>> {
+        match self.incr_refcount_allow_zero2one(strong, owner_inner) {
+            Ok(Some(node)) => Some(node as _),
+            Ok(None) => None,
+            Err(CouldNotDeliverCriticalIncrement) => {
+                assert!(strong);
+                let inner = self.inner.access_mut(owner_inner);
+                inner.strong.count += 1;
+                inner.delivery_state.did_push_strong_zero2one_wrapper();
+                Some(wrapper.init(self.clone()))
+            }
         }
     }
 
@@ -430,12 +617,15 @@ impl Node {
         }
         None
     }
-}
 
-impl DeliverToRead for Node {
-    fn do_work(self: DArc<Self>, _thread: &Thread, writer: &mut UserSliceWriter) -> Result<bool> {
-        let mut owner_inner = self.owner.inner.lock();
-        let inner = self.inner.access_mut(&mut owner_inner);
+    /// This is split into a separate function since it's called by both `Node::do_work` and
+    /// `NodeWrapper::do_work`.
+    fn do_work_locked(
+        &self,
+        writer: &mut UserSliceWriter,
+        mut guard: Guard<'_, ProcessInner, SpinLockBackend>,
+    ) -> Result<bool> {
+        let inner = self.inner.access_mut(&mut guard);
         let strong = inner.strong.count > 0;
         let has_strong = inner.strong.has_count;
         let weak = strong || inner.weak.count > 0;
@@ -462,9 +652,9 @@ impl DeliverToRead for Node {
         }
         if no_active_inc_refs && !weak {
             // Remove the node if there are no references to it.
-            owner_inner.remove_node(self.ptr);
+            guard.remove_node(self.ptr);
         }
-        drop(owner_inner);
+        drop(guard);
 
         if weak && !has_weak {
             self.write(writer, BR_INCREFS)?;
@@ -480,6 +670,30 @@ impl DeliverToRead for Node {
         }
 
         Ok(true)
+    }
+}
+
+impl DeliverToRead for Node {
+    fn do_work(self: DArc<Self>, _thread: &Thread, writer: &mut UserSliceWriter) -> Result<bool> {
+        let mut owner_inner = self.owner.inner.lock();
+        let inner = self.inner.access_mut(&mut owner_inner);
+
+        assert!(inner.delivery_state.has_pushed_node);
+        if inner.delivery_state.has_pushed_wrapper {
+            // If the wrapper is scheduled, then we are either a normal push or weak zero2one
+            // increment, and the wrapper is a strong zero2one increment, so the wrapper always
+            // takes precedence over us.
+            assert!(inner.delivery_state.has_strong_zero2one);
+            inner.delivery_state.has_pushed_node = false;
+            inner.delivery_state.has_weak_zero2one = false;
+            return Ok(true);
+        }
+
+        inner.delivery_state.has_pushed_node = false;
+        inner.delivery_state.has_weak_zero2one = false;
+        inner.delivery_state.has_strong_zero2one = false;
+
+        self.do_work_locked(writer, owner_inner)
     }
 
     fn cancel(self: DArc<Self>) {}
