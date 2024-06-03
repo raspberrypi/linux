@@ -26,7 +26,6 @@
 #include <linux/timer.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/platform_device.h>
 #include <linux/syscalls.h>
 
 #include <media/v4l2-mem2mem.h>
@@ -35,6 +34,8 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
 #include <media/videobuf2-dma-contig.h>
+
+#include "../interface/vchiq_arm/vchiq_bus.h"
 
 #include "../vchiq-mmal/mmal-encodings.h"
 #include "../vchiq-mmal/mmal-msg.h"
@@ -674,7 +675,7 @@ struct bcm2835_codec_q_data {
 };
 
 struct bcm2835_codec_dev {
-	struct platform_device *pdev;
+	struct vchiq_device    *device;
 
 	/* v4l2 devices */
 	struct v4l2_device	v4l2_dev;
@@ -731,7 +732,7 @@ struct bcm2835_codec_ctx {
 };
 
 struct bcm2835_codec_driver {
-	struct platform_device *pdev;
+	struct vchiq_device    *device;
 	struct media_device	mdev;
 
 	struct bcm2835_codec_dev *encode;
@@ -3232,7 +3233,7 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->buf_struct_size = sizeof(struct m2m_mmal_buffer);
 	src_vq->ops = &bcm2835_codec_qops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
-	src_vq->dev = &ctx->dev->pdev->dev;
+	src_vq->dev = &ctx->dev->device->dev;
 	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	src_vq->lock = &ctx->dev->dev_mutex;
 
@@ -3246,7 +3247,7 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->buf_struct_size = sizeof(struct m2m_mmal_buffer);
 	dst_vq->ops = &bcm2835_codec_qops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
-	dst_vq->dev = &ctx->dev->pdev->dev;
+	dst_vq->dev = &ctx->dev->device->dev;
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	dst_vq->lock = &ctx->dev->dev_mutex;
 
@@ -3678,7 +3679,7 @@ static int bcm2835_codec_get_supported_fmts(struct bcm2835_codec_dev *dev)
 	/* Assume at this stage that all encodings will be supported in V4L2.
 	 * Any that aren't supported will waste a very small amount of memory.
 	 */
-	list = devm_kzalloc(&dev->pdev->dev,
+	list = devm_kzalloc(&dev->device->dev,
 			    sizeof(struct bcm2835_codec_fmt) * num_encodings,
 			    GFP_KERNEL);
 	if (!list) {
@@ -3719,7 +3720,7 @@ static int bcm2835_codec_get_supported_fmts(struct bcm2835_codec_dev *dev)
 		num_encodings = param_size / sizeof(u32);
 	}
 	/* Assume at this stage that all encodings will be supported in V4L2. */
-	list = devm_kzalloc(&dev->pdev->dev,
+	list = devm_kzalloc(&dev->device->dev,
 			    sizeof(struct bcm2835_codec_fmt) * num_encodings,
 			    GFP_KERNEL);
 	if (!list) {
@@ -3750,22 +3751,22 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 				struct bcm2835_codec_dev **new_dev,
 				enum bcm2835_codec_role role)
 {
-	struct platform_device *pdev = drv->pdev;
+	struct vchiq_device *device = drv->device;
 	struct bcm2835_codec_dev *dev;
 	struct video_device *vfd;
 	int function;
 	int video_nr;
 	int ret;
 
-	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
+	dev = devm_kzalloc(&device->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
 
-	dev->pdev = pdev;
+	dev->device = device;
 
 	dev->role = role;
 
-	ret = vchiq_mmal_init(&dev->instance);
+	ret = vchiq_mmal_init(&device->dev, &dev->instance);
 	if (ret)
 		return ret;
 
@@ -3785,7 +3786,7 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 	vfd->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
 	vfd->v4l2_dev->mdev = &drv->mdev;
 
-	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
+	ret = v4l2_device_register(&device->dev, &dev->v4l2_dev);
 	if (ret)
 		goto vchiq_finalise;
 
@@ -3891,24 +3892,24 @@ static int bcm2835_codec_destroy(struct bcm2835_codec_dev *dev)
 	return 0;
 }
 
-static int bcm2835_codec_probe(struct platform_device *pdev)
+static int bcm2835_codec_probe(struct vchiq_device *device)
 {
 	struct bcm2835_codec_driver *drv;
 	struct media_device *mdev;
 	int ret = 0;
 
-	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
+	drv = devm_kzalloc(&device->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
 
-	drv->pdev = pdev;
+	drv->device = device;
 	mdev = &drv->mdev;
-	mdev->dev = &pdev->dev;
+	mdev->dev = &device->dev;
 
 	strscpy(mdev->model, bcm2835_codec_videodev.name, sizeof(mdev->model));
 	strscpy(mdev->serial, "0000", sizeof(mdev->serial));
-	snprintf(mdev->bus_info, sizeof(mdev->bus_info), "platform:%s",
-		 pdev->name);
+	snprintf(mdev->bus_info, sizeof(mdev->bus_info), "vchiq:%s",
+		 MEM2MEM_NAME);
 
 	/* This should return the vgencmd version information or such .. */
 	mdev->hw_revision = 1;
@@ -3938,7 +3939,7 @@ static int bcm2835_codec_probe(struct platform_device *pdev)
 	if (media_device_register(mdev) < 0)
 		goto out;
 
-	platform_set_drvdata(pdev, drv);
+	vchiq_set_drvdata(device, drv);
 
 	return 0;
 
@@ -3966,9 +3967,9 @@ out:
 	return ret;
 }
 
-static int bcm2835_codec_remove(struct platform_device *pdev)
+static void bcm2835_codec_remove(struct vchiq_device *device)
 {
-	struct bcm2835_codec_driver *drv = platform_get_drvdata(pdev);
+	struct bcm2835_codec_driver *drv = vchiq_get_drvdata(device);
 
 	media_device_unregister(&drv->mdev);
 
@@ -3983,11 +3984,9 @@ static int bcm2835_codec_remove(struct platform_device *pdev)
 	bcm2835_codec_destroy(drv->decode);
 
 	media_device_cleanup(&drv->mdev);
-
-	return 0;
 }
 
-static struct platform_driver bcm2835_v4l2_codec_driver = {
+static struct vchiq_driver bcm2835_v4l2_codec_driver = {
 	.probe = bcm2835_codec_probe,
 	.remove = bcm2835_codec_remove,
 	.driver = {
@@ -3996,10 +3995,10 @@ static struct platform_driver bcm2835_v4l2_codec_driver = {
 		   },
 };
 
-module_platform_driver(bcm2835_v4l2_codec_driver);
+module_vchiq_driver(bcm2835_v4l2_codec_driver);
 
 MODULE_DESCRIPTION("BCM2835 codec V4L2 driver");
 MODULE_AUTHOR("Dave Stevenson, <dave.stevenson@raspberrypi.com>");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("0.0.1");
-MODULE_ALIAS("platform:bcm2835-codec");
+MODULE_ALIAS("vchiq:bcm2835-codec");
