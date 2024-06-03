@@ -48,6 +48,7 @@
 #include <linux/types.h>
 #include <asm/cacheflush.h>
 
+#include "vchiq_connected.h"
 #include "vc_sm_cma_vchi.h"
 
 #include "vc_sm.h"
@@ -1387,9 +1388,6 @@ static void vc_sm_connected_init(void)
 	 * Initialize and create a VCHI connection for the shared memory service
 	 * running on videocore.
 	 */
-#if 1
-	ret = -1;
-#else
 	ret = vchiq_initialise(&sm_state->vchiq_instance);
 	if (ret) {
 		pr_err("[%s]: failed to initialise VCHI instance (ret=%d)\n",
@@ -1397,7 +1395,7 @@ static void vc_sm_connected_init(void)
 
 		return;
 	}
-#endif
+
 	ret = vchiq_connect(sm_state->vchiq_instance);
 	if (ret) {
 		pr_err("[%s]: failed to connect VCHI instance (ret=%d)\n",
@@ -1488,9 +1486,7 @@ static int bcm2835_vc_sm_cma_probe(struct platform_device *pdev)
 	/* dma_set_max_seg_size checks if dma_parms is NULL. */
 	dma_set_max_seg_size(&pdev->dev, 0x3FFFFFFF);
 
-#if 0
 	vchiq_add_connected_callback(vc_sm_connected_init);
-#endif
 	return 0;
 }
 
