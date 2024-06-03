@@ -110,6 +110,7 @@
 
 &cam_node {
 	status = "okay";
+	led-gpios = <&spi_bridge 19 GPIO_ACTIVE_HIGH>;
 	reset-gpios = <&spi_bridge 20 GPIO_ACTIVE_HIGH>;
 	clocks = <&clk_aicam_gated>;
 	spi = <&spi_bridgedev0>;

@@ -966,6 +966,7 @@ struct imx500 {
 	struct clk *xclk;
 	u32 xclk_freq;
 
+	struct gpio_desc *led_gpio;
 	struct gpio_desc *reset_gpio;
 	struct regulator_bulk_data supplies[IMX500_NUM_SUPPLIES];
 
@@ -1989,7 +1990,10 @@ static int imx500_state_transition(struct imx500 *imx500, const u8 *fw,
 		}
 
 		/* Do SPI transfer */
+		gpiod_set_value_cansleep(imx500->led_gpio, 1);
 		ret = imx500_spi_write(imx500, data, size);
+		gpiod_set_value_cansleep(imx500->led_gpio, 0);
+
 		imx500->fw_progress += size;
 
 		if (ret < 0)
@@ -2668,6 +2672,8 @@ static int imx500_probe(struct i2c_client *client)
 		dev_err(dev, "failed to get regulators\n");
 		return ret;
 	}
+
+	imx500->led_gpio = devm_gpiod_get_optional(dev, "led", GPIOD_OUT_LOW);
 
 	imx500->reset_gpio =
 		devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
