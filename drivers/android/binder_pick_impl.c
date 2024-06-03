@@ -22,12 +22,6 @@
 #endif
 #endif
 
-#ifndef CONFIG_ANDROID_BINDER_IPC_RUST
-#ifdef CONFIG_ANDROID_BINDER_IPC_DEFAULT_IS_RUST
-#error "The default Binder driver implementation is Rust, but the Rust implementation is disabled"
-#endif
-#endif
-
 #ifndef CONFIG_ANDROID_BINDER_IPC_C
 #ifndef CONFIG_ANDROID_BINDER_IPC_DEFAULT_IS_RUST
 #error "The default Binder driver implementation is C, but the C implementation is disabled"
@@ -35,7 +29,9 @@
 #endif
 
 bool binder_use_rust = IS_ENABLED(CONFIG_ANDROID_BINDER_IPC_DEFAULT_IS_RUST);
+EXPORT_SYMBOL_GPL(binder_use_rust);
 bool binder_driver_initialized;
+EXPORT_SYMBOL_GPL(binder_driver_initialized);
 
 static int binder_param_set(const char *buffer, const struct kernel_param *kp)
 {
