@@ -1,9 +1,4 @@
 ccflags-y += \
-	-I$(srctree)/$(src)/../ \
-	-I$(srctree)/$(src)/../interface/vchiq_arm\
-	-I$(srctree)/$(src)/../include
-
-ccflags-y += \
 	-D__VCCOREVER__=0
 
 vc-sm-cma-$(CONFIG_BCM_VC_SM_CMA) := \
