@@ -13,7 +13,7 @@
 #ifndef __VC_SM_CMA_VCHI_H__INCLUDED__
 #define __VC_SM_CMA_VCHI_H__INCLUDED__
 
-#include <linux/raspberrypi/vchiq.h>
+#include "../include/linux/raspberrypi/vchiq.h"
 
 #include "vc_sm_defs.h"
 
