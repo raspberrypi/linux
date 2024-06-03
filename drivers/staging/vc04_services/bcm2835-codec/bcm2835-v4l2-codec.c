@@ -3765,11 +3765,7 @@ static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 
 	dev->role = role;
 
-#if 1
-	ret = -1;
-#else
 	ret = vchiq_mmal_init(&dev->instance);
-#endif
 	if (ret)
 		return ret;
 
