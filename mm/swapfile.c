@@ -3276,6 +3276,27 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 		goto free_swap_address_space;
 	}
 
+	if (IS_ENABLED(CONFIG_THP_SWAP) && (swap_flags & SWAP_FLAG_MTHP_RESERVE)) {
+		int order = (swap_flags & SWAP_FLAG_MTHP_RESERVE_ORDER_MASK)
+				>> SWAP_FLAG_MTHP_RESERVE_ORDER_SHIFT;
+		int percent = (swap_flags & SWAP_FLAG_MTHP_RESERVE_PERCENT_MASK)
+				>> SWAP_FLAG_MTHP_RESERVE_PERCENT_SHIFT;
+
+		if (order < 1 || order >= SWAP_NR_ORDERS) {
+			pr_err("swapon: %s: invalid mthp_reserve_order = %d; valid range = [1, %d]",
+					name->name, order, SWAP_NR_ORDERS-1);
+			error = -EINVAL;
+			goto free_swap_address_space;
+		}
+
+		if (percent < 1 || percent > 100) {
+			pr_err("swapon: %s: invalid mthp_reserve_percent = %d; valid range = [1, 100]",
+					name->name, percent);
+			error = -EINVAL;
+			goto free_swap_address_space;
+		}
+	}
+
 	mutex_lock(&swapon_mutex);
 	prio = -1;
 	if (swap_flags & SWAP_FLAG_PREFER)
