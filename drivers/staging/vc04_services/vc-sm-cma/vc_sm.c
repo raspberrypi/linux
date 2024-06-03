@@ -48,7 +48,7 @@
 #include <linux/types.h>
 #include <asm/cacheflush.h>
 
-#include "vchiq_connected.h"
+#include "../interface/vchiq_arm/vchiq_arm.h"
 #include "vc_sm_cma_vchi.h"
 
 #include "vc_sm.h"
