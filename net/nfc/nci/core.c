@@ -1207,6 +1207,10 @@ void nci_free_device(struct nci_dev *ndev)
 {
 	nfc_free_device(ndev->nfc_dev);
 	nci_hci_deallocate(ndev);
+
+	/* drop partial rx data packet if present */
+	if (ndev->rx_data_reassembly)
+		kfree_skb(ndev->rx_data_reassembly);
 	kfree(ndev);
 }
 EXPORT_SYMBOL(nci_free_device);
@@ -1507,6 +1511,11 @@ static void nci_rx_work(struct work_struct *work)
 		/* Send copy to sniffer */
 		nfc_send_to_raw_sock(ndev->nfc_dev, skb,
 				     RAW_PAYLOAD_NCI, NFC_DIRECTION_RX);
+
+		if (!nci_plen(skb->data)) {
+			kfree_skb(skb);
+			break;
+		}
 
 		/* Process frame */
 		switch (nci_mt(skb->data)) {
