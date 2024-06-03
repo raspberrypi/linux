@@ -118,6 +118,16 @@
 		bcm2711;
 	};
 
+	imx500 {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "imx500-pi5";
+	};
+
+	imx500-pi5 {
+		bcm2712;
+	};
+
 	lirc-rpi {
 		deprecated = "use gpio-ir";
 	};
