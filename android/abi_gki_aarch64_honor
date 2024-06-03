@@ -32,6 +32,7 @@
   proc_create_net_single_write
   snmp_fold_field
   call_usermodehelper
+  pm_wakeup_irq
   nla_append
   skb_append
   sysctl_max_skb_frags
