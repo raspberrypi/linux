@@ -53,7 +53,7 @@
 
 #include "vc_sm.h"
 #include "vc_sm_knl.h"
-#include <linux/broadcom/vc_sm_cma_ioctl.h>
+#include "../include/linux/broadcom/vc_sm_cma_ioctl.h"
 
 MODULE_IMPORT_NS(DMA_BUF);
 
