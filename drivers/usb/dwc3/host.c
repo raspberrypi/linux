@@ -87,9 +87,9 @@ out:
 
 int dwc3_host_init(struct dwc3 *dwc)
 {
+	struct platform_device	*pdev = to_platform_device(dwc->dev);
 	struct property_entry	props[5];
 	struct platform_device	*xhci;
-	struct platform_device	*pdev = to_platform_device(dwc->dev);
 	int			ret, irq;
 	int			prop_idx = 0;
 	int			id;
