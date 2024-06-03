@@ -2850,6 +2850,27 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         sync-sink               Configure as vsync sink
 
 
+Name:   imx500
+Info:   Sony IMX500 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx500,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        bypass-cache            Do save blocks of data to flash when using
+                                rp2040-gpio-bridge for SPI transfers.
+
+
+Name:   imx500-pi5
+Info:   See imx500 (this is the Pi 5 version)
+
+
 Name:   imx519
 Info:   Sony IMX519 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi

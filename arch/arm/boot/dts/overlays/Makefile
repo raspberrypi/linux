@@ -137,6 +137,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx378.dtbo \
 	imx462.dtbo \
 	imx477.dtbo \
+	imx500.dtbo \
+	imx500-pi5.dtbo \
 	imx519.dtbo \
 	imx708.dtbo \
 	interludeaudio-analog.dtbo \
