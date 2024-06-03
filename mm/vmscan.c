@@ -175,6 +175,7 @@ struct scan_control {
 
 	/* for recording the reclaimed slab by now */
 	struct reclaim_state reclaim_state;
+	ANDROID_VENDOR_DATA(1);
 };
 
 #ifdef ARCH_HAS_PREFETCHW
@@ -1542,12 +1543,11 @@ static enum folio_references folio_check_references(struct folio *folio,
 	int referenced_ptes, referenced_folio;
 	unsigned long vm_flags;
 	int ret = 0;
-	bool should_protect = false;
 
-	trace_android_vh_page_should_be_protected(folio, &should_protect);
-	if (unlikely(should_protect))
-		return FOLIOREF_ACTIVATE;
-
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	trace_android_vh_page_should_be_protected(folio, sc->nr_scanned,
+		sc->priority, &sc->android_vendor_data1, &ret);
+#endif
 	trace_android_vh_check_folio_look_around_ref(folio, &ret);
 	if (ret)
 		return ret;
@@ -2743,7 +2743,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	unsigned nr_rotated = 0;
 	int file = is_file_lru(lru);
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
-	bool should_protect = false;
+	int should_protect = 0;
 	bool bypass = false;
 	lru_add_drain();
 
@@ -2780,7 +2780,10 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			}
 		}
 
-		trace_android_vh_page_should_be_protected(folio, &should_protect);
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+		trace_android_vh_page_should_be_protected(folio, sc->nr_scanned,
+			sc->priority, &sc->android_vendor_data1, &should_protect);
+#endif
 		if (unlikely(should_protect)) {
 			nr_rotated += folio_nr_pages(folio);
 			list_add(&folio->lru, &l_active);
