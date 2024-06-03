@@ -36,10 +36,10 @@
 #include <media/v4l2-event.h>
 #include <media/videobuf2-dma-contig.h>
 
-#include "vchiq-mmal/mmal-encodings.h"
-#include "vchiq-mmal/mmal-msg.h"
-#include "vchiq-mmal/mmal-parameters.h"
-#include "vchiq-mmal/mmal-vchiq.h"
+#include "../vchiq-mmal/mmal-encodings.h"
+#include "../vchiq-mmal/mmal-msg.h"
+#include "../vchiq-mmal/mmal-parameters.h"
+#include "../vchiq-mmal/mmal-vchiq.h"
 
 MODULE_IMPORT_NS(DMA_BUF);
 
