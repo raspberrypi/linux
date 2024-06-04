@@ -243,6 +243,20 @@ static void sdhci_brcmstb_set_uhs_signaling(struct sdhci_host *host,
 	sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
 }
 
+static void sdhci_bcm2712_hs400_downgrade(struct mmc_host *mmc)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+	/*
+	 * The eMMC PHY and its internal controller parses and validates
+	 * the uhs_mode, divisor, pin_sel, and sampling clock select
+	 * output from the SD controller. It will refuse to update its
+	 * config if HS timings are selected while the clock is >52MHz.
+	 * so bump the clock down now before card/controller setup is
+	 * performed.
+	 */
+	sdhci_bcm2712_set_clock(host, 52000000);
+}
+
 static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -261,6 +275,8 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 		reg &= ~SDIO_CFG_MAX_50MHZ_MODE_ENABLE;
 		reg |= SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE;
 		writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_MAX_50MHZ_MODE);
+
+		host->mmc_host_ops.hs400_downgrade = sdhci_bcm2712_hs400_downgrade;
 	}
 
 	if ((host->mmc->caps & MMC_CAP_NONREMOVABLE) ||
