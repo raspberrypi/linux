@@ -262,6 +262,12 @@
   __traceiter_android_rvh_ctl_dirty_rate
   __tracepoint_android_rvh_ctl_dirty_rate
 
+# required by kprobe_dmverity_debug.ko
+  dm_bio_from_per_bio_data
+  dm_bufio_read
+  dm_disk
+  dm_table_get_md
+
 # required by ledtrig-pattern.ko
   led_get_default_pattern
   led_set_brightness
