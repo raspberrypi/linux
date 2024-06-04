@@ -1265,6 +1265,14 @@ static int sd_flush_cache(struct mmc_host *host)
 	reg_buf = card->ext_reg_buf;
 
 	/*
+	 * Flushing requires sending CMD49 (adtc), which can't be done as a DCMD
+	 * and conflicts with CQHCI - temporarily turn CQE off to use the SDHCI
+	 * command/argument registers.
+	 */
+	if (host->cqe_on)
+		host->cqe_ops->cqe_off(host);
+
+	/*
 	 * Set Flush Cache at bit 0 in the performance enhancement register at
 	 * 261 bytes offset.
 	 */
