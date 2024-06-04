@@ -30,11 +30,6 @@
 	     /* Add a label */
 	};
 
-	arm-pmu {
-		compatible = "arm,cortex-a72-pmu", "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
-
-	};
-
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};

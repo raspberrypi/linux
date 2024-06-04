@@ -3,14 +3,14 @@
 #define BCM2711
 #define i2c0 i2c0if
 #include "bcm2711.dtsi"
+#include "bcm2711-rpi.dtsi"
+/delete-node/&i2c0mux;
+#include "bcm283x-rpi-led-deprecated.dtsi"
 #include "bcm283x-rpi-wifi-bt.dtsi"
 #undef i2c0
 #include "bcm270x.dtsi"
 #define i2c0 i2c0mux
-#include "bcm2711-rpi.dtsi"
 #undef i2c0
-#include "bcm283x-rpi-led-deprecated.dtsi"
-//#include "bcm283x-rpi-usb-peripheral.dtsi"
 
 / {
 	compatible = "raspberrypi,4-compute-module", "brcm,bcm2711";
