@@ -17,11 +17,11 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
 
-#include "vchiq-mmal/mmal-msg.h"
-#include "vchiq-mmal/mmal-parameters.h"
-#include "vchiq-mmal/mmal-vchiq.h"
+#include "../vchiq-mmal/mmal-msg.h"
+#include "../vchiq-mmal/mmal-parameters.h"
+#include "../vchiq-mmal/mmal-vchiq.h"
 
-#include "vc-sm-cma/vc_sm_knl.h"
+#include "../vc-sm-cma/vc_sm_knl.h"
 
 #include "bcm2835-isp-ctrls.h"
 #include "bcm2835-isp-fmts.h"
