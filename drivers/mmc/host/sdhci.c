@@ -1081,7 +1081,7 @@ static void sdhci_initialize_data(struct sdhci_host *host,
 	WARN_ON(host->data);
 
 	/* Sanity checks */
-	BUG_ON(data->blksz * data->blocks > 524288);
+	BUG_ON(data->blksz * data->blocks > host->mmc->max_req_size);
 	BUG_ON(data->blksz > host->mmc->max_blk_size);
 	BUG_ON(data->blocks > 65535);
 
@@ -4728,11 +4728,16 @@ int sdhci_setup_host(struct sdhci_host *host)
 	spin_lock_init(&host->lock);
 
 	/*
-	 * Maximum number of sectors in one transfer. Limited by SDMA boundary
-	 * size (512KiB). Note some tuning modes impose a 4MiB limit, but this
-	 * is less anyway.
+	 * Maximum number of sectors in one transfer.
+	 * 4MiB is preferred for multi-descriptor DMA as a) card sequential
+	 * write speeds are only guaranteed with a 4MiB write length and
+	 * b) most tuning modes require a 4MiB limit.
+	 * SDMA has a 512KiB boundary size.
 	 */
-	mmc->max_req_size = 524288;
+	if (host->flags & SDHCI_USE_ADMA)
+		mmc->max_req_size = SZ_4M;
+	else
+		mmc->max_req_size = SZ_512K;
 
 	/*
 	 * Maximum number of segments. Depends on if the hardware
