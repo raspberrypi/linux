@@ -12,7 +12,7 @@
 #define BCM2835_ISP_FMTS
 
 #include <linux/videodev2.h>
-#include "vchiq-mmal/mmal-encodings.h"
+#include "../vchiq-mmal/mmal-encodings.h"
 
 struct bcm2835_isp_fmt {
 	u32 fourcc;
