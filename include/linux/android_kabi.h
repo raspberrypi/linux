@@ -71,6 +71,7 @@
 
 #define _ANDROID_KABI_RESERVE(n)		u64 android_kabi_reserved##n
 #define _ANDROID_BACKPORT_RESERVE(n)		u64 android_backport_reserved##n
+#define _ANDROID_BACKPORT_RESERVE_ARRAY(n, s)	u8 __aligned(8) android_backport_reserved##n[s]
 
 
 /*
@@ -87,13 +88,19 @@
  * ANDROID_BACKPORT_RESERVE
  *   Similar to ANDROID_KABI_RESERVE, but this is for planned feature backports
  *   (not for LTS).
+ *
+ * ANDROID_BACKPORT_RESERVE_ARRAY
+ *   Same as ANDROID_BACKPORT_RESERVE but allocates an array with the specified
+ *   size in bytes.
  */
 #ifdef CONFIG_ANDROID_KABI_RESERVE
-#define ANDROID_KABI_RESERVE(number)	  _ANDROID_KABI_RESERVE(number)
-#define ANDROID_BACKPORT_RESERVE(number)  _ANDROID_BACKPORT_RESERVE(number)
+#define ANDROID_KABI_RESERVE(number)			_ANDROID_KABI_RESERVE(number)
+#define ANDROID_BACKPORT_RESERVE(number)		_ANDROID_BACKPORT_RESERVE(number)
+#define ANDROID_BACKPORT_RESERVE_ARRAY(number, bytes)	_ANDROID_BACKPORT_RESERVE_ARRAY(number, bytes)
 #else
 #define ANDROID_KABI_RESERVE(number)
 #define ANDROID_BACKPORT_RESERVE(number)
+#define ANDROID_BACKPORT_RESERVE_ARRAY(number, bytes)
 #endif
 
 
@@ -138,5 +145,15 @@
  */
 #define ANDROID_BACKPORT_USE2(number, _new1, _new2)			\
 	_ANDROID_KABI_REPLACE(_ANDROID_BACKPORT_RESERVE(number), struct{ _new1; _new2; })
+
+/*
+ * ANDROID_BACKPORT_USE_ARRAY(number, bytes, _new)
+ *   Use a previous padding entry that was defined with ANDROID_BACKPORT_RESERVE_ARRAY
+ *   number: the previous "number" of the padding variable
+ *   bytes: the size in bytes reserved for the array
+ *   _new: the variable to use now instead of the padding variable
+ */
+#define ANDROID_BACKPORT_USE_ARRAY(number, bytes, _new)		\
+	_ANDROID_KABI_REPLACE(_ANDROID_BACKPORT_RESERVE_ARRAY(number, bytes), _new)
 
 #endif /* _ANDROID_KABI_H */
