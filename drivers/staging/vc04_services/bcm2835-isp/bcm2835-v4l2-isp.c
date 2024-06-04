@@ -9,13 +9,14 @@
  */
 
 #include <linux/module.h>
-#include <linux/platform_device.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
+
+#include "../interface/vchiq_arm/vchiq_bus.h"
 
 #include "../vchiq-mmal/mmal-msg.h"
 #include "../vchiq-mmal/mmal-parameters.h"
@@ -1694,7 +1695,7 @@ static void bcm2835_isp_remove_instance(struct bcm2835_isp_dev *dev)
 	vchiq_mmal_finalise(dev->mmal_instance);
 }
 
-static int bcm2835_isp_probe_instance(struct platform_device *pdev,
+static int bcm2835_isp_probe_instance(struct vchiq_device *device,
 				      struct bcm2835_isp_dev **dev_int,
 				      unsigned int instance)
 {
@@ -1702,18 +1703,18 @@ static int bcm2835_isp_probe_instance(struct platform_device *pdev,
 	unsigned int i;
 	int ret;
 
-	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
+	dev = devm_kzalloc(&device->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
 
 	*dev_int = dev;
-	dev->dev = &pdev->dev;
+	dev->dev = &device->dev;
 
-	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
+	ret = v4l2_device_register(&device->dev, &dev->v4l2_dev);
 	if (ret)
 		return ret;
 
-	ret = vchiq_mmal_init(&dev->mmal_instance);
+	ret = vchiq_mmal_init(&device->dev, &dev->mmal_instance);
 	if (ret) {
 		v4l2_device_unregister(&dev->v4l2_dev);
 		return ret;
@@ -1756,52 +1757,50 @@ static int bcm2835_isp_probe_instance(struct platform_device *pdev,
 	return 0;
 }
 
-static int bcm2835_isp_remove(struct platform_device *pdev)
+static void bcm2835_isp_remove(struct vchiq_device *device)
 {
 	struct bcm2835_isp_dev **bcm2835_isp_instances;
 	unsigned int i;
 
-	bcm2835_isp_instances = platform_get_drvdata(pdev);
+	bcm2835_isp_instances = vchiq_get_drvdata(device);
 	for (i = 0; i < BCM2835_ISP_NUM_INSTANCES; i++) {
 		if (bcm2835_isp_instances[i])
 			bcm2835_isp_remove_instance(bcm2835_isp_instances[i]);
 	}
-
-	return 0;
 }
 
-static int bcm2835_isp_probe(struct platform_device *pdev)
+static int bcm2835_isp_probe(struct vchiq_device *device)
 {
 	struct bcm2835_isp_dev **bcm2835_isp_instances;
 	unsigned int i;
 	int ret;
 
-	bcm2835_isp_instances = devm_kzalloc(&pdev->dev,
+	bcm2835_isp_instances = devm_kzalloc(&device->dev,
 					     sizeof(bcm2835_isp_instances) *
 						      BCM2835_ISP_NUM_INSTANCES,
 					     GFP_KERNEL);
 	if (!bcm2835_isp_instances)
 		return -ENOMEM;
 
-	platform_set_drvdata(pdev, bcm2835_isp_instances);
+	vchiq_set_drvdata(device, bcm2835_isp_instances);
 
 	for (i = 0; i < BCM2835_ISP_NUM_INSTANCES; i++) {
-		ret = bcm2835_isp_probe_instance(pdev,
+		ret = bcm2835_isp_probe_instance(device,
 						 &bcm2835_isp_instances[i], i);
 		if (ret)
 			goto error;
 	}
 
-	dev_info(&pdev->dev, "Loaded V4L2 %s\n", BCM2835_ISP_NAME);
+	dev_info(&device->dev, "Loaded V4L2 %s\n", BCM2835_ISP_NAME);
 	return 0;
 
 error:
-	bcm2835_isp_remove(pdev);
+	bcm2835_isp_remove(device);
 
 	return ret;
 }
 
-static struct platform_driver bcm2835_isp_pdrv = {
+static struct vchiq_driver bcm2835_isp_drv = {
 	.probe = bcm2835_isp_probe,
 	.remove = bcm2835_isp_remove,
 	.driver = {
@@ -1809,10 +1808,10 @@ static struct platform_driver bcm2835_isp_pdrv = {
 		  },
 };
 
-module_platform_driver(bcm2835_isp_pdrv);
+module_vchiq_driver(bcm2835_isp_drv);
 
 MODULE_DESCRIPTION("BCM2835 ISP driver");
 MODULE_AUTHOR("Naushir Patuck <naush@raspberrypi.com>");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
-MODULE_ALIAS("platform:bcm2835-isp");
+MODULE_ALIAS("vchiq:bcm2835-isp");
