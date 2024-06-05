@@ -140,8 +140,10 @@ int gunyah_rm_platform_post_mem_reclaim(
 	struct gunyah_rm *rm, struct gunyah_rm_mem_parcel *mem_parcel);
 
 int gunyah_rm_platform_pre_demand_page(struct gunyah_rm *rm, u16 vmid,
-				       u32 flags, struct folio *folio);
+				       enum gunyah_pagetable_access access,
+				       struct folio *folio);
 int gunyah_rm_platform_reclaim_demand_page(struct gunyah_rm *rm, u16 vmid,
-					   u32 flags, struct folio *folio);
+					   enum gunyah_pagetable_access access,
+					   struct folio *folio);
 
 #endif
