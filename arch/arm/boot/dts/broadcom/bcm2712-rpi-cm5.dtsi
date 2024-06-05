@@ -48,7 +48,7 @@
 #undef uart5
 
 / {
-	compatible = "raspberrypi,5-compute-model", "brcm,bcm2712";
+	compatible = "raspberrypi,5-compute-module", "brcm,bcm2712";
 	model = "Raspberry Pi Compute Module 5";
 
 	/* Will be filled by the bootloader */
@@ -353,6 +353,8 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	sd-uhs-ddr50;
 	sd-uhs-sdr104;
 	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	mmc-hs400-enhanced-strobe;
 	broken-cd;
 	supports-cqe;
 	status = "okay";
