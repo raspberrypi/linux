@@ -22,6 +22,7 @@ __ksft_status_merge()
 	local -A weights
 	local weight=0
 
+	local i
 	for i in "$@"; do
 		weights[$i]=$((weight++))
 	done
