@@ -53,6 +53,7 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 /* V_TIMING internal */
 #define IMX477_REG_FRAME_LENGTH		0x0340
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
+#define IMX477_VBLANK_MIN		4
 
 /* H_TIMING internal */
 #define IMX477_REG_LINE_LENGTH		0x0342
@@ -154,11 +155,8 @@ struct imx477_mode {
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
 
-	/* Highest possible framerate. */
-	struct v4l2_fract timeperframe_min;
-
 	/* Default framerate. */
-	struct v4l2_fract timeperframe_default;
+	unsigned int framerate_default;
 
 	/* Default register values */
 	struct imx477_reg_list reg_list;
@@ -795,14 +793,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 1000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 1000
-		},
+		.framerate_default = 10,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4056x3040_regs),
 			.regs = mode_4056x3040_regs,
@@ -819,14 +810,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 4000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.framerate_default = 30,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1520_regs),
 			.regs = mode_2028x1520_regs,
@@ -843,14 +827,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 2160,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 5000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.framerate_default = 30,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1080_regs),
 			.regs = mode_2028x1080_regs,
@@ -878,14 +855,7 @@ static const struct imx477_mode supported_modes_10bit[] = {
 			.width = 2664,
 			.height = 1980,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 12000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 12000
-		},
+		.framerate_default = 120,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1332x990_regs),
 			.regs = mode_1332x990_regs,
@@ -1419,13 +1389,13 @@ static int imx477_get_pad_format(struct v4l2_subdev *sd,
 
 static
 unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
-				     const struct v4l2_fract *timeperframe)
+				     unsigned int framerate_default)
 {
 	u64 frame_length;
 
-	frame_length = (u64)timeperframe->numerator * IMX477_PIXEL_RATE;
+	frame_length = IMX477_PIXEL_RATE;
 	do_div(frame_length,
-	       (u64)timeperframe->denominator * mode->line_length_pix);
+	       (u64)framerate_default * mode->line_length_pix);
 
 	if (WARN_ON(frame_length > IMX477_FRAME_LENGTH_MAX))
 		frame_length = IMX477_FRAME_LENGTH_MAX;
@@ -1435,21 +1405,20 @@ unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
 
 static void imx477_set_framing_limits(struct imx477 *imx477)
 {
-	unsigned int frm_length_min, frm_length_default, hblank_min;
+	unsigned int frm_length_default, hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
 
-	frm_length_min = imx477_get_frame_length(mode, &mode->timeperframe_min);
 	frm_length_default =
-		     imx477_get_frame_length(mode, &mode->timeperframe_default);
+		     imx477_get_frame_length(mode, mode->framerate_default);
 
 	/* Default to no long exposure multiplier. */
 	imx477->long_exp_shift = 0;
 
 	/* Update limits and set FPS to default */
-	__v4l2_ctrl_modify_range(imx477->vblank, frm_length_min - mode->height,
+	__v4l2_ctrl_modify_range(imx477->vblank, 1,
 				 ((1 << IMX477_LONG_EXP_SHIFT_MAX) *
 					IMX477_FRAME_LENGTH_MAX) - mode->height,
-				 1, frm_length_default - mode->height);
+				 IMX477_VBLANK_MIN, frm_length_default - mode->height);
 
 	/* Setting this will adjust the exposure limits as well. */
 	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
