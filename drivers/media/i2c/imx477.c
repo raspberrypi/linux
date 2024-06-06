@@ -113,6 +113,8 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_REG_XVS_IO_CTRL		0x3040
 #define IMX477_REG_EXTOUT_EN		0x4b81
 
+#define IMX477_REG_FRAME_BLANKSTOP_CLK	0xE000
+
 /* Embedded metadata stream structure */
 #define IMX477_EMBEDDED_LINE_WIDTH 16384
 #define IMX477_NUM_EMBEDDED_LINES 1
@@ -170,7 +172,6 @@ static const struct imx477_reg mode_common_regs[] = {
 	{0x0136, 0x18},
 	{0x0137, 0x00},
 	{0x0138, 0x01},
-	{0xe000, 0x00},
 	{0xe07a, 0x01},
 	{0x0808, 0x02},
 	{0x4ae9, 0x18},
@@ -964,6 +965,11 @@ struct imx477 {
 	/* Streaming on/off */
 	bool streaming;
 
+	/* Flags field from parsing the endpoint - used for (non)continuous
+	 * clock mode
+	 */
+	unsigned int csi2_flags;
+
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
 
@@ -1557,6 +1563,12 @@ static int imx477_start_streaming(struct imx477 *imx477)
 				__func__);
 			return ret;
 		}
+
+		imx477_write_reg(imx477, IMX477_REG_FRAME_BLANKSTOP_CLK,
+				 IMX477_REG_VALUE_08BIT,
+				 imx477->csi2_flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK ?
+					1 : 0);
+
 		imx477->common_regs_written = true;
 	}
 
@@ -1937,7 +1949,7 @@ static void imx477_free_controls(struct imx477 *imx477)
 	mutex_destroy(&imx477->mutex);
 }
 
-static int imx477_check_hwcfg(struct device *dev)
+static int imx477_check_hwcfg(struct device *dev, struct imx477 *imx477)
 {
 	struct fwnode_handle *endpoint;
 	struct v4l2_fwnode_endpoint ep_cfg = {
@@ -1974,6 +1986,8 @@ static int imx477_check_hwcfg(struct device *dev)
 			ep_cfg.link_frequencies[0]);
 		goto error_out;
 	}
+
+	imx477->csi2_flags = ep_cfg.bus.mipi_csi2.flags;
 
 	ret = 0;
 
@@ -2033,7 +2047,7 @@ static int imx477_probe(struct i2c_client *client)
 		(const struct imx477_compatible_data *)match->data;
 
 	/* Check the hardware configuration in device tree */
-	if (imx477_check_hwcfg(dev))
+	if (imx477_check_hwcfg(dev, imx477))
 		return -EINVAL;
 
 	/* Default the trigger mode from OF to -1, which means invalid */
