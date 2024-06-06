@@ -400,3 +400,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_madvise_cold_pageout_skip);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_psi_event);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_psi_group);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmc_sdio_pm_flag_set);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_read_lazy_flag);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_set_tsk_need_resched_lazy);
