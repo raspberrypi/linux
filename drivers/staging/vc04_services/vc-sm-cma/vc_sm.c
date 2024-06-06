@@ -1477,7 +1477,16 @@ err_remove_debugfs:
 /* Driver loading. */
 static int bcm2835_vc_sm_cma_probe(struct vchiq_device *device)
 {
+	int err;
+
 	pr_info("%s: Videocore shared memory driver\n", __func__);
+
+	err = dma_set_mask_and_coherent(&device->dev, DMA_BIT_MASK(32));
+	if (err) {
+		dev_err(&device->dev, "dma_set_mask_and_coherent failed: %d\n",
+			err);
+		return err;
+	}
 
 	sm_state = devm_kzalloc(&device->dev, sizeof(*sm_state), GFP_KERNEL);
 	if (!sm_state)
