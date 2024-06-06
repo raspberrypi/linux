@@ -2857,6 +2857,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         sync-sink               Configure as vsync sink
         link-frequency          Allowable link frequency values to use in Hz:
                                 450000000 (default), 453000000, 456000000.
+        pi5                     Sets the CSI2 link frequency to 900MHz.
 
 
 Name:   imx462
@@ -2901,6 +2902,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         sync-sink               Configure as vsync sink
         link-frequency          Allowable link frequency values to use in Hz:
                                 450000000 (default), 453000000, 456000000.
+        pi5                     Sets the CSI2 link frequency to 900MHz
 
 
 Name:   imx500
