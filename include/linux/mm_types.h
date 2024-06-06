@@ -950,6 +950,7 @@ struct mm_struct {
 #endif /* CONFIG_LRU_GEN */
 
 		ANDROID_KABI_RESERVE(1);
+		ANDROID_BACKPORT_RESERVE(1);
 	} __randomize_layout;
 
 	/*
