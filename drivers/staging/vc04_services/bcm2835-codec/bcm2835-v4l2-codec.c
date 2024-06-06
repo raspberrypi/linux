@@ -3898,6 +3898,13 @@ static int bcm2835_codec_probe(struct vchiq_device *device)
 	struct media_device *mdev;
 	int ret = 0;
 
+	ret = dma_set_mask_and_coherent(&device->dev, DMA_BIT_MASK(32));
+	if (ret) {
+		dev_err(&device->dev, "dma_set_mask_and_coherent failed: %d\n",
+			ret);
+		return ret;
+	}
+
 	drv = devm_kzalloc(&device->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
