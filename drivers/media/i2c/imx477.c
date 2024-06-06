@@ -86,6 +86,8 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_DGTL_GAIN_DEFAULT	0x0100
 #define IMX477_DGTL_GAIN_STEP		1
 
+#define IMX477_REG_DIV_IOP_PX		0x030b
+
 /* Test Pattern Control */
 #define IMX477_REG_TEST_PATTERN		0x0600
 #define IMX477_TEST_PATTERN_DISABLE	0
@@ -151,7 +153,7 @@ struct imx477_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* H-timing in pixels */
+	/* H-timing in pixels when at 450MHz link freq */
 	unsigned int line_length_pix;
 
 	/* Analog crop rectangle. */
@@ -166,6 +168,10 @@ struct imx477_mode {
 
 static const s64 imx477_link_freq_menu[] = {
 	IMX477_DEFAULT_LINK_FREQ,
+};
+
+static const s64 imx477_double_link_freq_menu[] = {
+	IMX477_DEFAULT_LINK_FREQ * 2,
 };
 
 static const struct imx477_reg mode_common_regs[] = {
@@ -492,7 +498,6 @@ static const struct imx477_reg mode_common_regs[] = {
 	{0x9e9f, 0x00},
 	{0x0301, 0x05},
 	{0x0303, 0x02},
-	{0x030b, 0x02},
 	{0x030d, 0x02},
 	{0x030e, 0x00},
 	{0x030f, 0x96},
@@ -787,7 +792,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 12MPix 10fps mode */
 		.width = 4056,
 		.height = 3040,
-		.line_length_pix = 0x5dc0,
+		.line_length_pix = 24000,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -804,7 +809,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 2x2 binned 40fps mode */
 		.width = 2028,
 		.height = 1520,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = 12740,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -821,7 +826,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 1080p 50fps cropped mode */
 		.width = 2028,
 		.height = 1080,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = 12740,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
@@ -969,6 +974,12 @@ struct imx477 {
 	 * clock mode
 	 */
 	unsigned int csi2_flags;
+
+	/*
+	 * Flag that CSI2 link is running at twice IMX477_DEFAULT_LINK_FREQ.
+	 * line_length_pix can be halved in that case.
+	 */
+	bool double_link_freq;
 
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
@@ -1413,6 +1424,7 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 {
 	unsigned int frm_length_default, hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
+	unsigned int line_length_pix;
 
 	frm_length_default =
 		     imx477_get_frame_length(mode, mode->framerate_default);
@@ -1429,7 +1441,10 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	/* Setting this will adjust the exposure limits as well. */
 	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
 
-	hblank_min = mode->line_length_pix - mode->width;
+	line_length_pix = mode->line_length_pix;
+	if (imx477->double_link_freq)
+		line_length_pix /= 2;
+	hblank_min = line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx477->hblank, hblank_min,
 				 IMX477_LINE_LENGTH_MAX, 1, hblank_min);
 	__v4l2_ctrl_s_ctrl(imx477->hblank, hblank_min);
@@ -1568,6 +1583,10 @@ static int imx477_start_streaming(struct imx477 *imx477)
 				 IMX477_REG_VALUE_08BIT,
 				 imx477->csi2_flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK ?
 					1 : 0);
+
+		imx477_write_reg(imx477, IMX477_REG_DIV_IOP_PX,
+				 IMX477_REG_VALUE_08BIT,
+				 imx477->double_link_freq ? 1 : 2);
 
 		imx477->common_regs_written = true;
 	}
@@ -1826,6 +1845,7 @@ static int imx477_init_controls(struct imx477 *imx477)
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	struct v4l2_fwnode_device_properties props;
+	const u64 *link_freq_menu;
 	unsigned int i;
 	int ret;
 
@@ -1847,11 +1867,16 @@ static int imx477_init_controls(struct imx477 *imx477)
 		imx477->pixel_rate->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/* LINK_FREQ is also read only */
+	if (imx477->double_link_freq)
+		link_freq_menu = imx477_double_link_freq_menu;
+	else
+		link_freq_menu = imx477_link_freq_menu;
+
 	imx477->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx477_ctrl_ops,
 				       V4L2_CID_LINK_FREQ,
 				       ARRAY_SIZE(imx477_link_freq_menu) - 1, 0,
-				       imx477_link_freq_menu);
+				       link_freq_menu);
 	if (imx477->link_freq)
 		imx477->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -1981,11 +2006,14 @@ static int imx477_check_hwcfg(struct device *dev, struct imx477 *imx477)
 	}
 
 	if (ep_cfg.nr_of_link_frequencies != 1 ||
-	    ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ) {
+	    (ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ &&
+	     ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ * 2)) {
 		dev_err(dev, "Link frequency not supported: %lld\n",
 			ep_cfg.link_frequencies[0]);
 		goto error_out;
 	}
+	if (ep_cfg.link_frequencies[0] == IMX477_DEFAULT_LINK_FREQ * 2)
+		imx477->double_link_freq = true;
 
 	imx477->csi2_flags = ep_cfg.bus.mipi_csi2.flags;
 
