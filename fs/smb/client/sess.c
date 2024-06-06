@@ -108,6 +108,7 @@ cifs_chan_clear_in_reconnect(struct cifs_ses *ses,
 			     struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -119,6 +120,7 @@ cifs_chan_in_reconnect(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -130,6 +132,7 @@ cifs_chan_set_need_reconnect(struct cifs_ses *ses,
 			     struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -143,6 +146,7 @@ cifs_chan_clear_need_reconnect(struct cifs_ses *ses,
 			       struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return;
 
@@ -156,6 +160,7 @@ cifs_chan_needs_reconnect(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -167,6 +172,7 @@ cifs_chan_is_iface_active(struct cifs_ses *ses,
 			  struct TCP_Server_Info *server)
 {
 	unsigned int chan_index = cifs_ses_get_chan_index(ses, server);
+
 	if (chan_index == CIFS_INVAL_CHAN_INDEX)
 		return true;	/* err on the safer side */
 
@@ -331,10 +337,10 @@ cifs_disable_secondary_channels(struct cifs_ses *ses)
 
 		if (iface) {
 			spin_lock(&ses->iface_lock);
-			kref_put(&iface->refcount, release_iface);
 			iface->num_channels--;
 			if (iface->weight_fulfilled)
 				iface->weight_fulfilled--;
+			kref_put(&iface->refcount, release_iface);
 			spin_unlock(&ses->iface_lock);
 		}
 
@@ -436,8 +442,14 @@ cifs_chan_update_iface(struct cifs_ses *ses, struct TCP_Server_Info *server)
 	}
 
 	if (!iface) {
-		cifs_dbg(FYI, "unable to get the interface matching: %pIS\n",
-			 &ss);
+		if (!chan_index)
+			cifs_dbg(FYI, "unable to get the interface matching: %pIS\n",
+				 &ss);
+		else {
+			cifs_dbg(FYI, "unable to find another interface to replace: %pIS\n",
+				 &old_iface->sockaddr);
+		}
+
 		spin_unlock(&ses->iface_lock);
 		return;
 	}
@@ -455,10 +467,6 @@ cifs_chan_update_iface(struct cifs_ses *ses, struct TCP_Server_Info *server)
 		iface->weight_fulfilled++;
 
 		kref_put(&old_iface->refcount, release_iface);
-	} else if (old_iface) {
-		/* if a new candidate is not found, keep things as is */
-		cifs_dbg(FYI, "could not replace iface: %pIS\n",
-			 &old_iface->sockaddr);
 	} else if (!chan_index) {
 		/* special case: update interface for primary channel */
 		cifs_dbg(FYI, "referencing primary channel iface: %pIS\n",
@@ -477,8 +485,6 @@ cifs_chan_update_iface(struct cifs_ses *ses, struct TCP_Server_Info *server)
 
 	ses->chans[chan_index].iface = iface;
 	spin_unlock(&ses->chan_lock);
-
-	return;
 }
 
 /*
@@ -677,8 +683,7 @@ static __u32 cifs_ssetup_hdr(struct cifs_ses *ses,
 
 	/* Now no need to set SMBFLG_CASELESS or obsolete CANONICAL PATH */
 
-	/* BB verify whether signing required on neg or just on auth frame
-	   (and NTLM case) */
+	/* BB verify whether signing required on neg or just auth frame (and NTLM case) */
 
 	capabilities = CAP_LARGE_FILES | CAP_NT_SMBS | CAP_LEVEL_II_OPLOCKS |
 			CAP_LARGE_WRITE_X | CAP_LARGE_READ_X;
@@ -735,8 +740,10 @@ static void unicode_domain_string(char **pbcc_area, struct cifs_ses *ses,
 
 	/* copy domain */
 	if (ses->domainName == NULL) {
-		/* Sending null domain better than using a bogus domain name (as
-		we did briefly in 2.6.18) since server will use its default */
+		/*
+		 * Sending null domain better than using a bogus domain name (as
+		 * we did briefly in 2.6.18) since server will use its default
+		 */
 		*bcc_ptr = 0;
 		*(bcc_ptr+1) = 0;
 		bytes_ret = 0;
@@ -755,8 +762,7 @@ static void unicode_ssetup_strings(char **pbcc_area, struct cifs_ses *ses,
 	char *bcc_ptr = *pbcc_area;
 	int bytes_ret = 0;
 
-	/* BB FIXME add check that strings total less
-	than 335 or will need to send them as arrays */
+	/* BB FIXME add check that strings less than 335 or will need to send as arrays */
 
 	/* copy user */
 	if (ses->user_name == NULL) {
@@ -801,8 +807,7 @@ static void ascii_ssetup_strings(char **pbcc_area, struct cifs_ses *ses,
 		if (WARN_ON_ONCE(len < 0))
 			len = CIFS_MAX_DOMAINNAME_LEN - 1;
 		bcc_ptr += len;
-	} /* else we will send a null domain name
-	     so the server will default to its own domain */
+	} /* else we send a null domain name so server will default to its own domain */
 	*bcc_ptr = 0;
 	bcc_ptr++;
 
@@ -898,11 +903,14 @@ static void decode_ascii_ssetup(char **pbcc_area, __u16 bleft,
 	if (len > bleft)
 		return;
 
-	/* No domain field in LANMAN case. Domain is
-	   returned by old servers in the SMB negprot response */
-	/* BB For newer servers which do not support Unicode,
-	   but thus do return domain here we could add parsing
-	   for it later, but it is not very important */
+	/*
+	 * No domain field in LANMAN case. Domain is
+	 * returned by old servers in the SMB negprot response
+	 *
+	 * BB For newer servers which do not support Unicode,
+	 * but thus do return domain here, we could add parsing
+	 * for it later, but it is not very important
+	 */
 	cifs_dbg(FYI, "ascii: bytes left %d\n", bleft);
 }
 #endif /* CONFIG_CIFS_ALLOW_INSECURE_LEGACY */
@@ -958,9 +966,12 @@ int decode_ntlmssp_challenge(char *bcc_ptr, int blob_len,
 	ses->ntlmssp->server_flags = server_flags;
 
 	memcpy(ses->ntlmssp->cryptkey, pblob->Challenge, CIFS_CRYPTO_KEY_SIZE);
-	/* In particular we can examine sign flags */
-	/* BB spec says that if AvId field of MsvAvTimestamp is populated then
-		we must set the MIC field of the AUTHENTICATE_MESSAGE */
+	/*
+	 * In particular we can examine sign flags
+	 *
+	 * BB spec says that if AvId field of MsvAvTimestamp is populated then
+	 * we must set the MIC field of the AUTHENTICATE_MESSAGE
+	 */
 
 	tioffset = le32_to_cpu(pblob->TargetInfoArray.BufferOffset);
 	tilen = le16_to_cpu(pblob->TargetInfoArray.Length);
@@ -1201,10 +1212,16 @@ int build_ntlmssp_auth_blob(unsigned char **pbuffer,
 	memcpy(sec_blob->Signature, NTLMSSP_SIGNATURE, 8);
 	sec_blob->MessageType = NtLmAuthenticate;
 
+	/* send version information in ntlmssp authenticate also */
 	flags = ses->ntlmssp->server_flags | NTLMSSP_REQUEST_TARGET |
-		NTLMSSP_NEGOTIATE_TARGET_INFO | NTLMSSP_NEGOTIATE_WORKSTATION_SUPPLIED;
-	/* we only send version information in ntlmssp negotiate, so do not set this flag */
-	flags = flags & ~NTLMSSP_NEGOTIATE_VERSION;
+		NTLMSSP_NEGOTIATE_TARGET_INFO | NTLMSSP_NEGOTIATE_VERSION |
+		NTLMSSP_NEGOTIATE_WORKSTATION_SUPPLIED;
+
+	sec_blob->Version.ProductMajorVersion = LINUX_VERSION_MAJOR;
+	sec_blob->Version.ProductMinorVersion = LINUX_VERSION_PATCHLEVEL;
+	sec_blob->Version.ProductBuild = cpu_to_le16(SMB3_PRODUCT_BUILD);
+	sec_blob->Version.NTLMRevisionCurrent = NTLMSSP_REVISION_W2K3;
+
 	tmp = *pbuffer + sizeof(AUTHENTICATE_MESSAGE);
 	sec_blob->NegotiateFlags = cpu_to_le32(flags);
 
