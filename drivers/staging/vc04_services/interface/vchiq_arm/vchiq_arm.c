@@ -1830,7 +1830,6 @@ static int vchiq_probe(struct platform_device *pdev)
 	struct vchiq_drv_mgmt *mgmt;
 	int err;
 
-	vchiq_device_unregister(bcm2835_camera);
 	info = of_device_get_match_data(&pdev->dev);
 	if (!info)
 		return -EINVAL;
