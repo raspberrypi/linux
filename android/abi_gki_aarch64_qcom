@@ -411,8 +411,10 @@
   dev_pm_genpd_add_notifier
   dev_pm_genpd_get_next_hrtimer
   dev_pm_genpd_remove_notifier
+  dev_pm_genpd_resume
   dev_pm_genpd_set_next_wakeup
   dev_pm_genpd_set_performance_state
+  dev_pm_genpd_suspend
   dev_pm_opp_add_dynamic
   dev_pm_opp_clear_config
   dev_pm_opp_find_freq_floor
