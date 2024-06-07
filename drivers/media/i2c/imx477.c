@@ -43,6 +43,9 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 
 #define IMX477_REG_ORIENTATION		0x101
 
+#define IMX477_REG_CSI_DT_FMT_H		0x0112
+#define IMX477_REG_CSI_DT_FMT_L		0x0113
+
 #define IMX477_XCLK_FREQ		24000000
 
 #define IMX477_DEFAULT_LINK_FREQ	450000000
@@ -86,6 +89,7 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_DGTL_GAIN_DEFAULT	0x0100
 #define IMX477_DGTL_GAIN_STEP		1
 
+#define IMX477_REG_IOP_PXCK_DIV		0x0309
 #define IMX477_REG_DIV_IOP_PX		0x030b
 
 /* Test Pattern Control */
@@ -153,8 +157,11 @@ struct imx477_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* H-timing in pixels when at 450MHz link freq */
-	unsigned int line_length_pix;
+	/*
+	 * H-timing in pixels when at 450MHz link freq
+	 * Index 0 is for 12bpp. Index 1 is for 10bpp.
+	 */
+	unsigned int line_length_pix[2];
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -529,8 +536,6 @@ static const struct imx477_reg mode_common_regs[] = {
 
 /* 12 mpix 10fps */
 static const struct imx477_reg mode_4056x3040_regs[] = {
-	{0x0112, 0x0c},
-	{0x0113, 0x0c},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -585,7 +590,6 @@ static const struct imx477_reg mode_4056x3040_regs[] = {
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
@@ -660,8 +664,6 @@ static const struct imx477_reg mode_4056x2160_regs[] = {
 
 /* 2x2 binned. 40fps */
 static const struct imx477_reg mode_2028x1520_regs[] = {
-	{0x0112, 0x0c},
-	{0x0113, 0x0c},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -705,7 +707,6 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
@@ -716,8 +717,6 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 
 /* 1080p cropped mode */
 static const struct imx477_reg mode_2028x1080_regs[] = {
-	{0x0112, 0x0c},
-	{0x0113, 0x0c},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x01},
@@ -761,7 +760,6 @@ static const struct imx477_reg mode_2028x1080_regs[] = {
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
@@ -772,8 +770,6 @@ static const struct imx477_reg mode_2028x1080_regs[] = {
 
 /* 4x4 binned. 120fps */
 static const struct imx477_reg mode_1332x990_regs[] = {
-	{0x0112, 0x0a},
-	{0x0113, 0x0a},
 	{0x420b, 0x01},
 	{0x990c, 0x00},
 	{0x990d, 0x08},
@@ -841,7 +837,6 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x0305, 0x02},
 	{0x0306, 0x00},
 	{0x0307, 0xaf},
-	{0x0309, 0x0a},
 	{0xe04c, 0x00},
 	{0xe04d, 0x5f},
 	{0xe04e, 0x00},
@@ -851,12 +846,12 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 };
 
 /* Mode configs */
-static const struct imx477_mode supported_modes_12bit[] = {
+static const struct imx477_mode supported_modes[] = {
 	{
 		/* 12MPix 10fps mode */
 		.width = 4056,
 		.height = 3040,
-		.line_length_pix = 24000,
+		.line_length_pix = { 24000, 20000 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -890,7 +885,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 2x2 binned 40fps mode */
 		.width = 2028,
 		.height = 1520,
-		.line_length_pix = 12740,
+		.line_length_pix = { 12740, 10616 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -907,7 +902,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 1080p 50fps cropped mode */
 		.width = 2028,
 		.height = 1080,
-		.line_length_pix = 12740,
+		.line_length_pix = { 12740, 10616 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
@@ -919,15 +914,12 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1080_regs),
 			.regs = mode_2028x1080_regs,
 		},
-	}
-};
-
-static const struct imx477_mode supported_modes_10bit[] = {
+	},
 	{
 		/* 120fps. 2x2 binned and cropped */
 		.width = 1332,
 		.height = 990,
-		.line_length_pix = 6664,
+		.line_length_pix = { 7997, 6664 },
 		.crop = {
 			/*
 			 * FIXME: the analog crop rectangle is actually
@@ -1077,33 +1069,6 @@ static inline struct imx477 *to_imx477(struct v4l2_subdev *_sd)
 	return container_of(_sd, struct imx477, sd);
 }
 
-static inline void get_mode_table(unsigned int code,
-				  const struct imx477_mode **mode_list,
-				  unsigned int *num_modes)
-{
-	switch (code) {
-	/* 12-bit */
-	case MEDIA_BUS_FMT_SRGGB12_1X12:
-	case MEDIA_BUS_FMT_SGRBG12_1X12:
-	case MEDIA_BUS_FMT_SGBRG12_1X12:
-	case MEDIA_BUS_FMT_SBGGR12_1X12:
-		*mode_list = supported_modes_12bit;
-		*num_modes = ARRAY_SIZE(supported_modes_12bit);
-		break;
-	/* 10-bit */
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-	case MEDIA_BUS_FMT_SGRBG10_1X10:
-	case MEDIA_BUS_FMT_SGBRG10_1X10:
-	case MEDIA_BUS_FMT_SBGGR10_1X10:
-		*mode_list = supported_modes_10bit;
-		*num_modes = ARRAY_SIZE(supported_modes_10bit);
-		break;
-	default:
-		*mode_list = NULL;
-		*num_modes = 0;
-	}
-}
-
 /* Read registers up to 2 at a time */
 static int imx477_read_reg(struct imx477 *imx477, u16 reg, u32 len, u32 *val)
 {
@@ -1199,7 +1164,7 @@ static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 static void imx477_set_default_format(struct imx477 *imx477)
 {
 	/* Set default mode to max resolution */
-	imx477->mode = &supported_modes_12bit[0];
+	imx477->mode = &supported_modes[0];
 	imx477->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 }
 
@@ -1215,8 +1180,8 @@ static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	mutex_lock(&imx477->mutex);
 
 	/* Initialize try_fmt for the image pad */
-	try_fmt_img->width = supported_modes_12bit[0].width;
-	try_fmt_img->height = supported_modes_12bit[0].height;
+	try_fmt_img->width = supported_modes[0].width;
+	try_fmt_img->height = supported_modes[0].height;
 	try_fmt_img->code = imx477_get_format_code(imx477,
 						   MEDIA_BUS_FMT_SRGGB12_1X12);
 	try_fmt_img->field = V4L2_FIELD_NONE;
@@ -1394,20 +1359,15 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
-		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
+		if (fse->index >= ARRAY_SIZE(supported_modes))
 			return -EINVAL;
 
 		if (fse->code != imx477_get_format_code(imx477, fse->code))
 			return -EINVAL;
 
-		fse->min_width = mode_list[fse->index].width;
+		fse->min_width = supported_modes[fse->index].width;
 		fse->max_width = fse->min_width;
-		fse->min_height = mode_list[fse->index].height;
+		fse->min_height = supported_modes[fse->index].height;
 		fse->max_height = fse->min_height;
 	} else {
 		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
@@ -1485,30 +1445,11 @@ static int imx477_get_pad_format(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static
-unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
-				     unsigned int framerate_default)
-{
-	u64 frame_length;
-
-	frame_length = IMX477_PIXEL_RATE;
-	do_div(frame_length,
-	       (u64)framerate_default * mode->line_length_pix);
-
-	if (WARN_ON(frame_length > IMX477_FRAME_LENGTH_MAX))
-		frame_length = IMX477_FRAME_LENGTH_MAX;
-
-	return max_t(unsigned int, frame_length, mode->height);
-}
-
 static void imx477_set_framing_limits(struct imx477 *imx477)
 {
-	unsigned int frm_length_default, hblank_min;
+	unsigned int hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
 	unsigned int line_length_pix;
-
-	frm_length_default =
-		     imx477_get_frame_length(mode, mode->framerate_default);
 
 	/* Default to no long exposure multiplier. */
 	imx477->long_exp_shift = 0;
@@ -1517,12 +1458,23 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	__v4l2_ctrl_modify_range(imx477->vblank, 1,
 				 ((1 << IMX477_LONG_EXP_SHIFT_MAX) *
 					IMX477_FRAME_LENGTH_MAX) - mode->height,
-				 IMX477_VBLANK_MIN, frm_length_default - mode->height);
+				 IMX477_VBLANK_MIN, IMX477_VBLANK_MIN);
 
-	/* Setting this will adjust the exposure limits as well. */
-	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
-
-	line_length_pix = mode->line_length_pix;
+	switch (imx477->fmt_code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+		line_length_pix = mode->line_length_pix[0];
+		break;
+	/* 10-bit */
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		line_length_pix = mode->line_length_pix[1];
+		break;
+	}
 	if (imx477->double_link_freq)
 		line_length_pix /= 2;
 	hblank_min = line_length_pix - mode->width;
@@ -1545,17 +1497,12 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 	mutex_lock(&imx477->mutex);
 
 	if (fmt->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
 		/* Bayer order varies with flips */
 		fmt->format.code = imx477_get_format_code(imx477,
 							  fmt->format.code);
 
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
-
-		mode = v4l2_find_nearest_size(mode_list,
-					      num_modes,
+		mode = v4l2_find_nearest_size(supported_modes,
+					      ARRAY_SIZE(supported_modes),
 					      width, height,
 					      fmt->format.width,
 					      fmt->format.height);
@@ -1564,7 +1511,8 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
-		} else if (imx477->mode != mode) {
+		} else if (imx477->mode != mode ||
+			   fmt->format.code != imx477->fmt_code) {
 			imx477->mode = mode;
 			imx477->fmt_code = fmt->format.code;
 			imx477_set_framing_limits(imx477);
@@ -1643,7 +1591,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	const struct imx477_reg_list *reg_list;
 	const struct imx477_reg_list *extra_regs;
-	int ret, tm;
+	int ret, tm, val;
 
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
@@ -1679,6 +1627,28 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
+
+	switch (imx477->fmt_code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+		val = 0x0c;
+		break;
+	/* 10-bit */
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		val = 0x0a;
+		break;
+	}
+	imx477_write_reg(imx477, IMX477_REG_CSI_DT_FMT_H,
+			 IMX477_REG_VALUE_08BIT, val);
+	imx477_write_reg(imx477, IMX477_REG_CSI_DT_FMT_L,
+			 IMX477_REG_VALUE_08BIT, val);
+	imx477_write_reg(imx477, IMX477_REG_IOP_PXCK_DIV,
+			 IMX477_REG_VALUE_08BIT, val);
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
