@@ -3993,6 +3993,9 @@ int tcp_connect(struct sock *sk)
 	 */
 	WRITE_ONCE(tp->snd_nxt, tp->write_seq);
 	tp->pushed_seq = tp->write_seq;
+
+	trace_android_vh_tcp_connect(buff);
+
 	buff = tcp_send_head(sk);
 	if (unlikely(buff)) {
 		WRITE_ONCE(tp->snd_nxt, TCP_SKB_CB(buff)->seq);
