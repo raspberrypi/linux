@@ -18,6 +18,8 @@ enum android_debug_symbol {
 	ADS_DROP_SLAB,
 	ADS_FREE_PAGES,
 	ADS_COMPACT_PAGES,
+	ADS_SHOW_MEM, /* for debugging memory usage */
+	ADS_TOTAL_CMA, /* for debugging total cma pages */
 	ADS_END
 };
 
