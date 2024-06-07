@@ -1386,7 +1386,19 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_BURST)
 		vid_mode_cfg |= 0x02;
 	DSI_WRITE(DSI_VID_MODE_CFG, vid_mode_cfg);
-	DSI_WRITE(DSI_CMD_MODE_CFG, 0x10F7F00);
+
+	/*
+	 * Modification for rp1dsitest to allow commands to be sent as HS.
+	 * This is no worse than the current rpi-6.6.y version, but neither
+	 * is strictly correct! A more correct behaviour is to require
+	 * MIPI_DSI_MODE_VIDEO, and ignore MIPI_DSI_MODE_LPM (since
+	 * we currently support only video-mode displays); and instead
+	 * use MIPI_DSI_MSG_USE_LPM to select LP or HS for each command.
+	 */
+	if (dsi->display_flags & (MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_LPM))
+		DSI_WRITE(DSI_CMD_MODE_CFG, 0x10F7F00); /* <- existing behaviour */
+	else
+		DSI_WRITE(DSI_CMD_MODE_CFG, 0); /* <- added for rp1dsitest */
 
 	/* Select Command Mode */
 	DSI_WRITE(DSI_MODE_CFG, 1);

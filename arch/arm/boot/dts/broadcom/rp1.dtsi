@@ -999,6 +999,25 @@
 			status = "disabled";
 		};
 
+		rp1_csi1_test: csitest@128000 {
+			compatible = "raspberrypi,rp1-csi-test";
+			reg = <0xc0 0x40128000  0x0 0x100>, // CSI2 DMA address
+			      <0xc0 0x4012c000  0x0 0x100>, // PHY/CSI Host address
+			      <0xc0 0x40138000  0x0 0x100>, // MIPI CFG address
+			      <0xc0 0x4013c000  0x0 0x1000>; // PiSP FE address
+
+			// interrupts must match rp1_pisp_fe setup
+			interrupts = <RP1_INT_MIPI1 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>;
+			assigned-clock-rates = <25000000>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "ok";
+		};
+
 		rp1_csi1: csi@128000 {
 			compatible = "raspberrypi,rp1-cfe";
 			reg = <0xc0 0x40128000  0x0 0x100>, // CSI2 DMA address
@@ -1098,6 +1117,28 @@
 			snps,tx-thr-num-pkt = /bits/ 8 <2>;
 			interrupts = <RP1_INT_USBHOST1_0 IRQ_TYPE_EDGE_RISING>;
 			status = "disabled";
+		};
+
+		rp1_dsi0_test: dsitest@110000 {
+			compatible = "raspberrypi,rp1-dsi-test";
+			status = "ok";
+			reg = <0xc0 0x40118000  0x0 0x1000>,  // MIPI0 DSI DMA (ArgonDPI)
+			      <0xc0 0x4011c000  0x0 0x1000>,  // MIPI0 DSI Host (SNPS)
+			      <0xc0 0x40120000  0x0 0x1000>;  // MIPI0 CFG
+
+			interrupts = <RP1_INT_MIPI0 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
+				 <&rp1_clocks RP1_CLK_MIPI0_DPI>,
+				 <&rp1_clocks RP1_CLK_MIPI0_DSI_BYTECLOCK>,
+				 <&clk_xosc>,                // hardwired to DSI "refclk"
+				 <&rp1_clocks RP1_PLL_SYS>;  // alternate parent for divide
+			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk", "pllsys";
+
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
+					  <&rp1_clocks RP1_CLK_MIPI0_DPI>,
+					  <&rp1_clocks RP1_CLK_MIPI0_DSI_BYTECLOCK>;
+			assigned-clock-rates = <25000000>;
 		};
 
 		rp1_dsi0: dsi@110000 {
