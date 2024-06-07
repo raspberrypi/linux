@@ -345,6 +345,9 @@ void __init_rwsem(struct rw_semaphore *sem, const char *name,
 #ifdef CONFIG_RWSEM_SPIN_ON_OWNER
 	osq_lock_init(&sem->osq);
 #endif
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	sem->android_vendor_data1 = 0;
+#endif
 	trace_android_vh_rwsem_init(sem);
 }
 EXPORT_SYMBOL(__init_rwsem);
