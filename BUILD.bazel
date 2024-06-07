@@ -1551,7 +1551,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/adjtick.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1564,7 +1563,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/alarmtimer-suspend.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1577,7 +1575,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/change_skew.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1595,7 +1592,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/clocksource-switch.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1612,7 +1608,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/freq-step.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1626,7 +1621,6 @@ cc_binary_with_abi(
     out = "inconsistency-check",
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1639,7 +1633,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/leap-a-day.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1652,7 +1645,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/leapcrash.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1666,7 +1658,6 @@ cc_binary_with_abi(
     out = "nanosleep",
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1680,7 +1671,6 @@ cc_binary_with_abi(
     out = "nsleep-lat",
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1693,7 +1683,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/posix_timers.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1707,7 +1696,6 @@ cc_binary_with_abi(
     out = "raw_skew",
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1720,7 +1708,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/set-2038.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1738,7 +1725,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/set-tai.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1751,7 +1737,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/set-timer-lat.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1764,7 +1749,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/set-tz.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1777,7 +1761,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/skew_consistency.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1793,7 +1776,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/threadtest.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
@@ -1806,7 +1788,6 @@ cc_binary_with_abi(
     srcs = ["tools/testing/selftests/timers/valid-adjtimex.c"],
     copts = [
         "-O3",
-        "-DKTEST",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
