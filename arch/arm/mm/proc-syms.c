@@ -27,9 +27,6 @@ EXPORT_SYMBOL(__cpuc_flush_user_all);
 EXPORT_SYMBOL(__cpuc_flush_user_range);
 EXPORT_SYMBOL(__cpuc_coherent_kern_range);
 EXPORT_SYMBOL(__cpuc_flush_dcache_area);
-EXPORT_SYMBOL(dmac_inv_range);
-EXPORT_SYMBOL(dmac_clean_range);
-EXPORT_SYMBOL(dmac_flush_range);
 #else
 EXPORT_SYMBOL(cpu_cache);
 #endif
