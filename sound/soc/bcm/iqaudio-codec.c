@@ -127,10 +127,16 @@ static int snd_rpi_iqaudio_codec_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_disable_pin(&rtd->card->dapm, "AUX Jack");
 	snd_soc_dapm_sync(&rtd->card->dapm);
 
-	/* Set bclk ratio to align with codec's BCLK rate */
+	/* Impose BCLK ratios otherwise the codec may cheat */
 	ret = snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 	if (ret) {
 		dev_err(rtd->dev, "Failed to set CPU BLCK ratio\n");
+		return ret;
+	}
+
+	ret = snd_soc_dai_set_bclk_ratio(codec_dai, 64);
+	if (ret) {
+		dev_err(rtd->dev, "Failed to set codec BCLK ratio\n");
 		return ret;
 	}
 
