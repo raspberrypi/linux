@@ -25,8 +25,8 @@ hailo_pci-objs += $(VDMA_SRC_DIRECTORY)/ioctl.o
 
 ccflags-y      += -Werror
 ccflags-y      += -DHAILO_RASBERRY_PIE
-ccflags-y      += -I$(srctree)/$(src)
-ccflags-y      += -I$(srctree)/$(src)/include
-ccflags-y      += -I$(srctree)/$(src)/common
+ccflags-y      += -I $(src)
+ccflags-y      += -I $(src)/include
+ccflags-y      += -I $(src)/common
 
 clean-files := $(hailo_pci-objs)
