@@ -1346,6 +1346,8 @@ static int da7213_hw_params(struct snd_pcm_substream *substream,
 	switch (params_width(params)) {
 	case 16:
 		dai_ctrl |= DA7213_DAI_WORD_LENGTH_S16_LE;
+		if (da7213->bclk_ratio == 64)
+			break;
 		dai_clk_mode = DA7213_DAI_BCLKS_PER_WCLK_32; /* 32bit for 1ch and 2ch */
 		break;
 	case 20:
@@ -1360,6 +1362,9 @@ static int da7213_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
+
+	if (da7213->bclk_ratio == 32 && params_width(params) != 16)
+		return -EINVAL;
 
 	/* Set sampling rate */
 	switch (params_rate(params)) {
@@ -1519,6 +1524,21 @@ static int da7213_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 	snd_soc_component_update_bits(component, DA7213_DAI_CTRL, DA7213_DAI_FORMAT_MASK,
 			    dai_ctrl);
 	snd_soc_component_write(component, DA7213_DAI_OFFSET, dai_offset);
+
+	return 0;
+}
+
+static int da7213_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+{
+	struct snd_soc_component *component = dai->component;
+	struct da7213_priv *da7213 = snd_soc_component_get_drvdata(component);
+
+	if (ratio != 32 && ratio != 64) {
+		dev_err(component->dev, "Invalid bclk ratio %d\n", ratio);
+		return -EINVAL;
+	}
+
+	da7213->bclk_ratio = ratio;
 
 	return 0;
 }
@@ -1735,6 +1755,7 @@ static u64 da7213_dai_formats =
 static const struct snd_soc_dai_ops da7213_dai_ops = {
 	.hw_params	= da7213_hw_params,
 	.set_fmt	= da7213_set_dai_fmt,
+	.set_bclk_ratio	= da7213_set_bclk_ratio,
 	.mute_stream	= da7213_mute,
 	.no_capture_mute = 1,
 	.auto_selectable_formats	= &da7213_dai_formats,
