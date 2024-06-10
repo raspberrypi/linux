@@ -1231,100 +1231,6 @@ error:
 	return ret;
 }
 
-#ifndef CONFIG_ARM64
-/* Converts VCSM_CACHE_OP_* to an operating function. */
-static void (*cache_op_to_func(const unsigned int cache_op))
-						(const void*, const void*)
-{
-	switch (cache_op) {
-	case VC_SM_CACHE_OP_NOP:
-		return NULL;
-
-	case VC_SM_CACHE_OP_INV:
-		return dmac_inv_range;
-	case VC_SM_CACHE_OP_CLEAN:
-		return dmac_clean_range;
-	case VC_SM_CACHE_OP_FLUSH:
-		return dmac_flush_range;
-
-	default:
-		pr_err("[%s]: Invalid cache_op: 0x%08x\n", __func__, cache_op);
-		return NULL;
-	}
-}
-
-/*
- * Clean/invalid/flush cache of which buffer is already pinned (i.e. accessed).
- */
-static int clean_invalid_contig_2d(const void __user *addr,
-				   const size_t block_count,
-				   const size_t block_size,
-				   const size_t stride,
-				   const unsigned int cache_op)
-{
-	size_t i;
-	void (*op_fn)(const void *start, const void *end);
-
-	if (!block_size) {
-		pr_err("[%s]: size cannot be 0\n", __func__);
-		return -EINVAL;
-	}
-
-	op_fn = cache_op_to_func(cache_op);
-	if (!op_fn)
-		return -EINVAL;
-
-	for (i = 0; i < block_count; i ++, addr += stride)
-		op_fn(addr, addr + block_size);
-
-	return 0;
-}
-
-static int vc_sm_cma_clean_invalid2(unsigned int cmdnr, unsigned long arg)
-{
-	struct vc_sm_cma_ioctl_clean_invalid2 ioparam;
-	struct vc_sm_cma_ioctl_clean_invalid_block *block = NULL;
-	int i, ret = 0;
-
-	/* Get parameter data. */
-	if (copy_from_user(&ioparam, (void *)arg, sizeof(ioparam))) {
-		pr_err("[%s]: failed to copy-from-user header for cmd %x\n",
-		       __func__, cmdnr);
-		return -EFAULT;
-	}
-	block = kmalloc(ioparam.op_count * sizeof(*block), GFP_KERNEL);
-	if (!block)
-		return -EFAULT;
-
-	if (copy_from_user(block, (void *)(arg + sizeof(ioparam)),
-			   ioparam.op_count * sizeof(*block)) != 0) {
-		pr_err("[%s]: failed to copy-from-user payload for cmd %x\n",
-		       __func__, cmdnr);
-		ret = -EFAULT;
-		goto out;
-	}
-
-	for (i = 0; i < ioparam.op_count; i++) {
-		const struct vc_sm_cma_ioctl_clean_invalid_block * const op =
-								block + i;
-
-		if (op->invalidate_mode == VC_SM_CACHE_OP_NOP)
-			continue;
-
-		ret = clean_invalid_contig_2d((void __user *)op->start_address,
-					      op->block_count, op->block_size,
-					      op->inter_block_stride,
-					      op->invalidate_mode);
-		if (ret)
-			break;
-	}
-out:
-	kfree(block);
-
-	return ret;
-}
-#endif
-
 static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
 {
@@ -1415,16 +1321,6 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 		}
 		break;
 	}
-
-#ifndef CONFIG_ARM64
-	/*
-	 * Flush/Invalidate the cache for a given mapping.
-	 * Blocks must be pinned (i.e. accessed) before this call.
-	 */
-	case VC_SM_CMA_CMD_CLEAN_INVALID2:
-		ret = vc_sm_cma_clean_invalid2(cmdnr, arg);
-		break;
-#endif
 
 	default:
 		pr_debug("[%s]: cmd %x tgid %u, owner %u\n", __func__, cmdnr,
