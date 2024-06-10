@@ -34,6 +34,7 @@
 DECLARE_STATIC_KEY_FALSE(page_shift_compat_enabled);
 extern int page_shift_compat;
 
+#ifdef CONFIG_X86_64
 static __always_inline unsigned __page_shift(void)
 {
 	if (static_branch_unlikely(&page_shift_compat_enabled))
@@ -41,6 +42,9 @@ static __always_inline unsigned __page_shift(void)
 	else
 		return PAGE_SHIFT;
 }
+#else	/* !CONFIG_X86_64 */
+#define __page_shift() 	PAGE_SHIFT
+#endif	/* CONFIG_X86_64 */
 
 #define __PAGE_SHIFT 			__page_shift()
 #define __PAGE_SIZE 			(_AC(1,UL) << __PAGE_SHIFT)
