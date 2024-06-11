@@ -47,6 +47,8 @@
   drop_super
   mm_trace_rss_stat
   __kfifo_len_r
+  __tracepoint_android_rvh_cpuinfo_c_show
+  __traceiter_android_rvh_cpuinfo_c_show
   __tracepoint_android_vh_dc_send_copy
   __traceiter_android_vh_dc_send_copy
   __tracepoint_android_vh_dc_receive
