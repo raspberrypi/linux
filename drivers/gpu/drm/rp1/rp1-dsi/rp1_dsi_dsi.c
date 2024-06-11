@@ -1434,7 +1434,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	if (timeout == 0)
 		drm_err(dsi->drm, "RP1DSI: Time out waiting for PLL\n");
 
-	DSI_WRITE(DSI_LPCLK_CTRL, 0x1);		/* configure the requesthsclk */
+	DSI_WRITE(DSI_LPCLK_CTRL, 0x0);		/* clock off (start in LP11) */
 	DSI_WRITE(DSI_PHY_TST_CTRL0, 0x2);
 	DSI_WRITE(DSI_PCKHDL_CFG, 1 << 2);	/* allow bus turnaround */
 	DSI_WRITE(DSI_PWR_UP, 0x1);		/* power up */
@@ -1458,6 +1458,10 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	if (timeout == 0)
 		drm_err(dsi->drm, "RP1DSI: Time out waiting for lanes (%x %x)\n",
 			mask, DSI_READ(DSI_PHY_STATUS));
+
+	usleep_range(5, 10);
+	DSI_WRITE(DSI_LPCLK_CTRL, 0x1);		/* continuous clock */
+	usleep_range(5, 10);
 }
 
 void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 hdr, int len, const u8 *buf)
