@@ -49,8 +49,8 @@ DECLARE_HOOK(android_vh_kmalloc_large_alloced,
 	TP_PROTO(struct page *page, unsigned int order, gfp_t flags),
 	TP_ARGS(page, order, flags));
 DECLARE_RESTRICTED_HOOK(android_rvh_ctl_dirty_rate,
-	TP_PROTO(void *unused),
-	TP_ARGS(unused), 1);
+	TP_PROTO(struct inode *inode),
+	TP_ARGS(inode), 1);
 DECLARE_HOOK(android_vh_test_clear_look_around_ref,
 	TP_PROTO(struct page *page),
 	TP_ARGS(page));
