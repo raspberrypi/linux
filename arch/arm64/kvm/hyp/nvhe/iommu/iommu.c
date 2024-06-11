@@ -6,6 +6,7 @@
  */
 
 #include <asm/kvm_hyp.h>
+#include <asm/kvm_hypevents.h>
 
 #include <hyp/adjust_pc.h>
 
@@ -579,6 +580,8 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 
 	if (!kvm_iommu_is_ready())
 		return;
+
+	trace_iommu_idmap(start, end, prot);
 
 	domain = __handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID, false);
 
