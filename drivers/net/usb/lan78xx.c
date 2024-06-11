@@ -2900,6 +2900,29 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 		goto phylink_uninit;
 	}
 
+	if (of_property_read_bool(phydev->mdio.dev.of_node,
+				  "microchip,eee-enabled")) {
+		struct ethtool_keee edata;
+		memset(&edata, 0, sizeof(edata));
+
+		linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+			edata.advertised);
+		linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+			edata.advertised);
+
+		edata.eee_enabled = true;
+		edata.tx_lpi_enabled = true;
+		if (of_property_read_u32(phydev->mdio.dev.of_node,
+					 "microchip,tx-lpi-timer",
+					 &edata.tx_lpi_timer))
+			edata.tx_lpi_timer = 600; /* non-aggressive */
+		rtnl_lock();
+		(void)lan78xx_set_eee(dev->net, &edata);
+		rtnl_unlock();
+
+		phy_support_eee(phydev);
+	}
+
 	ret = lan78xx_configure_leds_from_dt(dev, phydev);
 	if (ret < 0)
 		goto phylink_uninit;
