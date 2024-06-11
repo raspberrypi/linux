@@ -35,12 +35,14 @@
   blocking_notifier_chain_register
   blocking_notifier_chain_unregister
   bpf_trace_run1
+  bpf_trace_run11
   bpf_trace_run2
   bpf_trace_run3
   bpf_trace_run4
   bpf_trace_run5
   bpf_trace_run6
   bpf_trace_run7
+  bpf_trace_run8
   bpf_trace_run9
   bus_get_dev_root
   bus_register
@@ -58,6 +60,7 @@
   __check_object_size
   class_create
   class_destroy
+  class_register
   class_unregister
   clk_disable
   clk_enable
@@ -92,6 +95,7 @@
   cpufreq_quick_get
   cpufreq_register_notifier
   cpufreq_unregister_notifier
+  __cpuhp_remove_state
   __cpuhp_setup_state
   cpu_number
   __cpu_online_mask
@@ -220,6 +224,7 @@
   dmam_alloc_attrs
   dma_map_page_attrs
   dma_map_sgtable
+  dmam_free_coherent
   dma_mmap_attrs
   dma_release_channel
   dma_request_chan
@@ -235,6 +240,7 @@
   dma_unmap_page_attrs
   dma_unmap_sg_attrs
   do_wait_intr
+  down_read
   down_write
   d_path
   driver_unregister
@@ -310,8 +316,13 @@
   free_pages
   free_percpu
   freq_qos_update_request
+  gcd
   generic_file_llseek
   generic_handle_irq
+  genlmsg_multicast_allns
+  genlmsg_put
+  genl_register_family
+  genl_unregister_family
   gen_pool_add_owner
   gen_pool_alloc_algo_owner
   gen_pool_avail
@@ -362,11 +373,16 @@
   i2c_smbus_write_i2c_block_data
   i2c_transfer
   i2c_transfer_buffer_flags
+  i2c_unregister_device
   ida_alloc_range
   ida_free
   idr_alloc
+  idr_destroy
+  idr_find
+  idr_for_each
   idr_remove
   init_dummy_netdev
+  init_net
   __init_rwsem
   __init_swait_queue_head
   init_task
@@ -439,6 +455,7 @@
   kstrtoint
   kstrtoint_from_user
   kstrtoll
+  kstrtou16
   kstrtou8
   kstrtouint
   kstrtouint_from_user
@@ -473,7 +490,6 @@
   log_read_mmio
   log_write_mmio
   loops_per_jiffy
-  lzo1x_decompress_safe
   memchr
   memcmp
   memcpy
@@ -515,7 +531,10 @@
   netif_receive_skb
   netif_rx
   netif_tx_wake_queue
+  nla_memcpy
   nla_put
+  nla_put_64bit
+  nla_reserve
   noop_llseek
   nr_cpu_ids
   nsecs_to_jiffies
@@ -635,7 +654,7 @@
   power_supply_changed
   power_supply_get_by_name
   power_supply_get_drvdata
-  power_supply_get_property
+  power_supply_put
   power_supply_register
   power_supply_set_property
   power_supply_unregister
@@ -665,13 +684,17 @@
   _raw_read_unlock
   _raw_read_unlock_irqrestore
   _raw_spin_lock
+  _raw_spin_lock_bh
   _raw_spin_lock_irq
   _raw_spin_lock_irqsave
   _raw_spin_trylock
   _raw_spin_unlock
+  _raw_spin_unlock_bh
   _raw_spin_unlock_irq
   _raw_spin_unlock_irqrestore
+  _raw_write_lock
   _raw_write_lock_irqsave
+  _raw_write_unlock
   _raw_write_unlock_irqrestore
   rb_erase
   rb_insert_color
@@ -690,6 +713,7 @@
   register_die_notifier
   register_kretprobe
   register_netdev
+  register_netdevice
   register_pm_notifier
   register_reboot_notifier
   register_restart_handler
@@ -714,13 +738,16 @@
   remove_proc_entry
   request_firmware
   request_firmware_direct
+  request_firmware_nowait
   __request_region
   request_threaded_irq
+  return_address
   rps_needed
   rtc_class_close
   rtc_class_open
   rtc_read_time
   rtc_time64_to_tm
+  rtnl_is_locked
   rtnl_lock
   rtnl_unlock
   runqueues
@@ -752,6 +779,7 @@
   single_open
   single_release
   skb_clone
+  skb_copy_bits
   skb_copy_expand
   skb_dequeue
   skb_dequeue_tail
@@ -828,7 +856,9 @@
   subsys_system_register
   __sw_hweight32
   __sw_hweight64
+  __sw_hweight8
   sync_file_create
+  synchronize_net
   synchronize_rcu
   syscon_regmap_lookup_by_phandle
   sysfs_add_file_to_group
@@ -841,9 +871,11 @@
   sysfs_emit
   sysfs_remove_file_ns
   sysfs_remove_group
+  sysfs_remove_link
   system_cpucaps
   system_highpri_wq
   system_long_wq
+  system_power_efficient_wq
   system_state
   system_unbound_wq
   system_wq
@@ -897,6 +929,7 @@
   unregister_chrdev_region
   unregister_kretprobe
   unregister_netdev
+  unregister_netdevice_queue
   unregister_pm_notifier
   unregister_reboot_notifier
   up
@@ -945,6 +978,7 @@
   v4l2_m2m_reqbufs
   v4l2_m2m_streamoff
   v4l2_m2m_streamon
+  v4l2_subdev_init
   v4l_bound_align_image
   vb2_buffer_done
   vb2_dma_sg_memops
@@ -984,6 +1018,55 @@
   xhci_enable_interrupter
   xhci_get_endpoint_index
 
+# required by cfg80211.ko
+  csum_partial
+  debugfs_rename
+  __dev_change_net_namespace
+  dev_close
+  __dev_get_by_index
+  dev_get_by_index
+  device_add
+  device_del
+  device_rename
+  do_trace_netlink_extack
+  get_net_ns_by_fd
+  get_net_ns_by_pid
+  inet_csk_get_port
+  init_uts_ns
+  key_put
+  keyring_alloc
+  kfree_sensitive
+  ktime_get_coarse_with_offset
+  netdev_err
+  netlink_broadcast
+  netlink_register_notifier
+  netlink_unicast
+  netlink_unregister_notifier
+  net_ns_type_operations
+  nla_find
+  __nla_parse
+  __nla_validate
+  __pskb_pull_tail
+  __put_net
+  register_netdevice_notifier
+  register_pernet_device
+  rfkill_alloc
+  rfkill_blocked
+  rfkill_destroy
+  rfkill_register
+  rfkill_resume_polling
+  rfkill_set_hw_state_reason
+  rfkill_unregister
+  skb_add_rx_frag
+  __sock_create
+  sock_release
+  __sw_hweight16
+  unregister_netdevice_notifier
+  unregister_pernet_device
+  verify_pkcs7_signature
+  wireless_nlevent_flush
+  x509_load_certificate_list
+
 # required by clk_exynos.ko
   clk_hw_get_parent
   clk_register
@@ -1000,7 +1083,6 @@
   csum_ipv6_magic
   csum_tcpudp_nofold
   dev_get_by_name
-  init_net
   __napi_alloc_skb
   napi_build_skb
 
@@ -1030,7 +1112,6 @@
   hdmi_drm_infoframe_init
   i2c_add_adapter
   memchr_inv
-  __sw_hweight8
 
 # required by drm_ttm_helper.ko
   drm_print_bits
@@ -1050,7 +1131,6 @@
   kstat
   nr_irqs
   register_console
-  return_address
   stack_trace_save_tsk
   touch_softlockup_watchdog
   __traceiter_android_rvh_arm64_serror_panic
@@ -1103,8 +1183,6 @@
   arch_freq_scale
   available_idle_cpu
   balance_push_callback
-  bpf_trace_run11
-  bpf_trace_run8
   check_preempt_curr
   cpufreq_add_update_util_hook
   cpufreq_disable_fast_switch
@@ -1114,7 +1192,6 @@
   cpufreq_register_governor
   cpufreq_remove_update_util_hook
   cpufreq_this_cpu_can_update
-  __cpuhp_remove_state
   cpuidle_governor_latency_req
   cpuidle_register_governor
   cpupri_find_fitness
@@ -1172,7 +1249,6 @@
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_try_to_wake_up
   __traceiter_android_rvh_uclamp_eff_get
-  __traceiter_android_rvh_update_cpu_capacity
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_binder_restore_priority
@@ -1181,7 +1257,6 @@
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_syscall_prctl_finished
   __traceiter_binder_transaction_received
-  __traceiter_cpu_frequency_limits
   __tracepoint_android_rvh_can_migrate_task
   __tracepoint_android_rvh_check_preempt_wakeup
   __tracepoint_android_rvh_cpu_cgroup_attach
@@ -1203,7 +1278,6 @@
   __tracepoint_android_rvh_select_task_rq_rt
   __tracepoint_android_rvh_try_to_wake_up
   __tracepoint_android_rvh_uclamp_eff_get
-  __tracepoint_android_rvh_update_cpu_capacity
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_binder_restore_priority
@@ -1212,7 +1286,6 @@
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_syscall_prctl_finished
   __tracepoint_binder_transaction_received
-  __tracepoint_cpu_frequency_limits
   uclamp_eff_value
   update_rq_clock
   wake_up_if_idle
@@ -1386,6 +1459,7 @@
   drm_writeback_queue_job
   get_options
   hdmi_drm_infoframe_pack_only
+  irq_set_irq_type
   mipi_dsi_create_packet
   mipi_dsi_dcs_set_column_address
   mipi_dsi_dcs_set_page_address
@@ -1416,7 +1490,6 @@
 
 # required by exynos-msc-dsu.ko
   bitmap_alloc
-  kstrtou16
 
 # required by exynos-pd.ko
   of_genpd_add_provider_simple
@@ -1430,11 +1503,9 @@
 
 # required by exynos-pkvm-s2mpu.ko
   kvm_iommu_register_driver
+
 # required by exynos-reboot.ko
   pm_power_off
-
-# required by exynos-seh.ko
-  dmam_free_coherent
 
 # required by exynos-ssld.ko
   driver_register
@@ -1483,17 +1554,12 @@
   bpf_trace_run10
   devfreq_add_device
   devfreq_add_governor
-  devfreq_monitor_stop
   devfreq_recommended_opp
   devfreq_register_opp_notifier
   devfreq_remove_device
   devfreq_unregister_opp_notifier
   dev_pm_opp_disable
   dev_pm_opp_get_freq_indexed
-  perf_event_read_value
-  __srcu_read_lock
-  __srcu_read_unlock
-  synchronize_srcu
   update_devfreq
 
 # required by exynos_mct_v3.ko
@@ -1596,7 +1662,6 @@
   v4l2_device_set_name
   v4l2_device_unregister_subdev
   v4l2_subdev_call_wrappers
-  v4l2_subdev_init
   vb2_mmap
 
 # required by freq-qos-tracer.ko
@@ -1633,6 +1698,9 @@
   __traceiter_android_vh_free_task
   __tracepoint_android_rvh_cpufreq_transition
   __tracepoint_android_vh_free_task
+
+# required by hwdecomp.ko
+  lzo1x_decompress_safe
 
 # required by i2c-dev.ko
   bus_register_notifier
@@ -1675,13 +1743,19 @@
   i3c_driver_register_with_owner
   i3c_driver_unregister
 
+# required by lealt-mon.ko
+  perf_event_read_value
+
 # required by leds-s2mf301.ko
   devm_led_classdev_register_ext
+
+# required by leds-s2mpb02.ko
+  led_classdev_register_ext
+  led_classdev_unregister
 
 # required by mcDrvModule.ko
   crypto_shash_final
   crypto_shash_update
-  down_read
   freezer_active
   freezing_slow_path
   get_zeroed_page
@@ -1712,12 +1786,10 @@
   rtc_set_time
   rtc_tm_to_time64
   sched_setscheduler
-  sysfs_remove_link
   __wake_up_locked_key
   __wake_up_sync
 
 # required by npu.ko
-  class_register
   cpuidle_pause_and_lock
   cpuidle_resume_and_unlock
   vsprintf
@@ -1828,7 +1900,6 @@
 # required by s2mf301_mfd.ko
   i2c_new_dummy_device
   i2c_smbus_write_word_data
-  i2c_unregister_device
   __irq_alloc_descs
 
 # required by s2p_rtc.ko
@@ -1876,6 +1947,7 @@
 
 # required by samsung_dma_heap.ko
   anon_inode_getfile
+  contig_page_data
   deferred_free
   dmabuf_page_pool_alloc
   dmabuf_page_pool_create
@@ -1887,6 +1959,8 @@
   dma_heap_get_drvdata
   dma_heap_get_name
   is_dma_buf_file
+  mod_node_page_state
+  register_shrinker
 
 # required by samsung_iommu_v9.ko
   device_link_add
@@ -1929,10 +2003,6 @@
   vprintk_emit
 
 # required by scsc_mx.ko
-  genlmsg_multicast_allns
-  genlmsg_put
-  genl_register_family
-  genl_unregister_family
   __kfifo_from_user
   kobject_uevent
 
@@ -1976,28 +2046,16 @@
   __netif_napi_del
   netif_schedule_queue
   netif_tx_stop_all_queues
-  nla_memcpy
-  nla_put_64bit
   nla_put_nohdr
-  nla_reserve
   _raw_read_lock_bh
   _raw_read_unlock_bh
-  _raw_spin_lock_bh
-  _raw_spin_unlock_bh
-  _raw_write_lock
   _raw_write_lock_bh
-  _raw_write_unlock
   _raw_write_unlock_bh
   register_inet6addr_notifier
   register_inetaddr_notifier
-  register_netdevice
-  rtnl_is_locked
   skb_copy
-  skb_copy_bits
-  synchronize_net
   unregister_inet6addr_notifier
   unregister_inetaddr_notifier
-  unregister_netdevice_queue
 
 # required by scsi_srpmb.ko
   blk_execute_rq
@@ -2083,14 +2141,10 @@
   drm_syncobj_replace_fence
   __fdget
   __folio_put
-  gcd
   get_random_u32
   __get_task_comm
   handle_simple_irq
   ida_destroy
-  idr_destroy
-  idr_find
-  idr_for_each
   idr_get_next
   idr_replace
   jiffies64_to_msecs
@@ -2133,7 +2187,6 @@
   shmem_read_mapping_page_gfp
   si_meminfo
   sysfs_remove_files
-  system_power_efficient_wq
   __traceiter_gpu_mem_total
   __tracepoint_gpu_mem_total
   ttm_bo_init_reserved
@@ -2239,7 +2292,6 @@
   pm_runtime_get_if_active
   pm_wakeup_dev_event
   proc_symlink
-  request_firmware_nowait
   snd_device_free
   snd_dma_alloc_dir_pages
   snd_dma_free_pages
@@ -2309,8 +2361,10 @@
   try_module_get
 
 # required by ufs-exynos-core.ko
+  blk_crypto_reprogram_all_keys
   blk_mq_unique_tag
   blk_queue_update_dma_alignment
+  devm_blk_crypto_profile_init
   of_cpu_node_to_id
   __traceiter_android_vh_ufs_check_int_errors
   __traceiter_android_vh_ufs_compl_command
@@ -2360,9 +2414,6 @@
   usb_gstrings_attach
   usb_os_desc_prepare_interf_dir
 
-# required by usb_notifier.ko
-  power_supply_put
-
 # required by usb_notify_layer.ko
   kthread_complete_and_exit
   usb_speed_string
@@ -2388,7 +2439,6 @@
   del_gendisk
   device_add_disk
   flush_dcache_page
-  kstrtou16
   memparse
   memset64
   put_disk
