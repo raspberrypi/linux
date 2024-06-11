@@ -1047,6 +1047,17 @@ static int kvm_arm_smmu_v3_init(void)
 	if (ret)
 		goto err_free_mc;
 
+	/* Preemptively allocate the identity domain. */
+	if (atomic_pages) {
+		ret = kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_alloc_domain,
+					   KVM_IOMMU_DOMAIN_IDMAP_ID,
+					   KVM_IOMMU_DOMAIN_IDMAP_TYPE);
+		if (ret) {
+			pr_err("pKVM SMMUv3 identity domain failed allocation %d\n", ret);
+			return ret;
+		}
+	}
+
 	WARN_ON(driver_for_each_device(&kvm_arm_smmu_driver.driver, NULL,
 				       NULL, smmu_put_device));
 	return 0;
