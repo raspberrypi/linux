@@ -146,7 +146,7 @@ struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops = {
 };
 
 static struct kvm_hyp_iommu_domain *
-handle_to_domain(pkvm_handle_t domain_id)
+__handle_to_domain(pkvm_handle_t domain_id, bool alloc)
 {
 	int idx;
 	struct kvm_hyp_iommu_domain *domains;
@@ -158,6 +158,8 @@ handle_to_domain(pkvm_handle_t domain_id)
 	idx = domain_id / KVM_IOMMU_DOMAINS_PER_PAGE;
 	domains = (struct kvm_hyp_iommu_domain *)READ_ONCE(kvm_hyp_iommu_domains[idx]);
 	if (!domains) {
+		if (!alloc)
+			return NULL;
 		domains = kvm_iommu_donate_page();
 		if (!domains)
 			return NULL;
@@ -175,6 +177,12 @@ handle_to_domain(pkvm_handle_t domain_id)
 		}
 	}
 	return &domains[domain_id % KVM_IOMMU_DOMAINS_PER_PAGE];
+}
+
+static struct kvm_hyp_iommu_domain *
+handle_to_domain(pkvm_handle_t domain_id)
+{
+	return __handle_to_domain(domain_id, true);
 }
 
 static int domain_get(struct kvm_hyp_iommu_domain *domain)
@@ -572,9 +580,7 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 	if (!kvm_iommu_is_ready())
 		return;
 
-	domain = handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID);
-	if (!domain)
-		return;
+	domain = __handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID, false);
 
 	kvm_iommu_ops->host_stage2_idmap(domain, start, end, pkvm_to_iommu_prot(prot));
 }
