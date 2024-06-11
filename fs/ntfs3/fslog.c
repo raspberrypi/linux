@@ -3907,6 +3907,8 @@ check_restart_area:
 		log->l_size = log->orig_file_size;
 		log->page_size = norm_file_page(t32, &log->l_size,
 						t32 == DefaultLogPageSize);
+		log->page_mask = log->page_size - 1;
+		log->page_bits = blksize_bits(log->page_size);
 	}
 
 	if (log->page_size != t32 ||
