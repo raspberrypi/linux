@@ -2384,7 +2384,7 @@ static int __pkvm_host_use_dma_page(phys_addr_t phys_addr)
 			return 0;
 		if (state != PKVM_PAGE_OWNED)
 			return -EPERM;
-		prot = pkvm_mkstate(KVM_HOST_S2_DEFAULT_MMIO_PTE, PKVM_PAGE_MMIO_DMA);
+		prot = pkvm_mkstate(PKVM_HOST_MMIO_PROT, PKVM_PAGE_MMIO_DMA);
 		return host_stage2_idmap_locked(phys_addr, PAGE_SIZE, prot, false);
 	}
 
