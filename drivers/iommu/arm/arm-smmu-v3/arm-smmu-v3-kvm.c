@@ -72,8 +72,7 @@ extern struct kvm_iommu_ops kvm_nvhe_sym(smmu_ops);
 static int atomic_pages;
 module_param(atomic_pages, int, 0);
 
-static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
-				       struct arm_smccc_res *res)
+static int kvm_arm_smmu_topup_memcache(struct arm_smccc_res *res)
 {
 	struct kvm_hyp_req req;
 
@@ -97,19 +96,19 @@ static int kvm_arm_smmu_topup_memcache(struct arm_smmu_device *smmu,
 		return __pkvm_topup_hyp_alloc(req.mem.nr_pages);
 	}
 
-	dev_err(smmu->dev, "Bogus mem request");
+	pr_err("Bogus mem request");
 	return -EBADE;
 }
 
 /*
  * Issue hypercall, and retry after filling the memcache if necessary.
  */
-#define kvm_call_hyp_nvhe_mc(smmu, ...)					\
+#define kvm_call_hyp_nvhe_mc(...)					\
 ({									\
 	struct arm_smccc_res __res;					\
 	do {								\
 		__res = kvm_call_hyp_nvhe_smccc(__VA_ARGS__);		\
-	} while (__res.a1 && !kvm_arm_smmu_topup_memcache(smmu, &__res));\
+	} while (__res.a1 && !kvm_arm_smmu_topup_memcache(&__res));\
 	__res.a1;							\
 })
 
@@ -245,7 +244,7 @@ static int kvm_arm_smmu_domain_finalize(struct kvm_arm_smmu_domain *kvm_smmu_dom
 	}
 	kvm_smmu_domain->domain.geometry.force_aperture = true;
 
-	ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_alloc_domain,
+	ret = kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_alloc_domain,
 				   kvm_smmu_domain->id, kvm_smmu_domain->type);
 
 	return ret;
@@ -336,7 +335,7 @@ static int kvm_arm_smmu_set_dev_pasid(struct iommu_domain *domain,
 	for (i = 0; i < fwspec->num_ids; i++) {
 		int sid = fwspec->ids[i];
 
-		ret = kvm_call_hyp_nvhe_mc(smmu, __pkvm_host_iommu_attach_dev,
+		ret = kvm_call_hyp_nvhe_mc(__pkvm_host_iommu_attach_dev,
 					   host_smmu->id, kvm_smmu_domain->id,
 					   sid, pasid, master->ssid_bits);
 		if (ret) {
@@ -373,7 +372,6 @@ static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
 	size_t mapped;
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
-	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 	struct arm_smccc_res res;
 
 	do {
@@ -387,7 +385,7 @@ static int kvm_arm_smmu_map_pages(struct iommu_domain *domain,
 		WARN_ON(mapped > pgcount * pgsize);
 		pgcount -= mapped / pgsize;
 		*total_mapped += mapped;
-	} while (*total_mapped < size && !kvm_arm_smmu_topup_memcache(smmu, &res));
+	} while (*total_mapped < size && !kvm_arm_smmu_topup_memcache(&res));
 	if (*total_mapped < size)
 		return -EINVAL;
 
@@ -403,7 +401,6 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 	size_t total_unmapped = 0;
 	size_t size = pgsize * pgcount;
 	struct kvm_arm_smmu_domain *kvm_smmu_domain = to_kvm_smmu_domain(domain);
-	struct arm_smmu_device *smmu = kvm_smmu_domain->smmu;
 	struct arm_smccc_res res;
 
 	do {
@@ -423,7 +420,7 @@ static size_t kvm_arm_smmu_unmap_pages(struct iommu_domain *domain,
 		 * block mapping.
 		 */
 	} while (total_unmapped < size &&
-		 (unmapped || !kvm_arm_smmu_topup_memcache(smmu, &res)));
+		 (unmapped || !kvm_arm_smmu_topup_memcache(&res)));
 
 	return total_unmapped;
 }
