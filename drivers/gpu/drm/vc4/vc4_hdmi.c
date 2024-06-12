@@ -2825,7 +2825,7 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	struct snd_soc_card *card = &vc4_hdmi->audio.card;
 	struct device *dev = &vc4_hdmi->pdev->dev;
 	struct platform_device *codec_pdev;
-	struct resource *iomem;
+	const __be32 *addr;
 	int index, len;
 	int ret;
 
@@ -2861,15 +2861,20 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	}
 
 	/*
-	 * Get the physical address of VC4_HD_MAI_DATA.
+	 * Get the physical address of VC4_HD_MAI_DATA. We need to retrieve
+	 * the bus address specified in the DT, because the physical address
+	 * (the one returned by platform_get_resource()) is not appropriate
+	 * for DMA transfers.
+	 * This VC/MMU should probably be exposed to avoid this kind of hacks.
 	 */
 	index = of_property_match_string(dev->of_node, "reg-names", "hd");
 	/* Before BCM2711, we don't have a named register range */
 	if (index < 0)
 		index = 1;
-	iomem = platform_get_resource(vc4_hdmi->pdev, IORESOURCE_MEM, index);
 
-	vc4_hdmi->audio.dma_data.addr = iomem->start + mai_data->offset;
+	addr = of_get_address(dev->of_node, index, NULL, NULL);
+
+	vc4_hdmi->audio.dma_data.addr = be32_to_cpup(addr) + mai_data->offset;
 	vc4_hdmi->audio.dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	vc4_hdmi->audio.dma_data.maxburst = 2;
 
