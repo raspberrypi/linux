@@ -1818,15 +1818,34 @@ exit_pm_put:
 static int lan78xx_get_eee(struct net_device *net, struct ethtool_keee *edata)
 {
 	struct lan78xx_net *dev = netdev_priv(net);
+	u32 buf;
+	int ret;
 
-	return phylink_ethtool_get_eee(dev->phylink, edata);
+	ret = phylink_ethtool_get_eee(dev->phylink, edata);
+	if (ret < 0)
+		return ret;
+
+	ret = lan78xx_read_reg(dev, EEE_TX_LPI_REQ_DLY, &buf);
+	if (ret >= 0)
+		edata->tx_lpi_timer = buf;
+	else
+		edata->tx_lpi_timer = 0;
+
+	return 0;
 }
 
 static int lan78xx_set_eee(struct net_device *net, struct ethtool_keee *edata)
 {
 	struct lan78xx_net *dev = netdev_priv(net);
+	u32 buf;
+	int ret;
 
-	return phylink_ethtool_set_eee(dev->phylink, edata);
+	ret = phylink_ethtool_set_eee(dev->phylink, edata);
+	if (ret < 0)
+		return ret;
+
+	buf = (u32)edata->tx_lpi_timer;
+	return lan78xx_write_reg(dev, EEE_TX_LPI_REQ_DLY, buf);
 }
 
 static void lan78xx_get_drvinfo(struct net_device *net,
