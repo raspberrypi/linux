@@ -537,10 +537,6 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 		    !ops->detach_dev))
 		return -ENODEV;
 
-	ret = ops->init ? ops->init(init_arg) : 0;
-	if (ret)
-		return ret;
-
 	ret = __pkvm_host_donate_hyp(__hyp_pa(kvm_hyp_iommu_domains) >> PAGE_SHIFT,
 				     1 << get_order(KVM_IOMMU_DOMAINS_ROOT_SIZE));
 	if (ret)
@@ -554,7 +550,11 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 	smp_wmb();
 	kvm_iommu_ops = ops;
 
-	return kvm_iommu_init_idmap(atomic_mc);
+	ret = kvm_iommu_init_idmap(atomic_mc);
+	if (ret)
+		return ret;
+
+	return ops->init ? ops->init(init_arg) : 0;
 }
 
 static inline int pkvm_to_iommu_prot(int prot)
