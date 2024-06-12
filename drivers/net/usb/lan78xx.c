@@ -1707,14 +1707,11 @@ static int lan78xx_get_eee(struct net_device *net, struct ethtool_keee *edata)
 	if (ret < 0)
 		goto exit;
 
-	ret = lan78xx_read_reg(dev, MAC_CR, &buf);
-	if (buf & MAC_CR_EEE_EN_) {
-		/* EEE_TX_LPI_REQ_DLY & tx_lpi_timer are same uSec unit */
-		ret = lan78xx_read_reg(dev, EEE_TX_LPI_REQ_DLY, &buf);
+	ret = lan78xx_read_reg(dev, EEE_TX_LPI_REQ_DLY, &buf);
+	if (ret >= 0)
 		edata->tx_lpi_timer = buf;
-	} else {
+	else
 		edata->tx_lpi_timer = 0;
-	}
 
 	ret = 0;
 exit:
