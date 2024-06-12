@@ -28,12 +28,25 @@
 #include "strbuf.h"
 #include "fncache.h"
 #include "util/evsel_config.h"
+#include <regex.h>
 
 struct perf_pmu perf_pmu__fake = {
 	.name = "fake",
 };
 
 #define UNIT_MAX_LEN	31 /* max length for event unit name */
+
+enum event_source {
+	/* An event loaded from /sys/devices/<pmu>/events. */
+	EVENT_SRC_SYSFS,
+	/* An event loaded from a CPUID matched json file. */
+	EVENT_SRC_CPU_JSON,
+	/*
+	 * An event loaded from a /sys/devices/<pmu>/identifier matched json
+	 * file.
+	 */
+	EVENT_SRC_SYS_JSON,
+};
 
 /**
  * struct perf_pmu_alias - An event either read from sysfs or builtin in
@@ -424,9 +437,30 @@ static struct perf_pmu_alias *perf_pmu__find_alias(struct perf_pmu *pmu,
 {
 	struct perf_pmu_alias *alias;
 
-	if (load && !pmu->sysfs_aliases_loaded)
-		pmu_aliases_parse(pmu);
+	if (load && !pmu->sysfs_aliases_loaded) {
+		bool has_sysfs_event;
+		char event_file_name[FILENAME_MAX + 8];
 
+		/*
+		 * Test if alias/event 'name' exists in the PMU's sysfs/events
+		 * directory. If not skip parsing the sysfs aliases. Sysfs event
+		 * name must be all lower or all upper case.
+		 */
+		scnprintf(event_file_name, sizeof(event_file_name), "events/%s", name);
+		for (size_t i = 7, n = 7 + strlen(name); i < n; i++)
+			event_file_name[i] = tolower(event_file_name[i]);
+
+		has_sysfs_event = perf_pmu__file_exists(pmu, event_file_name);
+		if (!has_sysfs_event) {
+			for (size_t i = 7, n = 7 + strlen(name); i < n; i++)
+				event_file_name[i] = toupper(event_file_name[i]);
+
+			has_sysfs_event = perf_pmu__file_exists(pmu, event_file_name);
+		}
+		if (has_sysfs_event)
+			pmu_aliases_parse(pmu);
+
+	}
 	list_for_each_entry(alias, &pmu->aliases, list) {
 		if (!strcasecmp(alias->name, name))
 			return alias;
@@ -499,7 +533,7 @@ static int update_alias(const struct pmu_event *pe,
 
 static int perf_pmu__new_alias(struct perf_pmu *pmu, const char *name,
 				const char *desc, const char *val, FILE *val_fd,
-				const struct pmu_event *pe)
+			        const struct pmu_event *pe, enum event_source src)
 {
 	struct perf_pmu_alias *alias;
 	int ret;
@@ -551,25 +585,30 @@ static int perf_pmu__new_alias(struct perf_pmu *pmu, const char *name,
 		}
 		snprintf(alias->unit, sizeof(alias->unit), "%s", unit);
 	}
-	if (!pe) {
-		/* Update an event from sysfs with json data. */
-		struct update_alias_data data = {
-			.pmu = pmu,
-			.alias = alias,
-		};
-
+	switch (src) {
+	default:
+	case EVENT_SRC_SYSFS:
 		alias->from_sysfs = true;
 		if (pmu->events_table) {
+			/* Update an event from sysfs with json data. */
+			struct update_alias_data data = {
+				.pmu = pmu,
+				.alias = alias,
+			};
 			if (pmu_events_table__find_event(pmu->events_table, pmu, name,
 							 update_alias, &data) == 0)
-				pmu->loaded_json_aliases++;
+				pmu->cpu_json_aliases++;
 		}
-	}
-
-	if (!pe)
 		pmu->sysfs_aliases++;
-	else
-		pmu->loaded_json_aliases++;
+		break;
+	case  EVENT_SRC_CPU_JSON:
+		pmu->cpu_json_aliases++;
+		break;
+	case  EVENT_SRC_SYS_JSON:
+		pmu->sys_json_aliases++;
+		break;
+
+	}
 	list_add_tail(&alias->list, &pmu->aliases);
 	return 0;
 }
@@ -645,7 +684,8 @@ static int pmu_aliases_parse(struct perf_pmu *pmu)
 		}
 
 		if (perf_pmu__new_alias(pmu, name, /*desc=*/ NULL,
-					/*val=*/ NULL, file, /*pe=*/ NULL) < 0)
+					/*val=*/ NULL, file, /*pe=*/ NULL,
+					EVENT_SRC_SYSFS) < 0)
 			pr_debug("Cannot set up %s\n", name);
 		fclose(file);
 	}
@@ -874,13 +914,36 @@ out:
 	return res;
 }
 
+bool pmu_uncore_identifier_match(const char *compat, const char *id)
+{
+	regex_t re;
+	regmatch_t pmatch[1];
+	int match;
+
+	if (regcomp(&re, compat, REG_EXTENDED) != 0) {
+		/* Warn unable to generate match particular string. */
+		pr_info("Invalid regular expression %s\n", compat);
+		return false;
+	}
+
+	match = !regexec(&re, id, 1, pmatch, 0);
+	if (match) {
+		/* Ensure a full match. */
+		match = pmatch[0].rm_so == 0 && (size_t)pmatch[0].rm_eo == strlen(id);
+	}
+	regfree(&re);
+
+	return match;
+}
+
 static int pmu_add_cpu_aliases_map_callback(const struct pmu_event *pe,
 					const struct pmu_events_table *table __maybe_unused,
 					void *vdata)
 {
 	struct perf_pmu *pmu = vdata;
 
-	perf_pmu__new_alias(pmu, pe->name, pe->desc, pe->event, /*val_fd=*/ NULL, pe);
+	perf_pmu__new_alias(pmu, pe->name, pe->desc, pe->event, /*val_fd=*/ NULL,
+			    pe, EVENT_SRC_CPU_JSON);
 	return 0;
 }
 
@@ -914,14 +977,15 @@ static int pmu_add_sys_aliases_iter_fn(const struct pmu_event *pe,
 	if (!pe->compat || !pe->pmu)
 		return 0;
 
-	if (!strcmp(pmu->id, pe->compat) &&
-	    pmu_uncore_alias_match(pe->pmu, pmu->name)) {
+	if (pmu_uncore_alias_match(pe->pmu, pmu->name) &&
+	    pmu_uncore_identifier_match(pe->compat, pmu->id)) {
 		perf_pmu__new_alias(pmu,
 				pe->name,
 				pe->desc,
 				pe->event,
 				/*val_fd=*/ NULL,
-				pe);
+				pe,
+				EVENT_SRC_SYS_JSON);
 	}
 
 	return 0;
@@ -1011,6 +1075,12 @@ struct perf_pmu *perf_pmu__lookup(struct list_head *pmus, int dirfd, const char 
 		pmu->id = pmu_id(name);
 	pmu->max_precise = pmu_max_precise(dirfd, pmu);
 	pmu->events_table = perf_pmu__find_events_table(pmu);
+	/*
+	 * Load the sys json events/aliases when loading the PMU as each event
+	 * may have a different compat regular expression. We therefore can't
+	 * know the number of sys json events/aliases without computing the
+	 * regular expressions for them all.
+	 */
 	pmu_add_sys_aliases(pmu);
 	list_add_tail(&pmu->list, pmus);
 
@@ -1604,15 +1674,15 @@ size_t perf_pmu__num_events(struct perf_pmu *pmu)
 {
 	size_t nr;
 
-	if (!pmu->sysfs_aliases_loaded)
-		pmu_aliases_parse(pmu);
-
-	nr = pmu->sysfs_aliases;
+	pmu_aliases_parse(pmu);
+	nr = pmu->sysfs_aliases + pmu->sys_json_aliases;;
 
 	if (pmu->cpu_aliases_added)
-		 nr += pmu->loaded_json_aliases;
+		 nr += pmu->cpu_json_aliases;
 	else if (pmu->events_table)
-		nr += pmu_events_table__num_events(pmu->events_table, pmu) - pmu->loaded_json_aliases;
+		nr += pmu_events_table__num_events(pmu->events_table, pmu) - pmu->cpu_json_aliases;
+	else
+		assert(pmu->cpu_json_aliases == 0);
 
 	return pmu->selectable ? nr + 1 : nr;
 }
@@ -1665,6 +1735,7 @@ int perf_pmu__for_each_event(struct perf_pmu *pmu, bool skip_duplicate_pmus,
 	struct strbuf sb;
 
 	strbuf_init(&sb, /*hint=*/ 0);
+	pmu_aliases_parse(pmu);
 	pmu_add_cpu_aliases(pmu);
 	list_for_each_entry(event, &pmu->aliases, list) {
 		size_t buf_used;
@@ -2059,19 +2130,21 @@ void perf_pmu__delete(struct perf_pmu *pmu)
 	free(pmu);
 }
 
-struct perf_pmu *pmu__find_core_pmu(void)
+const char *perf_pmu__name_from_config(struct perf_pmu *pmu, u64 config)
 {
-	struct perf_pmu *pmu = NULL;
+	struct perf_pmu_alias *event;
 
-	while ((pmu = perf_pmus__scan_core(pmu))) {
-		/*
-		 * The cpumap should cover all CPUs. Otherwise, some CPUs may
-		 * not support some events or have different event IDs.
-		 */
-		if (RC_CHK_ACCESS(pmu->cpus)->nr != cpu__max_cpu().cpu)
-			return NULL;
+	if (!pmu)
+		return NULL;
 
-		return pmu;
+	pmu_aliases_parse(pmu);
+	pmu_add_cpu_aliases(pmu);
+	list_for_each_entry(event, &pmu->aliases, list) {
+		struct perf_event_attr attr = {.config = 0,};
+		int ret = perf_pmu__config(pmu, &attr, &event->terms, NULL);
+
+		if (ret == 0 && config == attr.config)
+			return event->name;
 	}
 	return NULL;
 }

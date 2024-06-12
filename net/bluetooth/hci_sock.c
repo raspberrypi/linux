@@ -101,7 +101,7 @@ static bool hci_sock_gen_cookie(struct sock *sk)
 	int id = hci_pi(sk)->cookie;
 
 	if (!id) {
-		id = ida_simple_get(&sock_cookie_ida, 1, 0, GFP_KERNEL);
+		id = ida_alloc_min(&sock_cookie_ida, 1, GFP_KERNEL);
 		if (id < 0)
 			id = 0xffffffff;
 
@@ -119,7 +119,7 @@ static void hci_sock_free_cookie(struct sock *sk)
 
 	if (id) {
 		hci_pi(sk)->cookie = 0xffffffff;
-		ida_simple_remove(&sock_cookie_ida, id);
+		ida_free(&sock_cookie_ida, id);
 	}
 }
 
@@ -485,7 +485,7 @@ static struct sk_buff *create_monitor_event(struct hci_dev *hdev, int event)
 			return NULL;
 
 		ni = skb_put(skb, HCI_MON_NEW_INDEX_SIZE);
-		ni->type = hdev->dev_type;
+		ni->type = 0x00; /* Old hdev->dev_type */
 		ni->bus = hdev->bus;
 		bacpy(&ni->bdaddr, &hdev->bdaddr);
 		memcpy_and_pad(ni->name, sizeof(ni->name), hdev->name,
@@ -1005,9 +1005,6 @@ static int hci_sock_bound_ioctl(struct sock *sk, unsigned int cmd,
 		return -EBUSY;
 
 	if (hci_dev_test_flag(hdev, HCI_UNCONFIGURED))
-		return -EOPNOTSUPP;
-
-	if (hdev->dev_type != HCI_PRIMARY)
 		return -EOPNOTSUPP;
 
 	switch (cmd) {

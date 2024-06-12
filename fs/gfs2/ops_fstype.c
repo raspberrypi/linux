@@ -136,6 +136,7 @@ static struct gfs2_sbd *init_sbd(struct super_block *sb)
 	atomic_set(&sdp->sd_log_in_flight, 0);
 	init_waitqueue_head(&sdp->sd_log_flush_wait);
 	mutex_init(&sdp->sd_freeze_mutex);
+	INIT_LIST_HEAD(&sdp->sd_dead_glocks);
 
 	return sdp;
 
@@ -648,7 +649,7 @@ static int init_statfs(struct gfs2_sbd *sdp)
 	struct gfs2_jdesc *jd;
 	struct gfs2_inode *ip;
 
-	sdp->sd_statfs_inode = gfs2_lookup_simple(master, "statfs");
+	sdp->sd_statfs_inode = gfs2_lookup_meta(master, "statfs");
 	if (IS_ERR(sdp->sd_statfs_inode)) {
 		error = PTR_ERR(sdp->sd_statfs_inode);
 		fs_err(sdp, "can't read in statfs inode: %d\n", error);
@@ -657,7 +658,7 @@ static int init_statfs(struct gfs2_sbd *sdp)
 	if (sdp->sd_args.ar_spectator)
 		goto out;
 
-	pn = gfs2_lookup_simple(master, "per_node");
+	pn = gfs2_lookup_meta(master, "per_node");
 	if (IS_ERR(pn)) {
 		error = PTR_ERR(pn);
 		fs_err(sdp, "can't find per_node directory: %d\n", error);
@@ -674,7 +675,7 @@ static int init_statfs(struct gfs2_sbd *sdp)
 			goto free_local;
 		}
 		sprintf(buf, "statfs_change%u", jd->jd_jid);
-		lsi->si_sc_inode = gfs2_lookup_simple(pn, buf);
+		lsi->si_sc_inode = gfs2_lookup_meta(pn, buf);
 		if (IS_ERR(lsi->si_sc_inode)) {
 			error = PTR_ERR(lsi->si_sc_inode);
 			fs_err(sdp, "can't find local \"sc\" file#%u: %d\n",
@@ -739,7 +740,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	if (undo)
 		goto fail_statfs;
 
-	sdp->sd_jindex = gfs2_lookup_simple(master, "jindex");
+	sdp->sd_jindex = gfs2_lookup_meta(master, "jindex");
 	if (IS_ERR(sdp->sd_jindex)) {
 		fs_err(sdp, "can't lookup journal index: %d\n", error);
 		return PTR_ERR(sdp->sd_jindex);
@@ -888,7 +889,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 		goto fail;
 
 	/* Read in the resource index inode */
-	sdp->sd_rindex = gfs2_lookup_simple(master, "rindex");
+	sdp->sd_rindex = gfs2_lookup_meta(master, "rindex");
 	if (IS_ERR(sdp->sd_rindex)) {
 		error = PTR_ERR(sdp->sd_rindex);
 		fs_err(sdp, "can't get resource index inode: %d\n", error);
@@ -897,7 +898,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	sdp->sd_rindex_uptodate = 0;
 
 	/* Read in the quota inode */
-	sdp->sd_quota_inode = gfs2_lookup_simple(master, "quota");
+	sdp->sd_quota_inode = gfs2_lookup_meta(master, "quota");
 	if (IS_ERR(sdp->sd_quota_inode)) {
 		error = PTR_ERR(sdp->sd_quota_inode);
 		fs_err(sdp, "can't get quota file inode: %d\n", error);
@@ -941,7 +942,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 	if (undo)
 		goto fail_qc_gh;
 
-	pn = gfs2_lookup_simple(master, "per_node");
+	pn = gfs2_lookup_meta(master, "per_node");
 	if (IS_ERR(pn)) {
 		error = PTR_ERR(pn);
 		fs_err(sdp, "can't find per_node directory: %d\n", error);
@@ -949,7 +950,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 	}
 
 	sprintf(buf, "quota_change%u", sdp->sd_jdesc->jd_jid);
-	sdp->sd_qc_inode = gfs2_lookup_simple(pn, buf);
+	sdp->sd_qc_inode = gfs2_lookup_meta(pn, buf);
 	if (IS_ERR(sdp->sd_qc_inode)) {
 		error = PTR_ERR(sdp->sd_qc_inode);
 		fs_err(sdp, "can't find local \"qc\" file: %d\n", error);
@@ -1074,7 +1075,7 @@ hostdata_error:
 void gfs2_lm_unmount(struct gfs2_sbd *sdp)
 {
 	const struct lm_lockops *lm = sdp->sd_lockstruct.ls_ops;
-	if (likely(!gfs2_withdrawn(sdp)) && lm->lm_unmount)
+	if (!gfs2_withdrawing_or_withdrawn(sdp) && lm->lm_unmount)
 		lm->lm_unmount(sdp);
 }
 
@@ -1126,8 +1127,7 @@ static int init_threads(struct gfs2_sbd *sdp)
 	return 0;
 
 fail:
-	kthread_stop(sdp->sd_logd_process);
-	put_task_struct(sdp->sd_logd_process);
+	kthread_stop_put(sdp->sd_logd_process);
 	sdp->sd_logd_process = NULL;
 	return error;
 }
@@ -1135,13 +1135,11 @@ fail:
 void gfs2_destroy_threads(struct gfs2_sbd *sdp)
 {
 	if (sdp->sd_logd_process) {
-		kthread_stop(sdp->sd_logd_process);
-		put_task_struct(sdp->sd_logd_process);
+		kthread_stop_put(sdp->sd_logd_process);
 		sdp->sd_logd_process = NULL;
 	}
 	if (sdp->sd_quotad_process) {
-		kthread_stop(sdp->sd_quotad_process);
-		put_task_struct(sdp->sd_quotad_process);
+		kthread_stop_put(sdp->sd_quotad_process);
 		sdp->sd_quotad_process = NULL;
 	}
 }
