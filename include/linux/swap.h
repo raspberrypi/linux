@@ -265,6 +265,8 @@ struct swap_cluster_info {
 	unsigned int count:12;
 	unsigned int state:3;
 	unsigned int order:4;
+	unsigned int reserved:1;
+	unsigned int flags:4;
 	struct list_head list;	/* Protected by swap_info_struct->lock */
 };
 
