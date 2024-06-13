@@ -19,7 +19,7 @@ bool gzvm_handle_guest_exception(struct gzvm_vcpu *vcpu)
 
 	for (int i = 0; i < ARRAY_SIZE(vcpu->run->exception.reserved); i++) {
 		if (vcpu->run->exception.reserved[i])
-			return -EINVAL;
+			return false;
 	}
 
 	switch (vcpu->run->exception.exception) {

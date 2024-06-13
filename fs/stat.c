@@ -69,7 +69,7 @@ void generic_fillattr(struct mnt_idmap *idmap, u32 request_mask,
 	}
 
 }
-EXPORT_SYMBOL(generic_fillattr);
+EXPORT_SYMBOL_NS(generic_fillattr, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * generic_fill_statx_attr - Fill in the statx attributes from the inode flags

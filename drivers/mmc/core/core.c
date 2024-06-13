@@ -926,6 +926,7 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	host->ios.clock = hz;
 	mmc_set_ios(host);
 }
+EXPORT_SYMBOL_GPL(mmc_set_clock);
 
 int mmc_execute_tuning(struct mmc_card *card)
 {
@@ -960,6 +961,7 @@ int mmc_execute_tuning(struct mmc_card *card)
 
 	return err;
 }
+EXPORT_SYMBOL_GPL(mmc_execute_tuning);
 
 /*
  * Change the bus mode (open drain/push-pull) of a host.
@@ -969,6 +971,7 @@ void mmc_set_bus_mode(struct mmc_host *host, unsigned int mode)
 	host->ios.bus_mode = mode;
 	mmc_set_ios(host);
 }
+EXPORT_SYMBOL_GPL(mmc_set_bus_mode);
 
 /*
  * Change data bus width of a host.
@@ -978,6 +981,7 @@ void mmc_set_bus_width(struct mmc_host *host, unsigned int width)
 	host->ios.bus_width = width;
 	mmc_set_ios(host);
 }
+EXPORT_SYMBOL_GPL(mmc_set_bus_width);
 
 /*
  * Set initial state after a power cycle or a hw_reset.
@@ -1011,6 +1015,7 @@ void mmc_set_initial_state(struct mmc_host *host)
 
 	mmc_crypto_set_initial_state(host);
 }
+EXPORT_SYMBOL_GPL(mmc_set_initial_state);
 
 /**
  * mmc_vdd_to_ocrbitnum - Convert a voltage to the OCR bit number
@@ -1280,6 +1285,7 @@ void mmc_set_timing(struct mmc_host *host, unsigned int timing)
 	host->ios.timing = timing;
 	mmc_set_ios(host);
 }
+EXPORT_SYMBOL_GPL(mmc_set_timing);
 
 /*
  * Select appropriate driver type for host.

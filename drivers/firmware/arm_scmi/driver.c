@@ -85,6 +85,7 @@ struct scmi_xfers_info {
  * @gid: A reference for per-protocol devres management.
  * @users: A refcount to track effective users of this protocol.
  * @priv: Reference for optional protocol private data.
+ * @version: Protocol version supported by the platform as detected at runtime.
  * @ph: An embedded protocol handle that will be passed down to protocol
  *	initialization code to identify this instance.
  *
@@ -97,6 +98,7 @@ struct scmi_protocol_instance {
 	void				*gid;
 	refcount_t			users;
 	void				*priv;
+	unsigned int			version;
 	struct scmi_protocol_handle	ph;
 };
 
@@ -1392,15 +1394,17 @@ static int version_get(const struct scmi_protocol_handle *ph, u32 *version)
  *
  * @ph: A reference to the protocol handle.
  * @priv: The private data to set.
+ * @version: The detected protocol version for the core to register.
  *
  * Return: 0 on Success
  */
 static int scmi_set_protocol_priv(const struct scmi_protocol_handle *ph,
-				  void *priv)
+				  void *priv, u32 version)
 {
 	struct scmi_protocol_instance *pi = ph_to_pi(ph);
 
 	pi->priv = priv;
+	pi->version = version;
 
 	return 0;
 }
@@ -1475,6 +1479,20 @@ out:
 			 "Failed to get extended name - id:%u (ret:%d). Using %s\n",
 			 res_id, ret, name);
 	return ret;
+}
+
+/**
+ * scmi_common_get_max_msg_size  - Get maximum message size
+ * @ph: A protocol handle reference.
+ *
+ * Return: Maximum message size for the current protocol.
+ */
+static int scmi_common_get_max_msg_size(const struct scmi_protocol_handle *ph)
+{
+	const struct scmi_protocol_instance *pi = ph_to_pi(ph);
+	struct scmi_info *info = handle_to_scmi_info(pi->handle);
+
+	return info->desc->max_msg_size;
 }
 
 /**
@@ -1752,6 +1770,7 @@ static void scmi_common_fastchannel_db_ring(struct scmi_fc_db_info *db)
 
 static const struct scmi_proto_helpers_ops helpers_ops = {
 	.extended_name_get = scmi_common_extended_name_get,
+	.get_max_msg_size = scmi_common_get_max_msg_size,
 	.iter_response_init = scmi_iterator_init,
 	.iter_response_run = scmi_iterator_run,
 	.fastchannel_init = scmi_common_fastchannel_init,
@@ -1848,6 +1867,12 @@ scmi_alloc_init_protocol_instance(struct scmi_info *info,
 
 	devres_close_group(handle->dev, pi->gid);
 	dev_dbg(handle->dev, "Initialized protocol: 0x%X\n", pi->proto->id);
+
+	if (pi->version > proto->supported_version)
+		dev_warn(handle->dev,
+			 "Detected UNSUPPORTED higher version 0x%X for protocol 0x%X."
+			 "Backward compatibility is NOT assured.\n",
+			 pi->version, pi->proto->id);
 
 	return pi;
 
@@ -3026,6 +3051,7 @@ static int __init scmi_driver_init(void)
 	scmi_voltage_register();
 	scmi_system_register();
 	scmi_powercap_register();
+	scmi_pinctrl_register();
 
 	return platform_driver_register(&scmi_driver);
 }
@@ -3043,6 +3069,7 @@ static void __exit scmi_driver_exit(void)
 	scmi_voltage_unregister();
 	scmi_system_unregister();
 	scmi_powercap_unregister();
+	scmi_pinctrl_unregister();
 
 	scmi_transports_exit();
 

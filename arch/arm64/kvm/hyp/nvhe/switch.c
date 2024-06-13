@@ -37,12 +37,65 @@ DEFINE_PER_CPU(unsigned long, kvm_hyp_vector);
 extern void kvm_nvhe_prepare_backtrace(unsigned long fp, unsigned long pc);
 extern void __pkvm_unmask_serror(void);
 
+#define update_pvm_fgt_traps(vcpu, reg)						\
+	update_fgt_traps_cs(vcpu, reg, PVM_ ## reg ## _CLR, PVM_ ## reg ## _SET)
+
+static void __activate_pvm_fine_grain_traps(struct kvm_vcpu *vcpu)
+{
+	if (cpus_have_final_cap(ARM64_HAS_HCX))
+		update_pvm_fgt_traps(vcpu, HCRX_EL2);
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	update_pvm_fgt_traps(vcpu, HFGRTR_EL2);
+
+	/* Trap guest writes to TCR_EL1 to prevent it from enabling HA or HD. */
+	if (cpus_have_final_cap(ARM64_WORKAROUND_AMPERE_AC03_CPU_38)) {
+		update_fgt_traps_cs(vcpu, HFGWTR_EL2, PVM_HFGWTR_EL2_CLR,
+			PVM_HFGWTR_EL2_SET | HFGxTR_EL2_TCR_EL1_MASK);
+	} else {
+		update_pvm_fgt_traps(vcpu, HFGWTR_EL2);
+	}
+
+	update_pvm_fgt_traps(vcpu, HFGITR_EL2);
+	update_pvm_fgt_traps(vcpu, HDFGRTR_EL2);
+	update_pvm_fgt_traps(vcpu, HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		update_pvm_fgt_traps(vcpu, HAFGRTR_EL2);
+}
+
+static void __deactivate_pvm_traps_hfgxtr(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpu_context *hctxt = &this_cpu_ptr(&kvm_host_data)->host_ctxt;
+
+	if (!cpus_have_final_cap(ARM64_HAS_FGT))
+		return;
+
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGRTR_EL2), SYS_HFGRTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGWTR_EL2), SYS_HFGWTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HFGITR_EL2), SYS_HFGITR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HDFGRTR_EL2), SYS_HDFGRTR_EL2);
+	write_sysreg_s(ctxt_sys_reg(hctxt, HDFGWTR_EL2), SYS_HDFGWTR_EL2);
+
+	if (cpu_has_amu())
+		write_sysreg_s(ctxt_sys_reg(hctxt, HAFGRTR_EL2), SYS_HAFGRTR_EL2);
+}
+
 static void __activate_traps(struct kvm_vcpu *vcpu)
 {
 	u64 val;
 
 	___activate_traps(vcpu);
 	__activate_traps_common(vcpu);
+
+	if (unlikely(vcpu_is_protected(vcpu))) {
+		__activate_pvm_fine_grain_traps(vcpu);
+	} else {
+		__activate_traps_hcrx(vcpu);
+		__activate_traps_hfgxtr(vcpu);
+	}
 
 	val = vcpu->arch.cptr_el2;
 	val |= CPTR_EL2_TAM;	/* Same bit irrespective of E2H */
@@ -106,6 +159,11 @@ static void __deactivate_traps(struct kvm_vcpu *vcpu)
 	}
 
 	__deactivate_traps_common(vcpu);
+
+	if (unlikely(vcpu_is_protected(vcpu)))
+		__deactivate_pvm_traps_hfgxtr(vcpu);
+	else
+		__deactivate_traps_hfgxtr(vcpu);
 
 	write_sysreg(this_cpu_ptr(&kvm_init_params)->hcr_el2, hcr_el2);
 

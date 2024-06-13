@@ -1,0 +1,12 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_size_test_get_size"
+        }
+      ]
+    }
+  ]
+}

@@ -174,7 +174,8 @@ struct scmi_protocol_handle {
 	struct device *dev;
 	const struct scmi_xfer_ops *xops;
 	const struct scmi_proto_helpers_ops *hops;
-	int (*set_priv)(const struct scmi_protocol_handle *ph, void *priv);
+	int (*set_priv)(const struct scmi_protocol_handle *ph, void *priv,
+			u32 version);
 	void *(*get_priv)(const struct scmi_protocol_handle *ph);
 };
 
@@ -253,6 +254,7 @@ struct scmi_fc_info {
  * @fastchannel_init: A common helper used to initialize FC descriptors by
  *		      gathering FC descriptions from the SCMI platform server.
  * @fastchannel_db_ring: A common helper to ring a FC doorbell.
+ * @get_max_msg_size: A common helper to get the maximum message size.
  */
 struct scmi_proto_helpers_ops {
 	int (*extended_name_get)(const struct scmi_protocol_handle *ph,
@@ -269,6 +271,7 @@ struct scmi_proto_helpers_ops {
 				 void __iomem **p_addr,
 				 struct scmi_fc_db_info **p_db);
 	void (*fastchannel_db_ring)(struct scmi_fc_db_info *db);
+	int (*get_max_msg_size)(const struct scmi_protocol_handle *ph);
 };
 
 /**
@@ -311,6 +314,10 @@ typedef int (*scmi_prot_init_ph_fn_t)(const struct scmi_protocol_handle *);
  * @ops: Optional reference to the operations provided by the protocol and
  *	 exposed in scmi_protocol.h.
  * @events: An optional reference to the events supported by this protocol.
+ * @supported_version: The highest version currently supported for this
+ *		       protocol by the agent. Each protocol implementation
+ *		       in the agent is supposed to downgrade to match the
+ *		       protocol version supported by the platform.
  */
 struct scmi_protocol {
 	const u8				id;
@@ -319,6 +326,7 @@ struct scmi_protocol {
 	const scmi_prot_init_ph_fn_t		instance_deinit;
 	const void				*ops;
 	const struct scmi_protocol_events	*events;
+	unsigned int				supported_version;
 };
 
 #define DEFINE_SCMI_PROTOCOL_REGISTER_UNREGISTER(name, proto)	\
@@ -340,6 +348,7 @@ void __exit scmi_##name##_unregister(void)			\
 DECLARE_SCMI_REGISTER_UNREGISTER(base);
 DECLARE_SCMI_REGISTER_UNREGISTER(clock);
 DECLARE_SCMI_REGISTER_UNREGISTER(perf);
+DECLARE_SCMI_REGISTER_UNREGISTER(pinctrl);
 DECLARE_SCMI_REGISTER_UNREGISTER(power);
 DECLARE_SCMI_REGISTER_UNREGISTER(reset);
 DECLARE_SCMI_REGISTER_UNREGISTER(sensors);

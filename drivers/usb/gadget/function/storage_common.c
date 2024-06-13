@@ -538,3 +538,4 @@ ssize_t fsg_store_forced_eject(struct fsg_lun *curlun, struct rw_semaphore *file
 EXPORT_SYMBOL_GPL(fsg_store_forced_eject);
 
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);

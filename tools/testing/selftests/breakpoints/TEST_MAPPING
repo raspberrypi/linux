@@ -1,0 +1,12 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_breakpoints_breakpoint_test"
+        }
+      ]
+    }
+  ]
+}

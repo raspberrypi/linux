@@ -1,0 +1,27 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_x86_check_initial_reg_state"
+        },
+        {
+          "include-filter": "kselftest_x86_ldt_gdt"
+        },
+        {
+          "include-filter": "kselftest_x86_ptrace_syscall"
+        },
+        {
+          "include-filter": "kselftest_x86_single_step_syscall"
+        },
+        {
+          "include-filter": "kselftest_x86_syscall_nt"
+        },
+        {
+          "include-filter": "kselftest_x86_test_mremap_vdso"
+        }
+      ]
+    }
+  ]
+}

@@ -581,9 +581,8 @@ int blk_revalidate_disk_zones(struct gendisk *disk,
 	 * Checks that the device driver indicated a valid zone size and that
 	 * the max zone append limit is set.
 	 */
-	if (!zone_sectors || !is_power_of_2(zone_sectors)) {
-		pr_warn("%s: Invalid non power of two zone size (%llu)\n",
-			disk->disk_name, zone_sectors);
+	if (!zone_sectors) {
+		pr_warn("%s: Invalid zone size\n", disk->disk_name);
 		return -ENODEV;
 	}
 

@@ -169,7 +169,7 @@ struct pkvm_module_ops {
 	void (*update_hcr_el2)(unsigned long set_mask, unsigned long clear_mask);
 	void (*update_hfgwtr_el2)(unsigned long set_mask, unsigned long clear_mask);
 	int (*register_host_perm_fault_handler)(int (*cb)(struct user_pt_regs *regs, u64 esr, u64 addr));
-	int (*host_stage2_mod_prot)(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages);
+	int (*host_stage2_mod_prot)(u64 pfn, enum kvm_pgtable_prot prot, u64 nr_pages, bool update_iommu);
 	int (*host_stage2_get_leaf)(phys_addr_t phys, kvm_pte_t *ptep, u32 *level);
 	int (*register_host_smc_handler)(bool (*cb)(struct user_pt_regs *));
 	int (*register_default_trap_handler)(bool (*cb)(struct user_pt_regs *));
@@ -292,10 +292,11 @@ int pkvm_load_early_modules(void);
 	__pkvm_load_el2_module(THIS_MODULE, token);			\
 })
 
-#define pkvm_register_el2_mod_call(hfn, token)				\
-({									\
-	__pkvm_register_el2_call(pkvm_el2_mod_va(hfn, token));		\
-})
+static inline int pkvm_register_el2_mod_call(dyn_hcall_t hfn,
+					     unsigned long token)
+{
+	return __pkvm_register_el2_call(pkvm_el2_mod_va(hfn, token));
+}
 
 #define pkvm_el2_mod_call(id, ...)					\
 	({								\

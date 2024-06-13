@@ -1203,3 +1203,4 @@ module_exit(p9_trans_fd_exit);
 MODULE_AUTHOR("Eric Van Hensbergen <ericvh@gmail.com>");
 MODULE_DESCRIPTION("Filedescriptor Transport for 9P");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);

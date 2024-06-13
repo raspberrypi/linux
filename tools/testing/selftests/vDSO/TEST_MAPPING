@@ -1,0 +1,21 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_vdso_vdso_test_abi"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_clock_getres"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_getcpu"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_gettimeofday"
+        }
+      ]
+    }
+  ]
+}

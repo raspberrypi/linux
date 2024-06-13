@@ -75,6 +75,8 @@
 #include <trace/hooks/vmscan.h>
 #include <trace/hooks/mm.h>
 
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_vmscan_direct_reclaim_begin);
+EXPORT_TRACEPOINT_SYMBOL_GPL(mm_vmscan_direct_reclaim_end);
 EXPORT_TRACEPOINT_SYMBOL_GPL(mm_vmscan_kswapd_wake);
 
 struct scan_control {
@@ -2977,7 +2979,7 @@ static void prepare_scan_count(pg_data_t *pgdat, struct scan_control *sc)
 	 * Flush the memory cgroup stats, so that we read accurate per-memcg
 	 * lruvec stats for heuristics.
 	 */
-	mem_cgroup_flush_stats();
+	mem_cgroup_flush_stats(sc->target_mem_cgroup);
 
 	/*
 	 * Determine the scan balance between anon and file LRUs.
