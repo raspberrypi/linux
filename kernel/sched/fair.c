@@ -3950,6 +3950,29 @@ static inline void update_cfs_group(struct sched_entity *se)
 }
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
+static inline void cfs_rq_util_change(struct cfs_rq *cfs_rq, int flags)
+{
+	struct rq *rq = rq_of(cfs_rq);
+
+	if (&rq->cfs == cfs_rq) {
+		/*
+		 * There are a few boundary cases this might miss but it should
+		 * get called often enough that that should (hopefully) not be
+		 * a real problem.
+		 *
+		 * It will not get called when we go idle, because the idle
+		 * thread is a different class (!fair), nor will the utilization
+		 * number include things like RT tasks.
+		 *
+		 * As is, the util number is not freq-invariant (we'd have to
+		 * implement arch_scale_freq_capacity() for that).
+		 *
+		 * See cpu_util_cfs().
+		 */
+		cpufreq_update_util(rq, flags);
+	}
+}
+
 #ifdef CONFIG_SMP
 static inline bool load_avg_is_decayed(struct sched_avg *sa)
 {
@@ -4567,6 +4590,8 @@ static void attach_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 
 	add_tg_cfs_propagate(cfs_rq, se->avg.load_sum);
 
+	cfs_rq_util_change(cfs_rq, 0);
+
 	trace_pelt_cfs_tp(cfs_rq);
 }
 
@@ -4595,6 +4620,8 @@ static void detach_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 
 	add_tg_cfs_propagate(cfs_rq, -se->avg.load_sum);
 
+	cfs_rq_util_change(cfs_rq, 0);
+
 	trace_pelt_cfs_tp(cfs_rq);
 }
 
@@ -4610,7 +4637,7 @@ static void detach_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
 	u64 now = cfs_rq_clock_pelt(cfs_rq);
-	unsigned long prev_util_avg = cfs_rq->avg.util_avg;
+	int decayed;
 
 	/*
 	 * Track task load average for carrying it to new CPU after migrated, and
@@ -4619,8 +4646,8 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 	if (se->avg.last_update_time && !(flags & SKIP_AGE_LOAD))
 		__update_load_avg_se(now, cfs_rq, se);
 
-	cfs_rq->decayed |= update_cfs_rq_load_avg(now, cfs_rq);
-	cfs_rq->decayed |= propagate_entity_load_avg(se);
+	decayed  = update_cfs_rq_load_avg(now, cfs_rq);
+	decayed |= propagate_entity_load_avg(se);
 
 	if (!se->avg.last_update_time && (flags & DO_ATTACH)) {
 
@@ -4641,19 +4668,12 @@ static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *s
 		 */
 		detach_entity_load_avg(cfs_rq, se);
 		update_tg_load_avg(cfs_rq);
-	} else if (cfs_rq->decayed && (flags & UPDATE_TG)) {
-		update_tg_load_avg(cfs_rq);
-	}
+	} else if (decayed) {
+		cfs_rq_util_change(cfs_rq, 0);
 
-	/*
-	 * This field is used to indicate whether a trigger of cpufreq update
-	 * is required. When the CPU is saturated, other load signals could
-	 * still be changing, but util_avg would have settled down, so ensure
-	 * that we don't trigger unnecessary updates as from fair policy point
-	 * of view, nothing has changed to cause a cpufreq update.
-	 */
-	if (cfs_rq->decayed && prev_util_avg == cfs_rq->avg.util_avg)
-		cfs_rq->decayed = false;
+		if (flags & UPDATE_TG)
+			update_tg_load_avg(cfs_rq);
+	}
 }
 
 /*
@@ -5035,6 +5055,7 @@ static inline bool cfs_rq_is_decayed(struct cfs_rq *cfs_rq)
 
 static inline void update_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se, int not_used1)
 {
+	cfs_rq_util_change(cfs_rq, 0);
 }
 
 static inline void remove_entity_load_avg(struct sched_entity *se) {}
@@ -6620,6 +6641,14 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	 * estimated utilization, before we update schedutil.
 	 */
 	util_est_enqueue(&rq->cfs, p);
+
+	/*
+	 * If in_iowait is set, the code below may not trigger any cpufreq
+	 * utilization updates, so do it here explicitly with the IOWAIT flag
+	 * passed.
+	 */
+	if (p->in_iowait)
+		cpufreq_update_util(rq, SCHED_CPUFREQ_IOWAIT);
 
 	for_each_sched_entity(se) {
 		if (se->on_rq)
@@ -9230,6 +9259,10 @@ static bool __update_blocked_others(struct rq *rq, bool *done)
 	unsigned long thermal_pressure;
 	bool decayed;
 
+	/*
+	 * update_load_avg() can call cpufreq_update_util(). Make sure that RT,
+	 * DL and IRQ signals have been updated before updating CFS.
+	 */
 	curr_class = rq->curr->sched_class;
 
 	thermal_pressure = arch_scale_thermal_pressure(cpu_of(rq));
@@ -12605,7 +12638,6 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 
 	update_misfit_status(curr, rq);
 	update_overutilized_status(task_rq(curr));
-	cpufreq_update_util(rq, 0);
 
 	task_tick_core(rq, curr);
 }

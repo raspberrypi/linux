@@ -95,6 +95,9 @@ DECLARE_HOOK(android_vh_tune_mmap_readaround,
 	TP_PROTO(unsigned int ra_pages, pgoff_t pgoff,
 		pgoff_t *start, unsigned int *size, unsigned int *async_size),
 	TP_ARGS(ra_pages, pgoff, start, size, async_size));
+DECLARE_HOOK(android_vh_madvise_cold_pageout_skip,
+	TP_PROTO(struct vm_area_struct *vma, struct folio *folio, bool pageout, bool *need_skip),
+	TP_ARGS(vma, folio, pageout, need_skip));
 struct mem_cgroup;
 DECLARE_HOOK(android_vh_mem_cgroup_alloc,
 	TP_PROTO(struct mem_cgroup *memcg),
@@ -264,6 +267,21 @@ DECLARE_HOOK(android_vh_page_should_be_protected,
 DECLARE_HOOK(android_vh_mark_page_accessed,
 	TP_PROTO(struct folio *folio),
 	TP_ARGS(folio));
+
+DECLARE_HOOK(android_vh_lock_folio_drop_mmap_start,
+	TP_PROTO(struct task_struct **tsk, struct vm_fault *vmf,
+		struct folio *folio, struct file *file),
+	TP_ARGS(tsk, vmf, folio, file));
+
+DECLARE_HOOK(android_vh_lock_folio_drop_mmap_end,
+	TP_PROTO(bool success, struct task_struct **tsk, struct vm_fault *vmf,
+		struct folio *folio, struct file *file),
+	TP_ARGS(success, tsk, vmf, folio, file));
+
+DECLARE_HOOK(android_vh_filemap_update_page,
+	TP_PROTO(struct address_space *mapping, struct folio *folio,
+		struct file *file),
+	TP_ARGS(mapping, folio, file));
 
 #endif /* _TRACE_HOOK_MM_H */
 

@@ -416,6 +416,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_context_switch,
 	TP_PROTO(struct task_struct *pre, struct task_struct *next),
 	TP_ARGS(pre, next), 1);
 
+DECLARE_HOOK(android_vh_mmput,
+	TP_PROTO(void *unused),
+	TP_ARGS(unused));
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */

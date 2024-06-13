@@ -25,6 +25,7 @@
 MODULE_AUTHOR("Tom Lendacky <thomas.lendacky@amd.com>");
 MODULE_AUTHOR("Gary R Hook <gary.hook@amd.com>");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 MODULE_VERSION("1.1.0");
 MODULE_DESCRIPTION("AMD Secure Processor driver");
 

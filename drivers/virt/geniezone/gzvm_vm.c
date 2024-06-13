@@ -95,6 +95,33 @@ register_memslot_addr_range(struct gzvm *gzvm, struct gzvm_memslot *memslot)
 }
 
 /**
+ * memory_region_pre_check() - Preliminary check for userspace memory region
+ * @gzvm: Pointer to struct gzvm.
+ * @mem: Input memory region from user.
+ *
+ * Return: true for check passed, false for invalid input.
+ */
+static bool
+memory_region_pre_check(struct gzvm *gzvm,
+			struct gzvm_userspace_memory_region *mem)
+{
+	if (mem->slot >= GZVM_MAX_MEM_REGION)
+		return false;
+
+	if (!PAGE_ALIGNED(mem->guest_phys_addr) ||
+	    !PAGE_ALIGNED(mem->memory_size))
+		return false;
+
+	if (mem->guest_phys_addr + mem->memory_size < mem->guest_phys_addr)
+		return false;
+
+	if ((mem->memory_size >> PAGE_SHIFT) > GZVM_MEM_MAX_NR_PAGES)
+		return false;
+
+	return true;
+}
+
+/**
  * gzvm_vm_ioctl_set_memory_region() - Set memory region of guest
  * @gzvm: Pointer to struct gzvm.
  * @mem: Input memory region from user.
@@ -114,8 +141,8 @@ gzvm_vm_ioctl_set_memory_region(struct gzvm *gzvm,
 	struct gzvm_memslot *memslot;
 	unsigned long size;
 
-	if (mem->slot >= GZVM_MAX_MEM_REGION)
-		return -ENXIO;
+	if (memory_region_pre_check(gzvm, mem) != true)
+		return -EINVAL;
 
 	memslot = &gzvm->memslot[mem->slot];
 
@@ -409,12 +436,6 @@ static void setup_vm_demand_paging(struct gzvm *vm)
 	}
 }
 
-static int debugfs_open(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-	return 0;
-}
-
 /**
  * hyp_mem_read() - Get size of hypervisor-allocated memory and stage 2 table
  * @file: Pointer to struct file
@@ -476,15 +497,13 @@ static ssize_t shared_mem_read(struct file *file, char __user *buf, size_t len,
 }
 
 static const struct file_operations hyp_mem_fops = {
-	.owner = THIS_MODULE,
-	.open = debugfs_open,
+	.open = simple_open,
 	.read = hyp_mem_read,
 	.llseek = no_llseek,
 };
 
 static const struct file_operations shared_mem_fops = {
-	.owner = THIS_MODULE,
-	.open = debugfs_open,
+	.open = simple_open,
 	.read = shared_mem_read,
 	.llseek = no_llseek,
 };
@@ -493,6 +512,9 @@ static int gzvm_create_vm_debugfs(struct gzvm *vm)
 {
 	struct dentry *dent;
 	char dir_name[GZVM_MAX_DEBUGFS_DIR_NAME_SIZE];
+
+	if (!gzvm_debugfs_dir)
+		return -EFAULT;
 
 	if (vm->debug_dir) {
 		pr_warn("VM debugfs directory is duplicated\n");
@@ -575,7 +597,9 @@ static struct gzvm *gzvm_create_vm(unsigned long vm_type)
 	list_add(&gzvm->vm_list, &gzvm_list);
 	mutex_unlock(&gzvm_list_lock);
 
-	gzvm_create_vm_debugfs(gzvm);
+	ret = gzvm_create_vm_debugfs(gzvm);
+	if (ret)
+		pr_debug("Failed to create debugfs for VM-%u\n", gzvm->vm_id);
 
 	pr_debug("VM-%u is created\n", gzvm->vm_id);
 

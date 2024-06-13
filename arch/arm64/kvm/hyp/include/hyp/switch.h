@@ -221,22 +221,25 @@ static inline void __activate_traps_common(struct kvm_vcpu *vcpu)
 
 	vcpu->arch.mdcr_el2_host = read_sysreg(mdcr_el2);
 	write_sysreg(vcpu->arch.mdcr_el2, mdcr_el2);
+}
 
-	if (cpus_have_final_cap(ARM64_HAS_HCX)) {
-		u64 hcrx = HCRX_GUEST_FLAGS;
-		if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu)) {
-			u64 clr = 0, set = 0;
+static inline void __activate_traps_hcrx(struct kvm_vcpu *vcpu)
+{
+	u64 hcrx = HCRX_GUEST_FLAGS;
 
-			compute_clr_set(vcpu, HCRX_EL2, clr, set);
+	if (!cpus_have_final_cap(ARM64_HAS_HCX))
+		return;
 
-			hcrx |= set;
-			hcrx &= ~clr;
-		}
+	if (vcpu_has_nv(vcpu) && !is_hyp_ctxt(vcpu)) {
+		u64 clr = 0, set = 0;
 
-		write_sysreg_s(hcrx, SYS_HCRX_EL2);
+		compute_clr_set(vcpu, HCRX_EL2, clr, set);
+
+		hcrx |= set;
+		hcrx &= ~clr;
 	}
 
-	__activate_traps_hfgxtr(vcpu);
+	write_sysreg_s(hcrx, SYS_HCRX_EL2);
 }
 
 static inline void __deactivate_traps_common(struct kvm_vcpu *vcpu)
@@ -254,8 +257,6 @@ static inline void __deactivate_traps_common(struct kvm_vcpu *vcpu)
 
 	if (cpus_have_final_cap(ARM64_HAS_HCX))
 		write_sysreg_s(HCRX_HOST_FLAGS, SYS_HCRX_EL2);
-
-	__deactivate_traps_hfgxtr(vcpu);
 }
 
 static inline void ___activate_traps(struct kvm_vcpu *vcpu)

@@ -391,7 +391,7 @@ void mpage_readahead(struct readahead_control *rac, get_block_t get_block)
 	if (args.bio)
 		mpage_bio_submit_read(args.bio);
 }
-EXPORT_SYMBOL(mpage_readahead);
+EXPORT_SYMBOL_NS(mpage_readahead, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * This isn't called much at all

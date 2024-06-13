@@ -21,7 +21,6 @@
 #include <linux/platform_device.h>
 
 #include "arm-smmu-v3.h"
-#include "../../dma-iommu.h"
 #include "../../iommu-sva.h"
 
 static bool disable_bypass = true;
@@ -2507,22 +2506,6 @@ static int arm_smmu_enable_nesting(struct iommu_domain *domain)
 	mutex_unlock(&smmu_domain->init_mutex);
 
 	return ret;
-}
-
-static void arm_smmu_get_resv_regions(struct device *dev,
-				      struct list_head *head)
-{
-	struct iommu_resv_region *region;
-	int prot = IOMMU_WRITE | IOMMU_NOEXEC | IOMMU_MMIO;
-
-	region = iommu_alloc_resv_region(MSI_IOVA_BASE, MSI_IOVA_LENGTH,
-					 prot, IOMMU_RESV_SW_MSI, GFP_KERNEL);
-	if (!region)
-		return;
-
-	list_add_tail(&region->list, head);
-
-	iommu_dma_get_resv_regions(dev, head);
 }
 
 static int arm_smmu_dev_enable_feature(struct device *dev,

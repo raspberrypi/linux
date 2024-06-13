@@ -278,6 +278,7 @@ int arm_smmu_device_disable(struct arm_smmu_device *smmu);
 bool arm_smmu_capable(struct device *dev, enum iommu_cap cap);
 struct iommu_group *arm_smmu_device_group(struct device *dev);
 int arm_smmu_of_xlate(struct device *dev, struct of_phandle_args *args);
+void arm_smmu_get_resv_regions(struct device *dev, struct list_head *head);
 
 struct platform_device;
 int arm_smmu_fw_probe(struct platform_device *pdev,

@@ -140,12 +140,15 @@
   clk_hw_is_prepared
   clk_hw_register
   clk_hw_round_rate
+  clk_hw_set_rate_range
   clk_hw_unregister
   __clk_is_enabled
   __clk_mux_determine_rate_closest
   clk_prepare
   clk_put
+  clk_restore_context
   clk_round_rate
+  clk_save_context
   clk_set_parent
   clk_set_rate
   clk_sync_state
@@ -803,6 +806,7 @@
   idr_preload
   idr_remove
   iio_read_channel_processed
+  iio_write_channel_raw
   in4_pton
   inc_node_page_state
   in_egroup_p
@@ -1086,11 +1090,26 @@
   __mmap_lock_do_trace_released
   __mmap_lock_do_trace_start_locking
   mmc_cqe_request_done
+  mmc_execute_tuning
+  mmc_hs200_tuning
+  mmc_issue_type
   mmc_of_parse
   mmc_regulator_get_supply
   mmc_regulator_set_ocr
   mmc_regulator_set_vqmmc
+  mmc_retune_hold
+  mmc_select_bus_width
+  mmc_select_card
+  mmc_select_hs
+  mmc_select_hs400
+  mmc_select_hs_ddr
+  mmc_select_timing
   mmc_send_tuning
+  mmc_set_bus_mode
+  mmc_set_bus_width
+  mmc_set_clock
+  mmc_set_initial_state
+  mmc_set_timing
   __mmdrop
   mmput
   mod_delayed_work_on
@@ -1163,6 +1182,7 @@
   of_clk_add_provider
   of_clk_del_provider
   of_clk_get_from_provider
+  of_clk_hw_onecell_get
   of_clk_hw_simple_get
   of_clk_src_simple_get
   of_count_phandle_with_args
@@ -1392,6 +1412,10 @@
   power_supply_reg_notifier
   power_supply_set_property
   power_supply_unreg_notifier
+  powercap_register_control_type
+  powercap_register_zone
+  powercap_unregister_control_type
+  powercap_unregister_zone
   preempt_schedule
   preempt_schedule_notrace
   prepare_to_wait_event
@@ -1909,8 +1933,12 @@
   __traceiter_android_rvh_iommu_iovad_init_alloc_algo
   __traceiter_android_rvh_iommu_limit_align_shift
   __traceiter_android_rvh_iommu_setup_dma_ops
+  __traceiter_android_rvh_irqs_disable
+  __traceiter_android_rvh_irqs_enable
   __traceiter_android_rvh_is_cpu_allowed
   __traceiter_android_rvh_new_task_stats
+  __traceiter_android_rvh_preempt_disable
+  __traceiter_android_rvh_preempt_enable
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_rto_next_cpu
   __traceiter_android_rvh_sched_cpu_dying
@@ -1957,6 +1985,7 @@
   __traceiter_android_vh_ipi_stop
   __traceiter_android_vh_jiffies_update
   __traceiter_android_vh_mmap_region
+  __traceiter_android_vh_mmc_sdio_pm_flag_set
   __traceiter_android_vh_mpam_set
   __traceiter_android_vh_printk_hotplug
   __traceiter_android_vh_rproc_recovery
@@ -2005,8 +2034,12 @@
   __tracepoint_android_rvh_iommu_iovad_init_alloc_algo
   __tracepoint_android_rvh_iommu_limit_align_shift
   __tracepoint_android_rvh_iommu_setup_dma_ops
+  __tracepoint_android_rvh_irqs_disable
+  __tracepoint_android_rvh_irqs_enable
   __tracepoint_android_rvh_is_cpu_allowed
   __tracepoint_android_rvh_new_task_stats
+  __tracepoint_android_rvh_preempt_disable
+  __tracepoint_android_rvh_preempt_enable
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_rto_next_cpu
   __tracepoint_android_rvh_sched_cpu_dying
@@ -2053,6 +2086,7 @@
   __tracepoint_android_vh_ipi_stop
   __tracepoint_android_vh_jiffies_update
   __tracepoint_android_vh_mmap_region
+  __tracepoint_android_vh_mmc_sdio_pm_flag_set
   __tracepoint_android_vh_mpam_set
   __tracepoint_android_vh_printk_hotplug
   __tracepoint_android_vh_rproc_recovery
@@ -2191,6 +2225,8 @@
   usb_free_coherent
   usb_function_register
   usb_function_unregister
+  usb_gadget_connect
+  usb_gadget_disconnect
   usb_gadget_wakeup
   usb_hcd_is_primary_hcd
   usb_ifnum_to_if

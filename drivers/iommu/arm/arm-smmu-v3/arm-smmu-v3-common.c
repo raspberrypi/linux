@@ -9,6 +9,7 @@
 #include <linux/pci.h>
 
 #include "arm-smmu-v3.h"
+#include "../../dma-iommu.h"
 
 struct arm_smmu_option_prop {
 	u32 opt;
@@ -475,6 +476,21 @@ struct iommu_group *arm_smmu_device_group(struct device *dev)
 int arm_smmu_of_xlate(struct device *dev, struct of_phandle_args *args)
 {
 	return iommu_fwspec_add_ids(dev, args->args, 1);
+}
+
+void arm_smmu_get_resv_regions(struct device *dev, struct list_head *head)
+{
+	struct iommu_resv_region *region;
+	int prot = IOMMU_WRITE | IOMMU_NOEXEC | IOMMU_MMIO;
+
+	region = iommu_alloc_resv_region(MSI_IOVA_BASE, MSI_IOVA_LENGTH,
+					 prot, IOMMU_RESV_SW_MSI, GFP_KERNEL);
+	if (!region)
+		return;
+
+	list_add_tail(&region->list, head);
+
+	iommu_dma_get_resv_regions(dev, head);
 }
 
 int arm_smmu_init_one_queue(struct arm_smmu_device *smmu,

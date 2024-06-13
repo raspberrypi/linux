@@ -6,6 +6,7 @@
  */
 
 #include <asm/kvm_hyp.h>
+#include <asm/kvm_hypevents.h>
 
 #include <hyp/adjust_pc.h>
 
@@ -146,7 +147,7 @@ struct hyp_mgt_allocator_ops kvm_iommu_allocator_ops = {
 };
 
 static struct kvm_hyp_iommu_domain *
-handle_to_domain(pkvm_handle_t domain_id)
+__handle_to_domain(pkvm_handle_t domain_id, bool alloc)
 {
 	int idx;
 	struct kvm_hyp_iommu_domain *domains;
@@ -158,11 +159,9 @@ handle_to_domain(pkvm_handle_t domain_id)
 	idx = domain_id / KVM_IOMMU_DOMAINS_PER_PAGE;
 	domains = (struct kvm_hyp_iommu_domain *)READ_ONCE(kvm_hyp_iommu_domains[idx]);
 	if (!domains) {
-		if (domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
-			domains = kvm_iommu_donate_pages_atomic(0);
-		else
-			domains = kvm_iommu_donate_page();
-
+		if (!alloc)
+			return NULL;
+		domains = kvm_iommu_donate_page();
 		if (!domains)
 			return NULL;
 		/*
@@ -174,14 +173,17 @@ handle_to_domain(pkvm_handle_t domain_id)
 		 */
 		if (WARN_ON(cmpxchg64_relaxed(&kvm_hyp_iommu_domains[idx], 0,
 					      (void *)domains) != 0)) {
-			if (domain_id == KVM_IOMMU_DOMAIN_IDMAP_ID)
-				kvm_iommu_reclaim_pages_atomic(domains, 0);
-			else
-				kvm_iommu_reclaim_page(domains);
+			kvm_iommu_reclaim_page(domains);
 			return NULL;
 		}
 	}
 	return &domains[domain_id % KVM_IOMMU_DOMAINS_PER_PAGE];
+}
+
+static struct kvm_hyp_iommu_domain *
+handle_to_domain(pkvm_handle_t domain_id)
+{
+	return __handle_to_domain(domain_id, true);
 }
 
 static int domain_get(struct kvm_hyp_iommu_domain *domain)
@@ -520,14 +522,7 @@ static int kvm_iommu_init_idmap(struct kvm_hyp_memcache *atomic_mc)
 	if (ret)
 		return ret;
 
-	ret = refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
-
-	if (ret)
-		return ret;
-
-	/* The host must guarantee that the allocator can be used from this context. */
-	return WARN_ON(kvm_iommu_alloc_domain(KVM_IOMMU_DOMAIN_IDMAP_ID,
-					      KVM_IOMMU_DOMAIN_IDMAP_TYPE));
+	return refill_hyp_pool(&iommu_atomic_pool, atomic_mc);
 }
 
 int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc,
@@ -542,10 +537,6 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 		    !ops->detach_dev))
 		return -ENODEV;
 
-	ret = ops->init ? ops->init(init_arg) : 0;
-	if (ret)
-		return ret;
-
 	ret = __pkvm_host_donate_hyp(__hyp_pa(kvm_hyp_iommu_domains) >> PAGE_SHIFT,
 				     1 << get_order(KVM_IOMMU_DOMAINS_ROOT_SIZE));
 	if (ret)
@@ -559,7 +550,11 @@ int kvm_iommu_init(struct kvm_iommu_ops *ops, struct kvm_hyp_memcache *atomic_mc
 	smp_wmb();
 	kvm_iommu_ops = ops;
 
-	return kvm_iommu_init_idmap(atomic_mc);
+	ret = kvm_iommu_init_idmap(atomic_mc);
+	if (ret)
+		return ret;
+
+	return ops->init ? ops->init(init_arg) : 0;
 }
 
 static inline int pkvm_to_iommu_prot(int prot)
@@ -586,9 +581,9 @@ void kvm_iommu_host_stage2_idmap(phys_addr_t start, phys_addr_t end,
 	if (!kvm_iommu_is_ready())
 		return;
 
-	domain = handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID);
-	if (!domain)
-		return;
+	trace_iommu_idmap(start, end, prot);
+
+	domain = __handle_to_domain(KVM_IOMMU_DOMAIN_IDMAP_ID, false);
 
 	kvm_iommu_ops->host_stage2_idmap(domain, start, end, pkvm_to_iommu_prot(prot));
 }

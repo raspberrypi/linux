@@ -25,6 +25,191 @@
       ]
     },
     {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_binderfs_binderfs_test"
+        },
+        {
+          "include-filter": "kselftest_breakpoints_breakpoint_test"
+        },
+        {
+          "include-filter": "kselftest_capabilities_test_execve"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_2G"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_2G"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_mismatched_ops"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_signal_restart"
+        },
+        {
+          "include-filter": "kselftest_futex_wait"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_private_mapped_file"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_timeout"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_uninitialized_heap"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_wouldblock"
+        },
+        {
+          "include-filter": "kselftest_kcmp_kcmp_test"
+        },
+        {
+          "include-filter": "kselftest_mm_mremap_dontunmap"
+        },
+        {
+          "include-filter": "kselftest_mm_mremap_test"
+        },
+        {
+          "include-filter": "kselftest_mm_uffd_unit_tests"
+        },
+        {
+          "include-filter": "kselftest_net_psock_tpacket"
+        },
+        {
+          "include-filter": "kselftest_net_reuseaddr_conflict"
+        },
+        {
+          "include-filter": "kselftest_net_socket"
+        },
+        {
+          "include-filter": "kselftest_ptrace_peeksiginfo"
+        },
+        {
+          "include-filter": "kselftest_rtc_rtctest"
+        },
+        {
+          "include-filter": "kselftest_seccomp_seccomp_bpf"
+        },
+        {
+          "include-filter": "kselftest_size_test_get_size"
+        },
+        {
+          "include-filter": "kselftest_timers_inconsistency_check"
+        },
+        {
+          "include-filter": "kselftest_timers_nanosleep"
+        },
+        {
+          "include-filter": "kselftest_timers_nsleep_lat"
+        },
+        {
+          "include-filter": "kselftest_timers_posix_timers"
+        },
+        {
+          "include-filter": "kselftest_timers_set_timer_lat"
+        },
+        {
+          "include-filter": "kselftest_timers_tests_raw_skew"
+        },
+        {
+          "include-filter": "kselftest_timers_threadtest"
+        },
+        {
+          "include-filter": "kselftest_timers_valid_adjtimex"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_abi"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_clock_getres"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_getcpu"
+        },
+        {
+          "include-filter": "kselftest_vdso_vdso_test_gettimeofday"
+        },
+        {
+          "include-filter": "kselftest_x86_check_initial_reg_state"
+        },
+        {
+          "include-filter": "kselftest_x86_ldt_gdt"
+        },
+        {
+          "include-filter": "kselftest_x86_ptrace_syscall"
+        },
+        {
+          "include-filter": "kselftest_x86_single_step_syscall"
+        },
+        {
+          "include-filter": "kselftest_x86_syscall_nt"
+        },
+        {
+          "include-filter": "kselftest_x86_test_mremap_vdso"
+        }
+      ]
+    },
+    {
       "name": "vts_kernel_net_tests"
     }
   ]

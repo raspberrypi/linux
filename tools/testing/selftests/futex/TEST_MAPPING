@@ -1,0 +1,93 @@
+{
+  "presubmit": [
+    {
+      "name": "selftests",
+      "options": [
+        {
+          "include-filter": "kselftest_futex_requeue"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_b_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_2G"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bl_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_bo_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_2G"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_l_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_mismatched_ops"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o_500k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_o_5k"
+        },
+        {
+          "include-filter": "kselftest_futex_requeue_pi_signal_restart"
+        },
+        {
+          "include-filter": "kselftest_futex_wait"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_private_mapped_file"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_timeout"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_uninitialized_heap"
+        },
+        {
+          "include-filter": "kselftest_futex_wait_wouldblock"
+        }
+      ]
+    }
+  ]
+}

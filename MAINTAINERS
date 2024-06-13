@@ -8796,8 +8796,8 @@ F:	lib/vdso/
 GENIEZONE HYPERVISOR DRIVER
 M:	Yingshiuan Pan <yingshiuan.pan@mediatek.com>
 M:	Ze-Yu Wang <ze-yu.wang@mediatek.com>
-M:	Yi-De Wu <yi-de.wu@mediatek.com>
-F:	Documentation/devicetree/bindings/hypervisor/mediatek,geniezone-hyp.yaml
+M:	Liju Chen <liju-clr.chen@mediatek.com>
+F:	Documentation/devicetree/bindings/firmware/mediatek,geniezone.yaml
 F:	Documentation/virt/geniezone/
 F:	arch/arm64/geniezone/
 F:	drivers/virt/geniezone/

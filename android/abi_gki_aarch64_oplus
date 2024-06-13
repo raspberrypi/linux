@@ -44,6 +44,9 @@
   generic_delete_inode
   __generic_file_fsync
   get_wchan
+  gnet_stats_add_queue
+  gnet_stats_copy_basic
+  gnet_stats_copy_queue
   gov_attr_set_get
   gpiod_to_chip
   have_governor_per_policy
@@ -86,6 +89,7 @@
   memcg_kmem_online_key
   neigh_xmit
   netif_receive_skb_core
+  __netif_schedule
   nf_ct_attach
   nf_ct_delete
   nf_register_net_hook
@@ -99,6 +103,7 @@
   nla_put_64bit
   nla_reserve
   nla_reserve_64bit
+  noop_qdisc
   nop_mnt_idmap
   notify_change
   nr_running
@@ -108,6 +113,7 @@
   override_creds
   __page_file_index
   path_get
+  pfifo_qdisc_ops
   platform_device_add
   platform_device_alloc
   platform_device_put
@@ -117,8 +123,18 @@
   prepare_to_wait_exclusive
   __printk_ratelimit
   proc_symlink
+  psched_ratecfg_precompute
   public_key_verify_signature
   put_pages_list
+  __qdisc_calculate_pkt_len
+  qdisc_create_dflt
+  qdisc_hash_add
+  qdisc_put
+  qdisc_reset
+  qdisc_tree_reduce_backlog
+  qdisc_watchdog_cancel
+  qdisc_watchdog_init
+  qdisc_watchdog_schedule_range_ns
   radix_tree_lookup_slot
   radix_tree_replace_slot
   _raw_write_trylock
@@ -153,6 +169,9 @@
   stack_depot_print
   task_rq_lock
   tcf_action_exec
+  tcf_block_get
+  tcf_block_put
+  tcf_classify
   tcf_exts_destroy
   tcf_exts_dump
   tcf_exts_dump_stats
@@ -164,6 +183,7 @@
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_rtmutex_force_update
   __traceiter_android_rvh_set_cpus_allowed_comm
+  __traceiter_android_vh_set_tsk_need_resched_lazy
   __traceiter_android_rvh_set_balance_anon_file_reclaim
   __traceiter_android_vh_account_process_tick_gran
   __traceiter_android_vh_add_page_to_lrulist
@@ -256,6 +276,7 @@
   __traceiter_android_vh_record_rtmutex_lock_starttime
   __traceiter_android_vh_record_rwsem_lock_starttime
   __traceiter_android_vh_reweight_entity
+  __traceiter_android_vh_read_lazy_flag
   __traceiter_android_vh_rmqueue_bulk_bypass
   __traceiter_android_vh_rt_mutex_steal
   __traceiter_android_vh_rtmutex_waiter_prio
@@ -408,10 +429,12 @@
   __tracepoint_android_vh_rwsem_optimistic_rspin
   __tracepoint_android_vh_rwsem_opt_spin_finish
   __tracepoint_android_vh_rwsem_opt_spin_start
+  __tracepoint_android_vh_read_lazy_flag
   __tracepoint_android_vh_save_track_hash
   __tracepoint_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_sched_move_task
   __tracepoint_android_rvh_sched_setaffinity
+  __tracepoint_android_vh_set_tsk_need_resched_lazy
   __tracepoint_android_vh_sched_setaffinity_early
   __tracepoint_android_vh_sched_stat_runtime_rt
   __tracepoint_android_vh_should_alloc_pages_retry

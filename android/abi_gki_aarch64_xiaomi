@@ -129,85 +129,138 @@
 #required by cifs.ko
   add_swap_extent
   asn1_ber_decoder
+  bit_wait
+  clear_nlink
   copy_page_from_iter
   copy_page_to_iter
-  clear_nlink
+  copy_splice_read
+  d_add
+  d_alloc_parallel
+  d_drop
+  d_hash_and_lookup
+  d_invalidate
+  d_move
   deactivate_super
   dentry_path_raw
-  d_drop
-  d_move
-  d_hash_and_lookup
-  d_alloc_parallel
-  d_invalidate
+  dup_iter
+  end_page_writeback
   errseq_check
+  extract_iter_to_sg
+  fc_mount
   file_modified
-  fs_param_is_bool
-  fs_param_is_u32
-  fs_param_is_u64
-  fs_param_is_string
+  file_write_and_wait_range
+  filemap_dirty_folio
+  filemap_fault
+  filemap_get_folios_tag
+  filemap_map_pages
+  filemap_migrate_folio
   finish_no_open
   finish_open
-  filemap_map_pages
-  folio_wait_private_2
+  flush_dcache_folio
   folio_clear_dirty_for_io
+  folio_end_private_2
+  folio_end_writeback
+  folio_mapping
+  folio_wait_private_2
+  folio_wait_private_2_killable
+  folio_wait_writeback
+  fs_context_for_submount
+  fs_param_is_bool
+  fs_param_is_string
+  fs_param_is_u32
+  fs_param_is_u64
   generate_random_uuid
-  generic_permission
-  generic_file_write_iter
-  generic_setlease
   generic_copy_file_range
+  generic_file_write_iter
   generic_key_instantiate
-  iov_iter_discard
-  iov_iter_bvec
-  iov_iter_get_pages_alloc2
+  generic_permission
+  generic_setlease
   iget_failed
+  in_group_p
   invalidate_inode_pages2
+  iov_iter_advance
+  iov_iter_bvec
+  iov_iter_discard
+  iov_iter_get_pages_alloc2
   iov_iter_npages
-  kfree_link
-  key_type_logon
+  iov_iter_xarray
+  iterate_supers_type
+  iunique
   key_invalidate
   key_revoke
+  key_type_logon
   key_validate
+  kfree_link
+  kill_anon_super
+  kvfree_sensitive
   lock_two_nondirectories
-  lookup_positive_unlocked
   locks_lock_inode_wait
   look_up_OID
-  overflowgid
+  lookup_positive_unlocked
+  mark_mounts_for_expiry
+  match_token
+  mempool_resize
+  mnt_drop_write_file
+  mnt_set_expiry
+  mnt_want_write_file
+  mntget
+  nop_mnt_idmap
+  out_of_line_wait_on_bit
   out_of_line_wait_on_bit_lock
+  overflowgid
   override_creds
   posix_lock_file
   posix_test_lock
   prepare_kernel_cred
+  put_fs_context
+  readahead_expand
+  redirty_page_for_writepage
+  register_key_type
   request_key_tag
   revert_creds
-  register_key_type
-  sget
-  set_anon_super
-  super_setup_bdi
-  seq_escape_mem
-  setattr_copy
-  sock_sendmsg
   security_sb_eat_lsm_opts
+  seq_escape_mem
+  set_anon_super
+  set_page_writeback
+  setattr_copy
+  sget
+  sigprocmask
+  simple_inode_init_ts
+  sock_sendmsg
   sprint_oid
-  truncate_inode_pages_range
-  tcp_sock_set_nodelay
+  super_setup_bdi
+  swapcache_mapping
   tcp_sock_set_cork
+  tcp_sock_set_nodelay
+  timestamp_truncate
+  touch_atime
+  truncate_inode_pages_range
   truncate_pagecache_range
   unlock_two_nondirectories
-  utf8s_to_utf16s
-  utf8_to_utf32
   unregister_key_type
   user_describe
-  user_revoke
   user_destroy
   user_read
-  vfs_setpos
+  user_revoke
+  utf8_to_utf32
+  utf8s_to_utf16s
   vfs_parse_fs_string
+  vfs_setpos
   wait_on_page_writeback
-  __generic_file_write_iter
-  __folio_lock_killable
+  xa_extract
+  xa_set_mark
+  xas_find
+  xas_find_marked
+  xas_pause
   __break_lease
   __d_lookup_unhash_wake
+  __filemap_get_folio
+  __folio_lock_killable
+  __folio_start_writeback
   __fs_parse
+  __generic_file_write_iter
+  __module_put_and_kthread_exit
+  __page_file_index
 
 # required by tls.ko
   tcp_rate_check_app_limited
@@ -281,3 +334,16 @@
   set_capacity
   blk_queue_flag_clear
   blk_mq_unfreeze_queue
+
+#required by mi_mempool.ko
+  __traceiter_android_vh_mmput
+  __tracepoint_android_vh_mmput
+  __traceiter_android_vh_madvise_cold_pageout_skip
+  __tracepoint_android_vh_madvise_cold_pageout_skip
+
+#required by io_limit.ko
+  __traceiter_android_vh_psi_event
+  __traceiter_android_vh_psi_group
+  __tracepoint_android_vh_psi_event
+  __tracepoint_android_vh_psi_group
+
