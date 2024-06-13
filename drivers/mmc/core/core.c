@@ -543,9 +543,17 @@ int mmc_cqe_recovery(struct mmc_host *host)
 	 * Recovery is expected seldom, if at all, but it reduces performance,
 	 * so make sure it is not completely silent.
 	 */
-	pr_warn("%s: running CQE recovery\n", mmc_hostname(host));
+	pr_warn_ratelimited("%s: running CQE recovery\n", mmc_hostname(host));
 
 	host->cqe_ops->cqe_recovery_start(host);
+
+	err = mmc_detect_card_removed(host);
+	if (err) {
+		host->cqe_ops->cqe_recovery_finish(host);
+		host->cqe_ops->cqe_off(host);
+		mmc_retune_release(host);
+		return err;
+	}
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.opcode       = MMC_STOP_TRANSMISSION;
