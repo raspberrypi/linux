@@ -141,6 +141,11 @@ struct arm_pmu {
 	/* store the PMMIR_EL1 to expose slots */
 	u64		reg_pmmir;
 
+#ifdef CONFIG_ARM64_BRBE
+	/* store the BRBIDR0_EL1 capturing attributes */
+	u64		reg_brbidr;
+#endif
+
 	/* Only to be used by ACPI probing code */
 	unsigned long acpi_cpuid;
 };

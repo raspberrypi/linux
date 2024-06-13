@@ -26,6 +26,7 @@
 #include <linux/nmi.h>
 
 #include <asm/arm_pmuv3.h>
+#include "arm_pmuv3_branch.h"
 
 /* ARMv8 Cortex-A53 specific event types. */
 #define ARMV8_A53_PERFCTR_PREF_LINEFILL				0xC2
@@ -834,12 +835,68 @@ static void armv8pmu_start(struct arm_pmu *cpu_pmu)
 	armv8pmu_pmcr_write(armv8pmu_pmcr_read() | ARMV8_PMU_PMCR_E);
 
 	kvm_vcpu_pmu_resync_el0();
+	if (cpu_pmu->has_branch_stack)
+		armv8pmu_branch_enable(cpu_pmu);
 }
 
 static void armv8pmu_stop(struct arm_pmu *cpu_pmu)
 {
+	if (cpu_pmu->has_branch_stack)
+		armv8pmu_branch_disable();
+
 	/* Disable all counters */
 	armv8pmu_pmcr_write(armv8pmu_pmcr_read() & ~ARMV8_PMU_PMCR_E);
+}
+
+static void read_branch_records(struct pmu_hw_events *cpuc,
+				struct perf_event *event,
+				struct perf_sample_data *data,
+				bool *branch_captured)
+{
+	struct branch_records event_records;
+
+	/*
+	 * CPU specific branch records buffer must have been allocated already
+	 * for the hardware records to be captured and processed further.
+	 */
+	if (WARN_ON(!cpuc->branches))
+		return;
+
+	/*
+	 * When the current task context does not match with the PMU overflown
+	 * event, the captured branch records here cannot be co-related to the
+	 * overflowed event. Report to the user - as if no branch records have
+	 * been captured, and flush branch records.
+	 */
+	if (event->ctx->task && (cpuc->branch_context != event->ctx))
+		return;
+
+	/*
+	 * Read the branch records from the hardware once after the PMU IRQ
+	 * has been triggered but subsequently same records can be used for
+	 * other events that might have been overflowed simultaneously thus
+	 * saving much CPU cycles.
+	 */
+	if (!*branch_captured) {
+		armv8pmu_branch_read(cpuc, event);
+		*branch_captured = true;
+	}
+
+	/*
+	 * Filter captured branch records
+	 *
+	 * PMU captured branch records would contain samples applicable for
+	 * the aggregated branch filters, for all events that got scheduled
+	 * on this PMU simultaneously. Hence these branch records need to
+	 * be filtered first so that each individual event get samples they
+	 * had requested originally.
+	 */
+	if (cpuc->branch_sample_type != event->attr.branch_sample_type) {
+		arm64_filter_branch_records(cpuc, event, &event_records);
+		perf_sample_save_brstack(data, event, &event_records.branch_stack, NULL);
+		return;
+	}
+	perf_sample_save_brstack(data, event, &cpuc->branches->branch_stack, NULL);
 }
 
 static irqreturn_t armv8pmu_handle_irq(struct arm_pmu *cpu_pmu)
@@ -849,6 +906,7 @@ static irqreturn_t armv8pmu_handle_irq(struct arm_pmu *cpu_pmu)
 	struct pmu_hw_events *cpuc = this_cpu_ptr(cpu_pmu->hw_events);
 	struct pt_regs *regs;
 	int idx;
+	bool branch_captured = false;
 
 	/*
 	 * Get and reset the IRQ flags
@@ -893,6 +951,13 @@ static irqreturn_t armv8pmu_handle_irq(struct arm_pmu *cpu_pmu)
 			continue;
 
 		/*
+		 * PMU IRQ should remain asserted until all branch records
+		 * are captured and processed into struct perf_sample_data.
+		 */
+		if (has_branch_stack(event) && cpu_pmu->has_branch_stack)
+			read_branch_records(cpuc, event, &data, &branch_captured);
+
+		/*
 		 * Perf event overflow will queue the processing of the event as
 		 * an irq_work which will be taken care of in the handling of
 		 * IPI_IRQ_WORK.
@@ -901,6 +966,8 @@ static irqreturn_t armv8pmu_handle_irq(struct arm_pmu *cpu_pmu)
 			cpu_pmu->disable(event);
 	}
 	armv8pmu_start(cpu_pmu);
+	if (cpu_pmu->has_branch_stack)
+		armv8pmu_branch_stack_reset();
 
 	return IRQ_HANDLED;
 }
@@ -989,6 +1056,40 @@ static int armv8pmu_user_event_idx(struct perf_event *event)
 		return ARMV8_IDX_CYCLE_COUNTER_USER;
 
 	return event->hw.idx;
+}
+
+static bool armv8pmu_branch_stack_init(struct perf_event *event)
+{
+	if (armv8pmu_branch_attr_valid(event)) {
+		/*
+		 * If a task gets scheduled out, the current branch records
+		 * get saved in the task's context data, which can be later
+		 * used to fill in the records upon an event overflow. Let's
+		 * enable PERF_ATTACH_TASK_DATA in 'event->attach_state' for
+		 * all branch stack sampling perf events.
+		 */
+		event->attach_state |= PERF_ATTACH_TASK_DATA;
+		return true;
+	}
+	return false;
+}
+
+static void armv8pmu_sched_task(struct perf_event_pmu_context *pmu_ctx, bool sched_in)
+{
+	struct arm_pmu *armpmu = to_arm_pmu(pmu_ctx->pmu);
+	void *task_ctx = pmu_ctx->task_ctx_data;
+
+	if (armpmu->has_branch_stack) {
+		/* Save branch records in task_ctx on sched out */
+		if (task_ctx && !sched_in) {
+			armv8pmu_branch_save(armpmu, task_ctx);
+			return;
+		}
+
+		/* Reset branch records on sched in */
+		if (sched_in)
+			armv8pmu_branch_stack_reset();
+	}
 }
 
 /*
@@ -1083,6 +1184,9 @@ static void armv8pmu_reset(void *info)
 		pmcr |= ARMV8_PMU_PMCR_LP;
 
 	armv8pmu_pmcr_write(pmcr);
+
+	if (cpu_pmu->has_branch_stack)
+		armv8pmu_branch_stack_reset();
 }
 
 static int __armv8_pmuv3_map_event_id(struct arm_pmu *armpmu,
@@ -1235,6 +1339,41 @@ static void __armv8pmu_probe_pmu(void *info)
 		cpu_pmu->reg_pmmir = read_pmmir();
 	else
 		cpu_pmu->reg_pmmir = 0;
+
+	/*
+	 * BRBE is being probed on a single cpu for a
+	 * given PMU. The remaining cpus, are assumed
+	 * to have the exact same BRBE implementation.
+	 */
+	armv8pmu_branch_probe(cpu_pmu);
+}
+
+static int branch_records_alloc(struct arm_pmu *armpmu)
+{
+	struct branch_records __percpu *records;
+	int cpu;
+
+	records = alloc_percpu_gfp(struct branch_records, GFP_KERNEL);
+	if (!records)
+		return -ENOMEM;
+
+	/*
+	 * percpu memory allocated for 'records' gets completely consumed
+	 * here, and never required to be freed up later. So permanently
+	 * losing access to this anchor i.e 'records' is acceptable.
+	 *
+	 * Otherwise this allocation handle would have to be saved up for
+	 * free_percpu() release later if required.
+	 */
+	for_each_possible_cpu(cpu) {
+		struct pmu_hw_events *events_cpu;
+		struct branch_records *records_cpu;
+
+		events_cpu = per_cpu_ptr(armpmu->hw_events, cpu);
+		records_cpu = per_cpu_ptr(records, cpu);
+		events_cpu->branches = records_cpu;
+	}
+	return 0;
 }
 
 static int armv8pmu_probe_pmu(struct arm_pmu *cpu_pmu)
@@ -1251,7 +1390,21 @@ static int armv8pmu_probe_pmu(struct arm_pmu *cpu_pmu)
 	if (ret)
 		return ret;
 
-	return probe.present ? 0 : -ENODEV;
+	if (!probe.present)
+		return -ENODEV;
+
+	if (cpu_pmu->has_branch_stack) {
+		ret = armv8pmu_task_ctx_cache_alloc(cpu_pmu);
+		if (ret)
+			return ret;
+
+		ret = branch_records_alloc(cpu_pmu);
+		if (ret) {
+			armv8pmu_task_ctx_cache_free(cpu_pmu);
+			return ret;
+		}
+	}
+	return 0;
 }
 
 static void armv8pmu_disable_user_access_ipi(void *unused)
@@ -1310,6 +1463,11 @@ static int armv8_pmu_init(struct arm_pmu *cpu_pmu, char *name,
 	cpu_pmu->set_event_filter	= armv8pmu_set_event_filter;
 
 	cpu_pmu->pmu.event_idx		= armv8pmu_user_event_idx;
+	cpu_pmu->sched_task		= armv8pmu_sched_task;
+	cpu_pmu->branch_stack_init	= armv8pmu_branch_stack_init;
+	cpu_pmu->branch_stack_add	= armv8pmu_branch_stack_add;
+	cpu_pmu->branch_stack_del	= armv8pmu_branch_stack_del;
+	cpu_pmu->branch_stack_reset	= armv8pmu_branch_stack_reset;
 
 	cpu_pmu->name			= name;
 	cpu_pmu->map_event		= map_event;
