@@ -411,8 +411,21 @@ static void sdhci_brcmstb_cqe_enable(struct mmc_host *mmc)
 
 	sdhci_cqe_enable(mmc);
 
-	/* Reset CMD13 polling timer back to eMMC specification default */
-	cqhci_writel(cq_host, 0x00011000, CQHCI_SSC1);
+	/*
+	 * The controller resets this register to a very short default interval
+	 * whenever CQHCI is disabled.
+	 *
+	 * For removable cards CBC needs to be clear or card removal can hang
+	 * the CQE. In polling mode, a CIT of 0x4000 "cycles" seems to produce the best
+	 * throughput.
+	 *
+	 * For nonremovable cards, the specification default of CBC=1 CIT=0x1000
+	 * suffices.
+	 */
+	if (mmc->caps & MMC_CAP_NONREMOVABLE)
+		cqhci_writel(cq_host, 0x00011000, CQHCI_SSC1);
+	else
+		cqhci_writel(cq_host, 0x00004000, CQHCI_SSC1);
 }
 
 static const struct cqhci_host_ops sdhci_brcmstb_cqhci_ops = {
@@ -432,7 +445,7 @@ static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
 	.set_clock = sdhci_bcm2712_set_clock,
 	.set_power = sdhci_brcmstb_set_power,
 	.set_bus_width = sdhci_set_bus_width,
-	.reset = sdhci_reset,
+	.reset = brcmstb_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.init_sd_express = bcm2712_init_sd_express,
 };
