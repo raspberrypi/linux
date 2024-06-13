@@ -67,6 +67,9 @@ struct kvm_ffa_buffers {
  */
 static struct kvm_ffa_buffers hyp_buffers;
 static struct kvm_ffa_buffers host_buffers;
+static u32 hyp_ffa_version;
+static bool has_version_negotiated;
+static hyp_spinlock_t version_lock;
 
 static void ffa_to_smccc_error(struct arm_smccc_res *res, u64 ffa_errno)
 {
@@ -646,104 +649,10 @@ out_handled:
 	return true;
 }
 
-bool kvm_host_ffa_handler(struct kvm_cpu_context *ctxt, u32 func_id)
+static int hyp_ffa_post_init(void)
 {
-	DECLARE_REG(u64, arg1, ctxt, 1);
-	DECLARE_REG(u64, arg2, ctxt, 2);
-	DECLARE_REG(u64, arg3, ctxt, 3);
-	DECLARE_REG(u64, arg4, ctxt, 4);
-	struct arm_smccc_res res;
-	bool handled = true;
-	int err = 0;
-
-	/*
-	 * There's no way we can tell what a non-standard SMC call might
-	 * be up to. Ideally, we would terminate these here and return
-	 * an error to the host, but sadly devices make use of custom
-	 * firmware calls for things like power management, debugging,
-	 * RNG access and crash reporting.
-	 *
-	 * Given that the architecture requires us to trust EL3 anyway,
-	 * we forward unrecognised calls on under the assumption that
-	 * the firmware doesn't expose a mechanism to access arbitrary
-	 * non-secure memory. Short of a per-device table of SMCs, this
-	 * is the best we can do.
-	 */
-	if (!is_ffa_call(func_id))
-		return false;
-
-	switch (func_id) {
-	case FFA_FEATURES:
-		if (!do_ffa_features(&res, ctxt)) {
-			handled = false;
-			goto unhandled;
-		}
-		break;
-	/* Memory management */
-	case FFA_FN64_RXTX_MAP:
-		do_ffa_rxtx_map(&res, ctxt);
-		break;
-	case FFA_RXTX_UNMAP:
-		do_ffa_rxtx_unmap(&res, ctxt);
-		break;
-	case FFA_MEM_SHARE:
-	case FFA_FN64_MEM_SHARE:
-		do_ffa_mem_xfer(FFA_FN64_MEM_SHARE, &res, ctxt);
-		break;
-	case FFA_MEM_RECLAIM:
-		do_ffa_mem_reclaim(&res, ctxt);
-		break;
-	case FFA_MEM_LEND:
-	case FFA_FN64_MEM_LEND:
-		do_ffa_mem_xfer(FFA_FN64_MEM_LEND, &res, ctxt);
-		break;
-	case FFA_MEM_FRAG_TX:
-		do_ffa_mem_frag_tx(&res, ctxt);
-		break;
-	default:
-		if (ffa_call_supported(func_id)) {
-			handled = false;
-			goto unhandled;
-		}
-
-		ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
-	}
-
-	ffa_set_retval(ctxt, &res);
-	err = res.a0 == FFA_SUCCESS ? 0 : res.a2;
-unhandled:
-	trace_host_ffa_call(func_id, arg1, arg2, arg3, arg4, handled, err);
-	return handled;
-}
-
-int hyp_ffa_init(void *pages)
-{
-	struct arm_smccc_res res;
 	size_t min_rxtx_sz;
-	void *tx, *rx;
-
-	if (kvm_host_psci_config.smccc_version < ARM_SMCCC_VERSION_1_1)
-		return 0;
-
-	arm_smccc_1_1_smc(FFA_VERSION, FFA_VERSION_1_0, 0, 0, 0, 0, 0, 0, &res);
-	if (res.a0 == FFA_RET_NOT_SUPPORTED)
-		return 0;
-
-	/*
-	 * Firmware returns the maximum supported version of the FF-A
-	 * implementation. Check that the returned version is
-	 * backwards-compatible with the hyp according to the rules in DEN0077A
-	 * v1.1 REL0 13.2.1.
-	 *
-	 * Of course, things are never simple when dealing with firmware. v1.1
-	 * broke ABI with v1.0 on several structures, which is itself
-	 * incompatible with the aforementioned versioning scheme. The
-	 * expectation is that v1.x implementations that do not support the v1.0
-	 * ABI return NOT_SUPPORTED rather than a version number, according to
-	 * DEN0077A v1.1 REL0 18.6.4.
-	 */
-	if (FFA_MAJOR_VERSION(res.a0) != 1)
-		return -EOPNOTSUPP;
+	struct arm_smccc_res res;
 
 	arm_smccc_1_1_smc(FFA_ID_GET, 0, 0, 0, 0, 0, 0, 0, &res);
 	if (res.a0 != FFA_SUCCESS)
@@ -774,6 +683,156 @@ int hyp_ffa_init(void *pages)
 	if (min_rxtx_sz > PAGE_SIZE)
 		return -EOPNOTSUPP;
 
+	return 0;
+}
+
+static void do_ffa_version(struct arm_smccc_res *res,
+			   struct kvm_cpu_context *ctxt)
+{
+	DECLARE_REG(u32, ffa_req_version, ctxt, 1);
+
+	if (FFA_MAJOR_VERSION(ffa_req_version) != 1) {
+		res->a0 = FFA_RET_NOT_SUPPORTED;
+		return;
+	}
+
+	hyp_spin_lock(&version_lock);
+	if (has_version_negotiated) {
+		res->a0 = hyp_ffa_version;
+		goto unlock;
+	}
+
+	/*
+	 * If the client driver tries to downgrade the version, we need to ask
+	 * first if TEE supports it.
+	 */
+	if (FFA_MINOR_VERSION(ffa_req_version) < FFA_MINOR_VERSION(hyp_ffa_version)) {
+		arm_smccc_1_1_smc(FFA_VERSION, ffa_req_version, 0,
+				  0, 0, 0, 0, 0,
+				  res);
+		if (res->a0 == FFA_RET_NOT_SUPPORTED)
+			goto unlock;
+
+		hyp_ffa_version = ffa_req_version;
+	}
+
+	if (hyp_ffa_post_init())
+		res->a0 = FFA_RET_NOT_SUPPORTED;
+	else {
+		has_version_negotiated = true;
+		res->a0 = hyp_ffa_version;
+	}
+unlock:
+	hyp_spin_unlock(&version_lock);
+}
+
+bool kvm_host_ffa_handler(struct kvm_cpu_context *ctxt, u32 func_id)
+{
+	DECLARE_REG(u64, arg1, ctxt, 1);
+	DECLARE_REG(u64, arg2, ctxt, 2);
+	DECLARE_REG(u64, arg3, ctxt, 3);
+	DECLARE_REG(u64, arg4, ctxt, 4);
+	struct arm_smccc_res res;
+	bool handled = true;
+	int err = 0;
+
+	/*
+	 * There's no way we can tell what a non-standard SMC call might
+	 * be up to. Ideally, we would terminate these here and return
+	 * an error to the host, but sadly devices make use of custom
+	 * firmware calls for things like power management, debugging,
+	 * RNG access and crash reporting.
+	 *
+	 * Given that the architecture requires us to trust EL3 anyway,
+	 * we forward unrecognised calls on under the assumption that
+	 * the firmware doesn't expose a mechanism to access arbitrary
+	 * non-secure memory. Short of a per-device table of SMCs, this
+	 * is the best we can do.
+	 */
+	if (!is_ffa_call(func_id))
+		return false;
+
+	if (!has_version_negotiated && func_id != FFA_VERSION) {
+		ffa_to_smccc_error(&res, FFA_RET_INVALID_PARAMETERS);
+		goto unhandled;
+	}
+
+	switch (func_id) {
+	case FFA_FEATURES:
+		if (!do_ffa_features(&res, ctxt)) {
+			handled = false;
+			goto unhandled;
+		}
+		break;
+	/* Memory management */
+	case FFA_FN64_RXTX_MAP:
+		do_ffa_rxtx_map(&res, ctxt);
+		break;
+	case FFA_RXTX_UNMAP:
+		do_ffa_rxtx_unmap(&res, ctxt);
+		break;
+	case FFA_MEM_SHARE:
+	case FFA_FN64_MEM_SHARE:
+		do_ffa_mem_xfer(FFA_FN64_MEM_SHARE, &res, ctxt);
+		break;
+	case FFA_MEM_RECLAIM:
+		do_ffa_mem_reclaim(&res, ctxt);
+		break;
+	case FFA_MEM_LEND:
+	case FFA_FN64_MEM_LEND:
+		do_ffa_mem_xfer(FFA_FN64_MEM_LEND, &res, ctxt);
+		break;
+	case FFA_MEM_FRAG_TX:
+		do_ffa_mem_frag_tx(&res, ctxt);
+		break;
+	case FFA_VERSION:
+		do_ffa_version(&res, ctxt);
+		break;
+	default:
+		if (ffa_call_supported(func_id)) {
+			handled = false;
+			goto unhandled;
+		}
+
+		ffa_to_smccc_error(&res, FFA_RET_NOT_SUPPORTED);
+	}
+
+	ffa_set_retval(ctxt, &res);
+	err = res.a0 == FFA_SUCCESS ? 0 : res.a2;
+unhandled:
+	trace_host_ffa_call(func_id, arg1, arg2, arg3, arg4, handled, err);
+	return handled;
+}
+
+int hyp_ffa_init(void *pages)
+{
+	struct arm_smccc_res res;
+	void *tx, *rx;
+
+	if (kvm_host_psci_config.smccc_version < ARM_SMCCC_VERSION_1_1)
+		return 0;
+
+	arm_smccc_1_1_smc(FFA_VERSION, FFA_VERSION_1_0, 0, 0, 0, 0, 0, 0, &res);
+	if (res.a0 == FFA_RET_NOT_SUPPORTED)
+		return 0;
+
+	/*
+	 * Firmware returns the maximum supported version of the FF-A
+	 * implementation. Check that the returned version is
+	 * backwards-compatible with the hyp according to the rules in DEN0077A
+	 * v1.1 REL0 13.2.1.
+	 *
+	 * Of course, things are never simple when dealing with firmware. v1.1
+	 * broke ABI with v1.0 on several structures, which is itself
+	 * incompatible with the aforementioned versioning scheme. The
+	 * expectation is that v1.x implementations that do not support the v1.0
+	 * ABI return NOT_SUPPORTED rather than a version number, according to
+	 * DEN0077A v1.1 REL0 18.6.4.
+	 */
+	if (FFA_MAJOR_VERSION(res.a0) != 1)
+		return -EOPNOTSUPP;
+
+	hyp_ffa_version = FFA_VERSION_1_0;
 	tx = pages;
 	pages += KVM_FFA_MBOX_NR_PAGES * PAGE_SIZE;
 	rx = pages;
@@ -795,5 +854,6 @@ int hyp_ffa_init(void *pages)
 		.lock	= __HYP_SPIN_LOCK_UNLOCKED,
 	};
 
+	version_lock = __HYP_SPIN_LOCK_UNLOCKED;
 	return 0;
 }
