@@ -29,14 +29,23 @@
   *  ASP1_RX_WL = 24 bits per sample
   *  ASP1_TX_WL = 24 bits per sample
   *  ASP1_RXn_EN 1..3 and ASP1_TXn_EN 1..4 disabled
+  *
+  * Override any Windows-specific mixer settings applied by the firmware.
   */
 static const struct reg_sequence cs35l56_hda_dai_config[] = {
 	{ CS35L56_ASP1_CONTROL1,	0x00000021 },
 	{ CS35L56_ASP1_CONTROL2,	0x20200200 },
 	{ CS35L56_ASP1_CONTROL3,	0x00000003 },
+	{ CS35L56_ASP1_FRAME_CONTROL1,	0x03020100 },
+	{ CS35L56_ASP1_FRAME_CONTROL5,	0x00020100 },
 	{ CS35L56_ASP1_DATA_CONTROL5,	0x00000018 },
 	{ CS35L56_ASP1_DATA_CONTROL1,	0x00000018 },
 	{ CS35L56_ASP1_ENABLES1,	0x00000000 },
+	{ CS35L56_ASP1TX1_INPUT,	0x00000018 },
+	{ CS35L56_ASP1TX2_INPUT,	0x00000019 },
+	{ CS35L56_ASP1TX3_INPUT,	0x00000020 },
+	{ CS35L56_ASP1TX4_INPUT,	0x00000028 },
+
 };
 
 static void cs35l56_hda_play(struct cs35l56_hda *cs35l56)
@@ -131,6 +140,10 @@ static int cs35l56_hda_runtime_resume(struct device *dev)
 			goto err;
 		}
 	}
+
+	ret = cs35l56_force_sync_asp1_registers_from_cache(&cs35l56->base);
+	if (ret)
+		goto err;
 
 	return 0;
 
@@ -603,6 +616,8 @@ static int cs35l56_hda_fw_load(struct cs35l56_hda *cs35l56)
 		ret = cs35l56_wait_for_firmware_boot(&cs35l56->base);
 		if (ret)
 			goto err_powered_up;
+
+		regcache_cache_only(cs35l56->base.regmap, false);
 	}
 
 	/* Disable auto-hibernate so that runtime_pm has control */
@@ -683,8 +698,6 @@ static void cs35l56_hda_unbind(struct device *dev, struct device *master, void *
 
 	if (cs35l56->base.fw_patched)
 		cs_dsp_power_down(&cs35l56->cs_dsp);
-
-	cs_dsp_remove(&cs35l56->cs_dsp);
 
 	if (comps[cs35l56->index].dev == dev)
 		memset(&comps[cs35l56->index], 0, sizeof(*comps));
@@ -942,6 +955,8 @@ int cs35l56_hda_common_probe(struct cs35l56_hda *cs35l56, int id)
 	if (ret)
 		goto err;
 
+	regcache_cache_only(cs35l56->base.regmap, false);
+
 	ret = cs35l56_set_patch(&cs35l56->base);
 	if (ret)
 		goto err;
@@ -965,6 +980,9 @@ int cs35l56_hda_common_probe(struct cs35l56_hda *cs35l56, int id)
 
 	regmap_multi_reg_write(cs35l56->base.regmap, cs35l56_hda_dai_config,
 			       ARRAY_SIZE(cs35l56_hda_dai_config));
+	ret = cs35l56_force_sync_asp1_registers_from_cache(&cs35l56->base);
+	if (ret)
+		goto dsp_err;
 
 	/*
 	 * By default only enable one ASP1TXn, where n=amplifier index,
@@ -990,6 +1008,8 @@ int cs35l56_hda_common_probe(struct cs35l56_hda *cs35l56, int id)
 
 pm_err:
 	pm_runtime_disable(cs35l56->base.dev);
+dsp_err:
+	cs_dsp_remove(&cs35l56->cs_dsp);
 err:
 	gpiod_set_value_cansleep(cs35l56->base.reset_gpio, 0);
 
@@ -1006,6 +1026,8 @@ void cs35l56_hda_remove(struct device *dev)
 	pm_runtime_disable(cs35l56->base.dev);
 
 	component_del(cs35l56->base.dev, &cs35l56_hda_comp_ops);
+
+	cs_dsp_remove(&cs35l56->cs_dsp);
 
 	kfree(cs35l56->system_name);
 	pm_runtime_put_noidle(cs35l56->base.dev);

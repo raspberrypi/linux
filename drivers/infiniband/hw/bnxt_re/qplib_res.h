@@ -186,6 +186,14 @@ struct bnxt_qplib_db_info {
 	struct bnxt_qplib_hwq	*hwq;
 	u32			xid;
 	u32			max_slot;
+	u32                     flags;
+};
+
+enum bnxt_qplib_db_info_flags_mask {
+	BNXT_QPLIB_FLAG_EPOCH_CONS_SHIFT        = 0x0UL,
+	BNXT_QPLIB_FLAG_EPOCH_PROD_SHIFT        = 0x1UL,
+	BNXT_QPLIB_FLAG_EPOCH_CONS_MASK         = 0x1UL,
+	BNXT_QPLIB_FLAG_EPOCH_PROD_MASK         = 0x2UL,
 };
 
 /* Tables */
@@ -396,24 +404,34 @@ void bnxt_qplib_unmap_db_bar(struct bnxt_qplib_res *res);
 
 int bnxt_qplib_determine_atomics(struct pci_dev *dev);
 
-static inline void bnxt_qplib_hwq_incr_prod(struct bnxt_qplib_hwq *hwq, u32 cnt)
+static inline void bnxt_qplib_hwq_incr_prod(struct bnxt_qplib_db_info *dbinfo,
+					    struct bnxt_qplib_hwq *hwq, u32 cnt)
 {
-	hwq->prod = (hwq->prod + cnt) % hwq->depth;
+	/* move prod and update toggle/epoch if wrap around */
+	hwq->prod += cnt;
+	if (hwq->prod >= hwq->depth) {
+		hwq->prod %= hwq->depth;
+		dbinfo->flags ^= 1UL << BNXT_QPLIB_FLAG_EPOCH_PROD_SHIFT;
+	}
 }
 
-static inline void bnxt_qplib_hwq_incr_cons(struct bnxt_qplib_hwq *hwq,
-					    u32 cnt)
+static inline void bnxt_qplib_hwq_incr_cons(u32 max_elements, u32 *cons, u32 cnt,
+					    u32 *dbinfo_flags)
 {
-	hwq->cons = (hwq->cons + cnt) % hwq->depth;
+	/* move cons and update toggle/epoch if wrap around */
+	*cons += cnt;
+	if (*cons >= max_elements) {
+		*cons %= max_elements;
+		*dbinfo_flags ^= 1UL << BNXT_QPLIB_FLAG_EPOCH_CONS_SHIFT;
+	}
 }
 
 static inline void bnxt_qplib_ring_db32(struct bnxt_qplib_db_info *info,
 					bool arm)
 {
-	u32 key;
+	u32 key = 0;
 
-	key = info->hwq->cons & (info->hwq->max_elements - 1);
-	key |= (CMPL_DOORBELL_IDX_VALID |
+	key |= info->hwq->cons | (CMPL_DOORBELL_IDX_VALID |
 		(CMPL_DOORBELL_KEY_CMPL & CMPL_DOORBELL_KEY_MASK));
 	if (!arm)
 		key |= CMPL_DOORBELL_MASK;
@@ -427,8 +445,7 @@ static inline void bnxt_qplib_ring_db(struct bnxt_qplib_db_info *info,
 
 	key = (info->xid & DBC_DBC_XID_MASK) | DBC_DBC_PATH_ROCE | type;
 	key <<= 32;
-	key |= (info->hwq->cons & (info->hwq->max_elements - 1)) &
-		DBC_DBC_INDEX_MASK;
+	key |= (info->hwq->cons & DBC_DBC_INDEX_MASK);
 	writeq(key, info->db);
 }
 
@@ -482,6 +499,15 @@ static inline bool _is_ext_stats_supported(u16 dev_cap_flags)
 	return dev_cap_flags &
 		CREQ_QUERY_FUNC_RESP_SB_EXT_STATS;
 }
+
+static inline bool _is_hw_retx_supported(u16 dev_cap_flags)
+{
+	return dev_cap_flags &
+		(CREQ_QUERY_FUNC_RESP_SB_HW_REQUESTER_RETX_ENABLED |
+		 CREQ_QUERY_FUNC_RESP_SB_HW_RESPONDER_RETX_ENABLED);
+}
+
+#define BNXT_RE_HW_RETX(a) _is_hw_retx_supported((a))
 
 static inline u8 bnxt_qplib_dbr_pacing_en(struct bnxt_qplib_chip_ctx *cctx)
 {
