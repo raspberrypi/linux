@@ -138,6 +138,25 @@ static void wait_log_commit(struct btrfs_root *root, int transid);
  * and once to do all the other items.
  */
 
+static struct inode *btrfs_iget_logging(u64 objectid, struct btrfs_root *root)
+{
+	unsigned int nofs_flag;
+	struct inode *inode;
+
+	/*
+	 * We're holding a transaction handle whether we are logging or
+	 * replaying a log tree, so we must make sure NOFS semantics apply
+	 * because btrfs_alloc_inode() may be triggered and it uses GFP_KERNEL
+	 * to allocate an inode, which can recurse back into the filesystem and
+	 * attempt a transaction commit, resulting in a deadlock.
+	 */
+	nofs_flag = memalloc_nofs_save();
+	inode = btrfs_iget(root->fs_info->sb, objectid, root);
+	memalloc_nofs_restore(nofs_flag);
+
+	return inode;
+}
+
 /*
  * start a sub transaction and setup the log tree
  * this increments the log tree writer count to make the people
@@ -600,7 +619,7 @@ static noinline struct inode *read_one_inode(struct btrfs_root *root,
 {
 	struct inode *inode;
 
-	inode = btrfs_iget(root->fs_info->sb, objectid, root);
+	inode = btrfs_iget_logging(objectid, root);
 	if (IS_ERR(inode))
 		inode = NULL;
 	return inode;
@@ -5434,7 +5453,6 @@ static int log_new_dir_dentries(struct btrfs_trans_handle *trans,
 				struct btrfs_log_ctx *ctx)
 {
 	struct btrfs_root *root = start_inode->root;
-	struct btrfs_fs_info *fs_info = root->fs_info;
 	struct btrfs_path *path;
 	LIST_HEAD(dir_list);
 	struct btrfs_dir_list *dir_elem;
@@ -5495,7 +5513,7 @@ again:
 				continue;
 
 			btrfs_release_path(path);
-			di_inode = btrfs_iget(fs_info->sb, di_key.objectid, root);
+			di_inode = btrfs_iget_logging(di_key.objectid, root);
 			if (IS_ERR(di_inode)) {
 				ret = PTR_ERR(di_inode);
 				goto out;
@@ -5555,7 +5573,7 @@ again:
 		btrfs_add_delayed_iput(curr_inode);
 		curr_inode = NULL;
 
-		vfs_inode = btrfs_iget(fs_info->sb, ino, root);
+		vfs_inode = btrfs_iget_logging(ino, root);
 		if (IS_ERR(vfs_inode)) {
 			ret = PTR_ERR(vfs_inode);
 			break;
@@ -5650,7 +5668,7 @@ static int add_conflicting_inode(struct btrfs_trans_handle *trans,
 	if (ctx->num_conflict_inodes >= MAX_CONFLICT_INODES)
 		return BTRFS_LOG_FORCE_COMMIT;
 
-	inode = btrfs_iget(root->fs_info->sb, ino, root);
+	inode = btrfs_iget_logging(ino, root);
 	/*
 	 * If the other inode that had a conflicting dir entry was deleted in
 	 * the current transaction then we either:
@@ -5751,7 +5769,6 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 				  struct btrfs_root *root,
 				  struct btrfs_log_ctx *ctx)
 {
-	struct btrfs_fs_info *fs_info = root->fs_info;
 	int ret = 0;
 
 	/*
@@ -5782,7 +5799,7 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 		list_del(&curr->list);
 		kfree(curr);
 
-		inode = btrfs_iget(fs_info->sb, ino, root);
+		inode = btrfs_iget_logging(ino, root);
 		/*
 		 * If the other inode that had a conflicting dir entry was
 		 * deleted in the current transaction, we need to log its parent
@@ -5793,7 +5810,7 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 			if (ret != -ENOENT)
 				break;
 
-			inode = btrfs_iget(fs_info->sb, parent, root);
+			inode = btrfs_iget_logging(parent, root);
 			if (IS_ERR(inode)) {
 				ret = PTR_ERR(inode);
 				break;
@@ -6315,7 +6332,6 @@ static int log_new_delayed_dentries(struct btrfs_trans_handle *trans,
 				    struct btrfs_log_ctx *ctx)
 {
 	const bool orig_log_new_dentries = ctx->log_new_dentries;
-	struct btrfs_fs_info *fs_info = trans->fs_info;
 	struct btrfs_delayed_item *item;
 	int ret = 0;
 
@@ -6341,7 +6357,7 @@ static int log_new_delayed_dentries(struct btrfs_trans_handle *trans,
 		if (key.type == BTRFS_ROOT_ITEM_KEY)
 			continue;
 
-		di_inode = btrfs_iget(fs_info->sb, key.objectid, inode->root);
+		di_inode = btrfs_iget_logging(key.objectid, inode->root);
 		if (IS_ERR(di_inode)) {
 			ret = PTR_ERR(di_inode);
 			break;
@@ -6725,7 +6741,6 @@ static int btrfs_log_all_parents(struct btrfs_trans_handle *trans,
 				 struct btrfs_inode *inode,
 				 struct btrfs_log_ctx *ctx)
 {
-	struct btrfs_fs_info *fs_info = trans->fs_info;
 	int ret;
 	struct btrfs_path *path;
 	struct btrfs_key key;
@@ -6790,8 +6805,7 @@ static int btrfs_log_all_parents(struct btrfs_trans_handle *trans,
 				cur_offset = item_size;
 			}
 
-			dir_inode = btrfs_iget(fs_info->sb, inode_key.objectid,
-					       root);
+			dir_inode = btrfs_iget_logging(inode_key.objectid, root);
 			/*
 			 * If the parent inode was deleted, return an error to
 			 * fallback to a transaction commit. This is to prevent
@@ -6853,7 +6867,6 @@ static int log_new_ancestors(struct btrfs_trans_handle *trans,
 	btrfs_item_key_to_cpu(path->nodes[0], &found_key, path->slots[0]);
 
 	while (true) {
-		struct btrfs_fs_info *fs_info = root->fs_info;
 		struct extent_buffer *leaf;
 		int slot;
 		struct btrfs_key search_key;
@@ -6868,7 +6881,7 @@ static int log_new_ancestors(struct btrfs_trans_handle *trans,
 		search_key.objectid = found_key.offset;
 		search_key.type = BTRFS_INODE_ITEM_KEY;
 		search_key.offset = 0;
-		inode = btrfs_iget(fs_info->sb, ino, root);
+		inode = btrfs_iget_logging(ino, root);
 		if (IS_ERR(inode))
 			return PTR_ERR(inode);
 
