@@ -135,7 +135,6 @@ struct svc_i3c_cmd {
 	const void *out;
 	unsigned int len;
 	unsigned int actual_len;
-	struct i3c_priv_xfer *xfer;
 	bool continued;
 };
 
@@ -1048,7 +1047,6 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
 
 	if (readl(master->regs + SVC_I3C_MERRWARN) & SVC_I3C_MERRWARN_NACK) {
 		ret = -ENXIO;
-		*actual_len = 0;
 		goto emit_stop;
 	}
 
@@ -1066,7 +1064,6 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
 	 */
 	if (SVC_I3C_MSTATUS_IBIWON(reg)) {
 		ret = -ENXIO;
-		*actual_len = 0;
 		goto emit_stop;
 	}
 
@@ -1162,10 +1159,6 @@ static void svc_i3c_master_start_xfer_locked(struct svc_i3c_master *master)
 					  cmd->addr, cmd->in, cmd->out,
 					  cmd->len, &cmd->actual_len,
 					  cmd->continued);
-		/* cmd->xfer is NULL if I2C or CCC transfer */
-		if (cmd->xfer)
-			cmd->xfer->actual_len = cmd->actual_len;
-
 		if (ret)
 			break;
 	}
@@ -1353,7 +1346,6 @@ static int svc_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 	for (i = 0; i < nxfers; i++) {
 		struct svc_i3c_cmd *cmd = &xfer->cmds[i];
 
-		cmd->xfer = &xfers[i];
 		cmd->addr = master->addrs[data->index];
 		cmd->rnw = xfers[i].rnw;
 		cmd->in = xfers[i].rnw ? xfers[i].data.in : NULL;
