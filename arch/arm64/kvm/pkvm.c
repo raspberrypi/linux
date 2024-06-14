@@ -291,7 +291,8 @@ int pkvm_call_hyp_nvhe_ppage(struct kvm_pinned_page *ppage,
 			if (page_size > size)
 				return -EINVAL;
 
-			if (unmap)
+			/* If -ENOENT, pins was already dropped. */
+			if (unmap && !err)
 				ppage->pins -= 1 << order;
 
 			if (!ppage->pins)
