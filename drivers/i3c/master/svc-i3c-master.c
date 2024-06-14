@@ -1065,7 +1065,7 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
 	 * and yield the above events handler.
 	 */
 	if (SVC_I3C_MSTATUS_IBIWON(reg)) {
-		ret = -EAGAIN;
+		ret = -ENXIO;
 		*actual_len = 0;
 		goto emit_stop;
 	}
