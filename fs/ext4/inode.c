@@ -5270,6 +5270,30 @@ static void ext4_wait_for_tail_page_commit(struct inode *inode)
 	}
 }
 
+void setattr_chain_copy(struct mnt_idmap *idmap, struct inode *inode,
+		  const struct iattr *attr)
+{
+    printk("setattr_chain_copy");
+    //printk("%lu: %lld", inode->i_ino, inode->i_mtime.tv_sec);
+	/*unsigned int ia_valid = attr->ia_valid;
+
+	i_uid_update(idmap, attr, inode);
+	i_gid_update(idmap, attr, inode);
+	if (ia_valid & ATTR_ATIME)
+		inode->i_atime = attr->ia_atime;
+	if (ia_valid & ATTR_MTIME)
+		inode->i_mtime = attr->ia_mtime;
+	if (ia_valid & ATTR_CTIME)
+		inode_set_ctime_to_ts(inode, attr->ia_ctime);
+	if (ia_valid & ATTR_MODE) {
+		umode_t mode = attr->ia_mode;
+		if (!in_group_or_capable(idmap, inode,
+					 i_gid_into_vfsgid(idmap, inode)))
+			mode &= ~S_ISGID;
+		inode->i_mode = mode;
+	}*/
+}
+
 /*
  * ext4_setattr()
  *
@@ -5485,9 +5509,12 @@ out_mmap_sem:
 		filemap_invalidate_unlock(inode->i_mapping);
 	}
 
+
 	if (!error) {
 		if (inc_ivers)
 			inode_inc_iversion(inode);
+        /*if (S_ISREG(inode->i_mode))
+            setattr_chain_copy(idmap, inode, attr);*/
 		setattr_copy(idmap, inode, attr);
 		mark_inode_dirty(inode);
 	}
@@ -5524,6 +5551,24 @@ u32 ext4_dio_alignment(struct inode *inode)
 		return i_blocksize(inode);
 	}
 	return 1; /* use the iomap defaults */
+}
+
+void chain_fillattr(struct inode *inode, struct kstat *stat)
+{
+    printk("chain_fillattr");
+    /*stat->dev = inode->i_sb->s_dev;
+	stat->ino = inode->i_ino;
+	stat->mode = inode->i_mode;
+	stat->nlink = inode->i_nlink;
+	stat->uid = vfsuid_into_kuid(vfsuid);
+	stat->gid = vfsgid_into_kgid(vfsgid);
+	stat->rdev = inode->i_rdev;
+	stat->size = i_size_read(inode);
+	stat->atime = inode->i_atime;
+	stat->mtime = inode->i_mtime;
+	stat->ctime = inode_get_ctime(inode);
+	stat->blksize = i_blocksize(inode);
+	stat->blocks = inode->i_blocks;*/
 }
 
 int ext4_getattr(struct mnt_idmap *idmap, const struct path *path,
@@ -5584,7 +5629,9 @@ int ext4_getattr(struct mnt_idmap *idmap, const struct path *path,
 				  STATX_ATTR_VERITY);
 
 	generic_fillattr(idmap, request_mask, inode, stat);
-	return 0;
+    /*if (S_ISREG(inode->i_mode))
+        chain_fillattr(inode, stat);*/
+    return 0;
 }
 
 int ext4_file_getattr(struct mnt_idmap *idmap,

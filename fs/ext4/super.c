@@ -48,6 +48,7 @@
 #include <linux/fsnotify.h>
 #include <linux/fs_context.h>
 #include <linux/fs_parser.h>
+#include <net/genetlink.h>
 
 #include "ext4.h"
 #include "ext4_extents.h"	/* Needed for trace points definition */
@@ -95,7 +96,7 @@ static void ext4_fc_free(struct fs_context *fc);
 static int ext4_init_fs_context(struct fs_context *fc);
 static void ext4_kill_sb(struct super_block *sb);
 static const struct fs_parameter_spec ext4_param_specs[];
-
+static struct genl_family ext4_chain_fam;
 /*
  * Lock ordering
  *
@@ -159,6 +160,52 @@ MODULE_ALIAS_FS("ext3");
 MODULE_ALIAS("ext3");
 #define IS_EXT3_SB(sb) ((sb)->s_type == &ext3_fs_type)
 
+static const struct nla_policy ext4_chain_policy[NUM_EXT4_CHAIN_ATTR] = {
+    [EXT4_CHAIN_ATTR_UNSPEC] = {.type = NLA_UNSPEC},
+    [EXT4_CHAIN_ATTR_METADATA] = {.type = NLA_NESTED},
+};
+
+int ext4_chain_set_metadata(struct sk_buff *skb, struct genl_info *info)
+{
+    printk("ext4_chain_set_metadata");
+    return 0;
+};
+
+int ext4_chain_get_metadata(struct sk_buff *skb, struct genl_info *info)
+{
+    printk("ext4_chain_get_metadata");
+    return 0;
+};
+
+static const struct genl_ops ext4_chain_ops[] = {
+    {
+        .cmd = EXT4_CHAIN_CMD_SET_METADATA,
+        .flags = 0,
+        .internal_flags = 0,
+        .validate = 0,
+        .doit = ext4_chain_set_metadata, 
+    },
+    {
+        .cmd = EXT4_CHAIN_CMD_GET_METADATA,
+        .flags = 0,
+        .internal_flags = 0,
+        .validate = 0,
+        .doit = ext4_chain_get_metadata
+    },
+};
+
+static struct genl_family ext4_chain_fam __ro_after_init = {
+    .id = 0,
+    .name = "ext4_chain",
+    .hdrsize = 0,
+    .version = 1,
+    .maxattr = EXT4_CHAIN_ATTR_MAX,
+    .policy = ext4_chain_policy,
+    .module = THIS_MODULE,
+    .ops = ext4_chain_ops,
+    .n_ops = ARRAY_SIZE(ext4_chain_ops),
+    .parallel_ops = true,
+};
 
 static inline void __ext4_read_bh(struct buffer_head *bh, blk_opf_t op_flags,
 				  bh_end_io_t *end_io)
@@ -7396,6 +7443,10 @@ static int __init ext4_init_fs(void)
 	if (err)
 		goto out05;
 
+    err = genl_register_family(&ext4_chain_fam);
+    if (err)
+        printk("Family not registered.");
+
 	register_as_ext3();
 	register_as_ext2();
 	err = register_filesystem(&ext4_fs_type);
@@ -7430,6 +7481,7 @@ out7:
 static void __exit ext4_exit_fs(void)
 {
 	ext4_destroy_lazyinit_thread();
+    genl_unregister_family(&ext4_chain_fam);
 	unregister_as_ext2();
 	unregister_as_ext3();
 	unregister_filesystem(&ext4_fs_type);

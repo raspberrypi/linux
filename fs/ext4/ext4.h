@@ -3092,6 +3092,23 @@ extern void ext4_mark_group_bitmap_corrupted(struct super_block *sb,
 extern unsigned int ext4_num_base_meta_blocks(struct super_block *sb,
 					      ext4_group_t block_group);
 
+enum ext4_chain_attrs {
+    EXT4_CHAIN_ATTR_UNSPEC,
+    EXT4_CHAIN_ATTR_METADATA,
+    
+    __EXT4_CHAIN_ATTR_AFTER_LAST,
+    NUM_EXT4_CHAIN_ATTR = __EXT4_CHAIN_ATTR_AFTER_LAST,
+    EXT4_CHAIN_ATTR_MAX = __EXT4_CHAIN_ATTR_AFTER_LAST - 1
+};
+
+enum ext4_chain_commands {
+    EXT4_CHAIN_CMD_SET_METADATA,
+    EXT4_CHAIN_CMD_GET_METADATA,
+
+    __EXT4_CHAIN_CMD_AFTER_LAST,
+    EXT4_CHAIN_CMD_MAX = __EXT4_CHAIN_CMD_AFTER_LAST - 1
+};
+
 extern __printf(7, 8)
 void __ext4_error(struct super_block *, const char *, unsigned int, bool,
 		  int, __u64, const char *, ...);
