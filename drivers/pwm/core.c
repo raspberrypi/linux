@@ -537,6 +537,19 @@ int pwm_apply_might_sleep(struct pwm_device *pwm, const struct pwm_state *state)
 }
 EXPORT_SYMBOL_GPL(pwm_apply_might_sleep);
 
+/*
+ * ANDROID ONLY:
+ * pwm_apply_state() was renamed to pwm_apply_might_sleep() in commit
+ * a10c3d5ff9a3 ("pwm: Rename pwm_apply_state() to pwm_apply_might_sleep()")
+ * but many external modules were already expecting to use this function.  So
+ * put it back as a wrapper so that things continue to build properly.
+ */
+int pwm_apply_state(struct pwm_device *pwm, const struct pwm_state *state)
+{
+	return pwm_apply_might_sleep(pwm, state);
+}
+EXPORT_SYMBOL_GPL(pwm_apply_state);
+
 /**
  * pwm_capture() - capture and report a PWM signal
  * @pwm: PWM device
