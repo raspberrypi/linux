@@ -32,7 +32,15 @@ static void android_v_virt_scale_freq_tick(void)
 
 	cur_freq <<= SCHED_CAPACITY_SHIFT;
 	scale = (long)div_u64(cur_freq, max_freq);
-	scale = min(scale, SCHED_CAPACITY_SCALE);
+
+	/*
+	 * This is safe because clock_pelt is always scaled with freq and arch,
+	 * and will ensure the scaling of lapsed time is < 1. Since there are
+	 * use cases where the host frequency may exceed the frequency allowed
+	 * in the guest, this allows us to maintain util invariance.
+	 */
+	scale = umin(scale,
+		    SCHED_CAPACITY_SCALE * SCHED_CAPACITY_SCALE / arch_scale_cpu_capacity(cpu));
 
 	this_cpu_write(arch_freq_scale, scale);
 }
@@ -141,13 +149,35 @@ static int android_v_vcpufreq_offline(struct cpufreq_policy *policy)
 	return 0;
 }
 
+static int android_v_cpufreq_verify(struct cpufreq_policy_data *data)
+{
+	struct cpufreq_policy *policy;
+	int ret;
+
+	policy = cpufreq_cpu_get(data->cpu);
+	if (!policy)
+		return 0;
+
+	/*
+	 * Thermal pressure is being reworked as generic system pressure
+	 * upstream, this won't be needed in future/newer kernels as cpufreq
+	 * pressure will be applied automatically.
+	 */
+	arch_update_thermal_pressure(policy->related_cpus, data->max);
+	cpufreq_cpu_put(policy);
+
+	ret = cpufreq_frequency_table_verify(data, policy->freq_table);
+
+	return ret;
+}
+
 static struct cpufreq_driver cpufreq_android_v_virt_driver = {
 	.name		= "andr-v-vcpufreq",
 	.init		= android_v_vcpufreq_cpu_init,
 	.exit		= android_v_vcpufreq_cpu_exit,
 	.online         = android_v_vcpufreq_online,
 	.offline        = android_v_vcpufreq_offline,
-	.verify		= cpufreq_generic_frequency_table_verify,
+	.verify		= android_v_cpufreq_verify,
 	.target_index	= android_v_vcpufreq_target_index,
 	.fast_switch	= android_v_vcpufreq_fast_switch,
 	.attr		= cpufreq_generic_attr,
