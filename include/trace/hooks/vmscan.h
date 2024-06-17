@@ -36,7 +36,18 @@ DECLARE_HOOK(android_vh_tune_scan_type,
 DECLARE_HOOK(android_vh_page_referenced_check_bypass,
 	TP_PROTO(struct folio *folio, unsigned long nr_to_scan, int lru, bool *bypass),
 	TP_ARGS(folio, nr_to_scan, lru, bypass));
-
+DECLARE_HOOK(android_vh_modify_scan_control,
+	TP_PROTO(u64 *ext, unsigned long *nr_to_reclaim,
+	struct mem_cgroup *target_mem_cgroup,
+	bool *file_is_tiny, bool *may_writepage),
+	TP_ARGS(ext, nr_to_reclaim, target_mem_cgroup, file_is_tiny, may_writepage));
+DECLARE_HOOK(android_vh_should_continue_reclaim,
+	TP_PROTO(u64 *ext, unsigned long *nr_to_reclaim,
+	unsigned long *nr_reclaimed, bool *continue_reclaim),
+	TP_ARGS(ext, nr_to_reclaim, nr_reclaimed, continue_reclaim));
+DECLARE_HOOK(android_vh_file_is_tiny_bypass,
+	TP_PROTO(bool file_is_tiny, bool *bypass),
+	TP_ARGS(file_is_tiny, bypass));
 #endif /* _TRACE_HOOK_VMSCAN_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>
