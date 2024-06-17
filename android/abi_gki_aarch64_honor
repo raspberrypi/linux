@@ -36,6 +36,7 @@
   nla_append
   skb_append
   sysctl_max_skb_frags
+  __show_mem
   find_vm_area
   profile_event_unregister
   binder_alloc_copy_from_buffer
