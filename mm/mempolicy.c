@@ -1836,22 +1836,20 @@ bool vma_policy_mof(struct vm_area_struct *vma)
 
 bool apply_policy_zone(struct mempolicy *policy, enum zone_type zone)
 {
-	enum zone_type dynamic_policy_zone = policy_zone;
-
-	BUG_ON(dynamic_policy_zone == ZONE_MOVABLE);
+	WARN_ON_ONCE(zid_is_virt(policy_zone));
 
 	/*
-	 * if policy->nodes has movable memory only,
-	 * we apply policy when gfp_zone(gfp) = ZONE_MOVABLE only.
+	 * If policy->nodes has memory in virtual zones only, we apply policy
+	 * only if gfp_zone(gfp) can allocate from those zones.
 	 *
 	 * policy->nodes is intersect with node_states[N_MEMORY].
 	 * so if the following test fails, it implies
-	 * policy->nodes has movable memory only.
+	 * policy->nodes has memory in virtual zones only.
 	 */
 	if (!nodes_intersects(policy->nodes, node_states[N_HIGH_MEMORY]))
-		dynamic_policy_zone = ZONE_MOVABLE;
+		return zone > LAST_PHYS_ZONE;
 
-	return zone >= dynamic_policy_zone;
+	return zone >= policy_zone;
 }
 
 /*

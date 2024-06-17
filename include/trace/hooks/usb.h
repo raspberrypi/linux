@@ -9,9 +9,23 @@
 
 #include <trace/hooks/vendor_hooks.h>
 
+struct usb_device;
+
 DECLARE_HOOK(android_vh_configfs_uevent_work,
 		TP_PROTO(bool connected, bool disconnected, bool configured, bool uevent_sent),
 		TP_ARGS(connected, disconnected, configured, uevent_sent));
+
+/*
+ * Following tracepoints are not exported in tracefs and provide a
+ * mechanism for vendor modules to hook and extend functionality
+ */
+DECLARE_RESTRICTED_HOOK(android_rvh_usb_dev_suspend,
+	TP_PROTO(struct usb_device *udev, pm_message_t msg, int *bypass),
+	TP_ARGS(udev, msg, bypass), 1);
+
+DECLARE_HOOK(android_vh_usb_dev_resume,
+	TP_PROTO(struct usb_device *udev, pm_message_t msg, int *bypass),
+	TP_ARGS(udev, msg, bypass));
 
 #endif /*  _TRACE_HOOK_USB_H */
 /*  This part must be outside protection */

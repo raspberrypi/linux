@@ -815,11 +815,15 @@ enum zone_type {
 	 * there can be false negatives).
 	 */
 	ZONE_MOVABLE,
+	ZONE_NOSPLIT,
+	ZONE_NOMERGE,
 #ifdef CONFIG_ZONE_DEVICE
 	ZONE_DEVICE,
 #endif
-	__MAX_NR_ZONES
+	__MAX_NR_ZONES,
 
+	LAST_PHYS_ZONE = ZONE_MOVABLE - 1,
+	LAST_VIRT_ZONE = ZONE_NOMERGE,
 };
 
 #ifndef __GENERATING_BOUNDS_H
@@ -937,6 +941,8 @@ struct zone {
 	/* see spanned/present_pages for more description */
 	seqlock_t		span_seqlock;
 #endif
+
+	int order;
 
 	int initialized;
 
@@ -1155,12 +1161,22 @@ static inline bool folio_is_zone_device(const struct folio *folio)
 
 static inline bool is_zone_movable_page(const struct page *page)
 {
-	return page_zonenum(page) == ZONE_MOVABLE;
+	return page_zonenum(page) >= ZONE_MOVABLE;
 }
 
 static inline bool folio_is_zone_movable(const struct folio *folio)
 {
-	return folio_zonenum(folio) == ZONE_MOVABLE;
+	return folio_zonenum(folio) >= ZONE_MOVABLE;
+}
+
+static inline bool page_can_split(struct page *page)
+{
+	return page_zonenum(page) < ZONE_NOSPLIT;
+}
+
+static inline bool folio_can_split(struct folio *folio)
+{
+	return folio_zonenum(folio) < ZONE_NOSPLIT;
 }
 #endif
 
@@ -1480,6 +1496,32 @@ static inline int local_memory_node(int node_id) { return node_id; };
  */
 #define zone_idx(zone)		((zone) - (zone)->zone_pgdat->node_zones)
 
+static inline bool zid_is_virt(enum zone_type zid)
+{
+	return zid > LAST_PHYS_ZONE && zid <= LAST_VIRT_ZONE;
+}
+
+static inline bool zone_can_frag(struct zone *zone)
+{
+	VM_WARN_ON_ONCE(zone->order && zone_idx(zone) < ZONE_NOSPLIT);
+
+	return zone_idx(zone) < ZONE_NOSPLIT;
+}
+
+static inline bool zone_is_suitable(struct zone *zone, int order)
+{
+	int zid = zone_idx(zone);
+
+	if (zid < ZONE_NOSPLIT)
+		return true;
+
+	if (!zone->order)
+		return false;
+
+	return (zid == ZONE_NOSPLIT && order >= zone->order) ||
+	       (zid == ZONE_NOMERGE && order == zone->order);
+}
+
 #ifdef CONFIG_ZONE_DEVICE
 static inline bool zone_is_zone_device(struct zone *zone)
 {
@@ -1528,13 +1570,13 @@ static inline int zone_to_nid(struct zone *zone)
 static inline void zone_set_nid(struct zone *zone, int nid) {}
 #endif
 
-extern int movable_zone;
+extern int virt_zone;
 
 static inline int is_highmem_idx(enum zone_type idx)
 {
 #ifdef CONFIG_HIGHMEM
 	return (idx == ZONE_HIGHMEM ||
-		(idx == ZONE_MOVABLE && movable_zone == ZONE_HIGHMEM));
+		(zid_is_virt(idx) && virt_zone == ZONE_HIGHMEM));
 #else
 	return 0;
 #endif

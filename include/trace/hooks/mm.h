@@ -49,8 +49,8 @@ DECLARE_HOOK(android_vh_kmalloc_large_alloced,
 	TP_PROTO(struct page *page, unsigned int order, gfp_t flags),
 	TP_ARGS(page, order, flags));
 DECLARE_RESTRICTED_HOOK(android_rvh_ctl_dirty_rate,
-	TP_PROTO(void *unused),
-	TP_ARGS(unused), 1);
+	TP_PROTO(struct inode *inode),
+	TP_ARGS(inode), 1);
 DECLARE_HOOK(android_vh_test_clear_look_around_ref,
 	TP_PROTO(struct page *page),
 	TP_ARGS(page));
@@ -262,8 +262,9 @@ DECLARE_HOOK(android_vh_do_traversal_lruvec,
 	TP_PROTO(struct lruvec *lruvec),
 	TP_ARGS(lruvec));
 DECLARE_HOOK(android_vh_page_should_be_protected,
-	TP_PROTO(struct folio *folio, bool *should_protect),
-	TP_ARGS(folio, should_protect));
+	TP_PROTO(struct folio *folio, unsigned long nr_scanned,
+	s8 priority, u64 *ext, int *should_protect),
+	TP_ARGS(folio, nr_scanned, priority, ext, should_protect));
 DECLARE_HOOK(android_vh_mark_page_accessed,
 	TP_PROTO(struct folio *folio),
 	TP_ARGS(folio));

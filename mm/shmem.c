@@ -701,7 +701,7 @@ next:
 		folio_put(folio);
 
 		/* If split failed move the inode on the list back to shrinklist */
-		if (ret)
+		if (ret < 0)
 			goto move_back;
 
 		split++;
@@ -1469,7 +1469,7 @@ static int shmem_writepage(struct page *page, struct writeback_control *wbc)
 	if (folio_test_large(folio)) {
 		/* Ensure the subpages are still dirty */
 		folio_test_set_dirty(folio);
-		if (split_huge_page(page) < 0)
+		if (split_huge_page(page))
 			goto redirty;
 		folio = page_folio(page);
 		folio_clear_dirty(folio);
