@@ -34,13 +34,13 @@ struct ir_rx51 {
 static inline void ir_rx51_on(struct ir_rx51 *ir_rx51)
 {
 	ir_rx51->state.enabled = true;
-	pwm_apply_state(ir_rx51->pwm, &ir_rx51->state);
+	pwm_apply_might_sleep(ir_rx51->pwm, &ir_rx51->state);
 }
 
 static inline void ir_rx51_off(struct ir_rx51 *ir_rx51)
 {
 	ir_rx51->state.enabled = false;
-	pwm_apply_state(ir_rx51->pwm, &ir_rx51->state);
+	pwm_apply_might_sleep(ir_rx51->pwm, &ir_rx51->state);
 }
 
 static int init_timing_params(struct ir_rx51 *ir_rx51)

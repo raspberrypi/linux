@@ -204,6 +204,7 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 	struct nouveau_cli *cli = nouveau_cli(file_priv);
 	struct nouveau_drm *drm = nouveau_drm(dev);
 	struct nvif_device *device = &drm->client.device;
+	struct nvkm_device *nvkm_device = nvxx_device(&drm->client.device);
 	struct nvkm_gr *gr = nvxx_gr(device);
 	struct drm_nouveau_getparam *getparam = data;
 	struct pci_dev *pdev = to_pci_dev(dev->dev);
@@ -268,6 +269,17 @@ nouveau_abi16_ioctl_getparam(ABI16_IOCTL_ARGS)
 		getparam->value = nouveau_exec_push_max_from_ib_max(ib_max);
 		break;
 	}
+	case NOUVEAU_GETPARAM_VRAM_BAR_SIZE:
+		getparam->value = nvkm_device->func->resource_size(nvkm_device, 1);
+		break;
+	case NOUVEAU_GETPARAM_VRAM_USED: {
+		struct ttm_resource_manager *vram_mgr = ttm_manager_type(&drm->ttm.bdev, TTM_PL_VRAM);
+		getparam->value = (u64)ttm_resource_manager_usage(vram_mgr);
+		break;
+	}
+	case NOUVEAU_GETPARAM_HAS_VMA_TILEMODE:
+		getparam->value = 1;
+		break;
 	default:
 		NV_PRINTK(dbg, cli, "unknown parameter %lld\n", getparam->param);
 		return -EINVAL;

@@ -232,6 +232,7 @@
   kthread_park
   kthread_should_stop
   kthread_stop
+  kthread_stop_put
   kthread_unpark
   ktime_get
   ktime_get_ts64
