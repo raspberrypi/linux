@@ -51,8 +51,14 @@
   __traceiter_android_vh_dc_send_copy
   __tracepoint_android_vh_dc_receive
   __traceiter_android_vh_dc_receive
+  __traceiter_android_vh_modify_scan_control
+  __traceiter_android_vh_should_continue_reclaim
+  __traceiter_android_vh_file_is_tiny_bypass
+  __tracepoint_android_vh_modify_scan_control
+  __tracepoint_android_vh_should_continue_reclaim
+  __tracepoint_android_vh_file_is_tiny_bypass
   __tracepoint_android_vh_shrink_slab_bypass
-  __traceiter_android_vh_shrink_slab_bypass  
+  __traceiter_android_vh_shrink_slab_bypass
   __tracepoint_android_vh_do_shrink_slab
   __traceiter_android_vh_do_shrink_slab
   __tracepoint_android_vh_shrink_slab_bypass
