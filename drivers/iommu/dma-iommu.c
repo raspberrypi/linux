@@ -21,6 +21,7 @@
 #include <linux/iova.h>
 #include <linux/irq.h>
 #include <linux/list_sort.h>
+#include <linux/mempolicy.h>
 #include <linux/memremap.h>
 #include <linux/mm.h>
 #include <linux/mutex.h>
@@ -883,11 +884,65 @@ static void __iommu_dma_free_pages(struct page **pages, int count)
 	kvfree(pages);
 }
 
+#if IS_ENABLED(CONFIG_NUMA)
+static struct mempolicy iommu_dma_mpol = {
+	.refcnt = ATOMIC_INIT(1), /* never free it */
+	.mode = MPOL_LOCAL,
+};
+
+static struct mempolicy *dma_iommu_numa_policy(void)
+{
+	return &iommu_dma_mpol;
+}
+
+static unsigned short dma_iommu_numa_mode(void)
+{
+	return iommu_dma_mpol.mode;
+}
+
+static int __init setup_numapolicy(char *str)
+{
+	struct mempolicy pol = { }, *ppol = &pol;
+	char buf[128];
+	int ret;
+
+	if (str)
+		ret = mpol_parse_str(str, &ppol);
+	else
+		ret = -EINVAL;
+
+	if (!ret) {
+		iommu_dma_mpol = pol;
+		mpol_to_str(buf, sizeof(buf), &pol);
+		pr_info("DMA IOMMU NUMA default policy overridden to '%s'\n", buf);
+	} else {
+		pr_warn("Unable to parse dma_iommu_numa_policy=\n");
+	}
+
+	return ret == 0;
+}
+__setup("iommu_dma_numa_policy=", setup_numapolicy);
+#else
+static struct mempolicy *dma_iommu_numa_policy(void)
+{
+	return NULL;
+}
+
+static unsigned short dma_iommu_numa_mode(void)
+{
+	return MPOL_LOCAL;
+}
+#endif
 static struct page **__iommu_dma_alloc_pages(struct device *dev,
 		unsigned int count, unsigned long order_mask, gfp_t gfp)
 {
 	struct page **pages;
 	unsigned int i = 0, nid = dev_to_node(dev);
+	const bool use_numa = nid == NUMA_NO_NODE &&
+			      dma_iommu_numa_mode() != MPOL_LOCAL;
+
+	if (use_numa)
+		order_mask = 1;
 
 	order_mask &= GENMASK(MAX_PAGE_ORDER, 0);
 	if (!order_mask)
@@ -903,6 +958,7 @@ static struct page **__iommu_dma_alloc_pages(struct device *dev,
 	while (count) {
 		struct page *page = NULL;
 		unsigned int order_size;
+		nodemask_t *nodemask;
 
 		/*
 		 * Higher-order allocations are a convenience rather
@@ -917,6 +973,10 @@ static struct page **__iommu_dma_alloc_pages(struct device *dev,
 			order_size = 1U << order;
 			if (order_mask > order_size)
 				alloc_flags |= __GFP_NORETRY;
+			if (use_numa)
+				nodemask = numa_policy_nodemask(gfp,
+								dma_iommu_numa_policy(),
+								i, &nid);
 			page = alloc_pages_node(nid, alloc_flags, order);
 			if (!page)
 				continue;
