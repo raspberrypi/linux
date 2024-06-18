@@ -2474,6 +2474,93 @@ static void nvme_pci_update_nr_queues(struct nvme_dev *dev)
 	nvme_free_queues(dev, dev->online_queues);
 }
 
+static void nvme_aspm_disable(struct nvme_dev *dev, u16 state)
+{
+	struct pci_dev *pdev = to_pci_dev(dev->dev);
+        struct pci_dev *parent = pdev->bus->self;
+        u16 aspm_dis_mask = 0;
+        u16 pdev_aspmc = 0;
+        u16 parent_aspmc = 0;
+        int err = 0;
+
+	switch (state) {
+		case PCIE_LINK_STATE_L0S:
+			aspm_dis_mask |= PCI_EXP_LNKCTL_ASPM_L0S;
+			break;
+		case PCIE_LINK_STATE_L1:
+			aspm_dis_mask |= PCI_EXP_LNKCTL_ASPM_L1;
+			break;
+		default:
+			break;
+	}
+
+        err = pcie_capability_read_word(pdev, PCI_EXP_LNKCTL, &pdev_aspmc);
+        if (err < 0) {
+                dev_err(dev->ctrl.device, "Couldn't read LNKCTL capability\n");
+                return;
+        }
+
+        pdev_aspmc &= PCI_EXP_LNKCTL_ASPMC;
+
+        if (parent) {
+                err = pcie_capability_read_word(parent, PCI_EXP_LNKCTL, &parent_aspmc);
+                if (err < 0) {
+                        dev_err(dev->ctrl.device, "Couldn't read slot LNKCTL capability\n");
+                        return;
+                }
+                parent_aspmc &= PCI_EXP_LNKCTL_ASPMC;
+        }
+
+        dev_info(dev->ctrl.device, "Disabling ASPM %s %s\n",
+		(aspm_dis_mask & PCI_EXP_LNKCTL_ASPM_L0S) ? "L0s" : "",
+		(aspm_dis_mask & PCI_EXP_LNKCTL_ASPM_L1) ? "L1" : "");
+
+        /*
+         * ASPM L0s/L1 should be disabled even when they are not active since
+         * they can be enabled by the kernel when power modes are changed.
+         */
+        (void)pci_disable_link_state(pdev, state);
+
+        /*
+         * Double-check ASPM control. If not disabled by the above, the
+         * firmware is preventing that from happening;
+         * override by writing PCI config space directly.
+         */
+        err = pcie_capability_read_word(pdev, PCI_EXP_LNKCTL, &pdev_aspmc);
+        if (err < 0) {
+                dev_err(dev->ctrl.device, "Couldn't read LNKCTL capability\n");
+                return;
+        }
+
+        pdev_aspmc &= PCI_EXP_LNKCTL_ASPMC;
+
+        if (!(aspm_dis_mask & pdev_aspmc)) {
+                dev_info(dev->ctrl.device, "Successfully disabled ASPM %s %s\n",
+			(aspm_dis_mask & PCI_EXP_LNKCTL_ASPM_L0S) ? "L0s" : "",
+			(aspm_dis_mask & PCI_EXP_LNKCTL_ASPM_L1) ? "L1" : "");
+                return;
+        }
+
+        /*
+         * Both device and parent should have the same ASPM setting.
+	 * Disable ASPM in downstream component first and then upstream.
+	 */
+
+        err = pcie_capability_clear_word(pdev, PCI_EXP_LNKCTL, aspm_dis_mask);
+        if (err < 0) {
+                dev_err(dev->ctrl.device, "Couldn't read LNKCTL capability\n");
+                return;
+        }
+
+        if (parent) {
+                err = pcie_capability_clear_word(parent, PCI_EXP_LNKCTL, aspm_dis_mask);
+                if (err < 0) {
+                        dev_err(dev->ctrl.device, "Couldn't read slot LNKCTL capability\n");
+                        return;
+                }
+        }
+}
+
 static int nvme_pci_enable(struct nvme_dev *dev)
 {
 	int result = -ENOMEM;
@@ -2489,6 +2576,17 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 		result = -ENODEV;
 		goto disable;
 	}
+
+        /*
+         * Some devices advertise support for ASPM L0s/L1 that does not
+         * fully work in all scenarios.
+         */
+
+	if (dev->ctrl.quirks & NVME_QUIRK_BROKEN_ASPM_L0S)
+		nvme_aspm_disable(dev, PCIE_LINK_STATE_L0S);
+
+	if (dev->ctrl.quirks & NVME_QUIRK_BROKEN_ASPM_L1)
+		nvme_aspm_disable(dev, PCIE_LINK_STATE_L1);
 
 	/*
 	 * Some devices and/or platforms don't advertise or work with INTx
@@ -3081,6 +3179,9 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	nvme_start_ctrl(&dev->ctrl);
 	nvme_put_ctrl(&dev->ctrl);
 	flush_work(&dev->ctrl.scan_work);
+
+
+
 	return 0;
 
 out_disable:
@@ -3398,6 +3499,9 @@ static const struct pci_device_id nvme_id_table[] = {
 		.driver_data = NVME_QUIRK_BROKEN_MSI },
 	{ PCI_DEVICE(0x1987, 0x5012),	/* Phison E12 */
 		.driver_data = NVME_QUIRK_BOGUS_NID, },
+        { PCI_DEVICE(0x1987, 0x5013),   /* Phison E13 */
+		.driver_data = NVME_QUIRK_BROKEN_ASPM_L0S |
+				NVME_QUIRK_BROKEN_ASPM_L1, },
 	{ PCI_DEVICE(0x1987, 0x5016),	/* Phison E16 */
 		.driver_data = NVME_QUIRK_IGNORE_DEV_SUBNQN |
 				NVME_QUIRK_BOGUS_NID, },

@@ -166,6 +166,16 @@ enum nvme_quirks {
 	 * MSI (but not MSI-X) interrupts are broken and never fire.
 	 */
 	NVME_QUIRK_BROKEN_MSI			= (1 << 21),
+
+	/*
+	 * Broken ASPM L0s implementation.
+	 */
+	NVME_QUIRK_BROKEN_ASPM_L0S              = (1 << 21),
+
+	/*
+	 * Broken ASPM L1 implementation.
+	*/
+	NVME_QUIRK_BROKEN_ASPM_L1               = (1 << 22),
 };
 
 /*
