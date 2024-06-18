@@ -135,6 +135,8 @@ bool vma_policy_mof(struct vm_area_struct *vma);
 
 extern void numa_default_policy(void);
 extern void numa_policy_init(void);
+nodemask_t *numa_policy_nodemask(gfp_t gfp, struct mempolicy *pol, pgoff_t ilx,
+				 int *nid);
 extern void mpol_rebind_task(struct task_struct *tsk, const nodemask_t *new);
 extern void mpol_rebind_mm(struct mm_struct *mm, nodemask_t *new);
 
@@ -236,6 +238,14 @@ vma_dup_policy(struct vm_area_struct *src, struct vm_area_struct *dst)
 
 static inline void numa_policy_init(void)
 {
+}
+
+static inline nodemask_t *
+numa_policy_nodemask(gfp_t gfp, struct mempolicy *pol, pgoff_t ilx, int *nid)
+{
+	*nid = NUMA_NO_NODE;
+
+	return NULL;
 }
 
 static inline void numa_default_policy(void)
