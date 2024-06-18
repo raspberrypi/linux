@@ -2090,6 +2090,12 @@ static nodemask_t *policy_nodemask(gfp_t gfp, struct mempolicy *pol,
 	return nodemask;
 }
 
+nodemask_t *numa_policy_nodemask(gfp_t gfp, struct mempolicy *pol, pgoff_t ilx,
+				 int *nid)
+{
+	return policy_nodemask(gfp, pol, ilx, nid);
+}
+
 #ifdef CONFIG_HUGETLBFS
 /*
  * huge_node(@vma, @addr, @gfp_flags, @mpol)
