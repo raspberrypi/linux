@@ -749,6 +749,7 @@
   hrtimer_start_range_ns
   hrtimer_try_to_cancel
   hvc_alloc
+  hvc_instantiate
   hvc_kick
   hvc_poll
   hvc_remove
