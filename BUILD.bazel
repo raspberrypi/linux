@@ -1945,8 +1945,7 @@ cc_binary_with_abi(
     includes = ["tools/testing/selftests"],
     linkopts = [
         "-static",
-        "-Wl",
-        "-ereal_start",
+        "-Wl,-ereal_start",
     ],
     path_prefix = _KSELFTEST_DIR,
     target_compatible_with = ["@platforms//os:android"],
