@@ -34,7 +34,7 @@ static void pwm_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
 
 	pwm_get_state(pwm_gpio->pwm[off], &state);
 	state.duty_cycle = val ? state.period : 0;
-	pwm_apply_state(pwm_gpio->pwm[off], &state);
+	pwm_apply_might_sleep(pwm_gpio->pwm[off], &state);
 }
 
 static int pwm_gpio_parse_dt(struct pwm_gpio *pwm_gpio,
@@ -79,7 +79,7 @@ static int pwm_gpio_parse_dt(struct pwm_gpio *pwm_gpio,
 		pwm_init_state(pwm_gpio->pwm[i], &state);
 
 		state.duty_cycle = 0;
-		pwm_apply_state(pwm_gpio->pwm[i], &state);
+		pwm_apply_might_sleep(pwm_gpio->pwm[i], &state);
 	}
 
 	pwm_gpio->gc.ngpio = num_gpios;
