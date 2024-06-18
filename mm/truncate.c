@@ -210,6 +210,7 @@ int truncate_inode_folio(struct address_space *mapping, struct folio *folio)
  */
 bool truncate_inode_partial_folio(struct folio *folio, loff_t start, loff_t end)
 {
+	int err;
 	loff_t pos = folio_pos(folio);
 	unsigned int offset, length;
 
@@ -241,8 +242,11 @@ bool truncate_inode_partial_folio(struct folio *folio, loff_t start, loff_t end)
 		folio_invalidate(folio, offset, length);
 	if (!folio_test_large(folio))
 		return true;
-	if (split_folio(folio) == 0)
+	err = split_folio(folio);
+	if (!err)
 		return true;
+	if (err > 0)
+		return false;
 	if (folio_test_dirty(folio))
 		return false;
 	truncate_inode_folio(folio->mapping, folio);

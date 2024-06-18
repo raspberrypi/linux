@@ -54,6 +54,7 @@
   __traceiter_android_vh_do_swap_page
   __traceiter_android_vh_do_wp_page
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_f2fs_file_open
   __traceiter_android_vh_filemap_update_page
   __traceiter_android_vh_free_task
   __traceiter_android_vh_fuse_request_end
@@ -144,6 +145,7 @@
   __tracepoint_android_vh_do_swap_page
   __tracepoint_android_vh_do_wp_page
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_f2fs_file_open
   __tracepoint_android_vh_filemap_update_page
   __tracepoint_android_vh_free_task
   __tracepoint_android_vh_fuse_request_end

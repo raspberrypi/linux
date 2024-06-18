@@ -70,7 +70,7 @@ static struct page *has_unmovable_pages(unsigned long start_pfn, unsigned long e
 		 * pages then it should be reasonably safe to assume the rest
 		 * is movable.
 		 */
-		if (zone_idx(zone) == ZONE_MOVABLE)
+		if (zid_is_virt(zone_idx(zone)))
 			continue;
 
 		/*

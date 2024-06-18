@@ -347,3 +347,18 @@
   __tracepoint_android_vh_psi_event
   __tracepoint_android_vh_psi_group
 
+#required by zram.ko module
+  __blk_alloc_disk
+  bio_end_io_acct_remapped
+  bio_endio
+  bio_start_io_acct
+  crypto_alloc_base
+  crypto_comp_compress
+  crypto_comp_decompress
+  crypto_has_alg
+  memset64
+  filp_open_block
+  filp_close
+  bio_init
+  __bio_add_page
+  blkdev_get_by_dev
