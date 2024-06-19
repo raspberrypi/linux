@@ -30,7 +30,6 @@ static u64 __io_map_base;
 struct hyp_fixmap_slot {
 	u64 addr;
 	kvm_pte_t *ptep;
-	u8 level;
 };
 static DEFINE_PER_CPU(struct hyp_fixmap_slot, fixmap_slots);
 
@@ -332,6 +331,12 @@ static void fixmap_clear_slot(struct hyp_fixmap_slot *slot)
 {
 	kvm_pte_t *ptep = slot->ptep;
 	u64 addr = slot->addr;
+	u32 level;
+
+	if (FIELD_GET(KVM_PTE_TYPE, *ptep) == KVM_PTE_TYPE_PAGE)
+		level = KVM_PGTABLE_MAX_LEVELS - 1;
+	else
+		level = KVM_PGTABLE_MAX_LEVELS - 2; /* create_fixblock() guarantees PMD level */
 
 	WRITE_ONCE(*ptep, *ptep & ~KVM_PTE_VALID);
 
@@ -345,7 +350,7 @@ static void fixmap_clear_slot(struct hyp_fixmap_slot *slot)
 	 * https://lore.kernel.org/kvm/20221017115209.2099-1-will@kernel.org/T/#mf10dfbaf1eaef9274c581b81c53758918c1d0f03
 	 */
 	dsb(ishst);
-	__tlbi_level(vale2is, __TLBI_VADDR(addr, 0), slot->level);
+	__tlbi_level(vale2is, __TLBI_VADDR(addr, 0), level);
 	dsb(ish);
 	isb();
 }
@@ -360,7 +365,7 @@ static int __create_fixmap_slot_cb(const struct kvm_pgtable_visit_ctx *ctx,
 {
 	struct hyp_fixmap_slot *slot = (struct hyp_fixmap_slot *)ctx->arg;
 
-	if (!kvm_pte_valid(ctx->old) || ctx->level != slot->level)
+	if (!kvm_pte_valid(ctx->old) || (ctx->end - ctx->start) != kvm_granule_size(ctx->level))
 		return -EINVAL;
 
 	slot->addr = ctx->addr;
@@ -383,8 +388,6 @@ static int create_fixmap_slot(u64 addr, u64 cpu)
 		.flags	= KVM_PGTABLE_WALK_LEAF,
 		.arg = (void *)per_cpu_ptr(&fixmap_slots, cpu),
 	};
-
-	per_cpu_ptr(&fixmap_slots, cpu)->level = KVM_PGTABLE_MAX_LEVELS - 1;
 
 	return kvm_pgtable_walk(&pkvm_pgtable, addr, PAGE_SIZE, &walker);
 }
@@ -439,7 +442,6 @@ static int create_fixblock(void)
 	if (ret)
 		goto unlock;
 
-	hyp_fixblock_slot.level = KVM_PGTABLE_MAX_LEVELS - 2;
 	ret = kvm_pgtable_walk(&pkvm_pgtable, addr, PMD_SIZE, &walker);
 unlock:
 	hyp_spin_unlock(&pkvm_pgd_lock);
