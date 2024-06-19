@@ -619,6 +619,10 @@
   __tracepoint_mm_filemap_delete_from_page_cache
   __tracepoint_mm_filemap_add_to_page_cache
 
+# required printk_cpuid.ko
+  __traceiter_android_vh_printk_ext_header
+  __tracepoint_android_vh_printk_ext_header
+
 # required by mali_gondul.ko
   anon_inode_getfd
   __arch_clear_user
