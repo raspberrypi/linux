@@ -2206,12 +2206,14 @@
   __traceiter_android_rvh_update_rt_rq_load_avg
   __traceiter_android_rvh_util_est_update
   __traceiter_android_rvh_util_fits_cpu
+  __traceiter_android_vh_arch_set_freq_scale
   __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_binder_set_priority
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
   __traceiter_android_vh_dump_throttled_rt_tasks
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_enable_thermal_genl_check
   __traceiter_android_vh_ipi_stop
   __traceiter_android_vh_prio_inheritance
   __traceiter_android_vh_prio_restore
@@ -2291,12 +2293,14 @@
   __tracepoint_android_rvh_update_rt_rq_load_avg
   __tracepoint_android_rvh_util_est_update
   __tracepoint_android_rvh_util_fits_cpu
+  __tracepoint_android_vh_arch_set_freq_scale
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_set_priority
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
   __tracepoint_android_vh_dump_throttled_rt_tasks
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_enable_thermal_genl_check
   __tracepoint_android_vh_ipi_stop
   __tracepoint_android_vh_prio_inheritance
   __tracepoint_android_vh_prio_restore
