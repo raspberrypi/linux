@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/touchscreen/ti,tsc2007.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Texas Instruments TSC2007 touchscreen controller bindings
+
+maintainers:
+  - Timon Skerutsch <kernel@diodes-delight.com>
+
+allOf:
+  - $ref: touchscreen.yaml#
+
+properties:
+  compatible:
+    enum:
+      - ti,tsc2007
+
+  reg:
+    maxItems: 1
+    description: |
+      I2C address of the chip.
+
+  interrupts:
+    maxItems: 1
+    description: |
+      (gpio) interrupt to which the chip is connected
+
+  gpios:
+    maxItems: 1
+    description: the interrupt gpio the chip is connected to (trough the penirq pin).
+
+  ti,poll-period: how much time to wait (in milliseconds) before reading again
+
+  touchscreen-fuzz-pressure: true
+  touchscreen-fuzz-x: true
+  touchscreen-fuzz-y: true
+  touchscreen-min-pressure: true
+  touchscreen-max-pressure: true
+  touchscreen-min-x: true
+  touchscreen-size-x: true
+  touchscreen-min-y: true
+  touchscreen-size-y: true
+  touchscreen-x-plate-ohms: true
+  touchscreen-inverted-x: true
+  touchscreen-inverted-y: true
+  touchscreen-swapped-x-y: true
+
+
+additionalProperties: false
+
+required:
+  - compatible
+  - reg
+  - touchscreen-x-plate-ohms
+
+examples:
+  - |
+    tsc2007@48 {
+        compatible = "ti,tsc2007";
+        reg = <0x48>;
+        touchscreen-swapped-x-y;
+        touchscreen-inverted-x;
+        touchscreen-min-x = <350>;
+        touchscreen-size-x = <3700>;
+        touchscreen-fuzz-x = <4>;
+        touchscreen-min-y = <320>;
+        touchscreen-size-y = <3700>;
+        touchscreen-fuzz-y = <4>;
+        touchscreen-min-pressure = <1000>;
+        touchscreen-max-pressure = <3700>;
+        touchscreen-fuzz-pressure = <4>;
+        touchscreen-x-plate-ohms = <180>;
+
+        pinctrl-0 = <&tsc_int_pin>;
+        interrupt-parent = <&gpio>;
+        interrupts = <17 2>;
+        gpios = <&gpio 17 1>;
+
+    };
+
