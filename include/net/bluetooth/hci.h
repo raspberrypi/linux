@@ -34,6 +34,8 @@
 
 #define HCI_LINK_KEY_SIZE	16
 
+#define HCI_MAX_AMP_ASSOC_SIZE	672
+
 #define HCI_MAX_CPB_DATA_SIZE	252
 
 /* HCI dev events */
