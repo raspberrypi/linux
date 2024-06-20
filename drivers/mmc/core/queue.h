@@ -79,6 +79,7 @@ struct mmc_queue {
 	struct request_queue	*queue;
 	spinlock_t		lock;
 	int			in_flight[MMC_ISSUE_MAX];
+	int			pending_writes;
 	unsigned int		cqe_busy;
 #define MMC_CQE_DCMD_BUSY	BIT(0)
 	bool			busy;
