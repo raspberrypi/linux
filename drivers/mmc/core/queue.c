@@ -266,6 +266,11 @@ static blk_status_t mmc_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
 			spin_unlock_irq(&mq->lock);
 			return BLK_STS_RESOURCE;
 		}
+		if (!host->hsq_enabled && host->cqe_enabled && req_op(req) == REQ_OP_WRITE &&
+		    mq->pending_writes >= card->max_posted_writes) {
+			spin_unlock_irq(&mq->lock);
+			return BLK_STS_RESOURCE;
+		}
 		break;
 	default:
 		/*
@@ -282,6 +287,8 @@ static blk_status_t mmc_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
 	/* Parallel dispatch of requests is not supported at the moment */
 	mq->busy = true;
 
+	if (req_op(req) == REQ_OP_WRITE)
+		mq->pending_writes++;
 	mq->in_flight[issue_type] += 1;
 	get_card = (mmc_tot_in_flight(mq) == 1);
 	cqe_retune_ok = (mmc_cqe_qcnt(mq) == 1);
@@ -321,6 +328,8 @@ static blk_status_t mmc_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
 		bool put_card = false;
 
 		spin_lock_irq(&mq->lock);
+		if (req_op(req) == REQ_OP_WRITE)
+			mq->pending_writes--;
 		mq->in_flight[issue_type] -= 1;
 		if (mmc_tot_in_flight(mq) == 0)
 			put_card = true;
