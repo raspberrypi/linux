@@ -336,6 +336,7 @@
   devm_clk_get_optional_enabled
   devm_clk_hw_register
   devm_clk_register
+  devm_device_add_group
   devm_extcon_dev_allocate
   devm_extcon_dev_register
   devm_extcon_dev_unregister
@@ -768,6 +769,8 @@
   i2c_get_dma_safe_msg_buf
   i2c_put_dma_safe_msg_buf
   i2c_register_driver
+  i2c_smbus_read_byte_data
+  i2c_smbus_write_byte_data
   i2c_transfer
   i3c_device_do_priv_xfers
   i3c_driver_register_with_owner
