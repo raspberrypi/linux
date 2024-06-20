@@ -1,4 +1,6 @@
 [abi_symbol_list]
+  alloc_workqueue_attrs
+  apply_workqueue_attrs
   blkdev_get_by_dev
   blkdev_put
   __brelse
@@ -9,6 +11,7 @@
   end_buffer_read_sync
   end_buffer_write_sync
   filp_close
+  free_workqueue_attrs
   __getblk_gfp
   __irq_regs
   kernfs_path_from_node
@@ -25,6 +28,8 @@
   submit_bh
   __kmalloc_node
   __sbitmap_queue_get
+  __set_task_comm
+  __traceiter_android_rvh_alloc_and_link_pwqs
   __traceiter_android_rvh_check_preempt_wakeup
   __traceiter_android_rvh_cpufreq_transition
   __traceiter_android_rvh_dequeue_task_fair
@@ -117,6 +122,7 @@
   __traceiter_task_rename
   __traceiter_workqueue_execute_end
   __traceiter_workqueue_execute_start
+  __tracepoint_android_rvh_alloc_and_link_pwqs
   __tracepoint_android_rvh_check_preempt_wakeup
   __tracepoint_android_rvh_cpufreq_transition
   __tracepoint_android_rvh_dequeue_task_fair
