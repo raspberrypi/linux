@@ -1336,7 +1336,7 @@ xe_migrate_update_pgtables(struct xe_migrate *m,
 						 GFP_KERNEL, true, 0);
 			if (IS_ERR(sa_bo)) {
 				err = PTR_ERR(sa_bo);
-				goto err;
+				goto err_bb;
 			}
 
 			ppgtt_ofs = NUM_KERNEL_PDE +
@@ -1387,7 +1387,7 @@ xe_migrate_update_pgtables(struct xe_migrate *m,
 					 update_idx);
 	if (IS_ERR(job)) {
 		err = PTR_ERR(job);
-		goto err_bb;
+		goto err_sa;
 	}
 
 	/* Wait on BO move */
@@ -1436,12 +1436,12 @@ xe_migrate_update_pgtables(struct xe_migrate *m,
 
 err_job:
 	xe_sched_job_put(job);
+err_sa:
+	drm_suballoc_free(sa_bo, NULL);
 err_bb:
 	if (!q)
 		mutex_unlock(&m->job_mutex);
 	xe_bb_free(bb, NULL);
-err:
-	drm_suballoc_free(sa_bo, NULL);
 	return ERR_PTR(err);
 }
 
