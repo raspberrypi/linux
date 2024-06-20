@@ -139,3 +139,4 @@ struct cpio_data find_cpio_data(const char *path, void *data,
 quit:
 	return cd;
 }
+EXPORT_SYMBOL_GPL(find_cpio_data);
