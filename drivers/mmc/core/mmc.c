@@ -1936,6 +1936,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 				pr_info("%s: Host Software Queue enabled\n",
 					mmc_hostname(host));
 			}
+			card->max_posted_writes = card->ext_csd.cmdq_depth;
 		}
 	}
 

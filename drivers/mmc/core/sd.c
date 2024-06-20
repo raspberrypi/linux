@@ -1104,6 +1104,14 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 		pr_debug("%s: Command Queue supported depth %u\n",
 			 mmc_hostname(card->host),
 			 card->ext_csd.cmdq_depth);
+		/*
+		 * If CQ is enabled, there is a contract between host and card such that VDD will
+		 * be maintained and removed only if a power off notification is provided.
+		 * An SD card in an accessible slot means surprise removal is a possibility.
+		 * As a middle ground, limit max posted writes to 1 unless the card is "hardwired".
+		 */
+		if (mmc_card_is_removable(card->host))
+			card->max_posted_writes = 1;
 	}
 
 	card->ext_perf.fno = fno;
