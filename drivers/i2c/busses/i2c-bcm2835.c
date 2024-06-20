@@ -15,6 +15,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #define BCM2835_I2C_C		0x0
 #define BCM2835_I2C_S		0x4
@@ -64,6 +65,10 @@ static unsigned int clk_tout_ms = 35; /* SMBUs-recommended 35ms */
 module_param(clk_tout_ms, uint, 0644);
 MODULE_PARM_DESC(clk_tout_ms, "clock-stretch timeout (mS)");
 
+static unsigned int nak_delay_cycles;
+module_param(nak_delay_cycles, uint, 0644);
+MODULE_PARM_DESC(nak_delay_cycles, "NAK delay (cycles/bits)");
+
 #define BCM2835_DEBUG_MAX	512
 struct bcm2835_debug {
 	struct i2c_msg *msg;
@@ -80,6 +85,7 @@ struct bcm2835_i2c_dev {
 	struct completion completion;
 	struct i2c_msg *curr_msg;
 	struct clk *bus_clk;
+	unsigned long nak_delay_us;
 	int num_msgs;
 	u32 msg_err;
 	u8 *msg_buf;
@@ -232,6 +238,12 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_CLKT, clk_tout);
 
+	/* Set the NAK wait time to be 10 bits in microseconds */
+	div->i2c_dev->nak_delay_us = (nak_delay_cycles * 1000000ul) / rate;
+	if (nak_delay_cycles)
+		dev_warn(div->i2c_dev->dev, "NAK delay: %d cycles -> %ld us\n",
+			 nak_delay_cycles, div->i2c_dev->nak_delay_us);
+
 	return 0;
 }
 
@@ -380,6 +392,13 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 {
 	struct bcm2835_i2c_dev *i2c_dev = data;
 	u32 val, err;
+
+	/* Allow time for any NAK to be detected */
+	if (i2c_dev->num_msgs &&
+	    !(i2c_dev->curr_msg->flags & I2C_M_RD) &&
+	    (i2c_dev->msg_buf_remaining == i2c_dev->curr_msg->len) &&
+	    i2c_dev->nak_delay_us)
+		udelay(i2c_dev->nak_delay_us);
 
 	val = bcm2835_i2c_readl(i2c_dev, BCM2835_I2C_S);
 	bcm2835_debug_add(i2c_dev, val);
