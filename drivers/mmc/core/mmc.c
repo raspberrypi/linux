@@ -1668,6 +1668,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		card->ocr = ocr;
 		card->type = MMC_TYPE_MMC;
 		card->rca = 1;
+		card->max_posted_writes = 1;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 	}
 
@@ -1933,6 +1934,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 				pr_info("%s: Host Software Queue enabled\n",
 					mmc_hostname(host));
 			}
+			card->max_posted_writes = card->ext_csd.cmdq_depth;
 		}
 	}
 
