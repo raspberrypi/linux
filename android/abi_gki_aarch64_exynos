@@ -1228,10 +1228,12 @@
   sysctl_sched_features
   system_32bit_el0_cpumask
   tick_nohz_get_sleep_length
+  __traceiter_android_rvh_attach_entity_load_avg
   __traceiter_android_rvh_can_migrate_task
   __traceiter_android_rvh_check_preempt_wakeup
   __traceiter_android_rvh_cpu_cgroup_attach
   __traceiter_android_rvh_dequeue_task
+  __traceiter_android_rvh_detach_entity_load_avg
   __traceiter_android_rvh_do_sched_yield
   __traceiter_android_rvh_enqueue_task
   __traceiter_android_rvh_find_busiest_queue
@@ -1239,6 +1241,7 @@
   __traceiter_android_rvh_find_new_ilb
   __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_new_task_stats
+  __traceiter_android_rvh_remove_entity_load_avg
   __traceiter_android_rvh_replace_next_task_fair
   __traceiter_android_rvh_sched_newidle_balance
   __traceiter_android_rvh_sched_nohz_balancer_kick
@@ -1249,6 +1252,8 @@
   __traceiter_android_rvh_select_task_rq_rt
   __traceiter_android_rvh_try_to_wake_up
   __traceiter_android_rvh_uclamp_eff_get
+  __traceiter_android_rvh_update_blocked_fair
+  __traceiter_android_rvh_update_load_avg
   __traceiter_android_rvh_update_misfit_status
   __traceiter_android_rvh_wake_up_new_task
   __traceiter_android_vh_binder_restore_priority
@@ -1257,10 +1262,12 @@
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_syscall_prctl_finished
   __traceiter_binder_transaction_received
+  __tracepoint_android_rvh_attach_entity_load_avg
   __tracepoint_android_rvh_can_migrate_task
   __tracepoint_android_rvh_check_preempt_wakeup
   __tracepoint_android_rvh_cpu_cgroup_attach
   __tracepoint_android_rvh_dequeue_task
+  __tracepoint_android_rvh_detach_entity_load_avg
   __tracepoint_android_rvh_do_sched_yield
   __tracepoint_android_rvh_enqueue_task
   __tracepoint_android_rvh_find_busiest_queue
@@ -1268,6 +1275,7 @@
   __tracepoint_android_rvh_find_new_ilb
   __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_new_task_stats
+  __tracepoint_android_rvh_remove_entity_load_avg
   __tracepoint_android_rvh_replace_next_task_fair
   __tracepoint_android_rvh_sched_newidle_balance
   __tracepoint_android_rvh_sched_nohz_balancer_kick
@@ -1278,6 +1286,8 @@
   __tracepoint_android_rvh_select_task_rq_rt
   __tracepoint_android_rvh_try_to_wake_up
   __tracepoint_android_rvh_uclamp_eff_get
+  __tracepoint_android_rvh_update_blocked_fair
+  __tracepoint_android_rvh_update_load_avg
   __tracepoint_android_rvh_update_misfit_status
   __tracepoint_android_rvh_wake_up_new_task
   __tracepoint_android_vh_binder_restore_priority

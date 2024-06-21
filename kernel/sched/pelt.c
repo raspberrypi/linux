@@ -24,6 +24,8 @@
  *  Author: Vincent Guittot <vincent.guittot@linaro.org>
  */
 
+#include <trace/hooks/sched.h>
+
 /*
  * Approximate:
  *   val * y^n,    where y^32 ~= 0.5 (~1 scheduling period)
@@ -176,7 +178,7 @@ accumulate_sum(u64 delta, struct sched_avg *sa,
  *   load_avg = u_0` + y*(u_0 + u_1*y + u_2*y^2 + ... )
  *            = u_0 + u_1*y + u_2*y^2 + ... [re-labeling u_i --> u_{i+1}]
  */
-static __always_inline int
+int
 ___update_load_sum(u64 now, struct sched_avg *sa,
 		  unsigned long load, unsigned long runnable, int running)
 {
@@ -201,6 +203,8 @@ ___update_load_sum(u64 now, struct sched_avg *sa,
 		return 0;
 
 	sa->last_update_time += delta << 10;
+
+	trace_android_rvh_update_load_sum(sa, &delta, &sched_pelt_lshift);
 
 	/*
 	 * running is a subset of runnable (weight) so running can't be set if
@@ -228,6 +232,7 @@ ___update_load_sum(u64 now, struct sched_avg *sa,
 
 	return 1;
 }
+EXPORT_SYMBOL_GPL(___update_load_sum);
 
 /*
  * When syncing *_avg with *_sum, we must take into account the current
@@ -253,7 +258,7 @@ ___update_load_sum(u64 now, struct sched_avg *sa,
  * the period_contrib of cfs_rq when updating the sched_avg of a sched_entity
  * if it's more convenient.
  */
-static __always_inline void
+void
 ___update_load_avg(struct sched_avg *sa, unsigned long load)
 {
 	u32 divider = get_pelt_divider(sa);
@@ -265,6 +270,7 @@ ___update_load_avg(struct sched_avg *sa, unsigned long load)
 	sa->runnable_avg = div_u64(sa->runnable_sum, divider);
 	WRITE_ONCE(sa->util_avg, sa->util_sum / divider);
 }
+EXPORT_SYMBOL_GPL(___update_load_avg);
 
 /*
  * sched_entity:

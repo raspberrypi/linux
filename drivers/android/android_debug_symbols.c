@@ -17,6 +17,7 @@
 #include <linux/fs.h>
 #include <linux/swap.h>
 #include <linux/compaction.h>
+#include <linux/cma.h>
 
 struct ads_entry {
 	char *name;
@@ -47,6 +48,8 @@ static const struct ads_entry ads_entries[ADS_END] = {
 	ADS_ENTRY(ADS_DROP_SLAB, drop_slab),
 	ADS_ENTRY(ADS_FREE_PAGES, try_to_free_pages),
 	ADS_ENTRY(ADS_COMPACT_PAGES, try_to_compact_pages),
+	ADS_ENTRY(ADS_SHOW_MEM, __show_mem),
+	ADS_ENTRY(ADS_TOTAL_CMA, &totalcma_pages),
 };
 
 /*

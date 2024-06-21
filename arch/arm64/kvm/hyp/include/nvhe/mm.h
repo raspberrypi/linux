@@ -14,9 +14,11 @@ extern struct kvm_pgtable pkvm_pgtable;
 extern hyp_spinlock_t pkvm_pgd_lock;
 extern const struct pkvm_module_ops module_ops;
 
-int hyp_create_pcpu_fixmap(void);
+int hyp_create_fixmap(void);
 void *hyp_fixmap_map(phys_addr_t phys);
 void hyp_fixmap_unmap(void);
+void *hyp_fixblock_map(phys_addr_t phys);
+void hyp_fixblock_unmap(void);
 void hyp_poison_page(phys_addr_t phys);
 
 int hyp_create_idmap(u32 hyp_va_bits);
