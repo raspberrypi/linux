@@ -1193,26 +1193,26 @@ static int me_swapcache_clean(struct page_state *ps, struct page *p)
  */
 static int me_huge_page(struct page_state *ps, struct page *p)
 {
+	struct folio *folio = page_folio(p);
 	int res;
-	struct page *hpage = compound_head(p);
 	struct address_space *mapping;
 	bool extra_pins = false;
 
-	mapping = page_mapping(hpage);
+	mapping = folio_mapping(folio);
 	if (mapping) {
-		res = truncate_error_page(hpage, page_to_pfn(p), mapping);
+		res = truncate_error_page(&folio->page, page_to_pfn(p), mapping);
 		/* The page is kept in page cache. */
 		extra_pins = true;
-		unlock_page(hpage);
+		folio_unlock(folio);
 	} else {
-		unlock_page(hpage);
+		folio_unlock(folio);
 		/*
 		 * migration entry prevents later access on error hugepage,
 		 * so we can free and dissolve it into buddy to save healthy
 		 * subpages.
 		 */
-		put_page(hpage);
-		if (__page_handle_poison(p) >= 0) {
+		folio_put(folio);
+		if (__page_handle_poison(p) > 0) {
 			page_ref_inc(p);
 			res = MF_RECOVERED;
 		} else {
@@ -2082,7 +2082,7 @@ retry:
 	 */
 	if (res == 0) {
 		folio_unlock(folio);
-		if (__page_handle_poison(p) >= 0) {
+		if (__page_handle_poison(p) > 0) {
 			page_ref_inc(p);
 			res = MF_RECOVERED;
 		} else {
@@ -2530,6 +2530,13 @@ int unpoison_memory(unsigned long pfn)
 
 	if (hw_memory_failure) {
 		unpoison_pr_info("Unpoison: Disabled after HW memory failure %#lx\n",
+				 pfn, &unpoison_rs);
+		ret = -EOPNOTSUPP;
+		goto unlock_mutex;
+	}
+
+	if (is_huge_zero_page(&folio->page)) {
+		unpoison_pr_info("Unpoison: huge zero page is not supported %#lx\n",
 				 pfn, &unpoison_rs);
 		ret = -EOPNOTSUPP;
 		goto unlock_mutex;

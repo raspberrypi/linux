@@ -175,6 +175,7 @@ static int adi_axi_adc_probe(struct platform_device *pdev)
 	struct adi_axi_adc_state *st;
 	void __iomem *base;
 	unsigned int ver;
+	struct clk *clk;
 	int ret;
 
 	st = devm_kzalloc(&pdev->dev, sizeof(*st), GFP_KERNEL);
@@ -194,6 +195,10 @@ static int adi_axi_adc_probe(struct platform_device *pdev)
 	expected_ver = device_get_match_data(&pdev->dev);
 	if (!expected_ver)
 		return -ENODEV;
+
+	clk = devm_clk_get_enabled(&pdev->dev, NULL);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
 
 	/*
 	 * Force disable the core. Up to the frontend to enable us. And we can
