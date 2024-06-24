@@ -673,7 +673,6 @@ int nfsd_create_serv(struct net *net)
 		return error;
 	}
 	spin_lock(&nfsd_notifier_lock);
-	nn->nfsd_info.mutex = &nfsd_mutex;
 	nn->nfsd_serv = serv;
 	spin_unlock(&nfsd_notifier_lock);
 
