@@ -26,7 +26,7 @@ config ANDROID_BINDER_IPC_C
 	  If unsure, pick the C implementation.
 
 config ANDROID_BINDER_IPC_RUST
-	bool "Android Binder IPC Driver in Rust"
+	tristate "Android Binder IPC Driver in Rust"
 	depends on ANDROID_BINDER_IPC && RUST
 	help
 	  Enable the Rust implementation of the Android Binder IPC Driver.

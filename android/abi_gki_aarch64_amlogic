@@ -2,6 +2,7 @@
   add_cpu
   add_device_randomness
   add_timer
+  add_to_page_cache_lru
   add_uevent_var
   add_wait_queue
   adjust_managed_page_count
@@ -64,9 +65,12 @@
   __bitmap_weight
   __bitmap_xor
   bitmap_zalloc
+  bit_wait
   __blk_alloc_disk
+  blkdev_get_by_path
   blkdev_issue_discard
   blkdev_issue_zeroout
+  blkdev_put
   blk_finish_plug
   blk_queue_flag_clear
   blk_queue_flag_set
@@ -163,6 +167,7 @@
   clk_hw_is_enabled
   clk_hw_round_rate
   clk_hw_set_parent
+  clk_hw_set_rate_range
   __clk_is_enabled
   clk_mux_determine_rate_flags
   clk_mux_index_to_val
@@ -228,6 +233,7 @@
   cpu_subsys
   cpu_topology
   crc32_be
+  crc32c
   crc32_le
   create_empty_buffers
   crypto_aead_decrypt
@@ -252,6 +258,7 @@
   crypto_init_queue
   __crypto_memneq
   crypto_register_ahash
+  crypto_register_alg
   crypto_register_shash
   crypto_register_skcipher
   crypto_sha1_finup
@@ -266,6 +273,7 @@
   crypto_skcipher_setkey
   crypto_unregister_ahash
   crypto_unregister_ahashes
+  crypto_unregister_alg
   crypto_unregister_shash
   crypto_unregister_skcipher
   __crypto_xor
@@ -395,6 +403,7 @@
   devm_platform_ioremap_resource_byname
   devm_pwm_get
   devm_regmap_field_alloc
+  __devm_regmap_init
   __devm_regmap_init_i2c
   __devm_regmap_init_mmio_clk
   devm_regulator_bulk_get
@@ -776,6 +785,7 @@
   filemap_fdatawrite
   filemap_fdatawrite_range
   filemap_flush
+  filemap_read
   __filemap_set_wb_err
   filemap_splice_read
   filemap_write_and_wait_range
@@ -824,6 +834,9 @@
   freezer_active
   freezing_slow_path
   fs_bio_set
+  fs_ftype_to_dtype
+  fs_kobj
+  fs_param_is_enum
   fs_param_is_string
   fs_param_is_u32
   __fs_parse
@@ -852,11 +865,13 @@
   generic_file_mmap
   generic_file_open
   generic_file_read_iter
+  generic_file_readonly_mmap
   __generic_file_write_iter
   generic_fillattr
   generic_handle_irq
   generic_permission
   generic_read_dir
+  generic_ro_fops
   generic_shutdown_super
   generic_write_checks
   generic_write_end
@@ -896,6 +911,7 @@
   get_device
   get_device_system_crosststamp
   __get_free_pages
+  get_fs_type
   get_net_ns_by_fd
   get_net_ns_by_pid
   get_pfnblock_flags_mask
@@ -1026,6 +1042,7 @@
   __init_swait_queue_head
   init_task
   init_timer_key
+  init_user_ns
   init_uts_ns
   init_wait_entry
   __init_waitqueue_head
@@ -1047,6 +1064,11 @@
   insert_inode_locked
   invalidate_bdev
   invalidate_inode_buffers
+  iomap_bmap
+  iomap_dio_rw
+  iomap_fiemap
+  iomap_readahead
+  iomap_read_folio
   iomem_resource
   iommu_device_register
   iommu_device_sysfs_add
@@ -1055,13 +1077,18 @@
   iommu_fwspec_init
   iommu_get_domain_for_dev
   ioremap_prot
+  io_schedule
   iounmap
+  iov_iter_alignment
   iov_iter_init
   iov_iter_revert
   iov_iter_zero
   iput
   __ipv6_addr_type
   __irq_apply_affinity_hint
+  irq_chip_ack_parent
+  irq_chip_disable_parent
+  irq_chip_enable_parent
   irq_chip_eoi_parent
   irq_chip_mask_parent
   irq_chip_retrigger_hierarchy
@@ -1073,11 +1100,13 @@
   __irq_domain_add
   irq_domain_alloc_irqs_parent
   irq_domain_create_hierarchy
+  irq_domain_free_irqs_common
   irq_domain_free_irqs_parent
   irq_domain_get_irq_data
   irq_domain_remove
   irq_domain_set_hwirq_and_chip
   irq_domain_set_info
+  irq_domain_xlate_onecell
   irq_find_matching_fwspec
   irq_get_irq_data
   irq_of_parse_and_map
@@ -1151,11 +1180,15 @@
   kmem_cache_free
   kmemdup
   kobject_create_and_add
+  kobject_del
   kobject_init_and_add
   kobject_put
+  kobject_set_name
   kobject_uevent
   kobject_uevent_env
   krealloc
+  kset_register
+  kset_unregister
   kstrdup
   kstrdup_const
   kstrtobool
@@ -1173,6 +1206,8 @@
   kthread_bind
   kthread_complete_and_exit
   kthread_create_on_node
+  kthread_create_worker_on_cpu
+  kthread_destroy_worker
   kthread_flush_worker
   __kthread_init_worker
   kthread_queue_work
@@ -1195,6 +1230,7 @@
   led_classdev_register_ext
   led_classdev_unregister
   led_init_default_state_get
+  led_set_brightness
   led_trigger_blink_oneshot
   led_trigger_event
   led_trigger_register
@@ -1216,6 +1252,8 @@
   log_write_mmio
   lookup_bdev
   loops_per_jiffy
+  LZ4_decompress_safe
+  LZ4_decompress_safe_partial
   mac_pton
   make_bad_inode
   mangle_path
@@ -1372,7 +1410,10 @@
   __nlmsg_put
   nonseekable_open
   noop_backing_dev_info
+  noop_direct_IO
   noop_llseek
+  nop_posix_acl_access
+  nop_posix_acl_default
   nr_cpu_ids
   ns_capable
   ns_to_timespec64
@@ -1454,9 +1495,11 @@
   of_usb_get_phy_mode
   of_usb_host_tpl_support
   oops_in_progress
+  out_of_line_wait_on_bit_lock
   overflowgid
   overflowuid
   pagecache_get_page
+  page_get_link
   page_mapping
   page_pinner_inited
   __page_pinner_put_page
@@ -1525,11 +1568,14 @@
   perf_trace_run_bpf_submit
   pfn_is_map_memory
   phy_attached_info
+  phy_basic_features
   phy_basic_t1_features
   phy_drivers_register
   phy_drivers_unregister
   phy_error
   phy_exit
+  phy_gbit_features
+  phy_get_internal_delay
   phy_init
   phy_init_eee
   phylink_connect_phy
@@ -1577,6 +1623,7 @@
   phy_select_page
   phy_set_mode_ext
   phy_trigger_machine
+  phy_write_mmd
   phy_write_paged
   pid_task
   pinconf_generic_dt_free_map
@@ -1634,6 +1681,7 @@
   pm_wakeup_ws_event
   pm_wq
   posix_acl_chmod
+  posix_acl_from_xattr
   power_supply_get_by_name
   power_supply_put
   power_supply_set_property
@@ -1714,7 +1762,10 @@
   __rcu_read_lock
   __rcu_read_unlock
   rdev_get_drvdata
+  readahead_expand
+  readahead_gfp_mask
   read_cache_page
+  read_cache_page_gfp
   read_sanitised_ftr_reg
   rebuild_sched_domains
   refcount_warn_saturate
@@ -1744,6 +1795,7 @@
   register_shrinker
   register_syscore_ops
   register_wide_hw_breakpoint
+  regmap_bulk_write
   regmap_field_read
   regmap_field_update_bits_base
   regmap_irq_chip_get_base
@@ -1830,6 +1882,8 @@
   schedule_timeout_interruptible
   schedule_timeout_killable
   schedule_timeout_uninterruptible
+  scmi_driver_register
+  scmi_driver_unregister
   scnprintf
   sdio_align_size
   sdio_claim_host
@@ -1908,6 +1962,7 @@
   simple_attr_read
   simple_attr_release
   simple_attr_write
+  simple_get_link
   simple_open
   simple_read_from_buffer
   simple_rename_timestamp
@@ -2445,8 +2500,10 @@
   vmf_insert_pfn_prot
   vm_get_page_prot
   vm_insert_page
+  vm_map_ram
   vm_node_stat
   vm_unmap_aliases
+  vm_unmap_ram
   vm_zone_stat
   vprintk
   vscnprintf
@@ -2462,6 +2519,8 @@
   __wait_on_buffer
   wait_woken
   __wake_up
+  wake_up_bit
+  __wake_up_locked
   wake_up_process
   wakeup_source_register
   wakeup_source_unregister
@@ -2475,6 +2534,11 @@
   write_inode_now
   __write_overflow_field
   x509_load_certificate_list
+  __xa_cmpxchg
+  __xa_erase
+  xa_find
+  xa_find_after
+  xa_load
   xdp_convert_zc_to_xdp_frame
   xdp_do_flush
   xdp_do_redirect

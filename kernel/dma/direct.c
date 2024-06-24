@@ -321,6 +321,7 @@ out_free_pages:
 out_leak_pages:
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(dma_direct_alloc);
 
 void dma_direct_free(struct device *dev, size_t size,
 		void *cpu_addr, dma_addr_t dma_addr, unsigned long attrs)
@@ -366,6 +367,7 @@ void dma_direct_free(struct device *dev, size_t size,
 
 	__dma_direct_free_pages(dev, dma_direct_to_page(dev, dma_addr), size);
 }
+EXPORT_SYMBOL_GPL(dma_direct_free);
 
 struct page *dma_direct_alloc_pages(struct device *dev, size_t size,
 		dma_addr_t *dma_handle, enum dma_data_direction dir, gfp_t gfp)

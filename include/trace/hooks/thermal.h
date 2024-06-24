@@ -9,6 +9,10 @@
 
 #include <trace/hooks/vendor_hooks.h>
 
+DECLARE_HOOK(android_vh_enable_thermal_genl_check,
+	TP_PROTO(int event, int tz_id, int *enable_thermal_genl),
+	TP_ARGS(event, tz_id, enable_thermal_genl));
+
 struct thermal_cooling_device;
 DECLARE_HOOK(android_vh_disable_thermal_cooling_stats,
 	TP_PROTO(struct thermal_cooling_device *cdev, bool *disable_stats),

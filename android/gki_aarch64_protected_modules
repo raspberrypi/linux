@@ -1,4 +1,5 @@
 arch/arm64/geniezone/gzvm.ko
+drivers/android/rust_binder.ko
 drivers/bluetooth/btbcm.ko
 drivers/bluetooth/btqca.ko
 drivers/bluetooth/btsdio.ko

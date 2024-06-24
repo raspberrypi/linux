@@ -36,6 +36,8 @@
 
 #include "binder_internal.h"
 
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+
 #define FIRST_INODE 1
 #define SECOND_INODE 2
 #define INODE_OFFSET 3

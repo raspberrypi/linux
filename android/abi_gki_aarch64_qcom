@@ -336,6 +336,7 @@
   devm_clk_get_optional_enabled
   devm_clk_hw_register
   devm_clk_register
+  devm_device_add_group
   devm_extcon_dev_allocate
   devm_extcon_dev_register
   devm_extcon_dev_unregister
@@ -749,6 +750,7 @@
   hrtimer_start_range_ns
   hrtimer_try_to_cancel
   hvc_alloc
+  hvc_instantiate
   hvc_kick
   hvc_poll
   hvc_remove
@@ -767,6 +769,8 @@
   i2c_get_dma_safe_msg_buf
   i2c_put_dma_safe_msg_buf
   i2c_register_driver
+  i2c_smbus_read_byte_data
+  i2c_smbus_write_byte_data
   i2c_transfer
   i3c_device_do_priv_xfers
   i3c_driver_register_with_owner
@@ -1916,6 +1920,7 @@
   trace_get_event_file
   trace_handle_return
   __traceiter_android_rvh_account_irq
+  __traceiter_android_rvh_before_do_sched_yield
   __traceiter_android_rvh_build_perf_domains
   __traceiter_android_rvh_can_migrate_task
   __traceiter_android_rvh_check_preempt_wakeup
@@ -2017,6 +2022,7 @@
   __traceiter_sk_data_ready
   __traceiter_suspend_resume
   __tracepoint_android_rvh_account_irq
+  __tracepoint_android_rvh_before_do_sched_yield
   __tracepoint_android_rvh_build_perf_domains
   __tracepoint_android_rvh_can_migrate_task
   __tracepoint_android_rvh_check_preempt_wakeup
