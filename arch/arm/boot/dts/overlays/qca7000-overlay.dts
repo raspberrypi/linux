@@ -29,7 +29,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&eth1_pins>;
 				interrupt-parent = <&gpio>;
-				interrupts = <23 0x1>; /* rising edge */
+				interrupts = <23 4>; // IRQ_TYPE_LEVEL_HIGH
 				spi-max-frequency = <12000000>;
 				status = "okay";
 			};
