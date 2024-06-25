@@ -8,10 +8,12 @@
 
 #include <linux/device.h>
 #include <linux/module.h>
+#ifndef __GENKSYMS__
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/property.h>
+#endif
+#include <linux/pm_runtime.h>
 #include <linux/serial_core.h>
 #include <linux/spinlock.h>
 
