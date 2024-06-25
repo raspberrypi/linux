@@ -507,6 +507,7 @@ vm_fault_t netfs_page_mkwrite(struct vm_fault *vmf, struct netfs_group *netfs_gr
 {
 	struct folio *folio = page_folio(vmf->page);
 	struct file *file = vmf->vma->vm_file;
+	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = file_inode(file);
 	vm_fault_t ret = VM_FAULT_RETRY;
 	int err;
@@ -520,6 +521,11 @@ vm_fault_t netfs_page_mkwrite(struct vm_fault *vmf, struct netfs_group *netfs_gr
 
 	if (folio_lock_killable(folio) < 0)
 		goto out;
+	if (folio->mapping != mapping) {
+		folio_unlock(folio);
+		ret = VM_FAULT_NOPAGE;
+		goto out;
+	}
 
 	/* Can we see a streaming write here? */
 	if (WARN_ON(!folio_test_uptodate(folio))) {
@@ -529,7 +535,7 @@ vm_fault_t netfs_page_mkwrite(struct vm_fault *vmf, struct netfs_group *netfs_gr
 
 	if (netfs_folio_group(folio) != netfs_group) {
 		folio_unlock(folio);
-		err = filemap_fdatawait_range(inode->i_mapping,
+		err = filemap_fdatawait_range(mapping,
 					      folio_pos(folio),
 					      folio_pos(folio) + folio_size(folio));
 		switch (err) {
