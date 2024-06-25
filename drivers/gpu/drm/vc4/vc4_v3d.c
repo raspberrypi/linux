@@ -472,9 +472,18 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_resume_and_get(dev);
+	ret = clk_prepare_enable(v3d->clk);
 	if (ret)
 		return ret;
+
+	/* Reset the binner overflow address/size at setup, to be sure
+	 * we don't reuse an old one.
+	 */
+	V3D_WRITE(V3D_BPOA, 0);
+	V3D_WRITE(V3D_BPOS, 0);
+
+	vc4_v3d_init_hw(drm);
+	vc4_irq_enable(&vc4->base);
 
 	if (V3D_READ(V3D_IDENT0) != V3D_EXPECTED_IDENT0) {
 		DRM_ERROR("V3D_IDENT0 read 0x%08x instead of 0x%08x\n",
@@ -482,12 +491,6 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 		ret = -EINVAL;
 		goto err_put_runtime_pm;
 	}
-
-	/* Reset the binner overflow address/size at setup, to be sure
-	 * we don't reuse an old one.
-	 */
-	V3D_WRITE(V3D_BPOA, 0);
-	V3D_WRITE(V3D_BPOS, 0);
 
 	ret = vc4_irq_install(drm, vc4->irq);
 	if (ret) {
