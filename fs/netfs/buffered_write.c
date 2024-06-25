@@ -811,7 +811,7 @@ static void netfs_extend_writeback(struct address_space *mapping,
 				break;
 			}
 
-			if (!folio_try_get_rcu(folio)) {
+			if (!folio_try_get(folio)) {
 				xas_reset(xas);
 				continue;
 			}
@@ -1028,7 +1028,7 @@ search_again:
 		if (!folio)
 			break;
 
-		if (!folio_try_get_rcu(folio)) {
+		if (!folio_try_get(folio)) {
 			xas_reset(xas);
 			continue;
 		}
