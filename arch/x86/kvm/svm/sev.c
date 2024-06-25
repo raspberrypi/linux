@@ -664,6 +664,14 @@ static int __sev_launch_update_vmsa(struct kvm *kvm, struct kvm_vcpu *vcpu,
 	  return ret;
 
 	vcpu->arch.guest_state_protected = true;
+
+	/*
+	 * SEV-ES guest mandates LBR Virtualization to be _always_ ON. Enable it
+	 * only after setting guest_state_protected because KVM_SET_MSRS allows
+	 * dynamic toggling of LBRV (for performance reason) on write access to
+	 * MSR_IA32_DEBUGCTLMSR when guest_state_protected is not set.
+	 */
+	svm_enable_lbrv(vcpu);
 	return 0;
 }
 
@@ -2264,6 +2272,12 @@ void __init sev_hardware_setup(void)
 	if (!boot_cpu_has(X86_FEATURE_SEV_ES))
 		goto out;
 
+	if (!lbrv) {
+		WARN_ONCE(!boot_cpu_has(X86_FEATURE_LBRV),
+			  "LBRV must be present for SEV-ES support");
+		goto out;
+	}
+
 	/* Has the system been allocated ASIDs for SEV-ES? */
 	if (min_sev_asid == 1)
 		goto out;
@@ -2988,6 +3002,25 @@ static void sev_es_vcpu_after_set_cpuid(struct vcpu_svm *svm)
 
 		set_msr_interception(vcpu, svm->msrpm, MSR_TSC_AUX, v_tsc_aux, v_tsc_aux);
 	}
+
+	/*
+	 * For SEV-ES, accesses to MSR_IA32_XSS should not be intercepted if
+	 * the host/guest supports its use.
+	 *
+	 * guest_can_use() checks a number of requirements on the host/guest to
+	 * ensure that MSR_IA32_XSS is available, but it might report true even
+	 * if X86_FEATURE_XSAVES isn't configured in the guest to ensure host
+	 * MSR_IA32_XSS is always properly restored. For SEV-ES, it is better
+	 * to further check that the guest CPUID actually supports
+	 * X86_FEATURE_XSAVES so that accesses to MSR_IA32_XSS by misbehaved
+	 * guests will still get intercepted and caught in the normal
+	 * kvm_emulate_rdmsr()/kvm_emulated_wrmsr() paths.
+	 */
+	if (guest_can_use(vcpu, X86_FEATURE_XSAVES) &&
+	    guest_cpuid_has(vcpu, X86_FEATURE_XSAVES))
+		set_msr_interception(vcpu, svm->msrpm, MSR_IA32_XSS, 1, 1);
+	else
+		set_msr_interception(vcpu, svm->msrpm, MSR_IA32_XSS, 0, 0);
 }
 
 void sev_vcpu_after_set_cpuid(struct vcpu_svm *svm)
@@ -3010,7 +3043,6 @@ static void sev_es_init_vmcb(struct vcpu_svm *svm)
 	struct kvm_vcpu *vcpu = &svm->vcpu;
 
 	svm->vmcb->control.nested_ctl |= SVM_NESTED_CTL_SEV_ES_ENABLE;
-	svm->vmcb->control.virt_ext |= LBR_CTL_ENABLE_MASK;
 
 	/*
 	 * An SEV-ES guest requires a VMSA area that is a separate from the
@@ -3062,10 +3094,6 @@ static void sev_es_init_vmcb(struct vcpu_svm *svm)
 	/* Clear intercepts on selected MSRs */
 	set_msr_interception(vcpu, svm->msrpm, MSR_EFER, 1, 1);
 	set_msr_interception(vcpu, svm->msrpm, MSR_IA32_CR_PAT, 1, 1);
-	set_msr_interception(vcpu, svm->msrpm, MSR_IA32_LASTBRANCHFROMIP, 1, 1);
-	set_msr_interception(vcpu, svm->msrpm, MSR_IA32_LASTBRANCHTOIP, 1, 1);
-	set_msr_interception(vcpu, svm->msrpm, MSR_IA32_LASTINTFROMIP, 1, 1);
-	set_msr_interception(vcpu, svm->msrpm, MSR_IA32_LASTINTTOIP, 1, 1);
 }
 
 void sev_init_vmcb(struct vcpu_svm *svm)
