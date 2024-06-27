@@ -299,6 +299,18 @@ config VIDEO_IMX477
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx477.
 
+config VIDEO_IMX500
+	tristate "Sony IMX500 sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_CCI_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX500 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called IMX500.
+
 config VIDEO_IMX519
 	tristate "Arducam IMX519 sensor support"
 	depends on I2C && VIDEO_DEV
