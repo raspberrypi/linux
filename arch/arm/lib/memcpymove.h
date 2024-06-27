@@ -27,111 +27,111 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 .macro unaligned_words  backwards, align, use_pld, words, r0, r1, r2, r3, r4, r5, r6, r7, r8
- .if words == 1
-  .if backwards
-        mov     r1, r0, lsl #32-align*8
+ .if \words == 1
+  .if \backwards
+        mov     \r1, \r0, lsl #32-\align*8
         ldr     r0, [S, #-4]!
-        orr     r1, r1, r0, lsr #align*8
-        str     r1, [D, #-4]!
+        orr     \r1, \r1, \r0, lsr #\align*8
+        str     \r1, [D, #-4]!
   .else
-        mov     r0, r1, lsr #align*8
-        ldr     r1, [S, #4]!
-        orr     r0, r0, r1, lsl #32-align*8
-        str     r0, [D], #4
+        mov     \r0, \r1, lsr #\align*8
+        ldr     \r1, [S, #4]!
+        orr     \r0, \r0, \r1, lsl #32-\align*8
+        str     \r0, [D], #4
   .endif
- .elseif words == 2
-  .if backwards
-        ldr     r1, [S, #-4]!
-        mov     r2, r0, lsl #32-align*8
-        ldr     r0, [S, #-4]!
-        orr     r2, r2, r1, lsr #align*8
-        mov     r1, r1, lsl #32-align*8
-        orr     r1, r1, r0, lsr #align*8
-        stmdb   D!, {r1, r2}
+ .elseif \words == 2
+  .if \backwards
+        ldr     \r1, [S, #-4]!
+        mov     \r2, \r0, lsl #32-\align*8
+        ldr     \r0, [S, #-4]!
+        orr     \r2, \r2, \r1, lsr #\align*8
+        mov     \r1, \r1, lsl #32-\align*8
+        orr     \r1, \r1, \r0, lsr #\align*8
+        stmdb   D!, {\r1, \r2}
   .else
-        ldr     r1, [S, #4]!
-        mov     r0, r2, lsr #align*8
-        ldr     r2, [S, #4]!
-        orr     r0, r0, r1, lsl #32-align*8
-        mov     r1, r1, lsr #align*8
-        orr     r1, r1, r2, lsl #32-align*8
-        stmia   D!, {r0, r1}
+        ldr     \r1, [S, #4]!
+        mov     \r0, \r2, lsr #\align*8
+        ldr     \r2, [S, #4]!
+        orr     \r0, \r0, \r1, lsl #32-\align*8
+        mov     \r1, \r1, lsr #\align*8
+        orr     \r1, \r1, \r2, lsl #32-\align*8
+        stmia   D!, {\r0, \r1}
   .endif
- .elseif words == 4
-  .if backwards
-        ldmdb   S!, {r2, r3}
-        mov     r4, r0, lsl #32-align*8
-        ldmdb   S!, {r0, r1}
-        orr     r4, r4, r3, lsr #align*8
-        mov     r3, r3, lsl #32-align*8
-        orr     r3, r3, r2, lsr #align*8
-        mov     r2, r2, lsl #32-align*8
-        orr     r2, r2, r1, lsr #align*8
-        mov     r1, r1, lsl #32-align*8
-        orr     r1, r1, r0, lsr #align*8
-        stmdb   D!, {r1, r2, r3, r4}
+ .elseif \words == 4
+  .if \backwards
+        ldmdb   S!, {\r2, \r3}
+        mov     \r4, \r0, lsl #32-\align*8
+        ldmdb   S!, {\r0, \r1}
+        orr     \r4, \r4, \r3, lsr #\align*8
+        mov     \r3, \r3, lsl #32-\align*8
+        orr     \r3, \r3, \r2, lsr #\align*8
+        mov     \r2, \r2, lsl #32-\align*8
+        orr     \r2, \r2, \r1, lsr #\align*8
+        mov     \r1, \r1, lsl #32-\align*8
+        orr     \r1, \r1, \r0, lsr #\align*8
+        stmdb   D!, {\r1, \r2, \r3, \r4}
   .else
-        ldmib   S!, {r1, r2}
-        mov     r0, r4, lsr #align*8
-        ldmib   S!, {r3, r4}
-        orr     r0, r0, r1, lsl #32-align*8
-        mov     r1, r1, lsr #align*8
-        orr     r1, r1, r2, lsl #32-align*8
-        mov     r2, r2, lsr #align*8
-        orr     r2, r2, r3, lsl #32-align*8
-        mov     r3, r3, lsr #align*8
-        orr     r3, r3, r4, lsl #32-align*8
-        stmia   D!, {r0, r1, r2, r3}
+        ldmib   S!, {\r1, \r2}
+        mov     \r0, \r4, lsr #\align*8
+        ldmib   S!, {\r3, \r4}
+        orr     \r0, \r0, \r1, lsl #32-\align*8
+        mov     \r1, \r1, lsr #\align*8
+        orr     \r1, \r1, \r2, lsl #32-\align*8
+        mov     \r2, \r2, lsr #\align*8
+        orr     \r2, \r2, \r3, lsl #32-\align*8
+        mov     \r3, \r3, lsr #\align*8
+        orr     \r3, \r3, \r4, lsl #32-\align*8
+        stmia   D!, {\r0, \r1, \r2, \r3}
   .endif
- .elseif words == 8
-  .if backwards
-        ldmdb   S!, {r4, r5, r6, r7}
-        mov     r8, r0, lsl #32-align*8
-        ldmdb   S!, {r0, r1, r2, r3}
-   .if use_pld
+ .elseif \words == 8
+  .if \backwards
+        ldmdb   S!, {\r4, \r5, \r6, \r7}
+        mov     \r8, \r0, lsl #32-\align*8
+        ldmdb   S!, {\r0, \r1, \r2, \r3}
+   .if \use_pld
         pld     [S, OFF]
    .endif
-        orr     r8, r8, r7, lsr #align*8
-        mov     r7, r7, lsl #32-align*8
-        orr     r7, r7, r6, lsr #align*8
-        mov     r6, r6, lsl #32-align*8
-        orr     r6, r6, r5, lsr #align*8
-        mov     r5, r5, lsl #32-align*8
-        orr     r5, r5, r4, lsr #align*8
-        mov     r4, r4, lsl #32-align*8
-        orr     r4, r4, r3, lsr #align*8
-        mov     r3, r3, lsl #32-align*8
-        orr     r3, r3, r2, lsr #align*8
-        mov     r2, r2, lsl #32-align*8
-        orr     r2, r2, r1, lsr #align*8
-        mov     r1, r1, lsl #32-align*8
-        orr     r1, r1, r0, lsr #align*8
-        stmdb   D!, {r5, r6, r7, r8}
-        stmdb   D!, {r1, r2, r3, r4}
+        orr     \r8, \r8, \r7, lsr #\align*8
+        mov     \r7, \r7, lsl #32-\align*8
+        orr     \r7, \r7, \r6, lsr #\align*8
+        mov     \r6, \r6, lsl #32-\align*8
+        orr     \r6, \r6, \r5, lsr #\align*8
+        mov     \r5, \r5, lsl #32-\align*8
+        orr     \r5, \r5, \r4, lsr #\align*8
+        mov     \r4, \r4, lsl #32-\align*8
+        orr     \r4, \r4, \r3, lsr #\align*8
+        mov     \r3, \r3, lsl #32-\align*8
+        orr     \r3, \r3, \r2, lsr #\align*8
+        mov     \r2, \r2, lsl #32-\align*8
+        orr     \r2, \r2, \r1, lsr #\align*8
+        mov     \r1, \r1, lsl #32-\align*8
+        orr     \r1, \r1, \r0, lsr #\align*8
+        stmdb   D!, {\r5, \r6, \r7, \r8}
+        stmdb   D!, {\r1, \r2, \r3, \r4}
   .else
-        ldmib   S!, {r1, r2, r3, r4}
-        mov     r0, r8, lsr #align*8
-        ldmib   S!, {r5, r6, r7, r8}
-   .if use_pld
+        ldmib   S!, {\r1, \r2, \r3, \r4}
+        mov     \r0, \r8, lsr #\align*8
+        ldmib   S!, {\r5, \r6, \r7, \r8}
+   .if \use_pld
         pld     [S, OFF]
    .endif
-        orr     r0, r0, r1, lsl #32-align*8
-        mov     r1, r1, lsr #align*8
-        orr     r1, r1, r2, lsl #32-align*8
-        mov     r2, r2, lsr #align*8
-        orr     r2, r2, r3, lsl #32-align*8
-        mov     r3, r3, lsr #align*8
-        orr     r3, r3, r4, lsl #32-align*8
-        mov     r4, r4, lsr #align*8
-        orr     r4, r4, r5, lsl #32-align*8
-        mov     r5, r5, lsr #align*8
-        orr     r5, r5, r6, lsl #32-align*8
-        mov     r6, r6, lsr #align*8
-        orr     r6, r6, r7, lsl #32-align*8
-        mov     r7, r7, lsr #align*8
-        orr     r7, r7, r8, lsl #32-align*8
-        stmia   D!, {r0, r1, r2, r3}
-        stmia   D!, {r4, r5, r6, r7}
+        orr     \r0, \r0, \r1, lsl #32-\align*8
+        mov     \r1, \r1, lsr #\align*8
+        orr     \r1, \r1, \r2, lsl #32-\align*8
+        mov     \r2, \r2, lsr #\align*8
+        orr     \r2, \r2, \r3, lsl #32-\align*8
+        mov     \r3, \r3, lsr #\align*8
+        orr     \r3, \r3, \r4, lsl #32-\align*8
+        mov     \r4, \r4, lsr #\align*8
+        orr     \r4, \r4, \r5, lsl #32-\align*8
+        mov     \r5, \r5, lsr #\align*8
+        orr     \r5, \r5, \r6, lsl #32-\align*8
+        mov     \r6, \r6, lsr #\align*8
+        orr     \r6, \r6, \r7, lsl #32-\align*8
+        mov     \r7, \r7, lsr #\align*8
+        orr     \r7, \r7, \r8, lsl #32-\align*8
+        stmia   D!, {\r0, \r1, \r2, \r3}
+        stmia   D!, {\r4, \r5, \r6, \r7}
   .endif
  .endif
 .endm
@@ -139,89 +139,89 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .macro memcpy_leading_15bytes  backwards, align
         movs    DAT1, DAT2, lsl #31
         sub     N, N, DAT2
- .if backwards
-        ldrmib  DAT0, [S, #-1]!
-        ldrcsh  DAT1, [S, #-2]!
-        strmib  DAT0, [D, #-1]!
-        strcsh  DAT1, [D, #-2]!
+ .if \backwards
+        ldrbmi  DAT0, [S, #-1]!
+        ldrhcs  DAT1, [S, #-2]!
+        strbmi  DAT0, [D, #-1]!
+        strhcs  DAT1, [D, #-2]!
  .else
-        ldrmib  DAT0, [S], #1
-        ldrcsh  DAT1, [S], #2
-        strmib  DAT0, [D], #1
-        strcsh  DAT1, [D], #2
+        ldrbmi  DAT0, [S], #1
+        ldrhcs  DAT1, [S], #2
+        strbmi  DAT0, [D], #1
+        strhcs  DAT1, [D], #2
  .endif
         movs    DAT1, DAT2, lsl #29
- .if backwards
+ .if \backwards
         ldrmi   DAT0, [S, #-4]!
-  .if align == 0
+  .if \align == 0
         ldmcsdb S!, {DAT1, DAT2}
   .else
         ldrcs   DAT2, [S, #-4]!
         ldrcs   DAT1, [S, #-4]!
   .endif
         strmi   DAT0, [D, #-4]!
-        stmcsdb D!, {DAT1, DAT2}
+        stmdbcs D!, {DAT1, DAT2}
  .else
         ldrmi   DAT0, [S], #4
-  .if align == 0
-        ldmcsia S!, {DAT1, DAT2}
+  .if \align == 0
+        ldmiacs S!, {DAT1, DAT2}
   .else
         ldrcs   DAT1, [S], #4
         ldrcs   DAT2, [S], #4
   .endif
         strmi   DAT0, [D], #4
-        stmcsia D!, {DAT1, DAT2}
+        stmiacs D!, {DAT1, DAT2}
  .endif
 .endm
 
 .macro memcpy_trailing_15bytes  backwards, align
         movs    N, N, lsl #29
- .if backwards
-  .if align == 0
-        ldmcsdb S!, {DAT0, DAT1}
+ .if \backwards
+  .if \align == 0
+        ldmdbcs S!, {DAT0, DAT1}
   .else
         ldrcs   DAT1, [S, #-4]!
         ldrcs   DAT0, [S, #-4]!
   .endif
         ldrmi   DAT2, [S, #-4]!
-        stmcsdb D!, {DAT0, DAT1}
+        stmdbcs D!, {DAT0, DAT1}
         strmi   DAT2, [D, #-4]!
  .else
-  .if align == 0
-        ldmcsia S!, {DAT0, DAT1}
+  .if \align == 0
+        ldmiacs S!, {DAT0, DAT1}
   .else
         ldrcs   DAT0, [S], #4
         ldrcs   DAT1, [S], #4
   .endif
         ldrmi   DAT2, [S], #4
-        stmcsia D!, {DAT0, DAT1}
+        stmiacs D!, {DAT0, DAT1}
         strmi   DAT2, [D], #4
  .endif
         movs    N, N, lsl #2
- .if backwards
-        ldrcsh  DAT0, [S, #-2]!
-        ldrmib  DAT1, [S, #-1]
-        strcsh  DAT0, [D, #-2]!
-        strmib  DAT1, [D, #-1]
+ .if \backwards
+        ldrhcs  DAT0, [S, #-2]!
+        ldrbmi  DAT1, [S, #-1]
+        strhcs  DAT0, [D, #-2]!
+        strbmi  DAT1, [D, #-1]
  .else
-        ldrcsh  DAT0, [S], #2
-        ldrmib  DAT1, [S]
-        strcsh  DAT0, [D], #2
-        strmib  DAT1, [D]
+        ldrhcs  DAT0, [S], #2
+        ldrbmi  DAT1, [S]
+        strhcs  DAT0, [D], #2
+        strbmi  DAT1, [D]
  .endif
 .endm
 
 .macro memcpy_long_inner_loop  backwards, align
- .if align != 0
-  .if backwards
-        ldr     DAT0, [S, #-align]!
+ .if \align != 0
+  .if \backwards
+        ldr     DAT0, [S, #-\align]!
   .else
-        ldr     LAST, [S, #-align]!
+        ldr     LAST, [S, #-\align]!
   .endif
  .endif
 110:
- .if align == 0
-  .if backwards
+ .if \align == 0
+  .if \backwards
         ldmdb   S!, {DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, LAST}
         pld     [S, OFF]
         stmdb   D!, {DAT4, DAT5, DAT6, LAST}
@@ -233,16 +233,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         stmia   D!, {DAT4, DAT5, DAT6, LAST}
   .endif
  .else
-        unaligned_words  backwards, align, 1, 8, DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, DAT7, LAST
+        unaligned_words  \backwards, \align, 1, 8, DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, DAT7, LAST
  .endif
         subs    N, N, #32
         bhs     110b
         /* Just before the final (prefetch_distance+1) 32-byte blocks, deal with final preloads */
-        preload_trailing  backwards, S, N, OFF
+        preload_trailing  \backwards, S, N, OFF
         add     N, N, #(prefetch_distance+2)*32 - 32
 120:
- .if align == 0
-  .if backwards
+ .if \align == 0
+  .if \backwards
         ldmdb   S!, {DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, LAST}
         stmdb   D!, {DAT4, DAT5, DAT6, LAST}
         stmdb   D!, {DAT0, DAT1, DAT2, DAT3}
@@ -252,31 +252,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         stmia   D!, {DAT4, DAT5, DAT6, LAST}
   .endif
  .else
-        unaligned_words  backwards, align, 0, 8, DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, DAT7, LAST
+        unaligned_words  \backwards, \align, 0, 8, DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, DAT7, LAST
  .endif
         subs    N, N, #32
         bhs     120b
         tst     N, #16
- .if align == 0
-  .if backwards
-        ldmnedb S!, {DAT0, DAT1, DAT2, LAST}
-        stmnedb D!, {DAT0, DAT1, DAT2, LAST}
+ .if \align == 0
+  .if \backwards
+        ldmdbne S!, {DAT0, DAT1, DAT2, LAST}
+        stmdbne D!, {DAT0, DAT1, DAT2, LAST}
   .else
-        ldmneia S!, {DAT0, DAT1, DAT2, LAST}
-        stmneia D!, {DAT0, DAT1, DAT2, LAST}
+        ldmiane S!, {DAT0, DAT1, DAT2, LAST}
+        stmiane D!, {DAT0, DAT1, DAT2, LAST}
   .endif
  .else
         beq     130f
-        unaligned_words  backwards, align, 0, 4, DAT0, DAT1, DAT2, DAT3, LAST
+        unaligned_words  \backwards, \align, 0, 4, DAT0, DAT1, DAT2, DAT3, LAST
 130:
  .endif
         /* Trailing words and bytes */
         tst      N, #15
         beq      199f
- .if align != 0
-        add     S, S, #align
+ .if \align != 0
+        add     S, S, #\align
  .endif
-        memcpy_trailing_15bytes  backwards, align
+        memcpy_trailing_15bytes  \backwards, \align
 199:
         pop     {DAT3, DAT4, DAT5, DAT6, DAT7}
         pop     {D, DAT1, DAT2, pc}
@@ -284,8 +284,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 .macro memcpy_medium_inner_loop  backwards, align
 120:
- .if backwards
-  .if align == 0
+ .if \backwards
+  .if \align == 0
         ldmdb   S!, {DAT0, DAT1, DAT2, LAST}
   .else
         ldr     LAST, [S, #-4]!
@@ -295,7 +295,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   .endif
         stmdb   D!, {DAT0, DAT1, DAT2, LAST}
  .else
-  .if align == 0
+  .if \align == 0
         ldmia   S!, {DAT0, DAT1, DAT2, LAST}
   .else
         ldr     DAT0, [S], #4
@@ -310,35 +310,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         /* Trailing words and bytes */
         tst      N, #15
         beq      199f
-        memcpy_trailing_15bytes  backwards, align
+        memcpy_trailing_15bytes  \backwards, \align
 199:
         pop     {D, DAT1, DAT2, pc}
 .endm
 
 .macro memcpy_short_inner_loop  backwards, align
         tst     N, #16
- .if backwards
-  .if align == 0
-        ldmnedb S!, {DAT0, DAT1, DAT2, LAST}
+ .if \backwards
+  .if \align == 0
+        ldmdbne S!, {DAT0, DAT1, DAT2, LAST}
   .else
         ldrne   LAST, [S, #-4]!
         ldrne   DAT2, [S, #-4]!
         ldrne   DAT1, [S, #-4]!
         ldrne   DAT0, [S, #-4]!
   .endif
-        stmnedb D!, {DAT0, DAT1, DAT2, LAST}
+        stmdbne D!, {DAT0, DAT1, DAT2, LAST}
  .else
-  .if align == 0
-        ldmneia S!, {DAT0, DAT1, DAT2, LAST}
+  .if \align == 0
+        ldmiane S!, {DAT0, DAT1, DAT2, LAST}
   .else
         ldrne   DAT0, [S], #4
         ldrne   DAT1, [S], #4
         ldrne   DAT2, [S], #4
         ldrne   LAST, [S], #4
   .endif
-        stmneia D!, {DAT0, DAT1, DAT2, LAST}
+        stmiane D!, {DAT0, DAT1, DAT2, LAST}
  .endif
-        memcpy_trailing_15bytes  backwards, align
+        memcpy_trailing_15bytes  \backwards, \align
 199:
         pop     {D, DAT1, DAT2, pc}
 .endm
@@ -366,7 +366,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         UNWIND( .fnstart )
         UNWIND( .save {D, DAT1, DAT2, lr} )
 
- .if backwards
+ .if \backwards
         add     D, D, N
         add     S, S, N
  .endif
@@ -390,8 +390,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
          * inner loop termination. We want it to stop when there are
          * (prefetch_distance+1) complete blocks to go. */
         sub     N, N, #(prefetch_distance+2)*32
-        preload_leading_step1  backwards, DAT0, S
- .if backwards
+        preload_leading_step1  \backwards, DAT0, S
+ .if \backwards
         /* Bug in GAS: it accepts, but mis-assembles the instruction
          * ands    DAT2, D, #60, 2
          * which sets DAT2 to the number of leading bytes until destination is aligned and also clears C (sets borrow)
@@ -403,11 +403,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         beq     154f
         rsb     DAT2, DAT2, #16 /* number of leading bytes until destination aligned */
  .endif
-        preload_leading_step2  backwards, DAT0, S, DAT2, OFF
-        memcpy_leading_15bytes backwards, 1
+        preload_leading_step2  \backwards, DAT0, S, DAT2, OFF
+        memcpy_leading_15bytes \backwards, 1
 154:    /* Destination now 16-byte aligned; we have at least one prefetch as well as at least one 16-byte output block */
         /* Prefetch offset is best selected such that it lies in the first 8 of each 32 bytes - but it's just as easy to aim for the first one */
- .if backwards
+ .if \backwards
         rsb     OFF, S, #3
         and     OFF, OFF, #28
         sub     OFF, OFF, #32*(prefetch_distance+1)
@@ -419,10 +419,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         bhi     157f
         bcs     156f
         bmi     155f
-        memcpy_long_inner_loop  backwards, 0
-155:    memcpy_long_inner_loop  backwards, 1
-156:    memcpy_long_inner_loop  backwards, 2
-157:    memcpy_long_inner_loop  backwards, 3
+        memcpy_long_inner_loop  \backwards, 0
+155:    memcpy_long_inner_loop  \backwards, 1
+156:    memcpy_long_inner_loop  \backwards, 2
+157:    memcpy_long_inner_loop  \backwards, 3
 
         UNWIND( .fnend )
 
@@ -430,9 +430,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         UNWIND( .save {D, DAT1, DAT2, lr} )
 
 160:    /* Medium case */
-        preload_all  backwards, 0, 0, S, N, DAT2, OFF
+        preload_all  \backwards, 0, 0, S, N, DAT2, OFF
         sub     N, N, #16     /* simplifies inner loop termination */
- .if backwards
+ .if \backwards
         ands    DAT2, D, #15
         beq     164f
  .else
@@ -440,22 +440,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         beq     164f
         rsb     DAT2, DAT2, #16
  .endif
-        memcpy_leading_15bytes backwards, align
+        memcpy_leading_15bytes \backwards, 1
 164:    /* Destination now 16-byte aligned; we have at least one 16-byte output block */
         tst     S, #3
         bne     140f
-        memcpy_medium_inner_loop  backwards, 0
-140:    memcpy_medium_inner_loop  backwards, 1
+        memcpy_medium_inner_loop  \backwards, 0
+140:    memcpy_medium_inner_loop  \backwards, 1
 
 170:    /* Short case, less than 31 bytes, so no guarantee of at least one 16-byte block */
         teq     N, #0
         beq     199f
-        preload_all  backwards, 1, 0, S, N, DAT2, LAST
+        preload_all  \backwards, 1, 0, S, N, DAT2, LAST
         tst     D, #3
         beq     174f
 172:    subs    N, N, #1
         blo     199f
- .if backwards
+ .if \backwards
         ldrb    DAT0, [S, #-1]!
         strb    DAT0, [D, #-1]!
  .else
@@ -467,8 +467,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 174:    /* Destination now 4-byte aligned; we have 0 or more output bytes to go */
         tst     S, #3
         bne     140f
-        memcpy_short_inner_loop  backwards, 0
-140:    memcpy_short_inner_loop  backwards, 1
+        memcpy_short_inner_loop  \backwards, 0
+140:    memcpy_short_inner_loop  \backwards, 1
 
         UNWIND( .fnend )
 
