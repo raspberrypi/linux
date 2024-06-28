@@ -398,15 +398,6 @@ struct pisp_be_hog_buffer_config {
 };
 
 struct pisp_be_config {
-	/* I/O configuration: */
-	struct pisp_be_input_buffer_config input_buffer;
-	struct pisp_be_tdn_input_buffer_config tdn_input_buffer;
-	struct pisp_be_stitch_input_buffer_config stitch_input_buffer;
-	struct pisp_be_tdn_output_buffer_config tdn_output_buffer;
-	struct pisp_be_stitch_output_buffer_config stitch_output_buffer;
-	struct pisp_be_output_buffer_config
-				output_buffer[PISP_BACK_END_NUM_OUTPUTS];
-	struct pisp_be_hog_buffer_config hog_buffer;
 	/* Processing configuration: */
 	struct pisp_be_global_config global;
 	struct pisp_image_format_config input_format;
@@ -446,18 +437,6 @@ struct pisp_be_config {
 	struct pisp_be_output_format_config
 				output_format[PISP_BACK_END_NUM_OUTPUTS];
 	struct pisp_be_hog_config hog;
-	struct pisp_be_axi_config axi;
-	/* Non-register fields: */
-	struct pisp_be_lsc_extra lsc_extra;
-	struct pisp_be_cac_extra cac_extra;
-	struct pisp_be_downscale_extra
-				downscale_extra[PISP_BACK_END_NUM_OUTPUTS];
-	struct pisp_be_resample_extra resample_extra[PISP_BACK_END_NUM_OUTPUTS];
-	struct pisp_be_crop_config crop;
-	struct pisp_image_format_config hog_format;
-	u32 dirty_flags_bayer; /* these use pisp_be_bayer_enable */
-	u32 dirty_flags_rgb; /* use pisp_be_rgb_enable */
-	u32 dirty_flags_extra; /* these use pisp_be_dirty_t */
 };
 
 /*
@@ -525,9 +504,9 @@ struct pisp_tile {
 static_assert(sizeof(struct pisp_tile) == 160);
 
 struct pisp_be_tiles_config {
-	struct pisp_be_config config;
 	struct pisp_tile tiles[PISP_BACK_END_NUM_TILES];
 	int num_tiles;
+	struct pisp_be_config config;
 };
 
 #endif /* _PISP_BE_CONFIG_H_ */
