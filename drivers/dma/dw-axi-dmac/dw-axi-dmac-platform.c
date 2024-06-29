@@ -352,7 +352,7 @@ static struct axi_dma_lli *axi_desc_get(struct axi_dma_chan *chan,
 static void axi_desc_put(struct axi_dma_desc *desc)
 {
 	struct axi_dma_chan *chan = desc->chan;
-	u32 count = desc->hw_desc_count;
+	int count = desc->nr_hw_descs;
 	struct axi_dma_hw_desc *hw_desc;
 	int descs_put;
 
@@ -896,7 +896,7 @@ dw_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 		src_addr += segment_len;
 	}
 
-	desc->hw_desc_count = total_segments;
+	desc->nr_hw_descs = total_segments;
 
 	llp = desc->hw_desc[0].llp;
 
@@ -980,7 +980,7 @@ dw_axi_dma_chan_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 		} while (len >= segment_len);
 	}
 
-	desc->hw_desc_count = loop;
+	desc->nr_hw_descs = loop;
 
 	/* Set end-of-link to the last link descriptor of list */
 	set_desc_last(&desc->hw_desc[num_sgs - 1]);
@@ -1089,7 +1089,7 @@ dma_chan_prep_dma_memcpy(struct dma_chan *dchan, dma_addr_t dst_adr,
 		num++;
 	}
 
-	desc->hw_desc_count = num;
+	desc->nr_hw_descs = num;
 
 	/* Set end-of-link to the last link descriptor of list */
 	set_desc_last(&desc->hw_desc[num - 1]);
@@ -1139,7 +1139,7 @@ static void axi_chan_dump_lli(struct axi_dma_chan *chan,
 static void axi_chan_list_dump_lli(struct axi_dma_chan *chan,
 				   struct axi_dma_desc *desc_head)
 {
-	u32 count = desc_head->hw_desc_count;
+	int count = desc_head->nr_hw_descs;
 	int i;
 
 	for (i = 0; i < count; i++)
@@ -1186,7 +1186,7 @@ static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
 	struct axi_dma_desc *desc;
 	struct virt_dma_desc *vd;
 	unsigned long flags;
-	u32 count;
+	int count;
 	u64 llp;
 	int i;
 
@@ -1208,7 +1208,7 @@ static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
 	if (chan->cyclic) {
 		desc = vd_to_axi_desc(vd);
 		if (desc) {
-			count = desc->hw_desc_count;
+			count = desc->nr_hw_descs;
 			llp = lo_hi_readq(chan->chan_regs + CH_LLP);
 			for (i = 0; i < count; i++) {
 				hw_desc = &desc->hw_desc[i];
