@@ -6,6 +6,7 @@
  */
 
 #include <linux/completion.h>
+#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
 #include <linux/irqreturn.h>
@@ -470,13 +471,12 @@ static int dw_spi_dma_setup(struct dw_spi *dws, struct spi_transfer *xfer)
 	u16 imr, dma_ctrl;
 	int ret;
 
-	if (!xfer->tx_buf)
-		return -EINVAL;
-
 	/* Setup DMA channels */
-	ret = dw_spi_dma_config_tx(dws);
-	if (ret)
-		return ret;
+	if (xfer->tx_buf) {
+		ret = dw_spi_dma_config_tx(dws);
+		if (ret)
+			return ret;
+	}
 
 	if (xfer->rx_buf) {
 		ret = dw_spi_dma_config_rx(dws);
@@ -485,13 +485,17 @@ static int dw_spi_dma_setup(struct dw_spi *dws, struct spi_transfer *xfer)
 	}
 
 	/* Set the DMA handshaking interface */
-	dma_ctrl = DW_SPI_DMACR_TDMAE;
+	dma_ctrl = 0;
+	if (xfer->tx_buf)
+		dma_ctrl |= DW_SPI_DMACR_TDMAE;
 	if (xfer->rx_buf)
 		dma_ctrl |= DW_SPI_DMACR_RDMAE;
 	dw_writel(dws, DW_SPI_DMACR, dma_ctrl);
 
 	/* Set the interrupt mask */
-	imr = DW_SPI_INT_TXOI;
+	imr = 0;
+	if (xfer->tx_buf)
+		imr |= DW_SPI_INT_TXOI;
 	if (xfer->rx_buf)
 		imr |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI;
 	dw_spi_umask_intr(dws, imr);
@@ -508,15 +512,16 @@ static int dw_spi_dma_transfer_all(struct dw_spi *dws,
 {
 	int ret;
 
-	/* Submit the DMA Tx transfer */
-	ret = dw_spi_dma_submit_tx(dws, xfer->tx_sg.sgl, xfer->tx_sg.nents);
-	if (ret)
-		goto err_clear_dmac;
+	/* Submit the DMA Tx transfer if required */
+	if (xfer->tx_buf) {
+		ret = dw_spi_dma_submit_tx(dws, xfer->tx_sg.sgl, xfer->tx_sg.nents);
+		if (ret)
+			goto err_clear_dmac;
+	}
 
 	/* Submit the DMA Rx transfer if required */
 	if (xfer->rx_buf) {
-		ret = dw_spi_dma_submit_rx(dws, xfer->rx_sg.sgl,
-					   xfer->rx_sg.nents);
+		ret = dw_spi_dma_submit_rx(dws, xfer->rx_sg.sgl, xfer->rx_sg.nents);
 		if (ret)
 			goto err_clear_dmac;
 
@@ -524,7 +529,15 @@ static int dw_spi_dma_transfer_all(struct dw_spi *dws,
 		dma_async_issue_pending(dws->rxchan);
 	}
 
-	dma_async_issue_pending(dws->txchan);
+	if (xfer->tx_buf) {
+		dma_async_issue_pending(dws->txchan);
+	} else {
+		/* Pause to allow DMA channel to fetch RX descriptor */
+		usleep_range(5, 10);
+
+		/* Write something to the TX FIFO to start the transfer */
+		dw_writel(dws, DW_SPI_DR, 0);
+	}
 
 	ret = dw_spi_dma_wait(dws, xfer->len, xfer->effective_speed_hz);
 
