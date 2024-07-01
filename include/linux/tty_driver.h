@@ -381,7 +381,6 @@ struct tty_operations {
 	void (*hangup)(struct tty_struct *tty);
 	int (*break_ctl)(struct tty_struct *tty, int state);
 	void (*flush_buffer)(struct tty_struct *tty);
-	int (*ldisc_ok)(struct tty_struct *tty, int ldisc);
 	void (*set_ldisc)(struct tty_struct *tty);
 	void (*wait_until_sent)(struct tty_struct *tty, int timeout);
 	void (*send_xchar)(struct tty_struct *tty, char ch);
@@ -401,7 +400,7 @@ struct tty_operations {
 #endif
 	int (*proc_show)(struct seq_file *m, void *driver);
 
-	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_USE(1, int (*ldisc_ok)(struct tty_struct *tty, int ldisc));
 	ANDROID_KABI_RESERVE(2);
 } __randomize_layout;
 
