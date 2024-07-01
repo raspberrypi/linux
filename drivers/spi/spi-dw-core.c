@@ -427,6 +427,7 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 		.dfs = transfer->bits_per_word,
 		.freq = transfer->speed_hz,
 	};
+	int buswidth;
 	int ret;
 
 	dws->dma_mapped = 0;
@@ -443,6 +444,20 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 		dws->rx_len = 0;
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
 	}
+
+	if (!dws->rx) {
+		dws->rx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
+	}
+	//if (!dws->tx) {
+	//	dws->tx_len = 0;
+	//	cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
+	//	cfg.ndf = dws->rx_len;
+	//}
+	buswidth = transfer->rx_buf ? transfer->rx_nbits :
+		  (transfer->tx_buf ? transfer->tx_nbits : 1);
+	if (buswidth != 1 && cfg.tmode == DW_SPI_CTRLR0_TMOD_TR)
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
 
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
