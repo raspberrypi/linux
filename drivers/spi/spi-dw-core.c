@@ -211,6 +211,32 @@ int dw_spi_check_status(struct dw_spi *dws, bool raw)
 }
 EXPORT_SYMBOL_NS_GPL(dw_spi_check_status, "SPI_DW_CORE");
 
+static inline bool dw_spi_ctlr_busy(struct dw_spi *dws)
+{
+	return dw_readl(dws, DW_SPI_SR) & DW_SPI_SR_BUSY;
+}
+
+static enum hrtimer_restart dw_spi_hrtimer_handler(struct hrtimer *hr)
+{
+	struct dw_spi *dws = container_of(hr, struct dw_spi, hrtimer);
+
+	if (!dw_spi_ctlr_busy(dws)) {
+		spi_finalize_current_transfer(dws->ctlr);
+		return HRTIMER_NORESTART;
+	}
+
+	if (!dws->idle_wait_retries) {
+		dev_err(&dws->ctlr->dev, "controller stuck at busy\n");
+		spi_finalize_current_transfer(dws->ctlr);
+		return HRTIMER_NORESTART;
+	}
+
+	dws->idle_wait_retries--;
+	hrtimer_forward_now(hr, dws->idle_wait_interval);
+
+	return HRTIMER_RESTART;
+}
+
 static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 {
 	u16 irq_status = dw_readl(dws, DW_SPI_ISR);
@@ -227,12 +253,32 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 * final stage of the transfer. By doing so we'll get the next IRQ
 	 * right when the leftover incoming data is received.
 	 */
-	dw_reader(dws);
-	if (!dws->rx_len) {
-		dw_spi_mask_intr(dws, 0xff);
-		spi_finalize_current_transfer(dws->ctlr);
-	} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
-		dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
+	if (dws->rx_len) {
+		dw_reader(dws);
+		if (!dws->rx_len) {
+			dw_spi_mask_intr(dws, 0xff);
+			spi_finalize_current_transfer(dws->ctlr);
+		} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
+			dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
+		}
+	} else if (!dws->tx_len) {
+		dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
+		if (dw_spi_ctlr_busy(dws)) {
+			ktime_t period = ns_to_ktime(DIV_ROUND_UP(NSEC_PER_SEC, dws->current_freq));
+
+			/*
+			 * Make the initial wait an underestimate of how long the transfer
+			 * should take, then poll rapidly to reduce the delay
+			 */
+			hrtimer_start(&dws->hrtimer,
+				      period * (8 * dws->n_bytes - 1),
+				      HRTIMER_MODE_REL);
+			dws->idle_wait_retries = 10;
+			dws->idle_wait_interval = period;
+		} else {
+			spi_finalize_current_transfer(dws->ctlr);
+		}
+		return IRQ_HANDLED;
 	}
 
 	/*
@@ -243,9 +289,10 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	if (irq_status & DW_SPI_INT_TXEI) {
 		dw_writer(dws);
 		if (!dws->tx_len) {
-			dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
-			if (!dws->rx_len)
-				spi_finalize_current_transfer(dws->ctlr);
+			if (dws->rx_len)
+				dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
+			else
+				dw_writel(dws, DW_SPI_TXFTLR, 0);
 		}
 	}
 
@@ -415,7 +462,7 @@ static int dw_spi_poll_transfer(struct dw_spi *dws,
 		ret = dw_spi_check_status(dws, true);
 		if (ret)
 			return ret;
-	} while (dws->rx_len);
+	} while (dws->rx_len || dws->tx_len || dw_spi_ctlr_busy(dws));
 
 	return 0;
 }
@@ -438,6 +485,11 @@ static int dw_spi_transfer_one(struct spi_controller *ctlr,
 	dws->tx_len = transfer->len / dws->n_bytes;
 	dws->rx = transfer->rx_buf;
 	dws->rx_len = dws->tx_len;
+
+	if (!dws->rx) {
+		dws->rx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
+	}
 
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
@@ -629,11 +681,6 @@ static int dw_spi_write_then_read(struct dw_spi *dws, struct spi_device *spi)
 	}
 
 	return 0;
-}
-
-static inline bool dw_spi_ctlr_busy(struct dw_spi *dws)
-{
-	return dw_readl(dws, DW_SPI_SR) & DW_SPI_SR_BUSY;
 }
 
 static int dw_spi_wait_mem_op_done(struct dw_spi *dws)
@@ -1008,6 +1055,8 @@ int dw_spi_add_controller(struct device *dev, struct dw_spi *dws)
 		}
 	}
 
+	hrtimer_setup(&dws->hrtimer, dw_spi_hrtimer_handler, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+
 	ret = spi_register_controller(ctlr);
 	if (ret) {
 		dev_err_probe(dev, ret, "problem registering spi controller\n");
@@ -1033,6 +1082,7 @@ void dw_spi_remove_controller(struct dw_spi *dws)
 {
 	dw_spi_debugfs_remove(dws);
 
+	hrtimer_cancel(&dws->hrtimer);
 	spi_unregister_controller(dws->ctlr);
 
 	if (dws->dma_ops && dws->dma_ops->dma_exit)
