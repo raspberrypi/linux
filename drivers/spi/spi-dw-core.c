@@ -225,12 +225,17 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 * final stage of the transfer. By doing so we'll get the next IRQ
 	 * right when the leftover incoming data is received.
 	 */
-	dw_reader(dws);
-	if (!dws->rx_len) {
-		dw_spi_mask_intr(dws, 0xff);
+	if (dws->rx_len) {
+		dw_reader(dws);
+		if (!dws->rx_len) {
+			dw_spi_mask_intr(dws, 0xff);
+			spi_finalize_current_transfer(dws->host);
+		} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
+			dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
+		}
+	} else if (!dws->tx_len) {
+		dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
 		spi_finalize_current_transfer(dws->host);
-	} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
-		dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
 	}
 
 	/*
@@ -240,11 +245,8 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 */
 	if (irq_status & DW_SPI_INT_TXEI) {
 		dw_writer(dws);
-		if (!dws->tx_len) {
-			dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
-			if (!dws->rx_len)
-				spi_finalize_current_transfer(dws->host);
-		}
+		if (!dws->tx_len)
+			dw_writel(dws, DW_SPI_TXFTLR, 1);
 	}
 
 	return IRQ_HANDLED;
@@ -436,6 +438,11 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 	dws->tx_len = transfer->len / dws->n_bytes;
 	dws->rx = transfer->rx_buf;
 	dws->rx_len = dws->tx_len;
+
+	if (!dws->rx) {
+		dws->rx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
+	}
 
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
