@@ -700,7 +700,11 @@ static int lvts_golden_temp_init(struct device *dev, u32 *value)
 
 	gt = (*value) >> 24;
 
-	if (gt && gt < LVTS_GOLDEN_TEMP_MAX)
+	/* A zero value for gt means that device has invalid efuse data */
+	if (!gt)
+		return -ENODATA;
+
+	if (gt < LVTS_GOLDEN_TEMP_MAX)
 		golden_temp = gt;
 
 	coeff_b = golden_temp * 500 + LVTS_COEFF_B;
