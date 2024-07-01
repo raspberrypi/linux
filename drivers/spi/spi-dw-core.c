@@ -459,6 +459,17 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 	if (buswidth != 1 && cfg.tmode == DW_SPI_CTRLR0_TMOD_TR)
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
 
+	{
+		static uint32_t tmode_seen;
+		static const char *tmode_names[] = {
+			"TR", "TO", "RO", "EPROM_READ"
+		};
+		if (!(tmode_seen & (1 << cfg.tmode))) {
+			tmode_seen |= (1 << cfg.tmode);
+			pr_err("DWC SPI: tmode %s\n", tmode_names[cfg.tmode]);
+		}
+	}
+
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
 
