@@ -379,6 +379,8 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 	if (dws->rx_len)
 		imask |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
 	dw_spi_umask_intr(dws, imask);
+	if (!dws->tx_len)
+		dw_writel(dws, DW_SPI_DR, 0);
 }
 
 /*
@@ -401,13 +403,18 @@ static int dw_spi_poll_transfer(struct dw_spi *dws,
 	delay.unit = SPI_DELAY_UNIT_SCK;
 	nbits = dws->n_bytes * BITS_PER_BYTE;
 
+	if (!dws->tx_len)
+		dw_writel(dws, DW_SPI_DR, 0);
+
 	do {
-		dw_writer(dws);
+		if (dws->tx_len)
+			dw_writer(dws);
 
 		delay.value = nbits * (dws->rx_len - dws->tx_len);
 		spi_delay_exec(&delay, transfer);
 
-		dw_reader(dws);
+		if (dws->rx_len)
+			dw_reader(dws);
 
 		ret = dw_spi_check_status(dws, true);
 		if (ret)
@@ -449,15 +456,15 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 		dws->rx_len = 0;
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
 	}
-	//if (!dws->tx) {
-	//	dws->tx_len = 0;
-	//	cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
-	//	cfg.ndf = dws->rx_len;
-	//}
+	if (!dws->tx) {
+		dws->tx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
+		cfg.ndf = dws->rx_len;
+	}
 	buswidth = transfer->rx_buf ? transfer->rx_nbits :
 		  (transfer->tx_buf ? transfer->tx_nbits : 1);
-	if (buswidth != 1 && cfg.tmode == DW_SPI_CTRLR0_TMOD_TR)
-		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
+	// XXX if (buswidth != 1 && cfg.tmode == DW_SPI_CTRLR0_TMOD_TR)
+	// XXX	cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
 
 	{
 		static uint32_t tmode_seen;
@@ -987,7 +994,7 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 			dev_warn(dev, "DMA init failed\n");
 		} else {
 			host->can_dma = dws->dma_ops->can_dma;
-			host->flags |= SPI_CONTROLLER_MUST_TX;
+			// host->flags |= SPI_CONTROLLER_MUST_TX;
 		}
 	}
 
