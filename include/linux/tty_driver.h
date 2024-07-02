@@ -156,6 +156,13 @@ struct serial_struct;
  *
  *	Optional. Called under the @tty->termios_rwsem. May sleep.
  *
+ * @ldisc_ok: ``int ()(struct tty_struct *tty, int ldisc)``
+ *
+ *	This routine allows the @tty driver to decide if it can deal
+ *	with a particular @ldisc.
+ *
+ *	Optional. Called under the @tty->ldisc_sem and @tty->termios_rwsem.
+ *
  * @set_ldisc: ``void ()(struct tty_struct *tty)``
  *
  *	This routine allows the @tty driver to be notified when the device's
@@ -393,7 +400,7 @@ struct tty_operations {
 #endif
 	int (*proc_show)(struct seq_file *m, void *driver);
 
-	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_USE(1, int (*ldisc_ok)(struct tty_struct *tty, int ldisc));
 	ANDROID_KABI_RESERVE(2);
 } __randomize_layout;
 
