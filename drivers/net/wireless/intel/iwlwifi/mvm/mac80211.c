@@ -6094,11 +6094,9 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 	if (sync) {
 		lockdep_assert_held(&mvm->mutex);
 		ret = wait_event_timeout(mvm->rx_sync_waitq,
-					 READ_ONCE(mvm->queue_sync_state) == 0 ||
-					 iwl_mvm_is_radio_killed(mvm),
+					 READ_ONCE(mvm->queue_sync_state) == 0,
 					 HZ);
-		WARN_ONCE(!ret && !iwl_mvm_is_radio_killed(mvm),
-			  "queue sync: failed to sync, state is 0x%lx\n",
+		WARN_ONCE(!ret, "queue sync: failed to sync, state is 0x%lx\n",
 			  mvm->queue_sync_state);
 	}
 
