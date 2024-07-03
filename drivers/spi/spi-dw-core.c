@@ -244,9 +244,9 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 * have the TXE IRQ flood at the final stage of the transfer.
 	 */
 	if (irq_status & DW_SPI_INT_TXEI) {
-		dw_writer(dws);
 		if (!dws->tx_len)
-			dw_writel(dws, DW_SPI_TXFTLR, 1);
+			dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
+		dw_writer(dws);
 	}
 
 	return IRQ_HANDLED;
@@ -367,15 +367,13 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 	 * will be adjusted at the final stage of the IRQ-based SPI transfer
 	 * execution so not to lose the leftover of the incoming data.
 	 */
-	level = min_t(unsigned int, dws->fifo_len / 2, dws->tx_len);
+	level = min_t(unsigned int, dws->fifo_len / 2, dws->tx_len ? dws->tx_len : dws->rx_len);
 	dw_writel(dws, DW_SPI_TXFTLR, level);
 	dw_writel(dws, DW_SPI_RXFTLR, level - 1);
 
 	dws->transfer_handler = dw_spi_transfer_handler;
 
-	imask = 0;
-	if (dws->tx_len)
-		imask |= DW_SPI_INT_TXEI | DW_SPI_INT_TXOI;
+	imask = DW_SPI_INT_TXEI | DW_SPI_INT_TXOI;
 	if (dws->rx_len)
 		imask |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
 	dw_spi_umask_intr(dws, imask);
