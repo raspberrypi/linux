@@ -3551,7 +3551,7 @@ static int bcm2835_codec_open(struct file *file)
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_JPEG_RESTART_INTERVAL,
 				  1, 1000000,
-				  1, 100);
+				  1, 0);
 
 		if (hdl->error) {
 			rc = hdl->error;
