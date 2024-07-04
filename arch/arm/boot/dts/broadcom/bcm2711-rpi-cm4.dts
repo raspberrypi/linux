@@ -498,13 +498,6 @@ i2c_csi_dsi0: &i2c0 {
 			<&ant2>, "output-high?=off",
 			<&ant2>, "output-low?=on";
 
-		cam0_reg = <&cam0_reg>,"status";
-		cam0_reg_gpio = <&cam0_reg>,"gpio:4",
-				  <&cam0_reg>,"gpio:0=", <&gpio>;
-		cam1_reg = <&cam1_reg>,"status";
-		cam1_reg_gpio = <&cam1_reg>,"gpio:4",
-				  <&cam1_reg>,"gpio:0=", <&gpio>;
-
 		pcie_tperst_clk_ms = <&pcie0>,"brcm,tperst-clk-ms:0";
 	};
 };
