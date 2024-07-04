@@ -171,21 +171,21 @@ Params:
         button_debounce         Set the debounce delay (in ms) on the power/
                                 shutdown button (default 50ms)
 
-        cam0_reg                Enables CAM 0 regulator.
-                                Only required on CM1 & 3.
+        cam0_reg                Controls CAM 0 regulator.
+                                Disabled by default on CM1 & 3.
+                                Enabled by default on all other boards.
 
         cam0_reg_gpio           Set GPIO for CAM 0 regulator.
-                                Default 31 on CM1, 3, and 4S.
-                                Default of GPIO expander 5 on CM4, but override
-                                switches to normal GPIO.
+                                NB override switches to the normal GPIO driver,
+                                even if the original was on the GPIO expander.
 
-        cam1_reg                Enables CAM 1 regulator.
-                                Only required on CM1 & 3.
+        cam1_reg                Controls CAM 1 regulator.
+                                Disabled by default on CM1 & 3.
+                                Enabled by default on all other boards.
 
         cam1_reg_gpio           Set GPIO for CAM 1 regulator.
-                                Default 3 on CM1, 3, and 4S.
-                                Default of GPIO expander 5 on CM4, but override
-                                switches to normal GPIO.
+                                NB override switches to the normal GPIO driver,
+                                even if the original was on the GPIO expander.
 
         cam0_sync               Enable a GPIO to reflect frame sync from CSI0,
                                 going high on frame start, and low on frame end.
