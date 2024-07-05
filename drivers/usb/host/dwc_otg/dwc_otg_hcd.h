@@ -88,7 +88,7 @@ struct dwc_otg_hcd_urb {
 	uint32_t flags;
 	uint16_t interval;
 	struct dwc_otg_hcd_pipe_info pipe_info;
-	struct dwc_otg_hcd_iso_packet_desc iso_descs[0];
+	struct dwc_otg_hcd_iso_packet_desc iso_descs[];
 };
 
 static inline uint8_t dwc_otg_hcd_get_ep_num(struct dwc_otg_hcd_pipe_info *pipe)
@@ -592,7 +592,7 @@ struct dwc_otg_hcd {
 	struct fiq_state *fiq_state;
 
 	/** Virtual address for split transaction DMA bounce buffers */
-	struct fiq_dma_blob *fiq_dmab;
+	struct fiq_dma_channel *fiq_dmab;
 
 #ifdef DEBUG
 	uint32_t frrem_samples;

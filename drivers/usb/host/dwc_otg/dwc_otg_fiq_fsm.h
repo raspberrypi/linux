@@ -263,10 +263,6 @@ struct fiq_dma_channel {
 	struct fiq_split_dma_slot index[6];
 } __attribute__((packed));
 
-struct fiq_dma_blob {
-	struct fiq_dma_channel channel[0];
-} __attribute__((packed));
-
 /**
  * struct fiq_hs_isoc_info - USB2.0 isochronous data
  * @iso_frame:	Pointer to the array of OTG URB iso_frame_descs.
@@ -352,7 +348,7 @@ struct fiq_state {
 	mphi_regs_t mphi_regs;
 	void *dwc_regs_base;
 	dma_addr_t dma_base;
-	struct fiq_dma_blob *fiq_dmab;
+	struct fiq_dma_channel *fiq_dmab;
 	void *dummy_send;
 	dma_addr_t dummy_send_dma;
 	gintmsk_data_t gintmsk_saved;
@@ -365,7 +361,7 @@ struct fiq_state {
 	char * buffer;
 	unsigned int bufsiz;
 #endif
-	struct fiq_channel_state channel[0];
+	struct fiq_channel_state channel[];
 };
 
 #ifdef CONFIG_ARM64
