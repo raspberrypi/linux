@@ -2732,6 +2732,13 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 					      &params,
 					      sizeof(params));
 
+	} else if (dev->role == ENCODE) {
+		enable = 0;
+		vchiq_mmal_port_parameter_set(dev->instance,
+					      &ctx->component->control,
+					      MMAL_PARAMETER_VIDEO_ENCODE_HEADER_ON_OPEN,
+					      &enable,
+					      sizeof(enable));
 	} else if (dev->role == ENCODE_IMAGE) {
 		enable = 0;
 		vchiq_mmal_port_parameter_set(dev->instance,
