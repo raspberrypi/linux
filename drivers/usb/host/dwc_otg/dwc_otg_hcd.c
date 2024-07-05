@@ -58,6 +58,7 @@ static int last_sel_trans_num_avail_hc_at_start = 0;
 static int last_sel_trans_num_avail_hc_at_end = 0;
 #endif /* DEBUG_HOST_CHANNELS */
 
+static_assert(FIQ_PASSTHROUGH == 0);
 
 dwc_otg_hcd_t *dwc_otg_hcd_alloc_hcd(void)
 {
@@ -878,7 +879,7 @@ static void dwc_otg_hcd_power_up(void *ptr)
 void dwc_otg_cleanup_fiq_channel(dwc_otg_hcd_t *hcd, uint32_t num)
 {
 	struct fiq_channel_state *st = &hcd->fiq_state->channel[num];
-	struct fiq_dma_blob *blob = hcd->fiq_dmab;
+	struct fiq_dma_channel *split_dma = hcd->fiq_dmab;
 	int i;
 
 	st->fsm = FIQ_PASSTHROUGH;
@@ -900,7 +901,7 @@ void dwc_otg_cleanup_fiq_channel(dwc_otg_hcd_t *hcd, uint32_t num)
 	st->hs_isoc_info.iso_desc = NULL;
 	st->hs_isoc_info.nrframes = 0;
 
-	DWC_MEMSET(&blob->channel[num].index[0], 0x6b, 1128);
+	DWC_MEMSET(&split_dma[num].index[0], 0x6b, 1128);
 }
 
 /**
@@ -1047,9 +1048,6 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		spin_lock_init(&hcd->fiq_state->lock);
 #endif
 
-		for (i = 0; i < num_channels; i++) {
-			hcd->fiq_state->channel[i].fsm = FIQ_PASSTHROUGH;
-		}
 		hcd->fiq_state->dummy_send = DWC_DMA_ALLOC_ATOMIC(dev, 16,
 							 &hcd->fiq_state->dummy_send_dma);
 
@@ -1563,7 +1561,7 @@ static int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_sta
 	int frame_length, i = 0;
 	uint8_t *ptr = NULL;
 	dwc_hc_t *hc = qh->channel;
-	struct fiq_dma_blob *blob;
+	struct fiq_dma_channel *split_dma;
 	struct dwc_otg_hcd_iso_packet_desc *frame_desc;
 
 	for (i = 0; i < 6; i++) {
@@ -1578,10 +1576,10 @@ static int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_sta
 		 * Pointer arithmetic on hcd->fiq_state->dma_base (a dma_addr_t)
 		 * to point it to the correct offset in the allocated buffers.
 		 */
-		blob = (struct fiq_dma_blob *)
+		split_dma = (struct fiq_dma_channel *)
 			(uintptr_t)hcd->fiq_state->dma_base;
-		st->hcdma_copy.d32 =(u32)(uintptr_t)
-			blob->channel[hc->hc_num].index[0].buf;
+		st->hcdma_copy.d32 = lower_32_bits((uintptr_t)
+			&split_dma[hc->hc_num].index[0].buf[0]);
 
 		/* Calculate the max number of CSPLITS such that the FIQ can time out
 		 * a transaction if it fails.
@@ -1602,7 +1600,7 @@ static int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_sta
 			frame_length = frame_desc->length;
 
 			/* Virtual address for bounce buffers */
-			blob = hcd->fiq_dmab;
+			split_dma = hcd->fiq_dmab;
 
 			ptr = qtd->urb->buf + frame_desc->offset;
 			if (frame_length == 0) {
@@ -1615,11 +1613,11 @@ static int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_sta
 			} else {
 				do {
 					if (frame_length <= 188) {
-						dwc_memcpy(&blob->channel[hc->hc_num].index[i].buf[0], ptr, frame_length);
+						dwc_memcpy(&split_dma[hc->hc_num].index[i].buf[0], ptr, frame_length);
 						st->dma_info.slot_len[i] = frame_length;
 						ptr += frame_length;
 					} else {
-						dwc_memcpy(&blob->channel[hc->hc_num].index[i].buf[0], ptr, 188);
+						dwc_memcpy(&split_dma[hc->hc_num].index[i].buf[0], ptr, 188);
 						st->dma_info.slot_len[i] = 188;
 						ptr += 188;
 					}
@@ -1636,10 +1634,10 @@ static int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_sta
 			 * dma_addr_t) to point it to the correct offset in the
 			 * allocated buffers.
 			 */
-			blob = (struct fiq_dma_blob *)
+			split_dma = (struct fiq_dma_channel *)
 				(uintptr_t)hcd->fiq_state->dma_base;
-			st->hcdma_copy.d32 = (u32)(uintptr_t)
-				blob->channel[hc->hc_num].index[0].buf;
+			st->hcdma_copy.d32 = lower_32_bits((uintptr_t)
+				&split_dma[hc->hc_num].index[0].buf[0]);
 
 			/* fixup xfersize to the actual packet size */
 			st->hctsiz_copy.b.pid = 0;
@@ -1919,14 +1917,14 @@ static int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			if (hc->align_buff) {
 				st->hcdma_copy.d32 = hc->align_buff;
 			} else {
-				st->hcdma_copy.d32 = ((unsigned long) hc->xfer_buff & 0xFFFFFFFF);
+				st->hcdma_copy.d32 = lower_32_bits((uintptr_t)hc->xfer_buff);
 			}
 		}
 	} else {
 		if (hc->align_buff) {
 			st->hcdma_copy.d32 = hc->align_buff;
 		} else {
-			st->hcdma_copy.d32 = ((unsigned long) hc->xfer_buff & 0xFFFFFFFF);
+			st->hcdma_copy.d32 = lower_32_bits((uintptr_t)hc->xfer_buff);
 		}
 	}
 	/* The FIQ depends upon no other interrupts being enabled except channel halt.
@@ -1946,7 +1944,7 @@ static int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		if (hc->align_buff) {
 			st->hcdma_copy.d32 = hc->align_buff;
 		} else {
-			st->hcdma_copy.d32 = ((unsigned long) hc->xfer_buff & 0xFFFFFFFF);
+			st->hcdma_copy.d32 = lower_32_bits((uintptr_t)hc->xfer_buff);
 		}
 	}
 	DWC_WRITE_REG32(&hc_regs->hcdma, st->hcdma_copy.d32);
