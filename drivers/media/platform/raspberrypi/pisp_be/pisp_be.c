@@ -21,6 +21,9 @@
 
 #include "pisp_be_formats.h"
 
+/* Offset to use when registering the /dev/videoX node */
+#define PISPBE_VIDEO_NODE_OFFSET 20
+
 /* Maximum number of config buffers possible */
 #define PISP_BE_NUM_CONFIG_BUFFERS VB2_MAX_FRAME
 
@@ -1484,7 +1487,8 @@ static int pispbe_init_node(struct pispbe_node_group *node_group,
 		goto err_unregister_queue;
 	}
 
-	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
+	ret = video_register_device(vdev, VFL_TYPE_VIDEO,
+				    PISPBE_VIDEO_NODE_OFFSET);
 	if (ret) {
 		dev_err(pispbe->dev,
 			"Failed to register video %s device node\n",
