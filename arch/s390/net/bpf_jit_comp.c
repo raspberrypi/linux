@@ -1973,11 +1973,7 @@ skip_init_ctx:
 		print_fn_code(jit.prg_buf, jit.size_prg);
 	}
 	if (!fp->is_func || extra_pass) {
-		if (bpf_jit_binary_lock_ro(header)) {
-			bpf_jit_binary_free(header);
-			fp = orig_fp;
-			goto free_addrs;
-		}
+		bpf_jit_binary_lock_ro(header);
 	} else {
 		jit_data->header = header;
 		jit_data->ctx = jit;
