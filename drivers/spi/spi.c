@@ -4423,8 +4423,6 @@ int spi_async(struct spi_device *spi, struct spi_message *message)
 
 	spin_unlock_irqrestore(&ctlr->bus_lock_spinlock, flags);
 
-	spi_maybe_unoptimize_message(message);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(spi_async);
