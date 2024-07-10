@@ -4729,7 +4729,7 @@ Params: <None>
 
 
 Name:   uart0
-Info:   Change the pin usage of uart0
+Info:   Change the pin usage and parameters of uart0
 Load:   dtoverlay=uart0,<param>=<val>
 Params: txd0_pin                GPIO pin for TXD0 (14, 32 or 36 - default 14)
 
@@ -4737,6 +4737,7 @@ Params: txd0_pin                GPIO pin for TXD0 (14, 32 or 36 - default 14)
 
         pin_func                Alternative pin function - 4(Alt0) for 14&15,
                                 7(Alt3) for 32&33, 6(Alt2) for 36&37
+        disable_fifos           Disable FIFOs (character mode)
 
 
 Name:   uart0-pi5
