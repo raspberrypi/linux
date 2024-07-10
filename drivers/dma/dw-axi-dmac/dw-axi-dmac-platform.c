@@ -1563,6 +1563,7 @@ static int dw_probe(struct platform_device *pdev)
 	struct dw_axi_dma *dw;
 	struct dw_axi_dma_hcfg *hdata;
 	struct reset_control *resets;
+	unsigned int max_seg_size;
 	unsigned int flags;
 	u32 i;
 	int ret;
@@ -1673,9 +1674,21 @@ static int dw_probe(struct platform_device *pdev)
 	 * Synopsis DesignWare AxiDMA datasheet mentioned Maximum
 	 * supported blocks is 1024. Device register width is 4 bytes.
 	 * Therefore, set constraint to 1024 * 4.
+	 * However, if all channels specify a greater value, use that instead.
 	 */
+
 	dw->dma.dev->dma_parms = &dw->dma_parms;
-	dma_set_max_seg_size(&pdev->dev, MAX_BLOCK_SIZE);
+	max_seg_size = UINT_MAX;
+	for (i = 0; i < dw->hdata->nr_channels; i++) {
+		unsigned int block_size = chip->dw->hdata->block_size[i];
+
+		if (!block_size)
+			block_size = MAX_BLOCK_SIZE;
+		max_seg_size = min(block_size, max_seg_size);
+	}
+
+	dma_set_max_seg_size(&pdev->dev, max_seg_size);
+
 	platform_set_drvdata(pdev, chip);
 
 	pm_runtime_enable(chip->dev);
