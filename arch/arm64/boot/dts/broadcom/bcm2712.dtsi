@@ -1258,6 +1258,10 @@
 	};
 
 	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clk-osc {
 			compatible = "fixed-clock";
