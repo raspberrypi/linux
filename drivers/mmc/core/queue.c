@@ -266,7 +266,7 @@ static blk_status_t mmc_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
 			spin_unlock_irq(&mq->lock);
 			return BLK_STS_RESOURCE;
 		}
-		if (host->cqe_enabled && req_op(req) == REQ_OP_WRITE &&
+		if (!host->hsq_enabled && host->cqe_enabled && req_op(req) == REQ_OP_WRITE &&
 		    mq->pending_writes >= card->max_posted_writes) {
 			spin_unlock_irq(&mq->lock);
 			return BLK_STS_RESOURCE;
