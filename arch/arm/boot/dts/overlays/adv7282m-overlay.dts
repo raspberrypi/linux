@@ -61,13 +61,13 @@
 
 	fragment@4 {
 		target = <&csi1>;
-		__dormant__ {
-			brcm,media-controller;
+		__overlay__ {
+			compatible = "brcm,bcm2835-unicam-legacy";
 		};
 	};
 
 	__overrides__ {
-		addr =			<&adv728x>,"reg:0";
-		media-controller = <0>,"=4";
+		addr = <&adv728x>,"reg:0";
+		media-controller = <0>,"!4";
 	};
 };

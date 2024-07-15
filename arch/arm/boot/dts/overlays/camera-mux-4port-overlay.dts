@@ -597,8 +597,6 @@
 		__overlay__ {
 			status = "okay";
 
-			brcm,media-controller;
-
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&mux_out>;
