@@ -80,8 +80,15 @@
 		};
 	};
 
+	fragment@6 {
+		target = <&csi1>;
+		__overlay__ {
+			compatible = "brcm,bcm2835-unicam-legacy";
+		};
+	};
+
 	__overrides__ {
-		media-controller = <&csi>,"brcm,media-controller?";
+		media-controller = <0>,"!6";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
