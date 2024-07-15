@@ -1,3 +1,4 @@
 # Makefile for BCM2835 Unicam driver
 
-obj-$(CONFIG_VIDEO_BCM2835_UNICAM) += bcm2835-unicam.o
+bcm2835-unicam-legacy-y := bcm2835-unicam.o
+obj-$(CONFIG_VIDEO_BCM2835_UNICAM_LEGACY) += bcm2835-unicam-legacy.o
