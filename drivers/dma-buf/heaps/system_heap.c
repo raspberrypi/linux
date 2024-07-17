@@ -62,7 +62,8 @@ static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP};
  * of order 0 pages can significantly improve the performance of many IOMMUs
  * by reducing TLB pressure and time spent updating page tables.
  */
-static const unsigned int orders[] = {8, 4, 0};
+#define MAX_ORDERS_VALUE 8
+static const unsigned int orders[] = {MAX_ORDERS_VALUE, 4, 0};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 
 static int system_heap_set_page_decrypted(struct page *page)
@@ -92,6 +93,11 @@ static int system_heap_set_page_encrypted(struct page *page)
 
 	return ret;
 }
+
+static unsigned int module_max_order = MAX_ORDERS_VALUE;
+
+module_param_named(max_order, module_max_order, uint, 0400);
+MODULE_PARM_DESC(max_order, "Maximum allocation order override.");
 
 static int dup_sg_table(struct sg_table *from, struct sg_table *to)
 {
@@ -406,7 +412,7 @@ static struct dma_buf *system_heap_allocate(struct dma_heap *heap,
 	struct system_heap_buffer *buffer;
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 	unsigned long size_remaining = len;
-	unsigned int max_order = orders[0];
+	unsigned int max_order = module_max_order;
 	struct system_heap_priv *priv = dma_heap_get_drvdata(heap);
 	bool cc_shared = priv->cc_shared;
 	struct dma_buf *dmabuf;
@@ -526,6 +532,9 @@ static int __init system_heap_create(void)
 	sys_heap = dma_heap_add(&exp_info);
 	if (IS_ERR(sys_heap))
 		return PTR_ERR(sys_heap);
+
+	if (module_max_order > orders[0])
+		module_max_order = orders[0];
 
 	if (IS_ENABLED(CONFIG_HIGHMEM) ||
 	    !IS_ENABLED(CONFIG_DMABUF_HEAPS_SYSTEM_CC_SHARED) ||
