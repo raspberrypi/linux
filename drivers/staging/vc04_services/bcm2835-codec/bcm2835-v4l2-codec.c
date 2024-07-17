@@ -3273,7 +3273,7 @@ static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 		case V4L2_PIX_FMT_H264:
 			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 						      V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-						      V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
+						      V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
 						      ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
@@ -3287,7 +3287,9 @@ static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
-							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_1)),
 						       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
 			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
