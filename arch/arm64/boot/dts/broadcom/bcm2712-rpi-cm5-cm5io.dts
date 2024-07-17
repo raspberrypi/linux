@@ -1,2 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
-#include "arm/broadcom/bcm2712-rpi-cm5-cm5io.dts"
+/dts-v1/;
+
+#include "bcm2712-rpi-cm5.dtsi"
+
+/ {
+	__overrides__ {
+		i2c_csi_dsi = <&i2c_csi_dsi>, "status";
+	};
+};
