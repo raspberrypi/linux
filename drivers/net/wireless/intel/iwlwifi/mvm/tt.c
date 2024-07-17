@@ -622,7 +622,12 @@ static int iwl_mvm_tzone_get_temp(struct thermal_zone_device *device,
 
 	if (!iwl_mvm_firmware_running(mvm) ||
 	    mvm->fwrt.cur_fw_img != IWL_UCODE_REGULAR) {
-		ret = -ENODATA;
+		/*
+		 * Tell the core that there is no valid temperature value to
+		 * return, but it need not worry about this.
+		 */
+		*temperature = THERMAL_TEMP_INVALID;
+		ret = 0;
 		goto out;
 	}
 
