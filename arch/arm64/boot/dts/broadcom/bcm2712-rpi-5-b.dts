@@ -530,6 +530,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 	// clash with the firmware monitoring the PMIC interrupt via the VPU.
 
 	/delete-property/ interrupt-controller;
+	/delete-property/ #interrupt-cells;
 };
 
 &main_aon_irq {
