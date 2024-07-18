@@ -303,6 +303,8 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 	u32 ch_reg;
 	struct i2s_clk_config_data *config = &dev->config;
 	u32 dmacr;
+	u32 comp1 = i2s_read_reg(dev->i2s_base, dev->i2s_reg_comp1);
+	u32 fifo_depth = 1 << (1 + COMP1_FIFO_DEPTH_GLOBAL(comp1));
 
 	i2s_disable_channels(dev, stream);
 
@@ -318,7 +320,7 @@ static void dw_i2s_config(struct dw_i2s_dev *dev, int stream)
 			i2s_write_reg(dev->i2s_base, TCR(ch_reg),
 				      dev->xfer_resolution);
 			i2s_write_reg(dev->i2s_base, TFCR(ch_reg),
-				      dev->fifo_th - 1);
+				      fifo_depth - dev->fifo_th - 1);
 			i2s_write_reg(dev->i2s_base, TER(ch_reg), TER_TXCHEN |
 				      dev->tdm_mask << TER_TXSLOT_SHIFT);
 			dmacr |= (DMACR_DMAEN_TXCH0 << ch_reg);
@@ -791,8 +793,8 @@ static int dw_configure_dai_by_pd(struct dw_i2s_dev *dev,
 		dev->capture_dma_data.pd.data = pdata->capture_dma_data;
 		dev->play_dma_data.pd.addr = res->start + I2S_TXDMA;
 		dev->capture_dma_data.pd.addr = res->start + I2S_RXDMA;
-		dev->play_dma_data.pd.max_burst = 16;
-		dev->capture_dma_data.pd.max_burst = 16;
+		dev->play_dma_data.pd.max_burst = dev->fifo_th;
+		dev->capture_dma_data.pd.max_burst = dev->fifo_th;
 		dev->play_dma_data.pd.addr_width = bus_widths[idx];
 		dev->capture_dma_data.pd.addr_width = bus_widths[idx];
 		dev->play_dma_data.pd.filter = pdata->filter;
@@ -823,7 +825,10 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 		dev->play_dma_data.dt.addr = res->start + I2S_TXDMA;
 		dev->play_dma_data.dt.fifo_size = fifo_depth *
 			(fifo_width[idx2]) >> 8;
-		dev->play_dma_data.dt.maxburst = 16;
+		if (dev->max_dma_burst)
+			dev->play_dma_data.dt.maxburst = dev->max_dma_burst;
+		else
+			dev->play_dma_data.dt.maxburst = fifo_depth / 2;
 	}
 	if (COMP1_RX_ENABLED(comp1)) {
 		idx2 = COMP2_RX_WORDSIZE_0(comp2);
@@ -832,9 +837,14 @@ static int dw_configure_dai_by_dt(struct dw_i2s_dev *dev,
 		dev->capture_dma_data.dt.addr = res->start + I2S_RXDMA;
 		dev->capture_dma_data.dt.fifo_size = fifo_depth *
 			(fifo_width[idx2] >> 8);
-		dev->capture_dma_data.dt.maxburst = 16;
+		if (dev->max_dma_burst)
+			dev->capture_dma_data.dt.maxburst = dev->max_dma_burst;
+		else
+			dev->capture_dma_data.dt.maxburst = fifo_depth / 2;
 	}
 
+	if (dev->max_dma_burst)
+		dev->fifo_th = min(dev->max_dma_burst, dev->fifo_th);
 	return 0;
 
 }
@@ -1078,6 +1088,7 @@ static int dw_i2s_probe(struct platform_device *pdev)
 		}
 	}
 
+	of_property_read_u32(pdev->dev.of_node, "dma-maxburst", &dev->max_dma_burst);
 	dev->bclk_ratio = 0;
 	dev->i2s_reg_comp1 = I2S_COMP_PARAM_1;
 	dev->i2s_reg_comp2 = I2S_COMP_PARAM_2;
