@@ -179,13 +179,6 @@ i2s_clk_consumer: &i2s {};
 };
 
 &firmware {
-#ifndef BCM2711
-	firmware_clocks: clocks {
-		compatible = "raspberrypi,firmware-clocks";
-		#clock-cells = <1>;
-	};
-#endif
-
 	vcio: vcio {
 		compatible = "raspberrypi,vcio";
 	};
