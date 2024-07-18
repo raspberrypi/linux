@@ -133,6 +133,7 @@ struct dw_i2s_dev {
 	u32 ccr;
 	u32 xfer_resolution;
 	u32 fifo_th;
+	u32 max_dma_burst;
 	u32 l_reg;
 	u32 r_reg;
 	bool is_jh7110; /* Flag for StarFive JH7110 SoC */
