@@ -307,6 +307,15 @@ static u32 axi_chan_get_xfer_width(struct axi_dma_chan *chan, dma_addr_t src,
 	return __ffs(src | dst | len | BIT(max_width));
 }
 
+static u32 axi_dma_encode_msize(u32 max_burst)
+{
+	if (max_burst <= 1)
+		return DWAXIDMAC_BURST_TRANS_LEN_1;
+	if (max_burst > 1024)
+		return DWAXIDMAC_BURST_TRANS_LEN_1024;
+	return fls(max_burst) - 2;
+}
+
 static inline const char *axi_chan_name(struct axi_dma_chan *chan)
 {
 	return dma_chan_name(&chan->vc.chan);
@@ -732,41 +741,41 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	size_t axi_block_ts;
 	size_t block_ts;
 	u32 ctllo, ctlhi;
-	u32 burst_len;
+	u32 burst_len = 0, mem_burst_msize, reg_burst_msize;
 
 	axi_block_ts = chan->chip->dw->hdata->block_size[chan->id];
 
 	mem_width = __ffs(data_width | mem_addr | len);
-	if (mem_width > DWAXIDMAC_TRANS_WIDTH_32)
-		mem_width = DWAXIDMAC_TRANS_WIDTH_32;
 
 	if (!IS_ALIGNED(mem_addr, 4)) {
 		dev_err(chan->chip->dev, "invalid buffer alignment\n");
 		return -EINVAL;
 	}
 
+	/* Use a reasonable upper limit otherwise residue reporting granularity grows large */
+	mem_burst_msize = axi_dma_encode_msize(16);
+
 	switch (chan->direction) {
 	case DMA_MEM_TO_DEV:
+		reg_burst_msize = axi_dma_encode_msize(chan->config.dst_maxburst);
 		reg_width = __ffs(chan->config.dst_addr_width);
 		device_addr = phys_to_dma(chan->chip->dev, chan->config.dst_addr);
 		ctllo = reg_width << CH_CTL_L_DST_WIDTH_POS |
 			mem_width << CH_CTL_L_SRC_WIDTH_POS |
-			DWAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_DST_MSIZE_POS |
-			DWAXIDMAC_BURST_TRANS_LEN_4 << CH_CTL_L_SRC_MSIZE_POS |
+			reg_burst_msize << CH_CTL_L_DST_MSIZE_POS |
+			mem_burst_msize << CH_CTL_L_SRC_MSIZE_POS |
 			DWAXIDMAC_CH_CTL_L_NOINC << CH_CTL_L_DST_INC_POS |
 			DWAXIDMAC_CH_CTL_L_INC << CH_CTL_L_SRC_INC_POS;
 		block_ts = len >> mem_width;
 		break;
 	case DMA_DEV_TO_MEM:
+		reg_burst_msize = axi_dma_encode_msize(chan->config.src_maxburst);
 		reg_width = __ffs(chan->config.src_addr_width);
-		/* Prevent partial access units getting lost */
-		if (mem_width > reg_width)
-			mem_width = reg_width;
 		device_addr = phys_to_dma(chan->chip->dev, chan->config.src_addr);
 		ctllo = reg_width << CH_CTL_L_SRC_WIDTH_POS |
 			mem_width << CH_CTL_L_DST_WIDTH_POS |
-			DWAXIDMAC_BURST_TRANS_LEN_4 << CH_CTL_L_DST_MSIZE_POS |
-			DWAXIDMAC_BURST_TRANS_LEN_1 << CH_CTL_L_SRC_MSIZE_POS |
+			mem_burst_msize << CH_CTL_L_DST_MSIZE_POS |
+			reg_burst_msize << CH_CTL_L_SRC_MSIZE_POS |
 			DWAXIDMAC_CH_CTL_L_INC << CH_CTL_L_DST_INC_POS |
 			DWAXIDMAC_CH_CTL_L_NOINC << CH_CTL_L_SRC_INC_POS;
 		block_ts = len >> reg_width;
@@ -807,6 +816,12 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	set_desc_src_master(hw_desc);
 
 	hw_desc->len = len;
+
+	if (burst_len && (chan->config.src_maxburst > burst_len))
+		dev_warn_ratelimited(chan2dev(chan),
+				     "%s: requested source burst length %u exceeds supported burst length %u - data may be lost\n",
+				     axi_chan_name(chan), chan->config.src_maxburst, burst_len);
+
 	return 0;
 }
 
@@ -823,9 +838,6 @@ static size_t calculate_block_len(struct axi_dma_chan *chan,
 	case DMA_MEM_TO_DEV:
 		data_width = BIT(chan->chip->dw->hdata->m_data_width);
 		mem_width = __ffs(data_width | dma_addr | buf_len);
-		if (mem_width > DWAXIDMAC_TRANS_WIDTH_32)
-			mem_width = DWAXIDMAC_TRANS_WIDTH_32;
-
 		block_len = axi_block_ts << mem_width;
 		break;
 	case DMA_DEV_TO_MEM:
