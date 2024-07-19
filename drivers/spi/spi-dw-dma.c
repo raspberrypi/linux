@@ -316,10 +316,8 @@ static void dw_spi_dma_tx_done(void *arg)
 	struct dw_spi *dws = arg;
 
 	clear_bit(DW_SPI_TX_BUSY, &dws->dma_chan_busy);
-	if (test_bit(DW_SPI_RX_BUSY, &dws->dma_chan_busy)) {
-		dw_writel(dws, DW_SPI_DMARDLR, 0);
+	if (test_bit(DW_SPI_RX_BUSY, &dws->dma_chan_busy))
 		return;
-	}
 
 	complete(&dws->dma_completion);
 }
@@ -656,8 +654,6 @@ static int dw_spi_dma_transfer(struct dw_spi *dws, struct spi_transfer *xfer)
 	int ret;
 
 	nents = max(xfer->tx_sg.nents, xfer->rx_sg.nents);
-
-	dw_writel(dws, DW_SPI_DMARDLR, xfer->tx_buf ? (dws->rxburst - 1) : 0);
 
 	/*
 	 * Execute normal DMA-based transfer (which submits the Rx and Tx SG
