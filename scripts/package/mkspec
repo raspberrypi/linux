@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+#	Output a simple RPM spec file.
+#	This version assumes a minimum of RPM 4.13
+#
+#	The only gothic bit here is redefining install_post to avoid
+#	stripping the symbols from files in the kernel which we want
+#
+#	Patched for non-x86 by Opencon (L) 2002 <opencon@rio.skydome.net>
+#
+
+if grep -q CONFIG_MODULES=y include/config/auto.conf; then
+echo '%define with_devel %{?_without_devel: 0} %{?!_without_devel: 1}'
+else
+echo '%define with_devel 0'
+fi
+
+cat<<EOF
+%define ARCH ${ARCH}
+%define KERNELRELEASE ${KERNELRELEASE}
+%define pkg_release $("${srctree}/init/build-version")
+EOF
+
+cat "${srctree}/scripts/package/kernel.spec"

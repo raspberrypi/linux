@@ -1,0 +1,3 @@
+cat <<EOF
+	return raw_${atomic}_inc_return(v) == 0;
+EOF

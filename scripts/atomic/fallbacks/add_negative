@@ -1,0 +1,3 @@
+cat <<EOF
+	return raw_${atomic}_add_return${order}(i, v) < 0;
+EOF

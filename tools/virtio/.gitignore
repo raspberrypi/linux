@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+*.d
+virtio_test
+vringh_test
+virtio-trace/trace-agent
