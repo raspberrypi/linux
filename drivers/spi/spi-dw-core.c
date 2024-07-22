@@ -202,7 +202,18 @@ int dw_spi_check_status(struct dw_spi *dws, bool raw)
 
 	/* Generically handle the erroneous situation */
 	if (ret) {
-		dw_spi_reset_chip(dws);
+		/*
+		 * Forcibly halting the controller can cause DMA to hang.
+		 * Defer to dw_spi_handle_err outside of interrupt context
+		 * and mask further interrupts for the current transfer.
+		 */
+		if (dws->dma_mapped) {
+			dw_spi_mask_intr(dws, 0xff);
+			dw_readl(dws, DW_SPI_ICR);
+		} else {
+			dw_spi_reset_chip(dws);
+		}
+
 		if (dws->host->cur_msg)
 			dws->host->cur_msg->status = ret;
 	}
