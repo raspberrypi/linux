@@ -69,6 +69,10 @@ properties:
       - description: RX DMA Channel
     minItems: 1
 
+  dma-maxburst:
+    description: FIFO DMA burst threshold limit
+    maxItems: 1
+
   dma-names:
     items:
       - const: tx
