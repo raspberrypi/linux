@@ -484,6 +484,12 @@ static void pl011_dma_probe(struct uart_amba_port *uap)
 					 "RX DMA disabled - no residue processing\n");
 				return;
 			}
+			/*
+			 * DMA controllers with smaller burst capabilities than 1/4
+			 * the FIFO depth will leave more bytes than expected in the
+			 * RX FIFO if mismatched.
+			 */
+			rx_conf.src_maxburst = min(caps.max_burst, rx_conf.src_maxburst);
 		}
 		dmaengine_slave_config(chan, &rx_conf);
 		uap->dmarx.chan = chan;
