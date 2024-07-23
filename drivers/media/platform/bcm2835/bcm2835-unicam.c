@@ -3381,6 +3381,11 @@ static int unicam_probe(struct platform_device *pdev)
 	 * device tree requests it.
 	 */
 	unicam->mc_api = media_controller;
+
+	/* Compatible is for the non-legacy version of the driver - use compatible */
+	if (of_device_get_match_data(&unicam->pdev->dev))
+		unicam->mc_api = true;
+
 	if (of_property_read_bool(pdev->dev.of_node, "brcm,media-controller"))
 		unicam->mc_api = true;
 
@@ -3500,7 +3505,8 @@ static void unicam_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id unicam_of_match[] = {
-	{ .compatible = "brcm,bcm2835-unicam-legacy", },
+	{ .compatible = "brcm,bcm2835-unicam", .data = (void *)1 },
+	{ .compatible = "brcm,bcm2835-unicam-legacy", .data = 0 },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, unicam_of_match);
