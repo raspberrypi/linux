@@ -2755,7 +2755,6 @@ static void unicam_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id unicam_of_match[] = {
-	{ .compatible = "brcm,bcm2835-unicam", },
 	{ .compatible = "brcm,bcm2835-unicam-upstream", },
 	{ /* sentinel */ },
 };
