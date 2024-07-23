@@ -400,6 +400,7 @@
 			#sound-dai-cells = <0>;
 			dmas = <&rp1_dma RP1_DMA_I2S0_TX>,<&rp1_dma RP1_DMA_I2S0_RX>;
 			dma-names = "tx", "rx";
+			dma-maxburst = <4>;
 			status = "disabled";
 		};
 
@@ -413,6 +414,7 @@
 			#sound-dai-cells = <0>;
 			dmas = <&rp1_dma RP1_DMA_I2S1_TX>,<&rp1_dma RP1_DMA_I2S1_RX>;
 			dma-names = "tx", "rx";
+			dma-maxburst = <4>;
 			status = "disabled";
 		};
 
