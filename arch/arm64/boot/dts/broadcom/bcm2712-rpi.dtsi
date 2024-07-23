@@ -98,6 +98,11 @@
 };
 
 / {
+	chosen: chosen {
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe";
+		stdout-path = "serial10:115200n8";
+	};
+
 	aliases: aliases {
 		blconfig = &blconfig;
 		blpubkey = &blpubkey;
