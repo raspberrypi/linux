@@ -2883,12 +2883,40 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 
 }
 
-static irqreturn_t vc4_hdmi_hpd_irq_thread(int irq, void *priv)
+static void vc4_hdmi_hpd_con_wq(struct work_struct *work)
+{
+	struct vc4_hdmi *vc4_hdmi = container_of(to_delayed_work(work),
+						 struct vc4_hdmi,
+						 hpd_con_work);
+	struct drm_connector *connector = &vc4_hdmi->connector;
+	struct drm_device *dev = connector->dev;
+
+	if (dev && dev->registered)
+		drm_connector_helper_hpd_irq_event(connector);
+}
+
+#define HPD_DEBOUNCE_DELAY_MS 2500
+
+static irqreturn_t vc4_hdmi_hpd_irq_con_thread(int irq, void *priv)
+{
+	struct vc4_hdmi *vc4_hdmi = priv;
+	struct device *pdev = &vc4_hdmi->pdev->dev;
+
+	dev_err(pdev, "HPD IRQ status conn\n");
+	mod_delayed_work(system_wq, &vc4_hdmi->hpd_con_work,
+			 msecs_to_jiffies(HPD_DEBOUNCE_DELAY_MS));
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t vc4_hdmi_hpd_irq_disconn_thread(int irq, void *priv)
 {
 	struct vc4_hdmi *vc4_hdmi = priv;
 	struct drm_connector *connector = &vc4_hdmi->connector;
 	struct drm_device *dev = connector->dev;
+	struct device *pdev = &vc4_hdmi->pdev->dev;
 
+	dev_err(pdev, "HPD IRQ status disconn\n");
 	if (dev && dev->registered)
 		drm_connector_helper_hpd_irq_event(connector);
 
@@ -2905,16 +2933,16 @@ static int vc4_hdmi_hotplug_init(struct vc4_hdmi *vc4_hdmi)
 		unsigned int hpd_con = platform_get_irq_byname(pdev, "hpd-connected");
 		unsigned int hpd_rm = platform_get_irq_byname(pdev, "hpd-removed");
 
-		ret = devm_request_threaded_irq(&pdev->dev, hpd_con,
-						NULL,
-						vc4_hdmi_hpd_irq_thread, IRQF_ONESHOT,
+		ret = devm_request_threaded_irq(&pdev->dev, hpd_con, NULL,
+						vc4_hdmi_hpd_irq_con_thread,
+						IRQF_ONESHOT,
 						"vc4 hdmi hpd connected", vc4_hdmi);
 		if (ret)
 			return ret;
 
-		ret = devm_request_threaded_irq(&pdev->dev, hpd_rm,
-						NULL,
-						vc4_hdmi_hpd_irq_thread, IRQF_ONESHOT,
+		ret = devm_request_threaded_irq(&pdev->dev, hpd_rm, NULL,
+						vc4_hdmi_hpd_irq_disconn_thread,
+						IRQF_ONESHOT,
 						"vc4 hdmi hpd disconnected", vc4_hdmi);
 		if (ret)
 			return ret;
@@ -3744,6 +3772,7 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 
 	spin_lock_init(&vc4_hdmi->hw_lock);
 	INIT_DELAYED_WORK(&vc4_hdmi->scrambling_work, vc4_hdmi_scrambling_wq);
+	INIT_DELAYED_WORK(&vc4_hdmi->hpd_con_work, vc4_hdmi_hpd_con_wq);
 
 	dev_set_drvdata(dev, vc4_hdmi);
 	encoder = &vc4_hdmi->encoder.base;
