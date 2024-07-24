@@ -1241,3 +1241,4 @@ module_i2c_driver(rp2040_gbdg_driver);
 MODULE_AUTHOR("Richard Oliver <richard.oliver@raspberrypi.com>");
 MODULE_DESCRIPTION("Raspberry Pi RP2040 GPIO Bridge");
 MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: md5");
