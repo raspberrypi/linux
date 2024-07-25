@@ -412,6 +412,9 @@ static int vc4_hvs_debugfs_dlist_allocs(struct seq_file *m, void *data)
 static const u32 mitchell_netravali_1_3_1_3_kernel[] =
 	VC4_LINEAR_PHASE_KERNEL(0, -2, -6, -8, -10, -8, -3, 2, 18,
 				50, 82, 119, 155, 187, 213, 227);
+static const u32 nearest_neighbour_kernel[] =
+	VC4_LINEAR_PHASE_KERNEL(0, 0, 0, 0, 0, 0, 0, 0,
+				1, 1, 1, 1, 255, 255, 255, 255);
 
 static int vc4_hvs_upload_linear_kernel(struct vc4_hvs *hvs,
 					struct drm_mm_node *space,
@@ -2067,12 +2070,17 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	/* Upload filter kernels.  We only have the one for now, so we
-	 * keep it around for the lifetime of the driver.
+	/* Upload filter kernels.  We only have the two for now, so we
+	 * keep them around for the lifetime of the driver.
 	 */
 	ret = vc4_hvs_upload_linear_kernel(hvs,
 					   &hvs->mitchell_netravali_filter,
 					   mitchell_netravali_1_3_1_3_kernel);
+	if (ret)
+		return ret;
+	ret = vc4_hvs_upload_linear_kernel(hvs,
+					   &hvs->nearest_neighbour_filter,
+					   nearest_neighbour_kernel);
 	if (ret)
 		return ret;
 
@@ -2127,6 +2135,8 @@ static void vc4_hvs_unbind(struct device *dev, struct device *master,
 
 	if (drm_mm_node_allocated(&vc4->hvs->mitchell_netravali_filter))
 		drm_mm_remove_node(&vc4->hvs->mitchell_netravali_filter);
+	if (drm_mm_node_allocated(&vc4->hvs->nearest_neighbour_filter))
+		drm_mm_remove_node(&vc4->hvs->nearest_neighbour_filter);
 
 	drm_mm_for_each_node_safe(node, next, &vc4->hvs->dlist_mm)
 		drm_mm_remove_node(node);
