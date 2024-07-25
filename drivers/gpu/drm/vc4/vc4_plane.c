@@ -594,7 +594,8 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 #define PHASE_BITS 6
 
 static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
-			  u32 xy, int channel, int chroma_offset)
+			  u32 xy, int channel, int chroma_offset,
+			  bool no_interpolate)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(vc4_state->base.plane->dev);
 	u32 scale = src / dst;
@@ -646,6 +647,7 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 	phase &= SCALER_PPF_IPHASE_MASK;
 
 	vc4_dlist_write(vc4_state,
+			(no_interpolate ? SCALER_PPF_NOINTERP : 0) |
 			SCALER_PPF_AGC |
 			VC4_SET_FIELD(scale, SCALER_PPF_SCALE) |
 			/*
@@ -841,14 +843,16 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_w[channel],
 			      vc4_state->crtc_w, vc4_state->src_x, channel,
-			      state->chroma_siting_h);
+			      state->chroma_siting_h,
+			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_h[channel],
 			      vc4_state->crtc_h, vc4_state->src_y, channel,
-			      state->chroma_siting_v);
+			      state->chroma_siting_v,
+			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
@@ -1657,7 +1661,18 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		    vc4_state->y_scaling[0] == VC4_SCALING_PPF ||
 		    vc4_state->x_scaling[1] == VC4_SCALING_PPF ||
 		    vc4_state->y_scaling[1] == VC4_SCALING_PPF) {
-			u32 kernel = VC4_SET_FIELD(vc4->hvs->mitchell_netravali_filter.start,
+			struct drm_mm_node *filter;
+
+			switch (state->scaling_filter) {
+			case DRM_SCALING_FILTER_DEFAULT:
+			default:
+				filter = &vc4->hvs->mitchell_netravali_filter;
+				break;
+			case DRM_SCALING_FILTER_NEAREST_NEIGHBOR:
+				filter = &vc4->hvs->nearest_neighbour_filter;
+				break;
+			}
+			u32 kernel = VC4_SET_FIELD(filter->start,
 						   SCALER_PPF_KERNEL_OFFSET);
 
 			/* HPPF plane 0 */
@@ -2069,9 +2084,19 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		    vc4_state->y_scaling[0] == VC4_SCALING_PPF ||
 		    vc4_state->x_scaling[1] == VC4_SCALING_PPF ||
 		    vc4_state->y_scaling[1] == VC4_SCALING_PPF) {
-			u32 kernel =
-				VC4_SET_FIELD(vc4->hvs->mitchell_netravali_filter.start,
-					      SCALER_PPF_KERNEL_OFFSET);
+			struct drm_mm_node *filter;
+
+			switch (state->scaling_filter) {
+			case DRM_SCALING_FILTER_DEFAULT:
+			default:
+				filter = &vc4->hvs->mitchell_netravali_filter;
+				break;
+			case DRM_SCALING_FILTER_NEAREST_NEIGHBOR:
+				filter = &vc4->hvs->nearest_neighbour_filter;
+				break;
+			}
+			u32 kernel = VC4_SET_FIELD(filter->start,
+						   SCALER_PPF_KERNEL_OFFSET);
 
 			/* HPPF plane 0 */
 			vc4_dlist_write(vc4_state, kernel);
@@ -2563,6 +2588,10 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+
+	drm_plane_create_scaling_filter_property(plane,
+						 BIT(DRM_SCALING_FILTER_DEFAULT) |
+						 BIT(DRM_SCALING_FILTER_NEAREST_NEIGHBOR));
 
 	drm_plane_create_chroma_siting_properties(plane, 0, 0);
 
