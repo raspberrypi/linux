@@ -369,6 +369,7 @@ struct vc4_hvs {
 	struct work_struct free_dlist_work;
 
 	struct drm_mm_node mitchell_netravali_filter;
+	struct drm_mm_node nearest_neighbour_filter;
 
 	struct debugfs_regset32 regset;
 
