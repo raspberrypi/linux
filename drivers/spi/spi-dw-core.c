@@ -200,7 +200,18 @@ int dw_spi_check_status(struct dw_spi *dws, bool raw)
 
 	/* Generically handle the erroneous situation */
 	if (ret) {
-		dw_spi_reset_chip(dws);
+		/*
+		 * Forcibly halting the controller can cause DMA to hang.
+		 * Defer to dw_spi_handle_err outside of interrupt context
+		 * and mask further interrupts for the current transfer.
+		 */
+		if (dws->dma_mapped) {
+			dw_spi_mask_intr(dws, 0xff);
+			dw_readl(dws, DW_SPI_ICR);
+		} else {
+			dw_spi_reset_chip(dws);
+		}
+
 		if (dws->host->cur_msg)
 			dws->host->cur_msg->status = ret;
 	}
@@ -225,12 +236,17 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 * final stage of the transfer. By doing so we'll get the next IRQ
 	 * right when the leftover incoming data is received.
 	 */
-	dw_reader(dws);
-	if (!dws->rx_len) {
-		dw_spi_mask_intr(dws, 0xff);
+	if (dws->rx_len) {
+		dw_reader(dws);
+		if (!dws->rx_len) {
+			dw_spi_mask_intr(dws, 0xff);
+			spi_finalize_current_transfer(dws->host);
+		} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
+			dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
+		}
+	} else if (!dws->tx_len) {
+		dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
 		spi_finalize_current_transfer(dws->host);
-	} else if (dws->rx_len <= dw_readl(dws, DW_SPI_RXFTLR)) {
-		dw_writel(dws, DW_SPI_RXFTLR, dws->rx_len - 1);
 	}
 
 	/*
@@ -239,12 +255,9 @@ static irqreturn_t dw_spi_transfer_handler(struct dw_spi *dws)
 	 * have the TXE IRQ flood at the final stage of the transfer.
 	 */
 	if (irq_status & DW_SPI_INT_TXEI) {
-		dw_writer(dws);
-		if (!dws->tx_len) {
+		if (!dws->tx_len)
 			dw_spi_mask_intr(dws, DW_SPI_INT_TXEI);
-			if (!dws->rx_len)
-				spi_finalize_current_transfer(dws->host);
-		}
+		dw_writer(dws);
 	}
 
 	return IRQ_HANDLED;
@@ -365,18 +378,18 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 	 * will be adjusted at the final stage of the IRQ-based SPI transfer
 	 * execution so not to lose the leftover of the incoming data.
 	 */
-	level = min_t(unsigned int, dws->fifo_len / 2, dws->tx_len);
+	level = min_t(unsigned int, dws->fifo_len / 2, dws->tx_len ? dws->tx_len : dws->rx_len);
 	dw_writel(dws, DW_SPI_TXFTLR, level);
 	dw_writel(dws, DW_SPI_RXFTLR, level - 1);
 
 	dws->transfer_handler = dw_spi_transfer_handler;
 
-	imask = 0;
-	if (dws->tx_len)
-		imask |= DW_SPI_INT_TXEI | DW_SPI_INT_TXOI;
+	imask = DW_SPI_INT_TXEI | DW_SPI_INT_TXOI;
 	if (dws->rx_len)
 		imask |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
 	dw_spi_umask_intr(dws, imask);
+	if (!dws->tx_len)
+		dw_writel(dws, DW_SPI_DR, 0);
 }
 
 /*
@@ -399,13 +412,18 @@ static int dw_spi_poll_transfer(struct dw_spi *dws,
 	delay.unit = SPI_DELAY_UNIT_SCK;
 	nbits = dws->n_bytes * BITS_PER_BYTE;
 
+	if (!dws->tx_len)
+		dw_writel(dws, DW_SPI_DR, 0);
+
 	do {
-		dw_writer(dws);
+		if (dws->tx_len)
+			dw_writer(dws);
 
 		delay.value = nbits * (dws->rx_len - dws->tx_len);
 		spi_delay_exec(&delay, transfer);
 
-		dw_reader(dws);
+		if (dws->rx_len)
+			dw_reader(dws);
 
 		ret = dw_spi_check_status(dws, true);
 		if (ret)
@@ -425,6 +443,7 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 		.dfs = transfer->bits_per_word,
 		.freq = transfer->speed_hz,
 	};
+	int buswidth;
 	int ret;
 
 	dws->dma_mapped = 0;
@@ -436,6 +455,23 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 	dws->tx_len = transfer->len / dws->n_bytes;
 	dws->rx = transfer->rx_buf;
 	dws->rx_len = dws->tx_len;
+
+	if (!dws->rx) {
+		dws->rx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
+	}
+
+	if (!dws->rx) {
+		dws->rx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
+	}
+	if (!dws->tx) {
+		dws->tx_len = 0;
+		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
+		cfg.ndf = dws->rx_len;
+	}
+	buswidth = transfer->rx_buf ? transfer->rx_nbits :
+		  (transfer->tx_buf ? transfer->tx_nbits : 1);
 
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
@@ -954,7 +990,6 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 			dev_warn(dev, "DMA init failed\n");
 		} else {
 			host->can_dma = dws->dma_ops->can_dma;
-			host->flags |= SPI_CONTROLLER_MUST_TX;
 		}
 	}
 
