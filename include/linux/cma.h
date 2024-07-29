@@ -71,4 +71,5 @@ static inline bool cma_skip_dt_default_reserved_mem(void)
 }
 #endif
 
+int cma_check_range(u64 *start, u64 *end);
 #endif
