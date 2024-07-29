@@ -180,6 +180,9 @@ struct dw_spi {
 	u32			current_freq;	/* frequency in hz */
 	u32			cur_rx_sample_dly;
 	u32			def_rx_sample_dly_ns;
+	struct hrtimer		hrtimer;
+	ktime_t			idle_wait_interval;
+	int			idle_wait_retries;
 
 	/* Custom memory operations */
 	struct spi_controller_mem_ops mem_ops;
