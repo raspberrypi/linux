@@ -7,6 +7,7 @@
  * Author: Maíra Canal <mcanal@igalia.com>
  * Author: Tvrtko Ursulin <tursulin@igalia.com>
  */
+#include <linux/cma.h>
 #include <linux/memblock.h>
 
 #include "numa_emulation.h"
@@ -54,6 +55,10 @@ int __init numa_emu_init(void)
 
 		if (i == (emu_nodes - 1) && e != end)
 			e = end;
+
+		ret = cma_check_range(&s, &e);
+		if (ret)
+			return ret;
 
 		pr_info("Faking a node at [mem %pap-%pap]\n", &s, &e);
 		ret = numa_add_memblk(i, s, e + 1);
