@@ -70,6 +70,7 @@ static inline bool cma_skip_dt_default_reserved_mem(void)
 struct folio *cma_alloc_folio(struct cma *cma, int order, gfp_t gfp);
 bool cma_free_folio(struct cma *cma, const struct folio *folio);
 bool cma_validate_zones(struct cma *cma);
+int cma_check_range(u64 *start, u64 *end);
 #else
 static inline struct folio *cma_alloc_folio(struct cma *cma, int order, gfp_t gfp)
 {
@@ -80,9 +81,15 @@ static inline bool cma_free_folio(struct cma *cma, const struct folio *folio)
 {
 	return false;
 }
+
 static inline bool cma_validate_zones(struct cma *cma)
 {
 	return false;
+}
+
+static inline int cma_check_range(u64 *start, u64 *end)
+{
+	return 0;
 }
 #endif
 
