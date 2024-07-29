@@ -7,6 +7,7 @@
 #include <linux/topology.h>
 #include <linux/memblock.h>
 #include <linux/numa_memblks.h>
+#include <linux/cma.h>
 #include <asm/numa.h>
 
 #define FAKE_NODE_MIN_SIZE	((u64)32 << 20)
@@ -51,6 +52,7 @@ static int __init emu_setup_memblk(struct numa_meminfo *ei,
 {
 	struct numa_memblk *eb = &ei->blk[ei->nr_blks];
 	struct numa_memblk *pb = &pi->blk[phys_blk];
+	int ret;
 
 	if (ei->nr_blks >= NR_NODE_MEMBLKS) {
 		pr_err("NUMA: Too many emulated memblks, failing emulation\n");
@@ -61,6 +63,10 @@ static int __init emu_setup_memblk(struct numa_meminfo *ei,
 	eb->start = pb->start;
 	eb->end = pb->start + size;
 	eb->nid = nid;
+
+	ret = cma_check_range(&eb->start, &eb->end);
+	if (ret)
+		return ret;
 
 	if (emu_nid_to_phys[nid] == NUMA_NO_NODE)
 		emu_nid_to_phys[nid] = pb->nid;

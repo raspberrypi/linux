@@ -602,3 +602,39 @@ int cma_for_each_area(int (*it)(struct cma *cma, void *data), void *data)
 
 	return 0;
 }
+
+struct cma_check_range_data {
+	u64 start, end;
+};
+
+static int check_range(struct cma *cma_, void *data)
+{
+	struct cma_check_range_data *range = data;
+	struct cma_check_range_data cma;
+	bool starts_in_range;
+	bool ends_in_range;
+
+	cma.start = cma_get_base(cma_);
+	cma.end = cma.start + cma_get_size(cma_) - 1;
+
+	starts_in_range = cma.start >= range->start && cma.start <= range->end;
+	ends_in_range = cma.end >= range->start && cma.end <= range->end;
+
+	if (starts_in_range == ends_in_range)
+		return 0;
+
+	pr_notice("CMA %s [%llx-%llx] straddles range [%llx-%llx]\n",
+		  cma_->name, cma.start, cma.end, range->start, range->end);
+
+	return -EINVAL;
+}
+
+int cma_check_range(u64 *start, u64 *end)
+{
+	struct cma_check_range_data range = {
+		.start = *start,
+		.end = *end,
+	};
+
+	return cma_for_each_area(check_range, &range);
+}
