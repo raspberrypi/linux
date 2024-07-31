@@ -399,7 +399,7 @@ void dw_spi_update_config(struct dw_spi *dws, struct spi_device *spi,
 		dw_writel(dws, DW_SPI_CTRLR1, cfg->ndf ? cfg->ndf - 1 : 0);
 
 	/* Note DW APB SSI clock divider doesn't support odd numbers */
-	clk_div = (DIV_ROUND_UP(dws->max_freq, cfg->freq) + 1) & 0xfffe;
+	clk_div = min(DIV_ROUND_UP(dws->max_freq, cfg->freq) + 1, 0xfffe) & 0xfffe;
 	speed_hz = dws->max_freq / clk_div;
 
 	if (dws->current_freq != speed_hz) {
