@@ -86,7 +86,8 @@ void rp1dsi_mipicfg_setup(struct rp1_dsi *dsi);
 /* Functions to control the SNPS D-PHY and DSI block setup		  */
 
 void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode);
-void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 header, int len, const u8 *buf);
+void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 header, int len, const u8 *buf,
+		bool use_lpm, bool req_ack);
 int  rp1dsi_dsi_recv(struct rp1_dsi *dsi, int len, u8 *buf);
 void rp1dsi_dsi_set_cmdmode(struct rp1_dsi *dsi, int cmd_mode);
 void rp1dsi_dsi_stop(struct rp1_dsi *dsi);
