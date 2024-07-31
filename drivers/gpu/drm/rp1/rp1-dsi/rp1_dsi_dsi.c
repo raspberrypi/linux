@@ -103,6 +103,24 @@
 
 /* And some bitfield definitions */
 
+#define DSI_PCKHDL_EOTP_TX_EN  BIT(0)
+#define DSI_PCKHDL_BTA_EN      BIT(2)
+
+#define DSI_VID_MODE_LP_CMD_EN        BIT(15)
+#define DSI_VID_MODE_FRAME_BTA_ACK_EN BIT(14)
+#define DSI_VID_MODE_LP_HFP_EN        BIT(13)
+#define DSI_VID_MODE_LP_HBP_EN        BIT(12)
+#define DSI_VID_MODE_LP_VACT_EN       BIT(11)
+#define DSI_VID_MODE_LP_VFP_EN        BIT(10)
+#define DSI_VID_MODE_LP_VBP_EN        BIT(9)
+#define DSI_VID_MODE_LP_VSA_EN        BIT(8)
+#define DSI_VID_MODE_SYNC_PULSES      0
+#define DSI_VID_MODE_SYNC_EVENTS      1
+#define DSI_VID_MODE_BURST            2
+
+#define DSI_CMD_MODE_ALL_LP           0x10f7f00
+#define DSI_CMD_MODE_ACK_RQST_EN      BIT(1)
+
 #define DPHY_PWR_UP_SHUTDOWNZ_LSB 0
 #define DPHY_PWR_UP_SHUTDOWNZ_BITS BIT(DPHY_PWR_UP_SHUTDOWNZ_LSB)
 
@@ -1251,8 +1269,8 @@ static u32 dphy_configure_pll(struct rp1_dsi *dsi, u32 refclk, u32 vco_freq)
 			       vco_freq, actual_vco_freq, m, refclk, n,
 			       hsfreq_table[dsi->hsfreq_index].hsfreqrange);
 	} else {
-		drm_warn(dsi->drm,
-			 "rp1dsi: Error configuring DPHY PLL %uHz\n", vco_freq);
+		drm_err(dsi->drm,
+			"rp1dsi: Error configuring DPHY PLL %uHz\n", vco_freq);
 	}
 
 	return actual_vco_freq;
@@ -1320,7 +1338,7 @@ static void rp1dsi_dpiclk_start(struct rp1_dsi *dsi, u32 byte_clock,
 	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_DPI], (4 * lanes * byte_clock) / (bpp >> 1));
 	clk_prepare_enable(dsi->clocks[RP1DSI_CLOCK_DPI]);
 	drm_info(dsi->drm,
-		 "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)",
+		 "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)\n",
 		 byte_clock,
 		 clk_get_rate(dsi->clocks[RP1DSI_CLOCK_DPI]),
 		 clk_get_rate(clk_get_parent(dsi->clocks[RP1DSI_CLOCK_DPI])));
@@ -1364,7 +1382,8 @@ static u32 get_colorcode(enum mipi_dsi_pixel_format fmt)
 
 void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 {
-	u32 timeout, mask, vid_mode_cfg;
+	int cmdtim;
+	u32 timeout, mask, clkdiv;
 	unsigned int bpp = mipi_dsi_pixel_format_to_bpp(dsi->display_format);
 	u32 byte_clock = clamp((bpp * 125 * min(mode->clock, RP1DSI_DPI_MAX_KHZ)) / dsi->lanes,
 			       RP1DSI_BYTE_CLK_MIN, RP1DSI_BYTE_CLK_MAX);
@@ -1373,19 +1392,31 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	DSI_WRITE(DSI_DPI_CFG_POL, 0);
 	DSI_WRITE(DSI_GEN_VCID, dsi->vc);
 	DSI_WRITE(DSI_DPI_COLOR_CODING, get_colorcode(dsi->display_format));
-	/* a conservative guess (LP escape is slow!) */
-	DSI_WRITE(DSI_DPI_LP_CMD_TIM, 0x00100000);
 
-	/* Drop to LP where possible; use LP Escape for all commands */
-	vid_mode_cfg = 0xbf00;
-	if (!(dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
-		vid_mode_cfg |= 0x01;
-	else if (8 * dsi->lanes > bpp)
-		vid_mode_cfg &= ~0x400; /* PULSE && inexact DPICLK => fix HBP time */
+	/*
+	 * Flags to configure use of LP, EoTp, Burst Mode, Sync Events/Pulses.
+	 * Note that Burst Mode implies Sync Events; the two flags need not be
+	 * set concurrently, and in this RP1 variant *should not* both be set:
+	 * doing so would (counter-intuitively) enable Sync Pulses and may fail
+	 * if there is not sufficient time to return to LP11 state during HBP.
+	 */
+	mask =  DSI_VID_MODE_LP_HFP_EN  | DSI_VID_MODE_LP_HBP_EN |
+		DSI_VID_MODE_LP_VACT_EN | DSI_VID_MODE_LP_VFP_EN |
+		DSI_VID_MODE_LP_VBP_EN  | DSI_VID_MODE_LP_VSA_EN;
+	if (dsi->display_flags & MIPI_DSI_MODE_LPM)
+		mask |= DSI_VID_MODE_LP_CMD_EN;
 	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_BURST)
-		vid_mode_cfg |= 0x02;
-	DSI_WRITE(DSI_VID_MODE_CFG, vid_mode_cfg);
-	DSI_WRITE(DSI_CMD_MODE_CFG, 0x10F7F00);
+		mask |= DSI_VID_MODE_BURST;
+	else if (!(dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE))
+		mask |= DSI_VID_MODE_SYNC_EVENTS;
+	else if (8 * dsi->lanes > bpp)
+		mask &= ~DSI_VID_MODE_LP_HBP_EN; /* PULSE && inexact DPICLK => fix HBP time */
+	DSI_WRITE(DSI_VID_MODE_CFG, mask);
+	DSI_WRITE(DSI_CMD_MODE_CFG,
+		  (dsi->display_flags & MIPI_DSI_MODE_LPM) ? DSI_CMD_MODE_ALL_LP : 0);
+	DSI_WRITE(DSI_PCKHDL_CFG,
+		  DSI_PCKHDL_BTA_EN |
+		  ((dsi->display_flags & MIPI_DSI_MODE_NO_EOT_PACKET) ? 0 : DSI_PCKHDL_EOTP_TX_EN));
 
 	/* Select Command Mode */
 	DSI_WRITE(DSI_MODE_CFG, 1);
@@ -1396,9 +1427,9 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 		timeout = 0;
 	DSI_WRITE(DSI_TO_CNT_CFG, (timeout << 16) | RP1DSI_LPRX_TO_VAL);
 	DSI_WRITE(DSI_BTA_TO_CNT, RP1DSI_BTA_TO_VAL);
+	clkdiv = max(2u, 1u + byte_clock / RP1DSI_ESC_CLK_MAX); /* byte clocks per escape clock */
 	DSI_WRITE(DSI_CLKMGR_CFG,
-		  (RP1DSI_TO_CLK_DIV << 8) |
-		  max(2u, 1u + byte_clock / RP1DSI_ESC_CLK_MAX));
+		  (RP1DSI_TO_CLK_DIV << 8) | clkdiv);
 
 	/* Configure video timings */
 	DSI_WRITE(DSI_VID_PKT_SIZE, mode->hdisplay);
@@ -1424,6 +1455,18 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 		  (hsfreq_table[dsi->hsfreq_index].data_lp2hs << DSI_PHY_TMR_LP2HS_LSB) |
 		  (hsfreq_table[dsi->hsfreq_index].data_hs2lp << DSI_PHY_TMR_HS2LP_LSB));
 
+	/* Estimate how many LP bytes can be sent during vertical blanking (Databook 3.6.2.1) */
+	cmdtim = mode->htotal;
+	if (dsi->display_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE)
+		cmdtim -= mode->hsync_end - mode->hsync_start;
+	cmdtim = (bpp * cmdtim - 64) / (8 * dsi->lanes);      /* byte clocks after HSS and EoTp */
+	cmdtim -= hsfreq_table[dsi->hsfreq_index].data_hs2lp;
+	cmdtim -= hsfreq_table[dsi->hsfreq_index].data_lp2hs;
+	cmdtim = (cmdtim / clkdiv) - 24;                      /* escape clocks for commands */
+	cmdtim = max(0, cmdtim >> 4);                         /* bytes (at 2 clocks per bit) */
+	drm_info(dsi->drm, "rp1dsi: Command time (outvact): %d\n", cmdtim);
+	DSI_WRITE(DSI_DPI_LP_CMD_TIM, cmdtim << 16);
+
 	/* Wait for PLL lock */
 	for (timeout = (1 << 14); timeout != 0; --timeout) {
 		usleep_range(10, 50);
@@ -1433,9 +1476,9 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	if (timeout == 0)
 		drm_err(dsi->drm, "RP1DSI: Time out waiting for PLL\n");
 
-	DSI_WRITE(DSI_LPCLK_CTRL, 0x1);		/* configure the requesthsclk */
+	DSI_WRITE(DSI_LPCLK_CTRL,
+		  (dsi->display_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ? 0x3 : 0x1);
 	DSI_WRITE(DSI_PHY_TST_CTRL0, 0x2);
-	DSI_WRITE(DSI_PCKHDL_CFG, 1 << 2);	/* allow bus turnaround */
 	DSI_WRITE(DSI_PWR_UP, 0x1);		/* power up */
 
 	/* Now it should be safe to start the external DPI clock divider */
@@ -1459,7 +1502,8 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 			mask, DSI_READ(DSI_PHY_STATUS));
 }
 
-void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 hdr, int len, const u8 *buf)
+void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 hdr, int len, const u8 *buf,
+		     bool use_lpm, bool req_ack)
 {
 	u32 val;
 
@@ -1469,6 +1513,24 @@ void rp1dsi_dsi_send(struct rp1_dsi *dsi, u32 hdr, int len, const u8 *buf)
 			break;
 		usleep_range(100, 150);
 	}
+
+	/*
+	 * Update global configuration flags for LP/HS and ACK options.
+	 * XXX It's not clear if having empty FIFOs (checked above and below) guarantees that
+	 * the last command has completed and been ACKed, or how closely these control registers
+	 * align with command/payload FIFO writes (as each is an independent clock-crossing)?
+	 */
+	val = DSI_READ(DSI_VID_MODE_CFG);
+	if (use_lpm)
+		val |= DSI_VID_MODE_LP_CMD_EN;
+	else
+		val &= ~DSI_VID_MODE_LP_CMD_EN;
+	DSI_WRITE(DSI_VID_MODE_CFG, val);
+	val = (use_lpm) ? DSI_CMD_MODE_ALL_LP : 0;
+	if (req_ack)
+		val |= DSI_CMD_MODE_ACK_RQST_EN;
+	DSI_WRITE(DSI_CMD_MODE_CFG, val);
+	(void)DSI_READ(DSI_CMD_MODE_CFG);
 
 	/* Write payload (in 32-bit words) and header */
 	for (; len > 0; len -= 4) {
@@ -1503,8 +1565,10 @@ int rp1dsi_dsi_recv(struct rp1_dsi *dsi, int len, u8 *buf)
 			break;
 		usleep_range(100, 150);
 	}
-	if (i == 0)
+	if (!i) {
+		drm_warn(dsi->drm, "Receive failed\n");
 		return -EIO;
+	}
 
 	for (i = 0; i < len; i += 4) {
 		/* Read fifo must not be empty before all bytes are read */
