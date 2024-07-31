@@ -396,7 +396,10 @@ static ssize_t rp1dsi_host_transfer(struct mipi_dsi_host *host, const struct mip
 		return ret;
 	}
 
-	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header), packet.payload_length, packet.payload);
+	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header),
+			packet.payload_length, packet.payload,
+			!!(msg->flags & MIPI_DSI_MSG_USE_LPM),
+			!!(msg->flags & MIPI_DSI_MSG_REQ_ACK));
 
 	/* Optional read back */
 	if (msg->rx_len && msg->rx_buf)
