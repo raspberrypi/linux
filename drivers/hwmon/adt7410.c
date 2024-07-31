@@ -94,9 +94,17 @@ static const struct i2c_device_id adt7410_ids[] = {
 };
 MODULE_DEVICE_TABLE(i2c, adt7410_ids);
 
+static const struct of_device_id adt7410_of_ids[] = {
+	{ .compatible = "adi,adt7410" },
+	{ .compatible = "adi,adt7420" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, adt7410_of_ids);
+
 static struct i2c_driver adt7410_driver = {
 	.driver = {
 		.name	= "adt7410",
+		.of_match_table = adt7410_of_ids,
 		.pm	= pm_sleep_ptr(&adt7x10_dev_pm_ops),
 	},
 	.probe		= adt7410_i2c_probe,
