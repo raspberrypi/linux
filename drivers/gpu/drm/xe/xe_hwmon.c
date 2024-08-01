@@ -200,9 +200,10 @@ static int xe_hwmon_power_max_write(struct xe_hwmon *hwmon, int channel, long va
 				     PKG_PWR_LIM_1_EN, 0, channel);
 
 		if (reg_val & PKG_PWR_LIM_1_EN) {
+			drm_warn(&gt_to_xe(hwmon->gt)->drm, "PL1 disable is not supported!\n");
 			ret = -EOPNOTSUPP;
-			goto unlock;
 		}
+		goto unlock;
 	}
 
 	/* Computation in 64-bits to avoid overflow. Round to nearest. */
