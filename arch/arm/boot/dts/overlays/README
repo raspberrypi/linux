@@ -1720,6 +1720,33 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
                                 (default 100)
 
 
+Name:   hd44780-i2c-lcd
+Info:   Configures an HD44780 compatible LCD display connected via a PCF8574 as
+        is often found as a backpack interface for these displays.
+Load:   dtoverlay=hd44780-i2c-lcd,<param>=<val>
+Params: addr                    I2C address of PCF8574
+        pin_d4                  GPIO pin for data pin D4 (default 4)
+
+        pin_d5                  GPIO pin for data pin D5 (default 5)
+
+        pin_d6                  GPIO pin for data pin D6 (default 6)
+
+        pin_d7                  GPIO pin for data pin D7 (default 7)
+
+        pin_en                  GPIO pin for "Enable" (default 2)
+
+        pin_rs                  GPIO pin for "Register Select" (default 0)
+
+        pin_rw                  GPIO pin for R/W select (default 1)
+
+        pin_bl                  GPIO pin for enabling/disabling the display
+                                backlight. (default 3)
+
+        display_height          Height of the display in characters (default 2)
+
+        display_width           Width of the display in characters (default 16)
+
+
 Name:   hd44780-lcd
 Info:   Configures an HD44780 compatible LCD display. Uses 4 gpio pins for
         data, 2 gpio pins for enable and register select and 1 optional pin
