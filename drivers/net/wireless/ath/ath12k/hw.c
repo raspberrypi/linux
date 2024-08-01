@@ -922,6 +922,8 @@ static const struct ath12k_hw_params ath12k_hw_params[] = {
 		.supports_sta_ps = false,
 
 		.acpi_guid = NULL,
+
+		.iova_mask = 0,
 	},
 	{
 		.name = "wcn7850 hw2.0",
@@ -997,6 +999,8 @@ static const struct ath12k_hw_params ath12k_hw_params[] = {
 		.supports_sta_ps = true,
 
 		.acpi_guid = &wcn7850_uuid,
+
+		.iova_mask = ATH12K_PCIE_MAX_PAYLOAD_SIZE - 1,
 	},
 	{
 		.name = "qcn9274 hw2.0",
@@ -1067,6 +1071,8 @@ static const struct ath12k_hw_params ath12k_hw_params[] = {
 		.supports_sta_ps = false,
 
 		.acpi_guid = NULL,
+
+		.iova_mask = 0,
 	},
 };
 
