@@ -8,7 +8,6 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 
-#include "hailo_pcie_version.h"
 #include "pcie.h"
 #include "utils.h"
 #include "utils/logs.h"

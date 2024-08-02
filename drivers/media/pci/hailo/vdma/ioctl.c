@@ -12,9 +12,9 @@
 #include <linux/uaccess.h>
 
 
-long hailo_vdma_interrupts_enable_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
+long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
 {
-    struct hailo_vdma_interrupts_enable_params input;
+    struct hailo_vdma_enable_channels_params input;
     struct hailo_vdma_engine *engine = NULL;
     u8 engine_index = 0;
     u32 channels_bitmap = 0;
@@ -35,7 +35,7 @@ long hailo_vdma_interrupts_enable_ioctl(struct hailo_vdma_controller *controller
 
     for_each_vdma_engine(controller, engine, engine_index) {
         channels_bitmap = input.channels_bitmap_per_engine[engine_index];
-        hailo_vdma_engine_enable_channel_interrupts(engine, channels_bitmap,
+        hailo_vdma_engine_enable_channels(engine, channels_bitmap,
             input.enable_timestamps_measure);
         hailo_vdma_update_interrupts_mask(controller, engine_index);
         hailo_dev_info(controller->dev, "Enabled interrupts for engine %u, channels bitmap 0x%x\n",
@@ -45,12 +45,13 @@ long hailo_vdma_interrupts_enable_ioctl(struct hailo_vdma_controller *controller
     return 0;
 }
 
-long hailo_vdma_interrupts_disable_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
+long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
 {
-    struct hailo_vdma_interrupts_disable_params input;
+    struct hailo_vdma_disable_channels_params input;
     struct hailo_vdma_engine *engine = NULL;
     u8 engine_index = 0;
     u32 channels_bitmap = 0;
+    unsigned long irq_saved_flags = 0;
 
     if (copy_from_user(&input, (void*)arg, sizeof(input))) {
         hailo_dev_err(controller->dev, "copy_from_user fail\n");
@@ -61,15 +62,21 @@ long hailo_vdma_interrupts_disable_ioctl(struct hailo_vdma_controller *controlle
     for_each_vdma_engine(controller, engine, engine_index) {
         channels_bitmap = input.channels_bitmap_per_engine[engine_index];
         if (channels_bitmap != (channels_bitmap & engine->enabled_channels)) {
-            hailo_dev_err(controller->dev, "Trying to disable channels that were not enabled\n");
-            return -EINVAL;
+            hailo_dev_warn(controller->dev, "Trying to disable channels that were not enabled\n");
         }
     }
 
     for_each_vdma_engine(controller, engine, engine_index) {
         channels_bitmap = input.channels_bitmap_per_engine[engine_index];
-        hailo_vdma_engine_interrupts_disable(controller, engine, engine_index,
-            channels_bitmap);
+        hailo_vdma_engine_disable_channels(engine, channels_bitmap);
+        hailo_vdma_update_interrupts_mask(controller, engine_index);
+
+        spin_lock_irqsave(&controller->interrupts_lock, irq_saved_flags);
+        hailo_vdma_engine_clear_channel_interrupts(engine, channels_bitmap);
+        spin_unlock_irqrestore(&controller->interrupts_lock, irq_saved_flags);
+
+        hailo_dev_info(controller->dev, "Disabled channels for engine %u, bitmap 0x%x\n",
+            engine_index, channels_bitmap);
     }
 
     // Wake up threads waiting
@@ -197,7 +204,7 @@ long hailo_vdma_buffer_map_ioctl(struct hailo_vdma_file_context *context, struct
         return -EFAULT;
     }
 
-    hailo_dev_info(controller->dev, "address %px tgid %d size: %zu\n",
+    hailo_dev_info(controller->dev, "address %lx tgid %d size: %zu\n",
         buf_info.user_address, current->tgid, buf_info.size);
 
     direction = get_dma_direction(buf_info.data_direction);
@@ -209,10 +216,9 @@ long hailo_vdma_buffer_map_ioctl(struct hailo_vdma_file_context *context, struct
     low_memory_buffer = hailo_vdma_find_low_memory_buffer(context, buf_info.allocated_buffer_handle);
 
     mapped_buffer = hailo_vdma_buffer_map(controller->dev,
-        buf_info.user_address, buf_info.size, direction, low_memory_buffer);
+        buf_info.user_address, buf_info.size, direction, buf_info.buffer_type, low_memory_buffer);
     if (IS_ERR(mapped_buffer)) {
-        hailo_dev_err(controller->dev, "failed map buffer %px\n",
-            buf_info.user_address);
+        hailo_dev_err(controller->dev, "failed map buffer %lx\n", buf_info.user_address);
         return PTR_ERR(mapped_buffer);
     }
 
@@ -225,7 +231,7 @@ long hailo_vdma_buffer_map_ioctl(struct hailo_vdma_file_context *context, struct
     }
 
     list_add(&mapped_buffer->mapped_user_buffer_list, &context->mapped_user_buffer_list);
-    hailo_dev_info(controller->dev, "buffer %px (handle %zu) is mapped\n",
+    hailo_dev_info(controller->dev, "buffer %lx (handle %zu) is mapped\n",
         buf_info.user_address, buf_info.mapped_handle);
     return 0;
 }
@@ -374,10 +380,10 @@ long hailo_desc_list_release_ioctl(struct hailo_vdma_file_context *context, stru
     return 0;
 }
 
-long hailo_desc_list_bind_vdma_buffer(struct hailo_vdma_file_context *context, struct hailo_vdma_controller *controller,
+long hailo_desc_list_program_ioctl(struct hailo_vdma_file_context *context, struct hailo_vdma_controller *controller,
     unsigned long arg)
 {
-    struct hailo_desc_list_bind_vdma_buffer_params configure_info;
+    struct hailo_desc_list_program_params configure_info;
     struct hailo_vdma_buffer *mapped_buffer = NULL;
     struct hailo_descriptors_list_buffer *descriptors_buffer = NULL;
     struct hailo_vdma_mapped_transfer_buffer transfer_buffer = {0};
@@ -410,7 +416,10 @@ long hailo_desc_list_bind_vdma_buffer(struct hailo_vdma_file_context *context, s
         &descriptors_buffer->desc_list,
         configure_info.starting_desc,
         &transfer_buffer,
-        configure_info.channel_index
+        configure_info.should_bind,
+        configure_info.channel_index,
+        configure_info.last_interrupts_domain,
+        configure_info.is_debug
     );
 }
 
@@ -683,11 +692,19 @@ long hailo_vdma_launch_transfer_ioctl(struct hailo_vdma_file_context *context, s
         params.is_debug
     );
     if (ret < 0) {
-        hailo_dev_err(controller->dev, "Failed launch transfer %d\n", ret);
+        params.launch_transfer_status = ret;
+        if (-ECONNRESET != ret) {
+            hailo_dev_err(controller->dev, "Failed launch transfer %d\n", ret);
+        }
+        // Still need to copy fail status back to userspace - success oriented
+        if (copy_to_user((void __user*)arg, &params, sizeof(params))) {
+            hailo_dev_err(controller->dev, "copy_to_user fail\n");
+        }
         return ret;
     }
 
     params.descs_programed = ret;
+    params.launch_transfer_status = 0;
 
     if (copy_to_user((void __user*)arg, &params, sizeof(params))) {
         hailo_dev_err(controller->dev, "copy_to_user fail\n");

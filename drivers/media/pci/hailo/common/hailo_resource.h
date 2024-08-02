@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: MIT
 /**
  * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
  **/

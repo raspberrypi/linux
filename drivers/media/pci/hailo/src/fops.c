@@ -19,7 +19,6 @@
 #include <linux/sched/signal.h>
 #endif
 
-#include "hailo_pcie_version.h"
 #include "utils.h"
 #include "fops.h"
 #include "vdma_common.h"
@@ -27,6 +26,7 @@
 #include "vdma/memory.h"
 #include "vdma/ioctl.h"
 #include "utils/compact.h"
+#include "pci_soc_ioctl.h"
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 13, 0 )
@@ -210,69 +210,66 @@ l_exit:
 
 int hailo_pcie_fops_release(struct inode *inode, struct file *filp)
 {
-    struct hailo_pcie_board *pBoard = (struct hailo_pcie_board *)filp->private_data;
+    struct hailo_pcie_board *board = (struct hailo_pcie_board *)filp->private_data;
     struct hailo_file_context *context = NULL;
 
     u32 major = MAJOR(inode->i_rdev);
     u32 minor = MINOR(inode->i_rdev);
 
-    if (pBoard) {
-        hailo_info(pBoard, "(%d: %d-%d): fops_release\n", current->tgid, major, minor);
+    if (board) {
+        hailo_info(board, "(%d: %d-%d): fops_release\n", current->tgid, major, minor);
 
-        if (down_interruptible(&pBoard->mutex)) {
-            hailo_err(pBoard, "fops_release down_interruptible failed");
-            return -ERESTARTSYS;
-        }
 
-        context = find_file_context(pBoard, filp);
+        down(&board->mutex);
+
+        context = find_file_context(board, filp);
         if (NULL == context) {
-            hailo_err(pBoard, "Invalid driver state, file context does not exist\n");
-            up(&pBoard->mutex);
+            hailo_err(board, "Invalid driver state, file context does not exist\n");
+            up(&board->mutex);
             return -EINVAL;
         }
 
         if (false == context->is_valid) {
             // File context is invalid, but open. It's OK to continue finalize and release it.
-            hailo_err(pBoard, "Invalid file context\n");
+            hailo_err(board, "Invalid file context\n");
         }
 
-        hailo_pcie_clear_notification_wait_list(pBoard, filp);
+        hailo_pcie_clear_notification_wait_list(board, filp);
 
-        if (filp == pBoard->vdma.used_by_filp) {
-            if (hailo_pcie_driver_down(pBoard)) {
-                hailo_err(pBoard, "Failed sending FW shutdown event");
+        if (filp == board->vdma.used_by_filp) {
+            if (hailo_pcie_driver_down(board)) {
+                hailo_err(board, "Failed sending FW shutdown event");
             }
         }
 
-        hailo_vdma_file_context_finalize(&context->vdma_context, &pBoard->vdma, filp);
+        hailo_vdma_file_context_finalize(&context->vdma_context, &board->vdma, filp);
         release_file_context(context);
 
-        if (atomic_dec_and_test(&pBoard->ref_count)) {
+        if (atomic_dec_and_test(&board->ref_count)) {
             // Disable interrupts
-            hailo_disable_interrupts(pBoard);
+            hailo_disable_interrupts(board);
 
             if (power_mode_enabled()) {
-                if (pBoard->pDev && pci_set_power_state(pBoard->pDev, PCI_D3hot) < 0) {
-                    hailo_err(pBoard, "Failed setting power state to D3hot");
+                if (board->pDev && pci_set_power_state(board->pDev, PCI_D3hot) < 0) {
+                    hailo_err(board, "Failed setting power state to D3hot");
                 }
             }
 
             // deallocate board if already removed
-            if (!pBoard->pDev) {
-                hailo_dbg(pBoard, "fops_close, freed board\n");
-                up(&pBoard->mutex);
-                kfree(pBoard);
-                pBoard = NULL;
+            if (!board->pDev) {
+                hailo_dbg(board, "fops_release, freed board\n");
+                up(&board->mutex);
+                kfree(board);
+                board = NULL;
             } else {
-
-                hailo_dbg(pBoard, "fops_close, released resources for board\n");
-                up(&pBoard->mutex);
+                hailo_dbg(board, "fops_release, released resources for board\n");
+                up(&board->mutex);
             }
         } else {
-            up(&pBoard->mutex);
+            up(&board->mutex);
         }
 
-        hailo_dbg(pBoard, "(%d: %d-%d): fops_close: SUCCESS on /dev/hailo%d\n", current->tgid,
+        hailo_dbg(board, "(%d: %d-%d): fops_release: SUCCESS on /dev/hailo%d\n", current->tgid,
             major, minor, minor);
     }
 
@@ -392,6 +389,10 @@ irqreturn_t hailo_irqhandler(int irq, void *dev_id)
             } else {
                 firmware_notification_irq_handler(board);
             }
+        }
+
+        if (irq_source.interrupt_bitmask & SOC_CONNECT_ACCEPTED) {
+            complete_all(&board->soc_connect_accepted);
         }
 
         if (0 != irq_source.vdma_channels_bitmap) {
@@ -602,26 +603,35 @@ static long hailo_query_driver_info(struct hailo_pcie_board *board, unsigned lon
     return 0;
 }
 
-static long hailo_general_ioctl(struct hailo_file_context *context, struct hailo_pcie_board *board,
-    unsigned int cmd, unsigned long arg, struct file *filp, bool *should_up_board_mutex)
+static long hailo_general_ioctl(struct hailo_pcie_board *board, unsigned int cmd, unsigned long arg)
 {
     switch (cmd) {
     case HAILO_MEMORY_TRANSFER:
         return hailo_memory_transfer_ioctl(board, arg);
+    case HAILO_QUERY_DEVICE_PROPERTIES:
+        return hailo_query_device_properties(board, arg);
+    case HAILO_QUERY_DRIVER_INFO:
+        return hailo_query_driver_info(board, arg);
+    default:
+        hailo_err(board, "Invalid general ioctl code 0x%x (nr: %d)\n", cmd, _IOC_NR(cmd));
+        return -ENOTTY;
+    }
+}
+
+static long hailo_nnc_ioctl(struct hailo_pcie_board *board, unsigned int cmd, unsigned long arg,
+    struct file *filp, bool *should_up_board_mutex)
+{
+    switch (cmd) {
     case HAILO_FW_CONTROL:
         return hailo_fw_control(board, arg, should_up_board_mutex);
     case HAILO_READ_NOTIFICATION:
         return hailo_read_notification_ioctl(board, arg, filp, should_up_board_mutex);
     case HAILO_DISABLE_NOTIFICATION:
         return hailo_disable_notification(board, filp);
-    case HAILO_QUERY_DEVICE_PROPERTIES:
-        return hailo_query_device_properties(board, arg);
-    case HAILO_QUERY_DRIVER_INFO:
-        return hailo_query_driver_info(board, arg);
     case HAILO_READ_LOG:
         return hailo_read_log_ioctl(board, arg);
     default:
-        hailo_err(board, "Invalid general ioctl code 0x%x (nr: %d)\n", cmd, _IOC_NR(cmd));
+        hailo_err(board, "Invalid nnc ioctl code 0x%x (nr: %d)\n", cmd, _IOC_NR(cmd));
         return -ENOTTY;
     }
 }
@@ -673,11 +683,27 @@ long hailo_pcie_fops_unlockedioctl(struct file* filp, unsigned int cmd, unsigned
 
     switch (_IOC_TYPE(cmd)) {
     case HAILO_GENERAL_IOCTL_MAGIC:
-        err = hailo_general_ioctl(context, board, cmd, arg, filp, &should_up_board_mutex);
+        err = hailo_general_ioctl(board, cmd, arg);
         break;
     case HAILO_VDMA_IOCTL_MAGIC:
         err = hailo_vdma_ioctl(&context->vdma_context, &board->vdma, cmd, arg, filp, &board->mutex,
             &should_up_board_mutex);
+        break;
+    case HAILO_SOC_IOCTL_MAGIC:
+        if (HAILO_ACCELERATOR_TYPE_SOC != board->pcie_resources.accelerator_type) {
+            hailo_err(board, "Ioctl %d is not supported on this accelerator type\n", _IOC_TYPE(cmd));
+            err = -EINVAL;
+        } else {
+            err = hailo_soc_ioctl(board, &context->vdma_context, &board->vdma, cmd, arg);
+        }
+        break;
+    case HAILO_NNC_IOCTL_MAGIC:
+        if (HAILO_ACCELERATOR_TYPE_NNC != board->pcie_resources.accelerator_type) {
+            hailo_err(board, "Ioctl %d is not supported on this accelerator type\n", _IOC_TYPE(cmd));
+            err = -EINVAL;
+        } else {
+            err = hailo_nnc_ioctl(board, cmd, arg, filp, &should_up_board_mutex);
+        }
         break;
     default:
         hailo_err(board, "Invalid ioctl type %d\n", _IOC_TYPE(cmd));
