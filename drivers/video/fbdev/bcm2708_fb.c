@@ -215,7 +215,7 @@ static int bcm2708_fb_debugfs_init(struct bcm2708_fb *fb)
 static void set_display_num(struct bcm2708_fb *fb)
 {
 	if (fb && fb->fbdev && fb->fbdev->firmware_supports_multifb) {
-		u32 tmp = fb->display_settings.display_num;
+		u32 tmp = cpu_to_le32(fb->display_settings.display_num);
 
 		if (rpi_firmware_property(fb->fbdev->fw,
 					  RPI_FIRMWARE_FRAMEBUFFER_SET_DISPLAY_NUM,
@@ -350,22 +350,22 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 {
 	struct bcm2708_fb *fb = to_bcm2708(info);
 	struct fb_alloc_tags fbinfo = {
-		.tag1 = { RPI_FIRMWARE_FRAMEBUFFER_SET_PHYSICAL_WIDTH_HEIGHT,
-			  8, 0, },
-			.xres = info->var.xres,
-			.yres = info->var.yres,
-		.tag2 = { RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_WIDTH_HEIGHT,
-			  8, 0, },
-			.xres_virtual = info->var.xres_virtual,
-			.yres_virtual = info->var.yres_virtual,
-		.tag3 = { RPI_FIRMWARE_FRAMEBUFFER_SET_DEPTH, 4, 0 },
-			.bpp = info->var.bits_per_pixel,
-		.tag4 = { RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_OFFSET, 8, 0 },
-			.xoffset = info->var.xoffset,
-			.yoffset = info->var.yoffset,
-		.tag5 = { RPI_FIRMWARE_FRAMEBUFFER_ALLOCATE, 8, 0 },
+		.tag1 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_SET_PHYSICAL_WIDTH_HEIGHT),
+			  cpu_to_le32(8), 0, },
+			.xres = cpu_to_le32(info->var.xres),
+			.yres = cpu_to_le32(info->var.yres),
+		.tag2 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_WIDTH_HEIGHT),
+			  cpu_to_le32(8), 0, },
+			.xres_virtual = cpu_to_le32(info->var.xres_virtual),
+			.yres_virtual = cpu_to_le32(info->var.yres_virtual),
+		.tag3 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_SET_DEPTH), cpu_to_le32(4), 0 },
+			.bpp = cpu_to_le32(info->var.bits_per_pixel),
+		.tag4 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_OFFSET), cpu_to_le32(8), 0 },
+			.xoffset = cpu_to_le32(info->var.xoffset),
+			.yoffset = cpu_to_le32(info->var.yoffset),
+		.tag5 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_ALLOCATE), cpu_to_le32(8), 0 },
 			/* base and screen_size will be initialised later */
-		.tag6 = { RPI_FIRMWARE_FRAMEBUFFER_SET_PITCH, 4, 0 },
+		.tag6 = { cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_SET_PITCH), cpu_to_le32(4), 0 },
 			/* pitch will be initialised later */
 	};
 	int ret, image_size;
@@ -397,6 +397,7 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 			fb->dma_addr = 0;
 		}
 
+                printk(KERN_ERR"allocating %d bytes\n", image_size);
 		fb->cpuaddr = dma_alloc_coherent(info->device, image_size,
 						 &fb->dma_addr, GFP_KERNEL);
 
@@ -409,13 +410,13 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	}
 
 	if (fb->cpuaddr) {
-		fbinfo.base = fb->dma_addr;
-		fbinfo.screen_size = image_size;
-		fbinfo.pitch = (info->var.xres * info->var.bits_per_pixel) >> 3;
+		fbinfo.base = cpu_to_le32(fb->dma_addr);
+		fbinfo.screen_size = cpu_to_le32(image_size);
+		fbinfo.pitch = cpu_to_le32((info->var.xres * info->var.bits_per_pixel) >> 3);
 
 		ret = rpi_firmware_property_list(fb->fbdev->fw, &fbinfo,
 						 sizeof(fbinfo));
-		if (ret || fbinfo.base != fb->dma_addr) {
+		if (ret || le32_to_cpu(fbinfo.base) != fb->dma_addr) {
 			/* Firmware either failed, or assigned a different base
 			 * address (ie it doesn't support being passed an FB
 			 * allocation).
@@ -442,7 +443,7 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 		 */
 		fbinfo.base = 0;
 		fbinfo.screen_size = 0;
-		fbinfo.tag6.tag = RPI_FIRMWARE_FRAMEBUFFER_GET_PITCH;
+		fbinfo.tag6.tag = cpu_to_le32(RPI_FIRMWARE_FRAMEBUFFER_GET_PITCH);
 		fbinfo.pitch = 0;
 
 		ret = rpi_firmware_property_list(fb->fbdev->fw, &fbinfo,
@@ -459,6 +460,14 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 		fb->fb.fix.visual = FB_VISUAL_PSEUDOCOLOR;
 	else
 		fb->fb.fix.visual = FB_VISUAL_TRUECOLOR;
+
+        fbinfo.base = le32_to_cpu(fbinfo.base);
+        fbinfo.bpp = le32_to_cpu(fbinfo.bpp);
+        fbinfo.pitch = le32_to_cpu(fbinfo.pitch);
+        fbinfo.screen_size = le32_to_cpu(fbinfo.screen_size);
+        fbinfo.xres = le32_to_cpu(fbinfo.xres);
+        fbinfo.yres = le32_to_cpu(fbinfo.yres);
+        fbinfo.yres_virtual = le32_to_cpu(fbinfo.yres_virtual);
 
 	fb->fb.fix.line_length = fbinfo.pitch;
 	fbinfo.base |= 0x40000000;
@@ -1087,6 +1096,7 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 	ret = rpi_firmware_property(fw,
 				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
 				    &num_displays, sizeof(u32));
+        num_displays = le32_to_cpu(num_displays);
 
 	/* If we fail to get the number of displays, or it returns 0, then
 	 * assume old firmware that doesn't have the mailbox call, so just
@@ -1149,19 +1159,23 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 	for (i = 0; i < num_displays; i++) {
 		struct bcm2708_fb *fb = &fbdev->displays[i];
 
-		fb->display_settings.display_num = i;
+		fb->display_settings.display_num = cpu_to_le32(i);
 		fb->dev = dev;
 		fb->fb.device = &dev->dev;
 		fb->fbdev = fbdev;
 
-		fb->gpu.base = gpu_mem.base;
-		fb->gpu.length = gpu_mem.length;
+		fb->gpu.base = le32_to_cpu(gpu_mem.base);
+		fb->gpu.length = le32_to_cpu(gpu_mem.length);
 
 		if (fbdev->firmware_supports_multifb) {
 			ret = rpi_firmware_property(fw,
 						    RPI_FIRMWARE_FRAMEBUFFER_GET_DISPLAY_SETTINGS,
 						    &fb->display_settings,
 						    GET_DISPLAY_SETTINGS_PAYLOAD_SIZE);
+                        fb->display_settings.display_num = le32_to_cpu(fb->display_settings.display_num);
+                        fb->display_settings.width = le32_to_cpu(fb->display_settings.width);
+                        fb->display_settings.height = le32_to_cpu(fb->display_settings.height);
+                        fb->display_settings.depth = le32_to_cpu(fb->display_settings.depth);
 		} else {
 			memset(&fb->display_settings, 0,
 			       sizeof(fb->display_settings));

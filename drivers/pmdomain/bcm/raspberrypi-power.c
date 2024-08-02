@@ -141,14 +141,14 @@ rpi_has_new_domain_support(struct rpi_power_domains *rpi_domains)
 	struct rpi_power_domain_packet packet;
 	int ret;
 
-	packet.domain = RPI_POWER_DOMAIN_ARM;
-	packet.on = ~0;
+	packet.domain = cpu_to_le32(RPI_POWER_DOMAIN_ARM);
+	packet.on = cpu_to_le32(~0);
 
 	ret = rpi_firmware_property(rpi_domains->fw,
 				    RPI_FIRMWARE_GET_DOMAIN_STATE,
 				    &packet, sizeof(packet));
 
-	return ret == 0 && packet.on != ~0;
+	return ret == 0 && le32_to_cpu(packet.on) != ~0;
 }
 
 static int rpi_power_probe(struct platform_device *pdev)

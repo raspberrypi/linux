@@ -1568,13 +1568,13 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	host->mmc->actual_clock = 0;
 
 	if (host->firmware_sets_cdiv) {
-		u32 msg[3] = { clock, 0, 0 };
+		u32 msg[3] = { cpu_to_le32(clock), 0, 0 };
 
 		rpi_firmware_property(host->fw,
 				      RPI_FIRMWARE_SET_SDHOST_CLOCK,
 				      &msg, sizeof(msg));
 
-		clock = max(msg[1], msg[2]);
+		clock = max(le32_to_cpu(msg[1]), le32_to_cpu(msg[2]));
 		spin_lock_irqsave(&host->lock, flags);
 	} else {
 		spin_lock_irqsave(&host->lock, flags);
@@ -2142,14 +2142,14 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		mmc->caps |= MMC_CAP_4_BIT_DATA;
 
 	msg[0] = 0;
-	msg[1] = ~0;
-	msg[2] = ~0;
+	msg[1] = cpu_to_le32(~0);
+	msg[2] = cpu_to_le32(~0);
 
 	rpi_firmware_property(host->fw,
 			      RPI_FIRMWARE_SET_SDHOST_CLOCK,
 			      &msg, sizeof(msg));
 
-	host->firmware_sets_cdiv = (msg[1] != ~0);
+	host->firmware_sets_cdiv = (le32_to_cpu(msg[1]) != ~0);
 
 	platform_set_drvdata(pdev, host);
 
