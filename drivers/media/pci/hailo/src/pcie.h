@@ -70,6 +70,8 @@ struct hailo_pcie_board {
     enum hailo_allocation_mode allocation_mode;
     struct completion fw_loaded_completion;
     bool interrupts_enabled;
+    // Only needed in accelerator type soc
+    struct completion soc_connect_accepted;
 };
 
 bool power_mode_enabled(void);
