@@ -20,7 +20,6 @@
 
 #define KERNEL_CODE	1
 
-#include "hailo_pcie_version.h"
 #include "hailo_ioctl_common.h"
 #include "pcie.h"
 #include "fops.h"
@@ -45,6 +44,7 @@ enum hailo_allocate_driver_buffer_driver_param {
 static int force_desc_page_size = 0;
 static bool g_is_power_mode_enabled = true;
 static int force_allocation_from_driver = HAILO_NO_FORCE_BUFFER;
+static bool force_hailo15_legacy_mode = false;
 
 #define DEVICE_NODE_NAME "hailo"
 static int char_major = 0;
@@ -322,7 +322,7 @@ static int hailo_write_config(struct hailo_pcie_resources *resources, struct dev
 
 static bool wait_for_firmware_completion(struct completion *fw_load_completion)
 {
-    return (0 != wait_for_completion_timeout(fw_load_completion, FIRMWARE_WAIT_TIMEOUT_MS));
+    return (0 != wait_for_completion_timeout(fw_load_completion, msecs_to_jiffies(FIRMWARE_WAIT_TIMEOUT_MS)));
 }
 
 static int hailo_load_firmware(struct hailo_pcie_resources *resources,
@@ -330,6 +330,7 @@ static int hailo_load_firmware(struct hailo_pcie_resources *resources,
 {
     const struct firmware *firmware = NULL;
     int err = 0;
+    u32 boot_status = 0;
 
     if (hailo_pcie_is_firmware_loaded(resources)) {
         hailo_dev_warn(dev, "Firmware was already loaded\n");
@@ -368,11 +369,61 @@ static int hailo_load_firmware(struct hailo_pcie_resources *resources,
     release_firmware(firmware);
 
     if (!wait_for_firmware_completion(fw_load_completion)) {
-        hailo_dev_err(dev, "Timeout waiting for firmware..\n");
+        boot_status = hailo_get_boot_status(resources);
+        hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
         return -ETIMEDOUT;
     }
 
     hailo_dev_notice(dev, "Firmware was loaded successfully\n");
+    return 0;
+}
+
+static int hailo_load_firmware_batch(struct hailo_pcie_resources *resources,
+    struct device *dev, struct completion *fw_load_completion)
+{
+    u32 boot_status = 0;
+    u32 pcie_finished = 1;
+    int err = 0;
+
+    if (hailo_pcie_is_firmware_loaded(resources)) {
+        hailo_dev_warn(dev, "Firmware batch was already loaded\n");
+        return 0;
+    }
+
+    init_completion(fw_load_completion);
+
+    err = hailo_pcie_write_firmware_batch(dev, resources, FIRST_STAGE);
+    if (err < 0) {
+        hailo_dev_err(dev, "Failed writing firmware files. err %d\n", err);
+        return err;
+    }
+
+    hailo_trigger_firmware_boot(resources);
+
+    if (!wait_for_firmware_completion(fw_load_completion)) {
+        boot_status = hailo_get_boot_status(resources);
+        hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
+        return -ETIMEDOUT;
+    }
+    reinit_completion(fw_load_completion);
+
+    err = hailo_pcie_write_firmware_batch(dev, resources, SECOND_STAGE);
+    if (err < 0) {
+        hailo_dev_err(dev, "Failed writing firmware files. err %d\n", err);
+        return err;
+    }
+
+    // TODO: HRT-13838 - Remove, move address to compat, make write_memory static
+    write_memory(resources, 0x84000000, (void*)&pcie_finished, sizeof(pcie_finished));
+
+    if (!wait_for_firmware_completion(fw_load_completion)) {
+        boot_status = hailo_get_boot_status(resources);
+        hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
+        return -ETIMEDOUT;
+    }
+
+    hailo_dev_notice(dev, "Firmware Batch loaded successfully\n");
+
     return 0;
 }
 
@@ -388,8 +439,21 @@ static int hailo_activate_board(struct hailo_pcie_board *board)
         return err;
     }
 
-    err = hailo_load_firmware(&board->pcie_resources, &board->pDev->dev,
-        &board->fw_loaded_completion);
+    switch (board->pcie_resources.board_type) {
+    case HAILO_BOARD_TYPE_HAILO10H:
+        err = hailo_load_firmware_batch(&board->pcie_resources, &board->pDev->dev,
+            &board->fw_loaded_completion);
+        break;
+    case HAILO_BOARD_TYPE_HAILO10H_LEGACY:
+    case HAILO_BOARD_TYPE_PLUTO:
+    case HAILO_BOARD_TYPE_HAILO8:
+        err = hailo_load_firmware(&board->pcie_resources, &board->pDev->dev,
+            &board->fw_loaded_completion);
+        break;
+    default:
+        hailo_err(board, "Invalid board type");
+        err = -EINVAL;
+    }
     if (err < 0) {
         hailo_err(board, "Firmware load failed\n");
         hailo_disable_interrupts(board);
@@ -513,7 +577,22 @@ static int pcie_resources_init(struct pci_dev *pdev, struct hailo_pcie_resources
         goto failure_release_vdma_regs;
     }
 
+
+    // There is no HAILO15 as mercury through pcie unless it's legacy mode (H15 as accelerator) or HAILO-10H
+    if (HAILO_BOARD_TYPE_HAILO15 == board_type){
+        if (true == force_hailo15_legacy_mode) {
+            board_type = HAILO_BOARD_TYPE_HAILO10H_LEGACY;
+        } else {
+            board_type = HAILO_BOARD_TYPE_HAILO10H;
+        }
+    }
+
     resources->board_type = board_type;
+
+    err = hailo_set_device_type(resources);
+    if (err < 0) {
+        goto failure_release_fw_access;
+    }
 
     if (!hailo_pcie_is_device_connected(resources)) {
         pci_err(pdev, "Probing: Failed reading device BARs, device may be disconnected\n");
@@ -676,6 +755,7 @@ static int hailo_pcie_probe(struct pci_dev* pDev, const struct pci_device_id* id
 
     pBoard->interrupts_enabled = false;
     init_completion(&pBoard->fw_loaded_completion);
+    init_completion(&pBoard->soc_connect_accepted);
 
     sema_init(&pBoard->mutex, 1);
     atomic_set(&pBoard->ref_count, 0);
@@ -1004,6 +1084,9 @@ MODULE_PARM_DESC(force_allocation_from_driver, "Determines whether to force buff
 
 module_param(force_desc_page_size, int, S_IRUGO);
 MODULE_PARM_DESC(force_desc_page_size, "Determines the maximum DMA descriptor page size (must be a power of 2)");
+
+module_param(force_hailo15_legacy_mode, bool, S_IRUGO);
+MODULE_PARM_DESC(force_hailo15_legacy_mode, "Forces work with Hailo15 in legacy mode(relevant for emulators)");
 
 MODULE_AUTHOR("Hailo Technologies Ltd.");
 MODULE_DESCRIPTION("Hailo PCIe driver");
