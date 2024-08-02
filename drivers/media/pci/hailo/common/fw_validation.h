@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: MIT
 /**
  * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
  **/
@@ -11,8 +11,7 @@
 
 #define FIRMWARE_HEADER_MAGIC_HAILO8 (0x1DD89DE0)
 #define FIRMWARE_HEADER_MAGIC_HAILO15 (0xE905DAAB)
-// TODO - HRT-11344 : change fw magic to pluto specific
-#define FIRMWARE_HEADER_MAGIC_PLUTO (0xE905DAAB)
+#define FIRMWARE_HEADER_MAGIC_PLUTO (0xF94739AB)
 
 #ifndef HAILO_EMULATOR
 #define FIRMWARE_WAIT_TIMEOUT_MS (5000)

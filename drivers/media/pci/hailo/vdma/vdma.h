@@ -16,6 +16,8 @@
 #include <linux/dma-mapping.h>
 #include <linux/types.h>
 #include <linux/semaphore.h>
+#include <linux/dma-buf.h>
+#include <linux/version.h>
 
 #define VDMA_CHANNEL_CONTROL_REG_OFFSET(channel_index, direction) (((direction) == DMA_TO_DEVICE) ? \
             (((channel_index) << 5) + 0x0) : (((channel_index) << 5) + 0x10))
@@ -28,6 +30,22 @@
     ((u8*)((vdma_registers)->address) + VDMA_CHANNEL_NUM_PROC_OFFSET(channel_index, direction))
 
 
+// dmabuf is supported from linux kernel version 3.3
+#if LINUX_VERSION_CODE < KERNEL_VERSION( 3, 3, 0 )
+// Make dummy struct with one byte (C standards does not allow empty struct) - in order to not have to ifdef everywhere
+struct hailo_dmabuf_info {
+    uint8_t dummy;
+};
+#else
+// dmabuf_sg_table is needed because in dma_buf_unmap_attachment() the sg_table's address has to match the
+// The one returned from dma_buf_map_attachment() - otherwise we would need to malloc each time
+struct hailo_dmabuf_info {
+    struct dma_buf *dmabuf;
+    struct dma_buf_attachment *dmabuf_attachment;
+    struct sg_table *dmabuf_sg_table;
+};
+#endif // LINUX_VERSION_CODE < KERNEL_VERSION( 3, 3, 0 )
+
 struct hailo_vdma_buffer {
     struct list_head            mapped_user_buffer_list;
     size_t                      handle;
@@ -35,7 +53,7 @@ struct hailo_vdma_buffer {
     struct kref                 kref;
     struct device               *device;
 
-    void __user                 *user_address;
+    uintptr_t                   user_address;
     u32                         size;
     enum dma_data_direction     data_direction;
     struct sg_table             sg_table;
@@ -44,7 +62,10 @@ struct hailo_vdma_buffer {
     // 'struct page' (only by pure pfn). On this case, accessing to the page,
     // or calling APIs that access the page (e.g. dma_sync_sg_for_cpu) is not
     // allowed.
-    bool                       is_mmio;
+    bool                        is_mmio;
+
+    // Relevant paramaters that need to be saved in case of dmabuf - otherwise struct pointers will be NULL
+    struct hailo_dmabuf_info  dmabuf_info;
 };
 
 // Continuous buffer that holds a descriptor list.
@@ -53,7 +74,7 @@ struct hailo_descriptors_list_buffer {
     uintptr_t                          handle;
     void                               *kernel_address;
     dma_addr_t                         dma_address;
-    u32                           buffer_size;
+    u32                                buffer_size;
     struct hailo_vdma_descriptors_list desc_list;
 };
 
@@ -119,9 +140,6 @@ int hailo_vdma_controller_init(struct hailo_vdma_controller *controller,
 
 void hailo_vdma_update_interrupts_mask(struct hailo_vdma_controller *controller,
     size_t engine_index);
-
-void hailo_vdma_engine_interrupts_disable(struct hailo_vdma_controller *controller,
-    struct hailo_vdma_engine *engine, u8 engine_index, u32 channels_bitmap);
 
 void hailo_vdma_file_context_init(struct hailo_vdma_file_context *context);
 void hailo_vdma_file_context_finalize(struct hailo_vdma_file_context *context,
