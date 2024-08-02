@@ -26,9 +26,18 @@ static ssize_t device_id_show(struct device *dev, struct device_attribute *_attr
 }
 static DEVICE_ATTR_RO(device_id);
 
+static ssize_t accelerator_type_show(struct device *dev, struct device_attribute *_attr,
+    char *buf)
+{
+    struct hailo_pcie_board *board = (struct hailo_pcie_board *)dev_get_drvdata(dev);
+    return sprintf(buf, "%d", board->pcie_resources.accelerator_type);
+}
+static DEVICE_ATTR_RO(accelerator_type);
+
 static struct attribute *hailo_dev_attrs[] = {
     &dev_attr_board_location.attr,
     &dev_attr_device_id.attr,
+    &dev_attr_accelerator_type.attr,
     NULL
 };
 
