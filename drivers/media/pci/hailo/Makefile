@@ -10,6 +10,7 @@ hailo_pci-objs += src/pcie.o
 hailo_pci-objs += src/fops.o
 hailo_pci-objs += src/utils.o
 hailo_pci-objs += src/sysfs.o
+hailo_pci-objs += src/pci_soc_ioctl.o
 
 hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/fw_validation.o
 hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/fw_operation.o
@@ -18,6 +19,7 @@ hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/vdma_common.o
 hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/hailo_resource.o
 
 hailo_pci-objs += $(UTILS_SRC_DIRECTORY)/logs.o
+hailo_pci-objs += $(UTILS_SRC_DIRECTORY)/integrated_nnc_utils.o
 
 hailo_pci-objs += $(VDMA_SRC_DIRECTORY)/vdma.o
 hailo_pci-objs += $(VDMA_SRC_DIRECTORY)/memory.o
