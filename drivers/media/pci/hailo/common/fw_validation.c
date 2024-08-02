@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: MIT
 /**
  * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
  **/
@@ -28,16 +28,18 @@ int FW_VALIDATION__validate_fw_header(uintptr_t firmware_base_address,
     firmware_header_t *firmware_header = NULL;
     u32 consumed_firmware_offset = *outer_consumed_firmware_offset;
     u32 expected_firmware_magic = 0;
- 
+
     firmware_header = (firmware_header_t *) (firmware_base_address + consumed_firmware_offset);
     CONSUME_FIRMWARE(sizeof(firmware_header_t), -EINVAL);
 
     switch (board_type) {
     case HAILO_BOARD_TYPE_HAILO8:
-        expected_firmware_magic = FIRMWARE_HEADER_MAGIC_HAILO8; 
+        expected_firmware_magic = FIRMWARE_HEADER_MAGIC_HAILO8;
         break;
+    case HAILO_BOARD_TYPE_HAILO10H_LEGACY:
     case HAILO_BOARD_TYPE_HAILO15:
-        expected_firmware_magic = FIRMWARE_HEADER_MAGIC_HAILO15; 
+    case HAILO_BOARD_TYPE_HAILO10H:
+        expected_firmware_magic = FIRMWARE_HEADER_MAGIC_HAILO15;
         break;
     case HAILO_BOARD_TYPE_PLUTO:
         expected_firmware_magic = FIRMWARE_HEADER_MAGIC_PLUTO;
