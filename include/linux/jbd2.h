@@ -1084,6 +1084,13 @@ struct journal_s
 	int			j_revoke_records_per_block;
 
 	/**
+	 * @j_transaction_overhead:
+	 *
+	 * Number of blocks each transaction needs for its own bookkeeping
+	 */
+	int			j_transaction_overhead_buffers;
+
+	/**
 	 * @j_commit_interval:
 	 *
 	 * What is the maximum transaction lifetime before we begin a commit?
@@ -1665,11 +1672,6 @@ int jbd2_submit_inode_data(journal_t *journal, struct jbd2_inode *jinode);
 int jbd2_wait_inode_data(journal_t *journal, struct jbd2_inode *jinode);
 int jbd2_fc_wait_bufs(journal_t *journal, int num_blks);
 int jbd2_fc_release_bufs(journal_t *journal);
-
-static inline int jbd2_journal_get_max_txn_bufs(journal_t *journal)
-{
-	return (journal->j_total_len - journal->j_fc_wbufsize) / 4;
-}
 
 /*
  * is_journal_abort

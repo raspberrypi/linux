@@ -2218,7 +2218,7 @@ nfsd4_layoutget(struct svc_rqst *rqstp,
 	const struct nfsd4_layout_ops *ops;
 	struct nfs4_layout_stateid *ls;
 	__be32 nfserr;
-	int accmode = NFSD_MAY_READ_IF_EXEC;
+	int accmode = NFSD_MAY_READ_IF_EXEC | NFSD_MAY_OWNER_OVERRIDE;
 
 	switch (lgp->lg_seg.iomode) {
 	case IOMODE_READ:
@@ -2308,7 +2308,8 @@ nfsd4_layoutcommit(struct svc_rqst *rqstp,
 	struct nfs4_layout_stateid *ls;
 	__be32 nfserr;
 
-	nfserr = fh_verify(rqstp, current_fh, 0, NFSD_MAY_WRITE);
+	nfserr = fh_verify(rqstp, current_fh, 0,
+			   NFSD_MAY_WRITE | NFSD_MAY_OWNER_OVERRIDE);
 	if (nfserr)
 		goto out;
 

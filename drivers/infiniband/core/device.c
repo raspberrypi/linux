@@ -2146,6 +2146,9 @@ int ib_device_set_netdev(struct ib_device *ib_dev, struct net_device *ndev,
 	unsigned long flags;
 	int ret;
 
+	if (!rdma_is_port_valid(ib_dev, port))
+		return -EINVAL;
+
 	/*
 	 * Drivers wish to call this before ib_register_driver, so we have to
 	 * setup the port data early.
@@ -2153,9 +2156,6 @@ int ib_device_set_netdev(struct ib_device *ib_dev, struct net_device *ndev,
 	ret = alloc_port_data(ib_dev);
 	if (ret)
 		return ret;
-
-	if (!rdma_is_port_valid(ib_dev, port))
-		return -EINVAL;
 
 	pdata = &ib_dev->port_data[port];
 	spin_lock_irqsave(&pdata->netdev_lock, flags);
@@ -2166,17 +2166,12 @@ int ib_device_set_netdev(struct ib_device *ib_dev, struct net_device *ndev,
 		return 0;
 	}
 
-	if (old_ndev)
-		netdev_tracker_free(ndev, &pdata->netdev_tracker);
-	if (ndev)
-		netdev_hold(ndev, &pdata->netdev_tracker, GFP_ATOMIC);
 	rcu_assign_pointer(pdata->netdev, ndev);
+	netdev_put(old_ndev, &pdata->netdev_tracker);
+	netdev_hold(ndev, &pdata->netdev_tracker, GFP_ATOMIC);
 	spin_unlock_irqrestore(&pdata->netdev_lock, flags);
 
 	add_ndev_hash(pdata);
-	if (old_ndev)
-		__dev_put(old_ndev);
-
 	return 0;
 }
 EXPORT_SYMBOL(ib_device_set_netdev);
@@ -2235,8 +2230,7 @@ struct net_device *ib_device_get_netdev(struct ib_device *ib_dev,
 		spin_lock(&pdata->netdev_lock);
 		res = rcu_dereference_protected(
 			pdata->netdev, lockdep_is_held(&pdata->netdev_lock));
-		if (res)
-			dev_hold(res);
+		dev_hold(res);
 		spin_unlock(&pdata->netdev_lock);
 	}
 
@@ -2311,9 +2305,7 @@ void ib_enum_roce_netdev(struct ib_device *ib_dev,
 
 			if (filter(ib_dev, port, idev, filter_cookie))
 				cb(ib_dev, port, idev, cookie);
-
-			if (idev)
-				dev_put(idev);
+			dev_put(idev);
 		}
 }
 
