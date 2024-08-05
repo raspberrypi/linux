@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  NUM_JOBS: 3
+  NUM_JOBS: 6
 
 jobs:
   build:
