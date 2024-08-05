@@ -219,6 +219,9 @@ struct pispbe_hw_enables {
 
 /* Records a job configuration and memory addresses. */
 struct pispbe_job_descriptor {
+	struct list_head queue;
+	struct pispbe_buffer *buffers[PISPBE_NUM_NODES];
+	struct pispbe_node_group *node_group;
 	dma_addr_t hw_dma_addrs[N_HW_ADDRESSES];
 	struct pisp_be_tiles_config *config;
 	struct pispbe_hw_enables hw_enables;
@@ -235,8 +238,10 @@ struct pispbe_dev {
 	struct clk *clk;
 	struct pispbe_node_group node_group[PISPBE_NUM_NODE_GROUPS];
 	struct pispbe_job queued_job, running_job;
-	spinlock_t hw_lock; /* protects "hw_busy" flag and streaming_map */
+	/* protects "hw_busy" flag, streaming_map and job_queue*/
+	spinlock_t hw_lock;
 	bool hw_busy; /* non-zero if a job is queued or is being started */
+	struct list_head job_queue;
 	int irq;
 	u32 hw_version;
 	u8 done, started;
@@ -460,42 +465,51 @@ static void pispbe_xlate_addrs(struct pispbe_job_descriptor *job,
  * For Output0, Output1, Tdn and Stitch, a buffer only needs to be
  * available if the blocks are enabled in the config.
  *
- * Needs to be called with hw_lock held.
+ * If all the buffers required to form a job are available, append the
+ * job descriptor to the job queue to be later queued to the HW.
  *
  * Returns 0 if a job has been successfully prepared, < 0 otherwise.
  */
-static int pispbe_prepare_job(struct pispbe_node_group *node_group,
-			      struct pispbe_job_descriptor *job)
+static int pispbe_prepare_job(struct pispbe_dev *pispbe,
+			      struct pispbe_node_group *node_group)
 {
 	struct pispbe_buffer *buf[PISPBE_NUM_NODES] = {};
-	struct pispbe_dev *pispbe = node_group->pispbe;
+	struct pispbe_job_descriptor *job;
+	unsigned int streaming_map;
 	unsigned int config_index;
 	struct pispbe_node *node;
-	unsigned long flags;
 
-	lockdep_assert_held(&pispbe->hw_lock);
+	scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
+		static const u32 mask = BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE);
 
-	memset(job, 0, sizeof(struct pispbe_job_descriptor));
+		if ((node_group->streaming_map & mask) != mask)
+			return -ENODEV;
 
-	if (((BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE)) &
-		node_group->streaming_map) !=
-			(BIT(CONFIG_NODE) | BIT(MAIN_INPUT_NODE)))
-		return -ENODEV;
+		/*
+		 * Take a copy of streaming_map: nodes activated after this
+		 * point are ignored when preparing this job.
+		 */
+		streaming_map = node_group->streaming_map;
+	}
+
+	job = kzalloc(sizeof(*job), GFP_KERNEL);
+	if (!job)
+		return -ENOMEM;
 
 	node = &node_group->node[CONFIG_NODE];
-	spin_lock_irqsave(&node->ready_lock, flags);
-	buf[CONFIG_NODE] = list_first_entry_or_null(&node->ready_queue,
-						    struct pispbe_buffer,
-						    ready_list);
-	if (buf[CONFIG_NODE]) {
-		list_del(&buf[CONFIG_NODE]->ready_list);
-		pispbe->queued_job.buf[CONFIG_NODE] = buf[CONFIG_NODE];
-	}
-	spin_unlock_irqrestore(&node->ready_lock, flags);
 
-	/* Exit early if no config buffer has been queued. */
-	if (!buf[CONFIG_NODE])
-		return -ENODEV;
+	scoped_guard(spinlock_irqsave, &node->ready_lock) {
+		buf[CONFIG_NODE] = list_first_entry_or_null(&node->ready_queue,
+							    struct pispbe_buffer,
+							    ready_list);
+		if (!buf[CONFIG_NODE]) {
+			kfree(job);
+			return -ENODEV;
+		}
+
+		list_del(&buf[CONFIG_NODE]->ready_list);
+		job->buffers[CONFIG_NODE] = buf[CONFIG_NODE];
+	}
 
 	config_index = buf[CONFIG_NODE]->vb.vb2_buf.index;
 	job->config = &node_group->config[config_index];
@@ -516,7 +530,7 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 			continue;
 
 		buf[i] = NULL;
-		if (!(node_group->streaming_map & BIT(i)))
+		if (!(streaming_map & BIT(i)))
 			continue;
 
 		if ((!(rgb_en & PISP_BE_RGB_ENABLE_OUTPUT0) &&
@@ -543,24 +557,28 @@ static int pispbe_prepare_job(struct pispbe_node_group *node_group,
 		node = &node_group->node[i];
 
 		/* Pull a buffer from each V4L2 queue to form the queued job */
-		spin_lock_irqsave(&node->ready_lock, flags);
+		spin_lock(&node->ready_lock);
 		buf[i] = list_first_entry_or_null(&node->ready_queue,
 						  struct pispbe_buffer,
 						  ready_list);
 		if (buf[i]) {
 			list_del(&buf[i]->ready_list);
-			pispbe->queued_job.buf[i] = buf[i];
+			job->buffers[i] = buf[i];
 		}
-		spin_unlock_irqrestore(&node->ready_lock, flags);
+		spin_unlock(&node->ready_lock);
 
 		if (!buf[i] && !ignore_buffers)
 			goto err_return_buffers;
 	}
 
-	pispbe->queued_job.node_group = node_group;
+	job->node_group = node_group;
 
 	/* Convert buffers to DMA addresses for the hardware */
 	pispbe_xlate_addrs(job, buf, node_group);
+
+	spin_lock(&pispbe->hw_lock);
+	list_add_tail(&job->queue, &pispbe->job_queue);
+	spin_unlock(&pispbe->hw_lock);
 
 	return 0;
 
@@ -572,63 +590,51 @@ err_return_buffers:
 			continue;
 
 		/* Return the buffer to the ready_list queue */
-		spin_lock_irqsave(&n->ready_lock, flags);
+		spin_lock(&n->ready_lock);
 		list_add(&buf[i]->ready_list, &n->ready_queue);
-		spin_unlock_irqrestore(&n->ready_lock, flags);
+		spin_unlock(&n->ready_lock);
 	}
 
-	memset(&pispbe->queued_job, 0, sizeof(pispbe->queued_job));
+	kfree(job);
 
 	return -ENODEV;
 }
 
 static void pispbe_schedule(struct pispbe_dev *pispbe,
-			    struct pispbe_node_group *node_group,
 			    bool clear_hw_busy)
 {
-	struct pispbe_job_descriptor job;
-	unsigned long flags;
+	struct pispbe_job_descriptor *job;
 
-	spin_lock_irqsave(&pispbe->hw_lock, flags);
+	scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
+		if (clear_hw_busy)
+			pispbe->hw_busy = false;
 
-	if (clear_hw_busy)
-		pispbe->hw_busy = false;
+		if (pispbe->hw_busy)
+			return;
 
-	if (pispbe->hw_busy)
-		goto unlock_and_return;
+		job = list_first_entry_or_null(&pispbe->job_queue,
+					       struct pispbe_job_descriptor,
+					       queue);
+		if (!job)
+			return;
 
-	for (unsigned int i = 0; i < PISPBE_NUM_NODE_GROUPS; i++) {
-		int ret;
+		list_del(&job->queue);
 
-		/* Schedule jobs only for a specific group. */
-		if (node_group && &pispbe->node_group[i] != node_group)
-			continue;
+		for (unsigned int i = 0; i < PISPBE_NUM_NODES; i++)
+			pispbe->queued_job.buf[i] = job->buffers[i];
+		pispbe->queued_job.node_group = job->node_group;
 
-		/*
-		 * Prepare a job for this group, if the group is not ready
-		 * continue and try with the next one.
-		 */
-		ret = pispbe_prepare_job(&pispbe->node_group[i], &job);
-		if (ret)
-			continue;
-
-		/*
-		 * We can kick the job off without the hw_lock, as this can
-		 * never run again until hw_busy is cleared, which will happen
-		 * only when the following job has been queued and an interrupt
-		 * is rised.
-		 */
 		pispbe->hw_busy = true;
-		spin_unlock_irqrestore(&pispbe->hw_lock, flags);
-
-		pispbe_queue_job(pispbe, &job);
-
-		return;
 	}
 
-unlock_and_return:
-	/* No job has been queued, just release the lock and return. */
-	spin_unlock_irqrestore(&pispbe->hw_lock, flags);
+	/*
+	 * We can kick the job off without the hw_lock, as this can
+	 * never run again until hw_busy is cleared, which will happen
+	 * only when the following job has been queued and an interrupt
+	 * is rised.
+	 */
+	pispbe_queue_job(pispbe, job);
+	kfree(job);
 }
 
 static void pispbe_isr_jobdone(struct pispbe_dev *pispbe,
@@ -699,7 +705,7 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	}
 
 	/* check if there's more to do before going to sleep */
-	pispbe_schedule(pispbe, NULL, can_queue_another);
+	pispbe_schedule(pispbe, can_queue_another);
 
 	return IRQ_HANDLED;
 }
@@ -892,7 +898,8 @@ static void pispbe_node_buffer_queue(struct vb2_buffer *buf)
 	 * Every time we add a buffer, check if there's now some work for the hw
 	 * to do, but only for this client.
 	 */
-	pispbe_schedule(node_group->pispbe, node_group, false);
+	if (!pispbe_prepare_job(pispbe, node_group))
+		pispbe_schedule(pispbe, false);
 }
 
 static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -919,7 +926,8 @@ static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
 		node->node_group->streaming_map);
 
 	/* Maybe we're ready to run. */
-	pispbe_schedule(node_group->pispbe, node_group, false);
+	if (!pispbe_prepare_job(pispbe, node_group))
+		pispbe_schedule(pispbe, false);
 
 	return 0;
 
@@ -958,8 +966,8 @@ static void pispbe_node_stop_streaming(struct vb2_queue *q)
 
 		spin_lock_irqsave(&node->ready_lock, flags1);
 		buf = list_first_entry_or_null(&node->ready_queue,
-					       struct pispbe_buffer,
-					       ready_list);
+				struct pispbe_buffer,
+				ready_list);
 		if (buf) {
 			list_del(&buf->ready_list);
 			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
@@ -972,6 +980,16 @@ static void pispbe_node_stop_streaming(struct vb2_queue *q)
 
 	spin_lock_irqsave(&pispbe->hw_lock, flags);
 	node_group->streaming_map &= ~BIT(node->id);
+
+	/* Release all jobs once all nodes have stopped streaming. */
+	if (node_group->streaming_map == 0) {
+		struct pispbe_job_descriptor *job, *temp;
+
+		list_for_each_entry_safe(job, temp, &pispbe->job_queue, queue) {
+			list_del(&job->queue);
+			kfree(job);
+		}
+	}
 	spin_unlock_irqrestore(&pispbe->hw_lock, flags);
 
 	pm_runtime_mark_last_busy(pispbe->dev);
@@ -1730,6 +1748,8 @@ static int pispbe_probe(struct platform_device *pdev)
 	pispbe = devm_kzalloc(&pdev->dev, sizeof(*pispbe), GFP_KERNEL);
 	if (!pispbe)
 		return -ENOMEM;
+
+	INIT_LIST_HEAD(&pispbe->job_queue);
 
 	dev_set_drvdata(&pdev->dev, pispbe);
 	pispbe->dev = &pdev->dev;
