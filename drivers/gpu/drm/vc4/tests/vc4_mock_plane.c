@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 
+#include <drm/drm_modeset_helper_vtables.h>
 #include <drm/drm_kunit_helpers.h>
 #include <drm/drm_atomic_uapi.h>
 #include <drm/drm_plane.h>
@@ -33,9 +34,10 @@ struct drm_plane *vc4_dummy_plane(struct kunit *test, struct drm_device *drm,
 	KUNIT_ASSERT_EQ(test, type, DRM_PLANE_TYPE_PRIMARY);
 
 	plane = drm_kunit_helper_create_primary_plane(test, drm,
-						      NULL,
-						      NULL,
-						      NULL, 0,
+						      &vc4_dummy_plane_funcs,
+						      &vc4_dummy_plane_helper_funcs,
+						      vc4_dummy_plane_formats,
+						      ARRAY_SIZE(vc4_dummy_plane_formats),
 						      NULL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, plane);
 
