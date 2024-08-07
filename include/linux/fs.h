@@ -629,6 +629,7 @@ struct inode {
 	umode_t			i_mode;
 	unsigned short		i_opflags;
 	kuid_t			i_uid;
+	struct list_head	i_lru;		/* inode LRU list */
 	kgid_t			i_gid;
 	unsigned int		i_flags;
 
@@ -690,7 +691,6 @@ struct inode {
 	u16			i_wb_frn_avg_time;
 	u16			i_wb_frn_history;
 #endif
-	struct list_head	i_lru;		/* inode LRU list */
 	struct list_head	i_sb_list;
 	struct list_head	i_wb_list;	/* backing dev writeback list */
 	union {
