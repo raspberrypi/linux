@@ -4862,7 +4862,8 @@ static const struct {
  */
 static int hci_dev_setup_sync(struct hci_dev *hdev)
 {
-	struct fwnode_handle *fwnode = dev_fwnode(hdev->dev.parent);
+	struct fwnode_handle *fwnode =
+		hdev->dev.parent ? dev_fwnode(hdev->dev.parent) : NULL;
 	int ret = 0;
 	bool invalid_bdaddr;
 	size_t i;
