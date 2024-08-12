@@ -1041,7 +1041,7 @@ kernel_build(
 kernel_build(
     name = "rpi4",
     outs = _RPI_OVERLAY_OUTS + [
-        "arch/arm64/boot/Image",
+        "arch/arm64/boot/Image.gz",
         "arch/arm64/boot/dts/broadcom/bcm2711-rpi-4-b.dtb",
         "arch/arm64/boot/dts/broadcom/bcm2711-rpi-400.dtb",
         "arch/arm64/boot/dts/broadcom/bcm2711-rpi-cm4.dtb",
@@ -1050,7 +1050,7 @@ kernel_build(
     ],
     build_config = "build.config.rpi4",
     make_goals = [
-         "Image",
+         "Image.gz",
          "dtbs",
     ],
 )
