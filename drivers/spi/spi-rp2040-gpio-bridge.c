@@ -6,6 +6,7 @@
  */
 
 #include <crypto/hash.h>
+#include <linux/debugfs.h>
 #include <linux/crypto.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
@@ -90,6 +91,9 @@ enum rp2040_gbdg_fixed_size_commands {
 
 struct rp2040_gbdg {
 	struct spi_controller *controller;
+
+	struct dentry *debugfs;
+	size_t transfer_progress;
 
 	struct i2c_client *client;
 	struct crypto_shash *shash;
@@ -702,6 +706,7 @@ static int rp2040_gbdg_transfer_cached(struct rp2040_gbdg *priv_data,
 			return 0;
 	}
 
+	priv_data->transfer_progress = 0;
 	while (length) {
 		unsigned int xfer = min(length, RP2040_GBDG_BLOCK_SIZE);
 
@@ -710,7 +715,9 @@ static int rp2040_gbdg_transfer_cached(struct rp2040_gbdg *priv_data,
 			return ret;
 		length -= xfer;
 		data += xfer;
+		priv_data->transfer_progress += xfer;
 	}
+	priv_data->transfer_progress = 0;
 
 	return 0;
 }
@@ -1016,6 +1023,16 @@ static int rp2040_gbdg_power_on(struct rp2040_gbdg *rp2040_gbdg)
 	return 0;
 }
 
+static int transfer_progress_show(struct seq_file *s, void *data)
+{
+	struct rp2040_gbdg *rp2040_gbdg = s->private;
+
+	seq_printf(s, "%zu\n", rp2040_gbdg->transfer_progress);
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(transfer_progress);
+
 static int rp2040_gbdg_probe(struct i2c_client *client)
 {
 	struct rp2040_gbdg_device_info info;
@@ -1023,6 +1040,7 @@ static int rp2040_gbdg_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct rp2040_gbdg *rp2040_gbdg;
 	struct device_node *np;
+	char debugfs_name[128];
 	int ret;
 
 	np = dev->of_node;
@@ -1135,6 +1153,12 @@ static int rp2040_gbdg_probe(struct i2c_client *client)
 	}
 
 	rp2040_gbdg_parse_dt(rp2040_gbdg);
+
+	snprintf(debugfs_name, sizeof(debugfs_name), "rp2040-spi:%s",
+		 dev_name(dev));
+	rp2040_gbdg->debugfs = debugfs_create_dir(debugfs_name, NULL);
+	debugfs_create_file("transfer_progress", 0444, rp2040_gbdg->debugfs,
+			    rp2040_gbdg, &transfer_progress_fops);
 
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
