@@ -1715,7 +1715,8 @@ static void thermal_zone_device_resume(struct work_struct *work)
 	tz->suspended = false;
 
 	thermal_zone_device_init(tz);
-	__thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
+	thermal_governor_update_tz(tz, THERMAL_TZ_RESUME);
+	__thermal_zone_device_update(tz, THERMAL_TZ_RESUME);
 
 	complete(&tz->resume);
 	tz->resuming = false;
