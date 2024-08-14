@@ -2665,6 +2665,12 @@ Load:   dtoverlay=i2s-gpio28-31
 Params: <None>
 
 
+Name:   i2s-master-dac
+Info:   Configures a generic I2S DAC soundcard that acts as a clock master.
+Load:   dtoverlay=i2s-master-dac
+Params: <None>
+
+
 Name:   ilitek251x
 Info:   Enables I2C connected Ilitek 251x multiple touch controller using
         GPIO 4 (pin 7 on GPIO header) for interrupt.
