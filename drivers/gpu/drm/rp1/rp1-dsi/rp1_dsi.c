@@ -229,6 +229,8 @@ static const struct drm_mode_config_funcs rp1dsi_mode_funcs = {
 static const u32 rp1dsi_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565
