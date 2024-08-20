@@ -45,6 +45,7 @@ config SND_BCM2708_SOC_HIFIBERRY_ADC
         select SND_RPI_HIFIBERRY_ADC
         help
          Say Y or M if you want to add support for HifiBerry ADC.
+         Use this module for HiFiBerry's ADC-only sound cards
 
 config SND_BCM2708_SOC_HIFIBERRY_DAC
         tristate "Support for HifiBerry DAC and DAC8X"
