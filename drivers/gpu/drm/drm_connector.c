@@ -363,7 +363,8 @@ static int __drm_connector_init(struct drm_device *dev,
 
 	drm_object_attach_property(&connector->base,
 				   config->non_desktop_property,
-				   0);
+				   (connector_type != DRM_MODE_CONNECTOR_VIRTUAL &&
+				   connector_type != DRM_MODE_CONNECTOR_WRITEBACK) ? 0 : 1);
 	drm_object_attach_property(&connector->base,
 				   config->tile_property,
 				   0);
