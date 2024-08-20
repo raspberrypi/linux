@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-2.0
+// Definitions for HiFiBerry ADC, no onboard clocks
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			hb_adc: pcm186x@4a {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm1863";
+				reg = <0x4a>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		hifiberry_adc: __overlay__ {
+			compatible = "hifiberry,hifiberry-adc";
+			audio-codec = <&hb_adc>;
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		leds_off = <&hifiberry_adc>,"hifiberry-adc,leds_off?";
+	};
+};
