@@ -39,6 +39,13 @@ config SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD
 	help
           Say Y or M if you want to add support for voiceHAT soundcard.
 
+config SND_BCM2708_SOC_HIFIBERRY_ADC
+        tristate "Support for HifiBerry ADC"
+        select SND_SOC_PCM186X_I2C
+        select SND_RPI_HIFIBERRY_ADC
+        help
+         Say Y or M if you want to add support for HifiBerry ADC.
+
 config SND_BCM2708_SOC_HIFIBERRY_DAC
         tristate "Support for HifiBerry DAC and DAC8X"
         select SND_SOC_PCM5102A
