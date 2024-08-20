@@ -18,6 +18,7 @@ obj-$(CONFIG_SND_BCM63XX_I2S_WHISTLER) += snd-soc-63xx.o
 snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
 
 # BCM2708 Machine Support
+snd-soc-hifiberry-adc-objs := hifiberry_adc.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
 snd-soc-hifiberry-dacplushd-objs := hifiberry_dacplushd.o
 snd-soc-hifiberry-dacplusadc-objs := hifiberry_dacplusadc.o
@@ -51,6 +52,7 @@ snd-soc-chipdip-dac-objs := chipdip-dac.o
 snd-soc-dacberry400-objs := dacberry400.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
+obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_ADC) += snd-soc-hifiberry-adc.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUSHD) += snd-soc-hifiberry-dacplushd.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUSADC) += snd-soc-hifiberry-dacplusadc.o
