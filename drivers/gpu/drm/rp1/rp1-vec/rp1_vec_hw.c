@@ -63,6 +63,18 @@ static const struct rp1vec_ipixfmt my_formats[] = {
 		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
 	},
 	{
+		.format = DRM_FORMAT_ARGB8888,
+		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
+		.shift	= SHIFT_RGB(23, 15, 7),
+		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
+	},
+	{
+		.format = DRM_FORMAT_ABGR8888,
+		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
+		.shift	= SHIFT_RGB(7, 15, 23),
+		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
+	},
+	{
 		.format = DRM_FORMAT_RGB888,
 		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
 		.shift	= SHIFT_RGB(23, 15, 7),
