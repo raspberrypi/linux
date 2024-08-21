@@ -4428,7 +4428,6 @@ smb3_init_transform_rq(struct TCP_Server_Info *server, int num_rqst,
 			}
 			iov_iter_xarray(&new->rq_iter, ITER_SOURCE,
 					buffer, 0, size);
-			new->rq_iter_size = size;
 		}
 	}
 
@@ -4474,7 +4473,6 @@ decrypt_raw_data(struct TCP_Server_Info *server, char *buf,
 	rqst.rq_nvec = 2;
 	if (iter) {
 		rqst.rq_iter = *iter;
-		rqst.rq_iter_size = iov_iter_count(iter);
 		iter_size = iov_iter_count(iter);
 	}
 
