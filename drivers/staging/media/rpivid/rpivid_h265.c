@@ -1726,6 +1726,12 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		unsigned int ctb_size_y;
 		bool sps_changed = false;
 
+		if (!is_sps_set(run->h265.sps)) {
+			v4l2_warn(&dev->v4l2_dev, "SPS never set\n");
+			goto fail;
+		}
+		// Can't check for PPS easily as all 0's looks valid to me
+
 		if (memcmp(&s->sps, run->h265.sps, sizeof(s->sps)) != 0) {
 			/* SPS changed */
 			v4l2_info(&dev->v4l2_dev, "SPS changed\n");
