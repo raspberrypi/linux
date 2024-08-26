@@ -1768,19 +1768,15 @@ static int pispbe_probe(struct platform_device *pdev)
 				     "Failed to get clock");
 
 	/* Hardware initialisation */
-	pm_runtime_set_autosuspend_delay(pispbe->dev, 200);
-	pm_runtime_use_autosuspend(pispbe->dev);
-	pm_runtime_enable(pispbe->dev);
-
 	ret = pispbe_runtime_resume(pispbe->dev);
 	if (ret)
-		goto pm_runtime_disable_err;
+		return ret;
 
 	pispbe->hw_busy = false;
 	spin_lock_init(&pispbe->hw_lock);
 	ret = pispbe_hw_init(pispbe);
 	if (ret)
-		goto pm_runtime_suspend_err;
+		goto runtime_suspend_err;
 
 	/*
 	 * Initialise and register devices for each node_group, including media
@@ -1794,19 +1790,19 @@ static int pispbe_probe(struct platform_device *pdev)
 			goto disable_nodes_err;
 	}
 
-	pm_runtime_mark_last_busy(pispbe->dev);
-	pm_runtime_put_autosuspend(pispbe->dev);
+	pm_runtime_set_autosuspend_delay(pispbe->dev, 200);
+	pm_runtime_use_autosuspend(pispbe->dev);
+	pm_runtime_set_active(pispbe->dev);
+	pm_runtime_enable(pispbe->dev);
+	pm_runtime_idle(pispbe->dev);
 
 	return 0;
 
 disable_nodes_err:
 	while (num_groups-- > 0)
 		pispbe_destroy_node_group(&pispbe->node_group[num_groups]);
-pm_runtime_suspend_err:
+runtime_suspend_err:
 	pispbe_runtime_suspend(pispbe->dev);
-pm_runtime_disable_err:
-	pm_runtime_dont_use_autosuspend(pispbe->dev);
-	pm_runtime_disable(pispbe->dev);
 
 	return ret;
 }
@@ -1818,9 +1814,11 @@ static int pispbe_remove(struct platform_device *pdev)
 	for (int i = PISPBE_NUM_NODE_GROUPS - 1; i >= 0; i--)
 		pispbe_destroy_node_group(&pispbe->node_group[i]);
 
-	pispbe_runtime_suspend(pispbe->dev);
 	pm_runtime_dont_use_autosuspend(pispbe->dev);
 	pm_runtime_disable(pispbe->dev);
+	if (!pm_runtime_status_suspended(pispbe->dev))
+		pispbe_runtime_suspend(pispbe->dev);
+	pm_runtime_set_suspended(pispbe->dev);
 
 	return 0;
 }
