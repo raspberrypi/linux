@@ -41,6 +41,7 @@
 #define IMX290_WINMODE_720P				(1 << 4)
 #define IMX290_WINMODE_CROP				(4 << 4)
 #define IMX290_FR_FDG_SEL				CCI_REG8(0x3009)
+#define IMX290_60FPS_LCG				0x01
 #define IMX290_BLKLEVEL					CCI_REG16_LE(0x300a)
 #define IMX290_GAIN					CCI_REG8(0x3014)
 #define IMX290_VMAX					CCI_REG24_LE(0x3018)
@@ -104,6 +105,7 @@
 
 #define IMX290_PGCTRL_REGEN				BIT(0)
 #define IMX290_PGCTRL_THRU				BIT(1)
+#define IMX290_FR_FDG_HCG				BIT(4)
 #define IMX290_PGCTRL_MODE(n)				((n) << 4)
 
 /* Number of lines by which exposure must be less than VMAX */
@@ -162,6 +164,9 @@
 
 #define IMX290_NUM_SUPPLIES				3
 
+/* A custom control to enable the sensor HCG mode */
+#define V4L2_CID_HIGH_CONVERSION_GAIN (V4L2_CID_USER_BASE | 0x1001)
+
 enum imx290_colour_variant {
 	IMX290_VARIANT_COLOUR,
 	IMX290_VARIANT_MONO,
@@ -206,6 +211,7 @@ struct imx290_mode {
 	u32 vmax_min;
 	u8 link_freq_index;
 	u8 ctrl_07;
+	u8 fr_sel;
 
 	const struct cci_reg_sequence *data;
 	u32 data_size;
@@ -250,6 +256,7 @@ struct imx290 {
 		struct v4l2_ctrl *hflip;
 		struct v4l2_ctrl *vflip;
 	};
+	struct v4l2_ctrl *high_conversion_gain;
 };
 
 static inline struct imx290 *to_imx290(struct v4l2_subdev *_sd)
@@ -505,6 +512,7 @@ static const struct imx290_mode imx290_modes_2lanes[] = {
 		.vmax_min = 1125,
 		.link_freq_index = FREQ_INDEX_1080P,
 		.ctrl_07 = IMX290_WINMODE_1080P,
+		.fr_sel = IMX290_60FPS_LCG,
 		.data = imx290_1080p_settings,
 		.data_size = ARRAY_SIZE(imx290_1080p_settings),
 		.clk_cfg = imx290_1080p_clock_config,
@@ -516,6 +524,7 @@ static const struct imx290_mode imx290_modes_2lanes[] = {
 		.vmax_min = 750,
 		.link_freq_index = FREQ_INDEX_720P,
 		.ctrl_07 = IMX290_WINMODE_720P,
+		.fr_sel = IMX290_60FPS_LCG,
 		.data = imx290_720p_settings,
 		.data_size = ARRAY_SIZE(imx290_720p_settings),
 		.clk_cfg = imx290_720p_clock_config,
@@ -530,6 +539,7 @@ static const struct imx290_mode imx290_modes_4lanes[] = {
 		.vmax_min = 1125,
 		.link_freq_index = FREQ_INDEX_1080P,
 		.ctrl_07 = IMX290_WINMODE_1080P,
+		.fr_sel = IMX290_60FPS_LCG,
 		.data = imx290_1080p_settings,
 		.data_size = ARRAY_SIZE(imx290_1080p_settings),
 		.clk_cfg = imx290_1080p_clock_config,
@@ -541,6 +551,7 @@ static const struct imx290_mode imx290_modes_4lanes[] = {
 		.vmax_min = 750,
 		.link_freq_index = FREQ_INDEX_720P,
 		.ctrl_07 = IMX290_WINMODE_720P,
+		.fr_sel = IMX290_60FPS_LCG,
 		.data = imx290_720p_settings,
 		.data_size = ARRAY_SIZE(imx290_720p_settings),
 		.clk_cfg = imx290_720p_clock_config,
@@ -641,6 +652,18 @@ static int imx290_set_clock(struct imx290 *imx290)
 	return ret;
 }
 
+static int imx290_set_fr_fdg_sel(struct imx290 *imx290, int *err)
+{
+	u32 reg = imx290->current_mode->fr_sel;
+
+	if (imx290->high_conversion_gain->val)
+		reg |= IMX290_FR_FDG_HCG;  // Set HCG bit if control is true
+	else
+		reg &= IMX290_FR_FDG_HCG; // Clear HCG bit if control is false
+
+	return cci_write(imx290->regmap, IMX290_FR_FDG_SEL, reg, err);
+	}
+
 static int imx290_set_data_lanes(struct imx290 *imx290)
 {
 	int ret = 0;
@@ -649,7 +672,7 @@ static int imx290_set_data_lanes(struct imx290 *imx290)
 		  &ret);
 	cci_write(imx290->regmap, IMX290_CSI_LANE_MODE, imx290->nlanes - 1,
 		  &ret);
-	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, 0x01, &ret);
+	imx290_set_fr_fdg_sel(imx290, &ret);
 
 	return ret;
 }
@@ -818,6 +841,12 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+	case V4L2_CID_HIGH_CONVERSION_GAIN:
+	{
+		ret = imx290_set_fr_fdg_sel(imx290, NULL);
+		break;
+	}
+
 	default:
 		ret = -EINVAL;
 		break;
@@ -842,6 +871,17 @@ static const char * const imx290_test_pattern_menu[] = {
 	"Gradation Pattern 1",
 	"Gradation Pattern 2",
 	"000/555h Toggle Pattern",
+};
+
+static const struct v4l2_ctrl_config imx290_ctrl_cfg_high_conversion_gain = {
+	.ops = &imx290_ctrl_ops,
+	.id = V4L2_CID_HIGH_CONVERSION_GAIN,
+	.name = "High Conversion Gain",
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.def = 0,
+	.step = 1,
 };
 
 static void imx290_ctrl_update(struct imx290 *imx290,
@@ -934,6 +974,9 @@ static int imx290_ctrl_init(struct imx290 *imx290)
 
 	v4l2_ctrl_new_fwnode_properties(&imx290->ctrls, &imx290_ctrl_ops,
 					&props);
+
+	imx290->high_conversion_gain = v4l2_ctrl_new_custom(
+		&imx290->ctrls, &imx290_ctrl_cfg_high_conversion_gain, NULL);
 
 	imx290->sd.ctrl_handler = &imx290->ctrls;
 
