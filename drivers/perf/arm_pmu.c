@@ -289,6 +289,23 @@ static void armpmu_start(struct perf_event *event, int flags)
 {
 	struct arm_pmu *armpmu = to_arm_pmu(event->pmu);
 	struct hw_perf_event *hwc = &event->hw;
+	struct pmu_hw_events *cpuc = this_cpu_ptr(armpmu->hw_events);
+	int idx;
+
+	/*
+	 * Merge all branch filter requests from different perf
+	 * events being added into this PMU. This includes both
+	 * privilege and branch type filters.
+	 */
+	if (armpmu->has_branch_stack) {
+		cpuc->branch_sample_type = 0;
+		for (idx = 0; idx < ARMPMU_MAX_HWEVENTS; idx++) {
+			struct perf_event *event_idx = cpuc->events[idx];
+
+			if (event_idx && has_branch_stack(event_idx))
+				cpuc->branch_sample_type |= event_idx->attr.branch_sample_type;
+		}
+	}
 
 	/*
 	 * ARM pmu always has to reprogram the period, so ignore
@@ -317,6 +334,9 @@ armpmu_del(struct perf_event *event, int flags)
 	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx;
 
+	if (has_branch_stack(event))
+		armpmu->branch_stack_del(event, hw_events);
+
 	armpmu_stop(event, PERF_EF_UPDATE);
 	hw_events->events[idx] = NULL;
 	armpmu->clear_event_idx(hw_events, event);
@@ -341,6 +361,9 @@ armpmu_add(struct perf_event *event, int flags)
 	idx = armpmu->get_event_idx(hw_events, event);
 	if (idx < 0)
 		return idx;
+
+	if (has_branch_stack(event))
+		armpmu->branch_stack_add(event, hw_events);
 
 	/*
 	 * If there is an event in the counter we are going to use then make
@@ -511,11 +534,23 @@ static int armpmu_event_init(struct perf_event *event)
 		!cpumask_test_cpu(event->cpu, &armpmu->supported_cpus))
 		return -ENOENT;
 
-	/* does not support taken branch sampling */
-	if (has_branch_stack(event))
-		return -EOPNOTSUPP;
+	if (has_branch_stack(event)) {
+		if (!armpmu->has_branch_stack)
+			return -EOPNOTSUPP;
+
+		if (!armpmu->branch_stack_init(event))
+			return -EOPNOTSUPP;
+	}
 
 	return __hw_perf_event_init(event);
+}
+
+static void armpmu_sched_task(struct perf_event_pmu_context *pmu_ctx, bool sched_in)
+{
+	struct arm_pmu *armpmu = to_arm_pmu(pmu_ctx->pmu);
+
+	if (armpmu->sched_task)
+		armpmu->sched_task(pmu_ctx, sched_in);
 }
 
 static void armpmu_enable(struct pmu *pmu)
@@ -864,6 +899,7 @@ struct arm_pmu *armpmu_alloc(void)
 	}
 
 	pmu->pmu = (struct pmu) {
+		.sched_task	= armpmu_sched_task,
 		.pmu_enable	= armpmu_enable,
 		.pmu_disable	= armpmu_disable,
 		.event_init	= armpmu_event_init,
