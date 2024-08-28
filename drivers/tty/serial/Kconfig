@@ -1600,6 +1600,17 @@ config SERIAL_ESP32_ACM
 	  snippet may be used:
 	    earlycon=esp32s3acm,mmio32,0x60038000
 
+config SERIAL_RPI_FW
+	tristate "Raspberry Pi Firmware software UART support"
+	depends on RASPBERRYPI_FIRMWARE || COMPILE_TEST
+	select SERIAL_CORE
+	help
+	  This selects the Raspberry Pi firmware UART. This is a bit-bashed
+	  implementation running on the Raspbery Pi VPU core.
+	  This is not supported on Raspberry Pi 5 or newer platforms.
+
+	  If unsure, say N.
+
 endmenu
 
 config SERIAL_MCTRL_GPIO
