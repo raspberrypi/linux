@@ -656,7 +656,7 @@ int hailo_pcie_write_firmware(struct hailo_pcie_resources *resources, const void
 }
 
 // TODO: HRT-14147 - remove this function
-bool hailo_pcie_is_device_ready_for_boot(struct hailo_pcie_resources *resources)
+static bool hailo_pcie_is_device_ready_for_boot(struct hailo_pcie_resources *resources)
 {
     return hailo_get_boot_status(resources) == BOOT_STATUS_UNINITIALIZED;
 }
