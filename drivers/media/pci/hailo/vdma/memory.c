@@ -512,6 +512,7 @@ void hailo_vdma_clear_continuous_buffer_list(struct hailo_vdma_file_context *con
  *
  * Return: zero and the pfn at @pfn on success, -ve otherwise.
  */
+#if defined(HAILO_SUPPORT_MMIO_DMA_MAPPING)
 static int follow_pfn(struct vm_area_struct *vma, unsigned long address,
        unsigned long *pfn)
 {
@@ -529,7 +530,7 @@ static int follow_pfn(struct vm_area_struct *vma, unsigned long address,
        pte_unmap_unlock(ptep, ptl);
        return 0;
 }
-
+#endif
 
 // Assumes the provided user_address belongs to the vma and that MMIO_AND_NO_PAGES_VMA_MASK bits are set under
 // vma->vm_flags. This is validated in hailo_vdma_buffer_map, and won't be checked here
