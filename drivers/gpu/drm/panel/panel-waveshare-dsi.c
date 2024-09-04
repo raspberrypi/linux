@@ -150,6 +150,51 @@ static const struct drm_display_mode ws_panel_4_mode = {
 	.vtotal = 720 + 8 + 4 + 16,
 };
 
+/* 5.0inch 720x1280
+ * https://www.waveshare.com/5inch-dsi-lcd-d.htm
+ */
+static const struct drm_display_mode ws_panel_5_0_mode = {
+	.clock = 83333,
+	.hdisplay = 720,
+	.hsync_start = 720 + 100,
+	.hsync_end = 720 + 100 + 80,
+	.htotal = 720 + 100 + 80 + 100,
+	.vdisplay = 1280,
+	.vsync_start = 1280 + 20,
+	.vsync_end = 1280 + 20 + 20,
+	.vtotal = 1280 + 20 + 20 + 20,
+};
+
+/* 6.25inch 720x1560
+ * https://www.waveshare.com/6.25inch-dsi-lcd.htm
+ */
+static const struct drm_display_mode ws_panel_6_25_mode = {
+	.clock = 83333,
+	.hdisplay = 720,
+	.hsync_start = 720 + 50,
+	.hsync_end = 720 + 50 + 50,
+	.htotal = 720 + 50 + 50 + 50,
+	.vdisplay = 1560,
+	.vsync_start = 1560 + 20,
+	.vsync_end = 1560 + 20 + 20,
+	.vtotal = 1560 + 20 + 20 + 20,
+};
+
+/* 8.8inch 480x1920
+ * https://www.waveshare.com/8.8inch-dsi-lcd.htm
+ */
+static const struct drm_display_mode ws_panel_8_8_mode = {
+	.clock = 83333,
+	.hdisplay = 480,
+	.hsync_start = 480 + 50,
+	.hsync_end = 480 + 50 + 50,
+	.htotal = 480 + 50 + 50 + 50,
+	.vdisplay = 1920,
+	.vsync_start = 1920 + 20,
+	.vsync_end = 1920 + 20 + 20,
+	.vtotal = 1920 + 20 + 20 + 20,
+};
+
 static struct ws_panel *panel_to_ts(struct drm_panel *panel)
 {
 	return container_of(panel, struct ws_panel, base);
@@ -412,6 +457,16 @@ static const struct of_device_id ws_panel_of_ids[] = {
 	}, {
 		.compatible = "waveshare,4inch-panel",
 		.data = &ws_panel_4_mode,
+	}, {
+		.compatible = "waveshare,5.0inch-panel",
+		.data = &ws_panel_5_0_mode,
+	}, {
+		.compatible = "waveshare,6.25inch-panel",
+		.data = &ws_panel_6_25_mode,
+	}, {
+		.compatible = "waveshare,8.8inch-panel",
+		.data = &ws_panel_8_8_mode,
+	}, {
 	}, {
 		/* sentinel */
 	}
