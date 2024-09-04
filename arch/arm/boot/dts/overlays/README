@@ -3726,6 +3726,12 @@ Params: speed                   Display SPI bus speed
         drm                     Select the DRM/KMS driver instead of the FBTFT
                                 one
 
+        invx                    Touchscreen inverted x axis
+
+        invy                    Touchscreen inverted y axis
+
+        swapxy                  Touchscreen swapped x y axis
+
 
 Name:   piscreen2r
 Info:   PiScreen 2 with resistive TP display by OzzMaker.com
