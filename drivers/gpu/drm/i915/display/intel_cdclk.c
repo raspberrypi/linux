@@ -2038,6 +2038,7 @@ static void _bxt_set_cdclk(struct drm_i915_private *dev_priv,
 			   const struct intel_cdclk_config *cdclk_config,
 			   enum pipe pipe)
 {
+	struct intel_display *display = &dev_priv->display;
 	int cdclk = cdclk_config->cdclk;
 	int vco = cdclk_config->vco;
 
@@ -2063,7 +2064,7 @@ static void _bxt_set_cdclk(struct drm_i915_private *dev_priv,
 	intel_de_write(dev_priv, CDCLK_CTL, bxt_cdclk_ctl(dev_priv, cdclk_config, pipe));
 
 	if (pipe != INVALID_PIPE)
-		intel_crtc_wait_for_next_vblank(intel_crtc_for_pipe(dev_priv, pipe));
+		intel_crtc_wait_for_next_vblank(intel_crtc_for_pipe(display, pipe));
 }
 
 static void bxt_set_cdclk(struct drm_i915_private *dev_priv,
@@ -3262,6 +3263,7 @@ static bool intel_cdclk_need_serialize(struct drm_i915_private *i915,
 
 int intel_modeset_calc_cdclk(struct intel_atomic_state *state)
 {
+	struct intel_display *display = to_intel_display(state);
 	struct drm_i915_private *dev_priv = to_i915(state->base.dev);
 	const struct intel_cdclk_state *old_cdclk_state;
 	struct intel_cdclk_state *new_cdclk_state;
@@ -3308,7 +3310,7 @@ int intel_modeset_calc_cdclk(struct intel_atomic_state *state)
 		struct intel_crtc_state *crtc_state;
 
 		pipe = ilog2(new_cdclk_state->active_pipes);
-		crtc = intel_crtc_for_pipe(dev_priv, pipe);
+		crtc = intel_crtc_for_pipe(display, pipe);
 
 		crtc_state = intel_atomic_get_crtc_state(&state->base, crtc);
 		if (IS_ERR(crtc_state))
