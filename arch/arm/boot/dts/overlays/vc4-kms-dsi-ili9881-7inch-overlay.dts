@@ -33,6 +33,7 @@
 				touchscreen-size-y = <1280>;
 				touchscreen-x-mm = <90>;
 				touchscreen-y-mm = <151>;
+				goodix,num_keys = <0>;
 			};
 		};
 	};
