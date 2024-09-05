@@ -1205,18 +1205,25 @@ static int goodix_configure_dev(struct goodix_ts_data *ts)
 		ts->input_dev->id.product = 0x1001;
 	ts->input_dev->id.version = ts->version;
 
-	ts->input_dev->keycode = ts->keymap;
-	ts->input_dev->keycodesize = sizeof(ts->keymap[0]);
-	ts->input_dev->keycodemax = GOODIX_MAX_KEYS;
+	if (device_property_read_u32(&ts->client->dev, "goodix,num_keys", &ts->num_keys))
+		ts->num_keys = GOODIX_MAX_KEYS;
+	else if (ts->num_keys > GOODIX_MAX_KEYS)
+		ts->num_keys = GOODIX_MAX_KEYS;
 
-	/* Capacitive Windows/Home button on some devices */
-	for (i = 0; i < GOODIX_MAX_KEYS; ++i) {
-		if (i == 0)
-			ts->keymap[i] = KEY_LEFTMETA;
-		else
-			ts->keymap[i] = KEY_F1 + (i - 1);
+	if (ts->num_keys) {
+		ts->input_dev->keycode = ts->keymap;
+		ts->input_dev->keycodesize = sizeof(ts->keymap[0]);
+		ts->input_dev->keycodemax = ts->num_keys;
 
-		input_set_capability(ts->input_dev, EV_KEY, ts->keymap[i]);
+		/* Capacitive Windows/Home button on some devices */
+		for (i = 0; i < ts->num_keys; ++i) {
+			if (i == 0)
+				ts->keymap[i] = KEY_LEFTMETA;
+			else
+				ts->keymap[i] = KEY_F1 + (i - 1);
+
+			input_set_capability(ts->input_dev, EV_KEY, ts->keymap[i]);
+		}
 	}
 
 	input_set_capability(ts->input_dev, EV_ABS, ABS_MT_POSITION_X);

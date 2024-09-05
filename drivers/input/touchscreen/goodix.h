@@ -78,6 +78,7 @@ struct goodix_chip_data {
 struct goodix_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+	u32 num_keys;
 	struct input_dev *input_pen;
 	const struct goodix_chip_data *chip;
 	const char *firmware_name;
