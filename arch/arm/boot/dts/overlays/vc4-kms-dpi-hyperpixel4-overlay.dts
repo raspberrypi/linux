@@ -29,6 +29,7 @@
 				touchscreen-y-mm = <85>;
 				touchscreen-inverted-y;
 				touchscreen-swapped-x-y;
+				goodix,num_keys = <0>;
 			};
 			ft6236_5d: ft6236@5d {
 				compatible = "goodix,gt911";
@@ -41,6 +42,7 @@
 				touchscreen-y-mm = <85>;
 				touchscreen-inverted-y;
 				touchscreen-swapped-x-y;
+				goodix,num_keys = <0>;
 			};
 		};
 	};
