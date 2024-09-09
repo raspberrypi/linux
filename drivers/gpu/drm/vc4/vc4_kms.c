@@ -221,7 +221,7 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 		u32 dispctrl;
-		u32 dsp3_mux;
+		u32 dsp3_mux_pri;
 
 		if (!crtc_state->active)
 			continue;
@@ -238,15 +238,22 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		 * enabled. In this case, FIFO 2 is directly accessed by the
 		 * TXP IP, and we need to disable the FIFO2 -> pixelvalve1
 		 * route.
+		 *
+		 * TXP can also run with a lower panic level than a live display,
+		 * as it doesn't have the same real-time constraint.
 		 */
-		if (vc4_crtc->feeds_txp)
-			dsp3_mux = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
-		else
-			dsp3_mux = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
+		if (vc4_crtc->feeds_txp) {
+			dsp3_mux_pri = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
+			dsp3_mux_pri |= VC4_SET_FIELD(0, SCALER_DISPCTRL_PANIC2);
+		} else {
+			dsp3_mux_pri = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
+			dsp3_mux_pri |= VC4_SET_FIELD(2, SCALER_DISPCTRL_PANIC2);
+		}
 
 		dispctrl = HVS_READ(SCALER_DISPCTRL) &
-			   ~SCALER_DISPCTRL_DSP3_MUX_MASK;
-		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux);
+			   ~(SCALER_DISPCTRL_DSP3_MUX_MASK |
+			     SCALER_DISPCTRL_PANIC2_MASK);
+		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux_pri);
 	}
 }
 
