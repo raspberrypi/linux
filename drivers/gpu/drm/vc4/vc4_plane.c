@@ -265,7 +265,11 @@ static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
 	if (dst == src >> 16)
 		return VC4_SCALING_NONE;
-	if (3 * dst >= 2 * (src >> 16))
+
+	if (src <= (1 << 16))
+		/* Source rectangle <= 1 pixel can use TPZ for resize/upscale */
+		return VC4_SCALING_TPZ;
+	else if (3 * dst >= 2 * (src >> 16))
 		return VC4_SCALING_PPF;
 	else
 		return VC4_SCALING_TPZ;
@@ -571,12 +575,17 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_6_D);
 
-	scale = src / dst;
+	if ((dst << 16) < src) {
+		scale = src / dst;
 
-	/* The specs note that while the reciprocal would be defined
-	 * as (1<<32)/scale, ~0 is close enough.
-	 */
-	recip = ~0 / scale;
+		/* The specs note that while the reciprocal would be defined
+		 * as (1<<32)/scale, ~0 is close enough.
+		 */
+		recip = ~0 / scale;
+	} else {
+		scale = (1 << 16) + 1;
+		recip = (1 << 16) - 1;
+	}
 
 	vc4_dlist_write(vc4_state,
 			/*
