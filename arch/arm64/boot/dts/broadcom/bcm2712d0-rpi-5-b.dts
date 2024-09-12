@@ -15,10 +15,10 @@
 		"", // GPIO_007
 		"", // GPIO_008
 		"", // GPIO_009
-		"", // GPIO_010
-		"", // GPIO_011
-		"", // GPIO_012
-		"", // GPIO_013
+		"-", // GPIO_010
+		"-", // GPIO_011
+		"-", // GPIO_012
+		"-", // GPIO_013
 		"PCIE_SDA", // GPIO_014
 		"PCIE_SCL", // GPIO_015
 		"", // GPIO_016
