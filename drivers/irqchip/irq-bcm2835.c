@@ -153,7 +153,8 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	}
 }
 
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_SMP)
+void bcm2836_arm_irqchip_spin_gpu_irq(void);
 
 static void armctrl_ack_irq(struct irq_data *d)
 {
@@ -168,7 +169,7 @@ static struct irq_chip armctrl_chip = {
 	.irq_unmask = armctrl_unmask_irq,
 	.flags = IRQCHIP_MASK_ON_SUSPEND |
 		 IRQCHIP_SKIP_SET_WAKE,
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_SMP)
 	.irq_ack    = armctrl_ack_irq
 #endif
 };
