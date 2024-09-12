@@ -87,6 +87,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hd44780-lcd.dtbo \
 	hdmi-backlight-hwhack-gpio.dtbo \
 	hifiberry-adc.dtbo \
+	hifiberry-adc8x.dtbo \
 	hifiberry-amp.dtbo \
 	hifiberry-amp100.dtbo \
 	hifiberry-amp3.dtbo \
