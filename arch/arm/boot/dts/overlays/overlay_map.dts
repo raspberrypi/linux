@@ -48,6 +48,10 @@
 		bcm2712;
 	};
 
+	hifiberry-adc8x {
+		bcm2712;
+	};
+
 	hifiberry-dac8x {
 		bcm2712;
 	};

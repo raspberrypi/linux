@@ -1793,6 +1793,12 @@ Params: leds_off                If set to 'true' the onboard indicator LED
                                 is switched off at all times.
 
 
+Name:   hifiberry-adc8x
+Info:   Configures the HifiBerry ADC8X audio card (only on Pi5)
+Load:   dtoverlay=hifiberry-adc8x
+Params: <None>
+
+
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
 Load:   dtoverlay=hifiberry-amp
