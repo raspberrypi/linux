@@ -1065,7 +1065,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		 * moderately readable array casts.
 		 */
 		hcd->fiq_dmab = DWC_DMA_ALLOC(dev, (sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
-		DWC_WARN("FIQ DMA bounce buffers: virt = %px dma = %pad len=%zu",
+		DWC_INFO("FIQ DMA bounce buffers: virt = %px dma = %pad len=%zu",
 				hcd->fiq_dmab, &hcd->fiq_state->dma_base,
 				sizeof(struct fiq_dma_channel) * num_channels);
 
