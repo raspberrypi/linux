@@ -467,7 +467,6 @@ static const struct of_device_id ws_panel_of_ids[] = {
 		.compatible = "waveshare,8.8inch-panel",
 		.data = &ws_panel_8_8_mode,
 	}, {
-	}, {
 		/* sentinel */
 	}
 };
