@@ -4261,7 +4261,7 @@ bool lru_gen_look_around(struct page_vma_mapped_walk *pvmw, unsigned int nr)
 						   max_nr, FPB_MERGE_YOUNG_DIRTY);
 		}
 
-		if (!test_and_clear_young_ptes_notify(vma, addr, pte, nr))
+		if (!clear_flush_young_ptes_notify(vma, addr, pte, nr))
 			continue;
 
 		if (last != folio) {
