@@ -4267,7 +4267,7 @@ bool lru_gen_look_around(struct page_vma_mapped_walk *pvmw)
 		if (!folio)
 			continue;
 
-		if (!ptep_clear_young_notify(vma, addr, pte + i))
+		if (!clear_flush_young_ptes_notify(vma, addr, pte + i, 1))
 			continue;
 
 		if (last != folio) {
