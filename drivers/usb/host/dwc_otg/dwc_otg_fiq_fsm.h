@@ -135,6 +135,7 @@ typedef spinlock_t fiq_lock_t;
 
 #else
 
+#define TICKET_SHIFT 16
 typedef struct {
 	union {
 		uint32_t slock;
@@ -143,7 +144,70 @@ typedef struct {
 			uint16_t next;
 		} tickets;
 	};
-} fiq_lock_t;
+} __aligned(4) fiq_lock_t;
+
+#endif
+
+#ifdef CONFIG_ARM64
+
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	spin_lock((spinlock_t *)lock);
+}
+
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	spin_unlock((spinlock_t *)lock);
+}
+
+#else
+
+/**
+ * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
+ * Must be called with local interrupts and FIQ disabled.
+ */
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	unsigned long tmp;
+	uint32_t newval;
+	fiq_lock_t lockval;
+	/* Nested locking, yay. If we are on the same CPU as the fiq, then the disable
+	 * will be sufficient. If we are on a different CPU, then the lock protects us. */
+	prefetchw(&lock->slock);
+	asm volatile (
+	"1:     ldrex   %0, [%3]\n"
+	"       add     %1, %0, %4\n"
+	"       strex   %2, %1, [%3]\n"
+	"       teq     %2, #0\n"
+	"       bne     1b"
+	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)
+	: "r" (&lock->slock), "I" (1 << TICKET_SHIFT)
+	: "cc");
+
+	while (lockval.tickets.next != lockval.tickets.owner) {
+		wfe();
+		lockval.tickets.owner = READ_ONCE(lock->tickets.owner);
+	}
+	smp_mb();
+}
+#else
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock) { }
+#endif
+
+/**
+ * fiq_fsm_spin_unlock() - ARMv6+ bare bones spinunlock
+ */
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	smp_mb();
+	lock->tickets.owner++;
+	dsb_sev();
+}
+#else
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
+#endif
 
 #endif
 
@@ -379,10 +443,6 @@ extern void local_fiq_enable(void);
 extern void local_fiq_disable(void);
 
 #endif
-
-extern void fiq_fsm_spin_lock(fiq_lock_t *lock);
-
-extern void fiq_fsm_spin_unlock(fiq_lock_t *lock);
 
 extern int fiq_fsm_too_late(struct fiq_state *st, int n);
 
