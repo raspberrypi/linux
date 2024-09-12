@@ -1347,6 +1347,8 @@ bool hid_is_usb(const struct hid_device *hdev)
 }
 EXPORT_SYMBOL_GPL(hid_is_usb);
 
+#define USB_HID_NAME_PREFIX "usb-"
+
 static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
 	struct usb_host_interface *interface = intf->cur_altsetting;
@@ -1394,8 +1396,12 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 	else if (intf->cur_altsetting->desc.bInterfaceProtocol == 0)
 		hid->type = HID_TYPE_USBNONE;
 
-	if (dev->manufacturer)
-		strscpy(hid->name, dev->manufacturer, sizeof(hid->name));
+	snprintf(hid->name, sizeof(hid->name), "%s%s ", USB_HID_NAME_PREFIX,
+		 dev_name(&dev->dev));
+
+	if (dev->manufacturer) {
+		strlcat(hid->name, dev->manufacturer, sizeof(hid->name));
+	}
 
 	if (dev->product) {
 		if (dev->manufacturer)
@@ -1403,8 +1409,11 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 		strlcat(hid->name, dev->product, sizeof(hid->name));
 	}
 
-	if (!strlen(hid->name))
-		snprintf(hid->name, sizeof(hid->name), "HID %04x:%04x",
+	if (strlen(hid->name) == strlen(dev_name(&dev->dev)) +
+				 strlen(USB_HID_NAME_PREFIX) + 1)
+		snprintf(hid->name, sizeof(hid->name), "%s%s HID %04x:%04x",
+			 USB_HID_NAME_PREFIX,
+			 dev_name(&dev->dev),
 			 le16_to_cpu(dev->descriptor.idVendor),
 			 le16_to_cpu(dev->descriptor.idProduct));
 
