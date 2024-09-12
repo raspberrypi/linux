@@ -89,7 +89,7 @@ static void bcm2836_arm_irqchip_unmask_gpu_irq(struct irq_data *d)
 {
 }
 
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_SMP)
 
 void bcm2836_arm_irqchip_spin_gpu_irq(void)
 {
