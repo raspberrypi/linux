@@ -96,12 +96,17 @@ void bcm2836_arm_irqchip_spin_gpu_irq(void)
 	u32 i;
 	void __iomem *gpurouting = (intc.base + LOCAL_GPU_ROUTING);
 	u32 routing_val = readl(gpurouting);
+	u32 irq_route;
+
+	/* Preserve FIQ routing bits */
+	irq_route = routing_val & 0x3;
+	routing_val &= ~0x3;
 
 	for (i = 1; i <= 3; i++) {
-		u32 new_routing_val = (routing_val + i) & 3;
+		irq_route = (irq_route + i) & 0x3;
 
-		if (cpu_active(new_routing_val)) {
-			writel(new_routing_val, gpurouting);
+		if (cpu_active(irq_route)) {
+			writel(irq_route | routing_val, gpurouting);
 			return;
 		}
 	}
