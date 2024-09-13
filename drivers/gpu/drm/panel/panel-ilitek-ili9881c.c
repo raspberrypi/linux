@@ -2138,7 +2138,9 @@ static int ili9881c_disable(struct drm_panel *panel)
 {
 	struct ili9881c *ctx = panel_to_ili9881c(panel);
 
-	return mipi_dsi_dcs_set_display_off(ctx->dsi);
+	mipi_dsi_dcs_set_display_off(ctx->dsi);
+
+	return 0;
 }
 
 static int ili9881c_unprepare(struct drm_panel *panel)
