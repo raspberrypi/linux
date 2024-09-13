@@ -406,19 +406,17 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 
 #ifdef CONFIG_ARM64
 
-static int simfiq_irq = -1;
+/*
+ * With no FIQ support on AARCH64, the "FIQ handler" is demoted to a
+ * regular IRQ handler. With a nested spinlock preventing the two
+ * handlers from racing against each other, and a HCD lock preventing
+ * thread context from racing against the "bottom half" IRQ, there's no
+ * point manipulating global IRQ enable/disable state - so these two
+ * functions are no-ops.
+ */
+void local_fiq_enable(void) { }
 
-void local_fiq_enable(void)
-{
-	if (simfiq_irq >= 0)
-		enable_irq(simfiq_irq);
-}
-
-void local_fiq_disable(void)
-{
-	if (simfiq_irq >= 0)
-		disable_irq(simfiq_irq);
-}
+void local_fiq_disable(void) { }
 
 static irqreturn_t fiq_irq_handler(int irq, void *dev_id)
 {
@@ -521,7 +519,6 @@ static void hcd_init_fiq(void *cookie)
 		return;
 	}
 
-	simfiq_irq = irq;
 #else
 #ifdef CONFIG_GENERIC_IRQ_MULTI_HANDLER
 	irq = otg_dev->os_dep.fiq_num;
