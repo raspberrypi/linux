@@ -198,6 +198,8 @@ static int raspberrypi_fw_is_prepared(struct clk_hw *hw)
 	if (ret)
 		return 0;
 
+        val = le32_to_cpu(val);
+
 	return !!(val & RPI_FIRMWARE_STATE_ENABLE_BIT);
 }
 
@@ -214,6 +216,8 @@ static unsigned long raspberrypi_fw_get_rate(struct clk_hw *hw,
 					 RPI_FIRMWARE_GET_CLOCK_RATE, &val);
 	if (ret)
 		return 0;
+
+        val = le32_to_cpu(val);
 
 	return val;
 }
@@ -310,6 +314,9 @@ static struct clk_hw *raspberrypi_clk_register(struct raspberrypi_clk *rpi,
 		return ERR_PTR(ret);
 	}
 
+        min_rate = le32_to_cpu(min_rate);
+        max_rate = le32_to_cpu(max_rate);
+
 	ret = devm_clk_hw_register(rpi->dev, &data->hw);
 	if (ret)
 		return ERR_PTR(ret);
@@ -370,6 +377,9 @@ static int raspberrypi_discover_clocks(struct raspberrypi_clk *rpi,
 		return ret;
 
 	while (clks->id) {
+                clks->id = le32_to_cpu(clks->id);
+                clks->parent = le32_to_cpu(clks->parent);
+
 		struct raspberrypi_clk_variant *variant;
 
 		if (clks->id >= RPI_FIRMWARE_NUM_CLK_ID) {

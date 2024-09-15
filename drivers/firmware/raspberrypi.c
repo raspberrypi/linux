@@ -109,24 +109,27 @@ int rpi_firmware_property_list(struct rpi_firmware *fw,
 	/* The firmware will error out without parsing in this case. */
 	WARN_ON(size >= 1024 * 1024);
 
-	buf[0] = size;
-	buf[1] = RPI_FIRMWARE_STATUS_REQUEST;
+	buf[0] = cpu_to_le32(size);
+	buf[1] = cpu_to_le32(RPI_FIRMWARE_STATUS_REQUEST);
 	memcpy(&buf[2], data, tag_size);
-	buf[size / 4 - 1] = RPI_FIRMWARE_PROPERTY_END;
+	buf[size / 4 - 1] = cpu_to_le32(RPI_FIRMWARE_PROPERTY_END);
+
+        //for (int i=0; i < (size/4); i++) printk(" 0x%x ", buf[i]);
+
 	wmb();
 
 	ret = rpi_firmware_transaction(fw, MBOX_CHAN_PROPERTY, bus_addr);
 
 	rmb();
 	memcpy(data, &buf[2], tag_size);
-	if (ret == 0 && buf[1] != RPI_FIRMWARE_STATUS_SUCCESS) {
+	if (ret == 0 && le32_to_cpu(buf[1]) != RPI_FIRMWARE_STATUS_SUCCESS) {
 		/*
 		 * The tag name here might not be the one causing the
 		 * error, if there were multiple tags in the request.
 		 * But single-tag is the most common, so go with it.
 		 */
 		dev_err(fw->cl.dev, "Request 0x%08x returned status 0x%08x\n",
-			buf[2], buf[1]);
+			le32_to_cpu(buf[2]), le32_to_cpu(buf[1]));
 		ret = -EINVAL;
 	}
 
@@ -167,8 +170,8 @@ int rpi_firmware_property(struct rpi_firmware *fw,
 		return -ENOMEM;
 
 	header = data;
-	header->tag = tag;
-	header->buf_size = buf_size;
+	header->tag = cpu_to_le32(tag);
+	header->buf_size = cpu_to_le32(buf_size);
 	header->req_resp_size = 0;
 	memcpy(data + sizeof(*header), tag_data, buf_size);
 
@@ -272,10 +275,11 @@ rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 		return;
 
 	/* This is not compatible with y2038 */
-	date_and_time = packet;
+	date_and_time = le32_to_cpu(packet);
 
 	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_FIRMWARE_VARIANT,
 				    &variant, sizeof(variant));
+        variant = le32_to_cpu(variant);
 
 	if (!ret) {
 		if (variant >= ARRAY_SIZE(variant_strs))
@@ -298,6 +302,8 @@ rpi_firmware_print_firmware_hash(struct rpi_firmware *fw)
 
 	if (ret)
 		return;
+
+        for (int i=0; i<5; i++) hash[i] = le32_to_cpu(hash[i]);
 
 	dev_info(fw->cl.dev,
 		 "Firmware hash is %08x%08x%08x%08x%08x\n",

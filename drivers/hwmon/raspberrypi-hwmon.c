@@ -31,7 +31,7 @@ static void rpi_firmware_get_throttled(struct rpi_hwmon_data *data)
 	int ret;
 
 	/* Request firmware to clear sticky bits */
-	value = 0xffff;
+	value = cpu_to_le32(0xffff);
 
 	ret = rpi_firmware_property(data->fw, RPI_FIRMWARE_GET_THROTTLED,
 				    &value, sizeof(value));
@@ -40,6 +40,7 @@ static void rpi_firmware_get_throttled(struct rpi_hwmon_data *data)
 			     ret);
 		return;
 	}
+        value = le32_to_cpu(value);
 
 	new_uv = value & UNDERVOLTAGE_STICKY_BIT;
 	old_uv = data->last_throttled & UNDERVOLTAGE_STICKY_BIT;
