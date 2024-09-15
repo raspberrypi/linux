@@ -1386,7 +1386,7 @@ static inline bool is_local_partition(struct cpuset *cs)
  * remote_partition_enable - Enable current cpuset as a remote partition root
  * @cs: the cpuset to update
  * @new_prs: new partition_root_state
- * @tmp: temparary masks
+ * @tmp: temporary masks
  * Return: 0 if successful, errcode if error
  *
  * Enable the current cpuset to become a remote partition root taking CPUs
@@ -1425,7 +1425,7 @@ static int remote_partition_enable(struct cpuset *cs, int new_prs,
 	cs->prs_err = 0;
 
 	/*
-	 * Proprogate changes in top_cpuset's effective_cpus down the hierarchy.
+	 * Propagate changes in top_cpuset's effective_cpus down the hierarchy.
 	 */
 	cpuset_update_tasks_cpumask(&top_cpuset, tmp->new_cpus);
 	update_sibling_cpumasks(&top_cpuset, NULL, tmp);
@@ -1435,7 +1435,7 @@ static int remote_partition_enable(struct cpuset *cs, int new_prs,
 /*
  * remote_partition_disable - Remove current cpuset from remote partition list
  * @cs: the cpuset to update
- * @tmp: temparary masks
+ * @tmp: temporary masks
  *
  * The effective_cpus is also updated.
  *
@@ -1463,7 +1463,7 @@ static void remote_partition_disable(struct cpuset *cs, struct tmpmasks *tmp)
 	update_unbound_workqueue_cpumask(isolcpus_updated);
 
 	/*
-	 * Proprogate changes in top_cpuset's effective_cpus down the hierarchy.
+	 * Propagate changes in top_cpuset's effective_cpus down the hierarchy.
 	 */
 	cpuset_update_tasks_cpumask(&top_cpuset, tmp->new_cpus);
 	update_sibling_cpumasks(&top_cpuset, NULL, tmp);
@@ -1473,7 +1473,7 @@ static void remote_partition_disable(struct cpuset *cs, struct tmpmasks *tmp)
  * remote_cpus_update - cpus_exclusive change of remote partition
  * @cs: the cpuset to be updated
  * @newmask: the new effective_xcpus mask
- * @tmp: temparary masks
+ * @tmp: temporary masks
  *
  * top_cpuset and subpartitions_cpus will be updated or partition can be
  * invalidated.
@@ -1522,7 +1522,7 @@ static void remote_cpus_update(struct cpuset *cs, struct cpumask *newmask,
 	update_unbound_workqueue_cpumask(isolcpus_updated);
 
 	/*
-	 * Proprogate changes in top_cpuset's effective_cpus down the hierarchy.
+	 * Propagate changes in top_cpuset's effective_cpus down the hierarchy.
 	 */
 	cpuset_update_tasks_cpumask(&top_cpuset, tmp->new_cpus);
 	update_sibling_cpumasks(&top_cpuset, NULL, tmp);
@@ -1537,7 +1537,7 @@ invalidate:
  * @cs: the cpuset to be updated
  * @newmask: the new effective_xcpus mask
  * @delmask: temporary mask for deletion (not in tmp)
- * @tmp: temparary masks
+ * @tmp: temporary masks
  *
  * This should be called before the given cs has updated its cpus_allowed
  * and/or effective_xcpus.
@@ -2248,7 +2248,7 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 			return -EINVAL;
 
 		/*
-		 * When exclusive_cpus isn't explicitly set, it is constrainted
+		 * When exclusive_cpus isn't explicitly set, it is constrained
 		 * by cpus_allowed and parent's effective_xcpus. Otherwise,
 		 * trialcs->effective_xcpus is used as a temporary cpumask
 		 * for checking validity of the partition root.
