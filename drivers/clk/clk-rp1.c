@@ -2454,6 +2454,11 @@ static int rp1_clk_probe(struct platform_device *pdev)
 		desc = &clk_desc_array[i];
 		if (desc->clk_register && desc->data) {
 			hws[i] = desc->clk_register(clockman, desc->data);
+			if (IS_ERR_OR_NULL(hws[i])) {
+				pr_err("Failed to register RP1 clock '%s' (%ld) - wrong dtbs?\n", *(char **)desc->data, PTR_ERR(hws[i]));
+				hws[i] = NULL;
+				continue;
+			}
 			if (!strcmp(clk_hw_get_name(hws[i]), "clk_i2s")) {
 				clk_i2s = hws[i];
 				clk_xosc = clk_hw_get_parent_by_index(clk_i2s, 0);
