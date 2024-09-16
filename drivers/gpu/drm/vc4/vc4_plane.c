@@ -614,7 +614,7 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 	phase &= SCALER_PPF_IPHASE_MASK;
 
 	vc4_dlist_write(vc4_state,
-			no_interpolate ? SCALER_PPF_NOINTERP : 0 |
+			(no_interpolate ? SCALER_PPF_NOINTERP : 0) |
 			SCALER_PPF_AGC |
 			VC4_SET_FIELD(scale, SCALER_PPF_SCALE) |
 			/*
