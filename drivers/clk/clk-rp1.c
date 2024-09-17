@@ -2454,10 +2454,16 @@ static int rp1_clk_probe(struct platform_device *pdev)
 		desc = &clk_desc_array[i];
 		if (desc->clk_register && desc->data) {
 			hws[i] = desc->clk_register(clockman, desc->data);
-			if (!strcmp(clk_hw_get_name(hws[i]), "clk_i2s")) {
-				clk_i2s = hws[i];
-				clk_xosc = clk_hw_get_parent_by_index(clk_i2s, 0);
-				clk_audio = clk_hw_get_parent_by_index(clk_i2s, 1);
+			if (IS_ERR_OR_NULL(hws[i])) {
+				pr_crit("Failed to register RP1 clock '%s' - err %ld\n", *(char **)desc->data, PTR_ERR(hws[i]));
+				hws[i] = NULL;
+			} else {
+				pr_crit("Registered RP1 clock '%s'\n", *(char **)desc->data);
+				if (!strcmp(clk_hw_get_name(hws[i]), "clk_i2s")) {
+					clk_i2s = hws[i];
+					clk_xosc = clk_hw_get_parent_by_index(clk_i2s, 0);
+					clk_audio = clk_hw_get_parent_by_index(clk_i2s, 1);
+				}
 			}
 		}
 	}
