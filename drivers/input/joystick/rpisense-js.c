@@ -107,8 +107,11 @@ static int rpisense_js_probe(struct platform_device *pdev)
 		goto err_keys_reg;
 	}
 	return 0;
+
 err_keys_reg:
 	input_unregister_device(rpisense_js->keys_dev);
+	return ret;
+
 err_keys_alloc:
 	input_free_device(rpisense_js->keys_dev);
 	return ret;
@@ -119,7 +122,6 @@ static int rpisense_js_remove(struct platform_device *pdev)
 	struct rpisense_js *rpisense_js = &rpisense->joystick;
 
 	input_unregister_device(rpisense_js->keys_dev);
-	input_free_device(rpisense_js->keys_dev);
 	return 0;
 }
 
