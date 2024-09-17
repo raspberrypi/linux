@@ -1752,9 +1752,9 @@ Params: pin_d4                  GPIO pin for data pin D4 (default 6)
         pin_bl                  Optional pin for enabling/disabling the
                                 display backlight. (default disabled)
 
-        display_height          Height of the display in characters (default 2)
+        display_height          Height of the display in characters
 
-        display_width           Width of the display in characters (default 16)
+        display_width           Width of the display in characters
 
 
 Name:   hdmi-backlight-hwhack-gpio
