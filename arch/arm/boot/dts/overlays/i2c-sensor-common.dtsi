@@ -1,7 +1,4 @@
 // Definitions for I2C based sensors using the Industrial IO or HWMON interface.
-/dts-v1/;
-/plugin/;
-
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 

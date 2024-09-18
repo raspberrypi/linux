@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Partial definitions for IMX290 or IMX327 camera module on VC I2C bus
 // The compatible string should be set in an overlay that then includes this one
-/dts-v1/;
-/plugin/;
 
 #include <dt-bindings/gpio/gpio.h>
 
