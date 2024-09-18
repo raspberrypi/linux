@@ -1,6 +1,3 @@
-/dts-v1/;
-/plugin/;
-
 #include "w1-gpio-overlay.dts"
 
 / {
