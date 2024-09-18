@@ -2,9 +2,6 @@
  * vc4-kms-v3d-overlay.dts
  */
 
-/dts-v1/;
-/plugin/;
-
 #include <dt-bindings/clock/bcm2835.h>
 
 #include "cma-overlay.dts"
