@@ -2,9 +2,6 @@
  * vc4-fkms-v3d-overlay.dts
  */
 
-/dts-v1/;
-/plugin/;
-
 #include "cma-overlay.dts"
 
 &frag0 {
