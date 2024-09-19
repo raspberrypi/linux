@@ -771,6 +771,18 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	case DMA_DEV_TO_MEM:
 		reg_burst_msize = axi_dma_encode_msize(chan->config.src_maxburst);
 		reg_width = __ffs(chan->config.src_addr_width);
+		/*
+		 * For devices where transfer lengths are not known upfront,
+		 * there is a danger when the destination is wider than the
+		 * source that partial words can be lost at the end of a transfer.
+		 * Ideally the controller would be able to flush the residue, but
+		 * it can't - it's not even possible to tell that there is any.
+		 * Instead, allow the client driver to avoid the problem by setting
+		 * a smaller width.
+		 */
+		if (chan->config.dst_addr_width &&
+		    (chan->config.dst_addr_width < mem_width))
+			mem_width = chan->config.dst_addr_width;
 		device_addr = phys_to_dma(chan->chip->dev, chan->config.src_addr);
 		ctllo = reg_width << CH_CTL_L_SRC_WIDTH_POS |
 			mem_width << CH_CTL_L_DST_WIDTH_POS |
