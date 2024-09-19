@@ -465,6 +465,7 @@ static void pl011_dma_probe(struct uart_amba_port *uap)
 			.src_addr = uap->port.mapbase +
 				pl011_reg_to_offset(uap, REG_DR),
 			.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
+			.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE,
 			.direction = DMA_DEV_TO_MEM,
 			.src_maxburst = uap->fifosize >> 2,
 			.device_fc = false,
