@@ -16,6 +16,8 @@
 #ifndef __LINUX_RPISENSE_FB_H_
 #define __LINUX_RPISENSE_FB_H_
 
+#include <linux/regmap.h>
+
 #define SENSEFB_FBIO_IOC_MAGIC 0xF1
 
 #define SENSEFB_FBIOGET_GAMMA _IO(SENSEFB_FBIO_IOC_MAGIC, 0)
@@ -25,8 +27,9 @@
 struct rpisense;
 
 struct rpisense_fb {
-	struct platform_device *pdev;
 	struct fb_info *info;
+	struct platform_device *pdev;
+	struct regmap *regmap;
 };
 
 #endif
