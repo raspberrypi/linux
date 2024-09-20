@@ -3099,6 +3099,7 @@ static int __init pl011_init(void)
 static void __exit pl011_exit(void)
 {
 	platform_driver_unregister(&arm_sbsa_uart_platform_driver);
+	platform_driver_unregister(&pl011_axi_platform_driver);
 	amba_driver_unregister(&pl011_driver);
 }
 
