@@ -619,6 +619,10 @@ static int bcm2835_i2s_prepare(struct snd_pcm_substream *substream,
 	struct bcm2835_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
 	uint32_t cs_reg;
 
+	snd_pcm_hw_constraint_minmax(substream->runtime,
+		SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 256,
+					~0);
+
 	/*
 	 * Clear both FIFOs if the one that should be started
 	 * is not empty at the moment. This should only happen
@@ -699,6 +703,10 @@ static int bcm2835_i2s_startup(struct snd_pcm_substream *substream,
 
 	/* Should this still be running stop it */
 	bcm2835_i2s_stop_clock(dev);
+
+	snd_pcm_hw_constraint_minmax(substream->runtime,
+				     SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
+				     256, ~0);
 
 	/* Enable PCM block */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
