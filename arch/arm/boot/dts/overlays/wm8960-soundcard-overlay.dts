@@ -13,7 +13,7 @@
 	};
 
 	fragment@1 {
-		target-path="/";
+		target-path = "/";
 		__overlay__ {
 			wm8960_mclk: wm8960_mclk {
 				compatible = "fixed-clock";
@@ -29,16 +29,17 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			wm8960: wm8960 {
+			wm8960: wm8960@1a {
 				compatible = "wlf,wm8960";
 				reg = <0x1a>;
 				#sound-dai-cells = <0>;
 				AVDD-supply = <&vdd_5v0_reg>;
 				DVDD-supply = <&vdd_3v3_reg>;
+				clocks = <&wm8960_mclk>;
+				clock-names = "mclk";
 			};
 		};
 	};
-
 
 	fragment@3 {
 		target = <&sound>;
@@ -67,10 +68,9 @@
 			simple-audio-card,cpu {
 				sound-dai = <&i2s_clk_producer>;
 			};
+
 			dailink0_slave: simple-audio-card,codec {
 				sound-dai = <&wm8960>;
-				clocks = <&wm8960_mclk>;
-				clock-names = "mclk";
 			};
 		};
 	};
