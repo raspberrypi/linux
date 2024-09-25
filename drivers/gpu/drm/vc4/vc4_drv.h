@@ -323,6 +323,32 @@ struct vc4_v3d {
 	struct debugfs_regset32 regset;
 };
 
+#define VC4_NUM_LBM_HANDLES 64
+struct vc4_lbm_refcounts {
+	refcount_t refcount;
+
+	/* Allocation size */
+	size_t size;
+	/* Our allocation in LBM. */
+	struct drm_mm_node lbm;
+
+	/* Pointer back to the HVS structure */
+	struct vc4_hvs *hvs;
+};
+
+#define VC4_NUM_UPM_HANDLES 32
+struct vc4_upm_refcounts {
+	refcount_t refcount;
+
+	/* Allocation size */
+	size_t size;
+	/* Our allocation in UPM for prefetching. */
+	struct drm_mm_node upm;
+
+	/* Pointer back to the HVS structure */
+	struct vc4_hvs *hvs;
+};
+
 #define HVS_NUM_CHANNELS 3
 
 struct vc4_hvs {
@@ -346,12 +372,16 @@ struct vc4_hvs {
 	 * list.  Units are dwords.
 	 */
 	struct drm_mm dlist_mm;
+
 	/* Memory manager for the LBM memory used by HVS scaling. */
 	struct drm_mm lbm_mm;
+	struct ida lbm_handles;
+	struct vc4_lbm_refcounts lbm_refcounts[VC4_NUM_LBM_HANDLES + 1];
 
 	/* Memory manager for the UPM memory used for prefetching. */
 	struct drm_mm upm_mm;
 	struct ida upm_handles;
+	struct vc4_upm_refcounts upm_refcounts[VC4_NUM_UPM_HANDLES + 1];
 
 	spinlock_t mm_lock;
 
@@ -420,8 +450,6 @@ struct vc4_plane_state {
 	u32 dlist_size; /* Number of dwords allocated for the display list */
 	u32 dlist_count; /* Number of used dwords in the display list. */
 
-	u32 lbm_size; /* LBM requirements for this plane */
-
 	/* Offset in the dlist to various words, for pageflip or
 	 * cursor updates.
 	 */
@@ -447,8 +475,8 @@ struct vc4_plane_state {
 	bool is_unity;
 	bool is_yuv;
 
-	/* Our allocation in UPM for prefetching. */
-	struct drm_mm_node upm[DRM_FORMAT_MAX_PLANES];
+	/* Our allocation in LBM for temporary storage during scaling. */
+	unsigned int lbm_handle;
 
 	/* The Unified Pre-Fetcher Handle */
 	unsigned int upm_handle[DRM_FORMAT_MAX_PLANES];
@@ -641,9 +669,6 @@ struct vc4_crtc {
 	 * access to that value.
 	 */
 	unsigned int current_hvs_channel;
-
-	/* @lbm: Our allocation in LBM for temporary storage during scaling. */
-	struct drm_mm_node lbm;
 };
 
 #define to_vc4_crtc(_crtc)					\
