@@ -247,10 +247,12 @@
 	ramoops {
 		bcm2835;
 		bcm2711 = "ramoops-pi4";
+		bcm2712 = "ramoops-pi4";
 	};
 
 	ramoops-pi4 {
 		bcm2711;
+		bcm2712;
 	};
 
 	rpi-cirrus-wm5102 {
