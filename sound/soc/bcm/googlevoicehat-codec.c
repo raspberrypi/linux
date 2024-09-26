@@ -95,8 +95,7 @@ static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
 				   struct snd_soc_dai *dai)
 {
 	struct snd_soc_component *component = dai->component;
-	struct voicehat_priv *voicehat =
-				snd_soc_component_get_drvdata(component);
+	struct voicehat_priv *voicehat = snd_soc_component_get_drvdata(component);
 
 	if (voicehat->sdmode_delay_jiffies == 0)
 		return 0;
@@ -109,7 +108,7 @@ static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (dai->stream[SNDRV_PCM_STREAM_PLAYBACK].active) {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			dev_info(dai->dev, "Enabling audio amp...\n");
 			queue_delayed_work(
 				system_power_efficient_wq,
@@ -120,7 +119,7 @@ static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		if (dai->stream[SNDRV_PCM_STREAM_PLAYBACK].active) {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			cancel_delayed_work(&voicehat->enable_sdmode_work);
 			dev_info(dai->dev, "Disabling audio amp...\n");
 			gpiod_set_value(voicehat->sdmode_gpio, 0);
