@@ -322,6 +322,19 @@ struct vc4_v3d {
 	struct debugfs_regset32 regset;
 };
 
+#define VC4_NUM_LBM_HANDLES 64
+struct vc4_lbm_refcounts {
+	refcount_t refcount;
+
+	/* Allocation size */
+	size_t size;
+	/* Our allocation in LBM. */
+	struct drm_mm_node lbm;
+
+	/* Pointer back to the HVS structure */
+	struct vc4_hvs *hvs;
+};
+
 #define VC4_NUM_UPM_HANDLES 32
 struct vc4_upm_refcounts {
 	refcount_t refcount;
@@ -363,6 +376,8 @@ struct vc4_hvs {
 
 	/* Memory manager for the LBM memory used by HVS scaling. */
 	struct drm_mm lbm_mm;
+	struct ida lbm_handles;
+	struct vc4_lbm_refcounts lbm_refcounts[VC4_NUM_LBM_HANDLES + 1];
 
 	/* Memory manager for the UPM memory used for prefetching. */
 	struct drm_mm upm_mm;
@@ -462,7 +477,7 @@ struct vc4_plane_state {
 	bool is_yuv;
 
 	/* Our allocation in LBM for temporary storage during scaling. */
-	struct drm_mm_node lbm;
+	unsigned int lbm_handle;
 
 	/* The Unified Pre-Fetcher Handle */
 	unsigned int upm_handle[DRM_FORMAT_MAX_PLANES];
