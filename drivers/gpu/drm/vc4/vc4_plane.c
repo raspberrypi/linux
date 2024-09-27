@@ -294,12 +294,12 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 	if (!vc4_state)
 		return NULL;
 
-	memset(&vc4_state->lbm, 0, sizeof(vc4_state->lbm));
-
 	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
 		if (vc4_state->upm_handle[i])
 			refcount_inc(&hvs->upm_refcounts[vc4_state->upm_handle[i]].refcount);
 	}
+	if (vc4_state->lbm_handle)
+		refcount_inc(&hvs->lbm_refcounts[vc4_state->lbm_handle].refcount);
 
 	vc4_state->dlist_initialized = 0;
 
@@ -317,6 +317,21 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 	}
 
 	return &vc4_state->base;
+}
+
+static void vc4_plane_release_lbm_ida(struct vc4_hvs *hvs, unsigned int lbm_handle)
+{
+	struct vc4_lbm_refcounts *refcount = &hvs->lbm_refcounts[lbm_handle];
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&hvs->mm_lock, irqflags);
+	drm_mm_remove_node(&refcount->lbm);
+	spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+	refcount->lbm.start = 0;
+	refcount->lbm.size = 0;
+	refcount->size = 0;
+
+	ida_free(&hvs->lbm_handles, lbm_handle);
 }
 
 static void vc4_plane_release_upm_ida(struct vc4_hvs *hvs, unsigned int upm_handle)
@@ -342,12 +357,13 @@ void vc4_plane_destroy_state(struct drm_plane *plane,
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	unsigned int i;
 
-	if (drm_mm_node_allocated(&vc4_state->lbm)) {
-		unsigned long irqflags;
+	if (vc4_state->lbm_handle) {
+		struct vc4_lbm_refcounts *refcount;
 
-		spin_lock_irqsave(&hvs->mm_lock, irqflags);
-		drm_mm_remove_node(&vc4_state->lbm);
-		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
+		refcount = &hvs->lbm_refcounts[vc4_state->lbm_handle];
+
+		if (refcount_dec_and_test(&refcount->refcount))
+			vc4_plane_release_lbm_ida(hvs, vc4_state->lbm_handle);
 	}
 
 	for (i = 0; i < DRM_FORMAT_MAX_PLANES; i++) {
@@ -939,10 +955,14 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 {
 	struct drm_device *drm = state->plane->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct drm_plane *plane = state->plane;
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct vc4_lbm_refcounts *refcount;
 	unsigned long irqflags;
+	int lbm_handle;
 	u32 lbm_size;
+	int ret;
 
 	lbm_size = vc4_lbm_size(state);
 	if (!lbm_size)
@@ -966,27 +986,69 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 	/* Allocate the LBM memory that the HVS will use for temporary
 	 * storage due to our scaling/format conversion.
 	 */
-	if (!drm_mm_node_allocated(&vc4_state->lbm)) {
-		int ret;
+	lbm_handle = vc4_state->lbm_handle;
+	if (lbm_handle &&
+	    hvs->lbm_refcounts[lbm_handle].size == lbm_size) {
+		/* Allocation is the same size as the previous user of
+		 * the plane. Keep the allocation.
+		 */
+		vc4_state->lbm_handle = lbm_handle;
+	} else {
+		if (lbm_handle &&
+		    refcount_dec_and_test(&hvs->lbm_refcounts[lbm_handle].refcount)) {
+			vc4_plane_release_lbm_ida(hvs, lbm_handle);
+			vc4_state->lbm_handle = 0;
+		}
 
-		spin_lock_irqsave(&vc4->hvs->mm_lock, irqflags);
+		lbm_handle = ida_alloc_range(&hvs->lbm_handles, 1,
+					     VC4_NUM_LBM_HANDLES,
+					     GFP_KERNEL);
+		if (lbm_handle < 0) {
+			drm_err(drm, "Out of lbm_handles\n");
+			return lbm_handle;
+		}
+		vc4_state->lbm_handle = lbm_handle;
+
+		refcount = &hvs->lbm_refcounts[lbm_handle];
+		refcount_set(&refcount->refcount, 1);
+		refcount->size = lbm_size;
+
+		spin_lock_irqsave(&hvs->mm_lock, irqflags);
 		ret = drm_mm_insert_node_generic(&vc4->hvs->lbm_mm,
-						 &vc4_state->lbm,
+						 &refcount->lbm,
 						 lbm_size, 1,
 						 0, 0);
-		spin_unlock_irqrestore(&vc4->hvs->mm_lock, irqflags);
+		spin_unlock_irqrestore(&hvs->mm_lock, irqflags);
 
 		if (ret) {
 			drm_err(drm, "Failed to allocate LBM entry: %d\n", ret);
+			refcount_set(&refcount->refcount, 0);
+			ida_free(&hvs->lbm_handles, lbm_handle);
+			vc4_state->lbm_handle = 0;
 			return ret;
 		}
-	} else {
-		WARN_ON_ONCE(lbm_size != vc4_state->lbm.size);
 	}
 
-	vc4_state->dlist[vc4_state->lbm_offset] = vc4_state->lbm.start;
+	vc4_state->dlist[vc4_state->lbm_offset] = hvs->lbm_refcounts[lbm_handle].lbm.start;
 
 	return 0;
+}
+
+static void vc4_plane_free_lbm(struct drm_plane_state *state)
+{
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct drm_device *drm = state->plane->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(drm);
+	struct vc4_hvs *hvs = vc4->hvs;
+	unsigned int lbm_handle;
+
+	lbm_handle = vc4_state->lbm_handle;
+	if (!lbm_handle)
+		return;
+
+	if (refcount_dec_and_test(&hvs->lbm_refcounts[lbm_handle].refcount))
+		vc4_plane_release_lbm_ida(hvs, lbm_handle);
+	vc4_state->lbm_handle = 0;
 }
 
 static int vc6_plane_allocate_upm(struct drm_plane_state *state)
@@ -2174,9 +2236,10 @@ int vc4_plane_atomic_check(struct drm_plane *plane,
 		struct drm_plane_state *old_plane_state =
 				drm_atomic_get_old_plane_state(state, plane);
 
-		if (vc4->gen >= VC4_GEN_6_C && old_plane_state &&
-		    plane_enabled(old_plane_state)) {
-			vc6_plane_free_upm(new_plane_state);
+		if (old_plane_state && plane_enabled(old_plane_state)) {
+			if (vc4->gen >= VC4_GEN_6_C)
+				vc6_plane_free_upm(new_plane_state);
+			vc4_plane_free_lbm(new_plane_state);
 		}
 		return 0;
 	}
