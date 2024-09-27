@@ -379,6 +379,27 @@ static int vc4_hvs_debugfs_dlist_allocs(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int vc4_hvs_debugfs_lbm_allocs(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	struct vc4_lbm_refcounts *refcount;
+	unsigned int i;
+
+	drm_printf(&p, "LBM Handles:\n");
+	for (i = 0; i < VC4_NUM_LBM_HANDLES; i++) {
+		refcount = &hvs->lbm_refcounts[i];
+		drm_printf(&p, "handle %u: refcount %u, size %zu [%08llx + %08llx]\n",
+			   i, refcount_read(&refcount->refcount), refcount->size,
+			   refcount->lbm.start, refcount->lbm.size);
+	}
+
+	return 0;
+}
+
 /* The filter kernel is composed of dwords each containing 3 9-bit
  * signed integers packed next to each other.
  */
@@ -1511,6 +1532,8 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 		drm_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist, NULL);
 	}
 
+	drm_debugfs_add_file(drm, "hvs_lbm", vc4_hvs_debugfs_lbm_allocs, NULL);
+
 	drm_debugfs_add_file(drm, "hvs_underrun", vc4_hvs_debugfs_underrun, NULL);
 
 	drm_debugfs_add_file(drm, "hvs_dlist_allocs", vc4_hvs_debugfs_dlist_allocs, NULL);
@@ -1627,6 +1650,7 @@ struct vc4_hvs *__vc4_hvs_alloc(struct vc4_dev *vc4,
 	}
 
 	drm_mm_init(&hvs->lbm_mm, 0, lbm_size);
+	ida_init(&hvs->lbm_handles);
 
 	if (vc4->gen >= VC4_GEN_6_C) {
 		ida_init(&hvs->upm_handles);
