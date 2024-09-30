@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: GPL-2.0
+// Device tree overlay for RP1 PIO WS2812 driver.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			ws2812_pio_pins: ws2812_pio_pins@4 {
+				brcm,pins = <4>; /* gpio 4 */
+				function = "pio";
+				bias-disable;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			ws2812_pio: ws2812_pio@4 {
+				compatible = "raspberrypi,ws2812-pio-rp1";
+				pinctrl-names = "default";
+				pinctrl-0 = <&ws2812_pio_pins>;
+				dev-name = "leds%d";
+				leds-gpios = <&gpio 4 0>;
+				rpi,num-leds = <60>;
+				rpi,brightness = <255>;
+			};
+		};
+	};
+
+	__overrides__ {
+		brightness = <&ws2812_pio>, "rpi,brightness:0";
+		dev_name = <&ws2812_pio>, "dev-name";
+		gpio = <&ws2812_pio>,"leds-gpios:4",
+		       <&ws2812_pio_pins>,"brcm,pins:0",
+		       /* modify reg values to allow multiple instantiation */
+		       <&ws2812_pio>,"reg:0",
+		       <&ws2812_pio_pins>,"reg:0";
+		num_leds = <&ws2812_pio>, "rpi,num-leds:0";
+		rgbw = <&ws2812_pio>, "rpi,rgbw?";
+	};
+};
