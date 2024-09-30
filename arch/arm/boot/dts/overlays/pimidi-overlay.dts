@@ -1,0 +1,53 @@
+/*
+ * Pimidi Linux kernel module.
+ * Copyright (C) 2017-2024  Vilniaus Blokas UAB, https://blokas.io/
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			status = "okay";
+
+			pimidi_ctrl: pimidi_ctrl@20 {
+				compatible = "blokaslabs,pimidi";
+
+				reg = <0x20>;
+				status = "okay";
+
+				interrupt-parent = <&gpio>;
+				interrupts = <23 IRQ_TYPE_LEVEL_LOW>;
+				interrupt-names = "data_ready";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+
+				data-ready-gpios = <&gpio 23 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+				reset-gpios = <&gpio 22 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			};
+		};
+	};
+
+	__overrides__ {
+		sel = <&pimidi_ctrl>,"reg:0{0=0x20,1=0x21,2=0x22,3=0x23}",
+			<&pimidi_ctrl>,"data-ready-gpios:4{0=23,1=5,2=6,3=27}",
+			<&pimidi_ctrl>,"interrupts:0{0=23,1=5,2=6,3=27}";
+	};
+};
