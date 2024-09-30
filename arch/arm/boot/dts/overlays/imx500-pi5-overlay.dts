@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX500 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	reg_frag: fragment@2 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <300000>;
+		};
+	};
+
+	i2c_frag: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			#include "imx500.dtsi"
+			#include "rpi-rp2040-gpio-bridge.dtsi"
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&cam_endpoint>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	spi_frag: fragment@102 {
+		target = <&spi_bridge>;
+		spi_frag_overlay: __overlay__ {
+			fast_xfer_requires_i2c_lock = <1>;
+			fast_xfer_recv_gpio_base = <11>;
+			fast_xfer-gpios = <&rp1_gpio 40 0>, // CD1_SDA (used as data)
+					  <&rp1_gpio 48 0>; // CD1_IO1_MICDAT1 (clock)
+		};
+	};
+
+	spi_bridge_frag: fragment@103 {
+		target = <&spi_bridgedev0>;
+		__overlay__ {
+			compatible = "sony,imx500";
+		};
+	};
+
+	fragment@104 {
+		target-path = "/clocks";
+		__overlay__ {
+			clk_aicam: clk-aicam1 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <24000000>;
+			};
+
+			clk_aicam_gated: clk-aicam-gated1 {
+				compatible = "gpio-gate-clock";
+				clocks = <&clk_aicam>;
+				#clock-cells = <0>;
+				enable-gpios = <&spi_bridge 21 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	__overrides__ {
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+			   <&spi_frag_overlay>, "fast_xfer-gpios:4=38", // CD0_SDA (data)
+			   <&spi_frag_overlay>, "fast_xfer-gpios:16=35", // CD0_IO1_MICDAT0 (clock)
+			   <&spi_bridge>, "power-supply:0=",<&cam0_reg>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>,
+		       <&clk_aicam>,"name=clk-aicam0",
+		       <&clk_aicam_gated>,"name=clk-aicam-gated0";
+		bypass-cache = <&spi_bridge>,"bypass-cache?";
+	};
+};
+
+&cam_node {
+	status = "okay";
+	led-gpios = <&spi_bridge 19 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&spi_bridge 20 GPIO_ACTIVE_HIGH>;
+	clocks = <&clk_aicam_gated>;
+	spi = <&spi_bridgedev0>;
+};
+
+&spi_bridge {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
+};

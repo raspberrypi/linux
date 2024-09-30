@@ -1,0 +1,201 @@
+/* Downstream modifications to bcm2835-rpi.dtsi */
+
+/ {
+	aliases: aliases {
+		aux = &aux;
+		sound = &sound;
+		soc = &soc;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		uart1 = &uart1;
+		sdhost = &sdhost;
+		mmc = &mmc;
+		mmc1 = &mmc;
+		mmc0 = &sdhost;
+		i2s = &i2s;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c10 = &i2c_csi_dsi;
+		i2c = &i2c_arm;
+		spi0 = &spi0;
+		spi1 = &spi1;
+		spi2 = &spi2;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+		thermal = &thermal;
+		axiperf = &axiperf;
+	};
+
+	/* Define these notional regulators for use by overlays */
+	vdd_3v3_reg: fixedregulator_3v3 {
+		compatible = "regulator-fixed";
+		regulator-always-on;
+		regulator-max-microvolt = <3300000>;
+		regulator-min-microvolt = <3300000>;
+		regulator-name = "3v3";
+	};
+
+	vdd_5v0_reg: fixedregulator_5v0 {
+		compatible = "regulator-fixed";
+		regulator-always-on;
+		regulator-max-microvolt = <5000000>;
+		regulator-min-microvolt = <5000000>;
+		regulator-name = "5v0";
+	};
+
+	soc {
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		/* External sound card */
+		sound: sound {
+			status = "disabled";
+		};
+	};
+
+	__overrides__ {
+		cache_line_size;
+
+		uart0 = <&uart0>,"status";
+		uart1 = <&uart1>,"status";
+		i2s = <&i2s>,"status";
+		spi = <&spi0>,"status";
+		i2c0 = <&i2c0if>,"status",<&i2c0mux>,"status";
+		i2c1 = <&i2c1>,"status";
+		i2c = <&i2c1>,"status";
+		i2c_arm = <&i2c1>,"status";
+		i2c_vc = <&i2c0if>,"status",<&i2c0mux>,"status";
+		i2c0_baudrate = <&i2c0if>,"clock-frequency:0";
+		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_arm_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c_vc_baudrate = <&i2c0if>,"clock-frequency:0";
+
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
+		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+		sd_force_pio = <&sdhost>,"brcm,force-pio?";
+		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
+		sd_debug     = <&sdhost>,"brcm,debug";
+		sdio_overclock = <&mmc>,"brcm,overclock-50:0",
+				 <&mmcnr>,"brcm,overclock-50:0";
+		axiperf      = <&axiperf>,"status";
+		drm_fb0_vc4 = <&aliases>, "drm-fb0=",&vc4;
+		drm_fb1_vc4 = <&aliases>, "drm-fb1=",&vc4;
+		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+
+		cam1_sync = <&csi1>, "sync-gpios:0=", <&gpio>,
+			    <&csi1>, "sync-gpios:4",
+			    <&csi1>, "sync-gpios:8=", <GPIO_ACTIVE_HIGH>;
+		cam1_sync_inverted = <&csi1>, "sync-gpios:0=", <&gpio>,
+			    <&csi1>, "sync-gpios:4",
+			    <&csi1>, "sync-gpios:8=", <GPIO_ACTIVE_LOW>;
+		cam0_sync = <&csi0>, "sync-gpios:0=", <&gpio>,
+			    <&csi0>, "sync-gpios:4",
+			    <&csi0>, "sync-gpios:8=", <GPIO_ACTIVE_HIGH>;
+		cam0_sync_inverted = <&csi0>, "sync-gpios:0=", <&gpio>,
+			    <&csi0>, "sync-gpios:4",
+			    <&csi0>, "sync-gpios:8=", <GPIO_ACTIVE_LOW>;
+
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpio:4",
+				<&cam0_reg>,"gpio:0=", <&gpio>;
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpio:4",
+				<&cam1_reg>,"gpio:0=", <&gpio>;
+
+		strict_gpiod = <&chosen>, "bootargs=pinctrl_bcm2835.persist_gpio_outputs=n";
+	};
+};
+
+&uart0 {
+	skip-init;
+};
+
+&uart1 {
+	skip-init;
+};
+
+&txp {
+	status = "disabled";
+};
+
+&i2c0if {
+	status = "disabled";
+};
+
+&i2c0mux {
+	pinctrl-names = "i2c0", "i2c_csi_dsi";
+	/delete-property/ clock-frequency;
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+i2s_clk_producer: &i2s {};
+i2s_clk_consumer: &i2s {};
+
+&clocks {
+	firmware = <&firmware>;
+};
+
+&sdhci {
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_gpio48>;
+	bus-width = <4>;
+};
+
+&cpu_thermal {
+	// Add some labels
+	thermal_trips: trips {
+		cpu-crit {
+			// Raise upstream limit of 90C
+			temperature = <110000>;
+		};
+	};
+	cooling_maps: cooling-maps {
+	};
+};
+
+&vec {
+	clocks = <&firmware_clocks 15>;
+	status = "disabled";
+};
+
+&firmware {
+	vcio: vcio {
+		compatible = "raspberrypi,vcio";
+	};
+};
+
+&vc4 {
+	raspberrypi,firmware = <&firmware>;
+};
+
+#ifndef BCM2711
+
+&hdmi {
+	reg-names = "hdmi",
+		    "hd";
+	clocks = <&firmware_clocks 9>,
+		 <&firmware_clocks 13>;
+	dmas = <&dma (17|(1<<27)|(1<<24))>;
+};
+
+#endif
