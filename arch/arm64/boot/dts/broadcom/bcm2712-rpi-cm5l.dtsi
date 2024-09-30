@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+
+#include "bcm2712-rpi-cm5.dtsi"
+
+/ {
+	model = "Raspberry Pi Compute Module 5 Lite";
+};
+
+&sd_io_1v8_reg {
+	compatible = "regulator-gpio";
+	regulator-max-microvolt = <3300000>;
+	regulator-settling-time-us = <5000>;
+	gpios = <&gio_aon 3 GPIO_ACTIVE_HIGH>;
+	states = <1800000 0x1
+		  3300000 0x0>;
+};
+
+&sdio1 {
+	/delete-property/ mmc-hs400-1_8v;
+	/delete-property/ mmc-hs400-enhanced-strobe;
+};

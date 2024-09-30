@@ -363,7 +363,7 @@
 			#size-cells = <0>;
 			#clock-cells = <1>;
 
-			clocks = <&clocks BCM2835_PLLA_DSI0>,
+			clocks = <&clocks BCM2835_PLLD_DSI0>,
 				 <&clocks BCM2835_CLOCK_DSI0E>,
 				 <&clocks BCM2835_CLOCK_DSI0P>;
 			clock-names = "phy", "escape", "pixel";
@@ -415,7 +415,7 @@
 			reg = <0x7e20c000 0x28>;
 			clocks = <&clocks BCM2835_CLOCK_PWM>;
 			assigned-clocks = <&clocks BCM2835_CLOCK_PWM>;
-			assigned-clock-rates = <10000000>;
+			assigned-clock-rates = <50000000>;
 			#pwm-cells = <3>;
 			status = "disabled";
 		};
@@ -502,6 +502,10 @@
 	};
 
 	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clk-osc {
 			compatible = "fixed-clock";
