@@ -1,0 +1,36 @@
+// Overlay for SSD1306 128x64 and 128x32 OLED displays
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+	target = <&i2c1>;
+	__overlay__ {
+	    status = "okay";
+
+	    #address-cells = <1>;
+	    #size-cells = <0>;
+
+	    ssd1306: oled@3c{
+		compatible = "solomon,ssd1306fb-i2c";
+		reg = <0x3c>;
+		solomon,width = <128>;
+		solomon,height = <64>;
+		solomon,page-offset = <0>;
+	    };
+	};
+    };
+
+    __overrides__ {
+	address = <&ssd1306>,"reg:0";
+	width = <&ssd1306>,"solomon,width:0";
+	height = <&ssd1306>,"solomon,height:0";
+	offset = <&ssd1306>,"solomon,page-offset:0";
+	normal = <&ssd1306>,"solomon,segment-no-remap?";
+	sequential = <&ssd1306>,"solomon,com-seq?";
+	remapped = <&ssd1306>,"solomon,com-lrremap?";
+	inverted = <&ssd1306>,"solomon,com-invdir?";
+    };
+};

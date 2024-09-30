@@ -1,0 +1,28 @@
+// Fragment that configures an ov7251
+
+cam_node: ov7251@60 {
+	compatible = "ovti,ov7251";
+	reg = <0x60>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+	clock-frequency = <24000000>;
+
+	vdddo-supply = <&cam_dummy_reg>;
+	vdda-supply = <&cam1_reg>;
+	vddd-supply = <&cam_dummy_reg>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <240000000>;
+		};
+	};
+};

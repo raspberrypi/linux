@@ -1,0 +1,18 @@
+/*
+ * Device tree overlay to move i2s to gpio 28 to 31 on CM
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_pins>;
+		__overlay__ {
+			brcm,pins = <28 29 30 31>;
+			brcm,function = <6>; /* alt2 */
+		};
+	};
+};
