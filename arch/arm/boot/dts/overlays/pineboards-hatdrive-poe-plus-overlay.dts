@@ -1,0 +1,19 @@
+/*
+ * Device Tree overlay for Pineboards HatDrive! PoE+.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			power: power {
+				hat_current_supply = <5000>;
+			};
+		};
+	};
+};
