@@ -3637,10 +3637,12 @@ Info:   Pineboards Hat Ai! overlay for the Google Coral Edge TPU
 Load:   dtoverlay=pineboards-hat-ai
 Params: <None>
 
+
 Name:   pineboards-hatdrive-poe-plus
 Info:   Configures the Pineboards HatDrive! PoE+
 Load:   dtoverlay=pineboards-hat-ai
 Params: <None>
+
 
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
