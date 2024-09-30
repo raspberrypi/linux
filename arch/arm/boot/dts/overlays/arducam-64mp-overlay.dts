@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Arducam 64MP camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			#include "arducam-64mp.dtsi"
+		};
+	};
+
+	csi_frag: fragment@1 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+
+			port{
+				csi_ep: endpoint{
+					remote-endpoint = <&cam_endpoint>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@3 {
+		target = <&cam1_clk>;
+		__overlay__ {
+			clock-frequency = <24000000>;
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&cam_node>;
+		__overlay__ {
+			lens-focus = <&vcm_node>;
+		};
+	};
+
+	fragment@6 {
+		target = <&csi1>;
+		__dormant__ {
+			compatible = "brcm,bcm2835-unicam-legacy";
+		};
+	};
+
+	__overrides__ {
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
+		media-controller = <0>,"!6";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>,
+		       <&vcm_node>, "VDD-supply:0=", <&cam0_reg>;
+		vcm = <&vcm_node>, "status",
+		      <0>, "=5";
+	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
+};
+
+&vcm_node {
+	status = "okay";
+};

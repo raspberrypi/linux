@@ -31,9 +31,14 @@ $(dst)/%: $(obj)/$(1)%
 	$$(call cmd,dtb_install)
 endef
 
-$(foreach d, $(sort $(dir $(dtbs))), $(eval $(call gen_install_rules,$(d))))
+define overlays_install_rules
+$(dst)/overlays/%: $(obj)/$(1)%
+	$$(call cmd,dtb_install)
+endef
 
-dtbs := $(notdir $(dtbs))
+$(foreach d, $(sort $(dir $(dtbs))), $(if $(findstring "overlays/","$(d)"),$(eval $(call overlays_install_rules,$(d))),$(eval $(call gen_install_rules,$(d)))))
+
+dtbs := $(foreach d, $(dtbs), $(if $(findstring overlays/,$(d)),$(d),$(notdir $(d))))
 
 endif # CONFIG_ARCH_WANT_FLAT_DTB_INSTALL
 
