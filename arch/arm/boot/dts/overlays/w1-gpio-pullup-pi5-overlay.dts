@@ -1,0 +1,15 @@
+/dts-v1/;
+/plugin/;
+
+#include "w1-gpio-pullup-overlay.dts"
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@2 {
+		target = <&w1>;
+		__overlay__ {
+			raspberrypi,delay-needs-poll;
+		};
+	};
+};

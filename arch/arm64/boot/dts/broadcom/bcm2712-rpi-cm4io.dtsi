@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0
+
+i2c_csi_dsi0: &i2c0 { // Note: For CAM0 and DISP0 connectors
+};
+
+i2c_csi_dsi1: &i2c6 { // Note: For CAM1, DISP1, on-board RTC, and fan controller
+	pinctrl-0 = <&rp1_i2c6_38_39>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	symlink = "i2c-6";
+};
+
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // The connector that needs no jumper to enable
+
+&aliases {
+    /delete-property/ i2c11;
+    i2c10 = &i2c_csi_dsi;
+};
+
+// The RP1 USB3 interfaces are not usable on CM4IO
+
+&rp1_usb0 {
+	status = "disabled";
+};
+
+&rp1_usb1 {
+	status = "disabled";
+};

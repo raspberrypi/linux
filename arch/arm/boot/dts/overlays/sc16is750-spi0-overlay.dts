@@ -1,0 +1,63 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sc16is750: sc16is750@0 {
+				compatible = "nxp,sc16is750";
+				reg = <0>; /* CE0 */
+				clocks = <&sc16is750_clk>;
+				interrupt-parent = <&gpio>;
+				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
+				gpio-controller;
+				#gpio-cells = <2>;
+				spi-max-frequency = <4000000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			sc16is750_clk: sc16is750_spi0_0_clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <14745600>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			int_pins: int_pins@18 {
+					brcm,pins = <24>;
+					brcm,function = <0>; /* in */
+					brcm,pull = <0>; /* none */
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&sc16is750>,"interrupts:0", <&int_pins>,"brcm,pins:0",
+			  <&int_pins>,"reg:0";
+		xtal = <&sc16is750_clk>,"clock-frequency:0";
+	};
+};
