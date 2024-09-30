@@ -496,7 +496,7 @@ static void afs_extend_writeback(struct address_space *mapping,
 			if (folio_index(folio) != index)
 				break;
 
-			if (!folio_try_get_rcu(folio)) {
+			if (!folio_try_get(folio)) {
 				xas_reset(&xas);
 				continue;
 			}

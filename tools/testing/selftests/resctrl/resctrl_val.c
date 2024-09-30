@@ -156,12 +156,12 @@ static int read_from_imc_dir(char *imc_dir, int count)
 	sprintf(imc_counter_type, "%s%s", imc_dir, "type");
 	fp = fopen(imc_counter_type, "r");
 	if (!fp) {
-		perror("Failed to open imc counter type file");
+		ksft_perror("Failed to open iMC counter type file");
 
 		return -1;
 	}
 	if (fscanf(fp, "%u", &imc_counters_config[count][READ].type) <= 0) {
-		perror("Could not get imc type");
+		ksft_perror("Could not get iMC type");
 		fclose(fp);
 
 		return -1;
@@ -175,12 +175,12 @@ static int read_from_imc_dir(char *imc_dir, int count)
 	sprintf(imc_counter_cfg, "%s%s", imc_dir, READ_FILE_NAME);
 	fp = fopen(imc_counter_cfg, "r");
 	if (!fp) {
-		perror("Failed to open imc config file");
+		ksft_perror("Failed to open iMC config file");
 
 		return -1;
 	}
 	if (fscanf(fp, "%s", cas_count_cfg) <= 0) {
-		perror("Could not get imc cas count read");
+		ksft_perror("Could not get iMC cas count read");
 		fclose(fp);
 
 		return -1;
@@ -193,12 +193,12 @@ static int read_from_imc_dir(char *imc_dir, int count)
 	sprintf(imc_counter_cfg, "%s%s", imc_dir, WRITE_FILE_NAME);
 	fp = fopen(imc_counter_cfg, "r");
 	if (!fp) {
-		perror("Failed to open imc config file");
+		ksft_perror("Failed to open iMC config file");
 
 		return -1;
 	}
 	if  (fscanf(fp, "%s", cas_count_cfg) <= 0) {
-		perror("Could not get imc cas count write");
+		ksft_perror("Could not get iMC cas count write");
 		fclose(fp);
 
 		return -1;
@@ -262,12 +262,12 @@ static int num_of_imcs(void)
 		}
 		closedir(dp);
 		if (count == 0) {
-			perror("Unable find iMC counters!\n");
+			ksft_print_msg("Unable to find iMC counters\n");
 
 			return -1;
 		}
 	} else {
-		perror("Unable to open PMU directory!\n");
+		ksft_perror("Unable to open PMU directory");
 
 		return -1;
 	}
@@ -292,6 +292,18 @@ static int initialize_mem_bw_imc(void)
 	return 0;
 }
 
+static void perf_close_imc_mem_bw(void)
+{
+	int mc;
+
+	for (mc = 0; mc < imcs; mc++) {
+		if (imc_counters_config[mc][READ].fd != -1)
+			close(imc_counters_config[mc][READ].fd);
+		if (imc_counters_config[mc][WRITE].fd != -1)
+			close(imc_counters_config[mc][WRITE].fd);
+	}
+}
+
 /*
  * get_mem_bw_imc:	Memory band width as reported by iMC counters
  * @cpu_no:		CPU number that the benchmark PID is binded to
@@ -305,26 +317,33 @@ static int initialize_mem_bw_imc(void)
 static int get_mem_bw_imc(int cpu_no, char *bw_report, float *bw_imc)
 {
 	float reads, writes, of_mul_read, of_mul_write;
-	int imc, j, ret;
+	int imc, ret;
+
+	for (imc = 0; imc < imcs; imc++) {
+		imc_counters_config[imc][READ].fd = -1;
+		imc_counters_config[imc][WRITE].fd = -1;
+	}
 
 	/* Start all iMC counters to log values (both read and write) */
 	reads = 0, writes = 0, of_mul_read = 1, of_mul_write = 1;
 	for (imc = 0; imc < imcs; imc++) {
-		for (j = 0; j < 2; j++) {
-			ret = open_perf_event(imc, cpu_no, j);
-			if (ret)
-				return -1;
-		}
-		for (j = 0; j < 2; j++)
-			membw_ioctl_perf_event_ioc_reset_enable(imc, j);
+		ret = open_perf_event(imc, cpu_no, READ);
+		if (ret)
+			goto close_fds;
+		ret = open_perf_event(imc, cpu_no, WRITE);
+		if (ret)
+			goto close_fds;
+
+		membw_ioctl_perf_event_ioc_reset_enable(imc, READ);
+		membw_ioctl_perf_event_ioc_reset_enable(imc, WRITE);
 	}
 
 	sleep(1);
 
 	/* Stop counters after a second to get results (both read and write) */
 	for (imc = 0; imc < imcs; imc++) {
-		for (j = 0; j < 2; j++)
-			membw_ioctl_perf_event_ioc_disable(imc, j);
+		membw_ioctl_perf_event_ioc_disable(imc, READ);
+		membw_ioctl_perf_event_ioc_disable(imc, WRITE);
 	}
 
 	/*
@@ -339,16 +358,14 @@ static int get_mem_bw_imc(int cpu_no, char *bw_report, float *bw_imc)
 
 		if (read(r->fd, &r->return_value,
 			 sizeof(struct membw_read_format)) == -1) {
-			perror("Couldn't get read b/w through iMC");
-
-			return -1;
+			ksft_perror("Couldn't get read b/w through iMC");
+			goto close_fds;
 		}
 
 		if (read(w->fd, &w->return_value,
 			 sizeof(struct membw_read_format)) == -1) {
-			perror("Couldn't get write bw through iMC");
-
-			return -1;
+			ksft_perror("Couldn't get write bw through iMC");
+			goto close_fds;
 		}
 
 		__u64 r_time_enabled = r->return_value.time_enabled;
@@ -368,10 +385,7 @@ static int get_mem_bw_imc(int cpu_no, char *bw_report, float *bw_imc)
 		writes += w->return_value.value * of_mul_write * SCALE;
 	}
 
-	for (imc = 0; imc < imcs; imc++) {
-		close(imc_counters_config[imc][READ].fd);
-		close(imc_counters_config[imc][WRITE].fd);
-	}
+	perf_close_imc_mem_bw();
 
 	if (strcmp(bw_report, "reads") == 0) {
 		*bw_imc = reads;
@@ -385,6 +399,10 @@ static int get_mem_bw_imc(int cpu_no, char *bw_report, float *bw_imc)
 
 	*bw_imc = reads + writes;
 	return 0;
+
+close_fds:
+	perf_close_imc_mem_bw();
+	return -1;
 }
 
 void set_mbm_path(const char *ctrlgrp, const char *mongrp, int resource_id)
@@ -416,7 +434,7 @@ static void initialize_mem_bw_resctrl(const char *ctrlgrp, const char *mongrp,
 	int resource_id;
 
 	if (get_resource_id(cpu_no, &resource_id) < 0) {
-		perror("Could not get resource_id");
+		ksft_print_msg("Could not get resource_id\n");
 		return;
 	}
 
@@ -449,12 +467,12 @@ static int get_mem_bw_resctrl(unsigned long *mbm_total)
 
 	fp = fopen(mbm_total_path, "r");
 	if (!fp) {
-		perror("Failed to open total bw file");
+		ksft_perror("Failed to open total bw file");
 
 		return -1;
 	}
 	if (fscanf(fp, "%lu", mbm_total) <= 0) {
-		perror("Could not get mbm local bytes");
+		ksft_perror("Could not get mbm local bytes");
 		fclose(fp);
 
 		return -1;
@@ -495,7 +513,7 @@ int signal_handler_register(void)
 	if (sigaction(SIGINT, &sigact, NULL) ||
 	    sigaction(SIGTERM, &sigact, NULL) ||
 	    sigaction(SIGHUP, &sigact, NULL)) {
-		perror("# sigaction");
+		ksft_perror("sigaction");
 		ret = -1;
 	}
 	return ret;
@@ -515,7 +533,7 @@ void signal_handler_unregister(void)
 	if (sigaction(SIGINT, &sigact, NULL) ||
 	    sigaction(SIGTERM, &sigact, NULL) ||
 	    sigaction(SIGHUP, &sigact, NULL)) {
-		perror("# sigaction");
+		ksft_perror("sigaction");
 	}
 }
 
@@ -540,14 +558,14 @@ static int print_results_bw(char *filename,  int bm_pid, float bw_imc,
 	} else {
 		fp = fopen(filename, "a");
 		if (!fp) {
-			perror("Cannot open results file");
+			ksft_perror("Cannot open results file");
 
 			return errno;
 		}
 		if (fprintf(fp, "Pid: %d \t Mem_BW_iMC: %f \t Mem_BW_resc: %lu \t Difference: %lu\n",
 			    bm_pid, bw_imc, bw_resc, diff) <= 0) {
+			ksft_print_msg("Could not log results\n");
 			fclose(fp);
-			perror("Could not log results.");
 
 			return errno;
 		}
@@ -585,7 +603,7 @@ static void initialize_llc_occu_resctrl(const char *ctrlgrp, const char *mongrp,
 	int resource_id;
 
 	if (get_resource_id(cpu_no, &resource_id) < 0) {
-		perror("# Unable to resource_id");
+		ksft_print_msg("Could not get resource_id\n");
 		return;
 	}
 
@@ -626,6 +644,61 @@ measure_vals(struct resctrl_val_param *param, unsigned long *bw_resc_start)
 }
 
 /*
+ * run_benchmark - Run a specified benchmark or fill_buf (default benchmark)
+ *		   in specified signal. Direct benchmark stdio to /dev/null.
+ * @signum:	signal number
+ * @info:	signal info
+ * @ucontext:	user context in signal handling
+ */
+static void run_benchmark(int signum, siginfo_t *info, void *ucontext)
+{
+	int operation, ret, memflush;
+	char **benchmark_cmd;
+	size_t span;
+	bool once;
+	FILE *fp;
+
+	benchmark_cmd = info->si_ptr;
+
+	/*
+	 * Direct stdio of child to /dev/null, so that only parent writes to
+	 * stdio (console)
+	 */
+	fp = freopen("/dev/null", "w", stdout);
+	if (!fp) {
+		ksft_perror("Unable to direct benchmark status to /dev/null");
+		PARENT_EXIT();
+	}
+
+	if (strcmp(benchmark_cmd[0], "fill_buf") == 0) {
+		/* Execute default fill_buf benchmark */
+		span = strtoul(benchmark_cmd[1], NULL, 10);
+		memflush =  atoi(benchmark_cmd[2]);
+		operation = atoi(benchmark_cmd[3]);
+		if (!strcmp(benchmark_cmd[4], "true")) {
+			once = true;
+		} else if (!strcmp(benchmark_cmd[4], "false")) {
+			once = false;
+		} else {
+			ksft_print_msg("Invalid once parameter\n");
+			PARENT_EXIT();
+		}
+
+		if (run_fill_buf(span, memflush, operation, once))
+			fprintf(stderr, "Error in running fill buffer\n");
+	} else {
+		/* Execute specified benchmark */
+		ret = execvp(benchmark_cmd[0], benchmark_cmd);
+		if (ret)
+			ksft_perror("execvp");
+	}
+
+	fclose(stdout);
+	ksft_print_msg("Unable to run specified benchmark\n");
+	PARENT_EXIT();
+}
+
+/*
  * resctrl_val:	execute benchmark and measure memory bandwidth on
  *			the benchmark
  * @benchmark_cmd:	benchmark command and its arguments
@@ -659,7 +732,7 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 	ppid = getpid();
 
 	if (pipe(pipefd)) {
-		perror("# Unable to create pipe");
+		ksft_perror("Unable to create pipe");
 
 		return -1;
 	}
@@ -671,7 +744,7 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 	fflush(stdout);
 	bm_pid = fork();
 	if (bm_pid == -1) {
-		perror("# Unable to fork");
+		ksft_perror("Unable to fork");
 
 		return -1;
 	}
@@ -688,15 +761,17 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 		sigact.sa_flags = SA_SIGINFO;
 
 		/* Register for "SIGUSR1" signal from parent */
-		if (sigaction(SIGUSR1, &sigact, NULL))
-			PARENT_EXIT("Can't register child for signal");
+		if (sigaction(SIGUSR1, &sigact, NULL)) {
+			ksft_perror("Can't register child for signal");
+			PARENT_EXIT();
+		}
 
 		/* Tell parent that child is ready */
 		close(pipefd[0]);
 		pipe_message = 1;
 		if (write(pipefd[1], &pipe_message, sizeof(pipe_message)) <
 		    sizeof(pipe_message)) {
-			perror("# failed signaling parent process");
+			ksft_perror("Failed signaling parent process");
 			close(pipefd[1]);
 			return -1;
 		}
@@ -705,7 +780,8 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 		/* Suspend child until delivery of "SIGUSR1" from parent */
 		sigsuspend(&sigact.sa_mask);
 
-		PARENT_EXIT("Child is done");
+		ksft_perror("Child is done");
+		PARENT_EXIT();
 	}
 
 	ksft_print_msg("Benchmark PID: %d\n", bm_pid);
@@ -746,7 +822,7 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 	while (pipe_message != 1) {
 		if (read(pipefd[0], &pipe_message, sizeof(pipe_message)) <
 		    sizeof(pipe_message)) {
-			perror("# failed reading message from child process");
+			ksft_perror("Failed reading message from child process");
 			close(pipefd[0]);
 			goto out;
 		}
@@ -755,7 +831,7 @@ int resctrl_val(const char * const *benchmark_cmd, struct resctrl_val_param *par
 
 	/* Signal child to start benchmark */
 	if (sigqueue(bm_pid, SIGUSR1, value) == -1) {
-		perror("# sigqueue SIGUSR1 to child");
+		ksft_perror("sigqueue SIGUSR1 to child");
 		ret = errno;
 		goto out;
 	}

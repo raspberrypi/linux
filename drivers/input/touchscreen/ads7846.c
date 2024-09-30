@@ -1115,12 +1115,12 @@ static const struct of_device_id ads7846_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, ads7846_dt_ids);
 
 static const struct spi_device_id ads7846_spi_ids[] = {
-	{ "tsc2046", 0 },
-	{ "ads7843", 0 },
-	{ "ads7845", 0 },
-	{ "ads7846", 0 },
-	{ "ads7873", 0 },
-	{ }
+	{ "tsc2046", 7846 },
+	{ "ads7843", 7843 },
+	{ "ads7845", 7845 },
+	{ "ads7846", 7846 },
+	{ "ads7873", 7873 },
+	{ },
 };
 MODULE_DEVICE_TABLE(spi, ads7846_spi_ids);
 
@@ -1400,13 +1400,12 @@ static struct spi_driver ads7846_driver = {
 		.pm	= pm_sleep_ptr(&ads7846_pm),
 		.of_match_table = ads7846_dt_ids,
 	},
-	.id_table	= ads7846_spi_ids,
 	.probe		= ads7846_probe,
 	.remove		= ads7846_remove,
+	.id_table	= ads7846_spi_ids,
 };
 
 module_spi_driver(ads7846_driver);
 
 MODULE_DESCRIPTION("ADS7846 TouchScreen Driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("spi:ads7846");

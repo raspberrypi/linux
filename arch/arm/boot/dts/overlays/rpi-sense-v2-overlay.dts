@@ -12,11 +12,23 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			rpi-sense@46 {
-				compatible = "rpi,rpi-sense";
+			sensehat@46 {
+				compatible = "raspberrypi,sensehat";
 				reg = <0x46>;
-				keys-int-gpios = <&gpio 23 1>;
+				interrupt-parent = <&gpio>;
 				status = "okay";
+
+				display {
+					compatible = "raspberrypi,rpi-sense-fb";
+					status = "okay";
+				};
+				joystick {
+					compatible = "raspberrypi,sensehat-joystick";
+					interrupts = <23 1>;
+					pinctrl-names = "default";
+					pinctrl-0 = <&sensehat_pins>;
+					status = "okay";
+				};
 			};
 
 			lsm9ds1-magn@1c {
@@ -41,6 +53,16 @@
 				compatible = "st,lsm9ds1-accel";
 				reg = <0x6a>;
 				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			sensehat_pins: sensehat_pins {
+				brcm,pins = <23>;
+				brcm,function = <0>;
 			};
 		};
 	};

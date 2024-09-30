@@ -34,7 +34,7 @@
 		target = <&mcp23017>;
 		mcp23017_irq: __overlay__ {
 			#interrupt-cells=<2>;
-			pinctrl-name = "default";
+			pinctrl-names = "default";
 			pinctrl-0 = <&mcp23017_pins>;
 			interrupt-parent = <&gpio>;
 			interrupts = <4 2>;

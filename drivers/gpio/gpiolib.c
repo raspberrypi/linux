@@ -15,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/nospec.h>
 #include <linux/of.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/seq_file.h>
@@ -110,6 +111,7 @@ static int gpiochip_irqchip_init_valid_mask(struct gpio_chip *gc);
 static void gpiochip_irqchip_free_valid_mask(struct gpio_chip *gc);
 
 static bool gpiolib_initialized;
+static int first_dynamic_gpiochip_num = -1;
 
 static inline void desc_set_label(struct gpio_desc *d, const char *label)
 {
@@ -166,7 +168,7 @@ struct gpio_desc *gpiochip_get_desc(struct gpio_chip *gc,
 	if (hwnum >= gdev->ngpio)
 		return ERR_PTR(-EINVAL);
 
-	return &gdev->descs[hwnum];
+	return &gdev->descs[array_index_nospec(hwnum, gdev->ngpio)];
 }
 EXPORT_SYMBOL_GPL(gpiochip_get_desc);
 
@@ -745,6 +747,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	unsigned int i;
 	int base = 0;
 	int ret = 0;
+	int id;
 
 	/*
 	 * First: allocate and populate the internal stat container, and
@@ -769,7 +772,16 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	else if (gc->parent)
 		device_set_node(&gdev->dev, dev_fwnode(gc->parent));
 
-	gdev->id = ida_alloc(&gpio_ida, GFP_KERNEL);
+	if (first_dynamic_gpiochip_num < 0) {
+		id = of_alias_get_highest_id("gpiochip");
+		first_dynamic_gpiochip_num = (id >= 0) ? (id + 1) : 0;
+	}
+
+	id = of_alias_get_id(gdev->dev.of_node, "gpiochip");
+	if (id < 0)
+		id = first_dynamic_gpiochip_num;
+
+	gdev->id = ida_alloc_range(&gpio_ida, id, ~0, GFP_KERNEL);
 	if (gdev->id < 0) {
 		ret = gdev->id;
 		goto err_free_gdev;

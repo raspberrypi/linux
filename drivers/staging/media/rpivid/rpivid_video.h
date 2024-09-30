@@ -20,6 +20,11 @@ struct rpivid_format {
 	unsigned int	capabilities;
 };
 
+static inline int is_sps_set(const struct v4l2_ctrl_hevc_sps * const sps)
+{
+	return sps && sps->pic_width_in_luma_samples != 0;
+}
+
 extern const struct v4l2_ioctl_ops rpivid_ioctl_ops;
 
 int rpivid_queue_init(void *priv, struct vb2_queue *src_vq,

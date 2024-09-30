@@ -2539,7 +2539,7 @@ int security_inode_copy_up_xattr(const char *name)
 			return rc;
 	}
 
-	return LSM_RET_DEFAULT(inode_copy_up_xattr);
+	return evm_inode_copy_up_xattr(name);
 }
 EXPORT_SYMBOL(security_inode_copy_up_xattr);
 
@@ -5116,15 +5116,17 @@ int security_key_getsecurity(struct key *key, char **buffer)
  * @op: rule operator
  * @rulestr: rule context
  * @lsmrule: receive buffer for audit rule struct
+ * @gfp: GFP flag used for kmalloc
  *
  * Allocate and initialize an LSM audit rule structure.
  *
  * Return: Return 0 if @lsmrule has been successfully set, -EINVAL in case of
  *         an invalid rule.
  */
-int security_audit_rule_init(u32 field, u32 op, char *rulestr, void **lsmrule)
+int security_audit_rule_init(u32 field, u32 op, char *rulestr, void **lsmrule,
+			     gfp_t gfp)
 {
-	return call_int_hook(audit_rule_init, 0, field, op, rulestr, lsmrule);
+	return call_int_hook(audit_rule_init, 0, field, op, rulestr, lsmrule, gfp);
 }
 
 /**

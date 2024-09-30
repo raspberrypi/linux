@@ -486,7 +486,7 @@ static int qcom_battmgr_bat_get_property(struct power_supply *psy,
 	int ret;
 
 	if (!battmgr->service_up)
-		return -ENODEV;
+		return -EAGAIN;
 
 	if (battmgr->variant == QCOM_BATTMGR_SC8280XP)
 		ret = qcom_battmgr_bat_sc8280xp_update(battmgr, psp);
@@ -683,7 +683,7 @@ static int qcom_battmgr_ac_get_property(struct power_supply *psy,
 	int ret;
 
 	if (!battmgr->service_up)
-		return -ENODEV;
+		return -EAGAIN;
 
 	ret = qcom_battmgr_bat_sc8280xp_update(battmgr, psp);
 	if (ret)
@@ -748,7 +748,7 @@ static int qcom_battmgr_usb_get_property(struct power_supply *psy,
 	int ret;
 
 	if (!battmgr->service_up)
-		return -ENODEV;
+		return -EAGAIN;
 
 	if (battmgr->variant == QCOM_BATTMGR_SC8280XP)
 		ret = qcom_battmgr_bat_sc8280xp_update(battmgr, psp);
@@ -867,7 +867,7 @@ static int qcom_battmgr_wls_get_property(struct power_supply *psy,
 	int ret;
 
 	if (!battmgr->service_up)
-		return -ENODEV;
+		return -EAGAIN;
 
 	if (battmgr->variant == QCOM_BATTMGR_SC8280XP)
 		ret = qcom_battmgr_bat_sc8280xp_update(battmgr, psp);
@@ -1384,12 +1384,16 @@ static int qcom_battmgr_probe(struct auxiliary_device *adev,
 					     "failed to register wireless charing power supply\n");
 	}
 
-	battmgr->client = devm_pmic_glink_register_client(dev,
-							  PMIC_GLINK_OWNER_BATTMGR,
-							  qcom_battmgr_callback,
-							  qcom_battmgr_pdr_notify,
-							  battmgr);
-	return PTR_ERR_OR_ZERO(battmgr->client);
+	battmgr->client = devm_pmic_glink_client_alloc(dev, PMIC_GLINK_OWNER_BATTMGR,
+						       qcom_battmgr_callback,
+						       qcom_battmgr_pdr_notify,
+						       battmgr);
+	if (IS_ERR(battmgr->client))
+		return PTR_ERR(battmgr->client);
+
+	pmic_glink_client_register(battmgr->client);
+
+	return 0;
 }
 
 static const struct auxiliary_device_id qcom_battmgr_id_table[] = {

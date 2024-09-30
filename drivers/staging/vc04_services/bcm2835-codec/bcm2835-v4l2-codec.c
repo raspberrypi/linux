@@ -2731,6 +2731,13 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 					      &params,
 					      sizeof(params));
 
+	} else if (dev->role == ENCODE) {
+		enable = 0;
+		vchiq_mmal_port_parameter_set(dev->instance,
+					      &ctx->component->control,
+					      MMAL_PARAMETER_VIDEO_ENCODE_HEADER_ON_OPEN,
+					      &enable,
+					      sizeof(enable));
 	} else if (dev->role == ENCODE_IMAGE) {
 		enable = 0;
 		vchiq_mmal_port_parameter_set(dev->instance,
@@ -2864,8 +2871,14 @@ static int bcm2835_codec_queue_setup(struct vb2_queue *vq,
 
 	if (*nbuffers < port->minimum_buffer.num)
 		*nbuffers = port->minimum_buffer.num;
-	/* Add one buffer to take an EOS */
-	port->current_buffer.num = *nbuffers + 1;
+
+	/*
+	 * The VPU uses this number to allocate a pool of headers at port_enable.
+	 * We can't increase it later, so use of CREATE_BUFS is going to result
+	 * in bad things happening. Adopt worst-case allocation, and add one
+	 * buffer to take an EOS
+	 */
+	port->current_buffer.num = VB2_MAX_FRAME + 1;
 
 	return 0;
 }
@@ -3266,7 +3279,7 @@ static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 		case V4L2_PIX_FMT_H264:
 			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 						      V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-						      V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
+						      V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
 						      ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
@@ -3280,7 +3293,9 @@ static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
 							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
-							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_5_1)),
 						       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
 			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,

@@ -40,14 +40,14 @@ static const struct rpivid_control rpivid_ctrls[] = {
 			.id	= V4L2_CID_STATELESS_HEVC_SPS,
 			.ops	= &rpivid_hevc_sps_ctrl_ops,
 		},
-		.required	= true,
+		.required	= false,
 	},
 	{
 		.cfg = {
 			.id	= V4L2_CID_STATELESS_HEVC_PPS,
 			.ops	= &rpivid_hevc_pps_ctrl_ops,
 		},
-		.required	= true,
+		.required	= false,
 	},
 	{
 		.cfg = {

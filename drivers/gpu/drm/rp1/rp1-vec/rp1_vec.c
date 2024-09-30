@@ -420,6 +420,8 @@ static const struct drm_mode_config_funcs rp1vec_mode_funcs = {
 static const u32 rp1vec_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565
@@ -506,8 +508,8 @@ static int rp1vec_platform_probe(struct platform_device *pdev)
 
 	vec->drm.mode_config.min_width	= 256;
 	vec->drm.mode_config.min_height = 128;
-	vec->drm.mode_config.max_width	= 848; /* for System E */
-	vec->drm.mode_config.max_height = 738; /* for System E */
+	vec->drm.mode_config.max_width	= 960; /* for "widescreen" @ 18MHz */
+	vec->drm.mode_config.max_height = 738; /* for System E only */
 	vec->drm.mode_config.preferred_depth = 32;
 	vec->drm.mode_config.prefer_shadow = 0;
 	vec->drm.mode_config.quirk_addfb_prefer_host_byte_order = true;

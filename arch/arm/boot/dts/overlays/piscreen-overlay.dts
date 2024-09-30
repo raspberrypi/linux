@@ -103,5 +103,8 @@
 		xohms =		<&piscreen_ts>,"ti,x-plate-ohms;0";
 		drm =		<&piscreen>,"compatible=waveshare,rpi-lcd-35",
 				<&piscreen>,"reset-gpios:8=",<GPIO_ACTIVE_HIGH>;
+		invx =		<&piscreen_ts>,"touchscreen-inverted-x?";
+		invy =		<&piscreen_ts>,"touchscreen-inverted-y?";
+		swapxy =	<&piscreen_ts>,"touchscreen-swapped-x-y!";
 	};
 };

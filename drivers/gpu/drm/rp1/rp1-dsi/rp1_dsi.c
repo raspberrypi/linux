@@ -54,6 +54,7 @@ static void rp1_dsi_bridge_pre_enable(struct drm_bridge *bridge,
 	struct rp1_dsi *dsi = bridge_to_rp1_dsi(bridge);
 
 	rp1dsi_dsi_setup(dsi, &dsi->pipe.crtc.state->adjusted_mode);
+	dsi->dsi_running = true;
 }
 
 static void rp1_dsi_bridge_enable(struct drm_bridge *bridge,
@@ -228,6 +229,8 @@ static const struct drm_mode_config_funcs rp1dsi_mode_funcs = {
 static const u32 rp1dsi_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565
@@ -393,7 +396,10 @@ ssize_t rp1dsi_host_transfer(struct mipi_dsi_host *host, const struct mipi_dsi_m
 		return ret;
 	}
 
-	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header), packet.payload_length, packet.payload);
+	rp1dsi_dsi_send(dsi, *(u32 *)(&packet.header),
+			packet.payload_length, packet.payload,
+			!!(msg->flags & MIPI_DSI_MSG_USE_LPM),
+			!!(msg->flags & MIPI_DSI_MSG_REQ_ACK));
 
 	/* Optional read back */
 	if (msg->rx_len && msg->rx_buf)
@@ -443,7 +449,7 @@ static int rp1dsi_platform_probe(struct platform_device *pdev)
 	/* Hardware resources */
 	for (i = 0; i < RP1DSI_NUM_CLOCKS; i++) {
 		static const char * const myclocknames[RP1DSI_NUM_CLOCKS] = {
-			"cfgclk", "dpiclk", "byteclk", "refclk"
+			"cfgclk", "dpiclk", "byteclk", "refclk", "pllsys"
 		};
 		dsi->clocks[i] = devm_clk_get(dev, myclocknames[i]);
 		if (IS_ERR(dsi->clocks[i])) {

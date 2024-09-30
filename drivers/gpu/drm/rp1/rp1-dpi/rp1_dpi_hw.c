@@ -258,6 +258,18 @@ static const struct rp1dpi_ipixfmt my_formats[] = {
 	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
 	},
 	{
+	  .format = DRM_FORMAT_ARGB8888,
+	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
+	  .shift  = ISHIFT_RGB(23, 15, 7),
+	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	},
+	{
+	  .format = DRM_FORMAT_ABGR8888,
+	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
+	  .shift  = ISHIFT_RGB(7, 15, 23),
+	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	},
+	{
 	  .format = DRM_FORMAT_RGB888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(23, 15, 7),

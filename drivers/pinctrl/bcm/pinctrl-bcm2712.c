@@ -1029,7 +1029,7 @@ static int bcm2712_pinconf_get(struct pinctrl_dev *pctldev,
 
 	*config = pinconf_to_config_packed(param, arg);
 
-	return -ENOTSUPP;
+	return 0;
 }
 
 static int bcm2712_pinconf_set(struct pinctrl_dev *pctldev,

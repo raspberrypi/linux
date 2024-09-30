@@ -55,9 +55,9 @@
 			interrupts = <RP1_INT_UART0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
 			clock-names = "uartclk", "apb_pclk";
-			dmas = <&rp1_dma RP1_DMA_UART0_TX>,
-			       <&rp1_dma RP1_DMA_UART0_RX>;
-			dma-names = "tx", "rx";
+			// dmas = <&rp1_dma RP1_DMA_UART0_TX>,
+			//        <&rp1_dma RP1_DMA_UART0_RX>;
+			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
 			arm,primecell-periphid = <0x00541011>;
 			uart-has-rtscts;
@@ -400,6 +400,7 @@
 			#sound-dai-cells = <0>;
 			dmas = <&rp1_dma RP1_DMA_I2S0_TX>,<&rp1_dma RP1_DMA_I2S0_RX>;
 			dma-names = "tx", "rx";
+			dma-maxburst = <4>;
 			status = "disabled";
 		};
 
@@ -413,6 +414,7 @@
 			#sound-dai-cells = <0>;
 			dmas = <&rp1_dma RP1_DMA_I2S1_TX>,<&rp1_dma RP1_DMA_I2S1_RX>;
 			dma-names = "tx", "rx";
+			dma-maxburst = <4>;
 			status = "disabled";
 		};
 
@@ -1064,7 +1066,7 @@
 			snps,data-width = <4>; // (8 << 4) == 128 bits
 			snps,block-size = <0x40000 0x40000 0x40000 0x40000 0x40000 0x40000 0x40000 0x40000>;
 			snps,priority = <0 1 2 3 4 5 6 7>;
-			snps,axi-max-burst-len = <8>;
+			snps,axi-max-burst-len = <4>;
 			status = "disabled";
 		};
 
@@ -1109,16 +1111,15 @@
 
 			interrupts = <RP1_INT_MIPI0 IRQ_TYPE_LEVEL_HIGH>;
 
-			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,  // required, config bus clock
-				 <&rp1_clocks RP1_CLK_MIPI0_DPI>,  // required, pixel clock
-				 <&clksrc_mipi0_dsi_byteclk>,    // internal, parent for divide
-				 <&clk_xosc>;                    // hardwired to DSI "refclk"
-			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk";
+			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
+				 <&rp1_clocks RP1_CLK_MIPI0_DPI>,
+				 <&rp1_clocks RP1_CLK_MIPI0_DSI_BYTECLOCK>,
+				 <&clk_xosc>,                // hardwired to DSI "refclk"
+				 <&rp1_clocks RP1_PLL_SYS>;  // alternate parent for divide
+			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk", "pllsys";
 
-			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
-					  <&rp1_clocks RP1_CLK_MIPI0_DPI>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>;
 			assigned-clock-rates = <25000000>;
-			assigned-clock-parents = <0>, <&clksrc_mipi0_dsi_byteclk>;
 		};
 
 		rp1_dsi1: dsi@128000 {
@@ -1130,16 +1131,15 @@
 
 			interrupts = <RP1_INT_MIPI1 IRQ_TYPE_LEVEL_HIGH>;
 
-			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,  // required, config bus clock
-				 <&rp1_clocks RP1_CLK_MIPI1_DPI>,  // required, pixel clock
-				 <&clksrc_mipi1_dsi_byteclk>,    // internal, parent for divide
-				 <&clk_xosc>;                    // hardwired to DSI "refclk"
-			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk";
+			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,
+				 <&rp1_clocks RP1_CLK_MIPI1_DPI>,
+				 <&rp1_clocks RP1_CLK_MIPI1_DSI_BYTECLOCK>,
+				 <&clk_xosc>,               // hardwired to DSI "refclk"
+				 <&rp1_clocks RP1_PLL_SYS>; // alternate parent for divide
+			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk", "pllsys";
 
-			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,
-					  <&rp1_clocks RP1_CLK_MIPI1_DPI>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>;
 			assigned-clock-rates = <25000000>;
-			assigned-clock-parents = <0>, <&clksrc_mipi1_dsi_byteclk>;
 		};
 
 		/* VEC and DPI both need to control PLL_VIDEO and cannot work together;   */
@@ -1215,24 +1215,6 @@
 		#clock-cells = <0>;
 		clock-output-names = "core";
 		clock-frequency = <50000000>;
-	};
-	clksrc_mipi0_dsi_byteclk: clksrc_mipi0_dsi_byteclk {
-		// This clock is synthesized by MIPI0 D-PHY, when DSI is running.
-		// Its frequency is not known a priori (until a panel driver attaches)
-		// so assign a made-up frequency of 72MHz so it can be divided for DPI.
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "clksrc_mipi0_dsi_byteclk";
-		clock-frequency = <72000000>;
-	};
-	clksrc_mipi1_dsi_byteclk: clksrc_mipi1_dsi_byteclk {
-		// This clock is synthesized by MIPI1 D-PHY, when DSI is running.
-		// Its frequency is not known a priori (until a panel driver attaches)
-		// so assign a made-up frequency of 72MHz so it can be divided for DPI.
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-output-names = "clksrc_mipi1_dsi_byteclk";
-		clock-frequency = <72000000>;
 	};
 	/* GPIO derived clock sources. Each GPIO with a GPCLK function
 	 * can drive its output from the respective GPCLK

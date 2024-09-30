@@ -257,11 +257,6 @@ static int rpivid_hevc_validate_sps(const struct v4l2_ctrl_hevc_sps * const sps)
 	return 1;
 }
 
-static inline int is_sps_set(const struct v4l2_ctrl_hevc_sps * const sps)
-{
-	return sps && sps->pic_width_in_luma_samples != 0;
-}
-
 static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 				const int index)
 {

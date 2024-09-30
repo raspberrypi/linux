@@ -63,6 +63,18 @@ static const struct rp1vec_ipixfmt my_formats[] = {
 		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
 	},
 	{
+		.format = DRM_FORMAT_ARGB8888,
+		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
+		.shift	= SHIFT_RGB(23, 15, 7),
+		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
+	},
+	{
+		.format = DRM_FORMAT_ABGR8888,
+		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
+		.shift	= SHIFT_RGB(7, 15, 23),
+		.rgbsz	= BITS(VEC_RGBSZ_BYTES_PER_PIXEL_MINUS1, 3),
+	},
+	{
 		.format = DRM_FORMAT_RGB888,
 		.mask	= MASK_RGB(0x3fc, 0x3fc, 0x3fc),
 		.shift	= SHIFT_RGB(23, 15, 7),
@@ -183,7 +195,7 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2] = {
 			.misc = 0x00091c01, /* 5-tap FIR, SEQ_EN, 8 fld sync, PAL */
 			.nco_freq = 0x0a8262b2cc48c1d1,
 			.timing_regs = {
-				0x046e0cee, 0x0d8001fb, 0x025c034f, 0x00fd0b84,
+				0x04660cee, 0x0d8001fb, 0x025c034f, 0x00fd0b84,
 				0x026c0270, 0x00000004, 0x00050009, 0x00070135,
 				0x00000000, 0x00000000, 0x00000000, 0x00000000,
 				0x00170136, 0x00000000,
@@ -206,7 +218,7 @@ static const struct rp1vec_hwmode rp1vec_hwmodes[3][2] = {
 			.misc = 0x0009dc03, /* 5-tap FIR, SEQ_EN, 4 flds, 8 fld sync, ilace, PAL */
 			.nco_freq = 0x0a8262b2cc48c1d1,
 			.timing_regs = {
-				0x046e0cee, 0x0d8001fb, 0x025c034f, 0x00fd0b84,
+				0x04660cee, 0x0d8001fb, 0x025c034f, 0x00fd0b84,
 				0x026c0270, 0x00000004, 0x00050009, 0x00070135,
 				0x013f026d, 0x00060136, 0x0140026e, 0x0150026e,
 				0x00180136, 0x026f0017,
