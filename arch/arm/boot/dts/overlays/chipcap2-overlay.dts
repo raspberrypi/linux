@@ -1,0 +1,66 @@
+/dts-v1/;
+/plugin/;
+
+/* Overlay for ChipCap 2 on i2c */
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			chipcap2: chipcap2@28 {
+				compatible = "amphenol,cc2d23s";
+				reg = <0x28>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_EDGE_RISING>,
+					     <5 IRQ_TYPE_EDGE_RISING>,
+					     <6 IRQ_TYPE_EDGE_RISING>;
+				interrupt-names = "ready", "low", "high";
+				vdd-supply = <&chipcap2_reg>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			chipcap2_pins: chipcap2_pins {
+				brcm,pins = <4 5 6 26>;
+				brcm,function = <0 0 0 1>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			chipcap2_reg: chipcap2_reg {
+				compatible = "regulator-fixed";
+				regulator-name = "chipcap2_reg";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				gpio = <&gpio 26 GPIO_ACTIVE_HIGH>;
+				enable-active-high;
+			};
+		};
+	};
+
+	__overrides__ {
+		ready_pin = <&chipcap2>, "interrupts:0",
+			    <&chipcap2_pins>, "brcm,pins:0";
+		low_pin = <&chipcap2>, "interrupts:8",
+			  <&chipcap2_pins>, "brcm,pins:4";
+		high_pin = <&chipcap2>, "interrupts:16",
+			   <&chipcap2_pins>, "brcm,pins:8";
+		reg_pin = <&chipcap2_reg>, "gpio:4",
+			  <&chipcap2_pins>, "brcm,pins:12";
+	};
+};

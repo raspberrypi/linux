@@ -1,0 +1,71 @@
+// Definitions for audioinjector.net audio add on soundcard
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			cs4265: cs4265@4e {
+				#sound-dai-cells = <0>;
+				compatible = "cirrus,cs4265";
+				reg = <0x4e>;
+				reset-gpios = <&gpio 5 0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			i2s-controller = <&i2s_clk_consumer>;
+			status = "okay";
+
+			simple-audio-card,name = "audioinjector-ultra";
+
+			simple-audio-card,widgets =
+				"Line", "OUTPUTS",
+				"Line", "INPUTS";
+
+			simple-audio-card,routing =
+				"OUTPUTS","LINEOUTL",
+				"OUTPUTS","LINEOUTR",
+				"OUTPUTS","SPDIFOUT",
+				"LINEINL","INPUTS",
+				"LINEINR","INPUTS",
+				"MICL","INPUTS",
+				"MICR","INPUTS";
+
+			simple-audio-card,format = "i2s";
+
+			simple-audio-card,bitclock-master = <&sound_master>;
+			simple-audio-card,frame-master = <&sound_master>;
+
+			simple-audio-card,cpu {
+				sound-dai = <&i2s_clk_consumer>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+
+			sound_master: simple-audio-card,codec {
+				sound-dai = <&cs4265>;
+				system-clock-frequency = <12288000>;
+			};
+		};
+	};
+};

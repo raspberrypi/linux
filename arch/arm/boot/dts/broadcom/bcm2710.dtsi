@@ -1,0 +1,32 @@
+#define i2c0 i2c0if
+#include "bcm2837.dtsi"
+#undef i2c0
+#include "bcm270x.dtsi"
+
+/ {
+	compatible = "brcm,bcm2837", "brcm,bcm2836";
+
+	arm-pmu {
+		compatible = "arm,cortex-a53-pmu", "arm,cortex-a7-pmu";
+	};
+
+	soc {
+		dma-ranges = <0xc0000000 0x00000000 0x3f000000>,
+			     <0x7e000000 0x3f000000 0x01000000>;
+	};
+
+	__overrides__ {
+		arm_freq = <&cpu0>, "clock-frequency:0",
+		       <&cpu1>, "clock-frequency:0",
+		       <&cpu2>, "clock-frequency:0",
+		       <&cpu3>, "clock-frequency:0";
+	};
+};
+
+&system_timer {
+	status = "disabled";
+};
+
+&vc4 {
+	status = "disabled";
+};

@@ -1,0 +1,545 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Overlay to configure a 2 port camera multiplexer
+//
+// Configuration is based on the Arducam Doubleplexer
+// which uses a PCA9543 I2C multiplexer to handle the
+// I2C, and GPIO 4 to control the MIPI mux, and GPIO 17
+// to enable the CSI-2 mux output (gpio-hog).
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2835";
+
+	/* Fragments that complete the individual sensor fragments */
+	/* IMX290 */
+	fragment@0 {
+		target = <&imx290_0_ep>;
+		__overlay__ {
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <445500000 297000000>;
+		};
+	};
+
+	fragment@1 {
+		target = <&imx290_1_ep>;
+		__overlay__ {
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <445500000 297000000>;
+		};
+	};
+
+	/* IMX477 */
+	fragment@10 {
+		target = <&imx477_0>;
+		__overlay__ {
+			compatible = "sony,imx477";
+		};
+	};
+
+	fragment@11 {
+		target = <&imx477_1>;
+		__overlay__ {
+			compatible = "sony,imx477";
+		};
+	};
+
+	/* Additional fragments affecting the mux nodes */
+	fragment@100 {
+		target = <&mux_in0>;
+		__dormant__ {
+			data-lanes = <1>;
+		};
+	};
+	fragment@101 {
+		target = <&mux_in0>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@102 {
+		target = <&mux_in1>;
+		__dormant__ {
+			data-lanes = <1>;
+		};
+	};
+	fragment@103 {
+		target = <&mux_in1>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	/* Mux define */
+	i2c_frag: fragment@200 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca@70 {
+				reg = <0x70>;
+				compatible = "nxp,pca9543";
+
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				i2c@0 {
+					reg = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					#define cam_node arducam_64mp_0
+					#define cam_endpoint arducam_64mp_0_ep
+					#define vcm_node arducam_64mp_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node imx219_0
+					#define cam_endpoint imx219_0_ep
+					#define cam1_clk clk_24mhz
+					#include "imx219.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx477_0
+					#define cam_endpoint imx477_0_ep
+					#define cam1_clk clk_24mhz
+					#include "imx477_378.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx519_0
+					#define cam_endpoint imx519_0_ep
+					#define vcm_node imx519_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx519.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node imx708_0
+					#define cam_endpoint imx708_0_ep
+					#define vcm_node imx708_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node ov5647_0
+					#define cam_endpoint ov5647_0_ep
+					#define cam1_clk clk_25mhz
+					#include "ov5647.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov7251_0
+					#define cam_endpoint ov7251_0_ep
+					#define cam1_clk clk_24mhz
+					#include "ov7251.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov9281_0
+					#define cam_endpoint ov9281_0_ep
+					#define cam1_clk clk_24mhz
+					#include "ov9281.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx258_0
+					#define cam_endpoint imx258_0_ep
+					#define cam1_clk clk_24mhz
+					#include "imx258.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx290_0
+					#define cam_endpoint imx290_0_ep
+					#define cam1_clk clk_imx290
+					#include "imx290_327.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov2311_0
+					#define cam_endpoint ov2311_0_ep
+					#define cam1_clk clk_24mhz
+					#include "ov2311.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov64a40_0
+					#define cam_endpoint ov64a40_0_ep
+					#define vcm_node ov64a40_0_vcm
+					#define cam1_clk clk_24mhz
+					#include "ov64a40.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+				};
+
+				i2c@1 {
+					reg = <1>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					#define cam_node arducam_64mp_1
+					#define cam_endpoint arducam_64mp_1_ep
+					#define vcm_node arducam_64mp_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "arducam-64mp.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node imx219_1
+					#define cam_endpoint imx219_1_ep
+					#define cam1_clk clk_24mhz
+					#include "imx219.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx477_1
+					#define cam_endpoint imx477_1_ep
+					#define cam1_clk clk_24mhz
+					#include "imx477_378.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx519_1
+					#define cam_endpoint imx519_1_ep
+					#define vcm_node imx519_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx519.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node imx708_1
+					#define cam_endpoint imx708_1_ep
+					#define vcm_node imx708_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "imx708.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node ov5647_1
+					#define cam_endpoint ov5647_1_ep
+					#define cam1_clk clk_25mhz
+					#include "ov5647.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov7251_1
+					#define cam_endpoint ov7251_1_ep
+					#define cam1_clk clk_24mhz
+					#include "ov7251.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov9281_1
+					#define cam_endpoint ov9281_1_ep
+					#define cam1_clk clk_24mhz
+					#include "ov9281.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx258_1
+					#define cam_endpoint imx258_1_ep
+					#define cam1_clk clk_24mhz
+					#include "imx258.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node imx290_1
+					#define cam_endpoint imx290_1_ep
+					#define cam1_clk clk_imx290
+					#include "imx290_327.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov2311_1
+					#define cam_endpoint ov2311_1_ep
+					#define cam1_clk clk_24mhz
+					#include "ov2311.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node ov64a40_1
+					#define cam_endpoint ov64a40_1_ep
+					#define vcm_node ov64a40_1_vcm
+					#define cam1_clk clk_24mhz
+					#include "ov64a40.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef vcm_node
+					#undef cam1_clk
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@201 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&mux_out>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+				};
+			};
+		};
+	};
+
+	fragment@202 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@203 {
+		target-path="/";
+		__overlay__ {
+			mux: mux-controller {
+				compatible = "gpio-mux";
+				#mux-control-cells = <0>;
+
+				mux-gpios = <&gpio 4 GPIO_ACTIVE_HIGH>;
+			};
+
+			video-mux {
+				compatible = "video-mux";
+				mux-controls = <&mux>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					mux_in0: endpoint {
+						clock-lanes = <0>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					mux_in1: endpoint {
+						clock-lanes = <0>;
+					};
+				};
+
+				port@2 {
+					reg = <2>;
+
+					mux_out: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+					};
+				};
+			};
+
+			clk_24mhz: clk_24mhz {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+
+				clock-frequency = <24000000>;
+				status = "okay";
+			};
+
+			clk_25mhz: clk_25mhz {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+
+				clock-frequency = <25000000>;
+				status = "okay";
+			};
+
+			clk_imx290: clk_imx290 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+
+				clock-frequency = <37125000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@204 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@205 {
+		target = <&gpio>;
+		__overlay__ {
+			mipi_sw_oe_hog {
+				gpio-hog;
+				gpios = <17 GPIO_ACTIVE_LOW>;
+				output-high;
+			};
+		};
+	};
+
+	__overrides__ {
+		cam0-arducam-64mp = <&mux_in0>, "remote-endpoint:0=",<&arducam_64mp_0_ep>,
+				    <&arducam_64mp_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+				    <&mux_in0>, "clock-noncontinuous?",
+				    <&arducam_64mp_0>, "status=okay",
+				    <&arducam_64mp_0_vcm>, "status=okay",
+				    <&arducam_64mp_0>,"lens-focus:0=", <&arducam_64mp_0_vcm>;
+		cam0-imx219 = <&mux_in0>, "remote-endpoint:0=",<&imx219_0_ep>,
+			      <&imx219_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&imx219_0>, "status=okay";
+		cam0-imx477 = <&mux_in0>, "remote-endpoint:0=",<&imx477_0_ep>,
+			      <&imx477_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&imx477_0>, "status=okay";
+		cam0-imx519 = <&mux_in0>, "remote-endpoint:0=",<&imx519_0_ep>,
+			      <&imx519_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&imx519_0>, "status=okay",
+				  <&imx519_0_vcm>, "status=okay",
+			      <&imx519_0>,"lens-focus:0=", <&imx519_0_vcm>;
+		cam0-imx708 = <&mux_in0>, "remote-endpoint:0=",<&imx708_0_ep>,
+			      <&imx708_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&imx708_0>, "status=okay",
+			      <&imx708_0_vcm>, "status=okay",
+			      <&imx708_0>,"lens-focus:0=", <&imx708_0_vcm>;
+		cam0-ov5647 = <&mux_in0>, "remote-endpoint:0=",<&ov5647_0_ep>,
+			      <&ov5647_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&ov5647_0>, "status=okay";
+		cam0-ov7251 = <&mux_in0>, "remote-endpoint:0=",<&ov7251_0_ep>,
+			      <&ov7251_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&ov7251_0>, "status=okay",
+			      <0>,"+100-101";
+		cam0-ov9281 = <&mux_in0>, "remote-endpoint:0=",<&ov9281_0_ep>,
+			      <&ov9281_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&ov9281_0>, "status=okay";
+		cam0-imx258 = <&mux_in0>, "remote-endpoint:0=",<&imx258_0_ep>,
+			      <&imx258_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&imx258_0>, "status=okay";
+		cam0-imx290 = <&mux_in0>, "remote-endpoint:0=",<&imx290_0_ep>,
+			      <&imx290_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&imx290_0>, "status=okay";
+		cam0-ov2311 = <&mux_in0>, "remote-endpoint:0=",<&ov2311_0_ep>,
+			      <&ov2311_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&ov2311_0>, "status=okay";
+		cam0-ov64a40 = <&mux_in0>, "remote-endpoint:0=",<&ov64a40_0_ep>,
+			      <&ov64a40_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&ov64a40_0>, "status=okay",
+			      <&ov64a40_0_vcm>, "status=okay",
+			      <&ov64a40_0>,"lens-focus:0=", <&ov64a40_0_vcm>;
+
+		cam1-arducam-64mp = <&mux_in1>, "remote-endpoint:0=",<&arducam_64mp_1_ep>,
+				    <&arducam_64mp_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+				    <&mux_in1>, "clock-noncontinuous?",
+				    <&arducam_64mp_1>, "status=okay",
+				    <&arducam_64mp_1_vcm>, "status=okay",
+				    <&arducam_64mp_1>,"lens-focus:0=", <&arducam_64mp_1_vcm>;
+		cam1-imx219 = <&mux_in1>, "remote-endpoint:0=",<&imx219_1_ep>,
+			      <&imx219_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&imx219_1>, "status=okay";
+		cam1-imx477 = <&mux_in1>, "remote-endpoint:0=",<&imx477_1_ep>,
+			      <&imx477_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&imx477_1>, "status=okay";
+		cam1-imx519 = <&mux_in1>, "remote-endpoint:0=",<&imx519_1_ep>,
+			      <&imx519_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&imx519_1>, "status=okay",
+			      <&imx519_1_vcm>, "status=okay",
+			      <&imx519_1>,"lens-focus:0=", <&imx519_1_vcm>;
+		cam1-imx708 = <&mux_in1>, "remote-endpoint:0=",<&imx708_1_ep>,
+			      <&imx708_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&imx708_1>, "status=okay",
+			      <&imx708_1_vcm>, "status=okay",
+			      <&imx708_1>,"lens-focus:0=", <&imx708_1_vcm>;
+		cam1-ov5647 = <&mux_in1>, "remote-endpoint:0=",<&ov5647_1_ep>,
+			      <&ov5647_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&ov5647_1>, "status=okay";
+		cam1-ov7251 = <&mux_in1>, "remote-endpoint:0=",<&ov7251_1_ep>,
+			      <&ov7251_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&ov7251_1>, "status=okay",
+			      <0>,"+102-103";
+		cam1-ov9281 = <&mux_in1>, "remote-endpoint:0=",<&ov9281_1_ep>,
+			      <&ov9281_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&ov9281_1>, "status=okay";
+		cam1-imx258 = <&mux_in1>, "remote-endpoint:0=",<&imx258_1_ep>,
+			      <&imx258_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&imx258_1>, "status=okay";
+		cam1-imx290 = <&mux_in1>, "remote-endpoint:0=",<&imx290_1_ep>,
+			      <&imx290_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&imx290_1>, "status=okay";
+		cam1-ov2311 = <&mux_in1>, "remote-endpoint:0=",<&ov2311_1_ep>,
+			      <&ov2311_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&ov2311_1>, "status=okay";
+		cam1-ov64a40 = <&mux_in1>, "remote-endpoint:0=",<&ov64a40_1_ep>,
+			      <&ov64a40_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&ov64a40_1>, "status=okay",
+			      <&ov64a40_1_vcm>, "status=okay",
+			      <&ov64a40_1>,"lens-focus:0=", <&ov64a40_1_vcm>;
+
+		cam0-imx290-clk-freq = <&clk_imx290>,"clock-frequency:0",
+				       <&imx290_0>,"clock-frequency:0";
+		cam1-imx290-clk-freq = <&clk_imx290>,"clock-frequency:0",
+				       <&imx290_1>,"clock-frequency:0";
+
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>;
+
+		cam0-sync-source = <&imx477_0>, "trigger-mode:0=1";
+		cam0-sync-sink = <&imx477_0>, "trigger-mode:0=2";
+		cam1-sync-source = <&imx477_1>, "trigger-mode:0=1";
+		cam1-sync-sink = <&imx477_1>, "trigger-mode:0=2";
+	};
+};

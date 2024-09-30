@@ -1,0 +1,18 @@
+/*
+ * Device Tree overlay for Pineboards Hat Ai!.
+ * Compatible with the Google Coral Edge TPU (Single and Dual Edge).
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&pcie1>;
+		__overlay__ {
+			msi-parent = <&pcie1>;
+		};
+	};
+};
