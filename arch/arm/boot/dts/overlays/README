@@ -3705,7 +3705,7 @@ Params: <None>
 
 Name:   pineboards-hatdrive-poe-plus
 Info:   Configures the Pineboards HatDrive! PoE+
-Load:   dtoverlay=pineboards-hat-ai
+Load:   dtoverlay=pineboards-hatdrive-poe-plus
 Params: <None>
 
 
