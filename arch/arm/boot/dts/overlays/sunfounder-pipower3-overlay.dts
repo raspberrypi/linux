@@ -1,0 +1,44 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			power: power {
+				hat_current_supply = <5000>;
+			};
+		};
+	};
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			power_ctrl: power_ctrl {
+				compatible = "gpio-poweroff";
+				gpios = <&gpio 26 0>;
+				force;
+			};
+		};
+	};
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			power_ctrl_pins: power_ctrl_pins {
+				brcm,pins = <26>;
+				brcm,function = <1>; // out
+			};
+		};
+	};
+	__overrides__ {
+		poweroff_pin =	<&power_ctrl>,"gpios:4",
+						<&power_ctrl_pins>,"brcm,pins:0";
+	};
+};
