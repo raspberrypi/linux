@@ -1,0 +1,59 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target = <&pins>;
+		__overlay__ {
+			brcm,pins = <40 41>;
+		};
+	};
+
+	fragment@1 {
+		target = <&pins>;
+		__dormant__ {
+			brcm,pins = <40>;
+		};
+	};
+
+	fragment@2 {
+		target = <&pins>;
+		__dormant__ {
+			brcm,pins = <41>;
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			pins: pwm1_overlay_pins {
+				brcm,pins = <40 41>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+				brcm,pull = <BCM2835_PUD_UP>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&pwm1>;
+		pwm: __overlay__ {
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pins>;
+		};
+	};
+
+	__overrides__ {
+		clock = <&pwm>, "assigned-clock-rates:0";
+		pins_40_41 = <0>,"+0-1-2";
+		pins_40 = <0>,"-0+1-2";
+		pins_41 = <0>,"-0-1+2";
+		pull_up = <&pins>, "brcm,pull:0=", <BCM2835_PUD_UP>;
+		pull_down = <&pins>, "brcm,pull:0=", <BCM2835_PUD_DOWN>;
+		pull_off = <&pins>, "brcm,pull:0=", <BCM2835_PUD_OFF>;
+	};
+};

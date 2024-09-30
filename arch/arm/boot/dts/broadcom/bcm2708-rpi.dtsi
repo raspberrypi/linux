@@ -1,0 +1,63 @@
+/* Downstream modifications common to bcm2835, bcm2836, bcm2837 */
+
+#define i2c0 i2c0mux
+#include "bcm2835-rpi.dtsi"
+#undef i2c0
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0>;
+	};
+
+	aliases {
+		i2c2 = &i2c2;
+	};
+
+	__overrides__ {
+		hdmi = <&hdmi>,"status";
+		i2c2_iknowwhatimdoing = <&i2c2>,"status";
+		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+		nvmem_cust_rw = <&nvmem_cust>,"rw?";
+		sd = <&sdhost>,"status";
+		sd_poll_once = <&sdhost>,"non-removable?";
+	};
+};
+
+&soc {
+	nvmem {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		nvmem_otp: nvmem_otp {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <0 192>;
+			status = "okay";
+		};
+
+		nvmem_cust: nvmem_cust {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <1 8>;
+			status = "okay";
+		};
+	};
+};
+
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_gpio48>;
+	status = "okay";
+};
+
+&hdmi {
+	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};
