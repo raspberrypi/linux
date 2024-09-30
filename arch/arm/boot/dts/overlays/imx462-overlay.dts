@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX462 camera module on VC I2C bus
+
+// IMX462 is the successor to IMX290. The drivers currently don't support
+// any additional feature of IMX462, so use the IMX290 compatible strings
+// for now.
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx290_327-overlay.dtsi"
+
+/{
+	compatible = "brcm,bcm2835";
+
+	// Fragment numbers deliberately high to avoid conflicts with the
+	// included imx290_327 overlay file.
+
+	//IMX462 is not defined in the bindings, so use IMX290 for now.
+
+	fragment@101 {
+		target = <&cam_node>;
+		__overlay__ {
+			compatible = "sony,imx290lqr";
+		};
+	};
+
+	fragment@102 {
+		target = <&cam_node>;
+		__dormant__ {
+			compatible = "sony,imx290llr";
+		};
+	};
+
+	__overrides__ {
+		mono = <0>, "-101+102";
+	};
+};

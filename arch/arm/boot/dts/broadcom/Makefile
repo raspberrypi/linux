@@ -35,6 +35,41 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2711-rpi-cm4-io.dtb \
 	bcm2835-rpi-zero.dtb \
 	bcm2835-rpi-zero-w.dtb
+
+DTC_FLAGS_bcm2708-rpi-b := -@
+DTC_FLAGS_bcm2708-rpi-b-rev1 := -@
+DTC_FLAGS_bcm2708-rpi-b-plus := -@
+DTC_FLAGS_bcm2708-rpi-cm := -@
+DTC_FLAGS_bcm2708-rpi-zero := -@
+DTC_FLAGS_bcm2708-rpi-zero-w := -@
+DTC_FLAGS_bcm2710-rpi-zero-2 := -@
+DTC_FLAGS_bcm2710-rpi-zero-2-w := -@
+DTC_FLAGS_bcm2709-rpi-2-b := -@
+DTC_FLAGS_bcm2710-rpi-2-b := -@
+DTC_FLAGS_bcm2710-rpi-3-b := -@
+DTC_FLAGS_bcm2710-rpi-3-b-plus := -@
+DTC_FLAGS_bcm2709-rpi-cm2 := -@
+DTC_FLAGS_bcm2710-rpi-cm3 := -@
+DTC_FLAGS_bcm2711-rpi-cm4 := -@
+DTC_FLAGS_bcm2711-rpi-cm4s := -@
+dtb-$(CONFIG_ARCH_BCM2835) += \
+        bcm2708-rpi-b.dtb \
+        bcm2708-rpi-b-rev1.dtb \
+        bcm2708-rpi-b-plus.dtb \
+        bcm2708-rpi-cm.dtb \
+        bcm2708-rpi-zero.dtb \
+        bcm2708-rpi-zero-w.dtb \
+        bcm2710-rpi-zero-2.dtb \
+        bcm2710-rpi-zero-2-w.dtb \
+        bcm2709-rpi-2-b.dtb \
+        bcm2710-rpi-2-b.dtb \
+        bcm2710-rpi-3-b.dtb \
+        bcm2710-rpi-3-b-plus.dtb \
+        bcm2709-rpi-cm2.dtb \
+        bcm2710-rpi-cm3.dtb \
+        bcm2711-rpi-cm4.dtb \
+        bcm2711-rpi-cm4s.dtb
+
 dtb-$(CONFIG_ARCH_BCMBCA) += \
 	bcm947622.dtb \
 	bcm963138.dtb \

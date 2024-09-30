@@ -1,0 +1,46 @@
+/*
+ * Device Tree overlay for EDT 5406 touchscreen controller, as used on the
+ * Raspberry Pi 7" panel
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "edt-ft5406.dtsi"
+
+/ {
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		i2c0 = <&ts_i2c_frag>,"target:0=",<&i2c0>;
+		i2c1 = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path=i2c1",
+		       <0>,"-0-1";
+		i2c3 = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path=i2c3",
+		       <0>,"-0-1";
+		i2c4 = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path=i2c4",
+		       <0>,"-0-1";
+		i2c5 = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path=i2c5",
+		       <0>,"-0-1";
+		i2c6 = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path=i2c6",
+		       <0>,"-0-1";
+		addr = <&ft5406>,"reg:0";
+	};
+};
