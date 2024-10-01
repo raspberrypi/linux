@@ -677,7 +677,7 @@ static int tb_dp_xchg_caps(struct tb_tunnel *tunnel)
 		      "DP OUT maximum supported bandwidth %u Mb/s x%u = %u Mb/s\n",
 		      out_rate, out_lanes, bw);
 
-	if (in->sw->config.depth < out->sw->config.depth)
+	if (tb_port_path_direction_downstream(in, out))
 		max_bw = tunnel->max_down;
 	else
 		max_bw = tunnel->max_up;
@@ -802,7 +802,7 @@ static int tb_dp_bandwidth_alloc_mode_enable(struct tb_tunnel *tunnel)
 	 * max_up/down fields. For discovery we just read what the
 	 * estimation was set to.
 	 */
-	if (in->sw->config.depth < out->sw->config.depth)
+	if (tb_port_path_direction_downstream(in, out))
 		estimated_bw = tunnel->max_down;
 	else
 		estimated_bw = tunnel->max_up;
@@ -972,7 +972,7 @@ static int tb_dp_bandwidth_mode_consumed_bandwidth(struct tb_tunnel *tunnel,
 	if (allocated_bw == max_bw)
 		allocated_bw = ret;
 
-	if (in->sw->config.depth < out->sw->config.depth) {
+	if (tb_port_path_direction_downstream(in, out)) {
 		*consumed_up = 0;
 		*consumed_down = allocated_bw;
 	} else {
@@ -1007,7 +1007,7 @@ static int tb_dp_allocated_bandwidth(struct tb_tunnel *tunnel, int *allocated_up
 		if (allocated_bw == max_bw)
 			allocated_bw = ret;
 
-		if (in->sw->config.depth < out->sw->config.depth) {
+		if (tb_port_path_direction_downstream(in, out)) {
 			*allocated_up = 0;
 			*allocated_down = allocated_bw;
 		} else {
@@ -1035,7 +1035,7 @@ static int tb_dp_alloc_bandwidth(struct tb_tunnel *tunnel, int *alloc_up,
 	if (ret < 0)
 		return ret;
 
-	if (in->sw->config.depth < out->sw->config.depth) {
+	if (tb_port_path_direction_downstream(in, out)) {
 		tmp = min(*alloc_down, max_bw);
 		ret = usb4_dp_port_allocate_bandwidth(in, tmp);
 		if (ret)
@@ -1133,7 +1133,7 @@ static int tb_dp_maximum_bandwidth(struct tb_tunnel *tunnel, int *max_up,
 	if (ret < 0)
 		return ret;
 
-	if (in->sw->config.depth < tunnel->dst_port->sw->config.depth) {
+	if (tb_port_path_direction_downstream(in, tunnel->dst_port)) {
 		*max_up = 0;
 		*max_down = ret;
 	} else {
@@ -1191,7 +1191,7 @@ static int tb_dp_consumed_bandwidth(struct tb_tunnel *tunnel, int *consumed_up,
 		return 0;
 	}
 
-	if (in->sw->config.depth < tunnel->dst_port->sw->config.depth) {
+	if (tb_port_path_direction_downstream(in, tunnel->dst_port)) {
 		*consumed_up = 0;
 		*consumed_down = tb_dp_bandwidth(rate, lanes);
 	} else {
