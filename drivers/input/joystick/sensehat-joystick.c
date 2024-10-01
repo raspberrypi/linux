@@ -28,7 +28,7 @@ struct sensehat_joystick {
 };
 
 static const unsigned int keymap[] = {
-	KEY_DOWN, KEY_RIGHT, KEY_UP, KEY_ENTER, KEY_LEFT
+	BTN_DPAD_DOWN, BTN_DPAD_RIGHT, BTN_DPAD_UP, BTN_SELECT, BTN_DPAD_LEFT,
 };
 
 static irqreturn_t sensehat_joystick_report(int irq, void *cookie)
