@@ -95,14 +95,4 @@
 		uuid = [ 1c955808 681f 4bbc a2ef b7ea47cd388e ];
 		overlay = "recalboxrgbdual";
 	};
-
-	sensehat-v1 {
-		uuid = [ 5d960035 8e87 428f 95d8 59852d697754 ];
-		overlay = "rpi-sense";
-	};
-
-	sensehat-v2 {
-		uuid = [ 1aa9c428 72eb 48da 9306 8c3706ed3653 ];
-		overlay = "rpi-sense-v2";
-	};
 };
