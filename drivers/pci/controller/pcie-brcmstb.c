@@ -1055,6 +1055,7 @@ static int brcm_pcie_perst_set_generic(struct brcm_pcie *pcie, u32 val)
 }
 
 
+#if 0
 static void add_inbound_win(struct inbound_win *b, u8 *count, u64 size,
 			    u64 cpu_addr, u64 pci_offset)
 {
@@ -1257,6 +1258,7 @@ static void set_inbound_win_registers(struct brcm_pcie *pcie,
 		}
 	}
 }
+#endif
 
 static int brcm_pcie_get_rc_bar2_size_and_offset(struct brcm_pcie *pcie,
 							u64 *rc_bar2_size,
@@ -1373,14 +1375,18 @@ static int brcm_pcie_get_rc_bar_n(struct brcm_pcie *pcie,
 
 static int brcm_pcie_setup(struct brcm_pcie *pcie)
 {
+#if 0
 	struct inbound_win inbound_wins[PCIE_BRCM_MAX_INBOUND_WINS];
+#endif
 	u64 rc_bar2_offset, rc_bar2_size;
 	void __iomem *base = pcie->base;
 	struct pci_host_bridge *bridge;
 	struct resource_entry *entry;
 	u32 tmp, burst, aspm_support;
 	u8 num_out_wins = 0;
+#if 0
 	int num_inbound_wins = 0;
+#endif
 	int memc, ret;
 	int count, i;
 
