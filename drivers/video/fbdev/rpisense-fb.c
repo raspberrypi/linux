@@ -24,13 +24,15 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/vmalloc.h>
-#include <linux/platform_device.h>
 
 #include <linux/mfd/rpisense/framebuffer.h>
+#include <linux/mfd/rpisense/core.h>
 
 static bool lowlight;
 module_param(lowlight, bool, 0);
 MODULE_PARM_DESC(lowlight, "Reduce LED matrix brightness to one third");
+
+static struct rpisense *rpisense;
 
 struct rpisense_fb_param {
 	char __iomem *vmem;
@@ -115,26 +117,26 @@ static void rpisense_fb_imageblit(struct fb_info *info,
 }
 
 static void rpisense_fb_deferred_io(struct fb_info *info,
-				    struct list_head *pagelist)
+				struct list_head *pagelist)
 {
 	int i;
 	int j;
 	u8 *vmem_work = rpisense_fb_param.vmem_work;
 	u16 *mem = (u16 *)rpisense_fb_param.vmem;
 	u8 *gamma = rpisense_fb_param.gamma;
-	struct rpisense_fb *rpisense_fb = info->par;
 
+	vmem_work[0] = 0;
 	for (j = 0; j < 8; j++) {
 		for (i = 0; i < 8; i++) {
-			vmem_work[(j * 24) + i] =
+			vmem_work[(j * 24) + i + 1] =
 				gamma[(mem[(j * 8) + i] >> 11) & 0x1F];
-			vmem_work[(j * 24) + (i + 8)] =
+			vmem_work[(j * 24) + (i + 8) + 1] =
 				gamma[(mem[(j * 8) + i] >> 6) & 0x1F];
-			vmem_work[(j * 24) + (i + 16)] =
+			vmem_work[(j * 24) + (i + 16) + 1] =
 				gamma[(mem[(j * 8) + i]) & 0x1F];
 		}
 	}
-	regmap_bulk_write(rpisense_fb->regmap, 0, vmem_work, 192);
+	rpisense_block_write(rpisense, vmem_work, 193);
 }
 
 static struct fb_deferred_io rpisense_fb_defio = {
@@ -199,22 +201,8 @@ static int rpisense_fb_probe(struct platform_device *pdev)
 	int ret = -ENOMEM;
 	struct rpisense_fb *rpisense_fb;
 
-	info = framebuffer_alloc(sizeof(*rpisense_fb), &pdev->dev);
-	if (!info) {
-		dev_err(&pdev->dev, "Could not allocate framebuffer.\n");
-		goto err_malloc;
-	}
-
-	rpisense_fb = info->par;
-	platform_set_drvdata(pdev, rpisense_fb);
-
-	rpisense_fb->pdev = pdev;
-	rpisense_fb->regmap = dev_get_regmap(pdev->dev.parent, NULL);
-	if (!rpisense_fb->regmap) {
-		dev_err(&pdev->dev,
-			"unable to get sensehat regmap");
-		return -ENODEV;
-	}
+	rpisense = rpisense_get_dev();
+	rpisense_fb = &rpisense->framebuffer;
 
 	rpisense_fb_param.vmem = vzalloc(rpisense_fb_param.vmemsize);
 	if (!rpisense_fb_param.vmem)
@@ -224,6 +212,12 @@ static int rpisense_fb_probe(struct platform_device *pdev)
 	if (!rpisense_fb_param.vmem_work)
 		goto err_malloc;
 
+	info = framebuffer_alloc(0, &pdev->dev);
+	if (!info) {
+		dev_err(&pdev->dev, "Could not allocate framebuffer.\n");
+		goto err_malloc;
+	}
+	rpisense_fb->info = info;
 
 	rpisense_fb_fix.smem_start = (unsigned long)rpisense_fb_param.vmem;
 	rpisense_fb_fix.smem_len = rpisense_fb_param.vmemsize;
@@ -260,7 +254,7 @@ err_malloc:
 
 static void rpisense_fb_remove(struct platform_device *pdev)
 {
-	struct rpisense_fb *rpisense_fb = platform_get_drvdata(pdev);
+	struct rpisense_fb *rpisense_fb = &rpisense->framebuffer;
 	struct fb_info *info = rpisense_fb->info;
 
 	if (info) {
@@ -271,11 +265,19 @@ static void rpisense_fb_remove(struct platform_device *pdev)
 	}
 }
 
+#ifdef CONFIG_OF
 static const struct of_device_id rpisense_fb_id[] = {
-	{ .compatible = "raspberrypi,rpi-sense-fb" },
+	{ .compatible = "rpi,rpi-sense-fb" },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, rpisense_fb_id);
+#endif
+
+static struct platform_device_id rpisense_fb_device_id[] = {
+	{ .name = "rpi-sense-fb" },
+	{ },
+};
+MODULE_DEVICE_TABLE(platform, rpisense_fb_device_id);
 
 static struct platform_driver rpisense_fb_driver = {
 	.probe = rpisense_fb_probe,
@@ -283,7 +285,6 @@ static struct platform_driver rpisense_fb_driver = {
 	.driver = {
 		.name = "rpi-sense-fb",
 		.owner = THIS_MODULE,
-		.of_match_table = rpisense_fb_id,
 	},
 };
 
