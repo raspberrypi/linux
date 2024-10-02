@@ -60,8 +60,8 @@
 		de-invert = <&timing>, "de-active:0=0";
 		pixclk-invert = <&timing>, "pixelclk-active:0=0";
 
-		width-mm = <&panel>, "width-mm:0";
-		height-mm = <&panel>, "height-mm:0";
+		width-mm = <&panel_generic>, "width-mm:0";
+		height-mm = <&panel_generic>, "height-mm:0";
 
 		rgb565 = <&panel_generic>, "bus-format:0=0x1017",
 			<&dpi_node_generic>, "pinctrl-0:0=",<&dpi_16bit_gpio0>;
