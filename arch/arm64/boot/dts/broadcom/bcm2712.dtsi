@@ -82,6 +82,14 @@
 		status = "disabled";
 	};
 
+	firmwarekms: firmwarekms {
+		compatible = "raspberrypi,rpi-firmware-kms-2712";
+		interrupt-parent = <&cpu_l2_irq>;
+		interrupts = <19>;
+		brcm,firmware = <&firmware>;
+		status = "disabled";
+	};
+
 	soc: soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -100,16 +108,6 @@
 		     		     <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>,
 		     		     <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
 			clock-frequency = <1000000>;
-		};
-
-		firmwarekms: firmwarekms@7d503000 {
-			compatible = "raspberrypi,rpi-firmware-kms-2712";
-			/* SUN_L2 interrupt reg */
-			reg = <0x7d503000 0x18>;
-			interrupt-parent = <&cpu_l2_irq>;
-			interrupts = <19>;
-			brcm,firmware = <&firmware>;
-			status = "disabled";
 		};
 
 		axiperf: axiperf {
