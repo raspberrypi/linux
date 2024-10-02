@@ -117,7 +117,7 @@
 		i2c = &i2c_arm;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
-		i2c10 = &i2c_rp1boot;
+		i2c10 = &i2c10;
 		i2c2 = &i2c2;
 		i2c3 = &i2c3;
 		i2c4 = &i2c4;

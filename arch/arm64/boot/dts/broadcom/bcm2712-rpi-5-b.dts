@@ -8,45 +8,7 @@
 #include <dt-bindings/pwm/pwm.h>
 #include <dt-bindings/reset/raspberrypi,firmware-reset.h>
 
-#define i2c0 _i2c0
-#define i2c3 _i2c3
-#define i2c4 _i2c4
-#define i2c5 _i2c5
-#define i2c6 _i2c6
-#define i2c8 _i2c8
-#define i2s _i2s
-#define pwm0 _pwm0
-#define pwm1 _pwm1
-#define spi0 _spi0
-#define spi3 _spi3
-#define spi4 _spi4
-#define spi5 _spi5
-#define spi6 _spi6
-#define uart0 _uart0
-#define uart2 _uart2
-#define uart5 _uart5
-
-#include "bcm2712.dtsi"
-
-#undef i2c0
-#undef i2c3
-#undef i2c4
-#undef i2c5
-#undef i2c6
-#undef i2c8
-#undef i2s
-#undef pwm0
-#undef pwm1
-#undef spi0
-#undef spi3
-#undef spi4
-#undef spi5
-#undef spi6
-#undef uart0
-#undef uart2
-#undef uart3
-#undef uart4
-#undef uart5
+#include "bcm2712-ds.dtsi"
 
 / {
 	compatible = "raspberrypi,5-model-b", "brcm,bcm2712";
@@ -115,9 +77,6 @@
 		enable-active-high;
 	};
 
-	clocks: clocks {
-	};
-
 	cam1_clk: cam1_clk {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -177,12 +136,10 @@ rp1_target: &pcie2 {
 // Add some labels to 2712 device
 
 // The system UART
-uart10: &_uart0 { status = "okay"; };
+&uart10 { status = "okay"; };
 
 // The system SPI for the bootloader EEPROM
-spi10: &_spi0 { status = "okay"; };
-
-i2c_rp1boot: &_i2c3 { };
+&spi10 { status = "okay"; };
 
 #include "rp1.dtsi"
 
@@ -423,7 +380,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	};
 };
 
-&i2c_rp1boot {
+&i2c10 {
 	clock-frequency = <400000>;
 	pinctrl-0 = <&i2c3_m4_agpio0_pins>;
 	pinctrl-names = "default";
