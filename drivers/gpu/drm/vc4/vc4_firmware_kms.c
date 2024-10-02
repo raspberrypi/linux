@@ -2010,16 +2010,16 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	}
 
 	if (num_displays > 0) {
-		/* Map the SMI interrupt reg */
-		crtc_list[0]->regs = vc4_ioremap_regs(pdev, 0);
-		if (IS_ERR(crtc_list[0]->regs))
-			DRM_ERROR("Oh dear, failed to map registers\n");
-
 		if (fkms->revision >= BCM2712) {
 			ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
 					       vc4_crtc2712_irq_handler, 0,
 					       "vc4 firmware kms", crtc_list);
 		} else {
+			/* Map the SMI interrupt reg */
+			crtc_list[0]->regs = vc4_ioremap_regs(pdev, 0);
+			if (IS_ERR(crtc_list[0]->regs))
+				DRM_ERROR("Oh dear, failed to map registers\n");
+
 			writel(0, crtc_list[0]->regs + SMICS);
 			ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
 					       vc4_crtc_irq_handler, 0,
