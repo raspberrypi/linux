@@ -35,6 +35,7 @@
 #include "core.h"
 #include "common.h"
 #include "bcdc.h"
+#include "debug.h"
 #include "fwil.h"
 
 #define DCMD_RESP_TIMEOUT	msecs_to_jiffies(2500)
