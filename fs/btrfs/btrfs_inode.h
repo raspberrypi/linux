@@ -82,8 +82,10 @@ struct btrfs_inode {
 	/*
 	 * Lock for counters and all fields used to determine if the inode is in
 	 * the log or not (last_trans, last_sub_trans, last_log_commit,
-	 * logged_trans), to access/update new_delalloc_bytes and to update the
-	 * VFS' inode number of bytes used.
+	 * logged_trans), to access/update delalloc_bytes, new_delalloc_bytes,
+	 * defrag_bytes, disk_i_size, outstanding_extents, csum_bytes and to
+	 * update the VFS' inode number of bytes used.
+	 * Also protects setting struct file::private_data.
 	 */
 	spinlock_t lock;
 
@@ -101,6 +103,14 @@ struct btrfs_inode {
 
 	/* held while logging the inode in tree-log.c */
 	struct mutex log_mutex;
+
+	/*
+	 * Counters to keep track of the number of extent item's we may use due
+	 * to delalloc and such.  outstanding_extents is the number of extent
+	 * items we think we'll end up using, and reserved_extents is the number
+	 * of extent items we've reserved metadata for. Protected by 'lock'.
+	 */
+	unsigned outstanding_extents;
 
 	/* used to order data wrt metadata */
 	struct btrfs_ordered_inode_tree ordered_tree;
@@ -122,28 +132,31 @@ struct btrfs_inode {
 	u64 generation;
 
 	/*
-	 * transid of the trans_handle that last modified this inode
+	 * ID of the transaction handle that last modified this inode.
+	 * Protected by 'lock'.
 	 */
 	u64 last_trans;
 
 	/*
-	 * transid that last logged this inode
+	 * ID of the transaction that last logged this inode.
+	 * Protected by 'lock'.
 	 */
 	u64 logged_trans;
 
 	/*
-	 * log transid when this inode was last modified
+	 * Log transaction ID when this inode was last modified.
+	 * Protected by 'lock'.
 	 */
 	int last_sub_trans;
 
-	/* a local copy of root's last_log_commit */
+	/* A local copy of root's last_log_commit. Protected by 'lock'. */
 	int last_log_commit;
 
 	union {
 		/*
 		 * Total number of bytes pending delalloc, used by stat to
 		 * calculate the real block usage of the file. This is used
-		 * only for files.
+		 * only for files. Protected by 'lock'.
 		 */
 		u64 delalloc_bytes;
 		/*
@@ -161,7 +174,7 @@ struct btrfs_inode {
 		 * Total number of bytes pending delalloc that fall within a file
 		 * range that is either a hole or beyond EOF (and no prealloc extent
 		 * exists in the range). This is always <= delalloc_bytes and this
-		 * is used only for files.
+		 * is used only for files. Protected by 'lock'.
 		 */
 		u64 new_delalloc_bytes;
 		/*
@@ -172,15 +185,15 @@ struct btrfs_inode {
 	};
 
 	/*
-	 * total number of bytes pending defrag, used by stat to check whether
-	 * it needs COW.
+	 * Total number of bytes pending defrag, used by stat to check whether
+	 * it needs COW. Protected by 'lock'.
 	 */
 	u64 defrag_bytes;
 
 	/*
-	 * the size of the file stored in the metadata on disk.  data=ordered
+	 * The size of the file stored in the metadata on disk.  data=ordered
 	 * means the in-memory i_size might be larger than the size on disk
-	 * because not all the blocks are written yet.
+	 * because not all the blocks are written yet. Protected by 'lock'.
 	 */
 	u64 disk_i_size;
 
@@ -214,7 +227,7 @@ struct btrfs_inode {
 
 	/*
 	 * Number of bytes outstanding that are going to need csums.  This is
-	 * used in ENOSPC accounting.
+	 * used in ENOSPC accounting. Protected by 'lock'.
 	 */
 	u64 csum_bytes;
 
@@ -222,14 +235,6 @@ struct btrfs_inode {
 	u32 flags;
 	/* Read-only compatibility flags, upper half of inode_item::flags */
 	u32 ro_flags;
-
-	/*
-	 * Counters to keep track of the number of extent item's we may use due
-	 * to delalloc and such.  outstanding_extents is the number of extent
-	 * items we think we'll end up using, and reserved_extents is the number
-	 * of extent items we've reserved metadata for.
-	 */
-	unsigned outstanding_extents;
 
 	struct btrfs_block_rsv block_rsv;
 

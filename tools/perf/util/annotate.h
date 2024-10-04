@@ -269,27 +269,30 @@ struct cyc_hist {
  * returns.
  */
 struct annotated_source {
-	struct list_head   source;
-	int    		   nr_histograms;
-	size_t		   sizeof_sym_hist;
-	struct cyc_hist	   *cycles_hist;
-	struct sym_hist	   *histograms;
+	struct list_head	source;
+	size_t			sizeof_sym_hist;
+	struct sym_hist		*histograms;
+	int    			nr_histograms;
+	int			nr_entries;
+	int			nr_asm_entries;
+	u16			max_line_len;
+};
+
+struct annotated_branch {
+	u64			hit_cycles;
+	u64			hit_insn;
+	unsigned int		total_insn;
+	unsigned int		cover_insn;
+	struct cyc_hist		*cycles_hist;
 };
 
 struct LOCKABLE annotation {
 	u64			max_coverage;
 	u64			start;
-	u64			hit_cycles;
-	u64			hit_insn;
-	unsigned int		total_insn;
-	unsigned int		cover_insn;
 	struct annotation_options *options;
 	struct annotation_line	**offsets;
 	int			nr_events;
 	int			max_jump_sources;
-	int			nr_entries;
-	int			nr_asm_entries;
-	u16			max_line_len;
 	struct {
 		u8		addr;
 		u8		jumps;
@@ -298,8 +301,8 @@ struct LOCKABLE annotation {
 		u8		max_addr;
 		u8		max_ins_name;
 	} widths;
-	bool			have_cycles;
 	struct annotated_source *src;
+	struct annotated_branch *branch;
 };
 
 static inline void annotation__init(struct annotation *notes __maybe_unused)
@@ -313,10 +316,10 @@ bool annotation__trylock(struct annotation *notes) EXCLUSIVE_TRYLOCK_FUNCTION(tr
 
 static inline int annotation__cycles_width(struct annotation *notes)
 {
-	if (notes->have_cycles && notes->options->show_minmax_cycle)
+	if (notes->branch && notes->options->show_minmax_cycle)
 		return ANNOTATION__IPC_WIDTH + ANNOTATION__MINMAX_CYCLES_WIDTH;
 
-	return notes->have_cycles ? ANNOTATION__IPC_WIDTH + ANNOTATION__CYCLES_WIDTH : 0;
+	return notes->branch ? ANNOTATION__IPC_WIDTH + ANNOTATION__CYCLES_WIDTH : 0;
 }
 
 static inline int annotation__pcnt_width(struct annotation *notes)
@@ -409,13 +412,11 @@ int symbol__tty_annotate2(struct map_symbol *ms, struct evsel *evsel);
 
 #ifdef HAVE_SLANG_SUPPORT
 int symbol__tui_annotate(struct map_symbol *ms, struct evsel *evsel,
-			 struct hist_browser_timer *hbt,
-			 struct annotation_options *opts);
+			 struct hist_browser_timer *hbt);
 #else
 static inline int symbol__tui_annotate(struct map_symbol *ms __maybe_unused,
 				struct evsel *evsel  __maybe_unused,
-				struct hist_browser_timer *hbt __maybe_unused,
-				struct annotation_options *opts __maybe_unused)
+				struct hist_browser_timer *hbt __maybe_unused)
 {
 	return 0;
 }
