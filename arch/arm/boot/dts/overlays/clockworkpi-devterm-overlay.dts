@@ -1,0 +1,245 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pins>;
+			status = "okay";
+
+			adc101c: adc@54 {
+				reg = <0x54>;
+				compatible = "ti,adc101c";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi4_pins &spi4_cs_pins>;
+			cs-gpios = <&gpio 4 1>;
+			status = "okay";
+
+			spidev4_0: spidev@0 {
+				compatible = "spidev";
+				reg = <0>;      /* CE0 */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <125000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&uart1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+
+			i2c1_pins: i2c1 {
+				brcm,pins = <44 45>;
+				brcm,function = <6>;
+			};
+
+			spi4_pins: spi4_pins {
+				brcm,pins = <6 7>;
+				brcm,function = <7>;
+			};
+
+			spi4_cs_pins: spi0_cs_pins {
+				brcm,pins = <4>;
+				brcm,function = <1>;
+			};
+
+			uart1_pins: uart1_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <2>;
+				brcm,pull = <0 2>;
+			};
+
+		};
+	};
+
+	fragment@4 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "8250.nr_uarts=1";
+		};
+	};
+	
+	fragment@5 {
+		target = <&pcie0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@6 {
+		target = <&genet>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@7 {
+		target = <&i2c0if>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-0 = <&i2c0_pins>;
+			pinctrl-names = "default";
+			status = "okay";
+
+			axp22x: pmic@34 {
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				compatible = "x-powers,axp221";
+				reg = <0x34>; /* i2c address */
+				interrupt-parent = <&gpio>;
+				interrupts = <2 8>;  /* IRQ_TYPE_EDGE_FALLING */
+				irq-gpios = <&gpio 2 0>;
+
+				regulators {
+
+					x-powers,dcdc-freq = <3000>;
+
+					reg_aldo1: aldo1 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "audio-vdd";
+					};
+
+					reg_aldo2: aldo2 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "display-vcc";
+					};
+
+					reg_dldo2: dldo2 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo2";
+					};
+
+					reg_dldo3: dldo3 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo3";
+					};
+
+					reg_dldo4: dldo4 {
+						regulator-always-on;
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+						regulator-name = "dldo4";
+					};
+
+				};
+
+				battery_power_supply: battery-power-supply {
+					compatible = "x-powers,axp221-battery-power-supply";
+					monitored-battery = <&battery>;
+				};
+
+				ac_power_supply: ac_power_supply {
+					compatible = "x-powers,axp221-ac-power-supply";
+				};
+
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&i2c0if>;
+		__overlay__ {
+			compatible = "brcm,bcm2708-i2c";
+		};
+	};
+
+	fragment@9 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+
+	fragment@10 {
+		target-path = "/";
+		__overlay__  {
+			battery: battery@0 {
+				compatible = "simple-battery";
+				device-chemistry = "lithium-ion";
+				constant-charge-current-max-microamp = <2100000>;
+				voltage-max-design-microvolt = <4200000>;
+				re-charge-voltage-microvolt = <4000000>;
+				// adjust the following params according to your battery specs
+				voltage-min-design-microvolt = <3300000>;
+				energy-full-design-microwatt-hours = <24790000>; // 2x3350mAh * 3.7v
+				charge-full-design-microamp-hours = <6700000>; // 2x3350mAh
+			};
+		};
+	};
+
+	fragment@11 {
+		target=<&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			port {
+				dsi_out_port: endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+
+			panel_cwd686: panel@0 {
+				compatible = "cw,cwd686";
+				reg = <0>;
+				reset-gpio = <&gpio 8 1>;
+				backlight = <&ocp8178_backlight>;
+				rotation = <90>;
+
+				port {
+					panel_dsi_port: endpoint {
+						remote-endpoint = <&dsi_out_port>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@12 {
+		target-path = "/";
+		__overlay__  {
+			ocp8178_backlight: backlight@0 {
+				compatible = "ocp8178-backlight";
+				backlight-control-gpios = <&gpio 9 0>;
+				default-brightness = <5>;
+			};
+		};
+	};
+
+};
+
