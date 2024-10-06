@@ -10,7 +10,7 @@
 #include "bcm2835.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
-static bool enable_hdmi, enable_hdmi0, enable_hdmi1;
+static bool enable_hdmi = true, enable_hdmi0, enable_hdmi1;
 static bool enable_headphones = true;
 static int num_channels = MAX_SUBSTREAMS;
 
