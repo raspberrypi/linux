@@ -330,7 +330,7 @@ static SIMPLE_DEV_PM_OPS(mv_rtc_pm_ops, mv_rtc_suspend, mv_rtc_resume);
  * triggering a section mismatch warning.
  */
 static struct platform_driver mv_rtc_driver __refdata = {
-	.remove_new	= __exit_p(mv_rtc_remove),
+	.remove		= __exit_p(mv_rtc_remove),
 	.driver		= {
 		.name	= "rtc-mv",
 		.of_match_table = of_match_ptr(rtc_mv_of_match_table),
