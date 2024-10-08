@@ -363,7 +363,6 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	sd-uhs-sdr50;
 	sd-uhs-ddr50;
 	sd-uhs-sdr104;
-	supports-cqe;
 	cd-gpios = <&gio_aon 5 GPIO_ACTIVE_LOW>;
 	//no-1-8-v;
 	status = "okay";
