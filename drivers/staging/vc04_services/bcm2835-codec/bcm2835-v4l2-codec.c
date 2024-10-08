@@ -2423,6 +2423,17 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = 0;
 		break;
 
+	case V4L2_CID_JPEG_RESTART_INTERVAL:
+		if (!ctx->component)
+			break;
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->output[0],
+						    MMAL_PARAMETER_JPEG_RESTART_INTERVAL,
+						    &ctrl->val,
+						    sizeof(ctrl->val));
+		break;
+
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		if (!ctx->component)
 			break;
@@ -3551,6 +3562,12 @@ static int bcm2835_codec_open(struct file *file)
 				  V4L2_CID_JPEG_COMPRESSION_QUALITY,
 				  1, 100,
 				  1, 80);
+
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_JPEG_RESTART_INTERVAL,
+				  1, 1000000,
+				  1, 0);
+
 		if (hdl->error) {
 			rc = hdl->error;
 			goto free_ctrl_handler;
