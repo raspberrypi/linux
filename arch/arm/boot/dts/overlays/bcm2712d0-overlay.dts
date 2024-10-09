@@ -41,7 +41,7 @@
 	fragment@4 {
 		target = <&vc4>;
 		__overlay__ {
-			compatible = "brcm,bcm2712d0-vc6";
+			compatible = "brcm,bcm2712d0-vc6", "brcm,bcm2712-vc6";
 		};
 	};
 
