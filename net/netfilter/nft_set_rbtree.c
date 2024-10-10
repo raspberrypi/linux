@@ -527,7 +527,7 @@ static void nft_rbtree_activate(const struct net *net,
 {
 	struct nft_rbtree_elem *rbe = elem->priv;
 
-	nft_set_elem_change_active(net, set, &rbe->ext);
+	nft_clear(net, &rbe->ext);
 }
 
 static bool nft_rbtree_flush(const struct net *net,
@@ -595,8 +595,6 @@ static void nft_rbtree_walk(const struct nft_ctx *ctx,
 		rbe = rb_entry(node, struct nft_rbtree_elem, node);
 
 		if (iter->count < iter->skip)
-			goto cont;
-		if (!nft_set_elem_active(&rbe->ext, iter->genmask))
 			goto cont;
 
 		elem.priv = rbe;
