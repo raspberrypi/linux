@@ -69,6 +69,7 @@ static int video_mux_link_setup(struct media_entity *entity,
 				const struct media_pad *remote, u32 flags)
 {
 	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct v4l2_subdev *source_sd;
 	struct video_mux *vmux = v4l2_subdev_to_video_mux(sd);
 	u16 source_pad = entity->num_pads - 1;
 	int ret = 0;
@@ -111,6 +112,10 @@ static int video_mux_link_setup(struct media_entity *entity,
 		*source_mbusformat = *v4l2_subdev_state_get_format(sd_state,
 								   vmux->active);
 		v4l2_subdev_unlock_state(sd_state);
+
+		source_sd = media_entity_to_v4l2_subdev(remote->entity);
+		vmux->subdev.ctrl_handler = source_sd->ctrl_handler;
+
 	} else {
 		if (vmux->active != local->index)
 			goto out;
@@ -118,6 +123,8 @@ static int video_mux_link_setup(struct media_entity *entity,
 		dev_dbg(sd->dev, "going inactive\n");
 		mux_control_deselect(vmux->mux);
 		vmux->active = -1;
+
+		vmux->subdev.ctrl_handler = NULL;
 	}
 
 out:
