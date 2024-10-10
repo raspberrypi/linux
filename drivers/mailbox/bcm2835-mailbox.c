@@ -147,7 +147,7 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	spin_lock_init(&mbox->lock);
 
-	ret = devm_request_irq(dev, irq_of_parse_and_map(dev->of_node, 0),
+	ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
 			       bcm2835_mbox_irq, IRQF_NO_SUSPEND, dev_name(dev),
 			       mbox);
 	if (ret) {
