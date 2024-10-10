@@ -1237,6 +1237,35 @@ out:
 	mutex_unlock(&vc4_hdmi->mutex);
 }
 
+/*
+ * Conversion between Full Range RGB and YUV using the BT.601 Colorspace
+ *
+ * Matrices are signed 4.11; additive coeffs are in signed 11.4
+ */
+static const u16 vc4_hdmi_csc_full_rgb_to_yuv_bt601[3][4] = {
+	/* Limited Range
+	 *
+	 * [  0.437500 -0.366352 -0.071148  128 ]
+	 * [  0.255785  0.502160  0.097523  16  ]
+	 * [ -0.147644 -0.289856  0.437500  128 ]
+	 */
+	{ 0x0384, 0xFDAD, 0xFED0, 0x800 },
+	{ 0x00C8, 0x040A, 0x020F, 0x100 },
+	{ 0xFF6F, 0xFD10, 0x0382, 0x800 }
+};
+
+static const u16 vc4_hdmi_csc_full_rgb_to_limited_rgb[3][4] = {
+	/*
+	 * [ 0.8594 0      0      16]
+	 * [ 0      0.8594 0      16]
+	 * [ 0      0      0.8594 16]
+	 * [ 0      0      0       1]
+	 */
+	{ 0x06e0, 0x0000, 0x0000, 0x0100 },
+	{ 0x0000, 0x06e0, 0x0000, 0x0100 },
+	{ 0x0000, 0x0000, 0x06e0, 0x0100 }
+};
+
 static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 			       struct drm_connector_state *state,
 			       const struct drm_display_mode *mode)
@@ -1244,6 +1273,7 @@ static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 	struct vc4_hdmi_connector_state *vc4_state =
 		conn_state_to_vc4_hdmi_conn_state(state);
 	struct drm_device *drm = vc4_hdmi->connector.dev;
+	const u16 (*csc)[4] = NULL;
 	unsigned long flags;
 	u32 csc_ctl;
 	int idx;
@@ -1256,28 +1286,28 @@ static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 	csc_ctl = VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
 				VC4_HD_CSC_CTL_ORDER);
 
-	if (!vc4_hdmi_is_full_range(vc4_hdmi, vc4_state)) {
+	if (vc4_hdmi->output_format == VC4_HDMI_OUTPUT_YUV444)
+		csc = vc4_hdmi_csc_full_rgb_to_yuv_bt601;
+	else if (!vc4_hdmi_is_full_range(vc4_hdmi, vc4_state))
 		/* CEA VICs other than #1 requre limited range RGB
 		 * output unless overridden by an AVI infoframe.
 		 * Apply a colorspace conversion to squash 0-255 down
-		 * to 16-235.  The matrix here is:
-		 *
-		 * [ 0      0      0.8594 16]
-		 * [ 0      0.8594 0      16]
-		 * [ 0.8594 0      0      16]
-		 * [ 0      0      0       1]
+		 * to 16-235.
 		 */
+		csc = vc4_hdmi_csc_full_rgb_to_limited_rgb;
+
+	if (csc) {
 		csc_ctl |= VC4_HD_CSC_CTL_ENABLE;
 		csc_ctl |= VC4_HD_CSC_CTL_RGB2YCC;
 		csc_ctl |= VC4_SET_FIELD(VC4_HD_CSC_CTL_MODE_CUSTOM,
 					 VC4_HD_CSC_CTL_MODE);
 
-		HDMI_WRITE(HDMI_CSC_12_11, (0x000 << 16) | 0x000);
-		HDMI_WRITE(HDMI_CSC_14_13, (0x100 << 16) | 0x6e0);
-		HDMI_WRITE(HDMI_CSC_22_21, (0x6e0 << 16) | 0x000);
-		HDMI_WRITE(HDMI_CSC_24_23, (0x100 << 16) | 0x000);
-		HDMI_WRITE(HDMI_CSC_32_31, (0x000 << 16) | 0x6e0);
-		HDMI_WRITE(HDMI_CSC_34_33, (0x100 << 16) | 0x000);
+		HDMI_WRITE(HDMI_CSC_12_11, (csc[0][1] << 16) | csc[0][2]);
+		HDMI_WRITE(HDMI_CSC_14_13, (csc[0][3] << 16) | csc[0][0]);
+		HDMI_WRITE(HDMI_CSC_22_21, (csc[1][1] << 16) | csc[1][2]);
+		HDMI_WRITE(HDMI_CSC_24_23, (csc[1][3] << 16) | csc[1][0]);
+		HDMI_WRITE(HDMI_CSC_32_31, (csc[2][1] << 16) | csc[2][2]);
+		HDMI_WRITE(HDMI_CSC_34_33, (csc[2][3] << 16) | csc[2][0]);
 	}
 
 	/* The RGB order applies even when CSC is disabled. */
