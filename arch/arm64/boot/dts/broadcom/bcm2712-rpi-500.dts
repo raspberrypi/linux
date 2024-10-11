@@ -35,7 +35,7 @@
 		"PWR_GPIO", // GPIO_020
 		"KEYB_RUN", // GPIO_021
 		"-", // GPIO_022
-		"-", // GPIO_023
+		"USER_LED", // GPIO_023
 		"BT_RTS", // GPIO_024
 		"BT_CTS", // GPIO_025
 		"BT_TXD", // GPIO_026
