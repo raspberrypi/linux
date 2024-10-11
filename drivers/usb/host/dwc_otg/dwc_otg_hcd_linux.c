@@ -406,19 +406,17 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 
 #ifdef CONFIG_ARM64
 
-static int simfiq_irq = -1;
+/*
+ * With no FIQ support on AARCH64, the "FIQ handler" is demoted to a
+ * regular IRQ handler. With a nested spinlock preventing the two
+ * handlers from racing against each other, and a HCD lock preventing
+ * thread context from racing against the "bottom half" IRQ, there's no
+ * point manipulating global IRQ enable/disable state - so these two
+ * functions are no-ops.
+ */
+void local_fiq_enable(void) { }
 
-void local_fiq_enable(void)
-{
-	if (simfiq_irq >= 0)
-		enable_irq(simfiq_irq);
-}
-
-void local_fiq_disable(void)
-{
-	if (simfiq_irq >= 0)
-		disable_irq(simfiq_irq);
-}
+void local_fiq_disable(void) { }
 
 irqreturn_t fiq_irq_handler(int irq, void *dev_id)
 {
@@ -454,8 +452,8 @@ static void hcd_init_fiq(void *cookie)
 		DWC_ERROR("Can't claim FIQ");
 		BUG();
 	}
-	DWC_WARN("FIQ on core %d", smp_processor_id());
-	DWC_WARN("FIQ ASM at %px length %d", &_dwc_otg_fiq_stub, (int)(&_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub));
+	DWC_INFO("FIQ on core %d", smp_processor_id());
+	DWC_INFO("FIQ ASM at %px length %d", &_dwc_otg_fiq_stub, (int)(&_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub));
 	set_fiq_handler((void *) &_dwc_otg_fiq_stub, &_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub);
 	memset(&regs,0,sizeof(regs));
 
@@ -482,7 +480,7 @@ static void hcd_init_fiq(void *cookie)
 			otg_dev->os_dep.mphi_base + 0x1f0;
 		dwc_otg_hcd->fiq_state->mphi_regs.swirq_clr =
 			otg_dev->os_dep.mphi_base + 0x1f4;
-		DWC_WARN("Fake MPHI regs_base at %px",
+		DWC_INFO("Fake MPHI regs_base at %px",
 			 dwc_otg_hcd->fiq_state->mphi_regs.base);
 	} else {
 		dwc_otg_hcd->fiq_state->mphi_regs.ctrl =
@@ -493,16 +491,16 @@ static void hcd_init_fiq(void *cookie)
 			= otg_dev->os_dep.mphi_base + 0x2c;
 		dwc_otg_hcd->fiq_state->mphi_regs.intstat
 			= otg_dev->os_dep.mphi_base + 0x50;
-		DWC_WARN("MPHI regs_base at %px",
+		DWC_INFO("MPHI regs_base at %px",
 			 dwc_otg_hcd->fiq_state->mphi_regs.base);
 
 		//Enable mphi peripheral
 		writel((1<<31),dwc_otg_hcd->fiq_state->mphi_regs.ctrl);
 #ifdef DEBUG
 		if (readl(dwc_otg_hcd->fiq_state->mphi_regs.ctrl) & 0x80000000)
-			DWC_WARN("MPHI periph has been enabled");
+			DWC_INFO("MPHI periph has been enabled");
 		else
-			DWC_WARN("MPHI periph has NOT been enabled");
+			DWC_INFO("MPHI periph has NOT been enabled");
 #endif
 	}
 	// Enable FIQ interrupt from USB peripheral
@@ -521,7 +519,6 @@ static void hcd_init_fiq(void *cookie)
 		return;
 	}
 
-	simfiq_irq = irq;
 #else
 #ifdef CONFIG_GENERIC_IRQ_MULTI_HANDLER
 	irq = otg_dev->os_dep.fiq_num;
