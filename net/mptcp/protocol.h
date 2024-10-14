@@ -504,6 +504,7 @@ struct mptcp_subflow_context {
 		__unused : 9;
 	enum mptcp_data_avail data_avail;
 	bool	scheduled;
+	bool	pm_listener;	    /* a listener managed by the kernel PM? */
 	u32	remote_nonce;
 	u64	thmac;
 	u32	local_nonce;
