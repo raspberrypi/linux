@@ -2149,7 +2149,10 @@ static void vc4_hvs_unbind(struct device *dev, struct device *master,
 		drm_mm_remove_node(node);
 	drm_mm_takedown(&vc4->hvs->lbm_mm);
 
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(hvs->disp_clk, 0);
 	clk_disable_unprepare(hvs->disp_clk);
+	clk_set_min_rate(hvs->core_clk, 0);
 	clk_disable_unprepare(hvs->core_clk);
 
 	vc4->hvs = NULL;
