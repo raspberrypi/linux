@@ -75,16 +75,16 @@
 		};
 	};
 
-	clocks_frag: fragment@104 {
+	fragment@104 {
 		target-path = "/clocks";
 		__overlay__ {
-			clk_aicam: clk-aicam {
+			clk_aicam: clk-aicam1 {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-frequency = <24000000>;
 			};
 
-			clk_aicam_gated: clk-aicam-gated {
+			clk_aicam_gated: clk-aicam-gated1 {
 				compatible = "gpio-gate-clock";
 				clocks = <&clk_aicam>;
 				#clock-cells = <0>;
@@ -103,7 +103,9 @@
 			   <&spi_frag_overlay>, "fast_xfer-gpios:16=35", // CD0_IO1_MICDAT0 (clock)
 			   <&spi_bridge>, "power-supply:0=",<&cam0_reg>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
-		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>,
+		       <&clk_aicam>,"name=clk-aicam0",
+		       <&clk_aicam_gated>,"name=clk-aicam-gated0";
 		bypass-cache = <&spi_bridge>,"bypass-cache?";
 	};
 };
