@@ -955,6 +955,8 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 	if (vc4_hdmi->variant->phy_disable)
 		vc4_hdmi->variant->phy_disable(vc4_hdmi);
 
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(vc4_hdmi->pixel_bvb_clock, 0);
 	clk_disable_unprepare(vc4_hdmi->pixel_bvb_clock);
 	clk_disable_unprepare(vc4_hdmi->pixel_clock);
 
@@ -3152,6 +3154,8 @@ static int vc4_hdmi_runtime_suspend(struct device *dev)
 	spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
 
 	clk_disable_unprepare(vc4_hdmi->audio_clock);
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(vc4_hdmi->hsm_clock, 0);
 	clk_disable_unprepare(vc4_hdmi->hsm_clock);
 
 	return 0;
