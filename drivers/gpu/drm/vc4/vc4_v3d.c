@@ -376,6 +376,8 @@ static int vc4_v3d_runtime_suspend(struct device *dev)
 
 	vc4_irq_disable(&vc4->base);
 
+	/* we no longer require a minimum clock rate */
+	clk_set_min_rate(v3d->clk, 0);
 	clk_disable_unprepare(v3d->clk);
 
 	return 0;
