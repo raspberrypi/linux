@@ -42,6 +42,18 @@ static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
 		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
 
+	/*
+	 * Early Sandisk Extreme and Extreme Pro A2 cards never finish SD cache
+	 * flush in CQ mode. Latest card date this was seen on is 10/2020.
+	 */
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_SANDISK_SD, 0x5344, 2019, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_SANDISK_SD, 0x5344, 2020, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
 	END_FIXUP
 };
 
