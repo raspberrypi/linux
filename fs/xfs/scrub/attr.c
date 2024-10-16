@@ -193,14 +193,8 @@ xchk_xattr_listent(
 		return;
 	}
 
-	/* Only one namespace bit allowed. */
-	if (hweight32(flags & XFS_ATTR_NSP_ONDISK_MASK) > 1) {
-		xchk_fblock_set_corrupt(sx->sc, XFS_ATTR_FORK, args.blkno);
-		goto fail_xref;
-	}
-
 	/* Does this name make sense? */
-	if (!xfs_attr_namecheck(name, namelen)) {
+	if (!xfs_attr_namecheck(flags, name, namelen)) {
 		xchk_fblock_set_corrupt(sx->sc, XFS_ATTR_FORK, args.blkno);
 		goto fail_xref;
 	}
@@ -498,6 +492,10 @@ xchk_xattr_rec(
 	/* Retrieve the entry and check it. */
 	hash = be32_to_cpu(ent->hashval);
 	if (ent->flags & ~XFS_ATTR_ONDISK_MASK) {
+		xchk_da_set_corrupt(ds, level);
+		return 0;
+	}
+	if (!xfs_attr_check_namespace(ent->flags)) {
 		xchk_da_set_corrupt(ds, level);
 		return 0;
 	}
