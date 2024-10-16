@@ -255,12 +255,14 @@ i2c_csi_dsi0: &i2c6 { // Note: This is for MIPI0 connector only
 	pinctrl-0 = <&rp1_i2c6_38_39>;
 	pinctrl-names = "default";
 	clock-frequency = <100000>;
+	symlink = "i2c-6";
 };
 
 i2c_csi_dsi1: &i2c4 { // Note: This is for MIPI1 connector only
 	pinctrl-0 = <&rp1_i2c4_40_41>;
 	pinctrl-names = "default";
 	clock-frequency = <100000>;
+	symlink = "i2c-4";
 };
 
 i2c_csi_dsi: &i2c_csi_dsi1 { }; // An alias for compatibility
