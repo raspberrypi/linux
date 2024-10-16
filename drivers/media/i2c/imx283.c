@@ -509,6 +509,21 @@ static const struct imx283_reg_list link_freq_reglist[] = {
 /* Mode configs */
 static const struct imx283_mode supported_modes_12bit[] = {
 	{
+		/* Full Native pixel array, including HOB/VOB. 5592x3710 */
+		.scan = &imx283_scan_modes[IMX283_MODE_0],
+
+		.width = 5592,
+		.height = 3710, /* 3694 + 16 additional lines for VOB */
+		.min_hmax = 5914, /* 887 @ 480MHz/72MHz */
+		.min_vmax = 3793, /* Lines */
+
+		/* 20.00 FPS */
+		.default_hmax = 6000, /* 900 @ 480MHz/72MHz */
+		.default_vmax = 4000,
+
+		.crop = imx283_native_area,
+	},
+	{
 		/* 20MPix 21.40 fps readout mode 0 */
 		.scan = &imx283_scan_modes[IMX283_MODE_0],
 
