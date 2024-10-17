@@ -224,7 +224,7 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 		u32 dispctrl;
-		u32 dsp3_mux;
+		u32 dsp3_mux_pri;
 
 		if (!crtc_state->active)
 			continue;
@@ -241,15 +241,22 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		 * enabled. In this case, FIFO 2 is directly accessed by the
 		 * TXP IP, and we need to disable the FIFO2 -> pixelvalve1
 		 * route.
+		 *
+		 * TXP can also run with a lower panic level than a live display,
+		 * as it doesn't have the same real-time constraint.
 		 */
-		if (vc4_crtc->feeds_txp)
-			dsp3_mux = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
-		else
-			dsp3_mux = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
+		if (vc4_crtc->feeds_txp) {
+			dsp3_mux_pri = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
+			dsp3_mux_pri |= VC4_SET_FIELD(1, SCALER_DISPCTRL_PANIC2);
+		} else {
+			dsp3_mux_pri = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
+			dsp3_mux_pri |= VC4_SET_FIELD(2, SCALER_DISPCTRL_PANIC2);
+		}
 
 		dispctrl = HVS_READ(SCALER_DISPCTRL) &
-			   ~SCALER_DISPCTRL_DSP3_MUX_MASK;
-		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux);
+			   ~(SCALER_DISPCTRL_DSP3_MUX_MASK |
+			     SCALER_DISPCTRL_PANIC2_MASK);
+		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux_pri);
 	}
 }
 
@@ -674,17 +681,26 @@ static int vc4_load_tracker_atomic_check(struct drm_atomic_state *state)
 	for_each_oldnew_plane_in_state(state, plane, old_plane_state,
 				       new_plane_state, i) {
 		struct vc4_plane_state *vc4_plane_state;
+		struct vc4_crtc *vc4_crtc;
 
 		if (old_plane_state->fb && old_plane_state->crtc) {
 			vc4_plane_state = to_vc4_plane_state(old_plane_state);
-			load_state->membus_load -= vc4_plane_state->membus_load;
-			load_state->hvs_load -= vc4_plane_state->hvs_load;
+			vc4_crtc = to_vc4_crtc(old_plane_state->crtc);
+
+			if (!vc4_crtc->feeds_txp) {
+				load_state->membus_load -= vc4_plane_state->membus_load;
+				load_state->hvs_load -= vc4_plane_state->hvs_load;
+			}
 		}
 
 		if (new_plane_state->fb && new_plane_state->crtc) {
 			vc4_plane_state = to_vc4_plane_state(new_plane_state);
-			load_state->membus_load += vc4_plane_state->membus_load;
-			load_state->hvs_load += vc4_plane_state->hvs_load;
+			vc4_crtc = to_vc4_crtc(new_plane_state->crtc);
+
+			if (!vc4_crtc->feeds_txp) {
+				load_state->membus_load += vc4_plane_state->membus_load;
+				load_state->hvs_load += vc4_plane_state->hvs_load;
+			}
 		}
 	}
 
