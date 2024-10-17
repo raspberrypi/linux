@@ -63,7 +63,20 @@ struct f_uac2_opts {
 	int				fb_max;
 	bool			bound;
 
-	char			function_name[32];
+	char			function_name[USB_MAX_STRING_LEN];
+	char			if_ctrl_string[USB_MAX_STRING_LEN];
+	char			clksrc_in_string[USB_MAX_STRING_LEN];
+	char			clksrc_out_string[USB_MAX_STRING_LEN];
+	char			usb_it_string[USB_MAX_STRING_LEN];
+	char			io_it_string[USB_MAX_STRING_LEN];
+	char			usb_ot_string[USB_MAX_STRING_LEN];
+	char			io_ot_string[USB_MAX_STRING_LEN];
+	char			fu_in_string[USB_MAX_STRING_LEN];
+	char			fu_out_string[USB_MAX_STRING_LEN];
+	char			as_out_alt0_string[USB_MAX_STRING_LEN];
+	char			as_out_alt1_string[USB_MAX_STRING_LEN];
+	char			as_in_alt0_string[USB_MAX_STRING_LEN];
+	char			as_in_alt1_string[USB_MAX_STRING_LEN];
 
 	struct mutex			lock;
 	int				refcnt;
