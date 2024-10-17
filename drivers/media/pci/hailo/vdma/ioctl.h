@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_VDMA_IOCTL_H_
@@ -8,8 +8,8 @@
 
 #include "vdma/vdma.h"
 
-long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg);
-long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg);
+long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg, struct hailo_vdma_file_context *context);
+long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg, struct hailo_vdma_file_context *context);
 long hailo_vdma_interrupts_wait_ioctl(struct hailo_vdma_controller *controller, unsigned long arg,
     struct semaphore *mutex, bool *should_up_board_mutex);
 
