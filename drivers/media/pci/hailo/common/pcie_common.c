@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include "pcie_common.h"
 #include "fw_operation.h"
+#include "soc_structs.h"
 
 #include <linux/errno.h>
 #include <linux/bug.h>
@@ -35,10 +36,6 @@
 #define FIRMWARE_LOAD_WAIT_MAX_RETRIES (100)
 #define FIRMWARE_LOAD_SLEEP_MS         (50)
 
-#define PCIE_APP_CPU_DEBUG_OFFSET (8*1024)
-#define PCIE_CORE_CPU_DEBUG_OFFSET (PCIE_APP_CPU_DEBUG_OFFSET + DEBUG_BUFFER_TOTAL_SIZE)
-
-#define PCIE_D2H_NOTIFICATION_SRAM_OFFSET (0x640 + 0x640)
 #define PCIE_REQUEST_SIZE_OFFSET (0x640)
 
 #define PCIE_CONFIG_VENDOR_OFFSET (0x0098)
@@ -59,7 +56,6 @@ struct hailo_fw_addresses {
     u32 app_fw_code_ram_base;
     u32 boot_key_cert;
     u32 boot_cont_cert;
-    u32 boot_fw_trigger;
     u32 core_code_ram_base;
     u32 core_fw_header;
     u32 atr0_trsl_addr1;
@@ -69,13 +65,11 @@ struct hailo_fw_addresses {
 
 struct loading_stage {
     const struct hailo_file_batch *batch;
+    u32 trigger_address;
 };
 
 struct hailo_board_compatibility {
     struct hailo_fw_addresses fw_addresses;
-    const char *fw_filename;
-    const struct hailo_config_constants board_cfg;
-    const struct hailo_config_constants fw_cfg;
     const struct loading_stage stages[MAX_LOADING_STAGES];
 };
 
@@ -85,28 +79,32 @@ static const struct hailo_file_batch hailo10h_files_stg1[] = {
         .address = 0xA0000,
         .max_size = 0x8004,
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
     {
         .filename = "hailo/hailo10h/u-boot.dtb.signed",
         .address = 0xA8004,
         .max_size = 0x20000,
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
     {
         .filename = "hailo/hailo10h/scu_fw.bin",
         .address = 0x20000,
         .max_size = 0x40000,
         .is_mandatory = true,
-        .has_header = true
+        .has_header = true,
+        .has_core = false
     },
     {
         .filename = NULL,
         .address = 0x00,
         .max_size = 0x00,
         .is_mandatory = false,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     }
 };
 
@@ -116,36 +114,140 @@ static const struct hailo_file_batch hailo10h_files_stg2[] = {
         .address = 0x85000000,
         .max_size = 0x1000000,
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
     {
         .filename = "hailo/hailo10h/u-boot-tfa.itb",
         .address = 0x86000000,
         .max_size = 0x1000000,
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
     {
         .filename = "hailo/hailo10h/fitImage",
         .address = 0x87000000,
         .max_size = 0x1000000,
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
     {
         .filename = "hailo/hailo10h/core-image-minimal-hailo10-m2.ext4.gz",
         .address = 0x88000000,
         .max_size = 0x20000000, // Max size 512MB
         .is_mandatory = true,
-        .has_header = false
+        .has_header = false,
+        .has_core = false
     },
+};
+
+// If loading linux from EMMC - only need few files from second batch (u-boot-spl.bin and u-boot-tfa.itb)
+static const struct hailo_file_batch hailo10h_files_stg2_linux_in_emmc[] = {
+    {
+        .filename = "hailo/hailo10h/u-boot-spl.bin",
+        .address = 0x85000000,
+        .max_size = 0x1000000,
+        .is_mandatory = true,
+        .has_header = false,
+        .has_core = false
+    },
+    {
+        .filename = "hailo/hailo10h/u-boot-tfa.itb",
+        .address = 0x86000000,
+        .max_size = 0x1000000,
+        .is_mandatory = true,
+        .has_header = false,
+        .has_core = false
+    },
+    {
+        .filename = NULL,
+        .address = 0x00,
+        .max_size = 0x00,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    },
+};
+
+static const struct hailo_file_batch hailo8_files_stg1[] = {
+    {
+        .filename = "hailo/hailo8_fw.4.19.0.bin",
+        .address = 0x20000,
+        .max_size = 0x50000,
+        .is_mandatory = true,
+        .has_header = true,
+        .has_core = true
+    },
+    {
+        .filename = "hailo/hailo8_board_cfg.bin",
+        .address = 0x60001000,
+        .max_size = PCIE_HAILO8_BOARD_CFG_MAX_SIZE,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    },
+    {
+        .filename = "hailo/hailo8_fw_cfg.bin",
+        .address = 0x60001500,
+        .max_size = PCIE_HAILO8_FW_CFG_MAX_SIZE,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    },
+    {
+        .filename = NULL,
+        .address = 0x00,
+        .max_size = 0x00,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    }
+};
+
+static const struct hailo_file_batch hailo10h_legacy_files_stg1[] = {
+    {
+        .filename = "hailo/hailo15_fw.bin",
+        .address = 0x20000,
+        .max_size = 0x100000,
+        .is_mandatory = true,
+        .has_header = true,
+        .has_core = true
+    },
+    {
+        .filename = NULL,
+        .address = 0x00,
+        .max_size = 0x00,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    }
+};
+
+static const struct hailo_file_batch pluto_files_stg1[] = {
+    {
+        .filename = "hailo/pluto_fw.bin",
+        .address = 0x20000,
+        .max_size = 0x100000,
+        .is_mandatory = true,
+        .has_header = true,
+        .has_core = true
+    },
+    {
+        .filename = NULL,
+        .address = 0x00,
+        .max_size = 0x00,
+        .is_mandatory = false,
+        .has_header = false,
+        .has_core = false
+    }
 };
 
 static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
     [HAILO_BOARD_TYPE_HAILO8] = {
         .fw_addresses = {
             .boot_fw_header = 0xE0030,
-            .boot_fw_trigger = 0xE0980,
             .boot_key_cert = 0xE0048,
             .boot_cont_cert = 0xE0390,
             .app_fw_code_ram_base = 0x60000,
@@ -155,22 +257,16 @@ static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
             .raise_ready_offset = 0x1684,
             .boot_status = 0xe0000,
         },
-        .fw_filename = "hailo/hailo8_fw.bin",
-        .board_cfg = {
-            .filename = "hailo/hailo8_board_cfg.bin",
-            .address = 0x60001000,
-            .max_size = PCIE_HAILO8_BOARD_CFG_MAX_SIZE,
-        },
-        .fw_cfg = {
-            .filename = "hailo/hailo8_fw_cfg.bin",
-            .address = 0x60001500,
-            .max_size = PCIE_HAILO8_FW_CFG_MAX_SIZE,
+        .stages = {
+            {
+                .batch = hailo8_files_stg1,
+                .trigger_address = 0xE0980
+            },
         },
     },
     [HAILO_BOARD_TYPE_HAILO10H_LEGACY] = {
         .fw_addresses = {
             .boot_fw_header = 0x88000,
-            .boot_fw_trigger = 0x88c98,
             .boot_key_cert = 0x88018,
             .boot_cont_cert = 0x886a8,
             .app_fw_code_ram_base = 0x20000,
@@ -180,22 +276,16 @@ static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
             .raise_ready_offset = 0x1754,
             .boot_status = 0x80000,
         },
-        .fw_filename = "hailo/hailo15_fw.bin",
-        .board_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
-        },
-        .fw_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
+        .stages = {
+            {
+                .batch = hailo10h_legacy_files_stg1,
+                .trigger_address = 0x88c98
+            },
         },
     },
     [HAILO_BOARD_TYPE_HAILO10H] = {
         .fw_addresses = {
             .boot_fw_header = 0x88000,
-            .boot_fw_trigger = 0x88c98,
             .boot_key_cert = 0x88018,
             .boot_cont_cert = 0x886a8,
             .app_fw_code_ram_base = 0x20000,
@@ -205,23 +295,18 @@ static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
             .raise_ready_offset = 0x1754,
             .boot_status = 0x80000,
         },
-        .fw_filename = NULL,
-        .board_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
-        },
-        .fw_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
-        },
         .stages = {
             {
                 .batch = hailo10h_files_stg1,
+                .trigger_address = 0x88c98
             },
             {
                 .batch = hailo10h_files_stg2,
+                .trigger_address = 0x84000000
+            },
+            {
+                .batch = hailo10h_files_stg2_linux_in_emmc,
+                .trigger_address = 0x84000000
             },
         },
     },
@@ -230,7 +315,6 @@ static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
     [HAILO_BOARD_TYPE_PLUTO] = {
         .fw_addresses = {
             .boot_fw_header = 0x88000,
-            .boot_fw_trigger = 0x88c98,
             .boot_key_cert = 0x88018,
             .boot_cont_cert = 0x886a8,
             .app_fw_code_ram_base = 0x20000,
@@ -241,16 +325,11 @@ static const struct hailo_board_compatibility compat[HAILO_BOARD_TYPE_COUNT] = {
             .raise_ready_offset = 0x174c,
             .boot_status = 0x80000,
         },
-        .fw_filename = "hailo/pluto_fw.bin",
-        .board_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
-        },
-        .fw_cfg = {
-            .filename = NULL,
-            .address = 0,
-            .max_size = 0,
+        .stages = {
+            {
+                .batch = pluto_files_stg1,
+                .trigger_address = 0x88c98
+            },
         },
     }
 };
@@ -340,21 +419,6 @@ void hailo_pcie_write_firmware_driver_shutdown(struct hailo_pcie_resources *reso
     hailo_resource_write32(&resources->fw_access, fw_addresses->raise_ready_offset, fw_access_value);
 }
 
-int hailo_pcie_read_firmware_notification(struct hailo_pcie_resources *resources,
-    struct hailo_d2h_notification *notification)
-{
-    struct hailo_resource notification_resource;
-
-    if (PCIE_D2H_NOTIFICATION_SRAM_OFFSET > resources->fw_access.size) {
-        return -EINVAL;
-    }
-
-    notification_resource.address = resources->fw_access.address + PCIE_D2H_NOTIFICATION_SRAM_OFFSET,
-    notification_resource.size = sizeof(struct hailo_d2h_notification);
-
-    return hailo_read_firmware_notification(&notification_resource, notification);
-}
-
 int hailo_pcie_configure_atr_table(struct hailo_resource *bridge_config, u64 trsl_addr, u32 atr_index)
 {
     size_t offset = 0;
@@ -388,7 +452,7 @@ static void write_memory_chunk(struct hailo_pcie_resources *resources,
     u32 ATR_INDEX = 0;
     BUG_ON(dest_offset + len > (u32)resources->fw_access.size);
 
-    (void)hailo_pcie_configure_atr_table(&resources->config, (u64)dest, ATR_INDEX);
+    (void)hailo_pcie_configure_atr_table(&resources->config, dest, ATR_INDEX);
     (void)hailo_resource_write_buffer(&resources->fw_access, dest_offset, len, src);
 }
 
@@ -398,13 +462,13 @@ static void read_memory_chunk(
     u32 ATR_INDEX = 0;
     BUG_ON(src_offset + len > (u32)resources->fw_access.size);
 
-    (void)hailo_pcie_configure_atr_table(&resources->config, (u64)src, ATR_INDEX);
+    (void)hailo_pcie_configure_atr_table(&resources->config, src, ATR_INDEX);
     (void)hailo_resource_read_buffer(&resources->fw_access, src_offset, len, dest);
 }
 
 // Note: this function modify the device ATR table (that is also used by the firmware for control and vdma).
 // Use with caution, and restore the original atr if needed.
-void write_memory(struct hailo_pcie_resources *resources, hailo_ptr_t dest, const void *src, u32 len)
+static void write_memory(struct hailo_pcie_resources *resources, hailo_ptr_t dest, const void *src, u32 len)
 {
     struct hailo_atr_config previous_atr = {0};
     hailo_ptr_t base_address = (dest & ~ATR_TABLE_SIZE_MASK);
@@ -417,8 +481,8 @@ void write_memory(struct hailo_pcie_resources *resources, hailo_ptr_t dest, cons
 
     if (base_address != dest) {
         // Data is not aligned, write the first chunk
-        chunk_len = min(base_address + ATR_TABLE_SIZE - dest, len);
-        write_memory_chunk(resources, base_address, dest - base_address, src, chunk_len);
+        chunk_len = min((u32)(base_address + ATR_TABLE_SIZE - dest), len);
+        write_memory_chunk(resources, base_address, (u32)(dest - base_address), src, chunk_len);
         offset += chunk_len;
     }
 
@@ -447,8 +511,8 @@ static void read_memory(struct hailo_pcie_resources *resources, hailo_ptr_t src,
 
     if (base_address != src) {
         // Data is not aligned, write the first chunk
-        chunk_len = min(base_address + ATR_TABLE_SIZE - src, len);
-        read_memory_chunk(resources, base_address, src - base_address, dest, chunk_len);
+        chunk_len = min((u32)(base_address + ATR_TABLE_SIZE - src), len);
+        read_memory_chunk(resources, base_address, (u32)(src - base_address), dest, chunk_len);
         offset += chunk_len;
     }
 
@@ -463,12 +527,12 @@ static void read_memory(struct hailo_pcie_resources *resources, hailo_ptr_t src,
 }
 
 static void hailo_write_app_firmware(struct hailo_pcie_resources *resources, firmware_header_t *fw_header,
-    secure_boot_certificate_t *fw_cert)
+    secure_boot_certificate_header_t *fw_cert)
 {
     const struct hailo_fw_addresses *fw_addresses = &(compat[resources->board_type].fw_addresses);
-    void *fw_code = (void*)((u8*)fw_header + sizeof(firmware_header_t));
-    void *key_data = &fw_cert->certificates_data[0];
-    void *content_data = &fw_cert->certificates_data[fw_cert->key_size];
+    u8 *fw_code = ((u8*)fw_header + sizeof(firmware_header_t));
+    u8 *key_data = ((u8*)fw_cert + sizeof(secure_boot_certificate_header_t));
+    u8 *content_data = key_data + fw_cert->key_size;
 
     write_memory(resources, fw_addresses->boot_fw_header, fw_header, sizeof(firmware_header_t));
 
@@ -487,13 +551,11 @@ static void hailo_write_core_firmware(struct hailo_pcie_resources *resources, fi
     write_memory(resources, fw_addresses->core_fw_header, fw_header, sizeof(firmware_header_t));
 }
 
-void hailo_trigger_firmware_boot(struct hailo_pcie_resources *resources)
+void hailo_trigger_firmware_boot(struct hailo_pcie_resources *resources, u32 address)
 {
-    const struct hailo_fw_addresses *fw_addresses = &(compat[resources->board_type].fw_addresses);
     u32 pcie_finished = 1;
 
-    write_memory(resources, fw_addresses->boot_fw_trigger,
-        (void*)&pcie_finished, sizeof(pcie_finished));
+    write_memory(resources, address, (void*)&pcie_finished, sizeof(pcie_finished));
 }
 
 u32 hailo_get_boot_status(struct hailo_pcie_resources *resources)
@@ -501,8 +563,7 @@ u32 hailo_get_boot_status(struct hailo_pcie_resources *resources)
     u32 boot_status = 0;
     const struct hailo_fw_addresses *fw_addresses = &(compat[resources->board_type].fw_addresses);
 
-    read_memory(resources, fw_addresses->boot_status,
-        &boot_status, sizeof(boot_status));
+    read_memory(resources, fw_addresses->boot_status, &boot_status, sizeof(boot_status));
 
     return boot_status;
 }
@@ -517,11 +578,11 @@ u32 hailo_get_boot_status(struct hailo_pcie_resources *resources)
 */
 static int FW_VALIDATION__validate_fw_headers(uintptr_t firmware_base_address, size_t firmware_size,
     firmware_header_t **out_app_firmware_header, firmware_header_t **out_core_firmware_header,
-    secure_boot_certificate_t **out_firmware_cert, enum hailo_board_type board_type)
+    secure_boot_certificate_header_t **out_firmware_cert, enum hailo_board_type board_type)
 {
     firmware_header_t *app_firmware_header = NULL;
     firmware_header_t *core_firmware_header = NULL;
-    secure_boot_certificate_t *firmware_cert = NULL;
+    secure_boot_certificate_header_t *firmware_cert = NULL;
     int err = -EINVAL;
     u32 consumed_firmware_offset = 0;
 
@@ -571,25 +632,25 @@ exit:
     return err;
 }
 
-static int write_single_file(struct hailo_pcie_resources *resources, const struct hailo_file_batch *files_batch, struct device *dev)
+static int write_single_file(struct hailo_pcie_resources *resources, const struct hailo_file_batch *file_info, struct device *dev)
 {
     const struct firmware *firmware = NULL;
     firmware_header_t *app_firmware_header = NULL;
-    secure_boot_certificate_t *firmware_cert = NULL;
+    secure_boot_certificate_header_t *firmware_cert = NULL;
     firmware_header_t *core_firmware_header = NULL;
     int err = 0;
 
-    err = request_firmware_direct(&firmware, files_batch->filename, dev);
+    err = request_firmware_direct(&firmware, file_info->filename, dev);
     if (err < 0) {
         return err;
     }
 
-    if (firmware->size > files_batch->max_size) {
+    if (firmware->size > file_info->max_size) {
         release_firmware(firmware);
         return -EFBIG;
     }
 
-    if (files_batch->has_header) {
+    if (file_info->has_header) {
         err = FW_VALIDATION__validate_fw_headers((uintptr_t)firmware->data, firmware->size,
             &app_firmware_header, &core_firmware_header, &firmware_cert, resources->board_type);
         if (err < 0) {
@@ -598,8 +659,11 @@ static int write_single_file(struct hailo_pcie_resources *resources, const struc
         }
 
         hailo_write_app_firmware(resources, app_firmware_header, firmware_cert);
+        if (file_info->has_core) {
+            hailo_write_core_firmware(resources, core_firmware_header);
+        }
     } else {
-        write_memory(resources, files_batch->address, (void*)firmware->data, firmware->size);
+        write_memory(resources, file_info->address, (void*)firmware->data, firmware->size);
     }
 
     release_firmware(firmware);
@@ -632,25 +696,7 @@ int hailo_pcie_write_firmware_batch(struct device *dev, struct hailo_pcie_resour
         dev_notice(dev, "File %s written successfully\n", files_batch[file_index].filename);
     }
 
-    return 0;
-}
-
-int hailo_pcie_write_firmware(struct hailo_pcie_resources *resources, const void *fw_data, size_t fw_size)
-{
-    firmware_header_t *app_firmware_header = NULL;
-    secure_boot_certificate_t *firmware_cert = NULL;
-    firmware_header_t *core_firmware_header = NULL;
-
-    int err = FW_VALIDATION__validate_fw_headers((uintptr_t)fw_data, fw_size,
-        &app_firmware_header, &core_firmware_header, &firmware_cert, resources->board_type);
-    if (err < 0) {
-        return err;
-    }
-
-    hailo_write_app_firmware(resources, app_firmware_header, firmware_cert);
-    hailo_write_core_firmware(resources, core_firmware_header);
-
-    hailo_trigger_firmware_boot(resources);
+    hailo_trigger_firmware_boot(resources, compat[resources->board_type].stages[stage].trigger_address);
 
     return 0;
 }
@@ -691,32 +737,6 @@ bool hailo_pcie_wait_for_firmware(struct hailo_pcie_resources *resources)
     return false;
 }
 
-int hailo_pcie_write_config_common(struct hailo_pcie_resources *resources, const void* config_data,
-    const size_t config_size, const struct hailo_config_constants *config_consts)
-{
-    if (config_size > config_consts->max_size) {
-        return -EINVAL;
-    }
-
-    write_memory(resources, config_consts->address, config_data, (u32)config_size);
-    return 0;
-}
-
-const struct hailo_config_constants* hailo_pcie_get_board_config_constants(const enum hailo_board_type board_type) {
-    BUG_ON(board_type >= HAILO_BOARD_TYPE_COUNT || board_type < 0);
-    return &compat[board_type].board_cfg;
-}
-
-const struct hailo_config_constants* hailo_pcie_get_user_config_constants(const enum hailo_board_type board_type) {
-    BUG_ON(board_type >= HAILO_BOARD_TYPE_COUNT || board_type < 0);
-    return &compat[board_type].fw_cfg;
-}
-
-const char* hailo_pcie_get_fw_filename(const enum hailo_board_type board_type) {
-    BUG_ON(board_type >= HAILO_BOARD_TYPE_COUNT || board_type < 0);
-    return compat[board_type].fw_filename;
-}
-
 void hailo_pcie_update_channel_interrupts_mask(struct hailo_pcie_resources* resources, u32 channels_bitmap)
 {
     size_t i = 0;
@@ -745,7 +765,7 @@ void hailo_pcie_enable_interrupts(struct hailo_pcie_resources *resources)
     hailo_resource_write32(&resources->config, BCS_SOURCE_INTERRUPT_PER_CHANNEL, 0xFFFFFFFF);
 
     mask |= (BCS_ISTATUS_HOST_FW_IRQ_CONTROL_MASK | BCS_ISTATUS_HOST_FW_IRQ_NOTIFICATION |
-        BCS_ISTATUS_HOST_DRIVER_DOWN | BCS_ISTATUS_SOC_CONNECT_ACCEPTED);
+        BCS_ISTATUS_HOST_DRIVER_DOWN | BCS_ISTATUS_SOC_CONNECT_ACCEPTED | BCS_ISTATUS_SOC_CLOSED_IRQ);
     hailo_resource_write32(&resources->config, BSC_IMASK_HOST, mask);
 }
 
@@ -754,45 +774,15 @@ void hailo_pcie_disable_interrupts(struct hailo_pcie_resources* resources)
     hailo_resource_write32(&resources->config, BSC_IMASK_HOST, 0);
 }
 
-long hailo_pcie_read_firmware_log(struct hailo_pcie_resources *resources, struct hailo_read_log_params *params)
-{
-    long err = 0;
-    struct hailo_resource log_resource = {resources->fw_access.address, DEBUG_BUFFER_TOTAL_SIZE};
-
-    if (HAILO_CPU_ID_CPU0 == params->cpu_id) {
-        log_resource.address += PCIE_APP_CPU_DEBUG_OFFSET;
-    } else if (HAILO_CPU_ID_CPU1 == params->cpu_id) {
-        log_resource.address += PCIE_CORE_CPU_DEBUG_OFFSET;
-    } else {
-        return -EINVAL;
-    }
-
-    if (0 == params->buffer_size) {
-        params->read_bytes = 0;
-        return 0;
-    }
-
-    err = hailo_read_firmware_log(&log_resource, params);
-    if (0 != err) {
-        return err;
-    }
-
-    return 0;
-}
-
 static int direct_memory_transfer(struct hailo_pcie_resources *resources,
     struct hailo_memory_transfer_params *params)
 {
-    if (params->address > U32_MAX) {
-        return -EFAULT;
-    }
-
     switch (params->transfer_direction) {
     case TRANSFER_READ:
-        read_memory(resources, (u32)params->address, params->buffer, (u32)params->count);
+        read_memory(resources, params->address, params->buffer, (u32)params->count);
         break;
     case TRANSFER_WRITE:
-        write_memory(resources, (u32)params->address, params->buffer, (u32)params->count);
+        write_memory(resources, params->address, params->buffer, (u32)params->count);
         break;
     default:
         return -EINVAL;
@@ -845,16 +835,18 @@ int hailo_set_device_type(struct hailo_pcie_resources *resources)
     return 0;
 }
 
-// On PCIe, just return the address
-static u64 encode_dma_address(dma_addr_t dma_address, u8 channel_id)
+// On PCIe, just return the start address
+u64 hailo_pcie_encode_desc_dma_address_range(dma_addr_t dma_address_start, dma_addr_t dma_address_end, u32 step, u8 channel_id)
 {
     (void)channel_id;
-    return (u64)dma_address;
+    (void)dma_address_end;
+    (void)step;
+    return (u64)dma_address_start;
 }
 
 struct hailo_vdma_hw hailo_pcie_vdma_hw = {
     .hw_ops = {
-        .encode_desc_dma_address = encode_dma_address
+        .encode_desc_dma_address_range = hailo_pcie_encode_desc_dma_address_range,
     },
     .ddr_data_id = HAILO_PCIE_HOST_DMA_DATA_ID,
     .device_interrupts_bitmask = HAILO_PCIE_DMA_DEVICE_INTERRUPTS_BITMASK,
@@ -862,11 +854,19 @@ struct hailo_vdma_hw hailo_pcie_vdma_hw = {
     .src_channels_bitmask = HAILO_PCIE_DMA_SRC_CHANNELS_BITMASK,
 };
 
-void hailo_soc_write_soc_connect(struct hailo_pcie_resources *resources)
+void hailo_pcie_soc_write_request(struct hailo_pcie_resources *resources,
+    const struct hailo_pcie_soc_request *request)
 {
     const struct hailo_fw_addresses *fw_addresses = &(compat[resources->board_type].fw_addresses);
-    const u32 soc_connect_value = FW_ACCESS_SOC_CONNECT_MASK;
+    BUILD_BUG_ON_MSG((sizeof(*request) % sizeof(u32)) != 0, "Request must be a multiple of 4 bytes");
 
-    // Write shutdown flag to FW
-    hailo_resource_write32(&resources->fw_access, fw_addresses->raise_ready_offset, soc_connect_value);
+    hailo_resource_write_buffer(&resources->fw_access, 0, sizeof(*request), (void*)request);
+    hailo_resource_write32(&resources->fw_access, fw_addresses->raise_ready_offset, FW_ACCESS_SOC_CONTROL_MASK);
+}
+
+void hailo_pcie_soc_read_response(struct hailo_pcie_resources *resources,
+    struct hailo_pcie_soc_response *response)
+{
+    BUILD_BUG_ON_MSG((sizeof(*response) % sizeof(u32)) != 0, "Request must be a multiple of 4 bytes");
+    hailo_resource_read_buffer(&resources->fw_access, 0, sizeof(*response), response);
 }

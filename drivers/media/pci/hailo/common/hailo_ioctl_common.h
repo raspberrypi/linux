@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) AND MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_IOCTL_COMMON_H_
 #define _HAILO_IOCTL_COMMON_H_
 
 #define HAILO_DRV_VER_MAJOR 4
-#define HAILO_DRV_VER_MINOR 18
+#define HAILO_DRV_VER_MINOR 19
 #define HAILO_DRV_VER_REVISION 0
 
 #define _STRINGIFY_EXPANDED( x ) #x
@@ -17,10 +17,11 @@
 
 // This value is not easily changeable.
 // For example: the channel interrupts ioctls assume we have up to 32 channels
-#define MAX_VDMA_CHANNELS_PER_ENGINE    (32)
-#define MAX_VDMA_ENGINES                (3)
-#define SIZE_OF_VDMA_DESCRIPTOR         (16)
-#define VDMA_DEST_CHANNELS_START        (16)
+#define MAX_VDMA_CHANNELS_PER_ENGINE            (32)
+#define VDMA_CHANNELS_PER_ENGINE_PER_DIRECTION  (16)
+#define MAX_VDMA_ENGINES                        (3)
+#define SIZE_OF_VDMA_DESCRIPTOR                 (16)
+#define VDMA_DEST_CHANNELS_START                (16)
 
 #define HAILO_VDMA_MAX_ONGOING_TRANSFERS (128)
 #define HAILO_VDMA_MAX_ONGOING_TRANSFERS_MASK (HAILO_VDMA_MAX_ONGOING_TRANSFERS - 1)
@@ -37,8 +38,8 @@
 #define FW_ACCESS_APP_CPU_CONTROL_MASK      (1 << FW_ACCESS_CONTROL_INTERRUPT_SHIFT)
 #define FW_ACCESS_DRIVER_SHUTDOWN_SHIFT     (2)
 #define FW_ACCESS_DRIVER_SHUTDOWN_MASK      (1 << FW_ACCESS_DRIVER_SHUTDOWN_SHIFT)
-#define FW_ACCESS_SOC_CONNECT_SHIFT         (3)
-#define FW_ACCESS_SOC_CONNECT_MASK          (1 << FW_ACCESS_SOC_CONNECT_SHIFT)
+#define FW_ACCESS_SOC_CONTROL_SHIFT         (3)
+#define FW_ACCESS_SOC_CONTROL_MASK          (1 << FW_ACCESS_SOC_CONTROL_SHIFT)
 
 #define INVALID_VDMA_CHANNEL                (0xff)
 
@@ -243,6 +244,12 @@ struct hailo_desc_list_create_params {
 /* structure used in ioctl HAILO_DESC_LIST_RELEASE */
 struct hailo_desc_list_release_params {
     uintptr_t desc_handle;      // in
+};
+
+struct hailo_write_action_list_params {
+    uint8_t *data;              // in
+    size_t size;                // in
+    uint64_t dma_address;       // out
 };
 
 /* structure used in ioctl HAILO_DESC_LIST_BIND_VDMA_BUFFER */
@@ -508,6 +515,7 @@ struct hailo_vdma_launch_transfer_params {
 
 /* structure used in ioctl HAILO_SOC_CONNECT */
 struct hailo_soc_connect_params {
+    uint16_t port_number;           // in
     uint8_t input_channel_index;    // out
     uint8_t output_channel_index;   // out
     uintptr_t input_desc_handle;    // in
@@ -522,6 +530,7 @@ struct hailo_soc_close_params {
 
 /* structure used in ioctl HAILO_PCI_EP_ACCEPT */
 struct hailo_pci_ep_accept_params {
+    uint16_t port_number;           // in
     uint8_t input_channel_index;    // out
     uint8_t output_channel_index;   // out
     uintptr_t input_desc_handle;    // in
@@ -562,6 +571,7 @@ struct tCompatibleHailoIoctlData
         struct hailo_soc_close_params SocCloseParams;
         struct hailo_pci_ep_accept_params AcceptParams;
         struct hailo_pci_ep_close_params PciEpCloseParams;
+        struct hailo_write_action_list_params WriteActionListParams;
     } Buffer;
 };
 #endif // _MSC_VER
@@ -632,6 +642,7 @@ enum hailo_nnc_ioctl_code {
     HAILO_DISABLE_NOTIFICATION_CODE,
     HAILO_READ_LOG_CODE,
     HAILO_RESET_NN_CORE_CODE,
+    HAILO_WRITE_ACTION_LIST_CODE,
 
     // Must be last
     HAILO_NNC_IOCTL_MAX_NR
@@ -642,6 +653,7 @@ enum hailo_nnc_ioctl_code {
 #define HAILO_DISABLE_NOTIFICATION      _IO_(HAILO_NNC_IOCTL_MAGIC,    HAILO_DISABLE_NOTIFICATION_CODE)
 #define HAILO_READ_LOG                  _IOWR_(HAILO_NNC_IOCTL_MAGIC,  HAILO_READ_LOG_CODE,                   struct hailo_read_log_params)
 #define HAILO_RESET_NN_CORE             _IO_(HAILO_NNC_IOCTL_MAGIC,    HAILO_RESET_NN_CORE_CODE)
+#define HAILO_WRITE_ACTION_LIST         _IOW_(HAILO_NNC_IOCTL_MAGIC,    HAILO_WRITE_ACTION_LIST_CODE,     struct hailo_write_action_list_params)
 
 enum hailo_soc_ioctl_code {
     HAILO_SOC_IOCTL_CONNECT_CODE,
