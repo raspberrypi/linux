@@ -107,6 +107,23 @@ void rpivid_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 	pix_fmt->plane_fmt[0].sizeimage = size;
 }
 
+/*
+ * NB This list MUST match the aligned heights advertised by the DRM driver
+ * if anything in the path validates the DRM modifier against those advertised.
+ */
+static unsigned int page_aligned_heights[] = {
+	208,	/* 120 lines */
+	400,	/* 240 lines */
+	624,	/* 360 lines */
+	752,	/* 480 lines */
+	880,	/* 576 lines */
+	1136,	/* 720 lines */
+	1648,	/* 1080 lines */
+	2192,	/* 1440 lines */
+	3280,	/* 2160 lines */
+	0
+};
+
 /* Take any pix_format and make it valid */
 static void rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
@@ -114,6 +131,7 @@ static void rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 	unsigned int height = pix_fmt->height;
 	unsigned int sizeimage = pix_fmt->plane_fmt[0].sizeimage;
 	unsigned int bytesperline = pix_fmt->plane_fmt[0].bytesperline;
+	int i;
 
 	if (!width)
 		width = RPIVID_DEFAULT_WIDTH;
@@ -133,12 +151,20 @@ static void rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 		/* Width rounds up to columns */
 		width = ALIGN(width, 128);
 
-		/* 16 aligned height - not sure we even need that */
-		height = ALIGN(height, 16);
+		/* 2 aligned height - as it will be YUV420 */
+		height = ALIGN(height, 2);
+
 		/* column height
 		 * Accept suggested shape if at least min & < 2 * min
 		 */
-		bytesperline = constrain2x(bytesperline, height * 3 / 2);
+		for (i = 0; page_aligned_heights[i]; i++) {
+			if (page_aligned_heights[i] >= (height * 3) / 2) {
+				bytesperline = page_aligned_heights[i];
+				break;
+			}
+		}
+
+		bytesperline = constrain2x(pix_fmt->plane_fmt[0].bytesperline, bytesperline);
 
 		/* image size
 		 * Again allow plausible variation in case added padding is
@@ -153,13 +179,20 @@ static void rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 		 */
 		width = ALIGN(((width + 2) / 3), 32) * 3;
 
-		/* 16-aligned height. */
-		height = ALIGN(height, 16);
+		/* 2 aligned height - as it will be YUV420 */
+		height = ALIGN(height, 2);
 
 		/* column height
 		 * Accept suggested shape if at least min & < 2 * min
 		 */
-		bytesperline = constrain2x(bytesperline, height * 3 / 2);
+		for (i = 0; page_aligned_heights[i]; i++) {
+			if (page_aligned_heights[i] >= (height * 3) / 2) {
+				bytesperline = page_aligned_heights[i];
+				break;
+			}
+		}
+
+		bytesperline = constrain2x(pix_fmt->plane_fmt[0].bytesperline, bytesperline);
 
 		/* image size
 		 * Again allow plausible variation in case added padding is
