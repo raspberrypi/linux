@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_PCI_PCIE_H_
@@ -41,6 +41,19 @@ struct hailo_fw_boot {
 };
 
 
+struct hailo_pcie_nnc {
+    struct hailo_fw_control_info fw_control;
+
+    spinlock_t notification_read_spinlock;
+    struct list_head notification_wait_list;
+    struct hailo_d2h_notification notification_cache;
+    struct hailo_d2h_notification notification_to_user;
+};
+
+struct hailo_pcie_soc {
+    struct completion control_resp_ready;
+};
+
 // Context for each open file handle
 // TODO: store board and use as actual context
 struct hailo_file_context {
@@ -48,6 +61,7 @@ struct hailo_file_context {
     struct file *filp;
     struct hailo_vdma_file_context vdma_context;
     bool is_valid;
+    u32 soc_used_channels_bitmap;
 };
 
 struct hailo_pcie_board {
@@ -57,21 +71,17 @@ struct hailo_pcie_board {
     atomic_t ref_count;
     struct list_head open_files_list;
     struct hailo_pcie_resources pcie_resources;
-    struct hailo_fw_control_info fw_control;
+    struct hailo_pcie_nnc nnc;
+    struct hailo_pcie_soc soc;
     struct hailo_pcie_driver_down_info driver_down;
     struct semaphore mutex;
     struct hailo_vdma_controller vdma;
-    spinlock_t notification_read_spinlock;
-    struct list_head notification_wait_list;
-    struct hailo_d2h_notification notification_cache;
-    struct hailo_d2h_notification notification_to_user;
+
     struct hailo_memory_transfer_params memory_transfer_params;
     u32 desc_max_page_size;
     enum hailo_allocation_mode allocation_mode;
     struct completion fw_loaded_completion;
     bool interrupts_enabled;
-    // Only needed in accelerator type soc
-    struct completion soc_connect_accepted;
 };
 
 bool power_mode_enabled(void);

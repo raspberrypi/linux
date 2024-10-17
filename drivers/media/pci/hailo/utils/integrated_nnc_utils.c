@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include "integrated_nnc_utils.h"
@@ -43,11 +43,19 @@ int hailo_ioremap_shmem(struct platform_device *pdev, int index, struct hailo_re
     void __iomem * remap_ptr;
 
     shmem = of_parse_phandle(pdev->dev.of_node, "shmem", index);
+    if (!shmem) {
+        hailo_dev_err(&pdev->dev, "Failed to find shmem node index: %d in device tree\n", index);
+        return -ENODEV;
+    }
+
     ret = of_address_to_resource(shmem, 0, &res);
     if (ret) {
         hailo_dev_err(&pdev->dev, "hailo_ioremap_shmem, failed to get memory (index: %d)\n", index);
+        of_node_put(shmem);
         return ret;
     }
+
+    // Decrement the refcount of the node
     of_node_put(shmem);
 
     remap_ptr = devm_ioremap(&pdev->dev, res.start, resource_size(&res));

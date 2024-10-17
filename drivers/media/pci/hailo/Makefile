@@ -8,9 +8,9 @@ obj-$(CONFIG_MEDIA_PCI_HAILO) := hailo_pci.o
 
 hailo_pci-objs += src/pcie.o
 hailo_pci-objs += src/fops.o
-hailo_pci-objs += src/utils.o
 hailo_pci-objs += src/sysfs.o
-hailo_pci-objs += src/pci_soc_ioctl.o
+hailo_pci-objs += src/nnc.o
+hailo_pci-objs += src/soc.o
 
 hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/fw_validation.o
 hailo_pci-objs += $(COMMON_SRC_DIRECTORY)/fw_operation.o

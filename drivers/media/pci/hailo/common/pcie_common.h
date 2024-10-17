@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_COMMON_PCIE_COMMON_H_
@@ -12,6 +12,7 @@
 #include "fw_operation.h"
 #include "utils.h"
 #include "vdma_common.h"
+#include "soc_structs.h"
 
 #include <linux/types.h>
 #include <linux/firmware.h>
@@ -21,6 +22,7 @@
 #define BCS_ISTATUS_HOST_FW_IRQ_NOTIFICATION (0x02000000)
 #define BCS_ISTATUS_HOST_DRIVER_DOWN         (0x08000000)
 #define BCS_ISTATUS_SOC_CONNECT_ACCEPTED     (0x10000000)
+#define BCS_ISTATUS_SOC_CLOSED_IRQ           (0x20000000)
 #define BCS_ISTATUS_HOST_VDMA_SRC_IRQ_MASK   (0x000000FF)
 #define BCS_ISTATUS_HOST_VDMA_DEST_IRQ_MASK  (0x0000FF00)
 
@@ -42,7 +44,7 @@
 #define PCI_DEVICE_ID_HAILO_HAILO15   0x45C4
 #define PCI_DEVICE_ID_HAILO_PLUTO     0x43a2
 
-typedef u32 hailo_ptr_t;
+typedef u64 hailo_ptr_t;
 
 struct hailo_pcie_resources {
     struct hailo_resource config;               // BAR0
@@ -63,7 +65,8 @@ struct hailo_atr_config {
 enum loading_stages {
     FIRST_STAGE = 0,
     SECOND_STAGE = 1,
-    MAX_LOADING_STAGES = 2
+    SECOND_STAGE_LINUX_IN_EMMC = 2,
+    MAX_LOADING_STAGES = 3
 };
 
 enum hailo_pcie_interrupt_masks {
@@ -71,6 +74,7 @@ enum hailo_pcie_interrupt_masks {
     FW_NOTIFICATION = BCS_ISTATUS_HOST_FW_IRQ_NOTIFICATION,
     DRIVER_DOWN = BCS_ISTATUS_HOST_DRIVER_DOWN,
     SOC_CONNECT_ACCEPTED = BCS_ISTATUS_SOC_CONNECT_ACCEPTED,
+    SOC_CLOSED_IRQ = BCS_ISTATUS_SOC_CLOSED_IRQ,
     VDMA_SRC_IRQ_MASK = BCS_ISTATUS_HOST_VDMA_SRC_IRQ_MASK,
     VDMA_DEST_IRQ_MASK = BCS_ISTATUS_HOST_VDMA_DEST_IRQ_MASK
 };
@@ -80,18 +84,13 @@ struct hailo_pcie_interrupt_source {
     u32 vdma_channels_bitmap;
 };
 
-struct hailo_config_constants {
-    const char *filename;
-    u32 address;
-    size_t max_size;
-};
-
 struct hailo_file_batch {
     const char *filename;
     u32 address;
     size_t max_size;
     bool is_mandatory;
     bool has_header;
+    bool has_core;
 };
 
 // TODO: HRT-6144 - Align Windows/Linux to QNX
@@ -130,27 +129,15 @@ void hailo_pcie_disable_interrupts(struct hailo_pcie_resources *resources);
 int hailo_pcie_write_firmware_control(struct hailo_pcie_resources *resources, const struct hailo_fw_control *command);
 int hailo_pcie_read_firmware_control(struct hailo_pcie_resources *resources, struct hailo_fw_control *command);
 
-int hailo_pcie_write_firmware(struct hailo_pcie_resources *resources, const void *fw_data, size_t fw_size);
 int hailo_pcie_write_firmware_batch(struct device *dev, struct hailo_pcie_resources *resources, u32 stage);
 bool hailo_pcie_is_firmware_loaded(struct hailo_pcie_resources *resources);
 bool hailo_pcie_wait_for_firmware(struct hailo_pcie_resources *resources);
 
-int hailo_pcie_read_firmware_notification(struct hailo_pcie_resources *resources,
-    struct hailo_d2h_notification *notification);
-
-int hailo_pcie_write_config_common(struct hailo_pcie_resources *resources, const void* config_data,
-    const size_t config_size, const struct hailo_config_constants *config_consts);
-const struct hailo_config_constants* hailo_pcie_get_board_config_constants(const enum hailo_board_type board_type);
-const struct hailo_config_constants* hailo_pcie_get_user_config_constants(const enum hailo_board_type board_type);
-const char* hailo_pcie_get_fw_filename(const enum hailo_board_type board_type);
-
-long hailo_pcie_read_firmware_log(struct hailo_pcie_resources *resources, struct hailo_read_log_params *params);
 int hailo_pcie_memory_transfer(struct hailo_pcie_resources *resources, struct hailo_memory_transfer_params *params);
 
 bool hailo_pcie_is_device_connected(struct hailo_pcie_resources *resources);
 void hailo_pcie_write_firmware_driver_shutdown(struct hailo_pcie_resources *resources);
-void write_memory(struct hailo_pcie_resources *resources, hailo_ptr_t dest, const void *src, u32 len);
-void hailo_trigger_firmware_boot(struct hailo_pcie_resources *resources);
+void hailo_trigger_firmware_boot(struct hailo_pcie_resources *resources, u32 address);
 
 int hailo_set_device_type(struct hailo_pcie_resources *resources);
 
@@ -159,7 +146,12 @@ u32 hailo_get_boot_status(struct hailo_pcie_resources *resources);
 int hailo_pcie_configure_atr_table(struct hailo_resource *bridge_config, u64 trsl_addr, u32 atr_index);
 void hailo_pcie_read_atr_table(struct hailo_resource *bridge_config, struct hailo_atr_config *atr, u32 atr_index);
 
-void hailo_soc_write_soc_connect(struct hailo_pcie_resources *resources);
+u64 hailo_pcie_encode_desc_dma_address_range(dma_addr_t dma_address_start, dma_addr_t dma_address_end, u32 step, u8 channel_id);
+
+void hailo_pcie_soc_write_request(struct hailo_pcie_resources *resources,
+    const struct hailo_pcie_soc_request *request);
+void hailo_pcie_soc_read_response(struct hailo_pcie_resources *resources,
+    struct hailo_pcie_soc_response *response);
 
 #ifdef __cplusplus
 }
