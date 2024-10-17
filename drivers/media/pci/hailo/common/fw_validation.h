@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef PCIE_COMMON_FIRMWARE_HEADER_UTILS_H_
@@ -44,8 +44,7 @@ typedef struct {
 typedef struct {
     u32 key_size;
     u32 content_size;
-    u8 certificates_data[0];
-} secure_boot_certificate_t;
+} secure_boot_certificate_header_t;
 
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -60,6 +59,6 @@ int FW_VALIDATION__validate_fw_header(uintptr_t firmware_base_address,
     firmware_header_t **out_firmware_header, enum hailo_board_type board_type);
 
 int FW_VALIDATION__validate_cert_header(uintptr_t firmware_base_address,
-    size_t firmware_size, u32 *outer_consumed_firmware_offset, secure_boot_certificate_t **out_firmware_cert);
+    size_t firmware_size, u32 *outer_consumed_firmware_offset, secure_boot_certificate_header_t **out_firmware_cert);
 
 #endif

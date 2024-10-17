@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include "ioctl.h"
@@ -12,7 +12,7 @@
 #include <linux/uaccess.h>
 
 
-long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
+long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg, struct hailo_vdma_file_context *context)
 {
     struct hailo_vdma_enable_channels_params input;
     struct hailo_vdma_engine *engine = NULL;
@@ -40,12 +40,15 @@ long hailo_vdma_enable_channels_ioctl(struct hailo_vdma_controller *controller, 
         hailo_vdma_update_interrupts_mask(controller, engine_index);
         hailo_dev_info(controller->dev, "Enabled interrupts for engine %u, channels bitmap 0x%x\n",
             engine_index, channels_bitmap);
+
+        // Update the context with the enabled channels bitmap
+        context->enabled_channels_bitmap[engine_index] |= channels_bitmap;
     }
 
     return 0;
 }
 
-long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg)
+long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller, unsigned long arg, struct hailo_vdma_file_context *context)
 {
     struct hailo_vdma_disable_channels_params input;
     struct hailo_vdma_engine *engine = NULL;
@@ -77,6 +80,9 @@ long hailo_vdma_disable_channels_ioctl(struct hailo_vdma_controller *controller,
 
         hailo_dev_info(controller->dev, "Disabled channels for engine %u, bitmap 0x%x\n",
             engine_index, channels_bitmap);
+
+        // Update the context with the disabled channels bitmap
+        context->enabled_channels_bitmap[engine_index] &= ~channels_bitmap;
     }
 
     // Wake up threads waiting
@@ -204,7 +210,7 @@ long hailo_vdma_buffer_map_ioctl(struct hailo_vdma_file_context *context, struct
         return -EFAULT;
     }
 
-    hailo_dev_info(controller->dev, "address %lx tgid %d size: %zu\n",
+    hailo_dev_dbg(controller->dev, "address %lx tgid %d size: %zu\n",
         buf_info.user_address, current->tgid, buf_info.size);
 
     direction = get_dma_direction(buf_info.data_direction);
@@ -231,7 +237,7 @@ long hailo_vdma_buffer_map_ioctl(struct hailo_vdma_file_context *context, struct
     }
 
     list_add(&mapped_buffer->mapped_user_buffer_list, &context->mapped_user_buffer_list);
-    hailo_dev_info(controller->dev, "buffer %lx (handle %zu) is mapped\n",
+    hailo_dev_dbg(controller->dev, "buffer %lx (handle %zu) is mapped\n",
         buf_info.user_address, buf_info.mapped_handle);
     return 0;
 }
@@ -247,7 +253,7 @@ long hailo_vdma_buffer_unmap_ioctl(struct hailo_vdma_file_context *context, stru
         return -EFAULT;
     }
 
-    hailo_dev_info(controller->dev, "unmap user buffer handle %zu\n", buffer_unmap_params.mapped_handle);
+    hailo_dev_dbg(controller->dev, "unmap user buffer handle %zu\n", buffer_unmap_params.mapped_handle);
 
     mapped_buffer = hailo_vdma_find_mapped_user_buffer(context, buffer_unmap_params.mapped_handle);
     if (mapped_buffer == NULL) {
