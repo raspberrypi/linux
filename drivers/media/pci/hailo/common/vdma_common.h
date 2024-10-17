@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #ifndef _HAILO_COMMON_VDMA_COMMON_H_
@@ -30,7 +30,13 @@ struct hailo_vdma_descriptor {
 
 struct hailo_vdma_descriptors_list {
     struct hailo_vdma_descriptor *desc_list;
-    u32                           desc_count;  // Must be power of 2 if is_circular is set.
+    // Must be power of 2 if is_circular is set.
+    u32                           desc_count;
+    // The nearest power of 2 to desc_count (including desc_count), minus 1.
+    // * If the list is circular, then 'index & desc_count_mask' can be used instead of modulo.
+    // * Otherwise, we can't wrap around the list anyway. However, for any index < desc_count, 'index & desc_count_mask'
+    //   will return the same value.
+    u32                           desc_count_mask;
     u16                           desc_page_size;
     bool                          is_circular;
 };
@@ -113,9 +119,10 @@ struct hailo_vdma_engine {
 };
 
 struct hailo_vdma_hw_ops {
-    // Accepts some dma_addr_t mapped to the device and encodes it using
-    // hw specific encode. returns INVALID_VDMA_ADDRESS on failure.
-    u64 (*encode_desc_dma_address)(dma_addr_t dma_address, u8 channel_id);
+    // Accepts start, end and step of an address range (of type  dma_addr_t).
+    // Returns the encoded base address or INVALID_VDMA_ADDRESS if the range/step is invalid.
+    // All addresses in the range of [returned_addr, returned_addr + step, returned_addr + 2*step, ..., dma_address_end) are valid.
+    u64 (*encode_desc_dma_address_range)(dma_addr_t dma_address_start, dma_addr_t dma_address_end, u32 step, u8 channel_id);
 };
 
 struct hailo_vdma_hw {
@@ -136,11 +143,8 @@ struct hailo_vdma_hw {
     for (index = 0, element = &array[index]; index < size; index++, element = &array[index])
 
 #define for_each_vdma_channel(engine, channel, channel_index) \
-    _for_each_element_array(engine->channels, MAX_VDMA_CHANNELS_PER_ENGINE,   \
+    _for_each_element_array((engine)->channels, MAX_VDMA_CHANNELS_PER_ENGINE,   \
         channel, channel_index)
-
-void hailo_vdma_program_descriptor(struct hailo_vdma_descriptor *descriptor, u64 dma_address, size_t page_size,
-    u8 data_id);
 
 /**
  * Program the given descriptors list to map the given buffer.

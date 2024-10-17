@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include <linux/version.h>
@@ -22,6 +22,8 @@
 
 #include "hailo_ioctl_common.h"
 #include "pcie.h"
+#include "nnc.h"
+#include "soc.h"
 #include "fops.h"
 #include "sysfs.h"
 #include "utils/logs.h"
@@ -40,11 +42,12 @@ enum hailo_allocate_driver_buffer_driver_param {
     HAILO_FORCE_BUFFER_FROM_DRIVER = 2,
 };
 
-//Debug flag
+// Debug flag
 static int force_desc_page_size = 0;
 static bool g_is_power_mode_enabled = true;
 static int force_allocation_from_driver = HAILO_NO_FORCE_BUFFER;
 static bool force_hailo15_legacy_mode = false;
+static bool force_boot_linux_from_eemc = false;
 
 #define DEVICE_NODE_NAME "hailo"
 static int char_major = 0;
@@ -206,7 +209,7 @@ static int hailo_pcie_disable_aspm(struct hailo_pcie_board *board, u16 state, bo
     /* Double-check ASPM control.  If not disabled by the above, the
      * BIOS is preventing that from happening (or CONFIG_PCIEASPM is
      * not enabled); override by writing PCI config space directly.
-     */                       
+     */
     err = pcie_capability_read_word(pdev, PCI_EXP_LNKCTL, &pdev_aspmc);
     if (err < 0) {
         hailo_err(board, "Couldn't read LNKCTL capability\n");
@@ -288,85 +291,43 @@ static void hailo_pcie_remove_board(struct hailo_pcie_board* pBoard)
     up(&g_hailo_add_board_mutex);
 }
 
-static int hailo_write_config(struct hailo_pcie_resources *resources, struct device *dev,
-    const struct hailo_config_constants *config_consts)
-{
-    const struct firmware *config = NULL;
-    int err = 0;
-
-    if (NULL == config_consts->filename) {
-        // Config not supported for platform
-        return 0;
-    }
-
-    err = request_firmware_direct(&config, config_consts->filename, dev);
-    if (err < 0) {
-        hailo_dev_info(dev, "Config %s not found\n", config_consts->filename);
-        return 0;
-    }
-
-    hailo_dev_notice(dev, "Writing config %s\n", config_consts->filename);
-
-    err = hailo_pcie_write_config_common(resources, config->data, config->size, config_consts);
-    if (err < 0) {
-        if (-EINVAL == err) {
-            hailo_dev_warn(dev, "Config size %zu is bigger than max %zu\n", config->size, config_consts->max_size);
-        }
-        release_firmware(config);
-        return err;
-    }
-
-    release_firmware(config);
-    return 0;
-}
-
 static bool wait_for_firmware_completion(struct completion *fw_load_completion)
 {
     return (0 != wait_for_completion_timeout(fw_load_completion, msecs_to_jiffies(FIRMWARE_WAIT_TIMEOUT_MS)));
 }
 
-static int hailo_load_firmware(struct hailo_pcie_resources *resources,
+static int hailo_load_soc_firmware(struct hailo_pcie_resources *resources,
     struct device *dev, struct completion *fw_load_completion)
 {
-    const struct firmware *firmware = NULL;
-    int err = 0;
     u32 boot_status = 0;
+    int err = 0;
+    u32 second_stage = force_boot_linux_from_eemc ? SECOND_STAGE_LINUX_IN_EMMC : SECOND_STAGE;
 
     if (hailo_pcie_is_firmware_loaded(resources)) {
-        hailo_dev_warn(dev, "Firmware was already loaded\n");
+        hailo_dev_warn(dev, "Firmware batch was already loaded\n");
         return 0;
     }
 
+    init_completion(fw_load_completion);
+
+    err = hailo_pcie_write_firmware_batch(dev, resources, FIRST_STAGE);
+    if (err < 0) {
+        hailo_dev_err(dev, "Failed writing firmware files. err %d\n", err);
+        return err;
+    }
+
+    if (!wait_for_firmware_completion(fw_load_completion)) {
+        boot_status = hailo_get_boot_status(resources);
+        hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
+        return -ETIMEDOUT;
+    }
     reinit_completion(fw_load_completion);
 
-    err = hailo_write_config(resources, dev, hailo_pcie_get_board_config_constants(resources->board_type));
+    err = hailo_pcie_write_firmware_batch(dev, resources, second_stage);
     if (err < 0) {
-        hailo_dev_err(dev, "Failed writing board config");
+        hailo_dev_err(dev, "Failed writing firmware files. err %d\n", err);
         return err;
     }
-
-    err = hailo_write_config(resources, dev, hailo_pcie_get_user_config_constants(resources->board_type));
-    if (err < 0) {
-        hailo_dev_err(dev, "Failed writing fw config");
-        return err;
-    }
-
-    // read firmware file
-    err = request_firmware_direct(&firmware, hailo_pcie_get_fw_filename(resources->board_type), dev);
-    if (err < 0) {
-        hailo_dev_warn(dev, "Firmware file not found (/lib/firmware/%s), please upload the firmware manually \n",
-            hailo_pcie_get_fw_filename(resources->board_type));
-        return 0;
-    }
-
-    err = hailo_pcie_write_firmware(resources, firmware->data, firmware->size);
-    if (err < 0) {
-        hailo_dev_err(dev, "Failed writing firmware. err %d\n", err);
-        release_firmware(firmware);
-        return err;
-    }
-
-    release_firmware(firmware);
 
     if (!wait_for_firmware_completion(fw_load_completion)) {
         boot_status = hailo_get_boot_status(resources);
@@ -374,15 +335,15 @@ static int hailo_load_firmware(struct hailo_pcie_resources *resources,
         return -ETIMEDOUT;
     }
 
-    hailo_dev_notice(dev, "Firmware was loaded successfully\n");
+    hailo_dev_notice(dev, "Firmware Batch loaded successfully\n");
+
     return 0;
 }
 
-static int hailo_load_firmware_batch(struct hailo_pcie_resources *resources,
+static int hailo_load_nnc_firmware(struct hailo_pcie_resources *resources,
     struct device *dev, struct completion *fw_load_completion)
 {
     u32 boot_status = 0;
-    u32 pcie_finished = 1;
     int err = 0;
 
     if (hailo_pcie_is_firmware_loaded(resources)) {
@@ -398,31 +359,13 @@ static int hailo_load_firmware_batch(struct hailo_pcie_resources *resources,
         return err;
     }
 
-    hailo_trigger_firmware_boot(resources);
-
-    if (!wait_for_firmware_completion(fw_load_completion)) {
-        boot_status = hailo_get_boot_status(resources);
-        hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
-        return -ETIMEDOUT;
-    }
-    reinit_completion(fw_load_completion);
-
-    err = hailo_pcie_write_firmware_batch(dev, resources, SECOND_STAGE);
-    if (err < 0) {
-        hailo_dev_err(dev, "Failed writing firmware files. err %d\n", err);
-        return err;
-    }
-
-    // TODO: HRT-13838 - Remove, move address to compat, make write_memory static
-    write_memory(resources, 0x84000000, (void*)&pcie_finished, sizeof(pcie_finished));
-
     if (!wait_for_firmware_completion(fw_load_completion)) {
         boot_status = hailo_get_boot_status(resources);
         hailo_dev_err(dev, "Timeout waiting for firmware file, boot status %u\n", boot_status);
         return -ETIMEDOUT;
     }
 
-    hailo_dev_notice(dev, "Firmware Batch loaded successfully\n");
+    hailo_dev_notice(dev, "Firmware loaded successfully\n");
 
     return 0;
 }
@@ -439,15 +382,13 @@ static int hailo_activate_board(struct hailo_pcie_board *board)
         return err;
     }
 
-    switch (board->pcie_resources.board_type) {
-    case HAILO_BOARD_TYPE_HAILO10H:
-        err = hailo_load_firmware_batch(&board->pcie_resources, &board->pDev->dev,
+    switch (board->pcie_resources.accelerator_type) {
+    case HAILO_ACCELERATOR_TYPE_SOC:
+        err = hailo_load_soc_firmware(&board->pcie_resources, &board->pDev->dev,
             &board->fw_loaded_completion);
         break;
-    case HAILO_BOARD_TYPE_HAILO10H_LEGACY:
-    case HAILO_BOARD_TYPE_PLUTO:
-    case HAILO_BOARD_TYPE_HAILO8:
-        err = hailo_load_firmware(&board->pcie_resources, &board->pDev->dev,
+    case HAILO_ACCELERATOR_TYPE_NNC:
+        err = hailo_load_nnc_firmware(&board->pcie_resources, &board->pDev->dev,
             &board->fw_loaded_completion);
         break;
     default:
@@ -464,6 +405,7 @@ static int hailo_activate_board(struct hailo_pcie_board *board)
 
     if (power_mode_enabled()) {
         // Setting the device to low power state, until the user opens the device
+        hailo_info(board, "Power change state  to PCI_D3hot\n");
         err = pci_set_power_state(board->pDev, PCI_D3hot);
         if (err < 0) {
             hailo_err(board, "Set power state failed %d\n", err);
@@ -755,21 +697,17 @@ static int hailo_pcie_probe(struct pci_dev* pDev, const struct pci_device_id* id
 
     pBoard->interrupts_enabled = false;
     init_completion(&pBoard->fw_loaded_completion);
-    init_completion(&pBoard->soc_connect_accepted);
 
     sema_init(&pBoard->mutex, 1);
     atomic_set(&pBoard->ref_count, 0);
     INIT_LIST_HEAD(&pBoard->open_files_list);
 
-    sema_init(&pBoard->fw_control.mutex, 1);
-    spin_lock_init(&pBoard->notification_read_spinlock);
-    init_completion(&pBoard->fw_control.completion);
+    // Init both soc and nnc, since the interrupts are shared.
+    hailo_nnc_init(&pBoard->nnc);
+    hailo_soc_init(&pBoard->soc);
 
     init_completion(&pBoard->driver_down.reset_completed);
 
-    INIT_LIST_HEAD(&pBoard->notification_wait_list);
-
-    memset(&pBoard->notification_cache, 0, sizeof(pBoard->notification_cache));
     memset(&pBoard->memory_transfer_params, 0, sizeof(pBoard->memory_transfer_params));
 
     err = hailo_pcie_vdma_controller_init(&pBoard->vdma, &pBoard->pDev->dev,
@@ -832,7 +770,6 @@ probe_exit:
 static void hailo_pcie_remove(struct pci_dev* pDev)
 {
     struct hailo_pcie_board* pBoard = (struct hailo_pcie_board*) pci_get_drvdata(pDev);
-    struct hailo_notification_wait *cursor = NULL;
 
     pci_notice(pDev, "Remove: Releasing board\n");
 
@@ -864,13 +801,7 @@ static void hailo_pcie_remove(struct pci_dev* pDev)
 
         pci_set_drvdata(pDev, NULL);
 
-        // Lock rcu_read_lock and send notification_completion to wake anyone waiting on the notification_wait_list when removed
-        rcu_read_lock();
-        list_for_each_entry_rcu(cursor, &pBoard->notification_wait_list, notification_wait_list) {
-            cursor->is_disabled = true;
-            complete(&cursor->notification_completion);
-        }
-        rcu_read_unlock();
+        hailo_nnc_finalize(&pBoard->nnc);
 
         up(&pBoard->mutex);
 
@@ -889,6 +820,15 @@ static void hailo_pcie_remove(struct pci_dev* pDev)
 
 }
 
+inline int driver_down(struct hailo_pcie_board *board)
+{
+    if (board->pcie_resources.accelerator_type == HAILO_ACCELERATOR_TYPE_NNC) {
+        return hailo_nnc_driver_down(board);
+    } else {
+        return hailo_soc_driver_down(board);
+    }
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int hailo_pcie_suspend(struct device *dev)
 {
@@ -899,16 +839,15 @@ static int hailo_pcie_suspend(struct device *dev)
     // lock board to wait for any pending operations
     down(&board->mutex);
 
-    // Disable all interrupts. All interrupts from Hailo chip would be masked.
-    hailo_disable_interrupts(board);
-
-    // Close all vDMA channels
     if (board->vdma.used_by_filp != NULL) {
-        err = hailo_pcie_driver_down(board);
+        err = driver_down(board);
         if (err < 0) {
             dev_notice(dev, "Error while trying to call FW to close vdma channels\n");
         }
     }
+
+    // Disable all interrupts. All interrupts from Hailo chip would be masked.
+    hailo_disable_interrupts(board);
 
     // Un validate all activae file contexts so every new action would return error to the user.
     list_for_each_entry(cur, &board->open_files_list, open_files_list) {
@@ -919,8 +858,8 @@ static int hailo_pcie_suspend(struct device *dev)
     up(&board->mutex);
 
     dev_notice(dev, "PM's suspend\n");
-    // Continue system suspend
-    return err;
+    // Success Oriented - Continue system suspend even in case of error (otherwise system will not suspend correctly)
+    return 0;
 }
 
 static int hailo_pcie_resume(struct device *dev)
@@ -930,10 +869,10 @@ static int hailo_pcie_resume(struct device *dev)
 
     if ((err = hailo_activate_board(board)) < 0) {
         dev_err(dev, "Failed activating board %d\n", err);
-        return err;
     }
 
     dev_notice(dev, "PM's resume\n");
+    // Success Oriented - Continue system resume even in case of error (otherwise system will not suspend correctly)
     return 0;
 }
 #endif /* CONFIG_PM_SLEEP */
@@ -954,7 +893,7 @@ static void hailo_pci_reset_prepare(struct pci_dev *pdev)
         down(&board->mutex);
         if (board->vdma.used_by_filp != NULL) {
             // Try to close all vDMA channels before reset
-            err = hailo_pcie_driver_down(board);
+            err = driver_down(board);
             if (err < 0) {
                 pci_err(pdev, "Error while trying to call FW to close vdma channels (errno %d)\n", err);
             }
@@ -1087,6 +1026,9 @@ MODULE_PARM_DESC(force_desc_page_size, "Determines the maximum DMA descriptor pa
 
 module_param(force_hailo15_legacy_mode, bool, S_IRUGO);
 MODULE_PARM_DESC(force_hailo15_legacy_mode, "Forces work with Hailo15 in legacy mode(relevant for emulators)");
+
+module_param(force_boot_linux_from_eemc, bool, S_IRUGO);
+MODULE_PARM_DESC(force_boot_linux_from_eemc, "Boot the linux image from eemc (Requires special Image)");
 
 MODULE_AUTHOR("Hailo Technologies Ltd.");
 MODULE_DESCRIPTION("Hailo PCIe driver");
