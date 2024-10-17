@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2022 Hailo Technologies Ltd. All rights reserved.
-**/
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
+ **/
 
 #include "fw_operation.h"
 
@@ -15,7 +15,10 @@ typedef struct {
     u32 chip_offset;
 } FW_DEBUG_BUFFER_HEADER_t;
 
-#define DEBUG_BUFFER_DATA_SIZE (DEBUG_BUFFER_TOTAL_SIZE - sizeof(FW_DEBUG_BUFFER_HEADER_t))
+#define DEBUG_BUFFER_DATA_SIZE              (DEBUG_BUFFER_TOTAL_SIZE - sizeof(FW_DEBUG_BUFFER_HEADER_t))
+#define PCIE_D2H_NOTIFICATION_SRAM_OFFSET   (0x640 + 0x640)
+#define PCIE_APP_CPU_DEBUG_OFFSET           (8*1024)
+#define PCIE_CORE_CPU_DEBUG_OFFSET          (PCIE_APP_CPU_DEBUG_OFFSET + DEBUG_BUFFER_TOTAL_SIZE)
 
 int hailo_read_firmware_notification(struct hailo_resource *resource, struct hailo_d2h_notification *notification)
 {
@@ -33,6 +36,21 @@ int hailo_read_firmware_notification(struct hailo_resource *resource, struct hai
     // Write is_buffer_in_use = false
     hailo_resource_write16(resource, 0, 0);
     return 0;
+}
+
+int hailo_pcie_read_firmware_notification(struct hailo_resource *resource,
+    struct hailo_d2h_notification *notification)
+{
+    struct hailo_resource notification_resource;
+
+    if (PCIE_D2H_NOTIFICATION_SRAM_OFFSET > resource->size) {
+        return -EINVAL;
+    }
+
+    notification_resource.address = resource->address + PCIE_D2H_NOTIFICATION_SRAM_OFFSET,
+    notification_resource.size = sizeof(struct hailo_d2h_notification);
+
+    return hailo_read_firmware_notification(&notification_resource, notification);
 }
 
 static inline size_t calculate_log_ready_to_read(FW_DEBUG_BUFFER_HEADER_t *header)
@@ -99,5 +117,31 @@ long hailo_read_firmware_log(struct hailo_resource *fw_logger_resource, struct h
         (u32)(read_offset - sizeof(debug_buffer_header)));
     
     params->read_bytes = ready_to_read;
+    return 0;
+}
+
+long hailo_pcie_read_firmware_log(struct hailo_resource *resource, struct hailo_read_log_params *params)
+{
+    long err = 0;
+    struct hailo_resource log_resource = {resource->address, DEBUG_BUFFER_TOTAL_SIZE};
+
+    if (HAILO_CPU_ID_CPU0 == params->cpu_id) {
+        log_resource.address += PCIE_APP_CPU_DEBUG_OFFSET;
+    } else if (HAILO_CPU_ID_CPU1 == params->cpu_id) {
+        log_resource.address += PCIE_CORE_CPU_DEBUG_OFFSET;
+    } else {
+        return -EINVAL;
+    }
+
+    if (0 == params->buffer_size) {
+        params->read_bytes = 0;
+        return 0;
+    }
+
+    err = hailo_read_firmware_log(&log_resource, params);
+    if (0 != err) {
+        return err;
+    }
+
     return 0;
 }

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #define pr_fmt(fmt) "hailo: " fmt
 
 #include "memory.h"
+#include "utils.h"
 #include "utils/compact.h"
 
 #include <linux/highmem-internal.h>
@@ -316,6 +317,11 @@ int hailo_desc_list_create(struct device *dev, u32 descriptors_count, u16 desc_p
     size_t buffer_size = 0;
     const u64 align = VDMA_DESCRIPTOR_LIST_ALIGN; //First addr must be aligned on 64 KB  (from the VDMA registers documentation)
 
+    if (MAX_POWER_OF_2_VALUE < descriptors_count) {
+        dev_err(dev, "Invalid descriptors count %u\n", descriptors_count);
+        return -EINVAL;
+    }
+
     buffer_size = descriptors_count * sizeof(struct hailo_vdma_descriptor);
     buffer_size = ALIGN(buffer_size, align);
 
@@ -323,7 +329,7 @@ int hailo_desc_list_create(struct device *dev, u32 descriptors_count, u16 desc_p
         &descriptors->dma_address, GFP_KERNEL | __GFP_ZERO);
     if (descriptors->kernel_address == NULL) {
         dev_err(dev, "Failed to allocate descriptors list, desc_count 0x%x, buffer_size 0x%zx, This failure means there is not a sufficient amount of CMA memory "
-            "(contiguous physical memory), This usually is caused by lack of general system memory. Please check you have sufficent memory.\n",
+            "(contiguous physical memory), This usually is caused by lack of general system memory. Please check you have sufficient memory.\n",
             descriptors_count, buffer_size);
         return -ENOMEM;
     }
@@ -333,6 +339,8 @@ int hailo_desc_list_create(struct device *dev, u32 descriptors_count, u16 desc_p
 
     descriptors->desc_list.desc_list = descriptors->kernel_address;
     descriptors->desc_list.desc_count = descriptors_count;
+    // No need to check the return value of get_nearest_powerof_2 because we already checked the input
+    descriptors->desc_list.desc_count_mask = is_circular ? (descriptors_count - 1) : (get_nearest_powerof_2(descriptors_count) - 1);
     descriptors->desc_list.desc_page_size = desc_page_size;
     descriptors->desc_list.is_circular = is_circular;
 

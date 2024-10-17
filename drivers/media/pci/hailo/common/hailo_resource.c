@@ -1,24 +1,31 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include "hailo_resource.h"
+
+#include "utils.h"
 
 #include <linux/io.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#define ALIGN_TO_32_BIT(addr) ((addr) & (~((uintptr_t)0x3)))
 
 u8 hailo_resource_read8(struct hailo_resource *resource, size_t offset)
 {
-    return ioread8((u8*)resource->address + offset);
+    u32 val = ioread32((u8*)ALIGN_TO_32_BIT(resource->address + offset));
+    u64 offset_in_bits = BITS_IN_BYTE * ((resource->address + offset) - ALIGN_TO_32_BIT(resource->address + offset));
+    return (u8)READ_BITS_AT_OFFSET(BYTE_SIZE * BITS_IN_BYTE, offset_in_bits, val);
 }
 
 u16 hailo_resource_read16(struct hailo_resource *resource, size_t offset)
 {
-    return ioread16((u8*)resource->address + offset);
+    u32 val = ioread32((u8*)ALIGN_TO_32_BIT(resource->address + offset));
+    u64 offset_in_bits = BITS_IN_BYTE * ((resource->address + offset) - ALIGN_TO_32_BIT(resource->address + offset));
+    return (u16)READ_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, offset_in_bits, val);
 }
 
 u32 hailo_resource_read32(struct hailo_resource *resource, size_t offset)
@@ -28,12 +35,18 @@ u32 hailo_resource_read32(struct hailo_resource *resource, size_t offset)
 
 void hailo_resource_write8(struct hailo_resource *resource, size_t offset, u8 value)
 {
-    iowrite8(value, (u8*)resource->address + offset);
+    u32 initial_val = ioread32((u8*)ALIGN_TO_32_BIT(resource->address + offset));
+    u64 offset_in_bits = BITS_IN_BYTE * ((resource->address + offset) - ALIGN_TO_32_BIT(resource->address + offset));
+    iowrite32(WRITE_BITS_AT_OFFSET(BYTE_SIZE * BITS_IN_BYTE, offset_in_bits, initial_val, value),
+        (u8*)ALIGN_TO_32_BIT(resource->address + offset));
 }
 
 void hailo_resource_write16(struct hailo_resource *resource, size_t offset, u16 value)
 {
-    iowrite16(value, (u8*)resource->address + offset);
+    u32 initial_val = ioread32((u8*)ALIGN_TO_32_BIT(resource->address + offset));
+    u64 offset_in_bits = BITS_IN_BYTE * ((resource->address + offset) - ALIGN_TO_32_BIT(resource->address + offset));
+    iowrite32(WRITE_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, offset_in_bits, initial_val, value),
+        (u8*)ALIGN_TO_32_BIT(resource->address + offset));
 }
 
 void hailo_resource_write32(struct hailo_resource *resource, size_t offset, u32 value)

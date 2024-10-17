@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include "fw_validation.h"
@@ -85,15 +85,15 @@ exit:
 }
 
 int FW_VALIDATION__validate_cert_header(uintptr_t firmware_base_address,
-    size_t firmware_size, u32 *outer_consumed_firmware_offset, secure_boot_certificate_t **out_firmware_cert)
+    size_t firmware_size, u32 *outer_consumed_firmware_offset, secure_boot_certificate_header_t **out_firmware_cert)
 {
 
-    secure_boot_certificate_t *firmware_cert = NULL;
+    secure_boot_certificate_header_t *firmware_cert = NULL;
     int err = -EINVAL;
     u32 consumed_firmware_offset = *outer_consumed_firmware_offset;
 
-    firmware_cert = (secure_boot_certificate_t *) (firmware_base_address + consumed_firmware_offset);
-    CONSUME_FIRMWARE(sizeof(secure_boot_certificate_t), -EINVAL);
+    firmware_cert = (secure_boot_certificate_header_t *) (firmware_base_address + consumed_firmware_offset);
+    CONSUME_FIRMWARE(sizeof(secure_boot_certificate_header_t), -EINVAL);
 
     if ((MAXIMUM_FIRMWARE_CERT_KEY_SIZE < firmware_cert->key_size) ||
         (MAXIMUM_FIRMWARE_CERT_CONTENT_SIZE < firmware_cert->content_size)) {
