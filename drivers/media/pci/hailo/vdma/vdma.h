@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 /**
  * Hailo vdma engine definitions
@@ -130,6 +130,7 @@ struct hailo_vdma_file_context {
     struct list_head descriptors_buffer_list;
     struct list_head vdma_low_memory_buffer_list;
     struct list_head continuous_buffer_list;
+    u32 enabled_channels_bitmap[MAX_VDMA_ENGINES];
 };
 
 
@@ -145,6 +146,8 @@ void hailo_vdma_file_context_init(struct hailo_vdma_file_context *context);
 void hailo_vdma_file_context_finalize(struct hailo_vdma_file_context *context,
     struct hailo_vdma_controller *controller, struct file *filp);
 
+void hailo_vdma_wakeup_interrupts(struct hailo_vdma_controller *controller, struct hailo_vdma_engine *engine, 
+    u32 channels_bitmap);
 void hailo_vdma_irq_handler(struct hailo_vdma_controller *controller, size_t engine_index,
     u32 channels_bitmap);
 

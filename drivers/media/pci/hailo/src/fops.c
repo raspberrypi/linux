@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /**
- * Copyright (c) 2019-2022 Hailo Technologies Ltd. All rights reserved.
+ * Copyright (c) 2019-2024 Hailo Technologies Ltd. All rights reserved.
  **/
 
 #include <linux/version.h>
@@ -19,14 +19,14 @@
 #include <linux/sched/signal.h>
 #endif
 
-#include "utils.h"
 #include "fops.h"
 #include "vdma_common.h"
 #include "utils/logs.h"
 #include "vdma/memory.h"
 #include "vdma/ioctl.h"
 #include "utils/compact.h"
-#include "pci_soc_ioctl.h"
+#include "nnc.h"
+#include "soc.h"
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 13, 0 )
@@ -48,13 +48,6 @@
 // On pcie driver there is only one dma engine
 #define DEFAULT_VDMA_ENGINE_INDEX       (0)
 
-#if !defined(HAILO_EMULATOR)
-#define DEFAULT_SHUTDOWN_TIMEOUT_MS (5)
-#else /* !defined(HAILO_EMULATOR) */
-#define DEFAULT_SHUTDOWN_TIMEOUT_MS (1000)
-#endif /* !defined(HAILO_EMULATOR) */
-
-static long hailo_add_notification_wait(struct hailo_pcie_board *board, struct file *filp);
 
 static struct hailo_file_context *create_file_context(struct hailo_pcie_board *board, struct file *filp)
 {
@@ -124,7 +117,7 @@ int hailo_pcie_fops_open(struct inode *inode, struct file *filp)
 
     previous_power_state = pBoard->pDev->current_state;
     if (PCI_D0 != previous_power_state) {
-        hailo_info(pBoard, "Waking up board");
+        hailo_info(pBoard, "Waking up board change state from %d to PCI_D0\n", previous_power_state);
         err = pci_set_power_state(pBoard->pDev, PCI_D0);
         if (err < 0) {
             hailo_err(pBoard, "Failed waking up board %d", err);
@@ -148,7 +141,11 @@ int hailo_pcie_fops_open(struct inode *inode, struct file *filp)
         interrupts_enabled_by_filp = true;
     }
 
-    err = hailo_add_notification_wait(pBoard, filp);
+    if (pBoard->pcie_resources.accelerator_type == HAILO_ACCELERATOR_TYPE_NNC) {
+        err = hailo_nnc_file_context_init(pBoard, context);
+    } else {
+        err = hailo_soc_file_context_init(pBoard, context);
+    }
     if (err < 0) {
         goto l_release_irq;
     }
@@ -166,6 +163,7 @@ l_release_irq:
 
 l_revert_power_state:
     if (pBoard->pDev->current_state != previous_power_state) {
+        hailo_info(pBoard, "Power changing state from %d to %d\n", previous_power_state, pBoard->pDev->current_state);
         if (pci_set_power_state(pBoard->pDev, previous_power_state) < 0) {
             hailo_err(pBoard, "Failed setting power state back to %d\n", (int)previous_power_state);
         }
@@ -176,34 +174,6 @@ l_release_mutex:
     up(&pBoard->mutex);
 l_decrease_ref_count:
     atomic_dec(&pBoard->ref_count);
-l_exit:
-    return err;
-}
-
-int hailo_pcie_driver_down(struct hailo_pcie_board *board)
-{
-    long completion_result = 0;
-    int err = 0;
-
-    reinit_completion(&board->driver_down.reset_completed);
-
-    hailo_pcie_write_firmware_driver_shutdown(&board->pcie_resources);
-
-    // Wait for response
-    completion_result =
-        wait_for_completion_timeout(&board->driver_down.reset_completed, msecs_to_jiffies(DEFAULT_SHUTDOWN_TIMEOUT_MS));
-    if (completion_result <= 0) {
-        if (0 == completion_result) {
-            hailo_err(board, "hailo_pcie_driver_down, timeout waiting for shutdown response (timeout_ms=%d)\n", DEFAULT_SHUTDOWN_TIMEOUT_MS);
-            err = -ETIMEDOUT;
-        } else {
-            hailo_info(board, "hailo_pcie_driver_down, wait for completion failed with err=%ld (process was interrupted or killed)\n",
-                completion_result);
-            err = completion_result;
-        }
-        goto l_exit;
-    }
-
 l_exit:
     return err;
 }
@@ -234,12 +204,10 @@ int hailo_pcie_fops_release(struct inode *inode, struct file *filp)
             hailo_err(board, "Invalid file context\n");
         }
 
-        hailo_pcie_clear_notification_wait_list(board, filp);
-
-        if (filp == board->vdma.used_by_filp) {
-            if (hailo_pcie_driver_down(board)) {
-                hailo_err(board, "Failed sending FW shutdown event");
-            }
+        if (board->pcie_resources.accelerator_type == HAILO_ACCELERATOR_TYPE_NNC) {
+            hailo_nnc_file_context_finalize(board, context);
+        } else {
+            hailo_soc_file_context_finalize(board, context);
         }
 
         hailo_vdma_file_context_finalize(&context->vdma_context, &board->vdma, filp);
@@ -250,6 +218,7 @@ int hailo_pcie_fops_release(struct inode *inode, struct file *filp)
             hailo_disable_interrupts(board);
 
             if (power_mode_enabled()) {
+                hailo_info(board, "Power change state to PCI_D3hot\n");
                 if (board->pDev && pci_set_power_state(board->pDev, PCI_D3hot) < 0) {
                     hailo_err(board, "Failed setting power state to D3hot");
                 }
@@ -301,44 +270,23 @@ static long hailo_memory_transfer_ioctl(struct hailo_pcie_board *board, unsigned
     return err;
 }
 
-static long hailo_read_log_ioctl(struct hailo_pcie_board *pBoard, unsigned long arg)
-{
-    long err = 0;
-    struct hailo_read_log_params params;
-
-    if (copy_from_user(&params, (void __user*)arg, sizeof(params))) {
-        hailo_err(pBoard, "HAILO_READ_LOG, copy_from_user fail\n");
-        return -ENOMEM;
-    }
-
-    if (0 > (err = hailo_pcie_read_firmware_log(&pBoard->pcie_resources, &params))) {
-        hailo_err(pBoard, "HAILO_READ_LOG, reading from log failed with error: %ld \n", err);
-        return err;
-    }
-
-    if (copy_to_user((void*)arg, &params, sizeof(params))) {
-        return -ENOMEM;
-    }
-
-    return 0;
-}
-
 static void firmware_notification_irq_handler(struct hailo_pcie_board *board)
 {
     struct hailo_notification_wait *notif_wait_cursor = NULL;
     int err = 0;
     unsigned long irq_saved_flags = 0;
 
-    spin_lock_irqsave(&board->notification_read_spinlock, irq_saved_flags);
-    err = hailo_pcie_read_firmware_notification(&board->pcie_resources, &board->notification_cache);
-    spin_unlock_irqrestore(&board->notification_read_spinlock, irq_saved_flags);
+    spin_lock_irqsave(&board->nnc.notification_read_spinlock, irq_saved_flags);
+    err = hailo_pcie_read_firmware_notification(&board->pcie_resources.fw_access, &board->nnc.notification_cache);
+    spin_unlock_irqrestore(&board->nnc.notification_read_spinlock, irq_saved_flags);
 
     if (err < 0) {
         hailo_err(board, "Failed reading firmware notification");
     }
     else {
+        // TODO: HRT-14502 move interrupt handling to nnc
         rcu_read_lock();
-        list_for_each_entry_rcu(notif_wait_cursor, &board->notification_wait_list, notification_wait_list)
+        list_for_each_entry_rcu(notif_wait_cursor, &board->nnc.notification_wait_list, notification_wait_list)
         {
             complete(&notif_wait_cursor->notification_completion);
         }
@@ -374,7 +322,7 @@ irqreturn_t hailo_irqhandler(int irq, void *dev_id)
 
         // wake fw_control if needed
         if (irq_source.interrupt_bitmask & FW_CONTROL) {
-            complete(&board->fw_control.completion);
+            complete(&board->nnc.fw_control.completion);
         }
 
         // wake driver_down if needed
@@ -392,7 +340,14 @@ irqreturn_t hailo_irqhandler(int irq, void *dev_id)
         }
 
         if (irq_source.interrupt_bitmask & SOC_CONNECT_ACCEPTED) {
-            complete_all(&board->soc_connect_accepted);
+            complete_all(&board->soc.control_resp_ready);
+        }
+
+        if (irq_source.interrupt_bitmask & SOC_CLOSED_IRQ) {
+            hailo_info(board, "hailo_irqhandler - SOC_CLOSED_IRQ\n");
+            // always use bitmap=0xFFFFFFFF - it is ok to wake all interrupts since each handler will check if the stream was aborted or not. 
+            hailo_vdma_wakeup_interrupts(&board->vdma, &board->vdma.vdma_engines[DEFAULT_VDMA_ENGINE_INDEX],
+                0xFFFFFFFF);
         }
 
         if (0 != irq_source.vdma_channels_bitmap) {
@@ -404,170 +359,11 @@ irqreturn_t hailo_irqhandler(int irq, void *dev_id)
     return return_value;
 }
 
-static long hailo_get_notification_wait_thread(struct hailo_pcie_board *pBoard, struct file *filp,
-    struct hailo_notification_wait **current_waiting_thread)
-{
-    struct hailo_notification_wait *cursor = NULL;
-    // note: safe to access without rcu because the notification_wait_list is closed only on file release
-    list_for_each_entry(cursor, &pBoard->notification_wait_list, notification_wait_list)
-    {
-        if ((current->tgid == cursor->tgid) && (filp == cursor->filp)) {
-            *current_waiting_thread = cursor;
-            return 0;
-        }
-    }
-
-    return -EFAULT;
-}
-
-static long hailo_add_notification_wait(struct hailo_pcie_board *board, struct file *filp)
-{
-    struct hailo_notification_wait *new_notification_wait = NULL;
-    if (!(new_notification_wait = kmalloc(sizeof(*new_notification_wait), GFP_KERNEL))) {
-        hailo_err(board, "Failed to allocate notification wait structure.\n");
-        return -ENOMEM;
-    }
-    new_notification_wait->tgid = current->tgid;
-    new_notification_wait->filp = filp;
-    new_notification_wait->is_disabled = false;
-    init_completion(&new_notification_wait->notification_completion);
-    list_add_rcu(&new_notification_wait->notification_wait_list, &board->notification_wait_list);
-    return 0;
-}
-
-static long hailo_read_notification_ioctl(struct hailo_pcie_board *pBoard, unsigned long arg, struct file *filp,
-    bool* should_up_board_mutex)
-{
-    long err = 0;
-    struct hailo_notification_wait *current_waiting_thread = NULL;
-    struct hailo_d2h_notification *notification = &pBoard->notification_to_user;
-    unsigned long irq_saved_flags;
-
-    err = hailo_get_notification_wait_thread(pBoard, filp, &current_waiting_thread);
-    if (0 != err) {
-        goto l_exit;
-    }
-    up(&pBoard->mutex);
-
-    if (0 > (err = wait_for_completion_interruptible(&current_waiting_thread->notification_completion))) {
-        hailo_info(pBoard,
-            "HAILO_READ_NOTIFICATION - wait_for_completion_interruptible error. err=%ld. tgid=%d (process was interrupted or killed)\n",
-            err, current_waiting_thread->tgid);
-        *should_up_board_mutex = false;
-        goto l_exit;
-    }
-
-    if (down_interruptible(&pBoard->mutex)) {
-        hailo_info(pBoard, "HAILO_READ_NOTIFICATION - down_interruptible error (process was interrupted or killed)\n");
-        *should_up_board_mutex = false;
-        err = -ERESTARTSYS;
-        goto l_exit;
-    }
-
-    // Check if was disabled
-    if (current_waiting_thread->is_disabled) {
-        hailo_info(pBoard, "HAILO_READ_NOTIFICATION, can't find notification wait for tgid=%d\n", current->tgid);
-        err = -EINVAL;
-        goto l_exit;
-    }
-
-    reinit_completion(&current_waiting_thread->notification_completion);
-    
-    spin_lock_irqsave(&pBoard->notification_read_spinlock, irq_saved_flags);
-    notification->buffer_len = pBoard->notification_cache.buffer_len;
-    memcpy(notification->buffer, pBoard->notification_cache.buffer, notification->buffer_len);
-    spin_unlock_irqrestore(&pBoard->notification_read_spinlock, irq_saved_flags);
-
-    if (copy_to_user((void __user*)arg, notification, sizeof(*notification))) {
-        hailo_err(pBoard, "HAILO_READ_NOTIFICATION copy_to_user fail\n");
-        err = -ENOMEM;
-        goto l_exit;
-    }
-
-l_exit:
-    return err;
-}
-
-static long hailo_disable_notification(struct hailo_pcie_board *pBoard, struct file *filp)
-{
-    struct hailo_notification_wait *cursor = NULL;
-
-    hailo_info(pBoard, "HAILO_DISABLE_NOTIFICATION: disable notification");
-    rcu_read_lock();
-    list_for_each_entry_rcu(cursor, &pBoard->notification_wait_list, notification_wait_list) {
-        if ((current->tgid == cursor->tgid) && (filp == cursor->filp)) {
-            cursor->is_disabled = true;
-            complete(&cursor->notification_completion);
-            break;
-        }
-    }
-    rcu_read_unlock();
-
-    return 0;
-}
-
-static int hailo_fw_control(struct hailo_pcie_board *pBoard, unsigned long arg, bool* should_up_board_mutex)
-{
-    struct hailo_fw_control *command = &pBoard->fw_control.command;
-    long completion_result = 0;
-    int err = 0;
-
-    up(&pBoard->mutex);
-    *should_up_board_mutex = false;
-
-    if (down_interruptible(&pBoard->fw_control.mutex)) {
-        hailo_info(pBoard, "hailo_fw_control down_interruptible fail tgid:%d (process was interrupted or killed)\n", current->tgid);
-        return -ERESTARTSYS;
-    }
-
-    if (copy_from_user(command, (void __user*)arg, sizeof(*command))) {
-        hailo_err(pBoard, "hailo_fw_control, copy_from_user fail\n");
-        err = -ENOMEM;
-        goto l_exit;
-    }
-
-    reinit_completion(&pBoard->fw_control.completion);
-
-    err = hailo_pcie_write_firmware_control(&pBoard->pcie_resources, command);
-    if (err < 0) {
-        hailo_err(pBoard, "Failed writing fw control to pcie\n");
-        goto l_exit;
-    }
-
-    // Wait for response
-    completion_result = wait_for_completion_interruptible_timeout(&pBoard->fw_control.completion, msecs_to_jiffies(command->timeout_ms));
-    if (completion_result <= 0) {
-        if (0 == completion_result) {
-            hailo_err(pBoard, "hailo_fw_control, timeout waiting for control (timeout_ms=%d)\n", command->timeout_ms);
-            err = -ETIMEDOUT;
-        } else {
-            hailo_info(pBoard, "hailo_fw_control, wait for completion failed with err=%ld (process was interrupted or killed)\n", completion_result);
-            err = -EINTR;
-        }
-        goto l_exit;
-    }
-
-    err = hailo_pcie_read_firmware_control(&pBoard->pcie_resources, command);
-    if (err < 0) {
-        hailo_err(pBoard, "Failed reading fw control from pcie\n");
-        goto l_exit;
-    }
-
-    if (copy_to_user((void __user*)arg, command, sizeof(*command))) {
-        hailo_err(pBoard, "hailo_fw_control, copy_to_user fail\n");
-        err = -ENOMEM;
-        goto l_exit;
-    }
-
-l_exit:
-    up(&pBoard->fw_control.mutex);
-    return err;
-}
-
 static long hailo_query_device_properties(struct hailo_pcie_board *board, unsigned long arg)
 {
     struct hailo_device_properties props = {
         .desc_max_page_size = board->desc_max_page_size,
+        .board_type = board->pcie_resources.board_type,
         .allocation_mode = board->allocation_mode,
         .dma_type = HAILO_DMA_TYPE_PCIE,
         .dma_engines_count = board->vdma.vdma_engines_count,
@@ -614,24 +410,6 @@ static long hailo_general_ioctl(struct hailo_pcie_board *board, unsigned int cmd
         return hailo_query_driver_info(board, arg);
     default:
         hailo_err(board, "Invalid general ioctl code 0x%x (nr: %d)\n", cmd, _IOC_NR(cmd));
-        return -ENOTTY;
-    }
-}
-
-static long hailo_nnc_ioctl(struct hailo_pcie_board *board, unsigned int cmd, unsigned long arg,
-    struct file *filp, bool *should_up_board_mutex)
-{
-    switch (cmd) {
-    case HAILO_FW_CONTROL:
-        return hailo_fw_control(board, arg, should_up_board_mutex);
-    case HAILO_READ_NOTIFICATION:
-        return hailo_read_notification_ioctl(board, arg, filp, should_up_board_mutex);
-    case HAILO_DISABLE_NOTIFICATION:
-        return hailo_disable_notification(board, filp);
-    case HAILO_READ_LOG:
-        return hailo_read_log_ioctl(board, arg);
-    default:
-        hailo_err(board, "Invalid nnc ioctl code 0x%x (nr: %d)\n", cmd, _IOC_NR(cmd));
         return -ENOTTY;
     }
 }
@@ -694,7 +472,7 @@ long hailo_pcie_fops_unlockedioctl(struct file* filp, unsigned int cmd, unsigned
             hailo_err(board, "Ioctl %d is not supported on this accelerator type\n", _IOC_TYPE(cmd));
             err = -EINVAL;
         } else {
-            err = hailo_soc_ioctl(board, &context->vdma_context, &board->vdma, cmd, arg);
+            err = hailo_soc_ioctl(board, context, &board->vdma, cmd, arg);
         }
         break;
     case HAILO_NNC_IOCTL_MAGIC:
