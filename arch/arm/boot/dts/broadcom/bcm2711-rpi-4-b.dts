@@ -265,10 +265,6 @@
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
 
 / {
-	chosen {
-		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0";
-	};
-
 	/delete-node/ wifi-pwrseq;
 };
 
