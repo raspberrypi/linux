@@ -171,6 +171,15 @@ static const struct mmc_fixup __maybe_unused mmc_blk_fixups[] = {
 	MMC_FIXUP("SD32G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
 	MMC_FIXUP("SD64G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
 
+	/*
+	 * Larger Integral SD cards using rebranded Phison controllers trash
+	 * nearby flash blocks after erases.
+	 */
+	MMC_FIXUP("SD64G", 0x27, 0x5048, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD128", 0x27, 0x5048, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD256", 0x27, 0x5048, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD512", 0x27, 0x5048, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+
 	END_FIXUP
 };
 
