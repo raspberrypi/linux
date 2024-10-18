@@ -1239,10 +1239,24 @@ static void mmc_blk_issue_erase_rq(struct mmc_queue *mq, struct request *req,
 	unsigned int from, nr;
 	int err = 0;
 	blk_status_t status = BLK_STS_OK;
+	bool restart_cmdq = false;
 
 	if (!mmc_can_erase(card)) {
 		status = BLK_STS_NOTSUPP;
 		goto fail;
+	}
+
+	/*
+	 * Only Discard ops are supported with SD cards in CQ mode
+	 * (SD Physical Spec v9.00 4.19.2)
+	 */
+	if (mmc_card_sd(card) && card->ext_csd.cmdq_en && erase_arg != SD_DISCARD_ARG) {
+		restart_cmdq = true;
+		err = mmc_sd_cmdq_disable(card);
+		if (err) {
+			status = BLK_STS_IOERR;
+			goto fail;
+		}
 	}
 
 	from = blk_rq_pos(req);
@@ -1265,6 +1279,11 @@ static void mmc_blk_issue_erase_rq(struct mmc_queue *mq, struct request *req,
 		status = BLK_STS_IOERR;
 	else
 		mmc_blk_reset_success(md, type);
+
+	if (restart_cmdq)
+		err = mmc_sd_cmdq_enable(card);
+	if (err)
+		status = BLK_STS_IOERR;
 fail:
 	blk_mq_end_request(req, status);
 }
