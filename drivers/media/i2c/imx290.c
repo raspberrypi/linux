@@ -13,6 +13,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
@@ -41,6 +42,9 @@
 #define IMX290_WINMODE_720P				(1 << 4)
 #define IMX290_WINMODE_CROP				(4 << 4)
 #define IMX290_FR_FDG_SEL				CCI_REG8(0x3009)
+#define IMX290_FDG_HCG					BIT(4)
+#define IMX290_FRSEL_60FPS				BIT(0)
+#define IMX290_FDG_LCG					0
 #define IMX290_BLKLEVEL					CCI_REG16_LE(0x300a)
 #define IMX290_GAIN					CCI_REG8(0x3014)
 #define IMX290_VMAX					CCI_REG24_LE(0x3018)
@@ -162,6 +166,10 @@
 
 #define IMX290_NUM_SUPPLIES				3
 
+static bool hcg_mode;
+module_param(hcg_mode, bool, 0664);
+MODULE_PARM_DESC(hcg_mode, "Enable HCG mode");
+
 enum imx290_colour_variant {
 	IMX290_VARIANT_COLOUR,
 	IMX290_VARIANT_MONO,
@@ -178,6 +186,7 @@ struct imx290_model_info {
 	enum imx290_colour_variant colour_variant;
 	const struct cci_reg_sequence *init_regs;
 	size_t init_regs_num;
+	unsigned int max_analog_gain;
 	const char *name;
 };
 
@@ -649,7 +658,6 @@ static int imx290_set_data_lanes(struct imx290 *imx290)
 		  &ret);
 	cci_write(imx290->regmap, IMX290_CSI_LANE_MODE, imx290->nlanes - 1,
 		  &ret);
-	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, 0x01, &ret);
 
 	return ret;
 }
@@ -763,6 +771,10 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
 		ret = cci_write(imx290->regmap, IMX290_GAIN, ctrl->val, NULL);
+
+		cci_write(imx290->regmap, IMX290_FR_FDG_SEL,
+			  IMX290_FRSEL_60FPS | hcg_mode ?
+					IMX290_FDG_HCG : IMX290_FDG_LCG, &ret);
 		break;
 
 	case V4L2_CID_VBLANK:
@@ -878,14 +890,10 @@ static int imx290_ctrl_init(struct imx290 *imx290)
 	 * up to 72.0dB (240) add further digital gain. Limit the range to
 	 * analog gain only, support for digital gain can be added separately
 	 * if needed.
-	 *
-	 * The IMX327 and IMX462 are largely compatible with the IMX290, but
-	 * have an analog gain range of 0.0dB to 29.4dB and 42dB of digital
-	 * gain. When support for those sensors gets added to the driver, the
-	 * gain control should be adjusted accordingly.
 	 */
 	v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
-			  V4L2_CID_ANALOGUE_GAIN, 0, 100, 1, 0);
+			  V4L2_CID_ANALOGUE_GAIN, 0,
+			  imx290->model->max_analog_gain, 1, 0);
 
 	/*
 	 * Correct range will be determined through imx290_ctrl_update setting
@@ -1436,18 +1444,21 @@ static const struct imx290_model_info imx290_models[] = {
 		.colour_variant = IMX290_VARIANT_COLOUR,
 		.init_regs = imx290_global_init_settings_290,
 		.init_regs_num = ARRAY_SIZE(imx290_global_init_settings_290),
+		.max_analog_gain = 100,
 		.name = "imx290",
 	},
 	[IMX290_MODEL_IMX290LLR] = {
 		.colour_variant = IMX290_VARIANT_MONO,
 		.init_regs = imx290_global_init_settings_290,
 		.init_regs_num = ARRAY_SIZE(imx290_global_init_settings_290),
+		.max_analog_gain = 100,
 		.name = "imx290",
 	},
 	[IMX290_MODEL_IMX327LQR] = {
 		.colour_variant = IMX290_VARIANT_COLOUR,
 		.init_regs = imx290_global_init_settings_327,
 		.init_regs_num = ARRAY_SIZE(imx290_global_init_settings_327),
+		.max_analog_gain = 98,
 		.name = "imx327",
 	},
 };
