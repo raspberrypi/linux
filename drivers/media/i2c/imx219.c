@@ -163,9 +163,6 @@ struct imx219_mode {
 
 	/* V-timing */
 	unsigned int vts_def;
-
-	/* Relative pixel clock rate factor for the mode. */
-	unsigned int rate_factor;
 };
 
 static const struct cci_reg_sequence imx219_common_regs[] = {
@@ -301,32 +298,24 @@ static const struct imx219_mode supported_modes[] = {
 		.width = 3280,
 		.height = 2464,
 		.vts_def = 3526,
-		.rate_factor = 1,
 	},
 	{
 		/* 1080P 30fps cropped */
 		.width = 1920,
 		.height = 1080,
 		.vts_def = 1763,
-		.rate_factor = 1,
 	},
 	{
 		/* 2x2 binned 30fps mode */
 		.width = 1640,
 		.height = 1232,
 		.vts_def = 1763,
-		.rate_factor = 1,
 	},
 	{
 		/* 640x480 30fps mode */
 		.width = 640,
 		.height = 480,
 		.vts_def = 1763,
-		/*
-		 * This mode uses a special 2x2 binning that doubles the
-		 * internal pixel clock rate.
-		 */
-		.rate_factor = 2,
 	},
 };
 
@@ -366,7 +355,7 @@ struct imx219 {
 	/* Two or Four lanes */
 	u8 lanes;
 
-	/* Rate factor */
+	/* Relative pixel clock rate factor. */
 	unsigned int rate_factor;
 };
 
@@ -682,7 +671,9 @@ static int imx219_set_framefmt(struct imx219 *imx219,
 		bin_h = IMX219_BINNING_NONE;
 		break;
 	case 2:
-		bin_h = bpp == 8 ? IMX219_BINNING_X2_ANALOG : IMX219_BINNING_X2;
+		bin_h = (bpp == 8 || format->width == 640) ?
+				IMX219_BINNING_X2_ANALOG :
+				IMX219_BINNING_X2;
 		break;
 	}
 
@@ -692,7 +683,9 @@ static int imx219_set_framefmt(struct imx219 *imx219,
 		bin_v = IMX219_BINNING_NONE;
 		break;
 	case 2:
-		bin_v = bpp == 8 ? IMX219_BINNING_X2_ANALOG : IMX219_BINNING_X2;
+		bin_v = (bpp == 8 || format->height == 480) ?
+				IMX219_BINNING_X2_ANALOG :
+				IMX219_BINNING_X2;
 		break;
 	}
 
@@ -1015,7 +1008,12 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 		int hblank;
 		int pixel_rate;
 
-		imx219->rate_factor = mode->rate_factor;
+		/* TODO: Set rate_factor and binning mode together */
+		if (((crop->height / format->height) == 2) ||
+		    format->height == 480)
+			imx219->rate_factor = 2;
+		else
+			imx219->rate_factor = 1;
 
 		/* Update limits and set FPS to default */
 		__v4l2_ctrl_modify_range(imx219->vblank, IMX219_VBLANK_MIN,
