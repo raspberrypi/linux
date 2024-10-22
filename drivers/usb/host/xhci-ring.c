@@ -505,6 +505,8 @@ void xhci_ring_ep_doorbell(struct xhci_hcd *xhci,
 
 	trace_xhci_ring_ep_doorbell(slot_id, DB_VALUE(ep_index, stream_id));
 
+	/* Incurs ~1.2us round-trip time (and wakes the link) */
+	readl(db_addr);
 	writel(DB_VALUE(ep_index, stream_id), db_addr);
 	/* flush the write */
 	readl(db_addr);
