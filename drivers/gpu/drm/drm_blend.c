@@ -263,6 +263,8 @@ EXPORT_SYMBOL(drm_plane_create_alpha_property);
  * 	"reflect-x"
  * DRM_MODE_REFLECT_Y:
  * 	"reflect-y"
+ * DRM_MODE_TRANSPOSE:
+ * 	"transpose"
  *
  * Rotation is the specified amount in degrees in counter clockwise direction,
  * the X and Y axis are within the source rectangle, i.e.  the X/Y axis before
@@ -280,6 +282,7 @@ int drm_plane_create_rotation_property(struct drm_plane *plane,
 		{ __builtin_ffs(DRM_MODE_ROTATE_270) - 1, "rotate-270" },
 		{ __builtin_ffs(DRM_MODE_REFLECT_X) - 1,  "reflect-x" },
 		{ __builtin_ffs(DRM_MODE_REFLECT_Y) - 1,  "reflect-y" },
+		{ __builtin_ffs(DRM_MODE_TRANSPOSE) - 1,  "transpose" },
 	};
 	struct drm_property *prop;
 
