@@ -35,6 +35,7 @@ struct drm_atomic_commit;
 struct drm_crtc;
 struct drm_device;
 struct drm_plane;
+struct drm_connector;
 
 static inline bool drm_rotation_90_or_270(unsigned int rotation)
 {
@@ -60,4 +61,8 @@ int drm_atomic_normalize_zpos(struct drm_device *dev,
 int drm_plane_create_blend_mode_property(struct drm_plane *plane,
 					 unsigned int supported_modes);
 void drm_crtc_attach_background_color_property(struct drm_crtc *crtc);
+
+int drm_connector_create_rotation_property(struct drm_connector *conn,
+					   unsigned int rotation,
+					   unsigned int supported_rotations);
 #endif
