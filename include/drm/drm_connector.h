@@ -1029,6 +1029,11 @@ struct drm_connector_state {
 	 * DRM blob property for HDR output metadata
 	 */
 	struct drm_property_blob *hdr_output_metadata;
+
+	/**
+	 * @rotation: Connector property to rotate the maximum output image.
+	 */
+	u32 rotation;
 };
 
 /**
@@ -1695,6 +1700,12 @@ struct drm_connector {
 	 * connector to report the actual integrated privacy screen state.
 	 */
 	struct drm_property *privacy_screen_hw_state_property;
+
+	/**
+	 * @rotation_property: Optional DRM property controlling rotation of the
+	 * output.
+	 */
+	struct drm_property *rotation_property;
 
 #define DRM_CONNECTOR_POLL_HPD (1 << 0)
 #define DRM_CONNECTOR_POLL_CONNECT (1 << 1)

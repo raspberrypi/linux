@@ -235,6 +235,16 @@ int drm_plane_create_alpha_property(struct drm_plane *plane)
 }
 EXPORT_SYMBOL(drm_plane_create_alpha_property);
 
+static const struct drm_prop_enum_list drm_rotate_props[] = {
+	{ __builtin_ffs(DRM_MODE_ROTATE_0) - 1,   "rotate-0" },
+	{ __builtin_ffs(DRM_MODE_ROTATE_90) - 1,  "rotate-90" },
+	{ __builtin_ffs(DRM_MODE_ROTATE_180) - 1, "rotate-180" },
+	{ __builtin_ffs(DRM_MODE_ROTATE_270) - 1, "rotate-270" },
+	{ __builtin_ffs(DRM_MODE_REFLECT_X) - 1,  "reflect-x" },
+	{ __builtin_ffs(DRM_MODE_REFLECT_Y) - 1,  "reflect-y" },
+	{ __builtin_ffs(DRM_MODE_TRANSPOSE) - 1,  "transpose" },
+};
+
 /**
  * drm_plane_create_rotation_property - create a new rotation property
  * @plane: drm plane
@@ -263,6 +273,8 @@ EXPORT_SYMBOL(drm_plane_create_alpha_property);
  * 	"reflect-x"
  * DRM_MODE_REFLECT_Y:
  * 	"reflect-y"
+ * DRM_MODE_TRANSPOSE:
+ * 	"transpose"
  *
  * Rotation is the specified amount in degrees in counter clockwise direction,
  * the X and Y axis are within the source rectangle, i.e.  the X/Y axis before
@@ -273,14 +285,6 @@ int drm_plane_create_rotation_property(struct drm_plane *plane,
 				       unsigned int rotation,
 				       unsigned int supported_rotations)
 {
-	static const struct drm_prop_enum_list props[] = {
-		{ __builtin_ffs(DRM_MODE_ROTATE_0) - 1,   "rotate-0" },
-		{ __builtin_ffs(DRM_MODE_ROTATE_90) - 1,  "rotate-90" },
-		{ __builtin_ffs(DRM_MODE_ROTATE_180) - 1, "rotate-180" },
-		{ __builtin_ffs(DRM_MODE_ROTATE_270) - 1, "rotate-270" },
-		{ __builtin_ffs(DRM_MODE_REFLECT_X) - 1,  "reflect-x" },
-		{ __builtin_ffs(DRM_MODE_REFLECT_Y) - 1,  "reflect-y" },
-	};
 	struct drm_property *prop;
 
 	WARN_ON((supported_rotations & DRM_MODE_ROTATE_MASK) == 0);
@@ -288,7 +292,8 @@ int drm_plane_create_rotation_property(struct drm_plane *plane,
 	WARN_ON(rotation & ~supported_rotations);
 
 	prop = drm_property_create_bitmask(plane->dev, 0, "rotation",
-					   props, ARRAY_SIZE(props),
+					   drm_rotate_props,
+					   ARRAY_SIZE(drm_rotate_props),
 					   supported_rotations);
 	if (!prop)
 		return -ENOMEM;
@@ -303,6 +308,34 @@ int drm_plane_create_rotation_property(struct drm_plane *plane,
 	return 0;
 }
 EXPORT_SYMBOL(drm_plane_create_rotation_property);
+
+int drm_connector_create_rotation_property(struct drm_connector *conn,
+					   unsigned int rotation,
+					   unsigned int supported_rotations)
+{
+	struct drm_property *prop;
+
+	WARN_ON((supported_rotations & DRM_MODE_ROTATE_MASK) == 0);
+	WARN_ON(!is_power_of_2(rotation & DRM_MODE_ROTATE_MASK));
+	WARN_ON(rotation & ~supported_rotations);
+
+	prop = drm_property_create_bitmask(conn->dev, 0, "rotation",
+					   drm_rotate_props,
+					   ARRAY_SIZE(drm_rotate_props),
+					   supported_rotations);
+	if (!prop)
+		return -ENOMEM;
+
+	drm_object_attach_property(&conn->base, prop, rotation);
+
+	if (conn->state)
+		conn->state->rotation = rotation;
+
+	conn->rotation_property = prop;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_connector_create_rotation_property);
 
 /**
  * drm_rotation_simplify() - Try to simplify the rotation

@@ -265,7 +265,11 @@ static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
 	if (dst == src >> 16)
 		return VC4_SCALING_NONE;
-	if (3 * dst >= 2 * (src >> 16))
+
+	if (src <= (1 << 16))
+		/* Source rectangle <= 1 pixel can use TPZ for resize/upscale */
+		return VC4_SCALING_TPZ;
+	else if (3 * dst >= 2 * (src >> 16))
 		return VC4_SCALING_PPF;
 	else
 		return VC4_SCALING_TPZ;
@@ -592,12 +596,17 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_6);
 
-	scale = src / dst;
+	if ((dst << 16) < src) {
+		scale = src / dst;
 
-	/* The specs note that while the reciprocal would be defined
-	 * as (1<<32)/scale, ~0 is close enough.
-	 */
-	recip = ~0 / scale;
+		/* The specs note that while the reciprocal would be defined
+		 * as (1<<32)/scale, ~0 is close enough.
+		 */
+		recip = ~0 / scale;
+	} else {
+		scale = (1 << 16) + 1;
+		recip = (1 << 16) - 1;
+	}
 
 	vc4_dlist_write(vc4_state,
 			/*
@@ -1291,7 +1300,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
+	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen */
 		vc4_state->dlist_initialized = 1;
 		return 0;
@@ -1829,7 +1839,8 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (!width || !height || !vc4_state->crtc_w || !vc4_state->crtc_h) {
+	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
+	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen.
 		 * 0 destination size is a redundant plane.
 		 */
@@ -2647,12 +2658,27 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 }
 
 #define VC4_NUM_OVERLAY_PLANES	16
+#define VC4_NUM_TXP_OVERLAY_PLANES 32
 
 int vc4_plane_create_additional_planes(struct drm_device *drm)
 {
 	struct drm_plane *cursor_plane;
 	struct drm_crtc *crtc;
 	unsigned int i;
+	struct drm_crtc *txp_crtc;
+	uint32_t non_txp_crtc_mask;
+
+	drm_for_each_crtc(crtc, drm) {
+		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+		if (vc4_crtc->feeds_txp) {
+			txp_crtc = crtc;
+			break;
+		}
+	}
+
+	non_txp_crtc_mask = GENMASK(drm->mode_config.num_crtc - 1, 0) -
+					drm_crtc_mask(txp_crtc);
 
 	/* Set up some arbitrary number of planes.  We're not limited
 	 * by a set number of physical registers, just the space in
@@ -2666,7 +2692,22 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	for (i = 0; i < VC4_NUM_OVERLAY_PLANES; i++) {
 		struct drm_plane *plane =
 			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
-				       GENMASK(drm->mode_config.num_crtc - 1, 0));
+				       non_txp_crtc_mask);
+
+		if (IS_ERR(plane))
+			continue;
+
+		/* Create zpos property. Max of all the overlays + 1 primary +
+		 * 1 cursor plane on a crtc.
+		 */
+		drm_plane_create_zpos_property(plane, i + 1, 1,
+					       VC4_NUM_OVERLAY_PLANES + 1);
+	}
+
+	for (i = 0; i < VC4_NUM_TXP_OVERLAY_PLANES; i++) {
+		struct drm_plane *plane =
+			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
+				       drm_crtc_mask(txp_crtc));
 
 		if (IS_ERR(plane))
 			continue;
