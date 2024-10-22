@@ -1352,13 +1352,15 @@ handler_free:
 	return sensor->ctrls.error;
 }
 
-static int ov5647_parse_dt(struct ov5647 *sensor, struct device_node *np)
+static int ov5647_parse_dt(struct device *dev,
+			   struct ov5647 *sensor,
+			   struct device_node *np)
 {
 	struct v4l2_fwnode_endpoint bus_cfg = {
 		.bus_type = V4L2_MBUS_CSI2_DPHY,
 	};
 	struct device_node *ep;
-	int ret;
+	int ret = -EINVAL;
 
 	ep = of_graph_get_next_endpoint(np, NULL);
 	if (!ep)
@@ -1370,6 +1372,23 @@ static int ov5647_parse_dt(struct ov5647 *sensor, struct device_node *np)
 
 	sensor->clock_ncont = bus_cfg.bus.mipi_csi2.flags &
 			      V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK;
+
+	if (!bus_cfg.nr_of_link_frequencies) {
+		dev_err(dev, "link-frequency property not found in DT\n");
+		goto out;
+	}
+
+	if (bus_cfg.nr_of_link_frequencies != ARRAY_SIZE(ov5647_link_freqs)) {
+		dev_err(dev, "Link frequency missing in dtree\n");
+		goto out;
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(ov5647_link_freqs); i++) {
+		if(bus_cfg.link_frequencies[i] != ov5647_link_freqs[i]){
+			dev_err(dev, "no supported link frequency found\n");
+			goto out;	
+		}
+	}
 
 out:
 	of_node_put(ep);
@@ -1391,7 +1410,7 @@ static int ov5647_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	if (IS_ENABLED(CONFIG_OF) && np) {
-		ret = ov5647_parse_dt(sensor, np);
+		ret = ov5647_parse_dt(dev, sensor, np);
 		if (ret) {
 			dev_err(dev, "DT parsing error: %d\n", ret);
 			return ret;
