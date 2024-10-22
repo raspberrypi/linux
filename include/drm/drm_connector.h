@@ -1139,6 +1139,11 @@ struct drm_connector_state {
 	 * @drm_atomic_helper_connector_hdmi_check().
 	 */
 	struct drm_connector_hdmi_state hdmi;
+
+	/**
+	 * @rotation: Connector property to rotate the maximum output image.
+	 */
+	u32 rotation;
 };
 
 /**
@@ -1925,6 +1930,12 @@ struct drm_connector {
 	 * Broadcast RGB selection to output with.
 	 */
 	struct drm_property *broadcast_rgb_property;
+
+	/**
+	 * @rotation_property: Optional DRM property controlling rotation of the
+	 * output.
+	 */
+	struct drm_property *rotation_property;
 
 #define DRM_CONNECTOR_POLL_HPD (1 << 0)
 #define DRM_CONNECTOR_POLL_CONNECT (1 << 1)
