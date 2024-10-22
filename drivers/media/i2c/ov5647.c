@@ -1384,9 +1384,9 @@ static int ov5647_parse_dt(struct device *dev,
 	}
 
 	for (int i = 0; i < ARRAY_SIZE(ov5647_link_freqs); i++) {
-		if(bus_cfg.link_frequencies[i] != ov5647_link_freqs[i]){
+		if (bus_cfg.link_frequencies[i] != ov5647_link_freqs[i]) {
 			dev_err(dev, "no supported link frequency found\n");
-			goto out;	
+			goto out;
 		}
 	}
 
