@@ -374,11 +374,31 @@ vc4_txp_connector_detect(struct drm_connector *connector, bool force)
 	return connector_status_connected;
 }
 
+static struct drm_connector_state *
+vc4_txp_connector_create_state(struct drm_connector *connector)
+{
+	struct drm_connector_state *state;
+	uint64_t rotation = DRM_MODE_ROTATE_0;
+
+	state = drm_atomic_helper_connector_create_state(connector);
+	if (IS_ERR(state))
+		return state;
+
+	if (connector->rotation_property)
+		drm_object_property_get_default_value(&connector->base,
+						      connector->rotation_property,
+						      &rotation);
+
+	state->rotation = rotation;
+
+	return state;
+}
+
 static const struct drm_connector_funcs vc4_txp_connector_funcs = {
 	.detect = vc4_txp_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = drm_connector_cleanup,
-	.atomic_create_state = drm_atomic_helper_connector_create_state,
+	.atomic_create_state = vc4_txp_connector_create_state,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
