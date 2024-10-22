@@ -18,7 +18,7 @@ cam_node: ov5647@36 {
 			data-lanes = <1 2>;
 			clock-noncontinuous;
 			link-frequencies =
-				/bits/ 64 <297000000>;
+				/bits/ 64 <218500000 208333000>;
 		};
 	};
 };
