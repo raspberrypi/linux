@@ -129,12 +129,7 @@ enum fiq_debug_level {
 	FIQDBG_PORTHUB = (1 << 3),
 };
 
-#ifdef CONFIG_ARM64
-
-typedef spinlock_t fiq_lock_t;
-
-#else
-
+#define TICKET_SHIFT 16
 typedef struct {
 	union {
 		uint32_t slock;
@@ -143,7 +138,97 @@ typedef struct {
 			uint16_t next;
 		} tickets;
 	};
-} fiq_lock_t;
+} __aligned(4) fiq_lock_t;
+
+#if defined(CONFIG_ARM64)
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	unsigned int tmp;
+	fiq_lock_t lockval, newval;
+
+	asm volatile(
+	/* Atomically increment the next ticket. */
+	"	prfm	pstl1strm, %3\n"
+	"1:	ldaxr	%w0, %3\n"
+	"	add	%w1, %w0, %w5\n"
+	"	stxr	%w2, %w1, %3\n"
+	"	cbnz	%w2, 1b\n"
+	/* Did we get the lock? */
+	"	eor	%w1, %w0, %w0, ror #16\n"
+	"	cbz	%w1, 3f\n"
+	/*
+	 * No: spin on the owner. Send a local event to avoid missing an
+	 * unlock before the exclusive load.
+	 */
+	"	sevl\n"
+	"2:	wfe\n"
+	"	ldaxrh	%w2, %4\n"
+	"	eor	%w1, %w2, %w0, lsr #16\n"
+	"	cbnz	%w1, 2b\n"
+	/* We got the lock. Critical section starts here. */
+	"3:"
+	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp), "+Q" (*lock)
+	: "Q" (lock->tickets.owner), "I" (1 << TICKET_SHIFT)
+	: "memory");
+}
+
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	asm volatile(
+	"	stlrh	%w1, %0\n"
+	: "=Q" (lock->tickets.owner)
+	: "r" (lock->tickets.owner + 1)
+	: "memory");
+}
+
+#else
+
+/**
+ * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
+ * Must be called with local interrupts and FIQ disabled.
+ */
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	unsigned long tmp;
+	uint32_t newval;
+	fiq_lock_t lockval;
+	/* Nested locking, yay. If we are on the same CPU as the fiq, then the disable
+	 * will be sufficient. If we are on a different CPU, then the lock protects us. */
+	prefetchw(&lock->slock);
+	asm volatile (
+	"1:     ldrex   %0, [%3]\n"
+	"       add     %1, %0, %4\n"
+	"       strex   %2, %1, [%3]\n"
+	"       teq     %2, #0\n"
+	"       bne     1b"
+	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)
+	: "r" (&lock->slock), "I" (1 << TICKET_SHIFT)
+	: "cc");
+
+	while (lockval.tickets.next != lockval.tickets.owner) {
+		wfe();
+		lockval.tickets.owner = READ_ONCE(lock->tickets.owner);
+	}
+	smp_mb();
+}
+#else
+static inline void fiq_fsm_spin_lock(fiq_lock_t *lock) { }
+#endif
+
+/**
+ * fiq_fsm_spin_unlock() - ARMv6+ bare bones spinunlock
+ */
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	smp_mb();
+	lock->tickets.owner++;
+	dsb_sev();
+}
+#else
+static inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
+#endif
 
 #endif
 
@@ -379,10 +464,6 @@ extern void local_fiq_enable(void);
 extern void local_fiq_disable(void);
 
 #endif
-
-extern void fiq_fsm_spin_lock(fiq_lock_t *lock);
-
-extern void fiq_fsm_spin_unlock(fiq_lock_t *lock);
 
 extern int fiq_fsm_too_late(struct fiq_state *st, int n);
 
