@@ -203,6 +203,7 @@ extern "C" {
  */
 #define DRM_MODE_REFLECT_X      (1<<4)
 #define DRM_MODE_REFLECT_Y      (1<<5)
+#define DRM_MODE_TRANSPOSE      (1<<6)
 
 /*
  * DRM_MODE_REFLECT_MASK
