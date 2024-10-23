@@ -99,7 +99,7 @@
 
 / {
 	chosen: chosen {
-		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave iommu_dma_numa_policy=interleave system_heap.max_order=0";
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave";
 		stdout-path = "serial10:115200n8";
 	};
 
