@@ -139,6 +139,8 @@ struct bcm2835_isp_dev {
 	/* Image pipeline controls. */
 	int r_gain;
 	int b_gain;
+	struct dma_buf *last_ls_dmabuf;
+	struct mmal_parameter_lens_shading_v2 ls;
 };
 
 struct bcm2835_isp_buffer {
@@ -677,6 +679,7 @@ static void bcm2835_isp_node_stop_streaming(struct vb2_queue *q)
 				 "%s: Failed disabling component, ret %d\n",
 				 __func__, ret);
 		}
+		dev->last_ls_dmabuf = NULL;
 	}
 
 	/*
@@ -719,6 +722,36 @@ static inline unsigned int get_sizeimage(int bpl, int width, int height,
 	return (bpl * height * fmt->size_multiplier_x2) >> 1;
 }
 
+static int map_ls_table(struct bcm2835_isp_dev *dev, struct dma_buf *dmabuf,
+			const struct bcm2835_isp_lens_shading *v4l2_ls)
+{
+	void *vcsm_handle;
+	int ret;
+
+	if (IS_ERR_OR_NULL(dmabuf))
+		return -EINVAL;
+
+	/*
+	 * struct bcm2835_isp_lens_shading and struct
+	 * mmal_parameter_lens_shading_v2 match so that we can do a
+	 * simple memcpy here.
+	 * Only the dmabuf to the actual table needs any manipulation.
+	 */
+	memcpy(&dev->ls, v4l2_ls, sizeof(dev->ls));
+	ret = vc_sm_cma_import_dmabuf(dmabuf, &vcsm_handle);
+	if (ret) {
+		dma_buf_put(dmabuf);
+		return ret;
+	}
+
+	dev->ls.mem_handle_table = vc_sm_cma_int_handle(vcsm_handle);
+	dev->last_ls_dmabuf = dmabuf;
+
+	vc_sm_cma_free(vcsm_handle);
+
+	return 0;
+}
+
 static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct bcm2835_isp_dev *dev =
@@ -754,44 +787,27 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_BCM2835_ISP_LENS_SHADING:
 	{
 		struct bcm2835_isp_lens_shading *v4l2_ls;
-		struct mmal_parameter_lens_shading_v2 ls;
-		struct dma_buf *dmabuf;
-		void *vcsm_handle;
 
 		v4l2_ls = (struct bcm2835_isp_lens_shading *)ctrl->p_new.p_u8;
-		/*
-		 * struct bcm2835_isp_lens_shading and struct
-		 * mmal_parameter_lens_shading_v2 match so that we can do a
-		 * simple memcpy here.
-		 * Only the dmabuf to the actual table needs any manipulation.
-		 */
-		memcpy(&ls, v4l2_ls, sizeof(ls));
+		struct dma_buf *dmabuf = dma_buf_get(v4l2_ls->dmabuf);
 
-		dmabuf = dma_buf_get(v4l2_ls->dmabuf);
-		if (IS_ERR_OR_NULL(dmabuf))
-			return -EINVAL;
+		if (dmabuf != dev->last_ls_dmabuf)
+			ret = map_ls_table(dev, dmabuf, v4l2_ls);
 
-		ret = vc_sm_cma_import_dmabuf(dmabuf, &vcsm_handle);
-		if (ret) {
-			dma_buf_put(dmabuf);
-			return -EINVAL;
-		}
-
-		ls.mem_handle_table = vc_sm_cma_int_handle(vcsm_handle);
-		if (ls.mem_handle_table)
-			/* The VPU will take a reference on the vcsm handle,
+		if (!ret && dev->ls.mem_handle_table)
+			/*
+			 * The VPU will take a reference on the vcsm handle,
 			 * which in turn will retain a reference on the dmabuf.
 			 * This code can therefore safely release all
 			 * references to the buffer.
 			 */
-			ret = set_isp_param(node,
-					    MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
-					    &ls,
-					    sizeof(ls));
+			ret =
+			set_isp_param(node,
+				      MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
+				      &dev->ls, sizeof(dev->ls));
 		else
 			ret = -EINVAL;
 
-		vc_sm_cma_free(vcsm_handle);
 		dma_buf_put(dmabuf);
 		break;
 	}
@@ -1740,6 +1756,7 @@ static int bcm2835_isp_probe_instance(struct platform_device *pdev,
 	}
 
 	atomic_set(&dev->num_streaming, 0);
+	dev->last_ls_dmabuf = NULL;
 
 	for (i = 0; i < BCM2835_ISP_NUM_NODES; i++) {
 		struct bcm2835_isp_node *node = &dev->node[i];
