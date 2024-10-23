@@ -476,6 +476,7 @@ static void vc4_hdmi_handle_hotplug(struct vc4_hdmi *vc4_hdmi,
 	}
 }
 
+static uint32_t toggle[2];
 static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 					 struct drm_modeset_acquire_ctx *ctx,
 					 bool force)
@@ -504,6 +505,10 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 
 	if (force_hotplug & BIT(vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0))
 		status = connector_status_connected;
+	else if (force_hotplug & BIT(2 + vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0)) {
+		status = (toggle[vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0] & 2) ? connector_status_disconnected : connector_status_connected;
+		toggle[vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0]++;
+	}
 	else if (vc4_hdmi->hpd_gpio) {
 		if (gpiod_get_value_cansleep(vc4_hdmi->hpd_gpio))
 			status = connector_status_connected;
@@ -513,6 +518,7 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 			status = connector_status_connected;
 	}
 
+	printk("%s:%d: %d (%d)\n", __func__, vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0, status, toggle[vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0]);
 	vc4_hdmi_handle_hotplug(vc4_hdmi, ctx, status);
 	pm_runtime_put(&vc4_hdmi->pdev->dev);
 
@@ -3013,7 +3019,7 @@ static int vc4_hdmi_hotplug_init(struct vc4_hdmi *vc4_hdmi)
 		if (ret)
 			return ret;
 
-		connector->polled = DRM_CONNECTOR_POLL_HPD;
+		connector->polled = connector->polled;
 	}
 
 	return 0;
