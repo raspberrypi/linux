@@ -43,6 +43,9 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 
 #define IMX477_REG_ORIENTATION		0x101
 
+#define IMX477_REG_CSI_DT_FMT_H		0x0112
+#define IMX477_REG_CSI_DT_FMT_L		0x0113
+
 #define IMX477_XCLK_FREQ		24000000
 
 #define IMX477_DEFAULT_LINK_FREQ	450000000
@@ -53,6 +56,7 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 /* V_TIMING internal */
 #define IMX477_REG_FRAME_LENGTH		0x0340
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
+#define IMX477_VBLANK_MIN		4
 
 /* H_TIMING internal */
 #define IMX477_REG_LINE_LENGTH		0x0342
@@ -85,6 +89,9 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_DGTL_GAIN_DEFAULT	0x0100
 #define IMX477_DGTL_GAIN_STEP		1
 
+#define IMX477_REG_IOP_PXCK_DIV		0x0309
+#define IMX477_REG_DIV_IOP_PX		0x030b
+
 /* Test Pattern Control */
 #define IMX477_REG_TEST_PATTERN		0x0600
 #define IMX477_TEST_PATTERN_DISABLE	0
@@ -111,6 +118,8 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_REG_MS_SEL		0x3041
 #define IMX477_REG_XVS_IO_CTRL		0x3040
 #define IMX477_REG_EXTOUT_EN		0x4b81
+
+#define IMX477_REG_FRAME_BLANKSTOP_CLK	0xE000
 
 /* Embedded metadata stream structure */
 #define IMX477_EMBEDDED_LINE_WIDTH 16384
@@ -148,17 +157,17 @@ struct imx477_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* H-timing in pixels */
-	unsigned int line_length_pix;
+	/*
+	 * H-timing in pixels when at 450MHz link freq
+	 * Index 0 is for 12bpp. Index 1 is for 10bpp.
+	 */
+	unsigned int line_length_pix[2];
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
 
-	/* Highest possible framerate. */
-	struct v4l2_fract timeperframe_min;
-
 	/* Default framerate. */
-	struct v4l2_fract timeperframe_default;
+	unsigned int framerate_default;
 
 	/* Default register values */
 	struct imx477_reg_list reg_list;
@@ -168,11 +177,14 @@ static const s64 imx477_link_freq_menu[] = {
 	IMX477_DEFAULT_LINK_FREQ,
 };
 
+static const s64 imx477_double_link_freq_menu[] = {
+	IMX477_DEFAULT_LINK_FREQ * 2,
+};
+
 static const struct imx477_reg mode_common_regs[] = {
 	{0x0136, 0x18},
 	{0x0137, 0x00},
 	{0x0138, 0x01},
-	{0xe000, 0x00},
 	{0xe07a, 0x01},
 	{0x0808, 0x02},
 	{0x4ae9, 0x18},
@@ -472,18 +484,58 @@ static const struct imx477_reg mode_common_regs[] = {
 	{0xb21f, 0x04},
 	{0xb35c, 0x00},
 	{0xb35e, 0x08},
-	{0x0112, 0x0c},
-	{0x0113, 0x0c},
 	{0x0114, 0x01},
 	{0x0350, 0x00},
 	{0xbcf1, 0x02},
 	{0x3ff9, 0x01},
+	{0x0220, 0x00},
+	{0x0221, 0x11},
+	{0x0381, 0x01},
+	{0x0383, 0x01},
+	{0x0385, 0x01},
+	{0x0387, 0x01},
+	{0x0902, 0x02},
+	{0x3140, 0x02},
+	{0x3c00, 0x00},
+	{0x9e9a, 0x2f},
+	{0x9e9b, 0x2f},
+	{0x9e9c, 0x2f},
+	{0x9e9d, 0x00},
+	{0x9e9e, 0x00},
+	{0x9e9f, 0x00},
+	{0x0301, 0x05},
+	{0x0303, 0x02},
+	{0x030d, 0x02},
+	{0x030e, 0x00},
+	{0x030f, 0x96},
+	{0x0310, 0x01},
+	{0x0820, 0x07},
+	{0x0821, 0x08},
+	{0x0822, 0x00},
+	{0x0823, 0x00},
+	{0x080a, 0x00},
+	{0x080b, 0x7f},
+	{0x080c, 0x00},
+	{0x080d, 0x4f},
+	{0x080e, 0x00},
+	{0x080f, 0x77},
+	{0x0810, 0x00},
+	{0x0811, 0x5f},
+	{0x0812, 0x00},
+	{0x0813, 0x57},
+	{0x0814, 0x00},
+	{0x0815, 0x4f},
+	{0x0816, 0x01},
+	{0x0817, 0x27},
+	{0x0818, 0x00},
+	{0x0819, 0x3f},
+	{0x3e20, 0x01},
+	{0x3e37, 0x00},
+	{0x3f50, 0x00},
 };
 
 /* 12 mpix 10fps */
 static const struct imx477_reg mode_4056x3040_regs[] = {
-	{0x0342, 0x5d},
-	{0x0343, 0xc0},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -498,17 +550,8 @@ static const struct imx477_reg mode_4056x3040_regs[] = {
 	{0x00fd, 0x0a},
 	{0x00fe, 0x0a},
 	{0x00ff, 0x0a},
-	{0x0220, 0x00},
-	{0x0221, 0x11},
-	{0x0381, 0x01},
-	{0x0383, 0x01},
-	{0x0385, 0x01},
-	{0x0387, 0x01},
 	{0x0900, 0x00},
 	{0x0901, 0x11},
-	{0x0902, 0x02},
-	{0x3140, 0x02},
-	{0x3c00, 0x00},
 	{0x3c01, 0x03},
 	{0x3c02, 0xa2},
 	{0x3f0d, 0x01},
@@ -527,12 +570,6 @@ static const struct imx477_reg mode_4056x3040_regs[] = {
 	{0x936d, 0x28},
 	{0x9304, 0x00},
 	{0x9305, 0x00},
-	{0x9e9a, 0x2f},
-	{0x9e9b, 0x2f},
-	{0x9e9c, 0x2f},
-	{0x9e9d, 0x00},
-	{0x9e9e, 0x00},
-	{0x9e9f, 0x00},
 	{0xa2a9, 0x60},
 	{0xa2b7, 0x00},
 	{0x0401, 0x00},
@@ -550,52 +587,83 @@ static const struct imx477_reg mode_4056x3040_regs[] = {
 	{0x034d, 0xd8},
 	{0x034e, 0x0b},
 	{0x034f, 0xe0},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
-	{0x030b, 0x02},
-	{0x030d, 0x02},
-	{0x030e, 0x00},
-	{0x030f, 0x96},
-	{0x0310, 0x01},
-	{0x0820, 0x07},
-	{0x0821, 0x08},
-	{0x0822, 0x00},
-	{0x0823, 0x00},
-	{0x080a, 0x00},
-	{0x080b, 0x7f},
-	{0x080c, 0x00},
-	{0x080d, 0x4f},
-	{0x080e, 0x00},
-	{0x080f, 0x77},
-	{0x0810, 0x00},
-	{0x0811, 0x5f},
-	{0x0812, 0x00},
-	{0x0813, 0x57},
-	{0x0814, 0x00},
-	{0x0815, 0x4f},
-	{0x0816, 0x01},
-	{0x0817, 0x27},
-	{0x0818, 0x00},
-	{0x0819, 0x3f},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
 	{0xe04f, 0x1f},
-	{0x3e20, 0x01},
-	{0x3e37, 0x00},
-	{0x3f50, 0x00},
+	{0x3f56, 0x02},
+	{0x3f57, 0xae},
+};
+
+/* 12 mpix cropped to 16:9 10fps */
+static const struct imx477_reg mode_4056x2160_regs[] = {
+	{0x0344, 0x00},
+	{0x0345, 0x00},
+	{0x0346, 0x01},
+	{0x0347, 0xb8},
+	{0x0348, 0x0f},
+	{0x0349, 0xd7},
+	{0x034a, 0x0a},
+	{0x034b, 0x27},
+	{0x00e3, 0x00},
+	{0x00e4, 0x00},
+	{0x00fc, 0x0a},
+	{0x00fd, 0x0a},
+	{0x00fe, 0x0a},
+	{0x00ff, 0x0a},
+	{0x0900, 0x00},
+	{0x0901, 0x11},
+	{0x3c01, 0x03},
+	{0x3c02, 0xa2},
+	{0x3f0d, 0x01},
+	{0x5748, 0x07},
+	{0x5749, 0xff},
+	{0x574a, 0x00},
+	{0x574b, 0x00},
+	{0x7b75, 0x0a},
+	{0x7b76, 0x0c},
+	{0x7b77, 0x07},
+	{0x7b78, 0x06},
+	{0x7b79, 0x3c},
+	{0x7b53, 0x01},
+	{0x9369, 0x5a},
+	{0x936b, 0x55},
+	{0x936d, 0x28},
+	{0x9304, 0x00},
+	{0x9305, 0x00},
+	{0xa2a9, 0x60},
+	{0xa2b7, 0x00},
+	{0x0401, 0x00},
+	{0x0404, 0x00},
+	{0x0405, 0x10},
+	{0x0408, 0x00},
+	{0x0409, 0x00},
+	{0x040a, 0x00},
+	{0x040b, 0x00},
+	{0x040c, 0x0f},
+	{0x040d, 0xd8},
+	{0x040e, 0x08},
+	{0x040f, 0x70},
+	{0x034c, 0x0f},
+	{0x034d, 0xd8},
+	{0x034e, 0x08},
+	{0x034f, 0x70},
+	{0x0305, 0x04},
+	{0x0306, 0x01},
+	{0x0307, 0x5e},
+	{0xe04c, 0x00},
+	{0xe04d, 0x7f},
+	{0xe04e, 0x00},
+	{0xe04f, 0x1f},
 	{0x3f56, 0x02},
 	{0x3f57, 0xae},
 };
 
 /* 2x2 binned. 40fps */
 static const struct imx477_reg mode_2028x1520_regs[] = {
-	{0x0342, 0x31},
-	{0x0343, 0xc4},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -604,17 +672,8 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 	{0x0349, 0xd7},
 	{0x034a, 0x0b},
 	{0x034b, 0xdf},
-	{0x0220, 0x00},
-	{0x0221, 0x11},
-	{0x0381, 0x01},
-	{0x0383, 0x01},
-	{0x0385, 0x01},
-	{0x0387, 0x01},
 	{0x0900, 0x01},
 	{0x0901, 0x22},
-	{0x0902, 0x02},
-	{0x3140, 0x02},
-	{0x3c00, 0x00},
 	{0x3c01, 0x03},
 	{0x3c02, 0xa2},
 	{0x3f0d, 0x01},
@@ -628,12 +687,6 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 	{0x936d, 0x5f},
 	{0x9304, 0x00},
 	{0x9305, 0x00},
-	{0x9e9a, 0x2f},
-	{0x9e9b, 0x2f},
-	{0x9e9c, 0x2f},
-	{0x9e9d, 0x00},
-	{0x9e9e, 0x00},
-	{0x9e9f, 0x00},
 	{0xa2a9, 0x60},
 	{0xa2b7, 0x00},
 	{0x0401, 0x00},
@@ -651,52 +704,19 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 	{0x034d, 0xec},
 	{0x034e, 0x05},
 	{0x034f, 0xf0},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
-	{0x030b, 0x02},
-	{0x030d, 0x02},
-	{0x030e, 0x00},
-	{0x030f, 0x96},
-	{0x0310, 0x01},
-	{0x0820, 0x07},
-	{0x0821, 0x08},
-	{0x0822, 0x00},
-	{0x0823, 0x00},
-	{0x080a, 0x00},
-	{0x080b, 0x7f},
-	{0x080c, 0x00},
-	{0x080d, 0x4f},
-	{0x080e, 0x00},
-	{0x080f, 0x77},
-	{0x0810, 0x00},
-	{0x0811, 0x5f},
-	{0x0812, 0x00},
-	{0x0813, 0x57},
-	{0x0814, 0x00},
-	{0x0815, 0x4f},
-	{0x0816, 0x01},
-	{0x0817, 0x27},
-	{0x0818, 0x00},
-	{0x0819, 0x3f},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
 	{0xe04f, 0x1f},
-	{0x3e20, 0x01},
-	{0x3e37, 0x00},
-	{0x3f50, 0x00},
 	{0x3f56, 0x01},
 	{0x3f57, 0x6c},
 };
 
 /* 1080p cropped mode */
 static const struct imx477_reg mode_2028x1080_regs[] = {
-	{0x0342, 0x31},
-	{0x0343, 0xc4},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x01},
@@ -705,17 +725,8 @@ static const struct imx477_reg mode_2028x1080_regs[] = {
 	{0x0349, 0xd7},
 	{0x034a, 0x0a},
 	{0x034b, 0x27},
-	{0x0220, 0x00},
-	{0x0221, 0x11},
-	{0x0381, 0x01},
-	{0x0383, 0x01},
-	{0x0385, 0x01},
-	{0x0387, 0x01},
 	{0x0900, 0x01},
 	{0x0901, 0x22},
-	{0x0902, 0x02},
-	{0x3140, 0x02},
-	{0x3c00, 0x00},
 	{0x3c01, 0x03},
 	{0x3c02, 0xa2},
 	{0x3f0d, 0x01},
@@ -729,12 +740,6 @@ static const struct imx477_reg mode_2028x1080_regs[] = {
 	{0x936d, 0x5f},
 	{0x9304, 0x00},
 	{0x9305, 0x00},
-	{0x9e9a, 0x2f},
-	{0x9e9b, 0x2f},
-	{0x9e9c, 0x2f},
-	{0x9e9d, 0x00},
-	{0x9e9e, 0x00},
-	{0x9e9f, 0x00},
 	{0xa2a9, 0x60},
 	{0xa2b7, 0x00},
 	{0x0401, 0x00},
@@ -752,44 +757,13 @@ static const struct imx477_reg mode_2028x1080_regs[] = {
 	{0x034d, 0xec},
 	{0x034e, 0x04},
 	{0x034f, 0x38},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
 	{0x0305, 0x04},
 	{0x0306, 0x01},
 	{0x0307, 0x5e},
-	{0x0309, 0x0c},
-	{0x030b, 0x02},
-	{0x030d, 0x02},
-	{0x030e, 0x00},
-	{0x030f, 0x96},
-	{0x0310, 0x01},
-	{0x0820, 0x07},
-	{0x0821, 0x08},
-	{0x0822, 0x00},
-	{0x0823, 0x00},
-	{0x080a, 0x00},
-	{0x080b, 0x7f},
-	{0x080c, 0x00},
-	{0x080d, 0x4f},
-	{0x080e, 0x00},
-	{0x080f, 0x77},
-	{0x0810, 0x00},
-	{0x0811, 0x5f},
-	{0x0812, 0x00},
-	{0x0813, 0x57},
-	{0x0814, 0x00},
-	{0x0815, 0x4f},
-	{0x0816, 0x01},
-	{0x0817, 0x27},
-	{0x0818, 0x00},
-	{0x0819, 0x3f},
 	{0xe04c, 0x00},
 	{0xe04d, 0x7f},
 	{0xe04e, 0x00},
 	{0xe04f, 0x1f},
-	{0x3e20, 0x01},
-	{0x3e37, 0x00},
-	{0x3f50, 0x00},
 	{0x3f56, 0x01},
 	{0x3f57, 0x6c},
 };
@@ -808,13 +782,6 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x9a4b, 0x06},
 	{0x9a4c, 0x06},
 	{0x9a4d, 0x06},
-	{0x0112, 0x0a},
-	{0x0113, 0x0a},
-	{0x0114, 0x01},
-	{0x0342, 0x1a},
-	{0x0343, 0x08},
-	{0x0340, 0x04},
-	{0x0341, 0x1a},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x02},
@@ -830,17 +797,8 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x00fe, 0x0a},
 	{0x00ff, 0x0a},
 	{0xe013, 0x00},
-	{0x0220, 0x00},
-	{0x0221, 0x11},
-	{0x0381, 0x01},
-	{0x0383, 0x01},
-	{0x0385, 0x01},
-	{0x0387, 0x01},
 	{0x0900, 0x01},
 	{0x0901, 0x22},
-	{0x0902, 0x02},
-	{0x3140, 0x02},
-	{0x3c00, 0x00},
 	{0x3c01, 0x01},
 	{0x3c02, 0x9c},
 	{0x3f0d, 0x00},
@@ -859,12 +817,6 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x936d, 0x5f},
 	{0x9304, 0x03},
 	{0x9305, 0x80},
-	{0x9e9a, 0x2f},
-	{0x9e9b, 0x2f},
-	{0x9e9c, 0x2f},
-	{0x9e9d, 0x00},
-	{0x9e9e, 0x00},
-	{0x9e9f, 0x00},
 	{0xa2a9, 0x27},
 	{0xa2b7, 0x03},
 	{0x0401, 0x00},
@@ -882,93 +834,65 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x034d, 0x34},
 	{0x034e, 0x03},
 	{0x034f, 0xde},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
 	{0x0305, 0x02},
 	{0x0306, 0x00},
 	{0x0307, 0xaf},
-	{0x0309, 0x0a},
-	{0x030b, 0x02},
-	{0x030d, 0x02},
-	{0x030e, 0x00},
-	{0x030f, 0x96},
-	{0x0310, 0x01},
-	{0x0820, 0x07},
-	{0x0821, 0x08},
-	{0x0822, 0x00},
-	{0x0823, 0x00},
-	{0x080a, 0x00},
-	{0x080b, 0x7f},
-	{0x080c, 0x00},
-	{0x080d, 0x4f},
-	{0x080e, 0x00},
-	{0x080f, 0x77},
-	{0x0810, 0x00},
-	{0x0811, 0x5f},
-	{0x0812, 0x00},
-	{0x0813, 0x57},
-	{0x0814, 0x00},
-	{0x0815, 0x4f},
-	{0x0816, 0x01},
-	{0x0817, 0x27},
-	{0x0818, 0x00},
-	{0x0819, 0x3f},
 	{0xe04c, 0x00},
 	{0xe04d, 0x5f},
 	{0xe04e, 0x00},
 	{0xe04f, 0x1f},
-	{0x3e20, 0x01},
-	{0x3e37, 0x00},
-	{0x3f50, 0x00},
 	{0x3f56, 0x00},
 	{0x3f57, 0xbf},
 };
 
 /* Mode configs */
-static const struct imx477_mode supported_modes_12bit[] = {
+static const struct imx477_mode supported_modes[] = {
 	{
 		/* 12MPix 10fps mode */
 		.width = 4056,
 		.height = 3040,
-		.line_length_pix = 0x5dc0,
+		.line_length_pix = { 24000, 20000 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 1000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 1000
-		},
+		.framerate_default = 10,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4056x3040_regs),
 			.regs = mode_4056x3040_regs,
 		},
 	},
 	{
+		/* 12MPix cropped 16:9  mode */
+		.width = 4056,
+		.height = 2160,
+		.line_length_pix = { 24000, 20000 },
+		.crop = {
+			.left = IMX477_PIXEL_ARRAY_LEFT,
+			.top = IMX477_PIXEL_ARRAY_TOP + 440,
+			.width = 4056,
+			.height = 3040,
+		},
+		.framerate_default = 10,
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_4056x2160_regs),
+			.regs = mode_4056x2160_regs,
+		},
+	},
+	{
 		/* 2x2 binned 40fps mode */
 		.width = 2028,
 		.height = 1520,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = { 12740, 10616 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 4000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.framerate_default = 30,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1520_regs),
 			.regs = mode_2028x1520_regs,
@@ -978,34 +902,24 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 1080p 50fps cropped mode */
 		.width = 2028,
 		.height = 1080,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = { 12740, 10616 },
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
 			.width = 4056,
 			.height = 2160,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 5000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.framerate_default = 30,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1080_regs),
 			.regs = mode_2028x1080_regs,
 		},
-	}
-};
-
-static const struct imx477_mode supported_modes_10bit[] = {
+	},
 	{
 		/* 120fps. 2x2 binned and cropped */
 		.width = 1332,
 		.height = 990,
-		.line_length_pix = 6664,
+		.line_length_pix = { 7997, 6664 },
 		.crop = {
 			/*
 			 * FIXME: the analog crop rectangle is actually
@@ -1020,14 +934,7 @@ static const struct imx477_mode supported_modes_10bit[] = {
 			.width = 2664,
 			.height = 1980,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 12000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 12000
-		},
+		.framerate_default = 120,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1332x990_regs),
 			.regs = mode_1332x990_regs,
@@ -1136,6 +1043,17 @@ struct imx477 {
 	/* Streaming on/off */
 	bool streaming;
 
+	/* Flags field from parsing the endpoint - used for (non)continuous
+	 * clock mode
+	 */
+	unsigned int csi2_flags;
+
+	/*
+	 * Flag that CSI2 link is running at twice IMX477_DEFAULT_LINK_FREQ.
+	 * line_length_pix can be halved in that case.
+	 */
+	bool double_link_freq;
+
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
 
@@ -1149,33 +1067,6 @@ struct imx477 {
 static inline struct imx477 *to_imx477(struct v4l2_subdev *_sd)
 {
 	return container_of(_sd, struct imx477, sd);
-}
-
-static inline void get_mode_table(unsigned int code,
-				  const struct imx477_mode **mode_list,
-				  unsigned int *num_modes)
-{
-	switch (code) {
-	/* 12-bit */
-	case MEDIA_BUS_FMT_SRGGB12_1X12:
-	case MEDIA_BUS_FMT_SGRBG12_1X12:
-	case MEDIA_BUS_FMT_SGBRG12_1X12:
-	case MEDIA_BUS_FMT_SBGGR12_1X12:
-		*mode_list = supported_modes_12bit;
-		*num_modes = ARRAY_SIZE(supported_modes_12bit);
-		break;
-	/* 10-bit */
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-	case MEDIA_BUS_FMT_SGRBG10_1X10:
-	case MEDIA_BUS_FMT_SGBRG10_1X10:
-	case MEDIA_BUS_FMT_SBGGR10_1X10:
-		*mode_list = supported_modes_10bit;
-		*num_modes = ARRAY_SIZE(supported_modes_10bit);
-		break;
-	default:
-		*mode_list = NULL;
-		*num_modes = 0;
-	}
 }
 
 /* Read registers up to 2 at a time */
@@ -1273,7 +1164,7 @@ static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 static void imx477_set_default_format(struct imx477 *imx477)
 {
 	/* Set default mode to max resolution */
-	imx477->mode = &supported_modes_12bit[0];
+	imx477->mode = &supported_modes[0];
 	imx477->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 }
 
@@ -1289,8 +1180,8 @@ static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	mutex_lock(&imx477->mutex);
 
 	/* Initialize try_fmt for the image pad */
-	try_fmt_img->width = supported_modes_12bit[0].width;
-	try_fmt_img->height = supported_modes_12bit[0].height;
+	try_fmt_img->width = supported_modes[0].width;
+	try_fmt_img->height = supported_modes[0].height;
 	try_fmt_img->code = imx477_get_format_code(imx477,
 						   MEDIA_BUS_FMT_SRGGB12_1X12);
 	try_fmt_img->field = V4L2_FIELD_NONE;
@@ -1468,20 +1359,15 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
-		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
+		if (fse->index >= ARRAY_SIZE(supported_modes))
 			return -EINVAL;
 
 		if (fse->code != imx477_get_format_code(imx477, fse->code))
 			return -EINVAL;
 
-		fse->min_width = mode_list[fse->index].width;
+		fse->min_width = supported_modes[fse->index].width;
 		fse->max_width = fse->min_width;
-		fse->min_height = mode_list[fse->index].height;
+		fse->min_height = supported_modes[fse->index].height;
 		fse->max_height = fse->min_height;
 	} else {
 		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
@@ -1559,44 +1445,39 @@ static int imx477_get_pad_format(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static
-unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
-				     const struct v4l2_fract *timeperframe)
-{
-	u64 frame_length;
-
-	frame_length = (u64)timeperframe->numerator * IMX477_PIXEL_RATE;
-	do_div(frame_length,
-	       (u64)timeperframe->denominator * mode->line_length_pix);
-
-	if (WARN_ON(frame_length > IMX477_FRAME_LENGTH_MAX))
-		frame_length = IMX477_FRAME_LENGTH_MAX;
-
-	return max_t(unsigned int, frame_length, mode->height);
-}
-
 static void imx477_set_framing_limits(struct imx477 *imx477)
 {
-	unsigned int frm_length_min, frm_length_default, hblank_min;
+	unsigned int hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
-
-	frm_length_min = imx477_get_frame_length(mode, &mode->timeperframe_min);
-	frm_length_default =
-		     imx477_get_frame_length(mode, &mode->timeperframe_default);
+	unsigned int line_length_pix;
 
 	/* Default to no long exposure multiplier. */
 	imx477->long_exp_shift = 0;
 
 	/* Update limits and set FPS to default */
-	__v4l2_ctrl_modify_range(imx477->vblank, frm_length_min - mode->height,
+	__v4l2_ctrl_modify_range(imx477->vblank, 1,
 				 ((1 << IMX477_LONG_EXP_SHIFT_MAX) *
 					IMX477_FRAME_LENGTH_MAX) - mode->height,
-				 1, frm_length_default - mode->height);
+				 IMX477_VBLANK_MIN, IMX477_VBLANK_MIN);
 
-	/* Setting this will adjust the exposure limits as well. */
-	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
-
-	hblank_min = mode->line_length_pix - mode->width;
+	switch (imx477->fmt_code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+		line_length_pix = mode->line_length_pix[0];
+		break;
+	/* 10-bit */
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		line_length_pix = mode->line_length_pix[1];
+		break;
+	}
+	if (imx477->double_link_freq)
+		line_length_pix /= 2;
+	hblank_min = line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx477->hblank, hblank_min,
 				 IMX477_LINE_LENGTH_MAX, 1, hblank_min);
 	__v4l2_ctrl_s_ctrl(imx477->hblank, hblank_min);
@@ -1616,17 +1497,12 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 	mutex_lock(&imx477->mutex);
 
 	if (fmt->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
 		/* Bayer order varies with flips */
 		fmt->format.code = imx477_get_format_code(imx477,
 							  fmt->format.code);
 
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
-
-		mode = v4l2_find_nearest_size(mode_list,
-					      num_modes,
+		mode = v4l2_find_nearest_size(supported_modes,
+					      ARRAY_SIZE(supported_modes),
 					      width, height,
 					      fmt->format.width,
 					      fmt->format.height);
@@ -1635,7 +1511,8 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
-		} else if (imx477->mode != mode) {
+		} else if (imx477->mode != mode ||
+			   fmt->format.code != imx477->fmt_code) {
 			imx477->mode = mode;
 			imx477->fmt_code = fmt->format.code;
 			imx477_set_framing_limits(imx477);
@@ -1714,7 +1591,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	const struct imx477_reg_list *reg_list;
 	const struct imx477_reg_list *extra_regs;
-	int ret, tm;
+	int ret, tm, val;
 
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
@@ -1730,6 +1607,16 @@ static int imx477_start_streaming(struct imx477 *imx477)
 				__func__);
 			return ret;
 		}
+
+		imx477_write_reg(imx477, IMX477_REG_FRAME_BLANKSTOP_CLK,
+				 IMX477_REG_VALUE_08BIT,
+				 imx477->csi2_flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK ?
+					1 : 0);
+
+		imx477_write_reg(imx477, IMX477_REG_DIV_IOP_PX,
+				 IMX477_REG_VALUE_08BIT,
+				 imx477->double_link_freq ? 1 : 2);
+
 		imx477->common_regs_written = true;
 	}
 
@@ -1740,6 +1627,28 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
+
+	switch (imx477->fmt_code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+		val = 0x0c;
+		break;
+	/* 10-bit */
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		val = 0x0a;
+		break;
+	}
+	imx477_write_reg(imx477, IMX477_REG_CSI_DT_FMT_H,
+			 IMX477_REG_VALUE_08BIT, val);
+	imx477_write_reg(imx477, IMX477_REG_CSI_DT_FMT_L,
+			 IMX477_REG_VALUE_08BIT, val);
+	imx477_write_reg(imx477, IMX477_REG_IOP_PXCK_DIV,
+			 IMX477_REG_VALUE_08BIT, val);
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
@@ -1987,6 +1896,7 @@ static int imx477_init_controls(struct imx477 *imx477)
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	struct v4l2_fwnode_device_properties props;
+	const u64 *link_freq_menu;
 	unsigned int i;
 	int ret;
 
@@ -2008,11 +1918,16 @@ static int imx477_init_controls(struct imx477 *imx477)
 		imx477->pixel_rate->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/* LINK_FREQ is also read only */
+	if (imx477->double_link_freq)
+		link_freq_menu = imx477_double_link_freq_menu;
+	else
+		link_freq_menu = imx477_link_freq_menu;
+
 	imx477->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx477_ctrl_ops,
 				       V4L2_CID_LINK_FREQ,
 				       ARRAY_SIZE(imx477_link_freq_menu) - 1, 0,
-				       imx477_link_freq_menu);
+				       link_freq_menu);
 	if (imx477->link_freq)
 		imx477->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -2110,7 +2025,7 @@ static void imx477_free_controls(struct imx477 *imx477)
 	mutex_destroy(&imx477->mutex);
 }
 
-static int imx477_check_hwcfg(struct device *dev)
+static int imx477_check_hwcfg(struct device *dev, struct imx477 *imx477)
 {
 	struct fwnode_handle *endpoint;
 	struct v4l2_fwnode_endpoint ep_cfg = {
@@ -2142,11 +2057,16 @@ static int imx477_check_hwcfg(struct device *dev)
 	}
 
 	if (ep_cfg.nr_of_link_frequencies != 1 ||
-	    ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ) {
+	    (ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ &&
+	     ep_cfg.link_frequencies[0] != IMX477_DEFAULT_LINK_FREQ * 2)) {
 		dev_err(dev, "Link frequency not supported: %lld\n",
 			ep_cfg.link_frequencies[0]);
 		goto error_out;
 	}
+	if (ep_cfg.link_frequencies[0] == IMX477_DEFAULT_LINK_FREQ * 2)
+		imx477->double_link_freq = true;
+
+	imx477->csi2_flags = ep_cfg.bus.mipi_csi2.flags;
 
 	ret = 0;
 
@@ -2206,7 +2126,7 @@ static int imx477_probe(struct i2c_client *client)
 		(const struct imx477_compatible_data *)match->data;
 
 	/* Check the hardware configuration in device tree */
-	if (imx477_check_hwcfg(dev))
+	if (imx477_check_hwcfg(dev, imx477))
 		return -EINVAL;
 
 	/* Default the trigger mode from OF to -1, which means invalid */

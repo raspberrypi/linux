@@ -2780,6 +2780,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 camera clamping I/Os such as XVS to 0V.
         sync-source             Configure as vsync source
         sync-sink               Configure as vsync sink
+        pi5                     Doubles CSI2 clock frequency
 
 
 Name:   imx462
@@ -2822,6 +2823,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 camera clamping I/Os such as XVS to 0V.
         sync-source             Configure as vsync source
         sync-sink               Configure as vsync sink
+        pi5                     Doubles CSI2 clock frequency
 
 
 Name:   imx500
