@@ -444,7 +444,6 @@ create_pagelist(struct vchiq_instance *instance, char *buf, char __user *ubuf,
 		for_each_sg(scatterlist, sg, dma_buffers, i) {
 			unsigned int len = sg_dma_len(sg);
 			dma_addr_t addr = sg_dma_address(sg);
-			u32 new_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
 			/* Note: addrs is the address + page_count - 1
 			 * The firmware expects blocks after the first to be page-
@@ -453,13 +452,11 @@ create_pagelist(struct vchiq_instance *instance, char *buf, char __user *ubuf,
 			WARN_ON(len == 0);
 			WARN_ON(i && (i != (dma_buffers - 1)) && (len & ~PAGE_MASK));
 			WARN_ON(i && (addr & ~PAGE_MASK));
-			if (k > 0 &&
-			    ((addrs[k - 1] & PAGE_MASK) +
-			     (((addrs[k - 1] & ~PAGE_MASK) + 1) << PAGE_SHIFT))
-			    == (addr & PAGE_MASK))
-				addrs[k - 1] += new_pages;
+			if (is_adjacent_block(addrs, addr, k))
+				addrs[k - 1] += ((len + PAGE_SIZE - 1) >> PAGE_SHIFT);
 			else
-				addrs[k++] = (addr & PAGE_MASK) | (new_pages - 1);
+				addrs[k++] = (addr & PAGE_MASK) |
+					(((len + PAGE_SIZE - 1) >> PAGE_SHIFT) - 1);
 		}
 	}
 
@@ -612,14 +609,13 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 	}
 
 	WARN_ON(((unsigned long)slot_mem & (PAGE_SIZE - 1)) != 0);
-	channelbase = slot_phys;
 
 	vchiq_slot_zero = vchiq_init_slots(dev, slot_mem, slot_mem_size);
 	if (!vchiq_slot_zero)
 		return -ENOMEM;
 
 	vchiq_slot_zero->platform_data[VCHIQ_PLATFORM_FRAGMENTS_OFFSET_IDX] =
-		channelbase + slot_mem_size;
+		(int)slot_phys + slot_mem_size;
 	vchiq_slot_zero->platform_data[VCHIQ_PLATFORM_FRAGMENTS_COUNT_IDX] =
 		MAX_FRAGMENTS;
 
@@ -654,6 +650,7 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 	}
 
 	/* Send the base address of the slots to VideoCore */
+	channelbase = slot_phys;
 	err = rpi_firmware_property(fw, RPI_FIRMWARE_VCHIQ_INIT,
 				    &channelbase, sizeof(channelbase));
 	if (err) {
