@@ -234,19 +234,6 @@ aux: &dummy {};
 
 #include "bcm2712-rpi.dtsi"
 
-i2c_csi_dsi0: &i2c6 { // Note: This is for MIPI0 connector only
-	pinctrl-0 = <&rp1_i2c6_38_39>;
-	pinctrl-names = "default";
-	clock-frequency = <100000>;
-	symlink = "i2c-6";
-};
-
-i2c_csi_dsi1: &i2c0 { // Note: This is for MIPI1 connector
-	symlink = "i2c-11";
-};
-
-i2c_csi_dsi: &i2c_csi_dsi1 { }; // An alias for compatibility
-
 cam1_reg: &cam0_reg { // Shares CAM_GPIO with cam0_reg
 };
 
