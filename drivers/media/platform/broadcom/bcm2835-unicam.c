@@ -2242,7 +2242,7 @@ static int unicam_register_node(struct unicam_device *unicam,
 	q->buf_struct_size = sizeof(struct unicam_buffer);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->lock = &unicam->lock;
-	q->min_queued_buffers = 1;
+	q->min_buffers_needed = 1;
 	q->dev = unicam->dev;
 
 	ret = vb2_queue_init(q);
@@ -2700,7 +2700,7 @@ err_unicam_put:
 	return ret;
 }
 
-static void unicam_remove(struct platform_device *pdev)
+static int unicam_remove(struct platform_device *pdev)
 {
 	struct unicam_device *unicam = platform_get_drvdata(pdev);
 
@@ -2714,6 +2714,8 @@ static void unicam_remove(struct platform_device *pdev)
 	unicam_put(unicam);
 
 	pm_runtime_disable(&pdev->dev);
+
+	return 0;
 }
 
 static const struct of_device_id unicam_of_match[] = {
