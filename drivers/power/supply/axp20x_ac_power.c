@@ -52,6 +52,9 @@ static irqreturn_t axp20x_ac_power_irq(int irq, void *devid)
 {
 	struct axp20x_ac_power *power = devid;
 
+	regmap_update_bits(power->regmap, AXP20X_VBUS_IPSOUT_MGMT, 0x03, 0x00);
+	regmap_update_bits(power->regmap, AXP20X_VBUS_IPSOUT_MGMT, 0x03, 0x03);
+
 	power_supply_changed(power->supply);
 
 	return IRQ_HANDLED;
