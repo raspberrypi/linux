@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2021 Raspberry Pi Ltd.
- *
+ * Copyright (c) 2021-2024 Raspberry Pi Ltd.
+ * Copyright (c) 2023-2024 Ideas on Board Oy
  */
 
 #ifndef _RP1_DPHY_

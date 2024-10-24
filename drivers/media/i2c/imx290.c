@@ -758,7 +758,7 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	state = v4l2_subdev_get_locked_active_state(&imx290->sd);
-	format = v4l2_subdev_get_pad_format(&imx290->sd, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
 
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
@@ -994,7 +994,7 @@ static int imx290_start_streaming(struct imx290 *imx290,
 	}
 
 	/* Apply the register values related to current frame format */
-	format = v4l2_subdev_get_pad_format(&imx290->sd, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
 	ret = imx290_setup_format(imx290, format);
 	if (ret < 0) {
 		dev_err(imx290->dev, "Could not set frame format - %d\n", ret);
@@ -1132,7 +1132,7 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 	fmt->format.quantization = V4L2_QUANTIZATION_FULL_RANGE;
 	fmt->format.xfer_func = V4L2_XFER_FUNC_NONE;
 
-	format = v4l2_subdev_get_pad_format(sd, sd_state, 0);
+	format = v4l2_subdev_state_get_format(sd_state, 0);
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
 		imx290->current_mode = mode;
@@ -1155,7 +1155,7 @@ static int imx290_get_selection(struct v4l2_subdev *sd,
 
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP: {
-		format = v4l2_subdev_get_pad_format(sd, sd_state, 0);
+		format = v4l2_subdev_state_get_format(sd_state, 0);
 
 		/*
 		 * The sensor moves the readout by 1 pixel based on flips to
@@ -1195,8 +1195,8 @@ static int imx290_get_selection(struct v4l2_subdev *sd,
 	}
 }
 
-static int imx290_entity_init_cfg(struct v4l2_subdev *subdev,
-				  struct v4l2_subdev_state *sd_state)
+static int imx290_entity_init_state(struct v4l2_subdev *subdev,
+				    struct v4l2_subdev_state *sd_state)
 {
 	struct v4l2_subdev_format fmt = {
 		.which = V4L2_SUBDEV_FORMAT_TRY,
@@ -1221,7 +1221,6 @@ static const struct v4l2_subdev_video_ops imx290_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops imx290_pad_ops = {
-	.init_cfg = imx290_entity_init_cfg,
 	.enum_mbus_code = imx290_enum_mbus_code,
 	.enum_frame_size = imx290_enum_frame_size,
 	.get_fmt = v4l2_subdev_get_fmt,
@@ -1233,6 +1232,10 @@ static const struct v4l2_subdev_ops imx290_subdev_ops = {
 	.core = &imx290_core_ops,
 	.video = &imx290_video_ops,
 	.pad = &imx290_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops imx290_internal_ops = {
+	.init_state = imx290_entity_init_state,
 };
 
 static const struct media_entity_operations imx290_subdev_entity_ops = {
@@ -1248,6 +1251,7 @@ static int imx290_subdev_init(struct imx290 *imx290)
 	imx290->current_mode = &imx290_modes_ptr(imx290)[0];
 
 	v4l2_i2c_subdev_init(&imx290->sd, client, &imx290_subdev_ops);
+	imx290->sd.internal_ops = &imx290_internal_ops;
 	imx290->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
 			    V4L2_SUBDEV_FL_HAS_EVENTS;
 	imx290->sd.dev = imx290->dev;

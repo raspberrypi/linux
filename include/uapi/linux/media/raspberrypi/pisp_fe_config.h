@@ -5,12 +5,13 @@
  * Copyright (C) 2021 - Raspberry Pi Ltd.
  *
  */
-#ifndef _PISP_FE_CONFIG_
-#define _PISP_FE_CONFIG_
+#ifndef _UAPI_PISP_FE_CONFIG_
+#define _UAPI_PISP_FE_CONFIG_
 
-#include <media/raspberrypi/pisp_common.h>
+#include <linux/types.h>
 
-#include "pisp_statistics.h"
+#include "pisp_common.h"
+#include "pisp_fe_statistics.h"
 
 #define PISP_FE_NUM_OUTPUTS 2
 
@@ -54,182 +55,182 @@ enum pisp_fe_dirty {
 };
 
 struct pisp_fe_global_config {
-	u32 enables;
-	u8 bayer_order;
-	u8 pad[3];
-};
+	__u32 enables;
+	__u8 bayer_order;
+	__u8 pad[3];
+} __attribute__((packed));
 
 struct pisp_fe_input_axi_config {
 	/* burst length minus one, in the range 0..15; OR'd with flags */
-	u8 maxlen_flags;
+	__u8 maxlen_flags;
 	/* { prot[2:0], cache[3:0] } fields */
-	u8 cache_prot;
+	__u8 cache_prot;
 	/* QoS (only 4 LS bits are used) */
-	u16 qos;
-};
+	__u16 qos;
+} __attribute__((packed));
 
 struct pisp_fe_output_axi_config {
 	/* burst length minus one, in the range 0..15; OR'd with flags */
-	u8 maxlen_flags;
+	__u8 maxlen_flags;
 	/* { prot[2:0], cache[3:0] } fields */
-	u8 cache_prot;
+	__u8 cache_prot;
 	/* QoS (4 bitfields of 4 bits each for different panic levels) */
-	u16 qos;
+	__u16 qos;
 	/*  For Panic mode: Output FIFO panic threshold */
-	u16 thresh;
+	__u16 thresh;
 	/*  For Panic mode: Output FIFO statistics throttle threshold */
-	u16 throttle;
-};
+	__u16 throttle;
+} __attribute__((packed));
 
 struct pisp_fe_input_config {
-	u8 streaming;
-	u8 pad[3];
+	__u8 streaming;
+	__u8 pad[3];
 	struct pisp_image_format_config format;
 	struct pisp_fe_input_axi_config axi;
 	/* Extra cycles delay before issuing each burst request */
-	u8 holdoff;
-	u8 pad2[3];
-};
+	__u8 holdoff;
+	__u8 pad2[3];
+} __attribute__((packed));
 
 struct pisp_fe_output_config {
 	struct pisp_image_format_config format;
-	u16 ilines;
-	u8 pad[2];
-};
+	__u16 ilines;
+	__u8 pad[2];
+} __attribute__((packed));
 
 struct pisp_fe_input_buffer_config {
-	u32 addr_lo;
-	u32 addr_hi;
-	u16 frame_id;
-	u16 pad;
-};
+	__u32 addr_lo;
+	__u32 addr_hi;
+	__u16 frame_id;
+	__u16 pad;
+} __attribute__((packed));
 
 #define PISP_FE_DECOMPAND_LUT_SIZE 65
 
 struct pisp_fe_decompand_config {
-	u16 lut[PISP_FE_DECOMPAND_LUT_SIZE];
-	u16 pad;
-};
+	__u16 lut[PISP_FE_DECOMPAND_LUT_SIZE];
+	__u16 pad;
+} __attribute__((packed));
 
 struct pisp_fe_dpc_config {
-	u8 coeff_level;
-	u8 coeff_range;
-	u8 coeff_range2;
+	__u8 coeff_level;
+	__u8 coeff_range;
+	__u8 coeff_range2;
 #define PISP_FE_DPC_FLAG_FOLDBACK 1
 #define PISP_FE_DPC_FLAG_VFLAG 2
-	u8 flags;
-};
+	__u8 flags;
+} __attribute__((packed));
 
 #define PISP_FE_LSC_LUT_SIZE 16
 
 struct pisp_fe_lsc_config {
-	u8 shift;
-	u8 pad0;
-	u16 scale;
-	u16 centre_x;
-	u16 centre_y;
-	u16 lut[PISP_FE_LSC_LUT_SIZE];
-};
+	__u8 shift;
+	__u8 pad0;
+	__u16 scale;
+	__u16 centre_x;
+	__u16 centre_y;
+	__u16 lut[PISP_FE_LSC_LUT_SIZE];
+} __attribute__((packed));
 
 struct pisp_fe_rgby_config {
-	u16 gain_r;
-	u16 gain_g;
-	u16 gain_b;
-	u8 maxflag;
-	u8 pad;
-};
+	__u16 gain_r;
+	__u16 gain_g;
+	__u16 gain_b;
+	__u8 maxflag;
+	__u8 pad;
+} __attribute__((packed));
 
 struct pisp_fe_agc_stats_config {
-	u16 offset_x;
-	u16 offset_y;
-	u16 size_x;
-	u16 size_y;
+	__u16 offset_x;
+	__u16 offset_y;
+	__u16 size_x;
+	__u16 size_y;
 	/* each weight only 4 bits */
-	u8 weights[PISP_AGC_STATS_NUM_ZONES / 2];
-	u16 row_offset_x;
-	u16 row_offset_y;
-	u16 row_size_x;
-	u16 row_size_y;
-	u8 row_shift;
-	u8 float_shift;
-	u8 pad1[2];
-};
+	__u8 weights[PISP_AGC_STATS_NUM_ZONES / 2];
+	__u16 row_offset_x;
+	__u16 row_offset_y;
+	__u16 row_size_x;
+	__u16 row_size_y;
+	__u8 row_shift;
+	__u8 float_shift;
+	__u8 pad1[2];
+} __attribute__((packed));
 
 struct pisp_fe_awb_stats_config {
-	u16 offset_x;
-	u16 offset_y;
-	u16 size_x;
-	u16 size_y;
-	u8 shift;
-	u8 pad[3];
-	u16 r_lo;
-	u16 r_hi;
-	u16 g_lo;
-	u16 g_hi;
-	u16 b_lo;
-	u16 b_hi;
-};
+	__u16 offset_x;
+	__u16 offset_y;
+	__u16 size_x;
+	__u16 size_y;
+	__u8 shift;
+	__u8 pad[3];
+	__u16 r_lo;
+	__u16 r_hi;
+	__u16 g_lo;
+	__u16 g_hi;
+	__u16 b_lo;
+	__u16 b_hi;
+} __attribute__((packed));
 
 struct pisp_fe_floating_stats_region {
-	u16 offset_x;
-	u16 offset_y;
-	u16 size_x;
-	u16 size_y;
-};
+	__u16 offset_x;
+	__u16 offset_y;
+	__u16 size_x;
+	__u16 size_y;
+} __attribute__((packed));
 
 struct pisp_fe_floating_stats_config {
 	struct pisp_fe_floating_stats_region
-					regions[PISP_FLOATING_STATS_NUM_ZONES];
-};
+		regions[PISP_FLOATING_STATS_NUM_ZONES];
+} __attribute__((packed));
 
 #define PISP_FE_CDAF_NUM_WEIGHTS 8
 
 struct pisp_fe_cdaf_stats_config {
-	u16 noise_constant;
-	u16 noise_slope;
-	u16 offset_x;
-	u16 offset_y;
-	u16 size_x;
-	u16 size_y;
-	u16 skip_x;
-	u16 skip_y;
-	u32 mode;
-};
+	__u16 noise_constant;
+	__u16 noise_slope;
+	__u16 offset_x;
+	__u16 offset_y;
+	__u16 size_x;
+	__u16 size_y;
+	__u16 skip_x;
+	__u16 skip_y;
+	__u32 mode;
+} __attribute__((packed));
 
 struct pisp_fe_stats_buffer_config {
-	u32 addr_lo;
-	u32 addr_hi;
-};
+	__u32 addr_lo;
+	__u32 addr_hi;
+} __attribute__((packed));
 
 struct pisp_fe_crop_config {
-	u16 offset_x;
-	u16 offset_y;
-	u16 width;
-	u16 height;
-};
+	__u16 offset_x;
+	__u16 offset_y;
+	__u16 width;
+	__u16 height;
+} __attribute__((packed));
 
 enum pisp_fe_downscale_flags {
-	DOWNSCALE_BAYER =
-		1, /* downscale the four Bayer components independently... */
-	DOWNSCALE_BIN =
-		2 /* ...without trying to preserve their spatial relationship */
+	/* downscale the four Bayer components independently... */
+	DOWNSCALE_BAYER = 1,
+	/* ...without trying to preserve their spatial relationship */
+	DOWNSCALE_BIN = 2,
 };
 
 struct pisp_fe_downscale_config {
-	u8 xin;
-	u8 xout;
-	u8 yin;
-	u8 yout;
-	u8 flags; /* enum pisp_fe_downscale_flags */
-	u8 pad[3];
-	u16 output_width;
-	u16 output_height;
-};
+	__u8 xin;
+	__u8 xout;
+	__u8 yin;
+	__u8 yout;
+	__u8 flags; /* enum pisp_fe_downscale_flags */
+	__u8 pad[3];
+	__u16 output_width;
+	__u16 output_height;
+} __attribute__((packed));
 
 struct pisp_fe_output_buffer_config {
-	u32 addr_lo;
-	u32 addr_hi;
-};
+	__u32 addr_lo;
+	__u32 addr_hi;
+} __attribute__((packed));
 
 /* Each of the two output channels/branches: */
 struct pisp_fe_output_branch_config {
@@ -237,8 +238,8 @@ struct pisp_fe_output_branch_config {
 	struct pisp_fe_downscale_config downscale;
 	struct pisp_compress_config compress;
 	struct pisp_fe_output_config output;
-	u32 pad;
-};
+	__u32 pad;
+} __attribute__((packed));
 
 /* And finally one to rule them all: */
 struct pisp_fe_config {
@@ -254,7 +255,7 @@ struct pisp_fe_config {
 	struct pisp_bla_config bla;
 	struct pisp_fe_dpc_config dpc;
 	struct pisp_fe_crop_config stats_crop;
-	u32 spare1; /* placeholder for future decimate configuration */
+	__u32 spare1; /* placeholder for future decimate configuration */
 	struct pisp_bla_config blc;
 	struct pisp_fe_rgby_config rgby;
 	struct pisp_fe_lsc_config lsc;
@@ -265,8 +266,8 @@ struct pisp_fe_config {
 	struct pisp_fe_output_axi_config output_axi;
 	struct pisp_fe_output_branch_config ch[PISP_FE_NUM_OUTPUTS];
 	/* non-register fields: */
-	u32 dirty_flags; /* these use pisp_fe_enable */
-	u32 dirty_flags_extra; /* these use pisp_fe_dirty */
-};
+	__u32 dirty_flags; /* these use pisp_fe_enable */
+	__u32 dirty_flags_extra; /* these use pisp_fe_dirty */
+} __attribute__((packed));
 
-#endif /* _PISP_FE_CONFIG_ */
+#endif /* _UAPI_PISP_FE_CONFIG_ */

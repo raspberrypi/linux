@@ -2797,8 +2797,7 @@ static int ov5640_get_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
-		fmt = v4l2_subdev_get_try_format(&sensor->sd, sd_state,
-						 format->pad);
+		fmt = v4l2_subdev_state_get_format(sd_state, format->pad);
 	else
 		fmt = &sensor->fmt;
 
@@ -2971,7 +2970,7 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 		goto out;
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
-		*v4l2_subdev_get_try_format(sd, sd_state, 0) = *mbus_fmt;
+		*v4l2_subdev_state_get_format(sd_state, 0) = *mbus_fmt;
 		goto out;
 	}
 
@@ -3745,13 +3744,13 @@ out:
 	return ret;
 }
 
-static int ov5640_init_cfg(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_state *state)
+static int ov5640_init_state(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *state)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
 	struct v4l2_mbus_framefmt *fmt =
-				v4l2_subdev_get_try_format(sd, state, 0);
-	struct v4l2_rect *crop = v4l2_subdev_get_try_crop(sd, state, 0);
+				v4l2_subdev_state_get_format(state, 0);
+	struct v4l2_rect *crop = v4l2_subdev_state_get_crop(state, 0);
 
 	*fmt = ov5640_is_csi2(sensor) ? ov5640_csi2_default_fmt :
 					ov5640_dvp_default_fmt;
@@ -3777,7 +3776,6 @@ static const struct v4l2_subdev_video_ops ov5640_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops ov5640_pad_ops = {
-	.init_cfg = ov5640_init_cfg,
 	.enum_mbus_code = ov5640_enum_mbus_code,
 	.get_fmt = ov5640_get_fmt,
 	.set_fmt = ov5640_set_fmt,
@@ -3790,6 +3788,10 @@ static const struct v4l2_subdev_ops ov5640_subdev_ops = {
 	.core = &ov5640_core_ops,
 	.video = &ov5640_video_ops,
 	.pad = &ov5640_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops ov5640_internal_ops = {
+	.init_state = ov5640_init_state,
 };
 
 static int ov5640_get_regulators(struct ov5640_dev *sensor)
@@ -3906,6 +3908,7 @@ static int ov5640_probe(struct i2c_client *client)
 		return PTR_ERR(sensor->reset_gpio);
 
 	v4l2_i2c_subdev_init(&sensor->sd, client, &ov5640_subdev_ops);
+	sensor->sd.internal_ops = &ov5640_internal_ops;
 
 	sensor->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
 			    V4L2_SUBDEV_FL_HAS_EVENTS;

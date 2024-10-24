@@ -2105,8 +2105,8 @@ static int imx500_get_pad_format(struct v4l2_subdev *sd,
 	mutex_lock(&imx500->mutex);
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		struct v4l2_mbus_framefmt *try_fmt = v4l2_subdev_get_try_format(
-			&imx500->sd, sd_state, fmt->pad);
+		struct v4l2_mbus_framefmt *try_fmt = v4l2_subdev_state_get_format(sd_state,
+										  fmt->pad);
 		/* update the code which could change due to vflip or hflip */
 		try_fmt->code = fmt->pad == IMAGE_PAD ?
 					imx500_get_format_code(imx500) :
@@ -2174,8 +2174,8 @@ static int imx500_set_pad_format(struct v4l2_subdev *sd,
 					      fmt->format.height);
 		imx500_update_image_pad_format(imx500, mode, fmt);
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
+			framefmt = v4l2_subdev_state_get_format(sd_state,
+								fmt->pad);
 			*framefmt = fmt->format;
 		} else if (imx500->mode != mode) {
 			imx500->mode = mode;
@@ -2184,8 +2184,8 @@ static int imx500_set_pad_format(struct v4l2_subdev *sd,
 		}
 	} else {
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
+			framefmt = v4l2_subdev_state_get_format(sd_state,
+								fmt->pad);
 			*framefmt = fmt->format;
 		} else {
 			/* Only one embedded data mode is supported */
@@ -2204,7 +2204,7 @@ __imx500_get_pad_crop(struct imx500 *imx500, struct v4l2_subdev_state *sd_state,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx500->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx500->mode->crop;
 	}

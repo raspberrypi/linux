@@ -2,8 +2,8 @@
 /*
  * RP1 CSI-2 Driver
  *
- * Copyright (C) 2021 - Raspberry Pi Ltd.
- *
+ * Copyright (c) 2021-2024 Raspberry Pi Ltd.
+ * Copyright (c) 2023-2024 Ideas on Board Oy
  */
 
 #include <linux/delay.h>
@@ -13,21 +13,17 @@
 
 #include <media/videobuf2-dma-contig.h>
 
-#include "csi2.h"
 #include "cfe.h"
+#include "csi2.h"
+
+#include "cfe-trace.h"
 
 static bool csi2_track_errors;
 module_param_named(track_csi2_errors, csi2_track_errors, bool, 0);
 MODULE_PARM_DESC(track_csi2_errors, "track csi-2 errors");
 
-#define csi2_dbg_verbose(fmt, arg...)                             \
-	do {                                                      \
-		if (cfe_debug_verbose)                            \
-			dev_dbg(csi2->v4l2_dev->dev, fmt, ##arg); \
-	} while (0)
-#define csi2_dbg(fmt, arg...) dev_dbg(csi2->v4l2_dev->dev, fmt, ##arg)
-#define csi2_info(fmt, arg...) dev_info(csi2->v4l2_dev->dev, fmt, ##arg)
-#define csi2_err(fmt, arg...) dev_err(csi2->v4l2_dev->dev, fmt, ##arg)
+#define csi2_dbg(csi2, fmt, arg...) dev_dbg((csi2)->v4l2_dev->dev, fmt, ##arg)
+#define csi2_err(csi2, fmt, arg...) dev_err((csi2)->v4l2_dev->dev, fmt, ##arg)
 
 /* CSI2-DMA registers */
 #define CSI2_STATUS		0x000
@@ -70,42 +66,45 @@ MODULE_PARM_DESC(track_csi2_errors, "track csi-2 errors");
 #define CSI2_CH_FE_FRAME_ID(x)	((x) * 0x40 + 0x48)
 
 /* CSI2_STATUS */
-#define IRQ_FS(x)		(BIT(0) << (x))
-#define IRQ_FE(x)		(BIT(4) << (x))
-#define IRQ_FE_ACK(x)		(BIT(8) << (x))
-#define IRQ_LE(x)		(BIT(12) << (x))
-#define IRQ_LE_ACK(x)		(BIT(16) << (x))
-#define IRQ_CH_MASK(x)		(IRQ_FS(x) | IRQ_FE(x) | IRQ_FE_ACK(x) | IRQ_LE(x) | IRQ_LE_ACK(x))
-#define IRQ_OVERFLOW		BIT(20)
-#define IRQ_DISCARD_OVERFLOW	BIT(21)
-#define IRQ_DISCARD_LEN_LIMIT	BIT(22)
-#define IRQ_DISCARD_UNMATCHED	BIT(23)
-#define IRQ_DISCARD_INACTIVE	BIT(24)
+#define CSI2_STATUS_IRQ_FS(x)			(BIT(0) << (x))
+#define CSI2_STATUS_IRQ_FE(x)			(BIT(4) << (x))
+#define CSI2_STATUS_IRQ_FE_ACK(x)		(BIT(8) << (x))
+#define CSI2_STATUS_IRQ_LE(x)			(BIT(12) << (x))
+#define CSI2_STATUS_IRQ_LE_ACK(x)		(BIT(16) << (x))
+#define CSI2_STATUS_IRQ_CH_MASK(x) \
+	(CSI2_STATUS_IRQ_FS(x) | CSI2_STATUS_IRQ_FE(x) | \
+	 CSI2_STATUS_IRQ_FE_ACK(x) | CSI2_STATUS_IRQ_LE(x) | \
+	 CSI2_STATUS_IRQ_LE_ACK(x))
+#define CSI2_STATUS_IRQ_OVERFLOW		BIT(20)
+#define CSI2_STATUS_IRQ_DISCARD_OVERFLOW	BIT(21)
+#define CSI2_STATUS_IRQ_DISCARD_LEN_LIMIT	BIT(22)
+#define CSI2_STATUS_IRQ_DISCARD_UNMATCHED	BIT(23)
+#define CSI2_STATUS_IRQ_DISCARD_INACTIVE	BIT(24)
 
 /* CSI2_CTRL */
-#define EOP_IS_EOL		BIT(0)
+#define CSI2_CTRL_EOP_IS_EOL			BIT(0)
 
 /* CSI2_CH_CTRL */
-#define DMA_EN			BIT(0)
-#define FORCE			BIT(3)
-#define AUTO_ARM		BIT(4)
-#define IRQ_EN_FS		BIT(13)
-#define IRQ_EN_FE		BIT(14)
-#define IRQ_EN_FE_ACK		BIT(15)
-#define IRQ_EN_LE		BIT(16)
-#define IRQ_EN_LE_ACK		BIT(17)
-#define FLUSH_FE		BIT(28)
-#define PACK_LINE		BIT(29)
-#define PACK_BYTES		BIT(30)
-#define CH_MODE_MASK		GENMASK(2, 1)
-#define VC_MASK			GENMASK(6, 5)
-#define DT_MASK			GENMASK(12, 7)
-#define LC_MASK			GENMASK(27, 18)
+#define CSI2_CH_CTRL_DMA_EN			BIT(0)
+#define CSI2_CH_CTRL_FORCE			BIT(3)
+#define CSI2_CH_CTRL_AUTO_ARM			BIT(4)
+#define CSI2_CH_CTRL_IRQ_EN_FS			BIT(13)
+#define CSI2_CH_CTRL_IRQ_EN_FE			BIT(14)
+#define CSI2_CH_CTRL_IRQ_EN_FE_ACK		BIT(15)
+#define CSI2_CH_CTRL_IRQ_EN_LE			BIT(16)
+#define CSI2_CH_CTRL_IRQ_EN_LE_ACK		BIT(17)
+#define CSI2_CH_CTRL_FLUSH_FE			BIT(28)
+#define CSI2_CH_CTRL_PACK_LINE			BIT(29)
+#define CSI2_CH_CTRL_PACK_BYTES			BIT(30)
+#define CSI2_CH_CTRL_CH_MODE_MASK		GENMASK(2, 1)
+#define CSI2_CH_CTRL_VC_MASK			GENMASK(6, 5)
+#define CSI2_CH_CTRL_DT_MASK			GENMASK(12, 7)
+#define CSI2_CH_CTRL_LC_MASK			GENMASK(27, 18)
 
 /* CHx_COMPRESSION_CONTROL */
-#define COMP_OFFSET_MASK	GENMASK(15, 0)
-#define COMP_SHIFT_MASK		GENMASK(19, 16)
-#define COMP_MODE_MASK		GENMASK(25, 24)
+#define CSI2_CH_COMP_CTRL_OFFSET_MASK		GENMASK(15, 0)
+#define CSI2_CH_COMP_CTRL_SHIFT_MASK		GENMASK(19, 16)
+#define CSI2_CH_COMP_CTRL_MODE_MASK		GENMASK(25, 24)
 
 static inline u32 csi2_reg_read(struct csi2_device *csi2, u32 offset)
 {
@@ -115,7 +114,6 @@ static inline u32 csi2_reg_read(struct csi2_device *csi2, u32 offset)
 static inline void csi2_reg_write(struct csi2_device *csi2, u32 offset, u32 val)
 {
 	writel(val, csi2->base + offset);
-	csi2_dbg_verbose("csi2: write 0x%04x -> 0x%03x\n", val, offset);
 }
 
 static inline void set_field(u32 *valp, u32 field, u32 mask)
@@ -130,7 +128,6 @@ static inline void set_field(u32 *valp, u32 field, u32 mask)
 static int csi2_regs_show(struct seq_file *s, void *data)
 {
 	struct csi2_device *csi2 = s->private;
-	unsigned int i;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(csi2->v4l2_dev->dev);
@@ -138,7 +135,8 @@ static int csi2_regs_show(struct seq_file *s, void *data)
 		return ret;
 
 #define DUMP(reg) seq_printf(s, #reg " \t0x%08x\n", csi2_reg_read(csi2, reg))
-#define DUMP_CH(idx, reg) seq_printf(s, #reg "(%u) \t0x%08x\n", idx, csi2_reg_read(csi2, reg(idx)))
+#define DUMP_CH(idx, reg) seq_printf(s, #reg "(%u) \t0x%08x\n", idx, \
+				     csi2_reg_read(csi2, reg(idx)))
 
 	DUMP(CSI2_STATUS);
 	DUMP(CSI2_DISCARDS_OVERFLOW);
@@ -150,7 +148,7 @@ static int csi2_regs_show(struct seq_file *s, void *data)
 	DUMP(CSI2_IRQ_MASK);
 	DUMP(CSI2_CTRL);
 
-	for (i = 0; i < CSI2_NUM_CHANNELS; ++i) {
+	for (unsigned int i = 0; i < CSI2_NUM_CHANNELS; ++i) {
 		DUMP_CH(i, CSI2_CH_CTRL);
 		DUMP_CH(i, CSI2_CH_ADDR0);
 		DUMP_CH(i, CSI2_CH_ADDR1);
@@ -220,15 +218,15 @@ static void csi2_isr_handle_errors(struct csi2_device *csi2, u32 status)
 {
 	spin_lock(&csi2->errors_lock);
 
-	if (status & IRQ_OVERFLOW)
+	if (status & CSI2_STATUS_IRQ_OVERFLOW)
 		csi2->overflows++;
 
 	for (unsigned int i = 0; i < DISCARDS_TABLE_NUM_ENTRIES; ++i) {
 		static const u32 discard_bits[] = {
-			IRQ_DISCARD_OVERFLOW,
-			IRQ_DISCARD_LEN_LIMIT,
-			IRQ_DISCARD_UNMATCHED,
-			IRQ_DISCARD_INACTIVE,
+			CSI2_STATUS_IRQ_DISCARD_OVERFLOW,
+			CSI2_STATUS_IRQ_DISCARD_LEN_LIMIT,
+			CSI2_STATUS_IRQ_DISCARD_UNMATCHED,
+			CSI2_STATUS_IRQ_DISCARD_INACTIVE,
 		};
 		static const u8 discard_regs[] = {
 			CSI2_DISCARDS_OVERFLOW,
@@ -260,36 +258,25 @@ static void csi2_isr_handle_errors(struct csi2_device *csi2, u32 status)
 
 void csi2_isr(struct csi2_device *csi2, bool *sof, bool *eof)
 {
-	unsigned int i;
 	u32 status;
 
 	status = csi2_reg_read(csi2, CSI2_STATUS);
-	csi2_dbg_verbose("ISR: STA: 0x%x\n", status);
 
 	/* Write value back to clear the interrupts */
 	csi2_reg_write(csi2, CSI2_STATUS, status);
 
-	for (i = 0; i < CSI2_NUM_CHANNELS; i++) {
+	for (unsigned int i = 0; i < CSI2_NUM_CHANNELS; i++) {
 		u32 dbg;
 
-		if ((status & IRQ_CH_MASK(i)) == 0)
+		if ((status & CSI2_STATUS_IRQ_CH_MASK(i)) == 0)
 			continue;
 
 		dbg = csi2_reg_read(csi2, CSI2_CH_DEBUG(i));
 
-		csi2_dbg_verbose("ISR: [%u], %s%s%s%s%s frame: %u line: %u\n",
-				 i, (status & IRQ_FS(i)) ? "FS " : "",
-				 (status & IRQ_FE(i)) ? "FE " : "",
-				 (status & IRQ_FE_ACK(i)) ? "FE_ACK " : "",
-				 (status & IRQ_LE(i)) ? "LE " : "",
-				 (status & IRQ_LE_ACK(i)) ? "LE_ACK " : "",
-				 dbg >> 16,
-				 csi2->num_lines[i] ?
-					 ((dbg & 0xffff) % csi2->num_lines[i]) :
-					 0);
+		trace_csi2_irq(i, status, dbg);
 
-		sof[i] = !!(status & IRQ_FS(i));
-		eof[i] = !!(status & IRQ_FE_ACK(i));
+		sof[i] = !!(status & CSI2_STATUS_IRQ_FS(i));
+		eof[i] = !!(status & CSI2_STATUS_IRQ_FE_ACK(i));
 	}
 
 	if (csi2_track_errors)
@@ -317,127 +304,56 @@ void csi2_set_compression(struct csi2_device *csi2, unsigned int channel,
 {
 	u32 compression = 0;
 
-	set_field(&compression, COMP_OFFSET_MASK, offset);
-	set_field(&compression, COMP_SHIFT_MASK, shift);
-	set_field(&compression, COMP_MODE_MASK, mode);
+	set_field(&compression, CSI2_CH_COMP_CTRL_OFFSET_MASK, offset);
+	set_field(&compression, CSI2_CH_COMP_CTRL_SHIFT_MASK, shift);
+	set_field(&compression, CSI2_CH_COMP_CTRL_MODE_MASK, mode);
 	csi2_reg_write(csi2, CSI2_CH_COMP_CTRL(channel), compression);
 }
 
-static int csi2_get_vc_dt_fallback(struct csi2_device *csi2,
-				   unsigned int channel, u8 *vc, u8 *dt)
-{
-	struct v4l2_subdev *sd = &csi2->sd;
-	struct v4l2_subdev_state *state;
-	struct v4l2_mbus_framefmt *fmt;
-	const struct cfe_fmt *cfe_fmt;
-
-	state = v4l2_subdev_get_locked_active_state(sd);
-
-	/* Without Streams API, the channel number matches the sink pad */
-	fmt = v4l2_subdev_get_pad_format(sd, state, channel);
-	if (!fmt)
-		return -EINVAL;
-
-	cfe_fmt = find_format_by_code(fmt->code);
-	if (!cfe_fmt)
-		return -EINVAL;
-
-	*vc = 0;
-	*dt = cfe_fmt->csi_dt;
-
-	return 0;
-}
-
-static int csi2_get_vc_dt(struct csi2_device *csi2, unsigned int channel,
-			  u8 *vc, u8 *dt)
-{
-	struct v4l2_mbus_frame_desc remote_desc;
-	const struct media_pad *remote_pad;
-	struct v4l2_subdev *source_sd;
-	int ret;
-
-	/* Without Streams API, the channel number matches the sink pad */
-	remote_pad = media_pad_remote_pad_first(&csi2->pad[channel]);
-	if (!remote_pad)
-		return -EPIPE;
-
-	source_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
-
-	ret = v4l2_subdev_call(source_sd, pad, get_frame_desc,
-			       remote_pad->index, &remote_desc);
-	if (ret == -ENOIOCTLCMD) {
-		csi2_dbg("source does not support get_frame_desc, use fallback\n");
-		return csi2_get_vc_dt_fallback(csi2, channel, vc, dt);
-	} else if (ret) {
-		csi2_err("Failed to get frame descriptor\n");
-		return ret;
-	}
-
-	if (remote_desc.type != V4L2_MBUS_FRAME_DESC_TYPE_CSI2) {
-		csi2_err("Frame descriptor does not describe CSI-2 link");
-		return -EINVAL;
-	}
-
-	if (remote_desc.num_entries != 1) {
-		csi2_err("Frame descriptor does not have a single entry");
-		return -EINVAL;
-	}
-
-	*vc = remote_desc.entry[0].bus.csi2.vc;
-	*dt = remote_desc.entry[0].bus.csi2.dt;
-
-	return 0;
-}
-
 void csi2_start_channel(struct csi2_device *csi2, unsigned int channel,
-			enum csi2_mode mode, bool auto_arm,
-			bool pack_bytes, unsigned int width,
-			unsigned int height)
+			enum csi2_mode mode, bool auto_arm, bool pack_bytes,
+			unsigned int width, unsigned int height,
+			u8 vc, u8 dt)
 {
 	u32 ctrl;
-	int ret;
-	u8 vc, dt;
 
-	ret = csi2_get_vc_dt(csi2, channel, &vc, &dt);
-	if (ret)
-		return;
-
-	csi2_dbg("%s [%u]\n", __func__, channel);
+	csi2_dbg(csi2, "%s [%u]\n", __func__, channel);
 
 	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), 0);
 	csi2_reg_write(csi2, CSI2_CH_DEBUG(channel), 0);
-	csi2_reg_write(csi2, CSI2_STATUS, IRQ_CH_MASK(channel));
+	csi2_reg_write(csi2, CSI2_STATUS, CSI2_STATUS_IRQ_CH_MASK(channel));
 
 	/* Enable channel and FS/FE interrupts. */
-	ctrl = DMA_EN | IRQ_EN_FS | IRQ_EN_FE_ACK | PACK_LINE;
+	ctrl = CSI2_CH_CTRL_DMA_EN | CSI2_CH_CTRL_IRQ_EN_FS |
+	       CSI2_CH_CTRL_IRQ_EN_FE_ACK | CSI2_CH_CTRL_PACK_LINE;
 	/* PACK_BYTES ensures no striding for embedded data. */
 	if (pack_bytes)
-		ctrl |= PACK_BYTES;
+		ctrl |= CSI2_CH_CTRL_PACK_BYTES;
 
 	if (auto_arm)
-		ctrl |= AUTO_ARM;
+		ctrl |= CSI2_CH_CTRL_AUTO_ARM;
 
 	if (width && height) {
-		set_field(&ctrl, mode, CH_MODE_MASK);
+		set_field(&ctrl, mode, CSI2_CH_CTRL_CH_MODE_MASK);
 		csi2_reg_write(csi2, CSI2_CH_FRAME_SIZE(channel),
 			       (height << 16) | width);
 	} else {
-		set_field(&ctrl, 0x0, CH_MODE_MASK);
+		set_field(&ctrl, 0x0, CSI2_CH_CTRL_CH_MODE_MASK);
 		csi2_reg_write(csi2, CSI2_CH_FRAME_SIZE(channel), 0);
 	}
 
-	set_field(&ctrl, vc, VC_MASK);
-	set_field(&ctrl, dt, DT_MASK);
+	set_field(&ctrl, vc, CSI2_CH_CTRL_VC_MASK);
+	set_field(&ctrl, dt, CSI2_CH_CTRL_DT_MASK);
 	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), ctrl);
 	csi2->num_lines[channel] = height;
 }
 
 void csi2_stop_channel(struct csi2_device *csi2, unsigned int channel)
 {
-	csi2_dbg("%s [%u]\n", __func__, channel);
+	csi2_dbg(csi2, "%s [%u]\n", __func__, channel);
 
 	/* Channel disable.  Use FORCE to allow stopping mid-frame. */
-	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), FORCE);
+	csi2_reg_write(csi2, CSI2_CH_CTRL(channel), CSI2_CH_CTRL_FORCE);
 	/* Latch the above change by writing to the ADDR0 register. */
 	csi2_reg_write(csi2, CSI2_CH_ADDR0(channel), 0);
 	/* Write this again, the HW needs it! */
@@ -451,8 +367,7 @@ void csi2_open_rx(struct csi2_device *csi2)
 
 	dphy_start(&csi2->dphy);
 
-	csi2_reg_write(csi2, CSI2_CTRL,
-		       csi2->multipacket_line ? 0 : EOP_IS_EOL);
+	csi2_reg_write(csi2, CSI2_CTRL, CSI2_CTRL_EOP_IS_EOL);
 }
 
 void csi2_close_rx(struct csi2_device *csi2)
@@ -462,26 +377,28 @@ void csi2_close_rx(struct csi2_device *csi2)
 	csi2_reg_write(csi2, CSI2_IRQ_MASK, 0);
 }
 
-static int csi2_init_cfg(struct v4l2_subdev *sd,
-			 struct v4l2_subdev_state *state)
+static int csi2_init_state(struct v4l2_subdev *sd,
+			   struct v4l2_subdev_state *state)
 {
-	struct v4l2_mbus_framefmt *fmt;
+	struct v4l2_subdev_route routes[] = { {
+		.sink_pad = CSI2_PAD_SINK,
+		.sink_stream = 0,
+		.source_pad = CSI2_PAD_FIRST_SOURCE,
+		.source_stream = 0,
+		.flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE,
+	} };
 
-	for (unsigned int i = 0; i < CSI2_NUM_CHANNELS; ++i) {
-		const struct v4l2_mbus_framefmt *def_fmt;
+	struct v4l2_subdev_krouting routing = {
+		.num_routes = ARRAY_SIZE(routes),
+		.routes = routes,
+	};
 
-		/* CSI2_CH1_EMBEDDED */
-		if (i == 1)
-			def_fmt = &cfe_default_meta_format;
-		else
-			def_fmt = &cfe_default_format;
+	int ret;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, i);
-		*fmt = *def_fmt;
-
-		fmt = v4l2_subdev_get_pad_format(sd, state, i + CSI2_NUM_CHANNELS);
-		*fmt = *def_fmt;
-	}
+	ret = v4l2_subdev_set_routing_with_fmt(sd, state, &routing,
+					       &cfe_default_format);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -490,21 +407,29 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 			    struct v4l2_subdev_state *state,
 			    struct v4l2_subdev_format *format)
 {
-	if (format->pad < CSI2_NUM_CHANNELS) {
-		/*
-		 * Store the sink pad format and propagate it to the source pad.
-		 */
+	if (format->pad == CSI2_PAD_SINK) {
+		/* Store the sink format and propagate it to the source. */
+
+		const struct cfe_fmt *cfe_fmt;
+
+		cfe_fmt = find_format_by_code(format->format.code);
+		if (!cfe_fmt) {
+			cfe_fmt = find_format_by_code(MEDIA_BUS_FMT_SRGGB10_1X10);
+			format->format.code = cfe_fmt->code;
+		}
 
 		struct v4l2_mbus_framefmt *fmt;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		fmt = v4l2_subdev_state_get_format(state, format->pad,
+						   format->stream);
 		if (!fmt)
 			return -EINVAL;
 
 		*fmt = format->format;
 
-		fmt = v4l2_subdev_get_pad_format(sd, state,
-			format->pad + CSI2_NUM_CHANNELS);
+		fmt = v4l2_subdev_state_get_opposite_stream_format(state,
+								   format->pad,
+								   format->stream);
 		if (!fmt)
 			return -EINVAL;
 
@@ -512,20 +437,20 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 
 		*fmt = format->format;
 	} else {
-		/*
-		 * Only allow changing the source pad mbus code.
-		 */
+		/* Only allow changing the source pad mbus code. */
 
 		struct v4l2_mbus_framefmt *sink_fmt, *source_fmt;
 		u32 sink_code;
 		u32 code;
 
-		sink_fmt = v4l2_subdev_get_pad_format(sd, state,
-			format->pad - CSI2_NUM_CHANNELS);
+		sink_fmt = v4l2_subdev_state_get_opposite_stream_format(state,
+									format->pad,
+									format->stream);
 		if (!sink_fmt)
 			return -EINVAL;
 
-		source_fmt = v4l2_subdev_get_pad_format(sd, state, format->pad);
+		source_fmt = v4l2_subdev_state_get_format(state, format->pad,
+							  format->stream);
 		if (!source_fmt)
 			return -EINVAL;
 
@@ -533,14 +458,14 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 		code = format->format.code;
 
 		/*
-		 * If the source code from the user does not match the code in
-		 * the sink pad, check that the source code matches either the
-		 * 16-bit version or the compressed version of the sink code.
+		 * Only allow changing the mbus code to:
+		 * - The sink's mbus code
+		 * - The 16-bit version of the sink's mbus code
+		 * - The compressed version of the sink's mbus code
 		 */
-
-		if (code != sink_code &&
-		    (code == cfe_find_16bit_code(sink_code) ||
-		     code == cfe_find_compressed_code(sink_code)))
+		if (code == sink_code ||
+		    code == cfe_find_16bit_code(sink_code) ||
+		    code == cfe_find_compressed_code(sink_code))
 			source_fmt->code = code;
 
 		format->format.code = source_fmt->code;
@@ -549,39 +474,75 @@ static int csi2_pad_set_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int csi2_set_routing(struct v4l2_subdev *sd,
+			    struct v4l2_subdev_state *state,
+			    enum v4l2_subdev_format_whence which,
+			    struct v4l2_subdev_krouting *routing)
+{
+	int ret;
+
+	ret = v4l2_subdev_routing_validate(sd, routing,
+					   V4L2_SUBDEV_ROUTING_ONLY_1_TO_1 |
+					   V4L2_SUBDEV_ROUTING_NO_SOURCE_MULTIPLEXING);
+	if (ret)
+		return ret;
+
+	/* Only stream ID 0 allowed on source pads */
+	for (unsigned int i = 0; i < routing->num_routes; ++i) {
+		const struct v4l2_subdev_route *route = &routing->routes[i];
+
+		if (route->source_stream != 0)
+			return -EINVAL;
+	}
+
+	ret = v4l2_subdev_set_routing_with_fmt(sd, state, routing,
+					       &cfe_default_format);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static const struct v4l2_subdev_pad_ops csi2_subdev_pad_ops = {
-	.init_cfg = csi2_init_cfg,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = csi2_pad_set_fmt,
+	.set_routing = csi2_set_routing,
 	.link_validate = v4l2_subdev_link_validate_default,
 };
 
 static const struct media_entity_operations csi2_entity_ops = {
 	.link_validate = v4l2_subdev_link_validate,
+	.has_pad_interdep = v4l2_subdev_has_pad_interdep,
 };
 
 static const struct v4l2_subdev_ops csi2_subdev_ops = {
 	.pad = &csi2_subdev_pad_ops,
 };
 
+static const struct v4l2_subdev_internal_ops csi2_internal_ops = {
+	.init_state = csi2_init_state,
+};
+
 int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 {
-	unsigned int i, ret;
+	unsigned int ret;
 
 	spin_lock_init(&csi2->errors_lock);
 
 	csi2->dphy.dev = csi2->v4l2_dev->dev;
 	dphy_probe(&csi2->dphy);
 
-	debugfs_create_file("csi2_regs", 0444, debugfs, csi2, &csi2_regs_fops);
+	debugfs_create_file("csi2_regs", 0440, debugfs, csi2, &csi2_regs_fops);
 
 	if (csi2_track_errors)
-		debugfs_create_file("csi2_errors", 0444, debugfs, csi2,
+		debugfs_create_file("csi2_errors", 0440, debugfs, csi2,
 				    &csi2_errors_fops);
 
-	for (i = 0; i < CSI2_NUM_CHANNELS * 2; i++)
-		csi2->pad[i].flags = i < CSI2_NUM_CHANNELS ?
-				     MEDIA_PAD_FL_SINK : MEDIA_PAD_FL_SOURCE;
+	csi2->pad[CSI2_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
+
+	for (unsigned int i = CSI2_PAD_FIRST_SOURCE;
+	     i < CSI2_PAD_FIRST_SOURCE + CSI2_PAD_NUM_SOURCES; i++)
+		csi2->pad[i].flags = MEDIA_PAD_FL_SOURCE;
 
 	ret = media_entity_pads_init(&csi2->sd.entity, ARRAY_SIZE(csi2->pad),
 				     csi2->pad);
@@ -590,9 +551,10 @@ int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 
 	/* Initialize subdev */
 	v4l2_subdev_init(&csi2->sd, &csi2_subdev_ops);
+	csi2->sd.internal_ops = &csi2_internal_ops;
 	csi2->sd.entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
 	csi2->sd.entity.ops = &csi2_entity_ops;
-	csi2->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
+	csi2->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_STREAMS;
 	csi2->sd.owner = THIS_MODULE;
 	snprintf(csi2->sd.name, sizeof(csi2->sd.name), "csi2");
 
@@ -602,7 +564,7 @@ int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 
 	ret = v4l2_device_register_subdev(csi2->v4l2_dev, &csi2->sd);
 	if (ret) {
-		csi2_err("Failed register csi2 subdev (%d)\n", ret);
+		csi2_err(csi2, "Failed register csi2 subdev (%d)\n", ret);
 		goto err_subdev_cleanup;
 	}
 

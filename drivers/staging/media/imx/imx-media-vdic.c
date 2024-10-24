@@ -536,7 +536,7 @@ __vdic_get_fmt(struct vdic_priv *priv, struct v4l2_subdev_state *sd_state,
 	       unsigned int pad, enum v4l2_subdev_format_whence which)
 {
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_format(&priv->sd, sd_state, pad);
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	else
 		return &priv->format_mbus[pad];
 }
@@ -882,7 +882,6 @@ static void vdic_unregistered(struct v4l2_subdev *sd)
 }
 
 static const struct v4l2_subdev_pad_ops vdic_pad_ops = {
-	.init_cfg = imx_media_init_cfg,
 	.enum_mbus_code = vdic_enum_mbus_code,
 	.get_fmt = vdic_get_fmt,
 	.set_fmt = vdic_set_fmt,
@@ -906,6 +905,7 @@ static const struct v4l2_subdev_ops vdic_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops vdic_internal_ops = {
+	.init_state = imx_media_init_state,
 	.registered = vdic_registered,
 	.unregistered = vdic_unregistered,
 };

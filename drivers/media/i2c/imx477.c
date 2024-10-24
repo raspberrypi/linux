@@ -15,6 +15,7 @@
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <media/mipi-csi2.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
@@ -112,23 +113,17 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_REG_XVS_IO_CTRL		0x3040
 #define IMX477_REG_EXTOUT_EN		0x4b81
 
-/* Embedded metadata stream structure */
-#define IMX477_EMBEDDED_LINE_WIDTH 16384
-#define IMX477_NUM_EMBEDDED_LINES 1
-
-enum pad_types {
-	IMAGE_PAD,
-	METADATA_PAD,
-	NUM_PADS
-};
-
 /* IMX477 native and active pixel array size. */
+#define IMX477_NATIVE_FORMAT		MEDIA_BUS_FMT_SRGGB12_1X12
 #define IMX477_NATIVE_WIDTH		4072U
 #define IMX477_NATIVE_HEIGHT		3176U
 #define IMX477_PIXEL_ARRAY_LEFT		8U
 #define IMX477_PIXEL_ARRAY_TOP		16U
 #define IMX477_PIXEL_ARRAY_WIDTH	4056U
 #define IMX477_PIXEL_ARRAY_HEIGHT	3040U
+
+/* Embedded metadata stream height */
+#define IMX477_EMBEDDED_DATA_HEIGHT	2U
 
 struct imx477_reg {
 	u16 address;
@@ -1044,7 +1039,7 @@ static const struct imx477_mode supported_modes_10bit[] = {
  * - v flip
  * - h&v flips
  */
-static const u32 codes[] = {
+static const u32 imx477_codes[] = {
 	/* 12-bit modes. */
 	MEDIA_BUS_FMT_SRGGB12_1X12,
 	MEDIA_BUS_FMT_SGRBG12_1X12,
@@ -1094,6 +1089,18 @@ static const char * const imx477_supply_name[] = {
 #define IMX477_XCLR_MIN_DELAY_US	8000
 #define IMX477_XCLR_DELAY_RANGE_US	1000
 
+enum imx477_pad_ids {
+	IMX477_PAD_SOURCE,
+	IMX477_PAD_IMAGE,
+	IMX477_PAD_EDATA,
+	IMX477_NUM_PADS,
+};
+
+enum imx477_stream_ids {
+	IMX477_STREAM_IMAGE,
+	IMX477_STREAM_EDATA,
+};
+
 struct imx477_compatible_data {
 	unsigned int chip_id;
 	struct imx477_reg_list extra_regs;
@@ -1101,9 +1108,7 @@ struct imx477_compatible_data {
 
 struct imx477 {
 	struct v4l2_subdev sd;
-	struct media_pad pad[NUM_PADS];
-
-	unsigned int fmt_code;
+	struct media_pad pads[IMX477_NUM_PADS];
 
 	struct clk *xclk;
 	u32 xclk_freq;
@@ -1126,15 +1131,6 @@ struct imx477 {
 
 	/* Trigger mode */
 	int trigger_mode_of;
-
-	/*
-	 * Mutex for serialized access:
-	 * Protect sensor module set pad format and start/stop streaming safely.
-	 */
-	struct mutex mutex;
-
-	/* Streaming on/off */
-	bool streaming;
 
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
@@ -1255,62 +1251,17 @@ static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 {
 	unsigned int i;
 
-	lockdep_assert_held(&imx477->mutex);
-
-	for (i = 0; i < ARRAY_SIZE(codes); i++)
-		if (codes[i] == code)
+	for (i = 0; i < ARRAY_SIZE(imx477_codes); i++)
+		if (imx477_codes[i] == code)
 			break;
 
-	if (i >= ARRAY_SIZE(codes))
+	if (i >= ARRAY_SIZE(imx477_codes))
 		i = 0;
 
 	i = (i & ~3) | (imx477->vflip->val ? 2 : 0) |
 	    (imx477->hflip->val ? 1 : 0);
 
-	return codes[i];
-}
-
-static void imx477_set_default_format(struct imx477 *imx477)
-{
-	/* Set default mode to max resolution */
-	imx477->mode = &supported_modes_12bit[0];
-	imx477->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
-}
-
-static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
-{
-	struct imx477 *imx477 = to_imx477(sd);
-	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
-	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
-	struct v4l2_rect *try_crop;
-
-	mutex_lock(&imx477->mutex);
-
-	/* Initialize try_fmt for the image pad */
-	try_fmt_img->width = supported_modes_12bit[0].width;
-	try_fmt_img->height = supported_modes_12bit[0].height;
-	try_fmt_img->code = imx477_get_format_code(imx477,
-						   MEDIA_BUS_FMT_SRGGB12_1X12);
-	try_fmt_img->field = V4L2_FIELD_NONE;
-
-	/* Initialize try_fmt for the embedded metadata pad */
-	try_fmt_meta->width = IMX477_EMBEDDED_LINE_WIDTH;
-	try_fmt_meta->height = IMX477_NUM_EMBEDDED_LINES;
-	try_fmt_meta->code = MEDIA_BUS_FMT_SENSOR_DATA;
-	try_fmt_meta->field = V4L2_FIELD_NONE;
-
-	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
-	try_crop->left = IMX477_PIXEL_ARRAY_LEFT;
-	try_crop->top = IMX477_PIXEL_ARRAY_TOP;
-	try_crop->width = IMX477_PIXEL_ARRAY_WIDTH;
-	try_crop->height = IMX477_PIXEL_ARRAY_HEIGHT;
-
-	mutex_unlock(&imx477->mutex);
-
-	return 0;
+	return imx477_codes[i];
 }
 
 static void imx477_adjust_exposure_range(struct imx477 *imx477)
@@ -1351,7 +1302,10 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 	struct imx477 *imx477 =
 		container_of(ctrl->handler, struct imx477, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
+	struct v4l2_subdev_state *state;
 	int ret = 0;
+
+	state = v4l2_subdev_get_locked_active_state(&imx477->sd);
 
 	/*
 	 * The VBLANK control may change the limits of usable exposure, so check
@@ -1439,20 +1393,52 @@ static int imx477_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	struct imx477 *imx477 = to_imx477(sd);
 
-	if (code->pad >= NUM_PADS)
+	if (code->pad >= IMX477_NUM_PADS)
 		return -EINVAL;
 
-	if (code->pad == IMAGE_PAD) {
-		if (code->index >= (ARRAY_SIZE(codes) / 4))
-			return -EINVAL;
-
-		code->code = imx477_get_format_code(imx477,
-						    codes[code->index * 4]);
-	} else {
+	switch (code->pad) {
+	case IMX477_PAD_IMAGE:
+		/* The internal image pad is hardwired to the native format. */
 		if (code->index > 0)
 			return -EINVAL;
 
-		code->code = MEDIA_BUS_FMT_SENSOR_DATA;
+		code->code = IMX477_NATIVE_FORMAT;
+		return 0;
+
+	case IMX477_PAD_EDATA:
+		if (code->index > 0)
+			return -EINVAL;
+
+		code->code = MEDIA_BUS_FMT_CCS_EMBEDDED;
+		return 0;
+
+	case IMX477_PAD_SOURCE:
+	default:
+		break;
+	}
+
+	/*
+	 * On the source pad, the sensor supports multiple image raw formats
+	 * with different bit depths. The embedded data format bit depth
+	 * follows the image stream.
+	 */
+	if (code->stream == IMX477_STREAM_IMAGE) {
+		u32 format;
+
+		if (code->index >= (ARRAY_SIZE(imx477_codes) / 4))
+			return -EINVAL;
+
+		format = imx477_codes[code->index * 4];
+		code->code = imx477_get_format_code(imx477, format);
+	} else {
+		struct v4l2_mbus_framefmt *fmt;
+
+		if (code->index > 0)
+			return -EINVAL;
+
+		fmt = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_SOURCE,
+						   IMX477_STREAM_EDATA);
+		code->code = fmt->code;
 	}
 
 	return 0;
@@ -1464,19 +1450,39 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct imx477 *imx477 = to_imx477(sd);
 
-	if (fse->pad >= NUM_PADS)
-		return -EINVAL;
+	switch (fse->pad) {
+	case IMX477_PAD_IMAGE:
+		if (fse->code != IMX477_NATIVE_FORMAT || fse->index > 0)
+			return -EINVAL;
 
-	if (fse->pad == IMAGE_PAD) {
+		fse->min_width = IMX477_NATIVE_WIDTH;
+		fse->max_width = IMX477_NATIVE_WIDTH;
+		fse->min_height = IMX477_NATIVE_HEIGHT;
+		fse->max_height = IMX477_NATIVE_HEIGHT;
+		return 0;
+
+	case IMX477_PAD_EDATA:
+		if (fse->code != MEDIA_BUS_FMT_CCS_EMBEDDED || fse->index > 0)
+			return -EINVAL;
+
+		fse->min_width = IMX477_NATIVE_WIDTH;
+		fse->max_width = IMX477_NATIVE_WIDTH;
+		fse->min_height = IMX477_EMBEDDED_DATA_HEIGHT;
+		fse->max_height = IMX477_EMBEDDED_DATA_HEIGHT;
+		return 0;
+
+	case IMX477_PAD_SOURCE:
+	default:
+		break;
+	}
+
+	if (fse->stream == IMX477_STREAM_IMAGE) {
 		const struct imx477_mode *mode_list;
 		unsigned int num_modes;
 
 		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
-			return -EINVAL;
-
-		if (fse->code != imx477_get_format_code(imx477, fse->code))
+		if (fse->code != imx477_get_format_code(imx477, fse->code) ||
+		    fse->index >= num_modes)
 			return -EINVAL;
 
 		fse->min_width = mode_list[fse->index].width;
@@ -1484,78 +1490,22 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		fse->min_height = mode_list[fse->index].height;
 		fse->max_height = fse->min_height;
 	} else {
-		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
+		struct v4l2_mbus_framefmt *fmt;
+
+		fmt = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_SOURCE,
+						   IMX477_STREAM_EDATA);
+		if (fse->code != fmt->code)
 			return -EINVAL;
 
-		fse->min_width = IMX477_EMBEDDED_LINE_WIDTH;
-		fse->max_width = fse->min_width;
-		fse->min_height = IMX477_NUM_EMBEDDED_LINES;
-		fse->max_height = fse->min_height;
+		if (fse->index)
+			return -EINVAL;
+
+		fse->min_width = fmt->width;
+		fse->max_width = fmt->width;
+		fse->min_height = IMX477_EMBEDDED_DATA_HEIGHT;
+		fse->max_height = IMX477_EMBEDDED_DATA_HEIGHT;
 	}
 
-	return 0;
-}
-
-static void imx477_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
-{
-	fmt->colorspace = V4L2_COLORSPACE_RAW;
-	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
-	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true,
-							  fmt->colorspace,
-							  fmt->ycbcr_enc);
-	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(fmt->colorspace);
-}
-
-static void imx477_update_image_pad_format(struct imx477 *imx477,
-					   const struct imx477_mode *mode,
-					   struct v4l2_subdev_format *fmt)
-{
-	fmt->format.width = mode->width;
-	fmt->format.height = mode->height;
-	fmt->format.field = V4L2_FIELD_NONE;
-	imx477_reset_colorspace(&fmt->format);
-}
-
-static void imx477_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
-{
-	fmt->format.width = IMX477_EMBEDDED_LINE_WIDTH;
-	fmt->format.height = IMX477_NUM_EMBEDDED_LINES;
-	fmt->format.code = MEDIA_BUS_FMT_SENSOR_DATA;
-	fmt->format.field = V4L2_FIELD_NONE;
-}
-
-static int imx477_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
-				 struct v4l2_subdev_format *fmt)
-{
-	struct imx477 *imx477 = to_imx477(sd);
-
-	if (fmt->pad >= NUM_PADS)
-		return -EINVAL;
-
-	mutex_lock(&imx477->mutex);
-
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&imx477->sd, sd_state,
-						   fmt->pad);
-		/* update the code which could change due to vflip or hflip: */
-		try_fmt->code = fmt->pad == IMAGE_PAD ?
-				imx477_get_format_code(imx477, try_fmt->code) :
-				MEDIA_BUS_FMT_SENSOR_DATA;
-		fmt->format = *try_fmt;
-	} else {
-		if (fmt->pad == IMAGE_PAD) {
-			imx477_update_image_pad_format(imx477, imx477->mode,
-						       fmt);
-			fmt->format.code =
-			       imx477_get_format_code(imx477, imx477->fmt_code);
-		} else {
-			imx477_update_metadata_pad_format(fmt);
-		}
-	}
-
-	mutex_unlock(&imx477->mutex);
 	return 0;
 }
 
@@ -1602,106 +1552,270 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	__v4l2_ctrl_s_ctrl(imx477->hblank, hblank_min);
 }
 
-static int imx477_set_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
-				 struct v4l2_subdev_format *fmt)
+static int imx477_format_bpp(u32 code)
 {
-	struct v4l2_mbus_framefmt *framefmt;
-	const struct imx477_mode *mode;
-	struct imx477 *imx477 = to_imx477(sd);
+	switch (code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+		return 12;
 
-	if (fmt->pad >= NUM_PADS)
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+	default:
+		return 10;
+	}
+}
+
+static int imx477_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
+				 struct v4l2_mbus_frame_desc *fd)
+{
+	const struct v4l2_mbus_framefmt *fmt;
+	struct v4l2_subdev_state *state;
+	u32 code;
+
+	if (pad != IMX477_PAD_SOURCE)
 		return -EINVAL;
 
-	mutex_lock(&imx477->mutex);
+	state = v4l2_subdev_lock_and_get_active_state(sd);
+	fmt = v4l2_subdev_state_get_format(state, IMX477_PAD_SOURCE,
+					   IMX477_STREAM_IMAGE);
+	code = fmt->code;
+	v4l2_subdev_unlock_state(state);
 
-	if (fmt->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
+	fd->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
+	fd->num_entries = 2;
 
-		/* Bayer order varies with flips */
-		fmt->format.code = imx477_get_format_code(imx477,
-							  fmt->format.code);
+	memset(fd->entry, 0, sizeof(fd->entry));
 
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
+	fd->entry[0].pixelcode = code;
+	fd->entry[0].stream = IMX477_STREAM_IMAGE;
+	fd->entry[0].bus.csi2.vc = 0;
+	fd->entry[0].bus.csi2.dt = imx477_format_bpp(code) == 10
+				 ? MIPI_CSI2_DT_RAW10 : MIPI_CSI2_DT_RAW12;
 
-		mode = v4l2_find_nearest_size(mode_list,
-					      num_modes,
-					      width, height,
-					      fmt->format.width,
-					      fmt->format.height);
-		imx477_update_image_pad_format(imx477, mode, fmt);
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
-			*framefmt = fmt->format;
-		} else if (imx477->mode != mode) {
-			imx477->mode = mode;
-			imx477->fmt_code = fmt->format.code;
-			imx477_set_framing_limits(imx477);
-		}
-	} else {
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
-			*framefmt = fmt->format;
-		} else {
-			/* Only one embedded data mode is supported */
-			imx477_update_metadata_pad_format(fmt);
-		}
-	}
-
-	mutex_unlock(&imx477->mutex);
+	fd->entry[1].pixelcode = code;
+	fd->entry[1].stream = IMX477_STREAM_EDATA;
+	fd->entry[1].bus.csi2.vc = 0;
+	fd->entry[1].bus.csi2.dt = MIPI_CSI2_DT_EMBEDDED_8B;
 
 	return 0;
 }
 
-static const struct v4l2_rect *
-__imx477_get_pad_crop(struct imx477 *imx477,
-		      struct v4l2_subdev_state *sd_state,
-		      unsigned int pad, enum v4l2_subdev_format_whence which)
+static int imx477_set_pad_format(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_format *fmt)
 {
-	switch (which) {
-	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx477->sd, sd_state, pad);
-	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		return &imx477->mode->crop;
+	struct imx477 *imx477 = to_imx477(sd);
+	struct v4l2_mbus_framefmt *format, *ed_format;
+	const struct imx477_mode *mode_list;
+	const struct imx477_mode *mode;
+	struct v4l2_rect *compose;
+	struct v4l2_rect *crop;
+	unsigned int num_modes;
+
+	/*
+	 * The driver is mode-based, the format can be set on the source pad
+	 * only, and only for the image stream.
+	 */
+	if (fmt->pad != IMX477_PAD_SOURCE || fmt->stream != IMX477_STREAM_IMAGE)
+		return v4l2_subdev_get_fmt(sd, sd_state, fmt);
+
+	get_mode_table(fmt->format.code, &mode_list, &num_modes);
+
+	/*
+	 * Adjust the requested format to match the closest mode. The Bayer
+	 * order varies with flips.
+	 */
+	mode = v4l2_find_nearest_size(mode_list, num_modes, width, height,
+				      fmt->format.width, fmt->format.height);
+
+	fmt->format.code = imx477_get_format_code(imx477, fmt->format.code);
+	fmt->format.width = mode->width;
+	fmt->format.height = mode->height;
+	fmt->format.field = V4L2_FIELD_NONE;
+	fmt->format.colorspace = V4L2_COLORSPACE_RAW;
+	fmt->format.ycbcr_enc =
+		V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->format.colorspace);
+	fmt->format.xfer_func =
+		V4L2_MAP_XFER_FUNC_DEFAULT(fmt->format.colorspace);
+	fmt->format.quantization =
+		V4L2_MAP_QUANTIZATION_DEFAULT(true, fmt->format.colorspace,
+					      fmt->format.ycbcr_enc);
+
+	/* Propagate the format through the sensor. */
+
+	/* The image pad models the pixel array, and thus has a fixed size. */
+	format = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_IMAGE);
+	*format = fmt->format;
+	format->code = IMX477_NATIVE_FORMAT;
+	format->width = IMX477_NATIVE_WIDTH;
+	format->height = IMX477_NATIVE_HEIGHT;
+
+	/* Get the crop rectangle from the mode list */
+	crop = v4l2_subdev_state_get_crop(sd_state, IMX477_PAD_IMAGE);
+	*crop = mode->crop;
+
+	/* The compose rectangle size is the sensor output size. */
+	compose = v4l2_subdev_state_get_compose(sd_state, IMX477_PAD_IMAGE);
+	compose->left = 0;
+	compose->top = 0;
+	compose->width = fmt->format.width;
+	compose->height = fmt->format.height;
+
+	/*
+	 * No mode use digital crop, the source pad crop rectangle size and
+	 * format are thus identical to the image pad compose rectangle.
+	 */
+	crop = v4l2_subdev_state_get_crop(sd_state, IMX477_PAD_SOURCE,
+					  IMX477_STREAM_IMAGE);
+	crop->left = 0;
+	crop->top = 0;
+	crop->width = fmt->format.width;
+	crop->height = fmt->format.height;
+
+	format = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_SOURCE,
+					      IMX477_STREAM_IMAGE);
+	*format = fmt->format;
+
+	/*
+	 * Finally, update the formats on the sink and source sides of the
+	 * embedded data stream.
+	 */
+	ed_format = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_EDATA);
+	ed_format->code = imx477_format_bpp(format->code) == 10
+			? MEDIA_BUS_FMT_META_10 : MEDIA_BUS_FMT_META_12;
+	ed_format->width = format->width;
+	ed_format->height = IMX477_EMBEDDED_DATA_HEIGHT;
+	ed_format->field = V4L2_FIELD_NONE;
+
+	format = v4l2_subdev_state_get_format(sd_state, IMX477_PAD_SOURCE,
+					      IMX477_STREAM_EDATA);
+	*format = *ed_format;
+
+	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+		imx477->mode = mode;
+		imx477_set_framing_limits(imx477);
 	}
 
-	return NULL;
+	return 0;
+}
+
+static int imx477_init_state(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *state)
+{
+	struct v4l2_subdev_route routes[2] = {
+		{
+			.sink_pad = IMX477_PAD_IMAGE,
+			.sink_stream = 0,
+			.source_pad = IMX477_PAD_SOURCE,
+			.source_stream = IMX477_STREAM_IMAGE,
+			.flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE,
+		}, {
+			.sink_pad = IMX477_PAD_EDATA,
+			.sink_stream = 0,
+			.source_pad = IMX477_PAD_SOURCE,
+			.source_stream = IMX477_STREAM_EDATA,
+			.flags = V4L2_SUBDEV_ROUTE_FL_ACTIVE,
+		},
+	};
+	struct v4l2_subdev_krouting routing = {
+		.len_routes = ARRAY_SIZE(routes),
+		.num_routes = ARRAY_SIZE(routes),
+		.routes = routes,
+	};
+	struct v4l2_subdev_format fmt = {
+		.which = V4L2_SUBDEV_FORMAT_TRY,
+		.pad = IMX477_PAD_SOURCE,
+		.stream = IMX477_STREAM_IMAGE,
+		.format = {
+			.code = IMX477_NATIVE_FORMAT,
+			.width = supported_modes_12bit[0].width,
+			.height = supported_modes_12bit[0].height,
+			.colorspace = V4L2_COLORSPACE_RAW,
+			.ycbcr_enc =
+				V4L2_MAP_YCBCR_ENC_DEFAULT(V4L2_COLORSPACE_RAW),
+			.xfer_func =
+				V4L2_MAP_XFER_FUNC_DEFAULT(V4L2_COLORSPACE_RAW),
+			.quantization =
+			  V4L2_MAP_QUANTIZATION_DEFAULT
+			    (true, V4L2_COLORSPACE_RAW,
+			     V4L2_MAP_YCBCR_ENC_DEFAULT(V4L2_COLORSPACE_RAW))
+		},
+	};
+	int ret;
+
+	ret = v4l2_subdev_set_routing(sd, state, &routing);
+	if (ret)
+		return ret;
+
+	/*
+	 * Set the image stream format on the source pad. This will be
+	 * propagated to all formats and selection rectangles internally.
+	 */
+	imx477_set_pad_format(sd, state, &fmt);
+
+	return 0;
 }
 
 static int imx477_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
+	struct v4l2_rect *compose;
+
+	/*
+	 * The embedded data stream doesn't support selection rectangles,
+	 * neither on the embedded data pad nor on the source pad.
+	 */
+	if (sel->pad == IMX477_PAD_EDATA || sel->stream != 0)
+		return -EINVAL;
+
 	switch (sel->target) {
-	case V4L2_SEL_TGT_CROP: {
-		struct imx477 *imx477 = to_imx477(sd);
-
-		mutex_lock(&imx477->mutex);
-		sel->r = *__imx477_get_pad_crop(imx477, sd_state, sel->pad,
-						sel->which);
-		mutex_unlock(&imx477->mutex);
-
+	case V4L2_SEL_TGT_CROP:
+		sel->r = *v4l2_subdev_state_get_crop(sd_state, sel->pad);
 		return 0;
-	}
 
 	case V4L2_SEL_TGT_NATIVE_SIZE:
+		if (sel->pad != IMX477_PAD_IMAGE)
+			return -EINVAL;
+
 		sel->r.left = 0;
 		sel->r.top = 0;
 		sel->r.width = IMX477_NATIVE_WIDTH;
 		sel->r.height = IMX477_NATIVE_HEIGHT;
-
 		return 0;
 
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
-		sel->r.left = IMX477_PIXEL_ARRAY_LEFT;
-		sel->r.top = IMX477_PIXEL_ARRAY_TOP;
-		sel->r.width = IMX477_PIXEL_ARRAY_WIDTH;
-		sel->r.height = IMX477_PIXEL_ARRAY_HEIGHT;
+		switch (sel->pad) {
+		case IMX477_PAD_IMAGE:
+			sel->r.top = IMX477_PIXEL_ARRAY_TOP;
+			sel->r.left = IMX477_PIXEL_ARRAY_LEFT;
+			sel->r.width = IMX477_PIXEL_ARRAY_WIDTH;
+			sel->r.height = IMX477_PIXEL_ARRAY_HEIGHT;
+			return 0;
 
+		case IMX477_PAD_SOURCE:
+			compose = v4l2_subdev_state_get_compose(sd_state,
+								IMX477_PAD_IMAGE);
+			sel->r.top = 0;
+			sel->r.left = 0;
+			sel->r.width = compose->width;
+			sel->r.height = compose->height;
+			return 0;
+		}
+
+		break;
+
+	case V4L2_SEL_TGT_COMPOSE:
+		if (sel->pad != IMX477_PAD_IMAGE)
+			return -EINVAL;
+
+		sel->r = *v4l2_subdev_state_get_compose(sd_state, sel->pad);
 		return 0;
 	}
 
@@ -1716,6 +1830,10 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	const struct imx477_reg_list *extra_regs;
 	int ret, tm;
 
+	ret = pm_runtime_resume_and_get(&client->dev);
+	if (ret < 0)
+		return ret;
+
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
 					ARRAY_SIZE(mode_common_regs));
@@ -1728,7 +1846,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
 				__func__);
-			return ret;
+			goto error_pm_put;
 		}
 		imx477->common_regs_written = true;
 	}
@@ -1738,7 +1856,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	ret = imx477_write_regs(imx477, reg_list->regs, reg_list->num_of_regs);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
-		return ret;
+		goto error_pm_put;
 	}
 
 	/* Set on-sensor DPC. */
@@ -1748,7 +1866,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	/* Apply customized values from user */
 	ret =  __v4l2_ctrl_handler_setup(imx477->sd.ctrl_handler);
 	if (ret)
-		return ret;
+		goto error_pm_put;
 
 	/* Set vsync trigger mode: 0=standalone, 1=source, 2=sink */
 	tm = (imx477->trigger_mode_of >= 0) ? imx477->trigger_mode_of : trigger_mode;
@@ -1762,8 +1880,16 @@ static int imx477_start_streaming(struct imx477 *imx477)
 			 IMX477_REG_VALUE_08BIT, (tm == 1) ? 1 : 0);
 
 	/* set stream on register */
-	return imx477_write_reg(imx477, IMX477_REG_MODE_SELECT,
-				IMX477_REG_VALUE_08BIT, IMX477_MODE_STREAMING);
+	ret = imx477_write_reg(imx477, IMX477_REG_MODE_SELECT,
+			       IMX477_REG_VALUE_08BIT, IMX477_MODE_STREAMING);
+	if (ret)
+		goto error_pm_put;
+
+	return 0;
+
+error_pm_put:
+	pm_runtime_put(&client->dev);
+	return ret;
 }
 
 /* Stop streaming */
@@ -1781,53 +1907,28 @@ static void imx477_stop_streaming(struct imx477 *imx477)
 	/* Stop driving XVS out (there is still a weak pull-up) */
 	imx477_write_reg(imx477, IMX477_REG_EXTOUT_EN,
 			 IMX477_REG_VALUE_08BIT, 0);
+
+	pm_runtime_put(&client->dev);
 }
 
 static int imx477_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct imx477 *imx477 = to_imx477(sd);
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev_state *state;
 	int ret = 0;
 
-	mutex_lock(&imx477->mutex);
-	if (imx477->streaming == enable) {
-		mutex_unlock(&imx477->mutex);
-		return 0;
-	}
+	state = v4l2_subdev_lock_and_get_active_state(sd);
 
-	if (enable) {
-		ret = pm_runtime_get_sync(&client->dev);
-		if (ret < 0) {
-			pm_runtime_put_noidle(&client->dev);
-			goto err_unlock;
-		}
-
-		/*
-		 * Apply default & customized values
-		 * and then start streaming.
-		 */
+	if (enable)
 		ret = imx477_start_streaming(imx477);
-		if (ret)
-			goto err_rpm_put;
-	} else {
+	else
 		imx477_stop_streaming(imx477);
-		pm_runtime_put(&client->dev);
-	}
-
-	imx477->streaming = enable;
 
 	/* vflip and hflip cannot change during streaming */
 	__v4l2_ctrl_grab(imx477->vflip, enable);
 	__v4l2_ctrl_grab(imx477->hflip, enable);
 
-	mutex_unlock(&imx477->mutex);
-
-	return ret;
-
-err_rpm_put:
-	pm_runtime_put(&client->dev);
-err_unlock:
-	mutex_unlock(&imx477->mutex);
+	v4l2_subdev_unlock_state(state);
 
 	return ret;
 }
@@ -1882,39 +1983,6 @@ static int imx477_power_off(struct device *dev)
 	return 0;
 }
 
-static int __maybe_unused imx477_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct imx477 *imx477 = to_imx477(sd);
-
-	if (imx477->streaming)
-		imx477_stop_streaming(imx477);
-
-	return 0;
-}
-
-static int __maybe_unused imx477_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct imx477 *imx477 = to_imx477(sd);
-	int ret;
-
-	if (imx477->streaming) {
-		ret = imx477_start_streaming(imx477);
-		if (ret)
-			goto error;
-	}
-
-	return 0;
-
-error:
-	imx477_stop_streaming(imx477);
-	imx477->streaming = 0;
-	return ret;
-}
-
 static int imx477_get_regulators(struct imx477 *imx477)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
@@ -1965,10 +2033,11 @@ static const struct v4l2_subdev_video_ops imx477_video_ops = {
 
 static const struct v4l2_subdev_pad_ops imx477_pad_ops = {
 	.enum_mbus_code = imx477_enum_mbus_code,
-	.get_fmt = imx477_get_pad_format,
+	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = imx477_set_pad_format,
 	.get_selection = imx477_get_selection,
 	.enum_frame_size = imx477_enum_frame_size,
+	.get_frame_desc = imx477_get_frame_desc,
 };
 
 static const struct v4l2_subdev_ops imx477_subdev_ops = {
@@ -1978,7 +2047,7 @@ static const struct v4l2_subdev_ops imx477_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops imx477_internal_ops = {
-	.open = imx477_open,
+	.init_state = imx477_init_state,
 };
 
 /* Initialize control handlers */
@@ -1994,9 +2063,6 @@ static int imx477_init_controls(struct imx477 *imx477)
 	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 16);
 	if (ret)
 		return ret;
-
-	mutex_init(&imx477->mutex);
-	ctrl_hdlr->lock = &imx477->mutex;
 
 	/* By default, PIXEL_RATE is read only */
 	imx477->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
@@ -2018,7 +2084,7 @@ static int imx477_init_controls(struct imx477 *imx477)
 
 	/*
 	 * Create the controls here, but mode specific limits are setup
-	 * in the imx477_set_framing_limits() call below.
+	 * in the imx477_set_framing_limits() call.
 	 */
 	imx477->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
 					   V4L2_CID_VBLANK, 0, 0xffff, 1, 0);
@@ -2088,18 +2154,10 @@ static int imx477_init_controls(struct imx477 *imx477)
 
 	imx477->sd.ctrl_handler = ctrl_hdlr;
 
-	mutex_lock(&imx477->mutex);
-
-	/* Setup exposure and frame/line length limits. */
-	imx477_set_framing_limits(imx477);
-
-	mutex_unlock(&imx477->mutex);
-
 	return 0;
 
 error:
 	v4l2_ctrl_handler_free(ctrl_hdlr);
-	mutex_destroy(&imx477->mutex);
 
 	return ret;
 }
@@ -2107,7 +2165,6 @@ error:
 static void imx477_free_controls(struct imx477 *imx477)
 {
 	v4l2_ctrl_handler_free(imx477->sd.ctrl_handler);
-	mutex_destroy(&imx477->mutex);
 }
 
 static int imx477_check_hwcfg(struct device *dev)
@@ -2198,6 +2255,7 @@ static int imx477_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	v4l2_i2c_subdev_init(&imx477->sd, client, &imx477_subdev_ops);
+	imx477->sd.internal_ops = &imx477_internal_ops;
 
 	match = of_match_device(imx477_dt_ids, dev);
 	if (!match)
@@ -2249,42 +2307,57 @@ static int imx477_probe(struct i2c_client *client)
 	if (ret)
 		goto error_power_off;
 
-	/* Initialize default format */
-	imx477_set_default_format(imx477);
-
-	/* Enable runtime PM and turn off the device */
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
-	pm_runtime_idle(dev);
-
 	/* This needs the pm runtime to be registered. */
 	ret = imx477_init_controls(imx477);
 	if (ret)
 		goto error_power_off;
 
 	/* Initialize subdev */
-	imx477->sd.internal_ops = &imx477_internal_ops;
 	imx477->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
-			    V4L2_SUBDEV_FL_HAS_EVENTS;
+			    V4L2_SUBDEV_FL_HAS_EVENTS | V4L2_SUBDEV_FL_STREAMS;
 	imx477->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
-	/* Initialize source pads */
-	imx477->pad[IMAGE_PAD].flags = MEDIA_PAD_FL_SOURCE;
-	imx477->pad[METADATA_PAD].flags = MEDIA_PAD_FL_SOURCE;
+	/*
+	 * Initialize the pads. To preserve backward compatibility with
+	 * userspace that used the sensor before the introduction of the
+	 * internal pads, the external source pad is numbered 0 and the internal
+	 * image and embedded data pads numbered 1 and 2 respectively.
+	 */
+	imx477->pads[IMX477_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
+	imx477->pads[IMX477_PAD_IMAGE].flags = MEDIA_PAD_FL_SINK |
+					       MEDIA_PAD_FL_INTERNAL;
+	imx477->pads[IMX477_PAD_EDATA].flags = MEDIA_PAD_FL_SINK |
+					       MEDIA_PAD_FL_INTERNAL;
 
-	ret = media_entity_pads_init(&imx477->sd.entity, NUM_PADS, imx477->pad);
+	ret = media_entity_pads_init(&imx477->sd.entity,
+				     ARRAY_SIZE(imx477->pads), imx477->pads);
 	if (ret) {
 		dev_err(dev, "failed to init entity pads: %d\n", ret);
 		goto error_handler_free;
 	}
 
-	ret = v4l2_async_register_subdev_sensor(&imx477->sd);
+	imx477->sd.state_lock = imx477->ctrl_handler.lock;
+	ret = v4l2_subdev_init_finalize(&imx477->sd);
 	if (ret < 0) {
-		dev_err(dev, "failed to register sensor sub-device: %d\n", ret);
+		dev_err(dev, "subdev init error: %d\n", ret);
 		goto error_media_entity;
 	}
 
+	ret = v4l2_async_register_subdev_sensor(&imx477->sd);
+	if (ret < 0) {
+		dev_err(dev, "failed to register sensor sub-device: %d\n", ret);
+		goto error_subdev_cleanup;
+	}
+
+	/* Enable runtime PM and turn off the device */
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_idle(dev);
+
 	return 0;
+
+error_subdev_cleanup:
+	v4l2_subdev_cleanup(&imx477->sd);
 
 error_media_entity:
 	media_entity_cleanup(&imx477->sd.entity);
@@ -2293,8 +2366,6 @@ error_handler_free:
 	imx477_free_controls(imx477);
 
 error_power_off:
-	pm_runtime_disable(&client->dev);
-	pm_runtime_set_suspended(&client->dev);
 	imx477_power_off(&client->dev);
 
 	return ret;
@@ -2318,7 +2389,6 @@ static void imx477_remove(struct i2c_client *client)
 MODULE_DEVICE_TABLE(of, imx477_dt_ids);
 
 static const struct dev_pm_ops imx477_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(imx477_suspend, imx477_resume)
 	SET_RUNTIME_PM_OPS(imx477_power_off, imx477_power_on, NULL)
 };
 

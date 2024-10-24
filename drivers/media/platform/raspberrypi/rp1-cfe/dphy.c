@@ -2,32 +2,30 @@
 /*
  * RP1 CSI-2 Driver
  *
- * Copyright (C) 2021 - Raspberry Pi Ltd.
- *
+ * Copyright (c) 2021-2024 Raspberry Pi Ltd.
+ * Copyright (c) 2023-2024 Ideas on Board Oy
  */
 
 #include <linux/delay.h>
-#include <linux/dev_printk.h>
 #include <linux/pm_runtime.h>
 
 #include "dphy.h"
 
-#define dphy_dbg(fmt, arg...) dev_dbg(dphy->dev, fmt, ##arg)
-#define dphy_info(fmt, arg...) dev_info(dphy->dev, fmt, ##arg)
-#define dphy_err(fmt, arg...) dev_err(dphy->dev, fmt, ##arg)
+#define dphy_dbg(dphy, fmt, arg...) dev_dbg((dphy)->dev, fmt, ##arg)
+#define dphy_err(dphy, fmt, arg...) dev_err((dphy)->dev, fmt, ##arg)
 
 /* DW dphy Host registers */
-#define VERSION		0x000
-#define N_LANES		0x004
-#define RESETN		0x008
-#define PHY_SHUTDOWNZ	0x040
-#define PHY_RSTZ	0x044
-#define PHY_RX		0x048
-#define	PHY_STOPSTATE	0x04c
-#define PHY_TST_CTRL0	0x050
-#define PHY_TST_CTRL1	0x054
-#define PHY2_TST_CTRL0	0x058
-#define PHY2_TST_CTRL1	0x05c
+#define DPHY_VERSION		0x000
+#define DPHY_N_LANES		0x004
+#define DPHY_RESETN		0x008
+#define DPHY_PHY_SHUTDOWNZ	0x040
+#define DPHY_PHY_RSTZ		0x044
+#define DPHY_PHY_RX		0x048
+#define	DPHY_PHY_STOPSTATE	0x04c
+#define DPHY_PHY_TST_CTRL0	0x050
+#define DPHY_PHY_TST_CTRL1	0x054
+#define DPHY_PHY2_TST_CTRL0	0x058
+#define DPHY_PHY2_TST_CTRL1	0x05c
 
 /* DW dphy Host Transactions */
 #define DPHY_HS_RX_CTRL_LANE0_OFFSET	0x44
@@ -47,38 +45,38 @@ static void dw_csi2_host_write(struct dphy_data *dphy, u32 offset, u32 data)
 
 static void set_tstclr(struct dphy_data *dphy, u32 val)
 {
-	u32 ctrl0 = dw_csi2_host_read(dphy, PHY_TST_CTRL0);
+	u32 ctrl0 = dw_csi2_host_read(dphy, DPHY_PHY_TST_CTRL0);
 
-	dw_csi2_host_write(dphy, PHY_TST_CTRL0, (ctrl0 & ~1) | val);
+	dw_csi2_host_write(dphy, DPHY_PHY_TST_CTRL0, (ctrl0 & ~1) | val);
 }
 
 static void set_tstclk(struct dphy_data *dphy, u32 val)
 {
-	u32 ctrl0 = dw_csi2_host_read(dphy, PHY_TST_CTRL0);
+	u32 ctrl0 = dw_csi2_host_read(dphy, DPHY_PHY_TST_CTRL0);
 
-	dw_csi2_host_write(dphy, PHY_TST_CTRL0, (ctrl0 & ~2) | (val << 1));
+	dw_csi2_host_write(dphy, DPHY_PHY_TST_CTRL0, (ctrl0 & ~2) | (val << 1));
 }
 
 static uint8_t get_tstdout(struct dphy_data *dphy)
 {
-	u32 ctrl1 = dw_csi2_host_read(dphy, PHY_TST_CTRL1);
+	u32 ctrl1 = dw_csi2_host_read(dphy, DPHY_PHY_TST_CTRL1);
 
 	return ((ctrl1 >> 8) & 0xff);
 }
 
 static void set_testen(struct dphy_data *dphy, u32 val)
 {
-	u32 ctrl1 = dw_csi2_host_read(dphy, PHY_TST_CTRL1);
+	u32 ctrl1 = dw_csi2_host_read(dphy, DPHY_PHY_TST_CTRL1);
 
-	dw_csi2_host_write(dphy, PHY_TST_CTRL1,
+	dw_csi2_host_write(dphy, DPHY_PHY_TST_CTRL1,
 			   (ctrl1 & ~(1 << 16)) | (val << 16));
 }
 
 static void set_testdin(struct dphy_data *dphy, u32 val)
 {
-	u32 ctrl1 = dw_csi2_host_read(dphy, PHY_TST_CTRL1);
+	u32 ctrl1 = dw_csi2_host_read(dphy, DPHY_PHY_TST_CTRL1);
 
-	dw_csi2_host_write(dphy, PHY_TST_CTRL1, (ctrl1 & ~0xff) | val);
+	dw_csi2_host_write(dphy, DPHY_PHY_TST_CTRL1, (ctrl1 & ~0xff) | val);
 }
 
 static uint8_t dphy_transaction(struct dphy_data *dphy, u8 test_code,
@@ -117,7 +115,7 @@ static void dphy_set_hsfreqrange(struct dphy_data *dphy, uint32_t mbps)
 	unsigned int i;
 
 	if (mbps < 80 || mbps > 1500)
-		dphy_err("DPHY: Datarate %u Mbps out of range\n", mbps);
+		dphy_err(dphy, "DPHY: Datarate %u Mbps out of range\n", mbps);
 
 	for (i = 0; i < ARRAY_SIZE(hsfreqrange_table) - 1; i++) {
 		if (mbps <= hsfreqrange_table[i][0])
@@ -130,8 +128,8 @@ static void dphy_set_hsfreqrange(struct dphy_data *dphy, uint32_t mbps)
 
 static void dphy_init(struct dphy_data *dphy)
 {
-	dw_csi2_host_write(dphy, PHY_RSTZ, 0);
-	dw_csi2_host_write(dphy, PHY_SHUTDOWNZ, 0);
+	dw_csi2_host_write(dphy, DPHY_PHY_RSTZ, 0);
+	dw_csi2_host_write(dphy, DPHY_PHY_SHUTDOWNZ, 0);
 	set_tstclk(dphy, 1);
 	set_testen(dphy, 0);
 	set_tstclr(dphy, 1);
@@ -142,24 +140,29 @@ static void dphy_init(struct dphy_data *dphy)
 	dphy_set_hsfreqrange(dphy, dphy->dphy_rate);
 
 	usleep_range(5, 10);
-	dw_csi2_host_write(dphy, PHY_SHUTDOWNZ, 1);
+	dw_csi2_host_write(dphy, DPHY_PHY_SHUTDOWNZ, 1);
 	usleep_range(5, 10);
-	dw_csi2_host_write(dphy, PHY_RSTZ, 1);
+	dw_csi2_host_write(dphy, DPHY_PHY_RSTZ, 1);
 }
 
 void dphy_start(struct dphy_data *dphy)
 {
-	dw_csi2_host_write(dphy, N_LANES, (dphy->active_lanes - 1));
+	dphy_dbg(dphy, "%s: Link rate %u Mbps, %u data lanes\n", __func__,
+		 dphy->dphy_rate, dphy->active_lanes);
+
+	dw_csi2_host_write(dphy, DPHY_N_LANES, (dphy->active_lanes - 1));
 	dphy_init(dphy);
-	dw_csi2_host_write(dphy, RESETN, 0xffffffff);
+	dw_csi2_host_write(dphy, DPHY_RESETN, 0xffffffff);
 	usleep_range(10, 50);
 }
 
 void dphy_stop(struct dphy_data *dphy)
 {
+	dphy_dbg(dphy, "%s\n", __func__);
+
 	/* Set only one lane (lane 0) as active (ON) */
-	dw_csi2_host_write(dphy, N_LANES, 0);
-	dw_csi2_host_write(dphy, RESETN, 0);
+	dw_csi2_host_write(dphy, DPHY_N_LANES, 0);
+	dw_csi2_host_write(dphy, DPHY_RESETN, 0);
 }
 
 void dphy_probe(struct dphy_data *dphy)
@@ -167,11 +170,12 @@ void dphy_probe(struct dphy_data *dphy)
 	u32 host_ver;
 	u8 host_ver_major, host_ver_minor;
 
-	host_ver = dw_csi2_host_read(dphy, VERSION);
+	host_ver = dw_csi2_host_read(dphy, DPHY_VERSION);
 	host_ver_major = (u8)((host_ver >> 24) - '0');
 	host_ver_minor = (u8)((host_ver >> 16) - '0');
 	host_ver_minor = host_ver_minor * 10;
 	host_ver_minor += (u8)((host_ver >> 8) - '0');
 
-	dphy_info("DW dphy Host HW v%u.%u\n", host_ver_major, host_ver_minor);
+	dphy_dbg(dphy, "DW dphy Host HW v%u.%u\n", host_ver_major,
+		 host_ver_minor);
 }

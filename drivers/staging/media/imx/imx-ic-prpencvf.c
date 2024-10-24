@@ -790,10 +790,8 @@ static struct v4l2_mbus_framefmt *
 __prp_get_fmt(struct prp_priv *priv, struct v4l2_subdev_state *sd_state,
 	      unsigned int pad, enum v4l2_subdev_format_whence which)
 {
-	struct imx_ic_priv *ic_priv = priv->ic_priv;
-
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_format(&ic_priv->sd, sd_state, pad);
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	else
 		return &priv->format_mbus[pad];
 }
@@ -1298,7 +1296,6 @@ static void prp_unregistered(struct v4l2_subdev *sd)
 }
 
 static const struct v4l2_subdev_pad_ops prp_pad_ops = {
-	.init_cfg = imx_media_init_cfg,
 	.enum_mbus_code = prp_enum_mbus_code,
 	.enum_frame_size = prp_enum_frame_size,
 	.get_fmt = prp_get_fmt,
@@ -1322,6 +1319,7 @@ static const struct v4l2_subdev_ops prp_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops prp_internal_ops = {
+	.init_state = imx_media_init_state,
 	.registered = prp_registered,
 	.unregistered = prp_unregistered,
 };
