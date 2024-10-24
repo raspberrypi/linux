@@ -6060,9 +6060,6 @@ int __init cgroup_init_early(void)
 	return 0;
 }
 
-static u16 cgroup_enable_mask __initdata;
-static int __init cgroup_disable(char *str);
-
 /**
  * cgroup_init - cgroup initialization
  *
@@ -6095,12 +6092,6 @@ int __init cgroup_init(void)
 	BUG_ON(cgroup_setup_root(&cgrp_dfl_root, 0));
 
 	cgroup_unlock();
-
-	/*
-	 * Apply an implicit disable, knowing that an explicit enable will
-	 * prevent if from doing anything.
-	 */
-	cgroup_disable("memory");
 
 	for_each_subsys(ss, ssid) {
 		if (ss->early_init) {
@@ -6742,10 +6733,6 @@ static int __init cgroup_disable(char *str)
 			    strcmp(token, ss->legacy_name))
 				continue;
 
-			/* An explicit cgroup_enable overrides a disable */
-			if (cgroup_enable_mask & (1 << i))
-				continue;
-
 			static_branch_disable(cgroup_subsys_enabled_key[i]);
 			pr_info("Disabling %s control group subsystem\n",
 				ss->name);
@@ -6779,7 +6766,7 @@ static int __init cgroup_enable(char *str)
 			    strcmp(token, ss->legacy_name))
 				continue;
 
-			cgroup_enable_mask |= 1 << i;
+			cgroup_feature_disable_mask &= ~(1 << i);
 			static_branch_enable(cgroup_subsys_enabled_key[i]);
 			pr_info("Enabling %s control group subsystem\n",
 				ss->name);
