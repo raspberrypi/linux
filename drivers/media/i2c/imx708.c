@@ -1665,31 +1665,47 @@ static void imx708_stop_streaming(struct imx708 *imx708)
 	pm_runtime_put(&client->dev);
 }
 
-static int imx708_set_stream(struct v4l2_subdev *sd, int enable)
+static int imx708_enable_streams(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *state, u32 pad,
+				 u64 streams_mask)
 {
 	struct imx708 *imx708 = to_imx708(sd);
-	struct v4l2_subdev_state *state;
-	int ret = 0;
 
-	state = v4l2_subdev_lock_and_get_active_state(sd);
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX708_STREAM_IMAGE)))
+		return 0;
 
-	if (enable) {
-		/*
-		 * Apply default & customized values
-		 * and then start streaming.
-		 */
-		ret = imx708_start_streaming(imx708);
-	} else
-		imx708_stop_streaming(imx708);
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(imx708->vflip, true);
+	__v4l2_ctrl_grab(imx708->hflip, true);
+	__v4l2_ctrl_grab(imx708->hdr_mode, true);
 
-	/* vflip/hflip and hdr mode cannot change during streaming */
-	__v4l2_ctrl_grab(imx708->vflip, enable);
-	__v4l2_ctrl_grab(imx708->hflip, enable);
-	__v4l2_ctrl_grab(imx708->hdr_mode, enable);
+	return imx708_start_streaming(imx708);
+}
 
-	v4l2_subdev_unlock_state(state);
+static int imx708_disable_streams(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *state, u32 pad,
+				  u64 streams_mask)
+{
+	struct imx708 *imx708 = to_imx708(sd);
 
-	return ret;
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX708_STREAM_IMAGE)))
+		return 0;
+
+	__v4l2_ctrl_grab(imx708->vflip, false);
+	__v4l2_ctrl_grab(imx708->hflip, false);
+	__v4l2_ctrl_grab(imx708->hdr_mode, false);
+
+	imx708_stop_streaming(imx708);
+
+	return 0;
 }
 
 /* Power/clock management functions */
@@ -1794,10 +1810,6 @@ static const struct v4l2_subdev_core_ops imx708_core_ops = {
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
-static const struct v4l2_subdev_video_ops imx708_video_ops = {
-	.s_stream = imx708_set_stream,
-};
-
 static const struct v4l2_subdev_pad_ops imx708_pad_ops = {
 	.enum_mbus_code = imx708_enum_mbus_code,
 	.get_fmt = v4l2_subdev_get_fmt,
@@ -1805,11 +1817,12 @@ static const struct v4l2_subdev_pad_ops imx708_pad_ops = {
 	.get_selection = imx708_get_selection,
 	.enum_frame_size = imx708_enum_frame_size,
 	.get_frame_desc = imx708_get_frame_desc,
+	.enable_streams = imx708_enable_streams,
+	.disable_streams = imx708_disable_streams,
 };
 
 static const struct v4l2_subdev_ops imx708_subdev_ops = {
 	.core = &imx708_core_ops,
-	.video = &imx708_video_ops,
 	.pad = &imx708_pad_ops,
 };
 
