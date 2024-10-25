@@ -1748,26 +1748,45 @@ static void imx519_stop_streaming(struct imx519 *imx519)
 	pm_runtime_put(&client->dev);
 }
 
-static int imx519_set_stream(struct v4l2_subdev *sd, int enable)
+static int imx519_enable_streams(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *state, u32 pad,
+				 u64 streams_mask)
 {
 	struct imx519 *imx519 = to_imx519(sd);
-	struct v4l2_subdev_state *state;
-	int ret = 0;
 
-	state = v4l2_subdev_lock_and_get_active_state(sd);
-
-	if (enable)
-		ret = imx519_start_streaming(imx519);
-	else
-		imx519_stop_streaming(imx519);
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX519_STREAM_IMAGE)))
+		return 0;
 
 	/* vflip and hflip cannot change during streaming */
-	__v4l2_ctrl_grab(imx519->vflip, enable);
-	__v4l2_ctrl_grab(imx519->hflip, enable);
+	__v4l2_ctrl_grab(imx519->vflip, true);
+	__v4l2_ctrl_grab(imx519->hflip, true);
 
-	v4l2_subdev_unlock_state(state);
+	return imx519_start_streaming(imx519);
+}
 
-	return ret;
+static int imx519_disable_streams(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *state, u32 pad,
+				  u64 streams_mask)
+{
+	struct imx519 *imx519 = to_imx519(sd);
+
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX519_STREAM_IMAGE)))
+		return 0;
+
+	__v4l2_ctrl_grab(imx519->vflip, false);
+	__v4l2_ctrl_grab(imx519->hflip, false);
+
+	imx519_stop_streaming(imx519);
+
+	return 0;
 }
 
 /* Power/clock management functions */
@@ -1864,10 +1883,6 @@ static const struct v4l2_subdev_core_ops imx519_core_ops = {
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
-static const struct v4l2_subdev_video_ops imx519_video_ops = {
-	.s_stream = imx519_set_stream,
-};
-
 static const struct v4l2_subdev_pad_ops imx519_pad_ops = {
 	.enum_mbus_code = imx519_enum_mbus_code,
 	.get_fmt = v4l2_subdev_get_fmt,
@@ -1875,11 +1890,12 @@ static const struct v4l2_subdev_pad_ops imx519_pad_ops = {
 	.get_selection = imx519_get_selection,
 	.enum_frame_size = imx519_enum_frame_size,
 	.get_frame_desc = imx519_get_frame_desc,
+	.enable_streams = imx519_enable_streams,
+	.disable_streams = imx519_disable_streams,
 };
 
 static const struct v4l2_subdev_ops imx519_subdev_ops = {
 	.core = &imx519_core_ops,
-	.video = &imx519_video_ops,
 	.pad = &imx519_pad_ops,
 };
 
