@@ -1953,26 +1953,45 @@ static void imx477_stop_streaming(struct imx477 *imx477)
 	pm_runtime_put(&client->dev);
 }
 
-static int imx477_set_stream(struct v4l2_subdev *sd, int enable)
+static int imx477_enable_streams(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *state, u32 pad,
+				 u64 streams_mask)
 {
 	struct imx477 *imx477 = to_imx477(sd);
-	struct v4l2_subdev_state *state;
-	int ret = 0;
 
-	state = v4l2_subdev_lock_and_get_active_state(sd);
-
-	if (enable)
-		ret = imx477_start_streaming(imx477);
-	else
-		imx477_stop_streaming(imx477);
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX477_STREAM_IMAGE)))
+		return 0;
 
 	/* vflip and hflip cannot change during streaming */
-	__v4l2_ctrl_grab(imx477->vflip, enable);
-	__v4l2_ctrl_grab(imx477->hflip, enable);
+	__v4l2_ctrl_grab(imx477->vflip, true);
+	__v4l2_ctrl_grab(imx477->hflip, true);
 
-	v4l2_subdev_unlock_state(state);
+	return imx477_start_streaming(imx477);
+}
 
-	return ret;
+static int imx477_disable_streams(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *state, u32 pad,
+				  u64 streams_mask)
+{
+	struct imx477 *imx477 = to_imx477(sd);
+
+	/*
+	 * The image stream controls sensor streaming, as embedded data isn't
+	 * controllable independently.
+	 */
+	if (!(streams_mask & BIT(IMX477_STREAM_IMAGE)))
+		return 0;
+
+	__v4l2_ctrl_grab(imx477->vflip, false);
+	__v4l2_ctrl_grab(imx477->hflip, false);
+
+	imx477_stop_streaming(imx477);
+
+	return 0;
 }
 
 /* Power/clock management functions */
@@ -2069,10 +2088,6 @@ static const struct v4l2_subdev_core_ops imx477_core_ops = {
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
-static const struct v4l2_subdev_video_ops imx477_video_ops = {
-	.s_stream = imx477_set_stream,
-};
-
 static const struct v4l2_subdev_pad_ops imx477_pad_ops = {
 	.enum_mbus_code = imx477_enum_mbus_code,
 	.get_fmt = v4l2_subdev_get_fmt,
@@ -2080,11 +2095,12 @@ static const struct v4l2_subdev_pad_ops imx477_pad_ops = {
 	.get_selection = imx477_get_selection,
 	.enum_frame_size = imx477_enum_frame_size,
 	.get_frame_desc = imx477_get_frame_desc,
+	.enable_streams = imx477_enable_streams,
+	.disable_streams = imx477_disable_streams,
 };
 
 static const struct v4l2_subdev_ops imx477_subdev_ops = {
 	.core = &imx477_core_ops,
-	.video = &imx477_video_ops,
 	.pad = &imx477_pad_ops,
 };
 
