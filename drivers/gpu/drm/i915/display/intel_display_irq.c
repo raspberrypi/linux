@@ -551,12 +551,13 @@ void i965_pipestat_irq_handler(struct drm_i915_private *dev_priv,
 		intel_opregion_asle_intr(display);
 
 	if (pipe_stats[0] & PIPE_GMBUS_INTERRUPT_STATUS)
-		intel_gmbus_irq_handler(dev_priv);
+		intel_gmbus_irq_handler(display);
 }
 
 void valleyview_pipestat_irq_handler(struct drm_i915_private *dev_priv,
 				     u32 pipe_stats[I915_MAX_PIPES])
 {
+	struct intel_display *display = &dev_priv->display;
 	enum pipe pipe;
 
 	for_each_pipe(dev_priv, pipe) {
@@ -574,7 +575,7 @@ void valleyview_pipestat_irq_handler(struct drm_i915_private *dev_priv,
 	}
 
 	if (pipe_stats[0] & PIPE_GMBUS_INTERRUPT_STATUS)
-		intel_gmbus_irq_handler(dev_priv);
+		intel_gmbus_irq_handler(display);
 }
 
 static void ibx_irq_handler(struct drm_i915_private *dev_priv, u32 pch_iir)
@@ -596,7 +597,7 @@ static void ibx_irq_handler(struct drm_i915_private *dev_priv, u32 pch_iir)
 		intel_dp_aux_irq_handler(display);
 
 	if (pch_iir & SDE_GMBUS)
-		intel_gmbus_irq_handler(dev_priv);
+		intel_gmbus_irq_handler(display);
 
 	if (pch_iir & SDE_AUDIO_HDCP_MASK)
 		drm_dbg(&dev_priv->drm, "PCH HDCP audio interrupt\n");
@@ -685,7 +686,7 @@ static void cpt_irq_handler(struct drm_i915_private *dev_priv, u32 pch_iir)
 		intel_dp_aux_irq_handler(display);
 
 	if (pch_iir & SDE_GMBUS_CPT)
-		intel_gmbus_irq_handler(dev_priv);
+		intel_gmbus_irq_handler(display);
 
 	if (pch_iir & SDE_AUDIO_CP_REQ_CPT)
 		drm_dbg(&dev_priv->drm, "Audio CP request interrupt\n");
@@ -1128,7 +1129,7 @@ void gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 
 			if ((IS_GEMINILAKE(dev_priv) || IS_BROXTON(dev_priv)) &&
 			    (iir & BXT_DE_PORT_GMBUS)) {
-				intel_gmbus_irq_handler(dev_priv);
+				intel_gmbus_irq_handler(display);
 				found = true;
 			}
 

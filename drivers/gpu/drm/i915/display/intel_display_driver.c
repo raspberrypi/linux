@@ -431,7 +431,7 @@ int intel_display_driver_probe_nogem(struct drm_i915_private *i915)
 
 	intel_pps_setup(display);
 
-	intel_gmbus_setup(i915);
+	intel_gmbus_setup(display);
 
 	drm_dbg_kms(&i915->drm, "%d display pipe%s available.\n",
 		    INTEL_NUM_PIPES(i915),
@@ -607,7 +607,7 @@ void intel_display_driver_remove_noirq(struct drm_i915_private *i915)
 
 	intel_overlay_cleanup(i915);
 
-	intel_gmbus_teardown(i915);
+	intel_gmbus_teardown(display);
 
 	destroy_workqueue(i915->display.wq.flip);
 	destroy_workqueue(i915->display.wq.modeset);
