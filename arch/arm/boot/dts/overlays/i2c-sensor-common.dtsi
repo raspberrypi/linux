@@ -680,6 +680,39 @@
 		};
 	};
 
+	fragment@44 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tcs3472: tcs3472@29 {
+				compatible = "amstaos,tcs3472";
+				reg = <0x29>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_EDGE_RISING>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
+			};
+		};
+	};
+
+	fragment@45 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml6040: veml6040@10 {
+				compatible = "vishay,veml6040";
+				reg = <0x10>;
+				status = "okay";
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -736,6 +769,8 @@
 		as7331 = <0>,"+41+99";
 		adxl345 = <0>,"+42+99";
 		aht20 = <0>,"+43";
+		tcs3472 = <0>,"+44+99";
+		veml6040 = <0>,"+45";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -757,7 +792,8 @@
 			<&hdc3020>, "interrupts:0",
 			<&as73211>, "interrupts:0",
 			<&as7331>, "interrupts:0",
-			<&adxl345>, "interrupts:0";
+			<&adxl345>, "interrupts:0",
+			<&tcs3472>, "interrupts:0";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";
 		reset_pin = <&bno055>,"reset-gpios:4", <0>,"+30";
 		shunt_resistor = <&ina238>,"shunt-resistor:0";
