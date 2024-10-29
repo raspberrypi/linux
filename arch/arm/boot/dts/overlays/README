@@ -2567,11 +2567,17 @@ Params: addr                    Set the address for the ADT7410, AS73211,
         sgp30                   Select the Sensirion SGP30 VOC sensor.
                                 Fixed address 0x58.
 
+        tcs3472                 Select the AMS TAOS TCS3472 family of RGBW light
+                                sensors.
+                                Valid addresses 0x48-0x4b, default 0x48
+
         tmp102                  Select the Texas Instruments TMP102 temp sensor
                                 Valid addresses 0x48-0x4b, default 0x48
 
         tsl4531                 Select the AMS TSL4531 digital ambient light
                                 sensor
+
+        veml6040                Select the Vishay VEML6040 RGBW light sensor
 
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
