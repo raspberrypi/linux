@@ -18,10 +18,22 @@
 static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 	/*
 	 * Kingston Canvas Go! Plus microSD cards never finish SD cache flush.
-	 * This has so far only been observed on cards from 11/2019, while new
-	 * cards from 2023/05 do not exhibit this behavior.
+	 * This has been observed on cards from 2019/11 and 2021/11, while new
+	 * cards from 2023/05 and 2024/08 do not exhibit this behavior.
 	 */
-	_FIXUP_EXT("SD64G", CID_MANFID_KINGSTON_SD, 0x5449, 2019, 11,
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_KINGSTON_SD, 0x5449, 2019, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_KINGSTON_SD, 0x5449, 2020, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_KINGSTON_SD, 0x5449, 2021, CID_MONTH_ANY,
+		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
+
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_KINGSTON_SD, 0x5449, 2022, CID_MONTH_ANY,
 		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
 		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
 
