@@ -956,6 +956,7 @@ static int imx283_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
+	struct v4l2_rect *crop;
 	struct v4l2_mbus_framefmt *format;
 	const struct imx283_mode *mode;
 	struct imx283 *imx283 = to_imx283(sd);
@@ -981,6 +982,9 @@ static int imx283_set_pad_format(struct v4l2_subdev *sd,
 		imx283_set_framing_limits(imx283, mode);
 
 	*format = fmt->format;
+
+	crop = v4l2_subdev_state_get_crop(sd_state, IMAGE_PAD);
+	*crop = mode->crop;
 
 	return 0;
 }
