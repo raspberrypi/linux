@@ -295,4 +295,13 @@ config QCOM_IPCC
 	  acts as an interrupt controller for receiving interrupts from clients.
 	  Say Y here if you want to build this driver.
 
+config MBOX_RP1
+	tristate "RP1 Mailbox"
+	depends on MFD_RP1
+	help
+	  An implementation of a mailbox interface to the Raspberry Pi RP1 I/O
+	  interface. Although written as a mailbox driver, the hardware only
+	  provides an array of 32 doorbells.
+	  Say Y here if you want to use the RP1 Mailbox.
+
 endif
