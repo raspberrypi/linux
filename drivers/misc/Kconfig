@@ -17,6 +17,14 @@ config BCM2835_SMI
 		Driver for enabling and using Broadcom's Secondary/Slow Memory Interface.
 		Appears as /dev/bcm2835_smi. For ioctl interface see drivers/misc/bcm2835_smi.h
 
+config RP1_PIO
+	tristate "Raspberry Pi RP1 PIO driver"
+	depends on FIRMWARE_RP1 || COMPILE_TEST
+	default n
+	help
+		Driver providing control of the Raspberry Pi PIO block, as found in
+		RP1.
+
 config AD525X_DPOT
 	tristate "Analog Devices Digital Potentiometers"
 	depends on (I2C || SPI) && SYSFS
