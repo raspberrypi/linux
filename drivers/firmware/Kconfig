@@ -120,6 +120,15 @@ config RASPBERRYPI_FIRMWARE
 	  This option enables support for communicating with the firmware on the
 	  Raspberry Pi.
 
+config FIRMWARE_RP1
+	tristate "RP1 Firmware Driver"
+	depends on MBOX_RP1
+	help
+	  The Raspberry Pi RP1 processor presents a firmware
+	  interface using shared memory and a mailbox. To enable
+	  the driver that communicates with it, say Y. Otherwise,
+	  say N.
+
 config FW_CFG_SYSFS
 	tristate "QEMU fw_cfg device support in sysfs"
 	depends on SYSFS && (ARM || ARM64 || PARISC || PPC_PMAC || RISCV || SPARC || X86)
