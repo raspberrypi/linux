@@ -294,6 +294,10 @@ pciex4: &pcie2 { };
 	status = "okay";
 };
 
+&rp1_mbox {
+	status = "okay";
+};
+
 /* Add some gpiomem nodes to make the devices accessible to userspace.
  * /dev/gpiomem<n> should expose the registers for the interface with DT alias
  * gpio<n>.
