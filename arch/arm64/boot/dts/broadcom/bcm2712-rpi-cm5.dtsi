@@ -133,7 +133,7 @@ rp1_target: &pcie2 {
 	// This is the RP1 peripheral space
 	ranges = <0xc0 0x40000000
 		  0x02000000 0x00 0x00000000
-		  0x00 0x00400000>;
+		  0x00 0x00410000>;
 
 	dma-ranges =
 	// inbound RP1 1x_xxxxxxxx -> PCIe 1x_xxxxxxxx
@@ -145,7 +145,7 @@ rp1_target: &pcie2 {
 	// This allows the RP1 DMA controller to address RP1 hardware
 		     <0xc0 0x40000000
 		      0x02000000 0x0 0x00000000
-		      0x0 0x00400000>,
+		      0x0 0x00410000>,
 
 	// inbound RP1 0x_xxxxxxxx -> PCIe 1x_xxxxxxxx
 		     <0x00 0x00000000
