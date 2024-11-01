@@ -1028,6 +1028,18 @@
 			status = "disabled";
 		};
 
+		rp1_pio: pio@178000 {
+			reg = <0xc0 0x40178000  0x0 0x20>;
+			compatible = "raspberrypi,rp1-pio";
+			firmware = <&rp1_firmware>;
+			dmas = <&rp1_dma RP1_DMA_PIO_CH0_TX>, <&rp1_dma RP1_DMA_PIO_CH0_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH1_TX>, <&rp1_dma RP1_DMA_PIO_CH1_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH2_TX>, <&rp1_dma RP1_DMA_PIO_CH2_RX>,
+				   <&rp1_dma RP1_DMA_PIO_CH3_TX>, <&rp1_dma RP1_DMA_PIO_CH3_RX>;
+			dma-names = "tx0", "rx0", "tx1", "rx1", "tx2", "rx2", "tx3", "rx3";
+			status = "disabled";
+		};
+
 		rp1_mmc0: mmc@180000 {
 			reg = <0xc0 0x40180000  0x0 0x100>;
 			compatible = "raspberrypi,rp1-dwcmshc";

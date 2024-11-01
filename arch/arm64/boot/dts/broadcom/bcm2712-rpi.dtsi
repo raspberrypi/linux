@@ -97,6 +97,10 @@
 	};
 };
 
+pio: &rp1_pio {
+	status = "okay";
+};
+
 / {
 	chosen: chosen {
 		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave";
@@ -129,6 +133,7 @@
 		i2c12 = &i2c10;
 		mailbox = &mailbox;
 		mmc0 = &sdio1;
+		pio0 = &pio;
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial10 = &uart10;
