@@ -4175,6 +4175,18 @@ Params: touchscreen-size-x      Touchscreen X resolution (default 800)
         touchscreen-swapped-x-y Swap X and Y cordinates (default 0);
 
 
+Name:   rpi-fw-uart
+Info:   Configures the firmware software UART driver.
+        This driver requires exclusive usage of the second VPU core. The
+        following config.txt entries should be set when this driver is used.
+        dtparam=audio=off
+        isp_use_vpu0=1
+Load:   dtoverlay=rpi-fw-uart,<param>[=<val>]
+Params: txd0_pin                GPIO pin for TXD0 (any free - default 20)
+
+        rxd0_pin                GPIO pin for RXD0 (any free - default 21)
+
+
 Name:   rpi-poe
 Info:   Raspberry Pi PoE HAT fan
 Load:   dtoverlay=rpi-poe,<param>[=<val>]
