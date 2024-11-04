@@ -152,9 +152,9 @@ static int dht11_decode(struct dht11 *dht11, int offset)
 		dht11->temperature = (((temp_int & 0x7f) << 8) + temp_dec) *
 					((temp_int & 0x80) ? -100 : 100);
 		dht11->humidity = ((hum_int << 8) + hum_dec) * 100;
-	} else if (temp_dec == 0 && hum_dec == 0) {  /* DHT11 */
-		dht11->temperature = temp_int * 1000;
-		dht11->humidity = hum_int * 1000;
+	} else if (temp_dec < 10 && hum_dec < 10) {  /* DHT11 */
+		dht11->temperature = temp_int * 1000 + temp_dec * 100;
+		dht11->humidity = hum_int * 1000 + hum_dec * 100;
 	} else {
 		dev_err(dht11->dev,
 			"Don't know how to decode data: %d %d %d %d\n",
