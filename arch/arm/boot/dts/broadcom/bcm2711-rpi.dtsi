@@ -113,3 +113,8 @@
 &vchiq {
 	interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 };
+
+&hevc_dec {
+	clocks = <&firmware_clocks 11>;
+	clock-names = "hevc";
+};
