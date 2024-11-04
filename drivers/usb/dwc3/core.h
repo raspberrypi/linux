@@ -187,6 +187,7 @@
 
 /* Global SoC Bus Configuration Register 1 */
 #define DWC3_GSBUSCFG1_PIPETRANSLIMIT(n)	(((n) & 0xf) << 8)
+#define DWC3_GSBUSCFG1_EN1KPAGE			(1 << 12)
 
 /* Global Debug LSP MUX Select */
 #define DWC3_GDBGLSPMUX_ENDBC		BIT(15)	/* Host only */

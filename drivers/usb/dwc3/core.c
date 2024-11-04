@@ -1221,7 +1221,8 @@ static void dwc3_set_axi_pipe_limit(struct dwc3 *dwc)
 	}
 	cfg = dwc3_readl(dwc->regs, DWC3_GSBUSCFG1);
 	cfg &= ~DWC3_GSBUSCFG1_PIPETRANSLIMIT(15);
-	cfg |= DWC3_GSBUSCFG1_PIPETRANSLIMIT(dwc->axi_pipe_limit - 1);
+	cfg |= DWC3_GSBUSCFG1_PIPETRANSLIMIT(dwc->axi_pipe_limit - 1)
+	cfg |= DWC3_GSBUSCFG1_EN1KPAGE;
 
 	dwc3_writel(dwc->regs, DWC3_GSBUSCFG1, cfg);
 }
