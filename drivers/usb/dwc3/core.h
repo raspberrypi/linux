@@ -282,6 +282,8 @@
 #define DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS	BIT(28)
 #define DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK	BIT(26)
 #define DWC3_GUCTL1_DEV_L1_EXIT_BY_HW		BIT(24)
+#define DWC3_GUCTL1_NAK_PER_ENH_FS		BIT(19)
+#define DWC3_GUCTL1_NAK_PER_ENH_HS		BIT(18)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_SS		BIT(17)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_HS		BIT(16)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_FSLS	BIT(15)
@@ -1143,6 +1145,8 @@ struct dwc3_scratchpad_array {
  *			generation after resume from suspend.
  * @ulpi_ext_vbus_drv: Set to confiure the upli chip to drives CPEN pin
  *			VBUS with an external supply.
+ * @enh_nak_fs_quirk: Set to schedule more handshakes to Async FS endpoints.
+ * @enh_nak_hs_quirk: Set to schedule more handshakes to Async HS endpoints.
  * @parkmode_disable_ss_quirk: If set, disable park mode feature for all
  *			Superspeed instances.
  * @parkmode_disable_hs_quirk: If set, disable park mode feature for all
@@ -1383,6 +1387,8 @@ struct dwc3 {
 	unsigned		dis_tx_ipgap_linecheck_quirk:1;
 	unsigned		resume_hs_terminations:1;
 	unsigned		ulpi_ext_vbus_drv:1;
+	unsigned		enh_nak_fs_quirk:1;
+	unsigned		enh_nak_hs_quirk:1;
 	unsigned		parkmode_disable_ss_quirk:1;
 	unsigned		parkmode_disable_hs_quirk:1;
 	unsigned		parkmode_disable_fsls_quirk:1;
