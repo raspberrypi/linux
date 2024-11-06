@@ -510,6 +510,19 @@ void xhci_ring_ep_doorbell(struct xhci_hcd *xhci,
 
 	trace_xhci_ring_ep_doorbell(slot_id, DB_VALUE(ep_index, stream_id));
 
+	/*
+	 * For non-coherent systems with PCIe DMA (such as Pi 4, Pi 5) there
+	 * is a theoretical race between the TRB write and barrier, which
+	 * is reported complete as soon as the write leaves the CPU domain,
+	 * the doorbell write, which may be reported as complete by the RC
+	 * at some arbitrary point, and the visibility of new TRBs in system
+	 * RAM by the endpoint DMA engine.
+	 *
+	 * This read before the write positively serialises the CPU state
+	 * by incurring a round-trip across the link.
+	 */
+	readl(db_addr);
+
 	writel(DB_VALUE(ep_index, stream_id), db_addr);
 	/* flush the write */
 	readl(db_addr);
