@@ -1479,6 +1479,12 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		if (dwc->dis_tx_ipgap_linecheck_quirk)
 			reg |= DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS;
 
+		if (dwc->enh_nak_fs_quirk)
+			reg |= DWC3_GUCTL1_NAK_PER_ENH_FS;
+
+		if (dwc->enh_nak_hs_quirk)
+			reg |= DWC3_GUCTL1_NAK_PER_ENH_HS;
+
 		if (dwc->parkmode_disable_ss_quirk)
 			reg |= DWC3_GUCTL1_PARKMODE_DISABLE_SS;
 
@@ -1830,6 +1836,10 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,resume-hs-terminations");
 	dwc->ulpi_ext_vbus_drv = device_property_read_bool(dev,
 				"snps,ulpi-ext-vbus-drv");
+	dwc->enh_nak_fs_quirk = device_property_read_bool(dev,
+				"snps,enhanced-nak-fs-quirk");
+	dwc->enh_nak_hs_quirk = device_property_read_bool(dev,
+				"snps,enhanced-nak-hs-quirk");
 	dwc->parkmode_disable_ss_quirk = device_property_read_bool(dev,
 				"snps,parkmode-disable-ss-quirk");
 	dwc->parkmode_disable_hs_quirk = device_property_read_bool(dev,
