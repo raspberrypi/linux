@@ -232,6 +232,16 @@ properties:
     description: When set, disable u2mac linestate check during HS transmit
     type: boolean
 
+  snps,enhanced-nak-fs-quirk:
+    description:
+      When set, the controller schedules many more handshakes to Async FS
+      endpoints, improving throughput when they frequently respond with NAKs.
+
+  snps,enhanced-nak-hs-quirk:
+    description:
+      When set, the controller schedules many more handshakes to Async HS
+      endpoints, improving throughput when they frequently respond with NAKs.
+
   snps,parkmode-disable-ss-quirk:
     description:
       When set, disable park mode for all Superspeed bus instances.
