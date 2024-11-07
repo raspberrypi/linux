@@ -3960,6 +3960,14 @@ Params: gpio_pin                Output GPIO (default 18)
         func                    Pin function (default 2 = Alt5)
 
 
+Name:   pwm-pio
+Info:   Configures a GPIO pin as PIO-assisted PWM output. Unlike hardware PWM,
+        this can be used on any RP1 GPIO in bank 0 (0-27). Up to 4 are
+        supported, assuming nothing else is using PIO. Pi 5 only.
+Load:   dtoverlay=pwm-pio,<param>=<val>
+Params: gpio                    Output GPIO (0-27, default 4)
+
+
 Name:   pwm1
 Info:   Configures one or two PWM channel on PWM1 (BCM2711 only)
         N.B.:
