@@ -1504,8 +1504,6 @@ static const struct clk_ops rp1_varsrc_ops = {
 	.round_rate = rp1_varsrc_round_rate,
 };
 
-static bool rp1_clk_is_claimed(const char *name);
-
 static struct clk_hw *rp1_register_pll_core(struct rp1_clockman *clockman,
 					    const void *data)
 {
@@ -1521,7 +1519,7 @@ static struct clk_hw *rp1_register_pll_core(struct rp1_clockman *clockman,
 	init.num_parents = 1;
 	init.name = pll_core_data->name;
 	init.ops = &rp1_pll_core_ops;
-	init.flags = pll_core_data->flags | CLK_IGNORE_UNUSED | CLK_IS_CRITICAL;
+	init.flags = pll_core_data->flags | CLK_IS_CRITICAL;
 
 	pll_core = kzalloc(sizeof(*pll_core), GFP_KERNEL);
 	if (!pll_core)
@@ -1554,7 +1552,7 @@ static struct clk_hw *rp1_register_pll(struct rp1_clockman *clockman,
 	init.num_parents = 1;
 	init.name = pll_data->name;
 	init.ops = &rp1_pll_ops;
-	init.flags = pll_data->flags | CLK_IGNORE_UNUSED | CLK_IS_CRITICAL;
+	init.flags = pll_data->flags | CLK_IGNORE_UNUSED;
 
 	pll = kzalloc(sizeof(*pll), GFP_KERNEL);
 	if (!pll)
@@ -1634,11 +1632,6 @@ static struct clk_hw *rp1_register_pll_divider(struct rp1_clockman *clockman,
 	divider->div.lock = &clockman->regs_lock;
 	divider->div.hw.init = &init;
 	divider->div.table = pll_sec_div_table;
-
-	if (!rp1_clk_is_claimed(divider_data->source_pll))
-		init.flags |= CLK_IS_CRITICAL;
-	if (!rp1_clk_is_claimed(divider_data->name))
-		divider->div.flags |= CLK_IS_CRITICAL;
 
 	divider->clockman = clockman;
 	divider->data = divider_data;
@@ -1861,6 +1854,8 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.max_freq = 200 * MHz,
 				.fc0_src = FC_NUM(0, 4),
 				.clk_src_mask = 0x3,
+				/* Always enabled in hardware */
+				.flags = CLK_IS_CRITICAL,
 				),
 
 	[RP1_CLK_SLOW_SYS] = REGISTER_CLK(
@@ -1875,6 +1870,8 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.max_freq = 50 * MHz,
 				.fc0_src = FC_NUM(1, 4),
 				.clk_src_mask = 0x1,
+				/* Always enabled in hardware */
+				.flags = CLK_IS_CRITICAL,
 				),
 
 	[RP1_CLK_UART] = REGISTER_CLK(
@@ -2394,24 +2391,6 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 	[RP1_CLK_MIPI1_DSI_BYTECLOCK] = REGISTER_VARSRC("clksrc_mipi1_dsi_byteclk"),
 };
 
-static bool rp1_clk_claimed[ARRAY_SIZE(clk_desc_array)];
-
-static bool rp1_clk_is_claimed(const char *name)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(clk_desc_array); i++) {
-		if (clk_desc_array[i].data) {
-			const char *clk_name = *(const char **)(clk_desc_array[i].data);
-
-			if (!strcmp(name, clk_name))
-				return rp1_clk_claimed[i];
-		}
-	}
-
-	return false;
-}
-
 static int rp1_clk_probe(struct platform_device *pdev)
 {
 	const struct rp1_clk_desc *desc;
@@ -2422,7 +2401,6 @@ static int rp1_clk_probe(struct platform_device *pdev)
 	const size_t asize = ARRAY_SIZE(clk_desc_array);
 	u32 chip_id, platform;
 	unsigned int i;
-	u32 clk_id;
 	int ret;
 
 	clockman = devm_kzalloc(dev, struct_size(clockman, onecell.hws, asize),
@@ -2438,13 +2416,6 @@ static int rp1_clk_probe(struct platform_device *pdev)
 	clockman->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(clockman->regs))
 		return PTR_ERR(clockman->regs);
-
-	memset(rp1_clk_claimed, 0, sizeof(rp1_clk_claimed));
-	for (i = 0;
-	     !of_property_read_u32_index(pdev->dev.of_node, "claim-clocks",
-					 i, &clk_id);
-	     i++)
-		rp1_clk_claimed[clk_id] = true;
 
 	platform_set_drvdata(pdev, clockman);
 
