@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0
-// PIO driver for RP1
-//
-//  Copyright (C) 2023-2024 Raspberry Pi Ltd.
-//
-// Parts of this driver are based on:
-//  - vcio.c, by Noralf Trønnes
-//    Copyright (C) 2010 Broadcom
-//    Copyright (C) 2015 Noralf Trønnes
-//    Copyright (C) 2021 Raspberry Pi (Trading) Ltd.
-//  - bcm2835_smi.c & bcm2835_smi_dev.c by Luke Wren
-//    Copyright (c) 2015 Raspberry Pi (Trading) Ltd.
+/*
+ * PIO driver for RP1
+ *
+ * Copyright (C) 2023-2024 Raspberry Pi Ltd.
+ *
+ * Parts of this driver are based on:
+ *  - vcio.c, by Noralf Trønnes
+ *    Copyright (C) 2010 Broadcom
+ *    Copyright (C) 2015 Noralf Trønnes
+ *    Copyright (C) 2021 Raspberry Pi (Trading) Ltd.
+ *  - bcm2835_smi.c & bcm2835_smi_dev.c by Luke Wren
+ *    Copyright (c) 2015 Raspberry Pi (Trading) Ltd.
+ */
 
 #include <linux/cdev.h>
 #include <linux/compat.h>
@@ -97,6 +99,7 @@ struct rp1_pio_client {
 	uint32_t claimed_sms;
 	uint32_t claimed_instrs;
 	uint32_t claimed_dmas;
+	int error;
 };
 
 static struct rp1_pio_device *g_pio;
@@ -195,7 +198,7 @@ static int rp1_pio_find_program(struct rp1_pio_device *pio,
 	return -1;
 }
 
-static int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
+int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_add_program_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
@@ -217,8 +220,9 @@ static int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
 	return rp1_pio_message(pio, PIO_CAN_ADD_PROGRAM, args,
 			       offsetof(struct rp1_pio_add_program_args, instrs));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_can_add_program);
 
-static int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
+int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_add_program_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
@@ -254,6 +258,7 @@ static int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
 	mutex_unlock(&pio->instr_mutex);
 	return offset;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_add_program);
 
 static void rp1_pio_remove_instrs(struct rp1_pio_device *pio, uint32_t mask)
 {
@@ -277,7 +282,7 @@ static void rp1_pio_remove_instrs(struct rp1_pio_device *pio, uint32_t mask)
 	mutex_unlock(&pio->instr_mutex);
 }
 
-static int rp1_pio_remove_program(struct rp1_pio_client *client, void *param)
+int rp1_pio_remove_program(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_remove_program_args *args = param;
 	uint32_t used_mask;
@@ -296,8 +301,9 @@ static int rp1_pio_remove_program(struct rp1_pio_client *client, void *param)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_remove_program);
 
-static int rp1_pio_clear_instr_mem(struct rp1_pio_client *client, void *param)
+int rp1_pio_clear_instr_mem(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_device *pio = client->pio;
 
@@ -309,8 +315,9 @@ static int rp1_pio_clear_instr_mem(struct rp1_pio_client *client, void *param)
 	mutex_unlock(&pio->instr_mutex);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_clear_instr_mem);
 
-static int rp1_pio_sm_claim(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_claim(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_claim_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
@@ -328,8 +335,9 @@ static int rp1_pio_sm_claim(struct rp1_pio_client *client, void *param)
 	mutex_unlock(&pio->instr_mutex);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_claim);
 
-static int rp1_pio_sm_unclaim(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_unclaim(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_claim_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
@@ -341,99 +349,113 @@ static int rp1_pio_sm_unclaim(struct rp1_pio_client *client, void *param)
 	mutex_unlock(&pio->instr_mutex);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_unclaim);
 
-static int rp1_pio_sm_is_claimed(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_is_claimed(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_claim_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_IS_CLAIMED, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_is_claimed);
 
-static int rp1_pio_sm_init(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_init(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_init_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_INIT, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_init);
 
-static int rp1_pio_sm_set_config(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_config(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_config_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_CONFIG, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_config);
 
-static int rp1_pio_sm_exec(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_exec(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_exec_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_EXEC, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_exec);
 
-static int rp1_pio_sm_clear_fifos(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_clear_fifos(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_clear_fifos_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_CLEAR_FIFOS, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_clear_fifos);
 
-static int rp1_pio_sm_set_clkdiv(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_clkdiv(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_clkdiv_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_CLKDIV, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_clkdiv);
 
-static int rp1_pio_sm_set_pins(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_pins(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_pins_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_PINS, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_pins);
 
-static int rp1_pio_sm_set_pindirs(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_pindirs(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_pindirs_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_PINDIRS, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_pindirs);
 
-static int rp1_pio_sm_set_enabled(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_enabled(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_enabled_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_ENABLED, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_enabled);
 
-static int rp1_pio_sm_restart(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_restart(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_restart_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_RESTART, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_restart);
 
-static int rp1_pio_sm_clkdiv_restart(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_clkdiv_restart(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_restart_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_CLKDIV_RESTART, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_clkdiv_restart);
 
-static int rp1_pio_sm_enable_sync(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_enable_sync(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_enable_sync_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_ENABLE_SYNC, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_enable_sync);
 
-static int rp1_pio_sm_put(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_put(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_put_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_PUT, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_put);
 
-static int rp1_pio_sm_get(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_get(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_get_args *args = param;
 	int ret;
@@ -444,69 +466,79 @@ static int rp1_pio_sm_get(struct rp1_pio_client *client, void *param)
 		return offsetof(struct rp1_pio_sm_get_args, data) + ret;
 	return ret;
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_get);
 
-static int rp1_pio_sm_set_dmactrl(struct rp1_pio_client *client, void *param)
+int rp1_pio_sm_set_dmactrl(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_dmactrl_args *args = param;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_DMACTRL, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_sm_set_dmactrl);
 
-static int rp1_pio_gpio_init(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_init(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_init_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_INIT, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_init);
 
-static int rp1_pio_gpio_set_function(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_function(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_function_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_FUNCTION, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_function);
 
-static int rp1_pio_gpio_set_pulls(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_pulls(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_pulls_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_PULLS, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_pulls);
 
-static int rp1_pio_gpio_set_outover(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_outover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_OUTOVER, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_outover);
 
-static int rp1_pio_gpio_set_inover(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_inover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_INOVER, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_inover);
 
-static int rp1_pio_gpio_set_oeover(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_oeover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_OEOVER, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_oeover);
 
-static int rp1_pio_gpio_set_input_enabled(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_input_enabled(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_INPUT_ENABLED, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_input_enabled);
 
-static int rp1_pio_gpio_set_drive_strength(struct rp1_pio_client *client, void *param)
+int rp1_pio_gpio_set_drive_strength(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
 	return rp1_pio_message(client->pio, GPIO_SET_DRIVE_STRENGTH, args, sizeof(*args));
 }
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_drive_strength);
 
 static void rp1_pio_sm_dma_callback(void *param)
 {
@@ -633,7 +665,7 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 
-	// Clean the slate - we're running synchronously
+	/* Clean the slate - we're running synchronously */
 	dma->head_idx = 0;
 	dma->tail_idx = 0;
 
@@ -686,7 +718,7 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 		bytes -= copy_bytes;
 	}
 
-	// Block for completion
+	/* Block for completion */
 	while (dma->tail_idx != dma->head_idx) {
 		if (down_timeout(&dma->buf_sem, msecs_to_jiffies(1000))) {
 			dev_err(dev, "DMA wait timed out\n");
@@ -830,22 +862,22 @@ struct handler_info {
 	HANDLER(WRITE_HW, write_hw),
 };
 
-static int rp1_pio_open(struct inode *inode, struct file *filp)
+struct rp1_pio_client *pio_open(void)
 {
-	struct rp1_pio_device *pio = g_pio;
 	struct rp1_pio_client *client;
 
 	client = kzalloc(sizeof(*client), GFP_KERNEL);
+	if (!client)
+		return ERR_PTR(-ENOMEM);
 
-	client->pio = pio;
-	filp->private_data = client;
+	client->pio = g_pio;
 
-	return 0;
+	return client;
 }
+EXPORT_SYMBOL_GPL(pio_open);
 
-static int rp1_pio_release(struct inode *inode, struct file *filp)
+void pio_close(struct rp1_pio_client *client)
 {
-	struct rp1_pio_client *client = filp->private_data;
 	struct rp1_pio_device *pio = client->pio;
 	uint claimed_dmas = client->claimed_dmas;
 	int i;
@@ -885,6 +917,45 @@ static int rp1_pio_release(struct inode *inode, struct file *filp)
 	/* Reinitialise the SM? */
 
 	kfree(client);
+}
+EXPORT_SYMBOL_GPL(pio_close);
+
+void pio_set_error(struct rp1_pio_client *client, int err)
+{
+	client->error = err;
+}
+EXPORT_SYMBOL_GPL(pio_set_error);
+
+int pio_get_error(const struct rp1_pio_client *client)
+{
+	return client->error;
+}
+EXPORT_SYMBOL_GPL(pio_get_error);
+
+void pio_clear_error(struct rp1_pio_client *client)
+{
+	client->error = 0;
+}
+EXPORT_SYMBOL_GPL(pio_clear_error);
+
+static int rp1_pio_open(struct inode *inode, struct file *filp)
+{
+	struct rp1_pio_client *client;
+
+	client = pio_open();
+	if (IS_ERR(client))
+		return PTR_ERR(client);
+
+	filp->private_data = client;
+
+	return 0;
+}
+
+static int rp1_pio_release(struct inode *inode, struct file *filp)
+{
+	struct rp1_pio_client *client = filp->private_data;
+
+	pio_close(client);
 
 	return 0;
 }
