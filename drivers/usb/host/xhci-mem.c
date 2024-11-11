@@ -715,6 +715,14 @@ void xhci_setup_streams_ep_input_ctx(struct xhci_hcd *xhci,
 	ep_ctx->ep_info &= cpu_to_le32(~EP_MAXPSTREAMS_MASK);
 	ep_ctx->ep_info |= cpu_to_le32(EP_MAXPSTREAMS(max_primary_streams)
 				       | EP_HAS_LSA);
+
+	/*
+	 * Set Host Initiated Data Move Disable to always defer stream
+	 * selection to the device. xHC implementations may treat this
+	 * field as "don't care, forced to 1" anyway - xHCI 1.2 s4.12.1.
+	 */
+	ep_ctx->ep_info2 |= EP_HID;
+
 	ep_ctx->deq  = cpu_to_le64(stream_info->ctx_array_dma);
 }
 
