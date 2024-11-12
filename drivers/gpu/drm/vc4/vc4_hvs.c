@@ -1302,14 +1302,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		/* This sets a black background color fill, as is the case
 		 * with other DRM drivers.
 		 */
-		if (enable_bg_fill)
-			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
-				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) |
-				  SCALER6_DISPX_CTRL1_BGENB);
-		else
-			HVS_WRITE(SCALER6_DISPX_CTRL1(channel),
-				  HVS_READ(SCALER6_DISPX_CTRL1(channel)) &
-				  ~SCALER6_DISPX_CTRL1_BGENB);
+		hvs->bg_fill[channel] = enable_bg_fill;
 	} else {
 		/* we can actually run with a lower core clock when background
 		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
@@ -1480,6 +1473,15 @@ static irqreturn_t vc6_hvs_eof_irq_handler(int irq, void *data)
 
 		if (hvs->eof_irq[i].desc != irq)
 			continue;
+
+		if (hvs->bg_fill[i])
+			HVS_WRITE(SCALER6_DISPX_CTRL1(i),
+				  HVS_READ(SCALER6_DISPX_CTRL1(i)) |
+				  SCALER6_DISPX_CTRL1_BGENB);
+		else
+			HVS_WRITE(SCALER6_DISPX_CTRL1(i),
+				  HVS_READ(SCALER6_DISPX_CTRL1(i)) &
+				  ~SCALER6_DISPX_CTRL1_BGENB);
 
 		vc4_hvs_schedule_dlist_sweep(hvs, i);
 		return IRQ_HANDLED;
