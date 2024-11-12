@@ -348,6 +348,8 @@ struct vc4_hvs {
 		unsigned int enabled: 1;
 	} eof_irq[HVS_NUM_CHANNELS];
 
+	bool bg_fill[HVS_NUM_CHANNELS];
+
 	unsigned long max_core_rate;
 
 	/* Memory manager for CRTCs to allocate space in the display
