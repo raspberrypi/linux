@@ -1293,7 +1293,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	u32 v_subsample = fb->format->vsub;
 	bool mix_plane_alpha;
 	bool covers_screen;
-	u32 scl0, scl1, pitch0;
+	u32 scl0, scl1, pitch[2];
 	u32 tiling, src_x, src_y;
 	u32 width, height;
 	u32 hvs_format = format->hvs;
@@ -1347,7 +1347,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
 		tiling = SCALER_CTL0_TILING_LINEAR;
-		pitch0 = VC4_SET_FIELD(fb->pitches[0], SCALER_SRC_PITCH);
+		pitch[0] = VC4_SET_FIELD(fb->pitches[0], SCALER_SRC_PITCH);
 
 		/* Adjust the base pointer to the first pixel to be scanned
 		 * out.
@@ -1399,23 +1399,23 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 */
 		if (rotation & DRM_MODE_REFLECT_Y) {
 			y_off = tile_h_mask - y_off;
-			pitch0 = SCALER_PITCH0_TILE_LINE_DIR;
+			pitch[0] = SCALER_PITCH0_TILE_LINE_DIR;
 		} else {
-			pitch0 = 0;
+			pitch[0] = 0;
 		}
 
 		tiling = SCALER_CTL0_TILING_256B_OR_T;
-		pitch0 |= (VC4_SET_FIELD(x_off, SCALER_PITCH0_SINK_PIX) |
-			   VC4_SET_FIELD(y_off, SCALER_PITCH0_TILE_Y_OFFSET) |
-			   VC4_SET_FIELD(tiles_l, SCALER_PITCH0_TILE_WIDTH_L) |
-			   VC4_SET_FIELD(tiles_r, SCALER_PITCH0_TILE_WIDTH_R));
+		pitch[0] |= (VC4_SET_FIELD(x_off, SCALER_PITCH0_SINK_PIX) |
+			     VC4_SET_FIELD(y_off, SCALER_PITCH0_TILE_Y_OFFSET) |
+			     VC4_SET_FIELD(tiles_l, SCALER_PITCH0_TILE_WIDTH_L) |
+			     VC4_SET_FIELD(tiles_r, SCALER_PITCH0_TILE_WIDTH_R));
 		offsets[0] += tiles_t * (tiles_w << tile_size_shift);
 		offsets[0] += subtile_y << 8;
 		offsets[0] += utile_y << 4;
 
 		/* Rows of tiles alternate left-to-right and right-to-left. */
 		if (tiles_t & 1) {
-			pitch0 |= SCALER_PITCH0_TILE_INITIAL_LINE_DIR;
+			pitch[0] |= SCALER_PITCH0_TILE_INITIAL_LINE_DIR;
 			offsets[0] += (tiles_w - tiles_l) << tile_size_shift;
 			offsets[0] -= (1 + !tile_y) << 10;
 		} else {
@@ -1430,6 +1430,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
 	case DRM_FORMAT_MOD_BROADCOM_SAND256: {
 		uint32_t param = fourcc_mod_broadcom_param(fb->modifier);
+		unsigned int tile_width = 0;
 
 		if (param > SCALER_TILE_HEIGHT_MASK) {
 			DRM_DEBUG_KMS("SAND height too large (%d)\n",
@@ -1440,18 +1441,22 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		if (fb->format->format == DRM_FORMAT_P030) {
 			hvs_format = HVS_PIXEL_FORMAT_YCBCR_10BIT;
 			tiling = SCALER_CTL0_TILING_128B;
+			tile_width = 128;
 		} else {
 			hvs_format = HVS_PIXEL_FORMAT_H264;
 
 			switch (base_format_mod) {
 			case DRM_FORMAT_MOD_BROADCOM_SAND64:
 				tiling = SCALER_CTL0_TILING_64B;
+				tile_width = 64;
 				break;
 			case DRM_FORMAT_MOD_BROADCOM_SAND128:
 				tiling = SCALER_CTL0_TILING_128B;
+				tile_width = 128;
 				break;
 			case DRM_FORMAT_MOD_BROADCOM_SAND256:
 				tiling = SCALER_CTL0_TILING_256B_OR_T;
+				tile_width = 256;
 				break;
 			default:
 				return -EINVAL;
@@ -1469,7 +1474,16 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * should be 6.
 		 */
 		for (i = 0; i < num_planes; i++) {
-			u32 tile_w, tile, x_off, pix_per_tile;
+			u32 tile, x_off, pix_per_tile;
+
+			switch (param) {
+			case 0:
+				pitch[i] = fb->pitches[i];
+				break;
+			default:
+				pitch[i] = VC4_SET_FIELD(param, SCALER_TILE_HEIGHT);
+				break;
+			}
 
 			if (fb->format->format == DRM_FORMAT_P030) {
 				/*
@@ -1485,23 +1499,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 				u32 last_bits = remaining_pixels % 12;
 
 				x_off = aligned * 16 + last_bits;
-				tile_w = 128;
 				pix_per_tile = 96;
 			} else {
-				switch (base_format_mod) {
-				case DRM_FORMAT_MOD_BROADCOM_SAND64:
-					tile_w = 64;
-					break;
-				case DRM_FORMAT_MOD_BROADCOM_SAND128:
-					tile_w = 128;
-					break;
-				case DRM_FORMAT_MOD_BROADCOM_SAND256:
-					tile_w = 256;
-					break;
-				default:
-					return -EINVAL;
-				}
-				pix_per_tile = tile_w / fb->format->cpp[0];
+				pix_per_tile = tile_width / fb->format->cpp[0];
 				x_off = (src_x % pix_per_tile) /
 					(i ? h_subsample : 1) *
 					fb->format->cpp[i];
@@ -1509,12 +1509,10 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 
 			tile = src_x / pix_per_tile;
 
-			offsets[i] += param * tile_w * tile;
-			offsets[i] += src_y / (i ? v_subsample : 1) * tile_w;
+			offsets[i] += pitch[i] * tile;
+			offsets[i] += src_y / (i ? v_subsample : 1) * tile_width;
 			offsets[i] += x_off & ~(i ? 1 : 0);
 		}
-
-		pitch0 = VC4_SET_FIELD(param, SCALER_TILE_HEIGHT);
 		break;
 	}
 
@@ -1669,7 +1667,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 
 	/* Pitch word 0 */
-	vc4_dlist_write(vc4_state, pitch0);
+	vc4_dlist_write(vc4_state, pitch[0]);
 
 	/* Pitch word 1/2 */
 	for (i = 1; i < num_planes; i++) {
@@ -1679,7 +1677,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 					VC4_SET_FIELD(fb->pitches[i],
 						      SCALER_SRC_PITCH));
 		} else {
-			vc4_dlist_write(vc4_state, pitch0);
+			vc4_dlist_write(vc4_state, pitch[1]);
 		}
 	}
 
@@ -1834,7 +1832,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	u32 v_subsample = fb->format->vsub;
 	bool mix_plane_alpha;
 	bool covers_screen;
-	u32 scl0, scl1, pitch0;
+	u32 scl0, scl1, pitch[2];
 	u32 tiling, src_x, src_y;
 	u32 width, height;
 	u32 hvs_format = format->hvs;
@@ -1904,6 +1902,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
 	case DRM_FORMAT_MOD_BROADCOM_SAND256: {
 		uint32_t param = fourcc_mod_broadcom_param(fb->modifier);
+		unsigned int tile_width = 0;
 		u32 components_per_word;
 		u32 starting_offset;
 		u32 fetch_count;
@@ -1917,20 +1916,28 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		if (fb->format->format == DRM_FORMAT_P030) {
 			hvs_format = HVS_PIXEL_FORMAT_YCBCR_10BIT;
 			tiling = SCALER6_CTL0_ADDR_MODE_128B;
+			tile_width = 128;
 		} else {
 			hvs_format = HVS_PIXEL_FORMAT_YCBCR_YUV420_2PLANE;
 
 			switch (base_format_mod) {
 			case DRM_FORMAT_MOD_BROADCOM_SAND128:
 				tiling = SCALER6_CTL0_ADDR_MODE_128B;
+				tile_width = 128;
 				break;
 			case DRM_FORMAT_MOD_BROADCOM_SAND256:
 				tiling = SCALER6_CTL0_ADDR_MODE_256B;
+				tile_width = 256;
 				break;
 			default:
 				return -EINVAL;
 			}
 		}
+
+		components_per_word = fb->format->format == DRM_FORMAT_P030 ? 24 : 32;
+		starting_offset = src_x % components_per_word;
+		fetch_count = (width + starting_offset + components_per_word - 1) /
+			components_per_word;
 
 		/* Adjust the base pointer to the first pixel to be scanned
 		 * out.
@@ -1943,7 +1950,16 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		 * should be 6.
 		 */
 		for (i = 0; i < num_planes; i++) {
-			u32 tile_w, tile, x_off, pix_per_tile;
+			u32 tile, x_off, pix_per_tile;
+
+			switch (param) {
+			case 0:
+				pitch[i] = fb->pitches[i];
+				break;
+			default:
+				pitch[i] = VC4_SET_FIELD(param, SCALER_TILE_HEIGHT);
+				break;
+			}
 
 			if (fb->format->format == DRM_FORMAT_P030) {
 				/*
@@ -1959,20 +1975,9 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 				u32 last_bits = remaining_pixels % 12;
 
 				x_off = aligned * 16 + last_bits;
-				tile_w = 128;
 				pix_per_tile = 96;
 			} else {
-				switch (base_format_mod) {
-				case DRM_FORMAT_MOD_BROADCOM_SAND128:
-					tile_w = 128;
-					break;
-				case DRM_FORMAT_MOD_BROADCOM_SAND256:
-					tile_w = 256;
-					break;
-				default:
-					return -EINVAL;
-				}
-				pix_per_tile = tile_w / fb->format->cpp[0];
+				pix_per_tile = tile_width / fb->format->cpp[0];
 				x_off = (src_x % pix_per_tile) /
 					(i ? h_subsample : 1) *
 					fb->format->cpp[i];
@@ -1980,18 +1985,18 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 			tile = src_x / pix_per_tile;
 
-			offsets[i] += param * tile_w * tile;
-			offsets[i] += src_y / (i ? v_subsample : 1) * tile_w;
+			offsets[i] += pitch[i] * tile;
+			offsets[i] += src_y / (i ? v_subsample : 1) * tile_width;
 			offsets[i] += x_off & ~(i ? 1 : 0);
+
+			/*
+			 * Finished using the pitch as a pitch, so pack it as the
+			 * register value.
+			 */
+			pitch[i] = VC4_SET_FIELD(pitch[i], SCALER6_PTR2_PITCH) |
+				   VC4_SET_FIELD(fetch_count - 1, SCALER6_PTR2_FETCH_COUNT);
 		}
 
-		components_per_word = fb->format->format == DRM_FORMAT_P030 ? 24 : 32;
-		starting_offset = src_x % components_per_word;
-		fetch_count = (width + starting_offset + components_per_word - 1) /
-			components_per_word;
-
-		pitch0 = VC4_SET_FIELD(param, SCALER6_PTR2_PITCH) |
-			 VC4_SET_FIELD(fetch_count - 1, SCALER6_PTR2_FETCH_COUNT);
 		break;
 	}
 
@@ -2104,7 +2109,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 					VC4_SET_FIELD(fb->pitches[i],
 						      SCALER6_PTR2_PITCH));
 		} else {
-			vc4_dlist_write(vc4_state, pitch0);
+			vc4_dlist_write(vc4_state, pitch[i]);
 		}
 	}
 
@@ -2613,9 +2618,9 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 	unsigned i;
 	static const uint64_t modifiers[] = {
 		DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED,
-		DRM_FORMAT_MOD_BROADCOM_SAND128,
-		DRM_FORMAT_MOD_BROADCOM_SAND64,
-		DRM_FORMAT_MOD_BROADCOM_SAND256,
+		DRM_FORMAT_MOD_BROADCOM_SAND128_COL_HEIGHT(0),
+		DRM_FORMAT_MOD_BROADCOM_SAND64_COL_HEIGHT(0),
+		DRM_FORMAT_MOD_BROADCOM_SAND256_COL_HEIGHT(0),
 		DRM_FORMAT_MOD_LINEAR,
 		DRM_FORMAT_MOD_INVALID
 	};
