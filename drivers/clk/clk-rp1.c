@@ -1874,6 +1874,27 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 				.flags = CLK_IS_CRITICAL,
 				),
 
+	[RP1_CLK_DMA] = REGISTER_CLK(
+				.name = "clk_dma",
+				.parents = {"pll_sys_pri_ph",
+					    "pll_video",
+					    "xosc",
+					    "clksrc_gp0",
+					    "clksrc_gp1",
+					    "clksrc_gp2",
+					    "clksrc_gp3",
+					    "clksrc_gp4",
+					    "clksrc_gp5"},
+				.num_std_parents = 0,
+				.num_aux_parents = 9,
+				.ctrl_reg = CLK_DMA_CTRL,
+				.div_int_reg = CLK_DMA_DIV_INT,
+				.sel_reg = CLK_DMA_SEL,
+				.div_int_max = DIV_INT_8BIT_MAX,
+				.max_freq = 100 * MHz,
+				.fc0_src = FC_NUM(2, 2),
+				),
+
 	[RP1_CLK_UART] = REGISTER_CLK(
 				.name = "clk_uart",
 				.parents = {"pll_sys_pri_ph",
