@@ -583,9 +583,11 @@ static void dma_chan_issue_pending(struct dma_chan *dchan)
 {
 	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
 	unsigned long flags;
+	bool was_empty;
 
 	spin_lock_irqsave(&chan->vc.lock, flags);
-	if (vchan_issue_pending(&chan->vc))
+	was_empty = list_empty(&chan->vc.desc_issued);
+	if (vchan_issue_pending(&chan->vc) && was_empty)
 		axi_chan_start_first_queued(chan);
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
 }
