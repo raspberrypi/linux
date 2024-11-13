@@ -1081,7 +1081,7 @@
 			reg = <0xc0 0x40188000  0x0 0x1000>;
 			compatible = "snps,axi-dma-1.01a";
 			interrupts = <RP1_INT_DMA IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&sdhci_core &rp1_clocks RP1_CLK_SYS>;
+			clocks = <&rp1_clocks RP1_CLK_DMA &rp1_clocks RP1_CLK_SYS>;
 			clock-names = "core-clk", "cfgr-clk";
 
 			#dma-cells = <1>;
