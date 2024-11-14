@@ -2812,6 +2812,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 camera clamping I/Os such as XVS to 0V.
         sync-source             Configure as vsync source
         sync-sink               Configure as vsync sink
+        link-frequency          Allowable link frequency values to use in Hz:
+                                450000000 (default), 453000000, 456000000.
 
 
 Name:   imx462
@@ -2854,6 +2856,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 camera clamping I/Os such as XVS to 0V.
         sync-source             Configure as vsync source
         sync-sink               Configure as vsync sink
+        link-frequency          Allowable link frequency values to use in Hz:
+                                450000000 (default), 453000000, 456000000.
 
 
 Name:   imx500

@@ -86,6 +86,7 @@
 		       <&cam_node>, "clocks:0=",<&cam0_clk>,
 		       <&cam_node>, "VANA-supply:0=",<&cam0_reg>;
 		always-on = <0>, "+99";
+		link-frequency = <&cam_endpoint>,"link-frequencies#0";
 	};
 };
 
