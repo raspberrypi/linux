@@ -260,6 +260,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi-rtc.dtbo \
 	spi0-0cs.dtbo \
 	spi0-1cs.dtbo \
+	spi0-1cs-inverted.dtbo \
 	spi0-2cs.dtbo \
 	spi1-1cs.dtbo \
 	spi1-2cs.dtbo \
