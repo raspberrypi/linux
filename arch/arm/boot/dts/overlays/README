@@ -4472,6 +4472,14 @@ Params: cs0_pin                 GPIO pin for CS0 (default 8)
                                 it for other uses.
 
 
+Name:   spi0-1cs-inverted
+Info:   Only use one CS pin for SPI0 and set to active-high
+Load:   dtoverlay=spi0-1cs-inverted,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 8)
+        no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
 Name:   spi0-2cs
 Info:   Change the CS pins for SPI0
 Load:   dtoverlay=spi0-2cs,<param>=<val>
