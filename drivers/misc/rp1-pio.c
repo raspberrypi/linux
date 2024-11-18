@@ -996,11 +996,75 @@ static long rp1_pio_ioctl(struct file *filp, unsigned int ioctl_num,
 	return ret;
 }
 
+#ifdef CONFIG_COMPAT
+
+struct rp1_pio_sm_xfer_data_args_compat {
+	uint16_t sm;
+	uint16_t dir;
+	uint16_t data_bytes;
+	compat_uptr_t data;
+};
+
+struct rp1_access_hw_args_compat {
+	uint32_t addr;
+	uint32_t len;
+	compat_uptr_t data;
+};
+
+#define PIO_IOC_SM_XFER_DATA_COMPAT _IOW(PIO_IOC_MAGIC, 1, struct rp1_pio_sm_xfer_data_args_compat)
+#define PIO_IOC_READ_HW_COMPAT _IOW(PIO_IOC_MAGIC, 8, struct rp1_access_hw_args_compat)
+#define PIO_IOC_WRITE_HW_COMPAT _IOW(PIO_IOC_MAGIC, 9, struct rp1_access_hw_args_compat)
+
+static long rp1_pio_compat_ioctl(struct file *filp, unsigned int ioctl_num,
+				 unsigned long ioctl_param)
+{
+	struct rp1_pio_client *client = filp->private_data;
+
+	switch (ioctl_num) {
+	case PIO_IOC_SM_XFER_DATA_COMPAT:
+	{
+		struct rp1_pio_sm_xfer_data_args_compat compat_param;
+		struct rp1_pio_sm_xfer_data_args param;
+
+		if (copy_from_user(&compat_param, compat_ptr(ioctl_param), sizeof(compat_param)))
+			return -EFAULT;
+		param.sm = compat_param.sm;
+		param.dir = compat_param.dir;
+		param.data_bytes = compat_param.data_bytes;
+		param.data = compat_ptr(compat_param.data);
+		return rp1_pio_sm_xfer_data(client, &param);
+	}
+
+	case PIO_IOC_READ_HW_COMPAT:
+	case PIO_IOC_WRITE_HW_COMPAT:
+	{
+		struct rp1_access_hw_args_compat compat_param;
+		struct rp1_access_hw_args param;
+
+		if (copy_from_user(&compat_param, compat_ptr(ioctl_param), sizeof(compat_param)))
+			return -EFAULT;
+		param.addr = compat_param.addr;
+		param.len = compat_param.len;
+		param.data = compat_ptr(compat_param.data);
+		if (ioctl_num == PIO_IOC_READ_HW_COMPAT)
+			return rp1_pio_read_hw(client, &param);
+		else
+			return rp1_pio_write_hw(client, &param);
+	}
+	default:
+		return rp1_pio_ioctl(filp, ioctl_num, ioctl_param);
+	}
+}
+#else
+#define rp1_pio_compat_ioctl NULL
+#endif
+
 const struct file_operations rp1_pio_fops = {
 	.owner =	THIS_MODULE,
 	.open =		rp1_pio_open,
 	.release =	rp1_pio_release,
 	.unlocked_ioctl = rp1_pio_ioctl,
+	.compat_ioctl = rp1_pio_compat_ioctl,
 };
 
 static int rp1_pio_probe(struct platform_device *pdev)
