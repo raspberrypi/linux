@@ -153,7 +153,7 @@ static int parse_dirfile(char *buf, size_t nbytes, struct file *file,
 
 static int fuse_direntplus_link(struct file *file,
 				struct fuse_direntplus *direntplus,
-				u64 attr_version)
+				u64 attr_version, u64 evict_ctr)
 {
 	struct fuse_entry_out *o = &direntplus->entry_out;
 	struct fuse_dirent *dirent = &direntplus->dirent;
@@ -237,7 +237,7 @@ retry:
 	} else {
 		inode = fuse_iget(dir->i_sb, o->nodeid, o->generation,
 				  &o->attr, ATTR_TIMEOUT(o),
-				  attr_version);
+				  attr_version, evict_ctr);
 		if (!inode)
 			inode = ERR_PTR(-ENOMEM);
 
@@ -288,7 +288,8 @@ static void fuse_force_forget(struct file *file, u64 nodeid)
 }
 
 static int parse_dirplusfile(char *buf, size_t nbytes, struct file *file,
-			     struct dir_context *ctx, u64 attr_version)
+			     struct dir_context *ctx, u64 attr_version,
+			     u64 evict_ctr)
 {
 	struct fuse_direntplus *direntplus;
 	struct fuse_dirent *dirent;
@@ -323,7 +324,7 @@ static int parse_dirplusfile(char *buf, size_t nbytes, struct file *file,
 		buf += reclen;
 		nbytes -= reclen;
 
-		ret = fuse_direntplus_link(file, direntplus, attr_version);
+		ret = fuse_direntplus_link(file, direntplus, attr_version, evict_ctr);
 		if (ret)
 			fuse_force_forget(file, direntplus->entry_out.nodeid);
 	}
@@ -341,7 +342,7 @@ static int fuse_readdir_uncached(struct file *file, struct dir_context *ctx)
 	struct fuse_io_args ia = {};
 	struct fuse_args_pages *ap = &ia.ap;
 	struct fuse_folio_desc desc = { .length = PAGE_SIZE };
-	u64 attr_version = 0;
+	u64 attr_version = 0, evict_ctr = 0;
 	bool locked;
 
 	folio = folio_alloc(GFP_KERNEL, 0);
@@ -356,6 +357,7 @@ static int fuse_readdir_uncached(struct file *file, struct dir_context *ctx)
 	ap->folio_descs = &desc;
 	if (plus) {
 		attr_version = fuse_get_attr_version(fm->fc);
+		evict_ctr = fuse_get_evict_ctr(fm->fc);
 		fuse_read_args_fill(&ia, file, ctx->pos, PAGE_SIZE,
 				    FUSE_READDIRPLUS);
 	} else {
@@ -373,7 +375,8 @@ static int fuse_readdir_uncached(struct file *file, struct dir_context *ctx)
 				fuse_readdir_cache_end(file, ctx->pos);
 		} else if (plus) {
 			res = parse_dirplusfile(folio_address(folio), res,
-						file, ctx, attr_version);
+						file, ctx, attr_version,
+						evict_ctr);
 		} else {
 			res = parse_dirfile(folio_address(folio), res, file,
 					    ctx);
