@@ -79,6 +79,8 @@ static int panel_bridge_attach(struct drm_bridge *bridge,
 		return ret;
 	}
 
+	connector->interlace_allowed = true;
+
 	drm_panel_bridge_set_orientation(connector, bridge);
 
 	drm_connector_attach_encoder(&panel_bridge->connector,
