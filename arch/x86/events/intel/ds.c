@@ -1898,8 +1898,6 @@ static void adaptive_pebs_save_regs(struct pt_regs *regs,
 }
 
 #define PEBS_LATENCY_MASK			0xffff
-#define PEBS_CACHE_LATENCY_OFFSET		32
-#define PEBS_RETIRE_LATENCY_OFFSET		32
 
 /*
  * With adaptive PEBS the layout depends on what fields are configured.
@@ -1913,8 +1911,7 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct pebs_basic *basic = __pebs;
 	void *next_record = basic + 1;
-	u64 sample_type;
-	u64 format_size;
+	u64 sample_type, format_group;
 	struct pebs_meminfo *meminfo = NULL;
 	struct pebs_gprs *gprs = NULL;
 	struct x86_perf_regs *perf_regs;
@@ -1926,7 +1923,7 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 	perf_regs->xmm_regs = NULL;
 
 	sample_type = event->attr.sample_type;
-	format_size = basic->format_size;
+	format_group = basic->format_group;
 	perf_sample_data_init(data, 0, event->hw.last_period);
 	data->period = event->hw.last_period;
 
@@ -1947,7 +1944,7 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 
 	if (sample_type & PERF_SAMPLE_WEIGHT_STRUCT) {
 		if (x86_pmu.flags & PMU_FL_RETIRE_LATENCY)
-			data->weight.var3_w = format_size >> PEBS_RETIRE_LATENCY_OFFSET & PEBS_LATENCY_MASK;
+			data->weight.var3_w = basic->retire_latency;
 		else
 			data->weight.var3_w = 0;
 	}
@@ -1957,12 +1954,12 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 	 * But PERF_SAMPLE_TRANSACTION needs gprs->ax.
 	 * Save the pointer here but process later.
 	 */
-	if (format_size & PEBS_DATACFG_MEMINFO) {
+	if (format_group & PEBS_DATACFG_MEMINFO) {
 		meminfo = next_record;
 		next_record = meminfo + 1;
 	}
 
-	if (format_size & PEBS_DATACFG_GP) {
+	if (format_group & PEBS_DATACFG_GP) {
 		gprs = next_record;
 		next_record = gprs + 1;
 
@@ -1975,14 +1972,13 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 			adaptive_pebs_save_regs(regs, gprs);
 	}
 
-	if (format_size & PEBS_DATACFG_MEMINFO) {
+	if (format_group & PEBS_DATACFG_MEMINFO) {
 		if (sample_type & PERF_SAMPLE_WEIGHT_TYPE) {
-			u64 weight = meminfo->latency;
+			u64 latency = x86_pmu.flags & PMU_FL_INSTR_LATENCY ?
+					meminfo->cache_latency : meminfo->mem_latency;
 
-			if (x86_pmu.flags & PMU_FL_INSTR_LATENCY) {
-				data->weight.var2_w = weight & PEBS_LATENCY_MASK;
-				weight >>= PEBS_CACHE_LATENCY_OFFSET;
-			}
+			if (x86_pmu.flags & PMU_FL_INSTR_LATENCY)
+				data->weight.var2_w = meminfo->instr_latency;
 
 			/*
 			 * Although meminfo::latency is defined as a u64,
@@ -1990,12 +1986,13 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 			 * in practice on Ice Lake and earlier platforms.
 			 */
 			if (sample_type & PERF_SAMPLE_WEIGHT) {
-				data->weight.full = weight ?:
+				data->weight.full = latency ?:
 					intel_get_tsx_weight(meminfo->tsx_tuning);
 			} else {
-				data->weight.var1_dw = (u32)(weight & PEBS_LATENCY_MASK) ?:
+				data->weight.var1_dw = (u32)latency ?:
 					intel_get_tsx_weight(meminfo->tsx_tuning);
 			}
+
 			data->sample_flags |= PERF_SAMPLE_WEIGHT_TYPE;
 		}
 
@@ -2016,16 +2013,16 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 		}
 	}
 
-	if (format_size & PEBS_DATACFG_XMMS) {
+	if (format_group & PEBS_DATACFG_XMMS) {
 		struct pebs_xmm *xmm = next_record;
 
 		next_record = xmm + 1;
 		perf_regs->xmm_regs = xmm->xmm;
 	}
 
-	if (format_size & PEBS_DATACFG_LBRS) {
+	if (format_group & PEBS_DATACFG_LBRS) {
 		struct lbr_entry *lbr = next_record;
-		int num_lbr = ((format_size >> PEBS_DATACFG_LBR_SHIFT)
+		int num_lbr = ((format_group >> PEBS_DATACFG_LBR_SHIFT)
 					& 0xff) + 1;
 		next_record = next_record + num_lbr * sizeof(struct lbr_entry);
 
@@ -2035,11 +2032,11 @@ static void setup_pebs_adaptive_sample_data(struct perf_event *event,
 		}
 	}
 
-	WARN_ONCE(next_record != __pebs + (format_size >> 48),
-			"PEBS record size %llu, expected %llu, config %llx\n",
-			format_size >> 48,
+	WARN_ONCE(next_record != __pebs + basic->format_size,
+			"PEBS record size %u, expected %llu, config %llx\n",
+			basic->format_size,
 			(u64)(next_record - __pebs),
-			basic->format_size);
+			format_group);
 }
 
 static inline void *
