@@ -777,10 +777,25 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			 * as complete, as the HW will reuse that buffer.
 			 */
 			if (node->cur_frm && node->cur_frm != node->next_frm) {
+				/*
+				 * This condition checks if FE + FS for the same
+				 * frame has occurred. In such cases, we cannot
+				 * return out the frame, as no buffer handling
+				 * or timestamping has yet been done as part of
+				 * the FS handler.
+				 */
+				if (!node->cur_frm->vb.vb2_buf.timestamp) {
+					dev_dbg(unicam->v4l2_dev.dev,
+						"ISR: FE without FS, dropping frame\n");
+					continue;
+				}
+
 				unicam_process_buffer_complete(node, sequence);
+				node->cur_frm = node->next_frm;
+				node->next_frm = NULL;
 				inc_seq = true;
-			}
-			node->cur_frm = node->next_frm;
+			} else
+				node->cur_frm = node->next_frm;
 		}
 
 		/*
@@ -820,10 +835,25 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 					i);
 			/*
 			 * Set the next frame output to go to a dummy frame
-			 * if we have not managed to obtain another frame
-			 * from the queue.
+			 * if no buffer currently queued.
 			 */
-			unicam_schedule_dummy_buffer(node);
+			if (!node->next_frm ||
+			    node->next_frm == node->cur_frm) {
+				unicam_schedule_dummy_buffer(node);
+			} else if (unicam->node[i].cur_frm) {
+				/*
+				 * Repeated FS without FE. Hardware will have
+				 * swapped buffers, but the cur_frm doesn't
+				 * contain valid data. Return cur_frm to the
+				 * queue.
+				 */
+				spin_lock(&node->dma_queue_lock);
+				list_add_tail(&node->cur_frm->list,
+					      &node->dma_queue);
+				spin_unlock(&node->dma_queue_lock);
+				node->cur_frm = node->next_frm;
+				node->next_frm = NULL;
+			}
 		}
 
 		unicam_queue_event_sof(unicam);
