@@ -641,9 +641,9 @@ static inline void unicam_reg_write_field(struct unicam_device *unicam, u32 offs
 }
 
 static void unicam_wr_dma_addr(struct unicam_node *node,
-			       struct unicam_buffer *buf)
+			       struct unicam_buffer *buf, unsigned int size)
 {
-	dma_addr_t endaddr = buf->dma_addr + buf->size;
+	dma_addr_t endaddr = buf->dma_addr + size;
 
 	if (node->id == UNICAM_IMAGE_NODE) {
 		unicam_reg_write(node->dev, UNICAM_IBSA0, buf->dma_addr);
@@ -676,7 +676,7 @@ static void unicam_schedule_next_buffer(struct unicam_node *node)
 	node->next_frm = buf;
 	list_del(&buf->list);
 
-	unicam_wr_dma_addr(node, buf);
+	unicam_wr_dma_addr(node, buf, buf->size);
 }
 
 static void unicam_schedule_dummy_buffer(struct unicam_node *node)
@@ -684,8 +684,13 @@ static void unicam_schedule_dummy_buffer(struct unicam_node *node)
 	int node_id = is_image_node(node) ? UNICAM_IMAGE_NODE : UNICAM_METADATA_NODE;
 
 	dev_dbg(node->dev->dev, "Scheduling dummy buffer for node %d\n", node_id);
-
-	unicam_wr_dma_addr(node, &node->dummy_buf);
+	/*
+	 * Due to a HW bug causing buffer overruns in circular buffer mode under
+	 * certain (not yet fully known) conditions, the dummy buffer allocation
+	 * is set to a a single page size, but the hardware gets programmed with
+	 * a buffer size of 0.
+	 */
+	unicam_wr_dma_addr(node, &node->dummy_buf, 0);
 
 	node->next_frm = NULL;
 }
@@ -1096,7 +1101,7 @@ static void unicam_start_rx(struct unicam_device *unicam,
 
 	unicam_reg_write(unicam, UNICAM_IBLS,
 			 node->fmt.fmt.pix.bytesperline);
-	unicam_wr_dma_addr(node, node->cur_frm);
+	unicam_wr_dma_addr(node, node->cur_frm, node->cur_frm->size);
 	unicam_set_packing_config(unicam, fmtinfo);
 
 	ret = unicam_get_image_vc_dt(unicam, state, &vc, &dt);
@@ -1134,7 +1139,7 @@ static void unicam_start_metadata(struct unicam_device *unicam)
 	struct unicam_node *node = &unicam->node[UNICAM_METADATA_NODE];
 
 	unicam_enable_ed(unicam);
-	unicam_wr_dma_addr(node, node->cur_frm);
+	unicam_wr_dma_addr(node, node->cur_frm, node->cur_frm->size);
 	unicam_reg_write_field(unicam, UNICAM_DCS, 1, UNICAM_LDP);
 }
 
