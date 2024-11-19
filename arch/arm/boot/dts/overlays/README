@@ -5141,6 +5141,7 @@ Params: clock-frequency         Display clock frequency (Hz)
         vsync-invert            Vertical sync active low
         de-invert               Data Enable active low
         pixclk-invert           Negative edge pixel clock
+        interlaced              Use an interlaced mode (where supported)
         width-mm                Define the screen width in mm
         height-mm               Define the screen height in mm
         rgb565                  Change to RGB565 output on GPIOs 0-19

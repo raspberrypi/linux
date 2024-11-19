@@ -59,6 +59,7 @@
 		vsync-invert = <&timing>, "vsync-active:0=0";
 		de-invert = <&timing>, "de-active:0=0";
 		pixclk-invert = <&timing>, "pixelclk-active:0=0";
+		interlaced = <&timing>, "interlaced?";
 
 		width-mm = <&panel_generic>, "width-mm:0";
 		height-mm = <&panel_generic>, "height-mm:0";
