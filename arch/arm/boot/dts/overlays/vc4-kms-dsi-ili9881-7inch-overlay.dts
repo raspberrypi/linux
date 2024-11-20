@@ -118,5 +118,6 @@
 		invy = <0>, "+11";
 		swapxy = <&gt911>,"touchscreen-swapped-x-y?";
 		disable_touch = <&gt911>, "status=disabled";
+		rotation = <&dsi_panel>, "rotation:0";
 	};
 };
