@@ -222,7 +222,7 @@ patternProperties:
     description: Bitmain Technologies
   "^blaize,.*":
     description: Blaize, Inc.
-  "^blokaslabs,.*":
+  "^blokas(labs)?,.*":
     description: Vilniaus Blokas UAB
   "^blutek,.*":
     description: BluTek Power
