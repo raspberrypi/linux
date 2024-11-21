@@ -294,6 +294,11 @@ hdmi_compute_format(const struct drm_connector *connector,
 		return 0;
 	}
 
+	if (hdmi_try_format_bpc(connector, conn_state, mode, bpc, HDMI_COLORSPACE_YUV422)) {
+		conn_state->hdmi.output_format = HDMI_COLORSPACE_YUV422;
+		return 0;
+	}
+
 	drm_dbg_kms(dev, "Failed. No Format Supported for that bpc count.\n");
 
 	return -EINVAL;
