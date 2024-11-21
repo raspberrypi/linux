@@ -673,6 +673,12 @@ hdmi_compute_config(const struct drm_connector *connector,
 
 	ret = hdmi_compute_format_bpc(connector, conn_state, mode, max_bpc,
 				      DRM_OUTPUT_COLOR_FORMAT_RGB444);
+
+	if (ret)
+		ret = hdmi_compute_format_bpc(connector, conn_state, mode,
+					      max_bpc,
+					      DRM_OUTPUT_COLOR_FORMAT_YCBCR422);
+
 	if (ret) {
 		if (connector->ycbcr_420_allowed) {
 			ret = hdmi_compute_format_bpc(connector, conn_state,
