@@ -263,4 +263,14 @@ config SND_AC97_POWER_SAVE_DEFAULT
 
 	  See SND_AC97_POWER_SAVE for more details.
 
+config SND_PIMIDI
+	tristate "Pimidi driver"
+	depends on SND_SEQUENCER && CRC8
+	select SND_RAWMIDI
+	help
+	  Say Y here to include support for Blokas Pimidi.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called snd-pimidi.
+
 endif	# SND_DRIVERS
