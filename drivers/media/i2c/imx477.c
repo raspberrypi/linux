@@ -2051,7 +2051,7 @@ static int imx477_init_controls(struct imx477 *imx477)
 	/* LINK_FREQ is also read only */
 	imx477->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx477_ctrl_ops,
-				       V4L2_CID_LINK_FREQ, 1, 0,
+				       V4L2_CID_LINK_FREQ, 0, 0,
 				       &link_freqs[imx477->link_freq_idx]);
 	if (imx477->link_freq)
 		imx477->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
