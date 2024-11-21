@@ -3735,6 +3735,14 @@ Load:   dtoverlay=piglow
 Params: <None>
 
 
+Name:   pimidi
+Info:   Configures the Blokas Labs Pimidi card
+Load:   dtoverlay=pimidi,<param>=<val>
+Params: sel                     The position used for the sel rotary switch.
+                                Each unit in the stack must be set on a unique
+                                position. If param is omitted, sel=0 is assumed.
+
+
 Name:   pineboards-hat-ai
 Info:   Pineboards Hat Ai! overlay for the Google Coral Edge TPU
 Load:   dtoverlay=pineboards-hat-ai
