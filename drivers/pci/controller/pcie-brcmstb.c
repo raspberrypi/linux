@@ -1575,6 +1575,11 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 		       base + PCIE_MISC_UBUS_BAR4_CONFIG_REMAP_LO + i * 8);
 	}
 
+	if (pcie->gen) {
+		dev_info(pcie->dev, "Forcing gen %d\n", pcie->gen);
+		brcm_pcie_set_gen(pcie, pcie->gen);
+	}
+
 	/*
 	 * For config space accesses on the RC, show the right class for
 	 * a PCIe-PCIe bridge (the default setting is to be EP mode).
