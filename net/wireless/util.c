@@ -2601,7 +2601,6 @@ int cfg80211_get_station(struct net_device *dev, const u8 *mac_addr,
 {
 	struct cfg80211_registered_device *rdev;
 	struct wireless_dev *wdev;
-	int ret;
 
 	wdev = dev->ieee80211_ptr;
 	if (!wdev)
@@ -2613,11 +2612,9 @@ int cfg80211_get_station(struct net_device *dev, const u8 *mac_addr,
 
 	memset(sinfo, 0, sizeof(*sinfo));
 
-	wiphy_lock(&rdev->wiphy);
-	ret = rdev_get_station(rdev, dev, mac_addr, sinfo);
-	wiphy_unlock(&rdev->wiphy);
+	guard(wiphy)(&rdev->wiphy);
 
-	return ret;
+	return rdev_get_station(rdev, dev, mac_addr, sinfo);
 }
 EXPORT_SYMBOL(cfg80211_get_station);
 
