@@ -320,7 +320,7 @@ static inline int pio_sm_unclaim(struct rp1_pio_client *client, uint sm)
 	if (bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES))
 		return -EINVAL;
 
-	return rp1_pio_sm_claim(client, &args);
+	return rp1_pio_sm_unclaim(client, &args);
 }
 
 static inline int pio_claim_unused_sm(struct rp1_pio_client *client, bool required)
