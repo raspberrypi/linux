@@ -20,7 +20,7 @@
 #endif
 
 #define bad_params_if(client, test) \
-	({ bool f = (test); if (f) pio_set_error(client, -EINVAL); \
+	({ bool f = (test); if (f && client) pio_set_error(client, -EINVAL); \
 		if (f && PARAM_WARNINGS_ENABLED) WARN_ON((test)); \
 		f; })
 
