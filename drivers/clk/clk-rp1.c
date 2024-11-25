@@ -927,7 +927,8 @@ static void rp1_pll_divider_off(struct clk_hw *hw)
 	const struct rp1_pll_data *data = divider->data;
 
 	spin_lock(&clockman->regs_lock);
-	clockman_write(clockman, data->ctrl_reg, PLL_SEC_RST);
+	clockman_write(clockman, data->ctrl_reg,
+		       clockman_read(clockman, data->ctrl_reg) | PLL_SEC_RST);
 	spin_unlock(&clockman->regs_lock);
 }
 
