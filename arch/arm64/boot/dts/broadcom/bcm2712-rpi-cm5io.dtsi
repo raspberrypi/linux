@@ -11,4 +11,4 @@ i2c_csi_dsi0: &i2c6 { // Note: This is for CAM/DISP 0 connector
 	symlink = "i2c-6";
 };
 
-i2c_csi_dsi: &i2c_csi_dsi0 { }; // The connector that needs no jumper to enable
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // The connector that needs no jumper to enable
