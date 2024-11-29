@@ -1,5 +1,5 @@
 // Overlay for the Qualcomm Atheros QCA7000 on PLC Stamp micro EVK
-// Visit: https://in-tech-smartcharging.com/products/evaluation-tools/plc-stamp-micro-2-evaluation-board for details
+// Visit: https://chargebyte.com -> Controllers & Modules -> Evaluation Tools -> PLC Stamp Micro 2 Evaluation Board for details
 
 /dts-v1/;
 /plugin/;
