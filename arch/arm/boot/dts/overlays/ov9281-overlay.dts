@@ -63,6 +63,14 @@
 		};
 	};
 
+	reg_frag: fragment@6 {
+		target = <&cam1_reg>;
+		__dormant__ {
+			startup-delay-us = <20000>;
+			off-on-delay-us = <30000>;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&cam_node>,"rotation:0";
 		orientation = <&cam_node>,"orientation:0";
@@ -71,7 +79,9 @@
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
 		       <&cam_node>, "clocks:0=",<&cam0_clk>,
-		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>;
+		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>;
+		arducam = <0>, "+6";
 	};
 };
 
