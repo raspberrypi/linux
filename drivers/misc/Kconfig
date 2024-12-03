@@ -25,6 +25,16 @@ config RP1_PIO
 		Driver providing control of the Raspberry Pi PIO block, as found in
 		RP1.
 
+config WS2812_PIO_RP1
+	tristate "Raspberry Pi PIO-base WS2812 driver"
+	depends on RP1_PIO || COMPILE_TEST
+	default n
+	help
+		Driver for the WS2812 (NeoPixel) LEDs using the RP1 PIO hardware.
+		The driver creates a character device to which rgbw pixels may be
+		written. Single-byte writes to offset 0 set the brightness at
+		runtime.
+
 config AD525X_DPOT
 	tristate "Analog Devices Digital Potentiometers"
 	depends on (I2C || SPI) && SYSFS
