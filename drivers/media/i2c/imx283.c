@@ -909,6 +909,11 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		dev_dbg(imx283->dev, "V4L2_CID_HBLANK : %d  HMAX : %u\n",
 			ctrl->val, imx283->hmax);
 		ret = cci_write(imx283->cci, IMX283_REG_HMAX, imx283->hmax, NULL);
+
+		/* Recompute the SHR based on the new timings */
+		shr = imx283_shr(imx283, mode, imx283->exposure->val);
+		cci_write(imx283->cci, IMX283_REG_SHR, shr, &ret);
+
 		break;
 
 	case V4L2_CID_VBLANK:
@@ -916,6 +921,11 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		dev_dbg(imx283->dev, "V4L2_CID_VBLANK : %d  VMAX : %u\n",
 			ctrl->val, imx283->vmax);
 		ret = cci_write(imx283->cci, IMX283_REG_VMAX, imx283->vmax, NULL);
+
+		/* Recompute the SHR based on the new timings */
+		shr = imx283_shr(imx283, mode, imx283->exposure->val);
+		cci_write(imx283->cci, IMX283_REG_SHR, shr, &ret);
+
 		break;
 
 	case V4L2_CID_ANALOGUE_GAIN:
