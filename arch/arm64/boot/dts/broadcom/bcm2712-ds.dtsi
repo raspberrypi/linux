@@ -815,3 +815,7 @@
 		};
 	};
 };
+
+&gio_aon {
+	brcm,gpio-direct;
+};
