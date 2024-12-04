@@ -81,7 +81,7 @@
 #define M06_REG_CMD(factory) ((factory) ? 0xf3 : 0xfc)
 #define M06_REG_ADDR(factory, addr) ((factory) ? (addr) & 0x7f : (addr) & 0x3f)
 
-#define RESET_DELAY_MS			300	/* reset deassert to I2C */
+#define RESET_DELAY_MS			500	/* reset deassert to I2C */
 #define FIRST_POLL_DELAY_MS		300	/* in addition to the above */
 #define POLL_INTERVAL_MS		17	/* 17ms = 60fps */
 
