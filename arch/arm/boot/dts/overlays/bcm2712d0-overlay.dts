@@ -39,34 +39,27 @@
 	};
 
 	fragment@4 {
-		target = <&vc4>;
-		__overlay__ {
-			compatible = "brcm,bcm2712d0-vc6", "brcm,bcm2712-vc6";
-		};
-	};
-
-	fragment@5 {
 		target = <&uart10>;
 		__overlay__ {
 			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>;
 		};
 	};
 
-	fragment@6 {
+	fragment@5 {
 		target = <&spi10>;
 		__overlay__ {
 			dmas = <&dma40 3>, <&dma40 4>;
 		};
 	};
 
-	fragment@7 {
+	fragment@6 {
 		target = <&hdmi0>;
 		__overlay__ {
 			dmas = <&dma40 (12|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
 		};
 	};
 
-	fragment@8 {
+	fragment@7 {
 		target = <&hdmi1>;
 		__overlay__ {
 			dmas = <&dma40 (13|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
