@@ -60,6 +60,9 @@
 	FN(TC_EGRESS)			\
 	FN(SECURITY_HOOK)		\
 	FN(QDISC_DROP)			\
+	FN(FQ_BAND_LIMIT)		\
+	FN(FQ_HORIZON_LIMIT)		\
+	FN(FQ_FLOW_LIMIT)		\
 	FN(CPU_BACKLOG)			\
 	FN(XDP)				\
 	FN(TC_INGRESS)			\
@@ -316,6 +319,21 @@ enum skb_drop_reason {
 	 * failed to enqueue to current qdisc)
 	 */
 	SKB_DROP_REASON_QDISC_DROP,
+	/**
+	 * @SKB_DROP_REASON_FQ_BAND_LIMIT: dropped by fq qdisc when per band
+	 * limit is reached.
+	 */
+	SKB_DROP_REASON_FQ_BAND_LIMIT,
+	/**
+	 * @SKB_DROP_REASON_FQ_HORIZON_LIMIT: dropped by fq qdisc when packet
+	 * timestamp is too far in the future.
+	 */
+	SKB_DROP_REASON_FQ_HORIZON_LIMIT,
+	/**
+	 * @SKB_DROP_REASON_FQ_FLOW_LIMIT: dropped by fq qdisc when a flow
+	 * exceeds its limits.
+	 */
+	SKB_DROP_REASON_FQ_FLOW_LIMIT,
 	/**
 	 * @SKB_DROP_REASON_CPU_BACKLOG: failed to enqueue the skb to the per CPU
 	 * backlog queue. This can be caused by backlog queue full (see

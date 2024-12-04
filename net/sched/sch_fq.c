@@ -535,6 +535,8 @@ static bool fq_packet_beyond_horizon(const struct sk_buff *skb,
 	return unlikely((s64)skb->tstamp > (s64)(now + q->horizon));
 }
 
+#define FQDR(reason) SKB_DROP_REASON_FQ_##reason
+
 static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 		      struct sk_buff **to_free)
 {
@@ -546,7 +548,8 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	band = fq_prio2band(q->prio2band, skb->priority & TC_PRIO_MAX);
 	if (unlikely(q->band_pkt_count[band] >= sch->limit)) {
 		q->stat_band_drops[band]++;
-		return qdisc_drop(skb, sch, to_free);
+		return qdisc_drop_reason(skb, sch, to_free,
+					 FQDR(BAND_LIMIT));
 	}
 
 	now = ktime_get_ns();
@@ -556,8 +559,9 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 		/* Check if packet timestamp is too far in the future. */
 		if (fq_packet_beyond_horizon(skb, q, now)) {
 			if (q->horizon_drop) {
-					q->stat_horizon_drops++;
-					return qdisc_drop(skb, sch, to_free);
+				q->stat_horizon_drops++;
+				return qdisc_drop_reason(skb, sch, to_free,
+							 FQDR(HORIZON_LIMIT));
 			}
 			q->stat_horizon_caps++;
 			skb->tstamp = now + q->horizon;
@@ -570,7 +574,8 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	if (f != &q->internal) {
 		if (unlikely(f->qlen >= q->flow_plimit)) {
 			q->stat_flows_plimit++;
-			return qdisc_drop(skb, sch, to_free);
+			return qdisc_drop_reason(skb, sch, to_free,
+						 FQDR(FLOW_LIMIT));
 		}
 
 		if (fq_flow_is_detached(f)) {
@@ -595,6 +600,7 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 
 	return NET_XMIT_SUCCESS;
 }
+#undef FQDR
 
 static void fq_check_throttled(struct fq_sched_data *q, u64 now)
 {
