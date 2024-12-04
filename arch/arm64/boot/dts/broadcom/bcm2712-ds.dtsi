@@ -471,6 +471,7 @@
 
 		vc4: gpu {
 			compatible = "brcm,bcm2712-vc6";
+			status = "disabled";
 		};
 
 		iommu2: iommu@5100 {
