@@ -124,6 +124,7 @@
 	fragment@17 {
 		target = <&vc4>;
 		__overlay__  {
+			status = "okay";
 			/* IOMMU attaches here, where we allocate DMA buffers */
 			iommus = <&iommu4>;
 		};
