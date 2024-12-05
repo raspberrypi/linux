@@ -5380,6 +5380,8 @@ Params: 2_8_inch                2.8" 480x640
         8_0_inch                8.0" 1280x800
         10_1_inch               10.1" 1280x800
         11_9_inch               11.9" 320x1480
+        13_3_inch_4lane         13.3" 1920x1080 4lane
+        13_3_inch_2lane         13.3" 1920x1080 2lane
         i2c1                    Use i2c-1 with jumper wires from GPIOs 2&3
         disable_touch           Disable the touch controller
         rotation                Set the panel orientation property

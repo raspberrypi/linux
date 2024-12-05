@@ -51,6 +51,11 @@
 				reg = <0x14>;
 				compatible = "goodix,gt911";
 			};
+
+			touch2: ilitek@41 {
+				compatible = "ilitek,ili251x";
+				reg = <0x41>;
+			};
 		};
 	};
 
@@ -120,6 +125,8 @@
 				   <&touch>, "touchscreen-inverted-x?",
 				   <&touch>, "touchscreen-inverted-y?";
 		8_8_inch = <&panel>, "compatible=waveshare,8.8inch-panel";
+		13_3_inch_4lane = <&panel>, "compatible=waveshare,13.3inch-4lane-panel";
+		13_3_inch_2lane = <&panel>, "compatible=waveshare,13.3inch-2lane-panel";
 		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
 		       <0>, "-3-4+5";
 		disable_touch = <&touch>, "status=disabled";
