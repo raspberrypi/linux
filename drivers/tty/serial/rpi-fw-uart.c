@@ -278,9 +278,9 @@ static int rpi_fw_uart_configure(struct uart_port *port)
 	dev_dbg(port->dev, "version %08x, reg addr %x\n", msg.version,
 		msg.fifo_reg_base);
 
-	dev_info(port->dev, "started %d baud %u data %u stop %u rx %u tx %u flags %u fifosize %u\n",
-			msg.start, msg.baud, msg.data_bits, msg.stop_bits,
-			msg.gpio_rx, msg.gpio_tx, msg.flags, msg.fifosize);
+	dev_dbg(port->dev, "started %d baud %u data %u stop %u rx %u tx %u flags %u fifosize %u\n",
+		msg.start, msg.baud, msg.data_bits, msg.stop_bits,
+		msg.gpio_rx, msg.gpio_tx, msg.flags, msg.fifosize);
 
 	if (msg.fifosize != port->fifosize) {
 		dev_err(port->dev, "Expected fifo size %u actual %u",
