@@ -147,18 +147,11 @@
 		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
 		power-domains = <&power RPI_POWER_DOMAIN_USB>;
 	};
+};
 
-	codec@7eb10000 {
-		compatible = "raspberrypi,rpivid-vid-decoder";
-		reg = <0x0 0x7eb10000  0x0 0x1000>,  /* INTC */
-		      <0x0 0x7eb00000  0x0 0x10000>; /* HEVC */
-		reg-names = "intc",
-			    "hevc";
-		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
-
-		clocks = <&firmware_clocks 11>;
-		clock-names = "hevc";
-	};
+&hevc_dec {
+	reg = <0x0 0x7eb00000  0x0 0x10000>, /* HEVC */
+		<0x0 0x7eb10000  0x0 0x1000>;  /* INTC */
 };
 
 &pcie0 {
