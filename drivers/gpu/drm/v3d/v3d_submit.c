@@ -52,10 +52,11 @@ v3d_clock_up_put(struct v3d_dev *v3d)
 }
 
 /* Takes the reservation lock on all the BOs being referenced, so that
- * at queue submit time we can update the reservations.
+ * we can attach fences and update the reservations after pushing the job
+ * to the queue.
  *
  * We don't lock the RCL the tile alloc/state BOs, or overflow memory
- * (all of which are on exec->unref_list).  They're entirely private
+ * (all of which are on render->unref_list). They're entirely private
  * to v3d, so we don't attach dma-buf fences to them.
  */
 static int
@@ -96,11 +97,11 @@ fail:
  * @bo_count: Number of GEM handles passed in
  *
  * The command validator needs to reference BOs by their index within
- * the submitted job's BO list.  This does the validation of the job's
+ * the submitted job's BO list. This does the validation of the job's
  * BO list and reference counting for the lifetime of the job.
  *
  * Note that this function doesn't need to unreference the BOs on
- * failure, because that will happen at v3d_exec_cleanup() time.
+ * failure, because that will happen at `v3d_job_free()`.
  */
 static int
 v3d_lookup_bos(struct drm_device *dev,
