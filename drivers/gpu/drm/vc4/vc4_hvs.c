@@ -732,8 +732,6 @@ static bool vc4_hvs_check_channel_active(struct vc4_hvs *hvs, unsigned int fifo)
 	bool enabled = false;
 	int idx;
 
-	WARN_ON_ONCE(vc4->gen > VC4_GEN_6_C);
-
 	if (!drm_dev_enter(drm, &idx))
 		return 0;
 
