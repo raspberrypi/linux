@@ -18,7 +18,7 @@ v3d_clock_down_work(struct work_struct *work)
 		container_of(work, struct v3d_dev, clk_down_work.work);
 	int ret;
 
-	ret = clk_set_rate(v3d->clk, v3d->clk_down_rate);
+	ret = clk_set_min_rate(v3d->clk, v3d->clk_down_rate);
 	v3d->clk_up = false;
 	WARN_ON_ONCE(ret != 0);
 }
@@ -32,7 +32,7 @@ v3d_clock_up_get(struct v3d_dev *v3d)
 		if (!v3d->clk_up)  {
 			int ret;
 
-			ret = clk_set_rate(v3d->clk, v3d->clk_up_rate);
+			ret = clk_set_min_rate(v3d->clk, v3d->clk_up_rate);
 			WARN_ON_ONCE(ret != 0);
 			v3d->clk_up = true;
 		}
