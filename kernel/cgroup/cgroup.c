@@ -6852,6 +6852,39 @@ static int __init cgroup_disable(char *str)
 }
 __setup("cgroup_disable=", cgroup_disable);
 
+static int __init cgroup_enable(char *str)
+{
+	struct cgroup_subsys *ss;
+	char *token;
+	int i;
+
+	while ((token = strsep(&str, ",")) != NULL) {
+		if (!*token)
+			continue;
+
+		for_each_subsys(ss, i) {
+			if (strcmp(token, ss->name) &&
+			    strcmp(token, ss->legacy_name))
+				continue;
+
+			static_branch_enable(cgroup_subsys_enabled_key[i]);
+			pr_info("Enabling %s control group subsystem\n",
+				ss->name);
+		}
+
+		for (i = 0; i < OPT_FEATURE_COUNT; i++) {
+			if (strcmp(token, cgroup_opt_feature_names[i]))
+				continue;
+			cgroup_feature_disable_mask &= ~(1 << i);
+			pr_info("Enabling %s control group feature\n",
+				cgroup_opt_feature_names[i]);
+			break;
+		}
+	}
+	return 1;
+}
+__setup("cgroup_enable=", cgroup_enable);
+
 void __init __weak enable_debug_cgroup(void) { }
 
 static int __init enable_cgroup_debug(char *str)
