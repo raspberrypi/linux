@@ -202,7 +202,7 @@
 // Status
 #define DPI_DMA_STATUS  0x3c
 
-#define BITS(field, val) (((val) << (field ## _SHIFT)) & (field ## _MASK))
+#define BITS(field, val) FIELD_PREP((field ## _MASK), val)
 
 static unsigned int rp1dpi_hw_read(struct rp1_dpi *dpi, unsigned int reg)
 {
@@ -231,69 +231,73 @@ struct rp1dpi_ipixfmt {
 	u32 rgbsz;  /* Shifts used for scaling; also (BPP/8-1)   */
 };
 
-#define IMASK_RGB(r, g, b)	(BITS(DPI_DMA_IMASK_R, r)  | \
-				 BITS(DPI_DMA_IMASK_G, g)  | \
-				 BITS(DPI_DMA_IMASK_B, b))
-#define OMASK_RGB(r, g, b)	(BITS(DPI_DMA_OMASK_R, r)  | \
-				 BITS(DPI_DMA_OMASK_G, g)  | \
-				 BITS(DPI_DMA_OMASK_B, b))
-#define ISHIFT_RGB(r, g, b)	(BITS(DPI_DMA_SHIFT_IR, r) | \
-				 BITS(DPI_DMA_SHIFT_IG, g) | \
-				 BITS(DPI_DMA_SHIFT_IB, b))
-#define OSHIFT_RGB(r, g, b)	(BITS(DPI_DMA_SHIFT_OR, r) | \
-				 BITS(DPI_DMA_SHIFT_OG, g) | \
-				 BITS(DPI_DMA_SHIFT_OB, b))
+#define IMASK_RGB(r, g, b)  (FIELD_PREP_CONST(DPI_DMA_IMASK_R_MASK, r)  | \
+			     FIELD_PREP_CONST(DPI_DMA_IMASK_G_MASK, g)  | \
+			     FIELD_PREP_CONST(DPI_DMA_IMASK_B_MASK, b))
+#define OMASK_RGB(r, g, b)  (FIELD_PREP_CONST(DPI_DMA_OMASK_R_MASK, r)  | \
+			     FIELD_PREP_CONST(DPI_DMA_OMASK_G_MASK, g)  | \
+			     FIELD_PREP_CONST(DPI_DMA_OMASK_B_MASK, b))
+#define ISHIFT_RGB(r, g, b) (FIELD_PREP_CONST(DPI_DMA_SHIFT_IR_MASK, r) | \
+			     FIELD_PREP_CONST(DPI_DMA_SHIFT_IG_MASK, g) | \
+			     FIELD_PREP_CONST(DPI_DMA_SHIFT_IB_MASK, b))
+#define OSHIFT_RGB(r, g, b) (FIELD_PREP_CONST(DPI_DMA_SHIFT_OR_MASK, r) | \
+			     FIELD_PREP_CONST(DPI_DMA_SHIFT_OG_MASK, g) | \
+			     FIELD_PREP_CONST(DPI_DMA_SHIFT_OB_MASK, b))
 
 static const struct rp1dpi_ipixfmt my_formats[] = {
 	{
 	  .format = DRM_FORMAT_XRGB8888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(23, 15, 7),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 3),
 	},
 	{
 	  .format = DRM_FORMAT_XBGR8888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(7, 15, 23),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 3),
 	},
 	{
 	  .format = DRM_FORMAT_ARGB8888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(23, 15, 7),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 3),
 	},
 	{
 	  .format = DRM_FORMAT_ABGR8888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(7, 15, 23),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 3),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 3),
 	},
 	{
 	  .format = DRM_FORMAT_RGB888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(23, 15, 7),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 2),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 2),
 	},
 	{
 	  .format = DRM_FORMAT_BGR888,
 	  .mask	  = IMASK_RGB(0x3fc, 0x3fc, 0x3fc),
 	  .shift  = ISHIFT_RGB(7, 15, 23),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_BPP, 2),
+	  .rgbsz  = FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 2),
 	},
 	{
 	  .format = DRM_FORMAT_RGB565,
 	  .mask	  = IMASK_RGB(0x3e0, 0x3f0, 0x3e0),
 	  .shift  = ISHIFT_RGB(15, 10, 4),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_R, 5) | BITS(DPI_DMA_RGBSZ_G, 6) |
-		    BITS(DPI_DMA_RGBSZ_B, 5) | BITS(DPI_DMA_RGBSZ_BPP, 1),
+	  .rgbsz  = (FIELD_PREP_CONST(DPI_DMA_RGBSZ_R_MASK, 5) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_G_MASK, 6) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_B_MASK, 5) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 1)),
 	},
 	{
 	  .format = DRM_FORMAT_BGR565,
 	  .mask	  = IMASK_RGB(0x3e0, 0x3f0, 0x3e0),
 	  .shift  = ISHIFT_RGB(4, 10, 15),
-	  .rgbsz  = BITS(DPI_DMA_RGBSZ_R, 5) | BITS(DPI_DMA_RGBSZ_G, 6) |
-		    BITS(DPI_DMA_RGBSZ_B, 5) | BITS(DPI_DMA_RGBSZ_BPP, 1),
+	  .rgbsz  = (FIELD_PREP_CONST(DPI_DMA_RGBSZ_R_MASK, 5) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_G_MASK, 6) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_B_MASK, 5) |
+		     FIELD_PREP_CONST(DPI_DMA_RGBSZ_BPP_MASK, 1)),
 	}
 };
 
@@ -354,42 +358,26 @@ void rp1dpi_hw_setup(struct rp1_dpi *dpi,
 		     u32 in_format, u32 bus_format, bool de_inv,
 		    struct drm_display_mode const *mode)
 {
-	u32 shift, imask, omask, rgbsz;
+	u32 shift, imask, omask, rgbsz, vctrl;
 	int i;
 
-	pr_info("%s: in_fmt=\'%c%c%c%c\' bus_fmt=0x%x mode=%dx%d total=%dx%d %dkHz %cH%cV%cD%cC",
-		__func__, in_format, in_format >> 8, in_format >> 16, in_format >> 24, bus_format,
-		mode->hdisplay, mode->vdisplay,
-		mode->htotal, mode->vtotal,
-		mode->clock,
-		(mode->flags & DRM_MODE_FLAG_NHSYNC) ? '-' : '+',
-		(mode->flags & DRM_MODE_FLAG_NVSYNC) ? '-' : '+',
-		de_inv ? '-' : '+',
-		dpi->clk_inv ? '-' : '+');
+	drm_info(&dpi->drm,
+		 "in_fmt=\'%c%c%c%c\' bus_fmt=0x%x mode=%dx%d total=%dx%d%s %dkHz %cH%cV%cD%cC",
+		 in_format, in_format >> 8, in_format >> 16, in_format >> 24, bus_format,
+		 mode->hdisplay, mode->vdisplay,
+		 mode->htotal, mode->vtotal,
+		 (mode->flags & DRM_MODE_FLAG_INTERLACE) ? "i" : "",
+		 mode->clock,
+		 (mode->flags & DRM_MODE_FLAG_NHSYNC) ? '-' : '+',
+		 (mode->flags & DRM_MODE_FLAG_NVSYNC) ? '-' : '+',
+		 de_inv ? '-' : '+',
+		 dpi->clk_inv ? '-' : '+');
 
 	/*
 	 * Configure all DPI/DMA block registers, except base address.
 	 * DMA will not actually start until a FB base address is specified
 	 * using rp1dpi_hw_update().
 	 */
-	rp1dpi_hw_write(dpi, DPI_DMA_VISIBLE_AREA,
-			BITS(DPI_DMA_VISIBLE_AREA_ROWSM1, mode->vdisplay - 1) |
-			BITS(DPI_DMA_VISIBLE_AREA_COLSM1, mode->hdisplay - 1));
-
-	rp1dpi_hw_write(dpi, DPI_DMA_SYNC_WIDTH,
-			BITS(DPI_DMA_SYNC_WIDTH_ROWSM1, mode->vsync_end - mode->vsync_start - 1) |
-			BITS(DPI_DMA_SYNC_WIDTH_COLSM1, mode->hsync_end - mode->hsync_start - 1));
-
-	/* In these registers, "back porch" time includes sync width */
-	rp1dpi_hw_write(dpi, DPI_DMA_BACK_PORCH,
-			BITS(DPI_DMA_BACK_PORCH_ROWSM1, mode->vtotal - mode->vsync_start - 1) |
-			BITS(DPI_DMA_BACK_PORCH_COLSM1, mode->htotal - mode->hsync_start - 1));
-
-	rp1dpi_hw_write(dpi, DPI_DMA_FRONT_PORCH,
-			BITS(DPI_DMA_FRONT_PORCH_ROWSM1, mode->vsync_start - mode->vdisplay - 1) |
-			BITS(DPI_DMA_FRONT_PORCH_COLSM1, mode->hsync_start - mode->hdisplay - 1));
-
-	/* Input to output pixel format conversion */
 	for (i = 0; i < ARRAY_SIZE(my_formats); ++i) {
 		if (my_formats[i].format == in_format)
 			break;
@@ -417,6 +405,89 @@ void rp1dpi_hw_setup(struct rp1_dpi *dpi,
 			BITS(DPI_DMA_QOS_LLEV, 0x8) |
 			BITS(DPI_DMA_QOS_LQOS, 0x7));
 
+	if (!(mode->flags & DRM_MODE_FLAG_INTERLACE)) {
+		rp1dpi_hw_write(dpi, DPI_DMA_VISIBLE_AREA,
+				BITS(DPI_DMA_VISIBLE_AREA_ROWSM1, mode->vdisplay - 1) |
+				BITS(DPI_DMA_VISIBLE_AREA_COLSM1, mode->hdisplay - 1));
+
+		rp1dpi_hw_write(dpi, DPI_DMA_SYNC_WIDTH,
+				BITS(DPI_DMA_SYNC_WIDTH_ROWSM1,
+				     mode->vsync_end - mode->vsync_start - 1) |
+				BITS(DPI_DMA_SYNC_WIDTH_COLSM1,
+				     mode->hsync_end - mode->hsync_start - 1));
+
+		/* In these registers, "back porch" time includes sync width */
+		rp1dpi_hw_write(dpi, DPI_DMA_BACK_PORCH,
+				BITS(DPI_DMA_BACK_PORCH_ROWSM1,
+				     mode->vtotal - mode->vsync_start - 1) |
+				BITS(DPI_DMA_BACK_PORCH_COLSM1,
+				     mode->htotal - mode->hsync_start - 1));
+
+		rp1dpi_hw_write(dpi, DPI_DMA_FRONT_PORCH,
+				BITS(DPI_DMA_FRONT_PORCH_ROWSM1,
+				     mode->vsync_start - mode->vdisplay - 1) |
+				BITS(DPI_DMA_FRONT_PORCH_COLSM1,
+				     mode->hsync_start - mode->hdisplay - 1));
+
+		vctrl = BITS(DPI_DMA_CONTROL_VSYNC_POL, !!(mode->flags & DRM_MODE_FLAG_NVSYNC)) |
+			BITS(DPI_DMA_CONTROL_VBP_EN, (mode->vtotal != mode->vsync_start))       |
+			BITS(DPI_DMA_CONTROL_VFP_EN, (mode->vsync_start != mode->vdisplay))     |
+			BITS(DPI_DMA_CONTROL_VSYNC_EN, (mode->vsync_end != mode->vsync_start));
+
+		dpi->interlaced = false;
+	} else {
+		/*
+		 * Experimental interlace support
+		 *
+		 * RP1 DPI hardware wasn't designed to support interlace, but lets us change
+		 * both the VFP line count and the next DMA address while running. That allows
+		 * pixel data to be correctly timed for interlace, but VSYNC remains wrong.
+		 *
+		 * It is necessary to use external hardware (such as PIO) to regenerate VSYNC
+		 * based on HSYNC, DE (which *must* both be mapped to GPIOs 1, 3 respectively).
+		 * This driver includes a PIO program to do that, when DE is enabled.
+		 *
+		 * An alternative fixup is to synthesize CSYNC from HSYNC and modified-VSYNC.
+		 * We don't implement that here, but to facilitate it, DPI's VSYNC is replaced
+		 * by a "helper signal" that pulses low for 1 or 2 scan-lines, starting 2.0 or
+		 * 2.5 scan-lines respectively before nominal VSYNC start.
+		 */
+		int vact  = mode->vdisplay >> 1; /* visible lines per field. Can't do half-lines */
+		int vtot0 = mode->vtotal >> 1;   /* vtotal should always be odd when interlaced. */
+		int vfp0  = (mode->vsync_start >= mode->vdisplay + 4) ?
+			((mode->vsync_start - mode->vdisplay - 2) >> 1) : 1;
+		int vbp   = max(0, vtot0 - vact - vfp0);
+
+		rp1dpi_hw_write(dpi, DPI_DMA_VISIBLE_AREA,
+				BITS(DPI_DMA_VISIBLE_AREA_ROWSM1, vact - 1) |
+				BITS(DPI_DMA_VISIBLE_AREA_COLSM1, mode->hdisplay - 1));
+
+		rp1dpi_hw_write(dpi, DPI_DMA_SYNC_WIDTH,
+				BITS(DPI_DMA_SYNC_WIDTH_ROWSM1, vtot0 - 2) |
+				BITS(DPI_DMA_SYNC_WIDTH_COLSM1,
+				     mode->hsync_end - mode->hsync_start - 1));
+
+		rp1dpi_hw_write(dpi, DPI_DMA_BACK_PORCH,
+				BITS(DPI_DMA_BACK_PORCH_ROWSM1, vbp - 1) |
+				BITS(DPI_DMA_BACK_PORCH_COLSM1,
+				     mode->htotal - mode->hsync_start - 1));
+
+		dpi->shorter_front_porch =
+			BITS(DPI_DMA_FRONT_PORCH_ROWSM1, vfp0 - 1) |
+			BITS(DPI_DMA_FRONT_PORCH_COLSM1,
+			     mode->hsync_start - mode->hdisplay - 1);
+		rp1dpi_hw_write(dpi, DPI_DMA_FRONT_PORCH, dpi->shorter_front_porch);
+
+		vctrl = BITS(DPI_DMA_CONTROL_VSYNC_POL, 0)      |
+			BITS(DPI_DMA_CONTROL_VBP_EN, (vbp > 0)) |
+			BITS(DPI_DMA_CONTROL_VFP_EN, 1)         |
+			BITS(DPI_DMA_CONTROL_VSYNC_EN, 1);
+
+		dpi->interlaced = true;
+	}
+	dpi->lower_field_flag = false;
+	dpi->last_dma_addr = 0;
+
 	rp1dpi_hw_write(dpi, DPI_DMA_IRQ_FLAGS, -1);
 	rp1dpi_hw_vblank_ctrl(dpi, 1);
 
@@ -425,49 +496,64 @@ void rp1dpi_hw_setup(struct rp1_dpi *dpi,
 		pr_warn("%s: Unexpectedly busy at start!", __func__);
 
 	rp1dpi_hw_write(dpi, DPI_DMA_CONTROL,
+			vctrl                                  |
 			BITS(DPI_DMA_CONTROL_ARM,          !i) |
 			BITS(DPI_DMA_CONTROL_AUTO_REPEAT,   1) |
 			BITS(DPI_DMA_CONTROL_HIGH_WATER,  448) |
 			BITS(DPI_DMA_CONTROL_DEN_POL,  de_inv) |
 			BITS(DPI_DMA_CONTROL_HSYNC_POL, !!(mode->flags & DRM_MODE_FLAG_NHSYNC)) |
-			BITS(DPI_DMA_CONTROL_VSYNC_POL, !!(mode->flags & DRM_MODE_FLAG_NVSYNC)) |
-			BITS(DPI_DMA_CONTROL_COLORM,	   0) |
-			BITS(DPI_DMA_CONTROL_SHUTDN,	   0) |
 			BITS(DPI_DMA_CONTROL_HBP_EN,    (mode->htotal != mode->hsync_end))      |
 			BITS(DPI_DMA_CONTROL_HFP_EN,    (mode->hsync_start != mode->hdisplay))  |
-			BITS(DPI_DMA_CONTROL_VBP_EN,    (mode->vtotal != mode->vsync_end))      |
-			BITS(DPI_DMA_CONTROL_VFP_EN,    (mode->vsync_start != mode->vdisplay))  |
-			BITS(DPI_DMA_CONTROL_HSYNC_EN,  (mode->hsync_end != mode->hsync_start)) |
-			BITS(DPI_DMA_CONTROL_VSYNC_EN,  (mode->vsync_end != mode->vsync_start)));
+			BITS(DPI_DMA_CONTROL_HSYNC_EN,  (mode->hsync_end != mode->hsync_start)));
 }
 
 void rp1dpi_hw_update(struct rp1_dpi *dpi, dma_addr_t addr, u32 offset, u32 stride)
 {
-	u64 a = addr + offset;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dpi->hw_lock, flags);
 
 	/*
 	 * Update STRIDE, DMAH and DMAL only. When called after rp1dpi_hw_setup(),
 	 * DMA starts immediately; if already running, the buffer will flip at
-	 * the next vertical sync event.
+	 * the next vertical sync event. In interlaced mode, we need to adjust
+	 * the address and stride to display only the current field, saving
+	 * the original address (so it can be flipped for subsequent fields).
 	 */
+	addr += offset;
+	dpi->last_dma_addr = addr;
+	dpi->last_stride = stride;
+	if (dpi->interlaced) {
+		if (dpi->lower_field_flag)
+			addr += stride;
+		stride *= 2;
+	}
 	rp1dpi_hw_write(dpi, DPI_DMA_DMA_STRIDE, stride);
-	rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_H, a >> 32);
-	rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_L, a & 0xFFFFFFFFu);
+	rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_H, addr >> 32);
+	rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_L, addr & 0xFFFFFFFFu);
+
+	spin_unlock_irqrestore(&dpi->hw_lock, flags);
 }
 
 void rp1dpi_hw_stop(struct rp1_dpi *dpi)
 {
 	u32 ctrl;
+	unsigned long flags;
 
 	/*
-	 * Stop DMA by turning off the Auto-Repeat flag, and wait up to 100ms for
-	 * the current and any queued frame to end. "Force drain" flags are not used,
-	 * as they seem to prevent DMA from re-starting properly; it's safer to wait.
+	 * Stop DMA by turning off Auto-Repeat (and disable S/W field-flip),
+	 * then wait up to 100ms for the current and any queued frame to end.
+	 * (There is a "force drain" flag, but it can leave DPI in a broken
+	 * state which prevents it from restarting; it's safer to wait.)
 	 */
+	spin_lock_irqsave(&dpi->hw_lock, flags);
+	dpi->last_dma_addr = 0;
 	reinit_completion(&dpi->finished);
 	ctrl = rp1dpi_hw_read(dpi, DPI_DMA_CONTROL);
 	ctrl &= ~(DPI_DMA_CONTROL_ARM_MASK | DPI_DMA_CONTROL_AUTO_REPEAT_MASK);
 	rp1dpi_hw_write(dpi, DPI_DMA_CONTROL, ctrl);
+	spin_unlock_irqrestore(&dpi->hw_lock, flags);
+
 	if (!wait_for_completion_timeout(&dpi->finished, HZ / 10))
 		drm_err(&dpi->drm, "%s: timed out waiting for idle\n", __func__);
 	rp1dpi_hw_write(dpi, DPI_DMA_IRQ_EN, 0);
@@ -476,10 +562,11 @@ void rp1dpi_hw_stop(struct rp1_dpi *dpi)
 void rp1dpi_hw_vblank_ctrl(struct rp1_dpi *dpi, int enable)
 {
 	rp1dpi_hw_write(dpi, DPI_DMA_IRQ_EN,
-			BITS(DPI_DMA_IRQ_EN_AFIFO_EMPTY, 1)      |
-			BITS(DPI_DMA_IRQ_EN_UNDERFLOW, 1)        |
-			BITS(DPI_DMA_IRQ_EN_DMA_READY, !!enable) |
-			BITS(DPI_DMA_IRQ_EN_MATCH_LINE, 4095));
+			BITS(DPI_DMA_IRQ_EN_AFIFO_EMPTY, 1)         |
+			BITS(DPI_DMA_IRQ_EN_UNDERFLOW, 1)           |
+			BITS(DPI_DMA_IRQ_EN_DMA_READY, !!enable)    |
+			BITS(DPI_DMA_IRQ_EN_MATCH, dpi->interlaced) |
+			BITS(DPI_DMA_IRQ_EN_MATCH_LINE, 32));
 }
 
 irqreturn_t rp1dpi_hw_isr(int irq, void *dev)
@@ -498,7 +585,35 @@ irqreturn_t rp1dpi_hw_isr(int irq, void *dev)
 				drm_crtc_handle_vblank(&dpi->pipe.crtc);
 			if (u & DPI_DMA_IRQ_FLAGS_AFIFO_EMPTY_MASK)
 				complete(&dpi->finished);
+
+			/*
+			 * Added for interlace support: We use this mid-frame interrupt to
+			 * wobble the VFP between fields, re-submitting the next-buffer address
+			 * with an offset to display the opposite field. NB: rp1dpi_hw_update()
+			 * may be called at any time, before or after, so locking is needed.
+			 * H/W Auto-update is no longer needed (unless this IRQ is lost).
+			 */
+			if ((u & DPI_DMA_IRQ_FLAGS_MATCH_MASK) && dpi->interlaced) {
+				unsigned long flags;
+				dma_addr_t a;
+
+				spin_lock_irqsave(&dpi->hw_lock, flags);
+				dpi->lower_field_flag = !dpi->lower_field_flag;
+				rp1dpi_hw_write(dpi, DPI_DMA_FRONT_PORCH,
+						dpi->shorter_front_porch +
+						BITS(DPI_DMA_FRONT_PORCH_ROWSM1,
+						     dpi->lower_field_flag));
+				a = dpi->last_dma_addr;
+				if (a) {
+					if (dpi->lower_field_flag)
+						a += dpi->last_stride;
+					rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_H, a >> 32);
+					rp1dpi_hw_write(dpi, DPI_DMA_DMA_ADDR_L, a & 0xFFFFFFFFu);
+				}
+				spin_unlock_irqrestore(&dpi->hw_lock, flags);
+			}
 		}
 	}
+
 	return u ? IRQ_HANDLED : IRQ_NONE;
 }
