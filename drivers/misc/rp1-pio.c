@@ -683,7 +683,7 @@ err_dma_free:
 }
 
 static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
-			      const void __user *userbuf, size_t bytes)
+				  const void __user *userbuf, size_t bytes)
 {
 	struct platform_device *pdev = pio->pdev;
 	struct dma_async_tx_descriptor *desc;
@@ -757,7 +757,7 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 }
 
 static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
-			      void __user *userbuf, size_t bytes)
+				  void __user *userbuf, size_t bytes)
 {
 	struct platform_device *pdev = pio->pdev;
 	struct dma_async_tx_descriptor *desc;
@@ -809,8 +809,7 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 		desc->callback = rp1_pio_sm_dma_callback;
 		desc->callback_param = dma;
 
-		// Submit the buffer - the callback will kick the semaphore
-
+		/* Submit the buffer - the callback will kick the semaphore */
 		ret = dmaengine_submit(desc);
 		if (ret < 0)
 			break;
