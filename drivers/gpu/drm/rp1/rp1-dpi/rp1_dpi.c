@@ -80,6 +80,7 @@ static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
 			if (dpi->dpi_running &&
 			    fb->format->format != dpi->cur_fmt) {
 				rp1dpi_hw_stop(dpi);
+				rp1dpi_pio_stop(dpi);
 				dpi->dpi_running = false;
 			}
 			if (!dpi->dpi_running) {
@@ -88,6 +89,7 @@ static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
 						dpi->bus_fmt,
 						dpi->de_inv,
 						&pipe->crtc.state->mode);
+				rp1dpi_pio_start(dpi, &pipe->crtc.state->mode);
 				dpi->dpi_running = true;
 			}
 			dpi->cur_fmt = fb->format->format;
@@ -187,6 +189,7 @@ static void rp1dpi_pipe_disable(struct drm_simple_display_pipe *pipe)
 	drm_crtc_vblank_off(&pipe->crtc);
 	if (dpi->dpi_running) {
 		rp1dpi_hw_stop(dpi);
+		rp1dpi_pio_stop(dpi);
 		dpi->dpi_running = false;
 	}
 	clk_disable_unprepare(dpi->clocks[RP1DPI_CLK_DPI]);
@@ -236,6 +239,7 @@ static void rp1dpi_stopall(struct drm_device *drm)
 		if (dpi->dpi_running || rp1dpi_hw_busy(dpi)) {
 			rp1dpi_hw_stop(dpi);
 			clk_disable_unprepare(dpi->clocks[RP1DPI_CLK_DPI]);
+			rp1dpi_pio_stop(dpi);
 			dpi->dpi_running = false;
 		}
 		rp1dpi_vidout_poweroff(dpi);
@@ -273,7 +277,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	struct rp1_dpi *dpi;
 	struct drm_bridge *bridge = NULL;
 	struct drm_panel *panel;
-	int i, ret;
+	int i, j, ret;
 
 	dev_info(dev, __func__);
 	ret = drm_of_find_panel_or_bridge(pdev->dev.of_node, 0, 0,
@@ -295,6 +299,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 		return ret;
 	}
 	dpi->pdev = pdev;
+	spin_lock_init(&dpi->hw_lock);
 
 	dpi->bus_fmt = default_bus_fmt;
 	ret = of_property_read_u32(dev->of_node, "default_bus_fmt", &dpi->bus_fmt);
@@ -331,6 +336,33 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	ret = drmm_mode_config_init(&dpi->drm);
 	if (ret)
 		goto done_err;
+
+	/* Check if PIO can snoop on or override DPI's GPIO1 */
+	dpi->gpio1_used = false;
+	for (i = 0; !dpi->gpio1_used; i++) {
+		u32 p = 0;
+		const char *str = NULL;
+		struct device_node *np1 = of_parse_phandle(dev->of_node, "pinctrl-0", i);
+
+		if (!np1)
+			break;
+
+		if (!of_property_read_string(np1, "function", &str) && !strcmp(str, "dpi")) {
+			for (j = 0; !dpi->gpio1_used; j++) {
+				if (of_property_read_string_index(np1, "pins", j, &str))
+					break;
+				if (!strcmp(str, "gpio1"))
+					dpi->gpio1_used = true;
+			}
+			for (j = 0; !dpi->gpio1_used; j++) {
+				if (of_property_read_u32_index(np1, "brcm,pins", j, &p))
+					break;
+				if (p == 1)
+					dpi->gpio1_used = true;
+			}
+		}
+		of_node_put(np1);
+	}
 
 	/* Now we have all our resources, finish driver initialization */
 	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));

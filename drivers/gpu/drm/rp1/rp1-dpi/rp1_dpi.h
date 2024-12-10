@@ -46,6 +46,18 @@ struct rp1_dpi {
 	bool de_inv, clk_inv;
 	bool dpi_running, pipe_enabled;
 	struct completion finished;
+
+	/* Experimental stuff for interlace follows */
+	struct rp1_pio_client *pio;
+	bool gpio1_used;
+	bool pio_stole_gpio2;
+
+	spinlock_t hw_lock; /* the following are used in line-match ISR */
+	dma_addr_t last_dma_addr;
+	u32 last_stride;
+	u32 shorter_front_porch;
+	bool interlaced;
+	bool lower_field_flag;
 };
 
 /* ---------------------------------------------------------------------- */
@@ -67,3 +79,9 @@ void rp1dpi_hw_vblank_ctrl(struct rp1_dpi *dpi, int enable);
 
 void rp1dpi_vidout_setup(struct rp1_dpi *dpi, bool drive_negedge);
 void rp1dpi_vidout_poweroff(struct rp1_dpi *dpi);
+
+/* ---------------------------------------------------------------------- */
+/* PIO control -- we need PIO to generate VSync (from DE) when interlaced */
+
+int rp1dpi_pio_start(struct rp1_dpi *dpi, const struct drm_display_mode *mode);
+void rp1dpi_pio_stop(struct rp1_dpi *dpi);
