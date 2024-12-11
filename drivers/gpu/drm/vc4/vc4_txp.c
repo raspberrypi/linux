@@ -272,6 +272,13 @@ static int vc4_txp_connector_atomic_check(struct drm_connector *conn,
 		return -EINVAL;
 	}
 
+	if (conn_state->rotation & DRM_MODE_TRANSPOSE &&
+	    (fb->format->format == DRM_FORMAT_RGB888 ||
+	     fb->format->format == DRM_FORMAT_BGR888)) {
+		DRM_DEBUG_KMS("24bpp formats not supported when transposing\n");
+		return -EINVAL;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(drm_fmts); i++) {
 		if (fb->format->format == drm_fmts[i])
 			break;
