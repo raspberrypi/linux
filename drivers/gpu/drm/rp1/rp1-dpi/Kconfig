@@ -7,5 +7,10 @@ config DRM_RP1_DPI
 	select DRM_VRAM_HELPER
 	select DRM_TTM
 	select DRM_TTM_HELPER
+	depends on RP1_PIO || !RP1_PIO
 	help
-	  Choose this option to enable Video Out on RP1
+	  Choose this option to enable DPI output on Raspberry Pi RP1
+
+	  There is an optional dependency on RP1_PIO, as the PIO block
+	  must be used to fix up interlaced sync. Interlaced DPI modes
+	  will be unavailable when RP1_PIO is not selected.
