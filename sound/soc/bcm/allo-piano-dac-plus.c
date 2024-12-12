@@ -974,48 +974,31 @@ static int snd_allo_piano_dac_probe(struct platform_device *pdev)
 
 		allo_piano_2_1_codecs[0].of_node =
 			of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
-		if (!allo_piano_2_1_codecs[0].of_node) {
-			dev_err(&pdev->dev,
-				"Property 'audio-codec' missing or invalid\n");
-			return -EINVAL;
-		}
-
 		allo_piano_2_1_codecs[1].of_node =
 			of_parse_phandle(pdev->dev.of_node, "audio-codec", 1);
-		if (!allo_piano_2_1_codecs[1].of_node) {
-			dev_err(&pdev->dev,
+		if (!allo_piano_2_1_codecs[0].of_node || !allo_piano_2_1_codecs[1].of_node)
+			return dev_err_probe(&pdev->dev, -EINVAL,
 				"Property 'audio-codec' missing or invalid\n");
-			return -EINVAL;
-		}
 
 		mute_gpio[0] = devm_gpiod_get_optional(&pdev->dev, "mute1",
 							GPIOD_OUT_LOW);
-		if (IS_ERR(mute_gpio[0])) {
-			ret = PTR_ERR(mute_gpio[0]);
-			dev_err(&pdev->dev,
-				"failed to get mute1 gpio6: %d\n", ret);
-			return ret;
-		}
+		if (IS_ERR(mute_gpio[0]))
+			return dev_err_probe(&pdev->dev, PTR_ERR(mute_gpio[0]),
+				"failed to get mute1 gpio\n");
 
 		mute_gpio[1] = devm_gpiod_get_optional(&pdev->dev, "mute2",
 							GPIOD_OUT_LOW);
-		if (IS_ERR(mute_gpio[1])) {
-			ret = PTR_ERR(mute_gpio[1]);
-			dev_err(&pdev->dev,
-				"failed to get mute2 gpio25: %d\n", ret);
-			return ret;
-		}
+		if (IS_ERR(mute_gpio[1]))
+			return dev_err_probe(&pdev->dev, PTR_ERR(mute_gpio[1]),
+				"failed to get mute2 gpio\n");
 
 		if (mute_gpio[0] && mute_gpio[1])
 			snd_allo_piano_dac.set_bias_level =
 				snd_allo_piano_set_bias_level;
 
 		ret = snd_soc_register_card(&snd_allo_piano_dac);
-		if (ret < 0) {
-			dev_err(&pdev->dev,
-				"snd_soc_register_card() failed: %d\n", ret);
-			return ret;
-		}
+		if (ret < 0)
+			return dev_err_probe(&pdev->dev, ret, "snd_soc_register_card() failed\n");
 
 		if ((mute_gpio[0]) && (mute_gpio[1]))
 			snd_allo_piano_gpio_mute(&snd_allo_piano_dac);
