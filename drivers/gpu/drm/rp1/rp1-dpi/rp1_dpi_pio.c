@@ -18,12 +18,15 @@
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/of.h>
-#include <linux/pio_rp1.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <drm/drm_print.h>
 
 #include "rp1_dpi.h"
+
+#if IS_REACHABLE(CONFIG_RP1_PIO)
+
+#include <linux/pio_rp1.h>
 
 /*
  * Start a PIO SM to generate an interrupt just after HSYNC onset, then another
@@ -223,3 +226,16 @@ void rp1dpi_pio_stop(struct rp1_dpi *dpi)
 		dpi->pio = NULL;
 	}
 }
+
+#else /* !IS_REACHABLE(CONFIG_RP1_PIO) */
+
+int rp1dpi_pio_start(struct rp1_dpi *dpi, const struct drm_display_mode *mode)
+{
+	return -ENODEV;
+}
+
+void rp1dpi_pio_stop(struct rp1_dpi *dpi)
+{
+}
+
+#endif
