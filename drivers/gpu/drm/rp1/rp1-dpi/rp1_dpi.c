@@ -217,12 +217,28 @@ static void rp1dpi_pipe_disable_vblank(struct drm_simple_display_pipe *pipe)
 		rp1dpi_hw_vblank_ctrl(dpi, 0);
 }
 
+static enum drm_mode_status rp1dpi_pipe_mode_valid(struct drm_simple_display_pipe *pipe,
+						   const struct drm_display_mode *mode)
+{
+#if !IS_REACHABLE(CONFIG_RP1_PIO)
+	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+		return MODE_NO_INTERLACE;
+#endif
+	if (mode->clock < 1000) /* 1 MHz */
+		return MODE_CLOCK_LOW;
+	if (mode->clock > 200000) /* 200 MHz */
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
+}
+
 static const struct drm_simple_display_pipe_funcs rp1dpi_pipe_funcs = {
 	.enable	    = rp1dpi_pipe_enable,
 	.update	    = rp1dpi_pipe_update,
 	.disable    = rp1dpi_pipe_disable,
 	.enable_vblank	= rp1dpi_pipe_enable_vblank,
 	.disable_vblank = rp1dpi_pipe_disable_vblank,
+	.mode_valid = rp1dpi_pipe_mode_valid,
 };
 
 static const struct drm_mode_config_funcs rp1dpi_mode_funcs = {
