@@ -179,9 +179,17 @@ typedef rp1_pio_sm_config pio_sm_config;
 
 typedef struct rp1_pio_client *PIO;
 
-void pio_set_error(struct rp1_pio_client *client, int err);
-int pio_get_error(const struct rp1_pio_client *client);
-void pio_clear_error(struct rp1_pio_client *client);
+int rp1_pio_init(void);
+PIO rp1_pio_open(void);
+void rp1_pio_close(struct rp1_pio_client *client);
+void rp1_pio_set_error(struct rp1_pio_client *client, int err);
+int rp1_pio_get_error(const struct rp1_pio_client *client);
+void rp1_pio_clear_error(struct rp1_pio_client *client);
+int rp1_pio_sm_config_xfer(struct rp1_pio_client *client, uint sm, uint dir,
+			   uint buf_size, uint buf_count);
+int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
+			 uint data_bytes, void *data, dma_addr_t dma_addr,
+			 void (*callback)(void *param), void *param);
 
 int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param);
 int rp1_pio_add_program(struct rp1_pio_client *client, void *param);
@@ -215,12 +223,48 @@ int rp1_pio_gpio_set_oeover(struct rp1_pio_client *client, void *param);
 int rp1_pio_gpio_set_input_enabled(struct rp1_pio_client *client, void *param);
 int rp1_pio_gpio_set_drive_strength(struct rp1_pio_client *client, void *param);
 
-int pio_init(void);
-PIO pio_open(void);
-void pio_close(PIO pio);
+static inline int pio_init(void)
+{
+	return rp1_pio_init();
+}
 
-int pio_sm_config_xfer(PIO pio, uint sm, uint dir, uint buf_size, uint buf_count);
-int pio_sm_xfer_data(PIO pio, uint sm, uint dir, uint data_bytes, void *data);
+static inline struct rp1_pio_client *pio_open(void)
+{
+	return rp1_pio_open();
+}
+
+static inline void pio_close(struct rp1_pio_client *client)
+{
+	rp1_pio_close(client);
+}
+
+static inline void pio_set_error(struct rp1_pio_client *client, int err)
+{
+	rp1_pio_set_error(client, err);
+}
+
+static inline int pio_get_error(const struct rp1_pio_client *client)
+{
+	return rp1_pio_get_error(client);
+}
+
+static inline void pio_clear_error(struct rp1_pio_client *client)
+{
+	rp1_pio_clear_error(client);
+}
+
+static inline int pio_sm_config_xfer(struct rp1_pio_client *client, uint sm, uint dir,
+				     uint buf_size, uint buf_count)
+{
+	return rp1_pio_sm_config_xfer(client, sm, dir, buf_size, buf_count);
+}
+
+static inline int pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
+				   uint data_bytes, void *data, dma_addr_t dma_addr,
+				   void (*callback)(void *param), void *param)
+{
+	return rp1_pio_sm_xfer_data(client, sm, dir, data_bytes, data, dma_addr, callback, param);
+}
 
 static inline struct fp24_8 make_fp24_8(uint mul, uint div)
 {
