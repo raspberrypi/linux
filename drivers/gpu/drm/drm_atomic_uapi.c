@@ -792,6 +792,12 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 	} else if (property == connector->broadcast_rgb_property) {
 		state->hdmi.broadcast_rgb = val;
 	} else if (property == connector->rotation_property) {
+		if (!is_power_of_2(val & DRM_MODE_ROTATE_MASK)) {
+			drm_dbg_atomic(connector->dev,
+				       "[CONNECTOR:%d:%s] bad rotation bitmask: 0x%llx\n",
+				       connector->base.id, connector->name, val);
+			return -EINVAL;
+		}
 		state->rotation = val;
 	} else if (connector->funcs->atomic_set_property) {
 		return connector->funcs->atomic_set_property(connector,
