@@ -828,18 +828,6 @@ Data in the 12 high bits, zeros in the 4 low bits, arranged in little endian ord
       - Cr\ :sub:`11`
 
 
-V4L2_PIX_FMT_NV12_COL128
-------------------------
-
-``V4L2_PIX_FMT_NV12_COL128`` is the tiled version of
-``V4L2_PIX_FMT_NV12`` with the image broken down into 128 pixel wide columns of
-Y followed by the associated combined CbCr plane.
-The normal bytesperline is effectively fixed at 128. However the format
-requires knowledge of the stride between columns, therefore the bytesperline
-value has been repurposed to denote the number of 128 byte long lines between
-the start of each column.
-
-
 Fully Planar YUV Formats
 ========================
 
