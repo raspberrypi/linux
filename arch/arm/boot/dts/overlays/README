@@ -5641,6 +5641,28 @@ Params: alsaname                Changes the card name in ALSA
         compatible              Changes the codec compatibility
 
 
+Name:   ws2812-pio
+Info:   Configures a GPIO pin to drive a string of WS2812 LEDS using pio. It
+        can be enabled on any RP1 GPIO in bank 0 (0-27). Up to 4 are supported,
+        assuming nothing else is using PIO. Pi 5 only.
+Load:   dtoverlay=ws2812-pio,<param>=<val>
+Params: brightness              Set the initial brightness for the LEDs. The
+                                brightness can be changed at runtime by writing
+                                a single byte to offset 0 of the device. Note
+                                that brightness is a multiplier for the pixel
+                                values, and only white pixels can reach the
+                                maximum visible brightness. (range 0-255,
+                                default 255)
+        dev_name                The name for the /dev/ device entry. Note that
+                                if the name includes '%d' it will be replaced
+                                by the instance number. (default 'leds%d')
+        gpio                    Output GPIO (0-27, default 4)
+        num_leds                Number of LEDs (default 60)
+        rgbw                    'rgbw=on' (or 'rgbw') indicates that each pixel
+                                includes a white LED as well as the usual red,
+                                green and blue. (default 'off')
+
+
 Troubleshooting
 ===============
 
