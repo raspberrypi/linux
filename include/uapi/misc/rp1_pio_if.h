@@ -167,6 +167,13 @@ struct rp1_pio_sm_xfer_data_args {
 	void *data;
 };
 
+struct rp1_pio_sm_xfer_data32_args {
+	uint16_t sm;
+	uint16_t dir;
+	uint32_t data_bytes;
+	void *data;
+};
+
 struct rp1_access_hw_args {
 	uint32_t addr;
 	uint32_t len;
@@ -177,6 +184,7 @@ struct rp1_access_hw_args {
 
 #define PIO_IOC_SM_CONFIG_XFER _IOW(PIO_IOC_MAGIC, 0, struct rp1_pio_sm_config_xfer_args)
 #define PIO_IOC_SM_XFER_DATA _IOW(PIO_IOC_MAGIC, 1, struct rp1_pio_sm_xfer_data_args)
+#define PIO_IOC_SM_XFER_DATA32 _IOW(PIO_IOC_MAGIC, 2, struct rp1_pio_sm_xfer_data32_args)
 
 #define PIO_IOC_READ_HW _IOW(PIO_IOC_MAGIC, 8, struct rp1_access_hw_args)
 #define PIO_IOC_WRITE_HW _IOW(PIO_IOC_MAGIC, 9, struct rp1_access_hw_args)
