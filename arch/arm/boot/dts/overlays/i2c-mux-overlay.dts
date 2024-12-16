@@ -175,6 +175,8 @@
 		       <&frag100>, "target-path=i2c5";
 		i2c6 = <&frag100>, "target?=0",
 		       <&frag100>, "target-path=i2c6";
+		i2c-path = <&frag100>, "target?=0",
+			   <&frag100>, "target-path";
 		disconnect_on_idle =
 			<&pca9542>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,
 			<&pca9545>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,
