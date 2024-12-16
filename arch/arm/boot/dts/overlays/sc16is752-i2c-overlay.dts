@@ -4,7 +4,7 @@
 / {
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	frag0: fragment@0 {
 		target = <&i2c_arm>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -48,10 +48,38 @@
 		};
 	};
 
+	fragment@100 {
+		target = <&i2c0if>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@101 {
+		target = <&i2c0mux>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
 		int_pin = <&sc16is752>,"interrupts:0", <&int_pins>,"brcm,pins:0",
 			  <&int_pins>,"reg:0";
 		addr = <&sc16is752>,"reg:0",<&sc16is752_clk>,"name";
 		xtal = <&sc16is752_clk>,"clock-frequency:0";
+		i2c0 = <&frag0>, "target:0=",<&i2c0>,
+			      <0>,"+100+101";
+		i2c_csi_dsi = <&frag0>, "target:0=",<&i2c_csi_dsi>,
+			      <0>,"+100+101";
+		i2c3 = <&frag0>, "target?=0",
+		       <&frag0>, "target-path=i2c3";
+		i2c4 = <&frag0>, "target?=0",
+		       <&frag0>, "target-path=i2c4";
+		i2c5 = <&frag0>, "target?=0",
+		       <&frag0>, "target-path=i2c5";
+		i2c6 = <&frag0>, "target?=0",
+		       <&frag0>, "target-path=i2c6";
+		i2c-path = <&frag0>, "target?=0",
+			   <&frag0>, "target-path";
 	};
 };

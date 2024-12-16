@@ -16,7 +16,7 @@
 		};
 	};
 
- 	fragment@1 {
+	frag1: fragment@1 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -41,5 +41,7 @@
 			<&ili251x>,"interrupts:0";
 		sizex = <&ili251x>,"touchscreen-size-x:0";
 		sizey = <&ili251x>,"touchscreen-size-y:0";
+		i2c-path = <&frag1>, "target?=0",
+			   <&frag1>, "target-path";
 	};
 };

@@ -16,7 +16,7 @@
 		};
 	};
 
-	fragment@1 {
+	i2c_frag: fragment@1 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -42,5 +42,7 @@
 			<&gt9271>,"irq-gpios:4";
 		reset = <&goodix_pins>,"brcm,pins:4",
 			<&gt9271>,"reset-gpios:4";
+		i2c-path = <&i2c_frag>, "target?=0",
+			   <&i2c_frag>, "target-path";
 	};
 };

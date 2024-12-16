@@ -41,6 +41,9 @@
 		i2c6 = <&ts_i2c_frag>, "target?=0",
 		       <&ts_i2c_frag>, "target-path=i2c6",
 		       <0>,"-0-1";
+		i2c-path = <&ts_i2c_frag>, "target?=0",
+		       <&ts_i2c_frag>, "target-path",
+		       <0>,"-0-1";
 		addr = <&ft5406>,"reg:0";
 	};
 };

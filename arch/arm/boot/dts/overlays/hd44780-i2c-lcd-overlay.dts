@@ -4,7 +4,7 @@
 / {
 	compatible = "brcm,bcm2835";
 
-	fragment@0 {
+	i2c_frag: fragment@0 {
 		target = <&i2c_arm>;
 		__overlay__ {
 			status = "okay";
@@ -52,6 +52,8 @@
 		display_height = <&lcd_screen>,"display-height-chars:0";
 		display_width = <&lcd_screen>,"display-width-chars:0";
 		addr = <&pcf857x>,"reg:0";
+		i2c-path = <&i2c_frag>, "target?=0",
+			   <&i2c_frag>, "target-path";
 	};
 
 };
