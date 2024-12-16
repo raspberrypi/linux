@@ -96,7 +96,7 @@ static void v9fs_issue_read(struct netfs_io_subrequest *subreq)
 		subreq->transferred += total;
 
 	subreq->error = err;
-	netfs_read_subreq_terminated(subreq, false);
+	netfs_read_subreq_terminated(subreq);
 }
 
 /**
