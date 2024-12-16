@@ -824,9 +824,9 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 	return ret;
 }
 
-static int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, void *param)
+static int rp1_pio_sm_xfer_data32(struct rp1_pio_client *client, void *param)
 {
-	struct rp1_pio_sm_xfer_data_args *args = param;
+	struct rp1_pio_sm_xfer_data32_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
 	struct dma_info *dma;
 
@@ -842,6 +842,19 @@ static int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, void *param)
 		return rp1_pio_sm_rx_user(pio, dma, args->data, args->data_bytes);
 }
 
+static int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, void *param)
+{
+	struct rp1_pio_sm_xfer_data_args *args = param;
+	struct rp1_pio_sm_xfer_data32_args args32;
+
+	args32.sm = args->sm;
+	args32.dir = args->dir;
+	args32.data_bytes = args->data_bytes;
+	args32.data = args->data;
+
+	return rp1_pio_sm_xfer_data32(client, &args32);
+}
+
 struct handler_info {
 	const char *name;
 	int (*func)(struct rp1_pio_client *client, void *param);
@@ -849,6 +862,7 @@ struct handler_info {
 } ioctl_handlers[] = {
 	HANDLER(SM_CONFIG_XFER, sm_config_xfer),
 	HANDLER(SM_XFER_DATA, sm_xfer_data),
+	HANDLER(SM_XFER_DATA32, sm_xfer_data32),
 
 	HANDLER(CAN_ADD_PROGRAM, can_add_program),
 	HANDLER(ADD_PROGRAM, add_program),
@@ -1032,13 +1046,23 @@ struct rp1_pio_sm_xfer_data_args_compat {
 	compat_uptr_t data;
 };
 
+struct rp1_pio_sm_xfer_data32_args_compat {
+	uint16_t sm;
+	uint16_t dir;
+	uint32_t data_bytes;
+	compat_uptr_t data;
+};
+
 struct rp1_access_hw_args_compat {
 	uint32_t addr;
 	uint32_t len;
 	compat_uptr_t data;
 };
 
-#define PIO_IOC_SM_XFER_DATA_COMPAT _IOW(PIO_IOC_MAGIC, 1, struct rp1_pio_sm_xfer_data_args_compat)
+#define PIO_IOC_SM_XFER_DATA_COMPAT \
+	_IOW(PIO_IOC_MAGIC, 1, struct rp1_pio_sm_xfer_data_args_compat)
+#define PIO_IOC_SM_XFER_DATA32_COMPAT \
+	_IOW(PIO_IOC_MAGIC, 2, struct rp1_pio_sm_xfer_data32_args_compat)
 #define PIO_IOC_READ_HW_COMPAT _IOW(PIO_IOC_MAGIC, 8, struct rp1_access_hw_args_compat)
 #define PIO_IOC_WRITE_HW_COMPAT _IOW(PIO_IOC_MAGIC, 9, struct rp1_access_hw_args_compat)
 
@@ -1060,6 +1084,19 @@ static long rp1_pio_compat_ioctl(struct file *filp, unsigned int ioctl_num,
 		param.data_bytes = compat_param.data_bytes;
 		param.data = compat_ptr(compat_param.data);
 		return rp1_pio_sm_xfer_data(client, &param);
+	}
+	case PIO_IOC_SM_XFER_DATA32_COMPAT:
+	{
+		struct rp1_pio_sm_xfer_data32_args_compat compat_param;
+		struct rp1_pio_sm_xfer_data32_args param;
+
+		if (copy_from_user(&compat_param, compat_ptr(ioctl_param), sizeof(compat_param)))
+			return -EFAULT;
+		param.sm = compat_param.sm;
+		param.dir = compat_param.dir;
+		param.data_bytes = compat_param.data_bytes;
+		param.data = compat_ptr(compat_param.data);
+		return rp1_pio_sm_xfer_data32(client, &param);
 	}
 
 	case PIO_IOC_READ_HW_COMPAT:
