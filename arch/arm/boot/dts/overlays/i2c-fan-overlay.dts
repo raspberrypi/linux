@@ -93,6 +93,8 @@
 		       <&frag100>, "target-path=i2c5";
 		i2c6 = <&frag100>, "target?=0",
 		       <&frag100>, "target-path=i2c6";
+		i2c-path = <&frag100>, "target?=0",
+			   <&frag100>, "target-path";
 		addr =		<&emc2301>,"reg:0";
 		minpwm =	<&emc2301>,"emc2305,pwm-min.0";
 		maxpwm =	<&emc2301>,"emc2305,pwm-max.0";
