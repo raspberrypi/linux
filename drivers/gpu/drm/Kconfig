@@ -30,6 +30,16 @@ menuconfig DRM
 	  details.  You should also select and configure AGP
 	  (/dev/agpgart) support if it is available for your platform.
 
+config DRM_ARCH_CAN_WC
+    bool "Force Architecture can write-combine memory"
+    depends on DRM
+    default n
+    help
+      Enables write-combining even if it is not enabled by default.
+      Only use if the target systems support write-combining on
+      the memory used by the graphics adapters.
+      If in doubt, say 'N'
+
 config DRM_MIPI_DBI
 	tristate
 	depends on DRM

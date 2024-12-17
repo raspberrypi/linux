@@ -1055,7 +1055,7 @@ static int amdgpu_cs_patch_ibs(struct amdgpu_cs_parser *p,
 		kptr += va_start - (m->start * AMDGPU_GPU_PAGE_SIZE);
 
 		if (ring->funcs->parse_cs) {
-			memcpy(ib->ptr, kptr, ib->length_dw * 4);
+			memcpy_fromio(ib->ptr, kptr, ib->length_dw * 4);
 			amdgpu_bo_kunmap(aobj);
 
 			r = amdgpu_ring_parse_cs(ring, p, job, ib);

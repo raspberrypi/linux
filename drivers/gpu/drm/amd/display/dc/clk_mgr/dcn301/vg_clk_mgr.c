@@ -451,7 +451,7 @@ static void vg_notify_wm_ranges(struct clk_mgr *clk_mgr_base)
 	if (!table || clk_mgr_vgh->smu_wm_set.mc_address.quad_part == 0)
 		return;
 
-	memset(table, 0, sizeof(*table));
+	memset_io(table, 0, sizeof(*table));
 
 	vg_build_watermark_ranges(clk_mgr_base->bw_params, table);
 
@@ -646,7 +646,7 @@ static void vg_get_dpm_table_from_smu(struct clk_mgr_internal *clk_mgr,
 	if (!table || smu_dpm_clks->mc_address.quad_part == 0)
 		return;
 
-	memset(table, 0, sizeof(*table));
+	memset_io(table, 0, sizeof(*table));
 
 	dcn301_smu_set_dram_addr_high(clk_mgr,
 			smu_dpm_clks->mc_address.high_part);

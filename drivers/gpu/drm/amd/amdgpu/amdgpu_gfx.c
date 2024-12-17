@@ -364,7 +364,7 @@ int amdgpu_gfx_kiq_init(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memset(hpd, 0, hpd_size);
+	memset_io(hpd, 0, hpd_size);
 
 	r = amdgpu_bo_reserve(kiq->eop_obj, true);
 	if (unlikely(r != 0))

@@ -407,7 +407,7 @@ static void dcn316_notify_wm_ranges(struct clk_mgr *clk_mgr_base)
 	if (!table || clk_mgr_dcn316->smu_wm_set.mc_address.quad_part == 0)
 		return;
 
-	memset(table, 0, sizeof(*table));
+	memset_io(table, 0, sizeof(*table));
 
 	dcn316_build_watermark_ranges(clk_mgr_base->bw_params, table);
 
@@ -429,7 +429,7 @@ static void dcn316_get_dpm_table_from_smu(struct clk_mgr_internal *clk_mgr,
 	if (!table || smu_dpm_clks->mc_address.quad_part == 0)
 		return;
 
-	memset(table, 0, sizeof(*table));
+	memset_io(table, 0, sizeof(*table));
 
 	dcn316_smu_set_dram_addr_high(clk_mgr,
 			smu_dpm_clks->mc_address.high_part);

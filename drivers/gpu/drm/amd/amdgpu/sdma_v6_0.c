@@ -817,7 +817,7 @@ static int sdma_v6_0_start(struct amdgpu_device *adev)
 static int sdma_v6_0_mqd_init(struct amdgpu_device *adev, void *mqd,
 			      struct amdgpu_mqd_prop *prop)
 {
-	struct v11_sdma_mqd *m = mqd;
+	volatile struct v11_sdma_mqd *m = mqd;
 	uint64_t wb_gpu_addr;
 
 	m->sdmax_rlcx_rb_cntl =

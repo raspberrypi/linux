@@ -100,7 +100,7 @@ static bool kq_initialize(struct kernel_queue *kq, struct kfd_node *dev,
 		kq->eop_gpu_addr = kq->eop_mem->gpu_addr;
 		kq->eop_kernel_addr = kq->eop_mem->cpu_ptr;
 
-		memset(kq->eop_kernel_addr, 0, PAGE_SIZE);
+		memset_io(kq->eop_kernel_addr, 0, PAGE_SIZE);
 	}
 
 	retval = kfd_gtt_sa_allocate(dev, sizeof(*kq->rptr_kernel),
@@ -121,9 +121,9 @@ static bool kq_initialize(struct kernel_queue *kq, struct kfd_node *dev,
 	kq->wptr_kernel = kq->wptr_mem->cpu_ptr;
 	kq->wptr_gpu_addr = kq->wptr_mem->gpu_addr;
 
-	memset(kq->pq_kernel_addr, 0, queue_size);
-	memset(kq->rptr_kernel, 0, sizeof(*kq->rptr_kernel));
-	memset(kq->wptr_kernel, 0, dev->kfd->device_info.doorbell_size);
+	memset_io(kq->pq_kernel_addr, 0, queue_size);
+	memset_io(kq->rptr_kernel, 0, sizeof(*kq->rptr_kernel));
+	memset_io(kq->wptr_kernel, 0, dev->kfd->device_info.doorbell_size);
 
 	prop.queue_size = queue_size;
 	prop.is_interop = false;
@@ -230,8 +230,8 @@ int kq_acquire_packet_buffer(struct kernel_queue *kq,
 {
 	size_t available_size;
 	size_t queue_size_dwords;
-	uint32_t wptr, rptr;
-	uint64_t wptr64;
+	volatile uint32_t wptr, rptr;
+	volatile uint64_t wptr64;
 	unsigned int *queue_address;
 
 	/* When rptr == wptr, the buffer is empty.

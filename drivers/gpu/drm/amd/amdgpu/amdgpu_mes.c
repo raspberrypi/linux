@@ -240,7 +240,7 @@ int amdgpu_mes_create_process(struct amdgpu_device *adev, int pasid,
 		DRM_ERROR("failed to allocate process context bo\n");
 		goto clean_up_memory;
 	}
-	memset(process->proc_ctx_cpu_ptr, 0, AMDGPU_MES_PROC_CTX_SIZE);
+	memset_io(process->proc_ctx_cpu_ptr, 0, AMDGPU_MES_PROC_CTX_SIZE);
 
 	/*
 	 * Avoid taking any other locks under MES lock to avoid circular
@@ -364,7 +364,7 @@ int amdgpu_mes_add_gang(struct amdgpu_device *adev, int pasid,
 		DRM_ERROR("failed to allocate process context bo\n");
 		goto clean_up_mem;
 	}
-	memset(gang->gang_ctx_cpu_ptr, 0, AMDGPU_MES_GANG_CTX_SIZE);
+	memset_io(gang->gang_ctx_cpu_ptr, 0, AMDGPU_MES_GANG_CTX_SIZE);
 
 	/*
 	 * Avoid taking any other locks under MES lock to avoid circular
@@ -522,7 +522,7 @@ static int amdgpu_mes_queue_alloc_mqd(struct amdgpu_device *adev,
 		dev_warn(adev->dev, "failed to create queue mqd bo (%d)", r);
 		return r;
 	}
-	memset(q->mqd_cpu_ptr, 0, mqd_size);
+	memset_io(q->mqd_cpu_ptr, 0, mqd_size);
 
 	r = amdgpu_bo_reserve(q->mqd_obj, false);
 	if (unlikely(r != 0))
@@ -1129,7 +1129,7 @@ int amdgpu_mes_ctx_alloc_meta_data(struct amdgpu_device *adev,
 	if (!ctx_data->meta_data_obj)
 		return -ENOMEM;
 
-	memset(ctx_data->meta_data_ptr, 0,
+	memset_io(ctx_data->meta_data_ptr, 0,
 	       sizeof(struct amdgpu_mes_ctx_meta_data));
 
 	return 0;

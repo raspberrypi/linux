@@ -58,7 +58,7 @@ int amdgpu_sa_bo_manager_init(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memset(sa_manager->cpu_ptr, 0, size);
+	memset_io(sa_manager->cpu_ptr, 0, size);
 	drm_suballoc_manager_init(&sa_manager->base, size, suballoc_align);
 	return r;
 }

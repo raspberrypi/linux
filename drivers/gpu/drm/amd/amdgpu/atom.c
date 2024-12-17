@@ -57,7 +57,7 @@
 #define PLL_INDEX	2
 #define PLL_DATA	3
 
-#define ATOM_CMD_TIMEOUT_SEC	20
+#define ATOM_CMD_TIMEOUT_SEC	30
 
 typedef struct {
 	struct atom_context *ctx;

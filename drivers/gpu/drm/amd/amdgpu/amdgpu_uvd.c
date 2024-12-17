@@ -1196,7 +1196,7 @@ int amdgpu_uvd_get_create_msg(struct amdgpu_ring *ring, uint32_t handle,
 {
 	struct amdgpu_device *adev = ring->adev;
 	struct amdgpu_bo *bo = adev->uvd.ib_bo;
-	uint32_t *msg;
+	volatile uint32_t *msg;
 	int i;
 
 	msg = amdgpu_bo_kptr(bo);
@@ -1224,7 +1224,7 @@ int amdgpu_uvd_get_destroy_msg(struct amdgpu_ring *ring, uint32_t handle,
 {
 	struct amdgpu_device *adev = ring->adev;
 	struct amdgpu_bo *bo = NULL;
-	uint32_t *msg;
+	volatile uint32_t *msg;
 	int r, i;
 
 	if (direct) {

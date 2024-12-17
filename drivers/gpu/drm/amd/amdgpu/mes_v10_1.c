@@ -404,7 +404,7 @@ static int mes_v10_1_allocate_ucode_buffer(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memcpy(adev->mes.ucode_fw_ptr[pipe], fw_data, fw_size);
+	memcpy_toio(adev->mes.ucode_fw_ptr[pipe], fw_data, fw_size);
 
 	amdgpu_bo_kunmap(adev->mes.ucode_fw_obj[pipe]);
 	amdgpu_bo_unreserve(adev->mes.ucode_fw_obj[pipe]);
@@ -437,7 +437,7 @@ static int mes_v10_1_allocate_ucode_data_buffer(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memcpy(adev->mes.data_fw_ptr[pipe], fw_data, fw_size);
+	memcpy_toio(adev->mes.data_fw_ptr[pipe], fw_data, fw_size);
 
 	amdgpu_bo_kunmap(adev->mes.data_fw_obj[pipe]);
 	amdgpu_bo_unreserve(adev->mes.data_fw_obj[pipe]);
@@ -618,7 +618,7 @@ static int mes_v10_1_allocate_eop_buf(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memset(eop, 0, adev->mes.eop_gpu_obj[pipe]->tbo.base.size);
+	memset_io(eop, 0, adev->mes.eop_gpu_obj[pipe]->tbo.base.size);
 
 	amdgpu_bo_kunmap(adev->mes.eop_gpu_obj[pipe]);
 	amdgpu_bo_unreserve(adev->mes.eop_gpu_obj[pipe]);
@@ -628,11 +628,11 @@ static int mes_v10_1_allocate_eop_buf(struct amdgpu_device *adev,
 
 static int mes_v10_1_mqd_init(struct amdgpu_ring *ring)
 {
-	struct v10_compute_mqd *mqd = ring->mqd_ptr;
+	volatile struct v10_compute_mqd *mqd = ring->mqd_ptr;
 	uint64_t hqd_gpu_addr, wb_gpu_addr, eop_base_addr;
 	uint32_t tmp;
 
-	memset(mqd, 0, sizeof(*mqd));
+	memset_io(mqd, 0, sizeof(*mqd));
 
 	mqd->header = 0xC0310800;
 	mqd->compute_pipelinestat_enable = 0x00000001;
@@ -905,7 +905,7 @@ static int mes_v10_1_mqd_sw_init(struct amdgpu_device *adev,
 		dev_warn(adev->dev, "failed to create ring mqd bo (%d)", r);
 		return r;
 	}
-	memset(ring->mqd_ptr, 0, mqd_size);
+	memset_io(ring->mqd_ptr, 0, mqd_size);
 
 	/* prepare MQD backup */
 	adev->mes.mqd_backup[pipe] = kmalloc(mqd_size, GFP_KERNEL);

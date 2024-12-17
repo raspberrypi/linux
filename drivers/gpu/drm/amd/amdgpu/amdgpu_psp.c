@@ -633,9 +633,9 @@ psp_cmd_submit_buf(struct psp_context *psp,
 	if (psp->adev->no_hw_access)
 		return 0;
 
-	memset(psp->cmd_buf_mem, 0, PSP_CMD_BUFFER_SIZE);
+	memset_io(psp->cmd_buf_mem, 0, PSP_CMD_BUFFER_SIZE);
 
-	memcpy(psp->cmd_buf_mem, cmd, sizeof(struct psp_gfx_cmd_resp));
+	memcpy_toio(psp->cmd_buf_mem, cmd, sizeof(struct psp_gfx_cmd_resp));
 
 	index = atomic_inc_return(&psp->fence_value);
 	ret = psp_ring_cmd_submit(psp, psp->cmd_buf_mc_addr, fence_mc_addr, index);
@@ -664,7 +664,7 @@ psp_cmd_submit_buf(struct psp_context *psp,
 	skip_unsupport = (psp->cmd_buf_mem->resp.status == TEE_ERROR_NOT_SUPPORTED ||
 		psp->cmd_buf_mem->resp.status == PSP_ERR_UNKNOWN_COMMAND) && amdgpu_sriov_vf(psp->adev);
 
-	memcpy(&cmd->resp, &psp->cmd_buf_mem->resp, sizeof(struct psp_gfx_resp));
+	memcpy_fromio(&cmd->resp, &psp->cmd_buf_mem->resp, sizeof(struct psp_gfx_resp));
 
 	/* In some cases, psp response status is not 0 even there is no
 	 * problem while the command is submitted. Some version of PSP FW
@@ -992,8 +992,8 @@ static int psp_rl_load(struct amdgpu_device *adev)
 
 	cmd = acquire_psp_cmd_buf(psp);
 
-	memset(psp->fw_pri_buf, 0, PSP_1_MEG);
-	memcpy(psp->fw_pri_buf, psp->rl.start_addr, psp->rl.size_bytes);
+	memset_io(psp->fw_pri_buf, 0, PSP_1_MEG);
+	memcpy_toio(psp->fw_pri_buf, psp->rl.start_addr, psp->rl.size_bytes);
 
 	cmd->cmd_id = GFX_CMD_ID_LOAD_IP_FW;
 	cmd->cmd.cmd_load_ip_fw.fw_phy_addr_lo = lower_32_bits(psp->fw_pri_mc_addr);
@@ -2628,7 +2628,7 @@ static int psp_load_fw(struct amdgpu_device *adev)
 		/* should not destroy ring, only stop */
 		psp_ring_stop(psp, PSP_RING_TYPE__KM);
 	} else {
-		memset(psp->fence_buf, 0, PSP_FENCE_BUFFER_SIZE);
+		memset_io(psp->fence_buf, 0, PSP_FENCE_BUFFER_SIZE);
 
 		ret = psp_ring_init(psp, PSP_RING_TYPE__KM);
 		if (ret) {
@@ -2974,7 +2974,7 @@ int psp_ring_cmd_submit(struct psp_context *psp,
 	}
 
 	/* Initialize KM RB frame */
-	memset(write_frame, 0, sizeof(struct psp_gfx_rb_frame));
+	memset_io(write_frame, 0, sizeof(struct psp_gfx_rb_frame));
 
 	/* Update KM RB frame */
 	write_frame->cmd_buf_addr_hi = upper_32_bits(cmd_buf_mc_addr);
@@ -3574,8 +3574,8 @@ void psp_copy_fw(struct psp_context *psp, uint8_t *start_addr, uint32_t bin_size
 	if (!drm_dev_enter(adev_to_drm(psp->adev), &idx))
 		return;
 
-	memset(psp->fw_pri_buf, 0, PSP_1_MEG);
-	memcpy(psp->fw_pri_buf, start_addr, bin_size);
+	memset_io(psp->fw_pri_buf, 0, PSP_1_MEG);
+	memcpy_toio(psp->fw_pri_buf, start_addr, bin_size);
 
 	drm_dev_exit(idx);
 }

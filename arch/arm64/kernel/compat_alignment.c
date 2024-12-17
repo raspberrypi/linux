@@ -12,6 +12,8 @@
 #include <asm/ptrace.h>
 #include <asm/traps.h>
 
+
+
 /*
  * 32-bit misaligned trap handler (c) 1998 San Mehat (CCC) -July 1998
  *
@@ -318,7 +320,7 @@ int do_compat_alignment_fixup(unsigned long addr, struct pt_regs *regs)
 	int thumb2_32b = 0;
 
 	instrptr = instruction_pointer(regs);
-
+	printk("Alignment fixup\n");
 	if (compat_thumb_mode(regs)) {
 		__le16 __user *ptr = (__le16 __user *)(instrptr & ~1);
 		u16 tinstr, tinst2;

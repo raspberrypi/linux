@@ -962,7 +962,7 @@ static int amdgpu_ucode_init_single_fw(struct amdgpu_device *adev,
 			le32_to_cpu(header->ucode_array_offset_bytes);
 	}
 
-	memcpy(ucode->kaddr, ucode_addr, ucode->ucode_size);
+	memcpy_toio(ucode->kaddr, ucode_addr, ucode->ucode_size);
 
 	return 0;
 }
@@ -986,7 +986,7 @@ static int amdgpu_ucode_patch_jt(struct amdgpu_firmware_info *ucode,
 	src_addr = (uint8_t *)ucode->fw->data +
 			   le32_to_cpu(comm_hdr->ucode_array_offset_bytes) +
 			   (le32_to_cpu(header->jt_offset) * 4);
-	memcpy(dst_addr, src_addr, le32_to_cpu(header->jt_size) * 4);
+	memcpy_toio(dst_addr, src_addr, le32_to_cpu(header->jt_size) * 4);
 
 	return 0;
 }
@@ -1003,7 +1003,7 @@ int amdgpu_ucode_create_bo(struct amdgpu_device *adev)
 			dev_err(adev->dev, "failed to create kernel buffer for firmware.fw_buf\n");
 			return -ENOMEM;
 		} else if (amdgpu_sriov_vf(adev)) {
-			memset(adev->firmware.fw_buf_ptr, 0, adev->firmware.fw_size);
+			memset_io(adev->firmware.fw_buf_ptr, 0, adev->firmware.fw_size);
 		}
 	}
 	return 0;

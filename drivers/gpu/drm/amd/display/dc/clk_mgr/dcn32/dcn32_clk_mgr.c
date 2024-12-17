@@ -789,7 +789,7 @@ static void dcn32_notify_wm_ranges(struct clk_mgr *clk_mgr_base)
 	if (!table)
 		return;
 
-	memset(table, 0, sizeof(*table));
+	memset_io(table, 0, sizeof(*table));
 
 	/* collect valid ranges, place in pmfw table */
 	for (i = 0; i < WM_SET_COUNT; i++)

@@ -44,7 +44,7 @@ static inline struct v11_sdma_mqd *get_sdma_mqd(void *mqd)
 static void update_cu_mask(struct mqd_manager *mm, void *mqd,
 			   struct mqd_update_info *minfo)
 {
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 	uint32_t se_mask[KFD_MAX_NUM_SE] = {0};
 	bool has_wa_flag = minfo && (minfo->update_flag & (UPDATE_FLAG_DBG_WA_ENABLE |
 			UPDATE_FLAG_DBG_WA_DISABLE));
@@ -93,7 +93,7 @@ static void update_cu_mask(struct mqd_manager *mm, void *mqd,
 		m->compute_static_thread_mgmt_se7);
 }
 
-static void set_priority(struct v11_compute_mqd *m, struct queue_properties *q)
+static void set_priority(volatile struct v11_compute_mqd *m, struct queue_properties *q)
 {
 	m->cp_hqd_pipe_priority = pipe_priority_map[q->priority];
 	m->cp_hqd_queue_priority = q->priority;
@@ -125,7 +125,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 			struct queue_properties *q)
 {
 	uint64_t addr;
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 	int size;
 	uint32_t wa_mask = q->is_dbg_wa ? 0xffff : 0xffffffff;
 
@@ -137,7 +137,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 	else
 		size = sizeof(struct v11_compute_mqd);
 
-	memset(m, 0, size);
+	memset_io(m, 0, size);
 
 	m->header = 0xC0310800;
 	m->compute_pipelinestat_enable = 1;
@@ -193,10 +193,10 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 		m->cp_hqd_wg_state_offset = q->ctl_stack_size;
 	}
 
-	*mqd = m;
+	*mqd = (volatile void*) m;
 	if (gart_addr)
 		*gart_addr = addr;
-	mm->update_mqd(mm, m, q, NULL);
+	mm->update_mqd(mm, (volatile void*) m, q, NULL);
 }
 
 static int load_mqd(struct mqd_manager *mm, void *mqd,
@@ -217,7 +217,7 @@ static void update_mqd(struct mqd_manager *mm, void *mqd,
 		       struct queue_properties *q,
 		       struct mqd_update_info *minfo)
 {
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 
 	m = get_mqd(mqd);
 
@@ -280,7 +280,7 @@ static void update_mqd(struct mqd_manager *mm, void *mqd,
 
 static uint32_t read_doorbell_id(void *mqd)
 {
-	struct v11_compute_mqd *m = (struct v11_compute_mqd *)mqd;
+	volatile struct v11_compute_mqd *m = (struct v11_compute_mqd *)mqd;
 
 	return m->queue_doorbell_id0;
 }
@@ -291,7 +291,7 @@ static int get_wave_state(struct mqd_manager *mm, void *mqd,
 			  u32 *ctl_stack_used_size,
 			  u32 *save_area_used_size)
 {
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 	struct kfd_context_save_area_header header;
 
 	m = get_mqd(mqd);
@@ -324,11 +324,11 @@ static int get_wave_state(struct mqd_manager *mm, void *mqd,
 
 static void checkpoint_mqd(struct mqd_manager *mm, void *mqd, void *mqd_dst, void *ctl_stack_dst)
 {
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 
 	m = get_mqd(mqd);
 
-	memcpy(mqd_dst, m, sizeof(struct v11_compute_mqd));
+	memcpy_fromio(mqd_dst, m, sizeof(struct v11_compute_mqd));
 }
 
 static void restore_mqd(struct mqd_manager *mm, void **mqd,
@@ -338,14 +338,14 @@ static void restore_mqd(struct mqd_manager *mm, void **mqd,
 			const void *ctl_stack_src, const u32 ctl_stack_size)
 {
 	uint64_t addr;
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 
 	m = (struct v11_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
 
-	memcpy(m, mqd_src, sizeof(*m));
+	memcpy_toio(m, mqd_src, sizeof(*m));
 
-	*mqd = m;
+	*mqd = (void*)m;
 	if (gart_addr)
 		*gart_addr = addr;
 
@@ -363,7 +363,7 @@ static void init_mqd_hiq(struct mqd_manager *mm, void **mqd,
 			struct kfd_mem_obj *mqd_mem_obj, uint64_t *gart_addr,
 			struct queue_properties *q)
 {
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 
 	init_mqd(mm, mqd, mqd_mem_obj, gart_addr, q);
 
@@ -378,7 +378,7 @@ static int destroy_hiq_mqd(struct mqd_manager *mm, void *mqd,
 			uint32_t pipe_id, uint32_t queue_id)
 {
 	int err;
-	struct v11_compute_mqd *m;
+	volatile struct v11_compute_mqd *m;
 	u32 doorbell_off;
 
 	m = get_mqd(mqd);
@@ -407,7 +407,7 @@ static void init_mqd_sdma(struct mqd_manager *mm, void **mqd,
 	else
 		size = sizeof(struct v11_sdma_mqd);
 
-	memset(m, 0, size);
+	memset_io(m, 0, size);
 	*mqd = m;
 	if (gart_addr)
 		*gart_addr = mqd_mem_obj->gpu_addr;
