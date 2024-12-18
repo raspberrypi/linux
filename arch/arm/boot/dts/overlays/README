@@ -1454,7 +1454,8 @@ Name:   goodix
 Info:   Enables I2C connected Goodix gt9271 multiple touch controller using
         GPIOs 4 and 17 (pins 7 and 11 on GPIO header) for interrupt and reset.
 Load:   dtoverlay=goodix,<param>=<val>
-Params: interrupt               GPIO used for interrupt (default 4)
+Params: addr                    I2C address (default 0x14)
+        interrupt               GPIO used for interrupt (default 4)
         reset                   GPIO used for reset (default 17)
         i2c-path                Override I2C path to allow for i2c-gpio buses
 
