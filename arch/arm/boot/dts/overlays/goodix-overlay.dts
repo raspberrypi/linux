@@ -37,6 +37,7 @@
 	};
 
 	__overrides__ {
+		addr = <&gt9271>,"reg:0";
 		interrupt = <&goodix_pins>,"brcm,pins:0",
 			<&gt9271>,"interrupts:0",
 			<&gt9271>,"irq-gpios:4";
