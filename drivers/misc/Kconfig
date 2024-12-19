@@ -19,7 +19,7 @@ config BCM2835_SMI
 
 config RP1_PIO
 	tristate "Raspberry Pi RP1 PIO driver"
-	select FIRMWARE_RP1
+	depends on FIRMWARE_RP1 || COMPILE_TEST
 	default n
 	help
 		Driver providing control of the Raspberry Pi PIO block, as found in
