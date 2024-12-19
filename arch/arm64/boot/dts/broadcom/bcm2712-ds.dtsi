@@ -613,6 +613,11 @@
 	};
 };
 
+&gicv2 {
+	interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) |
+				 IRQ_TYPE_LEVEL_HIGH)>;
+};
+
 &aon_intr {
 	status = "disabled";
 };
