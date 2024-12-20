@@ -153,6 +153,12 @@ Params:
 
         noant                   Disable both antennas. CM4/5 only.
 
+        noanthogs               Disable the GPIO hogs on the antenna controls
+                                so they can be controlled at runtime. Note that
+                                using this parameter without suitable OS
+                                support will result in attenuated WiFi and
+                                Bluetooth signals. CM4/5 only.
+
         audio                   Set to "on" to enable the onboard ALSA audio
                                 interface (default "off")
 

@@ -493,6 +493,8 @@ i2c_csi_dsi0: &i2c0 {
 			<&ant1>, "output-low?=on",
 			<&ant2>, "output-high?=off",
 			<&ant2>, "output-low?=on";
+		noanthogs = <&ant1>,"status=disabled",
+			<&ant2>, "status=disabled";
 
 		pcie_tperst_clk_ms = <&pcie0>,"brcm,tperst-clk-ms:0";
 	};
