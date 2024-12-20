@@ -708,5 +708,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 			<&ant1>, "output-low?=on",
 			<&ant2>, "output-high?=off",
 			<&ant2>, "output-low?=on";
+		noanthogs = <&ant1>,"status=disabled",
+			<&ant2>, "status=disabled";
 	};
 };
