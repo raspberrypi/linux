@@ -52,6 +52,7 @@ body:
       - Raspberry Pi 4 Mod. B
       - Raspberry Pi 400
       - Raspberry Pi 5
+      - Raspberry Pi 500
       - Raspberry Pi CM1
       - Raspberry Pi CM3
       - Raspberry Pi CM3 Lite
@@ -59,6 +60,8 @@ body:
       - Raspberry Pi CM3+ Lite
       - Raspberry Pi CM4
       - Raspberry Pi CM4 Lite
+      - Raspberry Pi CM5
+      - Raspberry Pi CM5 Lite
       - Other
   validations:
     required: true
