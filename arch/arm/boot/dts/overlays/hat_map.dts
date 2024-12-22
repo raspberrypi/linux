@@ -1,6 +1,10 @@
 /dts-v1/;
 
 / {
+	ezsound-6x8iso {
+		uuid = [ cee22b81 4311 4869 892b 7ab597253648 ];
+		overlay = "ezsound-6x8iso";
+	};
 	hailo-8 {
 		product = "Raspberry Pi AI Hat, Model Hailo-8";
 		vendor = "Hailo Technologies";
