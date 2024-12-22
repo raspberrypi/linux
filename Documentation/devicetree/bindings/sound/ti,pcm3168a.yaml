@@ -58,6 +58,14 @@ properties:
   VCCDA2-supply:
     description: DAC power supply regulator 2 (+5V)
 
+  adc-force-cons:
+    description: Force ADC to operate in consumer mode. Useful if ADC and DAC
+      clock pins are tied together with DAC as producer.
+
+  dac-force-cons:
+    description: Force DAC to operate in consumer mode. Useful if ADC and DAC
+      clock pins are tied together with ADC as producer.
+
   ports:
     $ref: audio-graph-port.yaml#/definitions/port-base
     unevaluatedProperties: false
