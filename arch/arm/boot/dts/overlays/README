@@ -1317,6 +1317,12 @@ Params: interrupt               GPIO used for interrupt (default 4)
         swapxy                  Touchscreen swapped x y axis
 
 
+Name:   ezsound-6x8iso
+Info:   Overlay for the ezsound 6x8 isolated soundcard.
+Load:   dtoverlay=ezsound-6x8iso
+Params: <None>
+
+
 Name:   fbtft
 Info:   Overlay for SPI-connected displays using the fbtft drivers.
 
