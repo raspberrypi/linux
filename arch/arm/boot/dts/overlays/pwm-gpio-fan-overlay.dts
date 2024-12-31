@@ -3,18 +3,31 @@
  *
  * Optional parameters:
  *  - "fan_gpio"	BCM number of the pin driving the fan, default 18 (GPIO18)
- *  - "fan_temp0"	CPU temperature at which fan is started with low speed in millicelsius, default 55000 (55 °C)
- *  - "fan_temp1"	CPU temperature at which fan is switched to medium speed in millicelsius, default 60000  (60 °C)
- *  - "fan_temp2"	CPU temperature at which fan is switched to high speed in millicelsius, default 67500  (67.5 °C)
- *  - "fan_temp3"	CPU temperature at which fan is switched to max speed in millicelsius, default 75000  (75 °C)
- *  - "fan_temp0_hyst"	Temperature hysteris at which fan is stopped in millicelsius, default 5000 (resulting in 50 °C)
- *  - "fan_temp1_hyst"	Temperature hysteris at which fan is switched back to low speed in millicelsius, default 5000 (resulting in 55 °C)
- *  - "fan_temp2_hyst"	Temperature hysteris at which fan is switched back to medium speed in millicelsius, default 5000 (resulting in 62.5 °C)
- *  - "fan_temp3_hyst"	Temperature hysteris at which fan is switched back to high speed in millicelsius, default 5000 (resulting in 70 °C)
- *  - "fan_temp0_speed"	Fan speed for low cooling state in range 0 to 255, default 114 (45% PWM duty cycle)
- *  - "fan_temp1_speed"	Fan speed for medium cooling state in range 0 to 255, default 152 (60% PWM duty cycle)
- *  - "fan_temp2_speed"	Fan speed for high cooling state in range 0 to 255, default 204 (80% PWM duty cycle)
- *  - "fan_temp3_speed"	Fan speed for max cooling state in range 0 to 255, default 255 (100% PWM duty cycle)
+ *
+ *  - "fan_temp0"	CPU temperature at which fan is started with low speed in millicelsius,
+ *			default 55000 (55 °C)
+ *  - "fan_temp1"	CPU temperature at which fan is switched to medium speed in millicelsius,
+ *			default 60000  (60 °C)
+ *  - "fan_temp2"	CPU temperature at which fan is switched to high speed in millicelsius,
+ *			default 67500  (67.5 °C)
+ *  - "fan_temp3"	CPU temperature at which fan is switched to max speed in millicelsius,
+ *			default 75000  (75 °C)
+ *  - "fan_temp0_hyst"	Temperature hysteris at which fan is stopped in millicelsius,
+ *			default 5000 (resulting in 50 °C)
+ *  - "fan_temp1_hyst"	Temperature hysteris at which fan is switched back to low speed in millicelsius,
+ *			default 5000 (resulting in 55 °C)
+ *  - "fan_temp2_hyst"	Temperature hysteris at which fan is switched back to medium speed in millicelsius,
+ *			default 5000 (resulting in 62.5 °C)
+ *  - "fan_temp3_hyst"	Temperature hysteris at which fan is switched back to high speed in millicelsius,
+ *			default 5000 (resulting in 70 °C)
+ *  - "fan_temp0_speed"	Fan speed for low cooling state in range 0 to 255,
+ *			default 114 (45% PWM duty cycle)
+ *  - "fan_temp1_speed"	Fan speed for medium cooling state in range 0 to 255,
+ *			default 152 (60% PWM duty cycle)
+ *  - "fan_temp2_speed"	Fan speed for high cooling state in range 0 to 255,
+ *			default 204 (80% PWM duty cycle)
+ *  - "fan_temp3_speed"	Fan speed for max cooling state in range 0 to 255,
+ *			default 255 (100% PWM duty cycle)
  *
  * N.B.
  *  - Uses the software GPIO PWM kernel module instead of the Pis hardware PWMs (PWM0/PWM1).
@@ -74,7 +87,7 @@
 				cooling-min-state = <0>;
 				cooling-max-state = <4>;
 				/* PWM duty cycle values in a range from 0 to 255
-				   which correspond to thermal cooling states 0 to 4 */
+				 * which correspond to thermal cooling states 0 to 4 */
 				cooling-levels = <0 114 152 204 255>;
 			};
 		};
@@ -142,16 +155,16 @@
 					<&pwm_gpio_pins>,"brcm,pins:0";
 		fan_temp0 =		<&trip0>,"temperature:0";
 		fan_temp0_hyst =	<&trip0>,"hysteresis:0";
-		fan_temp0_speed = 	<&fan0>,"cooling-levels:4";
+		fan_temp0_speed =	<&fan0>,"cooling-levels:4";
 		fan_temp1 =		<&trip1>,"temperature:0";
 		fan_temp1_hyst =	<&trip1>,"hysteresis:0";
-		fan_temp1_speed = 	<&fan0>,"cooling-levels:8";
+		fan_temp1_speed =	<&fan0>,"cooling-levels:8";
 		fan_temp2 =		<&trip2>,"temperature:0";
 		fan_temp2_hyst =	<&trip2>,"hysteresis:0";
-		fan_temp2_speed = 	<&fan0>,"cooling-levels:12";
+		fan_temp2_speed =	<&fan0>,"cooling-levels:12";
 		fan_temp3 =		<&trip3>,"temperature:0";
 		fan_temp3_hyst =	<&trip3>,"hysteresis:0";
-		fan_temp3_speed = 	<&fan0>,"cooling-levels:16";
+		fan_temp3_speed =	<&fan0>,"cooling-levels:16";
 	};
-	
+
 };
