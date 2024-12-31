@@ -4035,6 +4035,7 @@ Info:   Configures the software PWM GPIO driver
 Load:   dtoverlay=pwm-gpio,<param>=<val>
 Params: gpio                    Output pin (default 4)
 
+
 Name:   pwm-gpio-fan
 Info:   Configure a GPIO connected PWM cooling fan controlled by the software-based GPIO PWM kernel module
 Load:   dtoverlay=pwm-gpio-fan,<param>=<val>
