@@ -4057,7 +4057,8 @@ Params: fan_gpio                BCM number of the pin driving the fan, default 1
                                 in millicelsius, default 5000 (resulting in 62.5 °C)
         fan_temp3_hyst          Temperature hysteris at which fan is switched back to high speed
                                 in millicelsius, default 5000 (resulting in 70 °C)
-        fan_temp0_speed         Fan speed for low cooling state in range 0 to 255, default 114 (45% PWM duty cycle)
+        fan_temp0_speed         Fan speed for low cooling state in range 0 to 255,
+                                default 114 (45% PWM duty cycle)
         fan_temp1_speed         Fan speed for medium cooling state in range 0 to 255,
                                 default 152 (60% PWM duty cycle)
         fan_temp2_speed         Fan speed for high cooling state in range 0 to 255,
