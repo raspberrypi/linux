@@ -4076,6 +4076,46 @@ Load:   dtoverlay=pwm-gpio,<param>=<val>
 Params: gpio                    Output pin (default 4)
 
 
+Name:   pwm-gpio-fan
+Info:   Configure a GPIO connected PWM cooling fan controlled by the
+        software-based GPIO PWM kernel module
+Load:   dtoverlay=pwm-gpio-fan,<param>=<val>
+Params: fan_gpio                BCM number of the pin driving the fan,
+                                default 18 (GPIO 18)
+        fan_temp0               CPU temperature at which fan is started with
+                                low speed in millicelsius,
+                                default 55000 (55 °C)
+        fan_temp1               CPU temperature at which fan is switched
+                                to medium speed in millicelsius,
+                                default 60000 (60 °C)
+        fan_temp2               CPU temperature at which fan is switched
+                                to high speed in millicelsius,
+                                default 67500 (67.5 °C)
+        fan_temp3               CPU temperature at which fan is switched
+                                to max speed in millicelsius,
+                                default 75000 (75 °C)
+        fan_temp0_hyst          Temperature hysteris at which fan is stopped
+                                in millicelsius,default 5000 (resulting
+                                in 50 °C)
+        fan_temp1_hyst          Temperature hysteris at which fan is switched
+                                back to low speed in millicelsius,
+                                default 5000 (resulting in 55 °C)
+        fan_temp2_hyst          Temperature hysteris at which fan is switched
+                                back to medium speed in millicelsius,
+                                default 5000 (resulting in 62.5 °C)
+        fan_temp3_hyst          Temperature hysteris at which fan is switched
+                                back to high speed in millicelsius,
+                                default 5000 (resulting in 70 °C)
+        fan_temp0_speed         Fan speed for low cooling state in range
+                                0 to 255, default 114 (45% PWM duty cycle)
+        fan_temp1_speed         Fan speed for medium cooling state in range
+                                0 to 255, default 152 (60% PWM duty cycle)
+        fan_temp2_speed         Fan speed for high cooling state in range
+                                0 to 255, default 204 (80% PWM duty cycle)
+        fan_temp3_speed         Fan speed for max cooling state in range
+                                0 to 255, default 255 (100% PWM duty cycle)
+
+
 Name:   pwm-ir-tx
 Info:   Use GPIO pin as pwm-assisted infrared transmitter output.
         This is an alternative to "gpio-ir-tx". pwm-ir-tx makes use

@@ -221,6 +221,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
 	pwm-gpio.dtbo \
+	pwm-gpio-fan.dtbo \
 	pwm-ir-tx.dtbo \
 	pwm-pio.dtbo \
 	pwm1.dtbo \
