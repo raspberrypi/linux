@@ -2897,6 +2897,37 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 450000000 (default), 453000000, 456000000.
 
 
+Name:   imx415
+Info:   Sony IMX415 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants. By default this uses 4 CSI2 data lanes, so requires a
+        Compute Module or Pi5.
+Load:   dtoverlay=imx415,<param>
+Params: addr                    Set I2C address of sensor. Valid values are
+                                0x10, 0x1a, 0x36 and 0x37. Default is 0x37.
+        4lane                   Enable 4 CSI2 data lanes.
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board.
+                                Valid values are 24, 27, 37.125, 72, or
+                                74.25MHz.
+                                The default is 24MHz.
+                                Note that the link frequencies permitted vary
+                                based on the oscillator used.
+        link-frequency          Confgures the link frequency to be used. Note
+                                that the permitted values vary based on
+                                clock-frequency and number of lanes.
+                                The default is 360MHz for 720Mbit/s.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Enable ad5398 VCM associated with the sensor.
+
+
 Name:   imx462
 Info:   Sony IMX462 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
