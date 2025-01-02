@@ -440,18 +440,18 @@ static const s64 imx290_link_freq_4lanes[] = {
  */
 static inline const s64 *imx290_link_freqs_ptr(const struct imx290 *imx290)
 {
-	if (imx290->nlanes == 2)
+//	if (imx290->nlanes == 2)
 		return imx290_link_freq_2lanes;
-	else
-		return imx290_link_freq_4lanes;
+//	else
+//		return imx290_link_freq_4lanes;
 }
 
 static inline int imx290_link_freqs_num(const struct imx290 *imx290)
 {
-	if (imx290->nlanes == 2)
+//	if (imx290->nlanes == 2)
 		return ARRAY_SIZE(imx290_link_freq_2lanes);
-	else
-		return ARRAY_SIZE(imx290_link_freq_4lanes);
+//	else
+//		return ARRAY_SIZE(imx290_link_freq_4lanes);
 }
 
 static const struct imx290_clk_cfg imx290_1080p_clock_config[] = {
@@ -579,14 +579,14 @@ static const struct imx290_format_info imx290_formats[] = {
 		.bpp = 10,
 		.regs = imx290_10bit_settings,
 		.num_regs = ARRAY_SIZE(imx290_10bit_settings),
-	}, {
+/*	}, {
 		.code = {
 			[IMX290_VARIANT_COLOUR] = MEDIA_BUS_FMT_SRGGB12_1X12,
 			[IMX290_VARIANT_MONO] = MEDIA_BUS_FMT_Y12_1X12
 		},
 		.bpp = 12,
 		.regs = imx290_12bit_settings,
-		.num_regs = ARRAY_SIZE(imx290_12bit_settings),
+		.num_regs = ARRAY_SIZE(imx290_12bit_settings), */
 	}
 };
 
@@ -649,7 +649,7 @@ static int imx290_set_data_lanes(struct imx290 *imx290)
 		  &ret);
 	cci_write(imx290->regmap, IMX290_CSI_LANE_MODE, imx290->nlanes - 1,
 		  &ret);
-	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, 0x01, &ret);
+	cci_write(imx290->regmap, IMX290_FR_FDG_SEL, imx290->nlanes == 4 ? 0x00 : 0x01, &ret);
 
 	return ret;
 }
@@ -739,7 +739,7 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 					     struct imx290, ctrls);
 	const struct v4l2_mbus_framefmt *format;
 	struct v4l2_subdev_state *state;
-	int ret = 0, vmax;
+	int ret = 0, vmax, hmax;
 
 	/*
 	 * Return immediately for controls that don't need to be applied to the
@@ -800,8 +800,11 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_HBLANK:
+		hmax = ctrl->val + imx290->current_mode->width;
+		if (imx290->nlanes == 4)
+			hmax >>= 1;
 		ret = cci_write(imx290->regmap, IMX290_HMAX,
-				ctrl->val + imx290->current_mode->width, NULL);
+				hmax, NULL);
 		break;
 
 	case V4L2_CID_HFLIP:
@@ -908,9 +911,14 @@ static int imx290_ctrl_init(struct imx290 *imx290)
 	if (imx290->link_freq)
 		imx290->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
-	v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops, V4L2_CID_PIXEL_RATE,
-			  IMX290_PIXEL_RATE, IMX290_PIXEL_RATE, 1,
-			  IMX290_PIXEL_RATE);
+	if (imx290->nlanes == 4)
+		v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops, V4L2_CID_PIXEL_RATE,
+				  IMX290_PIXEL_RATE << 1, IMX290_PIXEL_RATE << 1, 1,
+				  IMX290_PIXEL_RATE << 1);
+	else
+		v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops, V4L2_CID_PIXEL_RATE,
+				  IMX290_PIXEL_RATE, IMX290_PIXEL_RATE, 1,
+				  IMX290_PIXEL_RATE);
 
 	v4l2_ctrl_new_std_menu_items(&imx290->ctrls, &imx290_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
