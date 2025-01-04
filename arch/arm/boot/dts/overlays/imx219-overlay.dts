@@ -71,6 +71,22 @@
 		};
 	};
 
+	fragment@201 {
+		target = <&csi_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@202 {
+		target = <&cam_endpoint>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+			link-frequencies =
+					/bits/ 64 <363000000>;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&cam_node>,"rotation:0";
 		orientation = <&cam_node>,"orientation:0";
@@ -83,6 +99,7 @@
 		       <&vcm>, "VANA-supply:0=", <&cam0_reg>;
 		vcm = <&vcm>, "status=okay",
 		      <&cam_node>,"lens-focus:0=", <&vcm>;
+		4lane = <0>, "+201+202";
 	};
 };
 
