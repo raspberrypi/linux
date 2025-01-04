@@ -2795,6 +2795,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Configure a VCM focus drive on the sensor.
+        4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, 4, or 5) or Pi 5.
 
 
 Name:   imx258
