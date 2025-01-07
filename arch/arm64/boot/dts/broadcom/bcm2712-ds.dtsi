@@ -618,6 +618,10 @@
 				 IRQ_TYPE_LEVEL_HIGH)>;
 };
 
+&uart10 {
+	arm,primecell-periphid = <0x00341011>;
+};
+
 &aon_intr {
 	status = "disabled";
 };
