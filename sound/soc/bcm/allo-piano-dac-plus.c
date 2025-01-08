@@ -731,21 +731,6 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 	mutex_init(&glb_ptr->lock);
 
-	if (digital_gain_0db_limit) {
-		int ret;
-
-		//Set volume limit on both dacs
-		for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
-			char cname[256];
-
-			sprintf(cname, "%s %s", codec_ctl_pfx[i], codec_ctl_name[0]);
-			ret = snd_soc_limit_volume(card, cname, 207);
-			if (ret < 0)
-				dev_warn(card->dev, "Failed to set %s volume limit: %d\n",
-					 cname, ret);
-		}
-	}
-
 	// Remove codec controls
 	for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
 		for (j = 0; j < ARRAY_SIZE(codec_ctl_name); j++) {
@@ -753,10 +738,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 			sprintf(cname, "%s %s", codec_ctl_pfx[i], codec_ctl_name[j]);
 			kctl = snd_soc_card_get_kcontrol(card, cname);
-			if (!kctl) {
-				dev_err(rtd->card->dev, "Control %s not found\n",
-				       cname);
-			} else {
+			if (kctl) {
 				kctl->vd[0].access =
 					SNDRV_CTL_ELEM_ACCESS_READWRITE;
 				snd_ctl_remove(card->snd_card, kctl);
