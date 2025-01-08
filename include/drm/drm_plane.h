@@ -817,6 +817,11 @@ struct drm_plane {
 	 * See drm_plane_create_chroma_siting_properties().
 	 */
 	struct drm_property *chroma_siting_v_property;
+
+	/**
+	 * @kmsg_panic: Used to register a panic notifier for this plane
+	 */
+	struct kmsg_dumper kmsg_panic;
 };
 
 #define obj_to_plane(x) container_of(x, struct drm_plane, base)
