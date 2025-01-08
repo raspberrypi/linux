@@ -317,4 +317,9 @@ static inline int mmc_card_fixed_secure_erase_trim_time(const struct mmc_card *c
 	return c->quirks & MMC_QUIRK_FIXED_SECURE_ERASE_TRIM_TIME;
 }
 
+static inline int mmc_card_working_sd_cq(const struct mmc_card *c)
+{
+	return c->quirks & MMC_QUIRK_WORKING_SD_CQ;
+}
+
 #endif
