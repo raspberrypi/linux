@@ -734,18 +734,6 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	if (digital_gain_0db_limit) {
 		int ret;
 
-		ret = snd_soc_limit_volume(card, "Master Playback Volume",
-					207);
-		if (ret < 0)
-			dev_warn(card->dev, "Failed to set master volume limit: %d\n",
-				ret);
-
-		ret = snd_soc_limit_volume(card, "Subwoofer Playback Volume",
-					207);
-		if (ret < 0)
-			dev_warn(card->dev, "Failed to set subwoofer volume limit: %d\n",
-				ret);
-
 		//Set volume limit on both dacs
 		for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
 			char cname[256];
@@ -999,6 +987,20 @@ static int snd_allo_piano_dac_probe(struct platform_device *pdev)
 		ret = snd_soc_register_card(&snd_allo_piano_dac);
 		if (ret < 0)
 			return dev_err_probe(&pdev->dev, ret, "snd_soc_register_card() failed\n");
+
+		if (digital_gain_0db_limit) {
+			ret = snd_soc_limit_volume(card, "Master Playback Volume",
+						207);
+			if (ret < 0)
+				dev_warn(card->dev, "Failed to set master volume limit: %d\n",
+					ret);
+
+			ret = snd_soc_limit_volume(card, "Subwoofer Playback Volume",
+						207);
+			if (ret < 0)
+				dev_warn(card->dev, "Failed to set subwoofer volume limit: %d\n",
+					ret);
+		}
 
 		if ((mute_gpio[0]) && (mute_gpio[1]))
 			snd_allo_piano_gpio_mute(&snd_allo_piano_dac);
