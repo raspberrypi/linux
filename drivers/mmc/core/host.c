@@ -272,7 +272,7 @@ EXPORT_SYMBOL(mmc_of_parse_clk_phase);
 int mmc_of_parse(struct mmc_host *host)
 {
 	struct device *dev = host->parent;
-	u32 bus_width, drv_type, cd_debounce_delay_ms;
+	u32 bus_width, drv_type, cd_debounce_delay_ms, cq_allow;
 	int ret;
 
 	if (!dev || !dev_fwnode(dev))
@@ -406,6 +406,15 @@ int mmc_of_parse(struct mmc_host *host)
 	if (device_property_read_bool(dev, "no-mmc-hs400"))
 		host->caps2 &= ~(MMC_CAP2_HS400_1_8V | MMC_CAP2_HS400_1_2V |
 				 MMC_CAP2_HS400_ES);
+
+	cq_allow = 0;
+	/*
+	 * Downstream property - if a u32 and 2 instead of a bool,
+	 * trust most A2 SD cards claiming CQ support.
+	 */
+	device_property_read_u32(dev, "supports-cqe", &cq_allow);
+	if (cq_allow == 2)
+		host->caps2 |= MMC_CAP2_SD_CQE_PERMISSIVE;
 
 	/* Must be after "non-removable" check */
 	if (device_property_read_u32(dev, "fixed-emmc-driver-type", &drv_type) == 0) {
