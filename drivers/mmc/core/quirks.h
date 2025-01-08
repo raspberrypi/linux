@@ -66,6 +66,12 @@ static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 		   0, -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
 		   MMC_QUIRK_BROKEN_SD_CACHE, EXT_CSD_REV_ANY),
 
+	/* SD A2 allow-list - only trust CQ on these cards */
+	/* Raspberry Pi A2 cards */
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_LONGSYS_SD, 0x4c53, CID_YEAR_ANY, CID_MONTH_ANY,
+		   cid_rev(1, 0, 0, 0), -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_WORKING_SD_CQ, EXT_CSD_REV_ANY),
+
 	END_FIXUP
 };
 
