@@ -1501,8 +1501,8 @@ cont:
 			goto free_card;
 	}
 
-	/* Disallow command queueing on unvetted cards */
-	if (!mmc_card_working_sd_cq(card))
+	/* Disallow command queueing on unvetted cards unless overridden */
+	if (!(host->caps2 & MMC_CAP2_SD_CQE_PERMISSIVE) && !mmc_card_working_sd_cq(card))
 		card->ext_csd.cmdq_support = false;
 
 	/* Enable command queueing if supported */
