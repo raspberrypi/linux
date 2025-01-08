@@ -404,6 +404,7 @@ struct mmc_host {
 #define MMC_CAP2_CRYPTO		0
 #endif
 #define MMC_CAP2_ALT_GPT_TEGRA	(1 << 28)	/* Host with eMMC that has GPT entry at a non-standard location */
+#define MMC_CAP2_SD_CQE_PERMISSIVE	(1 << 31)	/* Ignore allow-list for CQ capable SD card detection */
 
 	int			fixed_drv_type;	/* fixed driver type for non-removable media */
 
