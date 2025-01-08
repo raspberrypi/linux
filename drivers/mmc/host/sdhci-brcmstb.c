@@ -571,7 +571,7 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	struct sdhci_pltfm_host *pltfm_host;
 	const struct of_device_id *match;
 	struct sdhci_brcmstb_priv *priv;
-	u32 actual_clock_mhz;
+	u32 actual_clock_mhz, cqe;
 	struct sdhci_host *host;
 	struct resource *iomem;
 	bool no_pinctrl = false;
@@ -600,7 +600,9 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	pltfm_host->clk = clk;
 
 	priv = sdhci_pltfm_priv(pltfm_host);
-	if (device_property_read_bool(&pdev->dev, "supports-cqe")) {
+	cqe = 0;
+	device_property_read_u32(&pdev->dev, "supports-cqe", &cqe);
+	if (cqe > 0) {
 		priv->flags |= BRCMSTB_PRIV_FLAGS_HAS_CQE;
 		match_priv->ops->irq = sdhci_brcmstb_cqhci_irq;
 	}
