@@ -2485,7 +2485,7 @@ static const struct dev_pm_ops cfe_pm_ops = {
 };
 
 static const struct of_device_id cfe_of_match[] = {
-	{ .compatible = "raspberrypi,rp1-cfe" },
+	{ .compatible = "raspberrypi,rp1-cfe-upstream" },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, cfe_of_match);
