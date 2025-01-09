@@ -159,42 +159,36 @@ struct rp1_firmware *rp1_firmware_get(struct device_node *client)
 	struct device_node *fwnode;
 	struct rp1_firmware *fw;
 
-	if (client) {
-		fwnode = of_parse_phandle(client, "firmware", 0);
-		if (!fwnode)
-			fwnode = of_get_parent(client);
-		if (fwnode && !of_device_is_compatible(fwnode, match)) {
-			of_node_put(fwnode);
-			fwnode = NULL;
-		}
+	if (!client)
+		return NULL;
+	fwnode = of_parse_phandle(client, "firmware", 0);
+	if (!fwnode)
+		return NULL;
+	if (!of_device_is_compatible(fwnode, match)) {
+		of_node_put(fwnode);
+		return NULL;
 	}
-
-	if (!fwnode)
-		fwnode = of_find_matching_node(NULL, rp1_firmware_of_match);
-
-	if (!fwnode)
-		return ERR_PTR(-ENOENT);
 
 	pdev = of_find_device_by_node(fwnode);
 	of_node_put(fwnode);
 
 	if (!pdev)
-		return ERR_PTR(-EPROBE_DEFER);
+		goto err_exit;
 
 	fw = platform_get_drvdata(pdev);
 	if (!fw)
-		goto err_defer;
+		goto err_exit;
 
 	if (!kref_get_unless_zero(&fw->consumers))
-		goto err_defer;
+		goto err_exit;
 
 	put_device(&pdev->dev);
 
 	return fw;
 
-err_defer:
+err_exit:
 	put_device(&pdev->dev);
-	return ERR_PTR(-EPROBE_DEFER);
+	return NULL;
 }
 EXPORT_SYMBOL_GPL(rp1_firmware_get);
 
@@ -210,8 +204,8 @@ struct rp1_firmware *devm_rp1_firmware_get(struct device *dev, struct device_nod
 	int ret;
 
 	fw = rp1_firmware_get(client);
-	if (IS_ERR(fw))
-		return fw;
+	if (!fw)
+		return NULL;
 
 	ret = devm_add_action_or_reset(dev, devm_rp1_firmware_put, fw);
 	if (ret)
