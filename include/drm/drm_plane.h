@@ -801,6 +801,11 @@ struct drm_plane {
 	struct drm_property *hotspot_y_property;
 
 	/**
+	 * @kmsg_panic: Used to register a panic notifier for this plane
+	 */
+	struct kmsg_dumper kmsg_panic;
+
+	/**
 	 * @chroma_siting_h_property:
 	 *
 	 * Optional "CHROMA_SITING_H" property for specifying
