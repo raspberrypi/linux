@@ -1014,6 +1014,9 @@ struct rp1_pio_client *rp1_pio_open(void)
 {
 	struct rp1_pio_client *client;
 
+	if (!g_pio)
+		return ERR_PTR(-ENOENT);
+
 	client = kzalloc(sizeof(*client), GFP_KERNEL);
 	if (!client)
 		return ERR_PTR(-ENOMEM);
@@ -1265,9 +1268,8 @@ static int rp1_pio_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, pdev->id, "alias is missing\n");
 
 	fw = devm_rp1_firmware_get(dev, dev->of_node);
-	if (IS_ERR(fw))
-		return PTR_ERR(fw);
-
+	if (IS_ERR_OR_NULL(fw))
+		return dev_err_probe(dev, -ENOENT, "failed to contact RP1 firmware\n");
 	ret = rp1_firmware_get_feature(fw, FOURCC_PIO, &op_base, &op_count);
 	if (ret < 0)
 		return ret;
