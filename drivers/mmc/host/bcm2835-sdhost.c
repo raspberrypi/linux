@@ -1971,7 +1971,7 @@ static int bcm2835_sdhost_add_host(struct platform_device *pdev)
 	}
 
 	mmc->max_segs = 128;
-	mmc->max_req_size = 524288;
+	mmc->max_req_size = min_t(size_t, 524288, dma_max_mapping_size(&pdev->dev));
 	mmc->max_seg_size = mmc->max_req_size;
 	mmc->max_blk_size = 512;
 	mmc->max_blk_count =  65535;
