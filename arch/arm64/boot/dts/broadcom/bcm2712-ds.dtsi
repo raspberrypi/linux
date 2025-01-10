@@ -586,7 +586,7 @@
 		clocks = <&clk_emmc2>;
 		sdhci-caps-mask = <0x0000C000 0x0>;
 		sdhci-caps = <0x0 0x0>;
-		supports-cqe;
+		supports-cqe = <1>;
 		mmc-ddr-3_3v;
 		status = "disabled";
 	};
