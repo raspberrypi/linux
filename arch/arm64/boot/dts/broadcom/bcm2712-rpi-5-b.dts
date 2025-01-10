@@ -322,7 +322,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	sd-uhs-sdr50;
 	sd-uhs-ddr50;
 	sd-uhs-sdr104;
-	supports-cqe;
+	supports-cqe = <1>;
 	cd-gpios = <&gio_aon 5 GPIO_ACTIVE_LOW>;
 	//no-1-8-v;
 	status = "okay";
@@ -703,7 +703,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 
 / {
 	__overrides__ {
-		sd_cqe = <&sdio1>, "supports-cqe?";
+		sd_cqe = <&sdio1>, "supports-cqe:0";
 	};
 };
 
