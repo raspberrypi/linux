@@ -125,9 +125,9 @@ v3d_lookup_bos(struct drm_device *dev,
 }
 
 static void
-v3d_job_free(struct kref *ref)
+v3d_job_free_common(struct v3d_job *job,
+		    bool is_gpu_job)
 {
-	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
 	struct v3d_dev *v3d = job->v3d;
 	int i;
 
@@ -140,12 +140,29 @@ v3d_job_free(struct kref *ref)
 	dma_fence_put(job->irq_fence);
 	dma_fence_put(job->done_fence);
 
-	v3d_clock_up_put(v3d);
+	if (is_gpu_job)
+		v3d_clock_up_put(v3d);
 
 	if (job->perfmon)
 		v3d_perfmon_put(job->perfmon);
 
 	kfree(job);
+}
+
+static void
+v3d_job_free(struct kref *ref)
+{
+	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+
+	v3d_job_free_common(job, true);
+}
+
+static void
+v3d_cpu_job_free(struct kref *ref)
+{
+	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+
+	v3d_job_free_common(job, false);
 }
 
 static void
@@ -242,8 +259,9 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 		if (ret && ret != -ENOENT)
 			goto fail_deps;
 	}
+	if (queue != V3D_CPU)
+		v3d_clock_up_get(v3d);
 
-	v3d_clock_up_get(v3d);
 	kref_init(&job->refcount);
 
 	return 0;
@@ -1350,7 +1368,7 @@ v3d_submit_cpu_ioctl(struct drm_device *dev, void *data,
 	trace_v3d_submit_cpu_ioctl(&v3d->drm, cpu_job->job_type);
 
 	ret = v3d_job_init(v3d, file_priv, &cpu_job->base,
-			   v3d_job_free, 0, &se, V3D_CPU);
+			   v3d_cpu_job_free, 0, &se, V3D_CPU);
 	if (ret) {
 		v3d_job_deallocate((void *)&cpu_job);
 		goto fail;
