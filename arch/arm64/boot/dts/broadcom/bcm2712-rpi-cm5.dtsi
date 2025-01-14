@@ -426,10 +426,6 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	};
 };
 
-&rpivid {
-	status = "okay";
-};
-
 &pinctrl {
 	spi10_gpio2: spi10_gpio2 {
 		function = "vc_spi0";
