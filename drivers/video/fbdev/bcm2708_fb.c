@@ -790,12 +790,6 @@ static int bcm2708_compat_ioctl(struct fb_info *info, unsigned int cmd,
 }
 #endif
 
-static void bcm2708_fb_fillrect(struct fb_info *info,
-				const struct fb_fillrect *rect)
-{
-	cfb_fillrect(info, rect);
-}
-
 /* A helper function for configuring dma control block */
 static void set_dma_cb(struct bcm2708_dma_cb *cb,
 		int        burst_size,
@@ -947,12 +941,6 @@ static void bcm2708_fb_copyarea(struct fb_info *info,
 	mutex_unlock(&fbdev->dma_mutex);
 }
 
-static void bcm2708_fb_imageblit(struct fb_info *info,
-				 const struct fb_image *image)
-{
-	cfb_imageblit(info, image);
-}
-
 static irqreturn_t bcm2708_fb_dma_irq(int irq, void *cxt)
 {
 	struct bcm2708_fb_dev *fbdev = cxt;
@@ -973,18 +961,20 @@ static irqreturn_t bcm2708_fb_dma_irq(int irq, void *cxt)
 
 static struct fb_ops bcm2708_fb_ops = {
 	.owner = THIS_MODULE,
+	__FB_DEFAULT_IOMEM_OPS_RDWR,
 	.fb_check_var = bcm2708_fb_check_var,
 	.fb_set_par = bcm2708_fb_set_par,
 	.fb_setcolreg = bcm2708_fb_setcolreg,
 	.fb_blank = bcm2708_fb_blank,
-	.fb_fillrect = bcm2708_fb_fillrect,
+	.fb_fillrect = cfb_fillrect,
 	.fb_copyarea = bcm2708_fb_copyarea,
-	.fb_imageblit = bcm2708_fb_imageblit,
+	.fb_imageblit = cfb_imageblit,
 	.fb_pan_display = bcm2708_fb_pan_display,
 	.fb_ioctl = bcm2708_ioctl,
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl = bcm2708_compat_ioctl,
 #endif
+	__FB_DEFAULT_IOMEM_OPS_MMAP,
 };
 
 static int bcm2708_fb_register(struct bcm2708_fb *fb)
