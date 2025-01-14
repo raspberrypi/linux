@@ -65,9 +65,7 @@ config FB_BCM2708
 	tristate "BCM2708 framebuffer support"
 	depends on FB && RASPBERRYPI_FIRMWARE
 	select FB_DEVICE
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
+	select FB_IOMEM_HELPERS
 	help
 	  This framebuffer device driver is for the BCM2708 framebuffer.
 
