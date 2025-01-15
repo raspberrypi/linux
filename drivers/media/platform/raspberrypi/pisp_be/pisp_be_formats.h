@@ -129,6 +129,16 @@ static const struct pisp_be_format supported_formats[] = {
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
 		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
+	{
+		.fourcc		    = V4L2_PIX_FMT_YUV422P,
+		/* 128 alignment to ensure U/V planes are 64 byte aligned. */
+		.align		    = 128,
+		.bit_depth	    = 8,
+		.plane_factor	    = { P3(1), P3(0.5), P3(0.5) },
+		.num_planes	    = 1,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
+	},
 	/* Multiplane YUV formats */
 	{
 		.fourcc		    = V4L2_PIX_FMT_YUV420M,
