@@ -29,6 +29,15 @@ int hevc_d_v4l2_debug;
 module_param_named(debug, hevc_d_v4l2_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level 0-2");
 
+/*
+ * Default /dev/videoN node number.
+ * Deliberately avoid the very low numbers as these are often taken by webcams
+ * etc, and simple apps tend to only go for /dev/video0.
+ */
+static int video_nr = 19;
+module_param(video_nr, int, 0644);
+MODULE_PARM_DESC(video_nr, "decoder video device number");
+
 static const struct v4l2_ctrl_config hevc_d_ctrls[] = {
 	{
 		.id	= V4L2_CID_STATELESS_HEVC_SPS,
@@ -252,7 +261,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 	dev->mdev.ops = &hevc_d_m2m_media_ops;
 	dev->v4l2_dev.mdev = &dev->mdev;
 
-	ret = video_register_device(vfd, VFL_TYPE_VIDEO, -1);
+	ret = video_register_device(vfd, VFL_TYPE_VIDEO, video_nr);
 	if (ret) {
 		v4l2_err(&dev->v4l2_dev, "Failed to register video device\n");
 		goto err_m2m;
