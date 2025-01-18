@@ -345,7 +345,7 @@ mei_csi_get_pad_format(struct v4l2_subdev *sd,
 
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_format(sd, sd_state, pad);
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &csi->format_mbus[pad];
 	default:
@@ -353,8 +353,8 @@ mei_csi_get_pad_format(struct v4l2_subdev *sd,
 	}
 }
 
-static int mei_csi_init_cfg(struct v4l2_subdev *sd,
-			    struct v4l2_subdev_state *sd_state)
+static int mei_csi_init_state(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_state *sd_state)
 {
 	struct v4l2_mbus_framefmt *mbusformat;
 	struct mei_csi *csi = sd_to_csi(sd);
@@ -363,7 +363,7 @@ static int mei_csi_init_cfg(struct v4l2_subdev *sd,
 	mutex_lock(&csi->lock);
 
 	for (i = 0; i < sd->entity.num_pads; i++) {
-		mbusformat = v4l2_subdev_get_try_format(sd, sd_state, i);
+		mbusformat = v4l2_subdev_state_get_format(sd_state, i);
 		*mbusformat = mei_csi_format_mbus_default;
 	}
 
@@ -561,7 +561,6 @@ static const struct v4l2_subdev_video_ops mei_csi_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops mei_csi_pad_ops = {
-	.init_cfg = mei_csi_init_cfg,
 	.get_fmt = mei_csi_get_fmt,
 	.set_fmt = mei_csi_set_fmt,
 };
@@ -569,6 +568,10 @@ static const struct v4l2_subdev_pad_ops mei_csi_pad_ops = {
 static const struct v4l2_subdev_ops mei_csi_subdev_ops = {
 	.video = &mei_csi_video_ops,
 	.pad = &mei_csi_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops mei_csi_internal_ops = {
+	.init_state = mei_csi_init_state,
 };
 
 static const struct media_entity_operations mei_csi_entity_ops = {
@@ -737,6 +740,7 @@ static int mei_csi_probe(struct mei_cl_device *cldev,
 
 	csi->subdev.dev = &cldev->dev;
 	v4l2_subdev_init(&csi->subdev, &mei_csi_subdev_ops);
+	csi->subdev.internal_ops = &mei_csi_internal_ops;
 	v4l2_set_subdevdata(&csi->subdev, csi);
 	csi->subdev.flags = V4L2_SUBDEV_FL_HAS_DEVNODE |
 			    V4L2_SUBDEV_FL_HAS_EVENTS;

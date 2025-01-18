@@ -433,9 +433,7 @@ struct ov772x_priv {
 	struct mutex			  lock;
 	int				  power_count;
 	int				  streaming;
-#ifdef CONFIG_MEDIA_CONTROLLER
 	struct media_pad pad;
-#endif
 	enum v4l2_mbus_type		  bus_type;
 };
 
@@ -1222,7 +1220,7 @@ static int ov772x_set_fmt(struct v4l2_subdev *sd,
 	mf->xfer_func = V4L2_XFER_FUNC_DEFAULT;
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
-		sd_state->pads->try_fmt = *mf;
+		*v4l2_subdev_state_get_format(sd_state, 0) = *mf;
 		return 0;
 	}
 
@@ -1488,13 +1486,11 @@ static int ov772x_probe(struct i2c_client *client)
 	if (ret < 0)
 		goto error_gpio_put;
 
-#ifdef CONFIG_MEDIA_CONTROLLER
 	priv->pad.flags = MEDIA_PAD_FL_SOURCE;
 	priv->subdev.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 	ret = media_entity_pads_init(&priv->subdev.entity, 1, &priv->pad);
 	if (ret < 0)
 		goto error_gpio_put;
-#endif
 
 	priv->cfmt = &ov772x_cfmts[0];
 	priv->win = &ov772x_win_sizes[0];

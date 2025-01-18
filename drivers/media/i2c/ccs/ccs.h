@@ -182,9 +182,6 @@ struct ccs_binning_subtype {
 struct ccs_subdev {
 	struct v4l2_subdev sd;
 	struct media_pad pads[CCS_PADS];
-	struct v4l2_rect sink_fmt;
-	struct v4l2_rect crop[CCS_PADS];
-	struct v4l2_rect compose; /* compose on sink */
 	unsigned short sink_pad;
 	unsigned short source_pad;
 	int npads;
@@ -220,6 +217,7 @@ struct ccs_sensor {
 	u32 mbus_frame_fmts;
 	const struct ccs_csi_data_format *csi_format;
 	const struct ccs_csi_data_format *internal_csi_format;
+	struct v4l2_rect pa_src, scaler_sink, src_src;
 	u32 default_mbus_frame_fmts;
 	int default_pixel_order;
 	struct ccs_data_container sdata, mdata;
@@ -238,6 +236,7 @@ struct ccs_sensor {
 
 	bool streaming;
 	bool dev_init_done;
+	bool handler_setup_needed;
 	u8 compressed_min_bpp;
 
 	struct ccs_module_info minfo;

@@ -121,9 +121,7 @@ struct mt9v111_dev {
 	u8 addr_space;
 
 	struct v4l2_subdev sd;
-#if IS_ENABLED(CONFIG_MEDIA_CONTROLLER)
 	struct media_pad pad;
-#endif
 
 	struct v4l2_ctrl *auto_awb;
 	struct v4l2_ctrl *auto_exp;
@@ -797,11 +795,7 @@ static struct v4l2_mbus_framefmt *__mt9v111_get_pad_format(
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-#if IS_ENABLED(CONFIG_VIDEO_V4L2_SUBDEV_API)
-		return v4l2_subdev_get_try_format(&mt9v111->sd, sd_state, pad);
-#else
-		return &sd_state->pads->try_fmt;
-#endif
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &mt9v111->fmt;
 	default:
@@ -954,10 +948,10 @@ done:
 	return 0;
 }
 
-static int mt9v111_init_cfg(struct v4l2_subdev *subdev,
-			    struct v4l2_subdev_state *sd_state)
+static int mt9v111_init_state(struct v4l2_subdev *subdev,
+			      struct v4l2_subdev_state *sd_state)
 {
-	sd_state->pads->try_fmt = mt9v111_def_fmt;
+	*v4l2_subdev_state_get_format(sd_state, 0) = mt9v111_def_fmt;
 
 	return 0;
 }
@@ -973,7 +967,6 @@ static const struct v4l2_subdev_video_ops mt9v111_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops mt9v111_pad_ops = {
-	.init_cfg		= mt9v111_init_cfg,
 	.enum_mbus_code		= mt9v111_enum_mbus_code,
 	.enum_frame_size	= mt9v111_enum_frame_size,
 	.enum_frame_interval	= mt9v111_enum_frame_interval,
@@ -987,11 +980,13 @@ static const struct v4l2_subdev_ops mt9v111_ops = {
 	.pad	= &mt9v111_pad_ops,
 };
 
-#if IS_ENABLED(CONFIG_MEDIA_CONTROLLER)
+static const struct v4l2_subdev_internal_ops mt9v111_internal_ops = {
+	.init_state		= mt9v111_init_state,
+};
+
 static const struct media_entity_operations mt9v111_subdev_entity_ops = {
 	.link_validate = v4l2_subdev_link_validate,
 };
-#endif
 
 /* --- V4L2 ctrl --- */
 static int mt9v111_s_ctrl(struct v4l2_ctrl *ctrl)
@@ -1202,8 +1197,8 @@ static int mt9v111_probe(struct i2c_client *client)
 	mt9v111->pending	= true;
 
 	v4l2_i2c_subdev_init(&mt9v111->sd, client, &mt9v111_ops);
+	mt9v111->sd.internal_ops = &mt9v111_internal_ops;
 
-#if IS_ENABLED(CONFIG_MEDIA_CONTROLLER)
 	mt9v111->sd.flags	|= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	mt9v111->sd.entity.ops	= &mt9v111_subdev_entity_ops;
 	mt9v111->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
@@ -1212,7 +1207,6 @@ static int mt9v111_probe(struct i2c_client *client)
 	ret = media_entity_pads_init(&mt9v111->sd.entity, 1, &mt9v111->pad);
 	if (ret)
 		goto error_free_entity;
-#endif
 
 	ret = mt9v111_chip_probe(mt9v111);
 	if (ret)
@@ -1225,9 +1219,7 @@ static int mt9v111_probe(struct i2c_client *client)
 	return 0;
 
 error_free_entity:
-#if IS_ENABLED(CONFIG_MEDIA_CONTROLLER)
 	media_entity_cleanup(&mt9v111->sd.entity);
-#endif
 
 error_free_ctrls:
 	v4l2_ctrl_handler_free(&mt9v111->ctrls);
@@ -1245,9 +1237,7 @@ static void mt9v111_remove(struct i2c_client *client)
 
 	v4l2_async_unregister_subdev(sd);
 
-#if IS_ENABLED(CONFIG_MEDIA_CONTROLLER)
 	media_entity_cleanup(&sd->entity);
-#endif
 
 	v4l2_ctrl_handler_free(&mt9v111->ctrls);
 

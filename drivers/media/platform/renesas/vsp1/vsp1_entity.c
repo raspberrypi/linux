@@ -128,6 +128,35 @@ vsp1_entity_get_pad_config(struct vsp1_entity *entity,
 	}
 }
 
+/*
+ * vsp1_entity_init_state - Initialize formats on all pads
+ * @subdev: V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ *
+ * Initialize all pad formats with default values in the given pad config. This
+ * function can be used as a handler for the subdev internal_ops::init_state
+ * operation.
+ */
+static int vsp1_entity_init_state(struct v4l2_subdev *subdev,
+				  struct v4l2_subdev_state *sd_state)
+{
+	unsigned int pad;
+
+	/* Initialize all pad formats with default values. */
+	for (pad = 0; pad < subdev->entity.num_pads - 1; ++pad) {
+		struct v4l2_subdev_format format = {
+			.pad = pad,
+			.which = sd_state ? V4L2_SUBDEV_FORMAT_TRY
+			       : V4L2_SUBDEV_FORMAT_ACTIVE,
+		};
+
+		v4l2_subdev_call(subdev, pad, set_fmt, sd_state, &format);
+	}
+
+	return 0;
+}
+
+
 /**
  * vsp1_entity_get_pad_format - Get a pad format from storage for an entity
  * @entity: the entity
@@ -142,7 +171,7 @@ vsp1_entity_get_pad_format(struct vsp1_entity *entity,
 			   struct v4l2_subdev_state *sd_state,
 			   unsigned int pad)
 {
-	return v4l2_subdev_get_try_format(&entity->subdev, sd_state, pad);
+	return v4l2_subdev_state_get_format(sd_state, pad);
 }
 
 /**
@@ -163,40 +192,12 @@ vsp1_entity_get_pad_selection(struct vsp1_entity *entity,
 {
 	switch (target) {
 	case V4L2_SEL_TGT_COMPOSE:
-		return v4l2_subdev_get_try_compose(&entity->subdev, sd_state,
-						   pad);
+		return v4l2_subdev_state_get_compose(sd_state, pad);
 	case V4L2_SEL_TGT_CROP:
-		return v4l2_subdev_get_try_crop(&entity->subdev, sd_state,
-						pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	default:
 		return NULL;
 	}
-}
-
-/*
- * vsp1_entity_init_cfg - Initialize formats on all pads
- * @subdev: V4L2 subdevice
- * @cfg: V4L2 subdev pad configuration
- *
- * Initialize all pad formats with default values in the given pad config. This
- * function can be used as a handler for the subdev pad::init_cfg operation.
- */
-int vsp1_entity_init_cfg(struct v4l2_subdev *subdev,
-			 struct v4l2_subdev_state *sd_state)
-{
-	unsigned int pad;
-
-	for (pad = 0; pad < subdev->entity.num_pads - 1; ++pad) {
-		struct v4l2_subdev_format format = {
-			.pad = pad,
-			.which = sd_state ? V4L2_SUBDEV_FORMAT_TRY
-			       : V4L2_SUBDEV_FORMAT_ACTIVE,
-		};
-
-		v4l2_subdev_call(subdev, pad, set_fmt, sd_state, &format);
-	}
-
-	return 0;
 }
 
 /*
@@ -426,6 +427,10 @@ done:
 	mutex_unlock(&entity->lock);
 	return ret;
 }
+
+static const struct v4l2_subdev_internal_ops vsp1_entity_internal_ops = {
+	.init_state = vsp1_entity_init_state,
+};
 
 /* -----------------------------------------------------------------------------
  * Media Operations
@@ -661,6 +666,7 @@ int vsp1_entity_init(struct vsp1_device *vsp1, struct vsp1_entity *entity,
 	/* Initialize the V4L2 subdev. */
 	subdev = &entity->subdev;
 	v4l2_subdev_init(subdev, ops);
+	subdev->internal_ops = &vsp1_entity_internal_ops;
 
 	subdev->entity.function = function;
 	subdev->entity.ops = &vsp1->media_ops;
@@ -669,7 +675,7 @@ int vsp1_entity_init(struct vsp1_device *vsp1, struct vsp1_entity *entity,
 	snprintf(subdev->name, sizeof(subdev->name), "%s %s",
 		 dev_name(vsp1->dev), name);
 
-	vsp1_entity_init_cfg(subdev, NULL);
+	vsp1_entity_init_state(subdev, NULL);
 
 	/*
 	 * Allocate the pad configuration to store formats and selection

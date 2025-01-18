@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * PiSP Front End driver.
- * Copyright (c) 2021 Raspberry Pi Ltd.
+ * PiSP Front End Driver
  *
+ * Copyright (c) 2021-2024 Raspberry Pi Ltd.
  */
 #ifndef _PISP_FE_H_
 #define _PISP_FE_H_
@@ -16,7 +16,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "pisp_fe_config.h"
+#include <linux/media/raspberrypi/pisp_fe_config.h>
 
 enum pisp_fe_pads {
 	FE_STREAM_PAD,

@@ -1,14 +1,15 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * RP1 CFE driver.
- * Copyright (c) 2021 Raspberry Pi Ltd.
+ * RP1 CFE Driver
  *
+ * Copyright (c) 2021-2024 Raspberry Pi Ltd.
+ * Copyright (c) 2023-2024 Ideas on Board Oy
  */
 #ifndef _RP1_CFE_
 #define _RP1_CFE_
 
-#include <linux/types.h>
 #include <linux/media-bus-format.h>
+#include <linux/types.h>
 #include <linux/videodev2.h>
 
 extern bool cfe_debug_verbose;
@@ -33,7 +34,6 @@ struct cfe_fmt {
 };
 
 extern const struct v4l2_mbus_framefmt cfe_default_format;
-extern const struct v4l2_mbus_framefmt cfe_default_meta_format;
 
 const struct cfe_fmt *find_format_by_code(u32 code);
 const struct cfe_fmt *find_format_by_pix(u32 pixelformat);

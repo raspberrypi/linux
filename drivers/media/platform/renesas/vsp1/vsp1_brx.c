@@ -100,7 +100,7 @@ static struct v4l2_rect *brx_get_compose(struct vsp1_brx *brx,
 					 struct v4l2_subdev_state *sd_state,
 					 unsigned int pad)
 {
-	return v4l2_subdev_get_try_compose(&brx->entity.subdev, sd_state, pad);
+	return v4l2_subdev_state_get_compose(sd_state, pad);
 }
 
 static void brx_try_format(struct vsp1_brx *brx,
@@ -266,7 +266,6 @@ done:
 }
 
 static const struct v4l2_subdev_pad_ops brx_pad_ops = {
-	.init_cfg = vsp1_entity_init_cfg,
 	.enum_mbus_code = brx_enum_mbus_code,
 	.enum_frame_size = brx_enum_frame_size,
 	.get_fmt = vsp1_subdev_get_pad_format,

@@ -3052,17 +3052,17 @@ static void ov64a40_update_pad_fmt(struct ov64a40 *ov64a40,
 	fmt->ycbcr_enc = V4L2_YCBCR_ENC_601;
 }
 
-static int ov64a40_init_cfg(struct v4l2_subdev *sd,
-			    struct v4l2_subdev_state *state)
+static int ov64a40_init_state(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_state *state)
 {
 	struct ov64a40 *ov64a40 = sd_to_ov64a40(sd);
 	struct v4l2_mbus_framefmt *format;
 	struct v4l2_rect *crop;
 
-	format = v4l2_subdev_get_pad_format(sd, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
 	ov64a40_update_pad_fmt(ov64a40, &ov64a40_modes[0], format);
 
-	crop = v4l2_subdev_get_pad_crop(sd, state, 0);
+	crop = v4l2_subdev_state_get_crop(state, 0);
 	crop->top = OV64A40_PIXEL_ARRAY_TOP;
 	crop->left = OV64A40_PIXEL_ARRAY_LEFT;
 	crop->width = OV64A40_PIXEL_ARRAY_WIDTH;
@@ -3115,7 +3115,7 @@ static int ov64a40_get_selection(struct v4l2_subdev *sd,
 {
 	switch (sel->target) {
 	case V4L2_SEL_TGT_CROP:
-		sel->r = *v4l2_subdev_get_pad_crop(sd, state, 0);
+		sel->r = *v4l2_subdev_state_get_crop(state, 0);
 
 		return 0;
 
@@ -3155,7 +3155,7 @@ static int ov64a40_set_format(struct v4l2_subdev *sd,
 
 	ov64a40_update_pad_fmt(ov64a40, mode, &fmt->format);
 
-	format = v4l2_subdev_get_pad_format(sd, state, 0);
+	format = v4l2_subdev_state_get_format(state, 0);
 	if (ov64a40->mode == mode && format->code == fmt->format.code)
 		return 0;
 
@@ -3166,7 +3166,7 @@ static int ov64a40_set_format(struct v4l2_subdev *sd,
 		int exp_max;
 
 		ov64a40->mode = mode;
-		*v4l2_subdev_get_pad_crop(sd, state, 0) = mode->analogue_crop;
+		*v4l2_subdev_state_get_crop(state, 0) = mode->analogue_crop;
 
 		/* Update control limits according to the new mode. */
 		timings = ov64a40_get_timings(ov64a40,
@@ -3193,7 +3193,6 @@ static int ov64a40_set_format(struct v4l2_subdev *sd,
 }
 
 static const struct v4l2_subdev_pad_ops ov64a40_pad_ops = {
-	.init_cfg = ov64a40_init_cfg,
 	.enum_mbus_code = ov64a40_enum_mbus_code,
 	.enum_frame_size = ov64a40_enum_frame_size,
 	.get_fmt = v4l2_subdev_get_fmt,
@@ -3210,6 +3209,10 @@ static const struct v4l2_subdev_ops ov64a40_subdev_ops = {
 	.core = &ov64a40_core_ops,
 	.video = &ov64a40_video_ops,
 	.pad = &ov64a40_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops ov64a40_internal_ops = {
+	.init_state = ov64a40_init_state,
 };
 
 static int ov64a40_power_on(struct device *dev)
@@ -3547,6 +3550,7 @@ static int ov64a40_probe(struct i2c_client *client)
 
 	ov64a40->dev = &client->dev;
 	v4l2_i2c_subdev_init(&ov64a40->sd, client, &ov64a40_subdev_ops);
+	ov64a40->sd.internal_ops = &ov64a40_internal_ops;
 
 	ov64a40->cci = devm_cci_regmap_init_i2c(client, 16);
 	if (IS_ERR(ov64a40->cci)) {

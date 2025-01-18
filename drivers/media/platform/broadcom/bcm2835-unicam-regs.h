@@ -8,57 +8,59 @@
 #ifndef VC4_REGS_UNICAM_H
 #define VC4_REGS_UNICAM_H
 
+#include <linux/bits.h>
+
 /*
  * The following values are taken from files found within the code drop
  * made by Broadcom for the BCM21553 Graphics Driver, predominantly in
  * brcm_usrlib/dag/vmcsx/vcinclude/hardware_vc4.h.
  * They have been modified to be only the register offset.
  */
-#define UNICAM_CTRL	0x000
-#define UNICAM_STA	0x004
-#define UNICAM_ANA	0x008
-#define UNICAM_PRI	0x00c
-#define UNICAM_CLK	0x010
-#define UNICAM_CLT	0x014
-#define UNICAM_DAT0	0x018
-#define UNICAM_DAT1	0x01c
-#define UNICAM_DAT2	0x020
-#define UNICAM_DAT3	0x024
-#define UNICAM_DLT	0x028
-#define UNICAM_CMP0	0x02c
-#define UNICAM_CMP1	0x030
-#define UNICAM_CAP0	0x034
-#define UNICAM_CAP1	0x038
-#define UNICAM_ICTL	0x100
-#define UNICAM_ISTA	0x104
-#define UNICAM_IDI0	0x108
-#define UNICAM_IPIPE	0x10c
-#define UNICAM_IBSA0	0x110
-#define UNICAM_IBEA0	0x114
-#define UNICAM_IBLS	0x118
-#define UNICAM_IBWP	0x11c
-#define UNICAM_IHWIN	0x120
-#define UNICAM_IHSTA	0x124
-#define UNICAM_IVWIN	0x128
-#define UNICAM_IVSTA	0x12c
-#define UNICAM_ICC	0x130
-#define UNICAM_ICS	0x134
-#define UNICAM_IDC	0x138
-#define UNICAM_IDPO	0x13c
-#define UNICAM_IDCA	0x140
-#define UNICAM_IDCD	0x144
-#define UNICAM_IDS	0x148
-#define UNICAM_DCS	0x200
-#define UNICAM_DBSA0	0x204
-#define UNICAM_DBEA0	0x208
-#define UNICAM_DBWP	0x20c
-#define UNICAM_DBCTL	0x300
-#define UNICAM_IBSA1	0x304
-#define UNICAM_IBEA1	0x308
-#define UNICAM_IDI1	0x30c
-#define UNICAM_DBSA1	0x310
-#define UNICAM_DBEA1	0x314
-#define UNICAM_MISC	0x400
+#define UNICAM_CTRL		0x000
+#define UNICAM_STA		0x004
+#define UNICAM_ANA		0x008
+#define UNICAM_PRI		0x00c
+#define UNICAM_CLK		0x010
+#define UNICAM_CLT		0x014
+#define UNICAM_DAT0		0x018
+#define UNICAM_DAT1		0x01c
+#define UNICAM_DAT2		0x020
+#define UNICAM_DAT3		0x024
+#define UNICAM_DLT		0x028
+#define UNICAM_CMP0		0x02c
+#define UNICAM_CMP1		0x030
+#define UNICAM_CAP0		0x034
+#define UNICAM_CAP1		0x038
+#define UNICAM_ICTL		0x100
+#define UNICAM_ISTA		0x104
+#define UNICAM_IDI0		0x108
+#define UNICAM_IPIPE		0x10c
+#define UNICAM_IBSA0		0x110
+#define UNICAM_IBEA0		0x114
+#define UNICAM_IBLS		0x118
+#define UNICAM_IBWP		0x11c
+#define UNICAM_IHWIN		0x120
+#define UNICAM_IHSTA		0x124
+#define UNICAM_IVWIN		0x128
+#define UNICAM_IVSTA		0x12c
+#define UNICAM_ICC		0x130
+#define UNICAM_ICS		0x134
+#define UNICAM_IDC		0x138
+#define UNICAM_IDPO		0x13c
+#define UNICAM_IDCA		0x140
+#define UNICAM_IDCD		0x144
+#define UNICAM_IDS		0x148
+#define UNICAM_DCS		0x200
+#define UNICAM_DBSA0		0x204
+#define UNICAM_DBEA0		0x208
+#define UNICAM_DBWP		0x20c
+#define UNICAM_DBCTL		0x300
+#define UNICAM_IBSA1		0x304
+#define UNICAM_IBEA1		0x308
+#define UNICAM_IDI1		0x30c
+#define UNICAM_DBSA1		0x310
+#define UNICAM_DBEA1		0x314
+#define UNICAM_MISC		0x400
 
 /*
  * The following bitmasks are from the kernel released by Broadcom
@@ -113,18 +115,9 @@
 #define UNICAM_DI		BIT(24)
 
 #define UNICAM_STA_MASK_ALL \
-		(UNICAM_DL + \
-		UNICAM_SBE + \
-		UNICAM_PBE + \
-		UNICAM_HOE + \
-		UNICAM_PLE + \
-		UNICAM_SSC + \
-		UNICAM_CRCE + \
-		UNICAM_IFO + \
-		UNICAM_OFO + \
-		UNICAM_PS + \
-		UNICAM_PI0 + \
-		UNICAM_PI1)
+	(UNICAM_SBE  | UNICAM_PBE | UNICAM_HOE | UNICAM_PLE | UNICAM_SSC | \
+	 UNICAM_CRCE | UNICAM_IFO | UNICAM_OFO | UNICAM_DL  | UNICAM_PS  | \
+	 UNICAM_PI0  | UNICAM_PI1)
 
 /* UNICAM_ANA Register */
 #define UNICAM_APD		BIT(0)
@@ -165,7 +158,7 @@
 #define UNICAM_DLFO		BIT(28)
 #define UNICAM_DLSTE		BIT(29)
 
-#define UNICAM_DAT_MASK_ALL (UNICAM_DLSTE + UNICAM_DLFO)
+#define UNICAM_DAT_MASK_ALL	(UNICAM_DLSTE | UNICAM_DLFO)
 
 /* UNICAM_DLT Register */
 #define UNICAM_DLT1_MASK	GENMASK(7, 0)
@@ -192,28 +185,28 @@
 #define UNICAM_FEI		BIT(1)
 #define UNICAM_LCI		BIT(2)
 
-#define UNICAM_ISTA_MASK_ALL (UNICAM_FSI + UNICAM_FEI + UNICAM_LCI)
+#define UNICAM_ISTA_MASK_ALL	(UNICAM_FSI | UNICAM_FEI | UNICAM_LCI)
 
 /* UNICAM_IPIPE Register */
 #define UNICAM_PUM_MASK		GENMASK(2, 0)
-		/* Unpacking modes */
-		#define UNICAM_PUM_NONE		0
-		#define UNICAM_PUM_UNPACK6	1
-		#define UNICAM_PUM_UNPACK7	2
-		#define UNICAM_PUM_UNPACK8	3
-		#define UNICAM_PUM_UNPACK10	4
-		#define UNICAM_PUM_UNPACK12	5
-		#define UNICAM_PUM_UNPACK14	6
-		#define UNICAM_PUM_UNPACK16	7
+/* Unpacking modes */
+#define UNICAM_PUM_NONE		0
+#define UNICAM_PUM_UNPACK6	1
+#define UNICAM_PUM_UNPACK7	2
+#define UNICAM_PUM_UNPACK8	3
+#define UNICAM_PUM_UNPACK10	4
+#define UNICAM_PUM_UNPACK12	5
+#define UNICAM_PUM_UNPACK14	6
+#define UNICAM_PUM_UNPACK16	7
 #define UNICAM_DDM_MASK		GENMASK(6, 3)
 #define UNICAM_PPM_MASK		GENMASK(9, 7)
-		/* Packing modes */
-		#define UNICAM_PPM_NONE		0
-		#define UNICAM_PPM_PACK8	1
-		#define UNICAM_PPM_PACK10	2
-		#define UNICAM_PPM_PACK12	3
-		#define UNICAM_PPM_PACK14	4
-		#define UNICAM_PPM_PACK16	5
+/* Packing modes */
+#define UNICAM_PPM_NONE		0
+#define UNICAM_PPM_PACK8	1
+#define UNICAM_PPM_PACK10	2
+#define UNICAM_PPM_PACK12	3
+#define UNICAM_PPM_PACK14	4
+#define UNICAM_PPM_PACK16	5
 #define UNICAM_DEM_MASK		GENMASK(11, 10)
 #define UNICAM_DEBL_MASK	GENMASK(14, 12)
 #define UNICAM_ICM_MASK		GENMASK(16, 15)

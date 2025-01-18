@@ -94,16 +94,6 @@
 #define ARDUCAM_64MP_TEST_PATTERN_B_DEFAULT	0
 #define ARDUCAM_64MP_TEST_PATTERN_GB_DEFAULT	0
 
-/* Embedded metadata stream structure */
-#define ARDUCAM_64MP_EMBEDDED_LINE_WIDTH (11560 * 3)
-#define ARDUCAM_64MP_NUM_EMBEDDED_LINES 1
-
-enum pad_types {
-	IMAGE_PAD,
-	METADATA_PAD,
-	NUM_PADS
-};
-
 /* ARDUCAM_64MP native and active pixel array size. */
 #define ARDUCAM_64MP_NATIVE_WIDTH		9344U
 #define ARDUCAM_64MP_NATIVE_HEIGHT		7032U
@@ -1422,7 +1412,7 @@ static const char * const arducam_64mp_supply_name[] = {
 
 struct arducam_64mp {
 	struct v4l2_subdev sd;
-	struct media_pad pad[NUM_PADS];
+	struct media_pad pad;
 
 	unsigned int fmt_code;
 
@@ -1555,9 +1545,7 @@ static int arducam_64mp_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
-	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
+		v4l2_subdev_state_get_format(fh->state, 0);
 	struct v4l2_rect *try_crop;
 
 	mutex_lock(&arducam_64mp->mutex);
@@ -1568,14 +1556,8 @@ static int arducam_64mp_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	try_fmt_img->code = arducam_64mp_get_format_code(arducam_64mp);
 	try_fmt_img->field = V4L2_FIELD_NONE;
 
-	/* Initialize try_fmt for the embedded metadata pad */
-	try_fmt_meta->width = ARDUCAM_64MP_EMBEDDED_LINE_WIDTH;
-	try_fmt_meta->height = ARDUCAM_64MP_NUM_EMBEDDED_LINES;
-	try_fmt_meta->code = MEDIA_BUS_FMT_SENSOR_DATA;
-	try_fmt_meta->field = V4L2_FIELD_NONE;
-
 	/* Initialize try_crop */
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
+	try_crop = v4l2_subdev_state_get_crop(fh->state, 0);
 	try_crop->left = ARDUCAM_64MP_PIXEL_ARRAY_LEFT;
 	try_crop->top = ARDUCAM_64MP_PIXEL_ARRAY_TOP;
 	try_crop->width = ARDUCAM_64MP_PIXEL_ARRAY_WIDTH;
@@ -1731,20 +1713,13 @@ static int arducam_64mp_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 
-	if (code->pad >= NUM_PADS)
+	if (code->pad >= 1)
 		return -EINVAL;
 
-	if (code->pad == IMAGE_PAD) {
-		if (code->index > 0)
-			return -EINVAL;
+	if (code->index > 0)
+		return -EINVAL;
 
-		code->code = arducam_64mp_get_format_code(arducam_64mp);
-	} else {
-		if (code->index > 0)
-			return -EINVAL;
-
-		code->code = MEDIA_BUS_FMT_SENSOR_DATA;
-	}
+	code->code = arducam_64mp_get_format_code(arducam_64mp);
 
 	return 0;
 }
@@ -1755,29 +1730,19 @@ static int arducam_64mp_enum_frame_size(struct v4l2_subdev *sd,
 {
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 
-	if (fse->pad >= NUM_PADS)
+	if (fse->pad >= 1)
 		return -EINVAL;
 
-	if (fse->pad == IMAGE_PAD) {
-		if (fse->index >= ARRAY_SIZE(supported_modes))
-			return -EINVAL;
+	if (fse->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
 
-		if (fse->code != arducam_64mp_get_format_code(arducam_64mp))
-			return -EINVAL;
+	if (fse->code != arducam_64mp_get_format_code(arducam_64mp))
+		return -EINVAL;
 
-		fse->min_width = supported_modes[fse->index].width;
-		fse->max_width = fse->min_width;
-		fse->min_height = supported_modes[fse->index].height;
-		fse->max_height = fse->min_height;
-	} else {
-		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
-			return -EINVAL;
-
-		fse->min_width = ARDUCAM_64MP_EMBEDDED_LINE_WIDTH;
-		fse->max_width = fse->min_width;
-		fse->min_height = ARDUCAM_64MP_NUM_EMBEDDED_LINES;
-		fse->max_height = fse->min_height;
-	}
+	fse->min_width = supported_modes[fse->index].width;
+	fse->max_width = fse->min_width;
+	fse->min_height = supported_modes[fse->index].height;
+	fse->max_height = fse->min_height;
 
 	return 0;
 }
@@ -1803,45 +1768,28 @@ arducam_64mp_update_image_pad_format(struct arducam_64mp *arducam_64mp,
 	arducam_64mp_reset_colorspace(&fmt->format);
 }
 
-static void
-arducam_64mp_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
-{
-	fmt->format.width = ARDUCAM_64MP_EMBEDDED_LINE_WIDTH;
-	fmt->format.height = ARDUCAM_64MP_NUM_EMBEDDED_LINES;
-	fmt->format.code = MEDIA_BUS_FMT_SENSOR_DATA;
-	fmt->format.field = V4L2_FIELD_NONE;
-}
-
 static int arducam_64mp_get_pad_format(struct v4l2_subdev *sd,
 				       struct v4l2_subdev_state *sd_state,
 				       struct v4l2_subdev_format *fmt)
 {
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 
-	if (fmt->pad >= NUM_PADS)
+	if (fmt->pad >= 1)
 		return -EINVAL;
 
 	mutex_lock(&arducam_64mp->mutex);
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&arducam_64mp->sd, sd_state,
-						   fmt->pad);
+			v4l2_subdev_state_get_format(sd_state, fmt->pad);
 		/* update the code which could change due to vflip or hflip: */
-		try_fmt->code = fmt->pad == IMAGE_PAD ?
-				arducam_64mp_get_format_code(arducam_64mp) :
-				MEDIA_BUS_FMT_SENSOR_DATA;
+		try_fmt->code = arducam_64mp_get_format_code(arducam_64mp);
 		fmt->format = *try_fmt;
 	} else {
-		if (fmt->pad == IMAGE_PAD) {
-			arducam_64mp_update_image_pad_format(arducam_64mp,
-							     arducam_64mp->mode,
-							     fmt);
-			fmt->format.code =
-			       arducam_64mp_get_format_code(arducam_64mp);
-		} else {
-			arducam_64mp_update_metadata_pad_format(fmt);
-		}
+		arducam_64mp_update_image_pad_format(arducam_64mp,
+						     arducam_64mp->mode, fmt);
+		fmt->format.code =
+			arducam_64mp_get_format_code(arducam_64mp);
 	}
 
 	mutex_unlock(&arducam_64mp->mutex);
@@ -1909,39 +1857,26 @@ static int arducam_64mp_set_pad_format(struct v4l2_subdev *sd,
 	const struct arducam_64mp_mode *mode;
 	struct arducam_64mp *arducam_64mp = to_arducam_64mp(sd);
 
-	if (fmt->pad >= NUM_PADS)
+	if (fmt->pad >= 1)
 		return -EINVAL;
 
 	mutex_lock(&arducam_64mp->mutex);
 
-	if (fmt->pad == IMAGE_PAD) {
-		/* Bayer order varies with flips */
-		fmt->format.code = arducam_64mp_get_format_code(arducam_64mp);
+	/* Bayer order varies with flips */
+	fmt->format.code = arducam_64mp_get_format_code(arducam_64mp);
 
-		mode = v4l2_find_nearest_size(supported_modes,
-					      ARRAY_SIZE(supported_modes),
-					      width, height,
-					      fmt->format.width,
-					      fmt->format.height);
-		arducam_64mp_update_image_pad_format(arducam_64mp, mode, fmt);
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
-			*framefmt = fmt->format;
-		} else {
-			arducam_64mp->mode = mode;
-			arducam_64mp->fmt_code = fmt->format.code;
-			arducam_64mp_set_framing_limits(arducam_64mp);
-		}
+	mode = v4l2_find_nearest_size(supported_modes,
+				      ARRAY_SIZE(supported_modes), width,
+				      height, fmt->format.width,
+				      fmt->format.height);
+	arducam_64mp_update_image_pad_format(arducam_64mp, mode, fmt);
+	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
+		framefmt = v4l2_subdev_state_get_format(sd_state, fmt->pad);
+		*framefmt = fmt->format;
 	} else {
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-							      fmt->pad);
-			*framefmt = fmt->format;
-		} else {
-			/* Only one embedded data mode is supported */
-			arducam_64mp_update_metadata_pad_format(fmt);
-		}
+		arducam_64mp->mode = mode;
+		arducam_64mp->fmt_code = fmt->format.code;
+		arducam_64mp_set_framing_limits(arducam_64mp);
 	}
 
 	mutex_unlock(&arducam_64mp->mutex);
@@ -1957,8 +1892,7 @@ __arducam_64mp_get_pad_crop(struct arducam_64mp *arducam_64mp,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&arducam_64mp->sd, sd_state,
-						pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &arducam_64mp->mode->crop;
 	}
@@ -2547,11 +2481,10 @@ static int arducam_64mp_probe(struct i2c_client *client)
 	arducam_64mp->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
 	/* Initialize source pads */
-	arducam_64mp->pad[IMAGE_PAD].flags = MEDIA_PAD_FL_SOURCE;
-	arducam_64mp->pad[METADATA_PAD].flags = MEDIA_PAD_FL_SOURCE;
+	arducam_64mp->pad.flags = MEDIA_PAD_FL_SOURCE;
 
-	ret = media_entity_pads_init(&arducam_64mp->sd.entity, NUM_PADS,
-				     arducam_64mp->pad);
+	ret = media_entity_pads_init(&arducam_64mp->sd.entity, 1,
+				     &arducam_64mp->pad);
 	if (ret) {
 		dev_err(dev, "failed to init entity pads: %d\n", ret);
 		goto error_handler_free;
