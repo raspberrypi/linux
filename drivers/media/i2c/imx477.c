@@ -169,12 +169,18 @@ enum {
 	IMX477_LINK_FREQ_450MHZ,
 	IMX477_LINK_FREQ_453MHZ,
 	IMX477_LINK_FREQ_456MHZ,
+	IMX477_LINK_FREQ_459MHZ,
+	IMX477_LINK_FREQ_462MHZ,
+	IMX477_LINK_FREQ_498MHZ,
 };
 
 static const s64 link_freqs[] = {
 	[IMX477_LINK_FREQ_450MHZ] = 450000000,
 	[IMX477_LINK_FREQ_453MHZ] = 453000000,
 	[IMX477_LINK_FREQ_456MHZ] = 456000000,
+	[IMX477_LINK_FREQ_459MHZ] = 459000000,
+	[IMX477_LINK_FREQ_462MHZ] = 462000000,
+	[IMX477_LINK_FREQ_498MHZ] = 498000000,
 };
 
 /* 450MHz is the nominal "default" link frequency */
@@ -193,6 +199,21 @@ static const struct imx477_reg link_456Mhz_regs[] = {
 	{0x030F, 0x98},
 };
 
+static const struct imx477_reg link_459Mhz_regs[] = {
+	{0x030E, 0x00},
+	{0x030F, 0x99},
+};
+
+static const struct imx477_reg link_462Mhz_regs[] = {
+	{0x030E, 0x00},
+	{0x030F, 0x9a},
+};
+
+static const struct imx477_reg link_498Mhz_regs[] = {
+	{0x030E, 0x00},
+	{0x030F, 0xa6},
+};
+
 static const struct imx477_reg_list link_freq_regs[] = {
 	[IMX477_LINK_FREQ_450MHZ] = {
 		.regs = link_450Mhz_regs,
@@ -205,6 +226,18 @@ static const struct imx477_reg_list link_freq_regs[] = {
 	[IMX477_LINK_FREQ_456MHZ] = {
 		.regs = link_456Mhz_regs,
 		.num_of_regs = ARRAY_SIZE(link_456Mhz_regs)
+	},
+	[IMX477_LINK_FREQ_459MHZ] = {
+		.regs = link_459Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_459Mhz_regs)
+	},
+	[IMX477_LINK_FREQ_462MHZ] = {
+		.regs = link_462Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_462Mhz_regs)
+	},
+	[IMX477_LINK_FREQ_498MHZ] = {
+		.regs = link_498Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_498Mhz_regs)
 	},
 };
 
