@@ -102,35 +102,41 @@ v3d_irq(int irq, void *arg)
 	}
 
 	if (intsts & V3D_INT_FLDONE) {
-		struct v3d_fence *fence =
-			to_v3d_fence(v3d->bin_job->base.irq_fence);
+		if (!WARN(!v3d->bin_job, "NULL v3d->bin_job")) {
+			struct v3d_fence *fence =
+				to_v3d_fence(v3d->bin_job->base.irq_fence);
 
-		v3d_job_update_stats(&v3d->bin_job->base, V3D_BIN);
-		trace_v3d_bcl_irq(&v3d->drm, fence->seqno);
-		dma_fence_signal(&fence->base);
-		v3d->bin_job = NULL;
+			v3d_job_update_stats(&v3d->bin_job->base, V3D_BIN);
+			trace_v3d_bcl_irq(&v3d->drm, fence->seqno);
+			dma_fence_signal(&fence->base);
+			v3d->bin_job = NULL;
+		}
 		status = IRQ_HANDLED;
 	}
 
 	if (intsts & V3D_INT_FRDONE) {
-		struct v3d_fence *fence =
-			to_v3d_fence(v3d->render_job->base.irq_fence);
+		if (!WARN(!v3d->render_job, "NULL v3d->render_job")) {
+			struct v3d_fence *fence =
+				to_v3d_fence(v3d->render_job->base.irq_fence);
 
-		v3d_job_update_stats(&v3d->render_job->base, V3D_RENDER);
-		trace_v3d_rcl_irq(&v3d->drm, fence->seqno);
-		dma_fence_signal(&fence->base);
-		v3d->render_job = NULL;
+			v3d_job_update_stats(&v3d->render_job->base, V3D_RENDER);
+			trace_v3d_rcl_irq(&v3d->drm, fence->seqno);
+			dma_fence_signal(&fence->base);
+			v3d->render_job = NULL;
+		}
 		status = IRQ_HANDLED;
 	}
 
 	if (intsts & V3D_INT_CSDDONE(v3d->ver)) {
-		struct v3d_fence *fence =
-			to_v3d_fence(v3d->csd_job->base.irq_fence);
+		if (!WARN(!v3d->csd_job, "NULL v3d->csd_job")) {
+			struct v3d_fence *fence =
+				to_v3d_fence(v3d->csd_job->base.irq_fence);
 
-		v3d_job_update_stats(&v3d->csd_job->base, V3D_CSD);
-		trace_v3d_csd_irq(&v3d->drm, fence->seqno);
-		dma_fence_signal(&fence->base);
-		v3d->csd_job = NULL;
+			v3d_job_update_stats(&v3d->csd_job->base, V3D_CSD);
+			trace_v3d_csd_irq(&v3d->drm, fence->seqno);
+			dma_fence_signal(&fence->base);
+			v3d->csd_job = NULL;
+		}
 		status = IRQ_HANDLED;
 	}
 
