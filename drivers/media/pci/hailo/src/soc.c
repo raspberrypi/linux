@@ -12,12 +12,15 @@
 #include "vdma_common.h"
 #include "utils/logs.h"
 #include "vdma/memory.h"
+#include "pcie_common.h"
 
 #include <linux/uaccess.h>
 
-#define PCI_SOC_VDMA_ENGINE_INDEX           (0)
+#ifndef HAILO_EMULATOR
 #define PCI_SOC_CONTROL_CONNECT_TIMEOUT_MS (1000)
-#define PCI_SOC_INPUT_CHANNEL_BITMASK       (0x000000FF)
+#else
+#define PCI_SOC_CONTROL_CONNECT_TIMEOUT_MS (1000000)
+#endif /* ifndef HAILO_EMULATOR */
 
 void hailo_soc_init(struct hailo_pcie_soc *soc)
 {
@@ -84,10 +87,9 @@ long hailo_soc_connect_ioctl(struct hailo_pcie_board *board, struct hailo_file_c
     struct hailo_soc_connect_params params;
     struct hailo_vdma_channel *input_channel = NULL;
     struct hailo_vdma_channel *output_channel = NULL;
-    struct hailo_vdma_engine *vdma_engine = &controller->vdma_engines[PCI_SOC_VDMA_ENGINE_INDEX];
+    struct hailo_vdma_engine *vdma_engine = &controller->vdma_engines[PCI_VDMA_ENGINE_INDEX];
     struct hailo_descriptors_list_buffer *input_descriptors_buffer = NULL;
     struct hailo_descriptors_list_buffer *output_descriptors_buffer = NULL;
-    uint8_t depth = 0;
     int err = 0;
 
     if (copy_from_user(&params, (void *)arg, sizeof(params))) {
@@ -136,9 +138,8 @@ long hailo_soc_connect_ioctl(struct hailo_pcie_board *board, struct hailo_file_c
     }
 
     // configure and start input channel
-    depth = ceil_log2(input_descriptors_buffer->desc_list.desc_count);
     // DMA Direction is only to get channel index - so 
-    err = hailo_vdma_start_channel(input_channel->host_regs, input_descriptors_buffer->dma_address, depth,
+    err = hailo_vdma_start_channel(input_channel->host_regs, input_descriptors_buffer->dma_address, input_descriptors_buffer->desc_list.desc_count,
         board->vdma.hw->ddr_data_id);
     if (err < 0) {
         hailo_dev_err(&board->pDev->dev, "Error starting vdma input channel index %u\n", params.input_channel_index);
@@ -149,9 +150,8 @@ long hailo_soc_connect_ioctl(struct hailo_pcie_board *board, struct hailo_file_c
     hailo_set_bit(params.input_channel_index, &context->soc_used_channels_bitmap);
     
     // configure and start output channel
-    depth = ceil_log2(output_descriptors_buffer->desc_list.desc_count);
     // DMA Direction is only to get channel index - so 
-    err = hailo_vdma_start_channel(output_channel->host_regs, output_descriptors_buffer->dma_address, depth,
+    err = hailo_vdma_start_channel(output_channel->host_regs, output_descriptors_buffer->dma_address, output_descriptors_buffer->desc_list.desc_count,
         board->vdma.hw->ddr_data_id);
     if (err < 0) {
         hailo_dev_err(&board->pDev->dev, "Error starting vdma output channel index %u\n", params.output_channel_index);
@@ -175,7 +175,7 @@ static int close_channels(struct hailo_pcie_board *board, u32 channels_bitmap)
 {
     struct hailo_pcie_soc_request request = {0};
     struct hailo_pcie_soc_response response = {0};
-    struct hailo_vdma_engine *engine = &board->vdma.vdma_engines[PCI_SOC_VDMA_ENGINE_INDEX];
+    struct hailo_vdma_engine *engine = &board->vdma.vdma_engines[PCI_VDMA_ENGINE_INDEX];
     struct hailo_vdma_channel *channel = NULL;
     u8 channel_index = 0;
 
