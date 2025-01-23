@@ -15,16 +15,6 @@
 #include <linux/kconfig.h>
 #include <linux/printk.h>
 
-
-#define CHANNEL_BASE_OFFSET(channel_index) ((channel_index) << 5)
-
-#define CHANNEL_CONTROL_OFFSET      (0x0)
-#define CHANNEL_DEPTH_ID_OFFSET     (0x1)
-#define CHANNEL_NUM_AVAIL_OFFSET    (0x2)
-#define CHANNEL_NUM_PROC_OFFSET     (0x4)
-#define CHANNEL_ERROR_OFFSET        (0x8)
-#define CHANNEL_DEST_REGS_OFFSET    (0x10)
-
 #define VDMA_CHANNEL_CONTROL_START (0x1)
 #define VDMA_CHANNEL_CONTROL_ABORT (0b00)
 #define VDMA_CHANNEL_CONTROL_ABORT_PAUSE (0b10)
@@ -160,17 +150,17 @@ static u8 get_channel_id(u8 channel_index)
     return (channel_index < MAX_VDMA_CHANNELS_PER_ENGINE) ? (channel_index & 0xF) : INVALID_VDMA_CHANNEL;
 }
 
-static int program_descriptors_in_chunk(
+int hailo_vdma_program_descriptors_in_chunk(
     struct hailo_vdma_hw *vdma_hw,
     dma_addr_t chunk_addr,
     unsigned int chunk_size,
     struct hailo_vdma_descriptors_list *desc_list,
     u32 desc_index,
     u32 max_desc_index,
-    u8 channel_id)
+    u8 channel_index,
+    u8 data_id)
 {
     const u16 page_size = desc_list->desc_page_size;
-    const u8 ddr_data_id = vdma_hw->ddr_data_id;
     const u32 descs_to_program = DIV_ROUND_UP(chunk_size, page_size);
     const u32 starting_desc_index = desc_index;
     const u32 residue_size = chunk_size % page_size;
@@ -187,7 +177,7 @@ static int program_descriptors_in_chunk(
         return -ERANGE;
     }
 
-    encoded_addr = vdma_hw->hw_ops.encode_desc_dma_address_range(chunk_addr, chunk_addr + chunk_size, page_size, channel_id);
+    encoded_addr = vdma_hw->hw_ops.encode_desc_dma_address_range(chunk_addr, chunk_addr + chunk_size, page_size, get_channel_id(channel_index));
     if (INVALID_VDMA_ADDRESS == encoded_addr) {
         return -EFAULT;
     }
@@ -197,7 +187,7 @@ static int program_descriptors_in_chunk(
         // 'desc_index & desc_list_len_mask' is used instead of modulo; see hailo_vdma_descriptors_list documentation.
         hailo_vdma_program_descriptor(
             &desc_list->desc_list[desc_index & desc_list->desc_count_mask],
-            encoded_addr, page_size, ddr_data_id);
+            encoded_addr, page_size, data_id);
         encoded_addr += page_size;
     }
 
@@ -205,7 +195,7 @@ static int program_descriptors_in_chunk(
     // 'desc_index & desc_list_len_mask' is used instead of modulo; see hailo_vdma_descriptors_list documentation.
     dma_desc = &desc_list->desc_list[desc_index & desc_list->desc_count_mask];
     hailo_vdma_program_descriptor(dma_desc, encoded_addr,
-        (residue_size == 0) ? page_size : (u16)residue_size, ddr_data_id);
+        (residue_size == 0) ? page_size : (u16)residue_size, data_id);
 
     return (int)descs_to_program;
 }
@@ -241,7 +231,6 @@ static int bind_and_program_descriptors_list(
     enum hailo_vdma_interrupts_domain last_desc_interrupts,
     bool is_debug)
 {
-    const u8 channel_id = get_channel_id(channel_index);
     int desc_programmed = 0;
     int descs_programmed_in_chunk = 0;
     u32 max_desc_index = 0;
@@ -279,8 +268,8 @@ static int bind_and_program_descriptors_list(
             (u32)(sg_dma_len(sg_entry));
         chunk_size = min((u32)program_size, chunk_size);
 
-        descs_programmed_in_chunk  = program_descriptors_in_chunk(vdma_hw, chunk_start_addr, chunk_size, desc_list,
-            starting_desc, max_desc_index, channel_id);
+        descs_programmed_in_chunk  = hailo_vdma_program_descriptors_in_chunk(vdma_hw, chunk_start_addr, chunk_size, desc_list,
+            starting_desc, max_desc_index, channel_index, vdma_hw->ddr_data_id);
         if (descs_programmed_in_chunk < 0) {
             return descs_programmed_in_chunk;
         }
@@ -363,16 +352,16 @@ static int validate_channel_state(struct hailo_vdma_channel *channel)
     return 0;
 }
 
-static void set_num_avail(u8 __iomem *host_regs, u16 num_avail)
+void hailo_vdma_set_num_avail(u8 __iomem *regs, u16 num_avail)
 {
-    u32 host_regs_val = ioread32(host_regs);
-    iowrite32(WRITE_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, CHANNEL_NUM_AVAIL_OFFSET * BITS_IN_BYTE, host_regs_val, num_avail),
-        host_regs);
+    u32 regs_val = ioread32(regs);
+    iowrite32(WRITE_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, CHANNEL_NUM_AVAIL_OFFSET * BITS_IN_BYTE, regs_val, num_avail),
+        regs);
 }
 
-static u16 get_num_proc(u8 __iomem *host_regs)
+u16 hailo_vdma_get_num_proc(u8 __iomem *regs)
 {
-    return READ_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, 0, ioread32(host_regs + CHANNEL_NUM_PROC_OFFSET));
+    return READ_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, 0, ioread32(regs + CHANNEL_NUM_PROC_OFFSET));
 }
 
 int hailo_vdma_launch_transfer(
@@ -455,7 +444,7 @@ int hailo_vdma_launch_transfer(
 
     new_num_avail = (u16)((last_desc + 1) % desc_list->desc_count);
     channel->state.num_avail = new_num_avail;
-    set_num_avail(channel->host_regs, new_num_avail);
+    hailo_vdma_set_num_avail(channel->host_regs, new_num_avail);
 
     return (int)total_descs;
 }
@@ -463,7 +452,7 @@ int hailo_vdma_launch_transfer(
 static void hailo_vdma_push_timestamp(struct hailo_vdma_channel *channel)
 {
     struct hailo_channel_interrupt_timestamp_list *timestamp_list = &channel->timestamp_list;
-    const u16 num_proc = get_num_proc(channel->host_regs);
+    const u16 num_proc = hailo_vdma_get_num_proc(channel->host_regs);
     if (TIMESTAMPS_CIRC_SPACE(*timestamp_list) != 0) {
         timestamp_list->timestamps[timestamp_list->head].timestamp_ns = ktime_get_ns();
         timestamp_list->timestamps[timestamp_list->head].desc_num_processed = num_proc;
@@ -725,7 +714,7 @@ int hailo_vdma_engine_fill_irq_data(struct hailo_vdma_interrupts_wait_params *ir
         // the actual hw_num_processed is a number between 1 and desc_count.
         // Therefore the value can be desc_count, in this case we change it to
         // zero.
-        hw_num_proc = get_num_proc(channel->host_regs) & channel->state.desc_count_mask;
+        hw_num_proc = hailo_vdma_get_num_proc(channel->host_regs) & channel->state.desc_count_mask;
 
         while (ONGOING_TRANSFERS_CIRC_CNT(channel->ongoing_transfers) > 0) {
             struct hailo_ongoing_transfer *cur_transfer =
@@ -780,12 +769,13 @@ static void hailo_vdma_channel_abort(u8 __iomem *host_regs)
         VDMA_CHANNEL_CONTROL_ABORT), host_regs);
 }
 
-int hailo_vdma_start_channel(u8 __iomem *host_regs, uint64_t desc_dma_address, uint8_t desc_depth,
+int hailo_vdma_start_channel(u8 __iomem *regs, uint64_t desc_dma_address, uint32_t desc_count,
     uint8_t data_id)
 {
     u16 dma_address_l = 0;
     u32 dma_address_h = 0;
     u32 desc_depth_data_id = 0;
+    u8 desc_depth = ceil_log2(desc_count);
 
     if (((desc_dma_address & 0xFFFF) != 0) || 
          (desc_depth > DESCRIPTOR_LIST_MAX_DEPTH)) {
@@ -798,22 +788,22 @@ int hailo_vdma_start_channel(u8 __iomem *host_regs, uint64_t desc_dma_address, u
     }
 
     // Stop old channel state
-    hailo_vdma_stop_channel(host_regs);
+    hailo_vdma_stop_channel(regs);
 
     // Configure address, depth and id
     dma_address_l = (uint16_t)((desc_dma_address >> 16) & 0xFFFF);
     iowrite32(WRITE_BITS_AT_OFFSET(WORD_SIZE * BITS_IN_BYTE, (VDMA_CHANNEL__ADDRESS_L_OFFSET -
-        VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET) * BITS_IN_BYTE, ioread32(host_regs +
-        VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET), dma_address_l), host_regs + VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET);
+        VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET) * BITS_IN_BYTE, ioread32(regs +
+        VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET), dma_address_l), regs + VDMA_CHANNEL__ALIGNED_ADDRESS_L_OFFSET);
 
     dma_address_h = (uint32_t)(desc_dma_address >> 32);
-    iowrite32(dma_address_h, host_regs + VDMA_CHANNEL__ADDRESS_H_OFFSET);
+    iowrite32(dma_address_h, regs + VDMA_CHANNEL__ADDRESS_H_OFFSET);
 
     desc_depth_data_id = (uint32_t)(desc_depth << VDMA_CHANNEL_DESC_DEPTH_SHIFT) | 
         (data_id << VDMA_CHANNEL_DATA_ID_SHIFT);
-    iowrite32(desc_depth_data_id, host_regs);
+    iowrite32(desc_depth_data_id, regs);
 
-    start_vdma_control_register(host_regs);
+    start_vdma_control_register(regs);
 
     return 0;
 }
@@ -853,10 +843,10 @@ static int hailo_vdma_wait_until_channel_idle(u8 __iomem *host_regs)
     return -ETIMEDOUT;
 }
 
-void hailo_vdma_stop_channel(u8 __iomem *host_regs)
+void hailo_vdma_stop_channel(u8 __iomem *regs)
 {
     int err = 0;
-    u8 host_side_channel_regs = READ_BITS_AT_OFFSET(BYTE_SIZE * BITS_IN_BYTE, CHANNEL_CONTROL_OFFSET * BITS_IN_BYTE, ioread32(host_regs));
+    u8 host_side_channel_regs = READ_BITS_AT_OFFSET(BYTE_SIZE * BITS_IN_BYTE, CHANNEL_CONTROL_OFFSET * BITS_IN_BYTE, ioread32(regs));
 
     if ((host_side_channel_regs & VDMA_CHANNEL_CONTROL_START_ABORT_PAUSE_RESUME_BITMASK) == VDMA_CHANNEL_CONTROL_ABORT_PAUSE) {
         // The channel is aborted (we set the channel to VDMA_CHANNEL_CONTROL_ABORT_PAUSE at the end of this function)
@@ -866,17 +856,17 @@ void hailo_vdma_stop_channel(u8 __iomem *host_regs)
     // Pause the channel
     // The channel is paused to allow for "all transfers from fetched descriptors..." to be "...completed"
     // (from PLDA PCIe refernce manual, "9.2.5 Starting a Channel and Transferring Data")
-    hailo_vdma_channel_pause(host_regs);
+    hailo_vdma_channel_pause(regs);
 
     // Even if channel is stuck and not idle, force abort and return error in the end
-    err = hailo_vdma_wait_until_channel_idle(host_regs);
+    err = hailo_vdma_wait_until_channel_idle(regs);
     // Success oriented - if error occured print error but still abort channel
     if (err < 0) {
         pr_err("Timeout occured while waiting for channel to become idle\n");
     }
 
     // Abort the channel (even of hailo_vdma_wait_until_channel_idle function fails)
-    hailo_vdma_channel_abort(host_regs);
+    hailo_vdma_channel_abort(regs);
 }
 
 bool hailo_check_channel_index(u8 channel_index, u32 src_channels_bitmask, bool is_input_channel)

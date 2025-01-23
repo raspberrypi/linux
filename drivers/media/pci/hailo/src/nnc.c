@@ -148,8 +148,8 @@ static long hailo_read_notification_ioctl(struct hailo_pcie_board *board, unsign
 
     // Check if was disabled
     if (current_waiting_thread->is_disabled) {
-        hailo_info(board, "HAILO_READ_NOTIFICATION, can't find notification wait for tgid=%d\n", current->tgid);
-        err = -EINVAL;
+        hailo_info(board, "HAILO_READ_NOTIFICATION - notification disabled for tgid=%d\n", current->tgid);
+        err = -ECANCELED;
         goto l_exit;
     }
 
