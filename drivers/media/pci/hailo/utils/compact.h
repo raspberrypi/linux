@@ -48,6 +48,14 @@ static inline long get_user_pages_compact(unsigned long start, unsigned long nr_
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+static inline void dma_sync_sgtable_for_device(struct device *dev,
+    struct sg_table *sgt, enum dma_data_direction dir)
+{
+	dma_sync_sg_for_device(dev, sgt->sgl, sgt->orig_nents, dir);
+}
+#endif
+
 #ifndef _LINUX_MMAP_LOCK_H
 static inline void mmap_read_lock(struct mm_struct *mm)
 {

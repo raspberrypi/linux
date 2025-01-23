@@ -7,7 +7,7 @@
 #define _HAILO_IOCTL_COMMON_H_
 
 #define HAILO_DRV_VER_MAJOR 4
-#define HAILO_DRV_VER_MINOR 19
+#define HAILO_DRV_VER_MINOR 20
 #define HAILO_DRV_VER_REVISION 0
 
 #define _STRINGIFY_EXPANDED( x ) #x
@@ -22,6 +22,7 @@
 #define MAX_VDMA_ENGINES                        (3)
 #define SIZE_OF_VDMA_DESCRIPTOR                 (16)
 #define VDMA_DEST_CHANNELS_START                (16)
+#define MAX_SG_DESCS_COUNT                      (64 * 1024u)
 
 #define HAILO_VDMA_MAX_ONGOING_TRANSFERS (128)
 #define HAILO_VDMA_MAX_ONGOING_TRANSFERS_MASK (HAILO_VDMA_MAX_ONGOING_TRANSFERS - 1)
@@ -38,6 +39,10 @@
 #define FW_ACCESS_APP_CPU_CONTROL_MASK      (1 << FW_ACCESS_CONTROL_INTERRUPT_SHIFT)
 #define FW_ACCESS_DRIVER_SHUTDOWN_SHIFT     (2)
 #define FW_ACCESS_DRIVER_SHUTDOWN_MASK      (1 << FW_ACCESS_DRIVER_SHUTDOWN_SHIFT)
+// HRT-15790 TODO: separate nnc interrupts and soc interrupts
+#define FW_ACCESS_SOFT_RESET_SHIFT          (3)
+#define FW_ACCESS_SOFT_RESET_MASK           (1 << FW_ACCESS_SOFT_RESET_SHIFT)
+
 #define FW_ACCESS_SOC_CONTROL_SHIFT         (3)
 #define FW_ACCESS_SOC_CONTROL_MASK          (1 << FW_ACCESS_SOC_CONTROL_SHIFT)
 
@@ -184,7 +189,6 @@ enum hailo_dma_data_direction {
 };
 
 // Enum that states what type of buffer we are working with in the driver
-// TODO: HRT-13580 - Add specific type for user allocated and for driver allocated
 enum hailo_dma_buffer_type {
     HAILO_DMA_USER_PTR_BUFFER = 0,
     HAILO_DMA_DMABUF_BUFFER = 1,
@@ -399,7 +403,7 @@ struct hailo_d2h_notification {
 enum hailo_board_type {
     HAILO_BOARD_TYPE_HAILO8 = 0,
     HAILO_BOARD_TYPE_HAILO15,
-    HAILO_BOARD_TYPE_PLUTO,
+    HAILO_BOARD_TYPE_HAILO15L,
     HAILO_BOARD_TYPE_HAILO10H,
     HAILO_BOARD_TYPE_HAILO10H_LEGACY,
     HAILO_BOARD_TYPE_COUNT,

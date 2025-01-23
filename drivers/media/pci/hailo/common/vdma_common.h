@@ -16,6 +16,15 @@
 #define VDMA_DESCRIPTOR_LIST_ALIGN  (1 << 16)
 #define INVALID_VDMA_ADDRESS        (0)
 
+#define CHANNEL_BASE_OFFSET(channel_index) ((channel_index) << 5)
+
+#define CHANNEL_CONTROL_OFFSET      (0x0)
+#define CHANNEL_DEPTH_ID_OFFSET     (0x1)
+#define CHANNEL_NUM_AVAIL_OFFSET    (0x2)
+#define CHANNEL_NUM_PROC_OFFSET     (0x4)
+#define CHANNEL_ERROR_OFFSET        (0x8)
+#define CHANNEL_DEST_REGS_OFFSET    (0x10)
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -172,6 +181,20 @@ int hailo_vdma_program_descriptors_list(
     enum hailo_vdma_interrupts_domain last_desc_interrupts,
     bool is_debug);
 
+int hailo_vdma_program_descriptors_in_chunk(
+    struct hailo_vdma_hw *vdma_hw,
+    dma_addr_t chunk_addr,
+    unsigned int chunk_size,
+    struct hailo_vdma_descriptors_list *desc_list,
+    u32 desc_index,
+    u32 max_desc_index,
+    u8 channel_index,
+    u8 data_id);
+
+void hailo_vdma_set_num_avail(u8 __iomem *regs, u16 num_avail);
+
+u16 hailo_vdma_get_num_proc(u8 __iomem *regs);
+
 /**
  * Launch a transfer on some vdma channel. Includes:
  *      1. Binding the transfer buffers to the descriptors list.
@@ -249,9 +272,9 @@ int hailo_vdma_engine_fill_irq_data(struct hailo_vdma_interrupts_wait_params *ir
     struct hailo_vdma_engine *engine, u32 irq_channels_bitmap,
     transfer_done_cb_t transfer_done, void *transfer_done_opaque);
 
-int hailo_vdma_start_channel(u8 __iomem *host_regs, uint64_t desc_dma_address, uint8_t desc_depth, uint8_t data_id);
+int hailo_vdma_start_channel(u8 __iomem *regs, uint64_t desc_dma_address, uint32_t desc_count, uint8_t data_id);
 
-void hailo_vdma_stop_channel(u8 __iomem *host_regs);
+void hailo_vdma_stop_channel(u8 __iomem *regs);
 
 bool hailo_check_channel_index(u8 channel_index, u32 src_channels_bitmask, bool is_input_channel);
 

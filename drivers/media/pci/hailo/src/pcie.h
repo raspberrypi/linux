@@ -19,6 +19,9 @@
 
 #include <linux/ioctl.h>
 
+#define HAILO_PCI_OVER_VDMA_NUM_CHANNELS                (8)
+#define HAILO_PCI_OVER_VDMA_PAGE_SIZE                   (512)
+
 struct hailo_fw_control_info {
     // protects that only one fw control will be send at a time
     struct semaphore    mutex;
@@ -29,6 +32,11 @@ struct hailo_fw_control_info {
 };
 
 struct hailo_pcie_driver_down_info {
+    // called from the interrupt handler to notify that FW completed reset
+    struct completion   reset_completed;
+};
+
+struct hailo_pcie_soft_reset {
     // called from the interrupt handler to notify that FW completed reset
     struct completion   reset_completed;
 };
@@ -64,6 +72,32 @@ struct hailo_file_context {
     u32 soc_used_channels_bitmap;
 };
 
+struct hailo_pcie_boot_dma_channel_state {
+    struct hailo_descriptors_list_buffer host_descriptors_buffer;
+    struct hailo_descriptors_list_buffer device_descriptors_buffer;
+    struct sg_table sg_table;
+    u64 buffer_size;
+    void *kernel_addrs;
+    u32 desc_program_num;
+};
+
+struct hailo_pcie_boot_dma_state {
+    struct hailo_pcie_boot_dma_channel_state channels[HAILO_PCI_OVER_VDMA_NUM_CHANNELS];
+    u8 curr_channel_index;
+};
+
+struct hailo_pcie_fw_boot {
+    struct hailo_pcie_boot_dma_state boot_dma_state;
+    // is_in_boot is set to true when the board is in boot mode
+    bool is_in_boot;
+    // boot_used_channel_bitmap is a bitmap of the channels that are used for boot
+    u16 boot_used_channel_bitmap;
+    // fw_loaded_completion is used to notify that the FW was loaded - SOC & NNC
+    struct completion fw_loaded_completion;
+    // vdma_boot_completion is used to notify that the vDMA boot data was transferred completely on all used channels for boot
+    struct completion vdma_boot_completion;
+};
+
 struct hailo_pcie_board {
     struct list_head board_list;
     struct pci_dev *pDev;
@@ -74,13 +108,15 @@ struct hailo_pcie_board {
     struct hailo_pcie_nnc nnc;
     struct hailo_pcie_soc soc;
     struct hailo_pcie_driver_down_info driver_down;
+    struct hailo_pcie_soft_reset soft_reset;
     struct semaphore mutex;
     struct hailo_vdma_controller vdma;
 
+    struct hailo_pcie_fw_boot fw_boot;
+    
     struct hailo_memory_transfer_params memory_transfer_params;
     u32 desc_max_page_size;
     enum hailo_allocation_mode allocation_mode;
-    struct completion fw_loaded_completion;
     bool interrupts_enabled;
 };
 
@@ -89,6 +125,7 @@ bool power_mode_enabled(void);
 struct hailo_pcie_board* hailo_pcie_get_board_index(u32 index);
 void hailo_disable_interrupts(struct hailo_pcie_board *board);
 int hailo_enable_interrupts(struct hailo_pcie_board *board);
+int  hailo_pcie_soft_reset(struct hailo_pcie_resources *resources, struct completion *reset_completed);
 
 #endif /* _HAILO_PCI_PCIE_H_ */
 
