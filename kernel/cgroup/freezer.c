@@ -34,12 +34,17 @@ static void cgroup_propagate_frozen(struct cgroup *cgrp, bool frozen)
 				desc++;
 			}
 		} else {
-			cgrp->freezer.nr_frozen_descendants -= desc;
+			/* Critical fix: Decrement by 1 instead of 'desc' */
+			cgrp->freezer.nr_frozen_descendants -= 1;
+			WARN_ON_ONCE(cgrp->freezer.nr_frozen_descendants < 0);
 			if (test_bit(CGRP_FROZEN, &cgrp->flags)) {
-				clear_bit(CGRP_FROZEN, &cgrp->flags);
-				cgroup_file_notify(&cgrp->events_file);
-				TRACE_CGROUP_PATH(notify_frozen, cgrp, 0);
-				desc++;
+				/* Only unfreeze if no frozen descendants remain */
+				if (cgrp->freezer.nr_frozen_descendants !=
+				    cgrp->nr_descendants) {
+					clear_bit(CGRP_FROZEN, &cgrp->flags);
+					cgroup_file_notify(&cgrp->events_file);
+					TRACE_CGROUP_PATH(notify_frozen, cgrp, 0);
+				}
 			}
 		}
 	}
@@ -257,6 +262,9 @@ void cgroup_freezer_migrate_task(struct task_struct *task,
 	cgroup_freeze_task(task, test_bit(CGRP_FREEZE, &dst->flags));
 }
 
+/*
+ * Main freeze/unfreeze interface for cgroups.
+ */
 void cgroup_freeze(struct cgroup *cgrp, bool freeze)
 {
 	struct cgroup_subsys_state *css;
@@ -296,7 +304,6 @@ void cgroup_freeze(struct cgroup *cgrp, bool freeze)
 			 */
 			if (dsct->freezer.e_freeze > 0)
 				continue;
-
 			WARN_ON_ONCE(dsct->freezer.e_freeze < 0);
 		}
 
