@@ -1,4 +1,4 @@
-/*
+ /*
  * Device Tree overlay for RaspberryPi 7" Touchscreen panel
  *
  */
@@ -7,6 +7,11 @@
 /plugin/;
 
 #include "edt-ft5406.dtsi"
+
+&ft5406 {
+	vcc-supply = <&reg_display>;
+	reset-gpio = <&reg_display 1 1>;
+};
 
 / {
 	/* No compatible as it will have come from edt-ft5406.dtsi */
@@ -77,7 +82,7 @@
 
 	i2c_frag: fragment@2 {
 		target = <&i2c_csi_dsi>;
-		__overlay__ {
+		i2cbus: __overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
@@ -104,18 +109,10 @@
 			status = "okay";
 		};
 	};
-	fragment@5 {
-		target = <&ft5406>;
-		__overlay__ {
-			vcc-supply = <&reg_display>;
-			reset-gpio = <&reg_display 1 1>;
-		};
-	};
 
 	__overrides__ {
 		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
 		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
-		       <&ts_i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&panel_disp>, "reg:0=0",
 		       <&reg_bridge>, "reg:0=0",
 		       <&reg_bridge>, "regulator-name=bridge_reg_0";

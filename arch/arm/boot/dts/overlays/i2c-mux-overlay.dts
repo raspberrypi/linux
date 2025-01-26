@@ -5,6 +5,8 @@
 
 #include <dt-bindings/mux/mux.h>
 
+#include "i2c-buses.dtsi"
+
 /{
 	compatible = "brcm,bcm2835";
 
@@ -13,7 +15,6 @@
 		__dormant__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
 			pca9542: mux@70 {
 				compatible = "nxp,pca9542";
@@ -40,7 +41,6 @@
 		__dormant__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
 			pca9545: mux@70 {
 				compatible = "nxp,pca9545";
@@ -77,7 +77,6 @@
 		__dormant__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
 			pca9548: mux@70 {
 				compatible = "nxp,pca9548";
@@ -129,27 +128,6 @@
 		};
 	};
 
-	frag100: fragment@100 {
-		target = <&i2c_arm>;
-		i2cbus: __overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@101 {
-		target = <&i2c0if>;
-		__dormant__ {
-			status = "okay";
-		};
-	};
-
-	fragment@102 {
-		target = <&i2c0mux>;
-		__dormant__ {
-			status = "okay";
-		};
-	};
-
 	__overrides__ {
 		pca9542 = <0>, "+0";
 		pca9545 = <0>, "+1";
@@ -163,22 +141,6 @@
 			<&pca9545>,"base-nr:0",
 			<&pca9548>,"base-nr:0";
 
-		i2c0 = <&frag100>, "target:0=",<&i2c0>,
-			      <0>,"+101+102";
-		i2c_csi_dsi = <&frag100>, "target:0=",<&i2c_csi_dsi>,
-			      <0>,"+101+102";
-		i2c_csi_dsi0 = <&frag100>, "target:0=",<&i2c_csi_dsi0>,
-			      <0>,"+101+102";
-		i2c3 = <&frag100>, "target?=0",
-		       <&frag100>, "target-path=i2c3";
-		i2c4 = <&frag100>, "target?=0",
-		       <&frag100>, "target-path=i2c4";
-		i2c5 = <&frag100>, "target?=0",
-		       <&frag100>, "target-path=i2c5";
-		i2c6 = <&frag100>, "target?=0",
-		       <&frag100>, "target-path=i2c6";
-		i2c-path = <&frag100>, "target?=0",
-			   <&frag100>, "target-path";
 		disconnect_on_idle =
 			<&pca9542>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,
 			<&pca9545>,"idle-state:0=", <MUX_IDLE_DISCONNECT>,

@@ -2,11 +2,13 @@
 /dts-v1/;
 /plugin/;
 
+#include "i2c-buses.dtsi"
+
 /{
 	compatible = "brcm,bcm2835";
 
-	frag0: fragment@0 {
-		target = <&i2c_arm>;
+	fragment@0 {
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -21,248 +23,37 @@
 		};
 	};
 
-	fragment@1 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca6416";
-		};
-	};
-	fragment@2 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9505";
-		};
-	};
-	fragment@3 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9535";
-		};
-	};
-	fragment@4 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9536";
-		};
-	};
-	fragment@5 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9537";
-		};
-	};
-	fragment@6 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9538";
-		};
-	};
-	fragment@7 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9539";
-		};
-	};
-	fragment@8 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9554";
-		};
-	};
-	fragment@9 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9555";
-		};
-	};
-	fragment@10 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9556";
-		};
-	};
-	fragment@11 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9557";
-		};
-	};
-	fragment@12 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9574";
-		};
-	};
-	fragment@13 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9575";
-		};
-	};
-	fragment@14 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pca9698";
-		};
-	};
-	fragment@15 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pcal6416";
-		};
-	};
-	fragment@16 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pcal6524";
-		};
-	};
-	fragment@17 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "nxp,pcal9555a";
-		};
-	};
-	fragment@18 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "maxim,max7310";
-		};
-	};
-	fragment@19 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "maxim,max7312";
-		};
-	};
-	fragment@20 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "maxim,max7313";
-		};
-	};
-	fragment@21 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "maxim,max7315";
-		};
-	};
-	fragment@22 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,pca6107";
-		};
-	};
-	fragment@23 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,tca6408";
-		};
-	};
-	fragment@24 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,tca6416";
-		};
-	};
-	fragment@25 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,tca6424";
-		};
-	};
-	fragment@26 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,tca9539";
-		};
-	};
-	fragment@27 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "ti,tca9554";
-		};
-	};
-	fragment@28 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "onnn,cat9554";
-		};
-	};
-	fragment@29 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "onnn,pca9654";
-		};
-	};
-	fragment@30 {
-		target = <&pca>;
-		__dormant__ {
-			compatible = "exar,xra1202";
-		};
-	};
-
-	fragment@100 {
-		target = <&i2c0if>;
-		__dormant__ {
-			status = "okay";
-		};
-	};
-
-	fragment@101 {
-		target = <&i2c0mux>;
-		__dormant__ {
-			status = "okay";
-		};
-	};
-
 	__overrides__ {
 		addr = <&pca>,"reg:0";
-		pca6416 = <0>, "+1";
-		pca9505 = <0>, "+2";
-		pca9535 = <0>, "+3";
-		pca9536 = <0>, "+4";
-		pca9537 = <0>, "+5";
-		pca9538 = <0>, "+6";
-		pca9539 = <0>, "+7";
-		pca9554 = <0>, "+8";
-		pca9555 = <0>, "+9";
-		pca9556 = <0>, "+10";
-		pca9557 = <0>, "+11";
-		pca9574 = <0>, "+12";
-		pca9575 = <0>, "+13";
-		pca9698 = <0>, "+14";
-		pcal6416 = <0>, "+15";
-		pcal6524 = <0>, "+16";
-		pcal9555a = <0>, "+17";
-		max7310 = <0>, "+18";
-		max7312 = <0>, "+19";
-		max7313 = <0>, "+20";
-		max7315 = <0>, "+21";
-		pca6107 = <0>, "+22";
-		tca6408 = <0>, "+23";
-		tca6416 = <0>, "+24";
-		tca6424 = <0>, "+25";
-		tca9539 = <0>, "+26";
-		tca9554 = <0>, "+27";
-		cat9554 = <0>, "+28";
-		pca9654 = <0>, "+29";
-		xra1202 = <0>, "+30";
-		i2c0 = <&frag0>, "target:0=",<&i2c0>,
-			      <0>,"+100+101";
-		i2c_csi_dsi = <&frag0>, "target:0=",<&i2c_csi_dsi>,
-			      <0>,"+100+101";
-		i2c_csi_dsi0 = <&frag0>, "target:0=",<&i2c_csi_dsi0>,
-			      <0>,"+100+101";
-		i2c3 = <&frag0>, "target?=0",
-		       <&frag0>, "target-path=i2c3";
-		i2c4 = <&frag0>, "target?=0",
-		       <&frag0>, "target-path=i2c4";
-		i2c5 = <&frag0>, "target?=0",
-		       <&frag0>, "target-path=i2c5";
-		i2c6 = <&frag0>, "target?=0",
-		       <&frag0>, "target-path=i2c6";
-		i2c-path = <&frag0>, "target?=0",
-			   <&frag0>, "target-path";
+		pca6416 = <&pca>,"compatible=nxp,pca6416";
+		pca9505 = <&pca>,"compatible=nxp,pca9505";
+		pca9535 = <&pca>,"compatible=nxp,pca9535";
+		pca9536 = <&pca>,"compatible=nxp,pca9536";
+		pca9537 = <&pca>,"compatible=nxp,pca9537";
+		pca9538 = <&pca>,"compatible=nxp,pca9538";
+		pca9539 = <&pca>,"compatible=nxp,pca9539";
+		pca9554 = <&pca>,"compatible=nxp,pca9554";
+		pca9555 = <&pca>,"compatible=nxp,pca9555";
+		pca9556 = <&pca>,"compatible=nxp,pca9556";
+		pca9557 = <&pca>,"compatible=nxp,pca9557";
+		pca9574 = <&pca>,"compatible=nxp,pca9574";
+		pca9575 = <&pca>,"compatible=nxp,pca9575";
+		pca9698 = <&pca>,"compatible=nxp,pca9698";
+		pcal6416 = <&pca>,"compatible=nxp,pcal6416";
+		pcal6524 = <&pca>,"compatible=nxp,pcal6524";
+		pcal9555a = <&pca>,"compatible=nxp,pcal9555a";
+		max7310 = <&pca>,"compatible=maxim,max7310";
+		max7312 = <&pca>,"compatible=maxim,max7312";
+		max7313 = <&pca>,"compatible=maxim,max7313";
+		max7315 = <&pca>,"compatible=maxim,max7315";
+		pca6107 = <&pca>,"compatible=ti,pca6107";
+		tca6408 = <&pca>,"compatible=ti,tca6408";
+		tca6416 = <&pca>,"compatible=ti,tca6416";
+		tca6424 = <&pca>,"compatible=ti,tca6424";
+		tca9539 = <&pca>,"compatible=ti,tca9539";
+		tca9554 = <&pca>,"compatible=ti,tca9554";
+		cat9554 = <&pca>,"compatible=onnn,cat9554";
+		pca9654 = <&pca>,"compatible=onnn,pca9654";
+		xra1202 = <&pca>,"compatible=exar,xra1202";
 	};
 };
