@@ -2514,6 +2514,10 @@ Params: addr                    Set the address for the ADT7410, AS73211,
         ds1621                  Select the Dallas Semiconductors DS1621 temp
                                 sensor. Valid addresses 0x48-0x4f, default 0x48
 
+        gain                    Gain used for measuring shunt resistor current.
+                                Valid values 1 or 4, default 1. (ina238 only,
+                                disabled by default)
+
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
@@ -2524,6 +2528,11 @@ Params: addr                    Set the address for the ADT7410, AS73211,
                                 sensor
 
         htu21                   Select the HTU21 temperature and humidity sensor
+
+        ina238                  Select the TI INA238 power monitor. Valid
+                                addresses 0x40-0x4F, default 0x40.
+                                Uses parameters shunt-resistor and
+                                ti,shunt-gain for configuration
 
         int_pin                 Set the GPIO to use for interrupts (as73211,
                                 as7331, hdc3020, hts221, max30102, mpu6050 and
@@ -2583,6 +2592,10 @@ Params: addr                    Set the address for the ADT7410, AS73211,
 
         reset_pin               GPIO to be used to reset the device (bno055
                                 only, disabled by default)
+
+        shunt_resistor          Value of shunt resistor used for current
+                                measurement in uOhms.  (ina238 only, disabled
+                                by default)
 
         sht3x                   Select the Sensirion SHT3x temperature and
                                 humidity sensors. Valid addresses 0x44-0x45,
