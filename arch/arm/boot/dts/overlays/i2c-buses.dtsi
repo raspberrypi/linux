@@ -1,0 +1,67 @@
+// Common i2c buses, and dtparams to select them
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	busfrag: fragment@100 {
+		target = <&i2c_arm>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@101 {
+		target = <&i2c0if>;
+#ifdef ENABLE_I2C0_MUX
+		__overlay__ {
+#else
+		__dormant__ {
+#endif
+			status = "okay";
+		};
+	};
+
+	fragment@102 {
+		target = <&i2c0mux>;
+#ifdef ENABLE_I2C0_MUX
+		__overlay__ {
+#else
+		__dormant__ {
+#endif
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		i2c0 = <&busfrag>,"target:0=",<&i2c0>,
+			      <&busfrag>, "target-path?=0",
+			      <0>,"+101+102";
+		i2c_csi_dsi = <&busfrag>,"target:0=",<&i2c_csi_dsi>,
+			      <&busfrag>, "target-path?=0",
+			      <0>,"+101+102";
+		i2c_csi_dsi0 = <&busfrag>, "target:0=",<&i2c_csi_dsi0>,
+			       <&busfrag>, "target-path?=0",
+			       <0>,"+101+102";
+		i2c1 = <&busfrag>,"target:0=",<&i2c1>,
+		       <&busfrag>, "target-path?=0",
+		       <0>,"-101-102";
+		i2c2 = <&busfrag>, "target?=0",
+		       <&busfrag>, "target-path=i2c2",
+		       <0>,"-101-102";
+		i2c3 = <&busfrag>, "target?=0",
+		       <&busfrag>, "target-path=i2c3",
+		       <0>,"-101-102";
+		i2c4 = <&busfrag>, "target?=0",
+		       <&busfrag>, "target-path=i2c4",
+		       <0>,"-101-102";
+		i2c5 = <&busfrag>, "target?=0",
+		       <&busfrag>, "target-path=i2c5",
+		       <0>,"-101-102";
+		i2c6 = <&busfrag>, "target?=0",
+		       <&busfrag>, "target-path=i2c6",
+		       <0>,"-101-102";
+		i2c-path = <&busfrag>, "target?=0",
+			   <&busfrag>, "target-path",
+			   <0>,"-101-102";
+	};
+};
