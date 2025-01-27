@@ -87,7 +87,8 @@
 		addr = <&mcp23017>,"reg:0", <&mcp23017_pins>,"reg:0";
 		mcp23008 = <0>,"=2";
 		noints = <0>,"!1!3";
-		i2c0 = <&frag100>, "target:0=",<&i2c0>;
+		i2c0 = <&frag100>, "target:0=",<&i2c0>,
+			      <0>,"+101+102";
 		i2c_csi_dsi = <&frag100>, "target:0=",<&i2c_csi_dsi>,
 			      <0>,"+101+102";
 		i2c_csi_dsi0 = <&frag100>, "target:0=",<&i2c_csi_dsi0>,
