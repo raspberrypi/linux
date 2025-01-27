@@ -2605,6 +2605,9 @@ Params: addr                    Set the address for the ADT7410, AS73211,
                                 humidity sensors. Valid addresses 0x44-0x45,
                                 default 0x44
 
+        shtc3                   Select the Sensirion SHTC3 temperature and
+                                humidity sensors.
+
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
 
