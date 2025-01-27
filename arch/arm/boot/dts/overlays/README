@@ -4716,6 +4716,19 @@ Params: cs0_pin                 GPIO pin for CS0 (default 8)
                                 it for other uses.
 
 
+Name:   spi0-6cs
+Info:   Change the CS pins for SPI0
+Load:   dtoverlay=spi0-6cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 8)
+        cs1_pin                 GPIO pin for CS1 (default 13)
+        cs2_pin                 GPIO pin for CS1 (default 16)
+        cs3_pin                 GPIO pin for CS1 (default 17)
+        cs4_pin                 GPIO pin for CS1 (default 18)
+        cs5_pin                 GPIO pin for CS1 (default 19)
+        no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
 Name:   spi0-cs
 Info:   This overlay has been renamed spi0-2cs, keeping spi0-cs as an
         alias for backwards compatibility.
