@@ -27,7 +27,8 @@
 	};
 
 	__overrides__ {
-		i2c0 = <&frag100>, "target:0=",<&i2c0>;
+		i2c0 = <&frag100>, "target:0=",<&i2c0>,
+			      <0>,"+101+102";
 		i2c_csi_dsi = <&frag100>, "target:0=",<&i2c_csi_dsi>,
 			      <0>,"+101+102";
 		i2c_csi_dsi0 = <&frag100>, "target:0=",<&i2c_csi_dsi0>,
