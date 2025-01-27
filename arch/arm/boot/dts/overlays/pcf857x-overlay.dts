@@ -11,13 +11,13 @@
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
 
 			pcf857x: pcf857x@0 {
 				compatible = "";
 				reg = <0x00>;
 				gpio-controller;
 				#gpio-cells = <2>;
-				status = "okay";
 			};
 		};
 	};

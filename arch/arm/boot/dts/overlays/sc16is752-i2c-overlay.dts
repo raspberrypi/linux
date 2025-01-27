@@ -27,7 +27,7 @@
 	};
 
 	fragment@1 {
-		target-path = "/";
+		target = <&clocks>;
 		__overlay__ {
 			sc16is752_clk: sc16is752_i2c_clk@48 {
 				compatible = "fixed-clock";

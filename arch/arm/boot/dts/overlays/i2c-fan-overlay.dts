@@ -17,7 +17,6 @@
 			emc2301: emc2301@2f {
 				compatible = "microchip,emc2301";
 				reg = <0x2f>;
-				status = "okay";
 				#cooling-cells = <0x02>;
 			};
 		};
@@ -82,7 +81,8 @@
 	};
 
 	__overrides__ {
-		i2c0 =		<&frag100>,"target:0=",<&i2c0>;
+		i2c0 =		<&frag100>,"target:0=",<&i2c0>,
+				<0>,"+101+102";
 		i2c_csi_dsi =	<&frag100>,"target:0=",<&i2c_csi_dsi>,
 				<0>,"+101+102";
 		i2c_csi_dsi0 = <&frag100>, "target:0=",<&i2c_csi_dsi0>,
