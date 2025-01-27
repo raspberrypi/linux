@@ -547,6 +547,21 @@
 		};
 	};
 
+	fragment@36 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			shtc3: shtc3@70 {
+				compatible = "sensirion,shtc3";
+				reg = <0x70>;
+				status = "okay";
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -595,6 +610,7 @@
 		sht4x = <0>,"+32";
 		adt7410 = <0>,"+34";
 		ina238 = <0>,"+35";
+		shtc3 = <0>,"+36";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
