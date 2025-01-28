@@ -6587,7 +6587,11 @@ static void drm_reset_display_info(struct drm_connector *connector)
 	info->height_mm = 0;
 
 	info->bpc = 0;
-	info->color_formats = 0;
+	if (connector->connector_type == DRM_MODE_CONNECTOR_HDMIA ||
+	    connector->connector_type == DRM_MODE_CONNECTOR_HDMIB)
+		info->color_formats = DRM_COLOR_FORMAT_RGB444;
+	else
+		info->color_formats = 0;
 	info->cea_rev = 0;
 	info->max_tmds_clock = 0;
 	info->dvi_dual = false;
