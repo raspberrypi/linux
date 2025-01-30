@@ -29,7 +29,7 @@ struct dw_axi_dma_hcfg {
 	u32	block_size[DMAC_MAX_CHANNELS];
 	u32	priority[DMAC_MAX_CHANNELS];
 	/* maximum supported axi burst length */
-	u32	axi_rw_burst_len;
+	u32	axi_rw_burst_len[DMAC_MAX_CHANNELS];
 	/* Register map for DMAX_NUM_CHANNELS <= 8 */
 	bool	reg_map_8_channels;
 	bool	restrict_axi_burst_len;
