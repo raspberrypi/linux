@@ -710,6 +710,14 @@ static int rp1_pio_sm_config_xfer_user(struct rp1_pio_client *client, void *para
 					       args->buf_size, args->buf_count);
 }
 
+static int rp1_pio_sm_config_xfer32_user(struct rp1_pio_client *client, void *param)
+{
+	struct rp1_pio_sm_config_xfer32_args *args = param;
+
+	return rp1_pio_sm_config_xfer_internal(client, args->sm, args->dir,
+					       args->buf_size, args->buf_count);
+}
+
 static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 				  const void __user *userbuf, size_t bytes)
 {
@@ -970,6 +978,7 @@ struct handler_info {
 	HANDLER(SM_CONFIG_XFER, sm_config_xfer_user),
 	HANDLER(SM_XFER_DATA, sm_xfer_data_user),
 	HANDLER(SM_XFER_DATA32, sm_xfer_data32_user),
+	HANDLER(SM_CONFIG_XFER32, sm_config_xfer32_user),
 
 	HANDLER(CAN_ADD_PROGRAM, can_add_program),
 	HANDLER(ADD_PROGRAM, add_program),
