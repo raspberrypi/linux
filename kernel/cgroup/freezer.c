@@ -304,6 +304,7 @@ void cgroup_freeze(struct cgroup *cgrp, bool freeze)
 			 */
 			if (dsct->freezer.e_freeze > 0)
 				continue;
+			
 			WARN_ON_ONCE(dsct->freezer.e_freeze < 0);
 		}
 
