@@ -1277,8 +1277,10 @@ static int rp1_pio_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, pdev->id, "alias is missing\n");
 
 	fw = devm_rp1_firmware_get(dev, dev->of_node);
-	if (IS_ERR_OR_NULL(fw))
-		return dev_err_probe(dev, -ENOENT, "failed to contact RP1 firmware\n");
+	if (!fw)
+		return dev_err_probe(dev, -EPROBE_DEFER, "failed to find RP1 firmware driver\n");
+	if (IS_ERR(fw))
+		return dev_err_probe(dev, PTR_ERR(fw), "failed to contact RP1 firmware\n");
 	ret = rp1_firmware_get_feature(fw, FOURCC_PIO, &op_base, &op_count);
 	if (ret < 0)
 		return ret;
@@ -1355,6 +1357,11 @@ static void rp1_pio_remove(struct platform_device *pdev)
 
 	if (g_pio == pio)
 		g_pio = NULL;
+
+	device_destroy(pio->dev_class, pio->dev_num);
+	cdev_del(&pio->cdev);
+	class_destroy(pio->dev_class);
+	unregister_chrdev_region(pio->dev_num, 1);
 }
 
 static const struct of_device_id rp1_pio_ids[] = {
