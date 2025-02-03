@@ -304,6 +304,11 @@ static int dw_spi_dma_wait_tx_done(struct dw_spi *dws,
 		return -EIO;
 	}
 
+	if (!xfer->rx_buf) {
+		while (dw_readl(dws, DW_SPI_SR) & DW_SPI_SR_BUSY)
+			cpu_relax();
+	}
+
 	return 0;
 }
 
