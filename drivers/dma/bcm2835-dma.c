@@ -1270,6 +1270,8 @@ static int bcm2835_dma_suspend_late(struct device *dev)
 
 	return 0;
 }
+#else
+static int bcm2835_dma_suspend_late(struct device *dev) {return 0;}
 #endif
 
 static const struct dev_pm_ops bcm2835_dma_pm_ops = {
