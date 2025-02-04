@@ -133,8 +133,6 @@ static struct mbox_chan *rp1_mbox_xlate(struct mbox_controller *mbox,
 		return ERR_PTR(-EINVAL);
 
 	chan = &mbox->chans[doorbell];
-	if (chan->con_priv)
-		return ERR_PTR(-EBUSY);
 
 	chan->con_priv = (void *)(uintptr_t)(1 << doorbell);
 
