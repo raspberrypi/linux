@@ -1253,6 +1253,7 @@ static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 	return chan;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int bcm2835_dma_suspend_late(struct device *dev)
 {
 	struct bcm2835_dmadev *od = dev_get_drvdata(dev);
@@ -1269,6 +1270,9 @@ static int bcm2835_dma_suspend_late(struct device *dev)
 
 	return 0;
 }
+#else
+static int bcm2835_dma_suspend_late(struct device *dev) {return 0;}
+#endif
 
 static const struct dev_pm_ops bcm2835_dma_pm_ops = {
 	LATE_SYSTEM_SLEEP_PM_OPS(bcm2835_dma_suspend_late, NULL)
