@@ -17,7 +17,11 @@
 	/* Will be filled by the bootloader */
 	memory@0 {
 		device_type = "memory";
+#ifndef FIRMWARE_UPDATED
 		reg = <0 0 0x28000000>;
+#else
+		reg = <0 0 0 0x28000000>;
+#endif
 	};
 
 	leds: leds {
