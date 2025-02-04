@@ -279,7 +279,11 @@ pciex4: &pcie2 { };
 		compatible = "raspberrypi,bootloader-config", "nvmem-rmem";
 		#address-cells = <1>;
 		#size-cells = <1>;
+#ifndef FIRMWARE_UPDATED
 		reg = <0x0 0x0 0x0>;
+#else
+		reg = <0x0 0x0 0x0 0x0>;
+#endif
 		no-map;
 		status = "disabled";
 	};
@@ -291,7 +295,11 @@ pciex4: &pcie2 { };
 		compatible = "raspberrypi,bootloader-public-key", "nvmem-rmem";
 		#address-cells = <1>;
 		#size-cells = <1>;
+#ifndef FIRMWARE_UPDATED
 		reg = <0x0 0x0 0x0>;
+#else
+		reg = <0x0 0x0 0x0 0x0>;
+#endif
 		no-map;
 		status = "disabled";
 	};
