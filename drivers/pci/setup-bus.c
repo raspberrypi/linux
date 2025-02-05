@@ -2301,6 +2301,26 @@ enable_all:
 }
 EXPORT_SYMBOL_GPL(pci_assign_unassigned_bridge_resources);
 
+static void pci_release_resource_type(struct pci_dev *pdev, unsigned long type)
+{
+	int i;
+
+	if (!device_trylock(&pdev->dev))
+		return;
+
+	if (pdev->dev.driver)
+		goto unlock;
+
+	for (i = 0; i < PCI_STD_NUM_BARS; i++) {
+		if (pci_resource_len(pdev, i) &&
+		    !((pci_resource_flags(pdev, i) ^ type) & PCI_RES_TYPE_MASK))
+			pci_release_resource(pdev, i);
+	}
+
+unlock:
+	device_unlock(&pdev->dev);
+}
+
 int pci_reassign_bridge_resources(struct pci_dev *bridge, unsigned long type)
 {
 	struct pci_dev_resource *dev_res;
@@ -2335,8 +2355,10 @@ int pci_reassign_bridge_resources(struct pci_dev *bridge, unsigned long type)
 
 			pci_info(bridge, "%s %pR: releasing\n", res_name, res);
 
-			if (res->parent)
+			if (res->parent) {
 				release_resource(res);
+				pci_release_resource_type(bridge, type);
+			}
 			res->start = 0;
 			res->end = 0;
 			break;
