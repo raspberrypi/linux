@@ -85,6 +85,7 @@
 #include <linux/highmem.h>
 #include <linux/hugetlb.h>
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/numa_balancing.h>
@@ -138,6 +139,7 @@ static struct mempolicy default_policy = {
 	.refcnt = ATOMIC_INIT(1), /* never free it */
 	.mode = MPOL_LOCAL,
 };
+static bool mempolicy_cmdline_set;
 
 static struct mempolicy preferred_node_policy[MAX_NUMNODES];
 
@@ -1629,6 +1631,14 @@ static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 	int err;
 
 	err = sanitize_mpol_flags(&lmode, &mode_flags);
+
+	if (mempolicy_cmdline_set) {
+		// ignore messages during boot which are expected
+		if (ktime_get_boottime_seconds() > 40)
+			pr_info("Request to set policy to %d ignored\n", mode);
+		return 0;
+	}
+
 	if (err)
 		return err;
 
@@ -3402,6 +3412,7 @@ static int __init setup_numapolicy(char *str)
 		default_policy = pol;
 		mpol_to_str(buf, sizeof(buf), &pol);
 		pr_info("NUMA default policy overridden to '%s'\n", buf);
+		mempolicy_cmdline_set = pol.mode != MPOL_DEFAULT;
 	} else {
 		pr_warn("Unable to parse numa_policy=\n");
 	}
