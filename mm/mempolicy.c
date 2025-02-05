@@ -119,6 +119,10 @@
 
 #include "internal.h"
 
+/* bit field to force hotplug detection. bit0 = HDMI0 */
+static bool force_numa = false;
+module_param(force_numa, bool, 0644);
+
 /* Internal flags */
 #define MPOL_MF_DISCONTIG_OK (MPOL_MF_INTERNAL << 0)	/* Skip checks for continuous vmas */
 #define MPOL_MF_INVERT       (MPOL_MF_INTERNAL << 1)	/* Invert check for nodemask */
@@ -1629,6 +1633,12 @@ static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 	int err;
 
 	err = sanitize_mpol_flags(&lmode, &mode_flags);
+
+	if (force_numa) {
+		pr_info("Request to set policy ignored (mode:%x lmode:%x flags:%x err:%d)\n", mode, lmode, mode_flags, err);
+		return 0;
+	}
+
 	if (err)
 		return err;
 
