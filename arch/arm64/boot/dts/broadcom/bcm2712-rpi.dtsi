@@ -35,13 +35,11 @@
 	fb: fb {
 		compatible = "brcm,bcm2708-fb";
 		firmware = <&firmware>;
-		status = "okay";
 	};
 
 	rpi_rtc: rpi_rtc {
 		compatible = "raspberrypi,rpi-rtc";
 		firmware = <&firmware>;
-		status = "okay";
 		trickle-charge-microvolt = <0>;
 	};
 
@@ -54,28 +52,24 @@
 			compatible = "raspberrypi,rpi-otp";
 			firmware = <&firmware>;
 			reg = <0 192>;
-			status = "okay";
 		};
 
 		nvmem_cust: nvmem_cust {
 			compatible = "raspberrypi,rpi-otp";
 			firmware = <&firmware>;
 			reg = <1 8>;
-			status = "okay";
 		};
 
 		nvmem_mac: nvmem_mac {
 			compatible = "raspberrypi,rpi-otp";
 			firmware = <&firmware>;
 			reg = <2 6>;
-			status = "okay";
 		};
 
 		nvmem_priv: nvmem_priv {
 			compatible = "raspberrypi,rpi-otp";
 			firmware = <&firmware>;
 			reg = <3 16>;
-			status = "okay";
 		};
 	};
 

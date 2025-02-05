@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/clock/rp1.h>
@@ -41,7 +41,7 @@
 		};
 	};
 
-	sd_io_1v8_reg: sd_io_1v8_reg {
+	sd_io_1v8_reg: sd-io-1v8-reg {
 		compatible = "regulator-fixed";
 		regulator-name = "vdd-sd-io";
 		regulator-min-microvolt = <1800000>;
@@ -49,7 +49,7 @@
 		regulator-always-on;
 	};
 
-	sd_vcc_reg: sd_vcc_reg {
+	sd_vcc_reg: sd-vcc-reg {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc-sd";
 		regulator-min-microvolt = <3300000>;
@@ -57,10 +57,9 @@
 		regulator-boot-on;
 		enable-active-high;
 		gpios = <&gio_aon 4 GPIO_ACTIVE_HIGH>;
-		status = "okay";
 	};
 
-	wl_on_reg: wl_on_reg {
+	wl_on_reg: wl-on-reg {
 		compatible = "regulator-fixed";
 		regulator-name = "wl-on-regulator";
 		regulator-min-microvolt = <3300000>;
@@ -90,14 +89,12 @@
 		compatible = "regulator-fixed";
 		regulator-name = "cam0_reg";
 		enable-active-high;
-		status = "okay";
-		gpio = <&rp1_gpio 34 0>; // CD0_IO0_MICCLK, to CAM_GPIO on connector
+		gpio = <&rp1_gpio 34 0>;  // CD0_IO0_MICCLK, to CAM_GPIO on connector
 	};
 
 	cam_dummy_reg: cam_dummy_reg {
 		compatible = "regulator-fixed";
 		regulator-name = "cam-dummy-reg";
-		status = "okay";
 	};
 
 	dummy: dummy {
@@ -115,11 +112,6 @@ rp1_target: &pcie2 {
 	aspm-no-l0s;
 	status = "okay";
 };
-
-// Add some labels to 2712 device
-
-// The system UART
-&uart10 { status = "okay"; };
 
 // The system SPI for the bootloader EEPROM
 &spi10 { status = "okay"; };
@@ -173,6 +165,13 @@ rp1_target: &pcie2 {
 		interrupt-parent = <&gpio>;
 		interrupts = <37 IRQ_TYPE_LEVEL_LOW>;
 	};
+};
+
+/* The Debug UART, on Rpi5 it's on JST-SH 1.0mm 3-pin connector
+ * labeled "UART", i.e. the interface with the system console.
+ */
+&uart10 {
+	status = "okay";
 };
 
 gpio: &rp1_gpio {
