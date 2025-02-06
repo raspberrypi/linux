@@ -19357,6 +19357,16 @@ S:	Maintained
 F:	Documentation/devicetree/bindings/spi/raspberrypi,rp2040-gpio-bridge.yaml
 F:	drivers/spi/spi-rp2040-gpio-bridge.c
 
+RASPBERRY PI HEVC DECODER
+M:	John Cox <john.cox@raspberrypi.com>
+M:	Dom Cobley <dom@raspberrypi.com>
+M:	Dave Stevenson <dave.stevenson@raspberrypi.com>
+M:	Raspberry Pi Internal Kernel List <kernel-list@raspberrypi.com>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/media/raspberrypi,rpi_hevc_dec.yaml
+F:	drivers/media/platform/raspberrypi/hevc_dec
+
 RASPBERRY PI PISP BACK END
 M:	Jacopo Mondi <jacopo.mondi@ideasonboard.com>
 L:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
