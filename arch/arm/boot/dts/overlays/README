@@ -1900,6 +1900,9 @@ Params: <None>
 
 Name:   hifiberry-dac8x
 Info:   Configures the HifiBerry DAC8X audio cards (only on Pi5)
+        This driver also detects a stacked ADC8x and activates the
+        capture capabilities.
+        Note: for standalone use of the ADC8x activate the ADC8x module.
 Load:   dtoverlay=hifiberry-dac8x
 Params: <None>
 
