@@ -209,6 +209,17 @@
 #define  PCIE_DVT_PMU_PCIE_PHY_CTRL_DAST_PWRDN_MASK		0x1
 #define  PCIE_DVT_PMU_PCIE_PHY_CTRL_DAST_PWRDN_SHIFT		0x0
 
+/* BCM7712/2712-specific registers */
+#define PCIE_MISC_UBUS_CTRL	0x40a4
+#define  PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK	BIT(13)
+#define  PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_DECERR_DIS_MASK	BIT(19)
+
+#define PCIE_MISC_UBUS_TIMEOUT	0x40a8
+
+#define PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT	0x405c
+
+#define PCIE_MISC_AXI_READ_ERROR_DATA		0x4170
+
 /* Forward declarations */
 struct brcm_pcie;
 
@@ -858,6 +869,30 @@ static int brcm_pcie_post_setup_bcm2712(struct brcm_pcie *pcie)
 	tmp &= ~PCIE_RC_PL_PHY_CTL_15_PM_CLK_PERIOD_MASK;
 	tmp |= 0x12;
 	writel(tmp, pcie->base + PCIE_RC_PL_PHY_CTL_15);
+
+	/*
+	 * BCM7712/2712 uses a UBUS-AXI bridge.
+	 * Suppress AXI error responses and return 1s for read failures.
+	 */
+	tmp = readl(pcie->base + PCIE_MISC_UBUS_CTRL);
+	u32p_replace_bits(&tmp, 1, PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK);
+	u32p_replace_bits(&tmp, 1, PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_DECERR_DIS_MASK);
+	writel(tmp, pcie->base + PCIE_MISC_UBUS_CTRL);
+	writel(0xffffffff, pcie->base + PCIE_MISC_AXI_READ_ERROR_DATA);
+
+	/*
+	 * Adjust timeouts. The UBUS timeout also affects Configuration Request
+	 * Retry responses, as the request will get terminated if
+	 * either timeout expires, so both have to be a large value
+	 * (in clocks of 750MHz).
+	 * Set UBUS timeout to 250ms, then set RC config retry timeout
+	 * to be ~240ms.
+	 *
+	 * If CRSSVE=1 this will stop the core from blocking on a Retry
+	 * response, but does require the device to be well-behaved...
+	 */
+	writel(0xB2D0000, pcie->base + PCIE_MISC_UBUS_TIMEOUT);
+	writel(0xABA0000, pcie->base + PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT);
 
 	return 0;
 }
