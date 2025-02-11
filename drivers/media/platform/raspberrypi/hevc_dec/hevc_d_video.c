@@ -150,17 +150,55 @@ static void hevc_d_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 		bytesperline = width * 4 / 3;
 		sizeimage = bytesperline * height;
 		break;
+
+	case V4L2_PIX_FMT_NV12_COL128:
+		/* Width rounds up to columns */
+		width = ALIGN(width, 128);
+		height = ALIGN(height, 8);
+
+		/* column height
+		 * Accept suggested shape if at least min & < 2 * min
+		 */
+		bytesperline = constrain2x(bytesperline, height * 3 / 2);
+		sizeimage = bytesperline * width;
+		break;
+
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		/* width in pixels (3 pels = 4 bytes) rounded to 128 byte
+		 * columns
+		 */
+		width = ALIGN(((width + 2) / 3), 32) * 3;
+		height = ALIGN(height, 8);
+
+		/* column height
+		 * Accept suggested shape if at least min & < 2 * min
+		 */
+		bytesperline = constrain2x(bytesperline, height * 3 / 2);
+		sizeimage = bytesperline * width * 4 / 3;
+		break;
 	}
 
 	pix_fmt->width = width;
 	pix_fmt->height = height;
 
 	pix_fmt->field = V4L2_FIELD_NONE;
-	pix_fmt->plane_fmt[0].bytesperline = bytesperline;
-	pix_fmt->plane_fmt[0].sizeimage = sizeimage;
-	pix_fmt->plane_fmt[1].bytesperline = bytesperline;
-	pix_fmt->plane_fmt[1].sizeimage = sizeimage / 2;
-	pix_fmt->num_planes = 2;
+	switch (pix_fmt->pixelformat) {
+	default:
+	case V4L2_PIX_FMT_NV12MT_COL128:
+	case V4L2_PIX_FMT_NV12MT_10_COL128:
+		pix_fmt->plane_fmt[0].bytesperline = bytesperline;
+		pix_fmt->plane_fmt[0].sizeimage = sizeimage;
+		pix_fmt->plane_fmt[1].bytesperline = bytesperline;
+		pix_fmt->plane_fmt[1].sizeimage = sizeimage / 2;
+		pix_fmt->num_planes = 2;
+		break;
+	case V4L2_PIX_FMT_NV12_COL128:
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		pix_fmt->plane_fmt[0].bytesperline = bytesperline;
+		pix_fmt->plane_fmt[0].sizeimage = sizeimage;
+		pix_fmt->num_planes = 1;
+		break;
+	}
 }
 
 static int hevc_d_querycap(struct file *file, void *priv,
@@ -245,19 +283,31 @@ static int hevc_d_hevc_validate_sps(const struct v4l2_ctrl_hevc_sps * const sps)
 static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 				const int index)
 {
+	static const u32 all_formats[] = {
+		V4L2_PIX_FMT_NV12MT_COL128,
+		V4L2_PIX_FMT_NV12MT_10_COL128,
+		V4L2_PIX_FMT_NV12_COL128,
+		V4L2_PIX_FMT_NV12_10_COL128,
+	};
 	u32 pf = 0;
 
 	if (!is_sps_set(sps) || !hevc_d_hevc_validate_sps(sps)) {
 		/* Treat this as an error? For now return both */
-		if (index == 0)
-			pf = V4L2_PIX_FMT_NV12MT_COL128;
-		else if (index == 1)
-			pf = V4L2_PIX_FMT_NV12MT_10_COL128;
-	} else if (index == 0) {
-		if (sps->bit_depth_luma_minus8 == 0)
-			pf = V4L2_PIX_FMT_NV12MT_COL128;
-		else if (sps->bit_depth_luma_minus8 == 2)
-			pf = V4L2_PIX_FMT_NV12MT_10_COL128;
+
+		if (index < ARRAY_SIZE(all_formats))
+			pf = all_formats[index];
+	} else {
+		if (index == 0) {
+			if (sps->bit_depth_luma_minus8 == 0)
+				pf = V4L2_PIX_FMT_NV12MT_COL128;
+			else if (sps->bit_depth_luma_minus8 == 2)
+				pf = V4L2_PIX_FMT_NV12MT_10_COL128;
+		} else if (index == 1) {
+			if (sps->bit_depth_luma_minus8 == 0)
+				pf = V4L2_PIX_FMT_NV12_COL128;
+			else if (sps->bit_depth_luma_minus8 == 2)
+				pf = V4L2_PIX_FMT_NV12_10_COL128;
+		}
 	}
 
 	return pf;
@@ -469,17 +519,28 @@ static int hevc_d_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
 	}
 
 	if (*nplanes) {
-		if (*nplanes != expected_nplanes ||
-		    sizes[0] < pix_fmt->plane_fmt[0].sizeimage ||
-		    sizes[1] < pix_fmt->plane_fmt[1].sizeimage)
-			return -EINVAL;
+		if (pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
+		    pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128) {
+			if (*nplanes != expected_nplanes ||
+			    sizes[0] < pix_fmt->plane_fmt[0].sizeimage ||
+			    sizes[1] < pix_fmt->plane_fmt[1].sizeimage)
+				return -EINVAL;
+		} else {
+			if (sizes[0] < pix_fmt->plane_fmt[0].sizeimage)
+				return -EINVAL;
+		}
 	} else {
 		sizes[0] = pix_fmt->plane_fmt[0].sizeimage;
 		if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 			*nplanes = 1;
 		} else {
-			sizes[1] = pix_fmt->plane_fmt[1].sizeimage;
-			*nplanes = 2;
+			if (pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
+			    pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128) {
+				sizes[1] = pix_fmt->plane_fmt[1].sizeimage;
+				*nplanes = 2;
+			} else {
+				*nplanes = 1;
+			}
 		}
 	}
 
