@@ -213,6 +213,22 @@
 #define  PCIE_DVT_PMU_PCIE_PHY_CTRL_DAST_PWRDN_SHIFT		0x0
 
 /* BCM7712/2712-specific registers */
+
+#define PCIE_RC_TL_VDM_CTL0				0x0a20
+#define  PCIE_RC_TL_VDM_CTL0_VDM_ENABLED_MASK		0x10000
+#define  PCIE_RC_TL_VDM_CTL0_VDM_IGNORETAG_MASK		0x20000
+#define  PCIE_RC_TL_VDM_CTL0_VDM_IGNOREVNDRID_MASK	0x40000
+
+#define PCIE_RC_TL_VDM_CTL1				0x0a0c
+#define  PCIE_RC_TL_VDM_CTL1_VDM_VNDRID0_MASK		0x0000ffff
+#define  PCIE_RC_TL_VDM_CTL1_VDM_VNDRID1_MASK		0xffff0000
+
+#define PCIE_MISC_CTRL_1					0x40A0
+#define  PCIE_MISC_CTRL_1_OUTBOUND_TC_MASK			0xf
+#define  PCIE_MISC_CTRL_1_OUTBOUND_NO_SNOOP_MASK		BIT(3)
+#define  PCIE_MISC_CTRL_1_OUTBOUND_RO_MASK			BIT(4)
+#define  PCIE_MISC_CTRL_1_EN_VDM_QOS_CONTROL_MASK		BIT(5)
+
 #define PCIE_MISC_UBUS_CTRL	0x40a4
 #define  PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_ERR_DIS_MASK	BIT(13)
 #define  PCIE_MISC_UBUS_CTRL_UBUS_PCIE_REPLY_DECERR_DIS_MASK	BIT(19)
@@ -220,6 +236,31 @@
 #define PCIE_MISC_UBUS_TIMEOUT	0x40a8
 
 #define PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT	0x405c
+
+/* AXI priority forwarding - automatic level-based */
+#define PCIE_MISC_TC_QUEUE_TO_QOS_MAP(x)		(0x4160 - (x) * 4)
+/* Defined in quarter-fullness */
+#define  QUEUE_THRESHOLD_34_TO_QOS_MAP_SHIFT		12
+#define  QUEUE_THRESHOLD_23_TO_QOS_MAP_SHIFT		8
+#define  QUEUE_THRESHOLD_12_TO_QOS_MAP_SHIFT		4
+#define  QUEUE_THRESHOLD_01_TO_QOS_MAP_SHIFT		0
+#define  QUEUE_THRESHOLD_MASK				0xf
+
+/* VDM messages indexing TCs to AXI priorities */
+/* Indexes 8-15 */
+#define PCIE_MISC_VDM_PRIORITY_TO_QOS_MAP_HI		0x4164
+/* Indexes 0-7 */
+#define PCIE_MISC_VDM_PRIORITY_TO_QOS_MAP_LO		0x4168
+#define  VDM_PRIORITY_TO_QOS_MAP_SHIFT(x)		(4 * (x))
+#define  VDM_PRIORITY_TO_QOS_MAP_MASK			0xf
+
+#define PCIE_MISC_AXI_INTF_CTRL 0x416C
+#define  AXI_EN_RCLK_QOS_ARRAY_FIX			BIT(13)
+#define  AXI_EN_QOS_UPDATE_TIMING_FIX			BIT(12)
+#define  AXI_DIS_QOS_GATING_IN_MASTER			BIT(11)
+#define  AXI_REQFIFO_EN_QOS_PROPAGATION			BIT(7)
+#define  AXI_BRIDGE_LOW_LATENCY_MODE			BIT(6)
+#define  AXI_MASTER_MAX_OUTSTANDING_REQUESTS_MASK	0x3f
 
 #define PCIE_MISC_AXI_READ_ERROR_DATA		0x4170
 
@@ -856,6 +897,7 @@ static int brcm_pcie_post_setup_bcm2712(struct brcm_pcie *pcie)
 	const u8 regs[] = { 0x16, 0x17, 0x18, 0x19, 0x1b, 0x1c, 0x1e };
 	int ret, i;
 	u32 tmp;
+	u8 qos_map[8];
 
 	/* Allow a 54MHz (xosc) refclk source */
 	ret = brcm_pcie_mdio_write(pcie->base, MDIO_PORT0, SET_ADDR_OFFSET, 0x1600);
@@ -902,6 +944,84 @@ static int brcm_pcie_post_setup_bcm2712(struct brcm_pcie *pcie)
 	 */
 	writel(0xB2D0000, pcie->base + PCIE_MISC_UBUS_TIMEOUT);
 	writel(0xABA0000, pcie->base + PCIE_MISC_RC_CONFIG_RETRY_TIMEOUT);
+
+	/*
+	 * BCM2712 has a configurable QoS mechanism that assigns TLP Traffic Classes
+	 * to separate AXI IDs with a configurable priority scheme.
+	 * Dynamic priority elevation is supported through reception of Type 1
+	 * Vendor Defined Messages, but several bugs make this largely ineffective.
+	 */
+
+	/* Disable broken forwarding search. Set chicken bits for 2712D0 */
+	tmp = readl(pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+	tmp &= ~AXI_REQFIFO_EN_QOS_PROPAGATION;
+	tmp |= AXI_EN_RCLK_QOS_ARRAY_FIX | AXI_EN_QOS_UPDATE_TIMING_FIX |
+		AXI_DIS_QOS_GATING_IN_MASTER;
+	writel(tmp, pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+
+	/*
+	 * Work around spurious QoS=0 assignments to inbound traffic.
+	 * If the QOS_UPDATE_TIMING_FIX bit is Reserved-0, then this is a
+	 * 2712C1 chip, or a single-lane RC. Use the best-effort alternative
+	 * which is to partially throttle AXI requests in-flight to SDRAM.
+	 */
+	tmp = readl(pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+	if (!(tmp & AXI_EN_QOS_UPDATE_TIMING_FIX)) {
+		tmp &= ~AXI_MASTER_MAX_OUTSTANDING_REQUESTS_MASK;
+		tmp |= 15;
+		writel(tmp, pcie->base + PCIE_MISC_AXI_INTF_CTRL);
+	}
+
+	/* Disable VDM reception by default */
+	tmp = readl(pcie->base + PCIE_MISC_CTRL_1);
+	tmp &= ~PCIE_MISC_CTRL_1_EN_VDM_QOS_CONTROL_MASK;
+	writel(tmp, pcie->base + PCIE_MISC_CTRL_1);
+
+	if (!of_property_read_u8_array(pcie->np, "brcm,fifo-qos-map", qos_map, 4)) {
+
+		/*
+		 * Backpressure mode - each element is QoS for each
+		 * quartile of FIFO level. Each TC gets the same map, because
+		 * this mode is intended for nonrealtime EPs.
+		 */
+		tmp = 0;
+		for (i = 0; i < 4; i++) {
+			/* Priorities range from 0-15 */
+			qos_map[i] &= 0x0f;
+			tmp |= qos_map[i] << (i * 4);
+		}
+		for (i = 0; i < 8; i++)
+			writel(tmp, pcie->base + PCIE_MISC_TC_QUEUE_TO_QOS_MAP(i));
+
+	} else if (!of_property_read_u8_array(pcie->np, "brcm,vdm-qos-map", qos_map, 8)) {
+		/* Enable VDM reception */
+		tmp = readl(pcie->base + PCIE_MISC_CTRL_1);
+		tmp |= PCIE_MISC_CTRL_1_EN_VDM_QOS_CONTROL_MASK;
+		writel(tmp, pcie->base + PCIE_MISC_CTRL_1);
+
+		tmp = 0;
+		for (i = 0; i < 8; i++) {
+			/* Priorities range from 0-15 */
+			qos_map[i] &= 0x0f;
+			tmp |= qos_map[i] << (i * 4);
+		}
+		/* Broken forwarding means no point separating panic priorities from normal */
+		writel(tmp, pcie->base + PCIE_MISC_VDM_PRIORITY_TO_QOS_MAP_LO);
+		writel(tmp, pcie->base + PCIE_MISC_VDM_PRIORITY_TO_QOS_MAP_HI);
+
+		/* Match Vendor ID of 0 */
+		writel(0, pcie->base + PCIE_RC_TL_VDM_CTL1);
+
+		/*
+		 * Forward VDMs to priority interface anyway -
+		 * useful for debugging starvation through the received VDM count fields.
+		 */
+		tmp = readl(pcie->base + PCIE_RC_TL_VDM_CTL0);
+		tmp |= PCIE_RC_TL_VDM_CTL0_VDM_ENABLED_MASK |
+			PCIE_RC_TL_VDM_CTL0_VDM_IGNORETAG_MASK |
+			PCIE_RC_TL_VDM_CTL0_VDM_IGNOREVNDRID_MASK;
+		writel(tmp, pcie->base + PCIE_RC_TL_VDM_CTL0);
+	}
 
 	return 0;
 }
