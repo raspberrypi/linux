@@ -576,23 +576,31 @@ static inline struct imx283 *to_imx283(struct v4l2_subdev *sd)
 	return container_of_const(sd, struct imx283, sd);
 }
 
+static inline int get_format_code(unsigned int code)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(imx283_mbus_codes); i++)
+		if (imx283_mbus_codes[i] == code)
+			break;
+
+	if (i >= ARRAY_SIZE(imx283_mbus_codes))
+		i = 0;
+
+	return imx283_mbus_codes[i];
+}
+
 static inline void get_mode_table(unsigned int code,
 				  const struct imx283_mode **mode_list,
 				  unsigned int *num_modes)
 {
 	switch (code) {
 	case MEDIA_BUS_FMT_SRGGB12_1X12:
-	case MEDIA_BUS_FMT_SGRBG12_1X12:
-	case MEDIA_BUS_FMT_SGBRG12_1X12:
-	case MEDIA_BUS_FMT_SBGGR12_1X12:
 		*mode_list = supported_modes_12bit;
 		*num_modes = ARRAY_SIZE(supported_modes_12bit);
 		break;
 
 	case MEDIA_BUS_FMT_SRGGB10_1X10:
-	case MEDIA_BUS_FMT_SGRBG10_1X10:
-	case MEDIA_BUS_FMT_SGBRG10_1X10:
-	case MEDIA_BUS_FMT_SBGGR10_1X10:
 		*mode_list = supported_modes_10bit;
 		*num_modes = ARRAY_SIZE(supported_modes_10bit);
 		break;
@@ -962,6 +970,8 @@ static int imx283_set_pad_format(struct v4l2_subdev *sd,
 	struct imx283 *imx283 = to_imx283(sd);
 	const struct imx283_mode *mode_list;
 	unsigned int num_modes;
+
+	fmt->format.code = get_format_code(fmt->format.code);
 
 	get_mode_table(fmt->format.code, &mode_list, &num_modes);
 
@@ -1363,8 +1373,6 @@ static int imx283_init_controls(struct imx283 *imx283)
 
 	imx283->vflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx283_ctrl_ops, V4L2_CID_VFLIP,
 					  0, 1, 1, 0);
-	if (imx283->vflip)
-		imx283->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx283_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
