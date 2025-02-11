@@ -1556,6 +1556,8 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	unsigned int ctb_size_y;
 	bool sps_changed = false;
 	unsigned int lkg_slot;
+	/* Old (downstream only) bit size meanings */
+	bool old_bits = false;
 
 	de = dec_env_new(ctx);
 	if (!de) {
@@ -1606,25 +1608,43 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->cmd_len = 0;
 	de->dpbno_col = ~0U;
 
-	de->luma_stride = ctx->dst_fmt.height * 128;
-	de->frame_luma_addr =
-		vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
-	de->chroma_stride = de->luma_stride / 2;
-	de->frame_chroma_addr =
-		vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
-	de->mvbase = 0;
-	de->frame_slot = run->dst->vb2_buf.index;
+	switch (ctx->dst_fmt.pixelformat) {
+	case V4L2_PIX_FMT_NV12MT_COL128:
+	case V4L2_PIX_FMT_NV12MT_10_COL128:
+		de->luma_stride = ctx->dst_fmt.height * 128;
+		de->frame_luma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
+		de->chroma_stride = de->luma_stride / 2;
+		de->frame_chroma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
+		de->mvbase = 0;
+		de->frame_slot = run->dst->vb2_buf.index;
+		break;
+	case V4L2_PIX_FMT_NV12_COL128:
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		de->luma_stride = ctx->dst_fmt.plane_fmt[0].bytesperline * 128;
+		de->frame_luma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
+		de->chroma_stride = de->luma_stride;
+		de->frame_chroma_addr = de->frame_luma_addr +
+					(ctx->dst_fmt.height * 128);
+		de->mvbase = 0;
+		de->frame_slot = run->dst->vb2_buf.index;
+		old_bits = true;
+		break;
+	}
 
 	if (s->sps.bit_depth_luma_minus8 == 0) {
-		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128) {
+		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128 &&
+		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Pixel format %#x != NV12MT_COL128 for 8-bit output",
 				 ctx->dst_fmt.pixelformat);
 			goto fail;
 		}
 	} else {
-		if (ctx->dst_fmt.pixelformat !=
-					V4L2_PIX_FMT_NV12MT_10_COL128) {
+		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_10_COL128 &&
+		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_10_COL128) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Pixel format %#x != NV12MT_10_COL128 for 10-bit output",
 				 ctx->dst_fmt.pixelformat);
@@ -1641,6 +1661,42 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 			  ctx->dst_fmt.width,
 			  ctx->dst_fmt.height);
 		goto fail;
+	}
+
+	switch (ctx->dst_fmt.pixelformat) {
+	case V4L2_PIX_FMT_NV12MT_COL128:
+	case V4L2_PIX_FMT_NV12MT_10_COL128:
+		if (run->dst->vb2_buf.num_planes != 2) {
+			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 2\n",
+				  run->dst->vb2_buf.num_planes);
+			goto fail;
+		}
+		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage ||
+		    run->dst->planes[1].length < ctx->dst_fmt.plane_fmt[1].sizeimage) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Capture planes length (%d/%d) < sizeimage (%d/%d)\n",
+				  run->dst->planes[0].length,
+				  run->dst->planes[1].length,
+				  ctx->dst_fmt.plane_fmt[0].sizeimage,
+				  ctx->dst_fmt.plane_fmt[1].sizeimage);
+			goto fail;
+		}
+		break;
+	case V4L2_PIX_FMT_NV12_COL128:
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		if (run->dst->vb2_buf.num_planes != 1) {
+			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 1\n",
+				  run->dst->vb2_buf.num_planes);
+			goto fail;
+		}
+		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Capture planes length (%d) < sizeimage (%d)\n",
+				  run->dst->planes[0].length,
+				  ctx->dst_fmt.plane_fmt[0].sizeimage);
+			goto fail;
+		}
+		break;
 	}
 
 	/*
@@ -1688,15 +1744,24 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	for (i = 0; i != run->h265.slice_ents; ++i) {
 		const struct v4l2_ctrl_hevc_slice_params *const sh = sh0 + i;
 		const bool last_slice = i + 1 == run->h265.slice_ents;
-		const u32 byte_size = DIV_ROUND_UP(sh->bit_size, 8);
+		unsigned int bit_size = old_bits ? sh->bit_size - 8 * sh->data_byte_offset :
+						   sh->bit_size;
+		const u32 byte_size = DIV_ROUND_UP(bit_size, 8);
 		unsigned int j;
 
 		s->sh = sh;
 
+		if (old_bits && sh->bit_size <= 8 * sh->data_byte_offset) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "data_byte_offset %d * 8 >= bits %d\n",
+				  sh->data_byte_offset, sh->bit_size);
+			goto fail;
+		}
+
 		if (sh->data_byte_offset + byte_size > run->src->planes[0].bytesused) {
 			v4l2_warn(&dev->v4l2_dev,
 				  "data_byte_offset %d + bits %d (= %d bytes) > bytesused %d\n",
-				  sh->data_byte_offset, sh->bit_size, byte_size,
+				  sh->data_byte_offset, bit_size, byte_size,
 				  run->src->planes[0].bytesused);
 			goto fail;
 		}
@@ -1706,7 +1771,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		 * actual size of the buffer (which may well be what is used to set
 		 * bit_size if the caller isn't being very pedantic).
 		 */
-		s->data_len = min(sh->bit_size / 8 + 1,
+		s->data_len = min(bit_size / 8 + 1,
 				  run->src->planes[0].bytesused - sh->data_byte_offset);
 
 		s->slice_qp = 26 + s->pps.init_qp_minus26 + sh->slice_qp_delta;
