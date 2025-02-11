@@ -1652,12 +1652,27 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->cmd_len = 0;
 	de->dpbno_col = ~0U;
 
-	de->luma_stride = ctx->dst_fmt.height * 128;
-	de->frame_luma_addr =
-		vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
-	de->chroma_stride = de->luma_stride / 2;
-	de->frame_chroma_addr =
-		vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
+	switch (ctx->dst_fmt.pixelformat) {
+	case V4L2_PIX_FMT_NV12MT_COL128:
+	case V4L2_PIX_FMT_NV12MT_10_COL128:
+		de->luma_stride = ctx->dst_fmt.height * 128;
+		de->frame_luma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
+		de->chroma_stride = de->luma_stride / 2;
+		de->frame_chroma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
+		break;
+	case V4L2_PIX_FMT_NV12_COL128:
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		de->luma_stride = ctx->dst_fmt.plane_fmt[0].bytesperline * 128;
+		de->frame_luma_addr =
+			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
+		de->chroma_stride = de->luma_stride;
+		de->frame_chroma_addr = de->frame_luma_addr +
+					(ctx->dst_fmt.height * 128);
+		break;
+	}
+
 	de->frame_aux = NULL;
 
 	if (s->sps.bit_depth_luma_minus8 !=
@@ -1669,15 +1684,16 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		goto fail;
 	}
 	if (s->sps.bit_depth_luma_minus8 == 0) {
-		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128) {
+		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128 &&
+		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Pixel format %#x != NV12MT_COL128 for 8-bit output",
 				 ctx->dst_fmt.pixelformat);
 			goto fail;
 		}
 	} else if (s->sps.bit_depth_luma_minus8 == 2) {
-		if (ctx->dst_fmt.pixelformat !=
-					V4L2_PIX_FMT_NV12MT_10_COL128) {
+		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_10_COL128 &&
+		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_10_COL128) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Pixel format %#x != NV12MT_10_COL128 for 10-bit output",
 				 ctx->dst_fmt.pixelformat);
@@ -1688,20 +1704,40 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 			  s->sps.bit_depth_luma_minus8 + 8);
 		goto fail;
 	}
-	if (run->dst->vb2_buf.num_planes != 2) {
-		v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 2\n",
-			  run->dst->vb2_buf.num_planes);
-		goto fail;
-	}
-	if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage ||
-	    run->dst->planes[1].length < ctx->dst_fmt.plane_fmt[1].sizeimage) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "Capture planes length (%d/%d) < sizeimage (%d/%d)\n",
-			  run->dst->planes[0].length,
-			  run->dst->planes[1].length,
-			  ctx->dst_fmt.plane_fmt[0].sizeimage,
-			  ctx->dst_fmt.plane_fmt[1].sizeimage);
-		goto fail;
+	switch (ctx->dst_fmt.pixelformat) {
+	case V4L2_PIX_FMT_NV12MT_COL128:
+	case V4L2_PIX_FMT_NV12MT_10_COL128:
+		if (run->dst->vb2_buf.num_planes != 2) {
+			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 2\n",
+				  run->dst->vb2_buf.num_planes);
+			goto fail;
+		}
+		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage ||
+		    run->dst->planes[1].length < ctx->dst_fmt.plane_fmt[1].sizeimage) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Capture planes length (%d/%d) < sizeimage (%d/%d)\n",
+				  run->dst->planes[0].length,
+				  run->dst->planes[1].length,
+				  ctx->dst_fmt.plane_fmt[0].sizeimage,
+				  ctx->dst_fmt.plane_fmt[1].sizeimage);
+			goto fail;
+		}
+		break;
+	case V4L2_PIX_FMT_NV12_COL128:
+	case V4L2_PIX_FMT_NV12_10_COL128:
+		if (run->dst->vb2_buf.num_planes != 1) {
+			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 1\n",
+				  run->dst->vb2_buf.num_planes);
+			goto fail;
+		}
+		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Capture planes length (%d) < sizeimage (%d)\n",
+				  run->dst->planes[0].length,
+				  ctx->dst_fmt.plane_fmt[0].sizeimage);
+			goto fail;
+		}
+		break;
 	}
 
 	/*
@@ -1861,8 +1897,13 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 		de->ref_addrs[i][0] =
 			vb2_dma_contig_plane_dma_addr(buf, 0);
-		de->ref_addrs[i][1] =
-			vb2_dma_contig_plane_dma_addr(buf, 1);
+		if (ctx->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
+		    ctx->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128)
+			de->ref_addrs[i][1] =
+				vb2_dma_contig_plane_dma_addr(buf, 1);
+		else
+			de->ref_addrs[i][1] = de->ref_addrs[i][0] +
+				(ctx->dst_fmt.height * 128);
 	}
 
 	/* Move DPB from temp */
@@ -2414,9 +2455,11 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	if ((sps->bit_depth_luma_minus8 == 0 &&
-	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128) ||
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128 &&
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) ||
 	    (sps->bit_depth_luma_minus8 == 2 &&
-	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_10_COL128)) {
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_10_COL128 &&
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_10_COL128)) {
 		v4l2_warn(&dev->v4l2_dev,
 			  "SPS luma depth %d does not match capture format\n",
 			  sps->bit_depth_luma_minus8 + 8);
