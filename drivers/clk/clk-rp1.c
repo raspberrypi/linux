@@ -1326,9 +1326,11 @@ static void rp1_clock_choose_div_and_prate(struct clk_hw *hw,
 	/*
 	 * Prevent overclocks - if all parent choices result in
 	 * a downstream clock in excess of the maximum, then the
-	 * call to set the clock will fail.
+	 * call to set the clock will fail. But due to round-to-
+	 * nearest in the PLL core (which has 24 fractional bits),
+	 * it's expedient to tolerate a tiny error (1Hz/33MHz).
 	 */
-	if (tmp > clock->data->max_freq)
+	if (tmp > clock->data->max_freq + (clock->data->max_freq >> 25))
 		*calc_rate = 0;
 	else
 		*calc_rate = tmp;
@@ -2006,7 +2008,7 @@ static const struct rp1_clk_desc clk_desc_array[] = {
 	[RP1_CLK_AUDIO_OUT] = REGISTER_CLK(
 				.name = "clk_audio_out",
 				.parents = {"", //"pll_audio",
-					    "", //"pll_audio_sec",
+					    "pll_audio_sec",
 					    "pll_video_sec",
 					    "xosc",
 					    "clksrc_gp0",
