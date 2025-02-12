@@ -1358,7 +1358,7 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
 	void __iomem *base = pcie->base;
-	u16 nlw, cls, lnksta;
+	u16 nlw, cls, lnksta, tmp16;
 	bool ssc_good = false;
 	int ret, i;
 
@@ -1406,6 +1406,17 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	dev_info(dev, "link up, %s x%u %s\n",
 		 pci_speed_string(pcie_link_speed[cls]), nlw,
 		 ssc_good ? "(SSC)" : "(!SSC)");
+
+	/*
+	 * RootCtl bits are reset by perst_n, which undoes pci_enable_crs()
+	 * called prior to pci_add_new_bus() during probe. Re-enable here.
+	 */
+	tmp16 = readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_RTCAP);
+	if (tmp16 & PCI_EXP_RTCAP_CRSVIS) {
+		tmp16 = readw(base + BRCM_PCIE_CAP_REGS + PCI_EXP_RTCTL);
+		u16p_replace_bits(&tmp16, 1, PCI_EXP_RTCTL_CRSSVE);
+		writew(tmp16, base + BRCM_PCIE_CAP_REGS + PCI_EXP_RTCTL);
+	}
 
 	return 0;
 }
