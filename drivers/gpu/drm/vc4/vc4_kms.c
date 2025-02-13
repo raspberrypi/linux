@@ -224,12 +224,11 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 		u32 dispctrl;
-		u32 dsp3_mux_pri;
 
 		if (!crtc_state->active)
 			continue;
 
-		if (vc4_state->assigned_channel != 2)
+		if (vc4_crtc->data->hvs_output != 2)
 			continue;
 
 		/*
@@ -237,26 +236,28 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 		 * FIFO X'.
 		 * SCALER_DISPCTRL_DSP3 = 3 means 'disable DSP 3'.
 		 *
-		 * DSP3 is connected to FIFO2 unless the transposer is
-		 * enabled. In this case, FIFO 2 is directly accessed by the
-		 * TXP IP, and we need to disable the FIFO2 -> pixelvalve1
-		 * route.
+		 * It is more likely that we want the TXP than 3 displays, so
+		 * handle the mapping of DSP3 to any available FIFO.
 		 *
 		 * TXP can also run with a lower panic level than a live display,
 		 * as it doesn't have the same real-time constraint.
 		 */
+		dispctrl = HVS_READ(SCALER_DISPCTRL) &
+			     ~SCALER_DISPCTRL_PANIC2_MASK;
+
 		if (vc4_crtc->feeds_txp) {
-			dsp3_mux_pri = VC4_SET_FIELD(3, SCALER_DISPCTRL_DSP3_MUX);
-			dsp3_mux_pri |= VC4_SET_FIELD(0, SCALER_DISPCTRL_PANIC2);
+			dispctrl |= VC4_SET_FIELD(0, SCALER_DISPCTRL_PANIC2);
+			drm_WARN_ON(&vc4->base,
+				    VC4_GET_FIELD(HVS_READ(SCALER_DISPCTRL),
+						  SCALER_DISPCTRL_DSP3_MUX) == 2);
 		} else {
-			dsp3_mux_pri = VC4_SET_FIELD(2, SCALER_DISPCTRL_DSP3_MUX);
-			dsp3_mux_pri |= VC4_SET_FIELD(2, SCALER_DISPCTRL_PANIC2);
+			dispctrl &= ~SCALER_DISPCTRL_DSP3_MUX_MASK;
+			dispctrl |= VC4_SET_FIELD(vc4_state->assigned_channel,
+						     SCALER_DISPCTRL_DSP3_MUX);
+			dispctrl |= VC4_SET_FIELD(2, SCALER_DISPCTRL_PANIC2);
 		}
 
-		dispctrl = HVS_READ(SCALER_DISPCTRL) &
-			   ~(SCALER_DISPCTRL_DSP3_MUX_MASK |
-			     SCALER_DISPCTRL_PANIC2_MASK);
-		HVS_WRITE(SCALER_DISPCTRL, dispctrl | dsp3_mux_pri);
+		HVS_WRITE(SCALER_DISPCTRL, dispctrl);
 	}
 }
 
