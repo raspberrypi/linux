@@ -134,6 +134,7 @@
 		PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LIMIT_HI + ((win) * 8)
 
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK	0x2
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK		0x8
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK		0x200000
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x08000000
 #define  PCIE_BMIPS_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x00800000
@@ -360,6 +361,7 @@ struct brcm_pcie {
 	struct subdev_regulators *sr;
 	bool			ep_wakeup_capable;
 	const struct pcie_cfg_data	*cfg;
+	u32			tperst_clk_ms;
 };
 
 static inline bool is_bmips(const struct brcm_pcie *pcie)
@@ -1487,13 +1489,32 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	u16 nlw, cls, lnksta, tmp16;
 	bool ssc_good = false;
 	int ret, i;
+	u32 tmp;
 
 	/* Limit the generation if specified */
 	if (pcie->gen)
 		brcm_pcie_set_gen(pcie, pcie->gen);
 
 	/* Unassert the fundamental reset */
-	ret = pcie->cfg->perst_set(pcie, 0);
+	if (pcie->tperst_clk_ms) {
+		/*
+		 * Increase Tperst_clk time by forcing PERST# output low while
+		 * the internal reset is released, so the PLL generates stable
+		 * refclk output further in advance of PERST# deassertion.
+		 */
+		tmp = readl(pcie->base + HARD_DEBUG(pcie));
+		u32p_replace_bits(&tmp, 1, PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK);
+		writel(tmp, pcie->base + HARD_DEBUG(pcie));
+
+		ret = pcie->cfg->perst_set(pcie, 0);
+		fsleep(pcie->tperst_clk_ms * USEC_PER_MSEC);
+
+		tmp = readl(pcie->base + HARD_DEBUG(pcie));
+		u32p_replace_bits(&tmp, 0, PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK);
+		writel(tmp, pcie->base + HARD_DEBUG(pcie));
+	} else {
+		ret = pcie->cfg->perst_set(pcie, 0);
+	}
 	if (ret)
 		return ret;
 
@@ -2057,6 +2078,8 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 
 	pcie->ssc = !(pcie->cfg->quirks & CFG_QUIRK_NO_SSC) &&
 		    of_property_read_bool(np, "brcm,enable-ssc");
+
+	of_property_read_u32(np, "brcm,tperst-clk-ms", &pcie->tperst_clk_ms);
 
 	pcie->rescal = devm_reset_control_get_optional_shared(&pdev->dev, "rescal");
 	if (IS_ERR(pcie->rescal))
