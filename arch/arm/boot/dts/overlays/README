@@ -4124,6 +4124,13 @@ Params: base-addr               Where to place the capture buffer (default
         console-size            Size of non-panic dmesg captures (default 0)
 
 
+Name:   rootmaster
+Info:   Overlay for OpenHydroponics RootMaster board.
+        https://openhydroponics.com/hw/rootmaster
+Load:   dtoverlay=rootmaster
+Params: <None>
+
+
 Name:   rotary-encoder
 Info:   Overlay for GPIO connected rotary encoder.
 Load:   dtoverlay=rotary-encoder,<param>=<val>
