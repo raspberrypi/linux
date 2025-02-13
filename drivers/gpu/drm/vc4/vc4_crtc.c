@@ -1223,7 +1223,7 @@ const struct vc4_pv_data bcm2835_pv1_data = {
 	.base = {
 		.name = "pixelvalve-1",
 		.debugfs_name = "crtc1_regs",
-		.hvs_available_channels = BIT(2),
+		.hvs_available_channels = BIT(0) | BIT(1) | BIT(2),
 		.hvs_output = 2,
 	},
 	.fifo_depth = 64,
