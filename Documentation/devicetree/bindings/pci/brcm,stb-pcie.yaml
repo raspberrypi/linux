@@ -105,6 +105,12 @@ properties:
       minItems: 1
       maxItems: 3
 
+  brcm,tperst-clk-ms:
+    description: u32 giving the number of milliseconds to extend
+      the time between internal release of fundamental reset and
+      the deassertion of the external PERST# pin. This has the
+      effect of increasing the Tperst_clk phase of link init.
+
   brcm,vdm-qos-map:
     description: Array of u8 elements which assigns each per-TC FIFO
       a base AXI priority with automatic elevation depending on
