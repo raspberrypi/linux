@@ -2,7 +2,7 @@ name: Advisory checkpatch review
 on: [pull_request]
 
 jobs:
-  review:
+  view:
     name: checkpatch review
     runs-on: ubuntu-latest
     steps:
