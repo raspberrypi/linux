@@ -1,0 +1,15 @@
+; Example public-inbox config snippet for a mirror of
+; http://lore.kernel.org/lkml/
+; See public-inbox-config(5) manpage for more details:
+; https://public-inbox.org/public-inbox-config.html
+[publicinbox "lkml"]
+	inboxdir = /path/to/top-level-inbox
+	; note: public-inbox before v1.2.0 used `mainrepo' instead of
+	; `inboxdir', both remain supported after 1.2
+	mainrepo = /path/to/top-level-inbox
+	url = https://example.com/lkml/
+	url = http://example.onion/lkml/
+	address = linux-kernel@vger.kernel.org
+	listid = linux-kernel.vger.kernel.org
+	newsgroup = org.kernel.vger.linux-kernel
+	nntpmirror = nntp://nntp.lore.kernel.org/org.kernel.vger.linux-kernel
