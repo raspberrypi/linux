@@ -1,0 +1,21 @@
+/*
+ * Generic Device Tree overlay for Cytron standard HAT+ boards
+ * that also supply power to the Raspberry Pi.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			power: power {
+				hat_current_supply = <5000>;
+				usb_max_current_enable = <1>;
+			};
+		};
+	};
+};
