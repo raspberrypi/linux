@@ -4,6 +4,11 @@
 	audremap {
 		bcm2835;
 		bcm2711;
+		bcm2712 = "audremap-pi5";
+	};
+
+	audremap-pi5 {
+		bcm2712;
 	};
 
 	balena-fin {
