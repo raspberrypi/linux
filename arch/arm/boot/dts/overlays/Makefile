@@ -33,6 +33,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audioinjector-wm8731-audio.dtbo \
 	audiosense-pi.dtbo \
 	audremap.dtbo \
+	audremap-pi5.dtbo \
 	balena-fin.dtbo \
 	bcm2712d0.dtbo \
 	camera-mux-2port.dtbo \
