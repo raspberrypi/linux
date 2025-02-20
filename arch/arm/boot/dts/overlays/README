@@ -1063,6 +1063,13 @@ Load:   dtoverlay=cutiepi-panel
 Params: <None>
 
 
+Name:   cytron-pwr-stdhat-overlay
+Info:   Generic Device Tree overlay for Cytron standard HAT+ boards
+        that also supply power to the Raspberry Pi 5.
+Load:   dtoverlay=cytron-pwr-stdhat-overlay
+Params: <None>
+
+
 Name:   dacberry400
 Info:   Configures the dacberry400 add on soundcard
 Load:   dtoverlay=dacberry400
