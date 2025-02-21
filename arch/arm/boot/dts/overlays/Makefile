@@ -44,7 +44,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	cma.dtbo \
 	crystalfontz-cfa050_pi_m.dtbo \
 	cutiepi-panel.dtbo \
-	cytron-pwr-stdhat-overlay.dtbo \
+	cytron-pwr-stdhat.dtbo \
 	dacberry400.dtbo \
 	dht11.dtbo \
 	dionaudio-kiwi.dtbo \
