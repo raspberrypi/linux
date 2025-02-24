@@ -284,8 +284,8 @@ static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 				const int index)
 {
 	static const u32 all_formats[] = {
-		V4L2_PIX_FMT_NV12MT_COL128,
-		V4L2_PIX_FMT_NV12MT_10_COL128,
+		//V4L2_PIX_FMT_NV12MT_COL128,
+		//V4L2_PIX_FMT_NV12MT_10_COL128,
 		V4L2_PIX_FMT_NV12_COL128,
 		V4L2_PIX_FMT_NV12_10_COL128,
 	};
@@ -298,11 +298,12 @@ static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 			pf = all_formats[index];
 	} else {
 		if (index == 0) {
-			if (sps->bit_depth_luma_minus8 == 0)
+/*			if (sps->bit_depth_luma_minus8 == 0)
 				pf = V4L2_PIX_FMT_NV12MT_COL128;
 			else if (sps->bit_depth_luma_minus8 == 2)
 				pf = V4L2_PIX_FMT_NV12MT_10_COL128;
 		} else if (index == 1) {
+			*/
 			if (sps->bit_depth_luma_minus8 == 0)
 				pf = V4L2_PIX_FMT_NV12_COL128;
 			else if (sps->bit_depth_luma_minus8 == 2)
