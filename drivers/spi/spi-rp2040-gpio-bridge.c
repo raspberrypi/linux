@@ -617,7 +617,6 @@ static int rp2040_gbdg_fast_xfer(struct rp2040_gbdg *priv_data, const u8 *data,
 				 &clock_mux);
 
 	gpiod_direction_output(priv_data->fast_xfer_gpios->desc[0], 1);
-	gpiod_direction_output(priv_data->fast_xfer_gpios->desc[1], 0);
 
 	rp2040_gbdg_rp1_calc_offsets(priv_data->fast_xfer_data_index,
 				     &data_bank, &data_offset);
@@ -989,6 +988,11 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 		goto node_put;
 	}
 
+	/*
+	 * fast_xfer mode requires first data bit to be clocked on a rising
+	 * edge. Configure as output-low here before fast_xfer mode is entered.
+	 */
+	gpiod_direction_output(rp2040_gbdg->fast_xfer_gpios->desc[1], 0);
 node_put:
 	if (of_args[0].np)
 		of_node_put(of_args[0].np);
