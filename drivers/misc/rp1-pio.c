@@ -1279,8 +1279,10 @@ static int rp1_pio_probe(struct platform_device *pdev)
 	fw = devm_rp1_firmware_get(dev, dev->of_node);
 	if (!fw)
 		return dev_err_probe(dev, -EPROBE_DEFER, "failed to find RP1 firmware driver\n");
-	if (IS_ERR(fw))
-		return dev_err_probe(dev, PTR_ERR(fw), "failed to contact RP1 firmware\n");
+	if (IS_ERR(fw)) {
+		dev_warn(dev, "failed to contact RP1 firmware\n");
+		return PTR_ERR(fw);
+	}
 	ret = rp1_firmware_get_feature(fw, FOURCC_PIO, &op_base, &op_count);
 	if (ret < 0)
 		return ret;
