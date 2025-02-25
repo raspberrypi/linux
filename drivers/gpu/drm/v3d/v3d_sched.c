@@ -288,7 +288,7 @@ static struct dma_fence *v3d_render_job_run(struct drm_sched_job *sched_job)
 	return fence;
 }
 
-#define V3D_TFU_REG(name) ((v3d->ver < 71) ? V3D_TFU_ ## name : V3D_V7_TFU_ ## name)
+#define V3D_TFU_REG(name) ((v3d->ver < V3D_GEN_71) ? V3D_TFU_ ## name : V3D_V7_TFU_ ## name)
 
 static struct dma_fence *
 v3d_tfu_job_run(struct drm_sched_job *sched_job)
@@ -321,11 +321,11 @@ v3d_tfu_job_run(struct drm_sched_job *sched_job)
 	V3D_WRITE(V3D_TFU_REG(ICA), job->args.ica);
 	V3D_WRITE(V3D_TFU_REG(IUA), job->args.iua);
 	V3D_WRITE(V3D_TFU_REG(IOA), job->args.ioa);
-	if (v3d->ver >= 71)
+	if (v3d->ver >= V3D_GEN_71)
 		V3D_WRITE(V3D_V7_TFU_IOC, job->args.v71.ioc);
 	V3D_WRITE(V3D_TFU_REG(IOS), job->args.ios);
 	V3D_WRITE(V3D_TFU_REG(COEF0), job->args.coef[0]);
-	if (v3d->ver >= 71 || (job->args.coef[0] & V3D_TFU_COEF0_USECOEF)) {
+	if (v3d->ver >= V3D_GEN_71 || (job->args.coef[0] & V3D_TFU_COEF0_USECOEF)) {
 		V3D_WRITE(V3D_TFU_REG(COEF1), job->args.coef[1]);
 		V3D_WRITE(V3D_TFU_REG(COEF2), job->args.coef[2]);
 		V3D_WRITE(V3D_TFU_REG(COEF3), job->args.coef[3]);
@@ -367,8 +367,8 @@ v3d_csd_job_run(struct drm_sched_job *sched_job)
 	v3d_sched_stats_add_job(&v3d->gpu_queue_stats[V3D_CSD], sched_job);
 	v3d_switch_perfmon(v3d, &job->base);
 
-	csd_cfg0_reg = v3d->ver < 71 ? V3D_CSD_QUEUED_CFG0 : V3D_V7_CSD_QUEUED_CFG0;
-	csd_cfg_reg_count = v3d->ver < 71 ? 6 : 7;
+	csd_cfg0_reg = v3d->ver < V3D_GEN_71 ? V3D_CSD_QUEUED_CFG0 : V3D_V7_CSD_QUEUED_CFG0;
+	csd_cfg_reg_count = v3d->ver < V3D_GEN_71 ? 6 : 7;
 	for (i = 1; i <= csd_cfg_reg_count; i++)
 		V3D_CORE_WRITE(0, csd_cfg0_reg + 4 * i, job->args.cfg[i]);
 	/* CFG0 write kicks off the job. */
@@ -475,7 +475,7 @@ v3d_csd_job_timedout(struct drm_sched_job *sched_job)
 {
 	struct v3d_csd_job *job = to_csd_job(sched_job);
 	struct v3d_dev *v3d = job->base.v3d;
-	u32 batches = V3D_CORE_READ(0, (v3d->ver < 71 ? V3D_CSD_CURRENT_CFG4 :
+	u32 batches = V3D_CORE_READ(0, (v3d->ver < V3D_GEN_71 ? V3D_CSD_CURRENT_CFG4 :
 							V3D_V7_CSD_CURRENT_CFG4));
 
 	/* If we've made progress, skip reset and let the timer get

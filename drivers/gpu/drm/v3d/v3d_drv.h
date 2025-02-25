@@ -115,13 +115,20 @@ struct v3d_perfmon {
 	u64 values[];
 };
 
+enum v3d_gen {
+	V3D_GEN_33 = 33,
+	V3D_GEN_41 = 41,
+	V3D_GEN_42 = 42,
+	V3D_GEN_71 = 71,
+};
+
 struct v3d_dev {
 	struct drm_device drm;
 
 	/* Short representation (e.g. 33, 41) of the V3D tech version
 	 * and revision.
 	 */
-	int ver;
+	enum v3d_gen ver;
 	bool single_irq_line;
 
 	void __iomem *hub_regs;
@@ -213,7 +220,7 @@ to_v3d_dev(struct drm_device *dev)
 static inline bool
 v3d_has_csd(struct v3d_dev *v3d)
 {
-	return v3d->ver >= 41;
+	return v3d->ver >= V3D_GEN_41;
 }
 
 #define v3d_to_pdev(v3d) to_platform_device((v3d)->drm.dev)
