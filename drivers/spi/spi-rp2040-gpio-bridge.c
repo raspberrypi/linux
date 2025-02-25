@@ -956,7 +956,8 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 
 	rp2040_gbdg->fast_xfer_gpios =
 		devm_gpiod_get_array_optional(dev, "fast_xfer", GPIOD_ASIS);
-	if (!rp2040_gbdg->fast_xfer_gpios) {
+	if (IS_ERR_OR_NULL(rp2040_gbdg->fast_xfer_gpios)) {
+		rp2040_gbdg->fast_xfer_gpios = NULL;
 		dev_info(dev, "Could not acquire fast_xfer-gpios\n");
 		goto node_put;
 	}
