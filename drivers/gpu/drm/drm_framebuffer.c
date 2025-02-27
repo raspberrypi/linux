@@ -199,7 +199,8 @@ static int framebuffer_check(struct drm_device *dev,
 		if ((uint64_t) height * r->pitches[i] + r->offsets[i] > UINT_MAX)
 			return -ERANGE;
 
-		if (block_size && r->pitches[i] < min_pitch) {
+		if (r->modifier[i] == DRM_FORMAT_MOD_LINEAR && block_size &&
+		    r->pitches[i] < min_pitch) {
 			drm_dbg_kms(dev, "bad pitch %u for plane %d\n", r->pitches[i], i);
 			return -EINVAL;
 		}
