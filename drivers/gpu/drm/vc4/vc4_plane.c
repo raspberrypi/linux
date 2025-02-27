@@ -843,7 +843,14 @@ static size_t vc6_upm_size(const struct drm_plane_state *state,
 {
 	const struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	unsigned int stride = state->fb->pitches[plane];
+	u64 base_format_mod = fourcc_mod_broadcom_mod(state->fb->modifier);
 
+	if (base_format_mod == DRM_FORMAT_MOD_BROADCOM_SAND128) {
+		if (state->fb->format->format == DRM_FORMAT_P030)
+			stride = (ALIGN(state->fb->width, 96) * 4) / 3;
+		else
+			stride = ALIGN(state->fb->width, 128);
+	}
 	/*
 	 * TODO: This only works for raster formats, and is sub-optimal
 	 * for buffers with a stride aligned on 32 bytes.
