@@ -133,6 +133,20 @@ static void set_addr_win_64x48(struct fbtft_par *par)
 	write_reg(par, 0x5);
 }
 
+
+static void set_addr_win_128x32(struct fbtft_par *par)
+{
+	/* Set Column Address */
+	write_reg(par, 0x21);
+	write_reg(par, 0x00);
+	write_reg(par, 0x7F);
+
+	/* Set Page Address */
+	write_reg(par, 0x22);
+	write_reg(par, 0x00);
+	write_reg(par, 0x03);
+}
+
 static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
 	/* Set Lower Column Start Address for Page Addressing Mode */
@@ -144,6 +158,8 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 
 	if (par->info->var.xres == 64 && par->info->var.yres == 48)
 		set_addr_win_64x48(par);
+	else if (par->info->var.xres == 128 && par->info->var.yres == 32)
+		set_addr_win_128x32(par);
 }
 
 static int blank(struct fbtft_par *par, bool on)
