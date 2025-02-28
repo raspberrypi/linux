@@ -57,6 +57,7 @@
 /* Long exposure multiplier */
 #define IMX500_LONG_EXP_SHIFT_MAX 7
 #define IMX500_LONG_EXP_SHIFT_REG CCI_REG8(0x3210)
+#define IMX500_LONG_EXP_CIT_SHIFT_REG CCI_REG8(0x3100)
 
 /* Exposure control */
 #define IMX500_REG_EXPOSURE CCI_REG16(0x0202)
@@ -1769,6 +1770,11 @@ static int imx500_set_frame_length(struct imx500 *imx500, unsigned int val)
 	}
 
 	ret = cci_write(imx500->regmap, IMX500_REG_FRAME_LENGTH, val, NULL);
+	if (ret)
+		return ret;
+
+	ret = cci_write(imx500->regmap, IMX500_LONG_EXP_CIT_SHIFT_REG,
+			imx500->long_exp_shift, NULL);
 	if (ret)
 		return ret;
 
