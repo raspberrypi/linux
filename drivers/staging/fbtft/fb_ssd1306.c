@@ -133,7 +133,6 @@ static void set_addr_win_64x48(struct fbtft_par *par)
 	write_reg(par, 0x5);
 }
 
-
 static void set_addr_win_128x32(struct fbtft_par *par)
 {
 	/* Set Column Address */
