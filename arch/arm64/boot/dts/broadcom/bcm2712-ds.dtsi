@@ -627,6 +627,7 @@
 };
 
 &gio_aon {
+	compatible = "brcm,brcmstb-gpio";
 	brcm,gpio-direct;
 };
 
