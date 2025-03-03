@@ -311,6 +311,11 @@ struct inbound_win {
 #define CFG_QUIRK_EARLY_PERST_ASSERT		BIT(5)
 /* PCIe SW PERST behavior only works up to a specific HW version */
 #define CFG_QUIRK_PERST_PCIE_REV_CUTOFF		BIT(6)
+/*
+ * MDIO register map differences and required changes to the defaults mean that refclk
+ * spread-spectrum clocking isn't supportable.
+ */
+#define CFG_QUIRK_NO_SSC			BIT(7)
 
 /* FLAGS */
 #define BFLAG(pcie, flag)	((pcie)->cfg->flags & CFG_FLG_ ## flag)
@@ -2025,7 +2030,7 @@ static const struct pcie_cfg_data bcm2712_cfg = {
 	.bridge_sw_init_set = brcm_pcie_bridge_sw_init_set_generic,
 	.post_setup	= brcm_pcie_post_setup_bcm2712,
 	.quirks		= CFG_QUIRK_AVOID_BRIDGE_SHUTDOWN |
-		CFG_QUIRK_NO_RGR1_TIMER,
+		CFG_QUIRK_NO_RGR1_TIMER | CFG_QUIRK_NO_SSC,
 	.num_inbound_wins = 10,
 };
 
@@ -2153,7 +2158,8 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	else
 		pcie->gen = ret;
 
-	pcie->ssc = of_property_read_bool(np, "brcm,enable-ssc");
+	pcie->ssc = !(pcie->cfg->quirks & CFG_QUIRK_NO_SSC) &&
+		    of_property_read_bool(np, "brcm,enable-ssc");
 
 	pcie->rescal = devm_reset_control_get_optional_shared(&pdev->dev, "rescal");
 	if (IS_ERR(pcie->rescal))
