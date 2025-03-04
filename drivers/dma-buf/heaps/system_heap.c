@@ -50,10 +50,6 @@ static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP};
  * to match with the sizes often found in IOMMUs. Using order 4 pages instead
  * of order 0 pages can significantly improve the performance of many IOMMUs
  * by reducing TLB pressure and time spent updating page tables.
- *
- * Note: `module_max_order` must be set explicitly instead of using
- * `orders[0]` to avoid Clang's "initializer element is not a
- * compile-time constant" error.
  */
 #define MAX_ORDERS_VALUE 8
 static const unsigned int orders[] = {MAX_ORDERS_VALUE, 4, 0};
