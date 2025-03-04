@@ -3622,6 +3622,9 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         arducam                 Slow down the regulator for slow Arducam
                                 modules.
+        clk-continuous          Switch to continuous mode on the CSI clock lane,
+                                which increases the maximum frame rate slightly.
+                                Appears not to work on Pi3.
 
 
 Name:   papirus
