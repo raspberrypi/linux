@@ -70,6 +70,20 @@
 		};
 	};
 
+	fragment@7 {
+		target = <&csi_ep>;
+		__overlay__ {
+			clock-noncontinuous;
+		};
+	};
+
+	fragment@8 {
+		target = <&cam_endpoint>;
+		__overlay__ {
+			clock-noncontinuous;
+		};
+	};
+
 	__overrides__ {
 		rotation = <&cam_node>,"rotation:0";
 		orientation = <&cam_node>,"orientation:0";
@@ -81,6 +95,7 @@
 		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>;
 		arducam = <0>, "+6";
+		clk-continuous = <0>, "-7-8";
 	};
 };
 
