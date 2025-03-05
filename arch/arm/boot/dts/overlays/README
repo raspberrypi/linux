@@ -2419,6 +2419,9 @@ Params: addr                    Set the address for the ADT7410, AS73211,
                                 temperature sensors
                                 Valid address 0x48-0x4b, default 0x48
 
+        adxl345                 Select the Analog Devices ADXL345 3-axis
+                                accelerometer
+
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor
 
