@@ -109,14 +109,13 @@
 };
 
 rp1_target: &pcie2 {
-	brcm,enable-mps-rcb;
-	brcm,vdm-qos-map = <0xbbaa9888>;
+	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
 	aspm-no-l0s;
 	status = "okay";
 };
 
 &pcie1 {
-	brcm,vdm-qos-map = <0x33333333>;
+	brcm,fifo-qos-map = /bits/ 8 <3 3 3 3>;
 };
 
 // The system SPI for the bootloader EEPROM
