@@ -674,3 +674,12 @@
 &vc4 {
 	status = "disabled";
 };
+
+&pcie1 {
+	brcm,fifo-qos-map = /bits/ 8 <3 3 3 3>;
+	status = "disabled";
+};
+
+&pcie2 {
+	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
+};

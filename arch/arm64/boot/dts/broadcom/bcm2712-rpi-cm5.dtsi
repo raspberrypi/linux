@@ -112,14 +112,8 @@
 };
 
 rp1_target: &pcie2 {
-	brcm,enable-mps-rcb;
-	brcm,vdm-qos-map = <0xbbaa9888>;
 	aspm-no-l0s;
 	status = "okay";
-};
-
-&pcie1 {
-	brcm,vdm-qos-map = <0x33333333>;
 };
 
 // Add some labels to 2712 device
