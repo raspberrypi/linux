@@ -138,7 +138,13 @@ static int get_kernel_id(struct vc_sm_buffer *buffer)
 
 static struct vc_sm_buffer *lookup_kernel_id(int handle)
 {
-	return idr_find(&sm_state->kernelid_map, handle);
+	struct vc_sm_buffer *buffer;
+
+	spin_lock(&sm_state->kernelid_map_lock);
+	buffer = idr_find(&sm_state->kernelid_map, handle);
+	spin_unlock(&sm_state->kernelid_map_lock);
+
+	return buffer;
 }
 
 static void free_kernel_id(int handle)
