@@ -188,6 +188,10 @@
 
 &mmcnr {
 	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+	brcmf: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
 };
 
 &csi0 {
