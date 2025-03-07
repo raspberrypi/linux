@@ -5668,6 +5668,15 @@ Load:   dtoverlay=waveshare-can-fd-hat-mode-b
 Params: <None>
 
 
+Name:   wifimac
+Info:   Override the MAC address for the onboard WiFi. Not Pi 5.
+Load:   dtoverlay=wifimac,<param>=<val>
+Params: wifiaddr                Set an alternative WiFi MAC address.
+                                The value should be a 6-byte hexadecimal value,
+                                with or without colon separators, written in the
+                                natural (big-endian) order.
+
+
 Name:   wittypi
 Info:   Configures the wittypi RTC module.
 Load:   dtoverlay=wittypi,<param>=<val>
