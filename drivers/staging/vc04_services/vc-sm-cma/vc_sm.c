@@ -138,7 +138,13 @@ static int get_kernel_id(struct vc_sm_buffer *buffer)
 
 static struct vc_sm_buffer *lookup_kernel_id(int handle)
 {
-	return idr_find(&sm_state->kernelid_map, handle);
+	struct vc_sm_buffer *buffer;
+
+	spin_lock(&sm_state->kernelid_map_lock);
+	buffer = idr_find(&sm_state->kernelid_map, handle);
+	spin_unlock(&sm_state->kernelid_map_lock);
+
+	return buffer;
 }
 
 static void free_kernel_id(int handle)
@@ -773,8 +779,8 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	memcpy(import.name, VC_SM_RESOURCE_NAME_DEFAULT,
 	       sizeof(VC_SM_RESOURCE_NAME_DEFAULT));
 
-	pr_debug("[%s]: attempt to import \"%s\" data - type %u, addr %pad, size %u.\n",
-		 __func__, import.name, import.type, &dma_addr, import.size);
+	pr_debug("[%s]: attempt to import \"%s\" data - type %u, addr %pad, size %u, kernel_id %08x.\n",
+		 __func__, import.name, import.type, &dma_addr, import.size, import.kernel_id);
 
 	/* Allocate the videocore buffer. */
 	status = vc_sm_cma_vchi_import(sm_state->sm_handle, &import, &result,
