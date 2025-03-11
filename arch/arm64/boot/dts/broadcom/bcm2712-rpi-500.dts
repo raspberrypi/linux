@@ -7,7 +7,7 @@
 };
 
 &pwr_key {
-	debounce-interval = <400>;
+	debounce-interval = <0>;
 };
 
 &gio {
