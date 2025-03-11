@@ -96,7 +96,7 @@ static int v3d_get_param_ioctl(struct drm_device *dev, void *data,
 		args->value = 1;
 		return 0;
 	case DRM_V3D_PARAM_SUPPORTS_PERFMON:
-		args->value = (v3d->ver >= 40);
+		args->value = (v3d->ver >= V3D_GEN_41);
 		return 0;
 	case DRM_V3D_PARAM_SUPPORTS_MULTISYNC_EXT:
 		args->value = 1;
@@ -258,10 +258,10 @@ static const struct drm_driver v3d_drm_driver = {
 };
 
 static const struct of_device_id v3d_of_match[] = {
-	{ .compatible = "brcm,2711-v3d" },
-	{ .compatible = "brcm,2712-v3d" },
-	{ .compatible = "brcm,7268-v3d" },
-	{ .compatible = "brcm,7278-v3d" },
+	{ .compatible = "brcm,2711-v3d", .data = (void *)V3D_GEN_42 },
+	{ .compatible = "brcm,2712-v3d", .data = (void *)V3D_GEN_71 },
+	{ .compatible = "brcm,7268-v3d", .data = (void *)V3D_GEN_33 },
+	{ .compatible = "brcm,7278-v3d", .data = (void *)V3D_GEN_41 },
 	{},
 };
 MODULE_DEVICE_TABLE(of, v3d_of_match);
@@ -280,6 +280,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	struct device_node *node;
 	struct drm_device *drm;
 	struct v3d_dev *v3d;
+	enum v3d_gen gen;
 	int ret;
 	u32 mmu_debug;
 	u32 ident1, ident3;
@@ -292,6 +293,9 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	drm = &v3d->drm;
 
 	platform_set_drvdata(pdev, drm);
+
+	gen = (enum v3d_gen)of_device_get_match_data(dev);
+	v3d->ver = gen;
 
 	ret = map_regs(v3d, &v3d->hub_regs, "hub");
 	if (ret)
@@ -322,6 +326,11 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	ident1 = V3D_READ(V3D_HUB_IDENT1);
 	v3d->ver = (V3D_GET_FIELD(ident1, V3D_HUB_IDENT1_TVER) * 10 +
 		    V3D_GET_FIELD(ident1, V3D_HUB_IDENT1_REV));
+	/* Make sure that the V3D tech version retrieved from the HW is equal
+	 * to the one advertised by the device tree.
+	 */
+	WARN_ON(v3d->ver != gen);
+
 	v3d->cores = V3D_GET_FIELD(ident1, V3D_HUB_IDENT1_NCORES);
 	WARN_ON(v3d->cores > 1); /* multicore not yet implemented */
 
@@ -374,7 +383,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	v3d->clk_down_rate =
 		(clk_get_rate(clk_get_parent(v3d->clk)) / (1 << 4)) + 10000;
 
-	if (v3d->ver < 41) {
+	if (v3d->ver < V3D_GEN_41) {
 		ret = map_regs(v3d, &v3d->gca_regs, "gca");
 		if (ret)
 			goto clk_disable;
