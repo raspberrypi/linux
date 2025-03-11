@@ -58,7 +58,6 @@ allOf:
           contains:
             enum:
               - brcm,2711-v3d
-              - brcm,2712-v3d
               - brcm,7278-v3d
     then:
       properties:
@@ -72,6 +71,27 @@ allOf:
             - const: hub
             - const: core0
             - const: bridge
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: brcm,2712-v3d
+    then:
+      properties:
+        reg:
+          items:
+            - description: hub register (required)
+            - description: core0 register (required)
+            - description: SMS register (required)
+            - description: bridge register (if no external reset controller)
+          minItems: 3
+        reg-names:
+          items:
+            - const: hub
+            - const: core0
+            - const: sms
+            - const: bridge
+          minItems: 3
   - if:
       properties:
         compatible:
