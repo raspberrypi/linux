@@ -59,12 +59,12 @@ Using Overlays
 Overlays are loaded using the "dtoverlay" config.txt setting. As an example,
 consider I2C Real Time Clock drivers. In the pre-DT world these would be loaded
 by writing a magic string comprising a device identifier and an I2C address to
-a special file in /sys/class/i2c-adapter, having first loaded the driver for
+a special file in /sys/bus/i2c/devices, having first loaded the driver for
 the I2C interface and the RTC device - something like this:
 
     modprobe i2c-bcm2835
     modprobe rtc-ds1307
-    echo ds1307 0x68 > /sys/class/i2c-adapter/i2c-1/new_device
+    echo ds1307 0x68 > /sys/bus/i2c/devices/i2c-1/new_device
 
 With DT enabled, this becomes a line in config.txt:
 
