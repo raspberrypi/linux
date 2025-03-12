@@ -1715,9 +1715,6 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	u16 tmp16;
 	int ret, i;
 
-	if (pcie->gen)
-		brcm_pcie_set_gen(pcie, pcie->gen);
-
 	/* Unassert the fundamental reset */
 	if (pcie->tperst_clk_ms) {
 		/*
@@ -1761,6 +1758,9 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 	}
 
 	brcm_config_clkreq(pcie);
+
+	if (pcie->gen)
+		brcm_pcie_set_gen(pcie, pcie->gen);
 
 	if (pcie->ssc) {
 		ret = brcm_pcie_set_ssc(pcie);
