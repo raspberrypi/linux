@@ -480,9 +480,6 @@ enum {
 	/* generate hardware time stamp based on cycles if supported */
 	SKBTX_HW_TSTAMP_USE_CYCLES = 1 << 3,
 
-	/* generate wifi status information (where possible) */
-	SKBTX_WIFI_STATUS = 1 << 4,
-
 	/* determine hardware time stamp based on time or cycles */
 	SKBTX_HW_TSTAMP_NETDEV = 1 << 5,
 
