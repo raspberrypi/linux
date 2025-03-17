@@ -422,10 +422,6 @@
 // =============================================
 // Board specific stuff here
 
-&pcie0 {
-       brcm,enable-l1ss;
-};
-
 &sdhost {
 	status = "disabled";
 };

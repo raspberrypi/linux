@@ -762,6 +762,7 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 
 &pcie1 {
 	status = "okay";
+	brcm,clkreq-mode = "safe";
 };
 
 &pcie2 {
