@@ -713,6 +713,10 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 	clock-names = "hdmi", "bvb", "audio", "cec";
 };
 
+&pcie1 {
+	brcm,clkreq-mode = "safe";
+};
+
 &pcie2 {
 	status = "okay";
 };

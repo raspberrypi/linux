@@ -12,7 +12,7 @@
 	fragment@0 {
 		target = <&pciex1>;
 		__dormant__ {
-			brcm,enable-l1ss;
+			brcm,clkreq-mode = "default";
 		};
 	};
 
