@@ -209,6 +209,9 @@ static const char *afs_atcell_get_link(struct dentry *dentry, struct inode *inod
 	const char *name;
 	bool dotted = vnode->fid.vnode == 3;
 
+	if (!rcu_access_pointer(net->ws_cell))
+		return ERR_PTR(-ENOENT);
+
 	if (!dentry) {
 		/* We're in RCU-pathwalk. */
 		cell = rcu_dereference(net->ws_cell);
@@ -219,9 +222,6 @@ static const char *afs_atcell_get_link(struct dentry *dentry, struct inode *inod
 		/* Shouldn't need to set a delayed call. */
 		return name;
 	}
-
-	if (!rcu_access_pointer(net->ws_cell))
-		return ERR_PTR(-ENOENT);
 
 	down_read(&net->cells_lock);
 
