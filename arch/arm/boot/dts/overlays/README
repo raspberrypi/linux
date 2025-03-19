@@ -3863,6 +3863,21 @@ Load:   dtoverlay=pisound
 Params: <None>
 
 
+Name:   pisound-micro
+Info:   Configures the Blokas Labs Pisound Micro card
+Load:   dtoverlay=pisound-micro,<param>=<val>
+Params: input-mode              'differential' (default) or 'single-ended'.
+                                Configures the input pin mode.
+        hp-out-mode             'capless-headphone' (default), 'headphone' or
+                                'line-out'. Configures the HP output mode.
+        line-out-mode           'line-out' (default) or 'headphone'. Configures
+                                the LINE_OUT pins for different impedances.
+        mono-out-mode           'line-out' (default) or 'headphone'. Configures
+                                the MONO_OUT pin mode for different impedances.
+                                Only available when hp-out-mode is not
+                                'capless-headphone'.
+
+
 Name:   pisound-pi5
 Info:   Pi 5 specific overlay override for Blokas Labs Pisound card, see pisound
 Load:   dtoverlay=pisound-pi5
