@@ -27,4 +27,4 @@ obj-$(CONFIG_SND_MTS64) += snd-mts64.o
 obj-$(CONFIG_SND_PIMIDI) += snd-pimidi.o
 obj-$(CONFIG_SND_PORTMAN2X4) += snd-portman2x4.o
 
-obj-$(CONFIG_SND) += opl3/ opl4/ mpu401/ vx/ pcsp/
+obj-$(CONFIG_SND) += opl3/ opl4/ mpu401/ vx/ pcsp/ upisnd/
