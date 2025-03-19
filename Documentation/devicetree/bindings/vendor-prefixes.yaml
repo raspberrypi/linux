@@ -198,7 +198,7 @@ patternProperties:
     description: Beckhoff Automation GmbH & Co. KG
   "^bitmain,.*":
     description: Bitmain Technologies
-  "^blokaslabs,.*":
+  "^blokas(labs)?,.*":
     description: Vilniaus Blokas UAB
   "^blutek,.*":
     description: BluTek Power

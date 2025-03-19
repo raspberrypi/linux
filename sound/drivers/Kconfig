@@ -273,4 +273,13 @@ config SND_PIMIDI
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-pimidi.
 
+config SND_PISOUND_MICRO
+	tristate "Pisound Micro driver"
+	depends on SND_SEQUENCER && CRC8
+	help
+	  Say Y here to include support for Blokas Pisound Micro.
+
+	  To compile this driver as modules, choose M here: the modules
+	  will be called snd-soc-upisnd-ctrl and snd-soc-upisnd-codec.
+
 endif	# SND_DRIVERS
