@@ -220,6 +220,7 @@ pio: &rp1_pio {
 		suspend = <&pwr_key>, "linux,code:0=205";
 		uart0 = <&uart0>, "status";
 		uart0_console = <&uart0>,"status", <&aliases>, "console=",&uart0;
+		uart0_nodma = <&uart0>,"status", <&uart0>,"dma-names?=0";
 		wifiaddr = <&wifi>, "local-mac-address[";
 
 		cam0_reg = <&cam0_reg>,"status";
