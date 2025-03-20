@@ -750,11 +750,6 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 
 	mem_width = __ffs(data_width | mem_addr | len);
 
-	if (!IS_ALIGNED(mem_addr, 4)) {
-		dev_err(chan->chip->dev, "invalid buffer alignment\n");
-		return -EINVAL;
-	}
-
 	/* Use a reasonable upper limit otherwise residue reporting granularity grows large */
 	mem_burst_msize = axi_dma_encode_msize(16);
 
@@ -796,6 +791,11 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 		block_ts = len >> reg_width;
 		break;
 	default:
+		return -EINVAL;
+	}
+
+	if (len % (1 << reg_width)) {
+		dev_err_ratelimited(chan->chip->dev, "length %ld not aligned to device width %d\n", len, 1 << reg_width);
 		return -EINVAL;
 	}
 
