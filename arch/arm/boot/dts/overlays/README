@@ -454,11 +454,15 @@ Params:
                                 and entering the low power state (default 600).
                                 Requires EEE to be enabled - see "eee".
 
-        uart0                   Set to "off" to disable uart0 (default "on")
+        uart0                   Set to "on" to enable and "off" to disable uart0
+                                (default "off" on 2712, otherwise "on")
 
         uart0_console           Move the kernel boot console to UART0 on pins
                                 6, 8 and 10 of the 40-way header (2712 only,
                                 default "off")
+
+        uart0_nodma             Enable uart0 without DMA (2712 only, default
+                                "off")
 
         uart1                   Set to "on" or "off" to enable or disable uart1
                                 (default varies)
