@@ -367,7 +367,8 @@ static void axi_desc_put(struct axi_dma_desc *desc)
 
 	for (descs_put = 0; descs_put < count; descs_put++) {
 		hw_desc = &desc->hw_desc[descs_put];
-		dma_pool_free(chan->desc_pool, hw_desc->lli, hw_desc->llp);
+		if (hw_desc->lli)
+			dma_pool_free(chan->desc_pool, hw_desc->lli, hw_desc->llp);
 	}
 
 	kfree(desc->hw_desc);
