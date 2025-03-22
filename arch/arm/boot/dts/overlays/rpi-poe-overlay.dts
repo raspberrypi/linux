@@ -145,7 +145,7 @@
 		poe_fan_temp2_hyst =	<&trip2>,"hysteresis:0";
 		poe_fan_temp3 =		<&trip3>,"temperature:0";
 		poe_fan_temp3_hyst =	<&trip3>,"hysteresis:0";
-		i2c =			<0>, "+5+6",
+		i2c =			<0>, "+7+8",
 					<&fwpwm>,"status=disabled",
 					<&i2c_bus>,"status=okay",
 					<&poe_mfd>,"status=okay",
