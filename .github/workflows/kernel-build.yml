@@ -50,6 +50,11 @@ jobs:
             defconfig: bcm2711_defconfig
             kernel: kernel8
 
+          - name: bcm2711_rt
+            arch: arm64
+            defconfig: bcm2711_rt_defconfig
+            kernel: kernel8_rt
+
           - name: bcm2712
             arch: arm64
             defconfig: bcm2712_defconfig
