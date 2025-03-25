@@ -1970,18 +1970,18 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 			if (fb->format->format == DRM_FORMAT_P030) {
 				/*
-				 * Spec says: bits [31:4] of the given address
-				 * should point to the 128-bit word containing
-				 * the desired starting pixel, and bits[3:0]
-				 * should be between 0 and 11, indicating which
-				 * of the 12-pixels in that 128-bit word is the
+				 * Spec says: bits [31:5] of the given address
+				 * should point to the 256-bit word containing
+				 * the desired starting pixel, and bits[4:0]
+				 * should be between 0 and 23, indicating which
+				 * of the 24-pixels in that 256-bit word is the
 				 * first pixel to be used
 				 */
 				u32 remaining_pixels = src_x % 96;
-				u32 aligned = remaining_pixels / 12;
-				u32 last_bits = remaining_pixels % 12;
+				u32 aligned = remaining_pixels / 24;
+				u32 last_bits = remaining_pixels % 24;
 
-				x_off = aligned * 16 + last_bits;
+				x_off = aligned * 32 + last_bits;
 				pix_per_tile = 96;
 			} else {
 				pix_per_tile = tile_width / fb->format->cpp[0];
