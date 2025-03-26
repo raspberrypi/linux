@@ -5,23 +5,24 @@
 
 /*
  * Fake a higher clock rate to get a larger divisor, and thereby a lower
- * baudrate. The real clock is 50MHz, which we scale so that requesting
- * 38.4kHz results in an actual 31.25kHz.
- *
- *   50000000*38400/31250 = 61440000
+ * baudrate. Create an intermediary clock that reports the real clock frequency
+ * multiplied by 38400/31250. This will result in the UART's clock divisor being
+ * greater by a factor of 38400/31250, such that requesting 38.4kHz results in
+ * an actual 31.25kHz.
  */
 
 /{
 	compatible = "brcm,bcm2712";
 
 	fragment@0 {
-		target-path = "/";
+		target-path = "/clocks";
 		__overlay__ {
-			midi_clk: midi_clk4 {
-				compatible = "fixed-clock";
+			midi_clk: midiclock_4 {
+				compatible = "fixed-factor-clock";
 				#clock-cells = <0>;
-				clock-output-names = "uart4_pclk";
-				clock-frequency = <61440000>;
+				clocks = <&rp1_clocks RP1_CLK_UART>;
+				clock-mult = <38400>;
+				clock-div  = <31250>;
 			};
 		};
 	};
@@ -29,6 +30,7 @@
 	fragment@1 {
 		target = <&uart4>;
 		__overlay__ {
+			status = "okay";
 			clocks = <&midi_clk &rp1_clocks RP1_PLL_SYS_PRI_PH>;
 		};
 	};
