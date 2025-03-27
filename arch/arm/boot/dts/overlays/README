@@ -402,7 +402,7 @@ Params:
                                 (2712 only, default "0")
 
         sd                      Set to "off" to disable the SD card (or eMMC on
-                                non-lite SKU of CM4).
+                                non-lite SKU of CM4/5).
                                 (default "on")
 
         sd_cqe                  Modify Command Queuing behaviour on the main SD
