@@ -719,6 +719,8 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 			<&ant2>, "output-low?=on";
 		noanthogs = <&ant1>,"status=disabled",
 			<&ant2>, "status=disabled";
+		sd = <&sdio1>, "status";
+		sd_poll_once = <&sdio1>, "non-removable?";
 		sd_cqe = <&sdio1>, "supports-cqe:0";
 	};
 };
