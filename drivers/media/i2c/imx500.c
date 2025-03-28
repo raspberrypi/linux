@@ -214,6 +214,12 @@
 #define IMX500_COLOUR_BALANCE_STEP 0x0001
 #define IMX500_COLOUR_BALANCE_DEFAULT 0x0100
 
+/* Rotate angle */
+#define IMX500_REG_ADDR_ROTATION CCI_REG8(0xD680)
+
+/* Flip vertical/horizontal */
+#define IMX500_REG_ADDR_IMG_ORIENTATION CCI_REG8(0x0101)
+
 /* Embedded sizes */
 #define IMX500_MAX_EMBEDDED_SIZE \
 	(2 * ((((IMX500_PIXEL_ARRAY_WIDTH * 10) >> 3) + 15) & ~15))
@@ -235,6 +241,8 @@ enum pad_types { IMAGE_PAD, METADATA_PAD, NUM_PADS };
 
 #define V4L2_CID_USER_IMX500_INFERENCE_WINDOW (V4L2_CID_USER_IMX500_BASE + 0)
 #define V4L2_CID_USER_IMX500_NETWORK_FW_FD (V4L2_CID_USER_IMX500_BASE + 1)
+#define V4L2_CID_USER_IMX500_ROTATION (V4L2_CID_USER_IMX500_BASE + 2)
+#define V4L2_CID_USER_IMX500_IMG_FLIP (V4L2_CID_USER_IMX500_BASE + 3)
 
 #define ONE_MIB (1024 * 1024)
 
@@ -1974,6 +1982,12 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 		       sizeof(struct v4l2_rect));
 		ret = imx500_set_inference_window(imx500);
 		break;
+	case V4L2_CID_USER_IMX500_ROTATION:
+		ret = cci_write(imx500->regmap, IMX500_REG_ADDR_ROTATION, ctrl->val, NULL);
+		break;
+	case V4L2_CID_USER_IMX500_IMG_FLIP:
+		ret = cci_write(imx500->regmap, IMX500_REG_ADDR_IMG_ORIENTATION, ctrl->val, NULL);
+		break;
 	default:
 		dev_info(&client->dev,
 			 "ctrl(id:0x%x,val:0x%x) is not handled\n", ctrl->id,
@@ -2828,6 +2842,32 @@ static const struct v4l2_ctrl_config network_fw_fd = {
 	.def		= -1,
 };
 
+/* Custom control for rotation angle */
+static const struct v4l2_ctrl_config rotation_angle = {
+	.name		= "IMX500 Rotation Angle",
+	.id		= V4L2_CID_USER_IMX500_ROTATION,
+	.ops		= &imx500_ctrl_ops,
+	.type		= V4L2_CTRL_TYPE_INTEGER,
+	.flags		= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+	.min		= 0,
+	.max		= 3,
+	.step		= 1,
+	.def		= 0,
+};
+
+/* Custom control for image flip */
+static const struct v4l2_ctrl_config img_flip = {
+	.name		= "IMX500 Image Flip",
+	.id		= V4L2_CID_USER_IMX500_IMG_FLIP,
+	.ops		= &imx500_ctrl_ops,
+	.type		= V4L2_CTRL_TYPE_INTEGER,
+	.flags		= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+	.min		= 0,
+	.max		= 3,
+	.step		= 1,
+	.def		= 0,
+};
+
 /* Initialize control handlers */
 static int imx500_init_controls(struct imx500 *imx500)
 {
@@ -2891,6 +2931,8 @@ static int imx500_init_controls(struct imx500 *imx500)
 	v4l2_ctrl_new_custom(ctrl_hdlr, &inf_window_ctrl, NULL);
 	imx500->network_fw_ctrl =
 		v4l2_ctrl_new_custom(ctrl_hdlr, &network_fw_fd, NULL);
+	v4l2_ctrl_new_custom(ctrl_hdlr, &rotation_angle, NULL);
+	v4l2_ctrl_new_custom(ctrl_hdlr, &img_flip, NULL);
 
 	if (ctrl_hdlr->error) {
 		ret = ctrl_hdlr->error;
