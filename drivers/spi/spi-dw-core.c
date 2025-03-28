@@ -997,7 +997,7 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 	dw_spi_init_mem_ops(dws);
 
 	host->use_gpio_descriptors = true;
-	host->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP;
+	host->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_NO_CS;
 	if (dws->caps & DW_SPI_CAP_DFS32)
 		host->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	else
