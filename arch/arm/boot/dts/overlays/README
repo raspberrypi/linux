@@ -463,8 +463,8 @@ Params:
         uart1                   Set to "on" or "off" to enable or disable uart1
                                 (default varies)
 
-        watchdog                Set to "on" to enable the hardware watchdog
-                                (default "off")
+        watchdog                Set to "off" to disable the hardware watchdog
+                                (default "on")
 
         wifiaddr                Set an alternative WiFi MAC address.
                                 The value should be a 6-byte hexadecimal value,
