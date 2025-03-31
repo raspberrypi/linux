@@ -2873,6 +2873,9 @@ Params: addr                    Set I2C address of sensor. Valid values are
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Enable ad5398 VCM associated with the sensor.
+        clk-37125               Alternative to clock-frequency=37125000 and
+                                link-frequency=445500000 for Waveshare modules
+                                with 37.125MHz clock sources.
 
 
 Name:   imx462

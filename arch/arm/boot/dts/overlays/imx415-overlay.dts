@@ -103,6 +103,8 @@
 		      <&cam_node>,"lens-focus:0=", <&vcm>;
 		clock-frequency = <&cam_clk>, "clock-frequency:0";
 		link-frequency = <&cam_endpoint>,"link-frequencies#0";
+		clk-37125 = <&cam_endpoint>,"link-frequencies#0=445500000",
+			   <&cam_clk>, "clock-frequency:0=37125000";
 		4lane = <0>, "+201+202";
 	};
 };
