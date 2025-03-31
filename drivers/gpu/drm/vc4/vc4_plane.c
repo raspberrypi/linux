@@ -1892,6 +1892,24 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 	src_x = vc4_state->src_x >> 16;
 
+	/* fetch an extra pixel if we don't actually line up with the left edge. */
+	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
+		width++;
+
+	/* same for the right side */
+	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
+	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
+		width++;
+
+	/* now for the top */
+	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
+		height++;
+
+	/* and the bottom */
+	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
+	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
+		height++;
+
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
 		tiling = SCALER6_CTL0_ADDR_MODE_LINEAR;
@@ -2012,24 +2030,6 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 			      (long long)fb->modifier);
 		return -EINVAL;
 	}
-
-	/* fetch an extra pixel if we don't actually line up with the left edge. */
-	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
-		width++;
-
-	/* same for the right side */
-	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
-	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
-		width++;
-
-	/* now for the top */
-	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
-		height++;
-
-	/* and the bottom */
-	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
-	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
-		height++;
 
 	/* for YUV444 hardware wants double the width, otherwise it doesn't
 	 * fetch full width of chroma
