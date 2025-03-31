@@ -164,11 +164,15 @@
 
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK	0x2
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_PERST_ASSERT_MASK		0x8
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_ENABLE_MASK		0x10000
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_OUT_MASK		0x100000
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK		0x200000
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x08000000
 #define  PCIE_BMIPS_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x00800000
 #define  PCIE_CLKREQ_MASK \
 	  (PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK | \
+	   PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_ENABLE_MASK | \
+	   PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_OUT_MASK | \
 	   PCIE_MISC_HARD_PCIE_HARD_DEBUG_L1SS_ENABLE_MASK)
 
 #define PCIE_MISC_UBUS_BAR1_CONFIG_REMAP			0x40ac
@@ -1599,12 +1603,21 @@ static void brcm_config_clkreq(struct brcm_pcie *pcie)
 
 	} else {
 		/*
-		 * "safe" -- No power savings; refclk is driven by RC
+		 * "safe" -- No power savings; refclk and CLKREQ# are driven by RC
 		 * unconditionally.
 		 */
 		if (strcmp(mode, "safe") != 0)
 			dev_err(pcie->dev, err_msg);
 		mode = "safe";
+		clkreq_cntl |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_OUT_MASK;
+		clkreq_cntl |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_REFCLK_OVRD_ENABLE_MASK;
+		/*
+		 * Un-advertise L1ss as configuring an EP to enter L1.x with CLKREQ#
+		 * physically unconnected will result in a dead link.
+		 */
+		tmp = readl(pcie->base + PCIE_RC_CFG_PRIV1_ROOT_CAP);
+		u32p_replace_bits(&tmp, 2, PCIE_RC_CFG_PRIV1_ROOT_CAP_L1SS_MODE_MASK);
+		writel(tmp, pcie->base + PCIE_RC_CFG_PRIV1_ROOT_CAP);
 	}
 	writel(clkreq_cntl, pcie->base + HARD_DEBUG(pcie));
 
