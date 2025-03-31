@@ -327,7 +327,7 @@ int upisnd_comm_init(struct upisnd_instance *instance,
 
 int upisnd_comm_send_midi(struct upisnd_instance *instance, const void *data, unsigned int n)
 {
-	if (n >= UPISND_MAX_PACKET_LENGTH)
+	if (n == 0 || n >= UPISND_MAX_PACKET_LENGTH)
 		return -EINVAL;
 
 	u8 buffer[UPISND_MAX_PACKET_LENGTH];
