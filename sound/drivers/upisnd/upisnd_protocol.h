@@ -273,7 +273,8 @@ static inline u8 upisnd_cmd_decode_length(u8 b)
 
 static inline u8 upisnd_cmd_encode(enum upisnd_cmd_type_e type, u8 size)
 {
-	return (size < UPISND_MAX_PACKET_LENGTH && size > 0) ? (type | (size - 1)) : 0xff;
+	return (size <= UPISND_MAX_PACKET_LENGTH && size > 0) ? (type | (size - 1))
+		: UPISND_CMD_INVALID;
 }
 
 static inline u8 upisnd_msg_id_encode(upisnd_msg_id_t msg_id, bool response)

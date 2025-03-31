@@ -129,7 +129,7 @@ static const struct snd_rawmidi_global_ops upisnd_midi_ops = {
 
 static void upisnd_midi_in_handler(struct work_struct *work)
 {
-	int i, n, err;
+	int n, err;
 
 	printd("In handler");
 	struct upisnd_instance *instance = container_of(work,
@@ -153,8 +153,7 @@ static void upisnd_midi_in_handler(struct work_struct *work)
 		instance->midi.rx_cnt += err;
 	}
 
-	for (i = 0; i < err; ++i)
-		kfifo_skip(&instance->midi.midi_in_fifo);
+	kfifo_skip_count(&instance->midi.midi_in_fifo, err);
 
 	if (!kfifo_is_empty(&instance->midi.midi_in_fifo) &&
 	    !work_pending(&instance->midi.midi_in_handler)) {
@@ -193,25 +192,37 @@ static void upisnd_midi_out_handler(struct work_struct *work)
 		instance->midi.output_buffer_used_in_millibytes) / 1000;
 
 	u8 buffer[UPISND_MAX_PACKET_LENGTH - 1];
+	int n, batch, err;
 
 	printd("Available: %u", output_buffer_available);
-	int n = snd_rawmidi_transmit_peek(instance->midi.midi_output,
-					  buffer,
-					  min(output_buffer_available, sizeof(buffer)));
 
-	if (n > 0) {
-		printd("Peeked: %d", n);
-		snd_rawmidi_transmit_ack(instance->midi.midi_output, n);
-		n = upisnd_comm_send_midi(instance, buffer, (unsigned int)n);
-		if (n < 0)
-			printe("Error occurred when sending MIDI data over I2C! (%d)", n);
-	} else {
-		printe("snd_rawmidi_transmit_peek returned error %d!", n);
-		goto cleanup;
+	for (batch = 0; batch < 3; ++batch) {
+		if (output_buffer_available == 0)
+			break;
+
+		n = snd_rawmidi_transmit_peek(instance->midi.midi_output,
+					      buffer,
+					      min(output_buffer_available, sizeof(buffer)));
+
+		if (n > 0) {
+			printd("Peeked: %d (batch %d)", n, batch);
+			err = upisnd_comm_send_midi(instance, buffer, (unsigned int)n);
+			if (err < 0) {
+				printe("Error occurred when sending MIDI data over I2C! (%d)", n);
+				goto cleanup;
+			}
+			snd_rawmidi_transmit_ack(instance->midi.midi_output, n);
+
+			instance->midi.tx_cnt += n;
+			instance->midi.output_buffer_used_in_millibytes += n * 1000;
+			output_buffer_available -= n;
+		} else if (n < 0) {
+			printe("snd_rawmidi_transmit_peek returned error %d!", n);
+			goto cleanup;
+		} else {
+			break;
+		}
 	}
-
-	instance->midi.tx_cnt += n;
-	instance->midi.output_buffer_used_in_millibytes += n * 1000;
 
 	printd("Checking if empty %p", instance->midi.midi_output);
 	if (!snd_rawmidi_transmit_empty(instance->midi.midi_output)) {
