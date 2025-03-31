@@ -522,7 +522,7 @@ static const struct imx415_mode supported_modes[] = {
 	},
 	{
 		.lane_rate = 891000000,
-		.hmax_min = { 1100, 550 },
+		.hmax_min = { 2200, 1100 },
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(imx415_linkrate_891mbps),
 			.regs = imx415_linkrate_891mbps,
@@ -725,6 +725,7 @@ static int imx415_s_ctrl(struct v4l2_ctrl *ctrl)
 		 * Deliberately fall through as exposure is set based on VMAX
 		 * which has just changed.
 		 */
+		ctrl = sensor->exposure;
 		fallthrough;
 	case V4L2_CID_EXPOSURE:
 		/* clamp the exposure value to VMAX. */
@@ -752,10 +753,11 @@ static int imx415_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_HBLANK:
-		return cci_write(sensor->regmap, IMX415_HMAX,
-				 (format->width + ctrl->val) /
+		ret = cci_write(sensor->regmap, IMX415_HMAX,
+				(format->width + ctrl->val) /
 						IMX415_HMAX_MULTIPLIER,
 				 NULL);
+		break;
 
 	default:
 		ret = -EINVAL;
