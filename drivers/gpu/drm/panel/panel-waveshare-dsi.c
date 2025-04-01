@@ -303,6 +303,27 @@ static const struct ws_panel_data ws_panel_13_3_2lane_data = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO  | MIPI_DSI_MODE_LPM,
 };
 
+/* 7.0inch 1280x720
+ * https://www.waveshare.com/7inch-dsi-lcd-h.htm
+ */
+static const struct drm_display_mode ws_panel_7_0_h_mode = {
+	.clock = 83333,
+	.hdisplay = 1280,
+	.hsync_start = 1280 + 64,
+	.hsync_end = 1280 + 64 + 64,
+	.htotal = 1280 + 64 + 64 + 64,
+	.vdisplay = 720,
+	.vsync_start = 720 + 64,
+	.vsync_end = 720 + 64 + 64,
+	.vtotal = 720 + 64 + 64 + 64,
+};
+
+static const struct ws_panel_data ws_panel_7_0_h_data = {
+	.mode = &ws_panel_7_0_h_mode,
+	.lanes = 2,
+	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
+};
+
 static struct ws_panel *panel_to_ts(struct drm_panel *panel)
 {
 	return container_of(panel, struct ws_panel, base);
@@ -587,6 +608,9 @@ static const struct of_device_id ws_panel_of_ids[] = {
 	}, {
 		.compatible = "waveshare,13.3inch-2lane-panel",
 		.data = &ws_panel_13_3_2lane_data,
+	}, {
+		.compatible = "waveshare,7.0inch-h-panel",
+		.data = &ws_panel_7_0_h_data,
 	}, {
 		/* sentinel */
 	}
