@@ -130,6 +130,9 @@
 				  <&touch2>, "status=okay";
 		13_3_inch_2lane = <&panel>, "compatible=waveshare,13.3inch-2lane-panel",
 				  <&touch2>, "status=okay";
+		7_0_inchH = <&panel>, "compatible=waveshare,7.0inch-h-panel",
+				  <&touch>, "touchscreen-swapped-x-y?",
+				  <&touch>, "touchscreen-inverted-x?";
 		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
 		       <0>, "-3-4+5";
 		disable_touch = <&touch>, "status=disabled";
