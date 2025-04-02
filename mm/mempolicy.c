@@ -1625,6 +1625,7 @@ SYSCALL_DEFINE6(mbind, unsigned long, start, unsigned long, len,
 static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 				 unsigned long maxnode)
 {
+	char name[sizeof(current->comm)];
 	unsigned short mode_flags;
 	nodemask_t nodes;
 	int lmode = mode;
@@ -1635,7 +1636,7 @@ static long kernel_set_mempolicy(int mode, const unsigned long __user *nmask,
 	if (mempolicy_cmdline_set) {
 		// ignore messages during boot which are expected
 		if (ktime_get_boottime_seconds() > 40)
-			pr_info("Request to set policy to %d ignored\n", mode);
+			pr_info("Request by '%s' to set policy to %d ignored\n", get_task_comm(name, current), mode);
 		return 0;
 	}
 
