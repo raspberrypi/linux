@@ -77,7 +77,7 @@
 			 <&ads7846>,"interrupts:0",
 			 <&ads7846>,"pendown-gpio:4";
 		penirq_pull = <&ads7846_pins>,"brcm,pull:0";
-		swapxy = <&ads7846>,"ti,swap-xy?";
+		swapxy = <&ads7846>,"touchscreen-swapped-x-y?";
 		xmin =   <&ads7846>,"ti,x-min;0";
 		ymin =   <&ads7846>,"ti,y-min;0";
 		xmax =   <&ads7846>,"ti,x-max;0";
@@ -85,5 +85,7 @@
 		pmin =   <&ads7846>,"ti,pressure-min;0";
 		pmax =   <&ads7846>,"ti,pressure-max;0";
 		xohms =  <&ads7846>,"ti,x-plate-ohms;0";
+		invx =   <&ads7846>,"touchscreen-inverted-x?";
+		invy =   <&ads7846>,"touchscreen-inverted-y?";
 	};
 };
