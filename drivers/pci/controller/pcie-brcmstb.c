@@ -666,7 +666,8 @@ static void brcm_pcie_set_outbound_win(struct brcm_pcie *pcie,
 				 MSI_FLAG_NO_AFFINITY)
 
 #define BRCM_MSI_FLAGS_SUPPORTED (MSI_GENERIC_FLAGS_MASK	| \
-				  MSI_FLAG_MULTI_PCI_MSI)
+				  MSI_FLAG_MULTI_PCI_MSI	| \
+				  MSI_FLAG_PCI_MSIX)
 
 static const struct msi_parent_ops brcm_msi_parent_ops = {
 	.required_flags		= BRCM_MSI_FLAGS_REQUIRED,
