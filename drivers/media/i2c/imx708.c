@@ -39,6 +39,10 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 #define IMX708_MODE_STANDBY		0x00
 #define IMX708_MODE_STREAMING		0x01
 
+#define IMX708_REG_CSI_LANE_MODE	0x0114
+#define IMX708_CSI_2_LANE_MODE		0x01
+#define IMX708_CSI_4_LANE_MODE		0x03
+
 #define IMX708_REG_ORIENTATION		0x101
 
 #define IMX708_INCLK_FREQ		24000000
@@ -201,12 +205,16 @@ enum {
 	IMX708_LINK_FREQ_450MHZ,
 	IMX708_LINK_FREQ_447MHZ,
 	IMX708_LINK_FREQ_453MHZ,
+	IMX708_LINK_FREQ_524MHZ,
+	IMX708_LINK_FREQ_547MHZ,
 };
 
 static const s64 link_freqs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = 450000000,
 	[IMX708_LINK_FREQ_447MHZ] = 447000000,
 	[IMX708_LINK_FREQ_453MHZ] = 453000000,
+	[IMX708_LINK_FREQ_524MHZ] = 524000000,
+	[IMX708_LINK_FREQ_547MHZ] = 547000000,
 };
 
 /* 450MHz is the nominal "default" link frequency */
@@ -225,6 +233,16 @@ static const struct imx708_reg link_453Mhz_regs[] = {
 	{0x030F, 0x2e},
 };
 
+static const struct imx708_reg link_524Mhz_regs[] = {
+	{0x030E, 0x01},
+	{0x030F, 0x5D},
+};
+
+static const struct imx708_reg link_547Mhz_regs[] = {
+	{0x030E, 0x01},
+	{0x030F, 0x6D},
+};
+
 static const struct imx708_reg_list link_freq_regs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = {
 		.regs = link_450Mhz_regs,
@@ -238,16 +256,24 @@ static const struct imx708_reg_list link_freq_regs[] = {
 		.regs = link_453Mhz_regs,
 		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
 	},
+	[IMX708_LINK_FREQ_524MHZ] = {
+		.regs = link_524Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_524Mhz_regs)
+	},
+	[IMX708_LINK_FREQ_547MHZ] = {
+		.regs = link_547Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_547Mhz_regs)
+	},
 };
 
 static const struct imx708_reg mode_common_regs[] = {
-	{0x0100, 0x00},
-	{0x0136, 0x18},
-	{0x0137, 0x00},
-	{0x33F0, 0x02},
-	{0x33F1, 0x05},
+	{0x0100, 0x00}, 
+	{0x0136, 0x18}, //REG_EXCK_FREQ_MSB
+	{0x0137, 0x00}, //REG_EXCK_FREQ_LSB
+	{0x33F0, 0x02}, //0x01, 0x02
+	{0x33F1, 0x05}, //0x01, 0x05
 	{0x3062, 0x00},
-	{0x3063, 0x12},
+	{0x3063, 0x12}, //0x30, 0x12
 	{0x3068, 0x00},
 	{0x3069, 0x12},
 	{0x306A, 0x00},
@@ -268,9 +294,8 @@ static const struct imx708_reg mode_common_regs[] = {
 	{0xF033, 0x08},
 	{0xF03D, 0x10},
 	{0xF03F, 0x10},
-	{0x0112, 0x0A},
-	{0x0113, 0x0A},
-	{0x0114, 0x01},
+	{0x0112, 0x0A}, //REG_CSI_FORMAT_C
+	{0x0113, 0x0A}, //REG_CSI_FORMAT_D
 	{0x0B8E, 0x01},
 	{0x0B8F, 0x00},
 	{0x0B94, 0x01},
@@ -288,28 +313,28 @@ static const struct imx708_reg mode_common_regs[] = {
 	{0x3363, 0x00},
 	{0x3364, 0x00},
 	{0x3365, 0x00},
-	{0x0138, 0x01},
+	{0x0138, 0x01}, //REG_TEMP_SENS_CTL
 };
 
 /* 10-bit. */
 static const struct imx708_reg mode_4608x2592_regs[] = {
-	{0x0342, 0x3D},
-	{0x0343, 0x20},
-	{0x0340, 0x0A},
-	{0x0341, 0x59},
-	{0x0344, 0x00},
-	{0x0345, 0x00},
-	{0x0346, 0x00},
-	{0x0347, 0x00},
-	{0x0348, 0x11},
-	{0x0349, 0xFF},
-	{0x034A, 0X0A},
-	{0x034B, 0x1F},
+	{0x0342, 0x28}, //REG_LINE_LEN_MSB 0x28, 0x3D
+	{0x0343, 0xC0}, //REG_LINE_LEN_LSB 0xC0, 0x20
+	{0x0340, 0x0A}, //REG_FRAME_LEN_MSB
+	{0x0341, 0xC4}, //REG_FRAME_LEN_LSB (0xC4, 0x5A, 0x59)
+	{0x0344, 0x00}, //REG_X_ADD_STA_MSB
+	{0x0345, 0x00}, //REG_X_ADD_STA_LSB
+	{0x0346, 0x00}, //REG_Y_ADD_STA_MSB
+	{0x0347, 0x00}, //REG_Y_ADD_STA_LSB
+	{0x0348, 0x11}, //REG_X_ADD_END_MSB
+	{0x0349, 0xFF}, //REG_X_ADD_END_LSB
+	{0x034A, 0X0A}, //REG_Y_ADD_END_MSB
+	{0x034B, 0x1F}, //REG_Y_ADD_END_LSB
 	{0x0220, 0x62},
 	{0x0222, 0x01},
-	{0x0900, 0x00},
-	{0x0901, 0x11},
-	{0x0902, 0x0A},
+	{0x0900, 0x00}, //REG_BINNING_MODE
+	{0x0901, 0x11}, //REG_BINNING_HV
+	{0x0902, 0x0A}, //REG_BINNING_WEIGHTING
 	{0x3200, 0x01},
 	{0x3201, 0x01},
 	{0x32D5, 0x01},
@@ -318,28 +343,28 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x32DF, 0x00},
 	{0x350C, 0x00},
 	{0x350D, 0x00},
-	{0x0408, 0x00},
-	{0x0409, 0x00},
-	{0x040A, 0x00},
-	{0x040B, 0x00},
-	{0x040C, 0x12},
-	{0x040D, 0x00},
-	{0x040E, 0x0A},
-	{0x040F, 0x20},
-	{0x034C, 0x12},
-	{0x034D, 0x00},
-	{0x034E, 0x0A},
-	{0x034F, 0x20},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7C},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
+	{0x0408, 0x00}, //REG_DIG_CROP_X_OFFSET_MSB
+	{0x0409, 0x00}, //REG_DIG_CROP_X_OFFSET_LSB
+	{0x040A, 0x00}, //REG_DIG_CROP_Y_OFFSET_MSB
+	{0x040B, 0x00}, //REG_DIG_CROP_Y_OFFSET_LSB
+	{0x040C, 0x12}, //REG_DIG_CROP_WIDTH_MSB
+	{0x040D, 0x00}, //REG_DIG_CROP_WIDTH_LSB
+	{0x040E, 0x0A}, //REG_DIG_CROP_HEIGHT_MSB
+	{0x040F, 0x20}, //REG_DIG_CROP_HEIGHT_LSB
+	{0x034C, 0x12}, //REG_X_OUT_SIZE_MSB
+	{0x034D, 0x00}, //REG_X_OUT_SIZE_LSB
+	{0x034E, 0x0A}, //REG_Y_OUT_SIZE_MSB
+	{0x034F, 0x20}, //REG_Y_OUT_SIZE_LSB
+	{0x0301, 0x05}, //REG_IVTPXCK_DIV
+	{0x0303, 0x02}, //REG_IVTSYCK_DIV
+	{0x0305, 0x03}, //REG_IVT_PREPLLCK_DIV (0x03 , 0x02)
+	{0x0306, 0x01}, //REG_PLL_IVT_MPY_MSB (0x01 , 0x00)
+	{0x0307, 0x0B}, //REG_PLL_IVT_MPY_LSB (0x0B , 0x01, 0x7C)
+	{0x030B, 0x02}, //REG_IOPSYCK_DIV
+	{0x030D, 0x04}, //REG_IOP_PREPLLCK_DIV
+	{0x0310, 0x01}, //REG_PLL_MULTI_DRV
 	{0x3CA0, 0x00},
-	{0x3CA1, 0x64},
+	{0x3CA1, 0x64}, //0x32, 0x64
 	{0x3CA4, 0x00},
 	{0x3CA5, 0x00},
 	{0x3CA6, 0x00},
@@ -347,27 +372,27 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x3CAA, 0x00},
 	{0x3CAB, 0x00},
 	{0x3CB8, 0x00},
-	{0x3CB9, 0x08},
+	{0x3CB9, 0x08}, //0x04, 0x08
 	{0x3CBA, 0x00},
 	{0x3CBB, 0x00},
 	{0x3CBC, 0x00},
-	{0x3CBD, 0x3C},
+	{0x3CBD, 0x3C}, //0x1E, 0x3C
 	{0x3CBE, 0x00},
 	{0x3CBF, 0x00},
-	{0x0202, 0x0A},
-	{0x0203, 0x29},
+	{0x0202, 0x0A}, //REG_COARSE_INTEGRATION_TIME_MSB
+	{0x0203, 0x29}, //REG_COARSE_INTEGRATION_TIME_LSB (0x94, 0x29)
 	{0x0224, 0x01},
 	{0x0225, 0xF4},
 	{0x3116, 0x01},
 	{0x3117, 0xF4},
-	{0x0204, 0x00},
-	{0x0205, 0x00},
+	{0x0204, 0x00}, //REG_ANA_GLOBAL_GAIN_U
+	{0x0205, 0x00}, //REG_ANA_GLOBAL_GAIN_L
 	{0x0216, 0x00},
 	{0x0217, 0x00},
 	{0x0218, 0x01},
 	{0x0219, 0x00},
-	{0x020E, 0x01},
-	{0x020F, 0x00},
+	{0x020E, 0x01}, //REG_DIG_GAIN_GR_U
+	{0x020F, 0x00}, //REG_DIG_GAIN_GR_L
 	{0x3118, 0x00},
 	{0x3119, 0x00},
 	{0x311A, 0x01},
@@ -689,7 +714,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rate = 595200000,
+		.pixel_rate = 595200000, //1123200000
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -866,6 +891,9 @@ struct imx708 {
 	unsigned int long_exp_shift;
 
 	unsigned int link_freq_idx;
+	
+	/* Two or Four lanes */
+	u8 lanes;
 };
 
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
@@ -1474,6 +1502,13 @@ static int imx708_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static int imx708_configure_lanes(struct imx708 *imx708)
+{	
+	return imx708_write_reg(imx708, IMX708_REG_CSI_LANE_MODE, IMX708_REG_VALUE_08BIT,
+					 imx708->lanes == 2 ? IMX708_CSI_2_LANE_MODE :
+					 IMX708_CSI_4_LANE_MODE);
+};
+
 /* Start streaming */
 static int imx708_start_streaming(struct imx708 *imx708)
 {
@@ -1515,6 +1550,16 @@ static int imx708_start_streaming(struct imx708 *imx708)
 
 		imx708->common_regs_written = true;
 	}
+
+	/* Configure two or four Lane mode */
+	ret = imx708_configure_lanes(imx708);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to configure lanes\n", __func__);
+		return ret;
+	}
+	ret = imx708_read_reg(imx708, IMX708_REG_CSI_LANE_MODE,
+				      IMX708_REG_VALUE_08BIT, &val);
+	dev_info(&client->dev, "configured %d lanes\n", val+1);
 
 	/* Apply default values of current mode */
 	reg_list = &imx708->mode->reg_list;
@@ -1938,10 +1983,13 @@ static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 	}
 
 	/* Check the number of MIPI CSI2 data lanes */
-	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2) {
-		dev_err(dev, "only 2 data lanes are currently supported\n");
+	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2 &&
+	    ep_cfg.bus.mipi_csi2.num_data_lanes != 4) {
+		dev_err_probe(dev, -EINVAL,
+			      "only 2 or 4 data lanes are currently supported\n");
 		goto error_out;
 	}
+	imx708->lanes = ep_cfg.bus.mipi_csi2.num_data_lanes;
 
 	/* Check the link frequency set in device tree */
 	if (!ep_cfg.nr_of_link_frequencies) {
