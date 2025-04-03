@@ -230,6 +230,7 @@ static int mcp_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 
 	switch (param) {
 	case PIN_CONFIG_BIAS_PULL_UP:
+	case PIN_CONFIG_BIAS_DISABLE:
 		mutex_lock(&mcp->lock);
 		ret = mcp_read(mcp, MCP_GPPU, &data);
 		mutex_unlock(&mcp->lock);
@@ -263,6 +264,11 @@ static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 		case PIN_CONFIG_BIAS_PULL_UP:
 			mutex_lock(&mcp->lock);
 			ret = mcp_set_bit(mcp, MCP_GPPU, pin, arg);
+			mutex_unlock(&mcp->lock);
+			break;
+		case PIN_CONFIG_BIAS_DISABLE:
+			mutex_lock(&mcp->lock);
+			ret = mcp_set_bit(mcp, MCP_GPPU, pin, 0);
 			mutex_unlock(&mcp->lock);
 			break;
 		default:
