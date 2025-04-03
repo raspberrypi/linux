@@ -675,10 +675,6 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 		girq->threaded = true;
 	}
 
-	ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
-	if (ret < 0)
-		return dev_err_probe(dev, ret, "can't add GPIO chip\n");
-
 	mcp->pinctrl_desc.pctlops = &mcp_pinctrl_ops;
 	mcp->pinctrl_desc.confops = &mcp_pinconf_ops;
 	mcp->pinctrl_desc.npins = mcp->chip.ngpio;
@@ -691,6 +687,10 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	mcp->pctldev = devm_pinctrl_register(dev, &mcp->pinctrl_desc, mcp);
 	if (IS_ERR(mcp->pctldev))
 		return dev_err_probe(dev, PTR_ERR(mcp->pctldev), "can't register controller\n");
+
+	ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "can't add GPIO chip\n");
 
 	if (mcp->irq) {
 		ret = mcp23s08_irq_setup(mcp);
