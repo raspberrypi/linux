@@ -610,6 +610,7 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	mcp->chip.get_multiple = mcp23s08_get_multiple;
 	mcp->chip.direction_output = mcp23s08_direction_output;
 	mcp->chip.set = mcp23s08_set;
+	mcp->chip.set_config = gpiochip_generic_config;
 	mcp->chip.set_multiple = mcp23s08_set_multiple;
 
 	mcp->chip.base = base;
