@@ -54,6 +54,9 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 #define IMX708_REG_FRAME_LENGTH		0x0340
 #define IMX708_FRAME_LENGTH_MAX		0xffff
 
+/* H_TIMING internal */
+#define IMX708_REG_LINE_LENGTH		0x0342
+
 /* Long exposure multiplier */
 #define IMX708_LONG_EXP_SHIFT_MAX	7
 #define IMX708_LONG_EXP_SHIFT_REG	0x3100
@@ -318,8 +321,6 @@ static const struct imx708_reg mode_common_regs[] = {
 
 /* 10-bit. */
 static const struct imx708_reg mode_4608x2592_regs[] = {
-	{0x0342, 0x28}, //REG_LINE_LEN_MSB 0x28, 0x3D
-	{0x0343, 0xC0}, //REG_LINE_LEN_LSB 0xC0, 0x20
 	{0x0340, 0x0A}, //REG_FRAME_LEN_MSB
 	{0x0341, 0xC4}, //REG_FRAME_LEN_LSB (0xC4, 0x5A, 0x59)
 	{0x0344, 0x00}, //REG_X_ADD_STA_MSB
@@ -701,7 +702,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 0x3d20,
+		.line_length_pix = 10432,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -714,7 +715,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rate = 595200000, //1123200000
+		.pixel_rate = 854400000, //595200000,
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -1148,11 +1149,6 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 					IMX708_FRAME_LENGTH_MAX) - mode->height,
 				 1, mode->vblank_default);
 
-	/*
-	 * Currently PPL is fixed to the mode specified value, so hblank
-	 * depends on mode->width only, and is not changeable in any
-	 * way other than changing the mode.
-	 */
 	hblank = mode->line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
 }
@@ -1242,6 +1238,10 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		ret = imx708_set_frame_length(imx708,
 					      imx708->mode->height + ctrl->val);
+		break;
+	case V4L2_CID_HBLANK:
+		ret = imx708_write_reg(imx708, IMX708_REG_LINE_LENGTH, 2,
+				       imx708->mode->width + ctrl->val);
 		break;
 	case V4L2_CID_NOTIFY_GAINS:
 		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_BLUE,
@@ -1937,7 +1937,6 @@ static int imx708_init_controls(struct imx708 *imx708)
 		goto error;
 	}
 
-	imx708->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 	imx708->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 	imx708->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 	imx708->hdr_mode->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
