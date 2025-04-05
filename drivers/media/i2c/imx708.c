@@ -153,6 +153,11 @@ struct imx708_reg {
 	u8 val;
 };
 
+struct imx708_pair {
+	u64 two_lane;
+	u64 four_lane;
+};
+
 struct imx708_reg_list {
 	unsigned int num_of_regs;
 	const struct imx708_reg *regs;
@@ -167,7 +172,7 @@ struct imx708_mode {
 	unsigned int height;
 
 	/* H-timing in pixels */
-	unsigned int line_length_pix;
+	struct imx708_pair line_length_pix;
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -182,7 +187,7 @@ struct imx708_mode {
 	struct imx708_reg_list reg_list;
 
 	/* Not all modes have the same pixel rate. */
-	u64 pixel_rate;
+	struct imx708_pair pixel_rates;
 
 	/* Not all modes have the same minimum exposure. */
 	u32 exposure_lines_min;
@@ -273,8 +278,8 @@ static const struct imx708_reg mode_common_regs[] = {
 	{0x0100, 0x00}, 
 	{0x0136, 0x18}, //REG_EXCK_FREQ_MSB
 	{0x0137, 0x00}, //REG_EXCK_FREQ_LSB
-	{0x33F0, 0x02}, //0x01, 0x02
-	{0x33F1, 0x05}, //0x01, 0x05
+	{0x33F0, 0x02}, //REG_IOPSYCK_DIV 0x01, 0x02
+	{0x33F1, 0x05}, //REG_IOPPXCK_DIV 0x01, 0x05
 	{0x3062, 0x00},
 	{0x3063, 0x12}, //0x30, 0x12
 	{0x3068, 0x00},
@@ -319,10 +324,99 @@ static const struct imx708_reg mode_common_regs[] = {
 	{0x0138, 0x01}, //REG_TEMP_SENS_CTL
 };
 
+/* Pixel rate setup */
+enum {
+	IMX708_PIX_RATE_566Mhz,
+	IMX708_PIX_RATE_585Mhz,
+	IMX708_PIX_RATE_595Mhz,
+	IMX708_PIX_RATE_777Mhz,
+	IMX708_PIX_RATE_854Mhz,
+};
+
+static const s64 pixel_rates[] = {
+	[IMX708_PIX_RATE_566Mhz] = 566400000,
+	[IMX708_PIX_RATE_585Mhz] = 585600000,
+	[IMX708_PIX_RATE_595Mhz] = 595200000,
+	[IMX708_PIX_RATE_777Mhz] = 777600000,
+	[IMX708_PIX_RATE_854Mhz] = 854400000,
+};
+
+static const struct imx708_reg pixel_rate_566Mhz_regs[] = {
+	{0x0305, 0x02},
+	{0x0306, 0x00},
+	{0x0307, 0x76},
+};
+
+static const struct imx708_reg pixel_rate_585Mhz_regs[] = {
+	{0x0305, 0x02},
+	{0x0306, 0x00},
+	{0x0307, 0x7A},
+};
+
+static const struct imx708_reg pixel_rate_595Mhz_regs[] = {
+	{0x0305, 0x02},
+	{0x0306, 0x00},
+	{0x0307, 0x7C},
+};
+
+static const struct imx708_reg pixel_rate_777Mhz_regs[] = {
+	{0x0305, 0x02},
+	{0x0306, 0x00},
+	{0x0307, 0xA2},
+};
+
+static const struct imx708_reg pixel_rate_854Mhz_regs[] = {
+	{0x0305, 0x03},
+	{0x0306, 0x01},
+	{0x0307, 0x0B},
+};
+
+static const struct imx708_reg_list pixel_rate_regs[] = {
+	[IMX708_PIX_RATE_566Mhz] = {
+		.regs = pixel_rate_566Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(pixel_rate_566Mhz_regs)
+	},
+	[IMX708_PIX_RATE_585Mhz] = {
+		.regs = pixel_rate_585Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(pixel_rate_585Mhz_regs)
+	},
+	[IMX708_PIX_RATE_595Mhz] = {
+		.regs = pixel_rate_595Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(pixel_rate_595Mhz_regs)
+	},
+	[IMX708_PIX_RATE_777Mhz] = {
+		.regs = pixel_rate_777Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(pixel_rate_777Mhz_regs)
+	},
+	[IMX708_PIX_RATE_854Mhz] = {
+		.regs = pixel_rate_854Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(pixel_rate_854Mhz_regs)
+	},
+};
+
+/* Line Length setup */
+enum {
+	IMX708_LINE_LENGTH_2608,
+	IMX708_LINE_LENGTH_5216,
+	IMX708_LINE_LENGTH_7824,
+	IMX708_LINE_LENGTH_10432,
+	IMX708_LINE_LENGTH_15648,
+	IMX708_LINE_LENGTH_20864,
+};
+
+static const s64 line_lengths[] = {
+	[IMX708_LINE_LENGTH_2608] = 2608,
+	[IMX708_LINE_LENGTH_5216] = 5216,
+	[IMX708_LINE_LENGTH_7824] = 7824,
+	[IMX708_LINE_LENGTH_10432] = 10432,
+	[IMX708_LINE_LENGTH_15648] = 15648,
+	[IMX708_LINE_LENGTH_20864] = 20864,
+};
+
 /* 10-bit. */
 static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x0340, 0x0A}, //REG_FRAME_LEN_MSB
-	{0x0341, 0xC4}, //REG_FRAME_LEN_LSB (0xC4, 0x5A, 0x59)
+	{0x0341, 0x59}, //REG_FRAME_LEN_LSB (0xC4, 0x5A, 0x59)
 	{0x0344, 0x00}, //REG_X_ADD_STA_MSB
 	{0x0345, 0x00}, //REG_X_ADD_STA_LSB
 	{0x0346, 0x00}, //REG_Y_ADD_STA_MSB
@@ -358,10 +452,7 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x034F, 0x20}, //REG_Y_OUT_SIZE_LSB
 	{0x0301, 0x05}, //REG_IVTPXCK_DIV
 	{0x0303, 0x02}, //REG_IVTSYCK_DIV
-	{0x0305, 0x03}, //REG_IVT_PREPLLCK_DIV (0x03 , 0x02)
-	{0x0306, 0x01}, //REG_PLL_IVT_MPY_MSB (0x01 , 0x00)
-	{0x0307, 0x0B}, //REG_PLL_IVT_MPY_LSB (0x0B , 0x01, 0x7C)
-	{0x030B, 0x02}, //REG_IOPSYCK_DIV
+	{0x030B, 0x02},
 	{0x030D, 0x04}, //REG_IOP_PREPLLCK_DIV
 	{0x0310, 0x01}, //REG_PLL_MULTI_DRV
 	{0x3CA0, 0x00},
@@ -381,7 +472,7 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x3CBE, 0x00},
 	{0x3CBF, 0x00},
 	{0x0202, 0x0A}, //REG_COARSE_INTEGRATION_TIME_MSB
-	{0x0203, 0x29}, //REG_COARSE_INTEGRATION_TIME_LSB (0x94, 0x29)
+	{0x0203, 0x29}, //REG_COARSE_INTEGRATION_TIME_LSB
 	{0x0224, 0x01},
 	{0x0225, 0xF4},
 	{0x3116, 0x01},
@@ -452,9 +543,6 @@ static const struct imx708_reg mode_2x2binned_regs[] = {
 	{0x034F, 0x10},
 	{0x0301, 0x05},
 	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7A},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -546,9 +634,6 @@ static const struct imx708_reg mode_2x2binned_720p_regs[] = {
 	{0x034F, 0x60},
 	{0x0301, 0x05},
 	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x76},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -640,9 +725,6 @@ static const struct imx708_reg mode_hdr_regs[] = {
 	{0x034F, 0x10},
 	{0x0301, 0x05},
 	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0xA2},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -702,7 +784,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 10432,
+		.line_length_pix = {15648, 10432},
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -715,7 +797,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rate = 854400000, //595200000,
+		.pixel_rates = {595200000, 854400000},
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -725,7 +807,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* regular 2x2 binned. */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1e90,
+		.line_length_pix = {7824, 5216},
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -738,7 +820,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_regs),
 			.regs = mode_2x2binned_regs,
 		},
-		.pixel_rate = 585600000,
+		.pixel_rates = {585600000, 585600000},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -748,7 +830,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* 2x2 binned and cropped for 720p. */
 		.width = 1536,
 		.height = 864,
-		.line_length_pix = 0x1460,
+		.line_length_pix = {5216, 5216},
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT + 768,
 			.top = IMX708_PIXEL_ARRAY_TOP + 432,
@@ -761,7 +843,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_720p_regs),
 			.regs = mode_2x2binned_720p_regs,
 		},
-		.pixel_rate = 566400000,
+		.pixel_rates = {566400000, 566400000},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -774,7 +856,7 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 		/* There's only one HDR mode, which is 2x2 downscaled */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1460,
+		.line_length_pix = {5216, 5216},
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -787,7 +869,7 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_hdr_regs),
 			.regs = mode_hdr_regs,
 		},
-		.pixel_rate = 777600000,
+		.pixel_rates = {777600000, 777600000},
 		.exposure_lines_min = 8 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.exposure_lines_step = 2 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.hdr = true,
@@ -892,6 +974,8 @@ struct imx708 {
 	unsigned int long_exp_shift;
 
 	unsigned int link_freq_idx;
+	unsigned int pix_rate_idx;
+	unsigned int line_length_idx;
 	
 	/* Two or Four lanes */
 	u8 lanes;
@@ -1137,20 +1221,32 @@ static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
 static void imx708_set_framing_limits(struct imx708 *imx708)
 {
 	const struct imx708_mode *mode = imx708->mode;
-	unsigned int hblank;
+	unsigned int hblank, pix_rate;
+	int i;
 
-	__v4l2_ctrl_modify_range(imx708->pixel_rate,
-				 mode->pixel_rate, mode->pixel_rate,
-				 1, mode->pixel_rate);
-
-	/* Update limits and set FPS to default */
-	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
-				 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
-					IMX708_FRAME_LENGTH_MAX) - mode->height,
-				 1, mode->vblank_default);
-
-	hblank = mode->line_length_pix - mode->width;
+	/* Get the line lenth */
+	for (i = 0; i < ARRAY_SIZE(line_lengths); i++) {
+		if (line_lengths[i] == (imx708->lanes == 2 ? 
+								imx708->mode->line_length_pix.two_lane :
+								imx708->mode->line_length_pix.four_lane)) {
+			imx708->line_length_idx = i;
+			break;
+		}
+	}
+	hblank = line_lengths[imx708->line_length_idx] - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
+
+	/* Get the pixel rate */
+	for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
+		if (pixel_rates[i] == (imx708->lanes == 2 ? 
+							   imx708->mode->pixel_rates.two_lane :
+							   imx708->mode->pixel_rates.four_lane)) {
+			imx708->pix_rate_idx = i;
+			break;
+		}
+	}
+	pix_rate = pixel_rates[imx708->pix_rate_idx];
+	__v4l2_ctrl_modify_range(imx708->pixel_rate, pix_rate, pix_rate, 1, pix_rate);
 }
 
 static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1513,7 +1609,7 @@ static int imx708_configure_lanes(struct imx708 *imx708)
 static int imx708_start_streaming(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	const struct imx708_reg_list *reg_list, *freq_regs;
+	const struct imx708_reg_list *reg_list, *freq_regs, *pix_rate_regs;
 	int i, ret;
 	u32 val;
 
@@ -1566,6 +1662,23 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	ret = imx708_write_regs(imx708, reg_list->regs, reg_list->num_of_regs);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
+		return ret;
+	}
+
+	// /* Set the pixel rate */
+	// for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
+	// 	if (pixel_rates[i] == (imx708->lanes == 2 ? 
+	// 						   imx708->mode->pixel_rates.two_lane :
+	// 						   imx708->mode->pixel_rates.four_lane)) {
+	// 		imx708->pix_rate_idx = i;
+	// 		break;
+	// 	}
+	// }
+	pix_rate_regs = &pixel_rate_regs[imx708->pix_rate_idx];
+	ret = imx708_write_regs(imx708, pix_rate_regs->regs,
+							pix_rate_regs->num_of_regs);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set pixel rate\n", __func__);
 		return ret;
 	}
 
