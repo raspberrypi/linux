@@ -1553,7 +1553,7 @@ static int snd_korg1212_prepare(struct snd_pcm_substream *substream)
 		return -EAGAIN;
 		/*
 		korg1212->sharedBufferPtr->cardCommand = 0;
-		del_timer(&korg1212->timer);
+		timer_delete(&korg1212->timer);
 		korg1212->stop_pending_cnt = 0;
 		*/
 	}
