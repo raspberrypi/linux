@@ -5567,6 +5567,26 @@ Params: 2_8_inch                2.8" 480x640
                                 the default DSI1 and i2c_csi_dsi).
 
 
+Name:   vc4-kms-dsi-waveshare-panel-v2
+Info:   Enable the Waveshare DSI-TOUCH series screen
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-waveshare-panel-v2,<param>
+Params: 5_0_inch_a              5.0" 720x1280 2lane
+        5_5_inch_a              5.5" 720x1280 2lane
+        7_0_inch_a              7.0" A 720x1280 2lane
+        7_0_inch_b              7.0" B 720x1280 2lane
+        8_0_inch_a              8.0" 800x1280 2lane
+        8_0_inch_a_4lane        8.0" 800x1280 4lane
+        10_1_inch_a             10.1" 800x1280 2lane
+        10_1_inch_a_4lane       10.1" 800x1280 4lane
+        disable_touch           Disable the touch controller
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+
+
 Name:   vc4-kms-kippah-7inch
 Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,kippah-7inch
 Load:   <Deprecated>
