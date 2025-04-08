@@ -1201,6 +1201,16 @@ config REGULATOR_RASPBERRYPI_TOUCHSCREEN_V2
 	  unit. The regulator is used to enable power to the display and to
 	  control backlight PWM.
 
+config REGULATOR_WAVESHARE_TOUCHSCREEN
+	tristate "Waveshare touchscreen panel regulator"
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This driver supports regulator on the waveshare
+	  touchscreen unit. The regulator is used to enable power to the
+	  display and to control backlight.
+
 config REGULATOR_RC5T583
 	tristate "RICOH RC5T583 Power regulators"
 	depends on MFD_RC5T583
