@@ -1,0 +1,4 @@
+config IONO_PI_V3
+	tristate "Sfera Labs Iono Pi v3 support"
+	help
+	  Driver for the Sfera Labs Iono Pi v3 board.
