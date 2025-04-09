@@ -182,7 +182,7 @@ struct imx708_mode {
 	struct imx708_reg_list reg_list;
 
 	/* Not all modes have the same pixel rate. */
-	u64 pixel_rates[2];
+	u64 pixel_rate[2];
 
 	/* Not all modes have the same minimum exposure. */
 	u32 exposure_lines_min;
@@ -792,7 +792,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rates = {595200000, 854400000},
+		.pixel_rate = {595200000, 854400000},
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -815,7 +815,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_regs),
 			.regs = mode_2x2binned_regs,
 		},
-		.pixel_rates = {585600000, 585600000},
+		.pixel_rate = {585600000, 585600000},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -838,7 +838,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_720p_regs),
 			.regs = mode_2x2binned_720p_regs,
 		},
-		.pixel_rates = {566400000, 566400000},
+		.pixel_rate = {566400000, 566400000},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -864,7 +864,7 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 			.num_of_regs = ARRAY_SIZE(mode_hdr_regs),
 			.regs = mode_hdr_regs,
 		},
-		.pixel_rates = {777600000, 777600000},
+		.pixel_rate = {777600000, 777600000},
 		.exposure_lines_min = 8 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.exposure_lines_step = 2 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.hdr = true,
@@ -1216,11 +1216,18 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 	const struct imx708_mode *mode = imx708->mode;
 	unsigned int hblank, pix_rate;
 
+	pix_rate = mode->pixel_rate[imx708->lanes == 2 ? 0 : 1];
+	__v4l2_ctrl_modify_range(imx708->pixel_rate, pix_rate, pix_rate, 1, pix_rate);
+
+	/* Update limits and set FPS to default */
+	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
+							 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
+									IMX708_FRAME_LENGTH_MAX) - mode->height,
+							 1, mode->vblank_default);
+
 	hblank = mode->line_length_pix[imx708->lanes == 2 ? 0 : 1] - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
 
-	pix_rate = mode->pixel_rates[imx708->lanes == 2 ? 0 : 1];
-	__v4l2_ctrl_modify_range(imx708->pixel_rate, pix_rate, pix_rate, 1, pix_rate);
 }
 
 static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1642,8 +1649,8 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	/* Set the pixel rate */
 	for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
 		if (pixel_rates[i] == (imx708->lanes == 2 ? 
-							   imx708->mode->pixel_rates[0] :
-							   imx708->mode->pixel_rates[1])) {
+							   imx708->mode->pixel_rate[0] :
+							   imx708->mode->pixel_rate[1])) {
 			break;
 		}
 	}
