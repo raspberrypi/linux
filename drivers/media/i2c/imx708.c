@@ -153,11 +153,6 @@ struct imx708_reg {
 	u8 val;
 };
 
-struct imx708_pair {
-	u64 two_lane;
-	u64 four_lane;
-};
-
 struct imx708_reg_list {
 	unsigned int num_of_regs;
 	const struct imx708_reg *regs;
@@ -172,7 +167,7 @@ struct imx708_mode {
 	unsigned int height;
 
 	/* H-timing in pixels */
-	struct imx708_pair line_length_pix;
+	u64 line_length_pix[2];
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -187,7 +182,7 @@ struct imx708_mode {
 	struct imx708_reg_list reg_list;
 
 	/* Not all modes have the same pixel rate. */
-	struct imx708_pair pixel_rates;
+	u64 pixel_rates[2];
 
 	/* Not all modes have the same minimum exposure. */
 	u32 exposure_lines_min;
@@ -974,8 +969,6 @@ struct imx708 {
 	unsigned int long_exp_shift;
 
 	unsigned int link_freq_idx;
-	unsigned int pix_rate_idx;
-	unsigned int line_length_idx;
 	
 	/* Two or Four lanes */
 	u8 lanes;
@@ -1222,30 +1215,11 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 {
 	const struct imx708_mode *mode = imx708->mode;
 	unsigned int hblank, pix_rate;
-	int i;
 
-	/* Get the line lenth */
-	for (i = 0; i < ARRAY_SIZE(line_lengths); i++) {
-		if (line_lengths[i] == (imx708->lanes == 2 ? 
-								imx708->mode->line_length_pix.two_lane :
-								imx708->mode->line_length_pix.four_lane)) {
-			imx708->line_length_idx = i;
-			break;
-		}
-	}
-	hblank = line_lengths[imx708->line_length_idx] - mode->width;
+	hblank = mode->line_length_pix[imx708->lanes == 2 ? 0 : 1] - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
 
-	/* Get the pixel rate */
-	for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
-		if (pixel_rates[i] == (imx708->lanes == 2 ? 
-							   imx708->mode->pixel_rates.two_lane :
-							   imx708->mode->pixel_rates.four_lane)) {
-			imx708->pix_rate_idx = i;
-			break;
-		}
-	}
-	pix_rate = pixel_rates[imx708->pix_rate_idx];
+	pix_rate = mode->pixel_rates[imx708->lanes == 2 ? 0 : 1];
 	__v4l2_ctrl_modify_range(imx708->pixel_rate, pix_rate, pix_rate, 1, pix_rate);
 }
 
@@ -1665,16 +1639,15 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		return ret;
 	}
 
-	// /* Set the pixel rate */
-	// for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
-	// 	if (pixel_rates[i] == (imx708->lanes == 2 ? 
-	// 						   imx708->mode->pixel_rates.two_lane :
-	// 						   imx708->mode->pixel_rates.four_lane)) {
-	// 		imx708->pix_rate_idx = i;
-	// 		break;
-	// 	}
-	// }
-	pix_rate_regs = &pixel_rate_regs[imx708->pix_rate_idx];
+	/* Set the pixel rate */
+	for (i = 0; i < ARRAY_SIZE(pixel_rates); i++) {
+		if (pixel_rates[i] == (imx708->lanes == 2 ? 
+							   imx708->mode->pixel_rates[0] :
+							   imx708->mode->pixel_rates[1])) {
+			break;
+		}
+	}
+	pix_rate_regs = &pixel_rate_regs[i];
 	ret = imx708_write_regs(imx708, pix_rate_regs->regs,
 							pix_rate_regs->num_of_regs);
 	if (ret) {
