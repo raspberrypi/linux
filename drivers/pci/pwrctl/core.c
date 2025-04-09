@@ -110,6 +110,8 @@ EXPORT_SYMBOL_GPL(pci_pwrctl_device_set_ready);
  */
 void pci_pwrctl_device_unset_ready(struct pci_pwrctl *pwrctl)
 {
+	cancel_work_sync(&pwrctl->work);
+
 	/*
 	 * We don't have to delete the link here. Typically, this function
 	 * is only called when the power control device is being detached. If
