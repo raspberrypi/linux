@@ -167,7 +167,7 @@ struct imx708_mode {
 	unsigned int height;
 
 	/* H-timing in pixels */
-	u64 line_length_pix[2];
+	unsigned int line_length_pix[2];
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -1221,9 +1221,9 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
-							 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
-									IMX708_FRAME_LENGTH_MAX) - mode->height,
-							 1, mode->vblank_default);
+		((1 << IMX708_LONG_EXP_SHIFT_MAX) *
+		   IMX708_FRAME_LENGTH_MAX) - mode->height,
+		1, mode->vblank_default);
 
 	hblank = mode->line_length_pix[imx708->lanes == 2 ? 0 : 1] - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
