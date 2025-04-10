@@ -49,6 +49,7 @@ DTC_FLAGS_bcm2710-rpi-2-b := -@
 DTC_FLAGS_bcm2710-rpi-3-b := -@
 DTC_FLAGS_bcm2710-rpi-3-b-plus := -@
 DTC_FLAGS_bcm2709-rpi-cm2 := -@
+DTC_FLAGS_bcm2710-rpi-cm0 := -@
 DTC_FLAGS_bcm2710-rpi-cm3 := -@
 DTC_FLAGS_bcm2711-rpi-cm4 := -@
 DTC_FLAGS_bcm2711-rpi-cm4s := -@
