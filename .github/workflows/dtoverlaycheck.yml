@@ -43,6 +43,6 @@ jobs:
         sudo make install
         cd ${{github.workspace}}
         pwd
-        make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- bcm2711_defconfig
+        make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- bcm2709_defconfig
         make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- dtbs
         ${{env.UTILS_DIR}}/overlaycheck/overlaycheck
