@@ -3552,6 +3552,21 @@ Params:
                                 (default 16).
 
 
+Name:   mira220
+Info:   ams mira220 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=mira220,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
 Name:   mlx90640
 Info:   Overlay for i2c connected mlx90640 thermal camera
 Load:   dtoverlay=mlx90640
