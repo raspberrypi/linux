@@ -1857,6 +1857,24 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
+	if (state->fb->format->format == DRM_FORMAT_YUV444 ||
+	    state->fb->format->format == DRM_FORMAT_YVU444) {
+		/* Similar to YUV422 requiring the chroma scaler to always be
+		 * enabled that is handled in vc4_plane_setup_clipping_and_scaling,
+		 * GEN6 requires the scaler for the luma channel to be enabled
+		 * for YUV444.
+		 */
+		if (vc4_state->x_scaling[0] == VC4_SCALING_NONE) {
+			vc4_state->x_scaling[0] = VC4_SCALING_PPF;
+			vc4_state->is_unity = false;
+		}
+
+		if (vc4_state->y_scaling[0] == VC4_SCALING_NONE) {
+			vc4_state->y_scaling[0] = VC4_SCALING_PPF;
+			vc4_state->is_unity = false;
+		}
+	}
+
 	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
 	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen.
