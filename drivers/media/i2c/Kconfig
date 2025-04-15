@@ -352,6 +352,20 @@ config VIDEO_IMX708
 config VIDEO_MAX9271_LIB
 	tristate
 
+config VIDEO_MIRA220
+	tristate "ams MIRA220 sensor support"
+	depends on I2C && VIDEO_DEV
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_CCI_I2C
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the ams
+	  MIRA220 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mira220.
+
 config VIDEO_MT9M001
 	tristate "mt9m001 support"
 	help
