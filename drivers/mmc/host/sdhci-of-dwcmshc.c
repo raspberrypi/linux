@@ -1221,13 +1221,15 @@ static const struct dwcmshc_pltfm_data sdhci_dwcmshc_bf3_pdata = {
 };
 #endif
 
-static const struct sdhci_pltfm_data sdhci_dwcmshc_rp1_pdata = {
-	.ops = &sdhci_dwcmshc_ops,
-	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
-		  SDHCI_QUIRK_BROKEN_CARD_DETECTION,
-	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
-		   SDHCI_QUIRK2_BROKEN_HS200 |
-		   SDHCI_QUIRK2_SPURIOUS_INT_RESP,
+static const struct dwcmshc_pltfm_data sdhci_dwcmshc_rp1_pdata = {
+	.pdata = {
+		.ops = &sdhci_dwcmshc_ops,
+		.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
+			  SDHCI_QUIRK_BROKEN_CARD_DETECTION,
+		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+			   SDHCI_QUIRK2_BROKEN_HS200 |
+			   SDHCI_QUIRK2_SPURIOUS_INT_RESP,
+	}
 };
 
 static const struct dwcmshc_pltfm_data sdhci_dwcmshc_rk35xx_pdata = {
