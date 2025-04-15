@@ -6225,6 +6225,22 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x56b0, aspm_l1_acceptable_latency
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x56b1, aspm_l1_acceptable_latency);
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x56c0, aspm_l1_acceptable_latency);
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, 0x56c1, aspm_l1_acceptable_latency);
+
+/*
+ * VL805 firmware can report 0 in the L0s/L1 Acceptable Latency fields.
+ * This is shorter than its own exit latency so ASPM for the link partner
+ * never gets enabled (but firmware toggles EP L1/L0s enable internally).
+ * However, L0s is flaky so explicitly disable it.
+ */
+static void vl805_aspm_fixup(struct pci_dev *dev)
+{
+	dev->devcap &= ~PCI_EXP_DEVCAP_L1;
+	/* Set to own exit latency + 1 */
+	dev->devcap |= FIELD_PREP(PCI_EXP_DEVCAP_L1, 5);
+	pci_disable_link_state(dev, PCIE_LINK_STATE_L0S);
+	pci_info(dev, "ASPM: VL805 fixup applied\n");
+}
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_VIA, 0x3483, vl805_aspm_fixup);
 #endif
 
 #ifdef CONFIG_PCIE_DPC
