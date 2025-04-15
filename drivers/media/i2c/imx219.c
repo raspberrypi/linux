@@ -876,6 +876,7 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 	 */
 	bin_h = min(IMX219_PIXEL_ARRAY_WIDTH / format->width, 2U);
 	bin_v = min(IMX219_PIXEL_ARRAY_HEIGHT / format->height, 2U);
+	binning = min(bin_h, bin_v);
 
 	/* Ensure bin_h and bin_v are same to avoid 1:2 or 2:1 stretching */
 	binning = min(bin_h, bin_v);
