@@ -851,6 +851,9 @@ static size_t vc6_upm_size(const struct drm_plane_state *state,
 		else
 			stride = ALIGN(state->fb->width, 128);
 	}
+	if (!plane && (state->fb->format->format == DRM_FORMAT_YUV444 ||
+		       state->fb->format->format == DRM_FORMAT_YVU444))
+		stride <<= 1;
 	/*
 	 * TODO: This only works for raster formats, and is sub-optimal
 	 * for buffers with a stride aligned on 32 bytes.
