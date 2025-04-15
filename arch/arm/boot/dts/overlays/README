@@ -5078,6 +5078,21 @@ Load:   dtoverlay=tc358743-audio,<param>=<val>
 Params: card-name               Override the default, "tc358743", card name.
 
 
+Name:   tc358743-pi5
+Info:   Toshiba TC358743 HDMI to CSI-2 bridge chip for Pi5.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=tc358743-pi5,<param>=<val>
+Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
+                                CAM1 connector).
+
+        link-frequency          Set the link frequency. Only values of 297000000
+                                (574Mbit/s) and 486000000 (972Mbit/s - default)
+                                are supported by the driver.
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
