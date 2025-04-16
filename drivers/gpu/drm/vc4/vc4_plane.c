@@ -302,6 +302,7 @@ struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
 		refcount_inc(&hvs->lbm_refcounts[vc4_state->lbm_handle].refcount);
 
 	vc4_state->dlist_initialized = 0;
+	vc4_state->is_yuv444_unity = false;
 
 	__drm_atomic_helper_plane_duplicate_state(plane, &vc4_state->base);
 
@@ -871,6 +872,10 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 {
 	struct vc4_dev *vc4 = to_vc4_dev(state->plane->dev);
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	bool no_interpolate = state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR;
+
+	if (vc4_state->is_yuv444_unity)
+		no_interpolate = 1;
 
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_6_D);
 
@@ -879,7 +884,7 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 		vc4_write_ppf(vc4_state, vc4_state->src_w[channel],
 			      vc4_state->crtc_w, vc4_state->src_x, channel,
 			      state->chroma_siting_h,
-			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
+			      no_interpolate);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
@@ -887,7 +892,7 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 		vc4_write_ppf(vc4_state, vc4_state->src_h[channel],
 			      vc4_state->crtc_h, vc4_state->src_y, channel,
 			      state->chroma_siting_v,
-			      state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR);
+			      no_interpolate);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
@@ -1867,12 +1872,19 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		if (vc4_state->x_scaling[0] == VC4_SCALING_NONE) {
 			vc4_state->x_scaling[0] = VC4_SCALING_PPF;
 			vc4_state->is_unity = false;
+			vc4_state->is_yuv444_unity = true;
 		}
 
 		if (vc4_state->y_scaling[0] == VC4_SCALING_NONE) {
 			vc4_state->y_scaling[0] = VC4_SCALING_PPF;
 			vc4_state->is_unity = false;
+		} else {
+			/* Ensure that resizing vertically but not horizontally
+			 * doesn't switch the scaling filter.
+			 */
+			vc4_state->is_yuv444_unity = false;
 		}
+
 	}
 
 	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
@@ -2199,6 +2211,9 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 				filter = &vc4->hvs->nearest_neighbour_filter;
 				break;
 			}
+			if (vc4_state->is_yuv444_unity)
+				filter = &vc4->hvs->nearest_neighbour_filter;
+
 			u32 kernel = VC4_SET_FIELD(filter->start,
 						   SCALER_PPF_KERNEL_OFFSET);
 

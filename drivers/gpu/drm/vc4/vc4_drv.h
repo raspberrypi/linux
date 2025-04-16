@@ -475,6 +475,10 @@ struct vc4_plane_state {
 	enum vc4_scaling_mode x_scaling[2], y_scaling[2];
 	bool is_unity;
 	bool is_yuv;
+	/* Allows use of nearest neighbour scaling filter when doing unity YUV444
+	 * workaround
+	 */
+	bool is_yuv444_unity;
 
 	/* Our allocation in LBM for temporary storage during scaling. */
 	unsigned int lbm_handle;
