@@ -405,9 +405,14 @@ Params:
                                 non-lite SKU of CM4).
                                 (default "on")
 
-        sd_cqe                  Set to "off" to disable Command Queueing if you
-                                have an incompatible Class A2 SD card
-                                (Pi 5 only, default "on")
+        sd_cqe                  Modify Command Queuing behaviour on the main SD
+                                interface. Legal values are:
+                                0: disable CQ
+                                1: allow CQ for known-good SD A2 cards, and all
+                                   eMMC cards
+                                2: allow CQ for all SD A2 cards that aren't
+                                   known-bad, and all eMMC cards.
+                                (2712 only, default "1")
 
         sd_overclock            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
@@ -563,6 +568,8 @@ Load:   dtoverlay=ads1115,<param>[=<val>]
 Params: addr                    I2C bus address of device. Set based on how the
                                 addr pin is wired. (default=0x48 assumes addr
                                 is pulled to GND)
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
         cha_enable              Enable virtual channel a.
         cha_cfg                 Set the configuration for virtual channel a.
                                 (default=4 configures this channel for the
@@ -572,22 +579,6 @@ Params: addr                    I2C bus address of device. Set based on how the
         cha_gain                Set the gain of the Programmable Gain
                                 Amplifier for this channel. (Default 1 sets the
                                 full scale of the channel to 4.096 Volts)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
         Channel parameters can be set for each enabled channel.
         A maximum of 4 channels can be enabled (letters a thru d).
@@ -1258,20 +1249,11 @@ Params: sizex                   Touchscreen size x (default 800)
         invx                    Touchscreen inverted x axis
         invy                    Touchscreen inverted y axis
         swapxy                  Touchscreen swapped x y axis
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c1                    Choose the I2C1 bus on GPIOs 2&3
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
         addr                    Sets the address for the touch controller. Note
                                 that the device must be configured to use the
                                 specified address.
-        i2c-path                Override I2C path to allow for i2c-gpio buses
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
 
 
 Name:   enc28j60
@@ -1897,6 +1879,9 @@ Params: <None>
 
 Name:   hifiberry-dac8x
 Info:   Configures the HifiBerry DAC8X audio cards (only on Pi5)
+        This driver also detects a stacked ADC8x and activates the
+        capture capabilities.
+        Note: for standalone use of the ADC8x activate the ADC8x module.
 Load:   dtoverlay=hifiberry-dac8x
 Params: <None>
 
@@ -2109,6 +2094,31 @@ Load:   dtoverlay=i2c-bcm2708
 Params: <None>
 
 
+Name:   i2c-bus
+Info:   This is not a real overlay. Many overlays support the use of a variety
+        of I2C buses, and this is where the relevant parameters are documented.
+Load:   <Documentation>
+Params: i2c0                    Choose the I2C0 bus on GPIOs 0&1
+        i2c1                    Choose the I2C1 bus on GPIOs 2&3
+        i2c2                    Choose the I2C2 bus (configure with the i2c2
+                                overlay - BCM2711 only)
+        i2c3                    Choose the I2C3 bus (configure with the i2c3
+                                overlay - BCM2711 only)
+        i2c4                    Choose the I2C4 bus (configure with the i2c4
+                                overlay - BCM2711 only)
+        i2c5                    Choose the I2C5 bus (configure with the i2c5
+                                overlay - BCM2711 only)
+        i2c6                    Choose the I2C6 bus (configure with the i2c6
+                                overlay - BCM2711 only)
+        i2c_csi_dsi             Choose the I2C bus connected to the main
+                                camera/display connector.
+                                See "dtparam -h i2c_csi_dsi" for details.
+        i2c_csi_dsi0            Choose the I2C bus connected to the second
+                                camera/display connector, if present.
+                                See "dtparam -h i2c_csi_dsi0" for details.
+        i2c-path                Override I2C path to allow for i2c-gpio buses
+
+
 Name:   i2c-fan
 Info:   Adds support for a number of I2C fan controllers
 Load:   dtoverlay=i2c-fan,<param>=<val>
@@ -2116,29 +2126,8 @@ Params: addr                    Sets the address for the fan controller. Note
                                 that the device must be configured to use the
                                 specified address.
 
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-
-        i2c-path                Override I2C path to allow for i2c-gpio buses
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
 
         minpwm                  PWM setting for the fan when the SoC is below
                                 mintemp (range 0-255. default 0)
@@ -2191,32 +2180,11 @@ Params: pca9542                 Select the NXP PCA9542 device
 
         addr                    Change I2C address of the device (default 0x70)
 
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
+
         base                    Set an explicit base value for the channel bus
                                 numbers
-
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
         disconnect_on_idle      Force the mux to disconnect all child buses
                                 after every transaction.
@@ -2229,22 +2197,8 @@ Name:   i2c-pwm-pca9685a
 Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
 Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
 Params: addr                    I2C address of PCA9685A (default 0x40)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
 
 
 Name:   i2c-rtc
@@ -2298,29 +2252,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         s35390a                 Select the ABLIC S35390A device
 
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-
-        i2c-path                Override I2C path to allow for i2c-gpio buses
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
@@ -2446,6 +2379,9 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
                                 JC42, LM75, MCP980x, MPU6050, MPU9250, MS5637,
                                 MS5803, MS5805, MS5837, MS8607, SHT3x or TMP102
 
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
+
         adt7410                 Select the Analog Devices ADT7410 and ADT7420
                                 temperature sensors
                                 Valid address 0x48-0x4b, default 0x48
@@ -2481,10 +2417,19 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
         ds1621                  Select the Dallas Semiconductors DS1621 temp
                                 sensor. Valid addresses 0x48-0x4f, default 0x48
 
+        gain                    Gain used for measuring shunt resistor current.
+                                Valid values 1 or 4, default 1. (ina238 only,
+                                disabled by default)
+
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
         htu21                   Select the HTU21 temperature and humidity sensor
+
+        ina238                  Select the TI INA238 power monitor. Valid
+                                addresses 0x40-0x4F, default 0x40.
+                                Uses parameters shunt-resistor and
+                                ti,shunt-gain for configuration
 
         int_pin                 Set the GPIO to use for interrupts (max30102,
                                 mpu6050 and mpu9250 only)
@@ -2544,6 +2489,10 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
         reset_pin               GPIO to be used to reset the device (bno055
                                 only, disabled by default)
 
+        shunt_resistor          Value of shunt resistor used for current
+                                measurement in uOhms.  (ina238 only, disabled
+                                by default)
+
         sht3x                   Select the Sensirion SHT3x temperature and
                                 humidity sensors. Valid addresses 0x44-0x45,
                                 default 0x44
@@ -2551,6 +2500,9 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
         sht4x                   Select the Sensirion SHT4x temperature and
                                 humidity sensors. Valid addresses 0x44-0x45,
                                 default 0x44
+
+        shtc3                   Select the Sensirion SHTC3 temperature and
+                                humidity sensors.
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
@@ -2569,29 +2521,6 @@ Params: addr                    Set the address for the ADT7410, BH1750, BME280,
 
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
-
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   i2c0
@@ -2752,6 +2681,8 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Configure a VCM focus drive on the sensor.
+        4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, 4, or 5) or Pi 5.
 
 
 Name:   imx258
@@ -2858,6 +2789,37 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         link-frequency          Allowable link frequency values to use in Hz:
                                 450000000 (default), 453000000, 456000000.
         pi5                     Sets the CSI2 link frequency to 900MHz.
+
+
+Name:   imx415
+Info:   Sony IMX415 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants. By default this uses 4 CSI2 data lanes, so requires a
+        Compute Module or Pi5.
+Load:   dtoverlay=imx415,<param>
+Params: addr                    Set I2C address of sensor. Valid values are
+                                0x10, 0x1a, 0x36 and 0x37. Default is 0x37.
+        4lane                   Enable 4 CSI2 data lanes.
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board.
+                                Valid values are 24, 27, 37.125, 72, or
+                                74.25MHz.
+                                The default is 24MHz.
+                                Note that the link frequencies permitted vary
+                                based on the oscillator used.
+        link-frequency          Confgures the link frequency to be used. Note
+                                that the permitted values vary based on
+                                clock-frequency and number of lanes.
+                                The default is 360MHz for 720Mbit/s.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Enable ad5398 VCM associated with the sensor.
 
 
 Name:   imx462
@@ -3203,24 +3165,11 @@ Params: gpiopin                 Gpio pin connected to the INTA output of the
 
         addr                    I2C address of the MCP23017 (default: 0x20)
 
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
+
         mcp23008                Configure an MCP23008 instead.
         noints                  Disable the interrupt GPIO line.
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   mcp23s17
@@ -3623,6 +3572,9 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         arducam                 Slow down the regulator for slow Arducam
                                 modules.
+        clk-continuous          Switch to continuous mode on the CSI clock lane,
+                                which increases the maximum frame rate slightly.
+                                Appears not to work on Pi3.
 
 
 Name:   papirus
@@ -3640,6 +3592,8 @@ Name:   pca953x
 Info:   TI PCA953x family of I2C GPIO expanders. Default is for NXP PCA9534.
 Load:   dtoverlay=pca953x,<param>=<val>
 Params: addr                    I2C address of expander. Default 0x20.
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
         pca6416                 Select the NXP PCA6416 (16 bit)
         pca9505                 Select the NXP PCA9505 (40 bit)
         pca9535                 Select the NXP PCA9535 (16 bit)
@@ -3670,22 +3624,6 @@ Params: addr                    I2C address of expander. Default 0x20.
         cat9554                 Select the Onnn CAT9554 (8 bit)
         pca9654                 Select the Onnn PCA9654 (8 bit)
         xra1202                 Select the Exar XRA1202 (8 bit)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   pcf857x
@@ -3693,26 +3631,12 @@ Info:   NXP PCF857x family of I2C GPIO expanders.
 Load:   dtoverlay=pcf857x,<param>=<val>
 Params: addr                    I2C address of expander. Default
                                 depends on model selected.
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
         pcf8574                 Select the NXP PCF8574 (8 bit)
         pcf8574a                Select the NXP PCF8574A (8 bit)
         pcf8575                 Select the NXP PCF8575 (16 bit)
         pca8574                 Select the NXP PCA8574 (8 bit)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   pcie-32bit-dma
@@ -4165,6 +4089,13 @@ Params: base-addr               Where to place the capture buffer (default
         console-size            Size of non-panic dmesg captures (default 0)
 
 
+Name:   rootmaster
+Info:   Overlay for OpenHydroponics RootMaster board.
+        https://openhydroponics.com/hw/rootmaster
+Load:   dtoverlay=rootmaster
+Params: <None>
+
+
 Name:   rotary-encoder
 Info:   Overlay for GPIO connected rotary encoder.
 Load:   dtoverlay=rotary-encoder,<param>=<val>
@@ -4411,23 +4342,9 @@ Info:   Overlay for the NXP SC16IS750 UART with I2C Interface
 Load:   dtoverlay=sc16is750-i2c,<param>=<val>
 Params: int_pin                 GPIO used for IRQ (default 24)
         addr                    Address (default 0x48)
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
         xtal                    On-board crystal frequency (default 14745600)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   sc16is750-spi0
@@ -4445,23 +4362,9 @@ Info:   Overlay for the NXP SC16IS752 dual UART with I2C Interface
 Load:   dtoverlay=sc16is752-i2c,<param>=<val>
 Params: int_pin                 GPIO used for IRQ (default 24)
         addr                    Address (default 0x48)
+        i2c-bus                 Supports all the standard I2C bus selection
+                                parameters - see "dtoverlay -h i2c-bus"
         xtal                    On-board crystal frequency (default 14745600)
-        i2c0                    Choose the I2C0 bus on GPIOs 0&1
-        i2c_csi_dsi             Choose the I2C bus connected to the main
-                                camera/display connector.
-                                See "dtparam -h i2c_csi_dsi" for details.
-        i2c_csi_dsi0            Choose the I2C bus connected to the second
-                                camera/display connector, if present.
-                                See "dtparam -h i2c_csi_dsi0" for details.
-        i2c3                    Choose the I2C3 bus (configure with the i2c3
-                                overlay - BCM2711 only)
-        i2c4                    Choose the I2C4 bus (configure with the i2c4
-                                overlay - BCM2711 only)
-        i2c5                    Choose the I2C5 bus (configure with the i2c5
-                                overlay - BCM2711 only)
-        i2c6                    Choose the I2C6 bus (configure with the i2c6
-                                overlay - BCM2711 only)
-        i2c-path                Override I2C path to allow for i2c-gpio buses
 
 
 Name:   sc16is752-spi0

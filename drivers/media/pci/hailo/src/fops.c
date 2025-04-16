@@ -294,6 +294,54 @@ static void firmware_notification_irq_handler(struct hailo_pcie_board *board)
     }
 }
 
+static void boot_irq_handler(struct hailo_pcie_board *board, struct hailo_pcie_interrupt_source *irq_source)
+{
+    if (irq_source->sw_interrupts & HAILO_PCIE_BOOT_SOFT_RESET_IRQ) {
+        hailo_dbg(board, "soft reset trigger IRQ\n");
+        complete(&board->soft_reset.reset_completed);
+    }
+    if (irq_source->sw_interrupts & HAILO_PCIE_BOOT_IRQ) {
+        hailo_dbg(board, "boot trigger IRQ\n");
+        complete_all(&board->fw_boot.fw_loaded_completion);
+    } else {
+        board->fw_boot.boot_used_channel_bitmap &= ~irq_source->vdma_channels_bitmap;
+        hailo_dbg(board, "boot vDMA data IRQ - channel_bitmap = 0x%x\n", irq_source->vdma_channels_bitmap);
+        if (0 == board->fw_boot.boot_used_channel_bitmap) {
+            complete_all(&board->fw_boot.vdma_boot_completion);
+            hailo_dbg(board, "boot vDMA data trigger IRQ\n");
+        }
+    }
+}
+
+static void nnc_irq_handler(struct hailo_pcie_board *board, struct hailo_pcie_interrupt_source *irq_source)
+{
+    if (irq_source->sw_interrupts & HAILO_PCIE_NNC_FW_CONTROL_IRQ) {
+        complete(&board->nnc.fw_control.completion);
+    }
+
+    if (irq_source->sw_interrupts & HAILO_PCIE_NNC_DRIVER_DOWN_IRQ) {
+        complete(&board->driver_down.reset_completed);
+    }
+
+    if (irq_source->sw_interrupts & HAILO_PCIE_NNC_FW_NOTIFICATION_IRQ) {
+        firmware_notification_irq_handler(board);
+    }
+}
+
+static void soc_irq_handler(struct hailo_pcie_board *board, struct hailo_pcie_interrupt_source *irq_source)
+{
+    if (irq_source->sw_interrupts & HAILO_PCIE_SOC_CONTROL_IRQ) {
+        complete_all(&board->soc.control_resp_ready);
+    }
+
+    if (irq_source->sw_interrupts & HAILO_PCIE_SOC_CLOSE_IRQ) {
+        hailo_info(board, "soc_irq_handler - HAILO_PCIE_SOC_CLOSE_IRQ\n");
+        // always use bitmap=0xFFFFFFFF - it is ok to wake all interrupts since each handler will check if the stream was aborted or not. 
+        hailo_vdma_wakeup_interrupts(&board->vdma, &board->vdma.vdma_engines[DEFAULT_VDMA_ENGINE_INDEX],
+            0xFFFFFFFF);
+    }
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
 irqreturn_t hailo_irqhandler(int irq, void *dev_id, struct pt_regs *regs)
 #else
@@ -320,39 +368,21 @@ irqreturn_t hailo_irqhandler(int irq, void *dev_id)
 
         return_value = IRQ_HANDLED;
 
-        // wake fw_control if needed
-        if (irq_source.interrupt_bitmask & FW_CONTROL) {
-            complete(&board->nnc.fw_control.completion);
-        }
-
-        // wake driver_down if needed
-        if (irq_source.interrupt_bitmask & DRIVER_DOWN) {
-            complete(&board->driver_down.reset_completed);
-        }
-
-        if (irq_source.interrupt_bitmask & FW_NOTIFICATION) {
-            if (!completion_done(&board->fw_loaded_completion)) {
-                // Complete firmware loaded completion
-                complete_all(&board->fw_loaded_completion);
+        if (board->fw_boot.is_in_boot) {
+            boot_irq_handler(board, &irq_source);
+        } else {
+            if (HAILO_ACCELERATOR_TYPE_NNC == board->pcie_resources.accelerator_type) {
+                nnc_irq_handler(board, &irq_source);
+            } else if (HAILO_ACCELERATOR_TYPE_SOC == board->pcie_resources.accelerator_type) {
+                soc_irq_handler(board, &irq_source);
             } else {
-                firmware_notification_irq_handler(board);
+                hailo_err(board, "Invalid accelerator type %d\n", board->pcie_resources.accelerator_type);
             }
-        }
 
-        if (irq_source.interrupt_bitmask & SOC_CONNECT_ACCEPTED) {
-            complete_all(&board->soc.control_resp_ready);
-        }
-
-        if (irq_source.interrupt_bitmask & SOC_CLOSED_IRQ) {
-            hailo_info(board, "hailo_irqhandler - SOC_CLOSED_IRQ\n");
-            // always use bitmap=0xFFFFFFFF - it is ok to wake all interrupts since each handler will check if the stream was aborted or not. 
-            hailo_vdma_wakeup_interrupts(&board->vdma, &board->vdma.vdma_engines[DEFAULT_VDMA_ENGINE_INDEX],
-                0xFFFFFFFF);
-        }
-
-        if (0 != irq_source.vdma_channels_bitmap) {
-            hailo_vdma_irq_handler(&board->vdma, DEFAULT_VDMA_ENGINE_INDEX,
-                irq_source.vdma_channels_bitmap);
+            if (0 != irq_source.vdma_channels_bitmap) {
+                hailo_vdma_irq_handler(&board->vdma, DEFAULT_VDMA_ENGINE_INDEX,
+                    irq_source.vdma_channels_bitmap);
+            }
         }
     }
 

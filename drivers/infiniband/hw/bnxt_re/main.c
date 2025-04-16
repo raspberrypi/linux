@@ -128,13 +128,13 @@ static void bnxt_re_set_db_offset(struct bnxt_re_dev *rdev)
 	}
 }
 
-static void bnxt_re_set_drv_mode(struct bnxt_re_dev *rdev, u8 mode)
+static void bnxt_re_set_drv_mode(struct bnxt_re_dev *rdev)
 {
 	struct bnxt_qplib_chip_ctx *cctx;
 
 	cctx = rdev->chip_ctx;
-	cctx->modes.wqe_mode = bnxt_qplib_is_chip_gen_p5_p7(rdev->chip_ctx) ?
-			       mode : BNXT_QPLIB_WQE_MODE_STATIC;
+	cctx->modes.wqe_mode = bnxt_qplib_is_chip_gen_p7(rdev->chip_ctx) ?
+			       BNXT_QPLIB_WQE_MODE_VARIABLE : BNXT_QPLIB_WQE_MODE_STATIC;
 	if (bnxt_re_hwrm_qcaps(rdev))
 		dev_err(rdev_to_dev(rdev),
 			"Failed to query hwrm qcaps\n");
@@ -155,7 +155,7 @@ static void bnxt_re_destroy_chip_ctx(struct bnxt_re_dev *rdev)
 	kfree(chip_ctx);
 }
 
-static int bnxt_re_setup_chip_ctx(struct bnxt_re_dev *rdev, u8 wqe_mode)
+static int bnxt_re_setup_chip_ctx(struct bnxt_re_dev *rdev)
 {
 	struct bnxt_qplib_chip_ctx *chip_ctx;
 	struct bnxt_en_dev *en_dev;
@@ -177,7 +177,7 @@ static int bnxt_re_setup_chip_ctx(struct bnxt_re_dev *rdev, u8 wqe_mode)
 	rdev->qplib_res.dattr = &rdev->dev_attr;
 	rdev->qplib_res.is_vf = BNXT_EN_VF(en_dev);
 
-	bnxt_re_set_drv_mode(rdev, wqe_mode);
+	bnxt_re_set_drv_mode(rdev);
 
 	bnxt_re_set_db_offset(rdev);
 	rc = bnxt_qplib_map_db_bar(&rdev->qplib_res);
@@ -485,6 +485,8 @@ static void bnxt_re_set_default_pacing_data(struct bnxt_re_dev *rdev)
 static void __wait_for_fifo_occupancy_below_th(struct bnxt_re_dev *rdev)
 {
 	u32 read_val, fifo_occup;
+	struct bnxt_qplib_db_pacing_data *pacing_data = rdev->qplib_res.pacing_data;
+	u32 retry_fifo_check = 1000;
 
 	/* loop shouldn't run infintely as the occupancy usually goes
 	 * below pacing algo threshold as soon as pacing kicks in.
@@ -500,6 +502,14 @@ static void __wait_for_fifo_occupancy_below_th(struct bnxt_re_dev *rdev)
 
 		if (fifo_occup < rdev->qplib_res.pacing_data->pacing_th)
 			break;
+		if (!retry_fifo_check--) {
+			dev_info_once(rdev_to_dev(rdev),
+				      "%s: fifo_occup = 0x%xfifo_max_depth = 0x%x pacing_th = 0x%x\n",
+				      __func__, fifo_occup, pacing_data->fifo_max_depth,
+					pacing_data->pacing_th);
+			break;
+		}
+
 	}
 }
 
@@ -1440,7 +1450,7 @@ static void bnxt_re_worker(struct work_struct *work)
 	schedule_delayed_work(&rdev->worker, msecs_to_jiffies(30000));
 }
 
-static int bnxt_re_dev_init(struct bnxt_re_dev *rdev, u8 wqe_mode)
+static int bnxt_re_dev_init(struct bnxt_re_dev *rdev)
 {
 	struct bnxt_re_ring_attr rattr = {};
 	struct bnxt_qplib_creq_ctx *creq;
@@ -1458,7 +1468,7 @@ static int bnxt_re_dev_init(struct bnxt_re_dev *rdev, u8 wqe_mode)
 	}
 	set_bit(BNXT_RE_FLAG_NETDEV_REGISTERED, &rdev->flags);
 
-	rc = bnxt_re_setup_chip_ctx(rdev, wqe_mode);
+	rc = bnxt_re_setup_chip_ctx(rdev);
 	if (rc) {
 		bnxt_unregister_dev(rdev->en_dev);
 		clear_bit(BNXT_RE_FLAG_NETDEV_REGISTERED, &rdev->flags);
@@ -1609,7 +1619,7 @@ fail:
 	return rc;
 }
 
-static int bnxt_re_add_device(struct auxiliary_device *adev, u8 wqe_mode)
+static int bnxt_re_add_device(struct auxiliary_device *adev)
 {
 	struct bnxt_aux_priv *aux_priv =
 		container_of(adev, struct bnxt_aux_priv, aux_dev);
@@ -1626,7 +1636,7 @@ static int bnxt_re_add_device(struct auxiliary_device *adev, u8 wqe_mode)
 		goto exit;
 	}
 
-	rc = bnxt_re_dev_init(rdev, wqe_mode);
+	rc = bnxt_re_dev_init(rdev);
 	if (rc)
 		goto re_dev_dealloc;
 
@@ -1756,7 +1766,8 @@ static int bnxt_re_probe(struct auxiliary_device *adev,
 	int rc;
 
 	mutex_lock(&bnxt_re_mutex);
-	rc = bnxt_re_add_device(adev, BNXT_QPLIB_WQE_MODE_STATIC);
+
+	rc = bnxt_re_add_device(adev);
 	if (rc) {
 		mutex_unlock(&bnxt_re_mutex);
 		return rc;

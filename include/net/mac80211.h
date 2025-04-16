@@ -3040,6 +3040,19 @@ ieee80211_get_alt_retry_rate(const struct ieee80211_hw *hw,
 void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb);
 
 /**
+ * ieee80211_purge_tx_queue - purge TX skb queue
+ * @hw: the hardware
+ * @skbs: the skbs
+ *
+ * Free a set of transmit skbs. Use this function when device is going to stop
+ * but some transmit skbs without TX status are still queued.
+ * This function does not take the list lock and the caller must hold the
+ * relevant locks to use it.
+ */
+void ieee80211_purge_tx_queue(struct ieee80211_hw *hw,
+			      struct sk_buff_head *skbs);
+
+/**
  * DOC: Hardware crypto acceleration
  *
  * mac80211 is capable of taking advantage of many hardware
@@ -6067,6 +6080,24 @@ void ieee80211_iterate_stations_atomic(struct ieee80211_hw *hw,
 				       void (*iterator)(void *data,
 						struct ieee80211_sta *sta),
 				       void *data);
+
+/**
+ * ieee80211_iterate_stations_mtx - iterate stations
+ *
+ * This function iterates over all stations associated with a given
+ * hardware that are currently uploaded to the driver and calls the callback
+ * function for them. This version can only be used while holding the wiphy
+ * mutex.
+ *
+ * @hw: the hardware struct of which the interfaces should be iterated over
+ * @iterator: the iterator function to call
+ * @data: first argument of the iterator function
+ */
+void ieee80211_iterate_stations_mtx(struct ieee80211_hw *hw,
+				    void (*iterator)(void *data,
+						     struct ieee80211_sta *sta),
+				    void *data);
+
 /**
  * ieee80211_queue_work - add work onto the mac80211 workqueue
  *

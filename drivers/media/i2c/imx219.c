@@ -148,10 +148,11 @@
 
 /* Pixel rate is fixed for all the modes */
 #define IMX219_PIXEL_RATE		182400000
-#define IMX219_PIXEL_RATE_4LANE		280800000
+#define IMX219_PIXEL_RATE_4LANE		281600000
 
 #define IMX219_DEFAULT_LINK_FREQ	456000000
-#define IMX219_DEFAULT_LINK_FREQ_4LANE	363000000
+#define IMX219_DEFAULT_LINK_FREQ_4LANE_UNSUPPORTED	363000000
+#define IMX219_DEFAULT_LINK_FREQ_4LANE	364000000
 
 /* IMX219 native and active pixel array size. */
 #define IMX219_NATIVE_WIDTH		3296U
@@ -223,15 +224,6 @@ static const struct cci_reg_sequence imx219_common_regs[] = {
 	{ CCI_REG8(0x300b), 0xff },
 	{ CCI_REG8(0x30eb), 0x05 },
 	{ CCI_REG8(0x30eb), 0x09 },
-
-	/* PLL Clock Table */
-	{ IMX219_REG_VTPXCK_DIV, 5 },
-	{ IMX219_REG_VTSYCK_DIV, 1 },
-	{ IMX219_REG_PREPLLCK_VT_DIV, 3 },	/* 0x03 = AUTO set */
-	{ IMX219_REG_PREPLLCK_OP_DIV, 3 },	/* 0x03 = AUTO set */
-	{ IMX219_REG_PLL_VT_MPY, 57 },
-	{ IMX219_REG_OPSYCK_DIV, 1 },
-	{ IMX219_REG_PLL_OP_MPY, 114 },
 
 	/* Undocumented registers */
 	{ CCI_REG8(0x455e), 0x00 },
@@ -314,6 +306,34 @@ static const struct cci_reg_sequence raw8_framefmt_regs[] = {
 static const struct cci_reg_sequence raw10_framefmt_regs[] = {
 	{ IMX219_REG_CSI_DATA_FORMAT_A, 0x0a0a },
 	{ IMX219_REG_OPPXCK_DIV, 10 },
+};
+
+static const struct cci_reg_sequence imx219_2lane_regs[] = {
+	/* PLL Clock Table */
+	{ IMX219_REG_VTPXCK_DIV, 5 },
+	{ IMX219_REG_VTSYCK_DIV, 1 },
+	{ IMX219_REG_PREPLLCK_VT_DIV, 3 },	/* 0x03 = AUTO set */
+	{ IMX219_REG_PREPLLCK_OP_DIV, 3 },	/* 0x03 = AUTO set */
+	{ IMX219_REG_PLL_VT_MPY, 57 },
+	{ IMX219_REG_OPSYCK_DIV, 1 },
+	{ IMX219_REG_PLL_OP_MPY, 114 },
+
+	/* 2-Lane CSI Mode */
+	{ IMX219_REG_CSI_LANE_MODE, IMX219_CSI_2_LANE_MODE },
+};
+
+static const struct cci_reg_sequence imx219_4lane_regs[] = {
+	/* PLL Clock Table */
+	{ IMX219_REG_VTPXCK_DIV, 5 },
+	{ IMX219_REG_VTSYCK_DIV, 1 },
+	{ IMX219_REG_PREPLLCK_VT_DIV, 3 },	/* 0x03 = AUTO set */
+	{ IMX219_REG_PREPLLCK_OP_DIV, 3 },	/* 0x03 = AUTO set */
+	{ IMX219_REG_PLL_VT_MPY, 88 },
+	{ IMX219_REG_OPSYCK_DIV, 1 },
+	{ IMX219_REG_PLL_OP_MPY, 91 },
+
+	/* 4-Lane CSI Mode */
+	{ IMX219_REG_CSI_LANE_MODE, IMX219_CSI_4_LANE_MODE },
 };
 
 static const s64 imx219_link_freq_menu[] = {
@@ -941,9 +961,11 @@ static int imx219_get_selection(struct v4l2_subdev *sd,
 
 static int imx219_configure_lanes(struct imx219 *imx219)
 {
-	return cci_write(imx219->regmap, IMX219_REG_CSI_LANE_MODE,
-			 imx219->lanes == 2 ? IMX219_CSI_2_LANE_MODE :
-			 IMX219_CSI_4_LANE_MODE, NULL);
+	/* Write the appropriate PLL settings for the number of MIPI lanes */
+	return cci_multi_reg_write(imx219->regmap,
+				  imx219->lanes == 2 ? imx219_2lane_regs : imx219_4lane_regs,
+				  imx219->lanes == 2 ? ARRAY_SIZE(imx219_2lane_regs) :
+				  ARRAY_SIZE(imx219_4lane_regs), NULL);
 };
 
 static int imx219_start_streaming(struct imx219 *imx219,
@@ -1334,6 +1356,7 @@ static int imx219_check_hwcfg(struct device *dev, struct imx219 *imx219)
 		.bus_type = V4L2_MBUS_CSI2_DPHY
 	};
 	int ret = -EINVAL;
+	bool link_frequency_valid = false;
 
 	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(dev), NULL);
 	if (!endpoint) {
@@ -1360,11 +1383,33 @@ static int imx219_check_hwcfg(struct device *dev, struct imx219 *imx219)
 		goto error_out;
 	}
 
-	if (ep_cfg.nr_of_link_frequencies != 1 ||
-	   (ep_cfg.link_frequencies[0] != ((imx219->lanes == 2) ?
-	    IMX219_DEFAULT_LINK_FREQ : IMX219_DEFAULT_LINK_FREQ_4LANE))) {
-		dev_err(dev, "Link frequency not supported: %lld\n",
-			ep_cfg.link_frequencies[0]);
+	if (ep_cfg.nr_of_link_frequencies == 1) {
+		switch (imx219->lanes) {
+		case 2:
+			if (ep_cfg.link_frequencies[0] ==
+						IMX219_DEFAULT_LINK_FREQ)
+				link_frequency_valid = true;
+			break;
+		case 4:
+			if (ep_cfg.link_frequencies[0] ==
+						IMX219_DEFAULT_LINK_FREQ_4LANE)
+				link_frequency_valid = true;
+			else if (ep_cfg.link_frequencies[0] ==
+				   IMX219_DEFAULT_LINK_FREQ_4LANE_UNSUPPORTED) {
+				dev_warn(dev, "Link frequency of %d not supported, but has been incorrectly advertised previously\n",
+					 IMX219_DEFAULT_LINK_FREQ_4LANE_UNSUPPORTED);
+				dev_warn(dev, "Using link frequency of %d\n",
+					 IMX219_DEFAULT_LINK_FREQ_4LANE);
+				link_frequency_valid = true;
+			}
+			break;
+		}
+	}
+
+	if (!link_frequency_valid) {
+		dev_err_probe(dev, -EINVAL,
+			      "Link frequency not supported: %lld\n",
+			      ep_cfg.link_frequencies[0]);
 		goto error_out;
 	}
 

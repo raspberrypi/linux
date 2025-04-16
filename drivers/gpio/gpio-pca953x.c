@@ -211,7 +211,6 @@ struct pca953x_chip {
 
 	struct i2c_client *client;
 	struct gpio_chip gpio_chip;
-	const char *const *names;
 	unsigned long driver_data;
 	struct regulator *regulator;
 
@@ -712,7 +711,6 @@ static void pca953x_setup_gpio(struct pca953x_chip *chip, int gpios)
 	gc->label = dev_name(&chip->client->dev);
 	gc->parent = &chip->client->dev;
 	gc->owner = THIS_MODULE;
-	gc->names = chip->names;
 }
 
 #ifdef CONFIG_GPIO_PCA953X_IRQ
@@ -849,25 +847,6 @@ static bool pca953x_irq_pending(struct pca953x_chip *chip, unsigned long *pendin
 	DECLARE_BITMAP(trigger, MAX_LINE);
 	int ret;
 
-	if (chip->driver_data & PCA_PCAL) {
-		/* Read the current interrupt status from the device */
-		ret = pca953x_read_regs(chip, PCAL953X_INT_STAT, trigger);
-		if (ret)
-			return false;
-
-		/* Check latched inputs and clear interrupt status */
-		ret = pca953x_read_regs(chip, chip->regs->input, cur_stat);
-		if (ret)
-			return false;
-
-		/* Apply filter for rising/falling edge selection */
-		bitmap_replace(new_stat, chip->irq_trig_fall, chip->irq_trig_raise, cur_stat, gc->ngpio);
-
-		bitmap_and(pending, new_stat, trigger, gc->ngpio);
-
-		return !bitmap_empty(pending, gc->ngpio);
-	}
-
 	ret = pca953x_read_regs(chip, chip->regs->input, cur_stat);
 	if (ret)
 		return false;
@@ -1000,7 +979,7 @@ static int pca953x_irq_setup(struct pca953x_chip *chip,
 }
 #endif
 
-static int device_pca95xx_init(struct pca953x_chip *chip, u32 invert)
+static int device_pca95xx_init(struct pca953x_chip *chip)
 {
 	DECLARE_BITMAP(val, MAX_LINE);
 	u8 regaddr;
@@ -1018,24 +997,21 @@ static int device_pca95xx_init(struct pca953x_chip *chip, u32 invert)
 	if (ret)
 		goto out;
 
-	/* set platform specific polarity inversion */
-	if (invert)
-		bitmap_fill(val, MAX_LINE);
-	else
-		bitmap_zero(val, MAX_LINE);
+	/* clear polarity inversion */
+	bitmap_zero(val, MAX_LINE);
 
 	ret = pca953x_write_regs(chip, chip->regs->invert, val);
 out:
 	return ret;
 }
 
-static int device_pca957x_init(struct pca953x_chip *chip, u32 invert)
+static int device_pca957x_init(struct pca953x_chip *chip)
 {
 	DECLARE_BITMAP(val, MAX_LINE);
 	unsigned int i;
 	int ret;
 
-	ret = device_pca95xx_init(chip, invert);
+	ret = device_pca95xx_init(chip);
 	if (ret)
 		goto out;
 
@@ -1052,14 +1028,40 @@ out:
 	return ret;
 }
 
+static void pca953x_disable_regulator(void *reg)
+{
+	regulator_disable(reg);
+}
+
+static int pca953x_get_and_enable_regulator(struct pca953x_chip *chip)
+{
+	struct device *dev = &chip->client->dev;
+	struct regulator *reg = chip->regulator;
+	int ret;
+
+	reg = devm_regulator_get(dev, "vcc");
+	if (IS_ERR(reg))
+		return dev_err_probe(dev, PTR_ERR(reg), "reg get err\n");
+
+	ret = regulator_enable(reg);
+	if (ret)
+	        return dev_err_probe(dev, ret, "reg en err\n");
+
+	ret = devm_add_action_or_reset(dev, pca953x_disable_regulator, reg);
+	if (ret)
+		return ret;
+
+	chip->regulator = reg;
+	return 0;
+}
+
 static int pca953x_probe(struct i2c_client *client)
 {
+	struct device *dev = &client->dev;
 	struct pca953x_platform_data *pdata;
 	struct pca953x_chip *chip;
-	int irq_base = 0;
+	int irq_base;
 	int ret;
-	u32 invert = 0;
-	struct regulator *reg;
 	const struct regmap_config *regmap_config;
 
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
@@ -1070,8 +1072,6 @@ static int pca953x_probe(struct i2c_client *client)
 	if (pdata) {
 		irq_base = pdata->irq_base;
 		chip->gpio_start = pdata->gpio_base;
-		invert = pdata->invert;
-		chip->names = pdata->names;
 	} else {
 		struct gpio_desc *reset_gpio;
 
@@ -1088,7 +1088,8 @@ static int pca953x_probe(struct i2c_client *client)
 		reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
 						     GPIOD_OUT_LOW);
 		if (IS_ERR(reset_gpio))
-			return PTR_ERR(reset_gpio);
+			return dev_err_probe(dev, PTR_ERR(reset_gpio),
+					     "Failed to get reset gpio\n");
 	}
 
 	chip->client = client;
@@ -1096,16 +1097,9 @@ static int pca953x_probe(struct i2c_client *client)
 	if (!chip->driver_data)
 		return -ENODEV;
 
-	reg = devm_regulator_get(&client->dev, "vcc");
-	if (IS_ERR(reg))
-		return dev_err_probe(&client->dev, PTR_ERR(reg), "reg get err\n");
-
-	ret = regulator_enable(reg);
-	if (ret) {
-		dev_err(&client->dev, "reg en err: %d\n", ret);
+	ret = pca953x_get_and_enable_regulator(chip);
+	if (ret)
 		return ret;
-	}
-	chip->regulator = reg;
 
 	i2c_set_clientdata(client, chip);
 
@@ -1128,10 +1122,8 @@ static int pca953x_probe(struct i2c_client *client)
 	}
 
 	chip->regmap = devm_regmap_init_i2c(client, regmap_config);
-	if (IS_ERR(chip->regmap)) {
-		ret = PTR_ERR(chip->regmap);
-		goto err_exit;
-	}
+	if (IS_ERR(chip->regmap))
+		return PTR_ERR(chip->regmap);
 
 	regcache_mark_dirty(chip->regmap);
 
@@ -1160,47 +1152,19 @@ static int pca953x_probe(struct i2c_client *client)
 	 */
 	if (PCA_CHIP_TYPE(chip->driver_data) == PCA957X_TYPE) {
 		chip->regs = &pca957x_regs;
-		ret = device_pca957x_init(chip, invert);
+		ret = device_pca957x_init(chip);
 	} else {
 		chip->regs = &pca953x_regs;
-		ret = device_pca95xx_init(chip, invert);
+		ret = device_pca95xx_init(chip);
 	}
 	if (ret)
-		goto err_exit;
+		return ret;
 
 	ret = pca953x_irq_setup(chip, irq_base);
 	if (ret)
-		goto err_exit;
+		return ret;
 
-	ret = devm_gpiochip_add_data(&client->dev, &chip->gpio_chip, chip);
-	if (ret)
-		goto err_exit;
-
-	if (pdata && pdata->setup) {
-		ret = pdata->setup(client, chip->gpio_chip.base,
-				   chip->gpio_chip.ngpio, pdata->context);
-		if (ret < 0)
-			dev_warn(&client->dev, "setup failed, %d\n", ret);
-	}
-
-	return 0;
-
-err_exit:
-	regulator_disable(chip->regulator);
-	return ret;
-}
-
-static void pca953x_remove(struct i2c_client *client)
-{
-	struct pca953x_platform_data *pdata = dev_get_platdata(&client->dev);
-	struct pca953x_chip *chip = i2c_get_clientdata(client);
-
-	if (pdata && pdata->teardown) {
-		pdata->teardown(client, chip->gpio_chip.base,
-				chip->gpio_chip.ngpio, pdata->context);
-	}
-
-	regulator_disable(chip->regulator);
+	return devm_gpiochip_add_data(dev, &chip->gpio_chip, chip);
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -1369,7 +1333,6 @@ static struct i2c_driver pca953x_driver = {
 		.acpi_match_table = pca953x_acpi_ids,
 	},
 	.probe		= pca953x_probe,
-	.remove		= pca953x_remove,
 	.id_table	= pca953x_id,
 };
 

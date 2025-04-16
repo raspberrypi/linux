@@ -1219,10 +1219,6 @@ static bool is_dsc_need_re_compute(
 	if (dc_link->type != dc_connection_mst_branch)
 		return false;
 
-	if (!(dc_link->dpcd_caps.dsc_caps.dsc_basic_caps.fields.dsc_support.DSC_SUPPORT ||
-		dc_link->dpcd_caps.dsc_caps.dsc_basic_caps.fields.dsc_support.DSC_PASSTHROUGH_SUPPORT))
-		return false;
-
 	for (i = 0; i < MAX_PIPES; i++)
 		stream_on_link[i] = NULL;
 
@@ -1241,6 +1237,18 @@ static bool is_dsc_need_re_compute(
 
 		aconnector = (struct amdgpu_dm_connector *) stream->dm_stream_context;
 		if (!aconnector)
+			continue;
+
+		/*
+		 *	Check if cached virtual MST DSC caps are available and DSC is supported
+		 *	this change takes care of newer MST DSC capable devices that report their
+		 *	DPCD caps as per specifications in their Virtual DPCD registers.
+
+		 *	TODO: implement the check for older MST DSC devices that do not conform to
+		 *	specifications.
+		*/
+		if (!(aconnector->dc_sink->dsc_caps.dsc_dec_caps.is_dsc_supported ||
+			aconnector->dc_link->dpcd_caps.dsc_caps.dsc_basic_caps.fields.dsc_support.DSC_PASSTHROUGH_SUPPORT))
 			continue;
 
 		stream_on_link[new_stream_on_link_num] = aconnector;
@@ -1570,16 +1578,16 @@ clean_exit:
 	return ret;
 }
 
-static unsigned int kbps_from_pbn(unsigned int pbn)
+static uint32_t kbps_from_pbn(unsigned int pbn)
 {
-	unsigned int kbps = pbn;
+	uint64_t kbps = (uint64_t)pbn;
 
 	kbps *= (1000000 / PEAK_FACTOR_X1000);
 	kbps *= 8;
 	kbps *= 54;
 	kbps /= 64;
 
-	return kbps;
+	return (uint32_t)kbps;
 }
 
 static bool is_dsc_common_config_possible(struct dc_stream_state *stream,

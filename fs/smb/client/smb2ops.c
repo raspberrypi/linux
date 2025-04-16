@@ -622,7 +622,8 @@ parse_server_interfaces(struct network_interface_info_ioctl_rsp *buf,
 
 	while (bytes_left >= (ssize_t)sizeof(*p)) {
 		memset(&tmp_iface, 0, sizeof(tmp_iface));
-		tmp_iface.speed = le64_to_cpu(p->LinkSpeed);
+		/* default to 1Gbps when link speed is unset */
+		tmp_iface.speed = le64_to_cpu(p->LinkSpeed) ?: 1000000000;
 		tmp_iface.rdma_capable = le32_to_cpu(p->Capability & RDMA_CAPABLE) ? 1 : 0;
 		tmp_iface.rss_capable = le32_to_cpu(p->Capability & RSS_CAPABLE) ? 1 : 0;
 
@@ -3001,11 +3002,11 @@ smb2_get_dfs_refer(const unsigned int xid, struct cifs_ses *ses,
 	return rc;
 }
 
-static struct cifs_ntsd *
+static struct smb_ntsd *
 get_smb2_acl_by_fid(struct cifs_sb_info *cifs_sb,
 		    const struct cifs_fid *cifsfid, u32 *pacllen, u32 info)
 {
-	struct cifs_ntsd *pntsd = NULL;
+	struct smb_ntsd *pntsd = NULL;
 	unsigned int xid;
 	int rc = -EOPNOTSUPP;
 	struct tcon_link *tlink = cifs_sb_tlink(cifs_sb);
@@ -3030,11 +3031,11 @@ get_smb2_acl_by_fid(struct cifs_sb_info *cifs_sb,
 
 }
 
-static struct cifs_ntsd *
+static struct smb_ntsd *
 get_smb2_acl_by_path(struct cifs_sb_info *cifs_sb,
 		     const char *path, u32 *pacllen, u32 info)
 {
-	struct cifs_ntsd *pntsd = NULL;
+	struct smb_ntsd *pntsd = NULL;
 	u8 oplock = SMB2_OPLOCK_LEVEL_NONE;
 	unsigned int xid;
 	int rc;
@@ -3097,7 +3098,7 @@ get_smb2_acl_by_path(struct cifs_sb_info *cifs_sb,
 }
 
 static int
-set_smb2_acl(struct cifs_ntsd *pnntsd, __u32 acllen,
+set_smb2_acl(struct smb_ntsd *pnntsd, __u32 acllen,
 		struct inode *inode, const char *path, int aclflag)
 {
 	u8 oplock = SMB2_OPLOCK_LEVEL_NONE;
@@ -3155,12 +3156,12 @@ set_smb2_acl(struct cifs_ntsd *pnntsd, __u32 acllen,
 }
 
 /* Retrieve an ACL from the server */
-static struct cifs_ntsd *
+static struct smb_ntsd *
 get_smb2_acl(struct cifs_sb_info *cifs_sb,
 	     struct inode *inode, const char *path,
 	     u32 *pacllen, u32 info)
 {
-	struct cifs_ntsd *pntsd = NULL;
+	struct smb_ntsd *pntsd = NULL;
 	struct cifsFileInfo *open_file = NULL;
 
 	if (inode && !(info & SACL_SECINFO))
@@ -3866,22 +3867,22 @@ static long smb3_fallocate(struct file *file, struct cifs_tcon *tcon, int mode,
 static void
 smb2_downgrade_oplock(struct TCP_Server_Info *server,
 		      struct cifsInodeInfo *cinode, __u32 oplock,
-		      unsigned int epoch, bool *purge_cache)
+		      __u16 epoch, bool *purge_cache)
 {
 	server->ops->set_oplock_level(cinode, oplock, 0, NULL);
 }
 
 static void
 smb21_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
-		       unsigned int epoch, bool *purge_cache);
+		       __u16 epoch, bool *purge_cache);
 
 static void
 smb3_downgrade_oplock(struct TCP_Server_Info *server,
 		       struct cifsInodeInfo *cinode, __u32 oplock,
-		       unsigned int epoch, bool *purge_cache)
+		       __u16 epoch, bool *purge_cache)
 {
 	unsigned int old_state = cinode->oplock;
-	unsigned int old_epoch = cinode->epoch;
+	__u16 old_epoch = cinode->epoch;
 	unsigned int new_state;
 
 	if (epoch > old_epoch) {
@@ -3901,7 +3902,7 @@ smb3_downgrade_oplock(struct TCP_Server_Info *server,
 
 static void
 smb2_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
-		      unsigned int epoch, bool *purge_cache)
+		      __u16 epoch, bool *purge_cache)
 {
 	oplock &= 0xFF;
 	cinode->lease_granted = false;
@@ -3925,7 +3926,7 @@ smb2_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
 
 static void
 smb21_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
-		       unsigned int epoch, bool *purge_cache)
+		       __u16 epoch, bool *purge_cache)
 {
 	char message[5] = {0};
 	unsigned int new_oplock = 0;
@@ -3962,7 +3963,7 @@ smb21_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
 
 static void
 smb3_set_oplock_level(struct cifsInodeInfo *cinode, __u32 oplock,
-		      unsigned int epoch, bool *purge_cache)
+		      __u16 epoch, bool *purge_cache)
 {
 	unsigned int old_oplock = cinode->oplock;
 
@@ -4076,7 +4077,7 @@ smb3_create_lease_buf(u8 *lease_key, u8 oplock)
 }
 
 static __u8
-smb2_parse_lease_buf(void *buf, unsigned int *epoch, char *lease_key)
+smb2_parse_lease_buf(void *buf, __u16 *epoch, char *lease_key)
 {
 	struct create_lease *lc = (struct create_lease *)buf;
 
@@ -4087,7 +4088,7 @@ smb2_parse_lease_buf(void *buf, unsigned int *epoch, char *lease_key)
 }
 
 static __u8
-smb3_parse_lease_buf(void *buf, unsigned int *epoch, char *lease_key)
+smb3_parse_lease_buf(void *buf, __u16 *epoch, char *lease_key)
 {
 	struct create_lease_v2 *lc = (struct create_lease_v2 *)buf;
 

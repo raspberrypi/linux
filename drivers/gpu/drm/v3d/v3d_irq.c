@@ -105,7 +105,10 @@ v3d_irq(int irq, void *arg)
 		v3d->gpu_queue_stats[V3D_BIN].last_exec_end = local_clock();
 
 		trace_v3d_bcl_irq(&v3d->drm, fence->seqno);
+
+		v3d->bin_job = NULL;
 		dma_fence_signal(&fence->base);
+
 		status = IRQ_HANDLED;
 	}
 
@@ -115,25 +118,31 @@ v3d_irq(int irq, void *arg)
 		v3d->gpu_queue_stats[V3D_RENDER].last_exec_end = local_clock();
 
 		trace_v3d_rcl_irq(&v3d->drm, fence->seqno);
+
+		v3d->render_job = NULL;
 		dma_fence_signal(&fence->base);
+
 		status = IRQ_HANDLED;
 	}
 
-	if ((v3d->ver < 71 && (intsts & V3D_INT_CSDDONE)) ||
-	    (v3d->ver >= 71 && (intsts & V3D_V7_INT_CSDDONE))) {
+	if ((v3d->ver < V3D_GEN_71 && (intsts & V3D_INT_CSDDONE)) ||
+	    (v3d->ver >= V3D_GEN_71 && (intsts & V3D_V7_INT_CSDDONE))) {
 		struct v3d_fence *fence =
 			to_v3d_fence(v3d->csd_job->base.irq_fence);
 		v3d->gpu_queue_stats[V3D_CSD].last_exec_end = local_clock();
 
 		trace_v3d_csd_irq(&v3d->drm, fence->seqno);
+
+		v3d->csd_job = NULL;
 		dma_fence_signal(&fence->base);
+
 		status = IRQ_HANDLED;
 	}
 
 	/* We shouldn't be triggering these if we have GMP in
 	 * always-allowed mode.
 	 */
-	if (v3d->ver < 71 && (intsts & V3D_INT_GMPV))
+	if (v3d->ver < V3D_GEN_71 && (intsts & V3D_INT_GMPV))
 		dev_err(v3d->drm.dev, "GMP violation\n");
 
 	/* V3D 4.2 wires the hub and core IRQs together, so if we &
@@ -163,7 +172,10 @@ v3d_hub_irq(int irq, void *arg)
 		v3d->gpu_queue_stats[V3D_TFU].last_exec_end = local_clock();
 
 		trace_v3d_tfu_irq(&v3d->drm, fence->seqno);
+
+		v3d->tfu_job = NULL;
 		dma_fence_signal(&fence->base);
+
 		status = IRQ_HANDLED;
 	}
 
@@ -188,7 +200,7 @@ v3d_hub_irq(int irq, void *arg)
 
 		V3D_WRITE(V3D_MMU_CTL, V3D_READ(V3D_MMU_CTL));
 
-		if (v3d->ver >= 41) {
+		if (v3d->ver >= V3D_GEN_41) {
 			axi_id = axi_id >> 5;
 			if (axi_id < ARRAY_SIZE(v3d41_axi_ids))
 				client = v3d41_axi_ids[axi_id];
@@ -207,7 +219,7 @@ v3d_hub_irq(int irq, void *arg)
 		status = IRQ_HANDLED;
 	}
 
-	if (v3d->ver >= 71 && intsts & V3D_V7_HUB_INT_GMPV) {
+	if (v3d->ver >= V3D_GEN_71 && intsts & V3D_V7_HUB_INT_GMPV) {
 		dev_err(v3d->drm.dev, "GMP Violation\n");
 		status = IRQ_HANDLED;
 	}

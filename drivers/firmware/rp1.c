@@ -114,7 +114,8 @@ static void rp1_firmware_delete(struct kref *kref)
 
 void rp1_firmware_put(struct rp1_firmware *fw)
 {
-	kref_put(&fw->consumers, rp1_firmware_delete);
+	if (!IS_ERR_OR_NULL(fw))
+		kref_put(&fw->consumers, rp1_firmware_delete);
 }
 EXPORT_SYMBOL_GPL(rp1_firmware_put);
 
@@ -157,44 +158,38 @@ struct rp1_firmware *rp1_firmware_get(struct device_node *client)
 	const char *match = rp1_firmware_of_match[0].compatible;
 	struct platform_device *pdev;
 	struct device_node *fwnode;
-	struct rp1_firmware *fw;
+	struct rp1_firmware *fw = NULL;
 
-	if (client) {
-		fwnode = of_parse_phandle(client, "firmware", 0);
-		if (!fwnode)
-			fwnode = of_get_parent(client);
-		if (fwnode && !of_device_is_compatible(fwnode, match)) {
-			of_node_put(fwnode);
-			fwnode = NULL;
-		}
+	if (!client)
+		return NULL;
+	fwnode = of_parse_phandle(client, "firmware", 0);
+	if (!fwnode)
+		return NULL;
+	if (!of_device_is_compatible(fwnode, match)) {
+		of_node_put(fwnode);
+		return ERR_PTR(-ENXIO);
 	}
-
-	if (!fwnode)
-		fwnode = of_find_matching_node(NULL, rp1_firmware_of_match);
-
-	if (!fwnode)
-		return ERR_PTR(-ENOENT);
 
 	pdev = of_find_device_by_node(fwnode);
 	of_node_put(fwnode);
 
 	if (!pdev)
-		return ERR_PTR(-EPROBE_DEFER);
+		return ERR_PTR(-ENXIO);
 
 	fw = platform_get_drvdata(pdev);
-	if (!fw)
-		goto err_defer;
+	if (IS_ERR_OR_NULL(fw))
+		goto err_exit;
 
 	if (!kref_get_unless_zero(&fw->consumers))
-		goto err_defer;
+		goto err_exit;
 
 	put_device(&pdev->dev);
 
 	return fw;
 
-err_defer:
+err_exit:
 	put_device(&pdev->dev);
-	return ERR_PTR(-EPROBE_DEFER);
+	return fw;
 }
 EXPORT_SYMBOL_GPL(rp1_firmware_get);
 
@@ -210,7 +205,7 @@ struct rp1_firmware *devm_rp1_firmware_get(struct device *dev, struct device_nod
 	int ret;
 
 	fw = rp1_firmware_get(client);
-	if (IS_ERR(fw))
+	if (IS_ERR_OR_NULL(fw))
 		return fw;
 
 	ret = devm_add_action_or_reset(dev, devm_rp1_firmware_put, fw);
@@ -276,19 +271,18 @@ static int rp1_firmware_probe(struct platform_device *pdev)
 	init_completion(&fw->c);
 	kref_init(&fw->consumers);
 
-	platform_set_drvdata(pdev, fw);
-
 	ret = rp1_firmware_message(fw, GET_FIRMWARE_VERSION,
 				   NULL, 0, &version, sizeof(version));
 	if (ret == sizeof(version)) {
 		dev_info(dev, "RP1 Firmware version %08x%08x%08x%08x%08x\n",
 			 version[0], version[1], version[2], version[3], version[4]);
-		ret = 0;
-	} else if (ret >= 0) {
-		ret = -EIO;
+		platform_set_drvdata(pdev, fw);
+	} else {
+		rp1_firmware_put(fw);
+		platform_set_drvdata(pdev, ERR_PTR(-ENOENT));
 	}
 
-	return ret;
+	return 0;
 }
 
 static int rp1_firmware_remove(struct platform_device *pdev)

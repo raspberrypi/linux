@@ -70,13 +70,15 @@ static int imx_ocotp_reg_read(void *context, unsigned int offset, void *val, siz
 	u32 *buf;
 	void *p;
 	int i;
+	u8 skipbytes;
 
-	index = offset;
-	num_bytes = round_up(bytes, 4);
+	if (offset + bytes > priv->data->size)
+		bytes = priv->data->size - offset;
+
+	index = offset >> 2;
+	skipbytes = offset - (index << 2);
+	num_bytes = round_up(bytes + skipbytes, 4);
 	count = num_bytes >> 2;
-
-	if (count > ((priv->data->size >> 2) - index))
-		count = (priv->data->size >> 2) - index;
 
 	p = kzalloc(num_bytes, GFP_KERNEL);
 	if (!p)
@@ -96,7 +98,7 @@ static int imx_ocotp_reg_read(void *context, unsigned int offset, void *val, siz
 		*buf++ = readl_relaxed(reg + (i << 2));
 	}
 
-	memcpy(val, (u8 *)p, bytes);
+	memcpy(val, ((u8 *)p) + skipbytes, bytes);
 
 	mutex_unlock(&priv->lock);
 
@@ -127,7 +129,7 @@ static int imx_ele_ocotp_probe(struct platform_device *pdev)
 	priv->config.owner = THIS_MODULE;
 	priv->config.size = priv->data->size;
 	priv->config.reg_read = priv->data->reg_read;
-	priv->config.word_size = 4;
+	priv->config.word_size = 1;
 	priv->config.stride = 1;
 	priv->config.priv = priv;
 	priv->config.read_only = true;

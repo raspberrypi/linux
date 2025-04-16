@@ -135,6 +135,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx296.dtbo \
 	imx327.dtbo \
 	imx378.dtbo \
+	imx415.dtbo \
 	imx462.dtbo \
 	imx477.dtbo \
 	imx500.dtbo \
@@ -227,6 +228,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	qca7000-uart0.dtbo \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
+	rootmaster.dtbo \
 	rotary-encoder.dtbo \
 	rpi-backlight.dtbo \
 	rpi-codeczero.dtbo \

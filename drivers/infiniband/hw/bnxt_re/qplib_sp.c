@@ -95,11 +95,13 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	struct bnxt_qplib_cmdqmsg msg = {};
 	struct creq_query_func_resp_sb *sb;
 	struct bnxt_qplib_rcfw_sbuf sbuf;
+	struct bnxt_qplib_chip_ctx *cctx;
 	struct cmdq_query_func req = {};
 	u8 *tqm_alloc;
 	int i, rc;
 	u32 temp;
 
+	cctx = rcfw->res->cctx;
 	bnxt_qplib_rcfw_cmd_prep((struct cmdq_base *)&req,
 				 CMDQ_BASE_OPCODE_QUERY_FUNC,
 				 sizeof(req));
@@ -127,14 +129,21 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	attr->max_qp_init_rd_atom =
 		sb->max_qp_init_rd_atom > BNXT_QPLIB_MAX_OUT_RD_ATOM ?
 		BNXT_QPLIB_MAX_OUT_RD_ATOM : sb->max_qp_init_rd_atom;
-	attr->max_qp_wqes = le16_to_cpu(sb->max_qp_wr);
-	/*
-	 * 128 WQEs needs to be reserved for the HW (8916). Prevent
-	 * reporting the max number
-	 */
-	attr->max_qp_wqes -= BNXT_QPLIB_RESERVED_QP_WRS + 1;
-	attr->max_qp_sges = bnxt_qplib_is_chip_gen_p5_p7(rcfw->res->cctx) ?
-			    6 : sb->max_sge;
+	attr->max_qp_wqes = le16_to_cpu(sb->max_qp_wr) - 1;
+	if (!bnxt_qplib_is_chip_gen_p5_p7(rcfw->res->cctx)) {
+		/*
+		 * 128 WQEs needs to be reserved for the HW (8916). Prevent
+		 * reporting the max number on legacy devices
+		 */
+		attr->max_qp_wqes -= BNXT_QPLIB_RESERVED_QP_WRS + 1;
+	}
+
+	/* Adjust for max_qp_wqes for variable wqe */
+	if (cctx->modes.wqe_mode == BNXT_QPLIB_WQE_MODE_VARIABLE)
+		attr->max_qp_wqes = BNXT_VAR_MAX_WQE - 1;
+
+	attr->max_qp_sges = cctx->modes.wqe_mode == BNXT_QPLIB_WQE_MODE_VARIABLE ?
+			    min_t(u32, sb->max_sge_var_wqe, BNXT_VAR_MAX_SGE) : 6;
 	attr->max_cq = le32_to_cpu(sb->max_cq);
 	attr->max_cq_wqes = le32_to_cpu(sb->max_cqe);
 	if (!bnxt_qplib_is_chip_gen_p7(rcfw->res->cctx))
@@ -165,6 +174,7 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	attr->max_sgid = le32_to_cpu(sb->max_gid);
 	attr->max_sgid = min_t(u32, BNXT_QPLIB_NUM_GIDS_SUPPORTED, 2 * attr->max_sgid);
 	attr->dev_cap_flags = le16_to_cpu(sb->dev_cap_flags);
+	attr->dev_cap_flags2 = le16_to_cpu(sb->dev_cap_ext_flags_2);
 
 	bnxt_qplib_query_version(rcfw, attr->fw_ver);
 

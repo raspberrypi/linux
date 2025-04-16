@@ -65,11 +65,11 @@
 			interrupts = <RP1_INT_UART0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
 			clock-names = "uartclk", "apb_pclk";
-			dmas = <&rp1_dma RP1_DMA_UART0_TX>,
-			       <&rp1_dma RP1_DMA_UART0_RX>;
-			dma-names = "tx", "rx";
+			// dmas = <&rp1_dma RP1_DMA_UART0_TX>,
+			//        <&rp1_dma RP1_DMA_UART0_RX>;
+			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -86,7 +86,7 @@
 			//        <&rp1_dma RP1_DMA_UART1_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -103,7 +103,7 @@
 			//        <&rp1_dma RP1_DMA_UART2_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -120,7 +120,7 @@
 			//        <&rp1_dma RP1_DMA_UART3_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -137,7 +137,7 @@
 			//        <&rp1_dma RP1_DMA_UART4_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;
@@ -154,7 +154,7 @@
 			//        <&rp1_dma RP1_DMA_UART5_RX>;
 			// dma-names = "tx", "rx";
 			pinctrl-names = "default";
-			arm,primecell-periphid = <0x00541011>;
+			arm,primecell-periphid = <0x00341011>;
 			uart-has-rtscts;
 			cts-event-workaround;
 			skip-init;

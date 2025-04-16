@@ -113,7 +113,6 @@ struct bnxt_qplib_sge {
 	u32				size;
 };
 
-#define BNXT_QPLIB_QP_MAX_SGL	6
 struct bnxt_qplib_swq {
 	u64				wr_id;
 	int				next_idx;
@@ -153,7 +152,7 @@ struct bnxt_qplib_swqe {
 #define BNXT_QPLIB_SWQE_FLAGS_UC_FENCE			BIT(2)
 #define BNXT_QPLIB_SWQE_FLAGS_SOLICIT_EVENT		BIT(3)
 #define BNXT_QPLIB_SWQE_FLAGS_INLINE			BIT(4)
-	struct bnxt_qplib_sge		sg_list[BNXT_QPLIB_QP_MAX_SGL];
+	struct bnxt_qplib_sge		sg_list[BNXT_VAR_MAX_SGE];
 	int				num_sge;
 	/* Max inline data is 96 bytes */
 	u32				inline_len;
@@ -251,6 +250,7 @@ struct bnxt_qplib_q {
 	struct bnxt_qplib_db_info	dbinfo;
 	struct bnxt_qplib_sg_info	sg_info;
 	u32				max_wqe;
+	u32				max_sw_wqe;
 	u16				wqe_size;
 	u16				q_full_delta;
 	u16				max_sge;
@@ -297,6 +297,7 @@ struct bnxt_qplib_qp {
 	u32				dest_qpn;
 	u8				smac[6];
 	u16				vlan_id;
+	u16				port_id;
 	u8				nw_type;
 	struct bnxt_qplib_ah		ah;
 
@@ -340,7 +341,7 @@ struct bnxt_qplib_qp {
 	struct list_head		rq_flush;
 	u32				msn;
 	u32				msn_tbl_sz;
-	u16				dev_cap_flags;
+	bool				is_host_msn_tbl;
 };
 
 #define BNXT_QPLIB_MAX_CQE_ENTRY_SIZE	sizeof(struct cq_base)
@@ -585,15 +586,22 @@ static inline void bnxt_qplib_swq_mod_start(struct bnxt_qplib_q *que, u32 idx)
 	que->swq_start = que->swq[idx].next_idx;
 }
 
-static inline u32 bnxt_qplib_get_depth(struct bnxt_qplib_q *que)
+static inline u32 bnxt_qplib_get_depth(struct bnxt_qplib_q *que, u8 wqe_mode, bool is_sq)
 {
-	return (que->wqe_size * que->max_wqe) / sizeof(struct sq_sge);
+	u32 slots;
+
+	/* Queue depth is the number of slots. */
+	slots = (que->wqe_size * que->max_wqe) / sizeof(struct sq_sge);
+	/* For variable WQE mode, need to align the slots to 256 */
+	if (wqe_mode == BNXT_QPLIB_WQE_MODE_VARIABLE && is_sq)
+		slots = ALIGN(slots, BNXT_VAR_MAX_SLOT_ALIGN);
+	return slots;
 }
 
 static inline u32 bnxt_qplib_set_sq_size(struct bnxt_qplib_q *que, u8 wqe_mode)
 {
 	return (wqe_mode == BNXT_QPLIB_WQE_MODE_STATIC) ?
-		que->max_wqe : bnxt_qplib_get_depth(que);
+		que->max_wqe : bnxt_qplib_get_depth(que, wqe_mode, true);
 }
 
 static inline u32 bnxt_qplib_set_sq_max_slot(u8 wqe_mode)

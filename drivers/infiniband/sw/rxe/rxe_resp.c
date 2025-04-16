@@ -375,18 +375,18 @@ static enum resp_states rxe_resp_check_length(struct rxe_qp *qp,
 		if ((pkt->mask & RXE_START_MASK) &&
 		    (pkt->mask & RXE_END_MASK)) {
 			if (unlikely(payload > mtu)) {
-				rxe_dbg_qp(qp, "only packet too long");
+				rxe_dbg_qp(qp, "only packet too long\n");
 				return RESPST_ERR_LENGTH;
 			}
 		} else if ((pkt->mask & RXE_START_MASK) ||
 			   (pkt->mask & RXE_MIDDLE_MASK)) {
 			if (unlikely(payload != mtu)) {
-				rxe_dbg_qp(qp, "first or middle packet not mtu");
+				rxe_dbg_qp(qp, "first or middle packet not mtu\n");
 				return RESPST_ERR_LENGTH;
 			}
 		} else if (pkt->mask & RXE_END_MASK) {
 			if (unlikely((payload == 0) || (payload > mtu))) {
-				rxe_dbg_qp(qp, "last packet zero or too long");
+				rxe_dbg_qp(qp, "last packet zero or too long\n");
 				return RESPST_ERR_LENGTH;
 			}
 		}
@@ -395,7 +395,7 @@ static enum resp_states rxe_resp_check_length(struct rxe_qp *qp,
 	/* See IBA C9-94 */
 	if (pkt->mask & RXE_RETH_MASK) {
 		if (reth_len(pkt) > (1U << 31)) {
-			rxe_dbg_qp(qp, "dma length too long");
+			rxe_dbg_qp(qp, "dma length too long\n");
 			return RESPST_ERR_LENGTH;
 		}
 	}
@@ -1146,7 +1146,7 @@ static enum resp_states do_complete(struct rxe_qp *qp,
 		}
 	} else {
 		if (wc->status != IB_WC_WR_FLUSH_ERR)
-			rxe_err_qp(qp, "non-flush error status = %d",
+			rxe_err_qp(qp, "non-flush error status = %d\n",
 				wc->status);
 	}
 
@@ -1455,7 +1455,7 @@ static int flush_recv_wqe(struct rxe_qp *qp, struct rxe_recv_wqe *wqe)
 
 	err = rxe_cq_post(qp->rcq, &cqe, 0);
 	if (err)
-		rxe_dbg_cq(qp->rcq, "post cq failed err = %d", err);
+		rxe_dbg_cq(qp->rcq, "post cq failed err = %d\n", err);
 
 	return err;
 }

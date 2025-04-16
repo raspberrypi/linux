@@ -292,6 +292,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rp1_dpi *dpi;
 	struct drm_bridge *bridge = NULL;
+	const char *rgb_order = NULL;
 	struct drm_panel *panel;
 	int i, j, ret;
 
@@ -352,6 +353,20 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	ret = drmm_mode_config_init(&dpi->drm);
 	if (ret)
 		goto done_err;
+
+	dpi->rgb_order_override = RP1DPI_ORDER_UNCHANGED;
+	if (!of_property_read_string(dev->of_node, "rgb_order", &rgb_order)) {
+		if (!strcmp(rgb_order, "rgb"))
+			dpi->rgb_order_override = RP1DPI_ORDER_RGB;
+		else if (!strcmp(rgb_order, "bgr"))
+			dpi->rgb_order_override = RP1DPI_ORDER_BGR;
+		else if (!strcmp(rgb_order, "grb"))
+			dpi->rgb_order_override = RP1DPI_ORDER_GRB;
+		else if (!strcmp(rgb_order, "brg"))
+			dpi->rgb_order_override = RP1DPI_ORDER_BRG;
+		else
+			DRM_ERROR("Invalid dpi order %s - ignored\n", rgb_order);
+	}
 
 	/* Check if PIO can snoop on or override DPI's GPIO1 */
 	dpi->gpio1_used = false;

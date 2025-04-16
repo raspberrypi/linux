@@ -630,7 +630,7 @@ static int pcm512x_dai_startup_slave(struct snd_pcm_substream *substream,
 	struct regmap *regmap = pcm512x->regmap;
 
 	if (IS_ERR(pcm512x->sclk)) {
-		dev_info(dev, "No SCLK, using BCLK: %ld\n",
+		dev_dbg(dev, "No SCLK, using BCLK: %ld\n",
 			 PTR_ERR(pcm512x->sclk));
 
 		/* Disable reporting of missing SCLK as an error */

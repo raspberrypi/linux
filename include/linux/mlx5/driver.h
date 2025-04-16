@@ -709,7 +709,6 @@ struct mlx5_timer {
 	struct timecounter         tc;
 	u32                        nominal_c_mult;
 	unsigned long              overflow_period;
-	struct delayed_work        overflow_work;
 };
 
 struct mlx5_clock {
@@ -1223,6 +1222,12 @@ static inline bool mlx5_core_is_pf(const struct mlx5_core_dev *dev)
 static inline bool mlx5_core_is_vf(const struct mlx5_core_dev *dev)
 {
 	return dev->coredev_type == MLX5_COREDEV_VF;
+}
+
+static inline bool mlx5_core_same_coredev_type(const struct mlx5_core_dev *dev1,
+					       const struct mlx5_core_dev *dev2)
+{
+	return dev1->coredev_type == dev2->coredev_type;
 }
 
 static inline bool mlx5_core_is_ecpf(const struct mlx5_core_dev *dev)

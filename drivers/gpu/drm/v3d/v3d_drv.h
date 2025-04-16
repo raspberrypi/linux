@@ -115,19 +115,27 @@ struct v3d_perfmon {
 	u64 values[];
 };
 
+enum v3d_gen {
+	V3D_GEN_33 = 33,
+	V3D_GEN_41 = 41,
+	V3D_GEN_42 = 42,
+	V3D_GEN_71 = 71,
+};
+
 struct v3d_dev {
 	struct drm_device drm;
 
 	/* Short representation (e.g. 33, 41) of the V3D tech version
 	 * and revision.
 	 */
-	int ver;
+	enum v3d_gen ver;
 	bool single_irq_line;
 
 	void __iomem *hub_regs;
 	void __iomem *core_regs[3];
 	void __iomem *bridge_regs;
 	void __iomem *gca_regs;
+	void __iomem *sms_regs;
 	struct clk *clk;
 	struct delayed_work clk_down_work;
 	unsigned long clk_up_rate, clk_down_rate;
@@ -213,7 +221,7 @@ to_v3d_dev(struct drm_device *dev)
 static inline bool
 v3d_has_csd(struct v3d_dev *v3d)
 {
-	return v3d->ver >= 41;
+	return v3d->ver >= V3D_GEN_41;
 }
 
 #define v3d_to_pdev(v3d) to_platform_device((v3d)->drm.dev)
@@ -269,6 +277,15 @@ to_v3d_fence(struct dma_fence *fence)
 
 #define V3D_GCA_READ(offset) readl(v3d->gca_regs + offset)
 #define V3D_GCA_WRITE(offset, val) writel(val, v3d->gca_regs + offset)
+
+#define V3D_SMS_IDLE				0x0
+#define V3D_SMS_ISOLATING_FOR_RESET		0xa
+#define V3D_SMS_RESETTING			0xb
+#define V3D_SMS_ISOLATING_FOR_POWER_OFF	0xc
+#define V3D_SMS_POWER_OFF_STATE		0xd
+
+#define V3D_SMS_READ(offset) readl(v3d->sms_regs + (offset))
+#define V3D_SMS_WRITE(offset, val) writel(val, v3d->sms_regs + (offset))
 
 #define V3D_CORE_READ(core, offset) readl(v3d->core_regs[core] + offset)
 #define V3D_CORE_WRITE(core, offset, val) writel(val, v3d->core_regs[core] + offset)
@@ -448,6 +465,7 @@ int v3d_wait_bo_ioctl(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv);
 void v3d_job_cleanup(struct v3d_job *job);
 void v3d_job_put(struct v3d_job *job);
+void v3d_reset_sms(struct v3d_dev *v3d);
 void v3d_reset(struct v3d_dev *v3d);
 void v3d_invalidate_caches(struct v3d_dev *v3d);
 void v3d_clean_caches(struct v3d_dev *v3d);

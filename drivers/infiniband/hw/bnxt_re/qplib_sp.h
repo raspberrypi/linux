@@ -40,6 +40,7 @@
 #ifndef __BNXT_QPLIB_SP_H__
 #define __BNXT_QPLIB_SP_H__
 
+#include <rdma/bnxt_re-abi.h>
 #define BNXT_QPLIB_RESERVED_QP_WRS	128
 
 struct bnxt_qplib_dev_attr {
@@ -73,6 +74,7 @@ struct bnxt_qplib_dev_attr {
 	u8				tqm_alloc_reqs[MAX_TQM_ALLOC_REQ];
 	bool				is_atomic;
 	u16                             dev_cap_flags;
+	u16                             dev_cap_flags2;
 	u32                             max_dpi;
 };
 
@@ -350,5 +352,12 @@ int bnxt_qplib_qext_stat(struct bnxt_qplib_rcfw *rcfw, u32 fid,
 			 struct bnxt_qplib_ext_stat *estat);
 int bnxt_qplib_modify_cc(struct bnxt_qplib_res *res,
 			 struct bnxt_qplib_cc_param *cc_param);
+
+#define BNXT_VAR_MAX_WQE       4352
+#define BNXT_VAR_MAX_SLOT_ALIGN 256
+#define BNXT_VAR_MAX_SGE        13
+#define BNXT_RE_MAX_RQ_WQES     65536
+
+#define BNXT_STATIC_MAX_SGE	6
 
 #endif /* __BNXT_QPLIB_SP_H__*/

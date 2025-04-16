@@ -90,6 +90,7 @@ struct mmc_fixup {
 #define CID_MANFID_KINGSTON     0x70
 #define CID_MANFID_HYNIX	0x90
 #define CID_MANFID_KINGSTON_SD	0x9F
+#define CID_MANFID_LONGSYS_SD	0xAD
 #define CID_MANFID_NUMONYX	0xFE
 
 #define END_FIXUP { NULL }
@@ -290,6 +291,11 @@ static inline int mmc_card_broken_cache_flush(const struct mmc_card *c)
 static inline int mmc_card_broken_sd_poweroff_notify(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_BROKEN_SD_POWEROFF_NOTIFY;
+}
+
+static inline int mmc_card_working_sd_cq(const struct mmc_card *c)
+{
+	return c->quirks & MMC_QUIRK_WORKING_SD_CQ;
 }
 
 #endif

@@ -614,8 +614,9 @@ static void mt7915_bss_info_changed(struct ieee80211_hw *hw,
 	if (changed & BSS_CHANGED_ASSOC)
 		set_bss_info = vif->cfg.assoc;
 	if (changed & BSS_CHANGED_BEACON_ENABLED &&
+	    info->enable_beacon &&
 	    vif->type != NL80211_IFTYPE_AP)
-		set_bss_info = set_sta = info->enable_beacon;
+		set_bss_info = set_sta = 1;
 
 	if (set_bss_info == 1)
 		mt7915_mcu_add_bss_info(phy, vif, true);
@@ -1649,6 +1650,17 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
 }
 #endif
 
+static void
+mt7915_reconfig_complete(struct ieee80211_hw *hw,
+			 enum ieee80211_reconfig_type reconfig_type)
+{
+	struct mt7915_phy *phy = mt7915_hw_phy(hw);
+
+	ieee80211_wake_queues(hw);
+	ieee80211_queue_delayed_work(hw, &phy->mt76->mac_work,
+				     MT7915_WATCHDOG_TIME);
+}
+
 const struct ieee80211_ops mt7915_ops = {
 	.tx = mt7915_tx,
 	.start = mt7915_start,
@@ -1703,4 +1715,5 @@ const struct ieee80211_ops mt7915_ops = {
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 	.net_fill_forward_path = mt7915_net_fill_forward_path,
 #endif
+	.reconfig_complete = mt7915_reconfig_complete,
 };

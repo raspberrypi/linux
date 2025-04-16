@@ -190,7 +190,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -201,7 +201,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -212,7 +212,7 @@
 			clocks = <&clk_uart>,
 				 <&clk_vpu>;
 			clock-names = "uartclk", "apb_pclk";
-			arm,primecell-periphid = <0x00241011>;
+			arm,primecell-periphid = <0x00341011>;
 			status = "disabled";
 		};
 
@@ -741,8 +741,6 @@
 					  IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) |
 					  IRQ_TYPE_LEVEL_LOW)>;
-		/* This only applies to the ARMv7 stub */
-		arm,cpu-registers-not-fw-configured;
 	};
 
 	cpus: cpus {
@@ -1210,7 +1208,7 @@
 			clocks = <&clk_emmc2>;
 			sdhci-caps-mask = <0x0000C000 0x0>;
 			sdhci-caps = <0x0 0x0>;
-			supports-cqe;
+			supports-cqe = <1>;
 			mmc-ddr-3_3v;
 			status = "disabled";
 		};
@@ -1224,8 +1222,9 @@
 		v3d: v3d@2000000 {
 			compatible = "brcm,2712-v3d";
 			reg = <0x10 0x02000000  0x0 0x4000>,
-			      <0x10 0x02008000  0x0 0x6000>;
-			reg-names = "hub", "core0";
+			      <0x10 0x02008000  0x0 0x6000>,
+			      <0x10 0x02030800  0x0 0x0700>;
+			reg-names = "hub", "core0", "sms";
 
 			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
 			resets = <&pm BCM2835_RESET_V3D>;

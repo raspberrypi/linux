@@ -339,7 +339,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	mmc-hs400-1_8v;
 	mmc-hs400-enhanced-strobe;
 	broken-cd;
-	supports-cqe;
+	supports-cqe = <1>;
 	status = "okay";
 };
 
@@ -734,6 +734,18 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		function = "vbus1";
 		pins = "gpio42", "gpio43";
 	};
+
+	micclk1_hog {
+		gpio-hog;
+		gpios = <46 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+
+	micdat1_hog {
+		gpio-hog;
+		gpios = <48 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
 };
 
 / {
@@ -752,5 +764,6 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 			<&ant2>, "output-low?=on";
 		noanthogs = <&ant1>,"status=disabled",
 			<&ant2>, "status=disabled";
+		sd_cqe = <&sdio1>, "supports-cqe:0";
 	};
 };

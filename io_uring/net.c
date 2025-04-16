@@ -1533,6 +1533,11 @@ int io_connect(struct io_kiocb *req, unsigned int issue_flags)
 		io = &__io;
 	}
 
+	if (unlikely(req->flags & REQ_F_FAIL)) {
+		ret = -ECONNRESET;
+		goto out;
+	}
+
 	file_flags = force_nonblock ? O_NONBLOCK : 0;
 
 	ret = __sys_connect_file(req->file, &io->address,

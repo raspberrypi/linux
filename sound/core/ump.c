@@ -37,6 +37,7 @@ static int process_legacy_output(struct snd_ump_endpoint *ump,
 				 u32 *buffer, int count);
 static void process_legacy_input(struct snd_ump_endpoint *ump, const u32 *src,
 				 int words);
+static void update_legacy_names(struct snd_ump_endpoint *ump);
 #else
 static inline int process_legacy_output(struct snd_ump_endpoint *ump,
 					u32 *buffer, int count)
@@ -45,6 +46,9 @@ static inline int process_legacy_output(struct snd_ump_endpoint *ump,
 }
 static inline void process_legacy_input(struct snd_ump_endpoint *ump,
 					const u32 *src, int words)
+{
+}
+static inline void update_legacy_names(struct snd_ump_endpoint *ump)
 {
 }
 #endif
@@ -850,6 +854,7 @@ static int ump_handle_fb_info_msg(struct snd_ump_endpoint *ump,
 		fill_fb_info(ump, &fb->info, buf);
 		if (ump->parsed) {
 			snd_ump_update_group_attrs(ump);
+			update_legacy_names(ump);
 			seq_notify_fb_change(ump, fb);
 		}
 	}
@@ -882,6 +887,7 @@ static int ump_handle_fb_name_msg(struct snd_ump_endpoint *ump,
 	/* notify the FB name update to sequencer, too */
 	if (ret > 0 && ump->parsed) {
 		snd_ump_update_group_attrs(ump);
+		update_legacy_names(ump);
 		seq_notify_fb_change(ump, fb);
 	}
 	return ret;
@@ -1076,13 +1082,13 @@ static int snd_ump_legacy_open(struct snd_rawmidi_substream *substream)
 	struct snd_ump_endpoint *ump = substream->rmidi->private_data;
 	int dir = substream->stream;
 	int group = ump->legacy_mapping[substream->number];
-	int err = 0;
+	int err;
 
-	mutex_lock(&ump->open_mutex);
-	if (ump->legacy_substreams[dir][group]) {
-		err = -EBUSY;
-		goto unlock;
-	}
+	guard(mutex)(&ump->open_mutex);
+	if (ump->legacy_substreams[dir][group])
+		return -EBUSY;
+	if (!ump->groups[group].active)
+		return -ENODEV;
 	if (dir == SNDRV_RAWMIDI_STREAM_OUTPUT) {
 		if (!ump->legacy_out_opens) {
 			err = snd_rawmidi_kernel_open(&ump->core, 0,
@@ -1090,17 +1096,14 @@ static int snd_ump_legacy_open(struct snd_rawmidi_substream *substream)
 						      SNDRV_RAWMIDI_LFLG_APPEND,
 						      &ump->legacy_out_rfile);
 			if (err < 0)
-				goto unlock;
+				return err;
 		}
 		ump->legacy_out_opens++;
 		snd_ump_convert_reset(&ump->out_cvts[group]);
 	}
-	spin_lock_irq(&ump->legacy_locks[dir]);
+	guard(spinlock_irq)(&ump->legacy_locks[dir]);
 	ump->legacy_substreams[dir][group] = substream;
-	spin_unlock_irq(&ump->legacy_locks[dir]);
- unlock:
-	mutex_unlock(&ump->open_mutex);
-	return err;
+	return 0;
 }
 
 static int snd_ump_legacy_close(struct snd_rawmidi_substream *substream)
@@ -1109,15 +1112,13 @@ static int snd_ump_legacy_close(struct snd_rawmidi_substream *substream)
 	int dir = substream->stream;
 	int group = ump->legacy_mapping[substream->number];
 
-	mutex_lock(&ump->open_mutex);
-	spin_lock_irq(&ump->legacy_locks[dir]);
-	ump->legacy_substreams[dir][group] = NULL;
-	spin_unlock_irq(&ump->legacy_locks[dir]);
+	guard(mutex)(&ump->open_mutex);
+	scoped_guard(spinlock_irq, &ump->legacy_locks[dir])
+		ump->legacy_substreams[dir][group] = NULL;
 	if (dir == SNDRV_RAWMIDI_STREAM_OUTPUT) {
 		if (!--ump->legacy_out_opens)
 			snd_rawmidi_kernel_release(&ump->legacy_out_rfile);
 	}
-	mutex_unlock(&ump->open_mutex);
 	return 0;
 }
 
@@ -1169,12 +1170,11 @@ static int process_legacy_output(struct snd_ump_endpoint *ump,
 	const int dir = SNDRV_RAWMIDI_STREAM_OUTPUT;
 	unsigned char c;
 	int group, size = 0;
-	unsigned long flags;
 
 	if (!ump->out_cvts || !ump->legacy_out_opens)
 		return 0;
 
-	spin_lock_irqsave(&ump->legacy_locks[dir], flags);
+	guard(spinlock_irqsave)(&ump->legacy_locks[dir]);
 	for (group = 0; group < SNDRV_UMP_MAX_GROUPS; group++) {
 		substream = ump->legacy_substreams[dir][group];
 		if (!substream)
@@ -1190,7 +1190,6 @@ static int process_legacy_output(struct snd_ump_endpoint *ump,
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&ump->legacy_locks[dir], flags);
 	return size;
 }
 
@@ -1200,18 +1199,16 @@ static void process_legacy_input(struct snd_ump_endpoint *ump, const u32 *src,
 	struct snd_rawmidi_substream *substream;
 	unsigned char buf[16];
 	unsigned char group;
-	unsigned long flags;
 	const int dir = SNDRV_RAWMIDI_STREAM_INPUT;
 	int size;
 
 	size = snd_ump_convert_from_ump(src, buf, &group);
 	if (size <= 0)
 		return;
-	spin_lock_irqsave(&ump->legacy_locks[dir], flags);
+	guard(spinlock_irqsave)(&ump->legacy_locks[dir]);
 	substream = ump->legacy_substreams[dir][group];
 	if (substream)
 		snd_rawmidi_receive(substream, buf, size);
-	spin_unlock_irqrestore(&ump->legacy_locks[dir], flags);
 }
 
 /* Fill ump->legacy_mapping[] for groups to be used for legacy rawmidi */
@@ -1254,9 +1251,18 @@ static void fill_substream_names(struct snd_ump_endpoint *ump,
 		name = ump->groups[idx].name;
 		if (!*name)
 			name = ump->info.name;
-		snprintf(s->name, sizeof(s->name), "Group %d (%.16s)",
-			 idx + 1, name);
+		scnprintf(s->name, sizeof(s->name), "Group %d (%.16s)%s",
+			  idx + 1, name,
+			  ump->groups[idx].active ? "" : " [Inactive]");
 	}
+}
+
+static void update_legacy_names(struct snd_ump_endpoint *ump)
+{
+	struct snd_rawmidi *rmidi = ump->legacy_rmidi;
+
+	fill_substream_names(ump, rmidi, SNDRV_RAWMIDI_STREAM_INPUT);
+	fill_substream_names(ump, rmidi, SNDRV_RAWMIDI_STREAM_OUTPUT);
 }
 
 int snd_ump_attach_legacy_rawmidi(struct snd_ump_endpoint *ump,
@@ -1295,10 +1301,7 @@ int snd_ump_attach_legacy_rawmidi(struct snd_ump_endpoint *ump,
 	rmidi->ops = &snd_ump_legacy_ops;
 	rmidi->private_data = ump;
 	ump->legacy_rmidi = rmidi;
-	if (input)
-		fill_substream_names(ump, rmidi, SNDRV_RAWMIDI_STREAM_INPUT);
-	if (output)
-		fill_substream_names(ump, rmidi, SNDRV_RAWMIDI_STREAM_OUTPUT);
+	update_legacy_names(ump);
 
 	ump_dbg(ump, "Created a legacy rawmidi #%d (%s)\n", device, id);
 	return 0;

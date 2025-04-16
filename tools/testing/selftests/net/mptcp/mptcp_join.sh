@@ -2941,7 +2941,7 @@ verify_listener_events()
 	type=$(mptcp_lib_evts_get_info type "$evt" "$e_type")
 	family=$(mptcp_lib_evts_get_info family "$evt" "$e_type")
 	sport=$(mptcp_lib_evts_get_info sport "$evt" "$e_type")
-	if [ $family ] && [ $family = $AF_INET6 ]; then
+	if [ $family ] && [ $family = $MPTCP_LIB_AF_INET6 ]; then
 		saddr=$(mptcp_lib_evts_get_info saddr6 "$evt" "$e_type")
 	else
 		saddr=$(mptcp_lib_evts_get_info saddr4 "$evt" "$e_type")

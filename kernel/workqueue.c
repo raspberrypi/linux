@@ -2541,6 +2541,7 @@ __acquires(&pool->lock)
 	struct pool_workqueue *pwq = get_work_pwq(work);
 	struct worker_pool *pool = worker->pool;
 	unsigned long work_data;
+	int lockdep_start_depth, rcu_start_depth;
 #ifdef CONFIG_LOCKDEP
 	/*
 	 * It is permissible to free the struct work_struct from
@@ -2603,6 +2604,8 @@ __acquires(&pool->lock)
 	pwq->stats[PWQ_STAT_STARTED]++;
 	raw_spin_unlock_irq(&pool->lock);
 
+	rcu_start_depth = rcu_preempt_depth();
+	lockdep_start_depth = lockdep_depth(current);
 	lock_map_acquire(&pwq->wq->lockdep_map);
 	lock_map_acquire(&lockdep_map);
 	/*
@@ -2638,10 +2641,14 @@ __acquires(&pool->lock)
 	lock_map_release(&lockdep_map);
 	lock_map_release(&pwq->wq->lockdep_map);
 
-	if (unlikely(in_atomic() || lockdep_depth(current) > 0)) {
-		pr_err("BUG: workqueue leaked lock or atomic: %s/0x%08x/%d\n"
-		       "     last function: %ps\n",
-		       current->comm, preempt_count(), task_pid_nr(current),
+	if (unlikely((worker->task && in_atomic()) ||
+		     lockdep_depth(current) != lockdep_start_depth ||
+		     rcu_preempt_depth() != rcu_start_depth)) {
+		pr_err("BUG: workqueue leaked atomic, lock or RCU: %s[%d]\n"
+		       "     preempt=0x%08x lock=%d->%d RCU=%d->%d workfn=%ps\n",
+		       current->comm, task_pid_nr(current), preempt_count(),
+		       lockdep_start_depth, lockdep_depth(current),
+		       rcu_start_depth, rcu_preempt_depth(),
 		       worker->current_func);
 		debug_show_held_locks(current);
 		dump_stack();
@@ -2940,23 +2947,27 @@ repeat:
  * check_flush_dependency - check for flush dependency sanity
  * @target_wq: workqueue being flushed
  * @target_work: work item being flushed (NULL for workqueue flushes)
+ * @from_cancel: are we called from the work cancel path
  *
  * %current is trying to flush the whole @target_wq or @target_work on it.
- * If @target_wq doesn't have %WQ_MEM_RECLAIM, verify that %current is not
- * reclaiming memory or running on a workqueue which doesn't have
- * %WQ_MEM_RECLAIM as that can break forward-progress guarantee leading to
- * a deadlock.
+ * If this is not the cancel path (which implies work being flushed is either
+ * already running, or will not be at all), check if @target_wq doesn't have
+ * %WQ_MEM_RECLAIM and verify that %current is not reclaiming memory or running
+ * on a workqueue which doesn't have %WQ_MEM_RECLAIM as that can break forward-
+ * progress guarantee leading to a deadlock.
  */
 static void check_flush_dependency(struct workqueue_struct *target_wq,
-				   struct work_struct *target_work)
+				   struct work_struct *target_work,
+				   bool from_cancel)
 {
-	work_func_t target_func = target_work ? target_work->func : NULL;
+	work_func_t target_func;
 	struct worker *worker;
 
-	if (target_wq->flags & WQ_MEM_RECLAIM)
+	if (from_cancel || target_wq->flags & WQ_MEM_RECLAIM)
 		return;
 
 	worker = current_wq_worker();
+	target_func = target_work ? target_work->func : NULL;
 
 	WARN_ONCE(current->flags & PF_MEMALLOC,
 		  "workqueue: PF_MEMALLOC task %d(%s) is flushing !WQ_MEM_RECLAIM %s:%ps",
@@ -3122,6 +3133,19 @@ static bool flush_workqueue_prep_pwqs(struct workqueue_struct *wq,
 	return wait;
 }
 
+static void touch_wq_lockdep_map(struct workqueue_struct *wq)
+{
+	lock_map_acquire(&wq->lockdep_map);
+	lock_map_release(&wq->lockdep_map);
+}
+
+static void touch_work_lockdep_map(struct work_struct *work,
+				   struct workqueue_struct *wq)
+{
+	lock_map_acquire(&work->lockdep_map);
+	lock_map_release(&work->lockdep_map);
+}
+
 /**
  * __flush_workqueue - ensure that any scheduled work has run to completion.
  * @wq: workqueue to flush
@@ -3141,8 +3165,7 @@ void __flush_workqueue(struct workqueue_struct *wq)
 	if (WARN_ON(!wq_online))
 		return;
 
-	lock_map_acquire(&wq->lockdep_map);
-	lock_map_release(&wq->lockdep_map);
+	touch_wq_lockdep_map(wq);
 
 	mutex_lock(&wq->mutex);
 
@@ -3189,7 +3212,7 @@ void __flush_workqueue(struct workqueue_struct *wq)
 		list_add_tail(&this_flusher.list, &wq->flusher_overflow);
 	}
 
-	check_flush_dependency(wq, NULL);
+	check_flush_dependency(wq, NULL, false);
 
 	mutex_unlock(&wq->mutex);
 
@@ -3341,6 +3364,7 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr,
 	struct worker *worker = NULL;
 	struct worker_pool *pool;
 	struct pool_workqueue *pwq;
+	struct workqueue_struct *wq;
 
 	might_sleep();
 
@@ -3364,10 +3388,13 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr,
 		pwq = worker->current_pwq;
 	}
 
-	check_flush_dependency(pwq->wq, work);
+	wq = pwq->wq;
+	check_flush_dependency(wq, work, from_cancel);
 
 	insert_wq_barrier(pwq, barr, work, worker);
 	raw_spin_unlock_irq(&pool->lock);
+
+	touch_work_lockdep_map(work, wq);
 
 	/*
 	 * Force a lock recursion deadlock when using flush_work() inside a
@@ -3378,11 +3405,9 @@ static bool start_flush_work(struct work_struct *work, struct wq_barrier *barr,
 	 * workqueues the deadlock happens when the rescuer stalls, blocking
 	 * forward progress.
 	 */
-	if (!from_cancel &&
-	    (pwq->wq->saved_max_active == 1 || pwq->wq->rescuer)) {
-		lock_map_acquire(&pwq->wq->lockdep_map);
-		lock_map_release(&pwq->wq->lockdep_map);
-	}
+	if (!from_cancel && (wq->saved_max_active == 1 || wq->rescuer))
+		touch_wq_lockdep_map(wq);
+
 	rcu_read_unlock();
 	return true;
 already_gone:
@@ -3400,9 +3425,6 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 
 	if (WARN_ON(!work->func))
 		return false;
-
-	lock_map_acquire(&work->lockdep_map);
-	lock_map_release(&work->lockdep_map);
 
 	if (start_flush_work(work, &barr, from_cancel)) {
 		wait_for_completion(&barr.done);

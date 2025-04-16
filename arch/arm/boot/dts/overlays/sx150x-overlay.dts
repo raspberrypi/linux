@@ -1681,7 +1681,7 @@
 		sx1507-1-3E-int-gpio = <0>,"+67+99",  <&sx150x_1_3E_pins>,"brcm,pins:0", <&sx1507_1_3E>,"interrupts:0";
 		sx1507-0-3F-int-gpio = <0>,"+68+100", <&sx150x_0_3F_pins>,"brcm,pins:0", <&sx1507_0_3F>,"interrupts:0";
 		sx1507-1-3F-int-gpio = <0>,"+69+101", <&sx150x_1_3F_pins>,"brcm,pins:0", <&sx1507_1_3F>,"interrupts:0";
-		sx1507-0-70-int-gpio = <0>,"+60+102", <&sx150x_0_70_pins>,"brcm,pins:0", <&sx1507_0_70>,"interrupts:0";
+		sx1507-0-70-int-gpio = <0>,"+70+102", <&sx150x_0_70_pins>,"brcm,pins:0", <&sx1507_0_70>,"interrupts:0";
 		sx1507-1-70-int-gpio = <0>,"+71+103", <&sx150x_1_70_pins>,"brcm,pins:0", <&sx1507_1_70>,"interrupts:0";
 		sx1507-0-71-int-gpio = <0>,"+72+104", <&sx150x_0_71_pins>,"brcm,pins:0", <&sx1507_0_71>,"interrupts:0";
 		sx1507-1-71-int-gpio = <0>,"+73+105", <&sx150x_1_71_pins>,"brcm,pins:0", <&sx1507_1_71>,"interrupts:0";

@@ -202,10 +202,10 @@ struct cifs_cred {
 	int gid;
 	int mode;
 	int cecount;
-	struct cifs_sid osid;
-	struct cifs_sid gsid;
+	struct smb_sid osid;
+	struct smb_sid gsid;
 	struct cifs_ntace *ntaces;
-	struct cifs_ace *aces;
+	struct smb_ace *aces;
 };
 
 struct cifs_open_info_data {
@@ -231,8 +231,8 @@ struct cifs_open_info_data {
 		unsigned int	eas_len;
 	} wsl;
 	char *symlink_target;
-	struct cifs_sid posix_owner;
-	struct cifs_sid posix_group;
+	struct smb_sid posix_owner;
+	struct smb_sid posix_group;
 	union {
 		struct smb2_file_all_info fi;
 		struct smb311_posix_qinfo posix_fi;
@@ -323,7 +323,7 @@ struct smb_version_operations {
 	int (*handle_cancelled_mid)(struct mid_q_entry *, struct TCP_Server_Info *);
 	void (*downgrade_oplock)(struct TCP_Server_Info *server,
 				 struct cifsInodeInfo *cinode, __u32 oplock,
-				 unsigned int epoch, bool *purge_cache);
+				 __u16 epoch, bool *purge_cache);
 	/* process transaction2 response */
 	bool (*check_trans2)(struct mid_q_entry *, struct TCP_Server_Info *,
 			     char *, int);
@@ -519,12 +519,12 @@ struct smb_version_operations {
 	/* if we can do cache read operations */
 	bool (*is_read_op)(__u32);
 	/* set oplock level for the inode */
-	void (*set_oplock_level)(struct cifsInodeInfo *, __u32, unsigned int,
-				 bool *);
+	void (*set_oplock_level)(struct cifsInodeInfo *cinode, __u32 oplock, __u16 epoch,
+				 bool *purge_cache);
 	/* create lease context buffer for CREATE request */
 	char * (*create_lease_buf)(u8 *lease_key, u8 oplock);
 	/* parse lease context buffer and return oplock/epoch info */
-	__u8 (*parse_lease_buf)(void *buf, unsigned int *epoch, char *lkey);
+	__u8 (*parse_lease_buf)(void *buf, __u16 *epoch, char *lkey);
 	ssize_t (*copychunk_range)(const unsigned int,
 			struct cifsFileInfo *src_file,
 			struct cifsFileInfo *target_file,
@@ -539,12 +539,12 @@ struct smb_version_operations {
 	int (*set_EA)(const unsigned int, struct cifs_tcon *, const char *,
 			const char *, const void *, const __u16,
 			const struct nls_table *, struct cifs_sb_info *);
-	struct cifs_ntsd * (*get_acl)(struct cifs_sb_info *, struct inode *,
-			const char *, u32 *, u32);
-	struct cifs_ntsd * (*get_acl_by_fid)(struct cifs_sb_info *,
-			const struct cifs_fid *, u32 *, u32);
-	int (*set_acl)(struct cifs_ntsd *, __u32, struct inode *, const char *,
-			int);
+	struct smb_ntsd * (*get_acl)(struct cifs_sb_info *cifssb, struct inode *ino,
+			const char *patch, u32 *plen, u32 info);
+	struct smb_ntsd * (*get_acl_by_fid)(struct cifs_sb_info *cifssmb,
+			const struct cifs_fid *pfid, u32 *plen, u32 info);
+	int (*set_acl)(struct smb_ntsd *pntsd, __u32 len, struct inode *ino, const char *path,
+			int flag);
 	/* writepages retry size */
 	unsigned int (*wp_retry_size)(struct inode *);
 	/* get mtu credits */
@@ -1412,7 +1412,7 @@ struct cifs_fid {
 	__u8 create_guid[16];
 	__u32 access;
 	struct cifs_pending_open *pending_open;
-	unsigned int epoch;
+	__u16 epoch;
 #ifdef CONFIG_CIFS_DEBUG2
 	__u64 mid;
 #endif /* CIFS_DEBUG2 */
@@ -1445,7 +1445,7 @@ struct cifsFileInfo {
 	bool oplock_break_cancelled:1;
 	bool status_file_deleted:1; /* file has been deleted */
 	bool offload:1; /* offload final part of _put to a wq */
-	unsigned int oplock_epoch; /* epoch from the lease break */
+	__u16 oplock_epoch; /* epoch from the lease break */
 	__u32 oplock_level; /* oplock/lease level from the lease break */
 	int count;
 	spinlock_t file_info_lock; /* protects four flag/count fields above */
@@ -1584,7 +1584,7 @@ struct cifsInodeInfo {
 	spinlock_t	open_file_lock;	/* protects openFileList */
 	__u32 cifsAttrs; /* e.g. DOS archive bit, sparse, compressed, system */
 	unsigned int oplock;		/* oplock/lease level we have */
-	unsigned int epoch;		/* used to track lease state changes */
+	__u16 epoch;		/* used to track lease state changes */
 #define CIFS_INODE_PENDING_OPLOCK_BREAK   (0) /* oplock break in progress */
 #define CIFS_INODE_PENDING_WRITERS	  (1) /* Writes in progress */
 #define CIFS_INODE_FLAG_UNUSED		  (2) /* Unused flag */

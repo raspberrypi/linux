@@ -51,10 +51,11 @@ static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP};
  * of order 0 pages can significantly improve the performance of many IOMMUs
  * by reducing TLB pressure and time spent updating page tables.
  */
-static const unsigned int orders[] = {8, 4, 0};
+#define MAX_ORDERS_VALUE 8
+static const unsigned int orders[] = {MAX_ORDERS_VALUE, 4, 0};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 
-static unsigned int module_max_order = orders[0];
+static unsigned int module_max_order = MAX_ORDERS_VALUE;
 
 module_param_named(max_order, module_max_order, uint, 0400);
 MODULE_PARM_DESC(max_order, "Maximum allocation order override.");
