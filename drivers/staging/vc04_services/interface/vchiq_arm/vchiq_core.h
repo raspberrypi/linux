@@ -174,6 +174,7 @@ struct vchiq_slot_info {
 	short release_count;
 };
 
+/* TODO: Please explain the meaning of "service" in the context of VCHIQ */
 struct vchiq_service {
 	struct vchiq_service_base base;
 	unsigned int handle;
@@ -289,6 +290,10 @@ struct vchiq_shared_state {
 	int debug[DEBUG_MAX];
 };
 
+/*
+ * TODO: Mark all structs which are shared with the VideoCore and must not
+ * be modified (ABI)
+ */
 struct vchiq_slot_zero {
 	int magic;
 	short version;
@@ -325,12 +330,17 @@ struct vchiq_state {
 	struct vchiq_instance **instance;
 
 	/* Processes incoming messages */
+	/* TODO: This is the only thread which handles incoming messages
+	 *       or just asynchronous messages ?
+	 */
 	struct task_struct *slot_handler_thread;
 
 	/* Processes recycled slots */
+	/* TODO: Please elaborate more ... (purpose) */
 	struct task_struct *recycle_thread;
 
 	/* Processes synchronous messages */
+	/* TODO: Please elaborate more ... (direction, purpose) */
 	struct task_struct *sync_thread;
 
 	/* Local implementation of the trigger remote event */

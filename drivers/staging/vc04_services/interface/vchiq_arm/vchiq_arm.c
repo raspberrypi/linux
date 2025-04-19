@@ -83,6 +83,9 @@ static const struct vchiq_platform_info bcm2711_info = {
 
 struct vchiq_arm_state {
 	/* Keepalive-related data */
+	/* TODO: Please elaborate the purpose of this thread
+	 * What needs to be kept alive?
+	 */
 	struct task_struct *ka_thread;
 	struct completion ka_evt;
 	atomic_t ka_use_count;

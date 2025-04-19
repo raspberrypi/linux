@@ -1,0 +1,45 @@
+What:		/dev/vchiq
+Date:		October 2016
+KernelVersion:	4.9
+Contact:	kernel-list@raspberrypi.com
+Description:
+		The ioctl interface for the VCHIQ character device.
+		Following actions are supported:
+
+		/* TODO: Please explain each IOCTL in short */
+
+		* VCHIQ_IOC_CONNECT:
+
+		* VCHIQ_IOC_SHUTDOWN:
+
+		* VCHIQ_IOC_CREATE_SERVICE:
+
+		* VCHIQ_IOC_REMOVE_SERVICE:
+
+		* VCHIQ_IOC_QUEUE_MESSAGE:
+
+		* VCHIQ_IOC_QUEUE_BULK_TRANSMIT:
+
+		* VCHIQ_IOC_QUEUE_BULK_RECEIVE:
+
+		* VCHIQ_IOC_AWAIT_COMPLETION:
+
+		* VCHIQ_IOC_DEQUEUE_MESSAGE:
+
+		* VCHIQ_IOC_GET_CLIENT_ID:
+
+		* VCHIQ_IOC_GET_CONFIG:
+
+		* VCHIQ_IOC_CLOSE_SERVICE:
+
+		* VCHIQ_IOC_USE_SERVICE:
+
+		* VCHIQ_IOC_RELEASE_SERVICE:
+
+		* VCHIQ_IOC_SET_SERVICE_OPTION:
+
+		* VCHIQ_IOC_DUMP_PHYS_MEM:
+
+		* VCHIQ_IOC_LIB_VERSION:
+
+		* VCHIQ_IOC_CLOSE_DELIVERED:
