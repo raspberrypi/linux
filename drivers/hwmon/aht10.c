@@ -110,7 +110,8 @@ struct aht10_data {
  */
 static int aht10_init(struct aht10_data *data)
 {
-	const u8 cmd_init[] = {data->init_cmd, AHT10_CAL_ENABLED | AHT10_MODE_CYC,
+	const u8 cmd_init[] = {data->init_cmd,
+			       AHT10_CAL_ENABLED | (data->crc8 ? AHT10_MODE_CYC : 0),
 			       0x00};
 	int res;
 	u8 status;
