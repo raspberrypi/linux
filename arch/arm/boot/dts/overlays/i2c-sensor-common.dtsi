@@ -666,6 +666,20 @@
 		};
 	};
 
+	fragment@43 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			aht20: aht20@38 {
+				compatible = "aosong,aht20";
+				reg = <0x38>;
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -721,6 +735,7 @@
 		as73211 = <0>,"+40+99";
 		as7331 = <0>,"+41+99";
 		adxl345 = <0>,"+42+99";
+		aht20 = <0>,"+43";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
