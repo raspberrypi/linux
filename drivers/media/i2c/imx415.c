@@ -639,6 +639,16 @@ static const struct imx415_mode supported_modes[] = {
 	},
 };
 
+static const struct cci_reg_sequence imx415_10bit_readout[] = {
+	{ IMX415_ADBIT, 0x00 },
+	{ IMX415_MDBIT, 0x00 },
+};
+
+static const struct cci_reg_sequence imx415_12bit_readout[] = {
+	{ IMX415_ADBIT, 0x01 },
+	{ IMX415_MDBIT, 0x01 },
+};
+
 static const char *const imx415_test_pattern_menu[] = {
 	"disabled",
 	"solid black",
@@ -688,9 +698,6 @@ static const struct cci_reg_sequence imx415_init_table[] = {
 	{ IMX415_WINMODE, 0x00 },
 	{ IMX415_ADDMODE, 0x00 },
 	{ IMX415_REVERSE, 0x00 },
-	/* use RAW 10-bit mode */
-	{ IMX415_ADBIT, 0x00 },
-	{ IMX415_MDBIT, 0x00 },
 	/* output VSYNC on XVS and low on XHS */
 	{ IMX415_OUTSEL, 0x22 },
 	{ IMX415_DRV, 0x00 },
@@ -999,12 +1006,31 @@ static int imx415_set_mode(struct imx415 *sensor, int mode)
 
 static int imx415_setup(struct imx415 *sensor, struct v4l2_subdev_state *state)
 {
+	struct v4l2_mbus_framefmt *format;
 	int ret;
 
 	ret = cci_multi_reg_write(sensor->regmap,
 				  imx415_init_table,
 				  ARRAY_SIZE(imx415_init_table),
 				  NULL);
+	if (ret)
+		return ret;
+
+	format = v4l2_subdev_state_get_format(state, 0);
+	switch (format->code) {
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+		ret = cci_multi_reg_write(sensor->regmap,
+					  imx415_10bit_readout,
+					  ARRAY_SIZE(imx415_10bit_readout),
+					  NULL);
+		break;
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+		ret = cci_multi_reg_write(sensor->regmap,
+					  imx415_12bit_readout,
+					  ARRAY_SIZE(imx415_12bit_readout),
+					  NULL);
+		break;
+	}
 	if (ret)
 		return ret;
 
@@ -1103,10 +1129,16 @@ static int imx415_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (code->index != 0)
+	switch (code->index) {
+	default:
 		return -EINVAL;
-
-	code->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	case 0:
+		code->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+		break;
+	case 1:
+		code->code = MEDIA_BUS_FMT_SGBRG12_1X12;
+		break;
+	}
 
 	return 0;
 }
@@ -1119,7 +1151,8 @@ static int imx415_enum_frame_size(struct v4l2_subdev *sd,
 
 	format = v4l2_subdev_state_get_format(state, fse->pad);
 
-	if (fse->index > 0 || fse->code != format->code)
+	if (fse->index > 0 || (fse->code != MEDIA_BUS_FMT_SGBRG10_1X10 &&
+			       fse->code != MEDIA_BUS_FMT_SGBRG12_1X12))
 		return -EINVAL;
 
 	fse->min_width = IMX415_PIXEL_ARRAY_WIDTH;
@@ -1139,7 +1172,14 @@ static int imx415_set_format(struct v4l2_subdev *sd,
 
 	format->width = fmt->format.width;
 	format->height = fmt->format.height;
-	format->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	switch (fmt->format.code) {
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+		format->code = fmt->format.code;
+		break;
+	default:
+		format->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	}
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_RAW;
 	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
