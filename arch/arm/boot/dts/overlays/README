@@ -2427,6 +2427,9 @@ Params: addr                    Set the address for the ADT7410, AS73211,
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor
 
+        aht20                   Select the Aosong AHT20 temperature and humidity
+                                sensor
+
         as73211                 Select the AMS AS73211 XYZ true color sensor
                                 Valid addresses 0x74-0x77, default 0x74
 
