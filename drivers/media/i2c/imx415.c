@@ -513,19 +513,19 @@ static const struct imx415_mode supported_modes[] = {
 		},
 	},
 	{
-		.lane_rate = 1440000000,
-		.hmax_min = { 1066, 533 },
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(imx415_linkrate_1440mbps),
-			.regs = imx415_linkrate_1440mbps,
-		},
-	},
-	{
 		.lane_rate = 891000000,
 		.hmax_min = { 2200, 1100 },
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(imx415_linkrate_891mbps),
 			.regs = imx415_linkrate_891mbps,
+		},
+	},
+	{
+		.lane_rate = 1440000000,
+		.hmax_min = { 1066, 533 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_1440mbps),
+			.regs = imx415_linkrate_1440mbps,
 		},
 	},
 };
