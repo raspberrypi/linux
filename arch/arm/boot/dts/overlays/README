@@ -2757,7 +2757,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Configure a VCM focus drive on the sensor.
         4lane                   Enable 4 CSI2 lanes. This requires a Compute
-                                Module (1, 3, or 4).
+                                Module (1, 3, 4, or 5) or Pi 5.
 
 
 Name:   imx290
@@ -2766,7 +2766,7 @@ Info:   Sony IMX290 camera module.
         variants.
 Load:   dtoverlay=imx290,<param>
 Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
-                                Module (1, 3, or 4).
+                                Module (1, 3, 4, or 5) or Pi 5.
         clock-frequency         Sets the clock frequency to match that used on
                                 the board.
                                 Modules from Vision Components use 37.125MHz
@@ -2809,7 +2809,7 @@ Info:   Sony IMX327 camera module.
         variants.
 Load:   dtoverlay=imx327,<param>
 Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
-                                Module (1, 3, or 4).
+                                Module (1, 3, 4, or 5) or Pi 5.
         clock-frequency         Sets the clock frequency to match that used on
                                 the board.
                                 Modules from Vision Components use 37.125MHz
