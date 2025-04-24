@@ -1513,8 +1513,10 @@ static int imx477_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index >= (ARRAY_SIZE(codes) / 4))
 			return -EINVAL;
 
+		mutex_lock(&imx477->mutex);
 		code->code = imx477_get_format_code(imx477,
 						    codes[code->index * 4]);
+		mutex_unlock(&imx477->mutex);
 	} else {
 		if (code->index > 0)
 			return -EINVAL;
@@ -1530,6 +1532,7 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct imx477 *imx477 = to_imx477(sd);
+	u32 code;
 
 	if (fse->pad >= NUM_PADS)
 		return -EINVAL;
@@ -1543,7 +1546,11 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		if (fse->index >= num_modes)
 			return -EINVAL;
 
-		if (fse->code != imx477_get_format_code(imx477, fse->code))
+		mutex_lock(&imx477->mutex);
+		code = imx477_get_format_code(imx477, fse->code);
+		mutex_unlock(&imx477->mutex);
+
+		if (fse->code != code)
 			return -EINVAL;
 
 		fse->min_width = mode_list[fse->index].width;
