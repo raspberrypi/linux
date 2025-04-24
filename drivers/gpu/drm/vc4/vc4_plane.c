@@ -2376,7 +2376,7 @@ void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 	 */
 	WARN_ON_ONCE(plane->state->crtc_x < 0 || plane->state->crtc_y < 0);
 
-	if (vc4->gen == VC4_GEN_6_C) {
+	if (vc4->gen >= VC4_GEN_6_C) {
 		u32 value;
 
 		value = vc4_state->dlist[vc4_state->ptr0_offset[0]] &
