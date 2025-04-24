@@ -1258,7 +1258,9 @@ static int imx708_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index >= (ARRAY_SIZE(codes) / 4))
 			return -EINVAL;
 
+		mutex_lock(&imx708->mutex);
 		code->code = imx708_get_format_code(imx708);
+		mutex_unlock(&imx708->mutex);
 	} else {
 		if (code->index > 0)
 			return -EINVAL;
@@ -1274,6 +1276,7 @@ static int imx708_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct imx708 *imx708 = to_imx708(sd);
+	u32 code;
 
 	if (fse->pad >= NUM_PADS)
 		return -EINVAL;
@@ -1288,7 +1291,11 @@ static int imx708_enum_frame_size(struct v4l2_subdev *sd,
 		if (fse->index >= num_modes)
 			return -EINVAL;
 
-		if (fse->code != imx708_get_format_code(imx708))
+		mutex_lock(&imx708->mutex);
+		code = imx708_get_format_code(imx708);
+		mutex_unlock(&imx708->mutex);
+
+		if (fse->code != code)
 			return -EINVAL;
 
 		fse->min_width = mode_list[fse->index].width;
@@ -1900,7 +1907,9 @@ static int imx708_init_controls(struct imx708 *imx708)
 	imx708->sd.ctrl_handler = ctrl_hdlr;
 
 	/* Setup exposure and frame/line length limits. */
+	mutex_lock(&imx708->mutex);
 	imx708_set_framing_limits(imx708);
+	mutex_unlock(&imx708->mutex);
 
 	return 0;
 
