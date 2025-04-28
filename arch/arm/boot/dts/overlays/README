@@ -2408,14 +2408,21 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the ADT7410, AS73211,
-                                AS7331, BH1750, BME280, BME680, BMP280, BMP380,
-                                CCS811, DS1621, HDC100X, HDC3020, JC42, LM75,
-                                MCP980x, MPU6050, MPU9250, MS5637, MS5803,
-                                MS5805, MS5837, MS8607, SHT3x or TMP102
+Params: addr                    Set the address for the ADS7828, ADS7830,
+                                ADT7410, AS73211, AS7331, BH1750, BME280,
+                                BME680, BMP280, BMP380, CCS811, DS1621,
+                                HDC100X, HDC3020, JC42, LM75, MCP980x,
+                                MPU6050, MPU9250, MS5637, MS5803, MS5805,
+                                MS5837, MS8607, SHT3x or TMP102
 
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
+
+        ads7828                 Select the TI ADS7828 50kHz 8-channel 12bit ADC
+                                Valid addresses 0x48-0x4b, default 0x48
+
+        ads7830                 Select the TI ADS7830 70kHz 8-channel 8bit ADC
+                                Valid addresses 0x48-0x4b, default 0x48
 
         adt7410                 Select the Analog Devices ADT7410 and ADT7420
                                 temperature sensors
@@ -2496,6 +2503,8 @@ Params: addr                    Set the address for the ADT7410, AS73211,
                                   SE97, SE98, STTS424(E), STTS2002, STTS3000,
                                   TSE2002, TSE2004, TS3000, and TS3001.
                                 The default address is 0x18.
+
+        label                   Set the device label (ADS7828 and ADS7830 only)
 
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
