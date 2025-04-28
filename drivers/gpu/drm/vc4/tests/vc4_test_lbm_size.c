@@ -23,7 +23,6 @@ struct vc4_lbm_size_priv {
 	struct vc4_dev *vc4;
 	struct drm_file *file;
 	struct drm_modeset_acquire_ctx ctx;
-	struct drm_atomic_state *state;
 };
 
 struct vc4_lbm_size_param {
@@ -181,15 +180,24 @@ static void drm_vc4_test_vc4_lbm_size(struct kunit *test)
 	const struct vc4_lbm_size_priv *priv = test->priv;
 	const struct drm_format_info *info;
 	struct drm_mode_fb_cmd2 fb_req = { };
-	struct drm_atomic_state *state = priv->state;
 	struct vc4_plane_state *vc4_plane_state;
 	struct drm_plane_state *plane_state;
+	struct drm_modeset_acquire_ctx ctx;
 	struct vc4_dummy_output *output;
+	struct drm_atomic_state *state;
 	struct drm_framebuffer *fb;
 	struct drm_plane *plane;
+	struct drm_device *drm;
 	struct drm_crtc *crtc;
 	unsigned int i;
 	int ret;
+
+	drm_modeset_acquire_init(&ctx, 0);
+
+	vc4 = priv->vc4;
+	drm = &vc4->base;
+	state = drm_kunit_helper_atomic_state_alloc(test, drm, &ctx);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, state);
 
 	info = drm_format_info(params->fourcc);
 	KUNIT_ASSERT_NOT_NULL(test, info);
@@ -263,6 +271,9 @@ static void drm_vc4_test_vc4_lbm_size(struct kunit *test)
 
 	for (i = 0; i < info->num_planes; i++)
 		drm_mode_destroy_dumb(state->dev, fb_req.handles[i], priv->file);
+
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
 }
 
 static struct kunit_case vc4_lbm_size_tests[] = {
@@ -273,9 +284,7 @@ static struct kunit_case vc4_lbm_size_tests[] = {
 
 static int vc4_lbm_size_test_init(struct kunit *test)
 {
-	struct drm_modeset_acquire_ctx *ctx;
 	struct vc4_lbm_size_priv *priv;
-	struct drm_device *drm;
 	struct vc4_dev *vc4;
 
 	priv = kunit_kzalloc(test, sizeof(*priv), GFP_KERNEL);
@@ -288,13 +297,6 @@ static int vc4_lbm_size_test_init(struct kunit *test)
 
 	priv->file = drm_file_alloc(priv->vc4->base.primary);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, priv->file);
-
-	ctx = drm_kunit_helper_acquire_ctx_alloc(test);
-	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, ctx);
-
-	drm = &vc4->base;
-	priv->state = drm_kunit_helper_atomic_state_alloc(test, drm, ctx);
-	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, priv->state);
 
 	return 0;
 }
