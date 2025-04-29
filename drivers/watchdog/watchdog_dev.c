@@ -943,7 +943,7 @@ static int watchdog_release(struct inode *inode, struct file *file)
 {
 	struct watchdog_core_data *wd_data = file->private_data;
 	struct watchdog_device *wdd;
-	int err = -EBUSY;
+	int err = EBUSY; /* +ve because this may be expected behaviour */
 	bool running;
 
 	mutex_lock(&wd_data->lock);
@@ -966,6 +966,9 @@ static int watchdog_release(struct inode *inode, struct file *file)
 	/* If the watchdog was not stopped, send a keepalive ping */
 	if (err < 0) {
 		pr_crit("watchdog%d: watchdog did not stop!\n", wdd->id);
+		watchdog_ping(wdd);
+	} else if (err > 0) {
+		pr_info("watchdog%d: watchdog left running\n", wdd->id);
 		watchdog_ping(wdd);
 	}
 
