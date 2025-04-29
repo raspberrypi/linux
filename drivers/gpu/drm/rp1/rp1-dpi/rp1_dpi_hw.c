@@ -392,7 +392,7 @@ void rp1dpi_hw_setup(struct rp1_dpi *dpi,
 	int order, i;
 
 	drm_info(&dpi->drm,
-		 "in_fmt=\'%c%c%c%c\' bus_fmt=0x%x mode=%dx%d total=%dx%d%s %dkHz %cH%cV%cD%cC",
+		 "in_fmt=\'%c%c%c%c\' bus_fmt=0x%x mode=%dx%d total=%dx%d%s %dkHz %cH%cV%cDE%cCK",
 		 in_format, in_format >> 8, in_format >> 16, in_format >> 24, bus_format,
 		 mode->hdisplay, mode->vdisplay,
 		 mode->htotal, mode->vtotal,
@@ -497,7 +497,7 @@ void rp1dpi_hw_setup(struct rp1_dpi *dpi,
 		 * This driver includes a PIO program to do that, when DE is enabled.
 		 *
 		 * An alternative fixup is to synthesize CSYNC from HSYNC and modified-VSYNC.
-		 * We don't implement that here, but to facilitate it, DPI's VSYNC is replaced
+		 * We can't do this and make VSYNC at the same time; DPI's VSYNC is replaced
 		 * by a "helper signal" that pulses low for 1 or 2 scan-lines, starting 2.0 or
 		 * 2.5 scan-lines respectively before nominal VSYNC start.
 		 */
