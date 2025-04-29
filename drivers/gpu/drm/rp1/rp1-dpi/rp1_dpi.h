@@ -55,10 +55,9 @@ struct rp1_dpi {
 	unsigned int rgb_order_override;
 	struct completion finished;
 
-	/* Experimental stuff for interlace follows */
+	/* The following are for Interlace and CSYNC support using PIO */
 	struct rp1_pio_client *pio;
-	bool gpio1_used;
-	bool pio_stole_gpio2;
+	bool sync_gpios_mapped;
 
 	spinlock_t hw_lock; /* the following are used in line-match ISR */
 	dma_addr_t last_dma_addr;
@@ -91,5 +90,6 @@ void rp1dpi_vidout_poweroff(struct rp1_dpi *dpi);
 /* ---------------------------------------------------------------------- */
 /* PIO control -- we need PIO to generate VSync (from DE) when interlaced */
 
-int rp1dpi_pio_start(struct rp1_dpi *dpi, const struct drm_display_mode *mode);
+int rp1dpi_pio_start(struct rp1_dpi *dpi, const struct drm_display_mode *mode,
+		     bool force_csync);
 void rp1dpi_pio_stop(struct rp1_dpi *dpi);

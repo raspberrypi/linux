@@ -61,6 +61,16 @@
 static unsigned int default_bus_fmt = MEDIA_BUS_FMT_RGB666_1X18;
 module_param(default_bus_fmt, uint, 0644);
 
+/*
+ * Override DRM mode flags to force the use of Composite Sync on GPIO1.
+ * This is mostly for testing, as neither panel-timing nor command-line
+ * arguments nor utilities such as "kmstest" can set DRM_MODE_FLAG_CSYNC.
+ * Sampled on each enable/mode-switch. Default polarity will be -ve.
+ * (Setting this may break Vertical Sync on GPIO2 for interlaced modes.)
+ */
+static bool force_csync;
+module_param(force_csync, bool, 0644);
+
 /* -------------------------------------------------------------- */
 
 static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
@@ -89,7 +99,8 @@ static void rp1dpi_pipe_update(struct drm_simple_display_pipe *pipe,
 						dpi->bus_fmt,
 						dpi->de_inv,
 						&pipe->crtc.state->mode);
-				rp1dpi_pio_start(dpi, &pipe->crtc.state->mode);
+				rp1dpi_pio_start(dpi, &pipe->crtc.state->mode,
+						 force_csync);
 				dpi->dpi_running = true;
 			}
 			dpi->cur_fmt = fb->format->format;
@@ -294,6 +305,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	struct drm_bridge *bridge = NULL;
 	const char *rgb_order = NULL;
 	struct drm_panel *panel;
+	u32 missing_gpios;
 	int i, j, ret;
 
 	dev_info(dev, __func__);
@@ -354,6 +366,7 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 	if (ret)
 		goto done_err;
 
+	/* RGB order property - to match VC4 */
 	dpi->rgb_order_override = RP1DPI_ORDER_UNCHANGED;
 	if (!of_property_read_string(dev->of_node, "rgb_order", &rgb_order)) {
 		if (!strcmp(rgb_order, "rgb"))
@@ -368,9 +381,9 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 			DRM_ERROR("Invalid dpi order %s - ignored\n", rgb_order);
 	}
 
-	/* Check if PIO can snoop on or override DPI's GPIO1 */
-	dpi->gpio1_used = false;
-	for (i = 0; !dpi->gpio1_used; i++) {
+	/* Check if all of GPIOs 1, 2 and 3 are assigned to DPI */
+	missing_gpios = BIT(1) | BIT(2) | BIT(3);
+	for (i = 0; missing_gpios; i++) {
 		u32 p = 0;
 		const char *str = NULL;
 		struct device_node *np1 = of_parse_phandle(dev->of_node, "pinctrl-0", i);
@@ -379,21 +392,26 @@ static int rp1dpi_platform_probe(struct platform_device *pdev)
 			break;
 
 		if (!of_property_read_string(np1, "function", &str) && !strcmp(str, "dpi")) {
-			for (j = 0; !dpi->gpio1_used; j++) {
+			for (j = 0; missing_gpios; j++) {
 				if (of_property_read_string_index(np1, "pins", j, &str))
 					break;
 				if (!strcmp(str, "gpio1"))
-					dpi->gpio1_used = true;
+					missing_gpios &= ~BIT(1);
+				else if (!strcmp(str, "gpio2"))
+					missing_gpios &= ~BIT(2);
+				else if (!strcmp(str, "gpio3"))
+					missing_gpios &= ~BIT(3);
 			}
-			for (j = 0; !dpi->gpio1_used; j++) {
+			for (j = 0; missing_gpios; j++) {
 				if (of_property_read_u32_index(np1, "brcm,pins", j, &p))
 					break;
-				if (p == 1)
-					dpi->gpio1_used = true;
+				if (p < 32)
+					missing_gpios &= ~(1 << p);
 			}
 		}
 		of_node_put(np1);
 	}
+	dpi->sync_gpios_mapped = !missing_gpios;
 
 	/* Now we have all our resources, finish driver initialization */
 	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
