@@ -2816,6 +2816,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 (the default), 37125000 or 74250000.
         always-on               Leave the regulator powered up, to stop the
                                 camera clamping I/Os such as XTRIG to 0V.
+        sync-sink               Configure as synchronisation sink.
 
 
 Name:   imx327

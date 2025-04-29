@@ -116,5 +116,6 @@
 		       <&imx296>, "avdd-supply:0=",<&cam0_reg>;
 		clock-frequency = <&clk_over>, "clock-frequency:0";
 		always-on = <0>, "+99";
+		sync-sink = <&imx296>,"trigger-mode:0";
 	};
 };
