@@ -743,6 +743,19 @@
 		};
 	};
 
+	fragment@48 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			adxl355: adxl355@1d {
+				compatible = "adi,adxl355";
+				reg = <0x1d>;
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -803,6 +816,7 @@
 		veml6040 = <0>,"+45";
 		ads7828 = <0>,"+46";
 		ads7830 = <0>,"+47";
+		adxl355 = <0>,"+48";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -815,7 +829,8 @@
 			<&bmp380>,"reg:0", <&adt7410>,"reg:0", <&ina238>,"reg:0",
 			<&hdc3020>,"reg:0", <&as73211>,"reg:0",
 			<&as7331>,"reg:0", <&adxl345>,"reg:0",
-			<&ads7828>,"reg:0", <&ads7830>,"reg:0";
+			<&ads7828>,"reg:0", <&ads7830>,"reg:0",
+			<&adxl355>,"reg:0";
 		int_pin = <&int_pins>, "brcm,pins:0",
 			<&int_pins>, "reg:0",
 			<&max30102>, "interrupts:0",

@@ -2444,6 +2444,9 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
         adxl345                 Select the Analog Devices ADXL345 3-axis
                                 accelerometer
 
+        adxl355                 Select the Analog Devices ADXL355 3-axis
+                                accelerometer
+
         aht10                   Select the Aosong AHT10 temperature and humidity
                                 sensor
 
