@@ -416,21 +416,18 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 		}
 	}
 
-	v3d->clk = devm_clk_get(dev, NULL);
-	if (IS_ERR_OR_NULL(v3d->clk)) {
-		if (PTR_ERR(v3d->clk) != -EPROBE_DEFER)
-			dev_err(dev, "Failed to get clock (%ld)\n", PTR_ERR(v3d->clk));
-		return PTR_ERR(v3d->clk);
-	}
-
 	node = rpi_firmware_find_node();
-	if (!node)
-		return -EINVAL;
+	if (!node) {
+		ret = -EINVAL;
+		goto clk_disable;
+	}
 
 	firmware = rpi_firmware_get(node);
 	of_node_put(node);
-	if (!firmware)
-		return -EPROBE_DEFER;
+	if (!firmware) {
+		ret = -EPROBE_DEFER;
+		goto clk_disable;
+	}
 
 	v3d->clk_up_rate = rpi_firmware_clk_get_max_rate(firmware,
 							 RPI_FIRMWARE_V3D_CLK_ID);
