@@ -401,6 +401,85 @@ static int vc4_hvs_debugfs_lbm_allocs(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int vc6_hvs_debugfs_gamma(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	unsigned int i, chan;
+	u32 dispstat, dither_gamma;
+
+	for (chan = 0; chan < SCALER_CHANNELS_COUNT; chan++) {
+		u32 x_c, grad;
+		u32 offset = SCALER6D_DSPGAMMA_START +
+			chan * SCALER6D_DSPGAMMA_CHAN_OFFSET;
+
+		dispstat = VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_STATUS(chan)),
+					 SCALER6_DISPX_STATUS_MODE);
+		if (dispstat == SCALER6_DISPX_STATUS_MODE_DISABLED ||
+		    dispstat == SCALER6_DISPX_STATUS_MODE_EOF) {
+			drm_printf(&p, "HVS channel %u: disabled\n", chan);
+			continue;
+		}
+
+		dither_gamma = HVS_READ(SCALER6D_DITHERGAMMA);
+		if (!(dither_gamma & SCALER6D_DITHERGAMMA_GAMMA(chan))) {
+			drm_printf(&p, "HVS channel %u: Gamma disabled\n", chan);
+			continue;
+		}
+
+		drm_printf(&p, "HVS channel %u:\n", chan);
+		drm_printf(&p, "  blue:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+		drm_printf(&p, "  green:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+		drm_printf(&p, "  red:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+
+		/* Alpha only valid on channel 2 */
+		if (chan != 2)
+			continue;
+
+		drm_printf(&p, "  alpha:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+	}
+	return 0;
+}
+
 /* The filter kernel is composed of dwords each containing 3 9-bit
  * signed integers packed next to each other.
  */
@@ -1623,6 +1702,8 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 	if (vc4->gen >= VC4_GEN_6_C) {
 		drm_debugfs_add_file(drm, "hvs_dlists", vc6_hvs_debugfs_dlist, NULL);
 		drm_debugfs_add_file(drm, "hvs_upm", vc6_hvs_debugfs_upm_allocs, NULL);
+		if (vc4->gen >= VC4_GEN_6_D)
+			drm_debugfs_add_file(drm, "gamma", vc6_hvs_debugfs_gamma, NULL);
 	} else {
 		drm_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist, NULL);
 	}
