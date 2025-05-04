@@ -30,11 +30,14 @@
 #define RTL821x_EXT_PAGE_SELECT			0x1e
 #define RTL821x_PAGE_SELECT			0x1f
 
+/* RTL8211F PHY configuration */
+#define RTL8211F_PHYCR_PAGE			0xa43
 #define RTL8211F_PHYCR1				0x18
 #define RTL8211F_PHYCR2				0x19
 #define RTL8211F_CLKOUT_EN			BIT(0)
 #define RTL8211F_PHYCR2_PHY_EEE_ENABLE		BIT(5)
 
+#define RTL8211F_INSR_PAGE			0xa43
 #define RTL8211F_INSR				0x1d
 
 /* RTL8211F WOL interrupt configuration */
@@ -55,6 +58,8 @@
 #define RTL8211F_PHYSICAL_ADDR_WORD1		17
 #define RTL8211F_PHYSICAL_ADDR_WORD2		18
 
+/* RTL8211F LED configuration */
+#define RTL8211F_LEDCR_PAGE			0xd04
 #define RTL8211F_LEDCR				0x10
 #define RTL8211F_LEDCR_MODE			BIT(15)
 #define RTL8211F_LEDCR_ACT_TXRX			BIT(4)
@@ -64,7 +69,13 @@
 #define RTL8211F_LEDCR_MASK			GENMASK(4, 0)
 #define RTL8211F_LEDCR_SHIFT			5
 
+/* RTL8211F RGMII configuration */
+#define RTL8211F_RGMII_PAGE			0xd08
+
+#define RTL8211F_TXCR				0x11
 #define RTL8211F_TX_DELAY			BIT(8)
+
+#define RTL8211F_RXCR				0x15
 #define RTL8211F_RX_DELAY			BIT(3)
 
 #define RTL8211F_ALDPS_PLL_OFF			BIT(1)
@@ -158,7 +169,7 @@ static int rtl821x_probe(struct phy_device *phydev)
 		return dev_err_probe(dev, PTR_ERR(priv->clk),
 				     "failed to get phy clock\n");
 
-	ret = phy_read_paged(phydev, 0xa43, RTL8211F_PHYCR1);
+	ret = phy_read_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR1);
 	if (ret < 0)
 		return ret;
 
@@ -168,7 +179,7 @@ static int rtl821x_probe(struct phy_device *phydev)
 
 	priv->has_phycr2 = !(phy_id == RTL_8211FVD_PHYID);
 	if (priv->has_phycr2) {
-		ret = phy_read_paged(phydev, 0xa43, RTL8211F_PHYCR2);
+		ret = phy_read_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR2);
 		if (ret < 0)
 			return ret;
 
@@ -204,7 +215,7 @@ static int rtl8211f_ack_interrupt(struct phy_device *phydev)
 {
 	int err;
 
-	err = phy_read_paged(phydev, 0xa43, RTL8211F_INSR);
+	err = phy_read_paged(phydev, RTL8211F_INSR_PAGE, RTL8211F_INSR);
 
 	return (err < 0) ? err : 0;
 }
@@ -347,7 +358,7 @@ static irqreturn_t rtl8211f_handle_interrupt(struct phy_device *phydev)
 {
 	int irq_status;
 
-	irq_status = phy_read_paged(phydev, 0xa43, RTL8211F_INSR);
+	irq_status = phy_read_paged(phydev, RTL8211F_INSR_PAGE, RTL8211F_INSR);
 	if (irq_status < 0) {
 		phy_error(phydev);
 		return IRQ_NONE;
@@ -444,7 +455,7 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 	u16 val_txdly, val_rxdly;
 	int ret;
 
-	ret = phy_modify_paged_changed(phydev, 0xa43, RTL8211F_PHYCR1,
+	ret = phy_modify_paged_changed(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR1,
 				       RTL8211F_ALDPS_PLL_OFF | RTL8211F_ALDPS_ENABLE | RTL8211F_ALDPS_XTAL_OFF,
 				       priv->phycr1);
 	if (ret < 0) {
@@ -478,7 +489,8 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 		return 0;
 	}
 
-	ret = phy_modify_paged_changed(phydev, 0xd08, 0x11, RTL8211F_TX_DELAY,
+	ret = phy_modify_paged_changed(phydev, RTL8211F_RGMII_PAGE,
+				       RTL8211F_TXCR, RTL8211F_TX_DELAY,
 				       val_txdly);
 	if (ret < 0) {
 		dev_err(dev, "Failed to update the TX delay register\n");
@@ -493,7 +505,8 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 			str_enabled_disabled(val_txdly));
 	}
 
-	ret = phy_modify_paged_changed(phydev, 0xd08, 0x15, RTL8211F_RX_DELAY,
+	ret = phy_modify_paged_changed(phydev, RTL8211F_RGMII_PAGE,
+				       RTL8211F_RXCR, RTL8211F_RX_DELAY,
 				       val_rxdly);
 	if (ret < 0) {
 		dev_err(dev, "Failed to update the RX delay register\n");
@@ -509,14 +522,15 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 	}
 
 	/* Disable PHY-mode EEE so LPI is passed to the MAC */
-	ret = phy_modify_paged(phydev, 0xa43, RTL8211F_PHYCR2,
+	ret = phy_modify_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR2,
 			       RTL8211F_PHYCR2_PHY_EEE_ENABLE, 0);
 	if (ret)
 		return ret;
 
 	if (priv->has_phycr2) {
-		ret = phy_modify_paged(phydev, 0xa43, RTL8211F_PHYCR2,
-				       RTL8211F_CLKOUT_EN, priv->phycr2);
+		ret = phy_modify_paged(phydev, RTL8211F_PHYCR_PAGE,
+				       RTL8211F_PHYCR2, RTL8211F_CLKOUT_EN,
+				       priv->phycr2);
 		if (ret < 0) {
 			dev_err(dev, "clkout configuration failed: %pe\n",
 				ERR_PTR(ret));
