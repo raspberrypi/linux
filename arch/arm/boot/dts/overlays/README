@@ -460,6 +460,9 @@ Params:
                                 6, 8 and 10 of the 40-way header (2712 only,
                                 default "off")
 
+        uart0_dma               Enable DMA usage on UART0 (2712 only, default
+                                "off")
+
         uart1                   Set to "on" or "off" to enable or disable uart1
                                 (default varies)
 
