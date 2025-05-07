@@ -82,9 +82,12 @@ static const struct vchiq_platform_info bcm2711_info = {
 };
 
 struct vchiq_arm_state {
-	/* Keepalive-related data */
-	/* TODO: Please elaborate the purpose of this thread
-	 * What needs to be kept alive?
+	/*
+	 * Keepalive-related data
+	 *
+	 * The keepalive mechanism was retro-fitted to VCHIQ to allow active
+	 * services to prevent the system from suspending. This feature is not used
+	 * on Raspberry Pi devices.
 	 */
 	struct task_struct *ka_thread;
 	struct completion ka_evt;

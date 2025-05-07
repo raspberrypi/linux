@@ -6,40 +6,82 @@ Description:
 		The ioctl interface for the VCHIQ character device.
 		Following actions are supported:
 
-		/* TODO: Please explain each IOCTL in short */
-
 		* VCHIQ_IOC_CONNECT:
+		  Establish/confirm the link to the VPU peer.
 
 		* VCHIQ_IOC_SHUTDOWN:
+		  Close the link to the VPU peer, removing all services.
 
 		* VCHIQ_IOC_CREATE_SERVICE:
+		  Create a VCHIQ service with the given FOURCC, registering a
+		  callback. If is_open is true, attempt to connect to the same
+		  FOURCC on the peer. If successful, populates the handle field
+		  in the parameter structure, otherwise returns an error.
 
 		* VCHIQ_IOC_REMOVE_SERVICE:
+		  Close and remove the service indicated by the provided
+		  handle.
 
 		* VCHIQ_IOC_QUEUE_MESSAGE:
+		  Adds the given in-band message for the indicated server to
+		  the queue.
 
 		* VCHIQ_IOC_QUEUE_BULK_TRANSMIT:
+		  Adds the given out-of-band bulk message for the indicated
+		  service to the bulk queue.
 
 		* VCHIQ_IOC_QUEUE_BULK_RECEIVE:
+		  Adds the given out-of-band bulk buffer for data from the
+		  indicated service to the bulk queue.
 
 		* VCHIQ_IOC_AWAIT_COMPLETION:
+		  The in-kernel API allows direct callbacks to client code.
+		  Userspace clients rely on the equivalent of an RPC, with the
+		  parameters for each callback marshalled into structures
+		  called completions. This method blocks waiting for
+		  completions to process.
 
 		* VCHIQ_IOC_DEQUEUE_MESSAGE:
+		  Copy the next message for the indicated service, releasing
+		  the space that was occupied. Optionally blocks if no message
+		  is waiting.
 
 		* VCHIQ_IOC_GET_CLIENT_ID:
+		  Retrieve an identifier for the client. This is intended to
+		  allow instances of multiple services to be grouped. For
+		  services provided by Linux the client ID is the pid. VPU
+		  services have a client ID of 1.
 
 		* VCHIQ_IOC_GET_CONFIG:
+		  Returns various properties of the VCHIQ configuration, such
+		  as the maximum message size and version numbers.
 
 		* VCHIQ_IOC_CLOSE_SERVICE:
+		  Cause a service to disconnect from the peer, returning it to
+		  the closed/listening state, i.e. REMOVE_SERVICE but without
+		  destroying the service.
 
 		* VCHIQ_IOC_USE_SERVICE:
-
 		* VCHIQ_IOC_RELEASE_SERVICE:
+		  Use to mark the start and end of activity on a service. An
+		  active service is intended to prevent the system from
+		  suspending. N.B. Raspberry Pi devices that run VCHIQ do not
+		  implement suspend/resume.
 
 		* VCHIQ_IOC_SET_SERVICE_OPTION:
+		  Sets a number of per-service options: AUTOCLOSE, SLOT_QUOTA,
+		  MESSAGE_QUOTA, SYNCHRONOUS mode and TRACE.
 
 		* VCHIQ_IOC_DUMP_PHYS_MEM:
+		  No longer implemented.
 
 		* VCHIQ_IOC_LIB_VERSION:
+		  Notify the kernel of the version of the userspace VCHIQ
+		  library being used. Currently used to determine if the
+		  CLOSE_DELIVERED ioctl is used, and therefore whether to
+		  wait for the extra handshake on a close.
 
 		* VCHIQ_IOC_CLOSE_DELIVERED:
+		  Signal that the userspace code has finished processing the
+		  close. This additional handshake avoids a race on service
+		  closure.
