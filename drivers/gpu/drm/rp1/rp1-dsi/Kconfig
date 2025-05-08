@@ -2,6 +2,7 @@
 config DRM_RP1_DSI
 	tristate "DRM Support for RP1 DSI"
 	depends on DRM && MFD_RP1
+	select DRM_CLIENT_SELECTION
 	select DRM_GEM_DMA_HELPER
 	select DRM_KMS_HELPER
 	select DRM_MIPI_DSI
