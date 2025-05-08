@@ -2,6 +2,7 @@
 config DRM_RP1_DPI
 	tristate "DRM Support for RP1 DPI"
 	depends on DRM && MFD_RP1
+	select DRM_CLIENT_SELECTION
 	select DRM_GEM_DMA_HELPER
 	select DRM_KMS_HELPER
 	select DRM_VRAM_HELPER
