@@ -197,6 +197,7 @@
 #include <linux/nospec.h>
 
 #include "configfs.h"
+#include <linux/ctype.h>
 
 
 /*------------------------------------------------------------------------*/
@@ -232,6 +233,9 @@ struct fsg_common;
 
 /* Data shared by all the FSG instances. */
 struct fsg_common {
+	bool is_cue_file;
+	char *cue_path;
+	loff_t total_cue_size;
 	struct usb_gadget	*gadget;
 	struct usb_composite_dev *cdev;
 	struct fsg_dev		*fsg;
@@ -733,6 +737,233 @@ static int do_read(struct fsg_common *common)
 
 
 /*-------------------------------------------------------------------------*/
+
+static bool is_cue_file(const char *filename)
+{
+    const char *ext = strrchr(filename, '.');
+    if (ext && !strcasecmp(ext, ".cue"))
+        return true;
+    return false;
+}
+
+/* Simple trimming function to remove leading and trailing whitespace */
+static char *trim_whitespace(char *str)
+{
+    char *end;
+
+    /* Trim leading space */
+    while (isspace(*str))
+        str++;
+
+    /* All spaces? */
+    if (*str == 0)
+        return str;
+
+    /* Trim trailing space */
+    end = str + strlen(str) - 1;
+    while (end > str && isspace(*end))
+        end--;
+
+    /* Write new null terminator */
+    *(end + 1) = 0;
+
+    return str;
+}
+
+/* Extract binary filename from a CUE line */
+static char *extract_bin_filename(char *line)
+{
+    char *start, *end;
+    static char filename[PATH_MAX];
+    
+    /* Find the first quote */
+    start = strchr(line, '"');
+    if (!start)
+        return NULL;
+    
+    start++; /* Skip the first quote */
+    
+    /* Find the closing quote */
+    end = strchr(start, '"');
+    if (!end)
+        return NULL;
+        
+    /* Copy the filename */
+    if (end - start >= PATH_MAX)
+        return NULL;
+        
+    memcpy(filename, start, end - start);
+    filename[end - start] = '\0';
+    
+    return filename;
+}
+
+/* Get the directory part from a full path */
+static void get_directory(char *path, char *dir)
+{
+    char *last_slash = strrchr(path, '/');
+    
+    if (!last_slash) {
+        /* No slash, use current directory */
+        strcpy(dir, ".");
+        return;
+    }
+    
+    /* Copy directory part */
+    int dir_len = last_slash - path;
+    memcpy(dir, path, dir_len);
+    dir[dir_len] = '\0';
+}
+
+/*
+ * Parse a CUE file and calculate the total size of all referenced binary files
+ * Returns: total size of all binary files or -1 on error
+ */
+static loff_t parse_cue_file(struct fsg_common *common, struct file *cue_file)
+{
+    loff_t total_size = 0;
+    char *line_buf = NULL;
+    char *bin_filename = NULL;
+    char cue_dir[PATH_MAX];
+    char full_bin_path[PATH_MAX];
+    int line_size = 0;
+    loff_t offset = 0;
+    struct file *bin_file = NULL;
+    struct kstat stat;
+    mm_segment_t old_fs;
+    int err;
+
+    line_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+    if (!line_buf)
+        return -1;
+        
+    /* Get the directory from the CUE file path */
+    get_directory(common->cue_path, cue_dir);
+    
+    /* Read CUE file line by line */
+    while (1) {
+        loff_t pos = offset;
+        size_t read_bytes;
+        char *line_start, *line_end;
+        int i = 0;
+        
+        /* Read a chunk from the file */
+        read_bytes = kernel_read(cue_file, line_buf, PATH_MAX - 1, &pos);
+        if (read_bytes <= 0)
+            break;
+            
+        line_buf[read_bytes] = '\0';
+        offset = pos;
+        
+        line_start = line_buf;
+        
+        /* Parse each line in the chunk */
+        while ((line_end = strchr(line_start, '\n')) != NULL) {
+            *line_end = '\0';
+            
+            /* Check if this is a FILE line */
+            if (!strncasecmp(line_start, "FILE", 4) && strstr(line_start, "BINARY")) {
+                /* Extract the binary filename */
+                bin_filename = extract_bin_filename(line_start);
+                if (bin_filename) {
+                    /* Construct full path to binary file */
+                    if (cue_dir[0] == '.') {
+                        strcpy(full_bin_path, bin_filename);
+                    } else {
+                        snprintf(full_bin_path, PATH_MAX, "%s/%s", cue_dir, bin_filename);
+                    }
+                    
+                    /* Open the binary file to check its size */
+                    bin_file = filp_open(full_bin_path, O_RDONLY, 0);
+                    if (IS_ERR(bin_file)) {
+                        pr_err("Failed to open binary file: %s\n", full_bin_path);
+                        kfree(line_buf);
+                        return -1;
+                    }
+                    
+                    /* Get file size */
+                    old_fs = get_fs();
+                    set_fs(KERNEL_DS);
+                    err = vfs_stat(full_bin_path, &stat);
+                    set_fs(old_fs);
+                    
+                    if (err) {
+                        pr_err("Failed to get binary file size: %s\n", full_bin_path);
+                        filp_close(bin_file, NULL);
+                        kfree(line_buf);
+                        return -1;
+                    }
+                    
+                    /* Add to total size */
+                    total_size += stat.size;
+                    
+                    /* Close binary file */
+                    filp_close(bin_file, NULL);
+                    bin_file = NULL;
+                }
+            }
+            
+            line_start = line_end + 1;
+            if (line_start >= line_buf + read_bytes)
+                break;
+        }
+        
+        /* Check if we've reached the end of the file */
+        if (read_bytes < PATH_MAX - 1)
+            break;
+            
+        /* If the last line was incomplete, go back to its start */
+        if (line_start < line_buf + read_bytes)
+            offset -= (line_buf + read_bytes) - line_start;
+    }
+    
+    kfree(line_buf);
+    return total_size;
+}
+
+/*
+ * Initialize CUE file support for a LUN
+ * This function checks if the file is a CUE file, and if so, calculates
+ * the total size of all referenced binary files.
+ */
+static int fsg_lun_init_cue(struct fsg_common *common, struct fsg_lun *curlun)
+{
+    struct file *filp = curlun->filp;
+    loff_t file_size = i_size_read(file_inode(filp));
+    const char *filename = curlun->filename;
+    loff_t total_size;
+    
+    /* Check if this is a CUE file */
+    if (!is_cue_file(filename))
+        return 0;
+        
+    /* It's a CUE file, save the path */
+    common->is_cue_file = true;
+    
+    if (common->cue_path)
+        kfree(common->cue_path);
+    
+    common->cue_path = kstrdup(filename, GFP_KERNEL);
+    if (!common->cue_path)
+        return -ENOMEM;
+        
+    /* Parse the CUE file to get total size of referenced binary files */
+    total_size = parse_cue_file(common, filp);
+    if (total_size <= 0) {
+        pr_err("Failed to parse CUE file or no valid binary files found\n");
+        common->is_cue_file = false;
+        kfree(common->cue_path);
+        common->cue_path = NULL;
+        return -EINVAL;
+    }
+    
+    /* Store the total size */
+    common->total_cue_size = total_size;
+    pr_info("CUE file detected, total size of binary files: %lld bytes\n", 
+            common->total_cue_size);
+    
+    return 0;
+}
 
 static int do_write(struct fsg_common *common)
 {
@@ -2698,23 +2929,25 @@ static void fsg_lun_release(struct device *dev)
 
 static struct fsg_common *fsg_common_setup(struct fsg_common *common)
 {
-	if (!common) {
-		common = kzalloc(sizeof(*common), GFP_KERNEL);
-		if (!common)
-			return ERR_PTR(-ENOMEM);
-		common->free_storage_on_release = 1;
-	} else {
-		common->free_storage_on_release = 0;
-	}
-	init_rwsem(&common->filesem);
-	spin_lock_init(&common->lock);
-	init_completion(&common->thread_notifier);
-	init_waitqueue_head(&common->io_wait);
-	init_waitqueue_head(&common->fsg_wait);
-	common->state = FSG_STATE_TERMINATED;
-	memset(common->luns, 0, sizeof(common->luns));
+    if (!common) {
+        common = kzalloc(sizeof(*common), GFP_KERNEL);
+        if (!common)
+            return ERR_PTR(-ENOMEM);
+        common->free_storage_on_release = 1;
+    } else {
+        common->free_storage_on_release = 0;
+    }
+    init_rwsem(&common->filesem);
+    spin_lock_init(&common->lock);
+    init_completion(&common->thread_notifier);
+    init_waitqueue_head(&common->io_wait);
+    init_waitqueue_head(&common->fsg_wait);
+    common->state = FSG_STATE_TERMINATED;
+    common->is_cue_file = false;  /* Initialize CUE support */
+    common->cue_path = NULL;      /* Initialize CUE path */
+    memset(common->luns, 0, sizeof(common->luns));
 
-	return common;
+    return common;
 }
 
 void fsg_common_set_sysfs(struct fsg_common *common, bool sysfs)
@@ -2777,10 +3010,12 @@ EXPORT_SYMBOL_GPL(fsg_common_set_num_buffers);
 
 void fsg_common_remove_lun(struct fsg_lun *lun)
 {
-	if (device_is_registered(&lun->dev))
-		device_unregister(&lun->dev);
-	fsg_lun_close(lun);
-	kfree(lun);
+    if (device_is_registered(&lun->dev))
+        device_unregister(&lun->dev);
+    fsg_lun_close(lun);
+    if (lun->common && lun->common->cue_path)
+        kfree(lun->common->cue_path);
+    kfree(lun);
 }
 EXPORT_SYMBOL_GPL(fsg_common_remove_lun);
 
@@ -2923,6 +3158,15 @@ int fsg_common_create_lun(struct fsg_common *common, struct fsg_lun_config *cfg,
 		rc = fsg_lun_open(lun, cfg->filename);
 		if (rc)
 			goto error_lun;
+
+        /* Initialize CUE support if needed */
+        if (is_cue_file(cfg->filename)) {
+            rc = fsg_lun_init_cue(common, lun);
+            if (rc) {
+                pr_err("Failed to initialize CUE file support\n");
+                goto error_lun;
+            }
+        }
 
 		p = "(error)";
 		pathbuf = kmalloc(PATH_MAX, GFP_KERNEL);
@@ -3616,3 +3860,23 @@ void fsg_config_from_params(struct fsg_config *cfg,
 	cfg->fsg_num_buffers = fsg_num_buffers;
 }
 EXPORT_SYMBOL_GPL(fsg_config_from_params);
+
+static loff_t fsg_lun_get_file_size(struct fsg_lun *curlun)
+{
+    struct fsg_common *common = curlun->common;
+    
+    if (common && common->is_cue_file && common->total_cue_size > 0)
+        return common->total_cue_size;
+        
+    return i_size_read(file_inode(curlun->filp));
+}
+
+int fsg_lun_open(struct fsg_lun *curlun, const char *filename)
+{
+    int rc;
+    
+    rc = _fsg_lun_open(curlun, filename);
+    if (!rc && curlun->filp && curlun->common && is_cue_file(filename))
+        fsg_lun_init_cue(curlun->common, curlun);
+    return rc;
+}

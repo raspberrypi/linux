@@ -30,6 +30,25 @@
  
  /* There is only one interface. */
  
+/* Forward declaration */
+static loff_t fsg_lun_get_file_size(struct fsg_lun *curlun);
+
+/* Get the size of a file, handling CUE files specially */
+static loff_t fsg_lun_get_file_size(struct fsg_lun *curlun)
+{
+    struct fsg_common *common;
+    
+    if (!curlun || !curlun->filp)
+        return 0;
+        
+    common = curlun->common;
+    if (common && common->is_cue_file && common->total_cue_size > 0)
+        return common->total_cue_size;
+        
+    return i_size_read(file_inode(curlun->filp));
+}
+
+
  struct usb_interface_descriptor fsg_intf_desc = {
 	 .bLength =		sizeof fsg_intf_desc,
 	 .bDescriptorType =	USB_DT_INTERFACE,
@@ -176,7 +195,7 @@
  }
  EXPORT_SYMBOL_GPL(fsg_lun_close);
  
- int fsg_lun_open(struct fsg_lun *curlun, const char *filename)
+ int _fsg_lun_open(struct fsg_lun *curlun, const char *filename)
  {
 	 int				ro;
 	 struct file			*filp = NULL;
@@ -188,6 +207,9 @@
 	 unsigned int			blkbits;
 	 unsigned int			blksize;
  
+    /* Store reference to common for CUE file support */
+    curlun->common = common;
+
 	 /* R/W if we can, R/O if we must */
 	 ro = curlun->initially_ro;
 	 if (!ro) {
@@ -211,6 +233,16 @@
 		 goto out;
 	 }
  
+    /* Modify this part to use our file size function */
+    /* Verify the file's size */
+    rc = -EINVAL;
+    inode = file_inode(filp);
+    size = fsg_lun_get_file_size(curlun);
+    if (size < PAGE_SIZE) {
+        LINFO(curlun, "file too small: %lld\n", size);
+        goto out;
+    }
+
 	 /*
 	  * If we can't read the file, it's no good.
 	  * If we can't write the file, use it read-only.
@@ -268,6 +300,7 @@
  }
  EXPORT_SYMBOL_GPL(fsg_lun_open);
  
+ int fsg_lun_open(struct fsg_lun *curlun, const char *filename) __attribute__((weak));
  
  /*-------------------------------------------------------------------------*/
  

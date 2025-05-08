@@ -97,6 +97,9 @@ do {									\
 
 struct fsg_lun {
 	struct file	*filp;
+	unsigned int blkbits;
+    unsigned int blksize;
+	struct fsg_common *common;
 	loff_t		file_length;
 	loff_t		num_sectors;
 
@@ -121,6 +124,8 @@ struct fsg_lun {
 	const char	**name_pfx;	/* "function.name" */
 	char		inquiry_string[INQUIRY_STRING_LEN];
 };
+
+int _fsg_lun_open(struct fsg_lun *curlun, const char *filename);
 
 static inline bool fsg_lun_is_open(struct fsg_lun *curlun)
 {
