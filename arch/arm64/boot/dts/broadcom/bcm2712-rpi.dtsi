@@ -97,7 +97,7 @@ pio: &rp1_pio {
 
 / {
 	chosen: chosen {
-		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave";
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=0";
 		stdout-path = "serial10:115200n8";
 	};
 
