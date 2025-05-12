@@ -415,9 +415,13 @@ static ssize_t upisnd_element_pin_show(struct kobject *kobj, struct kobj_attribu
 				       char *buf);
 static ssize_t upisnd_element_pin_name_show(struct kobject *kobj, struct kobj_attribute *attr,
 					    char *buf);
+static ssize_t upisnd_element_pin_pull_show(struct kobject *kobj, struct kobj_attribute *attr,
+					    char *buf);
 static ssize_t upisnd_element_pin_b_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf);
 static ssize_t upisnd_element_pin_b_name_show(struct kobject *kobj, struct kobj_attribute *attr,
+					      char *buf);
+static ssize_t upisnd_element_pin_b_pull_show(struct kobject *kobj, struct kobj_attribute *attr,
 					      char *buf);
 static ssize_t upisnd_element_activity_type_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf);
@@ -446,10 +450,14 @@ static struct kobj_attribute upisnd_element_pin_attr = __ATTR(pin, 0444, upisnd_
 	NULL);
 static struct kobj_attribute upisnd_element_pin_name_attr = __ATTR(pin_name, 0444,
 	upisnd_element_pin_name_show, NULL);
+static struct kobj_attribute upisnd_element_pin_pull_attr = __ATTR(pin_pull, 0444,
+	upisnd_element_pin_pull_show, NULL);
 static struct kobj_attribute upisnd_element_pin_b_attr = __ATTR(pin_b, 0444,
 	upisnd_element_pin_b_show, NULL);
 static struct kobj_attribute upisnd_element_pin_b_name_attr = __ATTR(pin_b_name, 0444,
 	upisnd_element_pin_b_name_show, NULL);
+static struct kobj_attribute upisnd_element_pin_b_pull_attr = __ATTR(pin_b_pull, 0444,
+	upisnd_element_pin_b_pull_show, NULL);
 static struct kobj_attribute upisnd_element_activity_type_attr = __ATTR(activity_type, 0444,
 	upisnd_element_activity_type_show, NULL);
 static struct kobj_attribute upisnd_element_gpio_export_attr = __ATTR(gpio_export, 0220, NULL,
@@ -468,8 +476,10 @@ static struct attribute *upisnd_element_attrs[] = {
 	&upisnd_element_direction_attr.attr,
 	&upisnd_element_pin_attr.attr,
 	&upisnd_element_pin_name_attr.attr,
+	&upisnd_element_pin_pull_attr.attr,
 	&upisnd_element_pin_b_attr.attr,
 	&upisnd_element_pin_b_name_attr.attr,
+	&upisnd_element_pin_b_pull_attr.attr,
 	&upisnd_element_activity_type_attr.attr,
 	&upisnd_element_gpio_export_attr.attr,
 	&upisnd_element_gpio_unexport_attr.attr,
@@ -491,7 +501,8 @@ static umode_t upisnd_element_attr_is_visible(struct kobject *kobj, struct attri
 	case UPISND_ELEMENT_TYPE_ENCODER:
 		if (attr == &upisnd_element_value_mode_attr.attr ||
 		    attr == &upisnd_element_pin_b_attr.attr ||
-			attr == &upisnd_element_pin_b_name_attr.attr)
+		    attr == &upisnd_element_pin_b_name_attr.attr ||
+		    attr == &upisnd_element_pin_b_pull_attr.attr)
 			return attr->mode;
 		fallthrough;
 	case UPISND_ELEMENT_TYPE_ANALOG_IN:
@@ -522,6 +533,14 @@ static umode_t upisnd_element_attr_is_visible(struct kobject *kobj, struct attri
 					return 0444;
 			}
 			return attr->mode;
+		} else if (attr == &upisnd_element_pin_pull_attr.attr) {
+			if (t == UPISND_ELEMENT_TYPE_GPIO) {
+				if (upisnd_setup_get_gpio_dir(instance->gpio.pin_configs
+				    [element->gpio_pins[0]].setup) == UPISND_PIN_DIR_INPUT)
+					return attr->mode;
+			} else if (t == UPISND_ELEMENT_TYPE_ENCODER) {
+				return attr->mode;
+			}
 		}
 		break;
 	case UPISND_ELEMENT_TYPE_ACTIVITY:
@@ -535,7 +554,7 @@ static umode_t upisnd_element_attr_is_visible(struct kobject *kobj, struct attri
 
 	if (attr == &upisnd_element_type_attr.attr ||
 	    attr == &upisnd_element_pin_attr.attr ||
-		attr == &upisnd_element_pin_name_attr.attr)
+	    attr == &upisnd_element_pin_name_attr.attr)
 		return attr->mode;
 
 	return 0;
@@ -1524,6 +1543,55 @@ static ssize_t upisnd_element_pin_name_show(struct kobject *kobj, struct kobj_at
 	return -EINVAL;
 }
 
+static const char *upisnd_pin_pull_to_string(enum upisnd_pin_pull_e pull)
+{
+	switch (pull) {
+	case UPISND_PIN_PULL_NONE:
+		return "pull_none";
+	case UPISND_PIN_PULL_DOWN:
+		return "pull_down";
+	case UPISND_PIN_PULL_UP:
+		return "pull_up";
+	default:
+		return NULL;
+	}
+}
+
+static ssize_t upisnd_element_pin_pull_show(struct kobject *kobj, struct kobj_attribute *attr,
+					    char *buf)
+{
+	struct upisnd_element *element = to_element(kobj);
+
+	struct upisnd_config *cfg = to_config(kobj->parent->parent);
+	struct upisnd_instance *instance = cfg->instance;
+
+	enum upisnd_element_type_e t = UPISND_ELEMENT_TYPE_NONE;
+
+	if (element->gpio_pins[0] != UPISND_PIN_INVALID)
+		t = upisnd_setup_get_element_type(instance->gpio.pin_configs[element->gpio_pins[0]]
+						  .setup);
+
+	if (t == UPISND_ELEMENT_TYPE_GPIO) {
+		if (upisnd_setup_get_gpio_dir(instance->gpio.pin_configs[element->gpio_pins[0]]
+					      .setup) != UPISND_PIN_DIR_INPUT)
+			return -EINVAL;
+	} else if (t != UPISND_ELEMENT_TYPE_ENCODER) {
+		return -EINVAL;
+	}
+
+	enum upisnd_pin_pull_e pull = upisnd_setup_get_gpio_pull(
+		instance->gpio.pin_configs[element->gpio_pins[0]].setup);
+
+	switch (pull) {
+	case UPISND_PIN_PULL_NONE:
+	case UPISND_PIN_PULL_DOWN:
+	case UPISND_PIN_PULL_UP:
+		return sprintf(buf, "%s\n", upisnd_pin_pull_to_string(pull));
+	default:
+		return 0;
+	}
+}
+
 static ssize_t upisnd_element_pin_b_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
@@ -1544,6 +1612,36 @@ static ssize_t upisnd_element_pin_b_name_show(struct kobject *kobj, struct kobj_
 		return sprintf(buf, "%s\n", upisnd_pin_name(element->gpio_pins[1]));
 
 	return -EINVAL;
+}
+
+static ssize_t upisnd_element_pin_b_pull_show(struct kobject *kobj, struct kobj_attribute *attr,
+					      char *buf)
+{
+	struct upisnd_element *element = to_element(kobj);
+
+	struct upisnd_config *cfg = to_config(kobj->parent->parent);
+	struct upisnd_instance *instance = cfg->instance;
+
+	enum upisnd_element_type_e t = UPISND_ELEMENT_TYPE_NONE;
+
+	if (element->gpio_pins[0] != UPISND_PIN_INVALID)
+		t = upisnd_setup_get_element_type(instance->gpio.pin_configs[element->gpio_pins[0]]
+						  .setup);
+
+	if (t != UPISND_ELEMENT_TYPE_ENCODER)
+		return -EINVAL;
+
+	enum upisnd_pin_pull_e pull = upisnd_setup_get_encoder_pin_b_pull(
+		instance->gpio.pin_configs[element->gpio_pins[0]].setup);
+
+	switch (pull) {
+	case UPISND_PIN_PULL_NONE:
+	case UPISND_PIN_PULL_DOWN:
+	case UPISND_PIN_PULL_UP:
+		return sprintf(buf, "%s\n", upisnd_pin_pull_to_string(pull));
+	default:
+		return 0;
+	}
 }
 
 static ssize_t upisnd_element_activity_type_show(struct kobject *kobj, struct kobj_attribute *attr,
