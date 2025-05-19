@@ -149,6 +149,7 @@ static void dphy_init(struct dphy_data *dphy)
 
 void dphy_start(struct dphy_data *dphy)
 {
+	dw_csi2_host_write(dphy, RESETN, 0);
 	dw_csi2_host_write(dphy, N_LANES, (dphy->active_lanes - 1));
 	dphy_init(dphy);
 	dw_csi2_host_write(dphy, RESETN, 0xffffffff);
@@ -157,9 +158,18 @@ void dphy_start(struct dphy_data *dphy)
 
 void dphy_stop(struct dphy_data *dphy)
 {
-	/* Set only one lane (lane 0) as active (ON) */
-	dw_csi2_host_write(dphy, N_LANES, 0);
-	dw_csi2_host_write(dphy, RESETN, 0);
+	/*
+	 * We no longer go into reset here, because the camera might still be
+	 * streaming. If we kill the CSI-2 Host in mid-packet, it can leave the
+	 * IDI interface in a bad state, causing the next packet to be lost.
+	 *
+	 * XXX Is it safe to assume it will be idle before the next dphy_start?
+	 * XXX What happens if the camera itself generates an incomplete packet?
+	 *
+	 * TODO: Instead, should we consider resetting the *entire* MIPI block
+	 * (including CSI2AXI and ISP-FE)? That can't safely be done until
+	 * all AXI traffic has completed. It would cause APB access to hang.
+	 */
 }
 
 void dphy_probe(struct dphy_data *dphy)
