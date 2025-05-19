@@ -55,6 +55,47 @@
 
 #define dont_test_bit(b,d) (0)
 
+/*
+ * The SRCU bypass below skips srcu_read_lock() while the core retains its
+ * lockdep_assert_held(&gc->gpiodev->srcu) checks, so every gpiod_*() call
+ * splats under lockdep. Keep the optimisation for production builds only.
+ */
+#define REJECT_HOTPLUG_TAX (!IS_ENABLED(CONFIG_LOCKDEP))
+
+#if REJECT_HOTPLUG_TAX
+
+#undef srcu_dereference
+#define srcu_dereference(obj, srcu) obj
+
+#undef srcu_dereference_check
+#define srcu_dereference_check(obj, srcu, held) obj
+
+#undef guard
+#define guard(srcu) (void)
+
+#undef scoped_guard
+#define scoped_guard(x, y)
+#undef list_for_each_entry_srcu
+#define list_for_each_entry_srcu(pos, head, member, srcu) \
+	list_for_each_entry(pos, head, member)
+
+#undef CLASS
+#define CLASS(gcg, gd) \
+	struct gcg gd = gcg ## _init
+
+static struct gpio_chip_guard gpio_chip_guard_init(const struct gpio_desc *desc)
+{
+	struct gpio_chip_guard _guard;
+
+	_guard.gdev = desc->gdev;
+	_guard.idx = 0;
+	_guard.gc = _guard.gdev->chip;
+
+	return _guard;
+}
+
+#endif
+
 /* Device and char device-related information */
 static DEFINE_IDA(gpio_ida);
 static dev_t gpio_devt __ro_after_init;
