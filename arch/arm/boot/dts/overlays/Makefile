@@ -254,6 +254,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	sc16is752-i2c.dtbo \
 	sc16is752-spi0.dtbo \
 	sc16is752-spi1.dtbo \
+	sc16is75x-spi.dtbo \
 	sdhost.dtbo \
 	sdio.dtbo \
 	sdio-pi5.dtbo \
