@@ -74,6 +74,7 @@ obj-$(CONFIG_MARVELL_PHY)	+= marvell.o
 obj-$(CONFIG_MARVELL_88Q2XXX_PHY)	+= marvell-88q2xxx.o
 obj-$(CONFIG_MARVELL_88X2222_PHY)	+= marvell-88x2222.o
 obj-$(CONFIG_MAXLINEAR_GPHY)	+= mxl-gpy.o
+obj-$(CONFIG_MAXLINEAR_86110_PHY)	+= mxl-86110.o
 obj-$(CONFIG_MEDIATEK_GE_PHY)	+= mediatek-ge.o
 obj-$(CONFIG_MEDIATEK_GE_SOC_PHY)	+= mediatek-ge-soc.o
 obj-$(CONFIG_MESON_GXL_PHY)	+= meson-gxl.o
