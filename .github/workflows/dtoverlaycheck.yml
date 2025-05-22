@@ -45,4 +45,4 @@ jobs:
         pwd
         make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- bcm2709_defconfig
         make ARCH=arm KERNEL=kernel CROSS_COMPILE=arm-linux-gnueabihf- dtbs
-        ${{env.UTILS_DIR}}/overlaycheck/overlaycheck
+        ${{env.UTILS_DIR}}/overlaycheck/overlaycheck -t
