@@ -284,6 +284,22 @@
 		deprecated = "no longer necessary";
 	};
 
+	sc16is750-spi0 {
+		renamed = "sc16is75x-spi,sc16is750,spi0-0";
+	};
+
+	sc16is750-spi1 {
+		renamed = "sc16is75x-spi,sc16is750,spi1-0";
+	};
+
+	sc16is752-spi0 {
+		renamed = "sc16is75x-spi,sc16is752,spi0-0";
+	};
+
+	sc16is752-spi1 {
+		renamed = "sc16is75x-spi,sc16is752,spi1-0";
+	};
+
 	sdhost {
 		bcm2835;
 		bcm2711;

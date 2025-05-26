@@ -4463,11 +4463,9 @@ Params: int_pin                 GPIO used for IRQ (default 24)
 
 
 Name:   sc16is750-spi0
-Info:   Overlay for the NXP SC16IS750 UART with SPI Interface
-        Enables the chip on SPI0.
-Load:   dtoverlay=sc16is750-spi0,<param>=<val>
-Params: int_pin                 GPIO used for IRQ (default 24)
-        xtal                    On-board crystal frequency (default 14745600)
+Info:   This overlay is now deprecated. Use
+        "dtoverlay=sc16is75x-spi,sc16is750,spi0-0,..." instead.
+Load:   <Deprecated>
 
 
 Name:   sc16is752-i2c
@@ -4483,21 +4481,27 @@ Params: int_pin                 GPIO used for IRQ (default 24)
 
 
 Name:   sc16is752-spi0
-Info:   Overlay for the NXP SC16IS752 Dual UART with SPI Interface
-        Enables the chip on SPI0.
-Load:   dtoverlay=sc16is752-spi0,<param>=<val>
-Params: int_pin                 GPIO used for IRQ (default 24)
-        xtal                    On-board crystal frequency (default 14745600)
+Info:   This overlay is now deprecated. Use
+        "dtoverlay=sc16is75x-spi,sc16is752,spi0-0,..." instead.
+Load:   <Deprecated>
 
 
 Name:   sc16is752-spi1
-Info:   Overlay for the NXP SC16IS752 Dual UART with SPI Interface
-        Enables the chip on SPI1.
-        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
-              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Info:   This overlay is now deprecated. Use
+        "dtoverlay=sc16is75x-spi,sc16is752,spi1-0,..." instead.
+Load:   <Deprecated>
 
-Load:   dtoverlay=sc16is752-spi1,<param>=<val>
-Params: int_pin                 GPIO used for IRQ (default 24)
+
+Name:   sc16is75x-spi
+Info:   Overlay for the NXP SC16IS750/2 (Dual) UART with SPI Interface
+        Enables the chip on SPI.
+
+Load:   dtoverlay=sc16is75x-spi,<param>=<val>
+Params: sc16is750               Device is a SC16IS750 UART (default on)
+        sc16is752               Device is a SC16IS752 Dual UART
+        spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+        int_pin                 GPIO used for IRQ (default 24)
         xtal                    On-board crystal frequency (default 14745600)
 
 
