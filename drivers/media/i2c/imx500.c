@@ -239,6 +239,7 @@ enum pad_types { IMAGE_PAD, METADATA_PAD, NUM_PADS };
 
 #define V4L2_CID_USER_IMX500_INFERENCE_WINDOW (V4L2_CID_USER_IMX500_BASE + 0)
 #define V4L2_CID_USER_IMX500_NETWORK_FW_FD (V4L2_CID_USER_IMX500_BASE + 1)
+#define V4L2_CID_USER_GET_IMX500_DEVICE_ID (V4L2_CID_USER_IMX500_BASE + 2)
 
 #define ONE_MIB (1024 * 1024)
 
@@ -1365,6 +1366,7 @@ struct imx500 {
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *network_fw_ctrl;
+	struct v4l2_ctrl *device_id;
 
 	struct v4l2_rect inference_window;
 
@@ -1579,6 +1581,25 @@ static int imx500_set_inference_window(struct imx500 *imx500)
 				   ARRAY_SIZE(window_regs), NULL);
 }
 
+static int imx500_get_device_id(struct imx500 *imx500, u32 *device_id)
+{
+	const u32 addr = 0xd040;
+	unsigned int i;
+	int ret = 0;
+	u64 tmp, data;
+
+	for (i = 0; i < 4; i++) {
+		ret = cci_read(imx500->regmap, CCI_REG32(addr + i * 4), &tmp,
+			       NULL);
+		if (ret)
+			return -EREMOTEIO;
+		data = tmp & 0xffffffff;
+		device_id[i] = data;
+	}
+
+	return ret;
+}
+
 static int imx500_reg_val_write_cbk(void *arg,
 				    const struct cci_reg_sequence *reg)
 {
@@ -1619,6 +1640,7 @@ static int imx500_validate_fw_block(const char *data, size_t maxlen)
 	static const char footer_id[] = { '3', '6', '9', '5' };
 
 	u32 data_size;
+	u32 extra_bytes_size = 0;
 
 	const char *end = data + maxlen;
 
@@ -1635,13 +1657,16 @@ static int imx500_validate_fw_block(const char *data, size_t maxlen)
 	memcpy(&data_size, data + sizeof(header_id), sizeof(data_size));
 	data_size = ___constant_swab32(data_size);
 
-	if (end - data_size - footer_size < data)
+	/* check the device_lock flag */
+	extra_bytes_size = *((u8 *)(data + 0x0e)) & 0x01 ? 32 : 0;
+
+	if (end - data_size - footer_size - extra_bytes_size < data)
 		return -1;
 	if (memcmp(data + data_size + footer_size - sizeof(footer_id),
 		   &footer_id, sizeof(footer_id)))
 		return -1;
 
-	return data_size + footer_size;
+	return data_size + footer_size + extra_bytes_size;
 }
 
 /* Parse fw block by block, returning total valid fw size */
@@ -1875,6 +1900,7 @@ static void imx500_clear_fw_network(struct imx500 *imx500)
 	imx500->fw_network = NULL;
 	imx500->network_written = false;
 	imx500->fw_progress = 0;
+	v4l2_ctrl_activate(imx500->device_id, false);
 }
 
 static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1997,7 +2023,31 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 	return ret;
 }
 
+static int imx500_get_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct imx500 *imx500 = container_of(ctrl->handler, struct imx500,
+					     ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+	u32 device_id[4] = {0};
+	int ret;
+
+	switch (ctrl->id) {
+	case V4L2_CID_USER_GET_IMX500_DEVICE_ID:
+		ret = imx500_get_device_id(imx500, device_id);
+		memcpy(ctrl->p_new.p_u32, device_id, sizeof(device_id));
+		break;
+	default:
+		dev_info(&client->dev, "ctrl(id:0x%x,val:0x%x) is not handled\n",
+			 ctrl->id, ctrl->val);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
 static const struct v4l2_ctrl_ops imx500_ctrl_ops = {
+	.g_volatile_ctrl = imx500_get_ctrl,
 	.s_ctrl = imx500_set_ctrl,
 };
 
@@ -2592,6 +2642,8 @@ static int imx500_start_streaming(struct imx500 *imx500)
 				__func__);
 			return ret;
 		}
+
+		v4l2_ctrl_activate(imx500->device_id, true);
 	}
 
 	/* Apply default values of current mode */
@@ -2846,6 +2898,22 @@ static const struct v4l2_ctrl_config network_fw_fd = {
 	.def		= -1,
 };
 
+/* Custom control to get camera device id */
+static const struct v4l2_ctrl_config cam_get_device_id = {
+	.name		= "Get IMX500 Device ID",
+	.id		= V4L2_CID_USER_GET_IMX500_DEVICE_ID,
+	.dims[0]	= 4,
+	.ops		= &imx500_ctrl_ops,
+	.type		= V4L2_CTRL_TYPE_U32,
+	.flags		= V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE |
+			  V4L2_CTRL_FLAG_INACTIVE,
+	.elem_size	= sizeof(u32),
+	.min		= 0x00,
+	.max		= U32_MAX,
+	.step		= 1,
+	.def		= 0,
+};
+
 /* Initialize control handlers */
 static int imx500_init_controls(struct imx500 *imx500)
 {
@@ -2909,6 +2977,8 @@ static int imx500_init_controls(struct imx500 *imx500)
 	v4l2_ctrl_new_custom(ctrl_hdlr, &inf_window_ctrl, NULL);
 	imx500->network_fw_ctrl =
 		v4l2_ctrl_new_custom(ctrl_hdlr, &network_fw_fd, NULL);
+	imx500->device_id =
+		v4l2_ctrl_new_custom(ctrl_hdlr, &cam_get_device_id, NULL);
 
 	if (ctrl_hdlr->error) {
 		ret = ctrl_hdlr->error;
