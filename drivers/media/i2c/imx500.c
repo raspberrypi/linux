@@ -37,6 +37,8 @@
 #define IMX500_IMAGE_ONLY_FALSE 0x00
 #define IMX500_IMAGE_ONLY_TRUE 0x01
 
+#define IMX500_REG_SENSOR_TEMP_CTRL CCI_REG8(0x0138)
+
 #define IMX500_REG_ORIENTATION CCI_REG8(0x101)
 
 #define IMX500_XCLK_FREQ 24000000
@@ -2505,6 +2507,14 @@ static int imx500_start_streaming(struct imx500 *imx500)
 	if (ret < 0)
 		return ret;
 
+	/*
+	 * Disable the temperature sensor here - must be done else loading any
+	 * firmware fails...
+	 *
+	 * Re-enable before stream-on below.
+	 */
+	cci_write(imx500->regmap, IMX500_REG_SENSOR_TEMP_CTRL, 0, &ret);
+
 	ret = cci_write(imx500->regmap, IMX500_REG_IMAGE_ONLY_MODE,
 			imx500->fw_network ? IMX500_IMAGE_ONLY_FALSE :
 					     IMX500_IMAGE_ONLY_TRUE,
@@ -2598,6 +2608,9 @@ static int imx500_start_streaming(struct imx500 *imx500)
 
 	/* Disable any sensor startup frame drops. This must be written here! */
 	cci_write(imx500->regmap, CCI_REG8(0xD405), 0, &ret);
+
+	/* Re-enable the temperature sensor. */
+	cci_write(imx500->regmap, IMX500_REG_SENSOR_TEMP_CTRL, 1, &ret);
 
 	/* set stream on register */
 	cci_write(imx500->regmap, IMX500_REG_MODE_SELECT, IMX500_MODE_STREAMING,
