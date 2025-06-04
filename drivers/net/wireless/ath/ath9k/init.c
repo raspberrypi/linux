@@ -197,8 +197,16 @@ static unsigned int ath9k_ioread32(void *hw_priv, u32 reg_offset)
 		spin_lock_irqsave(&sc->sc_serial_rw, flags);
 		val = ioread32(sc->mem + reg_offset);
 		spin_unlock_irqrestore(&sc->sc_serial_rw, flags);
-	} else
+	} else {
+        /*
+        if (reg_offset == AR_TSF_L32) {
+            printk("ath9k: ioread32 unlock L32");
+        } else if (reg_offset == AR_TSF_U32) {
+            printk("ath9k: ioread32 unlock U32");
+        }
+        */
 		val = ioread32(sc->mem + reg_offset);
+    }
 	return val;
 }
 
