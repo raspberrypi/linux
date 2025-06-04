@@ -583,6 +583,14 @@ static int adau1961_set_dai_fmt(struct snd_soc_dai *dai,
 	return 0;
 }
 
+static int adau1961_xlate_tdm_slot_mask(unsigned int slots,
+					unsigned int *tx_mask,
+					unsigned int *rx_mask)
+{
+	// Workaround for snd_soc_dai_set_tdm_slot issue when slots=0.
+	return 0;
+}
+
 static int adau1961_set_dai_tdm_slot(struct snd_soc_dai *dai,
 				     unsigned int tx_mask,
 				     unsigned int rx_mask,
@@ -698,6 +706,7 @@ static const struct snd_soc_dai_ops adau1961_dai_ops = {
 	.set_pll	= adau1961_set_dai_pll,
 	.set_tdm_slot	= adau1961_set_dai_tdm_slot,
 	.startup	= adau1961_startup,
+	.xlate_tdm_slot_mask = adau1961_xlate_tdm_slot_mask,
 };
 
 static bool adau1961_precious_register(struct device *dev, unsigned int reg)
