@@ -82,7 +82,7 @@
 			};
 
 			clk_aicam_gated: clk-aicam-gated1 {
-				compatible = "gpio-gate-clock";
+				compatible = "gpio-gate-clock-releasing";
 				clocks = <&clk_aicam>;
 				#clock-cells = <0>;
 				enable-gpios = <&spi_bridge 21 GPIO_ACTIVE_HIGH>;
