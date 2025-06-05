@@ -2512,7 +2512,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set image mode\n",
 			__func__);
-		return ret;
+		goto err_runtime_put;
 	}
 
 	/* Acquire loader and main firmware if needed */
@@ -2524,7 +2524,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 			if (ret) {
 				dev_err(&client->dev,
 					"Unable to acquire firmware loader\n");
-				return ret;
+				goto err_runtime_put;
 			}
 		}
 		if (!imx500->fw_main) {
@@ -2534,7 +2534,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 			if (ret) {
 				dev_err(&client->dev,
 					"Unable to acquire main firmware\n");
-				return ret;
+				goto err_runtime_put;
 			}
 		}
 	}
@@ -2546,7 +2546,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 		if (ret) {
 			dev_err(&client->dev,
 				"%s failed to set common settings\n", __func__);
-			return ret;
+			goto err_runtime_put;
 		}
 
 		imx500->common_regs_written = true;
@@ -2558,7 +2558,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 			dev_err(&client->dev,
 				"%s failed to transition from program empty state\n",
 				__func__);
-			return ret;
+			goto err_runtime_put;
 		}
 		imx500->loader_and_main_written = true;
 	}
@@ -2569,7 +2569,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 			dev_err(&client->dev,
 				"%s failed to transition to network loaded\n",
 				__func__);
-			return ret;
+			goto err_runtime_put;
 		}
 		imx500->network_written = true;
 	}
@@ -2580,7 +2580,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 		if (ret) {
 			dev_err(&client->dev, "%s failed to enable DNN\n",
 				__func__);
-			return ret;
+			goto err_runtime_put;
 		}
 	}
 
@@ -2590,7 +2590,7 @@ static int imx500_start_streaming(struct imx500 *imx500)
 				  reg_list->num_of_regs, NULL);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
-		return ret;
+		goto err_runtime_put;
 	}
 
 	/* Apply customized values from user */
@@ -2603,6 +2603,14 @@ static int imx500_start_streaming(struct imx500 *imx500)
 	cci_write(imx500->regmap, IMX500_REG_MODE_SELECT, IMX500_MODE_STREAMING,
 		  &ret);
 
+	if (ret)
+		goto err_runtime_put;
+
+	return 0;
+
+err_runtime_put:
+	pm_runtime_mark_last_busy(&client->dev);
+	pm_runtime_put_autosuspend(&client->dev);
 	return ret;
 }
 
