@@ -2412,9 +2412,11 @@ static int imx500_state_transition(struct imx500 *imx500, const u8 *fw,
 		}
 
 		/* Do SPI transfer */
-		gpiod_set_value_cansleep(imx500->led_gpio, 1);
+		if (imx500->led_gpio)
+			gpiod_set_value_cansleep(imx500->led_gpio, 1);
 		ret = imx500_spi_write(imx500, data, size);
-		gpiod_set_value_cansleep(imx500->led_gpio, 0);
+		if (imx500->led_gpio)
+			gpiod_set_value_cansleep(imx500->led_gpio, 0);
 
 		imx500->fw_progress += size;
 
@@ -2748,11 +2750,28 @@ static int imx500_power_on(struct device *dev)
 	struct imx500 *imx500 = to_imx500(sd);
 	int ret;
 
+	/* Acquire GPIOs first to ensure reset is asserted before power is applied */
+	imx500->led_gpio = devm_gpiod_get_optional(dev, "led", GPIOD_OUT_LOW);
+	if (IS_ERR(imx500->led_gpio)) {
+		ret = PTR_ERR(imx500->led_gpio);
+		dev_err(&client->dev, "%s: failed to get led gpio\n", __func__);
+		return ret;
+	}
+
+	imx500->reset_gpio =
+		devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(imx500->reset_gpio)) {
+		ret = PTR_ERR(imx500->reset_gpio);
+		dev_err(&client->dev, "%s: failed to get reset gpio\n",
+			__func__);
+		goto gpio_led_put;
+	}
+
 	ret = regulator_bulk_enable(IMX500_NUM_SUPPLIES, imx500->supplies);
 	if (ret) {
 		dev_err(&client->dev, "%s: failed to enable regulators\n",
 			__func__);
-		return ret;
+		goto gpio_reset_put;
 	}
 
 	/* T4 - 1us
@@ -2772,7 +2791,8 @@ static int imx500_power_on(struct device *dev)
 	 * as 0ms but also "XCLR pin should be set to 'High' after INCK supplied.".
 	 * T4 and T5 are shown as overlapping.
 	 */
-	gpiod_set_value_cansleep(imx500->reset_gpio, 1);
+	if (imx500->reset_gpio)
+		gpiod_set_value_cansleep(imx500->reset_gpio, 1);
 
 	/* T7 - 9ms
 	 * "INCK start and CXLR rising till Send Streaming Command wait time"
@@ -2783,6 +2803,16 @@ static int imx500_power_on(struct device *dev)
 
 reg_off:
 	regulator_bulk_disable(IMX500_NUM_SUPPLIES, imx500->supplies);
+gpio_reset_put:
+	if (imx500->reset_gpio) {
+		devm_gpiod_put(dev, imx500->reset_gpio);
+		imx500->reset_gpio = NULL;
+	}
+gpio_led_put:
+	if (imx500->led_gpio) {
+		devm_gpiod_put(dev, imx500->led_gpio);
+		imx500->led_gpio = NULL;
+	}
 	return ret;
 }
 
@@ -2799,7 +2829,19 @@ static int imx500_power_off(struct device *dev)
 	 * Note, this is not the reverse order of power up.
 	 */
 	clk_disable_unprepare(imx500->xclk);
-	gpiod_set_value_cansleep(imx500->reset_gpio, 0);
+	if (imx500->reset_gpio)
+		gpiod_set_value_cansleep(imx500->reset_gpio, 0);
+
+	/* Release GPIOs before disabling regulators */
+	if (imx500->reset_gpio) {
+		devm_gpiod_put(&client->dev, imx500->reset_gpio);
+		imx500->reset_gpio = NULL;
+	}
+	if (imx500->led_gpio) {
+		devm_gpiod_put(&client->dev, imx500->led_gpio);
+		imx500->led_gpio = NULL;
+	}
+
 	regulator_bulk_disable(IMX500_NUM_SUPPLIES, imx500->supplies);
 
 	/* Force reprogramming of the common registers when powered up again. */
@@ -3135,14 +3177,14 @@ static int imx500_probe(struct i2c_client *client)
 		return ret;
 	}
 
-	imx500->led_gpio = devm_gpiod_get_optional(dev, "led", GPIOD_OUT_LOW);
-
-	imx500->reset_gpio =
-		devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
+	/* GPIOs are acquired in imx500_power_on() to avoid preventing
+	 * regulator power down when shared with other drivers.
+	 */
 
 	/*
 	 * The sensor must be powered for imx500_identify_module()
-	 * to be able to read the CHIP_ID register
+	 * to be able to read the CHIP_ID register. This also ensures
+	 * GPIOs are available.
 	 */
 	ret = imx500_power_on(dev);
 	if (ret)
