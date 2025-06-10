@@ -1246,10 +1246,13 @@ Params: draws_adc_ch4_gain      Sets the full scale resolution of the ADCs
 
 
 Name:   dwc-otg
-Info:   Selects the dwc_otg USB controller driver which has fiq support. This
-        is the default on all except the Pi Zero which defaults to dwc2.
-Load:   dtoverlay=dwc-otg
-Params: <None>
+Info:   The dwc-otg has been deprecated.
+Load:   <Deprecated>
+
+
+Name:   dwc-otg-deprecated
+Info:   The dwc-otg has been deprecated.
+Load:   <Deprecated>
 
 
 Name:   dwc2
