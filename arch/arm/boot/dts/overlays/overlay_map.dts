@@ -53,6 +53,10 @@
 		bcm2712;
 	};
 
+	dwc-otg {
+		renamed = "dwc-otg-deprecated";
+	};
+
 	hifiberry-adc8x {
 		bcm2712;
 	};
