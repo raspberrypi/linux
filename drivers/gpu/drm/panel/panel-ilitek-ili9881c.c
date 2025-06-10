@@ -2296,17 +2296,21 @@ static const struct drm_display_mode nwe080_default_mode = {
 };
 
 static const struct drm_display_mode cfaf7201280a0_050tx_default_mode = {
-	.clock		= 72830,
-	.hdisplay	= 720,
-	.hsync_start	= 720 + 87,
-	.hsync_end	= 720 + 87 + 20,
-	.htotal		= 720 + 87 + 20 + 87,
-	.vdisplay	= 1280,
-	.vsync_start	= 1280 + 16,
-	.vsync_end	= 1280 + 16 + 8,
-	.vtotal		= 1280 + 16 + 8 + 16,
-	.width_mm	= 62,
-	.height_mm	= 110,
+	/* 
+ 	 * These timings are a compromise so the panel will work with
+ 	 * both the CM4 and CM5.
+  	 */
+	.clock          = 78000,
+	.hdisplay       = 720,
+	.hsync_start    = 720 + 120,
+	.hsync_end      = 720 + 120 + 2,
+	.htotal         = 720 + 120 + 2 + 80,
+	.vdisplay       = 1280,
+	.vsync_start    = 1280 + 60,
+	.vsync_end      = 1280 + 60 + 2,
+	.vtotal         = 1280 + 60 + 2 + 90,
+	.width_mm       = 62,
+	.height_mm      = 110,
 };
 
 static const struct drm_display_mode rpi_5inch_default_mode = {
