@@ -1081,11 +1081,12 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
 
 Name:   crystalfontz-cfa050_pi_m
 Info:   Configures the Crystalfontz CFA050-PI-M series of Raspberry Pi CM4
-        based modules using the CFA7201280A0_050Tx 7" TFT LCD displays,
+        and CM5 based modules using the CFA7201280A0_050Tx 7" TFT LCD displays,
         with or without capacitive touch screen.
         Requires use of vc4-kms-v3d.
 Load:   dtoverlay=crystalfontz-cfa050_pi_m,<param>=<val>
 Params: captouch                Enable capacitive touch display
+        cm5                     Enable support for the Raspberry Pi CM5
 
 
 Name:   cutiepi-panel
