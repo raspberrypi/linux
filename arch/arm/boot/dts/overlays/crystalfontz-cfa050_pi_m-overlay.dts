@@ -9,7 +9,7 @@
 // RaspberryPi CM4
 	compatible = "brcm,bcm2835";
 // PCF8574 I2C GPIO EXPANDER
-	fragment@0 {
+	frag0: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -27,7 +27,7 @@
 		};
 	};
 // LM3630a BACKLIGHT LED CONTROLLER
-	fragment@1 {
+	frag1: fragment@1 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -42,14 +42,28 @@
 					reg = <0>;
 					led-sources = <0 1>;
 					label = "lcd-backlight";
-					default-brightness = <128>;
+					default-brightness = <255>;
 					max-brightness = <255>;
 				};
 			};
 		};
 	};
+// PCF85063A RTC on I2C
+	frag2: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			pcf85063a@51 {
+				compatible = "nxp,pcf85063a";
+				reg = <0x51>;
+			};
+		};
+	};
+
 // CFAF7201280A0_050Tx TFT DSI PANEL
-	fragment@2 {
+	fragment@3 {
 		target = <&dsi1>;
 		__overlay__  {
 			#address-cells = <1>;
@@ -75,50 +89,43 @@
 		};
 	};
 // rPI GPIO INPUT FOR TOUCH IC IRQ
-	fragment@3 {
+	fragment@4 {
 		target = <&gpio>;
 		__dormant__ {
 			gt928intpins: gt928intpins {
-				brcm,pins = <26>;
-				brcm,function = <0>;
-				brcm,pull = <1>;
+				brcm,pins = <26>; //gpio pin
+				brcm,function = <0>; //input
+				brcm,pull = <2>; //2=pull-up
 			};
 		};
 	};
 // GT928 TOUCH CONTROLLER IC
-	fragment@4 {
+	frag5: fragment@5 {
 		target = <&i2c_csi_dsi>;
 		__dormant__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
-			gt928@5d {
+			gt928: gt928@5d {
 				compatible = "goodix,gt928";
 				reg = <0x5d>;
 				interrupt-parent = <&gpio>;
-				interrupts = <26 2>;
-				irq-gpios = <&gpio 26 0>;
+				interrupts = <26 2>; //gpio 26, 2=high-to-low trigger
+				irq-gpios = <&gpio 26 0>; //gpio 26, 0=active-high
 				reset-gpios = <&pcf8574a 1 1>;
 				touchscreen-inverted-x;
 				touchscreen-inverted-y;
 			};
 		};
 	};
-// PCF85063A RTC on I2C
-	fragment@5 {
-		target = <&i2c_csi_dsi>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			status = "okay";
-			pcf85063a@51 {
-				compatible = "nxp,pcf85063a";
-				reg = <0x51>;
-			};
-		};
-	};
-// CAPACITIVE TOUCH OPTION FOR TFT PANEL
+//OVERLAY OPTIONS
 	__overrides__ {
-		captouch = <0>,"+3+4";
+		//enables captouch
+		captouch = <0>,"+4+5";
+		//changes options to support CM5 (default is CM4)
+		cm5 = <&frag0>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag1>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag2>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag5>, "target:0=",<&i2c_csi_dsi0>;
 	};
 };
