@@ -2646,6 +2646,10 @@ static int dwc2_assign_and_init_hc(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 	else
 		chan->do_split = 0;
 
+	/* Limit split IN transfers to the remaining buffer space */
+	if (qh->do_split && chan->ep_is_in)
+		chan->max_packet = min_t(u32, chan->max_packet, chan->xfer_len);
+
 	/* Set the transfer attributes */
 	dwc2_hc_init_xfer(hsotg, chan, qtd);
 
