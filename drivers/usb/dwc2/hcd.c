@@ -2469,10 +2469,23 @@ static int dwc2_alloc_dma_aligned_buffer(struct urb *urb, gfp_t mem_flags)
 {
 	void *kmalloc_ptr;
 	size_t kmalloc_size;
+	bool small_ctrl;
 
-	if (urb->num_sgs || urb->sg ||
-	    urb->transfer_buffer_length == 0 ||
-	    !((uintptr_t)urb->transfer_buffer & (DWC2_USB_DMA_ALIGN - 1)))
+	if (urb->num_sgs || urb->sg || urb->transfer_buffer_length == 0)
+		return 0;
+
+	/*
+	 * Hardware bug: small IN packets with length < 4 cause a
+	 * 4-byte write to memory. This is only an issue for drivers that
+	 * insist on packing a device's various properties into a struct
+	 * and filling them one at a time with Control transfers (uvcvideo).
+	 * Force the use of align_buf so that the subsequent memcpy puts
+	 * the right number of bytes in the URB's buffer.
+	 */
+	small_ctrl = (urb->setup_packet &&
+		     le16_to_cpu(((struct usb_ctrlrequest *)(urb->setup_packet))->wLength) < 4);
+
+	if (!small_ctrl && !((uintptr_t)urb->transfer_buffer & (DWC2_USB_DMA_ALIGN - 1)))
 		return 0;
 
 	/*
