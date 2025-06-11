@@ -3775,12 +3775,17 @@ static int dwc2_hcd_is_status_changed(struct dwc2_hsotg *hsotg, int port)
 int dwc2_hcd_get_frame_number(struct dwc2_hsotg *hsotg)
 {
 	u32 hfnum = dwc2_readl(hsotg, HFNUM);
+	u32 hprt0 = dwc2_readl(hsotg, HPRT0);
 
 #ifdef DWC2_DEBUG_SOF
 	dev_vdbg(hsotg->dev, "DWC OTG HCD GET FRAME NUMBER %d\n",
 		 (hfnum & HFNUM_FRNUM_MASK) >> HFNUM_FRNUM_SHIFT);
 #endif
-	return (hfnum & HFNUM_FRNUM_MASK) >> HFNUM_FRNUM_SHIFT;
+	/* HS root port counts microframes, not frames */
+	if ((hprt0 & HPRT0_SPD_MASK) >> HPRT0_SPD_SHIFT == HPRT0_SPD_HIGH_SPEED)
+		return (hfnum & HFNUM_FRNUM_MASK) >> (3 + HFNUM_FRNUM_SHIFT);
+	else
+		return (hfnum & HFNUM_FRNUM_MASK) >> HFNUM_FRNUM_SHIFT;
 }
 
 int dwc2_hcd_get_future_frame_number(struct dwc2_hsotg *hsotg, int us)
