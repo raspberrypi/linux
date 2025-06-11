@@ -2338,6 +2338,7 @@ static void dwc2_hc_init_xfer(struct dwc2_hsotg *hsotg,
 			else
 				chan->xfer_buf = urb->setup_packet;
 			chan->xfer_len = 8;
+			chan->max_packet = 8;
 			break;
 
 		case DWC2_CONTROL_DATA:
@@ -2620,6 +2621,10 @@ static int dwc2_assign_and_init_hc(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 		dwc2_hc_init_split(hsotg, chan, qtd, urb);
 	else
 		chan->do_split = 0;
+
+	/* Limit split IN transfers to the remaining buffer space */
+	if (qh->do_split && chan->ep_is_in)
+		chan->max_packet = min_t(u32, chan->max_packet, chan->xfer_len);
 
 	/* Set the transfer attributes */
 	dwc2_hc_init_xfer(hsotg, chan, qtd);
