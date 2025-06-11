@@ -2436,6 +2436,7 @@ config MFD_QNAP_MCU
 config MFD_RP1
 	tristate "RP1 MFD driver"
 	depends on PCI
+	depends on PCI_MSI
 	select MFD_CORE
 	help
 	  Support for the RP1 peripheral chip.
