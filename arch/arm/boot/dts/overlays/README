@@ -4058,6 +4058,14 @@ Params: speed                   Display SPI bus speed
         touch-swapxy            Touchscreen swapped x y axis
 
 
+Name:   pivision
+Info:   Overlay to enable the SECO Pi Vision 10.1 HMI hardware for Compute
+        Module 5. Will be loaded automatically by up-to-date firmware via
+        EEPROM detection.
+Load:   dtoverlay=pivision
+Params: <None>
+
+
 Name:   pps-gpio
 Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
 Load:   dtoverlay=pps-gpio,<param>=<val>
