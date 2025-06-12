@@ -5,29 +5,15 @@
 #include <linux/ptp_clock_kernel.h>
 
 static int ath9k_phc_adjfine(struct ptp_clock_info *ptp, long scaled_ppm) {
-#if 0
     struct ath_softc *sc = container_of(ptp, struct ath_softc, ptp_clock_info);
     unsigned long flags;
-    int neg_adj = 0;
-    u32 mult, diff;
-    u64 adj;
-
-    if (scaled_ppm < 0) {
-        neg_adj = -1;
-        scaled_ppm = -scaled_ppm;
-    }
-    mult = sc->cc_mult;
-    adj = mult;
-    adj *= scaled_ppm;
-    diff = div_u64(adj, 1000000000ULL);
 
     spin_lock_irqsave(&sc->systim_lock, flags);
     timecounter_read(&sc->tc);
-    sc->cc.mult = neg_adj ? mult - diff : mult + diff;
+    sc->cc.mult = adjust_by_scaled_ppm(sc->cc_mult, scaled_ppm);
     spin_unlock_irqrestore(&sc->systim_lock, flags);
 
-    ath_warn(ath9k_hw_common(sc->sc_ah), "phc adjust adj=%llu freq=%u\n", adj, diff);
-#endif
+    ath_dbg(ath9k_hw_common(sc->sc_ah), CONFIG, "phc adjust scaled_ppm=%ld\n", scaled_ppm);
 
     return 0;
 }
