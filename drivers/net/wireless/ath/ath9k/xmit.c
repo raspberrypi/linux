@@ -1498,7 +1498,7 @@ static void ath_tx_fill_desc(struct ath_softc *sc, struct ath_buf *bf,
            //     info.flags |= ATH9K_TXDESC_VEOL;
                 printk("ath9k: veol set %#llx\n", pkt_counter);
             }
-            printk("ath9k: cbr expired counter 0x%08x linkaddr = 0x%016llx\n", REG_READ(sc->sc_ah, AR_QSTS(info.qcu)), info.link);
+            printk("ath9k: cbr expired counter 0x%08x linkaddr = 0x%pAD\n", REG_READ(sc->sc_ah, AR_QSTS(info.qcu)), &info.link);
         }
 
 		if (aggr) {
