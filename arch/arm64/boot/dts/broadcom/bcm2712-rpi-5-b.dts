@@ -175,6 +175,8 @@ rp1_target: &pcie2 {
 	phy1: ethernet-phy@1 {
 		reg = <0x1>;
 		brcm,powerdown-enable;
+		eee-broken-1000t;
+		eee-broken-100tx;
 	};
 };
 

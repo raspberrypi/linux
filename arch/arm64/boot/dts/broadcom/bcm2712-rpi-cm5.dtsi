@@ -164,6 +164,8 @@ rp1_target: &pcie2 {
 		brcm,powerdown-enable;
 		interrupt-parent = <&gpio>;
 		interrupts = <37 IRQ_TYPE_LEVEL_LOW>;
+		eee-broken-1000t;
+		eee-broken-100tx;
 	};
 };
 
