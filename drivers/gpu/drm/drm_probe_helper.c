@@ -164,6 +164,10 @@ static int drm_helper_probe_add_cmdline_mode(struct drm_connector *connector)
 				continue;
 		}
 
+		if (cmdline_mode->interlace !=
+		    !!(mode->flags & DRM_MODE_FLAG_INTERLACE))
+			continue;
+
 		/* Mark the matching mode as being preferred by the user */
 		mode->type |= DRM_MODE_TYPE_USERDEF;
 		return 0;
