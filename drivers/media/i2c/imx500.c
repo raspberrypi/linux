@@ -208,6 +208,25 @@
 
 #define IMX500_REG_MAIN_FW_VERSION CCI_REG32(0xD07C)
 
+/* Input tensor injection */
+#define IMX500_REG_DD_DAT_INJECTION_CHKSUM CCI_REG32(0xD0D4)
+#define IMX500_REG_DD_DAT_INJECTION_SPI_CMP_FRM CCI_REG8(0xD0DA)
+#define IMX500_REG_DD_DAT_INJECTION_HNDSK CCI_REG8(0xD0DB)
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_INIT_WAIT 1
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_INIT_COMP 2
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_READY_WAIT 3
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_READY_COMP 4
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANSFERRING 5
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP_WAIT 6
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP 7
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_ERROR 8
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_ERROR_WAIT_NOTIFY 9
+#define IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP_WAIT_CHKSUM 10
+
+#define IMX500_REG_STRM_MODE_SEL CCI_REG8(0xD100)
+
+#define IMX500_REG_LEV_PL_MDET_OUT CCI_REG8(0xD641)
+
 /* Colour balance controls */
 #define IMX500_REG_COLOUR_BALANCE_R CCI_REG16(0xd804)
 #define IMX500_REG_COLOUR_BALANCE_GR CCI_REG16(0xd806)
@@ -240,6 +259,9 @@ enum pad_types { IMAGE_PAD, METADATA_PAD, NUM_PADS };
 #define V4L2_CID_USER_IMX500_INFERENCE_WINDOW (V4L2_CID_USER_IMX500_BASE + 0)
 #define V4L2_CID_USER_IMX500_NETWORK_FW_FD (V4L2_CID_USER_IMX500_BASE + 1)
 #define V4L2_CID_USER_GET_IMX500_DEVICE_ID (V4L2_CID_USER_IMX500_BASE + 2)
+#define V4L2_CID_USER_IMX500_ENABLE_INJECTION (V4L2_CID_USER_IMX500_BASE + 3)
+#define V4L2_CID_USER_IMX500_INPUT_TENSOR_FD (V4L2_CID_USER_IMX500_BASE + 4)
+#define V4L2_CID_USER_IMX500_INJECTION_CMP_FRM (V4L2_CID_USER_IMX500_BASE + 5)
 
 #define ONE_MIB (1024 * 1024)
 
@@ -1367,6 +1389,9 @@ struct imx500 {
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *network_fw_ctrl;
 	struct v4l2_ctrl *device_id;
+	struct v4l2_ctrl *enable_injection;
+	struct v4l2_ctrl *input_tensor_fd;
+	struct v4l2_ctrl *injection_cmp_frm;
 
 	struct v4l2_rect inference_window;
 
@@ -1387,6 +1412,12 @@ struct imx500 {
 
 	bool loader_and_main_written;
 	bool network_written;
+
+	/* Tensor injection enabled */
+	bool tensor_injection;
+
+	/* Current injection comparison frame value */
+	u8 current_injection_cmp_frm;
 
 	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
 	unsigned int long_exp_shift;
@@ -1903,12 +1934,189 @@ static void imx500_clear_fw_network(struct imx500 *imx500)
 	v4l2_ctrl_activate(imx500->device_id, false);
 }
 
+static int __must_check imx500_spi_write(struct imx500 *state, const u8 *data,
+					 size_t size)
+{
+	if (size % 4 || size > ONE_MIB)
+		return -EINVAL;
+
+	if (!state->spi_device)
+		return -ENODEV;
+
+	return spi_write(state->spi_device, data, size);
+}
+
+static int imx500_injection_wait_transfer_complete(struct imx500 *imx500)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+	struct cci_reg_sequence hndsk_reg = {
+		IMX500_REG_DD_DAT_INJECTION_HNDSK,
+		IMX500_DD_DAT_INJECTION_HNDSK_TRANSFERRING
+	};
+	int ret;
+
+	/* Continue polling until we reach the final TRANS_COMP state */
+	while (hndsk_reg.val != IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP) {
+		ret = imx500_poll_status_reg(imx500, &hndsk_reg, 5);
+		if (ret) {
+			dev_err(&client->dev,
+				"Handshake register did not update from state %llu\n",
+				hndsk_reg.val);
+			return ret;
+		}
+
+		/* Check if we've reached the final completion state */
+		if (hndsk_reg.val == IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP) {
+			break;
+		} else if (hndsk_reg.val == IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP_WAIT ||
+			   hndsk_reg.val == IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP_WAIT_CHKSUM) {
+			continue;
+		} else if (hndsk_reg.val ==
+			   IMX500_DD_DAT_INJECTION_HNDSK_TRANS_ERROR) {
+			dev_err(&client->dev,
+				"Handshake register indicates transfer error\n");
+			return -EREMOTEIO;
+		} else if (hndsk_reg.val ==
+			   IMX500_DD_DAT_INJECTION_HNDSK_TRANS_ERROR_WAIT_NOTIFY) {
+			dev_err(&client->dev,
+				"Handshake register indicates transfer error (waiting for notification)\n");
+			return -EREMOTEIO;
+		}
+
+		/* Unexpected state */
+		dev_err(&client->dev,
+			"Handshake register in unexpected state %llu\n",
+			hndsk_reg.val);
+		return -EREMOTEIO;
+	}
+
+	return 0;
+}
+
+static u32 imx500_calc_injection_checksum(const u32 *data, size_t size)
+{
+	u32 checksum = 0;
+
+	while (size--) {
+		u32 val = *data++;
+
+		checksum += val;
+	}
+
+	return checksum;
+}
+
+static int imx500_inject_input_tensor(struct imx500 *imx500, const u32 *data,
+				      size_t size)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+
+	int ret;
+	u64 cmp_frm;
+	u8 exp_frm;
+
+	u32 checksum = imx500_calc_injection_checksum(data, size);
+
+	ret = cci_write(imx500->regmap, IMX500_REG_DD_DAT_INJECTION_CHKSUM,
+			checksum, NULL);
+	if (ret) {
+		dev_err(&client->dev, "Failed to write checksum\n");
+		return ret;
+	}
+
+	ret = cci_write(imx500->regmap, IMX500_REG_STRM_MODE_SEL, 0, NULL);
+	if (ret) {
+		dev_err(&client->dev, "Failed to stop DNN processing\n");
+		return ret;
+	}
+
+	/* The handshake register (IMX500_REG_DD_DAT_INJECTION_HNDSK) is used bidirectionally:
+	 * - We write a state to request a transition (e.g. READY_WAIT)
+	 * - The sensor responds by updating the register with the new state (e.g. READY_COMP)
+	 * This allows us to coordinate state transitions between the host and sensor.
+	 */
+	struct cci_reg_sequence hndsk_reg = {
+		IMX500_REG_DD_DAT_INJECTION_HNDSK,
+		IMX500_DD_DAT_INJECTION_HNDSK_TRANS_READY_WAIT
+	};
+
+	ret = cci_multi_reg_write(imx500->regmap, &hndsk_reg, 1, NULL);
+	if (ret) {
+		dev_err(&client->dev, "Failed to inject state transition\n");
+		return ret;
+	}
+
+	ret = imx500_poll_status_reg(imx500, &hndsk_reg, 5);
+	if (ret) {
+		dev_err(&client->dev,
+			"Handshake register did not update after READY_WAIT request\n");
+		return ret;
+	}
+
+	if (hndsk_reg.val != IMX500_DD_DAT_INJECTION_HNDSK_TRANS_READY_COMP) {
+		dev_err(&client->dev,
+			"Failed to transition to READY_COMP state: %llu\n",
+			hndsk_reg.val);
+		return -EREMOTEIO;
+	}
+
+	ret = cci_write(imx500->regmap, IMX500_REG_DD_DAT_INJECTION_HNDSK,
+			IMX500_DD_DAT_INJECTION_HNDSK_TRANSFERRING, NULL);
+	if (ret) {
+		dev_err(&client->dev,
+			"Failed to request transition to TRANSFERRING state\n");
+		return ret;
+	}
+
+	for (size_t i = 0; i < size; i++)
+		*(u32 *)(data + i) = ___constant_swab32(data[i]);
+
+	if (imx500->led_gpio)
+		gpiod_set_value_cansleep(imx500->led_gpio, 1);
+
+	ret = imx500_spi_write(imx500, (const u8 *)data, size * 4);
+	if (ret) {
+		dev_err(&client->dev, "SPI transfer of input tensor failed\n");
+		return ret;
+	}
+
+	if (imx500->led_gpio)
+		gpiod_set_value_cansleep(imx500->led_gpio, 0);
+
+	ret = imx500_injection_wait_transfer_complete(imx500);
+	if (ret) {
+		dev_err(&client->dev, "SPI transfer of input tensor failed\n");
+		return ret;
+	}
+
+	ret = cci_read(imx500->regmap, IMX500_REG_DD_DAT_INJECTION_SPI_CMP_FRM,
+		       &cmp_frm, NULL);
+	if (ret) {
+		dev_err(&client->dev,
+			"Failed to read injection frame comparison register\n");
+		return ret;
+	}
+	exp_frm = cmp_frm;
+	exp_frm += 2 << (exp_frm > 254);
+	imx500->current_injection_cmp_frm = exp_frm;
+	dev_info(&client->dev, "injection_cmp_frm set to %u\n", exp_frm);
+
+	ret = cci_write(imx500->regmap, IMX500_REG_STRM_MODE_SEL, 4, NULL);
+	if (ret)
+		dev_err(&client->dev, "Failed to enable DNN processing\n");
+
+	return ret;
+}
+
 static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct imx500 *imx500 =
 		container_of(ctrl->handler, struct imx500, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
 	int ret = 0;
+
+	const u8 *tensor_data;
+	size_t tensor_data_size;
 
 	if (ctrl->id == V4L2_CID_USER_IMX500_NETWORK_FW_FD) {
 		/* Reset state of the control. */
@@ -1954,6 +2162,56 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 		}
 
 		imx500_calc_inference_lines(imx500);
+		return 0;
+	}
+
+	if (ctrl->id == V4L2_CID_USER_IMX500_INPUT_TENSOR_FD) {
+		if (!imx500->streaming || !imx500->fw_network ||
+		    !imx500->tensor_injection) {
+			if (ctrl->val == -1)
+				return 0;
+
+			dev_err(&client->dev,
+				"Input tensor injection requires streaming, network and injection to be enabled\n");
+			return -EINVAL;
+		}
+
+		ret = kernel_read_file_from_fd(ctrl->val, 0,
+					       (void **)&tensor_data, INT_MAX,
+					       &tensor_data_size, 1);
+
+		if (ret < 0) {
+			dev_err(&client->dev,
+				"%s failed to read tensor data: %d\n", __func__,
+				ret);
+			return ret;
+		}
+
+		if (tensor_data_size % 4 != 0) {
+			dev_err(&client->dev,
+				"%s tensor data size must be multiple of 4, got %zu\n",
+				__func__, tensor_data_size);
+			vfree(tensor_data);
+			return -EINVAL;
+		}
+
+		ret = imx500_inject_input_tensor(imx500, (u32 *)tensor_data,
+						 tensor_data_size / 4);
+
+		vfree(tensor_data);
+
+		ctrl->val = -1;
+		return ret;
+	}
+
+	if (ctrl->id == V4L2_CID_USER_IMX500_ENABLE_INJECTION) {
+		/*
+		 * tensor_injection is latched-enabled as no deinitialisation is possible
+		 * without reset
+		 */
+		if (ctrl->val && !imx500->tensor_injection)
+			imx500->tensor_injection = ctrl->val;
+
 		return 0;
 	}
 
@@ -2035,6 +2293,12 @@ static int imx500_get_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_USER_GET_IMX500_DEVICE_ID:
 		ret = imx500_get_device_id(imx500, device_id);
 		memcpy(ctrl->p_new.p_u32, device_id, sizeof(device_id));
+		break;
+	case V4L2_CID_USER_IMX500_INJECTION_CMP_FRM:
+		ctrl->val = imx500->current_injection_cmp_frm;
+		dev_dbg(&client->dev, "Injection comparison frame: %u\n",
+			ctrl->val);
+		ret = 0;
 		break;
 	default:
 		dev_info(&client->dev, "ctrl(id:0x%x,val:0x%x) is not handled\n",
@@ -2306,16 +2570,55 @@ static int imx500_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
-static int __must_check imx500_spi_write(struct imx500 *state, const u8 *data,
-					 size_t size)
+static int imx500_data_injection_init(struct imx500 *imx500)
 {
-	if (size % 4 || size > ONE_MIB)
-		return -EINVAL;
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
 
-	if (!state->spi_device)
-		return -ENODEV;
+	int ret;
 
-	return spi_write(state->spi_device, data, size);
+	ret = cci_write(imx500->regmap, IMX500_REG_LEV_PL_MDET_OUT, 1, NULL);
+	if (ret) {
+		dev_err(&client->dev,
+			"Failed to write LEV_PL_MDET_OUT register\n");
+		return ret;
+	}
+
+	ret = cci_write(imx500->regmap, IMX500_REG_DD_DAT_INJECTION_HNDSK,
+			IMX500_DD_DAT_INJECTION_HNDSK_TRANS_INIT_WAIT, NULL);
+	if (ret) {
+		dev_err(&client->dev, "Failed to write HNDSK register\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int imx500_data_injection_init_wait(struct imx500 *imx500)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+
+	int ret;
+
+	struct cci_reg_sequence hndsk_reg = {
+		IMX500_REG_DD_DAT_INJECTION_HNDSK,
+		IMX500_DD_DAT_INJECTION_HNDSK_TRANS_INIT_WAIT
+	};
+
+	ret = imx500_poll_status_reg(imx500, &hndsk_reg, 40);
+	if (ret) {
+		dev_err(&client->dev,
+			"Handshake register did not update after INIT_WAIT request\n");
+		return ret;
+	}
+
+	if (hndsk_reg.val != IMX500_DD_DAT_INJECTION_HNDSK_TRANS_INIT_COMP) {
+		dev_err(&client->dev,
+			"Failed to transition to INIT_COMP state: %llu\n",
+			hndsk_reg.val);
+		return -EREMOTEIO;
+	}
+
+	return 0;
 }
 
 /* Moves the IMX500 internal state machine between states or updates.
@@ -2626,6 +2929,15 @@ static int imx500_start_streaming(struct imx500 *imx500)
 	}
 
 	if (imx500->fw_network && !imx500->network_written) {
+		if (imx500->tensor_injection) {
+			ret = imx500_data_injection_init(imx500);
+			if (ret) {
+				dev_err(&client->dev,
+					"%s failed to initialize data injection\n",
+					__func__);
+				return ret;
+			}
+		}
 		ret = imx500_transition_to_network(imx500);
 		if (ret) {
 			dev_err(&client->dev,
@@ -2638,7 +2950,8 @@ static int imx500_start_streaming(struct imx500 *imx500)
 
 	/* Enable DNN */
 	if (imx500->fw_network) {
-		ret = cci_write(imx500->regmap, CCI_REG8(0xD100), 4, NULL);
+		ret = cci_write(imx500->regmap, IMX500_REG_STRM_MODE_SEL, 4,
+				NULL);
 		if (ret) {
 			dev_err(&client->dev, "%s failed to enable DNN\n",
 				__func__);
@@ -2673,76 +2986,26 @@ static int imx500_start_streaming(struct imx500 *imx500)
 	if (ret)
 		goto err_runtime_put;
 
+	if (imx500->tensor_injection) {
+		ret = imx500_data_injection_init_wait(imx500);
+		if (ret) {
+			dev_err(&client->dev,
+				"%s failed to wait for data injection init\n",
+				__func__);
+			goto err_runtime_put;
+		}
+	}
+
 	return 0;
 
 err_runtime_put:
+	__v4l2_ctrl_grab(imx500->enable_injection, false);
 	pm_runtime_mark_last_busy(&client->dev);
 	pm_runtime_put_autosuspend(&client->dev);
-	return ret;
-}
-
-/* Stop streaming */
-static void imx500_stop_streaming(struct imx500 *imx500)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
-	int ret;
-
-	/* set stream off register */
-	ret = cci_write(imx500->regmap, IMX500_REG_MODE_SELECT,
-			IMX500_MODE_STANDBY, NULL);
-	if (ret)
-		dev_err(&client->dev, "%s failed to set stream\n", __func__);
-
-	/* Disable DNN */
-	ret = cci_write(imx500->regmap, CCI_REG8(0xD100), 0, NULL);
-	if (ret)
-		dev_err(&client->dev, "%s failed to disable DNN\n", __func__);
-
-	pm_runtime_mark_last_busy(&client->dev);
-	pm_runtime_put_autosuspend(&client->dev);
-}
-
-static int imx500_set_stream(struct v4l2_subdev *sd, int enable)
-{
-	struct imx500 *imx500 = to_imx500(sd);
-	int ret = 0;
-
-	mutex_lock(&imx500->mutex);
-	if (imx500->streaming == enable) {
-		mutex_unlock(&imx500->mutex);
-		return 0;
-	}
-
-	if (enable) {
-		/*
-		 * Apply default & customized values
-		 * and then start streaming.
-		 */
-		ret = imx500_start_streaming(imx500);
-		if (ret)
-			goto err_start_streaming;
-	} else {
-		imx500_stop_streaming(imx500);
-	}
-
-	imx500->streaming = enable;
-
-	/* vflip and hflip cannot change during streaming */
-	__v4l2_ctrl_grab(imx500->vflip, enable);
-	__v4l2_ctrl_grab(imx500->hflip, enable);
-	__v4l2_ctrl_grab(imx500->network_fw_ctrl, enable);
-
-	mutex_unlock(&imx500->mutex);
-
-	return ret;
-
-err_start_streaming:
-	mutex_unlock(&imx500->mutex);
 
 	return ret;
 }
 
-/* Power/clock management functions */
 static int imx500_power_on(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -2846,11 +3109,108 @@ static int imx500_power_off(struct device *dev)
 
 	/* Force reprogramming of the common registers when powered up again. */
 	imx500->fsm_state = IMX500_STATE_RESET;
+	imx500->tensor_injection = false;
 	imx500->common_regs_written = false;
 	imx500->loader_and_main_written = false;
 	imx500_clear_fw_network(imx500);
 
 	return 0;
+}
+
+/* Stop streaming */
+static void imx500_stop_streaming(struct imx500 *imx500)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+	int ret;
+
+	/* set stream off register */
+	ret = cci_write(imx500->regmap, IMX500_REG_MODE_SELECT,
+			IMX500_MODE_STANDBY, NULL);
+	if (ret)
+		dev_err(&client->dev, "%s failed to set stream\n", __func__);
+
+	/* Disable DNN */
+	ret = cci_write(imx500->regmap, IMX500_REG_STRM_MODE_SEL, 0, NULL);
+	if (ret)
+		dev_err(&client->dev, "%s failed to disable DNN\n", __func__);
+
+	pm_runtime_mark_last_busy(&client->dev);
+
+	if (imx500->tensor_injection) {
+		/*
+		 * The tensor_injection state is not persistent.
+		 * It must be reset on streamoff to avoid breaking
+		 * non-injection-aware applications that may use the
+		 * device next. We reset both the internal flag and the
+		 * control's value.
+		 */
+		imx500->tensor_injection = false;
+		__v4l2_ctrl_s_ctrl(imx500->enable_injection, 0);
+
+		/*
+		 * A full power cycle is required to reset the sensor's SPI
+		 * block. Disabling runtime PM allows us to do this safely.
+		 */
+		pm_runtime_disable(&client->dev);
+		imx500_power_off(&client->dev);
+		pm_runtime_set_suspended(&client->dev);
+
+		/*
+		 * If the usage count is > 1, another user (e.g. sysfs) holds
+		 * a reference, so the device must be powered on again.
+		 * Otherwise, the upcoming 'put' will suspend, so we can
+		 * leave it off.
+		 */
+		if (atomic_read(&client->dev.power.usage_count) > 1) {
+			usleep_range(5000, 10000);
+			imx500_power_on(&client->dev);
+			pm_runtime_set_active(&client->dev);
+		}
+
+		pm_runtime_enable(&client->dev);
+	}
+
+	pm_runtime_put_autosuspend(&client->dev);
+}
+
+static int imx500_set_stream(struct v4l2_subdev *sd, int enable)
+{
+	struct imx500 *imx500 = to_imx500(sd);
+	int ret = 0;
+
+	mutex_lock(&imx500->mutex);
+	if (imx500->streaming == enable) {
+		mutex_unlock(&imx500->mutex);
+		return 0;
+	}
+
+	if (enable) {
+		/*
+		 * Apply default & customized values
+		 * and then start streaming.
+		 */
+		ret = imx500_start_streaming(imx500);
+		if (ret)
+			goto err_start_streaming;
+	} else {
+		imx500_stop_streaming(imx500);
+	}
+
+	imx500->streaming = enable;
+
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(imx500->vflip, enable);
+	__v4l2_ctrl_grab(imx500->hflip, enable);
+	__v4l2_ctrl_grab(imx500->network_fw_ctrl, enable);
+
+	mutex_unlock(&imx500->mutex);
+
+	return ret;
+
+err_start_streaming:
+	mutex_unlock(&imx500->mutex);
+
+	return ret;
 }
 
 static int imx500_get_regulators(struct imx500 *imx500)
@@ -2964,6 +3324,44 @@ static const struct v4l2_ctrl_config cam_get_device_id = {
 	.def		= 0,
 };
 
+/* Custom control for enable injection */
+static const struct v4l2_ctrl_config enable_injection_ctrl = {
+	.name = "IMX500 Enable Input Tensor Injection",
+	.id = V4L2_CID_USER_IMX500_ENABLE_INJECTION,
+	.ops = &imx500_ctrl_ops,
+	.type = V4L2_CTRL_TYPE_BOOLEAN,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+};
+
+/* Custom control for input tensor file FD */
+static const struct v4l2_ctrl_config input_tensor_fd = {
+	.name = "IMX500 Input Tensor File FD",
+	.id = V4L2_CID_USER_IMX500_INPUT_TENSOR_FD,
+	.ops = &imx500_ctrl_ops,
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE | V4L2_CTRL_FLAG_WRITE_ONLY,
+	.min = -1,
+	.max = S32_MAX,
+	.step = 1,
+	.def = -1,
+};
+
+/* Custom control from tensor injection comparison frame */
+static const struct v4l2_ctrl_config injection_cmp_frm = {
+	.name = "IMX500 Injection Comparison Frame",
+	.id = V4L2_CID_USER_IMX500_INJECTION_CMP_FRM,
+	.ops = &imx500_ctrl_ops,
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE,
+	.min = 1,
+	.max = 254,
+	.step = 1,
+	.def = 42,
+};
+
 /* Initialize control handlers */
 static int imx500_init_controls(struct imx500 *imx500)
 {
@@ -3029,6 +3427,12 @@ static int imx500_init_controls(struct imx500 *imx500)
 		v4l2_ctrl_new_custom(ctrl_hdlr, &network_fw_fd, NULL);
 	imx500->device_id =
 		v4l2_ctrl_new_custom(ctrl_hdlr, &cam_get_device_id, NULL);
+	imx500->enable_injection =
+		v4l2_ctrl_new_custom(ctrl_hdlr, &enable_injection_ctrl, NULL);
+	imx500->input_tensor_fd =
+		v4l2_ctrl_new_custom(ctrl_hdlr, &input_tensor_fd, NULL);
+	imx500->injection_cmp_frm =
+		v4l2_ctrl_new_custom(ctrl_hdlr, &injection_cmp_frm, NULL);
 
 	if (ctrl_hdlr->error) {
 		ret = ctrl_hdlr->error;
@@ -3202,6 +3606,9 @@ static int imx500_probe(struct i2c_client *client)
 
 	/* Initialize default format */
 	imx500_set_default_format(imx500);
+
+	/* Initialize injection comparison frame to default value */
+	imx500->current_injection_cmp_frm = 0;
 
 	/* This needs the pm runtime to be registered. */
 	ret = imx500_init_controls(imx500);
