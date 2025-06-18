@@ -309,6 +309,19 @@
 		};
 	};
 
+	fragment@23 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			m41t80: m41t80@68 {
+				compatible = "st,m41t80";
+				reg = <0x68>;
+			};
+		};
+	};
+
 	__overrides__ {
 		abx80x = <0>,"+0";
 		ds1307 = <0>,"+1";
@@ -333,6 +346,7 @@
 		rv8803 = <0>,"+20";
 		rv3032 = <0>,"+21";
 		pcf2131 = <0>,"+22";
+		m41t80 = <0>,"+23";
 
 		addr = <&abx80x>, "reg:0",
 		       <&ds1307>, "reg:0",
@@ -362,6 +376,7 @@
 				<&mcp7940x>,"wakeup-source?",
 				<&mcp7941x>,"wakeup-source?",
 				<&m41t62>,"wakeup-source?",
+				<&m41t80>,"wakeup-source?",
 				<&pcf8563>,"wakeup-source?";
 	};
 };
