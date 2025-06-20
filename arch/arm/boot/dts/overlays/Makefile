@@ -345,7 +345,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	waveshare-can-fd-hat-mode-b.dtbo \
 	wittypi.dtbo \
 	wm8960-soundcard.dtbo \
-	ws2812-pio.dtbo
+	ws2812-pio.dtbo \
+	txw700071s0.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
