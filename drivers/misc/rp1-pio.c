@@ -850,9 +850,9 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 		if (ret < 0)
 			break;
 
+		dma->head_idx++;
 		dma_async_issue_pending(dma->chan);
 
-		dma->head_idx++;
 		bytes -= copy_bytes;
 	}
 
@@ -964,6 +964,7 @@ int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 		return ret;
 	}
 
+	dma->head_idx++;
 	dma_async_issue_pending(dma->chan);
 
 	return 0;
