@@ -676,6 +676,18 @@ static void dwc2_hc_init(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan)
 		hcchar |= HCCHAR_EPDIR;
 	if (chan->speed == USB_SPEED_LOW)
 		hcchar |= HCCHAR_LSPDDEV;
+
+	/*
+	 * Masquerading Interrupt split transfers as Control puts the transfer
+	 * into the non-periodic handler in the hub. This stops the hub
+	 * dropping complete-split data in the microframe after a CSPLIT
+	 * should have arrived, improving resilience to host IRQ latency.
+	 * Devices are none the wiser - the handshake tokens are the same.
+	 * The fakery is undone in dwc2_hc_n_intr().
+	 */
+	if (chan->do_split && chan->ep_type == USB_ENDPOINT_XFER_INT)
+		chan->ep_type = USB_ENDPOINT_XFER_CONTROL;
+
 	hcchar |= chan->ep_type << HCCHAR_EPTYPE_SHIFT & HCCHAR_EPTYPE_MASK;
 	hcchar |= chan->max_packet << HCCHAR_MPS_SHIFT & HCCHAR_MPS_MASK;
 	dwc2_writel(hsotg, hcchar, HCCHAR(hc_num));
