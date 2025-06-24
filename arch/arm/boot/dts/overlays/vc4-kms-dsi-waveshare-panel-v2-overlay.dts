@@ -50,6 +50,8 @@
 				reg = <0>;
 				compatible = "waveshare,10.1-dsi-touch-a";
 				reset-gpio = <&display_mcu 1 GPIO_ACTIVE_HIGH>;
+				iovcc-gpio = <&display_mcu 4 GPIO_ACTIVE_HIGH>;
+				avdd-gpio = <&display_mcu 0 GPIO_ACTIVE_HIGH>;
 				backlight = <&display_mcu>;
 
 				port {
@@ -76,14 +78,28 @@
 	};
 
 	__overrides__ {
+		3_4_inch_c = <&dsi_panel>, "compatible=waveshare,3.4-dsi-touch-c";
+		4_0_inch_c = <&dsi_panel>, "compatible=waveshare,4.0-dsi-touch-c";
 		5_0_inch_a = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a";
 		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
 		7_0_inch_a = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-a";
 		7_0_inch_b = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-b";
 		8_0_inch_a = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a";
 		8_0_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a-4lane";
+		8_8_inch_a = <&dsi_panel>, "compatible=waveshare,8.8-dsi-touch-a";
+		9_0_inch_b = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b",
+			     <&touch>, "touchscreen-inverted-x";
+		9_0_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b,4lane",
+				   <&touch>, "touchscreen-inverted-x";
 		10_1_inch_a = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-a";
 		10_1_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-a-4lane";
+		10_1_inch_b = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-b",
+			      <&touch>, "touchscreen-inverted-y";
+		10_1_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-b,4lane",
+				    <&touch>, "touchscreen-inverted-y";
+		12_3_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,12.3-dsi-touch-a,4lane",
+				    <&touch>, "touchscreen-swapped-x-y",
+				    <&touch>, "touchscreen-inverted-y";
 		disable_touch = <&touch>, "status=disabled";
 		invx = <&touch>,"touchscreen-inverted-x?";
 		invy = <&touch>,"touchscreen-inverted-y?";
