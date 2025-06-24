@@ -239,7 +239,7 @@ static int waveshare_panel_i2c_probe(struct i2c_client *i2c)
 			 data);
 
 	state->direction_state = 0;
-	state->poweron_state = BIT(9) | BIT(8) | BIT(4) | BIT(0); // Enable VCC
+	state->poweron_state = BIT(9) | BIT(8); // Enable VCC
 	regmap_write(regmap, REG_TP, state->poweron_state >> 8);
 	regmap_write(regmap, REG_LCD, state->poweron_state & 0xff);
 	msleep(20);
