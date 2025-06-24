@@ -2048,6 +2048,9 @@ static void dwc2_hc_n_intr(struct dwc2_hsotg *hsotg, int chnum)
 
 	chan->hcint = hcintraw;
 
+	/* Un-masquerade the transfer type */
+	if (chan->do_split)
+		chan->ep_type = chan->qh->ep_type;
 	/*
 	 * If the channel was halted due to a dequeue, the qtd list might
 	 * be empty or at least the first entry will not be the active qtd.
