@@ -884,7 +884,9 @@ static void cfe_start_channel(struct cfe_node *node)
 			width = source_fmt->width;
 			height = source_fmt->height;
 
-			if (node->vid_fmt.fmt.pix.pixelformat ==
+			/* We don't need to repack in the case of 16-bit output. */
+			if (fmt->depth != 16 &&
+			    node->vid_fmt.fmt.pix.pixelformat ==
 					fmt->remap[CFE_REMAP_16BIT])
 				mode = CSI2_MODE_REMAP;
 			else if (node->vid_fmt.fmt.pix.pixelformat ==
