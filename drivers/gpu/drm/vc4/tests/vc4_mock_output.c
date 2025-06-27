@@ -90,29 +90,29 @@ vc4_mock_atomic_add_output(struct kunit *test,
 
 	encoder = vc4_find_encoder_by_type(drm, type);
 	if (!encoder)
-		return -ENODEV;
+		return ERR_PTR(-ENODEV);
 
 	crtc = vc4_find_crtc_for_encoder(test, encoder);
 	if (!crtc)
-		return -ENODEV;
+		return ERR_PTR(-ENODEV);
 
 	output = encoder_to_vc4_dummy_output(encoder);
 	conn = &output->connector;
 	conn_state = drm_atomic_get_connector_state(state, conn);
 	if (IS_ERR(conn_state))
-		return PTR_ERR(conn_state);
+		return ERR_CAST(conn_state);
 
 	ret = drm_atomic_set_crtc_for_connector(conn_state, crtc);
 	if (ret)
-		return ret;
+		return ERR_PTR(ret);
 
 	crtc_state = drm_atomic_get_crtc_state(state, crtc);
 	if (IS_ERR(crtc_state))
-		return PTR_ERR(crtc_state);
+		return ERR_CAST(crtc_state);
 
 	ret = drm_atomic_set_mode_for_crtc(crtc_state, &default_mode);
 	if (ret)
-		return ret;
+		return ERR_PTR(ret);
 
 	crtc_state->active = true;
 
