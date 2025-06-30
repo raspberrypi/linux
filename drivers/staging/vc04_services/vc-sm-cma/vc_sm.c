@@ -249,9 +249,9 @@ static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 
 	/* Handle cleaning up imported dmabufs */
 	if (buffer->import.sgt) {
-		dma_buf_unmap_attachment(buffer->import.attach,
-					 buffer->import.sgt,
-					 DMA_BIDIRECTIONAL);
+		dma_buf_unmap_attachment_unlocked(buffer->import.attach,
+						  buffer->import.sgt,
+						  DMA_BIDIRECTIONAL);
 		buffer->import.sgt = NULL;
 	}
 	if (buffer->import.attach) {
@@ -735,7 +735,7 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 		goto error;
 	}
 
-	sgt = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
+	sgt = dma_buf_map_attachment_unlocked(attach, DMA_BIDIRECTIONAL);
 	if (IS_ERR(sgt)) {
 		ret = PTR_ERR(sgt);
 		goto error;
@@ -845,7 +845,7 @@ error:
 	free_kernel_id(import.kernel_id);
 	kfree(buffer);
 	if (sgt)
-		dma_buf_unmap_attachment(attach, sgt, DMA_BIDIRECTIONAL);
+		dma_buf_unmap_attachment_unlocked(attach, sgt, DMA_BIDIRECTIONAL);
 	if (attach)
 		dma_buf_detach(dma_buf, attach);
 	dma_buf_put(dma_buf);
