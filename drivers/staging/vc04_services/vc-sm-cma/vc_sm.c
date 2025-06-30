@@ -91,7 +91,7 @@ struct sm_state_t {
 
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
 
-	spinlock_t kernelid_map_lock;	/* Spinlock protecting kernelid_map */
+	struct mutex kernelid_map_lock;	/* Mutex protecting kernelid_map */
 	struct idr kernelid_map;
 
 	struct mutex map_lock;          /* Global map lock. */
@@ -129,9 +129,9 @@ static int get_kernel_id(struct vc_sm_buffer *buffer)
 {
 	int handle;
 
-	spin_lock(&sm_state->kernelid_map_lock);
+	mutex_lock(&sm_state->kernelid_map_lock);
 	handle = idr_alloc(&sm_state->kernelid_map, buffer, 0, 0, GFP_KERNEL);
-	spin_unlock(&sm_state->kernelid_map_lock);
+	mutex_unlock(&sm_state->kernelid_map_lock);
 
 	return handle;
 }
@@ -143,9 +143,9 @@ static struct vc_sm_buffer *lookup_kernel_id(int handle)
 
 static void free_kernel_id(int handle)
 {
-	spin_lock(&sm_state->kernelid_map_lock);
+	mutex_lock(&sm_state->kernelid_map_lock);
 	idr_remove(&sm_state->kernelid_map, handle);
-	spin_unlock(&sm_state->kernelid_map_lock);
+	mutex_unlock(&sm_state->kernelid_map_lock);
 }
 
 static int vc_sm_cma_seq_file_show(struct seq_file *s, void *v)
@@ -1494,7 +1494,7 @@ static int bcm2835_vc_sm_cma_probe(struct vchiq_device *device)
 	sm_state->device = device;
 	mutex_init(&sm_state->map_lock);
 
-	spin_lock_init(&sm_state->kernelid_map_lock);
+	mutex_init(&sm_state->kernelid_map_lock);
 	idr_init_base(&sm_state->kernelid_map, 1);
 
 	device->dev.dma_parms = devm_kzalloc(&device->dev,
