@@ -199,3 +199,15 @@ config TINYDRM_SHARP_MEMORY
 	  * 4.40" Sharp Memory LCD (LS044Q7DH01)
 
 	  If M is selected the module will be called sharp_memory.
+
+config DRM_PIXPAPER
+    tristate "DRM support for PIXPAPER display panels"
+    depends on DRM && SPI
+    select DRM_KMS_HELPER
+    select DRM_GEM_CMA_HELPER
+	select DRM_CLIENT_SELECTION
+    help
+      DRM driver for the following PIXPAPER panels
+
+      If M is selected the module will be called pixpaper .
+
