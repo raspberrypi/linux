@@ -21,6 +21,15 @@
 #include "hevc_d_hw.h"
 #include "hevc_d_video.h"
 
+/* Maximum length of command buffer before we rate it an error */
+#define CMD_BUFFER_SIZE_MAX 0x100000
+
+/* Initial size of command FIFO in commands.
+ * The FIFO will be extended if this value is exceeded but 8192 seems to
+ * deal with all streams found in the wild.
+ */
+#define CMD_BUFFER_SIZE_INIT 8192
+
 enum hevc_slice_type {
 	HEVC_SLICE_B = 0,
 	HEVC_SLICE_P = 1,
@@ -92,6 +101,24 @@ static int gptr_realloc_new(struct hevc_d_dev * const dev,
 	return 0;
 }
 
+/* Realloc with copy */
+static int gptr_realloc_copy(struct hevc_d_dev * const dev,
+			     struct hevc_d_gptr * const gptr, size_t newsize)
+{
+	struct hevc_d_gptr gnew;
+
+	if (newsize <= gptr->size)
+		return 0;
+
+	if (gptr_alloc(dev, &gnew, newsize, gptr->attrs))
+		return -ENOMEM;
+
+	memcpy(gnew.ptr, gptr->ptr, gptr->size);
+	gptr_free(dev, gptr);
+	*gptr = gnew;
+	return 0;
+}
+
 static size_t next_size(const size_t x)
 {
 	return hevc_d_round_up_size(x + 1);
@@ -105,11 +132,6 @@ static size_t next_size(const size_t x)
 #define PROB_RELOAD ((20 << 12) + (20 << 0) + (0 << 6))
 
 #define HEVC_MAX_REFS V4L2_HEVC_DPB_ENTRIES_NUM_MAX
-
-struct rpi_cmd {
-	u32 addr;
-	u32 data;
-} __packed;
 
 struct hevc_d_q_aux {
 	unsigned int refcount;
@@ -133,8 +155,9 @@ struct hevc_d_dec_env {
 	unsigned int decode_order;
 	int p1_status;		/* P1 status - what to realloc */
 
-	struct rpi_cmd *cmd_fifo;
-	unsigned int cmd_len, cmd_max;
+	struct hevc_d_gptr cmd;
+	unsigned int cmd_len;
+	unsigned int cmd_max;
 	unsigned int num_slice_msgs;
 	unsigned int pic_width_in_ctbs_y;
 	unsigned int pic_height_in_ctbs_y;
@@ -166,9 +189,6 @@ struct hevc_d_dec_env {
 	dma_addr_t ref_addrs[16][2];
 	struct hevc_d_q_aux *frame_aux;
 	struct hevc_d_q_aux *col_aux;
-
-	dma_addr_t cmd_addr;
-	size_t cmd_size;
 
 	dma_addr_t pu_base_vc;
 	dma_addr_t coeff_base_vc;
@@ -234,23 +254,19 @@ static inline int clip_int(const int x, const int lo, const int hi)
 /* Phase 1 command and bit FIFOs */
 static int cmds_check_space(struct hevc_d_dec_env *const de, unsigned int n)
 {
-	struct rpi_cmd *a;
 	unsigned int newmax;
-
-	if (n > 0x100000) {
-		v4l2_err(&de->ctx->dev->v4l2_dev,
-			 "%s: n %u implausible\n", __func__, n);
-		return -ENOMEM;
-	}
 
 	if (de->cmd_len + n <= de->cmd_max)
 		return 0;
 
 	newmax = roundup_pow_of_two(de->cmd_len + n);
+	if (newmax > CMD_BUFFER_SIZE_MAX) {
+		v4l2_err(&de->ctx->dev->v4l2_dev,
+			 "%s: n %u implausible\n", __func__, newmax);
+		return -ENOMEM;
+	}
 
-	a = krealloc(de->cmd_fifo, newmax * sizeof(struct rpi_cmd),
-		     GFP_KERNEL);
-	if (!a) {
+	if (gptr_realloc_copy(de->ctx->dev, &de->cmd, newmax * sizeof(u64))) {
 		v4l2_err(&de->ctx->dev->v4l2_dev,
 			 "Failed cmd buffer realloc from %u to %u\n",
 			 de->cmd_max, newmax);
@@ -259,7 +275,6 @@ static int cmds_check_space(struct hevc_d_dec_env *const de, unsigned int n)
 	v4l2_info(&de->ctx->dev->v4l2_dev,
 		  "cmd buffer realloc from %u to %u\n", de->cmd_max, newmax);
 
-	de->cmd_fifo = a;
 	de->cmd_max = newmax;
 	return 0;
 }
@@ -268,15 +283,7 @@ static int cmds_check_space(struct hevc_d_dec_env *const de, unsigned int n)
 static void p1_apb_write(struct hevc_d_dec_env *const de, const u16 addr,
 			 const u32 data)
 {
-	if (de->cmd_len >= de->cmd_max) {
-		v4l2_err(&de->ctx->dev->v4l2_dev,
-			 "%s: Overflow @ %d\n", __func__, de->cmd_len);
-		return;
-	}
-
-	de->cmd_fifo[de->cmd_len].addr = addr;
-	de->cmd_fifo[de->cmd_len].data = data;
-
+	WRITE_ONCE(((u64 *)de->cmd.ptr)[de->cmd_len], addr | ((u64)data << 32));
 	de->cmd_len++;
 }
 
@@ -1411,24 +1418,6 @@ fail:
 	return -ENOMEM;
 }
 
-static int write_cmd_buffer(struct hevc_d_dev *const dev,
-			    struct hevc_d_dec_env *const de,
-			    const struct hevc_d_dec_state *const s)
-{
-	const size_t cmd_size = ALIGN(de->cmd_len * sizeof(de->cmd_fifo[0]),
-				      dev->cache_align);
-
-	de->cmd_addr = dma_map_single(dev->dev, de->cmd_fifo,
-				      cmd_size, DMA_TO_DEVICE);
-	if (dma_mapping_error(dev->dev, de->cmd_addr)) {
-		v4l2_err(&dev->v4l2_dev,
-			 "Map cmd buffer (%zu): FAILED\n", cmd_size);
-		return -ENOMEM;
-	}
-	de->cmd_size = cmd_size;
-	return 0;
-}
-
 static void setup_colmv(struct hevc_d_ctx *const ctx, struct hevc_d_run *run,
 			struct hevc_d_dec_state *const s)
 {
@@ -1461,12 +1450,6 @@ static void dec_env_delete(struct hevc_d_dec_env *const de)
 	struct hevc_d_ctx * const ctx = de->ctx;
 	unsigned long lock_flags;
 
-	if (de->cmd_size) {
-		dma_unmap_single(ctx->dev->dev, de->cmd_addr, de->cmd_size,
-				 DMA_TO_DEVICE);
-		de->cmd_size = 0;
-	}
-
 	aux_q_release(ctx, &de->frame_aux);
 	aux_q_release(ctx, &de->col_aux);
 
@@ -1486,8 +1469,7 @@ static void dec_env_uninit(struct hevc_d_ctx *const ctx)
 	if (ctx->dec_pool) {
 		for (i = 0; i != HEVC_D_DEC_ENV_COUNT; ++i) {
 			struct hevc_d_dec_env *const de = ctx->dec_pool + i;
-
-			kfree(de->cmd_fifo);
+			gptr_free(ctx->dev, &de->cmd);
 		}
 
 		kfree(ctx->dec_pool);
@@ -1517,11 +1499,9 @@ static int dec_env_init(struct hevc_d_ctx *const ctx)
 
 		de->ctx = ctx;
 		de->decode_order = i;
-		de->cmd_max = 8096;
-		de->cmd_fifo = kmalloc_array(de->cmd_max,
-					     sizeof(struct rpi_cmd),
-					     GFP_KERNEL);
-		if (!de->cmd_fifo)
+		de->cmd_max = CMD_BUFFER_SIZE_INIT;
+		if (gptr_alloc(ctx->dev, &de->cmd,
+			       de->cmd_max * sizeof(u64), 0))
 			goto fail;
 	}
 
@@ -1871,9 +1851,6 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		goto fail;
 	}
 
-	if (write_cmd_buffer(dev, de, s))
-		goto fail;
-
 	for (i = 0; i < dec->num_active_dpb_entries; ++i) {
 		struct vb2_buffer *buf = vb2_find_buffer(vq, dec->dpb[i].timestamp);
 
@@ -2205,7 +2182,7 @@ static void phase1_claimed(struct hevc_d_dev *const dev, void *v)
 	hevc_d_hw_irq_active1_irq(dev, &de->irq_ent, phase1_cb, de);
 
 	/* Start the h/w */
-	apb_write_vc_addr_final(dev, RPI_CFBASE, de->cmd_addr);
+	apb_write_vc_addr_final(dev, RPI_CFBASE, de->cmd.addr);
 
 	return;
 
