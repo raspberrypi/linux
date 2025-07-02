@@ -43,6 +43,7 @@
 		keycode =    <&key>,"linux,code:0";
 		gpio_pull =  <&pin_state>,"brcm,pull:0";
 		active_low = <&key>,"gpios:8";
+		autorepeat = <&button>,"autorepeat?";
 	};
 
 };
