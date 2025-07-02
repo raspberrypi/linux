@@ -1592,6 +1592,7 @@ Params: gpio                    GPIO pin to trigger on (default 3)
                                 (GPIO3) has an external pullup
         label                   Set a label for the key
         keycode                 Set the key code for the button
+        autorepeat              Set the key to autorepeat
 
 
 
