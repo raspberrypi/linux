@@ -197,7 +197,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SBGGR16,
 		.code = MEDIA_BUS_FMT_SBGGR16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR },
 	},
@@ -205,7 +205,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SGBRG16,
 		.code = MEDIA_BUS_FMT_SGBRG16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG },
 	},
@@ -213,7 +213,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SGRBG16,
 		.code = MEDIA_BUS_FMT_SGRBG16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG },
 	},
@@ -221,7 +221,7 @@ static const struct cfe_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_SRGGB16,
 		.code = MEDIA_BUS_FMT_SRGGB16_1X16,
 		.depth = 16,
-		.csi_dt = MIPI_CSI2_DT_RAW16,
+		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB },
 	},
