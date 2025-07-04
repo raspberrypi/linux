@@ -2350,6 +2350,7 @@ static void dwc2_hc_init_xfer(struct dwc2_hsotg *hsotg,
 			else
 				chan->xfer_buf = urb->setup_packet;
 			chan->xfer_len = 8;
+			chan->max_packet = 8;
 			break;
 
 		case DWC2_CONTROL_DATA:
