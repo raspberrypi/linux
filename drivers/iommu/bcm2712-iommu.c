@@ -244,8 +244,10 @@ static int bcm2712_iommu_map(struct iommu_domain *domain, unsigned long iova,
 	u32 entry = MMMU_PTE_VALID | (pa >> MMU_PAGE_SHIFT);
 	u32 align = (u32)(iova | pa | bytes);
 	unsigned int p;
+	unsigned long flags;
 
-	/* Reject if at least the first page is not within our aperture */
+	/* Reject if not entirely within our aperture (should never happen) */
+	bytes *= count;
 	if (iova < mmu->dma_iova_offset + APERTURE_BASE ||
 	    iova + bytes > mmu->dma_iova_offset + APERTURE_TOP) {
 		dev_warn(mmu->dev, "%s: iova=0x%lx pa=0x%llx bytes=0x%lx OUT OF RANGE\n",
@@ -267,14 +269,14 @@ static int bcm2712_iommu_map(struct iommu_domain *domain, unsigned long iova,
 		entry |= MMMU_PTE_WRITEABLE;
 
 	/* Ensure tables are cache-coherent with CPU */
+	spin_lock_irqsave(&mmu->hw_lock, flags);
 	if (!mmu->dirty) {
 		dma_sync_sgtable_for_cpu(mmu->dev, mmu->sgt, DMA_TO_DEVICE);
 		mmu->dirty = true;
 	}
 
-	/* Make iova relative to table base; amalgamate count pages */
+	/* Make iova relative to table base */
 	iova -= (mmu->dma_iova_offset + APERTURE_BASE);
-	bytes = min(APERTURE_SIZE - iova, count * bytes);
 
 	/* Iterate over table by smallest native IOMMU page size */
 	for (p = iova >> MMU_PAGE_SHIFT;
@@ -283,6 +285,7 @@ static int bcm2712_iommu_map(struct iommu_domain *domain, unsigned long iova,
 		mmu->tables[p] = entry++;
 	}
 
+	spin_unlock_irqrestore(&mmu->hw_lock, flags);
 	*mapped = bytes;
 
 	return 0;
@@ -293,21 +296,18 @@ static size_t bcm2712_iommu_unmap(struct iommu_domain *domain, unsigned long iov
 				  struct iommu_iotlb_gather *gather)
 {
 	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
+	unsigned long flags;
 	unsigned int p;
 
+	/* Reject if not entirely within our aperture (should never happen) */
+	bytes *= count;
 	if (iova < mmu->dma_iova_offset + APERTURE_BASE ||
 	    iova + bytes > mmu->dma_iova_offset + APERTURE_TOP)
 		return 0;
 
 	/* Record just the lower and upper bounds in "gather" */
-	if (gather) {
-		bool empty = (gather->end <= gather->start);
-
-		if (empty || gather->start < iova)
-			gather->start = iova;
-		if (empty || gather->end < iova + bytes)
-			gather->end = iova + bytes;
-	}
+	spin_lock_irqsave(&mmu->hw_lock, flags);
+	iommu_iotlb_gather_add_range(gather, iova, bytes);
 
 	/* Ensure tables are cache-coherent with CPU */
 	if (!mmu->dirty) {
@@ -315,9 +315,8 @@ static size_t bcm2712_iommu_unmap(struct iommu_domain *domain, unsigned long iov
 		mmu->dirty = true;
 	}
 
-	/* Make iova relative to table base; amalgamate count pages */
+	/* Make iova relative to table base */
 	iova -= (mmu->dma_iova_offset + APERTURE_BASE);
-	bytes = min(APERTURE_SIZE - iova, count * bytes);
 
 	/* Clear table entries, this marks the addresses as illegal */
 	for (p = iova >> MMU_PAGE_SHIFT;
@@ -327,6 +326,7 @@ static size_t bcm2712_iommu_unmap(struct iommu_domain *domain, unsigned long iov
 		mmu->tables[p] = 0;
 	}
 
+	spin_unlock_irqrestore(&mmu->hw_lock, flags);
 	return bytes;
 }
 
@@ -334,13 +334,14 @@ static int bcm2712_iommu_sync_range(struct iommu_domain *domain,
 				    unsigned long iova, size_t size)
 {
 	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
-	unsigned long iova_end;
+	unsigned long flags, iova_end;
 	unsigned int i, p4;
 
 	if (!mmu || !mmu->dirty)
 		return 0;
 
 	/* Ensure tables are cleaned from CPU cache or write-buffer */
+	spin_lock_irqsave(&mmu->hw_lock, flags);
 	dma_sync_sgtable_for_device(mmu->dev, mmu->sgt, DMA_TO_DEVICE);
 	mmu->dirty = false;
 
@@ -384,19 +385,26 @@ static int bcm2712_iommu_sync_range(struct iommu_domain *domain,
 		}
 	}
 
+	spin_unlock_irqrestore(&mmu->hw_lock, flags);
 	return 0;
 }
 
 static void bcm2712_iommu_sync(struct iommu_domain *domain,
 			       struct iommu_iotlb_gather *gather)
 {
-	bcm2712_iommu_sync_range(domain, gather->start,
-				 gather->end - gather->start);
+	if (gather->end)
+		bcm2712_iommu_sync_range(domain, gather->start,
+					 gather->end - gather->start + 1);
 }
 
 static void bcm2712_iommu_sync_all(struct iommu_domain *domain)
 {
-	bcm2712_iommu_sync_range(domain, APERTURE_BASE, APERTURE_SIZE);
+	struct bcm2712_iommu *mmu = domain_to_mmu(domain);
+
+	if (mmu)
+		bcm2712_iommu_sync_range(domain,
+					 mmu->dma_iova_offset + APERTURE_BASE,
+					 APERTURE_SIZE);
 }
 
 static phys_addr_t bcm2712_iommu_iova_to_phys(struct iommu_domain *domain, dma_addr_t iova)
@@ -406,9 +414,17 @@ static phys_addr_t bcm2712_iommu_iova_to_phys(struct iommu_domain *domain, dma_a
 
 	iova -= mmu->dma_iova_offset;
 	if (iova  >= APERTURE_BASE && iova < APERTURE_TOP) {
+		unsigned long flags;
+		phys_addr_t addr;
+
+		spin_lock_irqsave(&mmu->hw_lock, flags);
 		p = (iova - APERTURE_BASE) >> MMU_PAGE_SHIFT;
 		p = mmu->tables[p] & 0x0FFFFFFFu;
-		return (((phys_addr_t)p) << MMU_PAGE_SHIFT) + (iova & (MMU_PAGE_SIZE - 1u));
+		addr = (((phys_addr_t)p) << MMU_PAGE_SHIFT) +
+			(iova & (MMU_PAGE_SIZE - 1u));
+
+		spin_unlock_irqrestore(&mmu->hw_lock, flags);
+		return addr;
 	} else if (iova < APERTURE_BASE) {
 		return (phys_addr_t)iova;
 	} else {
