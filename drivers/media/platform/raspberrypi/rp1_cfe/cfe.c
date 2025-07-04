@@ -851,8 +851,11 @@ static void cfe_start_channel(struct cfe_node *node)
 		width = source_fmt->width;
 		height = source_fmt->height;
 
-		/* Must have a valid CSI2 datatype. */
-		WARN_ON(!fmt->csi_dt);
+		/*
+		 * Must have a valid CSI2 datatype, but it will be 0 for 16-bit
+		 * formats to work-around the HW mismatch.
+		 */
+		WARN_ON(fmt->depth != 16 && !fmt->csi_dt);
 
 		/*
 		 * Start the associated CSI2 Channel as well.
