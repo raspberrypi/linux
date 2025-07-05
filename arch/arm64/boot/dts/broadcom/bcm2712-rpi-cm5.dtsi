@@ -159,10 +159,10 @@ rp1_target: &pcie2 {
 	phy-reset-gpios = <&rp1_gpio 32 GPIO_ACTIVE_LOW>;
 	phy-reset-duration = <5>;
 
-	phy1: ethernet-phy@1 {
-		reg = <0x1>;
+	phy1: ethernet-phy@0 {
+		reg = <0x0>;
 		brcm,powerdown-enable;
-		interrupt-parent = <&gpio>;
+		interrupt-parent = <&rp1_gpio>;
 		interrupts = <37 IRQ_TYPE_LEVEL_LOW>;
 		eee-broken-1000t;
 		eee-broken-100tx;
