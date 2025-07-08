@@ -32,20 +32,20 @@
 #include "gc/gc_10_1_0_sh_mask.h"
 #include "amdgpu_amdkfd.h"
 
-static inline struct v10_compute_mqd *get_mqd(void *mqd)
+static inline volatile  struct v10_compute_mqd *get_mqd(void *mqd)
 {
-	return (struct v10_compute_mqd *)mqd;
+	return (volatile struct v10_compute_mqd *)mqd;
 }
 
-static inline struct v10_sdma_mqd *get_sdma_mqd(void *mqd)
+static inline volatile struct v10_sdma_mqd *get_sdma_mqd(void *mqd)
 {
-	return (struct v10_sdma_mqd *)mqd;
+	return (volatile struct v10_sdma_mqd *)mqd;
 }
 
 static void update_cu_mask(struct mqd_manager *mm, void *mqd,
 			struct mqd_update_info *minfo)
 {
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 	uint32_t se_mask[4] = {0}; /* 4 is the max # of SEs */
 
 	if (!minfo || !minfo->cu_mask.ptr)
@@ -67,7 +67,7 @@ static void update_cu_mask(struct mqd_manager *mm, void *mqd,
 		m->compute_static_thread_mgmt_se3);
 }
 
-static void set_priority(struct v10_compute_mqd *m, struct queue_properties *q)
+static void set_priority(volatile struct v10_compute_mqd *m, struct queue_properties *q)
 {
 	m->cp_hqd_pipe_priority = pipe_priority_map[q->priority];
 	m->cp_hqd_queue_priority = q->priority;
@@ -90,7 +90,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 			struct queue_properties *q)
 {
 	uint64_t addr;
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 
 	m = (struct v10_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
@@ -165,7 +165,7 @@ static void update_mqd(struct mqd_manager *mm, void *mqd,
 			struct queue_properties *q,
 			struct mqd_update_info *minfo)
 {
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 
 	m = get_mqd(mqd);
 
@@ -239,7 +239,7 @@ static int get_wave_state(struct mqd_manager *mm, void *mqd,
 			  u32 *ctl_stack_used_size,
 			  u32 *save_area_used_size)
 {
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 	struct kfd_context_save_area_header header;
 
 	m = get_mqd(mqd);
@@ -273,7 +273,7 @@ static int get_wave_state(struct mqd_manager *mm, void *mqd,
 
 static void checkpoint_mqd(struct mqd_manager *mm, void *mqd, void *mqd_dst, void *ctl_stack_dst)
 {
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 
 	m = get_mqd(mqd);
 
@@ -287,7 +287,7 @@ static void restore_mqd(struct mqd_manager *mm, void **mqd,
 			const void *ctl_stack_src, const u32 ctl_stack_size)
 {
 	uint64_t addr;
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 
 	m = (struct v10_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
@@ -311,7 +311,7 @@ static void init_mqd_hiq(struct mqd_manager *mm, void **mqd,
 			struct kfd_mem_obj *mqd_mem_obj, uint64_t *gart_addr,
 			struct queue_properties *q)
 {
-	struct v10_compute_mqd *m;
+	volatile struct v10_compute_mqd *m;
 
 	init_mqd(mm, mqd, mqd_mem_obj, gart_addr, q);
 
@@ -345,7 +345,7 @@ static void init_mqd_sdma(struct mqd_manager *mm, void **mqd,
 		struct kfd_mem_obj *mqd_mem_obj, uint64_t *gart_addr,
 		struct queue_properties *q)
 {
-	struct v10_sdma_mqd *m;
+	volatile struct v10_sdma_mqd *m;
 
 	m = (struct v10_sdma_mqd *) mqd_mem_obj->cpu_ptr;
 
@@ -364,7 +364,7 @@ static void update_mqd_sdma(struct mqd_manager *mm, void *mqd,
 			struct queue_properties *q,
 			struct mqd_update_info *minfo)
 {
-	struct v10_sdma_mqd *m;
+	volatile struct v10_sdma_mqd *m;
 
 	m = get_sdma_mqd(mqd);
 	m->sdmax_rlcx_rb_cntl = (ffs(q->queue_size / sizeof(unsigned int)) - 1)
@@ -392,7 +392,7 @@ static void checkpoint_mqd_sdma(struct mqd_manager *mm,
 				void *mqd_dst,
 				void *ctl_stack_dst)
 {
-	struct v10_sdma_mqd *m;
+	volatile struct v10_sdma_mqd *m;
 
 	m = get_sdma_mqd(mqd);
 
@@ -407,7 +407,7 @@ static void restore_mqd_sdma(struct mqd_manager *mm, void **mqd,
 			     const u32 ctl_stack_size)
 {
 	uint64_t addr;
-	struct v10_sdma_mqd *m;
+	volatile struct v10_sdma_mqd *m;
 
 	m = (struct v10_sdma_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;

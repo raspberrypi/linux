@@ -234,8 +234,8 @@ int kq_acquire_packet_buffer(struct kernel_queue *kq,
 {
 	size_t available_size;
 	size_t queue_size_dwords;
-	uint32_t wptr, rptr;
-	uint64_t wptr64;
+	volatile uint32_t wptr, rptr;
+	volatile uint64_t wptr64;
 	unsigned int *queue_address;
 
 	/* When rptr == wptr, the buffer is empty.

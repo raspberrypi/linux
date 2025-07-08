@@ -1034,7 +1034,7 @@ static int mes_v11_0_allocate_eop_buf(struct amdgpu_device *adev,
 
 static int mes_v11_0_mqd_init(struct amdgpu_ring *ring)
 {
-	struct v11_compute_mqd *mqd = ring->mqd_ptr;
+	volatile struct v11_compute_mqd *mqd = ring->mqd_ptr;
 	uint64_t hqd_gpu_addr, wb_gpu_addr, eop_base_addr;
 	uint32_t tmp;
 

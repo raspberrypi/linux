@@ -6592,7 +6592,7 @@ static void gfx_v10_0_kiq_setting(struct amdgpu_ring *ring)
 }
 
 static void gfx_v10_0_gfx_mqd_set_priority(struct amdgpu_device *adev,
-					   struct v10_gfx_mqd *mqd,
+					   volatile struct v10_gfx_mqd *mqd,
 					   struct amdgpu_mqd_prop *prop)
 {
 	bool priority = 0;
@@ -6612,7 +6612,7 @@ static void gfx_v10_0_gfx_mqd_set_priority(struct amdgpu_device *adev,
 static int gfx_v10_0_gfx_mqd_init(struct amdgpu_device *adev, void *m,
 				  struct amdgpu_mqd_prop *prop)
 {
-	struct v10_gfx_mqd *mqd = m;
+	volatile struct v10_gfx_mqd *mqd = m;
 	uint64_t hqd_gpu_addr, wb_gpu_addr;
 	uint32_t tmp;
 	uint32_t rb_bufsz;
@@ -6769,7 +6769,7 @@ static int gfx_v10_0_cp_async_gfx_ring_resume(struct amdgpu_device *adev)
 static int gfx_v10_0_compute_mqd_init(struct amdgpu_device *adev, void *m,
 				      struct amdgpu_mqd_prop *prop)
 {
-	struct v10_compute_mqd *mqd = m;
+	volatile struct v10_compute_mqd *mqd = m;
 	uint64_t hqd_gpu_addr, wb_gpu_addr, eop_base_addr;
 	uint32_t tmp;
 

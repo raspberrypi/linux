@@ -3471,7 +3471,7 @@ static void gfx_v9_0_kiq_setting(struct amdgpu_ring *ring)
 	WREG32_SOC15_RLC(GC, 0, mmRLC_CP_SCHEDULERS, tmp);
 }
 
-static void gfx_v9_0_mqd_set_priority(struct amdgpu_ring *ring, struct v9_mqd *mqd)
+static void gfx_v9_0_mqd_set_priority(struct amdgpu_ring *ring, volatile struct v9_mqd *mqd)
 {
 	struct amdgpu_device *adev = ring->adev;
 
@@ -3487,7 +3487,7 @@ static void gfx_v9_0_mqd_set_priority(struct amdgpu_ring *ring, struct v9_mqd *m
 static int gfx_v9_0_mqd_init(struct amdgpu_ring *ring)
 {
 	struct amdgpu_device *adev = ring->adev;
-	struct v9_mqd *mqd = ring->mqd_ptr;
+	volatile struct v9_mqd *mqd = ring->mqd_ptr;
 	uint64_t hqd_gpu_addr, wb_gpu_addr, eop_base_addr;
 	uint32_t tmp;
 

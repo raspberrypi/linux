@@ -4391,7 +4391,7 @@ static int gfx_v8_0_deactivate_hqd(struct amdgpu_device *adev, u32 req)
 	return r;
 }
 
-static void gfx_v8_0_mqd_set_priority(struct amdgpu_ring *ring, struct vi_mqd *mqd)
+static void gfx_v8_0_mqd_set_priority(struct amdgpu_ring *ring, volatile struct vi_mqd *mqd)
 {
 	struct amdgpu_device *adev = ring->adev;
 
@@ -4407,7 +4407,7 @@ static void gfx_v8_0_mqd_set_priority(struct amdgpu_ring *ring, struct vi_mqd *m
 static int gfx_v8_0_mqd_init(struct amdgpu_ring *ring)
 {
 	struct amdgpu_device *adev = ring->adev;
-	struct vi_mqd *mqd = ring->mqd_ptr;
+	volatile struct vi_mqd *mqd = ring->mqd_ptr;
 	uint64_t hqd_gpu_addr, wb_gpu_addr, eop_base_addr;
 	uint32_t tmp;
 
@@ -4418,11 +4418,13 @@ static int gfx_v8_0_mqd_init(struct amdgpu_ring *ring)
 	mqd->compute_static_thread_mgmt_se2 = 0xffffffff;
 	mqd->compute_static_thread_mgmt_se3 = 0xffffffff;
 	mqd->compute_misc_reserved = 0x00000003;
+
 	mqd->dynamic_cu_mask_addr_lo = lower_32_bits(ring->mqd_gpu_addr
 						     + offsetof(struct vi_mqd_allocation, dynamic_cu_mask));
 	mqd->dynamic_cu_mask_addr_hi = upper_32_bits(ring->mqd_gpu_addr
 						     + offsetof(struct vi_mqd_allocation, dynamic_cu_mask));
 	eop_base_addr = ring->eop_gpu_addr >> 8;
+
 	mqd->cp_hqd_eop_base_addr_lo = eop_base_addr;
 	mqd->cp_hqd_eop_base_addr_hi = upper_32_bits(eop_base_addr);
 

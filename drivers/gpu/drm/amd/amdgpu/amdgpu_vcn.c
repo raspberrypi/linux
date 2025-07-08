@@ -593,7 +593,7 @@ static int amdgpu_vcn_dec_get_create_msg(struct amdgpu_ring *ring, uint32_t hand
 		struct amdgpu_ib *ib)
 {
 	struct amdgpu_device *adev = ring->adev;
-	uint32_t *msg;
+	volatile uint32_t *msg;
 	int r, i;
 
 	memset(ib, 0, sizeof(*ib));
@@ -628,7 +628,7 @@ static int amdgpu_vcn_dec_get_destroy_msg(struct amdgpu_ring *ring, uint32_t han
 					  struct amdgpu_ib *ib)
 {
 	struct amdgpu_device *adev = ring->adev;
-	uint32_t *msg;
+	volatile uint32_t *msg;
 	int r, i;
 
 	memset(ib, 0, sizeof(*ib));
