@@ -137,7 +137,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 	else
 		size = sizeof(struct v11_compute_mqd);
 
-	memset(m, 0, size);
+	memset_io(m, 0, size);
 
 	m->header = 0xC0310800;
 	m->compute_pipelinestat_enable = 1;
@@ -329,7 +329,7 @@ static void checkpoint_mqd(struct mqd_manager *mm, void *mqd, void *mqd_dst, voi
 
 	m = get_mqd(mqd);
 
-	memcpy(mqd_dst, m, sizeof(struct v11_compute_mqd));
+	memcpy_fromio(mqd_dst, m, sizeof(struct v11_compute_mqd));
 }
 
 static void restore_mqd(struct mqd_manager *mm, void **mqd,
@@ -344,7 +344,7 @@ static void restore_mqd(struct mqd_manager *mm, void **mqd,
 	m = (struct v11_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
 
-	memcpy(m, mqd_src, sizeof(*m));
+	memcpy_toio(m, mqd_src, sizeof(*m));
 
 	*mqd = m;
 	if (gart_addr)
@@ -408,7 +408,7 @@ static void init_mqd_sdma(struct mqd_manager *mm, void **mqd,
 	else
 		size = sizeof(struct v11_sdma_mqd);
 
-	memset(m, 0, size);
+	memset_io(m, 0, size);
 	*mqd = m;
 	if (gart_addr)
 		*gart_addr = mqd_mem_obj->gpu_addr;

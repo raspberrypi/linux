@@ -95,7 +95,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 	m = (struct v10_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
 
-	memset(m, 0, sizeof(struct v10_compute_mqd));
+	memset_io(m, 0, sizeof(struct v10_compute_mqd));
 
 	m->header = 0xC0310800;
 	m->compute_pipelinestat_enable = 1;
@@ -277,7 +277,7 @@ static void checkpoint_mqd(struct mqd_manager *mm, void *mqd, void *mqd_dst, voi
 
 	m = get_mqd(mqd);
 
-	memcpy(mqd_dst, m, sizeof(struct v10_compute_mqd));
+	memcpy_fromio(mqd_dst, m, sizeof(struct v10_compute_mqd));
 }
 
 static void restore_mqd(struct mqd_manager *mm, void **mqd,
@@ -292,7 +292,7 @@ static void restore_mqd(struct mqd_manager *mm, void **mqd,
 	m = (struct v10_compute_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
 
-	memcpy(m, mqd_src, sizeof(*m));
+	memcpy_toio(m, mqd_src, sizeof(*m));
 
 	*mqd = m;
 	if (gart_addr)
@@ -349,7 +349,7 @@ static void init_mqd_sdma(struct mqd_manager *mm, void **mqd,
 
 	m = (struct v10_sdma_mqd *) mqd_mem_obj->cpu_ptr;
 
-	memset(m, 0, sizeof(struct v10_sdma_mqd));
+	memset_io(m, 0, sizeof(struct v10_sdma_mqd));
 
 	*mqd = m;
 	if (gart_addr)
@@ -396,7 +396,7 @@ static void checkpoint_mqd_sdma(struct mqd_manager *mm,
 
 	m = get_sdma_mqd(mqd);
 
-	memcpy(mqd_dst, m, sizeof(struct v10_sdma_mqd));
+	memcpy_fromio(mqd_dst, m, sizeof(struct v10_sdma_mqd));
 }
 
 static void restore_mqd_sdma(struct mqd_manager *mm, void **mqd,
@@ -412,7 +412,7 @@ static void restore_mqd_sdma(struct mqd_manager *mm, void **mqd,
 	m = (struct v10_sdma_mqd *) mqd_mem_obj->cpu_ptr;
 	addr = mqd_mem_obj->gpu_addr;
 
-	memcpy(m, mqd_src, sizeof(*m));
+	memcpy_toio(m, mqd_src, sizeof(*m));
 
 	m->sdmax_rlcx_doorbell_offset =
 		qp->doorbell_off << SDMA0_RLC0_DOORBELL_OFFSET__OFFSET__SHIFT;

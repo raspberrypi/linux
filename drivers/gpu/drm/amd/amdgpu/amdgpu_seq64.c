@@ -240,7 +240,7 @@ int amdgpu_seq64_init(struct amdgpu_device *adev)
 		return r;
 	}
 
-	memset(adev->seq64.cpu_base_addr, 0, AMDGPU_VA_RESERVED_SEQ64_SIZE);
+	memset_io(adev->seq64.cpu_base_addr, 0, AMDGPU_VA_RESERVED_SEQ64_SIZE);
 
 	adev->seq64.num_sem = AMDGPU_MAX_SEQ64_SLOTS;
 	memset(&adev->seq64.used, 0, sizeof(adev->seq64.used));

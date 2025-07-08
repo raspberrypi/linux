@@ -1211,7 +1211,7 @@ static int gfx_v9_0_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 
 	gpu_addr = adev->wb.gpu_addr + (index * 4);
 	adev->wb.wb[index] = cpu_to_le32(0xCAFEDEAD);
-	memset(&ib, 0, sizeof(ib));
+	memset_io(&ib, 0, sizeof(ib));
 
 	r = amdgpu_ib_get(adev, NULL, 20, AMDGPU_IB_POOL_DIRECT, &ib);
 	if (r)
@@ -1884,7 +1884,7 @@ static int gfx_v9_0_mec_init(struct amdgpu_device *adev)
 			return r;
 		}
 
-		memset(hpd, 0, mec_hpd_size);
+		memset_io(hpd, 0, mec_hpd_size);
 
 		amdgpu_bo_kunmap(adev->gfx.mec.hpd_eop_obj);
 		amdgpu_bo_unreserve(adev->gfx.mec.hpd_eop_obj);
@@ -1908,7 +1908,7 @@ static int gfx_v9_0_mec_init(struct amdgpu_device *adev)
 		return r;
 	}
 
-	memcpy(fw, fw_data, fw_size);
+	memcpy_toio(fw, fw_data, fw_size);
 
 	amdgpu_bo_kunmap(adev->gfx.mec.mec_fw_obj);
 	amdgpu_bo_unreserve(adev->gfx.mec.mec_fw_obj);
@@ -3786,7 +3786,7 @@ static int gfx_v9_0_kiq_init_queue(struct amdgpu_ring *ring)
 	if (amdgpu_in_reset(adev) && tmp_mqd->cp_hqd_pq_control){
 		/* for GPU_RESET case , reset MQD to a clean status */
 		if (adev->gfx.kiq[0].mqd_backup)
-			memcpy(mqd, adev->gfx.kiq[0].mqd_backup, sizeof(struct v9_mqd_allocation));
+			memcpy_toio(mqd, adev->gfx.kiq[0].mqd_backup, sizeof(struct v9_mqd_allocation));
 
 		/* reset ring buffer */
 		ring->wptr = 0;
@@ -3798,7 +3798,7 @@ static int gfx_v9_0_kiq_init_queue(struct amdgpu_ring *ring)
 		soc15_grbm_select(adev, 0, 0, 0, 0, 0);
 		mutex_unlock(&adev->srbm_mutex);
 	} else {
-		memset((void *)mqd, 0, sizeof(struct v9_mqd_allocation));
+		memset_io((void *)mqd, 0, sizeof(struct v9_mqd_allocation));
 		((struct v9_mqd_allocation *)mqd)->dynamic_cu_mask = 0xFFFFFFFF;
 		((struct v9_mqd_allocation *)mqd)->dynamic_rb_mask = 0xFFFFFFFF;
 		if (amdgpu_sriov_vf(adev) && adev->in_suspend)
@@ -3811,7 +3811,7 @@ static int gfx_v9_0_kiq_init_queue(struct amdgpu_ring *ring)
 		mutex_unlock(&adev->srbm_mutex);
 
 		if (adev->gfx.kiq[0].mqd_backup)
-			memcpy(adev->gfx.kiq[0].mqd_backup, mqd, sizeof(struct v9_mqd_allocation));
+			memcpy_fromio(adev->gfx.kiq[0].mqd_backup, mqd, sizeof(struct v9_mqd_allocation));
 	}
 
 	return 0;
@@ -3831,7 +3831,7 @@ static int gfx_v9_0_kcq_init_queue(struct amdgpu_ring *ring, bool restore)
 
 	if (!restore && (!tmp_mqd->cp_hqd_pq_control ||
 	    (!amdgpu_in_reset(adev) && !adev->in_suspend))) {
-		memset((void *)mqd, 0, sizeof(struct v9_mqd_allocation));
+		memset_io((void *)mqd, 0, sizeof(struct v9_mqd_allocation));
 		((struct v9_mqd_allocation *)mqd)->dynamic_cu_mask = 0xFFFFFFFF;
 		((struct v9_mqd_allocation *)mqd)->dynamic_rb_mask = 0xFFFFFFFF;
 		mutex_lock(&adev->srbm_mutex);
@@ -3841,11 +3841,11 @@ static int gfx_v9_0_kcq_init_queue(struct amdgpu_ring *ring, bool restore)
 		mutex_unlock(&adev->srbm_mutex);
 
 		if (adev->gfx.mec.mqd_backup[mqd_idx])
-			memcpy(adev->gfx.mec.mqd_backup[mqd_idx], mqd, sizeof(struct v9_mqd_allocation));
+			memcpy_fromio(adev->gfx.mec.mqd_backup[mqd_idx], mqd, sizeof(struct v9_mqd_allocation));
 	} else {
 		/* restore MQD to a clean status */
 		if (adev->gfx.mec.mqd_backup[mqd_idx])
-			memcpy(mqd, adev->gfx.mec.mqd_backup[mqd_idx], sizeof(struct v9_mqd_allocation));
+			memcpy_toio(mqd, adev->gfx.mec.mqd_backup[mqd_idx], sizeof(struct v9_mqd_allocation));
 		/* reset ring buffer */
 		ring->wptr = 0;
 		atomic64_set((atomic64_t *)ring->wptr_cpu_addr, 0);
@@ -4637,7 +4637,7 @@ static int gfx_v9_0_do_edc_gpr_workarounds(struct amdgpu_device *adev)
 	total_size += sizeof(sgpr_init_compute_shader);
 
 	/* allocate an indirect buffer to put the commands in */
-	memset(&ib, 0, sizeof(ib));
+	memset_io(&ib, 0, sizeof(ib));
 	r = amdgpu_ib_get(adev, NULL, total_size,
 					AMDGPU_IB_POOL_DIRECT, &ib);
 	if (r) {
@@ -5456,12 +5456,12 @@ static void gfx_v9_0_ring_patch_ce_meta(struct amdgpu_ring *ring,
 	}
 
 	if (offset + (payload_size >> 2) <= ring->buf_mask + 1) {
-		memcpy((void *)&ring->ring[offset], ce_payload_cpu_addr, payload_size);
+		memcpy_toio((void *)&ring->ring[offset], ce_payload_cpu_addr, payload_size);
 	} else {
-		memcpy((void *)&ring->ring[offset], ce_payload_cpu_addr,
+		memcpy_toio((void *)&ring->ring[offset], ce_payload_cpu_addr,
 		       (ring->buf_mask + 1 - offset) << 2);
 		payload_size -= (ring->buf_mask + 1 - offset) << 2;
-		memcpy((void *)&ring->ring[0],
+		memcpy_toio((void *)&ring->ring[0],
 		       ce_payload_cpu_addr + ((ring->buf_mask + 1 - offset) << 2),
 		       payload_size);
 	}
@@ -5491,12 +5491,12 @@ static void gfx_v9_0_ring_patch_de_meta(struct amdgpu_ring *ring,
 		IB_COMPLETION_STATUS_PREEMPTED;
 
 	if (offset + (payload_size >> 2) <= ring->buf_mask + 1) {
-		memcpy((void *)&ring->ring[offset], de_payload_cpu_addr, payload_size);
+		memcpy_toio((void *)&ring->ring[offset], de_payload_cpu_addr, payload_size);
 	} else {
-		memcpy((void *)&ring->ring[offset], de_payload_cpu_addr,
+		memcpy_toio((void *)&ring->ring[offset], de_payload_cpu_addr,
 		       (ring->buf_mask + 1 - offset) << 2);
 		payload_size -= (ring->buf_mask + 1 - offset) << 2;
-		memcpy((void *)&ring->ring[0],
+		memcpy_toio((void *)&ring->ring[0],
 		       de_payload_cpu_addr + ((ring->buf_mask + 1 - offset) << 2),
 		       payload_size);
 	}
