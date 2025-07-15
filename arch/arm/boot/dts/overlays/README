@@ -5725,6 +5725,21 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 Only supported on Pi5 and CM
 
 
+Name:   vc4-kms-dsi-ili79600-10-1inch
+Info:   Enable the Raspberry Pi 10" ILI79600 based touchscreen panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-ili79600-10-1inch,<param>
+Params: sizex                   Touchscreen size x (default 1200)
+        sizey                   Touchscreen size y (default 1920)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
+        rotation                Display rotation {0,90,180,270} (default 0)
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+
+
 Name:   vc4-kms-dsi-ili9881-5inch
 Info:   Enable the Raspberry Pi 5" ILI9881 based touchscreen panel.
         Requires vc4-kms-v3d to be loaded.
