@@ -85,7 +85,7 @@
 		i2c_arm_baudrate = <&i2c1>,"clock-frequency:0";
 		i2c_vc_baudrate = <&i2c0if>,"clock-frequency:0";
 
-		watchdog = <&watchdog>,"status";
+		watchdog = <&watchdog>,"early-watchdog?";
 		random = <&random>,"status";
 		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
