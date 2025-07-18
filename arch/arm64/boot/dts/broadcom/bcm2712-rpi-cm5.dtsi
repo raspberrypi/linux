@@ -158,6 +158,8 @@ rp1_target: &pcie2 {
 	phy-handle = <&phy1>;
 	phy-reset-gpios = <&rp1_gpio 32 GPIO_ACTIVE_LOW>;
 	phy-reset-duration = <5>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&eth0_irq_pins>;
 
 	phy1: ethernet-phy@0 {
 		reg = <0x0>;
@@ -702,6 +704,14 @@ spi10_cs_pins: &spi10_cs_gpio1 {};
 		gpio-hog;
 		gpios = <48 GPIO_ACTIVE_HIGH>;
 		output-high;
+	};
+
+	eth0_irq_pins: eth0_irq_pins {
+		pins = "gpio37";
+		function = "gpio";
+		// workaround missing hardware PU
+		bias-pull-up;
+		input-enable;
 	};
 };
 
