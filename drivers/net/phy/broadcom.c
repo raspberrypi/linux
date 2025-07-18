@@ -472,13 +472,9 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 	if (reg < 0)
 		return reg;
 
-	/* Mask interrupts globally.  */
-	reg |= MII_BCM54XX_ECR_IM;
-	err = phy_write(phydev, MII_BCM54XX_ECR, reg);
-	if (err < 0)
-		return err;
-
-	/* Unmask events we are interested in.  */
+	/* Initially all interrupts are masked in IMR, so unmask events
+	 * we are interested in.
+	 */
 	reg = ~(MII_BCM54XX_INT_DUPLEX |
 		MII_BCM54XX_INT_SPEED |
 		MII_BCM54XX_INT_LINK);
