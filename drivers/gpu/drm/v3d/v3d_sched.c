@@ -139,7 +139,7 @@ static void
 v3d_job_start_stats(struct v3d_job *job, enum v3d_queue queue)
 {
 	struct v3d_dev *v3d = job->v3d;
-	struct v3d_file_priv *file = job->file->driver_priv;
+	struct v3d_file_priv *file = job->file_priv;
 	struct v3d_stats *global_stats = &v3d->queue[queue].stats;
 	struct v3d_stats *local_stats = &file->stats[queue];
 	u64 now = local_clock();
@@ -197,7 +197,7 @@ void
 v3d_job_update_stats(struct v3d_job *job, enum v3d_queue queue)
 {
 	struct v3d_dev *v3d = job->v3d;
-	struct v3d_file_priv *file = job->file->driver_priv;
+	struct v3d_file_priv *file = job->file_priv;
 	struct v3d_stats *global_stats = &v3d->queue[queue].stats;
 	u64 now = local_clock();
 	unsigned long flags;
@@ -574,7 +574,7 @@ static void
 v3d_reset_performance_queries(struct v3d_cpu_job *job)
 {
 	struct v3d_performance_query_info *performance_query = &job->performance_query;
-	struct v3d_file_priv *v3d_priv = job->base.file->driver_priv;
+	struct v3d_file_priv *v3d_priv = job->base.file_priv;
 	struct v3d_dev *v3d = job->base.v3d;
 	struct v3d_perfmon *perfmon;
 
@@ -604,7 +604,7 @@ v3d_write_performance_query_result(struct v3d_cpu_job *job, void *data,
 {
 	struct v3d_performance_query_info *performance_query =
 						&job->performance_query;
-	struct v3d_file_priv *v3d_priv = job->base.file->driver_priv;
+	struct v3d_file_priv *v3d_priv = job->base.file_priv;
 	struct v3d_performance_query *perf_query =
 			&performance_query->queries[query];
 	struct v3d_dev *v3d = job->base.v3d;
