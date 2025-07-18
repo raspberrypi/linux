@@ -61,6 +61,13 @@
 		};
 	};
 
+	spi_cs_fixup: fragment@100 {
+		target = <&spi1>;
+		__dormant__ {
+			cs-gpios = <&gpio 18 1>;
+		};
+	};
+
 	__overrides__ {
 		sc16is750 = <&sc16is75x>,"compatible=nxp,sc16is750",
 			<&sc16is75x>, "name=sc16is750@0";
@@ -79,7 +86,8 @@
 			<&sc16is75x_pins>, "name=sc16is75x_spi0_1_pins";
 		spi1-0 = <0>, "-0",
 			<&sc16is75x_frag>, "target:0=", <&spi1>,
-			<&sc16is75x_pins>, "name=sc16is75x_spi1_0_pins";
+			<&sc16is75x_pins>, "name=sc16is75x_spi1_0_pins",
+			<0>,"+100";
 		spi1-1 = <0>, "-0",
 			<&sc16is75x_frag>, "target:0=", <&spi1>,
 			<&sc16is75x>, "reg:0=1",
