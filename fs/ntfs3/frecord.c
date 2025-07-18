@@ -2627,7 +2627,6 @@ int ni_read_frame(struct ntfs_inode *ni, u64 frame_vbo, struct page **pages,
 		}
 		pages_disk[i] = pg;
 		lock_page(pg);
-		kmap(pg);
 	}
 
 	/* Read 'ondisk_size' bytes from disk. */
@@ -2686,7 +2685,6 @@ out3:
 	for (i = 0; i < npages_disk; i++) {
 		pg = pages_disk[i];
 		if (pg) {
-			kunmap(pg);
 			unlock_page(pg);
 			put_page(pg);
 		}
@@ -2782,7 +2780,6 @@ int ni_write_frame(struct ntfs_inode *ni, struct page **pages,
 		}
 		pages_disk[i] = pg;
 		lock_page(pg);
-		kmap(pg);
 	}
 
 	/* To simplify compress algorithm do vmap for source and target pages. */
@@ -2863,7 +2860,6 @@ out1:
 	for (i = 0; i < pages_per_frame; i++) {
 		pg = pages_disk[i];
 		if (pg) {
-			kunmap(pg);
 			unlock_page(pg);
 			put_page(pg);
 		}
