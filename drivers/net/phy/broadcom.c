@@ -544,10 +544,14 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 			BCM54XX_SHD_LEDS1_LED3(BCM_LED_SRC_MULTICOLOR1);
 		bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDS1, val);
 		/* BCM54210PE controls two extra LEDs with the next register.
-		 * Make them shadow the first pair of LEDs - useful on CM4 which
-		 * uses LED3 for ETH_LEDY instead of LED1.
+		 * Make LED3 shadow LED1, but preserve LED4 as is - useful on
+		 * CM4/CM5 which use LED3 for ETH_LEDY instead of LED1. LED4
+		 * is either unused or configured as INT pin on CM5.
 		 */
-		bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDS1 + 1, val);
+		reg = bcm_phy_read_shadow(phydev, BCM54XX_SHD_LEDS2);
+		reg &= ~(0xf << 0);
+		reg |= BCM54XX_SHD_LEDS1_LED1(BCM_LED_SRC_MULTICOLOR1);
+		bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDS2, reg);
 
 		val = BCM_LED_MULTICOLOR_IN_PHASE |
 			BCM54XX_SHD_LEDS1_LED1(led_modes[0]) |
