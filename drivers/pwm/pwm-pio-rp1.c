@@ -22,7 +22,6 @@
 #include <linux/pwm.h>
 
 struct pwm_pio_rp1 {
-	struct pwm_chip chip;
 	struct device *dev;
 	struct gpio_desc *gpiod;
 	struct mutex mutex;
@@ -98,7 +97,7 @@ static void pio_pwm_set_level(PIO pio, uint sm, uint32_t level)
 static int pwm_pio_rp1_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 			  const struct pwm_state *state)
 {
-	struct pwm_pio_rp1 *ppwm = container_of(chip, struct pwm_pio_rp1, chip);
+	struct pwm_pio_rp1 *ppwm = pwmchip_get_drvdata(chip);
 	uint32_t new_duty_cycle;
 	uint32_t new_period;
 
