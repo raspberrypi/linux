@@ -291,8 +291,6 @@ v3d_gem_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-	v3d_submit_init(dev);
-
 	/* Note: We don't allocate address 0.  Various bits of HW
 	 * treat 0 as special, such as the occlusion query counters
 	 * where 0 means "disabled".
