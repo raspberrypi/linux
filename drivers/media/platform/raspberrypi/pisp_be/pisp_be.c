@@ -1076,7 +1076,7 @@ static void pispbe_set_plane_params(struct v4l2_format *f,
 		unsigned int bpl, plane_size;
 
 		bpl = (f->fmt.pix_mp.width * fmt->bit_depth) >> 3;
-		bpl = ALIGN(max(p->bytesperline, bpl), fmt->align);
+		bpl = ALIGN(max(p->bytesperline, bpl), fmt->opt_align);
 
 		plane_size = bpl * f->fmt.pix_mp.height *
 		      (nplanes > 1 ? fmt->plane_factor[i] : total_plane_factor);
