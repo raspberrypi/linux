@@ -1074,9 +1074,16 @@ static void pispbe_set_plane_params(struct v4l2_format *f,
 	for (unsigned int i = 0; i < nplanes; i++) {
 		struct v4l2_plane_pix_format *p = &f->fmt.pix_mp.plane_fmt[i];
 		unsigned int bpl, plane_size;
+		/*
+		 * If a stride has been provided, ensure it meets the minimal
+		 * alignment constraints. If not provided, use an optimal stride
+		 * alignment for efficiency.
+		 */
+		const unsigned int align =
+			p->bytesperline ? fmt->min_align : fmt->opt_align;
 
 		bpl = (f->fmt.pix_mp.width * fmt->bit_depth) >> 3;
-		bpl = ALIGN(max(p->bytesperline, bpl), fmt->opt_align);
+		bpl = ALIGN(max(p->bytesperline, bpl), align);
 
 		plane_size = bpl * f->fmt.pix_mp.height *
 		      (nplanes > 1 ? fmt->plane_factor[i] : total_plane_factor);
