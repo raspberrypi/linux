@@ -295,8 +295,8 @@ static const struct pisp_be_format supported_formats[] = {
 	{
 		.fourcc		    = V4L2_PIX_FMT_SRGGB8,
 		.bit_depth	    = 8,
-		.opt_align	    = 16,
-		.min_align	    = 32,
+		.opt_align	    = 32,
+		.min_align	    = 16,
 		.plane_factor	    = { P3(1.0) },
 		.num_planes	    = 1,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
@@ -305,8 +305,8 @@ static const struct pisp_be_format supported_formats[] = {
 	{
 		.fourcc		    = V4L2_PIX_FMT_SBGGR8,
 		.bit_depth	    = 8,
-		.opt_align	    = 16,
-		.min_align	    = 32,
+		.opt_align	    = 32,
+		.min_align	    = 16,
 		.plane_factor	    = { P3(1.0) },
 		.num_planes	    = 1,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
