@@ -2512,6 +2512,7 @@ static const struct ili9881c_desc nwe080_desc = {
 	.init_length = ARRAY_SIZE(nwe080_init),
 	.mode = &nwe080_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE | MIPI_DSI_MODE_VIDEO,
+	.lanes = 4,
 };
 
 static const struct ili9881c_desc cfaf7201280a0_050tx_desc = {
