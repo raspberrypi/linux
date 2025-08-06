@@ -22,26 +22,34 @@
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
-#define HEVC_D_DEC_ENV_COUNT 6
+/*
+ * Q sizes of 3 give one entry being prepared, one waiting and
+ * one processing. Testing shows no advantage to greater Q depths
+ */
+
+/*
+ * Max processing Q size Phase 0 -> Phase 1
+ * This is per open context
+ */
 #define HEVC_D_P1BUF_COUNT 3
+/*
+ * Max processing Q size Phase 1 -> Phase 2
+ * This is per device
+ */
 #define HEVC_D_P2BUF_COUNT 3
+/*
+ * Number of decode environments a context has
+ * There is no independent flow control on this number so it must be
+ * capable of holding P1 + P2 entries.
+ */
+#define HEVC_D_DEC_ENV_COUNT (HEVC_D_P1BUF_COUNT + HEVC_D_P2BUF_COUNT)
 
 #define HEVC_D_NAME			"rpi-hevc-dec"
-
-#define HEVC_D_CAPABILITY_UNTILED	BIT(0)
-#define HEVC_D_CAPABILITY_H265_DEC	BIT(1)
-
-#define HEVC_D_QUIRK_NO_DMA_OFFSET	BIT(0)
 
 enum hevc_d_irq_status {
 	HEVC_D_IRQ_NONE,
 	HEVC_D_IRQ_ERROR,
 	HEVC_D_IRQ_OK,
-};
-
-struct hevc_d_control {
-	struct v4l2_ctrl_config cfg;
-	unsigned char		required:1;
 };
 
 struct hevc_d_h265_run {
@@ -88,9 +96,6 @@ struct hevc_d_ctx {
 	struct v4l2_pix_format_mplane	dst_fmt;
 	int dst_fmt_set;
 
-	int				src_stream_on;
-	int				dst_stream_on;
-
 	/*
 	 * fatal_err is set if an error has occurred s.t. decode cannot
 	 * continue (such as running out of CMA)
@@ -131,12 +136,6 @@ struct hevc_d_ctx {
 
 	unsigned int colmv_stride;
 	unsigned int colmv_picsize;
-};
-
-struct hevc_d_variant {
-	unsigned int	capabilities;
-	unsigned int	quirks;
-	unsigned int	mod_rate;
 };
 
 struct hevc_d_hw_irq_ent;
@@ -182,6 +181,10 @@ struct hevc_d_dev {
 	struct hevc_d_hw_irq_ctrl ic_active1;
 	struct hevc_d_hw_irq_ctrl ic_active2;
 };
+
+extern int hevc_d_v4l2_debug;
+#define hevc_d_dbg(level, dev, fmt, arg...)\
+	v4l2_dbg((level), hevc_d_v4l2_debug, (dev), fmt, ## arg)
 
 struct v4l2_ctrl *hevc_d_find_ctrl(struct hevc_d_ctx *ctx, u32 id);
 void *hevc_d_find_control_data(struct hevc_d_ctx *ctx, u32 id);

@@ -21,6 +21,9 @@
 #include "hevc_d_hw.h"
 #include "hevc_d_video.h"
 
+/* Maximum length of command buffer before we rate it an error */
+#define CMD_BUFFER_SIZE_MAX 0x100000
+
 enum hevc_slice_type {
 	HEVC_SLICE_B = 0,
 	HEVC_SLICE_P = 1,
@@ -206,6 +209,7 @@ struct hevc_d_dec_state {
 
 	/* Slice vars */
 	unsigned int slice_idx;
+	unsigned int idx_inuse;
 	bool slice_temporal_mvp;  /* Slice flag but constant for frame */
 	bool use_aux;
 	bool mk_aux;
@@ -216,7 +220,7 @@ struct hevc_d_dec_state {
 	const struct v4l2_ctrl_hevc_decode_params *dec;
 	unsigned int nb_refs[2];
 	unsigned int slice_qp;
-	unsigned int max_num_merge_cand; // 0 if I-slice
+	unsigned int max_num_merge_cand; /* 0 if I-slice */
 	bool dependent_slice_segment_flag;
 
 	unsigned int start_ts;          /* slice_segment_addr -> ts */
@@ -226,18 +230,13 @@ struct hevc_d_dec_state {
 	unsigned int prev_ctb_y;
 };
 
-static inline int clip_int(const int x, const int lo, const int hi)
-{
-	return x < lo ? lo : x > hi ? hi : x;
-}
-
 /* Phase 1 command and bit FIFOs */
 static int cmds_check_space(struct hevc_d_dec_env *const de, unsigned int n)
 {
 	struct rpi_cmd *a;
 	unsigned int newmax;
 
-	if (n > 0x100000) {
+	if (n > CMD_BUFFER_SIZE_MAX) {
 		v4l2_err(&de->ctx->dev->v4l2_dev,
 			 "%s: n %u implausible\n", __func__, n);
 		return -ENOMEM;
@@ -256,15 +255,14 @@ static int cmds_check_space(struct hevc_d_dec_env *const de, unsigned int n)
 			 de->cmd_max, newmax);
 		return -ENOMEM;
 	}
-	v4l2_info(&de->ctx->dev->v4l2_dev,
-		  "cmd buffer realloc from %u to %u\n", de->cmd_max, newmax);
+	hevc_d_dbg(1, &de->ctx->dev->v4l2_dev,
+		   "cmd buffer realloc from %u to %u\n", de->cmd_max, newmax);
 
 	de->cmd_fifo = a;
 	de->cmd_max = newmax;
 	return 0;
 }
 
-// ???? u16 addr - put in u32
 static void p1_apb_write(struct hevc_d_dec_env *const de, const u16 addr,
 			 const u32 data)
 {
@@ -506,7 +504,7 @@ static void write_prob(struct hevc_d_dec_env *const de,
 		 s->sh->slice_type != HEVC_SLICE_I) ?
 			s->sh->slice_type + 1 :
 			2 - s->sh->slice_type;
-	const int q = clip_int(s->slice_qp, 0, 51);
+	const int q = clamp((int)s->slice_qp, 0, 51);
 	const u8 *p = prob_init[init_type];
 	u8 dst[RPI_PROB_ARRAY_SIZE];
 	unsigned int i;
@@ -560,21 +558,20 @@ static inline __u32 dma_to_axi_addr(dma_addr_t a)
 static int write_bitstream(struct hevc_d_dec_env *const de,
 			   const struct hevc_d_dec_state *const s)
 {
-	// FIXME!!!!
-	// Note that FFmpeg V4L2 does not remove emulation prevention bytes,
-	// so this is matched in the configuration here.
-	// Whether that is the correct behaviour or not is not clear in the
-	// spec.
+	/* V4L2 always has emulation prevention bytes in the stream */
 	const int rpi_use_emu = 1;
 	unsigned int offset = s->sh->data_byte_offset;
-	const unsigned int len = (s->sh->bit_size + 7) / 8 - offset;
+	/* BFNUM includes the byte with rbsp_stop_one_bit which is not part
+	 * of slice_segment_data
+	 */
+	const unsigned int len = s->sh->bit_size / 8 + 1;
 	dma_addr_t addr = s->src_addr + offset;
 
 	offset = addr & 63;
 
 	p1_apb_write(de, RPI_BFBASE, dma_to_axi_addr(addr));
 	p1_apb_write(de, RPI_BFNUM, len);
-	p1_apb_write(de, RPI_BFCONTROL, offset + (1 << 7)); // Stop
+	p1_apb_write(de, RPI_BFCONTROL, offset + (1 << 7)); /* Stop */
 	p1_apb_write(de, RPI_BFCONTROL, offset + (rpi_use_emu << 6));
 	return 0;
 }
@@ -698,7 +695,10 @@ static void program_slicecmds(struct hevc_d_dec_env *const de,
 		p1_apb_write(de, 0x4000 + 4 * i, de->slice_msgs[i] & 0xffff);
 }
 
-/* NoBackwardPredictionFlag 8.3.5 - Simply checks POCs */
+/* NoBackwardPredictionFlag 8.3.5 - Simply checks POCs of the frames referenced
+ * by the idx array against cur_poc. Needs to be called twice (with L0 & L1) to
+ * get NoBackwardPredictionFlag.
+ */
 static int has_backward(const struct v4l2_hevc_dpb_entry *const dpb,
 			const __u8 *const idx, const unsigned int n,
 			const s32 cur_poc)
@@ -1106,7 +1106,7 @@ static int tile_entry_fill(struct hevc_d_dec_env *const de,
 			     2 | (last_x << 5) | (last_y << 18));
 		p1_apb_write(de, RPI_TRANSFER, PROB_RELOAD);
 
-		// Inc tile
+		/* Inc tile */
 		if (++t_x >= s->tile_width) {
 			t_x = 0;
 			++t_y;
@@ -1760,22 +1760,19 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 	/* Pre calc parameters */
 	s->dec = dec;
+	s->idx_inuse = 0;
 	for (i = 0; i != run->h265.slice_ents; ++i) {
 		const struct v4l2_ctrl_hevc_slice_params *const sh = sh0 + i;
 		const bool last_slice = i + 1 == run->h265.slice_ents;
+		u32 last_offset = sh->data_byte_offset + DIV_ROUND_UP(sh->bit_size, 8);
+		unsigned int j;
 
 		s->sh = sh;
 
-		if (run->src->planes[0].bytesused < (sh->bit_size + 7) / 8) {
+		if (run->src->planes[0].bytesused < last_offset) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Bit size %d > bytesused %d\n",
-				  sh->bit_size, run->src->planes[0].bytesused);
-			goto fail;
-		}
-		if (sh->data_byte_offset >= sh->bit_size / 8) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Bit size %u < Byte offset %u * 8\n",
-				  sh->bit_size, sh->data_byte_offset);
+				  "Last byte offset %d > bytesused %d\n",
+				  last_offset, run->src->planes[0].bytesused);
 			goto fail;
 		}
 
@@ -1793,6 +1790,11 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		s->nb_refs[1] = (sh->slice_type != HEVC_SLICE_B) ?
 					0 :
 					sh->num_ref_idx_l1_active_minus1 + 1;
+
+		for (j = 0; j != s->nb_refs[0]; ++j)
+			s->idx_inuse |= 1 << sh->ref_idx_l0[j];
+		for (j = 0; j != s->nb_refs[1]; ++j)
+			s->idx_inuse |= 1 << sh->ref_idx_l1[j];
 
 		if (s->sps.flags & V4L2_HEVC_SPS_FLAG_SCALING_LIST_ENABLED)
 			populate_scaling_factors(run, de, s);
@@ -1824,7 +1826,6 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	 * Locate ref frames
 	 * At least in the current implementation this is constant across all
 	 * slices. If this changes we will need idx mapping code.
-	 * Uses sh so here rather than trigger
 	 */
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
@@ -1842,9 +1843,14 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		struct vb2_buffer *buf = vb2_find_buffer(vq, dec->dpb[i].timestamp);
 
 		if (!buf) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Missing DPB ent %d, timestamp=%lld\n",
-				  i, (long long)dec->dpb[i].timestamp);
+			if (!(s->idx_inuse & (1 << i)))
+				hevc_d_dbg(2, &dev->v4l2_dev,
+					   "Missing unused DPB ent %d, timestamp=%lld\n",
+					   i, (long long)dec->dpb[i].timestamp);
+			else
+				v4l2_warn(&dev->v4l2_dev,
+					  "Missing inuse DPB ent %d, timestamp=%lld\n",
+					  i, (long long)dec->dpb[i].timestamp);
 			continue;
 		}
 
@@ -1918,7 +1924,7 @@ void hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 fail:
 	if (de)
-		// Actual error reporting happens in Trigger
+		/* Actual error reporting happens in Trigger */
 		de->state = HEVC_D_DECODE_ERROR_DONE;
 }
 
@@ -1987,11 +1993,17 @@ static void phase2_claimed(struct hevc_d_dev *const dev, void *v)
 	apb_write_vc_len(dev, RPI_OUTCSTRIDE, de->chroma_stride);
 
 	for (i = 0; i < 16; i++) {
-		// Strides are in fact unused but fill in anyway
-		apb_write_vc_addr(dev, 0x9000 + 16 * i, de->ref_addrs[i][0]);
-		apb_write_vc_len(dev, 0x9004 + 16 * i, de->luma_stride);
-		apb_write_vc_addr(dev, 0x9008 + 16 * i, de->ref_addrs[i][1]);
-		apb_write_vc_len(dev, 0x900C + 16 * i, de->chroma_stride);
+		/* Strides are in fact unused but fill in anyway */
+		unsigned int roff = i * RPI_REFREGS_SIZE;
+
+		apb_write_vc_addr(dev, RPI_REFYBASE0 + roff,
+				  de->ref_addrs[i][0]);
+		apb_write_vc_len(dev, RPI_REFYSTRIDE0 + roff,
+				 de->luma_stride);
+		apb_write_vc_addr(dev, RPI_REFCBASE0 + roff,
+				  de->ref_addrs[i][1]);
+		apb_write_vc_len(dev, RPI_REFCSTRIDE0 + roff,
+				 de->chroma_stride);
 	}
 
 	apb_write(dev, RPI_CONFIG2, de->rpi_config2);
@@ -2017,7 +2029,7 @@ static void phase1_claimed(struct hevc_d_dev *const dev, void *v);
 
 /* release any and all objects associated with de and reenable phase 1 if
  * required
- *///  1 if required
+ */
 static void phase1_err_fin(struct hevc_d_dev *const dev,
 			   struct hevc_d_ctx *const ctx,
 			   struct hevc_d_dec_env *const de)
@@ -2059,8 +2071,8 @@ static void phase1_thread(struct hevc_d_dev *const dev, void *v)
 				 __func__, pu_gptr->size);
 			goto fail;
 		}
-		v4l2_info(&dev->v4l2_dev, "%s: PU realloc (%zx) OK\n",
-			  __func__, pu_gptr->size);
+		hevc_d_dbg(1, &dev->v4l2_dev, "%s: PU realloc (%zx) OK\n",
+			   __func__, pu_gptr->size);
 	}
 
 	if (de->p1_status & STATUS_COEFF_EXHAUSTED) {
@@ -2071,8 +2083,8 @@ static void phase1_thread(struct hevc_d_dev *const dev, void *v)
 				 __func__, coeff_gptr->size);
 			goto fail;
 		}
-		v4l2_info(&dev->v4l2_dev, "%s: Coeff realloc (%zx) OK\n",
-			  __func__, coeff_gptr->size);
+		hevc_d_dbg(1, &dev->v4l2_dev, "%s: Coeff realloc (%zx) OK\n",
+			   __func__, coeff_gptr->size);
 	}
 
 	phase1_claimed(dev, de);
@@ -2097,8 +2109,8 @@ static void phase1_cb(struct hevc_d_dev *const dev, void *v)
 	de->p1_status = check_status(dev);
 
 	if (de->p1_status != 0) {
-		v4l2_info(&dev->v4l2_dev, "%s: Post wait: %#x\n",
-			  __func__, de->p1_status);
+		hevc_d_dbg(2, &dev->v4l2_dev, "%s: Post wait: %#x\n",
+			   __func__, de->p1_status);
 
 		if (de->p1_status < 0)
 			goto fail;

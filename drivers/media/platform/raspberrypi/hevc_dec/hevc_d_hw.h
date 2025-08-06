@@ -74,6 +74,17 @@ struct hevc_d_hw_irq_ent {
 #define RPI_CURRPOC 0x8040
 
 /*
+ * Reference frame register values
+ * There are 16 of these arranged sequentially
+ */
+#define RPI_REFYBASE0 0x9000
+#define RPI_REFYSTRIDE0 0x9004
+#define RPI_REFCBASE0 0x9008
+#define RPI_REFCSTRIDE0 0x900c
+/* Offset to get from REFYBASEn to REFYBASEn+1 */
+#define RPI_REFREGS_SIZE 16
+
+/*
  * Write a general register value
  * Order is unimportant
  */

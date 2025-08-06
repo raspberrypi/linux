@@ -25,54 +25,37 @@
 #include "hevc_d_video.h"
 #include "hevc_d_hw.h"
 
-static const struct hevc_d_control hevc_d_ctrls[] = {
+int hevc_d_v4l2_debug;
+module_param_named(debug, hevc_d_v4l2_debug, int, 0644);
+MODULE_PARM_DESC(debug, "Debug level 0-2");
+
+static const struct v4l2_ctrl_config hevc_d_ctrls[] = {
 	{
-		.cfg = {
-			.id	= V4L2_CID_STATELESS_HEVC_SPS,
-			.ops	= &hevc_d_hevc_sps_ctrl_ops,
-		},
-		.required	= false,
+		.id	= V4L2_CID_STATELESS_HEVC_SPS,
+		.ops	= &hevc_d_hevc_sps_ctrl_ops,
 	}, {
-		.cfg = {
-			.id	= V4L2_CID_STATELESS_HEVC_PPS,
-			.ops	= &hevc_d_hevc_pps_ctrl_ops,
-		},
-		.required	= false,
+		.id	= V4L2_CID_STATELESS_HEVC_PPS,
+		.ops	= &hevc_d_hevc_pps_ctrl_ops,
 	}, {
-		.cfg = {
-			.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
-		},
-		.required	= false,
+		.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
 	}, {
-		.cfg = {
-			.id	= V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
-		},
-		.required	= true,
+		.id	= V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
 	}, {
-		.cfg = {
-			.name	= "Slice param array",
-			.id	= V4L2_CID_STATELESS_HEVC_SLICE_PARAMS,
-			.type	= V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS,
-			.flags	= V4L2_CTRL_FLAG_DYNAMIC_ARRAY,
-			.dims	= { 0x1000 },
-		},
-		.required	= true,
+		.name	= "Slice param array",
+		.id	= V4L2_CID_STATELESS_HEVC_SLICE_PARAMS,
+		.type	= V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS,
+		.flags	= V4L2_CTRL_FLAG_DYNAMIC_ARRAY,
+		.dims	= { 0x1000 },
 	}, {
-		.cfg = {
-			.id	= V4L2_CID_STATELESS_HEVC_DECODE_MODE,
-			.min	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
-			.max	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
-			.def	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
-		},
-		.required	= false,
+		.id	= V4L2_CID_STATELESS_HEVC_DECODE_MODE,
+		.min	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		.max	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		.def	= V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
 	}, {
-		.cfg = {
-			.id	= V4L2_CID_STATELESS_HEVC_START_CODE,
-			.min	= V4L2_STATELESS_HEVC_START_CODE_NONE,
-			.max	= V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
-			.def	= V4L2_STATELESS_HEVC_START_CODE_NONE,
-		},
-		.required	= false,
+		.id	= V4L2_CID_STATELESS_HEVC_START_CODE,
+		.min	= V4L2_STATELESS_HEVC_START_CODE_NONE,
+		.max	= V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+		.def	= V4L2_STATELESS_HEVC_START_CODE_NONE,
 	},
 };
 
@@ -114,12 +97,11 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 		return -ENOMEM;
 
 	for (i = 0; i < HEVC_D_CTRLS_COUNT; i++) {
-		ctrl = v4l2_ctrl_new_custom(hdl, &hevc_d_ctrls[i].cfg,
-					    ctx);
+		ctrl = v4l2_ctrl_new_custom(hdl, &hevc_d_ctrls[i], ctx);
 		if (hdl->error) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Failed to create new custom control id=%#x\n",
-				 hevc_d_ctrls[i].cfg.id);
+				 hevc_d_ctrls[i].id);
 
 			v4l2_ctrl_handler_free(hdl);
 			kfree(ctx->ctrls);
@@ -133,69 +115,6 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 	v4l2_ctrl_handler_setup(hdl);
 
 	return 0;
-}
-
-static int hevc_d_request_validate(struct media_request *req)
-{
-	struct media_request_object *obj;
-	struct v4l2_ctrl_handler *parent_hdl, *hdl;
-	struct hevc_d_ctx *ctx = NULL;
-	struct v4l2_ctrl *ctrl_test;
-	unsigned int count;
-	unsigned int i;
-
-	list_for_each_entry(obj, &req->objects, list) {
-		struct vb2_buffer *vb;
-
-		if (vb2_request_object_is_buffer(obj)) {
-			vb = container_of(obj, struct vb2_buffer, req_obj);
-			ctx = vb2_get_drv_priv(vb->vb2_queue);
-
-			break;
-		}
-	}
-
-	if (!ctx)
-		return -ENOENT;
-
-	count = vb2_request_buffer_cnt(req);
-	if (!count) {
-		v4l2_info(&ctx->dev->v4l2_dev,
-			  "No buffer was provided with the request\n");
-		return -ENOENT;
-	} else if (count > 1) {
-		v4l2_info(&ctx->dev->v4l2_dev,
-			  "More than one buffer was provided with the request\n");
-		return -EINVAL;
-	}
-
-	parent_hdl = &ctx->hdl;
-
-	hdl = v4l2_ctrl_request_hdl_find(req, parent_hdl);
-	if (!hdl) {
-		v4l2_info(&ctx->dev->v4l2_dev, "Missing codec control(s)\n");
-		return -ENOENT;
-	}
-
-	for (i = 0; i < HEVC_D_CTRLS_COUNT; i++) {
-		if (!hevc_d_ctrls[i].required)
-			continue;
-
-		ctrl_test =
-			v4l2_ctrl_request_hdl_ctrl_find(hdl,
-							hevc_d_ctrls[i].cfg.id);
-		if (!ctrl_test) {
-			v4l2_info(&ctx->dev->v4l2_dev,
-				  "Missing required codec control %d: id=%#x\n",
-				  i, hevc_d_ctrls[i].cfg.id);
-			v4l2_ctrl_request_hdl_put(hdl);
-			return -ENOENT;
-		}
-	}
-
-	v4l2_ctrl_request_hdl_put(hdl);
-
-	return vb2_request_validate(req);
 }
 
 static int hevc_d_open(struct file *file)
@@ -220,16 +139,16 @@ static int hevc_d_open(struct file *file)
 	file->private_data = &ctx->fh;
 	ctx->dev = dev;
 
-	ret = hevc_d_init_ctrls(dev, ctx);
-	if (ret)
-		goto err_free;
-
 	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(dev->m2m_dev, ctx,
 					    &hevc_d_queue_init);
 	if (IS_ERR(ctx->fh.m2m_ctx)) {
 		ret = PTR_ERR(ctx->fh.m2m_ctx);
-		goto err_ctrls;
+		goto err_free;
 	}
+
+	ret = hevc_d_init_ctrls(dev, ctx);
+	if (ret)
+		goto err_ctx;
 
 	/* The only bit of format info that we can guess now is H265 src
 	 * Everything else we need more info for
@@ -242,9 +161,8 @@ static int hevc_d_open(struct file *file)
 
 	return 0;
 
-err_ctrls:
-	v4l2_ctrl_handler_free(&ctx->hdl);
-	kfree(ctx->ctrls);
+err_ctx:
+	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 err_free:
 	mutex_destroy(&ctx->ctx_mutex);
 	kfree(ctx);
@@ -263,10 +181,11 @@ static int hevc_d_release(struct file *file)
 	mutex_lock(&dev->dev_mutex);
 
 	v4l2_fh_del(&ctx->fh);
-	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 
 	v4l2_ctrl_handler_free(&ctx->hdl);
 	kfree(ctx->ctrls);
+
+	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 
 	v4l2_fh_exit(&ctx->fh);
 	mutex_destroy(&ctx->ctx_mutex);
@@ -308,7 +227,7 @@ static const struct v4l2_m2m_ops hevc_d_m2m_ops = {
 };
 
 static const struct media_device_ops hevc_d_m2m_media_ops = {
-	.req_validate	= hevc_d_request_validate,
+	.req_validate	= vb2_request_validate,
 	.req_queue	= hevc_d_media_req_queue,
 };
 
@@ -430,7 +349,7 @@ static void hevc_d_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id hevc_d_dt_match[] = {
-	{ .compatible = "raspberrypi,hevc-dec", },
+	{ .compatible = "brcm,bcm2711-hevc-dec", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, hevc_d_dt_match);
