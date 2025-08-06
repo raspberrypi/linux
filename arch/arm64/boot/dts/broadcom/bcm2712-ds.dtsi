@@ -369,7 +369,7 @@
 	};
 
 	hevc_dec: codec@800000 {
-		compatible = "brcm,bcm2712-hevc-dec", "raspberrypi,hevc-dec";
+		compatible = "brcm,bcm2712-hevc-dec", "brcm,bcm2711-hevc-dec";
 		reg = <0x10 0x00800000  0x0 0x10000>, /* HEVC */
 				<0x10 0x00840000  0x0 0x1000>;  /* INTC */
 		reg-names = "hevc",
