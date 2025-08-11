@@ -1476,19 +1476,46 @@ static int __maybe_unused axi_dma_runtime_resume(struct device *dev)
 	return axi_dma_resume(chip);
 }
 
+static bool dw_axi_dma_filter_fn(struct dma_chan *dchan, void *filter_param)
+{
+	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
+	uint32_t selector = *(const uint32_t *)filter_param;
+
+	return !!(selector & (1 << chan->id));
+}
+
 static struct dma_chan *dw_axi_dma_of_xlate(struct of_phandle_args *dma_spec,
 					    struct of_dma *ofdma)
 {
 	struct dw_axi_dma *dw = ofdma->of_dma_data;
 	struct axi_dma_chan *chan;
 	struct dma_chan *dchan;
+	uint32_t chan_mask = 0;
+	uint32_t chan_sel;
+	dma_cap_mask_t mask;
+	int i;
 
-	dchan = dma_get_any_slave_channel(&dw->dma);
+	/*
+	 * Walk through all channels looking for the best match.
+	 * Starting from 0, choose the first available slave channel which isn't precluded.
+	 */
+	chan_sel = dma_spec->args[0];
+
+	for (i = 0; i < dw->hdata->nr_channels; i++) {
+		if (((dw->sel_precluded[i] & chan_sel) == 0) &&
+		    ((dw->sel_required[i] & chan_sel) == dw->sel_required[i]))
+			chan_mask |= (1 << i);
+	}
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	dchan = __dma_request_channel(&mask, dw_axi_dma_filter_fn, &chan_mask, ofdma->of_node);
 	if (!dchan)
 		return NULL;
 
 	chan = dchan_to_axi_dma_chan(dchan);
-	chan->hw_handshake_num = dma_spec->args[0];
+	chan->hw_handshake_num = (u8)chan_sel;
 	return dchan;
 }
 
@@ -1569,6 +1596,18 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 			chip->dw->hdata->axi_rw_burst_len[tmp] = val;
 		}
 	}
+
+	/* sel-require is optional */
+	memset(chip->dw->sel_required, 0, sizeof(chip->dw->sel_required));
+	device_property_read_u32_array(dev, "snps,sel-require",
+				       chip->dw->sel_required,
+				       chip->dw->hdata->nr_channels);
+
+	/* sel-preclude is optional */
+	memset(chip->dw->sel_precluded, 0, sizeof(chip->dw->sel_precluded));
+	device_property_read_u32_array(dev, "snps,sel-preclude",
+				       chip->dw->sel_precluded,
+				       chip->dw->hdata->nr_channels);
 
 	return 0;
 }
