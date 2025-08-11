@@ -58,6 +58,7 @@ struct dw_axi_dma {
 	struct dma_device	dma;
 	struct dw_axi_dma_hcfg	*hdata;
 	struct device_dma_parameters	dma_parms;
+	u32	chan_flags[DMAC_MAX_CHANNELS];
 
 	/* channels */
 	struct axi_dma_chan	*chan;
