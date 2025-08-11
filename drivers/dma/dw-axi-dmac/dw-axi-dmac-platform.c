@@ -1476,19 +1476,75 @@ static int __maybe_unused axi_dma_runtime_resume(struct device *dev)
 	return axi_dma_resume(chip);
 }
 
+static bool dw_axi_dma_filter_fn(struct dma_chan *dchan, void *filter_param)
+{
+	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
+	uint32_t selector = *(const uint32_t *)filter_param;
+
+	return !!(selector & (1 << chan->id));
+}
+
 static struct dma_chan *dw_axi_dma_of_xlate(struct of_phandle_args *dma_spec,
 					    struct of_dma *ofdma)
 {
 	struct dw_axi_dma *dw = ofdma->of_dma_data;
 	struct axi_dma_chan *chan;
+	uint32_t chan_flags_all;
+	uint32_t busy_channels;
 	struct dma_chan *dchan;
+	dma_cap_mask_t mask;
+	uint32_t chan_mask;
+	uint32_t chan_sel;
+	int max_score;
+	int score;
+	int i;
 
-	dchan = dma_get_any_slave_channel(&dw->dma);
-	if (!dchan)
-		return NULL;
+	for (i = 0; i < dw->hdata->nr_channels; i++)
+		chan_flags_all |= dw->chan_flags[i];
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	chan_sel = dma_spec->args[0];
+	busy_channels = 0;
+	dchan = NULL;
+
+	while (1) {
+		max_score = 0;
+		chan_mask = 0;
+
+		for (i = 0; i < dw->hdata->nr_channels; i++) {
+			if (busy_channels & (1 << i))
+				continue;
+			/*
+			 * Positive matches (wanted flags that match) score twice that of
+			 * negetive matches (not wanted flags that are not present).
+			 */
+			score = 2 * hweight32(chan_sel & dw->chan_flags[i]) +
+				1 * hweight32(~chan_sel & ~dw->chan_flags[i] & chan_flags_all);
+			if (score > max_score) {
+				max_score = score;
+				chan_mask = (1 << i);
+			} else if (score == max_score) {
+				chan_mask |= (1 << i);
+			}
+		}
+
+		if (!chan_mask)
+			return NULL;
+
+		dchan = __dma_request_channel(&mask, dw_axi_dma_filter_fn,
+					      &chan_mask, ofdma->of_node);
+		if (dchan)
+			break;
+
+		/* Repeat, after first marking this group of channels as busy */
+		busy_channels |= chan_mask;
+	}
 
 	chan = dchan_to_axi_dma_chan(dchan);
-	chan->hw_handshake_num = dma_spec->args[0];
+	chan->hw_handshake_num = (u8)chan_sel;
+
 	return dchan;
 }
 
@@ -1569,6 +1625,15 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 			chip->dw->hdata->axi_rw_burst_len[tmp] = val;
 		}
 	}
+
+	/* snps,chan-flags is optional */
+	memset(chip->dw->chan_flags, 0, sizeof(chip->dw->chan_flags));
+	if (device_property_read_u32_array(dev, "snps,chan-flags",
+				       chip->dw->chan_flags,
+				       chip->dw->hdata->nr_channels) < 0)
+		device_property_read_u32_array(dev, "snps,sel-require",
+					       chip->dw->chan_flags,
+					       chip->dw->hdata->nr_channels);
 
 	return 0;
 }
