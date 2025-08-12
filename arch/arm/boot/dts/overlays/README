@@ -4543,7 +4543,7 @@ Load:   <Deprecated>
 
 Name:   sc16is752-spi1
 Info:   This overlay is now deprecated. Use
-        "dtoverlay=sc16is75x-spi,sc16is752,spi1-0,..." instead.
+        "dtoverlay=sc16is75x-spi,sc16is752,spi1-1cs,spi1-0,..." instead.
 Load:   <Deprecated>
 
 
@@ -4558,6 +4558,8 @@ Params: sc16is750               Device is a SC16IS750 UART (default on)
                                 (boolean, required)
         int_pin                 GPIO used for IRQ (default 24)
         xtal                    On-board crystal frequency (default 14745600)
+        spi1-1cs                A special case to support sc16is752-spi1. Not
+                                intended for general use.
 
 
 Name:   sdhost
