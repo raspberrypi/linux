@@ -50,7 +50,7 @@
 #define RP1_PIO_FIFO_RX2	0x18
 #define RP1_PIO_FIFO_RX3	0x1c
 
-#define RP1_PIO_DMACTRL_DEFAULT	0x80000104
+#define RP1_PIO_DMACTRL_DEFAULT	0x80000108
 
 #define HANDLER(_n, _f) \
 	[_IOC_NR(PIO_IOC_ ## _n)] = { #_n, rp1_pio_ ## _f, _IOC_SIZE(PIO_IOC_ ## _n) }
@@ -676,6 +676,10 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	config.src_addr = fifo_addr;
 	config.dst_addr = fifo_addr;
 	config.direction = (dir == RP1_PIO_DIR_TO_SM) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
+	if (dir == RP1_PIO_DIR_TO_SM)
+		config.dst_maxburst = 8;
+	else
+		config.src_maxburst = 8;
 
 	ret = dmaengine_slave_config(dma->chan, &config);
 	if (ret)
