@@ -676,6 +676,10 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	config.src_addr = fifo_addr;
 	config.dst_addr = fifo_addr;
 	config.direction = (dir == RP1_PIO_DIR_TO_SM) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
+	if (dir == RP1_PIO_DIR_TO_SM)
+		config.dst_maxburst = 8;
+	else
+		config.src_maxburst = 8;
 
 	ret = dmaengine_slave_config(dma->chan, &config);
 	if (ret)
