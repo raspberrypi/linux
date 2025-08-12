@@ -53,11 +53,45 @@
 	fragment@3 {
 		target = <&gpio>;
 		__overlay__ {
-			sc16is75x_pins: sc16is75x_pins@24 {
+			sc16is75x_pins: sc16is75x_pins@18 {
 				brcm,pins = <24>;
 				brcm,function = <BCM2835_FSEL_GPIO_IN>;
 				brcm,pull = <BCM2835_PUD_OFF>;
 			};
+		};
+	};
+
+	fragment@4 {
+		target = <&gpio>;
+		__dormant__ {
+			spi1_pins: spi1_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <3>; /* alt4 */
+			};
+
+			spi1_cs_pins: spi1_cs_pins {
+				brcm,pins = <18>;
+				brcm,function = <1>; /* output */
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&spi1>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+			cs-gpios = <&gpio 18 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&aux>;
+		__dormant__ {
+			status = "okay";
 		};
 	};
 
@@ -80,6 +114,7 @@
 		spi1-0 = <0>, "-0",
 			<&sc16is75x_frag>, "target:0=", <&spi1>,
 			<&sc16is75x_pins>, "name=sc16is75x_spi1_0_pins";
+		spi1-1cs = <0>,"+4+5+6";
 		spi1-1 = <0>, "-0",
 			<&sc16is75x_frag>, "target:0=", <&spi1>,
 			<&sc16is75x>, "reg:0=1",
