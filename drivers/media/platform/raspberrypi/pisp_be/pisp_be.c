@@ -941,7 +941,6 @@ static void pispbe_node_stop_streaming(struct vb2_queue *q)
 	struct pispbe_dev *pispbe = node_group->pispbe;
 	struct pispbe_job_descriptor *job, *temp;
 	struct pispbe_buffer *buf;
-	LIST_HEAD(tmp_list);
 
 	/*
 	 * Now this is a bit awkward. In a simple M2M device we could just wait
@@ -968,19 +967,17 @@ static void pispbe_node_stop_streaming(struct vb2_queue *q)
 	spin_lock_irq(&pispbe->hw_lock);
 	node_group->streaming_map &= ~BIT(node->id);
 
-	if (node_group->streaming_map == 0) {
-		/*
-		 * If all nodes have stopped streaming release all jobs
-		 * without holding the lock.
-		 */
-		list_splice_init(&pispbe->job_queue, &tmp_list);
+	/*
+	 * If a node has stopped streaming release all jobs belonging to the
+	 * node group immediately.
+	 */
+	list_for_each_entry_safe(job, temp, &pispbe->job_queue, queue) {
+		if (job->node_group == node->node_group) {
+			list_del(&job->queue);
+			kfree(job);
+		}
 	}
 	spin_unlock_irq(&pispbe->hw_lock);
-
-	list_for_each_entry_safe(job, temp, &tmp_list, queue) {
-		list_del(&job->queue);
-		kfree(job);
-	}
 
 	pm_runtime_mark_last_busy(pispbe->dev);
 	pm_runtime_put_autosuspend(pispbe->dev);
