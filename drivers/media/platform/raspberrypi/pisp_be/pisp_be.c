@@ -594,9 +594,7 @@ err_return_buffers:
 	return -ENODEV;
 }
 
-static void pispbe_schedule(struct pispbe_dev *pispbe,
-			    struct pispbe_node_group *node_group,
-			    bool clear_hw_busy)
+static void pispbe_schedule(struct pispbe_dev *pispbe, bool clear_hw_busy)
 {
 	struct pispbe_job_descriptor *job;
 
@@ -612,9 +610,6 @@ static void pispbe_schedule(struct pispbe_dev *pispbe,
 					       queue);
 		if (!job)
 			return;
-
-		if (node_group && job->node_group != node_group)
-			continue;
 
 		list_del(&job->queue);
 
@@ -703,7 +698,7 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 	}
 
 	/* check if there's more to do before going to sleep */
-	pispbe_schedule(pispbe, NULL, can_queue_another);
+	pispbe_schedule(pispbe, can_queue_another);
 
 	return IRQ_HANDLED;
 }
@@ -894,7 +889,7 @@ static void pispbe_node_buffer_queue(struct vb2_buffer *buf)
 	 * to do, but only for this client.
 	 */
 	if (!pispbe_prepare_job(node_group))
-		pispbe_schedule(pispbe, node_group, false);
+		pispbe_schedule(pispbe, false);
 }
 
 static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -921,7 +916,7 @@ static int pispbe_node_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	/* Maybe we're ready to run. */
 	if (!pispbe_prepare_job(node_group))
-		pispbe_schedule(pispbe, node_group, false);
+		pispbe_schedule(pispbe, false);
 
 	return 0;
 
