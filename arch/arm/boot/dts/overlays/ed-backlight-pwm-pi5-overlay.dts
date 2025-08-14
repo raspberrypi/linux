@@ -1,0 +1,62 @@
+/*
+ * EDATEC PWM backlight overlay (CM5/Pi5/BCM2712).
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&pwm1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rp1_pwm1_gpio45>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			backlight_pwm: backlight_pwm {
+				compatible = "pwm-backlight";
+				brightness-levels = <0 6 12 24 32 48 64 96
+					128 150 170 190 210 220 240 255>;
+				default-brightness-level = <15>;
+				pwms = <&pwm1 3 2000000 0>;
+				enable-gpios = <&pca 0 1>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca: pca@20 {
+				compatible = "nxp,pca9535";
+				reg = <0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&backlight_pwm>;
+		__dormant__ {
+			brightness-levels = <255 240 220 210 190 170
+				150 128 96 64 48 32 24 12 6 0>;
+		};
+	};
+
+	__overrides__ {
+		sg215 = <0>, "+3";
+	};
+};

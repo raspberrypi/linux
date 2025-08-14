@@ -1,0 +1,50 @@
+// Definitions for PiFi-40 Amp
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tas5711l: audio-codec@1a {
+				compatible = "ti,tas5711";
+				reg = <0x1a>;
+				#sound-dai-cells = <0>;
+				sound-name-prefix = "Left";
+				status = "okay";
+			};
+
+			tas5711r: audio-codec@1b {
+				compatible = "ti,tas5711";
+				reg = <0x1b>;
+				#sound-dai-cells = <0>;
+				sound-name-prefix = "Right";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		pifi_40: __overlay__ {
+			compatible = "pifi,pifi-40";
+			audio-codec = <&tas5711l &tas5711r>;
+			i2s-controller = <&i2s_clk_producer>;
+			pdn-gpios = <&gpio 23 1>;
+			status = "okay";
+		};
+	};
+};
