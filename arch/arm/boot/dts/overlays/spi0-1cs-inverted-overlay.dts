@@ -1,0 +1,59 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * There are some devices that need an inverted Chip Select (CS) to select the
+ * device signal, as an example the AZDelivery 12864 display. That means that
+ * the CS polarity is active-high. To invert the CS signal the DT needs to set
+ * the cs-gpio to GPIO_ACTIVE_HIGH (0) in the controller and set the
+ * spi-cs-high in the peripheral property. On top of that, since this is a
+ * display the DT also needs to specify the write-only property.
+*/
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0_cs_pins>;
+		frag0: __overlay__ {
+			brcm,pins = <8>;
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		frag1: __overlay__ {
+			cs-gpios = <&gpio 8 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&spi0_pins>;
+		__dormant__ {
+			brcm,pins = <10 11>;
+		};
+	};
+
+	fragment@4 {
+		target = <&spidev0>;
+		__overlay__ {
+			spi-cs-high;
+		};
+	};
+
+	__overrides__ {
+		cs0_pin  = <&frag0>,"brcm,pins:0",
+			   <&frag1>,"cs-gpios:4";
+		no_miso = <0>,"=3";
+	};
+};
