@@ -186,13 +186,13 @@ static int rpi_poe_power_supply_probe(struct platform_device *pdev)
 		if (device_property_read_u32(&pdev->dev, "reg", &ctx->offset))
 			return -EINVAL;
 	} else {
-		fw_node = NULL; // hack xxx fwnode_find_reference(pdev->dev.fwnode, "firmware", 0);
+		fw_node = of_find_compatible_node(NULL, NULL, "raspberrypi,bcm2835-firmware");
 		if (!fw_node) {
 			dev_err(&pdev->dev, "Missing firmware node\n");
 			return -ENOENT;
 		}
 
-		ctx->fw = NULL; // hack xxx rpi_firmware_get(fw_node);
+		ctx->fw = rpi_firmware_get(fw_node);
 		if (!ctx->fw)
 			return -EPROBE_DEFER;
 		if (rpi_firmware_property(ctx->fw,
