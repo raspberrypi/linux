@@ -1,0 +1,570 @@
+// SPDX-License-Identifier: GPL-2.0
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	chosen {
+		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0 cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=0";
+	};
+
+	__overrides__ {
+		arm_freq;
+		eee = <&chosen>,"bootargs{on='',off='genet.eee=N'}";
+		hdmi = <&hdmi0>,"status",
+		       <&hdmi1>,"status";
+		nvmem_cust_rw = <&nvmem_cust>,"rw?";
+		nvmem_priv_rw = <&nvmem_priv>,"rw?";
+		pcie = <&pcie0>,"status";
+		sd = <&emmc2>,"status";
+
+		sd_poll_once = <&emmc2>, "non-removable?";
+		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
+			   <&spi0>, "dmas:8=", <&dma40>;
+		i2s_dma4 = <&i2s>, "dmas:0=", <&dma40>,
+			   <&i2s>, "dmas:8=", <&dma40>;
+	};
+
+	scb: scb {
+	     /* Add a label */
+	};
+
+	soc: soc {
+	     /* Add a label */
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	aliases {
+		uart2 = &uart2;
+		uart3 = &uart3;
+		uart4 = &uart4;
+		uart5 = &uart5;
+		serial0 = &uart1;
+		serial1 = &uart0;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		serial4 = &uart4;
+		serial5 = &uart5;
+		mmc0 = &emmc2;
+		mmc1 = &mmcnr;
+		mmc2 = &sdhost;
+		i2c3 = &i2c3;
+		i2c4 = &i2c4;
+		i2c5 = &i2c5;
+		i2c6 = &i2c6;
+		i2c20 = &ddc0;
+		i2c21 = &ddc1;
+		spi3 = &spi3;
+		spi4 = &spi4;
+		spi5 = &spi5;
+		spi6 = &spi6;
+		/delete-property/ intc;
+	};
+
+	/*
+	 * Add a node with a dma-ranges value that exists only to be found
+	 * by of_dma_get_max_cpu_address, and hence limit the DMA zone.
+	 */
+	zone_dma {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		dma-ranges = <0x0  0x0 0x0  0x40000000>;
+	};
+};
+
+&vc4 {
+	raspberrypi,firmware = <&firmware>;
+};
+
+&cma {
+	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
+	alloc-ranges = <0x0 0x00000000 0x30000000>;
+};
+
+&soc {
+	/* Add the physical <-> DMA mapping for the I/O space */
+	dma-ranges = <0xc0000000  0x0 0x00000000  0x40000000>,
+		     <0x7c000000  0x0 0xfc000000  0x03800000>;
+	nvmem {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		nvmem_otp: nvmem_otp {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <0 166>;
+			status = "okay";
+		};
+
+		nvmem_cust: nvmem_cust {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <1 8>;
+			status = "okay";
+		};
+
+		nvmem_priv: nvmem_priv {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <3 8>;
+			status = "okay";
+		};
+	};
+};
+
+&scb {
+	#size-cells = <2>;
+
+	ranges = <0x0 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+		 <0x0 0x40000000  0x0 0xff800000  0x0 0x00800000>,
+		 <0x6 0x00000000  0x6 0x00000000  0x0 0x40000000>,
+		 <0x0 0x00000000  0x0 0x00000000  0x0 0xfc000000>;
+	dma-ranges = <0x4 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+		     <0x0 0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+	dma40: dma@7e007b00 {
+		compatible = "brcm,bcm2711-dma";
+		reg = <0x0 0x7e007b00  0x0 0x400>;
+		interrupts =
+			<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 11 */
+			<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 12 */
+			<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4 13 */
+			<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4 14 */
+		interrupt-names = "dma11",
+			"dma12",
+			"dma13",
+			"dma14";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x7800>;
+	};
+
+	xhci: xhci@7e9c0000 {
+		compatible = "generic-xhci";
+		status = "disabled";
+		reg = <0x0 0x7e9c0000  0x0 0x100000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+		power-domains = <&power RPI_POWER_DOMAIN_USB>;
+	};
+};
+
+&hevc_dec {
+	reg = <0x0 0x7eb00000  0x0 0x10000>, /* HEVC */
+		<0x0 0x7eb10000  0x0 0x1000>;  /* INTC */
+};
+
+&pcie0 {
+	reg = <0x0 0x7d500000  0x0 0x9310>;
+	ranges = <0x02000000 0x0 0xc0000000 0x6 0x00000000
+		  0x0 0x40000000>;
+};
+
+&genet {
+	reg = <0x0 0x7d580000  0x0 0x10000>;
+};
+
+&dma40 {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x7000>;
+};
+
+&vchiq {
+	compatible = "brcm,bcm2711-vchiq";
+};
+
+&firmwarekms {
+	compatible = "raspberrypi,rpi-firmware-kms-2711";
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&smi {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmc {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmcnr {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	brcmf: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
+};
+
+&csi0 {
+	interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi1 {
+	interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&random {
+	compatible = "brcm,bcm2711-rng200";
+	status = "okay";
+};
+
+&usb {
+	/* Enable the FIQ support */
+	reg = <0x7e980000 0x10000>,
+	      <0x7e00b200 0x200>;
+	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+	status = "disabled";
+};
+
+&gpio {
+	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+
+	spi0_pins: spi0_pins {
+		brcm,pins = <9 10 11>;
+		brcm,function = <BCM2835_FSEL_ALT0>;
+	};
+
+	spi0_cs_pins: spi0_cs_pins {
+		brcm,pins = <8 7>;
+		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+	};
+
+	spi3_pins: spi3_pins {
+		brcm,pins = <1 2 3>;
+		brcm,function = <BCM2835_FSEL_ALT3>;
+	};
+
+	spi3_cs_pins: spi3_cs_pins {
+		brcm,pins = <0 24>;
+		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+	};
+
+	spi4_pins: spi4_pins {
+		brcm,pins = <5 6 7>;
+		brcm,function = <BCM2835_FSEL_ALT3>;
+	};
+
+	spi4_cs_pins: spi4_cs_pins {
+		brcm,pins = <4 25>;
+		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+	};
+
+	spi5_pins: spi5_pins {
+		brcm,pins = <13 14 15>;
+		brcm,function = <BCM2835_FSEL_ALT3>;
+	};
+
+	spi5_cs_pins: spi5_cs_pins {
+		brcm,pins = <12 26>;
+		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+	};
+
+	spi6_pins: spi6_pins {
+		brcm,pins = <19 20 21>;
+		brcm,function = <BCM2835_FSEL_ALT3>;
+	};
+
+	spi6_cs_pins: spi6_cs_pins {
+		brcm,pins = <18 27>;
+		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
+	};
+
+	i2c0_pins: i2c0 {
+		brcm,pins = <0 1>;
+		brcm,function = <BCM2835_FSEL_ALT0>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2c1_pins: i2c1 {
+		brcm,pins = <2 3>;
+		brcm,function = <BCM2835_FSEL_ALT0>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2c3_pins: i2c3 {
+		brcm,pins = <4 5>;
+		brcm,function = <BCM2835_FSEL_ALT5>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2c4_pins: i2c4 {
+		brcm,pins = <8 9>;
+		brcm,function = <BCM2835_FSEL_ALT5>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2c5_pins: i2c5 {
+		brcm,pins = <12 13>;
+		brcm,function = <BCM2835_FSEL_ALT5>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2c6_pins: i2c6 {
+		brcm,pins = <22 23>;
+		brcm,function = <BCM2835_FSEL_ALT5>;
+		brcm,pull = <BCM2835_PUD_UP>;
+	};
+
+	i2s_pins: i2s {
+		brcm,pins = <18 19 20 21>;
+		brcm,function = <BCM2835_FSEL_ALT0>;
+	};
+
+	sdio_pins: sdio_pins {
+		brcm,pins =     <34 35 36 37 38 39>;
+		brcm,function = <BCM2835_FSEL_ALT3>; // alt3 = SD1
+		brcm,pull =     <0 2 2 2 2 2>;
+	};
+
+	uart2_pins: uart2_pins {
+		brcm,pins = <0 1>;
+		brcm,function = <BCM2835_FSEL_ALT4>;
+		brcm,pull = <0 2>;
+	};
+
+	uart3_pins: uart3_pins {
+		brcm,pins = <4 5>;
+		brcm,function = <BCM2835_FSEL_ALT4>;
+		brcm,pull = <0 2>;
+	};
+
+	uart4_pins: uart4_pins {
+		brcm,pins = <8 9>;
+		brcm,function = <BCM2835_FSEL_ALT4>;
+		brcm,pull = <0 2>;
+	};
+
+	uart5_pins: uart5_pins {
+		brcm,pins = <12 13>;
+		brcm,function = <BCM2835_FSEL_ALT4>;
+		brcm,pull = <0 2>;
+	};
+};
+
+&emmc2 {
+	mmc-ddr-3_3v;
+};
+
+&vc4 {
+	status = "disabled";
+};
+
+&pixelvalve0 {
+	status = "disabled";
+};
+
+&pixelvalve1 {
+	status = "disabled";
+};
+
+&pixelvalve2 {
+	status = "disabled";
+};
+
+&pixelvalve3 {
+	status = "disabled";
+};
+
+&pixelvalve4 {
+	status = "disabled";
+};
+
+&hdmi0 {
+	reg = <0x7ef00700 0x300>,
+	      <0x7ef00300 0x200>,
+	      <0x7ef00f00 0x80>,
+	      <0x7ef00f80 0x80>,
+	      <0x7ef01b00 0x200>,
+	      <0x7ef01f00 0x400>,
+	      <0x7ef00200 0x80>,
+	      <0x7ef04300 0x100>,
+	      <0x7ef20000 0x100>,
+	      <0x7ef00100 0x30>;
+	reg-names = "hdmi",
+		    "dvp",
+		    "phy",
+		    "rm",
+		    "packet",
+		    "metadata",
+		    "csc",
+		    "cec",
+		    "hd",
+		    "intr2";
+	clocks = <&firmware_clocks 13>,
+		 <&firmware_clocks 14>,
+		 <&dvp 0>,
+		 <&clk_27MHz>;
+	dmas = <&dma40 (10|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
+	status = "disabled";
+};
+
+&ddc0 {
+	status = "disabled";
+};
+
+&hdmi1 {
+	reg = <0x7ef05700 0x300>,
+	      <0x7ef05300 0x200>,
+	      <0x7ef05f00 0x80>,
+	      <0x7ef05f80 0x80>,
+	      <0x7ef06b00 0x200>,
+	      <0x7ef06f00 0x400>,
+	      <0x7ef00280 0x80>,
+	      <0x7ef09300 0x100>,
+	      <0x7ef20000 0x100>,
+	      <0x7ef00100 0x30>;
+	reg-names = "hdmi",
+		    "dvp",
+		    "phy",
+		    "rm",
+		    "packet",
+		    "metadata",
+		    "csc",
+		    "cec",
+		    "hd",
+		    "intr2";
+	clocks = <&firmware_clocks 13>,
+		 <&firmware_clocks 14>,
+		 <&dvp 1>,
+		 <&clk_27MHz>;
+	dmas = <&dma40 (17|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
+	status = "disabled";
+};
+
+&ddc1 {
+	status = "disabled";
+};
+
+&dvp {
+	status = "disabled";
+};
+
+&vec {
+	clocks = <&firmware_clocks 15>;
+};
+
+&aon_intr {
+	interrupts = <GIC_SPI 96 IRQ_TYPE_EDGE_RISING>;
+	status = "disabled";
+};
+
+&system_timer {
+	status = "disabled";
+};
+
+&i2c0 {
+      /delete-property/ compatible;
+      /delete-property/ interrupts;
+};
+
+&i2c0if {
+	compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
+	interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+i2c_arm: &i2c1 {};
+i2c_vc: &i2c0 {};
+
+&i2c3 {
+	pinctrl-0 = <&i2c3_pins>;
+	pinctrl-names = "default";
+};
+
+&i2c4 {
+	pinctrl-0 = <&i2c4_pins>;
+	pinctrl-names = "default";
+};
+
+&i2c5 {
+	pinctrl-0 = <&i2c5_pins>;
+	pinctrl-names = "default";
+};
+
+&i2c6 {
+	pinctrl-0 = <&i2c6_pins>;
+	pinctrl-names = "default";
+};
+
+&spi3 {
+	pinctrl-0 = <&spi3_pins &spi3_cs_pins>;
+	pinctrl-names = "default";
+};
+
+&spi4 {
+	pinctrl-0 = <&spi4_pins &spi4_cs_pins>;
+	pinctrl-names = "default";
+};
+
+&spi5 {
+	pinctrl-0 = <&spi5_pins &spi5_cs_pins>;
+	pinctrl-names = "default";
+};
+
+&spi6 {
+	pinctrl-0 = <&spi6_pins &spi6_cs_pins>;
+	pinctrl-names = "default";
+};
+
+&uart0 {
+	compatible = "arm,pl011-axi";
+};
+
+&uart2 {
+	compatible = "arm,pl011-axi";
+	pinctrl-0 = <&uart2_pins>;
+	pinctrl-names = "default";
+};
+
+&uart3 {
+	compatible = "arm,pl011-axi";
+	pinctrl-0 = <&uart3_pins>;
+	pinctrl-names = "default";
+};
+
+&uart4 {
+	compatible = "arm,pl011-axi";
+	pinctrl-0 = <&uart4_pins>;
+	pinctrl-names = "default";
+};
+
+&uart5 {
+	compatible = "arm,pl011-axi";
+	pinctrl-0 = <&uart5_pins>;
+	pinctrl-names = "default";
+};
+
+&axiperf {
+	compatible = "brcm,bcm2711-axiperf";
+};
+
+/delete-node/ &v3d;
+
+/ {
+	v3dbus: v3dbus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <2>;
+		ranges = <0x7c500000  0x0 0xfc500000  0x0 0x03300000>,
+			 <0x40000000  0x0 0xff800000  0x0 0x00800000>;
+		dma-ranges = <0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+		v3d: v3d@7ec04000 {
+			compatible = "brcm,2711-v3d";
+			reg =
+			    <0x7ec00000  0x0 0x4000>,
+			    <0x7ec04000  0x0 0x4000>;
+			reg-names = "hub", "core0";
+
+			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
+			resets = <&pm BCM2835_RESET_V3D>;
+			clocks = <&firmware_clocks 5>;
+			clocks-names = "v3d";
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+	};
+};
