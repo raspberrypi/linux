@@ -1,0 +1,27 @@
+// Fragment that configures an imx219
+
+cam_node: imx219@10 {
+	compatible = "sony,imx219";
+	reg = <0x10>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	VANA-supply = <&cam1_reg>;	/* 2.8v */
+	VDIG-supply = <&cam_dummy_reg>;	/* 1.8v */
+	VDDL-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <456000000>;
+		};
+	};
+};
