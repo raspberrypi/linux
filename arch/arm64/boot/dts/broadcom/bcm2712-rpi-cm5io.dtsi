@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0
+
+i2c_csi_dsi1: &i2c0 { // Note: This is for CAM/DISP 1 connector
+	symlink = "i2c-11";
+};
+
+i2c_csi_dsi0: &i2c6 { // Note: This is for CAM/DISP 0 connector
+	pinctrl-0 = <&rp1_i2c6_38_39>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	symlink = "i2c-6";
+};
+
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // The connector that needs no jumper to enable

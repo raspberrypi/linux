@@ -1,0 +1,54 @@
+/*
+ * Definitions for Allo Piano DAC (2.0/2.1) boards
+ *
+ * NB. The Piano DAC 2.1 board contains 2x TI PCM5142 DAC's. One DAC is stereo
+ * (left/right) and the other provides a subwoofer output, using DSP on the
+ * chip for digital high/low pass crossover.
+ * The initial support for this hardware, that doesn't require any codec driver
+ * modifications, uses only one DAC chip for stereo (left/right) output, the
+ * chip with 0x4c slave address. The other chip at 0x4d is currently ignored!
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm5142@4c {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5142";
+				reg = <0x4c>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		piano_dac: __overlay__ {
+			compatible = "allo,piano-dac";
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		24db_digital_gain =
+			<&piano_dac>,"allo,24db_digital_gain?";
+	};
+};
