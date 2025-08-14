@@ -1,0 +1,116 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			vdd_lcd: fixedregulator_lcd {
+				compatible = "regulator-fixed";
+				regulator-name = "vdd_lcd";
+
+				gpios = <&reg_display 4 GPIO_ACTIVE_HIGH>;
+				startup-delay-us = <5000>;
+				enable-active-high;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&dsi1>;
+		__overlay__{
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port {
+				dsi_out_port:endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+
+			ili9881c:ili9881c@0 {
+				compatible    = "rzw,t101p136cq";
+				status        = "okay";
+				reg           = <0>;
+
+				reset-gpios = <&reg_display 2 GPIO_ACTIVE_LOW>;
+				backlight = <&reg_display>;
+				power-supply = <&vdd_lcd>;
+				rotation = <270>;
+
+				port {
+					panel_dsi_port: endpoint {
+						remote-endpoint = <&dsi_out_port>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			gt928_pins: gt928_pins {
+				brcm,pins = <16>;
+				brcm,function = <0>;
+				brcm,pull = <2>;
+			};
+		};
+	};
+
+	i2c_frag: fragment@5 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			reg_display: reg_display@27 {
+				compatible = "edatec,disp-regulator";
+				reg = <0x27>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			gt928:gt928@14 {
+				compatible = "goodix,gt928";
+				reg = <0x14>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&gt928_pins>;
+
+				reset-gpios = <&reg_display 3 GPIO_ACTIVE_HIGH>;
+				interrupt-parent = <&gpio>;
+				interrupts = <16 2>;
+				irq-gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
+			   <0>, "-3-4+5";
+		i2c4 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
+		interrupt = <&gt928_pins>, "brcm,pins:0",
+				    <&gt928>, "interrupts:0",
+				    <&gt928>, "irq-gpios:4";
+		rotation = <&ili9881c>, "rotation:0";
+	};
+};
