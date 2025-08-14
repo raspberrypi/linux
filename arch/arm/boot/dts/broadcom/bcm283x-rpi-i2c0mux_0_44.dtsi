@@ -1,0 +1,4 @@
+&i2c0mux {
+	pinctrl-0 = <&i2c0_gpio0>;
+	pinctrl-1 = <&i2c0_gpio44>;
+};

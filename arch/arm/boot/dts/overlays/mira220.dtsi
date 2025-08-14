@@ -1,0 +1,27 @@
+// Fragment that configures an mira220
+
+cam_node: mira220@10 {
+	compatible = "ams,mira220";
+	reg = <0x54>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	vana-supply = <&cam1_reg>;	/* 2.8v */
+	vdig-supply = <&cam_dummy_reg>;	/* 1.8v */
+	vddl-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			// clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <750000000>;
+		};
+	};
+};
