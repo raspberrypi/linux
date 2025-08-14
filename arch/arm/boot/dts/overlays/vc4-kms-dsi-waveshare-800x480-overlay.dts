@@ -1,0 +1,116 @@
+/*
+ * Device Tree overlay for Waveshare 4.3" 800x480 panel.
+ * It tries to look like a Pi 7" panel, but fails with some of the timing
+ * options.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "edt-ft5406.dtsi"
+
+&ft5406 {
+	vcc-supply = <&reg_display>;
+	reset-gpio = <&reg_display 1 1>;
+};
+
+/ {
+	/* No compatible as it will have come from edt-ft5406.dtsi */
+
+	dsi_frag: fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+
+			panel: panel-dsi-generic@0 {
+				// See panel-dsi.yaml binding
+				compatible = "waveshare,4-3-inch-dsi","panel-dsi";
+				reg = <0>;
+				power-supply = <&reg_display>;
+				backlight = <&reg_display>;
+				dsi-color-format = "RGB888";
+				mode = "MODE_VIDEO";
+				width-mm = <0>;
+				height-mm = <0>;
+
+				port {
+					panel_dsi_port: endpoint {
+						data-lanes = <1>;
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+
+				timing: panel-timing {
+					clock-frequency = <27777000>;
+					hactive = <800>;
+					vactive = <480>;
+					hfront-porch = <59>;
+					hsync-len = <2>;
+					hback-porch = <45>;
+					vfront-porch = <7>;
+					vsync-len = <2>;
+					vback-porch = <22>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			reg_bridge: reg_bridge@1 {
+				reg = <1>;
+				compatible = "regulator-fixed";
+				regulator-name = "bridge_reg";
+				gpio = <&reg_display 0 0>;
+				vin-supply = <&reg_display>;
+				enable-active-high;
+			};
+		};
+	};
+
+	i2c_frag: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			reg_display: reg_display@45 {
+				compatible = "raspberrypi,7inch-touchscreen-panel-regulator";
+				reg = <0x45>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&reg_bridge>, "reg:0=0",
+		       <&reg_bridge>, "regulator-name=bridge_reg_0";
+		disable_touch = <&ft5406>, "status=disabled";
+	};
+};

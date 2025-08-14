@@ -1,0 +1,6 @@
+// Definitions for several I2C based Real Time Clocks
+/dts-v1/;
+/plugin/;
+
+#include "i2c-rtc-common.dtsi"
+#include "i2c-buses.dtsi"

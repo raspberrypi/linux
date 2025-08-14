@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * gpclk-overlay.dts
+ *
+ * Route one of the BCM283x/BCM2711 general-purpose clocks (GPCLK0/1/2) to
+ * a GPIO pin, set its output frequency, and keep it running via a clk-hog
+ * device (see clk-hog.c) so it stays enabled with no other consumer.
+ *
+ * Legal pin,function combinations, and the override that selects each one
+ * directly (see gpclk-pi5-overlay.dts for the RP1/Pi 5 equivalents - the
+ * combinations in common between the two use identical override names):
+ *   GPCLK0: 4(gpclk0_4)  20(gpclk0_20)  32(gpclk0_32)  34(gpclk0_34)
+ *   GPCLK1: 5(gpclk1_5)  21(gpclk1_21)  42(gpclk1_42)  44(gpclk1_44)
+ *   GPCLK2: 6(gpclk2_6)  43(gpclk2_43)
+ *
+ * N.B. Some pins/GPCLKs may already be in use by the firmware, other
+ * overlays, or onboard hardware (e.g. pin 4 defaults to GPCLK0 and is
+ * used by several HATs) - check for conflicts before choosing a pin.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/bcm2835.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			clk_hog: gpclk_hog@4 {
+				compatible = "clk-hog";
+
+				clocks = <&clocks BCM2835_CLOCK_GP0>;
+				assigned-clocks = <&clocks BCM2835_CLOCK_GP0>;
+				assigned-clock-rates = <500000>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&gpclk0_4>;
+			};
+		};
+	};
+
+	/* Each pin's pinctrl node lives in its own fragment, numbered by
+	 * pin number, so that only one is ever instantiated at a time -
+	 * the kernel rejects an overlay that tries to create a gpio node
+	 * that already exists in the live Device Tree, which would happen
+	 * if two gpclk overlay instances both carried, say, the gpclk1_5
+	 * node. gpclk0_4 is the default and so is the only one enabled
+	 * (__overlay__) from the start; the rest start __dormant__ and are
+	 * swapped in by the relevant override, which also disables
+	 * gpclk0_4's fragment.
+	 */
+	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			gpclk0_4: gpclk0_4 {
+				brcm,pins = <4>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_5: gpclk1_5 {
+				brcm,pins = <5>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk2_6: gpclk2_6 {
+				brcm,pins = <6>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@20 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk0_20: gpclk0_20 {
+				brcm,pins = <20>;
+				brcm,function = <BCM2835_FSEL_ALT5>;
+			};
+		};
+	};
+
+	fragment@21 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_21: gpclk1_21 {
+				brcm,pins = <21>;
+				brcm,function = <BCM2835_FSEL_ALT5>;
+			};
+		};
+	};
+
+	fragment@32 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk0_32: gpclk0_32 {
+				brcm,pins = <32>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@34 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk0_34: gpclk0_34 {
+				brcm,pins = <34>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@42 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_42: gpclk1_42 {
+				brcm,pins = <42>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@43 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk2_43: gpclk2_43 {
+				brcm,pins = <43>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	fragment@44 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_44: gpclk1_44 {
+				brcm,pins = <44>;
+				brcm,function = <BCM2835_FSEL_ALT0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		freq    = <&clk_hog>,"assigned-clock-rates:0";
+
+		/* Named pin+clock combinations: each sets the pin mux and
+		 * the clock together, in one go.
+		 */
+		gpclk0_4  = <&clk_hog>,"pinctrl-0:0=",<&gpclk0_4>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"reg:0=4";
+		gpclk0_20 = <0>,"-4+20",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk0_20>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"reg:0=20";
+		gpclk0_32 = <0>,"-4+32",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk0_32>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"reg:0=32";
+		gpclk0_34 = <0>,"-4+34",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk0_34>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP0>,
+			    <&clk_hog>,"reg:0=34";
+		gpclk1_5  = <0>,"-4+5",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_5>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"reg:0=5";
+		gpclk1_21 = <0>,"-4+21",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_21>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"reg:0=21";
+		gpclk1_42 = <0>,"-4+42",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_42>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"reg:0=42";
+		gpclk1_44 = <0>,"-4+44",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_44>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP1>,
+			    <&clk_hog>,"reg:0=44";
+		gpclk2_6  = <0>,"-4+6",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk2_6>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP2>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP2>,
+			    <&clk_hog>,"reg:0=6";
+		gpclk2_43 = <0>,"-4+43",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk2_43>,
+			    <&clk_hog>,"clocks:4=", <BCM2835_CLOCK_GP2>,
+			    <&clk_hog>,"assigned-clocks:4=", <BCM2835_CLOCK_GP2>,
+			    <&clk_hog>,"reg:0=43";
+	};
+};
