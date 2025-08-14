@@ -1,0 +1,59 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			status = "okay";
+
+			pcf857x: pcf857x@27 {
+				compatible = "nxp,pcf8574";
+				reg = <0x27>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			lcd_screen: auxdisplay {
+				compatible = "hit,hd44780";
+
+				data-gpios = <&pcf857x 4 0>,
+					     <&pcf857x 5 0>,
+					     <&pcf857x 6 0>,
+					     <&pcf857x 7 0>;
+				enable-gpios = <&pcf857x 2 0>;
+				rs-gpios = <&pcf857x 0 0>;
+				rw-gpios = <&pcf857x 1 0>;
+				backlight-gpios = <&pcf857x 3 0>;
+
+				display-width-chars = <16>;
+				display-height-chars = <2>;
+			};
+		};
+	};
+
+	__overrides__ {
+		pin_d4 = <&lcd_screen>,"data-gpios:4";
+		pin_d5 = <&lcd_screen>,"data-gpios:16";
+		pin_d6 = <&lcd_screen>,"data-gpios:28";
+		pin_d7 = <&lcd_screen>,"data-gpios:40";
+		pin_en = <&lcd_screen>,"enable-gpios:4";
+		pin_rs = <&lcd_screen>,"rs-gpios:4";
+		pin_rw = <&lcd_screen>,"rw-gpios:4";
+		pin_bl = <&lcd_screen>,"backlight-gpios:4";
+		display_height = <&lcd_screen>,"display-height-chars:0";
+		display_width = <&lcd_screen>,"display-width-chars:0";
+		addr = <&pcf857x>,"reg:0";
+		i2c-path = <&i2c_frag>, "target?=0",
+			   <&i2c_frag>, "target-path";
+	};
+
+};

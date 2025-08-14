@@ -1,0 +1,75 @@
+// Definitions for several SPI-based Real Time Clocks
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&rtc>;
+		__dormant__ {
+			compatible = "dallas,ds3232";
+		};
+	};
+
+	fragment@1 {
+		target = <&rtc>;
+		__dormant__ {
+			compatible = "dallas,ds3234";
+		};
+	};
+
+	fragment@2 {
+		target = <&rtc>;
+		__dormant__ {
+			compatible = "nxp,rtc-pcf2123";
+		};
+	};
+
+	spidev: fragment@100 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rtc: rtc@0 {
+				reg = <0>;
+				spi-max-frequency = <5000000>;
+			};
+		};
+	};
+
+	__overrides__ {
+		spi0_0 = <&spidev>, "target:0=",<&spidev0>,
+		         <&frag101>, "target:0=",<&spi0>,
+		         <&rtc>, "reg:0=0";
+		spi0_1 = <&spidev>, "target:0=",<&spidev1>,
+		         <&frag101>, "target:0=",<&spi0>,
+		         <&rtc>, "reg:0=1";
+		spi1_0 = <0>,"-100",
+		         <&frag101>, "target:0=",<&spi1>,
+		         <&rtc>, "reg:0=0";
+		spi1_1 = <0>,"-100",
+		         <&frag101>, "target:0=",<&spi1>,
+		         <&rtc>, "reg:0=1";
+		spi2_0 = <0>,"-100",
+		         <&frag101>, "target:0=",<&spi2>,
+		         <&rtc>, "reg:0=0";
+		spi2_1 = <0>,"-100",
+		         <&frag101>, "target:0=",<&spi2>,
+		         <&rtc>, "reg:0=1";
+		cs_high = <&rtc>, "spi-cs-high?";
+
+		ds3232 = <0>,"+0";
+		ds3234 = <0>,"+1";
+		pcf2123 = <0>,"+2";
+	};
+};

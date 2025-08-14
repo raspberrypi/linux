@@ -1,0 +1,305 @@
+// SPDX-License-Identifier: GPL-2.0
+#include <dt-bindings/soc/bcm2835-pm.h>
+
+#include "bcm2712.dtsi"
+
+/ {
+	clocks: clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	firmwarekms: firmwarekms {
+		compatible = "raspberrypi,rpi-firmware-kms-2712";
+		interrupt-parent = <&cpu_l2_irq>;
+		interrupts = <19>;
+		brcm,firmware = <&firmware>;
+		status = "disabled";
+	};
+};
+
+&aon_intr {
+	status = "disabled";
+};
+
+&axi {
+	iommu2: iommu@5100 {
+		/* IOMMU2 for PISP-BE, HEVC; and (unused) H264 accelerators */
+		compatible = "brcm,bcm2712-iommu";
+		reg = <0x10 0x5100  0x0 0x80>;
+		brcm,iommu-cache = <&iommuc>;
+		aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
+		aperture-size = <0x1 0x00000000>; // Increase IOVA aperture size to 4GBytes
+		#iommu-cells = <0>;
+	};
+
+	iommu5: iommu@5280 {
+		/* IOMMU5 for PCIe2 (RP1); and (unused) BSTM */
+		compatible = "brcm,bcm2712-iommu";
+		reg = <0x10 0x5280  0x0 0x80>;
+		brcm,iommu-cache = <&iommuc>;
+		aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
+		#iommu-cells = <0>;
+		dma-iova-offset = <0x10 0x00000000>; // HACK for RP1 masters over PCIe
+	};
+
+	dma32: dma@10000 {
+		compatible = "brcm,bcm2712-dma";
+		reg = <0x10 0x00010000 0 0x600>;
+		interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma0",
+					"dma1",
+					"dma2",
+					"dma3",
+					"dma4",
+					"dma5";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x0035>;
+	};
+
+	dma40: dma@10600 {
+		compatible = "brcm,bcm2712-dma";
+		reg = <0x10 0x00010600 0 0x600>;
+		interrupts =
+			<GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>, /* dma4 6 */
+			<GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>, /* dma4 7 */
+			<GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>, /* dma4 8 */
+			<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 9 */
+			<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 10 */
+			<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>; /* dma4 11 */
+		interrupt-names = "dma6",
+					"dma7",
+					"dma8",
+					"dma9",
+					"dma10",
+					"dma11";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x0fc0>;
+	};
+
+	syscon_piarbctl: syscon@400018 {
+		compatible = "brcm,syscon-piarbctl", "syscon", "simple-mfd";
+		reg = <0x10 0x00400018  0x0 0x18>;
+	};
+
+	hevc_dec: codec@800000 {
+		compatible = "brcm,bcm2712-hevc-dec", "raspberrypi,hevc-dec";
+		reg = <0x10 0x00800000  0x0 0x10000>, /* HEVC */
+				<0x10 0x00840000  0x0 0x1000>;  /* INTC */
+		reg-names = "hevc",
+				"intc";
+
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+
+		clocks = <&firmware_clocks 11>;
+		clock-names = "hevc";
+		iommus = <&iommu2>;
+	};
+};
+
+/*
+ * With a #size-cells of 2, the 'size' property should be 2 cells long.
+ * Unfortunately the old firmware will only write the CMA value correctly
+ * if the property is 1 cell long. Fortunately the new firmware silently
+ * makes 'size' 2 cells long, so create what is actually an invalid DTS file
+ * on the understanding that it will be patched up as needed.
+ */
+&cma {
+	size = <0x4000000>; /* 64MB */
+};
+
+&gicv2 {
+	interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) |
+				 IRQ_TYPE_LEVEL_HIGH)>;
+};
+
+&gio {
+	brcm,gpio-direct;
+};
+
+&gio_aon {
+	compatible = "brcm,brcmstb-gpio";
+	brcm,gpio-direct;
+};
+
+&iommu4 {
+	aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
+	#interconnect-cells = <0>;
+};
+
+&isp {
+	clocks-names = "isp_be";
+	status = "okay";
+	iommus = <&iommu2>;
+};
+
+&pcie1 {
+	ranges =
+		/* 2GiB, 32-bit, non-prefetchable at PCIe 00_80000000 */
+		<0x02000000 0x00 0x80000000 0x1b 0x80000000 0x00 0x80000000>,
+		/* 14GiB, 64-bit, prefetchable at PCIe 04_00000000 */
+		<0x43000000 0x04 0x00000000 0x18 0x00000000 0x03 0x80000000>;
+};
+
+&pcie2 {
+	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
+};
+
+&pinctrl {
+	uarta_24_pins: uarta_24_pins {
+		pin_rts {
+			function = "uart0";
+			pins = "gpio24";
+			bias-disable;
+		};
+		pin_cts {
+			function = "uart0";
+			pins = "gpio25";
+			bias-pull-up;
+		};
+		pin_txd {
+			function = "uart0";
+			pins = "gpio26";
+			bias-disable;
+		};
+		pin_rxd {
+			function = "uart0";
+			pins = "gpio27";
+			bias-pull-up;
+		};
+	};
+
+	sdio2_30_pins: sdio2_30_pins {
+		pin_clk {
+			function = "sd2";
+			pins = "gpio30";
+			bias-disable;
+		};
+		pin_cmd {
+			function = "sd2";
+			pins = "gpio31";
+			bias-pull-up;
+		};
+		pins_dat {
+			function = "sd2";
+			pins = "gpio32", "gpio33", "gpio34", "gpio35";
+			bias-pull-up;
+		};
+	};
+};
+
+&pinctrl_aon {
+	i2c3_m4_agpio0_pins: i2c3_m4_agpio0_pins {
+		function = "vc_i2c3";
+		pins = "aon_gpio0", "aon_gpio1";
+		bias-pull-up;
+	};
+
+	bsc_m1_agpio13_pins: bsc_m1_agpio13_pins {
+		function = "bsc_m1";
+		pins = "aon_gpio13", "aon_gpio14";
+		bias-pull-up;
+	};
+
+	bsc_pmu_sgpio4_pins: bsc_pmu_sgpio4_pins {
+		function = "avs_pmu_bsc";
+		pins = "aon_sgpio4", "aon_sgpio5";
+	};
+
+	bsc_m2_sgpio4_pins: bsc_m2_sgpio4_pins {
+		function = "bsc_m2";
+		pins = "aon_sgpio4", "aon_sgpio5";
+	};
+
+	pwm_aon_agpio1_pins: pwm_aon_agpio1_pins {
+		function = "aon_pwm";
+		pins = "aon_gpio1", "aon_gpio2";
+	};
+
+	pwm_aon_agpio4_pins: pwm_aon_agpio4_pins {
+		function = "vc_pwm0";
+		pins = "aon_gpio4", "aon_gpio5";
+	};
+
+	pwm_aon_agpio7_pins: pwm_aon_agpio7_pins {
+		function = "aon_pwm";
+		pins = "aon_gpio7", "aon_gpio9";
+	};
+};
+
+&sdio2 {
+	supports-cqe = <1>;
+};
+
+&soc {
+	axiperf: axiperf@7c012800 {
+		compatible = "brcm,bcm2712-axiperf";
+		reg = <0x7c012800 0x100>,
+			<0x7e000000 0x100>;
+		firmware = <&firmware>;
+		status = "disabled";
+	};
+
+	spi10: spi@7d004000 {
+		compatible = "brcm,bcm2835-spi";
+		reg = <0x7d004000 0x200>;
+		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_vpu>;
+		num-cs = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	i2c10: i2c@7d005600 {
+		compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
+		reg = <0x7d005600 0x20>;
+		interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_vpu>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	cpu_l2_irq: intc@7d503000 {
+		compatible = "brcm,l2-intc";
+		reg = <0x7d503000 0x18>;
+		interrupts = <GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	interrupt-controller@7d517000 {
+		status = "disabled";
+	};
+
+	main_aon_irq: intc@7d517ac0 {
+		compatible = "brcm,bcm7271-l2-intc";
+		reg = <0x7d517ac0 0x10>;
+		interrupts = <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+};
+
+&uart10 {
+	compatible = "arm,pl011-axi", "arm,pl011", "arm,primecell";
+};
+
+&uarta {
+	reg-shift = <2>;
+	reg-io-width = <4>;
+	skip-init;
+};
+
+&v3d {
+	clocks = <&firmware_clocks 5>;
+	clocks-names = "v3d";
+	status = "disabled";
+};

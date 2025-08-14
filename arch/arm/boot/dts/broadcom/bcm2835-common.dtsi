@@ -142,10 +142,9 @@
 			resets = <&pm BCM2835_RESET_V3D>;
 		};
 
-	};
-
-	vc4: gpu {
-		compatible = "brcm,bcm2835-vc4";
+		vc4: gpu {
+			compatible = "brcm,bcm2835-vc4";
+		};
 	};
 };
 

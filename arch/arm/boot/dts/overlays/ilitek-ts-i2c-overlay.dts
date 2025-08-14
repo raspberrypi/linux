@@ -1,0 +1,62 @@
+// Device tree overlay for I2C connected Ilitek multiple touch controller
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			ili2130_pins: ili2130_pins {
+				brcm,pins = <4>; // interrupt
+				brcm,function = <0>; // in
+				brcm,pull = <2>; // pull-up
+			};
+		};
+	};
+
+	frag1: fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ili2130: ili2130@41 {
+				compatible = "ilitek,ili2130";
+				reg = <0x41>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ili2130_pins>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&ili2130>;
+		__overlay__ {
+			touchscreen-inverted-x;
+		};
+	};
+
+	fragment@3 {
+		target = <&ili2130>;
+		__overlay__ {
+			touchscreen-inverted-y;
+		};
+	};
+
+	__overrides__ {
+		interrupt = <&ili2130_pins>,"brcm,pins:0",
+			<&ili2130>,"interrupts:0";
+		i2c-path = <&frag1>, "target?=0",
+			   <&frag1>, "target-path";
+		invx = <0>, "-2";
+		invy = <0>, "-3";
+		swapxy = <&ili2130>,"touchscreen-swapped-x-y?";
+	};
+};

@@ -1,0 +1,24 @@
+// Fragment to configure and IMX290 / IMX327 / IMX462 image sensor
+
+cam_node: imx290@1a {
+	compatible = "sony,imx290lqr";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+	clock-frequency = <37125000>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	vdda-supply = <&cam1_reg>;	/* 2.8v */
+	vdddo-supply = <&cam_dummy_reg>;	/* 1.8v */
+	vddd-supply = <&cam_dummy_reg>;	/* 1.5v */
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+		};
+	};
+};
