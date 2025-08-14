@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-only
+spi_bridge: spi@40 {
+	reg = <0x40>;
+	compatible = "raspberrypi,rp2040-gpio-bridge";
+	status = "disabled";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	power-supply = <&cam1_reg>;
+
+	#gpio-cells = <2>;
+	gpio-controller;
+
+	spi_bridgedev0: spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <35000000>;
+	};
+};
