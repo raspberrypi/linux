@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Toshiba TC358743 HDMI to CSI2 bridge on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include "tc358743.dtsi"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	legacy_frag: fragment@100 {
+		target = <&csi1>;
+		__overlay__ {
+			compatible = "brcm,bcm2835-unicam-legacy";
+		};
+	};
+
+	__overrides__ {
+		media-controller = <0>,"!100";
+		// Overwrites the cam0 override from tc358743.dtsi as we need to
+		// update legacy_frag.
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&tc358743>, "clocks:0=",<&cam0_clk>,
+		       <&legacy_frag>, "target:0=",<&csi0>;
+	};
+};
