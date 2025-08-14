@@ -1,0 +1,48 @@
+/*
+ * vec-gpio-pi5-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&rp1_vec>;
+		rp1vec_overlay: __overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rp1vec_ch0pins &rp1vec_ch0pins>;
+		};
+	};
+
+	fragment@1 {
+		   target = <&gpio>;
+		   __overlay__ {
+			rp1vec_ch0pins: rp1vec_ch0pins {
+				function = "dpi";
+				pins = "gpio4", "gpio5", "gpio6", "gpio7",
+					"gpio8", "gpio9", "gpio10", "gpio11";
+				bias-disable;
+				drive-strength = <12>;
+			};
+			rp1vec_pin27: rp1vec_pin27 {
+				function = "dpi";
+				pins = "gpio27";
+				bias-disable;
+				drive-strength = <12>;
+			};
+			rp1vec_clkpin: rp1vec_clkpin {
+				function = "dpi";
+				pins = "gpio0";
+				bias-disable;
+				drive-strength = <12>;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio27 = <&rp1vec_overlay>, "pinctrl-0:4=", <&rp1vec_pin27>;
+		clk = <&rp1vec_overlay>, "pinctrl-0:8=", <&rp1vec_clkpin>;
+	};
+};

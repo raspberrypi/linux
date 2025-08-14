@@ -1,0 +1,293 @@
+/dts-v1/;
+
+#include "bcm2710.dtsi"
+#include "bcm2709-rpi.dtsi"
+#include "bcm283x-rpi-smsc9514.dtsi"
+#include "bcm283x-rpi-csi1-2lane.dtsi"
+#include "bcm283x-rpi-i2c0mux_0_44.dtsi"
+#include "bcm271x-rpi-bt.dtsi"
+#include "bcm283x-rpi-led-deprecated.dtsi"
+
+/ {
+	compatible = "raspberrypi,3-model-b", "brcm,bcm2837";
+	model = "Raspberry Pi 3 Model B";
+
+	aliases {
+		serial0 = &uart1;
+		serial1 = &uart0;
+		mmc1 = &mmcnr;
+	};
+};
+
+&gpio {
+	/*
+	 * Taken from rpi_SCH_3b_1p2_reduced.pdf and
+	 * the official GPU firmware DT blob.
+	 *
+	 * Legend:
+	 * "NC" = not connected (no rail from the SoC)
+	 * "FOO" = GPIO line named "FOO" on the schematic
+	 * "FOO_N" = GPIO line named "FOO" on schematic, active low
+	 */
+	gpio-line-names = "ID_SDA",
+			  "ID_SCL",
+			  "GPIO2",
+			  "GPIO3",
+			  "GPIO4",
+			  "GPIO5",
+			  "GPIO6",
+			  "GPIO7",
+			  "GPIO8",
+			  "GPIO9",
+			  "GPIO10",
+			  "GPIO11",
+			  "GPIO12",
+			  "GPIO13",
+			  "GPIO14",
+			  "GPIO15",
+			  "GPIO16",
+			  "GPIO17",
+			  "GPIO18",
+			  "GPIO19",
+			  "GPIO20",
+			  "GPIO21",
+			  "GPIO22",
+			  "GPIO23",
+			  "GPIO24",
+			  "GPIO25",
+			  "GPIO26",
+			  "GPIO27",
+			  "NC", /* GPIO 28 */
+			  "LAN_RUN_BOOT",
+			  /* Used by BT module */
+			  "CTS0",
+			  "RTS0",
+			  "TXD0",
+			  "RXD0",
+			  /* Used by Wifi */
+			  "SD1_CLK",
+			  "SD1_CMD",
+			  "SD1_DATA0",
+			  "SD1_DATA1",
+			  "SD1_DATA2",
+			  "SD1_DATA3",
+			  "PWM0_OUT",
+			  "PWM1_OUT",
+			  "ETH_CLK",
+			  "WIFI_CLK",
+			  "SDA0",
+			  "SCL0",
+			  "SMPS_SCL",
+			  "SMPS_SDA",
+			  /* Used by SD Card */
+			  "SD_CLK_R",
+			  "SD_CMD_R",
+			  "SD_DATA0_R",
+			  "SD_DATA1_R",
+			  "SD_DATA2_R",
+			  "SD_DATA3_R";
+
+	spi0_pins: spi0_pins {
+		brcm,pins = <9 10 11>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	spi0_cs_pins: spi0_cs_pins {
+		brcm,pins = <8 7>;
+		brcm,function = <1>; /* output */
+	};
+
+	i2c0_pins: i2c0 {
+		brcm,pins = <0 1>;
+		brcm,function = <4>;
+	};
+
+	i2c1_pins: i2c1 {
+		brcm,pins = <2 3>;
+		brcm,function = <4>;
+	};
+
+	i2s_pins: i2s {
+		brcm,pins = <18 19 20 21>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	sdio_pins: sdio_pins {
+		brcm,pins =     <34 35 36 37 38 39>;
+		brcm,function = <7>; // alt3 = SD1
+		brcm,pull =     <0 2 2 2 2 2>;
+	};
+
+	bt_pins: bt_pins {
+		brcm,pins = <43>;
+		brcm,function = <4>; /* alt0:GPCLK2 */
+		brcm,pull = <0>;
+	};
+
+	uart0_pins: uart0_pins {
+		brcm,pins = <32 33>;
+		brcm,function = <7>; /* alt3=UART0 */
+		brcm,pull = <0 2>;
+	};
+
+	uart1_pins: uart1_pins {
+		brcm,pins;
+		brcm,function;
+		brcm,pull;
+	};
+
+	uart1_bt_pins: uart1_bt_pins {
+		brcm,pins = <32 33>;
+		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
+		brcm,pull = <0 2>;
+	};
+
+	audio_pins: audio_pins {
+		brcm,pins = <40 41>;
+		brcm,function = <4>;
+		brcm,pull = <0>;
+	};
+};
+
+&mmcnr {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio_pins>;
+	bus-width = <4>;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	brcmf: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
+};
+
+&firmware {
+	expgpio: expgpio {
+		compatible = "raspberrypi,firmware-gpio";
+		gpio-controller;
+		#gpio-cells = <2>;
+		gpio-line-names = "BT_ON",
+				  "WL_ON",
+				  "STATUS_LED",
+				  "LAN_RUN",
+				  "HDMI_HPD_N",
+				  "CAM_GPIO0",
+				  "CAM_GPIO1",
+				  "PWR_LOW_N";
+		status = "okay";
+	};
+
+	virtgpio: virtgpio {
+		compatible = "brcm,bcm2835-virtgpio";
+		gpio-controller;
+		#gpio-cells = <2>;
+		status = "okay";
+	};
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pins &bt_pins>;
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_pins>;
+	status = "okay";
+};
+
+&bt {
+	max-speed = <921600>;
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+
+	spidev0: spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+
+	spidev1: spidev@1{
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+};
+
+&i2c0if {
+	clock-frequency = <100000>;
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+};
+
+&i2s {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+&led_act {
+	gpios = <&virtgpio 0 GPIO_ACTIVE_HIGH>;
+	default-state = "off";
+	linux,default-trigger = "mmc0";
+};
+
+&leds {
+	led_pwr: led-pwr {
+		label = "PWR";
+		gpios = <&expgpio 7 GPIO_ACTIVE_HIGH>;
+		default-state = "off";
+		linux,default-trigger = "input";
+	};
+};
+
+&hdmi {
+	hpd-gpios = <&expgpio 4 GPIO_ACTIVE_LOW>;
+};
+
+&vchiq {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
+};
+
+&cam1_reg {
+	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+};
+
+cam0_reg: &cam_dummy_reg {
+};
+
+i2c_csi_dsi0: &i2c0 {
+};
+
+/ {
+	__overrides__ {
+		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_headphones=1 snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_headphones=0 snd_bcm2835.enable_hdmi=0'}";
+
+		act_led_gpio = <&led_act>,"gpios:4";
+		act_led_activelow = <&led_act>,"gpios:8";
+		act_led_trigger = <&led_act>,"linux,default-trigger";
+
+		pwr_led_gpio = <&led_pwr>,"gpios:4";
+		pwr_led_activelow = <&led_pwr>,"gpios:8";
+		pwr_led_trigger = <&led_pwr>,"linux,default-trigger";
+	};
+};

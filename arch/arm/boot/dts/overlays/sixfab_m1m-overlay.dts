@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/plugin/;
+/ {
+	compatible = "brcm,bcm2712";
+	fragment@0 {
+		target = <&pciex1>;
+		__overlay__ {
+			status = "okay";
+			max-link-speed = <3>;
+		};
+	};
+};
