@@ -1,0 +1,25 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&uart3>;
+		frag0: __overlay__ {
+			status = "okay";
+			pinctrl-0 = <&uart3_pins>;
+			rs485-rts-delay = <0 0>;
+		};
+	};
+
+	__overrides__ {
+		ctsrts = <&frag0>,"pinctrl-0:4=",<&uart3_ctsrts_pins>;
+		rs485 = <&frag0>,"pinctrl-0:4=",<&uart3_ctsrts_pins>,
+				<&frag0>,"linux,rs485-enabled-at-boot-time?";
+		rs485_full_duplex = <&frag0>,"rs485-rx-during-tx?";
+		rs485_invert_rts = <&frag0>,"rs485-rts-active-low?";
+		rs485_rts_on_delay = <&frag0>,"rs485-rts-delay:0";
+		rs485_rts_off_delay = <&frag0>,"rs485-rts-delay:4";
+	};
+};
