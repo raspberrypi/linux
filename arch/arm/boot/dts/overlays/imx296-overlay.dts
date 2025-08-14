@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX296 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@1 {
+		target = <&cam1_clk>;
+		clk_over: __overlay__ {
+			status = "okay";
+			clock-frequency = <54000000>;
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	reg_frag: fragment@5 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <500000>;
+		};
+	};
+
+	reg_alwayson_frag: fragment@99 {
+		target = <&cam1_reg>;
+		__dormant__ {
+			regulator-always-on;
+		};
+	};
+
+	i2c_frag: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			imx296: imx296@1a {
+				compatible = "sony,imx296";
+				reg = <0x1a>;
+				status = "okay";
+
+				clocks = <&cam1_clk>;
+				clock-names = "inck";
+
+				avdd-supply = <&cam1_reg>;	/* 3.3v */
+				dvdd-supply = <&cam_dummy_reg>;	/* 1.8v */
+				ovdd-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+				rotation = <180>;
+				orientation = <2>;
+
+				port {
+					imx296_0: endpoint {
+						remote-endpoint = <&csi_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <594000000>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&imx296_0>;
+					clock-lanes = <0>;
+					data-lanes = <1>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@102 {
+		target = <&csi1>;
+		__dormant__ {
+			compatible = "brcm,bcm2835-unicam-legacy";
+		};
+	};
+
+	__overrides__ {
+		rotation = <&imx296>,"rotation:0";
+		orientation = <&imx296>,"orientation:0";
+		media-controller = <0>,"!102";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&reg_alwayson_frag>, "target:0=",<&cam0_reg>,
+		       <&imx296>, "clocks:0=",<&cam0_clk>,
+		       <&imx296>, "avdd-supply:0=",<&cam0_reg>;
+		clock-frequency = <&clk_over>, "clock-frequency:0";
+		always-on = <0>, "+99";
+		sync-sink = <&imx296>,"trigger-mode:0";
+	};
+};

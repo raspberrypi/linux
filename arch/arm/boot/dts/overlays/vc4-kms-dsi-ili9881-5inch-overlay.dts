@@ -1,0 +1,14 @@
+/*
+ * vc4-kms-dsi-ili9881-5inch-overlay.dts
+ */
+
+#include "vc4-kms-dsi-ili9881-7inch-overlay.dts"
+
+&gt911 {
+	touchscreen-x-mm = <62>;
+	touchscreen-y-mm = <110>;
+};
+
+&dsi_panel {
+	compatible = "raspberrypi,dsi-5inch";
+};
