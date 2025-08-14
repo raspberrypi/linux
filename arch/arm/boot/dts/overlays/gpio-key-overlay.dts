@@ -1,0 +1,49 @@
+// Definitions for gpio-key module
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		// Configure the gpio pin controller
+		target = <&gpio>;
+		__overlay__ {
+			pin_state: button_pins@0 {
+				brcm,pins = <3>; // gpio number
+				brcm,function = <0>; // 0 = input, 1 = output
+				brcm,pull = <2>; // 0 = none, 1 = pull down, 2 = pull up
+			};
+		};
+	};
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			button: button@0 {
+				compatible = "gpio-keys";
+				pinctrl-names = "default";
+				pinctrl-0 = <&pin_state>;
+				status = "okay";
+
+				key: key {
+					linux,code = <116>;
+					gpios = <&gpio 3 1>;
+					label = "KEY_POWER";
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio =       <&key>,"gpios:4",
+		             <&button>,"reg:0",
+		             <&pin_state>,"brcm,pins:0",
+		             <&pin_state>,"reg:0";
+		label =      <&key>,"label";
+		keycode =    <&key>,"linux,code:0";
+		gpio_pull =  <&pin_state>,"brcm,pull:0";
+		active_low = <&key>,"gpios:8";
+		autorepeat = <&button>,"autorepeat?";
+	};
+
+};

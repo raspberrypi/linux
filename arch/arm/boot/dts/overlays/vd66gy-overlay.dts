@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for VD66GY camera module on VC I2C bus
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "vd56g3_vd66gy-overlay.dtsi"
+
+/{
+	compatible = "brcm,bcm2835";
+
+	// Fragment numbers deliberately high to avoid conflicts with the
+	// included vd56g3_vd66gy overlay file.
+
+	fragment@101 {
+		target = <&cam_node>;
+		__overlay__ {
+			compatible = "st,vd66gy";
+		};
+	};
+};
