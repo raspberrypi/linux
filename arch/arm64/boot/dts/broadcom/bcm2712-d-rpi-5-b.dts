@@ -35,3 +35,11 @@
 		"PMIC_SCL", // AON_SGPIO_04
 		"PMIC_SDA"; // AON_SGPIO_05
 };
+
+&pinctrl_aon {
+	compatible = "brcm,bcm2712d0-aon-pinctrl";
+};
+
+&pinctrl {
+	compatible = "brcm,bcm2712c0-aon-pinctrl";
+};
