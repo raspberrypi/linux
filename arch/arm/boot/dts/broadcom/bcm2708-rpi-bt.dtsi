@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-2.0
+
+&uart0 {
+	bt: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <3000000>;
+		shutdown-gpios = <&gpio 45 GPIO_ACTIVE_HIGH>;
+		local-bd-address = [ 00 00 00 00 00 00 ];
+		fallback-bd-address; // Don't override a valid address
+		status = "okay";
+	};
+};
+
+&uart1 {
+	minibt: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <230400>;
+		shutdown-gpios = <&gpio 45 GPIO_ACTIVE_HIGH>;
+		local-bd-address = [ 00 00 00 00 00 00 ];
+		fallback-bd-address; // Don't override a valid address
+		status = "disabled";
+	};
+};
+
+/ {
+	chosen {
+		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0 cgroup_disable=memory";
+	};
+
+	aliases {
+		bluetooth = &bt;
+	};
+
+	__overrides__ {
+		bdaddr = <&bt>,"local-bd-address[",
+		       <&bt>,"fallback-bd-address?=0",
+		       <&minibt>,"local-bd-address[",
+		       <&minibt>,"fallback-bd-address?=0";
+		krnbt = <&bt>,"status";
+		krnbt_baudrate = <&bt>,"max-speed:0", <&minibt>,"max-speed:0";
+	};
+};
