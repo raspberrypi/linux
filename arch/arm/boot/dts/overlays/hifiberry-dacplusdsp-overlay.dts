@@ -1,0 +1,34 @@
+// Definitions for hifiberry DAC+DSP soundcard overlay
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			dacplusdsp-codec {
+				#sound-dai-cells = <0>;
+				compatible = "hifiberry,dacplusdsp";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "hifiberrydacplusdsp,hifiberrydacplusdsp-soundcard";
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+};
