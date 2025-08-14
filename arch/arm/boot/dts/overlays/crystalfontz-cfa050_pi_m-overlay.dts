@@ -1,0 +1,131 @@
+/*
+ * crystalfontz-cfa050_pi_m-overlay.dts
+ * Configures the Crystalfontz CFA050-PI-M series of modules
+ * using CFAF7201280A0-050TC/TN panels with RaspberryPi CM4 DSI1
+ */
+/dts-v1/;
+/plugin/;
+/{
+// RaspberryPi CM4
+	compatible = "brcm,bcm2835";
+// PCF8574 I2C GPIO EXPANDER
+	frag0: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			pcf8574a: pcf8574a@38 {
+				reg = <0x38>;
+				compatible = "nxp,pcf8574";
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <8>;
+				gpio-line-names = "TFT_RESET", "TOUCH_RESET", "EXT_P2", "EXT_P3",
+					"EXT_P4", "EXT_P5", "EXT_P6", "EXT_P7";
+			};
+		};
+	};
+// LM3630a BACKLIGHT LED CONTROLLER
+	frag1: fragment@1 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			lm3630a: backlight@36 {
+				reg = <0x36>;
+				compatible = "ti,lm3630a";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				led@0 {
+					reg = <0>;
+					led-sources = <0 1>;
+					label = "lcd-backlight";
+					default-brightness = <255>;
+					max-brightness = <255>;
+				};
+			};
+		};
+	};
+// PCF85063A RTC on I2C
+	frag2: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			pcf85063a@51 {
+				compatible = "nxp,pcf85063a";
+				reg = <0x51>;
+			};
+		};
+	};
+
+// CFAF7201280A0_050Tx TFT DSI PANEL
+	fragment@3 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+			dsi_panel: dsi_panel@0 {
+				compatible = "crystalfontz,cfaf7201280a0_050tx";
+				reg = <0>;
+				reset-gpios = <&pcf8574a 0 1>;
+				backlight = <&lm3630a>;
+				fps = <60>;
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+// rPI GPIO INPUT FOR TOUCH IC IRQ
+	fragment@4 {
+		target = <&gpio>;
+		__dormant__ {
+			gt928intpins: gt928intpins {
+				brcm,pins = <26>; //gpio pin
+				brcm,function = <0>; //input
+				brcm,pull = <2>; //2=pull-up
+			};
+		};
+	};
+// GT928 TOUCH CONTROLLER IC
+	frag5: fragment@5 {
+		target = <&i2c_csi_dsi>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			gt928: gt928@5d {
+				compatible = "goodix,gt928";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio>;
+				interrupts = <26 2>; //gpio 26, 2=high-to-low trigger
+				irq-gpios = <&gpio 26 0>; //gpio 26, 0=active-high
+				reset-gpios = <&pcf8574a 1 1>;
+				touchscreen-inverted-x;
+				touchscreen-inverted-y;
+			};
+		};
+	};
+//OVERLAY OPTIONS
+	__overrides__ {
+		//enables captouch
+		captouch = <0>,"+4+5";
+		//changes options to support CM5 (default is CM4)
+		cm5 = <&frag0>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag1>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag2>, "target:0=",<&i2c_csi_dsi0>,
+			<&frag5>, "target:0=",<&i2c_csi_dsi0>;
+	};
+};

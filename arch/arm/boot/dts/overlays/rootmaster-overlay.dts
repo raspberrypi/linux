@@ -1,0 +1,77 @@
+// redo: ovmerge -c mcp251xfd-overlay.dts,spi0-0,interrupt=25 w1-gpio-overlay.dts,gpiopin=4
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			mcp251xfd_pins: mcp251xfd_spi0_0_pins {
+				brcm,pins = <25>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+			};
+		};
+	};
+	fragment@2 {
+		target-path = "/clocks";
+		__overlay__ {
+			clk_mcp251xfd_osc: mcp251xfd-spi0-0-osc {
+				#clock-cells = <0>;
+				compatible = "fixed-clock";
+				clock-frequency = <40000000>;
+			};
+		};
+	};
+	fragment@3 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mcp251xfd@0 {
+				compatible = "microchip,mcp251xfd";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mcp251xfd_pins>;
+				spi-max-frequency = <20000000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <25 IRQ_TYPE_LEVEL_LOW>;
+				clocks = <&clk_mcp251xfd_osc>;
+			};
+		};
+	};
+	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			onewire@4 {
+				compatible = "w1-gpio";
+				pinctrl-names = "default";
+				pinctrl-0 = <&w1_pins>;
+				gpios = <&gpio 4 0>;
+				status = "okay";
+			};
+		};
+	};
+	fragment@5 {
+		target = <&gpio>;
+		__overlay__ {
+			w1_pins: w1_pins@4 {
+				brcm,pins = <4>;
+				brcm,function = <0>;
+				brcm,pull = <0>;
+			};
+		};
+	};
+};

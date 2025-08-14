@@ -1,0 +1,110 @@
+/*
+ * vc4-kms-dsi-waveshare-panel-v2-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			display_mcu: display_mcu@45 {
+				compatible = "waveshare,touchscreen-panel-regulator";
+				reg = <0x45>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				enable-gpio = <&display_mcu 2 GPIO_ACTIVE_HIGH>;
+			};
+
+			touch: goodix@5d {
+				compatible = "goodix,gt9271";
+				reg = <0x5d>;
+				reset-gpio = <&display_mcu 9 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	dsi_frag: fragment@1 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			dsi_panel: dsi_panel@0 {
+				reg = <0>;
+				compatible = "waveshare,10.1-dsi-touch-a";
+				reset-gpio = <&display_mcu 1 GPIO_ACTIVE_HIGH>;
+				iovcc-gpio = <&display_mcu 4 GPIO_ACTIVE_HIGH>;
+				avdd-gpio = <&display_mcu 0 GPIO_ACTIVE_HIGH>;
+				backlight = <&display_mcu>;
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		3_4_inch_c = <&dsi_panel>, "compatible=waveshare,3.4-dsi-touch-c";
+		4_0_inch_c = <&dsi_panel>, "compatible=waveshare,4.0-dsi-touch-c";
+		5_0_inch_a = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a";
+		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
+		7_0_inch_a = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-a";
+		7_0_inch_b = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-b";
+		8_0_inch_a = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a";
+		8_0_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a-4lane";
+		8_8_inch_a = <&dsi_panel>, "compatible=waveshare,8.8-dsi-touch-a";
+		9_0_inch_b = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b",
+			     <&touch>, "touchscreen-inverted-x";
+		9_0_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b,4lane",
+				   <&touch>, "touchscreen-inverted-x";
+		10_1_inch_a = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-a";
+		10_1_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-a-4lane";
+		10_1_inch_b = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-b",
+			      <&touch>, "touchscreen-inverted-y";
+		10_1_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-b,4lane",
+				    <&touch>, "touchscreen-inverted-y";
+		12_3_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,12.3-dsi-touch-a,4lane",
+				    <&touch>, "touchscreen-swapped-x-y",
+				    <&touch>, "touchscreen-inverted-y";
+		disable_touch = <&touch>, "status=disabled";
+		invx = <&touch>,"touchscreen-inverted-x?";
+		invy = <&touch>,"touchscreen-inverted-y?";
+		swapxy = <&touch>,"touchscreen-swapped-x-y?";
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+			   <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
+	};
+};
