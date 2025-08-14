@@ -1,0 +1,53 @@
+// Overlay for the Microchip ENC28J60 Ethernet Controller
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+
+			eth1: enc28j60@0{
+				compatible = "microchip,enc28j60";
+				reg = <0>; /* CE0 */
+				pinctrl-names = "default";
+				pinctrl-0 = <&eth1_pins>;
+				interrupt-parent = <&gpio>;
+				interrupts = <25 0x2>; /* falling edge */
+				spi-max-frequency = <12000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			eth1_pins: eth1_pins {
+				brcm,pins = <25>;
+				brcm,function = <0>; /* in */
+				brcm,pull = <0>; /* none */
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&eth1>, "interrupts:0",
+		          <&eth1_pins>, "brcm,pins:0";
+		speed   = <&eth1>, "spi-max-frequency:0";
+	};
+};
