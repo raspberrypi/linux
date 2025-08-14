@@ -1,0 +1,24 @@
+/dts-v1/;
+/plugin/;
+
+/* SDIO/SD/MMC on RP1 bank 0 */
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&rp1_mmc0>;
+		frag0: __overlay__ {
+			status = "okay";
+			pinctrl-0 = <&rp1_sdio0_22_27>;
+			pinctrl-names = "default";
+		};
+	};
+
+	fragment@1 {
+		target = <&rp1_sdio_clk0>;
+		frag1: __overlay__ {
+			status = "okay";
+		};
+	};
+};

@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Toshiba TC358743 HDMI to CSI2 bridge on VC I2C bus. Pi5 variant
+/dts-v1/;
+/plugin/;
+
+#include "tc358743.dtsi"
+
+/ {
+	compatible = "brcm,bcm2712";
+};

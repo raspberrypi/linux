@@ -1,0 +1,65 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * Raspberry Pi 5 has a different Audio Out hardware from earlier Raspberry Pis.
+ * It can output only to GPIOs 12 and 13. We therefore enable it *only* when
+ * that particular GPIO mapping is requested here. To make it work with ASOC
+ * we must also define a "dummy" codec and a generic audio card.
+ */
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&rp1_audio_out>;
+		frag0: __overlay__ {
+			pinctrl-0 = <&rp1_audio_out_12_13>;
+			pinctrl-names = "default";
+			status = "ok";
+		};
+	};
+
+	fragment@1 {
+		 target-path = "/";
+		 __overlay__ {
+
+			 rp1_audio_out_codec: rp1_audio_out_codec@0 {
+			     compatible = "linux,spdif-dit";
+			     #sound-dai-cells = <0>;
+			     status = "ok";
+			 };
+
+			 rp1_audio_out_simple_card@0 {
+			     compatible = "simple-audio-card";
+			     simple-audio-card,name = "RP1-Audio-Out";
+			     #address-cells = <1>;
+			     #size-cells = <0>;
+			     status = "ok";
+
+			     simple-audio-card,dai-link@0 {
+				 reg = <0>;
+				 format = "left_j";
+				 bitclock-master = <&sndcpu0>;
+				 frame-master = <&sndcpu0>;
+
+				sndcpu0: cpu {
+					sound-dai = <&rp1_audio_out>;
+				};
+
+				codec {
+				    sound-dai = <&rp1_audio_out_codec>;
+				};
+			    };
+			};
+		};
+	};
+
+	__overrides__ {
+		swap_lr = <&frag0>, "swap_lr?";
+		pins_12_13 = <0>, "+0+1"; /* this is the default */
+		pins_18_19 = <0>, "-0-1"; /* sorry not supported */
+		pins_40_41 = <0>, "-0-1"; /* sorry not supported */
+		pins_40_45 = <0>, "-0-1"; /* sorry not supported */
+	};
+};
