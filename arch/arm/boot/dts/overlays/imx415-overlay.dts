@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX415 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@1 {
+		target = <&cam1_clk>;
+		cam_clk: __overlay__ {
+			status = "okay";
+			clock-frequency = <24000000>;
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	reg_frag: fragment@3 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <100000>;
+		};
+	};
+
+	i2c_frag: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			#include "imx415.dtsi"
+
+			vcm: ad5398@c {
+				compatible = "adi,ad5398";
+				reg = <0x0c>;
+				status = "disabled";
+				VANA-supply = <&cam1_reg>;
+			};
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&cam_endpoint>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@201 {
+		target = <&cam_endpoint>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@202 {
+		target = <&csi_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+
+	__overrides__ {
+		addr = <&cam_node>, "reg:0";
+		rotation = <&cam_node>,"rotation:0";
+		orientation = <&cam_node>,"orientation:0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&cam_node>, "clocks:0=",<&cam0_clk>,
+		       <&cam_node>, "avdd-supply:0=",<&cam0_reg>,
+		       <&vcm>, "VANA-supply:0=", <&cam0_reg>;
+		vcm = <&vcm>, "status=okay",
+		      <&cam_node>,"lens-focus:0=", <&vcm>;
+		clock-frequency = <&cam_clk>, "clock-frequency:0";
+		link-frequency = <&cam_endpoint>,"link-frequencies#0";
+		clk-37125 = <&cam_endpoint>,"link-frequencies#0=445500000",
+			   <&cam_clk>, "clock-frequency:0=37125000";
+		4lane = <0>, "+201+202";
+	};
+};
+
+&cam_node {
+	status = "okay";
+};
+
+&cam_endpoint {
+	remote-endpoint = <&csi_ep>;
+};

@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&brcmf>;
+		wifi0: __overlay__ {
+			local-mac-address = [ 00 00 00 00 00 00 ];
+		};
+	};
+
+	__overrides__ {
+		wifiaddr = <&wifi0>, "local-mac-address[";
+	};
+
+	__exports__ {
+		wifi0;
+	};
+};
