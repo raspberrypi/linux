@@ -729,12 +729,14 @@ static int rp1_gpio_get(struct gpio_chip *chip, unsigned offset)
 	return ret;
 }
 
-static void rp1_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+static int rp1_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	struct rp1_pin_info *pin = rp1_get_pin(chip, offset);
 
 	if (pin)
 		rp1_set_value(pin, value);
+
+	return 0;
 }
 
 static int rp1_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
