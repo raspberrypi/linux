@@ -1,0 +1,59 @@
+// Definitions for NXP PCA953x family of I2C GPIO controllers on ARM I2C bus.
+/dts-v1/;
+/plugin/;
+
+#include "i2c-buses.dtsi"
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca: pca@20 {
+				compatible = "nxp,pca9534";
+				reg = <0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+		};
+	};
+
+	__overrides__ {
+		addr = <&pca>,"reg:0";
+		pca6416 = <&pca>,"compatible=nxp,pca6416";
+		pca9505 = <&pca>,"compatible=nxp,pca9505";
+		pca9535 = <&pca>,"compatible=nxp,pca9535";
+		pca9536 = <&pca>,"compatible=nxp,pca9536";
+		pca9537 = <&pca>,"compatible=nxp,pca9537";
+		pca9538 = <&pca>,"compatible=nxp,pca9538";
+		pca9539 = <&pca>,"compatible=nxp,pca9539";
+		pca9554 = <&pca>,"compatible=nxp,pca9554";
+		pca9555 = <&pca>,"compatible=nxp,pca9555";
+		pca9556 = <&pca>,"compatible=nxp,pca9556";
+		pca9557 = <&pca>,"compatible=nxp,pca9557";
+		pca9574 = <&pca>,"compatible=nxp,pca9574";
+		pca9575 = <&pca>,"compatible=nxp,pca9575";
+		pca9698 = <&pca>,"compatible=nxp,pca9698";
+		pcal6416 = <&pca>,"compatible=nxp,pcal6416";
+		pcal6524 = <&pca>,"compatible=nxp,pcal6524";
+		pcal9555a = <&pca>,"compatible=nxp,pcal9555a";
+		max7310 = <&pca>,"compatible=maxim,max7310";
+		max7312 = <&pca>,"compatible=maxim,max7312";
+		max7313 = <&pca>,"compatible=maxim,max7313";
+		max7315 = <&pca>,"compatible=maxim,max7315";
+		pca6107 = <&pca>,"compatible=ti,pca6107";
+		tca6408 = <&pca>,"compatible=ti,tca6408";
+		tca6416 = <&pca>,"compatible=ti,tca6416";
+		tca6424 = <&pca>,"compatible=ti,tca6424";
+		tca9539 = <&pca>,"compatible=ti,tca9539";
+		tca9554 = <&pca>,"compatible=ti,tca9554";
+		cat9554 = <&pca>,"compatible=onnn,cat9554";
+		pca9654 = <&pca>,"compatible=onnn,pca9654";
+		xra1202 = <&pca>,"compatible=exar,xra1202";
+	};
+};
