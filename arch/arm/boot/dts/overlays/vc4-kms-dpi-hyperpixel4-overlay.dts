@@ -1,0 +1,57 @@
+/*
+ * vc4-kms-dpi-hyperpixel4sq-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "vc4-kms-dpi-hyperpixel.dtsi"
+
+&panel {
+	compatible = "pimoroni,hyperpixel4";
+};
+
+/ {
+	fragment@11 {
+		target = <&i2c_gpio>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			ft6236_14: ft6236@14 {
+				compatible = "goodix,gt911";
+				reg = <0x14>;
+				interrupt-parent = <&gpio>;
+				interrupts = <27 2>;
+				touchscreen-size-x = <480>;
+				touchscreen-size-y = <800>;
+				touchscreen-x-mm = <51>;
+				touchscreen-y-mm = <85>;
+				touchscreen-inverted-y;
+				touchscreen-swapped-x-y;
+			};
+			ft6236_5d: ft6236@5d {
+				compatible = "goodix,gt911";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio>;
+				interrupts = <27 2>;
+				touchscreen-size-x = <480>;
+				touchscreen-size-y = <800>;
+				touchscreen-x-mm = <51>;
+				touchscreen-y-mm = <85>;
+				touchscreen-inverted-y;
+				touchscreen-swapped-x-y;
+			};
+		};
+	};
+
+	__overrides__ {
+		disable-touch = <0>,"-3-11";
+		touchscreen-inverted-x = <&ft6236_14>,"touchscreen-inverted-x?",
+					 <&ft6236_5d>,"touchscreen-inverted-x?";
+		touchscreen-inverted-y = <&ft6236_14>,"touchscreen-inverted-y!",
+					 <&ft6236_5d>,"touchscreen-inverted-y!";
+		touchscreen-swapped-x-y = <&ft6236_14>,"touchscreen-swapped-x-y!",
+					  <&ft6236_5d>,"touchscreen-swapped-x-y!";
+	};
+};

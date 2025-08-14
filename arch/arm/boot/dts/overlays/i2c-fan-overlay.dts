@@ -1,0 +1,77 @@
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/thermal/thermal.h>
+
+#include "i2c-buses.dtsi"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			emc2301: emc2301@2f {
+				compatible = "microchip,emc2301";
+				reg = <0x2f>;
+				#cooling-cells = <0x02>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&cpu_thermal>;
+		__overlay__ {
+			polling-delay = <2000>; /* milliseconds */
+		};
+	};
+
+	fragment@2 {
+		target = <&thermal_trips>;
+		__overlay__ {
+			fanmid0: fanmid0 {
+				temperature = <50000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+			fanmax0: fanmax0 {
+				temperature = <75000>;
+				hysteresis = <2000>;
+				type = "active";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&cooling_maps>;
+		__overlay__ {
+			map0: map0 {
+				trip = <&fanmid0>;
+				cooling-device = <&emc2301 2 6>;
+			};
+			map1: map1 {
+				trip = <&fanmax0>;
+				cooling-device = <&emc2301 7 THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	__overrides__ {
+		addr =		<&emc2301>,"reg:0";
+		minpwm =	<&emc2301>,"emc2305,pwm-min.0";
+		maxpwm =	<&emc2301>,"emc2305,pwm-max.0";
+		midtemp =	<&fanmid0>,"temperature:0";
+		midtemp_hyst =	<&fanmid0>,"hysteresis:0";
+		maxtemp =	<&fanmax0>,"temperature:0";
+		maxtemp_hyst =	<&fanmax0>,"hysteresis:0";
+
+		emc2301 =	<0>,"+0",
+				<&map0>,"cooling-device:0=",<&emc2301>,
+				<&map1>,"cooling-device:0=",<&emc2301>;
+	};
+};

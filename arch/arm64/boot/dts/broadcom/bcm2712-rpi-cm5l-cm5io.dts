@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+
+#include "bcm2712-rpi-cm5l.dtsi"
+#include "bcm2712-rpi-cm5io.dtsi"

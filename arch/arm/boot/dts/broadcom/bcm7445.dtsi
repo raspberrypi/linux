@@ -237,8 +237,7 @@
 			ranges = <0x0 0x0 0x80000>;
 
 			memc-ddr@2000 {
-				compatible = "brcm,brcmstb-memc-ddr-rev-b.1.x",
-					     "brcm,brcmstb-memc-ddr";
+				compatible = "brcm,brcmstb-memc-ddr";
 				reg = <0x2000 0x800>;
 			};
 
@@ -260,8 +259,7 @@
 			ranges = <0x0 0x80000 0x80000>;
 
 			memc-ddr@2000 {
-				compatible = "brcm,brcmstb-memc-ddr-rev-b.1.x",
-					     "brcm,brcmstb-memc-ddr";
+				compatible = "brcm,brcmstb-memc-ddr";
 				reg = <0x2000 0x800>;
 			};
 
@@ -283,8 +281,7 @@
 			ranges = <0x0 0x100000 0x80000>;
 
 			memc-ddr@2000 {
-				compatible = "brcm,brcmstb-memc-ddr-rev-b.1.x",
-					     "brcm,brcmstb-memc-ddr";
+				compatible = "brcm,brcmstb-memc-ddr";
 				reg = <0x2000 0x800>;
 			};
 
