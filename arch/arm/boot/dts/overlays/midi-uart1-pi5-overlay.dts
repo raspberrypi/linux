@@ -1,0 +1,37 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/rp1.h>
+
+/*
+ * Fake a higher clock rate to get a larger divisor, and thereby a lower
+ * baudrate. Create an intermediary clock that reports the real clock frequency
+ * multiplied by 38400/31250. This will result in the UART's clock divisor being
+ * greater by a factor of 38400/31250, such that requesting 38.4kHz results in
+ * an actual 31.25kHz.
+ */
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/clocks";
+		__overlay__ {
+			midi_clk: midiclock_1 {
+				compatible = "fixed-factor-clock";
+				#clock-cells = <0>;
+				clocks = <&rp1_clocks RP1_CLK_UART>;
+				clock-mult = <38400>;
+				clock-div  = <31250>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&uart1>;
+		__overlay__ {
+			status = "okay";
+			clocks = <&midi_clk &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+		};
+	};
+};
