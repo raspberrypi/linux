@@ -1,0 +1,65 @@
+// Definitions for MCP23017 Gpio Extender from Microchip Semiconductor
+
+/dts-v1/;
+/plugin/;
+
+#include "i2c-buses.dtsi"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			mcp23017_pins: mcp23017_pins@20 {
+				brcm,pins = <4>;
+				brcm,function = <0>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&mcp23017>;
+		__dormant__ {
+			compatible = "microchip,mcp23008";
+		};
+	};
+
+	fragment@3 {
+		target = <&mcp23017>;
+		mcp23017_irq: __overlay__ {
+			#interrupt-cells=<2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mcp23017_pins>;
+			interrupt-parent = <&gpio>;
+			interrupts = <4 2>;
+			interrupt-controller;
+			microchip,irq-mirror;
+		};
+	};
+
+	fragment@4 {
+		target = <&i2cbus>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mcp23017: mcp@20 {
+				compatible = "microchip,mcp23017";
+				reg = <0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin = <&mcp23017_pins>,"brcm,pins:0",
+				<&mcp23017_irq>,"interrupts:0";
+		addr = <&mcp23017>,"reg:0", <&mcp23017_pins>,"reg:0";
+		mcp23008 = <0>,"=2";
+		noints = <0>,"!1!3";
+	};
+};
