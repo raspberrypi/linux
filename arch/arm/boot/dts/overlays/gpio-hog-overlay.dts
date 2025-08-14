@@ -1,0 +1,27 @@
+// Configure a "hog" on the specified GPIO
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			hog: hog@1a {
+			     gpio-hog;
+			     gpios = <26 GPIO_ACTIVE_HIGH>;
+			     output-high;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio =       <&hog>,"reg:0",
+		             <&hog>,"gpios:0";
+		active_low = <&hog>,"output-high!",
+			     <&hog>,"output-low?";
+	};
+};
