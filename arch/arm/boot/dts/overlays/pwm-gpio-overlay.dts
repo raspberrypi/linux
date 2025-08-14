@@ -1,0 +1,38 @@
+// Device tree overlay for software GPIO PWM.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			pwm_gpio_pins: pwm_gpio_pins@4 {
+				brcm,pins = <4>; /* gpio 4 */
+				brcm,function = <1>; /* output */
+				brcm,pull = <0>; /* pull-none */
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			pwm_gpio: pwm_gpio@4 {
+				  compatible = "pwm-gpio";
+				  pinctrl-names = "default";
+				  pinctrl-0 = <&pwm_gpio_pins>;
+				  gpios = <&gpio 4 0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio = <&pwm_gpio>,"gpios:4",
+		       <&pwm_gpio_pins>,"brcm,pins:0",
+		       /* modify reg values to allow multiple instantiation */
+		       <&pwm_gpio>,"reg:0",
+		       <&pwm_gpio_pins>,"reg:0";
+	};
+};

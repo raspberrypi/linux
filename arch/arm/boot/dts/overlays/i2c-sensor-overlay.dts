@@ -1,0 +1,6 @@
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
+/dts-v1/;
+/plugin/;
+
+#include "i2c-sensor-common.dtsi"
+#include "i2c-buses.dtsi"
