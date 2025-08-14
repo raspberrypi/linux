@@ -1,0 +1,264 @@
+/* Downstream bcm283x.dtsi diff */
+#include <dt-bindings/power/raspberrypi-power.h>
+
+/ {
+	chosen: chosen {
+		// Disable audio by default
+		bootargs = "coherent_pool=1M snd_bcm2835.enable_headphones=0 cgroup_disable=memory";
+		stdout-path = "serial0:115200n8";
+	};
+
+	soc: soc {
+		watchdog: watchdog@7e100000 {
+			/* Add label */
+		};
+
+		random: rng@7e104000 {
+			/* Add label */
+		};
+
+		spi0: spi@7e204000 {
+			/* Add label */
+		};
+
+#ifndef BCM2711
+		pixelvalve0: pixelvalve@7e206000 {
+			/* Add label */
+			status = "disabled";
+		};
+
+		pixelvalve1: pixelvalve@7e207000 {
+			/* Add label */
+			status = "disabled";
+		};
+#endif
+
+		/delete-node/ mmc@7e300000;
+
+		sdhci: mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc", "brcm,bcm2835-sdhci";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clocks BCM2835_CLOCK_EMMC>;
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
+			brcm,overclock-50 = <0>;
+			status = "disabled";
+		};
+
+		/* A clone of mmc but with non-removable set */
+		mmcnr: mmcnr@7e300000 {
+			compatible = "brcm,bcm2835-mmc", "brcm,bcm2835-sdhci";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clocks BCM2835_CLOCK_EMMC>;
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
+			brcm,overclock-50 = <0>;
+			non-removable;
+			status = "disabled";
+		};
+
+		hvs: hvs@7e400000 {
+			/* Add label */
+			status = "disabled";
+		};
+
+		firmwarekms: firmwarekms@7e600000 {
+			compatible = "raspberrypi,rpi-firmware-kms";
+			/* SMI interrupt reg */
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			brcm,firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			clocks = <&clocks BCM2835_CLOCK_SMI>;
+			assigned-clocks = <&clocks BCM2835_CLOCK_SMI>;
+			assigned-clock-rates = <125000000>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
+#ifndef BCM2711
+		pixelvalve2: pixelvalve@7e807000 {
+			/* Add label */
+			status = "disabled";
+		};
+#endif
+
+		hdmi@7e902000 { /* hdmi */
+			status = "disabled";
+		};
+
+		usb@7e980000 { /* usb */
+			compatible = "brcm,bcm2708-usb";
+			reg = <0x7e980000 0x10000>,
+			      <0x7e006000 0x1000>;
+			interrupt-names = "usb",
+					  "soft";
+			interrupts = <1 9>,
+				     <2 0>;
+		};
+
+#ifndef BCM2711
+		v3d@7ec00000 { /* vd3 */
+			compatible = "brcm,vc4-v3d";
+			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
+			status = "disabled";
+		};
+#endif
+
+		axiperf: axiperf {
+			compatible = "brcm,bcm2835-axiperf";
+			reg = <0x7e009800 0x100>,
+			      <0x7ee08000 0x100>;
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		i2c0mux: i2c0mux {
+			compatible = "i2c-mux-pinctrl";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			i2c-parent = <&i2c0if>;
+
+			status = "disabled";
+
+			i2c0: i2c@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+			i2c_csi_dsi: i2c@1 {
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+
+	cam1_reg: cam1_regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1-reg";
+		enable-active-high;
+		/* Needs to be enabled, as removing a regulator is very unsafe */
+		status = "okay";
+	};
+
+	cam1_clk: cam1_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam0_regulator: cam0_regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "cam0-reg";
+		enable-active-high;
+		status = "disabled";
+	};
+
+	cam0_clk: cam0_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam_dummy_reg: cam_dummy_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam-dummy-reg";
+		status = "okay";
+	};
+
+	__overrides__ {
+		cam0-pwdn-ctrl;
+		cam0-pwdn;
+		cam0-led-ctrl;
+		cam0-led;
+	};
+};
+
+&gpio {
+	interrupts = <2 17>, <2 18>;
+
+	dpi_18bit_cpadhi_gpio0: dpi_18bit_cpadhi_gpio0 {
+		brcm,pins = <0 1 2 3 4 5 6 7 8 9
+			     12 13 14 15 16 17
+			     20 21 22 23 24 25>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+		brcm,pull = <0>; /* no pull */
+	};
+	dpi_18bit_cpadhi_gpio2: dpi_18bit_cpadhi_gpio2 {
+		brcm,pins = <2 3 4 5 6 7 8 9
+			     12 13 14 15 16 17
+			     20 21 22 23 24 25>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_18bit_gpio0: dpi_18bit_gpio0 {
+		brcm,pins = <0 1 2 3 4 5 6 7 8 9 10 11
+			     12 13 14 15 16 17 18 19
+			     20 21>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_18bit_gpio2: dpi_18bit_gpio2 {
+		brcm,pins = <2 3 4 5 6 7 8 9 10 11
+			     12 13 14 15 16 17 18 19
+			     20 21>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_16bit_gpio0: dpi_16bit_gpio0 {
+		brcm,pins = <0 1 2 3 4 5 6 7 8 9 10 11
+			     12 13 14 15 16 17 18 19>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_16bit_gpio2: dpi_16bit_gpio2 {
+		brcm,pins = <2 3 4 5 6 7 8 9 10 11
+			     12 13 14 15 16 17 18 19>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_16bit_cpadhi_gpio0: dpi_16bit_cpadhi_gpio0 {
+		brcm,pins = <0 1 2 3 4 5 6 7 8
+			     12 13 14 15 16 17
+			     20 21 22 23 24>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+	dpi_16bit_cpadhi_gpio2: dpi_16bit_cpadhi_gpio2 {
+		brcm,pins = <2 3 4 5 6 7 8
+			     12 13 14 15 16 17
+			     20 21 22 23 24>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+};
+
+&uart0 {
+	/* Enable CTS bug workaround */
+	cts-event-workaround;
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	dmas = <&dma 2>, <&dma 3>;
+	dma-names = "tx", "rx";
+};
+
+&sdhost {
+	dmas = <&dma (13|(1<<29))>;
+	dma-names = "rx-tx";
+	bus-width = <4>;
+	brcm,overclock-50 = <0>;
+	brcm,pio-limit = <1>;
+	firmware = <&firmware>;
+};
+
+&spi0 {
+	dmas = <&dma 6>, <&dma 7>;
+	dma-names = "tx", "rx";
+};

@@ -1,0 +1,12 @@
+#include "w1-gpio-overlay.dts"
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@2 {
+		target = <&w1>;
+		__overlay__ {
+			raspberrypi,delay-needs-poll;
+		};
+	};
+};
