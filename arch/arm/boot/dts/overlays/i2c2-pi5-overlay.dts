@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c2>;
+		frag0: __overlay__ {
+			status = "okay";
+			clock-frequency = <100000>;
+			pinctrl-0 = <&rp1_i2c2_4_5>;
+		};
+	};
+
+	__overrides__ {
+		pins_4_5 = <&frag0>,"pinctrl-0:0=", <&rp1_i2c2_4_5>;
+		pins_12_13 = <&frag0>,"pinctrl-0:0=", <&rp1_i2c2_12_13>;
+		baudrate = <&frag0>, "clock-frequency:0";
+	};
+};
