@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0
+// Device tree overlay for the RP1 PIO-based UART driver.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			rp1_pio_uart: rp1_pio_uart@e {
+				compatible = "raspberrypi,rp1-pio-uart";
+				tx-gpios = <&gpio 14 0>;
+				rx-gpios = <&gpio 15 0>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		tx_pin = <&rp1_pio_uart>, "tx-gpios:4";
+		rx_pin = <&rp1_pio_uart>, "rx-gpios:4";
+	};
+};

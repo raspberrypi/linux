@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0
+// Definitions for HiFiBerry Studio DAC8x PRO soundcard
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			rp1_i2s1_dac8x: rp1_i2s1_dac8x {
+				function = "i2s1";
+				pins = "gpio18", "gpio19", "gpio20",
+				       "gpio21", "gpio22", "gpio23",
+				       "gpio24", "gpio25", "gpio26",
+				       "gpio27";
+				bias-disable;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rp1_i2s1_dac8x>;
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/";
+		__overlay__ {
+			dummy-codec {
+				#sound-dai-cells = <0>;
+				compatible = "snd-soc-dummy";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "hifiberry,hifiberry-studio-dac8x";
+			i2s-controller = <&i2s_clk_consumer>;
+			clk-provider;
+			status = "okay";
+		};
+	};
+
+};
