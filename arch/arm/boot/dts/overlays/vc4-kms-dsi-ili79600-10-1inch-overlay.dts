@@ -1,0 +1,126 @@
+/*
+ * vc4-kms-dsi-ili79600-10-1inch-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			display_mcu: display_mcu@45
+			{
+				compatible = "raspberrypi,v2-touchscreen-panel-regulator";
+				reg = <0x45>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			touch: ts@41 {
+				compatible = "ilitek,ili79600a";
+				reg = <0x41>;
+
+				reset-gpio = <&display_mcu 1 GPIO_ACTIVE_LOW>;
+
+				touchscreen-size-x = < 1200 >;
+				touchscreen-size-y = < 1920 >;
+				vcc-supply = <&display_reg>;
+
+				panel = <&dsi_panel>;
+			};
+		};
+	};
+
+	dsi_frag: fragment@1 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			dsi_panel: dsi_panel@0 {
+				reg = <0>;
+				compatible = "raspberrypi,dsi-10-1inch";
+				power-supply = <&display_reg>;
+				backlight = <&display_mcu>;
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			display_reg: display_reg@1 {
+				reg = <1>;
+				compatible = "regulator-fixed";
+				regulator-name = "display_reg_1";
+				gpio = <&display_mcu 0 GPIO_ACTIVE_HIGH>;
+				startup-delay-us = <50000>;
+				enable-active-high;
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&touch>;
+		__dormant__ {
+			touchscreen-inverted-x;
+		};
+	};
+
+	fragment@11 {
+		target = <&touch>;
+		__dormant__ {
+			touchscreen-inverted-y;
+		};
+	};
+
+	__overrides__ {
+		sizex = <&touch>,"touchscreen-size-x:0";
+		sizey = <&touch>,"touchscreen-size-y:0";
+		invx = <0>, "+10";
+		invy = <0>, "+11";
+		swapxy = <&touch>,"touchscreen-swapped-x-y?";
+		disable_touch = <&touch>, "status=disabled";
+		rotation = <&dsi_panel>, "rotation:0";
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&display_reg>, "reg:0=0",
+		       <&display_reg>, "regulator-name=display_reg_0";
+	};
+};

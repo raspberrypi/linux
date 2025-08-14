@@ -1,0 +1,121 @@
+ /*
+ * Device Tree overlay for RaspberryPi 7" Touchscreen panel
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "edt-ft5406.dtsi"
+
+&ft5406 {
+	vcc-supply = <&reg_display>;
+	reset-gpio = <&reg_display 1 1>;
+};
+
+/ {
+	/* No compatible as it will have come from edt-ft5406.dtsi */
+
+	dsi_frag: fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&bridge_in>;
+				};
+			};
+			bridge@0 {
+				reg = <0>;
+				compatible = "toshiba,tc358762";
+				vddc-supply = <&reg_bridge>;
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						bridge_in: endpoint {
+							remote-endpoint = <&dsi_out>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+						bridge_out: endpoint {
+							remote-endpoint = <&panel_in>;
+						};
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			panel_disp: panel_disp@1 {
+				reg = <1>;
+				compatible = "raspberrypi,7inch-dsi", "simple-panel";
+				backlight = <&reg_display>;
+				power-supply = <&reg_display>;
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&bridge_out>;
+					};
+				};
+			};
+
+			reg_bridge: reg_bridge@1 {
+				reg = <1>;
+				compatible = "regulator-fixed";
+				regulator-name = "bridge_reg";
+				gpio = <&reg_display 0 0>;
+				vin-supply = <&reg_display>;
+				enable-active-high;
+			};
+		};
+	};
+
+	i2c_frag: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			reg_display: reg_display@45 {
+				compatible = "raspberrypi,7inch-touchscreen-panel-regulator";
+				reg = <0x45>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&panel_disp>, "reg:0=0",
+		       <&reg_bridge>, "reg:0=0",
+		       <&reg_bridge>, "regulator-name=bridge_reg_0";
+		disable_touch = <&ft5406>, "status=disabled";
+	};
+};
