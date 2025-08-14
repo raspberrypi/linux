@@ -14,8 +14,10 @@ DTC_FLAGS_bcm2837-rpi-3-b-plus := -@
 DTC_FLAGS_bcm2837-rpi-cm3-io3 := -@
 DTC_FLAGS_bcm2837-rpi-zero-2-w := -@
 DTC_FLAGS_bcm2711-rpi-400 := -@
+DTC_FLAGS_bcm2711-rpi-4-a := -@
 DTC_FLAGS_bcm2711-rpi-4-b := -@
 DTC_FLAGS_bcm2711-rpi-cm4-io := -@
+DTC_FLAGS_bcm2711-rpi-zero-3-w := -@
 DTC_FLAGS_bcm2835-rpi-zero := -@
 DTC_FLAGS_bcm2835-rpi-zero-w := -@
 dtb-$(CONFIG_ARCH_BCM2835) += \
@@ -33,10 +35,36 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2837-rpi-cm3-io3.dtb \
 	bcm2837-rpi-zero-2-w.dtb \
 	bcm2711-rpi-400.dtb \
+	bcm2711-rpi-4-a.dtb \
 	bcm2711-rpi-4-b.dtb \
 	bcm2711-rpi-cm4-io.dtb \
+	bcm2711-rpi-zero-3-w.dtb \
 	bcm2835-rpi-zero.dtb \
 	bcm2835-rpi-zero-w.dtb
+
+dtb-$(CONFIG_ARCH_BCM2835) += \
+        bcm2708-rpi-b.dtb \
+        bcm2708-rpi-b-rev1.dtb \
+        bcm2708-rpi-b-plus.dtb \
+        bcm2708-rpi-cm.dtb \
+        bcm2708-rpi-zero.dtb \
+        bcm2708-rpi-zero-w.dtb \
+        bcm2710-rpi-zero-2.dtb \
+        bcm2710-rpi-zero-2-w.dtb \
+        bcm2709-rpi-2-b.dtb \
+        bcm2710-rpi-2-b.dtb \
+        bcm2710-rpi-3-b.dtb \
+        bcm2710-rpi-3-b-plus.dtb \
+        bcm2709-rpi-cm2.dtb \
+        bcm2710-rpi-cm0.dtb \
+        bcm2710-rpi-cm3.dtb \
+        bcm2711-rpi-cm4.dtb \
+        bcm2711-rpi-cm4s.dtb
+
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS += -@ -Wno-gpios_property
+endif
+
 dtb-$(CONFIG_ARCH_BCMBCA) += \
 	bcm6846-genexis-xg6846b.dtb \
 	bcm947622.dtb \

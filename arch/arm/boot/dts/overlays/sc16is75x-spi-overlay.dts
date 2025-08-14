@@ -1,0 +1,174 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	spidev_frag: fragment@0 {
+		target-path = "spi0/spidev@0";
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	sc16is75x_frag: fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sc16is75x: sc16is750@0 {
+				compatible = "nxp,sc16is750";
+				reg = <0>;
+				clocks = <&sc16is75x_clk>;
+				interrupt-parent = <&gpio>;
+				interrupts = <24 IRQ_TYPE_EDGE_FALLING>;
+				pinctrl-0 = <&sc16is75x_pins>;
+				pinctrl-names = "default";
+				gpio-controller;
+				#gpio-cells = <2>;
+				spi-max-frequency = <4000000>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			sc16is75x_clk: sc16is75x_clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <14745600>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			sc16is75x_pins: sc16is75x_pins@18 {
+				brcm,pins = <24>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+				brcm,pull = <BCM2835_PUD_OFF>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&gpio>;
+		__dormant__ {
+			spi1_pins: spi1_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <3>; /* alt4 */
+			};
+
+			spi1_cs_pins: spi1_cs_pins {
+				brcm,pins = <18>;
+				brcm,function = <1>; /* output */
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&spi1>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+			cs-gpios = <&gpio 18 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&aux>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		sc16is750 = <&sc16is75x>,"compatible=nxp,sc16is750",
+			<&sc16is75x>, "name=sc16is750@0";
+		sc16is752 = <&sc16is75x>,"compatible=nxp,sc16is752",
+			<&sc16is75x>, "name=sc16is752@0";
+		int_pin = <&sc16is75x>,"interrupts:0",
+			<&sc16is75x_pins>,"brcm,pins:0",
+			<&sc16is75x_pins>,"reg:0";
+		xtal = <&sc16is75x_clk>,"clock-frequency:0";
+		spi0-0 = <&spidev_frag>, "target-path=spi0/spidev@0",
+			<&sc16is75x_frag>, "target:0=", <&spi0>,
+			<&sc16is75x_pins>, "name=sc16is75x_spi0_0_pins";
+		spi0-1 = <&spidev_frag>, "target-path=spi0/spidev@1",
+			<&sc16is75x_frag>, "target:0=", <&spi0>,
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi0_1_pins";
+		spi1-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi1>,
+			<&sc16is75x_pins>, "name=sc16is75x_spi1_0_pins";
+		spi1-1cs = <0>,"+4+5+6";
+		spi1-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi1>,
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi1_1_pins";
+		spi1-2 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi1>,
+			<&sc16is75x>, "reg:0=2",
+			<&sc16is75x_pins>, "name=sc16is75x_spi1_2_pins";
+		spi2-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi2>,
+			<&sc16is75x_pins>, "name=sc16is75x_spi2_0_pins";
+		spi2-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi2>,
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi2_1_pins";
+		spi2-2 = <0>, "-0",
+			<&sc16is75x_frag>, "target:0=", <&spi2>,
+			<&sc16is75x>, "reg:0=2",
+			<&sc16is75x_pins>, "name=sc16is75x_spi2_2_pins";
+		spi3-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi3",
+			<&sc16is75x_pins>, "name=sc16is75x_spi3_0_pins";
+		spi3-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi3",
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi3_1_pins";
+		spi4-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi4",
+			<&sc16is75x_pins>, "name=sc16is75x_spi4_0_pins";
+		spi4-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi4",
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi4_1_pins";
+		spi5-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi5",
+			<&sc16is75x_pins>, "name=sc16is75x_spi5_0_pins";
+		spi5-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi5",
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi5_1_pins";
+		spi6-0 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi6",
+			<&sc16is75x_pins>, "name=sc16is75x_spi6_0_pins";
+		spi6-1 = <0>, "-0",
+			<&sc16is75x_frag>, "target?=0",
+			<&sc16is75x_frag>, "target-path=spi6",
+			<&sc16is75x>, "reg:0=1",
+			<&sc16is75x_pins>, "name=sc16is75x_spi6_1_pins";
+	};
+};
