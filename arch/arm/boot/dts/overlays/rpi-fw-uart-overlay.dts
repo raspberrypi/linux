@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: GPL-2.0
+// Overlay for the Raspberry Pi Firmware UART driver
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			rpi_fw_uart_pins: rpi_fw_uart_pins@4 {
+				brcm,pins = <20 21>;
+				brcm,function = <1 0>; /* output input */
+				brcm,pull = <0 2>; /* none pull-up */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&soc>;
+		__overlay__ {
+			rpi_fw_uart: rpi_fw_uart@7e000000 {
+			compatible = "raspberrypi,firmware-uart";
+			reg = <0x7e000000 0x100>; /* VideoCore MS sync regs */
+			firmware = <&firmware>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&rpi_fw_uart_pins>;
+			tx-gpios = <&gpio 20 0>;
+			rx-gpios = <&gpio 21 0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		txd0_pin = <&rpi_fw_uart>,"tx-gpios:4",
+			 <&rpi_fw_uart_pins>, "brcm,pins:0";
+		rxd0_pin = <&rpi_fw_uart>,"rx-gpios:4",
+			 <&rpi_fw_uart_pins>, "brcm,pins:4";
+	};
+};
