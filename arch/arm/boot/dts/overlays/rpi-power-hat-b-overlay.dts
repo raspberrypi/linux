@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/dts-v1/;
+/plugin/;
+
+// Overlay for the Raspberry Pi Power Hat.
+// 1 of 2 overlays required for top/bottom interchangeability
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_arm>;
+		__overlay__ {
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			power_control: fxl6408@43 {
+				reg = <0x43>;
+				compatible = "fcs,fxl6408";
+				gpio-controller;
+				#gpio-cells = <2>;
+				gpio-line-names =
+					"B1_PWR",
+					"B2_PWR",
+					"B3",
+					"B4",
+					"B5",
+					"B6",
+					"B7",
+					"B8";
+			};
+
+			pwr1_monitor: ina260@42 {
+				reg = <0x42>;
+				compatible = "ti,ina260";
+			};
+
+			pwr2_monitor: ina260@4c {
+				reg = <0x4c>;
+				compatible = "ti,ina260";
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			rpi_power_hat_b: rpi-power-hat-b {
+				compatible = "raspberrypi,rpi-power-hat-b";
+
+				// References to the I2C devices
+				power-controller = <&power_control>;
+				power1-monitor = <&pwr1_monitor>;
+				power2-monitor = <&pwr2_monitor>;
+			};
+		};
+	};
+};
