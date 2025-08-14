@@ -1,0 +1,47 @@
+// Definitions for IQAudIO Digi WM8804 audio board
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			wm8804@3b {
+				#sound-dai-cells = <0>;
+				compatible = "wlf,wm8804";
+				reg = <0x3b>;
+				status = "okay";
+				DVDD-supply = <&vdd_3v3_reg>;
+				PVDD-supply = <&vdd_3v3_reg>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		wm8804_digi: __overlay__ {
+			compatible = "iqaudio,wm8804-digi";
+			i2s-controller = <&i2s_clk_consumer>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		card_name = <&wm8804_digi>,"wm8804-digi,card-name";
+		dai_name = <&wm8804_digi>,"wm8804-digi,dai-name";
+		dai_stream_name = <&wm8804_digi>,"wm8804-digi,dai-stream-name";
+	};
+};
