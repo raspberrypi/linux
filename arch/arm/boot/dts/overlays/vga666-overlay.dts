@@ -1,0 +1,30 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	// There is no VGA driver module, but we need a platform device
+	// node (that doesn't already use pinctrl) to hang the pinctrl
+	// reference on - leds will do
+
+	fragment@0 {
+		target = <&leds>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&vga666_pins>;
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			vga666_pins: vga666_pins {
+				brcm,pins = <2 3 4 5 6 7 8 9 10 11 12
+					     13 14 15 16 17 18 19 20 21>;
+				brcm,function = <6>; /* alt2 */
+				brcm,pull = <0>; /* no pull */
+			};
+		};
+	};
+};

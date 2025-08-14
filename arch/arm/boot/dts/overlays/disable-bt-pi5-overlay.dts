@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+
+/* Disable Bluetooth */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&bluetooth>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+};

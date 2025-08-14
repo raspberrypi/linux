@@ -1,0 +1,63 @@
+// Definitions for HiFiBerry AMP4PRO
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			dacpro_osc: dacpro_osc {
+				compatible = "hifiberry,dacpro-clk";
+				#clock-cells = <0>;
+			};
+		};
+	};
+
+	frag1: fragment@1 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tas5756@4d {
+				#sound-dai-cells = <0>;
+				compatible = "ti,tas5756";
+				reg = <0x4d>;
+				clocks = <&dacpro_osc>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		hifiberry_dacplus: __overlay__ {
+			compatible = "hifiberry,hifiberry-dacplus";
+			i2s-controller = <&i2s_clk_consumer>;
+			status = "okay";
+			mute-gpio = <&gpio 4 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	__overrides__ {
+		24db_digital_gain =
+			<&hifiberry_dacplus>,"hifiberry-amp4,24db_digital_gain?";
+		leds_off = <&hifiberry_dacplus>,"hifiberry-amp4,leds_off?";
+		mute_ext_ctl = <&hifiberry_dacplus>,"hifiberry-amp4,mute_ext_ctl:0";
+		auto_mute = <&hifiberry_dacplus>,"hifiberry-amp4,auto_mute?";
+		slave = <&hifiberry_dacplus>,"hifiberry-dacplus,slave?",
+			<&frag1>,"target:0=",<&i2s_clk_producer>,
+			<&hifiberry_dacplus>,"i2s-controller:0=",<&i2s_clk_producer>;
+	};
+};
