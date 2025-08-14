@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <dt-bindings/soc/bcm2835-pm.h>
 
 / {
 	compatible = "brcm,bcm2712";
@@ -38,13 +37,6 @@
 			#clock-cells = <0>;
 			clock-frequency = <200000000>;
 			clock-output-names = "emmc2-clock";
-		};
-
-		clk_sw_baud: clk-sw-baud {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <96000000>;
-			clock-output-names = "sw-baud";
 		};
 	};
 
@@ -260,39 +252,6 @@
 			system-power-controller;
 		};
 
-		pinctrl: pinctrl@7d504100 {
-			compatible = "brcm,bcm2712c0-pinctrl";
-			reg = <0x7d504100 0x30>;
-		};
-
-		gio: gpio@7d508500 {
-			compatible = "brcm,bcm7445-gpio", "brcm,brcmstb-gpio";
-			reg = <0x7d508500 0x40>;
-			interrupt-parent = <&main_irq>;
-			interrupts = <0>;
-			gpio-controller;
-			#gpio-cells = <2>;
-			interrupt-controller;
-			#interrupt-cells = <2>;
-			brcm,gpio-bank-widths = <32 22>;
-		};
-
-		uarta: serial@7d50c000 {
-			compatible = "brcm,bcm7271-uart";
-			reg = <0x7d50c000 0x20>;
-			reg-names = "uart";
-			clocks = <&clk_sw_baud>;
-			clock-names = "sw_baud";
-			interrupts = <GIC_SPI 276 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "uart";
-			status = "disabled";
-		};
-
-		pinctrl_aon: pinctrl@7d510700 {
-			compatible = "brcm,bcm2712c0-aon-pinctrl";
-			reg = <0x7d510700 0x20>;
-		};
-
 		random: rng@7d208000 {
 			compatible = "brcm,bcm2711-rng200";
 			reg = <0x7d208000 0x28>;
@@ -317,21 +276,6 @@
 			 * don't use GIO_AON as an interrupt controller because it will
 			 * clash with the firmware monitoring the PMIC interrupt via the VPU.
 			 */
-		};
-
-		sdio2: mmc@1100000 {
-			compatible = "brcm,bcm2712-sdhci",
-				     "brcm,sdhci-brcmstb";
-			reg = <0x01100000  0x260>,
-			      <0x01100400  0x200>;
-			reg-names = "host", "cfg";
-			interrupts = <GIC_SPI 274 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clk_emmc2>;
-			clock-names = "sw_sdio";
-			sdhci-caps-mask = <0x0000C000 0x0>;
-			sdhci-caps = <0x0 0x0>;
-			mmc-ddr-3_3v;
-			status = "disabled";
 		};
 
 		gicv2: interrupt-controller@7fff9000 {
@@ -509,6 +453,10 @@
 			     <0x18 0x00000000  0x18 0x00000000  0x04 0x00000000>,
 			     <0x1c 0x00000000  0x1c 0x00000000  0x04 0x00000000>;
 
+		vc4: gpu {
+			compatible = "brcm,bcm2712-vc6";
+		};
+
 		pcie0: pcie@1000100000 {
 			compatible = "brcm,bcm2712-pcie";
 			reg = <0x10 0x00100000 0x00 0x9310>;
@@ -643,30 +591,6 @@
 			msi-ranges = <&gicv2 GIC_SPI 247 IRQ_TYPE_EDGE_RISING 8>;
 			brcm,msi-offset = <8>;
 		};
-
-		isp: isp@1000880000  {
-		     compatible = "brcm,bcm2712-pispbe", "raspberrypi,pispbe";
-		     reg = <0x10 0x00880000 0x0 0x4000>;
-		     interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
-		     clocks = <&firmware_clocks 7>;
-		};
-
-		v3d: gpu@1002000000 {
-			compatible = "brcm,2712-v3d";
-			reg = <0x10 0x02000000 0x00 0x4000>,
-			      <0x10 0x02008000 0x00 0x6000>,
-			      <0x10 0x02030800 0x00 0x0700>;
-			reg-names = "hub", "core0", "sms";
-
-			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
-			resets = <&pm BCM2835_RESET_V3D>;
-			interrupts = <GIC_SPI 250 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 249 IRQ_TYPE_LEVEL_HIGH>;
-		};
-	};
-
-	vc4: gpu {
-		compatible = "brcm,bcm2712-vc6";
 	};
 
 	timer {
@@ -701,5 +625,6 @@
 		interrupt-parent = <&disp_intr>;
 		interrupts = <2>, <9>, <16>;
 		interrupt-names = "ch0-eof", "ch1-eof", "ch2-eof";
+		iommus = <&iommu4>;
 	};
 };

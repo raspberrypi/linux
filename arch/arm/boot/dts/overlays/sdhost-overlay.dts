@@ -1,0 +1,58 @@
+/dts-v1/;
+/plugin/;
+
+/* Provide backwards compatible aliases for the old sdhost dtparams. */
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&sdhost>;
+		frag0: __overlay__ {
+			brcm,overclock-50 = <0>;
+			brcm,pio-limit = <1>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&mmc>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&mmcnr>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__dormant__ {
+			sdhost_gpio_22_27: sdhost_gpio_22_27 {
+				brcm,pins = <22 23 24 25 26 27>;
+				brcm,function = <4>;
+				brcm,pull = <0 2 2 2 2 2>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&sdhost>;
+		__dormant__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdhost_gpio_22_27>;
+		};
+	};
+
+	__overrides__ {
+		overclock_50     = <&frag0>,"brcm,overclock-50:0";
+		force_pio        = <&frag0>,"brcm,force-pio?";
+		pio_limit        = <&frag0>,"brcm,pio-limit:0";
+		debug            = <&frag0>,"brcm,debug?";
+		gpios_22_27      = <0>,"+3+4";
+	};
+};
