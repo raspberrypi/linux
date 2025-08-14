@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Fragment that configures a Sony IMX335
+
+cam_node: imx335@1a {
+	compatible = "sony,imx335";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	avdd-supply = <&cam1_reg>;		/* Analog 2.9v */
+	iovdd-supply = <&cam_dummy_reg>;	/* Digital I/O 1.8v */
+	dvdd-supply = <&cam_dummy_reg>;		/* Digital Core 1.2v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			link-frequencies = /bits/ 64 <594000000 445500000>;
+		};
+	};
+};
