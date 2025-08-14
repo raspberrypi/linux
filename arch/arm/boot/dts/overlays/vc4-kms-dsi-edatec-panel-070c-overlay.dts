@@ -1,0 +1,119 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#gpio-cells = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			reg_display: reg_display@27 {
+				reg = <0x27>;
+				compatible = "edatec,disp-regulator";
+
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			gt911: gt911@14 {
+				compatible = "goodix,gt911";
+				reg = <0x14>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&gt911_pins>;
+
+				reset-gpios = <&reg_display 3 0>;
+				interrupt-parent = <&gpio>;
+				interrupts = <16 2>;
+				irq-gpios = <&gpio 16 0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&dsi1>;
+		__overlay__ {
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			panel: panel@0 {
+				reg = <0>;
+				compatible = "panel-dsi";
+				backlight = <&reg_display>;
+
+				width-mm = <154>;
+				height-mm = <86>;
+				dsi-color-format = "RGB888";
+				mode = "MODE_VIDEO","MODE_VIDEO_SYNC_PULSE";
+
+				timing: panel-timing {
+					clock-frequency = <41000000>;
+					hactive = <1024>;
+					hfront-porch = <40>;
+					hsync-len = <10>;
+					hback-porch = <40>;
+					vactive = <600>;
+					vfront-porch = <4>;
+					vsync-len = <2>;
+					vback-porch = <4>;
+				};
+
+				port {
+					panel_in: endpoint {
+						data-lanes = <1 2>;
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c1>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&gpio>;
+		__overlay__ {
+			gt911_pins: gt911_pins {
+				brcm,pins = <16>;
+				brcm,function = <0>;
+				brcm,pull = <2>;
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
+			   <0>,"-2-3+4";
+		i2c4 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
+		interrupt = <&gt911_pins>,"brcm,pins:0",
+				    <&gt911>,"interrupts:0",
+				    <&gt911>,"irq-gpios:4";
+	};
+};

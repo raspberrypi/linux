@@ -1,0 +1,26 @@
+// Fragment that configures a Sony IMX283
+
+cam_node: imx283@1a {
+	compatible = "sony,imx283";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	vadd-supply = <&cam1_reg>;	/* Analog power supply (2.9v) */
+	vdd1-supply = <&cam_dummy_reg>;	/* Interface power supply (1.8V) */
+	vdd2-supply = <&cam_dummy_reg>;	/* Digital power supply (1.2V) */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2 3 4>;
+			clock-noncontinuous;
+			link-frequencies = /bits/ 64 <720000000>;
+		};
+	};
+};

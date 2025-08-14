@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-only
+cam_node: imx500@1a {
+	reg = <0x1a>;
+	compatible = "sony,imx500";
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "inck";
+
+	vana-supply = <&cam1_reg>;	/* 2.7v */
+	vdig-supply = <&cam_dummy_reg>;	/* 0.84v */
+	vif-supply = <&cam_dummy_reg>;	/* 1.8v */
+
+	reset-gpios = <&gpio 255 GPIO_ACTIVE_HIGH>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <444000000>;
+		};
+	};
+};
