@@ -2170,7 +2170,8 @@ config SENSORS_INA2XX
 
 	  The INA2xx driver is configured for the default configuration of
 	  the part as described in the datasheet.
-	  Default value for Rshunt is 10 mOhms.
+	  Default value for Rshunt is 10 mOhms except for INA260 which has an
+	  internal 2 mOhm shunt resistor.
 	  This driver can also be built as a module. If so, the module
 	  will be called ina2xx.
 
