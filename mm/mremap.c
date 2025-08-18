@@ -281,15 +281,6 @@ static bool move_normal_pmd(struct vm_area_struct *vma, unsigned long old_addr,
 	if (WARN_ON_ONCE(!pmd_none(*new_pmd)))
 		return false;
 
-	/* If this pmd belongs to a uffd vma with remap events disabled, we need
-	 * to ensure that the uffd-wp state is cleared from all pgtables. This
-	 * means recursing into lower page tables in move_page_tables(), and we
-	 * can reuse the existing code if we simply treat the entry as "not
-	 * moved".
-	 */
-	if (vma_has_uffd_without_event_remap(vma))
-		return false;
-
 	/*
 	 * We don't have to worry about the ordering of src and dst
 	 * ptlocks because exclusive mmap_lock prevents deadlock.
@@ -343,15 +334,6 @@ static bool move_normal_pud(struct vm_area_struct *vma, unsigned long old_addr,
 	 * should have released it.
 	 */
 	if (WARN_ON_ONCE(!pud_none(*new_pud)))
-		return false;
-
-	/* If this pud belongs to a uffd vma with remap events disabled, we need
-	 * to ensure that the uffd-wp state is cleared from all pgtables. This
-	 * means recursing into lower page tables in move_page_tables(), and we
-	 * can reuse the existing code if we simply treat the entry as "not
-	 * moved".
-	 */
-	if (vma_has_uffd_without_event_remap(vma))
 		return false;
 
 	/*
@@ -587,6 +569,7 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 	struct mmu_notifier_range range;
 	pmd_t *old_pmd, *new_pmd;
 	pud_t *old_pud, *new_pud;
+	bool uffd_supports_move;
 
 	if (!len)
 		return 0;
@@ -596,6 +579,22 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 	if (is_vm_hugetlb_page(vma))
 		return move_hugetlb_page_tables(vma, new_vma, old_addr,
 						new_addr, len);
+
+	/*
+	 * If we are moving a VMA that has uffd-wp registered but with
+	 * remap events disabled (new VMA will not be registered with uffd), we
+	 * need to ensure that the uffd-wp state is cleared from all pgtables.
+	 * This means recursing into lower page tables in move_page_tables().
+	 *
+	 * We might get called with VMAs reversed when recovering from a
+	 * failed page table move. In that case, the
+	 * "old"-but-actually-"originally new" VMA during recovery will not have
+	 * a uffd context. Recursing into lower page tables during the original
+	 * move but not during the recovery move will cause trouble, because we
+	 * run into already-existing page tables. So check both VMAs.
+	 */
+	uffd_supports_move = !vma_has_uffd_without_event_remap(vma) &&
+			     !vma_has_uffd_without_event_remap(new_vma);
 
 	/*
 	 * If possible, realign addresses to PMD boundary for faster copy.
@@ -631,7 +630,8 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 				/* We ignore and continue on error? */
 				continue;
 			}
-		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PUD) && extent == PUD_SIZE) {
+		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PUD) &&
+			   extent == PUD_SIZE && uffd_supports_move) {
 
 			if (move_pgt_entry(NORMAL_PUD, vma, old_addr, new_addr,
 					   old_pud, new_pud, true))
@@ -654,7 +654,7 @@ again:
 				continue;
 			split_huge_pmd(vma, old_pmd, old_addr);
 		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PMD) &&
-			   extent == PMD_SIZE) {
+			   extent == PMD_SIZE && uffd_supports_move) {
 			/*
 			 * If the extent is PMD-sized, try to speed the move by
 			 * moving at the PMD level if possible.
