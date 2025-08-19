@@ -1593,6 +1593,8 @@ static int rp1_pinctrl_probe(struct platform_device *pdev)
 	 */
 	rp1_node = of_find_node_by_name(NULL, "rp1");
 	if (!rp1_node)
+		rp1_node = of_find_node_by_name(NULL, "rp1_nexus");
+	if (!rp1_node)
 		dev_err(&pdev->dev, "failed to find RP1 DT node\n");
 	else if (pace_pin_updates &&
 		 of_device_is_compatible(rp1_node->parent, "brcm,bcm2712-pcie")) {
