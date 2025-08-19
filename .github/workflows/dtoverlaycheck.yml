@@ -22,7 +22,7 @@ jobs:
     - name: Install toolchain
       run: |
         sudo apt update
-        sudo apt-get install gcc-arm-linux-gnueabihf libfdt-dev device-tree-compiler
+        sudo apt-get install gcc-arm-linux-gnueabihf libfdt-dev device-tree-compiler gnutls-dev
       timeout-minutes: 10
 
     - uses: actions/checkout@v4
