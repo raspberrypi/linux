@@ -672,7 +672,7 @@ config PINCTRL_MLXBF3
 
 config PINCTRL_RP1
 	tristate "Pinctrl driver for RP1"
-	depends on MISC_RP1
+	depends on MISC_RP1 || MFD_RP1
 	default MISC_RP1
 	select PINMUX
 	select PINCONF
