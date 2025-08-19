@@ -646,15 +646,19 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->pinctrl)) {
 			no_pinctrl = true;
 	}
-	priv->pins_default = pinctrl_lookup_state(priv->pinctrl, "default");
-	if (IS_ERR(priv->pins_default)) {
+	if (!no_pinctrl) {
+		priv->pins_default = pinctrl_lookup_state(priv->pinctrl, "default");
+		if (IS_ERR(priv->pins_default)) {
 			dev_dbg(&pdev->dev, "No pinctrl default state\n");
 			no_pinctrl = true;
+		}
 	}
-	priv->pins_sdex = pinctrl_lookup_state(priv->pinctrl, "sd-express");
-	if (IS_ERR(priv->pins_sdex)) {
+	if (!no_pinctrl) {
+		priv->pins_sdex = pinctrl_lookup_state(priv->pinctrl, "sd-express");
+		if (IS_ERR(priv->pins_sdex)) {
 			dev_dbg(&pdev->dev, "No pinctrl sd-express state\n");
 			no_pinctrl = true;
+		}
 	}
 	if (no_pinctrl || !priv->sde_ioaddr || !priv->sde_ioaddr2) {
 		priv->pinctrl = NULL;
