@@ -16,6 +16,12 @@
 	#include "rp1-nexus.dtsi"
 };
 
+/*
+ * Our downstream modifications assume that RP1 is present, therefore add it
+ * here instead of bcm2712-rpi-5-b-ovl-rp1.dts
+ */
+#include "bcm2712-ds.dtsi"
+
 &pcie1 {
 	status = "okay";
 };
