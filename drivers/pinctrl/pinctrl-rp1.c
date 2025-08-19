@@ -1694,4 +1694,9 @@ static struct platform_driver rp1_pinctrl_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
-builtin_platform_driver(rp1_pinctrl_driver);
+module_platform_driver(rp1_pinctrl_driver);
+
+MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.com>");
+MODULE_AUTHOR("Andrea della Porta <andrea.porta@suse.com>");
+MODULE_DESCRIPTION("RP1 pinctrl/gpio driver");
+MODULE_LICENSE("GPL");
