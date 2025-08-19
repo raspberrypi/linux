@@ -3,6 +3,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/power/raspberrypi-power.h>
 
 /*
  * These are RP1 related, but can't go in rp1-common.dtsi as that is include in
@@ -844,6 +845,86 @@ i2c_csi_dsi1: &rp1_i2c4 { // Note: This is for MIPI1 connector only
 	emmc_sd_pulls: emmc_sd_pulls {
 		pins = "emmc_cmd", "emmc_dat0", "emmc_dat1", "emmc_dat2", "emmc_dat3";
 		bias-pull-up;
+	};
+};
+
+
+/* uarta communicates with the BT module */
+&uarta {
+	uart-has-rtscts;
+	auto-flow-control;
+	status = "okay";
+	clock-frequency = <96000000>;
+	pinctrl-0 = <&uarta_24_pins &bt_shutdown_pins>;
+	pinctrl-names = "default";
+
+	bluetooth: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <3000000>;
+		shutdown-gpios = <&gio 29 GPIO_ACTIVE_HIGH>;
+		local-bd-address = [ 00 00 00 00 00 00 ];
+	};
+};
+
+&i2c10 {
+	clock-frequency = <400000>;
+	pinctrl-0 = <&i2c3_m4_agpio0_pins>;
+	pinctrl-names = "default";
+};
+
+&usb {
+	/* CHECK ME: IS THIS CORRECT ON PI5? */
+	power-domains = <&power RPI_POWER_DOMAIN_USB>;
+};
+
+/* SDIO2 drives the WLAN interface */
+&sdio2 {
+	pinctrl-0 = <&sdio2_30_pins>;
+	pinctrl-names = "default";
+	bus-width = <4>;
+	vmmc-supply = <&wl_on_reg>;
+	sd-uhs-ddr50;
+	non-removable;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	wifi: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+		local-mac-address = [00 00 00 00 00 00];
+	};
+};
+
+&pinctrl {
+	spi10_gpio2: spi10_gpio2 {
+		function = "vc_spi0";
+		pins = "gpio2", "gpio3", "gpio4";
+		bias-disable;
+	};
+
+	spi10_cs_gpio1: spi10_cs_gpio1 {
+		function = "gpio";
+		pins = "gpio1";
+		bias-pull-up;
+	};
+};
+
+spi10_pins: &spi10_gpio2 {};
+spi10_cs_pins: &spi10_cs_gpio1 {};
+
+&spi10 {
+	pinctrl-names = "default";
+	cs-gpios = <&gio 1 1>;
+	pinctrl-0 = <&spi10_pins &spi10_cs_pins>;
+
+	spidev10: spidev@0 {
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <20000000>;
+		status = "okay";
 	};
 };
 
