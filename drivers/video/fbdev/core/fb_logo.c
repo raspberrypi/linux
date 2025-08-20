@@ -2,11 +2,24 @@
 
 #include <linux/fb.h>
 #include <linux/linux_logo.h>
+#include <linux/fs.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+#include <linux/uaccess.h>
+#include <linux/file.h>
+#include <linux/kernel.h>
+#include <linux/firmware.h>
 
 #include "fb_internal.h"
 
 bool fb_center_logo __read_mostly;
 int fb_logo_count __read_mostly = -1;
+static int fullscreen_logo_enabled;
+static char *fullscreen_logo_path;
+
+struct image_palette {
+	u8 colors[224][3];
+};
 
 static inline unsigned int safe_shift(unsigned int d, int n)
 {
@@ -76,6 +89,32 @@ static void  fb_set_logo_truepalette(struct fb_info *info,
 				 safe_shift((clut[1] & greenmask), greenshift) |
 				 safe_shift((clut[2] & bluemask), blueshift));
 		clut += 3;
+	}
+}
+
+static void fb_set_logo_RGB_palette(struct fb_info *info,
+				    struct image_palette *pal_in,
+				    u32 *pal_out, int current_rows)
+{
+	// Set the kernel palette from an array of RGB values
+	static const unsigned char mask[] = {
+		0, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe, 0xff
+	};
+	unsigned char redmask, greenmask, bluemask;
+	int redshift, greenshift, blueshift;
+	int i;
+
+	redmask   = mask[info->var.red.length   < 8 ? info->var.red.length   : 8];
+	greenmask = mask[info->var.green.length < 8 ? info->var.green.length : 8];
+	bluemask  = mask[info->var.blue.length  < 8 ? info->var.blue.length  : 8];
+	redshift   = info->var.red.offset   - (8 - info->var.red.length);
+	greenshift = info->var.green.offset - (8 - info->var.green.length);
+	blueshift  = info->var.blue.offset  - (8 - info->var.blue.length);
+
+	for (i = 0; i < current_rows; i++) {
+		pal_out[i + 32] = (safe_shift((pal_in->colors[i][0] & redmask), redshift) |
+				   safe_shift((pal_in->colors[i][1] & greenmask), greenshift) |
+				   safe_shift((pal_in->colors[i][2] & bluemask), blueshift));
 	}
 }
 
@@ -275,6 +314,171 @@ static void fb_do_show_logo(struct fb_info *info, struct fb_image *image,
 	}
 }
 
+static int __init fb_fullscreen_logo_setup(char *str)
+{
+	fullscreen_logo_enabled = 1;
+	fullscreen_logo_path = str;
+	pr_info("Fullscreen splash enabled, using image path: %s", fullscreen_logo_path);
+	return 1;
+}
+
+__setup("fullscreen_logo_name=", fb_fullscreen_logo_setup);
+
+static bool fb_palette_contains_entry(struct image_palette *palette, int num_existing_rows,
+					   u8 *entry_to_add, int cols, int *index)
+{
+	for (int i = 0; i < num_existing_rows; i++) {
+		bool match = true;
+
+		for (int j = 0; j < cols; j++) {
+			if (palette->colors[i][j] != entry_to_add[j]) {
+				match = false;
+				break;
+			}
+		}
+		if (match) {
+			*index = i; // Update the index
+			return true; // Found a duplicate
+		}
+	}
+	return false; // No duplicate found
+}
+
+static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
+				   struct fb_image *image, u32 *palette)
+{
+	int current_rows = 0, palette_index = 0, actual_row, skip_x = 0, skip_y = 0, ret;
+	unsigned char *read_logo = NULL, *header;
+	const char *file_content;
+	const struct firmware *fw = NULL;
+	struct image_palette image_palette;
+	const char *current_ptr, *end_ptr;
+	long width = 0, height = 0;
+	bool top_to_bottom;
+	u8 B, G, R;
+	u8 entry[3];
+	ssize_t len;
+
+	ret = firmware_request_nowarn(&fw, filepath, info->device);
+	if (ret) {
+		pr_info("Failed to load logo file '%s': %d\n", filepath, ret);
+		goto cleanup;
+	}
+	len = fw->size;
+	file_content = fw->data;
+
+	if (!len) {
+		pr_err("Error: logo TGA file is empty. Not drawing fullscreen logo.\n");
+		goto cleanup;
+	}
+
+	current_ptr = file_content;
+	end_ptr = file_content + len;
+	if (len < 18) {
+		pr_err("Invalid logo file: TGA file too small for header\n");
+		goto cleanup;
+	}
+	header = (unsigned char *)file_content;
+
+	// Skip color map info (bytes 3-7)
+	// Skip image origin (bytes 8-11)
+	width = header[12] | (header[13] << 8);
+	height = header[14] | (header[15] << 8);
+
+	// Only supports uncompressed true-color images (type 2) with 24-bit depth
+	if (header[2] != 2 || header[16] != 24) {
+		pr_err("Unsupported TGA logo format: Type=%d, Depth=%d (only support Type=2, Depth=24)\n",
+		       header[2], header[16]);
+		goto cleanup;
+	}
+	// Skip header + ID field
+	current_ptr = file_content + 18 + header[0];
+
+	read_logo = kmalloc_array(width, height, GFP_KERNEL);
+	if (!read_logo)
+		goto cleanup;
+
+	image->data = read_logo;
+
+	// TGA pixels are stored bottom-to-top by default, unless bit 5 of
+	// image_descriptor is set
+	top_to_bottom = (header[17] & 0x20) != 0;
+	skip_x = 0;
+	skip_y = 0;
+
+	if (width > info->var.xres) {
+		pr_info("Logo is larger than screen (%lu vs %u), clipping horizontally\n",
+			width, info->var.xres);
+		skip_x = (width - info->var.xres) / 2;
+	}
+	if (height > info->var.yres) {
+		pr_info("Logo is larger than screen (%lu vs %u), clipping vertically\n",
+			height, info->var.yres);
+		skip_y = (height - info->var.yres) / 2;
+	}
+	current_ptr += skip_y * width * 3 + skip_x * 3;
+	// Parse pixel data (BGR format in TGA)
+	for (int i = 0; i < height - 2 * skip_y; i++) {
+		for (int j = 0; j < width - 2 * skip_x; j++) {
+			if (current_ptr + 3 > end_ptr) {
+				pr_info("TGA: Unexpected end of file\n");
+				goto cleanup;
+			}
+			B = (unsigned char)*current_ptr++;
+			G = (unsigned char)*current_ptr++;
+			R = (unsigned char)*current_ptr++;
+			entry[0] = R;
+			entry[1] = G;
+			entry[2] = B;
+			palette_index = 0;
+
+			if (!fb_palette_contains_entry(&image_palette, current_rows,
+						       entry, 3, &palette_index)) {
+				if (current_rows < 224) {
+					for (int k = 0; k < 3; k++)
+						image_palette.colors[current_rows][k] =
+								entry[k];
+					palette_index = current_rows;
+				}
+				current_rows++;
+			}
+			actual_row = top_to_bottom ? i : (height - 1 - i);
+
+			read_logo[actual_row * (width - 2 * skip_x) + j] =
+				palette_index + 32;
+		}
+		current_ptr += skip_x * 3 * 2;
+	}
+
+	if (current_rows >= 224)
+		pr_err("Palette overflow. Entries clipped\n");
+
+	// Set logo palette
+	palette = kzalloc(256 * 4, GFP_KERNEL);
+	if (!palette)
+		goto cleanup;
+	fb_set_logo_RGB_palette(info, &image_palette, palette, current_rows);
+	if (info->pseudo_palette)
+		memcpy(palette, info->pseudo_palette, 32 * sizeof(uint32_t));
+	info->pseudo_palette = palette;
+
+	image->width = min_t(unsigned int, width, info->var.xres);
+	image->height = min_t(unsigned int, height, info->var.yres);
+	image->dx = 0;
+	image->dy = 0;
+	image->depth = 8;
+
+	if (image->height < info->var.yres)
+		image->dy = (info->var.yres - image->height) / 2;
+	if (image->width < info->var.xres)
+		image->dx = (info->var.xres - image->width) / 2;
+
+cleanup:
+	kfree(read_logo);
+	release_firmware(fw);
+}
+
+
 static int fb_show_logo_line(struct fb_info *info, int rotate,
 			     const struct linux_logo *logo, int y,
 			     unsigned int n)
@@ -288,66 +492,87 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 	    info->fbops->owner)
 		return 0;
 
-	image.depth = 8;
-	image.data = logo->data;
-
-	if (fb_logo.needs_cmapreset)
-		fb_set_logocmap(info, logo);
-
-	if (fb_logo.needs_truepalette ||
-	    fb_logo.needs_directpalette) {
-		palette = kmalloc(256 * 4, GFP_KERNEL);
-		if (palette == NULL)
-			return 0;
-
-		if (fb_logo.needs_truepalette)
-			fb_set_logo_truepalette(info, logo, palette);
-		else
-			fb_set_logo_directpalette(info, logo, palette);
-
-		saved_pseudo_palette = info->pseudo_palette;
-		info->pseudo_palette = palette;
-	}
-
-	if (fb_logo.depth <= 4) {
-		logo_new = kmalloc_array(logo->width, logo->height,
-					 GFP_KERNEL);
-		if (logo_new == NULL) {
-			kfree(palette);
-			if (saved_pseudo_palette)
-				info->pseudo_palette = saved_pseudo_palette;
-			return 0;
-		}
-		image.data = logo_new;
-		fb_set_logo(info, logo, logo_new, fb_logo.depth);
-	}
-
-	if (fb_center_logo) {
-		int xres = info->var.xres;
-		int yres = info->var.yres;
-
-		if (rotate == FB_ROTATE_CW || rotate == FB_ROTATE_CCW) {
-			xres = info->var.yres;
-			yres = info->var.xres;
-		}
-
-		while (n && (n * (logo->width + 8) - 8 > xres))
-			--n;
-		image.dx = (xres - (n * (logo->width + 8) - 8)) / 2;
-		image.dy = y ?: (yres - logo->height) / 2;
+	if (fullscreen_logo_enabled) {
+		fb_set_logo_from_file(info, fullscreen_logo_path,
+			&image, palette);
 	} else {
-		image.dx = 0;
-		image.dy = y;
+		image.depth = 8;
+		image.data = logo->data;
+
+		if (fb_logo.needs_cmapreset)
+			fb_set_logocmap(info, logo);
+
+		if (fb_logo.needs_truepalette ||
+			fb_logo.needs_directpalette) {
+			palette = kmalloc(256 * 4, GFP_KERNEL);
+			if (palette == NULL)
+				return 0;
+
+			if (fb_logo.needs_truepalette)
+				fb_set_logo_truepalette(info, logo, palette);
+			else
+				fb_set_logo_directpalette(info, logo, palette);
+
+			saved_pseudo_palette = info->pseudo_palette;
+			info->pseudo_palette = palette;
+		}
+
+		if (fb_logo.depth <= 4) {
+			logo_new = kmalloc_array(logo->width, logo->height,
+						GFP_KERNEL);
+			if (logo_new == NULL) {
+				kfree(palette);
+				if (saved_pseudo_palette)
+					info->pseudo_palette = saved_pseudo_palette;
+				return 0;
+			}
+			image.data = logo_new;
+			fb_set_logo(info, logo, logo_new, fb_logo.depth);
+		}
+
+		if (fb_center_logo) {
+			int xres = info->var.xres;
+			int yres = info->var.yres;
+
+			if (rotate == FB_ROTATE_CW || rotate == FB_ROTATE_CCW) {
+				xres = info->var.yres;
+				yres = info->var.xres;
+			}
+
+			while (n && (n * (logo->width + 8) - 8 > xres))
+				--n;
+			image.dx = (xres - (n * (logo->width + 8) - 8)) / 2;
+			image.dy = y ?: (yres - logo->height) / 2;
+		} else {
+			image.dx = 0;
+			image.dy = y;
+		}
+
+		image.width = logo->width;
+		image.height = logo->height;
+
+		if (rotate) {
+			logo_rotate = kmalloc_array(logo->width, logo->height,
+							GFP_KERNEL);
+			if (logo_rotate)
+				fb_rotate_logo(info, logo_rotate, &image, rotate);
+		}
 	}
+	if (fullscreen_logo_enabled) {
+		// Fullscreen logo data may not fill screen
+		// Fill remainder of screen with border color of logo for continuous feel
+		u32 fill_color = image.data[0];
+		struct fb_fillrect region;
 
-	image.width = logo->width;
-	image.height = logo->height;
-
-	if (rotate) {
-		logo_rotate = kmalloc_array(logo->width, logo->height,
-					    GFP_KERNEL);
-		if (logo_rotate)
-			fb_rotate_logo(info, logo_rotate, &image, rotate);
+		region.color = fill_color;
+		region.dx = 0;
+		region.dy = 0;
+		region.width = info->var.xres;
+		region.height = info->var.yres;
+		region.rop = ROP_COPY;
+		info->fbops->fb_fillrect(info, &region);
+		// Enforce only one draw of the logo
+		n = 1;
 	}
 
 	fb_do_show_logo(info, &image, rotate, n);
