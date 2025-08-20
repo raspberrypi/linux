@@ -110,6 +110,7 @@ static struct fbcon_display fb_display[MAX_NR_CONSOLES];
 
 static struct fb_info *fbcon_registered_fb[FB_MAX];
 static int fbcon_num_registered_fb;
+static int fullscreen_logo_enabled;
 
 #define fbcon_for_each_registered_fb(i)		\
 	for (i = 0; WARN_CONSOLE_UNLOCKED(), i < FB_MAX; i++)		\
@@ -516,6 +517,15 @@ static int __init fb_console_setup(char *this_opt)
 }
 
 __setup("fbcon=", fb_console_setup);
+
+static int __init fullscreen_logo_setup(char *str)
+{
+	pr_info("Fullscreen Logo Enabled");
+	fullscreen_logo_enabled = 1;
+	return 1;
+}
+
+__setup("fullscreen_logo=", fullscreen_logo_setup);
 #endif
 
 static int search_fb_in_map(int idx)
@@ -599,6 +609,8 @@ static void fbcon_prepare_logo(struct vc_data *vc, struct fb_info *info,
 	if (fb_get_color_depth(&info->var, &info->fix) == 1)
 		erase &= ~0x400;
 	logo_height = fb_prepare_logo(info, ops->rotate);
+	if (fullscreen_logo_enabled)
+		logo_height = info->var.yres - vc->vc_font.height;
 	logo_lines = DIV_ROUND_UP(logo_height, vc->vc_font.height);
 	q = (unsigned short *) (vc->vc_origin +
 				vc->vc_size_row * rows);
