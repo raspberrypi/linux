@@ -1476,6 +1476,16 @@ static int __maybe_unused axi_dma_runtime_resume(struct device *dev)
 	return axi_dma_resume(chip);
 }
 
+static void dw_axi_dma_device_caps(struct dma_chan *dchan,
+				   struct dma_slave_caps *caps)
+{
+	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
+	struct dw_axi_dma *dw = chan->chip->dw;
+
+	if (dw->hdata->restrict_axi_burst_len)
+		caps->max_burst = dw->hdata->axi_rw_burst_len[chan->id];
+}
+
 static bool dw_axi_dma_filter_fn(struct dma_chan *dchan, void *filter_param)
 {
 	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
@@ -1746,7 +1756,7 @@ static int dw_probe(struct platform_device *pdev)
 	dma_cap_set(DMA_CYCLIC, dw->dma.cap_mask);
 
 	/* DMA capabilities */
-	dw->dma.max_burst = hdata->axi_rw_burst_len[0];
+	dw->dma.device_caps = dw_axi_dma_device_caps;
 	dw->dma.src_addr_widths = AXI_DMA_BUSWIDTHS;
 	dw->dma.dst_addr_widths = AXI_DMA_BUSWIDTHS;
 	dw->dma.directions = BIT(DMA_MEM_TO_MEM);
