@@ -16,16 +16,64 @@
 	#include "rp1-nexus.dtsi"
 };
 
+
 /*
- * Our downstream modifications assume that RP1 is present, therefore add it
+ * Our downstream modifications assume that RP1 is present, therefore add them
  * here instead of bcm2712-rpi-5-b-ovl-rp1.dts
  */
+// Downstream BCM2712 SoC changes
 #include "bcm2712-ds.dtsi"
 
-&pcie1 {
-	status = "okay";
+i2c_csi_dsi0: &rp1_i2c6 { };
+i2c_csi_dsi1: &rp1_i2c4 { };
+
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // An alias for compatibility
+
+// Generic Pi downstream changes
+#include "bcm2712-rpi-ds.dtsi"
+
+&led_pwr {
+	gpios = <&rp1_gpio 44 GPIO_ACTIVE_LOW>;
 };
 
-&pcie2 {
-	status = "okay";
+&led_act {
+	gpios = <&gio_aon 9 GPIO_ACTIVE_LOW>;
+};
+
+&sd_io_1v8_reg {
+	gpios = <&gio_aon 3 GPIO_ACTIVE_HIGH>;
+};
+
+&sd_vcc_reg {
+	gpios = <&gio_aon 4 GPIO_ACTIVE_HIGH>;
+};
+
+&wl_on_reg {
+	gpio = <&gio 28 GPIO_ACTIVE_HIGH>;
+};
+
+&cam0_reg {
+	gpio = <&rp1_gpio 34 0>;  // CD0_IO0_MICCLK, to MIPI 0 connector
+};
+
+&cam1_reg {
+	gpio = <&rp1_gpio 46 0>;  // CD1_IO0_MICCLK, to MIPI 1 connector
+};
+
+&rp1_eth {
+	phy-reset-gpios = <&rp1_gpio 32 GPIO_ACTIVE_LOW>;
+
+	phy1: ethernet-phy@1 {
+		reg = <0x1>;
+		brcm,powerdown-enable;
+		eee-broken-1000t;
+		eee-broken-100tx;
+	};
+};
+
+&pinctrl {
+	emmc_sd_pulls: emmc_sd_pulls {
+		pins = "emmc_cmd", "emmc_dat0", "emmc_dat1", "emmc_dat2", "emmc_dat3";
+		bias-pull-up;
+	};
 };
