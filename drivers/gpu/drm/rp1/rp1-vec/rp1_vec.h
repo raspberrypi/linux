@@ -50,6 +50,12 @@ struct rp1_vec {
 	u32 cur_fmt;
 	bool fake_31khz, vec_running, pipe_enabled;
 	struct completion finished;
+
+	spinlock_t hw_lock; /* the following are used in line-match ISR */
+	dma_addr_t last_dma_addr;
+	u32 last_stride;
+	bool field_flip;
+	bool lower_field_flag;
 };
 
 /* ---------------------------------------------------------------------- */
