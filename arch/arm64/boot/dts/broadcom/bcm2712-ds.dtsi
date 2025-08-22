@@ -1,28 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
+
+// Downstream device tree entries that extend the base BCM2712 functionality
+// These should slowly reduce as support get upstreamed.
+
+#include <dt-bindings/soc/bcm2835-pm.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/power/raspberrypi-power.h>
 #include <dt-bindings/soc/bcm2835-pm.h>
 
-#include "bcm2712.dtsi"
-
 / {
-#ifndef FIRMWARE_UPDATED
-	#size-cells = <1>;
-
-	reserved-memory {
-		ranges;
-		#address-cells = <2>;
-		#size-cells = <1>;
-
-		atf@0 {
-			reg = <0x0 0x0 0x80000>;
-		};
-
-		linux,cma {
-			size = <0x4000000>; /* 64MB */
-			alloc-ranges = <0x0 0x00000000 0x40000000>;
-		};
-	};
-#endif
-
 	arm-pmu {
 		compatible = "arm,cortex-a76-pmu";
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
@@ -492,3 +480,4 @@
 		/* 14GiB, 64-bit, prefetchable at PCIe 04_00000000 */
 		<0x43000000 0x04 0x00000000 0x18 0x00000000 0x03 0x80000000>;
 };
+

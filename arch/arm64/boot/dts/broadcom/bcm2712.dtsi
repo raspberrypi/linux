@@ -9,7 +9,7 @@
 
 	interrupt-parent = <&gicv2>;
 
-	clocks {
+	clocks: clocks {
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clk-osc {
 			compatible = "fixed-clock";
@@ -605,14 +605,10 @@
 
 	hvs: hvs@107c580000 {
 		compatible = "brcm,bcm2712-hvs";
-#ifndef FIRMWARE_UPDATED
-		reg = <0x10 0x7c580000 0x1a000>;
-#else
 		reg = <0x10 0x7c580000 0x0 0x1a000>;
-#endif
 		interrupt-parent = <&disp_intr>;
 		interrupts = <2>, <9>, <16>;
 		interrupt-names = "ch0-eof", "ch1-eof", "ch2-eof";
-		iommus = <&iommu4>;
+		//iommus = <&iommu4>;
 	};
 };

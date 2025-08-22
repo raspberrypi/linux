@@ -1,0 +1,925 @@
+// SPDX-License-Identifier: GPL-2.0
+
+// Device tree entries that are common to all Raspberry Pi BCM2712 boards.
+
+#include <dt-bindings/power/raspberrypi-power.h>
+
+#define DMA_SEL_WANTHEAVY       (1 << 8)
+#define DMA_SEL_ONLYHEAVY       (1 << 9)
+
+i2c0: &rp1_i2c0 { };
+i2c1: &rp1_i2c1 { };
+i2c2: &rp1_i2c2 { };
+i2c3: &rp1_i2c3 { };
+i2c4: &rp1_i2c4 { };
+i2c5: &rp1_i2c5 { };
+i2c6: &rp1_i2c6 { };
+i2s:  &rp1_i2s0 { };
+i2s_clk_producer: &rp1_i2s0 { };
+i2s_clk_consumer: &rp1_i2s1 { };
+pwm0: &rp1_pwm0 { };
+pwm1: &rp1_pwm1 { };
+pwm: &pwm0 { };
+spi0: &rp1_spi0 { };
+spi1: &rp1_spi1 { };
+spi2: &rp1_spi2 { };
+spi3: &rp1_spi3 { };
+spi4: &rp1_spi4 { };
+spi5: &rp1_spi5 { };
+
+/ {
+	leds: leds {
+		compatible = "gpio-leds";
+
+		led_pwr: led-pwr {
+			label = "PWR";
+			default-state = "off";
+			linux,default-trigger = "none";
+		};
+
+		led_act: led-act {
+			label = "ACT";
+			default-state = "off";
+			linux,default-trigger = "mmc0";
+		};
+	};
+
+	sd_io_1v8_reg: sd-io-1v8-reg {
+		compatible = "regulator-gpio";
+		regulator-name = "vdd-sd-io";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-settling-time-us = <5000>;
+		states = <1800000 1>,
+			 <3300000 0>;
+	};
+
+	sd_vcc_reg: sd-vcc-reg {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-sd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpios = <&gio_aon 4 GPIO_ACTIVE_HIGH>;
+	};
+
+	wl_on_reg: wl-on-reg {
+		compatible = "regulator-fixed";
+		regulator-name = "wl-on-regulator";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		pinctrl-0 = <&wl_on_pins>;
+		pinctrl-names = "default";
+
+		startup-delay-us = <150000>;
+		enable-active-high;
+	};
+
+	cam1_clk: cam1_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam0_clk: cam0_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	cam0_reg: cam0_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam0_reg";
+		enable-active-high;
+	};
+
+	cam1_reg: cam1_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1_reg";
+		enable-active-high;
+	};
+
+	cam_dummy_reg: cam_dummy_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam-dummy-reg";
+	};
+
+	dummy: dummy {
+		// A target for unwanted overlay fragments
+	};
+
+
+	// A few extra labels to keep overlays happy
+
+	i2c0if: i2c0if {};
+	i2c0mux: i2c0mux {};
+
+	fan: cooling_fan {
+		status = "disabled";
+		compatible = "pwm-fan";
+		#cooling-cells = <2>;
+		cooling-min-state = <0>;
+		cooling-max-state = <3>;
+		cooling-levels = <0 75 125 175 250>;
+		pwms = <&rp1_pwm1 3 41566 PWM_POLARITY_INVERTED>;
+		rpm-regmap = <&rp1_pwm1>;
+		rpm-offset = <0x3c>;
+	};
+
+	pwr_button {
+		compatible = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwr_button_pins>;
+		status = "okay";
+
+		pwr_key: pwr {
+			label = "pwr_button";
+			// linux,code = <205>; // KEY_SUSPEND
+			linux,code = <116>; // KEY_POWER
+			gpios = <&gio 20 GPIO_ACTIVE_LOW>;
+			debounce-interval = <50>; // ms
+		};
+	};
+};
+
+&soc {
+	firmware: firmware {
+		compatible = "raspberrypi,bcm2835-firmware", "simple-mfd";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		mboxes = <&mailbox>;
+		dma-ranges;
+
+		firmware_clocks: clocks {
+			compatible = "raspberrypi,firmware-clocks";
+			#clock-cells = <1>;
+		};
+
+		reset: reset {
+			compatible = "raspberrypi,firmware-reset";
+			#reset-cells = <1>;
+		};
+
+		vcio: vcio {
+			compatible = "raspberrypi,vcio";
+		};
+	};
+
+	power: power {
+		compatible = "raspberrypi,bcm2835-power";
+		firmware = <&firmware>;
+		#power-domain-cells = <1>;
+	};
+
+	fb: fb {
+		compatible = "brcm,bcm2708-fb";
+		firmware = <&firmware>;
+	};
+
+	rpi_rtc: rpi_rtc {
+		compatible = "raspberrypi,rpi-rtc";
+		firmware = <&firmware>;
+		trickle-charge-microvolt = <0>;
+	};
+
+	nvmem {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		nvmem_otp: nvmem_otp {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <0 192>;
+		};
+
+		nvmem_cust: nvmem_cust {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <1 8>;
+		};
+
+		nvmem_mac: nvmem_mac {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <2 6>;
+		};
+
+		nvmem_priv: nvmem_priv {
+			compatible = "raspberrypi,rpi-otp";
+			firmware = <&firmware>;
+			reg = <3 16>;
+		};
+	};
+
+	/* Define these notional regulators for use by overlays, etc. */
+	vdd_3v3_reg: fixedregulator_3v3 {
+		compatible = "regulator-fixed";
+		regulator-always-on;
+		regulator-max-microvolt = <3300000>;
+		regulator-min-microvolt = <3300000>;
+		regulator-name = "3v3";
+	};
+
+	vdd_5v0_reg: fixedregulator_5v0 {
+		compatible = "regulator-fixed";
+		regulator-always-on;
+		regulator-max-microvolt = <5000000>;
+		regulator-min-microvolt = <5000000>;
+		regulator-name = "5v0";
+	};
+};
+
+&rp1_dma {
+	snps,sel-require =  <DMA_SEL_WANTHEAVY DMA_SEL_WANTHEAVY 0 0 0 0 0 0>;
+	snps,sel-preclude = <0 0 DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY
+			     DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY>;
+};
+
+#if 0
+pio: &rp1_pio {
+	dmas = <&rp1_dma (RP1_DMA_PIO_CH0_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH0_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH1_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH1_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH2_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH2_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH3_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH3_RX | DMA_SEL_WANTHEAVY)>;
+	status = "okay";
+};
+#endif
+
+&rp1_eth {
+	status = "okay";
+	phy-handle = <&phy1>;
+	phy-reset-duration = <5>;
+};
+
+/* The Debug UART, on Rpi5 it's on JST-SH 1.0mm 3-pin connector
+ * labeled "UART", i.e. the interface with the system console.
+ */
+&uart10 {
+	status = "okay";
+};
+
+gpio: &rp1_gpio {
+	status = "okay";
+};
+
+aux: &dummy {};
+
+&rp1_usb0 {
+	pinctrl-0 = <&usb_vbus_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&rp1_usb1 {
+	status = "okay";
+};
+
+watchdog: &pm {};
+
+&i2c6 {
+	pinctrl-0 = <&rp1_i2c6_38_39>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	symlink = "i2c-6";
+};
+
+&i2c4 {
+	pinctrl-0 = <&rp1_i2c4_40_41>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	symlink = "i2c-4";
+};
+
+i2c_csi_dsi: &i2c_csi_dsi1 { }; // An alias for compatibility
+
+csi0: &rp1_csi0 { };
+csi1: &rp1_csi1 { };
+dsi0: &rp1_dsi0 { };
+dsi1: &rp1_dsi1 { };
+dpi: &rp1_dpi { };
+vec: &rp1_vec { };
+dpi_gpio0:              &rp1_dpi_24bit_gpio0        { };
+dpi_gpio1:              &rp1_dpi_24bit_gpio2        { };
+dpi_18bit_cpadhi_gpio0: &rp1_dpi_18bit_cpadhi_gpio0 { };
+dpi_18bit_cpadhi_gpio2: &rp1_dpi_18bit_cpadhi_gpio2 { };
+dpi_18bit_gpio0:        &rp1_dpi_18bit_gpio0        { };
+dpi_18bit_gpio2:        &rp1_dpi_18bit_gpio2        { };
+dpi_16bit_cpadhi_gpio0: &rp1_dpi_16bit_cpadhi_gpio0 { };
+dpi_16bit_cpadhi_gpio2: &rp1_dpi_16bit_cpadhi_gpio2 { };
+dpi_16bit_gpio0:        &rp1_dpi_16bit_gpio0        { };
+dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
+
+/* Add the IOMMUs for some RP1 bus masters */
+
+&csi0 {
+	iommus = <&iommu5>;
+};
+
+&csi1 {
+	iommus = <&iommu5>;
+};
+
+&dsi0 {
+	iommus = <&iommu5>;
+};
+
+&dsi1 {
+	iommus = <&iommu5>;
+};
+
+&dpi {
+	iommus = <&iommu5>;
+};
+
+&vec {
+	iommus = <&iommu5>;
+};
+
+&ddc0 {
+	status = "disabled";
+};
+
+&ddc1 {
+	status = "disabled";
+};
+
+&hdmi0 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 0>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "disabled";
+};
+
+&hdmi1 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 1>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "disabled";
+};
+
+&hvs {
+	clocks = <&firmware_clocks 4>, <&firmware_clocks 16>;
+	clock-names = "core", "disp";
+};
+
+&mop {
+	status = "disabled";
+};
+
+&moplet {
+	status = "disabled";
+};
+
+&pixelvalve0 {
+	status = "disabled";
+};
+
+&pixelvalve1 {
+	status = "disabled";
+};
+
+&disp_intr {
+	status = "disabled";
+};
+
+/* uarta communicates with the BT module */
+&uarta {
+	uart-has-rtscts;
+	auto-flow-control;
+	status = "okay";
+	clock-frequency = <96000000>;
+	pinctrl-0 = <&uarta_24_pins &bt_shutdown_pins>;
+	pinctrl-names = "default";
+
+	bluetooth: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <3000000>;
+		shutdown-gpios = <&gio 29 GPIO_ACTIVE_HIGH>;
+		local-bd-address = [ 00 00 00 00 00 00 ];
+	};
+};
+
+&pinctrl {
+	pwr_button_pins: pwr_button_pins {
+		function = "gpio";
+		pins = "gpio20";
+		bias-pull-up;
+	};
+
+	wl_on_pins: wl_on_pins {
+		function = "gpio";
+		pins = "gpio28";
+	};
+
+	bt_shutdown_pins: bt_shutdown_pins {
+		function = "gpio";
+		pins = "gpio29";
+	};
+};
+
+/ {
+	chosen: chosen {
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=0";
+		stdout-path = "serial10:115200n8";
+	};
+
+	aliases: aliases {
+		blconfig = &blconfig;
+		blpubkey = &blpubkey;
+		bluetooth = &bluetooth;
+		console = &uart10;
+		drm-dsi1 = &dsi0;
+		drm-dsi2 = &dsi1;
+		ethernet0 = &rp1_eth;
+		fb = &fb;
+		gpio0 = &gpio;
+		gpio1 = &gio;
+		gpio2 = &gio_aon;
+		gpio3 = &pinctrl;
+		gpio4 = &pinctrl_aon;
+		gpiochip0 = &gpio;
+		gpiochip10 = &gio;
+		i2c = &i2c_arm;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		i2c3 = &i2c3;
+		i2c10 = &i2c_csi_dsi0;
+		i2c11 = &i2c_csi_dsi1;
+		i2c12 = &i2c10;
+		mailbox = &mailbox;
+		mmc0 = &sdio1;
+		pio0 = &pio;
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial10 = &uart10;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		serial4 = &uart4;
+		spi0 = &spi0;
+		spi1 = &spi1;
+		spi10 = &spi10;
+		spi2 = &spi2;
+		spi3 = &spi3;
+		spi4 = &spi4;
+		spi5 = &spi5;
+		uart0 = &uart0;
+		uart1 = &uart1;
+		uart10 = &uart10;
+		uart2 = &uart2;
+		uart3 = &uart3;
+		uart4 = &uart4;
+		usb0 = &rp1_usb0;
+		usb1 = &rp1_usb1;
+		watchdog = &watchdog;
+		wifi0 = &wifi;
+	};
+
+	__overrides__ {
+		act_led_gpio = <&led_act>,"gpios:4",<&led_act>,"gpios:0=",<&gpio>;
+		act_led_activelow = <&led_act>, "gpios:8";
+		act_led_trigger = <&led_act>, "linux,default-trigger";
+		axiperf = <&axiperf>,"status";
+		bdaddr = <&bluetooth>, "local-bd-address[";
+		button_debounce = <&pwr_key>, "debounce-interval:0";
+		cooling_fan = <&fan>, "status", <&rp1_pwm1>, "status";
+		drm_fb0_rp1_dpi = <&aliases>, "drm-fb0=",&dpi;
+		drm_fb0_rp1_dsi0 = <&aliases>, "drm-fb0=",&dsi0;
+		drm_fb0_rp1_dsi1 = <&aliases>, "drm-fb0=",&dsi1;
+		drm_fb0_vc4 = <&aliases>, "drm-fb0=",&vc4;
+		drm_fb1_rp1_dpi = <&aliases>, "drm-fb1=",&dpi;
+		drm_fb1_rp1_dsi0 = <&aliases>, "drm-fb1=",&dsi0;
+		drm_fb1_rp1_dsi1 = <&aliases>, "drm-fb1=",&dsi1;
+		drm_fb1_vc4 = <&aliases>, "drm-fb1=",&vc4;
+		drm_fb2_rp1_dpi = <&aliases>, "drm-fb2=",&dpi;
+		drm_fb2_rp1_dsi0 = <&aliases>, "drm-fb2=",&dsi0;
+		drm_fb2_rp1_dsi1 = <&aliases>, "drm-fb2=",&dsi1;
+		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+		eth_led0 = <&phy1>,"led-modes:0";
+		eth_led1 = <&phy1>,"led-modes:4";
+		fan_temp0 = <&cpu_tepid>,"temperature:0";
+		fan_temp0_hyst = <&cpu_tepid>,"hysteresis:0";
+		fan_temp0_speed = <&fan>, "cooling-levels:4";
+		fan_temp1 = <&cpu_warm>,"temperature:0";
+		fan_temp1_hyst = <&cpu_warm>,"hysteresis:0";
+		fan_temp1_speed = <&fan>, "cooling-levels:8";
+		fan_temp2 = <&cpu_hot>,"temperature:0";
+		fan_temp2_hyst = <&cpu_hot>,"hysteresis:0";
+		fan_temp2_speed = <&fan>, "cooling-levels:12";
+		fan_temp3 = <&cpu_vhot>,"temperature:0";
+		fan_temp3_hyst = <&cpu_vhot>,"hysteresis:0";
+		fan_temp3_speed = <&fan>, "cooling-levels:16";
+		i2c = <&i2c1>, "status";
+		i2c_arm = <&i2c_arm>, "status";
+		i2c_arm_baudrate = <&i2c_arm>, "clock-frequency:0";
+		i2c_baudrate = <&i2c_arm>, "clock-frequency:0";
+		i2c_csi_dsi = <&i2c_csi_dsi>, "status";
+		i2c_csi_dsi0 = <&i2c_csi_dsi0>, "status";
+		i2c_csi_dsi1 = <&i2c_csi_dsi1>, "status";
+		i2c_vc = <&i2c_vc>, "status";
+		i2c_vc_baudrate = <&i2c_vc>, "clock-frequency:0";
+		i2c0 = <&i2c0>, "status";
+		i2c0_baudrate = <&i2c0>, "clock-frequency:0";
+		i2c1 = <&i2c1>, "status";
+		i2c1_baudrate = <&i2c1>, "clock-frequency:0";
+		krnbt = <&bluetooth>, "status";
+		nvme = <&pciex1>, "status";
+		nvmem_cust_rw = <&nvmem_cust>,"rw?";
+		nvmem_mac_rw = <&nvmem_mac>,"rw?";
+		nvmem_priv_rw = <&nvmem_priv>,"rw?";
+		pcie_tperst_clk_ms = <&pciex1>, "brcm,tperst-clk-ms:0";
+		pciex1 = <&pciex1>, "status";
+		pciex1_gen = <&pciex1> , "max-link-speed:0";
+		pciex1_no_l0s = <&pciex1>, "aspm-no-l0s?";
+		pciex1_tperst_clk_ms = <&pciex1>, "brcm,tperst-clk-ms:0";
+		pwr_led_gpio = <&led_pwr>, "gpios:4";
+		pwr_led_activelow = <&led_pwr>, "gpios:8";
+		pwr_led_trigger = <&led_pwr>, "linux,default-trigger";
+		random = <&random>, "status";
+		rtc = <&rpi_rtc>, "status";
+		rtc_bbat_vchg = <&rpi_rtc>, "trickle-charge-microvolt:0";
+		spi = <&spi0>, "status";
+		strict_gpiod = <&chosen>, "bootargs=pinctrl_rp1.persist_gpio_outputs=n";
+		suspend = <&pwr_key>, "linux,code:0=205";
+		uart0 = <&uart0>, "status";
+		uart0_console = <&uart0>,"status", <&aliases>, "console=",&uart0;
+		uart0_dma = <&uart0>,"dmas:0=",<&rp1_dma>,
+			    <&uart0>,"dmas:4=",<RP1_DMA_UART0_TX>,
+			    <&uart0>,"dmas:8=",<&rp1_dma>,
+			    <&uart0>,"dmas:12=",<RP1_DMA_UART0_RX>,
+			    <&uart0>,"dma-names[=747800727800"; // "tx", "rx"
+		watchdog = <&watchdog>, "early-watchdog?";
+		wifiaddr = <&wifi>, "local-mac-address[";
+
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpio:4",
+				<&cam0_reg>,"gpio:0=", <&gpio>;
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpio:4",
+				<&cam1_reg>,"gpio:0=", <&gpio>;
+		sd_cqe = <&sdio1>, "supports-cqe:0";
+	};
+};
+
+pciex1: &pcie1 { };
+pciex4: &pcie2 { };
+
+&dma32 {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x03f>;
+};
+
+&dma40 {
+	/* The VPU firmware DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x07c0>;
+};
+
+&hdmi0 {
+	dmas = <&dma40 (10|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
+	dma-names = "audio-rx";
+};
+
+&hdmi1 {
+	dmas = <&dma40 (17|(1<<30)|(1<<24)|(10<<16)|(15<<20))>;
+	dma-names = "audio-rx";
+};
+
+&spi10 {
+	dmas = <&dma40 6>, <&dma40 7>;
+	dma-names = "tx", "rx";
+};
+
+&usb {
+	power-domains = <&power RPI_POWER_DOMAIN_USB>;
+};
+
+/* SDIO2 drives the WLAN interface */
+&sdio2 {
+	pinctrl-0 = <&sdio2_30_pins>;
+	pinctrl-names = "default";
+	bus-width = <4>;
+	vmmc-supply = <&wl_on_reg>;
+	sd-uhs-ddr50;
+	non-removable;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	wifi: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+		local-mac-address = [00 00 00 00 00 00];
+	};
+};
+
+
+&rmem {
+	/*
+	 * RPi5's co-processor will copy the board's bootloader configuration
+	 * into memory for the OS to consume. It'll also update this node with
+	 * its placement information.
+	 */
+	blconfig: nvram@0 {
+		compatible = "raspberrypi,bootloader-config", "nvmem-rmem";
+		#address-cells = <1>;
+		#size-cells = <1>;
+#if 0 //ndef FIRMWARE_UPDATED
+		reg = <0x0 0x0 0x0>;
+#else
+		reg = <0x0 0x0 0x0 0x0>;
+#endif
+		no-map;
+		status = "disabled";
+	};
+	/*
+	 * RPi5 will copy the binary public key blob (if present) from the bootloader
+	 * into memory for use by the OS.
+	 */
+	blpubkey: nvram@1 {
+		compatible = "raspberrypi,bootloader-public-key", "nvmem-rmem";
+		#address-cells = <1>;
+		#size-cells = <1>;
+#if 0 //ndef FIRMWARE_UPDATED
+		reg = <0x0 0x0 0x0>;
+#else
+		reg = <0x0 0x0 0x0 0x0>;
+#endif
+		no-map;
+		status = "disabled";
+	};
+};
+
+&rp1_adc {
+	status = "okay";
+};
+
+&rp1_mbox {
+	status = "okay";
+};
+
+pio: &rp1_pio {
+	dmas = <&rp1_dma (RP1_DMA_PIO_CH0_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH0_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH1_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH1_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH2_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH2_RX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH3_TX | DMA_SEL_WANTHEAVY)>,
+			<&rp1_dma (RP1_DMA_PIO_CH3_RX | DMA_SEL_WANTHEAVY)>;
+	status = "okay";
+};
+
+/* Add some gpiomem nodes to make the devices accessible to userspace.
+ * /dev/gpiomem<n> should expose the registers for the interface with DT alias
+ * gpio<n>.
+ */
+
+&rp1 {
+	gpiomem@400d0000 {
+		/* Export IO_BANKs, RIO_BANKs and PADS_BANKs to userspace */
+		compatible = "raspberrypi,gpiomem";
+		reg = <0x00 0x400d0000  0x0 0x30000>;
+		chardev-name = "gpiomem0";
+	};
+};
+
+&soc {
+	gpiomem@7d508500 {
+		compatible = "raspberrypi,gpiomem";
+		reg = <0x7d508500 0x40>;
+		chardev-name = "gpiomem1";
+	};
+
+	gpiomem@7d517c00 {
+		compatible = "raspberrypi,gpiomem";
+		reg = <0x7d517c00 0x40>;
+		chardev-name = "gpiomem2";
+	};
+
+	gpiomem@7d504100 {
+		compatible = "raspberrypi,gpiomem";
+		reg = <0x7d504100 0x20>;
+		chardev-name = "gpiomem3";
+	};
+
+	gpiomem@7d510700 {
+		compatible = "raspberrypi,gpiomem";
+		reg = <0x7d510700 0x20>;
+		chardev-name = "gpiomem4";
+	};
+
+	sound: sound {
+		status = "disabled";
+	};
+};
+
+uart0_pins: &rp1_uart0_14_15 {};
+uart0_ctsrts_pins: &rp1_uart0_ctsrts_16_17 {};
+uart0: &rp1_uart0 {
+	pinctrl-0 = <&uart0_pins>;
+};
+
+uart1_pins: &rp1_uart1_0_1 {};
+uart1_ctsrts_pins: &rp1_uart1_ctsrts_2_3 {};
+uart1: &rp1_uart1 { };
+
+uart2_pins: &rp1_uart2_4_5 {};
+uart2_ctsrts_pins: &rp1_uart2_ctsrts_6_7 {};
+uart2: &rp1_uart2 { };
+
+uart3_pins: &rp1_uart3_8_9 {};
+uart3_ctsrts_pins: &rp1_uart3_ctsrts_10_11 {};
+uart3: &rp1_uart3 { };
+
+uart4_pins: &rp1_uart4_12_13 {};
+uart4_ctsrts_pins: &rp1_uart4_ctsrts_14_15 {};
+uart4: &rp1_uart4 { };
+
+i2c0_pins: &rp1_i2c0_0_1 {};
+i2c_vc: &i2c0 {      // This is pins 27,28 on the header (not MIPI)
+	pinctrl-0 = <&i2c0_pins>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+};
+
+i2c1_pins: &rp1_i2c1_2_3 {};
+i2c_arm: &i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+};
+
+i2c2_pins: &rp1_i2c2_4_5 {};
+&i2c2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_pins>;
+};
+
+i2c3_pins: &rp1_i2c3_6_7 {};
+&i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_pins>;
+};
+
+&i2s_clk_producer {
+	pinctrl-names = "default";
+	pinctrl-0 = <&rp1_i2s0_18_21>;
+};
+
+&i2s_clk_consumer {
+	pinctrl-names = "default";
+	pinctrl-0 = <&rp1_i2s1_18_21>;
+};
+
+spi0_pins: &rp1_spi0_gpio9 {};
+spi0_cs_pins: &rp1_spi0_cs_gpio7 {};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+
+	spidev0: spidev@0 {
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+
+	spidev1: spidev@1 {
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+};
+
+spi2_pins: &rp1_spi2_gpio1 {};
+&spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi2_pins>;
+};
+
+spi3_pins: &rp1_spi3_gpio5 {};
+&spi3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi3_pins>;
+};
+
+spi4_pins: &rp1_spi4_gpio9 {};
+&spi4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi4_pins>;
+};
+
+spi5_pins: &rp1_spi5_gpio13 {};
+&spi5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi5_pins>;
+};
+
+&gio_aon {
+	// Don't use GIO_AON as an interrupt controller because it will
+	// clash with the firmware monitoring the PMIC interrupt via the VPU.
+
+	/delete-property/ interrupt-controller;
+	/delete-property/ #interrupt-cells;
+};
+
+&main_aon_irq {
+	// Don't use the MAIN_AON_IRQ interrupt controller because it will
+	// clash with the firmware monitoring the PMIC interrupt via the VPU.
+
+	status = "disabled";
+};
+
+&rp1_pwm1 {
+	status = "disabled";
+	pinctrl-0 = <&rp1_pwm1_gpio45>;
+	pinctrl-names = "default";
+};
+
+&thermal_trips {
+	cpu_tepid: cpu-tepid {
+		temperature = <50000>;
+		hysteresis = <5000>;
+		type = "active";
+	};
+
+	cpu_warm: cpu-warm {
+		temperature = <60000>;
+		hysteresis = <5000>;
+		type = "active";
+	};
+
+	cpu_hot: cpu-hot {
+		temperature = <67500>;
+		hysteresis = <5000>;
+		type = "active";
+	};
+
+	cpu_vhot: cpu-vhot {
+		temperature = <75000>;
+		hysteresis = <5000>;
+		type = "active";
+	};
+};
+
+&cooling_maps {
+	tepid {
+		trip = <&cpu_tepid>;
+		cooling-device = <&fan 1 1>;
+	};
+
+	warm {
+		trip = <&cpu_warm>;
+		cooling-device = <&fan 2 2>;
+	};
+
+	hot {
+		trip = <&cpu_hot>;
+		cooling-device = <&fan 3 3>;
+	};
+
+	vhot {
+		trip = <&cpu_vhot>;
+		cooling-device = <&fan 4 4>;
+	};
+
+	melt {
+		trip = <&cpu_crit>;
+		cooling-device = <&fan 4 4>;
+	};
+};
+
+&gio {
+	// The GPIOs above 35 are not used on Pi 5, so shrink the upper bank
+	// to reduce the clutter in gpioinfo/pinctrl
+	brcm,gpio-bank-widths = <32 4>;
+};
+
+&gio_aon {
+	rp1_run_hog {
+		gpio-hog;
+		gpios = <2 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "RP1 RUN pin";
+	};
+};
+
+&rp1_gpio {
+	usb_vbus_pins: usb_vbus_pins {
+		function = "vbus1";
+		pins = "gpio42", "gpio43";
+	};
+};
