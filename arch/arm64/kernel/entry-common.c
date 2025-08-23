@@ -306,6 +306,10 @@ static void do_interrupt_handler(struct pt_regs *regs,
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
+	/* gdb 에서 $SP_EL0 를 통해 struct task_struct 에 접근할 수 있다.
+	 * > p ((struct task_struct *) $SP_EL0)->tgid
+	 */
+
 	if (on_thread_stack())
 		call_on_irq_stack(regs, handler);
 	else
