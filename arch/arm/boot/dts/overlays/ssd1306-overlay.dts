@@ -14,7 +14,7 @@
 	    #size-cells = <0>;
 
 	    ssd1306: oled@3c{
-		compatible = "solomon,ssd1306fb-i2c";
+		compatible = "solomon,ssd1306";
 		reg = <0x3c>;
 		solomon,width = <128>;
 		solomon,height = <64>;
