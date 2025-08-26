@@ -28,9 +28,8 @@ struct rb070d30_panel {
         struct drm_panel panel;
         struct mipi_dsi_device *dsi;
         struct regulator *supply;
-
-        struct {
-                struct gpio_desc *power;
+	struct {
+		struct gpio_desc *power;
                 struct gpio_desc *reset;
                 struct gpio_desc *updn;
                 struct gpio_desc *shlr;

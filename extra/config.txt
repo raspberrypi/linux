@@ -52,4 +52,3 @@ dtoverlay=dwc2,dr_mode=host
 enable_uart=1
 ignore_lcd=1
 dtoverlay=vc4-kms-dsi-ronbo-rb070d30
-dtparam=dsi1_escape_clk_div=4
