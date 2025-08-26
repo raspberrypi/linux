@@ -28,6 +28,7 @@
 				gpios = <&gpio 2 6>, /* SDA GPIO_OPEN_DRAIN */
 				     	<&gpio 3 6>; /* CLK GPIO_OPEN_DRAIN */
 				clock-frequency = <400000>;
+				i2c-gpio,delay-us = <0x01>;
 				status = "okay";
 			};
 		};
