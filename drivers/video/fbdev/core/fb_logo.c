@@ -552,6 +552,8 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 		region.height = info->var.yres;
 		region.rop = ROP_COPY;
 		info->fbops->fb_fillrect(info, &region);
+		// Enforce only one draw of the logo
+		n = 1;
 	}
 
 	fb_do_show_logo(info, &image, rotate, n);
