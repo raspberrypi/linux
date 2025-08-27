@@ -70,14 +70,14 @@ void snd_hdac_display_power(struct hdac_bus *bus, unsigned int idx, bool enable)
 	dev_dbg(bus->dev, "display power %s\n",
 		enable ? "enable" : "disable");
 
-	mutex_lock(&bus->lock);
+	guard(mutex)(&bus->lock);
 	if (enable)
 		set_bit(idx, &bus->display_power_status);
 	else
 		clear_bit(idx, &bus->display_power_status);
 
 	if (!acomp || !acomp->ops)
-		goto unlock;
+		return;
 
 	if (bus->display_power_status) {
 		if (!bus->display_power_active) {
@@ -100,8 +100,6 @@ void snd_hdac_display_power(struct hdac_bus *bus, unsigned int idx, bool enable)
 			bus->display_power_active = 0;
 		}
 	}
- unlock:
-	mutex_unlock(&bus->lock);
 }
 EXPORT_SYMBOL_GPL(snd_hdac_display_power);
 
