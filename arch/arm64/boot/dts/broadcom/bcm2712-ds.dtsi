@@ -285,6 +285,7 @@
 		compatible = "brcm,bcm2712-iommu";
 		reg = <0x10 0x5100  0x0 0x80>;
 		cache = <&iommuc>;
+		aperture-size = <0x1 0x00000000>; // Increase IOVA aperture size to 4GBytes
 		#iommu-cells = <0>;
 	};
 
