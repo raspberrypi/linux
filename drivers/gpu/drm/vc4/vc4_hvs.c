@@ -1256,6 +1256,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 	unsigned int channel = vc4_state->assigned_channel;
+	u64 bgcolor = crtc->state->background_color;
 	struct drm_plane *plane;
 	struct vc4_plane_state *vc4_plane_state;
 	bool debug_dump_regs = false;
@@ -1320,16 +1321,46 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm->mm_node.size);
 
 	if (vc4->gen >= VC4_GEN_6_C) {
-		/* This sets a black background color fill, as is the case
+		/* This sets the background color fill, as is the case
 		 * with other DRM drivers.
 		 */
+		if (vc4->gen == VC4_GEN_6_C) {
+			HVS_WRITE(SCALER6_DISPX_BGND(channel),
+				  VC4_SET_FIELD(DRM_ARGB64_GETR_BPCS(bgcolor, 8),
+						SCALER6_DISPX_BGND_FILL_RED) |
+				  VC4_SET_FIELD(DRM_ARGB64_GETG_BPCS(bgcolor, 8),
+						SCALER6_DISPX_BGND_FILL_GREEN) |
+				  VC4_SET_FIELD(DRM_ARGB64_GETB_BPCS(bgcolor, 8),
+						SCALER6_DISPX_BGND_FILL_BLUE) |
+				  VC4_SET_FIELD(DRM_ARGB64_GETA_BPCS(bgcolor, 8),
+						SCALER6_DISPX_BGND_FILL_ALPHA));
+		} else {
+			/* GEN_6_D takes a 12bit background colour */
+			HVS_WRITE(SCALER6D_DISPX_BGND0(channel),
+				  VC4_SET_FIELD(DRM_ARGB64_GETG_BPCS(bgcolor, 12),
+						SCALER6D_DISPX_BGND0_FILL_GREEN) |
+				  VC4_SET_FIELD(DRM_ARGB64_GETB_BPCS(bgcolor, 12),
+						SCALER6D_DISPX_BGND0_FILL_BLUE));
+			HVS_WRITE(SCALER6D_DISPX_BGND1(channel),
+				  VC4_SET_FIELD(DRM_ARGB64_GETR_BPCS(bgcolor, 12),
+						SCALER6D_DISPX_BGND1_FILL_RED) |
+				  VC4_SET_FIELD(DRM_ARGB64_GETA_BPCS(bgcolor, 12),
+						SCALER6D_DISPX_BGND1_FILL_ALPHA));
+		}
 		hvs->bg_fill[channel] = enable_bg_fill;
 	} else {
 		/* we can actually run with a lower core clock when background
 		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
 		 */
 		HVS_WRITE(SCALER_DISPBKGNDX(channel),
-			  HVS_READ(SCALER_DISPBKGNDX(channel)) |
+			  (HVS_READ(SCALER_DISPBKGNDX(channel)) &
+						~SCALER_DISPBKGND_FILL_MASK) |
+			  VC4_SET_FIELD(DRM_ARGB64_GETR_BPCS(bgcolor, 8),
+					SCALER_DISPBKGND_FILL_RED) |
+			  VC4_SET_FIELD(DRM_ARGB64_GETG_BPCS(bgcolor, 8),
+					SCALER_DISPBKGND_FILL_GREEN) |
+			  VC4_SET_FIELD(DRM_ARGB64_GETB_BPCS(bgcolor, 8),
+					SCALER_DISPBKGND_FILL_BLUE) |
 			  SCALER_DISPBKGND_FILL);
 	}
 
