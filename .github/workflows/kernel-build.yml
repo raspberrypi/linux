@@ -67,7 +67,7 @@ jobs:
         else
           sudo apt-get install gcc-arm-linux-gnueabihf;
         fi
-      timeout-minutes: 5
+      timeout-minutes: 15
 
     - uses: actions/checkout@v4
       with:
