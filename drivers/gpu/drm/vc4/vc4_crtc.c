@@ -38,6 +38,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic_uapi.h>
+#include <drm/drm_blend.h>
 #include <drm/drm_fb_dma_helper.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_drv.h>
@@ -1433,6 +1434,8 @@ int __vc4_crtc_init(struct drm_device *drm,
 					 crtc_funcs, data->name);
 	if (ret)
 		return ret;
+
+	drm_crtc_attach_background_color_property(crtc);
 
 	drm_crtc_helper_add(crtc, crtc_helper_funcs);
 
