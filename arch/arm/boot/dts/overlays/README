@@ -266,7 +266,8 @@ Params:
 
         eth_max_speed           Set the maximum speed a link is allowed
                                 to negotiate. Legal values are 10, 100 and
-                                1000 (default 1000). Pi3B+ only.
+                                1000 (default set by the platform).
+                                Pi3B+, Pi4, Pi400, and CM4 only.
 
         fan_temp0               Temperature threshold (in millicelcius) for
                                 1st cooling level (default 50000). Pi5 only.
