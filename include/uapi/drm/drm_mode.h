@@ -1356,6 +1356,36 @@ struct drm_mode_closefb {
 	__u32 pad;
 };
 
+/*
+ * Put 16-bit ARGB values into a standard 64-bit representation that
+ * can be used for ioctl parameters, inter-driver communication, etc.
+ */
+static inline __u64
+drm_argb64(__u16 alpha, __u16 red, __u16 green, __u16 blue)
+{
+	return (__u64)alpha << 48 | (__u64)red << 32 | (__u64)green << 16 | blue;
+}
+
+/*
+ * Extract the specified number of least-significant bits of a specific
+ * color component from a standard 64-bit ARGB value.
+ */
+#define DRM_ARGB64_COMP(c, shift, numlsb) \
+	((__u16)(((c) >> (shift)) & ((1UL << (numlsb) % 17) - 1)))
+#define DRM_ARGB64_ALPHA_LSB(c, numlsb) DRM_ARGB64_COMP(c, 48, numlsb)
+#define DRM_ARGB64_RED_LSB(c, numlsb)   DRM_ARGB64_COMP(c, 32, numlsb)
+#define DRM_ARGB64_GREEN_LSB(c, numlsb) DRM_ARGB64_COMP(c, 16, numlsb)
+#define DRM_ARGB64_BLUE_LSB(c, numlsb)  DRM_ARGB64_COMP(c, 0, numlsb)
+
+/*
+ * Convenience wrappers to extract all 16 bits of a specific color
+ * component from a standard 64-bit ARGB value.
+ */
+#define DRM_ARGB64_ALPHA(c)		DRM_ARGB64_ALPHA_LSB(c, 16)
+#define DRM_ARGB64_RED(c)		DRM_ARGB64_RED_LSB(c, 16)
+#define DRM_ARGB64_GREEN(c)		DRM_ARGB64_GREEN_LSB(c, 16)
+#define DRM_ARGB64_BLUE(c)		DRM_ARGB64_BLUE_LSB(c, 16)
+
 #if defined(__cplusplus)
 }
 #endif
