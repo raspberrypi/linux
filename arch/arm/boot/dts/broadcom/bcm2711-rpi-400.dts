@@ -81,6 +81,7 @@ cam0_reg: &cam_dummy_reg {
 			       <&led_act>,"status=okay";
 		act_led_activelow = <&led_act>,"gpios:8";
 		act_led_trigger = <&led_act>,"linux,default-trigger";
+		eth_max_speed = <&phy1>,"max-speed:0";
 		pwr_led_gpio = <&led_pwr>,"gpios:4";
 		pwr_led_activelow = <&led_pwr>,"gpios:8";
 		pwr_led_trigger = <&led_pwr>,"linux,default-trigger";
