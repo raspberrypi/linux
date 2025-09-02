@@ -1256,6 +1256,7 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 	unsigned int channel = vc4_state->assigned_channel;
+	u64 bgcolor = crtc->state->background_color;
 	struct drm_plane *plane;
 	struct vc4_plane_state *vc4_plane_state;
 	bool debug_dump_regs = false;
@@ -1320,16 +1321,32 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	WARN_ON_ONCE(dlist_next - dlist_start != vc4_state->mm->mm_node.size);
 
 	if (vc4->gen >= VC4_GEN_6_C) {
-		/* This sets a black background color fill, as is the case
+		/* This sets the background color fill, as is the case
 		 * with other DRM drivers.
 		 */
+		if (vc4->gen == VC4_GEN_6_C) {
+			HVS_WRITE(SCALER6_DISPX_BGND(channel),
+				  ((bgcolor & 0xFF0000000000) >> 24) |
+				  ((bgcolor & 0xFF000000) >> 16) |
+				  ((bgcolor & 0xFF00) >> 8));
+		} else {
+			/* GEN_6_D takes a 12bit background colour */
+			HVS_WRITE(SCALER6D_DISPX_BGND0(channel),
+				  bgcolor & 0xFFF0FFF0);
+			HVS_WRITE(SCALER6D_DISPX_BGND1(channel),
+				  (bgcolor >> 32) & 0xFFF0);
+		}
 		hvs->bg_fill[channel] = enable_bg_fill;
 	} else {
 		/* we can actually run with a lower core clock when background
 		 * fill is enabled on VC4_GEN_5 so leave it enabled always.
 		 */
 		HVS_WRITE(SCALER_DISPBKGNDX(channel),
-			  HVS_READ(SCALER_DISPBKGNDX(channel)) |
+			  (HVS_READ(SCALER_DISPBKGNDX(channel)) &
+						~SCALER_DISPBKGND_FILL_COLOUR) |
+			  ((bgcolor & 0xFF0000000000) >> 24) |
+			  ((bgcolor & 0xFF000000) >> 16) |
+			  ((bgcolor & 0xFF00) >> 8) |
 			  SCALER_DISPBKGND_FILL);
 	}
 
