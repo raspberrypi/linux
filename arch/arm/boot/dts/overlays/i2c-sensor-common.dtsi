@@ -756,6 +756,21 @@
 		};
 	};
 
+	fragment@49 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp58x: bmp58x@46 {
+				compatible = "bosch,bmp580";
+				reg = <0x46>;
+				status = "okay";
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -817,6 +832,7 @@
 		ads7828 = <0>,"+46";
 		ads7830 = <0>,"+47";
 		adxl355 = <0>,"+48";
+		bmp58x = <0>,"+49";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -830,7 +846,7 @@
 			<&hdc3020>,"reg:0", <&as73211>,"reg:0",
 			<&as7331>,"reg:0", <&adxl345>,"reg:0",
 			<&ads7828>,"reg:0", <&ads7830>,"reg:0",
-			<&adxl355>,"reg:0";
+			<&adxl355>,"reg:0", <&bmp58x>,"reg:0";
 		int_pin = <&int_pins>, "brcm,pins:0",
 			<&int_pins>, "reg:0",
 			<&max30102>, "interrupts:0",
