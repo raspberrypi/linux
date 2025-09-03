@@ -2423,7 +2423,7 @@ Info:   Adds support for a number of I2C barometric pressure, temperature,
 Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: addr                    Set the address for the ADS7828, ADS7830,
                                 ADT7410, AS73211, AS7331, BH1750, BME280,
-                                BME680, BMP280, BMP380, CCS811, DS1621,
+                                BME680, BMP280, BMP380, BMP58x, CCS811, DS1621,
                                 HDC100X, HDC3020, JC42, LM75, MCP980x,
                                 MPU6050, MPU9250, MS5637, MS5803, MS5805,
                                 MS5837, MS8607, SHT3x or TMP102
@@ -2477,6 +2477,10 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
 
         bmp380                  Select the Bosch Sensortronic BMP380
                                 Valid addresses 0x76-0x77, default 0x76
+
+        bmp58x                  Select the Bosch Sensortronic BMP580, BMP581,
+                                or BMP585
+                                Valid addresses 0x46-0x47, default 0x46
 
         bno055                  Select the Bosch Sensortronic BNO055 IMU
                                 Valid address 0x28-0x29, default 0x29
