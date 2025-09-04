@@ -480,7 +480,8 @@ static int s390_iommu_attach_device(struct iommu_domain *domain,
 
 	/* If we fail now DMA remains blocked via blocking domain */
 	cc = s390_iommu_domain_reg_ioat(zdev, domain, &status);
-	if (cc && status != ZPCI_PCI_ST_FUNC_NOT_AVAIL)
+	if (cc != ZPCI_CC_OK && cc != ZPCI_CC_INVAL_HANDLE &&
+	    (cc != ZPCI_CC_ERR || status != ZPCI_PCI_ST_FUNC_NOT_AVAIL))
 		return -EIO;
 	zdev->dma_table = s390_domain->dma_table;
 	zdev_s390_domain_update(zdev, domain);
