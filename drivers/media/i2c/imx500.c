@@ -24,6 +24,7 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
+#include <uapi/linux/imx500.h>
 
 /* Chip ID */
 #define IMX500_REG_CHIP_ID CCI_REG16(0x0016)
@@ -238,7 +239,6 @@
 enum pad_types { IMAGE_PAD, METADATA_PAD, NUM_PADS };
 
 #define V4L2_CID_USER_IMX500_INFERENCE_WINDOW (V4L2_CID_USER_IMX500_BASE + 0)
-#define V4L2_CID_USER_IMX500_NETWORK_FW_FD (V4L2_CID_USER_IMX500_BASE + 1)
 #define V4L2_CID_USER_GET_IMX500_DEVICE_ID (V4L2_CID_USER_IMX500_BASE + 2)
 
 #define ONE_MIB (1024 * 1024)
@@ -1365,7 +1365,6 @@ struct imx500 {
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
-	struct v4l2_ctrl *network_fw_ctrl;
 	struct v4l2_ctrl *device_id;
 
 	struct v4l2_rect inference_window;
@@ -1909,53 +1908,6 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 		container_of(ctrl->handler, struct imx500, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
 	int ret = 0;
-
-	if (ctrl->id == V4L2_CID_USER_IMX500_NETWORK_FW_FD) {
-		/* Reset state of the control. */
-		if (ctrl->val < 0) {
-			return 0;
-		} else if (ctrl->val == S32_MAX) {
-			ctrl->val = -1;
-			if (pm_runtime_get_if_in_use(&client->dev) == 0)
-				return 0;
-
-			if (imx500->network_written)
-				ret = imx500_clear_weights(imx500);
-			imx500_clear_fw_network(imx500);
-
-			pm_runtime_mark_last_busy(&client->dev);
-			pm_runtime_put_autosuspend(&client->dev);
-
-			return ret;
-		}
-
-		imx500_clear_fw_network(imx500);
-		ret = kernel_read_file_from_fd(ctrl->val, 0,
-					       (void **)&imx500->fw_network, INT_MAX,
-					       &imx500->fw_network_size,
-					       1);
-		/*
-		 * Back to reset state, the FD cannot be considered valid after
-		 * this IOCTL completes.
-		 */
-		ctrl->val = -1;
-
-		if (ret < 0) {
-			dev_err(&client->dev, "%s failed to read fw image: %d\n",
-				__func__, ret);
-			imx500_clear_fw_network(imx500);
-			return ret;
-		}
-		if (ret != imx500->fw_network_size) {
-			dev_err(&client->dev, "%s read fw image size mismatich: got %u, expected %zu\n",
-				__func__, ret, imx500->fw_network_size);
-			imx500_clear_fw_network(imx500);
-			return -EIO;
-		}
-
-		imx500_calc_inference_lines(imx500);
-		return 0;
-	}
 
 	/*
 	 * The VBLANK control may change the limits of usable exposure, so check
@@ -2730,7 +2682,6 @@ static int imx500_set_stream(struct v4l2_subdev *sd, int enable)
 	/* vflip and hflip cannot change during streaming */
 	__v4l2_ctrl_grab(imx500->vflip, enable);
 	__v4l2_ctrl_grab(imx500->hflip, enable);
-	__v4l2_ctrl_grab(imx500->network_fw_ctrl, enable);
 
 	mutex_unlock(&imx500->mutex);
 
@@ -2891,9 +2842,78 @@ static int imx500_identify_module(struct imx500 *imx500)
 	return 0;
 }
 
+static long imx500_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct imx500_network_weights *network_weights;
+	struct imx500 *imx500 = to_imx500(sd);
+	void *fw_network;
+	int ret;
+
+	if (cmd != VIDIOC_IMX500_LOAD_NETWORK)
+		return -ENOIOCTLCMD;
+
+	/* We cannot change the network weights whilst streaming. */
+	mutex_lock(&imx500->mutex);
+
+	if (imx500->streaming) {
+		ret = -EBUSY;
+		goto out_unlock_mutex;
+	}
+
+	network_weights = arg;
+
+	/*
+	 * If we're sent an empty buffer, we take that as an instruction to
+	 * clear the network we currently hold and the one in the sensor.
+	 */
+	if (!network_weights->size) {
+		if (pm_runtime_get_if_in_use(&client->dev) == 0)
+			return 0;
+
+		if (imx500->network_written)
+			ret = imx500_clear_weights(imx500);
+
+		imx500_clear_fw_network(imx500);
+
+		pm_runtime_mark_last_busy(&client->dev);
+		pm_runtime_put_autosuspend(&client->dev);
+
+		return ret;
+	}
+
+	fw_network = vmalloc(network_weights->size);
+	if (!fw_network) {
+		ret = -ENOMEM;
+		goto out_unlock_mutex;
+	}
+
+	ret = copy_from_user(fw_network, network_weights->data,
+			     network_weights->size);
+	if (ret) {
+		vfree(fw_network);
+		ret = -EINVAL;
+		goto out_unlock_mutex;
+	}
+
+	imx500_clear_fw_network(imx500);
+	imx500->fw_network = fw_network;
+	imx500->fw_network_size = network_weights->size;
+
+	imx500_calc_inference_lines(imx500);
+
+	ret = 0;
+
+out_unlock_mutex:
+
+	mutex_unlock(&imx500->mutex);
+	return ret;
+}
+
 static const struct v4l2_subdev_core_ops imx500_core_ops = {
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+	.ioctl = imx500_ioctl,
 };
 
 static const struct v4l2_subdev_video_ops imx500_video_ops = {
@@ -2932,20 +2952,6 @@ static const struct v4l2_ctrl_config inf_window_ctrl = {
 	.min		= 0x00,
 	.max		= 4032,
 	.step		= 1,
-};
-
-/* Custom control for network firmware file FD */
-static const struct v4l2_ctrl_config network_fw_fd = {
-	.name		= "IMX500 Network Firmware File FD",
-	.id		= V4L2_CID_USER_IMX500_NETWORK_FW_FD,
-	.ops		= &imx500_ctrl_ops,
-	.type		= V4L2_CTRL_TYPE_INTEGER,
-	.flags		= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE |
-			  V4L2_CTRL_FLAG_WRITE_ONLY,
-	.min		= -1,
-	.max		= S32_MAX,
-	.step		= 1,
-	.def		= -1,
 };
 
 /* Custom control to get camera device id */
@@ -3025,8 +3031,6 @@ static int imx500_init_controls(struct imx500 *imx500)
 
 	v4l2_ctrl_new_custom(ctrl_hdlr, &imx500_notify_gains_ctrl, NULL);
 	v4l2_ctrl_new_custom(ctrl_hdlr, &inf_window_ctrl, NULL);
-	imx500->network_fw_ctrl =
-		v4l2_ctrl_new_custom(ctrl_hdlr, &network_fw_fd, NULL);
 	imx500->device_id =
 		v4l2_ctrl_new_custom(ctrl_hdlr, &cam_get_device_id, NULL);
 
