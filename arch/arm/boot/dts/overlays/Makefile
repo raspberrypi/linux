@@ -247,6 +247,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-fw-uart.dtbo \
 	rpi-poe.dtbo \
 	rpi-poe-plus.dtbo \
+	rpi-power-hat-b.dtbo \
+	rpi-power-hat-t.dtbo \
 	rpi-sense.dtbo \
 	rpi-sense-v2.dtbo \
 	rpi-tv.dtbo \

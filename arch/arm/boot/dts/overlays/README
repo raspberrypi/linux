@@ -4465,6 +4465,18 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
                                 the firmware.
 
 
+Name:   rpi-power-hat-b
+Info:   Raspberry Pi Power HAT Bottom
+Load:   dtoverlay=rpi-power-hat-b
+Params: <None>
+
+
+Name:   rpi-power-hat-t
+Info:   Raspberry Pi Power HAT Top
+Load:   dtoverlay=rpi-power-hat-t
+Params: <None>
+
+
 Name:   rpi-proto
 Info:   This overlay has been renamed to proto-codec.
 Load:   <Deprecated>
