@@ -50,7 +50,7 @@
 #define RP1_PIO_FIFO_RX2	0x18
 #define RP1_PIO_FIFO_RX3	0x1c
 
-#define RP1_PIO_DMACTRL_DEFAULT	0x80000108
+#define RP1_PIO_DMACTRL_DEFAULT	0x80000104
 
 #define HANDLER(_n, _f) \
 	[_IOC_NR(PIO_IOC_ ## _n)] = { #_n, rp1_pio_ ## _f, _IOC_SIZE(PIO_IOC_ ## _n) }
