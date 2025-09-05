@@ -44,6 +44,10 @@ int brcmf_msg_level;
 module_param_named(debug, brcmf_msg_level, int, 0600);
 MODULE_PARM_DESC(debug, "Level of debug output");
 
+bool brcmf_power_save_disable;
+module_param_named(power_save_disable, brcmf_power_save_disable, bool, 0600);
+MODULE_PARM_DESC(power_save, "Disable WiFi power management");
+
 static int brcmf_p2p_enable;
 module_param_named(p2pon, brcmf_p2p_enable, int, 0);
 MODULE_PARM_DESC(p2pon, "Enable legacy p2p management functionality");

@@ -30,6 +30,8 @@ struct brcmf_mp_global_t {
 
 extern struct brcmf_mp_global_t brcmf_mp_global;
 
+extern bool brcmf_power_save_disable;
+
 /**
  * struct brcmf_mp_device - Device module paramaters.
  *
