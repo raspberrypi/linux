@@ -104,6 +104,14 @@
 #define OV9282_REG_STROBE_FRAME_SPAN		CCI_REG32(0x3925)
 #define OV9282_STROBE_FRAME_SPAN_DEFAULT	0x0000001a
 
+/* Trigger mode registers */
+#define OV9282_REG_POWER_CTRL		CCI_REG8(0x4F00)
+#define OV9282_REG_LOW_POWER_MODE_CTRL	CCI_REG8(0x3030)
+#define OV9282_REG_NUM_FRAME_ON_TRIG	CCI_REG8(0x303F)
+#define OV9282_REG_SLEEP_PERIOD_CTRL0	CCI_REG8(0x302C)
+#define OV9282_REG_SLEEP_PERIOD_CTRL3	CCI_REG8(0x302F)
+#define OV9282_REG_TIMING_23		CCI_REG8(0x3823)
+
 /* Input clock rate */
 #define OV9282_INCLK_RATE	24000000
 
@@ -221,6 +229,7 @@ struct ov9282 {
 	bool noncontinuous_clock;
 	const struct ov9282_mode *cur_mode;
 	u32 code;
+	int trigger_mode;
 };
 
 static const s64 link_freq[] = {
@@ -879,6 +888,52 @@ static int ov9282_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+/**
+ * ov9282_apply_trigger_config() - Configure sensor for FSIN external trigger mode
+ * @ov9282: pointer to ov9282 device
+ *
+ * Return: 0 on success, error code otherwise.
+ */
+static int ov9282_apply_trigger_config(struct ov9282 *ov9282)
+{
+	int ret;
+
+	ret = cci_write(ov9282->regmap, OV9282_REG_MODE_SELECT,
+			OV9282_MODE_STANDBY, NULL);
+	if (ret)
+		return ret;
+
+	/* Low power mode */
+	ret = cci_write(ov9282->regmap, OV9282_REG_POWER_CTRL, 0x01, NULL);
+	if (ret)
+		return ret;
+
+	/* External trigger snapshot */
+	ret = cci_write(ov9282->regmap, OV9282_REG_LOW_POWER_MODE_CTRL, 0x04, NULL);
+	if (ret)
+		return ret;
+
+	/* 1 frame per trigger */
+	ret = cci_write(ov9282->regmap, OV9282_REG_NUM_FRAME_ON_TRIG, 0x01, NULL);
+	if (ret)
+		return ret;
+
+	ret = cci_write(ov9282->regmap, OV9282_REG_SLEEP_PERIOD_CTRL0, 0x00, NULL);
+	if (ret)
+		return ret;
+
+	ret = cci_write(ov9282->regmap, OV9282_REG_SLEEP_PERIOD_CTRL3, 0x7F, NULL);
+	if (ret)
+		return ret;
+
+	/* No auto wake */
+	ret = cci_write(ov9282->regmap, OV9282_REG_TIMING_23, 0x00, NULL);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static int ov9282_enable_streams(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *state, u32 pad,
 				 u64 streams_mask)
@@ -933,9 +988,22 @@ static int ov9282_enable_streams(struct v4l2_subdev *sd,
 		goto err_pm_put;
 	}
 
-	/* Start streaming */
-	ret = cci_write(ov9282->regmap, OV9282_REG_MODE_SELECT,
-			OV9282_MODE_STREAMING, NULL);
+	/* Configure FSIN external trigger mode */
+	if (ov9282->trigger_mode > 0) {
+		ret = ov9282_apply_trigger_config(ov9282);
+		if (ret) {
+			dev_err(ov9282->dev, "failed to config external trigger mode");
+			goto err_pm_put;
+		}
+		/* stay in standby mode and wait for trigger signal */
+		ret = cci_write(ov9282->regmap, OV9282_REG_MODE_SELECT,
+				OV9282_MODE_STANDBY, NULL);
+	} else {
+		/* Start streaming */
+		ret = cci_write(ov9282->regmap, OV9282_REG_MODE_SELECT,
+				OV9282_MODE_STREAMING, NULL);
+	}
+
 	if (ret) {
 		dev_err(ov9282->dev, "fail to start streaming");
 		goto err_pm_put;
@@ -1286,6 +1354,7 @@ static int ov9282_probe(struct i2c_client *client)
 {
 	struct ov9282 *ov9282;
 	int ret;
+	u32 trig_mod;
 
 	ov9282 = devm_kzalloc(&client->dev, sizeof(*ov9282), GFP_KERNEL);
 	if (!ov9282)
@@ -1326,6 +1395,10 @@ static int ov9282_probe(struct i2c_client *client)
 	ov9282->cur_mode = &supported_modes[DEFAULT_MODE];
 	ov9282->code = MEDIA_BUS_FMT_Y10_1X10;
 	ov9282->vblank = ov9282->cur_mode->vblank;
+
+	ret = of_property_read_u32(client->dev.of_node,
+			"trigger-mode", &trig_mod);
+	ov9282->trigger_mode = (ret == 0) ? trig_mod : -1;
 
 	ret = ov9282_init_controls(ov9282);
 	if (ret) {
