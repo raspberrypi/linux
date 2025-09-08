@@ -96,6 +96,7 @@
 		       <&reg_frag>, "target:0=",<&cam0_reg>;
 		arducam = <0>, "+6";
 		clk-continuous = <0>, "-7-8";
+		trigger-mode = <&cam_node>, "trigger-mode:0";
 	};
 };
 
