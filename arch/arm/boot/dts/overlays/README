@@ -3737,6 +3737,10 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         clk-continuous          Switch to continuous mode on the CSI clock lane,
                                 which increases the maximum frame rate slightly.
                                 Appears not to work on Pi3.
+        trigger-mode            Enable external trigger mode (0 = normal,
+                                1 = triggered). In this mode, the sensor outputs
+                                a frame only when triggered by a rising edge
+                                on the FSIN input pin.
 
 
 Name:   papirus
