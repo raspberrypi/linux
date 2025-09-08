@@ -14,6 +14,7 @@ cam_node: ov9281@60 {
 
 	rotation = <0>;
 	orientation = <2>;
+	trigger-mode = <0>;
 
 	port {
 		cam_endpoint: endpoint {
