@@ -16,7 +16,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
         include:
@@ -56,17 +56,13 @@ jobs:
             kernel: kernel_2712
 
     steps:
-    - name: Update install
-      run:
+    - name: Install armhf crossbuild toolchain
+      if: matrix.arch == 'arm'
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
         sudo apt-get update
-
-    - name: Install toolchain
-      run:
-        if [[ "${{matrix.arch}}" == "arm64" ]]; then
-          sudo apt-get install gcc-aarch64-linux-gnu;
-        else
-          sudo apt-get install gcc-arm-linux-gnueabihf;
-        fi
+        sudo apt-get install -y gcc-arm-linux-gnueabihf
       timeout-minutes: 15
 
     - uses: actions/checkout@v4
@@ -79,7 +75,6 @@ jobs:
         mkdir ${{github.workspace}}/build
         export ARCH=${{matrix.arch}}
         if [[ "$ARCH" == "arm64" ]]; then
-          export CROSS_COMPILE=aarch64-linux-gnu-
           export DTS_SUBDIR=broadcom
           export IMAGE=Image.gz
         else
