@@ -27,14 +27,14 @@ static int pwm_gpio_get_direction(struct gpio_chip *gc, unsigned int off)
 	return GPIO_LINE_DIRECTION_OUT;
 }
 
-static void pwm_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
+static int pwm_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
 {
 	struct pwm_gpio *pwm_gpio = gpiochip_get_data(gc);
 	struct pwm_state state;
 
 	pwm_get_state(pwm_gpio->pwm[off], &state);
 	state.duty_cycle = val ? state.period : 0;
-	pwm_apply_might_sleep(pwm_gpio->pwm[off], &state);
+	return pwm_apply_might_sleep(pwm_gpio->pwm[off], &state);
 }
 
 static int pwm_gpio_parse_dt(struct pwm_gpio *pwm_gpio,
