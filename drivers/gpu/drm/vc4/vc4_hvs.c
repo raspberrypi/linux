@@ -1845,9 +1845,69 @@ static const struct vc6_csc_coeff_entry csc_coeffs[2][3] = {
 	}
 };
 
+/*
+ * GEN_6D has a 3x3 matrix of signed 3p12 fixed point values, signed 13bit
+ * offset, and high and low clamp values. The offset can be applied before or
+ * after the multiply - for use here for YUV to RGB conversion it is easier to
+ * put it before.
+ */
+struct vc6_d0_csc_coeff_entry {
+	u32 csc[3][4];
+};
+
+static const struct vc6_d0_csc_coeff_entry vc6_d0_csc_coeffs[2][3] = {
+	[DRM_COLOR_YCBCR_LIMITED_RANGE] = {
+		[DRM_COLOR_YCBCR_BT601] = {
+			.csc = {
+				{ 0x1f002543, 0x00003313, 0xfff00000, 0x1 },
+				{ 0x18002543, 0xf377e5fc, 0xfff00000, 0x0 },
+				{ 0x18002543, 0x408d0000, 0xfff00000, 0x0 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT709] = {
+			.csc = {
+				{ 0x1f002543, 0x0000395e, 0xfff00000, 0x1 },
+				{ 0x18002543, 0xf92deef2, 0xfff00000, 0x0 },
+				{ 0x18002543, 0x43990000, 0xfff00000, 0x0 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT2020] = {
+			.csc = {
+				{ 0x1f002543, 0x00003313, 0xfff00000, 0x1 },
+				{ 0x18002543, 0xf377e5fc, 0xfff00000, 0x0 },
+				{ 0x18002543, 0x408d0000, 0xfff00000, 0x0 }
+			}
+		}
+	},
+	[DRM_COLOR_YCBCR_FULL_RANGE] = {
+		[DRM_COLOR_YCBCR_BT601] = {
+			.csc = {
+				{ 0x00002000, 0x00002cdd, 0xfff00000, 0x1 },
+				{ 0x18002000, 0xf4fde926, 0xfff00000, 0x0 },
+				{ 0x18002000, 0x38b40000, 0xfff00000, 0x0 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT709] = {
+			.csc = {
+				{ 0x00002000, 0x00003265, 0xfff00000, 0x1 },
+				{ 0x18002000, 0xfa01f105, 0xfff00000, 0x0 },
+				{ 0x18002000, 0x3b610000, 0xfff00000, 0x0 }
+			}
+		},
+		[DRM_COLOR_YCBCR_BT2020] = {
+			.csc = {
+				{ 0x00002000, 0x00002f30, 0xfff00000, 0x1 },
+				{ 0x18002000, 0xfabcedb7, 0xfff00000, 0x0 },
+				{ 0x18002000, 0x3c340000, 0xfff00000, 0x0 }
+			}
+		}
+	}
+};
+
 static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 {
 	const struct vc6_csc_coeff_entry *coeffs;
+	const struct vc6_d0_csc_coeff_entry *d0_coeffs;
 	unsigned int i;
 
 	HVS_WRITE(SCALER6_CONTROL,
@@ -1885,16 +1945,17 @@ static int vc6_hvs_hw_init(struct vc4_hvs *hvs)
 		}
 	} else {
 		for (i = 0; i < 8; i++) {
-			HVS_WRITE(SCALER_PI_CMP_CSC_RED0(i), 0x1f002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_RED1(i), 0x3994);
-			HVS_WRITE(SCALER_PI_CMP_CSC_RED_CLAMP(i), 0xfff00000);
-			HVS_WRITE(SCALER_PI_CMP_CSC_CFG(i), 0x1);
-			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN0(i), 0x18002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN1(i), 0xf927eee2);
-			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN_CLAMP(i), 0xfff00000);
-			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE0(i), 0x18002566);
-			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE1(i), 0x43d80000);
-			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE_CLAMP(i), 0xfff00000);
+			d0_coeffs = &vc6_d0_csc_coeffs[i / 3][i % 3];
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED0(i), d0_coeffs->csc[0][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED1(i), d0_coeffs->csc[0][1]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_RED_CLAMP(i), d0_coeffs->csc[0][2]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_CFG(i), d0_coeffs->csc[0][3]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN0(i), d0_coeffs->csc[1][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN1(i), d0_coeffs->csc[1][1]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_GREEN_CLAMP(i), d0_coeffs->csc[1][2]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE0(i), d0_coeffs->csc[2][0]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE1(i), d0_coeffs->csc[2][1]);
+			HVS_WRITE(SCALER_PI_CMP_CSC_BLUE_CLAMP(i), d0_coeffs->csc[2][2]);
 		}
 	}
 
