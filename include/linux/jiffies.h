@@ -517,6 +517,10 @@ static inline unsigned long _msecs_to_jiffies(const unsigned int m)
  */
 static __always_inline unsigned long msecs_to_jiffies(const unsigned int m)
 {
+	// 추측:
+	//	`msecs_to_jiffies()` 의 전달된 값이 상수라면
+	//	compile-time 에 상수로 변환될 것 같음.
+	//	제 생각엔 정적 분석(static analyze) 할 것 같아요.
 	if (__builtin_constant_p(m)) {
 		if ((int)m < 0)
 			return MAX_JIFFY_OFFSET;
