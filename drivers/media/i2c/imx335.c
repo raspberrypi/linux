@@ -1455,26 +1455,23 @@ static int imx335_probe(struct i2c_client *client)
 
 	imx335->dev = &client->dev;
 	imx335->cci = devm_cci_regmap_init_i2c(client, 16);
-	if (IS_ERR(imx335->cci)) {
-		dev_err(imx335->dev, "Unable to initialize I2C\n");
-		return -ENODEV;
-	}
+	if (IS_ERR(imx335->cci))
+		return dev_err_probe(imx335->dev, PTR_ERR(imx335->cci),
+				     "Unable to initialize I2C\n");
 
 	/* Initialize subdev */
 	v4l2_i2c_subdev_init(&imx335->sd, client, &imx335_subdev_ops);
 	imx335->sd.internal_ops = &imx335_internal_ops;
 
 	ret = imx335_parse_hw_config(imx335);
-	if (ret) {
-		dev_err(imx335->dev, "HW configuration is not supported\n");
-		return ret;
-	}
+	if (ret)
+		return dev_err_probe(imx335->dev, ret,
+				     "HW configuration is not supported\n");
 
 	ret = imx335_power_on(imx335->dev);
-	if (ret) {
-		dev_err(imx335->dev, "failed to power-on the sensor\n");
-		return ret;
-	}
+	if (ret)
+		return dev_err_probe(imx335->dev, ret,
+				     "failed to power-on the sensor\n");
 
 	/* Check module identity */
 	ret = imx335_detect(imx335);
