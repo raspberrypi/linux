@@ -37,11 +37,21 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 #define IMX708_MODE_STANDBY		0x00
 #define IMX708_MODE_STREAMING		0x01
 
-#define IMX708_EXCLK_FREQ		0x18
-
 #define IMX708_REG_ORIENTATION		CCI_REG8(0x101)
 
+#define IMX708_REG_EXCK_FREQ		CCI_REG16(0x0136)
+  #define IMX708_EXCLK_FREQ		0x1800
 #define IMX708_INCLK_FREQ		24000000
+
+#define IMX708_REG_IVT_PREDIV		CCI_REG8(0x0305)
+  #define IMX708_IVT_PREDIV		0x02
+#define IMX708_REG_IVT_MPY		CCI_REG16(0x0306)
+
+#define IMX708_REG_IOP_SYSCK_DIV	CCI_REG8(0x030b)
+  #define IMX708_IOP_SYSCK_DIV		0x02
+#define IMX708_REG_IOP_PREDIV		CCI_REG8(0x030d)
+  #define IMX708_IOP_PREDIV		0x04
+#define IMX708_REG_IOP_MPY		CCI_REG16(0x030e)
 
 /* Default initial pixel rate, will get updated for each mode. */
 #define IMX708_INITIAL_PIXEL_RATE	590000000
@@ -194,56 +204,14 @@ static const u8 pdaf_gains[2][9] = {
 	{ 0x36, 0x36, 0x36, 0x39, 0x3e, 0x46, 0x4c, 0x4c, 0x4c }
 };
 
-/* Link frequency setup */
-enum {
-	IMX708_LINK_FREQ_450MHZ,
-	IMX708_LINK_FREQ_447MHZ,
-	IMX708_LINK_FREQ_453MHZ,
-};
-
-static const s64 link_freqs[] = {
-	[IMX708_LINK_FREQ_450MHZ] = 450000000,
-	[IMX708_LINK_FREQ_447MHZ] = 447000000,
-	[IMX708_LINK_FREQ_453MHZ] = 453000000,
-};
-
-/* 450MHz is the nominal "default" link frequency */
-static const struct cci_reg_sequence link_450Mhz_regs[] = {
-	{CCI_REG8(0x030E), 0x01},
-	{CCI_REG8(0x030F), 0x2c},
-};
-
-static const struct cci_reg_sequence link_447Mhz_regs[] = {
-	{CCI_REG8(0x030E), 0x01},
-	{CCI_REG8(0x030F), 0x2a},
-};
-
-static const struct cci_reg_sequence link_453Mhz_regs[] = {
-	{CCI_REG8(0x030E), 0x01},
-	{CCI_REG8(0x030F), 0x2e},
-};
-
-static const struct imx708_reg_list link_freq_regs[] = {
-	[IMX708_LINK_FREQ_450MHZ] = {
-		.regs = link_450Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_450Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_447MHZ] = {
-		.regs = link_447Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_447Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_453MHZ] = {
-		.regs = link_453Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
-	},
-};
-
 static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0x0100), 0x00},
-	{CCI_REG8(0x0136), IMX708_EXCLK_FREQ},        //REG_EXCK_FREQ_MSB
-	{CCI_REG8(0x0137), 0x00},                     //REG_EXCK_FREQ_LSB
-	{CCI_REG8(0x33F0), 0x02},                     //REG_IOPSYCK_DIV
-	{CCI_REG8(0x33F1), 0x05},                     //REG_IOPPXCK_DIV
+	{IMX708_REG_EXCK_FREQ, IMX708_EXCLK_FREQ},
+	{CCI_REG8(0x33F0), 0x02},
+	{CCI_REG8(0x33F1), 0x05},
+	{IMX708_REG_IVT_PREDIV, IMX708_IVT_PREDIV},
+	{IMX708_REG_IOP_SYSCK_DIV, IMX708_IOP_SYSCK_DIV},
+	{IMX708_REG_IOP_PREDIV, IMX708_IOP_PREDIV},
 	{CCI_REG8(0x3062), 0x00},
 	{CCI_REG8(0x3063), 0x12},
 	{CCI_REG8(0x3068), 0x00},
@@ -328,11 +296,8 @@ static const struct cci_reg_sequence mode_4608x2592_regs[] = {
 	{CCI_REG8(0x034F), 0x20},
 	{CCI_REG8(0x0301), 0x05},
 	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0305), 0x02},
 	{CCI_REG8(0x0306), 0x00},
 	{CCI_REG8(0x0307), 0x7C},
-	{CCI_REG8(0x030B), 0x02},
-	{CCI_REG8(0x030D), 0x04},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x64},
@@ -414,11 +379,8 @@ static const struct cci_reg_sequence mode_2x2binned_regs[] = {
 	{CCI_REG8(0x034F), 0x10},
 	{CCI_REG8(0x0301), 0x05},
 	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0305), 0x02},
 	{CCI_REG8(0x0306), 0x00},
 	{CCI_REG8(0x0307), 0x7A},
-	{CCI_REG8(0x030B), 0x02},
-	{CCI_REG8(0x030D), 0x04},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x3C},
@@ -500,11 +462,8 @@ static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
 	{CCI_REG8(0x034F), 0x60},
 	{CCI_REG8(0x0301), 0x05},
 	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0305), 0x02},
 	{CCI_REG8(0x0306), 0x00},
 	{CCI_REG8(0x0307), 0x76},
-	{CCI_REG8(0x030B), 0x02},
-	{CCI_REG8(0x030D), 0x04},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x3C},
@@ -586,11 +545,8 @@ static const struct cci_reg_sequence mode_hdr_regs[] = {
 	{CCI_REG8(0x034F), 0x10},
 	{CCI_REG8(0x0301), 0x05},
 	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0305), 0x02},
 	{CCI_REG8(0x0306), 0x00},
 	{CCI_REG8(0x0307), 0xA2},
-	{CCI_REG8(0x030B), 0x02},
-	{CCI_REG8(0x030D), 0x04},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x00},
@@ -832,7 +788,8 @@ struct imx708 {
 	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
 	unsigned int long_exp_shift;
 
-	unsigned int link_freq_idx;
+	u64 link_freq_value;
+	u16 iop_pll_mpy;
 };
 
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
@@ -1367,7 +1324,7 @@ static int imx708_get_selection(struct v4l2_subdev *sd,
 static int imx708_start_streaming(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	const struct imx708_reg_list *reg_list, *freq_regs;
+	const struct imx708_reg_list *reg_list;
 	int i, ret;
 	u64 val;
 
@@ -1413,11 +1370,10 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	}
 
 	/* Update the link frequency registers */
-	freq_regs = &link_freq_regs[imx708->link_freq_idx];
-	ret = cci_multi_reg_write(imx708->regmap, freq_regs->regs,
-				  freq_regs->num_of_regs, NULL);
+	ret = cci_write(imx708->regmap, IMX708_REG_IOP_MPY, imx708->iop_pll_mpy,
+			NULL);
 	if (ret) {
-		dev_err(&client->dev, "%s failed to set link frequency registers\n",
+		dev_err(&client->dev, "%s failed to set link frequency register\n",
 			__func__);
 		return ret;
 	}
@@ -1706,7 +1662,7 @@ static int imx708_init_controls(struct imx708 *imx708)
 
 	ctrl = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx708_ctrl_ops,
 				      V4L2_CID_LINK_FREQ, 0, 0,
-				      &link_freqs[imx708->link_freq_idx]);
+				      &imx708->link_freq_value);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -1807,6 +1763,25 @@ static void imx708_free_controls(struct imx708 *imx708)
 	mutex_destroy(&imx708->mutex);
 }
 
+static int imx708_check_link_freq(u64 link_frequency, u16 *mpy_out)
+{
+	u64 mpy = link_frequency * 2 * IMX708_IOP_SYSCK_DIV * IMX708_IOP_PREDIV;
+	u64 tmp;
+
+	do_div(mpy, IMX708_INCLK_FREQ);
+
+	tmp = mpy * (IMX708_INCLK_FREQ / IMX708_IOP_PREDIV);
+	do_div(tmp, IMX708_IOP_SYSCK_DIV * 2);
+
+	if (tmp != link_frequency)
+		return -EINVAL;
+
+	if (mpy_out)
+		*mpy_out = mpy;
+
+	return 0;
+}
+
 static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 {
 	struct fwnode_handle *endpoint;
@@ -1839,16 +1814,16 @@ static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 		goto error_out;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(link_freqs); i++) {
-		if (link_freqs[i] == ep_cfg.link_frequencies[0]) {
-			imx708->link_freq_idx = i;
+	for (i = 0; i < ep_cfg.nr_of_link_frequencies; i++) {
+		if (!imx708_check_link_freq(ep_cfg.link_frequencies[i],
+					    &imx708->iop_pll_mpy)) {
+			imx708->link_freq_value = ep_cfg.link_frequencies[i];
 			break;
 		}
 	}
 
-	if (i == ARRAY_SIZE(link_freqs)) {
-		dev_err(dev, "Link frequency not supported: %lld\n",
-			ep_cfg.link_frequencies[0]);
+	if (i == ep_cfg.nr_of_link_frequencies) {
+		dev_err(dev, "No link frequencies supported\n");
 			ret = -EINVAL;
 			goto error_out;
 	}
