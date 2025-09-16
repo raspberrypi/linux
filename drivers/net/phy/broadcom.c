@@ -508,6 +508,7 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 	 * these settings will cause LOS to malfunction.
 	 */
 	if (!phy_on_sfp(phydev)) {
+		int led_swap = of_property_read_bool(np, "led-swap") ? 1 : 0;
 		val = BCM54XX_SHD_LEDS1_LED1(BCM_LED_SRC_MULTICOLOR1) |
 			BCM54XX_SHD_LEDS1_LED3(BCM_LED_SRC_MULTICOLOR1);
 		bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDS1, val);
@@ -522,8 +523,8 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDS2, reg);
 
 		val = BCM_LED_MULTICOLOR_IN_PHASE |
-			BCM54XX_SHD_LEDS1_LED1(led_modes[0]) |
-			BCM54XX_SHD_LEDS1_LED3(led_modes[1]);
+			BCM54XX_SHD_LEDS1_LED1(led_modes[0 ^ led_swap]) |
+			BCM54XX_SHD_LEDS1_LED3(led_modes[1 ^ led_swap]);
 		bcm_phy_write_exp(phydev, BCM_EXP_MULTICOLOR, val);
 	}
 
