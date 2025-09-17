@@ -68,6 +68,7 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 
 /* V_TIMING internal */
 #define IMX477_REG_FRAME_LENGTH		0x0340
+#define IMX477_VBLANK_MIN		4
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
 
 /* H_TIMING internal */
@@ -173,11 +174,8 @@ struct imx477_mode {
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
 
-	/* Highest possible framerate. */
-	struct v4l2_fract timeperframe_min;
-
-	/* Default framerate. */
-	struct v4l2_fract timeperframe_default;
+	/* Default frame_length value to use in this mode */
+	unsigned int frm_length_default;
 
 	/* Default register values */
 	struct imx477_reg_list reg_list;
@@ -1013,14 +1011,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 1000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 1000
-		},
+		.frm_length_default = 3500,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4056x3040_regs),
 			.regs = mode_4056x3040_regs,
@@ -1037,14 +1028,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 3040,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 4000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.frm_length_default = 2197,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1520_regs),
 			.regs = mode_2028x1520_regs,
@@ -1061,14 +1045,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.width = 4056,
 			.height = 2160,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 5000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 3000
-		},
+		.frm_length_default = 2197,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1080_regs),
 			.regs = mode_2028x1080_regs,
@@ -1096,14 +1073,7 @@ static const struct imx477_mode supported_modes_10bit[] = {
 			.width = 2664,
 			.height = 1980,
 		},
-		.timeperframe_min = {
-			.numerator = 100,
-			.denominator = 12000
-		},
-		.timeperframe_default = {
-			.numerator = 100,
-			.denominator = 12000
-		},
+		.frm_length_default = 1050,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1332x990_regs),
 			.regs = mode_1332x990_regs,
@@ -1644,42 +1614,24 @@ static int imx477_get_pad_format(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static
-unsigned int imx477_get_frame_length(const struct imx477_mode *mode,
-				     const struct v4l2_fract *timeperframe)
-{
-	u64 frame_length;
-
-	frame_length = (u64)timeperframe->numerator * IMX477_PIXEL_RATE;
-	do_div(frame_length,
-	       (u64)timeperframe->denominator * mode->line_length_pix);
-
-	if (WARN_ON(frame_length > IMX477_FRAME_LENGTH_MAX))
-		frame_length = IMX477_FRAME_LENGTH_MAX;
-
-	return max_t(unsigned int, frame_length, mode->height);
-}
-
 static void imx477_set_framing_limits(struct imx477 *imx477)
 {
-	unsigned int frm_length_min, frm_length_default, hblank_min;
+	unsigned int hblank_min;
 	const struct imx477_mode *mode = imx477->mode;
-
-	frm_length_min = imx477_get_frame_length(mode, &mode->timeperframe_min);
-	frm_length_default =
-		     imx477_get_frame_length(mode, &mode->timeperframe_default);
 
 	/* Default to no long exposure multiplier. */
 	imx477->long_exp_shift = 0;
 
 	/* Update limits and set FPS to default */
-	__v4l2_ctrl_modify_range(imx477->vblank, frm_length_min - mode->height,
+	__v4l2_ctrl_modify_range(imx477->vblank,
+				 IMX477_VBLANK_MIN,
 				 ((1 << IMX477_LONG_EXP_SHIFT_MAX) *
 					IMX477_FRAME_LENGTH_MAX) - mode->height,
-				 1, frm_length_default - mode->height);
+				 1, mode->frm_length_default - mode->height);
 
 	/* Setting this will adjust the exposure limits as well. */
-	__v4l2_ctrl_s_ctrl(imx477->vblank, frm_length_default - mode->height);
+	__v4l2_ctrl_s_ctrl(imx477->vblank,
+			   mode->frm_length_default - mode->height);
 
 	hblank_min = mode->line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx477->hblank, hblank_min,
@@ -2147,7 +2099,8 @@ static int imx477_init_controls(struct imx477 *imx477)
 	 * in the imx477_set_framing_limits() call below.
 	 */
 	imx477->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
-					   V4L2_CID_VBLANK, 0, 0xffff, 1, 0);
+					   V4L2_CID_VBLANK, IMX477_VBLANK_MIN,
+					   0xffff, 1, IMX477_VBLANK_MIN);
 	imx477->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx477_ctrl_ops,
 					   V4L2_CID_HBLANK, 0, 0xffff, 1, 0);
 
