@@ -1006,7 +1006,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 12MPix 10fps mode */
 		.width = 4056,
 		.height = 3040,
-		.line_length_pix = 0x5dc0,
+		.line_length_pix = 24000,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -1030,7 +1030,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 2x2 binned 40fps mode */
 		.width = 2028,
 		.height = 1520,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = 12740,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP,
@@ -1054,7 +1054,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		/* 1080p 50fps cropped mode */
 		.width = 2028,
 		.height = 1080,
-		.line_length_pix = 0x31c4,
+		.line_length_pix = 12740,
 		.crop = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
