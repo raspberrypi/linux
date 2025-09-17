@@ -724,6 +724,29 @@ static void drm_test_cmdline_multiple_options(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, mode.force, DRM_FORCE_UNSPECIFIED);
 }
 
+static void drm_test_cmdline_multiple_options2(struct kunit *test)
+{
+	struct drm_cmdline_mode mode = { };
+	const char *cmdline = "720x480,reflect_x,rotate=270";
+
+	KUNIT_ASSERT_TRUE(test, drm_mode_parse_command_line_for_connector(cmdline,
+									  &no_connector, &mode));
+	KUNIT_EXPECT_TRUE(test, mode.specified);
+	KUNIT_EXPECT_EQ(test, mode.xres, 720);
+	KUNIT_EXPECT_EQ(test, mode.yres, 480);
+	KUNIT_EXPECT_EQ(test, mode.rotation_reflection, (DRM_MODE_ROTATE_270 | DRM_MODE_REFLECT_X));
+
+	KUNIT_EXPECT_FALSE(test, mode.refresh_specified);
+
+	KUNIT_EXPECT_FALSE(test, mode.bpp_specified);
+
+	KUNIT_EXPECT_FALSE(test, mode.rb);
+	KUNIT_EXPECT_FALSE(test, mode.cvt);
+	KUNIT_EXPECT_FALSE(test, mode.interlace);
+	KUNIT_EXPECT_FALSE(test, mode.margins);
+	KUNIT_EXPECT_EQ(test, mode.force, DRM_FORCE_UNSPECIFIED);
+}
+
 static void drm_test_cmdline_bpp_extra_and_option(struct kunit *test)
 {
 	struct drm_cmdline_mode mode = { };
@@ -1057,6 +1080,7 @@ static struct kunit_case drm_cmdline_parser_tests[] = {
 	KUNIT_CASE(drm_test_cmdline_vmirror),
 	KUNIT_CASE(drm_test_cmdline_margin_options),
 	KUNIT_CASE(drm_test_cmdline_multiple_options),
+	KUNIT_CASE(drm_test_cmdline_multiple_options2),
 	KUNIT_CASE(drm_test_cmdline_bpp_extra_and_option),
 	KUNIT_CASE(drm_test_cmdline_extra_and_option),
 	KUNIT_CASE(drm_test_cmdline_freestanding_options),
