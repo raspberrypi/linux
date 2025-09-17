@@ -259,8 +259,6 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 
 /* 10-bit. */
 static const struct cci_reg_sequence mode_4608x2592_regs[] = {
-	{CCI_REG8(0x0342), 0x3D},
-	{CCI_REG8(0x0343), 0x20},
 	{CCI_REG8(0x0344), 0x00},
 	{CCI_REG8(0x0345), 0x00},
 	{CCI_REG8(0x0346), 0x00},
@@ -342,8 +340,6 @@ static const struct cci_reg_sequence mode_4608x2592_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_2x2binned_regs[] = {
-	{CCI_REG8(0x0342), 0x1E},
-	{CCI_REG8(0x0343), 0x90},
 	{CCI_REG8(0x0344), 0x00},
 	{CCI_REG8(0x0345), 0x00},
 	{CCI_REG8(0x0346), 0x00},
@@ -425,8 +421,6 @@ static const struct cci_reg_sequence mode_2x2binned_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
-	{CCI_REG8(0x0342), 0x14},
-	{CCI_REG8(0x0343), 0x60},
 	{CCI_REG8(0x0344), 0x03},
 	{CCI_REG8(0x0345), 0x00},
 	{CCI_REG8(0x0346), 0x01},
@@ -508,8 +502,6 @@ static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_hdr_regs[] = {
-	{CCI_REG8(0x0342), 0x14},
-	{CCI_REG8(0x0343), 0x60},
 	{CCI_REG8(0x0344), 0x00},
 	{CCI_REG8(0x0345), 0x00},
 	{CCI_REG8(0x0346), 0x00},
@@ -598,7 +590,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 0x3d20,
+		.line_length_pix = 15648,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -621,7 +613,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* regular 2x2 binned. */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1e90,
+		.line_length_pix = 7824,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -644,7 +636,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* 2x2 binned and cropped for 720p. */
 		.width = 1536,
 		.height = 864,
-		.line_length_pix = 0x1460,
+		.line_length_pix = 5216,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT + 768,
 			.top = IMX708_PIXEL_ARRAY_TOP + 432,
@@ -670,7 +662,7 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 		/* There's only one HDR mode, which is 2x2 downscaled */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1460,
+		.line_length_pix = 5216,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -1369,6 +1361,14 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		return ret;
 	}
 
+	/* Write line_length_pix */
+	ret = cci_write(imx708->regmap, IMX708_REG_LINE_LENGTH,
+			imx708->mode->line_length_pix, NULL);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set line length\n",
+			__func__);
+		return ret;
+	}
 	/* Update the link frequency registers */
 	ret = cci_write(imx708->regmap, IMX708_REG_IOP_MPY, imx708->iop_pll_mpy,
 			NULL);
