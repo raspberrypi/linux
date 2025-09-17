@@ -574,8 +574,6 @@ static const struct imx477_reg mode_common_regs[] = {
 
 /* 12 mpix 10fps */
 static const struct imx477_reg mode_4056x3040_regs[] = {
-	{0x0342, 0x5d},
-	{0x0343, 0xc0},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -684,8 +682,6 @@ static const struct imx477_reg mode_4056x3040_regs[] = {
 
 /* 2x2 binned. 40fps */
 static const struct imx477_reg mode_2028x1520_regs[] = {
-	{0x0342, 0x31},
-	{0x0343, 0xc4},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x00},
@@ -783,8 +779,6 @@ static const struct imx477_reg mode_2028x1520_regs[] = {
 
 /* 1080p cropped mode */
 static const struct imx477_reg mode_2028x1080_regs[] = {
-	{0x0342, 0x31},
-	{0x0343, 0xc4},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
 	{0x0346, 0x01},
@@ -897,8 +891,6 @@ static const struct imx477_reg mode_1332x990_regs[] = {
 	{0x0112, 0x0a},
 	{0x0113, 0x0a},
 	{0x0114, 0x01},
-	{0x0342, 0x1a},
-	{0x0343, 0x08},
 	{0x0340, 0x04},
 	{0x0341, 0x1a},
 	{0x0344, 0x00},
