@@ -290,6 +290,7 @@ config VIDEO_IMX415
 config VIDEO_IMX477
 	tristate "Sony IMX477 sensor support"
 	depends on I2C && VIDEO_DEV
+	select V4L2_CCI_I2C
 	select VIDEO_V4L2_SUBDEV_API
 	select MEDIA_CONTROLLER
 	select V4L2_FWNODE
