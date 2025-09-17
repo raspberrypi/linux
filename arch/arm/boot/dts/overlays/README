@@ -2426,7 +2426,7 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
                                 BME680, BMP280, BMP380, BMP58x, CCS811, DS1621,
                                 HDC100X, HDC3020, JC42, LM75, MCP980x,
                                 MPU6050, MPU9250, MS5637, MS5803, MS5805,
-                                MS5837, MS8607, SHT3x or TMP102
+                                MS5837, MS8607, SHT3x, TMP102 or VEML6030.
 
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
@@ -2605,6 +2605,8 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
 
         tsl4531                 Select the AMS TSL4531 digital ambient light
                                 sensor
+
+        veml6030                Select the Vishay VEML6030 ambient light sensor
 
         veml6040                Select the Vishay VEML6040 RGBW light sensor
 
