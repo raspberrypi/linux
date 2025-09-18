@@ -1526,7 +1526,7 @@ static void atom_get_vbios_build(struct atom_context *ctx)
 {
 	unsigned char *atom_rom_hdr;
 	unsigned char *str;
-	uint16_t base;
+	uint16_t base, len;
 
 	base = CU16(ATOM_ROM_TABLE_PTR);
 	atom_rom_hdr = CSTR(base);
@@ -1545,8 +1545,9 @@ static void atom_get_vbios_build(struct atom_context *ctx)
 	while (str < atom_rom_hdr && *str++)
 		;
 
-	if ((str + STRLEN_NORMAL) < atom_rom_hdr)
-		strscpy(ctx->build_num, str, STRLEN_NORMAL);
+	len = min(atom_rom_hdr - str, STRLEN_NORMAL);
+	if (len)
+		strscpy(ctx->build_num, str, len);
 }
 
 static inline void atom_print_vbios_info(struct atom_context *ctx)
