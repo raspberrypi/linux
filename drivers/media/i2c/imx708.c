@@ -47,6 +47,10 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
   #define IMX708_EXCLK_FREQ		0x1800
 #define IMX708_INCLK_FREQ		24000000
 
+#define IMX708_REG_IVT_PXCK_DIV		CCI_REG8(0x0301)
+  #define IMX708_IVT_PXCK_DIV		0x05
+#define IMX708_REG_IVT_SYSCK_DIV	CCI_REG8(0x0303)
+  #define IMX708_IVT_SYSCK_DIV		0x02
 #define IMX708_REG_IVT_PREDIV		CCI_REG8(0x0305)
   #define IMX708_IVT_PREDIV		0x02
 #define IMX708_REG_IVT_MPY		CCI_REG16(0x0306)
@@ -295,10 +299,8 @@ static const struct cci_reg_sequence mode_4608x2592_regs[] = {
 	{CCI_REG8(0x034D), 0x00},
 	{CCI_REG8(0x034E), 0x0A},
 	{CCI_REG8(0x034F), 0x20},
-	{CCI_REG8(0x0301), 0x05},
-	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0306), 0x00},
-	{CCI_REG8(0x0307), 0x7C},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x64},
@@ -376,10 +378,8 @@ static const struct cci_reg_sequence mode_2x2binned_regs[] = {
 	{CCI_REG8(0x034D), 0x00},
 	{CCI_REG8(0x034E), 0x05},
 	{CCI_REG8(0x034F), 0x10},
-	{CCI_REG8(0x0301), 0x05},
-	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0306), 0x00},
-	{CCI_REG8(0x0307), 0x7A},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x3C},
@@ -457,10 +457,8 @@ static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
 	{CCI_REG8(0x034D), 0x00},
 	{CCI_REG8(0x034E), 0x03},
 	{CCI_REG8(0x034F), 0x60},
-	{CCI_REG8(0x0301), 0x05},
-	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0306), 0x00},
-	{CCI_REG8(0x0307), 0x76},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x3C},
@@ -538,10 +536,8 @@ static const struct cci_reg_sequence mode_hdr_regs[] = {
 	{CCI_REG8(0x034D), 0x00},
 	{CCI_REG8(0x034E), 0x05},
 	{CCI_REG8(0x034F), 0x10},
-	{CCI_REG8(0x0301), 0x05},
-	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x0306), 0x00},
-	{CCI_REG8(0x0307), 0xA2},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x3CA0), 0x00},
 	{CCI_REG8(0x3CA1), 0x00},
@@ -1317,6 +1313,16 @@ static int imx708_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static void imx708_set_pixel_rate_pll(struct imx708 *imx708, int *ret)
+{
+	u64 mpy = (imx708->mode->pixel_rate * IMX708_IVT_PREDIV *
+		   IMX708_IVT_PXCK_DIV * IMX708_IVT_SYSCK_DIV);
+
+	do_div(mpy, IMX708_INCLK_FREQ * 4);
+
+	cci_write(imx708->regmap, IMX708_REG_IVT_MPY, mpy, ret);
+}
+
 /* Start streaming */
 static int imx708_start_streaming(struct imx708 *imx708)
 {
@@ -1360,6 +1366,8 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	ret = cci_write(imx708->regmap, IMX708_REG_CSI_LANE_MODE,
 			imx708->lanes == 2 ? IMX708_CSI_2_LANE_MODE :
 						IMX708_CSI_4_LANE_MODE, NULL);
+
+	imx708_set_pixel_rate_pll(imx708, &ret);
 
 	/* Apply default values of current mode */
 	reg_list = &imx708->mode->reg_list;
