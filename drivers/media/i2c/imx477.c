@@ -103,6 +103,12 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_DGTL_GAIN_DEFAULT	0x0100
 #define IMX477_DGTL_GAIN_STEP		1
 
+#define IMX477_REG_IOP_SYSCK_DIV	CCI_REG8(0x030b)
+  #define IMX477_IOP_SYSCK_DIV		0x02
+#define IMX477_REG_IOP_PREDIV		CCI_REG8(0x030d)
+  #define IMX477_IOP_PREDIV		0x02
+#define IMX477_REG_IOP_MPY		CCI_REG16(0x030e)
+
 /* Test Pattern Control */
 #define IMX477_REG_TEST_PATTERN		CCI_REG8(0x0600)
 #define IMX477_TEST_PATTERN_DISABLE	0
@@ -175,83 +181,6 @@ struct imx477_mode {
 
 	/* Default register values */
 	struct imx477_reg_list reg_list;
-};
-
-/* Link frequency setup */
-enum {
-	IMX477_LINK_FREQ_450MHZ,
-	IMX477_LINK_FREQ_453MHZ,
-	IMX477_LINK_FREQ_456MHZ,
-	IMX477_LINK_FREQ_459MHZ,
-	IMX477_LINK_FREQ_462MHZ,
-	IMX477_LINK_FREQ_498MHZ,
-};
-
-static const s64 link_freqs[] = {
-	[IMX477_LINK_FREQ_450MHZ] = 450000000,
-	[IMX477_LINK_FREQ_453MHZ] = 453000000,
-	[IMX477_LINK_FREQ_456MHZ] = 456000000,
-	[IMX477_LINK_FREQ_459MHZ] = 459000000,
-	[IMX477_LINK_FREQ_462MHZ] = 462000000,
-	[IMX477_LINK_FREQ_498MHZ] = 498000000,
-};
-
-/* 450MHz is the nominal "default" link frequency */
-static const struct cci_reg_sequence link_450Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0x96},
-};
-
-static const struct cci_reg_sequence link_453Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0x97},
-};
-
-static const struct cci_reg_sequence link_456Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0x98},
-};
-
-static const struct cci_reg_sequence link_459Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0x99},
-};
-
-static const struct cci_reg_sequence link_462Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0x9a},
-};
-
-static const struct cci_reg_sequence link_498Mhz_regs[] = {
-	{CCI_REG8(0x030e), 0x00},
-	{CCI_REG8(0x030f), 0xa6},
-};
-
-static const struct imx477_reg_list link_freq_regs[] = {
-	[IMX477_LINK_FREQ_450MHZ] = {
-		.regs = link_450Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_450Mhz_regs)
-	},
-	[IMX477_LINK_FREQ_453MHZ] = {
-		.regs = link_453Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
-	},
-	[IMX477_LINK_FREQ_456MHZ] = {
-		.regs = link_456Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_456Mhz_regs)
-	},
-	[IMX477_LINK_FREQ_459MHZ] = {
-		.regs = link_459Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_459Mhz_regs)
-	},
-	[IMX477_LINK_FREQ_462MHZ] = {
-		.regs = link_462Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_462Mhz_regs)
-	},
-	[IMX477_LINK_FREQ_498MHZ] = {
-		.regs = link_498Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_498Mhz_regs)
-	},
 };
 
 static const struct cci_reg_sequence mode_common_regs[] = {
@@ -581,8 +510,8 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0x9e9f), 0x00},
 	{CCI_REG8(0x0301), 0x05},
 	{CCI_REG8(0x0303), 0x02},
-	{CCI_REG8(0x030b), 0x02},
-	{CCI_REG8(0x030d), 0x02},
+	{IMX477_REG_IOP_SYSCK_DIV, IMX477_IOP_SYSCK_DIV},
+	{IMX477_REG_IOP_PREDIV, IMX477_IOP_PREDIV},
 	{CCI_REG8(0x0310), 0x01},
 	{CCI_REG8(0x0820), 0x07},
 	{CCI_REG8(0x0821), 0x08},
@@ -1125,7 +1054,8 @@ struct imx477 {
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 
-	unsigned int link_freq_idx;
+	u64 link_freq_value;
+	u16 iop_pll_mpy;
 
 	/* Current mode */
 	const struct imx477_mode *mode;
@@ -1630,7 +1560,7 @@ static int imx477_get_selection(struct v4l2_subdev *sd,
 static int imx477_start_streaming(struct imx477 *imx477)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
-	const struct imx477_reg_list *reg_list, *freq_regs;
+	const struct imx477_reg_list *reg_list;
 	const struct imx477_reg_list *extra_regs;
 	unsigned int fst_width;
 	unsigned int fst_mult;
@@ -1644,10 +1574,9 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		cci_multi_reg_write(imx477->regmap, extra_regs->regs,
 				    extra_regs->num_of_regs, &ret);
 
-		/* Update the link frequency registers */
-		freq_regs = &link_freq_regs[imx477->link_freq_idx];
-		cci_multi_reg_write(imx477->regmap, freq_regs->regs,
-				    freq_regs->num_of_regs, &ret);
+		/* Update the link frequency PLL multiplier register */
+		cci_write(imx477->regmap, IMX477_REG_IOP_MPY,
+			  imx477->iop_pll_mpy, &ret);
 
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
@@ -1962,7 +1891,7 @@ static int imx477_init_controls(struct imx477 *imx477)
 	imx477->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx477_ctrl_ops,
 				       V4L2_CID_LINK_FREQ, 0, 0,
-				       &link_freqs[imx477->link_freq_idx]);
+				       &imx477->link_freq_value);
 	if (imx477->link_freq)
 		imx477->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -2061,6 +1990,25 @@ static void imx477_free_controls(struct imx477 *imx477)
 	mutex_destroy(&imx477->mutex);
 }
 
+static int imx477_check_link_freq(u64 link_frequency, u16 *mpy_out)
+{
+	u64 mpy = link_frequency * 2 * IMX477_IOP_SYSCK_DIV * IMX477_IOP_PREDIV;
+	u64 tmp;
+
+	do_div(mpy, IMX477_XCLK_FREQ);
+
+	tmp = mpy * (IMX477_XCLK_FREQ / IMX477_IOP_PREDIV);
+	do_div(tmp, IMX477_IOP_SYSCK_DIV * 2);
+
+	if (tmp != link_frequency)
+		return -EINVAL;
+
+	if (mpy_out)
+		*mpy_out = mpy;
+
+	return 0;
+}
+
 static int imx477_check_hwcfg(struct device *dev, struct imx477 *imx477)
 {
 	struct fwnode_handle *endpoint;
@@ -2093,16 +2041,16 @@ static int imx477_check_hwcfg(struct device *dev, struct imx477 *imx477)
 		goto error_out;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(link_freqs); i++) {
-		if (link_freqs[i] == ep_cfg.link_frequencies[0]) {
-			imx477->link_freq_idx = i;
+	for (i = 0; i < ep_cfg.nr_of_link_frequencies; i++) {
+		if (!imx477_check_link_freq(ep_cfg.link_frequencies[i],
+					    &imx477->iop_pll_mpy)) {
+			imx477->link_freq_value = ep_cfg.link_frequencies[i];
 			break;
 		}
 	}
 
-	if (i == ARRAY_SIZE(link_freqs)) {
-		dev_err(dev, "Link frequency not supported: %lld\n",
-			ep_cfg.link_frequencies[0]);
+	if (i == ep_cfg.nr_of_link_frequencies) {
+		dev_err(dev, "No supported link frequency configured\n");
 			ret = -EINVAL;
 			goto error_out;
 	}
