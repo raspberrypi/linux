@@ -264,28 +264,63 @@ struct imx283_readout_mode {
 	u8 mdsel4;
 };
 
-static const struct imx283_readout_mode imx283_readout_modes[] = {
+struct imx283_scanout {
+	u8 bpp;
+	struct imx283_readout_mode readout;
+};
+
+static const struct imx283_scanout imx283_scan_modes[] = {
 	/* All pixel scan modes */
-	[IMX283_MODE_0] = { 0x04, 0x03, 0x10, 0x00 }, /* 12 bit */
-	[IMX283_MODE_1] = { 0x04, 0x01, 0x00, 0x00 }, /* 10 bit */
-	[IMX283_MODE_1A] = { 0x04, 0x01, 0x20, 0x50 }, /* 10 bit */
-	[IMX283_MODE_1S] = { 0x04, 0x41, 0x20, 0x50 }, /* 10 bit */
+	[IMX283_MODE_0] = {
+		.bpp = 12,
+		.readout = { 0x04, 0x03, 0x10, 0x00 },
+	},
+	[IMX283_MODE_1] = {
+		.bpp = 10,
+		.readout = { 0x04, 0x01, 0x00, 0x00 },
+	},
+	[IMX283_MODE_1A] = {
+		.bpp = 10,
+		.readout = { 0x04, 0x01, 0x20, 0x50 },
+	},
+	[IMX283_MODE_1S] = {
+		.bpp = 10,
+		.readout = { 0x04, 0x41, 0x20, 0x50 },
+	},
 
 	/* Horizontal / Vertical 2/2-line binning */
-	[IMX283_MODE_2] = { 0x0d, 0x11, 0x50, 0x00 }, /* 12 bit */
-	[IMX283_MODE_2A] = { 0x0d, 0x11, 0x70, 0x50 }, /* 12 bit */
+	[IMX283_MODE_2] = {
+		.bpp = 12,
+		.readout = { 0x0d, 0x11, 0x50, 0x00 },
+	},
+	[IMX283_MODE_2A] = {
+		.bpp = 12,
+		.readout = { 0x0d, 0x11, 0x70, 0x50 },
+	},
 
 	/* Horizontal / Vertical 3/3-line binning */
-	[IMX283_MODE_3] = { 0x1e, 0x18, 0x10, 0x00 }, /* 12 bit */
+	[IMX283_MODE_3] = {
+		.bpp = 12,
+		.readout = { 0x1e, 0x18, 0x10, 0x00 },
+	},
 
 	/* Vertical 2/9 subsampling, horizontal 3 binning cropping */
-	[IMX283_MODE_4] = { 0x29, 0x18, 0x30, 0x50 }, /* 12 bit */
+	[IMX283_MODE_4] = {
+		.bpp = 12,
+		.readout = { 0x29, 0x18, 0x30, 0x50 },
+	},
 
 	/* Vertical 2/19 subsampling binning, horizontal 3 binning */
-	[IMX283_MODE_5] = { 0x2d, 0x18, 0x10, 0x00 }, /* 12 bit */
+	[IMX283_MODE_5] = {
+		.bpp = 12,
+		.readout = { 0x2d, 0x18, 0x10, 0x00 },
+	},
 
 	/* Vertical 2 binning horizontal 2/4, subsampling 16:9 cropping */
-	[IMX283_MODE_6] = { 0x18, 0x21, 0x00, 0x09 }, /* 10 bit */
+	[IMX283_MODE_6] = {
+		.bpp = 10,
+		.readout = { 0x18, 0x21, 0x00, 0x09 },
+	},
 
 	/*
 	 * New modes should make sure the offset period is complied.
@@ -293,12 +328,14 @@ static const struct imx283_readout_mode imx283_readout_modes[] = {
 	 */
 };
 
+static bool scan_mode(const struct imx283_scanout *scan, enum imx283_modes mode)
+{
+	return scan == &imx283_scan_modes[mode];
+}
+
 /* Mode : resolution and related config values */
 struct imx283_mode {
-	unsigned int mode;
-
-	/* Bits per pixel */
-	unsigned int bpp;
+	const struct imx283_scanout *scan;
 
 	/* Frame width */
 	unsigned int width;
@@ -410,8 +447,8 @@ static const struct imx283_reg_list link_freq_reglist[] = {
 static const struct imx283_mode supported_modes_12bit[] = {
 	{
 		/* 20MPix 21.40 fps readout mode 0 */
-		.mode = IMX283_MODE_0,
-		.bpp = 12,
+		.scan = &imx283_scan_modes[IMX283_MODE_0],
+
 		.width = 5472,
 		.height = 3648,
 		.min_hmax = 5914, /* 887 @ 480MHz/72MHz */
@@ -442,8 +479,7 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		/*
 		 * Readout mode 2 : 2/2 binned mode (2736x1824)
 		 */
-		.mode = IMX283_MODE_2,
-		.bpp = 12,
+		.scan = &imx283_scan_modes[IMX283_MODE_2],
 		.width = 2736,
 		.height = 1824,
 		.min_hmax = 2414, /* Pixels (362 * 480MHz/72MHz + padding) */
@@ -475,8 +511,7 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		/*
 		 * Readout mode 3 : 3/3 binned mode (1824x1216)
 		 */
-		.mode = IMX283_MODE_3,
-		.bpp = 12,
+		.scan = &imx283_scan_modes[IMX283_MODE_3],
 		.width = 1824,
 		.height = 1216,
 		.min_hmax = 1894, /* Pixels (284 * 480MHz/72MHz + padding) */
@@ -509,8 +544,7 @@ static const struct imx283_mode supported_modes_12bit[] = {
 static const struct imx283_mode supported_modes_10bit[] = {
 	{
 		/* 20MPix 25.48 fps readout mode 1 */
-		.mode = IMX283_MODE_1,
-		.bpp = 10,
+		.scan = &imx283_scan_modes[IMX283_MODE_1],
 		.width = 5472,
 		.height = 3648,
 		.min_hmax = 5960, /* 745 @ 576MHz / 72MHz */
@@ -616,7 +650,7 @@ static u64 imx283_pixel_rate(struct imx283 *imx283,
 			     const struct imx283_mode *mode)
 {
 	u64 link_frequency = link_frequencies[__ffs(imx283->link_freq_bitmap)];
-	unsigned int bpp = mode->bpp;
+	unsigned int bpp = mode->scan->bpp;
 	const unsigned int ddr = 2; /* Double Data Rate */
 	const unsigned int lanes = 4; /* Only 4 lane support */
 	u64 numerator = link_frequency * ddr * lanes;
@@ -673,7 +707,7 @@ static u32 imx283_exposure(struct imx283 *imx283,
 	u64 numerator;
 
 	/* Number of clocks per internal offset period */
-	offset = mode->mode == IMX283_MODE_0 ? 209 : 157;
+	offset = scan_mode(mode->scan, IMX283_MODE_0) ? 209 : 157;
 	numerator = (imx283->vmax * (svr + 1) - shr) * imx283->hmax + offset;
 
 	do_div(numerator, imx283->hmax);
@@ -708,7 +742,7 @@ static u32 imx283_shr(struct imx283 *imx283, const struct imx283_mode *mode,
 	u64 temp;
 
 	/* Number of clocks per internal offset period */
-	offset = mode->mode == IMX283_MODE_0 ? 209 : 157;
+	offset = scan_mode(mode->scan, IMX283_MODE_0) ? 209 : 157;
 	temp = ((u64)exposure * imx283->hmax - offset);
 	do_div(temp, imx283->hmax);
 
@@ -1073,7 +1107,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	 * Set the readout mode registers.
 	 * MDSEL3 and MDSEL4 are updated to enable Arbitrary Vertical Cropping.
 	 */
-	readout = &imx283_readout_modes[mode->mode];
+	readout = &mode->scan->readout;
 	cci_write(imx283->cci, IMX283_REG_MDSEL1, readout->mdsel1, &ret);
 	cci_write(imx283->cci, IMX283_REG_MDSEL2, readout->mdsel2, &ret);
 	cci_write(imx283->cci, IMX283_REG_MDSEL3,
@@ -1082,7 +1116,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		  readout->mdsel4 | IMX283_MDSEL4_VCROP_EN, &ret);
 
 	/* Mode 1S specific entries from the Readout Drive Mode Tables */
-	if (mode->mode == IMX283_MODE_1S) {
+	if (scan_mode(mode->scan, IMX283_MODE_1S)) {
 		cci_write(imx283->cci, IMX283_REG_MDSEL7, 0x01, &ret);
 		cci_write(imx283->cci, IMX283_REG_MDSEL18, 0x1098, &ret);
 	}
