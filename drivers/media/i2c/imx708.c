@@ -39,6 +39,10 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 
 #define IMX708_REG_ORIENTATION		CCI_REG8(0x101)
 
+#define IMX708_REG_CSI_LANE_MODE	CCI_REG8(0x0114)
+#define IMX708_CSI_2_LANE_MODE		0x01
+#define IMX708_CSI_4_LANE_MODE		0x03
+
 #define IMX708_REG_EXCK_FREQ		CCI_REG16(0x0136)
   #define IMX708_EXCLK_FREQ		0x1800
 #define IMX708_INCLK_FREQ		24000000
@@ -236,7 +240,6 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0xF03F), 0x10},
 	{CCI_REG8(0x0112), 0x0A},
 	{CCI_REG8(0x0113), 0x0A},
-	{CCI_REG8(0x0114), 0x01},
 	{CCI_REG8(0x0B8E), 0x01},
 	{CCI_REG8(0x0B8F), 0x00},
 	{CCI_REG8(0x0B94), 0x01},
@@ -782,6 +785,8 @@ struct imx708 {
 
 	u64 link_freq_value;
 	u16 iop_pll_mpy;
+
+	unsigned int lanes;
 };
 
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
@@ -1352,6 +1357,10 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		imx708->common_regs_written = true;
 	}
 
+	ret = cci_write(imx708->regmap, IMX708_REG_CSI_LANE_MODE,
+			imx708->lanes == 2 ? IMX708_CSI_2_LANE_MODE :
+						IMX708_CSI_4_LANE_MODE, NULL);
+
 	/* Apply default values of current mode */
 	reg_list = &imx708->mode->reg_list;
 	ret = cci_multi_reg_write(imx708->regmap, reg_list->regs,
@@ -1803,10 +1812,13 @@ static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 	}
 
 	/* Check the number of MIPI CSI2 data lanes */
-	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2) {
-		dev_err(dev, "only 2 data lanes are currently supported\n");
+	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2 &&
+	    ep_cfg.bus.mipi_csi2.num_data_lanes != 4) {
+		dev_err_probe(dev, -EINVAL,
+			      "only 2 or 4 data lanes are currently supported\n");
 		goto error_out;
 	}
+	imx708->lanes = ep_cfg.bus.mipi_csi2.num_data_lanes;
 
 	/* Check the link frequency set in device tree */
 	if (!ep_cfg.nr_of_link_frequencies) {
