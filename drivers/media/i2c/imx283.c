@@ -195,65 +195,6 @@ struct imx283_reg_list {
 	const struct cci_reg_sequence *regs;
 };
 
-/* Mode : resolution and related config values */
-struct imx283_mode {
-	unsigned int mode;
-
-	/* Bits per pixel */
-	unsigned int bpp;
-
-	/* Frame width */
-	unsigned int width;
-
-	/* Frame height */
-	unsigned int height;
-
-	/*
-	 * Minimum horizontal timing in pixel-units
-	 *
-	 * Note that HMAX is written in 72MHz units, and the datasheet assumes a
-	 * 720MHz link frequency. Convert datasheet values with the following:
-	 *
-	 * For 12 bpp modes (480Mbps) convert with:
-	 *   hmax = [hmax in 72MHz units] * 480 / 72
-	 *
-	 * For 10 bpp modes (576Mbps) convert with:
-	 *   hmax = [hmax in 72MHz units] * 576 / 72
-	 */
-	u32 min_hmax;
-
-	/* minimum V-timing in lines */
-	u32 min_vmax;
-
-	/* default H-timing */
-	u32 default_hmax;
-
-	/* default V-timing */
-	u32 default_vmax;
-
-	/* minimum SHR */
-	u32 min_shr;
-
-	/*
-	 * Per-mode vertical crop constants used to calculate values
-	 * of IMX283REG_WIDCUT and IMX283_REG_VWINPOS.
-	 */
-	u32 veff;
-	u32 vst;
-	u32 vct;
-
-	/* Horizontal and vertical binning ratio */
-	u8 hbin_ratio;
-	u8 vbin_ratio;
-
-	/* Optical Blanking */
-	u32 horizontal_ob;
-	u32 vertical_ob;
-
-	/* Analog crop rectangle. */
-	struct v4l2_rect crop;
-};
-
 struct imx283_input_frequency {
 	unsigned int mhz;
 	unsigned int reg_count;
@@ -350,6 +291,65 @@ static const struct imx283_readout_mode imx283_readout_modes[] = {
 	 * New modes should make sure the offset period is complied.
 	 * See imx283_exposure() for reference.
 	 */
+};
+
+/* Mode : resolution and related config values */
+struct imx283_mode {
+	unsigned int mode;
+
+	/* Bits per pixel */
+	unsigned int bpp;
+
+	/* Frame width */
+	unsigned int width;
+
+	/* Frame height */
+	unsigned int height;
+
+	/*
+	 * Minimum horizontal timing in pixel-units
+	 *
+	 * Note that HMAX is written in 72MHz units, and the datasheet assumes a
+	 * 720MHz link frequency. Convert datasheet values with the following:
+	 *
+	 * For 12 bpp modes (480Mbps) convert with:
+	 *   hmax = [hmax in 72MHz units] * 480 / 72
+	 *
+	 * For 10 bpp modes (576Mbps) convert with:
+	 *   hmax = [hmax in 72MHz units] * 576 / 72
+	 */
+	u32 min_hmax;
+
+	/* minimum V-timing in lines */
+	u32 min_vmax;
+
+	/* default H-timing */
+	u32 default_hmax;
+
+	/* default V-timing */
+	u32 default_vmax;
+
+	/* minimum SHR */
+	u32 min_shr;
+
+	/*
+	 * Per-mode vertical crop constants used to calculate values
+	 * of IMX283REG_WIDCUT and IMX283_REG_VWINPOS.
+	 */
+	u32 veff;
+	u32 vst;
+	u32 vct;
+
+	/* Horizontal and vertical binning ratio */
+	u8 hbin_ratio;
+	u8 vbin_ratio;
+
+	/* Optical Blanking */
+	u32 horizontal_ob;
+	u32 vertical_ob;
+
+	/* Analog crop rectangle. */
+	struct v4l2_rect crop;
 };
 
 static const struct cci_reg_sequence mipi_data_rate_1440Mbps[] = {
