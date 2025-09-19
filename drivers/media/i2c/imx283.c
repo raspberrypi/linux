@@ -382,7 +382,6 @@ struct imx283_mode {
 	u8 vbin_ratio;
 
 	/* Optical Blanking */
-	u32 horizontal_ob;
 	u32 vertical_ob;
 
 	/* Analog crop rectangle. */
@@ -466,7 +465,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_vmax = 4000,
 
 		.min_shr = 11,
-		.horizontal_ob = 96,
 		.vertical_ob = 16,
 		.crop = {
 			.top = 40,
@@ -497,7 +495,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.vbin_ratio = 2,
 
 		.min_shr = 12,
-		.horizontal_ob = 48,
 		.vertical_ob = 4,
 
 		.crop = {
@@ -529,7 +526,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.vbin_ratio = 3,
 
 		.min_shr = 16,
-		.horizontal_ob = 32,
 		.vertical_ob = 4,
 
 		.crop = {
@@ -555,7 +551,6 @@ static const struct imx283_mode supported_modes_10bit[] = {
 		.default_vmax = 3840,
 
 		.min_shr = 10,
-		.horizontal_ob = 96,
 		.vertical_ob = 16,
 		.crop = {
 			.top = 40,
