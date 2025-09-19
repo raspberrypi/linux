@@ -267,6 +267,9 @@ struct imx283_readout_mode {
 struct imx283_scanout {
 	u8 bpp;
 	struct imx283_readout_mode readout;
+
+	/* Optical Blanking */
+	u8 vertical_ob;
 };
 
 static const struct imx283_scanout imx283_scan_modes[] = {
@@ -274,52 +277,62 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 	[IMX283_MODE_0] = {
 		.bpp = 12,
 		.readout = { 0x04, 0x03, 0x10, 0x00 },
+		.vertical_ob = 16,
 	},
 	[IMX283_MODE_1] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x00, 0x00 },
+		.vertical_ob = 16,
 	},
 	[IMX283_MODE_1A] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x20, 0x50 },
+		.vertical_ob = 16,
 	},
 	[IMX283_MODE_1S] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x41, 0x20, 0x50 },
+		.vertical_ob = 16,
 	},
 
 	/* Horizontal / Vertical 2/2-line binning */
 	[IMX283_MODE_2] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x50, 0x00 },
+		.vertical_ob = 4,
 	},
 	[IMX283_MODE_2A] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x70, 0x50 },
+		.vertical_ob = 4,
 	},
 
 	/* Horizontal / Vertical 3/3-line binning */
 	[IMX283_MODE_3] = {
 		.bpp = 12,
 		.readout = { 0x1e, 0x18, 0x10, 0x00 },
+		.vertical_ob = 4,
 	},
 
 	/* Vertical 2/9 subsampling, horizontal 3 binning cropping */
 	[IMX283_MODE_4] = {
 		.bpp = 12,
 		.readout = { 0x29, 0x18, 0x30, 0x50 },
+		.vertical_ob = 4,
 	},
 
 	/* Vertical 2/19 subsampling binning, horizontal 3 binning */
 	[IMX283_MODE_5] = {
 		.bpp = 12,
 		.readout = { 0x2d, 0x18, 0x10, 0x00 },
+		.vertical_ob = 4,
 	},
 
 	/* Vertical 2 binning horizontal 2/4, subsampling 16:9 cropping */
 	[IMX283_MODE_6] = {
 		.bpp = 10,
 		.readout = { 0x18, 0x21, 0x00, 0x09 },
+		.vertical_ob = 4,
 	},
 
 	/*
@@ -380,9 +393,6 @@ struct imx283_mode {
 	/* Horizontal and vertical binning ratio */
 	u8 hbin_ratio;
 	u8 vbin_ratio;
-
-	/* Optical Blanking */
-	u32 vertical_ob;
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -465,7 +475,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_vmax = 4000,
 
 		.min_shr = 11,
-		.vertical_ob = 16,
 		.crop = {
 			.top = 40,
 			.left = 108,
@@ -495,7 +504,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.vbin_ratio = 2,
 
 		.min_shr = 12,
-		.vertical_ob = 4,
 
 		.crop = {
 			.top = 40,
@@ -526,7 +534,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.vbin_ratio = 3,
 
 		.min_shr = 16,
-		.vertical_ob = 4,
 
 		.crop = {
 			.top = 40,
@@ -551,7 +558,6 @@ static const struct imx283_mode supported_modes_10bit[] = {
 		.default_vmax = 3840,
 
 		.min_shr = 10,
-		.vertical_ob = 16,
 		.crop = {
 			.top = 40,
 			.left = 108,
@@ -1132,7 +1138,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		mode->crop.height);
 
 	y_out_size = mode->crop.height / mode->vbin_ratio;
-	write_v_size = y_out_size + mode->vertical_ob;
+	write_v_size = y_out_size + mode->scan->vertical_ob;
 	/*
 	 * cropping start position = (VWINPOS – Vst) × 2
 	 * cropping width = Veff – (VWIDCUT – Vct) × 2
@@ -1147,7 +1153,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	cci_write(imx283->cci, IMX283_REG_VWIDCUT, v_widcut, &ret);
 	cci_write(imx283->cci, IMX283_REG_VWINPOS, v_pos, &ret);
 
-	cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->vertical_ob, &ret);
+	cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->scan->vertical_ob, &ret);
 
 	/* TODO: Validate mode->crop is fully contained within imx283_native_area */
 	cci_write(imx283->cci, IMX283_REG_HTRIMMING_START, mode->crop.left, &ret);
