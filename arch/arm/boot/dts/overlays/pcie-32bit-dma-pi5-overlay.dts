@@ -19,21 +19,8 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			dma-ranges = <0x02000000 0x0 0x00000000 0x0 0x00000000
-				      0x0 0x80000000>,
-				     <0x02000000 0x00 0xfffff000 0x10 0x00131000
-				      0x00 0x00001000>;
+				      0x0 0x80000000>;
 		};
 	};
 
-	fragment@1 {
-		target = <&mip1>;
-		__overlay__ {
-			/*
-			 * The MIP driver uses the reg property to derive the target
-			 * address for MSI writes - place this below 4GB.
-			 */
-			reg = <0x10 0x00131000 0x00 0xc0>,
-			      <0x00 0xfffff000 0x00 0x1000>;
-		};
-	};
 };
