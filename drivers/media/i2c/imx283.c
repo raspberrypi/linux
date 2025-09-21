@@ -270,6 +270,11 @@ struct imx283_scanout {
 
 	/* Optical Blanking */
 	u8 vertical_ob;
+
+	/* Vertical Arbitrary Cropping Function */
+	u16 vst;
+	u16 vct;
+	u16 veff;
 };
 
 static const struct imx283_scanout imx283_scan_modes[] = {
@@ -278,21 +283,33 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x04, 0x03, 0x10, 0x00 },
 		.vertical_ob = 16,
+		.vst = 0,
+		.vct = 0,
+		.veff = 3694,
 	},
 	[IMX283_MODE_1] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x00, 0x00 },
 		.vertical_ob = 16,
+		.vst = 0,
+		.vct = 0,
+		.veff = 3694,
 	},
 	[IMX283_MODE_1A] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x20, 0x50 },
 		.vertical_ob = 16,
+		.vst = 146,
+		.vct = 291,
+		.veff = 3112,
 	},
 	[IMX283_MODE_1S] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x41, 0x20, 0x50 },
 		.vertical_ob = 16,
+		.vst = 162,
+		.vct = 324,
+		.veff = 3046,
 	},
 
 	/* Horizontal / Vertical 2/2-line binning */
@@ -300,11 +317,17 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x50, 0x00 },
 		.vertical_ob = 4,
+		.vst = 0,
+		.vct = 0,
+		.veff = 1824,
 	},
 	[IMX283_MODE_2A] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x70, 0x50 },
 		.vertical_ob = 4,
+		.vst = 71,
+		.vct = 143,
+		.veff = 1556,
 	},
 
 	/* Horizontal / Vertical 3/3-line binning */
@@ -312,6 +335,9 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x1e, 0x18, 0x10, 0x00 },
 		.vertical_ob = 4,
+		.vst = 0,
+		.vct = 0,
+		.veff = 1234,
 	},
 
 	/* Vertical 2/9 subsampling, horizontal 3 binning cropping */
@@ -319,6 +345,9 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x29, 0x18, 0x30, 0x50 },
 		.vertical_ob = 4,
+		.vst = 9,
+		.vct = 17,
+		.veff = 378,
 	},
 
 	/* Vertical 2/19 subsampling binning, horizontal 3 binning */
@@ -326,6 +355,9 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x2d, 0x18, 0x10, 0x00 },
 		.vertical_ob = 4,
+		.vst = 0,
+		.vct = 0,
+		.veff = 198,
 	},
 
 	/* Vertical 2 binning horizontal 2/4, subsampling 16:9 cropping */
@@ -333,6 +365,9 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x18, 0x21, 0x00, 0x09 },
 		.vertical_ob = 4,
+		.vst = 0,
+		.vct = 0,
+		.veff = 1556,
 	},
 
 	/*
@@ -381,14 +416,6 @@ struct imx283_mode {
 
 	/* minimum SHR */
 	u32 min_shr;
-
-	/*
-	 * Per-mode vertical crop constants used to calculate values
-	 * of IMX283REG_WIDCUT and IMX283_REG_VWINPOS.
-	 */
-	u32 veff;
-	u32 vst;
-	u32 vct;
 
 	/* Horizontal and vertical binning ratio */
 	u8 hbin_ratio;
@@ -463,10 +490,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.min_hmax = 5914, /* 887 @ 480MHz/72MHz */
 		.min_vmax = 3793, /* Lines */
 
-		.veff = 3694,
-		.vst = 0,
-		.vct = 0,
-
 		.hbin_ratio = 1,
 		.vbin_ratio = 1,
 
@@ -496,10 +519,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_hmax = 2500, /* 375 @ 480MHz/72Mhz */
 		.default_vmax = 3840,
 
-		.veff = 1824,
-		.vst = 0,
-		.vct = 0,
-
 		.hbin_ratio = 2,
 		.vbin_ratio = 2,
 
@@ -525,10 +544,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		/* 60.00 fps */
 		.default_hmax = 1900, /* 285 @ 480MHz/72Mhz */
 		.default_vmax = 4200,
-
-		.veff = 1234,
-		.vst = 0,
-		.vct = 0,
 
 		.hbin_ratio = 3,
 		.vbin_ratio = 3,
@@ -1144,9 +1159,9 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	 * cropping width = Veff – (VWIDCUT – Vct) × 2
 	 */
 	v_pos = imx283->vflip->val ?
-		((-mode->crop.top / mode->vbin_ratio) / 2) + mode->vst :
-		((mode->crop.top / mode->vbin_ratio) / 2)  + mode->vst;
-	v_widcut = ((mode->veff - y_out_size) / 2) + mode->vct;
+		((-mode->crop.top / mode->vbin_ratio) / 2) + mode->scan->vst :
+		((mode->crop.top / mode->vbin_ratio) / 2)  + mode->scan->vst;
+	v_widcut = ((mode->scan->veff - y_out_size) / 2) + mode->scan->vct;
 
 	cci_write(imx283->cci, IMX283_REG_Y_OUT_SIZE, y_out_size, &ret);
 	cci_write(imx283->cci, IMX283_REG_WRITE_VSIZE, write_v_size, &ret);
