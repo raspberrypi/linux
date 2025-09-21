@@ -1160,10 +1160,19 @@ static int imx283_start_streaming(struct imx283 *imx283,
 
 	cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->scan->vertical_ob, &ret);
 
-	/* TODO: Validate mode->crop is fully contained within imx283_native_area */
-	cci_write(imx283->cci, IMX283_REG_HTRIMMING_START, mode->crop.left, &ret);
-	cci_write(imx283->cci, IMX283_REG_HTRIMMING_END,
-		  mode->crop.left + mode->crop.width, &ret);
+	/* Horizontal Configuration */
+	{
+		/*
+		 * While Vertical OB is excluded from the sensor positions,
+		 * the Horizontal OB is included within the whole HTRIMMING
+		 * calculation.
+		 */
+		u32 left = mode->crop.left;
+		u32 right = left + mode->crop.width;
+
+		cci_write(imx283->cci, IMX283_REG_HTRIMMING_START, left, &ret);
+		cci_write(imx283->cci, IMX283_REG_HTRIMMING_END, right, &ret);
+	}
 
 	/* Disable embedded data */
 	cci_write(imx283->cci, IMX283_REG_EBD_X_OUT_SIZE, 0, &ret);
