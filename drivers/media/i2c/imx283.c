@@ -175,7 +175,7 @@
 #define IMX283_XCLR_MIN_DELAY_US	(1 * USEC_PER_MSEC)
 #define IMX283_XCLR_DELAY_RANGE_US	(1 * USEC_PER_MSEC)
 
-/* IMX283 native and active pixel array size. */
+/* IMX283 crop regions and positions */
 static const struct v4l2_rect imx283_native_area = {
 	.top = 0,
 	.left = 0,
@@ -184,8 +184,16 @@ static const struct v4l2_rect imx283_native_area = {
 };
 
 static const struct v4l2_rect imx283_active_area = {
-	.top = 40,
-	.left = 108,
+	.top = 16,
+	.left = 96,
+	.width = 5496,
+	.height = 3694,
+};
+
+/* Datasheet recommended recording pixels */
+static const struct v4l2_rect imx283_recommended_area = {
+	.top = 16 + 12 + 12, /* Clamp, Ignored area, Color margin */
+	.left = 96 + 12, /* Horizontal black, Color margin */
 	.width = 5472,
 	.height = 3648,
 };
@@ -498,12 +506,8 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_vmax = 4000,
 
 		.min_shr = 11,
-		.crop = {
-			.top = 40,
-			.left = 108,
-			.width = 5472,
-			.height = 3648,
-		},
+
+		.crop = imx283_recommended_area,
 	},
 	{
 		/*
@@ -524,12 +528,7 @@ static const struct imx283_mode supported_modes_12bit[] = {
 
 		.min_shr = 12,
 
-		.crop = {
-			.top = 40,
-			.left = 108,
-			.width = 5472,
-			.height = 3648,
-		},
+		.crop = imx283_recommended_area,
 	},
 	{
 		/*
@@ -550,12 +549,7 @@ static const struct imx283_mode supported_modes_12bit[] = {
 
 		.min_shr = 16,
 
-		.crop = {
-			.top = 40,
-			.left = 108,
-			.width = 5472,
-			.height = 3648,
-		},
+		.crop = imx283_recommended_area,
 	},
 };
 
@@ -573,12 +567,8 @@ static const struct imx283_mode supported_modes_10bit[] = {
 		.default_vmax = 3840,
 
 		.min_shr = 10,
-		.crop = {
-			.top = 40,
-			.left = 108,
-			.width = 5472,
-			.height = 3648,
-		},
+
+		.crop = imx283_recommended_area,
 	},
 };
 
