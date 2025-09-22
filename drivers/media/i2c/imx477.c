@@ -130,6 +130,10 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_TEST_PATTERN_B_DEFAULT	0
 #define IMX477_TEST_PATTERN_GB_DEFAULT	0
 
+#define IMX477_REG_DPHY_CTRL		CCI_REG8(0x0808)
+  #define IMX477_DPHY_CTRL_AUTO		0
+  #define IMX477_DPHY_CTRL_UI		1
+  #define IMX477_DPHY_CTRL_REGISTER	2
 #define IMX477_REG_REQ_LINK_BIT_RATE	CCI_REG32(0x0820)
 
 /* Trigger mode */
@@ -188,7 +192,7 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0x0138), 0x01},
 	{CCI_REG8(0xe000), 0x00},
 	{CCI_REG8(0xe07a), 0x01},
-	{CCI_REG8(0x0808), 0x02},
+	{IMX477_REG_DPHY_CTRL, IMX477_DPHY_CTRL_REGISTER},
 	{CCI_REG8(0x4ae9), 0x18},
 	{CCI_REG8(0x4aea), 0x08},
 	{CCI_REG8(0xf61c), 0x04},
@@ -1602,6 +1606,13 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		cci_write(imx477->regmap, IMX477_REG_REQ_LINK_BIT_RATE,
 			  (((unsigned long)imx477->link_freq_value / 1000000) * 2 * 2) << 16,
 			  &ret);
+		/*
+		 * DPHY timings are those specified for 450MHz. Switch to auto
+		 * if using some other link frequency
+		 */
+		if (imx477->link_freq_value != 450000000UL)
+			cci_write(imx477->regmap, IMX477_REG_DPHY_CTRL,
+				  IMX477_DPHY_CTRL_AUTO, &ret);
 
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
