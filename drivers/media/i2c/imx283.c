@@ -1154,7 +1154,12 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		 */
 		s16 top = mode->crop.top - 16;
 		u16 veff = mode->scan->veff;
-		u16 cut = veff - min(veff, y_out_size);
+
+		/*
+		 * Lots of empirical testing shows that we need to cut one less
+		 * line than expected or we get corruption in the last line.
+		 */
+		u16 cut = veff - min(veff, y_out_size + 1);
 
 		u32 v_widcut;
 		s32 v_pos;
