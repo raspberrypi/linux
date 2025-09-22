@@ -1145,7 +1145,11 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	{
 		u32 y_out_size = mode->crop.height / mode->scan->vbin_ratio;
 		u32 write_v_size = y_out_size + mode->scan->vertical_ob;
+
 		s16 top = mode->crop.top;
+		u16 veff = mode->scan->veff;
+		u16 cut = veff - min(veff, y_out_size);
+
 		u32 v_widcut;
 		s32 v_pos;
 
@@ -1157,7 +1161,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		 * cropping width = Veff – (VWIDCUT – Vct) × 2
 		 */
 		v_pos = (top / mode->scan->vbin_ratio / 2) + mode->scan->vst;
-		v_widcut = ((mode->scan->veff - y_out_size) / 2) + mode->scan->vct;
+		v_widcut = (cut / 2) + mode->scan->vct;
 
 		cci_write(imx283->cci, IMX283_REG_Y_OUT_SIZE, y_out_size, &ret);
 		cci_write(imx283->cci, IMX283_REG_WRITE_VSIZE, write_v_size, &ret);
