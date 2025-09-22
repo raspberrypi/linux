@@ -1092,10 +1092,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	const struct v4l2_mbus_framefmt *fmt;
 	const struct imx283_mode *mode_list;
 	unsigned int num_modes;
-	u32 v_widcut;
-	s32 v_pos;
-	u32 write_v_size;
-	u32 y_out_size;
+
 	int ret = 0;
 
 	fmt = v4l2_subdev_state_get_format(state, 0);
@@ -1142,23 +1139,29 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		mode->crop.width,
 		mode->crop.height);
 
-	y_out_size = mode->crop.height / mode->vbin_ratio;
-	write_v_size = y_out_size + mode->scan->vertical_ob;
-	/*
-	 * cropping start position = (VWINPOS – Vst) × 2
-	 * cropping width = Veff – (VWIDCUT – Vct) × 2
-	 */
-	v_pos = imx283->vflip->val ?
-		((-mode->crop.top / mode->vbin_ratio) / 2) + mode->scan->vst :
-		((mode->crop.top / mode->vbin_ratio) / 2)  + mode->scan->vst;
-	v_widcut = ((mode->scan->veff - y_out_size) / 2) + mode->scan->vct;
+	/* Vertical Configuration */
+	{
+		u32 y_out_size = mode->crop.height / mode->vbin_ratio;
+		u32 write_v_size = y_out_size + mode->scan->vertical_ob;
+		u32 v_widcut;
+		s32 v_pos;
 
-	cci_write(imx283->cci, IMX283_REG_Y_OUT_SIZE, y_out_size, &ret);
-	cci_write(imx283->cci, IMX283_REG_WRITE_VSIZE, write_v_size, &ret);
-	cci_write(imx283->cci, IMX283_REG_VWIDCUT, v_widcut, &ret);
-	cci_write(imx283->cci, IMX283_REG_VWINPOS, v_pos, &ret);
+		/*
+		 * cropping start position = (VWINPOS – Vst) × 2
+		 * cropping width = Veff – (VWIDCUT – Vct) × 2
+		 */
+		v_pos = imx283->vflip->val ?
+			((-mode->crop.top / mode->vbin_ratio) / 2) + mode->scan->vst :
+			((mode->crop.top / mode->vbin_ratio) / 2)  + mode->scan->vst;
+		v_widcut = ((mode->scan->veff - y_out_size) / 2) + mode->scan->vct;
 
-	cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->scan->vertical_ob, &ret);
+		cci_write(imx283->cci, IMX283_REG_Y_OUT_SIZE, y_out_size, &ret);
+		cci_write(imx283->cci, IMX283_REG_WRITE_VSIZE, write_v_size, &ret);
+		cci_write(imx283->cci, IMX283_REG_VWIDCUT, v_widcut, &ret);
+		cci_write(imx283->cci, IMX283_REG_VWINPOS, v_pos, &ret);
+
+		cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->scan->vertical_ob, &ret);
+	}
 
 	/* Horizontal Configuration */
 	{
