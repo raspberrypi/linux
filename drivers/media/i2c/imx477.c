@@ -130,6 +130,8 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_TEST_PATTERN_B_DEFAULT	0
 #define IMX477_TEST_PATTERN_GB_DEFAULT	0
 
+#define IMX477_REG_REQ_LINK_BIT_RATE	CCI_REG32(0x0820)
+
 /* Trigger mode */
 #define IMX477_REG_MC_MODE		CCI_REG8(0x3f0b)
 #define IMX477_REG_MS_SEL		CCI_REG8(0x3041)
@@ -510,10 +512,6 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{IMX477_REG_IOP_SYSCK_DIV, IMX477_IOP_SYSCK_DIV},
 	{IMX477_REG_IOP_PREDIV, IMX477_IOP_PREDIV},
 	{CCI_REG8(0x0310), 0x01},
-	{CCI_REG8(0x0820), 0x07},
-	{CCI_REG8(0x0821), 0x08},
-	{CCI_REG8(0x0822), 0x00},
-	{CCI_REG8(0x0823), 0x00},
 	{CCI_REG8(0x080a), 0x00},
 	{CCI_REG8(0x080b), 0x7f},
 	{CCI_REG8(0x080c), 0x00},
@@ -1596,6 +1594,14 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		/* Update the link frequency PLL multiplier register */
 		cci_write(imx477->regmap, IMX477_REG_IOP_MPY,
 			  imx477->iop_pll_mpy, &ret);
+
+		/*
+		 * Bit rate = link freq * 2 for DDR * 2 for num lanes.
+		 * 16p16 fixed point in the register. Ignore fractional part.
+		 */
+		cci_write(imx477->regmap, IMX477_REG_REQ_LINK_BIT_RATE,
+			  (((unsigned long)imx477->link_freq_value / 1000000) * 2 * 2) << 16,
+			  &ret);
 
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
