@@ -48,5 +48,7 @@ config VCHIQ_CDEV
 endif
 
 source "drivers/platform/raspberrypi/vchiq-mmal/Kconfig"
+source "drivers/platform/raspberrypi/vc-sm-cma/Kconfig"
+
 
 endif
