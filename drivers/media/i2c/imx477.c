@@ -60,6 +60,9 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 
 #define IMX477_REG_ORIENTATION		CCI_REG8(0x101)
 
+#define IMX477_REG_CSI_DT_FMT_H		CCI_REG8(0x0112)
+#define IMX477_REG_CSI_DT_FMT_L		CCI_REG8(0x0113)
+
 #define IMX477_XCLK_FREQ		24000000
 
 #define IMX477_DEFAULT_LINK_FREQ	450000000
@@ -103,6 +106,7 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_DGTL_GAIN_DEFAULT	0x0100
 #define IMX477_DGTL_GAIN_STEP		1
 
+#define IMX477_REG_IOP_PXCK_DIV		CCI_REG8(0x0309)
 #define IMX477_REG_IOP_SYSCK_DIV	CCI_REG8(0x030b)
   #define IMX477_IOP_SYSCK_DIV		0x02
 #define IMX477_REG_IOP_PREDIV		CCI_REG8(0x030d)
@@ -142,6 +146,7 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_REG_XVS_IO_CTRL		CCI_REG8(0x3040)
 #define IMX477_REG_EXTOUT_EN		CCI_REG8(0x4b81)
 
+#define IMX477_REG_ADBIT_MODE		CCI_REG8(0x3f0d)
 /* Temperature sensor */
 #define IMX477_REG_TEMP_SEN_CTL		CCI_REG8(0x0138)
 
@@ -490,8 +495,6 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0xb21f), 0x04},
 	{CCI_REG8(0xb35c), 0x00},
 	{CCI_REG8(0xb35e), 0x08},
-	{CCI_REG8(0x0112), 0x0c},
-	{CCI_REG8(0x0113), 0x0c},
 	{CCI_REG8(0x0114), 0x01},
 	{CCI_REG8(0x0350), 0x00},
 	{CCI_REG8(0xbcf1), 0x02},
@@ -557,7 +560,6 @@ static const struct cci_reg_sequence mode_4056x3040_regs[] = {
 	{CCI_REG8(0x0901), 0x11},
 	{CCI_REG8(0x3c01), 0x03},
 	{CCI_REG8(0x3c02), 0xa2},
-	{CCI_REG8(0x3f0d), 0x01},
 	{CCI_REG8(0x5748), 0x07},
 	{CCI_REG8(0x5749), 0xff},
 	{CCI_REG8(0x574a), 0x00},
@@ -593,7 +595,6 @@ static const struct cci_reg_sequence mode_4056x3040_regs[] = {
 	{CCI_REG8(0x0305), 0x04},
 	{CCI_REG8(0x0306), 0x01},
 	{CCI_REG8(0x0307), 0x5e},
-	{CCI_REG8(0x0309), 0x0c},
 	{CCI_REG8(0xe04c), 0x00},
 	{CCI_REG8(0xe04d), 0x7f},
 	{CCI_REG8(0xe04e), 0x00},
@@ -622,7 +623,6 @@ static const struct cci_reg_sequence mode_4056x2160_regs[] = {
 	{CCI_REG8(0x0901), 0x11},
 	{CCI_REG8(0x3c01), 0x03},
 	{CCI_REG8(0x3c02), 0xa2},
-	{CCI_REG8(0x3f0d), 0x01},
 	{CCI_REG8(0x5748), 0x07},
 	{CCI_REG8(0x5749), 0xff},
 	{CCI_REG8(0x574a), 0x00},
@@ -680,7 +680,6 @@ static const struct cci_reg_sequence mode_2028x1520_regs[] = {
 	{CCI_REG8(0x0901), 0x22},
 	{CCI_REG8(0x3c01), 0x03},
 	{CCI_REG8(0x3c02), 0xa2},
-	{CCI_REG8(0x3f0d), 0x01},
 	{CCI_REG8(0x5748), 0x07},
 	{CCI_REG8(0x5749), 0xff},
 	{CCI_REG8(0x574a), 0x00},
@@ -711,7 +710,6 @@ static const struct cci_reg_sequence mode_2028x1520_regs[] = {
 	{CCI_REG8(0x0305), 0x04},
 	{CCI_REG8(0x0306), 0x01},
 	{CCI_REG8(0x0307), 0x5e},
-	{CCI_REG8(0x0309), 0x0c},
 	{CCI_REG8(0xe04c), 0x00},
 	{CCI_REG8(0xe04d), 0x7f},
 	{CCI_REG8(0xe04e), 0x00},
@@ -734,7 +732,6 @@ static const struct cci_reg_sequence mode_2028x1080_regs[] = {
 	{CCI_REG8(0x0901), 0x22},
 	{CCI_REG8(0x3c01), 0x03},
 	{CCI_REG8(0x3c02), 0xa2},
-	{CCI_REG8(0x3f0d), 0x01},
 	{CCI_REG8(0x5748), 0x07},
 	{CCI_REG8(0x5749), 0xff},
 	{CCI_REG8(0x574a), 0x00},
@@ -765,7 +762,6 @@ static const struct cci_reg_sequence mode_2028x1080_regs[] = {
 	{CCI_REG8(0x0305), 0x04},
 	{CCI_REG8(0x0306), 0x01},
 	{CCI_REG8(0x0307), 0x5e},
-	{CCI_REG8(0x0309), 0x0c},
 	{CCI_REG8(0xe04c), 0x00},
 	{CCI_REG8(0xe04d), 0x7f},
 	{CCI_REG8(0xe04e), 0x00},
@@ -788,8 +784,6 @@ static const struct cci_reg_sequence mode_1332x990_regs[] = {
 	{CCI_REG8(0x9a4b), 0x06},
 	{CCI_REG8(0x9a4c), 0x06},
 	{CCI_REG8(0x9a4d), 0x06},
-	{CCI_REG8(0x0112), 0x0a},
-	{CCI_REG8(0x0113), 0x0a},
 	{CCI_REG8(0x0114), 0x01},
 	{CCI_REG8(0x0340), 0x04},
 	{CCI_REG8(0x0341), 0x1a},
@@ -821,7 +815,6 @@ static const struct cci_reg_sequence mode_1332x990_regs[] = {
 	{CCI_REG8(0x3c00), 0x00},
 	{CCI_REG8(0x3c01), 0x01},
 	{CCI_REG8(0x3c02), 0x9c},
-	{CCI_REG8(0x3f0d), 0x00},
 	{CCI_REG8(0x5748), 0x00},
 	{CCI_REG8(0x5749), 0x00},
 	{CCI_REG8(0x574a), 0x00},
@@ -857,7 +850,6 @@ static const struct cci_reg_sequence mode_1332x990_regs[] = {
 	{CCI_REG8(0x0305), 0x02},
 	{CCI_REG8(0x0306), 0x00},
 	{CCI_REG8(0x0307), 0xaf},
-	{CCI_REG8(0x0309), 0x0a},
 	{CCI_REG8(0xe04c), 0x00},
 	{CCI_REG8(0xe04d), 0x5f},
 	{CCI_REG8(0xe04e), 0x00},
@@ -867,7 +859,7 @@ static const struct cci_reg_sequence mode_1332x990_regs[] = {
 };
 
 /* Mode configs */
-static const struct imx477_mode supported_modes_12bit[] = {
+static const struct imx477_mode supported_modes[] = {
 	{
 		/* 12MPix 10fps mode */
 		.width = 4056,
@@ -931,10 +923,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_2028x1080_regs),
 			.regs = mode_2028x1080_regs,
 		},
-	}
-};
-
-static const struct imx477_mode supported_modes_10bit[] = {
+	},
 	{
 		/* 120fps. 2x2 binned and cropped */
 		.width = 1332,
@@ -1081,33 +1070,6 @@ static inline struct imx477 *to_imx477(struct v4l2_subdev *_sd)
 	return container_of(_sd, struct imx477, sd);
 }
 
-static inline void get_mode_table(unsigned int code,
-				  const struct imx477_mode **mode_list,
-				  unsigned int *num_modes)
-{
-	switch (code) {
-	/* 12-bit */
-	case MEDIA_BUS_FMT_SRGGB12_1X12:
-	case MEDIA_BUS_FMT_SGRBG12_1X12:
-	case MEDIA_BUS_FMT_SGBRG12_1X12:
-	case MEDIA_BUS_FMT_SBGGR12_1X12:
-		*mode_list = supported_modes_12bit;
-		*num_modes = ARRAY_SIZE(supported_modes_12bit);
-		break;
-	/* 10-bit */
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-	case MEDIA_BUS_FMT_SGRBG10_1X10:
-	case MEDIA_BUS_FMT_SGBRG10_1X10:
-	case MEDIA_BUS_FMT_SBGGR10_1X10:
-		*mode_list = supported_modes_10bit;
-		*num_modes = ARRAY_SIZE(supported_modes_10bit);
-		break;
-	default:
-		*mode_list = NULL;
-		*num_modes = 0;
-	}
-}
-
 /* Get bayer order based on flip setting. */
 static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 {
@@ -1131,7 +1093,7 @@ static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 static void imx477_set_default_format(struct imx477 *imx477)
 {
 	/* Set default mode to max resolution */
-	imx477->mode = &supported_modes_12bit[0];
+	imx477->mode = &supported_modes[0];
 	imx477->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 }
 
@@ -1165,8 +1127,8 @@ static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	mutex_lock(&imx477->mutex);
 
 	/* Initialize try_fmt for the image pad */
-	try_fmt_img->width = supported_modes_12bit[0].width;
-	try_fmt_img->height = supported_modes_12bit[0].height;
+	try_fmt_img->width = supported_modes[0].width;
+	try_fmt_img->height = supported_modes[0].height;
 	try_fmt_img->code = imx477_get_format_code(imx477,
 						   MEDIA_BUS_FMT_SRGGB12_1X12);
 	try_fmt_img->field = V4L2_FIELD_NONE;
@@ -1342,12 +1304,7 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
-		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
+		if (fse->index >= ARRAY_SIZE(supported_modes))
 			return -EINVAL;
 
 		mutex_lock(&imx477->mutex);
@@ -1357,9 +1314,9 @@ static int imx477_enum_frame_size(struct v4l2_subdev *sd,
 		if (fse->code != code)
 			return -EINVAL;
 
-		fse->min_width = mode_list[fse->index].width;
+		fse->min_width = supported_modes[fse->index].width;
 		fse->max_width = fse->min_width;
-		fse->min_height = mode_list[fse->index].height;
+		fse->min_height = supported_modes[fse->index].height;
 		fse->max_height = fse->min_height;
 	} else {
 		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
@@ -1465,6 +1422,16 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	/* Allow 500pixel clocks for HS<>LP transitions (approx 0.6usecs) */
 	line_length_min += 500;
 
+	/*
+	 * 1332x990 12bit mode appears to need additional horizontal blanking
+	 * compared to all other modes. Empirically determined setting with
+	 * link freq of 750MHz where it still gives valid images. The limit
+	 * leaves all other modes unchanged as their line times are inherently
+	 * greater.
+	 */
+	if (bpp == 12)
+		line_length_min = max(line_length_min, 1332 + 4600);
+
 	hblank_min = line_length_min - mode->width;
 	__v4l2_ctrl_modify_range(imx477->hblank, hblank_min,
 				 IMX477_LINE_LENGTH_MAX, 1, hblank_min);
@@ -1485,17 +1452,12 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 	mutex_lock(&imx477->mutex);
 
 	if (fmt->pad == IMAGE_PAD) {
-		const struct imx477_mode *mode_list;
-		unsigned int num_modes;
-
 		/* Bayer order varies with flips */
 		fmt->format.code = imx477_get_format_code(imx477,
 							  fmt->format.code);
 
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
-
-		mode = v4l2_find_nearest_size(mode_list,
-					      num_modes,
+		mode = v4l2_find_nearest_size(supported_modes,
+					      ARRAY_SIZE(supported_modes),
 					      width, height,
 					      fmt->format.width,
 					      fmt->format.height);
@@ -1504,7 +1466,8 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 			framefmt = v4l2_subdev_state_get_format(sd_state,
 							      fmt->pad);
 			*framefmt = fmt->format;
-		} else if (imx477->mode != mode) {
+		} else if (imx477->mode != mode ||
+			   imx477->fmt_code != fmt->format.code) {
 			imx477->mode = mode;
 			imx477->fmt_code = fmt->format.code;
 			imx477_set_framing_limits(imx477);
@@ -1585,7 +1548,7 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	const struct imx477_reg_list *extra_regs;
 	unsigned int fst_width;
 	unsigned int fst_mult;
-	int ret, tm;
+	int ret, tm, bpp;
 
 	if (!imx477->common_regs_written) {
 		ret = cci_multi_reg_write(imx477->regmap, mode_common_regs,
@@ -1652,6 +1615,13 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	cci_write(imx477->regmap, CCI_REG8(0x0c16), 0, &ret);
 	// FLASH_TRIG_RS
 	cci_write(imx477->regmap, CCI_REG8(0x0c1B), !!fstrobe_enable, &ret);
+
+	bpp = imx477_get_bpp(imx477->fmt_code);
+	cci_write(imx477->regmap, IMX477_REG_CSI_DT_FMT_H, bpp, &ret);
+	cci_write(imx477->regmap, IMX477_REG_CSI_DT_FMT_L, bpp, &ret);
+	cci_write(imx477->regmap, IMX477_REG_IOP_PXCK_DIV, bpp, &ret);
+	cci_write(imx477->regmap, IMX477_REG_ADBIT_MODE, bpp == 12 ? 1 : 0,
+		  &ret);
 
 	/* Set on-sensor DPC. */
 	cci_write(imx477->regmap, CCI_REG8(0x0b05), !!dpc_enable, &ret);
