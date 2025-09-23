@@ -13,3 +13,4 @@ vchiq-objs += vchiq-interface/vchiq_dev.o
 endif
 
 obj-$(CONFIG_BCM2835_VCHIQ_MMAL)	+= vchiq-mmal/
+obj-$(CONFIG_BCM_VC_SM_CMA)		+= vc-sm-cma/
