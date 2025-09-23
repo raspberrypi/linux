@@ -5489,6 +5489,13 @@ L:	netdev@vger.kernel.org
 S:	Maintained
 F:	drivers/net/ethernet/broadcom/tg3.*
 
+BROADCOM VIDEOCORE SHARED MEMORY DRIVER
+M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+F:	drivers/platform/raspberrypi/vc-sm-cma/*
+F:	include/linux/raspberrypi/vc_sm_cma*
+
 BROADCOM VK DRIVER
 M:	Scott Branden <scott.branden@broadcom.com>
 R:	Broadcom internal kernel review list <bcm-kernel-feedback-list@broadcom.com>
