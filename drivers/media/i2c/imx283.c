@@ -1144,14 +1144,30 @@ static int imx283_start_streaming(struct imx283 *imx283,
 	/* Vertical Configuration */
 	{
 		u32 y_out_size = mode->crop.height / mode->scan->vbin_ratio;
-		u32 write_v_size = y_out_size + mode->scan->vertical_ob;
 
-		s16 top = mode->crop.top;
+		/*
+		 * The CLAMP region contains the Vertical Optical Black (VOB)
+		 * lines, which are not included in the effective image height
+		 * and 0 of the VWIDPOS corresponds to the first line after.
+		 *
+		 * This puts any request to view VOB as negative positions.
+		 */
+		s16 top = mode->crop.top - 16;
 		u16 veff = mode->scan->veff;
 		u16 cut = veff - min(veff, y_out_size);
 
 		u32 v_widcut;
 		s32 v_pos;
+
+		/*
+		 * Reduce the v_ob when the requested crop position is below
+		 * zero to output the VOB on image data.
+		 */
+		u8 v_ob = mode->scan->vertical_ob + min_t(s16, 0, top);
+		u32 write_v_size = y_out_size + v_ob;
+
+		/* Clamp our top position now that VOB is handled */
+		top = max_t(s16, 0, top);
 
 		if (imx283->vflip->val)
 			top = -top;
@@ -1168,7 +1184,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		cci_write(imx283->cci, IMX283_REG_VWIDCUT, v_widcut, &ret);
 		cci_write(imx283->cci, IMX283_REG_VWINPOS, v_pos, &ret);
 
-		cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, mode->scan->vertical_ob, &ret);
+		cci_write(imx283->cci, IMX283_REG_OB_SIZE_V, v_ob, &ret);
 	}
 
 	/* Horizontal Configuration */
