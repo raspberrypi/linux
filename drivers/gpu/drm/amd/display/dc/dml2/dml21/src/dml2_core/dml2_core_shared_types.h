@@ -263,8 +263,11 @@ struct dml2_core_internal_mode_support_info {
 	bool DCCMetaBufferSizeNotExceeded;
 	enum dml2_pstate_change_support DRAMClockChangeSupport[DML2_MAX_PLANES];
 	enum dml2_pstate_change_support FCLKChangeSupport[DML2_MAX_PLANES];
+	enum dml2_pstate_change_support temp_read_or_ppt_support[DML2_MAX_PLANES];
+	bool global_dram_clock_change_support_required;
 	bool global_dram_clock_change_supported;
 	bool global_fclk_change_supported;
+	bool global_temp_read_or_ppt_supported;
 	bool USRRetrainingSupport;
 	bool AvgBandwidthSupport;
 	bool UrgVactiveBandwidthSupport;
@@ -335,7 +338,6 @@ struct dml2_core_internal_mode_support_info {
 	bool incorrect_imall_usage;
 
 	bool g6_temp_read_support;
-	bool temp_read_or_ppt_support;
 
 	struct dml2_core_internal_watermarks watermarks;
 	bool dcfclk_support;
@@ -643,7 +645,7 @@ struct dml2_core_internal_mode_support {
 	unsigned int DSTYAfterScaler[DML2_MAX_PLANES];
 	unsigned int DSTXAfterScaler[DML2_MAX_PLANES];
 
-	enum dml2_pstate_method pstate_switch_modes[DML2_MAX_PLANES];
+	enum dml2_pstate_method uclk_pstate_switch_modes[DML2_MAX_PLANES];
 };
 
 /// @brief A mega structure that houses various info for model programming step.
@@ -834,6 +836,7 @@ struct dml2_core_internal_mode_program {
 	double max_urgent_latency_us;
 	double df_response_time_us;
 
+	enum dml2_pstate_method uclk_pstate_switch_modes[DML2_MAX_PLANES];
 	// -------------------
 	// Output
 	// -------------------
@@ -960,11 +963,12 @@ struct dml2_core_internal_mode_program {
 	double MaxActiveFCLKChangeLatencySupported;
 	bool USRRetrainingSupport;
 	bool g6_temp_read_support;
-	bool temp_read_or_ppt_support;
 	enum dml2_pstate_change_support FCLKChangeSupport[DML2_MAX_PLANES];
 	enum dml2_pstate_change_support DRAMClockChangeSupport[DML2_MAX_PLANES];
+	enum dml2_pstate_change_support temp_read_or_ppt_support[DML2_MAX_PLANES];
 	bool global_dram_clock_change_supported;
 	bool global_fclk_change_supported;
+	bool global_temp_read_or_ppt_supported;
 	double MaxActiveDRAMClockChangeLatencySupported[DML2_MAX_PLANES];
 	double WritebackAllowFCLKChangeEndPosition[DML2_MAX_PLANES];
 	double WritebackAllowDRAMClockChangeEndPosition[DML2_MAX_PLANES];
@@ -1310,7 +1314,7 @@ struct dml2_core_calcs_CalculateVMRowAndSwath_params {
 	unsigned int HostVMMinPageSize;
 	unsigned int DCCMetaBufferSizeBytes;
 	bool mrq_present;
-	enum dml2_pstate_method *pstate_switch_modes;
+	enum dml2_pstate_method *uclk_pstate_switch_modes;
 
 	// Output
 	bool *PTEBufferSizeNotExceeded;
@@ -1737,10 +1741,12 @@ struct dml2_core_calcs_CalculateWatermarksMALLUseAndDRAMSpeedChangeSupport_param
 	unsigned int max_request_size_bytes;
 	unsigned int *meta_row_height_l;
 	unsigned int *meta_row_height_c;
+	enum dml2_pstate_method *uclk_pstate_switch_modes;
 
 	// Output
 	struct dml2_core_internal_watermarks *Watermark;
 	enum dml2_pstate_change_support *DRAMClockChangeSupport;
+	bool *global_dram_clock_change_support_required;
 	bool *global_dram_clock_change_supported;
 	double *MaxActiveDRAMClockChangeLatencySupported;
 	unsigned int *SubViewportLinesNeededInMALL;
@@ -1751,9 +1757,9 @@ struct dml2_core_calcs_CalculateWatermarksMALLUseAndDRAMSpeedChangeSupport_param
 	double *VActiveLatencyHidingMargin;
 	double *VActiveLatencyHidingUs;
 	bool *g6_temp_read_support;
-	bool *temp_read_or_ppt_support;
+	enum dml2_pstate_change_support *temp_read_or_ppt_support;
+	bool *global_temp_read_or_ppt_supported;
 };
-
 
 struct dml2_core_calcs_CalculateSwathAndDETConfiguration_params {
 	const struct dml2_display_cfg *display_cfg;
