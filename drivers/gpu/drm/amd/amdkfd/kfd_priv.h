@@ -386,6 +386,8 @@ struct kfd_dev {
 
 	/* bitmap for dynamic doorbell allocation from doorbell object */
 	unsigned long *doorbell_bitmap;
+
+	atomic_t kfd_processes_count;
 };
 
 enum kfd_mempool {
