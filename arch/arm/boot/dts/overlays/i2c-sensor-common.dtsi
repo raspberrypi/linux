@@ -789,6 +789,52 @@
 		};
 	};
 
+	fragment@51 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml6035: veml6035@29 {
+				compatible = "vishay,veml6035";
+				reg = <0x29>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
+				pinctrl-0 = <&int_pins>;
+				pinctrl-names = "default";
+			};
+		};
+	};
+
+	fragment@52 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml7700: veml7700@10 {
+				compatible = "vishay,veml7700";
+				reg = <0x10>;
+			};
+		};
+	};
+
+	fragment@53 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml3235: veml3235@10 {
+				compatible = "vishay,veml3025";
+				reg = <0x10>;
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -852,6 +898,9 @@
 		adxl355 = <0>,"+48";
 		bmp58x = <0>,"+49";
 		veml6030 = <0>,"+50+99";
+		veml6035 = <0>,"+51+99";
+		veml7700 = <0>,"+52";
+		veml3235 = <0>,"+53";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -878,7 +927,8 @@
 			<&as7331>, "interrupts:0",
 			<&adxl345>, "interrupts:0",
 			<&tcs3472>, "interrupts:0",
-			<&veml6030>, "interrupts:0";
+			<&veml6030>, "interrupts:0",
+			<&veml6035>, "interrupts:0";
 		label = <&ads7828>, "label",
 			<&ads7830>, "label";
 		no_timeout = <&jc42>, "smbus-timeout-disable?";

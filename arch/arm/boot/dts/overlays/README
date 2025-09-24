@@ -2512,8 +2512,8 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
                                 ti,shunt-gain for configuration
 
         int_pin                 Set the GPIO to use for interrupts (as73211,
-                                as7331, hdc3020, hts221, max30102, mpu6050 and
-                                mpu9250 only)
+                                as7331, hdc3020, hts221, max30102, mpu6050,
+                                mpu9250, veml6030, veml6035 only)
 
         jc42                    Select any of the many JEDEC JC42.4-compliant
                                 temperature sensors, including:
@@ -2606,7 +2606,13 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
         tsl4531                 Select the AMS TSL4531 digital ambient light
                                 sensor
 
+        veml3235                Select the Vishay VEML3235 ambient light sensor
+
         veml6030                Select the Vishay VEML6030 ambient light sensor
+
+        veml6035                Select the Vishay VEML6035 ambient light sensor
+
+        veml7700                Select the Vishay VEML7700 ambient light sensor
 
         veml6040                Select the Vishay VEML6040 RGBW light sensor
 
