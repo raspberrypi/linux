@@ -92,8 +92,7 @@ enum vc_sm_alloc_type_t {
 struct vc_sm_msg_hdr_t {
 	u32 type;
 	u32 trans_id;
-	u8 body[0];
-
+	u8 body[];
 };
 
 /* Request to allocate memory (HOST->VC) */
