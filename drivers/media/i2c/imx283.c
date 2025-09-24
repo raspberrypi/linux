@@ -183,6 +183,13 @@ static const struct v4l2_rect imx283_native_area = {
 	.height = 3710,
 };
 
+static const struct v4l2_rect imx283_effective_area = {
+	.top = 16 + 12, /* Clamp + Ignored area*/
+	.left = 96,
+	.width = 5496,
+	.height = 3672,
+};
+
 static const struct v4l2_rect imx283_active_area = {
 	.top = 16,
 	.left = 96,
@@ -537,6 +544,21 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_vmax = 4000,
 
 		.crop = imx283_active_area,
+	},
+	{
+		/* Effective Pixel Mode : 5496x3672 */
+		.scan = &imx283_scan_modes[IMX283_MODE_0],
+
+		.width = 5496,
+		.height = 3672,
+		.min_hmax = 5914, /* 887 @ 480MHz/72MHz */
+		.min_vmax = 3793, /* Lines */
+
+		/* 20.00 FPS */
+		.default_hmax = 6000, /* 900 @ 480MHz/72MHz */
+		.default_vmax = 4000,
+
+		.crop = imx283_effective_area,
 	},
 	{
 		/* 20MPix 21.40 fps readout mode 0 */
