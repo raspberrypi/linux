@@ -15,147 +15,136 @@
 #include "rp1_dsi.h"
 
 /* ------------------------------- Synopsis DSI ------------------------ */
-#define     DSI_VERSION_CFG                       0x000
-#define     DSI_PWR_UP                            0x004
-#define     DSI_CLKMGR_CFG                        0x008
-#define     DSI_DPI_VCID                          0x00C
-#define     DSI_DPI_COLOR_CODING                  0x010
-#define     DSI_DPI_CFG_POL                       0x014
-#define     DSI_DPI_LP_CMD_TIM                    0x018
-#define     DSI_DBI_VCID                          0x01C
-#define     DSI_DBI_CFG                           0x020
-#define     DSI_DBI_PARTITIONING_EN               0x024
-#define     DSI_DBI_CMDSIZE                       0x028
-#define     DSI_PCKHDL_CFG                        0x02C
-#define     DSI_GEN_VCID                          0x030
-#define     DSI_MODE_CFG                          0x034
-#define     DSI_VID_MODE_CFG                      0x038
-#define     DSI_VID_PKT_SIZE                      0x03C
-#define     DSI_VID_NUM_CHUNKS                    0x040
-#define     DSI_VID_NULL_SIZE                     0x044
-#define     DSI_VID_HSA_TIME                      0x048
-#define     DSI_VID_HBP_TIME                      0x04C
-#define     DSI_VID_HLINE_TIME                    0x050
-#define     DSI_VID_VSA_LINES                     0x054
-#define     DSI_VID_VBP_LINES                     0x058
-#define     DSI_VID_VFP_LINES                     0x05C
-#define     DSI_VID_VACTIVE_LINES                 0x060
-#define     DSI_EDPI_CMD_SIZE                     0x064
-#define     DSI_CMD_MODE_CFG                      0x068
-#define     DSI_GEN_HDR                           0x06C
-#define     DSI_GEN_PLD_DATA                      0x070
-#define     DSI_CMD_PKT_STATUS                    0x074
-#define     DSI_TO_CNT_CFG                        0x078
-#define     DSI_HS_RD_TO_CNT                      0x07C
-#define     DSI_LP_RD_TO_CNT                      0x080
-#define     DSI_HS_WR_TO_CNT                      0x084
-#define     DSI_LP_WR_TO_CNT                      0x088
-#define     DSI_BTA_TO_CNT                        0x08C
-#define     DSI_SDF_3D                            0x090
-#define     DSI_LPCLK_CTRL                        0x094
-#define     DSI_PHY_TMR_LPCLK_CFG                 0x098
-#define     DSI_PHY_TMR_HS2LP_LSB       16
-#define     DSI_PHY_TMR_LP2HS_LSB       0
-#define     DSI_PHY_TMR_CFG                       0x09C
-#define     DSI_PHY_TMR_RD_CFG                    0x0F4
-#define     DSI_PHYRSTZ                           0x0A0
-#define     DSI_PHY_IF_CFG                        0x0A4
-#define     DSI_PHY_ULPS_CTRL                     0x0A8
-#define     DSI_PHY_TX_TRIGGERS                   0x0AC
-#define     DSI_PHY_STATUS                        0x0B0
+#define DSI_VERSION_CFG			0x000
+#define DSI_PWR_UP			0x004
+#define DSI_CLKMGR_CFG			0x008
+#define DSI_DPI_VCID			0x00C
+#define DSI_DPI_COLOR_CODING		0x010
+#define DSI_DPI_CFG_POL			0x014
+#define DSI_DPI_LP_CMD_TIM		0x018
+#define DSI_DBI_VCID			0x01C
+#define DSI_DBI_CFG			0x020
+#define DSI_DBI_PARTITIONING_EN		0x024
+#define DSI_DBI_CMDSIZE			0x028
+#define DSI_PCKHDL_CFG			0x02C
+ #define DSI_PCKHDL_EOTP_TX_EN		BIT(0)
+ #define DSI_PCKHDL_BTA_EN		BIT(2)
+#define DSI_GEN_VCID			0x030
+#define DSI_MODE_CFG			0x034
+#define DSI_VID_MODE_CFG		0x038
+ #define DSI_VID_MODE_LP_CMD_EN		BIT(15)
+ #define DSI_VID_MODE_FRAME_BTA_ACK_EN	BIT(14)
+ #define DSI_VID_MODE_LP_HFP_EN		BIT(13)
+ #define DSI_VID_MODE_LP_HBP_EN		BIT(12)
+ #define DSI_VID_MODE_LP_VACT_EN	BIT(11)
+ #define DSI_VID_MODE_LP_VFP_EN		BIT(10)
+ #define DSI_VID_MODE_LP_VBP_EN		BIT(9)
+ #define DSI_VID_MODE_LP_VSA_EN		BIT(8)
+ #define DSI_VID_MODE_SYNC_PULSES	0
+ #define DSI_VID_MODE_SYNC_EVENTS	1
+ #define DSI_VID_MODE_BURST		2
+#define DSI_VID_PKT_SIZE		0x03C
+#define DSI_VID_NUM_CHUNKS		0x040
+#define DSI_VID_NULL_SIZE		0x044
+#define DSI_VID_HSA_TIME		0x048
+#define DSI_VID_HBP_TIME		0x04C
+#define DSI_VID_HLINE_TIME		0x050
+#define DSI_VID_VSA_LINES		0x054
+#define DSI_VID_VBP_LINES		0x058
+#define DSI_VID_VFP_LINES		0x05C
+#define DSI_VID_VACTIVE_LINES		0x060
+#define DSI_EDPI_CMD_SIZE		0x064
+#define DSI_CMD_MODE_CFG		0x068
+ #define DSI_CMD_MODE_ALL_LP		0x10f7f00
+ #define DSI_CMD_MODE_ACK_RQST_EN	BIT(1)
+#define DSI_GEN_HDR			0x06C
+#define DSI_GEN_PLD_DATA		0x070
+#define DSI_CMD_PKT_STATUS		0x074
+#define DSI_TO_CNT_CFG			0x078
+#define DSI_HS_RD_TO_CNT		0x07C
+#define DSI_LP_RD_TO_CNT		0x080
+#define DSI_HS_WR_TO_CNT		0x084
+#define DSI_LP_WR_TO_CNT		0x088
+#define DSI_BTA_TO_CNT			0x08C
+#define DSI_SDF_3D			0x090
+#define DSI_LPCLK_CTRL			0x094
+#define DSI_PHY_TMR_LPCLK_CFG		0x098
+ #define DSI_PHY_TMR_HS2LP_LSB		16
+ #define DSI_PHY_TMR_LP2HS_LSB		0
+#define DSI_PHY_TMR_CFG			0x09C
+#define DSI_PHY_TMR_RD_CFG		0x0F4
+#define DSI_PHYRSTZ			0x0A0
+ #define DSI_PHYRSTZ_SHUTDOWNZ_LSB	0
+ #define DSI_PHYRSTZ_SHUTDOWNZ_BITS	BIT(DSI_PHYRSTZ_SHUTDOWNZ_LSB)
+ #define DSI_PHYRSTZ_RSTZ_LSB		1
+ #define DSI_PHYRSTZ_RSTZ_BITS		BIT(DSI_PHYRSTZ_RSTZ_LSB)
+ #define DSI_PHYRSTZ_ENABLECLK_LSB	2
+ #define DSI_PHYRSTZ_ENABLECLK_BITS	BIT(DSI_PHYRSTZ_ENABLECLK_LSB)
+ #define DSI_PHYRSTZ_FORCEPLL_LSB	3
+ #define DSI_PHYRSTZ_FORCEPLL_BITS	BIT(DSI_PHYRSTZ_FORCEPLL_LSB)
+#define DSI_PHY_IF_CFG			0x0A4
+#define DSI_PHY_ULPS_CTRL		0x0A8
+#define DSI_PHY_TX_TRIGGERS		0x0AC
+#define DSI_PHY_STATUS			0x0B0
 
-#define     DSI_PHY_TST_CTRL0                     0x0B4
-#define     DSI_PHY_TST_CTRL1                     0x0B8
-#define     DSI_INT_ST0                           0x0BC
-#define     DSI_INT_ST1                           0x0C0
-#define     DSI_INT_MASK0_CFG                     0x0C4
-#define     DSI_INT_MASK1_CFG                     0x0C8
-#define     DSI_PHY_CAL                           0x0CC
-#define     DSI_HEXP_NPKT_CLR                     0x104
-#define     DSI_HEXP_NPKT_SIZE                    0x108
-#define     DSI_VID_SHADOW_CTRL                   0x100
+#define DSI_PHY_TST_CTRL0		0x0B4
+ #define DPHY_CTRL0_PHY_TESTCLK_LSB	1
+ #define DPHY_CTRL0_PHY_TESTCLK_BITS	BIT(DPHY_CTRL0_PHY_TESTCLK_LSB)
+ #define DPHY_CTRL0_PHY_TESTCLR_LSB	0
+ #define DPHY_CTRL0_PHY_TESTCLR_BITS	BIT(DPHY_CTRL0_PHY_TESTCLR_LSB)
+#define DSI_PHY_TST_CTRL1		0x0B8
+ #define DPHY_CTRL1_PHY_TESTDIN_LSB	0
+ #define DPHY_CTRL1_PHY_TESTDIN_BITS	(0xff << DPHY_CTRL1_PHY_TESTDIN_LSB)
+ #define DPHY_CTRL1_PHY_TESTDOUT_LSB	8
+ #define DPHY_CTRL1_PHY_TESTDOUT_BITS	(0xff << DPHY_CTRL1_PHY_TESTDOUT_LSB)
+ #define DPHY_CTRL1_PHY_TESTEN_LSB	16
+ #define DPHY_CTRL1_PHY_TESTEN_BITS	BIT(DPHY_CTRL1_PHY_TESTEN_LSB)
+#define DSI_INT_ST0			0x0BC
+#define DSI_INT_ST1			0x0C0
+#define DSI_INT_MASK0_CFG		0x0C4
+#define DSI_INT_MASK1_CFG		0x0C8
+#define DSI_PHY_CAL			0x0CC
+#define DSI_HEXP_NPKT_CLR		0x104
+#define DSI_HEXP_NPKT_SIZE		0x108
+#define DSI_VID_SHADOW_CTRL		0x100
 
-#define     DSI_DPI_VCID_ACT                      0x10C
-#define     DSI_DPI_COLOR_CODING_ACT              0x110
-#define     DSI_DPI_LP_CMD_TIM_ACT                0x118
-#define     DSI_VID_MODE_CFG_ACT                  0x138
-#define     DSI_VID_PKT_SIZE_ACT                  0x13C
-#define     DSI_VID_NUM_CHUNKS_ACT                0x140
-#define     DSI_VID_NULL_SIZE_ACT                 0x144
-#define     DSI_VID_HSA_TIME_ACT                  0x148
-#define     DSI_VID_HBP_TIME_ACT                  0x14C
-#define     DSI_VID_HLINE_TIME_ACT                0x150
-#define     DSI_VID_VSA_LINES_ACT                 0x154
-#define     DSI_VID_VBP_LINES_ACT                 0x158
-#define     DSI_VID_VFP_LINES_ACT                 0x15C
-#define     DSI_VID_VACTIVE_LINES_ACT             0x160
-#define     DSI_SDF_3D_CFG_ACT                    0x190
+#define DSI_DPI_VCID_ACT		0x10C
+#define DSI_DPI_COLOR_CODING_ACT	0x110
+#define DSI_DPI_LP_CMD_TIM_ACT		0x118
+#define DSI_VID_MODE_CFG_ACT		0x138
+#define DSI_VID_PKT_SIZE_ACT		0x13C
+#define DSI_VID_NUM_CHUNKS_ACT		0x140
+#define DSI_VID_NULL_SIZE_ACT		0x144
+#define DSI_VID_HSA_TIME_ACT		0x148
+#define DSI_VID_HBP_TIME_ACT		0x14C
+#define DSI_VID_HLINE_TIME_ACT		0x150
+#define DSI_VID_VSA_LINES_ACT		0x154
+#define DSI_VID_VBP_LINES_ACT		0x158
+#define DSI_VID_VFP_LINES_ACT		0x15C
+#define DSI_VID_VACTIVE_LINES_ACT	0x160
+#define DSI_SDF_3D_CFG_ACT		0x190
 
-#define     DSI_INT_FORCE0                        0x0D8
-#define     DSI_INT_FORCE1                        0x0DC
+#define DSI_INT_FORCE0			0x0D8
+#define DSI_INT_FORCE1			0x0DC
 
-#define     DSI_AUTO_ULPS_MODE                    0x0E0
-#define     DSI_AUTO_ULPS_ENTRY_DELAY             0x0E4
-#define     DSI_AUTO_ULPS_WAKEUP_TIME             0x0E8
-#define     DSI_EDPI_ADV_FEATURES                 0x0EC
+#define DSI_AUTO_ULPS_MODE		0x0E0
+#define DSI_AUTO_ULPS_ENTRY_DELAY       0x0E4
+#define DSI_AUTO_ULPS_WAKEUP_TIME       0x0E8
+#define DSI_EDPI_ADV_FEATURES		0x0EC
 
-#define     DSI_DSC_PARAMETER                     0x0F0
+#define DSI_DSC_PARAMETER		0x0F0
 
-/* And some bitfield definitions */
+/* PHY "test and control mode" registers */
+#define DPHY_PLL_BIAS_OFFSET		0x10
+ #define DPHY_PLL_BIAS_VCO_RANGE_LSB		3
+ #define DPHY_PLL_BIAS_USE_PROGRAMMED_VCO_RANGE	BIT(7)
+#define DPHY_PLL_CHARGE_PUMP_OFFSET	0x11
+#define DPHY_PLL_LPF_OFFSET		0x12
+#define DPHY_PLL_INPUT_DIV_OFFSET	0x17
+#define DPHY_PLL_LOOP_DIV_OFFSET	0x18
+#define DPHY_PLL_DIV_CTRL_OFFSET	0x19
+#define DPHY_HS_RX_CTRL_LANE0_OFFSET	0x44
 
-#define DSI_PCKHDL_EOTP_TX_EN  BIT(0)
-#define DSI_PCKHDL_BTA_EN      BIT(2)
-
-#define DSI_VID_MODE_LP_CMD_EN        BIT(15)
-#define DSI_VID_MODE_FRAME_BTA_ACK_EN BIT(14)
-#define DSI_VID_MODE_LP_HFP_EN        BIT(13)
-#define DSI_VID_MODE_LP_HBP_EN        BIT(12)
-#define DSI_VID_MODE_LP_VACT_EN       BIT(11)
-#define DSI_VID_MODE_LP_VFP_EN        BIT(10)
-#define DSI_VID_MODE_LP_VBP_EN        BIT(9)
-#define DSI_VID_MODE_LP_VSA_EN        BIT(8)
-#define DSI_VID_MODE_SYNC_PULSES      0
-#define DSI_VID_MODE_SYNC_EVENTS      1
-#define DSI_VID_MODE_BURST            2
-
-#define DSI_CMD_MODE_ALL_LP           0x10f7f00
-#define DSI_CMD_MODE_ACK_RQST_EN      BIT(1)
-
-#define DPHY_PWR_UP_SHUTDOWNZ_LSB 0
-#define DPHY_PWR_UP_SHUTDOWNZ_BITS BIT(DPHY_PWR_UP_SHUTDOWNZ_LSB)
-
-#define DPHY_CTRL0_PHY_TESTCLK_LSB 1
-#define DPHY_CTRL0_PHY_TESTCLK_BITS BIT(DPHY_CTRL0_PHY_TESTCLK_LSB)
-#define DPHY_CTRL0_PHY_TESTCLR_LSB 0
-#define DPHY_CTRL0_PHY_TESTCLR_BITS BIT(DPHY_CTRL0_PHY_TESTCLR_LSB)
-
-#define DPHY_CTRL1_PHY_TESTDIN_LSB  0
-#define DPHY_CTRL1_PHY_TESTDIN_BITS  (0xff << DPHY_CTRL1_PHY_TESTDIN_LSB)
-#define DPHY_CTRL1_PHY_TESTDOUT_LSB 8
-#define DPHY_CTRL1_PHY_TESTDOUT_BITS (0xff << DPHY_CTRL1_PHY_TESTDOUT_LSB)
-#define DPHY_CTRL1_PHY_TESTEN_LSB 16
-#define DPHY_CTRL1_PHY_TESTEN_BITS BIT(DPHY_CTRL1_PHY_TESTEN_LSB)
-
-#define DSI_PHYRSTZ_SHUTDOWNZ_LSB  0
-#define DSI_PHYRSTZ_SHUTDOWNZ_BITS BIT(DSI_PHYRSTZ_SHUTDOWNZ_LSB)
-#define DSI_PHYRSTZ_RSTZ_LSB  1
-#define DSI_PHYRSTZ_RSTZ_BITS BIT(DSI_PHYRSTZ_RSTZ_LSB)
-#define DSI_PHYRSTZ_ENABLECLK_LSB 2
-#define DSI_PHYRSTZ_ENABLECLK_BITS BIT(DSI_PHYRSTZ_ENABLECLK_LSB)
-#define DSI_PHYRSTZ_FORCEPLL_LSB 3
-#define DSI_PHYRSTZ_FORCEPLL_BITS  BIT(DSI_PHYRSTZ_FORCEPLL_LSB)
-
-#define DPHY_HS_RX_CTRL_LANE0_OFFSET  0x44
-#define DPHY_PLL_INPUT_DIV_OFFSET 0x17
-#define DPHY_PLL_LOOP_DIV_OFFSET 0x18
-#define DPHY_PLL_DIV_CTRL_OFFSET 0x19
-
-#define DPHY_PLL_BIAS_OFFSET 0x10
-#define DPHY_PLL_BIAS_VCO_RANGE_LSB 3
-#define DPHY_PLL_BIAS_USE_PROGRAMMED_VCO_RANGE BIT(7)
-
-#define DPHY_PLL_CHARGE_PUMP_OFFSET 0x11
-#define DPHY_PLL_LPF_OFFSET 0x12
 
 #define DSI_WRITE(reg, val)  writel((val),  dsi->hw_base[RP1DSI_HW_BLOCK_DSI] + (reg))
 #define DSI_READ(reg)        readl(dsi->hw_base[RP1DSI_HW_BLOCK_DSI] + (reg))
