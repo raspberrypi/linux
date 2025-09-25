@@ -143,7 +143,12 @@
 #define DPHY_PLL_INPUT_DIV_OFFSET	0x17
 #define DPHY_PLL_LOOP_DIV_OFFSET	0x18
 #define DPHY_PLL_DIV_CTRL_OFFSET	0x19
+#define DPHY_CLK_PN_SWAP		0x35
 #define DPHY_HS_RX_CTRL_LANE0_OFFSET	0x44
+#define DPHY_D0_PN_SWAP			0x45
+#define DPHY_D1_PN_SWAP			0x55
+#define DPHY_D2_PN_SWAP			0x85
+#define DPHY_D3_PN_SWAP			0x95
 
 
 #define DSI_WRITE(reg, val)	writel((val), dsi->hw_base[RP1DSI_HW_BLOCK_DSI] + (reg))
@@ -354,6 +359,13 @@ static u32 dphy_init(struct rp1_dsi *dsi, u32 ref_freq, u32 vco_freq)
 	udelay(1);
 	/* Since we are in DSI (not CSI2) mode here, start the PLL */
 	actual_vco_freq = dphy_configure_pll(dsi, ref_freq, vco_freq);
+
+	dphy_transaction(dsi, DPHY_CLK_PN_SWAP, !!dsi->lane_polarities[0]);
+	dphy_transaction(dsi, DPHY_D0_PN_SWAP, !!dsi->lane_polarities[1]);
+	dphy_transaction(dsi, DPHY_D1_PN_SWAP, !!dsi->lane_polarities[2]);
+	dphy_transaction(dsi, DPHY_D2_PN_SWAP, !!dsi->lane_polarities[3]);
+	dphy_transaction(dsi, DPHY_D3_PN_SWAP, !!dsi->lane_polarities[4]);
+
 	udelay(1);
 	/* Unreset */
 	DSI_WRITE(DSI_PHYRSTZ, DSI_PHYRSTZ_SHUTDOWNZ_BITS);

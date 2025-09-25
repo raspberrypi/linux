@@ -49,6 +49,9 @@ struct rp1_dsi {
 	/* Clocks. We need DPI clock; the others are frequency references */
 	struct clk *clocks[RP1DSI_NUM_CLOCKS];
 
+	/* Device tree parsed information */
+	u32 lane_polarities[5];
+
 	/* Block (DSI DMA, DSI Host) base addresses, and current state */
 	void __iomem *hw_base[RP1DSI_NUM_HW_BLOCKS];
 	u32 cur_fmt;
