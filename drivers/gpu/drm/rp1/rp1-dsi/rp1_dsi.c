@@ -417,9 +417,11 @@ static const struct mipi_dsi_host_ops rp1dsi_mipi_dsi_host_ops = {
 static int rp1dsi_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct device_node *node = dev->of_node;
+	struct device_node *endpoint;
 	struct drm_device *drm;
 	struct rp1_dsi *dsi;
-	int i, ret;
+	int i, nr_lanes, ret;
 
 	drm = drm_dev_alloc(&rp1dsi_driver, dev);
 	if (IS_ERR(drm)) {
@@ -458,6 +460,12 @@ static int rp1dsi_platform_probe(struct platform_device *pdev)
 			goto err_free_drm;
 		}
 	}
+
+	endpoint = of_graph_get_endpoint_by_regs(node, 0, -1);
+	nr_lanes = of_property_count_u32_elems(endpoint, "data-lanes");
+	if (nr_lanes > 0 && nr_lanes <= 4)
+		of_property_read_u32_array(endpoint, "lane-polarities",
+					   dsi->lane_polarities, nr_lanes + 1);
 
 	for (i = 0; i < RP1DSI_NUM_HW_BLOCKS; i++) {
 		dsi->hw_base[i] =
