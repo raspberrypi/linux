@@ -1245,8 +1245,10 @@ static int stmpe_chip_init(struct stmpe *stmpe)
 		return ret;
 
 	id = (data[0] << 8) | data[1];
-	if ((id & variant->id_mask) != variant->id_val) {
-		dev_err(stmpe->dev, "unknown chip id: %#x\n", id);
+	if (((id & variant->id_mask) != variant->id_val) && id != 0x80) {
+		dev_err(stmpe->dev,
+			"unknown chip id: %#x (expected %#x or 0x80)\n",
+			id, variant->id_val);
 		return -EINVAL;
 	}
 
