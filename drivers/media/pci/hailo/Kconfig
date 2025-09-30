@@ -1,6 +1,0 @@
-
-config MEDIA_PCI_HAILO
-	tristate "Hailo AI accelerator PCIe driver"
-	depends on PCI
-	help
-	  Enable build of Hailo AI accelerator PCIe driver.
