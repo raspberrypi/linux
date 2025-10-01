@@ -63,7 +63,12 @@ pgprot_t ttm_prot_from_caching(enum ttm_caching caching, pgprot_t tmp)
 {
 	/* Cached mappings need no adjustment */
 	if (caching == ttm_cached)
+	{
+#ifdef CONFIG_ARM64
+		return pgprot_dmacoherent(tmp);
+#endif
 		return tmp;
+	}
 
 #if defined(__i386__) || defined(__x86_64__)
 	if (caching == ttm_write_combined)
