@@ -7636,6 +7636,7 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 	 * FIXME: Cut over to (async) commit helpers instead of hand-rolling
 	 * everything.
 	 */
+#if defined(CONFIG_VGA_CONSOLE)
 	if (state->base.legacy_cursor_update) {
 		struct intel_crtc_state *new_crtc_state;
 		struct intel_crtc *crtc;
@@ -7644,6 +7645,7 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 		for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i)
 			complete_all(&new_crtc_state->uapi.commit->flip_done);
 	}
+#endif
 
 	ret = intel_atomic_prepare_commit(state);
 	if (ret) {
