@@ -446,6 +446,7 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 	if (num_registered_fb == FB_MAX)
 		return -ENXIO;
 
+	i = fb_info->node;
 	if (!fb_info->custom_fb_num || fb_info->node >= FB_MAX || registered_fb[fb_info->node]) {
 		for (i = min_dynamic_fb ; i < FB_MAX; i++)
 			if (!registered_fb[i])
@@ -463,6 +464,7 @@ static int do_register_framebuffer(struct fb_info *fb_info)
 	if (err < 0)
 		return err;
 
+	fb_info->node = i;
 	refcount_set(&fb_info->count, 1);
 	mutex_init(&fb_info->lock);
 	mutex_init(&fb_info->mm_lock);
