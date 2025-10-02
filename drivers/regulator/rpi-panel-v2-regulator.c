@@ -158,6 +158,7 @@ static int rpi_panel_v2_i2c_probe(struct i2c_client *i2c)
 	case 0x04: /* 7 inch - old */
 	case 0x08: /* 5 inch - old */
 	case 0x09: /* 5 inch */
+	case 0x0a: /* 10.1 inch */
 		break;
 	default:
 		dev_err(&i2c->dev, "Unknown revision: 0x%02x\n",
