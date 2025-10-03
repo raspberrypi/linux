@@ -272,7 +272,7 @@ struct imx283_scanout {
 	u8 vertical_ob;
 
 	/* Vertical Arbitrary Cropping Function */
-	u16 vst;
+	s16 vst;
 	u16 vct;
 	u16 veff;
 };
@@ -283,7 +283,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x04, 0x03, 0x10, 0x00 },
 		.vertical_ob = 16,
-		.vst = 0,
+		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
 	},
@@ -291,7 +291,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x00, 0x00 },
 		.vertical_ob = 16,
-		.vst = 0,
+		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
 	},
@@ -317,7 +317,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x50, 0x00 },
 		.vertical_ob = 4,
-		.vst = 0,
+		.vst = -2, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1824,
 	},
@@ -335,7 +335,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x1e, 0x18, 0x10, 0x00 },
 		.vertical_ob = 4,
-		.vst = 0,
+		.vst = 1, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1234,
 	},
