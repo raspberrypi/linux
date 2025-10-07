@@ -286,6 +286,9 @@ struct imx283_scanout {
 	s16 vst;
 	u16 vct;
 	u16 veff;
+
+	/* minimum SHR */
+	u32 min_shr;
 };
 
 static const struct imx283_scanout imx283_scan_modes[] = {
@@ -298,6 +301,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
+		.min_shr = 11,
 	},
 	[IMX283_MODE_1] = {
 		.bpp = 10,
@@ -307,6 +311,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
+		.min_shr = 10,
 	},
 	[IMX283_MODE_1A] = {
 		.bpp = 10,
@@ -316,6 +321,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 146,
 		.vct = 291,
 		.veff = 3112,
+		.min_shr = 10,
 	},
 	[IMX283_MODE_1S] = {
 		.bpp = 10,
@@ -325,6 +331,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 162,
 		.vct = 324,
 		.veff = 3046,
+		.min_shr = 10,
 	},
 
 	/* Horizontal / Vertical 2/2-line binning */
@@ -336,6 +343,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = -2, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1824,
+		.min_shr = 12,
 	},
 	[IMX283_MODE_2A] = {
 		.bpp = 12,
@@ -345,6 +353,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 71,
 		.vct = 143,
 		.veff = 1556,
+		.min_shr = 12,
 	},
 
 	/* Horizontal / Vertical 3/3-line binning */
@@ -356,6 +365,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 1, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1234,
+		.min_shr = 16,
 	},
 
 	/* Vertical 2/9 subsampling, horizontal 3 binning cropping */
@@ -367,6 +377,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 9,
 		.vct = 17,
 		.veff = 378,
+		.min_shr = 4,
 	},
 
 	/* Vertical 2/19 subsampling binning, horizontal 3 binning */
@@ -378,6 +389,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 0,
 		.vct = 0,
 		.veff = 198,
+		.min_shr = 4,
 	},
 
 	/* Vertical 2 binning horizontal 2/4, subsampling 16:9 cropping */
@@ -389,6 +401,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.vst = 0,
 		.vct = 0,
 		.veff = 1556,
+		.min_shr = 12,
 	},
 
 	/*
@@ -434,9 +447,6 @@ struct imx283_mode {
 
 	/* default V-timing */
 	u32 default_vmax;
-
-	/* minimum SHR */
-	u32 min_shr;
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -511,8 +521,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_hmax = 6000, /* 900 @ 480MHz/72MHz */
 		.default_vmax = 4000,
 
-		.min_shr = 11,
-
 		.crop = imx283_recommended_area,
 	},
 	{
@@ -528,8 +536,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		/* 50.00 FPS */
 		.default_hmax = 2500, /* 375 @ 480MHz/72Mhz */
 		.default_vmax = 3840,
-
-		.min_shr = 12,
 
 		.crop = imx283_recommended_area,
 	},
@@ -547,8 +553,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_hmax = 1900, /* 285 @ 480MHz/72Mhz */
 		.default_vmax = 4200,
 
-		.min_shr = 16,
-
 		.crop = imx283_recommended_area,
 	},
 };
@@ -565,8 +569,6 @@ static const struct imx283_mode supported_modes_10bit[] = {
 		/* 25.00 FPS */
 		.default_hmax = 6000, /* 750 @ 576MHz / 72MHz */
 		.default_vmax = 3840,
-
-		.min_shr = 10,
 
 		.crop = imx283_recommended_area,
 	},
@@ -726,7 +728,7 @@ static void imx283_exposure_limits(struct imx283 *imx283,
 				   s64 *min_exposure, s64 *max_exposure)
 {
 	u32 svr = 0; /* SVR feature is not currently supported */
-	u64 min_shr = mode->min_shr;
+	u64 min_shr = mode->scan->min_shr;
 	/* Global Shutter is not supported */
 	u64 max_shr = (svr + 1) * imx283->vmax - 4;
 
