@@ -279,6 +279,9 @@ struct imx283_scanout {
 	/* Optical Blanking */
 	u8 vertical_ob;
 
+	/* vertical binning ratio */
+	u8 vbin_ratio;
+
 	/* Vertical Arbitrary Cropping Function */
 	s16 vst;
 	u16 vct;
@@ -291,6 +294,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x04, 0x03, 0x10, 0x00 },
 		.vertical_ob = 16,
+		.vbin_ratio = 1,
 		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
@@ -299,6 +303,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x00, 0x00 },
 		.vertical_ob = 16,
+		.vbin_ratio = 1,
 		.vst = -1, /* Align to Mode 2/3 */
 		.vct = 0,
 		.veff = 3694,
@@ -307,6 +312,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x01, 0x20, 0x50 },
 		.vertical_ob = 16,
+		.vbin_ratio = 1,
 		.vst = 146,
 		.vct = 291,
 		.veff = 3112,
@@ -315,6 +321,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x04, 0x41, 0x20, 0x50 },
 		.vertical_ob = 16,
+		.vbin_ratio = 1,
 		.vst = 162,
 		.vct = 324,
 		.veff = 3046,
@@ -325,6 +332,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x50, 0x00 },
 		.vertical_ob = 4,
+		.vbin_ratio = 2,
 		.vst = -2, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1824,
@@ -333,6 +341,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x0d, 0x11, 0x70, 0x50 },
 		.vertical_ob = 4,
+		.vbin_ratio = 2,
 		.vst = 71,
 		.vct = 143,
 		.veff = 1556,
@@ -343,6 +352,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x1e, 0x18, 0x10, 0x00 },
 		.vertical_ob = 4,
+		.vbin_ratio = 3,
 		.vst = 1, /* Provides alignment to Mode 0/1 */
 		.vct = 0,
 		.veff = 1234,
@@ -353,6 +363,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x29, 0x18, 0x30, 0x50 },
 		.vertical_ob = 4,
+		.vbin_ratio = 1, /* SUBSAMPLING UNDEFINED */
 		.vst = 9,
 		.vct = 17,
 		.veff = 378,
@@ -363,6 +374,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 12,
 		.readout = { 0x2d, 0x18, 0x10, 0x00 },
 		.vertical_ob = 4,
+		.vbin_ratio = 1, /* SUBSAMPLING UNDEFINED */
 		.vst = 0,
 		.vct = 0,
 		.veff = 198,
@@ -373,6 +385,7 @@ static const struct imx283_scanout imx283_scan_modes[] = {
 		.bpp = 10,
 		.readout = { 0x18, 0x21, 0x00, 0x09 },
 		.vertical_ob = 4,
+		.vbin_ratio = 2, /* SUBSAMPLING UNDEFINED */
 		.vst = 0,
 		.vct = 0,
 		.veff = 1556,
@@ -424,10 +437,6 @@ struct imx283_mode {
 
 	/* minimum SHR */
 	u32 min_shr;
-
-	/* Horizontal and vertical binning ratio */
-	u8 hbin_ratio;
-	u8 vbin_ratio;
 
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
@@ -498,9 +507,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.min_hmax = 5914, /* 887 @ 480MHz/72MHz */
 		.min_vmax = 3793, /* Lines */
 
-		.hbin_ratio = 1,
-		.vbin_ratio = 1,
-
 		/* 20.00 FPS */
 		.default_hmax = 6000, /* 900 @ 480MHz/72MHz */
 		.default_vmax = 4000,
@@ -523,9 +529,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		.default_hmax = 2500, /* 375 @ 480MHz/72Mhz */
 		.default_vmax = 3840,
 
-		.hbin_ratio = 2,
-		.vbin_ratio = 2,
-
 		.min_shr = 12,
 
 		.crop = imx283_recommended_area,
@@ -543,9 +546,6 @@ static const struct imx283_mode supported_modes_12bit[] = {
 		/* 60.00 fps */
 		.default_hmax = 1900, /* 285 @ 480MHz/72Mhz */
 		.default_vmax = 4200,
-
-		.hbin_ratio = 3,
-		.vbin_ratio = 3,
 
 		.min_shr = 16,
 
@@ -1141,7 +1141,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 
 	/* Vertical Configuration */
 	{
-		u32 y_out_size = mode->crop.height / mode->vbin_ratio;
+		u32 y_out_size = mode->crop.height / mode->scan->vbin_ratio;
 		u32 write_v_size = y_out_size + mode->scan->vertical_ob;
 		s16 top = mode->crop.top;
 		u32 v_widcut;
@@ -1154,7 +1154,7 @@ static int imx283_start_streaming(struct imx283 *imx283,
 		 * cropping start position = (VWINPOS – Vst) × 2
 		 * cropping width = Veff – (VWIDCUT – Vct) × 2
 		 */
-		v_pos = (top / mode->vbin_ratio / 2) + mode->scan->vst;
+		v_pos = (top / mode->scan->vbin_ratio / 2) + mode->scan->vst;
 		v_widcut = ((mode->scan->veff - y_out_size) / 2) + mode->scan->vct;
 
 		cci_write(imx283->cci, IMX283_REG_Y_OUT_SIZE, y_out_size, &ret);
