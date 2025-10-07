@@ -3,3 +3,4 @@
 comment "Broadcom BCM283x/BCM271x media platform drivers"
 
 source "drivers/media/platform/broadcom/bcm2835-unicam/Kconfig"
+source "drivers/media/platform/broadcom/bcm2835-isp/Kconfig"
