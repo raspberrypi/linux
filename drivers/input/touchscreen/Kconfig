@@ -479,6 +479,19 @@ config TOUCHSCREEN_ILITEK
 	  To compile this driver as a module, choose M here: the
 	  module will be called ilitek_ts_i2c.
 
+config TOUCHSCREEN_ILITEK_V3
+	tristate "Ilitek I2C ILI79600 Series Touch ICs"
+	depends on I2C
+	help
+	  Say Y here if you have touchscreen with ILITEK "V3" touch IC,
+	  it supports 79600 and similar over I2C (the IC also supports
+	  SPI)
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ilitek_v3_ts_i2c.
+
 config TOUCHSCREEN_IPROC
 	tristate "IPROC touch panel driver support"
 	depends on ARCH_BCM_IPROC || COMPILE_TEST
