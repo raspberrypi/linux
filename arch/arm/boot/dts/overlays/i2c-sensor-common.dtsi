@@ -789,6 +789,34 @@
 		};
 	};
 
+	fragment@51 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tmp117: tmp117@48 {
+				compatible = "ti,tmp117";
+				reg = <0x48>;
+				vcc-supply = <&reg_3v3>;
+			};
+		};
+	};
+
+	fragment@98 {
+		target-path = "/";
+		__dormant__ {
+			reg_3v3: i2c-sensor-reg-3v3 {
+				compatible = "regulator-fixed";
+				regulator-name = "i2c_sensor_reg_3v3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+		};
+	};
+
 	fragment@99 {
 		target = <&gpio>;
 		__dormant__ {
@@ -852,6 +880,7 @@
 		adxl355 = <0>,"+48";
 		bmp58x = <0>,"+49";
 		veml6030 = <0>,"+50+99";
+		tmp117 = <0>,"+51+98";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -866,7 +895,7 @@
 			<&as7331>,"reg:0", <&adxl345>,"reg:0",
 			<&ads7828>,"reg:0", <&ads7830>,"reg:0",
 			<&adxl355>,"reg:0", <&bmp58x>,"reg:0",
-			<&veml6030>,"reg:0";
+			<&veml6030>,"reg:0", <&tmp117>,"reg:0";
 		int_pin = <&int_pins>, "brcm,pins:0",
 			<&int_pins>, "reg:0",
 			<&max30102>, "interrupts:0",
