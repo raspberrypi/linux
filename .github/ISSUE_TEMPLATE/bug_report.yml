@@ -53,6 +53,7 @@ body:
       - Raspberry Pi 400
       - Raspberry Pi 5
       - Raspberry Pi 500
+      - Raspberry Pi 500+
       - Raspberry Pi CM1
       - Raspberry Pi CM3
       - Raspberry Pi CM3 Lite
@@ -71,7 +72,7 @@ body:
   attributes:
     label: System
     description: |
-      Copy and paste the results of the raspinfo command in to this section.
+      Copy and paste the results of `raspinfo | pastebinit` in to this section.
       Alternatively, copy and paste a pastebin link, or add answers to the following questions:
       * Which OS and version (`cat /etc/rpi-issue`)?
       * Which firmware version (`vcgencmd version`)?
