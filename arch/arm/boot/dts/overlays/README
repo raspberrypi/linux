@@ -2603,6 +2603,9 @@ Params: addr                    Set the address for the ADS7828, ADS7830,
         tmp102                  Select the Texas Instruments TMP102 temp sensor
                                 Valid addresses 0x48-0x4b, default 0x48
 
+        tmp117                  Select the Texas Instruments TMP117 temp sensor
+                                Valid addresses 0x48-0x4b, default 0x48
+
         tsl4531                 Select the AMS TSL4531 digital ambient light
                                 sensor
 
