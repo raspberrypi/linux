@@ -116,6 +116,7 @@ enum energy_perf_value_index {
 	EPP_INDEX_BALANCE_PERFORMANCE,
 	EPP_INDEX_BALANCE_POWERSAVE,
 	EPP_INDEX_POWERSAVE,
+	EPP_INDEX_MAX,
 };
 
 static const char * const energy_perf_strings[] = {
@@ -125,6 +126,7 @@ static const char * const energy_perf_strings[] = {
 	[EPP_INDEX_BALANCE_POWERSAVE] = "balance_power",
 	[EPP_INDEX_POWERSAVE] = "power",
 };
+static_assert(ARRAY_SIZE(energy_perf_strings) == EPP_INDEX_MAX);
 
 static unsigned int epp_values[] = {
 	[EPP_INDEX_DEFAULT] = 0,
@@ -133,6 +135,7 @@ static unsigned int epp_values[] = {
 	[EPP_INDEX_BALANCE_POWERSAVE] = AMD_CPPC_EPP_BALANCE_POWERSAVE,
 	[EPP_INDEX_POWERSAVE] = AMD_CPPC_EPP_POWERSAVE,
 };
+static_assert(ARRAY_SIZE(epp_values) == EPP_INDEX_MAX);
 
 typedef int (*cppc_mode_transition_fn)(int);
 
