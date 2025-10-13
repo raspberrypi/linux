@@ -1499,33 +1499,62 @@ static struct dma_chan *dw_axi_dma_of_xlate(struct of_phandle_args *dma_spec,
 {
 	struct dw_axi_dma *dw = ofdma->of_dma_data;
 	struct axi_dma_chan *chan;
+	uint32_t chan_flags_all;
+	uint32_t busy_channels;
 	struct dma_chan *dchan;
-	uint32_t chan_mask = 0;
-	uint32_t chan_sel;
 	dma_cap_mask_t mask;
+	uint32_t chan_mask;
+	uint32_t chan_sel;
+	int max_score;
+	int score;
 	int i;
 
-	/*
-	 * Walk through all channels looking for the best match.
-	 * Starting from 0, choose the first available slave channel which isn't precluded.
-	 */
-	chan_sel = dma_spec->args[0];
-
-	for (i = 0; i < dw->hdata->nr_channels; i++) {
-		if (((dw->sel_precluded[i] & chan_sel) == 0) &&
-		    ((dw->sel_required[i] & chan_sel) == dw->sel_required[i]))
-			chan_mask |= (1 << i);
-	}
+	for (i = 0; i < dw->hdata->nr_channels; i++)
+		chan_flags_all |= dw->chan_flags[i];
 
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
 
-	dchan = __dma_request_channel(&mask, dw_axi_dma_filter_fn, &chan_mask, ofdma->of_node);
-	if (!dchan)
-		return NULL;
+	chan_sel = dma_spec->args[0];
+	busy_channels = 0;
+	dchan = NULL;
+
+	while (1) {
+		max_score = 0;
+		chan_mask = 0;
+
+		for (i = 0; i < dw->hdata->nr_channels; i++) {
+			if (busy_channels & (1 << i))
+				continue;
+			/*
+			 * Positive matches (wanted flags that match) score twice that of
+			 * negetive matches (not wanted flags that are not present).
+			 */
+			score = 2 * hweight32(chan_sel & dw->chan_flags[i]) +
+				1 * hweight32(~chan_sel & ~dw->chan_flags[i] & chan_flags_all);
+			if (score > max_score) {
+				max_score = score;
+				chan_mask = (1 << i);
+			} else if (score == max_score) {
+				chan_mask |= (1 << i);
+			}
+		}
+
+		if (!chan_mask)
+			return NULL;
+
+		dchan = __dma_request_channel(&mask, dw_axi_dma_filter_fn,
+					      &chan_mask, ofdma->of_node);
+		if (dchan)
+			break;
+
+		/* Repeat, after first marking this group of channels as busy */
+		busy_channels |= chan_mask;
+	}
 
 	chan = dchan_to_axi_dma_chan(dchan);
 	chan->hw_handshake_num = (u8)chan_sel;
+
 	return dchan;
 }
 
@@ -1607,17 +1636,14 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 		}
 	}
 
-	/* sel-require is optional */
-	memset(chip->dw->sel_required, 0, sizeof(chip->dw->sel_required));
-	device_property_read_u32_array(dev, "snps,sel-require",
-				       chip->dw->sel_required,
-				       chip->dw->hdata->nr_channels);
-
-	/* sel-preclude is optional */
-	memset(chip->dw->sel_precluded, 0, sizeof(chip->dw->sel_precluded));
-	device_property_read_u32_array(dev, "snps,sel-preclude",
-				       chip->dw->sel_precluded,
-				       chip->dw->hdata->nr_channels);
+	/* snps,chan-flags is optional */
+	memset(chip->dw->chan_flags, 0, sizeof(chip->dw->chan_flags));
+	if (device_property_read_u32_array(dev, "snps,chan-flags",
+				       chip->dw->chan_flags,
+				       chip->dw->hdata->nr_channels) < 0)
+		device_property_read_u32_array(dev, "snps,sel-require",
+					       chip->dw->chan_flags,
+					       chip->dw->hdata->nr_channels);
 
 	return 0;
 }
