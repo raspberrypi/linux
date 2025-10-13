@@ -875,7 +875,7 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		/* Honour the VBLANK limits when setting exposure. */
 		s64 current_exposure, max_exposure, min_exposure;
 
-		imx283->vmax = mode->height + ctrl->val;
+		imx283->vmax = mode->crop.height + ctrl->val;
 
 		imx283_exposure_limits(imx283, mode,
 				       &min_exposure, &max_exposure);
@@ -905,7 +905,7 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	case V4L2_CID_HBLANK:
 		pixel_rate = imx283_pixel_rate(imx283, mode);
-		imx283->hmax = imx283_internal_clock(pixel_rate, mode->width + ctrl->val);
+		imx283->hmax = imx283_internal_clock(pixel_rate, mode->crop.width + ctrl->val);
 		dev_dbg(imx283->dev, "V4L2_CID_HBLANK : %d  HMAX : %u\n",
 			ctrl->val, imx283->hmax);
 		ret = cci_write(imx283->cci, IMX283_REG_HMAX, imx283->hmax, NULL);
@@ -917,7 +917,7 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_VBLANK:
-		imx283->vmax = mode->height + ctrl->val;
+		imx283->vmax = mode->crop.height + ctrl->val;
 		dev_dbg(imx283->dev, "V4L2_CID_VBLANK : %d  VMAX : %u\n",
 			ctrl->val, imx283->vmax);
 		ret = cci_write(imx283->cci, IMX283_REG_VMAX, imx283->vmax, NULL);
@@ -1042,6 +1042,9 @@ static void imx283_set_framing_limits(struct imx283 *imx283,
 	u64 pixel_rate = imx283_pixel_rate(imx283, mode);
 	u64 min_hblank, max_hblank, def_hblank;
 
+	/* Use crop for timings from native sensor units */
+	const struct v4l2_rect *crop = &mode->crop;
+
 	/* Initialise hmax and vmax for exposure calculations */
 	imx283->hmax = imx283_internal_clock(pixel_rate, mode->default_hmax);
 	imx283->vmax = mode->default_vmax;
@@ -1050,18 +1053,18 @@ static void imx283_set_framing_limits(struct imx283 *imx283,
 	 * Horizontal Blanking
 	 * Convert the HMAX_MAX (72MHz) to Pixel rate values for HBLANK_MAX
 	 */
-	min_hblank = mode->min_hmax - mode->width;
-	max_hblank = imx283_iclk_to_pix(pixel_rate, IMX283_HMAX_MAX) - mode->width;
-	def_hblank = mode->default_hmax - mode->width;
+	min_hblank = mode->min_hmax - crop->width;
+	max_hblank = imx283_iclk_to_pix(pixel_rate, IMX283_HMAX_MAX) - crop->width;
+	def_hblank = mode->default_hmax - crop->width;
 	__v4l2_ctrl_modify_range(imx283->hblank, min_hblank, max_hblank, 1,
 				 def_hblank);
 	__v4l2_ctrl_s_ctrl(imx283->hblank, def_hblank);
 
 	/* Vertical Blanking */
-	__v4l2_ctrl_modify_range(imx283->vblank, mode->min_vmax - mode->height,
-				 IMX283_VMAX_MAX - mode->height, 1,
+	__v4l2_ctrl_modify_range(imx283->vblank, mode->min_vmax - crop->height,
+				 IMX283_VMAX_MAX - crop->height, 1,
 				 mode->default_vmax - mode->height);
-	__v4l2_ctrl_s_ctrl(imx283->vblank, mode->default_vmax - mode->height);
+	__v4l2_ctrl_s_ctrl(imx283->vblank, mode->default_vmax - crop->height);
 }
 
 static int imx283_set_pad_format(struct v4l2_subdev *sd,
@@ -1511,13 +1514,13 @@ static int imx283_init_controls(struct imx283 *imx283)
 	/* Initialise vblank/hblank/exposure based on the current mode. */
 	imx283->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx283_ctrl_ops,
 					   V4L2_CID_VBLANK,
-					   mode->min_vmax - mode->height,
+					   mode->min_vmax - mode->crop.height,
 					   IMX283_VMAX_MAX, 1,
-					   mode->default_vmax - mode->height);
+					   mode->default_vmax - mode->crop.height);
 
-	min_hblank = mode->min_hmax - mode->width;
-	max_hblank = imx283_iclk_to_pix(pixel_rate, IMX283_HMAX_MAX) - mode->width;
-	def_hblank = mode->default_hmax - mode->width;
+	min_hblank = mode->min_hmax - mode->crop.width;
+	max_hblank = imx283_iclk_to_pix(pixel_rate, IMX283_HMAX_MAX) - mode->crop.width;
+	def_hblank = mode->default_hmax - mode->crop.width;
 	imx283->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx283_ctrl_ops,
 					   V4L2_CID_HBLANK, min_hblank, max_hblank,
 					   1, def_hblank);
