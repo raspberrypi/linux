@@ -92,19 +92,29 @@ static void  fb_set_logo_truepalette(struct fb_info *info,
 	}
 }
 
-static void fb_set_logo_RGB_palette(struct image_palette *palette,
-						 u32 *palette_to_write, int current_rows)
+static void fb_set_logo_RGB_palette(struct fb_info *info,
+				    struct image_palette *pal_in,
+				    u32 *pal_out, int current_rows)
 {
 	// Set the kernel palette from an array of RGB values
-	uint32_t color_code;
+	static const unsigned char mask[] = {
+		0, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe, 0xff
+	};
+	unsigned char redmask, greenmask, bluemask;
+	int redshift, greenshift, blueshift;
 	int i;
 
-	// Color format is RGB565, remove LSB 3 bits, and move to correct position
+	redmask   = mask[info->var.red.length   < 8 ? info->var.red.length   : 8];
+	greenmask = mask[info->var.green.length < 8 ? info->var.green.length : 8];
+	bluemask  = mask[info->var.blue.length  < 8 ? info->var.blue.length  : 8];
+	redshift   = info->var.red.offset   - (8 - info->var.red.length);
+	greenshift = info->var.green.offset - (8 - info->var.green.length);
+	blueshift  = info->var.blue.offset  - (8 - info->var.blue.length);
+
 	for (i = 0; i < current_rows; i++) {
-		color_code = ((((uint16_t)palette->colors[i][0]) >> 3) << 11) |
-			     ((((uint16_t)palette->colors[i][1]) >> 2) << 5) |
-			     (((uint16_t)palette->colors[i][2]) >> 3);
-		palette_to_write[i+32] = color_code;
+		pal_out[i + 32] = (safe_shift((pal_in->colors[i][0] & redmask), redshift) |
+				   safe_shift((pal_in->colors[i][1] & greenmask), greenshift) |
+				   safe_shift((pal_in->colors[i][2] & bluemask), blueshift));
 	}
 }
 
@@ -339,8 +349,8 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 {
 	int current_rows = 0, palette_index = 0, actual_row, skip_x = 0, skip_y = 0, ret;
 	unsigned char *read_logo = NULL, *header;
-	const char *file_content = NULL;
-	const struct firmware *fw;
+	const char *file_content;
+	const struct firmware *fw = NULL;
 	struct image_palette image_palette;
 	const char *current_ptr, *end_ptr;
 	long width = 0, height = 0;
@@ -349,7 +359,7 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 	u8 entry[3];
 	ssize_t len;
 
-	ret = request_firmware(&fw, filepath, info->device);
+	ret = firmware_request_nowarn(&fw, filepath, info->device);
 	if (ret) {
 		pr_info("Failed to load logo file '%s': %d\n", filepath, ret);
 		goto cleanup;
@@ -357,90 +367,100 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 	len = fw->size;
 	file_content = fw->data;
 
-	if (len > 0) {
-		current_ptr = file_content;
-		end_ptr = file_content + len;
-		if (len < 18) {
-			pr_err("Invalid logo file: TGA file too small for header\n");
-			goto cleanup;
-		}
-		header = (unsigned char *)file_content;
-
-		// Skip color map info (bytes 3-7)
-		// Skip image origin (bytes 8-11)
-		width = header[12] | (header[13] << 8);
-		height = header[14] | (header[15] << 8);
-
-		// Only supports uncompressed true-color images (type 2) with 24-bit depth
-		if (header[2] != 2 || header[16] != 24) {
-			pr_err("Unsupported TGA logo format: Type=%d, Depth=%d (only support Type=2, Depth=24)\n",
-				header[2], header[16]);
-			goto cleanup;
-		}
-		// Skip header + ID field
-		current_ptr = file_content + 18 + header[0];
-
-		read_logo = kmalloc_array(width, height, GFP_KERNEL);
-		if (!read_logo)
-			goto cleanup;
-
-		image->data = read_logo;
-
-		// TGA pixels are stored bottom-to-top by default, unless bit 5 of
-		// image_descriptor is set
-		top_to_bottom = (header[17] & 0x20) != 0;
-		skip_x = 0;
-		skip_y = 0;
-
-		if (image->width > info->var.xres) {
-			pr_info("Logo is larger than screen, clipping horizontally");
-			skip_x = (image->width - info->var.xres) / 2;
-		}
-		if (image->height > info->var.yres) {
-			pr_info("Logo is larger than screen, clipping vertically");
-			skip_y = (image->height - info->var.yres) / 2;
-		}
-		current_ptr += skip_y * width * 3 + skip_x * 3;
-		// Parse pixel data (BGR format in TGA)
-		for (int i = 0; i < height - 2 * skip_y; i++) {
-			for (int j = 0; j < width - 2 * skip_x; j++) {
-				if (current_ptr + 3 > end_ptr) {
-					pr_info("TGA: Unexpected end of file\n");
-					goto cleanup;
-				}
-				B = (unsigned char)*current_ptr++;
-				G = (unsigned char)*current_ptr++;
-				R = (unsigned char)*current_ptr++;
-				entry[0] = R;
-				entry[1] = G;
-				entry[2] = B;
-				palette_index = 0;
-
-				if (!fb_palette_contains_entry(&image_palette, current_rows,
-								entry, 3, &palette_index)) {
-					for (int k = 0; k < 3; k++)
-						image_palette.colors[current_rows][k] = entry[k];
-					palette_index = current_rows;
-					current_rows++;
-				}
-				actual_row = top_to_bottom ? i : (height - 1 - i);
-
-				read_logo[actual_row * (width - 2 * skip_x) + j] =
-					palette_index + 32;
-			}
-			current_ptr += skip_x * 3 * 2;
-		}
-
-		// Set logo palette
-		palette = kmalloc(256 * 4, GFP_KERNEL);
-		if (palette == NULL)
-			goto cleanup;
-		fb_set_logo_RGB_palette(&image_palette, palette, current_rows);
-		info->pseudo_palette = palette;
-
-	} else {
+	if (!len) {
 		pr_err("Error: logo TGA file is empty. Not drawing fullscreen logo.\n");
+		goto cleanup;
 	}
+
+	current_ptr = file_content;
+	end_ptr = file_content + len;
+	if (len < 18) {
+		pr_err("Invalid logo file: TGA file too small for header\n");
+		goto cleanup;
+	}
+	header = (unsigned char *)file_content;
+
+	// Skip color map info (bytes 3-7)
+	// Skip image origin (bytes 8-11)
+	width = header[12] | (header[13] << 8);
+	height = header[14] | (header[15] << 8);
+
+	// Only supports uncompressed true-color images (type 2) with 24-bit depth
+	if (header[2] != 2 || header[16] != 24) {
+		pr_err("Unsupported TGA logo format: Type=%d, Depth=%d (only support Type=2, Depth=24)\n",
+		       header[2], header[16]);
+		goto cleanup;
+	}
+	// Skip header + ID field
+	current_ptr = file_content + 18 + header[0];
+
+	read_logo = kmalloc_array(width, height, GFP_KERNEL);
+	if (!read_logo)
+		goto cleanup;
+
+	image->data = read_logo;
+
+	// TGA pixels are stored bottom-to-top by default, unless bit 5 of
+	// image_descriptor is set
+	top_to_bottom = (header[17] & 0x20) != 0;
+	skip_x = 0;
+	skip_y = 0;
+
+	if (width > info->var.xres) {
+		pr_info("Logo is larger than screen (%lu vs %u), clipping horizontally\n",
+			width, info->var.xres);
+		skip_x = (width - info->var.xres) / 2;
+	}
+	if (height > info->var.yres) {
+		pr_info("Logo is larger than screen (%lu vs %u), clipping vertically\n",
+			height, info->var.yres);
+		skip_y = (height - info->var.yres) / 2;
+	}
+	current_ptr += skip_y * width * 3 + skip_x * 3;
+	// Parse pixel data (BGR format in TGA)
+	for (int i = 0; i < height - 2 * skip_y; i++) {
+		for (int j = 0; j < width - 2 * skip_x; j++) {
+			if (current_ptr + 3 > end_ptr) {
+				pr_info("TGA: Unexpected end of file\n");
+				goto cleanup;
+			}
+			B = (unsigned char)*current_ptr++;
+			G = (unsigned char)*current_ptr++;
+			R = (unsigned char)*current_ptr++;
+			entry[0] = R;
+			entry[1] = G;
+			entry[2] = B;
+			palette_index = 0;
+
+			if (!fb_palette_contains_entry(&image_palette, current_rows,
+						       entry, 3, &palette_index)) {
+				if (current_rows < 224) {
+					for (int k = 0; k < 3; k++)
+						image_palette.colors[current_rows][k] =
+								entry[k];
+					palette_index = current_rows;
+				}
+				current_rows++;
+			}
+			actual_row = top_to_bottom ? i : (height - 1 - i);
+
+			read_logo[actual_row * (width - 2 * skip_x) + j] =
+				palette_index + 32;
+		}
+		current_ptr += skip_x * 3 * 2;
+	}
+
+	if (current_rows >= 224)
+		pr_err("Palette overflow. Entries clipped\n");
+
+	// Set logo palette
+	palette = kzalloc(256 * 4, GFP_KERNEL);
+	if (!palette)
+		goto cleanup;
+	fb_set_logo_RGB_palette(info, &image_palette, palette, current_rows);
+	if (info->pseudo_palette)
+		memcpy(palette, info->pseudo_palette, 32 * sizeof(uint32_t));
+	info->pseudo_palette = palette;
 
 	image->width = min_t(unsigned int, width, info->var.xres);
 	image->height = min_t(unsigned int, height, info->var.yres);
@@ -455,8 +475,7 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 
 cleanup:
 	kfree(read_logo);
-	if (file_content)
-		kvfree(file_content);
+	release_firmware(fw);
 }
 
 
