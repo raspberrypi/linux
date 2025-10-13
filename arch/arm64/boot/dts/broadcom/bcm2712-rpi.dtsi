@@ -2,8 +2,7 @@
 
 #include <dt-bindings/power/raspberrypi-power.h>
 
-#define DMA_SEL_WANTHEAVY       (1 << 8)
-#define DMA_SEL_ONLYHEAVY       (1 << 9)
+#define DMA_FLAG_HEAVY       (1 << 8)
 
 &soc {
 	firmware: firmware {
@@ -95,20 +94,18 @@
 };
 
 &rp1_dma {
-	snps,sel-require =  <DMA_SEL_WANTHEAVY DMA_SEL_WANTHEAVY 0 0 0 0 0 0>;
-	snps,sel-preclude = <0 0 DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY
-			     DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY DMA_SEL_ONLYHEAVY>;
+	snps,chan-flags = <DMA_FLAG_HEAVY DMA_FLAG_HEAVY 0 0 0 0 0 0>;
 };
 
 pio: &rp1_pio {
-	dmas = <&rp1_dma (RP1_DMA_PIO_CH0_TX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH0_RX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH1_TX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH1_RX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH2_TX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH2_RX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH3_TX | DMA_SEL_WANTHEAVY)>,
-			<&rp1_dma (RP1_DMA_PIO_CH3_RX | DMA_SEL_WANTHEAVY)>;
+	dmas = <&rp1_dma (RP1_DMA_PIO_CH0_TX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH0_RX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH1_TX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH1_RX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH2_TX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH2_RX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH3_TX | DMA_FLAG_HEAVY)>,
+		<&rp1_dma (RP1_DMA_PIO_CH3_RX | DMA_FLAG_HEAVY)>;
 	status = "okay";
 };
 
