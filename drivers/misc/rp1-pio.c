@@ -611,6 +611,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct platform_device *pdev = pio->pdev;
 	struct device *dev = &pdev->dev;
 	struct dma_slave_config config = {};
+	struct dma_slave_caps dma_caps;
 	phys_addr_t fifo_addr;
 	struct dma_info *dma;
 	uint32_t dma_mask;
@@ -676,10 +677,12 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	config.src_addr = fifo_addr;
 	config.dst_addr = fifo_addr;
 	config.direction = (dir == RP1_PIO_DIR_TO_SM) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
+	dma_caps.max_burst = 4;
+	dma_get_slave_caps(dma->chan, &dma_caps);
 	if (dir == RP1_PIO_DIR_TO_SM)
-		config.dst_maxburst = 8;
+		config.dst_maxburst = dma_caps.max_burst;
 	else
-		config.src_maxburst = 8;
+		config.src_maxburst = dma_caps.max_burst;
 
 	ret = dmaengine_slave_config(dma->chan, &config);
 	if (ret)
