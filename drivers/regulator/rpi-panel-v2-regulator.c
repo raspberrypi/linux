@@ -74,13 +74,13 @@ static void rpi_panel_v2_gpio_set(struct gpio_chip *gc, unsigned int off, int va
 static int rpi_panel_v2_update_status(struct backlight_device *bl)
 {
 	struct regmap *regmap = bl_get_data(bl);
-	int brightness = bl->props.brightness;
+	int brightness = bl->props.brightness | PWM_BL_ENABLE;
 
 	if (bl->props.power != FB_BLANK_UNBLANK ||
 	    bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
 		brightness = 0;
 
-	return regmap_write(regmap, REG_PWM, brightness | PWM_BL_ENABLE);
+	return regmap_write(regmap, REG_PWM, brightness);
 }
 
 static const struct backlight_ops rpi_panel_v2_bl = {
