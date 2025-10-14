@@ -857,7 +857,7 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 	const struct imx283_mode *mode_list;
 	struct v4l2_subdev_state *state;
 	unsigned int num_modes;
-	u64 shr, pixel_rate;
+	u64 shr;
 	int ret = 0;
 
 	state = v4l2_subdev_get_locked_active_state(&imx283->sd);
@@ -868,14 +868,23 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 				      fmt->width, fmt->height);
 
 	/*
-	 * The VBLANK control may change the limits of usable exposure, so check
-	 * and adjust if necessary.
+	 * The VBLANK/HBLANK controls change the limits of usable exposure,
+	 * so check and adjust if necessary.
 	 */
-	if (ctrl->id == V4L2_CID_VBLANK) {
+	if (ctrl->id == V4L2_CID_HBLANK) {
+		u64 pixel_rate = imx283_pixel_rate(imx283, mode);
+		u32 max_width = mode->crop.width + ctrl->val;
+
+		imx283->hmax = imx283_internal_clock(pixel_rate, max_width);
+	}
+
+	if (ctrl->id == V4L2_CID_VBLANK)
+		imx283->vmax = mode->crop.height + ctrl->val;
+
+	if (ctrl->id == V4L2_CID_HBLANK ||
+	    ctrl->id == V4L2_CID_VBLANK) {
 		/* Honour the VBLANK limits when setting exposure. */
 		s64 current_exposure, max_exposure, min_exposure;
-
-		imx283->vmax = mode->crop.height + ctrl->val;
 
 		imx283_exposure_limits(imx283, mode,
 				       &min_exposure, &max_exposure);
@@ -904,8 +913,6 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_HBLANK:
-		pixel_rate = imx283_pixel_rate(imx283, mode);
-		imx283->hmax = imx283_internal_clock(pixel_rate, mode->crop.width + ctrl->val);
 		dev_dbg(imx283->dev, "V4L2_CID_HBLANK : %d  HMAX : %u\n",
 			ctrl->val, imx283->hmax);
 		ret = cci_write(imx283->cci, IMX283_REG_HMAX, imx283->hmax, NULL);
