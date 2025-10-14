@@ -948,13 +948,11 @@ static int imx283_set_ctrl(struct v4l2_ctrl *ctrl)
 		 * VFLIP is managed by BIT(0) of IMX283_REG_HTRIMMING address, hence
 		 * both need to be set simultaneously.
 		 */
-		if (ctrl->val) {
-			cci_write(imx283->cci, IMX283_REG_HTRIMMING,
-				  IMX283_HTRIMMING_EN | IMX283_MDVREV, &ret);
-		} else {
-			cci_write(imx283->cci, IMX283_REG_HTRIMMING,
-				  IMX283_HTRIMMING_EN, &ret);
-		}
+		u8 trim = IMX283_HTRIMMING_EN;
+
+		trim |= ctrl->val ? IMX283_MDVREV : 0;
+		cci_write(imx283->cci, IMX283_REG_HTRIMMING, trim, &ret);
+
 		break;
 
 	case V4L2_CID_TEST_PATTERN:
