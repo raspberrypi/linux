@@ -11,7 +11,7 @@
 #include <linux/pci_regs.h>
 #include <linux/vfio.h>
 
-#include "../../../kselftest.h"
+#include "kselftest.h"
 
 #define VFIO_LOG_AND_EXIT(...) do {		\
 	fprintf(stderr, "  " __VA_ARGS__);	\

@@ -12,7 +12,7 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 
-#include "../kselftest.h"
+#include "kselftest.h"
 #include "cgroup_util.h"
 
 static int page_size;
