@@ -95,7 +95,7 @@
 #define ARDUCAM_64MP_TEST_PATTERN_GB_DEFAULT	0
 
 /* Embedded metadata stream structure */
-#define ARDUCAM_64MP_EMBEDDED_LINE_WIDTH (11560 * 3)
+#define ARDUCAM_64MP_EMBEDDED_LINE_WIDTH (((11560 * 3) + 15) & ~15)
 #define ARDUCAM_64MP_NUM_EMBEDDED_LINES 1
 
 enum pad_types {
@@ -155,7 +155,7 @@ static const struct arducam_64mp_reg mode_common_regs[] = {
 	{0x33F1, 0x03},
 	{0x0111, 0x02},
 	{0x3062, 0x00},
-	{0x3063, 0x30},
+	{0x3063, 0x12},
 	{0x3076, 0x00},
 	{0x3077, 0x30},
 	{0x1f06, 0x06},
