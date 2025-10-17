@@ -5975,16 +5975,17 @@ Params: brightness              Set the initial brightness for the LEDs. The
 Troubleshooting
 ===============
 
-If you are experiencing problems that you think are DT-related, enable DT
-diagnostic output by adding this to /boot/config.txt:
+If you are experiencing problems that you think are DT-related, first check for
+error messages from the firmware by running:
+
+    sudo vclog -m
+
+To see more details about the changes to the Device Tree, add the following to
+/boot/firmware/config.txt:
 
     dtdebug=on
 
-and rebooting. Then run:
-
-    sudo vcdbg log msg
-
-and look for relevant messages.
+and reboot, then use vclog as above.
 
 Further reading
 ===============
@@ -5992,4 +5993,4 @@ Further reading
 This is only meant to be a quick introduction to the subject of Device Tree on
 Raspberry Pi. There is a more complete explanation here:
 
-http://www.raspberrypi.org/documentation/configuration/device-tree.md
+https://www.raspberrypi.com/documentation/computers/configuration.html#device-trees-overlays-and-parameters
