@@ -850,6 +850,20 @@
 		};
 	};
 
+	fragment@55 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			scd4x: scd4x@62 {
+				compatible = "sensirion,scd40";
+				reg = <0x62>;
+			};
+		};
+	};
+
 	fragment@98 {
 		target-path = "/";
 		__dormant__ {
@@ -930,6 +944,7 @@
 		veml7700 = <0>,"+52";
 		veml3235 = <0>,"+53";
 		tmp117 = <0>,"+54+98";
+		scd4x = <0>,"+55";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
