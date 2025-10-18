@@ -1,30 +1,30 @@
-Linux kernel
-============
+# 1. Build Setup
 
-There are several guides for kernel developers and users. These guides can
-be rendered in a number of formats, like HTML and PDF. Please read
-Documentation/admin-guide/README.rst first.
+## - config 생성하기
+```bash
+KERNEL=kernel8
+make LLVM=1 ARCH=arm64 O=build/ bcm2711_defconfig
+```
 
-In order to build the documentation, use ``make htmldocs`` or
-``make pdfdocs``.  The formatted documentation can also be read online at:
+## - config 수정
+```bash
+make LLVM=1 ARCH=arm64 O=build/ menuconfig
+```
 
-    https://www.kernel.org/doc/html/latest/
+- Kernel Features -> [ ] Randomize the address of the kernel image
+- Kernel hacking -> Compile-time checks and compiler options
+                 -> Debug information
+                    (Rely on the toolchain's impilicit default DWARF version)
+- Kernel hacking -> Compile-time checks and compiler options ->
+                    [*] Provide GDB scripts for kernel debugging
 
-There are various text files in the Documentation/ subdirectory,
-several of them using the Restructured Text markup notation.
+# 2. Build
+```bash
+make LLVM=1 ARCH=arm64 O=build/ -j$(nproc) Image modules dtbs
+```
 
-Please read the Documentation/process/changes.rst file, as it contains the
-requirements for building and running the kernel, and information about
-the problems which may result by upgrading your kernel.
-
-Build status for rpi-6.1.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.1.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.1.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
-
-Build status for rpi-6.6.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.6.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.6.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
-
-Build status for rpi-6.12.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
+# 3. DB 생성
+```bash
+make LLVM=1 ARCH=arm64 O=build/ tags cscope
+./scripts/clang-tools/gen_compile_commands.py -d build/
+```
