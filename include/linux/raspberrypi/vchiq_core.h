@@ -45,6 +45,10 @@
 #define BITSET_IS_SET(bs, b)  (bs[BITSET_WORD(b)] & BITSET_BIT(b))
 #define BITSET_SET(bs, b)     (bs[BITSET_WORD(b)] |= BITSET_BIT(b))
 
+#define PAGELIST_WRITE			0
+#define PAGELIST_READ			1
+#define PAGELIST_READ_WITH_FRAGMENTS	2
+
 enum {
 	DEBUG_ENTRIES,
 #if VCHIQ_ENABLE_DEBUG
