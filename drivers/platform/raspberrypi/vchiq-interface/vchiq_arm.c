@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/list.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/compat.h>
 #include <linux/dma-mapping.h>
@@ -72,6 +73,11 @@ static const struct vchiq_platform_info bcm2835_info = {
 
 static const struct vchiq_platform_info bcm2836_info = {
 	.cache_line_size = 64,
+};
+
+static const struct vchiq_platform_info bcm2711_info = {
+	.cache_line_size = 64,
+	.use_36bit_addrs = true,
 };
 
 struct vchiq_arm_state {
@@ -139,6 +145,20 @@ vchiq_doorbell_irq(int irq, void *dev_id)
 	return ret;
 }
 
+static inline bool
+is_adjacent_block(u32 *addrs, dma_addr_t addr, unsigned int k)
+{
+	u32 tmp;
+
+	if (!k)
+		return false;
+
+	tmp = (addrs[k - 1] & PAGE_MASK) +
+	      (((addrs[k - 1] & ~PAGE_MASK) + 1) << PAGE_SHIFT);
+
+	return tmp == (addr & PAGE_MASK);
+}
+
 /*
  * This function is called by the vchiq stack once it has been connected to
  * the videocore and clients can start to use the stack.
@@ -189,9 +209,18 @@ void vchiq_add_connected_callback(struct vchiq_device *device, void (*callback)(
 }
 EXPORT_SYMBOL(vchiq_add_connected_callback);
 
+/* There is a potential problem with partial cache lines (pages?)
+ * at the ends of the block when reading. If the CPU accessed anything in
+ * the same line (page?) then it may have pulled old data into the cache,
+ * obscuring the new data underneath. We can solve this by transferring the
+ * partial cache lines separately, and allowing the ARM to copy into the
+ * cached area.
+ */
+
 static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 {
 	struct device *dev = &pdev->dev;
+	struct device *dma_dev = NULL;
 	struct vchiq_drv_mgmt *drv_mgmt = platform_get_drvdata(pdev);
 	struct rpi_firmware *fw = drv_mgmt->fw;
 	struct vchiq_slot_zero *vchiq_slot_zero;
@@ -211,6 +240,24 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 		return err;
 
 	drv_mgmt->fragments_size = 2 * drv_mgmt->info->cache_line_size;
+
+	if (drv_mgmt->info->use_36bit_addrs) {
+		struct device_node *dma_node =
+			of_find_compatible_node(NULL, NULL, "brcm,bcm2711-dma");
+
+		if (dma_node) {
+			struct platform_device *pdev;
+
+			pdev = of_find_device_by_node(dma_node);
+			if (pdev)
+				dma_dev = &pdev->dev;
+			of_node_put(dma_node);
+			g_use_36bit_addrs = true;
+		} else {
+			dev_err(dev, "40-bit DMA controller not found\n");
+			return -EINVAL;
+		}
+	}
 
 	/* Allocate space for the channels in coherent memory */
 	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
@@ -278,6 +325,8 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 			channelbase);
 		return -ENXIO;
 	}
+
+	g_dma_dev = dma_dev ?: dev;
 
 	dev_dbg(&pdev->dev, "arm: vchiq_init - done (slots %p, phys %pad)\n",
 		vchiq_slot_zero, &slot_phys);
@@ -1368,6 +1417,7 @@ void vchiq_platform_conn_state_changed(struct vchiq_state *state,
 static const struct of_device_id vchiq_of_match[] = {
 	{ .compatible = "brcm,bcm2835-vchiq", .data = &bcm2835_info },
 	{ .compatible = "brcm,bcm2836-vchiq", .data = &bcm2836_info },
+	{ .compatible = "brcm,bcm2711-vchiq", .data = &bcm2711_info },
 	{},
 };
 MODULE_DEVICE_TABLE(of, vchiq_of_match);
