@@ -32,6 +32,7 @@ enum USE_TYPE_E {
 
 struct vchiq_platform_info {
 	unsigned int cache_line_size;
+	bool use_36bit_addrs;
 };
 
 struct vchiq_drv_mgmt {
