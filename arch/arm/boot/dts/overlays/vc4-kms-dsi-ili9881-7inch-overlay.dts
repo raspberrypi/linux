@@ -19,10 +19,11 @@
 
 			display_mcu: display_mcu@45
 			{
-				compatible = "raspberrypi,v2-touchscreen-panel-regulator";
+				compatible = "raspberrypi,touchscreen-panel-regulator-v2";
 				reg = <0x45>;
 				gpio-controller;
 				#gpio-cells = <2>;
+				#pwm-cells = <3>;
 			};
 
 			gt911: gt911@5d {
@@ -54,7 +55,7 @@
 				reg = <0>;
 				compatible = "raspberrypi,dsi-7inch";
 				reset-gpio = <&display_mcu 0 GPIO_ACTIVE_LOW>;
-				backlight = <&display_mcu>;
+				backlight = <&backlight>;
 
 				port {
 					panel_in: endpoint {
@@ -90,6 +91,14 @@
 				startup-delay-us = <50000>;
 				enable-active-high;
 			};
+
+			backlight: panel_backlight@1 {
+				compatible = "pwm-backlight";
+				brightness-levels = <0 31>;
+				num-interpolated-steps = <31>;
+				default-brightness-level = <15>;
+				pwms = <&display_mcu 0 200000 0>;
+			};
 		};
 	};
 
@@ -111,7 +120,8 @@
 		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
 		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&touch_reg>, "reg:0=0",
-		       <&touch_reg>, "regulator-name=touch_reg_0";
+		       <&touch_reg>, "regulator-name=touch_reg_0",
+		       <&backlight>, "reg:0=0";
 		sizex = <&gt911>,"touchscreen-size-x:0";
 		sizey = <&gt911>,"touchscreen-size-y:0";
 		invx = <0>, "+10";
