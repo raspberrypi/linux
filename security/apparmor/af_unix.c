@@ -758,11 +758,10 @@ int aa_unix_file_perm(const struct cred *subj_cred, struct aa_label *label,
 			   unix_fs_perm(op, request, subj_cred, label,
 					is_unix_fs(peer_sk) ? &peer_path : NULL));
 	} else if (!is_sk_fs) {
-		struct aa_label *plabel;
 		struct aa_sk_ctx *pctx = aa_sock(peer_sk);
 
 		rcu_read_lock();
-		plabel = aa_get_label_rcu(&pctx->label);
+		plabel = aa_get_newest_label(pctx->label);
 		rcu_read_unlock();
 		/* no fs check of aa_unix_peer_perm because conditions above
 		 * ensure they will never be done
