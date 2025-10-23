@@ -1347,7 +1347,7 @@ struct macb {
 
 	struct macb_ptp_info	*ptp_info;	/* macb-ptp interface */
 
-	struct phy		*sgmii_phy;	/* for ZynqMP SGMII mode */
+	struct phy		*phy;
 
 #ifdef MACB_EXT_DESC
 	uint8_t hw_dma_cap;
