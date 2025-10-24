@@ -818,6 +818,20 @@
 		};
 	};
 
+	fragment@56 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ad799x: ad799x@20 {
+				compatible = "adi,ad799x"; // To be overridden
+				reg = <0x20>;
+			};
+		};
+	};
+
 	fragment@98 {
 		target-path = "/";
 		__dormant__ {
@@ -896,6 +910,14 @@
 		veml6030 = <0>,"+50+99";
 		tmp117 = <0>,"+51+98";
 		scd4x = <0>,"+52";
+		ad7991 = <0>,"+56", <&ad799x>,"compatible=adi,ad7991", <&ad799x>,"reg:0=0x28";
+		ad7992 = <0>,"+56", <&ad799x>,"compatible=adi,ad7992";
+		ad7993 = <0>,"+56", <&ad799x>,"compatible=adi,ad7993";
+		ad7994 = <0>,"+56", <&ad799x>,"compatible=adi,ad7994";
+		ad7995 = <0>,"+56", <&ad799x>,"compatible=adi,ad7995", <&ad799x>,"reg:0=0x28";
+		ad7997 = <0>,"+56", <&ad799x>,"compatible=adi,ad7997";
+		ad7998 = <0>,"+56", <&ad799x>,"compatible=adi,ad7998";
+		ad7999 = <0>,"+56", <&ad799x>,"compatible=adi,ad7999", <&ad799x>,"reg:0=0x29";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
@@ -910,7 +932,8 @@
 			<&as7331>,"reg:0", <&adxl345>,"reg:0",
 			<&ads7828>,"reg:0", <&ads7830>,"reg:0",
 			<&adxl355>,"reg:0", <&bmp58x>,"reg:0",
-			<&veml6030>,"reg:0", <&tmp117>,"reg:0";
+			<&veml6030>,"reg:0", <&tmp117>,"reg:0",
+			<&ad799x>,"reg:0";
 		int_pin = <&int_pins>, "brcm,pins:0",
 			<&int_pins>, "reg:0",
 			<&max30102>, "interrupts:0",
