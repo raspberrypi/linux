@@ -47,10 +47,6 @@ struct ili9881c_desc {
 	const unsigned long mode_flags;
 	u8 default_address_mode;
 	unsigned int lanes;
-	// the state of the reset pin when reset is not
-	// asserted, i.e. to reset the panel, the pin must
-	// be set to the inverse of this value.
-	const u8 reset_clear_state;
 };
 
 struct ili9881c {
@@ -2672,10 +2668,10 @@ static int ili9881c_prepare(struct drm_panel *panel)
 	msleep(5);
 
 	/* And reset it */
-	gpiod_set_value_cansleep(ctx->reset, !ctx->reset_clear_state);
+	gpiod_set_value_cansleep(ctx->reset, 1);
 	msleep(20);
 
-	gpiod_set_value_cansleep(ctx->reset, ctx->reset_clear_state);
+	gpiod_set_value_cansleep(ctx->reset, 0);
 	msleep(20);
 
 	for (i = 0; i < ctx->desc->init_length; i++) {
@@ -2717,7 +2713,7 @@ static int ili9881c_unprepare(struct drm_panel *panel)
 	mipi_dsi_dcs_enter_sleep_mode_multi(&mctx);
 	regulator_disable(ctx->power);
 
-	gpiod_set_value_cansleep(ctx->reset, !ctx->reset_clear_state);
+	gpiod_set_value_cansleep(ctx->reset, 1);
 
 	return 0;
 }
@@ -3074,7 +3070,7 @@ static void ili9881c_dsi_remove(struct mipi_dsi_device *dsi)
 	mipi_dsi_detach(dsi);
 	drm_panel_remove(&ctx->panel);
 
-	gpiod_set_value_cansleep(ctx->reset, !ctx->reset_clear_state);
+	gpiod_set_value_cansleep(ctx->reset, 1);
 	regulator_disable(ctx->power);
 }
 
@@ -3177,7 +3173,6 @@ static const struct ili9881c_desc t101p136cq_desc = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_SYNC_PULSE |
 	              MIPI_DSI_MODE_LPM,
 	.lanes = 4,
-	.reset_clear_state = 1,
 };
 
 static const struct ili9881c_desc t101p136cq_rpi4_2lane_desc = {
@@ -3187,7 +3182,6 @@ static const struct ili9881c_desc t101p136cq_rpi4_2lane_desc = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
 	              MIPI_DSI_MODE_LPM,
 	.lanes = 2,
-	.reset_clear_state = 1,
 };
 
 static const struct ili9881c_desc t101p136cq_rpi5_2lane_desc = {
@@ -3196,7 +3190,6 @@ static const struct ili9881c_desc t101p136cq_rpi5_2lane_desc = {
 	.mode = t101p136cq_rpi5_2lane_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO |  MIPI_DSI_MODE_LPM,
 	.lanes = 2,
-	.reset_clear_state = 1,
 };
 
 static const struct of_device_id ili9881c_of_match[] = {
@@ -3211,6 +3204,7 @@ static const struct of_device_id ili9881c_of_match[] = {
 	{ .compatible = "nwe,nwe080", .data = &nwe080_desc },
 	{ .compatible = "raspberrypi,dsi-5inch", &rpi_5inch_desc },
 	{ .compatible = "raspberrypi,dsi-7inch", &rpi_7inch_desc },
+	// Note that T101P136CQ has inverse reset polarity
 	{ .compatible = "rzw,t101p136cq", .data = &t101p136cq_desc },
 	{ .compatible = "rzw,t101p136cq-rpi4-2lane", .data = &t101p136cq_rpi4_2lane_desc },
 	{ .compatible = "rzw,t101p136cq-rpi5-2lane", .data = &t101p136cq_rpi5_2lane_desc },
