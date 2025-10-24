@@ -748,41 +748,47 @@ int aa_unix_file_perm(const struct cred *subj_cred, struct aa_label *label,
 	if (!peer_sk)
 		goto out;
 
-	peer_addr = aa_sunaddr(unix_sk(peer_sk), &peer_addrlen);
+	if (!is_sk_fs) {
+		bool is_peer_fs = is_unix_fs(peer_sk);
 
-	struct path peer_path;
+		peer_addr = aa_sunaddr(unix_sk(peer_sk), &peer_addrlen);
+		if (is_peer_fs) {
+			struct path peer_path;
 
-	peer_path = unix_sk(peer_sk)->path;
-	if (!is_sk_fs && is_unix_fs(peer_sk)) {
-		last_error(error,
-			   unix_fs_perm(op, request, subj_cred, label,
-					is_unix_fs(peer_sk) ? &peer_path : NULL));
-	} else if (!is_sk_fs) {
-		struct aa_sk_ctx *pctx = aa_sock(peer_sk);
+			unix_state_lock(peer_sk);
+			peer_path = unix_sk(peer_sk)->path;
+			if (peer_path.dentry)
+				path_get(&peer_path);
+			unix_state_unlock(peer_sk);
 
-		rcu_read_lock();
-		plabel = aa_get_newest_label(pctx->label);
-		rcu_read_unlock();
-		/* no fs check of aa_unix_peer_perm because conditions above
-		 * ensure they will never be done
-		 */
-		last_error(error,
-			xcheck(unix_peer_perm(subj_cred, label, op,
+			last_error(error,
+				   unix_fs_perm(op, request, subj_cred, label,
+						&peer_path));
+			if (peer_path.dentry)
+				path_put(&peer_path);
+		} else {
+			struct aa_sk_ctx *pctx = aa_sock(peer_sk);
+
+			rcu_read_lock();
+			plabel = aa_get_newest_label(pctx->label);
+			rcu_read_unlock();
+			/* no fs check of aa_unix_peer_perm because conditions
+			 * above ensure they will never be done
+			 */
+			last_error(error,
+				xcheck(unix_peer_perm(subj_cred, label, op,
 					      MAY_READ | MAY_WRITE, sock->sk,
 					      is_sk_fs ? &path : NULL,
 					      peer_addr, peer_addrlen,
-					      is_unix_fs(peer_sk) ?
-							&peer_path : NULL,
-					      plabel),
-			       unix_peer_perm(file->f_cred, plabel, op,
+					      NULL, plabel),
+				       unix_peer_perm(file->f_cred, plabel, op,
 					      MAY_READ | MAY_WRITE, peer_sk,
-					      is_unix_fs(peer_sk) ?
-							&peer_path : NULL,
-					      addr, addrlen,
+					      NULL, addr, addrlen,
 					      is_sk_fs ? &path : NULL,
 					      label)));
-		if (!error && !__aa_subj_label_is_cached(plabel, label))
-			update_peer_ctx(peer_sk, pctx, label);
+			if (!error && !__aa_subj_label_is_cached(plabel, label))
+				update_peer_ctx(peer_sk, pctx, label);
+		}
 	}
 	sock_put(peer_sk);
 
