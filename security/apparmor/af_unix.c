@@ -674,9 +674,11 @@ static void update_sk_ctx(struct sock *sk, struct aa_label *label,
 		old = rcu_dereference_protected(ctx->peer, lockdep_is_held(&unix_sk(sk)->lock));
 
 		if (old == plabel) {
-			rcu_assign_pointer(ctx->peer_lastupdate, plabel);
+			rcu_assign_pointer(ctx->peer_lastupdate,
+					   aa_get_label(plabel));
 		} else if (aa_label_is_subset(plabel, old)) {
-			rcu_assign_pointer(ctx->peer_lastupdate, plabel);
+			rcu_assign_pointer(ctx->peer_lastupdate,
+					   aa_get_label(plabel));
 			rcu_assign_pointer(ctx->peer, aa_get_label(plabel));
 			aa_put_label(old);
 		} /* else race or a subset - don't update */
