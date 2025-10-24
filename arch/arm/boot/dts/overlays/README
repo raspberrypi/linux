@@ -2421,15 +2421,39 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure, temperature,
         light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the ADS7828, ADS7830,
-                                ADT7410, AS73211, AS7331, BH1750, BME280,
-                                BME680, BMP280, BMP380, BMP58x, CCS811, DS1621,
-                                HDC100X, HDC3020, JC42, LM75, MCP980x,
+Params: addr                    Set the address for the AD799X, ADS7828,
+                                ADS7830, ADT7410, AS73211, AS7331, BH1750,
+                                BME280, BME680, BMP280, BMP380, BMP58x, CCS811,
+                                DS1621, HDC100X, HDC3020, JC42, LM75, MCP980x,
                                 MPU6050, MPU9250, MS5637, MS5803, MS5805,
                                 MS5837, MS8607, SHT3x, TMP102 or VEML6030.
 
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
+
+        ad7991                  Select the Analog Devices AD7991 ADC
+                                Valid addresses 0x28-0x29, default 0x28
+
+        ad7992                  Select the Analog Devices AD7992 ADC
+                                Valid addresses 0x20-0x24, default 0x20
+
+        ad7993                  Select the Analog Devices AD7993 ADC
+                                Valid addresses 0x20-0x24, default 0x20
+
+        ad7994                  Select the Analog Devices AD7994 ADC
+                                Valid addresses 0x20-0x24, default 0x20
+
+        ad7995                  Select the Analog Devices AD7995 ADC
+                                Valid addresses 0x28-0x29, default 0x28
+
+        ad7997                  Select the Analog Devices AD7997 ADC
+                                Valid addresses 0x20-0x24, default 0x20
+
+        ad7998                  Select the Analog Devices AD7998 ADC
+                                Valid addresses 0x20-0x24, default 0x20
+
+        ad7999                  Select the Analog Devices AD7999 ADC
+                                Valid address 0x29 (the default)
 
         ads7828                 Select the TI ADS7828 50kHz 8-channel 12bit ADC
                                 Valid addresses 0x48-0x4b, default 0x48
