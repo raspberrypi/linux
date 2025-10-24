@@ -6049,7 +6049,7 @@ int btrfs_drop_snapshot(struct btrfs_root *root, bool update_ref, bool for_reloc
 	struct btrfs_trans_handle *trans;
 	struct btrfs_root *tree_root = fs_info->tree_root;
 	struct btrfs_root_item *root_item = &root->root_item;
-	struct walk_control *wc;
+	struct walk_control AUTO_KFREE(wc);
 	struct btrfs_key key;
 	const u64 rootid = btrfs_root_id(root);
 	int ret = 0;
@@ -6067,9 +6067,8 @@ int btrfs_drop_snapshot(struct btrfs_root *root, bool update_ref, bool for_reloc
 
 	wc = kzalloc(sizeof(*wc), GFP_NOFS);
 	if (!wc) {
-		btrfs_free_path(path);
 		ret = -ENOMEM;
-		goto out;
+		goto out_free;
 	}
 
 	/*
@@ -6279,7 +6278,6 @@ out_end_trans:
 
 	btrfs_end_transaction_throttle(trans);
 out_free:
-	kfree(wc);
 	btrfs_free_path(path);
 out:
 	if (!ret && root_dropped) {
@@ -6322,7 +6320,7 @@ int btrfs_drop_subtree(struct btrfs_trans_handle *trans,
 {
 	struct btrfs_fs_info *fs_info = root->fs_info;
 	BTRFS_PATH_AUTO_FREE(path);
-	struct walk_control *wc;
+	struct walk_control AUTO_KFREE(wc);
 	int level;
 	int parent_level;
 	int ret = 0;
@@ -6361,18 +6359,17 @@ int btrfs_drop_subtree(struct btrfs_trans_handle *trans,
 	while (1) {
 		ret = walk_down_tree(trans, root, path, wc);
 		if (ret < 0)
-			break;
+			return ret;
 
 		ret = walk_up_tree(trans, root, path, wc, parent_level);
 		if (ret) {
-			if (ret > 0)
-				ret = 0;
+			if (ret < 0)
+				return ret;
 			break;
 		}
 	}
 
-	kfree(wc);
-	return ret;
+	return 0;
 }
 
 /*
