@@ -2712,7 +2712,6 @@ static int ili9881c_unprepare(struct drm_panel *panel)
 	mipi_dsi_dcs_set_display_off_multi(&mctx);
 	mipi_dsi_dcs_enter_sleep_mode_multi(&mctx);
 	regulator_disable(ctx->power);
-
 	gpiod_set_value_cansleep(ctx->reset, 1);
 
 	return 0;
@@ -3126,7 +3125,6 @@ static const struct ili9881c_desc am8001280g_desc = {
 
 static const struct ili9881c_desc nwe080_desc = {
 	.init = nwe080_init,
-
 	.init_length = ARRAY_SIZE(nwe080_init),
 	.mode = &nwe080_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE | MIPI_DSI_MODE_VIDEO,
