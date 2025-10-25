@@ -830,10 +830,10 @@ struct task_struct {
 #endif
 	int				on_rq;
 
-	int				prio;
-	int				static_prio;
-	int				normal_prio;
-	unsigned int			rt_priority;
+	int				prio;		// dynamic prio
+	int				static_prio;	// 
+	int				normal_prio;	// cache for PI
+	unsigned int			rt_priority;	// RT class
 
 	struct sched_entity		se;
 	struct sched_rt_entity		rt;
