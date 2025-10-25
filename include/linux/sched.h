@@ -1190,7 +1190,7 @@ struct task_struct {
 	spinlock_t			alloc_lock;
 
 	/* Protection of the PI data structures: */
-	raw_spinlock_t			pi_lock;
+	raw_spinlock_t			pi_lock; // priority inheritance
 
 	struct wake_q_node		wake_q;
 
