@@ -142,8 +142,8 @@ static uint8_t ws2812_apply_gamma(uint8_t brightness, uint8_t val)
 {
 	int bright;
 
-	if (!val)
-		return 0;
+	if (!val || !brightness)
+		return val;
 	bright = (val * brightness) / 255;
 	return ws2812_gamma[bright];
 }

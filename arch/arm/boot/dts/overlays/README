@@ -5980,8 +5980,10 @@ Params: brightness              Set the initial brightness for the LEDs. The
                                 a single byte to offset 0 of the device. Note
                                 that brightness is a multiplier for the pixel
                                 values, and only white pixels can reach the
-                                maximum visible brightness. (range 0-255,
-                                default 255)
+                                maximum visible brightness. N.B. Setting
+                                brightness to 0 acctivates pass-through mode,
+                                disabling all brightness and gamma processing.
+                                (range 0-255, default 255)
         dev_name                The name for the /dev/ device entry. Note that
                                 if the name includes '%d' it will be replaced
                                 by the instance number. (default 'leds%d')
