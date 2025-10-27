@@ -1497,7 +1497,7 @@ static struct dma_chan *dw_axi_dma_of_xlate(struct of_phandle_args *dma_spec,
 {
 	struct dw_axi_dma *dw = ofdma->of_dma_data;
 	struct axi_dma_chan *chan;
-	uint32_t chan_flags_all;
+	uint32_t chan_flags_all = 0;
 	uint32_t busy_channels;
 	struct dma_chan *dchan;
 	dma_cap_mask_t mask;
