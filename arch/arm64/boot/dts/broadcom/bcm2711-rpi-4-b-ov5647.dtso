@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for OV5647 camera module on VC I2C bus
+
+/dts-v1/;
+/plugin/;
+
+&{/} {
+	cam1_clk: cam1_clk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <25000000>;
+	};
+
+	cam_dummy_reg: cam_dummy_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam-dummy-reg";
+		status = "okay";
+	};
+};
+
+&cam1_reg {
+	startup-delay-us = <20000>;
+};
+
+&csi1 {
+	status = "okay";
+
+	port {
+		csi_ep: endpoint {
+			remote-endpoint = <&cam_endpoint>;
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c0_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	camera@36 {
+		compatible = "ovti,ov5647";
+		reg = <0x36>;
+
+		clocks = <&cam1_clk>;
+		clock-names = "xclk";
+
+		avdd-supply = <&cam1_reg>;
+		dovdd-supply = <&cam_dummy_reg>;
+		dvdd-supply = <&cam_dummy_reg>;
+
+		rotation = <0>;
+		orientation = <2>;
+
+		port {
+			cam_endpoint: endpoint {
+				remote-endpoint = <&csi_ep>;
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				clock-noncontinuous;
+				link-frequencies = /bits/ 64 <297000000>;
+			};
+		};
+	};
+};
+
+&i2c0mux {
+	status = "okay";
+};
