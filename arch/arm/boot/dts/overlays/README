@@ -5832,12 +5832,21 @@ Info:   See vc4-kms-v3d-pi4 (this is the Pi 5 version)
 
 
 Name:   vc4-kms-vga666
-Info:   Enable the VGA666 (resistor ladder ADC) for the vc4-kms-v3d driver.
+Info:   Enable the VGA666 (resistor ladder DAC) for the vc4-kms-v3d driver.
         Requires vc4-kms-v3d to be loaded.
 Load:   dtoverlay=vc4-kms-vga666,<param>
 Params: ddc                     Enables GPIOs 0&1 as the I2C to read the EDID
                                 from the display. NB These are NOT 5V tolerant
                                 GPIOs, therefore level shifters are required.
+
+
+Name:   vec-gpio-pi5
+Info:   Overlay to output composite video as an 8-bit digital code over GPIO
+        pins 4-11, for Raspberry Pi 5 series only. Requires composite video
+        to be enabled; incompatible with any use of DPI or VGA666.
+Load:   dtoverlay=vec-gpio-pi5,<param>
+Params: clk                     Enable GPIO 0 (clock, 108 MHz)
+        gpio27                  Enable GPIO 27 (duplicate MSB)
 
 
 Name:   vga666

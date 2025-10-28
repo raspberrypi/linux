@@ -518,6 +518,14 @@
 		bcm2712;
 	};
 
+	vec-gpio {
+		bcm2712 = "vec-gpio-pi5";
+	};
+
+	vec-gpio-pi5 {
+		bcm2712;
+	};
+
 	vl805 {
 		bcm2711;
 	};
