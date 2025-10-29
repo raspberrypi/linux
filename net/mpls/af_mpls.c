@@ -135,7 +135,7 @@ void mpls_stats_inc_outucastpkts(struct net_device *dev,
 	struct mpls_dev *mdev;
 
 	if (skb->protocol == htons(ETH_P_MPLS_UC)) {
-		mdev = mpls_dev_get(dev);
+		mdev = mpls_dev_rcu(dev);
 		if (mdev)
 			MPLS_INC_STATS_LEN(mdev, skb->len,
 					   tx_packets,
@@ -359,7 +359,7 @@ static int mpls_forward(struct sk_buff *skb, struct net_device *dev,
 
 	/* Careful this entire function runs inside of an rcu critical section */
 
-	mdev = mpls_dev_get(dev);
+	mdev = mpls_dev_rcu(dev);
 	if (!mdev)
 		goto drop;
 
@@ -468,7 +468,7 @@ static int mpls_forward(struct sk_buff *skb, struct net_device *dev,
 	return 0;
 
 tx_err:
-	out_mdev = out_dev ? mpls_dev_get(out_dev) : NULL;
+	out_mdev = out_dev ? mpls_dev_rcu(out_dev) : NULL;
 	if (out_mdev)
 		MPLS_INC_STATS(out_mdev, tx_errors);
 	goto drop;
@@ -1120,7 +1120,7 @@ static int mpls_fill_stats_af(struct sk_buff *skb,
 	struct mpls_dev *mdev;
 	struct nlattr *nla;
 
-	mdev = mpls_dev_get(dev);
+	mdev = mpls_dev_rcu(dev);
 	if (!mdev)
 		return -ENODATA;
 
@@ -1140,7 +1140,7 @@ static size_t mpls_get_stats_af_size(const struct net_device *dev)
 {
 	struct mpls_dev *mdev;
 
-	mdev = mpls_dev_get(dev);
+	mdev = mpls_dev_rcu(dev);
 	if (!mdev)
 		return 0;
 
@@ -1343,7 +1343,7 @@ static int mpls_netconf_dump_devconf(struct sk_buff *skb,
 
 	rcu_read_lock();
 	for_each_netdev_dump(net, dev, ctx->ifindex) {
-		mdev = mpls_dev_get(dev);
+		mdev = mpls_dev_rcu(dev);
 		if (!mdev)
 			continue;
 		err = mpls_netconf_fill_devconf(skb, mdev,
