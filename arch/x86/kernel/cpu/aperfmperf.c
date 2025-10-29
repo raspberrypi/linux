@@ -36,7 +36,7 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct aperfmperf, cpu_samples) = {
 	.seq = SEQCNT_ZERO(cpu_samples.seq)
 };
 
-static void init_counter_refs(void)
+static void init_counter_refs(void *data)
 {
 	u64 aperf, mperf;
 
@@ -288,16 +288,20 @@ out:
 }
 
 #ifdef CONFIG_PM_SLEEP
-static struct syscore_ops freq_invariance_syscore_ops = {
+static const struct syscore_ops freq_invariance_syscore_ops = {
 	.resume = init_counter_refs,
 };
 
-static void register_freq_invariance_syscore_ops(void)
+static struct syscore freq_invariance_syscore = {
+	.ops = &freq_invariance_syscore_ops,
+};
+
+static void register_freq_invariance_syscore(void)
 {
-	register_syscore_ops(&freq_invariance_syscore_ops);
+	register_syscore(&freq_invariance_syscore);
 }
 #else
-static inline void register_freq_invariance_syscore_ops(void) {}
+static inline void register_freq_invariance_syscore(void) {}
 #endif
 
 static void freq_invariance_enable(void)
@@ -307,7 +311,7 @@ static void freq_invariance_enable(void)
 		return;
 	}
 	static_branch_enable_cpuslocked(&arch_scale_freq_key);
-	register_freq_invariance_syscore_ops();
+	register_freq_invariance_syscore();
 	pr_info("Estimated ratio of average max frequency by base frequency (times 1024): %llu\n", arch_max_freq_ratio);
 }
 
@@ -534,7 +538,7 @@ static int __init bp_init_aperfmperf(void)
 	if (!cpu_feature_enabled(X86_FEATURE_APERFMPERF))
 		return 0;
 
-	init_counter_refs();
+	init_counter_refs(NULL);
 	bp_init_freq_invariance();
 	return 0;
 }
@@ -543,5 +547,5 @@ early_initcall(bp_init_aperfmperf);
 void ap_init_aperfmperf(void)
 {
 	if (cpu_feature_enabled(X86_FEATURE_APERFMPERF))
-		init_counter_refs();
+		init_counter_refs(NULL);
 }
