@@ -5,9 +5,6 @@ config DRM_RP1_DPI
 	select DRM_CLIENT_SELECTION
 	select DRM_GEM_DMA_HELPER
 	select DRM_KMS_HELPER
-	select DRM_VRAM_HELPER
-	select DRM_TTM
-	select DRM_TTM_HELPER
 	depends on RP1_PIO || !RP1_PIO
 	help
 	  Choose this option to enable DPI output on Raspberry Pi RP1
