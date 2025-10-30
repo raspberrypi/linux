@@ -72,7 +72,7 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 
 /* V_TIMING internal */
 #define IMX477_REG_FRAME_LENGTH		CCI_REG16(0x0340)
-#define IMX477_VBLANK_MIN		4
+#define IMX477_VBLANK_MIN		48
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
 
 /* H_TIMING internal */
