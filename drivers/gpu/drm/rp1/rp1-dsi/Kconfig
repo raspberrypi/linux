@@ -6,9 +6,6 @@ config DRM_RP1_DSI
 	select DRM_GEM_DMA_HELPER
 	select DRM_KMS_HELPER
 	select DRM_MIPI_DSI
-	select DRM_VRAM_HELPER
-	select DRM_TTM
-	select DRM_TTM_HELPER
 	select GENERIC_PHY
 	select GENERIC_PHY_MIPI_DPHY
 	help
