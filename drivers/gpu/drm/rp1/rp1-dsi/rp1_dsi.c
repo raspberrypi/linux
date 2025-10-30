@@ -430,7 +430,7 @@ static int rp1dsi_platform_probe(struct platform_device *pdev)
 		ret = PTR_ERR(drm);
 		return ret;
 	}
-	dsi = drmm_kzalloc(drm, sizeof(*dsi), GFP_KERNEL);
+	dsi = devm_drm_bridge_alloc(dev, struct rp1_dsi, bridge, &rp1_dsi_bridge_funcs);
 	if (!dsi) {
 		ret = -ENOMEM;
 		goto err_free_drm;
@@ -441,7 +441,6 @@ static int rp1dsi_platform_probe(struct platform_device *pdev)
 	drm->dev_private = dsi;
 	platform_set_drvdata(pdev, drm);
 
-	dsi->bridge.funcs = &rp1_dsi_bridge_funcs;
 	dsi->bridge.of_node = dev->of_node;
 	dsi->bridge.type = DRM_MODE_CONNECTOR_DSI;
 
