@@ -5,8 +5,5 @@ config DRM_RP1_VEC
 	select DRM_CLIENT_SELECTION
 	select DRM_GEM_DMA_HELPER
 	select DRM_KMS_HELPER
-	select DRM_VRAM_HELPER
-	select DRM_TTM
-	select DRM_TTM_HELPER
 	help
 	  Choose this option to enable Video Out on RP1
