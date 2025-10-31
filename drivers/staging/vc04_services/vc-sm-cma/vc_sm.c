@@ -393,6 +393,7 @@ static int vc_sm_dma_buf_attach(struct dma_buf *dmabuf,
 	ret = sg_alloc_table(sgt, buf->alloc.sg_table->orig_nents, GFP_KERNEL);
 	if (ret) {
 		kfree(a);
+		mutex_unlock(&buf->lock);
 		return -ENOMEM;
 	}
 
@@ -1223,7 +1224,7 @@ error:
 		dma_buf_put(dmabuf);
 	} else {
 		/* No dmabuf, therefore just free the buffer here */
-		if (buffer->cookie)
+		if (buffer && buffer->cookie)
 			dma_free_coherent(&sm_state->device->dev, buffer->size,
 					  buffer->cookie, buffer->dma_addr);
 		kfree(buffer);
