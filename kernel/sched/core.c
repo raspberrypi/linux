@@ -5994,6 +5994,10 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 restart:
 	prev_balance(rq, prev, rf);
 
+	// sched class 는 전역적으로 선언이 되어 있고, 우선 순위가 높은
+	// sched_class 순서대로 pick_next_task 를 수행한다.
+	// rq 내부에 대기 중인 task 가 있던 없던 일단 함수를 호출한다는 점에서
+	// 손해이기 때문에 위에 최적화 경로가 존재한다.
 	for_each_active_class(class) {
 		if (class->pick_next_task) {
 			p = class->pick_next_task(rq, prev);
