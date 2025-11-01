@@ -835,9 +835,9 @@ struct task_struct {
 	int				normal_prio;	// cache for PI
 	unsigned int			rt_priority;	// RT class
 
-	struct sched_entity		se;
-	struct sched_rt_entity		rt;
-	struct sched_dl_entity		dl;
+	struct sched_entity		se;		// sched entity
+	struct sched_rt_entity		rt;		// real time
+	struct sched_dl_entity		dl;		// deadline
 	struct sched_dl_entity		*dl_server;
 #ifdef CONFIG_SCHED_CLASS_EXT
 	struct sched_ext_entity		scx;
