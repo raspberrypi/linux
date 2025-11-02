@@ -426,7 +426,8 @@ static int __tb_path_deactivate_hop(struct tb_port *port, int hop_index,
 				 * in the USB4 spec so we clear them
 				 * only for pre-USB4 adapters.
 				 */
-				if (!tb_switch_is_usb4(port->sw)) {
+				if (tb_port_is_null(port) ||
+				    !tb_switch_is_usb4(port->sw)) {
 					hop.ingress_fc = 0;
 					hop.ingress_shared_buffer = 0;
 				}
@@ -546,15 +547,18 @@ int tb_path_activate(struct tb_path *path)
 		__tb_path_deactivate_hop(path->hops[i].in_port,
 				path->hops[i].in_hop_index, path->clear_fc);
 
-		/* dword 0 */
+		/* Needed for USB4 routers, read path config space before write */
+		res = tb_port_read(path->hops[i].in_port, &hop, TB_CFG_HOPS,
+				   2 * path->hops[i].in_hop_index, 2);
+		if (res)
+			goto err;
+
 		hop.next_hop = path->hops[i].next_hop_index;
 		hop.out_port = path->hops[i].out_port->port;
-		hop.initial_credits = path->hops[i].initial_credits;
 		hop.pmps = path->hops[i].pm_support;
 		hop.unknown1 = 0;
 		hop.enable = 1;
 
-		/* dword 1 */
 		out_mask = (i == path->path_length - 1) ?
 				TB_PATH_DESTINATION : TB_PATH_INTERNAL;
 		in_mask = (i == 0) ? TB_PATH_SOURCE : TB_PATH_INTERNAL;
@@ -564,12 +568,21 @@ int tb_path_activate(struct tb_path *path)
 		hop.drop_packages = path->drop_packages;
 		hop.counter = path->hops[i].in_counter_index;
 		hop.counter_enable = path->hops[i].in_counter_index != -1;
-		hop.ingress_fc = path->ingress_fc_enable & in_mask;
 		hop.egress_fc = path->egress_fc_enable & out_mask;
-		hop.ingress_shared_buffer = path->ingress_shared_buffer
-					    & in_mask;
-		hop.egress_shared_buffer = path->egress_shared_buffer
-					    & out_mask;
+		hop.egress_shared_buffer = path->egress_shared_buffer & out_mask;
+		/*
+		 * Protocol adapters IFC and ISE bits, and Path Credits
+		 * Allocated are vendor defined in the USB4 spec so we
+		 * program them only for pre-USB4 and lane adapters.
+		 */
+		if (tb_port_is_null(path->hops[i].in_port) ||
+		    !tb_switch_is_usb4(path->hops[i].in_port->sw)) {
+			hop.initial_credits = path->hops[i].initial_credits;
+			hop.ingress_fc = path->ingress_fc_enable & in_mask;
+			hop.ingress_shared_buffer =
+				path->ingress_shared_buffer & in_mask;
+		}
+
 		hop.unknown3 = 0;
 
 		tb_port_dbg(path->hops[i].in_port, "Writing hop %d\n", i);
