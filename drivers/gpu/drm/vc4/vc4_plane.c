@@ -2174,9 +2174,10 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	 * TODO: This only covers Raster Scan Order planes
 	 */
 	for (i = 0; i < num_planes; i++) {
+		int idx = vc6_get_plane_idx(format, i);
 		struct drm_gem_dma_object *bo =
-			drm_fb_dma_get_gem_obj(fb, vc6_get_plane_idx(format, i));
-		dma_addr_t paddr = bo->dma_addr + fb->offsets[i] + offsets[i];
+			drm_fb_dma_get_gem_obj(fb, idx);
+		dma_addr_t paddr = bo->dma_addr + fb->offsets[idx] + offsets[idx];
 
 		/* Pointer Word 0 */
 		vc4_state->ptr0_offset[i] = vc4_state->dlist_count;
