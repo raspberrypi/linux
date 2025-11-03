@@ -1268,7 +1268,8 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
-	pm_runtime_put(&client->dev);
+	pm_runtime_mark_last_busy(&client->dev);
+	pm_runtime_put_autosuspend(&client->dev);
 
 	return ret;
 }
@@ -1694,22 +1695,23 @@ static int imx477_set_stream(struct v4l2_subdev *sd, int enable)
 	}
 
 	if (enable) {
-		ret = pm_runtime_get_sync(&client->dev);
-		if (ret < 0) {
-			pm_runtime_put_noidle(&client->dev);
+		ret = pm_runtime_resume_and_get(&client->dev);
+		if (ret < 0)
 			goto err_unlock;
-		}
 
 		/*
 		 * Apply default & customized values
 		 * and then start streaming.
 		 */
 		ret = imx477_start_streaming(imx477);
-		if (ret)
-			goto err_rpm_put;
+		if (ret) {
+			pm_runtime_put_sync(&client->dev);
+			goto err_unlock;
+		}
 	} else {
 		imx477_stop_streaming(imx477);
-		pm_runtime_put(&client->dev);
+		pm_runtime_mark_last_busy(&client->dev);
+		pm_runtime_put_autosuspend(&client->dev);
 	}
 
 	imx477->streaming = enable;
@@ -1722,8 +1724,6 @@ static int imx477_set_stream(struct v4l2_subdev *sd, int enable)
 
 	return ret;
 
-err_rpm_put:
-	pm_runtime_put(&client->dev);
 err_unlock:
 	mutex_unlock(&imx477->mutex);
 
@@ -2183,10 +2183,16 @@ static int imx477_probe(struct i2c_client *client)
 	/* Initialize default format */
 	imx477_set_default_format(imx477);
 
-	/* Enable runtime PM and turn off the device */
+	/*
+	 * Enable runtime PM with 5s autosuspend. As the device has been powered
+	 * manually, mark it as active, and increase the usage count without
+	 * resuming the device.
+	 */
 	pm_runtime_set_active(dev);
+	pm_runtime_get_noresume(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_idle(dev);
+	pm_runtime_set_autosuspend_delay(dev, 5000);
+	pm_runtime_use_autosuspend(dev);
 
 	/* This needs the pm runtime to be registered. */
 	ret = imx477_init_controls(imx477);
@@ -2215,6 +2221,9 @@ static int imx477_probe(struct i2c_client *client)
 		goto error_media_entity;
 	}
 
+	pm_runtime_mark_last_busy(&client->dev);
+	pm_runtime_put_autosuspend(&client->dev);
+
 	return 0;
 
 error_media_entity:
@@ -2225,7 +2234,7 @@ error_handler_free:
 
 error_power_off:
 	pm_runtime_disable(&client->dev);
-	pm_runtime_set_suspended(&client->dev);
+	pm_runtime_put_noidle(&client->dev);
 	imx477_power_off(&client->dev);
 
 	return ret;
