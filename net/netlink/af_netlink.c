@@ -968,7 +968,7 @@ static void netlink_undo_bind(int group, long unsigned int groups,
 			nlk->netlink_unbind(sock_net(sk), undo + 1);
 }
 
-static int netlink_bind(struct socket *sock, struct sockaddr *addr,
+static int netlink_bind(struct socket *sock, struct sockaddr_unsized *addr,
 			int addr_len)
 {
 	struct sock *sk = sock->sk;

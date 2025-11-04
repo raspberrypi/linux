@@ -292,5 +292,5 @@ void mctp_test_bind_run(struct kunit *test,
 	addr.smctp_type = setup->bind_type;
 
 	*ret_bind_errno =
-		kernel_bind(*sock, (struct sockaddr *)&addr, sizeof(addr));
+		kernel_bind(*sock, (struct sockaddr_unsized *)&addr, sizeof(addr));
 }
