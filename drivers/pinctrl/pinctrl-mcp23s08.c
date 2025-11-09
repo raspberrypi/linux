@@ -230,6 +230,7 @@ static int mcp_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 
 	switch (param) {
 	case PIN_CONFIG_BIAS_PULL_UP:
+	case PIN_CONFIG_BIAS_DISABLE:
 		mutex_lock(&mcp->lock);
 		ret = mcp_read(mcp, MCP_GPPU, &data);
 		mutex_unlock(&mcp->lock);
@@ -263,6 +264,11 @@ static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 		case PIN_CONFIG_BIAS_PULL_UP:
 			mutex_lock(&mcp->lock);
 			ret = mcp_set_bit(mcp, MCP_GPPU, pin, arg);
+			mutex_unlock(&mcp->lock);
+			break;
+		case PIN_CONFIG_BIAS_DISABLE:
+			mutex_lock(&mcp->lock);
+			ret = mcp_set_bit(mcp, MCP_GPPU, pin, 0);
 			mutex_unlock(&mcp->lock);
 			break;
 		default:
@@ -627,6 +633,7 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	mcp->chip.get_multiple = mcp23s08_get_multiple;
 	mcp->chip.direction_output = mcp23s08_direction_output;
 	mcp->chip.set = mcp23s08_set;
+	mcp->chip.set_config = gpiochip_generic_config;
 	mcp->chip.set_multiple = mcp23s08_set_multiple;
 
 	mcp->chip.base = base;
@@ -700,10 +707,6 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 		girq->threaded = true;
 	}
 
-	ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
-	if (ret < 0)
-		return dev_err_probe(dev, ret, "can't add GPIO chip\n");
-
 	mcp->pinctrl_desc.pctlops = &mcp_pinctrl_ops;
 	mcp->pinctrl_desc.confops = &mcp_pinconf_ops;
 	mcp->pinctrl_desc.npins = mcp->chip.ngpio;
@@ -716,6 +719,10 @@ int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	mcp->pctldev = devm_pinctrl_register(dev, &mcp->pinctrl_desc, mcp);
 	if (IS_ERR(mcp->pctldev))
 		return dev_err_probe(dev, PTR_ERR(mcp->pctldev), "can't register controller\n");
+
+	ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "can't add GPIO chip\n");
 
 	if (mcp->irq) {
 		ret = mcp23s08_irq_setup(mcp);

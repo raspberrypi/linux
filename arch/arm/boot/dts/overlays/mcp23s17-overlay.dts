@@ -103,6 +103,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_00 0 0 16>;
 			};
 		};
 	};
@@ -124,6 +126,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_01 0 0 16>;
 			};
 		};
 	};
@@ -145,6 +149,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_10 0 0 16>;
 			};
 		};
 	};
@@ -166,6 +172,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_11 0 0 16>;
 			};
 		};
 	};
@@ -187,6 +195,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-2-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_12 0 0 16>;
 			};
 		};
 	};
@@ -208,6 +218,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_20 0 0 16>;
 			};
 		};
 	};
@@ -229,6 +241,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_21 0 0 16>;
 			};
 		};
 	};
@@ -250,6 +264,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-2-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s08_22 0 0 16>;
 			};
 		};
 	};
@@ -271,6 +287,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_00 0 0 16>;
 			};
 		};
 	};
@@ -292,6 +310,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_01 0 0 16>;
 			};
 		};
 	};
@@ -313,6 +333,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_10 0 0 16>;
 			};
 		};
 	};
@@ -334,6 +356,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_11 0 0 16>;
 			};
 		};
 	};
@@ -355,6 +379,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-2-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_12 0 0 16>;
 			};
 		};
 	};
@@ -376,6 +402,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-0-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_20 0 0 16>;
 			};
 		};
 	};
@@ -397,6 +425,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-1-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_21 0 0 16>;
 			};
 		};
 	};
@@ -418,6 +448,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-2-int-gpio parameter */
+
+				gpio-ranges = <&mcp23s17_22 0 0 16>;
 			};
 		};
 	};

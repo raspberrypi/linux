@@ -51,6 +51,7 @@
 				#gpio-cells = <2>;
 
 				status = "okay";
+				gpio-ranges = <&mcp23017 0 0 16>;
 			};
 		};
 	};
