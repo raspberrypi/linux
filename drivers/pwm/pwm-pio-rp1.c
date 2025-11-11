@@ -83,7 +83,7 @@ static inline void pwm_program_init(PIO pio, uint sm, uint offset, uint pin)
 /* Write `period` to the input shift register - must be disabled */
 static void pio_pwm_set_period(PIO pio, uint sm, uint32_t period)
 {
-	pio_sm_put_blocking(pio, sm, period);
+	pio_sm_put_blocking(pio, sm, period - 1);
 	pio_sm_exec(pio, sm, pio_encode_pull(false, false));
 	pio_sm_exec(pio, sm, pio_encode_out(pio_isr, 32));
 }
