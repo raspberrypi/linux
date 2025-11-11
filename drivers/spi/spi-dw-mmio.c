@@ -20,7 +20,6 @@
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
-#include <linux/interrupt.h>
 
 #include "spi-dw.h"
 
@@ -342,11 +341,8 @@ static int dw_spi_mmio_probe(struct platform_device *pdev)
 	dws->paddr = mem->start;
 
 	dws->irq = platform_get_irq(pdev, 0);
-	if (dws->irq < 0) {
-		if (dws->irq != -ENXIO)
-			return dws->irq; /* -ENXIO */
-		dws->irq = IRQ_NOTCONNECTED;
-	}
+	if (dws->irq < 0)
+		return dws->irq; /* -ENXIO */
 
 	dwsmmio->clk = devm_clk_get_enabled(&pdev->dev, NULL);
 	if (IS_ERR(dwsmmio->clk))
