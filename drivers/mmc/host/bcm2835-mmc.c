@@ -1068,7 +1068,7 @@ static void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 	unsigned long timeout;
 	unsigned int input_clock = clock;
 
-	if (host->overclock_50 && (clock == 50000000))
+	if (host->overclock_50 && (clock >= 50000000))
 		clock = host->overclock_50 * 1000000 + 999999;
 
 	host->mmc->actual_clock = 0;
