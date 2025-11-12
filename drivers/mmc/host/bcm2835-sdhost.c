@@ -1541,7 +1541,7 @@ static void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clo
 	if (host->debug)
 		pr_info("%s: set_clock(%d)\n", mmc_hostname(host->mmc), clock);
 
-	if (host->overclock_50 && (clock == 50*MHZ))
+	if (host->overclock_50 && (clock >= 50*MHZ))
 		clock = host->overclock_50 * MHZ + (MHZ - 1);
 
 	/* The SDCDIV register has 11 bits, and holds (div - 2).
