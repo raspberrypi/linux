@@ -1127,7 +1127,7 @@ static void bcm2835_set_clock(struct bcm2835_host *host, unsigned int clock)
 	const unsigned int MHZ = 1000000;
 	int div;
 
-	if (host->overclock_50 && (clock == 50*MHZ))
+	if (host->overclock_50 && (clock >= 50*MHZ))
 		clock = host->overclock_50 * MHZ + (MHZ - 1);
 
 	/* The SDCDIV register has 11 bits, and holds (div - 2).  But
