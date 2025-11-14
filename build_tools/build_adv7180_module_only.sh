@@ -89,19 +89,19 @@ mkdir -p /output
 MODULE_PATH=\$(find drivers/media/i2c -name 'adv7180.ko' | head -n 1)
 if [ -n \"\$MODULE_PATH\" ]; then
     echo \"Found module: \$MODULE_PATH\"
-    
+
     # Show module info
     ls -lh \"\$MODULE_PATH\"
     echo \"Module size: \$(du -h \$MODULE_PATH | awk '{print \$1}')\"
-    
+
     # Copy to output
     cp \"\$MODULE_PATH\" /output/
-    
+
     # Show build timestamp embedded in module
     echo ''
     echo 'Module metadata:'
     modinfo /output/adv7180.ko | grep -E '(filename|vermagic|description|author)' || true
-    
+
     echo '✓ Module built successfully'
 else
     echo '❌ Error: Module not found after build!'
@@ -112,7 +112,7 @@ fi
 if [ -f "${OUTPUT_DIR}/adv7180.ko" ]; then
     MODULE_SIZE=$(du -h "${OUTPUT_DIR}/adv7180.ko" | awk '{print $1}')
     MODULE_TIMESTAMP=$(stat -f "%Sm" "${OUTPUT_DIR}/adv7180.ko" 2>/dev/null || stat -c "%y" "${OUTPUT_DIR}/adv7180.ko" 2>/dev/null || echo "unknown")
-    
+
     echo ""
     echo "========================================="
     echo "✅ SUCCESS!"
@@ -123,10 +123,10 @@ if [ -f "${OUTPUT_DIR}/adv7180.ko" ]; then
     echo ""
     echo "🔍 Verification:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Show file info to confirm it's fresh
     ls -lh "${OUTPUT_DIR}/adv7180.ko"
-    
+
     # Calculate checksum to verify uniqueness
     if command -v md5 &> /dev/null; then
         echo "MD5: $(md5 -q "${OUTPUT_DIR}/adv7180.ko")"

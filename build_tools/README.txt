@@ -15,7 +15,7 @@
    ⏱️  20-60 minutes          ⏱️  1-2 minutes
    💾 ~500 MB output          💾 ~200 KB output
    📦 Entire kernel           📦 Just adv7180.ko
-   
+
    Note: Out-of-tree build - symbol warnings are normal and safe!
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -25,27 +25,27 @@
    ┌─────────────────────────────────────────────────────────────────────┐
    │ OPTION A: Build & Inject into Image (RECOMMENDED for fresh images) │
    └─────────────────────────────────────────────────────────────────────┘
-   
+
    Perfect for: Creating a custom image to flash with Raspberry Pi Imager
-   
+
    Step 1: Build and inject (5-10 minutes)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    cd build_tools
    ./build_and_inject.sh
    (It will ask for your image file path)
-   
+
    Step 2: Flash to SD card
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Use Raspberry Pi Imager with the modified image
-   
+
    DONE! ✅ Custom driver included in image!
 
    ┌─────────────────────────────────────────────────────────────────────┐
    │ OPTION B: Deploy to Running PI4 (for quick testing)                │
    └─────────────────────────────────────────────────────────────────────┘
-   
+
    Perfect for: Testing changes on an already-running PI4
-   
+
    Step 1: Build the module (1-5 minutes)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    cd build_tools
@@ -96,13 +96,13 @@
 🔍 VERIFY AFTER DEPLOYMENT:
 
    ssh pi@<pi-ip>
-   
+
    # Check module is loaded
    lsmod | grep adv7180
-   
+
    # Check version/info
    modinfo adv7180
-   
+
    # Check kernel messages
    dmesg | grep adv7180
 

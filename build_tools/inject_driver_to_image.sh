@@ -207,12 +207,12 @@ if [ -z \"\$DRIVER_PATH\" ]; then
     echo '⚠️  adv7180.ko not found in image'
     echo ''
     echo '📋 Checking media drivers structure:'
-    
+
     # Check if drivers/media exists
     if [ -d \"/mnt/pi_rootfs/lib/modules/\${KERNEL_VER}/kernel/drivers/media\" ]; then
         echo '✓ Media drivers directory exists'
         ls -la /mnt/pi_rootfs/lib/modules/\${KERNEL_VER}/kernel/drivers/media/ 2>&1
-        
+
         # Check for i2c subdirectory
         if [ -d \"/mnt/pi_rootfs/lib/modules/\${KERNEL_VER}/kernel/drivers/media/i2c\" ]; then
             echo ''
@@ -233,7 +233,7 @@ if [ -z \"\$DRIVER_PATH\" ]; then
         mkdir -p \"\$MEDIA_I2C_DIR\"
         echo \"✓ Created: \$MEDIA_I2C_DIR\"
     fi
-    
+
     echo ''
     echo \"✓ Will install driver to: \$MEDIA_I2C_DIR\"
     DRIVER_PATH=\"\${MEDIA_I2C_DIR}/adv7180.ko\"
