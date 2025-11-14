@@ -1241,8 +1241,8 @@ static int adv7182_select_input(struct adv7180_state *state, unsigned int input)
 		adv7180_write(state, ADV7180_REG_RES_CIR, 0xf0);
 		adv7180_write(state, ADV7180_REG_CLAMP_ADJ, 0xd0);
 		adv7180_write(state, ADV7180_REG_DIFF_MODE, 0x10);
-		adv7180_write(state, ADV7180_REG_AGC_ADJ1, 0x9c);
-		adv7180_write(state, ADV7180_REG_AGC_ADJ2, 0x00);
+		// adv7180_write(state, ADV7180_REG_AGC_ADJ1, 0x9c);
+		// adv7180_write(state, ADV7180_REG_AGC_ADJ2, 0x00);
 	}
 
 	return 0;
