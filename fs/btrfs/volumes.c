@@ -1839,8 +1839,8 @@ static int find_free_dev_extent(struct btrfs_device *device, u64 num_bytes,
 	}
 
 	path->reada = READA_FORWARD;
-	path->search_commit_root = 1;
-	path->skip_locking = 1;
+	path->search_commit_root = true;
+	path->skip_locking = true;
 
 	key.objectid = device->devid;
 	key.type = BTRFS_DEV_EXTENT_KEY;
@@ -7627,7 +7627,7 @@ int btrfs_read_chunk_tree(struct btrfs_fs_info *fs_info)
 	 * chunk tree, to keep it simple, just skip locking on the chunk tree.
 	 */
 	ASSERT(!test_bit(BTRFS_FS_OPEN, &fs_info->flags));
-	path->skip_locking = 1;
+	path->skip_locking = true;
 
 	/*
 	 * Read all device items, and then all the chunk items. All
