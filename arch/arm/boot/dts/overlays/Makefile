@@ -234,6 +234,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pwm1.dtbo \
 	qca7000.dtbo \
 	qca7000-uart0.dtbo \
+	rak-6421.dtbo \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
 	rootmaster.dtbo \

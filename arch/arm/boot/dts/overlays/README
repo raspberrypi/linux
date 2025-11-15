@@ -4273,6 +4273,15 @@ Params: baudrate                Set the baudrate for the UART (default
                                 "115200")
 
 
+Name:   rak-6421
+Info:   RAK6421 Meshtastic WisHat
+        This board allows connecting RAK WisBlock radios and sensors to
+        the Raspberry Pi. Consists of two SPI radio ports and 4 i2c
+        sensor slots.
+Load:   dtoverlay=rak-6421
+Params: <None>
+
+
 Name:   ramoops
 Info:   Enable the preservation of crash logs across a reboot. With
         systemd-pstore enabled (as it is on Raspberry Pi OS) the crash logs
