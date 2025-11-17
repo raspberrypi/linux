@@ -94,7 +94,7 @@ static inline dma_addr_t dma_direct_map_phys(struct device *dev,
 	}
 
 	if (attrs & DMA_ATTR_MMIO) {
-		dma_addr = phys;
+		dma_addr = phys_to_dma(dev, phys);
 		if (unlikely(!dma_capable(dev, dma_addr, size, false)))
 			goto err_overflow;
 	} else {
