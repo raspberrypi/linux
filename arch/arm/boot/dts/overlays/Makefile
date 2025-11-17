@@ -131,6 +131,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2s-dac.dtbo \
 	i2s-gpio28-31.dtbo \
 	i2s-master-dac.dtbo \
+	ilitek-ts-i2c.dtbo \
 	ilitek251x.dtbo \
 	imx219.dtbo \
 	imx258.dtbo \
