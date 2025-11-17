@@ -84,6 +84,7 @@
 		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
 		7_0_inch_a = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-a";
 		7_0_inch_b = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-b";
+		7_0_inch_c = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-c";
 		8_0_inch_a = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a";
 		8_0_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a-4lane";
 		8_8_inch_a = <&dsi_panel>, "compatible=waveshare,8.8-dsi-touch-a";
