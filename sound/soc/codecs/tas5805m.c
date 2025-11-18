@@ -4,6 +4,7 @@
 //
 // Author: Andy Liu <andy-liu@ti.com>
 // Author: Daniel Beer <daniel.beer@igorinstitute.com>
+// Author: Andriy Malyshenko <andriy@sonocotta.com>
 //
 // This is based on a driver originally written by Andy Liu at TI and
 // posted here:
@@ -29,42 +30,23 @@
 #include <sound/soc.h>
 #include <sound/pcm.h>
 #include <sound/initval.h>
-
-/* Datasheet-defined registers on page 0, book 0 */
-#define REG_PAGE		0x00
-#define REG_DEVICE_CTRL_1	0x02
-#define REG_DEVICE_CTRL_2	0x03
-#define REG_SIG_CH_CTRL		0x28
-#define REG_SAP_CTRL_1		0x33
-#define REG_FS_MON		0x37
-#define REG_BCK_MON		0x38
-#define REG_CLKDET_STATUS	0x39
-#define REG_VOL_CTL		0x4c
-#define REG_AGAIN		0x54
-#define REG_ADR_PIN_CTRL	0x60
-#define REG_ADR_PIN_CONFIG	0x61
-#define REG_CHAN_FAULT		0x70
-#define REG_GLOBAL_FAULT1	0x71
-#define REG_GLOBAL_FAULT2	0x72
-#define REG_FAULT		0x78
-#define REG_BOOK		0x7f
-
-/* DEVICE_CTRL_2 register values */
-#define DCTRL2_MODE_DEEP_SLEEP	0x00
-#define DCTRL2_MODE_SLEEP	0x01
-#define DCTRL2_MODE_HIZ		0x02
-#define DCTRL2_MODE_PLAY	0x03
-
-#define DCTRL2_MUTE		0x08
-#define DCTRL2_DIS_DSP		0x10
+#include "tas5805m.h"
 
 /* This sequence of register writes must always be sent, prior to the
  * 5ms delay while we wait for the DSP to boot.
  */
 static const uint8_t dsp_cfg_preboot[] = {
-	0x00, 0x00, 0x7f, 0x00, 0x03, 0x02, 0x01, 0x11,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x7f, 0x00, 0x03, 0x02,
+	REG_PAGE, TAS5805M_REG_PAGE_0, 
+	REG_BOOK, TAS5805M_BOOK_CONTROL_PORT, 
+	TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_HIZ, 
+	TAS5805M_REG_RESET_CTRL, TAS5805M_RESET_CONTROL_PORT | TAS5805M_RESET_DSP,
+	REG_PAGE, TAS5805M_REG_PAGE_0, 
+	REG_PAGE, TAS5805M_REG_PAGE_0, 
+	REG_PAGE, TAS5805M_REG_PAGE_0, 
+	REG_PAGE, TAS5805M_REG_PAGE_0,
+	REG_PAGE, TAS5805M_REG_PAGE_0, 
+	REG_BOOK, TAS5805M_BOOK_CONTROL_PORT, 
+	TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_HIZ,
 };
 
 static const uint32_t tas5805m_volume[] = {
@@ -207,9 +189,9 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 	regmap_write(rm, REG_BOOK, 0x00);
 
 	/* Set/clear digital soft-mute */
-	regmap_write(rm, REG_DEVICE_CTRL_2,
-		(tas5805m->is_muted ? DCTRL2_MUTE : 0) |
-		DCTRL2_MODE_PLAY);
+	regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_2,
+		(tas5805m->is_muted ? TAS5805M_DCTRL2_MUTE : 0) |
+		TAS5805M_DCTRL2_MODE_PLAY);
 }
 
 static int tas5805m_vol_info(struct snd_kcontrol *kcontrol,
@@ -359,7 +341,7 @@ static int tas5805m_dac_event(struct snd_soc_dapm_widget *w,
 	struct regmap *rm = tas5805m->regmap;
 
 	if (event & SND_SOC_DAPM_PRE_PMD) {
-		unsigned int chan, global1, global2;
+		unsigned int chan, global1, global2, ot_warning;
 
 		dev_dbg(component->dev, "DSP shutdown\n");
 		cancel_work_sync(&tas5805m->work);
@@ -371,15 +353,16 @@ static int tas5805m_dac_event(struct snd_soc_dapm_widget *w,
 			regmap_write(rm, REG_PAGE, 0x00);
 			regmap_write(rm, REG_BOOK, 0x00);
 
-			regmap_read(rm, REG_CHAN_FAULT, &chan);
-			regmap_read(rm, REG_GLOBAL_FAULT1, &global1);
-			regmap_read(rm, REG_GLOBAL_FAULT2, &global2);
+			regmap_read(rm, TAS5805M_REG_CHAN_FAULT, &chan);
+			regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT1, &global1);
+			regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT2, &global2);
+			regmap_read(rm, TAS5805M_REG_OT_WARNING, &ot_warning);
 
 			dev_dbg(component->dev, "fault regs: CHAN=%02x, "
-				"GLOBAL1=%02x, GLOBAL2=%02x\n",
-				chan, global1, global2);
+				"GLOBAL1=%02x, GLOBAL2=%02x, OT_WARNING=%02x\n",
+				chan, global1, global2, ot_warning);
 
-			regmap_write(rm, REG_DEVICE_CTRL_2, DCTRL2_MODE_HIZ);
+			regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_HIZ);
 		}
 		mutex_unlock(&tas5805m->lock);
 	}
@@ -609,5 +592,6 @@ module_i2c_driver(tas5805m_i2c_driver);
 
 MODULE_AUTHOR("Andy Liu <andy-liu@ti.com>");
 MODULE_AUTHOR("Daniel Beer <daniel.beer@igorinstitute.com>");
+MODULE_AUTHOR("Andriy Malyshenko <andriy@sonocotta.com>");
 MODULE_DESCRIPTION("TAS5805M Audio Amplifier Driver");
 MODULE_LICENSE("GPL v2");
