@@ -32,6 +32,7 @@
 #include <sound/soc.h>
 #include <sound/pcm.h>
 #include <sound/initval.h>
+#include <sound/tlv.h>
 #include "tas5805m.h"
 
 /* This sequence of register writes must always be sent, prior to the
@@ -62,6 +63,7 @@ struct tas5805m_priv {
 	struct regmap			*regmap;
 
 	int						vol;
+	int						gain;
 	bool					is_powered;
 	bool					is_muted;
 	bool					dsp_initialized;
@@ -123,9 +125,10 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 	unsigned int chan, global1, global2, ot_warning;
 	struct regmap *rm = tas5805m->regmap;
 	int db_value = 24 - (tas5805m->vol / 2);  /* 0x00=+24dB, each step is 0.5dB */
+	int db_gain = -(tas5805m->gain / 2);      /* TAS5805M_AGAIN_MAX=0dB, TAS5805M_AGAIN_MIN=-15.5dB, each step is -0.5dB */
 
-	dev_dbg(&tas5805m->i2c->dev, "%s: is_muted=%d, vol=0x%02x (%ddB)\n",
-		__func__, tas5805m->is_muted, tas5805m->vol, db_value);
+	dev_dbg(&tas5805m->i2c->dev, "%s: is_muted=%d, vol=0x%02x (%ddB), gain=0x%02x (%ddB)\n", 
+		__func__, tas5805m->is_muted, tas5805m->vol, db_value, tas5805m->gain, db_gain);
 
 	regmap_write(rm, REG_PAGE, TAS5805M_REG_PAGE_0);
 	regmap_write(rm, REG_BOOK, TAS5805M_BOOK_CONTROL_PORT);
@@ -155,6 +158,13 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 				__func__, tas5805m->vol);
 	regmap_write(rm, TAS5805M_REG_VOL_CTRL, tas5805m->vol);
 
+	/* Write analog gain register
+	 * Register value 0=0dB, 31=-15.5dB, 0.5dB steps
+	 */
+	dev_dbg(&tas5805m->i2c->dev, "%s: writing analog gain reg 0x%02x\n",
+				__func__, tas5805m->gain);
+	regmap_write(rm, TAS5805M_REG_ANALOG_GAIN, tas5805m->gain);
+
 	/* Set/clear digital soft-mute */
 	uint8_t device_state = (tas5805m->is_muted ? TAS5805M_DCTRL2_MUTE : 0) |
 			TAS5805M_DCTRL2_MODE_PLAY;
@@ -170,7 +180,7 @@ static int tas5805m_vol_info(struct snd_kcontrol *kcontrol,
 	uinfo->count = 1;
 
 	/* ALSA range: 0 (min) to 127 (max), 1dB steps */
-	uinfo->value.integer.min = 0;
+	uinfo->value.integer.min = TAS5805M_VOLUME_MAX;
 	uinfo->value.integer.max = TAS5805M_VOLUME_MIN / 2;
 	return 0;
 }
@@ -235,15 +245,93 @@ static int tas5805m_vol_put(struct snd_kcontrol *kcontrol,
 	return ret;
 }
 
+static int tas5805m_again_info(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = TAS5805M_AGAIN_MAX;
+	uinfo->value.integer.max = TAS5805M_AGAIN_MIN;
+	return 0;
+}
+
+static int tas5805m_again_get(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m =
+		snd_soc_component_get_drvdata(component);
+
+	mutex_lock(&tas5805m->lock);
+	/* Invert: register TAS5805M_AGAIN_MAX (0dB) -> control 31, register TAS5805M_AGAIN_MIN (-15.5dB) -> control 0 */
+	ucontrol->value.integer.value[0] = TAS5805M_AGAIN_MIN - (tas5805m->gain & TAS5805M_AGAIN_MIN);
+	dev_dbg(component->dev, "get analog gain control=%ld (reg=0x%02x)\n",
+		ucontrol->value.integer.value[0], tas5805m->gain & TAS5805M_AGAIN_MIN);
+	mutex_unlock(&tas5805m->lock);
+
+	return 0;
+}
+
+static int tas5805m_again_put(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m =
+		snd_soc_component_get_drvdata(component);
+	unsigned int control_value = ucontrol->value.integer.value[0];
+	unsigned int reg_value;
+	int ret = 0;
+
+	dev_dbg(component->dev, "%s(control_value=%u) entered\n", __func__, control_value);
+
+	if (control_value > TAS5805M_AGAIN_MIN)
+		return -EINVAL;
+
+	/* Invert: control 31 (0dB) -> register TAS5805M_AGAIN_MAX, control 0 (-15.5dB) -> register TAS5805M_AGAIN_MIN */
+	reg_value = TAS5805M_AGAIN_MIN - control_value;
+
+	mutex_lock(&tas5805m->lock);
+	
+	if (tas5805m->gain != reg_value) {
+		tas5805m->gain = reg_value;
+		dev_dbg(component->dev, "%s: set gain control=%u (hw_reg=0x%02x, is_powered=%d)\n",
+			__func__, control_value, reg_value, tas5805m->is_powered);
+		if (tas5805m->is_powered)
+			tas5805m_refresh(tas5805m);
+		else
+			dev_dbg(component->dev, "%s: gain change deferred until power-up\n",
+				__func__);
+		ret = 1;
+	}
+
+	mutex_unlock(&tas5805m->lock);
+	return ret;
+}
+
+/* TLV for analog gain control: -15.5dB to 0dB in 0.5dB steps (32 steps, 0-31) */
+static const SNDRV_CTL_TLVD_DECLARE_DB_SCALE(tas5805m_again_tlv, -1550, 50, 0);
+
 static const struct snd_kcontrol_new tas5805m_snd_controls[] = {
 	{
 		.iface	= SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name	= "Master Playback Volume",
+		.name	= "Digital Volume",
 		.access	= SNDRV_CTL_ELEM_ACCESS_TLV_READ |
 			  SNDRV_CTL_ELEM_ACCESS_READWRITE,
 		.info	= tas5805m_vol_info,
 		.get	= tas5805m_vol_get,
 		.put	= tas5805m_vol_put,
+	},
+	{
+		.iface	= SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name	= "Analog Gain",
+		.access	= SNDRV_CTL_ELEM_ACCESS_TLV_READ |
+			  SNDRV_CTL_ELEM_ACCESS_READWRITE,
+		.info	= tas5805m_again_info,
+		.get	= tas5805m_again_get,
+		.put	= tas5805m_again_put,
+		.tlv.p	= tas5805m_again_tlv,
 	},
 };
 
@@ -531,6 +619,7 @@ static int tas5805m_i2c_probe(struct i2c_client *i2c)
 	 * address.
 	 */
 	tas5805m->vol = TAS5805M_VOLUME_ZERO_DB;
+	tas5805m->gain = TAS5805M_AGAIN_MAX; /* 0dB analog gain */
 
 	ret = regulator_enable(tas5805m->pvdd);
 	if (ret < 0) {

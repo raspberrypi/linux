@@ -54,6 +54,9 @@
 #define TAS5805M_VOLUME_MIN	0xFE  /* -103 dB */
 #define TAS5805M_VOLUME_ZERO_DB	0x30  /* 0 dB */
 
+#define TAS5805M_AGAIN_MAX 0x00
+#define TAS5805M_AGAIN_MIN 0x1F
+
 /* TAS5805M_REG_RESET_CTRL register values */
 #define TAS5805M_RESET_CONTROL_PORT  BIT(0)
 #define TAS5805M_RESET_DSP           BIT(4)
