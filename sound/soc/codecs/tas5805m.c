@@ -70,8 +70,57 @@ struct tas5805m_priv {
 	struct mutex			lock;
 };
 
+static void tas5805m_decode_faults(struct device *dev, unsigned int chan,
+				   unsigned int global1, unsigned int global2,
+				   unsigned int ot_warning)
+{
+	if (chan) {
+		if (chan & BIT(0))
+			dev_warn(dev, "%s: Right channel over current fault\n", __func__);
+
+		if (chan & BIT(1))
+			dev_warn(dev, "%s: Left channel over current fault\n", __func__);
+
+		if (chan & BIT(2))
+			dev_warn(dev, "%s: Right channel DC fault\n", __func__);
+
+		if (chan & BIT(3))
+			dev_warn(dev, "%s: Left channel DC fault\n", __func__);
+	}
+
+	if (global1) {
+		if (global1 & BIT(0))
+			dev_warn(dev, "%s: PVDD UV fault\n", __func__);
+
+		if (global1 & BIT(1))
+			dev_warn(dev, "%s: PVDD OV fault\n", __func__);
+
+		// This fault is often triggered by lack of I2S clock, which is expected
+		// during longer pauses (when mute state is triggeered).
+		if (global1 & BIT(2))
+			dev_dbg(dev, "%s: Clock fault\n", __func__);
+
+		if (global1 & BIT(6))
+			dev_warn(dev, "%s: The recent BQ write failed\n", __func__);
+
+		if (global1 & BIT(7))
+			dev_warn(dev, "%s: OTP CRC check error\n", __func__);
+	}
+
+	if (global2) {
+		if (global2 & BIT(0))
+			dev_warn(dev, "%s: Over temperature shut down fault\n", __func__);
+	}
+
+	if (ot_warning) {
+		if (ot_warning & BIT(2))
+			dev_warn(dev, "%s: Over temperature warning\n", __func__);
+	}
+}
+
 static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 {
+	unsigned int chan, global1, global2, ot_warning;
 	struct regmap *rm = tas5805m->regmap;
 	int db_value = 24 - (tas5805m->vol / 2);  /* 0x00=+24dB, each step is 0.5dB */
 
@@ -80,6 +129,24 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 
 	regmap_write(rm, REG_PAGE, TAS5805M_REG_PAGE_0);
 	regmap_write(rm, REG_BOOK, TAS5805M_BOOK_CONTROL_PORT);
+
+	/* Validate fault states */
+	regmap_read(rm, TAS5805M_REG_CHAN_FAULT, &chan);
+	regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT1, &global1);
+	regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT2, &global2);
+	regmap_read(rm, TAS5805M_REG_OT_WARNING, &ot_warning);
+
+	tas5805m_decode_faults(&tas5805m->i2c->dev, chan, global1, global2, ot_warning);
+
+	if (chan != 0 || global1 != 0 || global2 != 0 || ot_warning != 0) {
+		dev_warn(&tas5805m->i2c->dev, "%s: fault detected: CHAN=0x%02x, GLOBAL1=0x%02x, GLOBAL2=0x%02x, OT_WARNING=0x%02x\n",
+			__func__, chan, global1, global2, ot_warning);
+
+		/* Optionally, we could take further action here, such as muting the device */
+		dev_dbg(&tas5805m->i2c->dev, "%s: clearing faults\n",
+			__func__);
+		regmap_write(rm, TAS5805M_REG_FAULT, TAS5805M_ANALOG_FAULT_CLEAR);
+	}
 
 	/* Write hardware volume register. Applies to both channels.
 	 * Register value 0x00=+24dB, 0x30=0dB, 0xFE=-103dB, 0xFF=Mute
@@ -273,27 +340,14 @@ static int tas5805m_dac_event(struct snd_soc_dapm_widget *w,
 		__func__, event);
 
 	if (event & SND_SOC_DAPM_PRE_PMD) {
-		unsigned int chan, global1, global2, ot_warning;
-
 		dev_dbg(component->dev, "%s: DSP shutdown\n", __func__);
 		cancel_work_sync(&tas5805m->work);
 
 		mutex_lock(&tas5805m->lock);
 		if (tas5805m->is_powered) {
 			tas5805m->is_powered = false;
-
-			regmap_write(rm, REG_PAGE, 0x00);
-			regmap_write(rm, REG_BOOK, 0x00);
-
-			regmap_read(rm, TAS5805M_REG_CHAN_FAULT, &chan);
-			regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT1, &global1);
-			regmap_read(rm, TAS5805M_REG_GLOBAL_FAULT2, &global2);
-			regmap_read(rm, TAS5805M_REG_OT_WARNING, &ot_warning);
-
-			dev_dbg(component->dev, "%s: fault regs: CHAN=%02x, "
-				"GLOBAL1=%02x, GLOBAL2=%02x, OT_WARNING=%02x\n",
-				__func__, chan, global1, global2, ot_warning);
-
+			dev_dbg(component->dev, "%s: writing device state 0x%02x\n",
+				__func__, TAS5805M_DCTRL2_MODE_HIZ);
 			regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_HIZ);
 		}
 		mutex_unlock(&tas5805m->lock);
