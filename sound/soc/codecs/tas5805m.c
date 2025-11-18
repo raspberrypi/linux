@@ -13,6 +13,8 @@
 //
 // It has been simplified a little and reworked for the 5.x ALSA SoC API.
 
+#define DEBUG 1
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -324,8 +326,11 @@ static void do_work(struct work_struct *work)
 	 */
 	usleep_range(5000, 10000);
 	send_cfg(rm, dsp_cfg_preboot, ARRAY_SIZE(dsp_cfg_preboot));
-	usleep_range(5000, 15000);
-	send_cfg(rm, tas5805m->dsp_cfg_data, tas5805m->dsp_cfg_len);
+	if (tas5805m->dsp_cfg_len > 0)
+	{
+		usleep_range(5000, 15000);
+		send_cfg(rm, tas5805m->dsp_cfg_data, tas5805m->dsp_cfg_len);
+	}
 
 	tas5805m->is_powered = true;
 	tas5805m_refresh(tas5805m);
@@ -485,31 +490,44 @@ static int tas5805m_i2c_probe(struct i2c_client *i2c)
 	 *
 	 * The fixed portion of PPC3's output prior to the 5ms delay
 	 * should be omitted.
+	 *
+	 * If the device node does not
+	 * provide `ti,dsp-config-name` just warn and continue with an
+	 * empty configuration set. If a name is provided, attempt to
+	 * load the firmware and fail probe on error.
 	 */
 	if (device_property_read_string(dev, "ti,dsp-config-name",
-					&config_name))
-		config_name = "default";
-
-	snprintf(filename, sizeof(filename), "tas5805m_dsp_%s.bin",
-		 config_name);
-	ret = request_firmware(&fw, filename, dev);
-	if (ret)
-		return ret;
-
-	if ((fw->size < 2) || (fw->size & 1)) {
-		dev_err(dev, "firmware is invalid\n");
-		release_firmware(fw);
-		return -EINVAL;
+					&config_name)) {
+		dev_warn(dev, "no ti,dsp-config-name provided; continuing without DSP config\n");
+		config_name = NULL;
 	}
 
-	tas5805m->dsp_cfg_len = fw->size;
-	tas5805m->dsp_cfg_data = devm_kmemdup(dev, fw->data, fw->size, GFP_KERNEL);
-	if (!tas5805m->dsp_cfg_data) {
-		release_firmware(fw);
-		return -ENOMEM;
-	}
+	if (config_name) {
+		snprintf(filename, sizeof(filename), "tas5805m_dsp_%s.bin",
+			 config_name);
+		ret = request_firmware(&fw, filename, dev);
+		if (ret)
+			return ret;
 
-	release_firmware(fw);
+		if ((fw->size < 2) || (fw->size & 1)) {
+			dev_err(dev, "firmware is invalid\n");
+			release_firmware(fw);
+			return -EINVAL;
+		}
+
+		tas5805m->dsp_cfg_len = fw->size;
+		tas5805m->dsp_cfg_data = devm_kmemdup(dev, fw->data, fw->size, GFP_KERNEL);
+		if (!tas5805m->dsp_cfg_data) {
+			release_firmware(fw);
+			return -ENOMEM;
+		}
+
+		release_firmware(fw);
+	} else {
+		/* No config provided: initialize empty configset */
+		tas5805m->dsp_cfg_len = 0;
+		tas5805m->dsp_cfg_data = NULL;
+	}
 
 	/* Do the first part of the power-on here, while we can expect
 	 * the I2S interface to be quiet. We must raise PDN# and then
