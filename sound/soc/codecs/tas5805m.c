@@ -35,6 +35,30 @@
 #include <sound/tlv.h>
 #include "tas5805m.h"
 
+/* Text arrays for enum controls */
+static const char * const dac_mode_text[] = {
+	"Normal",  /* Normal mode */
+	"Bridge"   /* Bridge mode */
+};
+
+static const char * const eq_mode_text[] = {
+	"On",   /* EQ enabled */
+	"Off"   /* EQ disabled */
+};
+
+static const char * const modulation_mode_text[] = {
+	"BD",     /* BD modulation */
+	"1SPW",   /* 1SPW modulation */
+	"Hybrid"  /* Hybrid modulation */
+};
+
+static const char * const switch_freq_text[] = {
+	"768K",  /* 768kHz */
+	"384K",  /* 384kHz */
+	"480K",  /* 480kHz */
+	"576K"   /* 576kHz */
+};
+
 /* This sequence of register writes must always be sent, prior to the
  * 5ms delay while we wait for the DSP to boot.
  */
@@ -64,6 +88,10 @@ struct tas5805m_priv {
 
 	int						vol;
 	int						gain;
+	unsigned int			modulation_mode;
+	unsigned int			switch_freq;
+	unsigned int			bridge_mode;
+	unsigned int			eq_mode;
 	bool					is_powered;
 	bool					is_muted;
 	bool					dsp_initialized;
@@ -164,6 +192,28 @@ static void tas5805m_refresh(struct tas5805m_priv *tas5805m)
 	dev_dbg(&tas5805m->i2c->dev, "%s: writing analog gain reg 0x%02x\n",
 				__func__, tas5805m->gain);
 	regmap_write(rm, TAS5805M_REG_ANALOG_GAIN, tas5805m->gain);
+
+	/* Write device control 1 register (modulation, switching freq, bridge mode)
+	 * Combine: modulation_mode (bits 1:0), bridge_mode (bit 2), switch_freq (bits 6:4)
+	 */
+	dev_dbg(&tas5805m->i2c->dev, "%s: modulation_mode=%u, bridge_mode=%u, switch_freq=%u, eq_mode=%u\n",
+				__func__, tas5805m->modulation_mode,
+				tas5805m->bridge_mode,
+				tas5805m->switch_freq,
+				tas5805m->eq_mode);
+	unsigned int dctrl1_value = (tas5805m->modulation_mode & 0x3) |
+							   ((tas5805m->bridge_mode & 0x1) << 2) |
+							   ((tas5805m->switch_freq & 0x7) << 4);
+	dev_dbg(&tas5805m->i2c->dev, "%s: writing device ctrl 1 reg 0x%02x\n",
+				__func__, dctrl1_value);
+	regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_1, dctrl1_value);
+
+	/* Write DSP misc register (EQ enable/disable)
+	 * bit 0 controls EQ
+	 */
+	dev_dbg(&tas5805m->i2c->dev, "%s: writing dsp misc reg 0x%02x\n",
+				__func__, tas5805m->eq_mode);
+	regmap_write(rm, TAS5805M_REG_DSP_MISC, tas5805m->eq_mode & 0x1);
 
 	/* Set/clear digital soft-mute */
 	uint8_t device_state = (tas5805m->is_muted ? TAS5805M_DCTRL2_MUTE : 0) |
@@ -266,8 +316,6 @@ static int tas5805m_again_get(struct snd_kcontrol *kcontrol,
 	mutex_lock(&tas5805m->lock);
 	/* Invert: register TAS5805M_AGAIN_MAX (0dB) -> control 31, register TAS5805M_AGAIN_MIN (-15.5dB) -> control 0 */
 	ucontrol->value.integer.value[0] = TAS5805M_AGAIN_MIN - (tas5805m->gain & TAS5805M_AGAIN_MIN);
-	dev_dbg(component->dev, "get analog gain control=%ld (reg=0x%02x)\n",
-		ucontrol->value.integer.value[0], tas5805m->gain & TAS5805M_AGAIN_MIN);
 	mutex_unlock(&tas5805m->lock);
 
 	return 0;
@@ -313,6 +361,114 @@ static int tas5805m_again_put(struct snd_kcontrol *kcontrol,
 /* TLV for analog gain control: -15.5dB to 0dB in 0.5dB steps (32 steps, 0-31) */
 static const SNDRV_CTL_TLVD_DECLARE_DB_SCALE(tas5805m_again_tlv, -1550, 50, 0);
 
+/* Generic enum control handlers */
+struct tas5805m_enum_ctrl {
+	const char * const *texts;
+	unsigned int num_items;
+	unsigned int offset; /* Offset in tas5805m_priv structure */
+};
+
+static int tas5805m_enum_info(struct snd_kcontrol *kcontrol,
+						  struct snd_ctl_elem_info *uinfo)
+{
+	struct tas5805m_enum_ctrl *ctrl = (struct tas5805m_enum_ctrl *)kcontrol->private_value;
+
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_ENUMERATED;
+	uinfo->count = 1;
+	uinfo->value.enumerated.items = ctrl->num_items;
+
+	if (uinfo->value.enumerated.item >= ctrl->num_items)
+		uinfo->value.enumerated.item = ctrl->num_items - 1;
+
+	strscpy(uinfo->value.enumerated.name,
+			ctrl->texts[uinfo->value.enumerated.item],
+			sizeof(uinfo->value.enumerated.name));
+
+	return 0;
+}
+
+static int tas5805m_enum_get(struct snd_kcontrol *kcontrol,
+						 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m = snd_soc_component_get_drvdata(component);
+	struct tas5805m_enum_ctrl *ctrl = (struct tas5805m_enum_ctrl *)kcontrol->private_value;
+	unsigned int *value_ptr = (unsigned int *)((char *)tas5805m + ctrl->offset);
+
+	mutex_lock(&tas5805m->lock);
+	ucontrol->value.enumerated.item[0] = *value_ptr;
+	mutex_unlock(&tas5805m->lock);
+
+	return 0;
+}
+
+static int tas5805m_enum_put(struct snd_kcontrol *kcontrol,
+						 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct tas5805m_priv *tas5805m = snd_soc_component_get_drvdata(component);
+	struct tas5805m_enum_ctrl *ctrl = (struct tas5805m_enum_ctrl *)kcontrol->private_value;
+	unsigned int *value_ptr = (unsigned int *)((char *)tas5805m + ctrl->offset);
+	unsigned int new_value = ucontrol->value.enumerated.item[0];
+	int ret = 0;
+
+	if (new_value >= ctrl->num_items)
+		return -EINVAL;
+
+	mutex_lock(&tas5805m->lock);
+	if (*value_ptr != new_value) {
+		*value_ptr = new_value;
+		dev_dbg(component->dev, "%s: set %s=%u (is_powered=%d)\n",
+				__func__, kcontrol->id.name, new_value, tas5805m->is_powered);
+		if (tas5805m->is_powered)
+			tas5805m_refresh(tas5805m);
+		else
+			dev_dbg(component->dev, "%s: change deferred until power-up\n",
+					__func__);
+		ret = 1;
+	}
+	mutex_unlock(&tas5805m->lock);
+
+	return ret;
+}
+
+/* Define enum control structures */
+static struct tas5805m_enum_ctrl modulation_mode_ctrl = {
+	.texts = modulation_mode_text,
+	.num_items = ARRAY_SIZE(modulation_mode_text),
+	.offset = offsetof(struct tas5805m_priv, modulation_mode),
+};
+
+static struct tas5805m_enum_ctrl switch_freq_ctrl = {
+	.texts = switch_freq_text,
+	.num_items = ARRAY_SIZE(switch_freq_text),
+	.offset = offsetof(struct tas5805m_priv, switch_freq),
+};
+
+static struct tas5805m_enum_ctrl bridge_mode_ctrl = {
+	.texts = dac_mode_text,
+	.num_items = ARRAY_SIZE(dac_mode_text),
+	.offset = offsetof(struct tas5805m_priv, bridge_mode),
+};
+
+static struct tas5805m_enum_ctrl eq_mode_ctrl = {
+	.texts = eq_mode_text,
+	.num_items = ARRAY_SIZE(eq_mode_text),
+	.offset = offsetof(struct tas5805m_priv, eq_mode),
+};
+
+#define TAS5805M_ENUM(xname, xenum_ctrl) \
+{\
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,\
+	.name = xname,\
+	.info = tas5805m_enum_info,\
+	.get = tas5805m_enum_get,\
+	.put = tas5805m_enum_put,\
+	.private_value = (unsigned long)&xenum_ctrl,\
+}
+
+
+
 static const struct snd_kcontrol_new tas5805m_snd_controls[] = {
 	{
 		.iface	= SNDRV_CTL_ELEM_IFACE_MIXER,
@@ -333,6 +489,10 @@ static const struct snd_kcontrol_new tas5805m_snd_controls[] = {
 		.put	= tas5805m_again_put,
 		.tlv.p	= tas5805m_again_tlv,
 	},
+	TAS5805M_ENUM("Modulation Scheme", modulation_mode_ctrl),
+	TAS5805M_ENUM("Switching Freq", switch_freq_ctrl),
+	TAS5805M_ENUM("Bridge Mode", bridge_mode_ctrl),
+	TAS5805M_ENUM("Equalizer", eq_mode_ctrl),
 };
 
 static void send_cfg(struct regmap *rm,
@@ -620,6 +780,10 @@ static int tas5805m_i2c_probe(struct i2c_client *i2c)
 	 */
 	tas5805m->vol = TAS5805M_VOLUME_ZERO_DB;
 	tas5805m->gain = TAS5805M_AGAIN_MAX; /* 0dB analog gain */
+	tas5805m->modulation_mode = 0; /* BD mode */
+	tas5805m->switch_freq = 0; /* 768kHz */
+	tas5805m->bridge_mode = 0; /* Normal mode */
+	tas5805m->eq_mode = 0; /* EQ On */
 
 	ret = regulator_enable(tas5805m->pvdd);
 	if (ret < 0) {
