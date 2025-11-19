@@ -595,8 +595,8 @@ static int tas5805m_dac_event(struct snd_soc_dapm_widget *w,
 		if (tas5805m->is_powered) {
 			tas5805m->is_powered = false;
 			dev_dbg(component->dev, "%s: writing device state 0x%02x\n",
-				__func__, TAS5805M_DCTRL2_MODE_HIZ);
-			regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_HIZ);
+				__func__, TAS5805M_DCTRL2_MODE_DEEP_SLEEP);
+			regmap_write(rm, TAS5805M_REG_DEVICE_CTRL_2, TAS5805M_DCTRL2_MODE_DEEP_SLEEP);
 		}
 		mutex_unlock(&tas5805m->lock);
 	}
