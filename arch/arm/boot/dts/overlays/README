@@ -5821,8 +5821,8 @@ Params: cma-512                 CMA is 512MB
         audio1                  Enable or disable audio over HDMI1 (default
                                 "on")
         noaudio                 Disable all HDMI audio (default "off")
-        composite               Enable the composite output (disables all other
-                                outputs)
+        composite               Enable the composite output (default "off")
+                                N.B. Disables all other outputs on a Pi 4.
         nohdmi                  Disable both HDMI 0 & 1 outputs
         nohdmi0                 Disable HDMI 0 output
         nohdmi1                 Disable HDMI 1 output
