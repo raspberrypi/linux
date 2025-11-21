@@ -109,6 +109,8 @@
 			gt928: gt928@5d {
 				compatible = "goodix,gt928";
 				reg = <0x5d>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&gt928intpins>;
 				interrupt-parent = <&gpio>;
 				interrupts = <26 2>; //gpio 26, 2=high-to-low trigger
 				irq-gpios = <&gpio 26 0>; //gpio 26, 0=active-high
