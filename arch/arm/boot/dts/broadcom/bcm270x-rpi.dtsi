@@ -198,4 +198,8 @@ i2s_clk_consumer: &i2s {};
 	dmas = <&dma (17|(1<<27)|(1<<24))>;
 };
 
+&v3d {
+	clocks = <&firmware_clocks 5>;
+};
+
 #endif
