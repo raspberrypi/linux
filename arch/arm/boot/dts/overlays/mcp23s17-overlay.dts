@@ -91,15 +91,15 @@
 		target = <&spi0>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_00: mcp23s08@0 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi0-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi0-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-0-int-gpio parameter */
@@ -112,15 +112,15 @@
 		target = <&spi0>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_01: mcp23s08@1 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi0-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi0-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-1-int-gpio parameter */
@@ -133,15 +133,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_10: mcp23s08@0 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-0-int-gpio parameter */
@@ -154,15 +154,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_11: mcp23s08@1 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-1-int-gpio parameter */
@@ -175,15 +175,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_12: mcp23s08@2 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-2-present parameter */
-     				reg = <2>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi1-2-present parameter */
+				reg = <2>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-2-int-gpio parameter */
@@ -196,15 +196,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_20: mcp23s08@0 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-0-int-gpio parameter */
@@ -217,15 +217,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_21: mcp23s08@1 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-1-int-gpio parameter */
@@ -238,15 +238,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s08_22: mcp23s08@2 {
 				compatible = "microchip,mcp23s08";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-2-present parameter */
-     				reg = <2>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s08-spi2-2-present parameter */
+				reg = <2>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-2-int-gpio parameter */
@@ -259,15 +259,15 @@
 		target = <&spi0>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_00: mcp23s17@0 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi0-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi0-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-0-int-gpio parameter */
@@ -280,15 +280,15 @@
 		target = <&spi0>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_01: mcp23s17@1 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi0-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi0-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-1-int-gpio parameter */
@@ -301,15 +301,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_10: mcp23s17@0 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-0-int-gpio parameter */
@@ -322,15 +322,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_11: mcp23s17@1 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-1-int-gpio parameter */
@@ -343,15 +343,15 @@
 		target = <&spi1>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_12: mcp23s17@2 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-2-present parameter */
-     				reg = <2>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi1-2-present parameter */
+				reg = <2>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-2-int-gpio parameter */
@@ -364,15 +364,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_20: mcp23s17@0 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-0-present parameter */
-     				reg = <0>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-0-present parameter */
+				reg = <0>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-0-int-gpio parameter */
@@ -385,15 +385,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_21: mcp23s17@1 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-1-present parameter */
-     				reg = <1>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-1-present parameter */
+				reg = <1>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-1-int-gpio parameter */
@@ -406,15 +406,15 @@
 		target = <&spi2>;
 		__dormant__ {
 			status = "okay";
-                        #address-cells = <1>;
-                        #size-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			mcp23s17_22: mcp23s17@2 {
 				compatible = "microchip,mcp23s17";
-  				gpio-controller;
-  				#gpio-cells = <2>;
-    				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-2-present parameter */
-     				reg = <2>;
-    				spi-max-frequency = <500000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				microchip,spi-present-mask = <0x00>;  /* overwritten by mcp23s17-spi2-2-present parameter */
+				reg = <2>;
+				spi-max-frequency = <500000>;
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-2-int-gpio parameter */
