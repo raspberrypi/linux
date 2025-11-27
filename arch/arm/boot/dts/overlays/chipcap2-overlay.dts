@@ -30,16 +30,6 @@
 	};
 
 	fragment@1 {
-		target = <&gpio>;
-		__overlay__ {
-			chipcap2_pins: chipcap2_pins {
-				brcm,pins = <4 5 6 26>;
-				brcm,function = <0 0 0 1>;
-			};
-		};
-	};
-
-	fragment@2 {
 		target-path = "/";
 		__overlay__ {
 			chipcap2_reg: chipcap2_reg {
@@ -54,13 +44,9 @@
 	};
 
 	__overrides__ {
-		ready_pin = <&chipcap2>, "interrupts:0",
-			    <&chipcap2_pins>, "brcm,pins:0";
-		low_pin = <&chipcap2>, "interrupts:8",
-			  <&chipcap2_pins>, "brcm,pins:4";
-		high_pin = <&chipcap2>, "interrupts:16",
-			   <&chipcap2_pins>, "brcm,pins:8";
-		reg_pin = <&chipcap2_reg>, "gpio:4",
-			  <&chipcap2_pins>, "brcm,pins:12";
+		ready_pin = <&chipcap2>, "interrupts:0";
+		low_pin = <&chipcap2>, "interrupts:8";
+		high_pin = <&chipcap2>, "interrupts:16";
+		reg_pin = <&chipcap2_reg>, "gpio:4";
 	};
 };

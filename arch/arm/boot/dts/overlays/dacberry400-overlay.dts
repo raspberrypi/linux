@@ -25,16 +25,6 @@
 	};
 
 	fragment@2 {
-		target = <&gpio>;
-		__overlay__ {
-			codec_rst: codec-rst {
-				brcm,pins = <26>;
-				brcm,function = <1>;
-			};
-		};
-	};
-
-	fragment@3 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -58,7 +48,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@3 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "osaelectronics,dacberry400";

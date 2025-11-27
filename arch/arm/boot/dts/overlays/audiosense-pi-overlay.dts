@@ -34,16 +34,6 @@
 		};
 	};
 
-	fragment@2 {
-		target = <&gpio>;
-		__overlay__ {
-			codec_rst: codec-rst {
-				brcm,pins = <26>;
-				brcm,function = <BCM2835_FSEL_GPIO_OUT>;
-			};
-		};
-	};
-
 	fragment@3 {
 		target = <&i2c1>;
 		__overlay__ {

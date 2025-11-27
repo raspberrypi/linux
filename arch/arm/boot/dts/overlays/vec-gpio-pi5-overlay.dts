@@ -12,7 +12,7 @@
 		target = <&rp1_vec>;
 		rp1vec_overlay: __overlay__ {
 			pinctrl-names = "default";
-			pinctrl-0 = <&rp1vec_ch0pins>, <&rp1vec_ch0pins>;
+			pinctrl-0 = <&rp1vec_ch0pins &rp1vec_ch0pins>;
 		};
 	};
 
