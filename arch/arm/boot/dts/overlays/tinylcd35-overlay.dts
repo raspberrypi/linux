@@ -50,14 +50,6 @@
 	fragment@3 {
 		target = <&gpio>;
 		__overlay__ {
-			tinylcd35_pins: tinylcd35_pins {
-				brcm,pins = <25 24 18>;
-				brcm,function = <1>; /* out */
-			};
-			tinylcd35_ts_pins: tinylcd35_ts_pins {
-				brcm,pins = <5>;
-				brcm,function = <0>; /* in */
-			};
 			keypad_pins: keypad_pins {
 				brcm,pins = <4 17 22 23 27>;
 				brcm,function = <0>; /* in */
@@ -76,10 +68,6 @@
 			tinylcd35: tinylcd35@0{
 				compatible = "neosec,tinylcd";
 				reg = <0>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&tinylcd35_pins>,
-					    <&tinylcd35_ts_pins>;
-
 				spi-max-frequency = <48000000>;
 				rotate = <270>;
 				fps = <20>;
@@ -211,8 +199,7 @@
 		fps =        <&tinylcd35>,"fps:0";
 		debug =      <&tinylcd35>,"debug:0";
 		touch =      <&tinylcd35_ts>,"status";
-		touchgpio =  <&tinylcd35_ts_pins>,"brcm,pins:0",
-			     <&tinylcd35_ts>,"interrupts:0",
+		touchgpio =  <&tinylcd35_ts>,"interrupts:0",
 			     <&tinylcd35_ts>,"pendown-gpio:4";
 		xohms =      <&tinylcd35_ts>,"ti,x-plate-ohms;0";
 		rtc-pcf =    <0>,"=5";

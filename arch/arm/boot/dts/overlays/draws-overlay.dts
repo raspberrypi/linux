@@ -176,10 +176,6 @@
                 brcm,pull = <1>;
             };
 
-            aic3204_gpio: aic3204_gpio {
-                brcm,pins = <26>;
-            };
-
             sc16is752_irq: sc16is752_irq {
                 brcm,pins = <17>;
                 brcm,function = <0>;

@@ -28,17 +28,7 @@
 			};
 		};
 	};
-	fragment@3 {
-		target = <&gpio>;
-		__overlay__ {
-			power_ctrl_pins: power_ctrl_pins {
-				brcm,pins = <26>;
-				brcm,function = <1>; // out
-			};
-		};
-	};
 	__overrides__ {
-		poweroff_pin =	<&power_ctrl>,"gpios:4",
-						<&power_ctrl_pins>,"brcm,pins:0";
+		poweroff_pin =	<&power_ctrl>,"gpios:4";
 	};
 };
