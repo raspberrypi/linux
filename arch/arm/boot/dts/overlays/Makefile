@@ -149,6 +149,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	imx500.dtbo \
 	imx500-pi5.dtbo \
 	imx519.dtbo \
+	imx662.dtbo \
 	imx708.dtbo \
 	interludeaudio-analog.dtbo \
 	interludeaudio-digital.dtbo \

@@ -1,0 +1,28 @@
+// Fragment that configures an imx662
+
+cam_node: imx662@10 {
+	compatible = "sony,imx662aaqr";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+	clock-frequency = <24000000>;
+
+	vdda-supply = <&cam1_reg>;	/* 2.8v */
+	vddd-supply = <&cam_dummy_reg>;	/* 1.8v */
+	vdddo-supply = <&cam_dummy_reg>;/* 1.2v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <594000000>;
+		};
+	};
+};

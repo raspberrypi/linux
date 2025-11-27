@@ -3101,6 +3101,27 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 but vcm=off will disable.
 
 
+Name:   imx662
+Info:   Sony IMX662 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx662,<param>
+Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, 4, or 5) or Pi 5.
+        clock-frequency         Sets the clock frequency to match that used on
+                                the board. Default 24MHz
+        mono                    Denote that the module is a mono sensor.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Enable a VCM focus drive on the sensor.
+
+
 Name:   imx708
 Info:   Sony IMX708 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
