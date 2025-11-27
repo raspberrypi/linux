@@ -115,10 +115,6 @@
                 brcm,function = <1>;
                 brcm,pull = <1>;
             };
-
-            aic3204_gpio: aic3204_gpio {
-                brcm,pins = <26>;
-            };
         };
     };
 

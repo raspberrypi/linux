@@ -103,6 +103,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-0-int-gpio parameter */
+				pinctrl-0 = <&spi0_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -124,6 +126,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi0-1-int-gpio parameter */
+				pinctrl-0 = <&spi0_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -145,6 +149,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-0-int-gpio parameter */
+				pinctrl-0 = <&spi1_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -166,6 +172,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-1-int-gpio parameter */
+				pinctrl-0 = <&spi1_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -187,6 +195,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi1-2-int-gpio parameter */
+				pinctrl-0 = <&spi1_2_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -208,6 +218,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-0-int-gpio parameter */
+				pinctrl-0 = <&spi2_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -229,6 +241,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-1-int-gpio parameter */
+				pinctrl-0 = <&spi2_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -250,6 +264,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s08-spi2-2-int-gpio parameter */
+				pinctrl-0 = <&spi2_2_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -271,6 +287,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-0-int-gpio parameter */
+				pinctrl-0 = <&spi0_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -292,6 +310,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi0-1-int-gpio parameter */
+				pinctrl-0 = <&spi0_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -313,6 +333,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-0-int-gpio parameter */
+				pinctrl-0 = <&spi1_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -334,6 +356,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-1-int-gpio parameter */
+				pinctrl-0 = <&spi1_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -355,6 +379,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi1-2-int-gpio parameter */
+				pinctrl-0 = <&spi1_2_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -376,6 +402,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-0-int-gpio parameter */
+				pinctrl-0 = <&spi2_0_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -397,6 +425,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-1-int-gpio parameter */
+				pinctrl-0 = <&spi2_1_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};
@@ -418,6 +448,8 @@
 				status = "okay";
 				#interrupt-cells=<2>;
 				interrupts = <0 2>;  /* 1st word overwritten by mcp23s17-spi2-2-int-gpio parameter */
+				pinctrl-0 = <&spi2_2_int_pins>;
+				pinctrl-names = "default";
 			};
 		};
 	};

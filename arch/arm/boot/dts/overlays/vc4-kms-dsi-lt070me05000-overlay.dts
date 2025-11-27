@@ -32,6 +32,8 @@
 				compatible    = "jdi,lt070me05000";
 				status        = "okay";
 				reg           = <0>;
+				pinctrl-0     = <&lt070me05000_pins>;
+				pinctrl-names = "default";
 				reset-gpios   = <&gpio 17 1>;   // LCD RST
 				enable-gpios  = <&gpio 4 0>;    // LCD Enable
 				dcdc-en-gpios = <&gpio 5 0>;    // LCD DC-DC Enable
