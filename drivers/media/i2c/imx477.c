@@ -114,7 +114,7 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_REG_IOP_MPY		CCI_REG16(0x030e)
 
 /* Test Pattern Control */
-#define IMX477_REG_TEST_PATTERN		CCI_REG8(0x0600)
+#define IMX477_REG_TEST_PATTERN		CCI_REG16(0x0600)
 #define IMX477_TEST_PATTERN_DISABLE	0
 #define IMX477_TEST_PATTERN_SOLID_COLOR	1
 #define IMX477_TEST_PATTERN_COLOR_BARS	2
