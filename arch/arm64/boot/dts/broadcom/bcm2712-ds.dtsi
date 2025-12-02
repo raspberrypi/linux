@@ -487,6 +487,7 @@
 };
 
 &pcie1 {
+	status = "disabled";
 	ranges =
 		/* 2GiB, 32-bit, non-prefetchable at PCIe 00_80000000 */
 		<0x02000000 0x00 0x80000000 0x1b 0x80000000 0x00 0x80000000>,
@@ -495,5 +496,6 @@
 };
 
 &pcie2 {
+	status = "disabled";
 	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
 };
