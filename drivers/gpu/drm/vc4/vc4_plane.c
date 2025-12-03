@@ -805,7 +805,10 @@ static unsigned int vc4_lbm_components(const struct drm_plane_state *state,
 	if (info->is_yuv)
 		return channel ? 2 : 1;
 
-	if (info->has_alpha)
+	if (vc4_state->y_scaling[channel] == VC4_SCALING_TPZ)
+		return 4;
+
+	if (info->has_alpha && state->alpha == DRM_BLEND_ALPHA_OPAQUE)
 		return 4;
 
 	return 3;
@@ -835,9 +838,6 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	components = vc4_lbm_components(state, channel);
 	if (!components)
 		return 0;
-
-	if (state->alpha != DRM_BLEND_ALPHA_OPAQUE && info->has_alpha)
-		components -= 1;
 
 	words = width * wpc * components;
 
