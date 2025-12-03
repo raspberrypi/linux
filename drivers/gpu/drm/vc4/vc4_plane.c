@@ -815,11 +815,8 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 					 unsigned int channel)
 {
 	const struct drm_format_info *info = state->fb->format;
-	const struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
-	unsigned int channels_scaled = 0;
 	unsigned int components, words, wpc;
 	unsigned int width, lines;
-	unsigned int i;
 
 	/* LBM is meant to use the smaller of source or dest width, but there
 	 * is a issue with UV scaling that the size required for the second
@@ -845,13 +842,6 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	words = width * wpc * components;
 
 	lines = DIV_ROUND_UP(words, 128 / info->hsub);
-
-	for (i = 0; i < 2; i++)
-		if (vc4_state->y_scaling[channel] != VC4_SCALING_NONE)
-			channels_scaled++;
-
-	if (channels_scaled == 1)
-		lines = lines / 2;
 
 	return lines;
 }
