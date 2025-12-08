@@ -2400,14 +2400,25 @@ u32 vc4_plane_dlist_size(const struct drm_plane_state *state)
  */
 void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 {
-	struct vc4_plane_state *vc4_state = to_vc4_plane_state(plane->state);
+	struct drm_plane_state *state = plane->state;
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, 0);
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	dma_addr_t dma_addr = bo->dma_addr + fb->offsets[0];
+	unsigned int rotation;
 	int idx;
 
 	if (!drm_dev_enter(plane->dev, &idx))
 		return;
+
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
+
+	/* We must point to the last line when Y reflection is enabled. */
+	if (rotation & DRM_MODE_REFLECT_Y)
+		dma_addr += fb->pitches[0] * ((vc4_state->src_h[0] >> 16) - 1);
 
 	/* We're skipping the address adjustment for negative origin,
 	 * because this is only called on the primary plane.
