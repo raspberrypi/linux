@@ -3266,7 +3266,6 @@ static int delete_v1_space_cache(struct extent_buffer *leaf,
 	struct btrfs_key key;
 	bool found = false;
 	int i;
-	int ret;
 
 	if (btrfs_header_owner(leaf) != BTRFS_ROOT_TREE_OBJECTID)
 		return 0;
@@ -3290,8 +3289,8 @@ static int delete_v1_space_cache(struct extent_buffer *leaf,
 	}
 	if (!found)
 		return -ENOENT;
-	ret = delete_block_group_cache(block_group, NULL, space_cache_ino);
-	return ret;
+
+	return delete_block_group_cache(block_group, NULL, space_cache_ino);
 }
 
 /*
