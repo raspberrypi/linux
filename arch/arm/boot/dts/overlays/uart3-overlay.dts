@@ -19,9 +19,9 @@
 		};
 	};
 
-	rs485: fragment@2 {
+	fragment@2 {
 		target = <&uart3>;
-		__dormant__ {
+		rs485: __dormant__ {
 			linux,rs485-enabled-at-boot-time;
 			rs485-rts-delay = <0 0>;
 		};
@@ -30,7 +30,7 @@
 	__overrides__ {
 		ctsrts = <0>,"=1";
 		rs485 = <0>,"=1=2";
-		rs485_invert_rts = <&rs485>,"rs485-rts-active-low";
+		rs485_invert_rts = <&rs485>,"rs485-rts-active-low?";
 		rs485_rts_on_delay = <&rs485>, "rs485-rts-delay:0";
 		rs485_rts_off_delay = <&rs485>, "rs485-rts-delay:4";
 	};
