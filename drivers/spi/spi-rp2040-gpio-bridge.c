@@ -31,10 +31,19 @@
 #define RP2040_GBDG_BLOCK_SIZE (RP2040_GBDG_FLASH_BLOCK_SIZE - MD5_SUFFIX_SIZE)
 
 /*
- * 1MiB transfer size is an arbitrary limit
  * Max value is 4173330 (using a single manifest)
+ *
+ * Internal page-size is 8KiB - 9 = 8183 bytes
+ * Manifests address data by a series of 16-byte MD5 sums (following a 16-byte
+ * manifest header)
+ *
+ * Max permissible data using a single manifest:
+ *   8183 * (8183//16 - 1) = 4173330
+ *
+ * CMD_DAT_EMIT in fast_xfer/bypass_cache mode could potentially allow a max
+ * transfer size of 4GiB, but this is not currently implemented.
  */
-#define MAX_TRANSFER_SIZE (1024U * ONE_KIB)
+#define MAX_TRANSFER_SIZE 4173330
 
 #define HALF_BUFFER (4U * ONE_KIB)
 
