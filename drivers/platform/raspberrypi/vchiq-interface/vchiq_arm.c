@@ -145,6 +145,7 @@ vchiq_doorbell_irq(int irq, void *dev_id)
 	return ret;
 }
 
+#if 0
 static void
 cleanup_pagelistinfo(struct vchiq_instance *instance, struct vchiq_pagelist_info *pagelistinfo)
 {
@@ -159,6 +160,7 @@ cleanup_pagelistinfo(struct vchiq_instance *instance, struct vchiq_pagelist_info
 	dma_free_coherent(instance->state->dev, pagelistinfo->pagelist_buffer_size,
 			  pagelistinfo->pagelist, pagelistinfo->dma_addr);
 }
+#endif
 
 static inline bool
 is_adjacent_block(u32 *addrs, dma_addr_t addr, unsigned int k)
@@ -232,6 +234,7 @@ EXPORT_SYMBOL(vchiq_add_connected_callback);
  * cached area.
  */
 
+#if 0
 static struct vchiq_pagelist_info *
 create_pagelist(struct vchiq_instance *instance, char *buf, char __user *ubuf,
 		size_t count, unsigned short type)
@@ -523,6 +526,7 @@ free_pagelist(struct vchiq_instance *instance, struct vchiq_pagelist_info *pagel
 
 	cleanup_pagelistinfo(instance, pagelistinfo);
 }
+#endif
 
 static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 {
