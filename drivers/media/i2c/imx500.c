@@ -1937,7 +1937,7 @@ static void imx500_clear_fw_network(struct imx500 *imx500)
 static int __must_check imx500_spi_write(struct imx500 *state, const u8 *data,
 					 size_t size)
 {
-	if (size % 4 || size > ONE_MIB)
+	if (size % 4)
 		return -EINVAL;
 
 	if (!state->spi_device)
@@ -1957,7 +1957,7 @@ static int imx500_injection_wait_transfer_complete(struct imx500 *imx500)
 
 	/* Continue polling until we reach the final TRANS_COMP state */
 	while (hndsk_reg.val != IMX500_DD_DAT_INJECTION_HNDSK_TRANS_COMP) {
-		ret = imx500_poll_status_reg(imx500, &hndsk_reg, 5);
+		ret = imx500_poll_status_reg(imx500, &hndsk_reg, 10);
 		if (ret) {
 			dev_err(&client->dev,
 				"Handshake register did not update from state %llu\n",
@@ -2085,7 +2085,7 @@ static int imx500_inject_input_tensor(struct imx500 *imx500, const u32 *data,
 
 	ret = imx500_injection_wait_transfer_complete(imx500);
 	if (ret) {
-		dev_err(&client->dev, "SPI transfer of input tensor failed\n");
+		dev_err(&client->dev, "Input tensor transfer failed to complete\n");
 		return ret;
 	}
 
