@@ -234,7 +234,8 @@
 #define PLL_SEC_DIV_MASK		GENMASK(12, 8)
 
 #define PLL_CS_LOCK			BIT(31)
-#define PLL_CS_REFDIV_MASK		BIT(1)
+#define PLL_CS_REFDIV_MASK		GENMASK(5, 0)
+#define PLL_CS_REFDIV_UNITY		FIELD_PREP(PLL_CS_REFDIV_MASK, 1)
 
 #define PLL_PWR_PD			BIT(0)
 #define PLL_PWR_DACPD			BIT(1)
@@ -413,7 +414,7 @@ static int rp1_pll_core_on(struct clk_hw *hw)
 		clockman_write(clockman, data->pwr_reg, PLL_PWR_MASK);
 		clockman_write(clockman, data->fbdiv_int_reg, 20);
 		clockman_write(clockman, data->fbdiv_frac_reg, 0);
-		clockman_write(clockman, data->cs_reg, PLL_CS_REFDIV_MASK);
+		clockman_write(clockman, data->cs_reg, PLL_CS_REFDIV_UNITY);
 	}
 
 	/* Come out of reset. */
@@ -505,7 +506,7 @@ static int rp1_pll_core_set_rate(struct clk_hw *hw,
 	/* Don't need to divide ref unless parent_rate > (output freq / 16) */
 	clockman_write(clockman, data->cs_reg,
 		       clockman_read(clockman, data->cs_reg) |
-				     PLL_CS_REFDIV_MASK);
+				     PLL_CS_REFDIV_UNITY);
 	spin_unlock(&clockman->regs_lock);
 
 	return 0;
