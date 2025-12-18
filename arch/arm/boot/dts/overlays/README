@@ -2784,6 +2784,17 @@ Load:   dtoverlay=i2s-master-dac
 Params: <None>
 
 
+Name:   ilitek-ts-i2c
+Info:   Enables I2C connected Ilitek 23XX, 25XX, and 213X touch controllers
+        using GPIO 4 (pin 7 on GPIO header) for interrupt.
+Load:   dtoverlay=ilitek-ts-i2c,<param>=<val>
+Params: interrupt               GPIO used for interrupt (default 4)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        i2c-path                Override I2C path to allow for i2c-gpio buses
+
+
 Name:   ilitek251x
 Info:   Enables I2C connected Ilitek 251x multiple touch controller using
         GPIO 4 (pin 7 on GPIO header) for interrupt.
@@ -5320,6 +5331,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5344,6 +5357,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5368,6 +5383,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
@@ -5392,6 +5409,8 @@ Params: ctsrts                  Enable CTS/RTS on GPIOs 14-15 (default off)
                                 drive the OE pin of an RS485 transceiver (i.e.
                                 MAX3078E); also enables the UARTx ctsrts
                                 parameter, as RTS is required (default off).
+        rs485_full_duplex       When RS485 mode is enabled, enables receiving of
+                                data while sending data (default off)
         rs485_invert_rts        When RS485 mode is enabled, inverts the RTS
                                 line from active-high (default) to active-low.
         rs485_rts_on_delay      When RS485 mode is enabled, sets the delay (in
