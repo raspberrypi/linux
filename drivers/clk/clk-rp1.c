@@ -771,9 +771,7 @@ static unsigned long rp1_pll_divider_recalc_rate(struct clk_hw *hw,
 static int rp1_pll_divider_determine_rate(struct clk_hw *hw,
 					  struct clk_rate_request *req)
 {
-	req->rate = clk_divider_ops.determine_rate(hw, req);
-
-	return 0;
+	return clk_divider_ops.determine_rate(hw, req);
 }
 
 static int rp1_clock_is_on(struct clk_hw *hw)
