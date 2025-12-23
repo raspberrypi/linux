@@ -42,10 +42,10 @@ TEST_PROGS += test_stress_05.sh
 
 TEST_GEN_PROGS_EXTENDED = kublk
 
+LOCAL_HDRS += $(wildcard *.h)
 include ../lib.mk
 
-$(TEST_GEN_PROGS_EXTENDED): kublk.c null.c file_backed.c common.c stripe.c \
-	fault_inject.c
+$(TEST_GEN_PROGS_EXTENDED): $(wildcard *.c)
 
 check:
 	shellcheck -x -f gcc *.sh
