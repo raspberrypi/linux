@@ -60,6 +60,7 @@
 #define ICnMC_CSCTHR			BIT(5)
 #define ICnMC_INF(x)			((x) << 16)
 #define ICnMC_VCSEL(x)			((x) << 22)
+#define ICnMC_VCSEL_MASK		GENMASK(23, 22)
 #define ICnMC_INF_MASK			GENMASK(21, 16)
 
 #define ICnMS_IA			BIT(2)
