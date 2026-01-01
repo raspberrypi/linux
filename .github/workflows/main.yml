@@ -75,8 +75,18 @@ jobs:
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           execute_install_scripts: true
-          packages: gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper ccache git bc kmod
+          packages: gcc-14-aarch64-linux-gnu gcc-14-aarch64-linux-gnu-base g++-14-aarch64-linux-gnu gcc-14-arm-linux-gnueabihf gcc-14-arm-linux-gnueabihf-base g++-14-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper ccache git bc kmod
           version: 1.1
+
+      - name: Set aarch64/arm-gcc-14 as the default aarch64/arm-gcc
+        run: |
+            # Create symbolic links or use update-alternatives to make the aarch64 compiler the default
+            # This command creates a link from aarch64-linux-gnu-gcc to the generic gcc name
+            sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
+            sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
+            # Verify the change
+            aarch64-linux-gnu-gcc --version
+            arm-linux-gnueabihf-gcc --version
 
       - if: ${{ inputs.swapspace }}
         name: 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
@@ -169,7 +179,7 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
           
           # Use -j$(nproc) for parallel compilation
-          make -j$(nproc) Image modules dtbs
+          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
           
           echo "Kernel compilation completed!"
         env:
@@ -212,6 +222,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: compiled-raspberrypi-kernel-${{ inputs.arch }}
-          path: build_output/
+          path: ${{ env.BUILD_DIR }}/
           compression-level: 8
           retention-days: 30
