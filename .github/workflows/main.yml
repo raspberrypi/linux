@@ -42,6 +42,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: what the actual fuck?
+        run: |
+          ls 
+          sleep 3s
+          ls -l
+          sleep 3s
+          ls linux/
+          sleep 3s
+          ls ${{ github.workspace }}
+
       - name: Install cross-compilers and dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
