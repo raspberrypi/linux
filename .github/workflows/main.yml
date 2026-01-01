@@ -1,4 +1,7 @@
+---
+
 name: Compile Raspberry Pi Kernel (ARM/ARM64)
+
 on:
   workflow_dispatch:
     inputs:
@@ -21,10 +24,6 @@ on:
           - arm64
         default: arm64
 
-  push:
-    branches:
-      - main
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,19 +41,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          path: linux/
 
       - name: Install cross-compilers and dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           execute_install_scripts: true
-          packages: gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler ccache git cpio fakeroot libssl-dev lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper
+          packages: gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper ccache git bc kmod
+          version: 1.1
 
-      - name:  𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
+      - if: ${{ inputs.swapspace }}
+        name: 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
 
-      - name:  🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 📜
+      - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
           cat >> $GITHUB_ENV << 'EOF'
           CCACHE_SLOPPINESS=file_macro,locale,time_macros
@@ -64,6 +66,7 @@ jobs:
           CCACHE_DEPEND=1
           EOF
           echo "CCACHE Environment set!"
+          
           # Set Compiler
           echo "CC=ccache gcc" >> $GITHUB_ENV
           echo "CXX=ccache g++" >> $GITHUB_ENV
@@ -80,50 +83,90 @@ jobs:
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           create-symlink: 'true'
-          key: kernel-build-${{ runner.os }}-${{ hashFiles('Makefile', 'arch/*/Makefile',
-            '.config') }}
+          key: kernel-build-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('linux/Makefile', 'linux/arch/*/Makefile', 'linux/.config') }}
           max-size: '10000MB'
           restore-keys: |
+            kernel-build-${{ runner.os }}-${{ inputs.arch }}-
             kernel-build-${{ runner.os }}-
           verbose: 1
 
       - name: Set up build environment variables
         run: |
-          echo "KERNEL=kernel8" >> $GITHUB_ENV
+          # Set architecture
           echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
-          echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          
+          # Set cross-compiler and kernel name based on architecture
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+            echo "KERNEL=kernel8" >> $GITHUB_ENV
+          else
+            echo "CROSS_COMPILE=arm-linux-gnueabihf-" >> $GITHUB_ENV
+            echo "KERNEL=kernel7" >> $GITHUB_ENV
+          fi
+          
+          # Set build directory
           echo "BUILD_DIR=$(pwd)/build_output" >> $GITHUB_ENV
+          
+          # Create output directories
           mkdir -p $(pwd)/build_output/boot
+          mkdir -p $(pwd)/build_output/boot/overlays
           mkdir -p $(pwd)/build_output/lib/modules
-        #working-directory: ./
+          
+          echo "Building for architecture: ${{ inputs.arch }}"
+        working-directory: ./linux
 
       - name: Configure kernel
         run: |
           make oldconfig
-        #working-directory: ./
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Compile kernel image, modules, and DTBs
         run: |
+          echo "Starting kernel build..."
+          echo "Architecture: $ARCH"
+          echo "Cross-compiler: $CROSS_COMPILE"
+          
           # Use -j$(nproc) for parallel compilation
           make -j$(nproc) Image modules dtbs
-        #working-directory: ./
+          
+          echo "Kernel compilation completed!"
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Install modules and copy artifacts
         run: |
+          echo "Installing modules..."
           # Install modules into a staging directory
           sudo make modules_install INSTALL_MOD_PATH=${{ env.BUILD_DIR }}
 
-          # Copy kernel image, DTBs, and overlays
+          echo "Copying kernel image..."
+          # Copy kernel image
           cp arch/${{ env.ARCH }}/boot/Image ${{ env.BUILD_DIR }}/boot/${{ env.KERNEL }}.img
-          cp arch/${{ env.ARCH }}/boot/dts/broadcom/*.dtb ${{ env.BUILD_DIR }}/boot/
-          cp arch/${{ env.ARCH }}/boot/dts/overlays/*.dtb* ${{ env.BUILD_DIR }}/boot/overlays/
-        #working-directory: ./
+          
+          echo "Copying device tree blobs..."
+          # Copy DTBs (handle potential missing files gracefully)
+          if [ -d "arch/${{ env.ARCH }}/boot/dts/broadcom" ]; then
+            cp arch/${{ env.ARCH }}/boot/dts/broadcom/*.dtb ${{ env.BUILD_DIR }}/boot/ 2>/dev/null || echo "No DTB files found in broadcom directory"
+          fi
+          
+          echo "Copying device tree overlays..."
+          # Copy overlays (handle potential missing files gracefully)
+          if [ -d "arch/${{ env.ARCH }}/boot/dts/overlays" ]; then
+            cp arch/${{ env.ARCH }}/boot/dts/overlays/*.dtb* ${{ env.BUILD_DIR }}/boot/overlays/ 2>/dev/null || echo "No overlay files found"
+          fi
+          
+          echo "Build artifacts:"
+          ls -lh ${{ env.BUILD_DIR }}/boot/
+          echo "Modules:"
+          ls -lh ${{ env.BUILD_DIR }}/lib/modules/
+          
+          echo "Kernel build completed successfully!"
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -131,5 +174,7 @@ jobs:
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: compiled-raspberrypi-kernel-${{ env.ARCH }}
-          path: build_output/
+          name: compiled-raspberrypi-kernel-${{ inputs.arch }}
+          path: linux/build_output/
+          compression-level: 8
+          retention-days: 30
