@@ -94,8 +94,16 @@ jobs:
           echo "CCACHE Environment set!"
           
           # Set Compiler
-          echo "CC=ccache gcc" >> $GITHUB_ENV
-          echo "CXX=ccache g++" >> $GITHUB_ENV
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            echo "CC=ccache aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CXX=ccache aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          elif [ "${{ inputs.arch }}" = "arm" ]; then
+            echo "CC=ccache arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
+            echo "CXX=ccache arm-linux-gnueabihf-g++" >> $GITHUB_ENV
+          else
+            echo "CC=ccache gcc" >> $GITHUB_ENV
+            echo "CXX=ccache g++" >> $GITHUB_ENV
+          fi
           echo "CCACHE Compilers set!"
 
           # Setup CCACHE Dir
