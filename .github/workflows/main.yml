@@ -56,26 +56,8 @@ jobs:
 
       - name: what the actual fuck?
         run: |
-          echo "===== ls ====="
-          ls 
-          sleep 5s
-          echo "==== ls -l ===="
-          ls -l
-          sleep 5s
-          echo "== ls linux/ =="
-          ls linux/
-          sleep 5s
-          echo "== ls linux/linux/ =="
-          ls linux/
-          sleep 5s
-          echo "= ls github.workspace ="
-          ls ${{ github.workspace }}
-          sleep 5s
-          echo "-- ls GITHUB_WORKSPACE --"
-          ls -la $GITHUB_WORKSPACE
-          sleep 6s
-          echo "++ ls $PWD ++"
-          ls -l $PWD
+            echo ${{ github.workspace }}
+            echo $GITHUB_WORKSPACE
 
       - name: Install cross-compilers and dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
