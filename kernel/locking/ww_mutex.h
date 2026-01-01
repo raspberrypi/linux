@@ -247,6 +247,7 @@ __ww_ctx_less(struct ww_acquire_ctx *a, struct ww_acquire_ctx *b)
 
 		/* equal static prio */
 
+#ifndef	CONFIG_SCHED_ALT
 		if (dl_prio(a_prio)) {
 			if (dl_time_before(b->task->dl.deadline,
 					   a->task->dl.deadline))
@@ -256,6 +257,7 @@ __ww_ctx_less(struct ww_acquire_ctx *a, struct ww_acquire_ctx *b)
 					   b->task->dl.deadline))
 				return false;
 		}
+#endif
 
 		/* equal prio */
 	}

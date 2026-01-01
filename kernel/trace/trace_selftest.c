@@ -1419,10 +1419,15 @@ static int trace_wakeup_test_thread(void *data)
 {
 	/* Make this a -deadline thread */
 	static const struct sched_attr attr = {
+#ifdef CONFIG_SCHED_ALT
+		/* No deadline on BMQ/PDS, use RR */
+		.sched_policy = SCHED_RR,
+#else
 		.sched_policy = SCHED_DEADLINE,
 		.sched_runtime = 100000ULL,
 		.sched_deadline = 10000000ULL,
 		.sched_period = 10000000ULL
+#endif
 	};
 	struct wakeup_test_data *x = data;
 

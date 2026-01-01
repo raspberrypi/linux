@@ -1684,3 +1684,12 @@ is 10 seconds.
 
 The softlockup threshold is (``2 * watchdog_thresh``). Setting this
 tunable to zero will disable lockup detection altogether.
+
+yield_type:
+===========
+
+BMQ/PDS CPU scheduler only. This determines what type of yield calls
+to sched_yield() will be performed.
+
+  0 - No yield.
+  1 - Requeue task. (default)

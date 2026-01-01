@@ -669,6 +669,7 @@ config TASK_IO_ACCOUNTING
 
 config PSI
 	bool "Pressure stall information tracking"
+	depends on !SCHED_ALT
 	select KERNFS
 	help
 	  Collect metrics that indicate how overcommitted the CPU, memory,
@@ -880,6 +881,35 @@ config UCLAMP_BUCKETS_COUNT
 
 	  If in doubt, use the default value.
 
+menuconfig SCHED_ALT
+	bool "Alternative CPU Schedulers"
+	default y
+	help
+	  This feature enable alternative CPU scheduler"
+
+if SCHED_ALT
+
+choice
+	prompt "Alternative CPU Scheduler"
+	default SCHED_BMQ
+
+config SCHED_BMQ
+	bool "BMQ CPU scheduler"
+	help
+	  The BitMap Queue CPU scheduler for excellent interactivity and
+	  responsiveness on the desktop and solid scalability on normal
+	  hardware and commodity servers.
+
+config SCHED_PDS
+	bool "PDS CPU scheduler"
+	help
+	  The Priority and Deadline based Skip list multiple queue CPU
+	  Scheduler.
+
+endchoice
+
+endif
+
 endmenu
 
 #
@@ -945,6 +975,7 @@ config NUMA_BALANCING
 	depends on ARCH_SUPPORTS_NUMA_BALANCING
 	depends on !ARCH_WANT_NUMA_VARIABLE_LOCALITY
 	depends on SMP && NUMA && MIGRATION && !PREEMPT_RT
+	depends on !SCHED_ALT
 	help
 	  This option adds support for automatic NUMA aware memory/task placement.
 	  The mechanism is quite primitive and is based on migrating memory when
@@ -1351,6 +1382,7 @@ config CHECKPOINT_RESTORE
 
 config SCHED_AUTOGROUP
 	bool "Automatic process group scheduling"
+	depends on !SCHED_ALT
 	select CGROUPS
 	select CGROUP_SCHED
 	select FAIR_GROUP_SCHED

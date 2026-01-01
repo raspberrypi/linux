@@ -244,7 +244,8 @@ static inline bool cpus_share_resources(int this_cpu, int that_cpu)
 
 #endif	/* !CONFIG_SMP */
 
-#if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
+#if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL) && \
+	!defined(CONFIG_SCHED_ALT)
 extern void rebuild_sched_domains_energy(void);
 #else
 static inline void rebuild_sched_domains_energy(void)

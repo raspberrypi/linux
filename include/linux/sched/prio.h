@@ -19,6 +19,28 @@
 #define MAX_PRIO		(MAX_RT_PRIO + NICE_WIDTH)
 #define DEFAULT_PRIO		(MAX_RT_PRIO + NICE_WIDTH / 2)
 
+#ifdef CONFIG_SCHED_ALT
+
+/* Undefine MAX_PRIO and DEFAULT_PRIO */
+#undef MAX_PRIO
+#undef DEFAULT_PRIO
+
+/* +/- priority levels from the base priority */
+#ifdef CONFIG_SCHED_BMQ
+#define MAX_PRIORITY_ADJ	(12)
+#endif
+
+#ifdef CONFIG_SCHED_PDS
+#define MAX_PRIORITY_ADJ	(0)
+#endif
+
+#define MIN_NORMAL_PRIO		(128)
+#define NORMAL_PRIO_NUM		(64)
+#define MAX_PRIO		(MIN_NORMAL_PRIO + NORMAL_PRIO_NUM)
+#define DEFAULT_PRIO		(MAX_PRIO - MAX_PRIORITY_ADJ - NICE_WIDTH / 2)
+
+#endif /* CONFIG_SCHED_ALT */
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
