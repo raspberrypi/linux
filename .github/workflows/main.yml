@@ -151,6 +151,7 @@ jobs:
 
       - name: Configure kernel
         run: |
+          cd linux/
           make oldconfig
         env:
           ARCH: ${{ env.ARCH }}
