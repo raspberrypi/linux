@@ -15,6 +15,14 @@ on:
         required: true
         type: boolean
         default: false
+      arch:
+        description: 'Build Arch'
+        required: true
+        type: choice
+        options:
+          - arm
+          - arm64
+        default: arm64
 
 jobs:
   build:
@@ -44,7 +52,8 @@ jobs:
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
-        name:  🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 📜
+
+      - name:  🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 📜
         run: |
           cat >> $GITHUB_ENV << 'EOF'
           CCACHE_SLOPPINESS=file_macro,locale,time_macros
@@ -80,7 +89,7 @@ jobs:
       - name: Set up build environment variables
         run: |
           echo "KERNEL=kernel8" >> $GITHUB_ENV
-          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
           echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
           echo "BUILD_DIR=$(pwd)/build_output" >> $GITHUB_ENV
           mkdir -p $(pwd)/build_output/boot
