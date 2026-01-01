@@ -38,7 +38,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: /home/runner/work/linux/linux
+        working-directory: /home/runner/work/linux/
 
     steps:
       - if: ${{ inputs.freespace }}
@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          path: ${{ github.workspace }}
+          path: ${{ env.working-directory }}
 
       - name: what the actual fuck?
         run: |
