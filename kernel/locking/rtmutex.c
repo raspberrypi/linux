@@ -363,7 +363,7 @@ waiter_update_prio(struct rt_mutex_waiter *waiter, struct task_struct *task)
 	lockdep_assert(RB_EMPTY_NODE(&waiter->tree.entry));
 
 	waiter->tree.prio = __waiter_prio(task);
-	waiter->tree.deadline = __tsk_deadline(task);
+	waiter->tree.deadline = task->dl.deadline;
 }
 
 /*
@@ -384,20 +384,16 @@ waiter_clone_prio(struct rt_mutex_waiter *waiter, struct task_struct *task)
  * Only use with rt_waiter_node_{less,equal}()
  */
 #define task_to_waiter_node(p)	\
-	&(struct rt_waiter_node){ .prio = __waiter_prio(p), .deadline = __tsk_deadline(p) }
+	&(struct rt_waiter_node){ .prio = __waiter_prio(p), .deadline = (p)->dl.deadline }
 #define task_to_waiter(p)	\
 	&(struct rt_mutex_waiter){ .tree = *task_to_waiter_node(p) }
 
 static __always_inline int rt_waiter_node_less(struct rt_waiter_node *left,
 					       struct rt_waiter_node *right)
 {
-#ifdef CONFIG_SCHED_PDS
-	return (left->deadline < right->deadline);
-#else
 	if (left->prio < right->prio)
 		return 1;
 
-#ifndef CONFIG_SCHED_BMQ
 	/*
 	 * If both waiters have dl_prio(), we check the deadlines of the
 	 * associated tasks.
@@ -406,22 +402,16 @@ static __always_inline int rt_waiter_node_less(struct rt_waiter_node *left,
 	 */
 	if (dl_prio(left->prio))
 		return dl_time_before(left->deadline, right->deadline);
-#endif
 
 	return 0;
-#endif
 }
 
 static __always_inline int rt_waiter_node_equal(struct rt_waiter_node *left,
 						 struct rt_waiter_node *right)
 {
-#ifdef CONFIG_SCHED_PDS
-	return (left->deadline == right->deadline);
-#else
 	if (left->prio != right->prio)
 		return 0;
 
-#ifndef CONFIG_SCHED_BMQ
 	/*
 	 * If both waiters have dl_prio(), we check the deadlines of the
 	 * associated tasks.
@@ -430,10 +420,8 @@ static __always_inline int rt_waiter_node_equal(struct rt_waiter_node *left,
 	 */
 	if (dl_prio(left->prio))
 		return left->deadline == right->deadline;
-#endif
 
 	return 1;
-#endif
 }
 
 static inline bool rt_mutex_steal(struct rt_mutex_waiter *waiter,

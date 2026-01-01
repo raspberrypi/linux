@@ -811,13 +811,9 @@ struct task_struct {
 	struct alloc_tag		*alloc_tag;
 #endif
 
-#if defined(CONFIG_SMP) || defined(CONFIG_SCHED_ALT)
-	int				on_cpu;
-#endif
-
 #ifdef CONFIG_SMP
+	int				on_cpu;
 	struct __call_single_node	wake_entry;
-#ifndef CONFIG_SCHED_ALT
 	unsigned int			wakee_flips;
 	unsigned long			wakee_flip_decay_ts;
 	struct task_struct		*last_wakee;
@@ -831,7 +827,6 @@ struct task_struct {
 	 */
 	int				recent_used_cpu;
 	int				wake_cpu;
-#endif /* !CONFIG_SCHED_ALT */
 #endif
 	int				on_rq;
 
@@ -840,19 +835,6 @@ struct task_struct {
 	int				normal_prio;
 	unsigned int			rt_priority;
 
-#ifdef CONFIG_SCHED_ALT
-	u64				last_ran;
-	s64				time_slice;
-	struct list_head		sq_node;
-#ifdef CONFIG_SCHED_BMQ
-	int				boost_prio;
-#endif /* CONFIG_SCHED_BMQ */
-#ifdef CONFIG_SCHED_PDS
-	u64				deadline;
-#endif /* CONFIG_SCHED_PDS */
-	/* sched_clock time spent running */
-	u64				sched_time;
-#else /* !CONFIG_SCHED_ALT */
 	struct sched_entity		se;
 	struct sched_rt_entity		rt;
 	struct sched_dl_entity		dl;
@@ -867,7 +849,6 @@ struct task_struct {
 	unsigned long			core_cookie;
 	unsigned int			core_occupation;
 #endif
-#endif /* !CONFIG_SCHED_ALT */
 
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
@@ -904,15 +885,11 @@ struct task_struct {
 	const cpumask_t			*cpus_ptr;
 	cpumask_t			*user_cpus_ptr;
 	cpumask_t			cpus_mask;
-#ifndef CONFIG_SCHED_ALT
 	void				*migration_pending;
-#endif
 #ifdef CONFIG_SMP
 	unsigned short			migration_disabled;
 #endif
-#ifndef CONFIG_SCHED_ALT
 	unsigned short			migration_flags;
-#endif
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;
@@ -944,10 +921,8 @@ struct task_struct {
 
 	struct list_head		tasks;
 #ifdef CONFIG_SMP
-#ifndef CONFIG_SCHED_ALT
 	struct plist_node		pushable_tasks;
 	struct rb_node			pushable_dl_tasks;
-#endif
 #endif
 
 	struct mm_struct		*mm;
@@ -1642,15 +1617,6 @@ struct task_struct {
 	 */
 };
 
-#ifdef CONFIG_SCHED_ALT
-#define tsk_seruntime(t)		((t)->sched_time)
-/* replace the uncertian rt_timeout with 0UL */
-#define tsk_rttimeout(t)		(0UL)
-#else /* CFS */
-#define tsk_seruntime(t)	((t)->se.sum_exec_runtime)
-#define tsk_rttimeout(t)	((t)->rt.timeout)
-#endif /* !CONFIG_SCHED_ALT */
-
 #define TASK_REPORT_IDLE	(TASK_REPORT + 1)
 #define TASK_REPORT_MAX		(TASK_REPORT_IDLE << 1)
 
@@ -2179,11 +2145,7 @@ static inline void set_task_cpu(struct task_struct *p, unsigned int cpu)
 
 static inline bool task_is_runnable(struct task_struct *p)
 {
-#ifdef CONFIG_SCHED_ALT
-	return p->on_rq;
-#else
 	return p->on_rq && !p->se.sched_delayed;
-#endif /* !CONFIG_SCHED_ALT */
 }
 
 extern bool sched_task_on_rq(struct task_struct *p);

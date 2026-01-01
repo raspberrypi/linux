@@ -637,7 +637,7 @@ out:
 	return ret;
 }
 
-#if defined(CONFIG_SMP) && !defined(CONFIG_SCHED_ALT)
+#ifdef CONFIG_SMP
 /*
  * Helper routine for generate_sched_domains().
  * Do cpusets a, b have overlapping effective cpus_allowed masks?
@@ -1057,7 +1057,7 @@ void rebuild_sched_domains_locked(void)
 	/* Have scheduler rebuild the domains */
 	partition_and_rebuild_sched_domains(ndoms, doms, attr);
 }
-#else /* !CONFIG_SMP || CONFIG_SCHED_ALT */
+#else /* !CONFIG_SMP */
 void rebuild_sched_domains_locked(void)
 {
 }
@@ -2964,15 +2964,12 @@ static int cpuset_can_attach(struct cgroup_taskset *tset)
 				goto out_unlock;
 		}
 
-#ifndef CONFIG_SCHED_ALT
 		if (dl_task(task)) {
 			cs->nr_migrate_dl_tasks++;
 			cs->sum_migrate_dl_bw += task->dl.dl_bw;
 		}
-#endif
 	}
 
-#ifndef CONFIG_SCHED_ALT
 	if (!cs->nr_migrate_dl_tasks)
 		goto out_success;
 
@@ -2993,7 +2990,6 @@ static int cpuset_can_attach(struct cgroup_taskset *tset)
 	}
 
 out_success:
-#endif
 	/*
 	 * Mark attach is in progress.  This makes validate_change() fail
 	 * changes which zero cpus/mems_allowed.
@@ -3015,14 +3011,12 @@ static void cpuset_cancel_attach(struct cgroup_taskset *tset)
 	mutex_lock(&cpuset_mutex);
 	dec_attach_in_progress_locked(cs);
 
-#ifndef CONFIG_SCHED_ALT
 	if (cs->nr_migrate_dl_tasks) {
 		int cpu = cpumask_any(cs->effective_cpus);
 
 		dl_bw_free(cpu, cs->sum_migrate_dl_bw);
 		reset_migrate_dl_data(cs);
 	}
-#endif
 
 	mutex_unlock(&cpuset_mutex);
 }

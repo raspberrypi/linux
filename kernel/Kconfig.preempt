@@ -146,7 +146,7 @@ config PREEMPT_DYNAMIC
 
 config SCHED_CORE
 	bool "Core Scheduling for SMT"
-	depends on SCHED_SMT && !SCHED_ALT
+	depends on SCHED_SMT
 	help
 	  This option permits Core Scheduling, a means of coordinated task
 	  selection across SMT siblings. When enabled -- see
@@ -164,7 +164,7 @@ config SCHED_CORE
 
 config SCHED_CLASS_EXT
 	bool "Extensible Scheduling Class"
-	depends on BPF_SYSCALL && BPF_JIT && DEBUG_INFO_BTF && !SCHED_ALT
+	depends on BPF_SYSCALL && BPF_JIT && DEBUG_INFO_BTF
 	select STACKTRACE if STACKTRACE_SUPPORT
 	help
 	  This option enables a new scheduler class sched_ext (SCX), which

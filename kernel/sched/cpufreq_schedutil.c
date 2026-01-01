@@ -220,7 +220,6 @@ unsigned long sugov_effective_cpu_perf(int cpu, unsigned long actual,
 
 static void sugov_get_util(struct sugov_cpu *sg_cpu, unsigned long boost)
 {
-#ifndef CONFIG_SCHED_ALT
 	unsigned long min, max, util = scx_cpuperf_target(sg_cpu->cpu);
 
 	if (!scx_switched_all())
@@ -229,10 +228,6 @@ static void sugov_get_util(struct sugov_cpu *sg_cpu, unsigned long boost)
 	util = max(util, boost);
 	sg_cpu->bw_min = min;
 	sg_cpu->util = sugov_effective_cpu_perf(sg_cpu->cpu, util, min, max);
-#else /* CONFIG_SCHED_ALT */
-	sg_cpu->bw_min = 0;
-	sg_cpu->util = rq_load_util(cpu_rq(sg_cpu->cpu), arch_scale_cpu_capacity(sg_cpu->cpu));
-#endif /* CONFIG_SCHED_ALT */
 }
 
 /**
@@ -712,7 +707,6 @@ static int sugov_kthread_create(struct sugov_policy *sg_policy)
 	}
 
 	ret = sched_setattr_nocheck(thread, &attr);
-
 	if (ret) {
 		kthread_stop(thread);
 		pr_warn("%s: failed to set SCHED_DEADLINE\n", __func__);
