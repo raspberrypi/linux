@@ -738,7 +738,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (file) {
 			struct address_space *mapping = file->f_mapping;
 
-			get_file(file);
+			vma_get_file(tmp);
 			i_mmap_lock_write(mapping);
 			if (vma_is_shared_maywrite(tmp))
 				mapping_allow_writable(mapping);

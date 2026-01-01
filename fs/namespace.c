@@ -973,6 +973,13 @@ static inline int check_mnt(struct mount *mnt)
 	return mnt->mnt_ns == current->nsproxy->mnt_ns;
 }
 
+/* for aufs, CONFIG_AUFS_BR_FUSE */
+int is_current_mnt_ns(struct vfsmount *mnt)
+{
+	return check_mnt(real_mount(mnt));
+}
+EXPORT_SYMBOL_GPL(is_current_mnt_ns);
+
 /*
  * vfsmount lock must be held for write
  */
@@ -2206,6 +2213,7 @@ struct vfsmount *collect_mounts(const struct path *path)
 		return ERR_CAST(tree);
 	return &tree->mnt;
 }
+EXPORT_SYMBOL_GPL(collect_mounts);
 
 static void free_mnt_ns(struct mnt_namespace *);
 static struct mnt_namespace *alloc_mnt_ns(struct user_namespace *, bool);
@@ -2236,6 +2244,7 @@ void drop_collected_mounts(struct vfsmount *mnt)
 	unlock_mount_hash();
 	namespace_unlock();
 }
+EXPORT_SYMBOL_GPL(drop_collected_mounts);
 
 static bool __has_locked_children(struct mount *mnt, struct dentry *dentry)
 {
@@ -2322,6 +2331,7 @@ int iterate_mounts(int (*f)(struct vfsmount *, void *), void *arg,
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iterate_mounts);
 
 static void lock_mnt_tree(struct mount *mnt)
 {

@@ -54,7 +54,7 @@ struct loop_device {
 	int		lo_flags;
 	char		lo_file_name[LO_NAME_SIZE];
 
-	struct file *	lo_backing_file;
+	struct file	*lo_backing_file, *lo_backing_virt_file;
 	struct block_device *lo_device;
 
 	gfp_t		old_gfp_mask;
@@ -452,6 +452,15 @@ static inline void loop_update_dio(struct loop_device *lo)
 				lo->use_dio);
 }
 
+static struct file *loop_real_file(struct file *file)
+{
+	struct file *f = NULL;
+
+	if (file->f_path.dentry->d_sb->s_op->real_loop)
+		f = file->f_path.dentry->d_sb->s_op->real_loop(file);
+	return f;
+}
+
 static void loop_reread_partitions(struct loop_device *lo)
 {
 	int rc;
@@ -528,6 +537,7 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 {
 	struct file *file = fget(arg);
 	struct file *old_file;
+	struct file *f, *virt_file = NULL, *old_virt_file;
 	int error;
 	bool partscan;
 	bool is_loop;
@@ -557,11 +567,19 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 	if (!(lo->lo_flags & LO_FLAGS_READ_ONLY))
 		goto out_err;
 
+	f = loop_real_file(file);
+	if (f) {
+		virt_file = file;
+		file = f;
+		get_file(file);
+	}
+
 	error = loop_validate_file(file, bdev);
 	if (error)
 		goto out_err;
 
 	old_file = lo->lo_backing_file;
+	old_virt_file = lo->lo_backing_virt_file;
 
 	error = -EINVAL;
 
@@ -574,6 +592,7 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 	blk_mq_freeze_queue(lo->lo_queue);
 	mapping_set_gfp_mask(old_file->f_mapping, lo->old_gfp_mask);
 	loop_assign_backing_file(lo, file);
+	lo->lo_backing_virt_file = virt_file;
 	loop_update_dio(lo);
 	blk_mq_unfreeze_queue(lo->lo_queue);
 	partscan = lo->lo_flags & LO_FLAGS_PARTSCAN;
@@ -596,6 +615,8 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 	dev_set_uevent_suppress(disk_to_dev(lo->lo_disk), 0);
 	if (partscan)
 		loop_reread_partitions(lo);
+	if (old_virt_file)
+		fput(old_virt_file);
 
 	error = 0;
 done:
@@ -607,8 +628,30 @@ out_err:
 out_putf:
 	fput(file);
 	dev_set_uevent_suppress(disk_to_dev(lo->lo_disk), 0);
+	if (virt_file)
+		fput(virt_file);
 	goto done;
 }
+
+/*
+ * for AUFS
+ * no get/put for file.
+ */
+/* Just to make the compiler silence, declare it */
+struct file *loop_backing_file(struct super_block *sb);
+struct file *loop_backing_file(struct super_block *sb)
+{
+	struct file *ret;
+	struct loop_device *l;
+
+	ret = NULL;
+	if (MAJOR(sb->s_dev) == LOOP_MAJOR) {
+		l = sb->s_bdev->bd_disk->private_data;
+		ret = l->lo_backing_file;
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(loop_backing_file);
 
 /* loop sysfs attributes */
 
@@ -968,6 +1011,7 @@ static int loop_configure(struct loop_device *lo, blk_mode_t mode,
 	struct queue_limits lim;
 	int error;
 	loff_t size;
+	struct file *f, *virt_file = NULL;
 	bool partscan;
 	bool is_loop;
 
@@ -984,6 +1028,13 @@ static int loop_configure(struct loop_device *lo, blk_mode_t mode,
 
 	/* This is safe, since we have a reference from open(). */
 	__module_get(THIS_MODULE);
+
+	f = loop_real_file(file);
+	if (f) {
+		virt_file = file;
+		file = f;
+		get_file(file);
+	}
 
 	/*
 	 * If we don't hold exclusive handle for the device, upgrade to it
@@ -1041,6 +1092,7 @@ static int loop_configure(struct loop_device *lo, blk_mode_t mode,
 	loop_assign_backing_file(lo, file);
 
 	lim = queue_limits_start_update(lo->lo_queue);
+	lo->lo_backing_virt_file = virt_file;
 	loop_update_limits(lo, &lim, config->block_size);
 	error = queue_limits_commit_update(lo->lo_queue, &lim);
 	if (error)
@@ -1081,6 +1133,8 @@ out_bdev:
 		bd_abort_claiming(bdev, loop_configure);
 out_putf:
 	fput(file);
+	if (virt_file)
+		fput(virt_file);
 	/* This is safe: open() is still holding a reference. */
 	module_put(THIS_MODULE);
 	return error;
@@ -1090,11 +1144,13 @@ static void __loop_clr_fd(struct loop_device *lo)
 {
 	struct queue_limits lim;
 	struct file *filp;
+	struct file *virt_filp = lo->lo_backing_virt_file;
 	gfp_t gfp = lo->old_gfp_mask;
 
 	spin_lock_irq(&lo->lo_lock);
 	filp = lo->lo_backing_file;
 	lo->lo_backing_file = NULL;
+	lo->lo_backing_virt_file = NULL;
 	spin_unlock_irq(&lo->lo_lock);
 
 	lo->lo_device = NULL;
@@ -1156,6 +1212,8 @@ static void __loop_clr_fd(struct loop_device *lo)
 	 * fput can take open_mutex which is usually taken before lo_mutex.
 	 */
 	fput(filp);
+	if (virt_filp)
+		fput(virt_filp);
 }
 
 static int loop_clr_fd(struct loop_device *lo)

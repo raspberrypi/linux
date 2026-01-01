@@ -936,13 +936,14 @@ static int warn_unsupported(struct file *file, const char *op)
 /*
  * Attempt to initiate a splice from pipe to file.
  */
-static ssize_t do_splice_from(struct pipe_inode_info *pipe, struct file *out,
+ssize_t do_splice_from(struct pipe_inode_info *pipe, struct file *out,
 			      loff_t *ppos, size_t len, unsigned int flags)
 {
 	if (unlikely(!out->f_op->splice_write))
 		return warn_unsupported(out, "write");
 	return out->f_op->splice_write(pipe, out, ppos, len, flags);
 }
+EXPORT_SYMBOL_GPL(do_splice_from);
 
 /*
  * Indicate to the caller that there was a premature EOF when reading from the

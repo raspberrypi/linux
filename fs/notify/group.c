@@ -100,6 +100,7 @@ void fsnotify_get_group(struct fsnotify_group *group)
 {
 	refcount_inc(&group->refcnt);
 }
+EXPORT_SYMBOL_GPL(fsnotify_get_group);
 
 /*
  * Drop a reference to a group.  Free it if it's through.

@@ -210,6 +210,8 @@ static inline int lockdep_match_key(struct lockdep_map *lock,
 	return lock->key == key;
 }
 
+struct lock_class *lockdep_hlock_class(struct held_lock *hlock);
+
 /*
  * Acquire a lock.
  *
