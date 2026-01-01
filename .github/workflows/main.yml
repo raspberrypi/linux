@@ -149,8 +149,8 @@ jobs:
 
       - name: Configure kernel
         run: |
+          cd linux/
           make oldconfig
-        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -161,17 +161,18 @@ jobs:
           echo "Architecture: $ARCH"
           echo "Cross-compiler: $CROSS_COMPILE"
           
+          cd linux/
           # Use -j$(nproc) for parallel compilation
           KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
           
           echo "Kernel compilation completed!"
-        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Install modules and copy artifacts
         run: |
+          cd linux/
           echo "Installing modules..."
           # Install modules into a staging directory
           sudo make modules_install INSTALL_MOD_PATH=${{ env.BUILD_DIR }}
@@ -198,7 +199,6 @@ jobs:
           ls -lh ${{ env.BUILD_DIR }}/lib/modules/
           
           echo "Kernel build completed successfully!"
-        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
