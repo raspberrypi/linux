@@ -48,11 +48,11 @@ jobs:
           large-packages: true
           tool-cache: true
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          path: ${{ github.workspace }}/linux/
+      #- name: Checkout repository
+      #  uses: actions/checkout@v4
+      #  with:
+      #    fetch-depth: 1
+      #    path: ${{ github.workspace }}/linux/
 
       - name: what the actual fuck?
         run: |
