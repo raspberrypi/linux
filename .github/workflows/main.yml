@@ -1,0 +1,125 @@
+name: Compile Raspberry Pi Kernel (ARM/ARM64)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    inputs:
+      freespace:
+        description: 'Clear Disk Space'
+        required: true
+        type: boolean
+        default: false
+      swapspace:
+        description: 'Add Swap'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - if: ${{ inputs.freespace }}
+        name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          swap-storage: false
+          large-packages: true
+          tool-cache: true
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install cross-compilers and dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          execute_install_scripts: true
+          packages: gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler ccache git cpio fakeroot libssl-dev lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper
+
+      - name:  𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+        name:  🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 📜
+        run: |
+          cat >> $GITHUB_ENV << 'EOF'
+          CCACHE_SLOPPINESS=file_macro,locale,time_macros
+          CCACHE_NOHASHDIR=true
+          CCACHE_COMPRESS=1
+          CCACHE_COMPRESSLEVEL=9
+          CCACHE_DEPEND=1
+          EOF
+          echo "CCACHE Environment set!"
+          # Set Compiler
+          echo "CC=ccache gcc" >> $GITHUB_ENV
+          echo "CXX=ccache g++" >> $GITHUB_ENV
+          echo "CCACHE Compilers set!"
+
+          # Setup CCACHE Dir
+          sudo mkdir -p /mnt/ccache
+          sudo chown -R $USER:$USER /mnt/ccache
+          echo "CCACHE_DIR=/mnt/ccache" >> $GITHUB_ENV
+          echo "CCACHE Dir Set!"
+          df -h
+
+      - name: Enable CCACHE
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: 'true'
+          key: kernel-build-${{ runner.os }}-${{ hashFiles('Makefile', 'arch/*/Makefile',
+            '.config') }}
+          max-size: '10000MB'
+          restore-keys: |
+            kernel-build-${{ runner.os }}-
+          verbose: 1
+
+      - name: Set up build environment variables
+        run: |
+          echo "KERNEL=kernel8" >> $GITHUB_ENV
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          echo "BUILD_DIR=$(pwd)/build_output" >> $GITHUB_ENV
+          mkdir -p $(pwd)/build_output/boot
+          mkdir -p $(pwd)/build_output/lib/modules
+        #working-directory: ./
+
+      - name: Configure kernel
+        run: |
+          make oldconfig
+        #working-directory: ./
+        env:
+          ARCH: ${{ env.ARCH }}
+          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+
+      - name: Compile kernel image, modules, and DTBs
+        run: |
+          # Use -j$(nproc) for parallel compilation
+          make -j$(nproc) Image modules dtbs
+        #working-directory: ./
+        env:
+          ARCH: ${{ env.ARCH }}
+          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+
+      - name: Install modules and copy artifacts
+        run: |
+          # Install modules into a staging directory
+          sudo make modules_install INSTALL_MOD_PATH=${{ env.BUILD_DIR }}
+
+          # Copy kernel image, DTBs, and overlays
+          cp arch/${{ env.ARCH }}/boot/Image ${{ env.BUILD_DIR }}/boot/${{ env.KERNEL }}.img
+          cp arch/${{ env.ARCH }}/boot/dts/broadcom/*.dtb ${{ env.BUILD_DIR }}/boot/
+          cp arch/${{ env.ARCH }}/boot/dts/overlays/*.dtb* ${{ env.BUILD_DIR }}/boot/overlays/
+        #working-directory: ./
+        env:
+          ARCH: ${{ env.ARCH }}
+          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-raspberrypi-kernel-${{ env.ARCH }}
+          path: build_output/
