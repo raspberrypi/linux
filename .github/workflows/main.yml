@@ -147,12 +147,10 @@ jobs:
           echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
           echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
 
-      #- uses: valeriangalliat/action-sshd-cloudflared@v1
-
       - name: Configure kernel
         run: |
-          cd linux/
           make oldconfig
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -164,9 +162,10 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
           
           # Use -j$(nproc) for parallel compilation
-          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image.gz modules dtbs
+          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
           
           echo "Kernel compilation completed!"
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -199,6 +198,7 @@ jobs:
           ls -lh ${{ env.BUILD_DIR }}/lib/modules/
           
           echo "Kernel build completed successfully!"
+        working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
