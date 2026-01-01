@@ -616,6 +616,50 @@ extern void __raise_softirq_irqoff(unsigned int nr);
 extern void raise_softirq_irqoff(unsigned int nr);
 extern void raise_softirq(unsigned int nr);
 
+/*
+ * Handle timers in a dedicated thread at a low SCHED_FIFO priority instead in
+ * ksoftirqd as to be prefred over SCHED_NORMAL tasks.
+ */
+#ifdef CONFIG_PREEMPT_RT
+DECLARE_PER_CPU(struct task_struct *, timersd);
+DECLARE_PER_CPU(unsigned long, pending_timer_softirq);
+
+void raise_ktimers_thread(unsigned int nr);
+
+static inline void raise_timer_softirq(void)
+{
+	raise_ktimers_thread(TIMER_SOFTIRQ);
+}
+
+static inline void raise_hrtimer_softirq(void)
+{
+	raise_ktimers_thread(HRTIMER_SOFTIRQ);
+}
+
+static inline unsigned int local_timers_pending(void)
+{
+	return __this_cpu_read(pending_timer_softirq);
+}
+
+#else
+static inline void raise_timer_softirq(void)
+{
+	lockdep_assert_in_irq();
+	__raise_softirq_irqoff(TIMER_SOFTIRQ);
+}
+
+static inline void raise_hrtimer_softirq(void)
+{
+	lockdep_assert_in_irq();
+	__raise_softirq_irqoff(HRTIMER_SOFTIRQ);
+}
+
+static inline unsigned int local_timers_pending(void)
+{
+	return local_softirq_pending();
+}
+#endif
+
 DECLARE_PER_CPU(struct task_struct *, ksoftirqd);
 
 static inline struct task_struct *this_cpu_ksoftirqd(void)
