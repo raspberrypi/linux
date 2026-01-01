@@ -669,15 +669,18 @@ config TCP_CONG_BBR
 	default n
 	help
 
-	  BBR (Bottleneck Bandwidth and RTT) TCP congestion control aims to
-	  maximize network utilization and minimize queues. It builds an explicit
-	  model of the bottleneck delivery rate and path round-trip propagation
-	  delay. It tolerates packet loss and delay unrelated to congestion. It
-	  can operate over LAN, WAN, cellular, wifi, or cable modem links. It can
-	  coexist with flows that use loss-based congestion control, and can
-	  operate with shallow buffers, deep buffers, bufferbloat, policers, or
-	  AQM schemes that do not provide a delay signal. It requires the fq
-	  ("Fair Queue") pacing packet scheduler.
+	  BBR (Bottleneck Bandwidth and RTT) TCP congestion control is a
+	  model-based congestion control algorithm that aims to maximize
+	  network utilization, keep queues and retransmit rates low, and to be
+	  able to coexist with Reno/CUBIC in common scenarios. It builds an
+	  explicit model of the network path.  It tolerates a targeted degree
+	  of random packet loss and delay. It can operate over LAN, WAN,
+	  cellular, wifi, or cable modem links, and can use shallow-threshold
+	  ECN signals. It can coexist to some degree with flows that use
+	  loss-based congestion control, and can operate with shallow buffers,
+	  deep buffers, bufferbloat, policers, or AQM schemes that do not
+	  provide a delay signal. It requires pacing, using either TCP internal
+	  pacing or the fq ("Fair Queue") pacing packet scheduler.
 
 choice
 	prompt "Default TCP congestion control"

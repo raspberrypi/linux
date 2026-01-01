@@ -690,6 +690,7 @@ void tcp_write_timer_handler(struct sock *sk)
 		return;
 	}
 
+	tcp_rate_check_app_limited(sk);
 	tcp_mstamp_refresh(tcp_sk(sk));
 	event = icsk->icsk_pending;
 
