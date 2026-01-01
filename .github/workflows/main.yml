@@ -35,6 +35,8 @@ jobs:
   build:
     timeout-minutes: 420
     runs-on: ubuntu-latest
+    env:
+      working-directory: ./linux
     defaults:
       run:
         shell: bash
@@ -148,12 +150,12 @@ jobs:
           mkdir -p $(pwd)/build_output/lib/modules
           
           echo "Building for architecture: ${{ inputs.arch }}"
-        #working-directory: ./linux
+        working-directory: ${{env.working-directory}}
 
       - name: Configure kernel
         run: |
           make oldconfig
-        #working-directory: ./linux
+        working-directory: ${{env.working-directory}}
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -168,7 +170,7 @@ jobs:
           make -j$(nproc) Image modules dtbs
           
           echo "Kernel compilation completed!"
-        #working-directory: ./linux
+        working-directory: ${{env.working-directory}}
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -201,7 +203,7 @@ jobs:
           ls -lh ${{ env.BUILD_DIR }}/lib/modules/
           
           echo "Kernel build completed successfully!"
-        #working-directory: ./linux
+        working-directory: ${{env.working-directory}}
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
