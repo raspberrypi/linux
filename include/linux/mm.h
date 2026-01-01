@@ -205,6 +205,14 @@ static inline void __mm_zero_struct_page(struct page *page)
 
 extern int sysctl_max_map_count;
 
+extern bool sysctl_workingset_protection;
+extern u8 sysctl_anon_min_ratio;
+extern u8 sysctl_clean_low_ratio;
+extern u8 sysctl_clean_min_ratio;
+int vm_workingset_protection_update_handler(
+	const struct ctl_table *table, int write,
+	void __user *buffer, size_t *lenp, loff_t *ppos);
+
 extern unsigned long sysctl_user_reserve_kbytes;
 extern unsigned long sysctl_admin_reserve_kbytes;
 

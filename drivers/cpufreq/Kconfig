@@ -105,6 +105,16 @@ config CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
 	  have a look at the help section of that governor. The fallback
 	  governor will be 'performance'.
 
+config CPU_FREQ_DEFAULT_GOV_EXT
+	bool "ext"
+	depends on SMP
+	select CPU_FREQ_GOV_EXT
+	help
+	  Use the CPUFreq governor 'ext' as default. BPF base cpufreq
+	  governor which can customize governor in BPF program.
+	  Cpufreq_ext can provide application-specific governor, more radical
+	  strategies for dedicated scenarios.
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -200,6 +210,19 @@ config CPU_FREQ_GOV_SCHEDUTIL
 	  case, it is proportional to the current frequency of the CPU.  The
 	  frequency tipping point is at utilization/capacity equal to 80% in
 	  both cases.
+
+	  If in doubt, say N.
+
+config CPU_FREQ_GOV_EXT
+	bool "'ext' cpufreq policy governor"
+	depends on CPU_FREQ && BPF_SYSCALL && BPF_JIT && DEBUG_INFO_BTF
+	select CPU_FREQ_GOV_ATTR_SET
+	select CPU_FREQ_GOV_COMMON
+	help
+	  This governor makes decisions based on ext. BPF base cpufreq
+	  governor which can customize governor in BPF program.
+	  Cpufreq_ext can provide application-specific governor, more radical
+	  strategies for dedicated scenarios.
 
 	  If in doubt, say N.
 
