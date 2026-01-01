@@ -126,7 +126,7 @@ void account_user_time(struct task_struct *p, u64 cputime)
 	p->utime += cputime;
 	account_group_user_time(p, cputime);
 
-	index = (task_nice(p) > 0) ? CPUTIME_NICE : CPUTIME_USER;
+	index = task_running_nice(p) ? CPUTIME_NICE : CPUTIME_USER;
 
 	/* Add user time to cpustat. */
 	task_group_account_field(p, index, cputime);
@@ -150,7 +150,7 @@ void account_guest_time(struct task_struct *p, u64 cputime)
 	p->gtime += cputime;
 
 	/* Add guest time to cpustat. */
-	if (task_nice(p) > 0) {
+	if (task_running_nice(p)) {
 		task_group_account_field(p, CPUTIME_NICE, cputime);
 		cpustat[CPUTIME_GUEST_NICE] += cputime;
 	} else {
@@ -288,7 +288,7 @@ static inline u64 account_other_time(u64 max)
 #ifdef CONFIG_64BIT
 static inline u64 read_sum_exec_runtime(struct task_struct *t)
 {
-	return t->se.sum_exec_runtime;
+	return tsk_seruntime(t);
 }
 #else
 static u64 read_sum_exec_runtime(struct task_struct *t)
@@ -298,7 +298,7 @@ static u64 read_sum_exec_runtime(struct task_struct *t)
 	struct rq *rq;
 
 	rq = task_rq_lock(t, &rf);
-	ns = t->se.sum_exec_runtime;
+	ns = tsk_seruntime(t);
 	task_rq_unlock(rq, t, &rf);
 
 	return ns;
@@ -623,7 +623,7 @@ out:
 void task_cputime_adjusted(struct task_struct *p, u64 *ut, u64 *st)
 {
 	struct task_cputime cputime = {
-		.sum_exec_runtime = p->se.sum_exec_runtime,
+		.sum_exec_runtime = tsk_seruntime(p),
 	};
 
 	if (task_cputime(p, &cputime.utime, &cputime.stime))

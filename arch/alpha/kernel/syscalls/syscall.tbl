@@ -502,3 +502,6 @@
 570	common	lsm_set_self_attr		sys_lsm_set_self_attr
 571	common	lsm_list_modules		sys_lsm_list_modules
 572	common  mseal				sys_mseal
+573	common	process_ksm_enable		sys_process_ksm_enable
+574	common	process_ksm_disable		sys_process_ksm_disable
+575	common	process_ksm_status		sys_process_ksm_status

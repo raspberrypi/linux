@@ -468,3 +468,6 @@
 460	i386	lsm_set_self_attr	sys_lsm_set_self_attr
 461	i386	lsm_list_modules	sys_lsm_list_modules
 462	i386	mseal 			sys_mseal
+463	i386	process_ksm_enable		sys_process_ksm_enable
+464	i386	process_ksm_disable		sys_process_ksm_disable
+465	i386	process_ksm_status		sys_process_ksm_status

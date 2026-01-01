@@ -1247,6 +1247,7 @@ static bool kick_pool(struct worker_pool *pool)
 
 	p = worker->task;
 
+#ifndef CONFIG_SCHED_ALT
 #ifdef CONFIG_SMP
 	/*
 	 * Idle @worker is about to execute @work and waking up provides an
@@ -1276,6 +1277,8 @@ static bool kick_pool(struct worker_pool *pool)
 		}
 	}
 #endif
+#endif /* !CONFIG_SCHED_ALT */
+
 	wake_up_process(p);
 	return true;
 }
@@ -1404,7 +1407,11 @@ void wq_worker_running(struct task_struct *task)
 	 * CPU intensive auto-detection cares about how long a work item hogged
 	 * CPU without sleeping. Reset the starting timestamp on wakeup.
 	 */
+#ifdef CONFIG_SCHED_ALT
+	worker->current_at = worker->task->sched_time;
+#else
 	worker->current_at = worker->task->se.sum_exec_runtime;
+#endif
 
 	WRITE_ONCE(worker->sleeping, 0);
 }
@@ -1489,7 +1496,11 @@ void wq_worker_tick(struct task_struct *task)
 	 * We probably want to make this prettier in the future.
 	 */
 	if ((worker->flags & WORKER_NOT_RUNNING) || READ_ONCE(worker->sleeping) ||
+#ifdef CONFIG_SCHED_ALT
+	    worker->task->sched_time - worker->current_at <
+#else
 	    worker->task->se.sum_exec_runtime - worker->current_at <
+#endif
 	    wq_cpu_intensive_thresh_us * NSEC_PER_USEC)
 		return;
 
@@ -3157,7 +3168,11 @@ __acquires(&pool->lock)
 	worker->current_func = work->func;
 	worker->current_pwq = pwq;
 	if (worker->task)
+#ifdef CONFIG_SCHED_ALT
+		worker->current_at = worker->task->sched_time;
+#else
 		worker->current_at = worker->task->se.sum_exec_runtime;
+#endif
 	work_data = *work_data_bits(work);
 	worker->current_color = get_work_color(work_data);
 

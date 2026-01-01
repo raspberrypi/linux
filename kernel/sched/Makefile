@@ -28,7 +28,12 @@ endif
 # These compilation units have roughly the same size and complexity - so their
 # build parallelizes well and finishes roughly at once:
 #
+ifdef CONFIG_SCHED_ALT
+obj-y += alt_core.o
+obj-$(CONFIG_SCHED_DEBUG) += alt_debug.o
+else
 obj-y += core.o
 obj-y += fair.o
+endif
 obj-y += build_policy.o
 obj-y += build_utility.o

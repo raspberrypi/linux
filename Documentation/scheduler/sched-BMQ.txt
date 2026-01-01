@@ -1,0 +1,110 @@
+                         BitMap queue CPU Scheduler
+                         --------------------------
+
+CONTENT
+========
+
+ Background
+ Design
+   Overview
+   Task policy
+   Priority management
+   BitMap Queue
+   CPU Assignment and Migration
+
+
+Background
+==========
+
+BitMap Queue CPU scheduler, referred to as BMQ from here on, is an evolution
+of previous Priority and Deadline based Skiplist multiple queue scheduler(PDS),
+and inspired by Zircon scheduler. The goal of it is to keep the scheduler code
+simple, while efficiency and scalable for interactive tasks, such as desktop,
+movie playback and gaming etc.
+
+Design
+======
+
+Overview
+--------
+
+BMQ use per CPU run queue design, each CPU(logical) has it's own run queue,
+each CPU is responsible for scheduling the tasks that are putting into it's
+run queue.
+
+The run queue is a set of priority queues. Note that these queues are fifo
+queue for non-rt tasks or priority queue for rt tasks in data structure. See
+BitMap Queue below for details. BMQ is optimized for non-rt tasks in the fact
+that most applications are non-rt tasks. No matter the queue is fifo or
+priority, In each queue is an ordered list of runnable tasks awaiting execution
+and the data structures are the same. When it is time for a new task to run,
+the scheduler simply looks the lowest numbered queueue that contains a task,
+and runs the first task from the head of that queue. And per CPU idle task is
+also in the run queue, so the scheduler can always find a task to run on from
+its run queue.
+
+Each task will assigned the same timeslice(default 4ms) when it is picked to
+start running. Task will be reinserted at the end of the appropriate priority
+queue when it uses its whole timeslice. When the scheduler selects a new task
+from the priority queue it sets the CPU's preemption timer for the remainder of
+the previous timeslice. When that timer fires the scheduler will stop execution
+on that task, select another task and start over again.
+
+If a task blocks waiting for a shared resource then it's taken out of its
+priority queue and is placed in a wait queue for the shared resource. When it
+is unblocked it will be reinserted in the appropriate priority queue of an
+eligible CPU.
+
+Task policy
+-----------
+
+BMQ supports DEADLINE, FIFO, RR, NORMAL, BATCH and IDLE task policy like the
+mainline CFS scheduler. But BMQ is heavy optimized for non-rt task, that's
+NORMAL/BATCH/IDLE policy tasks. Below is the implementation detail of each
+policy.
+
+DEADLINE
+	It is squashed as priority 0 FIFO task.
+
+FIFO/RR
+	All RT tasks share one single priority queue in BMQ run queue designed. The
+complexity of insert operation is O(n). BMQ is not designed for system runs
+with major rt policy tasks.
+
+NORMAL/BATCH/IDLE
+	BATCH and IDLE tasks are treated as the same policy. They compete CPU with
+NORMAL policy tasks, but they just don't boost. To control the priority of
+NORMAL/BATCH/IDLE tasks, simply use nice level.
+
+ISO
+	ISO policy is not supported in BMQ. Please use nice level -20 NORMAL policy
+task instead.
+
+Priority management
+-------------------
+
+RT tasks have priority from 0-99. For non-rt tasks, there are three different
+factors used to determine the effective priority of a task. The effective
+priority being what is used to determine which queue it will be in.
+
+The first factor is simply the task’s static priority. Which is assigned from
+task's nice level, within [-20, 19] in userland's point of view and [0, 39]
+internally.
+
+The second factor is the priority boost. This is a value bounded between
+[-MAX_PRIORITY_ADJ, MAX_PRIORITY_ADJ] used to offset the base priority, it is
+modified by the following cases:
+
+*When a thread has used up its entire timeslice, always deboost its boost by
+increasing by one.
+*When a thread gives up cpu control(voluntary or non-voluntary) to reschedule,
+and its switch-in time(time after last switch and run) below the thredhold
+based on its priority boost, will boost its boost by decreasing by one buti is
+capped at 0 (won’t go negative).
+
+The intent in this system is to ensure that interactive threads are serviced
+quickly. These are usually the threads that interact directly with the user
+and cause user-perceivable latency. These threads usually do little work and
+spend most of their time blocked awaiting another user event. So they get the
+priority boost from unblocking while background threads that do most of the
+processing receive the priority penalty for using their entire timeslice.

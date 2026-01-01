@@ -2809,6 +2809,144 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 	return error;
 }
 
+#ifdef CONFIG_KSM
+enum pkc_action {
+	PKSM_ENABLE = 0,
+	PKSM_DISABLE,
+	PKSM_STATUS,
+};
+
+static long do_process_ksm_control(int pidfd, enum pkc_action action)
+{
+	long ret;
+	struct task_struct *task;
+	struct mm_struct *mm;
+	unsigned int f_flags;
+
+	task = pidfd_get_task(pidfd, &f_flags);
+	if (IS_ERR(task)) {
+		ret = PTR_ERR(task);
+		goto out;
+	}
+
+	/* Require PTRACE_MODE_READ to avoid leaking ASLR metadata. */
+	mm = mm_access(task, PTRACE_MODE_READ_FSCREDS);
+	if (IS_ERR_OR_NULL(mm)) {
+		ret = IS_ERR(mm) ? PTR_ERR(mm) : -ESRCH;
+		goto release_task;
+	}
+
+	/* Require CAP_SYS_NICE for influencing process performance. */
+	if (!capable(CAP_SYS_NICE)) {
+		ret = -EPERM;
+		goto release_mm;
+	}
+
+	if (mmap_write_lock_killable(mm)) {
+		ret = -EINTR;
+		goto release_mm;
+	}
+
+	switch (action) {
+		case PKSM_ENABLE:
+			ret = ksm_enable_merge_any(mm);
+			break;
+		case PKSM_DISABLE:
+			ret = ksm_disable_merge_any(mm);
+			break;
+		case PKSM_STATUS:
+			ret = !!test_bit(MMF_VM_MERGE_ANY, &mm->flags);
+			break;
+	}
+
+	mmap_write_unlock(mm);
+
+release_mm:
+	mmput(mm);
+release_task:
+	put_task_struct(task);
+out:
+	return ret;
+}
+#endif /* CONFIG_KSM */
+
+SYSCALL_DEFINE2(process_ksm_enable, int, pidfd, unsigned int, flags)
+{
+#ifdef CONFIG_KSM
+	if (flags != 0)
+		return -EINVAL;
+
+	return do_process_ksm_control(pidfd, PKSM_ENABLE);
+#else /* CONFIG_KSM */
+	return -ENOSYS;
+#endif /* CONFIG_KSM */
+}
+
+SYSCALL_DEFINE2(process_ksm_disable, int, pidfd, unsigned int, flags)
+{
+#ifdef CONFIG_KSM
+	if (flags != 0)
+		return -EINVAL;
+
+	return do_process_ksm_control(pidfd, PKSM_DISABLE);
+#else /* CONFIG_KSM */
+	return -ENOSYS;
+#endif /* CONFIG_KSM */
+}
+
+SYSCALL_DEFINE2(process_ksm_status, int, pidfd, unsigned int, flags)
+{
+#ifdef CONFIG_KSM
+	if (flags != 0)
+		return -EINVAL;
+
+	return do_process_ksm_control(pidfd, PKSM_STATUS);
+#else /* CONFIG_KSM */
+	return -ENOSYS;
+#endif /* CONFIG_KSM */
+}
+
+#ifdef CONFIG_KSM
+static ssize_t process_ksm_enable_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", __NR_process_ksm_enable);
+}
+static struct kobj_attribute process_ksm_enable_attr = __ATTR_RO(process_ksm_enable);
+
+static ssize_t process_ksm_disable_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", __NR_process_ksm_disable);
+}
+static struct kobj_attribute process_ksm_disable_attr = __ATTR_RO(process_ksm_disable);
+
+static ssize_t process_ksm_status_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", __NR_process_ksm_status);
+}
+static struct kobj_attribute process_ksm_status_attr = __ATTR_RO(process_ksm_status);
+
+static struct attribute *process_ksm_sysfs_attrs[] = {
+	&process_ksm_enable_attr.attr,
+	&process_ksm_disable_attr.attr,
+	&process_ksm_status_attr.attr,
+	NULL,
+};
+
+static const struct attribute_group process_ksm_sysfs_attr_group = {
+	.attrs = process_ksm_sysfs_attrs,
+	.name = "process_ksm",
+};
+
+static int __init process_ksm_sysfs_init(void)
+{
+	return sysfs_create_group(kernel_kobj, &process_ksm_sysfs_attr_group);
+}
+subsys_initcall(process_ksm_sysfs_init);
+#endif /* CONFIG_KSM */
+
 SYSCALL_DEFINE3(getcpu, unsigned __user *, cpup, unsigned __user *, nodep,
 		struct getcpu_cache __user *, unused)
 {

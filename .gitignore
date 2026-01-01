@@ -40,6 +40,7 @@
 *.o.*
 *.orig
 *.patch
+*.rej
 *.rmeta
 *.rpm
 *.rsi
