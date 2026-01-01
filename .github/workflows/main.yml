@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 420
     runs-on: ubuntu-latest
     env:
-      working-directory: ./linux
+      working-directory: /home/runner/work/linux
     defaults:
       run:
         shell: bash
