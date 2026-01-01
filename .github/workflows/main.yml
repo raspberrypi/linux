@@ -164,7 +164,7 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
           
           # Use -j$(nproc) for parallel compilation
-          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
+          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image.gz modules dtbs
           
           echo "Kernel compilation completed!"
         env:
