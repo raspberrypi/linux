@@ -58,6 +58,16 @@ jobs:
         run: |
             echo ${{ github.workspace }}
             echo $GITHUB_WORKSPACE
+            ls /home/runner/work/linux/linux
+            echo "----------------------------"
+            ls /home/runner/work/linux/
+            echo "----------------------------"
+            ls /home/runner/work/
+            echo "----------------------------"
+            echo "----------------------------"
+            ls ${{ github.workspace }}
+            echo "----------------------------"
+            echo $GITHUB_WORKSPACE
 
       - name: Install cross-compilers and dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
