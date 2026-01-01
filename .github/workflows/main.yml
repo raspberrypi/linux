@@ -112,12 +112,12 @@ jobs:
           mkdir -p $(pwd)/build_output/lib/modules
           
           echo "Building for architecture: ${{ inputs.arch }}"
-        working-directory: ./linux
+        #working-directory: ./linux
 
       - name: Configure kernel
         run: |
           make oldconfig
-        working-directory: ./linux
+        #working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -132,7 +132,7 @@ jobs:
           make -j$(nproc) Image modules dtbs
           
           echo "Kernel compilation completed!"
-        working-directory: ./linux
+        #working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -165,7 +165,7 @@ jobs:
           ls -lh ${{ env.BUILD_DIR }}/lib/modules/
           
           echo "Kernel build completed successfully!"
-        working-directory: ./linux
+        #working-directory: ./linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
