@@ -16,6 +16,15 @@ config MQ_IOSCHED_KYBER
 	  synchronous writes, it will self-tune queue depths to achieve that
 	  goal.
 
+config MQ_IOSCHED_ADIOS
+	tristate "Adaptive Deadline I/O scheduler"
+	default y
+	help
+	  ADIOS is a multi-queue I/O scheduler for the Linux kernel, based on
+	  mq-deadline and Kyber, with learning-based adaptive latency control.
+	  It aims to provide low latency for synchronous requests while
+	  maintaining high throughput for asynchronous requests and bulk I/O.
+
 config IOSCHED_BFQ
 	tristate "BFQ I/O scheduler"
 	select BLK_ICQ
