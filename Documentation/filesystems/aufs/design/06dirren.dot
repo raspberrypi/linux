@@ -1,0 +1,44 @@
+
+// to view this graph, run dot(1) command in GRAPHVIZ.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+digraph G {
+node [shape=box];
+whinfo [label="detailed info file\n(lower_brid_root-hinum, h_inum, namelen, old name)"];
+
+node [shape=oval];
+
+aufs_rename -> whinfo [label="store/remove"];
+
+node [shape=oval];
+inode_list [label="h_inum list in branch\ncache"];
+
+node [shape=box];
+whinode [label="h_inum list file"];
+
+node [shape=oval];
+brmgmt [label="br_add/del/mod/umount"];
+
+brmgmt -> inode_list [label="create/remove"];
+brmgmt -> whinode [label="load/store"];
+
+inode_list -> whinode [style=dashed,dir=both];
+
+aufs_rename -> inode_list [label="add/del"];
+
+aufs_lookup -> inode_list [label="search"];
+
+aufs_lookup -> whinfo [label="load/remove"];
+}
