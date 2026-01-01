@@ -41,7 +41,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          path: linux/
 
       - name: Install cross-compilers and dependencies
         uses: awalsh128/cache-apt-pkgs-action@latest
