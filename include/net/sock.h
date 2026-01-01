@@ -1585,10 +1585,17 @@ static inline void sk_mem_charge(struct sock *sk, int size)
 
 static inline void sk_mem_uncharge(struct sock *sk, int size)
 {
+	int reclaimable, reclaim_threshold;
+
+	reclaim_threshold = 64 * 1024;
 	if (!sk_has_account(sk))
 		return;
 	sk_forward_alloc_add(sk, size);
-	sk_mem_reclaim(sk);
+	reclaimable = sk->sk_forward_alloc - sk_unused_reserved_mem(sk);
+	if (reclaimable > reclaim_threshold) {
+		reclaimable -= reclaim_threshold;
+		__sk_mem_reclaim(sk, reclaimable);
+	}
 }
 
 #if IS_ENABLED(CONFIG_PROVE_LOCKING) && IS_ENABLED(CONFIG_MODULES)
@@ -2850,7 +2857,7 @@ void sk_get_meminfo(const struct sock *sk, u32 *meminfo);
  * platforms.  This makes socket queueing behavior and performance
  * not depend upon such differences.
  */
-#define _SK_MEM_PACKETS		256
+#define _SK_MEM_PACKETS		1024
 #define _SK_MEM_OVERHEAD	SKB_TRUESIZE(256)
 #define SK_WMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)
 #define SK_RMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)

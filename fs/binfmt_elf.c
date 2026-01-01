@@ -1288,6 +1288,8 @@ out_free_interp:
 	mm = current->mm;
 	mm->end_code = end_code;
 	mm->start_code = start_code;
+	if (start_code >= ELF_ET_DYN_BASE)
+		mm->mmap_base = start_code;
 	mm->start_data = start_data;
 	mm->end_data = end_data;
 	mm->start_stack = bprm->p;
