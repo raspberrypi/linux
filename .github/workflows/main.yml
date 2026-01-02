@@ -198,6 +198,8 @@ jobs:
 
           cd linux/
 
+          make mrproper
+
           if [ "${{ inputs.arch }}" = "arm64" ]; then
             cp pi4-upd.config .config
           else
