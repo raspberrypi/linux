@@ -290,7 +290,7 @@ jobs:
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
           #path: output/**/*.deb
-          path: *.deb
+          path: ./*.deb
           compression-level: 8
           retention-days: 30
           if-no-files-found: error
