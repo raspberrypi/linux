@@ -205,6 +205,9 @@ jobs:
 
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
+          sudo apt update -yq
+          sudo apt install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config libelf-dev devscripts make debhelper debhelper-compat ccache git bc kmod -yq
+          sudo apt install build-essential debhelper-compat gcc-aarch64-linux-gnu libelf-dev -yq
           echo "Starting kernel build..."
           echo "Architecture: $ARCH"
           echo "Cross-compiler: $CROSS_COMPILE"
