@@ -218,7 +218,7 @@ jobs:
           #  KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) zImage modules dtbs
           #fi
 
-          KBUILD_BUILD_TIMESTAMP='' make O=output -j$(($(nproc) + 1)) bindeb-pkg
+          KBUILD_BUILD_TIMESTAMP='' make O=../output -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
         env:
           ARCH: ${{ env.ARCH }}
