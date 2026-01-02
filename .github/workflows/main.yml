@@ -55,6 +55,47 @@ jobs:
           fetch-depth: 1
           #path: ${{ env.working-directory }}
 
+      - name: fix sources n shit
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo dpkg --add-architecture armhf
+
+          cat >> ubuntu.sources << 'EOF'
+          Types: deb
+          URIs: mirror+file:/etc/apt/apt-mirrors.txt
+          Suites: noble noble-updates noble-backports
+          Components: main universe restricted multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: mirror+file:/etc/apt/apt-mirrors.txt
+          Suites: noble-security
+          Components: main universe restricted multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Architectures: arm64 armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ports.ubuntu.com/ubuntu-ports/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64 armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+
+          sudo rm /etc/apt/sources.list.d/ubuntu.sources
+          sudo mv ubuntu.sources /etc/apt/sources.list.d/
+
+          sudo apt update -yq
+          sudo apt install libssl-dev:arm64 libssl-dev:armhf -yq
+
       - name: 🪄 ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
@@ -149,45 +190,6 @@ jobs:
           echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
           echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
 
-          sudo dpkg --add-architecture arm64
-          sudo dpkg --add-architecture armhf
-
-          cat >> ubuntu.sources << 'EOF'
-          Types: deb
-          URIs: mirror+file:/etc/apt/apt-mirrors.txt
-          Suites: noble noble-updates noble-backports
-          Components: main universe restricted multiverse
-          Architectures: amd64
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: mirror+file:/etc/apt/apt-mirrors.txt
-          Suites: noble-security
-          Components: main universe restricted multiverse
-          Architectures: amd64
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates noble-backports
-          Components: main restricted universe multiverse
-          Architectures: arm64 armhf
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: http://security.ports.ubuntu.com/ubuntu-ports/
-          Suites: noble-security
-          Components: main restricted universe multiverse
-          Architectures: arm64 armhf
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-
-          sudo rm /etc/apt/sources.list.d/ubuntu.sources
-          sudo mv ubuntu.sources /etc/apt/sources.list.d/
-
-          sudo apt update -yq
-          sudo apt install libssl-dev:arm64 libssl-dev:armhf -yq
-
       - name: Configure Kernel
         run: |
           cd linux/
@@ -208,16 +210,6 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
 
           cd linux/
-
-          make mrproper
-
-          if [ "${{ inputs.arch }}" = "arm64" ]; then
-            cp pi4-upd.config .config
-          else
-            cp zero2w-upd.config .config
-          fi
-
-          make oldconfig
 
           # Use -j$(nproc) for parallel compilation
           #if [ "${{ inputs.arch }}" = "arm64" ]; then
