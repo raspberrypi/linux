@@ -165,6 +165,9 @@ jobs:
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
           echo "CCACHE Environment set!"
 
+      - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
+        uses: valeriangalliat/action-sshd-cloudflared@v1
+
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
 
@@ -187,10 +190,6 @@ jobs:
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
-
-      - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
-        uses: valeriangalliat/action-sshd-cloudflared@v1
-
 
       - name: 🔍️ 𝓕ⲓⲛⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 & Ⲥ𝓵ⲉⲁⲛ 𐌵ⲣ! 🛂
         id: find_debs
