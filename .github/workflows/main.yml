@@ -163,6 +163,8 @@ jobs:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
+      - uses: valeriangalliat/action-sshd-cloudflared@v1
+
       - name: Compile kernel image, modules, and DTBs
         run: |
           echo "Starting kernel build..."
