@@ -218,7 +218,7 @@ jobs:
           #  KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) zImage modules dtbs
           #fi
 
-          KBUILD_BUILD_TIMESTAMP='' make O=../output -j$(($(nproc) + 1)) bindeb-pkg
+          KBUILD_BUILD_TIMESTAMP='' make -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
         env:
           ARCH: ${{ env.ARCH }}
@@ -274,7 +274,7 @@ jobs:
         id: find_debs
         run: |
           echo "Searching for DEB packages..."
-          DEB_COUNT=$(find output -name "*.deb" | wc -l)
+          DEB_COUNT=$(find . -name "*.deb" | wc -l)
           echo "Found $DEB_COUNT DEB package(s)"
 
           if [ $DEB_COUNT -eq 0 ]; then
@@ -290,7 +290,7 @@ jobs:
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
           #path: output/**/*.deb
-          path: output/*.deb
+          path: *.deb
           compression-level: 8
           retention-days: 30
           if-no-files-found: error
