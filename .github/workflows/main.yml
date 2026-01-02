@@ -42,20 +42,20 @@ jobs:
 
     steps:
       - if: ${{ inputs.freespace }}
-        name: Free Disk Space
+        name: 🚮 🅵🆁🅴🅴 🅳🅸🆂🅺 🆂🅿🅰🅲🅴💽
         uses: jlumbroso/free-disk-space@main
         with:
           swap-storage: false
           large-packages: true
           tool-cache: true
 
-      - name: Checkout repository
+      - name: ʗₕₑ𝓬ₖₒᵤₜ ᵣₑₚₒₛᵢₜₒᵣᵧ ☑️
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           #path: ${{ env.working-directory }}
 
-      - name: Install cross-compilers and dependencies
+      - name: 🪄 ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           execute_install_scripts: true
@@ -73,7 +73,7 @@ jobs:
       #      arm-linux-gnueabihf-gcc --version
 
       - if: ${{ inputs.swapspace }}
-        name: 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
+        name: 🌀 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖 🌀
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
@@ -114,7 +114,7 @@ jobs:
           echo "CCACHE Dir Set!"
           df -h
 
-      - name: Enable CCACHE
+      - name: 🏎️  ░E░n░a░b░l░e░ ░C░C░A░C░H░E░ 🏁
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           create-symlink: 'true'
@@ -126,7 +126,7 @@ jobs:
           verbose: 2
           save: true
 
-      - name: Set up build environment
+      - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
         run: |
           # Set architecture
           echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
@@ -188,8 +188,14 @@ jobs:
           sudo apt update -yq
           sudo apt install libssl-dev:arm64 libssl-dev:armhf -yq
 
-      - name: Configure kernel
+      #- uses: valeriangalliat/action-sshd-cloudflared@v1
+
+      - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
+          echo "Starting kernel build..."
+          echo "Architecture: $ARCH"
+          echo "Cross-compiler: $CROSS_COMPILE"
+
           cd linux/
 
           if [ "${{ inputs.arch }}" = "arm64" ]; then
@@ -199,19 +205,6 @@ jobs:
           fi
 
           make oldconfig
-        env:
-          ARCH: ${{ env.ARCH }}
-          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
-
-      #- uses: valeriangalliat/action-sshd-cloudflared@v1
-
-      - name: Compile kernel & make DEBs
-        run: |
-          echo "Starting kernel build..."
-          echo "Architecture: $ARCH"
-          echo "Cross-compiler: $CROSS_COMPILE"
-
-          cd linux/
 
           # Use -j$(nproc) for parallel compilation
           #if [ "${{ inputs.arch }}" = "arm64" ]; then
@@ -272,7 +265,7 @@ jobs:
       #  run: |
       #    find output -name "*.deb" -exec echo "::set-output name=debs::$(echo ${debs} {})" \;
 
-      - name: Find generated DEB packages
+      - name: 🔍️ 𝓕ⲓⲛⲇ 𝓰ⲉⲛⲉꞅⲁⲧⲉⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 🛂
         id: find_debs
         run: |
           echo "Searching for DEB packages..."
@@ -287,7 +280,7 @@ jobs:
           find output -name "*.deb" -exec echo "  - {}" \;
           echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
 
-      - name: Upload .deb artifacts
+      - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
