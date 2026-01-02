@@ -118,8 +118,8 @@ jobs:
 
       - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
         run: |
-          echo "KS_DIR=/home/runner/linux/linux" >> $GITHUB_ENV
-          echo "W_DIR=/home/runner/linux" >> $GITHUB_ENV
+          echo "KS_DIR=/home/runner/work/linux/linux" >> $GITHUB_ENV
+          echo "W_DIR=/home/runner/work/linux" >> $GITHUB_ENV
 
           # Set architecture cross-compiler and kernel name
           echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
@@ -209,11 +209,11 @@ jobs:
         id: find_debs
         run: |
           cd $W_DIR
-          mv /home/runner/work/linux/*.deb /home/runner/work/linux/output/
-          rm -rf /home/runner/work/linux/output/*dbg*.deb /home/runner/work/linux/output/*libc-dev*.deb 2>/dev/null || true
+          mv *.deb output/
+          rm -rf output/*dbg*.deb output/*libc-dev*.deb 2>/dev/null || true
 
           echo "Searching for DEB packages..."
-          DEB_COUNT=$(find /home/runner/work/linux/output -name "*.deb" | wc -l)
+          DEB_COUNT=$(find output -name "*.deb" | wc -l)
           echo "Found $DEB_COUNT DEB package(s)"
 
           if [ $DEB_COUNT -eq 0 ]; then
@@ -221,14 +221,14 @@ jobs:
             exit 1
           fi
 
-          find /home/runner/work/linux/output -name "*.deb" -exec echo "  - {}" \;
+          find output -name "*.deb" -exec echo "  - {}" \;
           echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
-          path: /home/runner/work/linux/output
+          path: $W_DIR/output
           compression-level: 8
           retention-days: 30
           if-no-files-found: error
