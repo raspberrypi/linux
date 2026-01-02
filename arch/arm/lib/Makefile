@@ -14,7 +14,7 @@ lib-y		:= changebit.o csumipv6.o csumpartial.o               \
 		   ashldi3.o ashrdi3.o lshrdi3.o muldi3.o             \
 		   ucmpdi2.o lib1funcs.o div64.o                      \
 		   io-readsb.o io-writesb.o io-readsl.o io-writesl.o  \
-		   call_with_stack.o bswapsdi2.o
+		   call_with_stack.o bswapsdi2.o aeabi_uldivmod.o
 
 mmu-y		:= clear_user.o copy_page.o getuser.o putuser.o       \
 		   copy_from_user.o copy_to_user.o
