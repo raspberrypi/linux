@@ -134,24 +134,6 @@ jobs:
           mkdir -p $(pwd)/output
           echo "Building for architecture: ${{ inputs.arch }}"
 
-      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
-        uses: Chocobo1/setup-ccache-action@v1
-        with:
-          ccache_options: |
-            max_size=10000M
-            compression=true
-            compression_level=6
-            hash_dir=false
-            sloppiness=file_macro,locale,time_macros
-            file_clone=true
-            hard_link=false
-            inode_cache=true
-            recache=false
-            direct_mode=true
-            depend_mode=true
-            compiler_check==content
-            cache_dir=/mnt/ccache
-
       - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
           #cat >> $GITHUB_ENV << 'EOF'
@@ -192,6 +174,26 @@ jobs:
           echo "CCACHE Dir Set!"
           df -h
           echo "CCACHE Environment set!"
+
+      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
+        uses: Chocobo1/setup-ccache-action@v1
+        with:
+          update_packager_index: false
+          install_ccache: false
+          update_packager_index: false
+          ccache_options: |
+            max_size=10000M
+            compression=true
+            compression_level=6
+            hash_dir=false
+            sloppiness=file_macro,locale,time_macros
+            file_clone=true
+            hard_link=false
+            inode_cache=true
+            recache=false
+            direct_mode=true
+            depend_mode=true
+            compiler_check==content
 
       #  uses: hendrikmuhs/ccache-action@v1.2
       #  with:
