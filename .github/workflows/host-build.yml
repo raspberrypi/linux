@@ -148,6 +148,8 @@ jobs:
         env:
           ARCH: ${{ env.ARCH }}
 
+      - uses: valeriangalliat/action-sshd-cloudflared@v1
+
       - name: Compile kernel image, modules, and DTBs
         run: |
           echo "Starting kernel build..."
