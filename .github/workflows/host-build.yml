@@ -34,7 +34,7 @@ permissions:
 jobs:
   build:
     timeout-minutes: 420
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-${{ inputs.arch }}
     defaults:
       run:
         shell: bash
@@ -59,18 +59,16 @@ jobs:
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           execute_install_scripts: true
-          packages: gcc-14-aarch64-linux-gnu gcc-14-aarch64-linux-gnu-base g++-14-aarch64-linux-gnu gcc-14-arm-linux-gnueabihf gcc-14-arm-linux-gnueabihf-base g++-14-arm-linux-gnueabihf flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper ccache git bc kmod
+          packages: build-essential gcc-14 g++-14 flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config devscripts make debhelper ccache git bc kmod
           version: 1.1
 
-      - name: Set aarch64/arm-gcc-14 as the default aarch64/arm-gcc
+      - name: Set gcc-14 as the default gcc
         run: |
-            # Create symbolic links or use update-alternatives to make the aarch64 compiler the default
-            # This command creates a link from aarch64-linux-gnu-gcc to the generic gcc name
-            sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
-            sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
+            # Create symbolic links or use update-alternatives to make the gcc-14 compiler the default
+            # This command creates a link from gcc-14 to the generic gcc name
+            sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 --slave /usr/bin/g++ g++ /usr/bin/g++-14
             # Verify the change
-            aarch64-linux-gnu-gcc --version
-            arm-linux-gnueabihf-gcc --version
+            gcc --version
 
       - if: ${{ inputs.swapspace }}
         name: 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖
@@ -94,17 +92,8 @@ jobs:
           sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
-
-          if [ "${{ inputs.arch }}" = "arm64" ]; then
-            echo "CC=ccache aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CXX=ccache aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          elif [ "${{ inputs.arch }}" = "arm" ]; then
-            echo "CC=ccache arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
-            echo "CXX=ccache arm-linux-gnueabihf-g++" >> $GITHUB_ENV
-          else
-            echo "CC=ccache gcc" >> $GITHUB_ENV
-            echo "CXX=ccache g++" >> $GITHUB_ENV
-          fi
+          echo "CC=ccache gcc" >> $GITHUB_ENV
+          echo "CXX=ccache g++" >> $GITHUB_ENV
           echo "CCACHE Compilers set!"
 
           # Setup CCACHE Dir
@@ -130,12 +119,9 @@ jobs:
         run: |
           # Set architecture
           echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
-          # Set cross-compiler and kernel name based on architecture
           if [ "${{ inputs.arch }}" = "arm64" ]; then
-            echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
             echo "KERNEL=kernel8" >> $GITHUB_ENV
           else
-            echo "CROSS_COMPILE=arm-linux-gnueabihf-" >> $GITHUB_ENV
             echo "KERNEL=kernel7" >> $GITHUB_ENV
           fi
           # Set build directory
@@ -161,13 +147,11 @@ jobs:
           make oldconfig
         env:
           ARCH: ${{ env.ARCH }}
-          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Compile kernel image, modules, and DTBs
         run: |
           echo "Starting kernel build..."
           echo "Architecture: $ARCH"
-          echo "Cross-compiler: $CROSS_COMPILE"
 
           cd linux/
 
@@ -181,7 +165,6 @@ jobs:
           echo "Kernel compilation completed!"
         env:
           ARCH: ${{ env.ARCH }}
-          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Install modules and copy artifacts
         run: |
@@ -214,7 +197,6 @@ jobs:
           echo "Kernel build completed successfully!"
         env:
           ARCH: ${{ env.ARCH }}
-          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
