@@ -102,7 +102,6 @@ jobs:
 
           sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
           sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
-        working-directory: $HOME/work/linux
 
       #- name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
         #uses: awalsh128/cache-apt-pkgs-action@latest
@@ -130,9 +129,7 @@ jobs:
           fi
 
           mkdir -p $(pwd)/output
-
           echo "Building for architecture: ${{ inputs.arch }}"
-        working-directory: $HOME/work/linux
 
       - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
@@ -185,10 +182,10 @@ jobs:
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
 
-          #cd linux/
+          cd linux/
           echo "Configure kernel"
 
-          #make mrproper
+          make mrproper
 
           if [ "${{ inputs.arch }}" = "arm64" ]; then
             cp pi4-upd.config .config && make oldconfig
@@ -201,7 +198,6 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
           KBUILD_BUILD_TIMESTAMP="1970-01-01 00:00:00" KBUILD_BUILD_VERSION=1 fakeroot make -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
-        working-directory: $HOME/work/linux/linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -209,11 +205,11 @@ jobs:
       - name: 🔍️ 𝓕ⲓⲛⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 & Ⲥ𝓵ⲉⲁⲛ 𐌵ⲣ! 🛂
         id: find_debs
         run: |
-          mv *.deb output/
-          rm -rf output/*dbg*.deb output/*libc-dev*.deb 2>/dev/null || true
+          mv /home/runner/work/linux/*.deb /home/runner/work/linux/output/
+          rm -rf /home/runner/work/linux/output/*dbg*.deb /home/runner/work/linux/output/*libc-dev*.deb 2>/dev/null || true
 
           echo "Searching for DEB packages..."
-          DEB_COUNT=$(find output -name "*.deb" | wc -l)
+          DEB_COUNT=$(find /home/runner/work/linux/output -name "*.deb" | wc -l)
           echo "Found $DEB_COUNT DEB package(s)"
 
           if [ $DEB_COUNT -eq 0 ]; then
@@ -221,15 +217,14 @@ jobs:
             exit 1
           fi
 
-          find output -name "*.deb" -exec echo "  - {}" \;
+          find /home/runner/work/linux/output -name "*.deb" -exec echo "  - {}" \;
           echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
-        working-directory: $HOME/work/linux
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
-          path: $HOME/work/linux/output
+          path: /home/runner/work/linux/output
           compression-level: 8
           retention-days: 30
           if-no-files-found: error
