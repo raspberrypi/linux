@@ -38,7 +38,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: /home/runner/work/linux/
+        #working-directory: /home/runner/work/linux/
 
     steps:
       - if: ${{ inputs.freespace }}
@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          #path: ${{ env.working-directory }}
+          path: /home/runner/work/linux/
 
       - name: █▓▒▒░░░🍥ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴤ🍥░░░▒▒▓█
         run: |
@@ -98,7 +98,11 @@ jobs:
           sudo mv ubuntu.sources /etc/apt/sources.list.d/
 
           sudo apt update -yq
-          sudo apt install bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+          sudo apt install bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
+          sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
+        working-directory: /home/runner/work/linux
 
       #- name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
         #uses: awalsh128/cache-apt-pkgs-action@latest
@@ -128,20 +132,7 @@ jobs:
           mkdir -p $(pwd)/output
 
           echo "Building for architecture: ${{ inputs.arch }}"
-          echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
-          echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
-
-      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          create-symlink: 'true'
-          key: kernel-build-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('Makefile', 'arch/*/Makefile', '.config') }}
-          max-size: '10000MB'
-          restore-keys: |
-            kernel-build-${{ runner.os }}-${{ inputs.arch }}-
-            kernel-build-${{ runner.os }}-
-          verbose: 2
-          save: true
+        working-directory: /home/runner/work/linux
 
       - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
@@ -163,7 +154,25 @@ jobs:
           sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
+          # Setup CCACHE Dir
+          sudo mkdir -p /mnt/ccache
+          sudo chown -R $USER:$USER /mnt/ccache
+          echo "CCACHE_DIR=/mnt/ccache" >> $GITHUB_ENV
+          echo "CCACHE Dir Set!"
+          df -h
           echo "CCACHE Environment set!"
+
+      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: 'true'
+          key: kernel-build-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('Makefile', 'arch/*/Makefile', '.config') }}
+          max-size: '10000MB'
+          restore-keys: |
+            kernel-build-${{ runner.os }}-${{ inputs.arch }}-
+            kernel-build-${{ runner.os }}-
+          verbose: 2
+          save: true
 
       - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
         uses: valeriangalliat/action-sshd-cloudflared@v1
@@ -171,10 +180,10 @@ jobs:
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
 
-          cd linux/
+          #cd linux/
           echo "Configure kernel"
 
-          make mrproper
+          #make mrproper
 
           if [ "${{ inputs.arch }}" = "arm64" ]; then
             cp pi4-upd.config .config && make oldconfig
@@ -185,8 +194,9 @@ jobs:
           echo "Starting kernel build..."
           echo "Architecture: $ARCH"
           echo "Cross-compiler: $CROSS_COMPILE"
-          BUILD_BUILD_TIMESTAMP=${{ env.KBUILD_BUILD_TIMESTAMP }} make -j$(($(nproc) + 1)) bindeb-pkg
+          KBUILD_BUILD_TIMESTAMP="1970-01-01 00:00:00" KBUILD_BUILD_VERSION=1 make -j$(($(nproc) + 1)) bindeb-pkg make -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
+        working-directory: /home/runner/work/linux/linux
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
@@ -208,12 +218,13 @@ jobs:
 
           find output -name "*.deb" -exec echo "  - {}" \;
           echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
+        working-directory: /home/runner/work/linux
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
-          path: ./*.deb
+          path: /home/runner/work/linux/output
           compression-level: 8
           retention-days: 30
           if-no-files-found: error
