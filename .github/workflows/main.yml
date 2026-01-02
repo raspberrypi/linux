@@ -285,7 +285,7 @@ jobs:
             exit 1
           fi
 
-          find output -name "*.deb" -exec echo "  - {}" \;
+          find . -name "*.deb" -exec echo "  - {}" \;
           echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
