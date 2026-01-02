@@ -46,8 +46,12 @@ jobs:
         uses: jlumbroso/free-disk-space@main
         with:
           swap-storage: false
-          large-packages: true
-          tool-cache: true
+          large-packages: false
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
 
       - name: ʗₕₑ𝓬ₖₒᵤₜ ᵣₑₚₒₛᵢₜₒᵣᵧ ☑️
         uses: actions/checkout@v4
@@ -55,7 +59,7 @@ jobs:
           fetch-depth: 1
           #path: ${{ env.working-directory }}
 
-      - name: fix sources n shit
+      - name: █▓▒▒░░░🍥Update apt sources🍥░░░▒▒▓█
         run: |
           sudo dpkg --add-architecture arm64
           sudo dpkg --add-architecture armhf
@@ -93,69 +97,36 @@ jobs:
           sudo rm /etc/apt/sources.list.d/ubuntu.sources
           sudo mv ubuntu.sources /etc/apt/sources.list.d/
 
-          sudo apt update -yq
-          sudo apt install libssl-dev:arm64 libssl-dev:armhf -yq
-
-      - name: 🪄 ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
+      - name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           execute_install_scripts: true
-          packages: gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config libelf-dev devscripts make debhelper debhelper-compat ccache git bc kmod
+          packages: bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
           version: 1.1
-
-      #- name: Set aarch64/arm-gcc-14 as the default aarch64/arm-gcc
-      #  run: |
-            # Create symbolic links or use update-alternatives to make the aarch64 compiler the default
-            # This command creates a link from aarch64-linux-gnu-gcc to the generic gcc name
-      #      sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
-      #      sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
-            # Verify the change
-      #      aarch64-linux-gnu-gcc --version
-      #      arm-linux-gnueabihf-gcc --version
 
       - if: ${{ inputs.swapspace }}
         name: 🌀 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖 🌀
         uses: pierotofy/set-swap-space@master
         with:
-          swap-size-gb: 10
+          swap-size-gb: 5
 
-      - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
+      - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
         run: |
-          cat >> $GITHUB_ENV << 'EOF'
-          CCACHE_SLOPPINESS=file_macro,locale,time_macros
-          CCACHE_NOHASHDIR=true
-          CCACHE_COMPRESS=1
-          CCACHE_COMPRESSLEVEL=6
-          CCACHE_DEPEND=1
-          EOF
-          echo "CCACHE Environment set!"
-
-          # Set Compiler
-          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-gcc
-          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
-          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
-          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
-
+          # Set architecture cross-compiler and kernel name
+          echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
           if [ "${{ inputs.arch }}" = "arm64" ]; then
-            echo "CC=ccache aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "CXX=ccache aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          elif [ "${{ inputs.arch }}" = "arm" ]; then
-            echo "CC=ccache arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
-            echo "CXX=ccache arm-linux-gnueabihf-g++" >> $GITHUB_ENV
+            echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+            echo "KERNEL=kernel8" >> $GITHUB_ENV
           else
-            echo "CC=ccache gcc" >> $GITHUB_ENV
-            echo "CXX=ccache g++" >> $GITHUB_ENV
+            echo "CROSS_COMPILE=arm-linux-gnueabihf-" >> $GITHUB_ENV
+            echo "KERNEL=kernel7" >> $GITHUB_ENV
           fi
-          echo "CCACHE Compilers set!"
 
-          # Setup CCACHE Dir
-          sudo mkdir -p /mnt/ccache
-          sudo chown -R $USER:$USER /mnt/ccache
-          echo "CCACHE_DIR=/mnt/ccache" >> $GITHUB_ENV
-          echo "CCACHE Dir Set!"
-          df -h
+          echo "Building for architecture: ${{ inputs.arch }}"
+          echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
+          echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
 
-      - name: 🏎️  ░E░n░a░b░l░e░ ░C░C░A░C░H░E░ 🏁
+      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           create-symlink: 'true'
@@ -167,132 +138,57 @@ jobs:
           verbose: 2
           save: true
 
-      - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
+      - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
-          # Set architecture
-          echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
-          # Set cross-compiler and kernel name based on architecture
-          if [ "${{ inputs.arch }}" = "arm64" ]; then
-            echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
-            echo "KERNEL=kernel8" >> $GITHUB_ENV
-          else
-            echo "CROSS_COMPILE=arm-linux-gnueabihf-" >> $GITHUB_ENV
-            echo "KERNEL=kernel7" >> $GITHUB_ENV
-          fi
+          cat >> $GITHUB_ENV << 'EOF'
+          CCACHE_SLOPPINESS=file_macro,locale,time_macros
+          CCACHE_NOHASHDIR=true
+          CCACHE_COMPRESS=1
+          CCACHE_COMPRESSLEVEL=5
+          CCACHE_DEPEND=1
+          CCACHE_FILE_CLONE=1
+          CCACHE_HARDLINK=0
+          CCACHE_INODECACHE=1
+          CCACHE_NORECACHE=1
+          CCACHE_NLEVELS=4
+          EOF
 
-          # Set build directory
-          #echo "BUILD_DIR=$(pwd)/build_output" >> $GITHUB_ENV
-          # Create output directories
-          #mkdir -p $(pwd)/build_output/boot
-          #mkdir -p $(pwd)/build_output/boot/overlays
-          #mkdir -p $(pwd)/build_output/lib/modules
-          echo "Building for architecture: ${{ inputs.arch }}"
-          echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
-          echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
-
-      - name: Configure Kernel
-        run: |
-          cd linux/
-          make mrproper
-          if [ "${{ inputs.arch }}" = "arm64" ]; then
-            cp pi4-upd.config .config
-          else
-            cp zero2w-upd.config .config
-          fi
-          make oldconfig
-
-      #- uses: valeriangalliat/action-sshd-cloudflared@v1
+          # Link Compilers to /usr/bin/ccache
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
+          echo "CCACHE Environment set!"
 
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
-          sudo apt update -yq
-          sudo apt install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu g++-aarch64-linux-gnu build-essential flex bison libssl-dev device-tree-compiler cpio fakeroot lz4 rsync schedtool wget zstd lld pkg-config libelf-dev devscripts make debhelper debhelper-compat ccache git bc kmod -yq
-          sudo apt install build-essential debhelper-compat gcc-aarch64-linux-gnu libelf-dev -yq
+
+          cd linux/
+          echo "Configure kernel"
+
+          make mrproper
+
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            cp pi4-upd.config .config && make oldconfig
+          else
+            cp zero2w-upd.config .config && make oldconfig
+          fi
+
           echo "Starting kernel build..."
           echo "Architecture: $ARCH"
           echo "Cross-compiler: $CROSS_COMPILE"
-
-          cd linux/
-
-          # Use -j$(nproc) for parallel compilation
-          #if [ "${{ inputs.arch }}" = "arm64" ]; then
-          #  KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
-          #else
-          #  KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) zImage modules dtbs
-          #fi
-
-          KBUILD_BUILD_TIMESTAMP='' make -j$(($(nproc) + 1)) bindeb-pkg
+          BUILD_BUILD_TIMESTAMP=${{ env.KBUILD_BUILD_TIMESTAMP }} make -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
-      #- name: Install modules and copy artifacts
-      #  run: |
-      #    cd linux/
-          # Install modules into a staging directory
-      #    echo "Installing modules..."
-      #    sudo make modules_install INSTALL_MOD_PATH=${{ env.BUILD_DIR }}
-
-          # Copy kernel image
-      #    echo "Copying kernel image..."
-      #    cp arch/${{ env.ARCH }}/boot/Image ${{ env.BUILD_DIR }}/boot/${{ env.KERNEL }}.img
-
-          # Copy DTBs (handle potential missing files gracefully)
-      #    echo "Copying device tree blobs..."
-      #    if [ -d "arch/${{ env.ARCH }}/boot/dts/broadcom" ]; then
-      #      cp arch/${{ env.ARCH }}/boot/dts/broadcom/*.dtb ${{ env.BUILD_DIR }}/boot/ 2>/dev/null || echo "No DTB files found in broadcom directory"
-      #    fi
-
-          # Copy overlays (handle potential missing files gracefully)
-      #    echo "Copying device tree overlays..."
-      #    if [ -d "arch/${{ env.ARCH }}/boot/dts/overlays" ]; then
-      #      cp arch/${{ env.ARCH }}/boot/dts/overlays/*.dtb* ${{ env.BUILD_DIR }}/boot/overlays/ 2>/dev/null || echo "No overlay files found"
-      #    fi
-
-      #    echo "Build artifacts:"
-      #    ls -lh ${{ env.BUILD_DIR }}/boot/
-      #    echo "Modules:"
-      #    ls -lh ${{ env.BUILD_DIR }}/lib/modules/
-
-      #    echo "Kernel build completed successfully!"
-      #  env:
-      #    ARCH: ${{ env.ARCH }}
-      #    CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
-
-      #- name: Archive build artifacts
-      #  uses: actions/upload-artifact@v4
-      #  with:
-      #    name: compiled-raspberrypi-kernel-${{ inputs.arch }}
-      #    path: ${{ env.BUILD_DIR }}/
-      #    compression-level: 9
-      #    retention-days: 30
-
-      #- name: Find and list generated .deb packages
-      #  id: find_debs
-      #  run: |
-      #    find output -name "*.deb" -exec echo "::set-output name=debs::$(echo ${debs} {})" \;
-
-      - name: 🔍️ 𝓕ⲓⲛⲇ 𝓰ⲉⲛⲉꞅⲁⲧⲉⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 🛂
-        id: find_debs
-        run: |
-          echo "Searching for DEB packages..."
-          DEB_COUNT=$(find . -name "*.deb" | wc -l)
-          echo "Found $DEB_COUNT DEB package(s)"
-
-          if [ $DEB_COUNT -eq 0 ]; then
-            echo "::error::No DEB packages were generated!"
-            exit 1
-          fi
-
-          find . -name "*.deb" -exec echo "  - {}" \;
-          echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
+      - uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
         with:
           name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
-          #path: output/**/*.deb
           path: ./*.deb
           compression-level: 8
           retention-days: 30
