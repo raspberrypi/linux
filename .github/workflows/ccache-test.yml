@@ -134,6 +134,24 @@ jobs:
           mkdir -p $(pwd)/output
           echo "Building for architecture: ${{ inputs.arch }}"
 
+      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
+        uses: Chocobo1/setup-ccache-action@v1
+        with:
+          ccache_options: |
+            max_size=10000M
+            compression=true
+            compression_level=6
+            hash_dir=false
+            sloppiness=file_macro,locale,time_macros
+            file_clone=true
+            hard_link=false
+            inode_cache=true
+            recache=false
+            direct_mode=true
+            depend_mode=true
+            compiler_check==content
+            cache_dir=/mnt/ccache
+
       - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
         run: |
           #cat >> $GITHUB_ENV << 'EOF'
@@ -150,11 +168,22 @@ jobs:
           #CCACHE_COMPILERCHECK=content
           #EOF
 
+          echo "CCACHE_NLEVELS=4" >> $GITHUB_ENV
+
           # Link Compilers to /usr/bin/ccache
           sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-gcc
           sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-cpp
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
           sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-cpp
+          sudo ln -s /usr/bin/ccache /usr/local/bin/gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/clang
+          sudo ln -s /usr/bin/ccache /usr/local/bin/clang++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/cpp
+          sudo ln -s /usr/bin/ccache /usr/local/bin/c++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/cc
 
           # Setup CCACHE Dir
           sudo mkdir -p /mnt/ccache
@@ -163,28 +192,6 @@ jobs:
           echo "CCACHE Dir Set!"
           df -h
           echo "CCACHE Environment set!"
-
-      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
-        uses: Chocobo1/setup-ccache-action@v1
-        with:
-          restore_cache: true
-          prepend_symlinks_to_path: true
-          ccache_options: |
-            max_size=10000M
-            compression=false
-            compression_level=6
-            hash_dir=false
-            sloppiness==file_macro,locale,time_macros
-            file_clone=true
-            hard_link=false
-            inode_cache=true
-            recache=false
-            cache_dir_levels=4
-            depend_mode=false
-            direct_mode=true
-            compiler_check==content
-            cache_dir=/mnt/ccache
-          store_cache: true
 
       #  uses: hendrikmuhs/ccache-action@v1.2
       #  with:
