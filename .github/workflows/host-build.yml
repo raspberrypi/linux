@@ -1,6 +1,6 @@
 ---
 
-name: Compile Raspberry Pi Kernel (ARM/ARM64)
+name: Build RasPi Kernel (Native)
 
 on:
   workflow_dispatch:
