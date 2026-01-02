@@ -59,7 +59,7 @@ jobs:
           fetch-depth: 1
           #path: ${{ env.working-directory }}
 
-      - name: █▓▒▒░░░🍥Update apt sources🍥░░░▒▒▓█
+      - name: █▓▒▒░░░🍥ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴤ🍥░░░▒▒▓█
         run: |
           sudo dpkg --add-architecture arm64
           sudo dpkg --add-architecture armhf
@@ -97,12 +97,15 @@ jobs:
           sudo rm /etc/apt/sources.list.d/ubuntu.sources
           sudo mv ubuntu.sources /etc/apt/sources.list.d/
 
-      - name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          execute_install_scripts: true
-          packages: bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
-          version: 1.1
+          sudo apt update -yq
+          sudo apt install bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+
+      #- name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
+        #uses: awalsh128/cache-apt-pkgs-action@latest
+        #with:
+        #  execute_install_scripts: true
+        #  packages: bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+        #  version: 1.1
 
       - if: ${{ inputs.swapspace }}
         name: 🌀 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖 🌀
@@ -146,12 +149,12 @@ jobs:
           CCACHE_SLOPPINESS=file_macro,locale,time_macros
           CCACHE_NOHASHDIR=true
           CCACHE_COMPRESS=1
-          CCACHE_COMPRESSLEVEL=5
+          CCACHE_COMPRESSLEVEL=6
           CCACHE_DEPEND=1
-          CCACHE_FILE_CLONE=1
-          CCACHE_HARDLINK=0
-          CCACHE_INODECACHE=1
-          CCACHE_NORECACHE=1
+          CCACHE_FILE_CLONE=true
+          CCACHE_NOHARDLINK=true
+          CCACHE_INODECACHE=true
+          CCACHE_NORECACHE=true
           CCACHE_NLEVELS=4
           EOF
 
