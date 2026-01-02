@@ -1,0 +1,251 @@
+---
+
+name: Build Kernel [CCACHE TEST]
+
+on:
+  workflow_dispatch:
+    inputs:
+      freespace:
+        description: 'Clear Disk Space'
+        required: true
+        type: boolean
+        default: false
+      swapspace:
+        description: 'Add Swap'
+        required: true
+        type: boolean
+        default: false
+      arch:
+        description: 'Build Arch'
+        required: true
+        type: choice
+        options:
+          - arm
+          - arm64
+        default: arm64
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    timeout-minutes: 420
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: /home/runner/work/linux/
+
+    steps:
+      - if: ${{ inputs.freespace }}
+        name: 🚮 🅵🆁🅴🅴 🅳🅸🆂🅺 🆂🅿🅰🅲🅴💽
+        uses: jlumbroso/free-disk-space@main
+        with:
+          swap-storage: false
+          large-packages: false
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+
+      - name: ʗₕₑ𝓬ₖₒᵤₜ ᵣₑₚₒₛᵢₜₒᵣᵧ ☑️
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          #path: $HOME/work/linux/
+
+      - name: █▓▒▒░░░🍥ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴤ🍥░░░▒▒▓█
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo dpkg --add-architecture armhf
+
+          cat >> ubuntu.sources << 'EOF'
+          Types: deb
+          URIs: mirror+file:/etc/apt/apt-mirrors.txt
+          Suites: noble noble-updates noble-backports
+          Components: main universe restricted multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: mirror+file:/etc/apt/apt-mirrors.txt
+          Suites: noble-security
+          Components: main universe restricted multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Architectures: arm64 armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ports.ubuntu.com/ubuntu-ports/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64 armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+
+          sudo rm /etc/apt/sources.list.d/ubuntu.sources
+          sudo mv ubuntu.sources /etc/apt/sources.list.d/
+
+          sudo apt update -yq
+          sudo apt install bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-14 100 --slave /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-14
+          sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-14 100 --slave /usr/bin/arm-linux-gnueabihf-g++ arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-g++-14
+
+      #- name: 👨ɪɴᴤᴛᴀʟʟ ᴄʀᴏᴤᴤ-ᴄᴏᴍᴘɪʟᴇʀᴤ ᴀɴᴅ ᴅᴇᴘᴇɴᴅᴇɴᴄɪᴇᴤ
+        #uses: awalsh128/cache-apt-pkgs-action@latest
+        #with:
+        #  execute_install_scripts: true
+        #  packages: bc bison build-essential ccache cpio debhelper debhelper-compat device-tree-compiler devscripts fakeroot flex g++-aarch64-linux-gnu g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf git kmod libelf-dev libssl-dev lld lz4 make pkg-config rsync schedtool wget zstd libssl-dev:arm64 libssl-dev:armhf
+        #  version: 1.1
+
+      - if: ${{ inputs.swapspace }}
+        name: 🌀 𝔸𝕕𝕕 𝕤𝕨𝕒𝕡 𝕤𝕡𝕒𝕔𝕖 🌀
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 5
+
+      - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
+        run: |
+          echo "KS_DIR=/home/runner/work/linux/linux" >> $GITHUB_ENV
+          echo "W_DIR=/home/runner/work/linux" >> $GITHUB_ENV
+
+          # Set architecture cross-compiler and kernel name
+          echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            echo "CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
+            echo "KERNEL=kernel8" >> $GITHUB_ENV
+          else
+            echo "CROSS_COMPILE=arm-linux-gnueabihf-" >> $GITHUB_ENV
+            echo "KERNEL=kernel7" >> $GITHUB_ENV
+          fi
+
+          mkdir -p $(pwd)/output
+          echo "Building for architecture: ${{ inputs.arch }}"
+
+      - name: 🅲🅲🅰🅲🅷🅴 🅴🅽🆅🅸🆁🅾🅽🅼🅴🅽🆃 🆅🅰🆁🅸🅰🅱🅻🅴🆂 
+        run: |
+          #cat >> $GITHUB_ENV << 'EOF'
+          #CCACHE_SLOPPINESS=file_macro,locale,time_macros
+          #CCACHE_NOHASHDIR=true
+          #CCACHE_COMPRESS=1
+          #CCACHE_COMPRESSLEVEL=6
+          #CCACHE_DEPEND=1
+          #CCACHE_FILE_CLONE=true
+          #CCACHE_NOHARDLINK=true
+          #CCACHE_INODECACHE=true
+          #CCACHE_NORECACHE=true
+          #CCACHE_NLEVELS=4
+          #CCACHE_COMPILERCHECK=content
+          #EOF
+
+          # Link Compilers to /usr/bin/ccache
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
+
+          # Setup CCACHE Dir
+          sudo mkdir -p /mnt/ccache
+          sudo chown -R $USER:$USER /mnt/ccache
+          echo "CCACHE_DIR=/mnt/ccache" >> $GITHUB_ENV
+          echo "CCACHE Dir Set!"
+          df -h
+          echo "CCACHE Environment set!"
+
+      - name: 🏎 🅴🅽🅰🅱🅻🅴 🅲🅲🅰🅲🅷🅴 🏁
+        uses: Chocobo1/setup-ccache-action@v1
+        with:
+          restore_cache: true
+          prepend_symlinks_to_path: true
+          ccache_options: |
+            max_size=10000M
+            compression=false
+            compression_level=6
+            hash_dir=false
+            sloppiness==file_macro,locale,time_macros
+            file_clone=true
+            hard_link=false
+            inode_cache=true
+            recache=false
+            cache_dir_levels=4
+            depend_mode=false
+            direct_mode=true
+            compiler_check==content
+            cache_dir=/mnt/ccache
+          store_cache: true
+
+      #  uses: hendrikmuhs/ccache-action@v1.2
+      #  with:
+      #    create-symlink: 'true'
+      #    key: ${{ runner.os }}-ccache-${{ hashFiles('Makefile') }}
+      #    max-size: '10000MB'
+      #    restore-keys: |
+      #      ${{ runner.os }}-ccache-
+      #    verbose: 2
+      #    save: true
+
+      - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
+        uses: valeriangalliat/action-sshd-cloudflared@v1
+
+      - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
+        run: |
+
+          cd $KS_DIR
+          echo "Configure kernel"
+
+          make mrproper
+
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            cp pi4-upd.config .config && make oldconfig
+          else
+            cp zero2w-upd.config .config && make oldconfig
+          fi
+
+          echo "Starting kernel build..."
+          echo "Architecture: $ARCH"
+          echo "Cross-compiler: $CROSS_COMPILE"
+          KBUILD_BUILD_TIMESTAMP="1970-01-01 00:00:00" KBUILD_BUILD_VERSION=1 fakeroot make -j$(($(nproc) + 1)) bindeb-pkg
+          echo "Kernel compilation completed!"
+        env:
+          ARCH: ${{ env.ARCH }}
+          CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+
+      - name: 🔍️ 𝓕ⲓⲛⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 & Ⲥ𝓵ⲉⲁⲛ 𐌵ⲣ! 🛂
+        id: find_debs
+        run: |
+          cd $W_DIR
+          mv *.deb output/
+          rm -rf output/*dbg*.deb output/*libc-dev*.deb 2>/dev/null || true
+
+          echo "Searching for DEB packages..."
+          DEB_COUNT=$(find output -name "*.deb" | wc -l)
+          echo "Found $DEB_COUNT DEB package(s)"
+
+          if [ $DEB_COUNT -eq 0 ]; then
+            echo "::error::No DEB packages were generated!"
+            exit 1
+          fi
+
+          find output -name "*.deb" -exec echo "  - {}" \;
+          echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
+
+      - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpi-${{ env.KERNEL }}-${{ inputs.arch }}-deb
+          path: /home/runner/work/linux/output/*.deb
+          compression-level: 8
+          retention-days: 30
+          if-no-files-found: error
