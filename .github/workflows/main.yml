@@ -38,7 +38,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: $HOME/work/linux/
+        #working-directory: /home/runner/work/linux/
 
     steps:
       - if: ${{ inputs.freespace }}
