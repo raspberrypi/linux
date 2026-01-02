@@ -188,7 +188,18 @@ jobs:
           sudo apt update -yq
           sudo apt install libssl-dev:arm64 libssl-dev:armhf -yq
 
-      #- uses: valeriangalliat/action-sshd-cloudflared@v1
+      - name: Configure Kernel
+        run: |
+          cd linux/
+          make mrproper
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            cp pi4-upd.config .config
+          else
+            cp zero2w-upd.config .config
+          fi
+          make oldconfig
+
+      - uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
