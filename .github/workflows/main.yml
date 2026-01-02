@@ -118,6 +118,9 @@ jobs:
 
       - name: 🏞️ 🇸‌🇪‌🇹‌-🇺‌🇵‌ 🇹‌🇭‌🇪‌ 🇧‌🇺‌🇮‌🇱‌🇩‌ 🇪‌🇳‌🇻‌🇮‌🇷‌🇴‌🇳‌🇲‌🇪‌🇳‌🇹‌
         run: |
+          echo "KS_DIR=/home/runner/linux/linux" >> $GITHUB_ENV
+          echo "W_DIR=/home/runner/linux" >> $GITHUB_ENV
+
           # Set architecture cross-compiler and kernel name
           echo "ARCH=${{ inputs.arch }}" >> $GITHUB_ENV
           if [ "${{ inputs.arch }}" = "arm64" ]; then
