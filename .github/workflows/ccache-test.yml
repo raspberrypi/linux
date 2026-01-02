@@ -180,7 +180,7 @@ jobs:
         with:
           update_packager_index: false
           install_ccache: false
-          update_packager_index: false
+          prepend_symlinks_to_path: false
           ccache_options: |
             max_size=10000M
             compression=true
