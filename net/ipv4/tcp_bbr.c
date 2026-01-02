@@ -805,6 +805,7 @@ static void bbr_update_ack_aggregation(struct sock *sk,
 	struct bbr *bbr = inet_csk_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	u32 extra_acked_win_rtts_thresh = bbr_param(sk, extra_acked_win_rtts);
+	u64 bw_epoch;
 
 	if (!bbr_param(sk, extra_acked_gain) || rs->acked_sacked <= 0 ||
 	    rs->delivered < 0 || rs->interval_us <= 0)
@@ -827,12 +828,9 @@ static void bbr_update_ack_aggregation(struct sock *sk,
 	/* Compute how many packets we expected to be delivered over epoch. */
 	epoch_us = tcp_stamp_us_delta(tp->delivered_mstamp,
 				      bbr->ack_epoch_mstamp);
-	{
-		u64 bw_epoch = (u64)bbr_bw(sk) * epoch_us;
-
-		do_div(bw_epoch, BW_UNIT);
-		expected_acked = bw_epoch;
-	}
+	bw_epoch = (u64)bbr_bw(sk) * epoch_us;
+	do_div(bw_epoch, BW_UNIT);
+	expected_acked = bw_epoch;
 
 	/* Reset the aggregation epoch if ACK rate is below expected rate or
 	 * significantly large no. of ack received since epoch (potentially
