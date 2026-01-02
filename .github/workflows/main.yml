@@ -199,7 +199,7 @@ jobs:
           echo "Starting kernel build..."
           echo "Architecture: $ARCH"
           echo "Cross-compiler: $CROSS_COMPILE"
-          KBUILD_BUILD_TIMESTAMP="1970-01-01 00:00:00" KBUILD_BUILD_VERSION=1 fakeroot make -j$(($(nproc) + 1)) bindeb-pkg make -j$(($(nproc) + 1)) bindeb-pkg
+          KBUILD_BUILD_TIMESTAMP="1970-01-01 00:00:00" KBUILD_BUILD_VERSION=1 fakeroot make -j$(($(nproc) + 1)) bindeb-pkg
           echo "Kernel compilation completed!"
         working-directory: $HOME/work/linux/linux
         env:
