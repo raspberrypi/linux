@@ -122,6 +122,8 @@ jobs:
             echo "KERNEL=kernel7" >> $GITHUB_ENV
           fi
 
+          mkdir -p $(pwd)/output
+
           echo "Building for architecture: ${{ inputs.arch }}"
           echo "KBUILD_BUILD_TIMESTAMP=1970-01-01 00:00:00" >> $GITHUB_ENV
           echo "KBUILD_BUILD_VERSION=1" >> $GITHUB_ENV
@@ -183,7 +185,27 @@ jobs:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
 
-      - uses: valeriangalliat/action-sshd-cloudflared@v1
+      - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
+        uses: valeriangalliat/action-sshd-cloudflared@v1
+
+
+      - name: 🔍️ 𝓕ⲓⲛⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 & Ⲥ𝓵ⲉⲁⲛ 𐌵ⲣ! 🛂
+        id: find_debs
+        run: |
+          mv *.deb output/
+          rm -rf output/*dbg*.deb output/*libc-dev*.deb 2>/dev/null || true
+
+          echo "Searching for DEB packages..."
+          DEB_COUNT=$(find output -name "*.deb" | wc -l)
+          echo "Found $DEB_COUNT DEB package(s)"
+
+          if [ $DEB_COUNT -eq 0 ]; then
+            echo "::error::No DEB packages were generated!"
+            exit 1
+          fi
+
+          find output -name "*.deb" -exec echo "  - {}" \;
+          echo "deb_count=$DEB_COUNT" >> $GITHUB_OUTPUT
 
       - name: ⤴️🗃️ ᑌᑭᒪOᗩᗪ ᗪEᗷ ᗩᖇTIᖴᗩᑕTᔕ
         uses: actions/upload-artifact@v4
