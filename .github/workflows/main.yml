@@ -185,7 +185,7 @@ jobs:
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
 
-          cd linux/
+          cd $KS_DIR
           echo "Configure kernel"
 
           make mrproper
@@ -208,6 +208,7 @@ jobs:
       - name: 🔍️ 𝓕ⲓⲛⲇ ⲆⲈⲂ ⲣⲁⲥⲕⲁ𝓰ⲉ𝛓 & Ⲥ𝓵ⲉⲁⲛ 𐌵ⲣ! 🛂
         id: find_debs
         run: |
+          cd $W_DIR
           mv /home/runner/work/linux/*.deb /home/runner/work/linux/output/
           rm -rf /home/runner/work/linux/output/*dbg*.deb /home/runner/work/linux/output/*libc-dev*.deb 2>/dev/null || true
 
