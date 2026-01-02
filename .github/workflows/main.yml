@@ -90,6 +90,11 @@ jobs:
           echo "CCACHE Environment set!"
           
           # Set Compiler
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/aarch64-linux-gnu-g++
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-gcc
+          sudo ln -s /usr/bin/ccache /usr/local/bin/arm-linux-gnueabihf-g++
+
           if [ "${{ inputs.arch }}" = "arm64" ]; then
             echo "CC=ccache aarch64-linux-gnu-gcc" >> $GITHUB_ENV
             echo "CXX=ccache aarch64-linux-gnu-g++" >> $GITHUB_ENV
@@ -113,12 +118,21 @@ jobs:
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           create-symlink: 'true'
-          key: kernel-build-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('linux/Makefile', 'linux/arch/*/Makefile', 'linux/.config') }}
+          key: kernel-build-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('Makefile', 'arch/*/Makefile', '.config') }}
           max-size: '10000MB'
           restore-keys: |
             kernel-build-${{ runner.os }}-${{ inputs.arch }}-
             kernel-build-${{ runner.os }}-
-          verbose: 1
+          verbose: 2
+          save: true
+
+      - name: Verify CCACHE setup"
+        run: |
+          echo "CCACHE_DIR is set to: $CCACHE_DIR"
+          echo "=== CCACHE Configuration ==="
+          ccache -p
+          echo "=== CCACHE Statistics (before build) ==="
+          ccache -s
 
       - name: Set up build environment variables
         run: |
@@ -150,6 +164,13 @@ jobs:
       - name: Configure kernel
         run: |
           cd linux/
+
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            cp pi4-upd.config .config
+          else
+            cp zero2w-upd.config .config
+          fi
+
           make oldconfig
         env:
           ARCH: ${{ env.ARCH }}
@@ -162,9 +183,14 @@ jobs:
           echo "Cross-compiler: $CROSS_COMPILE"
           
           cd linux/
+
           # Use -j$(nproc) for parallel compilation
-          KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
-          
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) Image modules dtbs
+          else
+            KBUILD_BUILD_TIMESTAMP='' make -j$(nproc) zImage modules dtbs
+          fi
+
           echo "Kernel compilation completed!"
         env:
           ARCH: ${{ env.ARCH }}
@@ -202,6 +228,13 @@ jobs:
         env:
           ARCH: ${{ env.ARCH }}
           CROSS_COMPILE: ${{ env.CROSS_COMPILE }}
+
+      - name: Show ccache statistics
+        run: |
+          echo "=== CCACHE Statistics ==="
+          ccache -s
+          echo "=== CCACHE Configuration ==="
+          ccache -p
 
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
