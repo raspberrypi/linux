@@ -201,7 +201,7 @@ jobs:
           fi
           make oldconfig
 
-      - uses: valeriangalliat/action-sshd-cloudflared@v1
+      #- uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
