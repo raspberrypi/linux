@@ -193,7 +193,7 @@ jobs:
             recache=false
             direct_mode=true
             depend_mode=true
-            compiler_check==content
+            compiler_check=content
 
       #  uses: hendrikmuhs/ccache-action@v1.2
       #  with:
