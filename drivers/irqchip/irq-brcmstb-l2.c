@@ -276,10 +276,9 @@ static int brcmstb_l2_lvl_intc_probe(struct platform_device *pdev, struct device
 	return brcmstb_l2_intc_probe(pdev, parent, &l2_lvl_intc_init);
 }
 
-static int __init brcmstb_l2_2711_lvl_intc_of_init(struct device_node *np,
-	struct device_node *parent)
+static int brcmstb_l2_2711_lvl_intc_probe(struct platform_device *np, struct device_node *parent)
 {
-	return brcmstb_l2_intc_of_init(np, parent, &l2_2711_lvl_intc_init);
+	return brcmstb_l2_intc_probe(np, parent, &l2_2711_lvl_intc_init);
 }
 
 IRQCHIP_PLATFORM_DRIVER_BEGIN(brcmstb_l2)
@@ -287,7 +286,7 @@ IRQCHIP_MATCH("brcm,l2-intc", brcmstb_l2_edge_intc_probe)
 IRQCHIP_MATCH("brcm,hif-spi-l2-intc", brcmstb_l2_edge_intc_probe)
 IRQCHIP_MATCH("brcm,upg-aux-aon-l2-intc", brcmstb_l2_edge_intc_probe)
 IRQCHIP_MATCH("brcm,bcm7271-l2-intc", brcmstb_l2_lvl_intc_probe)
-IRQCHIP_MATCH("brcm,bcm2711-l2-intc", brcmstb_l2_2711_lvl_intc_of_init)
+IRQCHIP_MATCH("brcm,bcm2711-l2-intc", brcmstb_l2_2711_lvl_intc_probe)
 IRQCHIP_PLATFORM_DRIVER_END(brcmstb_l2)
 MODULE_DESCRIPTION("Broadcom STB generic L2 interrupt controller");
 MODULE_LICENSE("GPL v2");
