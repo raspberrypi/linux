@@ -346,7 +346,9 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-v3d-pi4.dtbo \
 	vc4-kms-v3d-pi5.dtbo \
 	vc4-kms-vga666.dtbo \
+	vd55g1.dtbo \
 	vd56g3.dtbo \
+	vd65g4.dtbo \
 	vd66gy.dtbo \
 	vec-gpio-pi5.dtbo \
 	vga666.dtbo \
