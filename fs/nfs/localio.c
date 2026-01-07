@@ -270,6 +270,18 @@ nfs_bvec_alloc_and_import_pagevec(struct page **pagevec,
 	return bvec;
 }
 
+/*
+ * Ensure all page cache allocations are done from GFP_NOFS context to
+ * prevent direct reclaim recursion back into NFS via nfs_writepages.
+ */
+static void
+nfs_local_mapping_set_gfp_nofs_context(struct address_space *m)
+{
+	gfp_t gfp_mask = mapping_gfp_mask(m);
+
+	mapping_set_gfp_mask(m, (gfp_mask & ~(__GFP_FS)));
+}
+
 static void
 nfs_local_iocb_free(struct nfs_local_kiocb *iocb)
 {
@@ -293,6 +305,7 @@ nfs_local_iocb_alloc(struct nfs_pgio_header *hdr,
 		return NULL;
 	}
 
+	nfs_local_mapping_set_gfp_nofs_context(file->f_mapping);
 	if (localio_O_DIRECT_semantics &&
 	    test_bit(NFS_IOHDR_ODIRECT, &hdr->flags)) {
 		iocb->kiocb.ki_filp = file;
@@ -733,6 +746,8 @@ nfs_local_run_commit(struct file *filp, struct nfs_commit_data *data)
 		if (end < start)
 			end = LLONG_MAX;
 	}
+
+	nfs_local_mapping_set_gfp_nofs_context(filp->f_mapping);
 
 	dprintk("%s: commit %llu - %llu\n", __func__, start, end);
 	return vfs_fsync_range(filp, start, end, 0);
