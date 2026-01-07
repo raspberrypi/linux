@@ -179,8 +179,8 @@ jobs:
           verbose: 2
           save: true
 
-      - name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
-        uses: valeriangalliat/action-sshd-cloudflared@v1
+      #- name: 🔐 🄢🄢🄗 ⒱⒤⒜ 🄒⒧⒪⒰⒟⒡⒧⒜⒭⒠
+      #  uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: 🚧 🄱🅄🄸🄻🄳 🄺🄴🅁🄽🄴🄻 🄰🄽🄳 🄼🄰🄺🄴 🄳🄴🄱🅂 🚧
         run: |
