@@ -610,7 +610,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct rp1_pio_device *pio = client->pio;
 	struct platform_device *pdev = pio->pdev;
 	struct device *dev = &pdev->dev;
-	struct dma_slave_config config = {};
+	struct dma_slave_config config = { 0 };
 	struct dma_slave_caps dma_caps;
 	phys_addr_t fifo_addr;
 	struct dma_info *dma;
@@ -690,9 +690,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	set_dmactrl_args.sm = sm;
 	set_dmactrl_args.is_tx = (dir == RP1_PIO_DIR_TO_SM);
-	set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT;
-	if (dir == RP1_PIO_DIR_FROM_SM)
-		set_dmactrl_args.ctrl = (RP1_PIO_DMACTRL_DEFAULT & ~0x1f) | 1;
+	set_dmactrl_args.rsvd = 0;
+	set_dmactrl_args.ctrl = (RP1_PIO_DMACTRL_DEFAULT & ~0x1f) | dma_caps.max_burst;
 
 	ret = rp1_pio_sm_set_dmactrl(client, &set_dmactrl_args);
 	if (ret)
