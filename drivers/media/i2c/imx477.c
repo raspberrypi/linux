@@ -1599,8 +1599,8 @@ static int imx477_start_streaming(struct imx477 *imx477)
 
 	/* Apply default values of current mode */
 	reg_list = &imx477->mode->reg_list;
-	cci_multi_reg_write(imx477->regmap, reg_list->regs,
-			    reg_list->num_of_regs, &ret);
+	ret = cci_multi_reg_write(imx477->regmap, reg_list->regs,
+				  reg_list->num_of_regs, NULL);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
