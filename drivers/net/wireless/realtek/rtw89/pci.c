@@ -578,8 +578,13 @@ static void rtw89_pci_release_rpp(struct rtw89_dev *rtwdev,
 	tx_status = le32_get_bits(rpp->dword, RTW89_PCI_RPP_TX_STATUS);
 	txch = rtw89_core_get_ch_dma(rtwdev, qsel);
 
-	if (txch == RTW89_TXCH_CH12) {
+	if (unlikely(txch == RTW89_TXCH_CH12)) {
 		rtw89_warn(rtwdev, "should no fwcmd release report\n");
+		return;
+	}
+
+	if (unlikely(seq >= RTW89_PCI_TXWD_NUM_MAX)) {
+		rtw89_warn(rtwdev, "invalid seq %d\n", seq);
 		return;
 	}
 
