@@ -106,6 +106,38 @@ static struct i3c_master_controller *dev_to_i3cmaster(struct device *dev)
 	return container_of(dev, struct i3c_master_controller, dev);
 }
 
+static int __must_check i3c_master_rpm_get(struct i3c_master_controller *master)
+{
+	int ret = master->rpm_allowed ? pm_runtime_resume_and_get(master->dev.parent) : 0;
+
+	if (ret < 0) {
+		dev_err(master->dev.parent, "runtime resume failed, error %d\n", ret);
+		return ret;
+	}
+	return 0;
+}
+
+static void i3c_master_rpm_put(struct i3c_master_controller *master)
+{
+	if (master->rpm_allowed)
+		pm_runtime_put_autosuspend(master->dev.parent);
+}
+
+int i3c_bus_rpm_get(struct i3c_bus *bus)
+{
+	return i3c_master_rpm_get(i3c_bus_to_i3c_master(bus));
+}
+
+void i3c_bus_rpm_put(struct i3c_bus *bus)
+{
+	i3c_master_rpm_put(i3c_bus_to_i3c_master(bus));
+}
+
+bool i3c_bus_rpm_ibi_allowed(struct i3c_bus *bus)
+{
+	return i3c_bus_to_i3c_master(bus)->rpm_ibi_allowed;
+}
+
 static const struct device_type i3c_device_type;
 
 static struct i3c_bus *dev_to_i3cbus(struct device *dev)
@@ -613,6 +645,12 @@ static int i3c_set_hotjoin(struct i3c_master_controller *master, bool enable)
 	if (!master->ops->enable_hotjoin || !master->ops->disable_hotjoin)
 		return -EINVAL;
 
+	if (enable || master->rpm_ibi_allowed) {
+		ret = i3c_master_rpm_get(master);
+		if (ret)
+			return ret;
+	}
+
 	i3c_bus_normaluse_lock(&master->bus);
 
 	if (enable)
@@ -624,6 +662,9 @@ static int i3c_set_hotjoin(struct i3c_master_controller *master, bool enable)
 		master->hotjoin = enable;
 
 	i3c_bus_normaluse_unlock(&master->bus);
+
+	if ((enable && ret) || (!enable && !ret) || master->rpm_ibi_allowed)
+		i3c_master_rpm_put(master);
 
 	return ret;
 }
@@ -1747,18 +1788,23 @@ int i3c_master_do_daa(struct i3c_master_controller *master)
 {
 	int ret;
 
+	ret = i3c_master_rpm_get(master);
+	if (ret)
+		return ret;
+
 	i3c_bus_maintenance_lock(&master->bus);
 	ret = master->ops->do_daa(master);
 	i3c_bus_maintenance_unlock(&master->bus);
 
 	if (ret)
-		return ret;
+		goto out;
 
 	i3c_bus_normaluse_lock(&master->bus);
 	i3c_master_register_new_i3c_devs(master);
 	i3c_bus_normaluse_unlock(&master->bus);
-
-	return 0;
+out:
+	i3c_master_rpm_put(master);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(i3c_master_do_daa);
 
@@ -2101,8 +2147,17 @@ err_detach_devs:
 
 static void i3c_master_bus_cleanup(struct i3c_master_controller *master)
 {
-	if (master->ops->bus_cleanup)
-		master->ops->bus_cleanup(master);
+	if (master->ops->bus_cleanup) {
+		int ret = i3c_master_rpm_get(master);
+
+		if (ret) {
+			dev_err(&master->dev,
+				"runtime resume error: master bus_cleanup() not done\n");
+		} else {
+			master->ops->bus_cleanup(master);
+			i3c_master_rpm_put(master);
+		}
+	}
 
 	i3c_master_detach_free_devs(master);
 }
@@ -2457,6 +2512,10 @@ static int i3c_master_i2c_adapter_xfer(struct i2c_adapter *adap,
 			return -EOPNOTSUPP;
 	}
 
+	ret = i3c_master_rpm_get(master);
+	if (ret)
+		return ret;
+
 	i3c_bus_normaluse_lock(&master->bus);
 	dev = i3c_master_find_i2c_dev_by_addr(master, addr);
 	if (!dev)
@@ -2464,6 +2523,8 @@ static int i3c_master_i2c_adapter_xfer(struct i2c_adapter *adap,
 	else
 		ret = master->ops->i2c_xfers(dev, xfers, nxfers);
 	i3c_bus_normaluse_unlock(&master->bus);
+
+	i3c_master_rpm_put(master);
 
 	return ret ? ret : nxfers;
 }
@@ -2567,6 +2628,10 @@ static int i3c_i2c_notifier_call(struct notifier_block *nb, unsigned long action
 
 	master = i2c_adapter_to_i3c_master(adap);
 
+	ret = i3c_master_rpm_get(master);
+	if (ret)
+		return ret;
+
 	i3c_bus_maintenance_lock(&master->bus);
 	switch (action) {
 	case BUS_NOTIFY_ADD_DEVICE:
@@ -2579,6 +2644,8 @@ static int i3c_i2c_notifier_call(struct notifier_block *nb, unsigned long action
 		ret = -EINVAL;
 	}
 	i3c_bus_maintenance_unlock(&master->bus);
+
+	i3c_master_rpm_put(master);
 
 	return ret;
 }
@@ -2917,6 +2984,10 @@ int i3c_master_register(struct i3c_master_controller *master,
 	INIT_LIST_HEAD(&master->boardinfo.i2c);
 	INIT_LIST_HEAD(&master->boardinfo.i3c);
 
+	ret = i3c_master_rpm_get(master);
+	if (ret)
+		return ret;
+
 	device_initialize(&master->dev);
 
 	master->dev.dma_mask = parent->dma_mask;
@@ -3000,6 +3071,8 @@ int i3c_master_register(struct i3c_master_controller *master,
 	if (master->ops->set_dev_nack_retry)
 		device_create_file(&master->dev, &dev_attr_dev_nack_retry_count);
 
+	i3c_master_rpm_put(master);
+
 	return 0;
 
 err_del_dev:
@@ -3009,6 +3082,7 @@ err_cleanup_bus:
 	i3c_master_bus_cleanup(master);
 
 err_put_dev:
+	i3c_master_rpm_put(master);
 	put_device(&master->dev);
 
 	return ret;
@@ -3158,8 +3232,15 @@ void i3c_dev_free_ibi_locked(struct i3c_dev_desc *dev)
 		return;
 
 	if (dev->ibi->enabled) {
+		int ret;
+
 		dev_err(&master->dev, "Freeing IBI that is still enabled\n");
-		if (i3c_dev_disable_ibi_locked(dev))
+		ret = i3c_master_rpm_get(master);
+		if (!ret) {
+			ret = i3c_dev_disable_ibi_locked(dev);
+			i3c_master_rpm_put(master);
+		}
+		if (ret)
 			dev_err(&master->dev, "Failed to disable IBI before freeing\n");
 	}
 
