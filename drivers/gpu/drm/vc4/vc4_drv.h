@@ -480,6 +480,11 @@ struct vc4_plane_state {
 	 */
 	bool is_yuv444_unity;
 
+	/* Skip lines on large downscales to avoid consuming too much SDRAM
+	 * bandwidth
+	 */
+	unsigned int vdownsample;
+
 	/* Our allocation in LBM for temporary storage during scaling. */
 	unsigned int lbm_handle;
 
