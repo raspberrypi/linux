@@ -962,7 +962,7 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 
 	/* Ch0 V-TPZ Words 0-2: Scaling Parameters, Recip, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_TPZ) {
-		vc4_write_tpz(vc4_state, vc4_state->src_h[channel],
+		vc4_write_tpz(vc4_state, vc4_state->src_h[channel] / vc4_state->vdownsample,
 			      vc4_state->crtc_h);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
@@ -1388,6 +1388,17 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return 0;
 	}
 
+	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ  &&
+	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
+		/* Downscaling by more than x3. Reduce the number of lines read
+		 * to avoid exceeding SDRAM bandwidth.
+		 */
+		vc4_state->vdownsample = ((vc4_state->src_h[0] /
+					  (vc4_state->crtc_h * 3)) >> 16) + 1;
+	} else {
+		vc4_state->vdownsample = 1;
+	}
+
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
@@ -1433,6 +1444,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		break;
 
 	case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED: {
+		/* Line skipping decimation currently not supported for T-format */
+		vc4_state->vdownsample = 1;
+
 		u32 tile_size_shift = 12; /* T tiles are 4kb */
 		/* Whole-tile offsets, mostly for setting the pitch. */
 		u32 tile_w_shift = fb->format->cpp[0] == 2 ? 6 : 5;
@@ -1585,6 +1599,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			offsets[i] += pitch[i] * tile * tile_width;
 			offsets[i] += src_y / (i ? v_subsample : 1) * tile_width;
 			offsets[i] += x_off & ~(i ? 1 : 0);
+
+			pitch[i] |= VC4_SET_FIELD(vc4_state->vdownsample - 1,
+						  SCALER_TILE_SKIP_0);
 		}
 		break;
 	}
@@ -1662,7 +1679,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 				(mix_plane_alpha ? SCALER_POS2_ALPHA_MIX : 0) |
 				vc4_hvs4_get_alpha_blend_mode(state) |
 				VC4_SET_FIELD(width, SCALER_POS2_WIDTH) |
-				VC4_SET_FIELD(height, SCALER_POS2_HEIGHT));
+				VC4_SET_FIELD(height / vc4_state->vdownsample,
+					      SCALER_POS2_HEIGHT));
 
 		/* Position Word 3: Context.  Written by the HVS. */
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
@@ -1716,7 +1734,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		vc4_state->pos2_offset = vc4_state->dlist_count;
 		vc4_dlist_write(vc4_state,
 				VC4_SET_FIELD(width, SCALER5_POS2_WIDTH) |
-				VC4_SET_FIELD(height, SCALER5_POS2_HEIGHT));
+				VC4_SET_FIELD(height / vc4_state->vdownsample,
+					      SCALER5_POS2_HEIGHT));
 
 		/* Position Word 3: Context.  Written by the HVS. */
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
@@ -1740,18 +1759,22 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 
 	/* Pitch word 0 */
-	vc4_dlist_write(vc4_state, pitch[0]);
+	if (hvs_format != HVS_PIXEL_FORMAT_H264 &&
+	    hvs_format != HVS_PIXEL_FORMAT_YCBCR_10BIT)
+		vc4_dlist_write(vc4_state, pitch[0] * vc4_state->vdownsample);
+	else
+		vc4_dlist_write(vc4_state, pitch[0]);
 
 	/* Pitch word 1/2 */
 	for (i = 1; i < num_planes; i++) {
 		if (hvs_format != HVS_PIXEL_FORMAT_H264 &&
-		    hvs_format != HVS_PIXEL_FORMAT_YCBCR_10BIT) {
+		    hvs_format != HVS_PIXEL_FORMAT_YCBCR_10BIT)
 			vc4_dlist_write(vc4_state,
-					VC4_SET_FIELD(fb->pitches[i],
+					VC4_SET_FIELD(fb->pitches[i] /
+							 vc4_state->vdownsample,
 						      SCALER_SRC_PITCH));
-		} else {
-			vc4_dlist_write(vc4_state, pitch[1]);
-		}
+		else
+			vc4_dlist_write(vc4_state, pitch[i]);
 	}
 
 	/* Colorspace conversion words */
@@ -1965,6 +1988,17 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
+	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ &&
+	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
+		/* Downscaling by more than x3. Reduce the number of lines read
+		 * to avoid exceeding SDRAM bandwidth.
+		 */
+		vc4_state->vdownsample = ((vc4_state->src_h[0] /
+					   (vc4_state->crtc_h * 3)) >> 16) + 1;
+	} else {
+		vc4_state->vdownsample = 1;
+	}
+
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
 	 * the scaler do the same thing.  For YUV, the Y plane needs
@@ -2117,8 +2151,11 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 			 * Finished using the pitch as a pitch, so pack it as the
 			 * register value.
 			 */
-			pitch[i] = VC4_SET_FIELD(pitch[i], SCALER6_PTR2_PITCH) |
-				   VC4_SET_FIELD(fetch_count - 1, SCALER6_PTR2_FETCH_COUNT);
+			pitch[i] = VC4_SET_FIELD(pitch[i], SCALER6_PTR2_TILE_HEIGHT) |
+				   VC4_SET_FIELD(fetch_count - 1,
+						 SCALER6_PTR2_TILE_FETCH_COUNT) |
+				   VC4_SET_FIELD(vc4_state->vdownsample - 1,
+						 SCALER6_PTR2_TILE_LSKIP);
 		}
 
 		break;
@@ -2179,7 +2216,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	/* Position Word 2: Source Image Size */
 	vc4_state->pos2_offset = vc4_state->dlist_count;
 	vc4_dlist_write(vc4_state,
-			VC4_SET_FIELD(height - 1,
+			VC4_SET_FIELD((height / vc4_state->vdownsample) - 1,
 				      SCALER6_POS2_SRC_LINES) |
 			VC4_SET_FIELD(width - 1,
 				      SCALER6_POS2_SRC_WIDTH));
@@ -2214,7 +2251,7 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		if (base_format_mod != DRM_FORMAT_MOD_BROADCOM_SAND128 &&
 		    base_format_mod != DRM_FORMAT_MOD_BROADCOM_SAND256) {
 			vc4_dlist_write(vc4_state,
-					VC4_SET_FIELD(fb->pitches[i],
+					VC4_SET_FIELD((fb->pitches[i] * vc4_state->vdownsample),
 						      SCALER6_PTR2_PITCH));
 		} else {
 			vc4_dlist_write(vc4_state, pitch[i]);
