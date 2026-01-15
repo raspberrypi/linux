@@ -99,6 +99,13 @@ static int rpi_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 					    &data, sizeof(data));
 	rtc_time64_to_tm(data[1], &alarm->time);
 
+	data[0] = RTC_ALARM_PENDING;
+	data[1] = 0;
+	if (!err)
+		err = rpi_firmware_property(vrtc->fw, RPI_FIRMWARE_GET_RTC_REG,
+					    &data, sizeof(data));
+	alarm->pending = data[1] & 1;
+
 	return err;
 }
 
@@ -243,8 +250,6 @@ static int rpi_rtc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	rpi_rtc_alarm_clear_pending(dev);
-
 	/*
 	 * Optionally enable trickle charging - if the property isn't
 	 * present (or set to zero), trickle charging is disabled.
@@ -254,7 +259,12 @@ static int rpi_rtc_probe(struct platform_device *pdev)
 
 	rpi_rtc_set_charge_voltage(dev);
 
-	return devm_rtc_register_device(vrtc->rtc);
+	ret = devm_rtc_register_device(vrtc->rtc);
+
+	if (!ret)
+		rpi_rtc_alarm_clear_pending(dev);
+
+	return ret;
 }
 
 static const struct of_device_id rpi_rtc_dt_match[] = {
