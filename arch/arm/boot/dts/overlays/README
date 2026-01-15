@@ -2062,6 +2062,18 @@ Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
 
+Name:   hifiberry-studio-dac8x
+Info:   Configures the HifiBerry Studio DAC8x audio card
+Load:   dtoverlay=hifiberry-studio-dac8x
+Params: <None>
+
+
+Name:   hifiberry-studio-dac8x-pro
+Info:   Configures the HifiBerry Studio DAC8x PRO audio card
+Load:   dtoverlay=hifiberry-studio-dac8x-pro
+Params: <None>
+
+
 Name:   highperi
 Info:   Enables "High Peripheral" mode
 Load:   dtoverlay=highperi
