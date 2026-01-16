@@ -32,8 +32,6 @@
 
 /* DMA SYS Bus Mode bitmap */
 #define DMA_BUS_MODE_SPH		BIT(24)
-#define DMA_BUS_MODE_PBL		BIT(16)
-#define DMA_BUS_MODE_RPBL_MASK		GENMASK(21, 16)
 #define DMA_BUS_MODE_MB			BIT(14)
 #define DMA_BUS_MODE_FB			BIT(0)
 
@@ -126,18 +124,21 @@ static inline u32 dma_chanx_base_addr(const struct dwmac4_addrs *addrs,
 #define DMA_CHAN_STATUS(addrs, x)	(dma_chanx_base_addr(addrs, x) + 0x60)
 
 /* DMA Control X */
+#define DMA_CHAN_CTRL_PBLX8		BIT(16)
 #define DMA_CONTROL_SPH			BIT(24)
 #define DMA_CONTROL_MSS_MASK		GENMASK(13, 0)
 
 /* DMA Tx Channel X Control register defines */
 #define DMA_CONTROL_EDSE		BIT(28)
+#define DMA_CHAN_TX_CTRL_TXPBL_MASK	GENMASK(21, 16)
 #define DMA_CONTROL_TSE			BIT(12)
 #define DMA_CONTROL_OSP			BIT(4)
 #define DMA_CONTROL_ST			BIT(0)
 
 /* DMA Rx Channel X Control register defines */
-#define DMA_CONTROL_SR			BIT(0)
+#define DMA_CHAN_RX_CTRL_RXPBL_MASK	GENMASK(21, 16)
 #define DMA_RBSZ_MASK			GENMASK(14, 1)
+#define DMA_CONTROL_SR			BIT(0)
 
 /* Interrupt status per channel */
 #define DMA_CHAN_STATUS_REB		GENMASK(21, 19)
