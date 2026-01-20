@@ -46,6 +46,10 @@ module_param_named(super_pages, super_pages, bool, 0400);
 MODULE_PARM_DESC(super_pages, "Enable/Disable Super Pages support.");
 #endif
 
+bool debug_mmu;
+module_param(debug_mmu, bool, 0644);
+MODULE_PARM_DESC(debug_mmu, "Enable/Disable MMU error logging");
+
 static int v3d_get_param_ioctl(struct drm_device *dev, void *data,
 			       struct drm_file *file_priv)
 {
