@@ -54,13 +54,6 @@ choice
 	 interactivity with great smoothness without sacrificing too
 	 much throughput.
 
-	config HZ_500
-		bool "500 HZ"
-	help
-	 500 Hz is a balanced timer frequency. Provides fast interactivity
-	 on desktops with great smoothness without increasing CPU power
-	 consumption and sacrificing the battery life on laptops.
-
 	config HZ_833
 		bool "833 HZ"
 	help
@@ -73,7 +66,7 @@ choice
 	 1000 Hz is the preferred choice for desktop systems and other
 	 systems requiring fast interactive responses to events.
 
-config HZ_1666
+	config HZ_1666
 		bool "1666 HZ"
 	help
 	 1666 Hz is for very high latency bound systems. Choose 1666 Hz
@@ -84,6 +77,8 @@ config HZ_1666
 
 	config HZ_2000
 		bool "2000 HZ"
+	helps
+	 BALLS 2 WALLZZZ
 
 endchoice
 
@@ -92,7 +87,6 @@ config HZ
 	default 100 if HZ_100
 	default 250 if HZ_250
 	default 300 if HZ_300
-	default 500 if HZ_500
 	default 500 if HZ_500
 	default 750 if HZ_750
 	default 833 if HZ_833
