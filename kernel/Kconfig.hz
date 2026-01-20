@@ -54,11 +54,36 @@ choice
 	 interactivity with great smoothness without sacrificing too
 	 much throughput.
 
+	config HZ_500
+		bool "500 HZ"
+	help
+	 500 Hz is a balanced timer frequency. Provides fast interactivity
+	 on desktops with great smoothness without increasing CPU power
+	 consumption and sacrificing the battery life on laptops.
+
+	config HZ_833
+		bool "833 HZ"
+	help
+	 833 Hz is the TT alternative to 1000 Hz. Choose 833 Hz
+	 if you want a balance between latency and performance.
+
 	config HZ_1000
 		bool "1000 HZ"
 	help
 	 1000 Hz is the preferred choice for desktop systems and other
 	 systems requiring fast interactive responses to events.
+
+config HZ_1666
+		bool "1666 HZ"
+	help
+	 1666 Hz is for very high latency bound systems. Choose 1666 Hz
+	 if you don't care about overall throughput or performance, but
+	 you care more about latency (some realtime applications) require
+	 low latency. The response and interactive processes with 1666 Hz
+	 feel much snappier.
+
+	config HZ_2000
+		bool "2000 HZ"
 
 endchoice
 
@@ -68,8 +93,12 @@ config HZ
 	default 250 if HZ_250
 	default 300 if HZ_300
 	default 500 if HZ_500
+	default 500 if HZ_500
 	default 750 if HZ_750
+	default 833 if HZ_833
 	default 1000 if HZ_1000
+	default 1666 if HZ_1666
+	default 2000 if HZ_2000
 
 config SCHED_HRTICK
 	def_bool HIGH_RES_TIMERS
