@@ -4118,6 +4118,7 @@ static const struct ata_dev_quirk_value __ata_dev_max_sec_quirks[] = {
 	{ "LITEON CX1-JB*-HP",		NULL,		1024 },
 	{ "LITEON EP1-*",		NULL,		1024 },
 	{ "DELLBOSS VD",		"MV.R00-0",	8191 },
+	{ "INTEL SSDSC2KG480G8",	"XCV10120",	8191 },
 	{ },
 };
 
@@ -4383,6 +4384,8 @@ static const struct ata_dev_quirks_entry __ata_dev_quirks[] = {
 
 	{ "Micron*",			NULL,	ATA_QUIRK_ZERO_AFTER_TRIM },
 	{ "Crucial*",			NULL,	ATA_QUIRK_ZERO_AFTER_TRIM },
+	{ "INTEL SSDSC2KG480G8", "XCV10120",	ATA_QUIRK_ZERO_AFTER_TRIM |
+						ATA_QUIRK_MAX_SEC },
 	{ "INTEL*SSD*",			NULL,	ATA_QUIRK_ZERO_AFTER_TRIM },
 	{ "SSD*INTEL*",			NULL,	ATA_QUIRK_ZERO_AFTER_TRIM },
 	{ "Samsung*SSD*",		NULL,	ATA_QUIRK_ZERO_AFTER_TRIM },
