@@ -1348,6 +1348,22 @@ config USER_NS
 
 	  If unsure, say N.
 
+config USER_NS_UNPRIVILEGED
+	bool "Allow unprivileged users to create namespaces"
+	default y
+	depends on USER_NS
+	help
+	  When disabled, unprivileged users will not be able to create
+	  new namespaces. Allowing users to create their own namespaces
+	  has been part of several recent local privilege escalation
+	  exploits, so if you need user namespaces but are
+	  paranoid^Wsecurity-conscious you want to disable this.
+
+	  This setting can be overridden at runtime via the
+	  kernel.unprivileged_userns_clone sysctl.
+
+	  If unsure, say Y.
+
 config PID_NS
 	bool "PID Namespaces"
 	default y

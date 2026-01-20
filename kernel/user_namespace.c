@@ -22,6 +22,13 @@
 #include <linux/bsearch.h>
 #include <linux/sort.h>
 
+/* sysctl */
+#ifdef CONFIG_USER_NS_UNPRIVILEGED
+int unprivileged_userns_clone = 1;
+#else
+int unprivileged_userns_clone;
+#endif
+
 static struct kmem_cache *user_ns_cachep __ro_after_init;
 static DEFINE_MUTEX(userns_state_mutex);
 

@@ -2554,6 +2554,7 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 	do_cache = true;
 	if (type == RTN_BROADCAST) {
 		flags |= RTCF_BROADCAST | RTCF_LOCAL;
+		fi = NULL;
 	} else if (type == RTN_MULTICAST) {
 		flags |= RTCF_MULTICAST | RTCF_LOCAL;
 		if (!ip_check_mc_rcu(in_dev, fl4->daddr, fl4->saddr,
@@ -2623,8 +2624,12 @@ add:
 			rth->dst.output = ip_mc_output;
 			RT_CACHE_STAT_INC(out_slow_mc);
 		}
+		if (type == RTN_BROADCAST && res->fi) {
+			/* ensure MTU value for broadcast routes is retained */
+			ip_dst_init_metrics(&rth->dst, res->fi->fib_metrics);
+		}
 #ifdef CONFIG_IP_MROUTE
-		if (type == RTN_MULTICAST) {
+		else if (type == RTN_MULTICAST) {
 			if (IN_DEV_MFORWARD(in_dev) &&
 			    !ipv4_is_local_multicast(fl4->daddr)) {
 				rth->dst.input = ip_mr_input;

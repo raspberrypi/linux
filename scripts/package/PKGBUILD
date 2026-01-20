@@ -91,6 +91,11 @@ _package-headers() {
 		"${srctree}/scripts/package/install-extmod-build" "${builddir}"
 	fi
 
+	# required when DEBUG_INFO_BTF_MODULES is enabled
+	if [ -f tools/bpf/resolve_btfids/resolve_btfids ]; then
+		install -Dt "$builddir/tools/bpf/resolve_btfids" tools/bpf/resolve_btfids/resolve_btfids
+	fi
+
 	echo "Installing System.map and config..."
 	mkdir -p "${builddir}"
 	cp System.map "${builddir}/System.map"
