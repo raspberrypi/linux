@@ -3098,6 +3098,11 @@ static int pl011_axi_probe(struct platform_device *pdev)
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
+	hrtimer_init(&uap->trigger_start_tx, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hrtimer_init(&uap->trigger_stop_tx, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	uap->trigger_start_tx.function = pl011_trigger_start_tx;
+	uap->trigger_stop_tx.function = pl011_trigger_stop_tx;
+
 	ret = pl011_setup_port(&pdev->dev, uap, r, portnr);
 	if (ret)
 		return ret;
