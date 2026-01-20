@@ -555,6 +555,14 @@ static inline bool elv_support_iosched(struct request_queue *q)
 	return true;
 }
 
+#ifdef CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
+	ctx.name = "adios";
+#else // !CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
+	bool is_sq = q->nr_hw_queues == 1 || blk_mq_is_shared_tags(q->tag_set->flags);
+	if (!is_sq)
+		return;
+#endif // CONFIG_MQ_IOSCHED_DEFAULT_ADIOS
+
 /*
  * For single queue devices, default to using bfq. If we have multiple
  * queues or bfq is not available, default to "none".

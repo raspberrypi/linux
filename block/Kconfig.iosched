@@ -25,6 +25,13 @@ config MQ_IOSCHED_ADIOS
 	  It aims to provide low latency for synchronous requests while
 	  maintaining high throughput for asynchronous requests and bulk I/O.
 
+config MQ_IOSCHED_DEFAULT_ADIOS
+	bool "Enable ADIOS I/O scheduler as default MQ I/O scheduler"
+	depends on MQ_IOSCHED_ADIOS=y
+	default y
+	help
+	 Enable the ADIOS I/O scheduler as the default scheduler for MQ I/O.
+
 config IOSCHED_BFQ
 	tristate "BFQ I/O scheduler"
 	select BLK_ICQ
