@@ -600,6 +600,7 @@ int v3d_submit_cpu_ioctl(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv);
 
 /* v3d_irq.c */
+extern bool debug_mmu;
 int v3d_irq_init(struct v3d_dev *v3d);
 void v3d_irq_enable(struct v3d_dev *v3d);
 void v3d_irq_disable(struct v3d_dev *v3d);
