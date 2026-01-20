@@ -162,6 +162,38 @@ config THREAD_INFO_IN_TASK
 
 menu "General setup"
 
+config ZENIFY
+	bool "A selection of patches from Zen/Liquorix kernel and additional tweaks for a better gaming experience"
+	default y
+	help
+	  Tunes the kernel for responsiveness at the cost of throughput and power usage.
+
+	  --- Virtual Memory Subsystem ---------------------------
+
+	    Mem dirty before bg writeback..:  10 %  ->  20 %
+	    Mem dirty before sync writeback:  20 %  ->  50 %
+
+	  --- Block Layer ----------------------------------------
+
+	    Queue depth...............:      128    -> 512
+	    Default MQ scheduler......: mq-deadline -> bfq
+
+	  --- CFS CPU Scheduler ----------------------------------
+
+	    Scheduling latency.............:   6    ->   3    ms
+	    Minimal granularity............:   0.75 ->   0.3  ms
+	    Wakeup granularity.............:   1    ->   0.5  ms
+	    CPU migration cost.............:   0.5  ->   0.25 ms
+	    Bandwidth slice size...........:   5    ->   3    ms
+	    Ondemand fine upscaling limit..:  95 %  ->  85 %
+
+	  --- MuQSS CPU Scheduler --------------------------------
+
+	    Scheduling interval............:   6    ->   3    ms
+	    ISO task max realtime use......:  70 %  ->  25 %
+	    Ondemand coarse upscaling limit:  80 %  ->  45 %
+	    Ondemand fine upscaling limit..:  95 %  ->  45 %
+
 config BROKEN
 	bool
 

@@ -200,8 +200,7 @@ static inline void __mm_zero_struct_page(struct page *page)
  * not a hard limit any more. Although some userspace tools can be surprised by
  * that.
  */
-#define MAPCOUNT_ELF_CORE_MARGIN	(5)
-#define DEFAULT_MAX_MAP_COUNT	(USHRT_MAX - MAPCOUNT_ELF_CORE_MARGIN)
+#define DEFAULT_MAX_MAP_COUNT	(16777216)
 
 extern int sysctl_max_map_count;
 

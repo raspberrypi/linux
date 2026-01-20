@@ -3326,6 +3326,11 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 			goto bad;
 	}
 
+#ifdef CONFIG_ZENIFY
+	set_bit(DM_CRYPT_NO_READ_WORKQUEUE, &cc->flags);
+	set_bit(DM_CRYPT_NO_WRITE_WORKQUEUE, &cc->flags);
+#endif
+
 	ret = crypt_ctr_cipher(ti, argv[0], argv[1]);
 	if (ret < 0)
 		goto bad;

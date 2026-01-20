@@ -810,6 +810,7 @@ int rdma_addr_find_l2_eth_by_grh(const union ib_gid *sgid,
 	union {
 		struct sockaddr_in  _sockaddr_in;
 		struct sockaddr_in6 _sockaddr_in6;
+		struct sockaddr_ib  _sockaddr_ib;
 	} sgid_addr, dgid_addr;
 	int ret;
 

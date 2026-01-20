@@ -113,7 +113,7 @@ scm_version()
 		# If only the short version is requested, don't bother
 		# running further git commands
 		if $short; then
-			echo "+"
+			# echo "+"
 			return
 		fi
 
@@ -141,12 +141,12 @@ scm_version()
 	# git-diff-index does not refresh the index, so it may give misleading
 	# results.
 	# See git-update-index(1), git-diff-index(1), and git-status(1).
-	if {
-		git --no-optional-locks status -uno --porcelain 2>/dev/null ||
-		git diff-index --name-only HEAD
-	} | read dummy; then
-		printf '%s' -dirty
-	fi
+	#if {
+	#	git --no-optional-locks status -uno --porcelain 2>/dev/null ||
+	#	git diff-index --name-only HEAD
+	#} | read dummy; then
+	#	printf '%s' -dirty
+	#fi
 }
 
 collect_files()
