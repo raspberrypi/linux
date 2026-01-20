@@ -1450,7 +1450,7 @@ static inline bool bdev_is_zone_start(struct block_device *bdev,
 int blk_zone_issue_zeroout(struct block_device *bdev, sector_t sector,
 			   sector_t nr_sects, gfp_t gfp_mask);
 
-static inline int queue_dma_alignment(const struct request_queue *q)
+static inline unsigned int queue_dma_alignment(const struct request_queue *q)
 {
 	return q->limits.dma_alignment;
 }

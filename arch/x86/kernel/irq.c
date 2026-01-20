@@ -391,6 +391,7 @@ DEFINE_IDTENTRY_SYSVEC_SIMPLE(sysvec_kvm_posted_intr_nested_ipi)
 
 /* Posted Interrupt Descriptors for coalesced MSIs to be posted */
 DEFINE_PER_CPU_ALIGNED(struct pi_desc, posted_msi_pi_desc);
+static DEFINE_PER_CPU(bool, posted_msi_handler_active);
 
 void intel_posted_msi_init(void)
 {
@@ -406,6 +407,25 @@ void intel_posted_msi_init(void)
 	apic_id = this_cpu_read(x86_cpu_to_apicid);
 	destination = x2apic_enabled() ? apic_id : apic_id << 8;
 	this_cpu_write(posted_msi_pi_desc.ndst, destination);
+}
+
+void intel_ack_posted_msi_irq(struct irq_data *irqd)
+{
+	irq_move_irq(irqd);
+
+	/*
+	 * Handle the rare case that irq_retrigger() raised the actual
+	 * assigned vector on the target CPU, which means that it was not
+	 * invoked via the posted MSI handler below. In that case APIC EOI
+	 * is required as otherwise the ISR entry becomes stale and lower
+	 * priority interrupts are never going to be delivered after that.
+	 *
+	 * If the posted handler invoked the device interrupt handler then
+	 * the EOI would be premature because it would acknowledge the
+	 * posted vector.
+	 */
+	if (unlikely(!__this_cpu_read(posted_msi_handler_active)))
+		apic_eoi();
 }
 
 /*
@@ -483,6 +503,8 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_posted_msi_notification)
 
 	pid = this_cpu_ptr(&posted_msi_pi_desc);
 
+	/* Mark the handler active for intel_ack_posted_msi_irq() */
+	__this_cpu_write(posted_msi_handler_active, true);
 	inc_irq_stat(posted_msi_notification_count);
 	irq_enter();
 
@@ -511,6 +533,7 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_posted_msi_notification)
 
 	apic_eoi();
 	irq_exit();
+	__this_cpu_write(posted_msi_handler_active, false);
 	set_irq_regs(old_regs);
 }
 #endif /* X86_POSTED_MSI */

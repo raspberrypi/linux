@@ -1179,7 +1179,7 @@ route_lookup:
 		ndst = dst;
 	}
 
-	tdev = dst->dev;
+	tdev = dst_dev(dst);
 
 	if (tdev == dev) {
 		DEV_STATS_INC(dev, collisions);
@@ -1255,7 +1255,7 @@ route_lookup:
 	/* Calculate max headroom for all the headers and adjust
 	 * needed_headroom if necessary.
 	 */
-	max_headroom = LL_RESERVED_SPACE(dst->dev) + sizeof(struct ipv6hdr)
+	max_headroom = LL_RESERVED_SPACE(tdev) + sizeof(struct ipv6hdr)
 			+ dst->header_len + t->hlen;
 	ip_tunnel_adj_headroom(dev, max_headroom);
 

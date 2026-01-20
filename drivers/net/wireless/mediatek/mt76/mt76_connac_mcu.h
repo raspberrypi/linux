@@ -1049,6 +1049,7 @@ enum {
 /* unified event table */
 enum {
 	MCU_UNI_EVENT_RESULT = 0x01,
+	MCU_UNI_EVENT_HIF_CTRL = 0x03,
 	MCU_UNI_EVENT_FW_LOG_2_HOST = 0x04,
 	MCU_UNI_EVENT_ACCESS_REG = 0x6,
 	MCU_UNI_EVENT_IE_COUNTDOWN = 0x09,
@@ -1989,7 +1990,7 @@ int mt76_connac_mcu_set_suspend_mode(struct mt76_dev *dev,
 				     struct ieee80211_vif *vif,
 				     bool enable, u8 mdtim,
 				     bool wow_suspend);
-int mt76_connac_mcu_set_hif_suspend(struct mt76_dev *dev, bool suspend);
+int mt76_connac_mcu_set_hif_suspend(struct mt76_dev *dev, bool suspend, bool wait_resp);
 void mt76_connac_mcu_set_suspend_iter(void *priv, u8 *mac,
 				      struct ieee80211_vif *vif);
 int mt76_connac_sta_state_dp(struct mt76_dev *dev,

@@ -328,7 +328,7 @@ static int ioam6_do_encap(struct net *net, struct sk_buff *skb,
 	if (has_tunsrc)
 		memcpy(&hdr->saddr, tunsrc, sizeof(*tunsrc));
 	else
-		ipv6_dev_get_saddr(net, dst->dev, &hdr->daddr,
+		ipv6_dev_get_saddr(net, dst_dev(dst), &hdr->daddr,
 				   IPV6_PREFER_SRC_PUBLIC, &hdr->saddr);
 
 	skb_postpush_rcsum(skb, hdr, len);
@@ -338,7 +338,8 @@ static int ioam6_do_encap(struct net *net, struct sk_buff *skb,
 
 static int ioam6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-	struct dst_entry *dst = skb_dst(skb), *cache_dst = NULL;
+	struct dst_entry *orig_dst = skb_dst(skb);
+	struct dst_entry *dst = NULL;
 	struct ioam6_lwt *ilwt;
 	int err = -EINVAL;
 	u32 pkt_cnt;
@@ -346,7 +347,7 @@ static int ioam6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	if (skb->protocol != htons(ETH_P_IPV6))
 		goto drop;
 
-	ilwt = ioam6_lwt_state(dst->lwtstate);
+	ilwt = ioam6_lwt_state(orig_dst->lwtstate);
 
 	/* Check for insertion frequency (i.e., "k over n" insertions) */
 	pkt_cnt = atomic_fetch_inc(&ilwt->pkt_cnt);
@@ -354,7 +355,7 @@ static int ioam6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 		goto out;
 
 	local_bh_disable();
-	cache_dst = dst_cache_get(&ilwt->cache);
+	dst = dst_cache_get(&ilwt->cache);
 	local_bh_enable();
 
 	switch (ilwt->mode) {
@@ -364,7 +365,7 @@ do_inline:
 		if (ipv6_hdr(skb)->nexthdr == NEXTHDR_HOP)
 			goto out;
 
-		err = ioam6_do_inline(net, skb, &ilwt->tuninfo, cache_dst);
+		err = ioam6_do_inline(net, skb, &ilwt->tuninfo, dst);
 		if (unlikely(err))
 			goto drop;
 
@@ -374,7 +375,7 @@ do_encap:
 		/* Encapsulation (ip6ip6) */
 		err = ioam6_do_encap(net, skb, &ilwt->tuninfo,
 				     ilwt->has_tunsrc, &ilwt->tunsrc,
-				     &ilwt->tundst, cache_dst);
+				     &ilwt->tundst, dst);
 		if (unlikely(err))
 			goto drop;
 
@@ -392,7 +393,7 @@ do_encap:
 		goto drop;
 	}
 
-	if (unlikely(!cache_dst)) {
+	if (unlikely(!dst)) {
 		struct ipv6hdr *hdr = ipv6_hdr(skb);
 		struct flowi6 fl6;
 
@@ -403,20 +404,20 @@ do_encap:
 		fl6.flowi6_mark = skb->mark;
 		fl6.flowi6_proto = hdr->nexthdr;
 
-		cache_dst = ip6_route_output(net, NULL, &fl6);
-		if (cache_dst->error) {
-			err = cache_dst->error;
+		dst = ip6_route_output(net, NULL, &fl6);
+		if (dst->error) {
+			err = dst->error;
 			goto drop;
 		}
 
 		/* cache only if we don't create a dst reference loop */
-		if (dst->lwtstate != cache_dst->lwtstate) {
+		if (orig_dst->lwtstate != dst->lwtstate) {
 			local_bh_disable();
-			dst_cache_set_ip6(&ilwt->cache, cache_dst, &fl6.saddr);
+			dst_cache_set_ip6(&ilwt->cache, dst, &fl6.saddr);
 			local_bh_enable();
 		}
 
-		err = skb_cow_head(skb, LL_RESERVED_SPACE(cache_dst->dev));
+		err = skb_cow_head(skb, LL_RESERVED_SPACE(dst_dev(dst)));
 		if (unlikely(err))
 			goto drop;
 	}
@@ -424,16 +425,16 @@ do_encap:
 	/* avoid lwtunnel_output() reentry loop when destination is the same
 	 * after transformation (e.g., with the inline mode)
 	 */
-	if (dst->lwtstate != cache_dst->lwtstate) {
+	if (orig_dst->lwtstate != dst->lwtstate) {
 		skb_dst_drop(skb);
-		skb_dst_set(skb, cache_dst);
+		skb_dst_set(skb, dst);
 		return dst_output(net, sk, skb);
 	}
 out:
-	dst_release(cache_dst);
-	return dst->lwtstate->orig_output(net, sk, skb);
+	dst_release(dst);
+	return orig_dst->lwtstate->orig_output(net, sk, skb);
 drop:
-	dst_release(cache_dst);
+	dst_release(dst);
 	kfree_skb(skb);
 	return err;
 }

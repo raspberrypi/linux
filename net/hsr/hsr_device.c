@@ -676,6 +676,44 @@ bool is_hsr_master(struct net_device *dev)
 }
 EXPORT_SYMBOL(is_hsr_master);
 
+struct net_device *hsr_get_port_ndev(struct net_device *ndev,
+				     enum hsr_port_type pt)
+{
+	struct hsr_priv *hsr = netdev_priv(ndev);
+	struct hsr_port *port;
+
+	rcu_read_lock();
+	hsr_for_each_port(hsr, port)
+		if (port->type == pt) {
+			dev_hold(port->dev);
+			rcu_read_unlock();
+			return port->dev;
+		}
+	rcu_read_unlock();
+	return NULL;
+}
+EXPORT_SYMBOL(hsr_get_port_ndev);
+
+int hsr_get_port_type(struct net_device *hsr_dev, struct net_device *dev,
+		      enum hsr_port_type *type)
+{
+	struct hsr_priv *hsr = netdev_priv(hsr_dev);
+	struct hsr_port *port;
+
+	rcu_read_lock();
+	hsr_for_each_port(hsr, port) {
+		if (port->dev == dev) {
+			*type = port->type;
+			rcu_read_unlock();
+			return 0;
+		}
+	}
+	rcu_read_unlock();
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL(hsr_get_port_type);
+
 /* Default multicast address for HSR Supervision frames */
 static const unsigned char def_multicast_addr[ETH_ALEN] __aligned(2) = {
 	0x01, 0x15, 0x4e, 0x00, 0x01, 0x00

@@ -2704,8 +2704,14 @@ no_vmas:
 		spin_unlock(&ksm_mmlist_lock);
 
 		mm_slot_free(mm_slot_cache, mm_slot);
+		/*
+		 * Only clear MMF_VM_MERGEABLE. We must not clear
+		 * MMF_VM_MERGE_ANY, because for those MMF_VM_MERGE_ANY process,
+		 * perhaps their mm_struct has just been added to ksm_mm_slot
+		 * list, and its process has not yet officially started running
+		 * or has not yet performed mmap/brk to allocate anonymous VMAS.
+		 */
 		clear_bit(MMF_VM_MERGEABLE, &mm->flags);
-		clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
 		mmap_read_unlock(mm);
 		mmdrop(mm);
 	} else {
@@ -2820,8 +2826,16 @@ void ksm_add_vma(struct vm_area_struct *vma)
 {
 	struct mm_struct *mm = vma->vm_mm;
 
-	if (test_bit(MMF_VM_MERGE_ANY, &mm->flags))
+	if (test_bit(MMF_VM_MERGE_ANY, &mm->flags)) {
 		__ksm_add_vma(vma);
+		/*
+		 * Generally, the flags here always include MMF_VM_MERGEABLE.
+		 * However, in rare cases, this flag may be cleared by ksmd who
+		 * scans a cycle without finding any mergeable vma.
+		 */
+		if (unlikely(!test_bit(MMF_VM_MERGEABLE, &mm->flags)))
+			__ksm_enter(mm);
+	}
 }
 
 static void ksm_add_vmas(struct mm_struct *mm)

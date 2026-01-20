@@ -13,6 +13,15 @@ enum hsr_version {
 	PRP_V1,
 };
 
+enum hsr_port_type {
+	HSR_PT_NONE = 0,	/* Must be 0, used by framereg */
+	HSR_PT_SLAVE_A,
+	HSR_PT_SLAVE_B,
+	HSR_PT_INTERLINK,
+	HSR_PT_MASTER,
+	HSR_PT_PORTS,	/* This must be the last item in the enum */
+};
+
 /* HSR Tag.
  * As defined in IEC-62439-3:2010, the HSR tag is really { ethertype = 0x88FB,
  * path, LSDU_size, sequence Nr }. But we let eth_header() create { h_dest,
@@ -32,6 +41,10 @@ struct hsr_tag {
 #if IS_ENABLED(CONFIG_HSR)
 extern bool is_hsr_master(struct net_device *dev);
 extern int hsr_get_version(struct net_device *dev, enum hsr_version *ver);
+struct net_device *hsr_get_port_ndev(struct net_device *ndev,
+				     enum hsr_port_type pt);
+int hsr_get_port_type(struct net_device *hsr_dev, struct net_device *dev,
+		      enum hsr_port_type *type);
 #else
 static inline bool is_hsr_master(struct net_device *dev)
 {
@@ -39,6 +52,19 @@ static inline bool is_hsr_master(struct net_device *dev)
 }
 static inline int hsr_get_version(struct net_device *dev,
 				  enum hsr_version *ver)
+{
+	return -EINVAL;
+}
+
+static inline struct net_device *hsr_get_port_ndev(struct net_device *ndev,
+						   enum hsr_port_type pt)
+{
+	return ERR_PTR(-EINVAL);
+}
+
+static inline int hsr_get_port_type(struct net_device *hsr_dev,
+				    struct net_device *dev,
+				    enum hsr_port_type *type)
 {
 	return -EINVAL;
 }
