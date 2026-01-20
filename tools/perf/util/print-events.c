@@ -86,7 +86,7 @@ void print_sdt_events(const struct print_callbacks *print_cb, void *print_state)
 
 	strlist__for_each_entry(sdt_name, sdtlist) {
 		bool show_detail = false;
-		char *bid = strchr(sdt_name->s, '@');
+		char *bid = (char *)strchr(sdt_name->s, '@');
 		char *evt_name = NULL;
 
 		if (bid)
@@ -271,7 +271,7 @@ void print_symbol_events(const struct print_callbacks *print_cb, void *print_sta
 	}
 
 	strlist__for_each_entry(nd, evt_name_list) {
-		char *alias = strstr(nd->s, " OR ");
+		char *alias = (char *)strstr(nd->s, " OR ");
 
 		if (alias) {
 			*alias = '\0';
