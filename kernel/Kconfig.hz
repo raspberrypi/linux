@@ -77,7 +77,7 @@ choice
 
 	config HZ_2000
 		bool "2000 HZ"
-	helps
+	help
 	 BALLS 2 WALLZZZ
 
 endchoice
