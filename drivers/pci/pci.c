@@ -61,7 +61,7 @@ struct pci_pme_device {
 	struct pci_dev *dev;
 };
 
-#define PME_TIMEOUT 1000 /* How long between PME checks */
+#define PME_TIMEOUT 4000 /* How long between PME checks */
 
 /*
  * Following exit from Conventional Reset, devices must be ready within 1 sec
