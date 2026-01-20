@@ -53,4 +53,10 @@ config DRM_AMD_SECURE_DISPLAY
 	  This option enables the calculation of crc of specific region via
 	  debugfs. Cooperate with specific DMCU FW.
 
+config AMD_PRIVATE_COLOR
+	bool "Enable KMS color management by AMD for AMD"
+	default n
+	help
+	  This option extends the KMS color management API with AMD driver-specific properties to enhance the color management support on AMD Steam Deck.
+
 endmenu
