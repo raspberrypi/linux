@@ -516,9 +516,9 @@ static void __init pagetable_init(void)
 
 #define DEFAULT_PTE_MASK ~(_PAGE_NX | _PAGE_GLOBAL)
 /* Bits supported by the hardware: */
-pteval_t __supported_pte_mask __read_mostly = DEFAULT_PTE_MASK;
+pteval_t __supported_pte_mask __ro_after_init = DEFAULT_PTE_MASK;
 /* Bits allowed in normal kernel mappings: */
-pteval_t __default_kernel_pte_mask __read_mostly = DEFAULT_PTE_MASK;
+pteval_t __default_kernel_pte_mask __ro_after_init = DEFAULT_PTE_MASK;
 EXPORT_SYMBOL_GPL(__supported_pte_mask);
 /* Used in PAGE_KERNEL_* macros which are reasonably used out-of-tree: */
 EXPORT_SYMBOL(__default_kernel_pte_mask);

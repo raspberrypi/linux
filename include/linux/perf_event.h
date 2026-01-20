@@ -1666,6 +1666,14 @@ static inline int perf_is_paranoid(void)
 
 int perf_allow_kernel(struct perf_event_attr *attr);
 
+static inline int perf_allow_open(struct perf_event_attr *attr)
+{
+	if (sysctl_perf_event_paranoid > 2 && !perfmon_capable())
+		return -EACCES;
+
+	return security_perf_event_open(attr, PERF_SECURITY_OPEN);
+}
+
 static inline int perf_allow_cpu(struct perf_event_attr *attr)
 {
 	if (sysctl_perf_event_paranoid > 0 && !perfmon_capable())

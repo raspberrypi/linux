@@ -631,17 +631,6 @@
 			nokmem -- Disable kernel memory accounting.
 			nobpf -- Disable BPF memory accounting.
 
-	checkreqprot=	[SELINUX] Set initial checkreqprot flag value.
-			Format: { "0" | "1" }
-			See security/selinux/Kconfig help text.
-			0 -- check protection applied by kernel (includes
-				any implied execute protection).
-			1 -- check protection requested by application.
-			Default value is set via a kernel config option.
-			Value can be changed at runtime via
-				/sys/fs/selinux/checkreqprot.
-			Setting checkreqprot to 1 is deprecated.
-
 	cio_ignore=	[S390]
 			See Documentation/arch/s390/common_io.rst for details.
 
@@ -4434,6 +4423,11 @@
 			Halt all CPUs after the first oops has been printed for
 			the specified number of seconds.  This is to be used if
 			your oopses keep scrolling off the screen.
+
+	extra_latent_entropy
+			Enable a very simple form of latent entropy extraction
+			from the first 4GB of memory as the bootmem allocator
+			passes the memory pages to the buddy allocator.
 
 	pcbit=		[HW,ISDN]
 

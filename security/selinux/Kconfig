@@ -3,7 +3,7 @@ config SECURITY_SELINUX
 	bool "SELinux Support"
 	depends on SECURITY_NETWORK && AUDIT && NET && INET
 	select NETWORK_SECMARK
-	default n
+	default y
 	help
 	  This selects Security-Enhanced Linux (SELinux).
 	  You will also need a policy configuration and a labeled filesystem.

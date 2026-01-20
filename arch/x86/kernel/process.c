@@ -692,6 +692,7 @@ void speculation_ctrl_update_current(void)
 static inline void cr4_toggle_bits_irqsoff(unsigned long mask)
 {
 	unsigned long newval, cr4 = this_cpu_read(cpu_tlbstate.cr4);
+	BUG_ON(cr4 != __read_cr4());
 
 	newval = cr4 ^ mask;
 	if (newval != cr4) {
@@ -1024,9 +1025,9 @@ unsigned long arch_align_stack(unsigned long sp)
 unsigned long arch_randomize_brk(struct mm_struct *mm)
 {
 	if (mmap_is_ia32())
-		return randomize_page(mm->brk, SZ_32M);
+		return mm->brk + get_random_long() % SZ_32M + PAGE_SIZE;
 
-	return randomize_page(mm->brk, SZ_1G);
+	return mm->brk + get_random_long() % SZ_1G + PAGE_SIZE;
 }
 
 /*

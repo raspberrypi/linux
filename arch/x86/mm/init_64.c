@@ -104,9 +104,9 @@ static inline pgprot_t prot_sethuge(pgprot_t prot)
  */
 
 /* Bits supported by the hardware: */
-pteval_t __supported_pte_mask __read_mostly = ~0;
+pteval_t __supported_pte_mask __ro_after_init = ~0;
 /* Bits allowed in normal kernel mappings: */
-pteval_t __default_kernel_pte_mask __read_mostly = ~0;
+pteval_t __default_kernel_pte_mask __ro_after_init = ~0;
 EXPORT_SYMBOL_GPL(__supported_pte_mask);
 /* Used in PAGE_KERNEL_* macros which are reasonably used out-of-tree: */
 EXPORT_SYMBOL(__default_kernel_pte_mask);

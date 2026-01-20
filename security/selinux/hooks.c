@@ -140,18 +140,6 @@ static int __init selinux_enabled_setup(char *str)
 __setup("selinux=", selinux_enabled_setup);
 #endif
 
-static int __init checkreqprot_setup(char *str)
-{
-	unsigned long checkreqprot;
-
-	if (!kstrtoul(str, 0, &checkreqprot)) {
-		if (checkreqprot)
-			pr_err("SELinux: checkreqprot set to 1 via kernel parameter.  This is no longer supported.\n");
-	}
-	return 1;
-}
-__setup("checkreqprot=", checkreqprot_setup);
-
 /**
  * selinux_secmark_enabled - Check to see if SECMARK is currently enabled
  *

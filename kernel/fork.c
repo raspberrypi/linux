@@ -84,6 +84,7 @@
 #include <linux/perf_event.h>
 #include <linux/posix-timers.h>
 #include <linux/user-return-notifier.h>
+#include <linux/user_namespace.h>
 #include <linux/oom.h>
 #include <linux/khugepaged.h>
 #include <linux/signalfd.h>
@@ -106,10 +107,6 @@
 #include <uapi/linux/pidfd.h>
 #include <linux/pidfs.h>
 #include <linux/tick.h>
-
-#ifdef CONFIG_USER_NS
-#include <linux/user_namespace.h>
-#endif
 
 #include <asm/pgalloc.h>
 #include <linux/uaccess.h>

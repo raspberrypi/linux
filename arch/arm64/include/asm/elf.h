@@ -124,14 +124,10 @@
 
 /*
  * This is the base location for PIE (ET_DYN with INTERP) loads. On
- * 64-bit, this is above 4GB to leave the entire 32-bit address
+ * 64-bit, this is raised to 4GB to leave the entire 32-bit address
  * space open for things that want to use the area for 32-bit pointers.
  */
-#ifdef CONFIG_ARM64_FORCE_52BIT
-#define ELF_ET_DYN_BASE		(2 * TASK_SIZE_64 / 3)
-#else
-#define ELF_ET_DYN_BASE		(2 * DEFAULT_MAP_WINDOW_64 / 3)
-#endif /* CONFIG_ARM64_FORCE_52BIT */
+#define ELF_ET_DYN_BASE		0x100000000UL
 
 #ifndef __ASSEMBLY__
 
@@ -189,10 +185,10 @@ extern int arch_setup_additional_pages(struct linux_binprm *bprm,
 /* 1GB of VA */
 #ifdef CONFIG_COMPAT
 #define STACK_RND_MASK			(test_thread_flag(TIF_32BIT) ? \
-						0x7ff >> (PAGE_SHIFT - 12) : \
-						0x3ffff >> (PAGE_SHIFT - 12))
+						((1UL << mmap_rnd_compat_bits) - 1) >> (PAGE_SHIFT - 12) : \
+						((1UL << mmap_rnd_bits) - 1) >> (PAGE_SHIFT - 12))
 #else
-#define STACK_RND_MASK			(0x3ffff >> (PAGE_SHIFT - 12))
+#define STACK_RND_MASK			(((1UL << mmap_rnd_bits) - 1) >> (PAGE_SHIFT - 12))
 #endif
 
 #ifdef __AARCH64EB__

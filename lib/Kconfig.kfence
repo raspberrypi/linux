@@ -96,4 +96,13 @@ config KFENCE_KUNIT_TEST
 	  during boot; say M if you want the test to build as a module; say N
 	  if you are unsure.
 
+config KFENCE_BUG_ON_DATA_CORRUPTION
+	bool "Trigger a BUG when data corruption is detected"
+	default y
+	help
+	  Select this option if the kernel should BUG when kfence encounters
+	  data corruption of kfence managed objects after error report.
+
+	  If unsure, say Y.
+
 endif # KFENCE

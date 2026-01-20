@@ -766,6 +766,24 @@ tcp_backlog_ack_defer - BOOLEAN
 
 	Default : true
 
+tcp_simult_connect - BOOLEAN
+	Enable TCP simultaneous connect that adds a weakness in Linux's strict
+	implementation of TCP that allows two clients to connect to each other
+	without either entering a listening state. The weakness allows an attacker
+	to easily prevent a client from connecting to a known server provided the
+	source port for the connection is guessed correctly.
+
+	As the weakness could be used to prevent an antivirus or IPS from fetching
+	updates, or prevent an SSL gateway from fetching a CRL, it should be
+	eliminated by disabling this option. Though Linux is one of few operating
+	systems supporting simultaneous connect, it has no legitimate use in
+	practice and is rarely supported by firewalls.
+
+	Disabling this may break TCP STUNT which is used by some applications for
+	NAT traversal.
+
+	Default: Value of CONFIG_TCP_SIMULT_CONNECT_DEFAULT_ON
+
 tcp_slow_start_after_idle - BOOLEAN
 	If set, provide RFC2861 behavior and time out the congestion
 	window after an idle period.  An idle period is defined at

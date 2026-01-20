@@ -47,7 +47,7 @@ config DEBUG_PAGEALLOC_ENABLE_DEFAULT
 
 config SLUB_DEBUG
 	default y
-	bool "Enable SLUB debugging support" if EXPERT
+	bool "Enable SLUB debugging support"
 	depends on SYSFS && !SLUB_TINY
 	select STACKDEPOT if STACKTRACE_SUPPORT
 	help
@@ -188,6 +188,7 @@ config DEBUG_WX
 	depends on ARCH_HAS_DEBUG_WX
 	depends on MMU
 	select PTDUMP_CORE
+	default y
 	help
 	  Generate a warning if any W+X mappings are found at boot.
 

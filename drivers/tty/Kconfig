@@ -116,7 +116,6 @@ config UNIX98_PTYS
 
 config LEGACY_PTYS
 	bool "Legacy (BSD) PTY support"
-	default y
 	help
 	  A pseudo terminal (PTY) is a software device consisting of two
 	  halves: a master and a slave. The slave device behaves identical to
@@ -146,7 +145,6 @@ config LEGACY_PTY_COUNT
 
 config LEGACY_TIOCSTI
 	bool "Allow legacy TIOCSTI usage"
-	default y
 	help
 	  Historically the kernel has allowed TIOCSTI, which will push
 	  characters into a controlling TTY. This continues to be used

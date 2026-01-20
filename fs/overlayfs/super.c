@@ -1483,7 +1483,9 @@ struct file_system_type ovl_fs_type = {
 	.name			= "overlay",
 	.init_fs_context	= ovl_init_fs_context,
 	.parameters		= ovl_parameter_spec,
+#ifdef CONFIG_OVERLAY_FS_UNPRIVILEGED
 	.fs_flags		= FS_USERNS_MOUNT,
+#endif
 	.kill_sb		= kill_anon_super,
 };
 MODULE_ALIAS_FS("overlay");

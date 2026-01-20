@@ -197,7 +197,6 @@ config NFS_USE_KERNEL_DNS
 config NFS_DEBUG
 	bool
 	depends on NFS_FS && SUNRPC_DEBUG
-	default y
 
 config NFS_DISABLE_UDP_SUPPORT
        bool "NFS: Disable NFS UDP protocol support"

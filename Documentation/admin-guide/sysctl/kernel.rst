@@ -963,6 +963,8 @@ with respect to CAP_PERFMON use cases.
 >=1  Disallow CPU event access by users without ``CAP_PERFMON``.
 
 >=2  Disallow kernel profiling by users without ``CAP_PERFMON``.
+
+>=3  Disallow use of any event by users without ``CAP_PERFMON``.
 ===  ==================================================================
 
 
@@ -1545,6 +1547,26 @@ constant ``FUTEX_TID_MASK`` (0x3fffffff).
 
 If a value outside of this range is written to ``threads-max`` an
 ``EINVAL`` error occurs.
+
+
+tiocsti_restrict
+================
+
+This toggle indicates whether unprivileged users are prevented from using the
+``TIOCSTI`` ioctl to inject commands into other processes which share a tty
+session.
+
+= ============================================================================
+0 No restriction, except the default one of only being able to inject commands
+  into one's own tty.
+1 Users must have ``CAP_SYS_ADMIN`` to use the ``TIOCSTI`` ioctl.
+= ============================================================================
+
+When user namespaces are in use, the check for ``CAP_SYS_ADMIN`` is done
+against the user namespace that originally opened the tty.
+
+The kernel config option ``CONFIG_SECURITY_TIOCSTI_RESTRICT`` sets the default
+value of ``tiocsti_restrict``.
 
 
 traceoff_on_warning

@@ -122,6 +122,8 @@ static inline int fsnotify_file(struct file *file, __u32 mask)
 		return 0;
 
 	path = &file->f_path;
+	if (mask & (FS_ACCESS | FS_MODIFY) && is_sidechannel_device(file_inode(file)))
+		return 0;
 	/* Permission events require group prio >= FSNOTIFY_PRIO_CONTENT */
 	if (mask & ALL_FSNOTIFY_PERM_EVENTS &&
 	    !fsnotify_sb_has_priority_watchers(path->dentry->d_sb,

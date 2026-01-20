@@ -72,6 +72,9 @@ MODULE_PARM_DESC(autosuspend, "default autosuspend delay");
 #define usb_autosuspend_delay		0
 #endif
 
+int deny_new_usb __read_mostly = 0;
+EXPORT_SYMBOL(deny_new_usb);
+
 static bool match_endpoint(struct usb_endpoint_descriptor *epd,
 		struct usb_endpoint_descriptor **bulk_in,
 		struct usb_endpoint_descriptor **bulk_out,
@@ -1086,6 +1089,9 @@ static int __init usb_init(void)
 	usb_debugfs_init();
 
 	usb_acpi_register();
+	retval = usb_register_sysctl();
+	if (retval)
+		goto sysctl_init_failed;
 	retval = bus_register(&usb_bus_type);
 	if (retval)
 		goto bus_register_failed;
@@ -1125,6 +1131,8 @@ major_init_failed:
 bus_notifier_failed:
 	bus_unregister(&usb_bus_type);
 bus_register_failed:
+	usb_unregister_sysctl();
+sysctl_init_failed:
 	usb_acpi_unregister();
 	usb_debugfs_cleanup();
 out:
@@ -1149,6 +1157,7 @@ static void __exit usb_exit(void)
 	class_unregister(&usbmisc_class);
 	bus_unregister_notifier(&usb_bus_type, &usb_bus_nb);
 	bus_unregister(&usb_bus_type);
+	usb_unregister_sysctl();
 	usb_acpi_unregister();
 	usb_debugfs_cleanup();
 	idr_destroy(&usb_bus_idr);

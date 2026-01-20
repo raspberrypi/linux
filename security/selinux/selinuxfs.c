@@ -699,19 +699,11 @@ static ssize_t sel_write_checkreqprot(struct file *file, const char __user *buf,
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
-	if (sscanf(page, "%u", &new_value) != 1) {
+	if (sscanf(page, "%u", &new_value) != 1 || new_value) {
 		length = -EINVAL;
 		goto out;
 	}
 	length = count;
-
-	if (new_value) {
-		char comm[sizeof(current->comm)];
-
-		memcpy(comm, current->comm, sizeof(comm));
-		pr_err("SELinux: %s (%d) set checkreqprot to 1. This is no longer supported.\n",
-		       comm, current->pid);
-	}
 
 	selinux_ima_measure_state();
 

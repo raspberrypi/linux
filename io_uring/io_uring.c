@@ -152,7 +152,7 @@ static void io_queue_sqe(struct io_kiocb *req);
 struct kmem_cache *req_cachep;
 static struct workqueue_struct *iou_wq __ro_after_init;
 
-static int __read_mostly sysctl_io_uring_disabled;
+static int __read_mostly sysctl_io_uring_disabled = 1;
 static int __read_mostly sysctl_io_uring_group = -1;
 
 #ifdef CONFIG_SYSCTL
@@ -162,8 +162,9 @@ static struct ctl_table kernel_io_uring_disabled_table[] = {
 		.data		= &sysctl_io_uring_disabled,
 		.maxlen		= sizeof(sysctl_io_uring_disabled),
 		.mode		= 0644,
+		/* only handle a transition from default "1" to "2" */
 		.proc_handler	= proc_dointvec_minmax,
-		.extra1		= SYSCTL_ZERO,
+		.extra1		= SYSCTL_TWO,
 		.extra2		= SYSCTL_TWO,
 	},
 	{

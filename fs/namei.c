@@ -1034,10 +1034,10 @@ static inline void put_link(struct nameidata *nd)
 		path_put(&last->link);
 }
 
-static int sysctl_protected_symlinks __read_mostly;
-static int sysctl_protected_hardlinks __read_mostly;
-static int sysctl_protected_fifos __read_mostly;
-static int sysctl_protected_regular __read_mostly;
+static int sysctl_protected_symlinks __read_mostly = 1;
+static int sysctl_protected_hardlinks __read_mostly = 1;
+static int sysctl_protected_fifos __read_mostly = 2;
+static int sysctl_protected_regular __read_mostly = 2;
 
 #ifdef CONFIG_SYSCTL
 static struct ctl_table namei_sysctls[] = {

@@ -267,6 +267,7 @@ config IP_PIMSM_V2
 
 config SYN_COOKIES
 	bool "IP: TCP syncookie support"
+	default y
 	help
 	  Normal TCP/IP networking is open to an attack known as "SYN
 	  flooding". This denial-of-service attack prevents legitimate remote
@@ -770,5 +771,28 @@ config TCP_MD5SIG
 	  RFC2385 specifies a method of giving MD5 protection to TCP sessions.
 	  Its main (only?) use is to protect BGP sessions between core routers
 	  on the Internet.
+
+	  If unsure, say N.
+
+config TCP_SIMULT_CONNECT_DEFAULT_ON
+	bool "Enable TCP simultaneous connect"
+	help
+	  Enable TCP simultaneous connect that adds a weakness in Linux's strict
+	  implementation of TCP that allows two clients to connect to each other
+	  without either entering a listening state. The weakness allows an
+	  attacker to easily prevent a client from connecting to a known server
+	  provided the source port for the connection is guessed correctly.
+
+	  As the weakness could be used to prevent an antivirus or IPS from
+	  fetching updates, or prevent an SSL gateway from fetching a CRL, it
+	  should be eliminated by disabling this option. Though Linux is one of
+	  few operating systems supporting simultaneous connect, it has no
+	  legitimate use in practice and is rarely supported by firewalls.
+
+	  Disabling this may break TCP STUNT which is used by some applications
+	  for NAT traversal.
+
+	  This setting can be overridden at runtime via the
+	  net.ipv4.tcp_simult_connect sysctl.
 
 	  If unsure, say N.

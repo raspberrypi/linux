@@ -1428,6 +1428,7 @@ config RANDOMIZE_KSTACK_OFFSET
 config RANDOMIZE_KSTACK_OFFSET_DEFAULT
 	bool "Default state of kernel stack offset randomization"
 	depends on RANDOMIZE_KSTACK_OFFSET
+	default y
 	help
 	  Kernel stack offset randomization is controlled by kernel boot param
 	  "randomize_kstack_offset=on/off", and this config chooses the default

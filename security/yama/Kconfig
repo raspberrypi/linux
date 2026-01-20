@@ -2,7 +2,7 @@
 config SECURITY_YAMA
 	bool "Yama support"
 	depends on SECURITY
-	default n
+	default y
 	help
 	  This selects Yama, which extends DAC support with additional
 	  system-wide security settings beyond regular Linux discretionary

@@ -134,3 +134,19 @@ config OVERLAY_FS_DEBUG
 	  Say Y here to enable extra debugging checks in overlayfs.
 
 	  If unsure, say N.
+
+config OVERLAY_FS_UNPRIVILEGED
+	bool "Overlayfs: turn on unprivileged user namespace mounts"
+	default n
+	depends on OVERLAY_FS
+	help
+	  When disabled, unprivileged users will not be able to create
+	  new overlayfs mounts. This cuts the attack surface if no
+	  unprivileged user namespace mounts are required like for
+	  running rootless containers.
+
+	  Overlayfs has been part of several recent local privilege
+	  escalation exploits, so if you are security-conscious
+	  you want to disable this.
+
+	  If unsure, say N.

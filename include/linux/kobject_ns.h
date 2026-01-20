@@ -45,7 +45,7 @@ struct kobj_ns_type_operations {
 	void (*drop_ns)(void *);
 };
 
-int kobj_ns_type_register(const struct kobj_ns_type_operations *ops);
+int __init kobj_ns_type_register(const struct kobj_ns_type_operations *ops);
 int kobj_ns_type_registered(enum kobj_ns_type type);
 const struct kobj_ns_type_operations *kobj_child_ns_ops(const struct kobject *parent);
 const struct kobj_ns_type_operations *kobj_ns_ops(const struct kobject *kobj);

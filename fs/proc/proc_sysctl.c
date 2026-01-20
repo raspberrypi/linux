@@ -1148,6 +1148,7 @@ static int sysctl_check_table(const char *path, struct ctl_table_header *header)
 		    (entry->proc_handler == proc_douintvec) ||
 		    (entry->proc_handler == proc_douintvec_minmax) ||
 		    (entry->proc_handler == proc_dointvec_minmax) ||
+		    (entry->proc_handler == proc_dointvec_minmax_sysadmin) ||
 		    (entry->proc_handler == proc_dou8vec_minmax) ||
 		    (entry->proc_handler == proc_dointvec_jiffies) ||
 		    (entry->proc_handler == proc_dointvec_userhz_jiffies) ||

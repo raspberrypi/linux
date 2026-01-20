@@ -291,6 +291,11 @@ struct kmem_cache {
 	unsigned long random;
 #endif
 
+#ifdef CONFIG_SLAB_CANARY
+	unsigned long random_active;
+	unsigned long random_inactive;
+#endif
+
 #ifdef CONFIG_NUMA
 	/*
 	 * Defragmentation by allocating from a remote node.
@@ -627,7 +632,7 @@ static inline size_t slab_ksize(const struct kmem_cache *s)
 	 * back there or track user information then we can
 	 * only use the space before that information.
 	 */
-	if (s->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_STORE_USER))
+	if ((s->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_STORE_USER)) || IS_ENABLED(CONFIG_SLAB_CANARY))
 		return s->inuse;
 	/*
 	 * Else we can use all the padding etc for the allocation
@@ -662,8 +667,10 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
 {
 	if (static_branch_maybe(CONFIG_INIT_ON_ALLOC_DEFAULT_ON,
 				&init_on_alloc)) {
+#ifndef CONFIG_SLUB
 		if (c->ctor)
 			return false;
+#endif
 		if (c->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_POISON))
 			return flags & __GFP_ZERO;
 		return true;
@@ -674,9 +681,15 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
 static inline bool slab_want_init_on_free(struct kmem_cache *c)
 {
 	if (static_branch_maybe(CONFIG_INIT_ON_FREE_DEFAULT_ON,
-				&init_on_free))
-		return !(c->ctor ||
-			 (c->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_POISON)));
+				&init_on_free)) {
+#ifndef CONFIG_SLUB
+		if (c->ctor)
+			return false;
+#endif
+		if (c->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_POISON))
+			return false;
+		return true;
+	}
 	return false;
 }
 

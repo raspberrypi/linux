@@ -72,6 +72,8 @@ int proc_douintvec(const struct ctl_table *, int, void *, size_t *, loff_t *);
 int proc_dointvec_minmax(const struct ctl_table *, int, void *, size_t *, loff_t *);
 int proc_douintvec_minmax(const struct ctl_table *table, int write, void *buffer,
 		size_t *lenp, loff_t *ppos);
+int proc_dointvec_minmax_sysadmin(const struct ctl_table *table, int write,
+				  void *buffer, size_t *lenp, loff_t *ppos);
 int proc_dou8vec_minmax(const struct ctl_table *table, int write, void *buffer,
 			size_t *lenp, loff_t *ppos);
 int proc_dointvec_jiffies(const struct ctl_table *, int, void *, size_t *, loff_t *);

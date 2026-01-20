@@ -1246,8 +1246,7 @@ config VM86
 	default X86_LEGACY_VM86
 
 config X86_16BIT
-	bool "Enable support for 16-bit segments" if EXPERT
-	default y
+	bool "Enable support for 16-bit segments"
 	depends on MODIFY_LDT_SYSCALL
 	help
 	  This option is required by programs like Wine to run 16-bit
@@ -2303,7 +2302,7 @@ config COMPAT_VDSO
 choice
 	prompt "vsyscall table for legacy applications"
 	depends on X86_64
-	default LEGACY_VSYSCALL_XONLY
+	default LEGACY_VSYSCALL_NONE
 	help
 	  Legacy user code that does not know how to find the vDSO expects
 	  to be able to issue three syscalls by calling fixed addresses in
@@ -2387,8 +2386,7 @@ config CMDLINE_OVERRIDE
 	  be set to 'N' under normal conditions.
 
 config MODIFY_LDT_SYSCALL
-	bool "Enable the LDT (local descriptor table)" if EXPERT
-	default y
+	bool "Enable the LDT (local descriptor table)"
 	help
 	  Linux can allow user programs to install a per-process x86
 	  Local Descriptor Table (LDT) using the modify_ldt(2) system
