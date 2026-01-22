@@ -86,10 +86,14 @@ SYM_CODE_START(primary_entry)
 	bl	preserve_boot_args
 
 	adrp	x1, early_init_stack
-	mov	sp, x1
-	mov	x29, xzr
-	adrp	x0, init_idmap_pg_dir
-	mov	x1, xzr
+	mov	sp, x1 // sp = x1 = early_init_stack (pc relative)
+	mov	x29, xzr // x29 = 0
+	adrp	x0, init_idmap_pg_dir // x0 = [init_idmap_pg_dir]
+	mov	x1, xzr // x1 = 0
+	/**
+	 * check arm64/kernel/pi.h, arm64/kernel/map_range.c
+	 * Makefile 에 --prefix-symblos=__pi_ 가 있음
+	 */
 	bl	__pi_create_init_idmap
 
 	/*
@@ -99,8 +103,8 @@ SYM_CODE_START(primary_entry)
 	 */
 	cbnz	x19, 0f
 	dmb     sy
-	mov	x1, x0				// end of used region
-	adrp    x0, init_idmap_pg_dir
+	mov	x1, x0	// end of used region, x1 = map_range 에서 바뀐 pg_dir 값
+	adrp    x0, init_idmap_pg_dir // x0 = [init_idmap_pg_dir], x1 = [end of init_idmap_pg_dir]
 	adr_l	x2, dcache_inval_poc
 	blr	x2
 	b	1f
@@ -110,14 +114,16 @@ SYM_CODE_START(primary_entry)
 	 * of the primary boot code to the PoC so we can safely execute it with
 	 * the MMU off.
 	 */
-0:	adrp	x0, __idmap_text_start
-	adr_l	x1, __idmap_text_end
+
+	// cache 가 켜져있으면 memory 에 반영되지 않고 캐시에만 있는 data 가 있을 수 있어서인듯 -> memory 로 내리는 역할
+0:	adrp	x0, __idmap_text_start // x0 = [__idmap_text_start]
+	adr_l	x1, __idmap_text_end // x1 = [__idmap_text_end]
 	adr_l	x2, dcache_clean_poc
 	blr	x2
 
 1:	mov	x0, x19
 	bl	init_kernel_el			// w0=cpu_boot_mode
-	mov	x20, x0
+	mov	x20, x0 // always el1, x20 = el1 : BOOT_CPU_MODE_EL1, el2 : BOOT_CPU_MODE_EL2 | ...
 
 	/*
 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
@@ -272,16 +278,16 @@ SYM_FUNC_START(init_kernel_el)
 SYM_INNER_LABEL(init_el1, SYM_L_LOCAL)
 	mov_q	x0, INIT_SCTLR_EL1_MMU_OFF
 	pre_disable_mmu_workaround
-	msr	sctlr_el1, x0
+	msr	sctlr_el1, x0 // sctlr_el1 = INIT_SCTLR_EL1_MMU_OFF  
 	isb
 	mov_q	x0, INIT_PSTATE_EL1
-	msr	spsr_el1, x0
-	msr	elr_el1, lr
-	mov	w0, #BOOT_CPU_MODE_EL1
+	msr	spsr_el1, x0 // spsr_el1 = INIT_PSTATE_EL1
+	msr	elr_el1, lr // elr_el1 = lr (link register)
+	mov	w0, #BOOT_CPU_MODE_EL1 // w0 = pre-defined magic number, w = 32bit 범용 레지스터
 	eret
 
 SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
-	msr	elr_el2, lr
+	msr	elr_el2, lr // elr_el2 = lr
 
 	// clean all HYP code to the PoC if we booted at EL2 with the MMU on
 	cbz	x0, 0f
@@ -292,7 +298,7 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 
 	mov_q	x0, INIT_SCTLR_EL2_MMU_OFF
 	pre_disable_mmu_workaround
-	msr	sctlr_el2, x0
+	msr	sctlr_el2, x0 // sctlr_el2 = INIT_SCTLR_EL2_MMU_OFF
 	isb
 0:
 	mov_q	x0, HCR_HOST_NVHE_FLAGS
@@ -311,6 +317,12 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 
 	orr	x0, x0, #HCR_E2H
 1:
+	/**
+	 * if (tbz x1, ...)
+	 *	hcr_el2 = HCR_HOST_NVHE_FLAGS | HCR_E2H
+	 * else 
+	 *      hcr_el2 = HCR_HOST_NVHE_FLAGS
+	 */
 	msr	hcr_el2, x0
 	isb
 
@@ -318,7 +330,7 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 
 	/* Hypervisor stub */
 	adr_l	x0, __hyp_stub_vectors
-	msr	vbar_el2, x0
+	msr	vbar_el2, x0 // vbar_el2 = [__hyp_stub_vectors], vector table 위치 
 	isb
 
 	mov_q	x1, INIT_SCTLR_EL1_MMU_OFF
@@ -336,10 +348,10 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 	msr	sctlr_el1, x1
 	mov	x2, xzr
 3:
-	__init_el2_nvhe_prepare_eret
+	__init_el2_nvhe_prepare_eret // spsr_el2 = INIT_PSTATE_EL1
 
 	mov	w0, #BOOT_CPU_MODE_EL2
-	orr	x0, x0, x2
+	orr	x0, x0, x2 // x0 = BOOT_CPU_MODE_EL2 | x2
 	eret
 SYM_FUNC_END(init_kernel_el)
 

@@ -169,7 +169,7 @@ lr	.req	x30		// link register
 	 */
 	.macro	adr_l, dst, sym
 	adrp	\dst, \sym
-	add	\dst, \dst, :lo12:\sym
+	add	\dst, \dst, :lo12:\sym // align
 	.endm
 
 	/*

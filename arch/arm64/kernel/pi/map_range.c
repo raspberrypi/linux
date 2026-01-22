@@ -87,12 +87,19 @@ void __init map_range(u64 *pte, u64 start, u64 end, u64 pa, pgprot_t prot,
 	}
 }
 
+/**
+ * $(obj)/%.pi.o: OBJCOPYFLAGS := --prefix-symbols=__pi_ \
+ *			       --remove-section=.note.gnu.property
+ */
 asmlinkage u64 __init create_init_idmap(pgd_t *pg_dir, pteval_t clrmask)
 {
 	u64 ptep = (u64)pg_dir + PAGE_SIZE;
-	pgprot_t text_prot = PAGE_KERNEL_ROX;
+
+	// access permission
+	pgprot_t text_prot = PAGE_KERNEL_ROX; // Read only + executable
 	pgprot_t data_prot = PAGE_KERNEL;
 
+	// Head.S 기준 x1 = clrmask = 0 --> NOP
 	pgprot_val(text_prot) &= ~clrmask;
 	pgprot_val(data_prot) &= ~clrmask;
 

@@ -172,6 +172,10 @@ SECTIONS
 		HEAD_TEXT
 	}
 	.text : ALIGN(SEGMENT_ALIGN) {	/* Real text segment		*/
+		/**
+		 * stext 주소 밑으로 IRQENTRY_TEXT, SOFTIRQENTRY_TEXT, ... 가 들어감
+		 * IRQENTRY_TEXT = __irqentry attribute 붙은 함수 일듯 
+		 */
 		_stext = .;		/* Text and read-only data	*/
 			IRQENTRY_TEXT
 			SOFTIRQENTRY_TEXT
@@ -182,7 +186,7 @@ SECTIONS
 			KPROBES_TEXT
 			HYPERVISOR_TEXT
 			*(.gnu.warning)
-	}
+	} /* dcache_inval_poc */
 
 	. = ALIGN(SEGMENT_ALIGN);
 	_etext = .;			/* End of text section */
@@ -208,7 +212,7 @@ SECTIONS
 		KEXEC_TEXT
 		IDMAP_TEXT
 		. = ALIGN(PAGE_SIZE);
-	}
+	} /* primary_entry */
 
 	idmap_pg_dir = .;
 	. += PAGE_SIZE;
@@ -228,7 +232,7 @@ SECTIONS
 	__init_begin = .;
 	__inittext_begin = .;
 
-	INIT_TEXT_SECTION(8)
+	INIT_TEXT_SECTION(8) /* preserve_boot_args */
 
 	__exittext_begin = .;
 	.exit.text : {
@@ -326,6 +330,7 @@ SECTIONS
 	init_pg_end = .;
 	/* end of zero-init region */
 
+	/* . = 현재 주소 */
 	. += SZ_4K;		/* stack for the early C runtime */
 	early_init_stack = .;
 
