@@ -286,6 +286,8 @@ struct uart_amba_port {
 	enum pl011_rs485_tx_state	rs485_tx_state;
 	struct hrtimer		trigger_start_tx;
 	struct hrtimer		trigger_stop_tx;
+	bool rs485_tx_drain_poll;		/* use bounded polling */
+	unsigned int rs485_tx_drain_timeout_us; /* explicit override, 0 = auto */
 #ifdef CONFIG_DMA_ENGINE
 	/* DMA stuff */
 	unsigned int		dmacr;		/* dma control reg */
@@ -1288,6 +1290,19 @@ static inline bool pl011_dma_rx_running(struct uart_amba_port *uap)
 #define pl011_dma_flush_buffer	NULL
 #endif
 
+static unsigned int pl011_rs485_tx_drain_timeout(struct uart_amba_port *uap)
+{
+	if (uap->rs485_tx_drain_timeout_us > 0)
+		return uap->rs485_tx_drain_timeout_us;
+
+	/*
+	 * Auto-calculate based on FIFO depth plus one character
+	 * in the shift register.
+	 */
+	return div_u64(ktime_to_ns(uap->rs485_tx_drain_interval) *
+		       (uap->fifosize + 1), NSEC_PER_USEC);
+}
+
 static void pl011_rs485_tx_stop(struct uart_amba_port *uap)
 {
 	struct uart_port *port = &uap->port;
@@ -1297,6 +1312,19 @@ static void pl011_rs485_tx_stop(struct uart_amba_port *uap)
 		uap->rs485_tx_state = WAIT_AFTER_SEND;
 
 	if (uap->rs485_tx_state == WAIT_AFTER_SEND) {
+		if (uap->rs485_tx_drain_poll) {
+			/* Bounded spin with auto-calculated or explicit timeout */
+			unsigned int timeout_us = pl011_rs485_tx_drain_timeout(uap);
+			ktime_t deadline = ktime_add_us(ktime_get(), timeout_us);
+
+			while (!pl011_tx_empty(port)) {
+				if (ktime_after(ktime_get(), deadline)) {
+					/* Timeout - fall back to hrtimer */
+					break;
+				}
+				cpu_relax();
+			}
+		}
 		/* Schedule hrtimer if tx queue not empty */
 		if (!pl011_tx_empty(port)) {
 			hrtimer_start(&uap->trigger_stop_tx,
@@ -2904,6 +2932,11 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	uap->trigger_start_tx.function = pl011_trigger_start_tx;
 	uap->trigger_stop_tx.function = pl011_trigger_stop_tx;
 
+	uap->rs485_tx_drain_poll = device_property_read_bool(&dev->dev,
+			"rs485-tx-drain-poll");
+	device_property_read_u32(&dev->dev, "rs485-tx-drain-timeout-us",
+			&uap->rs485_tx_drain_timeout_us);
+
 	ret = pl011_setup_port(&dev->dev, uap, &dev->res, portnr);
 	if (ret)
 		return ret;
@@ -3102,6 +3135,11 @@ static int pl011_axi_probe(struct platform_device *pdev)
 	hrtimer_init(&uap->trigger_stop_tx, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	uap->trigger_start_tx.function = pl011_trigger_start_tx;
 	uap->trigger_stop_tx.function = pl011_trigger_stop_tx;
+
+	uap->rs485_tx_drain_poll = device_property_read_bool(&pdev->dev,
+			"rs485-tx-drain-poll");
+	device_property_read_u32(&pdev->dev, "rs485-tx-drain-timeout-us",
+			&uap->rs485_tx_drain_timeout_us);
 
 	ret = pl011_setup_port(&pdev->dev, uap, r, portnr);
 	if (ret)
