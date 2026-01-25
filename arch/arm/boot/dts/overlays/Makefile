@@ -227,6 +227,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pitft35-resistive.dtbo \
 	pivision.dtbo \
 	pps-gpio.dtbo \
+	pps-rp1.dtbo \
 	proto-codec.dtbo \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
