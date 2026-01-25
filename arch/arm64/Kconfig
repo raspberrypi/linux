@@ -1445,6 +1445,10 @@ config ARM64_PA_BITS
 	default 48 if ARM64_PA_BITS_48
 	default 52 if ARM64_PA_BITS_52
 
+#ARM64 환경에서의 LPA (Large Physical Addressing)와 LPA2 (Large Physical Address Extension 2)는 메모리 주소 지정 능력을 확장하는 기술입니다.
+#주로 고성능 컴퓨팅, 서버, AI 가속기 등에서 4GB 이상의 대용량 물리 메모리를 효율적으로 사용하기 위해 도입되었습니다.
+#LPA2는 기존 52비트 주소 지정 기술인 LPA의 한계를 보완하여, 특히 4KB 및 16KB 페이지 크기에서 52비트 물리/가상 주소를 지원하는 최신 확장 기능입니다.
+# [TODO] LPA?? LPA2?? why 52bit support ???
 config ARM64_LPA2
 	def_bool y
 	depends on ARM64_PA_BITS_52 && !ARM64_64K_PAGES

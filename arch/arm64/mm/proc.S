@@ -472,9 +472,10 @@ SYM_FUNC_START(__cpu_setup)
 
 	tcr_clear_errata_bits tcr, x9, x5
 
-#ifdef CONFIG_ARM64_VA_BITS_52
-	mov		x9, #64 - VA_BITS
-alternative_if ARM64_HAS_VA52
+// 52bit VA / 12 bit .. 0??
+#ifdef CONFIG_ARM64_VA_BITS_52	// == Large Pysical Address support   <--> normal case 48 bit(IPS 설정에 따라 다름)
+	mov		x9, #64 - VA_BITS  // x9 == 12
+alternative_if ARM64_HAS_VA52	// architecture에서 VA52를 지원하는지(capability) 체크
 	tcr_set_t1sz	tcr, x9
 #ifdef CONFIG_ARM64_LPA2
 	orr		tcr, tcr, #TCR_DS

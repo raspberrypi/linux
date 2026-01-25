@@ -132,6 +132,7 @@ SYM_CODE_START(primary_entry)
 	 * the TCR will have been set.
 	 */
 	bl	__cpu_setup			// initialise processor
+	//	mov_q	x0, INIT_SCTLR_EL1_MMU_ON
 	b	__primary_switch
 SYM_CODE_END(primary_entry)
 
@@ -278,7 +279,7 @@ SYM_FUNC_START(init_kernel_el)
 SYM_INNER_LABEL(init_el1, SYM_L_LOCAL)
 	mov_q	x0, INIT_SCTLR_EL1_MMU_OFF
 	pre_disable_mmu_workaround
-	msr	sctlr_el1, x0 // sctlr_el1 = INIT_SCTLR_EL1_MMU_OFF  
+	msr	sctlr_el1, x0 // sctlr_el1 = INIT_SCTLR_EL1_MMU_OFF
 	isb
 	mov_q	x0, INIT_PSTATE_EL1
 	msr	spsr_el1, x0 // spsr_el1 = INIT_PSTATE_EL1
@@ -320,7 +321,7 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 	/**
 	 * if (tbz x1, ...)
 	 *	hcr_el2 = HCR_HOST_NVHE_FLAGS | HCR_E2H
-	 * else 
+	 * else
 	 *      hcr_el2 = HCR_HOST_NVHE_FLAGS
 	 */
 	msr	hcr_el2, x0
@@ -330,7 +331,7 @@ SYM_INNER_LABEL(init_el2, SYM_L_LOCAL)
 
 	/* Hypervisor stub */
 	adr_l	x0, __hyp_stub_vectors
-	msr	vbar_el2, x0 // vbar_el2 = [__hyp_stub_vectors], vector table 위치 
+	msr	vbar_el2, x0 // vbar_el2 = [__hyp_stub_vectors], vector table 위치
 	isb
 
 	mov_q	x1, INIT_SCTLR_EL1_MMU_OFF
@@ -491,7 +492,16 @@ SYM_FUNC_START(__enable_mmu)
 	phys_to_ttbr x2, x2
 	msr	ttbr0_el1, x2			// load TTBR0
 	load_ttbr1 x1, x1, x3
-
+/*
+ #define INIT_SCTLR_EL1_MMU_ON \
+	(SCTLR_ELx_M      | SCTLR_ELx_C      | SCTLR_ELx_SA    | \
+	 SCTLR_EL1_SA0    | SCTLR_EL1_SED    | SCTLR_ELx_I     | \
+	 SCTLR_EL1_DZE    | SCTLR_EL1_UCT    | SCTLR_EL1_nTWE  | \
+	 SCTLR_ELx_IESB   | SCTLR_EL1_SPAN   | SCTLR_ELx_ITFSB | \
+	 ENDIAN_SET_EL1   | SCTLR_EL1_UCI    | SCTLR_EL1_EPAN  | \
+	 SCTLR_EL1_LSMAOE | SCTLR_EL1_nTLSMD | SCTLR_EL1_EIS   | \
+	 SCTLR_EL1_TSCXT  | SCTLR_EL1_EOS)
+*/
 	set_sctlr_el1	x0
 
 	ret
@@ -531,8 +541,10 @@ SYM_FUNC_START_LOCAL(__no_granule_support)
 SYM_FUNC_END(__no_granule_support)
 
 SYM_FUNC_START_LOCAL(__primary_switch)
-	adrp	x1, reserved_pg_dir
-	adrp	x2, init_idmap_pg_dir
+
+		// x0  = SCTLR_EL1 value for turning on the MMU.
+	adrp	x1, reserved_pg_dir  //TTBR1_EL1 ??             // ffffffc0812a1000   reserved_pg_dir
+	adrp	x2, init_idmap_pg_dir  //x2  = ID map root table address          // ffffffc081360000  init_idmap_pg_dir
 	bl	__enable_mmu
 
 	adrp	x1, early_init_stack
