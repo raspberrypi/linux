@@ -308,6 +308,7 @@ static void hevc_d_remove(struct platform_device *pdev)
 
 static const struct of_device_id hevc_d_dt_match[] = {
 	{ .compatible = "brcm,bcm2711-hevc-dec", },
+	{ .compatible = "brcm,bcm2712-hevc-dec", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, hevc_d_dt_match);
