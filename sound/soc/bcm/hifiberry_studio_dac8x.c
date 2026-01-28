@@ -784,6 +784,7 @@ static int hb_uni_read_card_info(struct platform_device *pdev)
 						"HiFiBerry Studio DAC8x";
 		break;
 	default:
+		break;
 	}
 
 
