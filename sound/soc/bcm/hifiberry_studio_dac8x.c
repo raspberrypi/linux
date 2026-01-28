@@ -767,7 +767,7 @@ static int hb_uni_read_card_info(struct platform_device *pdev)
 			return -EINVAL;
 		}
 	} else {
-		if ((priv->card_info.card_clk_options == 0x02)) {
+		if (priv->card_info.card_clk_options == 0x02) {
 			dev_err(&pdev->dev,
 				"Card cannot run as i2s clock consumer\n");
 			return -EINVAL;
