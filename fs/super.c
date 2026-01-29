@@ -741,12 +741,13 @@ struct super_block *sget_fc(struct fs_context *fc,
 	int err;
 
 	/*
-	 * Never allow s_user_ns != &init_user_ns when FS_USERNS_MOUNT is
-	 * not set, as the filesystem is likely unprepared to handle it.
-	 * This can happen when fsconfig() is called from init_user_ns with
-	 * an fs_fd opened in another user namespace.
+	 * Never allow s_user_ns != &init_user_ns when FS_USERNS_MOUNT or
+	 * FS_USERNS_DELEGATABLE is not set, as the filesystem is likely
+	 * unprepared to handle it. This can happen when fsconfig() is called
+	 * from init_user_ns with an fs_fd opened in another user namespace.
 	 */
-	if (user_ns != &init_user_ns && !(fc->fs_type->fs_flags & FS_USERNS_MOUNT)) {
+	if (user_ns != &init_user_ns &&
+	    !(fc->fs_type->fs_flags & (FS_USERNS_MOUNT | FS_USERNS_DELEGATABLE))) {
 		errorfc(fc, "VFS: Mounting from non-initial user namespace is not allowed");
 		return ERR_PTR(-EPERM);
 	}
