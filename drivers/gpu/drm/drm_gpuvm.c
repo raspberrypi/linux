@@ -1322,6 +1322,9 @@ drm_gpuvm_prepare_range(struct drm_gpuvm *gpuvm, struct drm_exec *exec,
 	drm_gpuvm_for_each_va_range(va, gpuvm, addr, end) {
 		struct drm_gem_object *obj = va->gem.obj;
 
+		if (unlikely(!obj))
+			continue;
+
 		ret = exec_prepare_obj(exec, obj, num_fences);
 		if (ret)
 			return ret;
