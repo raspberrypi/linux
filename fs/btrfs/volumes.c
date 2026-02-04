@@ -2339,6 +2339,7 @@ int btrfs_rm_device(struct btrfs_fs_info *fs_info,
 		mutex_lock(&fs_info->chunk_mutex);
 		list_del_init(&device->dev_alloc_list);
 		device->fs_devices->rw_devices--;
+		btrfs_update_per_profile_avail(fs_info);
 		mutex_unlock(&fs_info->chunk_mutex);
 	}
 
@@ -2450,6 +2451,7 @@ error_undo:
 		list_add(&device->dev_alloc_list,
 			 &fs_devices->alloc_list);
 		device->fs_devices->rw_devices++;
+		btrfs_update_per_profile_avail(fs_info);
 		mutex_unlock(&fs_info->chunk_mutex);
 	}
 	return ret;
@@ -2937,6 +2939,7 @@ int btrfs_init_new_device(struct btrfs_fs_info *fs_info, const char *device_path
 	 */
 	btrfs_clear_space_info_full(fs_info);
 
+	btrfs_update_per_profile_avail(fs_info);
 	mutex_unlock(&fs_info->chunk_mutex);
 
 	/* Add sysfs device entry */
@@ -2947,6 +2950,7 @@ int btrfs_init_new_device(struct btrfs_fs_info *fs_info, const char *device_path
 	if (seeding_dev) {
 		mutex_lock(&fs_info->chunk_mutex);
 		ret = init_first_rw_device(trans);
+		btrfs_update_per_profile_avail(fs_info);
 		mutex_unlock(&fs_info->chunk_mutex);
 		if (unlikely(ret)) {
 			btrfs_abort_transaction(trans, ret);
@@ -3033,6 +3037,7 @@ error_sysfs:
 				    orig_super_total_bytes);
 	btrfs_set_super_num_devices(fs_info->super_copy,
 				    orig_super_num_devices);
+	btrfs_update_per_profile_avail(fs_info);
 	mutex_unlock(&fs_info->chunk_mutex);
 	mutex_unlock(&fs_info->fs_devices->device_list_mutex);
 error_trans:
@@ -3126,6 +3131,7 @@ int btrfs_grow_device(struct btrfs_trans_handle *trans,
 	if (list_empty(&device->post_commit_list))
 		list_add_tail(&device->post_commit_list,
 			      &trans->transaction->dev_update_list);
+	btrfs_update_per_profile_avail(fs_info);
 	mutex_unlock(&fs_info->chunk_mutex);
 
 	btrfs_reserve_chunk_metadata(trans, false);
@@ -3495,6 +3501,7 @@ int btrfs_remove_chunk(struct btrfs_trans_handle *trans, u64 chunk_offset)
 		}
 	}
 
+	btrfs_update_per_profile_avail(fs_info);
 	mutex_unlock(&fs_info->chunk_mutex);
 	trans->removing_chunk = false;
 
@@ -5023,6 +5030,7 @@ int btrfs_shrink_device(struct btrfs_device *device, u64 new_size)
 		atomic64_sub(free_diff, &fs_info->free_chunk_space);
 	}
 
+	btrfs_update_per_profile_avail(fs_info);
 	/*
 	 * Once the device's size has been set to the new size, ensure all
 	 * in-memory chunks are synced to disk so that the loop below sees them
@@ -5138,6 +5146,7 @@ again:
 	WARN_ON(diff > old_total);
 	btrfs_set_super_total_bytes(super_copy,
 			round_down(old_total - diff, fs_info->sectorsize));
+	btrfs_update_per_profile_avail(fs_info);
 	mutex_unlock(&fs_info->chunk_mutex);
 
 	btrfs_reserve_chunk_metadata(trans, false);
@@ -5849,6 +5858,8 @@ static struct btrfs_block_group *create_chunk(struct btrfs_trans_handle *trans,
 
 	check_raid56_incompat_flag(info, type);
 	check_raid1c34_incompat_flag(info, type);
+
+	btrfs_update_per_profile_avail(info);
 
 	return block_group;
 }
@@ -8389,7 +8400,14 @@ int btrfs_verify_dev_extents(struct btrfs_fs_info *fs_info)
 	}
 
 	/* Ensure all chunks have corresponding dev extents */
-	return verify_chunk_dev_extent_mapping(fs_info);
+	ret = verify_chunk_dev_extent_mapping(fs_info);
+	if (ret < 0)
+		return ret;
+
+	mutex_lock(&fs_info->chunk_mutex);
+	btrfs_update_per_profile_avail(fs_info);
+	mutex_unlock(&fs_info->chunk_mutex);
+	return 0;
 }
 
 /*
