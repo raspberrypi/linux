@@ -171,6 +171,16 @@ static const struct pisp_be_format supported_formats[] = {
 		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 	},
 	{
+		.fourcc		    = V4L2_PIX_FMT_NV12MT_COL128,
+		.opt_align	    = 128,
+		.min_align	    = 128,
+		.bit_depth	    = 8,
+		.plane_factor	    = { P3(1), P3(0.5) },
+		.num_planes	    = 2,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_ALL_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
+	},
+	{
 		.fourcc		    = V4L2_PIX_FMT_NV21M,
 		.opt_align	    = 32,
 		.min_align	    = 16,
