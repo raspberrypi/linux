@@ -2817,7 +2817,7 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	struct drm_plane *cursor_plane;
 	struct drm_crtc *crtc;
 	unsigned int i;
-	struct drm_crtc *txp_crtc;
+	struct drm_crtc *txp_crtc = NULL;
 	uint32_t non_txp_crtc_mask;
 
 	drm_for_each_crtc(crtc, drm) {
