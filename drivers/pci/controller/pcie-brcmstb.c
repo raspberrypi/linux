@@ -1635,7 +1635,7 @@ static void brcm_config_clkreq(struct brcm_pcie *pcie)
 {
 	static const char err_msg[] = "invalid 'brcm,clkreq-mode' DT string\n";
 	const char *mode = "default";
-	u32 clkreq_cntl;
+	u32 clkreq_cntl = 0;
 	int ret, tmp;
 
 	ret = of_property_read_string(pcie->np, "brcm,clkreq-mode", &mode);
