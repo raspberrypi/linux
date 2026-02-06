@@ -875,6 +875,8 @@ Params: swap_lr                 Reverse the channel allocation, which will also
                                 for other purposes)
         pins_40_45              Select GPIOs 40 & 45 (don't use on BCM2711 - the
                                 pins are on different controllers)
+        pins_none               Effectively disable audio, useful if the pins
+                                are needed for something else.
 
 
 Name:   audremap-pi5
