@@ -34,5 +34,8 @@
 		pins_40_45 = <&frag0>,"brcm,pins:0=40",
 		             <&frag0>,"brcm,pins:4=45",
 			     <&frag0>,"brcm,function:0=4";
+		pins_none =  <0>,"-1",
+			     <&frag0>,"brcm,pins?=1",
+			     <&frag0>,"brcm,function?=1";
 	};
 };
