@@ -238,6 +238,10 @@ struct inet6_cork {
 struct ipv6_pinfo {
 	/* Used in tx path (inet6_csk_route_socket(), ip6_xmit()) */
 	struct in6_addr 	saddr;
+	union {
+		struct in6_addr daddr;
+		struct in6_addr final;
+	};
 	__be32			flow_label;
 	u32			dst_cookie;
 	struct ipv6_txoptions __rcu	*opt;
