@@ -238,7 +238,7 @@ obj-$(CONFIG_DRM_POWERVR) += imagination/
 # Ensure drm headers are self-contained and pass kernel-doc
 hdrtest-files := \
 	$(shell cd $(src) && find . -maxdepth 1 -name 'drm_*.h') \
-	$(shell cd $(src) && find display lib -name '*.h')
+	$(shell cd $(src) && find display -name '*.h')
 
 always-$(CONFIG_DRM_HEADER_TEST) += \
 	$(patsubst %.h,%.hdrtest, $(hdrtest-files))
