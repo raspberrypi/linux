@@ -590,6 +590,10 @@ static int restore_za_context(struct user_ctxs *user)
 	fpsimd_flush_task_state(current);
 	/* From now, fpsimd_thread_switch() won't touch thread.sve_state */
 
+	sve_alloc(current, false);
+	if (!current->thread.sve_state)
+		return -ENOMEM;
+
 	sme_alloc(current, true);
 	if (!current->thread.sme_state) {
 		current->thread.svcr &= ~SVCR_ZA_MASK;

@@ -105,6 +105,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hifiberry-dacplushd.dtbo \
 	hifiberry-digi.dtbo \
 	hifiberry-digi-pro.dtbo \
+	hifiberry-studio-dac8x.dtbo \
+	hifiberry-studio-dac8x-pro.dtbo \
 	highperi.dtbo \
 	hy28a.dtbo \
 	hy28b.dtbo \
@@ -225,6 +227,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pitft35-resistive.dtbo \
 	pivision.dtbo \
 	pps-gpio.dtbo \
+	pps-rp1.dtbo \
 	proto-codec.dtbo \
 	pwm.dtbo \
 	pwm-2chan.dtbo \

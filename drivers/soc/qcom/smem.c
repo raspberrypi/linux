@@ -1186,7 +1186,7 @@ static int qcom_smem_probe(struct platform_device *pdev)
 		return hwlock_id;
 	}
 
-	smem->hwlock = hwspin_lock_request_specific(hwlock_id);
+	smem->hwlock = devm_hwspin_lock_request_specific(&pdev->dev, hwlock_id);
 	if (!smem->hwlock)
 		return -ENXIO;
 
@@ -1239,7 +1239,6 @@ static void qcom_smem_remove(struct platform_device *pdev)
 {
 	platform_device_unregister(__smem->socinfo);
 
-	hwspin_lock_free(__smem->hwlock);
 	__smem = NULL;
 }
 
@@ -1251,7 +1250,7 @@ MODULE_DEVICE_TABLE(of, qcom_smem_of_match);
 
 static struct platform_driver qcom_smem_driver = {
 	.probe = qcom_smem_probe,
-	.remove_new = qcom_smem_remove,
+	.remove = qcom_smem_remove,
 	.driver  = {
 		.name = "qcom-smem",
 		.of_match_table = qcom_smem_of_match,

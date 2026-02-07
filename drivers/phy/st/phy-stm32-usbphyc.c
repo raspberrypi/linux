@@ -712,7 +712,7 @@ static int stm32_usbphyc_probe(struct platform_device *pdev)
 		}
 
 		ret = of_property_read_u32(child, "reg", &index);
-		if (ret || index > usbphyc->nphys) {
+		if (ret || index >= usbphyc->nphys) {
 			dev_err(&phy->dev, "invalid reg property: %d\n", ret);
 			if (!ret)
 				ret = -EINVAL;
@@ -757,8 +757,8 @@ static int stm32_usbphyc_probe(struct platform_device *pdev)
 	}
 
 	version = readl_relaxed(usbphyc->base + STM32_USBPHYC_VERSION);
-	dev_info(dev, "registered rev:%lu.%lu\n",
-		 FIELD_GET(MAJREV, version), FIELD_GET(MINREV, version));
+	dev_dbg(dev, "registered rev: %lu.%lu\n",
+		FIELD_GET(MAJREV, version), FIELD_GET(MINREV, version));
 
 	return 0;
 

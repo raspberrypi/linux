@@ -100,6 +100,14 @@ config SND_BCM2708_SOC_HIFIBERRY_DACPLUSDSP
         help
          Say Y or M if you want to add support for HifiBerry DSP-DAC.
 
+config SND_BCM2708_SOC_HIFIBERRY_STUDIO_DAC8X
+        tristate "Support for HifiBerry Studio DAC8x soundcards"
+        help
+         Say Y or M if you want to add support for
+	 HifiBerry Studio DAC8x soundcards.
+	 Supports mulit channel DAC and ADC combnations.
+	 Only available for Pi 5
+
 config SND_BCM2708_SOC_HIFIBERRY_DIGI
         tristate "Support for HifiBerry Digi"
         select SND_SOC_WM8804

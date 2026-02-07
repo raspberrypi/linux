@@ -1566,10 +1566,6 @@ static void brcm_config_clkreq(struct brcm_pcie *pcie)
 		mode = "safe";
 	}
 
-	/* Start out assuming safe mode (both mode bits cleared) */
-	clkreq_cntl = readl(pcie->base + HARD_DEBUG(pcie));
-	clkreq_cntl &= ~PCIE_CLKREQ_MASK;
-
 	if (strcmp(mode, "no-l1ss") == 0) {
 		/*
 		 * "no-l1ss" -- Provides Clock Power Management, L0s, and
@@ -1765,6 +1761,11 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 		brcm_pcie_set_gen(pcie, pcie->gen);
 
 	brcm_pcie_stats_trigger(pcie, 0);
+
+	/* Disable CLKREQ# input prior to link-up */
+	tmp = readl(pcie->base + HARD_DEBUG(pcie));
+	tmp &= ~PCIE_CLKREQ_MASK;
+	writel(tmp, pcie->base + HARD_DEBUG(pcie));
 
 	/* Unassert the fundamental reset */
 	if (pcie->tperst_clk_ms) {

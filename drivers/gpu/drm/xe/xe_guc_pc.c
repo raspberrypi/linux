@@ -1008,15 +1008,7 @@ int xe_guc_pc_gucrc_disable(struct xe_guc_pc *pc)
 	if (ret)
 		return ret;
 
-	ret = xe_force_wake_get(gt_to_fw(gt), XE_FORCEWAKE_ALL);
-	if (ret)
-		return ret;
-
-	xe_gt_idle_disable_c6(gt);
-
-	XE_WARN_ON(xe_force_wake_put(gt_to_fw(gt), XE_FORCEWAKE_ALL));
-
-	return 0;
+	return xe_gt_idle_disable_c6(gt);
 }
 
 /**

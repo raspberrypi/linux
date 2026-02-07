@@ -719,6 +719,8 @@ static int ipmmu_init_platform_device(struct device *dev,
 
 	dev_iommu_priv_set(dev, platform_get_drvdata(ipmmu_pdev));
 
+	put_device(&ipmmu_pdev->dev);
+
 	return 0;
 }
 

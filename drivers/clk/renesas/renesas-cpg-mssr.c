@@ -27,6 +27,7 @@
 #include <linux/psci.h>
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
+#include <linux/string_choices.h>
 
 #include <dt-bindings/clock/renesas-cpg-mssr.h>
 
@@ -126,16 +127,14 @@ static const u16 srstclr_for_gen4[] = {
  * struct cpg_mssr_priv - Clock Pulse Generator / Module Standby
  *                        and Software Reset Private Data
  *
+ * @pub: Data passed to clock registration callback
  * @rcdev: Optional reset controller entity
  * @dev: CPG/MSSR device
- * @base: CPG/MSSR register block base address
  * @reg_layout: CPG/MSSR register layout
- * @rmw_lock: protects RMW register accesses
  * @np: Device node in DT for this CPG/MSSR module
  * @num_core_clks: Number of Core Clocks in clks[]
  * @num_mod_clks: Number of Module Clocks in clks[]
  * @last_dt_core_clk: ID of the last Core Clock exported to DT
- * @notifiers: Notifier chain to save/restore clock state for system resume
  * @status_regs: Pointer to status registers array
  * @control_regs: Pointer to control registers array
  * @reset_regs: Pointer to reset registers array
@@ -147,20 +146,18 @@ static const u16 srstclr_for_gen4[] = {
  * @clks: Array containing all Core and Module Clocks
  */
 struct cpg_mssr_priv {
+	struct cpg_mssr_pub pub;
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_controller_dev rcdev;
 #endif
 	struct device *dev;
-	void __iomem *base;
 	enum clk_reg_layout reg_layout;
-	spinlock_t rmw_lock;
 	struct device_node *np;
 
 	unsigned int num_core_clks;
 	unsigned int num_mod_clks;
 	unsigned int last_dt_core_clk;
 
-	struct raw_notifier_head notifiers;
 	const u16 *status_regs;
 	const u16 *control_regs;
 	const u16 *reset_regs;
@@ -205,39 +202,40 @@ static int cpg_mstp_clock_endisable(struct clk_hw *hw, bool enable)
 	int error;
 
 	dev_dbg(dev, "MSTP %u%02u/%pC %s\n", reg, bit, hw->clk,
-		enable ? "ON" : "OFF");
-	spin_lock_irqsave(&priv->rmw_lock, flags);
+		str_on_off(enable));
+	spin_lock_irqsave(&priv->pub.rmw_lock, flags);
 
 	if (priv->reg_layout == CLK_REG_LAYOUT_RZ_A) {
-		value = readb(priv->base + priv->control_regs[reg]);
+		value = readb(priv->pub.base0 + priv->control_regs[reg]);
 		if (enable)
 			value &= ~bitmask;
 		else
 			value |= bitmask;
-		writeb(value, priv->base + priv->control_regs[reg]);
+		writeb(value, priv->pub.base0 + priv->control_regs[reg]);
 
 		/* dummy read to ensure write has completed */
-		readb(priv->base + priv->control_regs[reg]);
-		barrier_data(priv->base + priv->control_regs[reg]);
+		readb(priv->pub.base0 + priv->control_regs[reg]);
+		barrier_data(priv->pub.base0 + priv->control_regs[reg]);
+
 	} else {
-		value = readl(priv->base + priv->control_regs[reg]);
+		value = readl(priv->pub.base0 + priv->control_regs[reg]);
 		if (enable)
 			value &= ~bitmask;
 		else
 			value |= bitmask;
-		writel(value, priv->base + priv->control_regs[reg]);
+		writel(value, priv->pub.base0 + priv->control_regs[reg]);
 	}
 
-	spin_unlock_irqrestore(&priv->rmw_lock, flags);
+	spin_unlock_irqrestore(&priv->pub.rmw_lock, flags);
 
 	if (!enable || priv->reg_layout == CLK_REG_LAYOUT_RZ_A)
 		return 0;
 
-	error = readl_poll_timeout_atomic(priv->base + priv->status_regs[reg],
+	error = readl_poll_timeout_atomic(priv->pub.base0 + priv->status_regs[reg],
 					  value, !(value & bitmask), 0, 10);
 	if (error)
 		dev_err(dev, "Failed to enable SMSTP %p[%d]\n",
-			priv->base + priv->control_regs[reg], bit);
+			priv->pub.base0 + priv->control_regs[reg], bit);
 
 	return error;
 }
@@ -256,12 +254,13 @@ static int cpg_mstp_clock_is_enabled(struct clk_hw *hw)
 {
 	struct mstp_clock *clock = to_mstp_clock(hw);
 	struct cpg_mssr_priv *priv = clock->priv;
+	unsigned int reg = clock->index / 32;
 	u32 value;
 
 	if (priv->reg_layout == CLK_REG_LAYOUT_RZ_A)
-		value = readb(priv->base + priv->control_regs[clock->index / 32]);
+		value = readb(priv->pub.base0 + priv->control_regs[reg]);
 	else
-		value = readl(priv->base + priv->status_regs[clock->index / 32]);
+		value = readl(priv->pub.base0 + priv->status_regs[reg]);
 
 	return !(value & BIT(clock->index % 32));
 }
@@ -353,7 +352,7 @@ static void __init cpg_mssr_register_core_clk(const struct cpg_core_clk *core,
 	case CLK_TYPE_DIV6P1:
 	case CLK_TYPE_DIV6_RO:
 		WARN_DEBUG(core->parent >= priv->num_core_clks);
-		parent = priv->clks[core->parent];
+		parent = priv->pub.clks[core->parent];
 		if (IS_ERR(parent)) {
 			clk = parent;
 			goto fail;
@@ -363,12 +362,12 @@ static void __init cpg_mssr_register_core_clk(const struct cpg_core_clk *core,
 
 		if (core->type == CLK_TYPE_DIV6_RO)
 			/* Multiply with the DIV6 register value */
-			div *= (readl(priv->base + core->offset) & 0x3f) + 1;
+			div *= (readl(priv->pub.base0 + core->offset) & 0x3f) + 1;
 
 		if (core->type == CLK_TYPE_DIV6P1) {
 			clk = cpg_div6_register(core->name, 1, &parent_name,
-						priv->base + core->offset,
-						&priv->notifiers);
+						priv->pub.base0 + core->offset,
+						&priv->pub.notifiers);
 		} else {
 			clk = clk_register_fixed_factor(NULL, core->name,
 							parent_name, 0,
@@ -384,8 +383,7 @@ static void __init cpg_mssr_register_core_clk(const struct cpg_core_clk *core,
 	default:
 		if (info->cpg_clk_register)
 			clk = info->cpg_clk_register(dev, core, info,
-						     priv->clks, priv->base,
-						     &priv->notifiers);
+						     &priv->pub);
 		else
 			dev_err(dev, "%s has unsupported core clock type %u\n",
 				core->name, core->type);
@@ -396,7 +394,7 @@ static void __init cpg_mssr_register_core_clk(const struct cpg_core_clk *core,
 		goto fail;
 
 	dev_dbg(dev, "Core clock %pC at %lu Hz\n", clk, clk_get_rate(clk));
-	priv->clks[id] = clk;
+	priv->pub.clks[id] = clk;
 	return;
 
 fail:
@@ -419,14 +417,14 @@ static void __init cpg_mssr_register_mod_clk(const struct mssr_mod_clk *mod,
 	WARN_DEBUG(id < priv->num_core_clks);
 	WARN_DEBUG(id >= priv->num_core_clks + priv->num_mod_clks);
 	WARN_DEBUG(mod->parent >= priv->num_core_clks + priv->num_mod_clks);
-	WARN_DEBUG(PTR_ERR(priv->clks[id]) != -ENOENT);
+	WARN_DEBUG(PTR_ERR(priv->pub.clks[id]) != -ENOENT);
 
 	if (!mod->name) {
 		/* Skip NULLified clock */
 		return;
 	}
 
-	parent = priv->clks[mod->parent];
+	parent = priv->pub.clks[mod->parent];
 	if (IS_ERR(parent)) {
 		clk = parent;
 		goto fail;
@@ -617,53 +615,56 @@ static int __init cpg_mssr_add_clk_domain(struct device *dev,
 
 #define rcdev_to_priv(x)	container_of(x, struct cpg_mssr_priv, rcdev)
 
-static int cpg_mssr_reset(struct reset_controller_dev *rcdev,
-			  unsigned long id)
+static int cpg_mssr_reset_operate(struct reset_controller_dev *rcdev,
+				  const char *func, bool set, unsigned long id)
 {
 	struct cpg_mssr_priv *priv = rcdev_to_priv(rcdev);
 	unsigned int reg = id / 32;
 	unsigned int bit = id % 32;
+	const u16 off = set ? priv->reset_regs[reg] : priv->reset_clear_regs[reg];
 	u32 bitmask = BIT(bit);
 
-	dev_dbg(priv->dev, "reset %u%02u\n", reg, bit);
+	if (func)
+		dev_dbg(priv->dev, "%s %u%02u\n", func, reg, bit);
 
-	/* Reset module */
-	writel(bitmask, priv->base + priv->reset_regs[reg]);
-
-	/* Wait for at least one cycle of the RCLK clock (@ ca. 32 kHz) */
-	udelay(35);
-
-	/* Release module from reset state */
-	writel(bitmask, priv->base + priv->reset_clear_regs[reg]);
+	writel(bitmask, priv->pub.base0 + off);
+	readl(priv->pub.base0 + off);
+	barrier_data(priv->pub.base0 + off);
 
 	return 0;
 }
 
-static int cpg_mssr_assert(struct reset_controller_dev *rcdev, unsigned long id)
+static int cpg_mssr_reset(struct reset_controller_dev *rcdev,
+			  unsigned long id)
 {
 	struct cpg_mssr_priv *priv = rcdev_to_priv(rcdev);
-	unsigned int reg = id / 32;
-	unsigned int bit = id % 32;
-	u32 bitmask = BIT(bit);
 
-	dev_dbg(priv->dev, "assert %u%02u\n", reg, bit);
+	/* Reset module */
+	cpg_mssr_reset_operate(rcdev, "reset", true, id);
 
-	writel(bitmask, priv->base + priv->reset_regs[reg]);
-	return 0;
+	/*
+	 * On R-Car Gen4, delay after SRCR has been written is 1ms.
+	 * On older SoCs, delay after SRCR has been written is 35us
+	 * (one cycle of the RCLK clock @ ca. 32 kHz).
+	 */
+	if (priv->reg_layout == CLK_REG_LAYOUT_RCAR_GEN4)
+		usleep_range(1000, 2000);
+	else
+		usleep_range(35, 1000);
+
+	/* Release module from reset state */
+	return cpg_mssr_reset_operate(rcdev, NULL, false, id);
+}
+
+static int cpg_mssr_assert(struct reset_controller_dev *rcdev, unsigned long id)
+{
+	return cpg_mssr_reset_operate(rcdev, "assert", true, id);
 }
 
 static int cpg_mssr_deassert(struct reset_controller_dev *rcdev,
 			     unsigned long id)
 {
-	struct cpg_mssr_priv *priv = rcdev_to_priv(rcdev);
-	unsigned int reg = id / 32;
-	unsigned int bit = id % 32;
-	u32 bitmask = BIT(bit);
-
-	dev_dbg(priv->dev, "deassert %u%02u\n", reg, bit);
-
-	writel(bitmask, priv->base + priv->reset_clear_regs[reg]);
-	return 0;
+	return cpg_mssr_reset_operate(rcdev, "deassert", false, id);
 }
 
 static int cpg_mssr_status(struct reset_controller_dev *rcdev,
@@ -674,7 +675,7 @@ static int cpg_mssr_status(struct reset_controller_dev *rcdev,
 	unsigned int bit = id % 32;
 	u32 bitmask = BIT(bit);
 
-	return !!(readl(priv->base + priv->reset_regs[reg]) & bitmask);
+	return !!(readl(priv->pub.base0 + priv->reset_regs[reg]) & bitmask);
 }
 
 static const struct reset_control_ops cpg_mssr_reset_ops = {
@@ -901,12 +902,12 @@ static int cpg_mssr_suspend_noirq(struct device *dev)
 		if (priv->smstpcr_saved[reg].mask)
 			priv->smstpcr_saved[reg].val =
 				priv->reg_layout == CLK_REG_LAYOUT_RZ_A ?
-				readb(priv->base + priv->control_regs[reg]) :
-				readl(priv->base + priv->control_regs[reg]);
+				readb(priv->pub.base0 + priv->control_regs[reg]) :
+				readl(priv->pub.base0 + priv->control_regs[reg]);
 	}
 
 	/* Save core clocks */
-	raw_notifier_call_chain(&priv->notifiers, PM_EVENT_SUSPEND, NULL);
+	raw_notifier_call_chain(&priv->pub.notifiers, PM_EVENT_SUSPEND, NULL);
 
 	return 0;
 }
@@ -923,7 +924,7 @@ static int cpg_mssr_resume_noirq(struct device *dev)
 		return 0;
 
 	/* Restore core clocks */
-	raw_notifier_call_chain(&priv->notifiers, PM_EVENT_RESUME, NULL);
+	raw_notifier_call_chain(&priv->pub.notifiers, PM_EVENT_RESUME, NULL);
 
 	/* Restore module clocks */
 	for (reg = 0; reg < ARRAY_SIZE(priv->smstpcr_saved); reg++) {
@@ -932,29 +933,29 @@ static int cpg_mssr_resume_noirq(struct device *dev)
 			continue;
 
 		if (priv->reg_layout == CLK_REG_LAYOUT_RZ_A)
-			oldval = readb(priv->base + priv->control_regs[reg]);
+			oldval = readb(priv->pub.base0 + priv->control_regs[reg]);
 		else
-			oldval = readl(priv->base + priv->control_regs[reg]);
+			oldval = readl(priv->pub.base0 + priv->control_regs[reg]);
 		newval = oldval & ~mask;
 		newval |= priv->smstpcr_saved[reg].val & mask;
 		if (newval == oldval)
 			continue;
 
 		if (priv->reg_layout == CLK_REG_LAYOUT_RZ_A) {
-			writeb(newval, priv->base + priv->control_regs[reg]);
+			writeb(newval, priv->pub.base0 + priv->control_regs[reg]);
 			/* dummy read to ensure write has completed */
-			readb(priv->base + priv->control_regs[reg]);
-			barrier_data(priv->base + priv->control_regs[reg]);
+			readb(priv->pub.base0 + priv->control_regs[reg]);
+			barrier_data(priv->pub.base0 + priv->control_regs[reg]);
 			continue;
 		} else
-			writel(newval, priv->base + priv->control_regs[reg]);
+			writel(newval, priv->pub.base0 + priv->control_regs[reg]);
 
 		/* Wait until enabled clocks are really enabled */
 		mask &= ~priv->smstpcr_saved[reg].val;
 		if (!mask)
 			continue;
 
-		error = readl_poll_timeout_atomic(priv->base + priv->status_regs[reg],
+		error = readl_poll_timeout_atomic(priv->pub.base0 + priv->status_regs[reg],
 						oldval, !(oldval & mask), 0, 10);
 		if (error)
 			dev_warn(dev, "Failed to enable SMSTP%u[0x%x]\n", reg,
@@ -1067,12 +1068,13 @@ static int __init cpg_mssr_common_init(struct device *dev,
 	if (!priv)
 		return -ENOMEM;
 
+	priv->pub.clks = priv->clks;
 	priv->np = np;
 	priv->dev = dev;
-	spin_lock_init(&priv->rmw_lock);
+	spin_lock_init(&priv->pub.rmw_lock);
 
-	priv->base = of_iomap(np, 0);
-	if (!priv->base) {
+	priv->pub.base0 = of_iomap(np, 0);
+	if (!priv->pub.base0) {
 		error = -ENOMEM;
 		goto out_err;
 	}
@@ -1080,7 +1082,7 @@ static int __init cpg_mssr_common_init(struct device *dev,
 	priv->num_core_clks = info->num_total_core_clks;
 	priv->num_mod_clks = info->num_hw_mod_clks;
 	priv->last_dt_core_clk = info->last_dt_core_clk;
-	RAW_INIT_NOTIFIER_HEAD(&priv->notifiers);
+	RAW_INIT_NOTIFIER_HEAD(&priv->pub.notifiers);
 	priv->reg_layout = info->reg_layout;
 	if (priv->reg_layout == CLK_REG_LAYOUT_RCAR_GEN2_AND_GEN3) {
 		priv->status_regs = mstpsr;
@@ -1100,7 +1102,7 @@ static int __init cpg_mssr_common_init(struct device *dev,
 	}
 
 	for (i = 0; i < nclks; i++)
-		priv->clks[i] = ERR_PTR(-ENOENT);
+		priv->pub.clks[i] = ERR_PTR(-ENOENT);
 
 	error = cpg_mssr_reserved_init(priv, info);
 	if (error)
@@ -1117,8 +1119,8 @@ static int __init cpg_mssr_common_init(struct device *dev,
 reserve_err:
 	cpg_mssr_reserved_exit(priv);
 out_err:
-	if (priv->base)
-		iounmap(priv->base);
+	if (priv->pub.base0)
+		iounmap(priv->pub.base0);
 	kfree(priv);
 
 	return error;

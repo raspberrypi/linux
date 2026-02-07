@@ -137,7 +137,9 @@ static int synth_event_define_fields(struct trace_event_call *call)
 	struct synth_event *event = call->data;
 	unsigned int i, size, n_u64;
 	char *name, *type;
+	int filter_type;
 	bool is_signed;
+	bool is_stack;
 	int ret = 0;
 
 	for (i = 0, n_u64 = 0; i < event->n_fields; i++) {
@@ -145,8 +147,12 @@ static int synth_event_define_fields(struct trace_event_call *call)
 		is_signed = event->fields[i]->is_signed;
 		type = event->fields[i]->type;
 		name = event->fields[i]->name;
+		is_stack = event->fields[i]->is_stack;
+
+		filter_type = is_stack ? FILTER_STACKTRACE : FILTER_OTHER;
+
 		ret = trace_define_field(call, type, name, offset, size,
-					 is_signed, FILTER_OTHER);
+					 is_signed, filter_type);
 		if (ret)
 			break;
 
@@ -382,7 +388,6 @@ static enum print_line_t print_synth_event(struct trace_iterator *iter,
 				n_u64++;
 			} else {
 				trace_seq_printf(s, print_fmt, se->fields[i]->name,
-						 STR_VAR_LEN_MAX,
 						 (char *)&entry->fields[n_u64].as_u64,
 						 i == se->n_fields - 1 ? "" : " ");
 				n_u64 += STR_VAR_LEN_MAX / sizeof(u64);

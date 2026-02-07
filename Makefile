@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 6
 PATCHLEVEL = 12
-SUBLEVEL = 62
+SUBLEVEL = 68
 EXTRAVERSION =
 NAME = Baby Opossum Posse
 

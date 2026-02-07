@@ -819,6 +819,7 @@ int fsl_edma_alloc_chan_resources(struct dma_chan *chan)
 
 		if (ret) {
 			dma_pool_destroy(fsl_chan->tcd_pool);
+			clk_disable_unprepare(fsl_chan->clk);
 			return ret;
 		}
 	}

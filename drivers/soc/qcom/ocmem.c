@@ -202,9 +202,9 @@ struct ocmem *of_get_ocmem(struct device *dev)
 	}
 
 	ocmem = platform_get_drvdata(pdev);
+	put_device(&pdev->dev);
 	if (!ocmem) {
 		dev_err(dev, "Cannot get ocmem\n");
-		put_device(&pdev->dev);
 		return ERR_PTR(-ENODEV);
 	}
 	return ocmem;
@@ -439,7 +439,7 @@ MODULE_DEVICE_TABLE(of, ocmem_of_match);
 
 static struct platform_driver ocmem_driver = {
 	.probe = ocmem_dev_probe,
-	.remove_new = ocmem_dev_remove,
+	.remove = ocmem_dev_remove,
 	.driver = {
 		.name = "ocmem",
 		.of_match_table = ocmem_of_match,
