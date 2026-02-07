@@ -333,6 +333,13 @@ static int mali_c55_isp_enable_streams(struct v4l2_subdev *sd,
 
 	sink_pad = &isp->pads[MALI_C55_ISP_PAD_SINK_VIDEO];
 	isp->remote_src = media_pad_remote_pad_unique(sink_pad);
+	if (IS_ERR(isp->remote_src))  {
+		ret = PTR_ERR(isp->remote_src);
+		dev_err(mali_c55->dev, "Failed to get remote source pad: %d\n", ret);
+		isp->remote_src = NULL;
+		return ret;
+	}
+
 	src_sd = media_entity_to_v4l2_subdev(isp->remote_src->entity);
 
 	isp->frame_sequence = 0;
