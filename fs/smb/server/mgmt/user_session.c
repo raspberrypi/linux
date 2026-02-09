@@ -481,8 +481,8 @@ static struct ksmbd_session *__session_create(int protocol)
 	xa_init(&sess->ksmbd_chann_list);
 	xa_init(&sess->rpc_handle_list);
 	sess->sequence_number = 1;
-	rwlock_init(&sess->tree_conns_lock);
 	atomic_set(&sess->refcnt, 2);
+	init_rwsem(&sess->tree_conns_lock);
 	init_rwsem(&sess->rpc_lock);
 	init_rwsem(&sess->chann_lock);
 

@@ -2051,9 +2051,9 @@ int smb2_tree_connect(struct ksmbd_work *work)
 	if (conn->posix_ext_supported)
 		status.tree_conn->posix_extensions = true;
 
-	write_lock(&sess->tree_conns_lock);
+	down_write(&sess->tree_conns_lock);
 	status.tree_conn->t_state = TREE_CONNECTED;
-	write_unlock(&sess->tree_conns_lock);
+	up_write(&sess->tree_conns_lock);
 	rsp->StructureSize = cpu_to_le16(16);
 out_err1:
 	/*
@@ -2206,16 +2206,16 @@ int smb2_tree_disconnect(struct ksmbd_work *work)
 
 	ksmbd_close_tree_conn_fds(work);
 
-	write_lock(&sess->tree_conns_lock);
+	down_write(&sess->tree_conns_lock);
 	if (tcon->t_state == TREE_DISCONNECTED) {
-		write_unlock(&sess->tree_conns_lock);
+		up_write(&sess->tree_conns_lock);
 		rsp->hdr.Status = STATUS_NETWORK_NAME_DELETED;
 		err = -ENOENT;
 		goto err_out;
 	}
 
 	tcon->t_state = TREE_DISCONNECTED;
-	write_unlock(&sess->tree_conns_lock);
+	up_write(&sess->tree_conns_lock);
 
 	err = ksmbd_tree_conn_disconnect(sess, tcon);
 	if (err) {
