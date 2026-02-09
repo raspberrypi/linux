@@ -1996,6 +1996,21 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 		break;
 
+	case DRM_FORMAT_MOD_BROADCOM_UIF:
+		tiling = SCALER6_CTL0_ADDR_MODE_UIF;
+
+		/* UIF tiling is handled entirely by the HVS pixel fetch unit.
+		* The base address must always point to the start of the UIF
+		* framebuffer; software must not apply X/Y offsets to it.
+		*
+		* The pitch (Pointer Word 2) is the logical stride in bytes.
+		* All UIF detiling and address translation is done in hardware.
+		*
+		* Source cropping and sub-pixel positioning are handled solely
+		* via the HVS scaler; the base address remains unchanged.
+		*/
+		break;
+
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
 	case DRM_FORMAT_MOD_BROADCOM_SAND256: {
 		uint32_t param = fourcc_mod_broadcom_param(fb->modifier);
@@ -2645,6 +2660,7 @@ static bool vc4_format_mod_supported(struct drm_plane *plane,
 		switch (fourcc_mod_broadcom_mod(modifier)) {
 		case DRM_FORMAT_MOD_LINEAR:
 		case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
+		case DRM_FORMAT_MOD_BROADCOM_UIF:
 			return true;
 		default:
 			return false;
@@ -2722,6 +2738,7 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 		DRM_FORMAT_MOD_BROADCOM_SAND128_COL_HEIGHT(0),
 		DRM_FORMAT_MOD_BROADCOM_SAND64_COL_HEIGHT(0),
 		DRM_FORMAT_MOD_BROADCOM_SAND256_COL_HEIGHT(0),
+		DRM_FORMAT_MOD_BROADCOM_UIF,
 		DRM_FORMAT_MOD_LINEAR,
 		DRM_FORMAT_MOD_INVALID
 	};
