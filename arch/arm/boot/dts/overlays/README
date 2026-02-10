@@ -3699,6 +3699,12 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   nospi10
+Info:   Disable the spi10 device on Pi5.
+Load:   dtoverlay=nospi10
+Params: <None>
+
+
 Name:   ov2311
 Info:   Omnivision OV2311 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
