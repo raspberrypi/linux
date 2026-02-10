@@ -346,8 +346,8 @@ struct trace_array {
 	spinlock_t		snapshot_trigger_lock;
 	unsigned int		snapshot;
 	unsigned long		max_latency;
-#ifdef CONFIG_FSNOTIFY
 	struct dentry		*d_max_latency;
+#ifdef CONFIG_FSNOTIFY
 	struct work_struct	fsnotify_work;
 	struct irq_work		fsnotify_irqwork;
 #endif
