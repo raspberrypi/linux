@@ -1259,7 +1259,6 @@ struct macb_queue {
 	void			*rx_buffers;
 	struct napi_struct	napi_rx;
 	struct queue_stats stats;
-	atomic_t		full_refill;
 };
 
 struct ethtool_rx_fs_item {

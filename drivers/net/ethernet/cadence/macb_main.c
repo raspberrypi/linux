@@ -775,18 +775,11 @@ static void macb_mac_link_up(struct phylink_config *config,
 		/* Initialize rings & buffers as clearing MACB_BIT(TE) in link down
 		 * cleared the pipeline and control registers.
 		 */
-
-		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue)
-			atomic_set(&queue->full_refill, -1);
-
-		bp->macbgem_ops.mog_init_rings(bp);
 		macb_init_buffers(bp);
 
-		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue) {
-			atomic_set(&queue->full_refill, bp->rx_ring_size);
+		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue)
 			queue_writel(queue, IER,
 				     bp->rx_intr_mask | MACB_TX_INT_FLAGS | MACB_BIT(HRESP));
-		}
 	}
 
 	macb_or_gem_writel(bp, NCFGR, ctrl);
@@ -1334,9 +1327,8 @@ static void gem_rx_refill(struct macb_queue *queue)
 	struct macb *bp = queue->bp;
 	struct macb_dma_desc *desc;
 
-	while (atomic_dec_if_positive(&queue->full_refill) >= 0 ||
-	       ((CIRC_SPACE(queue->rx_prepared_head, queue->rx_tail, bp->rx_ring_size) > 0) &&
-	       (atomic_read(&queue->full_refill) != -1))) {
+	while (CIRC_SPACE(queue->rx_prepared_head, queue->rx_tail,
+			bp->rx_ring_size) > 0) {
 		entry = macb_rx_ring_wrap(bp, queue->rx_prepared_head);
 
 		/* Make hw descriptor updates visible to CPU */
@@ -1461,7 +1453,6 @@ static int gem_rx(struct macb_queue *queue, struct napi_struct *napi,
 			queue->stats.rx_dropped++;
 			break;
 		}
-
 		/* now everything is ready for receiving packet */
 		queue->rx_skbuff[entry] = NULL;
 		len = ctrl & bp->rx_frm_len_mask;
