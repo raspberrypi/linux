@@ -255,6 +255,13 @@
 		brcm,pins = <>;
 		brcm,function = <>;
 	};
+
+	enable_eeprom_hog: enable_eeprom_hog {
+		gpio-hog;
+		gpios = <57 GPIO_ACTIVE_HIGH>;
+		output-low;
+		status = "disabled";
+	};
 };
 
 /* Permanently disable HDMI1 */
@@ -301,5 +308,7 @@ i2c_csi_dsi0: &i2c0 {
 		act_led_gpio = <&led_act>,"gpios:4";
 		act_led_activelow = <&led_act>,"gpios:8";
 		act_led_trigger = <&led_act>,"linux,default-trigger";
+
+		enable_eeprom = <&enable_eeprom_hog>,"status";
 	};
 };
