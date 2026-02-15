@@ -236,6 +236,10 @@ Params:
                                 compatible devices (default "on"). See also
                                 "tx_lpi_timer". Pi3B+ only.
 
+        enable_eeprom           Set to "on" to enable the onboard bootloader
+                                EEPROM by driving GPIO 57 low
+                                (default "off"). CM4S only.
+
         eth_downshift_after     Set the number of auto-negotiation failures
                                 after which the 1000Mbps modes are disabled.
                                 Legal values are 2, 3, 4, 5 and 0, where
