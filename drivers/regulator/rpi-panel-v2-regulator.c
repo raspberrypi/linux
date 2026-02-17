@@ -48,7 +48,10 @@ static int rpi_panel_v2_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 		return regmap_write(regmap, REG_PWM, 0);
 
 	duty = pwm_get_relative_duty_cycle(state, PWM_BL_MASK);
-	return regmap_write(regmap, REG_PWM, duty | PWM_BL_ENABLE);
+	if (duty)
+		duty |= PWM_BL_ENABLE;
+
+	return regmap_write(regmap, REG_PWM, duty);
 }
 
 static const struct pwm_ops rpi_panel_v2_pwm_ops = {
