@@ -272,7 +272,6 @@ void aa_policy_destroy(struct aa_policy *policy);
  *
  * Returns: new label on success
  *          ERR_PTR if build @FN fails
- *          NULL if label_build fails due to low memory conditions
  *
  * @FN must return a label or ERR_PTR on failure. NULL is not allowed
  */
@@ -288,7 +287,7 @@ void aa_policy_destroy(struct aa_policy *policy);
 		DEFINE_VEC(label, __lvec);				\
 		DEFINE_VEC(profile, __pvec);				\
 		if (vec_setup(label, __lvec, (L)->size, (GFP)))	{	\
-			__new_ = NULL;					\
+			__new_ = ERR_PTR(-ENOMEM);			\
 			goto __done;					\
 		}							\
 		__j = 0;						\
@@ -310,23 +309,24 @@ void aa_policy_destroy(struct aa_policy *policy);
 			if (__count > 1) {				\
 				__new_ = aa_vec_find_or_create_label(__pvec,\
 						     __count, (GFP));	\
-				/* only fails if out of Mem */		\
 				if (!__new_)				\
-					__new_ = NULL;			\
+					__new_ = ERR_PTR(-ENOMEM);	\
 			} else						\
 				__new_ = aa_get_label(&__pvec[0]->label); \
 			vec_cleanup(profile, __pvec, __count);		\
 		} else							\
-			__new_ = NULL;					\
+			__new_ = ERR_PTR(-ENOMEM);			\
 __do_cleanup:								\
 		vec_cleanup(label, __lvec, (L)->size);			\
 	} else {							\
 		(P) = labels_profile(L);				\
 		__new_ = (FN);						\
+		AA_BUG(!__new_);					\
 	}								\
 __done:									\
-	if (!__new_)							\
+	if (PTR_ERR(__new_))						\
 		AA_DEBUG(DEBUG_LABEL, "label build failed\n");		\
+	AA_BUG(!__new_);						\
 	(__new_);							\
 })
 
