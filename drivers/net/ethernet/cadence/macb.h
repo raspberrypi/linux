@@ -1358,6 +1358,12 @@ struct macb {
 
 	struct macb_ptp_info	*ptp_info;	/* macb-ptp interface */
 
+	/* EEE / LPI state */
+	bool			eee_active;
+	bool			tx_lpi_enabled;
+	struct delayed_work	tx_lpi_work;
+	unsigned int		tx_lpi_timer_ms; /* idle timeout before LPI */
+
 	struct phy		*sgmii_phy;	/* for ZynqMP SGMII mode */
 
 #ifdef MACB_EXT_DESC
