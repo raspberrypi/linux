@@ -234,7 +234,7 @@ Params:
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
-                                "tx_lpi_timer". Pi3B+ only.
+                                "tx_lpi_timer". Pi3B+, Pi4 and CM4 only.
 
         enable_eeprom           Set to "on" to enable the onboard bootloader
                                 EEPROM by driving GPIO 57 low
