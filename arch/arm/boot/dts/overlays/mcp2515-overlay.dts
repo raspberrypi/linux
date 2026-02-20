@@ -67,6 +67,34 @@
 	};
 
 	fragment@8 {
+		target-path = "spi3/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@9 {
+		target-path = "spi3/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@10 {
+		target-path = "spi5/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@11 {
+		target-path = "spi5/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@12 {
 		target = <&gpio>;
 		__overlay__ {
 			mcp2515_pins: mcp2515_pins {
@@ -76,7 +104,7 @@
 		};
 	};
 
-	fragment@9 {
+	fragment@13 {
 		target-path = "/clocks";
 		__overlay__ {
 			clk_mcp2515_osc: mcp2515-osc {
@@ -87,7 +115,7 @@
 		};
 	};
 
-	mcp2515_frag: fragment@10 {
+	mcp2515_frag: fragment@14 {
 		target = <&spi0>;
 		__overlay__ {
 			status = "okay";
@@ -118,6 +146,7 @@
 			<&mcp2515>, "reg:0=1",
 			<&mcp2515_pins>, "name=mcp2515_spi0_1_pins",
 			<&clk_mcp2515_osc>, "name=mcp2515-spi0-1-osc";
+
 		spi1-0 = <0>, "+2",
 			<&mcp2515_frag>, "target:0=", <&spi1>,
 			<&mcp2515>, "reg:0=0",
@@ -133,6 +162,7 @@
 			<&mcp2515>, "reg:0=2",
 			<&mcp2515_pins>, "name=mcp2515_spi1_2_pins",
 			<&clk_mcp2515_osc>, "name=mcp2515-spi1-2-osc";
+
 		spi2-0 = <0>, "+5",
 			<&mcp2515_frag>, "target:0=", <&spi2>,
 			<&mcp2515>, "reg:0=0",
@@ -148,6 +178,33 @@
 			<&mcp2515>, "reg:0=2",
 			<&mcp2515_pins>, "name=mcp2515_spi2_2_pins",
 			<&clk_mcp2515_osc>, "name=mcp2515-spi2-2-osc";
+
+		spi3-0 = <0>, "+8",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi3",
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi3_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi3-0-osc";
+		spi3-1 = <0>, "+9",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi3",
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi3_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi3-1-osc";
+
+		spi5-0 = <0>, "+10",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi5",
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi5_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi5-0-osc";
+		spi5-1 = <0>, "+11",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi5",
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi5_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi5-1-osc";
+
 		oscillator = <&clk_mcp2515_osc>, "clock-frequency:0";
 		speed = <&mcp2515>, "spi-max-frequency:0";
 		interrupt = <&mcp2515_pins>, "brcm,pins:0",
