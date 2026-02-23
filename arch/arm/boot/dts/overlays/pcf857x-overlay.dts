@@ -25,10 +25,19 @@
 	};
 
 	__overrides__ {
+		max7328  = <&pcf857x>,"compatible=maxim,max7328",  <&pcf857x>,"reg:0=0x20";
+		max7329  = <&pcf857x>,"compatible=maxim,max7329",  <&pcf857x>,"reg:0=0x38";
 		pcf8574  = <&pcf857x>,"compatible=nxp,pcf8574",  <&pcf857x>,"reg:0=0x20";
 		pcf8574a = <&pcf857x>,"compatible=nxp,pcf8574a", <&pcf857x>,"reg:0=0x38";
 		pcf8575  = <&pcf857x>,"compatible=nxp,pcf8575",  <&pcf857x>,"reg:0=0x20";
 		pca8574  = <&pcf857x>,"compatible=nxp,pca8574",  <&pcf857x>,"reg:0=0x20";
+		pca8575  = <&pcf857x>,"compatible=nxp,pca8575",  <&pcf857x>,"reg:0=0x20";
+		pca9670  = <&pcf857x>,"compatible=nxp,pca9670",  <&pcf857x>,"reg:0=0x20";
+		pca9671  = <&pcf857x>,"compatible=nxp,pca9671",  <&pcf857x>,"reg:0=0x20";
+		pca9672  = <&pcf857x>,"compatible=nxp,pca9672",  <&pcf857x>,"reg:0=0x20";
+		pca9673  = <&pcf857x>,"compatible=nxp,pca9673",  <&pcf857x>,"reg:0=0x28";
+		pca9674  = <&pcf857x>,"compatible=nxp,pca9674",  <&pcf857x>,"reg:0=0x20";
+		pca9675  = <&pcf857x>,"compatible=nxp,pca9675",  <&pcf857x>,"reg:0=0x20";
 		addr = <&pcf857x>,"reg:0";
 	};
 };
