@@ -3860,10 +3860,19 @@ Params: addr                    I2C address of expander. Default
                                 depends on model selected.
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
+        max7328                 Select the Maxim MAX7328 (8 bit)
+        max7329                 Select the Maxim MAX7329 (8 bit)
         pcf8574                 Select the NXP PCF8574 (8 bit)
         pcf8574a                Select the NXP PCF8574A (8 bit)
         pcf8575                 Select the NXP PCF8575 (16 bit)
         pca8574                 Select the NXP PCA8574 (8 bit)
+        pca8575                 Select the NXP PCA8575 (16 bit)
+        pca9670                 Select the NXP PCA9670 (8 bit)
+        pca9671                 Select the NXP PCA9671 (16 bit)
+        pca9672                 Select the NXP PCA9672 (8 bit)
+        pca9673                 Select the NXP PCA9673 (16 bit)
+        pca9674                 Select the NXP PCA9674 (8 bit)
+        pca9675                 Select the NXP PCA9675 (16 bit)
 
 
 Name:   pcie-32bit-dma
