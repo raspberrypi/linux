@@ -48,7 +48,7 @@ static struct octep_hw *vdpa_to_octep_hw(struct vdpa_device *vdpa_dev)
 static irqreturn_t octep_vdpa_intr_handler(int irq, void *data)
 {
 	struct octep_hw *oct_hw = data;
-	int i;
+	int i, start_ring_idx = -1;
 
 	/* Each device has multiple interrupts (nb_irqs) shared among rings
 	 * (nr_vring). Device interrupts are mapped to the rings in a
@@ -61,7 +61,16 @@ static irqreturn_t octep_vdpa_intr_handler(int irq, void *data)
 	 * 7 -> 7, 15, 23, 31, 39, 47, 55, 63;
 	 */
 
-	for (i = irq - oct_hw->irqs[0]; i < oct_hw->nr_vring; i += oct_hw->nb_irqs) {
+	for (i = 0; i < oct_hw->nb_irqs; i++) {
+		if (oct_hw->irqs[i] == irq) {
+			start_ring_idx = i;
+			break;
+		}
+	}
+	if (start_ring_idx == -1)
+		return IRQ_NONE;
+
+	for (i = start_ring_idx; i < oct_hw->nr_vring; i += oct_hw->nb_irqs) {
 		if (ioread8(oct_hw->vqs[i].cb_notify_addr)) {
 			/* Acknowledge the per ring notification to the device */
 			iowrite8(0, oct_hw->vqs[i].cb_notify_addr);
