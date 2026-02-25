@@ -2444,7 +2444,8 @@ Params: addr                    Set the address for the AD799X, ADS7828,
                                 BME280, BME680, BMP280, BMP380, BMP58x, CCS811,
                                 DS1621, HDC100X, HDC3020, JC42, LM75, MCP980x,
                                 MPU6050, MPU9250, MS5637, MS5803, MS5805,
-                                MS5837, MS8607, SHT3x, TMP102 or VEML6030.
+                                MS5837, MS8607, SHT3x, STS3X, TMP102 or
+                                VEML6030.
 
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
@@ -2640,6 +2641,8 @@ Params: addr                    Set the address for the AD799X, ADS7828,
         sps30                   Select the Sensirion SPS30 particulate matter
                                 sensor. Fixed address 0x69.
 
+        sts3x                   Select the Sensirion STS3X temperature sensors.
+                                Valid addresses 0x4a-0x4b, default 0x4a
 
         tcs3472                 Select the AMS TAOS TCS3472 family of RGBW light
                                 sensors.
