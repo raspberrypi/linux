@@ -893,6 +893,21 @@
 		};
 	};
 
+	fragment@58 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sht85: sht85@44 {
+				compatible = "sensirion,sht85";
+				reg = <0x44>;
+				status = "okay";
+			};
+		};
+	};
+
 	fragment@98 {
 		target-path = "/";
 		__dormant__ {
@@ -983,6 +998,7 @@
 		ad7998 = <0>,"+56", <&ad799x>,"compatible=adi,ad7998";
 		ad7999 = <0>,"+56", <&ad799x>,"compatible=adi,ad7999", <&ad799x>,"reg:0=0x29";
 		sts3x = <0>,"+57";
+		sht85 = <0>,"+58";
 
 		addr =	<&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
