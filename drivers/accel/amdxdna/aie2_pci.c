@@ -326,9 +326,7 @@ static void aie2_hw_stop(struct amdxdna_dev *xdna)
 	}
 
 	aie2_mgmt_fw_fini(ndev);
-	xdna_mailbox_stop_channel(ndev->mgmt_chann);
-	xdna_mailbox_destroy_channel(ndev->mgmt_chann);
-	ndev->mgmt_chann = NULL;
+	aie2_destroy_mgmt_chann(ndev);
 	drmm_kfree(&xdna->ddev, ndev->mbox);
 	ndev->mbox = NULL;
 	aie2_psp_stop(ndev->psp_hdl);
@@ -437,8 +435,7 @@ static int aie2_hw_start(struct amdxdna_dev *xdna)
 	return 0;
 
 destroy_mgmt_chann:
-	xdna_mailbox_stop_channel(ndev->mgmt_chann);
-	xdna_mailbox_destroy_channel(ndev->mgmt_chann);
+	aie2_destroy_mgmt_chann(ndev);
 stop_psp:
 	aie2_psp_stop(ndev->psp_hdl);
 fini_smu:
