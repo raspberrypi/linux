@@ -315,6 +315,8 @@
 #define MACB_IRXFCS_SIZE	1
 
 /* GEM specific NCR bitfields. */
+#define GEM_TXLPIEN_OFFSET		19
+#define GEM_TXLPIEN_SIZE		1
 #define GEM_ENABLE_HS_MAC_OFFSET	31
 #define GEM_ENABLE_HS_MAC_SIZE		1
 
@@ -790,6 +792,7 @@
 #define MACB_CAPS_NEED_TSUCLK			0x00000400
 #define MACB_CAPS_QUEUE_DISABLE			0x00000800
 #define MACB_CAPS_QBV				0x00001000
+#define MACB_CAPS_EEE				0x00002000
 #define MACB_CAPS_PCS				0x01000000
 #define MACB_CAPS_HIGH_SPEED			0x02000000
 #define MACB_CAPS_CLK_HW_CHG			0x04000000
@@ -1402,6 +1405,11 @@ struct macb {
 	unsigned int max_tuples;
 
 	struct work_struct	hresp_err_bh_work;
+
+	/* EEE / LPI state */
+	bool			eee_active;
+	struct delayed_work	tx_lpi_work;
+	u32			tx_lpi_timer;
 
 	int	rx_bd_rd_prefetch;
 	int	tx_bd_rd_prefetch;
