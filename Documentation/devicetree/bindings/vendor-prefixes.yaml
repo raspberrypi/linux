@@ -1785,6 +1785,8 @@ patternProperties:
     description: Variscite Ltd.
   "^vdl,.*":
     description: Van der Laan b.v.
+  "^verbatim,.*":
+    description: Verbatim Corporation
   "^verisilicon,.*":
     description: VeriSilicon Microelectronics (Shanghai) Co., Ltd.
   "^vertexcom,.*":
