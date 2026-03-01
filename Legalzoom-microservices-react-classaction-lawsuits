@@ -1,0 +1,143 @@
+Skip to content
+Your account has been flagged.
+Because of that, your profile is hidden from the public. If you believe this is a mistake, contact support to have your account status reviewed.
+iP templates
+Repositories257
+Code5M
+Commits386K
+Issues20K
+Marketplace0
+Topics0
+Wikis4K
+Users1
+Language
+
+Sort
+
+5,367,318 code results
+@tomriddleatnj
+tomriddleatnj/BlueService – django.po
+Showing the top nine matches
+Last indexed on Jul 14, 2018
+Gettext Catalog
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/trusted_ip/403_trusted_ip.html:5
+#: templates/trusted_ip/403_trusted_ip.html:8
+msgstr "服务器已收到请求，但拒绝继续执行。"
+
+#: templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+@nerosketch
+nerosketch/djing – django.po
+Showing the top five matches
+Last indexed on Oct 23, 2018
+Gettext Catalog
+#: forms.py:51 models.py:165
+msgid "Ip address"
+msgstr "IP адрес"
+
+#: forms.py:52 models.py:169 templates/ip_pool/ip_leases_list.html:23
+#: models.py:35 templates/ip_pool/network_list.html:22
+msgid "Description"
+msgstr "Описание"
+
+#: models.py:36
+@ygtxr1997
+ygtxr1997/Hello-World – django.po
+Showing the top nine matches
+Last indexed on Jul 5, 2018
+Gettext Catalog
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/trusted_ip/403_trusted_ip.html:5
+#: templates/trusted_ip/403_trusted_ip.html:8
+msgstr "服务器已收到请求，但拒绝继续执行。"
+
+#: templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+@chenzhutian
+chenzhutian/seafile – django.po
+Showing the top nine matches
+Last indexed on Jul 11, 2018
+Gettext Catalog
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/trusted_ip/403_trusted_ip.html:5
+#: templates/trusted_ip/403_trusted_ip.html:8
+msgstr "服务器已收到请求，但拒绝继续执行。"
+
+#: templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+@haiwen
+haiwen/seahub – django.po
+Showing the top 12 matches
+Last indexed on Sep 12, 2018
+Gettext Catalog
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:5
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:8
+msgstr ""
+
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+@haiwen
+haiwen/seahub – django.po
+Showing the top nine matches
+Last indexed on Jun 26, 2018
+Gettext Catalog
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/trusted_ip/403_trusted_ip.html:5
+#: templates/trusted_ip/403_trusted_ip.html:8
+msgstr "服务器已收到请求，但拒绝继续执行。"
+
+#: templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+@jgruber
+jgruber/f5-hot-ansible – registry.env
+Showing the top four matches
+Last indexed on Jul 13, 2018
+---
+resource_registry:
+  F5::BigIP::EnvironmentVariables: ../templates/f5-openstack-hot/experimental/reference/configs/environment_variables.yaml
+  F5::BigIP::StaticMgmtConfig: ../templates/f5-openstack-hot/experimental/reference/configs/static_mgmt_config.yaml
+@alanjkun
+alanjkun/PaginaPOMCORP – log_2013_03.php
+Showing the top four matches
+Last indexed on Jun 29, 2018
+PHP
+1363737116|a:4:{s:4:"user";s:5:"admin";s:6:"action";s:5:"login";s:4:"time";i:1363737116;s:2:"ip";s:3:"::1";}
+1363737296|a:4:{s:4:"user";s:5:"admin";s:6:"action";s:16:"Update templates";s:4:"time";i:1363737296;s:2:"ip";s:3:"::1";}
+1363737307|a:4:{s:4:"user";s:5:"admin";s:6:"action";s:16:"Update templates";s:4:"time";i:1363737307;s:2:"ip";s:3:"::1";}
+1363737323|a:4:{s:4:"user";s:5:"admin";s:6:"action";s:16:"Update templates";s:4:"time";i:1363737323;s:2:"ip";s:3:"::1";}
+@nehv
+nehv/nehv_rootfs_x86 – vyatta-cfg-quagga.list
+Showing the top four matches
+Last indexed on Jun 29, 2018
+/opt/vyatta/share/vyatta-cfg/templates/interfaces/bonding/node.tag/vif/node.tag/ip
+/opt/vyatta/share/vyatta-cfg/templates/interfaces/bonding/node.tag/vif/node.tag/ip/node.def
+/opt/vyatta/share/vyatta-cfg/templates/interfaces/bonding/node.tag/vif/node.tag/ip/rip
+@Malthriel
+Malthriel/VicSeafile – django.po
+Showing the top 12 matches
+Last indexed on Dec 3, 2018
+Gettext Catalog
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:5
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:8
+msgstr ""
+
+#: seahub/trusted_ip/templates/trusted_ip/403_trusted_ip.html:10
+msgid "Sorry, but your IP address is not in trusted IP address range."
+© 2019 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+Help
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About
+Press h to open a hovercard with more details.
