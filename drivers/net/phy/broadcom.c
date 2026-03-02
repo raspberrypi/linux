@@ -490,6 +490,15 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 	if (of_property_read_bool(np, "brcm,powerdown-enable"))
 		phydev->dev_flags |= PHY_BRCM_AUTO_PWRDWN_ENABLE;
 
+	/* Disable AutogrEEEn and switch to Native EEE mode so the MAC
+	 * can control LPI signaling and observe RX LPI on the RGMII
+	 * interface.
+	 */
+	err = bcm_phy_modify_exp(phydev, BCM54XX_TOP_MISC_MII_BUF_CNTL0,
+				 BCM54XX_MII_BUF_CNTL0_AUTOGREEEN_EN, 0);
+	if (err)
+		return err;
+
 	bcm54xx_adjust_rxrefclk(phydev);
 
 	switch (phydev->drv->phy_id & PHY_ID_MATCH_MODEL_MASK) {
