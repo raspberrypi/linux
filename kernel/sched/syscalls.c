@@ -723,6 +723,23 @@ change:
 		__setscheduler_params(p, attr);
 		p->sched_class = next_class;
 		p->prio = newprio;
+#ifdef CONFIG_RT_MUTEXES
+		/*
+		 * In case a DEADLINE task (either proper or boosted) gets
+		 * setscheduled to a lower priority class, check if it neeeds to
+		 * inherit parameters from a potential pi_task. In that case make
+		 * sure replenishment happens with the next enqueue.
+		 */
+
+		if (dl_prio(newprio) && !dl_policy(policy)) {
+			struct task_struct *pi_task = rt_mutex_get_top_task(p);
+
+			if (pi_task) {
+				p->dl.pi_se = pi_task->dl.pi_se;
+				queue_flags |= ENQUEUE_REPLENISH;
+			}
+		}
+#endif /* CONFIG_RT_MUTEXES */
 	}
 	__setscheduler_uclamp(p, attr);
 	check_class_changing(rq, p, prev_class);
