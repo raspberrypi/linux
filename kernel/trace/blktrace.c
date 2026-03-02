@@ -251,8 +251,6 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 	cpu = raw_smp_processor_id();
 
 	if (blk_tracer) {
-		tracing_record_cmdline(current);
-
 		buffer = blk_tr->array_buffer.buffer;
 		trace_ctx = tracing_gen_ctx_flags(0);
 		event = trace_buffer_lock_reserve(buffer, TRACE_BLK,
@@ -260,6 +258,8 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 						  trace_ctx);
 		if (!event)
 			return;
+
+		tracing_record_cmdline(current);
 		t = ring_buffer_event_data(event);
 		goto record_it;
 	}
