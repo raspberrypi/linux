@@ -498,13 +498,16 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		err = bcm54xx_config_clock_delay(phydev);
 		break;
 	case PHY_ID_BCM54210E:
-		err = bcm54210e_config_init(phydev);
+		/* BCM54213PE shares the same model ID as BCM54210E; use the
+		 * exact driver ID to dispatch to the right per-PHY init.
+		 */
+		if (phydev->drv->phy_id == PHY_ID_BCM54213PE)
+			err = bcm54213pe_config_init(phydev);
+		else
+			err = bcm54210e_config_init(phydev);
 		break;
 	case PHY_ID_BCM54612E:
 		err = bcm54612e_config_init(phydev);
-		break;
-	case PHY_ID_BCM54213PE:
-		err = bcm54213pe_config_init(phydev);
 		break;
 	case PHY_ID_BCM54616S:
 		err = bcm54616s_config_init(phydev);
