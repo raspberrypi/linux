@@ -20,7 +20,9 @@
 MODULE_DESCRIPTION("Direct Internal Buffer Sharing class");
 MODULE_LICENSE("GPL");
 
-static struct class *dibs_class;
+static const struct class dibs_class = {
+	.name		= "dibs",
+};
 
 /* use an array rather a list for fast mapping: */
 static struct dibs_client *clients[MAX_DIBS_CLIENTS];
@@ -140,7 +142,7 @@ struct dibs_dev *dibs_dev_alloc(void)
 		return dibs;
 	spin_lock_init(&dibs->lock);
 	dibs->dev.release = dibs_dev_release;
-	dibs->dev.class = dibs_class;
+	dibs->dev.class = &dibs_class;
 	device_initialize(&dibs->dev);
 
 	return dibs;
@@ -248,9 +250,9 @@ static int __init dibs_init(void)
 {
 	int rc;
 
-	dibs_class = class_create("dibs");
-	if (IS_ERR(dibs_class))
-		return PTR_ERR(dibs_class);
+	rc = class_register(&dibs_class);
+	if (rc)
+		return rc;
 
 	rc = dibs_loopback_init();
 	if (rc)
@@ -262,7 +264,7 @@ static int __init dibs_init(void)
 static void __exit dibs_exit(void)
 {
 	dibs_loopback_exit();
-	class_destroy(dibs_class);
+	class_unregister(&dibs_class);
 }
 
 module_init(dibs_init);
