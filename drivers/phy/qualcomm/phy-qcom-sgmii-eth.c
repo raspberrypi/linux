@@ -267,8 +267,17 @@ static int qcom_dwmac_sgmii_phy_calibrate(struct phy *phy)
 static int qcom_dwmac_sgmii_phy_power_on(struct phy *phy)
 {
 	struct qcom_dwmac_sgmii_phy_data *data = phy_get_drvdata(phy);
+	int ret;
 
-	return clk_prepare_enable(data->refclk);
+	ret = clk_prepare_enable(data->refclk);
+	if (ret < 0)
+		return ret;
+
+	ret = qcom_dwmac_sgmii_phy_calibrate(phy);
+	if (ret < 0)
+		clk_disable_unprepare(data->refclk);
+
+	return ret;
 }
 
 static int qcom_dwmac_sgmii_phy_power_off(struct phy *phy)
@@ -292,6 +301,9 @@ static int qcom_dwmac_sgmii_phy_set_speed(struct phy *phy, int speed)
 
 	if (speed != data->speed)
 		data->speed = speed;
+
+	if (phy->power_count == 0)
+		return 0;
 
 	return qcom_dwmac_sgmii_phy_calibrate(phy);
 }
