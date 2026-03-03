@@ -372,7 +372,9 @@ static int validate_uhr_capa(const struct nlattr *attr,
 	const u8 *data = nla_data(attr);
 	unsigned int len = nla_len(attr);
 
-	return ieee80211_uhr_capa_size_ok(data, len, false);
+	if (!ieee80211_uhr_capa_size_ok(data, len, false))
+		return -EINVAL;
+	return 0;
 }
 
 static int validate_uhr_operation(const struct nlattr *attr,
