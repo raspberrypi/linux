@@ -959,6 +959,14 @@ void svm_copy_vmrun_state(struct vmcb_save_area *to_save,
 	to_save->rsp = from_save->rsp;
 	to_save->rip = from_save->rip;
 	to_save->cpl = 0;
+
+	if (kvm_cpu_cap_has(X86_FEATURE_LBRV)) {
+		to_save->dbgctl = from_save->dbgctl & ~DEBUGCTL_RESERVED_BITS;
+		to_save->br_from = from_save->br_from;
+		to_save->br_to = from_save->br_to;
+		to_save->last_excp_from = from_save->last_excp_from;
+		to_save->last_excp_to = from_save->last_excp_to;
+	}
 }
 
 void svm_copy_vmloadsave_state(struct vmcb *to_vmcb, struct vmcb *from_vmcb)
