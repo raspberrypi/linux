@@ -299,6 +299,14 @@ static int goodix_ts_read_input_report(struct goodix_ts_data *ts, u8 *data)
 				return 0;
 		}
 
+		if (!ts->client->irq)
+			/*
+			 * No point in retrying if polling, particularly as some
+			 * versions continuously report "not ready" if there are
+			 * no touch points.
+			 */
+			break;
+
 		usleep_range(1000, 2000); /* Poll every 1 - 2 ms */
 	} while (time_before(jiffies, max_timeout));
 
