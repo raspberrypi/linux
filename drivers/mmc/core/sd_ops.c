@@ -421,10 +421,23 @@ int mmc_sd_write_ext_reg(struct mmc_card *card, u8 fno, u8 page, u16 offset,
 	 * [17:9] offset address.
 	 * [8:0] length (0 = 1 byte).
 	 */
-	cmd.arg = fno << 27 | page << 18 | offset << 9;
+	if (card->quirks & MMC_QUIRK_NONSTD_SD_CMD49) {
+		int err;
+		/*
+		 * Card ignores length/offset and always applies
+		 * all 512B of the write data block. RmW cycle required.
+		 */
+		err = mmc_sd_read_ext_reg(card, fno, page, 0, 512, reg_buf);
+		if (err)
+			return err;
 
-	/* The first byte in the buffer is the data to be written. */
-	reg_buf[0] = reg_data;
+		cmd.arg = fno << 27 | page << 18;
+		reg_buf[offset] = reg_data;
+	} else {
+		cmd.arg = fno << 27 | page << 18 | offset << 9;
+		/* The first byte in the buffer is the data to be written. */
+		reg_buf[0] = reg_data;
+	}
 
 	data.flags = MMC_DATA_WRITE;
 	data.blksz = 512;
