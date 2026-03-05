@@ -1218,6 +1218,26 @@ static int mmc_sd_read_ext_regs(struct mmc_card *card)
 		goto out;
 	}
 
+	/* Some cards have zeroes in GEN_INFO but correctly implement EXT_PERF and EXT_PWR */
+	if (!memcmp(card->ext_reg_buf, gen_info_buf, 512)) {
+		pr_info("%s: using fall-back extension register parsing\n",
+			mmc_hostname(card->host));
+		/* PWR typically hard-coded at FNO=1 */
+		err = sd_parse_ext_reg_power(card, 1, 0, 0);
+		if (err) {
+			pr_err("%s: error %d parsing SD Power extension\n",
+				mmc_hostname(card->host), err);
+			goto out;
+		}
+		/* PERF typically hard-coded at FNO=2 */
+		err = sd_parse_ext_reg_perf(card, 2, 0, 0);
+		if (err) {
+			pr_err("%s: error %d parsing SD Performance extension\n",
+			       mmc_hostname(card->host), err);
+		}
+		goto out;
+	}
+
 	/* General info structure revision. */
 	memcpy(&rev, &gen_info_buf[0], 2);
 
