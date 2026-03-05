@@ -81,6 +81,11 @@ static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 		   cid_rev(2, 0, 0, 0), -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
 		   MMC_QUIRK_NONSTD_SD_CMD49, EXT_CSD_REV_ANY),
 
+	/* Certain Biwin cards need a CMD49 workaround */
+	_FIXUP_EXT("SMI  ", CID_MANFID_BIWIN_SD, 0x4257, CID_YEAR_ANY, CID_MONTH_ANY,
+		   cid_rev(1, 0, 2025, 0), -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_NONSTD_SD_CMD49, EXT_CSD_REV_ANY),
+
 	/* SD A2 allow-list - only trust CQ on these cards */
 	/* Raspberry Pi A2 cards */
 	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_LONGSYS_SD, 0x4c53, CID_YEAR_ANY, CID_MONTH_ANY,

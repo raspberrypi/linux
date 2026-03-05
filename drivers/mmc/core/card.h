@@ -90,6 +90,7 @@ struct mmc_fixup {
 #define CID_MANFID_SAMSUNG      0x15
 #define CID_MANFID_SAMSUNG_SD	0x1b
 #define CID_MANFID_APACER       0x27
+#define CID_MANFID_BIWIN_SD	0x4E
 #define CID_MANFID_SWISSBIT     0x5D
 #define CID_MANFID_KINGSTON     0x70
 #define CID_MANFID_TRANSCEND_SD	0x74
