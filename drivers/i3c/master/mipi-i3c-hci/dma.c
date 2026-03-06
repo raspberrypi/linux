@@ -459,6 +459,8 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 	bool did_unqueue = false;
 	u32 ring_status;
 
+	guard(mutex)(&hci->control_mutex);
+
 	ring_status = rh_reg_read(RING_STATUS);
 	if (ring_status & RING_STATUS_RUNNING) {
 		/* stop the ring */
