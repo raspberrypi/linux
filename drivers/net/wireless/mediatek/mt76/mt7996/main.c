@@ -243,10 +243,13 @@ mt7996_set_hw_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		link_conf = &vif->bss_conf;
 
 	if (cmd == SET_KEY && !sta && !link->mt76.cipher) {
+		struct mt7996_phy *phy = mt7996_vif_link_phy(link);
+
 		link->mt76.cipher =
 			mt76_connac_mcu_get_cipher(key->cipher);
-		mt7996_mcu_add_bss_info(link->phy, vif, link_conf,
-					&link->mt76, msta_link, true);
+		if (phy)
+			mt7996_mcu_add_bss_info(phy, vif, link_conf,
+						&link->mt76, msta_link, true);
 	}
 
 	if (cmd == SET_KEY)
@@ -323,7 +326,6 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		return -ENOSPC;
 
 	link->mld_idx = mld_idx;
-	link->phy = phy;
 	mlink->omac_idx = idx;
 	mlink->band_idx = band_idx;
 	mlink->wmm_idx = vif->type == NL80211_IFTYPE_AP ? 0 : 3;
@@ -830,15 +832,17 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
 		for_each_vif_active_link(vif, link_conf, link_id) {
 			struct mt7996_vif_link *link;
+			struct mt7996_phy *phy;
 
 			link = mt7996_vif_link(dev, vif, link_id);
 			if (!link)
 				continue;
 
-			if (!link->phy)
+			phy = mt7996_vif_link_phy(link);
+			if (!phy)
 				continue;
 
-			mt7996_mcu_add_bss_info(link->phy, vif, link_conf,
+			mt7996_mcu_add_bss_info(phy, vif, link_conf,
 						&link->mt76, &link->msta_link,
 						true);
 			mt7996_mcu_add_sta(dev, link_conf, NULL, link, NULL,
@@ -953,10 +957,15 @@ mt7996_channel_switch_beacon(struct ieee80211_hw *hw,
 	mutex_lock(&dev->mt76.mutex);
 
 	for_each_vif_active_link(vif, link_conf, link_id) {
-		struct mt7996_vif_link *link =
-			mt7996_vif_link(dev, vif, link_id);
+		struct mt7996_vif_link *link;
+		struct mt7996_phy *link_phy;
 
-		if (!link || link->phy != phy)
+		link = mt7996_vif_link(dev, vif, link_id);
+		if (!link)
+			continue;
+
+		link_phy = mt7996_vif_link_phy(link);
+		if (link_phy != phy)
 			continue;
 
 		/* Reset beacon when channel switch triggered during CAC to let
@@ -1027,9 +1036,12 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 {
 	struct ieee80211_sta *sta = link_sta->sta;
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
-	struct mt7996_phy *phy = link->phy;
+	struct mt7996_phy *phy = mt7996_vif_link_phy(link);
 	struct mt7996_sta_link *msta_link;
 	int idx;
+
+	if (!phy)
+		return -EINVAL;
 
 	idx = mt76_wcid_alloc(dev->mt76.wcid_mask, MT7996_WTBL_STA);
 	if (idx < 0)
@@ -1606,8 +1618,8 @@ mt7996_get_stats(struct ieee80211_hw *hw,
 
 u64 __mt7996_get_tsf(struct ieee80211_hw *hw, struct mt7996_vif_link *link)
 {
+	struct mt7996_phy *phy = mt7996_vif_link_phy(link);
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
-	struct mt7996_phy *phy = link->phy;
 	union {
 		u64 t64;
 		u32 t32[2];
@@ -1666,7 +1678,7 @@ mt7996_set_tsf(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
 	n = link->mt76.omac_idx > HW_BSSID_MAX ? HW_BSSID_0
 					       : link->mt76.omac_idx;
-	phy = link->phy;
+	phy = mt7996_vif_link_phy(link);
 	if (!phy)
 		goto unlock;
 
@@ -1700,7 +1712,7 @@ mt7996_offset_tsf(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	if (!link)
 		goto unlock;
 
-	phy = link->phy;
+	phy = mt7996_vif_link_phy(link);
 	if (!phy)
 		goto unlock;
 
@@ -1838,9 +1850,14 @@ static void mt7996_link_rate_ctrl_update(void *data,
 					 struct mt7996_sta_link *msta_link)
 {
 	struct mt7996_sta *msta = msta_link->sta;
-	struct mt7996_dev *dev = msta->vif->deflink.phy->dev;
+	struct mt7996_phy *phy = mt7996_vif_link_phy(&msta->vif->deflink);
+	struct mt7996_dev *dev;
 	u32 *changed = data;
 
+	if (!phy)
+		return;
+
+	dev = phy->dev;
 	spin_lock_bh(&dev->mt76.sta_poll_lock);
 
 	msta_link->changed |= *changed;
