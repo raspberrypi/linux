@@ -104,6 +104,8 @@ v3d_job_free(struct kref *ref)
 
 	if (job->has_pm_ref)
 		v3d_pm_runtime_put(job->v3d);
+	v3d_stats_put(job->client_stats);
+	v3d_stats_put(job->global_stats);
 
 	kfree(job);
 }
@@ -230,6 +232,9 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	}
 
 	kref_init(&job->refcount);
+
+	job->client_stats = v3d_stats_get(v3d_priv->stats[queue]);
+	job->global_stats = v3d_stats_get(v3d->queue[queue].stats);
 
 	return 0;
 
