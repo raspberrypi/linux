@@ -189,6 +189,8 @@ watchdog: &pm {};
 		drm_fb2_rp1_dsi0 = <&aliases>, "drm-fb2=",&dsi0;
 		drm_fb2_rp1_dsi1 = <&aliases>, "drm-fb2=",&dsi1;
 		drm_fb2_vc4 = <&aliases>, "drm-fb2=",&vc4;
+		eee = <&phy1>,"eee-broken-1000t!",
+		      <&phy1>,"eee-broken-100tx!";
 		eth_led0 = <&phy1>,"led-modes:0";
 		eth_led1 = <&phy1>,"led-modes:4";
 		eth_max_speed = <&phy1>,"max-speed:0";
