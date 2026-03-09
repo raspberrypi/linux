@@ -8,7 +8,6 @@
 
 	__overrides__ {
 		arm_freq;
-		eee = <&chosen>,"bootargs{on='',off='genet.eee=N'}";
 		hdmi = <&hdmi0>,"status",
 		       <&hdmi1>,"status";
 		nvmem_cust_rw = <&nvmem_cust>,"rw?";
