@@ -14,6 +14,8 @@
 #ifndef _HEVC_D_HW_H_
 #define _HEVC_D_HW_H_
 
+#include <linux/io.h>
+
 struct hevc_d_hw_irq_ent {
 	struct hevc_d_hw_irq_ent *next;
 	hevc_d_irq_callback cb;
@@ -84,6 +86,8 @@ struct hevc_d_hw_irq_ent {
 /* Offset to get from REFYBASEn to REFYBASEn+1 */
 #define RPI_REFREGS_SIZE 16
 
+#define VC_ADDR(x) ((u32)((x) >> 6))
+
 /*
  * Write a general register value
  * Order is unimportant
@@ -123,14 +127,14 @@ static inline void apb_write_vc_addr(const struct hevc_d_dev * const dev,
 				     const unsigned int offset,
 				     const dma_addr_t a)
 {
-	apb_write(dev, offset, (u32)(a >> 6));
+	apb_write(dev, offset, VC_ADDR(a));
 }
 
 static inline void apb_write_vc_addr_final(const struct hevc_d_dev * const dev,
 					   const unsigned int offset,
 					   const dma_addr_t a)
 {
-	apb_write_final(dev, offset, (u32)(a >> 6));
+	apb_write_final(dev, offset, VC_ADDR(a));
 }
 
 static inline void apb_write_vc_len(const struct hevc_d_dev * const dev,

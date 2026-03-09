@@ -11,7 +11,6 @@
  * Copyright (C) 2018 Bootlin
  */
 
-#include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
@@ -27,14 +26,6 @@ static inline struct hevc_d_ctx *hevc_d_file2ctx(struct file *file)
 	return container_of(file->private_data, struct hevc_d_ctx, fh);
 }
 
-/* constrain x to y,y*2 */
-static inline unsigned int constrain2x(unsigned int x, unsigned int y)
-{
-	return (x < y) ?
-			y :
-			(x > y * 2) ? y : x;
-}
-
 size_t hevc_d_round_up_size(const size_t x)
 {
 	/* Admit no size < 256 */
@@ -43,7 +34,7 @@ size_t hevc_d_round_up_size(const size_t x)
 	return x >= (3 << n) ? 4 << n : (3 << n);
 }
 
-size_t hevc_d_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
+static u32 bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
 {
 	const size_t wxh = w * h;
 	size_t bits_alloc;
@@ -59,42 +50,39 @@ size_t hevc_d_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_min
 		wxh * 3 / 8;
 	/* Allow for bit depth */
 	bits_alloc += (bits_alloc * bits_minus8) / 8;
-	return hevc_d_round_up_size(bits_alloc);
+	return (u32)hevc_d_round_up_size(bits_alloc);
 }
 
 void hevc_d_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
-	size_t size;
-	u32 w;
-	u32 h;
+	unsigned int width = pix_fmt->width;
+	unsigned int height = pix_fmt->height;
+	unsigned int sizeimage = pix_fmt->plane_fmt[0].sizeimage;
 
-	w = pix_fmt->width;
-	h = pix_fmt->height;
-	if (!w || !h) {
-		w = HEVC_D_DEFAULT_WIDTH;
-		h = HEVC_D_DEFAULT_HEIGHT;
-	}
-	if (w > HEVC_D_MAX_WIDTH)
-		w = HEVC_D_MAX_WIDTH;
-	if (h > HEVC_D_MAX_HEIGHT)
-		h = HEVC_D_MAX_HEIGHT;
+	if (!width)
+		width = HEVC_D_DEFAULT_WIDTH;
+	else
+		width = clamp(width, HEVC_D_MIN_WIDTH, HEVC_D_MAX_WIDTH);
+	if (!height)
+		height = HEVC_D_DEFAULT_HEIGHT;
+	else
+		height = clamp(height, HEVC_D_MIN_HEIGHT, HEVC_D_MAX_HEIGHT);
 
-	if (!pix_fmt->plane_fmt[0].sizeimage ||
-	    pix_fmt->plane_fmt[0].sizeimage > SZ_32M) {
-		/* Unspecified or way too big - pick max for size */
-		size = hevc_d_bit_buf_size(w, h, 2);
-	}
+	/* If unspecified or way too big - pick max for size */
+	if (!sizeimage || sizeimage > SZ_32M)
+		sizeimage = bit_buf_size(width, height, 2);
+
 	/* Set a minimum */
-	size = max_t(u32, SZ_4K, pix_fmt->plane_fmt[0].sizeimage);
+	sizeimage = max(SZ_4K, sizeimage);
 
 	pix_fmt->pixelformat = V4L2_PIX_FMT_HEVC_SLICE;
-	pix_fmt->width = w;
-	pix_fmt->height = h;
+	pix_fmt->width = width;
+	pix_fmt->height = height;
 	pix_fmt->num_planes = 1;
 	pix_fmt->field = V4L2_FIELD_NONE;
 	/* Zero bytes per line for encoded source. */
 	pix_fmt->plane_fmt[0].bytesperline = 0;
-	pix_fmt->plane_fmt[0].sizeimage = size;
+	pix_fmt->plane_fmt[0].sizeimage = sizeimage;
 }
 
 /* Take any pix_format and make it valid */
@@ -447,30 +435,21 @@ static int hevc_d_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
 			      struct device *alloc_devs[])
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format_mplane *pix_fmt;
-	int expected_nplanes;
+	const struct v4l2_pix_format_mplane *pix_fmt;
+	unsigned int i;
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-		pix_fmt = &ctx->src_fmt;
-		expected_nplanes = 1;
-	} else {
-		pix_fmt = get_dst_fmt(ctx);
-		expected_nplanes = 2;
-	}
+	pix_fmt = V4L2_TYPE_IS_OUTPUT(vq->type) ? &ctx->src_fmt : get_dst_fmt(ctx);
 
 	if (*nplanes) {
-		if (*nplanes != expected_nplanes ||
-		    sizes[0] < pix_fmt->plane_fmt[0].sizeimage ||
-		    sizes[1] < pix_fmt->plane_fmt[1].sizeimage)
+		if (*nplanes != pix_fmt->num_planes)
 			return -EINVAL;
+		for (i = 0; i != pix_fmt->num_planes; ++i)
+			if (sizes[i] < pix_fmt->plane_fmt[i].sizeimage)
+				return -EINVAL;
 	} else {
-		sizes[0] = pix_fmt->plane_fmt[0].sizeimage;
-		if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-			*nplanes = 1;
-		} else {
-			sizes[1] = pix_fmt->plane_fmt[1].sizeimage;
-			*nplanes = 2;
-		}
+		*nplanes = pix_fmt->num_planes;
+		for (i = 0; i != pix_fmt->num_planes; ++i)
+			sizes[i] = pix_fmt->plane_fmt[i].sizeimage;
 	}
 
 	return 0;
@@ -508,12 +487,11 @@ static int hevc_d_buf_prepare(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format_mplane *pix_fmt;
+	struct v4l2_pix_format_mplane *pix_fmt = &ctx->dst_fmt;
 
+	/* If OUTPUT then we don't care about actual buffer size */
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
-		pix_fmt = &ctx->src_fmt;
-	else
-		pix_fmt = &ctx->dst_fmt;
+		return 0;
 
 	if (vb2_plane_size(vb, 0) < pix_fmt->plane_fmt[0].sizeimage ||
 	    vb2_plane_size(vb, 1) < pix_fmt->plane_fmt[1].sizeimage)
