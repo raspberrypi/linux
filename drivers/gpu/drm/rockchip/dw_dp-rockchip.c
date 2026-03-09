@@ -130,9 +130,7 @@ static int dw_dp_probe(struct platform_device *pdev)
 
 static void dw_dp_remove(struct platform_device *pdev)
 {
-	struct rockchip_dw_dp *dp = platform_get_drvdata(pdev);
-
-	component_del(dp->dev, &dw_dp_rockchip_component_ops);
+	component_del(&pdev->dev, &dw_dp_rockchip_component_ops);
 }
 
 static const struct of_device_id dw_dp_of_match[] = {
