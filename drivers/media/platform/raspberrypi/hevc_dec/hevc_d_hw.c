@@ -11,17 +11,9 @@
  * Copyright (C) 2018 Bootlin
  */
 #include <linux/clk.h>
-#include <linux/component.h>
-#include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
-#include <linux/io.h>
-#include <linux/of_reserved_mem.h>
-#include <linux/of_device.h>
-#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/regmap.h>
-#include <linux/reset.h>
 
 #include <media/videobuf2-core.h>
 #include <media/v4l2-mem2mem.h>

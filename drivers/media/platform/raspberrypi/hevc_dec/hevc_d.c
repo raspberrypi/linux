@@ -11,10 +11,10 @@
  * Copyright (C) 2018 Bootlin
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/module.h>
-#include <linux/of.h>
 
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
@@ -226,7 +226,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 
 	ret = hevc_d_hw_probe(dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to probe hardware - %d\n", ret);
+		dev_err_probe(&pdev->dev, ret, "Failed to probe hardware\n");
 		return ret;
 	}
 
@@ -387,7 +387,7 @@ static struct platform_driver hevc_d_driver = {
 	.remove		= hevc_d_remove,
 	.driver		= {
 		.name = HEVC_D_NAME,
-		.of_match_table	= of_match_ptr(hevc_d_dt_match),
+		.of_match_table	= hevc_d_dt_match,
 		.pm = pm_ptr(&hevc_d_pm_ops),
 	},
 };

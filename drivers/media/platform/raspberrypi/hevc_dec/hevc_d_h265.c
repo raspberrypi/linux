@@ -136,6 +136,8 @@ static size_t next_size(const size_t x)
 struct hevc_d_q_aux {
 	unsigned int refcount;
 	unsigned int q_index;
+	/* Is this aux entry set correctly? Only set on release or in P2 */
+	bool good;
 	struct hevc_d_q_aux *next;
 	struct hevc_d_hwbuf col;
 };
@@ -191,12 +193,13 @@ struct hevc_d_dec_env {
 	unsigned int luma_stride;
 	dma_addr_t frame_chroma_addr;
 	unsigned int chroma_stride;
-	dma_addr_t ref_addrs[16][2];
-	struct hevc_d_q_aux *frame_aux;
-	struct hevc_d_q_aux *col_aux;
+	u32 mvbase;
 
-	dma_addr_t pu_base_vc;
-	dma_addr_t coeff_base_vc;
+	unsigned int frame_slot;
+	unsigned int ref_slots[16];
+
+	dma_addr_t pu_base_addr;
+	dma_addr_t coeff_base_addr;
 	u32 pu_stride;
 	u32 coeff_stride;
 
@@ -350,10 +353,6 @@ static struct hevc_d_q_aux *aux_q_alloc(struct hevc_d_ctx *const ctx,
 			DMA_ATTR_FORCE_CONTIGUOUS | DMA_ATTR_NO_KERNEL_MAPPING))
 		goto fail;
 
-	/*
-	 * Spinlock not required as called in P0 only and
-	 * aux checks done by _new
-	 */
 	aq->refcount = 1;
 	aq->q_index = q_index;
 	ctx->aux_ents[q_index] = aq;
@@ -368,9 +367,7 @@ static struct hevc_d_q_aux *aux_q_new(struct hevc_d_ctx *const ctx,
 				      const unsigned int q_index)
 {
 	struct hevc_d_q_aux *aq;
-	unsigned long lockflags;
 
-	spin_lock_irqsave(&ctx->aux_lock, lockflags);
 	/*
 	 * If we already have this allocated to a slot then use that
 	 * and assume that it will all work itself out in the pipeline
@@ -388,7 +385,6 @@ static struct hevc_d_q_aux *aux_q_new(struct hevc_d_ctx *const ctx,
 			ctx->aux_ents[q_index] = aq;
 		}
 	}
-	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
 
 	if (!aq)
 		aq = aux_q_alloc(ctx, q_index);
@@ -397,30 +393,14 @@ static struct hevc_d_q_aux *aux_q_new(struct hevc_d_ctx *const ctx,
 }
 
 static struct hevc_d_q_aux *aux_q_ref_idx(struct hevc_d_ctx *const ctx,
-					  const int q_index)
+					  const unsigned int q_index)
 {
-	unsigned long lockflags;
 	struct hevc_d_q_aux *aq;
 
-	spin_lock_irqsave(&ctx->aux_lock, lockflags);
 	aq = ctx->aux_ents[q_index];
 	if (aq)
 		++aq->refcount;
-	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
 
-	return aq;
-}
-
-static struct hevc_d_q_aux *aux_q_ref(struct hevc_d_ctx *const ctx,
-				      struct hevc_d_q_aux *const aq)
-{
-	unsigned long lockflags;
-
-	if (aq) {
-		spin_lock_irqsave(&ctx->aux_lock, lockflags);
-		++aq->refcount;
-		spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
-	}
 	return aq;
 }
 
@@ -428,26 +408,23 @@ static void aux_q_release(struct hevc_d_ctx *const ctx,
 			  struct hevc_d_q_aux **const paq)
 {
 	struct hevc_d_q_aux *const aq = *paq;
-	unsigned long lockflags;
 
 	if (!aq)
 		return;
 
 	*paq = NULL;
 
-	spin_lock_irqsave(&ctx->aux_lock, lockflags);
 	if (--aq->refcount == 0) {
 		aq->next = ctx->aux_free;
 		ctx->aux_free = aq;
 		ctx->aux_ents[aq->q_index] = NULL;
 		aq->q_index = ~0U;
+		aq->good = false;
 	}
-	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
 }
 
 static void aux_q_init(struct hevc_d_ctx *const ctx)
 {
-	spin_lock_init(&ctx->aux_lock);
 	ctx->aux_free = NULL;
 }
 
@@ -1443,9 +1420,6 @@ static void dec_env_delete(struct hevc_d_dec_env *const de)
 	struct hevc_d_ctx * const ctx = de->ctx;
 	unsigned long lock_flags;
 
-	aux_q_release(ctx, &de->frame_aux);
-	aux_q_release(ctx, &de->col_aux);
-
 	spin_lock_irqsave(&ctx->dec_lock, lock_flags);
 
 	de->state = HEVC_D_DECODE_END;
@@ -1476,7 +1450,7 @@ static int dec_env_init(struct hevc_d_ctx *const ctx)
 
 	ctx->dec_pool = kzalloc_objs(*ctx->dec_pool, HEVC_D_DEC_ENV_COUNT);
 	if (!ctx->dec_pool)
-		return -1;
+		return -ENOMEM;
 
 	spin_lock_init(&ctx->dec_lock);
 
@@ -1499,7 +1473,7 @@ static int dec_env_init(struct hevc_d_ctx *const ctx)
 
 fail:
 	dec_env_uninit(ctx);
-	return -1;
+	return -ENOMEM;
 }
 
 /*
@@ -1595,11 +1569,11 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	unsigned int prev_rs;
 	unsigned int i;
 	int rv;
-	bool slice_temporal_mvp;
 	unsigned int ctb_size_y;
 	bool sps_changed = false;
 	/* Old (downstream only) bit size meanings */
 	bool old_bits = false;
+	unsigned int lkg_slot;
 
 	de = dec_env_new(ctx);
 	if (!de) {
@@ -1610,7 +1584,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 	s->sh = NULL;  /* Avoid use until in the slice loop */
 
-	slice_temporal_mvp = (sh0->flags &
+	s->slice_temporal_mvp = (sh0->flags &
 		   V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_TEMPORAL_MVP_ENABLED);
 
 	/*
@@ -1679,8 +1653,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		break;
 	}
 
-	de->frame_aux = NULL;
-
 	if (s->sps.bit_depth_luma_minus8 == 0) {
 		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128 &&
 		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) {
@@ -1745,21 +1717,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		}
 		break;
 	}
-
-	/*
-	 * Fill in ref planes with our address s.t. if we mess up refs
-	 * somehow then we still have a valid address entry
-	 */
-	for (i = 0; i != 16; ++i) {
-		de->ref_addrs[i][0] = de->frame_luma_addr;
-		de->ref_addrs[i][1] = de->frame_chroma_addr;
-	}
-
-	/*
-	 * Stash initial temporal_mvp flag
-	 * This must be the same for all pic slices (7.4.7.1)
-	 */
-	s->slice_temporal_mvp = slice_temporal_mvp;
 
 	/*
 	 * Need Aux ents for all (ref) DPB ents if temporal MV could
@@ -1827,7 +1784,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		}
 		/* BFNUM (data_len) includes the byte with rbsp_stop_one_bit which is not
 		 * part of slice_segment_data but is all but certain to be in the input
-		 * stream so add that when calulating the value we need, but limit to the
+		 * stream so add that when calculating the value we need, but limit to the
 		 * actual size of the buffer (which may well be what is used to set
 		 * bit_size if the caller isn't being very pedantic).
 		 */
@@ -1902,6 +1859,13 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		goto fail;
 	}
 
+	/*
+	 * Find all the references. If any are missing the fill with the
+	 * nearest valid entry. If nothing valid then use the buffer we
+	 * are decoding into as a last resort. Ensure everything contains
+	 * something valid so no checking is required in P2
+	 */
+	lkg_slot = de->frame_slot;
 	for (i = 0; i < dec->num_active_dpb_entries; ++i) {
 		struct vb2_buffer *buf = vb2_find_buffer(vq, dec->dpb[i].timestamp);
 
@@ -1914,30 +1878,30 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 				v4l2_warn(&dev->v4l2_dev,
 					  "Missing inuse DPB ent %d, timestamp=%lld\n",
 					  i, (long long)dec->dpb[i].timestamp);
+			de->ref_slots[i] = lkg_slot;
 			continue;
 		}
 
 		if (s->use_aux) {
-			int buffer_index = buf->index;
-
-			dpb_q_aux[i] = aux_q_ref_idx(ctx, buffer_index);
+			dpb_q_aux[i] = aux_q_ref_idx(ctx, buf->index);
 			if (!dpb_q_aux[i])
 				v4l2_warn(&dev->v4l2_dev,
 					  "Missing DPB AUX ent %d, timestamp=%lld, index=%d\n",
 					  i, (long long)dec->dpb[i].timestamp,
-					  buffer_index);
+					  buf->index);
 		}
 
-		de->ref_addrs[i][0] =
-			vb2_dma_contig_plane_dma_addr(buf, 0);
-		if (ctx->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
-		    ctx->dst_fmt.pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128)
-			de->ref_addrs[i][1] =
-				vb2_dma_contig_plane_dma_addr(buf, 1);
-		else
-			de->ref_addrs[i][1] = de->ref_addrs[i][0] +
-				(ctx->dst_fmt.height * 128);
+		de->ref_slots[i] = buf->index;
+		if (lkg_slot == de->frame_slot) {
+			unsigned int j;
+
+			for (j = 0; j != i; ++j)
+				de->ref_slots[j] = buf->index;
+		}
+		lkg_slot = buf->index;
 	}
+	for (; i != 16; ++i)
+		de->ref_slots[i] = lkg_slot;
 
 	/* Move DPB from temp */
 	for (i = 0; i != V4L2_HEVC_DPB_ENTRIES_NUM_MAX; ++i) {
@@ -1957,34 +1921,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 			goto fail;
 		}
 
-		de->frame_aux = aux_q_ref(ctx, s->frame_aux);
-	}
-
-	if (de->dpbno_col != ~0U) {
-		if (de->dpbno_col >= dec->num_active_dpb_entries) {
-			v4l2_err(&dev->v4l2_dev,
-				 "Col ref index %d >= %d\n",
-				 de->dpbno_col,
-				 dec->num_active_dpb_entries);
-		} else {
-			/* Standard requires that the col pic is constant for
-			 * the duration of the pic (text of collocated_ref_idx
-			 * in H265-2 2018 7.4.7.1)
-			 */
-
-			/* Spot the collocated ref in passing */
-			de->col_aux = aux_q_ref(ctx,
-						dpb_q_aux[de->dpbno_col]);
-
-			if (!de->col_aux) {
-				v4l2_warn(&dev->v4l2_dev,
-					  "Missing DPB ent for col\n");
-				/* Need to abort if this fails as P2 may
-				 * explode on bad data
-				 */
-				goto fail;
-			}
-		}
+		de->mvbase = VC_ADDR(s->frame_aux->col.addr);
 	}
 
 	de->state = HEVC_D_DECODE_PHASE1;
@@ -2050,31 +1987,82 @@ static void phase2_cb(struct hevc_d_dev *const dev, void *v)
 	phase2_done(dev, v, VB2_BUF_STATE_DONE);
 }
 
+static void phase2_err_claimed(struct hevc_d_dev *const dev, void *v)
+{
+	struct hevc_d_dec_env *const de = v;
+	struct hevc_d_ctx *const ctx = de->ctx;
+	struct hevc_d_slot *const slot = ctx->slots + de->frame_slot;
+
+	slot->refybase = 0;
+	slot->refcbase = 0;
+	slot->colbase = 0;
+	slot->poc = de->rpi_currpoc;
+
+	phase2_done(dev, de, VB2_BUF_STATE_ERROR);
+}
+
+static const struct hevc_d_slot *find_slot(struct hevc_d_dec_env *const de,
+					   const struct hevc_d_ctx *ctx,
+					   unsigned int dpb_no)
+{
+	const struct hevc_d_slot *slot = ctx->slots + de->ref_slots[dpb_no];
+	const u32 poc = slot->poc;
+	u32 pocdiff = 0xffffffff;
+	unsigned int i;
+
+	if (likely(slot->refybase))
+		return slot;
+
+	slot = NULL;
+	for (i = 0; i != 16; ++i) {
+		const struct hevc_d_slot *t = ctx->slots + de->ref_slots[i];
+		u32 d = abs((s32)(poc - t->poc));
+
+		if (t->refybase && d < pocdiff) {
+			slot = t;
+			pocdiff = d;
+		}
+	}
+	return slot;
+}
+
 static void phase2_claimed(struct hevc_d_dev *const dev, void *v)
 {
 	struct hevc_d_dec_env *const de = v;
+	struct hevc_d_ctx *const ctx = de->ctx;
+	struct hevc_d_slot *const slot = ctx->slots + de->frame_slot;
+	u32 colbase = 0;
 	unsigned int i;
 
-	apb_write_vc_addr(dev, RPI_PURBASE, de->pu_base_vc);
+	slot->refybase = VC_ADDR(de->frame_luma_addr);
+	slot->refcbase = VC_ADDR(de->frame_chroma_addr);
+	slot->colbase = de->mvbase;
+	slot->poc = de->rpi_currpoc;
+
+	apb_write_vc_addr(dev, RPI_PURBASE, de->pu_base_addr);
 	apb_write_vc_len(dev, RPI_PURSTRIDE, de->pu_stride);
-	apb_write_vc_addr(dev, RPI_COEFFRBASE, de->coeff_base_vc);
+	apb_write_vc_addr(dev, RPI_COEFFRBASE, de->coeff_base_addr);
 	apb_write_vc_len(dev, RPI_COEFFRSTRIDE, de->coeff_stride);
 
 	apb_write_vc_addr(dev, RPI_OUTYBASE, de->frame_luma_addr);
-	apb_write_vc_addr(dev, RPI_OUTCBASE, de->frame_chroma_addr);
 	apb_write_vc_len(dev, RPI_OUTYSTRIDE, de->luma_stride);
+	apb_write_vc_addr(dev, RPI_OUTCBASE, de->frame_chroma_addr);
 	apb_write_vc_len(dev, RPI_OUTCSTRIDE, de->chroma_stride);
 
 	for (i = 0; i < 16; i++) {
 		/* Strides are in fact unused but fill in anyway */
 		unsigned int roff = i * RPI_REFREGS_SIZE;
+		const struct hevc_d_slot *ref = find_slot(de, ctx, i);
 
-		apb_write_vc_addr(dev, RPI_REFYBASE0 + roff,
-				  de->ref_addrs[i][0]);
+		if (!ref)
+			goto fail;
+		if (i == de->dpbno_col)
+			colbase = ref->colbase;
+
+		apb_write(dev, RPI_REFYBASE0 + roff, ref->refybase);
 		apb_write_vc_len(dev, RPI_REFYSTRIDE0 + roff,
 				 de->luma_stride);
-		apb_write_vc_addr(dev, RPI_REFCBASE0 + roff,
-				  de->ref_addrs[i][1]);
+		apb_write(dev, RPI_REFCBASE0 + roff, ref->refcbase);
 		apb_write_vc_len(dev, RPI_REFCSTRIDE0 + roff,
 				 de->chroma_stride);
 	}
@@ -2084,23 +2072,21 @@ static void phase2_claimed(struct hevc_d_dev *const dev, void *v)
 	apb_write(dev, RPI_CURRPOC, de->rpi_currpoc);
 
 	/* collocated reads/writes */
-	apb_write_vc_len(dev, RPI_COLSTRIDE,
-			 de->ctx->colmv_stride);
-	apb_write_vc_len(dev, RPI_MVSTRIDE,
-			 de->ctx->colmv_stride);
-	apb_write_vc_addr(dev, RPI_MVBASE,
-			  !de->frame_aux ? 0 : de->frame_aux->col.addr);
-	apb_write_vc_addr(dev, RPI_COLBASE,
-			  !de->col_aux ? 0 : de->col_aux->col.addr);
+	if (!colbase && de->dpbno_col != ~0U)
+		goto fail;
+
+	apb_write_vc_len(dev, RPI_COLSTRIDE, ctx->colmv_stride);
+	apb_write(dev, RPI_COLBASE, colbase);
+	apb_write_vc_len(dev, RPI_MVSTRIDE, ctx->colmv_stride);
+	apb_write(dev, RPI_MVBASE, de->mvbase);
 
 	hevc_d_hw_irq_active2_irq(dev, &de->irq_ent, phase2_cb, de);
 
 	apb_write_final(dev, RPI_NUMROWS, de->pic_height_in_ctbs_y);
-}
+	return;
 
-static void phase2_err_claimed(struct hevc_d_dev *const dev, void *v)
-{
-	phase2_done(dev, v, VB2_BUF_STATE_ERROR);
+fail:
+	phase2_err_claimed(dev, de);
 }
 
 static void phase1_claimed(struct hevc_d_dev *const dev, void *v);
@@ -2211,11 +2197,11 @@ static void phase1_claimed(struct hevc_d_dev *const dev, void *v)
 	if (ctx->fatal_err)
 		goto fail;
 
-	de->pu_base_vc = pu_hwbuf->addr;
+	de->pu_base_addr = pu_hwbuf->addr;
 	de->pu_stride =
 		ALIGN_DOWN(pu_hwbuf->size / de->pic_height_in_ctbs_y, 64);
 
-	de->coeff_base_vc = coeff_hwbuf->addr;
+	de->coeff_base_addr = coeff_hwbuf->addr;
 	de->coeff_stride =
 		ALIGN_DOWN(coeff_hwbuf->size / de->pic_height_in_ctbs_y, 64);
 
@@ -2223,9 +2209,9 @@ static void phase1_claimed(struct hevc_d_dev *const dev, void *v)
 	 * in cb_phase1 after error detection
 	 */
 
-	apb_write_vc_addr(dev, RPI_PUWBASE, de->pu_base_vc);
+	apb_write_vc_addr(dev, RPI_PUWBASE, de->pu_base_addr);
 	apb_write_vc_len(dev, RPI_PUWSTRIDE, de->pu_stride);
-	apb_write_vc_addr(dev, RPI_COEFFWBASE, de->coeff_base_vc);
+	apb_write_vc_addr(dev, RPI_COEFFWBASE, de->coeff_base_addr);
 	apb_write_vc_len(dev, RPI_COEFFWSTRIDE, de->coeff_stride);
 
 	/* Trigger command FIFO */
