@@ -1124,6 +1124,8 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 		 */
 		if (!mmc_card_is_removable(card->host))
 			card->max_posted_writes = card->ext_csd.cmdq_depth;
+		else
+			card->max_posted_writes = min_t(uint, card->max_posted_writes, card->ext_csd.cmdq_depth);
 	}
 
 	card->ext_perf.fno = fno;
@@ -1407,7 +1409,7 @@ retry:
 
 		card->ocr = ocr;
 		card->type = MMC_TYPE_SD;
-		card->max_posted_writes = 1;
+		card->max_posted_writes = max_posted_writes;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 	}
 
