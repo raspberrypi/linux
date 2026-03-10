@@ -1257,6 +1257,8 @@ static unsigned long bcm2835_clock_choose_div_and_prate(struct clk_hw *hw,
 static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 					struct clk_rate_request *req)
 {
+	struct bcm2835_clock *clock = bcm2835_clock_from_hw(hw);
+	struct bcm2835_cprman *cprman = clock->cprman;
 	struct clk_hw *parent, *best_parent = NULL;
 	bool current_parent_is_pllc;
 	unsigned long rate, best_rate = 0;
@@ -1276,13 +1278,17 @@ static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 			continue;
 
 		/*
+		 * BCM2835 only.
 		 * Don't choose a PLLC-derived clock as our parent
 		 * unless it had been manually set that way.  PLLC's
 		 * frequency gets adjusted by the firmware due to
 		 * over-temp or under-voltage conditions, without
 		 * prior notification to our clock consumer.
+		 * (BCM2711 doesn't do this, therefore it is safe to
+		 * use PLLC)
 		 */
-		if (bcm2835_clk_is_pllc(parent) && !current_parent_is_pllc)
+		if ((cprman->soc & SOC_BCM2835) && bcm2835_clk_is_pllc(parent) &&
+		    !current_parent_is_pllc)
 			continue;
 
 		rate = bcm2835_clock_choose_div_and_prate(hw, i, req->rate,
