@@ -106,6 +106,8 @@ int tidss_encoder_create(struct tidss_device *tidss,
 	enc = &t_enc->encoder;
 	enc->possible_crtcs = possible_crtcs;
 
+	devm_drm_bridge_add(tidss->dev, &t_enc->bridge);
+
 	/* Attaching first bridge to the encoder */
 	ret = drm_bridge_attach(enc, &t_enc->bridge, NULL,
 				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
