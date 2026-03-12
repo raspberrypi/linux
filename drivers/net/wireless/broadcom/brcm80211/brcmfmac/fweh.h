@@ -310,7 +310,7 @@ struct eventmsgs_ext {
 	u8	command;
 	u8	len;
 	u8	maxgetsize;
-	u8	mask[1];
+	u8	mask[];
 };
 
 typedef int (*brcmf_fweh_handler_t)(struct brcmf_if *ifp,
