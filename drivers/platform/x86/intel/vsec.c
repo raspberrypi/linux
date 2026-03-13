@@ -158,18 +158,23 @@ static bool vsec_driver_present(int cap_id)
  */
 static const struct pci_device_id intel_vsec_pci_ids[];
 
-static int intel_vsec_link_devices(struct pci_dev *pdev, struct device *dev,
+static int intel_vsec_link_devices(struct device *parent, struct device *dev,
 				   int consumer_id)
 {
 	const struct vsec_feature_dependency *deps;
 	enum vsec_device_state *state;
 	struct device **suppliers;
 	struct vsec_priv *priv;
+	struct pci_dev *pdev;
 	int supplier_id;
 
 	if (!consumer_id)
 		return 0;
 
+	if (!dev_is_pci(parent))
+		return 0;
+
+	pdev = to_pci_dev(parent);
 	if (!pci_match_id(intel_vsec_pci_ids, pdev))
 		return 0;
 
@@ -204,7 +209,7 @@ static int intel_vsec_link_devices(struct pci_dev *pdev, struct device *dev,
 	return 0;
 }
 
-int intel_vsec_add_aux(struct pci_dev *pdev, struct device *parent,
+int intel_vsec_add_aux(struct device *parent,
 		       struct intel_vsec_device *intel_vsec_dev,
 		       const char *name)
 {
@@ -252,7 +257,7 @@ int intel_vsec_add_aux(struct pci_dev *pdev, struct device *parent,
 	if (ret)
 		goto cleanup_aux;
 
-	ret = intel_vsec_link_devices(pdev, &auxdev->dev, intel_vsec_dev->cap_id);
+	ret = intel_vsec_link_devices(parent, &auxdev->dev, intel_vsec_dev->cap_id);
 	if (ret)
 		goto cleanup_aux;
 
@@ -343,7 +348,7 @@ static int intel_vsec_add_dev(struct pci_dev *pdev, struct intel_vsec_header *he
 	 * Pass the ownership of intel_vsec_dev and resource within it to
 	 * intel_vsec_add_aux()
 	 */
-	return intel_vsec_add_aux(pdev, parent, no_free_ptr(intel_vsec_dev),
+	return intel_vsec_add_aux(parent, no_free_ptr(intel_vsec_dev),
 				  intel_vsec_name(header->id));
 }
 
