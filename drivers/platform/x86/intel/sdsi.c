@@ -599,13 +599,14 @@ static int sdsi_get_layout(struct sdsi_priv *priv, struct disc_table *table)
 	return 0;
 }
 
-static int sdsi_map_mbox_registers(struct sdsi_priv *priv, struct pci_dev *parent,
+static int sdsi_map_mbox_registers(struct sdsi_priv *priv, struct device *dev,
 				   struct disc_table *disc_table, struct resource *disc_res)
 {
 	u32 access_type = FIELD_GET(DT_ACCESS_TYPE, disc_table->access_info);
 	u32 size = FIELD_GET(DT_SIZE, disc_table->access_info);
 	u32 tbir = FIELD_GET(DT_TBIR, disc_table->offset);
 	u32 offset = DT_OFFSET(disc_table->offset);
+	struct pci_dev *parent = to_pci_dev(dev);
 	struct resource res = {};
 
 	/* Starting location of SDSi MMIO region based on access type */
@@ -681,7 +682,7 @@ static int sdsi_probe(struct auxiliary_device *auxdev, const struct auxiliary_de
 		return ret;
 
 	/* Map the SDSi mailbox registers */
-	ret = sdsi_map_mbox_registers(priv, intel_cap_dev->pcidev, &disc_table, disc_res);
+	ret = sdsi_map_mbox_registers(priv, intel_cap_dev->dev, &disc_table, disc_res);
 	if (ret)
 		return ret;
 

@@ -141,10 +141,10 @@ static int xe_guid_decode(u32 guid, int *index, u32 *offset)
 	return 0;
 }
 
-int xe_pmt_telem_read(struct pci_dev *pdev, u32 guid, u64 *data, loff_t user_offset,
+int xe_pmt_telem_read(struct device *dev, u32 guid, u64 *data, loff_t user_offset,
 		      u32 count)
 {
-	struct xe_device *xe = pdev_to_xe_device(pdev);
+	struct xe_device *xe = kdev_to_xe_device(dev);
 	void __iomem *telem_addr = xe->mmio.regs + BMG_TELEMETRY_OFFSET;
 	u32 mem_region;
 	u32 offset;
@@ -197,7 +197,6 @@ void xe_vsec_init(struct xe_device *xe)
 {
 	struct intel_vsec_platform_info *info;
 	struct device *dev = xe->drm.dev;
-	struct pci_dev *pdev = to_pci_dev(dev);
 	enum xe_vsec platform;
 
 	platform = get_platform_info(xe);
@@ -220,6 +219,6 @@ void xe_vsec_init(struct xe_device *xe)
 	 * Register a VSEC. Cleanup is handled using device managed
 	 * resources.
 	 */
-	intel_vsec_register(pdev, info);
+	intel_vsec_register(dev, info);
 }
 MODULE_IMPORT_NS("INTEL_VSEC");

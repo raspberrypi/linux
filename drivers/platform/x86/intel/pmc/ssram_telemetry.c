@@ -60,7 +60,7 @@ pmc_ssram_telemetry_add_pmt(struct pci_dev *pcidev, u64 ssram_base, void __iomem
 	info.base_addr = ssram_base;
 	info.parent = &pcidev->dev;
 
-	return intel_vsec_register(pcidev, &info);
+	return intel_vsec_register(&pcidev->dev, &info);
 }
 
 static inline u64 get_base(void __iomem *addr, u32 offset)

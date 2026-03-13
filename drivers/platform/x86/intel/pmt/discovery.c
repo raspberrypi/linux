@@ -542,7 +542,7 @@ static int pmt_features_probe(struct auxiliary_device *auxdev, const struct auxi
 	if (!priv)
 		return -ENOMEM;
 
-	priv->parent = &ivdev->pcidev->dev;
+	priv->parent = ivdev->dev;
 	auxiliary_set_drvdata(auxdev, priv);
 
 	priv->dev = device_create(&intel_pmt_class, &auxdev->dev, MKDEV(0, 0), priv,
@@ -609,7 +609,7 @@ void intel_pmt_get_features(struct intel_pmt_entry *entry)
 
 	mutex_lock(&feature_list_lock);
 	list_for_each_entry(feature, &pmt_feature_list, list) {
-		if (feature->priv->parent != &entry->ep->pcidev->dev)
+		if (feature->priv->parent != entry->ep->dev)
 			continue;
 
 		pmt_get_features(entry, feature);

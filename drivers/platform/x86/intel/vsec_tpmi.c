@@ -530,7 +530,7 @@ static const struct file_operations mem_write_ops = {
 	.release        = single_release,
 };
 
-#define tpmi_to_dev(info)	(&info->vsec_dev->pcidev->dev)
+#define tpmi_to_dev(info)	((info)->vsec_dev->dev)
 
 static void tpmi_dbgfs_register(struct intel_tpmi_info *tpmi_info)
 {
@@ -642,7 +642,7 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 		tmp->flags = IORESOURCE_MEM;
 	}
 
-	feature_vsec_dev->pcidev = vsec_dev->pcidev;
+	feature_vsec_dev->dev = vsec_dev->dev;
 	feature_vsec_dev->resource = res;
 	feature_vsec_dev->num_resources = pfs->pfs_header.num_entries;
 	feature_vsec_dev->priv_data = &tpmi_info->plat_info;
@@ -742,7 +742,7 @@ static int tpmi_fetch_pfs_header(struct intel_tpmi_pm_feature *pfs, u64 start, i
 static int intel_vsec_tpmi_init(struct auxiliary_device *auxdev)
 {
 	struct intel_vsec_device *vsec_dev = auxdev_to_ivdev(auxdev);
-	struct pci_dev *pci_dev = vsec_dev->pcidev;
+	struct pci_dev *pci_dev = to_pci_dev(vsec_dev->dev);
 	struct intel_tpmi_info *tpmi_info;
 	u64 pfs_start = 0;
 	int ret, i;
