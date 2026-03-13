@@ -1235,11 +1235,13 @@ static void macb_tx_release_buff(void *buff, enum macb_tx_buff_type type, int bu
 {
 	if (type == MACB_TYPE_SKB) {
 		napi_consume_skb(buff, budget);
-	} else {
+	} else if (type == MACB_TYPE_XDP_TX) {
 		if (!budget)
 			xdp_return_frame(buff);
 		else
 			xdp_return_frame_rx_napi(buff);
+	} else {
+		xdp_return_frame(buff);
 	}
 }
 
@@ -1701,20 +1703,24 @@ static void discard_partial_frame(struct macb_queue *queue, unsigned int begin,
 }
 
 static int macb_xdp_submit_frame(struct macb *bp, struct xdp_frame *xdpf,
-				 struct net_device *dev, dma_addr_t addr)
+				 struct net_device *dev, bool dma_map,
+				 dma_addr_t addr)
 {
+	enum macb_tx_buff_type buff_type;
 	struct macb_tx_buff *tx_buff;
 	int cpu = smp_processor_id();
 	struct macb_dma_desc *desc;
 	struct macb_queue *queue;
 	unsigned int next_head;
 	unsigned long flags;
+	dma_addr_t mapping;
 	u16 queue_index;
 	int err = 0;
 	u32 ctrl;
 
 	queue_index = cpu % bp->num_queues;
 	queue = &bp->queues[queue_index];
+	buff_type = dma_map ? MACB_TYPE_XDP_NDO : MACB_TYPE_XDP_TX;
 
 	spin_lock_irqsave(&queue->tx_ptr_lock, flags);
 
@@ -1727,14 +1733,23 @@ static int macb_xdp_submit_frame(struct macb *bp, struct xdp_frame *xdpf,
 		goto unlock;
 	}
 
-	/* progs can adjust the head. Sync and set the adjusted one.
-	 * This also implicitly takes into account ip alignment,
-	 * if present.
-	 */
-	addr += xdpf->headroom + sizeof(*xdpf);
-
-	dma_sync_single_for_device(&bp->pdev->dev, addr,
-				   xdpf->len, DMA_BIDIRECTIONAL);
+	if (dma_map) {
+		mapping = dma_map_single(&bp->pdev->dev,
+					 xdpf->data,
+					 xdpf->len, DMA_TO_DEVICE);
+		if (unlikely(dma_mapping_error(&bp->pdev->dev, mapping))) {
+			err = -ENOMEM;
+			goto unlock;
+		}
+	} else {
+		/* progs can adjust the head. Sync and set the adjusted one.
+		 * This also implicitly takes into account ip alignment,
+		 * if present.
+		 */
+		mapping = addr + xdpf->headroom + sizeof(*xdpf);
+		dma_sync_single_for_device(&bp->pdev->dev, mapping,
+					   xdpf->len, DMA_BIDIRECTIONAL);
+	}
 
 	next_head = queue->tx_head + 1;
 
@@ -1745,8 +1760,8 @@ static int macb_xdp_submit_frame(struct macb *bp, struct xdp_frame *xdpf,
 	desc = macb_tx_desc(queue, queue->tx_head);
 	tx_buff = macb_tx_buff(queue, queue->tx_head);
 	tx_buff->ptr = xdpf;
-	tx_buff->type = MACB_TYPE_XDP_TX;
-	tx_buff->mapping = 0;
+	tx_buff->type = buff_type;
+	tx_buff->mapping = dma_map ? mapping : 0;
 	tx_buff->size = xdpf->len;
 	tx_buff->mapped_as_page = false;
 
@@ -1757,7 +1772,7 @@ static int macb_xdp_submit_frame(struct macb *bp, struct xdp_frame *xdpf,
 		ctrl |= MACB_BIT(TX_WRAP);
 
 	/* Set TX buffer descriptor */
-	macb_set_addr(bp, desc, addr);
+	macb_set_addr(bp, desc, mapping);
 	/* desc->addr must be visible to hardware before clearing
 	 * 'TX_USED' bit in desc->ctrl.
 	 */
@@ -1780,6 +1795,32 @@ unlock:
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 
 	return err;
+}
+
+static int gem_xdp_xmit(struct net_device *dev, int num_frame,
+			struct xdp_frame **frames, u32 flags)
+{
+	struct macb *bp = netdev_priv(dev);
+	u32 xmitted = 0;
+	int i;
+
+	if (!macb_is_gem(bp))
+		return -EOPNOTSUPP;
+
+	if (unlikely(!netif_carrier_ok(dev)))
+		return -ENETDOWN;
+
+	if (unlikely(flags & ~XDP_XMIT_FLAGS_MASK))
+		return -EINVAL;
+
+	for (i = 0; i < num_frame; i++) {
+		if (macb_xdp_submit_frame(bp, frames[i], dev, true, 0))
+			break;
+
+		xmitted++;
+	}
+
+	return xmitted;
 }
 
 static u32 gem_xdp_run(struct macb_queue *queue, void *buff_head,
@@ -1819,7 +1860,7 @@ static u32 gem_xdp_run(struct macb_queue *queue, void *buff_head,
 	case XDP_TX:
 		xdpf = xdp_convert_buff_to_frame(&xdp);
 		if (unlikely(!xdpf) || macb_xdp_submit_frame(queue->bp, xdpf,
-							     dev, addr)) {
+							     dev, false, addr)) {
 			act = XDP_DROP;
 			break;
 		}
@@ -5162,6 +5203,7 @@ static const struct net_device_ops macb_netdev_ops = {
 	.ndo_hwtstamp_get	= macb_hwtstamp_get,
 	.ndo_setup_tc		= macb_setup_tc,
 	.ndo_bpf		= gem_xdp,
+	.ndo_xdp_xmit		= gem_xdp_xmit,
 };
 
 /* Configure peripheral capabilities according to device tree
@@ -6459,7 +6501,8 @@ static int macb_probe(struct platform_device *pdev)
 		bp->rx_headroom += NET_IP_ALIGN;
 
 		dev->xdp_features = NETDEV_XDP_ACT_BASIC |
-				    NETDEV_XDP_ACT_REDIRECT;
+				    NETDEV_XDP_ACT_REDIRECT |
+				    NETDEV_XDP_ACT_NDO_XMIT;
 	}
 
 	netif_carrier_off(dev);
