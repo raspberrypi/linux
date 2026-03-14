@@ -41,7 +41,7 @@
 
 #define NUM_PIO_STATE_MACHINES		4
 #define PIO_INSTRUCTION_COUNT		32
-#define PIO_ORIGIN_ANY			((uint)(~0))
+#define PIO_ORIGIN_ANY			((uint16_t)(~0))
 #define GPIOS_MASK			((1 << RP1_PIO_GPIO_COUNT) - 1)
 
 #define PICO_NO_HARDWARE		0
