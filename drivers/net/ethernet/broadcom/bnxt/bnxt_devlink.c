@@ -443,12 +443,12 @@ static int bnxt_dl_reload_down(struct devlink *dl, bool netns_change,
 			NL_SET_ERR_MSG_MOD(extack,
 					   "reload is unsupported while VFs are allocated or being configured");
 			rtnl_unlock();
-			bnxt_ulp_start(bp, 0);
+			bnxt_ulp_start(bp);
 			return -EOPNOTSUPP;
 		}
 		if (bp->dev->reg_state == NETREG_UNREGISTERED) {
 			rtnl_unlock();
-			bnxt_ulp_start(bp, 0);
+			bnxt_ulp_start(bp);
 			return -ENODEV;
 		}
 		if (netif_running(bp->dev))
@@ -571,8 +571,8 @@ static int bnxt_dl_reload_up(struct devlink *dl, enum devlink_reload_action acti
 		dev_close(bp->dev);
 	}
 	rtnl_unlock();
-	if (action == DEVLINK_RELOAD_ACTION_DRIVER_REINIT)
-		bnxt_ulp_start(bp, rc);
+	if (!rc && action == DEVLINK_RELOAD_ACTION_DRIVER_REINIT)
+		bnxt_ulp_start(bp);
 	return rc;
 }
 
