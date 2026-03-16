@@ -3120,6 +3120,10 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
         cam0                    Adopt the default configuration for CAM0 on a
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         vcm                     Enable a VCM focus drive on the sensor.
+        link-frequency          Confgures the link frequency to be used. Note
+                                that the permitted values vary based on
+                                clock-frequency and number of lanes.
+                                The default is 594MHz 1188Mbit/s.
 
 
 Name:   imx708

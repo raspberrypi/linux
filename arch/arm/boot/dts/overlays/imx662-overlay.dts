@@ -102,6 +102,7 @@
 		4lane = <0>, "+201+202";
 		clock-frequency = <&clk_frag>,"clock-frequency:0",
 				  <&cam_node>,"clock-frequency:0";
+		link-frequency = <&cam_endpoint>,"link-frequencies#0";
 	};
 };
 
