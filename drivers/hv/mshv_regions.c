@@ -130,7 +130,7 @@ int mshv_region_pin(struct mshv_mem_region *region)
 		ret = pin_user_pages_fast(userspace_addr, nr_pages,
 					  FOLL_WRITE | FOLL_LONGTERM,
 					  pages);
-		if (ret < 0)
+		if (ret != nr_pages)
 			goto release_pages;
 	}
 
@@ -140,8 +140,10 @@ int mshv_region_pin(struct mshv_mem_region *region)
 	return 0;
 
 release_pages:
+	if (ret > 0)
+		done_count += ret;
 	mshv_region_invalidate_pages(region, 0, done_count);
-	return ret;
+	return ret < 0 ? ret : -ENOMEM;
 }
 
 void mshv_region_destroy(struct mshv_mem_region *region)
