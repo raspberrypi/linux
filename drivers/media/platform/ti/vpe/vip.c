@@ -3472,7 +3472,7 @@ static int vip_probe_slice(struct platform_device *pdev, int slice)
 	ret = devm_request_irq(&pdev->dev, dev->irq, vip_irq,
 			       0, VIP_MODULE_NAME, dev);
 	if (ret < 0)
-		return -ENOMEM;
+		return ret;
 
 	spin_lock_init(&dev->slock);
 	mutex_init(&dev->mutex);
