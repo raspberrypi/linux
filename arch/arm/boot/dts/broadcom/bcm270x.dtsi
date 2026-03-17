@@ -239,7 +239,7 @@
 };
 
 &uart0 {
-	compatible = "arm,pl011-axi";
+	compatible = "arm,pl011-axi", "arm,pl011", "arm,primecell";
 	/* Enable CTS bug workaround */
 	cts-event-workaround;
 };
