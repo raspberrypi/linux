@@ -430,7 +430,7 @@
 };
 
 &uart10 {
-	compatible = "arm,pl011-axi";
+	compatible = "arm,pl011-axi", "arm,pl011", "arm,primecell";
 };
 
 &aon_intr {
