@@ -3490,7 +3490,7 @@ static int vip_probe_slice(struct platform_device *pdev, int slice)
 
 	parser = devm_kzalloc(&pdev->dev, sizeof(*dev->parser), GFP_KERNEL);
 	if (!parser)
-		return PTR_ERR_OR_ZERO(parser);
+		return -ENOMEM;
 
 	parser->base = dev->base + (slice ? VIP_SLICE1_PARSER : VIP_SLICE0_PARSER);
 	if (IS_ERR(parser->base))
@@ -3502,7 +3502,7 @@ static int vip_probe_slice(struct platform_device *pdev, int slice)
 	dev->sc_assigned = VIP_NOT_ASSIGNED;
 	sc = devm_kzalloc(&pdev->dev, sizeof(*dev->sc), GFP_KERNEL);
 	if (!sc)
-		return PTR_ERR_OR_ZERO(sc);
+		return -ENOMEM;
 
 	sc->base = dev->base + (slice ? VIP_SLICE1_SC : VIP_SLICE0_SC);
 	if (IS_ERR(sc->base))
@@ -3514,7 +3514,7 @@ static int vip_probe_slice(struct platform_device *pdev, int slice)
 	dev->csc_assigned = VIP_NOT_ASSIGNED;
 	csc = devm_kzalloc(&pdev->dev, sizeof(*dev->csc), GFP_KERNEL);
 	if (!csc)
-		return PTR_ERR_OR_ZERO(csc);
+		return -ENOMEM;
 
 	csc->base = dev->base + (slice ? VIP_SLICE1_CSC : VIP_SLICE0_CSC);
 	if (IS_ERR(csc->base))
