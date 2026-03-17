@@ -9,6 +9,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/cleanup.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
@@ -3389,7 +3390,6 @@ static int vip_probe_complete(struct platform_device *pdev)
 	struct vip_port *port;
 	struct vip_dev *dev;
 	struct device_node *parent = pdev->dev.of_node;
-	struct fwnode_handle *ep = NULL;
 	unsigned int syscon_args[5];
 	int ret, i, slice_id, port_id, p;
 
@@ -3411,8 +3411,9 @@ static int vip_probe_complete(struct platform_device *pdev)
 		ctrl->syscon_bit_field[i] = syscon_args[i + 1];
 
 	for (p = 0; p < (VIP_NUM_PORTS * VIP_NUM_SLICES); p++) {
-		ep = fwnode_graph_get_next_endpoint_by_regs(of_fwnode_handle(parent),
-							    p, 0);
+		struct fwnode_handle *ep __free(fwnode_handle) =
+			fwnode_graph_get_next_endpoint_by_regs(
+				of_fwnode_handle(parent), p, 0);
 		if (!ep)
 			continue;
 
@@ -3447,7 +3448,6 @@ static int vip_probe_complete(struct platform_device *pdev)
 		port = dev->ports[port_id];
 
 		vip_register_subdev_notify(port, ep);
-		fwnode_handle_put(ep);
 	}
 	return 0;
 }
