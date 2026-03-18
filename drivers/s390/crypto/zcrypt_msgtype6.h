@@ -110,55 +110,6 @@ int prep_rng_ap_msg(struct ap_message *ap_msg,
 int speed_idx_cca(int);
 int speed_idx_ep11(int);
 
-/**
- * Prepare a type6 CPRB message for random number generation
- *
- * @ap_dev: AP device pointer
- * @ap_msg: pointer to AP message
- */
-static inline void rng_type6cprb_msgx(struct ap_message *ap_msg,
-				      unsigned int random_number_length,
-				      unsigned int *domain)
-{
-	struct {
-		struct type6_hdr hdr;
-		struct CPRBX cprbx;
-		char function_code[2];
-		short int rule_length;
-		char rule[8];
-		short int verb_length;
-		short int key_length;
-	} __packed * msg = ap_msg->msg;
-	static struct type6_hdr static_type6_hdrX = {
-		.type		= 0x06,
-		.offset1	= 0x00000058,
-		.agent_id	= {'C', 'A'},
-		.function_code	= {'R', 'L'},
-		.tocardlen1	= sizeof(*msg) - sizeof(msg->hdr),
-		.fromcardlen1	= sizeof(*msg) - sizeof(msg->hdr),
-	};
-	static struct CPRBX local_cprbx = {
-		.cprb_len	= 0x00dc,
-		.cprb_ver_id	= 0x02,
-		.func_id	= {0x54, 0x32},
-		.req_parml	= sizeof(*msg) - sizeof(msg->hdr) -
-				  sizeof(msg->cprbx),
-		.rpl_msgbl	= sizeof(*msg) - sizeof(msg->hdr),
-	};
-
-	msg->hdr = static_type6_hdrX;
-	msg->hdr.fromcardlen2 = random_number_length;
-	msg->cprbx = local_cprbx;
-	msg->cprbx.rpl_datal = random_number_length;
-	memcpy(msg->function_code, msg->hdr.function_code, 0x02);
-	msg->rule_length = 0x0a;
-	memcpy(msg->rule, "RANDOM  ", 8);
-	msg->verb_length = 0x02;
-	msg->key_length = 0x02;
-	ap_msg->len = sizeof(*msg);
-	*domain = (unsigned short)msg->cprbx.domain;
-}
-
 void zcrypt_msgtype6_init(void);
 void zcrypt_msgtype6_exit(void);
 
