@@ -96,7 +96,7 @@ struct type86_fmt2_ext {
 
 int prep_cca_ap_msg(bool userspace, struct ica_xcRB *xcrb,
 		    struct ap_message *ap_msg,
-		    unsigned int *fc, unsigned short **dom);
+		    unsigned int *fc, unsigned int *dom);
 int prep_ep11_ap_msg(bool userspace, struct ep11_urb *xcrb,
 		     struct ap_message *ap_msg,
 		     unsigned int *fc, unsigned int *dom);
