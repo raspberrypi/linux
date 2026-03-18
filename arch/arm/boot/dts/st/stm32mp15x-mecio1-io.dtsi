@@ -90,7 +90,7 @@
 };
 
 &adc {
-	/* ANA0, ANA1 are dedicated pins and don't need pinctrl: only in6. */
+	/* ANA0, ANA1 are dedicated pins and don't need pinctrl. */
 	pinctrl-0 = <&adc12_pins_mecsbc>;
 	pinctrl-names = "default";
 	vdd-supply = <&v3v3>;
@@ -102,34 +102,10 @@
 &adc1 {
 	status = "okay";
 
-	channel@0 {
-		reg = <0>;
-		st,min-sample-time-ns = <20000>;
-		label = "p24v_stp";
-	};
-
-	channel@1 {
-		reg = <1>;
-		st,min-sample-time-ns = <20000>;
-		label = "p24v_hpdcm";
-	};
-
 	channel@2 {
 		reg = <2>;
 		st,min-sample-time-ns = <20000>;
 		label = "ain0";
-	};
-
-	channel@3 {
-		reg = <3>;
-		st,min-sample-time-ns = <20000>;
-		label = "hpdcm1_i2";
-	};
-
-	channel@5 {
-		reg = <5>;
-		st,min-sample-time-ns = <20000>;
-		label = "hpout1_i";
 	};
 
 	channel@6 {
@@ -138,40 +114,16 @@
 		label = "ain1";
 	};
 
-	channel@9 {
-		reg = <9>;
-		st,min-sample-time-ns = <20000>;
-		label = "hpout0_i";
-	};
-
 	channel@10 {
 		reg = <10>;
 		st,min-sample-time-ns = <200000>;
 		label = "phint0_ain";
 	};
 
-	channel@13 {
-		reg = <13>;
-		st,min-sample-time-ns = <200000>;
-		label = "phint1_ain";
-	};
-
-	channel@15 {
-		reg = <15>;
-		st,min-sample-time-ns = <20000>;
-		label = "hpdcm0_i1";
-	};
-
 	channel@16 {
 		reg = <16>;
 		st,min-sample-time-ns = <20000>;
 		label = "lsin";
-	};
-
-	channel@18 {
-		reg = <18>;
-		st,min-sample-time-ns = <20000>;
-		label = "hpdcm0_i2";
 	};
 
 	channel@19 {
