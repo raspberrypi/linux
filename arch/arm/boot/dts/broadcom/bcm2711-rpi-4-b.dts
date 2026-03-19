@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0
 /dts-v1/;
-#define BCM2711
-#define i2c0 i2c0if
+
 #include "bcm2711.dtsi"
 #include "bcm2711-rpi.dtsi"
-/delete-node/&i2c0mux;
-#include "bcm283x-rpi-led-deprecated.dtsi"
-#include "bcm283x-rpi-wifi-bt.dtsi"
+#include "bcm283x-rpi-csi1-2lane.dtsi"
+#include "bcm283x-rpi-i2c0mux_0_44.dtsi"
+#include "bcm271x-rpi-bt.dtsi"
 #include <dt-bindings/leds/common.h>
-#undef i2c0
-#include "bcm270x.dtsi"
-#define i2c0 i2c0mux
-#undef i2c0
-
-/delete-node/ &cam1_reg;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/reset/raspberrypi,firmware-reset.h>
 
 / {
 	compatible = "raspberrypi,4-model-b", "brcm,bcm2711";
@@ -24,11 +20,16 @@
 		stdout-path = "serial1:115200n8";
 	};
 
+	/* Duplicate node cleanup */
+	/delete-node/ wifi-pwrseq;
+
+	/* Fixed regulators */
 	cam1_reg: regulator-cam1 {
 		compatible = "regulator-fixed";
 		regulator-name = "cam1-reg";
 		enable-active-high;
 		gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+		status = "okay";
 	};
 
 	sd_io_1v8_reg: regulator-sd-io-1v8 {
@@ -53,6 +54,7 @@
 		regulator-boot-on;
 		enable-active-high;
 		gpio = <&expgpio 6 GPIO_ACTIVE_HIGH>;
+		status = "okay";
 	};
 };
 
@@ -80,14 +82,6 @@
 };
 
 &gpio {
-	/*
-	 * Parts taken from rpi_SCH_4b_4p0_reduced.pdf and
-	 * the official GPU firmware DT blob.
-	 *
-	 * Legend:
-	 * "FOO" = GPIO line named "FOO" on the schematic
-	 * "FOO_N" = GPIO line named "FOO" on schematic, active low
-	 */
 	gpio-line-names = "ID_SDA",		/*  0 */
 			  "ID_SCL",
 			  "GPIO2",
@@ -102,7 +96,6 @@
 			  "GPIO11",
 			  "GPIO12",
 			  "GPIO13",
-			  /* Serial port */
 			  "GPIO14",
 			  "GPIO15",		/* 15 */
 			  "GPIO16",
@@ -119,20 +112,17 @@
 			  "GPIO27",
 			  "RGMII_MDIO",
 			  "RGMIO_MDC",
-			  /* Used by BT module */
-			  "CTS0",		/* 30 */
+			  "CTS0",		/* 30: Used by BT */
 			  "RTS0",
 			  "TXD0",
 			  "RXD0",
-			  /* Used by Wifi */
 			  "SD1_CLK",
-			  "SD1_CMD",		/* 35 */
+			  "SD1_CMD",		/* 35: Used by Wifi */
 			  "SD1_DATA0",
 			  "SD1_DATA1",
 			  "SD1_DATA2",
 			  "SD1_DATA3",
-			  /* Shared with SPI flash */
-			  "PWM0_MISO",		/* 40 */
+			  "PWM0_MISO",		/* 40: Shared with SPI flash */
 			  "PWM1_MOSI",
 			  "STATUS_LED_G_CLK",
 			  "SPIFLASH_CE_N",
@@ -150,52 +140,51 @@
 			  "RGMII_TXD1",		/* 55 */
 			  "RGMII_TXD2",
 			  "RGMII_TXD3";
-};
 
-&hdmi0 {
-	status = "okay";
-};
+	uart0_pins: uart0_pins {
+		brcm,pins = <32 33>;
+		brcm,function = <BCM2835_FSEL_ALT3>;
+		brcm,pull = <BCM2835_PUD_OFF BCM2835_PUD_UP>;
+	};
 
-&hdmi1 {
-	status = "okay";
-};
+	uart1_bt_pins: uart1_bt_pins {
+		brcm,pins = <32 33 30 31>;
+		brcm,function = <BCM2835_FSEL_ALT5>;
+		brcm,pull = <BCM2835_PUD_OFF BCM2835_PUD_UP BCM2835_PUD_UP BCM2835_PUD_OFF>;
+	};
 
-&led_act {
-	gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
-};
+	audio_pins: audio_pins {
+		brcm,pins = <40 41>;
+		brcm,function = <BCM2835_FSEL_ALT0>;
+		brcm,pull = <BCM2835_PUD_OFF>;
+	};
 
-&leds {
-	led_pwr: led-pwr {
-		label = "PWR";
-		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
-		default-state = "keep";
-		linux,default-trigger = "default-on";
+	bt_pins: bt_pins {
+		brcm,pins = "-";
+		brcm,function = <BCM2835_FSEL_GPIO_IN>;
+		brcm,pull = <BCM2835_PUD_UP>;
 	};
 };
 
-&pixelvalve0 {
-	status = "okay";
+&hdmi0 { status = "okay"; };
+&hdmi1 { status = "okay"; };
+
+&led_act {
+	gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
+	linux,default-trigger = "mmc0";
+	default-state = "off";
 };
 
-&pixelvalve1 {
-	status = "okay";
+&led_pwr {
+	gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
+	default-state = "off";
 };
 
-&pixelvalve2 {
-	status = "okay";
-};
+&pixelvalve0 { status = "okay"; };
+&pixelvalve1 { status = "okay"; };
+&pixelvalve2 { status = "okay"; };
+&pixelvalve4 { status = "okay"; };
 
-&pixelvalve4 {
-	status = "okay";
-};
-
-&pwm1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pwm1_0_gpio40 &pwm1_1_gpio41>;
-	status = "okay";
-};
-
-/* EMMC2 is used to drive the SD card */
 &emmc2 {
 	vqmmc-supply = <&sd_io_1v8_reg>;
 	vmmc-supply = <&sd_vcc_reg>;
@@ -211,29 +200,8 @@
 
 &genet_mdio {
 	phy1: ethernet-phy@1 {
-		/* No PHY interrupt */
 		reg = <0x1>;
-
-		leds {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			/* LED1 */
-			led@0 {
-				reg = <0>;
-				color = <LED_COLOR_ID_GREEN>;
-				function = "lan";//LED_FUNCTION_LAN;
-				default-state = "keep";
-			};
-
-			/* LED2 */
-			led@1 {
-				reg = <1>;
-				color = <LED_COLOR_ID_AMBER>;
-				function = "lan";//LED_FUNCTION_LAN;
-				default-state = "keep";
-			};
-		};
+		led-modes = <0x00 0x08>;
 	};
 };
 
@@ -243,7 +211,6 @@
 		#address-cells = <3>;
 		#size-cells = <2>;
 		ranges;
-
 		reg = <0 0 0 0 0>;
 
 		usb@0,0 {
@@ -253,180 +220,34 @@
 	};
 };
 
-/* uart0 communicates with the BT module */
 &uart0 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&uart0_ctsrts_gpio30 &uart0_gpio32>;
-	uart-has-rtscts;
-};
-
-/* uart1 is mapped to the pin header */
-&uart1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart1_gpio14>;
-	status = "okay";
-};
-
-&vc4 {
-	status = "okay";
-};
-
-&vec {
-	status = "disabled";
-};
-
-&wifi_pwrseq {
-	reset-gpios = <&expgpio 1 GPIO_ACTIVE_LOW>;
-};
-
-// =============================================
-// Downstream rpi- changes
-
-#include "bcm271x-rpi-bt.dtsi"
-
-/ {
-	soc {
-		/delete-node/ pixelvalve@7e807000;
-		/delete-node/ hdmi@7e902000;
-	};
-};
-
-&phy1 {
-	/delete-node/ leds;
-};
-
-#include "bcm2711-rpi-ds.dtsi"
-#include "bcm283x-rpi-csi1-2lane.dtsi"
-#include "bcm283x-rpi-i2c0mux_0_44.dtsi"
-
-/ {
-	/delete-node/ wifi-pwrseq;
-};
-
-&mmcnr {
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdio_pins>;
-	bus-width = <4>;
-	status = "okay";
-};
-
-&uart0 {
 	pinctrl-0 = <&uart0_pins &bt_pins>;
 	status = "okay";
 };
 
 &uart1 {
+	pinctrl-names = "default";
 	pinctrl-0 = <&uart1_pins>;
+	status = "okay";
 };
 
 &spi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
-	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+	cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>, <&gpio 7 GPIO_ACTIVE_LOW>;
+	status = "okay";
 
-	spidev0: spidev@0{
+	spidev0: spidev@0 {
 		compatible = "spidev";
-		reg = <0>;	/* CE0 */
-		#address-cells = <1>;
-		#size-cells = <0>;
+		reg = <0>;
 		spi-max-frequency = <125000000>;
 	};
 
-	spidev1: spidev@1{
+	spidev1: spidev@1 {
 		compatible = "spidev";
-		reg = <1>;	/* CE1 */
-		#address-cells = <1>;
-		#size-cells = <0>;
+		reg = <1>;
 		spi-max-frequency = <125000000>;
-	};
-};
-
-&gpio {
-	gpio-line-names = "ID_SDA",
-			  "ID_SCL",
-			  "GPIO2",
-			  "GPIO3",
-			  "GPIO4",
-			  "GPIO5",
-			  "GPIO6",
-			  "GPIO7",
-			  "GPIO8",
-			  "GPIO9",
-			  "GPIO10",
-			  "GPIO11",
-			  "GPIO12",
-			  "GPIO13",
-			  "GPIO14",
-			  "GPIO15",
-			  "GPIO16",
-			  "GPIO17",
-			  "GPIO18",
-			  "GPIO19",
-			  "GPIO20",
-			  "GPIO21",
-			  "GPIO22",
-			  "GPIO23",
-			  "GPIO24",
-			  "GPIO25",
-			  "GPIO26",
-			  "GPIO27",
-			  "RGMII_MDIO",
-			  "RGMIO_MDC",
-			  /* Used by BT module */
-			  "CTS0",		/* 30 */
-			  "RTS0",
-			  "TXD0",
-			  "RXD0",
-			  /* Used by Wifi */
-			  "SD1_CLK",
-			  "SD1_CMD",		/* 35 */
-			  "SD1_DATA0",
-			  "SD1_DATA1",
-			  "SD1_DATA2",
-			  "SD1_DATA3",
-			  /* Shared with SPI flash */
-			  "PWM0_MISO",		/* 40 */
-			  "PWM1_MOSI",
-			  "STATUS_LED_G_CLK",
-			  "SPIFLASH_CE_N",
-			  "SDA0",
-			  "SCL0",		/* 45 */
-			  "RGMII_RXCLK",
-			  "RGMII_RXCTL",
-			  "RGMII_RXD0",
-			  "RGMII_RXD1",
-			  "RGMII_RXD2",		/* 50 */
-			  "RGMII_RXD3",
-			  "RGMII_TXCLK",
-			  "RGMII_TXCTL",
-			  "RGMII_TXD0",
-			  "RGMII_TXD1",		/* 55 */
-			  "RGMII_TXD2",
-			  "RGMII_TXD3";
-
-	bt_pins: bt_pins {
-		brcm,pins = "-"; // non-empty to keep btuart happy, //4 = 0
-				 // to fool pinctrl
-		brcm,function = <0>;
-		brcm,pull = <2>;
-	};
-
-	uart0_pins: uart0_pins {
-		brcm,pins = <32 33>;
-		brcm,function = <BCM2835_FSEL_ALT3>;
-		brcm,pull = <0 2>;
-	};
-
-	uart1_pins: uart1_pins {
-		brcm,pins;
-		brcm,function;
-		brcm,pull;
-	};
-
-	uart1_bt_pins: uart1_bt_pins {
-		brcm,pins = <32 33 30 31>;
-		brcm,function = <BCM2835_FSEL_ALT5>; /* alt5=UART1 */
-		brcm,pull = <0 2 2 0>;
 	};
 };
 
@@ -438,74 +259,16 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c1_pins>;
 	clock-frequency = <100000>;
+	status = "okay";
 };
 
 &i2s {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2s_pins>;
+	status = "okay";
 };
 
-// =============================================
-// Board specific stuff here
-
-&sdhost {
-	status = "disabled";
-};
-
-&phy1 {
-	led-modes = <0x00 0x08>; /* link/activity link */
-};
-
-&gpio {
-	audio_pins: audio_pins {
-		brcm,pins = <40 41>;
-		brcm,function = <4>;
-		brcm,pull = <0>;
-	};
-};
-
-&led_act {
-	default-state = "off";
-	linux,default-trigger = "mmc0";
-};
-
-&led_pwr {
-	default-state = "off";
-};
-
-&pwm1 {
-	status = "disabled";
-};
-
-&vchiq {
-	pinctrl-names = "default";
-	pinctrl-0 = <&audio_pins>;
-};
-
-&cam1_reg {
-	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
-};
-
-cam0_reg: &cam_dummy_reg {
-};
-
-i2c_csi_dsi0: &i2c0 {
-};
-
-/ {
-	__overrides__ {
-		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_headphones=1 snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_headphones=0 snd_bcm2835.enable_hdmi=0'}";
-
-		act_led_gpio = <&led_act>,"gpios:4";
-		act_led_activelow = <&led_act>,"gpios:8";
-		act_led_trigger = <&led_act>,"linux,default-trigger";
-
-		pwr_led_gpio = <&led_pwr>,"gpios:4";
-		pwr_led_activelow = <&led_pwr>,"gpios:8";
-		pwr_led_trigger = <&led_pwr>,"linux,default-trigger";
-
-		eth_led0 = <&phy1>,"led-modes:0";
-		eth_led1 = <&phy1>,"led-modes:4";
-		eth_max_speed = <&phy1>,"max-speed:0";
-	};
-};
+&vc4 { status = "okay"; };
+&vec { status = "disabled"; };
+&sdhost { status = "disabled"; };
+&pwm1 { status = "disabled"; };
