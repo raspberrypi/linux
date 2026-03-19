@@ -996,6 +996,7 @@ void dc_stream_release_3dlut_for_stream(
 	if (rmcm_3dlut) {
 		rmcm_3dlut->isInUse = false;
 		rmcm_3dlut->stream  = NULL;
+		rmcm_3dlut->protection_bits = 0;
 	}
 }
 
@@ -1007,6 +1008,7 @@ void dc_stream_init_rmcm_3dlut(struct dc *dc)
 	for (int i = 0; i < num_rmcm; i++) {
 		dc->res_pool->rmcm_3dlut[i].isInUse = false;
 		dc->res_pool->rmcm_3dlut[i].stream = NULL;
+		dc->res_pool->rmcm_3dlut[i].protection_bits = 0;
 	}
 }
 

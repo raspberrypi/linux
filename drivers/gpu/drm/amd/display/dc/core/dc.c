@@ -2956,25 +2956,14 @@ static struct surface_update_descriptor det_surface_update(
 		elevate_update_type(&overall_type, UPDATE_TYPE_FAST, LOCK_DESCRIPTOR_STREAM);
 	}
 
-	if (u->cm || (u->gamma && dce_use_lut(u->plane_info ? u->plane_info->format : u->surface->format))) {
+	if (u->blend_tf || (u->gamma && dce_use_lut(u->plane_info ? u->plane_info->format : u->surface->format))) {
 		update_flags->bits.gamma_change = 1;
 		elevate_update_type(&overall_type, UPDATE_TYPE_FAST, LOCK_DESCRIPTOR_STREAM);
 	}
 
-	if (u->cm && (u->cm->flags.bits.lut3d_enable || u->surface->cm.flags.bits.lut3d_enable)) {
+	if (u->lut3d_func || u->func_shaper) {
 		update_flags->bits.lut_3d = 1;
 		elevate_update_type(&overall_type, UPDATE_TYPE_FAST, LOCK_DESCRIPTOR_STREAM);
-	}
-
-	if (u->cm && u->cm->flags.bits.lut3d_dma_enable != u->surface->cm.flags.bits.lut3d_dma_enable &&
-			u->cm->flags.bits.lut3d_enable && u->surface->cm.flags.bits.lut3d_enable) {
-		/* Toggling 3DLUT loading between DMA and Host is illegal */
-		BREAK_TO_DEBUGGER();
-	}
-
-	if (u->cm && u->cm->flags.bits.lut3d_enable && !u->cm->flags.bits.lut3d_dma_enable) {
-		/* Host loading 3DLUT requires full update but only stream lock  */
-		elevate_update_type(&overall_type, UPDATE_TYPE_FULL, LOCK_DESCRIPTOR_STREAM);
 	}
 
 	if (u->hdr_mult.value)
@@ -2995,6 +2984,20 @@ static struct surface_update_descriptor det_surface_update(
 		update_flags->bits.cm_hist_change = 1;
 		elevate_update_type(&overall_type, UPDATE_TYPE_FAST, LOCK_DESCRIPTOR_STREAM);
 	}
+	if (u->cm2_params) {
+		if (u->cm2_params->component_settings.shaper_3dlut_setting != u->surface->mcm_shaper_3dlut_setting
+				|| u->cm2_params->component_settings.lut1d_enable != u->surface->mcm_lut1d_enable
+				|| u->cm2_params->cm2_luts.lut3d_data.lut3d_src != u->surface->mcm_luts.lut3d_data.lut3d_src) {
+			update_flags->bits.mcm_transfer_function_enable_change = 1;
+			elevate_update_type(&overall_type, UPDATE_TYPE_FULL, LOCK_DESCRIPTOR_GLOBAL);
+		}
+	}
+
+	if (update_flags->bits.lut_3d &&
+			u->surface->mcm_luts.lut3d_data.lut3d_src != DC_CM2_TRANSFER_FUNC_SOURCE_VIDMEM) {
+		elevate_update_type(&overall_type, UPDATE_TYPE_FULL, LOCK_DESCRIPTOR_GLOBAL);
+	}
+
 	if (check_config->enable_legacy_fast_update &&
 			(update_flags->bits.gamma_change ||
 			update_flags->bits.gamut_remap_change ||
@@ -3250,11 +3253,23 @@ static void copy_surface_update_to_plane(
 			sizeof(struct dc_transfer_func_distributed_points));
 	}
 
-	/* Shaper, 3DLUT, 1DLUT */
-	if (srf_update->cm) {
-		memcpy(&surface->cm, srf_update->cm,
-				sizeof(surface->cm));
+	if (srf_update->cm2_params) {
+		surface->mcm_shaper_3dlut_setting = srf_update->cm2_params->component_settings.shaper_3dlut_setting;
+		surface->mcm_lut1d_enable = srf_update->cm2_params->component_settings.lut1d_enable;
+		surface->mcm_luts = srf_update->cm2_params->cm2_luts;
 	}
+
+	if (srf_update->func_shaper) {
+		memcpy(&surface->in_shaper_func, srf_update->func_shaper,
+		sizeof(surface->in_shaper_func));
+
+		if (surface->mcm_shaper_3dlut_setting >= DC_CM2_SHAPER_3DLUT_SETTING_ENABLE_SHAPER)
+			surface->mcm_luts.shaper = &surface->in_shaper_func;
+	}
+
+	if (srf_update->lut3d_func)
+		memcpy(&surface->lut3d_func, srf_update->lut3d_func,
+		sizeof(surface->lut3d_func));
 
 	if (srf_update->hdr_mult.value)
 		surface->hdr_mult =
@@ -3263,6 +3278,17 @@ static void copy_surface_update_to_plane(
 	if (srf_update->sdr_white_level_nits)
 		surface->sdr_white_level_nits =
 				srf_update->sdr_white_level_nits;
+
+	if (srf_update->blend_tf) {
+		memcpy(&surface->blend_tf, srf_update->blend_tf,
+		sizeof(surface->blend_tf));
+
+		if (surface->mcm_lut1d_enable)
+			surface->mcm_luts.lut1d_func = &surface->blend_tf;
+	}
+
+	if (srf_update->cm2_params || srf_update->blend_tf)
+		surface->lut_bank_a = !surface->lut_bank_a;
 
 	if (srf_update->input_csc_color_matrix)
 		surface->input_csc_color_matrix =
@@ -4550,9 +4576,11 @@ static void commit_planes_for_stream(struct dc *dc,
 				if (!should_update_pipe_for_plane(context, pipe_ctx, plane_state))
 					continue;
 
-				if (srf_updates[i].cm &&
-						srf_updates[i].cm->flags.bits.lut3d_enable &&
-						srf_updates[i].cm->flags.bits.lut3d_dma_enable &&
+				if (srf_updates[i].cm2_params &&
+						srf_updates[i].cm2_params->cm2_luts.lut3d_data.lut3d_src ==
+								DC_CM2_TRANSFER_FUNC_SOURCE_VIDMEM &&
+						srf_updates[i].cm2_params->component_settings.shaper_3dlut_setting ==
+								DC_CM2_SHAPER_3DLUT_SETTING_ENABLE_SHAPER_3DLUT &&
 						dc->hwss.trigger_3dlut_dma_load)
 					dc->hwss.trigger_3dlut_dma_load(dc, pipe_ctx);
 
@@ -5209,12 +5237,6 @@ static bool full_update_required(
 		const struct dc_stream_update *stream_update,
 		const struct dc_stream_state *stream)
 {
-	const union dc_plane_cm_flags blend_only_flags = {
-		.bits = {
-			.blend_enable = 1,
-		}
-	};
-
 	if (full_update_required_weak(dc, srf_updates, surface_count, stream_update, stream))
 		return true;
 
@@ -5229,10 +5251,7 @@ static bool full_update_required(
 				srf_updates[i].in_transfer_func ||
 				srf_updates[i].surface->force_full_update ||
 				(srf_updates[i].flip_addr &&
-				srf_updates[i].flip_addr->address.tmz_surface != srf_updates[i].surface->address.tmz_surface) ||
-				(srf_updates[i].cm &&
-				((srf_updates[i].cm->flags.all != blend_only_flags.all && srf_updates[i].cm->flags.all != 0) ||
-				(srf_updates[i].surface->cm.flags.all != blend_only_flags.all && srf_updates[i].surface->cm.flags.all != 0)))))
+				srf_updates[i].flip_addr->address.tmz_surface != srf_updates[i].surface->address.tmz_surface)))
 			return true;
 	}
 
@@ -6966,7 +6985,7 @@ bool dc_capture_register_software_state(struct dc *dc, struct dc_register_softwa
 			struct dc_plane_state *plane_state = pipe_ctx->plane_state;
 
 			/* MPCC blending tree and mode control - capture actual blend configuration */
-			state->mpc.mpcc_mode[i] = (plane_state->cm.blend_func.type != TF_TYPE_BYPASS) ? 1 : 0;
+			state->mpc.mpcc_mode[i] = (plane_state->blend_tf.type != TF_TYPE_BYPASS) ? 1 : 0;
 			state->mpc.mpcc_alpha_blend_mode[i] = plane_state->per_pixel_alpha ? 1 : 0;
 			state->mpc.mpcc_alpha_multiplied_mode[i] = plane_state->pre_multiplied_alpha ? 1 : 0;
 			state->mpc.mpcc_blnd_active_overlap_only[i] = 0; /* Default - no overlap restriction */
