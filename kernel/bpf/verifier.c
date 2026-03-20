@@ -19024,20 +19024,30 @@ static int do_check(struct bpf_verifier_env *env)
 					return -EINVAL;
 				}
 process_bpf_exit_full:
-				if (env->cur_state->active_lock.ptr && !env->cur_state->curframe) {
-					verbose(env, "bpf_spin_unlock is missing\n");
+				if (env->cur_state->active_lock.ptr &&
+				    (exception_exit || !env->cur_state->curframe)) {
+					verbose(env, exception_exit ?
+						"bpf_throw cannot be used inside bpf_spin_lock-ed region\n" :
+						"bpf_spin_unlock is missing\n");
 					return -EINVAL;
 				}
 
-				if (env->cur_state->active_rcu_lock && !env->cur_state->curframe) {
-					verbose(env, "bpf_rcu_read_unlock is missing\n");
+				if (env->cur_state->active_rcu_lock &&
+				    (exception_exit || !env->cur_state->curframe)) {
+					verbose(env, exception_exit ?
+						"bpf_throw cannot be used inside bpf_rcu_read_lock-ed region\n" :
+						"bpf_rcu_read_unlock is missing\n");
 					return -EINVAL;
 				}
 
-				if (env->cur_state->active_preempt_lock && !env->cur_state->curframe) {
-					verbose(env, "%d bpf_preempt_enable%s missing\n",
-						env->cur_state->active_preempt_lock,
-						env->cur_state->active_preempt_lock == 1 ? " is" : "(s) are");
+				if (env->cur_state->active_preempt_lock &&
+				    (exception_exit || !env->cur_state->curframe)) {
+					if (exception_exit)
+						verbose(env, "bpf_throw cannot be used inside bpf_preempt_disable-ed region\n");
+					else
+						verbose(env, "%d bpf_preempt_enable%s missing\n",
+							env->cur_state->active_preempt_lock,
+							env->cur_state->active_preempt_lock == 1 ? " is" : "(s) are");
 					return -EINVAL;
 				}
 
