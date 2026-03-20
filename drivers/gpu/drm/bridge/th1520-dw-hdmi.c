@@ -135,8 +135,8 @@ static int th1520_dw_hdmi_probe(struct platform_device *pdev)
 	plat_data->priv_data = hdmi;
 
 	hdmi->dw_hdmi = dw_hdmi_probe(pdev, plat_data);
-	if (IS_ERR(hdmi))
-		return PTR_ERR(hdmi);
+	if (IS_ERR(hdmi->dw_hdmi))
+		return PTR_ERR(hdmi->dw_hdmi);
 
 	platform_set_drvdata(pdev, hdmi);
 
