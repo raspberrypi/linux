@@ -160,16 +160,19 @@ static void amdxdna_hmm_unregister(struct amdxdna_gem_obj *abo,
 static void amdxdna_umap_release(struct kref *ref)
 {
 	struct amdxdna_umap *mapp = container_of(ref, struct amdxdna_umap, refcnt);
+	struct amdxdna_gem_obj *abo = mapp->abo;
 	struct vm_area_struct *vma = mapp->vma;
 	struct amdxdna_dev *xdna;
 
 	mmu_interval_notifier_remove(&mapp->notifier);
-	if (is_import_bo(mapp->abo) && vma->vm_file && vma->vm_file->f_mapping)
+	if (is_import_bo(abo) && vma->vm_file && vma->vm_file->f_mapping)
 		mapping_clear_unevictable(vma->vm_file->f_mapping);
 
 	xdna = to_xdna_dev(to_gobj(mapp->abo)->dev);
 	down_write(&xdna->notifier_lock);
 	list_del(&mapp->node);
+	if (list_empty(&abo->mem.umap_list))
+		abo->mem.userptr = AMDXDNA_INVALID_ADDR;
 	up_write(&xdna->notifier_lock);
 
 	kvfree(mapp->range.hmm_pfns);
@@ -202,7 +205,7 @@ static int amdxdna_hmm_register(struct amdxdna_gem_obj *abo,
 	if (!xdna->dev_info->ops->hmm_invalidate)
 		return 0;
 
-	mapp = kzalloc(sizeof(*mapp), GFP_KERNEL);
+	mapp = kzalloc_obj(*mapp);
 	if (!mapp)
 		return -ENOMEM;
 
@@ -232,13 +235,13 @@ static int amdxdna_hmm_register(struct amdxdna_gem_obj *abo,
 	mapp->abo = abo;
 	kref_init(&mapp->refcnt);
 
-	if (abo->mem.userptr == AMDXDNA_INVALID_ADDR)
-		abo->mem.userptr = addr;
 	INIT_WORK(&mapp->hmm_unreg_work, amdxdna_hmm_unreg_work);
 	if (is_import_bo(abo) && vma->vm_file && vma->vm_file->f_mapping)
 		mapping_set_unevictable(vma->vm_file->f_mapping);
 
 	down_write(&xdna->notifier_lock);
+	if (list_empty(&abo->mem.umap_list))
+		abo->mem.userptr = addr;
 	list_add_tail(&mapp->node, &abo->mem.umap_list);
 	up_write(&xdna->notifier_lock);
 
