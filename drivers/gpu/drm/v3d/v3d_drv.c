@@ -423,7 +423,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 
 	v3d_init_hw_state(v3d);
 
-	pm_runtime_set_autosuspend_delay(dev, 50);
+	pm_runtime_set_autosuspend_delay(dev, 100);
 	pm_runtime_use_autosuspend(dev);
 
 	ret = drm_dev_register(drm, 0);
