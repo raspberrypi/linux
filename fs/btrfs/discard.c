@@ -519,7 +519,7 @@ static void btrfs_discard_workfn(struct work_struct *work)
 {
 	struct btrfs_discard_ctl *discard_ctl;
 	struct btrfs_block_group *block_group;
-	enum btrfs_discard_state discard_state;
+	enum btrfs_discard_state discard_state = BTRFS_DISCARD_RESET_CURSOR;
 	int discard_index = 0;
 	u64 trimmed = 0;
 	u64 minlen = 0;
