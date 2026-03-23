@@ -786,6 +786,11 @@
 	status = "okay";
 };
 
+&rmtfs_mem {
+	/* Increase the size from 2.5 MiB to 6 MiB */
+	reg = <0x0 0xe1f00000 0x0 0x600000>;
+};
+
 &sdhc_2 {
 	cd-gpios = <&tlmm 65 GPIO_ACTIVE_HIGH>;
 
