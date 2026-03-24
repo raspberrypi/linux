@@ -87,7 +87,7 @@ static struct mt76_wcid *mt7996_rx_get_wcid(struct mt7996_dev *dev,
 		if (mlink->band_idx != band_idx)
 			continue;
 
-		msta_link = rcu_dereference(msta->link[i]);
+		msta_link = mt7996_sta_link(msta, i);
 		break;
 	}
 
@@ -1077,7 +1077,7 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	if (link_id != wcid->link_id && link_id != IEEE80211_LINK_UNSPECIFIED) {
 		if (msta) {
 			struct mt7996_sta_link *msta_link =
-				rcu_dereference(msta->link[link_id]);
+				mt7996_sta_link(msta, link_id);
 
 			if (msta_link)
 				wcid = &msta_link->wcid;
@@ -1413,7 +1413,7 @@ mt7996_mac_tx_free(struct mt7996_dev *dev, void *data, int len)
 					 IEEE80211_MLD_MAX_NUM_LINKS) {
 				struct mt7996_sta_link *msta_link;
 
-				msta_link = rcu_dereference(msta->link[id]);
+				msta_link = mt7996_sta_link(msta, id);
 				if (!msta_link)
 					continue;
 

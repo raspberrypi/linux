@@ -618,6 +618,25 @@ mt7996_vif_conf_link(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 							    link_conf);
 }
 
+static inline struct mt7996_sta_link *
+mt7996_sta_link(struct mt7996_sta *msta, u8 link_id)
+{
+	if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS)
+		return NULL;
+
+	return rcu_dereference(msta->link[link_id]);
+}
+
+static inline struct mt7996_sta_link *
+mt7996_sta_link_protected(struct mt7996_dev *dev, struct mt7996_sta *msta,
+			  u8 link_id)
+{
+	if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS)
+		return NULL;
+
+	return mt76_dereference(msta->link[link_id], &dev->mt76);
+}
+
 #define mt7996_for_each_phy(dev, phy)					\
 	for (int __i = 0; __i < ARRAY_SIZE((dev)->radio_phy); __i++)	\
 		if (((phy) = (dev)->radio_phy[__i]) != NULL)

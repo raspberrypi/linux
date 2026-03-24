@@ -645,7 +645,7 @@ mt7996_sta_hw_queue_read(void *data, struct ieee80211_sta *sta)
 		if (!mlink)
 			continue;
 
-		msta_link = rcu_dereference(msta->link[link_id]);
+		msta_link = mt7996_sta_link(msta, link_id);
 		if (!msta_link)
 			continue;
 
@@ -1018,7 +1018,7 @@ static ssize_t mt7996_link_sta_fixed_rate_set(struct file *file,
 
 	mutex_lock(&dev->mt76.mutex);
 
-	msta_link = mt76_dereference(msta->link[link_sta->link_id], &dev->mt76);
+	msta_link = mt7996_sta_link_protected(dev, msta, link_sta->link_id);
 	if (!msta_link) {
 		ret = -EINVAL;
 		goto out;

@@ -1063,7 +1063,7 @@ mt7996_mcu_bss_basic_tlv(struct sk_buff *skb,
 				struct mt7996_sta_link *msta_link;
 				int link_id = link_conf->link_id;
 
-				msta_link = rcu_dereference(msta->link[link_id]);
+				msta_link = mt7996_sta_link(msta, link_id);
 				if (msta_link)
 					sta_wlan_idx = msta_link->wcid.idx;
 			}
@@ -1255,7 +1255,7 @@ int mt7996_mcu_add_tx_ba(struct mt7996_dev *dev,
 		struct mt7996_sta_link *msta_link;
 		struct mt7996_vif_link *link;
 
-		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+		msta_link = mt7996_sta_link_protected(dev, msta, link_id);
 		if (!msta_link)
 			continue;
 
@@ -1289,7 +1289,7 @@ int mt7996_mcu_add_rx_ba(struct mt7996_dev *dev,
 		struct mt7996_sta_link *msta_link;
 		struct mt7996_vif_link *link;
 
-		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+		msta_link = mt7996_sta_link_protected(dev, msta, link_id);
 		if (!msta_link)
 			continue;
 
@@ -2023,7 +2023,7 @@ int mt7996_mcu_set_fixed_field(struct mt7996_dev *dev, struct mt7996_sta *msta,
 	if (!mlink)
 		goto error_unlock;
 
-	msta_link = rcu_dereference(msta->link[link_id]);
+	msta_link = mt7996_sta_link(msta, link_id);
 	if (!msta_link)
 		goto error_unlock;
 
@@ -2112,7 +2112,7 @@ mt7996_mcu_add_rate_ctrl_fixed(struct mt7996_dev *dev, struct mt7996_sta *msta,
 	if (!link)
 		goto error_unlock;
 
-	msta_link = rcu_dereference(msta->link[link_id]);
+	msta_link = mt7996_sta_link(msta, link_id);
 	if (!msta_link)
 		goto error_unlock;
 
@@ -2319,7 +2319,7 @@ int mt7996_mcu_add_rate_ctrl(struct mt7996_dev *dev, struct mt7996_sta *msta,
 	if (!link)
 		goto error_unlock;
 
-	msta_link = rcu_dereference(msta->link[link_id]);
+	msta_link = mt7996_sta_link(msta, link_id);
 	if (!msta_link)
 		goto error_unlock;
 
@@ -2408,7 +2408,7 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 	unsigned int link_id;
 	struct tlv *tlv;
 
-	msta_link = mt76_dereference(msta->link[msta->deflink_id], &dev->mt76);
+	msta_link = mt7996_sta_link_protected(dev, msta, msta->deflink_id);
 	if (!msta_link)
 		return;
 
@@ -2422,8 +2422,8 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 	mld_setup->primary_id = cpu_to_le16(msta_link->wcid.idx);
 
 	if (nlinks > 1) {
-		msta_link = mt76_dereference(msta->link[msta->seclink_id],
-					     &dev->mt76);
+		msta_link = mt7996_sta_link_protected(dev, msta,
+						      msta->seclink_id);
 		if (!msta_link)
 			return;
 	}
@@ -2434,7 +2434,7 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct mt7996_vif_link *link;
 
-		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+		msta_link = mt7996_sta_link_protected(dev, msta, link_id);
 		if (!msta_link)
 			continue;
 
@@ -2578,7 +2578,7 @@ void mt7996_mcu_update_sta_rec_bw(void *data, struct ieee80211_sta *sta)
 	if (!link_sta)
 		return;
 
-	msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+	msta_link = mt7996_sta_link_protected(dev, msta, link_id);
 	if (!msta_link)
 		return;
 
