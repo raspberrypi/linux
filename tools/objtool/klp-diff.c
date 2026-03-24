@@ -1348,7 +1348,7 @@ static int create_fake_symbols(struct elf *elf)
 
 	sec = find_section_by_name(elf, ".discard.annotate_data");
 	if (!sec || !sec->rsec)
-		return 0;
+		goto entsize;
 
 	for_each_reloc(sec->rsec, reloc) {
 		unsigned long offset, size;
@@ -1380,7 +1380,7 @@ static int create_fake_symbols(struct elf *elf)
 	/*
 	 * 2) Make symbols for sh_entsize, and simple arrays of pointers:
 	 */
-
+entsize:
 	for_each_sec(elf, sec) {
 		unsigned int entry_size;
 		unsigned long offset;
