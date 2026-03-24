@@ -34,6 +34,11 @@
 #define DPHY_PLL_INPUT_DIV_OFFSET	0x17
 #define DPHY_PLL_LOOP_DIV_OFFSET	0x18
 #define DPHY_PLL_DIV_CTRL_OFFSET	0x19
+#define DPHY_CLK_PN_SWAP		0x35
+#define DPHY_D0_PN_SWAP			0x45
+#define DPHY_D1_PN_SWAP			0x55
+#define DPHY_D2_PN_SWAP			0x85
+#define DPHY_D3_PN_SWAP			0x95
 
 static u32 dw_csi2_host_read(struct dphy_data *dphy, u32 offset)
 {
@@ -140,6 +145,12 @@ static void dphy_init(struct dphy_data *dphy)
 	usleep_range(15, 20);
 
 	dphy_set_hsfreqrange(dphy, dphy->dphy_rate);
+
+	dphy_transaction(dphy, DPHY_CLK_PN_SWAP, dphy->lane_polarities[0]);
+	dphy_transaction(dphy, DPHY_D0_PN_SWAP, dphy->lane_polarities[1]);
+	dphy_transaction(dphy, DPHY_D1_PN_SWAP, dphy->lane_polarities[2]);
+	dphy_transaction(dphy, DPHY_D2_PN_SWAP, dphy->lane_polarities[3]);
+	dphy_transaction(dphy, DPHY_D3_PN_SWAP, dphy->lane_polarities[4]);
 
 	usleep_range(5, 10);
 	dw_csi2_host_write(dphy, PHY_SHUTDOWNZ, 1);

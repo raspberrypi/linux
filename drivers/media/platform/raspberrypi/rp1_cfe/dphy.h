@@ -9,6 +9,7 @@
 
 #include <linux/io.h>
 #include <linux/types.h>
+#include <media/v4l2-mediabus.h>
 
 struct dphy_data {
 	struct device *dev;
@@ -18,6 +19,7 @@ struct dphy_data {
 	u32 dphy_rate;
 	u32 max_lanes;
 	u32 active_lanes;
+	bool lane_polarities[1 + V4L2_MBUS_CSI2_MAX_DATA_LANES];
 };
 
 void dphy_probe(struct dphy_data *dphy);
