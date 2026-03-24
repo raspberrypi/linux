@@ -2206,12 +2206,18 @@ static int of_cfe_connect_subdevs(struct cfe_device *cfe)
 		return -EINVAL;
 	}
 
+	cfe->csi2.dphy.lane_polarities[0] =
+					ep.bus.mipi_csi2.lane_polarities[0];
+
 	for (lane = 0; lane < ep.bus.mipi_csi2.num_data_lanes; lane++) {
 		if (ep.bus.mipi_csi2.data_lanes[lane] != lane + 1) {
 			cfe_err("subdevice %pOF: data lanes reordering not supported\n",
 				sensor_node);
 			goto cleanup_exit;
 		}
+
+		cfe->csi2.dphy.lane_polarities[lane + 1] =
+					ep.bus.mipi_csi2.lane_polarities[lane + 1];
 	}
 
 	cfe->csi2.dphy.max_lanes = ep.bus.mipi_csi2.num_data_lanes;
