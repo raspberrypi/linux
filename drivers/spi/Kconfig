@@ -875,7 +875,7 @@ config SPI_RB4XX
 
 config SPI_RP2040_GPIO_BRIDGE
 	tristate "Raspberry Pi RP2040 GPIO Bridge"
-	depends on I2C && SPI && GPIOLIB
+	depends on I2C && SPI && GPIOLIB && CRYPTO_HASH2
 	help
 	  Support for the Raspberry Pi RP2040 GPIO bridge.
 
