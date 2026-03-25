@@ -245,4 +245,5 @@ source "drivers/cdx/Kconfig"
 
 source "drivers/dpll/Kconfig"
 
+source "drivers/nexus/Kconfig"
 endmenu

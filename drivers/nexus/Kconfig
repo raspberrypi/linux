@@ -1,0 +1,123 @@
+# Nexus device drivers - potpourri
+#
+
+menuconfig NEXUS
+    bool "Enable Nexus hardware drivers"
+
+if NEXUS
+    menuconfig NEXUS_CAN
+        depends on SPI
+        bool "CAN Bus Drivers Present"
+        default y
+        if NEXUS_CAN
+            menuconfig NEXUS_CAN0 
+                depends on SPI
+                bool "Enable system bus interface CAN0"
+                default y
+                if NEXUS_CAN0
+                    config NEXUS_CAN0_BAUDRATE
+                        int "Baudrate"
+                        range 50000 500000
+                        default 250000
+                    config NEXUS_CAN0_SPIDEVNO
+                        int "SPI Device Number"
+                        range 0 5
+                        default 1
+                    config NEXUS_CAN0_SPICS
+                        int "SPI Chip Select"
+                        range 0 3
+                        default 1
+                    config NEXUS_CAN0_IRQ
+                        int "SPI IRQ GPIO Number"
+                        default 22
+                        range 0 99
+                endif # CAN0
+
+            menuconfig NEXUS_CAN1 
+                depends on SPI
+                bool "Enable sensor bus interface CAN1"
+                default n
+                if NEXUS_CAN1
+                    config NEXUS_CAN1_BAUDRATE
+                        int "Baudrate"
+                        range 50000 500000
+                        default 250000
+                    config NEXUS_CAN1_SPIDEVNO
+                        int "SPI Device Number"
+                        range 0 5
+                        default 1
+                    config NEXUS_CAN1_SPICS
+                        int "SPI Chip Select"
+                        range 0 3
+                        default 1
+                    config NEXUS_CAN1_IRQ
+                        int "SPI IRQ GPIO Number"
+                        default 13
+                        range 0 99
+                endif
+
+            if NEXUS_CAN0 || NEXUS_CAN1
+                config NEXUS_CAN_DEBUG
+                    bool "Enable CAN Debug Flag on GPIO"
+                    default n
+                    if NEXUS_CAN_DEBUG
+                        config NEXUS_CAN_DEBUG_GPIO
+                        int "Debug GPIO"
+                        default 22
+                        range 0 99
+                    endif
+            endif
+        endif # NEXUS_CAN
+
+    menuconfig NEXUS_LCD
+        depends on SPI
+        bool "Enable LCD display"
+        default n
+        if NEXUS_LCD
+            config NEXUS_LCD_SPIDEVNO
+                int "SPI Device Number"
+                range 0 5
+                default 1
+            config NEXUS_LCD_SPICS
+                int "SPI Chip Select"
+                range 0 3
+                default 0
+            config NEXUS_LCD_SPICLOCK
+                int "SPI Clock Speed (Hz)"
+                range   1000000 20000000
+                default 10000000
+            choice 
+                prompt "Display Module Type"
+                default NEXUS_LCD_TYPE_DEFAULT
+                config  NEXUS_LCD_TYPE_DEFAULT
+                    bool "Default Display Module"
+                config NEXUS_LCD_TYPE_EXPERIMENTAL
+                    bool "Experimental Display Module"
+            endchoice
+        endif 
+
+    menuconfig NEXUS_KEYBOARD
+        depends on I2C
+        bool "Enable Keyboard"
+        default n
+        if NEXUS_KEYBOARD
+            config NEXUS_KEYBOARD_I2CDEVNO
+                int "I2C Device Number"
+                range 0 20
+            config NEXUS_KEYBOARD_I2CDEVADDR
+                hex "I2C Device Address"
+                default 0x44
+               range 0 255
+            choice
+                prompt "Keyboard Type"
+                default NEXUS_KEYBOARD_TYPE_DEFAULT
+                config  NEXUS_KEYBOARD_TYPE_DEFAULT
+                    bool "Default Keyboard"
+                config  NEXUS_KEYBOARD_TYPE_EXPERIMENTAL
+                    bool "Experimental Keyboard"
+            endchoice
+        endif
+
+endif # Nexus
+
+# vim: sw=4 ts=8 ai expandtab nobackup :
