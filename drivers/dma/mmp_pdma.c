@@ -763,6 +763,7 @@ static unsigned int mmp_pdma_residue(struct mmp_pdma_chan *chan,
 {
 	struct mmp_pdma_desc_sw *sw;
 	u32 curr, residue = 0;
+	unsigned long flags;
 	bool passed = false;
 	bool cyclic = chan->cyclic_first != NULL;
 
@@ -777,6 +778,8 @@ static unsigned int mmp_pdma_residue(struct mmp_pdma_chan *chan,
 		curr = readl(chan->phy->base + DTADR(chan->phy->idx));
 	else
 		curr = readl(chan->phy->base + DSADR(chan->phy->idx));
+
+	spin_lock_irqsave(&chan->desc_lock, flags);
 
 	list_for_each_entry(sw, &chan->chain_running, node) {
 		u32 start, end, len;
@@ -821,12 +824,15 @@ static unsigned int mmp_pdma_residue(struct mmp_pdma_chan *chan,
 			continue;
 
 		if (sw->async_tx.cookie == cookie) {
+			spin_unlock_irqrestore(&chan->desc_lock, flags);
 			return residue;
 		} else {
 			residue = 0;
 			passed = false;
 		}
 	}
+
+	spin_unlock_irqrestore(&chan->desc_lock, flags);
 
 	/* We should only get here in case of cyclic transactions */
 	return residue;

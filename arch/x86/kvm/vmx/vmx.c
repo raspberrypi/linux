@@ -4562,7 +4562,8 @@ vmx_adjust_secondary_exec_control(struct vcpu_vmx *vmx, u32 *exec_control,
 	 * Update the nested MSR settings so that a nested VMM can/can't set
 	 * controls for features that are/aren't exposed to the guest.
 	 */
-	if (nested) {
+	if (nested &&
+	    kvm_check_has_quirk(vmx->vcpu.kvm, KVM_X86_QUIRK_STUFF_FEATURE_MSRS)) {
 		/*
 		 * All features that can be added or removed to VMX MSRs must
 		 * be supported in the first place for nested virtualization.
@@ -4853,7 +4854,8 @@ static void __vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 
 	init_vmcs(vmx);
 
-	if (nested)
+	if (nested &&
+	    kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_STUFF_FEATURE_MSRS))
 		memcpy(&vmx->nested.msrs, &vmcs_config.nested, sizeof(vmx->nested.msrs));
 
 	vcpu_setup_sgx_lepubkeyhash(vcpu);
@@ -4866,7 +4868,8 @@ static void __vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 	vmx->nested.hv_evmcs_vmptr = EVMPTR_INVALID;
 #endif
 
-	vcpu->arch.microcode_version = 0x100000000ULL;
+	if (kvm_check_has_quirk(vcpu->kvm, KVM_X86_QUIRK_STUFF_FEATURE_MSRS))
+		vcpu->arch.microcode_version = 0x100000000ULL;
 	vmx->msr_ia32_feature_control_valid_bits = FEAT_CTL_LOCKED;
 
 	/*
@@ -7662,6 +7665,17 @@ int vmx_vm_init(struct kvm *kvm)
 	return 0;
 }
 
+static inline bool vmx_ignore_guest_pat(struct kvm *kvm)
+{
+	/*
+	 * Non-coherent DMA devices need the guest to flush CPU properly.
+	 * In that case it is not possible to map all guest RAM as WB, so
+	 * always trust guest PAT.
+	 */
+	return !kvm_arch_has_noncoherent_dma(kvm) &&
+	       kvm_check_has_quirk(kvm, KVM_X86_QUIRK_IGNORE_GUEST_PAT);
+}
+
 u8 vmx_get_mt_mask(struct kvm_vcpu *vcpu, gfn_t gfn, bool is_mmio)
 {
 	/*
@@ -7671,13 +7685,8 @@ u8 vmx_get_mt_mask(struct kvm_vcpu *vcpu, gfn_t gfn, bool is_mmio)
 	if (is_mmio)
 		return MTRR_TYPE_UNCACHABLE << VMX_EPT_MT_EPTE_SHIFT;
 
-	/*
-	 * Force WB and ignore guest PAT if the VM does NOT have a non-coherent
-	 * device attached.  Letting the guest control memory types on Intel
-	 * CPUs may result in unexpected behavior, and so KVM's ABI is to trust
-	 * the guest to behave only as a last resort.
-	 */
-	if (!kvm_arch_has_noncoherent_dma(vcpu->kvm))
+	/* Force WB if ignoring guest PAT */
+	if (vmx_ignore_guest_pat(vcpu->kvm))
 		return (MTRR_TYPE_WRBACK << VMX_EPT_MT_EPTE_SHIFT) | VMX_EPT_IPAT_BIT;
 
 	return (MTRR_TYPE_WRBACK << VMX_EPT_MT_EPTE_SHIFT);
@@ -8576,6 +8585,27 @@ __init int vmx_hardware_setup(void)
 
 	kvm_set_posted_intr_wakeup_handler(pi_wakeup_handler);
 
+	/*
+	 * On Intel CPUs that lack self-snoop feature, letting the guest control
+	 * memory types may result in unexpected behavior. So always ignore guest
+	 * PAT on those CPUs and map VM as writeback, not allowing userspace to
+	 * disable the quirk.
+	 *
+	 * On certain Intel CPUs (e.g. SPR, ICX), though self-snoop feature is
+	 * supported, UC is slow enough to cause issues with some older guests (e.g.
+	 * an old version of bochs driver uses ioremap() instead of ioremap_wc() to
+	 * map the video RAM, causing wayland desktop to fail to get started
+	 * correctly). To avoid breaking those older guests that rely on KVM to force
+	 * memory type to WB, provide KVM_X86_QUIRK_IGNORE_GUEST_PAT to preserve the
+	 * safer (for performance) default behavior.
+	 *
+	 * On top of this, non-coherent DMA devices need the guest to flush CPU
+	 * caches properly.  This also requires honoring guest PAT, and is forced
+	 * independent of the quirk in vmx_ignore_guest_pat().
+	 */
+	if (!static_cpu_has(X86_FEATURE_SELFSNOOP))
+		kvm_caps.supported_quirks &= ~KVM_X86_QUIRK_IGNORE_GUEST_PAT;
+       kvm_caps.inapplicable_quirks &= ~KVM_X86_QUIRK_IGNORE_GUEST_PAT;
 	return r;
 }
 

@@ -296,6 +296,7 @@ struct dsa_port {
 	struct devlink_port	devlink_port;
 	struct phylink		*pl;
 	struct phylink_config	pl_config;
+	netdevice_tracker	conduit_tracker;
 	struct dsa_lag		*lag;
 	struct net_device	*hsr_dev;
 

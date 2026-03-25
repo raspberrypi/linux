@@ -1920,17 +1920,19 @@ static void ata_scsi_rbuf_fill(struct ata_device *dev, struct scsi_cmnd *cmd,
 		unsigned int (*actor)(struct ata_device *dev,
 				      struct scsi_cmnd *cmd, u8 *rbuf))
 {
-	unsigned int rc;
 	unsigned long flags;
+	unsigned int len;
 
 	spin_lock_irqsave(&ata_scsi_rbuf_lock, flags);
 
 	memset(ata_scsi_rbuf, 0, ATA_SCSI_RBUF_SIZE);
-	rc = actor(dev, cmd, ata_scsi_rbuf);
-	if (rc == 0) {
+	len = actor(dev, cmd, ata_scsi_rbuf);
+	if (len) {
 		sg_copy_from_buffer(scsi_sglist(cmd), scsi_sg_count(cmd),
 				    ata_scsi_rbuf, ATA_SCSI_RBUF_SIZE);
 		cmd->result = SAM_STAT_GOOD;
+		if (scsi_bufflen(cmd) > len)
+			scsi_set_resid(cmd, scsi_bufflen(cmd) - len);
 	}
 
 	spin_unlock_irqrestore(&ata_scsi_rbuf_lock, flags);
@@ -2018,7 +2020,11 @@ static unsigned int ata_scsiop_inq_std(struct ata_device *dev,
 	else
 		memcpy(rbuf + 58, versions, sizeof(versions));
 
-	return 0;
+	/*
+	 * Include all 8 possible version descriptors, even if not all of
+	 * them are popoulated.
+	 */
+	return 96;
 }
 
 /**
@@ -2055,7 +2061,8 @@ static unsigned int ata_scsiop_inq_00(struct ata_device *dev,
 		num_pages++;
 	}
 	rbuf[3] = num_pages;	/* number of supported VPD pages */
-	return 0;
+
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2082,7 +2089,8 @@ static unsigned int ata_scsiop_inq_80(struct ata_device *dev,
 	memcpy(rbuf, hdr, sizeof(hdr));
 	ata_id_string(dev->id, (unsigned char *) &rbuf[4],
 		      ATA_ID_SERNO, ATA_ID_SERNO_LEN);
-	return 0;
+
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2143,7 +2151,8 @@ static unsigned int ata_scsiop_inq_83(struct ata_device *dev,
 		num += ATA_ID_WWN_LEN;
 	}
 	rbuf[3] = num - 4;    /* page len (assume less than 256 bytes) */
-	return 0;
+
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2180,7 +2189,8 @@ static unsigned int ata_scsiop_inq_89(struct ata_device *dev,
 	rbuf[56] = ATA_CMD_ID_ATA;
 
 	memcpy(&rbuf[60], &dev->id[0], 512);
-	return 0;
+
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2231,7 +2241,7 @@ static unsigned int ata_scsiop_inq_b0(struct ata_device *dev,
 		put_unaligned_be32(1, &rbuf[28]);
 	}
 
-	return 0;
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2261,7 +2271,7 @@ static unsigned int ata_scsiop_inq_b1(struct ata_device *dev,
 	if (zoned)
 		rbuf[8] = (zoned << 4);
 
-	return 0;
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2284,7 +2294,7 @@ static unsigned int ata_scsiop_inq_b2(struct ata_device *dev,
 	rbuf[3] = 0x4;
 	rbuf[5] = 1 << 6;	/* TPWS */
 
-	return 0;
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2304,7 +2314,7 @@ static unsigned int ata_scsiop_inq_b6(struct ata_device *dev,
 {
 	if (!ata_dev_is_zac(dev)) {
 		ata_scsi_set_invalid_field(dev, cmd, 2, 0xff);
-		return 1;
+		return 0;
 	}
 
 	/*
@@ -2322,7 +2332,7 @@ static unsigned int ata_scsiop_inq_b6(struct ata_device *dev,
 	put_unaligned_be32(dev->zac_zones_optimal_nonseq, &rbuf[12]);
 	put_unaligned_be32(dev->zac_zones_max_open, &rbuf[16]);
 
-	return 0;
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2346,7 +2356,7 @@ static unsigned int ata_scsiop_inq_b9(struct ata_device *dev,
 
 	if (!cpr_log) {
 		ata_scsi_set_invalid_field(dev, cmd, 2, 0xff);
-		return 1;
+		return 0;
 	}
 
 	/* SCSI Concurrent Positioning Ranges VPD page: SBC-5 rev 1 or later */
@@ -2360,7 +2370,7 @@ static unsigned int ata_scsiop_inq_b9(struct ata_device *dev,
 		put_unaligned_be64(cpr_log->cpr[i].num_lbas, &desc[16]);
 	}
 
-	return 0;
+	return get_unaligned_be16(&rbuf[2]) + 4;
 }
 
 /**
@@ -2382,7 +2392,7 @@ static unsigned int ata_scsiop_inquiry(struct ata_device *dev,
 	/* is CmdDt set?  */
 	if (scsicmd[1] & 2) {
 		ata_scsi_set_invalid_field(dev, cmd, 1, 0xff);
-		return 1;
+		return 0;
 	}
 
 	/* Is EVPD clear? */
@@ -2410,7 +2420,7 @@ static unsigned int ata_scsiop_inquiry(struct ata_device *dev,
 		return ata_scsiop_inq_b9(dev, cmd, rbuf);
 	default:
 		ata_scsi_set_invalid_field(dev, cmd, 2, 0xff);
-		return 1;
+		return 0;
 	}
 }
 
@@ -2741,24 +2751,27 @@ static unsigned int ata_scsiop_mode_sense(struct ata_device *dev,
 			rbuf[3] = sizeof(sat_blk_desc);
 			memcpy(rbuf + 4, sat_blk_desc, sizeof(sat_blk_desc));
 		}
-	} else {
-		put_unaligned_be16(p - rbuf - 2, &rbuf[0]);
-		rbuf[3] |= dpofua;
-		if (ebd) {
-			rbuf[7] = sizeof(sat_blk_desc);
-			memcpy(rbuf + 8, sat_blk_desc, sizeof(sat_blk_desc));
-		}
+
+		return rbuf[0] + 1;
 	}
-	return 0;
+
+	put_unaligned_be16(p - rbuf - 2, &rbuf[0]);
+	rbuf[3] |= dpofua;
+	if (ebd) {
+		rbuf[7] = sizeof(sat_blk_desc);
+		memcpy(rbuf + 8, sat_blk_desc, sizeof(sat_blk_desc));
+	}
+
+	return get_unaligned_be16(&rbuf[0]) + 2;
 
 invalid_fld:
 	ata_scsi_set_invalid_field(dev, cmd, fp, bp);
-	return 1;
+	return 0;
 
 saving_not_supp:
 	ata_scsi_set_sense(dev, cmd, ILLEGAL_REQUEST, 0x39, 0x0);
 	 /* "Saving parameters not supported" */
-	return 1;
+	return 0;
 }
 
 /**
@@ -2801,7 +2814,7 @@ static unsigned int ata_scsiop_read_cap(struct ata_device *dev,
 		rbuf[6] = sector_size >> (8 * 1);
 		rbuf[7] = sector_size;
 
-		return 0;
+		return 8;
 	}
 
 	/*
@@ -2811,7 +2824,7 @@ static unsigned int ata_scsiop_read_cap(struct ata_device *dev,
 	if (scsicmd[0] != SERVICE_ACTION_IN_16 ||
 	    (scsicmd[1] & 0x1f) != SAI_READ_CAPACITY_16) {
 		ata_scsi_set_invalid_field(dev, cmd, 1, 0xff);
-		return 1;
+		return 0;
 	}
 
 	/* sector count, 64-bit */
@@ -2846,7 +2859,7 @@ static unsigned int ata_scsiop_read_cap(struct ata_device *dev,
 		}
 	}
 
-	return 0;
+	return 16;
 }
 
 /**
@@ -2865,7 +2878,7 @@ static unsigned int ata_scsiop_report_luns(struct ata_device *dev,
 {
 	rbuf[3] = 8;	/* just one lun, LUN 0, size 8 bytes */
 
-	return 0;
+	return 16;
 }
 
 /*
@@ -3593,13 +3606,13 @@ static unsigned int ata_scsiop_maint_in(struct ata_device *dev,
 
 	if ((cdb[1] & 0x1f) != MI_REPORT_SUPPORTED_OPERATION_CODES) {
 		ata_scsi_set_invalid_field(dev, cmd, 1, 0xff);
-		return 1;
+		return 0;
 	}
 
 	if (cdb[2] != 1 && cdb[2] != 3) {
 		ata_dev_warn(dev, "invalid command format %d\n", cdb[2]);
-		ata_scsi_set_invalid_field(dev, cmd, 1, 0xff);
-		return 1;
+		ata_scsi_set_invalid_field(dev, cmd, 2, 0xff);
+		return 0;
 	}
 
 	switch (cdb[3]) {
@@ -3672,7 +3685,7 @@ static unsigned int ata_scsiop_maint_in(struct ata_device *dev,
 	rbuf[0] = rwcdlp;
 	rbuf[1] = cdlp | supported;
 
-	return 0;
+	return 4;
 }
 
 /**

@@ -8107,6 +8107,58 @@ KVM_X86_QUIRK_SLOT_ZAP_ALL          By default, for KVM_X86_DEFAULT_VM VMs, KVM
                                     or moved memslot isn't reachable, i.e KVM
                                     _may_ invalidate only SPTEs related to the
                                     memslot.
+
+KVM_X86_QUIRK_STUFF_FEATURE_MSRS    By default, at vCPU creation, KVM sets the
+                                    vCPU's MSR_IA32_PERF_CAPABILITIES (0x345),
+                                    MSR_IA32_ARCH_CAPABILITIES (0x10a),
+                                    MSR_PLATFORM_INFO (0xce), and all VMX MSRs
+                                    (0x480..0x492) to the maximal capabilities
+                                    supported by KVM.  KVM also sets
+                                    MSR_IA32_UCODE_REV (0x8b) to an arbitrary
+                                    value (which is different for Intel vs.
+                                    AMD).  Lastly, when guest CPUID is set (by
+                                    userspace), KVM modifies select VMX MSR
+                                    fields to force consistency between guest
+                                    CPUID and L2's effective ISA.  When this
+                                    quirk is disabled, KVM zeroes the vCPU's MSR
+                                    values (with two exceptions, see below),
+                                    i.e. treats the feature MSRs like CPUID
+                                    leaves and gives userspace full control of
+                                    the vCPU model definition.  This quirk does
+                                    not affect VMX MSRs CR0/CR4_FIXED1 (0x487
+                                    and 0x489), as KVM does now allow them to
+                                    be set by userspace (KVM sets them based on
+                                    guest CPUID, for safety purposes).
+
+KVM_X86_QUIRK_IGNORE_GUEST_PAT      By default, on Intel platforms, KVM ignores
+                                    guest PAT and forces the effective memory
+                                    type to WB in EPT.  The quirk is not available
+                                    on Intel platforms which are incapable of
+                                    safely honoring guest PAT (i.e., without CPU
+                                    self-snoop, KVM always ignores guest PAT and
+                                    forces effective memory type to WB).  It is
+                                    also ignored on AMD platforms or, on Intel,
+                                    when a VM has non-coherent DMA devices
+                                    assigned; KVM always honors guest PAT in
+                                    such case. The quirk is needed to avoid
+                                    slowdowns on certain Intel Xeon platforms
+                                    (e.g. ICX, SPR) where self-snoop feature is
+                                    supported but UC is slow enough to cause
+                                    issues with some older guests that use
+                                    UC instead of WC to map the video RAM.
+                                    Userspace can disable the quirk to honor
+                                    guest PAT if it knows that there is no such
+                                    guest software, for example if it does not
+                                    expose a bochs graphics device (which is
+                                    known to have had a buggy driver).
+
+KVM_X86_QUIRK_VMCS12_ALLOW_FREEZE_IN_SMM   By default, KVM relaxes the consistency
+                                      check for GUEST_IA32_DEBUGCTL in vmcs12
+                                      to allow FREEZE_IN_SMM to be set.  When
+                                      this quirk is disabled, KVM requires this
+                                      bit to be cleared.  Note that the vmcs02
+                                      bit is still completely controlled by the
+                                      host, regardless of the quirk setting.
 =================================== ============================================
 
 7.32 KVM_CAP_MAX_VCPU_ID

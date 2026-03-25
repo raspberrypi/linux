@@ -1879,17 +1879,18 @@ static int iomap_writepage_map_blocks(struct iomap_writepage_ctx *wpc,
 		WARN_ON_ONCE(!folio->private && map_len < dirty_len);
 
 		switch (wpc->iomap.type) {
-		case IOMAP_INLINE:
-			WARN_ON_ONCE(1);
-			error = -EIO;
-			break;
-		case IOMAP_HOLE:
-			break;
-		default:
+		case IOMAP_UNWRITTEN:
+		case IOMAP_MAPPED:
 			error = iomap_add_to_ioend(wpc, wbc, folio, inode, pos,
 					end_pos, map_len);
 			if (!error)
 				(*count)++;
+			break;
+		case IOMAP_HOLE:
+			break;
+		default:
+			WARN_ON_ONCE(1);
+			error = -EIO;
 			break;
 		}
 		dirty_len -= map_len;

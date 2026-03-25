@@ -999,35 +999,31 @@ EXPORT_SYMBOL_GPL(graph_util_card_probe);
 
 int graph_util_is_ports0(struct device_node *np)
 {
-	struct device_node *port, *ports, *ports0, *top;
-	int ret;
+	struct device_node *parent __free(device_node) = of_get_parent(np);
+	struct device_node *port;
 
 	/* np is "endpoint" or "port" */
-	if (of_node_name_eq(np, "endpoint")) {
-		port = of_get_parent(np);
-	} else {
+	if (of_node_name_eq(np, "endpoint"))
+		port = parent;
+	else
 		port = np;
-		of_node_get(port);
-	}
 
-	ports	= of_get_parent(port);
-	top	= of_get_parent(ports);
-	ports0	= of_get_child_by_name(top, "ports");
+	struct device_node *ports __free(device_node) = of_get_parent(port);
+	const char *at = strchr(kbasename(ports->full_name), '@');
 
-	ret = ports0 == ports;
-
-	of_node_put(port);
-	of_node_put(ports);
-	of_node_put(ports0);
-	of_node_put(top);
-
-	return ret;
+	/*
+	 * Since child iteration order may differ
+	 * between a base DT and DT overlays,
+	 * string match "ports" or "ports@0" in the node name instead.
+	 */
+	return !at || !strcmp(at, "@0");
 }
 EXPORT_SYMBOL_GPL(graph_util_is_ports0);
 
 static int graph_get_dai_id(struct device_node *ep)
 {
-	struct device_node *node;
+	struct device_node *node __free(device_node) = of_graph_get_port_parent(ep);
+	struct device_node *port __free(device_node) = of_get_parent(ep);
 	struct device_node *endpoint;
 	struct of_endpoint info;
 	int i, id;
@@ -1050,13 +1046,10 @@ static int graph_get_dai_id(struct device_node *ep)
 		if (of_property_present(ep,   "reg"))
 			return info.id;
 
-		node = of_get_parent(ep);
-		ret = of_property_present(node, "reg");
-		of_node_put(node);
+		ret = of_property_present(port, "reg");
 		if (ret)
 			return info.port;
 	}
-	node = of_graph_get_port_parent(ep);
 
 	/*
 	 * Non HDMI sound case, counting port/endpoint on its DT
@@ -1070,8 +1063,6 @@ static int graph_get_dai_id(struct device_node *ep)
 		i++;
 	}
 
-	of_node_put(node);
-
 	if (id < 0)
 		return -ENODEV;
 
@@ -1081,7 +1072,6 @@ static int graph_get_dai_id(struct device_node *ep)
 int graph_util_parse_dai(struct device *dev, struct device_node *ep,
 			 struct snd_soc_dai_link_component *dlc, int *is_single_link)
 {
-	struct device_node *node;
 	struct of_phandle_args args = {};
 	struct snd_soc_dai *dai;
 	int ret;
@@ -1089,7 +1079,7 @@ int graph_util_parse_dai(struct device *dev, struct device_node *ep,
 	if (!ep)
 		return 0;
 
-	node = of_graph_get_port_parent(ep);
+	struct device_node *node __free(device_node) = of_graph_get_port_parent(ep);
 
 	/*
 	 * Try to find from DAI node
@@ -1131,10 +1121,8 @@ int graph_util_parse_dai(struct device *dev, struct device_node *ep,
 	 *    if he unbinded CPU or Codec.
 	 */
 	ret = snd_soc_get_dlc(&args, dlc);
-	if (ret < 0) {
-		of_node_put(node);
+	if (ret < 0)
 		return ret;
-	}
 
 parse_dai_end:
 	if (is_single_link)

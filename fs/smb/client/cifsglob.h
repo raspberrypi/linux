@@ -20,6 +20,7 @@
 #include <linux/utsname.h>
 #include <linux/sched/mm.h>
 #include <linux/netfs.h>
+#include <linux/fcntl.h>
 #include "cifs_fs_sb.h"
 #include "cifsacl.h"
 #include <crypto/internal/hash.h>
@@ -2315,6 +2316,16 @@ static inline bool cifs_ses_exiting(struct cifs_ses *ses)
 	ret = ses->ses_status == SES_EXITING;
 	spin_unlock(&ses->ses_lock);
 	return ret;
+}
+
+static inline int cifs_open_create_options(unsigned int oflags, int opts)
+{
+	/* O_SYNC also has bit for O_DSYNC so following check picks up either */
+	if (oflags & O_SYNC)
+		opts |= CREATE_WRITE_THROUGH;
+	if (oflags & O_DIRECT)
+		opts |= CREATE_NO_BUFFER;
+	return opts;
 }
 
 #endif	/* _CIFS_GLOB_H */

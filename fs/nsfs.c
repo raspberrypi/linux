@@ -12,6 +12,7 @@
 #include <linux/user_namespace.h>
 #include <linux/nsfs.h>
 #include <linux/uaccess.h>
+#include <linux/capability.h>
 #include <linux/mnt_namespace.h>
 
 #include "mount.h"
@@ -152,6 +153,23 @@ static int copy_ns_info_to_user(const struct mnt_namespace *mnt_ns,
 	return 0;
 }
 
+static bool may_see_all_namespaces(void)
+{
+	return (task_active_pid_ns(current) == &init_pid_ns) &&
+	       ns_capable_noaudit(init_pid_ns.user_ns, CAP_SYS_ADMIN);
+}
+
+static bool may_use_nsfs_ioctl(unsigned int cmd)
+{
+	switch (_IOC_NR(cmd)) {
+	case _IOC_NR(NS_MNT_GET_NEXT):
+		fallthrough;
+	case _IOC_NR(NS_MNT_GET_PREV):
+		return may_see_all_namespaces();
+	}
+	return true;
+}
+
 static long ns_ioctl(struct file *filp, unsigned int ioctl,
 			unsigned long arg)
 {
@@ -164,6 +182,9 @@ static long ns_ioctl(struct file *filp, unsigned int ioctl,
 	uid_t __user *argp;
 	uid_t uid;
 	int ret;
+
+	if (!may_use_nsfs_ioctl(ioctl))
+		return -EPERM;
 
 	switch (ioctl) {
 	case NS_GET_USERNS:

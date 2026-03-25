@@ -551,6 +551,21 @@ static inline bool entity_before(const struct sched_entity *a,
 	return (s64)(a->deadline - b->deadline) < 0;
 }
 
+/*
+ * Per avg_vruntime() below, cfs_rq::zero_vruntime is only slightly stale
+ * and this value should be no more than two lag bounds. Which puts it in the
+ * general order of:
+ *
+ *	(slice + TICK_NSEC) << NICE_0_LOAD_SHIFT
+ *
+ * which is around 44 bits in size (on 64bit); that is 20 for
+ * NICE_0_LOAD_SHIFT, another 20 for NSEC_PER_MSEC and then a handful for
+ * however many msec the actual slice+tick ends up begin.
+ *
+ * (disregarding the actual divide-by-weight part makes for the worst case
+ * weight of 2, which nicely cancels vs the fuzz in zero_vruntime not actually
+ * being the zero-lag point).
+ */
 static inline s64 entity_key(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	return (s64)(se->vruntime - cfs_rq->zero_vruntime);
@@ -638,39 +653,61 @@ avg_vruntime_sub(struct cfs_rq *cfs_rq, struct sched_entity *se)
 }
 
 static inline
-void avg_vruntime_update(struct cfs_rq *cfs_rq, s64 delta)
+void update_zero_vruntime(struct cfs_rq *cfs_rq, s64 delta)
 {
 	/*
-	 * v' = v + d ==> avg_vruntime' = avg_runtime - d*avg_load
+	 * v' = v + d ==> avg_vruntime' = avg_vruntime - d*avg_load
 	 */
 	cfs_rq->avg_vruntime -= cfs_rq->avg_load * delta;
+       cfs_rq->zero_vruntime += delta;
 }
 
 /*
- * Specifically: avg_runtime() + 0 must result in entity_eligible() := true
+ * Specifically: avg_vruntime() + 0 must result in entity_eligible() := true
  * For this to be so, the result of this function must have a left bias.
+ *
+ * Called in:
+ *  - place_entity()      -- before enqueue
+ *  - update_entity_lag() -- before dequeue
+ *  - entity_tick()
+ *
+ * This means it is one entry 'behind' but that puts it close enough to where
+ * the bound on entity_key() is at most two lag bounds.
  */
 u64 avg_vruntime(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
-	s64 avg = cfs_rq->avg_vruntime;
-	long load = cfs_rq->avg_load;
+       long weight = cfs_rq->avg_load;
+       s64 delta = 0;
 
-	if (curr && curr->on_rq) {
-		unsigned long weight = scale_load_down(curr->load.weight);
+       if (curr && !curr->on_rq)
+               curr = NULL;
 
-		avg += entity_key(cfs_rq, curr) * weight;
-		load += weight;
-	}
+       if (weight) {
+               s64 runtime = cfs_rq->avg_vruntime;
 
-	if (load) {
+               if (curr) {
+                       unsigned long w = scale_load_down(curr->load.weight);
+
+                       runtime += entity_key(cfs_rq, curr) * w;
+                       weight += w;
+               }
+
 		/* sign flips effective floor / ceiling */
-		if (avg < 0)
-			avg -= (load - 1);
-		avg = div_s64(avg, load);
+               if (runtime < 0)
+                       runtime -= (weight - 1);
+
+               delta = div_s64(runtime, weight);
+       } else if (curr) {
+               /*
+                * When there is but one element, it is the average.
+                */
+               delta = curr->vruntime - cfs_rq->zero_vruntime;
 	}
 
-	return cfs_rq->zero_vruntime + avg;
+       update_zero_vruntime(cfs_rq, delta);
+
+       return cfs_rq->zero_vruntime;
 }
 
 /*
@@ -744,16 +781,6 @@ int entity_eligible(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	return vruntime_eligible(cfs_rq, se->vruntime);
 }
 
-static void update_zero_vruntime(struct cfs_rq *cfs_rq)
-{
-	u64 vruntime = avg_vruntime(cfs_rq);
-	s64 delta = (s64)(vruntime - cfs_rq->zero_vruntime);
-
-	avg_vruntime_update(cfs_rq, delta);
-
-	cfs_rq->zero_vruntime = vruntime;
-}
-
 static inline u64 cfs_rq_min_slice(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *root = __pick_root_entity(cfs_rq);
@@ -824,7 +851,6 @@ RB_DECLARE_CALLBACKS(static, min_vruntime_cb, struct sched_entity,
 static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	avg_vruntime_add(cfs_rq, se);
-	update_zero_vruntime(cfs_rq);
 	se->min_vruntime = se->vruntime;
 	se->min_slice = se->slice;
 	rb_add_augmented_cached(&se->run_node, &cfs_rq->tasks_timeline,
@@ -836,7 +862,6 @@ static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	rb_erase_augmented_cached(&se->run_node, &cfs_rq->tasks_timeline,
 				  &min_vruntime_cb);
 	avg_vruntime_sub(cfs_rq, se);
-	update_zero_vruntime(cfs_rq);
 }
 
 struct sched_entity *__pick_root_entity(struct cfs_rq *cfs_rq)
@@ -5699,6 +5724,11 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	 */
 	update_load_avg(cfs_rq, curr, UPDATE_TG);
 	update_cfs_group(curr);
+
+	/*
+	 * Pulls along cfs_rq::zero_vruntime.
+	 */
+	avg_vruntime(cfs_rq);
 
 #ifdef CONFIG_SCHED_HRTICK
 	/*
