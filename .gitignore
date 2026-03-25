@@ -178,3 +178,7 @@ sphinx_*/
 
 # Rust analyzer configuration
 /rust-project.json
+
+# Nexus help
+build.log
+rootfs/files/
