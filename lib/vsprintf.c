@@ -2640,6 +2640,18 @@ static unsigned char spec_flag(unsigned char c)
 	return (c < sizeof(spec_flag_array)) ? spec_flag_array[c] : 0;
 }
 
+static void set_field_width(struct printf_spec *spec, int width)
+{
+	spec->field_width = clamp(width, -FIELD_WIDTH_MAX, FIELD_WIDTH_MAX);
+	WARN_ONCE(spec->field_width != width, "field width %d out of range", width);
+}
+
+static void set_precision(struct printf_spec *spec, int prec)
+{
+	spec->precision = clamp(prec, 0, PRECISION_MAX);
+	WARN_ONCE(spec->precision < prec, "precision %d too large", prec);
+}
+
 /*
  * Helper function to decode printf style format.
  * Each call decode a token from the format and return the
@@ -2710,7 +2722,7 @@ struct fmt format_decode(struct fmt fmt, struct printf_spec *spec)
 	spec->field_width = -1;
 
 	if (isdigit(*fmt.str))
-		spec->field_width = skip_atoi(&fmt.str);
+		set_field_width(spec, skip_atoi(&fmt.str));
 	else if (unlikely(*fmt.str == '*')) {
 		/* it's the next argument */
 		fmt.state = FORMAT_STATE_WIDTH;
@@ -2724,9 +2736,7 @@ precision:
 	if (unlikely(*fmt.str == '.')) {
 		fmt.str++;
 		if (isdigit(*fmt.str)) {
-			spec->precision = skip_atoi(&fmt.str);
-			if (spec->precision < 0)
-				spec->precision = 0;
+			set_precision(spec, skip_atoi(&fmt.str));
 		} else if (*fmt.str == '*') {
 			/* it's the next argument */
 			fmt.state = FORMAT_STATE_PRECISION;
@@ -2797,24 +2807,6 @@ qualifier:
 	WARN_ONCE(1, "Please remove unsupported %%%c in format string\n", *fmt.str);
 	fmt.state = FORMAT_STATE_INVALID;
 	return fmt;
-}
-
-static void
-set_field_width(struct printf_spec *spec, int width)
-{
-	spec->field_width = width;
-	if (WARN_ONCE(spec->field_width != width, "field width %d too large", width)) {
-		spec->field_width = clamp(width, -FIELD_WIDTH_MAX, FIELD_WIDTH_MAX);
-	}
-}
-
-static void
-set_precision(struct printf_spec *spec, int prec)
-{
-	spec->precision = prec;
-	if (WARN_ONCE(spec->precision != prec, "precision %d too large", prec)) {
-		spec->precision = clamp(prec, 0, PRECISION_MAX);
-	}
 }
 
 /*
