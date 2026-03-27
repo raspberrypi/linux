@@ -685,7 +685,8 @@ static void dwc2_hc_init(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan)
 	 * Devices are none the wiser - the handshake tokens are the same.
 	 * The fakery is undone in dwc2_hc_n_intr().
 	 */
-	if (chan->do_split && chan->ep_type == USB_ENDPOINT_XFER_INT)
+	if (chan->ep_is_in && chan->do_split &&
+	    chan->ep_type == USB_ENDPOINT_XFER_INT)
 		chan->ep_type = USB_ENDPOINT_XFER_CONTROL;
 
 	hcchar |= chan->ep_type << HCCHAR_EPTYPE_SHIFT & HCCHAR_EPTYPE_MASK;
