@@ -828,7 +828,7 @@ static int mali_c55_probe(struct platform_device *pdev)
 
 	ret = mali_c55_media_frameworks_init(mali_c55);
 	if (ret)
-		goto err_free_context_registers;
+		goto err_pm_runtime_disable;
 
 	pm_runtime_idle(&pdev->dev);
 
@@ -843,8 +843,9 @@ static int mali_c55_probe(struct platform_device *pdev)
 
 err_deinit_media_frameworks:
 	mali_c55_media_frameworks_deinit(mali_c55);
+err_pm_runtime_disable:
+	pm_runtime_set_suspended(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-err_free_context_registers:
 	kfree(mali_c55->context.registers);
 err_power_off:
 	__mali_c55_power_off(mali_c55);
