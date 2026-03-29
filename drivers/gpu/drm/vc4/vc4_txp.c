@@ -261,11 +261,11 @@ static int vc4_txp_connector_atomic_check(struct drm_connector *conn,
 
 	fb = conn_state->writeback_job->fb;
 	if ((conn_state->rotation == DRM_MODE_ROTATE_0 &&
-	     fb->width != crtc_state->mode.hdisplay &&
-	     fb->height != crtc_state->mode.vdisplay) ||
+	    (fb->width != crtc_state->mode.hdisplay ||
+	     fb->height != crtc_state->mode.vdisplay)) ||
 	    (conn_state->rotation == (DRM_MODE_ROTATE_0 | DRM_MODE_TRANSPOSE) &&
-	     fb->width != crtc_state->mode.vdisplay &&
-	     fb->height != crtc_state->mode.hdisplay)) {
+	    (fb->width != crtc_state->mode.vdisplay ||
+	     fb->height != crtc_state->mode.hdisplay))) {
 		DRM_DEBUG_KMS("Invalid framebuffer size %ux%u vs mode %ux%u\n",
 			      fb->width, fb->height,
 			      crtc_state->mode.hdisplay, crtc_state->mode.vdisplay);
