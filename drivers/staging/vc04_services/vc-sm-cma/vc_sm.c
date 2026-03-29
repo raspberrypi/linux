@@ -40,6 +40,7 @@
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/of_device.h>
+#include <linux/overflow.h>
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
@@ -1263,6 +1264,8 @@ static int clean_invalid_contig_2d(const void __user *addr,
 				   const unsigned int cache_op)
 {
 	size_t i;
+	size_t last_block_offset;
+	size_t total_range;
 	void (*op_fn)(const void *start, const void *end);
 
 	if (!block_size) {
@@ -1270,11 +1273,27 @@ static int clean_invalid_contig_2d(const void __user *addr,
 		return -EINVAL;
 	}
 
+	if (!block_count)
+		return 0;
+
 	op_fn = cache_op_to_func(cache_op);
 	if (!op_fn)
 		return -EINVAL;
 
-	for (i = 0; i < block_count; i ++, addr += stride)
+	/*
+	 * Validate that the entire user-supplied address range falls
+	 * within userspace. Without this check, an attacker could
+	 * invoke cache maintenance operations on kernel addresses.
+	 */
+	if (check_mul_overflow((size_t)(block_count - 1), stride,
+			       &last_block_offset))
+		return -EOVERFLOW;
+	if (check_add_overflow(last_block_offset, block_size, &total_range))
+		return -EOVERFLOW;
+	if (!access_ok(addr, total_range))
+		return -EFAULT;
+
+	for (i = 0; i < block_count; i++, addr += stride)
 		op_fn(addr, addr + block_size);
 
 	return 0;
@@ -1292,9 +1311,13 @@ static int vc_sm_cma_clean_invalid2(unsigned int cmdnr, unsigned long arg)
 		       __func__, cmdnr);
 		return -EFAULT;
 	}
-	block = kmalloc(ioparam.op_count * sizeof(*block), GFP_KERNEL);
+
+	if (!ioparam.op_count)
+		return 0;
+
+	block = kmalloc_array(ioparam.op_count, sizeof(*block), GFP_KERNEL);
 	if (!block)
-		return -EFAULT;
+		return -ENOMEM;
 
 	if (copy_from_user(block, (void *)(arg + sizeof(ioparam)),
 			   ioparam.op_count * sizeof(*block)) != 0) {
