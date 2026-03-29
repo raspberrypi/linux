@@ -258,8 +258,6 @@
 };
 
 &eth_phy {
-	microchip,eee-enabled;
-	microchip,tx-lpi-timer = <600>; /* non-aggressive*/
 	microchip,downshift-after = <2>;
 };
 
@@ -285,8 +283,8 @@ i2c_csi_dsi0: &i2c0 {
 		pwr_led_activelow = <&led_pwr>,"gpios:8";
 		pwr_led_trigger = <&led_pwr>,"linux,default-trigger";
 
-		eee = <&eth_phy>,"microchip,eee-enabled?";
-		tx_lpi_timer = <&eth_phy>,"microchip,tx-lpi-timer:0";
+		eee = <&eth_phy>,"eee-broken-1000t!",
+		      <&eth_phy>,"eee-broken-100tx!";
 		eth_led0 = <&eth_phy>,"microchip,led-modes:0";
 		eth_led1 = <&eth_phy>,"microchip,led-modes:4";
 		eth_downshift_after = <&eth_phy>,"microchip,downshift-after:0";
