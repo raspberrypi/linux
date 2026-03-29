@@ -109,6 +109,7 @@ struct st7701_panel_desc {
 	enum mipi_dsi_pixel_format format;
 	u32 mediabus_format;
 	unsigned int panel_sleep_delay;
+	u32 bus_flags;
 
 	/* TFT matrix driver configuration, panel specific. */
 	const u8	pv_gamma[16];	/* Positive voltage gamma control */
@@ -728,6 +729,7 @@ static int st7701_get_modes(struct drm_panel *panel,
 
 	connector->display_info.width_mm = desc_mode->width_mm;
 	connector->display_info.height_mm = desc_mode->height_mm;
+	connector->display_info.bus_flags = st7701->desc->bus_flags;
 
 	/*
 	 * TODO: Remove once all drm drivers call
@@ -1435,6 +1437,7 @@ static const struct st7701_panel_desc txw210001b0_desc = {
 		CFIELD_PREP(ST7701_CMD2_BK0_GAMCTRL_VC255_MASK, 0x1d)
 	},
 	.gip_sequence = txw210001b0_gip_sequence,
+	.bus_flags = DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
 };
 
 static const struct st7701_panel_desc hyperpixel2r_desc = {
@@ -1499,6 +1502,7 @@ static const struct st7701_panel_desc hyperpixel2r_desc = {
 		CFIELD_PREP(ST7701_CMD2_BK0_GAMCTRL_VC255_MASK, 0x1d)
 	},
 	.gip_sequence = txw210001b0_gip_sequence,
+	.bus_flags = DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
 };
 
 static void st7701_cleanup(void *data)
