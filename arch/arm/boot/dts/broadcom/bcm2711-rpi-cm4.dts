@@ -216,6 +216,7 @@
 	phy1: ethernet-phy@0 {
 		/* No PHY interrupt */
 		reg = <0x0>;
+		brcm,powerdown-enable;
 	};
 };
 
