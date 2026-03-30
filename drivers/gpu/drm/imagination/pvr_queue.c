@@ -179,7 +179,7 @@ static const struct dma_fence_ops pvr_queue_job_fence_ops = {
 
 /**
  * to_pvr_queue_job_fence() - Return a pvr_queue_fence object if the fence is
- * backed by a UFO.
+ * already backed by a UFO.
  * @f: The dma_fence to turn into a pvr_queue_fence.
  *
  * Return:
@@ -356,6 +356,15 @@ static u32 job_cmds_size(struct pvr_job *job, u32 ufo_wait_count)
 	       pvr_cccb_get_size_of_cmd_with_hdr(job->cmd_len);
 }
 
+static bool
+is_paired_job_fence(struct dma_fence *fence, struct pvr_job *job)
+{
+	/* This assumes "fence" is one of "job"'s drm_sched_job::dependencies */
+	return job->type == DRM_PVR_JOB_TYPE_FRAGMENT &&
+	       job->paired_job &&
+	       &job->paired_job->base.s_fence->scheduled == fence;
+}
+
 /**
  * job_count_remaining_native_deps() - Count the number of non-signaled native dependencies.
  * @job: Job to operate on.
@@ -370,6 +379,17 @@ static unsigned long job_count_remaining_native_deps(struct pvr_job *job)
 
 	xa_for_each(&job->base.dependencies, index, fence) {
 		struct pvr_queue_fence *jfence;
+
+		if (is_paired_job_fence(fence, job)) {
+			/*
+			 * A fence between paired jobs won't resolve to a pvr_queue_fence (i.e.
+			 * be backed by a UFO) until the jobs have been submitted, together.
+			 * The submitting code will insert a partial render fence command for this.
+			 */
+			WARN_ON(dma_fence_is_signaled(fence));
+			remaining_count++;
+			continue;
+		}
 
 		jfence = to_pvr_queue_job_fence(fence);
 		if (!jfence)
@@ -630,9 +650,8 @@ static void pvr_queue_submit_job_to_cccb(struct pvr_job *job)
 		if (!jfence)
 			continue;
 
-		/* Skip the partial render fence, we will place it at the end. */
-		if (job->type == DRM_PVR_JOB_TYPE_FRAGMENT && job->paired_job &&
-		    &job->paired_job->base.s_fence->scheduled == fence)
+		/* This fence will be placed last, as partial render fence. */
+		if (is_paired_job_fence(fence, job))
 			continue;
 
 		if (dma_fence_is_signaled(&jfence->base))
