@@ -213,6 +213,7 @@
 	phy1: ethernet-phy@1 {
 		/* No PHY interrupt */
 		reg = <0x1>;
+		brcm,powerdown-enable;
 
 		leds {
 			#address-cells = <1>;
