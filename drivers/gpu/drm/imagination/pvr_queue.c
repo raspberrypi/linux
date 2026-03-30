@@ -488,10 +488,11 @@ pvr_queue_get_job_kccb_fence(struct pvr_queue *queue, struct pvr_job *job)
 }
 
 static struct dma_fence *
-pvr_queue_get_paired_frag_job_dep(struct pvr_queue *queue, struct pvr_job *job)
+pvr_queue_get_paired_frag_job_dep(struct pvr_job *job)
 {
 	struct pvr_job *frag_job = job->type == DRM_PVR_JOB_TYPE_GEOMETRY ?
 				   job->paired_job : NULL;
+	struct pvr_queue *frag_queue = frag_job ? frag_job->ctx->queues.fragment : NULL;
 	struct dma_fence *f;
 	unsigned long index;
 
@@ -510,7 +511,10 @@ pvr_queue_get_paired_frag_job_dep(struct pvr_queue *queue, struct pvr_job *job)
 		return dma_fence_get(f);
 	}
 
-	return frag_job->base.sched->ops->prepare_job(&frag_job->base, &queue->entity);
+	/* Initialize the paired fragment job's done_fence, so we can signal it. */
+	pvr_queue_job_fence_init(frag_job->done_fence, frag_queue);
+
+	return pvr_queue_get_job_cccb_fence(frag_queue, frag_job);
 }
 
 /**
@@ -529,11 +533,6 @@ pvr_queue_prepare_job(struct drm_sched_job *sched_job,
 	struct pvr_queue *queue = container_of(s_entity, struct pvr_queue, entity);
 	struct dma_fence *internal_dep = NULL;
 
-	/*
-	 * Initialize the done_fence, so we can signal it. This must be done
-	 * here because otherwise by the time of run_job() the job will end up
-	 * in the pending list without a valid fence.
-	 */
 	if (job->type == DRM_PVR_JOB_TYPE_FRAGMENT && job->paired_job) {
 		/*
 		 * This will be called on a paired fragment job after being
@@ -543,17 +542,14 @@ pvr_queue_prepare_job(struct drm_sched_job *sched_job,
 		 */
 		if (job->paired_job->has_pm_ref)
 			return NULL;
-
-		/*
-		 * In this case we need to use the job's own ctx to initialise
-		 * the done_fence.  The other steps are done in the ctx of the
-		 * paired geometry job.
-		 */
-		pvr_queue_job_fence_init(job->done_fence,
-					 job->ctx->queues.fragment);
-	} else {
-		pvr_queue_job_fence_init(job->done_fence, queue);
 	}
+
+	/*
+	 * Initialize the done_fence, so we can signal it. This must be done
+	 * here because otherwise by the time of run_job() the job will end up
+	 * in the pending list without a valid fence.
+	 */
+	pvr_queue_job_fence_init(job->done_fence, queue);
 
 	/* CCCB fence is used to make sure we have enough space in the CCCB to
 	 * submit our commands.
@@ -575,7 +571,7 @@ pvr_queue_prepare_job(struct drm_sched_job *sched_job,
 
 	/* The paired job fence should come last, when everything else is ready. */
 	if (!internal_dep)
-		internal_dep = pvr_queue_get_paired_frag_job_dep(queue, job);
+		internal_dep = pvr_queue_get_paired_frag_job_dep(job);
 
 	return internal_dep;
 }
