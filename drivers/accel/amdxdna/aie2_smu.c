@@ -46,7 +46,7 @@ static int aie2_smu_exec(struct amdxdna_dev_hdl *ndev, u32 reg_cmd,
 	ret = readx_poll_timeout(readl, SMU_REG(ndev, SMU_RESP_REG), resp,
 				 resp, AIE2_INTERVAL, AIE2_TIMEOUT);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "smu cmd %d timed out", reg_cmd);
+		XDNA_ERR(ndev->aie.xdna, "smu cmd %d timed out", reg_cmd);
 		return ret;
 	}
 
@@ -54,7 +54,7 @@ static int aie2_smu_exec(struct amdxdna_dev_hdl *ndev, u32 reg_cmd,
 		*out = readl(SMU_REG(ndev, SMU_OUT_REG));
 
 	if (resp != SMU_RESULT_OK) {
-		XDNA_ERR(ndev->xdna, "smu cmd %d failed, 0x%x", reg_cmd, resp);
+		XDNA_ERR(ndev->aie.xdna, "smu cmd %d failed, 0x%x", reg_cmd, resp);
 		return -EINVAL;
 	}
 
@@ -69,7 +69,7 @@ int npu1_set_dpm(struct amdxdna_dev_hdl *ndev, u32 dpm_level)
 	ret = aie2_smu_exec(ndev, AIE2_SMU_SET_MPNPUCLK_FREQ,
 			    ndev->priv->dpm_clk_tbl[dpm_level].npuclk, &freq);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Set npu clock to %d failed, ret %d\n",
+		XDNA_ERR(ndev->aie.xdna, "Set npu clock to %d failed, ret %d\n",
 			 ndev->priv->dpm_clk_tbl[dpm_level].npuclk, ret);
 		return ret;
 	}
@@ -78,7 +78,7 @@ int npu1_set_dpm(struct amdxdna_dev_hdl *ndev, u32 dpm_level)
 	ret = aie2_smu_exec(ndev, AIE2_SMU_SET_HCLK_FREQ,
 			    ndev->priv->dpm_clk_tbl[dpm_level].hclk, &freq);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Set h clock to %d failed, ret %d\n",
+		XDNA_ERR(ndev->aie.xdna, "Set h clock to %d failed, ret %d\n",
 			 ndev->priv->dpm_clk_tbl[dpm_level].hclk, ret);
 		return ret;
 	}
@@ -87,7 +87,7 @@ int npu1_set_dpm(struct amdxdna_dev_hdl *ndev, u32 dpm_level)
 	ndev->max_tops = 2 * ndev->total_col;
 	ndev->curr_tops = ndev->max_tops * freq / 1028;
 
-	XDNA_DBG(ndev->xdna, "MP-NPU clock %d, H clock %d\n",
+	XDNA_DBG(ndev->aie.xdna, "MP-NPU clock %d, H clock %d\n",
 		 ndev->npuclk_freq, ndev->hclk_freq);
 
 	return 0;
@@ -99,14 +99,14 @@ int npu4_set_dpm(struct amdxdna_dev_hdl *ndev, u32 dpm_level)
 
 	ret = aie2_smu_exec(ndev, AIE2_SMU_SET_HARD_DPMLEVEL, dpm_level, NULL);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Set hard dpm level %d failed, ret %d ",
+		XDNA_ERR(ndev->aie.xdna, "Set hard dpm level %d failed, ret %d ",
 			 dpm_level, ret);
 		return ret;
 	}
 
 	ret = aie2_smu_exec(ndev, AIE2_SMU_SET_SOFT_DPMLEVEL, dpm_level, NULL);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Set soft dpm level %d failed, ret %d",
+		XDNA_ERR(ndev->aie.xdna, "Set soft dpm level %d failed, ret %d",
 			 dpm_level, ret);
 		return ret;
 	}
@@ -116,7 +116,7 @@ int npu4_set_dpm(struct amdxdna_dev_hdl *ndev, u32 dpm_level)
 	ndev->max_tops = NPU4_DPM_TOPS(ndev, ndev->max_dpm_level);
 	ndev->curr_tops = NPU4_DPM_TOPS(ndev, dpm_level);
 
-	XDNA_DBG(ndev->xdna, "MP-NPU clock %d, H clock %d\n",
+	XDNA_DBG(ndev->aie.xdna, "MP-NPU clock %d, H clock %d\n",
 		 ndev->npuclk_freq, ndev->hclk_freq);
 
 	return 0;
@@ -132,13 +132,13 @@ int aie2_smu_init(struct amdxdna_dev_hdl *ndev)
 	 */
 	ret = aie2_smu_exec(ndev, AIE2_SMU_POWER_OFF, 0, NULL);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Access power failed, ret %d", ret);
+		XDNA_ERR(ndev->aie.xdna, "Access power failed, ret %d", ret);
 		return ret;
 	}
 
 	ret = aie2_smu_exec(ndev, AIE2_SMU_POWER_ON, 0, NULL);
 	if (ret) {
-		XDNA_ERR(ndev->xdna, "Power on failed, ret %d", ret);
+		XDNA_ERR(ndev->aie.xdna, "Power on failed, ret %d", ret);
 		return ret;
 	}
 
@@ -152,5 +152,5 @@ void aie2_smu_fini(struct amdxdna_dev_hdl *ndev)
 	ndev->priv->hw_ops.set_dpm(ndev, 0);
 	ret = aie2_smu_exec(ndev, AIE2_SMU_POWER_OFF, 0, NULL);
 	if (ret)
-		XDNA_ERR(ndev->xdna, "Power off failed, ret %d", ret);
+		XDNA_ERR(ndev->aie.xdna, "Power off failed, ret %d", ret);
 }

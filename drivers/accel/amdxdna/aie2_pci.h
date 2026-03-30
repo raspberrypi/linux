@@ -10,6 +10,7 @@
 #include <linux/limits.h>
 #include <linux/semaphore.h>
 
+#include "aie.h"
 #include "aie2_msg_priv.h"
 #include "amdxdna_mailbox.h"
 
@@ -20,7 +21,7 @@
 #define AIE2_DEVM_BASE	0x4000000
 #define AIE2_DEVM_SIZE	SZ_64M
 
-#define NDEV2PDEV(ndev) (to_pci_dev((ndev)->xdna->ddev.dev))
+#define NDEV2PDEV(ndev) (to_pci_dev((ndev)->aie.xdna->ddev.dev))
 
 #define AIE2_SRAM_OFF(ndev, addr) ((addr) - (ndev)->priv->sram_dev_addr)
 #define AIE2_MBOX_OFF(ndev, addr) ((addr) - (ndev)->priv->mbox_dev_addr)
@@ -45,7 +46,7 @@
 ({ \
 	typeof(ndev) _ndev = (ndev); \
 	((_ndev)->priv->mbox_size) ? (_ndev)->priv->mbox_size : \
-	pci_resource_len(NDEV2PDEV(_ndev), (_ndev)->xdna->dev_info->mbox_bar); \
+	pci_resource_len(NDEV2PDEV(_ndev), (_ndev)->aie.xdna->dev_info->mbox_bar); \
 })
 
 #if IS_ENABLED(CONFIG_AMD_PMF)
@@ -203,23 +204,16 @@ struct aie2_exec_msg_ops {
 };
 
 struct amdxdna_dev_hdl {
-	struct amdxdna_dev		*xdna;
+	struct aie_device		aie;
 	const struct amdxdna_dev_priv	*priv;
 	void			__iomem *sram_base;
 	void			__iomem *smu_base;
 	void			__iomem *mbox_base;
 	struct psp_device		*psp_hdl;
 
-	struct xdna_mailbox_chann_res	mgmt_x2i;
-	struct xdna_mailbox_chann_res	mgmt_i2x;
-	u32				mgmt_chan_idx;
-	u32				mgmt_prot_major;
-	u32				mgmt_prot_minor;
-
 	u32				total_col;
 	struct aie_version		version;
 	struct aie_metadata		metadata;
-	unsigned long			feature_mask;
 	struct aie2_exec_msg_ops	*exec_msg_ops;
 
 	/* power management and clock*/
@@ -237,7 +231,6 @@ struct amdxdna_dev_hdl {
 
 	/* Mailbox and the management channel */
 	struct mailbox			*mbox;
-	struct mailbox_channel		*mgmt_chann;
 	struct async_events		*async_events;
 
 	enum aie2_dev_status		dev_status;
@@ -266,21 +259,12 @@ enum aie2_fw_feature {
 	AIE2_FEATURE_MAX
 };
 
-struct aie2_fw_feature_tbl {
-	u64 features;
-	u32 major;
-	u32 max_minor;
-	u32 min_minor;
-};
-
 #define AIE2_ALL_FEATURES	GENMASK_ULL(AIE2_FEATURE_MAX - 1, AIE2_NPU_COMMAND)
-#define AIE2_FEATURE_ON(ndev, feature)	test_bit(feature, &(ndev)->feature_mask)
 
 struct amdxdna_dev_priv {
 	const char			*fw_path;
 	const struct rt_config		*rt_config;
 	const struct dpm_clk_freq	*dpm_clk_tbl;
-	const struct aie2_fw_feature_tbl *fw_feature_tbl;
 
 #define COL_ALIGN_NONE   0
 #define COL_ALIGN_NATURE 1
@@ -306,7 +290,7 @@ extern const struct dpm_clk_freq npu1_dpm_clk_table[];
 extern const struct dpm_clk_freq npu4_dpm_clk_table[];
 extern const struct rt_config npu1_default_rt_cfg[];
 extern const struct rt_config npu4_default_rt_cfg[];
-extern const struct aie2_fw_feature_tbl npu4_fw_feature_table[];
+extern const struct amdxdna_fw_feature_tbl npu4_fw_feature_table[];
 
 /* aie2_smu.c */
 int aie2_smu_init(struct amdxdna_dev_hdl *ndev);

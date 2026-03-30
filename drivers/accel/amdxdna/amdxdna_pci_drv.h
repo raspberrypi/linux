@@ -66,6 +66,13 @@ struct amdxdna_dev_ops {
 	int (*get_array)(struct amdxdna_client *client, struct amdxdna_drm_get_array *args);
 };
 
+struct amdxdna_fw_feature_tbl {
+	u64 features;
+	u32 major;
+	u32 max_minor;
+	u32 min_minor;
+};
+
 /*
  * struct amdxdna_dev_info - Device hardware information
  * Record device static information, like reg, mbox, PSP, SMU bar index
@@ -83,6 +90,7 @@ struct amdxdna_dev_info {
 	size_t				dev_mem_size;
 	char				*vbnv;
 	const struct amdxdna_dev_priv	*dev_priv;
+	const struct amdxdna_fw_feature_tbl *fw_feature_tbl;
 	const struct amdxdna_dev_ops	*ops;
 };
 

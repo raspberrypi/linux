@@ -65,7 +65,7 @@ const struct dpm_clk_freq npu1_dpm_clk_table[] = {
 	{ 0 }
 };
 
-static const struct aie2_fw_feature_tbl npu1_fw_feature_table[] = {
+static const struct amdxdna_fw_feature_tbl npu1_fw_feature_table[] = {
 	{ .major = 5, .min_minor = 7 },
 	{ .features = BIT_U64(AIE2_NPU_COMMAND), .major = 5, .min_minor = 8 },
 	{ 0 }
@@ -75,7 +75,6 @@ static const struct amdxdna_dev_priv npu1_dev_priv = {
 	.fw_path        = "amdnpu/1502_00/",
 	.rt_config	= npu1_default_rt_cfg,
 	.dpm_clk_tbl	= npu1_dpm_clk_table,
-	.fw_feature_tbl = npu1_fw_feature_table,
 	.col_align	= COL_ALIGN_NONE,
 	.mbox_dev_addr  = NPU1_MBOX_BAR_BASE,
 	.mbox_size      = 0, /* Use BAR size */
@@ -120,5 +119,6 @@ const struct amdxdna_dev_info dev_npu1_info = {
 	.vbnv              = "RyzenAI-npu1",
 	.device_type       = AMDXDNA_DEV_TYPE_KMQ,
 	.dev_priv          = &npu1_dev_priv,
+	.fw_feature_tbl    = npu1_fw_feature_table,
 	.ops               = &aie2_ops,
 };

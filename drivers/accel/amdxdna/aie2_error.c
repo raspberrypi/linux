@@ -249,12 +249,12 @@ static u32 aie2_error_backtrack(struct amdxdna_dev_hdl *ndev, void *err_info, u3
 		enum aie_error_category cat;
 
 		cat = aie_get_error_category(err->row, err->event_id, err->mod_type);
-		XDNA_ERR(ndev->xdna, "Row: %d, Col: %d, module %d, event ID %d, category %d",
+		XDNA_ERR(ndev->aie.xdna, "Row: %d, Col: %d, module %d, event ID %d, category %d",
 			 err->row, err->col, err->mod_type,
 			 err->event_id, cat);
 
 		if (err->col >= 32) {
-			XDNA_WARN(ndev->xdna, "Invalid column number");
+			XDNA_WARN(ndev->aie.xdna, "Invalid column number");
 			break;
 		}
 
@@ -294,7 +294,7 @@ static void aie2_error_worker(struct work_struct *err_work)
 
 	e = container_of(err_work, struct async_event, work);
 
-	xdna = e->ndev->xdna;
+	xdna = e->ndev->aie.xdna;
 
 	if (e->resp.status == MAX_AIE2_STATUS_CODE)
 		return;
@@ -329,7 +329,7 @@ static void aie2_error_worker(struct work_struct *err_work)
 
 void aie2_error_async_events_free(struct amdxdna_dev_hdl *ndev)
 {
-	struct amdxdna_dev *xdna = ndev->xdna;
+	struct amdxdna_dev *xdna = ndev->aie.xdna;
 	struct async_events *events;
 
 	events = ndev->async_events;
@@ -344,7 +344,7 @@ void aie2_error_async_events_free(struct amdxdna_dev_hdl *ndev)
 
 int aie2_error_async_events_alloc(struct amdxdna_dev_hdl *ndev)
 {
-	struct amdxdna_dev *xdna = ndev->xdna;
+	struct amdxdna_dev *xdna = ndev->aie.xdna;
 	u32 total_col = ndev->total_col;
 	u32 total_size = ASYNC_BUF_SIZE * total_col;
 	struct async_events *events;
@@ -402,7 +402,7 @@ free_events:
 
 int aie2_get_array_async_error(struct amdxdna_dev_hdl *ndev, struct amdxdna_drm_get_array *args)
 {
-	struct amdxdna_dev *xdna = ndev->xdna;
+	struct amdxdna_dev *xdna = ndev->aie.xdna;
 
 	drm_WARN_ON(&xdna->ddev, !mutex_is_locked(&xdna->dev_lock));
 

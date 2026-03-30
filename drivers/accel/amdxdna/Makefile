@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 amdxdna-y := \
+	aie.o \
 	aie2_ctx.o \
 	aie2_error.o \
 	aie2_message.o \

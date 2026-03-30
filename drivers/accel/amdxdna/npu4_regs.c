@@ -88,7 +88,7 @@ const struct dpm_clk_freq npu4_dpm_clk_table[] = {
 	{ 0 }
 };
 
-const struct aie2_fw_feature_tbl npu4_fw_feature_table[] = {
+const struct amdxdna_fw_feature_tbl npu4_fw_feature_table[] = {
 	{ .major = 6, .min_minor = 12 },
 	{ .features = BIT_U64(AIE2_NPU_COMMAND), .major = 6, .min_minor = 15 },
 	{ .features = BIT_U64(AIE2_PREEMPT), .major = 6, .min_minor = 12 },
@@ -102,7 +102,6 @@ static const struct amdxdna_dev_priv npu4_dev_priv = {
 	.fw_path        = "amdnpu/17f0_10/",
 	.rt_config	= npu4_default_rt_cfg,
 	.dpm_clk_tbl	= npu4_dpm_clk_table,
-	.fw_feature_tbl = npu4_fw_feature_table,
 	.col_align	= COL_ALIGN_NATURE,
 	.mbox_dev_addr  = NPU4_MBOX_BAR_BASE,
 	.mbox_size      = 0, /* Use BAR size */
@@ -147,5 +146,6 @@ const struct amdxdna_dev_info dev_npu4_info = {
 	.vbnv              = "RyzenAI-npu4",
 	.device_type       = AMDXDNA_DEV_TYPE_KMQ,
 	.dev_priv          = &npu4_dev_priv,
+	.fw_feature_tbl    = npu4_fw_feature_table,
 	.ops               = &aie2_ops, /* NPU4 can share NPU1's callback */
 };
