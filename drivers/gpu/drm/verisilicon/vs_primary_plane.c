@@ -26,14 +26,10 @@ static int vs_primary_plane_atomic_check(struct drm_plane *plane,
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
 										 plane);
 	struct drm_crtc *crtc = new_plane_state->crtc;
-	struct drm_crtc_state *crtc_state;
+	struct drm_crtc_state *crtc_state = NULL;
 
-	if (!crtc)
-		return 0;
-
-	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
-	if (WARN_ON(!crtc_state))
-		return -EINVAL;
+	if (crtc)
+		crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
 
 	return drm_atomic_helper_check_plane_state(new_plane_state,
 						   crtc_state,
