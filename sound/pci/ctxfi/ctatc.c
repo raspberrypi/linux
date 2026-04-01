@@ -1401,10 +1401,10 @@ static int atc_get_resources(struct ct_atc *atc)
 	daio_mgr = (struct daio_mgr *)atc->rsc_mgrs[DAIO];
 	da_desc.msr = atc->msr;
 	for (i = 0; i < NUM_DAIOTYP; i++) {
-		if (((i == MIC) && !cap.dedicated_mic) || i == SPDIFI1)
+		if (((i == MIC) && !cap.dedicated_mic) || i == SPDIFI_BAY)
 			continue;
 		if (atc->model == CTSB073X && i == SPDIFIO)
-			da_desc.type = SPDIFI1;
+			da_desc.type = SPDIFI_BAY;
 		else
 			da_desc.type = i;
 		da_desc.output = i < LINEIM;
