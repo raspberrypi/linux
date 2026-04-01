@@ -2317,7 +2317,7 @@ error:
 static bool should_nocow(struct btrfs_inode *inode, u64 start, u64 end)
 {
 	if (inode->flags & (BTRFS_INODE_NODATACOW | BTRFS_INODE_PREALLOC)) {
-		if (inode->defrag_bytes &&
+		if (data_race(inode->defrag_bytes) &&
 		    btrfs_test_range_bit_exists(&inode->io_tree, start, end, EXTENT_DEFRAG))
 			return false;
 		return true;
