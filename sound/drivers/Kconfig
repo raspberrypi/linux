@@ -265,8 +265,9 @@ config SND_AC97_POWER_SAVE_DEFAULT
 
 config SND_PIMIDI
 	tristate "Pimidi driver"
-	depends on SND_SEQUENCER && CRC8
+	depends on SND_SEQUENCER
 	select SND_RAWMIDI
+	select CRC8
 	help
 	  Say Y here to include support for Blokas Pimidi.
 
@@ -275,7 +276,8 @@ config SND_PIMIDI
 
 config SND_PISOUND_MICRO
 	tristate "Pisound Micro driver"
-	depends on SND_SEQUENCER && CRC8
+	depends on SND_SEQUENCER
+	select CRC8
 	help
 	  Say Y here to include support for Blokas Pisound Micro.
 
