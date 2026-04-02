@@ -1279,8 +1279,10 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
 
 	/* create char device */
 	hidg->cdev = cdev_alloc();
-	if (!hidg->cdev)
+	if (!hidg->cdev) {
+		status = -ENOMEM;
 		goto fail_free_all;
+	}
 	hidg->cdev->ops = &f_hidg_fops;
 
 	status = cdev_device_add(hidg->cdev, &hidg->dev);
