@@ -406,8 +406,11 @@ int aie2_get_array_async_error(struct amdxdna_dev_hdl *ndev, struct amdxdna_drm_
 
 	drm_WARN_ON(&xdna->ddev, !mutex_is_locked(&xdna->dev_lock));
 
+	if (!args->num_element)
+		return -EINVAL;
+
 	args->num_element = 1;
-	args->element_size = sizeof(ndev->last_async_err);
+	args->element_size = min(args->element_size, sizeof(ndev->last_async_err));
 	if (copy_to_user(u64_to_user_ptr(args->buffer),
 			 &ndev->last_async_err, args->element_size))
 		return -EFAULT;

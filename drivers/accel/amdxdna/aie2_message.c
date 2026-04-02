@@ -369,12 +369,13 @@ int aie2_query_status(struct amdxdna_dev_hdl *ndev, char __user *buf,
 {
 	DECLARE_AIE_MSG(aie_column_info, MSG_OP_QUERY_COL_STATUS);
 	struct amdxdna_dev *xdna = ndev->aie.xdna;
-	u32 buf_sz = size, aie_bitmap = 0;
+	u32 buf_sz, aie_bitmap = 0;
 	struct amdxdna_client *client;
 	dma_addr_t dma_addr;
 	u8 *buff_addr;
 	int ret;
 
+	buf_sz = ndev->metadata.cols * ndev->metadata.size;
 	buff_addr = aie2_alloc_msg_buffer(ndev, &buf_sz, &dma_addr);
 	if (IS_ERR(buff_addr))
 		return PTR_ERR(buff_addr);
@@ -398,13 +399,14 @@ int aie2_query_status(struct amdxdna_dev_hdl *ndev, char __user *buf,
 
 	XDNA_DBG(xdna, "Query NPU status completed");
 
-	if (size < resp.size) {
+	if (buf_sz < resp.size) {
 		ret = -EINVAL;
-		XDNA_ERR(xdna, "Bad buffer size. Available: %u. Needs: %u", size, resp.size);
+		XDNA_ERR(xdna, "Bad buffer size. Available: %u. Needs: %u", buf_sz, resp.size);
 		goto fail;
 	}
 
-	if (copy_to_user(buf, buff_addr, resp.size)) {
+	size = min(size, resp.size);
+	if (copy_to_user(buf, buff_addr, size)) {
 		ret = -EFAULT;
 		XDNA_ERR(xdna, "Failed to copy NPU status to user space");
 		goto fail;
@@ -424,13 +426,14 @@ int aie2_query_telemetry(struct amdxdna_dev_hdl *ndev,
 	DECLARE_AIE_MSG(get_telemetry, MSG_OP_GET_TELEMETRY);
 	struct amdxdna_dev *xdna = ndev->aie.xdna;
 	dma_addr_t dma_addr;
-	u32 buf_sz = size;
+	u32 buf_sz;
 	u8 *addr;
 	int ret;
 
 	if (header->type >= MAX_TELEMETRY_TYPE)
 		return -EINVAL;
 
+	buf_sz = min(size, SZ_4M);
 	addr = aie2_alloc_msg_buffer(ndev, &buf_sz, &dma_addr);
 	if (IS_ERR(addr))
 		return PTR_ERR(addr);
@@ -446,13 +449,14 @@ int aie2_query_telemetry(struct amdxdna_dev_hdl *ndev,
 		goto free_buf;
 	}
 
-	if (size < resp.size) {
+	if (buf_sz < resp.size) {
 		ret = -EINVAL;
-		XDNA_ERR(xdna, "Bad buffer size. Available: %u. Needs: %u", size, resp.size);
+		XDNA_ERR(xdna, "Bad buffer size. Available: %u. Needs: %u", buf_sz, resp.size);
 		goto free_buf;
 	}
 
-	if (copy_to_user(buf, addr, resp.size)) {
+	size = min(size, resp.size);
+	if (copy_to_user(buf, addr, size)) {
 		ret = -EFAULT;
 		XDNA_ERR(xdna, "Failed to copy telemetry to user space");
 		goto free_buf;
