@@ -736,7 +736,7 @@ static int adau1961_add_routes(struct snd_soc_component *component)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
 	struct adau *adau = snd_soc_component_get_drvdata(component);
-	int ret;
+	int ret = 0;
 
 	if (adau->clk_src != ADAU1961_CLK_SRC_MCLK)
 		ret = snd_soc_dapm_add_routes(dapm, &adau1961_dapm_pll_route, 1);
