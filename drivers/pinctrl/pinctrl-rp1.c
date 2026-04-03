@@ -958,8 +958,15 @@ static int rp1_gpio_irq_set_affinity(struct irq_data *data, const struct cpumask
 		}
 	}
 
-	if (parent_data && parent_data->chip->irq_set_affinity)
-		return parent_data->chip->irq_set_affinity(parent_data, dest, force);
+	if (parent_data && parent_data->chip->irq_set_affinity) {
+		int ret = parent_data->chip->irq_set_affinity(parent_data, dest, force);
+
+		if (ret >= 0) {
+			irq_data_update_effective_affinity(data, dest);
+			return IRQ_SET_MASK_OK_DONE;
+		}
+		return ret;
+	}
 
 	return -EINVAL;
 }
