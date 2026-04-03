@@ -122,33 +122,6 @@
 #define MEM_SLICE_HASH_MASK(v)		(GET_BITFIELD(v, 6, 19) << 6)
 #define MEM_SLICE_HASH_LSB_MASK_BIT(v)	GET_BITFIELD(v, 24, 26)
 
-static struct res_config {
-	bool machine_check;
-	/* The number of present memory controllers. */
-	int num_imc;
-	/* Host MMIO configuration */
-	u64 reg_mchbar_mask;
-	/* Top of memory */
-	u64 reg_tom_mask;
-	/* Top of upper usable DRAM */
-	u64 reg_touud_mask;
-	/* IBECC error log */
-	u64 reg_eccerrlog_addr_mask;
-	u32 imc_base;
-	u32 cmf_base;
-	u32 cmf_size;
-	u32 ms_hash_offset;
-	u32 ibecc_base;
-	u32 ibecc_error_log_offset;
-	bool (*ibecc_available)(struct pci_dev *pdev);
-	/* Extract error address logged in IBECC */
-	u64 (*err_addr)(u64 ecclog);
-	/* Convert error address logged in IBECC to system physical address */
-	u64 (*err_addr_to_sys_addr)(u64 eaddr, int mc);
-	/* Convert error address logged in IBECC to integrated memory controller address */
-	u64 (*err_addr_to_imc_addr)(u64 eaddr, int mc);
-} *res_cfg;
-
 struct igen6_imc {
 	int mc;
 	struct mem_ctl_info *mci;
@@ -163,8 +136,53 @@ struct igen6_imc {
 	int dimm_l_map[NUM_CHANNELS];
 };
 
+static struct res_config {
+	bool machine_check;
+	/* The number of present memory controllers. */
+	int num_imc;
+	/* Host MMIO configuration */
+	u64 reg_mchbar_mask;
+	/* Top of memory */
+	u64 reg_tom_mask;
+	/* Top of upper usable DRAM */
+	u64 reg_touud_mask;
+	/* IBECC error log */
+	u64 reg_eccerrlog_addr_mask;
+	/* MEMSS_PMA_CR registers. */
+	u32 reg_mem_config_offset;
+	u32 reg_mem_config_ddr_type_mask;
+	/* Memory controller registers. */
+	u32 reg_mad_inter_size_mask[NUM_CHANNELS];
+	u64 reg_mad_inter_size_granularity;
+	u32 reg_mad_intra_rank_mask[NUM_DIMMS];
+	u32 reg_mad_intra_width_mask[NUM_DIMMS];
+	u32 reg_mad_intra_density_mask[NUM_DIMMS];
+	u32 imc_base;
+	u32 cmf_base;
+	u32 cmf_size;
+	u32 ms_hash_offset;
+	u32 ibecc_base;
+	u32 ibecc_error_log_offset;
+	/* Get memory type. */
+	enum mem_type (*get_mem_type)(struct igen6_imc *imc);
+	/* Get DRAM chip type. */
+	enum dev_type (*get_dev_type)(struct igen6_imc *imc, int chan, int dimm_l);
+	/* Set imc->ch_{s_size,l_map}. */
+	void (*set_chan_params)(struct igen6_imc *imc);
+	/* Set imc->dimm_{l_size,s_size,l_map}[chan]. */
+	void (*set_dimm_params)(struct igen6_imc *imc, int chan);
+	bool (*ibecc_available)(struct pci_dev *pdev);
+	/* Extract error address logged in IBECC */
+	u64 (*err_addr)(u64 ecclog);
+	/* Convert error address logged in IBECC to system physical address */
+	u64 (*err_addr_to_sys_addr)(u64 eaddr, int mc);
+	/* Convert error address logged in IBECC to integrated memory controller address */
+	u64 (*err_addr_to_imc_addr)(u64 eaddr, int mc);
+} *res_cfg;
+
 static struct igen6_pvt {
 	struct igen6_imc imc[NUM_IMC];
+	void __iomem *memss_pma_cr;
 	u64 ms_hash;
 	u64 ms_s_size;
 	int ms_l_map;
@@ -500,6 +518,119 @@ static u64 rpl_p_err_addr(u64 ecclog)
 	return field_get(res_cfg->reg_eccerrlog_addr_mask, ecclog);
 }
 
+static enum mem_type ptl_h_get_mem_type(struct igen6_imc *imc)
+{
+	u32 mtype, val;
+
+	val = readl(igen6_pvt->memss_pma_cr + res_cfg->reg_mem_config_offset);
+	mtype = field_get(res_cfg->reg_mem_config_ddr_type_mask, val);
+
+	edac_dbg(2, "mtype %u (reg 0x%x)\n", mtype, val);
+
+	switch (mtype) {
+	case 1:
+		return MEM_DDR5;
+	case 2:
+		return MEM_LPDDR5;
+	case 3:
+		return MEM_LPDDR4;
+	default:
+		return MEM_UNKNOWN;
+	}
+}
+
+static enum dev_type ptl_h_get_dev_type(struct igen6_imc *imc, int chan, int dimm)
+{
+	u32 width, val;
+
+	val = readl(imc->window + MAD_INTRA_CH0_OFFSET + chan * 4);
+	width = field_get(res_cfg->reg_mad_intra_width_mask[dimm], val);
+
+	switch (width) {
+	case 1:
+		return DEV_X8;
+	default:
+		return DEV_X16;
+	}
+}
+
+static u64 ptl_h_get_chan_size(struct igen6_imc *imc, int chan)
+{
+	u32 val = readl(imc->window + MAD_INTER_CHANNEL_OFFSET);
+
+	return field_get(res_cfg->reg_mad_inter_size_mask[chan], val) *
+	       res_cfg->reg_mad_inter_size_granularity;
+}
+
+static u64 ptl_h_get_dimm_size(struct igen6_imc *imc, int chan, int dimm)
+{
+	u32 val = readl(imc->window + MAD_INTRA_CH0_OFFSET + chan * 4);
+	u32 ranks = 1 << field_get(res_cfg->reg_mad_intra_rank_mask[dimm], val);
+	/* DRAM device density in Gb */
+	u64 density = field_get(res_cfg->reg_mad_intra_density_mask[dimm], val) * 4;
+
+	enum mem_type mtype = ptl_h_get_mem_type(imc);
+	enum dev_type dtype = ptl_h_get_dev_type(imc, chan, dimm);
+	u64 sub_ch_width, dev_num;
+
+	switch (mtype) {
+	case MEM_DDR5:
+		sub_ch_width = 32;
+		break;
+	case MEM_LPDDR5:
+	case MEM_LPDDR4:
+		sub_ch_width = 16;
+		break;
+	default:
+		sub_ch_width = 0;
+	}
+
+	switch (dtype) {
+	case DEV_X8:
+		dev_num = sub_ch_width / 8;
+		break;
+	case DEV_X16:
+		dev_num = sub_ch_width / 16;
+		break;
+	default:
+		dev_num = 0;
+	}
+
+	edac_dbg(2, "ranks %d, density %lluGb, sub_ch_width %llu, dev_num %llu (reg 0x%x)\n", ranks, density, sub_ch_width, dev_num, val);
+
+	return ((dev_num * density / 8) * ranks) << 30;
+}
+
+static void ptl_h_set_chan_params(struct igen6_imc *imc)
+{
+	u64 ch0_size = ptl_h_get_chan_size(imc, 0);
+	u64 ch1_size = ptl_h_get_chan_size(imc, 1);
+
+	if (ch0_size <= ch1_size) {
+		imc->ch_s_size = ch0_size;
+		imc->ch_l_map = 1;
+	} else {
+		imc->ch_s_size = ch1_size;
+		imc->ch_l_map = 0;
+	}
+}
+
+static void ptl_h_set_dimm_params(struct igen6_imc *imc, int chan)
+{
+	u64 dimm0_size = ptl_h_get_dimm_size(imc, chan, 0);
+	u64 dimm1_size = ptl_h_get_dimm_size(imc, chan, 1);
+
+	if (dimm0_size <= dimm1_size) {
+		imc->dimm_s_size[chan] = dimm0_size;
+		imc->dimm_l_size[chan] = dimm1_size;
+		imc->dimm_l_map[chan]  = 1;
+	} else {
+		imc->dimm_s_size[chan] = dimm1_size;
+		imc->dimm_l_size[chan] = dimm0_size;
+		imc->dimm_l_map[chan]  = 0;
+	}
+}
+
 static struct res_config ehl_cfg = {
 	.num_imc		= 1,
 	.reg_mchbar_mask	= GENMASK_ULL(38, 16),
@@ -622,6 +753,36 @@ static struct res_config mtl_p_cfg = {
 	.err_addr_to_imc_addr	= adl_err_addr_to_imc_addr,
 };
 
+static struct res_config ptl_h_cfg = {
+	.machine_check			= true,
+	.num_imc			= 2,
+	.reg_mchbar_mask		= GENMASK_ULL(41, 17),
+	.reg_tom_mask			= GENMASK_ULL(41, 20),
+	.reg_touud_mask			= GENMASK_ULL(41, 20),
+	.reg_eccerrlog_addr_mask	= GENMASK_ULL(38, 5),
+	.reg_mem_config_offset		= 0x13d04,
+	.reg_mem_config_ddr_type_mask	= GENMASK(8, 6),
+	.reg_mad_inter_size_mask[0]	= GENMASK(15, 8),
+	.reg_mad_inter_size_mask[1]	= GENMASK(23, 16),
+	.reg_mad_inter_size_granularity	= BIT_ULL(29),
+	.reg_mad_intra_rank_mask[0]	= BIT(7),
+	.reg_mad_intra_rank_mask[1]	= BIT(15),
+	.reg_mad_intra_width_mask[0]	= BIT(6),
+	.reg_mad_intra_width_mask[1]	= BIT(14),
+	.reg_mad_intra_density_mask[0]	= GENMASK(3, 0),
+	.reg_mad_intra_density_mask[1]	= GENMASK(11, 8),
+	.imc_base			= 0xd800,
+	.ibecc_base			= 0xd400,
+	.ibecc_error_log_offset		= 0x170,
+	.get_mem_type			= ptl_h_get_mem_type,
+	.get_dev_type			= ptl_h_get_dev_type,
+	.set_chan_params		= ptl_h_set_chan_params,
+	.set_dimm_params		= ptl_h_set_dimm_params,
+	.ibecc_available		= mtl_p_ibecc_available,
+	.err_addr_to_sys_addr		= adl_err_addr_to_sys_addr,
+	.err_addr_to_imc_addr		= adl_err_addr_to_imc_addr,
+};
+
 static struct res_config wcl_cfg = {
 	.machine_check		= true,
 	.num_imc		= 1,
@@ -689,46 +850,34 @@ static struct pci_device_id igen6_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, DID_ARL_UH_SKU1), (kernel_ulong_t)&mtl_p_cfg },
 	{ PCI_VDEVICE(INTEL, DID_ARL_UH_SKU2), (kernel_ulong_t)&mtl_p_cfg },
 	{ PCI_VDEVICE(INTEL, DID_ARL_UH_SKU3), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU1), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU2), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU3), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU4), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU5), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU6), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU7), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU8), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU9), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU10), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU11), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU12), (kernel_ulong_t)&mtl_p_cfg },
-	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU13), (kernel_ulong_t)&mtl_p_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU1), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU2), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU3), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU4), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU5), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU6), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU7), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU8), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU9), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU10), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU11), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU12), (kernel_ulong_t)&ptl_h_cfg },
+	{ PCI_VDEVICE(INTEL, DID_PTL_H_SKU13), (kernel_ulong_t)&ptl_h_cfg },
 	{ PCI_VDEVICE(INTEL, DID_WCL_SKU1), (kernel_ulong_t)&wcl_cfg },
 	{ },
 };
 MODULE_DEVICE_TABLE(pci, igen6_pci_tbl);
 
-static enum dev_type get_width(int dimm_l, u32 mad_dimm)
+static enum mem_type get_mem_type(struct igen6_imc *imc)
 {
-	u32 w = dimm_l ? MAD_DIMM_CH_DLW(mad_dimm) :
-			 MAD_DIMM_CH_DSW(mad_dimm);
+	u32 val;
 
-	switch (w) {
-	case 0:
-		return DEV_X8;
-	case 1:
-		return DEV_X16;
-	case 2:
-		return DEV_X32;
-	default:
-		return DEV_UNKNOWN;
-	}
-}
+	if (res_cfg->get_mem_type)
+		return res_cfg->get_mem_type(imc);
 
-static enum mem_type get_memory_type(u32 mad_inter)
-{
-	u32 t = MAD_INTER_CHANNEL_DDR_TYPE(mad_inter);
+	val = readl(imc->window + MAD_INTER_CHANNEL_OFFSET);
 
-	switch (t) {
+	switch (MAD_INTER_CHANNEL_DDR_TYPE(val)) {
 	case 0:
 		return MEM_DDR4;
 	case 1:
@@ -742,6 +891,73 @@ static enum mem_type get_memory_type(u32 mad_inter)
 	default:
 		return MEM_UNKNOWN;
 	}
+}
+
+static bool large_dimm(struct igen6_imc *imc, int chan, int dimm)
+{
+	return dimm == imc->dimm_l_map[chan];
+}
+
+static enum dev_type get_dev_type(struct igen6_imc *imc, int chan, int dimm)
+{
+	u32 width, val;
+
+	if (res_cfg->get_dev_type)
+		return res_cfg->get_dev_type(imc, chan, dimm);
+
+	val = readl(imc->window + MAD_DIMM_CH0_OFFSET + chan * 4);
+	width = large_dimm(imc, chan, dimm) ? MAD_DIMM_CH_DLW(val) :
+					  MAD_DIMM_CH_DSW(val);
+
+	switch (width) {
+	case 0:
+		return DEV_X8;
+	case 1:
+		return DEV_X16;
+	case 2:
+		return DEV_X32;
+	default:
+		return DEV_UNKNOWN;
+	}
+}
+
+static u64 get_dimm_size(struct igen6_imc *imc, int chan, int dimm)
+{
+	if (large_dimm(imc, chan, dimm))
+		return imc->dimm_l_size[chan];
+
+	return imc->dimm_s_size[chan];
+}
+
+static void set_chan_params(struct igen6_imc *imc)
+{
+	u32 val;
+
+	if (res_cfg->set_chan_params) {
+		res_cfg->set_chan_params(imc);
+		return;
+	}
+
+	val = readl(imc->window + MAD_INTER_CHANNEL_OFFSET);
+	imc->ch_s_size = MAD_INTER_CHANNEL_CH_S_SIZE(val);
+	imc->ch_l_map = MAD_INTER_CHANNEL_CH_L_MAP(val);
+}
+
+static void set_dimm_params(struct igen6_imc *imc, int chan)
+{
+	u32 val;
+
+	if (res_cfg->set_dimm_params) {
+		res_cfg->set_dimm_params(imc, chan);
+		return;
+	}
+
+	val = readl(imc->window + MAD_INTRA_CH0_OFFSET + chan * 4);
+	imc->dimm_l_map[chan]  = MAD_INTRA_CH_DIMM_L_MAP(val);
+
+	val = readl(imc->window + MAD_DIMM_CH0_OFFSET + chan * 4);
+	imc->dimm_l_size[chan] = MAD_DIMM_CH_DIMM_L_SIZE(val);
+	imc->dimm_s_size[chan] = MAD_DIMM_CH_DIMM_S_SIZE(val);
 }
 
 static int decode_chan_idx(u64 addr, u64 mask, int intlv_bit)
@@ -1084,7 +1300,6 @@ static bool igen6_check_ecc(struct igen6_imc *imc)
 static int igen6_get_dimm_config(struct mem_ctl_info *mci)
 {
 	struct igen6_imc *imc = mci->pvt_info;
-	u32 mad_inter, mad_intra, mad_dimm;
 	int i, j, ndimms, mc = imc->mc;
 	struct dimm_info *dimm;
 	enum mem_type mtype;
@@ -1094,33 +1309,20 @@ static int igen6_get_dimm_config(struct mem_ctl_info *mci)
 
 	edac_dbg(2, "\n");
 
-	mad_inter = readl(imc->window + MAD_INTER_CHANNEL_OFFSET);
-	mtype = get_memory_type(mad_inter);
+	mtype = get_mem_type(imc);
 	ecc = igen6_check_ecc(imc);
-	imc->ch_s_size = MAD_INTER_CHANNEL_CH_S_SIZE(mad_inter);
-	imc->ch_l_map  = MAD_INTER_CHANNEL_CH_L_MAP(mad_inter);
+	set_chan_params(imc);
 
 	for (i = 0; i < NUM_CHANNELS; i++) {
-		mad_intra = readl(imc->window + MAD_INTRA_CH0_OFFSET + i * 4);
-		mad_dimm  = readl(imc->window + MAD_DIMM_CH0_OFFSET + i * 4);
-
-		imc->dimm_l_size[i] = MAD_DIMM_CH_DIMM_L_SIZE(mad_dimm);
-		imc->dimm_s_size[i] = MAD_DIMM_CH_DIMM_S_SIZE(mad_dimm);
-		imc->dimm_l_map[i]  = MAD_INTRA_CH_DIMM_L_MAP(mad_intra);
+		set_dimm_params(imc, i);
 		imc->size += imc->dimm_s_size[i];
 		imc->size += imc->dimm_l_size[i];
 		ndimms = 0;
 
 		for (j = 0; j < NUM_DIMMS; j++) {
 			dimm = edac_get_dimm(mci, i, j, 0);
-
-			if (j ^ imc->dimm_l_map[i]) {
-				dtype = get_width(0, mad_dimm);
-				dsize = imc->dimm_s_size[i];
-			} else {
-				dtype = get_width(1, mad_dimm);
-				dsize = imc->dimm_l_size[i];
-			}
+			dtype = get_dev_type(imc, i, j);
+			dsize = get_dimm_size(imc, i, j);
 
 			if (!dsize)
 				continue;
@@ -1222,6 +1424,39 @@ static void igen6_reg_dump(struct igen6_imc *imc) {}
 static void igen6_debug_setup(void) {}
 static void igen6_debug_teardown(void) {}
 #endif
+
+static struct igen6_pvt *igen6_pvt_setup(struct pci_dev *pdev)
+{
+	void __iomem *memss_pma_cr;
+	struct igen6_pvt *pvt;
+	u64 mchbar;
+	int rc;
+
+	pvt = kzalloc_obj(*igen6_pvt);
+	if (!pvt)
+		return NULL;
+
+	rc = get_mchbar(pdev, &mchbar);
+	if (rc) {
+		kfree(pvt);
+		return NULL;
+	}
+
+	memss_pma_cr = ioremap(mchbar, MCHBAR_SIZE * 2);
+	if (!memss_pma_cr) {
+		kfree(pvt);
+		return NULL;
+	}
+	pvt->memss_pma_cr = memss_pma_cr;
+
+	return pvt;
+}
+
+static void igen6_pvt_release(struct igen6_pvt *pvt)
+{
+	iounmap(pvt->memss_pma_cr);
+	kfree(pvt);
+}
 
 static int igen6_pci_setup(struct pci_dev *pdev, u64 *mchbar)
 {
@@ -1555,11 +1790,11 @@ static int igen6_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	edac_dbg(2, "\n");
 
-	igen6_pvt = kzalloc_obj(*igen6_pvt);
+	res_cfg = (struct res_config *)ent->driver_data;
+
+	igen6_pvt = igen6_pvt_setup(pdev);
 	if (!igen6_pvt)
 		return -ENOMEM;
-
-	res_cfg = (struct res_config *)ent->driver_data;
 
 	rc = igen6_pci_setup(pdev, &mchbar);
 	if (rc)
@@ -1609,7 +1844,7 @@ fail3:
 fail2:
 	igen6_unregister_mcis();
 fail:
-	kfree(igen6_pvt);
+	igen6_pvt_release(igen6_pvt);
 	return rc;
 }
 
@@ -1624,7 +1859,7 @@ static void igen6_remove(struct pci_dev *pdev)
 	flush_work(&ecclog_work);
 	gen_pool_destroy(ecclog_pool);
 	igen6_unregister_mcis();
-	kfree(igen6_pvt);
+	igen6_pvt_release(igen6_pvt);
 }
 
 static struct pci_driver igen6_driver = {
