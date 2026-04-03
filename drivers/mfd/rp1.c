@@ -145,8 +145,14 @@ static int rp1_irq_set_affinity(struct irq_data *irqd, const struct cpumask *des
 {
 	struct rp1_dev *rp1 = irqd->domain->host_data;
 	struct irq_data *pcie_irqd = rp1->pcie_irqds[irqd->hwirq];
+	int ret;
 
-	return msi_domain_set_affinity(pcie_irqd, dest, force);
+	ret = msi_domain_set_affinity(pcie_irqd, dest, force);
+	if (ret >= 0) {
+		irq_data_update_effective_affinity(irqd, dest);
+		return IRQ_SET_MASK_OK_DONE;
+	}
+	return ret;
 }
 
 static struct irq_chip rp1_irq_chip = {
