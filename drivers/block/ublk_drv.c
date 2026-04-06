@@ -2141,29 +2141,27 @@ static void ublk_stop_dev(struct ublk_device *ub)
 /* reset ublk io_uring queue & io flags */
 static void ublk_reset_io_flags(struct ublk_device *ub)
 {
-	int i, j;
+	int i;
 
-	for (i = 0; i < ub->dev_info.nr_hw_queues; i++) {
-		struct ublk_queue *ubq = ublk_get_queue(ub, i);
-
-		/* UBLK_IO_FLAG_CANCELED can be cleared now */
-		spin_lock(&ubq->cancel_lock);
-		for (j = 0; j < ubq->q_depth; j++)
-			ubq->ios[j].flags &= ~UBLK_IO_FLAG_CANCELED;
-		spin_unlock(&ubq->cancel_lock);
-		ubq->fail_io = false;
-	}
+	for (i = 0; i < ub->dev_info.nr_hw_queues; i++)
+		ublk_get_queue(ub, i)->fail_io = false;
 	mutex_lock(&ub->cancel_mutex);
 	ublk_set_canceling(ub, false);
 	mutex_unlock(&ub->cancel_mutex);
 }
 
 /* device can only be started after all IOs are ready */
-static void ublk_mark_io_ready(struct ublk_device *ub)
+static void ublk_mark_io_ready(struct ublk_device *ub, struct ublk_queue *ubq,
+			       struct ublk_io *io)
 	__must_hold(&ub->mutex)
 {
 	if (!ub->unprivileged_daemons && !capable(CAP_SYS_ADMIN))
 		ub->unprivileged_daemons = true;
+
+	/* UBLK_IO_FLAG_CANCELED can be cleared now */
+	spin_lock(&ubq->cancel_lock);
+	io->flags &= ~UBLK_IO_FLAG_CANCELED;
+	spin_unlock(&ubq->cancel_lock);
 
 	ub->nr_io_ready++;
 	if (ublk_dev_ready(ub)) {
@@ -2370,7 +2368,7 @@ static int ublk_check_fetch_buf(const struct ublk_device *ub, __u64 buf_addr)
 }
 
 static int ublk_fetch(struct io_uring_cmd *cmd, struct ublk_device *ub,
-		      struct ublk_io *io, __u64 buf_addr)
+		      struct ublk_queue *ubq, struct ublk_io *io, __u64 buf_addr)
 {
 	int ret = 0;
 
@@ -2400,7 +2398,7 @@ static int ublk_fetch(struct io_uring_cmd *cmd, struct ublk_device *ub,
 		goto out;
 
 	WRITE_ONCE(io->task, get_task_struct(current));
-	ublk_mark_io_ready(ub);
+	ublk_mark_io_ready(ub, ubq, io);
 out:
 	mutex_unlock(&ub->mutex);
 	return ret;
@@ -2505,7 +2503,7 @@ static int ublk_ch_uring_cmd_local(struct io_uring_cmd *cmd,
 		ret = ublk_check_fetch_buf(ub, addr);
 		if (ret)
 			goto out;
-		ret = ublk_fetch(cmd, ub, io, addr);
+		ret = ublk_fetch(cmd, ub, ubq, io, addr);
 		if (ret)
 			goto out;
 
