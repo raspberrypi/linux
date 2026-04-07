@@ -91,7 +91,7 @@ static inline int copy_struct_from_sockptr(void *dst, size_t ksize,
 	size_t rest = max(ksize, usize) - size;
 
 	if (!sockptr_is_kernel(src))
-		return copy_struct_from_user(dst, ksize, src.user, size);
+		return copy_struct_from_user(dst, ksize, src.user, usize);
 
 	if (usize < ksize) {
 		memset(dst + size, 0, rest);
