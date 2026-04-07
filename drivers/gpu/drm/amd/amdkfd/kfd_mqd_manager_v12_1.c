@@ -32,6 +32,10 @@
 #include "amdgpu_amdkfd.h"
 #include "kfd_device_queue_manager.h"
 
+static void update_mqd(struct mqd_manager *mm, void *mqd,
+		       struct queue_properties *q,
+		       struct mqd_update_info *minfo);
+
 static inline struct v12_1_compute_mqd *get_mqd(void *mqd)
 {
 	return (struct v12_1_compute_mqd *)mqd;
@@ -215,7 +219,7 @@ static void init_mqd(struct mqd_manager *mm, void **mqd,
 	*mqd = m;
 	if (gart_addr)
 		*gart_addr = addr;
-	mm->update_mqd(mm, m, q, NULL);
+	update_mqd(mm, m, q, NULL);
 }
 
 static int load_mqd(struct mqd_manager *mm, void *mqd,
