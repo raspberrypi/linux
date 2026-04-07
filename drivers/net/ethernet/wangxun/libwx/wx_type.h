@@ -1394,6 +1394,7 @@ struct wx {
 
 	struct timer_list service_timer;
 	struct work_struct service_task;
+	struct mutex reset_lock; /* mutex for reset */
 };
 
 #define WX_INTR_ALL (~0ULL)
@@ -1470,21 +1471,6 @@ wr32ptp(struct wx *wx, u32 reg, u32 value)
 static inline struct wx *phylink_to_wx(struct phylink_config *config)
 {
 	return container_of(config, struct wx, phylink_config);
-}
-
-static inline int wx_set_state_reset(struct wx *wx)
-{
-	u8 timeout = 50;
-
-	while (test_and_set_bit(WX_STATE_RESETTING, wx->state)) {
-		timeout--;
-		if (!timeout)
-			return -EBUSY;
-
-		usleep_range(1000, 2000);
-	}
-
-	return 0;
 }
 
 static inline unsigned int wx_rx_pg_order(struct wx_ring *ring)
