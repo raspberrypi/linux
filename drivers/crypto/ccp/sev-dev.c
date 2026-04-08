@@ -1488,6 +1488,8 @@ static int __sev_snp_init_locked(int *error, unsigned int max_snp_asid)
 				       &snp_panic_notifier);
 
 	if (data.tio_en) {
+		struct page *page;
+
 		/*
 		 * This executes with the sev_cmd_mutex held so down the stack
 		 * snp_reclaim_pages(locked=false) might be needed (which is extremely
@@ -1495,12 +1497,14 @@ static int __sev_snp_init_locked(int *error, unsigned int max_snp_asid)
 		 * Instead of exporting __snp_alloc_firmware_pages(), allocate a page
 		 * for this one call here.
 		 */
-		void *tio_status = page_address(__snp_alloc_firmware_pages(
-			GFP_KERNEL_ACCOUNT | __GFP_ZERO, 0, true));
+		page = __snp_alloc_firmware_pages(GFP_KERNEL_ACCOUNT | __GFP_ZERO,
+						  0, true);
+		if (page) {
+			void *tio_status = page_address(page);
 
-		if (tio_status) {
 			sev_tsm_init_locked(sev, tio_status);
-			__snp_free_firmware_pages(virt_to_page(tio_status), 0, true);
+
+			__snp_free_firmware_pages(page, 0, true);
 		}
 	}
 
