@@ -1356,7 +1356,7 @@ static int __sev_snp_init_locked(int *error, unsigned int max_snp_asid)
 {
 	struct sev_data_range_list *snp_range_list __free(kfree) = NULL;
 	struct psp_device *psp = psp_master;
-	struct sev_data_snp_init_ex data;
+	struct sev_data_snp_init_ex data = {};
 	struct sev_device *sev;
 	void *arg = &data;
 	int cmd, rc = 0;
@@ -1419,8 +1419,6 @@ static int __sev_snp_init_locked(int *error, unsigned int max_snp_asid)
 		 * HV_Fixed page list.
 		 */
 		snp_add_hv_fixed_pages(sev, snp_range_list);
-
-		memset(&data, 0, sizeof(data));
 
 		if (max_snp_asid) {
 			data.ciphertext_hiding_en = 1;
