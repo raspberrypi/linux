@@ -460,7 +460,7 @@
 
 		regulators {
 			ldo2: ldo2 {
-				regulator-min-microvolt = <1900000>;
+				regulator-min-microvolt = <2500000>;
 				regulator-max-microvolt = <3100000>;
 			};
 
