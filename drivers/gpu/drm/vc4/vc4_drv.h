@@ -1087,6 +1087,7 @@ extern struct platform_driver vc4_vec_driver;
 
 /* vc4_txp.c */
 extern struct platform_driver vc4_txp_driver;
+void vc4_txp_connector_reset(struct drm_connector *connector);
 
 /* vc4_irq.c */
 void vc4_irq_enable(struct drm_device *dev);
