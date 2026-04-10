@@ -42,6 +42,7 @@
 #define NUM_PIO_STATE_MACHINES		4
 #define PIO_INSTRUCTION_COUNT		32
 #define PIO_ORIGIN_ANY			((uint)(~0))
+#define PIO_ORIGIN_INVALID		((uint)(~0))
 #define GPIOS_MASK			((1 << RP1_PIO_GPIO_COUNT) - 1)
 
 #define PICO_NO_HARDWARE		0
@@ -280,7 +281,7 @@ static inline bool pio_can_add_program(struct rp1_pio_client *client,
 
 	if (bad_params_if(client, program->length > PIO_INSTRUCTION_COUNT))
 		return false;
-	args.origin = (program->origin == -1) ? PIO_ORIGIN_ANY : program->origin;
+	args.origin = (uint16_t)((program->origin == -1) ? PIO_ORIGIN_ANY : program->origin);
 	args.num_instrs = program->length;
 
 	memcpy(args.instrs, program->instructions, args.num_instrs * sizeof(args.instrs[0]));
@@ -295,7 +296,7 @@ static inline bool pio_can_add_program_at_offset(struct rp1_pio_client *client,
 	if (bad_params_if(client, program->length > PIO_INSTRUCTION_COUNT ||
 			  offset >= PIO_INSTRUCTION_COUNT))
 		return false;
-	args.origin = offset;
+	args.origin = (uint16_t)offset;
 	args.num_instrs = program->length;
 
 	memcpy(args.instrs, program->instructions, args.num_instrs * sizeof(args.instrs[0]));
@@ -308,13 +309,13 @@ static inline uint pio_add_program(struct rp1_pio_client *client, const pio_prog
 	int offset;
 
 	if (bad_params_if(client, program->length > PIO_INSTRUCTION_COUNT))
-		return PIO_ORIGIN_ANY;
-	args.origin = (program->origin == -1) ? PIO_ORIGIN_ANY : program->origin;
+		return PIO_ORIGIN_INVALID;
+	args.origin = (uint16_t)((program->origin == -1) ? PIO_ORIGIN_ANY : program->origin);
 	args.num_instrs = program->length;
 
 	memcpy(args.instrs, program->instructions, args.num_instrs * sizeof(args.instrs[0]));
 	offset = rp1_pio_add_program(client, &args);
-	return (offset >= 0) ? offset : PIO_ORIGIN_ANY;
+	return (offset >= 0) ? offset : PIO_ORIGIN_INVALID;
 }
 
 static inline int pio_add_program_at_offset(struct rp1_pio_client *client,
@@ -325,7 +326,7 @@ static inline int pio_add_program_at_offset(struct rp1_pio_client *client,
 	if (bad_params_if(client, program->length > PIO_INSTRUCTION_COUNT ||
 				  offset >= PIO_INSTRUCTION_COUNT))
 		return -EINVAL;
-	args.origin = offset;
+	args.origin = (uint16_t)offset;
 	args.num_instrs = program->length;
 
 	memcpy(args.instrs, program->instructions, args.num_instrs * sizeof(args.instrs[0]));
@@ -337,7 +338,7 @@ static inline int pio_remove_program(struct rp1_pio_client *client, const pio_pr
 {
 	struct rp1_pio_remove_program_args args;
 
-	args.origin = loaded_offset;
+	args.origin = (uint16_t)loaded_offset;
 	args.num_instrs = program->length;
 
 	return rp1_pio_remove_program(client, &args);
