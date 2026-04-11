@@ -613,7 +613,7 @@ long ibioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 	unsigned int minor = iminor(file_inode(filep));
 	struct gpib_board *board;
 	struct gpib_file_private *file_priv = filep->private_data;
-	long retval = -ENOTTY;
+	long retval = -EBADRQC;
 
 	if (minor >= GPIB_MAX_NUM_BOARDS) {
 		pr_err("gpib: invalid minor number of device file\n");
@@ -806,7 +806,6 @@ long ibioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 		mutex_unlock(&board->big_gpib_mutex);
 		return write_ioctl(file_priv, board, arg);
 	default:
-		retval = -ENOTTY;
 		goto done;
 	}
 
