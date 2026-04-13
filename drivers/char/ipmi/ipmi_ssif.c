@@ -1292,6 +1292,7 @@ static void shutdown_ssif(void *send_info)
 	if (ssif_info->thread) {
 		complete(&ssif_info->wake_thread);
 		kthread_stop(ssif_info->thread);
+		ssif_info->thread = NULL;
 	}
 }
 
@@ -1936,6 +1937,25 @@ static int ssif_probe(struct i2c_client *client)
 
  out:
 	if (rv) {
+		/*
+		 * If ipmi_register_smi() starts the interface, it will
+		 * call shutdown and that will free the thread and set
+		 * it to NULL.  Otherwise it must be freed here.
+		 */
+		if (ssif_info->thread) {
+			struct task_struct *thread = ssif_info->thread;
+
+			/*
+			 * The thread exits on its own once it sees
+			 * stopping, so hold a reference across the stop.
+			 */
+			get_task_struct(thread);
+			ssif_info->stopping = true;
+			complete(&ssif_info->wake_thread);
+			kthread_stop(thread);
+			put_task_struct(thread);
+			ssif_info->thread = NULL;
+		}
 		if (addr_info)
 			addr_info->client = NULL;
 
