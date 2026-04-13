@@ -207,6 +207,7 @@ static int waveshare_panel_i2c_probe(struct i2c_client *i2c)
 	struct waveshare_panel_lcd *state;
 	struct regmap *regmap;
 	unsigned int data;
+	bool pre_power_on;
 	int ret;
 
 	state = devm_kzalloc(&i2c->dev, sizeof(*state), GFP_KERNEL);
@@ -226,6 +227,8 @@ static int waveshare_panel_i2c_probe(struct i2c_client *i2c)
 		goto error;
 	}
 
+	pre_power_on = device_property_read_bool(&i2c->dev, "pre-power-on");
+
 	ret = waveshare_panel_i2c_read(i2c, REG_ID, &data);
 	if (ret == 0)
 		dev_info(&i2c->dev, "waveshare panel hw id = 0x%x\n", data);
@@ -241,9 +244,14 @@ static int waveshare_panel_i2c_probe(struct i2c_client *i2c)
 
 	state->direction_state = 0;
 	state->poweron_state = BIT(9) | BIT(8); // Enable VCC
+	if (pre_power_on)
+		state->poweron_state |= BIT(4) | BIT(1) | BIT(0);
 	regmap_write(regmap, REG_TP, state->poweron_state >> 8);
 	regmap_write(regmap, REG_LCD, state->poweron_state & 0xff);
-	msleep(20);
+	if (pre_power_on)
+		msleep(200);
+	else
+		msleep(20);
 
 	state->regmap = regmap;
 	state->gc.parent = &i2c->dev;
