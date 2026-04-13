@@ -46,11 +46,6 @@ static const struct option klp_diff_options[] = {
 
 static DEFINE_HASHTABLE(exports, 15);
 
-static inline u32 str_hash(const char *str)
-{
-	return jhash(str, strlen(str), 0);
-}
-
 static char *escape_str(const char *orig)
 {
 	size_t len = 0;
@@ -370,22 +365,6 @@ static bool dont_correlate(struct symbol *sym)
 	       strstarts(sym->name, "__initcall__");
 }
 
-struct process_demangled_name_data {
-	struct symbol *ret;
-	int count;
-};
-
-static void process_demangled_name(struct symbol *sym, void *d)
-{
-	struct process_demangled_name_data *data = d;
-
-	if (sym->twin)
-		return;
-
-	data->count++;
-	data->ret = sym;
-}
-
 /*
  * When there is no full name match, try match demangled_name. This would
  * match original foo.llvm.123 to patched foo.llvm.456.
@@ -397,16 +376,23 @@ static void process_demangled_name(struct symbol *sym, void *d)
 static int find_global_symbol_by_demangled_name(struct elf *elf, struct symbol *sym,
 						struct symbol **out_sym)
 {
-	struct process_demangled_name_data data = {};
+	struct symbol *sym2, *result = NULL;
+	int count = 0;
 
-	iterate_global_symbol_by_demangled_name(elf, sym->demangled_name,
-						process_demangled_name,
-						&data);
-	if (data.count > 1) {
-		ERROR("Multiple (%d) correlation candidates for %s", data.count, sym->name);
+	for_each_sym_by_demangled_name(elf, sym->demangled_name, sym2) {
+		if (is_local_sym(sym2) || sym2->twin)
+			continue;
+
+		count++;
+		result = sym2;
+	}
+
+	if (count > 1) {
+		ERROR("Multiple (%d) correlation candidates for %s", count, sym->name);
 		return -1;
 	}
-	*out_sym = data.ret;
+
+	*out_sym = result;
 	return 0;
 }
 
