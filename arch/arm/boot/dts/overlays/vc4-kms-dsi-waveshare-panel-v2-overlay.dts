@@ -79,7 +79,9 @@
 
 	__overrides__ {
 		3_4_inch_c = <&dsi_panel>, "compatible=waveshare,3.4-dsi-touch-c";
+		4_0_inch_a = <&dsi_panel>, "compatible=waveshare,4.0-dsi-touch-a";
 		4_0_inch_c = <&dsi_panel>, "compatible=waveshare,4.0-dsi-touch-c";
+		4_3_inch_a = <&dsi_panel>, "compatible=waveshare,4.3-dsi-touch-a";
 		5_0_inch_a = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a";
 		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
 		7_0_inch_a = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-a";
