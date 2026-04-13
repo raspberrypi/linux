@@ -87,7 +87,8 @@
 		7_0_inch_c = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-c";
 		8_0_inch_a = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a";
 		8_0_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,8.0-dsi-touch-a-4lane";
-		8_8_inch_a = <&dsi_panel>, "compatible=waveshare,8.8-dsi-touch-a";
+		8_8_inch_a = <&dsi_panel>, "compatible=waveshare,8.8-dsi-touch-a",
+			     <&display_mcu>, "pre-power-on?";
 		9_0_inch_b = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b",
 			     <&touch>, "touchscreen-inverted-x";
 		9_0_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,9.0-dsi-touch-b,4lane",
