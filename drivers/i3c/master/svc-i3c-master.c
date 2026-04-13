@@ -570,6 +570,15 @@ static void svc_i3c_master_ibi_work(struct work_struct *work)
 		break;
 	case SVC_I3C_MSTATUS_IBITYPE_MASTER_REQUEST:
 		svc_i3c_master_emit_stop(master);
+
+		/*
+		 * If a target gets stuck holding SDA low, the controller reports a MR.
+		 * On NPCM845, emitting STOP may spuriously set SLVSTART, retriggering
+		 * the interrupt and re-entering MR handling, leading to an IRQ storm.
+		 * Clear SLVSTART after STOP to break the loop.
+		 */
+		if (svc_has_quirk(master, SVC_I3C_QUIRK_FALSE_SLVSTART))
+			writel(SVC_I3C_MINT_SLVSTART, master->regs + SVC_I3C_MSTATUS);
 		break;
 	default:
 		break;
