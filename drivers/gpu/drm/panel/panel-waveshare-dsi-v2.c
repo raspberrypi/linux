@@ -2052,17 +2052,17 @@ static int ws_panel_dsi_probe(struct mipi_dsi_device *dsi)
 	drm_panel_init(&ctx->panel, &dsi->dev, &ws_panel_funcs,
 		       DRM_MODE_CONNECTOR_DSI);
 
-	ctx->reset = devm_gpiod_get_optional(&dsi->dev, "reset", GPIOD_OUT_LOW);
+	ctx->reset = devm_gpiod_get_optional(&dsi->dev, "reset", GPIOD_ASIS);
 	if (IS_ERR(ctx->reset))
 		return dev_err_probe(&dsi->dev, PTR_ERR(ctx->reset),
 				     "Couldn't get our reset GPIO\n");
 
-	ctx->iovcc = devm_gpiod_get_optional(&dsi->dev, "iovcc", GPIOD_OUT_LOW);
+	ctx->iovcc = devm_gpiod_get_optional(&dsi->dev, "iovcc", GPIOD_ASIS);
 	if (IS_ERR(ctx->iovcc))
 		return dev_err_probe(&dsi->dev, PTR_ERR(ctx->iovcc),
 				     "Couldn't get our iovcc GPIO\n");
 
-	ctx->avdd = devm_gpiod_get_optional(&dsi->dev, "avdd", GPIOD_OUT_LOW);
+	ctx->avdd = devm_gpiod_get_optional(&dsi->dev, "avdd", GPIOD_ASIS);
 	if (IS_ERR(ctx->avdd))
 		return dev_err_probe(&dsi->dev, PTR_ERR(ctx->avdd),
 				     "Couldn't get our avdd GPIO\n");
