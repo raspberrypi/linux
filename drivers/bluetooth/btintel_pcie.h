@@ -145,6 +145,11 @@ enum msix_mbox_int_causes {
 	BTINTEL_PCIE_CSR_MBOX_STATUS_MBOX4 = BIT(3), /* cause MBOX4 */
 };
 
+enum btintel_pcie_reset_type {
+	BTINTEL_PCIE_IOSF_PRR_FLR = 0,
+	BTINTEL_PCIE_IOSF_PRR_PLDR = 1,
+};
+
 #define BTINTEL_PCIE_MSIX_NON_AUTO_CLEAR_CAUSE	BIT(7)
 
 /* Minimum and Maximum number of MSI-X Vector
@@ -501,6 +506,7 @@ struct btintel_pcie_data {
 	struct workqueue_struct	*workqueue;
 	struct sk_buff_head	rx_skb_q;
 	struct work_struct	rx_work;
+	struct work_struct      reset_work;
 
 	struct dma_pool	*dma_pool;
 	dma_addr_t	dma_p_addr;
@@ -512,6 +518,7 @@ struct btintel_pcie_data {
 	struct txq	txq;
 	struct rxq	rxq;
 	u32	alive_intr_ctxt;
+	enum btintel_pcie_reset_type	reset_type;
 	struct btintel_pcie_dbgc	dbgc;
 	struct btintel_pcie_dump_header dmp_hdr;
 	u8	pm_sx_event;

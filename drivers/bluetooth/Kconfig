@@ -502,7 +502,7 @@ config BT_NXPUART
 
 config BT_INTEL_PCIE
 	tristate "Intel HCI PCIe driver"
-	depends on PCI
+	depends on PCI && ACPI
 	select BT_INTEL
 	select FW_LOADER
 	help
