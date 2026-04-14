@@ -438,7 +438,8 @@ static int perf_event__convert_sample_callchain(const struct perf_tool *tool,
 
 	node = cursor->first;
 	for (k = 0; k < cursor->nr && i < PERF_MAX_STACK_DEPTH; k++) {
-		if (machine__kernel_ip(machine, node->ip))
+		if (machine->single_address_space &&
+		    machine__kernel_ip(machine, node->ip))
 			/* kernel IPs were added already */;
 		else if (node->ms.sym && node->ms.sym->inlined)
 			/* we can't handle inlined callchains */;
