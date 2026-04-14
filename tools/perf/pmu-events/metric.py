@@ -25,7 +25,6 @@ def LoadEvents(directory: str) -> None:
       "cycles",
       "duration_time",
       "instructions",
-      "l2_itlb_misses",
   }
   for file in os.listdir(os.fsencode(directory)):
     filename = os.fsdecode(file)

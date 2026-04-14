@@ -268,7 +268,7 @@ def AmdDtlb() -> Optional[MetricGroup]:
 def AmdItlb():
     global _zen_model
     l2h = Event("bp_l1_tlb_miss_l2_tlb_hit", "bp_l1_tlb_miss_l2_hit")
-    l2m = Event("l2_itlb_misses")
+    l2m = Event("bp_l1_tlb_miss_l2_tlb_miss.all", "l2_itlb_misses",)
     l2r = l2h + l2m
 
     itlb_l1_mg = None
