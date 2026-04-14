@@ -113,7 +113,7 @@ watchdog: &pm {};
 
 / {
 	chosen: chosen {
-		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=0";
+		bootargs = "reboot=w coherent_pool=1M 8250.nr_uarts=1 pci=pcie_bus_safe cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=32";
 		stdout-path = "serial10:115200n8";
 	};
 
