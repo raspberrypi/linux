@@ -460,7 +460,7 @@ struct fatal_error_info {
 	__u32 exception_pc;       /* Program Counter at the time of the exception */
 	__u32 app_module;         /* Error module name */
 	__u32 task_index;         /* Index of the task in which the error occurred */
-	__u32 reserved[128];
+	__u32 reserved[127];
 };
 
 struct app_health_report {
