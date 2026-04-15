@@ -127,10 +127,6 @@ struct azx {
 	unsigned int beep_mode;
 	bool ctl_dev_id;
 
-#ifdef CONFIG_SND_HDA_PATCH_LOADER
-	const struct firmware *fw;
-#endif
-
 	/* flags */
 	int bdl_pos_adj;
 	unsigned int running:1;

@@ -1385,9 +1385,6 @@ static void azx_free(struct azx *chip)
 	azx_free_streams(chip);
 	snd_hdac_bus_exit(bus);
 
-#ifdef CONFIG_SND_HDA_PATCH_LOADER
-	release_firmware(chip->fw);
-#endif
 	display_power(chip, false);
 
 	if (chip->driver_caps & AZX_DCAPS_I915_COMPONENT)
@@ -2037,24 +2034,6 @@ static int azx_first_init(struct azx *chip)
 	return 0;
 }
 
-#ifdef CONFIG_SND_HDA_PATCH_LOADER
-/* callback from request_firmware_nowait() */
-static void azx_firmware_cb(const struct firmware *fw, void *context)
-{
-	struct snd_card *card = context;
-	struct azx *chip = card->private_data;
-
-	if (fw)
-		chip->fw = fw;
-	else
-		dev_err(card->dev, "Cannot load firmware, continue without patching\n");
-	if (!chip->disabled) {
-		/* continue probing */
-		azx_probe_continue(chip);
-	}
-}
-#endif
-
 static int disable_msi_reset_irq(struct azx *chip)
 {
 	struct hdac_bus *bus = azx_bus(chip);
@@ -2118,7 +2097,6 @@ static int azx_probe(struct pci_dev *pci,
 	struct snd_card *card;
 	struct hda_intel *hda;
 	struct azx *chip;
-	bool schedule_probe;
 	int dev;
 	int err;
 
@@ -2223,22 +2201,7 @@ static int azx_probe(struct pci_dev *pci,
 		chip->disabled = true;
 	}
 
-	schedule_probe = !chip->disabled;
-
-#ifdef CONFIG_SND_HDA_PATCH_LOADER
-	if (patch[dev] && *patch[dev]) {
-		dev_info(card->dev, "Applying patch firmware '%s'\n",
-			 patch[dev]);
-		err = request_firmware_nowait(THIS_MODULE, true, patch[dev],
-					      &pci->dev, GFP_KERNEL, card,
-					      azx_firmware_cb);
-		if (err < 0)
-			goto out_free;
-		schedule_probe = false; /* continued in azx_firmware_cb() */
-	}
-#endif /* CONFIG_SND_HDA_PATCH_LOADER */
-
-	if (schedule_probe)
+	if (!chip->disabled)
 		schedule_delayed_work(&hda->probe_work, 0);
 
 	set_bit(dev, probed_devs);
@@ -2367,11 +2330,20 @@ static int azx_probe_continue(struct azx *chip)
 	}
 
 #ifdef CONFIG_SND_HDA_PATCH_LOADER
-	if (chip->fw) {
-		err = snd_hda_load_patch(&chip->bus, chip->fw->size,
-					 chip->fw->data);
-		if (err < 0)
-			goto out_free;
+	if (patch[dev] && *patch[dev]) {
+		const struct firmware *fw = NULL;
+
+		dev_info(&pci->dev, "Applying patch firmware '%s'\n",
+			 patch[dev]);
+		if (request_firmware(&fw, patch[dev], &pci->dev) < 0) {
+			dev_err(&pci->dev,
+				"Cannot load firmware, continue without patching\n");
+		} else {
+			err = snd_hda_load_patch(&chip->bus, fw->size, fw->data);
+			release_firmware(fw);
+			if (err < 0)
+				goto out_free;
+		}
 	}
 #endif
 
