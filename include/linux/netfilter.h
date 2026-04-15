@@ -95,6 +95,8 @@ enum nf_hook_ops_type {
 };
 
 struct nf_hook_ops {
+	struct rcu_head		rcu;
+
 	/* User fills in from here down. */
 	nf_hookfn		*hook;
 	struct net_device	*dev;
