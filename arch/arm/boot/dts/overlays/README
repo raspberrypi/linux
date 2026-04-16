@@ -5887,6 +5887,20 @@ Load:   dtoverlay=vc4-kms-dsi-lt070me05000-v2
 Params: <None>
 
 
+Name:   vc4-kms-dsi-tdo-panel
+Info:   Enable the Tdo DSI screen,keep adding.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-tdo-panel,<param>=<val>
+Params: tl034wvs03              4.0" 480x480 2lane
+        tl040wvs17              4.0" 480x480 2lane
+        tl040hds31              4.0" 720x720 2lane
+        rotation                Display rotation {0,90,180,270}
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+        reset_pin               GPIO pin for RESET (required if reset
+                                functionality is needed)
+
+
 Name:   vc4-kms-dsi-waveshare-800x480
 Info:   Enable the Waveshare 4.3" 800x480 DSI screen.
         It tries to look like the Pi 7" display, but won't accept some of the

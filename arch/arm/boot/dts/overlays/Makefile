@@ -343,6 +343,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-dsi-ili9881-7inch.dtbo \
 	vc4-kms-dsi-lt070me05000.dtbo \
 	vc4-kms-dsi-lt070me05000-v2.dtbo \
+	vc4-kms-dsi-tdo-panel.dtbo \
 	vc4-kms-dsi-waveshare-800x480.dtbo \
 	vc4-kms-dsi-waveshare-panel.dtbo \
 	vc4-kms-dsi-waveshare-panel-v2.dtbo \
