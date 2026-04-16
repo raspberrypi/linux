@@ -485,6 +485,9 @@ free_chann:
 
 void xdna_mailbox_free_channel(struct mailbox_channel *mb_chann)
 {
+	if (!mb_chann)
+		return;
+
 	destroy_workqueue(mb_chann->work_q);
 	kfree(mb_chann);
 }
@@ -530,6 +533,9 @@ void xdna_mailbox_stop_channel(struct mailbox_channel *mb_chann)
 {
 	struct mailbox_msg *mb_msg;
 	unsigned long msg_id;
+
+	if (!mb_chann)
+		return;
 
 	/* Disable an irq and wait. This might sleep. */
 	free_irq(mb_chann->msix_irq, mb_chann);
