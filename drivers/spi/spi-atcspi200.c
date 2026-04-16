@@ -575,12 +575,6 @@ static int atcspi_probe(struct platform_device *pdev)
 	if (ret)
 		goto free_controller;
 
-	ret = devm_spi_register_controller(&pdev->dev, host);
-	if (ret) {
-		dev_err_probe(spi->dev, ret,
-			      "Failed to register SPI controller\n");
-		goto free_controller;
-	}
 	spi->use_dma = false;
 	if (ATCSPI_DMA_SUPPORT) {
 		ret = atcspi_configure_dma(spi);
@@ -589,6 +583,13 @@ static int atcspi_probe(struct platform_device *pdev)
 				 "Failed to init DMA, fallback to PIO mode\n");
 		else
 			spi->use_dma = true;
+	}
+
+	ret = devm_spi_register_controller(&pdev->dev, host);
+	if (ret) {
+		dev_err_probe(spi->dev, ret,
+			      "Failed to register SPI controller\n");
+		goto free_controller;
 	}
 
 	return 0;
