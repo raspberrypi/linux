@@ -597,10 +597,13 @@ void kernfs_put(struct kernfs_node *kn)
 	 */
 	parent = kernfs_parent(kn);
 
-	WARN_ONCE(atomic_read(&kn->active) != KN_DEACTIVATED_BIAS,
-		  "kernfs_put: %s/%s: released with incorrect active_ref %d\n",
-		  parent ? rcu_dereference(parent->name) : "",
-		  rcu_dereference(kn->name), atomic_read(&kn->active));
+	if (atomic_read(&kn->active) != KN_DEACTIVATED_BIAS) {
+		guard(rcu)();
+		WARN_ONCE(1,
+			  "kernfs_put: %s/%s: released with incorrect active_ref %d\n",
+			  parent ? rcu_dereference(parent->name) : "",
+			  rcu_dereference(kn->name), atomic_read(&kn->active));
+	}
 
 	if (kernfs_type(kn) == KERNFS_LINK)
 		kernfs_put(kn->symlink.target_kn);
