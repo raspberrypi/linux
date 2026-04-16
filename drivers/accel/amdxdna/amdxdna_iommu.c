@@ -117,10 +117,12 @@ void *amdxdna_iommu_alloc(struct amdxdna_dev *xdna, size_t size, dma_addr_t *dma
 			iova_align(&xdna->iovad, size),
 			IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
 	if (ret)
-		goto free_iova;
+		goto free_cpu_addr;
 
 	return cpu_addr;
 
+free_cpu_addr:
+	free_pages((unsigned long)cpu_addr, get_order(size));
 free_iova:
 	__free_iova(&xdna->iovad, iova);
 	return ERR_PTR(ret);
