@@ -1212,7 +1212,7 @@ u32 rtw_aes_decrypt(struct adapter *padapter, u8 *precvframe)
 	if (prxattrib->encrypt != _AES_)
 		return _SUCCESS;
 	stainfo = rtw_get_stainfo(&padapter->stapriv, &prxattrib->ta[0]);
-	if (stainfo)
+	if (!stainfo)
 		return _FAIL;
 	if (is_multicast_ether_addr(prxattrib->ra)) {
 		static unsigned long start;
