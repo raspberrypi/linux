@@ -4578,11 +4578,13 @@ static int btf_dedup_prep(struct btf_dedup *d)
 		case BTF_KIND_RESTRICT:
 		case BTF_KIND_PTR:
 		case BTF_KIND_FWD:
-		case BTF_KIND_TYPEDEF:
 		case BTF_KIND_FUNC:
 		case BTF_KIND_FLOAT:
 		case BTF_KIND_TYPE_TAG:
 			h = btf_hash_common(t);
+			break;
+		case BTF_KIND_TYPEDEF:
+			h = btf_hash_typedef(t);
 			break;
 		case BTF_KIND_INT:
 		case BTF_KIND_DECL_TAG:
