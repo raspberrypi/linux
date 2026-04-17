@@ -285,6 +285,16 @@ static void intel_pcie_turn_off(struct intel_pcie *pcie)
 	pcie_rc_cfg_wr_mask(pcie, PCI_COMMAND, PCI_COMMAND_MEMORY, 0);
 }
 
+static int intel_pcie_start_link(struct dw_pcie *pci)
+{
+	struct intel_pcie *pcie = dev_get_drvdata(pci->dev);
+
+	intel_pcie_device_rst_deassert(pcie);
+	intel_pcie_ltssm_enable(pcie);
+
+	return 0;
+}
+
 static int intel_pcie_host_setup(struct intel_pcie *pcie)
 {
 	int ret;
@@ -311,25 +321,12 @@ static int intel_pcie_host_setup(struct intel_pcie *pcie)
 	intel_pcie_link_setup(pcie);
 	intel_pcie_init_n_fts(pci);
 
-	ret = dw_pcie_setup_rc(&pci->pp);
-	if (ret)
-		goto err;
-
 	dw_pcie_upconfig_setup(pci);
-
-	intel_pcie_device_rst_deassert(pcie);
-	intel_pcie_ltssm_enable(pcie);
-
-	ret = dw_pcie_wait_for_link(pci);
-	if (ret)
-		goto err;
 
 	intel_pcie_core_irq_enable(pcie);
 
 	return 0;
 
-err:
-	phy_exit(pcie->phy);
 phy_err:
 	clk_disable_unprepare(pcie->core_clk);
 clk_err:
@@ -387,6 +384,7 @@ static int intel_pcie_rc_init(struct dw_pcie_rp *pp)
 }
 
 static const struct dw_pcie_ops intel_pcie_ops = {
+	.start_link = intel_pcie_start_link,
 };
 
 static const struct dw_pcie_host_ops intel_pcie_dw_ops = {
