@@ -90,7 +90,8 @@ EXPORT_SYMBOL_GPL(sampling_rate_store);
  * (that may be a single policy or a bunch of them if governor tunables are
  * system-wide).
  *
- * Call under the @dbs_data mutex.
+ * Call under the @dbs_data->attr_set.update_lock. The per-policy
+ * update_mutex is acquired and released internally for each policy.
  */
 void gov_update_cpu_data(struct dbs_data *dbs_data)
 {
@@ -99,6 +100,7 @@ void gov_update_cpu_data(struct dbs_data *dbs_data)
 	list_for_each_entry(policy_dbs, &dbs_data->attr_set.policy_list, list) {
 		unsigned int j;
 
+		mutex_lock(&policy_dbs->update_mutex);
 		for_each_cpu(j, policy_dbs->policy->cpus) {
 			struct cpu_dbs_info *j_cdbs = &per_cpu(cpu_dbs, j);
 
@@ -107,6 +109,7 @@ void gov_update_cpu_data(struct dbs_data *dbs_data)
 			if (dbs_data->ignore_nice_load)
 				j_cdbs->prev_cpu_nice = kcpustat_field(&kcpustat_cpu(j), CPUTIME_NICE, j);
 		}
+		mutex_unlock(&policy_dbs->update_mutex);
 	}
 }
 EXPORT_SYMBOL_GPL(gov_update_cpu_data);
@@ -527,8 +530,9 @@ int cpufreq_dbs_governor_start(struct cpufreq_policy *policy)
 
 	sampling_rate = dbs_data->sampling_rate;
 	ignore_nice = dbs_data->ignore_nice_load;
-	io_busy = dbs_data->io_is_busy;
 
+	mutex_lock(&policy_dbs->update_mutex);
+	io_busy = dbs_data->io_is_busy;
 	for_each_cpu(j, policy->cpus) {
 		struct cpu_dbs_info *j_cdbs = &per_cpu(cpu_dbs, j);
 
@@ -541,6 +545,7 @@ int cpufreq_dbs_governor_start(struct cpufreq_policy *policy)
 		if (ignore_nice)
 			j_cdbs->prev_cpu_nice = kcpustat_field(&kcpustat_cpu(j), CPUTIME_NICE, j);
 	}
+	mutex_unlock(&policy_dbs->update_mutex);
 
 	gov->start(policy);
 
