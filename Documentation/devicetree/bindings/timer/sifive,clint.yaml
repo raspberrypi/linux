@@ -72,22 +72,6 @@ properties:
     minItems: 1
     maxItems: 4095
 
-  sifive,fine-ctr-bits:
-    maximum: 15
-    description: The width in bits of the fine counter.
-
-if:
-  properties:
-    compatible:
-      contains:
-        const: sifive,clint2
-then:
-  required:
-    - sifive,fine-ctr-bits
-else:
-  properties:
-    sifive,fine-ctr-bits: false
-
 additionalProperties: false
 
 required:
