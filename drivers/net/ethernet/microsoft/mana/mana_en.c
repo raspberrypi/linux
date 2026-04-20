@@ -3006,10 +3006,15 @@ void mana_remove(struct gdma_dev *gd, bool suspending)
 	struct gdma_context *gc = gd->gdma_context;
 	struct mana_context *ac = gd->driver_data;
 	struct mana_port_context *apc;
-	struct device *dev = gc->dev;
+	struct device *dev;
 	struct net_device *ndev;
 	int err;
 	int i;
+
+	if (!gc || !ac)
+		return;
+
+	dev = gc->dev;
 
 	/* adev currently doesn't support suspending, always remove it */
 	if (gd->adev)
