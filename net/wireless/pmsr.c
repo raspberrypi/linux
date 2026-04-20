@@ -195,7 +195,9 @@ static int pmsr_parse_ftm(struct cfg80211_registered_device *rdev,
 		return -EOPNOTSUPP;
 	}
 
-	if (out->ftm.rsta && !out->ftm.lmr_feedback) {
+	if (out->ftm.rsta &&
+	    (out->ftm.non_trigger_based || out->ftm.trigger_based) &&
+	    !out->ftm.lmr_feedback) {
 		NL_SET_ERR_MSG_ATTR(info->extack,
 				    tb[NL80211_PMSR_FTM_REQ_ATTR_RSTA],
 				    "FTM: RSTA set without LMR feedback");
