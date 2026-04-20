@@ -132,6 +132,8 @@ struct ivhd_entry {
 	u8 uid;
 } __attribute__((packed));
 
+int amd_iommu_evtlog_size = EVTLOG_SIZE_DEF;
+
 /*
  * An AMD IOMMU memory definition structure. It defines things like exclusion
  * ranges for devices and regions that should be unity mapped.
@@ -867,35 +869,47 @@ void *__init iommu_alloc_4k_pages(struct amd_iommu *iommu, gfp_t gfp,
 }
 
 /* allocates the memory where the IOMMU will log its events to */
-static int __init alloc_event_buffer(struct amd_iommu *iommu)
+static int __init alloc_event_buffer(void)
 {
-	iommu->evt_buf = iommu_alloc_4k_pages(iommu, GFP_KERNEL,
-					      EVT_BUFFER_SIZE);
+	struct amd_iommu *iommu;
 
-	return iommu->evt_buf ? 0 : -ENOMEM;
-}
-
-static void iommu_enable_event_buffer(struct amd_iommu *iommu)
-{
-	u64 entry;
-
-	BUG_ON(iommu->evt_buf == NULL);
-
-	if (!is_kdump_kernel()) {
-		/*
-		 * Event buffer is re-used for kdump kernel and setting
-		 * of MMIO register is not required.
-		 */
-		entry = iommu_virt_to_phys(iommu->evt_buf) | EVT_LEN_MASK;
-		memcpy_toio(iommu->mmio_base + MMIO_EVT_BUF_OFFSET,
-			    &entry, sizeof(entry));
+	for_each_iommu(iommu) {
+		iommu->evt_buf = iommu_alloc_4k_pages(iommu, GFP_KERNEL,
+						      amd_iommu_evtlog_size);
+		if (!iommu->evt_buf)
+			return -ENOMEM;
 	}
 
-	/* set head and tail to zero manually */
-	writel(0x00, iommu->mmio_base + MMIO_EVT_HEAD_OFFSET);
-	writel(0x00, iommu->mmio_base + MMIO_EVT_TAIL_OFFSET);
+	return 0;
+}
 
-	iommu_feature_enable(iommu, CONTROL_EVT_LOG_EN);
+static void iommu_enable_event_buffer(void)
+{
+	struct amd_iommu *iommu;
+	u64 entry;
+
+	for_each_iommu(iommu) {
+		BUG_ON(iommu->evt_buf == NULL);
+
+		if (!is_kdump_kernel()) {
+			/*
+			 * Event buffer is re-used for kdump kernel and setting
+			 * of MMIO register is not required.
+			 */
+			entry = iommu_virt_to_phys(iommu->evt_buf);
+			entry |= (amd_iommu_evtlog_size == EVTLOG_SIZE_DEF) ?
+				EVTLOG_LEN_MASK_DEF : EVTLOG_LEN_MASK_MAX;
+
+			memcpy_toio(iommu->mmio_base + MMIO_EVT_BUF_OFFSET,
+				    &entry, sizeof(entry));
+		}
+
+		/* set head and tail to zero manually */
+		writel(0x00, iommu->mmio_base + MMIO_EVT_HEAD_OFFSET);
+		writel(0x00, iommu->mmio_base + MMIO_EVT_TAIL_OFFSET);
+
+		iommu_feature_enable(iommu, CONTROL_EVT_LOG_EN);
+	}
 }
 
 /*
@@ -984,15 +998,20 @@ static int __init alloc_cwwb_sem(struct amd_iommu *iommu)
 	return 0;
 }
 
-static int __init remap_event_buffer(struct amd_iommu *iommu)
+static int __init remap_event_buffer(void)
 {
+	struct amd_iommu *iommu;
 	u64 paddr;
 
 	pr_info_once("Re-using event buffer from the previous kernel\n");
-	paddr = readq(iommu->mmio_base + MMIO_EVT_BUF_OFFSET) & PM_ADDR_MASK;
-	iommu->evt_buf = iommu_memremap(paddr, EVT_BUFFER_SIZE);
+	for_each_iommu(iommu) {
+		paddr = readq(iommu->mmio_base + MMIO_EVT_BUF_OFFSET) & PM_ADDR_MASK;
+		iommu->evt_buf = iommu_memremap(paddr, amd_iommu_evtlog_size);
+		if (!iommu->evt_buf)
+			return -ENOMEM;
+	}
 
-	return iommu->evt_buf ? 0 : -ENOMEM;
+	return 0;
 }
 
 static int __init remap_command_buffer(struct amd_iommu *iommu)
@@ -1044,20 +1063,12 @@ static int __init alloc_iommu_buffers(struct amd_iommu *iommu)
 		ret = remap_command_buffer(iommu);
 		if (ret)
 			return ret;
-
-		ret = remap_event_buffer(iommu);
-		if (ret)
-			return ret;
 	} else {
 		ret = alloc_cwwb_sem(iommu);
 		if (ret)
 			return ret;
 
 		ret = alloc_command_buffer(iommu);
-		if (ret)
-			return ret;
-
-		ret = alloc_event_buffer(iommu);
 		if (ret)
 			return ret;
 	}
@@ -2884,7 +2895,6 @@ static void early_enable_iommu(struct amd_iommu *iommu)
 	iommu_init_flags(iommu);
 	iommu_set_device_table(iommu);
 	iommu_enable_command_buffer(iommu);
-	iommu_enable_event_buffer(iommu);
 	iommu_set_exclusion_range(iommu);
 	iommu_enable_gt(iommu);
 	iommu_enable_ga(iommu);
@@ -2948,7 +2958,6 @@ static void early_enable_iommus(void)
 			iommu_disable_event_buffer(iommu);
 			iommu_disable_irtcachedis(iommu);
 			iommu_enable_command_buffer(iommu);
-			iommu_enable_event_buffer(iommu);
 			iommu_enable_ga(iommu);
 			iommu_enable_xt(iommu);
 			iommu_enable_irtcachedis(iommu);
@@ -3061,6 +3070,7 @@ static void amd_iommu_resume(void)
 	for_each_iommu(iommu)
 		early_enable_iommu(iommu);
 
+	iommu_enable_event_buffer();
 	amd_iommu_enable_interrupts();
 }
 
@@ -3387,6 +3397,23 @@ disable_snp:
 #endif
 }
 
+static void amd_iommu_apply_erratum_snp(void)
+{
+#ifdef CONFIG_KVM_AMD_SEV
+	if (!amd_iommu_snp_en)
+		return;
+
+	/* Errata fix for Family 0x19 */
+	if (boot_cpu_data.x86 != 0x19)
+		return;
+
+	/* Set event log buffer size to max */
+	amd_iommu_evtlog_size = EVTLOG_SIZE_MAX;
+	pr_info("Applying erratum: Increase Event log size to 0x%x\n",
+		amd_iommu_evtlog_size);
+#endif
+}
+
 /****************************************************************************
  *
  * AMD IOMMU Initialization State Machine
@@ -3423,6 +3450,21 @@ static int __init state_next(void)
 	case IOMMU_ENABLED:
 		register_syscore_ops(&amd_iommu_syscore_ops);
 		iommu_snp_enable();
+
+		amd_iommu_apply_erratum_snp();
+
+		/* Allocate/enable event log buffer */
+		if (is_kdump_kernel())
+			ret = remap_event_buffer();
+		else
+			ret = alloc_event_buffer();
+
+		if (ret) {
+			init_state = IOMMU_INIT_ERROR;
+			break;
+		}
+		iommu_enable_event_buffer();
+
 		ret = amd_iommu_init_pci();
 		init_state = ret ? IOMMU_INIT_ERROR : IOMMU_PCI_INIT;
 		break;
@@ -4025,7 +4067,7 @@ int amd_iommu_snp_disable(void)
 		return 0;
 
 	for_each_iommu(iommu) {
-		ret = iommu_make_shared(iommu->evt_buf, EVT_BUFFER_SIZE);
+		ret = iommu_make_shared(iommu->evt_buf, amd_iommu_evtlog_size);
 		if (ret)
 			return ret;
 
