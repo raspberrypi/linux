@@ -1924,9 +1924,17 @@ static int imx500_clear_weights(struct imx500 *imx500)
 
 static void imx500_clear_fw_network(struct imx500 *imx500)
 {
+	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
+
 	/* Remove any previous firmware blob. */
-	if (imx500->fw_network)
+	if (imx500->fw_network) {
 		vfree(imx500->fw_network);
+		/*
+		 * Release the PM ref taken when the fw was loaded in
+		 * imx500_set_ctrl().
+		 */
+		pm_runtime_put_noidle(&client->dev);
+	}
 
 	imx500->fw_network = NULL;
 	imx500->network_written = false;
@@ -2138,6 +2146,13 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 		}
 
 		imx500_clear_fw_network(imx500);
+
+		/*
+		 * Take a pm_runtime reference before the read.  This keeps
+		 * the device active as long as a NW firmware has been loaded.
+		 */
+		pm_runtime_resume_and_get(&client->dev);
+
 		ret = kernel_read_file_from_fd(ctrl->val, 0,
 					       (void **)&imx500->fw_network, INT_MAX,
 					       &imx500->fw_network_size,
@@ -2151,7 +2166,8 @@ static int imx500_set_ctrl(struct v4l2_ctrl *ctrl)
 		if (ret < 0) {
 			dev_err(&client->dev, "%s failed to read fw image: %d\n",
 				__func__, ret);
-			imx500_clear_fw_network(imx500);
+			/* Release the ref we took above. */
+			pm_runtime_put_noidle(&client->dev);
 			return ret;
 		}
 		if (ret != imx500->fw_network_size) {
