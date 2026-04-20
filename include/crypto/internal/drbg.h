@@ -10,24 +10,6 @@
 #define _INTERNAL_DRBG_H
 
 /*
- * Convert an integer into a byte representation of this integer.
- * The byte representation is big-endian
- *
- * @val value to be converted
- * @buf buffer holding the converted integer -- caller must ensure that
- *      buffer size is at least 32 bit
- */
-static inline void drbg_cpu_to_be32(__u32 val, unsigned char *buf)
-{
-	struct s {
-		__be32 conv;
-	};
-	struct s *conversion = (struct s *)buf;
-
-	conversion->conv = cpu_to_be32(val);
-}
-
-/*
  * Concatenation Helper and string operation helper
  *
  * SP800-90A requires the concatenation of different data. To avoid copying
