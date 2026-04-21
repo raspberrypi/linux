@@ -105,7 +105,6 @@ static int tegra_fbdev_probe(struct drm_fb_helper *helper,
 	}
 
 	helper->fb = fb;
-	helper->info = info;
 
 	info->fbops = &tegra_fb_ops;
 
