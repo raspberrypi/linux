@@ -1777,10 +1777,9 @@ static int airoha_qdma_tx_napi_poll(struct napi_struct *napi, int budget)
 			WRITE_ONCE(desc->msg1, 0);
 
 			if (skb) {
-				u16 queue = skb_get_queue_mapping(skb);
 				struct netdev_queue *txq;
 
-				txq = netdev_get_tx_queue(skb->dev, queue);
+				txq = skb_get_tx_queue(skb->dev, skb);
 				netdev_tx_completed_queue(txq, 1, skb->len);
 				if (netif_tx_queue_stopped(txq) &&
 				    q->ndesc - q->queued >= q->free_thr)
@@ -2559,7 +2558,7 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
 
 	spin_lock_bh(&q->lock);
 
-	txq = netdev_get_tx_queue(dev, qid);
+	txq = skb_get_tx_queue(dev, skb);
 	if (q->queued + nr_frags > q->ndesc) {
 		/* not enough space in the queue */
 		netif_tx_stop_queue(txq);
