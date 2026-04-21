@@ -22,6 +22,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
+#include <media/v4l2-fh.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
 
@@ -2331,6 +2332,26 @@ static const struct v4l2_ctrl_ops imx500_ctrl_ops = {
 	.s_ctrl = imx500_set_ctrl,
 };
 
+static int imx500_subdev_close(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_fh *fh)
+{
+	struct imx500 *imx500 = to_imx500(sd);
+	/*
+	 * Release the cached rpk when the last userspace handle on the subdev
+	 * is closed. This also drops the pm_runtime reference ta taken in the
+	 * NETWORK_FW_FD branch of imx500_set_ctrl(), so the device can
+	 * autosuspend between sessions.
+	 */
+	if (v4l2_fh_is_singular(&fh->vfh))
+		imx500_clear_fw_network(imx500);
+
+	return 0;
+}
+
+static const struct v4l2_subdev_internal_ops imx500_internal_ops = {
+	.close = imx500_subdev_close,
+};
+
 static const struct v4l2_ctrl_config imx500_notify_gains_ctrl = {
 	.ops = &imx500_ctrl_ops,
 	.id = V4L2_CID_NOTIFY_GAINS,
@@ -3632,6 +3653,7 @@ static int imx500_probe(struct i2c_client *client)
 		goto error_power_off;
 
 	/* Initialize subdev */
+	imx500->sd.internal_ops = &imx500_internal_ops;
 	imx500->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
 			    V4L2_SUBDEV_FL_HAS_EVENTS;
 	imx500->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
