@@ -1560,9 +1560,15 @@ struct fuse_dev *fuse_get_dev(struct file *file)
 	struct fuse_dev *fud = fuse_file_to_fud(file);
 	int err;
 
-	err = wait_event_interruptible(fuse_dev_waitq, fuse_dev_fc_get(fud) != NULL);
-	if (err)
-		return ERR_PTR(err);
+	if (unlikely(!fuse_dev_fc_get(fud))) {
+		/* only block waiting for mount if sync init was requested */
+		if (!fud->sync_init)
+			return ERR_PTR(-EPERM);
+
+		err = wait_event_interruptible(fuse_dev_waitq, fuse_dev_fc_get(fud) != NULL);
+		if (err)
+			return ERR_PTR(err);
+	}
 
 	return fud;
 }
