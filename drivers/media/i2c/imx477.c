@@ -884,7 +884,7 @@ static const struct imx477_mode supported_modes[] = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
 			.width = 4056,
-			.height = 3040,
+			.height = 2160,
 		},
 		.frm_length_default = 10,
 		.reg_list = {
