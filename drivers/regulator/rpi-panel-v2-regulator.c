@@ -33,6 +33,7 @@ static const struct regmap_config rpi_panel_regmap_config = {
 	.val_bits = 8,
 	.max_register = REG_PWM,
 	.can_sleep = true,
+	.cache_type = REGCACHE_MAPLE,
 };
 
 static int rpi_panel_v2_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
