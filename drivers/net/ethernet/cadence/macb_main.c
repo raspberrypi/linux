@@ -1505,6 +1505,8 @@ static int macb_tx_complete(struct macb_queue *queue, int budget)
 				  packets, bytes);
 
 	queue->tx_tail = tail;
+	if (packets)
+		queue->tx_stall_tail_moved = true;
 	if (__netif_subqueue_stopped(bp->dev, queue_index) &&
 	    CIRC_CNT(queue->tx_head, queue->tx_tail,
 		     bp->tx_ring_size) <= MACB_TX_WAKEUP_THRESH(bp))
@@ -2026,6 +2028,63 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 	}
 
 	return work_done;
+}
+
+#define MACB_TX_STALL_INTERVAL_MS	1000
+
+/* TX stall watchdog.
+ *
+ * Defence-in-depth against lost TCOMP interrupts.  macb already has a
+ * recovery chain (tx_pending -> txubr_pending -> macb_tx_restart())
+ * that fires on TCOMP; if TCOMP itself is lost the TX ring stalls
+ * silently until something else kicks TSTART.  This watchdog runs
+ * once per second per queue and calls macb_tx_restart() if the ring
+ * is non-empty and tx_tail has not advanced since the previous tick.
+ *
+ * Movement is tracked via the tx_stall_tail_moved boolean rather
+ * than by snapshotting tx_tail.  Per-queue ring indices are bounded
+ * (and reused), so a snapshot comparison can false-positive when the
+ * index happens to land on the same value between two ticks under
+ * sustained load.  The boolean is set by macb_tx_complete() whenever
+ * tx_tail advances and cleared by this watchdog after each tick;
+ * both writes are under tx_ptr_lock, so no atomic is required.
+ *
+ * macb_tx_restart() already checks the hardware's TBQP against the
+ * driver's head index before re-asserting TSTART, so on a healthy
+ * ring this is a no-op at the hardware level.  The watchdog only
+ * adds the missing trigger.
+ */
+static void macb_tx_stall_watchdog(struct work_struct *work)
+{
+	struct macb_queue *queue = container_of(to_delayed_work(work),
+						struct macb_queue,
+						tx_stall_watchdog_work);
+	struct macb *bp = queue->bp;
+	unsigned int cur_tail, cur_head;
+	bool stalled = false;
+	unsigned long flags;
+
+	if (!netif_running(bp->dev))
+		return;
+
+	spin_lock_irqsave(&queue->tx_ptr_lock, flags);
+	cur_tail = queue->tx_tail;
+	cur_head = queue->tx_head;
+	if (cur_head != cur_tail && !queue->tx_stall_tail_moved)
+		stalled = true;
+	queue->tx_stall_tail_moved = false;
+	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
+
+	if (stalled) {
+		netdev_warn_once(bp->dev,
+				 "TX stall detected on queue %u (tail=%u head=%u); re-kicking TSTART\n",
+				 (unsigned int)(queue - bp->queues),
+				 cur_tail, cur_head);
+		macb_tx_restart(queue);
+	}
+
+	schedule_delayed_work(&queue->tx_stall_watchdog_work,
+			      msecs_to_jiffies(MACB_TX_STALL_INTERVAL_MS));
 }
 
 static void macb_hresp_error_task(struct work_struct *work)
@@ -3294,6 +3353,9 @@ static int macb_open(struct net_device *dev)
 	for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue) {
 		napi_enable(&queue->napi_rx);
 		napi_enable(&queue->napi_tx);
+		queue->tx_stall_tail_moved = true;
+		schedule_delayed_work(&queue->tx_stall_watchdog_work,
+				      msecs_to_jiffies(MACB_TX_STALL_INTERVAL_MS));
 	}
 
 	macb_init_hw(bp);
@@ -3340,6 +3402,7 @@ static int macb_close(struct net_device *dev)
 	for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue) {
 		napi_disable(&queue->napi_rx);
 		napi_disable(&queue->napi_tx);
+		cancel_delayed_work_sync(&queue->tx_stall_watchdog_work);
 		netdev_tx_reset_queue(netdev_get_tx_queue(dev, q));
 	}
 
@@ -4938,6 +5001,8 @@ static int macb_init(struct platform_device *pdev)
 		}
 
 		INIT_WORK(&queue->tx_error_task, macb_tx_error_task);
+		INIT_DELAYED_WORK(&queue->tx_stall_watchdog_work,
+				  macb_tx_stall_watchdog);
 		q++;
 	}
 

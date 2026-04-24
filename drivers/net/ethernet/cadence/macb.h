@@ -1294,6 +1294,17 @@ struct macb_queue {
 	struct work_struct	tx_error_task;
 	bool			txubr_pending;
 	bool			tx_pending;
+
+	/* TX stall watchdog -- see macb_tx_stall_watchdog() in macb_main.c.
+	 * tx_stall_tail_moved is set by macb_tx_complete() under tx_ptr_lock
+	 * whenever tx_tail advances, and cleared by the watchdog tick on the
+	 * same lock.  A bool avoids the index-aliasing false-positive that a
+	 * snapshot-of-tx_tail comparison would have when the ring index space
+	 * happens to wrap to the same value between two ticks.
+	 */
+	struct delayed_work	tx_stall_watchdog_work;
+	bool			tx_stall_tail_moved;
+
 	struct napi_struct	napi_tx;
 
 	dma_addr_t		rx_ring_dma;
