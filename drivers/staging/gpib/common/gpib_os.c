@@ -1017,7 +1017,6 @@ static int command_ioctl(struct gpib_file_private *file_priv,
 		userbuf += bytes_written;
 		if (retval < 0) {
 			atomic_set(&desc->io_in_progress, 0);
-			atomic_dec(&desc->descriptor_busy);
 
 			wake_up_interruptible(&board->wait);
 			break;
