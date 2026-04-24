@@ -1640,7 +1640,7 @@ static noinline void ep_destroy_wakeup_source(struct epitem *epi)
 	wakeup_source_unregister(ws);
 }
 
-static int attach_epitem(struct file *file, struct epitem *epi)
+static int ep_attach_file(struct file *file, struct epitem *epi)
 {
 	struct epitems_head *to_free = NULL;
 	struct hlist_head *head = NULL;
@@ -1711,7 +1711,7 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 	if (tep)
 		mutex_lock_nested(&tep->mtx, 1);
 	/* Add the current item to the list of active epoll hook for this file */
-	if (unlikely(attach_epitem(tfile, epi) < 0)) {
+	if (unlikely(ep_attach_file(tfile, epi) < 0)) {
 		if (tep)
 			mutex_unlock(&tep->mtx);
 		kmem_cache_free(epi_cache, epi);
