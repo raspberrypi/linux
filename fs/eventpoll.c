@@ -41,45 +41,170 @@
 #include <net/busy_poll.h>
 
 /*
- * LOCKING:
- * There are three level of locking required by epoll :
+ * fs/eventpoll.c - Efficient event polling ("epoll") kernel implementation.
  *
- * 1) epnested_mutex (mutex)
- * 2) ep->mtx (mutex)
- * 3) ep->lock (spinlock)
  *
- * The acquire order is the one listed above, from 1 to 3.
- * We need a spinlock (ep->lock) because we manipulate objects
- * from inside the poll callback, that might be triggered from
- * a wake_up() that in turn might be called from IRQ context.
- * So we can't sleep inside the poll callback and hence we need
- * a spinlock. During the event transfer loop (from kernel to
- * user space) we could end up sleeping due a copy_to_user(), so
- * we need a lock that will allow us to sleep. This lock is a
- * mutex (ep->mtx). It is acquired during the event transfer loop,
- * during epoll_ctl(EPOLL_CTL_DEL) and during eventpoll_release_file().
- * The epnested_mutex is acquired when inserting an epoll fd onto another
- * epoll fd. We do this so that we walk the epoll tree and ensure that this
- * insertion does not create a cycle of epoll file descriptors, which
- * could lead to deadlock. We need a global mutex to prevent two
- * simultaneous inserts (A into B and B into A) from racing and
- * constructing a cycle without either insert observing that it is
- * going to.
- * It is necessary to acquire multiple "ep->mtx"es at once in the
- * case when one epoll fd is added to another. In this case, we
- * always acquire the locks in the order of nesting (i.e. after
- * epoll_ctl(e1, EPOLL_CTL_ADD, e2), e1->mtx will always be acquired
- * before e2->mtx). Since we disallow cycles of epoll file
- * descriptors, this ensures that the mutexes are well-ordered. In
- * order to communicate this nesting to lockdep, when walking a tree
- * of epoll file descriptors, we use the current recursion depth as
- * the lockdep subkey.
- * It is possible to drop the "ep->mtx" and to use the global
- * mutex "epnested_mutex" (together with "ep->lock") to have it working,
- * but having "ep->mtx" will make the interface more scalable.
- * Events that require holding "epnested_mutex" are very rare, while for
- * normal operations the epoll private "ep->mtx" will guarantee
- * a better scalability.
+ * Overview
+ * --------
+ *
+ * Each epoll_create(2) returns an anonymous [eventpoll] file whose
+ * ->private_data is a struct eventpoll. Each EPOLL_CTL_ADD installs
+ * a struct epitem linking one (watched file, fd) pair back to that
+ * eventpoll via the watched file's f_op->poll() wait queue(s). When
+ * the watched file signals readiness, ep_poll_callback() fires and
+ * marks the epitem ready. epoll_wait(2) drains the ready list under
+ * ep->mtx, re-queueing items in level-triggered mode.
+ *
+ * epoll instances can watch other epoll instances up to EP_MAX_NESTS
+ * deep; cycles are forbidden and detected at EPOLL_CTL_ADD time.
+ *
+ *
+ * Locking
+ * -------
+ *
+ * Three levels, acquired from outer to inner:
+ *
+ *   epnested_mutex   (global; rare; taken only for EPOLL_CTL_ADD
+ *                     loop / path checks)
+ *     > ep->mtx     (per-eventpoll; sleepable; serializes most ops)
+ *       > ep->lock  (per-eventpoll; IRQ-safe spinlock)
+ *
+ *   file->f_lock    (per-file; NOT IRQ-safe; guards f_ep hlist ops;
+ *                    nested inside ep->mtx, outside ep->lock)
+ *
+ * Rationale:
+ *   - ep->lock is a spinlock because ep_poll_callback() is called from
+ *     wake_up() which may run in hard-IRQ context. All ep->lock
+ *     critical sections use spin_lock_irqsave().
+ *   - ep->mtx is a sleepable mutex because the event delivery loop
+ *     calls copy_to_user(), and ep_insert() may sleep in
+ *     kmem_cache_alloc() and f_op->poll().
+ *   - epnested_mutex is global because cycle detection needs a global
+ *     view of the epoll topology; a per-object scheme would let two
+ *     concurrent inserts (A into B, B into A) construct a cycle
+ *     without either observer seeing it.
+ *   - Per-ep ep->mtx is preferred for scalability elsewhere. Events
+ *     that require epnested_mutex are rare.
+ *
+ * When EPOLL_CTL_ADD nests one eventpoll inside another we acquire
+ * ep->mtx on both: outer first, target second. Since cycles are
+ * forbidden the set of live ep->mtx holds is always a strict chain,
+ * communicated to lockdep via mutex_lock_nested() subclasses derived
+ * from the current recursion depth.
+ *
+ *
+ * Field protection
+ * ----------------
+ *
+ * struct eventpoll:
+ *   mtx              - self
+ *   rbr              - ep->mtx
+ *   ovflist, rdllist - ep->lock (IRQ-safe)
+ *   wq               - ep->lock for queue mutation
+ *   poll_wait        - internal waitqueue spinlock
+ *   refs             - file->f_lock for adds; ep->mtx for removes;
+ *                      RCU for readers (hlist_del_rcu + kfree_rcu(ep))
+ *   ws               - ep->mtx
+ *   gen, loop_check_depth - epnested_mutex
+ *   file, user       - immutable after setup
+ *   refcount         - atomic (refcount_t)
+ *   napi_*           - READ_ONCE / WRITE_ONCE
+ *
+ * struct epitem:
+ *   rbn / rcu union  - rbn: ep->mtx (while epi is linked in ep->rbr).
+ *                      rcu: written only by kfree_rcu(epi) on the free
+ *                      path; otherwise untouched by epoll code.
+ *   rdllink, next    - ep->lock
+ *   ffd, ep          - immutable after ep_insert()
+ *   pwqlist          - ep->mtx for writes; POLLFREE clears pwq->whead
+ *                      via smp_store_release(), see below
+ *   fllink           - file->f_lock for mutation; hlist_del_rcu +
+ *                      kfree_rcu(epi) for safe RCU readers
+ *   ws               - RCU (rcu_assign_pointer /
+ *                      rcu_dereference_check(mtx))
+ *   event            - ep->mtx for writes; lockless read in
+ *                      ep_poll_callback pairs with smp_mb() in
+ *                      ep_modify()
+ *
+ *
+ * Ready-list state machine
+ * ------------------------
+ *
+ * Readiness is tracked in two lists under ep->lock:
+ *
+ *   rdllist   - doubly-linked FIFO; the "current" ready list.
+ *   ovflist   - singly-linked LIFO; used during a scan to catch
+ *               events that arrive while rdllist is being iterated
+ *               without ep->lock.
+ *
+ * Encoded in ep->ovflist:
+ *   EP_UNACTIVE_PTR - no scan active; callback appends to rdllist.
+ *   NULL            - scan active, no spill yet.
+ *   pointer to epi  - scan active with spilled items (LIFO).
+ *
+ * Encoded in epi->next:
+ *   EP_UNACTIVE_PTR - epi is not on ovflist.
+ *   otherwise       - next epi on ovflist (NULL at tail).
+ *
+ * ep_start_scan() flips "not scanning" to "scanning" and splices
+ * rdllist into a caller-local txlist. ep_done_scan() drains ovflist
+ * back to rdllist (list_add head-insert reverses LIFO to FIFO),
+ * flips back to "not scanning", and re-splices any items the caller
+ * left in txlist (e.g., level-triggered re-queues).
+ *
+ *
+ * Removal paths
+ * -------------
+ *
+ * Three paths dispose of epitems and/or eventpolls:
+ *
+ *   A. ep_remove()              - EPOLL_CTL_DEL and ep_insert()
+ *                                 rollback. Caller holds ep->mtx.
+ *   B. ep_clear_and_put()       - close of the epoll fd itself
+ *                                 (ep_eventpoll_release).
+ *   C. eventpoll_release_file() - close of a watched file, invoked
+ *                                 from __fput().
+ *
+ * Coordination:
+ *   A and C exclude each other via the watched file's refcount.
+ *   A pins the file with epi_fget() before touching file->f_ep or
+ *   file->f_lock; if the pin fails, __fput() is in flight and C
+ *   will clean this epi up. See the epi_fget() block comment.
+ *   A and B both hold ep->mtx serially. B walks the rbtree with
+ *   rb_next() captured before ep_remove() erases the current node.
+ *   B and C both take ep->mtx; the loser sees fewer entries or an
+ *   empty file->f_ep.
+ *
+ * Within every path the internal order is strict:
+ *   ep_unregister_pollwait()  - drain pwqlist; synchronizes with any
+ *                                in-flight ep_poll_callback via the
+ *                                watched wait-queue head's lock.
+ *   ep_remove_file()          - hlist_del_rcu of epi->fllink and,
+ *                                if last watcher, clear file->f_ep,
+ *                                under file->f_lock.
+ *   ep_remove_epi()           - rb_erase, rdllist unlink (ep->lock),
+ *                                wakeup_source_unregister,
+ *                                kfree_rcu(epi).
+ *
+ * kfree_rcu(epi) defers the free past RCU readers in
+ * reverse_path_check_proc(); kfree_rcu(ep) defers past readers in
+ * ep_get_upwards_depth_proc().
+ *
+ *
+ * POLLFREE handshake
+ * ------------------
+ *
+ * When a subsystem tears down a wait-queue head that an epitem is
+ * registered on (binder, signalfd, ...), it wakes the callback with
+ * POLLFREE and must RCU-defer the head's free. The store/load pair:
+ *
+ *   ep_poll_callback() POLLFREE branch:
+ *     smp_store_release(&pwq->whead, NULL)
+ *
+ *   ep_remove_wait_queue():
+ *     smp_load_acquire(&pwq->whead)
+ *
+ * See those sites for the full argument.
  */
 
 /* Epoll private bits inside the event mask */
