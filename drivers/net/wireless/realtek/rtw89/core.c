@@ -847,6 +847,7 @@ __rtw89_core_tx_check_he_qos_htc(struct rtw89_dev *rtwdev,
 				 enum btc_pkt_type pkt_type)
 {
 	struct rtw89_sta_link *rtwsta_link = tx_req->rtwsta_link;
+	struct ieee80211_vif *vif = tx_req->vif;
 	struct sk_buff *skb = tx_req->skb;
 	struct ieee80211_hdr *hdr = (void *)skb->data;
 	struct ieee80211_link_sta *link_sta;
@@ -876,6 +877,9 @@ __rtw89_core_tx_check_he_qos_htc(struct rtw89_dev *rtwdev,
 		return false;
 
 	if (rtwsta_link && rtwsta_link->ra_report.might_fallback_legacy)
+		return false;
+
+	if (vif->type == NL80211_IFTYPE_AP)
 		return false;
 
 	return true;
