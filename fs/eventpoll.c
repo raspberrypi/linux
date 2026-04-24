@@ -142,15 +142,15 @@
  *   NULL            - scan active, no spill yet.
  *   pointer to epi  - scan active with spilled items (LIFO).
  *
- * Encoded in epi->next:
+ * Encoded in epi->ovflist_next:
  *   EP_UNACTIVE_PTR - epi is not on ovflist.
  *   otherwise       - next epi on ovflist (NULL at tail).
  *
  * ep_start_scan() flips "not scanning" to "scanning" and splices
- * rdllist into a caller-local txlist. ep_done_scan() drains ovflist
+ * rdllist into a caller-local scan_batch. ep_done_scan() drains ovflist
  * back to rdllist (list_add head-insert reverses LIFO to FIFO),
  * flips back to "not scanning", and re-splices any items the caller
- * left in txlist (e.g., level-triggered re-queues).
+ * left in scan_batch (e.g., level-triggered re-queues).
  *
  *
  * Removal paths
@@ -261,14 +261,16 @@ struct epitem {
 		struct rcu_head rcu;
 	};
 
-	/* List header used to link this structure to the eventpoll ready list */
+	/* Link on the owning eventpoll's ready list (ep->rdllist). */
 	struct list_head rdllink;
 
 	/*
-	 * Works together "struct eventpoll"->ovflist in keeping the
-	 * single linked chain of items.
+	 * Link on the owning eventpoll's scan-overflow list (ep->ovflist),
+	 * EP_UNACTIVE_PTR when not linked. See epi_on_ovflist() /
+	 * epi_clear_ovflist() and the "Ready-list state machine" section
+	 * in the top-of-file banner.
 	 */
-	struct epitem *next;
+	struct epitem *ovflist_next;
 
 	/* The file descriptor information this item refers to */
 	struct epoll_filefd ffd;
@@ -535,13 +537,13 @@ static inline void ep_exit_scan(struct eventpoll *ep)
 /* True iff @epi is currently linked on its ep's ovflist. */
 static inline bool epi_on_ovflist(const struct epitem *epi)
 {
-	return epi->next != EP_UNACTIVE_PTR;
+	return epi->ovflist_next != EP_UNACTIVE_PTR;
 }
 
 /* Mark @epi as not on any ovflist (init and post-drain). */
 static inline void epi_clear_ovflist(struct epitem *epi)
 {
-	epi->next = EP_UNACTIVE_PTR;
+	epi->ovflist_next = EP_UNACTIVE_PTR;
 }
 
 /**
@@ -866,7 +868,7 @@ static inline void ep_pm_stay_awake_rcu(struct epitem *epi)
  * ep->mutex needs to be held because we could be hit by
  * eventpoll_release_file() and epoll_ctl().
  */
-static void ep_start_scan(struct eventpoll *ep, struct list_head *txlist)
+static void ep_start_scan(struct eventpoll *ep, struct list_head *scan_batch)
 {
 	/*
 	 * Steal the ready list, and re-init the original one to the
@@ -878,13 +880,13 @@ static void ep_start_scan(struct eventpoll *ep, struct list_head *txlist)
 	 */
 	lockdep_assert_irqs_enabled();
 	spin_lock_irq(&ep->lock);
-	list_splice_init(&ep->rdllist, txlist);
+	list_splice_init(&ep->rdllist, scan_batch);
 	ep_enter_scan(ep);
 	spin_unlock_irq(&ep->lock);
 }
 
 static void ep_done_scan(struct eventpoll *ep,
-			 struct list_head *txlist)
+			 struct list_head *scan_batch)
 {
 	struct epitem *epi, *nepi;
 
@@ -895,10 +897,10 @@ static void ep_done_scan(struct eventpoll *ep,
 	 * We re-insert them inside the main ready-list here.
 	 */
 	for (nepi = READ_ONCE(ep->ovflist); (epi = nepi) != NULL; ) {
-		nepi = epi->next;
+		nepi = epi->ovflist_next;
 		epi_clear_ovflist(epi);
 		/*
-		 * Skip items that the caller already returned via @txlist
+		 * Skip items that the caller already returned via @scan_batch
 		 * -- the list_splice() below takes care of those.
 		 */
 		if (!ep_is_linked(epi)) {
@@ -914,9 +916,9 @@ static void ep_done_scan(struct eventpoll *ep,
 	ep_exit_scan(ep);
 
 	/*
-	 * Quickly re-inject items left on "txlist".
+	 * Quickly re-inject items left on "scan_batch".
 	 */
-	list_splice(txlist, &ep->rdllist);
+	list_splice(scan_batch, &ep->rdllist);
 	__pm_relax(ep->ws);
 
 	if (!list_empty(&ep->rdllist)) {
@@ -1142,7 +1144,7 @@ static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt, int depth
 static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait, int depth)
 {
 	struct eventpoll *ep = file->private_data;
-	LIST_HEAD(txlist);
+	LIST_HEAD(scan_batch);
 	struct epitem *epi, *tmp;
 	poll_table pt;
 	__poll_t res = 0;
@@ -1157,8 +1159,8 @@ static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait, int dep
 	 * the ready list.
 	 */
 	mutex_lock_nested(&ep->mtx, depth);
-	ep_start_scan(ep, &txlist);
-	list_for_each_entry_safe(epi, tmp, &txlist, rdllink) {
+	ep_start_scan(ep, &scan_batch);
+	list_for_each_entry_safe(epi, tmp, &scan_batch, rdllink) {
 		if (ep_item_poll(epi, &pt, depth + 1)) {
 			res = EPOLLIN | EPOLLRDNORM;
 			break;
@@ -1172,7 +1174,7 @@ static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait, int dep
 			list_del_init(&epi->rdllink);
 		}
 	}
-	ep_done_scan(ep, &txlist);
+	ep_done_scan(ep, &scan_batch);
 	mutex_unlock(&ep->mtx);
 	return res;
 }
@@ -1430,7 +1432,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 	 */
 	if (ep_is_scanning(ep)) {
 		if (!epi_on_ovflist(epi)) {
-			epi->next = READ_ONCE(ep->ovflist);
+			epi->ovflist_next = READ_ONCE(ep->ovflist);
 			WRITE_ONCE(ep->ovflist, epi);
 			ep_pm_stay_awake_rcu(epi);
 		}
@@ -1951,7 +1953,7 @@ static int ep_modify(struct eventpoll *ep, struct epitem *epi,
  * next slot), 0 if the re-poll reported no caller-requested events
  * (@epi drops out of the ready list; a future callback will re-add
  * it), or -EFAULT if copy_to_user() faulted (in which case @epi is
- * re-inserted at the head of @txlist so ep_done_scan() merges it
+ * re-inserted at the head of @scan_batch so ep_done_scan() merges it
  * back to rdllist for the next attempt).
  *
  * PM bookkeeping and level-triggered re-queue are handled here.
@@ -1960,7 +1962,7 @@ static int ep_modify(struct eventpoll *ep, struct epitem *epi,
 static int ep_deliver_event(struct eventpoll *ep, struct epitem *epi,
 			    poll_table *pt,
 			    struct epoll_event __user **uevents,
-			    struct list_head *txlist)
+			    struct list_head *scan_batch)
 {
 	struct epoll_event __user *next;
 	struct wakeup_source *ws;
@@ -1998,7 +2000,7 @@ static int ep_deliver_event(struct eventpoll *ep, struct epitem *epi,
 		 * ep_done_scan() splices it onto rdllist for the next
 		 * attempt.
 		 */
-		list_add(&epi->rdllink, txlist);
+		list_add(&epi->rdllink, scan_batch);
 		ep_pm_stay_awake(epi);
 		return -EFAULT;
 	}
@@ -2024,7 +2026,7 @@ static int ep_send_events(struct eventpoll *ep,
 			  struct epoll_event __user *events, int maxevents)
 {
 	struct epitem *epi, *tmp;
-	LIST_HEAD(txlist);
+	LIST_HEAD(scan_batch);
 	poll_table pt;
 	int res = 0;
 
@@ -2039,19 +2041,19 @@ static int ep_send_events(struct eventpoll *ep,
 	init_poll_funcptr(&pt, NULL);
 
 	mutex_lock(&ep->mtx);
-	ep_start_scan(ep, &txlist);
+	ep_start_scan(ep, &scan_batch);
 
 	/*
 	 * We can loop without lock because we are passed a task-private
-	 * txlist; items cannot vanish while we hold ep->mtx.
+	 * scan_batch; items cannot vanish while we hold ep->mtx.
 	 */
-	list_for_each_entry_safe(epi, tmp, &txlist, rdllink) {
+	list_for_each_entry_safe(epi, tmp, &scan_batch, rdllink) {
 		int delivered;
 
 		if (res >= maxevents)
 			break;
 
-		delivered = ep_deliver_event(ep, epi, &pt, &events, &txlist);
+		delivered = ep_deliver_event(ep, epi, &pt, &events, &scan_batch);
 		if (delivered < 0) {
 			if (!res)
 				res = delivered;
@@ -2060,7 +2062,7 @@ static int ep_send_events(struct eventpoll *ep,
 		res += delivered;
 	}
 
-	ep_done_scan(ep, &txlist);
+	ep_done_scan(ep, &scan_batch);
 	mutex_unlock(&ep->mtx);
 
 	return res;
