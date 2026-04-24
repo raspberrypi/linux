@@ -1949,6 +1949,12 @@ static void macb_tx_restart(struct macb_queue *queue)
 
 	spin_lock(&bp->lock);
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
+	/* Flush the PCIe posted-write queue so the TSTART doorbell
+	 * reliably reaches the MAC.  Without this, the write can sit
+	 * in the fabric and the MAC never advances, causing a silent
+	 * TX stall.
+	 */
+	(void)macb_readl(bp, NCR);
 	spin_unlock(&bp->lock);
 
 out_tx_ptr_unlock:
@@ -2630,6 +2636,10 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		queue->tx_pending = 1;
 
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
+	/* Flush the PCIe posted-write queue; see the comment in
+	 * macb_tx_restart() for the reasoning.
+	 */
+	(void)macb_readl(bp, NCR);
 	spin_unlock(&bp->lock);
 
 	if (CIRC_SPACE(queue->tx_head, queue->tx_tail, bp->tx_ring_size) < 1)
