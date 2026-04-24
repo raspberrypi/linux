@@ -1999,17 +1999,24 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 	if (work_done < budget && napi_complete_done(napi, work_done)) {
 		queue_writel(queue, IER, MACB_BIT(TCOMP));
 
-		/* Packet completions only seem to propagate to raise
-		 * interrupts when interrupts are enabled at the time, so if
-		 * packets were sent while interrupts were disabled,
-		 * they will not cause another interrupt to be generated when
-		 * interrupts are re-enabled.
-		 * Check for this case here to avoid losing a wakeup. This can
-		 * potentially race with the interrupt handler doing the same
-		 * actions if an interrupt is raised just after enabling them,
-		 * but this should be harmless.
+		/* TCOMP events that fire while the interrupt is masked do
+		 * not re-fire when IER is re-enabled.  Catch this two ways
+		 * to avoid losing a wakeup:
+		 *
+		 *   (1) Read ISR -- catches completions the hardware flagged
+		 *       but that we did not see as an interrupt.  The MMIO
+		 *       read doubles as a PCIe read barrier, flushing any
+		 *       in-flight descriptor TX_USED DMA writes into memory.
+		 *   (2) macb_tx_complete_pending() inspects the ring after
+		 *       that flush, catching a descriptor whose TX_USED is
+		 *       now visible as a result of the barrier.
+		 *
+		 * This can race with the interrupt handler taking the same
+		 * path if an interrupt fires just after the IER write;
+		 * rescheduling NAPI in that case is harmless.
 		 */
-		if (macb_tx_complete_pending(queue)) {
+		if ((queue_readl(queue, ISR) & MACB_BIT(TCOMP)) ||
+		    macb_tx_complete_pending(queue)) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
 				queue_writel(queue, ISR, MACB_BIT(TCOMP));
