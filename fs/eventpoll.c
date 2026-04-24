@@ -1942,6 +1942,82 @@ static int ep_modify(struct eventpoll *ep, struct epitem *epi,
 	return 0;
 }
 
+/*
+ * Attempt to deliver one event for @epi into @*uevents.
+ *
+ * Returns 1 if an event was delivered (with *uevents advanced to the
+ * next slot), 0 if the re-poll reported no caller-requested events
+ * (@epi drops out of the ready list; a future callback will re-add
+ * it), or -EFAULT if copy_to_user() faulted (in which case @epi is
+ * re-inserted at the head of @txlist so ep_done_scan() merges it
+ * back to rdllist for the next attempt).
+ *
+ * PM bookkeeping and level-triggered re-queue are handled here.
+ * Caller holds ep->mtx and the scan is active.
+ */
+static int ep_deliver_event(struct eventpoll *ep, struct epitem *epi,
+			    poll_table *pt,
+			    struct epoll_event __user **uevents,
+			    struct list_head *txlist)
+{
+	struct epoll_event __user *next;
+	struct wakeup_source *ws;
+	__poll_t revents;
+
+	/*
+	 * Activate ep->ws before deactivating epi->ws to prevent
+	 * triggering auto-suspend here (in case we reactivate epi->ws
+	 * below).  Rearranging to delay the deactivation would let
+	 * epi->ws drift out of sync with ep_is_linked().
+	 */
+	ws = ep_wakeup_source(epi);
+	if (ws) {
+		if (ws->active)
+			__pm_stay_awake(ep->ws);
+		__pm_relax(ws);
+	}
+
+	list_del_init(&epi->rdllink);
+
+	/*
+	 * Re-poll under ep->mtx so userspace cannot change the item
+	 * out from under us. If no caller-requested events remain,
+	 * @epi stays off the ready list; the poll callback will
+	 * re-queue it when events next appear.
+	 */
+	revents = ep_item_poll(epi, pt, 1);
+	if (!revents)
+		return 0;
+
+	next = epoll_put_uevent(revents, epi->event.data, *uevents);
+	if (!next) {
+		/*
+		 * copy_to_user() faulted: put the item back so
+		 * ep_done_scan() splices it onto rdllist for the next
+		 * attempt.
+		 */
+		list_add(&epi->rdllink, txlist);
+		ep_pm_stay_awake(epi);
+		return -EFAULT;
+	}
+	*uevents = next;
+
+	if (epi->event.events & EPOLLONESHOT) {
+		epi->event.events &= EP_PRIVATE_BITS;
+	} else if (!(epi->event.events & EPOLLET)) {
+		/*
+		 * Level-triggered: re-queue so the next epoll_wait()
+		 * rechecks availability. We are the sole writer to
+		 * rdllist here -- epoll_ctl() callers are locked out
+		 * by ep->mtx, and the poll callback queues to ovflist
+		 * during scans.
+		 */
+		list_add_tail(&epi->rdllink, &ep->rdllist);
+		ep_pm_stay_awake(epi);
+	}
+	return 1;
+}
+
 static int ep_send_events(struct eventpoll *ep,
 			  struct epoll_event __user *events, int maxevents)
 {
@@ -1964,70 +2040,24 @@ static int ep_send_events(struct eventpoll *ep,
 	ep_start_scan(ep, &txlist);
 
 	/*
-	 * We can loop without lock because we are passed a task private list.
-	 * Items cannot vanish during the loop we are holding ep->mtx.
+	 * We can loop without lock because we are passed a task-private
+	 * txlist; items cannot vanish while we hold ep->mtx.
 	 */
 	list_for_each_entry_safe(epi, tmp, &txlist, rdllink) {
-		struct wakeup_source *ws;
-		__poll_t revents;
+		int delivered;
 
 		if (res >= maxevents)
 			break;
 
-		/*
-		 * Activate ep->ws before deactivating epi->ws to prevent
-		 * triggering auto-suspend here (in case we reactive epi->ws
-		 * below).
-		 *
-		 * This could be rearranged to delay the deactivation of epi->ws
-		 * instead, but then epi->ws would temporarily be out of sync
-		 * with ep_is_linked().
-		 */
-		ws = ep_wakeup_source(epi);
-		if (ws) {
-			if (ws->active)
-				__pm_stay_awake(ep->ws);
-			__pm_relax(ws);
-		}
-
-		list_del_init(&epi->rdllink);
-
-		/*
-		 * If the event mask intersect the caller-requested one,
-		 * deliver the event to userspace. Again, we are holding ep->mtx,
-		 * so no operations coming from userspace can change the item.
-		 */
-		revents = ep_item_poll(epi, &pt, 1);
-		if (!revents)
-			continue;
-
-		events = epoll_put_uevent(revents, epi->event.data, events);
-		if (!events) {
-			list_add(&epi->rdllink, &txlist);
-			ep_pm_stay_awake(epi);
+		delivered = ep_deliver_event(ep, epi, &pt, &events, &txlist);
+		if (delivered < 0) {
 			if (!res)
-				res = -EFAULT;
+				res = delivered;
 			break;
 		}
-		res++;
-		if (epi->event.events & EPOLLONESHOT)
-			epi->event.events &= EP_PRIVATE_BITS;
-		else if (!(epi->event.events & EPOLLET)) {
-			/*
-			 * If this file has been added with Level
-			 * Trigger mode, we need to insert back inside
-			 * the ready list, so that the next call to
-			 * epoll_wait() will check again the events
-			 * availability. At this point, no one can insert
-			 * into ep->rdllist besides us. The epoll_ctl()
-			 * callers are locked out by
-			 * ep_send_events() holding "mtx" and the
-			 * poll callback will queue them in ep->ovflist.
-			 */
-			list_add_tail(&epi->rdllink, &ep->rdllist);
-			ep_pm_stay_awake(epi);
-		}
+		res += delivered;
 	}
+
 	ep_done_scan(ep, &txlist);
 	mutex_unlock(&ep->mtx);
 
