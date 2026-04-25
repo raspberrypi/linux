@@ -190,10 +190,6 @@ fail:
 	memset(to + (n - res), 0, res);
 	return res;
 }
-#ifndef INLINE_COPY_USER
-extern __must_check unsigned long
-_copy_from_user(void *, const void __user *, unsigned long);
-#endif
 
 static inline __must_check unsigned long
 _inline_copy_to_user(void __user *to, const void *from, unsigned long n)
@@ -207,7 +203,13 @@ _inline_copy_to_user(void __user *to, const void *from, unsigned long n)
 	}
 	return n;
 }
-#ifndef INLINE_COPY_USER
+#ifdef INLINE_COPY_USER
+# define _copy_to_user _inline_copy_to_user
+# define _copy_from_user _inline_copy_from_user
+#else
+extern __must_check unsigned long
+_copy_from_user(void *, const void __user *, unsigned long);
+
 extern __must_check unsigned long
 _copy_to_user(void __user *, const void *, unsigned long);
 #endif
@@ -217,11 +219,7 @@ copy_from_user(void *to, const void __user *from, unsigned long n)
 {
 	if (!check_copy_size(to, n, false))
 		return n;
-#ifdef INLINE_COPY_USER
-	return _inline_copy_from_user(to, from, n);
-#else
 	return _copy_from_user(to, from, n);
-#endif
 }
 
 static __always_inline unsigned long __must_check
@@ -229,12 +227,7 @@ copy_to_user(void __user *to, const void *from, unsigned long n)
 {
 	if (!check_copy_size(from, n, true))
 		return n;
-
-#ifdef INLINE_COPY_USER
-	return _inline_copy_to_user(to, from, n);
-#else
 	return _copy_to_user(to, from, n);
-#endif
 }
 
 #ifndef copy_mc_to_kernel
