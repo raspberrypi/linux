@@ -754,7 +754,7 @@ impl<T: Clone, A: Allocator> Vec<T, A> {
         spare[n - 1].write(value);
 
         // SAFETY:
-        // - `self.len() + n < self.capacity()` due to the call to reserve above,
+        // - `self.len() + n <= self.capacity()` due to the call to reserve above,
         // - the loop and the line above initialized the next `n` elements.
         unsafe { self.inc_len(n) };
 
