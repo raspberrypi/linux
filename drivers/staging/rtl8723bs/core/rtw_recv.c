@@ -60,7 +60,6 @@ signed int _rtw_init_recv_priv(struct recv_priv *precvpriv, struct adapter *pada
 
 	precvframe = (union recv_frame *) precvpriv->precv_frame_buf;
 
-
 	for (i = 0; i < NR_RECVFRAME; i++) {
 		INIT_LIST_HEAD(&(precvframe->u.list));
 
@@ -180,9 +179,6 @@ int rtw_free_recvframe(union recv_frame *precvframe, struct __queue *pfree_recv_
 	return _SUCCESS;
 }
 
-
-
-
 signed int _rtw_enqueue_recvframe(union recv_frame *precvframe, struct __queue *queue)
 {
 
@@ -191,7 +187,6 @@ signed int _rtw_enqueue_recvframe(union recv_frame *precvframe, struct __queue *
 
 	/* INIT_LIST_HEAD(&(precvframe->u.hdr.list)); */
 	list_del_init(&(precvframe->u.hdr.list));
-
 
 	list_add_tail(&(precvframe->u.hdr.list), get_list_head(queue));
 
@@ -256,7 +251,6 @@ u32 rtw_free_uc_swdec_pending_queue(struct adapter *adapter)
 
 	return cnt;
 }
-
 
 signed int rtw_enqueue_recvbuf_to_head(struct recv_buf *precvbuf, struct __queue *queue)
 {
@@ -404,7 +398,6 @@ static signed int recvframe_chkmic(struct adapter *adapter,  union recv_frame *p
 				if (miccode[i] != *(pframemic + i))
 					bmic_err = true;
 			}
-
 
 			if (bmic_err == true) {
 				/*  double check key_index for some timing issue , */
@@ -772,8 +765,6 @@ static signed int sta2sta_data_frame(struct adapter *adapter, union recv_frame *
 	} else
 		ret  = _FAIL;
 
-
-
 	if (bmcast)
 		*psta = rtw_get_bcmc_stainfo(adapter);
 	else
@@ -817,7 +808,6 @@ static signed int ap2sta_data_frame(struct adapter *adapter, union recv_frame *p
 			goto exit;
 		}
 
-
 		/*  check BSSID */
 		if (is_zero_ether_addr(pattrib->bssid) ||
 		    is_zero_ether_addr(mybssid) ||
@@ -858,13 +848,11 @@ static signed int ap2sta_data_frame(struct adapter *adapter, union recv_frame *p
 		/*  */
 		memcpy(pattrib->bssid,  mybssid, ETH_ALEN);
 
-
 		*psta = rtw_get_stainfo(pstapriv, pattrib->bssid); /*  get sta_info */
 		if (!*psta) {
 			ret = _FAIL;
 			goto exit;
 		}
-
 
 	} else if (check_fwstate(pmlmepriv, WIFI_AP_STATE) == true) {
 		/* Special case */
@@ -1109,7 +1097,6 @@ static union recv_frame *recvframe_defrag(struct adapter *adapter,
 		pnextrframe = (union recv_frame *)plist;
 		pnfhdr = &pnextrframe->u.hdr;
 
-
 		/* check the fragment sequence  (2nd ~n fragment frame) */
 
 		if (curfragnum != pnfhdr->attrib.frag_num) {
@@ -1197,7 +1184,6 @@ static union recv_frame *recvframe_chk_defrag(struct adapter *padapter, union re
 					/* free current defrag_q */
 					rtw_free_recvframe_queue(pdefrag_q, pfree_recv_queue);
 
-
 			/* Then enqueue the 0~(n-1) fragment into the defrag_q */
 
 			/* spin_lock(&pdefrag_q->lock); */
@@ -1235,7 +1221,6 @@ static union recv_frame *recvframe_chk_defrag(struct adapter *padapter, union re
 		}
 
 	}
-
 
 	if ((prtnframe) && (prtnframe->u.hdr.attrib.privacy)) {
 		/* after defrag we must check tkip mic code */
@@ -1345,7 +1330,6 @@ static signed int validate_recv_data_frame(struct adapter *adapter, union recv_f
 		goto exit;
 	}
 
-
 	if (!psta) {
 		ret = _FAIL;
 		goto exit;
@@ -1354,7 +1338,6 @@ static signed int validate_recv_data_frame(struct adapter *adapter, union recv_f
 	/* psta->rssi = prxcmd->rssi; */
 	/* psta->signal_quality = prxcmd->sq; */
 	precv_frame->u.hdr.psta = psta;
-
 
 	pattrib->amsdu = 0;
 	pattrib->ack_policy = 0;
@@ -1372,7 +1355,6 @@ static signed int validate_recv_data_frame(struct adapter *adapter, union recv_f
 		pattrib->priority = 0;
 		pattrib->hdrlen = pattrib->to_fr_ds == 3 ? 30 : 24;
 	}
-
 
 	if (pattrib->order)/* HT-CTRL 11n */
 		pattrib->hdrlen += 4;
@@ -1827,7 +1809,6 @@ static int enqueue_reorder_recvframe(struct recv_reorder_ctrl *preorder_ctrl, un
 	/* spin_lock_irqsave(&ppending_recvframe_queue->lock, irql); */
 	/* spin_lock(&ppending_recvframe_queue->lock); */
 
-
 	phead = get_list_head(ppending_recvframe_queue);
 	plist = get_next(phead);
 
@@ -1845,7 +1826,6 @@ static int enqueue_reorder_recvframe(struct recv_reorder_ctrl *preorder_ctrl, un
 			break;
 
 	}
-
 
 	/* spin_lock_irqsave(&ppending_recvframe_queue->lock, irql); */
 	/* spin_lock(&ppending_recvframe_queue->lock); */
@@ -1975,7 +1955,6 @@ static int recv_indicatepkts_in_order(struct adapter *padapter, struct recv_reor
 				/* error condition; */
 			}
 
-
 			/* Update local variables. */
 			bPktInBuf = false;
 
@@ -2058,7 +2037,6 @@ static int recv_indicatepkt_reorder(struct adapter *padapter, union recv_frame *
 		goto _err_exit;
 	}
 
-
 	/* s4. */
 	/*  Indication process. */
 	/*  After Packet dropping and Sliding Window shifting as above, we can now just indicate the packets */
@@ -2086,14 +2064,12 @@ _err_exit:
 	return _FAIL;
 }
 
-
 void rtw_reordering_ctrl_timeout_handler(struct timer_list *t)
 {
 	struct recv_reorder_ctrl *preorder_ctrl =
 		timer_container_of(preorder_ctrl, t, reordering_ctrl_timer);
 	struct adapter *padapter = preorder_ctrl->padapter;
 	struct __queue *ppending_recvframe_queue = &preorder_ctrl->pending_recvframe_queue;
-
 
 	if (padapter->bDriverStopped || padapter->bSurpriseRemoved)
 		return;
@@ -2241,7 +2217,6 @@ do_posthandle:
 exit:
 	return ret;
 }
-
 
 s32 rtw_recv_entry(union recv_frame *precvframe)
 {
