@@ -1066,6 +1066,16 @@ int gpiochip_add_hog(struct gpio_chip *gc, struct fwnode_handle *fwnode)
 				gpiospec.args[j] = gpios[i * cells + j];
 
 			ret = of_gpiochip_get_lflags(gc, &gpiospec, &lflags);
+			/*
+			 * For gpio chips that share an of_node (e.g. multiple
+			 * banks per IP block like gpio-brcmstb), hogs may be
+			 * defined on the shared parent but only apply to one
+			 * chip. of_xlate returns -EINVAL when the GPIO is out
+			 * of range for this chip; skip those hogs rather than
+			 * failing chip registration.
+			 */
+			if (ret == -EINVAL)
+				continue;
 			if (ret)
 				return ret;
 		} else {
