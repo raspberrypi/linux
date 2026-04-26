@@ -633,9 +633,14 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 
 	/* map non-standard BOOT registers if present */
 	if (host->mmc->caps & MMC_CAP_NONREMOVABLE) {
-		priv->boot_regs = devm_platform_get_and_ioremap_resource(pdev, 2, NULL);
-		if (IS_ERR(priv->boot_regs))
-			priv->boot_regs = NULL;
+		struct resource *boot_res;
+
+		boot_res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+		if (boot_res) {
+			priv->boot_regs = devm_ioremap_resource(&pdev->dev, boot_res);
+			if (IS_ERR(priv->boot_regs))
+				priv->boot_regs = NULL;
+		}
 	}
 
 	/*
