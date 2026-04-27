@@ -432,7 +432,7 @@ static irqreturn_t panthor_ ## __name ## _irq_raw_handler(int irq, void *data)		
 	struct panthor_device *ptdev = pirq->ptdev;						\
 	enum panthor_irq_state old_state;							\
 												\
-	if (!gpu_read(ptdev, __reg_prefix ## _INT_STAT))					\
+	if (!gpu_read(ptdev->iomem, __reg_prefix ## _INT_STAT))					\
 		return IRQ_NONE;								\
 												\
 	guard(spinlock_irqsave)(&pirq->mask_lock);						\
@@ -442,7 +442,7 @@ static irqreturn_t panthor_ ## __name ## _irq_raw_handler(int irq, void *data)		
 	if (old_state != PANTHOR_IRQ_STATE_ACTIVE)						\
 		return IRQ_NONE;								\
 												\
-	gpu_write(ptdev, __reg_prefix ## _INT_MASK, 0);						\
+	gpu_write(ptdev->iomem, __reg_prefix ## _INT_MASK, 0);					\
 	return IRQ_WAKE_THREAD;									\
 }												\
 												\
@@ -461,7 +461,7 @@ static irqreturn_t panthor_ ## __name ## _irq_threaded_handler(int irq, void *da
 		 * right before the HW event kicks in. TLDR; it's all expected races we're	\
 		 * covered for.									\
 		 */										\
-		u32 status = gpu_read(ptdev, __reg_prefix ## _INT_RAWSTAT) & pirq->mask;	\
+		u32 status = gpu_read(ptdev->iomem, __reg_prefix ## _INT_RAWSTAT) & pirq->mask;	\
 												\
 		if (!status)									\
 			break;									\
@@ -477,7 +477,7 @@ static irqreturn_t panthor_ ## __name ## _irq_threaded_handler(int irq, void *da
 					   PANTHOR_IRQ_STATE_PROCESSING,			\
 					   PANTHOR_IRQ_STATE_ACTIVE);				\
 		if (old_state == PANTHOR_IRQ_STATE_PROCESSING)					\
-			gpu_write(ptdev, __reg_prefix ## _INT_MASK, pirq->mask);		\
+			gpu_write(ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
 	}											\
 												\
 	return ret;										\
@@ -487,7 +487,7 @@ static inline void panthor_ ## __name ## _irq_suspend(struct panthor_irq *pirq)	
 {												\
 	scoped_guard(spinlock_irqsave, &pirq->mask_lock) {					\
 		atomic_set(&pirq->state, PANTHOR_IRQ_STATE_SUSPENDING);				\
-		gpu_write(pirq->ptdev, __reg_prefix ## _INT_MASK, 0);				\
+		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, 0);			\
 	}											\
 	synchronize_irq(pirq->irq);								\
 	atomic_set(&pirq->state, PANTHOR_IRQ_STATE_SUSPENDED);					\
@@ -498,8 +498,8 @@ static inline void panthor_ ## __name ## _irq_resume(struct panthor_irq *pirq)		
 	guard(spinlock_irqsave)(&pirq->mask_lock);						\
 												\
 	atomic_set(&pirq->state, PANTHOR_IRQ_STATE_ACTIVE);					\
-	gpu_write(pirq->ptdev, __reg_prefix ## _INT_CLEAR, pirq->mask);				\
-	gpu_write(pirq->ptdev, __reg_prefix ## _INT_MASK, pirq->mask);				\
+	gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_CLEAR, pirq->mask);			\
+	gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);			\
 }												\
 												\
 static int panthor_request_ ## __name ## _irq(struct panthor_device *ptdev,			\
@@ -530,7 +530,7 @@ static inline void panthor_ ## __name ## _irq_enable_events(struct panthor_irq *
 	 * If the IRQ is suspended/suspending, the mask is restored at resume time.		\
 	 */											\
 	if (atomic_read(&pirq->state) == PANTHOR_IRQ_STATE_ACTIVE)				\
-		gpu_write(pirq->ptdev, __reg_prefix ## _INT_MASK, pirq->mask);			\
+		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
 }												\
 												\
 static inline void panthor_ ## __name ## _irq_disable_events(struct panthor_irq *pirq, u32 mask)\
@@ -544,80 +544,80 @@ static inline void panthor_ ## __name ## _irq_disable_events(struct panthor_irq 
 	 * If the IRQ is suspended/suspending, the mask is restored at resume time.		\
 	 */											\
 	if (atomic_read(&pirq->state) == PANTHOR_IRQ_STATE_ACTIVE)				\
-		gpu_write(pirq->ptdev, __reg_prefix ## _INT_MASK, pirq->mask);			\
+		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
 }
 
 extern struct workqueue_struct *panthor_cleanup_wq;
 
-static inline void gpu_write(struct panthor_device *ptdev, u32 reg, u32 data)
+static inline void gpu_write(void __iomem *iomem, u32 reg, u32 data)
 {
-	writel(data, ptdev->iomem + reg);
+	writel(data, iomem + reg);
 }
 
-static inline u32 gpu_read(struct panthor_device *ptdev, u32 reg)
+static inline u32 gpu_read(void __iomem *iomem, u32 reg)
 {
-	return readl(ptdev->iomem + reg);
+	return readl(iomem + reg);
 }
 
-static inline u32 gpu_read_relaxed(struct panthor_device *ptdev, u32 reg)
+static inline u32 gpu_read_relaxed(void __iomem *iomem, u32 reg)
 {
-	return readl_relaxed(ptdev->iomem + reg);
+	return readl_relaxed(iomem + reg);
 }
 
-static inline void gpu_write64(struct panthor_device *ptdev, u32 reg, u64 data)
+static inline void gpu_write64(void __iomem *iomem, u32 reg, u64 data)
 {
-	gpu_write(ptdev, reg, lower_32_bits(data));
-	gpu_write(ptdev, reg + 4, upper_32_bits(data));
+	gpu_write(iomem, reg, lower_32_bits(data));
+	gpu_write(iomem, reg + 4, upper_32_bits(data));
 }
 
-static inline u64 gpu_read64(struct panthor_device *ptdev, u32 reg)
+static inline u64 gpu_read64(void __iomem *iomem, u32 reg)
 {
-	return (gpu_read(ptdev, reg) | ((u64)gpu_read(ptdev, reg + 4) << 32));
+	return (gpu_read(iomem, reg) | ((u64)gpu_read(iomem, reg + 4) << 32));
 }
 
-static inline u64 gpu_read64_relaxed(struct panthor_device *ptdev, u32 reg)
+static inline u64 gpu_read64_relaxed(void __iomem *iomem, u32 reg)
 {
-	return (gpu_read_relaxed(ptdev, reg) |
-		((u64)gpu_read_relaxed(ptdev, reg + 4) << 32));
+	return (gpu_read_relaxed(iomem, reg) |
+		((u64)gpu_read_relaxed(iomem, reg + 4) << 32));
 }
 
-static inline u64 gpu_read64_counter(struct panthor_device *ptdev, u32 reg)
+static inline u64 gpu_read64_counter(void __iomem *iomem, u32 reg)
 {
 	u32 lo, hi1, hi2;
 	do {
-		hi1 = gpu_read(ptdev, reg + 4);
-		lo = gpu_read(ptdev, reg);
-		hi2 = gpu_read(ptdev, reg + 4);
+		hi1 = gpu_read(iomem, reg + 4);
+		lo = gpu_read(iomem, reg);
+		hi2 = gpu_read(iomem, reg + 4);
 	} while (hi1 != hi2);
 	return lo | ((u64)hi2 << 32);
 }
 
-#define gpu_read_poll_timeout(dev, reg, val, cond, delay_us, timeout_us)	\
+#define gpu_read_poll_timeout(iomem, reg, val, cond, delay_us, timeout_us)	\
 	read_poll_timeout(gpu_read, val, cond, delay_us, timeout_us, false,	\
-			  dev, reg)
+			  iomem, reg)
 
-#define gpu_read_poll_timeout_atomic(dev, reg, val, cond, delay_us,		\
+#define gpu_read_poll_timeout_atomic(iomem, reg, val, cond, delay_us,		\
 				     timeout_us)				\
 	read_poll_timeout_atomic(gpu_read, val, cond, delay_us, timeout_us,	\
-				 false, dev, reg)
+				 false, iomem, reg)
 
-#define gpu_read64_poll_timeout(dev, reg, val, cond, delay_us, timeout_us)	\
+#define gpu_read64_poll_timeout(iomem, reg, val, cond, delay_us, timeout_us)	\
 	read_poll_timeout(gpu_read64, val, cond, delay_us, timeout_us, false,	\
-			  dev, reg)
+			  iomem, reg)
 
-#define gpu_read64_poll_timeout_atomic(dev, reg, val, cond, delay_us,		\
+#define gpu_read64_poll_timeout_atomic(iomem, reg, val, cond, delay_us,		\
 				       timeout_us)				\
 	read_poll_timeout_atomic(gpu_read64, val, cond, delay_us, timeout_us,	\
-				 false, dev, reg)
+				 false, iomem, reg)
 
-#define gpu_read_relaxed_poll_timeout_atomic(dev, reg, val, cond, delay_us,	\
+#define gpu_read_relaxed_poll_timeout_atomic(iomem, reg, val, cond, delay_us,	\
 					     timeout_us)			\
 	read_poll_timeout_atomic(gpu_read_relaxed, val, cond, delay_us,		\
-				 timeout_us, false, dev, reg)
+				 timeout_us, false, iomem, reg)
 
-#define gpu_read64_relaxed_poll_timeout(dev, reg, val, cond, delay_us,		\
+#define gpu_read64_relaxed_poll_timeout(iomem, reg, val, cond, delay_us,	\
 					timeout_us)				\
 	read_poll_timeout(gpu_read64_relaxed, val, cond, delay_us, timeout_us,	\
-			  false, dev, reg)
+			  false, iomem, reg)
 
 #endif
