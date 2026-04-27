@@ -191,7 +191,6 @@ static int ec_device_probe(struct platform_device *pdev)
 	if (!ec)
 		return retval;
 
-	dev_set_drvdata(dev, ec);
 	ec->ec_dev = dev_get_drvdata(dev->parent);
 	ec->dev = dev;
 	ec->cmd_offset = ec_platform->cmd_offset;
@@ -232,6 +231,8 @@ static int ec_device_probe(struct platform_device *pdev)
 	retval = device_add(&ec->class_dev);
 	if (retval)
 		goto failed;
+
+	dev_set_drvdata(dev, ec);
 
 	/* check whether this EC is a sensor hub. */
 	if (cros_ec_get_sensor_count(ec) > 0) {
