@@ -953,3 +953,100 @@ out_err:
 		ret = GSS_S_FAILURE;
 	return ret;
 }
+
+/**
+ * gss_krb5_aead_encrypt - Encrypt a wrap token using crypto/krb5
+ * @kctx: Kerberos context
+ * @offset: byte offset of the GSS token header in @buf
+ * @buf: OUT: send buffer
+ * @pages: plaintext payload pages (page cache data)
+ *
+ * The xdr_buf setup mirrors the original per-enctype encrypt
+ * functions, but the CBC-CTS encryption and HMAC are replaced
+ * by a single AEAD operation through the crypto/krb5 library.
+ *
+ * Return values:
+ *   %GSS_S_COMPLETE: Encryption successful
+ *   %GSS_S_FAILURE: Encryption failed
+ */
+u32
+gss_krb5_aead_encrypt(struct krb5_ctx *kctx, u32 offset,
+		      struct xdr_buf *buf, struct page **pages)
+{
+	const struct krb5_enctype *krb5 = kctx->krb5e;
+	struct crypto_aead *aead = kctx->initiate ?
+		kctx->initiator_enc_aead : kctx->acceptor_enc_aead;
+	unsigned int conflen = krb5->conf_len;
+	unsigned int cksum_len = krb5->cksum_len;
+	unsigned int sec_offset, sec_len, data_len;
+	struct scatterlist sg[XDR_BUF_TO_SG_NENTS];
+	struct scatterlist *sg_overflow = NULL;
+	ssize_t ret;
+	int nsg;
+
+	/* Insert space for the confounder */
+	if (xdr_extend_head(buf, offset + GSS_KRB5_TOK_HDR_LEN, conflen))
+		return GSS_S_FAILURE;
+
+	/* Ensure a tail segment exists */
+	if (buf->tail[0].iov_base == NULL) {
+		buf->tail[0].iov_base = buf->head[0].iov_base
+						+ buf->head[0].iov_len;
+		buf->tail[0].iov_len = 0;
+	}
+
+	/* Append a copy of the plaintext GSS token header (RFC 4121 Sec 4.2.4) */
+	memcpy(buf->tail[0].iov_base + buf->tail[0].iov_len,
+	       buf->head[0].iov_base + offset, GSS_KRB5_TOK_HDR_LEN);
+	buf->tail[0].iov_len += GSS_KRB5_TOK_HDR_LEN;
+	buf->len += GSS_KRB5_TOK_HDR_LEN;
+
+	/* Reserve space for the integrity checksum */
+	buf->tail[0].iov_len += cksum_len;
+	buf->len += cksum_len;
+
+	/*
+	 * The AEAD operates in-place, but on the client send path the
+	 * plaintext payload lives in page cache pages that must not be
+	 * modified.  Copy the payload into the scratch output pages
+	 * first.  On the server send path @pages and buf->pages are
+	 * the same array, and no copy is needed.
+	 *
+	 * Both arrays share buf->page_base, so the same index and
+	 * intra-page offset address corresponding data in each.
+	 */
+	if (pages != buf->pages) {
+		unsigned int poff = buf->page_base;
+		unsigned int plen = buf->page_len;
+		unsigned int i = poff >> PAGE_SHIFT;
+		unsigned int off = offset_in_page(poff);
+
+		while (plen) {
+			unsigned int n = min_t(unsigned int, plen,
+					       PAGE_SIZE - off);
+			memcpy_page(buf->pages[i], off, pages[i], off, n);
+			plen -= n;
+			i++;
+			off = 0;
+		}
+	}
+
+	/* Build scatterlist covering the secured region */
+	sec_offset = offset + GSS_KRB5_TOK_HDR_LEN;
+	sec_len = buf->len - sec_offset;
+	data_len = sec_len - conflen - cksum_len;
+
+	nsg = xdr_buf_to_sg_alloc(buf, sec_offset, sec_len,
+				  sg, ARRAY_SIZE(sg),
+				  &sg_overflow, GFP_NOFS);
+	if (nsg < 0)
+		return GSS_S_FAILURE;
+
+	ret = crypto_krb5_encrypt(krb5, aead, sg, nsg, sec_len,
+				  conflen, data_len, false);
+	kfree(sg_overflow);
+	if (ret < 0)
+		return GSS_S_FAILURE;
+
+	return GSS_S_COMPLETE;
+}

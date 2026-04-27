@@ -186,6 +186,11 @@ u32 krb5_etm_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
 
 u32 gss_krb5_errno_to_status(int err);
 
+u32 gss_krb5_aead_encrypt(struct krb5_ctx *kctx, u32 offset,
+			  struct xdr_buf *buf, struct page **pages);
+u32 gss_krb5_aead_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
+			  struct xdr_buf *buf, u32 *headskip, u32 *tailskip);
+
 #if IS_ENABLED(CONFIG_KUNIT)
 void krb5_nfold(u32 inbits, const u8 *in, u32 outbits, u8 *out);
 const struct gss_krb5_enctype *gss_krb5_lookup_enctype(u32 etype);
