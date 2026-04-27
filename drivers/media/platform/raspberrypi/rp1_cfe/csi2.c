@@ -574,7 +574,7 @@ int csi2_init(struct csi2_device *csi2, struct dentry *debugfs)
 	spin_lock_init(&csi2->errors_lock);
 
 	csi2->dphy.dev = csi2->v4l2_dev->dev;
-	dphy_probe(&csi2->dphy);
+	dphy_probe(&csi2->dphy, debugfs);
 
 	debugfs_create_file("csi2_regs", 0444, debugfs, csi2, &csi2_regs_fops);
 
