@@ -8,6 +8,8 @@
 #ifndef _NET_SUNRPC_AUTH_GSS_KRB5_INTERNAL_H
 #define _NET_SUNRPC_AUTH_GSS_KRB5_INTERNAL_H
 
+#include <crypto/krb5.h>
+
 /*
  * The RFCs often specify payload lengths in bits. This helper
  * converts a specified bit-length to the number of octets/bytes.
@@ -62,6 +64,7 @@ struct krb5_ctx {
 	u32			enctype;
 	u32			flags;
 	const struct gss_krb5_enctype *gk5e; /* enctype-specific info */
+	const struct krb5_enctype *krb5e; /* crypto/krb5 enctype */
 	struct crypto_sync_skcipher *enc;
 	struct crypto_sync_skcipher *seq;
 	struct crypto_sync_skcipher *acceptor_enc;

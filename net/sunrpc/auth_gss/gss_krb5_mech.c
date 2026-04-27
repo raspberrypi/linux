@@ -432,6 +432,13 @@ gss_import_v2_context(const void *p, const void *end, struct krb5_ctx *ctx,
 		p = ERR_PTR(-EINVAL);
 		goto out_err;
 	}
+	ctx->krb5e = crypto_krb5_find_enctype(ctx->enctype);
+	if (!ctx->krb5e) {
+		dprintk("gss_kerberos_mech: crypto/krb5 missing enctype %u\n",
+			ctx->enctype);
+		p = ERR_PTR(-EINVAL);
+		goto out_err;
+	}
 	keylen = ctx->gk5e->keylength;
 
 	p = simple_get_bytes(p, end, ctx->Ksess, keylen);
