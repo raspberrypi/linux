@@ -1050,3 +1050,56 @@ gss_krb5_aead_encrypt(struct krb5_ctx *kctx, u32 offset,
 
 	return GSS_S_COMPLETE;
 }
+
+/**
+ * gss_krb5_aead_decrypt - Decrypt a wrap token using crypto/krb5
+ * @kctx: Kerberos context
+ * @offset: byte offset of the GSS token header in @buf
+ * @len: total length of the GSS token
+ * @buf: ciphertext buffer, decrypted in-place
+ * @headskip: OUT: confounder length, in octets
+ * @tailskip: OUT: checksum length, in octets
+ *
+ * Return values:
+ *   %GSS_S_COMPLETE: Decryption and integrity verification succeeded
+ *   %GSS_S_BAD_SIG: Integrity checksum did not match
+ *   %GSS_S_DEFECTIVE_TOKEN: Token is malformed or truncated
+ *   %GSS_S_FAILURE: Decryption failed
+ */
+u32
+gss_krb5_aead_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
+		      struct xdr_buf *buf, u32 *headskip, u32 *tailskip)
+{
+	const struct krb5_enctype *krb5 = kctx->krb5e;
+	struct crypto_aead *aead = kctx->initiate ?
+		kctx->acceptor_enc_aead : kctx->initiator_enc_aead;
+	unsigned int sec_offset, sec_len;
+	size_t data_offset, data_len;
+	struct scatterlist sg[XDR_BUF_TO_SG_NENTS];
+	struct scatterlist *sg_overflow = NULL;
+	int nsg, ret;
+
+	/* Secured region starts after the GSS token header */
+	sec_offset = offset + GSS_KRB5_TOK_HDR_LEN;
+	if (len < sec_offset)
+		return GSS_S_DEFECTIVE_TOKEN;
+	sec_len = len - sec_offset;
+
+	nsg = xdr_buf_to_sg_alloc(buf, sec_offset, sec_len,
+				  sg, ARRAY_SIZE(sg),
+				  &sg_overflow, GFP_NOFS);
+	if (nsg < 0)
+		return GSS_S_FAILURE;
+
+	data_offset = 0;
+	data_len = sec_len;
+	ret = crypto_krb5_decrypt(krb5, aead, sg, nsg,
+				  &data_offset, &data_len);
+	kfree(sg_overflow);
+	if (ret < 0)
+		return gss_krb5_errno_to_status(ret);
+
+	*headskip = data_offset;
+	*tailskip = sec_len - data_offset - data_len;
+	return GSS_S_COMPLETE;
+}

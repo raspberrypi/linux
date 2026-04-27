@@ -44,7 +44,7 @@ static const struct gss_krb5_enctype supported_gss_krb5_enctypes[] = {
 	  .cksum_name = "hmac(sha1)",
 	  .derive_key = krb5_derive_key_v2,
 	  .encrypt = gss_krb5_aead_encrypt,
-	  .decrypt = gss_krb5_aes_decrypt,
+	  .decrypt = gss_krb5_aead_decrypt,
 
 	  .get_mic = gss_krb5_get_mic_v2,
 	  .verify_mic = gss_krb5_verify_mic_v2,
@@ -73,7 +73,7 @@ static const struct gss_krb5_enctype supported_gss_krb5_enctypes[] = {
 	  .cksum_name = "hmac(sha1)",
 	  .derive_key = krb5_derive_key_v2,
 	  .encrypt = gss_krb5_aead_encrypt,
-	  .decrypt = gss_krb5_aes_decrypt,
+	  .decrypt = gss_krb5_aead_decrypt,
 
 	  .get_mic = gss_krb5_get_mic_v2,
 	  .verify_mic = gss_krb5_verify_mic_v2,
@@ -167,7 +167,7 @@ static const struct gss_krb5_enctype supported_gss_krb5_enctypes[] = {
 
 		.derive_key	= krb5_kdf_hmac_sha2,
 		.encrypt	= gss_krb5_aead_encrypt,
-		.decrypt	= krb5_etm_decrypt,
+		.decrypt	= gss_krb5_aead_decrypt,
 
 		.get_mic	= gss_krb5_get_mic_v2,
 		.verify_mic	= gss_krb5_verify_mic_v2,
@@ -193,7 +193,7 @@ static const struct gss_krb5_enctype supported_gss_krb5_enctypes[] = {
 
 		.derive_key	= krb5_kdf_hmac_sha2,
 		.encrypt	= gss_krb5_aead_encrypt,
-		.decrypt	= krb5_etm_decrypt,
+		.decrypt	= gss_krb5_aead_decrypt,
 
 		.get_mic	= gss_krb5_get_mic_v2,
 		.verify_mic	= gss_krb5_verify_mic_v2,
