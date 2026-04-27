@@ -7,6 +7,7 @@
 #ifndef _RP1_DPHY_
 #define _RP1_DPHY_
 
+#include <linux/debugfs.h>
 #include <linux/io.h>
 #include <linux/types.h>
 #include <media/v4l2-mediabus.h>
@@ -22,7 +23,7 @@ struct dphy_data {
 	bool lane_polarities[1 + V4L2_MBUS_CSI2_MAX_DATA_LANES];
 };
 
-void dphy_probe(struct dphy_data *dphy);
+void dphy_probe(struct dphy_data *dphy, struct dentry *debugfs);
 void dphy_start(struct dphy_data *dphy);
 void dphy_stop(struct dphy_data *dphy);
 
