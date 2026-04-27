@@ -517,6 +517,30 @@ gss_krb5_delete_sec_context(void *internal_ctx)
 }
 
 /**
+ * gss_krb5_errno_to_status - Map a negative errno to a GSS major status
+ * @err: negative errno value, or zero
+ *
+ * Returns:
+ *   %GSS_S_COMPLETE if @err is zero
+ *   %GSS_S_BAD_SIG if @err is -EBADMSG (integrity check failure)
+ *   %GSS_S_DEFECTIVE_TOKEN if @err is -EPROTO (malformed token)
+ *   %GSS_S_FAILURE for all other negative values
+ */
+u32 gss_krb5_errno_to_status(int err)
+{
+	switch (err) {
+	case 0:
+		return GSS_S_COMPLETE;
+	case -EBADMSG:
+		return GSS_S_BAD_SIG;
+	case -EPROTO:
+		return GSS_S_DEFECTIVE_TOKEN;
+	default:
+		return GSS_S_FAILURE;
+	}
+}
+
+/**
  * gss_krb5_get_mic - get_mic for the Kerberos GSS mechanism
  * @gctx: GSS context
  * @text: plaintext to checksum
