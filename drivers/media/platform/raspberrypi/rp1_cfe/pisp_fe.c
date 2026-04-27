@@ -24,6 +24,8 @@
 #define FE_OUTPUT_STATUS	0x014
 #define FE_INT_EN		0x018
 #define FE_INT_STATUS		0x01c
+#define FE_DEBUG_FIFO_FULLNESS	0x024
+#define FE_DEBUG_STATUS2	0x02c
 
 /* CONTROL */
 #define FE_CONTROL_QUEUE	BIT(0)
@@ -162,6 +164,8 @@ static int pisp_regs_show(struct seq_file *s, void *data)
 	DUMP(FE_OUTPUT_STATUS);
 	DUMP(FE_INT_EN);
 	DUMP(FE_INT_STATUS);
+	DUMP(FE_DEBUG_FIFO_FULLNESS);
+	DUMP(FE_DEBUG_STATUS2);
 #undef DUMP
 
 	pm_runtime_put(fe->v4l2_dev->dev);
