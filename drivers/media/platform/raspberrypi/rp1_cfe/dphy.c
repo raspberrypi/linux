@@ -16,7 +16,7 @@
 #define dphy_info(fmt, arg...) dev_info(dphy->dev, fmt, ##arg)
 #define dphy_err(fmt, arg...) dev_err(dphy->dev, fmt, ##arg)
 
-/* DW dphy Host registers */
+/* DW CSI-2 Host registers */
 #define VERSION		0x000
 #define N_LANES		0x004
 #define RESETN		0x008
@@ -29,7 +29,14 @@
 #define PHY2_TST_CTRL0	0x058
 #define PHY2_TST_CTRL1	0x05c
 
-/* DW dphy Host Transactions */
+/* DW CSI-2 Host and PHY debug registers */
+#define INT_ST_PHY_FATAL   0x0e0
+#define INT_ST_PKT_FATAL   0x0f0
+#define INT_ST_FRAME_FATAL 0x100
+#define INT_ST_PHY         0x110
+#define INT_ST_PKT         0x120
+
+/* DW D-PHY transaction codes */
 #define DPHY_HS_RX_CTRL_LANE0_OFFSET	0x44
 #define DPHY_PLL_INPUT_DIV_OFFSET	0x17
 #define DPHY_PLL_LOOP_DIV_OFFSET	0x18
@@ -183,7 +190,37 @@ void dphy_stop(struct dphy_data *dphy)
 	 */
 }
 
-void dphy_probe(struct dphy_data *dphy)
+static int dphy_debug_show(struct seq_file *s, void *data)
+{
+	/*
+	 * Here we expose various error flags in the CSI-2 Host and PHY.
+	 * All these registers apart from PHY_STOPSTATE are read-to-clear.
+	 * The only reliable way to count errors would be to service a
+	 * dedicated interrupt. For now, we'll just read (and clear) them.
+	 */
+	struct dphy_data *dphy = s->private;
+	int ret;
+
+	ret = pm_runtime_resume_and_get(dphy->dev);
+	if (ret)
+		return ret;
+
+#define DUMP(reg) seq_printf(s, #reg " \t0x%08x\n", dw_csi2_host_read(dphy, reg))
+	DUMP(PHY_STOPSTATE);      /* Data lane (bits 0-3) or clock (bit 16) is in stopstate */
+	DUMP(INT_ST_PHY_FATAL);   /* HS start sync error for each data lane (bits 0-3) */
+	DUMP(INT_ST_PKT_FATAL);   /* CRC error on VC (bits 0-3); ECC unrecoverable error (bit 16) */
+	DUMP(INT_ST_FRAME_FATAL); /* FS/FE mismatch (bits 0-3), seq (8-11), CRC error (16-19) */
+	DUMP(INT_ST_PHY);         /* Non-fatal error for each data lane HS (bits 0-3), LP (16-19) */
+	DUMP(INT_ST_PKT);         /* Unknown DT on VC (bits 0-3); ECC corrected error (b16-19) */
+#undef DUMP
+
+	pm_runtime_put(dphy->dev);
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(dphy_debug);
+
+void dphy_probe(struct dphy_data *dphy, struct dentry *debugfs)
 {
 	u32 host_ver;
 	u8 host_ver_major, host_ver_minor;
@@ -195,4 +232,7 @@ void dphy_probe(struct dphy_data *dphy)
 	host_ver_minor += (u8)((host_ver >> 8) - '0');
 
 	dphy_info("DW dphy Host HW v%u.%u\n", host_ver_major, host_ver_minor);
+
+	if (debugfs)
+		debugfs_create_file("dphy_debug", 0444, debugfs, dphy, &dphy_debug_fops);
 }
