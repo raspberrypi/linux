@@ -110,7 +110,7 @@ static void panthor_gpu_irq_handler(struct panthor_device *ptdev, u32 status)
 	}
 	spin_unlock(&ptdev->gpu->reqs_lock);
 }
-PANTHOR_IRQ_HANDLER(gpu, GPU, panthor_gpu_irq_handler);
+PANTHOR_IRQ_HANDLER(gpu, panthor_gpu_irq_handler);
 
 /**
  * panthor_gpu_unplug() - Called when the GPU is unplugged.
@@ -162,7 +162,9 @@ int panthor_gpu_init(struct panthor_device *ptdev)
 	if (irq < 0)
 		return irq;
 
-	ret = panthor_request_gpu_irq(ptdev, &ptdev->gpu->irq, irq, GPU_INTERRUPTS_MASK);
+	ret = panthor_request_gpu_irq(ptdev, &ptdev->gpu->irq, irq,
+				      GPU_INTERRUPTS_MASK,
+				      ptdev->iomem + GPU_INT_BASE);
 	if (ret)
 		return ret;
 

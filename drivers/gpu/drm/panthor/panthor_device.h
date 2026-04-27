@@ -81,6 +81,9 @@ struct panthor_irq {
 	/** @ptdev: Panthor device */
 	struct panthor_device *ptdev;
 
+	/** @iomem: CPU mapping of IRQ base address */
+	void __iomem *iomem;
+
 	/** @irq: IRQ number. */
 	int irq;
 
@@ -415,6 +418,11 @@ panthor_exception_is_fault(u32 exception_code)
 const char *panthor_exception_name(struct panthor_device *ptdev,
 				   u32 exception_code);
 
+#define INT_RAWSTAT 0x0
+#define INT_CLEAR   0x4
+#define INT_MASK    0x8
+#define INT_STAT    0xc
+
 /**
  * PANTHOR_IRQ_HANDLER() - Define interrupt handlers and the interrupt
  * registration function.
@@ -425,14 +433,13 @@ const char *panthor_exception_name(struct panthor_device *ptdev,
  *
  * void (*handler)(struct panthor_device *, u32 status);
  */
-#define PANTHOR_IRQ_HANDLER(__name, __reg_prefix, __handler)					\
+#define PANTHOR_IRQ_HANDLER(__name, __handler)							\
 static irqreturn_t panthor_ ## __name ## _irq_raw_handler(int irq, void *data)			\
 {												\
 	struct panthor_irq *pirq = data;							\
-	struct panthor_device *ptdev = pirq->ptdev;						\
 	enum panthor_irq_state old_state;							\
 												\
-	if (!gpu_read(ptdev->iomem, __reg_prefix ## _INT_STAT))					\
+	if (!gpu_read(pirq->iomem, INT_STAT))							\
 		return IRQ_NONE;								\
 												\
 	guard(spinlock_irqsave)(&pirq->mask_lock);						\
@@ -442,7 +449,7 @@ static irqreturn_t panthor_ ## __name ## _irq_raw_handler(int irq, void *data)		
 	if (old_state != PANTHOR_IRQ_STATE_ACTIVE)						\
 		return IRQ_NONE;								\
 												\
-	gpu_write(ptdev->iomem, __reg_prefix ## _INT_MASK, 0);					\
+	gpu_write(pirq->iomem, INT_MASK, 0);							\
 	return IRQ_WAKE_THREAD;									\
 }												\
 												\
@@ -461,7 +468,7 @@ static irqreturn_t panthor_ ## __name ## _irq_threaded_handler(int irq, void *da
 		 * right before the HW event kicks in. TLDR; it's all expected races we're	\
 		 * covered for.									\
 		 */										\
-		u32 status = gpu_read(ptdev->iomem, __reg_prefix ## _INT_RAWSTAT) & pirq->mask;	\
+		u32 status = gpu_read(pirq->iomem, INT_RAWSTAT) & pirq->mask;			\
 												\
 		if (!status)									\
 			break;									\
@@ -477,7 +484,7 @@ static irqreturn_t panthor_ ## __name ## _irq_threaded_handler(int irq, void *da
 					   PANTHOR_IRQ_STATE_PROCESSING,			\
 					   PANTHOR_IRQ_STATE_ACTIVE);				\
 		if (old_state == PANTHOR_IRQ_STATE_PROCESSING)					\
-			gpu_write(ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
+			gpu_write(pirq->iomem, INT_MASK, pirq->mask);				\
 	}											\
 												\
 	return ret;										\
@@ -487,7 +494,7 @@ static inline void panthor_ ## __name ## _irq_suspend(struct panthor_irq *pirq)	
 {												\
 	scoped_guard(spinlock_irqsave, &pirq->mask_lock) {					\
 		atomic_set(&pirq->state, PANTHOR_IRQ_STATE_SUSPENDING);				\
-		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, 0);			\
+		gpu_write(pirq->iomem, INT_MASK, 0);						\
 	}											\
 	synchronize_irq(pirq->irq);								\
 	atomic_set(&pirq->state, PANTHOR_IRQ_STATE_SUSPENDED);					\
@@ -498,17 +505,18 @@ static inline void panthor_ ## __name ## _irq_resume(struct panthor_irq *pirq)		
 	guard(spinlock_irqsave)(&pirq->mask_lock);						\
 												\
 	atomic_set(&pirq->state, PANTHOR_IRQ_STATE_ACTIVE);					\
-	gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_CLEAR, pirq->mask);			\
-	gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);			\
+	gpu_write(pirq->iomem, INT_CLEAR, pirq->mask);						\
+	gpu_write(pirq->iomem, INT_MASK, pirq->mask);						\
 }												\
 												\
 static int panthor_request_ ## __name ## _irq(struct panthor_device *ptdev,			\
 					      struct panthor_irq *pirq,				\
-					      int irq, u32 mask)				\
+					      int irq, u32 mask, void __iomem *iomem)		\
 {												\
 	pirq->ptdev = ptdev;									\
 	pirq->irq = irq;									\
 	pirq->mask = mask;									\
+	pirq->iomem = iomem;									\
 	spin_lock_init(&pirq->mask_lock);							\
 	panthor_ ## __name ## _irq_resume(pirq);						\
 												\
@@ -530,7 +538,7 @@ static inline void panthor_ ## __name ## _irq_enable_events(struct panthor_irq *
 	 * If the IRQ is suspended/suspending, the mask is restored at resume time.		\
 	 */											\
 	if (atomic_read(&pirq->state) == PANTHOR_IRQ_STATE_ACTIVE)				\
-		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
+		gpu_write(pirq->iomem, INT_MASK, pirq->mask);					\
 }												\
 												\
 static inline void panthor_ ## __name ## _irq_disable_events(struct panthor_irq *pirq, u32 mask)\
@@ -544,7 +552,7 @@ static inline void panthor_ ## __name ## _irq_disable_events(struct panthor_irq 
 	 * If the IRQ is suspended/suspending, the mask is restored at resume time.		\
 	 */											\
 	if (atomic_read(&pirq->state) == PANTHOR_IRQ_STATE_ACTIVE)				\
-		gpu_write(pirq->ptdev->iomem, __reg_prefix ## _INT_MASK, pirq->mask);		\
+		gpu_write(pirq->iomem, INT_MASK, pirq->mask);					\
 }
 
 extern struct workqueue_struct *panthor_cleanup_wq;

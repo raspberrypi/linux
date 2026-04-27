@@ -5,6 +5,9 @@
 #define __PANTHOR_MMU_REGS_H__
 
 /* MMU regs */
+
+#define MMU_INT_BASE					0x2000
+
 #define MMU_INT_RAWSTAT					0x2000
 #define MMU_INT_CLEAR					0x2004
 #define MMU_INT_MASK					0x2008

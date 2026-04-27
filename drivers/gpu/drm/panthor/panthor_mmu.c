@@ -569,7 +569,7 @@ static u32 panthor_mmu_as_fault_mask(struct panthor_device *ptdev, u32 as)
 
 /* Forward declaration to call helpers within as_enable/disable */
 static void panthor_mmu_irq_handler(struct panthor_device *ptdev, u32 status);
-PANTHOR_IRQ_HANDLER(mmu, MMU, panthor_mmu_irq_handler);
+PANTHOR_IRQ_HANDLER(mmu, panthor_mmu_irq_handler);
 
 static int panthor_mmu_as_enable(struct panthor_device *ptdev, u32 as_nr,
 				 u64 transtab, u64 transcfg, u64 memattr)
@@ -2888,7 +2888,8 @@ int panthor_mmu_init(struct panthor_device *ptdev)
 		return -ENODEV;
 
 	ret = panthor_request_mmu_irq(ptdev, &mmu->irq, irq,
-				      panthor_mmu_fault_mask(ptdev, ~0));
+				      panthor_mmu_fault_mask(ptdev, ~0),
+				      ptdev->iomem + MMU_INT_BASE);
 	if (ret)
 		return ret;
 

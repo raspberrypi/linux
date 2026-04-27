@@ -15,6 +15,8 @@
 #define   MCU_STATUS_HALT				2
 #define   MCU_STATUS_FATAL				3
 
+#define JOB_INT_BASE					0x1000
+
 #define JOB_INT_RAWSTAT					0x1000
 #define JOB_INT_CLEAR					0x1004
 #define JOB_INT_MASK					0x1008
