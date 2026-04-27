@@ -1,3 +1,5 @@
+# Linux 6.19 is now end-of-life
+
 Linux kernel
 ============
 
