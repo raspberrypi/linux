@@ -20,11 +20,11 @@
 
 #include "panthor_device.h"
 #include "panthor_fw.h"
+#include "panthor_fw_regs.h"
 #include "panthor_gem.h"
 #include "panthor_gpu.h"
 #include "panthor_hw.h"
 #include "panthor_mmu.h"
-#include "panthor_regs.h"
 #include "panthor_sched.h"
 #include "panthor_trace.h"
 

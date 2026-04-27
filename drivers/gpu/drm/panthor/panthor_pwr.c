@@ -11,9 +11,10 @@
 #include <drm/drm_print.h>
 
 #include "panthor_device.h"
+#include "panthor_gpu_regs.h"
 #include "panthor_hw.h"
 #include "panthor_pwr.h"
-#include "panthor_regs.h"
+#include "panthor_pwr_regs.h"
 
 #define PWR_INTERRUPTS_MASK \
 	(PWR_IRQ_POWER_CHANGED_SINGLE | \

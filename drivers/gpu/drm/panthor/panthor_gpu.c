@@ -19,8 +19,8 @@
 
 #include "panthor_device.h"
 #include "panthor_gpu.h"
+#include "panthor_gpu_regs.h"
 #include "panthor_hw.h"
-#include "panthor_regs.h"
 
 #define CREATE_TRACE_POINTS
 #include "panthor_trace.h"
