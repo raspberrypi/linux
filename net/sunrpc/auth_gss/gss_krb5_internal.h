@@ -186,6 +186,12 @@ u32 krb5_etm_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
 
 u32 gss_krb5_errno_to_status(int err);
 
+int gss_krb5_mic_build_sg(const struct xdr_buf *body,
+			  void *cksum, unsigned int cksum_len,
+			  void *hdr,
+			  struct scatterlist *sg_head,
+			  struct scatterlist **sg_overflow);
+
 u32 gss_krb5_aead_encrypt(struct krb5_ctx *kctx, u32 offset,
 			  struct xdr_buf *buf, struct page **pages);
 u32 gss_krb5_aead_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,

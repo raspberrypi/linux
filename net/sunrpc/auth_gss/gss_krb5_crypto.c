@@ -1103,3 +1103,85 @@ gss_krb5_aead_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
 	*tailskip = sec_len - data_offset - data_len;
 	return GSS_S_COMPLETE;
 }
+
+/**
+ * gss_krb5_mic_build_sg - Build scatterlist for MIC token operations
+ * @body: xdr_buf containing the message body
+ * @cksum: pointer to checksum area in the token buffer
+ * @cksum_len: length of checksum area
+ * @hdr: pointer to GSS token header
+ * @sg_head: caller-provided scatterlist array; if more than
+ *	XDR_BUF_TO_SG_NENTS entries are needed, an overflow
+ *	scatterlist is allocated and chained automatically
+ * @sg_overflow: OUT: overflow scatterlist, caller must kfree
+ *
+ * Per RFC 4121 Section 4.2.4, MIC token checksums cover the
+ * message body followed by the token header. The checksum
+ * output or received checksum occupies the first scatterlist
+ * entry.  This layout cannot be constructed by
+ * xdr_buf_to_sg_alloc() because the checksum area and the GSS
+ * header lie outside the xdr_buf.
+ *
+ * Returns the number of scatterlist entries on success, or a
+ * negative errno on failure.
+ */
+int gss_krb5_mic_build_sg(const struct xdr_buf *body,
+			  void *cksum, unsigned int cksum_len,
+			  void *hdr,
+			  struct scatterlist *sg_head,
+			  struct scatterlist **sg_overflow)
+{
+	struct scatterlist *entry;
+	int body_max, body_nsg, nsg;
+
+	*sg_overflow = NULL;
+
+	body_max = 2;
+	if (body->page_len)
+		body_max += DIV_ROUND_UP(body->page_len +
+					 offset_in_page(body->page_base),
+					 PAGE_SIZE);
+	nsg = 1 + body_max + 1;
+	if (nsg <= XDR_BUF_TO_SG_NENTS) {
+		sg_init_table(sg_head, nsg);
+	} else {
+		unsigned int overflow_nents =
+			nsg - XDR_BUF_TO_SG_NENTS + 1;
+
+		*sg_overflow = kmalloc_array(overflow_nents,
+					     sizeof(**sg_overflow),
+					     GFP_NOFS);
+		if (!*sg_overflow)
+			return -ENOMEM;
+
+		sg_init_table(sg_head, XDR_BUF_TO_SG_NENTS);
+		sg_init_table(*sg_overflow, overflow_nents);
+		sg_chain(sg_head, XDR_BUF_TO_SG_NENTS, *sg_overflow);
+	}
+
+	sg_set_buf(&sg_head[0], cksum, cksum_len);
+	body_nsg = xdr_buf_to_sg(body, 0, body->len,
+				 sg_next(&sg_head[0]), body_max);
+	if (body_nsg < 0)
+		goto out_err;
+
+	/*
+	 * xdr_buf_to_sg marks the last body entry as end-of-list;
+	 * clear it so the trailing header entry is reachable.
+	 */
+	if (body_nsg > 0) {
+		entry = sg_last(sg_next(&sg_head[0]), body_nsg);
+		sg_unmark_end(entry);
+		entry = sg_next(entry);
+	} else {
+		entry = sg_next(&sg_head[0]);
+	}
+	sg_set_buf(entry, hdr, GSS_KRB5_TOK_HDR_LEN);
+	sg_mark_end(entry);
+	return 1 + body_nsg + 1;
+
+out_err:
+	kfree(*sg_overflow);
+	*sg_overflow = NULL;
+	return body_nsg;
+}
