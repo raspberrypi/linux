@@ -240,6 +240,8 @@ int io_register_napi(struct io_ring_ctx *ctx, void __user *arg)
 	if (copy_to_user(arg, &curr, sizeof(curr)))
 		return -EFAULT;
 
+	/* cap NAPI at 10 msec of spin time */
+	napi.busy_poll_to = min(10000, napi.busy_poll_to);
 	WRITE_ONCE(ctx->napi_busy_poll_dt, napi.busy_poll_to * NSEC_PER_USEC);
 	WRITE_ONCE(ctx->napi_prefer_busy_poll, !!napi.prefer_busy_poll);
 	WRITE_ONCE(ctx->napi_enabled, true);
