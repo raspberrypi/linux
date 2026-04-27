@@ -300,6 +300,10 @@ gss_krb5_import_ctx_v2(struct krb5_ctx *ctx, gfp_t gfp_mask)
 		.len	= ctx->gk5e->keylength,
 		.data	= ctx->Ksess,
 	};
+	struct krb5_buffer TK = {
+		.len	= ctx->gk5e->keylength,
+		.data	= ctx->Ksess,
+	};
 	struct xdr_netobj keyout;
 	int ret = -EINVAL;
 
@@ -374,12 +378,49 @@ gss_krb5_import_ctx_v2(struct krb5_ctx *ctx, gfp_t gfp_mask)
 	if (ctx->acceptor_integ == NULL)
 		goto out_free;
 
+	ctx->initiator_enc_aead =
+		crypto_krb5_prepare_encryption(ctx->krb5e, &TK,
+					       KG_USAGE_INITIATOR_SEAL,
+					       gfp_mask);
+	if (IS_ERR(ctx->initiator_enc_aead)) {
+		ret = PTR_ERR(ctx->initiator_enc_aead);
+		goto out_free;
+	}
+	ctx->acceptor_enc_aead =
+		crypto_krb5_prepare_encryption(ctx->krb5e, &TK,
+					       KG_USAGE_ACCEPTOR_SEAL,
+					       gfp_mask);
+	if (IS_ERR(ctx->acceptor_enc_aead)) {
+		ret = PTR_ERR(ctx->acceptor_enc_aead);
+		goto out_free;
+	}
+	ctx->initiator_sign_shash =
+		crypto_krb5_prepare_checksum(ctx->krb5e, &TK,
+					     KG_USAGE_INITIATOR_SIGN,
+					     gfp_mask);
+	if (IS_ERR(ctx->initiator_sign_shash)) {
+		ret = PTR_ERR(ctx->initiator_sign_shash);
+		goto out_free;
+	}
+	ctx->acceptor_sign_shash =
+		crypto_krb5_prepare_checksum(ctx->krb5e, &TK,
+					     KG_USAGE_ACCEPTOR_SIGN,
+					     gfp_mask);
+	if (IS_ERR(ctx->acceptor_sign_shash)) {
+		ret = PTR_ERR(ctx->acceptor_sign_shash);
+		goto out_free;
+	}
+
 	ret = 0;
 out:
 	kfree_sensitive(keyout.data);
 	return ret;
 
 out_free:
+	crypto_free_shash(ctx->acceptor_sign_shash);
+	crypto_free_shash(ctx->initiator_sign_shash);
+	crypto_free_aead(ctx->acceptor_enc_aead);
+	crypto_free_aead(ctx->initiator_enc_aead);
 	crypto_free_ahash(ctx->acceptor_integ);
 	crypto_free_ahash(ctx->initiator_integ);
 	crypto_free_ahash(ctx->acceptor_sign);
@@ -502,6 +543,10 @@ gss_krb5_delete_sec_context(void *internal_ctx)
 {
 	struct krb5_ctx *kctx = internal_ctx;
 
+	crypto_free_shash(kctx->acceptor_sign_shash);
+	crypto_free_shash(kctx->initiator_sign_shash);
+	crypto_free_aead(kctx->acceptor_enc_aead);
+	crypto_free_aead(kctx->initiator_enc_aead);
 	crypto_free_sync_skcipher(kctx->seq);
 	crypto_free_sync_skcipher(kctx->enc);
 	crypto_free_sync_skcipher(kctx->acceptor_enc);

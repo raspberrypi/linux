@@ -65,6 +65,10 @@ struct krb5_ctx {
 	u32			flags;
 	const struct gss_krb5_enctype *gk5e; /* enctype-specific info */
 	const struct krb5_enctype *krb5e; /* crypto/krb5 enctype */
+	struct crypto_aead	*initiator_enc_aead;
+	struct crypto_aead	*acceptor_enc_aead;
+	struct crypto_shash	*initiator_sign_shash;
+	struct crypto_shash	*acceptor_sign_shash;
 	struct crypto_sync_skcipher *enc;
 	struct crypto_sync_skcipher *seq;
 	struct crypto_sync_skcipher *acceptor_enc;
