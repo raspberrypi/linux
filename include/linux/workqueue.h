@@ -529,8 +529,10 @@ alloc_workqueue_noprof(const char *fmt, unsigned int flags, int max_active, ...)
  * Pointer to the allocated workqueue on success, %NULL on failure.
  */
 __printf(2, 5) struct workqueue_struct *
-devm_alloc_workqueue(struct device *dev, const char *fmt, unsigned int flags,
-		     int max_active, ...);
+devm_alloc_workqueue_noprof(struct device *dev, const char *fmt,
+			    unsigned int flags, int max_active, ...);
+#define devm_alloc_workqueue(...)	\
+	alloc_hooks(devm_alloc_workqueue_noprof(__VA_ARGS__))
 
 #ifdef CONFIG_LOCKDEP
 /**
