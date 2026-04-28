@@ -697,6 +697,13 @@ static int sdw_program_params(struct sdw_bus *bus, bool prepare)
 		if (scale_index < 0)
 			return scale_index;
 
+		/* Skip the unattached Peripherals */
+		if (!completion_done(&slave->enumeration_complete)) {
+			dev_warn(&slave->dev,
+				 "Not enumerated, skip programming BUSCLOCK_SCALE\n");
+			continue;
+		}
+
 		ret = sdw_write_no_pm(slave, addr1, scale_index);
 		if (ret < 0) {
 			dev_err(&slave->dev, "SDW_SCP_BUSCLOCK_SCALE register write failed\n");
