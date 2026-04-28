@@ -1514,9 +1514,6 @@ static int pci_set_low_power_state(struct pci_dev *dev, pci_power_t state, bool 
 				     pci_power_name(dev->current_state),
 				     pci_power_name(state));
 
-	if (dev->bus->self)
-		pcie_aspm_pm_state_change(dev->bus->self, locked);
-
 	return 0;
 }
 
