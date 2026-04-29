@@ -1092,7 +1092,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 		first_dynamic_gpiochip_num = (id >= 0) ? (id + 1) : 0;
 	}
 
-	id = of_alias_get_id(gdev->dev.of_node, "gpiochip");
+	id = of_alias_get_id(to_of_node(gpiochip_choose_fwnode(gc)), "gpiochip");
 	if (id < 0)
 		id = first_dynamic_gpiochip_num;
 
