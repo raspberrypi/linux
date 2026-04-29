@@ -438,15 +438,13 @@ static u32 get_colorcode(enum mipi_dsi_pixel_format fmt)
 		return 0x000;
 	case MIPI_DSI_FMT_RGB888:
 		return 0x005;
-	case MIPI_DSI_FMT_RGB101010:
-		break;
+	default:
+		/* This should be impossible as the format is validated in
+		* rp1dsi_host_attach
+		*/
+		WARN_ONCE(1, "Invalid colour format configured for DSI");
+		return 0x005;
 	}
-
-	/* This should be impossible as the format is validated in
-	 * rp1dsi_host_attach
-	 */
-	WARN_ONCE(1, "Invalid colour format configured for DSI");
-	return 0x005;
 }
 
 /* Frequency limits for DPI, HS and LP clocks, and some magic numbers */
