@@ -3915,38 +3915,20 @@ static const struct rtw89_rx_rate_cnt_info {
 	{FIRST_RATE_GEV1(EHT_NSS2_MCS0), 14, 0, "EHT 2SS:"},
 };
 
-static ssize_t rtw89_debug_priv_phy_info_get(struct rtw89_dev *rtwdev,
-					     struct rtw89_debugfs_priv *debugfs_priv,
-					     char *buf, size_t bufsz)
+static int rtw89_get_rx_pkt_stat(struct rtw89_dev *rtwdev, struct rtw89_bb_ctx *bb,
+				 char *buf, size_t bufsz)
 {
-	struct rtw89_traffic_stats *stats = &rtwdev->stats;
-	struct rtw89_pkt_stat *pkt_stat = &rtwdev->phystat.last_pkt_stat;
+	struct rtw89_pkt_stat *pkt_stat = &bb->last_pkt_stat;
 	const struct rtw89_chip_info *chip = rtwdev->chip;
-	struct rtw89_debugfs_iter_data iter_data;
 	const struct rtw89_rx_rate_cnt_info *info;
-	struct rtw89_hal *hal = &rtwdev->hal;
+	u8 rssi = ewma_rssi_read(&bb->bcn_rssi);
 	char *p = buf, *end = buf + bufsz;
 	enum rtw89_hw_rate first_rate;
-	u8 rssi;
 	int i;
 
-	rssi = ewma_rssi_read(&rtwdev->phystat.bcn_rssi);
-
-	p += scnprintf(p, end - p, "TP TX: %u [%u] Mbps (lv: %d",
-		       stats->tx_throughput, stats->tx_throughput_raw,
-		       stats->tx_tfc_lv);
-	if (hal->thermal_prot_lv)
-		p += scnprintf(p, end - p, ", duty: %d%%",
-			       100 - hal->thermal_prot_lv * RTW89_THERMAL_PROT_STEP);
-	p += scnprintf(p, end - p, "), RX: %u [%u] Mbps (lv: %d)\n",
-		       stats->rx_throughput, stats->rx_throughput_raw,
-		       stats->rx_tfc_lv);
-	p += scnprintf(p, end - p, "Beacon: %u (%d dBm), TF: %u\n",
+	p += scnprintf(p, end - p, "Beacon: %u (%d dBm)\n",
 		       pkt_stat->beacon_nr,
-		       RTW89_RSSI_RAW_TO_DBM(rssi), stats->rx_tf_periodic);
-	p += scnprintf(p, end - p, "Avg packet length: TX=%u, RX=%u\n",
-		       stats->tx_avg_len,
-		       stats->rx_avg_len);
+		       RTW89_RSSI_RAW_TO_DBM(rssi));
 
 	p += scnprintf(p, end - p, "RX count:\n");
 
@@ -3966,6 +3948,39 @@ static ssize_t rtw89_debug_priv_phy_info_get(struct rtw89_dev *rtwdev,
 		}
 		p += scnprintf(p, end - p, "]\n");
 	}
+
+	return p - buf;
+}
+
+static ssize_t rtw89_debug_priv_phy_info_get(struct rtw89_dev *rtwdev,
+					     struct rtw89_debugfs_priv *debugfs_priv,
+					     char *buf, size_t bufsz)
+{
+	struct rtw89_traffic_stats *stats = &rtwdev->stats;
+	struct rtw89_debugfs_iter_data iter_data;
+	struct rtw89_hal *hal = &rtwdev->hal;
+	char *p = buf, *end = buf + bufsz;
+	struct rtw89_bb_ctx *bb;
+
+	p += scnprintf(p, end - p, "TP TX: %u [%u] Mbps (lv: %d",
+		       stats->tx_throughput, stats->tx_throughput_raw,
+		       stats->tx_tfc_lv);
+	if (hal->thermal_prot_lv)
+		p += scnprintf(p, end - p, ", duty: %d%%",
+			       100 - hal->thermal_prot_lv * RTW89_THERMAL_PROT_STEP);
+	p += scnprintf(p, end - p, "), RX: %u [%u] Mbps (lv: %d)\n",
+		       stats->rx_throughput, stats->rx_throughput_raw,
+		       stats->rx_tfc_lv);
+	p += scnprintf(p, end - p, "Avg packet length: TX=%u, RX=%u\n",
+		       stats->tx_avg_len,
+		       stats->rx_avg_len);
+	p += scnprintf(p, end - p, "TF: %u\n", stats->rx_tf_periodic);
+
+	rtw89_for_each_active_bb(rtwdev, bb) {
+		p += scnprintf(p, end - p, "\n[PHY %u]\n", bb->phy_idx);
+		p += rtw89_get_rx_pkt_stat(rtwdev, bb, p, end - p);
+	}
+	p += scnprintf(p, end - p, "\n");
 
 	rtw89_debugfs_iter_data_setup(&iter_data, p, end - p);
 	ieee80211_iterate_stations_atomic(rtwdev->hw, rtw89_sta_info_get_iter, &iter_data);
@@ -4658,12 +4673,26 @@ rtw89_debug_priv_diag_mac_get(struct rtw89_dev *rtwdev,
 	return rtw89_mac_diag_iter_all(rtwdev, buf, bufsz);
 }
 
+static int rtw89_get_beacon_info(struct rtw89_dev *rtwdev, struct rtw89_bb_ctx *bb,
+				 char *buf, size_t bufsz)
+{
+	struct rtw89_pkt_stat *pkt_stat = &bb->last_pkt_stat;
+	char *p = buf, *end = buf + bufsz;
+
+	p += scnprintf(p, end - p, "[PHY %u]\n", bb->phy_idx);
+	p += scnprintf(p, end - p, "Beacon: %u\n", pkt_stat->beacon_nr);
+	p += scnprintf(p, end - p, "raw rssi: %lu\n", ewma_rssi_read(&bb->bcn_rssi));
+	p += scnprintf(p, end - p, "hw rate: %u\n", pkt_stat->beacon_rate);
+	p += scnprintf(p, end - p, "length: %u\n\n", pkt_stat->beacon_len);
+
+	return p - buf;
+}
+
 static ssize_t
 rtw89_debug_priv_beacon_info_get(struct rtw89_dev *rtwdev,
 				 struct rtw89_debugfs_priv *debugfs_priv,
 				 char *buf, size_t bufsz)
 {
-	struct rtw89_pkt_stat *pkt_stat = &rtwdev->phystat.last_pkt_stat;
 	struct rtw89_beacon_track_info *bcn_track = &rtwdev->bcn_track;
 	struct rtw89_beacon_stat *bcn_stat = &rtwdev->phystat.bcn_stat;
 	struct rtw89_beacon_dist *bcn_dist = &bcn_stat->bcn_dist;
@@ -4671,17 +4700,16 @@ rtw89_debug_priv_beacon_info_get(struct rtw89_dev *rtwdev,
 	char *p = buf, *end = buf + bufsz;
 	u16 *drift = bcn_stat->drift;
 	u8 bcn_num = bcn_stat->num;
+	struct rtw89_bb_ctx *bb;
 	u8 count;
 	u8 i;
 
+	rtw89_for_each_active_bb(rtwdev, bb)
+		p += rtw89_get_beacon_info(rtwdev, bb, p, end - p);
+
 	p += scnprintf(p, end - p, "[Beacon info]\n");
-	p += scnprintf(p, end - p, "count: %u\n", pkt_stat->beacon_nr);
 	p += scnprintf(p, end - p, "interval: %u\n", bcn_track->beacon_int);
 	p += scnprintf(p, end - p, "dtim: %u\n", bcn_track->dtim);
-	p += scnprintf(p, end - p, "raw rssi: %lu\n",
-		       ewma_rssi_read(&rtwdev->phystat.bcn_rssi));
-	p += scnprintf(p, end - p, "hw rate: %u\n", pkt_stat->beacon_rate);
-	p += scnprintf(p, end - p, "length: %u\n", pkt_stat->beacon_len);
 
 	p += scnprintf(p, end - p, "\n[Distribution]\n");
 	p += scnprintf(p, end - p, "tbtt\n");

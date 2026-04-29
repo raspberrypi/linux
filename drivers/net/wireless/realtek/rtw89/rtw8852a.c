@@ -2107,13 +2107,14 @@ static void rtw8852a_query_ppdu(struct rtw89_dev *rtwdev,
 				struct rtw89_rx_phy_ppdu *phy_ppdu,
 				struct ieee80211_rx_status *status)
 {
-	u8 path;
+	struct rtw89_bb_ctx *bb = rtw89_get_bb_ctx(rtwdev, phy_ppdu->phy_idx);
 	u8 *rx_power = phy_ppdu->rssi;
+	u8 path;
 	u8 raw;
 
 	if (!status->signal) {
 		if (phy_ppdu->to_self)
-			raw = ewma_rssi_read(&rtwdev->phystat.bcn_rssi);
+			raw = ewma_rssi_read(&bb->bcn_rssi);
 		else
 			raw = max(rx_power[RF_PATH_A], rx_power[RF_PATH_B]);
 

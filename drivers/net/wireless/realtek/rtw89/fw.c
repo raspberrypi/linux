@@ -3008,14 +3008,15 @@ int rtw89_fw_h2c_lps_ml_cmn_info(struct rtw89_dev *rtwdev,
 				 struct rtw89_vif *rtwvif)
 {
 	const struct rtw89_phy_bb_gain_info_be *gain = &rtwdev->bb_gain.be;
-	struct rtw89_pkt_stat *pkt_stat = &rtwdev->phystat.cur_pkt_stat;
 	static const u8 bcn_bw_ofst[] = {0, 0, 0, 3, 6, 9, 0, 12};
 	const struct rtw89_chip_info *chip = rtwdev->chip;
 	struct rtw89_efuse *efuse = &rtwdev->efuse;
 	struct rtw89_h2c_lps_ml_cmn_info *h2c;
 	struct rtw89_vif_link *rtwvif_link;
+	struct rtw89_pkt_stat *pkt_stat;
 	const struct rtw89_chan *chan;
 	u8 bw_idx = RTW89_BB_BW_20_40;
+	struct rtw89_bb_ctx *bb;
 	u32 len = sizeof(*h2c);
 	unsigned int link_id;
 	struct sk_buff *skb;
@@ -3046,11 +3047,14 @@ int rtw89_fw_h2c_lps_ml_cmn_info(struct rtw89_dev *rtwdev,
 		path = rtwvif_link->phy_idx == RTW89_PHY_1 ? RF_PATH_B : RF_PATH_A;
 		chan = rtw89_chan_get(rtwdev, rtwvif_link->chanctx_idx);
 		gain_band = rtw89_subband_to_gain_band_be(chan->subband_type);
+		bb = rtw89_get_bb_ctx(rtwdev, rtwvif_link->phy_idx);
 
 		h2c->central_ch[rtwvif_link->phy_idx] = chan->channel;
 		h2c->pri_ch[rtwvif_link->phy_idx] = chan->primary_channel;
 		h2c->band[rtwvif_link->phy_idx] = chan->band_type;
 		h2c->bw[rtwvif_link->phy_idx] = chan->band_width;
+
+		pkt_stat = &bb->cur_pkt_stat;
 		if (pkt_stat->beacon_rate < RTW89_HW_RATE_OFDM6)
 			h2c->bcn_rate_type[rtwvif_link->phy_idx] = 0x1;
 		else
