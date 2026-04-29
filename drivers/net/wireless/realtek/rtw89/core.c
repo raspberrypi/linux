@@ -4270,12 +4270,18 @@ static void rtw89_core_mlsr_link_decision(struct rtw89_dev *rtwdev,
 {
 	unsigned int sel_link_id = IEEE80211_MLD_MAX_NUM_LINKS;
 	struct ieee80211_vif *vif = rtwvif_to_vif(rtwvif);
+	u8 decided_bands = BIT(RTW89_BAND_NUM) - 1;
 	struct rtw89_vif_link *rtwvif_link;
 	const struct rtw89_chan *chan;
 	unsigned long usable_links;
 	unsigned int link_id;
-	u8 decided_bands;
 	u8 rssi;
+
+	usable_links = ieee80211_vif_usable_links(vif);
+
+	rtwvif_link = rtw89_get_designated_link(rtwvif);
+	if (unlikely(!rtwvif_link))
+		goto select;
 
 	rssi = ewma_rssi_read(&rtwdev->phystat.bcn_rssi);
 	if (unlikely(!rssi))
@@ -4287,12 +4293,6 @@ static void rtw89_core_mlsr_link_decision(struct rtw89_dev *rtwdev,
 		decided_bands = BIT(RTW89_BAND_2G);
 	else
 		return;
-
-	usable_links = ieee80211_vif_usable_links(vif);
-
-	rtwvif_link = rtw89_get_designated_link(rtwvif);
-	if (unlikely(!rtwvif_link))
-		goto select;
 
 	chan = rtw89_chan_get(rtwdev, rtwvif_link->chanctx_idx);
 	if (decided_bands & BIT(chan->band_type))
