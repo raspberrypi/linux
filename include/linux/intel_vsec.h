@@ -135,8 +135,6 @@ struct intel_vsec_platform_info {
  * struct intel_vsec_device - Auxbus specific device information
  * @auxdev:        auxbus device struct for auxbus access
  * @dev:           struct device associated with the device
- * @resource:      PCI discovery resources (BAR windows), one per discovery
- *                 instance. Valid only when @src == INTEL_VSEC_DISC_PCI
  * @acpi_disc:     ACPI discovery tables, each entry is two QWORDs
  *                 in little-endian format as defined by the PMT ACPI spec.
  *                 Valid only when @src == INTEL_VSEC_DISC_ACPI.
@@ -149,11 +147,12 @@ struct intel_vsec_platform_info {
  * @quirks:        specified quirks
  * @base_addr:     base address of entries (if specified)
  * @cap_id:        the enumerated id of the vsec feature
+ * @resource:      PCI discovery resources (BAR windows), one per discovery
+ *                 instance. Valid only when @src == INTEL_VSEC_DISC_PCI
  */
 struct intel_vsec_device {
 	struct auxiliary_device auxdev;
 	struct device *dev;
-	struct resource *resource;
 	u32 (*acpi_disc)[4];
 	enum intel_vsec_disc_source src;
 	struct ida *ida;
@@ -164,6 +163,7 @@ struct intel_vsec_device {
 	unsigned long quirks;
 	u64 base_addr;
 	unsigned long cap_id;
+	struct resource resource[] __counted_by(num_resources);
 };
 
 /**

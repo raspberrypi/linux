@@ -634,15 +634,12 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 	if (!name)
 		return -EOPNOTSUPP;
 
-	res = kzalloc_objs(*res, pfs->pfs_header.num_entries);
-	if (!res)
+	feature_vsec_dev = kzalloc_flex(*feature_vsec_dev, resource, pfs->pfs_header.num_entries);
+	if (!feature_vsec_dev)
 		return -ENOMEM;
 
-	feature_vsec_dev = kzalloc_obj(*feature_vsec_dev);
-	if (!feature_vsec_dev) {
-		kfree(res);
-		return -ENOMEM;
-	}
+	feature_vsec_dev->num_resources = pfs->pfs_header.num_entries;
+	res = feature_vsec_dev->resource;
 
 	snprintf(feature_id_name, sizeof(feature_id_name), "tpmi-%s", name);
 
@@ -655,8 +652,6 @@ static int tpmi_create_device(struct intel_tpmi_info *tpmi_info,
 	}
 
 	feature_vsec_dev->dev = vsec_dev->dev;
-	feature_vsec_dev->resource = res;
-	feature_vsec_dev->num_resources = pfs->pfs_header.num_entries;
 	feature_vsec_dev->priv_data = &tpmi_info->plat_info;
 	feature_vsec_dev->priv_data_size = sizeof(tpmi_info->plat_info);
 	feature_vsec_dev->ida = &intel_vsec_tpmi_ida;
