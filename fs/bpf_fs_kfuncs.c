@@ -103,7 +103,7 @@ static bool match_security_bpf_prefix(const char *name__str)
 
 static int bpf_xattr_read_permission(const char *name, struct inode *inode)
 {
-	if (WARN_ON(!inode))
+	if (!inode)
 		return -EINVAL;
 
 	/* Allow reading xattr with user. and security.bpf. prefix */
@@ -173,7 +173,7 @@ __bpf_kfunc_end_defs();
 
 static int bpf_xattr_write_permission(const char *name, struct inode *inode)
 {
-	if (WARN_ON(!inode))
+	if (!inode)
 		return -EINVAL;
 
 	/* Only allow setting and removing security.bpf. xattrs */
@@ -292,6 +292,9 @@ __bpf_kfunc int bpf_set_dentry_xattr(struct dentry *dentry, const char *name__st
 	struct inode *inode = d_inode(dentry);
 	int ret;
 
+	if (!inode)
+		return -EINVAL;
+
 	inode_lock(inode);
 	ret = bpf_set_dentry_xattr_locked(dentry, name__str, value_p, flags);
 	inode_unlock(inode);
@@ -316,6 +319,9 @@ __bpf_kfunc int bpf_remove_dentry_xattr(struct dentry *dentry, const char *name_
 {
 	struct inode *inode = d_inode(dentry);
 	int ret;
+
+	if (!inode)
+		return -EINVAL;
 
 	inode_lock(inode);
 	ret = bpf_remove_dentry_xattr_locked(dentry, name__str);
