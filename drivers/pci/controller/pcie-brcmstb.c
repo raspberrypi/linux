@@ -2653,8 +2653,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 		return PTR_ERR(pcie->clk);
 
 	ret = of_pci_get_max_link_speed(np);
-	if (pcie_get_link_speed(ret) == PCI_SPEED_UNKNOWN)
-		pcie->gen = 0;
+	pcie->gen = (ret < 0) ? 0 : ret;
 
 	pcie->ssc = !(pcie->cfg->quirks & CFG_QUIRK_NO_SSC) &&
 		    of_property_read_bool(np, "brcm,enable-ssc");
