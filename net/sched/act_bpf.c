@@ -76,7 +76,7 @@ TC_INDIRECT_SCOPE int tcf_bpf_act(struct sk_buff *skb,
 		break;
 	case TC_ACT_SHOT:
 		action = filter_res;
-		qstats_drop_inc(this_cpu_ptr(prog->common.cpu_qstats));
+		qstats_cpu_drop_inc(prog->common.cpu_qstats);
 		break;
 	case TC_ACT_UNSPEC:
 		action = prog->tcf_action;

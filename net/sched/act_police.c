@@ -316,7 +316,7 @@ inc_overlimits:
 	qstats_overlimit_inc(this_cpu_ptr(police->common.cpu_qstats));
 inc_drops:
 	if (ret == TC_ACT_SHOT)
-		qstats_drop_inc(this_cpu_ptr(police->common.cpu_qstats));
+		qstats_cpu_drop_inc(police->common.cpu_qstats);
 end:
 	return ret;
 }

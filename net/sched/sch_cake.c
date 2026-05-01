@@ -1829,7 +1829,7 @@ static s32 cake_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 
 		if (ack) {
 			WRITE_ONCE(b->ack_drops, b->ack_drops + 1);
-			sch->qstats.drops++;
+			qdisc_qstats_drop(sch);
 			ack_pkt_len = qdisc_pkt_len(ack);
 			b->bytes += ack_pkt_len;
 			q->buffer_used += skb->truesize - ack->truesize;

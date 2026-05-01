@@ -727,7 +727,7 @@ static int tcf_ife_decode(struct sk_buff *skb, const struct tc_action *a,
 
 	tlv_data = ife_decode(skb, &metalen);
 	if (unlikely(!tlv_data)) {
-		qstats_drop_inc(this_cpu_ptr(ife->common.cpu_qstats));
+		qstats_cpu_drop_inc(ife->common.cpu_qstats);
 		return TC_ACT_SHOT;
 	}
 
@@ -740,7 +740,7 @@ static int tcf_ife_decode(struct sk_buff *skb, const struct tc_action *a,
 		curr_data = ife_tlv_meta_decode(tlv_data, ifehdr_end, &mtype,
 						&dlen, NULL);
 		if (!curr_data) {
-			qstats_drop_inc(this_cpu_ptr(ife->common.cpu_qstats));
+			qstats_cpu_drop_inc(ife->common.cpu_qstats);
 			return TC_ACT_SHOT;
 		}
 
@@ -755,7 +755,7 @@ static int tcf_ife_decode(struct sk_buff *skb, const struct tc_action *a,
 	}
 
 	if (WARN_ON(tlv_data != ifehdr_end)) {
-		qstats_drop_inc(this_cpu_ptr(ife->common.cpu_qstats));
+		qstats_cpu_drop_inc(ife->common.cpu_qstats);
 		return TC_ACT_SHOT;
 	}
 
@@ -821,7 +821,7 @@ static int tcf_ife_encode(struct sk_buff *skb, const struct tc_action *a,
 	 * so lets be conservative.. */
 	if ((action == TC_ACT_SHOT) || exceed_mtu) {
 drop:
-		qstats_drop_inc(this_cpu_ptr(ife->common.cpu_qstats));
+		qstats_cpu_drop_inc(ife->common.cpu_qstats);
 		return TC_ACT_SHOT;
 	}
 
