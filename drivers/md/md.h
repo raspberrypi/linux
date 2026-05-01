@@ -1042,6 +1042,11 @@ void mddev_update_io_opt(struct mddev *mddev, unsigned int nr_stripes);
 
 extern const struct block_device_operations md_fops;
 
+static inline bool md_cloned_bio(struct mddev *mddev, struct bio *bio)
+{
+	return bio->bi_pool == &mddev->io_clone_set;
+}
+
 /*
  * MD devices can be used undeneath by DM, in which case ->gendisk is NULL.
  */
