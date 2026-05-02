@@ -793,7 +793,7 @@ static int tipc_udp_enable(struct net *net, struct tipc_bearer *b,
 
 free:
 	dst_cache_destroy(&ub->rcast.dst_cache);
-	udp_tunnel_sock_release(ub->ubsock);
+	udp_tunnel_sock_release(ub->ubsock->sk);
 err:
 	kfree(ub);
 	return err;
@@ -815,7 +815,7 @@ static void cleanup_bearer(struct work_struct *work)
 	tn = tipc_net(sock_net(ub->ubsock->sk));
 
 	dst_cache_destroy(&ub->rcast.dst_cache);
-	udp_tunnel_sock_release(ub->ubsock);
+	udp_tunnel_sock_release(ub->ubsock->sk);
 
 	/* Note: could use a call_rcu() to avoid another synchronize_net() */
 	synchronize_net();

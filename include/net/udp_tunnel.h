@@ -176,7 +176,7 @@ static inline void udp_tunnel_set_inner_protocol(struct sk_buff *skb,
 		skb_set_inner_protocol(skb, inner_proto);
 }
 
-void udp_tunnel_sock_release(struct socket *sock);
+void udp_tunnel_sock_release(struct sock *sk);
 
 struct rtable *udp_tunnel_dst_lookup(struct sk_buff *skb,
 				     struct net_device *dev,

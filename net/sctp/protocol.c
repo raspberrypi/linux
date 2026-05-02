@@ -878,7 +878,7 @@ int sctp_udp_sock_start(struct net *net)
 	err = udp_sock_create(net, &udp_conf, &sock);
 	if (err) {
 		pr_err("Failed to create the SCTP UDP tunneling v6 sock\n");
-		udp_tunnel_sock_release(net->sctp.udp4_sock->sk_socket);
+		udp_tunnel_sock_release(net->sctp.udp4_sock);
 		net->sctp.udp4_sock = NULL;
 		return err;
 	}
@@ -896,11 +896,11 @@ int sctp_udp_sock_start(struct net *net)
 void sctp_udp_sock_stop(struct net *net)
 {
 	if (net->sctp.udp4_sock) {
-		udp_tunnel_sock_release(net->sctp.udp4_sock->sk_socket);
+		udp_tunnel_sock_release(net->sctp.udp4_sock);
 		net->sctp.udp4_sock = NULL;
 	}
 	if (net->sctp.udp6_sock) {
-		udp_tunnel_sock_release(net->sctp.udp6_sock->sk_socket);
+		udp_tunnel_sock_release(net->sctp.udp6_sock);
 		net->sctp.udp6_sock = NULL;
 	}
 }

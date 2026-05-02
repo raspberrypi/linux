@@ -1032,7 +1032,7 @@ static void __geneve_sock_release(struct geneve_sock *gs)
 
 	list_del(&gs->list);
 	udp_tunnel_notify_del_rx_port(gs->sock, UDP_TUNNEL_TYPE_GENEVE);
-	udp_tunnel_sock_release(gs->sock);
+	udp_tunnel_sock_release(gs->sock->sk);
 	kfree_rcu(gs, rcu);
 }
 

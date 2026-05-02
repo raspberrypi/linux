@@ -1523,13 +1523,13 @@ static void vxlan_sock_release(struct vxlan_dev *vxlan)
 		vxlan_vs_del_dev(vxlan);
 
 	if (__vxlan_sock_release_prep(sock4)) {
-		udp_tunnel_sock_release(sock4->sock);
+		udp_tunnel_sock_release(sock4->sock->sk);
 		kfree(sock4);
 	}
 
 #if IS_ENABLED(CONFIG_IPV6)
 	if (__vxlan_sock_release_prep(sock6)) {
-		udp_tunnel_sock_release(sock6->sock);
+		udp_tunnel_sock_release(sock6->sock->sk);
 		kfree(sock6);
 	}
 #endif

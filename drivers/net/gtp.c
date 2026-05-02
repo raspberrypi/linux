@@ -885,8 +885,8 @@ static void gtp_encap_disable_sock(struct sock *sk)
 static void gtp_encap_disable(struct gtp_dev *gtp)
 {
 	if (gtp->sk_created) {
-		udp_tunnel_sock_release(gtp->sk0->sk_socket);
-		udp_tunnel_sock_release(gtp->sk1u->sk_socket);
+		udp_tunnel_sock_release(gtp->sk0);
+		udp_tunnel_sock_release(gtp->sk1u);
 		gtp->sk_created = false;
 		gtp->sk0 = NULL;
 		gtp->sk1u = NULL;
@@ -1451,7 +1451,7 @@ static int gtp_create_sockets(struct gtp_dev *gtp, const struct nlattr *nla,
 
 	sk1u = gtp_create_sock(UDP_ENCAP_GTP1U, gtp, nla, family);
 	if (IS_ERR(sk1u)) {
-		udp_tunnel_sock_release(sk0->sk_socket);
+		udp_tunnel_sock_release(sk0);
 		return PTR_ERR(sk1u);
 	}
 

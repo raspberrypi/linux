@@ -3032,7 +3032,7 @@ static int amt_dev_stop(struct net_device *dev)
 	RCU_INIT_POINTER(amt->sock, NULL);
 	synchronize_net();
 	if (sock)
-		udp_tunnel_sock_release(sock);
+		udp_tunnel_sock_release(sock->sk);
 
 	cancel_work_sync(&amt->event_wq);
 	for (i = 0; i < AMT_MAX_EVENTS; i++) {

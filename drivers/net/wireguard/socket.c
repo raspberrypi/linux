@@ -335,7 +335,7 @@ static void sock_free(struct sock *sock)
 	if (unlikely(!sock))
 		return;
 	sk_clear_memalloc(sock);
-	udp_tunnel_sock_release(sock->sk_socket);
+	udp_tunnel_sock_release(sock);
 }
 
 static void set_sock_opts(struct socket *sock)
@@ -396,7 +396,7 @@ retry:
 		port6.local_udp_port = inet_sk(new4->sk)->inet_sport;
 		ret = udp_sock_create(net, &port6, &new6);
 		if (ret < 0) {
-			udp_tunnel_sock_release(new4);
+			udp_tunnel_sock_release(new4->sk);
 			if (ret == -EADDRINUSE && !port && retries++ < 100)
 				goto retry;
 			pr_err("%s: Could not create IPv6 socket\n",

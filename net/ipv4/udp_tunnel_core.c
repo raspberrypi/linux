@@ -195,9 +195,11 @@ void udp_tunnel_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb
 }
 EXPORT_SYMBOL_GPL(udp_tunnel_xmit_skb);
 
-void udp_tunnel_sock_release(struct socket *sock)
+void udp_tunnel_sock_release(struct sock *sk)
 {
-	rcu_assign_sk_user_data(sock->sk, NULL);
+	struct socket *sock = sk->sk_socket;
+
+	rcu_assign_sk_user_data(sk, NULL);
 	synchronize_rcu();
 	kernel_sock_shutdown(sock, SHUT_RDWR);
 	sock_release(sock);

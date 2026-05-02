@@ -290,7 +290,7 @@ static void bareudp_sock_release(struct bareudp_dev *bareudp)
 	sock = bareudp->sock;
 	rcu_assign_pointer(bareudp->sock, NULL);
 	synchronize_net();
-	udp_tunnel_sock_release(sock);
+	udp_tunnel_sock_release(sock->sk);
 }
 
 static int bareudp_stop(struct net_device *dev)
