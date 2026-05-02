@@ -771,7 +771,7 @@ static int tipc_udp_enable(struct net *net, struct tipc_bearer *b,
 	tuncfg.encap_type = 1;
 	tuncfg.encap_rcv = tipc_udp_recv;
 	tuncfg.encap_destroy = NULL;
-	setup_udp_tunnel_sock(net, ub->ubsock, &tuncfg);
+	setup_udp_tunnel_sock(net, ub->ubsock->sk, &tuncfg);
 
 	err = dst_cache_init(&ub->rcast.dst_cache, GFP_ATOMIC);
 	if (err)

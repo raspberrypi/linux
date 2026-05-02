@@ -864,7 +864,7 @@ int sctp_udp_sock_start(struct net *net)
 	tuncfg.encap_type = 1;
 	tuncfg.encap_rcv = sctp_udp_rcv;
 	tuncfg.encap_err_lookup = sctp_udp_v4_err;
-	setup_udp_tunnel_sock(net, sock, &tuncfg);
+	setup_udp_tunnel_sock(net, sock->sk, &tuncfg);
 	net->sctp.udp4_sock = sock->sk;
 
 #if IS_ENABLED(CONFIG_IPV6)
@@ -886,7 +886,7 @@ int sctp_udp_sock_start(struct net *net)
 	tuncfg.encap_type = 1;
 	tuncfg.encap_rcv = sctp_udp_rcv;
 	tuncfg.encap_err_lookup = sctp_udp_v6_err;
-	setup_udp_tunnel_sock(net, sock, &tuncfg);
+	setup_udp_tunnel_sock(net, sock->sk, &tuncfg);
 	net->sctp.udp6_sock = sock->sk;
 #endif
 

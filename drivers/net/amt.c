@@ -2979,7 +2979,7 @@ static int amt_socket_create(struct amt_dev *amt)
 	tunnel_cfg.encap_rcv = amt_rcv;
 	tunnel_cfg.encap_err_lookup = amt_err_lookup;
 	tunnel_cfg.encap_destroy = NULL;
-	setup_udp_tunnel_sock(amt->net, sock, &tunnel_cfg);
+	setup_udp_tunnel_sock(amt->net, sock->sk, &tunnel_cfg);
 
 	rcu_assign_pointer(amt->sock, sock);
 	return 0;

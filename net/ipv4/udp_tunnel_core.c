@@ -68,11 +68,9 @@ static bool sk_saddr_any(struct sock *sk)
 #endif
 }
 
-void setup_udp_tunnel_sock(struct net *net, struct socket *sock,
+void setup_udp_tunnel_sock(struct net *net, struct sock *sk,
 			   struct udp_tunnel_sock_cfg *cfg)
 {
-	struct sock *sk = sock->sk;
-
 	/* Disable multicast loopback */
 	inet_clear_bit(MC_LOOP, sk);
 

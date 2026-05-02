@@ -3624,7 +3624,7 @@ static struct vxlan_sock *vxlan_socket_create(struct net *net, bool ipv6,
 		tunnel_cfg.gro_complete = vxlan_gro_complete;
 	}
 
-	setup_udp_tunnel_sock(net, sock, &tunnel_cfg);
+	setup_udp_tunnel_sock(net, sock->sk, &tunnel_cfg);
 
 	return vs;
 }

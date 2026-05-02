@@ -1434,7 +1434,7 @@ static struct sock *gtp_create_sock(int type, struct gtp_dev *gtp,
 	tuncfg.encap_rcv = gtp_encap_recv;
 	tuncfg.encap_destroy = NULL;
 
-	setup_udp_tunnel_sock(net, sock, &tuncfg);
+	setup_udp_tunnel_sock(net, sock->sk, &tuncfg);
 
 	return sock->sk;
 }
@@ -1689,7 +1689,7 @@ static struct sock *gtp_encap_enable_socket(int fd, int type,
 	tuncfg.encap_rcv = gtp_encap_recv;
 	tuncfg.encap_destroy = gtp_encap_destroy;
 
-	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &tuncfg);
+	setup_udp_tunnel_sock(sock_net(sock->sk), sk, &tuncfg);
 
 out_rel_sock:
 	release_sock(sock->sk);

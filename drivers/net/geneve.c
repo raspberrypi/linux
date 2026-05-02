@@ -1020,7 +1020,7 @@ static struct geneve_sock *geneve_socket_create(struct net *net, __be16 port,
 	tunnel_cfg.encap_rcv = geneve_udp_encap_recv;
 	tunnel_cfg.encap_err_lookup = geneve_udp_encap_err_lookup;
 	tunnel_cfg.encap_destroy = NULL;
-	setup_udp_tunnel_sock(net, sock, &tunnel_cfg);
+	setup_udp_tunnel_sock(net, sock->sk, &tunnel_cfg);
 	list_add(&gs->list, &gn->sock_list);
 	return gs;
 }

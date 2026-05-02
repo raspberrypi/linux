@@ -268,7 +268,7 @@ static int bareudp_socket_create(struct bareudp_dev *bareudp, __be16 port)
 	tunnel_cfg.encap_rcv = bareudp_udp_encap_recv;
 	tunnel_cfg.encap_err_lookup = bareudp_err_lookup;
 	tunnel_cfg.encap_destroy = NULL;
-	setup_udp_tunnel_sock(bareudp->net, sock, &tunnel_cfg);
+	setup_udp_tunnel_sock(bareudp->net, sock->sk, &tunnel_cfg);
 
 	rcu_assign_pointer(bareudp->sock, sock);
 	return 0;
