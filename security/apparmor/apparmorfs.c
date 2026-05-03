@@ -1977,7 +1977,7 @@ out:
 	mutex_unlock(&parent->lock);
 	aa_put_ns(parent);
 
-	return ERR_PTR(error);
+	return error ? ERR_PTR(error) : NULL;
 }
 
 static int ns_rmdir_op(struct inode *dir, struct dentry *dentry)
