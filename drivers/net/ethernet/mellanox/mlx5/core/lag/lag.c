@@ -1063,37 +1063,99 @@ bool mlx5_lag_check_prereq(struct mlx5_lag *ldev)
 	return true;
 }
 
-void mlx5_lag_add_devices(struct mlx5_lag *ldev)
+static void mlx5_lag_assert_locked_transition(struct mlx5_lag *ldev)
 {
+	struct mlx5_devcom_comp_dev *devcom = NULL;
 	struct lag_func *pf;
 	int i;
+
+	lockdep_assert_held(&ldev->lock);
+
+	i = mlx5_get_next_ldev_func(ldev, 0);
+	if (i < MLX5_MAX_PORTS) {
+		pf = mlx5_lag_pf(ldev, i);
+		devcom = pf->dev->priv.hca_devcom_comp;
+	}
+	mlx5_devcom_comp_assert_locked(devcom);
+}
+
+static void mlx5_lag_drop_lock_for_reps(struct mlx5_lag *ldev)
+{
+	mlx5_lag_assert_locked_transition(ldev);
+
+	/* Keep PF membership stable while ldev->lock is dropped. Device add
+	 * and remove paths observe mode_changes_in_progress and retry.
+	 */
+	ldev->mode_changes_in_progress++;
+	mutex_unlock(&ldev->lock);
+}
+
+static void mlx5_lag_retake_lock_after_reps(struct mlx5_lag *ldev)
+{
+	mutex_lock(&ldev->lock);
+	ldev->mode_changes_in_progress--;
+}
+
+void mlx5_lag_rescan_dev_locked(struct mlx5_lag *ldev,
+				struct mlx5_core_dev *dev,
+				bool enable)
+{
+	if (dev->priv.flags & MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV)
+		return;
+
+	if (enable)
+		dev->priv.flags &= ~MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
+	else
+		dev->priv.flags |= MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
+
+	/* Auxiliary bus probe/remove can register or unregister representor
+	 * callbacks and take reps_lock. Drop ldev->lock so the only ordering
+	 * remains reps_lock -> ldev->lock from representor callbacks.
+	 */
+	mlx5_lag_drop_lock_for_reps(ldev);
+	mlx5_rescan_drivers_locked(dev);
+	mlx5_lag_retake_lock_after_reps(ldev);
+}
+
+static void mlx5_lag_rescan_devices_locked(struct mlx5_lag *ldev, bool enable)
+{
+	struct mlx5_core_dev *devs[MLX5_MAX_PORTS];
+	struct lag_func *pf;
+	int num_devs = 0;
+	int i;
+
+	mlx5_lag_assert_locked_transition(ldev);
 
 	mlx5_ldev_for_each(i, 0, ldev) {
 		pf = mlx5_lag_pf(ldev, i);
 		if (pf->dev->priv.flags & MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV)
 			continue;
 
-		pf->dev->priv.flags &= ~MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-		mlx5_rescan_drivers_locked(pf->dev);
+		if (enable)
+			pf->dev->priv.flags &= ~MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
+		else
+			pf->dev->priv.flags |= MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
+		devs[num_devs++] = pf->dev;
 	}
+
+	mlx5_lag_drop_lock_for_reps(ldev);
+	for (i = 0; i < num_devs; i++)
+		mlx5_rescan_drivers_locked(devs[i]);
+	mlx5_lag_retake_lock_after_reps(ldev);
+}
+
+void mlx5_lag_add_devices(struct mlx5_lag *ldev)
+{
+	mlx5_lag_rescan_devices_locked(ldev, true);
 }
 
 void mlx5_lag_remove_devices(struct mlx5_lag *ldev)
 {
-	struct lag_func *pf;
-	int i;
-
-	mlx5_ldev_for_each(i, 0, ldev) {
-		pf = mlx5_lag_pf(ldev, i);
-		if (pf->dev->priv.flags & MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV)
-			continue;
-
-		pf->dev->priv.flags |= MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-		mlx5_rescan_drivers_locked(pf->dev);
-	}
+	mlx5_lag_rescan_devices_locked(ldev, false);
 }
 
-int mlx5_lag_reload_ib_reps(struct mlx5_lag *ldev, u32 flags, bool cont_on_fail)
+static int mlx5_lag_reload_ib_reps_unlocked(struct mlx5_lag *ldev, u32 flags,
+					    bool cont_on_fail)
 {
 	struct lag_func *pf;
 	int ret;
@@ -1105,13 +1167,43 @@ int mlx5_lag_reload_ib_reps(struct mlx5_lag *ldev, u32 flags, bool cont_on_fail)
 			struct mlx5_eswitch *esw;
 
 			esw = pf->dev->priv.eswitch;
+			mlx5_esw_reps_block(esw);
 			ret = mlx5_eswitch_reload_ib_reps(esw);
+			mlx5_esw_reps_unblock(esw);
 			if (ret && !cont_on_fail)
 				return ret;
 		}
 	}
 
 	return 0;
+}
+
+static int mlx5_lag_reload_ib_reps(struct mlx5_lag *ldev, u32 flags,
+				   bool cont_on_fail)
+{
+	int ret;
+
+	/* The HCA devcom component lock serializes LAG mode transitions while
+	 * ldev->lock is dropped here. Dropping ldev->lock is required because
+	 * the reload takes the per-E-Switch reps_lock, and representor
+	 * load/unload callbacks can re-enter LAG netdev add/remove and take
+	 * ldev->lock. Keep the ordering reps_lock -> ldev->lock.
+	 */
+	mlx5_lag_drop_lock_for_reps(ldev);
+	ret = mlx5_lag_reload_ib_reps_unlocked(ldev, flags, cont_on_fail);
+	mlx5_lag_retake_lock_after_reps(ldev);
+
+	return ret;
+}
+
+int mlx5_lag_reload_ib_reps_from_locked(struct mlx5_lag *ldev, u32 flags,
+					bool cont_on_fail)
+{
+	int ret;
+
+	ret = mlx5_lag_reload_ib_reps(ldev, flags, cont_on_fail);
+
+	return ret;
 }
 
 void mlx5_disable_lag(struct mlx5_lag *ldev)
@@ -1132,10 +1224,7 @@ void mlx5_disable_lag(struct mlx5_lag *ldev)
 	if (shared_fdb) {
 		mlx5_lag_remove_devices(ldev);
 	} else if (roce_lag) {
-		if (!(dev0->priv.flags & MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV)) {
-			dev0->priv.flags |= MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-			mlx5_rescan_drivers_locked(dev0);
-		}
+		mlx5_lag_rescan_dev_locked(ldev, dev0, false);
 		mlx5_ldev_for_each(i, 0, ldev) {
 			if (i == idx)
 				continue;
@@ -1151,8 +1240,9 @@ void mlx5_disable_lag(struct mlx5_lag *ldev)
 		mlx5_lag_add_devices(ldev);
 
 	if (shared_fdb)
-		mlx5_lag_reload_ib_reps(ldev, MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV,
-					true);
+		mlx5_lag_reload_ib_reps_from_locked(ldev,
+						    MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV,
+						    true);
 }
 
 bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
@@ -1414,7 +1504,8 @@ static void mlx5_do_bond(struct mlx5_lag *ldev)
 			if (shared_fdb || roce_lag)
 				mlx5_lag_add_devices(ldev);
 			if (shared_fdb)
-				mlx5_lag_reload_ib_reps(ldev, 0, true);
+				mlx5_lag_reload_ib_reps_from_locked(ldev, 0,
+								    true);
 
 			return;
 		}
@@ -1422,8 +1513,7 @@ static void mlx5_do_bond(struct mlx5_lag *ldev)
 		if (roce_lag) {
 			struct mlx5_core_dev *dev;
 
-			dev0->priv.flags &= ~MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-			mlx5_rescan_drivers_locked(dev0);
+			mlx5_lag_rescan_dev_locked(ldev, dev0, true);
 			mlx5_ldev_for_each(i, 0, ldev) {
 				if (i == idx)
 					continue;
@@ -1432,15 +1522,15 @@ static void mlx5_do_bond(struct mlx5_lag *ldev)
 					mlx5_nic_vport_enable_roce(dev);
 			}
 		} else if (shared_fdb) {
-			dev0->priv.flags &= ~MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-			mlx5_rescan_drivers_locked(dev0);
-			err = mlx5_lag_reload_ib_reps(ldev, 0, false);
+			mlx5_lag_rescan_dev_locked(ldev, dev0, true);
+			err = mlx5_lag_reload_ib_reps_from_locked(ldev, 0,
+								  false);
 			if (err) {
-				dev0->priv.flags |= MLX5_PRIV_FLAGS_DISABLE_IB_ADEV;
-				mlx5_rescan_drivers_locked(dev0);
+				mlx5_lag_rescan_dev_locked(ldev, dev0, false);
 				mlx5_deactivate_lag(ldev);
 				mlx5_lag_add_devices(ldev);
-				mlx5_lag_reload_ib_reps(ldev, 0, true);
+				mlx5_lag_reload_ib_reps_from_locked(ldev, 0,
+								    true);
 				mlx5_core_err(dev0, "Failed to enable lag\n");
 				return;
 			}

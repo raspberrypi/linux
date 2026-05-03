@@ -164,6 +164,9 @@ void mlx5_disable_lag(struct mlx5_lag *ldev);
 void mlx5_lag_remove_devices(struct mlx5_lag *ldev);
 int mlx5_deactivate_lag(struct mlx5_lag *ldev);
 void mlx5_lag_add_devices(struct mlx5_lag *ldev);
+void mlx5_lag_rescan_dev_locked(struct mlx5_lag *ldev,
+				struct mlx5_core_dev *dev,
+				bool enable);
 struct mlx5_devcom_comp_dev *mlx5_lag_get_devcom_comp(struct mlx5_lag *ldev);
 
 #ifdef CONFIG_MLX5_ESWITCH
@@ -199,6 +202,6 @@ int mlx5_get_next_ldev_func(struct mlx5_lag *ldev, int start_idx);
 int mlx5_lag_get_dev_index_by_seq(struct mlx5_lag *ldev, int seq);
 int mlx5_lag_num_devs(struct mlx5_lag *ldev);
 int mlx5_lag_num_netdevs(struct mlx5_lag *ldev);
-int mlx5_lag_reload_ib_reps(struct mlx5_lag *ldev, u32 flags,
-			    bool cont_on_fail);
+int mlx5_lag_reload_ib_reps_from_locked(struct mlx5_lag *ldev, u32 flags,
+					bool cont_on_fail);
 #endif /* __MLX5_LAG_H__ */

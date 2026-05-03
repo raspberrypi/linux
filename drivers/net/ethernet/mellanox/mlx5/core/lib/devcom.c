@@ -3,6 +3,7 @@
 
 #include <linux/mlx5/vport.h>
 #include <linux/list.h>
+#include <linux/lockdep.h>
 #include "lib/devcom.h"
 #include "lib/mlx5.h"
 #include "mlx5_core.h"
@@ -437,4 +438,11 @@ int mlx5_devcom_comp_trylock(struct mlx5_devcom_comp_dev *devcom)
 	if (!devcom)
 		return 0;
 	return down_write_trylock(&devcom->comp->sem);
+}
+
+void mlx5_devcom_comp_assert_locked(struct mlx5_devcom_comp_dev *devcom)
+{
+	if (!devcom)
+		return;
+	lockdep_assert_held_write(&devcom->comp->sem);
 }
