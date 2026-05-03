@@ -35,6 +35,7 @@ static void io_eventfd_do_signal(struct rcu_head *rcu)
 {
 	struct io_ev_fd *ev_fd = container_of(rcu, struct io_ev_fd, rcu);
 
+	atomic_andnot(BIT(IO_EVENTFD_OP_SIGNAL_BIT), &ev_fd->ops);
 	eventfd_signal_mask(ev_fd->cq_ev_fd, EPOLL_URING_WAKE);
 
 	if (refcount_dec_and_test(&ev_fd->refs))
