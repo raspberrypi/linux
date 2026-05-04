@@ -2403,6 +2403,9 @@ static void mt7925_channel_switch_rx_beacon(struct ieee80211_hw *hw,
 	if (ieee80211_vif_is_mld(vif))
 		return;
 
+	if (!dev->new_ctx)
+		return;
+
 	beacon_interval = vif->bss_conf.beacon_int;
 
 	if (cfg80211_chandef_identical(&chsw->chandef,
