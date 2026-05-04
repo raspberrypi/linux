@@ -224,7 +224,7 @@ static struct platform_driver se10_wdt_driver = {
 	.probe  = se10_wdt_probe,
 };
 
-static int se10_create_platform_device(const struct dmi_system_id *id)
+static int se10_create_platform_device(void)
 {
 	int err;
 
@@ -233,9 +233,10 @@ static int se10_create_platform_device(const struct dmi_system_id *id)
 		return -ENOMEM;
 
 	err = platform_device_add(se10_pdev);
-	if (err)
+	if (err) {
 		platform_device_put(se10_pdev);
-
+		se10_pdev = NULL;
+	}
 	return err;
 }
 
@@ -246,7 +247,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "12NH"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10",
@@ -254,7 +254,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "12NJ"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10",
@@ -262,7 +261,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "12NK"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10",
@@ -270,7 +268,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "12NL"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10",
@@ -278,7 +275,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "12NM"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -286,7 +282,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13LJ"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -294,7 +289,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13LK"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -302,7 +296,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S1"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -310,7 +303,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S2"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -318,7 +310,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S3"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -326,7 +317,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S4"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -334,7 +324,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S5"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{
 		.ident = "LENOVO-SE10-G2",
@@ -342,7 +331,6 @@ static const struct dmi_system_id se10_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "13S6"),
 		},
-		.callback = se10_create_platform_device,
 	},
 	{}
 };
@@ -350,10 +338,20 @@ MODULE_DEVICE_TABLE(dmi, se10_dmi_table);
 
 static int __init se10_wdt_init(void)
 {
+	int err;
+
 	if (!dmi_check_system(se10_dmi_table))
 		return -ENODEV;
 
-	return platform_driver_register(&se10_wdt_driver);
+	err = platform_driver_register(&se10_wdt_driver);
+	if (err)
+		return err;
+
+	err = se10_create_platform_device();
+	if (err)
+		platform_driver_unregister(&se10_wdt_driver);
+
+	return err;
 }
 
 static void __exit se10_wdt_exit(void)
