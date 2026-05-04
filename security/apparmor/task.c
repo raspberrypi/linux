@@ -313,9 +313,12 @@ static const char *get_current_exe_path(char *buffer, int buffer_size)
 	p = exe_file->f_path;
 	path_get(&p);
 
-	if (aa_path_name(&p, FLAG_VIEW_SUBNS, buffer, &path_str, NULL, NULL))
-		return ERR_PTR(-ENOMEM);
+	if (aa_path_name(&p, FLAG_VIEW_SUBNS, buffer, &path_str, NULL, NULL)) {
+		path_str = ERR_PTR(-ENOMEM);
+		goto out;
+	}
 
+out:
 	fput(exe_file);
 	path_put(&p);
 
