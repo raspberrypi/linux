@@ -60,7 +60,10 @@ struct Dwfl *dso__libdw_dwfl(struct dso *dso)
 		return NULL;
 	}
 
-	dwfl_report_end(dwfl, /*removed=*/NULL, /*arg=*/NULL);
+	if (dwfl_report_end(dwfl, /*removed=*/NULL, /*arg=*/NULL) != 0) {
+		dwfl_end(dwfl);
+		return NULL;
+	}
 	dso__set_libdw(dso, dwfl);
 
 	return dwfl;
@@ -72,18 +75,19 @@ struct libdw_a2l_cb_args {
 	struct inline_node *node;
 	char *leaf_srcline;
 	bool leaf_srcline_used;
+	int err;
 };
 
 static int libdw_a2l_cb(Dwarf_Die *die, void *_args)
 {
 	struct libdw_a2l_cb_args *args  = _args;
-	struct symbol *inline_sym = new_inline_sym(args->dso, args->sym, dwarf_diename(die));
+	struct symbol *inline_sym = new_inline_sym(args->dso, args->sym, die_name(die));
 	const char *call_fname = die_get_call_file(die);
 	char *call_srcline = srcline__unknown;
 	struct inline_list *ilist;
 
 	if (!inline_sym)
-		return -ENOMEM;
+		goto abort_enomem;
 
 	/* Assign caller information to the parent. */
 	if (call_fname)
@@ -103,12 +107,27 @@ static int libdw_a2l_cb(Dwarf_Die *die, void *_args)
 
 	/* Add this symbol to the chain as the leaf. */
 	if (!args->leaf_srcline_used) {
-		inline_list__append_tail(inline_sym, args->leaf_srcline, args->node);
+		if (inline_list__append_tail(inline_sym, args->leaf_srcline, args->node) != 0)
+			goto abort_delete_sym;
 		args->leaf_srcline_used = true;
 	} else {
-		inline_list__append_tail(inline_sym, strdup(args->leaf_srcline), args->node);
+		char *srcline = strdup(args->leaf_srcline);
+
+		if (!srcline)
+			goto abort_delete_sym;
+		if (inline_list__append_tail(inline_sym, srcline, args->node) != 0) {
+			free(srcline);
+			goto abort_delete_sym;
+		}
 	}
 	return 0;
+
+abort_delete_sym:
+	if (inline_sym->inlined)
+		symbol__delete(inline_sym);
+abort_enomem:
+	args->err = -ENOMEM;
+	return DWARF_CB_ABORT;
 }
 
 int libdw__addr2line(u64 addr, char **file, unsigned int *line_nr,
@@ -162,11 +181,29 @@ int libdw__addr2line(u64 addr, char **file, unsigned int *line_nr,
 			.leaf_srcline = srcline_from_fileline(src ?: "<unknown>", lineno),
 		};
 
+		if (!args.leaf_srcline) {
+			if (file && *file) {
+				free(*file);
+				*file = NULL;
+			}
+			return 0;
+		}
+
 		/* Walk from the parent down to the leaf. */
-		cu_walk_functions_at(cudie, addr, libdw_a2l_cb, &args);
+		if (cudie)
+			cu_walk_functions_at(cudie, addr, libdw_a2l_cb, &args);
 
 		if (!args.leaf_srcline_used)
 			free(args.leaf_srcline);
+
+		if (args.err) {
+			if (file && *file) {
+				free(*file);
+				*file = NULL;
+			}
+			inline_node__clear_frames(node);
+			return 0;
+		}
 	}
 	return 1;
 }
