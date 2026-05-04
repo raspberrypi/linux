@@ -429,9 +429,12 @@ struct inline_node *dso__parse_addr_inlines(struct dso *dso, u64 addr,
 	return addr2inlines(dso_name, addr, dso, sym);
 }
 
-void inline_node__delete(struct inline_node *node)
+void inline_node__clear_frames(struct inline_node *node)
 {
 	struct inline_list *ilist, *tmp;
+
+	if (node == NULL)
+		return;
 
 	list_for_each_entry_safe(ilist, tmp, &node->val, list) {
 		list_del_init(&ilist->list);
@@ -441,7 +444,11 @@ void inline_node__delete(struct inline_node *node)
 			symbol__delete(ilist->symbol);
 		free(ilist);
 	}
+}
 
+void inline_node__delete(struct inline_node *node)
+{
+	inline_node__clear_frames(node);
 	free(node);
 }
 
