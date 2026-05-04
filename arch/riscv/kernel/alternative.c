@@ -205,6 +205,9 @@ void __init apply_boot_alternatives(void)
 
 	if (IS_ENABLED(CONFIG_MMU))
 		apply_vdso_alternatives(vdso_start);
+
+	if (IS_ENABLED(CONFIG_RISCV_USER_CFI))
+		apply_vdso_alternatives(vdso_cfi_start);
 }
 
 /*
