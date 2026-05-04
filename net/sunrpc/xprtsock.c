@@ -2734,8 +2734,11 @@ static void xs_tcp_tls_setup_socket(struct work_struct *work)
 	lower_xprt = rcu_dereference(lower_clnt->cl_xprt);
 	rcu_read_unlock();
 
-	if (wait_on_bit_lock(&lower_xprt->state, XPRT_LOCKED, TASK_KILLABLE))
+	if (wait_on_bit_lock(&lower_xprt->state, XPRT_LOCKED, TASK_KILLABLE)) {
+		/* XPRT_LOCKED was never acquired. */
+		rpc_shutdown_client(lower_clnt);
 		goto out_unlock;
+	}
 
 	status = xs_tls_handshake_sync(lower_xprt, &upper_xprt->xprtsec);
 	if (status) {
