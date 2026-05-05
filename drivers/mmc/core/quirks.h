@@ -88,6 +88,10 @@ static const struct mmc_fixup __maybe_unused mmc_sd_fixups[] = {
 		   cid_rev(1, 0, 0, 0), -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
 		   MMC_QUIRK_WORKING_SD_CQ, EXT_CSD_REV_ANY),
 
+	_FIXUP_EXT(CID_NAME_ANY, CID_MANFID_TRANSCEND_SD, 0x4a60, CID_YEAR_ANY, CID_MONTH_ANY,
+		   cid_rev(2, 0, 2026, 4), -1ull, SDIO_ANY_ID, SDIO_ANY_ID, add_quirk_sd,
+		   MMC_QUIRK_WORKING_SD_CQ, EXT_CSD_REV_ANY),
+
 	END_FIXUP
 };
 
