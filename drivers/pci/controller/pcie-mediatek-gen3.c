@@ -1260,7 +1260,7 @@ static void mtk_pcie_remove(struct platform_device *pdev)
 	pci_remove_root_bus(host->bus);
 	pci_unlock_rescan_remove();
 
-	pci_pwrctrl_power_off_devices(pcie->dev);
+	mtk_pcie_devices_power_down(pcie);
 	mtk_pcie_power_down(pcie);
 	pci_pwrctrl_destroy_devices(pcie->dev);
 	mtk_pcie_irq_teardown(pcie);
