@@ -303,4 +303,57 @@ struct fw_rsc_vdev {
 	struct fw_rsc_vdev_vring vring[];
 } __packed;
 
+/**
+ * rsc_table_for_each_entry() - iterate over all entries in a resource table
+ * @table:    pointer to the resource table
+ * @table_sz: total size of the table buffer in bytes
+ * @dev:      device used for error logging
+ * @cb:       callback invoked for each entry:
+ *              @type   - value from enum fw_resource_type
+ *              @rsc    - pointer to the entry payload (past struct fw_rsc_hdr)
+ *              @offset - byte offset of the payload within the table; callers
+ *                        that write back into the table (e.g. to record a
+ *                        dynamically allocated address) use this to locate the
+ *                        entry for later update
+ *              @avail  - bytes available in the payload
+ *              @data   - caller-supplied private pointer
+ *            Return 0 to continue iteration, non-zero to stop.
+ * @data:     private pointer forwarded to @cb on every call
+ *
+ * Iterates over every resource entry in @table, performing the standard
+ * truncation check, and invokes @cb for each one. Iteration stops on the
+ * first non-zero return from @cb or on a malformed table.
+ *
+ * Returns 0 after a complete iteration, -EINVAL if the table is truncated,
+ * or the first non-zero value returned by @cb.
+ */
+static inline int rsc_table_for_each_entry(struct resource_table *table,
+					   size_t table_sz,
+					   struct device *dev,
+					   int (*cb)(u32 type, void *rsc,
+						     int offset, int avail,
+						     void *data),
+					   void *data) {
+	int i, ret;
+
+	for (i = 0; i < table->num; i++) {
+		int offset = table->offset[i];
+		struct fw_rsc_hdr *hdr = (void *)table + offset;
+		int avail = table_sz - offset - sizeof(*hdr);
+		int rsc_offset = offset + sizeof(*hdr);
+		void *rsc = (void *)hdr + sizeof(*hdr);
+
+		if (avail < 0) {
+			dev_err(dev, "rsc table is truncated\n");
+			return -EINVAL;
+		}
+
+		ret = cb(hdr->type, rsc, rsc_offset, avail, data);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 #endif /* RSC_TABLE_H */
