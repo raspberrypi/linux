@@ -2800,8 +2800,8 @@ int ni_rename(struct ntfs_inode *dir_ni, struct ntfs_inode *new_dir_ni,
 	err = ni_add_name(new_dir_ni, ni, new_de);
 	if (!err) {
 		err = ni_remove_name(dir_ni, ni, de, &de2, &undo);
-		WARN_ON(err &&
-			ni_remove_name(new_dir_ni, ni, new_de, &de2, &undo));
+		if (err && ni_remove_name(new_dir_ni, ni, new_de, &de2, &undo))
+			_ntfs_bad_inode(&ni->vfs_inode);
 	}
 
 	/*
