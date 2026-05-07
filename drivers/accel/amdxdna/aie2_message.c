@@ -390,7 +390,7 @@ int aie2_query_status(struct amdxdna_dev_hdl *ndev, char __user *buf,
 	req.num_cols = hweight32(aie_bitmap);
 	req.aie_bitmap = aie_bitmap;
 
-	drm_clflush_virt_range(buff_addr, size); /* device can access */
+	drm_clflush_virt_range(buff_addr, req.dump_buff_size); /* device can access */
 	ret = aie_send_mgmt_msg_wait(&ndev->aie, &msg);
 	if (ret) {
 		XDNA_ERR(xdna, "Error during NPU query, status %d", ret);
@@ -442,7 +442,7 @@ int aie2_query_telemetry(struct amdxdna_dev_hdl *ndev,
 	req.buf_size = buf_sz;
 	req.type = header->type;
 
-	drm_clflush_virt_range(addr, size); /* device can access */
+	drm_clflush_virt_range(addr, req.buf_size); /* device can access */
 	ret = aie_send_mgmt_msg_wait(&ndev->aie, &msg);
 	if (ret) {
 		XDNA_ERR(xdna, "Query telemetry failed, status %d", ret);
@@ -1186,7 +1186,7 @@ int aie2_query_app_health(struct amdxdna_dev_hdl *ndev, u32 context_id,
 	req.context_id = context_id;
 	req.buf_size = buf_size;
 
-	drm_clflush_virt_range(buf, sizeof(*report));
+	drm_clflush_virt_range(buf, req.buf_size);
 	ret = aie_send_mgmt_msg_wait(&ndev->aie, &msg);
 	if (ret) {
 		XDNA_ERR(xdna, "Get app health failed, ret %d status 0x%x", ret, resp.status);
