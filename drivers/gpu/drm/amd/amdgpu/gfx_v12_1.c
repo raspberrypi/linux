@@ -2817,9 +2817,8 @@ static int gfx_v12_1_xcc_cp_resume(struct amdgpu_device *adev, uint16_t xcc_mask
 				return r;
 		}
 
-		/* GFX CGCG and LS is set by default */
-		if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP)
-			gfx_v12_1_xcc_enable_gui_idle_interrupt(adev, true, xcc_id);
+		/* GFX CGCG and LS is disabled by rlc fw */
+		gfx_v12_1_xcc_enable_gui_idle_interrupt(adev, false, xcc_id);
 
 		gfx_v12_1_xcc_cp_set_doorbell_range(adev, xcc_id);
 
