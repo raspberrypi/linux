@@ -2906,20 +2906,18 @@ static struct snd_soc_dapm_widget *dapm_find_widget(
 {
 	struct snd_soc_dapm_widget *w;
 	struct snd_soc_dapm_widget *fallback = NULL;
-	char prefixed_pin[80];
-	const char *pin_name;
-	const char *prefix = dapm_prefix(dapm);
-
-	if (prefix) {
-		snprintf(prefixed_pin, sizeof(prefixed_pin), "%s %s",
-			 prefix, pin);
-		pin_name = prefixed_pin;
-	} else {
-		pin_name = pin;
-	}
+	bool pin_has_prefix = snd_soc_dapm_pin_has_prefix(dapm->card, pin);
+	bool match;
 
 	for_each_card_widgets(dapm->card, w) {
-		if (!strcmp(w->name, pin_name)) {
+		match = false;
+
+		if (!strcmp(pin, w->name))
+			match = true;
+		else if (!pin_has_prefix && !snd_soc_dapm_widget_name_cmp(w, pin))
+			match = true;
+
+		if (match) {
 			if (w->dapm == dapm)
 				return w;
 			else
@@ -4871,6 +4869,33 @@ int snd_soc_dapm_ignore_suspend(struct snd_soc_dapm_context *dapm,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_soc_dapm_ignore_suspend);
+
+/**
+ * snd_soc_dapm_pin_has_prefix - check if given pin has a known prefix
+ * @card: card to be checked
+ * @pin: pin name
+ *
+ * Returns true if given pin has a known prefix
+ */
+bool snd_soc_dapm_pin_has_prefix(struct snd_soc_card *card, const char *pin)
+{
+	struct snd_soc_component *component;
+	const char *prefix;
+	size_t prefix_len;
+
+	for_each_card_components(card, component) {
+		prefix = component->name_prefix;
+		if (!prefix)
+			continue;
+
+		prefix_len = strlen(prefix);
+		if (!strncmp(pin, prefix, prefix_len) && pin[prefix_len] == ' ')
+			return true;
+	}
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dapm_pin_has_prefix);
 
 /**
  * snd_soc_dapm_free - free dapm resources
