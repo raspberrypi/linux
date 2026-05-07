@@ -17380,7 +17380,6 @@ static pci_ers_result_t bnxt_io_slot_reset(struct pci_dev *pdev)
 				       &bp->state))
 			bnxt_clear_bars(pdev);
 		pci_restore_state(pdev);
-		pci_save_state(pdev);
 
 		bnxt_inv_fw_health_reg(bp);
 		bnxt_try_map_fw_health_reg(bp);
