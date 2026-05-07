@@ -255,45 +255,14 @@ static int init_device(struct device *dev)
 	return 0;
 }
 
-/**
- * talitos_submit - submits a descriptor to the device for processing
- * @dev:	the SEC device to be used
- * @ch:		the SEC device channel to be used
- * @desc:	the descriptor to be processed by the device
- * @callback:	whom to call when processing is complete
- * @context:	a handle for use by caller (optional)
- *
- * desc must contain valid dma-mapped (bus physical) address pointers.
- * callback must check err and feedback in descriptor header
- * for device processing status.
- */
-static int talitos_submit(struct device *dev, int ch, struct talitos_desc *desc,
-			  void (*callback)(struct device *dev,
-					   struct talitos_desc *desc,
-					   void *context, int error),
-			  void *context)
+static void dma_map_request(struct device *dev, struct talitos_request *request,
+			    struct talitos_desc *desc, bool is_sec1)
 {
-	struct talitos_edesc *edesc = container_of(desc, struct talitos_edesc, desc);
-	struct talitos_private *priv = dev_get_drvdata(dev);
+	struct talitos_edesc *edesc =
+		container_of(desc, struct talitos_edesc, desc);
 	dma_addr_t dma_desc, prev_dma_desc;
 	struct talitos_edesc *prev_edesc = NULL;
-	struct talitos_request *request;
-	unsigned long flags;
-	int head;
-	bool is_sec1 = has_ftr_sec1(priv);
 
-	spin_lock_irqsave(&priv->chan[ch].head_lock, flags);
-
-	if (!atomic_inc_not_zero(&priv->chan[ch].submit_count)) {
-		/* h/w fifo is full */
-		spin_unlock_irqrestore(&priv->chan[ch].head_lock, flags);
-		return -EAGAIN;
-	}
-
-	head = priv->chan[ch].head;
-	request = &priv->chan[ch].fifo[head];
-
-	/* map descriptor and save caller data */
 	if (is_sec1) {
 		while (edesc) {
 			edesc->desc.hdr1 = edesc->desc.hdr;
@@ -321,10 +290,48 @@ next:
 			edesc = edesc->next_desc;
 		}
 	} else {
-		request->dma_desc = dma_map_single(dev, desc,
-						   TALITOS_DESC_SIZE,
+		request->dma_desc = dma_map_single(dev, desc, TALITOS_DESC_SIZE,
 						   DMA_BIDIRECTIONAL);
 	}
+}
+
+/**
+ * talitos_submit - submits a descriptor to the device for processing
+ * @dev:	the SEC device to be used
+ * @ch:		the SEC device channel to be used
+ * @desc:	the descriptor to be processed by the device
+ * @callback:	whom to call when processing is complete
+ * @context:	a handle for use by caller (optional)
+ *
+ * desc must contain valid dma-mapped (bus physical) address pointers.
+ * callback must check err and feedback in descriptor header
+ * for device processing status.
+ */
+static int talitos_submit(struct device *dev, int ch, struct talitos_desc *desc,
+			  void (*callback)(struct device *dev,
+					   struct talitos_desc *desc,
+					   void *context, int error),
+			  void *context)
+{
+	struct talitos_private *priv = dev_get_drvdata(dev);
+	struct talitos_request *request;
+	unsigned long flags;
+	int head;
+	bool is_sec1 = has_ftr_sec1(priv);
+
+	spin_lock_irqsave(&priv->chan[ch].head_lock, flags);
+
+	if (!atomic_inc_not_zero(&priv->chan[ch].submit_count)) {
+		/* h/w fifo is full */
+		spin_unlock_irqrestore(&priv->chan[ch].head_lock, flags);
+		return -EAGAIN;
+	}
+
+	head = priv->chan[ch].head;
+	request = &priv->chan[ch].fifo[head];
+
+	/* map descriptor and save caller data */
+	dma_map_request(dev, request, desc, is_sec1);
 	request->callback = callback;
 	request->context = context;
 
