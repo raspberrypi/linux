@@ -2003,7 +2003,7 @@ ahash_process_req_prepare(struct ahash_request *areq, unsigned int nbytes,
 	return first;
 }
 
-static int ahash_process_req_one(struct ahash_request *areq, unsigned int nbytes)
+static int ahash_process_req(struct ahash_request *areq, unsigned int nbytes)
 {
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(areq);
 	struct talitos_ctx *ctx = crypto_ahash_ctx(tfm);
@@ -2082,11 +2082,6 @@ static int ahash_process_req_one(struct ahash_request *areq, unsigned int nbytes
 		free_edesc_list_from(areq, edesc);
 
 	return ret;
-}
-
-static int ahash_process_req(struct ahash_request *areq, unsigned int nbytes)
-{
-	return ahash_process_req_one(areq, nbytes);
 }
 
 static int ahash_init(struct ahash_request *areq)
