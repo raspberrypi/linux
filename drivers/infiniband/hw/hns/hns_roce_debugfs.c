@@ -26,17 +26,6 @@ static const struct file_operations hns_debugfs_seqfile_fops = {
 	.llseek = seq_lseek
 };
 
-static void init_debugfs_seqfile(struct hns_debugfs_seqfile *seq,
-				 const char *name, struct dentry *parent,
-				 int (*read_fn)(struct seq_file *, void *),
-				 void *data)
-{
-	debugfs_create_file(name, 0400, parent, seq, &hns_debugfs_seqfile_fops);
-
-	seq->read = read_fn;
-	seq->data = data;
-}
-
 static const char * const sw_stat_info[] = {
 	[HNS_ROCE_DFX_AEQE_CNT] = "aeqe",
 	[HNS_ROCE_DFX_CEQE_CNT] = "ceqe",
@@ -76,10 +65,12 @@ static void create_sw_stat_debugfs(struct hns_roce_dev *hr_dev,
 {
 	struct hns_sw_stat_debugfs *dbgfs = &hr_dev->dbgfs.sw_stat_root;
 
-	dbgfs->root = debugfs_create_dir("sw_stat", parent);
+	dbgfs->sw_stat.read = sw_stat_debugfs_show;
+	dbgfs->sw_stat.data = hr_dev;
 
-	init_debugfs_seqfile(&dbgfs->sw_stat, "sw_stat", dbgfs->root,
-			     sw_stat_debugfs_show, hr_dev);
+	dbgfs->root = debugfs_create_dir("sw_stat", parent);
+	debugfs_create_file("sw_stat", 0400, dbgfs->root, &dbgfs->sw_stat,
+			    &hns_debugfs_seqfile_fops);
 }
 
 /* debugfs for device */
