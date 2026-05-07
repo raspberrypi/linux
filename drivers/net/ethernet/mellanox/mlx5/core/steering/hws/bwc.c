@@ -423,6 +423,18 @@ int mlx5hws_bwc_queue_poll(struct mlx5hws_context *ctx,
 	if (!got_comp && !drain)
 		return 0;
 
+	if (unlikely(ctx->mdev->state == MLX5_DEVICE_STATE_INTERNAL_ERROR)) {
+		/* If the device is down for any reason (e.g. FLR), the HW will
+		 * no longer generate completions.
+		 * Note that ETIMEDOUT is returned here because the BWC layer
+		 * already has a special handling for timeouts - it breaks the
+		 * rehash / resize / shrink loops to avoid chain of timeouts.
+		 */
+		mlx5_core_warn_once(ctx->mdev,
+				    "BWC poll: device is down, polling for completion aborted\n");
+		return -ETIMEDOUT;
+	}
+
 	queue_full = mlx5hws_send_engine_full(&ctx->send_queue[queue_id]);
 	while (queue_full || ((got_comp || drain) && *pending_rules)) {
 		ret = mlx5hws_send_queue_poll(ctx, queue_id, comp, burst_th);
