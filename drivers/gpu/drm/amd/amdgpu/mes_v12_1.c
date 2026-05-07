@@ -2016,7 +2016,7 @@ static int mes_v12_1_map_test_bo(struct amdgpu_device *adev,
 
 error:
 	amdgpu_sync_free(&sync);
-	return 0;
+	return r;
 }
 
 static int mes_v12_1_test_ring(struct amdgpu_device *adev, int xcc_id,
