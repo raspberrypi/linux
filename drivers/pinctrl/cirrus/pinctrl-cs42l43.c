@@ -343,7 +343,7 @@ static int cs42l43_pin_set_db(struct cs42l43_pin *priv, unsigned int pin,
 
 	return regmap_update_bits(priv->regmap, CS42L43_GPIO_CTRL2,
 				  CS42L43_GPIO1_DEGLITCH_BYP_MASK << pin,
-				  !!us << pin);
+				  !us << pin);
 }
 
 static int cs42l43_pin_config_get(struct pinctrl_dev *pctldev,
