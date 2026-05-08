@@ -1841,11 +1841,12 @@ static void amd_pstate_epp_cpu_exit(struct cpufreq_policy *policy)
 	if (cpudata) {
 		union perf_cached perf = READ_ONCE(cpudata->perf);
 
+		if (cpudata->dynamic_epp)
+			amd_pstate_clear_dynamic_epp(policy);
+
 		/* Reset CPPC_REQ MSR to the BIOS value */
 		amd_pstate_update_perf(policy, perf.bios_min_perf, 0U, 0U, 0U, false);
 
-		if (cpudata->dynamic_epp)
-			amd_pstate_clear_dynamic_epp(policy);
 		kfree(cpudata);
 		policy->driver_data = NULL;
 	}
