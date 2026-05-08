@@ -5204,6 +5204,7 @@ vmap_node_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	int i;
 
+	guard(mutex)(&vmap_purge_lock);
 	for (i = 0; i < nr_vmap_nodes; i++)
 		decay_va_pool_node(&vmap_nodes[i], true);
 
