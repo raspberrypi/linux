@@ -1297,9 +1297,12 @@ bool run_remove_range(struct runs_tree *run, CLST vcn, CLST len, CLST *done)
 
 		if (r_end > end) {
 			/* Remove a middle part, split. */
+			CLST tail_lcn = r->lcn == SPARSE_LCN ?
+					SPARSE_LCN : (r->lcn + (end - r->vcn));
+
 			*done += len;
 			r->len = d;
-			return run_add_entry(run, end, r->lcn, r_end - end,
+			return run_add_entry(run, end, tail_lcn, r_end - end,
 					     false);
 		}
 		/* Remove tail of run .*/
