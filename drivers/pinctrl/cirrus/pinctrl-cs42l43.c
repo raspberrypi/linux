@@ -499,12 +499,10 @@ static int cs42l43_gpio_set(struct gpio_chip *chip, unsigned int offset,
 
 	ret = regmap_update_bits(priv->regmap, CS42L43_GPIO_CTRL1,
 				 BIT(shift), value << shift);
-	if (ret)
-		return ret;
 
 	pm_runtime_put(priv->dev);
 
-	return 0;
+	return ret;
 }
 
 static int cs42l43_gpio_direction_out(struct gpio_chip *chip,
