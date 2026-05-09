@@ -828,8 +828,8 @@ void *ath12k_hal_encode_tlv64_hdr(void *tlv, u64 tag, u64 len)
 {
 	struct hal_tlv_64_hdr *tlv64 = tlv;
 
-	tlv64->tl = le64_encode_bits(tag, HAL_TLV_HDR_TAG) |
-		    le64_encode_bits(len, HAL_TLV_HDR_LEN);
+	tlv64->tl = le64_encode_bits(tag, HAL_TLV_64_HDR_TAG) |
+		    le64_encode_bits(len, HAL_TLV_64_HDR_LEN);
 
 	return tlv64->value;
 }
@@ -851,7 +851,7 @@ u16 ath12k_hal_decode_tlv64_hdr(void *tlv, void **desc)
 	struct hal_tlv_64_hdr *tlv64 = tlv;
 	u16 tag;
 
-	tag = le64_get_bits(tlv64->tl, HAL_SRNG_TLV_HDR_TAG);
+	tag = le64_get_bits(tlv64->tl, HAL_TLV_64_HDR_TAG);
 	*desc = tlv64->value;
 
 	return tag;
@@ -863,7 +863,7 @@ u16 ath12k_hal_decode_tlv32_hdr(void *tlv, void **desc)
 	struct hal_tlv_hdr *tlv32 = tlv;
 	u16 tag;
 
-	tag = le32_get_bits(tlv32->tl, HAL_SRNG_TLV_HDR_TAG);
+	tag = le32_get_bits(tlv32->tl, HAL_TLV_HDR_TAG);
 	*desc = tlv32->value;
 
 	return tag;
