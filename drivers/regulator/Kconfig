@@ -1828,4 +1828,13 @@ config REGULATOR_QCOM_LABIBB
 	  boost regulator and IBB can be used as a negative boost regulator
 	  for LCD display panel.
 
+config REGULATOR_EDATEC_10INCH
+	tristate "EDATEC 10INCH regulator support"
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This driver supports regulator on the EDATEC
+	  touchscreen unit. The regulator is used to enable power to the
+	  display and to control backlight.
 endif

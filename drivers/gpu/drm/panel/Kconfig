@@ -1221,4 +1221,14 @@ config DRM_PANEL_XINPENG_XPP055C272
 	  Say Y here if you want to enable support for the Xinpeng
 	  XPP055C272 controller for 720x1280 LCD panels with MIPI/RGB/SPI
 	  system interfaces.
+
+config DRM_PANEL_EDATEC_7INCH
+	tristate "EDATEC 7INCH TFT LCD panel driver"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for the EDATEC
+	  7inch Touchscreens.  To compile this driver as a module,
+	  choose M here.
 endmenu
