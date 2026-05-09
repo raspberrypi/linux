@@ -24,6 +24,7 @@
 #include <drm/drm_managed.h>
 #include <drm/drm_module.h>
 #include <drm/drm_vblank.h>
+#include <drm/drm_probe_helper.h>
 
 #include "hibmc_drm_drv.h"
 #include "hibmc_drm_regs.h"
@@ -354,6 +355,8 @@ static int hibmc_load(struct drm_device *dev)
 
 	/* reset all the states of crtc/plane/encoder/connector */
 	drm_mode_config_reset(dev);
+
+	drmm_kms_helper_poll_init(dev);
 
 	return 0;
 

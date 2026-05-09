@@ -24,27 +24,20 @@
 
 static int hibmc_connector_get_modes(struct drm_connector *connector)
 {
+	struct drm_mode_config *mode_config = &connector->dev->mode_config;
 	struct hibmc_vdac *vdac = to_hibmc_vdac(connector);
-	const struct drm_edid *drm_edid;
 	int count;
 
-	drm_edid = drm_edid_read_ddc(connector, &vdac->adapter);
-
-	drm_edid_connector_update(connector, drm_edid);
-
-	if (drm_edid) {
-		count = drm_edid_connector_add_modes(connector);
+	if (vdac->phys_status == connector_status_connected) {
+		count = drm_connector_helper_get_modes(connector);
+	} else {
+		drm_edid_connector_update(connector, NULL);
+		count = drm_add_modes_noedid(connector,
+					     mode_config->max_width,
+					     mode_config->max_height);
 		if (count)
-			goto out;
+			drm_set_preferred_mode(connector, 1024, 768);
 	}
-
-	count = drm_add_modes_noedid(connector,
-				     connector->dev->mode_config.max_width,
-				     connector->dev->mode_config.max_height);
-	drm_set_preferred_mode(connector, 1024, 768);
-
-out:
-	drm_edid_free(drm_edid);
 
 	return count;
 }
@@ -57,10 +50,34 @@ static void hibmc_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
+static int hibmc_vdac_detect(struct drm_connector *connector,
+			     struct drm_modeset_acquire_ctx *ctx,
+			     bool force)
+{
+	struct hibmc_drm_private *priv = to_hibmc_drm_private(connector->dev);
+	int status = drm_connector_helper_detect_from_ddc(connector, ctx,
+							 force);
+	struct hibmc_vdac *vdac = to_hibmc_vdac(connector);
+
+	if (priv->dp.phys_status == connector_status_connected) {
+		vdac->phys_status = status;
+		return status;
+	}
+
+	if (status != vdac->phys_status)
+		++connector->epoch_counter;
+	vdac->phys_status = status;
+
+	/* When both the DP and VDAC physical status are disconnected,
+	 * the "connected" status is returned to support KVM display.
+	 */
+	return connector_status_connected;
+}
+
 static const struct drm_connector_helper_funcs
 	hibmc_connector_helper_funcs = {
 	.get_modes = hibmc_connector_get_modes,
-	.detect_ctx = drm_connector_helper_detect_from_ddc,
+	.detect_ctx = hibmc_vdac_detect,
 };
 
 static const struct drm_connector_funcs hibmc_connector_funcs = {
@@ -129,6 +146,8 @@ int hibmc_vdac_init(struct hibmc_drm_private *priv)
 	drm_connector_attach_encoder(connector, encoder);
 
 	connector->polled = DRM_CONNECTOR_POLL_CONNECT | DRM_CONNECTOR_POLL_DISCONNECT;
+
+	vdac->phys_status = connector_status_disconnected;
 
 	return 0;
 
