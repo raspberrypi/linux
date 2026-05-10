@@ -497,7 +497,7 @@ static void fq_dequeue_skb(struct Qdisc *sch, struct fq_flow *flow,
 	fq_erase_head(sch, flow, skb);
 	skb_mark_not_on_list(skb);
 	qdisc_qstats_backlog_dec(sch, skb);
-	sch->q.qlen--;
+	qdisc_qlen_dec(sch);
 	qdisc_bstats_update(sch, skb);
 }
 
@@ -597,7 +597,7 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	flow_queue_add(f, skb);
 
 	qdisc_qstats_backlog_inc(sch, skb);
-	sch->q.qlen++;
+	qdisc_qlen_inc(sch);
 
 	return NET_XMIT_SUCCESS;
 }
@@ -801,7 +801,7 @@ static void fq_reset(struct Qdisc *sch)
 	struct fq_flow *f;
 	unsigned int idx;
 
-	sch->q.qlen = 0;
+	WRITE_ONCE(sch->q.qlen, 0);
 	sch->qstats.backlog = 0;
 
 	fq_flow_purge(&q->internal);

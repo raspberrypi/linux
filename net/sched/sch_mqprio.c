@@ -555,10 +555,11 @@ static int mqprio_dump(struct Qdisc *sch, struct sk_buff *skb)
 	struct mqprio_sched *priv = qdisc_priv(sch);
 	struct nlattr *nla = (struct nlattr *)skb_tail_pointer(skb);
 	struct tc_mqprio_qopt opt = { 0 };
+	unsigned int qlen = 0;
 	struct Qdisc *qdisc;
 	unsigned int ntx;
 
-	sch->q.qlen = 0;
+	qlen = 0;
 	gnet_stats_basic_sync_init(&sch->bstats);
 	memset(&sch->qstats, 0, sizeof(sch->qstats));
 
@@ -575,10 +576,11 @@ static int mqprio_dump(struct Qdisc *sch, struct sk_buff *skb)
 				     &qdisc->bstats, false);
 		gnet_stats_add_queue(&sch->qstats, qdisc->cpu_qstats,
 				     &qdisc->qstats);
-		sch->q.qlen += qdisc_qlen(qdisc);
+		qlen += qdisc_qlen(qdisc);
 
 		spin_unlock_bh(qdisc_lock(qdisc));
 	}
+	WRITE_ONCE(sch->q.qlen, qlen);
 
 	mqprio_qopt_reconstruct(dev, &opt);
 	opt.hw = priv->hw_offload;
@@ -663,12 +665,12 @@ static int mqprio_dump_class_stats(struct Qdisc *sch, unsigned long cl,
 	__acquires(d->lock)
 {
 	if (cl >= TC_H_MIN_PRIORITY) {
-		int i;
-		__u32 qlen;
-		struct gnet_stats_queue qstats = {0};
-		struct gnet_stats_basic_sync bstats;
 		struct net_device *dev = qdisc_dev(sch);
 		struct netdev_tc_txq tc = dev->tc_to_txq[cl & TC_BITMASK];
+		struct gnet_stats_queue qstats = {0};
+		struct gnet_stats_basic_sync bstats;
+		u32 qlen = 0;
+		int i;
 
 		gnet_stats_basic_sync_init(&bstats);
 		/* Drop lock here it will be reclaimed before touching
@@ -689,11 +691,11 @@ static int mqprio_dump_class_stats(struct Qdisc *sch, unsigned long cl,
 					     &qdisc->bstats, false);
 			gnet_stats_add_queue(&qstats, qdisc->cpu_qstats,
 					     &qdisc->qstats);
-			sch->q.qlen += qdisc_qlen(qdisc);
+			qlen += qdisc_qlen(qdisc);
 
 			spin_unlock_bh(qdisc_lock(qdisc));
 		}
-		qlen = qdisc_qlen(sch) + qstats.qlen;
+		qlen = qlen + qstats.qlen;
 
 		/* Reclaim root sleeping lock before completing stats */
 		if (d->lock)

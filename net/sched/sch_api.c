@@ -805,7 +805,7 @@ void qdisc_tree_reduce_backlog(struct Qdisc *sch, int n, int len)
 			cl = cops->find(sch, parentid);
 			cops->qlen_notify(sch, cl);
 		}
-		sch->q.qlen -= n;
+		WRITE_ONCE(sch->q.qlen, sch->q.qlen - n);
 		sch->qstats.backlog -= len;
 		__qdisc_qstats_drop(sch, drops);
 	}
