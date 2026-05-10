@@ -201,6 +201,9 @@ static int bmg160_get_filter(struct bmg160_data *data, int *val)
 			break;
 	}
 
+	if (i == ARRAY_SIZE(bmg160_samp_freq_table))
+		return -EINVAL;
+
 	*val = bmg160_samp_freq_table[i].filter;
 
 	return ret ? ret : IIO_VAL_INT;
@@ -217,6 +220,9 @@ static int bmg160_set_filter(struct bmg160_data *data, int val)
 		if (bmg160_samp_freq_table[i].filter == val)
 			break;
 	}
+
+	if (i == ARRAY_SIZE(bmg160_samp_freq_table))
+		return -EINVAL;
 
 	ret = regmap_write(data->regmap, BMG160_REG_PMU_BW,
 			   bmg160_samp_freq_table[i].bw_bits);
