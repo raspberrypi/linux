@@ -839,7 +839,7 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 	struct dma_fence_chain *timeline_chain = NULL;
 	struct dma_fence *fence;
 	struct drm_exec exec;
-	uint64_t vm_size;
+	uint64_t vm_size, tmp;
 	int r = 0;
 
 	/* Validate virtual address range against reserved regions. */
@@ -863,7 +863,7 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
 
 	vm_size = adev->vm_manager.max_pfn * AMDGPU_GPU_PAGE_SIZE;
 	vm_size -= AMDGPU_VA_RESERVED_TOP;
-	if (args->va_address + args->map_size > vm_size) {
+	if (check_add_overflow(args->va_address, args->map_size, &tmp) || tmp > vm_size) {
 		dev_dbg(dev->dev,
 			"va_address 0x%llx is in top reserved area 0x%llx\n",
 			args->va_address + args->map_size, vm_size);
