@@ -1154,8 +1154,14 @@ iwl_mld_link_info_changed_ap_ibss(struct iwl_mld *mld,
 	if (link_changes)
 		iwl_mld_change_link_in_fw(mld, link, link_changes);
 
-	if (changes & BSS_CHANGED_BEACON)
+	if (changes & BSS_CHANGED_BEACON) {
+		WARN_ON(!link->enable_beacon);
 		iwl_mld_update_beacon_template(mld, vif, link);
+	}
+
+	/* Enabling beacons was already covered above */
+	if ((changes & BSS_CHANGED_BEACON_ENABLED) && !link->enable_beacon)
+		iwl_mld_stop_beacon(mld, vif, link);
 }
 
 static

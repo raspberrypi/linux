@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024, 2026 Intel Corporation
  */
 #include <linux/crc32.h>
 
@@ -239,6 +239,25 @@ int iwl_mld_store_ap_early_key(struct iwl_mld *mld,
 	return -ENOSPC;
 }
 
+void iwl_mld_stop_beacon(struct iwl_mld *mld, struct ieee80211_vif *vif,
+			 struct ieee80211_bss_conf *link)
+{
+	struct iwl_mld_link *mld_link = iwl_mld_link_from_mac80211(link);
+	struct iwl_mac_beacon_cmd cmd = {};
+	int cmd_ver = iwl_fw_lookup_cmd_ver(mld->fw, BEACON_TEMPLATE_CMD, 14);
+
+	if (WARN_ON(!mld_link))
+		return;
+
+	if (cmd_ver < 15)
+		return;
+
+	/* leave byte_cnt 0 */
+	cmd.link_id = cpu_to_le32(mld_link->fw_id);
+
+	iwl_mld_send_cmd_pdu(mld, BEACON_TEMPLATE_CMD, &cmd);
+}
+
 static int iwl_mld_send_ap_early_keys(struct iwl_mld *mld,
 				      struct ieee80211_vif *vif,
 				      struct ieee80211_bss_conf *link)
@@ -275,10 +294,6 @@ int iwl_mld_start_ap_ibss(struct ieee80211_hw *hw,
 
 	if (vif->type == NL80211_IFTYPE_AP)
 		iwl_mld_send_ap_tx_power_constraint_cmd(mld, vif, link);
-
-	ret = iwl_mld_update_beacon_template(mld, vif, link);
-	if (ret)
-		return ret;
 
 	/* the link should be already activated when assigning chan context,
 	 * and LINK_CONTEXT_MODIFY_EHT_PARAMS is deprecated
