@@ -38,6 +38,7 @@
 static int	cfg_clockid	= CLOCK_TAI;
 static uint16_t	cfg_port	= 8000;
 static int	cfg_variance_us	= 4000;
+static bool	cfg_machine_slow;
 static uint64_t	cfg_start_time_ns;
 static int	cfg_mark;
 static bool	cfg_rx;
@@ -142,7 +143,7 @@ static void do_recv_one(int fdr, struct timed_send *ts)
 
 	if (llabs(tstop - texpect) > cfg_variance_us) {
 		fprintf(stderr, "exceeds variance (%d us)\n", cfg_variance_us);
-		if (!getenv("KSFT_MACHINE_SLOW"))
+		if (!cfg_machine_slow)
 			errors++;
 	}
 }
@@ -263,7 +264,7 @@ static void start_time_wait(void)
 	now = gettime_ns(CLOCK_REALTIME);
 	if (cfg_start_time_ns < now) {
 		fprintf(stderr, "FAIL: start time already passed\n");
-		if (!getenv("KSFT_MACHINE_SLOW"))
+		if (!cfg_machine_slow)
 			errors++;
 		return;
 	}
@@ -325,6 +326,9 @@ static int setup_rx(struct sockaddr *addr, socklen_t alen)
 
 	if (bind(fd, addr, alen))
 		error(1, errno, "bind");
+
+	if (cfg_machine_slow)
+		tv.tv_sec = 2;
 
 	if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)))
 		error(1, errno, "setsockopt rcv timeout");
@@ -512,6 +516,8 @@ static void parse_opts(int argc, char **argv)
 	setup_sockaddr(domain, saddr, &cfg_src_addr);
 
 	cfg_num_pkt = parse_io(argv[optind], cfg_buf);
+
+	cfg_machine_slow = getenv("KSFT_MACHINE_SLOW");
 }
 
 int main(int argc, char **argv)

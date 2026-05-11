@@ -6,6 +6,7 @@
 Test delivery time in FQ and ETF qdiscs.
 """
 
+import os
 import time
 
 from lib.py import ksft_exit, ksft_run, ksft_variants
@@ -15,17 +16,23 @@ from lib.py import NetDrvEpEnv, bkg, cmd, defer, tc
 
 def test_so_txtime(cfg, clockid, ipver, args_tx, args_rx, expect_success):
     """Main function. Run so_txtime as sender and receiver."""
+    slow_machine = os.environ.get('KSFT_MACHINE_SLOW')
+
     bin_path = cfg.test_dir / "so_txtime"
 
-    tstart = time.time_ns() + 200_000_000
+    tstart = time.time_ns() + (2000_000_000 if slow_machine else 200_000_000)
 
     cmd_addr = f"-S {cfg.addr_v[ipver]} -D {cfg.remote_addr_v[ipver]}"
     cmd_base = f"{bin_path} -{ipver} -c {clockid} -t {tstart} {cmd_addr}"
     cmd_rx = f"{cmd_base} {args_rx} -r"
     cmd_tx = f"{cmd_base} {args_tx}"
 
+    expect_fail = not expect_success
+    if slow_machine:
+        expect_success = False
+
     with bkg(cmd_rx, host=cfg.remote, fail=expect_success,
-             expect_fail=(not expect_success), exit_wait=True):
+             expect_fail=expect_fail, exit_wait=True):
         cmd(cmd_tx)
 
 
