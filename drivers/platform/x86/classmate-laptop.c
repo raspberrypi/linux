@@ -400,7 +400,7 @@ static int cmpc_accel_add_v4(struct acpi_device *acpi)
 	struct input_dev *inputdev;
 	struct cmpc_accel *accel;
 
-	accel = kmalloc_obj(*accel);
+	accel = devm_kzalloc(&acpi->dev, sizeof(*accel), GFP_KERNEL);
 	if (!accel)
 		return -ENOMEM;
 
@@ -411,7 +411,7 @@ static int cmpc_accel_add_v4(struct acpi_device *acpi)
 
 	error = device_create_file(&acpi->dev, &cmpc_accel_sensitivity_attr_v4);
 	if (error)
-		goto failed_sensitivity;
+		return error;
 
 	accel->g_select = CMPC_ACCEL_G_SELECT_DEFAULT;
 	cmpc_accel_set_g_select_v4(acpi->handle, accel->g_select);
@@ -434,8 +434,6 @@ failed_input:
 	device_remove_file(&acpi->dev, &cmpc_accel_g_select_attr_v4);
 failed_g_select:
 	device_remove_file(&acpi->dev, &cmpc_accel_sensitivity_attr_v4);
-failed_sensitivity:
-	kfree(accel);
 	return error;
 }
 
@@ -650,7 +648,7 @@ static int cmpc_accel_add(struct acpi_device *acpi)
 	struct input_dev *inputdev;
 	struct cmpc_accel *accel;
 
-	accel = kmalloc_obj(*accel);
+	accel = devm_kzalloc(&acpi->dev, sizeof(*accel), GFP_KERNEL);
 	if (!accel)
 		return -ENOMEM;
 
@@ -659,7 +657,7 @@ static int cmpc_accel_add(struct acpi_device *acpi)
 
 	error = device_create_file(&acpi->dev, &cmpc_accel_sensitivity_attr);
 	if (error)
-		goto failed_file;
+		return error;
 
 	error = cmpc_add_acpi_notify_device(acpi, "cmpc_accel",
 					    cmpc_accel_idev_init);
@@ -673,8 +671,6 @@ static int cmpc_accel_add(struct acpi_device *acpi)
 
 failed_input:
 	device_remove_file(&acpi->dev, &cmpc_accel_sensitivity_attr);
-failed_file:
-	kfree(accel);
 	return error;
 }
 
