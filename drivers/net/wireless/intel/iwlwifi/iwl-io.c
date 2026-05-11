@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2003-2014, 2018-2022, 2024-2025 Intel Corporation
+ * Copyright (C) 2003-2014, 2018-2022, 2024-2026 Intel Corporation
  * Copyright (C) 2015-2016 Intel Deutschland GmbH
  */
 #include <linux/device.h>
@@ -160,6 +160,22 @@ int iwl_poll_prph_bit(struct iwl_trans *trans, u32 addr,
 
 	do {
 		if ((iwl_read_prph(trans, addr) & mask) == (bits & mask))
+			return 0;
+		udelay(IWL_POLL_INTERVAL);
+		t += IWL_POLL_INTERVAL;
+	} while (t < timeout);
+
+	return -ETIMEDOUT;
+}
+
+int iwl_poll_umac_prph_bits_no_grab(struct iwl_trans *trans, u32 addr,
+				    u32 bits, u32 mask, int timeout)
+{
+	int t = 0;
+
+	do {
+		if ((iwl_read_umac_prph_no_grab(trans, addr) & mask) ==
+		    (bits & mask))
 			return 0;
 		udelay(IWL_POLL_INTERVAL);
 		t += IWL_POLL_INTERVAL;

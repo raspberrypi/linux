@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2007-2015, 2018-2024 Intel Corporation
+ * Copyright (C) 2007-2015, 2018-2024, 2026 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -3999,6 +3999,30 @@ static void get_crf_id(struct iwl_trans *iwl_trans,
 		sd_reg_ver_addr = SD_REG_VER_GEN2;
 	else
 		sd_reg_ver_addr = SD_REG_VER;
+
+	/* wait until the device is ready to access the prph registers */
+	if (iwl_trans->mac_cfg->device_family == IWL_DEVICE_FAMILY_DR ||
+	    iwl_trans->mac_cfg->device_family == IWL_DEVICE_FAMILY_SC) {
+		u32 req = iwl_read_umac_prph_no_grab(iwl_trans,
+						     WFPM_RSRCS_4PHS_REQ_STTS);
+		int ret;
+
+		if (!(req & RSRC_REQ_CNVR_TOP)) {
+			IWL_ERR(iwl_trans,
+				"WFPM_RSRCS_4PHS_REQ_STTS bit 6 is clear 0x%x\n",
+				req);
+			return;
+		}
+
+		ret = iwl_poll_umac_prph_bits_no_grab(iwl_trans,
+						      WFPM_RSRCS_4PHS_ACK_STTS,
+						      RSRC_ACK_CNVR_TOP,
+						      RSRC_ACK_CNVR_TOP,
+						      50 * 1000);
+		if (ret < 0)
+			IWL_ERR(iwl_trans,
+				"WFPM_RSRCS_4PHS_ACK_STTS bit 6 is clear\n");
+	}
 
 	/* Enable access to peripheral registers */
 	val = iwl_read_umac_prph_no_grab(iwl_trans, WFPM_CTRL_REG);
