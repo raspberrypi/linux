@@ -22,6 +22,7 @@
 		i2c0 = &i2c0;
 		i2c1 = &i2c4;
 		i2c2 = &i2c5;
+		i2c3 = &i2c9;
 		spi0 = &spi18;
 	};
 
@@ -444,6 +445,22 @@
 	};
 };
 
+&i2c9 {
+	clock-frequency = <400000>;
+
+	status = "okay";
+
+	embedded-controller@76 {
+		compatible = "qcom,glymur-crd-ec", "qcom,hamoa-crd-ec";
+		reg = <0x76>;
+
+		interrupts-extended = <&tlmm 66 IRQ_TYPE_EDGE_FALLING>;
+
+		pinctrl-0 = <&ec_int_n_default>;
+		pinctrl-names = "default";
+	};
+};
+
 &pcie3b {
 	vddpe-3v3-supply = <&vreg_nvmesec>;
 
@@ -592,6 +609,12 @@
 
 	hall_int_n_default: hall-int-n-state {
 		pins = "gpio92";
+		function = "gpio";
+		bias-disable;
+	};
+
+	ec_int_n_default: ec-int-n-state {
+		pins = "gpio66";
 		function = "gpio";
 		bias-disable;
 	};
