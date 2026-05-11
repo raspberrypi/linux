@@ -801,7 +801,7 @@ static int ntfs_iomap_begin(struct inode *inode, loff_t offset, loff_t length,
 
 	if (lcn == RESIDENT_LCN) {
 		if (offset >= clen) {
-			kfree(res);
+			__free_page(virt_to_page(res));
 			if (flags & IOMAP_REPORT) {
 				/* special code for report. */
 				return -ENOENT;
@@ -921,7 +921,7 @@ static int ntfs_iomap_end(struct inode *inode, loff_t pos, loff_t length,
 
 out:
 	if (iomap->type == IOMAP_INLINE) {
-		kfree(iomap->private);
+		__free_page(virt_to_page(iomap->private));
 		iomap->private = NULL;
 	}
 
