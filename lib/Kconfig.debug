@@ -2649,11 +2649,16 @@ config TEST_VMALLOC
 
 config TEST_WORKQUEUE
 	tristate "Test module for stress/performance analysis of workqueue"
+	depends on m
 	default n
 	help
 	  This builds the "test_workqueue" module for benchmarking
 	  workqueue throughput under contention. Useful for evaluating
 	  affinity scope changes (e.g., cache_shard vs cache).
+
+	  The test drives sysfs to switch affinity scopes, so it must be
+	  loaded after userspace has mounted sysfs; building it in (=y)
+	  would run module_init before /sys is available.
 
 	  If unsure, say N.
 
