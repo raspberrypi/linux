@@ -465,7 +465,7 @@ calc:
 
 void amdgpu_cper_ring_write(struct amdgpu_ring *ring, void *src, int count)
 {
-	u64 pos, wptr_old, rptr;
+	u64 pos, wptr_old, rptr, next_rptr;
 	int rec_cnt_dw = count >> 2;
 	u32 chunk, ent_sz;
 	u8 *s = (u8 *)src;
@@ -506,9 +506,19 @@ void amdgpu_cper_ring_write(struct amdgpu_ring *ring, void *src, int count)
 
 		do {
 			ent_sz = amdgpu_cper_ring_get_ent_sz(ring, pos);
+			next_rptr = rptr;
+			if (ent_sz >= sizeof(u32))
+				next_rptr = (rptr + (ent_sz >> 2)) & ring->ptr_mask;
 
-			rptr += (ent_sz >> 2);
-			rptr &= ring->ptr_mask;
+			if (next_rptr == rptr) {
+				/* Corrupt entry size, reset the ring to avoid an infinite loop. */
+				rptr = ring->wptr;
+				*ring->rptr_cpu_addr = rptr;
+				ring->count_dw = (ring->ring_size - 4) >> 2;
+				goto out_unlock;
+			}
+
+			rptr = next_rptr;
 			*ring->rptr_cpu_addr = rptr;
 
 			pos = rptr;
@@ -517,6 +527,8 @@ void amdgpu_cper_ring_write(struct amdgpu_ring *ring, void *src, int count)
 
 	if (ring->count_dw >= rec_cnt_dw)
 		ring->count_dw -= rec_cnt_dw;
+
+out_unlock:
 	mutex_unlock(&ring->adev->cper.ring_lock);
 }
 
