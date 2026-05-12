@@ -5722,6 +5722,7 @@ Params: disable-touch           Disables the touch controller
         touchscreen-inverted-y  Inverts Y direction of touch controller
         touchscreen-swapped-x-y Swaps X & Y axes of touch controller
         rotate                  Display rotation {0,90,180,270} (default 0)
+        backlight-pwm           Use PWM instead of GPIO for backlight
 
 
 Name:   vc4-kms-dpi-hyperpixel4
