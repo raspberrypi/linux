@@ -753,9 +753,9 @@ retry:
 
 	netfs_read_to_pagecache(rreq);
 	ret = netfs_wait_for_read(rreq);
+	netfs_put_request(rreq, false, netfs_rreq_trace_put_return);
 	if (ret < 0)
 		goto error;
-	netfs_put_request(rreq, false, netfs_rreq_trace_put_return);
 
 have_folio:
 	ret = folio_wait_private_2_killable(folio);
