@@ -588,24 +588,6 @@ void iwl_mld_handle_probe_resp_data_notif(struct iwl_mld *mld,
 		kfree_rcu(old_data, rcu_head);
 }
 
-void iwl_mld_handle_uapsd_misbehaving_ap_notif(struct iwl_mld *mld,
-					       struct iwl_rx_packet *pkt)
-{
-	struct iwl_uapsd_misbehaving_ap_notif *notif = (void *)pkt->data;
-	struct ieee80211_vif *vif;
-
-	if (IWL_FW_CHECK(mld, notif->mac_id >= ARRAY_SIZE(mld->fw_id_to_vif),
-			 "mac id is invalid: %d\n", notif->mac_id))
-		return;
-
-	vif = wiphy_dereference(mld->wiphy, mld->fw_id_to_vif[notif->mac_id]);
-
-	if (WARN_ON(!vif) || ieee80211_vif_is_mld(vif))
-		return;
-
-	IWL_WARN(mld, "uapsd misbehaving AP: %pM\n", vif->bss_conf.bssid);
-}
-
 void iwl_mld_handle_datapath_monitor_notif(struct iwl_mld *mld,
 					   struct iwl_rx_packet *pkt)
 {

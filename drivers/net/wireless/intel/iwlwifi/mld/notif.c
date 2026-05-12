@@ -338,8 +338,6 @@ CMD_VERSIONS(emlsr_mode_notif,
 	     CMD_VER_ENTRY(2, iwl_esr_mode_notif))
 CMD_VERSIONS(emlsr_trans_fail_notif,
 	     CMD_VER_ENTRY(1, iwl_esr_trans_fail_notif))
-CMD_VERSIONS(uapsd_misbehaving_ap_notif,
-	     CMD_VER_ENTRY(1, iwl_uapsd_misbehaving_ap_notif))
 CMD_VERSIONS(time_msmt_notif,
 	     CMD_VER_ENTRY(1, iwl_time_msmt_notify))
 CMD_VERSIONS(time_sync_confirm_notif,
@@ -359,8 +357,6 @@ DEFINE_SIMPLE_CANCELLATION(roc, iwl_roc_notif, activity)
 DEFINE_SIMPLE_CANCELLATION(scan_complete, iwl_umac_scan_complete, uid)
 DEFINE_SIMPLE_CANCELLATION(scan_start, iwl_umac_scan_start, uid)
 DEFINE_SIMPLE_CANCELLATION(probe_resp_data, iwl_probe_resp_data_notif,
-			   mac_id)
-DEFINE_SIMPLE_CANCELLATION(uapsd_misbehaving_ap, iwl_uapsd_misbehaving_ap_notif,
 			   mac_id)
 DEFINE_SIMPLE_CANCELLATION(ftm_resp, iwl_tof_range_rsp_ntfy, request_id)
 DEFINE_SIMPLE_CANCELLATION(beacon_filter, iwl_beacon_filter_notif, link_id)
@@ -452,8 +448,6 @@ const struct iwl_rx_handler iwl_mld_rx_handlers[] = {
 			     emlsr_mode_notif, RX_HANDLER_ASYNC)
 	RX_HANDLER_NO_OBJECT(MAC_CONF_GROUP, EMLSR_TRANS_FAIL_NOTIF,
 			     emlsr_trans_fail_notif, RX_HANDLER_ASYNC)
-	RX_HANDLER_OF_VIF(LEGACY_GROUP, PSM_UAPSD_AP_MISBEHAVING_NOTIFICATION,
-			  uapsd_misbehaving_ap_notif)
 	RX_HANDLER_NO_OBJECT(LEGACY_GROUP,
 			     WNM_80211V_TIMING_MEASUREMENT_NOTIFICATION,
 			     time_msmt_notif, RX_HANDLER_SYNC)
