@@ -306,6 +306,7 @@ static ssize_t err_inj_write(struct file *file, const char __user *buf,
 	u32 val, counter, vc_num, err_group, type_mask;
 	int val_diff = 0;
 	char *kern_buf;
+	int ret;
 
 	err_group = err_inj_list[pdata->idx].err_inj_group;
 	type_mask = err_inj_type_mask[err_group];
@@ -327,10 +328,10 @@ static ssize_t err_inj_write(struct file *file, const char __user *buf,
 			return -EINVAL;
 		}
 	} else {
-		val = kstrtou32(kern_buf, 0, &counter);
-		if (val) {
+		ret = kstrtou32(kern_buf, 0, &counter);
+		if (ret) {
 			kfree(kern_buf);
-			return val;
+			return ret;
 		}
 	}
 
