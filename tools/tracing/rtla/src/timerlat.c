@@ -202,7 +202,7 @@ void timerlat_analyze(struct osnoise_tool *tool, bool stopped)
 		 * If the trace did not stop with --aa-only, at least print
 		 * the max known latency.
 		 */
-		max_lat = tracefs_instance_file_read(trace_inst->inst, "tracing_max_latency", NULL);
+		max_lat = tracefs_instance_file_read(tool->trace.inst, "tracing_max_latency", NULL);
 		if (max_lat) {
 			printf("  Max latency was %s\n", max_lat);
 			free(max_lat);

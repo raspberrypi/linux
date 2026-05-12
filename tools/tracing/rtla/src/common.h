@@ -54,7 +54,6 @@ struct osnoise_context {
 	int			opt_workload;
 };
 
-extern struct trace_instance *trace_inst;
 extern volatile int stop_tracing;
 
 struct hist_params {
