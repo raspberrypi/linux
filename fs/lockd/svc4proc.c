@@ -669,6 +669,8 @@ __nlm4svc_proc_lock_msg(struct svc_rqst *rqstp, struct nlm_res *resp)
 	resp->status = nlmsvc_lock(rqstp, file, host, &argp->lock,
 				   argp->xdrgen.block, &resp->cookie,
 				   argp->xdrgen.reclaim);
+	if (resp->status == nlm__int__deadlock)
+		resp->status = nlm4_deadlock;
 	nlmsvc_release_lockowner(&argp->lock);
 
 out:
