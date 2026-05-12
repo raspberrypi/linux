@@ -361,6 +361,7 @@ void netfs_wait_for_in_progress_stream(struct netfs_io_request *rreq,
 	DEFINE_WAIT(myself);
 
 	list_for_each_entry(subreq, &stream->subrequests, rreq_link) {
+		smp_rmb(); /* Read ->next before IN_PROGRESS. */
 		if (!netfs_check_subreq_in_progress(subreq))
 			continue;
 
