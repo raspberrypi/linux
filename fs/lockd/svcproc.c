@@ -49,7 +49,7 @@ static inline __be32 cast_status(__be32 status)
 		status = nlm_lck_denied_nolocks;
 		break;
 	default:
-		if (be32_to_cpu(status) >= 30000)
+		if (be32_to_cpu(status) > be32_to_cpu(nlm__int__drop_reply))
 			pr_warn_once("lockd: unhandled internal status %u\n",
 				     be32_to_cpu(status));
 		break;
