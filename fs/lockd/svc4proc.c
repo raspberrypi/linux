@@ -516,12 +516,12 @@ out:
  *   nlm4_res NLMPROC4_GRANTED(nlm4_testargs) = 5;
  *
  * Permissible procedure status codes:
- *   %NLM4_GRANTED:		The requested lock was granted.
- *   %NLM4_DENIED:		The server could not allocate the resources
- *				needed to process the request.
- *   %NLM4_DENIED_GRACE_PERIOD:	The server has recently restarted and is
- *				re-establishing existing locks, and is not
- *				yet ready to accept normal service requests.
+ *   %NLM4_GRANTED:		The granted lock was accepted.
+ *   %NLM4_DENIED:		The procedure failed, possibly due to
+ *				internal resource constraints.
+ *   %NLM4_DENIED_GRACE_PERIOD:	The client host recently restarted and
+ *				its NLM is re-establishing existing locks,
+ *				so it is not yet ready to accept callbacks.
  */
 static __be32
 nlm4svc_proc_granted(struct svc_rqst *rqstp)
