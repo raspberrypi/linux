@@ -2884,12 +2884,34 @@ static int amdgpu_ras_mca2pa(struct amdgpu_device *adev,
 		return  -EINVAL;
 }
 
+static bool __check_record_in_range(struct amdgpu_device *adev,
+			struct eeprom_table_record *bps, int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++) {
+		if (bps[i].retired_page >=
+			(adev->gmc.real_vram_size >> AMDGPU_GPU_PAGE_SHIFT)) {
+			dev_warn(adev->dev,
+				"Recorded address out of range: 0x%llx, 0x%llx, 0x%x, 0x%x\n",
+				bps[i].address, bps[i].retired_page,
+				bps[i].mem_channel, bps[i].mcumc_id);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static int __amdgpu_ras_restore_bad_pages(struct amdgpu_device *adev,
 					struct eeprom_table_record *bps, int count)
 {
 	int j;
 	struct amdgpu_ras *con = amdgpu_ras_get_context(adev);
 	struct ras_err_handler_data *data = con->eh_data;
+
+	if (!__check_record_in_range(adev, bps, count))
+		return 0;
 
 	for (j = 0; j < count; j++) {
 		if (!data->space_left &&
@@ -5369,6 +5391,11 @@ int amdgpu_ras_reserve_page(struct amdgpu_device *adev, uint64_t pfn)
 	struct amdgpu_vram_mgr *mgr = &adev->mman.vram_mgr;
 	uint64_t start = pfn << AMDGPU_GPU_PAGE_SHIFT;
 	int ret = 0;
+
+	if (pfn >= (adev->gmc.real_vram_size >> AMDGPU_GPU_PAGE_SHIFT)) {
+		dev_warn(adev->dev, "Ignoring out-of-range bad page 0x%llx", start);
+		return 0;
+	}
 
 	if (amdgpu_ras_check_critical_address(adev, start))
 		return 0;
