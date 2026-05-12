@@ -2,7 +2,7 @@
 /*
  * Copyright (C) 2005-2014, 2018-2021 Intel Corporation
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2025 Intel Corporation
+ * Copyright (C) 2018-2026 Intel Corporation
  */
 #ifndef __IWL_CONFIG_H__
 #define __IWL_CONFIG_H__
@@ -670,6 +670,7 @@ extern const char iwl_ax411_killer_1690s_name[];
 extern const char iwl_ax411_killer_1690i_name[];
 extern const char iwl_ax210_name[];
 extern const char iwl_ax211_name[];
+extern const char iwl_ax231_name[];
 extern const char iwl_ax411_name[];
 extern const char iwl_killer_be1750s_name[];
 extern const char iwl_killer_be1750i_name[];
@@ -739,6 +740,7 @@ extern const struct iwl_rf_cfg iwl_rf_hr;
 extern const struct iwl_rf_cfg iwl_rf_hr_80mhz;
 
 extern const struct iwl_rf_cfg iwl_rf_gf;
+#define iwl_rf_ot iwl_rf_hr_80mhz
 #endif /* CONFIG_IWLMVM */
 
 #if IS_ENABLED(CONFIG_IWLMLD)
