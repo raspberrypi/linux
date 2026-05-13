@@ -795,6 +795,8 @@ struct bpf_verifier_env {
 	u32 prev_insn_processed, insn_processed;
 	/* number of jmps, calls, exits analyzed so far */
 	u32 prev_jmps_processed, jmps_processed;
+	/* maximum combined stack depth */
+	u32 max_stack_depth;
 	/* total verification time */
 	u64 verification_time;
 	/* maximum number of verifier states kept in 'branching' instructions */
