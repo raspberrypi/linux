@@ -381,18 +381,24 @@ struct audit_records {
 };
 
 /*
- * WARNING: Do not assert records.domain == 0 without a preceding
- * audit_match_record() call.  Domain deallocation records are emitted
- * asynchronously from kworker threads and can arrive after the drain in
- * audit_init(), corrupting the domain count.  A preceding audit_match_record()
- * call consumes stale records while scanning, making the assertion safe in
- * practice because stale deallocation records arrive before the expected access
- * records.
+ * Counts remaining audit records by type, skipping domain deallocation records.
+ * Deallocation records are emitted asynchronously from kworker threads after a
+ * previous test's child has exited, so they can arrive after the drain in
+ * audit_init() and after the preceding audit_match_record() call.  Allocation
+ * records are emitted synchronously during landlock_log_denial() in the current
+ * test's syscall context, so only those are counted in records->domain.
  */
 static int audit_count_records(int audit_fd, struct audit_records *records)
 {
+	static const char dealloc_pattern[] = REGEX_LANDLOCK_PREFIX
+		" status=deallocated ";
 	struct audit_message msg;
-	int err;
+	regex_t dealloc_re;
+	int ret, err = 0;
+
+	ret = regcomp(&dealloc_re, dealloc_pattern, 0);
+	if (ret)
+		return -ENOMEM;
 
 	records->access = 0;
 	records->domain = 0;
@@ -402,9 +408,8 @@ static int audit_count_records(int audit_fd, struct audit_records *records)
 		err = audit_recv(audit_fd, &msg);
 		if (err) {
 			if (err == -EAGAIN)
-				return 0;
-			else
-				return err;
+				err = 0;
+			break;
 		}
 
 		switch (msg.header.nlmsg_type) {
@@ -412,12 +417,20 @@ static int audit_count_records(int audit_fd, struct audit_records *records)
 			records->access++;
 			break;
 		case AUDIT_LANDLOCK_DOMAIN:
-			records->domain++;
+			ret = regexec(&dealloc_re, msg.data, 0, NULL, 0);
+			if (ret == REG_NOMATCH) {
+				records->domain++;
+			} else if (ret != 0) {
+				err = -EIO;
+				goto out;
+			}
 			break;
 		}
 	} while (true);
 
-	return 0;
+out:
+	regfree(&dealloc_re);
+	return err;
 }
 
 static int audit_init(void)
