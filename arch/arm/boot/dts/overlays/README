@@ -5802,6 +5802,21 @@ Params: i2c1                    Use i2c1
         cm5                     the default DSI0 and i2c_csi_dsi0
 
 
+Name:   vc4-kms-dsi-edatec-panel-101c
+Info:   Enable the edatec DSI 10" screen.
+        support ed-dispr-101c.
+        support ed-dispr5-101c.
+        support ed-dispr4-101c.
+Load:   dtoverlay=vc4-kms-dsi-edatec-panel-101c,<param>=<val>
+Params: rotation                Display rotation {0,90,180,270} (default 0)
+        interrupt               GPIO pin for interrupt signal(default 2)
+        cm0                     the default DSI1 and i2c_csi_dsi
+        pi4                     the default DSI1 and i2c_csi_dsi
+        cm4                     the default DSI1 and i2c_csi_dsi
+        pi5                     the default DSI1 and i2c_csi_dsi
+        cm5                     the default DSI0 and i2c_csi_dsi0
+
+
 Name:   vc4-kms-dsi-generic
 Info:   Enable a generic DSI display under KMS.
         Default timings are for a 840x480 RGB888 panel.
