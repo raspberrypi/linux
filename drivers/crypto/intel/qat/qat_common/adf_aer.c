@@ -33,6 +33,9 @@ static pci_ers_result_t adf_error_detected(struct pci_dev *pdev,
 		return PCI_ERS_RESULT_DISCONNECT;
 	}
 
+	if (!adf_dev_started(accel_dev))
+		return PCI_ERS_RESULT_CAN_RECOVER;
+
 	adf_error_notifier(accel_dev);
 	adf_pf2vf_notify_fatal_error(accel_dev);
 	set_bit(ADF_STATUS_RESTARTING, &accel_dev->status);
@@ -204,6 +207,9 @@ static pci_ers_result_t adf_slot_reset(struct pci_dev *pdev)
 		return PCI_ERS_RESULT_DISCONNECT;
 	}
 
+	if (!adf_devmgr_in_reset(accel_dev))
+		goto reset_complete;
+
 	pci_restore_state(pdev);
 	res = adf_dev_up(accel_dev, false);
 	if (res && res != -EALREADY)
@@ -213,6 +219,8 @@ static pci_ers_result_t adf_slot_reset(struct pci_dev *pdev)
 	adf_pf2vf_notify_restarted(accel_dev);
 	adf_dev_restarted_notify(accel_dev);
 	clear_bit(ADF_STATUS_RESTARTING, &accel_dev->status);
+
+reset_complete:
 	return PCI_ERS_RESULT_RECOVERED;
 }
 
