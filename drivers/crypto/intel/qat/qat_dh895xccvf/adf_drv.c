@@ -163,7 +163,6 @@ static int adf_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 			goto out_err_free_reg;
 		}
 	}
-	pci_set_master(pdev);
 	/* Completion for VF2PF request/response message exchange */
 	init_completion(&accel_dev->vf.msg_received);
 

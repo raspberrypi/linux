@@ -41,7 +41,6 @@ static pci_ers_result_t adf_error_detected(struct pci_dev *pdev,
 	adf_error_notifier(accel_dev);
 	adf_pf2vf_notify_fatal_error(accel_dev);
 	adf_dev_restarting_notify(accel_dev);
-	pci_clear_master(pdev);
 	adf_dev_down(accel_dev);
 
 	return PCI_ERS_RESULT_NEED_RESET;
@@ -104,6 +103,13 @@ void adf_dev_restore(struct adf_accel_dev *accel_dev)
 		hw_device->reset_device(accel_dev);
 		pci_restore_state(pdev);
 	}
+}
+
+void adf_set_bme(struct adf_accel_dev *accel_dev)
+{
+	struct pci_dev *pdev = accel_to_pci_dev(accel_dev);
+
+	pci_set_master(pdev);
 }
 
 static void adf_device_sriov_worker(struct work_struct *work)
@@ -198,8 +204,6 @@ static pci_ers_result_t adf_slot_reset(struct pci_dev *pdev)
 		return PCI_ERS_RESULT_DISCONNECT;
 	}
 
-	if (!pdev->is_busmaster)
-		pci_set_master(pdev);
 	pci_restore_state(pdev);
 	res = adf_dev_up(accel_dev, false);
 	if (res && res != -EALREADY)
