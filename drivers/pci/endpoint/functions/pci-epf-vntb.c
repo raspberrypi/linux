@@ -83,6 +83,12 @@ enum epf_ntb_bar {
 	VNTB_BAR_NUM,
 };
 
+enum epf_irq_slot {
+	EPF_IRQ_LINK = 0,
+	EPF_IRQ_RESERVED_DB, /* Historically skipped slot */
+	EPF_IRQ_DB_START,
+};
+
 /*
  * +--------------------------------------------------+ Base
  * |                                                  |
@@ -267,10 +273,11 @@ static void epf_ntb_cmd_handler(struct work_struct *work)
 
 	ntb = container_of(work, struct epf_ntb, cmd_handler.work);
 
-	for (i = 1; i < ntb->db_count && !ntb->msi_doorbell; i++) {
+	for (i = EPF_IRQ_DB_START; i < ntb->db_count && !ntb->msi_doorbell;
+	     i++) {
 		if (ntb->epf_db[i]) {
-			atomic64_or(1 << (i - 1), &ntb->db);
-			ntb_db_event(&ntb->ntb, i);
+			atomic64_or(1 << (i - EPF_IRQ_DB_START), &ntb->db);
+			ntb_db_event(&ntb->ntb, i - EPF_IRQ_DB_START);
 			ntb->epf_db[i] = 0;
 		}
 	}
@@ -336,10 +343,10 @@ static irqreturn_t epf_ntb_doorbell_handler(int irq, void *data)
 	struct epf_ntb *ntb = data;
 	int i;
 
-	for (i = 1; i < ntb->db_count; i++)
+	for (i = EPF_IRQ_DB_START; i < ntb->db_count; i++)
 		if (irq == ntb->epf->db_msg[i].virq) {
-			atomic64_or(1 << (i - 1), &ntb->db);
-			ntb_db_event(&ntb->ntb, i);
+			atomic64_or(1 << (i - EPF_IRQ_DB_START), &ntb->db);
+			ntb_db_event(&ntb->ntb, i - EPF_IRQ_DB_START);
 		}
 
 	return IRQ_HANDLED;
@@ -1395,8 +1402,8 @@ static void vntb_epf_peer_db_work(struct work_struct *work)
 		while (db_bits) {
 			/*
 			 * pci_epc_raise_irq() for MSI expects a 1-based
-			 * interrupt number. db_bit is zero-based, so add 3 to
-			 * preserve the historical slot offset.
+			 * interrupt number. The first usable doorbell starts
+			 * at EPF_IRQ_DB_START in the legacy slot layout.
 			 *
 			 * Legacy mapping (kept for compatibility):
 			 *
@@ -1410,7 +1417,7 @@ static void vntb_epf_peer_db_work(struct work_struct *work)
 			 * interoperability with older peers.
 			 */
 			db_bit = __ffs64(db_bits);
-			interrupt_num = db_bit + 3;
+			interrupt_num = db_bit + EPF_IRQ_DB_START + 1;
 			db_bits &= ~BIT_ULL(db_bit);
 
 			ret = pci_epc_raise_irq(epf->epc, func_no, vfunc_no,
