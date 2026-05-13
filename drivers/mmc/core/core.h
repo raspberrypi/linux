@@ -84,6 +84,7 @@ int mmc_attach_sdio(struct mmc_host *host);
 
 /* Module parameters */
 extern bool use_spi_crc;
+extern uint max_posted_writes;
 
 /* Debugfs information for hosts and cards */
 #ifdef CONFIG_DEBUG_FS

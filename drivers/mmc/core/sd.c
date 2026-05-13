@@ -1124,6 +1124,8 @@ static int sd_parse_ext_reg_perf(struct mmc_card *card, u8 fno, u8 page,
 		 */
 		if (!mmc_card_is_removable(card->host))
 			card->max_posted_writes = card->ext_csd.cmdq_depth;
+		else
+			card->max_posted_writes = min_t(uint, card->max_posted_writes, card->ext_csd.cmdq_depth);
 	}
 
 	card->ext_perf.fno = fno;
@@ -1215,6 +1217,26 @@ static int mmc_sd_read_ext_regs(struct mmc_card *card)
 	if (err) {
 		pr_err("%s: error %d reading general info of SD ext reg\n",
 			mmc_hostname(card->host), err);
+		goto out;
+	}
+
+	/* Some cards have zeroes in GEN_INFO but correctly implement EXT_PERF and EXT_PWR */
+	if (!memcmp(card->ext_reg_buf, gen_info_buf, 512)) {
+		pr_info("%s: using fall-back extension register parsing\n",
+			mmc_hostname(card->host));
+		/* PWR typically hard-coded at FNO=1 */
+		err = sd_parse_ext_reg_power(card, 1, 0, 0);
+		if (err) {
+			pr_err("%s: error %d parsing SD Power extension\n",
+				mmc_hostname(card->host), err);
+			goto out;
+		}
+		/* PERF typically hard-coded at FNO=2 */
+		err = sd_parse_ext_reg_perf(card, 2, 0, 0);
+		if (err) {
+			pr_err("%s: error %d parsing SD Performance extension\n",
+			       mmc_hostname(card->host), err);
+		}
 		goto out;
 	}
 
@@ -1387,7 +1409,7 @@ retry:
 
 		card->ocr = ocr;
 		card->type = MMC_TYPE_SD;
-		card->max_posted_writes = 1;
+		card->max_posted_writes = max_posted_writes;
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 	}
 
