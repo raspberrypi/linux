@@ -239,6 +239,8 @@ void ext4_fc_del(struct inode *inode)
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	struct ext4_fc_dentry_update *fc_dentry;
 	wait_queue_head_t *wq;
+	unsigned long *wait_word = ext4_inode_state_wait_word(inode);
+	int wait_bit = ext4_inode_state_wait_bit(EXT4_STATE_FC_FLUSHING_DATA);
 	int alloc_ctx;
 
 	if (ext4_fc_disabled(inode->i_sb))
@@ -268,17 +270,9 @@ void ext4_fc_del(struct inode *inode)
 	WARN_ON(ext4_test_inode_state(inode, EXT4_STATE_FC_COMMITTING)
 		&& !ext4_test_mount_flag(inode->i_sb, EXT4_MF_FC_INELIGIBLE));
 	while (ext4_test_inode_state(inode, EXT4_STATE_FC_FLUSHING_DATA)) {
-#if (BITS_PER_LONG < 64)
-		DEFINE_WAIT_BIT(wait, &ei->i_state_flags,
-				EXT4_STATE_FC_FLUSHING_DATA);
-		wq = bit_waitqueue(&ei->i_state_flags,
-				   EXT4_STATE_FC_FLUSHING_DATA);
-#else
-		DEFINE_WAIT_BIT(wait, &ei->i_flags,
-				EXT4_STATE_FC_FLUSHING_DATA);
-		wq = bit_waitqueue(&ei->i_flags,
-				   EXT4_STATE_FC_FLUSHING_DATA);
-#endif
+		DEFINE_WAIT_BIT(wait, wait_word, wait_bit);
+
+		wq = bit_waitqueue(wait_word, wait_bit);
 		prepare_to_wait(wq, &wait.wq_entry, TASK_UNINTERRUPTIBLE);
 		if (ext4_test_inode_state(inode, EXT4_STATE_FC_FLUSHING_DATA)) {
 			ext4_fc_unlock(inode->i_sb, alloc_ctx);
@@ -542,6 +536,8 @@ void ext4_fc_track_inode(handle_t *handle, struct inode *inode)
 {
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	wait_queue_head_t *wq;
+	unsigned long *wait_word = ext4_inode_state_wait_word(inode);
+	int wait_bit = ext4_inode_state_wait_bit(EXT4_STATE_FC_COMMITTING);
 	int ret;
 
 	if (S_ISDIR(inode->i_mode))
@@ -564,17 +560,9 @@ void ext4_fc_track_inode(handle_t *handle, struct inode *inode)
 	lockdep_assert_not_held(&ei->i_data_sem);
 
 	while (ext4_test_inode_state(inode, EXT4_STATE_FC_COMMITTING)) {
-#if (BITS_PER_LONG < 64)
-		DEFINE_WAIT_BIT(wait, &ei->i_state_flags,
-				EXT4_STATE_FC_COMMITTING);
-		wq = bit_waitqueue(&ei->i_state_flags,
-				   EXT4_STATE_FC_COMMITTING);
-#else
-		DEFINE_WAIT_BIT(wait, &ei->i_flags,
-				EXT4_STATE_FC_COMMITTING);
-		wq = bit_waitqueue(&ei->i_flags,
-				   EXT4_STATE_FC_COMMITTING);
-#endif
+		DEFINE_WAIT_BIT(wait, wait_word, wait_bit);
+
+		wq = bit_waitqueue(wait_word, wait_bit);
 		prepare_to_wait(wq, &wait.wq_entry, TASK_UNINTERRUPTIBLE);
 		if (ext4_test_inode_state(inode, EXT4_STATE_FC_COMMITTING))
 			schedule();
@@ -1034,6 +1022,8 @@ static int ext4_fc_perform_commit(journal_t *journal)
 	int ret = 0;
 	u32 crc = 0;
 	int alloc_ctx;
+	int flushing_wait_bit =
+		ext4_inode_state_wait_bit(EXT4_STATE_FC_FLUSHING_DATA);
 
 	/*
 	 * Step 1: Mark all inodes on s_fc_q[MAIN] with
@@ -1059,11 +1049,8 @@ static int ext4_fc_perform_commit(journal_t *journal)
 	list_for_each_entry(iter, &sbi->s_fc_q[FC_Q_MAIN], i_fc_list) {
 		ext4_clear_inode_state(&iter->vfs_inode,
 				       EXT4_STATE_FC_FLUSHING_DATA);
-#if (BITS_PER_LONG < 64)
-		wake_up_bit(&iter->i_state_flags, EXT4_STATE_FC_FLUSHING_DATA);
-#else
-		wake_up_bit(&iter->i_flags, EXT4_STATE_FC_FLUSHING_DATA);
-#endif
+		wake_up_bit(ext4_inode_state_wait_word(&iter->vfs_inode),
+			    flushing_wait_bit);
 	}
 
 	/*
@@ -1279,6 +1266,8 @@ static void ext4_fc_cleanup(journal_t *journal, int full, tid_t tid)
 	struct ext4_inode_info *ei;
 	struct ext4_fc_dentry_update *fc_dentry;
 	int alloc_ctx;
+	int committing_wait_bit =
+		ext4_inode_state_wait_bit(EXT4_STATE_FC_COMMITTING);
 
 	if (full && sbi->s_fc_bh)
 		sbi->s_fc_bh = NULL;
@@ -1315,11 +1304,8 @@ static void ext4_fc_cleanup(journal_t *journal, int full, tid_t tid)
 		 * barrier in prepare_to_wait() in ext4_fc_track_inode().
 		 */
 		smp_mb();
-#if (BITS_PER_LONG < 64)
-		wake_up_bit(&ei->i_state_flags, EXT4_STATE_FC_COMMITTING);
-#else
-		wake_up_bit(&ei->i_flags, EXT4_STATE_FC_COMMITTING);
-#endif
+		wake_up_bit(ext4_inode_state_wait_word(&ei->vfs_inode),
+			    committing_wait_bit);
 	}
 
 	while (!list_empty(&sbi->s_fc_dentry_q[FC_Q_MAIN])) {
