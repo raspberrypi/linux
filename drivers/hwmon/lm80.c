@@ -622,8 +622,8 @@ static int lm80_probe(struct i2c_client *client)
  */
 
 static const struct i2c_device_id lm80_id[] = {
-	{ "lm80", 0 },
-	{ "lm96080", 1 },
+	{ "lm80" },
+	{ "lm96080" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, lm80_id);

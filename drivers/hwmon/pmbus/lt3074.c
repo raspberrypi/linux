@@ -95,8 +95,8 @@ static int lt3074_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id lt3074_id[] = {
-	{ "lt3074", 0 },
-	{}
+	{ .name = "lt3074" },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, lt3074_id);
 
