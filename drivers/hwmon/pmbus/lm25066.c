@@ -442,11 +442,11 @@ static const struct regulator_desc lm25066_reg_desc[] = {
 #endif
 
 static const struct i2c_device_id lm25066_id[] = {
-	{"lm25056", lm25056},
-	{"lm25066", lm25066},
-	{"lm5064", lm5064},
-	{"lm5066", lm5066},
-	{"lm5066i", lm5066i},
+	{ .name = "lm25056", .driver_data = lm25056 },
+	{ .name = "lm25066", .driver_data = lm25066 },
+	{ .name = "lm5064", .driver_data = lm5064 },
+	{ .name = "lm5066", .driver_data = lm5066 },
+	{ .name = "lm5066i", .driver_data = lm5066i },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, lm25066_id);

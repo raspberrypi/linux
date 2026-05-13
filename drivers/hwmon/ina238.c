@@ -837,12 +837,12 @@ static int ina238_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id ina238_id[] = {
-	{ "ina228", ina228 },
-	{ "ina237", ina237 },
-	{ "ina238", ina238 },
-	{ "ina700", ina700 },
-	{ "ina780", ina780 },
-	{ "sq52206", sq52206 },
+	{ .name = "ina228", .driver_data = ina228 },
+	{ .name = "ina237", .driver_data = ina237 },
+	{ .name = "ina238", .driver_data = ina238 },
+	{ .name = "ina700", .driver_data = ina700 },
+	{ .name = "ina780", .driver_data = ina780 },
+	{ .name = "sq52206", .driver_data = sq52206 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ina238_id);

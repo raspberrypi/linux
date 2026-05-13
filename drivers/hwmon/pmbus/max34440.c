@@ -644,15 +644,15 @@ static int max34440_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id max34440_id[] = {
-	{"adpm12160", adpm12160},
-	{"adpm12200", adpm12200},
-	{"max34440", max34440},
-	{"max34441", max34441},
-	{"max34446", max34446},
-	{"max34451", max34451},
-	{"max34460", max34460},
-	{"max34461", max34461},
-	{}
+	{ .name = "adpm12160", .driver_data = adpm12160 },
+	{ .name = "adpm12200", .driver_data = adpm12200 },
+	{ .name = "max34440", .driver_data = max34440 },
+	{ .name = "max34441", .driver_data = max34441 },
+	{ .name = "max34446", .driver_data = max34446 },
+	{ .name = "max34451", .driver_data = max34451 },
+	{ .name = "max34460", .driver_data = max34460 },
+	{ .name = "max34461", .driver_data = max34461 },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, max34440_id);
 

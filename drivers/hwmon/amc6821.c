@@ -1083,7 +1083,7 @@ static int amc6821_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id amc6821_id[] = {
-	{ "amc6821" },
+	{ .name = "amc6821" },
 	{ }
 };
 

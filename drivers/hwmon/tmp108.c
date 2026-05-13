@@ -537,10 +537,10 @@ static int tmp108_resume(struct device *dev)
 static DEFINE_SIMPLE_DEV_PM_OPS(tmp108_dev_pm_ops, tmp108_suspend, tmp108_resume);
 
 static const struct i2c_device_id tmp108_i2c_ids[] = {
-	{ "p3t1035", (unsigned long)&p3t1035_data },
-	{ "p3t1085", (unsigned long)&tmp108_data },
-	{ "tmp108", (unsigned long)&tmp108_data },
-	{}
+	{ .name = "p3t1035", .driver_data = (unsigned long)&p3t1035_data },
+	{ .name = "p3t1085", .driver_data = (unsigned long)&tmp108_data },
+	{ .name = "tmp108", .driver_data = (unsigned long)&tmp108_data },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, tmp108_i2c_ids);
 

@@ -48,8 +48,8 @@ static int stef48h28_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id stef48h28_id[] = {
-	{"stef48h28"},
-	{}
+	{ .name = "stef48h28" },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, stef48h28_id);
 

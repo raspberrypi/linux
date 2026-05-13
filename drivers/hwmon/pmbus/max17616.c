@@ -46,7 +46,7 @@ static int max17616_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id max17616_id[] = {
-	{ "max17616" },
+	{ .name = "max17616" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, max17616_id);
