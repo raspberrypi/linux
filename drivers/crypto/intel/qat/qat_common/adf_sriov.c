@@ -77,6 +77,10 @@ static int adf_enable_sriov(struct adf_accel_dev *accel_dev)
 	/* Enable VF to PF interrupts for all VFs */
 	adf_enable_vf2pf_interrupts(accel_dev, BIT_ULL(totalvfs) - 1);
 
+	/* Do not enable SR-IOV if already enabled */
+	if (pci_num_vf(pdev))
+		return 0;
+
 	/*
 	 * Due to the hardware design, when SR-IOV and the ring arbiter
 	 * are enabled all the VFs supported in hardware must be enabled in
@@ -247,7 +251,13 @@ void adf_disable_sriov(struct adf_accel_dev *accel_dev)
 
 	adf_pf2vf_notify_restarting(accel_dev);
 	adf_pf2vf_wait_for_restarting_complete(accel_dev);
-	pci_disable_sriov(accel_to_pci_dev(accel_dev));
+	/*
+	 * When the device is restarting, preserve VF PCI devices across
+	 * the reset by skipping pci_disable_sriov(). VFs are notified to
+	 * quiesce regardless so the PF can safely shut down.
+	 */
+	if (!test_bit(ADF_STATUS_RESTARTING, &accel_dev->status))
+		pci_disable_sriov(accel_to_pci_dev(accel_dev));
 
 	/* Disable VF to PF interrupts */
 	adf_disable_all_vf2pf_interrupts(accel_dev);
