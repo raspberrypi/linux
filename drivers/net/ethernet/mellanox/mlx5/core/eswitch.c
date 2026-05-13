@@ -904,6 +904,24 @@ static void esw_vport_cleanup(struct mlx5_eswitch *esw, struct mlx5_vport *vport
 	esw_vport_cleanup_acl(esw, vport);
 }
 
+static void mlx5_esw_vport_set_max_tx_speed(struct mlx5_eswitch *esw,
+					    struct mlx5_vport *vport)
+{
+	int ret;
+
+	if (!MLX5_CAP_ESW(esw->dev, esw_vport_state_max_tx_speed))
+		return;
+
+	ret = mlx5_modify_vport_max_tx_speed(esw->dev,
+					     MLX5_VPORT_STATE_OP_MOD_ESW_VPORT,
+					     vport->vport, true,
+					     vport->agg_max_tx_speed);
+	if (ret)
+		mlx5_core_dbg(esw->dev,
+			      "Failed to set vport %d speed %d, err=%d\n",
+			      vport->vport, vport->agg_max_tx_speed, ret);
+}
+
 int mlx5_esw_vport_enable(struct mlx5_eswitch *esw, struct mlx5_vport *vport,
 			  enum mlx5_eswitch_vport_event enabled_events)
 {
@@ -950,6 +968,9 @@ int mlx5_esw_vport_enable(struct mlx5_eswitch *esw, struct mlx5_vport *vport,
 
 	esw->enabled_vports++;
 	esw_debug(esw->dev, "Enabled VPORT(%d)\n", vport_num);
+
+	if (vport->agg_max_tx_speed)
+		mlx5_esw_vport_set_max_tx_speed(esw, vport);
 done:
 	mutex_unlock(&esw->state_lock);
 	return ret;

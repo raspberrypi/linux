@@ -246,6 +246,7 @@ struct mlx5_vport {
 	enum mlx5_eswitch_vport_event enabled_events;
 	int index;
 	struct mlx5_devlink_port *dl_port;
+	u32 agg_max_tx_speed;
 };
 
 struct mlx5_esw_indir_table;
