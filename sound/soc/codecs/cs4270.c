@@ -734,8 +734,8 @@ static int cs4270_i2c_probe(struct i2c_client *i2c_client)
  * cs4270_id - I2C device IDs supported by this driver
  */
 static const struct i2c_device_id cs4270_id[] = {
-	{"cs4270"},
-	{}
+	{ .name = "cs4270" },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, cs4270_id);
 

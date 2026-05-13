@@ -757,7 +757,7 @@ static int es8323_i2c_probe(struct i2c_client *i2c_client)
 }
 
 static const struct i2c_device_id es8323_i2c_id[] = {
-	{ "es8323" },
+	{ .name = "es8323" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, es8323_i2c_id);
