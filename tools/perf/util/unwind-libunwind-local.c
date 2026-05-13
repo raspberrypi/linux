@@ -744,7 +744,7 @@ static int get_entries(struct unwind_info *ui, unwind_entry_cb_t cb,
 	ret = perf_reg_value(&val, perf_sample__user_regs(ui->sample),
 			     perf_arch_reg_ip(e_machine));
 	if (ret)
-		return ret;
+		return 0;
 
 	ips[i++] = (unw_word_t) val;
 
@@ -757,7 +757,7 @@ static int get_entries(struct unwind_info *ui, unwind_entry_cb_t cb,
 		addr_space = maps__addr_space(thread__maps(ui->thread));
 
 		if (addr_space == NULL)
-			return -1;
+			return 0;
 
 		ret = unw_init_remote(&c, addr_space, ui);
 		if (ret && !ui->best_effort)
@@ -785,15 +785,30 @@ static int get_entries(struct unwind_info *ui, unwind_entry_cb_t cb,
 	/*
 	 * Display what we got based on the order setup.
 	 */
+	int entries = 0;
 	for (i = 0; i < max_stack && !ret; i++) {
 		int j = i;
 
 		if (callchain_param.order == ORDER_CALLER)
 			j = max_stack - i - 1;
-		ret = ips[j] ? entry(ips[j], ui->thread, cb, arg) : 0;
+		if (ips[j]) {
+			ret = entry(ips[j], ui->thread, cb, arg);
+			if (ret)
+				break;
+			entries++;
+		}
 	}
 
-	return ret;
+	/*
+	 * Unwinder return contract:
+	 *  > 0 : unwinding succeeded (stops fallback).
+	 *    0 : unwinding failed without yielding frames. Ignore non-fatal errors
+	 *        (e.g. stepping failure) to allow fallback unwinder or kernel callchains.
+	 *  < 0 : fatal error (e.g. -ENOMEM). Aborts unwinding entirely.
+	 */
+	if (ret == -ENOMEM)
+		return -ENOMEM;
+	return (entries > 0 || ret == 0) ? entries : 0;
 }
 
 static int _unwind__get_entries(unwind_entry_cb_t cb, void *arg,
@@ -809,10 +824,10 @@ static int _unwind__get_entries(unwind_entry_cb_t cb, void *arg,
 	};
 
 	if (!data->user_regs || !data->user_regs->regs)
-		return -EINVAL;
+		return 0;
 
 	if (max_stack <= 0)
-		return -EINVAL;
+		return 0;
 
 	return get_entries(&ui, cb, arg, max_stack);
 }
