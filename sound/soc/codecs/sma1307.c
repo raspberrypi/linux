@@ -2036,8 +2036,8 @@ static void sma1307_i2c_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id sma1307_i2c_id[] = {
-	{ "sma1307a" },
-	{ "sma1307aq" },
+	{ .name = "sma1307a" },
+	{ .name = "sma1307aq" },
 	{ }
 };
 

@@ -1225,7 +1225,7 @@ MODULE_DEVICE_TABLE(of, cs42l52_of_match);
 
 
 static const struct i2c_device_id cs42l52_id[] = {
-	{ "cs42l52" },
+	{ .name = "cs42l52" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, cs42l52_id);

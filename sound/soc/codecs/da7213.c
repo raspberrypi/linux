@@ -2291,7 +2291,7 @@ static const struct dev_pm_ops da7213_pm = {
 };
 
 static const struct i2c_device_id da7213_i2c_id[] = {
-	{ "da7213" },
+	{ .name = "da7213" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, da7213_i2c_id);

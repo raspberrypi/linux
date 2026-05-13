@@ -831,7 +831,7 @@ static const struct of_device_id ak4619_of_match[] = {
 MODULE_DEVICE_TABLE(of, ak4619_of_match);
 
 static const struct i2c_device_id ak4619_i2c_id[] = {
-	{ "ak4619", (kernel_ulong_t)&ak4619_regmap_cfg },
+	{ .name = "ak4619", .driver_data = (kernel_ulong_t)&ak4619_regmap_cfg },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ak4619_i2c_id);

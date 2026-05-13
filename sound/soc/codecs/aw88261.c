@@ -1269,7 +1269,7 @@ static int aw88261_i2c_probe(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id aw88261_i2c_id[] = {
-	{ AW88261_I2C_NAME },
+	{ .name = AW88261_I2C_NAME },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, aw88261_i2c_id);

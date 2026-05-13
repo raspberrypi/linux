@@ -820,8 +820,8 @@ static const struct dev_pm_ops tas2781_hda_pm_ops = {
 };
 
 static const struct i2c_device_id tas2781_hda_i2c_id[] = {
-	{ "tas2781-hda" },
-	{}
+	{ .name = "tas2781-hda" },
+	{ }
 };
 
 static const struct acpi_device_id tas2781_acpi_hda_match[] = {

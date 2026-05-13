@@ -52,9 +52,9 @@ static const struct of_device_id cs42xx8_of_match[] = {
 MODULE_DEVICE_TABLE(of, cs42xx8_of_match);
 
 static const struct i2c_device_id cs42xx8_i2c_id[] = {
-	{"cs42448", (kernel_ulong_t)&cs42448_data},
-	{"cs42888", (kernel_ulong_t)&cs42888_data},
-	{}
+	{ .name = "cs42448", .driver_data = (kernel_ulong_t)&cs42448_data },
+	{ .name = "cs42888", .driver_data = (kernel_ulong_t)&cs42888_data },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, cs42xx8_i2c_id);
 

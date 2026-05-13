@@ -977,8 +977,8 @@ static int max98388_i2c_probe(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id max98388_i2c_id[] = {
-	{ "max98388"},
-	{ },
+	{ .name = "max98388" },
+	{ }
 };
 
 MODULE_DEVICE_TABLE(i2c, max98388_i2c_id);
