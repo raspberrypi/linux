@@ -542,6 +542,11 @@ int aarp_send_ddp(struct net_device *dev, struct sk_buff *skb,
 		struct ddpehdr *ddp = (struct ddpehdr *)skb->data;
 		int ft = 2;
 
+		if (!at) {
+			kfree_skb(skb);
+			return NET_XMIT_DROP;
+		}
+
 		/*
 		 * Compressible ?
 		 *
