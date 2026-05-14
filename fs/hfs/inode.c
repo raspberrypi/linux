@@ -204,7 +204,7 @@ struct inode *hfs_new_inode(struct inode *dir, const struct qstr *name, umode_t 
 		pr_err("cannot create new inode: next CNID exceeds limit\n");
 		goto out_discard;
 	}
-	inode->i_ino = (u32)next_id;
+	inode->i_ino = (u32)next_id - 1;
 	inode->i_mode = mode;
 	inode->i_uid = current_fsuid();
 	inode->i_gid = current_fsgid();
