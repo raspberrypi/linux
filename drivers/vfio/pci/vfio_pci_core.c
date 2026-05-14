@@ -271,8 +271,11 @@ int vfio_pci_set_power_state(struct vfio_pci_core_device *vdev, pci_power_t stat
 	int ret;
 
 	/* Prevent changing power state for PFs with VFs enabled */
-	if (pci_num_vf(pdev) && state > PCI_D0)
-		return -EBUSY;
+	if (state > PCI_D0) {
+		lockdep_assert_held_write(&vdev->memory_lock);
+		if (vdev->sriov_active)
+			return -EBUSY;
+	}
 
 	if (vdev->needs_pm_restore) {
 		if (pdev->current_state < PCI_D3hot && state >= PCI_D3hot) {
@@ -2309,8 +2312,9 @@ int vfio_pci_core_sriov_configure(struct vfio_pci_core_device *vdev,
 
 		down_write(&vdev->memory_lock);
 		vfio_pci_set_power_state(vdev, PCI_D0);
-		ret = pci_enable_sriov(pdev, nr_virtfn);
+		vdev->sriov_active = true;
 		up_write(&vdev->memory_lock);
+		ret = pci_enable_sriov(pdev, nr_virtfn);
 		if (ret) {
 			pm_runtime_put(&pdev->dev);
 			goto out_del;
@@ -2324,6 +2328,13 @@ int vfio_pci_core_sriov_configure(struct vfio_pci_core_device *vdev,
 	}
 
 out_del:
+	/*
+	 * Avoid taking the memory_lock intentionally. A race with a power
+	 * state transition would at most result in an -EBUSY, leaving the
+	 * device in PCI_D0.
+	 */
+	vdev->sriov_active = false;
+
 	mutex_lock(&vfio_pci_sriov_pfs_mutex);
 	list_del_init(&vdev->sriov_pfs_item);
 out_unlock:
