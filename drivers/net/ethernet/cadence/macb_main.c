@@ -2002,24 +2002,31 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 	if (work_done < budget && napi_complete_done(napi, work_done)) {
 		queue_writel(queue, IER, MACB_BIT(TCOMP));
 
-		/* TCOMP events that fire while the interrupt is masked do
-		 * not re-fire when IER is re-enabled.  Catch this two ways
-		 * to avoid losing a wakeup:
+		/* TCOMP events that fire while masked don't re-fire when
+		 * IER is re-enabled (HW errata), so check in software.
+		 * macb_tx_complete_pending() inspects the descriptor at
+		 * tx_tail; the rmb() in there orders prior CPU writes but
+		 * does not retire in-flight peripheral DMA writes that
+		 * may still be racing back to memory on PCIe-attached
+		 * parts.
 		 *
-		 *   (1) Read ISR -- catches completions the hardware flagged
-		 *       but that we did not see as an interrupt.  The MMIO
-		 *       read doubles as a PCIe read barrier, flushing any
-		 *       in-flight descriptor TX_USED DMA writes into memory.
-		 *   (2) macb_tx_complete_pending() inspects the ring after
-		 *       that flush, catching a descriptor whose TX_USED is
-		 *       now visible as a result of the barrier.
+		 * Read a side-effect-free MMIO register (IMR, the
+		 * read-only mask mirror) to act as a PCIe read barrier
+		 * for prior peripheral DMA writes.  After this read, any
+		 * in-flight TX_USED descriptor update has retired and
+		 * macb_tx_complete_pending() will observe it.
 		 *
-		 * This can race with the interrupt handler taking the same
-		 * path if an interrupt fires just after the IER write;
-		 * rescheduling NAPI in that case is harmless.
+		 * Note: an earlier form of this block read ISR directly
+		 * to also sample a latched TCOMP bit, but that is
+		 * destructive on silicon where MACB_CAPS_ISR_CLEAR_ON_WRITE
+		 * is not set (raspberrypi_rp1_config among others): the
+		 * read clears every set bit, and a masked check silently
+		 * consumes RCOMP / ROVR / TXUBR bits the IRQ handler is
+		 * expected to process in one pass.  IMR is non-destructive
+		 * on both read-clear and W1C silicon.
 		 */
-		if ((queue_readl(queue, ISR) & MACB_BIT(TCOMP)) ||
-		    macb_tx_complete_pending(queue)) {
+		(void)queue_readl(queue, IMR);
+		if (macb_tx_complete_pending(queue)) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
 				queue_writel(queue, ISR, MACB_BIT(TCOMP));
