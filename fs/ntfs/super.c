@@ -2656,7 +2656,7 @@ MODULE_ALIAS_FS("ntfs");
 
 static int ntfs_workqueue_init(void)
 {
-	ntfs_wq = alloc_workqueue("ntfs-bg-io", 0, 0);
+	ntfs_wq = alloc_workqueue("ntfs-bg-io", WQ_PERCPU, 0);
 	if (!ntfs_wq)
 		return -ENOMEM;
 	return 0;
