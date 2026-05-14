@@ -793,6 +793,10 @@
 #define MACB_CAPS_QUEUE_DISABLE			0x00000800
 #define MACB_CAPS_QBV				0x00001000
 #define MACB_CAPS_EEE				0x00002000
+/* Register writes are posted on the parent fabric and need a non-posted
+ * read-back to guarantee delivery.  Currently set only on RP1.
+ */
+#define MACB_CAPS_PCIE_POSTED_WRITES		0x00004000
 #define MACB_CAPS_PCS				0x01000000
 #define MACB_CAPS_HIGH_SPEED			0x02000000
 #define MACB_CAPS_CLK_HW_CHG			0x04000000

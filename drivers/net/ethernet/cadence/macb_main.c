@@ -1951,12 +1951,13 @@ static void macb_tx_restart(struct macb_queue *queue)
 
 	spin_lock(&bp->lock);
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
-	/* Flush the PCIe posted-write queue so the TSTART doorbell
-	 * reliably reaches the MAC.  Without this, the write can sit
-	 * in the fabric and the MAC never advances, causing a silent
-	 * TX stall.
+	/* On PCIe-attached parts, flush the posted-write queue so the
+	 * TSTART doorbell reliably reaches the MAC.  Without this the
+	 * write can sit in the fabric and the MAC never advances,
+	 * causing a silent TX stall.
 	 */
-	(void)macb_readl(bp, NCR);
+	if (bp->caps & MACB_CAPS_PCIE_POSTED_WRITES)
+		(void)macb_readl(bp, NCR);
 	spin_unlock(&bp->lock);
 
 out_tx_ptr_unlock:
@@ -2702,10 +2703,12 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		queue->tx_pending = 1;
 
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
-	/* Flush the PCIe posted-write queue; see the comment in
-	 * macb_tx_restart() for the reasoning.
+	/* Flush PCIe posted-write queue; see comment in macb_tx_restart().
+	 * Also flushes the preceding macb_tx_lpi_wake() NCR write and the
+	 * TSR-read tx_pending breadcrumb above.
 	 */
-	(void)macb_readl(bp, NCR);
+	if (bp->caps & MACB_CAPS_PCIE_POSTED_WRITES)
+		(void)macb_readl(bp, NCR);
 	spin_unlock(&bp->lock);
 
 	if (CIRC_SPACE(queue->tx_head, queue->tx_tail, bp->tx_ring_size) < 1)
@@ -5810,6 +5813,7 @@ static const struct macb_config raspberrypi_rp1_config = {
 	.caps = MACB_CAPS_GIGABIT_MODE_AVAILABLE | MACB_CAPS_CLK_HW_CHG |
 		MACB_CAPS_JUMBO |
 		MACB_CAPS_GEM_HAS_PTP |
+		MACB_CAPS_PCIE_POSTED_WRITES |
 		MACB_CAPS_EEE,
 	.dma_burst_length = 16,
 	.clk_init = macb_clk_init,
