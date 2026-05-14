@@ -803,6 +803,10 @@
 #define MACB_CAPS_RSC				BIT(23)
 #define MACB_CAPS_NO_LSO			BIT(24)
 #define MACB_CAPS_EEE				BIT(25)
+/* Register writes are posted on the parent fabric and need a non-posted
+ * read-back to guarantee delivery.  Currently set only on RP1.
+ */
+#define MACB_CAPS_PCIE_POSTED_WRITES		BIT(26)
 
 /* LSO settings */
 #define MACB_LSO_UFO_ENABLE			0x01
