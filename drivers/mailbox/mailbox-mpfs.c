@@ -201,7 +201,7 @@ static irqreturn_t mpfs_mbox_inbox_isr(int irq, void *data)
 	struct mbox_chan *chan = data;
 	struct mpfs_mbox *mbox = (struct mpfs_mbox *)chan->con_priv;
 
-	if (mbox->control_scb)
+	if (mbox->sysreg_scb)
 		regmap_write(mbox->sysreg_scb, MESSAGE_INT_OFFSET, 0);
 	else
 		writel_relaxed(0, mbox->int_reg);
