@@ -1578,6 +1578,8 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	bool slice_temporal_mvp;
 	unsigned int ctb_size_y;
 	bool sps_changed = false;
+	/* Old (downstream only) bit size meanings */
+	bool old_bits = false;
 
 	de = dec_env_new(ctx);
 	if (!de) {
@@ -1646,6 +1648,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		de->chroma_stride = de->luma_stride;
 		de->frame_chroma_addr = de->frame_luma_addr +
 					(ctx->dst_fmt.height * 128);
+		old_bits = true;
 		break;
 	}
 
@@ -1776,15 +1779,24 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	for (i = 0; i != run->h265.slice_ents; ++i) {
 		const struct v4l2_ctrl_hevc_slice_params *const sh = sh0 + i;
 		const bool last_slice = i + 1 == run->h265.slice_ents;
-		const u32 byte_size = DIV_ROUND_UP(sh->bit_size, 8);
+		unsigned int bit_size = old_bits ? sh->bit_size - 8 * sh->data_byte_offset :
+						   sh->bit_size;
+		const u32 byte_size = DIV_ROUND_UP(bit_size, 8);
 		unsigned int j;
 
 		s->sh = sh;
 
+		if (old_bits && sh->bit_size <= 8 * sh->data_byte_offset) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "data_byte_offset %d * 8 >= bits %d\n",
+				  sh->data_byte_offset, sh->bit_size);
+			goto fail;
+		}
+
 		if (sh->data_byte_offset + byte_size > run->src->planes[0].bytesused) {
 			v4l2_warn(&dev->v4l2_dev,
 				  "data_byte_offset %d + bits %d (= %d bytes) > bytesused %d\n",
-				  sh->data_byte_offset, sh->bit_size, byte_size,
+				  sh->data_byte_offset, bit_size, byte_size,
 				  run->src->planes[0].bytesused);
 			goto fail;
 		}
@@ -1794,7 +1806,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		 * actual size of the buffer (which may well be what is used to set
 		 * bit_size if the caller isn't being very pedantic).
 		 */
-		s->data_len = min(sh->bit_size / 8 + 1,
+		s->data_len = min(bit_size / 8 + 1,
 				  run->src->planes[0].bytesused - sh->data_byte_offset);
 
 		s->slice_qp = 26 + s->pps.init_qp_minus26 + sh->slice_qp_delta;
