@@ -2075,6 +2075,16 @@ static void macb_tx_stall_watchdog(struct work_struct *work)
 	if (!netif_running(bp->dev))
 		return;
 
+	/* No carrier => no completion is possible.  Skip the stall
+	 * check (otherwise queue->tx_head can advance from kernel-
+	 * queued packets between macb_open() and link autoneg
+	 * completion while tx_tail stays unchanged, tripping a false
+	 * positive), but keep the watchdog ticking so it picks up
+	 * once carrier comes up.
+	 */
+	if (!netif_carrier_ok(bp->dev))
+		goto reschedule;
+
 	spin_lock_irqsave(&queue->tx_ptr_lock, flags);
 	cur_tail = queue->tx_tail;
 	cur_head = queue->tx_head;
@@ -2084,13 +2094,14 @@ static void macb_tx_stall_watchdog(struct work_struct *work)
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 
 	if (stalled) {
-		netdev_warn_once(bp->dev,
-				 "TX stall detected on queue %u (tail=%u head=%u); re-kicking TSTART\n",
-				 (unsigned int)(queue - bp->queues),
-				 cur_tail, cur_head);
+		pr_warn_ratelimited("%s: TX stall detected on queue %u (tail=%u head=%u); re-kicking TSTART\n",
+				    netdev_name(bp->dev),
+				    (unsigned int)(queue - bp->queues),
+				    cur_tail, cur_head);
 		macb_tx_restart(queue);
 	}
 
+reschedule:
 	schedule_delayed_work(&queue->tx_stall_watchdog_work,
 			      msecs_to_jiffies(MACB_TX_STALL_INTERVAL_MS));
 }
