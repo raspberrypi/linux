@@ -157,6 +157,9 @@ nlm4svc_lookup_file(struct svc_rqst *rqstp, struct nlm_host *host,
 		return nlm_lck_denied_nolocks;
 	lock->fh.size = xdr_lock->fh.len;
 	memcpy(lock->fh.data, xdr_lock->fh.data, xdr_lock->fh.len);
+	if (xdr_lock->fh.len < LOCKD_FH_HASH_SIZE)
+		memset(lock->fh.data + xdr_lock->fh.len, 0,
+		       LOCKD_FH_HASH_SIZE - xdr_lock->fh.len);
 
 	lock->oh.len = xdr_lock->oh.len;
 	lock->oh.data = xdr_lock->oh.data;

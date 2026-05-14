@@ -17,7 +17,6 @@
 #include <linux/sunrpc/addr.h>
 #include <linux/module.h>
 #include <linux/mount.h>
-#include <uapi/linux/nfs2.h>
 
 #include "lockd.h"
 #include "share.h"
@@ -67,7 +66,7 @@ static inline unsigned int file_hash(struct nfs_fh *f)
 {
 	unsigned int tmp=0;
 	int i;
-	for (i=0; i<NFS2_FHSIZE;i++)
+	for (i = 0; i < LOCKD_FH_HASH_SIZE; i++)
 		tmp += f->data[i];
 	return tmp & (FILE_NRHASH - 1);
 }

@@ -52,6 +52,14 @@
  */
 #define LOCKD_DFLT_TIMEO	10
 
+/*
+ * Number of leading bytes of nfs_fh.data that file_hash()
+ * digests when bucketing nlm_files[]. Sized for historical
+ * NFSv2 handles; nfs_fh.data must be initialized at least
+ * this far before lookup, regardless of fh.size.
+ */
+#define LOCKD_FH_HASH_SIZE	32
+
 /* error codes new to NLMv4 */
 #define	nlm4_deadlock		cpu_to_be32(NLM_DEADLCK)
 #define	nlm4_rofs		cpu_to_be32(NLM_ROFS)
