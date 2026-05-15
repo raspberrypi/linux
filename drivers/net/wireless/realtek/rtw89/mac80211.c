@@ -964,7 +964,8 @@ static int rtw89_ops_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 			rtw89_err(rtwdev, "failed to add key to sec cam\n");
 			return ret;
 		}
-		rtw89_core_tid_rx_stats_reset(rtwdev);
+		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE)
+			rtw89_core_tid_rx_stats_reset(rtwdev);
 		break;
 	case DISABLE_KEY:
 		flush_work(&rtwdev->txq_work);
