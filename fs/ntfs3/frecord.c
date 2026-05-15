@@ -1330,7 +1330,7 @@ int ni_expand_list(struct ntfs_inode *ni)
 {
 	int err = 0;
 	u32 asize, done = 0;
-	struct ATTRIB *attr, *ins_attr;
+	struct ATTRIB *attr, *ins_attr = NULL;
 	struct ATTR_LIST_ENTRY *le;
 	bool is_mft = ni->mi.rno == MFT_REC_MFT;
 	struct MFT_REF ref;
@@ -1363,7 +1363,7 @@ int ni_expand_list(struct ntfs_inode *ni)
 				      le16_to_cpu(attr->name_off), true,
 				      &ins_attr, NULL, NULL);
 
-		if (err)
+		if (err || !ins_attr)
 			goto out;
 
 		memcpy(ins_attr, attr, asize);
