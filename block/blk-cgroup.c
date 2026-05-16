@@ -2189,7 +2189,7 @@ void blk_cgroup_bio_start(struct bio *bio)
 	}
 
 	u64_stats_update_end_irqrestore(&bis->sync, flags);
-	cgroup_rstat_updated(blkcg->css.cgroup, cpu);
+	__cgroup_rstat_updated(blkcg->css.cgroup, cpu);
 	put_cpu();
 }
 
