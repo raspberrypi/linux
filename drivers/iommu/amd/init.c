@@ -1939,11 +1939,10 @@ static int __init init_iommu_one(struct amd_iommu *iommu, struct ivhd_header *h,
 		/* XT and GAM require GA mode. */
 		if ((h->efr_reg & (0x1 << IOMMU_EFR_GASUP_SHIFT)) == 0) {
 			amd_iommu_guest_ir = AMD_IOMMU_GUEST_IR_LEGACY;
-			break;
+		} else {
+			if (h->efr_reg & BIT(IOMMU_EFR_XTSUP_SHIFT))
+				amd_iommu_xt_mode = IRQ_REMAP_X2APIC_MODE;
 		}
-
-		if (h->efr_reg & BIT(IOMMU_EFR_XTSUP_SHIFT))
-			amd_iommu_xt_mode = IRQ_REMAP_X2APIC_MODE;
 
 		if (h->efr_attr & BIT(IOMMU_IVHD_ATTR_HATDIS_SHIFT)) {
 			pr_warn_once("Host Address Translation is not supported.\n");
