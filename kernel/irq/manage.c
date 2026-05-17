@@ -1987,24 +1987,30 @@ const void *free_irq(unsigned int irq, void *dev_id)
 }
 EXPORT_SYMBOL(free_irq);
 
-/* This function must be called with desc->lock held */
 static const void *__cleanup_nmi(unsigned int irq, struct irq_desc *desc)
 {
+	struct irqaction *action = NULL;
 	const char *devname = NULL;
 
-	desc->istate &= ~IRQS_NMI;
+	scoped_guard(raw_spinlock_irqsave, &desc->lock) {
+		irq_nmi_teardown(desc);
 
-	if (!WARN_ON(desc->action == NULL)) {
-		irq_pm_remove_action(desc, desc->action);
-		devname = desc->action->name;
-		unregister_handler_proc(irq, desc->action);
+		desc->istate &= ~IRQS_NMI;
 
-		kfree(desc->action);
+		if (!WARN_ON(desc->action == NULL)) {
+			action = desc->action;
+			irq_pm_remove_action(desc, action);
+			devname = action->name;
+		}
 		desc->action = NULL;
+
+		irq_settings_clr_disable_unlazy(desc);
+		irq_shutdown_and_deactivate(desc);
 	}
 
-	irq_settings_clr_disable_unlazy(desc);
-	irq_shutdown_and_deactivate(desc);
+	if (action)
+		unregister_handler_proc(irq, action);
+	kfree(action);
 
 	irq_release_resources(desc);
 
@@ -2028,8 +2034,6 @@ const void *free_nmi(unsigned int irq, void *dev_id)
 	if (WARN_ON(desc->depth == 0))
 		disable_nmi_nosync(irq);
 
-	guard(raw_spinlock_irqsave)(&desc->lock);
-	irq_nmi_teardown(desc);
 	return __cleanup_nmi(irq, desc);
 }
 
@@ -2279,12 +2283,13 @@ int request_nmi(unsigned int irq, irq_handler_t handler,
 		/* Setup NMI state */
 		desc->istate |= IRQS_NMI;
 		retval = irq_nmi_setup(desc);
-		if (retval) {
-			__cleanup_nmi(irq, desc);
-			return -EINVAL;
-		}
-		return 0;
 	}
+
+	if (retval) {
+		__cleanup_nmi(irq, desc);
+		return -EINVAL;
+	}
+	return 0;
 
 err_irq_setup:
 	irq_chip_pm_put(&desc->irq_data);
