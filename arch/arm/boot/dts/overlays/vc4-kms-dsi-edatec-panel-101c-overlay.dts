@@ -1,6 +1,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -10,10 +12,9 @@
 			vdd_lcd: fixedregulator_lcd {
 				compatible = "regulator-fixed";
 				regulator-name = "vdd_lcd";
-				regulator-max-microvolt = <5000000>;
-				regulator-min-microvolt = <5000000>;
 
 				gpios = <&reg_display 4 0>;
+				startup-delay-us = <5000>;
 				regulator-boot-on;
 				enable-active-high;
 			};
@@ -37,7 +38,7 @@
 				status        = "okay";
 				reg           = <0>;
 
-				reset-gpios = <&reg_display 2 0>;
+				reset-gpios = <&reg_display 2 GPIO_ACTIVE_LOW>;
 				backlight = <&reg_display>;
 				power-supply = <&vdd_lcd>;
 				rotation = <270>;
