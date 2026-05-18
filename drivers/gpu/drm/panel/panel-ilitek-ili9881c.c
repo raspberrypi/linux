@@ -2966,24 +2966,7 @@ static const struct drm_display_mode t101p136cq_default_mode = {
 	.height_mm	= 216,
 };
 
-static const struct drm_display_mode t101p136cq_rpi4_2lane_mode = {
-	.clock		= 78086,		//60Hz
-
-	.hdisplay	= 800,
-	.hsync_start	= 800 + 80,
-	.hsync_end	= 800 + 80 + 20,
-	.htotal		= 800 + 80 + 20 + 80,
-
-	.vdisplay	= 1280,
-	.vsync_start	= 1280 + 16,
-	.vsync_end	= 1280 + 16 + 8,
-	.vtotal		= 1280 + 16 + 8 + 24,
-
-	.width_mm	= 135,
-	.height_mm	= 216,
-};
-
-static const struct drm_display_mode t101p136cq_rpi5_2lane_mode = {
+static const struct drm_display_mode t101p136cq_rpi4_rpi5_2lane_mode = {
 	.clock		= 78086,		//60Hz
 
 	.hdisplay	= 800,
@@ -3208,7 +3191,7 @@ static const struct ili9881c_desc bsd1218_a101kl68_desc = {
 	.lanes = 4,
 };
 
-static const struct ili9881c_desc t101p136cq_desc = {
+static const struct ili9881c_desc t101p136cq_4lane_desc = {
 	.init = t101p136cq_init,
 	.init_length = ARRAY_SIZE(t101p136cq_init),
 	.mode = &t101p136cq_default_mode,
@@ -3217,21 +3200,14 @@ static const struct ili9881c_desc t101p136cq_desc = {
 	.lanes = 4,
 };
 
-static const struct ili9881c_desc t101p136cq_rpi4_lite_desc = {
+static const struct ili9881c_desc t101p136cq_2lane_desc = {
 	.init = t101p136cq_2lane_init,
 	.init_length = ARRAY_SIZE(t101p136cq_2lane_init),
-	.mode = &t101p136cq_rpi4_2lane_mode,
+	.mode = &t101p136cq_rpi4_rpi5_2lane_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM,
 	.lanes = 2,
 };
 
-static const struct ili9881c_desc t101p136cq_rpi5_desc = {
-	.init = t101p136cq_2lane_init,
-	.init_length = ARRAY_SIZE(t101p136cq_2lane_init),
-	.mode = &t101p136cq_rpi5_2lane_mode,
-	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_LPM,
-	.lanes = 2,
-};
 static const struct of_device_id ili9881c_of_match[] = {
 	{ .compatible = "bananapi,lhr050h41", .data = &lhr050h41_desc },
 	{ .compatible = "bestar,bsd1218-a101kl68", .data = &bsd1218_a101kl68_desc },
@@ -3244,9 +3220,8 @@ static const struct of_device_id ili9881c_of_match[] = {
 	{ .compatible = "nwe,nwe080", .data = &nwe080_desc },
 	{ .compatible = "raspberrypi,dsi-5inch", &rpi_5inch_desc },
 	{ .compatible = "raspberrypi,dsi-7inch", &rpi_7inch_desc },
-	{ .compatible = "rzw,t101p136cq-rpi4", .data = &t101p136cq_desc },
-	{ .compatible = "rzw,t101p136cq-rpi4-lite", .data = &t101p136cq_rpi4_lite_desc },
-	{ .compatible = "rzw,t101p136cq-rpi5", .data = &t101p136cq_rpi5_desc },
+	{ .compatible = "rzw,t101p136cq-4lane", .data = &t101p136cq_4lane_desc },
+	{ .compatible = "rzw,t101p136cq-2lane", .data = &t101p136cq_2lane_desc },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, ili9881c_of_match);
