@@ -1307,7 +1307,8 @@ static struct intel_pt_queue *intel_pt_alloc_queue(struct intel_pt *pt,
 			goto out_free;
 	}
 
-	if (pt->synth_opts.last_branch || pt->synth_opts.other_events) {
+	if (pt->synth_opts.last_branch || pt->synth_opts.add_last_branch ||
+	    pt->synth_opts.other_events) {
 		unsigned int entry_cnt = max(LBRS_MAX, pt->br_stack_sz);
 
 		ptq->last_branch = intel_pt_alloc_br_stack(entry_cnt);
@@ -2505,7 +2506,7 @@ static int intel_pt_do_synth_pebs_sample(struct intel_pt_queue *ptq, struct evse
 		intel_pt_add_xmm(intr_regs, pos, items, regs_mask);
 	}
 
-	if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
+	if ((sample_type | evsel->synth_sample_type) & PERF_SAMPLE_BRANCH_STACK) {
 		if (items->mask[INTEL_PT_LBR_0_POS] ||
 		    items->mask[INTEL_PT_LBR_1_POS] ||
 		    items->mask[INTEL_PT_LBR_2_POS]) {
@@ -2576,7 +2577,8 @@ static int intel_pt_do_synth_pebs_sample(struct intel_pt_queue *ptq, struct evse
 		sample.transaction = txn;
 	}
 
-	ret = intel_pt_deliver_synth_event(pt, event, &sample, sample_type);
+	ret = intel_pt_deliver_synth_event(pt, event, &sample,
+					   sample_type | evsel->synth_sample_type);
 	perf_sample__exit(&sample);
 	return ret;
 }
