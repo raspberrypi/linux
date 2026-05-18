@@ -482,10 +482,30 @@ static void arm_spe__prep_branch_stack(struct arm_spe_queue *speq)
 	bstack->hw_idx = -1ULL;
 }
 
-static int arm_spe__inject_event(union perf_event *event, struct perf_sample *sample, u64 type)
+static int arm_spe__inject_event(struct arm_spe *spe, union perf_event *event,
+				 struct perf_sample *sample, u64 type)
 {
-	event->header.size = perf_event__sample_event_size(sample, type, 0);
-	return perf_event__synthesize_sample(event, type, 0, sample);
+	struct evsel *evsel = sample->evsel;
+	u64 branch_sample_type = 0;
+	size_t sz;
+
+	if (!evsel && spe->session && spe->session->evlist)
+		evsel = evlist__id2evsel(spe->session->evlist, sample->id);
+
+	if (evsel)
+		branch_sample_type = evsel->core.attr.branch_sample_type;
+
+	event->header.type = PERF_RECORD_SAMPLE;
+	sz = perf_event__sample_event_size(sample, type, /*read_format=*/0,
+					   branch_sample_type);
+	if (sz >= PERF_SAMPLE_MAX_SIZE) {
+		pr_err("Sample size %zu exceeds max size %d\n", sz, PERF_SAMPLE_MAX_SIZE);
+		return -EFAULT;
+	}
+	event->header.size = sz;
+
+	return perf_event__synthesize_sample(event, type, /*read_format=*/0,
+					     branch_sample_type, sample);
 }
 
 static inline int
@@ -497,7 +517,7 @@ arm_spe_deliver_synth_event(struct arm_spe *spe,
 	int ret;
 
 	if (spe->synth_opts.inject) {
-		ret = arm_spe__inject_event(event, sample, spe->sample_type);
+		ret = arm_spe__inject_event(spe, event, sample, spe->sample_type);
 		if (ret)
 			return ret;
 	}

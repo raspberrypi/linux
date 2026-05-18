@@ -1422,11 +1422,29 @@ static void cs_etm__update_last_branch_rb(struct cs_etm_queue *etmq,
 		bs->nr += 1;
 }
 
-static int cs_etm__inject_event(union perf_event *event,
+static int cs_etm__inject_event(struct cs_etm_auxtrace *etm, union perf_event *event,
 			       struct perf_sample *sample, u64 type)
 {
-	event->header.size = perf_event__sample_event_size(sample, type, 0);
-	return perf_event__synthesize_sample(event, type, 0, sample);
+	struct evsel *evsel = sample->evsel;
+	u64 branch_sample_type = 0;
+	size_t sz;
+
+	if (!evsel && etm->session && etm->session->evlist)
+		evsel = evlist__id2evsel(etm->session->evlist, sample->id);
+
+	if (evsel)
+		branch_sample_type = evsel->core.attr.branch_sample_type;
+
+	sz = perf_event__sample_event_size(sample, type, /*read_format=*/0,
+					   branch_sample_type);
+	if (sz >= PERF_SAMPLE_MAX_SIZE) {
+		pr_err("Sample size %zu exceeds max size %d\n", sz, PERF_SAMPLE_MAX_SIZE);
+		return -EFAULT;
+	}
+	event->header.size = sz;
+
+	return perf_event__synthesize_sample(event, type, /*read_format=*/0,
+					     branch_sample_type, sample);
 }
 
 
@@ -1592,7 +1610,7 @@ static int cs_etm__synth_instruction_sample(struct cs_etm_queue *etmq,
 		sample.branch_stack = tidq->last_branch;
 
 	if (etm->synth_opts.inject) {
-		ret = cs_etm__inject_event(event, &sample,
+		ret = cs_etm__inject_event(etm, event, &sample,
 					   etm->instructions_sample_type);
 		if (ret)
 			return ret;
@@ -1667,7 +1685,7 @@ static int cs_etm__synth_branch_sample(struct cs_etm_queue *etmq,
 	}
 
 	if (etm->synth_opts.inject) {
-		ret = cs_etm__inject_event(event, &sample,
+		ret = cs_etm__inject_event(etm, event, &sample,
 					   etm->branches_sample_type);
 		if (ret)
 			return ret;

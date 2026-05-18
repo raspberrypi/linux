@@ -465,8 +465,13 @@ out:
 	/* remove sample_type {STACK,REGS}_USER for synthesize */
 	sample_type &= ~(PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER);
 
-	perf_event__synthesize_sample(event_copy, sample_type,
-				      evsel->core.attr.read_format, sample);
+	ret = perf_event__synthesize_sample(event_copy, sample_type,
+					    evsel->core.attr.read_format,
+					    evsel->core.attr.branch_sample_type, sample);
+	if (ret) {
+		pr_err("Failed to synthesize sample\n");
+		return ret;
+	}
 	return perf_event__repipe_synth(tool, event_copy);
 }
 
@@ -1102,7 +1107,8 @@ found:
 	sample_sw.period = sample->period;
 	sample_sw.time	 = sample->time;
 	perf_event__synthesize_sample(event_sw, evsel->core.attr.sample_type,
-				      evsel->core.attr.read_format, &sample_sw);
+				      evsel->core.attr.read_format,
+				      evsel->core.attr.branch_sample_type, &sample_sw);
 	build_id__mark_dso_hit(tool, event_sw, &sample_sw, evsel, machine);
 	ret = perf_event__repipe(tool, event_sw, &sample_sw, machine);
 	perf_sample__exit(&sample_sw);
