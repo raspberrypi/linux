@@ -2673,21 +2673,6 @@ static inline struct ili9881c *panel_to_ili9881c(struct drm_panel *panel)
 	return container_of(panel, struct ili9881c, panel);
 }
 
-static bool is_rzw_t101p136cq_panel(struct ili9881c *ctx)
-{
-	struct device_node *np = ctx->dsi->dev.of_node;
-	static const char * const compatibles[] = {
-		"rzw,t101p136cq-rpi4",
-		"rzw,t101p136cq-rpi4-lite",
-		"rzw,t101p136cq-rpi5",
-	};
-
-	if (!np)
-		return false;
-
-	return of_device_compatible_match(np, compatibles) >= 0;
-}
-
 /*
  * The panel seems to accept some private DCS commands that map
  * directly to registers.
@@ -2719,13 +2704,12 @@ static int ili9881c_prepare(struct drm_panel *panel)
 	struct mipi_dsi_multi_context mctx = { .dsi = ctx->dsi };
 	unsigned int i;
 	int ret;
-	bool is_rzw = is_rzw_t101p136cq_panel(ctx);
 
 	/* Power the panel */
 	ret = regulator_enable(ctx->power);
 	if (ret)
 		return ret;
-	msleep(is_rzw ? 10 : 5);
+	msleep(5);
 
 	/* And reset it */
 	gpiod_set_value_cansleep(ctx->reset, 1);
@@ -2733,11 +2717,6 @@ static int ili9881c_prepare(struct drm_panel *panel)
 
 	gpiod_set_value_cansleep(ctx->reset, 0);
 	msleep(20);
-
-	if (is_rzw) {
-		gpiod_set_value_cansleep(ctx->reset, 1);
-		msleep(120);
-	}
 
 	for (i = 0; i < ctx->desc->init_length; i++) {
 		const struct ili9881c_instr *instr = &ctx->desc->init[i];
@@ -2777,12 +2756,7 @@ static int ili9881c_unprepare(struct drm_panel *panel)
 	mipi_dsi_dcs_set_display_off_multi(&mctx);
 	mipi_dsi_dcs_enter_sleep_mode_multi(&mctx);
 	regulator_disable(ctx->power);
-	if (is_rzw_t101p136cq_panel(ctx)) {
-		gpiod_set_value_cansleep(ctx->reset, 0);
-		msleep(100);
-	} else {
-		gpiod_set_value_cansleep(ctx->reset, 1);
-	}
+	gpiod_set_value_cansleep(ctx->reset, 1);
 
 	return 0;
 }
