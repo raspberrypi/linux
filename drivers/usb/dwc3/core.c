@@ -1552,7 +1552,7 @@ int dwc3_core_init(struct dwc3 *dwc)
 		u8 tx_maxburst = dwc->tx_max_burst_prd;
 
 		if (tx_thr_num && tx_maxburst) {
-			reg = dwc3_readl(dwc->regs, DWC3_GTXTHRCFG);
+			reg = dwc3_readl(dwc, DWC3_GTXTHRCFG);
 			reg |= DWC3_GTXTHRCFG_PKTCNTSEL;
 
 			reg &= ~DWC3_GTXTHRCFG_TXPKTCNT(~0);
@@ -1561,7 +1561,7 @@ int dwc3_core_init(struct dwc3 *dwc)
 			reg &= ~DWC3_GTXTHRCFG_MAXTXBURSTSIZE(~0);
 			reg |= DWC3_GTXTHRCFG_MAXTXBURSTSIZE(tx_maxburst);
 
-			dwc3_writel(dwc->regs, DWC3_GTXTHRCFG, reg);
+			dwc3_writel(dwc, DWC3_GTXTHRCFG, reg);
 		}
 	}
 
