@@ -161,10 +161,12 @@ static void pci_pwrctrl_power_off_device(struct device_node *np)
 	if (!pdev)
 		return;
 
-	if (device_is_bound(&pdev->dev)) {
-		ret = __pci_pwrctrl_power_off_device(&pdev->dev);
-		if (ret)
-			dev_err(&pdev->dev, "Failed to power off device: %d", ret);
+	scoped_guard(device, &pdev->dev) {
+		if (device_is_bound(&pdev->dev)) {
+			ret = __pci_pwrctrl_power_off_device(&pdev->dev);
+			if (ret)
+				dev_err(&pdev->dev, "Failed to power off device: %d", ret);
+		}
 	}
 
 	platform_device_put(pdev);
@@ -205,7 +207,7 @@ static int __pci_pwrctrl_power_on_device(struct device *dev)
 static int pci_pwrctrl_power_on_device(struct device_node *np)
 {
 	struct platform_device *pdev;
-	int ret;
+	int ret = 0;
 
 	for_each_available_child_of_node_scoped(np, child) {
 		ret = pci_pwrctrl_power_on_device(child);
@@ -217,12 +219,14 @@ static int pci_pwrctrl_power_on_device(struct device_node *np)
 	if (!pdev)
 		return 0;
 
-	if (device_is_bound(&pdev->dev)) {
-		ret = __pci_pwrctrl_power_on_device(&pdev->dev);
-	} else {
-		/* FIXME: Use blocking wait instead of probe deferral */
-		dev_dbg(&pdev->dev, "driver is not bound\n");
-		ret = -EPROBE_DEFER;
+	scoped_guard(device, &pdev->dev) {
+		if (device_is_bound(&pdev->dev)) {
+			ret = __pci_pwrctrl_power_on_device(&pdev->dev);
+		} else {
+			/* FIXME: Use blocking wait instead of probe deferral */
+			dev_dbg(&pdev->dev, "driver is not bound\n");
+			ret = -EPROBE_DEFER;
+		}
 	}
 
 	platform_device_put(pdev);
