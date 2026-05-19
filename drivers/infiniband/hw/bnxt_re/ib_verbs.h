@@ -167,7 +167,7 @@ struct bnxt_re_dbr_obj {
 	struct bnxt_re_dev *rdev;
 	struct bnxt_qplib_dpi dpi;
 	struct bnxt_re_user_mmap_entry *entry;
-	atomic_t usecnt; /* QPs using this dbr */
+	struct kref usecnt; /* 1 (uobject) + n (QPs using this dbr) */
 };
 
 struct bnxt_re_flow {
@@ -308,4 +308,5 @@ void bnxt_re_unlock_cqs(struct bnxt_re_qp *qp, unsigned long flags);
 struct bnxt_re_user_mmap_entry*
 bnxt_re_mmap_entry_insert(struct bnxt_re_ucontext *uctx, u64 mem_offset,
 			  enum bnxt_re_mmap_flag mmap_flag, u64 *offset);
+void bnxt_re_dbr_kref_release(struct kref *ref);
 #endif /* __BNXT_RE_IB_VERBS_H__ */

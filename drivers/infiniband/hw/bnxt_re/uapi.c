@@ -369,6 +369,7 @@ static int UVERBS_HANDLER(BNXT_RE_METHOD_DBR_ALLOC)(struct uverbs_attr_bundle *a
 	}
 
 	obj->rdev = rdev;
+	kref_init(&obj->usecnt);
 	uobj->object = obj;
 	uverbs_finalize_uobj_create(attrs, BNXT_RE_ALLOC_DBR_HANDLE);
 
@@ -391,15 +392,24 @@ free_mem:
 	return ret;
 }
 
+void bnxt_re_dbr_kref_release(struct kref *ref)
+{
+	struct bnxt_re_dbr_obj *obj =
+		container_of(ref, struct bnxt_re_dbr_obj, usecnt);
+	struct bnxt_re_dev *rdev = obj->rdev;
+
+	rdma_user_mmap_entry_remove(&obj->entry->rdma_entry);
+	bnxt_qplib_free_uc_dpi(&rdev->qplib_res, &obj->dpi);
+	kfree(obj);
+}
+
 static int bnxt_re_dbr_cleanup(struct ib_uobject *uobject,
 			       enum rdma_remove_reason why,
 			       struct uverbs_attr_bundle *attrs)
 {
 	struct bnxt_re_dbr_obj *obj = uobject->object;
-	struct bnxt_re_dev *rdev = obj->rdev;
 
-	rdma_user_mmap_entry_remove(&obj->entry->rdma_entry);
-	bnxt_qplib_free_uc_dpi(&rdev->qplib_res, &obj->dpi);
+	kref_put(&obj->usecnt, bnxt_re_dbr_kref_release);
 	return 0;
 }
 
