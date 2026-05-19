@@ -1902,6 +1902,13 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	status = serial_lsr_in(up);
 
 	/*
+	 * Recover from no-data-ready and FIFO error condition to avoid getting
+	 * stuck in the ISR.
+	 */
+	if (!(status & UART_LSR_DR) && (status & UART_LSR_FIFOE))
+		serial8250_clear_and_reinit_fifos(up);
+
+	/*
 	 * If port is stopped and there are no error conditions in the
 	 * FIFO, then don't drain the FIFO, as this may lead to TTY buffer
 	 * overflow. Not servicing, RX FIFO would trigger auto HW flow
