@@ -144,7 +144,7 @@ static void hevc_d_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 	case V4L2_PIX_FMT_NV12_COL128:
 		/* Width rounds up to columns */
 		width = ALIGN(width, 128);
-		height = ALIGN(height, 8);
+		height = ALIGN(height, 16);
 
 		/* column height
 		 * Accept suggested shape if at least min & < 2 * min
@@ -158,7 +158,7 @@ static void hevc_d_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 		 * columns
 		 */
 		width = ALIGN(((width + 2) / 3), 32) * 3;
-		height = ALIGN(height, 8);
+		height = ALIGN(height, 16);
 
 		/* column height
 		 * Accept suggested shape if at least min & < 2 * min
