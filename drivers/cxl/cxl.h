@@ -453,6 +453,8 @@ typedef u64 (*cxl_hpa_to_spa_fn)(struct cxl_root_decoder *cxlrd, u64 hpa);
  * @hpa_to_spa: translate CXL host-physical-address to Platform system-physical-address
  * @platform_data: platform specific configuration data
  * @regions_lock: sync region discovery, construction, and deletion
+ * @regions: regions to remove at root decoder destruct time
+ * @dead: root decoder dead to region creation
  * @qos_class: QoS performance class cookie
  * @cxlsd: base cxl switch decoder
  */
@@ -462,6 +464,8 @@ struct cxl_root_decoder {
 	cxl_hpa_to_spa_fn hpa_to_spa;
 	void *platform_data;
 	struct mutex regions_lock;
+	struct xarray regions;
+	bool dead;
 	int qos_class;
 	struct cxl_switch_decoder cxlsd;
 };
