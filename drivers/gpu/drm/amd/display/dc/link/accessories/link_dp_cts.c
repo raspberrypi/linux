@@ -143,6 +143,8 @@ static void dp_retrain_link_dp_test(struct dc_link *link,
 	// Set DPMS on with stream update
 	// Cache all streams on current link since dc_update_planes_and_stream might kill current_state
 	for (i = 0; i < MAX_PIPES; i++) {
+		if (state->streams[i] && state->streams[i]->is_phantom)
+			continue;
 		if (state->streams[i] && state->streams[i]->link && state->streams[i]->link == link)
 			streams_on_link[num_streams_on_link++] = state->streams[i];
 	}
