@@ -24,36 +24,43 @@ jobs:
             arch: arm
             defconfig: bcm2835_defconfig
             kernel: kernel
+            retention: 5
 
           - name: arm64
             arch: arm64
             defconfig: defconfig
             kernel: kernel8
+            retention: 5
 
           - name: bcmrpi
             arch: arm
             defconfig: bcmrpi_defconfig
             kernel: kernel
+            retention: 90
 
           - name: bcm2709
             arch: arm
             defconfig: bcm2709_defconfig
             kernel: kernel7
+            retention: 90
 
           - name: bcm2711
             arch: arm64
             defconfig: bcm2711_defconfig
             kernel: kernel8
+            retention: 90
 
           - name: bcm2711_rt
             arch: arm64
             defconfig: bcm2711_rt_defconfig
             kernel: kernel8_rt
+            retention: 30
 
           - name: bcm2712
             arch: arm64
             defconfig: bcm2712_defconfig
             kernel: kernel_2712
+            retention: 90
 
     steps:
     - name: Install armhf crossbuild toolchain
@@ -100,4 +107,4 @@ jobs:
       with:
         name: ${{matrix.name}}_build
         path: ${{matrix.name}}_build.tar
-        retention-days: 90
+        retention-days: ${{matrix.retention}}
