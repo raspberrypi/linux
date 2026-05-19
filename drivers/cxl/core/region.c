@@ -2566,7 +2566,12 @@ static ssize_t create_pmem_region_store(struct device *dev,
 	if (rc != 1)
 		return -EINVAL;
 
+	rc = mutex_lock_interruptible(&cxlrd->regions_lock);
+	if (rc)
+		return rc;
+
 	cxlr = __create_region(cxlrd, CXL_DECODER_PMEM, id);
+	mutex_unlock(&cxlrd->regions_lock);
 	if (IS_ERR(cxlr))
 		return PTR_ERR(cxlr);
 
@@ -2586,7 +2591,12 @@ static ssize_t create_ram_region_store(struct device *dev,
 	if (rc != 1)
 		return -EINVAL;
 
+	rc = mutex_lock_interruptible(&cxlrd->regions_lock);
+	if (rc)
+		return rc;
+
 	cxlr = __create_region(cxlrd, CXL_DECODER_RAM, id);
+	mutex_unlock(&cxlrd->regions_lock);
 	if (IS_ERR(cxlr))
 		return PTR_ERR(cxlr);
 
@@ -2634,13 +2644,21 @@ static ssize_t delete_region_store(struct device *dev,
 	struct cxl_root_decoder *cxlrd = to_cxl_root_decoder(dev);
 	struct cxl_port *port = to_cxl_port(dev->parent);
 	struct cxl_region *cxlr;
+	int rc;
+
+	rc = mutex_lock_interruptible(&cxlrd->regions_lock);
+	if (rc)
+		return rc;
 
 	cxlr = cxl_find_region_by_name(cxlrd, buf);
-	if (IS_ERR(cxlr))
+	if (IS_ERR(cxlr)) {
+		mutex_unlock(&cxlrd->regions_lock);
 		return PTR_ERR(cxlr);
+	}
 
 	devm_release_action(port->uport_dev, unregister_region, cxlr);
 	put_device(&cxlr->dev);
+	mutex_unlock(&cxlrd->regions_lock);
 
 	return len;
 }
@@ -3345,7 +3363,7 @@ int cxl_add_to_region(struct cxl_port *root, struct cxl_endpoint_decoder *cxled)
 	 * Ensure that if multiple threads race to construct_region() for @hpa
 	 * one does the construction and the others add to that.
 	 */
-	mutex_lock(&cxlrd->range_lock);
+	guard(mutex)(&cxlrd->regions_lock);
 	region_dev = device_find_child(&cxlrd->cxlsd.cxld.dev, hpa,
 				       match_region_by_range);
 	if (!region_dev) {
@@ -3353,7 +3371,6 @@ int cxl_add_to_region(struct cxl_port *root, struct cxl_endpoint_decoder *cxled)
 		region_dev = &cxlr->dev;
 	} else
 		cxlr = to_cxl_region(region_dev);
-	mutex_unlock(&cxlrd->range_lock);
 
 	rc = PTR_ERR_OR_ZERO(cxlr);
 	if (rc)
