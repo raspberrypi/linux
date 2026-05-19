@@ -66,6 +66,26 @@
 /* Forward declarations */
 static void bcmgenet_set_rx_mode(struct net_device *dev);
 
+/*
+ * Diagnostic knob for isolating GENET EEE/LPI failures.
+ *
+ * Bit 0: UMAC EEE protocol handling
+ * Bit 1: TBUF EEE/power-management
+ * Bit 2: RBUF EEE/power-management
+ *
+ */
+#define GENET_EEE_PM_UMAC	BIT(0)
+#define GENET_EEE_PM_TBUF	BIT(1)
+#define GENET_EEE_PM_RBUF	BIT(2)
+#define GENET_EEE_PM_ALL	(GENET_EEE_PM_UMAC | \
+				 GENET_EEE_PM_TBUF | \
+				 GENET_EEE_PM_RBUF)
+
+static uint eee_pm_mask = GENET_EEE_PM_ALL;
+module_param(eee_pm_mask, uint, 0444);
+MODULE_PARM_DESC(eee_pm_mask,
+		 "EEE power-management mask: bit0=UMAC bit1=TBUF bit2=RBUF");
+
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
 	/* MIPS chips strapped for BE will automagically configure the
@@ -1347,15 +1367,18 @@ void bcmgenet_eee_enable_set(struct net_device *dev, bool enable)
 {
 	struct bcmgenet_priv *priv = netdev_priv(dev);
 	u32 off = priv->hw_params->tbuf_offset + TBUF_ENERGY_CTRL;
+	u32 mask = enable ? eee_pm_mask : 0;
 	u32 reg;
 
-	if (enable && !priv->clk_eee_enabled) {
+	netdev_info_once(dev, "GENET EEE PM mask: 0x%x\n", eee_pm_mask);
+
+	if (mask && !priv->clk_eee_enabled) {
 		clk_prepare_enable(priv->clk_eee);
 		priv->clk_eee_enabled = true;
 	}
 
 	reg = bcmgenet_umac_readl(priv, UMAC_EEE_CTRL);
-	if (enable)
+	if (mask & GENET_EEE_PM_UMAC)
 		reg |= EEE_EN;
 	else
 		reg &= ~EEE_EN;
@@ -1363,7 +1386,7 @@ void bcmgenet_eee_enable_set(struct net_device *dev, bool enable)
 
 	/* Enable EEE and switch to a 27Mhz clock automatically */
 	reg = bcmgenet_readl(priv->base + off);
-	if (enable)
+	if (mask & GENET_EEE_PM_TBUF)
 		reg |= TBUF_EEE_EN | TBUF_PM_EN;
 	else
 		reg &= ~(TBUF_EEE_EN | TBUF_PM_EN);
@@ -1371,13 +1394,13 @@ void bcmgenet_eee_enable_set(struct net_device *dev, bool enable)
 
 	/* Do the same for thing for RBUF */
 	reg = bcmgenet_rbuf_readl(priv, RBUF_ENERGY_CTRL);
-	if (enable)
+	if (mask & GENET_EEE_PM_RBUF)
 		reg |= RBUF_EEE_EN | RBUF_PM_EN;
 	else
 		reg &= ~(RBUF_EEE_EN | RBUF_PM_EN);
 	bcmgenet_rbuf_writel(priv, reg, RBUF_ENERGY_CTRL);
 
-	if (!enable && priv->clk_eee_enabled) {
+	if (!mask && priv->clk_eee_enabled) {
 		clk_disable_unprepare(priv->clk_eee);
 		priv->clk_eee_enabled = false;
 	}
