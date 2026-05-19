@@ -134,6 +134,8 @@ static int ed_i2c_probe(struct i2c_client *i2c)
 		return ret;
 	}
 
+	regmap_write(regmap, CMD_BRIDGE_INIT, 0x02);
+
 	regmap_write(regmap, CMD_BACKLIGHT_EN, 1);
 
 	props.type = BACKLIGHT_RAW;
