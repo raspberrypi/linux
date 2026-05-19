@@ -359,7 +359,7 @@ struct cxl_rd_ops {
  * @cache_size: extended linear cache size if exists, otherwise zero.
  * @region_id: region id for next region provisioning event
  * @platform_data: platform specific configuration data
- * @range_lock: sync region autodiscovery by address range
+ * @regions_lock: sync region discovery, construction, and deletion
  * @qos_class: QoS performance class cookie
  * @ops: CXL root decoder operations
  * @cxlsd: base cxl switch decoder
@@ -369,7 +369,7 @@ struct cxl_root_decoder {
 	resource_size_t cache_size;
 	atomic_t region_id;
 	void *platform_data;
-	struct mutex range_lock;
+	struct mutex regions_lock;
 	int qos_class;
 	struct cxl_rd_ops ops;
 	struct cxl_switch_decoder cxlsd;

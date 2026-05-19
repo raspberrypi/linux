@@ -2790,6 +2790,10 @@ static ssize_t create_region_store(struct device *dev, const char *buf,
 	if (rc != 1)
 		return -EINVAL;
 
+	ACQUIRE(mutex_intr, regions_lock)(&cxlrd->regions_lock);
+	if ((rc = ACQUIRE_ERR(mutex_intr, &regions_lock)))
+		return rc;
+
 	cxlr = __create_region(cxlrd, mode, id, CXL_DECODER_HOSTONLYMEM);
 	if (IS_ERR(cxlr))
 		return PTR_ERR(cxlr);
@@ -2849,6 +2853,11 @@ static ssize_t delete_region_store(struct device *dev,
 	struct cxl_root_decoder *cxlrd = to_cxl_root_decoder(dev);
 	struct cxl_port *port = to_cxl_port(dev->parent);
 	struct cxl_region *cxlr;
+	int rc;
+
+	ACQUIRE(mutex_intr, regions_lock)(&cxlrd->regions_lock);
+	if ((rc = ACQUIRE_ERR(mutex_intr, &regions_lock)))
+		return rc;
 
 	cxlr = cxl_find_region_by_name(cxlrd, buf);
 	if (IS_ERR(cxlr))
@@ -3787,12 +3796,11 @@ int cxl_add_to_region(struct cxl_endpoint_decoder *cxled)
 	 * for the HPA range, one does the construction and the others
 	 * add to that.
 	 */
-	mutex_lock(&cxlrd->range_lock);
+	guard(mutex)(&cxlrd->regions_lock);
 	struct cxl_region *cxlr __free(put_cxl_region) =
 		cxl_find_region_by_range(cxlrd, &ctx.hpa_range);
 	if (!cxlr)
 		cxlr = construct_region(cxlrd, &ctx);
-	mutex_unlock(&cxlrd->range_lock);
 
 	rc = PTR_ERR_OR_ZERO(cxlr);
 	if (rc)
