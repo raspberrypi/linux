@@ -1106,7 +1106,7 @@ static int fuse_ref_folio(struct fuse_copy_state *cs, struct folio *folio,
 	cs->nr_segs++;
 	cs->len = 0;
 
-	return 0;
+	return lock_request(cs->req);
 }
 
 /*
