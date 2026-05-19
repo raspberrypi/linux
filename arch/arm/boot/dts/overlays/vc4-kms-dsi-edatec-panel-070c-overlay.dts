@@ -14,16 +14,10 @@
 
 			reg_display: reg_display@27 {
 				reg = <0x27>;
-				compatible = "rzw,t70p383rk-v2";
+				compatible = "edatec,disp-regulator";
 
 				gpio-controller;
 				#gpio-cells = <2>;
-
-				port {
-					panel_in: endpoint {
-						remote-endpoint = <&dsi_out>;
-					};
-				};
 			};
 
 			gt911: gt911@14 {
@@ -47,6 +41,36 @@
 			port {
 				dsi_out: endpoint {
 					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			panel: panel@0 {
+				reg = <0>;
+				compatible = "rzw,t70p383rk", "panel-dsi";
+				backlight = <&reg_display>;
+
+				width-mm = <154>;
+				height-mm = <86>;
+				dsi-color-format = "RGB888";
+				mode = "MODE_VIDEO","MODE_VIDEO_SYNC_PULSE";
+
+				timing: panel-timing {
+					clock-frequency = <41000000>;
+					hactive = <1024>;
+					hfront-porch = <40>;
+					hsync-len = <10>;
+					hback-porch = <40>;
+					vactive = <600>;
+					vfront-porch = <4>;
+					vsync-len = <2>;
+					vback-porch = <4>;
+				};
+
+				port {
+					panel_in: endpoint {
+						data-lanes = <1 2>;
+						remote-endpoint = <&dsi_out>;
+					};
 				};
 			};
 		};
@@ -84,13 +108,6 @@
 		};
 	};
 
-	fragment@6 {
-		target = <&reg_display>;
-		__dormant__ {
-			compatible = "rzw,t70p383rk-lite";
-		};
-	};
-
 	__overrides__ {
 		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
 				<0>,"-2-3+4";
@@ -102,6 +119,6 @@
 		cm4 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi>;
 		pi5 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi>;
 		cm5 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
-		cm0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi>,<0>, "+6";
+		cm0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi>;
 	};
 };
