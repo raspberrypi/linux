@@ -311,7 +311,7 @@ dw_mipi_csi2rx_find_format(struct dw_mipi_csi2rx_device *csi2, u32 mbus_code)
 	WARN_ON(csi2->formats_num == 0);
 
 	for (unsigned int i = 0; i < csi2->formats_num; i++) {
-		const struct dw_mipi_csi2rx_format *format = &csi2->formats[i];
+		const struct dw_mipi_csi2rx_format *format = &formats[i];
 
 		if (format->code == mbus_code)
 			return format;
@@ -433,7 +433,7 @@ dw_mipi_csi2rx_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index >= csi2->formats_num)
 			return -EINVAL;
 
-		code->code = csi2->formats[code->index].code;
+		code->code = formats[code->index].code;
 		return 0;
 	default:
 		return -EINVAL;
@@ -469,6 +469,17 @@ static int dw_mipi_csi2rx_set_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	*src = *sink;
+
+	/* Store the CSIS format descriptor for active formats. */
+	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
+		csi2->formats = fmt ? :
+			dw_mipi_csi2rx_find_format(csi2, default_format.code);
+
+		if (!csi2->formats) {
+			dev_err(csi2->dev, "Failed to find valid format\n");
+			return -EINVAL;
+		}
+	}
 
 	return 0;
 }
