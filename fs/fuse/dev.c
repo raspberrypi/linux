@@ -960,7 +960,7 @@ static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
 	cs->nr_segs++;
 	cs->len = 0;
 
-	return 0;
+	return lock_request(cs->req);
 }
 
 /*
