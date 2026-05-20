@@ -125,6 +125,9 @@
 		6_25_inch = <&panel>, "compatible=waveshare,6.25inch-panel",
 				   <&touch>, "touchscreen-inverted-x?",
 				   <&touch>, "touchscreen-inverted-y?";
+		6_25_inchB = <&panel>, "compatible=waveshare,6.25inch-b-panel",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-inverted-y?";
 		8_8_inch = <&panel>, "compatible=waveshare,8.8inch-panel";
 		13_3_inch_4lane = <&panel>, "compatible=waveshare,13.3inch-4lane-panel",
 				  <&touch2>, "status=okay";
