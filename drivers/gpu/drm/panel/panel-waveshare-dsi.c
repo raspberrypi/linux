@@ -246,6 +246,27 @@ static const struct ws_panel_data ws_panel_6_25_data = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
 };
 
+/* 6.25inch B 720x1560
+ * https://www.waveshare.com/6.25inch-dsi-lcd-b.htm
+ */
+static const struct drm_display_mode ws_panel_6_25_b_mode = {
+	.clock = 83333,
+	.hdisplay = 720,
+	.hsync_start = 720 + 50,
+	.hsync_end = 720 + 50 + 50,
+	.htotal = 720 + 50 + 50 + 50,
+	.vdisplay = 1560,
+	.vsync_start = 1560 + 9,
+	.vsync_end = 1560 + 9 + 9,
+	.vtotal = 1560 + 9 + 9 + 9,
+};
+
+static const struct ws_panel_data ws_panel_6_25_b_data = {
+	.mode = &ws_panel_6_25_b_mode,
+	.lanes = 2,
+	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
+};
+
 /* 8.8inch 480x1920
  * https://www.waveshare.com/8.8inch-dsi-lcd.htm
  */
@@ -599,6 +620,9 @@ static const struct of_device_id ws_panel_of_ids[] = {
 	}, {
 		.compatible = "waveshare,6.25inch-panel",
 		.data = &ws_panel_6_25_data,
+	}, {
+		.compatible = "waveshare,6.25inch-b-panel",
+		.data = &ws_panel_6_25_b_data,
 	}, {
 		.compatible = "waveshare,8.8inch-panel",
 		.data = &ws_panel_8_8_data,
