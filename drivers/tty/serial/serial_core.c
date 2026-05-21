@@ -33,6 +33,7 @@
 #include <linux/uaccess.h>
 
 #include "serial_base.h"
+#include "8250/8250.h" /* For hub6_match_port() */
 
 /*
  * This is used to lock changes in serial line configuration.
@@ -3261,8 +3262,7 @@ bool uart_match_port(const struct uart_port *port1,
 	case UPIO_PORT:
 		return port1->iobase == port2->iobase;
 	case UPIO_HUB6:
-		return port1->iobase == port2->iobase &&
-		       port1->hub6   == port2->hub6;
+		return hub6_match_port(port1, port2);
 	case UPIO_MEM:
 	case UPIO_MEM16:
 	case UPIO_MEM32:

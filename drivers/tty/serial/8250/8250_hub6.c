@@ -41,6 +41,12 @@ static struct platform_device hub6_device = {
 	},
 };
 
+bool hub6_match_port(const struct uart_port *port1, const struct uart_port *port2)
+{
+	return port1->iobase == port2->iobase && port1->hub6 == port2->hub6;
+}
+EXPORT_SYMBOL_GPL(hub6_match_port);
+
 static int __init hub6_init(void)
 {
 	return platform_device_register(&hub6_device);
