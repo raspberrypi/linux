@@ -2536,8 +2536,6 @@ static int ntfs_fill_super(struct super_block *sb, struct fs_context *fc)
 	}
 	/* Error exit code path. */
 unl_upcase_iput_tmp_ino_err_out_now:
-	if (vol->lcn_empty_bits_per_page)
-		kvfree(vol->lcn_empty_bits_per_page);
 	/*
 	 * Decrease the number of upcase users and destroy the global default
 	 * upcase table if necessary.
@@ -2557,6 +2555,9 @@ iput_tmp_ino_err_out_now:
 	/* Errors at this stage are irrelevant. */
 err_out_now:
 	sb->s_fs_info = NULL;
+	kvfree(vol->lcn_empty_bits_per_page);
+	kfree(vol->volume_label);
+	unload_nls(vol->nls_map);
 	kfree(vol);
 	ntfs_debug("Failed, returning -EINVAL.");
 	lockdep_on();
