@@ -1529,6 +1529,12 @@ static void svc_release_rqst(struct svc_rqst *rqstp)
 
 	if (procp && procp->pc_release)
 		procp->pc_release(rqstp);
+
+	/*
+	 * A subsequent svc_release_rqst() on this rqstp must not
+	 * re-invoke pc_release against released state.
+	 */
+	rqstp->rq_procinfo = NULL;
 }
 
 /**
@@ -1546,6 +1552,9 @@ void svc_process(struct svc_rqst *rqstp)
 	    should_fail(&fail_sunrpc.attr, 1))
 		svc_xprt_deferred_close(rqstp->rq_xprt);
 #endif
+
+	/* Discard a stale release hook from a previous RPC. */
+	rqstp->rq_procinfo = NULL;
 
 	/*
 	 * Setup response xdr_buf.
@@ -1603,6 +1612,7 @@ void svc_process_bc(struct rpc_rqst *req, struct svc_rqst *rqstp)
 	int proc_error;
 
 	/* Build the svc_rqst used by the common processing routine */
+	rqstp->rq_procinfo = NULL;
 	rqstp->rq_xid = req->rq_xid;
 	rqstp->rq_prot = req->rq_xprt->prot;
 	rqstp->rq_bc_net = req->rq_xprt->xprt_net;
