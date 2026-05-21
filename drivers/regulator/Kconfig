@@ -1833,6 +1833,7 @@ config REGULATOR_EDATEC_10INCH
 	depends on BACKLIGHT_CLASS_DEVICE
 	depends on I2C
 	select REGMAP_I2C
+	select GPIO_REGMAP
 	help
 	  This driver provides support for controlling the panel's power supply,
           including the necessary voltage and current regulation for proper
