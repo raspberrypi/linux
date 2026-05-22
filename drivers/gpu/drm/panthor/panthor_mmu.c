@@ -116,6 +116,17 @@ struct panthor_mmu {
 struct panthor_vm_pool {
 	/** @xa: Array used for VM handle tracking. */
 	struct xarray xa;
+
+	/**
+	 * @dummy: Dummy object used for sparse mappings
+	 *
+	 * Sparse bindings map virtual address ranges onto a dummy
+	 * BO in a modulo fashion. Even though sparse writes are meant
+	 * to be discarded and reads undefined, writes are still reflected
+	 * in the dummy buffer. That means we must keep a dummy object per
+	 * file context, to avoid data leaks between them.
+	 */
+	struct panthor_gem_object *dummy;
 };
 
 /**
@@ -403,6 +414,15 @@ struct panthor_vm {
 		 */
 		struct list_head lru_node;
 	} reclaim;
+
+	/**
+	 * @dummy: Dummy object used for sparse mappings.
+	 *
+	 * VM's must keep a reference to the file context-wide dummy BO because
+	 * they can outlive the file context, which includes the VM pool holding
+	 * the original dummy BO reference.
+	 */
+	struct panthor_gem_object *dummy;
 };
 
 /**
@@ -1035,6 +1055,30 @@ panthor_vm_map_pages(struct panthor_vm *vm, u64 iova, int prot,
 	return 0;
 }
 
+static int
+panthor_vm_map_sparse(struct panthor_vm *vm, u64 iova, int prot,
+		      struct sg_table *sgt, u64 size)
+{
+	u64 mapped = 0;
+	int ret;
+
+	while (mapped < size) {
+		u64 addr = iova + mapped;
+		u32 chunk_size = min(size - mapped, SZ_2M - (addr & (SZ_2M - 1)));
+
+		ret = panthor_vm_map_pages(vm, addr, prot, sgt,
+					   addr % SZ_2M, chunk_size);
+		if (ret) {
+			panthor_vm_unmap_pages(vm, iova, mapped);
+			return ret;
+		}
+
+		mapped += chunk_size;
+	}
+
+	return 0;
+}
+
 static int flags_to_prot(u32 flags)
 {
 	int prot = 0;
@@ -1277,6 +1321,7 @@ static int panthor_vm_op_ctx_prealloc_pts(struct panthor_vm_op_ctx *op_ctx)
 	(DRM_PANTHOR_VM_BIND_OP_MAP_READONLY | \
 	 DRM_PANTHOR_VM_BIND_OP_MAP_NOEXEC | \
 	 DRM_PANTHOR_VM_BIND_OP_MAP_UNCACHED | \
+	 DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE | \
 	 DRM_PANTHOR_VM_BIND_OP_TYPE_MASK)
 
 static int panthor_vm_prepare_map_op_ctx(struct panthor_vm_op_ctx *op_ctx,
@@ -1284,6 +1329,7 @@ static int panthor_vm_prepare_map_op_ctx(struct panthor_vm_op_ctx *op_ctx,
 					 struct panthor_gem_object *bo,
 					 const struct drm_panthor_vm_bind_op *op)
 {
+	bool is_sparse = op->flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE;
 	struct drm_gpuvm_bo *preallocated_vm_bo;
 	struct sg_table *sgt = NULL;
 	int ret;
@@ -1295,8 +1341,21 @@ static int panthor_vm_prepare_map_op_ctx(struct panthor_vm_op_ctx *op_ctx,
 	    (op->flags & DRM_PANTHOR_VM_BIND_OP_TYPE_MASK) != DRM_PANTHOR_VM_BIND_OP_TYPE_MAP)
 		return -EINVAL;
 
-	/* Make sure the VA and size are in-bounds. */
-	if (op->size > bo->base.size || op->bo_offset > bo->base.size - op->size)
+	/* uAPI mandates sparsely bound regions must not be executable. */
+	if (is_sparse && !(op->flags & DRM_PANTHOR_VM_BIND_OP_MAP_NOEXEC))
+		return -EINVAL;
+
+	/* For non-sparse, make sure the VA and size are in-bounds.
+	 * For sparse, this is not applicable, because the dummy BO is
+	 * repeatedly mapped over a potentially wider VA range.
+	 */
+	if (!is_sparse && (op->size > bo->base.size || op->bo_offset > bo->base.size - op->size))
+		return -EINVAL;
+
+	/* For sparse, we don't expect any user BO, the BO we get passed
+	 * is the dummy BO attached to the VM pool.
+	 */
+	if (is_sparse && (op->bo_handle || op->bo_offset))
 		return -EINVAL;
 
 	/* If the BO has an exclusive VM attached, it can't be mapped to other VMs. */
@@ -1444,7 +1503,9 @@ panthor_vm_get_bo_for_va(struct panthor_vm *vm, u64 va, u64 *bo_offset)
 	if (vma && vma->base.gem.obj) {
 		drm_gem_object_get(vma->base.gem.obj);
 		bo = to_panthor_bo(vma->base.gem.obj);
-		*bo_offset = vma->base.gem.offset + (va - vma->base.va.addr);
+		*bo_offset = !(vma->flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE) ?
+			vma->base.gem.offset + (va - vma->base.va.addr) :
+			va & (SZ_2M - 1);
 	}
 	mutex_unlock(&vm->op_lock);
 
@@ -1549,6 +1610,9 @@ int panthor_vm_pool_create_vm(struct panthor_device *ptdev,
 	if (IS_ERR(vm))
 		return PTR_ERR(vm);
 
+	drm_gem_object_get(&pool->dummy->base);
+	vm->dummy = pool->dummy;
+
 	ret = xa_alloc(&pool->xa, &id, vm,
 		       XA_LIMIT(1, PANTHOR_MAX_VMS_PER_FILE), GFP_KERNEL);
 
@@ -1648,6 +1712,8 @@ void panthor_vm_pool_destroy(struct panthor_file *pfile)
 	xa_for_each(&pfile->vms->xa, i, vm)
 		panthor_vm_destroy(vm);
 
+	if (pfile->vms->dummy)
+		drm_gem_object_put(&pfile->vms->dummy->base);
 	xa_destroy(&pfile->vms->xa);
 	kfree(pfile->vms);
 }
@@ -1660,12 +1726,28 @@ void panthor_vm_pool_destroy(struct panthor_file *pfile)
  */
 int panthor_vm_pool_create(struct panthor_file *pfile)
 {
+	struct panthor_gem_object *dummy;
+	int ret;
+
 	pfile->vms = kzalloc_obj(*pfile->vms);
 	if (!pfile->vms)
 		return -ENOMEM;
 
 	xa_init_flags(&pfile->vms->xa, XA_FLAGS_ALLOC1);
+
+	dummy = panthor_dummy_bo_create(pfile->ptdev);
+	if (IS_ERR(dummy)) {
+		ret = PTR_ERR(dummy);
+		goto err_destroy_vm_pool;
+	}
+
+	pfile->vms->dummy = dummy;
+
 	return 0;
+
+err_destroy_vm_pool:
+	panthor_vm_pool_destroy(pfile);
+	return ret;
 }
 
 /* dummy TLB ops, the real TLB flush happens in panthor_vm_flush_range() */
@@ -2002,6 +2084,9 @@ static void panthor_vm_free(struct drm_gpuvm *gpuvm)
 
 	free_io_pgtable_ops(vm->pgtbl_ops);
 
+	if (vm->dummy)
+		drm_gem_object_put(&vm->dummy->base);
+
 	drm_mm_takedown(&vm->mm);
 	kfree(vm);
 }
@@ -2161,7 +2246,30 @@ static void panthor_vma_init(struct panthor_vma *vma, u32 flags)
 #define PANTHOR_VM_MAP_FLAGS \
 	(DRM_PANTHOR_VM_BIND_OP_MAP_READONLY | \
 	 DRM_PANTHOR_VM_BIND_OP_MAP_NOEXEC | \
-	 DRM_PANTHOR_VM_BIND_OP_MAP_UNCACHED)
+	 DRM_PANTHOR_VM_BIND_OP_MAP_UNCACHED | \
+	 DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE)
+
+static void
+panthor_fix_sparse_map_offset(struct drm_gpuva_op_map *op, u32 flags)
+{
+	if (op && (flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE))
+		op->gem.offset = op->va.addr & (SZ_2M - 1);
+}
+
+static int
+panthor_vm_exec_map_op(struct panthor_vm *vm, u32 flags,
+		       const struct drm_gpuva_op_map *op)
+{
+	struct panthor_gem_object *bo = to_panthor_bo(op->gem.obj);
+	int prot = flags_to_prot(flags);
+
+	if (flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE)
+		return panthor_vm_map_sparse(vm, op->va.addr, prot,
+					     bo->dmap.sgt, op->va.range);
+
+	return panthor_vm_map_pages(vm, op->va.addr, prot, bo->dmap.sgt,
+				    op->gem.offset, op->va.range);
+}
 
 static int panthor_gpuva_sm_step_map(struct drm_gpuva_op *op, void *priv)
 {
@@ -2174,10 +2282,9 @@ static int panthor_gpuva_sm_step_map(struct drm_gpuva_op *op, void *priv)
 		return -EINVAL;
 
 	panthor_vma_init(vma, op_ctx->flags & PANTHOR_VM_MAP_FLAGS);
+	panthor_fix_sparse_map_offset(&op->map, vma->flags);
 
-	ret = panthor_vm_map_pages(vm, op->map.va.addr, flags_to_prot(vma->flags),
-				   op_ctx->map.bo->dmap.sgt, op->map.gem.offset,
-				   op->map.va.range);
+	ret = panthor_vm_exec_map_op(vm, vma->flags, &op->map);
 	if (ret) {
 		panthor_vm_op_ctx_return_vma(op_ctx, vma);
 		return ret;
@@ -2209,6 +2316,8 @@ static void
 unmap_hugepage_align(const struct drm_gpuva_op_remap *op,
 		     u64 *unmap_start, u64 *unmap_range)
 {
+	struct panthor_vma *unmap_vma = container_of(op->unmap->va, struct panthor_vma, base);
+	bool is_sparse = unmap_vma->flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE;
 	u64 aligned_unmap_start, aligned_unmap_end, unmap_end;
 
 	unmap_end = *unmap_start + *unmap_range;
@@ -2216,11 +2325,15 @@ unmap_hugepage_align(const struct drm_gpuva_op_remap *op,
 	aligned_unmap_end = ALIGN(unmap_end, SZ_2M);
 
 	/* If we're dealing with a huge page, make sure the unmap region is
-	 * aligned on the start of the page.
+	 * aligned on the start of the page. If the unmapped VMA stands for
+	 * a sparse mapping, always assume the backing storage is a THP, since
+	 * the overhead of unmapping 2MiB worth of 4KiB pages and remapping
+	 * some of them is offset by the logic of working out whether it's
+	 * the opposite case right below. This also holds true for op->next.
 	 */
 	if (op->prev && aligned_unmap_start < *unmap_start &&
 	    op->prev->va.addr <= aligned_unmap_start &&
-	    iova_mapped_as_huge_page(op->prev, *unmap_start)) {
+	    (is_sparse || iova_mapped_as_huge_page(op->prev, *unmap_start))) {
 		*unmap_range += *unmap_start - aligned_unmap_start;
 		*unmap_start = aligned_unmap_start;
 	}
@@ -2230,7 +2343,7 @@ unmap_hugepage_align(const struct drm_gpuva_op_remap *op,
 	 */
 	if (op->next && aligned_unmap_end > unmap_end &&
 	    op->next->va.addr + op->next->va.range >= aligned_unmap_end &&
-	    iova_mapped_as_huge_page(op->next, unmap_end - 1)) {
+	    (is_sparse || iova_mapped_as_huge_page(op->next, unmap_end - 1))) {
 		*unmap_range += aligned_unmap_end - unmap_end;
 	}
 }
@@ -2246,6 +2359,11 @@ static int panthor_gpuva_sm_step_remap(struct drm_gpuva_op *op,
 	int ret;
 
 	drm_gpuva_op_remap_to_unmap_range(&op->remap, &unmap_start, &unmap_range);
+
+	/* op->remap.prev's BO offset is always the same as the unmap va's, but
+	 * that of op->remap.next must be adjusted so as to remain < SZ_2M
+	 */
+	panthor_fix_sparse_map_offset(op->remap.next, unmap_vma->flags);
 
 	/*
 	 * ARM IOMMU page table management code disallows partial unmaps of huge pages,
@@ -2266,14 +2384,19 @@ static int panthor_gpuva_sm_step_remap(struct drm_gpuva_op *op,
 	}
 
 	if (op->remap.prev) {
-		struct panthor_gem_object *bo = to_panthor_bo(op->remap.prev->gem.obj);
 		u64 offset = op->remap.prev->gem.offset + unmap_start - op->remap.prev->va.addr;
 		u64 size = op->remap.prev->va.addr + op->remap.prev->va.range - unmap_start;
 
-		if (!unmap_vma->evicted) {
-			ret = panthor_vm_map_pages(vm, unmap_start,
-						   flags_to_prot(unmap_vma->flags),
-						   bo->dmap.sgt, offset, size);
+		if (!unmap_vma->evicted && size > 0) {
+			struct drm_gpuva_op_map map_op = {
+				.va.addr = unmap_start,
+				.va.range = size,
+				.gem.obj = op->remap.prev->gem.obj,
+				.gem.offset = offset,
+			};
+			panthor_fix_sparse_map_offset(&map_op, unmap_vma->flags);
+
+			ret = panthor_vm_exec_map_op(vm, unmap_vma->flags, &map_op);
 			if (ret)
 				return ret;
 		}
@@ -2284,14 +2407,19 @@ static int panthor_gpuva_sm_step_remap(struct drm_gpuva_op *op,
 	}
 
 	if (op->remap.next) {
-		struct panthor_gem_object *bo = to_panthor_bo(op->remap.next->gem.obj);
 		u64 addr = op->remap.next->va.addr;
 		u64 size = unmap_start + unmap_range - op->remap.next->va.addr;
 
-		if (!unmap_vma->evicted) {
-			ret = panthor_vm_map_pages(vm, addr, flags_to_prot(unmap_vma->flags),
-						   bo->dmap.sgt, op->remap.next->gem.offset,
-						   size);
+		if (!unmap_vma->evicted && size > 0) {
+			struct drm_gpuva_op_map map_op = {
+				.va.addr = addr,
+				.va.range = size,
+				.gem.obj = op->remap.next->gem.obj,
+				.gem.offset = op->remap.next->gem.offset,
+			};
+			panthor_fix_sparse_map_offset(&map_op, unmap_vma->flags);
+
+			ret = panthor_vm_exec_map_op(vm, unmap_vma->flags, &map_op);
 			if (ret)
 				return ret;
 		}
@@ -2488,11 +2616,17 @@ static int remap_evicted_vma(struct drm_gpuvm_bo *vm_bo,
 		ret = panthor_vm_lock_region(vm, evicted_vma->base.va.addr,
 					     evicted_vma->base.va.range);
 		if (!ret) {
-			ret = panthor_vm_map_pages(vm, evicted_vma->base.va.addr,
-						   flags_to_prot(evicted_vma->flags),
-						   bo->dmap.sgt,
-						   evicted_vma->base.gem.offset,
-						   evicted_vma->base.va.range);
+			struct drm_gpuva_op_map map_op = {
+				.va.addr = evicted_vma->base.va.addr,
+				.va.range = evicted_vma->base.va.range,
+				.gem.obj = &bo->base,
+				.gem.offset = evicted_vma->base.gem.offset,
+			};
+			if (evicted_vma->flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE)
+				drm_WARN_ON_ONCE(&vm->ptdev->base, map_op.gem.offset !=
+						 (map_op.va.addr & (SZ_2M - 1)));
+
+			ret = panthor_vm_exec_map_op(vm, evicted_vma->flags, &map_op);
 			if (!ret)
 				evicted_vma->evicted = false;
 
@@ -2857,7 +2991,13 @@ panthor_vm_bind_prepare_op_ctx(struct drm_file *file,
 
 	switch (op->flags & DRM_PANTHOR_VM_BIND_OP_TYPE_MASK) {
 	case DRM_PANTHOR_VM_BIND_OP_TYPE_MAP:
-		gem = drm_gem_object_lookup(file, op->bo_handle);
+		if (!(op->flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE)) {
+			gem = drm_gem_object_lookup(file, op->bo_handle);
+		} else {
+			gem = &vm->dummy->base;
+			drm_gem_object_get(&vm->dummy->base);
+		}
+
 		ret = panthor_vm_prepare_map_op_ctx(op_ctx, vm,
 						    gem ? to_panthor_bo(gem) : NULL,
 						    op);
@@ -3064,6 +3204,9 @@ int panthor_vm_map_bo_range(struct panthor_vm *vm, struct panthor_gem_object *bo
 	};
 	struct panthor_vm_op_ctx op_ctx;
 	int ret;
+
+	if (drm_WARN_ON(&vm->ptdev->base, flags & DRM_PANTHOR_VM_BIND_OP_MAP_SPARSE))
+		return -EINVAL;
 
 	ret = panthor_vm_prepare_map_op_ctx(&op_ctx, vm, bo, &op);
 	if (ret)
