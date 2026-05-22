@@ -216,7 +216,7 @@ static const struct ata_port_info ahci_port_info[] = {
 	/* JMicron JMB582/585: 64-bit DMA is broken, force 32-bit */
 	[board_ahci_jmb585] = {
 		AHCI_HFLAGS	(AHCI_HFLAG_IGN_IRQ_IF_ERR |
-				 AHCI_HFLAG_32BIT_ONLY),
+				 0*AHCI_HFLAG_32BIT_ONLY),
 		.flags		= AHCI_FLAG_COMMON,
 		.pio_mask	= ATA_PIO4,
 		.udma_mask	= ATA_UDMA6,
