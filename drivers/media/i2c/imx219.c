@@ -433,6 +433,7 @@ static u32 imx219_get_format_bpp(const struct v4l2_mbus_framefmt *format)
 static unsigned int imx219_get_binning(struct v4l2_subdev_state *state,
 				       u8 *bin_h, u8 *bin_v)
 {
+	const struct v4l2_rect *crop = v4l2_subdev_state_get_crop(state, 0);
 	const struct v4l2_mbus_framefmt *format =
 		v4l2_subdev_state_get_format(state, 0);
 	unsigned int bin_mode = IMX219_BINNING_NONE;
@@ -457,8 +458,8 @@ static unsigned int imx219_get_binning(struct v4l2_subdev_state *state,
 		break;
 	}
 
-	*bin_h = IMX219_BINNING_NONE;
-	*bin_v = IMX219_BINNING_NONE;
+	*bin_h = crop->width / format->width;
+	*bin_v = crop->height / format->height;
 
 	if (*bin_h == 2 && *bin_v == 2)
 		return bin_mode;
@@ -924,7 +925,6 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 	 */
 	bin_h = min(IMX219_PIXEL_ARRAY_WIDTH / format->width, 2U);
 	bin_v = min(IMX219_PIXEL_ARRAY_HEIGHT / format->height, 2U);
-	binning = min(bin_h, bin_v);
 
 	/* Ensure bin_h and bin_v are same to avoid 1:2 or 2:1 stretching */
 	binning = min(bin_h, bin_v);
@@ -962,9 +962,9 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 		 * operates on two lines together. So we switch to a higher
 		 * minimum of 3560.
 		 */
-		imx219_get_binning(state, &bin_h, &bin_v);
-		llp_min = (bin_h & bin_v) == IMX219_BINNING_X2_ANALOG ?
-				  IMX219_BINNED_LLP_MIN : IMX219_LLP_MIN;
+		llp_min =
+			(imx219_get_binning(state, &bin_h, &bin_v) == IMX219_BINNING_X2_ANALOG) ?
+			IMX219_BINNED_LLP_MIN : IMX219_LLP_MIN;
 		__v4l2_ctrl_modify_range(imx219->hblank, llp_min - mode->width,
 					 IMX219_LLP_MAX - mode->width, 1,
 					 llp_min - mode->width);
