@@ -2096,6 +2096,7 @@ static void ims_pcu_disconnect(struct usb_interface *intf)
 		ims_pcu_destroy_application_mode(pcu);
 
 	ims_pcu_buffers_free(pcu);
+	usb_driver_release_interface(&ims_pcu_driver, pcu->data_intf);
 	kfree(pcu);
 }
 
