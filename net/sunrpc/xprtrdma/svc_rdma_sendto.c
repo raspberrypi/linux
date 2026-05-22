@@ -326,7 +326,7 @@ flushed:
 	else
 		trace_svcrdma_wc_send_flush(wc, &ctxt->sc_cid);
 	svc_rdma_send_ctxt_put(rdma, ctxt);
-	svc_xprt_deferred_close(&rdma->sc_xprt);
+	svc_rdma_xprt_deferred_close(rdma);
 }
 
 /**
@@ -387,7 +387,7 @@ int svc_rdma_post_send(struct svcxprt_rdma *rdma,
 		ret = ib_post_send(rdma->sc_qp, first_wr, &bad_wr);
 		if (ret) {
 			trace_svcrdma_sq_post_err(rdma, &cid, ret);
-			svc_xprt_deferred_close(&rdma->sc_xprt);
+			svc_rdma_xprt_deferred_close(rdma);
 
 			/* If even one WR was posted, there will be a
 			 * Send completion that bumps sc_sq_avail.
@@ -1097,7 +1097,7 @@ put_ctxt:
 	svc_rdma_send_ctxt_put(rdma, sctxt);
 drop_connection:
 	trace_svcrdma_send_err(rqstp, ret);
-	svc_xprt_deferred_close(&rdma->sc_xprt);
+	svc_rdma_xprt_deferred_close(rdma);
 	return -ENOTCONN;
 }
 
