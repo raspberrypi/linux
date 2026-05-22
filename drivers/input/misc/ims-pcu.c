@@ -944,9 +944,10 @@ out:
 	return retval;
 }
 
-static void ims_pcu_process_async_firmware(const struct firmware *fw,
+static void ims_pcu_process_async_firmware(const struct firmware *_fw,
 					   void *context)
 {
+	const struct firmware *fw __free(firmware) = _fw;
 	struct ims_pcu *pcu = context;
 	int error;
 
@@ -965,8 +966,6 @@ static void ims_pcu_process_async_firmware(const struct firmware *fw,
 
 	scoped_guard(mutex, &pcu->cmd_mutex)
 		ims_pcu_handle_firmware_update(pcu, fw);
-
-	release_firmware(fw);
 
 out:
 	complete(&pcu->async_firmware_done);
