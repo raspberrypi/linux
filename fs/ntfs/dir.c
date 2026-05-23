@@ -342,43 +342,19 @@ fast_descend_into_child_node:
 			dir_ni->mft_no);
 		goto unm_err_out;
 	}
-	/* Catch multi sector transfer fixup errors. */
-	if (unlikely(!ntfs_is_indx_record(ia->magic))) {
-		ntfs_error(sb,
-			"Directory index record with vcn 0x%llx is corrupt.  Corrupt inode 0x%llx.  Run chkdsk.",
-			vcn, dir_ni->mft_no);
-		goto unm_err_out;
-	}
-	if (le64_to_cpu(ia->index_block_vcn) != vcn) {
-		ntfs_error(sb,
-			"Actual VCN (0x%llx) of index buffer is different from expected VCN (0x%llx). Directory inode 0x%llx is corrupt or driver bug.",
-			le64_to_cpu(ia->index_block_vcn),
-			vcn, dir_ni->mft_no);
-		goto unm_err_out;
-	}
-	if (le32_to_cpu(ia->index.allocated_size) + 0x18 !=
-			dir_ni->itype.index.block_size) {
-		ntfs_error(sb,
-			"Index buffer (VCN 0x%llx) of directory inode 0x%llx has a size (%u) differing from the directory specified size (%u). Directory inode is corrupt or driver bug.",
-			vcn, dir_ni->mft_no,
-			le32_to_cpu(ia->index.allocated_size) + 0x18,
-			dir_ni->itype.index.block_size);
-		goto unm_err_out;
-	}
 	index_end = (u8 *)ia + dir_ni->itype.index.block_size;
 	if (index_end > kaddr + PAGE_SIZE) {
 		ntfs_error(sb,
-			"Index buffer (VCN 0x%llx) of directory inode 0x%llx crosses page boundary. Impossible! Cannot access! This is probably a bug in the driver.",
-			vcn, dir_ni->mft_no);
+			   "Index buffer (VCN 0x%llx) of directory inode 0x%llx crosses page boundary. Impossible! Cannot access! This is probably a bug in the driver.",
+			   vcn, dir_ni->mft_no);
 		goto unm_err_out;
 	}
+	err = ntfs_index_block_inconsistent(vol, ia,
+					    dir_ni->itype.index.block_size,
+					    vcn, dir_ni->mft_no);
+	if (err)
+		goto unm_err_out;
 	index_end = (u8 *)&ia->index + le32_to_cpu(ia->index.index_length);
-	if (index_end > (u8 *)ia + dir_ni->itype.index.block_size) {
-		ntfs_error(sb,
-			"Size of index buffer (VCN 0x%llx) of directory inode 0x%llx exceeds maximum size.",
-			vcn, dir_ni->mft_no);
-		goto unm_err_out;
-	}
 	/* The first index entry. */
 	ie = (struct index_entry *)((u8 *)&ia->index +
 			le32_to_cpu(ia->index.entries_offset));
