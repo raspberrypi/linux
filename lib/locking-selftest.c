@@ -1433,6 +1433,7 @@ static void dotest(void (*testcase_fn)(void), int expected, int lockclass_mask)
 #ifdef CONFIG_PREEMPT_RT
 	int saved_mgd_count = current->migration_disabled;
 	int saved_rcu_count = current->rcu_read_lock_nesting;
+	int saved_sched_rt_mutex = current->sched_rt_mutex;
 #endif
 
 	WARN_ON(irqs_disabled());
@@ -1469,6 +1470,8 @@ static void dotest(void (*testcase_fn)(void), int expected, int lockclass_mask)
 	preempt_count_set(saved_preempt_count);
 
 #ifdef CONFIG_PREEMPT_RT
+	current->sched_rt_mutex = saved_sched_rt_mutex;
+
 	while (current->migration_disabled > saved_mgd_count)
 		migrate_enable();
 
