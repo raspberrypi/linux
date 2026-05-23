@@ -544,6 +544,24 @@ int ntfs_index_block_inconsistent(struct ntfs_volume *vol,
 	return 0;
 }
 
+int ntfs_index_root_inconsistent(struct ntfs_volume *vol,
+				 const struct attr_record *a,
+				 const struct index_root *ir, u64 inum)
+{
+	u32 value_length = le32_to_cpu(a->data.resident.value_length);
+
+	if (value_length < offsetof(struct index_root, index)) {
+		ntfs_error(vol->sb, "$INDEX_ROOT in inode %llu is too small.",
+			   (unsigned long long)inum);
+		return -EIO;
+	}
+
+	return ntfs_index_header_inconsistent(vol, &ir->index,
+					      value_length -
+					      offsetof(struct index_root, index),
+					      inum);
+}
+
 static struct index_root *ntfs_ir_lookup(struct ntfs_inode *ni, __le16 *name,
 		u32 name_len, struct ntfs_attr_search_ctx **ctx)
 {

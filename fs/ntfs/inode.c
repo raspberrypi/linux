@@ -896,7 +896,6 @@ skip_attr_list_load:
 	 */
 	if (S_ISDIR(vi->i_mode)) {
 		struct index_root *ir;
-		u8 *ir_end, *index_end;
 
 view_index_meta:
 		/* It is a directory, find index root attribute. */
@@ -946,10 +945,7 @@ view_index_meta:
 		}
 		ir = (struct index_root *)((u8 *)a +
 				le16_to_cpu(a->data.resident.value_offset));
-		ir_end = (u8 *)ir + le32_to_cpu(a->data.resident.value_length);
-		index_end = (u8 *)&ir->index +
-				le32_to_cpu(ir->index.index_length);
-		if (index_end > ir_end) {
+		if (ntfs_index_root_inconsistent(ni->vol, a, ir, ni->mft_no)) {
 			ntfs_error(vi->i_sb, "Directory index is corrupt.");
 			goto unm_err_out;
 		}
@@ -1492,7 +1488,6 @@ static int ntfs_read_locked_index_inode(struct inode *base_vi, struct inode *vi)
 	struct attr_record *a;
 	struct ntfs_attr_search_ctx *ctx;
 	struct index_root *ir;
-	u8 *ir_end, *index_end;
 	int err = 0;
 
 	ntfs_debug("Entering for i_ino 0x%llx.", ni->mft_no);
@@ -1543,9 +1538,7 @@ static int ntfs_read_locked_index_inode(struct inode *base_vi, struct inode *vi)
 	}
 
 	ir = (struct index_root *)((u8 *)a + le16_to_cpu(a->data.resident.value_offset));
-	ir_end = (u8 *)ir + le32_to_cpu(a->data.resident.value_length);
-	index_end = (u8 *)&ir->index + le32_to_cpu(ir->index.index_length);
-	if (index_end > ir_end) {
+	if (ntfs_index_root_inconsistent(vol, a, ir, ni->mft_no)) {
 		ntfs_error(vi->i_sb, "Index is corrupt.");
 		goto unm_err_out;
 	}
