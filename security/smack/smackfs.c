@@ -83,18 +83,27 @@ static DEFINE_MUTEX(smk_net6addr_lock);
 struct smack_known *smack_net_ambient;
 
 /*
- * This is the level in a CIPSO header that indicates a
+ * Sensitivity levels for automatically created CIPSO labels.
+ * See smack_access.c`smack_populate_secattr()
+ *
+ * [0] "direct" labeling, label length < SMK_CIPSOLEN(24):
  * smack label is contained directly in the category set.
  * It can be reset via smackfs/direct
- */
-int smack_cipso_direct = SMACK_CIPSO_DIRECT_DEFAULT;
-
-/*
- * This is the level in a CIPSO header that indicates a
+ *
+ * [1] "mapped" labeling, label length >= SMK_CIPSOLEN(24):
  * secid is contained directly in the category set.
  * It can be reset via smackfs/mapped
  */
-int smack_cipso_mapped = SMACK_CIPSO_MAPPED_DEFAULT;
+int smack_cipso_auto_level[2] = {
+	SMACK_CIPSO_DIRECT_DEFAULT,
+	SMACK_CIPSO_MAPPED_DEFAULT,
+};
+
+static int
+smk_cipso_auto_level_idx(const struct file *file)
+{
+	return (file_inode(file)->i_ino != SMK_DIRECT);
+}
 
 #ifdef CONFIG_SECURITY_SMACK_BRINGUP
 /*
@@ -1621,15 +1630,15 @@ static const struct file_operations smk_doi_ops = {
 };
 
 /**
- * smk_read_direct - read() for /smack/direct
- * @filp: file pointer, not actually used
+ * smk_read_cipso_auto_level - read() for smackfs/direct and smackfs/mapped
+ * @filp: file pointer
  * @buf: where to put the result
  * @count: maximum to send along
  * @ppos: where to start
  *
  * Returns number of bytes read or error code, as appropriate
  */
-static ssize_t smk_read_direct(struct file *filp, char __user *buf,
+static ssize_t smk_read_cipso_auto_level(struct file *filp, char __user *buf,
 			       size_t count, loff_t *ppos)
 {
 	char temp[80];
@@ -1638,26 +1647,28 @@ static ssize_t smk_read_direct(struct file *filp, char __user *buf,
 	if (*ppos != 0)
 		return 0;
 
-	sprintf(temp, "%d", smack_cipso_direct);
+	sprintf(temp, "%d", smack_cipso_auto_level[
+			      smk_cipso_auto_level_idx(filp)]);
 	rc = simple_read_from_buffer(buf, count, ppos, temp, strlen(temp));
 
 	return rc;
 }
 
 /**
- * smk_write_direct - write() for /smack/direct
- * @file: file pointer, not actually used
+ * smk_write_cipso_auto_level - write() for smackfs/direct and smackfs/mapped
+ * @filp: file pointer
  * @buf: where to get the data from
  * @count: bytes sent
  * @ppos: where to start
  *
  * Returns number of bytes written or error code, as appropriate
  */
-static ssize_t smk_write_direct(struct file *file, const char __user *buf,
-				size_t count, loff_t *ppos)
+static ssize_t
+smk_write_cipso_auto_level(struct file *filp, const char __user *buf,
+			   size_t count, loff_t *ppos)
 {
 	struct smack_known *skp;
-	int i, ret;
+	int i, ret, idx, old_lvl;
 
 	if (!smack_privileged(CAP_MAC_ADMIN))
 		return -EPERM;
@@ -1669,94 +1680,28 @@ static ssize_t smk_write_direct(struct file *file, const char __user *buf,
 	/*
 	 * Don't do anything if the value hasn't actually changed.
 	 * If it is changing reset the level on entries that were
-	 * set up to be direct when they were created.
+	 * set up to be "auto" level when they were created.
 	 */
-	if (smack_cipso_direct != i) {
+	idx = smk_cipso_auto_level_idx(filp);
+	old_lvl = smack_cipso_auto_level[idx];
+
+	if (old_lvl != i) {
 		mutex_lock(&smack_known_lock);
 		list_for_each_entry_rcu(skp, &smack_known_list, list)
 			if (skp->smk_netlabel.attr.mls.lvl ==
-			    smack_cipso_direct)
+			    old_lvl)
 				skp->smk_netlabel.attr.mls.lvl = i;
-		smack_cipso_direct = i;
+		smack_cipso_auto_level[idx] = i;
 		mutex_unlock(&smack_known_lock);
 	}
 
 	return count;
 }
 
-static const struct file_operations smk_direct_ops = {
-	.read		= smk_read_direct,
-	.write		= smk_write_direct,
-	.llseek		= default_llseek,
-};
-
-/**
- * smk_read_mapped - read() for /smack/mapped
- * @filp: file pointer, not actually used
- * @buf: where to put the result
- * @count: maximum to send along
- * @ppos: where to start
- *
- * Returns number of bytes read or error code, as appropriate
- */
-static ssize_t smk_read_mapped(struct file *filp, char __user *buf,
-			       size_t count, loff_t *ppos)
-{
-	char temp[80];
-	ssize_t rc;
-
-	if (*ppos != 0)
-		return 0;
-
-	sprintf(temp, "%d", smack_cipso_mapped);
-	rc = simple_read_from_buffer(buf, count, ppos, temp, strlen(temp));
-
-	return rc;
-}
-
-/**
- * smk_write_mapped - write() for /smack/mapped
- * @file: file pointer, not actually used
- * @buf: where to get the data from
- * @count: bytes sent
- * @ppos: where to start
- *
- * Returns number of bytes written or error code, as appropriate
- */
-static ssize_t smk_write_mapped(struct file *file, const char __user *buf,
-				size_t count, loff_t *ppos)
-{
-	struct smack_known *skp;
-	int i, ret;
-
-	if (!smack_privileged(CAP_MAC_ADMIN))
-		return -EPERM;
-
-	ret = kstrtos32_from_user(buf, count, 10, &i);
-	if (unlikely(ret))
-		return ret;
-
-	/*
-	 * Don't do anything if the value hasn't actually changed.
-	 * If it is changing reset the level on entries that were
-	 * set up to be mapped when they were created.
-	 */
-	if (smack_cipso_mapped != i) {
-		mutex_lock(&smack_known_lock);
-		list_for_each_entry_rcu(skp, &smack_known_list, list)
-			if (skp->smk_netlabel.attr.mls.lvl ==
-			    smack_cipso_mapped)
-				skp->smk_netlabel.attr.mls.lvl = i;
-		smack_cipso_mapped = i;
-		mutex_unlock(&smack_known_lock);
-	}
-
-	return count;
-}
-
-static const struct file_operations smk_mapped_ops = {
-	.read		= smk_read_mapped,
-	.write		= smk_write_mapped,
+static const struct file_operations
+smk_cipso_auto_level_ops = {
+	.read		= smk_read_cipso_auto_level,
+	.write		= smk_write_cipso_auto_level,
 	.llseek		= default_llseek,
 };
 
@@ -2851,7 +2796,7 @@ static int smk_fill_super(struct super_block *sb, struct fs_context *fc)
 		[SMK_DOI] = {
 			"doi", &smk_doi_ops, S_IRUGO|S_IWUSR},
 		[SMK_DIRECT] = {
-			"direct", &smk_direct_ops, S_IRUGO|S_IWUSR},
+			"direct", &smk_cipso_auto_level_ops, 0644},
 		[SMK_AMBIENT] = {
 			"ambient", &smk_ambient_ops, S_IRUGO|S_IWUSR},
 		[SMK_NET4ADDR] = {
@@ -2867,7 +2812,7 @@ static int smk_fill_super(struct super_block *sb, struct fs_context *fc)
 		[SMK_ACCESSES] = {
 			"access", &smk_access_ops, S_IRUGO|S_IWUGO},
 		[SMK_MAPPED] = {
-			"mapped", &smk_mapped_ops, S_IRUGO|S_IWUSR},
+			"mapped", &smk_cipso_auto_level_ops, 0644},
 		[SMK_LOAD2] = {
 			"load2", &smk_load2_ops, S_IRUGO|S_IWUSR},
 		[SMK_LOAD_SELF2] = {
