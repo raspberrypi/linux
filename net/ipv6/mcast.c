@@ -890,7 +890,7 @@ static struct ifmcaddr6 *mca_alloc(struct inet6_dev *idev,
 
 	mc->mca_addr = *addr;
 	mc->idev = idev; /* reference taken by caller */
-	mc->mca_users = 1;
+	WRITE_ONCE(mc->mca_users, 1);
 	/* mca_stamp should be updated upon changes */
 	mc->mca_cstamp = mc->mca_tstamp = jiffies;
 	refcount_set(&mc->mca_refcnt, 1);
@@ -964,7 +964,7 @@ static int __ipv6_dev_mc_inc(struct net_device *dev,
 
 	for_each_mc_mclock(idev, mc) {
 		if (ipv6_addr_equal(&mc->mca_addr, addr)) {
-			mc->mca_users++;
+			WRITE_ONCE(mc->mca_users, mc->mca_users + 1);
 			ip6_mc_add_src(idev, &mc->mca_addr, mode, 0, NULL, 0);
 			mutex_unlock(&idev->mc_lock);
 			in6_dev_put(idev);
@@ -1009,7 +1009,10 @@ int __ipv6_dev_mc_dec(struct inet6_dev *idev, const struct in6_addr *addr)
 	     (ma = mc_dereference(*map, idev));
 	     map = &ma->next) {
 		if (ipv6_addr_equal(&ma->mca_addr, addr)) {
-			if (--ma->mca_users == 0) {
+			int new_users = ma->mca_users - 1;
+
+			WRITE_ONCE(ma->mca_users, new_users);
+			if (new_users == 0) {
 				*map = ma->next;
 
 				igmp6_group_dropped(ma);
@@ -3021,7 +3024,7 @@ static int igmp6_mc_seq_show(struct seq_file *seq, void *v)
 		   "%-4d %-15s %pi6 %5d %08X %ld\n",
 		   state->dev->ifindex, state->dev->name,
 		   &im->mca_addr,
-		   im->mca_users, im->mca_flags,
+		   READ_ONCE(im->mca_users), im->mca_flags,
 		   (im->mca_flags & MAF_TIMER_RUNNING) ?
 		   jiffies_to_clock_t(im->mca_work.timer.expires - jiffies) : 0);
 	return 0;
