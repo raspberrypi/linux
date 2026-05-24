@@ -94,7 +94,7 @@ struct smack_known *smack_net_ambient;
  * secid is contained directly in the category set.
  * It can be reset via smackfs/mapped
  */
-int smack_cipso_auto_level[2] = {
+u8 smack_cipso_auto_level[2] = {
 	SMACK_CIPSO_DIRECT_DEFAULT,
 	SMACK_CIPSO_MAPPED_DEFAULT,
 };
@@ -1641,17 +1641,15 @@ static const struct file_operations smk_doi_ops = {
 static ssize_t smk_read_cipso_auto_level(struct file *filp, char __user *buf,
 			       size_t count, loff_t *ppos)
 {
-	char temp[80];
-	ssize_t rc;
+	char temp[sizeof "255"];
+	int n;
 
 	if (*ppos != 0)
 		return 0;
 
-	sprintf(temp, "%d", smack_cipso_auto_level[
-			      smk_cipso_auto_level_idx(filp)]);
-	rc = simple_read_from_buffer(buf, count, ppos, temp, strlen(temp));
-
-	return rc;
+	n = sprintf(temp, "%u", (unsigned int)smack_cipso_auto_level[
+		smk_cipso_auto_level_idx(filp)]);
+	return simple_read_from_buffer(buf, count, ppos, temp, n);
 }
 
 /**
@@ -1667,13 +1665,16 @@ static ssize_t
 smk_write_cipso_auto_level(struct file *filp, const char __user *buf,
 			   size_t count, loff_t *ppos)
 {
-	struct smack_known *skp;
-	int i, ret, idx, old_lvl;
+	int ret, idx;
+	u8  i, old_lvl;
 
 	if (!smack_privileged(CAP_MAC_ADMIN))
 		return -EPERM;
-
-	ret = kstrtos32_from_user(buf, count, 10, &i);
+	/*
+	 * draft-ietf-cipso-ipsecurity-01 (CIPSO 2.2), 3.4.2.4:
+	 * "Sensitivity Level is 1 octet in length. Its value is from 0 to 255"
+	 */
+	ret = kstrtou8_from_user(buf, count, 10, &i);
 	if (unlikely(ret))
 		return ret;
 
@@ -1686,6 +1687,7 @@ smk_write_cipso_auto_level(struct file *filp, const char __user *buf,
 	old_lvl = smack_cipso_auto_level[idx];
 
 	if (old_lvl != i) {
+		struct smack_known *skp;
 		mutex_lock(&smack_known_lock);
 		list_for_each_entry_rcu(skp, &smack_known_list, list)
 			if (skp->smk_netlabel.attr.mls.lvl ==
