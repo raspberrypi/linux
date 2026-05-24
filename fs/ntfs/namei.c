@@ -1532,8 +1532,7 @@ static int ntfs_link(struct dentry *old_dentry, struct inode *dir,
 	if (uname_len < 0) {
 		if (uname_len != -ENAMETOOLONG)
 			ntfs_error(sb, "Failed to convert name to unicode.");
-		err = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
 
 	if (!(vol->vol_flags & VOLUME_IS_DIRTY))
@@ -1563,7 +1562,7 @@ static int ntfs_link(struct dentry *old_dentry, struct inode *dir,
 	mutex_unlock(&ni->mrec_lock);
 
 out:
-	kfree(uname);
+	kmem_cache_free(ntfs_name_cache, uname);
 	return err;
 }
 
