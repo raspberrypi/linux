@@ -907,6 +907,7 @@ static int pcm3168a_rt_suspend(struct device *dev)
 
 EXPORT_GPL_DEV_PM_OPS(pcm3168a_pm_ops) = {
 	RUNTIME_PM_OPS(pcm3168a_rt_suspend, pcm3168a_rt_resume, NULL)
+	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 
 MODULE_DESCRIPTION("PCM3168A codec driver");
