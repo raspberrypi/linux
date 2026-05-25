@@ -175,7 +175,7 @@ static int bcm2835_asb_control(struct bcm2835_power *power, u32 reg, bool enable
 	writel(PM_PASSWORD | val, base + reg);
 
 	if (readl_poll_timeout_atomic(base + reg, val,
-				      !!(val & ASB_ACK) != enable, 0, 5))
+				      !!(val & ASB_ACK) != enable, 0, 100))
 		return -ETIMEDOUT;
 
 	return 0;
