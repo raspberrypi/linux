@@ -153,7 +153,7 @@ pub struct Bar<const SIZE: usize = 0> {
 }
 
 impl<const SIZE: usize> Bar<SIZE> {
-    pub(super) fn new(pdev: &Device, num: u32, name: &CStr) -> Result<Self> {
+    pub(super) fn new(pdev: &Device, num: u32, name: &'static CStr) -> Result<Self> {
         let len = pdev.resource_len(num)?;
         if len == 0 {
             return Err(ENOMEM);
@@ -252,7 +252,7 @@ impl Device<device::Bound> {
     pub fn iomap_region_sized<'a, const SIZE: usize>(
         &'a self,
         bar: u32,
-        name: &'a CStr,
+        name: &'static CStr,
     ) -> impl PinInit<Devres<Bar<SIZE>>, Error> + 'a {
         Devres::new(self.as_ref(), Bar::<SIZE>::new(self, bar, name))
     }
@@ -261,7 +261,7 @@ impl Device<device::Bound> {
     pub fn iomap_region<'a>(
         &'a self,
         bar: u32,
-        name: &'a CStr,
+        name: &'static CStr,
     ) -> impl PinInit<Devres<Bar>, Error> + 'a {
         self.iomap_region_sized::<0>(bar, name)
     }
