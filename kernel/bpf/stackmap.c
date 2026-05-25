@@ -152,6 +152,28 @@ static int fetch_build_id(struct vm_area_struct *vma, unsigned char *build_id, b
 			 : build_id_parse_nofault(vma, build_id, NULL);
 }
 
+static inline void stack_map_build_id_set_ip(struct bpf_stack_build_id *id)
+{
+	id->status = BPF_STACK_BUILD_ID_IP;
+	memset(id->build_id, 0, BUILD_ID_SIZE_MAX);
+}
+
+static inline u64 stack_map_build_id_offset(unsigned long vm_pgoff,
+					    unsigned long vm_start, u64 ip)
+{
+	return (vm_pgoff << PAGE_SHIFT) + ip - vm_start;
+}
+
+static inline void stack_map_build_id_set_valid(struct bpf_stack_build_id *id,
+						u64 offset,
+						const unsigned char *build_id)
+{
+	id->status = BPF_STACK_BUILD_ID_VALID;
+	id->offset = offset;
+	if (id->build_id != build_id)
+		memcpy(id->build_id, build_id, BUILD_ID_SIZE_MAX);
+}
+
 /*
  * Expects all id_offs[i].ip values to be set to correct initial IPs.
  * They will be subsequently:
@@ -165,44 +187,45 @@ static int fetch_build_id(struct vm_area_struct *vma, unsigned char *build_id, b
 static void stack_map_get_build_id_offset(struct bpf_stack_build_id *id_offs,
 					  u32 trace_nr, bool user, bool may_fault)
 {
-	int i;
 	struct mmap_unlock_irq_work *work = NULL;
 	bool irq_work_busy = bpf_mmap_unlock_get_irq_work(&work);
+	bool has_user_ctx = user && current && current->mm;
 	struct vm_area_struct *vma, *prev_vma = NULL;
-	const char *prev_build_id;
+	const unsigned char *prev_build_id = NULL;
+	int i;
 
 	/* If the irq_work is in use, fall back to report ips. Same
 	 * fallback is used for kernel stack (!user) on a stackmap with
 	 * build_id.
 	 */
-	if (!user || !current || !current->mm || irq_work_busy ||
-	    !mmap_read_trylock(current->mm)) {
+	if (!has_user_ctx || irq_work_busy || !mmap_read_trylock(current->mm)) {
 		/* cannot access current->mm, fall back to ips */
-		for (i = 0; i < trace_nr; i++) {
-			id_offs[i].status = BPF_STACK_BUILD_ID_IP;
-			memset(id_offs[i].build_id, 0, BUILD_ID_SIZE_MAX);
-		}
+		for (i = 0; i < trace_nr; i++)
+			stack_map_build_id_set_ip(&id_offs[i]);
 		return;
 	}
 
 	for (i = 0; i < trace_nr; i++) {
 		u64 ip = READ_ONCE(id_offs[i].ip);
+		u64 offset;
 
-		if (range_in_vma(prev_vma, ip, ip)) {
+		if (prev_build_id && range_in_vma(prev_vma, ip, ip)) {
 			vma = prev_vma;
-			memcpy(id_offs[i].build_id, prev_build_id, BUILD_ID_SIZE_MAX);
-			goto build_id_valid;
-		}
-		vma = find_vma(current->mm, ip);
-		if (!vma || fetch_build_id(vma, id_offs[i].build_id, may_fault)) {
-			/* per entry fall back to ips */
-			id_offs[i].status = BPF_STACK_BUILD_ID_IP;
-			memset(id_offs[i].build_id, 0, BUILD_ID_SIZE_MAX);
+			offset = stack_map_build_id_offset(vma->vm_pgoff, vma->vm_start, ip);
+			stack_map_build_id_set_valid(&id_offs[i], offset, prev_build_id);
 			continue;
 		}
-build_id_valid:
-		id_offs[i].offset = (vma->vm_pgoff << PAGE_SHIFT) + ip - vma->vm_start;
-		id_offs[i].status = BPF_STACK_BUILD_ID_VALID;
+		vma = find_vma(current->mm, ip);
+		if (!vma || vma_is_anonymous(vma) ||
+		    fetch_build_id(vma, id_offs[i].build_id, may_fault)) {
+			/* per entry fall back to ips */
+			stack_map_build_id_set_ip(&id_offs[i]);
+			prev_vma = vma;
+			prev_build_id = NULL;
+			continue;
+		}
+		offset = stack_map_build_id_offset(vma->vm_pgoff, vma->vm_start, ip);
+		stack_map_build_id_set_valid(&id_offs[i], offset, id_offs[i].build_id);
 		prev_vma = vma;
 		prev_build_id = id_offs[i].build_id;
 	}
