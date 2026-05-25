@@ -1178,6 +1178,7 @@ struct wx_hw_stats {
 };
 
 enum wx_state {
+	WX_STATE_DOWN,
 	WX_STATE_RESETTING,
 	WX_STATE_SWFW_BUSY,
 	WX_STATE_PTP_RUNNING,

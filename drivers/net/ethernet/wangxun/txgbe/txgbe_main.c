@@ -152,6 +152,7 @@ static void txgbe_up_complete(struct wx *wx)
 
 	/* make sure to complete pre-operations */
 	smp_mb__before_atomic();
+	clear_bit(WX_STATE_DOWN, wx->state);
 	wx_napi_enable_all(wx);
 
 	switch (wx->mac.type) {
@@ -217,6 +218,9 @@ static void txgbe_disable_device(struct wx *wx)
 {
 	struct net_device *netdev = wx->netdev;
 	u32 i;
+
+	if (test_and_set_bit(WX_STATE_DOWN, wx->state))
+		return;
 
 	wx_disable_pcie_master(wx);
 	/* disable receives */

@@ -872,7 +872,7 @@ static bool wx_clean_tx_irq(struct wx_q_vector *q_vector,
 
 		if (__netif_subqueue_stopped(tx_ring->netdev,
 					     tx_ring->queue_index) &&
-		    netif_running(tx_ring->netdev)) {
+		    !test_bit(WX_STATE_DOWN, wx->state)) {
 			netif_wake_subqueue(tx_ring->netdev,
 					    tx_ring->queue_index);
 			++tx_ring->tx_stats.restart_queue;
@@ -960,7 +960,7 @@ static int wx_poll(struct napi_struct *napi, int budget)
 	if (likely(napi_complete_done(napi, work_done))) {
 		if (wx->adaptive_itr)
 			wx_update_dim_sample(q_vector);
-		if (netif_running(wx->netdev))
+		if (!test_bit(WX_STATE_DOWN, wx->state))
 			wx_intr_enable(wx, WX_INTR_Q(q_vector->v_idx));
 	}
 
@@ -2339,6 +2339,8 @@ int wx_init_interrupt_scheme(struct wx *wx)
 
 	wx_cache_ring_rss(wx);
 
+	set_bit(WX_STATE_DOWN, wx->state);
+
 	return 0;
 }
 EXPORT_SYMBOL(wx_init_interrupt_scheme);
@@ -3280,7 +3282,8 @@ EXPORT_SYMBOL(wx_set_ring);
 
 void wx_service_event_schedule(struct wx *wx)
 {
-	if (!test_and_set_bit(WX_STATE_SERVICE_SCHED, wx->state))
+	if (!test_bit(WX_STATE_DOWN, wx->state) &&
+	    !test_and_set_bit(WX_STATE_SERVICE_SCHED, wx->state))
 		queue_work(system_power_efficient_wq, &wx->service_task);
 }
 EXPORT_SYMBOL(wx_service_event_schedule);
