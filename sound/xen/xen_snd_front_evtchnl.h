@@ -37,9 +37,9 @@ struct xen_snd_front_evtchnl {
 	/* State of the event channel. */
 	enum xen_snd_front_evtchnl_state state;
 	enum xen_snd_front_evtchnl_type type;
-	/* Either response id or incoming event id. */
+	/* Current response id or next expected incoming event id. */
 	u16 evt_id;
-	/* Next request id or next expected event id. */
+	/* Next request id. */
 	u16 evt_next_id;
 	/* Shared ring access lock. */
 	struct mutex ring_io_lock;
