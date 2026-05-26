@@ -53,7 +53,7 @@ static void *__init iov_kunit_create_buffer(struct kunit *test,
 					    size_t npages)
 {
 	struct page **pages;
-	unsigned long got;
+	unsigned long got, last;
 	void *buffer;
 	unsigned int i;
 
@@ -61,7 +61,15 @@ static void *__init iov_kunit_create_buffer(struct kunit *test,
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, pages);
 	*ppages = pages;
 
-	got = alloc_pages_bulk(GFP_KERNEL, npages, pages);
+	got = 0;
+	while (true) {
+		last = got;
+		got = alloc_pages_bulk(GFP_KERNEL, npages, pages);
+
+		if (last == got || got == npages)
+			break;
+	}
+
 	if (got != npages) {
 		release_pages(pages, got);
 		kvfree(pages);
