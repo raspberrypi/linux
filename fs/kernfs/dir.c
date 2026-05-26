@@ -701,6 +701,9 @@ static struct kernfs_node *__kernfs_new_node(struct kernfs_root *root,
 	}
 
 	if (parent) {
+		kernfs_get(parent);
+		rcu_assign_pointer(kn->__parent, parent);
+
 		ret = security_kernfs_init_security(parent, kn);
 		if (ret)
 			goto err_out4;
@@ -709,6 +712,8 @@ static struct kernfs_node *__kernfs_new_node(struct kernfs_root *root,
 	return kn;
 
  err_out4:
+	RCU_INIT_POINTER(kn->__parent, NULL);
+	kernfs_put(parent);
 	if (kn->iattr) {
 		simple_xattrs_free(&root->xa_cache, &kn->iattr->xattrs, NULL);
 		kmem_cache_free(kernfs_iattrs_cache, kn->iattr);
@@ -745,10 +750,6 @@ struct kernfs_node *kernfs_new_node(struct kernfs_node *parent,
 
 	kn = __kernfs_new_node(kernfs_root(parent), parent,
 			       name, mode, uid, gid, flags);
-	if (kn) {
-		kernfs_get(parent);
-		rcu_assign_pointer(kn->__parent, parent);
-	}
 	return kn;
 }
 
