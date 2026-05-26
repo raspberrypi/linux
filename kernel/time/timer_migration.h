@@ -75,15 +75,17 @@ struct tmigr_group {
 /**
  * struct tmigr_cpu - timer migration per CPU group
  * @lock:		Lock protecting the tmigr_cpu group information
- * @online:		Indicates whether the CPU is online; In deactivate path
- *			it is required to know whether the migrator in the top
- *			level group is to be set offline, while a timer is
- *			pending. Then another online CPU needs to be notified to
- *			take over the migrator role. Furthermore the information
- *			is required in CPU hotplug path as the CPU is able to go
- *			idle before the timer migration hierarchy hotplug AP is
- *			reached. During this phase, the CPU has to handle the
+ * @available:		Indicates whether the CPU is available for handling
+ *			global timers. In the deactivate path it is required to
+ *			know whether the migrator in the top level group is to
+ *			be set offline, while a timer is pending. Then another
+ *			available CPU needs to be notified to take over the
+ *			migrator role. Furthermore the information is required
+ *			in the CPU hotplug path as the CPU is able to go idle
+ *			before the timer migration hierarchy hotplug callback is
+ *			reached.  During this phase, the CPU has to handle the
  *			global timers on its own and must not act as a migrator.
+
  * @idle:		Indicates whether the CPU is idle in the timer migration
  *			hierarchy
  * @remote:		Is set when timers of the CPU are expired remotely
