@@ -52,6 +52,9 @@ int v3d_power_suspend(struct device *dev)
 
 	v3d_irq_disable(v3d);
 
+	/* Always clean V3D caches on shutdown. */
+	v3d_clean_caches(v3d);
+
 	ret = v3d_suspend_sms(v3d);
 	if (ret) {
 		v3d_irq_enable(v3d);
