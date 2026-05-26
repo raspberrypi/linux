@@ -731,8 +731,6 @@ void __drm_atomic_helper_private_obj_create_state(struct drm_private_obj *obj,
 {
 	if (state)
 		state->obj = obj;
-
-	obj->state = state;
 }
 EXPORT_SYMBOL(__drm_atomic_helper_private_obj_create_state);
 
