@@ -456,7 +456,11 @@ void xen_snd_front_evtchnl_pair_clear(struct xen_snd_front_evtchnl_pair *evt_pai
 	}
 
 	scoped_guard(mutex, &evt_pair->evt.ring_io_lock) {
-		evt_pair->evt.evt_next_id = 0;
+		evt_pair->evt.evt_id = 0;
+		/* Drop obsolete events queued for the previous stream instance. */
+		evt_pair->evt.u.evt.page->in_cons =
+			evt_pair->evt.u.evt.page->in_prod;
+		/* Ensure the consumer index is visible before stream reuse. */
+		virt_wmb();
 	}
 }
-
