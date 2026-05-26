@@ -509,6 +509,11 @@ static void rpcrdma_req_release(struct kref *kref)
 	struct rpc_xprt *xprt = rqst->rq_xprt;
 	struct rpcrdma_xprt *r_xprt;
 
+	/* I4: both the RPC-layer and Send-side owners have dropped,
+	 * so rpcrdma_sendctx_unmap() has cleared rl_sendctx.
+	 */
+	WARN_ON_ONCE(req->rl_sendctx);
+
 	kref_init(&req->rl_kref);
 
 #if defined(CONFIG_SUNRPC_BACKCHANNEL)
@@ -652,10 +657,10 @@ xprt_rdma_free(struct rpc_task *task)
 		frwr_unmap_sync(rpcx_to_rdmax(rqst->rq_xprt), req);
 	}
 
-	/* XXX: If the RPC is completing because of a signal and
-	 * not because a reply was received, we ought to ensure
-	 * that the Send completion has fired, so that memory
-	 * involved with the Send is not still visible to the NIC.
+	/* The Send-side rl_kref owner keeps req out of its free pool
+	 * until rpcrdma_sendctx_unmap() has fired -- see I4 above
+	 * rpcrdma_reply_handler() -- so signal-driven release here
+	 * does not let the HCA touch a recycled send buffer.
 	 */
 }
 
