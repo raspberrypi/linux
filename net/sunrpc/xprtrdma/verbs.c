@@ -65,6 +65,8 @@
 
 static int rpcrdma_sendctxs_create(struct rpcrdma_xprt *r_xprt);
 static void rpcrdma_sendctxs_destroy(struct rpcrdma_xprt *r_xprt);
+static unsigned long rpcrdma_sendctx_next(struct rpcrdma_buffer *buf,
+					  unsigned long item);
 static void rpcrdma_sendctx_put_locked(struct rpcrdma_xprt *r_xprt,
 				       struct rpcrdma_sendctx *sc);
 static int rpcrdma_reqs_setup(struct rpcrdma_xprt *r_xprt);
@@ -571,9 +573,9 @@ void rpcrdma_xprt_disconnect(struct rpcrdma_xprt *r_xprt)
 
 	rpcrdma_xprt_drain(r_xprt);
 	rpcrdma_reps_unmap(r_xprt);
+	rpcrdma_sendctxs_destroy(r_xprt);
 	rpcrdma_reqs_reset(r_xprt);
 	rpcrdma_mrs_destroy(r_xprt);
-	rpcrdma_sendctxs_destroy(r_xprt);
 
 	if (rpcrdma_ep_put(ep))
 		rdma_destroy_id(id);
@@ -605,6 +607,20 @@ static void rpcrdma_sendctxs_destroy(struct rpcrdma_xprt *r_xprt)
 
 	if (!buf->rb_sc_ctxs)
 		return;
+
+	/* The QP is drained, but the final unsignaled Sends might not
+	 * have been walked by a signaled Send completion. Release those
+	 * Send owners before request buffers are reset.
+	 */
+	for (i = rpcrdma_sendctx_next(buf, buf->rb_sc_tail);
+	     i != rpcrdma_sendctx_next(buf, buf->rb_sc_head);
+	     i = rpcrdma_sendctx_next(buf, i)) {
+		struct rpcrdma_sendctx *sc = buf->rb_sc_ctxs[i];
+
+		if (sc && sc->sc_req)
+			rpcrdma_sendctx_unmap(sc);
+	}
+
 	for (i = 0; i <= buf->rb_sc_last; i++)
 		kfree(buf->rb_sc_ctxs[i]);
 	kfree(buf->rb_sc_ctxs);
@@ -739,15 +755,20 @@ static void rpcrdma_sendctx_put_locked(struct rpcrdma_xprt *r_xprt,
 	struct rpcrdma_buffer *buf = &r_xprt->rx_buf;
 	unsigned long next_tail;
 
-	/* Unmap SGEs of previously completed but unsignaled
-	 * Sends by walking up the queue until @sc is found.
+	/* Release previously completed but unsignaled Sends by walking
+	 * up the queue until @sc is found. Entries left behind by a
+	 * failed rpcrdma_prepare_send_sges() have sc_req cleared.
 	 */
 	next_tail = buf->rb_sc_tail;
 	do {
+		struct rpcrdma_sendctx *cur;
+
 		next_tail = rpcrdma_sendctx_next(buf, next_tail);
 
 		/* ORDER: item must be accessed _before_ tail is updated */
-		rpcrdma_sendctx_unmap(buf->rb_sc_ctxs[next_tail]);
+		cur = buf->rb_sc_ctxs[next_tail];
+		if (cur->sc_req)
+			rpcrdma_sendctx_unmap(cur);
 
 	} while (buf->rb_sc_ctxs[next_tail] != sc);
 
