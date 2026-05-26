@@ -229,6 +229,7 @@ amdgpu_devcoredump_format(char *buffer, size_t count, struct amdgpu_coredump_inf
 
 	sizing_pass = buffer == NULL;
 	iter.data = buffer;
+	iter.start = 0;
 	iter.offset = 0;
 	iter.remain = count;
 
