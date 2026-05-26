@@ -83,6 +83,14 @@
 
 #define PCH_PHUB_OROM_SIZE 15360
 
+enum pch_phub_type {
+	PCH_EG20T,
+	PCH_ML7213,
+	PCH_ML7223M,
+	PCH_ML7223N,
+	PCH_ML7831,
+};
+
 /**
  * struct pch_phub_reg - PHUB register structure
  * @phub_id_reg:			PHUB_ID register val
@@ -125,7 +133,7 @@ struct pch_phub_reg {
 	void __iomem *pch_phub_extrom_base_address;
 	u32 pch_mac_start_address;
 	u32 pch_opt_rom_start_address;
-	int ioh_type;
+	enum pch_phub_type ioh_type;
 	struct pci_dev *pdev;
 };
 
@@ -344,7 +352,7 @@ static int pch_phub_write_gbe_mac_addr(struct pch_phub_reg *chip, u8 *data)
 	int retval;
 	int i;
 
-	if ((chip->ioh_type == 1) || (chip->ioh_type == 5)) /* EG20T or ML7831*/
+	if (chip->ioh_type == PCH_EG20T || chip->ioh_type == PCH_ML7831)
 		retval = pch_phub_gbe_serial_rom_conf(chip);
 	else	/* ML7223 */
 		retval = pch_phub_gbe_serial_rom_conf_mp(chip);
@@ -535,14 +543,6 @@ static const struct bin_attribute pch_bin_attr = {
 	.size = PCH_PHUB_OROM_SIZE + 1,
 	.read = pch_phub_bin_read,
 	.write = pch_phub_bin_write,
-};
-
-enum {
-	PCH_EG20T,
-	PCH_ML7213,
-	PCH_ML7223M,
-	PCH_ML7223N,
-	PCH_ML7831,
 };
 
 static int pch_phub_probe(struct pci_dev *pdev,
