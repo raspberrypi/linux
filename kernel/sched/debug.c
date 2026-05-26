@@ -373,6 +373,9 @@ static ssize_t sched_server_write_common(struct file *filp, const char __user *u
 			return  -EINVAL;
 		}
 
+		if (!cpu_online(cpu_of(rq)))
+			return -EBUSY;
+
 		update_rq_clock(rq);
 		dl_server_stop(dl_se);
 		retval = dl_server_apply_params(dl_se, runtime, period, 0);
