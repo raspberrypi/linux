@@ -1247,7 +1247,7 @@ static void mhi_pci_recovery_work(struct work_struct *work)
 
 	dev_warn(&pdev->dev, "device recovery started\n");
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		timer_delete(&mhi_pdev->health_check_timer);
 
 	pm_runtime_forbid(&pdev->dev);
@@ -1277,7 +1277,7 @@ static void mhi_pci_recovery_work(struct work_struct *work)
 
 	set_bit(MHI_PCI_DEV_STARTED, &mhi_pdev->status);
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		mod_timer(&mhi_pdev->health_check_timer, jiffies + HEALTH_CHECK_PERIOD);
 
 	return;
@@ -1368,7 +1368,7 @@ static int mhi_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		mhi_cntrl_config = info->config;
 
 	/* Initialize health check monitor only for Physical functions */
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		timer_setup(&mhi_pdev->health_check_timer, health_check, 0);
 
 	mhi_cntrl = &mhi_pdev->mhi_cntrl;
@@ -1390,7 +1390,7 @@ static int mhi_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	mhi_cntrl->mru = info->mru_default;
 	mhi_cntrl->name = info->name;
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		mhi_pdev->reset_on_remove = info->reset_on_remove;
 
 	if (info->edl_trigger)
@@ -1439,7 +1439,7 @@ static int mhi_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	set_bit(MHI_PCI_DEV_STARTED, &mhi_pdev->status);
 
 	/* start health check */
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		mod_timer(&mhi_pdev->health_check_timer, jiffies + HEALTH_CHECK_PERIOD);
 
 	/* Allow runtime suspend only if both PME from D3Hot and M3 are supported */
@@ -1468,7 +1468,7 @@ static void mhi_pci_remove(struct pci_dev *pdev)
 	pm_runtime_forbid(&pdev->dev);
 	pci_disable_sriov(pdev);
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		timer_delete_sync(&mhi_pdev->health_check_timer);
 	cancel_work_sync(&mhi_pdev->recovery_work);
 
@@ -1500,7 +1500,7 @@ static void mhi_pci_reset_prepare(struct pci_dev *pdev)
 
 	dev_info(&pdev->dev, "reset\n");
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		timer_delete(&mhi_pdev->health_check_timer);
 
 	/* Clean up MHI state */
@@ -1546,7 +1546,7 @@ static void mhi_pci_reset_done(struct pci_dev *pdev)
 	}
 
 	set_bit(MHI_PCI_DEV_STARTED, &mhi_pdev->status);
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		mod_timer(&mhi_pdev->health_check_timer, jiffies + HEALTH_CHECK_PERIOD);
 }
 
@@ -1612,7 +1612,7 @@ static int  __maybe_unused mhi_pci_runtime_suspend(struct device *dev)
 	if (test_and_set_bit(MHI_PCI_DEV_SUSPENDED, &mhi_pdev->status))
 		return 0;
 
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		timer_delete(&mhi_pdev->health_check_timer);
 
 	cancel_work_sync(&mhi_pdev->recovery_work);
@@ -1665,7 +1665,7 @@ static int __maybe_unused mhi_pci_runtime_resume(struct device *dev)
 	}
 
 	/* Resume health check */
-	if (pdev->is_physfn)
+	if (!pdev->is_virtfn)
 		mod_timer(&mhi_pdev->health_check_timer, jiffies + HEALTH_CHECK_PERIOD);
 
 	/* It can be a remote wakeup (no mhi runtime_get), update access time */
