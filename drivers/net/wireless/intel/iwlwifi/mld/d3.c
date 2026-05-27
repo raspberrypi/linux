@@ -1943,8 +1943,11 @@ int iwl_mld_wowlan_suspend(struct iwl_mld *mld, struct cfg80211_wowlan *wowlan)
 
 	if (!bss_vif->cfg.assoc) {
 		int ret;
-		/* If we're not associated, this must be netdetect */
-		if (WARN_ON(!wowlan->nd_config))
+		/*
+		 * If not associated we can only do netdetect, if
+		 * that's not enabled then just suspend normally.
+		 */
+		if (!wowlan->nd_config)
 			return 1;
 
 		ret = iwl_mld_netdetect_config(mld, bss_vif, wowlan);
