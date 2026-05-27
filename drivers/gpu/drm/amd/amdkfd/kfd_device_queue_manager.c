@@ -2517,6 +2517,9 @@ static int wait_on_destroy_queue(struct device_queue_manager *dqm,
 	if (pdd->qpd.is_debug)
 		return ret;
 
+	if (q->properties.is_being_destroyed)
+		return -EBUSY;
+
 	q->properties.is_being_destroyed = true;
 
 	if (pdd->process->debug_trap_enabled && q->properties.is_suspended) {
@@ -2528,6 +2531,9 @@ static int wait_on_destroy_queue(struct device_queue_manager *dqm,
 		mutex_lock(&q->process->mutex);
 		dqm_lock(dqm);
 	}
+
+	if (ret)
+		q->properties.is_being_destroyed = false;
 
 	return ret;
 }
@@ -2622,7 +2628,7 @@ static int destroy_queue_cpsch(struct device_queue_manager *dqm,
 	return retval;
 
 failed_try_destroy_debugged_queue:
-
+	q->properties.is_being_destroyed = false;
 	dqm_unlock(dqm);
 	return retval;
 }
