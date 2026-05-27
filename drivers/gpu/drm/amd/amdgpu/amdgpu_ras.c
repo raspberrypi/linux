@@ -92,6 +92,9 @@ struct amdgpu_ras_block_list {
 	struct list_head node;
 
 	struct amdgpu_ras_block_object *ras_obj;
+
+	/* set by ras_late_init, cleared by ras_suspend/ras_fini */
+	bool active;
 };
 
 const char *get_ras_block_str(struct ras_common_if *ras_block)
@@ -4392,9 +4395,22 @@ void amdgpu_ras_resume(struct amdgpu_device *adev)
 void amdgpu_ras_suspend(struct amdgpu_device *adev)
 {
 	struct amdgpu_ras *con = amdgpu_ras_get_context(adev);
+	struct amdgpu_ras_block_list *node;
+	struct amdgpu_ras_block_object *obj;
 
 	if (!adev->ras_enabled || !con)
 		return;
+
+	/* run per-block ras_suspend before tearing down the RAS context */
+	list_for_each_entry(node, &adev->ras_list, node) {
+		if (!node->active)
+			continue;
+
+		obj = node->ras_obj;
+		if (obj && obj->ras_suspend)
+			obj->ras_suspend(adev, &obj->ras_comm);
+		node->active = false;
+	}
 
 	amdgpu_ras_disable_all_features(adev, 0);
 	/* Make sure all ras objects are disabled. */
@@ -4449,8 +4465,15 @@ int amdgpu_ras_late_init(struct amdgpu_device *adev)
 					obj->ras_comm.name, r);
 				return r;
 			}
-		} else
-			amdgpu_ras_block_late_init_default(adev, &obj->ras_comm);
+		} else {
+			r = amdgpu_ras_block_late_init_default(adev, &obj->ras_comm);
+			if (r) {
+				dev_err(adev->dev, "%s failed to execute ras_block_late_init_default! ret:%d\n",
+					obj->ras_comm.name, r);
+				return r;
+			}
+		}
+		node->active = true;
 	}
 
 	return 0;
@@ -4487,11 +4510,12 @@ int amdgpu_ras_fini(struct amdgpu_device *adev)
 	list_for_each_entry_safe(ras_node, tmp, &adev->ras_list, node) {
 		if (ras_node->ras_obj) {
 			obj = ras_node->ras_obj;
-			if (amdgpu_ras_is_supported(adev, obj->ras_comm.block) &&
-			    obj->ras_fini)
+			/* fall back to default cleanup if ras_suspend already ran */
+			if (ras_node->active && obj->ras_fini)
 				obj->ras_fini(adev, &obj->ras_comm);
 			else
 				amdgpu_ras_block_late_fini_default(adev, &obj->ras_comm);
+			ras_node->active = false;
 		}
 
 		/* Clear ras blocks from ras_list and free ras block list node */
