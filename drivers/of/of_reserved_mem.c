@@ -159,10 +159,24 @@ static int __init __reserved_mem_reserve_reg(unsigned long node,
 	int len;
 	const __be32 *prop;
 	bool nomap, default_cma;
+	int actual_size_cells = 0;
 
 	prop = of_get_flat_dt_prop(node, "reg", &len);
 	if (!prop)
 		return -ENOENT;
+
+	if (dt_root_addr_cells == 2 &&
+		dt_root_size_cells == 2 &&
+		len == (2 + 1) * sizeof(__be32)) {
+		pr_warn("invalid reg property size in '%s' - firmware out-of-date?\n",
+			uname);
+		actual_size_cells = 1;
+		t_len = (dt_root_addr_cells + actual_size_cells) * sizeof(__be32);
+	} else {
+		actual_size_cells = dt_root_size_cells;
+	}
+
+	t_len = (dt_root_addr_cells + actual_size_cells) * sizeof(__be32);
 
 	if (len && len % t_len != 0) {
 		pr_err("Reserved memory: invalid reg property in '%s', skipping node.\n",
@@ -180,7 +194,7 @@ static int __init __reserved_mem_reserve_reg(unsigned long node,
 
 	while (len >= t_len) {
 		base = dt_mem_next_cell(dt_root_addr_cells, &prop);
-		size = dt_mem_next_cell(dt_root_size_cells, &prop);
+		size = dt_mem_next_cell(actual_size_cells, &prop);
 
 		if (size && early_init_dt_reserve_memory(base, size, nomap) == 0) {
 			/* Architecture specific contiguous memory fixup. */
@@ -267,8 +281,21 @@ void __init fdt_scan_reserved_mem_reg_nodes(void)
 		if (default_cma && cma_skip_dt_default_reserved_mem())
 			continue;
 
-		if (!of_flat_dt_get_addr_size(child, "reg", &b, &s))
-			continue;
+		if (!of_flat_dt_get_addr_size(child, "reg", &b, &s)) {
+			const __be32 *prop;
+			int size;
+
+			prop = of_get_flat_dt_prop(child, "reg", &size);
+			if (dt_root_addr_cells == 2 &&
+			    dt_root_size_cells == 2 &&
+			    size == 12) {
+				/* Handle this specific error case from old firmware */
+				b = of_read_number(prop, dt_root_addr_cells);
+				s = of_read_number(prop + 2, 1);
+			} else {
+				continue;
+			}
+		}
 
 		base = b;
 		size = s;
@@ -406,16 +433,24 @@ static int __init __reserved_mem_alloc_size(unsigned long node, const char *unam
 	const __be32 *prop;
 	bool nomap, default_cma;
 	int ret;
+	int actual_size_cells;
 
 	prop = of_get_flat_dt_prop(node, "size", &len);
 	if (!prop)
 		return -EINVAL;
+	if (dt_root_size_cells == 2 && len == sizeof(__be32)) {
+		pr_warn("invalid reg property size in '%s' - firmware out-of-date?\n",
+			uname);
+		actual_size_cells = 1;
+	} else {
+		actual_size_cells = dt_root_size_cells;
+	}
 
-	if (len != dt_root_size_cells * sizeof(__be32)) {
+	if (len != actual_size_cells * sizeof(__be32)) {
 		pr_err("invalid size property in '%s' node.\n", uname);
 		return -EINVAL;
 	}
-	size = dt_mem_next_cell(dt_root_size_cells, &prop);
+	size = dt_mem_next_cell(actual_size_cells, &prop);
 
 	prop = of_get_flat_dt_prop(node, "alignment", &len);
 	if (prop) {

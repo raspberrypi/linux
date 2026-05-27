@@ -1033,6 +1033,7 @@ int __init early_init_dt_scan_memory(void)
 
 	fdt_for_each_subnode(node, fdt, 0) {
 		const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+		int actual_size_cells = dt_root_size_cells;
 		const __be32 *reg, *endp;
 		int l;
 		bool hotpluggable;
@@ -1050,17 +1051,41 @@ int __init early_init_dt_scan_memory(void)
 		if (reg == NULL)
 			continue;
 
+		if (dt_root_size_cells == 2 &&
+		    l % ((dt_root_addr_cells + 1) * sizeof(__be32)) == 0) {
+			const int size_cells = 1;
+			const __be32 *r = reg;
+			bool ok = true;
+
+			/* Scan reg to see if the content makes sense with size-cells == 1 */
+			endp = reg + (l / sizeof(__be32));
+			while ((endp - r) >= (dt_root_addr_cells + size_cells)) {
+				const u64 megabyte = 1024 * 1024ull;
+				const u64 max_memory = 64 * 1024 * 1024 * 1024ull;
+				u64 base, size;
+
+				base = dt_mem_next_cell(dt_root_addr_cells, &r);
+				size = dt_mem_next_cell(size_cells, &r);
+				if (base % megabyte != 0 || base >= max_memory ||
+				    size % megabyte != 0 || size >= max_memory ||
+				    size == 0)
+					ok = false;
+			}
+			if (ok)
+				actual_size_cells = size_cells;
+		}
+
 		endp = reg + (l / sizeof(__be32));
 		hotpluggable = of_get_flat_dt_prop(node, "hotpluggable", NULL);
 
 		pr_debug("memory scan node %s, reg size %d,\n",
 			 fdt_get_name(fdt, node, NULL), l);
 
-		while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
+		while ((endp - reg) >= (dt_root_addr_cells + actual_size_cells)) {
 			u64 base, size;
 
 			base = dt_mem_next_cell(dt_root_addr_cells, &reg);
-			size = dt_mem_next_cell(dt_root_size_cells, &reg);
+			size = dt_mem_next_cell(actual_size_cells, &reg);
 
 			if (size == 0)
 				continue;

@@ -60,6 +60,17 @@
 	};
 };
 
+/*
+ * With a #size-cells of 2, the 'size' property should be 2 cells long.
+ * Unfortunately the old firmware will only write the CMA value correctly
+ * if the property is 1 cell long. Fortunately the new firmware silently
+ * makes 'size' 2 cells long, so create what is actually an invalid DTS file
+ * on the understanding that it will be patched up as needed.
+ */
+&cma {
+	size = <0x4000000>; /* 64MB */
+};
+
 &soc {
 	system_timer: timer@7c003000 {
 		compatible = "brcm,bcm2835-system-timer";
