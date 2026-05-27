@@ -1057,6 +1057,10 @@ retry:
 			goto out_unlock;
 	}
 
+	ret = gfs2_clear_beyond_eof(inode, iocb->ki_pos);
+	if (ret)
+		goto out_unlock;
+
 	pagefault_disable();
 	ret = iomap_file_buffered_write(iocb, from, &gfs2_iomap_ops, NULL);
 	pagefault_enable();
@@ -1264,6 +1268,12 @@ static long __gfs2_fallocate(struct file *file, int mode, loff_t offset, loff_t 
 	loff_t max_chunk_size = UINT_MAX & bsize_mask;
 
 	next = (next + 1) << sdp->sd_sb.sb_bsize_shift;
+
+	if (!(mode & FALLOC_FL_KEEP_SIZE)) {
+		error = gfs2_clear_beyond_eof(inode, offset + len);
+		if (error)
+			return error;
+	}
 
 	offset &= bsize_mask;
 
