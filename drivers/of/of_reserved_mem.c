@@ -399,16 +399,24 @@ static int __init __reserved_mem_alloc_size(unsigned long node, const char *unam
 	const __be32 *prop;
 	bool nomap, default_cma;
 	int ret;
+	int actual_size_cells;
 
 	prop = of_get_flat_dt_prop(node, "size", &len);
 	if (!prop)
 		return -EINVAL;
+	if (dt_root_size_cells == 2 && len == sizeof(__be32)) {
+		pr_warn("invalid size for '%s/size' - firmware out-of-date?\n",
+			uname);
+		actual_size_cells = 1;
+	} else {
+		actual_size_cells = dt_root_size_cells;
+	}
 
-	if (len != dt_root_size_cells * sizeof(__be32)) {
+	if (len != actual_size_cells * sizeof(__be32)) {
 		pr_err("invalid size property in '%s' node.\n", uname);
 		return -EINVAL;
 	}
-	size = dt_mem_next_cell(dt_root_size_cells, &prop);
+	size = dt_mem_next_cell(actual_size_cells, &prop);
 
 	prop = of_get_flat_dt_prop(node, "alignment", &len);
 	if (prop) {
