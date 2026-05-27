@@ -623,17 +623,56 @@ const void *__init of_get_flat_dt_prop(unsigned long node, const char *name,
 	return fdt_getprop(initial_boot_params, node, name, size);
 }
 
+static bool possible_size_cells_1(const __be32 *prop, int len)
+{
+	const int size_cells = 1;
+	const __be32 *endp = prop + (len / sizeof(__be32));
+	const __be32 *r = prop;
+
+	if (dt_root_addr_cells != 2 || dt_root_size_cells != 2 ||
+	    len % ((dt_root_addr_cells + size_cells) * sizeof(__be32)))
+		return false;
+
+	/* Scan reg to see if the content makes sense with size-cells == 1 */
+	while ((endp - r) >= (dt_root_addr_cells + size_cells)) {
+		const u64 megabyte = 1024 * 1024ull;
+		const u64 max_memory = 64 * 1024 * 1024 * 1024ull;
+		u64 base, size;
+
+		base = dt_mem_next_cell(dt_root_addr_cells, &r);
+		size = dt_mem_next_cell(size_cells, &r);
+		if (base >= max_memory ||
+			size == 0 || size >= max_memory ||
+			(size >= megabyte && (base % megabyte != 0)))
+			return false;
+	}
+
+	return true;
+}
+
+static const __be32 *size_cells_1_prop;
+
 const __be32 *__init of_flat_dt_get_addr_size_prop(unsigned long node,
 						   const char *name,
 						   int *entries)
 {
 	const __be32 *prop;
 	int len, elen = (dt_root_addr_cells + dt_root_size_cells) * sizeof(__be32);
+	const void *fdt = initial_boot_params;
+
+	size_cells_1_prop = NULL;
 
 	prop = of_get_flat_dt_prop(node, name, &len);
 	if (!prop || len % elen) {
-		*entries = 0;
-		return NULL;
+		if (!prop || strcmp(name, "reg") ||
+		     !possible_size_cells_1(prop, len)) {
+			*entries = 0;
+			return NULL;
+		}
+		size_cells_1_prop = prop;
+		elen = (2 + 1) * sizeof(__be32);
+		pr_warn("invalid size for '%s/reg' - firmware out-of-date?\n",
+				 fdt_get_name(fdt, node, NULL));
 	}
 
 	*entries = len / elen;
@@ -657,11 +696,16 @@ bool __init of_flat_dt_get_addr_size(unsigned long node, const char *name,
 void __init of_flat_dt_read_addr_size(const __be32 *prop, int entry_index,
 				      u64 *addr, u64 *size)
 {
-	int entry_cells = dt_root_addr_cells + dt_root_size_cells;
+	int actual_size_cells = dt_root_size_cells;
+	int entry_cells;
+
+	if (prop == size_cells_1_prop)
+		actual_size_cells = 1;
+	entry_cells = dt_root_addr_cells + actual_size_cells;
 	prop += entry_cells * entry_index;
 
 	*addr = dt_mem_next_cell(dt_root_addr_cells, &prop);
-	*size = dt_mem_next_cell(dt_root_size_cells, &prop);
+	*size = dt_mem_next_cell(actual_size_cells, &prop);
 }
 
 /**
