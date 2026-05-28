@@ -40,12 +40,19 @@ struct ed_lcd {
 	struct regmap	*regmap;
 };
 
+static bool ed_readable_reg(struct device *dev, unsigned int reg)
+{
+	/* No registers are readable via the regmap. Use cached values */
+	return false;
+}
+
 static const struct regmap_config ed_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
 	.disable_locking = 1,
 	.max_register = REG_OUTPUT,
 	.cache_type = REGCACHE_RBTREE,
+	.readable_reg = ed_readable_reg,
 };
 
 static int ed_update_status(struct backlight_device *bl)
@@ -134,9 +141,19 @@ static int ed_i2c_probe(struct i2c_client *i2c)
 		return ret;
 	}
 
-	regmap_write(regmap, CMD_BRIDGE_INIT, 0x02);
 
-	regmap_write(regmap, CMD_BACKLIGHT_EN, 1);
+	ret = regmap_write(regmap, REG_PWR, 0x00);
+	if (!ret)
+		ret = regmap_write(regmap, REG_PWM, 0);
+	if (!ret)
+		ret = regmap_write(regmap, CMD_BRIDGE_INIT, 0x02);
+	if (!ret)
+		ret = regmap_write(regmap, CMD_BACKLIGHT_EN, 1);
+
+	if (ret) {
+		dev_err(&i2c->dev, "Failed to initialise regmap values\n");
+		return ret;
+	}
 
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = 0xff;
