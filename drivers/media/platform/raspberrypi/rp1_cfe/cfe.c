@@ -1676,7 +1676,6 @@ static int cfe_video_link_validate(struct cfe_node *node,
 	if (is_image_output_node(node)) {
 		struct v4l2_pix_format *pix_fmt = &node->vid_fmt.fmt.pix;
 		const struct cfe_fmt *fmt = NULL;
-		unsigned int i;
 
 		if (remote_fmt->width != pix_fmt->width ||
 		    remote_fmt->height != pix_fmt->height) {
@@ -1687,16 +1686,28 @@ static int cfe_video_link_validate(struct cfe_node *node,
 			return -EINVAL;
 		}
 
-		for (i = 0; i < ARRAY_SIZE(formats); i++) {
-			if (formats[i].code == remote_fmt->code &&
-			    formats[i].fourcc == pix_fmt->pixelformat) {
-				fmt = &formats[i];
-				break;
-			}
-		}
+		fmt = find_format_by_code(remote_fmt->code);
+
 		if (!fmt) {
-			cfe_err("Format mismatch!\n");
+			cfe_err("Format not found. %08x %p4cc\n",
+				remote_fmt->code, &pix_fmt->pixelformat);
 			return -EINVAL;
+		}
+
+		if (fmt->fourcc != pix_fmt->pixelformat) {
+			if ((pix_fmt->pixelformat == V4L2_PIX_FMT_BGR24 &&
+			     remote_fmt->code == MEDIA_BUS_FMT_BGR888_1X24) ||
+			    (pix_fmt->pixelformat == V4L2_PIX_FMT_RGB24 &&
+			     remote_fmt->code == MEDIA_BUS_FMT_RGB888_1X24)) {
+				dev_warn_once(&cfe->pdev->dev,
+					      "Incorrect pixel format %p4cc for 0x%04x. Fix your application to use %p4cc.\n",
+					      &pix_fmt->pixelformat,
+					      remote_fmt->code, &fmt->fourcc);
+			} else {
+				cfe_err("Format mismatch! Code %u fourcc %p4cc\n",
+					remote_fmt->code, &pix_fmt->pixelformat);
+				return -EINVAL;
+			}
 		}
 	} else if (is_csi2_node(node) && is_meta_output_node(node)) {
 		struct v4l2_meta_format *meta_fmt = &node->meta_fmt.fmt.meta;
