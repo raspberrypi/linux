@@ -1486,6 +1486,7 @@ mt76_sta_add(struct mt76_phy *phy, struct ieee80211_vif *vif,
 {
 	struct mt76_wcid *wcid = (struct mt76_wcid *)sta->drv_priv;
 	struct mt76_dev *dev = phy->dev;
+	struct mt76_wcid *published;
 	int ret;
 	int i;
 
@@ -1505,13 +1506,22 @@ mt76_sta_add(struct mt76_phy *phy, struct ieee80211_vif *vif,
 		mtxq->wcid = wcid->idx;
 	}
 
-	ewma_signal_init(&wcid->rssi);
-	if (phy->band_idx == MT_BAND1)
-		mt76_wcid_mask_set(dev->wcid_phy_mask, wcid->idx);
-	wcid->phy_idx = phy->band_idx;
-	rcu_assign_pointer(dev->wcid[wcid->idx], wcid);
+	published = rcu_dereference_protected(dev->wcid[wcid->idx],
+					      lockdep_is_held(&dev->mutex));
+	if (published != wcid) {
+		WARN_ON_ONCE(published);
+		ewma_signal_init(&wcid->rssi);
+		if (phy->band_idx == MT_BAND1)
+			mt76_wcid_mask_set(dev->wcid_phy_mask, wcid->idx);
+		wcid->phy_idx = phy->band_idx;
+		rcu_assign_pointer(dev->wcid[wcid->idx], wcid);
+		mt76_wcid_init(wcid);
+	} else {
+		if (phy->band_idx == MT_BAND1)
+			mt76_wcid_mask_set(dev->wcid_phy_mask, wcid->idx);
+		wcid->phy_idx = phy->band_idx;
+	}
 
-	mt76_wcid_init(wcid);
 out:
 	mutex_unlock(&dev->mutex);
 
