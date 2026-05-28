@@ -118,6 +118,16 @@ static void rose_loopback_timer(struct timer_list *unused)
 				kfree_skb(skb);
 				continue;
 			}
+			/* rose_kill_by_device() runs on NETDEV_DOWN (IFF_UP cleared)
+			 * before the device is unregistered.  If we create a new
+			 * socket here after that cleanup, the ref never gets released
+			 * because NETDEV_DOWN fires only once.  Drop the call instead.
+			 */
+			if (!netif_running(dev)) {
+				dev_put(dev);
+				kfree_skb(skb);
+				continue;
+			}
 
 			if (rose_rx_call_request(skb, dev, rose_loopback_neigh, lci_o) == 0)
 				kfree_skb(skb);
