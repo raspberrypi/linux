@@ -626,9 +626,7 @@ static struct sock *rose_make_new(struct sock *osk)
 	rose->hb	= orose->hb;
 	rose->idle	= orose->idle;
 	rose->defer	= orose->defer;
-	rose->device	= orose->device;
-	if (rose->device)
-		netdev_hold(rose->device, &rose->dev_tracker, GFP_ATOMIC);
+	rose->device	= NULL;  /* rose_rx_call_request() sets this */
 	rose->qbitincl	= orose->qbitincl;
 
 	return sk;
