@@ -1786,7 +1786,7 @@ void tpmi_sst_dev_resume(struct auxiliary_device *auxdev)
 		memcpy_toio(cp_base + SST_CLOS_ASSOC_0_OFFSET, pd_info->saved_clos_assocs,
 			    sizeof(pd_info->saved_clos_assocs));
 
-		writeq(pd_info->saved_pp_control, power_domain_info->sst_base +
+		writeq(pd_info->saved_pp_control, pd_info->sst_base +
 		       pd_info->sst_header.pp_offset + SST_PP_CONTROL_OFFSET);
 	}
 }
