@@ -156,7 +156,7 @@ static int path_name(const char *op, const struct cred *subj_cred,
 
 	/* don't reaudit files closed during inheritance */
 	if (unlikely(path->dentry == aa_null.dentry))
-		error = -EACCES;
+		return -EACCES;
 	else
 		error = aa_path_name(path, flags, buffer, name, &info,
 				     labels_profile(label)->disconnected);
