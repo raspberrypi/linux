@@ -301,8 +301,7 @@ bool __blk_crypto_bio_prep(struct bio *bio)
 		if (!IS_ENABLED(CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK)) {
 			pr_warn_once("%pg: crypto API fallback disabled; failing request.\n",
 				bdev);
-			bio->bi_status = BLK_STS_NOTSUPP;
-			bio_endio(bio);
+			bio_endio_status(bio, BLK_STS_NOTSUPP);
 			return false;
 		}
 		return blk_crypto_fallback_bio_prep(bio);

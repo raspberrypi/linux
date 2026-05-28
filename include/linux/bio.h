@@ -376,16 +376,27 @@ void submit_bio(struct bio *bio);
 
 extern void bio_endio(struct bio *);
 
+/**
+ * bio_endio_status - end I/O on a bio with a specific status
+ * @bio:	bio
+ * @status:	status to set
+ *
+ * Set @bio->bi_status to @status and call bio_endio().
+ **/
+static inline void bio_endio_status(struct bio *bio, blk_status_t status)
+{
+	bio->bi_status = status;
+	bio_endio(bio);
+}
+
 static inline void bio_io_error(struct bio *bio)
 {
-	bio->bi_status = BLK_STS_IOERR;
-	bio_endio(bio);
+	bio_endio_status(bio, BLK_STS_IOERR);
 }
 
 static inline void bio_wouldblock_error(struct bio *bio)
 {
-	bio->bi_status = BLK_STS_AGAIN;
-	bio_endio(bio);
+	bio_endio_status(bio, BLK_STS_AGAIN);
 }
 
 /*
