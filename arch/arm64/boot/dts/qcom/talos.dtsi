@@ -2017,7 +2017,7 @@
 			};
 		};
 
-		gmu: gmu@506a000 {
+		gmu: gmu@506d000 {
 			compatible = "qcom,adreno-rgmu-612.0", "qcom,adreno-rgmu";
 			reg = <0x0 0x0506d000 0x0 0x2c000>;
 
