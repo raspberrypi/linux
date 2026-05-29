@@ -10906,14 +10906,6 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
 			goto err_free;
 		}
 
-		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
-		     link_id++) {
-			if (!(req->rem_links & BIT(link_id)))
-				continue;
-
-			ieee80211_sta_remove_link(sta, link_id);
-		}
-
 		/* notify the driver and upper layers */
 		ieee80211_vif_cfg_change_notify(sdata,
 						BSS_CHANGED_MLD_VALID_LINKS);
