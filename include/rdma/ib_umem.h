@@ -185,6 +185,10 @@ static inline unsigned long ib_umem_find_best_pgoff(struct ib_umem *umem,
 {
 	return 0;
 }
+static inline bool ib_umem_is_contiguous(struct ib_umem *umem)
+{
+	return false;
+}
 static inline
 struct ib_umem_dmabuf *ib_umem_dmabuf_get(struct ib_device *device,
 					  unsigned long offset,
