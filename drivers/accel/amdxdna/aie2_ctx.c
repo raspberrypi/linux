@@ -270,17 +270,13 @@ aie2_sched_drvcmd_resp_handler(void *handle, void __iomem *data, size_t size)
 	struct amdxdna_sched_job *job = handle;
 	int ret = 0;
 
-	if (unlikely(!data))
-		goto out;
-
-	if (unlikely(size != sizeof(u32))) {
+	if (unlikely(!data || size != sizeof(u32))) {
+		job->drv_cmd->result = U32_MAX;
 		ret = -EINVAL;
-		goto out;
+	} else {
+		job->drv_cmd->result = readl(data);
 	}
 
-	job->drv_cmd->result = readl(data);
-
-out:
 	aie2_sched_notify(job);
 	return ret;
 }
@@ -894,6 +890,7 @@ static int aie2_hwctx_cfg_debug_bo(struct amdxdna_hwctx *hwctx, u32 bo_hdl,
 	aie2_cmd_wait(hwctx, seq);
 	if (cmd.result) {
 		XDNA_ERR(xdna, "Response failure 0x%x", cmd.result);
+		ret = -EINVAL;
 		goto put_obj;
 	}
 
