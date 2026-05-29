@@ -1864,6 +1864,15 @@ struct ieee802_11_elems {
 	struct ieee80211_mle_per_sta_profile *prof;
 	size_t sta_prof_len;
 
+	/*
+	 * When parsing the beacon with MBSSID (from a transmitted BSS), this
+	 * indicates that the profile the parser was instructed to look for
+	 * (via the bss value in &struct ieee80211_elems_parse_params) couldn't
+	 * be found (due to EMA, or perhaps broken AP) and the result cannot be
+	 * considered complete.
+	 */
+	bool mbssid_nontx_profile_missing;
+
 	/* whether/which parse error occurred while retrieving these elements */
 	u8 parse_error;
 };

@@ -1032,6 +1032,10 @@ ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params)
 		sub.action = params->action;
 		sub.link_id = params->link_id;
 
+		/* indicate to consumer whether or not profile was found */
+		if (params->bss->transmitted_bss && !nontx_len)
+			elems->mbssid_nontx_profile_missing = true;
+
 		/* consume the space used for non-transmitted profile */
 		elems_parse->scratch_pos += nontx_len;
 
