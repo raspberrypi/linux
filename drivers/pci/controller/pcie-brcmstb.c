@@ -1575,7 +1575,7 @@ static void brcm_config_clkreq(struct brcm_pcie *pcie)
 {
 	static const char err_msg[] = "invalid 'brcm,clkreq-mode' DT string\n";
 	const char *mode = "default";
-	u32 clkreq_cntl = 0;
+	u32 clkreq_cntl;
 	int ret, tmp;
 
 	ret = of_property_read_string(pcie->np, "brcm,clkreq-mode", &mode);
@@ -1583,6 +1583,10 @@ static void brcm_config_clkreq(struct brcm_pcie *pcie)
 		dev_err(pcie->dev, err_msg);
 		mode = "safe";
 	}
+
+	/* Start out assuming safe mode (both mode bits cleared) */
+	clkreq_cntl = readl(pcie->base + HARD_DEBUG(pcie));
+	clkreq_cntl &= ~PCIE_CLKREQ_MASK;
 
 	if (strcmp(mode, "no-l1ss") == 0) {
 		/*
