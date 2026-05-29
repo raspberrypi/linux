@@ -2431,9 +2431,9 @@ static int nvme_alloc_host_mem_multi(struct nvme_dev *dev, u64 preferred,
 	i = dev->nr_host_mem_descs = mapped_nents;
 
 	while (--i >= 0) {
-		descs[i].addr = sg_dma_address(&slist[i]);
+		descs[i].addr = cpu_to_le64(sg_dma_address(&slist[i]));
 		WARN_ON_ONCE(sg_dma_len(&slist[i]) & (NVME_CTRL_PAGE_SIZE - 1));
-		descs[i].size = sg_dma_len(&slist[i]) / NVME_CTRL_PAGE_SIZE;
+		descs[i].size = cpu_to_le32(sg_dma_len(&slist[i]) / NVME_CTRL_PAGE_SIZE);
 	}
 
 	dev->host_mem_size = size;
