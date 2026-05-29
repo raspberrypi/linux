@@ -488,10 +488,25 @@ static int intel_vsec_walk_header(struct device *dev,
 				  const struct intel_vsec_platform_info *info)
 {
 	struct intel_vsec_header **header = info->headers;
+	u64 base_addr;
 	int ret;
 
 	for ( ; *header; header++) {
-		ret = intel_vsec_register_device(dev, *header, info, info->base_addr);
+		if (info->base_addr) {
+			base_addr = info->base_addr;
+		} else {
+			struct pci_dev *pdev;
+
+			if (!dev_is_pci(dev)) {
+				dev_err(dev, "non-PCI device without a base address\n");
+				return -EINVAL;
+			}
+
+			pdev = to_pci_dev(dev);
+			base_addr = pci_resource_start(pdev, (*header)->tbir);
+		}
+
+		ret = intel_vsec_register_device(dev, *header, info, base_addr);
 		if (ret)
 			return ret;
 	}
