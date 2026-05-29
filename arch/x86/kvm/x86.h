@@ -641,6 +641,5 @@ int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
 				     struct kvm_debugregs *dbgregs);
 void kvm_invalidate_pcid(struct kvm_vcpu *vcpu, unsigned long pcid);
 void kvm_handle_exception_payload_quirk(struct kvm_vcpu *vcpu);
-void update_cr8_intercept(struct kvm_vcpu *vcpu);
 
 #endif
