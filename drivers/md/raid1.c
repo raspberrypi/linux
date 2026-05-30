@@ -1603,8 +1603,10 @@ static void raid1_write_request(struct mddev *mddev, struct bio *bio,
 				 * complexity of supporting that is not worth
 				 * the benefit.
 				 */
-				if (bio->bi_opf & REQ_ATOMIC)
+				if (bio->bi_opf & REQ_ATOMIC) {
+					rdev_dec_pending(rdev, mddev);
 					goto err_handle;
+				}
 
 				good_sectors = first_bad - r1_bio->sector;
 				if (good_sectors < max_sectors)
