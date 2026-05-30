@@ -452,10 +452,15 @@ int ntfs_write_volume_label(struct ntfs_volume *vol, char *label)
 		goto out;
 	}
 
-	if (!ntfs_attr_lookup(AT_VOLUME_NAME, NULL, 0, 0, 0, NULL, 0,
-			     ctx))
-		ntfs_attr_record_rm(ctx);
+	ret = ntfs_attr_lookup(AT_VOLUME_NAME, NULL, 0, 0, 0, NULL, 0,
+			       ctx);
+	if (!ret)
+		ret = ntfs_attr_record_rm(ctx);
+	else if (ret == -ENOENT)
+		ret = 0;
 	ntfs_attr_put_search_ctx(ctx);
+	if (ret)
+		goto out;
 
 	ret = ntfs_resident_attr_record_add(vol_ni, AT_VOLUME_NAME, AT_UNNAMED, 0,
 					    (u8 *)uname, uname_len * sizeof(__le16), 0);
