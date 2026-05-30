@@ -1364,7 +1364,7 @@ static ssize_t store_energy_performance_preference(struct cpufreq_policy *policy
 	else
 		epp = amd_pstate_get_balanced_epp(policy);
 
-	if (cpudata->policy == CPUFREQ_POLICY_PERFORMANCE) {
+	if (epp > 0 && cpudata->policy == CPUFREQ_POLICY_PERFORMANCE) {
 		pr_debug("EPP cannot be set under performance policy\n");
 		return -EBUSY;
 	}
