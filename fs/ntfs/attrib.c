@@ -607,6 +607,14 @@ static bool ntfs_file_name_attr_value_is_valid(const u8 *value, const u32 value_
 			value_length - offsetof(struct file_name_attr, file_name);
 }
 
+static bool ntfs_volume_name_attr_value_is_valid(const u32 value_length)
+{
+	if (value_length & 1)
+		return false;
+
+	return value_length <= NTFS_MAX_LABEL_LEN * sizeof(__le16);
+}
+
 struct ntfs_resident_attr_value {
 	const u8 *data;
 	u32 len;
@@ -657,7 +665,7 @@ static bool ntfs_attr_value_is_valid(struct ntfs_volume *vol,
 	u32 min_len;
 
 	if (a->non_resident) {
-		if (a->type == AT_FILE_NAME)
+		if (a->type == AT_FILE_NAME || a->type == AT_VOLUME_NAME)
 			goto corrupt;
 		if (!ntfs_non_resident_attr_value_is_valid(a))
 			goto corrupt;
@@ -674,6 +682,10 @@ static bool ntfs_attr_value_is_valid(struct ntfs_volume *vol,
 	switch (a->type) {
 	case AT_FILE_NAME:
 		if (!ntfs_file_name_attr_value_is_valid(value.data, value.len))
+			goto corrupt;
+		break;
+	case AT_VOLUME_NAME:
+		if (!ntfs_volume_name_attr_value_is_valid(value.len))
 			goto corrupt;
 		break;
 	}
