@@ -595,6 +595,97 @@ static u32 ntfs_resident_attr_min_value_length(const __le32 type)
 	}
 }
 
+static bool ntfs_file_name_attr_value_is_valid(const u8 *value, const u32 value_length)
+{
+	const struct file_name_attr *fn;
+	u32 file_name_size;
+
+	fn = (const struct file_name_attr *)value;
+	file_name_size = fn->file_name_length * sizeof(__le16);
+
+	return file_name_size <=
+			value_length - offsetof(struct file_name_attr, file_name);
+}
+
+struct ntfs_resident_attr_value {
+	const u8 *data;
+	u32 len;
+};
+
+static bool ntfs_resident_attr_value_get(const struct attr_record *a,
+					 struct ntfs_resident_attr_value *value)
+{
+	u32 attr_len;
+	u16 value_offset;
+
+	attr_len = le32_to_cpu(a->length);
+	if (attr_len < offsetof(struct attr_record, data.resident.reserved) +
+			sizeof(a->data.resident.reserved))
+		return false;
+
+	value->len = le32_to_cpu(a->data.resident.value_length);
+	value_offset = le16_to_cpu(a->data.resident.value_offset);
+
+	if (value->len > attr_len || value_offset > attr_len - value->len)
+		return false;
+
+	value->data = (const u8 *)a + value_offset;
+	return true;
+}
+
+static bool ntfs_non_resident_attr_value_is_valid(const struct attr_record *a)
+{
+	u32 attr_len;
+	u32 min_len;
+	u16 mp_offset;
+
+	attr_len = le32_to_cpu(a->length);
+	min_len = offsetof(struct attr_record, data.non_resident.initialized_size) +
+		  sizeof(a->data.non_resident.initialized_size);
+	if (attr_len < min_len)
+		return false;
+
+	mp_offset = le16_to_cpu(a->data.non_resident.mapping_pairs_offset);
+	return mp_offset >= min_len && mp_offset <= attr_len;
+}
+
+static bool ntfs_attr_value_is_valid(struct ntfs_volume *vol,
+				     const struct attr_record *a,
+				     const u64 mft_no)
+{
+	struct ntfs_resident_attr_value value;
+	u32 min_len;
+
+	if (a->non_resident) {
+		if (a->type == AT_FILE_NAME)
+			goto corrupt;
+		if (!ntfs_non_resident_attr_value_is_valid(a))
+			goto corrupt;
+		return true;
+	}
+
+	if (!ntfs_resident_attr_value_get(a, &value))
+		goto corrupt;
+
+	min_len = ntfs_resident_attr_min_value_length(a->type);
+	if (min_len && value.len < min_len)
+		goto corrupt;
+
+	switch (a->type) {
+	case AT_FILE_NAME:
+		if (!ntfs_file_name_attr_value_is_valid(value.data, value.len))
+			goto corrupt;
+		break;
+	}
+	return true;
+
+corrupt:
+	ntfs_error(vol->sb,
+		   "Corrupt %#x attribute in MFT record %llu\n",
+		   le32_to_cpu(a->type), mft_no);
+	return false;
+}
+
 /*
  * ntfs_attr_find - find (next) attribute in mft record
  * @type:	attribute type to find
@@ -705,8 +796,11 @@ static int ntfs_attr_find(const __le32 type, const __le16 *name,
 			}
 		}
 
-		if (type == AT_UNUSED)
+		if (type == AT_UNUSED) {
+			if (!ntfs_attr_value_is_valid(vol, a, ctx->ntfs_ino->mft_no))
+				break;
 			return 0;
+		}
 		if (a->type != type)
 			continue;
 		/*
@@ -747,37 +841,8 @@ static int ntfs_attr_find(const __le32 type, const __le16 *name,
 			}
 		}
 
-		 /* Validate attribute's value offset/length */
-		if (!a->non_resident) {
-			u32 min_len;
-			u32 value_length = le32_to_cpu(a->data.resident.value_length);
-			u16 value_offset = le16_to_cpu(a->data.resident.value_offset);
-
-			if (value_length > le32_to_cpu(a->length) ||
-			    value_offset > le32_to_cpu(a->length) - value_length)
-				break;
-
-			min_len = ntfs_resident_attr_min_value_length(a->type);
-			if (min_len && value_length < min_len) {
-				ntfs_error(vol->sb,
-					   "Too small %#x resident attribute value in MFT record %lld\n",
-					   le32_to_cpu(a->type), (long long)ctx->ntfs_ino->mft_no);
-				break;
-			}
-		} else {
-			u32 min_len;
-			u16 mp_offset;
-
-			min_len = offsetof(struct attr_record, data.non_resident.initialized_size) +
-				  sizeof(a->data.non_resident.initialized_size);
-			if (le32_to_cpu(a->length) < min_len)
-				break;
-
-			mp_offset = le16_to_cpu(a->data.non_resident.mapping_pairs_offset);
-			if (mp_offset < min_len ||
-			    mp_offset > le32_to_cpu(a->length))
-				break;
-		}
+		if (!ntfs_attr_value_is_valid(vol, a, ctx->ntfs_ino->mft_no))
+			break;
 
 		/*
 		 * The names match or @name not present and attribute is
@@ -1299,22 +1364,8 @@ do_next_attr_loop:
 
 		ctx->attr = a;
 
-		if (a->non_resident) {
-			u32 min_len;
-			u16 mp_offset;
-
-			min_len = offsetof(struct attr_record,
-					   data.non_resident.initialized_size) +
-				  sizeof(a->data.non_resident.initialized_size);
-
-			if (le32_to_cpu(a->length) < min_len)
-				break;
-
-			mp_offset =
-				le16_to_cpu(a->data.non_resident.mapping_pairs_offset);
-			if (mp_offset < min_len || mp_offset > attr_len)
-				break;
-		}
+		if (!ntfs_attr_value_is_valid(vol, a, ctx->ntfs_ino->mft_no))
+			break;
 
 		/*
 		 * If no @val specified or @val specified and it matches, we
@@ -1326,19 +1377,6 @@ do_next_attr_loop:
 			u32 value_length = le32_to_cpu(a->data.resident.value_length);
 			u16 value_offset = le16_to_cpu(a->data.resident.value_offset);
 
-			if (attr_len < offsetof(struct attr_record, data.resident.reserved) +
-					sizeof(a->data.resident.reserved))
-				break;
-			if (value_length > attr_len || value_offset > attr_len - value_length)
-				break;
-
-			value_length = ntfs_resident_attr_min_value_length(a->type);
-			if (value_length && le32_to_cpu(a->data.resident.value_length) <
-			    value_length) {
-				pr_err("Too small resident attribute value in MFT record %lld, type %#x\n",
-				       (long long)ctx->ntfs_ino->mft_no, a->type);
-				break;
-			}
 			if (value_length == val_len &&
 			    !memcmp((u8 *)a + value_offset, val, val_len)) {
 attr_found:
