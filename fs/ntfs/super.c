@@ -1537,6 +1537,7 @@ iput_volume_failed:
 			vol->volume_label = NULL;
 	}
 
+	ntfs_attr_reinit_search_ctx(ctx);
 	if (ntfs_attr_lookup(AT_VOLUME_INFORMATION, NULL, 0, 0, 0, NULL, 0,
 			ctx) || ctx->attr->non_resident || ctx->attr->flags) {
 		ntfs_attr_put_search_ctx(ctx);
