@@ -10,7 +10,7 @@
 
 bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 {
-	struct mlx5_core_dev *dev;
+	struct mlx5_core_dev *dev0, *dev;
 	bool ret = false;
 	int idx;
 	int i;
@@ -19,6 +19,7 @@ bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 	if (idx < 0)
 		return false;
 
+	dev0 = mlx5_lag_pf(ldev, idx)->dev;
 	mlx5_ldev_for_each(i, 0, ldev) {
 		if (i == idx)
 			continue;
@@ -27,19 +28,15 @@ bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 		    mlx5_eswitch_vport_match_metadata_enabled(dev->priv.eswitch) &&
 		    MLX5_CAP_GEN(dev, lag_native_fdb_selection) &&
 		    MLX5_CAP_ESW(dev, root_ft_on_other_esw) &&
-		    mlx5_eswitch_get_npeers(dev->priv.eswitch) ==
-		    MLX5_CAP_GEN(dev, num_lag_ports) - 1)
+		    mlx5_eswitch_is_peer(dev0->priv.eswitch, dev->priv.eswitch))
 			continue;
 		return false;
 	}
 
-	dev = mlx5_lag_pf(ldev, idx)->dev;
-	if (is_mdev_switchdev_mode(dev) &&
-	    mlx5_eswitch_vport_match_metadata_enabled(dev->priv.eswitch) &&
-	    mlx5_esw_offloads_devcom_is_ready(dev->priv.eswitch) &&
-	    MLX5_CAP_ESW(dev, esw_shared_ingress_acl) &&
-	    mlx5_eswitch_get_npeers(dev->priv.eswitch) ==
-	    MLX5_CAP_GEN(dev, num_lag_ports) - 1)
+	if (is_mdev_switchdev_mode(dev0) &&
+	    mlx5_eswitch_vport_match_metadata_enabled(dev0->priv.eswitch) &&
+	    mlx5_esw_offloads_devcom_is_ready(dev0->priv.eswitch) &&
+	    MLX5_CAP_ESW(dev0, esw_shared_ingress_acl))
 		ret = true;
 
 	return ret;

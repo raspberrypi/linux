@@ -899,6 +899,8 @@ int mlx5_eswitch_offloads_single_fdb_add_one(struct mlx5_eswitch *master_esw,
 void mlx5_eswitch_offloads_single_fdb_del_one(struct mlx5_eswitch *master_esw,
 					      struct mlx5_eswitch *slave_esw);
 int mlx5_eswitch_reload_ib_reps(struct mlx5_eswitch *esw);
+bool mlx5_eswitch_is_peer(struct mlx5_eswitch *esw,
+			  struct mlx5_eswitch *peer_esw);
 
 bool mlx5_eswitch_block_encap(struct mlx5_core_dev *dev, bool from_fdb);
 void mlx5_eswitch_unblock_encap(struct mlx5_core_dev *dev);
@@ -911,13 +913,6 @@ static inline int mlx5_eswitch_num_vfs(struct mlx5_eswitch *esw)
 	if (mlx5_esw_allowed(esw))
 		return esw->esw_funcs.num_vfs;
 
-	return 0;
-}
-
-static inline int mlx5_eswitch_get_npeers(struct mlx5_eswitch *esw)
-{
-	if (mlx5_esw_allowed(esw))
-		return esw->num_peers;
 	return 0;
 }
 
@@ -995,8 +990,6 @@ mlx5_eswitch_offloads_single_fdb_add_one(struct mlx5_eswitch *master_esw,
 static inline void
 mlx5_eswitch_offloads_single_fdb_del_one(struct mlx5_eswitch *master_esw,
 					 struct mlx5_eswitch *slave_esw) {}
-
-static inline int mlx5_eswitch_get_npeers(struct mlx5_eswitch *esw) { return 0; }
 
 static inline int
 mlx5_eswitch_reload_ib_reps(struct mlx5_eswitch *esw)
