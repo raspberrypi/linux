@@ -57,6 +57,16 @@ static struct mlx5_core_dev *mlx5_sd_get_primary(struct mlx5_core_dev *dev)
 	return sd->primary ? dev : sd->primary_dev;
 }
 
+struct mlx5_devcom_comp_dev *mlx5_sd_get_devcom(struct mlx5_core_dev *dev)
+{
+	struct mlx5_sd *sd = mlx5_get_sd(dev);
+
+	if (!sd)
+		return NULL;
+
+	return sd->devcom;
+}
+
 struct mlx5_core_dev *
 mlx5_sd_primary_get_peer(struct mlx5_core_dev *primary, int idx)
 {

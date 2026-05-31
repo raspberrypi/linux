@@ -149,6 +149,14 @@ mlx5_lag_pf_by_dev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev)
 }
 
 static inline bool
+__mlx5_lag_is_sd(struct mlx5_lag *ldev, struct mlx5_core_dev *dev)
+{
+	struct lag_func *pf = mlx5_lag_pf_by_dev(ldev, dev);
+
+	return pf && pf->group_id != 0;
+}
+
+static inline bool
 __mlx5_lag_is_active(struct mlx5_lag *ldev)
 {
 	return ldev->mode != MLX5_LAG_MODE_NONE;
@@ -163,25 +171,31 @@ mlx5_lag_is_ready(struct mlx5_lag *ldev)
 #ifdef CONFIG_MLX5_ESWITCH
 int mlx5_lag_shared_fdb_create(struct mlx5_lag *ldev,
 			       struct lag_tracker *tracker,
-			       enum mlx5_lag_mode mode);
-void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev);
+			       enum mlx5_lag_mode mode,
+			       u32 group_id);
+void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev, u32 group_id);
 int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev);
+void mlx5_lag_destroy_single_fdb(struct mlx5_lag *ldev);
 bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev);
+bool mlx5_lag_shared_fdb_supported_filter(struct mlx5_lag *ldev, u32 filter);
 #else
 static inline int mlx5_lag_shared_fdb_create(struct mlx5_lag *ldev,
 					     struct lag_tracker *tracker,
-					     enum mlx5_lag_mode mode)
+					     enum mlx5_lag_mode mode,
+					     u32 group_id)
 {
 	return -EOPNOTSUPP;
 }
 
-static inline void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev) {}
+static inline void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev,
+					       u32 group_id) {}
 
 static inline int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
 {
 	return -EOPNOTSUPP;
 }
 
+static inline void mlx5_lag_destroy_single_fdb(struct mlx5_lag *ldev) {}
 static inline bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 {
 	return false;
@@ -211,11 +225,13 @@ void mlx5_ldev_add_debugfs(struct mlx5_core_dev *dev);
 void mlx5_ldev_remove_debugfs(struct dentry *dbg);
 void mlx5_disable_lag(struct mlx5_lag *ldev);
 void mlx5_lag_remove_devices(struct mlx5_lag *ldev);
+void mlx5_lag_remove_devices_filter(struct mlx5_lag *ldev, u32 filter);
 int mlx5_deactivate_lag(struct mlx5_lag *ldev);
 void mlx5_lag_add_devices(struct mlx5_lag *ldev);
 void mlx5_lag_rescan_dev_locked(struct mlx5_lag *ldev,
 				struct mlx5_core_dev *dev,
 				bool enable);
+void mlx5_lag_add_devices_filter(struct mlx5_lag *ldev, u32 filter);
 struct mlx5_devcom_comp_dev *mlx5_lag_get_devcom_comp(struct mlx5_lag *ldev);
 
 #ifdef CONFIG_MLX5_ESWITCH
@@ -238,8 +254,8 @@ static inline bool mlx5_lag_is_supported(struct mlx5_core_dev *dev)
 }
 
 /* Iterator filter constants for mlx5_lag_for_each() */
-#define MLX5_LAG_FILTER_ALL   0        /* iterate ALL devices */
-#define MLX5_LAG_FILTER_PORTS U32_MAX  /* iterate ports only (XA_MARK_PORT) */
+#define MLX5_LAG_FILTER_PORTS 0        /* iterate ports only (XA_MARK_PORT) */
+#define MLX5_LAG_FILTER_ALL   U32_MAX  /* iterate ALL devices */
 /* any other value = iterate devices with that specific group_id */
 
 #define mlx5_lag_for_each(i, start_index, ldev, filter) \
@@ -264,10 +280,12 @@ int mlx5_get_pre_lag_func(struct mlx5_lag *ldev, int start_idx, int end_idx,
 			  u32 filter);
 int mlx5_get_next_lag_func(struct mlx5_lag *ldev, int start_idx, u32 filter);
 int mlx5_lag_get_dev_index_by_seq(struct mlx5_lag *ldev, int seq);
+int mlx5_lag_get_dev_index_by_seq_filter(struct mlx5_lag *ldev, int seq,
+					 u32 filter);
 int mlx5_lag_num_devs(struct mlx5_lag *ldev);
 int mlx5_lag_num_netdevs(struct mlx5_lag *ldev);
 int mlx5_lag_reload_ib_reps_from_locked(struct mlx5_lag *ldev, u32 flags,
-					bool cont_on_fail);
+					u32 filter, bool cont_on_fail);
 int mlx5_ldev_add_mdev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev,
 		       u32 group_id);
 void mlx5_ldev_remove_mdev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev);

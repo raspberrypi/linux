@@ -21,6 +21,16 @@ void mlx5_sd_put_adev(struct auxiliary_device *actual_adev,
 int mlx5_sd_init(struct mlx5_core_dev *dev);
 void mlx5_sd_cleanup(struct mlx5_core_dev *dev);
 
+#ifdef CONFIG_MLX5_CORE_EN
+struct mlx5_devcom_comp_dev *mlx5_sd_get_devcom(struct mlx5_core_dev *dev);
+#else
+static inline struct mlx5_devcom_comp_dev *
+mlx5_sd_get_devcom(struct mlx5_core_dev *dev)
+{
+	return NULL;
+}
+#endif
+
 #define mlx5_sd_for_each_dev_from_to(i, primary, ix_from, to, pos)	\
 	for (i = ix_from;							\
 	     (pos = mlx5_sd_primary_get_peer(primary, i)) && pos != (to); i++)

@@ -8,19 +8,19 @@
 #include "lag.h"
 #include "eswitch.h"
 
-bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
+bool mlx5_lag_shared_fdb_supported_filter(struct mlx5_lag *ldev, u32 filter)
 {
+	int idx = mlx5_lag_get_dev_index_by_seq_filter(ldev, MLX5_LAG_P1,
+						       filter);
 	struct mlx5_core_dev *dev0, *dev;
 	bool ret = false;
-	int idx;
 	int i;
 
-	idx = mlx5_lag_get_dev_index_by_seq(ldev, MLX5_LAG_P1);
 	if (idx < 0)
 		return false;
 
 	dev0 = mlx5_lag_pf(ldev, idx)->dev;
-	mlx5_ldev_for_each(i, 0, ldev) {
+	mlx5_lag_for_each(i, 0, ldev, filter) {
 		if (i == idx)
 			continue;
 		dev = mlx5_lag_pf(ldev, i)->dev;
@@ -42,9 +42,16 @@ bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 	return ret;
 }
 
-int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
+bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
 {
-	int master_idx = mlx5_lag_get_dev_index_by_seq(ldev, MLX5_LAG_P1);
+	return mlx5_lag_shared_fdb_supported_filter(ldev,
+						    MLX5_LAG_FILTER_PORTS);
+}
+
+static int mlx5_lag_create_single_fdb_filter(struct mlx5_lag *ldev, u32 filter)
+{
+	int master_idx = mlx5_lag_get_dev_index_by_seq_filter(ldev, MLX5_LAG_P1,
+							     filter);
 	struct mlx5_eswitch *master_esw;
 	struct mlx5_core_dev *dev0;
 	int i, j;
@@ -55,7 +62,7 @@ int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
 
 	dev0 = mlx5_lag_pf(ldev, master_idx)->dev;
 	master_esw = dev0->priv.eswitch;
-	mlx5_ldev_for_each(i, 0, ldev) {
+	mlx5_lag_for_each(i, 0, ldev, filter) {
 		struct mlx5_eswitch *slave_esw;
 
 		if (i == master_idx)
@@ -71,7 +78,7 @@ int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
 	}
 	return 0;
 err:
-	mlx5_ldev_for_each_reverse(j, i, 0, ldev) {
+	mlx5_lag_for_each_reverse(j, i, 0, ldev, filter) {
 		struct mlx5_eswitch *slave_esw;
 
 		if (j == master_idx)
@@ -82,59 +89,147 @@ err:
 	return err;
 }
 
+static void mlx5_lag_destroy_single_fdb_filter(struct mlx5_lag *ldev,
+					       u32 filter)
+{
+	int master_idx = mlx5_lag_get_dev_index_by_seq_filter(ldev, MLX5_LAG_P1,
+							     filter);
+	struct mlx5_eswitch *master_esw;
+	struct mlx5_eswitch *peer_esw;
+	int i;
+
+	if (master_idx < 0)
+		return;
+
+	master_esw = mlx5_lag_pf(ldev, master_idx)->dev->priv.eswitch;
+	mlx5_lag_for_each(i, 0, ldev, filter) {
+		if (i == master_idx)
+			continue;
+
+		peer_esw = mlx5_lag_pf(ldev, i)->dev->priv.eswitch;
+		mlx5_eswitch_offloads_single_fdb_del_one(master_esw, peer_esw);
+	}
+}
+
+int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
+{
+	return mlx5_lag_create_single_fdb_filter(ldev, MLX5_LAG_FILTER_ALL);
+}
+
+void mlx5_lag_destroy_single_fdb(struct mlx5_lag *ldev)
+{
+	mlx5_lag_destroy_single_fdb_filter(ldev, MLX5_LAG_FILTER_ALL);
+}
+
+/**
+ * mlx5_lag_shared_fdb_create - Create shared FDB LAG
+ * @ldev: LAG device
+ * @tracker: LAG tracker (NULL for SD)
+ * @mode: LAG mode (unused for SD)
+ * @group_id: SD group ID; 0 (MLX5_LAG_FILTER_PORTS) for ports LAG;
+ *            MLX5_LAG_FILTER_ALL for all-device (mpesw) LAG
+ *
+ * When group_id is 0 (MLX5_LAG_FILTER_PORTS) or MLX5_LAG_FILTER_ALL,
+ * activates a FW LAG with shared FDB.
+ * When group_id is a specific SD group ID, creates a software-only shared
+ * FDB scoped to that group (no FW LAG commands).
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
 int mlx5_lag_shared_fdb_create(struct mlx5_lag *ldev,
 			       struct lag_tracker *tracker,
-			       enum mlx5_lag_mode mode)
+			       enum mlx5_lag_mode mode,
+			       u32 group_id)
 {
-	int idx = mlx5_lag_get_dev_index_by_seq(ldev, MLX5_LAG_P1);
+	u32 filter = group_id ? group_id : MLX5_LAG_FILTER_PORTS;
+	int idx = mlx5_lag_get_dev_index_by_seq_filter(ldev, MLX5_LAG_P1,
+						       filter);
 	struct mlx5_core_dev *dev0;
+	struct lag_func *pf;
 	int err;
+	int i;
 
 	if (idx < 0)
 		return -EINVAL;
 
 	dev0 = mlx5_lag_pf(ldev, idx)->dev;
 
-	mlx5_lag_remove_devices(ldev);
+	mlx5_lag_remove_devices_filter(ldev, filter);
 
-	err = mlx5_activate_lag(ldev, tracker, mode, true);
-	if (err) {
-		mlx5_core_warn(dev0, "Failed to create LAG in shared FDB mode (%d)\n",
-			       err);
-		goto err_add_devices;
+	if (filter == MLX5_LAG_FILTER_PORTS || filter == MLX5_LAG_FILTER_ALL) {
+		err = mlx5_activate_lag(ldev, tracker, mode, true);
+		if (err) {
+			mlx5_core_warn(dev0,
+				       "Failed to create LAG in shared FDB mode (%d)\n",
+				       err);
+			goto err_add_devices;
+		}
+	} else {
+		err = mlx5_lag_create_single_fdb_filter(ldev, group_id);
+		if (err) {
+			mlx5_core_warn(dev0,
+				       "Failed to create SD shared FDB (%d)\n",
+				       err);
+			goto err_add_devices;
+		}
+		mlx5_lag_for_each(i, 0, ldev, filter) {
+			pf = mlx5_lag_pf(ldev, i);
+			pf->sd_fdb_active = true;
+		}
+		BLOCKING_INIT_NOTIFIER_HEAD(&dev0->priv.lag_nh);
 	}
 
 	mlx5_lag_rescan_dev_locked(ldev, dev0, true);
-	err = mlx5_lag_reload_ib_reps_from_locked(ldev, 0, false);
+	err = mlx5_lag_reload_ib_reps_from_locked(ldev, 0, filter, false);
 	if (err) {
 		mlx5_core_err(dev0, "Failed to enable lag\n");
 		goto err_rescan_drivers;
 	}
 
-	mlx5_lag_set_vports_agg_speed(ldev);
+	if (filter == MLX5_LAG_FILTER_PORTS || filter == MLX5_LAG_FILTER_ALL)
+		mlx5_lag_set_vports_agg_speed(ldev);
 	return 0;
 
 err_rescan_drivers:
 	mlx5_lag_rescan_dev_locked(ldev, dev0, false);
-	mlx5_deactivate_lag(ldev);
+	if (filter == MLX5_LAG_FILTER_PORTS || filter == MLX5_LAG_FILTER_ALL) {
+		mlx5_deactivate_lag(ldev);
+	} else {
+		mlx5_lag_for_each(i, 0, ldev, filter) {
+			pf = mlx5_lag_pf(ldev, i);
+			pf->sd_fdb_active = false;
+		}
+		mlx5_lag_destroy_single_fdb_filter(ldev, group_id);
+	}
 err_add_devices:
-	mlx5_lag_add_devices(ldev);
-	mlx5_lag_reload_ib_reps_from_locked(ldev, 0, true);
+	mlx5_lag_add_devices_filter(ldev, filter);
+	mlx5_lag_reload_ib_reps_from_locked(ldev, 0, filter, true);
 	return err;
 }
 
-void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev)
+void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev, u32 group_id)
 {
+	u32 filter = group_id ? group_id : MLX5_LAG_FILTER_PORTS;
+	struct lag_func *pf;
 	int err;
+	int i;
 
-	mlx5_lag_remove_devices(ldev);
+	mlx5_lag_remove_devices_filter(ldev, filter);
 
-	err = mlx5_deactivate_lag(ldev);
-	if (err)
-		return;
+	if (filter == MLX5_LAG_FILTER_PORTS || filter == MLX5_LAG_FILTER_ALL) {
+		err = mlx5_deactivate_lag(ldev);
+		if (err)
+			return;
+	} else {
+		mlx5_lag_for_each(i, 0, ldev, filter) {
+			pf = mlx5_lag_pf(ldev, i);
+			pf->sd_fdb_active = false;
+		}
+		mlx5_lag_destroy_single_fdb_filter(ldev, group_id);
+	}
 
-	mlx5_lag_add_devices(ldev);
+	mlx5_lag_add_devices_filter(ldev, filter);
 	mlx5_lag_reload_ib_reps_from_locked(ldev,
 					    MLX5_PRIV_FLAGS_DISABLE_ALL_ADEV,
-					    true);
+					    filter, true);
 }

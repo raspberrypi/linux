@@ -85,14 +85,15 @@ static int mlx5_lag_enable_mpesw(struct mlx5_lag *ldev)
 	    !MLX5_CAP_PORT_SELECTION(dev0, port_select_flow_table) ||
 	    !MLX5_CAP_GEN(dev0, create_lag_when_not_master_up) ||
 	    !mlx5_lag_check_prereq(ldev) ||
-	    !mlx5_lag_shared_fdb_supported(ldev))
+	    !mlx5_lag_shared_fdb_supported_filter(ldev, MLX5_LAG_FILTER_ALL))
 		return -EOPNOTSUPP;
 
 	err = mlx5_mpesw_metadata_set(ldev);
 	if (err)
 		return err;
 
-	err = mlx5_lag_shared_fdb_create(ldev, NULL, MLX5_LAG_MODE_MPESW);
+	err = mlx5_lag_shared_fdb_create(ldev, NULL, MLX5_LAG_MODE_MPESW,
+					 MLX5_LAG_FILTER_ALL);
 	if (err) {
 		mlx5_core_warn(dev0, "Failed to create LAG in MPESW mode (%d)\n", err);
 		mlx5_mpesw_metadata_cleanup(ldev);
@@ -106,7 +107,7 @@ void mlx5_lag_disable_mpesw(struct mlx5_lag *ldev)
 {
 	if (ldev->mode == MLX5_LAG_MODE_MPESW) {
 		mlx5_mpesw_metadata_cleanup(ldev);
-		mlx5_lag_shared_fdb_destroy(ldev);
+		mlx5_lag_shared_fdb_destroy(ldev, MLX5_LAG_FILTER_ALL);
 	}
 }
 
