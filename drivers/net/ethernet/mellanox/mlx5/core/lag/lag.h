@@ -15,6 +15,13 @@
  * Note: XA_MARK_0 is reserved by XA_FLAGS_ALLOC for free-slot tracking.
  */
 #define MLX5_LAG_XA_MARK_MASTER XA_MARK_1
+/* XArray mark for port-level entries (excludes SD secondaries) */
+#define MLX5_LAG_XA_MARK_PORT   XA_MARK_2
+
+/* Like xa_for_each_marked but starting from a given index */
+#define xa_for_each_marked_start(xa, index, entry, filter, start)	\
+	for (index = start, entry = xa_find(xa, &index, ULONG_MAX, filter); \
+	     entry; entry = xa_find_after(xa, &index, ULONG_MAX, filter))
 
 #include "mlx5_core.h"
 #include "mp.h"
@@ -50,6 +57,8 @@ struct lag_func {
 	bool has_drop;
 	unsigned int idx; /* xarray index assigned by LAG */
 	struct mlx5_nb port_change_nb;
+	u32 group_id;        /* SD group ID, 0 = not SD */
+	bool sd_fdb_active;  /* set on all SD group members */
 };
 
 /* Used for collection of netdev event info. */
@@ -120,6 +129,20 @@ mlx5_lag_pf_by_dev_idx(struct mlx5_lag *ldev, int dev_idx)
 
 	xa_for_each(&ldev->pfs, idx, pf) {
 		if (mlx5_get_dev_index(pf->dev) == dev_idx)
+			return pf;
+	}
+	return NULL;
+}
+
+/* Find lag_func by mlx5_core_dev pointer */
+static inline struct lag_func *
+mlx5_lag_pf_by_dev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev)
+{
+	struct lag_func *pf;
+	unsigned long idx;
+
+	xa_for_each(&ldev->pfs, idx, pf) {
+		if (pf->dev == dev)
 			return pf;
 	}
 	return NULL;
@@ -214,20 +237,38 @@ static inline bool mlx5_lag_is_supported(struct mlx5_core_dev *dev)
 	return true;
 }
 
-#define mlx5_ldev_for_each(i, start_index, ldev) \
-	for (int tmp = start_index; tmp = mlx5_get_next_ldev_func(ldev, tmp), \
+/* Iterator filter constants for mlx5_lag_for_each() */
+#define MLX5_LAG_FILTER_ALL   0        /* iterate ALL devices */
+#define MLX5_LAG_FILTER_PORTS U32_MAX  /* iterate ports only (XA_MARK_PORT) */
+/* any other value = iterate devices with that specific group_id */
+
+#define mlx5_lag_for_each(i, start_index, ldev, filter) \
+	for (int tmp = start_index; \
+	     tmp = mlx5_get_next_lag_func(ldev, tmp, filter), \
 	     i = tmp, tmp < MLX5_MAX_PORTS; tmp++)
 
-#define mlx5_ldev_for_each_reverse(i, start_index, end_index, ldev)      \
+#define mlx5_lag_for_each_reverse(i, start_index, end_index, ldev, filter) \
 	for (int tmp = start_index, tmp1 = end_index; \
-	     tmp = mlx5_get_pre_ldev_func(ldev, tmp, tmp1), \
+	     tmp = mlx5_get_pre_lag_func(ldev, tmp, tmp1, filter), \
 	     i = tmp, tmp >= tmp1; tmp--)
 
-int mlx5_get_pre_ldev_func(struct mlx5_lag *ldev, int start_idx, int end_idx);
-int mlx5_get_next_ldev_func(struct mlx5_lag *ldev, int start_idx);
+/* Convenience wrappers - keeps existing behavior */
+#define mlx5_ldev_for_each(i, start_index, ldev) \
+	mlx5_lag_for_each(i, start_index, ldev, MLX5_LAG_FILTER_PORTS)
+
+#define mlx5_ldev_for_each_reverse(i, start_index, end_index, ldev) \
+	mlx5_lag_for_each_reverse(i, start_index, end_index, ldev, \
+				  MLX5_LAG_FILTER_PORTS)
+
+int mlx5_get_pre_lag_func(struct mlx5_lag *ldev, int start_idx, int end_idx,
+			  u32 filter);
+int mlx5_get_next_lag_func(struct mlx5_lag *ldev, int start_idx, u32 filter);
 int mlx5_lag_get_dev_index_by_seq(struct mlx5_lag *ldev, int seq);
 int mlx5_lag_num_devs(struct mlx5_lag *ldev);
 int mlx5_lag_num_netdevs(struct mlx5_lag *ldev);
 int mlx5_lag_reload_ib_reps_from_locked(struct mlx5_lag *ldev, u32 flags,
 					bool cont_on_fail);
+int mlx5_ldev_add_mdev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev,
+		       u32 group_id);
+void mlx5_ldev_remove_mdev(struct mlx5_lag *ldev, struct mlx5_core_dev *dev);
 #endif /* __MLX5_LAG_H__ */
