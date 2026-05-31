@@ -137,7 +137,33 @@ mlx5_lag_is_ready(struct mlx5_lag *ldev)
 	return test_bit(MLX5_LAG_FLAG_NDEVS_READY, &ldev->state_flags);
 }
 
+#ifdef CONFIG_MLX5_ESWITCH
+int mlx5_lag_shared_fdb_create(struct mlx5_lag *ldev,
+			       struct lag_tracker *tracker,
+			       enum mlx5_lag_mode mode);
+void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev);
+int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev);
 bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev);
+#else
+static inline int mlx5_lag_shared_fdb_create(struct mlx5_lag *ldev,
+					     struct lag_tracker *tracker,
+					     enum mlx5_lag_mode mode)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline void mlx5_lag_shared_fdb_destroy(struct mlx5_lag *ldev) {}
+
+static inline int mlx5_lag_create_single_fdb(struct mlx5_lag *ldev)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline bool mlx5_lag_shared_fdb_supported(struct mlx5_lag *ldev)
+{
+	return false;
+}
+#endif
 bool mlx5_lag_check_prereq(struct mlx5_lag *ldev);
 int mlx5_lag_demux_init(struct mlx5_core_dev *dev,
 			struct mlx5_flow_table_attr *ft_attr);

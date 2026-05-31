@@ -92,38 +92,21 @@ static int mlx5_lag_enable_mpesw(struct mlx5_lag *ldev)
 	if (err)
 		return err;
 
-	mlx5_lag_remove_devices(ldev);
-
-	err = mlx5_activate_lag(ldev, NULL, MLX5_LAG_MODE_MPESW, true);
+	err = mlx5_lag_shared_fdb_create(ldev, NULL, MLX5_LAG_MODE_MPESW);
 	if (err) {
 		mlx5_core_warn(dev0, "Failed to create LAG in MPESW mode (%d)\n", err);
-		goto err_add_devices;
+		mlx5_mpesw_metadata_cleanup(ldev);
+		return err;
 	}
 
-	mlx5_lag_rescan_dev_locked(ldev, dev0, true);
-	err = mlx5_lag_reload_ib_reps_from_locked(ldev, 0, false);
-	if (err)
-		goto err_rescan_drivers;
-
-	mlx5_lag_set_vports_agg_speed(ldev);
-
 	return 0;
-
-err_rescan_drivers:
-	mlx5_lag_rescan_dev_locked(ldev, dev0, false);
-	mlx5_deactivate_lag(ldev);
-err_add_devices:
-	mlx5_lag_add_devices(ldev);
-	mlx5_lag_reload_ib_reps_from_locked(ldev, 0, true);
-	mlx5_mpesw_metadata_cleanup(ldev);
-	return err;
 }
 
 void mlx5_lag_disable_mpesw(struct mlx5_lag *ldev)
 {
 	if (ldev->mode == MLX5_LAG_MODE_MPESW) {
 		mlx5_mpesw_metadata_cleanup(ldev);
-		mlx5_disable_lag(ldev);
+		mlx5_lag_shared_fdb_destroy(ldev);
 	}
 }
 
