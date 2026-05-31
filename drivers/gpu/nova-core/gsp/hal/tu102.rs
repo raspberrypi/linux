@@ -134,11 +134,19 @@ impl UnloadBundle for Sec2UnloadBundle {
         sec2_falcon: &Falcon<Sec2>,
     ) -> Result {
         // Run FWSEC-SB to reset the GSP falcon to its pre-libos state.
-        self.fwsec_sb.run(dev, bar, gsp_falcon)?;
+        // Log errors but keep going if it fails.
+        let fwsec_sb_res = self
+            .fwsec_sb
+            .run(dev, bar, gsp_falcon)
+            .inspect_err(|e| dev_err!(dev, "FWSEC-SB failed to run: {:?}\n", e));
 
         // Remove WPR2 region if set.
         let wpr2_hi = bar.read(regs::NV_PFB_PRI_MMU_WPR2_ADDR_HI);
-        if wpr2_hi.is_wpr2_set() {
+        let booter_unloader_res = (|| {
+            if !wpr2_hi.is_wpr2_set() {
+                return Ok(());
+            }
+
             sec2_falcon.reset(bar)?;
             sec2_falcon.load(dev, bar, &self.booter_unloader)?;
 
@@ -160,9 +168,12 @@ impl UnloadBundle for Sec2UnloadBundle {
                 );
                 return Err(EBUSY);
             }
-        }
 
-        Ok(())
+            Ok(())
+        })()
+        .inspect_err(|e| dev_err!(dev, "Booter Unloader failed to run: {:?}\n", e));
+
+        fwsec_sb_res.and(booter_unloader_res)
     }
 }
 
