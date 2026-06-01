@@ -142,6 +142,9 @@ static ssize_t iommufd_fault_fops_read(struct file *filep, char __user *buf,
 		if (done >= count ||
 		    group->fault_count * fault_size > count - done) {
 			iommufd_fault_deliver_restore(fault, group);
+			/* Read count doesn't fit the first fault group */
+			if (done == 0)
+				rc = -EINVAL;
 			break;
 		}
 
