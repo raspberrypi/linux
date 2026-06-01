@@ -182,7 +182,6 @@ struct acpi_button {
 	bool gpe_enabled;
 };
 
-static struct acpi_device *lid_device;
 static long lid_init_state = -1;
 
 static unsigned long lid_report_interval __read_mostly = 500;
@@ -378,9 +377,29 @@ static int acpi_button_remove_fs(struct acpi_button *button)
 	return 0;
 }
 
+static struct acpi_device *lid_device;
+static DEFINE_MUTEX(acpi_lid_lock);
+
+static void acpi_lid_save(struct acpi_device *adev)
+{
+	guard(mutex)(&acpi_lid_lock);
+
+	lid_device = adev;
+}
+
+static void acpi_lid_forget(struct acpi_device *adev)
+{
+	guard(mutex)(&acpi_lid_lock);
+
+	if (lid_device == adev)
+		lid_device = NULL;
+}
+
 /* Driver Interface */
 int acpi_lid_open(void)
 {
+	guard(mutex)(&acpi_lid_lock);
+
 	if (!lid_device)
 		return -ENODEV;
 
@@ -674,7 +693,7 @@ static int acpi_button_probe(struct platform_device *pdev)
 		 * This assumes there's only one lid device, or if there are
 		 * more we only care about the last one...
 		 */
-		lid_device = device;
+		acpi_lid_save(device);
 	}
 
 	pr_info("%s [%s]\n", name, acpi_device_bid(device));
@@ -695,6 +714,9 @@ static void acpi_button_remove(struct platform_device *pdev)
 {
 	struct acpi_button *button = platform_get_drvdata(pdev);
 	struct acpi_device *adev = button->adev;
+
+	if (button->type == ACPI_BUTTON_TYPE_LID)
+		acpi_lid_forget(adev);
 
 	switch (adev->device_type) {
 	case ACPI_BUS_TYPE_POWER_BUTTON:
