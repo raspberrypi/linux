@@ -3044,6 +3044,11 @@ static int emac_probe(struct platform_device *ofdev)
 
 	/* Setup error IRQ handler */
 	dev->emac_irq = platform_get_irq(ofdev, 0);
+	if (dev->emac_irq < 0) {
+		err = dev->emac_irq;
+		goto err_gone;
+	}
+
 	err = devm_request_irq(&ofdev->dev, dev->emac_irq, emac_irq, 0, "EMAC",
 			       dev);
 	if (err) {
