@@ -422,7 +422,9 @@ struct traceprobe_parse_context {
 	const struct btf_param *params;	/* Parameter of the function */
 	s32 nr_params;			/* The number of the parameters */
 	struct btf *btf;		/* The BTF to be used */
+	struct btf *struct_btf;		/* The BTF to be used for structs */
 	const struct btf_type *last_type;	/* Saved type */
+	const struct btf_type *last_struct;	/* Saved structure */
 	u32 last_bitoffs;		/* Saved bitoffs */
 	u32 last_bitsize;		/* Saved bitsize */
 	struct trace_probe *tp;
@@ -563,7 +565,8 @@ extern int traceprobe_define_arg_fields(struct trace_event_call *event_call,
 	C(NEED_STRING_TYPE,	"$comm and immediate-string only accepts string type"),\
 	C(TOO_MANY_ARGS,	"Too many arguments are specified"),	\
 	C(TOO_MANY_EARGS,	"Too many entry arguments specified"),	\
-	C(EVENT_TOO_BIG,	"Event too big (too many fields?)"),
+	C(EVENT_TOO_BIG,	"Event too big (too many fields?)"),  \
+	C(TYPECAST_NOT_EVENT,	"Typecasts are only for eprobe fields"),
 
 #undef C
 #define C(a, b)		TP_ERR_##a
