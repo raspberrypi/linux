@@ -310,6 +310,9 @@ static ssize_t iommufd_veventq_fops_read(struct file *filep, char __user *buf,
 
 	if (*ppos)
 		return -ESPIPE;
+	/* Minimum read count is a vEVENT header */
+	if (count < sizeof(*hdr))
+		return -EINVAL;
 
 	while ((cur = iommufd_veventq_deliver_fetch(veventq))) {
 		/* Validate the remaining bytes against the header size */
@@ -323,6 +326,9 @@ static ssize_t iommufd_veventq_fops_read(struct file *filep, char __user *buf,
 		if (!vevent_for_lost_events_header(cur) &&
 		    sizeof(*hdr) + cur->data_len > count - done) {
 			iommufd_veventq_deliver_restore(veventq, cur);
+			/* Read count doesn't fit a single normal vEVENT */
+			if (done == 0)
+				rc = -EINVAL;
 			break;
 		}
 
