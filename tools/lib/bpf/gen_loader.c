@@ -545,13 +545,22 @@ void bpf_gen__map_create(struct bpf_gen *gen,
 	default:
 		break;
 	}
-	/* conditionally update max_entries */
-	if (map_idx >= 0)
+
+	/*
+	 * Conditionally update max_entries from the host-supplied loader
+	 * ctx. This sizes the map at runtime, but for a signed loader
+	 * (gen_hash) it would let an untrusted host re-dimension the
+	 * program's maps after emit_signature_match(), outside what the
+	 * signature attests to. Keep the signer-provided max_entries
+	 * baked into the blob in that case.
+	 */
+	if (map_idx >= 0 && !OPTS_GET(gen->opts, gen_hash, false))
 		move_ctx2blob(gen, attr_field(map_create_attr, max_entries), 4,
 			      sizeof(struct bpf_loader_ctx) +
 			      sizeof(struct bpf_map_desc) * map_idx +
 			      offsetof(struct bpf_map_desc, max_entries),
 			      true /* check that max_entries != 0 */);
+
 	/* emit MAP_CREATE command */
 	emit_sys_bpf(gen, BPF_MAP_CREATE, map_create_attr, attr_size);
 	debug_ret(gen, "map_create %s idx %d type %d value_size %d value_btf_id %d",
