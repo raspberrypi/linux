@@ -1572,6 +1572,13 @@ static int map_create(union bpf_attr *attr, bpfptr_t uattr)
 			err = -EFAULT;
 			goto free_map;
 		}
+
+		/* See libbpf: emit_signature_match() */
+		BUILD_BUG_ON(offsetof(struct bpf_map, excl) != SHA256_DIGEST_SIZE);
+		BUILD_BUG_ON(!__same_type(map->excl, u32));
+		BUILD_BUG_ON(offsetof(struct bpf_map, sha)  != 0);
+		BUILD_BUG_ON(!__same_type(map->sha, u8[SHA256_DIGEST_SIZE]));
+		map->excl = 1;
 	} else if (attr->excl_prog_hash_size) {
 		err = -EINVAL;
 		goto free_map;
