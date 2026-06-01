@@ -336,6 +336,7 @@ static ssize_t iommufd_veventq_fops_read(struct file *filep, char __user *buf,
 		if (cur->data_len &&
 		    copy_to_user(buf + done, cur->event_data, cur->data_len)) {
 			iommufd_veventq_deliver_restore(veventq, cur);
+			done -= sizeof(*hdr);
 			rc = -EFAULT;
 			break;
 		}
