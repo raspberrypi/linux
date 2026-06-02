@@ -786,8 +786,8 @@
 				 <&usb_0_qmpphy QMP_USB43DP_USB3_PIPE_CLK>,
 				 <&usb_1_qmpphy QMP_USB43DP_USB3_PIPE_CLK>,
 				 <&usb_2_qmpphy QMP_USB43DP_USB3_PIPE_CLK>,
-				 <&usb_mp_qmpphy0 QMP_USB43DP_USB3_PIPE_CLK>,
-				 <&usb_mp_qmpphy1 QMP_USB43DP_USB3_PIPE_CLK>,
+				 <&usb_mp_qmpphy0>,		/* USB3 UNI PHY pipe 0 */
+				 <&usb_mp_qmpphy1>,		/* USB3 UNI PHY pipe 1 */
 				 <0>,				/* USB4 PHY 0 pcie pipe */
 				 <0>,				/* USB4 PHY 0 Max pipe */
 				 <0>,				/* USB4 PHY 1 pcie pipe */
