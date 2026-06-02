@@ -460,17 +460,23 @@ int ntfs_write_volume_label(struct ntfs_volume *vol, char *label)
 	ret = ntfs_resident_attr_record_add(vol_ni, AT_VOLUME_NAME, AT_UNNAMED, 0,
 					    (u8 *)uname, uname_len * sizeof(__le16), 0);
 out:
+	if (ret >= 0) {
+		char *old_label;
+
+		mutex_lock(&vol->volume_label_lock);
+		old_label = vol->volume_label;
+		vol->volume_label = new_label;
+		mutex_unlock(&vol->volume_label_lock);
+
+		kfree(old_label);
+		mark_inode_dirty_sync(vol->vol_ino);
+		ret = 0;
+	}
 	mutex_unlock(&vol_ni->mrec_lock);
 	kvfree(uname);
 
-	if (ret >= 0) {
-		kfree(vol->volume_label);
-		vol->volume_label = new_label;
-		mark_inode_dirty_sync(vol->vol_ino);
-		ret = 0;
-	} else {
+	if (ret < 0)
 		kfree(new_label);
-	}
 	return ret;
 }
 
@@ -2631,6 +2637,7 @@ static int ntfs_init_fs_context(struct fs_context *fc)
 	NVolSetCaseSensitive(vol);
 	init_rwsem(&vol->mftbmp_lock);
 	init_rwsem(&vol->lcnbmp_lock);
+	mutex_init(&vol->volume_label_lock);
 
 	fc->s_fs_info = vol;
 	fc->ops = &ntfs_context_ops;

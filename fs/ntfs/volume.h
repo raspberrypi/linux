@@ -72,6 +72,7 @@
  * @vol_flags: Volume flags.
  * @major_ver: Ntfs major version of volume.
  * @minor_ver: Ntfs minor version of volume.
+ * @volume_label_lock: protects @volume_label.
  * @volume_label: volume label.
  * @root_ino: The VFS inode of the root directory.
  * @secure_ino: The VFS inode of $Secure (NTFS3.0+ only, otherwise NULL).
@@ -133,6 +134,7 @@ struct ntfs_volume {
 	struct inode *logfile_ino;
 	struct inode *lcnbmp_ino;
 	struct rw_semaphore lcnbmp_lock;
+	struct mutex volume_label_lock;
 	struct inode *vol_ino;
 	__le16 vol_flags;
 	u8 major_ver;

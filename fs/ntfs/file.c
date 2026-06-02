@@ -707,12 +707,21 @@ static int ntfs_ioctl_get_volume_label(struct file *filp, unsigned long arg)
 {
 	struct ntfs_volume *vol = NTFS_SB(file_inode(filp)->i_sb);
 	char __user *buf = (char __user *)arg;
+	char label[FSLABEL_MAX];
+	ssize_t len;
 
+	mutex_lock(&vol->volume_label_lock);
 	if (!vol->volume_label) {
-		if (copy_to_user(buf, "", 1))
-			return -EFAULT;
-	} else if (copy_to_user(buf, vol->volume_label,
-				MIN(FSLABEL_MAX, strlen(vol->volume_label) + 1)))
+		label[0] = '\0';
+		len = 0;
+	} else {
+		len = strscpy(label, vol->volume_label, sizeof(label));
+		if (len == -E2BIG)
+			len = FSLABEL_MAX - 1;
+	}
+	mutex_unlock(&vol->volume_label_lock);
+
+	if (copy_to_user(buf, label, len + 1))
 		return -EFAULT;
 	return 0;
 }
