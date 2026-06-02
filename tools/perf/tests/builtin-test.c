@@ -295,6 +295,9 @@ struct child_test {
 	struct test_suite *test;
 	int suite_num;
 	int test_case_num;
+	struct strbuf err_output;
+	int result;
+	bool done;
 };
 
 static jmp_buf run_test_jmp_buf;
@@ -348,6 +351,11 @@ err_out:
 }
 
 #define TEST_RUNNING -3
+
+static struct pollfd *global_pfds;
+static size_t *global_pfd_indices;
+
+static int strbuf_addstr_safe(struct strbuf *sb, const char *s);
 
 static int print_test_result(struct test_suite *t, int curr_suite, int curr_test_case,
 			     int result, int width, int running)
@@ -415,7 +423,7 @@ static void finish_test(struct child_test **child_tests, int running_test, int c
 	 * Busy loop reading from the child's stdout/stderr that are set to be
 	 * non-blocking until EOF.
 	 */
-	if (err > 0)
+	if (err >= 0)
 		fcntl(err, F_SETFL, O_NONBLOCK);
 	if (verbose > 1) {
 		if (test_suite__num_test_cases(t) > 1)
@@ -469,7 +477,7 @@ static void finish_test(struct child_test **child_tests, int running_test, int c
 				if (len > 0) {
 					err_done = false;
 					buf[len] = '\0';
-					strbuf_addstr(&err_output, buf);
+					strbuf_addstr_safe(&err_output, buf);
 				}
 			}
 		}
@@ -477,13 +485,13 @@ static void finish_test(struct child_test **child_tests, int running_test, int c
 			err_done = check_if_command_finished(&child_test->process);
 	}
 	/* Drain any remaining data from the pipe. */
-	if (err > 0) {
+	if (err >= 0) {
 		char buf[512];
 		ssize_t len;
 
 		while ((len = read(err, buf, sizeof(buf) - 1)) > 0) {
 			buf[len] = '\0';
-			strbuf_addstr(&err_output, buf);
+			strbuf_addstr_safe(&err_output, buf);
 		}
 	}
 	if (perf_use_color_default && last_running != -1) {
@@ -492,14 +500,251 @@ static void finish_test(struct child_test **child_tests, int running_test, int c
 	}
 	/* Clean up child process. */
 	ret = finish_command(&child_test->process);
+	child_test->process.pid = 0;
+	if (child_test->err_output.len > 0) {
+		struct strbuf merged = STRBUF_INIT;
+
+		if (child_test->err_output.buf)
+			strbuf_addstr_safe(&merged, child_test->err_output.buf);
+		if (err_output.buf)
+			strbuf_addstr_safe(&merged, err_output.buf);
+		strbuf_release(&err_output);
+		err_output = merged;
+	}
 	if (verbose > 1 || (verbose == 1 && ret == TEST_FAIL))
 		fprintf(stderr, "%s", err_output.buf);
 
 	strbuf_release(&err_output);
+	strbuf_release(&child_test->err_output);
 	print_test_result(t, curr_suite, curr_test_case, ret, width, /*running=*/0);
 	if (err > 0)
 		close(err);
 	zfree(&child_tests[running_test]);
+}
+
+static int strbuf_addstr_safe(struct strbuf *sb, const char *s)
+{
+	sigset_t set, oldset;
+	int ret;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+	pthread_sigmask(SIG_BLOCK, &set, &oldset);
+	ret = strbuf_addstr(sb, s);
+	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	return ret;
+}
+
+static void drain_child_process_err(struct child_test *child)
+{
+	char buf[512];
+	ssize_t len;
+
+	while ((len = read(child->process.err, buf, sizeof(buf) - 1)) > 0) {
+		buf[len] = '\0';
+		strbuf_addstr_safe(&child->err_output, buf);
+	}
+}
+
+static void handle_child_pipe_activity(struct child_test *child, short revents)
+{
+	if (!revents)
+		return;
+
+	drain_child_process_err(child);
+	/*
+	 * If the child closed its end of the pipe (EOF) or encountered
+	 * an error, close the file descriptor immediately and set it
+	 * to -1. This removes it from the pfds array for subsequent
+	 * iterations, preventing a tight CPU busy-loop while waiting
+	 * for the process itself to exit.
+	 */
+	if (revents & (POLLHUP | POLLERR | POLLNVAL)) {
+		close(child->process.err);
+		child->process.err = -1;
+	}
+}
+
+static int finish_tests_parallel(struct child_test **child_tests, size_t num_tests, int width)
+{
+	size_t next_to_print = 0;
+	struct pollfd *pfds;
+	size_t *pfd_indices;
+	size_t num_pfds = 0;
+	int last_running = -1;
+	size_t i;
+	int last_suite_printed = -1;
+	sigset_t set, oldset;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+
+	pthread_sigmask(SIG_BLOCK, &set, &oldset);
+	global_pfds = calloc(num_tests, sizeof(*pfds));
+	global_pfd_indices = calloc(num_tests, sizeof(*pfd_indices));
+	pfds = global_pfds;
+	pfd_indices = global_pfd_indices;
+	if (!pfds || !pfd_indices) {
+		free(pfds);
+		free(pfd_indices);
+		global_pfds = NULL;
+		global_pfd_indices = NULL;
+		pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+		return -ENOMEM;
+	}
+	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+
+	for (i = 0; i < num_tests; i++) {
+		struct child_test *child = child_tests[i];
+
+		if (!child)
+			continue;
+		strbuf_init(&child->err_output, 0);
+		if (child->process.err >= 0)
+			fcntl(child->process.err, F_SETFL, O_NONBLOCK);
+	}
+
+	while (next_to_print < num_tests) {
+		size_t running_count = 0;
+		size_t p;
+
+		while (next_to_print < num_tests &&
+		       (!child_tests[next_to_print] || child_tests[next_to_print]->done))
+			next_to_print++;
+
+		if (next_to_print >= num_tests)
+			break;
+
+		num_pfds = 0;
+
+		for (i = next_to_print; i < num_tests; i++) {
+			struct child_test *child = child_tests[i];
+
+			if (!child || child->done)
+				continue;
+
+			if (!check_if_command_finished(&child->process))
+				running_count++;
+
+			if (child->process.err >= 0) {
+				pfds[num_pfds].fd = child->process.err;
+				pfds[num_pfds].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+				pfd_indices[num_pfds] = i;
+				num_pfds++;
+			}
+		}
+
+		if (perf_use_color_default && running_count != (size_t)last_running) {
+			struct child_test *next_child = child_tests[next_to_print];
+
+			if (last_running != -1)
+				fprintf(debug_file(), PERF_COLOR_DELETE_LINE);
+
+			if (next_child) {
+				if (test_suite__num_test_cases(next_child->test) > 1 &&
+				    last_suite_printed != next_child->suite_num) {
+					pr_info("%3d: %-*s:\n", next_child->suite_num + 1, width,
+						test_description(next_child->test, -1));
+					last_suite_printed = next_child->suite_num;
+				}
+				print_test_result(next_child->test, next_child->suite_num,
+						  next_child->test_case_num, TEST_RUNNING, width,
+						  running_count);
+			}
+			last_running = running_count;
+		}
+
+		if (num_pfds == 0) {
+			if (running_count > 0)
+				usleep(10 * 1000);
+		} else {
+			int pret = poll(pfds, num_pfds, 100);
+
+			if (pret > 0) {
+				for (p = 0; p < num_pfds; p++) {
+					size_t idx = pfd_indices[p];
+
+					handle_child_pipe_activity(child_tests[idx],
+								   pfds[p].revents);
+				}
+			}
+		}
+
+		for (i = next_to_print; i < num_tests; i++) {
+			struct child_test *child = child_tests[i];
+
+			if (!child || child->done)
+				continue;
+
+			if (check_if_command_finished(&child->process)) {
+				if (child->process.err >= 0) {
+					drain_child_process_err(child);
+					close(child->process.err);
+					child->process.err = -1;
+				}
+				child->result = finish_command(&child->process);
+				child->process.pid = 0;
+				child->done = true;
+			}
+		}
+
+		while (next_to_print < num_tests) {
+			struct child_test *child = child_tests[next_to_print];
+
+			if (!child) {
+				next_to_print++;
+				continue;
+			}
+			if (!child->done)
+				break;
+
+			if (perf_use_color_default && last_running != -1) {
+				fprintf(debug_file(), PERF_COLOR_DELETE_LINE);
+				last_running = -1;
+			}
+
+			if (test_suite__num_test_cases(child->test) > 1 &&
+			    last_suite_printed != child->suite_num) {
+				pr_info("%3d: %-*s:\n", child->suite_num + 1, width,
+					test_description(child->test, -1));
+				last_suite_printed = child->suite_num;
+			}
+
+			if (verbose > 1) {
+				if (test_suite__num_test_cases(child->test) > 1) {
+					pr_info("%3d.%1d: %s:\n", child->suite_num + 1,
+						child->test_case_num + 1,
+						test_description(child->test,
+								 child->test_case_num));
+				} else {
+					pr_info("%3d: %s:\n", child->suite_num + 1,
+						test_description(child->test, -1));
+				}
+			}
+
+			if (verbose > 1 || (verbose == 1 && child->result == TEST_FAIL))
+				fprintf(stderr, "%s", child->err_output.buf);
+
+			print_test_result(child->test, child->suite_num, child->test_case_num,
+					  child->result, width, 0);
+			pthread_sigmask(SIG_BLOCK, &set, &oldset);
+			strbuf_release(&child->err_output);
+			child_tests[next_to_print] = NULL;
+			zfree(&child);
+			pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+			next_to_print++;
+		}
+	}
+
+	pthread_sigmask(SIG_BLOCK, &set, &oldset);
+	free(global_pfds);
+	free(global_pfd_indices);
+	global_pfds = NULL;
+	global_pfd_indices = NULL;
+	pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+	return 0;
 }
 
 static int start_test(struct test_suite *test, int curr_suite, int curr_test_case,
@@ -535,13 +780,14 @@ static int start_test(struct test_suite *test, int curr_suite, int curr_test_cas
 	(*child)->test_case_num = curr_test_case;
 	(*child)->process.pid = -1;
 	(*child)->process.no_stdin = 1;
+	(*child)->process.in = -1;
+	(*child)->process.out = -1;
+	(*child)->process.err = -1;
 	if (verbose <= 0) {
 		(*child)->process.no_stdout = 1;
 		(*child)->process.no_stderr = 1;
 	} else {
 		(*child)->process.stdout_to_stderr = 1;
-		(*child)->process.out = -1;
-		(*child)->process.err = -1;
 	}
 	(*child)->process.no_exec_cmd = run_test_child;
 	if (sequential || pass == 2) {
@@ -664,8 +910,9 @@ static int __cmd_test(struct test_suite **suites, int argc, const char *argv[],
 		}
 		if (!sequential) {
 			/* Parallel mode starts tests but doesn't finish them. Do that now. */
-			for (size_t x = 0; x < num_tests; x++)
-				finish_test(child_tests, x, num_tests, width);
+			err = finish_tests_parallel(child_tests, num_tests, width);
+			if (err)
+				goto err_out;
 		}
 	}
 err_out:
@@ -676,6 +923,10 @@ err_out:
 		for (size_t x = 0; x < num_tests; x++)
 			finish_test(child_tests, x, num_tests, width);
 	}
+	free(global_pfds);
+	free(global_pfd_indices);
+	global_pfds = NULL;
+	global_pfd_indices = NULL;
 	free(child_tests);
 	return err;
 }
