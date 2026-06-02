@@ -781,14 +781,6 @@
 	wake-gpios = <&tlmm 151 GPIO_ACTIVE_LOW>;
 };
 
-&pmh0101_gpios {
-	nvme_reg_en: nvme-reg-en-state {
-		pins = "gpio14";
-		function = "normal";
-		bias-disable;
-	};
-};
-
 &pmh0110_f_e1_gpios {
 	nvme_sec_reg_en: nvme-reg-en-state {
 		pins = "gpio14";
@@ -803,6 +795,12 @@
 		function = "normal";
 		output-disable;
 		bias-pull-up;
+	};
+
+	nvme_reg_en: nvme-reg-en-state {
+		pins = "gpio14";
+		function = "normal";
+		bias-disable;
 	};
 };
 
