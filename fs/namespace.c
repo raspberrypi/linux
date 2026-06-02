@@ -4502,6 +4502,10 @@ SYSCALL_DEFINE3(fsmount, int, fs_fd, unsigned int, flags,
 	new_mnt = vfs_create_mount(fc);
 	if (IS_ERR(new_mnt))
 		return PTR_ERR(new_mnt);
+	if (new_mnt->mnt_sb->s_flags & SB_NOUSER) {
+		mntput(new_mnt);
+		return -EINVAL;
+	}
 	new_mnt->mnt_flags = mnt_flags;
 
 	new_path.dentry = dget(fc->root);
