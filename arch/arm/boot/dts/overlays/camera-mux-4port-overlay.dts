@@ -617,8 +617,9 @@
 	fragment@203 {
 		target-path="/";
 		__overlay__ {
-			mux: mux-controller {
+			mux: mux-controller@1 {
 				compatible = "gpio-mux";
+				reg = <1>;
 				#mux-control-cells = <0>;
 
 				/* SEL, En2, En1 */
@@ -627,8 +628,9 @@
 					    <&gpio 17 GPIO_ACTIVE_HIGH>;
 			};
 
-			video-mux {
+			videomux: video-mux@1 {
 				compatible = "video-mux";
+				reg = <1>;
 				mux-controls = <&mux>;
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -684,7 +686,7 @@
 				};
 			};
 
-			clk_24mhz: clk_24mhz {
+			clk_24mhz: clk_24mhz_1 {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 
@@ -692,7 +694,7 @@
 				status = "okay";
 			};
 
-			clk_25mhz: clk_25mhz {
+			clk_25mhz: clk_25mhz_1 {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 
@@ -700,7 +702,7 @@
 				status = "okay";
 			};
 
-			clk_imx290: clk_imx290 {
+			clk_imx290: clk_imx290_1 {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 
@@ -940,7 +942,12 @@
 				       <&imx290_3>,"clock-frequency:0";
 
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
-		       <&csi_frag>, "target:0=",<&csi0>;
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&mux>, "reg:0=0",
+		       <&videomux>, "reg:0=0",
+		       <&clk_24mhz>, "name=clk_24mhz_0",
+		       <&clk_25mhz>, "name=clk_25mhz_0",
+		       <&clk_imx290>, "name=clk_imx290_0";
 
 		cam0-sync-source = <&imx477_0>, "trigger-mode:0=1";
 		cam0-sync-sink = <&imx477_0>, "trigger-mode:0=2";
@@ -950,5 +957,9 @@
 		cam2-sync-sink = <&imx477_2>, "trigger-mode:0=2";
 		cam3-sync-source = <&imx477_3>, "trigger-mode:0=1";
 		cam3-sync-sink = <&imx477_3>, "trigger-mode:0=2";
+
+		gpio-sel = <&mux>, "mux-gpios:4";
+		gpio-en2 = <&mux>, "mux-gpios:16";
+		gpio-en1 = <&mux>, "mux-gpios:28";
 	};
 };
