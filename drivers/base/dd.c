@@ -324,7 +324,7 @@ void deferred_probe_extend_timeout(void)
 	 * start a new one.
 	 */
 	if (delayed_work_pending(&deferred_probe_timeout_work) &&
-	    mod_delayed_work(system_wq, &deferred_probe_timeout_work,
+	    mod_delayed_work(system_percpu_wq, &deferred_probe_timeout_work,
 			     secs_to_jiffies(driver_deferred_probe_timeout)))
 		pr_debug("Extended deferred probe timeout by %d secs\n",
 					driver_deferred_probe_timeout);
