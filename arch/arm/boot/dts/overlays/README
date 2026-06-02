@@ -945,6 +945,7 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-sync-sink          Set camera on port 1 as vsync sink
 
         cam0                    Connect the mux to CAM0 port (default is CAM1)
+        gpio-sel                Set the GPIO used to control the mux
 
 
 Name:   camera-mux-4port
@@ -1014,6 +1015,9 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam3-sync-sink          Set camera on port 3 as vsync sink
 
         cam0                    Connect the mux to CAM0 port (default is CAM1)
+        gpio-sel                Set the GPIO used to control the mux select line
+        gpio-en1                Set the GPIO used to control the mux en1 line
+        gpio-en2                Set the GPIO used to control the mux en2 line
 
 
 Name:   cap1106
