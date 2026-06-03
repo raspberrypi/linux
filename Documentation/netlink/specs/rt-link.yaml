@@ -1339,6 +1339,9 @@ attribute-sets:
       -
         name: broadcast-neigh
         type: u8
+      -
+        name: lacp-strict
+        type: u8
   -
     name: bond-ad-info-attrs
     name-prefix: ifla-bond-ad-info-
