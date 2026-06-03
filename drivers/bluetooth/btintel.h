@@ -53,6 +53,7 @@ struct intel_tlv {
 } __packed;
 
 #define BTINTEL_HCI_OP_RESET	0xfc01
+#define BTINTEL_HCI_OP_DEBUG	0xfcd9
 
 #define BTINTEL_CNVI_BLAZARI		0x900	/* BlazarI - Lunar Lake */
 #define BTINTEL_CNVI_BLAZARIW		0x901	/* BlazarIW - Wildcat Lake */
