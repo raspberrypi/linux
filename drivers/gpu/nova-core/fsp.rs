@@ -132,7 +132,8 @@ impl FspCotMessage {
         fsp_fw: &'a FspFirmware,
         args: &'a FmcBootArgs,
     ) -> Result<impl Init<Self> + 'a> {
-        // frts_offset is relative to FB end: FRTS_location = FB_END - frts_offset
+        // frts_vidmem_offset is measured from the end of FB, so FRTS sits at
+        // (end of FB) - frts_vidmem_offset.
         let frts_vidmem_offset = if !args.resume {
             let frts_reserved_size = fb_layout.heap.len() + u64::from(fb_layout.pmu_reserved_size);
 
@@ -164,8 +165,8 @@ impl FspCotMessage {
             msg.cot.gsp_fmc_sysmem_offset = fsp_fw.fmc_image.dma_handle();
             msg.cot.frts_vidmem_offset = frts_vidmem_offset;
             msg.cot.frts_vidmem_size = frts_size;
-            // frts_sysmem_* intentionally left at zero for now, but will be needed for e.g.
-            // systems without VRAM.
+            // frts_sysmem_* are left at zero because this path places FRTS in vidmem. The sysmem
+            // fields point to an FRTS buffer in sysmem instead, for systems without VRAM.
             msg.cot.gsp_boot_args_sysmem_offset = args.fmc_boot_params.dma_handle();
             msg.cot.sigs = *fsp_fw.fmc_sigs;
 
