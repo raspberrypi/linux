@@ -1828,4 +1828,23 @@ config REGULATOR_QCOM_LABIBB
 	  boost regulator and IBB can be used as a negative boost regulator
 	  for LCD display panel.
 
+config REGULATOR_EDATEC_PANEL
+	tristate "EDATEC panel regulator support"
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on I2C
+	select REGMAP_I2C
+	select GPIO_REGMAP
+	help
+	  This driver provides support for controlling the panel's power supply,
+	  including the necessary voltage and current regulation for proper
+	  backlight and LCD operation.
+
+	  The driver communicates with the regulator hardware via the I2C bus.
+	  Configuration is done through the Device Tree. You will need to enable
+	  the appropriate Device Tree overlay or add the necessary node to your
+	  Device Tree source file to make use of this driver.
+
+	  Say Y or M here if your system uses an EDATEC 101c/070c display panel.
+	  Otherwise, say N.
+
 endif
