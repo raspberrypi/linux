@@ -20,6 +20,8 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/ioctl.h>
+#include "util/term.h"
 #include "builtin.h"
 #include "config.h"
 #include "hist.h"
@@ -396,19 +398,69 @@ static char *xml_escape(const char *str)
 	return res ? res : strdup("");
 }
 
+static const char *format_test_description(const char *desc, int max_desc_width,
+					  char *buf, size_t buf_sz)
+{
+	int len = strlen(desc);
+
+	/*
+	 * Clamp to buf_sz to prevent GCC format-truncation warnings
+	 * when terminal width is very large.
+	 */
+	if (max_desc_width >= (int)buf_sz)
+		max_desc_width = buf_sz - 1;
+
+	if (len > max_desc_width) {
+		snprintf(buf, buf_sz, "%.*s...", max_desc_width - 3, desc);
+		return buf;
+	}
+	return desc;
+}
+
 static int print_test_result(struct test_suite *t, int curr_suite, int curr_test_case,
 			     int result, int width, int running,
 			     const char *err_output, double elapsed)
 {
+	char desc_buf[256];
+	const char *desc = test_description(t, curr_test_case);
+	struct winsize ws;
+	int max_desc_area_width;
+	int target_desc_area_width;
+	int desc_padding;
+
+	get_term_dimensions(&ws);
+	/*
+	 * Total terminal columns minus space for status e.g. " Running (12 active)"
+	 * which is 20 chars, plus a margin of 3 chars = 23 chars.
+	 */
+	max_desc_area_width = ws.ws_col - 23;
+	if (max_desc_area_width < 40)
+		max_desc_area_width = 40;
+
+	/* Standard test has prefix "%3d: " which is 5 chars */
+	target_desc_area_width = width + 5;
+	if (target_desc_area_width > max_desc_area_width)
+		target_desc_area_width = max_desc_area_width;
+
 	if (test_suite__num_test_cases(t) > 1) {
 		char prefix[32];
 		int len = snprintf(prefix, sizeof(prefix), "%3d.%1d:",
 				   curr_suite + 1, curr_test_case + 1);
-		int subw = len >= 4 ? width + 4 - len : width;
 
-		pr_info("%s %-*s:", prefix, subw, test_description(t, curr_test_case));
-	} else
-		pr_info("%3d: %-*s:", curr_suite + 1, width, test_description(t, curr_test_case));
+		desc_padding = target_desc_area_width - (len + 1);
+		if (desc_padding < 20)
+			desc_padding = 20;
+
+		desc = format_test_description(desc, desc_padding, desc_buf, sizeof(desc_buf));
+		pr_info("%s %-*s:", prefix, desc_padding, desc);
+	} else {
+		desc_padding = target_desc_area_width - 5;
+		if (desc_padding < 20)
+			desc_padding = 20;
+
+		desc = format_test_description(desc, desc_padding, desc_buf, sizeof(desc_buf));
+		pr_info("%3d: %-*s:", curr_suite + 1, desc_padding, desc);
+	}
 
 	switch (result) {
 	case TEST_RUNNING:
@@ -692,7 +744,7 @@ static void finish_test(struct child_test **child_tests, int running_test, int c
 	 * sub test names.
 	 */
 	if (test_suite__num_test_cases(t) > 1 && curr_test_case == 0)
-		pr_info("%3d: %-*s:\n", curr_suite + 1, width, test_description(t, -1));
+		pr_info("%3d: %s:\n", curr_suite + 1, test_description(t, -1));
 
 	/*
 	 * Busy loop reading from the child's stdout/stderr that are set to be
@@ -968,7 +1020,7 @@ static int finish_tests_parallel(struct child_test **child_tests, size_t num_tes
 			if (next_child) {
 				if (test_suite__num_test_cases(next_child->test) > 1 &&
 				    last_suite_printed != next_child->suite_num) {
-					pr_info("%3d: %-*s:\n", next_child->suite_num + 1, width,
+					pr_info("%3d: %s:\n", next_child->suite_num + 1,
 						test_description(next_child->test, -1));
 					last_suite_printed = next_child->suite_num;
 				}
@@ -1032,7 +1084,7 @@ static int finish_tests_parallel(struct child_test **child_tests, size_t num_tes
 
 			if (test_suite__num_test_cases(child->test) > 1 &&
 			    last_suite_printed != child->suite_num) {
-				pr_info("%3d: %-*s:\n", child->suite_num + 1, width,
+				pr_info("%3d: %s:\n", child->suite_num + 1,
 					test_description(child->test, -1));
 				last_suite_printed = child->suite_num;
 			}
