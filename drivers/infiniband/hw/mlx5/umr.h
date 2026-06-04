@@ -105,8 +105,7 @@ int mlx5r_umr_update_mr_pas(struct mlx5_ib_mr *mr, unsigned int flags);
 int mlx5r_umr_update_xlt(struct mlx5_ib_mr *mr, u64 idx, int npages,
 			 int page_shift, int flags);
 int mlx5r_umr_update_mr_page_shift(struct mlx5_ib_mr *mr,
-				   unsigned int page_shift,
-				   bool dd);
+				   unsigned int page_shift);
 int mlx5r_umr_dmabuf_update_pgsz(struct mlx5_ib_mr *mr, u32 xlt_flags,
 				 unsigned int page_shift);
 
