@@ -78,6 +78,16 @@ struct landlock_file_security {
 	 * euid.
 	 */
 	struct landlock_cred_security fown_subject;
+	/**
+	 * @fown_tg: Thread group of the task that set the file owner, pinned
+	 * while @fown_subject holds a domain.  It lets
+	 * hook_file_send_sigiotask() always allow a SIGIO delivered to the
+	 * owner's own process -- e.g. the thread-group leader reached through a
+	 * process-group owner -- matching the same-process exemption of
+	 * hook_task_kill().  NULL when no domain is recorded.  Protected by
+	 * file->f_owner->lock, like @fown_subject.
+	 */
+	struct pid *fown_tg;
 };
 
 #ifdef CONFIG_AUDIT
