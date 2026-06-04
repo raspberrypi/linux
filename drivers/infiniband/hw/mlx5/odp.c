@@ -1780,6 +1780,9 @@ int mlx5r_odp_create_eq(struct mlx5_ib_dev *dev, struct mlx5_ib_pf_eq *eq)
 	struct mlx5_eq_param param = {};
 	int err = 0;
 
+	if (!(dev->odp_caps.general_caps & IB_ODP_SUPPORT))
+		return -EOPNOTSUPP;
+
 	mutex_lock(&dev->odp_eq_mutex);
 	if (eq->core)
 		goto unlock;
