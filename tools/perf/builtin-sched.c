@@ -1677,7 +1677,7 @@ static int map_switch_event(struct perf_sched *sched, struct evsel *evsel,
 			new_cpu = true;
 		}
 	} else
-		cpus_nr = sched->max_cpu.cpu;
+		cpus_nr = sched->max_cpu.cpu + 1;
 
 	timestamp0 = sched->cpu_last_switched[this_cpu.cpu];
 	sched->cpu_last_switched[this_cpu.cpu] = timestamp;
@@ -3577,10 +3577,8 @@ out_free_cpus_switch_event:
 
 static int setup_map_cpus(struct perf_sched *sched)
 {
-	sched->max_cpu.cpu  = sysconf(_SC_NPROCESSORS_CONF);
-
 	if (sched->map.comp) {
-		sched->map.comp_cpus = calloc(sched->max_cpu.cpu, sizeof(int));
+		sched->map.comp_cpus = calloc(MAX_CPUS, sizeof(*sched->map.comp_cpus));
 		if (!sched->map.comp_cpus)
 			return -1;
 	}
