@@ -116,7 +116,7 @@ FEATURE_TESTS_EXTRA :=                  \
          gtk2                           \
          gtk2-infobar                   \
          hello                          \
-         libbabeltrace                  \
+         babeltrace2-ctf-writer         \
          libcapstone                    \
          libbfd-liberty                 \
          libbfd-liberty-z               \
@@ -165,6 +165,7 @@ FEATURE_GROUP_MEMBERS-libbfd = libbfd-liberty libbfd-liberty-z
 # Declare list of feature dependency packages that provide pkg-config files.
 #
 FEATURE_PKG_CONFIG ?=           \
+	 babeltrace2-ctf-writer \
          libtraceevent          \
          libtracefs
 
@@ -211,7 +212,7 @@ ifeq ($(feature-all), 1)
   $(call feature_check,compile-32)
   $(call feature_check,compile-x32)
   $(call feature_check,bionic)
-  $(call feature_check,libbabeltrace)
+  $(call feature_check,babeltrace2-ctf-writer)
   $(call feature_check,libunwind)
   $(call feature_check,libunwind-debug-frame)
   $(foreach arch,$(LIBUNWIND_ARCHS),$(call feature_check,libunwind-$(arch)))

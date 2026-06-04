@@ -232,7 +232,7 @@ perf-util-$(CONFIG_LIBUNWIND_X86)      += libunwind/x86_32.o
 perf-util-$(CONFIG_LIBUNWIND_AARCH64)  += libunwind/arm64.o
 
 ifeq ($(CONFIG_LIBTRACEEVENT),y)
-  perf-util-$(CONFIG_LIBBABELTRACE) += data-convert-bt.o
+  perf-util-$(CONFIG_BABELTRACE2_CTF_WRITER) += data-convert-bt.o
 endif
 
 perf-util-y += data-convert-json.o

@@ -92,7 +92,7 @@ make_no_libbpf	    := NO_LIBBPF=1
 make_libbpf_dynamic := LIBBPF_DYNAMIC=1
 make_no_libbpf_DEBUG := NO_LIBBPF=1 DEBUG=1
 make_no_libllvm     := NO_LIBLLVM=1
-make_with_babeltrace:= LIBBABELTRACE=1
+make_no_babeltrace2 := NO_BABELTRACE2=1
 make_with_coresight := CORESIGHT=1
 make_no_sdt	    := NO_SDT=1
 make_no_libpfm4     := NO_LIBPFM4=1
@@ -162,7 +162,7 @@ run += make_no_libbpf_DEBUG
 run += make_no_libllvm
 run += make_no_sdt
 run += make_no_syscall_tbl
-run += make_with_babeltrace
+run += make_no_babeltrace2
 run += make_with_coresight
 run += make_with_clangllvm
 run += make_no_libpfm4

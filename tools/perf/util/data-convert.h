@@ -10,10 +10,10 @@ struct perf_data_convert_opts {
 	bool tod;
 };
 
-#ifdef HAVE_LIBBABELTRACE_SUPPORT
+#ifdef HAVE_BABELTRACE2_CTF_WRITER_SUPPORT
 int bt_convert__perf2ctf(const char *input_name, const char *to_ctf,
 			 struct perf_data_convert_opts *opts);
-#endif /* HAVE_LIBBABELTRACE_SUPPORT */
+#endif /* HAVE_BABELTRACE2_CTF_WRITER_SUPPORT */
 
 int bt_convert__perf2json(const char *input_name, const char *to_ctf,
 			 struct perf_data_convert_opts *opts);

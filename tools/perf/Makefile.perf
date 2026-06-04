@@ -76,7 +76,7 @@ include ../scripts/utilities.mak
 #
 # Define NO_ZLIB if you do not want to support compressed kernel modules
 #
-# Define NO_LIBBABELTRACE if you do not want libbabeltrace support
+# Define NO_BABELTRACE2 if you do not want babeltrace2-ctf-writer support
 # for CTF data format.
 #
 # Define NO_CAPSTONE if you do not want libcapstone support
