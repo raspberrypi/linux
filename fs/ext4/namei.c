@@ -3049,7 +3049,7 @@ out_stop:
 out_retry:
 	if (err == -ENOSPC && ext4_should_retry_alloc(dir->i_sb, &retries))
 		goto retry;
-	return ERR_PTR(err);
+	return err ? ERR_PTR(err) : NULL;
 }
 
 /*
