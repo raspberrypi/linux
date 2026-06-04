@@ -57,12 +57,35 @@ struct NvdmPayloadCommandResponse {
     error_code: u32,
 }
 
+/// Common MCTP and NVDM headers shared by all FSP messages.
+#[repr(C, packed)]
+#[derive(Clone, Copy)]
+struct FspMessageHeader {
+    mctp_header: MctpHeader,
+    nvdm_header: NvdmHeader,
+}
+
+// SAFETY: FspMessageHeader is a packed C struct with only integral fields.
+unsafe impl AsBytes for FspMessageHeader {}
+
+// SAFETY: FspMessageHeader is a packed C struct with only integral fields.
+unsafe impl FromBytes for FspMessageHeader {}
+
+impl FspMessageHeader {
+    /// Construct a standard FSP message header for the given NVDM type.
+    fn new(nvdm_type: NvdmType) -> Self {
+        Self {
+            mctp_header: MctpHeader::single_packet(),
+            nvdm_header: NvdmHeader::new(nvdm_type),
+        }
+    }
+}
+
 /// Complete FSP response structure with MCTP and NVDM headers.
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 struct FspResponse {
-    mctp_header: MctpHeader,
-    nvdm_header: NvdmHeader,
+    header: FspMessageHeader,
     response: NvdmPayloadCommandResponse,
 }
 
@@ -94,17 +117,16 @@ struct NvdmPayloadCot {
     gsp_boot_args_sysmem_offset: u64,
 }
 
-/// Complete FSP message structure with MCTP and NVDM headers.
+/// Complete FSP COT (Chain of Trust) message structure.
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct FspMessage {
-    mctp_header: MctpHeader,
-    nvdm_header: NvdmHeader,
+struct FspCotMessage {
+    header: FspMessageHeader,
     cot: NvdmPayloadCot,
 }
 
-impl FspMessage {
-    /// Returns an in-place initializer for [`FspMessage`].
+impl FspCotMessage {
+    /// Returns an in-place initializer for [`FspCotMessage`].
     fn new<'a>(
         fb_layout: &FbLayout,
         fsp_fw: &'a FspFirmware,
@@ -131,8 +153,7 @@ impl FspMessage {
         let size = num::usize_into_u16::<{ core::mem::size_of::<NvdmPayloadCot>() }>();
 
         Ok(init!(Self {
-            mctp_header: MctpHeader::single_packet(),
-            nvdm_header: NvdmHeader::new(NvdmType::Cot),
+            header: FspMessageHeader::new(NvdmType::Cot),
             // The payload is packed, so we cannot use `init!`. Initialize it member-by-member using
             // `chain`.
             cot <- pin_init::init_zeroed(),
@@ -153,11 +174,11 @@ impl FspMessage {
     }
 }
 
-// SAFETY: `FspMessage` is `#[repr(C)]` with no padding, so all of its
+// SAFETY: `FspCotMessage` is `#[repr(C)]` with no padding, so all of its
 // bytes are initialized.
-unsafe impl AsBytes for FspMessage {}
+unsafe impl AsBytes for FspCotMessage {}
 
-impl MessageToFsp for FspMessage {
+impl MessageToFsp for FspCotMessage {
     const NVDM_TYPE: NvdmType = NvdmType::Cot;
 }
 
@@ -251,8 +272,8 @@ impl Fsp {
             EIO
         })?;
 
-        let mctp_header = response.mctp_header;
-        let nvdm_header = response.nvdm_header;
+        let mctp_header = response.header.mctp_header;
+        let nvdm_header = response.header.nvdm_header;
         let command_nvdm_type = response.response.command_nvdm_type;
         let error_code = response.response.error_code;
 
@@ -310,7 +331,10 @@ impl Fsp {
     ) -> Result {
         dev_dbg!(dev, "Starting FSP boot sequence for {}\n", args.chipset);
 
-        let msg = KBox::init(FspMessage::new(fb_layout, &self.fsp_fw, args)?, GFP_KERNEL)?;
+        let msg = KBox::init(
+            FspCotMessage::new(fb_layout, &self.fsp_fw, args)?,
+            GFP_KERNEL,
+        )?;
 
         self.send_sync_fsp(dev, bar, &*msg)?;
 
