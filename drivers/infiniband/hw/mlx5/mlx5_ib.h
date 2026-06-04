@@ -331,6 +331,10 @@ struct mlx5_ib_flow_db {
 #define MLX5_IB_QPT_DCT		IB_QPT_RESERVED4
 #define MLX5_IB_WR_UMR		IB_WR_RESERVED1
 
+/*
+ * A valid pdn is required when flags include MLX5_IB_UPD_XLT_ENABLE,
+ * MLX5_IB_UPD_XLT_PD or MLX5_IB_UPD_XLT_ACCESS.
+ */
 #define MLX5_IB_UPD_XLT_ZAP	      BIT(0)
 #define MLX5_IB_UPD_XLT_ENABLE	      BIT(1)
 #define MLX5_IB_UPD_XLT_ATOMIC	      BIT(2)
@@ -1207,6 +1211,11 @@ static inline struct mlx5_ib_rwq *to_mibrwq(struct mlx5_core_qp *core_qp)
 static inline struct mlx5_ib_pd *to_mpd(struct ib_pd *ibpd)
 {
 	return container_of(ibpd, struct mlx5_ib_pd, ibpd);
+}
+
+static inline u32 mlx5_mr_pdn(struct mlx5_ib_mr *mr)
+{
+	return to_mpd(mr->ibmr.pd)->pdn;
 }
 
 static inline struct mlx5_ib_srq *to_msrq(struct ib_srq *ibsrq)
