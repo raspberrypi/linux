@@ -181,16 +181,55 @@ v3d_job_deallocate(void **container)
 }
 
 static int
+v3d_job_add_syncobjs(struct v3d_job *job, struct drm_file *file_priv,
+		     u32 in_sync, struct v3d_submit_ext *se)
+{
+	bool has_multisync = se && (se->flags & DRM_V3D_EXT_ID_MULTI_SYNC);
+	struct v3d_dev *v3d = job->v3d;
+	int ret = 0;
+
+	if (!has_multisync) {
+		ret = drm_sched_job_add_syncobj_dependency(&job->base, file_priv,
+							   in_sync, 0);
+		// TODO: Investigate why this was filtered out for the IOCTL.
+		if (ret && ret != -ENOENT)
+			return ret;
+		return 0;
+	}
+
+	if (se->in_sync_count && se->wait_stage == job->queue) {
+		struct drm_v3d_sem __user *handle = u64_to_user_ptr(se->in_syncs);
+
+		for (int i = 0; i < se->in_sync_count; i++) {
+			struct drm_v3d_sem in;
+
+			if (copy_from_user(&in, handle++, sizeof(in))) {
+				drm_dbg(&v3d->drm, "Failed to copy wait dep handle.\n");
+				return -EFAULT;
+			}
+
+			ret = drm_sched_job_add_syncobj_dependency(&job->base,
+								   file_priv, in.handle, 0);
+			// TODO: Investigate why this was filtered out for the IOCTL.
+			if (ret && ret != -ENOENT)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int
 v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	     struct v3d_job *job, void (*free)(struct kref *ref),
 	     u32 in_sync, struct v3d_submit_ext *se, enum v3d_queue queue)
 {
 	struct v3d_file_priv *v3d_priv = file_priv->driver_priv;
-	bool has_multisync = se && (se->flags & DRM_V3D_EXT_ID_MULTI_SYNC);
-	int ret, i;
+	int ret;
 
 	job->v3d = v3d;
 	job->free = free;
+	job->queue = queue;
 	job->file_priv = v3d_priv;
 
 	ret = drm_sched_job_init(&job->base, &v3d_priv->sched_entity[queue],
@@ -198,32 +237,9 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	if (ret)
 		return ret;
 
-	if (has_multisync) {
-		if (se->in_sync_count && se->wait_stage == queue) {
-			struct drm_v3d_sem __user *handle = u64_to_user_ptr(se->in_syncs);
-
-			for (i = 0; i < se->in_sync_count; i++) {
-				struct drm_v3d_sem in;
-
-				if (copy_from_user(&in, handle++, sizeof(in))) {
-					ret = -EFAULT;
-					drm_dbg(&v3d->drm, "Failed to copy wait dep handle.\n");
-					goto fail_job_init;
-				}
-				ret = drm_sched_job_add_syncobj_dependency(&job->base, file_priv, in.handle, 0);
-
-				// TODO: Investigate why this was filtered out for the IOCTL.
-				if (ret && ret != -ENOENT)
-					goto fail_job_init;
-			}
-		}
-	} else {
-		ret = drm_sched_job_add_syncobj_dependency(&job->base, file_priv, in_sync, 0);
-
-		// TODO: Investigate why this was filtered out for the IOCTL.
-		if (ret && ret != -ENOENT)
-			goto fail_job_init;
-	}
+	ret = v3d_job_add_syncobjs(job, file_priv, in_sync, se);
+	if (ret)
+		goto fail_job_init;
 
 	/* CPU jobs don't require hardware resources */
 	if (queue != V3D_CPU) {
