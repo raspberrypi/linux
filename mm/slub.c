@@ -5325,6 +5325,7 @@ EXPORT_SYMBOL(__kmalloc_noprof);
 void *kmalloc_nolock_noprof(size_t size, gfp_t gfp_flags, int node)
 {
 	gfp_t alloc_gfp = __GFP_NOWARN | __GFP_NOMEMALLOC | gfp_flags;
+	size_t orig_size = size;
 	struct kmem_cache *s;
 	bool can_retry = true;
 	void *ret;
@@ -5373,7 +5374,7 @@ retry:
 	 * kfence_alloc. Hence call __slab_alloc_node() (at most twice)
 	 * and slab_post_alloc_hook() directly.
 	 */
-	ret = __slab_alloc_node(s, alloc_gfp, node, _RET_IP_, size);
+	ret = __slab_alloc_node(s, alloc_gfp, node, _RET_IP_, orig_size);
 
 	/*
 	 * It's possible we failed due to trylock as we preempted someone with
@@ -5397,9 +5398,9 @@ retry:
 success:
 	maybe_wipe_obj_freeptr(s, ret);
 	slab_post_alloc_hook(s, NULL, alloc_gfp, 1, &ret,
-			     slab_want_init_on_alloc(alloc_gfp, s), size);
+			     slab_want_init_on_alloc(alloc_gfp, s), orig_size);
 
-	ret = kasan_kmalloc(s, ret, size, alloc_gfp);
+	ret = kasan_kmalloc(s, ret, orig_size, alloc_gfp);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(kmalloc_nolock_noprof);
