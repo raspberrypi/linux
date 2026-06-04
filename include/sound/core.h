@@ -314,6 +314,8 @@ static inline void snd_card_unref(struct snd_card *card)
 	put_device(&card->card_dev);
 }
 
+DEFINE_FREE(snd_card_unref, struct snd_card *, if (_T) snd_card_unref(_T))
+
 #define snd_card_set_dev(card, devptr) ((card)->dev = (devptr))
 
 /* device.c */
