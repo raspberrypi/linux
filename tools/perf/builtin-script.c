@@ -2638,7 +2638,7 @@ static int cleanup_scripting(void)
 
 static bool filter_cpu(struct perf_sample *sample)
 {
-	if (cpu_list && sample->cpu != (u32)-1)
+	if (cpu_list && sample->cpu != (u32)-1 && sample->cpu < MAX_NR_CPUS)
 		return !test_bit(sample->cpu, cpu_bitmap);
 	return false;
 }

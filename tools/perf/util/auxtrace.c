@@ -372,7 +372,8 @@ static bool filter_cpu(struct perf_session *session, struct perf_cpu cpu)
 {
 	unsigned long *cpu_bitmap = session->itrace_synth_opts->cpu_bitmap;
 
-	return cpu_bitmap && cpu.cpu != -1 && !test_bit(cpu.cpu, cpu_bitmap);
+	return cpu_bitmap && cpu.cpu >= 0 && cpu.cpu < MAX_NR_CPUS &&
+	       !test_bit(cpu.cpu, cpu_bitmap);
 }
 
 static int auxtrace_queues__add_buffer(struct auxtrace_queues *queues,
