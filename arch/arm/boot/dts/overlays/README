@@ -5791,6 +5791,29 @@ Params: sizex                   Touchscreen size x (default 800)
                                 the default DSI1 and i2c_csi_dsi).
 
 
+Name:   vc4-kms-dsi-edatec-panel-070c
+Info:   Enable the edatec DSI 7" screen.
+        support ed-dispr-070c.
+        support ed-dispr5-070c.
+        support ed-dispr4-070c.
+Load:   dtoverlay=vc4-kms-dsi-edatec-panel-070c,<param>=<val>
+Params: interrupt               GPIO pin for interrupt signal(default 16)
+        i2c1                    Use i2c-1
+        i2c4                    Use i2c-4 (specialized for CM5)
+
+
+Name:   vc4-kms-dsi-edatec-panel-101c
+Info:   Enable the edatec DSI 10" screen.
+        support ed-dispr-101c.
+        support ed-dispr5-101c.
+        support ed-dispr4-101c.
+Load:   dtoverlay=vc4-kms-dsi-edatec-panel-101c,<param>=<val>
+Params: rotation                Display rotation {0,90,180,270} (default 270)
+        interrupt               GPIO pin for interrupt signal(default 16)
+        i2c1                    Use i2c-1
+        i2c4                    Use i2c-4 (specialized for CM5)
+
+
 Name:   vc4-kms-dsi-generic
 Info:   Enable a generic DSI display under KMS.
         Default timings are for a 840x480 RGB888 panel.
