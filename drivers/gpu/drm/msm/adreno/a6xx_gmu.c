@@ -642,7 +642,7 @@ static void a6xx_rpmh_stop(struct a6xx_gmu *gmu)
 	int ret;
 	u32 val;
 
-	if (test_and_clear_bit(GMU_STATUS_FW_START, &gmu->status))
+	if (!test_and_clear_bit(GMU_STATUS_FW_START, &gmu->status))
 		return;
 
 	if (adreno_is_a840(adreno_gpu))
@@ -1464,6 +1464,9 @@ static void a6xx_gmu_shutdown(struct a6xx_gmu *gmu)
 
 	/* Stop the interrupts and mask the hardware */
 	a6xx_gmu_irq_disable(gmu);
+
+	/* Halt the gmu cm3 core */
+	gmu_write(gmu, REG_A6XX_GMU_CM3_SYSRESET, 1);
 
 	/* Tell RPMh to power off the GPU */
 	a6xx_rpmh_stop(gmu);
