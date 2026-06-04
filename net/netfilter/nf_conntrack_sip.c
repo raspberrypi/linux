@@ -1731,6 +1731,7 @@ static int sip_help_udp(struct sk_buff *skb, unsigned int protoff,
 }
 
 static struct nf_conntrack_helper sip[MAX_PORTS * 4] __read_mostly;
+static struct nf_conntrack_helper *sip_ptr[MAX_PORTS * 4] __read_mostly;
 
 static const struct nf_conntrack_expect_policy sip_exp_policy[SIP_EXPECT_MAX + 1] = {
 	[SIP_EXPECT_SIGNALLING] = {
@@ -1757,7 +1758,7 @@ static const struct nf_conntrack_expect_policy sip_exp_policy[SIP_EXPECT_MAX + 1
 
 static void __exit nf_conntrack_sip_fini(void)
 {
-	nf_conntrack_helpers_unregister(sip, ports_c * 4);
+	nf_conntrack_helpers_unregister(sip_ptr, ports_c * 4);
 }
 
 static int __init nf_conntrack_sip_init(void)
@@ -1788,7 +1789,7 @@ static int __init nf_conntrack_sip_init(void)
 				  NULL, THIS_MODULE);
 	}
 
-	ret = nf_conntrack_helpers_register(sip, ports_c * 4);
+	ret = nf_conntrack_helpers_register(sip, ports_c * 4, sip_ptr);
 	if (ret < 0) {
 		pr_err("failed to register helpers\n");
 		return ret;

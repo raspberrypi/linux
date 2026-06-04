@@ -366,14 +366,13 @@ void nf_ct_helper_log(struct sk_buff *skb, const struct nf_conn *ct,
 }
 EXPORT_SYMBOL_GPL(nf_ct_helper_log);
 
-int nf_conntrack_helper_register(struct nf_conntrack_helper *me)
+int __nf_conntrack_helper_register(struct nf_conntrack_helper *me)
 {
 	struct nf_conntrack_tuple_mask mask = { .src.u.all = htons(0xFFFF) };
 	unsigned int h = helper_hash(&me->tuple);
 	struct nf_conntrack_helper *cur;
 	int ret = 0, i;
 
-	BUG_ON(me->expect_policy == NULL);
 	BUG_ON(me->expect_class_max >= NF_CT_MAX_EXPECT_CLASSES);
 	BUG_ON(strlen(me->name) > NF_CT_HELPER_NAME_LEN - 1);
 
@@ -413,6 +412,33 @@ out:
 	mutex_unlock(&nf_ct_helper_mutex);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(__nf_conntrack_helper_register);
+
+int nf_conntrack_helper_register(struct nf_conntrack_helper *me,
+				 struct nf_conntrack_helper **helper_ptr)
+{
+	struct nf_conntrack_helper *new_helper;
+	int err;
+
+	new_helper = kzalloc_obj(*new_helper, GFP_KERNEL_ACCOUNT);
+	if (!new_helper)
+		return -ENOMEM;
+
+	memcpy(new_helper, me, sizeof(*new_helper));
+	*helper_ptr = new_helper;
+
+	err = __nf_conntrack_helper_register(new_helper);
+	if (err < 0)
+		goto err_helper;
+
+	return 0;
+
+err_helper:
+	*helper_ptr = NULL;
+	kfree(new_helper);
+
+	return err;
+}
 EXPORT_SYMBOL_GPL(nf_conntrack_helper_register);
 
 static bool expect_iter_me(struct nf_conntrack_expect *exp, void *data)
@@ -449,6 +475,7 @@ void nf_conntrack_helper_unregister(struct nf_conntrack_helper *me)
 	 * last step, this ensures rcu readers of exp->helper are done.
 	 * No need for another synchronize_rcu() here.
 	 */
+	kfree(me);
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_helper_unregister);
 
@@ -464,11 +491,12 @@ void nf_ct_helper_init(struct nf_conntrack_helper *helper,
 					  struct nf_conn *ct),
 		       struct module *module)
 {
+	memset(helper, 0, sizeof(*helper));
+
 	helper->tuple.src.l3num = l3num;
 	helper->tuple.dst.protonum = protonum;
 	helper->tuple.src.u.all = htons(spec_port);
-	helper->expect_policy = exp_pol;
-	helper->expect_class_max = expect_class_max;
+
 	helper->help = help;
 	helper->from_nlattr = from_nlattr;
 	helper->me = module;
@@ -479,34 +507,57 @@ void nf_ct_helper_init(struct nf_conntrack_helper *helper,
 		snprintf(helper->name, sizeof(helper->name), "%s", name);
 	else
 		snprintf(helper->name, sizeof(helper->name), "%s-%u", name, id);
+
+	if (WARN_ON_ONCE(expect_class_max >= NF_CT_MAX_EXPECT_CLASSES))
+		return;
+
+	memcpy(helper->expect_policy, exp_pol,
+	       (expect_class_max + 1) * sizeof(*exp_pol));
+	helper->expect_class_max = expect_class_max;
 }
 EXPORT_SYMBOL_GPL(nf_ct_helper_init);
 
 int nf_conntrack_helpers_register(struct nf_conntrack_helper *helper,
-				  unsigned int n)
+				  unsigned int n, struct nf_conntrack_helper **helper_ptr)
 {
+	struct nf_conntrack_helper *new_helper;
 	unsigned int i;
 	int err = 0;
 
 	for (i = 0; i < n; i++) {
-		err = nf_conntrack_helper_register(&helper[i]);
-		if (err < 0)
+		new_helper = kzalloc_obj(*new_helper, GFP_KERNEL_ACCOUNT);
+		if (!new_helper) {
+			err = -ENOMEM;
 			goto err;
+		}
+
+		memcpy(new_helper, &helper[i], sizeof(*new_helper));
+		helper_ptr[i] = new_helper;
+
+		err = __nf_conntrack_helper_register(new_helper);
+		if (err < 0) {
+			helper_ptr[i] = NULL;
+			goto err_helper;
+		}
 	}
 
 	return err;
+err_helper:
+	kfree(new_helper);
 err:
 	if (i > 0)
-		nf_conntrack_helpers_unregister(helper, i);
+		nf_conntrack_helpers_unregister(helper_ptr, i);
 	return err;
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_helpers_register);
 
-void nf_conntrack_helpers_unregister(struct nf_conntrack_helper *helper,
-				unsigned int n)
+void nf_conntrack_helpers_unregister(struct nf_conntrack_helper **helper,
+				     unsigned int n)
 {
-	while (n-- > 0)
-		nf_conntrack_helper_unregister(&helper[n]);
+	while (n-- > 0) {
+		nf_conntrack_helper_unregister(helper[n]);
+		helper[n] = NULL;
+	}
 }
 EXPORT_SYMBOL_GPL(nf_conntrack_helpers_unregister);
 

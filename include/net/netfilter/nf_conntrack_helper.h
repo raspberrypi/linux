@@ -29,13 +29,16 @@ enum nf_ct_helper_flags {
 
 #define NF_CT_HELPER_NAME_LEN	16
 
+/* Must be kept in sync with the classes defined by helpers */
+#define NF_CT_MAX_EXPECT_CLASSES	4
+
 struct nf_conntrack_helper {
 	struct hlist_node hnode;	/* Internal use. */
 
 	char name[NF_CT_HELPER_NAME_LEN]; /* name of the module */
 	refcount_t refcnt;
 	struct module *me;		/* pointer to self */
-	const struct nf_conntrack_expect_policy *expect_policy;
+	struct nf_conntrack_expect_policy expect_policy[NF_CT_MAX_EXPECT_CLASSES];
 
 	/* Tuple of things we will help (compared against server response) */
 	struct nf_conntrack_tuple tuple;
@@ -62,9 +65,6 @@ struct nf_conntrack_helper {
 	/* name of NAT helper module */
 	char nat_mod_name[NF_CT_HELPER_NAME_LEN];
 };
-
-/* Must be kept in sync with the classes defined by helpers */
-#define NF_CT_MAX_EXPECT_CLASSES	4
 
 /* nf_conn feature for connections that have a helper */
 struct nf_conn_help {
@@ -103,11 +103,13 @@ void nf_ct_helper_init(struct nf_conntrack_helper *helper,
 					  struct nf_conn *ct),
 		       struct module *module);
 
-int nf_conntrack_helper_register(struct nf_conntrack_helper *);
+int nf_conntrack_helper_register(struct nf_conntrack_helper *, struct nf_conntrack_helper **);
+int __nf_conntrack_helper_register(struct nf_conntrack_helper *);
 void nf_conntrack_helper_unregister(struct nf_conntrack_helper *);
 
-int nf_conntrack_helpers_register(struct nf_conntrack_helper *, unsigned int);
-void nf_conntrack_helpers_unregister(struct nf_conntrack_helper *,
+int nf_conntrack_helpers_register(struct nf_conntrack_helper *, unsigned int,
+				  struct nf_conntrack_helper **);
+void nf_conntrack_helpers_unregister(struct nf_conntrack_helper **,
 				     unsigned int);
 
 struct nf_conn_help *nf_ct_helper_ext_add(struct nf_conn *ct, gfp_t gfp);
