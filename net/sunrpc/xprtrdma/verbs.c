@@ -631,6 +631,11 @@ static void rpcrdma_sendctxs_destroy(struct rpcrdma_xprt *r_xprt)
 	/* The QP is drained, but the final unsignaled Sends might not
 	 * have been walked by a signaled Send completion. Release those
 	 * Send owners before request buffers are reset.
+	 *
+	 * Unlike the completion sweep, this walk can visit slots with
+	 * no Send posted: after a partial rpcrdma_sendctxs_create()
+	 * failure on reconnect, rb_sc_head and rb_sc_tail are stale,
+	 * and slots between them can be NULL or have sc_req clear.
 	 */
 	for (i = rpcrdma_sendctx_next(buf, buf->rb_sc_tail);
 	     i != rpcrdma_sendctx_next(buf, buf->rb_sc_head);
@@ -703,6 +708,12 @@ static unsigned long rpcrdma_sendctx_next(struct rpcrdma_buffer *buf,
 	return likely(item < buf->rb_sc_last) ? item + 1 : 0;
 }
 
+static unsigned long rpcrdma_sendctx_prev(struct rpcrdma_buffer *buf,
+					  unsigned long item)
+{
+	return item > 0 ? item - 1 : buf->rb_sc_last;
+}
+
 /**
  * rpcrdma_sendctx_get_locked - Acquire a send context
  * @r_xprt: controlling transport instance
@@ -760,6 +771,29 @@ out_emptyq:
 }
 
 /**
+ * rpcrdma_sendctx_unget_locked - Release an unposted send context
+ * @r_xprt: controlling transport instance
+ * @sc: send context to release
+ *
+ * Usage: Called when no Send is posted for the sendctx most
+ * recently returned by rpcrdma_sendctx_get_locked().
+ *
+ * The caller serializes calls to this function and to
+ * rpcrdma_sendctx_get_locked() (per transport).
+ */
+void rpcrdma_sendctx_unget_locked(struct rpcrdma_xprt *r_xprt,
+				  struct rpcrdma_sendctx *sc)
+{
+	struct rpcrdma_buffer *buf = &r_xprt->rx_buf;
+
+	if (WARN_ON_ONCE(buf->rb_sc_ctxs[buf->rb_sc_head] != sc))
+		return;
+
+	buf->rb_sc_head = rpcrdma_sendctx_prev(buf, buf->rb_sc_head);
+	xprt_write_space(&r_xprt->rx_xprt);
+}
+
+/**
  * rpcrdma_sendctx_put_locked - Release a send context
  * @r_xprt: controlling transport instance
  * @sc: send context to release
@@ -776,8 +810,7 @@ static void rpcrdma_sendctx_put_locked(struct rpcrdma_xprt *r_xprt,
 	unsigned long next_tail;
 
 	/* Release previously completed but unsignaled Sends by walking
-	 * up the queue until @sc is found. Entries left behind by a
-	 * failed rpcrdma_prepare_send_sges() have sc_req cleared.
+	 * up the queue until @sc is found.
 	 */
 	next_tail = buf->rb_sc_tail;
 	do {
@@ -787,8 +820,7 @@ static void rpcrdma_sendctx_put_locked(struct rpcrdma_xprt *r_xprt,
 
 		/* ORDER: item must be accessed _before_ tail is updated */
 		cur = buf->rb_sc_ctxs[next_tail];
-		if (cur->sc_req)
-			rpcrdma_sendctx_unmap(cur);
+		rpcrdma_sendctx_unmap(cur);
 
 	} while (buf->rb_sc_ctxs[next_tail] != sc);
 
