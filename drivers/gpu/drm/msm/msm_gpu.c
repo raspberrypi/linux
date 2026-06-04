@@ -552,6 +552,8 @@ static void recover_worker(struct kthread_work *work)
 		msm_update_fence(ring->fctx, fence);
 	}
 
+	priv->disable_err_irq = false;
+
 	gpu->funcs->recover(gpu);
 
 	/* retire completed submits, plus the one that hung: */

@@ -1211,8 +1211,11 @@ irqreturn_t a8xx_irq(struct msm_gpu *gpu)
 
 	gpu_write(gpu, REG_A8XX_RBBM_INT_CLEAR_CMD, status);
 
-	if (priv->disable_err_irq)
+	if (priv->disable_err_irq) {
+		/* Turn off interrupts to avoid interrupt storm */
+		gpu_write(gpu, REG_A8XX_RBBM_INT_0_MASK, A6XX_RBBM_INT_0_MASK_CP_CACHE_FLUSH_TS);
 		status &= A6XX_RBBM_INT_0_MASK_CP_CACHE_FLUSH_TS;
+	}
 
 	if (status & A6XX_RBBM_INT_0_MASK_RBBM_HANG_DETECT)
 		a8xx_fault_detect_irq(gpu);
