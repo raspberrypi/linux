@@ -1831,6 +1831,11 @@ struct ib_dm {
 
 struct ib_mr {
 	struct ib_device  *device;
+	/*
+	 * Due to IB_MR_REREG_PD pd is not a fixed pointer and can change. For a
+	 * user MR, this value should only be read from a system call that holds
+	 * the uobject lock, or the driver should disable in-place REREG_PD.
+	 */
 	struct ib_pd	  *pd;
 	u32		   lkey;
 	u32		   rkey;
