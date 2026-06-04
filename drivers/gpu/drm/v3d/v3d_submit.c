@@ -631,6 +631,7 @@ v3d_get_cpu_indirect_csd_params(struct drm_file *file_priv,
 	}
 
 	job->job_type = V3D_CPU_JOB_TYPE_INDIRECT_CSD;
+	info->args = indirect_csd.submit;
 	info->offset = indirect_csd.offset;
 	info->wg_size = indirect_csd.wg_size;
 	memcpy(&info->wg_uniform_offsets, &indirect_csd.wg_uniform_offsets,
@@ -640,9 +641,7 @@ v3d_get_cpu_indirect_csd_params(struct drm_file *file_priv,
 	if (!info->indirect)
 		return -ENOENT;
 
-	return v3d_setup_csd_jobs_and_bos(file_priv, v3d, &indirect_csd.submit,
-					  &info->job, &info->clean_job,
-					  NULL, &info->exec);
+	return 0;
 }
 
 /* Get data for the query timestamp job submission. */
@@ -1403,6 +1402,17 @@ v3d_submit_cpu_ioctl(struct drm_device *dev, void *data,
 	if (ret) {
 		v3d_job_deallocate((void *)&cpu_job);
 		goto fail;
+	}
+
+	if (cpu_job->job_type == V3D_CPU_JOB_TYPE_INDIRECT_CSD) {
+		ret = v3d_setup_csd_jobs_and_bos(file_priv, v3d,
+						 &cpu_job->indirect_csd.args,
+						 &cpu_job->indirect_csd.job,
+						 &cpu_job->indirect_csd.clean_job,
+						 NULL,
+						 &cpu_job->indirect_csd.exec);
+		if (ret)
+			goto fail;
 	}
 
 	clean_job = cpu_job->indirect_csd.clean_job;
