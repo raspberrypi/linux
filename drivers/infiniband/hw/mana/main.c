@@ -20,8 +20,10 @@ void mana_ib_uncfg_vport(struct mana_ib_dev *dev, struct mana_ib_pd *pd,
 	pd->vport_use_count--;
 	WARN_ON(pd->vport_use_count < 0);
 
-	if (!pd->vport_use_count)
+	if (!pd->vport_use_count) {
+		mana_destroy_eq(mpc);
 		mana_uncfg_vport(mpc);
+	}
 
 	mutex_unlock(&pd->vport_mutex);
 }
@@ -40,13 +42,27 @@ int mana_ib_cfg_vport(struct mana_ib_dev *dev, u32 port, struct mana_ib_pd *pd,
 
 	pd->vport_use_count++;
 	if (pd->vport_use_count > 1) {
+		/* Reject cross-port PD sharing. EQs and vport config
+		 * are per-port, so the PD must stay bound to the port
+		 * that was configured on the first raw QP creation.
+		 */
+		if (pd->vport_port != port) {
+			pd->vport_use_count--;
+			mutex_unlock(&pd->vport_mutex);
+			ibdev_dbg(&dev->ib_dev,
+				  "PD already bound to port %u\n",
+				  pd->vport_port);
+			return -EINVAL;
+		}
 		ibdev_dbg(&dev->ib_dev,
 			  "Skip as this PD is already configured vport\n");
 		mutex_unlock(&pd->vport_mutex);
 		return 0;
 	}
 
-	err = mana_cfg_vport(mpc, pd->pdn, doorbell_id);
+	pd->vport_port = port;
+
+	err = mana_cfg_vport(mpc, pd->pdn, doorbell_id, true);
 	if (err) {
 		pd->vport_use_count--;
 		mutex_unlock(&pd->vport_mutex);
@@ -55,15 +71,23 @@ int mana_ib_cfg_vport(struct mana_ib_dev *dev, u32 port, struct mana_ib_pd *pd,
 		return err;
 	}
 
+
+	err = mana_create_eq(mpc);
+	if (err) {
+		mana_uncfg_vport(mpc);
+		pd->vport_use_count--;
+	} else {
+		pd->tx_shortform_allowed = mpc->tx_shortform_allowed;
+		pd->tx_vp_offset = mpc->tx_vp_offset;
+	}
+
 	mutex_unlock(&pd->vport_mutex);
 
-	pd->tx_shortform_allowed = mpc->tx_shortform_allowed;
-	pd->tx_vp_offset = mpc->tx_vp_offset;
+	if (!err)
+		ibdev_dbg(&dev->ib_dev, "vport handle %llx pdid %x doorbell_id %x\n",
+			  mpc->port_handle, pd->pdn, doorbell_id);
 
-	ibdev_dbg(&dev->ib_dev, "vport handle %llx pdid %x doorbell_id %x\n",
-		  mpc->port_handle, pd->pdn, doorbell_id);
-
-	return 0;
+	return err;
 }
 
 int mana_ib_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)

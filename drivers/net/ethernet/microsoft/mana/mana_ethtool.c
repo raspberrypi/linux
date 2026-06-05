@@ -454,6 +454,11 @@ static int mana_set_coalesce(struct net_device *ndev,
 	return err;
 }
 
+/* mana_set_channels - change the number of queues on a port
+ *
+ * Returns -EBUSY if RDMA holds the vport with EQs sized to the
+ * current num_queues.
+ */
 static int mana_set_channels(struct net_device *ndev,
 			     struct ethtool_channels *channels)
 {
@@ -462,10 +467,22 @@ static int mana_set_channels(struct net_device *ndev,
 	unsigned int old_count = apc->num_queues;
 	int err;
 
+	/* Set channel_changing to block RDMA from grabbing the vport
+	 * during the detach/attach window. mana_cfg_vport() checks
+	 * this flag under vport_mutex and returns -EBUSY if set.
+	 */
+	mutex_lock(&apc->vport_mutex);
+	if (!apc->port_is_up && apc->vport_use_count) {
+		mutex_unlock(&apc->vport_mutex);
+		return -EBUSY;
+	}
+	apc->channel_changing = true;
+	mutex_unlock(&apc->vport_mutex);
+
 	err = mana_pre_alloc_rxbufs(apc, ndev->mtu, new_count);
 	if (err) {
 		netdev_err(ndev, "Insufficient memory for new allocations");
-		return err;
+		goto clear_flag;
 	}
 
 	err = mana_detach(ndev, false);
@@ -483,6 +500,10 @@ static int mana_set_channels(struct net_device *ndev,
 
 out:
 	mana_pre_dealloc_rxbufs(apc);
+clear_flag:
+	mutex_lock(&apc->vport_mutex);
+	apc->channel_changing = false;
+	mutex_unlock(&apc->vport_mutex);
 	return err;
 }
 
