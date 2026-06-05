@@ -169,7 +169,9 @@ static inline void fuse_uring_wait_stopped_queues(struct fuse_conn *fc)
 
 static inline bool fuse_uring_ready(struct fuse_conn *fc)
 {
-	return fc->ring && fc->ring->ready;
+	struct fuse_ring *ring = READ_ONCE(fc->ring);
+
+	return ring && smp_load_acquire(&ring->ready);
 }
 
 #else /* CONFIG_FUSE_IO_URING */
