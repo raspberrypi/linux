@@ -60,7 +60,7 @@ static int adf_service_string_to_mask(struct adf_accel_dev *accel_dev, const cha
 	if (len > ADF_CFG_MAX_VAL_LEN_IN_BYTES - 1)
 		return -EINVAL;
 
-	strscpy(services, buf, ADF_CFG_MAX_VAL_LEN_IN_BYTES);
+	strscpy(services, buf);
 	substr = services;
 
 	while ((token = strsep(&substr, ADF_SERVICES_DELIMITER))) {
