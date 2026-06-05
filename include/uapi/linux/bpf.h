@@ -6684,6 +6684,7 @@ struct bpf_map_info {
 	__u64 map_extra;
 	__aligned_u64 hash;
 	__u32 hash_size;
+	__u32 :32;
 } __attribute__((aligned(8)));
 
 struct bpf_btf_info {
