@@ -27,6 +27,7 @@
 
 struct realtek_ictl_output {
 	struct irq_domain	*domain;
+	u32			mask;
 };
 
 static DEFINE_RAW_SPINLOCK(irq_lock);
@@ -109,15 +110,17 @@ static struct irq_chip realtek_ictl_irq = {
 	.irq_set_affinity	= realtek_ictl_irq_affinity,
 };
 
-static int intc_map(struct irq_domain *d, unsigned int irq, irq_hw_number_t hw)
+static int intc_map(struct irq_domain *d, unsigned int irq, irq_hw_number_t hw_irq)
 {
+	struct realtek_ictl_output *output = d->host_data;
 	unsigned int cpu;
 
 	irq_set_chip_and_handler(irq, &realtek_ictl_irq, handle_level_irq);
 
 	guard(raw_spinlock_irqsave)(&irq_lock);
+	output->mask |= BIT(hw_irq);
 	for_each_present_cpu(cpu)
-		write_irr(cpu, hw, 1);
+		write_irr(cpu, hw_irq, 1);
 
 	return 0;
 }
@@ -136,7 +139,7 @@ static void realtek_irq_dispatch(struct irq_desc *desc)
 	unsigned int hw_irq;
 
 	chained_irq_enter(chip, desc);
-	pending = readl(REG(cpu, RTL_ICTL_GIMR)) & readl(REG(cpu, RTL_ICTL_GISR));
+	pending = readl(REG(cpu, RTL_ICTL_GIMR)) & readl(REG(cpu, RTL_ICTL_GISR)) & output->mask;
 
 	if (unlikely(!pending)) {
 		spurious_interrupt();
