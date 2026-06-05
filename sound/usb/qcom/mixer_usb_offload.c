@@ -113,7 +113,7 @@ int snd_usb_offload_create_ctl(struct snd_usb_audio *chip, struct device *bedev)
 	struct snd_usb_substream *subs;
 	struct snd_usb_stream *as;
 	char ctl_name[48];
-	int ret;
+	int ret = 0;
 
 	list_for_each_entry(as, &chip->pcm_list, list) {
 		subs = &as->substream[SNDRV_PCM_STREAM_PLAYBACK];
