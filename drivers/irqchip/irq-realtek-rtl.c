@@ -147,11 +147,46 @@ out:
 	chained_irq_exit(chip, desc);
 }
 
-static int __init realtek_rtl_of_init(struct device_node *node, struct device_node *parent)
+static int __init realtek_setup_parents(struct device_node *node)
 {
+	int parent_irq, num_parents = of_irq_count(node);
 	struct of_phandle_args oirq;
 	struct irq_domain *domain;
-	int cpu, parent_irq;
+
+	if (WARN_ON(!num_parents)) {
+		/*
+		 * If DT contains no parent interrupts, assume MIPS IRQ 2 (HW0) is
+		 * connected to the first output. This is the case for all known hardware.
+		 */
+		oirq.np = of_find_compatible_node(NULL, NULL,
+						  "mti,cpu-interrupt-controller");
+		if (!oirq.np)
+			return -EINVAL;
+
+		oirq.args_count = 1;
+		oirq.args[0] = 2;
+		parent_irq = irq_create_of_mapping(&oirq);
+		of_node_put(oirq.np);
+	} else {
+		parent_irq = of_irq_get(node, 0);
+	}
+
+	if (parent_irq <= 0)
+		return parent_irq ? parent_irq : -ENODEV;
+
+	domain = irq_domain_create_linear(of_fwnode_handle(node), RTL_ICTL_NUM_INPUTS,
+					  &irq_domain_ops, NULL);
+	if (!domain)
+		return -ENOMEM;
+
+	irq_set_chained_handler_and_data(parent_irq, realtek_irq_dispatch, domain);
+
+	return 0;
+}
+
+static int __init realtek_rtl_of_init(struct device_node *node, struct device_node *parent)
+{
+	unsigned int cpu;
 
 	for_each_present_cpu(cpu) {
 		realtek_ictl_base[cpu] = of_iomap(node, cpu);
@@ -165,36 +200,7 @@ static int __init realtek_rtl_of_init(struct device_node *node, struct device_no
 		}
 	}
 
-	if (WARN_ON(!of_irq_count(node))) {
-		/*
-		 * If DT contains no parent interrupts, assume MIPS CPU IRQ 2
-		 * (HW0) is connected to the first output. This is the case for
-		 * all known hardware anyway. "interrupt-map" is deprecated, so
-		 * don't bother trying to parse that.
-		 */
-		oirq.np = of_find_compatible_node(NULL, NULL, "mti,cpu-interrupt-controller");
-		oirq.args_count = 1;
-		oirq.args[0] = 2;
-
-		parent_irq = irq_create_of_mapping(&oirq);
-
-		of_node_put(oirq.np);
-	} else {
-		parent_irq = of_irq_get(node, 0);
-	}
-
-	if (parent_irq < 0)
-		return parent_irq;
-	else if (!parent_irq)
-		return -ENODEV;
-
-	domain = irq_domain_create_linear(of_fwnode_handle(node), RTL_ICTL_NUM_INPUTS, &irq_domain_ops, NULL);
-	if (!domain)
-		return -ENOMEM;
-
-	irq_set_chained_handler_and_data(parent_irq, realtek_irq_dispatch, domain);
-
-	return 0;
+	return realtek_setup_parents(node);
 }
 
 IRQCHIP_DECLARE(realtek_rtl_intc, "realtek,rtl-intc", realtek_rtl_of_init);
