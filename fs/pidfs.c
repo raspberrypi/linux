@@ -37,6 +37,8 @@ static struct kmem_cache *pidfs_attr_cachep __ro_after_init;
 
 static struct path pidfs_root_path = {};
 
+static struct simple_xattr_cache pidfs_xa_cache;
+
 void pidfs_get_root(struct path *path)
 {
 	*path = pidfs_root_path;
@@ -96,7 +98,7 @@ static const struct rhashtable_params pidfs_ino_ht_params = {
  * use file handles.
  */
 struct pidfs_attr {
-	struct simple_xattrs *xattrs;
+	struct list_head xattrs;
 	union {
 		struct pidfs_anon_attr;
 		struct llist_node pidfs_llist;
@@ -196,7 +198,7 @@ static void pidfs_free_attr_work(struct work_struct *work)
 
 	head = llist_del_all(&pidfs_free_list);
 	llist_for_each_entry_safe(attr, next, head, pidfs_llist) {
-		simple_xattrs_free(&attr->xattrs, NULL);
+		simple_xattrs_free(&pidfs_xa_cache, &attr->xattrs, NULL);
 		kfree(attr);
 	}
 }
@@ -224,7 +226,7 @@ void pidfs_free_pid(struct pid *pid)
 	if (IS_ERR(attr))
 		return;
 
-	if (likely(!attr->xattrs))
+	if (likely(list_empty(&attr->xattrs)))
 		kfree(attr);
 	else if (llist_add(&attr->pidfs_llist, &pidfs_free_list))
 		schedule_work(&pidfs_free_work);
@@ -1007,6 +1009,8 @@ int pidfs_register_pid(struct pid *pid)
 	if (!new_attr)
 		return -ENOMEM;
 
+	INIT_LIST_HEAD_RCU(&new_attr->xattrs);
+
 	/* Synchronize with pidfs_exit(). */
 	guard(spinlock_irq)(&pid->wait_pidfd.lock);
 
@@ -1048,7 +1052,7 @@ static int pidfs_xattr_get(const struct xattr_handler *handler,
 	struct pid *pid = inode->i_private;
 	const char *name = xattr_full_name(handler, suffix);
 
-	return simple_xattr_get(&pid->attr->xattrs, name, value, size);
+	return simple_xattr_get(&pidfs_xa_cache, &pid->attr->xattrs, name, value, size);
 }
 
 static int pidfs_xattr_set(const struct xattr_handler *handler,
@@ -1063,7 +1067,7 @@ static int pidfs_xattr_set(const struct xattr_handler *handler,
 	/* Ensure we're the only one to set @attr->xattrs. */
 	WARN_ON_ONCE(!inode_is_locked(inode));
 
-	old_xattr = simple_xattr_set(&pid->attr->xattrs, name, value, size, flags);
+	old_xattr = simple_xattr_set(&pidfs_xa_cache, &pid->attr->xattrs, name, value, size, flags);
 	if (IS_ERR(old_xattr))
 		return PTR_ERR(old_xattr);
 

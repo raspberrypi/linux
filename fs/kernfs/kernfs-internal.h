@@ -26,7 +26,7 @@ struct kernfs_iattrs {
 	struct timespec64	ia_mtime;
 	struct timespec64	ia_ctime;
 
-	struct simple_xattrs	*xattrs;
+	struct list_head	xattrs;
 	struct simple_xattr_limits xattr_limits;
 };
 
@@ -54,6 +54,8 @@ struct kernfs_root {
 	rwlock_t		kernfs_rename_lock;
 
 	struct rcu_head		rcu;
+
+	struct simple_xattr_cache xa_cache;
 };
 
 /* +1 to avoid triggering overflow warning when negating it */

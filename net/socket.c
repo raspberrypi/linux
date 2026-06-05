@@ -310,8 +310,10 @@ efault_end:
 
 static struct kmem_cache *sock_inode_cachep __ro_after_init;
 
+static struct simple_xattr_cache sockfs_xa_cache;
+
 struct sockfs_inode {
-	struct simple_xattrs *xattrs;
+	struct list_head xattrs;
 	struct simple_xattr_limits xattr_limits;
 	struct socket_alloc;
 };
@@ -328,7 +330,7 @@ static struct inode *sock_alloc_inode(struct super_block *sb)
 	si = alloc_inode_sb(sb, sock_inode_cachep, GFP_KERNEL);
 	if (!si)
 		return NULL;
-	si->xattrs = NULL;
+	INIT_LIST_HEAD_RCU(&si->xattrs);
 	simple_xattr_limits_init(&si->xattr_limits);
 
 	init_waitqueue_head(&si->socket.wq.wait);
@@ -348,7 +350,7 @@ static void sock_evict_inode(struct inode *inode)
 {
 	struct sockfs_inode *si = SOCKFS_I(inode);
 
-	simple_xattrs_free(&si->xattrs, NULL);
+	simple_xattrs_free(&sockfs_xa_cache, &si->xattrs, NULL);
 	clear_inode(inode);
 }
 
@@ -441,7 +443,7 @@ static int sockfs_user_xattr_get(const struct xattr_handler *handler,
 	const char *name = xattr_full_name(handler, suffix);
 	struct sockfs_inode *si = SOCKFS_I(inode);
 
-	return simple_xattr_get(&si->xattrs, name, value, size);
+	return simple_xattr_get(&sockfs_xa_cache, &si->xattrs, name, value, size);
 }
 
 static int sockfs_user_xattr_set(const struct xattr_handler *handler,
@@ -453,7 +455,7 @@ static int sockfs_user_xattr_set(const struct xattr_handler *handler,
 	const char *name = xattr_full_name(handler, suffix);
 	struct sockfs_inode *si = SOCKFS_I(inode);
 
-	return simple_xattr_set_limited(&si->xattrs, &si->xattr_limits,
+	return simple_xattr_set_limited(&sockfs_xa_cache, &si->xattrs, &si->xattr_limits,
 					name, value, size, flags);
 }
 

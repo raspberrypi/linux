@@ -609,7 +609,7 @@ void kernfs_put(struct kernfs_node *kn)
 		kernfs_put(kn->symlink.target_kn);
 
 	if (kn->iattr)
-		simple_xattrs_free(&kn->iattr->xattrs, NULL);
+		simple_xattrs_free(&root->xa_cache, &kn->iattr->xattrs, NULL);
 
 	spin_lock(&root->kernfs_idr_lock);
 	idr_remove(&root->ino_idr, (u32)kernfs_ino(kn));
@@ -624,6 +624,7 @@ void kernfs_put(struct kernfs_node *kn)
 	} else {
 		/* just released the root kn, free @root too */
 		idr_destroy(&root->ino_idr);
+		simple_xattr_cache_cleanup(&root->xa_cache);
 		kfree_rcu(root, rcu);
 	}
 }
@@ -709,7 +710,7 @@ static struct kernfs_node *__kernfs_new_node(struct kernfs_root *root,
 
  err_out4:
 	if (kn->iattr) {
-		simple_xattrs_free(&kn->iattr->xattrs, NULL);
+		simple_xattrs_free(&root->xa_cache, &kn->iattr->xattrs, NULL);
 		kmem_cache_free(kernfs_iattrs_cache, kn->iattr);
 	}
  err_out3:

@@ -48,7 +48,7 @@ struct shmem_inode_info {
 	};
 	struct timespec64	i_crtime;	/* file creation time */
 	struct shared_policy	policy;		/* NUMA memory alloc policy */
-	struct simple_xattrs	*xattrs;	/* list of xattrs */
+	struct list_head        xattrs;		/* list of xattrs */
 	pgoff_t			fallocend;	/* highest fallocate endindex */
 	unsigned int		fsflags;	/* for FS_IOC_[SG]ETFLAGS */
 	atomic_t		stop_eviction;	/* hold when working on inode */
@@ -89,6 +89,7 @@ struct shmem_sb_info {
 	struct list_head shrinklist;  /* List of shinkable inodes */
 	unsigned long shrinklist_len; /* Length of shrinklist */
 	struct shmem_quota_limits qlimits; /* Default quota limits */
+	struct simple_xattr_cache xa_cache;
 };
 
 static inline struct shmem_inode_info *SHMEM_I(struct inode *inode)

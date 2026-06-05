@@ -28,6 +28,11 @@
 
 #include "internal.h"
 
+struct sx_key {
+	const struct list_head *parent;
+	const char *name;
+};
+
 static const char *
 strcmp_prefix(const char *a, const char *a_prefix)
 {
@@ -1269,23 +1274,32 @@ struct simple_xattr *simple_xattr_alloc(const void *value, size_t size)
 	return new_xattr;
 }
 
+static u32 sx_hashfn(const char *name, const struct list_head *parent, u32 seed)
+{
+	return jhash(name, strlen(name), jhash(&parent, sizeof(parent), seed));
+}
+
 static u32 simple_xattr_hashfn(const void *data, u32 len, u32 seed)
 {
-	const char *name = data;
-	return jhash(name, strlen(name), seed);
+	const struct sx_key *key = data;
+
+	return sx_hashfn(key->name, key->parent, seed);
 }
 
 static u32 simple_xattr_obj_hashfn(const void *obj, u32 len, u32 seed)
 {
 	const struct simple_xattr *xattr = obj;
-	return jhash(xattr->name, strlen(xattr->name), seed);
+
+	return sx_hashfn(xattr->name, xattr->parent, seed);
 }
 
 static int simple_xattr_obj_cmpfn(struct rhashtable_compare_arg *arg,
 				   const void *obj)
 {
 	const struct simple_xattr *xattr = obj;
-	return strcmp(xattr->name, arg->key);
+	const struct sx_key *key = arg->key;
+
+	return xattr->parent != key->parent || strcmp(xattr->name, key->name);
 }
 
 static const struct rhashtable_params simple_xattr_params = {
@@ -1298,6 +1312,7 @@ static const struct rhashtable_params simple_xattr_params = {
 
 /**
  * simple_xattr_get - get an xattr object
+ * @cache: anchor for the hash table
  * @xattrs: the header of the xattr object
  * @name: the name of the xattr to retrieve
  * @buffer: the buffer to store the value into
@@ -1311,19 +1326,19 @@ static const struct rhashtable_params simple_xattr_params = {
  * Return: On success the length of the xattr value is returned. On error a
  * negative error code is returned.
  */
-int simple_xattr_get(struct simple_xattrs **xattrsp, const char *name,
-		     void *buffer, size_t size)
+int simple_xattr_get(struct simple_xattr_cache *cache, struct list_head *xattrs,
+		     const char *name, void *buffer, size_t size)
 {
-	struct simple_xattrs *xattrs;
 	struct simple_xattr *xattr;
+	struct sx_key key = { .parent = xattrs, .name = name };
+	struct rhashtable *ht = READ_ONCE(cache->ht);
 	int ret = -ENODATA;
 
-	xattrs = READ_ONCE(*xattrsp);
-	if (!xattrs)
-		return -ENODATA;
+	if (!ht)
+		return ret;
 
 	guard(rcu)();
-	xattr = rhashtable_lookup(&xattrs->ht, name, simple_xattr_params);
+	xattr = rhashtable_lookup(ht, &key, simple_xattr_params);
 	if (xattr) {
 		ret = xattr->size;
 		if (buffer) {
@@ -1336,11 +1351,45 @@ int simple_xattr_get(struct simple_xattrs **xattrsp, const char *name,
 	return ret;
 }
 
-static struct simple_xattrs *simple_xattrs_lazy_alloc(struct simple_xattrs **xattrsp,
-						      const void *value, int flags);
+static struct rhashtable *simple_xattrs_lazy_alloc(struct simple_xattr_cache *cache,
+						   const void *value, int flags)
+{
+	struct rhashtable *oldht, *ht = READ_ONCE(cache->ht);
+	int err;
+
+	if (unlikely(!ht)) {
+		if (!value)
+			return (flags & XATTR_REPLACE) ? ERR_PTR(-ENODATA) : NULL;
+
+		ht = kzalloc_obj(*ht);
+		if (!ht)
+			return ERR_PTR(-ENOMEM);
+
+		err = rhashtable_init(ht, &simple_xattr_params);
+		if (err) {
+			kfree(ht);
+			return ERR_PTR(err);
+		}
+
+		/*
+		 * Provides release semantics on success, so that use of a
+		 * non-NULL READ_ONCE(cache->ht) will be ordered relative to the
+		 * above initialization, due to implicit address dependency.
+		 */
+		oldht = cmpxchg_release(&cache->ht, NULL, ht);
+		if (oldht) {
+			/* Race lost */
+			rhashtable_destroy(ht);
+			kfree(ht);
+			ht = oldht;
+		}
+	}
+	return ht;
+}
 
 /**
  * simple_xattr_set - set an xattr object
+ * @cache: anchor for the hash table
  * @xattrs: the header of the xattr object
  * @name: the name of the xattr to retrieve
  * @value: the value to store along the xattr
@@ -1370,50 +1419,58 @@ static struct simple_xattrs *simple_xattrs_lazy_alloc(struct simple_xattrs **xat
  * Return: On success, the removed or replaced xattr is returned, to be freed
  * by the caller; or NULL if none. On failure a negative error code is returned.
  */
-struct simple_xattr *simple_xattr_set(struct simple_xattrs **xattrsp,
+struct simple_xattr *simple_xattr_set(struct simple_xattr_cache *cache, struct list_head *xattrs,
 				      const char *name, const void *value,
 				      size_t size, int flags)
 {
-	struct simple_xattrs *xattrs;
+	struct sx_key key = { .parent = xattrs, .name = name };
 	struct simple_xattr *old_xattr = NULL;
+	struct rhashtable *ht;
 	int err;
 
-	xattrs = simple_xattrs_lazy_alloc(xattrsp, value, flags);
-	if (IS_ERR_OR_NULL(xattrs))
-		return ERR_CAST(xattrs);
+	ht = simple_xattrs_lazy_alloc(cache, value, flags);
+	if (IS_ERR_OR_NULL(ht))
+		return ERR_CAST(ht);
 
 	CLASS(simple_xattr, new_xattr)(value, size);
 	if (IS_ERR(new_xattr))
 		return new_xattr;
 
 	if (new_xattr) {
+		new_xattr->parent = xattrs;
 		new_xattr->name = kstrdup(name, GFP_KERNEL_ACCOUNT);
 		if (!new_xattr->name)
 			return ERR_PTR(-ENOMEM);
 	}
 
-	/* Lookup is safe without RCU here since writes are serialized. */
-	old_xattr = rhashtable_lookup_fast(&xattrs->ht, name,
-					   simple_xattr_params);
-
+	/*
+	 * Hash table lookup/replace/remove will grab RCU read lock themselves.
+	 * This makes sure that hash table lookup is safe against concurrent
+	 * modification on another inode.
+	 */
+	old_xattr = rhashtable_lookup_fast(ht, &key, simple_xattr_params);
 	if (old_xattr) {
 		/* Fail if XATTR_CREATE is requested and the xattr exists. */
 		if (flags & XATTR_CREATE)
 			return ERR_PTR(-EEXIST);
 
 		if (new_xattr) {
-			err = rhashtable_replace_fast(&xattrs->ht,
+			err = rhashtable_replace_fast(ht,
 						      &old_xattr->hash_node,
 						      &new_xattr->hash_node,
 						      simple_xattr_params);
 			if (err)
 				return ERR_PTR(err);
+
+			list_replace_rcu(&old_xattr->node, &new_xattr->node);
 		} else {
-			err = rhashtable_remove_fast(&xattrs->ht,
+			err = rhashtable_remove_fast(ht,
 						     &old_xattr->hash_node,
 						     simple_xattr_params);
 			if (err)
 				return ERR_PTR(err);
+
+			list_del_rcu(&old_xattr->node);
 		}
 	} else {
 		/* Fail if XATTR_REPLACE is requested but no xattr is found. */
@@ -1425,11 +1482,13 @@ struct simple_xattr *simple_xattr_set(struct simple_xattrs **xattrsp,
 		 * new value simply insert it.
 		 */
 		if (new_xattr) {
-			err = rhashtable_insert_fast(&xattrs->ht,
+			err = rhashtable_insert_fast(ht,
 						     &new_xattr->hash_node,
 						     simple_xattr_params);
 			if (err)
 				return ERR_PTR(err);
+
+			list_add_tail_rcu(&new_xattr->node, xattrs);
 		}
 
 		/*
@@ -1466,6 +1525,7 @@ static inline int simple_xattr_limits_inc(struct simple_xattr_limits *limits,
 
 /**
  * simple_xattr_set_limited - set an xattr with per-inode user.* limits
+ * @cache: anchor for the hash table
  * @xattrs: the header of the xattr object
  * @limits: per-inode limit counters for user.* xattrs
  * @name: the name of the xattr to set or remove
@@ -1480,7 +1540,7 @@ static inline int simple_xattr_limits_inc(struct simple_xattr_limits *limits,
  * Return: On success zero is returned. On failure a negative error code is
  * returned.
  */
-int simple_xattr_set_limited(struct simple_xattrs **xattrs,
+int simple_xattr_set_limited(struct simple_xattr_cache *cache, struct list_head *xattrs,
 			     struct simple_xattr_limits *limits,
 			     const char *name, const void *value,
 			     size_t size, int flags)
@@ -1494,7 +1554,7 @@ int simple_xattr_set_limited(struct simple_xattrs **xattrs,
 			return ret;
 	}
 
-	old_xattr = simple_xattr_set(xattrs, name, value, size, flags);
+	old_xattr = simple_xattr_set(cache, xattrs, name, value, size, flags);
 	if (IS_ERR(old_xattr)) {
 		if (value)
 			simple_xattr_limits_dec(limits, size);
@@ -1540,12 +1600,10 @@ static bool xattr_is_maclabel(const char *name)
  * Return: On success the required size or the size of the copied xattrs is
  * returned. On error a negative error code is returned.
  */
-ssize_t simple_xattr_list(struct inode *inode, struct simple_xattrs **xattrsp,
+ssize_t simple_xattr_list(struct inode *inode, struct list_head *xattrs,
 			  char *buffer, size_t size)
 {
 	bool trusted = ns_capable_noaudit(&init_user_ns, CAP_SYS_ADMIN);
-	struct simple_xattrs *xattrs;
-	struct rhashtable_iter iter;
 	struct simple_xattr *xattr;
 	ssize_t remaining_size = size;
 	int err = 0;
@@ -1566,21 +1624,11 @@ ssize_t simple_xattr_list(struct inode *inode, struct simple_xattrs **xattrsp,
 	remaining_size -= err;
 	err = 0;
 
-	xattrs = READ_ONCE(*xattrsp);
 	if (!xattrs)
 		return size - remaining_size;
 
-	rhashtable_walk_enter(&xattrs->ht, &iter);
-	rhashtable_walk_start(&iter);
-
-	while ((xattr = rhashtable_walk_next(&iter)) != NULL) {
-		if (IS_ERR(xattr)) {
-			if (PTR_ERR(xattr) == -EAGAIN)
-				continue;
-			err = PTR_ERR(xattr);
-			break;
-		}
-
+	rcu_read_lock();
+	list_for_each_entry_rcu(xattr, xattrs, node) {
 		/* skip "trusted." attributes for unprivileged callers */
 		if (!trusted && xattr_is_trusted(xattr->name))
 			continue;
@@ -1593,15 +1641,14 @@ ssize_t simple_xattr_list(struct inode *inode, struct simple_xattrs **xattrsp,
 		if (err)
 			break;
 	}
-
-	rhashtable_walk_stop(&iter);
-	rhashtable_walk_exit(&iter);
+	rcu_read_unlock();
 
 	return err ? err : size - remaining_size;
 }
 
 /**
  * simple_xattr_add - add xattr objects
+ * @cache: anchor for the hash table
  * @xattrs: the header of the xattr object
  * @new_xattr: the xattr object to add
  *
@@ -1612,125 +1659,67 @@ ssize_t simple_xattr_list(struct inode *inode, struct simple_xattrs **xattrsp,
  * Return: On success zero is returned. On failure a negative error code is
  * returned.
  */
-int simple_xattr_add(struct simple_xattrs **xattrsp,
+int simple_xattr_add(struct simple_xattr_cache *cache, struct list_head *xattrs,
 		     struct simple_xattr *new_xattr)
 {
-	struct simple_xattrs *xattrs;
+	struct rhashtable *ht;
+	int err;
 
-	xattrs = simple_xattrs_lazy_alloc(xattrsp, new_xattr->value, 0);
-	if (IS_ERR(xattrs))
-		return PTR_ERR(xattrs);
+	ht = simple_xattrs_lazy_alloc(cache, new_xattr->value, 0);
+	if (IS_ERR(ht))
+		return PTR_ERR(ht);
 
-	return rhashtable_insert_fast(&xattrs->ht, &new_xattr->hash_node,
-				      simple_xattr_params);
-}
+	new_xattr->parent = xattrs;
+	err = rhashtable_insert_fast(ht, &new_xattr->hash_node, simple_xattr_params);
+	if (err)
+		return err;
 
-/**
- * simple_xattrs_init - initialize new xattr header
- * @xattrs: header to initialize
- *
- * Initialize the rhashtable used to store xattr objects.
- *
- * Return: On success zero is returned. On failure a negative error code is
- * returned.
- */
-int simple_xattrs_init(struct simple_xattrs *xattrs)
-{
-	return rhashtable_init(&xattrs->ht, &simple_xattr_params);
-}
-
-/**
- * simple_xattrs_alloc - allocate and initialize a new xattr header
- *
- * Dynamically allocate a simple_xattrs header and initialize the
- * underlying rhashtable. This is intended for consumers that want
- * to lazily allocate xattr storage only when the first xattr is set,
- * avoiding the per-inode rhashtable overhead when no xattrs are used.
- *
- * Return: On success a new simple_xattrs is returned. On failure an
- * ERR_PTR is returned.
- */
-static struct simple_xattrs *simple_xattrs_alloc(void)
-{
-	struct simple_xattrs *xattrs __free(kfree) = NULL;
-	int ret;
-
-	xattrs = kzalloc(sizeof(*xattrs), GFP_KERNEL);
-	if (!xattrs)
-		return ERR_PTR(-ENOMEM);
-
-	ret = simple_xattrs_init(xattrs);
-	if (ret)
-		return ERR_PTR(ret);
-
-	return no_free_ptr(xattrs);
-}
-
-/**
- * simple_xattrs_lazy_alloc - get or allocate xattrs for a set operation
- * @xattrsp: pointer to the xattrs pointer (may point to NULL)
- * @value: value being set (NULL means remove)
- * @flags: xattr set flags
- *
- * For lazily-allocated xattrs on the write path. If no xattrs exist yet
- * and this is a remove operation, returns the appropriate result without
- * allocating. Otherwise ensures xattrs is allocated and published with
- * store-release semantics.
- *
- * Return: On success a valid pointer to the xattrs is returned. On
- * failure or early-exit an ERR_PTR or NULL is returned. Callers should
- * check with IS_ERR_OR_NULL() and propagate with PTR_ERR() which
- * correctly returns 0 for the NULL no-op case.
- */
-static struct simple_xattrs *simple_xattrs_lazy_alloc(struct simple_xattrs **xattrsp,
-						      const void *value, int flags)
-{
-	struct simple_xattrs *xattrs;
-
-	xattrs = READ_ONCE(*xattrsp);
-	if (xattrs)
-		return xattrs;
-
-	if (!value)
-		return (flags & XATTR_REPLACE) ? ERR_PTR(-ENODATA) : NULL;
-
-	xattrs = simple_xattrs_alloc();
-	if (!IS_ERR(xattrs))
-		smp_store_release(xattrsp, xattrs);
-	return xattrs;
-}
-
-static void simple_xattr_ht_free(void *ptr, void *arg)
-{
-	struct simple_xattr *xattr = ptr;
-	size_t *freed_space = arg;
-
-	if (freed_space)
-		*freed_space += simple_xattr_space(xattr->name, xattr->size);
-	simple_xattr_free(xattr);
+	list_add_tail_rcu(&new_xattr->node, xattrs);
+	return 0;
 }
 
 /**
  * simple_xattrs_free - free xattrs
+ * @cache: anchor for the hash table
  * @xattrs: xattr header whose xattrs to destroy
  * @freed_space: approximate number of bytes of memory freed from @xattrs
  *
- * Destroy all xattrs in @xattr. When this is called no one can hold a
+ * Destroy all xattrs in @xattrs. When this is called no one can hold a
  * reference to any of the xattrs anymore.
  */
-void simple_xattrs_free(struct simple_xattrs **xattrsp, size_t *freed_space)
+void simple_xattrs_free(struct simple_xattr_cache *cache, struct list_head *xattrs,
+			size_t *freed_space)
 {
-	struct simple_xattrs *xattrs = *xattrsp;
-
-	might_sleep();
-
-	if (!xattrs)
-		return;
-
 	if (freed_space)
 		*freed_space = 0;
-	rhashtable_free_and_destroy(&xattrs->ht, simple_xattr_ht_free,
-				    freed_space);
-	kfree(xattrs);
-	*xattrsp = NULL;
+
+	while (!list_empty(xattrs)) {
+		struct simple_xattr *xattr = list_first_entry(xattrs, typeof(*xattr), node);
+
+		rhashtable_remove_fast(cache->ht, &xattr->hash_node, simple_xattr_params);
+		list_del(&xattr->node);
+		if (freed_space)
+			*freed_space += simple_xattr_space(xattr->name, xattr->size);
+		/*
+		 * Free with RCU, since the xattr might still get accessed by
+		 * the hash compare function
+		 */
+		simple_xattr_free_rcu(xattr);
+	}
+}
+
+/**
+ * simple_xattr_cache_cleanup - free the cache
+ * @cache: anchor for the hash table
+ *
+ * Destroy the cache table, which was lazily allocated on adding the first xattr.
+ */
+void simple_xattr_cache_cleanup(struct simple_xattr_cache *cache)
+{
+	if (cache->ht) {
+		WARN_ON(atomic_read(&cache->ht->nelems));
+		rhashtable_destroy(cache->ht);
+		kfree(cache->ht);
+		cache->ht = NULL;
+	}
 }
