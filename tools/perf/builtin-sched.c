@@ -2942,7 +2942,7 @@ static int timehist_sched_change_event(const struct perf_tool *tool,
 			if (itr->cursor.nr)
 				callchain_append(&itr->callchain, &itr->cursor, t - tprev);
 
-			itr->last_thread = NULL;
+			thread__zput(itr->last_thread);
 		}
 
 		if (!sched->summary_only)
