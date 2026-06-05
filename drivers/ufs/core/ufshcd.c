@@ -9466,22 +9466,44 @@ static enum scsi_timeout_action ufshcd_eh_timed_out(struct scsi_cmnd *scmd)
 {
 	struct ufs_hba *hba = shost_priv(scmd->device->host);
 
-	if (!hba->system_suspending) {
+	if (!hba->pm_op_in_progress) {
 		/* Activate the error handler in the SCSI core. */
 		return SCSI_EH_NOT_HANDLED;
 	}
 
 	/*
-	 * If we get here we know that no TMFs are outstanding and also that
-	 * the only pending command is a START STOP UNIT command. Handle the
-	 * timeout of that command directly to prevent a deadlock between
+	 * Handle the timeout directly to prevent a deadlock between
 	 * ufshcd_set_dev_pwr_mode() and ufshcd_err_handler().
 	 */
 	ufshcd_link_recovery(hba);
 	dev_info(hba->dev, "%s() finished; outstanding_tasks = %#lx.\n",
 		 __func__, hba->outstanding_tasks);
 
-	return scsi_host_busy(hba->host) ? SCSI_EH_RESET_TIMER : SCSI_EH_DONE;
+	/*
+	 * ufshcd_link_recovery() may already have completed @scmd, e.g. via
+	 * the existing MCQ force-completion path.
+	 */
+	if (!test_bit(SCMD_STATE_COMPLETE, &scmd->state)) {
+		if (!hba->mcq_enabled) {
+			unsigned long flags;
+			struct request *rq = scsi_cmd_to_rq(scmd);
+
+			spin_lock_irqsave(&hba->outstanding_lock, flags);
+			__clear_bit(rq->tag, &hba->outstanding_reqs);
+			spin_unlock_irqrestore(&hba->outstanding_lock, flags);
+		}
+
+		if (ufshcd_is_scsi_cmd(scmd)) {
+			set_host_byte(scmd, DID_REQUEUE);
+			ufshcd_release_scsi_cmd(hba, scmd);
+		} else {
+			set_host_byte(scmd, DID_TIME_OUT);
+		}
+
+		scsi_done(scmd);
+	}
+
+	return SCSI_EH_DONE;
 }
 
 static const struct attribute_group *ufshcd_driver_groups[] = {
@@ -10518,7 +10540,6 @@ static int ufshcd_wl_suspend(struct device *dev)
 
 	hba = shost_priv(sdev->host);
 	down(&hba->host_sem);
-	hba->system_suspending = true;
 
 	if (pm_runtime_suspended(dev))
 		goto out;
@@ -10560,7 +10581,6 @@ out:
 		hba->curr_dev_pwr_mode, hba->uic_link_state);
 	if (!ret)
 		hba->is_sys_suspended = false;
-	hba->system_suspending = false;
 	up(&hba->host_sem);
 	return ret;
 }
