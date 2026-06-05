@@ -1638,7 +1638,8 @@ static struct aggr_cpu_id perf_env__get_socket_aggr_by_cpu(struct perf_cpu cpu, 
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1)
+	/* env->cpu[] has env->nr_cpus_avail entries; reject untrusted indices */
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail)
 		id.socket = env->cpu[cpu.cpu].socket_id;
 
 	return id;
@@ -1649,7 +1650,7 @@ static struct aggr_cpu_id perf_env__get_die_aggr_by_cpu(struct perf_cpu cpu, voi
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1) {
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail) {
 		/*
 		 * die_id is relative to socket, so start
 		 * with the socket ID and then add die to
@@ -1705,7 +1706,7 @@ static struct aggr_cpu_id perf_env__get_cache_aggr_by_cpu(struct perf_cpu cpu,
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1) {
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail) {
 		u32 cache_level = (perf_stat.aggr_level) ?: stat_config.aggr_level;
 
 		id.socket = env->cpu[cpu.cpu].socket_id;
@@ -1722,7 +1723,7 @@ static struct aggr_cpu_id perf_env__get_cluster_aggr_by_cpu(struct perf_cpu cpu,
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1) {
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail) {
 		id.socket = env->cpu[cpu.cpu].socket_id;
 		id.die = env->cpu[cpu.cpu].die_id;
 		id.cluster = env->cpu[cpu.cpu].cluster_id;
@@ -1736,7 +1737,7 @@ static struct aggr_cpu_id perf_env__get_core_aggr_by_cpu(struct perf_cpu cpu, vo
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1) {
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail) {
 		/*
 		 * core_id is relative to socket, die and cluster, we need a
 		 * global id. So we set socket, die id, cluster id and core id.
@@ -1755,7 +1756,7 @@ static struct aggr_cpu_id perf_env__get_cpu_aggr_by_cpu(struct perf_cpu cpu, voi
 	struct perf_env *env = data;
 	struct aggr_cpu_id id = aggr_cpu_id__empty();
 
-	if (cpu.cpu != -1) {
+	if (cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail) {
 		/*
 		 * core_id is relative to socket and die,
 		 * we need a global id. So we set
