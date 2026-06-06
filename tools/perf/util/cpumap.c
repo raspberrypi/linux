@@ -466,6 +466,16 @@ static void set_max_cpu_num(void)
 	if (ret)
 		goto out;
 
+	/*
+	 * struct perf_cpu.cpu is int16_t (libperf ABI) — clamp to avoid
+	 * truncation to negative.  See tools/lib/perf/TODO for the ABI
+	 * widening plan.
+	 */
+	if (max > INT16_MAX) {
+		pr_warning("WARNING: max possible cpus %d exceeds int16_t, clamping to %d\n",
+			   max, INT16_MAX);
+		max = INT16_MAX;
+	}
 	max_cpu_num.cpu = max;
 
 	/* get the highest present cpu number for a sparse allocation */
@@ -478,11 +488,12 @@ static void set_max_cpu_num(void)
 	ret = get_max_num(path, &max);
 
 	if (!ret && max > INT16_MAX) {
-		pr_err("Read out of bounds max cpus of %d\n", max);
-		ret = -1;
+		pr_warning("WARNING: max present cpus %d exceeds int16_t, clamping to %d\n",
+			   max, INT16_MAX);
+		max = INT16_MAX;
 	}
 	if (!ret)
-		max_present_cpu_num.cpu = (int16_t)max;
+		max_present_cpu_num.cpu = max;
 out:
 	if (ret)
 		pr_err("Failed to read max cpus, using default of %d\n", max_cpu_num.cpu);
@@ -619,7 +630,9 @@ int cpu__setup_cpunode_map(void)
 		while ((dent2 = readdir(dir2)) != NULL) {
 			if (dent2->d_type != DT_LNK || sscanf(dent2->d_name, "cpu%u", &cpu) < 1)
 				continue;
-			cpunode_map[cpu] = mem;
+			/* cpunode_map allocated for max_cpu_num entries */
+			if (cpu < (unsigned int)max_cpu_num.cpu)
+				cpunode_map[cpu] = mem;
 		}
 		closedir(dir2);
 	}
