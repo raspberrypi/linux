@@ -2500,8 +2500,11 @@ static void free_idle_threads(void)
 			struct idle_thread_runtime *itr;
 
 			itr = thread__priv(idle);
-			if (itr)
+			if (itr) {
 				thread__put(itr->last_thread);
+				free_callchain(&itr->callchain);
+				callchain_cursor_cleanup(&itr->cursor);
+			}
 
 			thread__put(idle);
 		}

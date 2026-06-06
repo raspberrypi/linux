@@ -1578,6 +1578,21 @@ void free_callchain(struct callchain_root *root)
 	free_callchain_node(&root->node);
 }
 
+void callchain_cursor_cleanup(struct callchain_cursor *cursor)
+{
+	struct callchain_cursor_node *node, *next;
+
+	callchain_cursor_reset(cursor);
+
+	for (node = cursor->first; node; node = next) {
+		next = node->next;
+		free(node);
+	}
+	cursor->first = NULL;
+	cursor->last = &cursor->first;
+	cursor->curr = NULL;
+}
+
 static u64 decay_callchain_node(struct callchain_node *node)
 {
 	struct callchain_node *child;
