@@ -177,6 +177,7 @@ static int process_sample_event(const struct perf_tool *tool,
 
 	if (perf_time__ranges_skip_sample(c->ptime_range, c->range_num, sample->time)) {
 		++c->skipped;
+		addr_location__exit(&al);
 		return 0;
 	}
 
