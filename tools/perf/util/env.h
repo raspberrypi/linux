@@ -185,6 +185,20 @@ const char *perf_env__pmu_mappings(struct perf_env *env);
 
 int perf_env__read_cpu_topology_map(struct perf_env *env);
 
+/*
+ * Safe accessor for env->cpu[] topology array.  env->cpu can be NULL when
+ * reading old-format perf.data that predates topology information —
+ * process_cpu_topology() in header.c frees it while nr_cpus_avail remains
+ * set, so callers must not index env->cpu[] without this check.
+ */
+static inline struct cpu_topology_map *
+perf_env__get_cpu_topology(struct perf_env *env, struct perf_cpu cpu)
+{
+	if (env->cpu && cpu.cpu >= 0 && cpu.cpu < env->nr_cpus_avail)
+		return &env->cpu[cpu.cpu];
+	return NULL;
+}
+
 void cpu_cache_level__free(struct cpu_cache_level *cache);
 
 const char *perf_env__arch(struct perf_env *env);
