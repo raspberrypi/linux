@@ -2647,7 +2647,9 @@ static bool timehist_skip_sample(struct perf_sched *sched,
 		else if (evsel__name_is(evsel, "sched:sched_switch"))
 			prio = evsel__intval(evsel, sample, "prev_prio");
 
-		if (prio != -1 && !test_bit(prio, sched->prio_bitmap)) {
+		/* negative prio means no info; out-of-range prio can't match the filter */
+		if (prio >= 0 &&
+		    (prio >= MAX_PRIO || !test_bit(prio, sched->prio_bitmap))) {
 			rc = true;
 			sched->skipped_samples++;
 		}
