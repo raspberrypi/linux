@@ -1185,9 +1185,8 @@ find_attr_list_attr:
 		 * we have reached the right one or the search has failed.
 		 */
 		if (lowest_vcn && (u8 *)next_al_entry >= al_start &&
-				(u8 *)next_al_entry + 6 < al_end &&
-				(u8 *)next_al_entry + le16_to_cpu(
-					next_al_entry->length) <= al_end &&
+				ntfs_attr_list_entry_is_valid(next_al_entry,
+							      al_end) &&
 				le64_to_cpu(next_al_entry->lowest_vcn) <=
 					lowest_vcn &&
 				next_al_entry->type == al_entry->type &&
