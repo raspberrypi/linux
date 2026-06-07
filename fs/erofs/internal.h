@@ -23,6 +23,8 @@
 __printf(2, 3) void _erofs_printk(struct super_block *sb, const char *fmt, ...);
 #define erofs_err(sb, fmt, ...)	\
 	_erofs_printk(sb, KERN_ERR fmt "\n", ##__VA_ARGS__)
+#define erofs_warn(sb, fmt, ...) \
+	_erofs_printk(sb, KERN_WARNING fmt "\n", ##__VA_ARGS__)
 #define erofs_info(sb, fmt, ...) \
 	_erofs_printk(sb, KERN_INFO fmt "\n", ##__VA_ARGS__)
 
