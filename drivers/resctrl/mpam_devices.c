@@ -1563,9 +1563,9 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 
 	if (mpam_has_feature(mpam_feat_mbw_part, rprops)) {
 		if (mpam_has_feature(mpam_feat_mbw_part, cfg))
-			mpam_reset_msc_bitmap(msc, MPAMCFG_MBW_PBM, rprops->mbw_pbm_bits);
-		else
 			mpam_write_partsel_reg(msc, MBW_PBM, cfg->mbw_pbm);
+		else
+			mpam_reset_msc_bitmap(msc, MPAMCFG_MBW_PBM, rprops->mbw_pbm_bits);
 	}
 
 	if (mpam_has_feature(mpam_feat_mbw_min, rprops)) {
