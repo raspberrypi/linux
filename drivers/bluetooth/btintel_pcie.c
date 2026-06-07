@@ -626,9 +626,10 @@ static void *btintel_pcie_copy_tlv(void *dest, enum btintel_pcie_tlv_type type,
 static int btintel_pcie_read_dram_buffers(struct btintel_pcie_data *data)
 {
 	u32 offset, prev_size, wr_ptr_status, dump_size, data_len;
+	u32 status_reg, wrap_reg;
 	struct btintel_pcie_dbgc *dbgc = &data->dbgc;
 	struct hci_dev *hdev = data->hdev;
-	u8 *pdata, *p, buf_idx;
+	u8 *pdata, *p, buf_idx, hw_variant;
 	struct intel_tlv *tlv;
 	struct timespec64 now;
 	struct tm tm_now;
@@ -641,7 +642,28 @@ static int btintel_pcie_read_dram_buffers(struct btintel_pcie_data *data)
 		return -EOPNOTSUPP;
 
 
-	wr_ptr_status = btintel_pcie_rd_dev_mem(data, BTINTEL_PCIE_DBGC_CUR_DBGBUFF_STATUS);
+	hw_variant = INTEL_HW_VARIANT(data->cnvi);
+	switch (hw_variant) {
+	case BTINTEL_HWID_BZRI:
+	case BTINTEL_HWID_BZRIW:
+		status_reg = BTINTEL_PCIE_DBGC_CUR_DBGBUFF_STATUS;
+		wrap_reg = BTINTEL_PCIE_DBGC_DBGBUFF_WRAP_ARND;
+		break;
+	case BTINTEL_HWID_SCP:
+	case BTINTEL_HWID_SCP2:
+	case BTINTEL_HWID_SCP2F:
+		status_reg = BTINTEL_PCIE_DBGC_CUR_DBGBUFF_STATUS_SCP;
+		wrap_reg = BTINTEL_PCIE_DBGC_DBGBUFF_WRAP_ARND_SCP;
+		break;
+	default:
+		bt_dev_err(hdev, "Unsupported Intel hardware variant (0x%2.2x)",
+			   hw_variant);
+		return -EINVAL;
+	}
+
+	wr_ptr_status = btintel_pcie_rd_dev_mem(data, status_reg);
+	data->dmp_hdr.wrap_ctr = btintel_pcie_rd_dev_mem(data, wrap_reg);
+
 	offset = wr_ptr_status & BTINTEL_PCIE_DBG_OFFSET_BIT_MASK;
 
 	buf_idx = BTINTEL_PCIE_DBGC_DBG_BUF_IDX(wr_ptr_status);
@@ -718,10 +740,6 @@ static int btintel_pcie_read_dram_buffers(struct btintel_pcie_data *data)
 				  sizeof(data->dmp_hdr.write_ptr));
 	p = btintel_pcie_copy_tlv(p, BTINTEL_WRAP_CTR, &data->dmp_hdr.wrap_ctr,
 				  sizeof(data->dmp_hdr.wrap_ctr));
-
-	data->dmp_hdr.wrap_ctr = btintel_pcie_rd_dev_mem(data,
-							 BTINTEL_PCIE_DBGC_DBGBUFF_WRAP_ARND);
-
 	p = btintel_pcie_copy_tlv(p, BTINTEL_TRIGGER_REASON, &data->dmp_hdr.trigger_reason,
 				  sizeof(data->dmp_hdr.trigger_reason));
 	p = btintel_pcie_copy_tlv(p, BTINTEL_FW_SHA, &data->dmp_hdr.fw_git_sha1,
