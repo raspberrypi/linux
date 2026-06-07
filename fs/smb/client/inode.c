@@ -3382,7 +3382,8 @@ cifs_setattr_nounix(struct dentry *direntry, struct iattr *attrs)
 		gid = attrs->ia_gid;
 
 	if ((cifs_sb_flags(cifs_sb) & CIFS_MOUNT_CIFS_ACL) ||
-	    (cifs_sb_flags(cifs_sb) & CIFS_MOUNT_MODE_FROM_SID)) {
+	    (cifs_sb_flags(cifs_sb) & CIFS_MOUNT_MODE_FROM_SID) ||
+	    posix) {
 		if (uid_valid(uid) || gid_valid(gid)) {
 			mode = NO_CHANGE_64;
 			rc = id_mode_to_cifs_acl(inode, full_path, &mode,
