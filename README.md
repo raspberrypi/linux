@@ -8,7 +8,7 @@ Documentation/admin-guide/README.rst first.
 In order to build the documentation, use ``make htmldocs`` or
 ``make pdfdocs``.  The formatted documentation can also be read online at:
 
-    https://www.kernel.org/doc/html/latest/
+    https://github.com/aripitek/www.kernel.org/doc/html/latest/
 
 There are various text files in the Documentation/ subdirectory,
 several of them using the Restructured Text markup notation.
@@ -18,9 +18,9 @@ requirements for building and running the kernel, and information about
 the problems which may result by upgrading your kernel.
 
 Build status for rpi-6.12.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
+[![Pi kernel build tests](https://github.com/aripitek/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/aripitek/raspberrypi/linux/actions/workflows/kernel-build.yml)
+[![dtoverlaycheck](https://github.com/aripitek/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.12.y)](https://github.com/aripitek/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
 
 Build status for rpi-6.18.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
+[![Pi kernel build tests](https://github.com/aripitek/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/aripitek/raspberrypi/linux/actions/workflows/kernel-build.yml)
+[![dtoverlaycheck](https://github.com/aripitek/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/aripitek/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
