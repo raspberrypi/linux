@@ -848,6 +848,12 @@ static int ntfs_read_locked_inode(struct inode *vi)
 					a->data.resident.value_offset),
 					le32_to_cpu(
 					a->data.resident.value_length));
+			/* A resident list is not validated on load; check it now. */
+			if (!ntfs_attr_list_is_valid(ni->attr_list,
+						     ni->attr_list_size)) {
+				ntfs_error(vi->i_sb, "Corrupt attribute list.");
+				goto unm_err_out;
+			}
 		}
 	}
 skip_attr_list_load:
