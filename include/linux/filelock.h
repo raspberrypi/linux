@@ -564,7 +564,7 @@ static inline bool is_delegated(struct delegated_inode *di)
 	return false;
 }
 
-static inline int break_lease(struct inode *inode, bool wait)
+static inline int break_lease(struct inode *inode, unsigned int mode)
 {
 	return 0;
 }
