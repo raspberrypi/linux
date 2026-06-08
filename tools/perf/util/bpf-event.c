@@ -873,6 +873,7 @@ static int perf_env__add_bpf_info(struct perf_env *env, u32 id)
 		if (!perf_env__insert_bpf_prog_info(env, info_node)) {
 			pr_debug("%s: duplicate add bpf info request for id %u\n",
 				 __func__, btf_id);
+			bpf_metadata_free(info_node->metadata);
 			free(info_linear);
 			free(info_node);
 			goto out;
