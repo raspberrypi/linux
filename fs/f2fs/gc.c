@@ -1499,11 +1499,7 @@ up_out:
 put_out:
 	f2fs_put_dnode(&dn);
 out:
-	if (!folio_test_uptodate(folio))
-		__folio_set_dropbehind(folio);
-	folio_unlock(folio);
-	folio_end_dropbehind(folio);
-	folio_put(folio);
+	f2fs_folio_put(folio, true);
 out_iput:
 	if (atomic_inode)
 		iput(atomic_inode);
