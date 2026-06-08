@@ -597,6 +597,22 @@ static u32 ntfs_resident_attr_min_value_length(const __le32 type)
 	}
 }
 
+static bool ntfs_attr_type_is_resident_only(const __le32 type)
+{
+	switch (type) {
+	case AT_STANDARD_INFORMATION:
+	case AT_FILE_NAME:
+	case AT_OBJECT_ID:
+	case AT_VOLUME_NAME:
+	case AT_VOLUME_INFORMATION:
+	case AT_INDEX_ROOT:
+	case AT_EA_INFORMATION:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static bool ntfs_file_name_attr_value_is_valid(const u8 *value, const u32 value_length)
 {
 	const struct file_name_attr *fn;
@@ -692,7 +708,7 @@ static bool ntfs_attr_value_is_valid(struct ntfs_volume *vol,
 	u32 min_len;
 
 	if (a->non_resident) {
-		if (a->type == AT_FILE_NAME || a->type == AT_VOLUME_NAME)
+		if (ntfs_attr_type_is_resident_only(a->type))
 			goto corrupt;
 		if (!ntfs_non_resident_attr_value_is_valid(a))
 			goto corrupt;
