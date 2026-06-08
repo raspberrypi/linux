@@ -101,6 +101,9 @@ nfnl_cthelper_from_nlattr(struct nlattr *attr, struct nf_conn *ct)
 	struct nf_conn_help *help = nfct_help(ct);
 	const struct nf_conntrack_helper *helper;
 
+	if (!help)
+		return -EINVAL;
+
 	if (attr == NULL)
 		return -EINVAL;
 
@@ -117,6 +120,9 @@ nfnl_cthelper_to_nlattr(struct sk_buff *skb, const struct nf_conn *ct)
 {
 	const struct nf_conn_help *help = nfct_help(ct);
 	const struct nf_conntrack_helper *helper;
+
+	if (!help)
+		return 0;
 
 	helper = rcu_dereference(help->helper);
 	if (helper && helper->data_len &&

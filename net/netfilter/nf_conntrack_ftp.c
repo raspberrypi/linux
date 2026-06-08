@@ -381,6 +381,9 @@ static int help(struct sk_buff *skb,
 	int found = 0, ends_in_nl;
 	nf_nat_ftp_hook_fn *nf_nat_ftp;
 
+	if (!ct_ftp_info)
+		return NF_DROP;
+
 	/* Until there's been traffic both ways, don't look in packets. */
 	if (ctinfo != IP_CT_ESTABLISHED &&
 	    ctinfo != IP_CT_ESTABLISHED_REPLY) {
@@ -541,6 +544,9 @@ out_update_nl:
 static int nf_ct_ftp_from_nlattr(struct nlattr *attr, struct nf_conn *ct)
 {
 	struct nf_ct_ftp_master *ftp = nfct_help_data(ct);
+
+	if (!ftp)
+		return -ENOENT;
 
 	/* This conntrack has been injected from user-space, always pick up
 	 * sequence tracking. Otherwise, the first FTP command after the

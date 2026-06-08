@@ -131,6 +131,9 @@ bool nf_ct_gre_keymap_add(struct nf_conn *ct,
 	struct nf_ct_gre_keymap *km_orig, *km_repl;
 	bool ret = false;
 
+	if (!ct_pptp_info)
+		return false;
+
 	km_orig = kmalloc_obj(*km_orig, GFP_ATOMIC);
 	if (!km_orig)
 		return false;
@@ -186,6 +189,9 @@ void nf_ct_gre_keymap_destroy(struct nf_conn *ct)
 {
 	struct nf_ct_pptp_master *ct_pptp_info = nfct_help_data(ct);
 	enum ip_conntrack_dir dir;
+
+	if (!ct_pptp_info)
+		return;
 
 	pr_debug("entering for ct %p\n", ct);
 
@@ -388,6 +394,9 @@ void gre_pptp_destroy_siblings(struct nf_conn *ct)
 	struct net *net = nf_ct_net(ct);
 	const struct nf_ct_pptp_master *ct_pptp_info = nfct_help_data(ct);
 	struct nf_conntrack_tuple t;
+
+	if (!ct_pptp_info)
+		return;
 
 	nf_ct_gre_keymap_destroy(ct);
 

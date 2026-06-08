@@ -134,6 +134,8 @@ static inline void *nfct_help_data(const struct nf_conn *ct)
 	struct nf_conn_help *help;
 
 	help = nf_ct_ext_find(ct, NF_CT_EXT_HELPER);
+	if (!help)
+		return NULL;
 
 	return (void *)help->data;
 }
