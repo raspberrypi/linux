@@ -633,6 +633,13 @@ static ssize_t i2c_scl_frequency_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(i2c_scl_frequency);
 
+static void i3c_master_hj_work_fn(struct work_struct *work)
+{
+	struct i3c_master_controller *master = container_of(work, typeof(*master), hj_work);
+
+	i3c_master_do_daa(master);
+}
+
 static int i3c_set_hotjoin(struct i3c_master_controller *master, bool enable)
 {
 	int ret;
@@ -710,6 +717,18 @@ int i3c_master_disable_hotjoin(struct i3c_master_controller *master)
 	return i3c_set_hotjoin(master, false);
 }
 EXPORT_SYMBOL_GPL(i3c_master_disable_hotjoin);
+
+/**
+ * i3c_master_queue_hotjoin - Queue DAA processing after a Hot-Join event
+ * @master: I3C master object
+ *
+ * Queue the hot-join worker on the master's workqueue.
+ */
+void i3c_master_queue_hotjoin(struct i3c_master_controller *master)
+{
+	queue_work(master->wq, &master->hj_work);
+}
+EXPORT_SYMBOL_GPL(i3c_master_queue_hotjoin);
 
 static ssize_t hotjoin_show(struct device *dev, struct device_attribute *da, char *buf)
 {
@@ -3084,6 +3103,7 @@ int i3c_master_register(struct i3c_master_controller *master,
 		ret = -ENOMEM;
 		goto err_put_dev;
 	}
+	INIT_WORK(&master->hj_work, i3c_master_hj_work_fn);
 
 	ret = i3c_master_bus_init(master);
 	if (ret)
@@ -3146,6 +3166,7 @@ EXPORT_SYMBOL_GPL(i3c_master_register);
 void i3c_master_unregister(struct i3c_master_controller *master)
 {
 	i3c_bus_notify(&master->bus, I3C_NOTIFY_BUS_REMOVE);
+	cancel_work_sync(&master->hj_work);
 
 	if (master->ops->set_dev_nack_retry)
 		device_remove_file(&master->dev, &dev_attr_dev_nack_retry_count);
