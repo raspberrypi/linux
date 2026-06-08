@@ -523,6 +523,11 @@ struct i3c_master_controller_ops {
  *	be done from a sleep-able context
  * @hj_work: work item used to run DAA after a Hot-Join event is detected.
  *           Queued to @wq by i3c_master_queue_hotjoin()
+ * @reg_work: work item used to register newly discovered I3C devices with
+ *            the driver model. Queued to @wq by i3c_master_do_daa_ext() so
+ *            that device registration is deferred out of the DAA caller's
+ *            context (notably the resume path), and is skipped if the
+ *            controller is shutting down
  * @dev_nack_retry_count: retry count when slave device nack
  *
  * A &struct i3c_master_controller has to be registered to the I3C subsystem
@@ -548,6 +553,7 @@ struct i3c_master_controller {
 	struct i3c_bus bus;
 	struct workqueue_struct *wq;
 	struct work_struct hj_work;
+	struct work_struct reg_work;
 	unsigned int dev_nack_retry_count;
 };
 
