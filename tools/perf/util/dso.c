@@ -346,7 +346,7 @@ int filename__decompress(const char *name, char *pathname,
 	if (!compressions[comp].is_compressed(name))
 		return open(name, O_RDONLY | O_CLOEXEC);
 
-	fd = mkstemp(tmpbuf);
+	fd = mkostemp(tmpbuf, O_CLOEXEC);
 	if (fd < 0) {
 		*err = errno;
 		return -1;

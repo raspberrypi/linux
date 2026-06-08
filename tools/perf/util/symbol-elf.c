@@ -1118,9 +1118,9 @@ static Elf *read_gnu_debugdata(struct dso *dso, Elf *elf, const char *name, int 
 		return NULL;
 	}
 
-	temp_fd = mkstemp(temp_filename);
+	temp_fd = mkostemp(temp_filename, O_CLOEXEC);
 	if (temp_fd < 0) {
-		pr_debug("%s: mkstemp: %m\n", __func__);
+		pr_debug("%s: mkostemp: %m\n", __func__);
 		*dso__load_errno(dso) = -errno;
 		fclose(wrapped);
 		return NULL;
@@ -1986,7 +1986,7 @@ static int kcore__init(struct kcore *kcore, char *filename, int elfclass,
 	kcore->elfclass = elfclass;
 
 	if (temp)
-		kcore->fd = mkstemp(filename);
+		kcore->fd = mkostemp(filename, O_CLOEXEC);
 	else
 		kcore->fd = open(filename, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0400);
 	if (kcore->fd == -1)
