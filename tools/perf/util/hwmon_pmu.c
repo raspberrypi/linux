@@ -514,14 +514,14 @@ int hwmon_pmu__for_each_event(struct perf_pmu *pmu, void *state, pmu_event_callb
 		int ret;
 		size_t len;
 
-		len = snprintf(alias_buf, sizeof(alias_buf), "%s%d",
-			       hwmon_type_strs[key.type], key.num);
+		scnprintf(alias_buf, sizeof(alias_buf), "%s%d",
+			  hwmon_type_strs[key.type], key.num);
 		if (!info.name) {
 			info.name = info.alias;
 			info.alias = NULL;
 		}
 
-		len = snprintf(desc_buf, sizeof(desc_buf), "%s in unit %s named %s.",
+		len = scnprintf(desc_buf, sizeof(desc_buf), "%s in unit %s named %s.",
 			hwmon_desc[key.type],
 			pmu->name + 6,
 			value->label ?: info.name);
