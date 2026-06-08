@@ -1656,6 +1656,9 @@ group_extend_out:
 		if (!(fd_file(donor)->f_mode & FMODE_WRITE))
 			return -EBADF;
 
+		if (file_inode(filp)->i_sb != file_inode(fd_file(donor))->i_sb)
+			return -EXDEV;
+
 		err = mnt_want_write_file(filp);
 		if (err)
 			return err;
