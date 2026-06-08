@@ -919,12 +919,14 @@ int filename__read_build_id(const char *filename, struct build_id *bid)
 			return -1;
 		}
 		close(fd);
-		filename = path;
+		/* non-empty path means a temp file was created */
+		if (path[0] != '\0')
+			filename = path;
 	}
 
 	err = read_build_id(filename, bid);
 
-	if (m.comp)
+	if (m.comp && filename == path)
 		unlink(filename);
 	return err;
 }

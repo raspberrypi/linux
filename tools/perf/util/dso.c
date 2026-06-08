@@ -343,8 +343,11 @@ int filename__decompress(const char *name, char *pathname,
 	 * To keep this transparent, we detect this and return the file
 	 * descriptor to the uncompressed file.
 	 */
-	if (!compressions[comp].is_compressed(name))
+	if (!compressions[comp].is_compressed(name)) {
+		if (pathname && len > 0)
+			pathname[0] = '\0';
 		return open(name, O_RDONLY | O_CLOEXEC);
+	}
 
 	fd = mkostemp(tmpbuf, O_CLOEXEC);
 	if (fd < 0) {
@@ -598,8 +601,11 @@ static char *dso__get_filename(struct dso *dso, const char *root_dir,
 			goto out;
 		}
 
-		*decomp = true;
-		strcpy(name, newpath);
+		/* empty pathname means file wasn't actually compressed */
+		if (newpath[0] != '\0') {
+			*decomp = true;
+			strcpy(name, newpath);
+		}
 	}
 	return name;
 
