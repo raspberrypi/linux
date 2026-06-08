@@ -295,8 +295,11 @@ static int hwmon_pmu__read_events(struct hwmon_pmu *pmu)
 			while (read_len > 0 && buf[read_len - 1] == '\n')
 				read_len--;
 
-			if (read_len > 0)
-				buf[read_len] = '\0';
+			if (read_len <= 0) {
+				close(fd);
+				continue;
+			}
+			buf[read_len] = '\0';
 
 			if (buf[0] == '\0') {
 				pr_debug("hwmon_pmu: empty label file %s %s\n",
