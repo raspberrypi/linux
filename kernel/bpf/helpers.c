@@ -2919,11 +2919,13 @@ __bpf_kfunc struct task_struct *bpf_task_from_vpid(s32 vpid)
 {
 	struct task_struct *p;
 
-	rcu_read_lock();
+	guard(rcu)();
+	if (!task_active_pid_ns(current))
+		return NULL;
+
 	p = find_task_by_vpid(vpid);
 	if (p)
 		p = bpf_task_acquire(p);
-	rcu_read_unlock();
 
 	return p;
 }
