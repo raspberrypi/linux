@@ -289,7 +289,7 @@ static int hwmon_pmu__read_events(struct hwmon_pmu *pmu)
 			if (fd < 0)
 				continue;
 
-			read_len = read(fd, buf, sizeof(buf));
+			read_len = read(fd, buf, sizeof(buf) - 1);
 
 			while (read_len > 0 && buf[read_len - 1] == '\n')
 				read_len--;
@@ -432,7 +432,7 @@ static size_t hwmon_pmu__describe_items(struct hwmon_pmu *hwm, char *out_buf, si
 			is_alarm ? "_alarm" : "");
 		fd = openat(dir, buf, O_RDONLY);
 		if (fd > 0) {
-			ssize_t read_len = read(fd, buf, sizeof(buf));
+			ssize_t read_len = read(fd, buf, sizeof(buf) - 1);
 
 			while (read_len > 0 && buf[read_len - 1] == '\n')
 				read_len--;
@@ -816,7 +816,7 @@ int evsel__hwmon_pmu_read(struct evsel *evsel, int cpu_map_idx, int thread)
 
 	count = perf_counts(evsel->counts, cpu_map_idx, thread);
 	fd = FD(evsel, cpu_map_idx, thread);
-	len = pread(fd, buf, sizeof(buf), 0);
+	len = pread(fd, buf, sizeof(buf) - 1, 0);
 	if (len <= 0) {
 		count->lost++;
 		return -EINVAL;
