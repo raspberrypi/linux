@@ -182,6 +182,9 @@ int drm_gem_fb_init_with_funcs(struct drm_device *dev,
 			goto err_gem_object_put;
 		}
 
+		if (mode_cmd->modifier[i] != DRM_FORMAT_MOD_LINEAR)
+			continue;
+
 		min_size = (height - 1) * mode_cmd->pitches[i]
 			 + drm_format_info_min_pitch(info, i, width)
 			 + mode_cmd->offsets[i];
