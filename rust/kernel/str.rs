@@ -4,7 +4,6 @@
 
 use crate::{
     alloc::{
-        flags::*,
         AllocError,
         KVec, //
     },
