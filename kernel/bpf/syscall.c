@@ -807,6 +807,11 @@ void bpf_obj_free_task_work(const struct btf_record *rec, void *obj)
 	bpf_task_work_cancel_and_free(obj + rec->task_work_off);
 }
 
+void bpf_obj_cancel_fields(struct bpf_map *map, void *obj)
+{
+	bpf_map_free_internal_structs(map, obj);
+}
+
 void bpf_obj_free_fields(const struct btf_record *rec, void *obj)
 {
 	const struct btf_field *fields;

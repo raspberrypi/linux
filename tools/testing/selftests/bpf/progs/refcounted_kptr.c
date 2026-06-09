@@ -615,11 +615,29 @@ int percpu_hash_refcount_leak(void *ctx)
 	struct map_value *v;
 	int key = 0;
 
-	v = bpf_map_lookup_elem(&percpu_hash, &key);
+	v = bpf_map_lookup_percpu_elem(&percpu_hash, &key, 0);
 	if (!v)
 		return 0;
 
 	return __insert_in_list(&head, &lock, &v->node);
+}
+
+SEC("syscall")
+int clear_percpu_hash_kptr(void *ctx)
+{
+	struct node_data *n;
+	struct map_value *v;
+	int key = 0;
+
+	v = bpf_map_lookup_percpu_elem(&percpu_hash, &key, 0);
+	if (!v)
+		return 0;
+
+	n = bpf_kptr_xchg(&v->node, NULL);
+	if (!n)
+		return 0;
+	bpf_obj_drop(n);
+	return probe_read_refcount();
 }
 
 SEC("tc")

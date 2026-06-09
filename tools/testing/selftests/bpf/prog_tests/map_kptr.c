@@ -51,7 +51,6 @@ static void test_map_kptr_success(bool test_run)
 	ret = bpf_map__update_elem(skel->maps.array_map,
 				   &key, sizeof(key), buf, sizeof(buf), 0);
 	ASSERT_OK(ret, "array_map update");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
@@ -59,49 +58,42 @@ static void test_map_kptr_success(bool test_run)
 	ret = bpf_map__update_elem(skel->maps.pcpu_array_map,
 				   &key, sizeof(key), pbuf, cpu * sizeof(buf), 0);
 	ASSERT_OK(ret, "pcpu_array_map update");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.hash_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "hash_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.pcpu_hash_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "pcpu_hash_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.hash_malloc_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "hash_malloc_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.pcpu_hash_malloc_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "pcpu_hash_malloc_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.lru_hash_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "lru_hash_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
 
 	ret = bpf_map__delete_elem(skel->maps.lru_pcpu_hash_map, &key, sizeof(key), 0);
 	ASSERT_OK(ret, "lru_pcpu_hash_map delete");
-	skel->data->ref--;
 	ret = bpf_prog_test_run_opts(bpf_program__fd(skel->progs.test_map_kptr_ref3), &opts);
 	ASSERT_OK(ret, "test_map_kptr_ref3 refcount");
 	ASSERT_OK(opts.retval, "test_map_kptr_ref3 retval");
@@ -175,7 +167,7 @@ void serial_test_map_kptr(void)
 		ASSERT_OK(kern_sync_rcu(), "sync rcu");
 		wait_for_map_release();
 
-		/* Observe refcount dropping to 1 on synchronous delete elem */
+		/* Observe refcount dropping to 1 on map release. */
 		test_map_kptr_success(true);
 	}
 
