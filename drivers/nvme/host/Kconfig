@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 config NVME_CORE
 	tristate
+	select SGL_ALLOC
 
 config BLK_DEV_NVME
 	tristate "NVM Express block device"
