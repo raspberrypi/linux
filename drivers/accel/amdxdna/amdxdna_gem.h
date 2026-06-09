@@ -12,7 +12,6 @@
 #include "amdxdna_pci_drv.h"
 
 struct amdxdna_umap {
-	struct vm_area_struct		*vma;
 	struct mmu_interval_notifier	notifier;
 	struct hmm_range		range;
 	struct work_struct		hmm_unreg_work;
