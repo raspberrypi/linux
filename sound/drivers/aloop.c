@@ -728,7 +728,6 @@ static void loopback_jiffies_timer_function(struct timer_list *t)
 			if (dpcm->period_update_pending) {
 				dpcm->period_update_pending = 0;
 				period_elapsed = true;
-				break;
 			}
 		}
 	}
