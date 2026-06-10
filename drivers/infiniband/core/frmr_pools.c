@@ -97,13 +97,44 @@ static void destroy_all_handles_in_queue(struct ib_device *device,
 	}
 }
 
+/*
+ * Bulk-move all handles from @src into @dst without allocating new pages.
+ * If @dst has a partial tail page, fill it handle-by-handle from @src first
+ * to preserve the invariant that only the tail page is partial, then splice
+ * the remaining @src pages onto @dst. On return @src is empty.
+ *
+ * Caller must hold the lock protecting both queues.
+ */
+static void splice_frmr_queue_locked(struct frmr_queue *dst,
+				     struct frmr_queue *src)
+{
+	u32 free_in_tail = dst->ci % NUM_HANDLES_PER_PAGE;
+	u32 handle;
+
+	if (free_in_tail) {
+		free_in_tail = NUM_HANDLES_PER_PAGE - free_in_tail;
+		while (free_in_tail && src->ci) {
+			handle = pop_handle_from_queue_locked(src);
+			push_handle_to_queue_locked(dst, handle);
+			free_in_tail--;
+		}
+	}
+
+	if (src->ci > 0) {
+		list_splice_tail_init(&src->pages_list, &dst->pages_list);
+		dst->num_pages += src->num_pages;
+		dst->ci += src->ci;
+		src->num_pages = 0;
+		src->ci = 0;
+	}
+}
+
 static bool age_pinned_pool(struct ib_device *device, struct ib_frmr_pool *pool)
 {
 	struct ib_frmr_pools *pools = device->frmr_pools;
 	u32 total, to_destroy, destroyed = 0;
 	bool has_work = false;
 	u32 *handles;
-	u32 handle;
 
 	spin_lock(&pool->lock);
 	total = pool->queue.ci + pool->inactive_queue.ci + pool->in_use;
@@ -112,7 +143,7 @@ static bool age_pinned_pool(struct ib_device *device, struct ib_frmr_pool *pool)
 		return false;
 	}
 
-	to_destroy = total - pool->pinned_handles;
+	to_destroy = min(total - pool->pinned_handles, pool->inactive_queue.ci);
 
 	handles = kcalloc(to_destroy, sizeof(*handles), GFP_ATOMIC);
 	if (!handles) {
@@ -121,15 +152,13 @@ static bool age_pinned_pool(struct ib_device *device, struct ib_frmr_pool *pool)
 	}
 
 	/* Destroy all excess handles in the inactive queue */
-	while (pool->inactive_queue.ci && destroyed < to_destroy) {
-		handles[destroyed++] = pop_handle_from_queue_locked(
+	for (; destroyed < to_destroy; destroyed++)
+		handles[destroyed] = pop_handle_from_queue_locked(
 			&pool->inactive_queue);
-	}
 
 	/* Move all handles from regular queue to inactive queue */
-	while (pool->queue.ci) {
-		handle = pop_handle_from_queue_locked(&pool->queue);
-		push_handle_to_queue_locked(&pool->inactive_queue, handle);
+	if (pool->queue.ci > 0) {
+		splice_frmr_queue_locked(&pool->inactive_queue, &pool->queue);
 		has_work = true;
 	}
 
@@ -158,13 +187,7 @@ static void pool_aging_work(struct work_struct *work)
 	/* Move all pages from regular queue to inactive queue */
 	spin_lock(&pool->lock);
 	if (pool->queue.ci > 0) {
-		list_splice_tail_init(&pool->queue.pages_list,
-				      &pool->inactive_queue.pages_list);
-		pool->inactive_queue.num_pages = pool->queue.num_pages;
-		pool->inactive_queue.ci = pool->queue.ci;
-
-		pool->queue.num_pages = 0;
-		pool->queue.ci = 0;
+		splice_frmr_queue_locked(&pool->inactive_queue, &pool->queue);
 		has_work = true;
 	}
 	spin_unlock(&pool->lock);
