@@ -850,7 +850,7 @@ static int __iomap_write_begin(const struct iomap_iter *iter,
 			if (status < 0)
 				fserror_report_io(iter->inode,
 						  FSERR_BUFFERED_READ, pos,
-						  len, status, GFP_NOFS);
+						  plen, status, GFP_NOFS);
 			if (status)
 				return status;
 		}
