@@ -549,9 +549,8 @@ EXPORT_SYMBOL(ib_frmr_pool_pop);
  * @device: The device to push the FRMR handle to.
  * @mr: The MR containing the FRMR handle to push back to the pool.
  *
- * Returns 0 on success, negative error code on failure.
  */
-int ib_frmr_pool_push(struct ib_device *device, struct ib_mr *mr)
+void ib_frmr_pool_push(struct ib_device *device, struct ib_mr *mr)
 {
 	struct ib_frmr_pool *pool = mr->frmr.pool;
 	struct ib_frmr_pools *pools = device->frmr_pools;
@@ -559,19 +558,23 @@ int ib_frmr_pool_push(struct ib_device *device, struct ib_mr *mr)
 	int ret;
 
 	spin_lock(&pool->lock);
-	/* Schedule aging every time an empty pool becomes non-empty */
-	if (pool->queue.ci == 0)
-		schedule_aging = true;
+	pool->in_use--;
 	ret = push_handle_to_queue_locked(&pool->queue, mr->frmr.handle);
-	if (ret == 0)
-		pool->in_use--;
+
+	/* Schedule aging every time an empty pool becomes non-empty */
+	if (!ret && pool->queue.ci == 1)
+		schedule_aging = true;
 
 	spin_unlock(&pool->lock);
 
-	if (ret == 0 && schedule_aging)
+	if (ret) {
+		pools->pool_ops->destroy_frmrs(device, &mr->frmr.handle, 1);
+		return;
+	}
+
+	if (schedule_aging)
 		queue_delayed_work(pools->aging_wq, &pool->aging_work,
 			secs_to_jiffies(READ_ONCE(pools->aging_period_sec)));
 
-	return ret;
 }
 EXPORT_SYMBOL(ib_frmr_pool_push);
