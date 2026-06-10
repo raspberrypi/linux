@@ -100,8 +100,7 @@ struct loopback_cable {
 	spinlock_t lock;
 	struct loopback_pcm *streams[2];
 	/* in-flight peer stops running outside cable->lock */
-	atomic_t stop_count;
-	wait_queue_head_t stop_wait;
+	struct snd_refcount stop_count;
 	struct snd_pcm_hardware hw;
 	/* flags */
 	unsigned int valid;
@@ -374,7 +373,7 @@ static int loopback_check_format(struct loopback_cable *cable, int stream)
 				return -EIO;
 			else if (check && cruntime->state == SNDRV_PCM_STATE_RUNNING) {
 				/* close must not free the peer runtime below */
-				atomic_inc(&cable->stop_count);
+				snd_refcount_get(&cable->stop_count);
 				stop_capture = true;
 			}
 		}
@@ -407,8 +406,7 @@ static int loopback_check_format(struct loopback_cable *cable, int stream)
 
 	if (stop_capture) {
 		snd_pcm_stop(dpcm_capt->substream, SNDRV_PCM_STATE_DRAINING);
-		if (atomic_dec_and_test(&cable->stop_count))
-			wake_up(&cable->stop_wait);
+		snd_refcount_put(&cable->stop_count);
 	}
 
 	return 0;
@@ -1093,7 +1091,7 @@ static void free_cable(struct snd_pcm_substream *substream)
 	}
 
 	/* Pair with the stop_count increment in loopback_check_format(). */
-	wait_event(cable->stop_wait, !atomic_read(&cable->stop_count));
+	snd_refcount_sync(&cable->stop_count);
 	if (other_alive)
 		return;
 
@@ -1297,8 +1295,7 @@ static int loopback_open(struct snd_pcm_substream *substream)
 			goto unlock;
 		}
 		spin_lock_init(&cable->lock);
-		atomic_set(&cable->stop_count, 0);
-		init_waitqueue_head(&cable->stop_wait);
+		snd_refcount_init(&cable->stop_count);
 		cable->hw = loopback_pcm_hardware;
 		if (loopback->timer_source)
 			cable->ops = &loopback_snd_timer_ops;
