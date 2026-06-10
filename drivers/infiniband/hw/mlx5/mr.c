@@ -294,7 +294,7 @@ static int mlx5r_create_mkeys(struct ib_device *device, struct ib_frmr_key *key,
 free_in:
 	kfree(in);
 	if (err)
-		for (; i > 0; i--)
+		for (i--; i >= 0; i--)
 			mlx5_core_destroy_mkey(dev->mdev, handles[i]);
 	return err;
 }
