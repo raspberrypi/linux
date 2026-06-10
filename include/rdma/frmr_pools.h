@@ -35,5 +35,6 @@ int ib_frmr_pools_init(struct ib_device *device,
 void ib_frmr_pools_cleanup(struct ib_device *device);
 int ib_frmr_pool_pop(struct ib_device *device, struct ib_mr *mr);
 void ib_frmr_pool_push(struct ib_device *device, struct ib_mr *mr);
+void ib_frmr_pool_drop(struct ib_mr *mr);
 
 #endif /* FRMR_POOLS_H */

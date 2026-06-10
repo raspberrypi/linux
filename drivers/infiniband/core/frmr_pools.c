@@ -578,3 +578,18 @@ void ib_frmr_pool_push(struct ib_device *device, struct ib_mr *mr)
 
 }
 EXPORT_SYMBOL(ib_frmr_pool_push);
+
+/*
+ * Drop a handle previously popped from the pool without returning it for
+ * reuse. The caller is responsible for destroying the underlying hardware
+ * resource.
+ */
+void ib_frmr_pool_drop(struct ib_mr *mr)
+{
+	struct ib_frmr_pool *pool = mr->frmr.pool;
+
+	spin_lock(&pool->lock);
+	pool->in_use--;
+	spin_unlock(&pool->lock);
+}
+EXPORT_SYMBOL(ib_frmr_pool_drop);
