@@ -435,7 +435,7 @@ static size_t hwmon_pmu__describe_items(struct hwmon_pmu *hwm, char *out_buf, si
 			hwmon_item_strs[bit],
 			is_alarm ? "_alarm" : "");
 		fd = openat(dir, buf, O_RDONLY);
-		if (fd > 0) {
+		if (fd >= 0) {
 			ssize_t read_len = read(fd, buf, sizeof(buf) - 1);
 
 			while (read_len > 0 && buf[read_len - 1] == '\n')
