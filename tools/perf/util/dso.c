@@ -603,8 +603,15 @@ static char *dso__get_filename(struct dso *dso, const char *root_dir,
 
 		/* empty pathname means file wasn't actually compressed */
 		if (newpath[0] != '\0') {
+			char *tmp = strdup(newpath);
+
+			if (!tmp) {
+				unlink(newpath);
+				goto out;
+			}
+			free(name);
+			name = tmp;
 			*decomp = true;
-			strcpy(name, newpath);
 		}
 	}
 	return name;
