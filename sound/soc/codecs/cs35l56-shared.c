@@ -1293,6 +1293,7 @@ EXPORT_SYMBOL_NS_GPL(cs35l56_create_cal_debugfs, "SND_SOC_CS35L56_SHARED");
 void cs35l56_remove_cal_debugfs(struct cs35l56_base *cs35l56_base)
 {
 	debugfs_remove_recursive(cs35l56_base->debugfs);
+	cs35l56_base->debugfs = ERR_PTR(-ENOENT);
 }
 EXPORT_SYMBOL_NS_GPL(cs35l56_remove_cal_debugfs, "SND_SOC_CS35L56_SHARED");
 
