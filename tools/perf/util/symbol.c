@@ -2158,7 +2158,7 @@ static int dso__load_guest_kernel_sym(struct dso *dso, struct map *map)
 		if (!kallsyms_filename)
 			return -1;
 	} else {
-		sprintf(path, "%s/proc/kallsyms", machine->root_dir);
+		snprintf(path, sizeof(path), "%s/proc/kallsyms", machine->root_dir);
 		kallsyms_filename = path;
 	}
 
