@@ -579,7 +579,7 @@ static void drop_and_retry(struct dualpi2_sched_data *q, struct sk_buff *skb,
 	qdisc_qstats_drop(sch);
 }
 
-static struct sk_buff *dualpi2_qdisc_dequeue(struct Qdisc *sch)
+static struct sk_buff *__dualpi2_qdisc_dequeue(struct Qdisc *sch)
 {
 	struct dualpi2_sched_data *q = qdisc_priv(sch);
 	struct sk_buff *skb;
@@ -607,12 +607,49 @@ static struct sk_buff *dualpi2_qdisc_dequeue(struct Qdisc *sch)
 		break;
 	}
 
+	return skb;
+}
+
+static void dualpi2_dequeue_drop(struct Qdisc *sch)
+{
+	struct dualpi2_sched_data *q = qdisc_priv(sch);
+
 	if (q->deferred_drops_cnt) {
 		qdisc_tree_reduce_backlog(sch, q->deferred_drops_cnt,
 					  q->deferred_drops_len);
 		q->deferred_drops_cnt = 0;
 		q->deferred_drops_len = 0;
 	}
+}
+
+static struct sk_buff *dualpi2_qdisc_dequeue(struct Qdisc *sch)
+{
+	struct sk_buff *skb;
+
+	skb = __dualpi2_qdisc_dequeue(sch);
+
+	dualpi2_dequeue_drop(sch);
+
+	return skb;
+}
+
+static struct sk_buff *dualpi2_peek(struct Qdisc *sch)
+{
+	struct sk_buff *skb = skb_peek(&sch->gso_skb);
+
+	if (!skb) {
+		skb = __dualpi2_qdisc_dequeue(sch);
+
+		if (skb) {
+			__skb_queue_head(&sch->gso_skb, skb);
+			/* it's still part of the queue */
+			qdisc_qstats_backlog_inc(sch, skb);
+			sch->q.qlen++;
+		}
+
+		dualpi2_dequeue_drop(sch);
+	}
+
 	return skb;
 }
 
@@ -1165,7 +1202,7 @@ static struct Qdisc_ops dualpi2_qdisc_ops __read_mostly = {
 	.priv_size	= sizeof(struct dualpi2_sched_data),
 	.enqueue	= dualpi2_qdisc_enqueue,
 	.dequeue	= dualpi2_qdisc_dequeue,
-	.peek		= qdisc_peek_dequeued,
+	.peek		= dualpi2_peek,
 	.init		= dualpi2_init,
 	.destroy	= dualpi2_destroy,
 	.reset		= dualpi2_reset,
