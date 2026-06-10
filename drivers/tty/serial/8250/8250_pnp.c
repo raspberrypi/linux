@@ -521,6 +521,7 @@ static struct pnp_driver serial_pnp_driver = {
 	.remove		= serial_pnp_remove,
 	.driver         = {
 		.pm     = pm_sleep_ptr(&serial_pnp_pm_ops),
+		.probe_type = PROBE_FORCE_SYNCHRONOUS,
 	},
 	.id_table	= pnp_dev_table,
 };
