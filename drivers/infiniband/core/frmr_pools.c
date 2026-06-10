@@ -461,11 +461,16 @@ int ib_frmr_pools_set_pinned(struct ib_device *device, struct ib_frmr_key *key,
 		ret = push_handle_to_queue_locked(&pool->queue,
 						  handles[i]);
 		if (ret)
-			goto end;
+			break;
+	}
+	spin_unlock(&pool->lock);
+
+	if (ret) {
+		/* Destroy handles created but never pushed to the pool. */
+		pools->pool_ops->destroy_frmrs(device, &handles[i],
+				needed_handles - i);
 	}
 
-end:
-	spin_unlock(&pool->lock);
 	kfree(handles);
 
 schedule_aging:
