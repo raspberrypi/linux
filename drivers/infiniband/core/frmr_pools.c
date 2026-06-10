@@ -426,7 +426,7 @@ int ib_frmr_pools_set_pinned(struct ib_device *device, struct ib_frmr_key *key,
 	if (!handles)
 		return -ENOMEM;
 
-	ret = pools->pool_ops->create_frmrs(device, key, handles,
+	ret = pools->pool_ops->create_frmrs(device, &driver_key, handles,
 					    needed_handles);
 	if (ret) {
 		kfree(handles);
