@@ -529,7 +529,9 @@ int ib_frmr_pool_pop(struct ib_device *device, struct ib_mr *mr)
 	struct ib_frmr_pools *pools = device->frmr_pools;
 	struct ib_frmr_pool *pool;
 
-	WARN_ON_ONCE(!device->frmr_pools);
+	if (WARN_ON_ONCE(!pools))
+		return -EINVAL;
+
 	pool = ib_frmr_pool_find(pools, &mr->frmr.key);
 	if (!pool) {
 		pool = create_frmr_pool(device, &mr->frmr.key);
