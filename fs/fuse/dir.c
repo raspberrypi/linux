@@ -1594,25 +1594,27 @@ int fuse_reverse_inval_entry(struct fuse_conn *fc, u64 parent_nodeid,
 	if (!parent)
 		return -ENOENT;
 
+	inode_lock_nested(parent, I_MUTEX_PARENT);
 	if (!S_ISDIR(parent->i_mode))
-		goto put_parent;
+		goto unlock;
 
 	err = -ENOENT;
 	dir = d_find_alias(parent);
 	if (!dir)
-		goto put_parent;
+		goto unlock;
 
-	entry = start_removing_noperm(dir, name);
+	name->hash = full_name_hash(dir, name->name, name->len);
+	entry = d_lookup(dir, name);
 	dput(dir);
-	if (IS_ERR(entry))
-		goto put_parent;
+	if (!entry)
+		goto unlock;
 
 	fuse_dir_changed(parent);
 	if (!(flags & FUSE_EXPIRE_ONLY))
 		d_invalidate(entry);
 	fuse_invalidate_entry_cache(entry);
 
-	if (child_nodeid != 0) {
+	if (child_nodeid != 0 && d_really_is_positive(entry)) {
 		inode_lock(d_inode(entry));
 		if (get_node_id(d_inode(entry)) != child_nodeid) {
 			err = -ENOENT;
@@ -1640,9 +1642,10 @@ int fuse_reverse_inval_entry(struct fuse_conn *fc, u64 parent_nodeid,
 	} else {
 		err = 0;
 	}
+	dput(entry);
 
-	end_removing(entry);
- put_parent:
+ unlock:
+	inode_unlock(parent);
 	iput(parent);
 	return err;
 }
