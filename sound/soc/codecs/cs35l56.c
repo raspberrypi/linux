@@ -1326,7 +1326,7 @@ VISIBLE_IF_KUNIT int cs35l56_set_fw_name(struct snd_soc_component *component)
 }
 EXPORT_SYMBOL_IF_KUNIT(cs35l56_set_fw_name);
 
-static int cs35l56_component_probe(struct snd_soc_component *component)
+static int _cs35l56_component_probe(struct snd_soc_component *component)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
 	struct cs35l56_private *cs35l56 = snd_soc_component_get_drvdata(component);
@@ -1424,6 +1424,17 @@ static void cs35l56_component_remove(struct snd_soc_component *component)
 	cs35l56->dsp.fwf_name = NULL;
 
 	cs35l56->component = NULL;
+}
+
+static int cs35l56_component_probe(struct snd_soc_component *component)
+{
+	int ret;
+
+	ret = _cs35l56_component_probe(component);
+	if (ret < 0)
+		cs35l56_component_remove(component);
+
+	return ret;
 }
 
 static int cs35l56_set_bias_level(struct snd_soc_component *component,
