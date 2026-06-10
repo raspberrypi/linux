@@ -466,6 +466,8 @@ struct btintel_pcie_dump_header {
  * @workqueue: workqueue for RX work
  * @rx_skb_q: SKB queue for RX packet
  * @rx_work: RX work struct to process the RX packet in @rx_skb_q
+ * @coredump_workqueue: dedicated workqueue for coredump collection
+ * @coredump_work: work struct for coredump trace collection
  * @dma_pool: DMA pool for descriptors, index array and ci
  * @dma_p_addr: DMA address for pool
  * @dma_v_addr: address of pool
@@ -513,6 +515,9 @@ struct btintel_pcie_data {
 	struct sk_buff_head	rx_skb_q;
 	struct work_struct	rx_work;
 	struct work_struct      reset_work;
+
+	struct workqueue_struct	*coredump_workqueue;
+	struct work_struct	coredump_work;
 
 	struct dma_pool	*dma_pool;
 	dma_addr_t	dma_p_addr;
