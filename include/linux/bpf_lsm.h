@@ -52,6 +52,7 @@ int bpf_set_dentry_xattr_locked(struct dentry *dentry, const char *name__str,
 				const struct bpf_dynptr *value_p, int flags);
 int bpf_remove_dentry_xattr_locked(struct dentry *dentry, const char *name__str);
 bool bpf_lsm_has_d_inode_locked(const struct bpf_prog *prog);
+bool bpf_lsm_hook_returns_errno(u32 btf_id);
 
 #else /* !CONFIG_BPF_LSM */
 
@@ -103,6 +104,11 @@ static inline int bpf_remove_dentry_xattr_locked(struct dentry *dentry, const ch
 static inline bool bpf_lsm_has_d_inode_locked(const struct bpf_prog *prog)
 {
 	return false;
+}
+
+static inline bool bpf_lsm_hook_returns_errno(u32 btf_id)
+{
+	return true;
 }
 #endif /* CONFIG_BPF_LSM */
 
