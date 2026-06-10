@@ -344,9 +344,12 @@ int filename__decompress(const char *name, char *pathname,
 	 * descriptor to the uncompressed file.
 	 */
 	if (!compressions[comp].is_compressed(name)) {
+		fd = open(name, O_RDONLY | O_CLOEXEC);
+		if (fd < 0)
+			*err = errno;
 		if (pathname && len > 0)
 			pathname[0] = '\0';
-		return open(name, O_RDONLY | O_CLOEXEC);
+		return fd;
 	}
 
 	fd = mkostemp(tmpbuf, O_CLOEXEC);
