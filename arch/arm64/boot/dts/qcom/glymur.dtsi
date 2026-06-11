@@ -5626,9 +5626,9 @@
 		pcie_smmu: iommu@15480000 {
 			compatible = "arm,smmu-v3";
 			reg = <0x0 0x15480000 0x0 0x20000>;
-			interrupts = <GIC_SPI 964 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 962 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 960 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_ESPI 4 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_ESPI 2 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_ESPI 0 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "eventq", "cmdq-sync", "gerror";
 			dma-coherent;
 			#iommu-cells = <1>;
