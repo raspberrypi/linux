@@ -1029,7 +1029,8 @@ static int kvm_loongarch_cpucfg_get_attr(struct kvm_vcpu *vcpu,
 		return -ENXIO;
 	}
 
-	put_user(val, uaddr);
+	if (put_user(val, uaddr))
+		return -EFAULT;
 
 	return ret;
 }
