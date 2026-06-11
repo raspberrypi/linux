@@ -65,7 +65,7 @@ static int bcm2835_wdt_start(struct watchdog_device *wdog)
 
 	spin_lock_irqsave(&wdt->lock, flags);
 
-	writel_relaxed(PM_PASSWORD | (SECS_TO_WDOG_TICKS(wdog->timeout) &
+	writel_relaxed(PM_PASSWORD | min(SECS_TO_WDOG_TICKS(wdog->timeout),
 				PM_WDOG_TIME_SET), wdt->base + PM_WDOG);
 	cur = readl_relaxed(wdt->base + PM_RSTC);
 	writel_relaxed(PM_PASSWORD | (cur & PM_RSTC_WRCFG_CLR) |
