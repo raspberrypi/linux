@@ -95,6 +95,8 @@
 		vcm = <&vcm_node>, "status",
 		      <0>, "=4";
 		link-frequency = <&cam_endpoint>,"link-frequencies#0";
+		reg-startup-delay-us = <&cam_reg>,"startup-delay-us:0";
+		reg-off-on-delay-us = <&cam_reg>,"off-on-delay-us:0";
 	};
 };
 

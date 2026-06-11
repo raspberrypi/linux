@@ -3131,6 +3131,10 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         link-frequency          Allowable link frequency values to use in Hz:
                                 450000000 (default), 447000000, 453000000.
+        reg-startup-delay-us    Override the regulator startup delay value.
+                                (default 70000 us)
+        reg-off-on-delay-us     Override the regulator min off-on delay value.
+                                (default 30000 us)
 
 
 Name:   interludeaudio-analog
