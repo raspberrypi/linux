@@ -129,7 +129,7 @@ struct intel_uncore_type {
 #define events_group attr_groups[2]
 
 struct intel_uncore_ops {
-	void (*init_box)(struct intel_uncore_box *);
+	int (*init_box)(struct intel_uncore_box *);
 	void (*exit_box)(struct intel_uncore_box *);
 	void (*disable_box)(struct intel_uncore_box *);
 	void (*enable_box)(struct intel_uncore_box *);
@@ -557,12 +557,18 @@ static inline u64 uncore_read_counter(struct intel_uncore_box *box,
 	return box->pmu->type->ops->read_counter(box, event);
 }
 
-static inline void uncore_box_init(struct intel_uncore_box *box)
+static inline int uncore_box_init(struct intel_uncore_box *box)
 {
-	if (!test_and_set_bit(UNCORE_BOX_FLAG_INITIALIZED, &box->flags)) {
-		if (box->pmu->type->ops->init_box)
-			box->pmu->type->ops->init_box(box);
+	int ret = 0;
+
+	if (!test_bit(UNCORE_BOX_FLAG_INITIALIZED, &box->flags) &&
+	    box->pmu->type->ops->init_box) {
+		ret = box->pmu->type->ops->init_box(box);
+		if (!ret)
+			__set_bit(UNCORE_BOX_FLAG_INITIALIZED, &box->flags);
 	}
+
+	return ret;
 }
 
 static inline void uncore_box_exit(struct intel_uncore_box *box)
