@@ -2770,8 +2770,9 @@ static struct msm_gpu *a6xx_gpu_init(struct drm_device *dev)
 
 	adreno_gpu->ubwc_config = qcom_ubwc_config_get_data();
 	if (IS_ERR(adreno_gpu->ubwc_config)) {
+		ret = PTR_ERR(adreno_gpu->ubwc_config);
 		a6xx_destroy(&(a6xx_gpu->base.base));
-		return ERR_CAST(adreno_gpu->ubwc_config);
+		return ERR_PTR(ret);
 	}
 
 	/* Set up the preemption specific bits and pieces for each ringbuffer */
