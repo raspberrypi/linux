@@ -575,6 +575,48 @@ void maps__remove(struct maps *maps, struct map *map)
 #endif
 }
 
+/**
+ * maps__mutate_mapping - Apply write-protected mutations to a map.
+ * @maps: The maps collection containing the map.
+ * @map: The map to mutate.
+ * @mutate_cb: Callback function that performs the actual mutations.
+ * @data: Private data passed to the callback.
+ *
+ * This acquires the write lock on the maps semaphore to safely protect
+ * concurrent readers from seeing partially mutated or unsorted map boundaries.
+ *
+ * WARNING: Acquiring down_write() here can trigger a recursive self-deadlock if
+ * the caller already holds the read lock (e.g., during maps__for_each_map() or
+ * maps__find() iteration paths that trigger lazy symbol loading). To completely
+ * avoid this deadlock, all kernel/module maps must be pre-loaded up-front (via
+ * maps__load_maps()) under a clean, single-threaded context before entering
+ * multi-threaded event processing loops.
+ */
+int maps__mutate_mapping(struct maps *maps, struct map *map,
+			 int (*mutate_cb)(struct map *map, void *data), void *data)
+{
+	int err = 0;
+
+	if (maps) {
+		down_write(maps__lock(maps));
+
+		err = mutate_cb(map, data);
+
+		RC_CHK_ACCESS(maps)->maps_by_address_sorted = false;
+		RC_CHK_ACCESS(maps)->maps_by_name_sorted = false;
+
+		up_write(maps__lock(maps));
+
+#ifdef HAVE_LIBDW_SUPPORT
+		libdw__invalidate_dwfl(maps, maps__libdw_addr_space_dwfl(maps));
+#endif
+	} else {
+		err = mutate_cb(map, data);
+	}
+
+	return err;
+}
+
 bool maps__empty(struct maps *maps)
 {
 	bool res;
@@ -625,6 +667,41 @@ int maps__for_each_map(struct maps *maps, int (*cb)(struct map *map, void *data)
 	return ret;
 }
 
+int maps__load_maps(struct maps *maps)
+{
+	struct map **maps_copy;
+	unsigned int nr_maps;
+	int err = 0;
+
+	if (!maps)
+		return 0;
+
+	down_read(maps__lock(maps));
+	nr_maps = maps__nr_maps(maps);
+	if (nr_maps == 0) {
+		up_read(maps__lock(maps));
+		return 0;
+	}
+	maps_copy = calloc(nr_maps, sizeof(*maps_copy));
+	if (!maps_copy) {
+		up_read(maps__lock(maps));
+		return -ENOMEM;
+	}
+	for (unsigned int i = 0; i < nr_maps; i++)
+		maps_copy[i] = map__get(maps__maps_by_address(maps)[i]);
+	up_read(maps__lock(maps));
+
+	for (unsigned int i = 0; i < nr_maps; i++) {
+		if (map__load(maps_copy[i]) < 0) {
+			pr_warning("Failed to load map %s\n", dso__name(map__dso(maps_copy[i])));
+			err = -1;
+		}
+		map__put(maps_copy[i]);
+	}
+	free(maps_copy);
+	return err;
+}
+
 void maps__remove_maps(struct maps *maps, bool (*cb)(struct map *map, void *data), void *data)
 {
 	struct map **maps_by_address;
@@ -667,40 +744,57 @@ struct symbol *maps__find_symbol(struct maps *maps, u64 addr, struct map **mapp)
 	return result;
 }
 
-struct maps__find_symbol_by_name_args {
-	struct map **mapp;
-	const char *name;
-	struct symbol *sym;
-};
-
-static int maps__find_symbol_by_name_cb(struct map *map, void *data)
-{
-	struct maps__find_symbol_by_name_args *args = data;
-
-	args->sym = map__find_symbol_by_name(map, args->name);
-	if (!args->sym)
-		return 0;
-
-	if (!map__contains_symbol(map, args->sym)) {
-		args->sym = NULL;
-		return 0;
-	}
-
-	if (args->mapp != NULL)
-		*args->mapp = map__get(map);
-	return 1;
-}
-
 struct symbol *maps__find_symbol_by_name(struct maps *maps, const char *name, struct map **mapp)
 {
-	struct maps__find_symbol_by_name_args args = {
-		.mapp = mapp,
-		.name = name,
-		.sym = NULL,
-	};
+	struct map **maps_copy;
+	unsigned int nr_maps;
+	struct symbol *sym = NULL;
 
-	maps__for_each_map(maps, maps__find_symbol_by_name_cb, &args);
-	return args.sym;
+	if (!maps)
+		return NULL;
+
+	/*
+	 * First, ensure all maps are loaded. We pre-load them outside of any
+	 * read-to-write locks to avoid deadlocks. Even if some fail, we proceed.
+	 */
+	maps__load_maps(maps);
+
+	/*
+	 * Create a local snapshot of the maps while holding the read lock.
+	 * This prevents deadlocking if iteration triggers further map insertions.
+	 */
+	down_read(maps__lock(maps));
+	nr_maps = maps__nr_maps(maps);
+	maps_copy = calloc(nr_maps, sizeof(*maps_copy));
+	if (maps_copy) {
+		for (unsigned int i = 0; i < nr_maps; i++) {
+			struct map *map = maps__maps_by_address(maps)[i];
+
+			maps_copy[i] = map__get(map);
+		}
+	}
+	up_read(maps__lock(maps));
+
+	if (!maps_copy)
+		return NULL;
+
+	for (unsigned int i = 0; i < nr_maps; i++) {
+		struct map *map = maps_copy[i];
+
+		sym = map__find_symbol_by_name(map, name);
+		if (sym && map__contains_symbol(map, sym)) {
+			if (mapp)
+				*mapp = map__get(map);
+			break;
+		}
+		sym = NULL;
+	}
+
+	for (unsigned int i = 0; i < nr_maps; i++)
+		map__put(maps_copy[i]);
+
+	free(maps_copy);
+	return sym;
 }
 
 int maps__find_ams(struct maps *maps, struct addr_map_symbol *ams)
