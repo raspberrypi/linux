@@ -927,6 +927,7 @@ static int emac_rx_packet_zc(struct prueth_emac *emac, u32 flow_id,
 	struct cppi5_host_desc_t *desc_rx;
 	struct prueth_swdata *swdata;
 	dma_addr_t desc_dma, buf_dma;
+	int avail_desc, alloc_budget;
 	struct xdp_buff *xdp;
 	int xdp_status = 0;
 	int count = 0;
@@ -993,16 +994,13 @@ static int emac_rx_packet_zc(struct prueth_emac *emac, u32 flow_id,
 	if (xdp_status & ICSSG_XDP_REDIR)
 		xdp_do_flush();
 
-	/* Allocate xsk buffers from the pool for the "count" number of
-	 * packets processed in order to be able to receive more packets.
-	 */
-	ret = prueth_rx_alloc_zc(emac, count);
+	avail_desc = k3_cppi_desc_pool_avail(rx_chn->desc_pool);
+	alloc_budget = min_t(int, budget, avail_desc);
+
+	ret = prueth_rx_alloc_zc(emac, alloc_budget);
 
 	if (xsk_uses_need_wakeup(rx_chn->xsk_pool)) {
-		/* If the user space doesn't provide enough buffers then it must
-		 * explicitly wake up the kernel when new buffers are available
-		 */
-		if (ret < count)
+		if (ret < alloc_budget)
 			xsk_set_rx_need_wakeup(rx_chn->xsk_pool);
 		else
 			xsk_clear_rx_need_wakeup(rx_chn->xsk_pool);
