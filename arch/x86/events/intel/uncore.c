@@ -1148,6 +1148,29 @@ uncore_pci_find_dev_pmu(struct pci_dev *pdev, const struct pci_device_id *ids)
 	return pmu;
 }
 
+static int uncore_box_setup(struct intel_uncore_pmu *pmu,
+			    struct intel_uncore_box *box)
+{
+	int ret;
+
+	uncore_box_init(box);
+
+	/* First active box registers the pmu. */
+	if (atomic_inc_return(&pmu->activeboxes) > 1)
+		return 0;
+
+	ret = uncore_pmu_register(pmu);
+	if (ret) {
+		atomic_dec(&pmu->activeboxes);
+		goto err;
+	}
+
+	return 0;
+err:
+	uncore_box_exit(box);
+	return ret;
+}
+
 /*
  * Register the PMU for a PCI device
  * @pdev: The PCI device.
@@ -1174,20 +1197,13 @@ static int uncore_pci_pmu_register(struct pci_dev *pdev,
 	box->dieid = die;
 	box->pci_dev = pdev;
 	box->pmu = pmu;
-	uncore_box_init(box);
 
-	pmu->boxes[die] = box;
-	if (atomic_inc_return(&pmu->activeboxes) > 1)
-		return 0;
-
-	/* First active box registers the pmu */
-	ret = uncore_pmu_register(pmu);
-	if (ret) {
-		atomic_dec(&pmu->activeboxes);
-		pmu->boxes[die] = NULL;
-		uncore_box_exit(box);
+	ret = uncore_box_setup(pmu, box);
+	if (!ret)
+		pmu->boxes[die] = box;
+	else
 		kfree(box);
-	}
+
 	return ret;
 }
 
