@@ -105,6 +105,7 @@ static int emac_xsk_xmit_zc(struct prueth_emac *emac,
 	struct xdp_desc xdp_desc;
 	int num_tx = 0, pkt_len;
 	int descs_avail, ret;
+	u32 dst_tag_id;
 	u32 *epib;
 	int i;
 
@@ -137,9 +138,17 @@ static int emac_xsk_xmit_zc(struct prueth_emac *emac,
 		epib[0] = 0;
 		epib[1] = 0;
 		cppi5_hdesc_set_pktlen(host_desc, pkt_len);
-		cppi5_desc_set_tags_ids(&host_desc->hdr, 0,
-					(emac->port_id | (q_idx << 8)));
+		dst_tag_id = emac->port_id | (q_idx << 8);
 
+		if (emac->prueth->is_hsr_offload_mode &&
+		    (ndev->features & NETIF_F_HW_HSR_DUP))
+			dst_tag_id = PRUETH_UNDIRECTED_PKT_DST_TAG;
+
+		if (emac->prueth->is_hsr_offload_mode &&
+		    (ndev->features & NETIF_F_HW_HSR_TAG_INS))
+			epib[1] |= PRUETH_UNDIRECTED_PKT_TAG_INS;
+
+		cppi5_desc_set_tags_ids(&host_desc->hdr, 0, dst_tag_id);
 		k3_udma_glue_tx_dma_to_cppi5_addr(tx_chn->tx_chn, &dma_buf);
 		cppi5_hdesc_attach_buf(host_desc, dma_buf, pkt_len, dma_buf,
 				       pkt_len);
