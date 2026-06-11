@@ -185,7 +185,7 @@ struct intel_uncore_box {
 #define CFL_UNC_CBO_7_PERFEVTSEL0		0xf70
 #define CFL_UNC_CBO_7_PER_CTR0			0xf76
 
-#define UNCORE_BOX_FLAG_INITIATED		0
+#define UNCORE_BOX_FLAG_INITIALIZED		0
 /* event config registers are 8-byte apart */
 #define UNCORE_BOX_FLAG_CTL_OFFS8		1
 /* CFL 8th CBOX has different MSR space */
@@ -559,7 +559,7 @@ static inline u64 uncore_read_counter(struct intel_uncore_box *box,
 
 static inline void uncore_box_init(struct intel_uncore_box *box)
 {
-	if (!test_and_set_bit(UNCORE_BOX_FLAG_INITIATED, &box->flags)) {
+	if (!test_and_set_bit(UNCORE_BOX_FLAG_INITIALIZED, &box->flags)) {
 		if (box->pmu->type->ops->init_box)
 			box->pmu->type->ops->init_box(box);
 	}
@@ -567,7 +567,7 @@ static inline void uncore_box_init(struct intel_uncore_box *box)
 
 static inline void uncore_box_exit(struct intel_uncore_box *box)
 {
-	if (test_and_clear_bit(UNCORE_BOX_FLAG_INITIATED, &box->flags)) {
+	if (test_and_clear_bit(UNCORE_BOX_FLAG_INITIALIZED, &box->flags)) {
 		if (box->pmu->type->ops->exit_box)
 			box->pmu->type->ops->exit_box(box);
 	}
