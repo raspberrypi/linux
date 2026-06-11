@@ -1951,7 +1951,7 @@ static __init int cxl_test_init(void)
 err_mem:
 	cxl_mem_exit();
 err_root:
-	platform_device_put(cxl_acpi);
+	platform_device_unregister(cxl_acpi);
 err_rch:
 	cxl_rch_topo_exit();
 err_single:
