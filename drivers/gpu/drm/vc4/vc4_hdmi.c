@@ -841,8 +841,6 @@ static void vc4_hdmi_encoder_post_crtc_disable(struct drm_encoder *encoder,
 
 	mutex_lock(&vc4_hdmi->mutex);
 
-	vc4_hdmi->packet_ram_enabled = false;
-
 	if (!drm_dev_enter(drm, &idx))
 		goto out;
 
@@ -1647,7 +1645,6 @@ static void vc4_hdmi_encoder_post_crtc_enable(struct drm_encoder *encoder,
 			   VC4_HDMI_RAM_PACKET_ENABLE);
 
 		spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
-		vc4_hdmi->packet_ram_enabled = true;
 
 		drm_atomic_helper_connector_hdmi_update_infoframes(connector, state);
 	}
