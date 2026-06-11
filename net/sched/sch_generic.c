@@ -568,16 +568,24 @@ static void dev_watchdog(struct timer_list *t)
 				dev->netdev_ops->ndo_tx_timeout(dev, i);
 				netif_unfreeze_queues(dev);
 			}
-			if (!mod_timer(&dev->watchdog_timer,
-				       round_jiffies(oldest_start +
-						     dev->watchdog_timeo)))
-				release = false;
+			spin_lock(&dev->watchdog_lock);
+			mod_timer(&dev->watchdog_timer,
+				  round_jiffies(oldest_start +
+						dev->watchdog_timeo));
+			release = false;
+			spin_unlock(&dev->watchdog_lock);
 		}
 	}
 	spin_unlock(&dev->tx_global_lock);
 
-	if (release)
+	spin_lock(&dev->watchdog_lock);
+	if (timer_pending(&dev->watchdog_timer))
+		release = false;
+	if (release && dev->watchdog_ref_held) {
 		netdev_put(dev, &dev->watchdog_dev_tracker);
+		dev->watchdog_ref_held = false;
+	}
+	spin_unlock(&dev->watchdog_lock);
 }
 
 void netdev_watchdog_up(struct net_device *dev)
@@ -586,18 +594,34 @@ void netdev_watchdog_up(struct net_device *dev)
 		return;
 	if (dev->watchdog_timeo <= 0)
 		dev->watchdog_timeo = 5*HZ;
+	spin_lock_bh(&dev->tx_global_lock);
+
+	spin_lock(&dev->watchdog_lock);
 	if (!mod_timer(&dev->watchdog_timer,
-		       round_jiffies(jiffies + dev->watchdog_timeo)))
-		netdev_hold(dev, &dev->watchdog_dev_tracker,
-			    GFP_ATOMIC);
+		       round_jiffies(jiffies + dev->watchdog_timeo))) {
+		if (!dev->watchdog_ref_held) {
+			netdev_hold(dev, &dev->watchdog_dev_tracker,
+				    GFP_ATOMIC);
+			dev->watchdog_ref_held = true;
+		}
+	}
+	spin_unlock(&dev->watchdog_lock);
+
+	spin_unlock_bh(&dev->tx_global_lock);
 }
 EXPORT_SYMBOL_GPL(netdev_watchdog_up);
 
 static void netdev_watchdog_down(struct net_device *dev)
 {
 	netif_tx_lock_bh(dev);
-	if (timer_delete(&dev->watchdog_timer))
+
+	spin_lock(&dev->watchdog_lock);
+	if (timer_delete(&dev->watchdog_timer)) {
 		netdev_put(dev, &dev->watchdog_dev_tracker);
+		dev->watchdog_ref_held = false;
+	}
+	spin_unlock(&dev->watchdog_lock);
+
 	netif_tx_unlock_bh(dev);
 }
 
@@ -614,8 +638,6 @@ void netif_carrier_on(struct net_device *dev)
 			return;
 		atomic_inc(&dev->carrier_up_count);
 		linkwatch_fire_event(dev);
-		if (netif_running(dev))
-			netdev_watchdog_up(dev);
 	}
 }
 EXPORT_SYMBOL(netif_carrier_on);

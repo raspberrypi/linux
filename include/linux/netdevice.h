@@ -1980,6 +1980,8 @@ enum netdev_reg_state {
  *	@qdisc_hash:		qdisc hash table
  *	@watchdog_timeo:	Represents the timeout that is used by
  *				the watchdog (see dev_watchdog())
+ *	@watchdog_lock:		protect watchdog_ref_held
+ *	@watchdog_ref_held:	True if the watchdog device ref is taken.
  *	@watchdog_timer:	List of timers
  *
  *	@proto_down_reason:	reason a netdev interface is held down
@@ -2392,6 +2394,8 @@ struct net_device {
 	/* These may be needed for future network-power-down code. */
 	struct timer_list	watchdog_timer;
 	int			watchdog_timeo;
+	spinlock_t		watchdog_lock;
+	bool			watchdog_ref_held;
 
 	u32                     proto_down_reason;
 
