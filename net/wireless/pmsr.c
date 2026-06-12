@@ -332,6 +332,11 @@ int nl80211_pmsr_start(struct sk_buff *skb, struct genl_info *info)
 		}
 	}
 
+	if (!count) {
+		NL_SET_ERR_MSG_ATTR(info->extack, peers, "No peers specified");
+		return -EINVAL;
+	}
+
 	req = kzalloc_flex(*req, peers, count);
 	if (!req)
 		return -ENOMEM;
