@@ -54,6 +54,7 @@ struct i3c_hci {
 	unsigned int DAT_entries;
 	unsigned int DAT_entry_size;
 	void *DAT_data;
+	struct i3c_dev_desc **ibi_devs;
 	unsigned int DCT_entries;
 	unsigned int DCT_entry_size;
 	u8 version_major;
