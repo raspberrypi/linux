@@ -46,7 +46,8 @@ int intel_fb_bo_framebuffer_init(struct drm_framebuffer *fb,
 	if (ret)
 		goto err;
 
-	if (!(bo->flags & XE_BO_FLAG_SCANOUT)) {
+	if (!(bo->flags & XE_BO_FLAG_SCANOUT) &&
+	    bo->ttm.type != ttm_bo_type_sg) {
 		/*
 		 * XE_BO_FLAG_SCANOUT should ideally be set at creation, or is
 		 * automatically set when creating FB. We cannot change caching
