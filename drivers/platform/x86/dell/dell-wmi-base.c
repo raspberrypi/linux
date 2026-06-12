@@ -456,7 +456,7 @@ static int dell_wmi_process_key(struct wmi_device *wdev, int type, int code, __l
 			key++;
 		used = 1;
 	} else if (type == 0x0012 && code == 0x000d && remaining > 0) {
-		value = (le16_to_cpu(buffer[2]) == 2);
+		value = (le16_to_cpu(buffer[0]) == 2);
 		used = 1;
 	}
 
