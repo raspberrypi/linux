@@ -7586,8 +7586,8 @@ static int __init hns_roce_hw_v2_init(void)
 
 static void __exit hns_roce_hw_v2_exit(void)
 {
-	hns_roce_dealloc_bond_grp();
 	hnae3_unregister_client(&hns_roce_hw_v2_client);
+	hns_roce_dealloc_bond_grp();
 	hns_roce_cleanup_debugfs();
 }
 
