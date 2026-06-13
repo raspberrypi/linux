@@ -59,6 +59,10 @@ static int machine__process_bpf_event_load(struct machine *machine,
 		return 0;
 	info_linear = info_node->info_linear;
 
+	/* jited_ksyms is only valid if bpil_offs_to_addr() converted it */
+	if (!(info_linear->arrays & (1UL << PERF_BPIL_JITED_KSYMS)))
+		return 0;
+
 	for (i = 0; i < info_linear->info.nr_jited_ksyms; i++) {
 		u64 *addrs = (u64 *)(uintptr_t)(info_linear->info.jited_ksyms);
 		u64 addr = addrs[i];
@@ -959,12 +963,15 @@ int evlist__add_bpf_sb_event(struct evlist *evlist, struct perf_env *env)
 	return evlist__add_sb_event(evlist, &attr, bpf_event__sb_cb, env);
 }
 
-void __bpf_event__print_bpf_prog_info(struct bpf_prog_info *info,
+void __bpf_event__print_bpf_prog_info(struct perf_bpil *info_linear,
 				      struct perf_env *env,
 				      FILE *fp)
 {
-	__u32 *prog_lens = (__u32 *)(uintptr_t)(info->jited_func_lens);
-	__u64 *prog_addrs = (__u64 *)(uintptr_t)(info->jited_ksyms);
+	struct bpf_prog_info *info = &info_linear->info;
+	__u64 required_arrays = (1UL << PERF_BPIL_JITED_KSYMS) |
+				(1UL << PERF_BPIL_JITED_FUNC_LENS);
+	__u32 *prog_lens;
+	__u64 *prog_addrs;
 	char name[KSYM_NAME_LEN];
 	struct btf *btf = NULL;
 	u32 sub_prog_cnt, i;
@@ -973,6 +980,13 @@ void __bpf_event__print_bpf_prog_info(struct bpf_prog_info *info,
 	if (sub_prog_cnt != info->nr_prog_tags ||
 	    sub_prog_cnt != info->nr_jited_func_lens)
 		return;
+
+	/* Ensure the arrays were present and converted by bpil_offs_to_addr() */
+	if ((info_linear->arrays & required_arrays) != required_arrays)
+		return;
+
+	prog_lens = (__u32 *)(uintptr_t)(info->jited_func_lens);
+	prog_addrs = (__u64 *)(uintptr_t)(info->jited_ksyms);
 
 	if (info->btf_id) {
 		struct btf_node *node;
