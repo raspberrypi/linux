@@ -2058,8 +2058,7 @@ static void print_bpf_prog_info(struct feat_fd *ff __maybe_unused, FILE *fp)
 		node = rb_entry(next, struct bpf_prog_info_node, rb_node);
 		next = rb_next(&node->rb_node);
 
-		__bpf_event__print_bpf_prog_info(&node->info_linear->info,
-						 env, fp);
+		__bpf_event__print_bpf_prog_info(node->info_linear, env, fp);
 	}
 
 	up_read(&env->bpf_progs.lock);
