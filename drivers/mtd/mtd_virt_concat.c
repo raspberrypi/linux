@@ -75,8 +75,8 @@ void mtd_virt_concat_destroy_joins(void)
 		if (item->concat) {
 			mtd_device_unregister(mtd);
 			kfree(mtd->name);
-			mtd_concat_destroy(mtd);
 			mtd_virt_concat_put_mtd_devices(item->concat);
+			mtd_concat_destroy(mtd);
 		}
 	}
 }
