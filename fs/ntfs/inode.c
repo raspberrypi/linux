@@ -1201,6 +1201,9 @@ no_data_attr_special_case:
 	else
 		vi->i_blocks = ni->allocated_size >> 9;
 
+	if (S_ISLNK(vi->i_mode) && ni->target)
+		vi->i_size = strlen(ni->target);
+
 	ntfs_debug("Done.");
 	return 0;
 unm_err_out:
