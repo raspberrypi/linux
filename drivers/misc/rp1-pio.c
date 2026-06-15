@@ -50,7 +50,9 @@
 #define RP1_PIO_FIFO_RX2	0x18
 #define RP1_PIO_FIFO_RX3	0x1c
 
-#define RP1_PIO_DMACTRL_DEFAULT	0x80000104
+#define RP1_PIO_FIFO_DEPTH	8
+
+#define RP1_PIO_DMACTRL_DEFAULT	0x80000100
 
 #define HANDLER(_n, _f) \
 	[_IOC_NR(PIO_IOC_ ## _n)] = { #_n, rp1_pio_ ## _f, _IOC_SIZE(PIO_IOC_ ## _n) }
@@ -679,6 +681,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	config.direction = (dir == RP1_PIO_DIR_TO_SM) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
 	dma_caps.max_burst = 4;
 	dma_get_slave_caps(dma->chan, &dma_caps);
+	if (dma_caps.max_burst > RP1_PIO_FIFO_DEPTH)
+		dma_caps.max_burst = RP1_PIO_FIFO_DEPTH;
 	if (dir == RP1_PIO_DIR_TO_SM)
 		config.dst_maxburst = dma_caps.max_burst;
 	else
@@ -690,9 +694,11 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	set_dmactrl_args.sm = sm;
 	set_dmactrl_args.is_tx = (dir == RP1_PIO_DIR_TO_SM);
-	set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT;
 	if (dir == RP1_PIO_DIR_FROM_SM)
-		set_dmactrl_args.ctrl = (RP1_PIO_DMACTRL_DEFAULT & ~0x1f) | 1;
+		set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT | config.src_maxburst;
+	else
+		set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT |
+					(RP1_PIO_FIFO_DEPTH - config.dst_maxburst);
 
 	ret = rp1_pio_sm_set_dmactrl(client, &set_dmactrl_args);
 	if (ret)
