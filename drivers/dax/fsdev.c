@@ -127,6 +127,23 @@ static void fsdev_clear_ops(void *data)
 	dax_set_ops(dev_dax->dax_dev, NULL);
 }
 
+static void fsdev_clear_pgmap_ops(void *data)
+{
+	struct dev_pagemap *pgmap = data;
+
+	/*
+	 * fsdev installs pgmap->ops and ->owner at probe. For a static device
+	 * the pgmap is shared and long-lived (owned by the dax bus), so
+	 * leaving fsdev's ops behind on unbind would let a later
+	 * memory_failure -- after rebind to another driver, or after this
+	 * module is unloaded -- dispatch through a stale or freed
+	 * ->memory_failure handler. Clear them so the pgmap carries no fsdev
+	 * state once we are unbound.
+	 */
+	pgmap->ops = NULL;
+	pgmap->owner = NULL;
+}
+
 /*
  * Page map operations for FS-DAX mode
  * Similar to fsdax_pagemap_ops in drivers/nvdimm/pmem.c
@@ -305,6 +322,11 @@ static int fsdev_dax_probe(struct dev_dax *dev_dax)
 	addr = devm_memremap_pages(dev, pgmap);
 	if (IS_ERR(addr))
 		return PTR_ERR(addr);
+
+	/* Drop fsdev's pgmap->ops/owner on unbind so no stale ops survive. */
+	rc = devm_add_action_or_reset(dev, fsdev_clear_pgmap_ops, pgmap);
+	if (rc)
+		return rc;
 
 	/*
 	 * Clear any stale compound folio state left over from a previous
