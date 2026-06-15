@@ -224,7 +224,6 @@ static int pwm_pio_rp1_probe(struct platform_device *pdev)
 	pwm_pio_resolution = (1000u * 1000 * 1000 * pwm_loop_ticks) / clock_get_hz(clk_sys);
 
 	chip->ops = &pwm_pio_rp1_ops;
-	chip->atomic = true;
 	chip->npwm = 1;
 
 	platform_set_drvdata(pdev, ppwm);
