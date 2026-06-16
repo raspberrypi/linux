@@ -10880,8 +10880,19 @@ static void mm_cid_fixup_cpus_to_tasks(struct mm_struct *mm)
 		} else if (rq->curr->mm == mm && rq->curr->mm_cid.active) {
 			unsigned int cid = rq->curr->mm_cid.cid;
 
-			/* Ensure it has the transition bit set */
-			if (!cid_in_transit(cid)) {
+			/*
+			 * Set the transition bit only on a genuine task-owned
+			 * CID. A running active task can legitimately have
+			 * MM_CID_UNSET here: in per-CPU mode CIDs are assigned
+			 * lazily on schedule-in, so the fork()/execve() window
+			 * leaves the task active with no owned CID. Setting the
+			 * transition bit on MM_CID_UNSET would later feed
+			 * clear_bit() an out-of-bounds bit number via
+			 * mm_cid_schedout(), so exclude it. A CPU-owned
+			 * (MM_CID_ONCPU) CID is handled by the cid_on_cpu()
+			 * branch above and never reaches here.
+			 */
+			if (cid != MM_CID_UNSET && !cid_in_transit(cid)) {
 				cid = cid_to_transit_cid(cid);
 				rq->curr->mm_cid.cid = cid;
 				pcp->cid = cid;
