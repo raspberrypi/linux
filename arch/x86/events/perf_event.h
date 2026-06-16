@@ -1344,7 +1344,7 @@ static inline u64 x86_pmu_get_event_config(struct perf_event *event)
 static inline bool x86_pmu_has_rdpmc_user_disable(struct pmu *pmu)
 {
 	return !!(hybrid(pmu, config_mask) &
-		 ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE);
+		  ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE);
 }
 
 extern struct event_constraint emptyconstraint;

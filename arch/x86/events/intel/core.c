@@ -3533,7 +3533,7 @@ static void intel_pmu_update_rdpmc_user_disable(struct perf_event *event)
 	 */
 	if (x86_pmu.attr_rdpmc == X86_USER_RDPMC_ALWAYS_ENABLE ||
 	    (x86_pmu.attr_rdpmc == X86_USER_RDPMC_CONDITIONAL_ENABLE &&
-	     event->ctx->task))
+	     (event->attach_state & PERF_ATTACH_TASK)))
 		event->hw.config &= ~ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE;
 	else
 		event->hw.config |= ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE;
@@ -3546,8 +3546,6 @@ static void intel_pmu_enable_event(struct perf_event *event)
 	u64 enable_mask = ARCH_PERFMON_EVENTSEL_ENABLE;
 	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx;
-
-	intel_pmu_update_rdpmc_user_disable(event);
 
 	if (unlikely(event->attr.precise_ip))
 		static_call(x86_pmu_pebs_enable)(event);
@@ -5146,6 +5144,8 @@ static int intel_pmu_hw_config(struct perf_event *event)
 
 		leader->hw.flags |= PERF_X86_EVENT_ACR;
 	}
+
+	intel_pmu_update_rdpmc_user_disable(event);
 
 	if ((event->attr.type == PERF_TYPE_HARDWARE) ||
 	    (event->attr.type == PERF_TYPE_HW_CACHE))

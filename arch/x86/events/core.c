@@ -2539,7 +2539,8 @@ static int x86_pmu_event_init(struct perf_event *event)
 	}
 
 	if (READ_ONCE(x86_pmu.attr_rdpmc) &&
-	    !(event->hw.flags & PERF_X86_EVENT_LARGE_PEBS))
+	    !(event->hw.flags & PERF_X86_EVENT_LARGE_PEBS) &&
+	    !(event->hw.config & ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE))
 		event->hw.flags |= PERF_EVENT_FLAG_USER_READ_CNT;
 
 	return err;
