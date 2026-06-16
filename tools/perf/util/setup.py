@@ -2,6 +2,7 @@ from os import getenv, path
 from subprocess import Popen, PIPE
 from re import sub
 import shlex
+import shutil
 
 cc = getenv("CC")
 assert cc, "Environment variable CC not set"
@@ -72,6 +73,10 @@ class install_lib(_install_lib):
     def finalize_options(self):
         _install_lib.finalize_options(self)
         self.build_dir = build_lib
+
+    def run(self):
+        _install_lib.run(self)
+        shutil.copy2(f'{src_perf}/python/perf.pyi', self.install_dir)
 
 
 # switch off several checks (need to be at the end of cflags list)
