@@ -1221,7 +1221,7 @@ static s64 perf_kvm__mmap_read_idx(struct perf_kvm_stat *kvm, int idx,
 	int err;
 
 	*mmap_time = ULLONG_MAX;
-	md = &evlist->mmap[idx];
+	md = &evlist__mmap(evlist)[idx];
 	err = perf_mmap__read_init(&md->core);
 	if (err < 0)
 		return (err == -EAGAIN) ? 0 : -1;
@@ -1266,7 +1266,7 @@ static int perf_kvm__mmap_read(struct perf_kvm_stat *kvm)
 	s64 n, ntotal = 0;
 	u64 flush_time = ULLONG_MAX, mmap_time;
 
-	for (i = 0; i < kvm->evlist->core.nr_mmaps; i++) {
+	for (i = 0; i < evlist__core(kvm->evlist)->nr_mmaps; i++) {
 		n = perf_kvm__mmap_read_idx(kvm, i, &mmap_time);
 		if (n < 0)
 			return -1;
@@ -1449,7 +1449,7 @@ static int kvm_events_live_report(struct perf_kvm_stat *kvm)
 	evlist__enable(kvm->evlist);
 
 	while (!done) {
-		struct fdarray *fda = &kvm->evlist->core.pollfd;
+		struct fdarray *fda = &evlist__core(kvm->evlist)->pollfd;
 		int rc;
 
 		rc = perf_kvm__mmap_read(kvm);
@@ -1531,7 +1531,7 @@ static int kvm_live_open_events(struct perf_kvm_stat *kvm)
 		goto out;
 	}
 
-	if (evlist__mmap(evlist, kvm->opts.mmap_pages) < 0) {
+	if (evlist__do_mmap(evlist, kvm->opts.mmap_pages) < 0) {
 		ui__error("Failed to mmap the events: %s\n",
 			  str_error_r(errno, sbuf, sizeof(sbuf)));
 		evlist__close(evlist);
@@ -1931,7 +1931,7 @@ static int kvm_events_live(struct perf_kvm_stat *kvm,
 	perf_session__set_id_hdr_size(kvm->session);
 	ordered_events__set_copy_on_queue(&kvm->session->ordered_events, true);
 	machine__synthesize_threads(&kvm->session->machines.host, &kvm->opts.target,
-				    kvm->evlist->core.threads, true, false, 1);
+				    evlist__core(kvm->evlist)->threads, true, false, 1);
 	err = kvm_live_open_events(kvm);
 	if (err)
 		goto out;

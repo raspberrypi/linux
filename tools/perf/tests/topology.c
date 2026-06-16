@@ -46,7 +46,7 @@ static int session_write_header(char *path)
 
 	session->evlist = evlist__new_default(&target, /*sample_callchains=*/false);
 	TEST_ASSERT_VAL("can't get evlist", session->evlist);
-	session->evlist->session = session;
+	evlist__set_session(session->evlist, session);
 
 	perf_header__set_feat(&session->header, HEADER_CPU_TOPOLOGY);
 	perf_header__set_feat(&session->header, HEADER_NRCPUS);

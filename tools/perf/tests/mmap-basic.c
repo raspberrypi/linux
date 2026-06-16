@@ -81,7 +81,7 @@ static int test__basic_mmap(struct test_suite *test __maybe_unused, int subtest 
 		goto out_free_cpus;
 	}
 
-	perf_evlist__set_maps(&evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
 
 	for (i = 0; i < nsyscalls; ++i) {
 		char name[64];
@@ -113,7 +113,7 @@ static int test__basic_mmap(struct test_suite *test __maybe_unused, int subtest 
 		expected_nr_events[i] = 1 + rand() % 127;
 	}
 
-	if (evlist__mmap(evlist, 128) < 0) {
+	if (evlist__do_mmap(evlist, 128) < 0) {
 		pr_debug("failed to mmap events: %d (%s)\n", errno,
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		goto out_put_evlist;
@@ -124,7 +124,7 @@ static int test__basic_mmap(struct test_suite *test __maybe_unused, int subtest 
 			syscalls[i]();
 		}
 
-	md = &evlist->mmap[0];
+	md = &evlist__mmap(evlist)[0];
 	if (perf_mmap__read_init(&md->core) < 0)
 		goto out_init;
 

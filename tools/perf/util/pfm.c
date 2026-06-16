@@ -85,7 +85,7 @@ int parse_libpfm_events_option(const struct option *opt, const char *str,
 		}
 
 		pmu = perf_pmus__find_by_type((unsigned int)attr.type);
-		evsel = parse_events__add_event(evlist->core.nr_entries,
+		evsel = parse_events__add_event(evlist__nr_entries(evlist),
 						&attr, q, /*metric_id=*/NULL,
 						pmu);
 		if (evsel == NULL)

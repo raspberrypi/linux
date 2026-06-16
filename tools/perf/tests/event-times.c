@@ -50,7 +50,7 @@ static int attach__enable_on_exec(struct evlist *evlist)
 
 static int detach__enable_on_exec(struct evlist *evlist)
 {
-	waitpid(evlist->workload.pid, NULL, 0);
+	waitpid(evlist__workload_pid(evlist), NULL, 0);
 	return 0;
 }
 

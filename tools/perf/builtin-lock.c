@@ -2129,7 +2129,7 @@ static int __cmd_contention(int argc, const char **argv)
 			evlist__start_workload(con.evlist);
 
 		while (!done) {
-			if (argc && waitpid(con.evlist->workload.pid, NULL, WNOHANG) > 0)
+			if (argc && waitpid(evlist__workload_pid(con.evlist), NULL, WNOHANG) > 0)
 				break;
 			sleep(1);
 		}

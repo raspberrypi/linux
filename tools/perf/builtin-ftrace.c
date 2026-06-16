@@ -377,9 +377,9 @@ static int set_tracing_pid(struct perf_ftrace *ftrace)
 	if (target__has_cpu(&ftrace->target))
 		return 0;
 
-	for (i = 0; i < perf_thread_map__nr(ftrace->evlist->core.threads); i++) {
+	for (i = 0; i < perf_thread_map__nr(evlist__core(ftrace->evlist)->threads); i++) {
 		scnprintf(buf, sizeof(buf), "%d",
-			  perf_thread_map__pid(ftrace->evlist->core.threads, i));
+			  perf_thread_map__pid(evlist__core(ftrace->evlist)->threads, i));
 		if (append_tracing_file("set_ftrace_pid", buf) < 0)
 			return -1;
 	}
@@ -413,7 +413,7 @@ static int set_tracing_cpumask(struct perf_cpu_map *cpumap)
 
 static int set_tracing_cpu(struct perf_ftrace *ftrace)
 {
-	struct perf_cpu_map *cpumap = ftrace->evlist->core.user_requested_cpus;
+	struct perf_cpu_map *cpumap = evlist__core(ftrace->evlist)->user_requested_cpus;
 
 	if (!target__has_cpu(&ftrace->target))
 		return 0;

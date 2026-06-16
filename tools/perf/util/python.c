@@ -1523,7 +1523,7 @@ static int pyrf_evlist__init(struct pyrf_evlist *pevlist,
 	}
 	threads = ((struct pyrf_thread_map *)pthreads)->threads;
 	cpus = ((struct pyrf_cpu_map *)pcpus)->cpus;
-	perf_evlist__set_maps(&pevlist->evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(pevlist->evlist), cpus, threads);
 
 	return 0;
 }
@@ -1536,23 +1536,29 @@ static void pyrf_evlist__delete(struct pyrf_evlist *pevlist)
 
 static PyObject *pyrf_evlist__all_cpus(struct pyrf_evlist *pevlist)
 {
-	struct pyrf_cpu_map *pcpu_map = PyObject_New(struct pyrf_cpu_map, &pyrf_cpu_map__type);
+	struct pyrf_cpu_map *pcpu_map;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	pcpu_map = PyObject_New(struct pyrf_cpu_map, &pyrf_cpu_map__type);
 	if (pcpu_map)
-		pcpu_map->cpus = perf_cpu_map__get(pevlist->evlist->core.all_cpus);
+		pcpu_map->cpus = perf_cpu_map__get(evlist__core(pevlist->evlist)->all_cpus);
 
 	return (PyObject *)pcpu_map;
 }
 
 static PyObject *pyrf_evlist__metrics(struct pyrf_evlist *pevlist)
 {
-	PyObject *list = PyList_New(/*len=*/0);
+	PyObject *list;
 	struct rb_node *node;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	list = PyList_New(/*len=*/0);
 	if (!list)
 		return NULL;
 
-	for (node = rb_first_cached(&pevlist->evlist->metric_events.entries); node;
+	for (node = rb_first_cached(&evlist__metric_events(pevlist->evlist)->entries); node;
 	     node = rb_next(node)) {
 		struct metric_event *me = container_of(node, struct metric_event, nd);
 		struct list_head *pos;
@@ -1655,10 +1661,12 @@ static PyObject *pyrf_evlist__compute_metric(struct pyrf_evlist *pevlist,
 	double result = 0;
 	struct evsel *metric_evsel = NULL;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
 	if (!PyArg_ParseTuple(args, "sii", &metric, &cpu, &thread))
 		return NULL;
 
-	for (node = rb_first_cached(&pevlist->evlist->metric_events.entries);
+	for (node = rb_first_cached(&evlist__metric_events(pevlist->evlist)->entries);
 	     mexp == NULL && node;
 	     node = rb_next(node)) {
 		struct metric_event *me = container_of(node, struct metric_event, nd);
@@ -1719,15 +1727,18 @@ done:
 static PyObject *pyrf_evlist__mmap(struct pyrf_evlist *pevlist,
 				   PyObject *args, PyObject *kwargs)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 	static char *kwlist[] = { "pages", "overwrite", NULL };
 	int pages = 128, overwrite = false;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", kwlist,
 					 &pages, &overwrite))
 		return NULL;
 
-	if (evlist__mmap(evlist, pages) < 0) {
+	if (evlist__do_mmap(evlist, pages) < 0) {
 		PyErr_SetFromErrno(PyExc_OSError);
 		return NULL;
 	}
@@ -1739,10 +1750,13 @@ static PyObject *pyrf_evlist__mmap(struct pyrf_evlist *pevlist,
 static PyObject *pyrf_evlist__poll(struct pyrf_evlist *pevlist,
 				   PyObject *args, PyObject *kwargs)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 	static char *kwlist[] = { "timeout", NULL };
 	int timeout = -1, n;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|i", kwlist, &timeout))
 		return NULL;
 
@@ -1759,13 +1773,18 @@ static PyObject *pyrf_evlist__get_pollfd(struct pyrf_evlist *pevlist,
 					 PyObject *args __maybe_unused,
 					 PyObject *kwargs __maybe_unused)
 {
-	struct evlist *evlist = pevlist->evlist;
-        PyObject *list = PyList_New(0);
+	struct evlist *evlist;
+	PyObject *list;
 	int i;
 
-	for (i = 0; i < evlist->core.pollfd.nr; ++i) {
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
+	list = PyList_New(0);
+
+	for (i = 0; i < evlist__core(evlist)->pollfd.nr; ++i) {
 		PyObject *file;
-		file = PyFile_FromFd(evlist->core.pollfd.entries[i].fd, "perf", "r", -1,
+		file = PyFile_FromFd(evlist__core(evlist)->pollfd.entries[i].fd, "perf", "r", -1,
 				     NULL, NULL, NULL, 0);
 		if (file == NULL)
 			goto free_list;
@@ -1788,28 +1807,33 @@ static PyObject *pyrf_evlist__add(struct pyrf_evlist *pevlist,
 				  PyObject *args,
 				  PyObject *kwargs __maybe_unused)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 	PyObject *pevsel;
 	struct evsel *evsel;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	if (!PyArg_ParseTuple(args, "O!", &pyrf_evsel__type, &pevsel))
 		return NULL;
 
 	CHECK_INITIALIZED(((struct pyrf_evsel *)pevsel)->evsel, "evsel");
 
 	evsel = ((struct pyrf_evsel *)pevsel)->evsel;
-	evsel->core.idx = evlist->core.nr_entries;
+	CHECK_INITIALIZED(evsel, "evsel");
+
+	evsel->core.idx = evlist__nr_entries(evlist);
 	evlist__add(evlist, evsel__get(evsel));
 
-	return Py_BuildValue("i", evlist->core.nr_entries);
+	return Py_BuildValue("i", evlist__nr_entries(evlist));
 }
 
 static struct mmap *get_md(struct evlist *evlist, int cpu)
 {
 	int i;
 
-	for (i = 0; i < evlist->core.nr_mmaps; i++) {
-		struct mmap *md = &evlist->mmap[i];
+	for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
+		struct mmap *md = &evlist__mmap(evlist)[i];
 
 		if (md->core.cpu.cpu == cpu)
 			return md;
@@ -1821,13 +1845,16 @@ static struct mmap *get_md(struct evlist *evlist, int cpu)
 static PyObject *pyrf_evlist__read_on_cpu(struct pyrf_evlist *pevlist,
 					  PyObject *args, PyObject *kwargs)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 	union perf_event *event;
 	int sample_id_all = 1, cpu;
 	static char *kwlist[] = { "cpu", "sample_id_all", NULL };
 	struct mmap *md;
 	int err;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|i", kwlist,
 					 &cpu, &sample_id_all))
 		return NULL;
@@ -1878,8 +1905,11 @@ end:
 static PyObject *pyrf_evlist__open(struct pyrf_evlist *pevlist,
 				   PyObject *args, PyObject *kwargs)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	if (evlist__open(evlist) < 0) {
 		PyErr_SetFromErrno(PyExc_OSError);
 		return NULL;
@@ -1891,8 +1921,11 @@ static PyObject *pyrf_evlist__open(struct pyrf_evlist *pevlist,
 
 static PyObject *pyrf_evlist__close(struct pyrf_evlist *pevlist)
 {
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	evlist__close(evlist);
 
 	Py_INCREF(Py_None);
@@ -1917,8 +1950,11 @@ static PyObject *pyrf_evlist__config(struct pyrf_evlist *pevlist)
 		.no_buffering        = true,
 		.no_inherit          = true,
 	};
-	struct evlist *evlist = pevlist->evlist;
+	struct evlist *evlist;
 
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
+
+	evlist = pevlist->evlist;
 	evlist__config(evlist, &opts, &callchain_param);
 	Py_INCREF(Py_None);
 	return Py_None;
@@ -1926,6 +1962,7 @@ static PyObject *pyrf_evlist__config(struct pyrf_evlist *pevlist)
 
 static PyObject *pyrf_evlist__disable(struct pyrf_evlist *pevlist)
 {
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
 	evlist__disable(pevlist->evlist);
 	Py_INCREF(Py_None);
 	return Py_None;
@@ -1933,6 +1970,7 @@ static PyObject *pyrf_evlist__disable(struct pyrf_evlist *pevlist)
 
 static PyObject *pyrf_evlist__enable(struct pyrf_evlist *pevlist)
 {
+	CHECK_INITIALIZED(pevlist->evlist, "evlist");
 	evlist__enable(pevlist->evlist);
 	Py_INCREF(Py_None);
 	return Py_None;
@@ -2027,7 +2065,7 @@ static Py_ssize_t pyrf_evlist__length(PyObject *obj)
 	if (!pevlist->evlist)
 		return 0;
 
-	return pevlist->evlist->core.nr_entries;
+	return evlist__nr_entries(pevlist->evlist);
 }
 
 static PyObject *pyrf_evsel__from_evsel(struct evsel *evsel)
@@ -2046,7 +2084,7 @@ static PyObject *pyrf_evlist__item(PyObject *obj, Py_ssize_t i)
 	struct pyrf_evlist *pevlist = (void *)obj;
 	struct evsel *pos;
 
-	if (!pevlist->evlist || i >= pevlist->evlist->core.nr_entries) {
+	if (!pevlist->evlist || i >= evlist__nr_entries(pevlist->evlist)) {
 		PyErr_SetString(PyExc_IndexError, "Index out of range");
 		return NULL;
 	}
@@ -2274,7 +2312,7 @@ static PyObject *pyrf__parse_events(PyObject *self, PyObject *args)
 	cpus = pcpus ? ((struct pyrf_cpu_map *)pcpus)->cpus : NULL;
 
 	parse_events_error__init(&err);
-	perf_evlist__set_maps(&evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
 	if (parse_events(evlist, input, &err)) {
 		parse_events_error__print(&err, input);
 		PyErr_SetFromErrno(PyExc_OSError);
@@ -2307,7 +2345,7 @@ static PyObject *pyrf__parse_metrics(PyObject *self, PyObject *args)
 	threads = pthreads ? ((struct pyrf_thread_map *)pthreads)->threads : NULL;
 	cpus = pcpus ? ((struct pyrf_cpu_map *)pcpus)->cpus : NULL;
 
-	perf_evlist__set_maps(&evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
 	ret = metricgroup__parse_groups(evlist, pmu ?: "all", input,
 					/*metric_no_group=*/ false,
 					/*metric_no_merge=*/ false,

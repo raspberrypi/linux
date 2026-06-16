@@ -2247,7 +2247,7 @@ int perf_event__synthesize_tracing_data(const struct perf_tool *tool, int fd, st
 	 * - write the tracing data from the temp file
 	 *   to the pipe
 	 */
-	tdata = tracing_data_get(&evlist->core.entries, fd, true);
+	tdata = tracing_data_get(&evlist__core(evlist)->entries, fd, true);
 	if (!tdata)
 		return -1;
 
@@ -2404,13 +2404,16 @@ int perf_event__synthesize_stat_events(struct perf_stat_config *config, const st
 	}
 
 	err = perf_event__synthesize_extra_attr(tool, evlist, process, attrs);
-	err = perf_event__synthesize_thread_map2(tool, evlist->core.threads, process, NULL);
+	err = perf_event__synthesize_thread_map2(tool, evlist__core(evlist)->threads,
+						process, /*machine=*/NULL);
 	if (err < 0) {
 		pr_err("Couldn't synthesize thread map.\n");
 		return err;
 	}
 
-	err = perf_event__synthesize_cpu_map(tool, evlist->core.user_requested_cpus, process, NULL);
+	err = perf_event__synthesize_cpu_map(tool,
+					     evlist__core(evlist)->user_requested_cpus,
+					     process, /*machine=*/NULL);
 	if (err < 0) {
 		pr_err("Couldn't synthesize thread map.\n");
 		return err;
@@ -2518,7 +2521,7 @@ int perf_event__synthesize_for_pipe(const struct perf_tool *tool,
 	ret += err;
 
 #ifdef HAVE_LIBTRACEEVENT
-	if (have_tracepoints(&evlist->core.entries)) {
+	if (have_tracepoints(&evlist__core(evlist)->entries)) {
 		int fd = perf_data__fd(data);
 
 		/*

@@ -71,7 +71,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 		goto out_put_evlist;
 	}
 
-	perf_evlist__set_maps(&evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
 
 	if (evlist__open(evlist)) {
 		const char *knob = "/proc/sys/kernel/perf_event_max_sample_rate";
@@ -83,7 +83,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 		goto out_put_evlist;
 	}
 
-	err = evlist__mmap(evlist, 128);
+	err = evlist__do_mmap(evlist, 128);
 	if (err < 0) {
 		pr_debug("failed to mmap event: %d (%s)\n", errno,
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
@@ -98,7 +98,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 
 	evlist__disable(evlist);
 
-	md = &evlist->mmap[0];
+	md = &evlist__mmap(evlist)[0];
 	if (perf_mmap__read_init(&md->core) < 0)
 		goto out_init;
 

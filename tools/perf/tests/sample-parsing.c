@@ -205,15 +205,11 @@ static bool samples_same(struct perf_sample *s1,
 
 static int do_test(u64 sample_type, u64 sample_regs, u64 read_format)
 {
-	struct evsel evsel = {
-		.needs_swap = false,
-		.core = {
-			. attr = {
-				.sample_type = sample_type,
-				.read_format = read_format,
-			},
-		},
+	struct perf_event_attr attr = {
+		.sample_type = sample_type,
+		.read_format = read_format,
 	};
+	struct evsel *evsel;
 	union perf_event *event;
 	union {
 		struct ip_callchain callchain;
@@ -287,16 +283,21 @@ static int do_test(u64 sample_type, u64 sample_regs, u64 read_format)
 	size_t i, sz, bufsz;
 	int err, ret = -1;
 
+	evsel = evsel__new(&attr);
+	if (!evsel) {
+		pr_debug("evsel__new failed\n");
+		return -1;
+	}
 	perf_sample__init(&sample_out, /*all=*/false);
 	perf_sample__init(&sample_out_endian, /*all=*/false);
 	if (sample_type & PERF_SAMPLE_REGS_USER)
-		evsel.core.attr.sample_regs_user = sample_regs;
+		evsel->core.attr.sample_regs_user = sample_regs;
 
 	if (sample_type & PERF_SAMPLE_REGS_INTR)
-		evsel.core.attr.sample_regs_intr = sample_regs;
+		evsel->core.attr.sample_regs_intr = sample_regs;
 
 	if (sample_type & PERF_SAMPLE_BRANCH_STACK)
-		evsel.core.attr.branch_sample_type |= PERF_SAMPLE_BRANCH_HW_INDEX;
+		evsel->core.attr.branch_sample_type |= PERF_SAMPLE_BRANCH_HW_INDEX;
 
 	for (i = 0; i < sizeof(regs); i++)
 		*(i + (u8 *)regs) = i & 0xfe;
@@ -311,12 +312,12 @@ static int do_test(u64 sample_type, u64 sample_regs, u64 read_format)
 	}
 
 	sz = perf_event__sample_event_size(&sample, sample_type, read_format,
-					   evsel.core.attr.branch_sample_type);
+					   evsel->core.attr.branch_sample_type);
 	bufsz = sz + 4096; /* Add a bit for overrun checking */
 	event = malloc(bufsz);
 	if (!event) {
 		pr_debug("malloc failed\n");
-		return -1;
+		goto out_free;
 	}
 
 	memset(event, 0xff, bufsz);
@@ -325,7 +326,7 @@ static int do_test(u64 sample_type, u64 sample_regs, u64 read_format)
 	event->header.size = sz;
 
 	err = perf_event__synthesize_sample(event, sample_type, read_format,
-					    evsel.core.attr.branch_sample_type, &sample);
+					    evsel->core.attr.branch_sample_type, &sample);
 	if (err) {
 		pr_debug("%s failed for sample_type %#"PRIx64", error %d\n",
 			 "perf_event__synthesize_sample", sample_type, err);
@@ -343,32 +344,33 @@ static int do_test(u64 sample_type, u64 sample_regs, u64 read_format)
 		goto out_free;
 	}
 
-	evsel.sample_size = __evsel__sample_size(sample_type);
+	evsel->sample_size = __evsel__sample_size(sample_type);
 
-	err = evsel__parse_sample(&evsel, event, &sample_out);
+	err = evsel__parse_sample(evsel, event, &sample_out);
 	if (err) {
 		pr_debug("%s failed for sample_type %#"PRIx64", error %d\n",
 			 "evsel__parse_sample", sample_type, err);
 		goto out_free;
 	}
 
-	if (!samples_same(&sample, &sample_out, sample_type, read_format, evsel.needs_swap)) {
+	if (!samples_same(&sample, &sample_out, sample_type, read_format, evsel->needs_swap)) {
 		pr_debug("parsing failed for sample_type %#"PRIx64"\n",
 			 sample_type);
 		goto out_free;
 	}
 
 	if (sample_type == PERF_SAMPLE_BRANCH_STACK) {
-		evsel.needs_swap = true;
-		evsel.sample_size = __evsel__sample_size(sample_type);
-		err = evsel__parse_sample(&evsel, event, &sample_out_endian);
+		evsel->needs_swap = true;
+		evsel->sample_size = __evsel__sample_size(sample_type);
+		err = evsel__parse_sample(evsel, event, &sample_out_endian);
 		if (err) {
 			pr_debug("%s failed for sample_type %#"PRIx64", error %d\n",
 				 "evsel__parse_sample", sample_type, err);
 			goto out_free;
 		}
 
-		if (!samples_same(&sample, &sample_out_endian, sample_type, read_format, evsel.needs_swap)) {
+		if (!samples_same(&sample, &sample_out_endian, sample_type,
+				  read_format, evsel->needs_swap)) {
 			pr_debug("parsing failed for sample_type %#"PRIx64"\n",
 				 sample_type);
 			goto out_free;
@@ -380,6 +382,7 @@ out_free:
 	free(event);
 	perf_sample__exit(&sample_out_endian);
 	perf_sample__exit(&sample_out);
+	evsel__put(evsel);
 	if (ret && read_format)
 		pr_debug("read_format %#"PRIx64"\n", read_format);
 	return ret;

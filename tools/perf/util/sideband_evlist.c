@@ -22,7 +22,7 @@ int evlist__add_sb_event(struct evlist *evlist, struct perf_event_attr *attr,
 		attr->sample_id_all = 1;
 	}
 
-	evsel = evsel__new_idx(attr, evlist->core.nr_entries);
+	evsel = evsel__new_idx(attr, evlist__nr_entries(evlist));
 	if (!evsel)
 		return -1;
 
@@ -49,14 +49,14 @@ static void *perf_evlist__poll_thread(void *arg)
 	while (!done) {
 		bool got_data = false;
 
-		if (evlist->thread.done)
+		if (evlist__sb_thread_done(evlist))
 			draining = true;
 
 		if (!draining)
 			evlist__poll(evlist, 1000);
 
-		for (i = 0; i < evlist->core.nr_mmaps; i++) {
-			struct mmap *map = &evlist->mmap[i];
+		for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
+			struct mmap *map = &evlist__mmap(evlist)[i];
 			union perf_event *event;
 
 			if (perf_mmap__read_init(&map->core))
@@ -104,7 +104,7 @@ int evlist__start_sb_thread(struct evlist *evlist, struct target *target)
 	if (evlist__create_maps(evlist, target))
 		goto out_put_evlist;
 
-	if (evlist->core.nr_entries > 1) {
+	if (evlist__nr_entries(evlist) > 1) {
 		bool can_sample_identifier = perf_can_sample_identifier();
 
 		evlist__for_each_entry(evlist, counter)
@@ -114,12 +114,12 @@ int evlist__start_sb_thread(struct evlist *evlist, struct target *target)
 	}
 
 	evlist__for_each_entry(evlist, counter) {
-		if (evsel__open(counter, evlist->core.user_requested_cpus,
-				evlist->core.threads) < 0)
+		if (evsel__open(counter, evlist__core(evlist)->user_requested_cpus,
+				evlist__core(evlist)->threads) < 0)
 			goto out_put_evlist;
 	}
 
-	if (evlist__mmap(evlist, UINT_MAX))
+	if (evlist__do_mmap(evlist, UINT_MAX))
 		goto out_put_evlist;
 
 	evlist__for_each_entry(evlist, counter) {
@@ -127,8 +127,8 @@ int evlist__start_sb_thread(struct evlist *evlist, struct target *target)
 			goto out_put_evlist;
 	}
 
-	evlist->thread.done = 0;
-	if (pthread_create(&evlist->thread.th, NULL, perf_evlist__poll_thread, evlist))
+	evlist__set_sb_thread_done(evlist, 0);
+	if (pthread_create(evlist__sb_thread_th(evlist), NULL, perf_evlist__poll_thread, evlist))
 		goto out_put_evlist;
 
 	return 0;
@@ -143,7 +143,7 @@ void evlist__stop_sb_thread(struct evlist *evlist)
 {
 	if (!evlist)
 		return;
-	evlist->thread.done = 1;
-	pthread_join(evlist->thread.th, NULL);
+	evlist__set_sb_thread_done(evlist, 1);
+	pthread_join(*evlist__sb_thread_th(evlist), NULL);
 	evlist__put(evlist);
 }

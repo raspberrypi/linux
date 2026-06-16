@@ -1691,8 +1691,9 @@ static int cs_etm__synth_branch_sample(struct cs_etm_queue *etmq,
 {
 	int ret = 0;
 	struct cs_etm_auxtrace *etm = etmq->etm;
-	struct perf_sample sample = {.ip = 0,};
+	struct perf_sample sample;
 	union perf_event *event = tidq->event_buf;
+
 	struct dummy_branch_stack {
 		u64			nr;
 		u64			hw_idx;
@@ -1700,6 +1701,7 @@ static int cs_etm__synth_branch_sample(struct cs_etm_queue *etmq,
 	} dummy_bs;
 	u64 ip;
 
+	perf_sample__init(&sample, /*all=*/true);
 	ip = cs_etm__last_executed_instr(tidq->prev_packet);
 
 	event->sample.header.type = PERF_RECORD_SAMPLE;
@@ -1752,6 +1754,7 @@ static int cs_etm__synth_branch_sample(struct cs_etm_queue *etmq,
 		"CS ETM Trace: failed to deliver instruction event, error %d\n",
 		ret);
 
+	perf_sample__exit(&sample);
 	return ret;
 }
 

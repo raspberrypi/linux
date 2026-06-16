@@ -547,8 +547,8 @@ static void evsel__merge_aliases(struct evsel *evsel)
 	struct evlist *evlist = evsel->evlist;
 	struct evsel *alias;
 
-	alias = list_prepare_entry(evsel, &(evlist->core.entries), core.node);
-	list_for_each_entry_continue(alias, &evlist->core.entries, core.node) {
+	alias = list_prepare_entry(evsel, &(evlist__core(evlist)->entries), core.node);
+	list_for_each_entry_continue(alias, &evlist__core(evlist)->entries, core.node) {
 		if (alias->first_wildcard_match == evsel) {
 			/* Merge the same events on different PMUs. */
 			evsel__merge_aggr_counters(evsel, alias);

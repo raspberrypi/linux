@@ -64,7 +64,7 @@ static int test__syscall_openat_tp_fields(struct test_suite *test __maybe_unused
 
 	evsel__config(evsel, &opts, NULL);
 
-	perf_thread_map__set_pid(evlist->core.threads, 0, getpid());
+	perf_thread_map__set_pid(evlist__core(evlist)->threads, 0, getpid());
 
 	err = evlist__open(evlist);
 	if (err < 0) {
@@ -73,7 +73,7 @@ static int test__syscall_openat_tp_fields(struct test_suite *test __maybe_unused
 		goto out_put_evlist;
 	}
 
-	err = evlist__mmap(evlist, UINT_MAX);
+	err = evlist__do_mmap(evlist, UINT_MAX);
 	if (err < 0) {
 		pr_debug("evlist__mmap: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
@@ -90,11 +90,11 @@ static int test__syscall_openat_tp_fields(struct test_suite *test __maybe_unused
 	while (1) {
 		int before = nr_events;
 
-		for (i = 0; i < evlist->core.nr_mmaps; i++) {
+		for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
 			union perf_event *event;
 			struct mmap *md;
 
-			md = &evlist->mmap[i];
+			md = &evlist__mmap(evlist)[i];
 			if (perf_mmap__read_init(&md->core) < 0)
 				continue;
 

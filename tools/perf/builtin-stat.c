@@ -321,7 +321,7 @@ static int read_single_counter(struct evsel *counter, int cpu_map_idx, int threa
  */
 static int read_counter_cpu(struct evsel *counter, int cpu_map_idx)
 {
-	int nthreads = perf_thread_map__nr(evsel_list->core.threads);
+	int nthreads = perf_thread_map__nr(evlist__core(evsel_list)->threads);
 	int thread;
 
 	if (!counter->supported)
@@ -628,11 +628,12 @@ static int dispatch_events(bool forks, int timeout, int interval, int *times)
 	time_to_sleep = sleep_time;
 
 	while (!done) {
-		if (forks)
+		if (forks) {
 			child_exited = waitpid(child_pid, &status, WNOHANG);
-		else
-			child_exited = !is_target_alive(&target, evsel_list->core.threads) ? 1 : 0;
-
+		} else {
+			child_exited = !is_target_alive(&target,
+							evlist__core(evsel_list)->threads) ? 1 : 0;
+		}
 		if (child_exited)
 			break;
 
@@ -681,14 +682,15 @@ static enum counter_recovery stat_handle_error(struct evsel *counter, int err)
 		return COUNTER_RETRY;
 	}
 	if (target__has_per_thread(&target) && err != EOPNOTSUPP &&
-	    evsel_list->core.threads && evsel_list->core.threads->err_thread != -1) {
+	    evlist__core(evsel_list)->threads &&
+	    evlist__core(evsel_list)->threads->err_thread != -1) {
 		/*
 		 * For global --per-thread case, skip current
 		 * error thread.
 		 */
-		if (!thread_map__remove(evsel_list->core.threads,
-					evsel_list->core.threads->err_thread)) {
-			evsel_list->core.threads->err_thread = -1;
+		if (!thread_map__remove(evlist__core(evsel_list)->threads,
+					evlist__core(evsel_list)->threads->err_thread)) {
+			evlist__core(evsel_list)->threads->err_thread = -1;
 			counter->supported = true;
 			return COUNTER_RETRY;
 		}
@@ -787,11 +789,12 @@ static int __run_perf_stat(int argc, const char **argv, int run_idx)
 	bool second_pass = false, has_supported_counters;
 
 	if (forks) {
-		if (evlist__prepare_workload(evsel_list, &target, argv, is_pipe, workload_exec_failed_signal) < 0) {
+		if (evlist__prepare_workload(evsel_list, &target, argv, is_pipe,
+					     workload_exec_failed_signal) < 0) {
 			perror("failed to prepare workload");
 			return -1;
 		}
-		child_pid = evsel_list->workload.pid;
+		child_pid = evlist__workload_pid(evsel_list);
 	}
 
 	evlist__for_each_entry(evsel_list, counter) {
@@ -1199,7 +1202,7 @@ static int parse_cputype(const struct option *opt,
 	const struct perf_pmu *pmu;
 	struct evlist *evlist = *(struct evlist **)opt->value;
 
-	if (!list_empty(&evlist->core.entries)) {
+	if (!list_empty(&evlist__core(evlist)->entries)) {
 		fprintf(stderr, "Must define cputype before events/metrics\n");
 		return -1;
 	}
@@ -1220,7 +1223,7 @@ static int parse_pmu_filter(const struct option *opt,
 {
 	struct evlist *evlist = *(struct evlist **)opt->value;
 
-	if (!list_empty(&evlist->core.entries)) {
+	if (!list_empty(&evlist__core(evlist)->entries)) {
 		fprintf(stderr, "Must define pmu-filter before events/metrics\n");
 		return -1;
 	}
@@ -1586,8 +1589,9 @@ static int perf_stat_init_aggr_mode(void)
 
 	if (get_id) {
 		bool needs_sort = stat_config.aggr_mode != AGGR_NONE;
-		stat_config.aggr_map = cpu_aggr_map__new(evsel_list->core.user_requested_cpus,
-							 get_id, /*data=*/NULL, needs_sort);
+		stat_config.aggr_map = cpu_aggr_map__new(
+			evlist__core(evsel_list)->user_requested_cpus,
+			get_id, /*data=*/NULL, needs_sort);
 		if (!stat_config.aggr_map) {
 			pr_err("cannot build %s map\n", aggr_mode__string[stat_config.aggr_mode]);
 			return -1;
@@ -1596,7 +1600,7 @@ static int perf_stat_init_aggr_mode(void)
 	}
 
 	if (stat_config.aggr_mode == AGGR_THREAD) {
-		nr = perf_thread_map__nr(evsel_list->core.threads);
+		nr = perf_thread_map__nr(evlist__core(evsel_list)->threads);
 		stat_config.aggr_map = cpu_aggr_map__empty_new(nr);
 		if (stat_config.aggr_map == NULL)
 			return -ENOMEM;
@@ -1615,7 +1619,7 @@ static int perf_stat_init_aggr_mode(void)
 	 * taking the highest cpu number to be the size of
 	 * the aggregation translate cpumap.
 	 */
-	nr = perf_cpu_map__max(evsel_list->core.all_cpus).cpu + 1;
+	nr = perf_cpu_map__max(evlist__core(evsel_list)->all_cpus).cpu + 1;
 	stat_config.cpus_aggr_map = cpu_aggr_map__empty_new(nr);
 	return stat_config.cpus_aggr_map ? 0 : -ENOMEM;
 }
@@ -1902,7 +1906,7 @@ static int perf_stat_init_aggr_mode_file(struct perf_stat *st)
 	bool needs_sort = stat_config.aggr_mode != AGGR_NONE;
 
 	if (stat_config.aggr_mode == AGGR_THREAD) {
-		int nr = perf_thread_map__nr(evsel_list->core.threads);
+		int nr = perf_thread_map__nr(evlist__core(evsel_list)->threads);
 
 		stat_config.aggr_map = cpu_aggr_map__empty_new(nr);
 		if (stat_config.aggr_map == NULL)
@@ -1920,7 +1924,7 @@ static int perf_stat_init_aggr_mode_file(struct perf_stat *st)
 	if (!get_id)
 		return 0;
 
-	stat_config.aggr_map = cpu_aggr_map__new(evsel_list->core.user_requested_cpus,
+	stat_config.aggr_map = cpu_aggr_map__new(evlist__core(evsel_list)->user_requested_cpus,
 						 get_id, env, needs_sort);
 	if (!stat_config.aggr_map) {
 		pr_err("cannot build %s map\n", aggr_mode__string[stat_config.aggr_mode]);
@@ -2088,7 +2092,7 @@ static int add_default_events(void)
 	if (!stat_config.topdown_level)
 		stat_config.topdown_level = 1;
 
-	if (!evlist->core.nr_entries && !evsel_list->core.nr_entries) {
+	if (!evlist__nr_entries(evlist) && !evlist__nr_entries(evsel_list)) {
 		/*
 		 * Add Default metrics. To minimize multiplexing, don't request
 		 * threshold computation, but it will be computed if the events
@@ -2127,13 +2131,13 @@ static int add_default_events(void)
 			evlist__for_each_entry(metric_evlist, evsel)
 				evsel->default_metricgroup = true;
 
-			evlist__splice_list_tail(evlist, &metric_evlist->core.entries);
+			evlist__splice_list_tail(evlist, &evlist__core(metric_evlist)->entries);
 			metricgroup__copy_metric_events(evlist, /*cgrp=*/NULL,
-							&evlist->metric_events,
-							&metric_evlist->metric_events);
+							evlist__metric_events(evlist),
+							evlist__metric_events(metric_evlist));
 			evlist__put(metric_evlist);
 		}
-		list_sort(/*priv=*/NULL, &evlist->core.entries, default_evlist_evsel_cmp);
+		list_sort(/*priv=*/NULL, &evlist__core(evlist)->entries, default_evlist_evsel_cmp);
 
 	}
 out:
@@ -2148,10 +2152,10 @@ out:
 		}
 	}
 	parse_events_error__exit(&err);
-	evlist__splice_list_tail(evsel_list, &evlist->core.entries);
+	evlist__splice_list_tail(evsel_list, &evlist__core(evlist)->entries);
 	metricgroup__copy_metric_events(evsel_list, /*cgrp=*/NULL,
-					&evsel_list->metric_events,
-					&evlist->metric_events);
+					evlist__metric_events(evsel_list),
+					evlist__metric_events(evlist));
 	evlist__put(evlist);
 	return ret;
 }
@@ -2272,7 +2276,7 @@ static int set_maps(struct perf_stat *st)
 	if (WARN_ONCE(st->maps_allocated, "stats double allocation\n"))
 		return -EINVAL;
 
-	perf_evlist__set_maps(&evsel_list->core, st->cpus, st->threads);
+	perf_evlist__set_maps(evlist__core(evsel_list), st->cpus, st->threads);
 
 	if (evlist__alloc_stats(&stat_config, evsel_list, /*alloc_raw=*/true))
 		return -ENOMEM;
@@ -2424,7 +2428,7 @@ static void setup_system_wide(int forks)
 			}
 		}
 
-		if (evsel_list->core.nr_entries)
+		if (evlist__nr_entries(evsel_list))
 			target.system_wide = true;
 	}
 }
@@ -2651,7 +2655,7 @@ int cmd_stat(int argc, const char **argv)
 		stat_config.csv_sep = DEFAULT_SEPARATOR;
 
 	if (affinity_set)
-		evsel_list->no_affinity = !affinity;
+		evlist__set_no_affinity(evsel_list, !affinity);
 
 	if (argc && strlen(argv[0]) > 2 && strstarts("record", argv[0])) {
 		argc = __cmd_record(stat_options, &opt_mode, argc, argv);
@@ -2818,7 +2822,7 @@ int cmd_stat(int argc, const char **argv)
 	}
 
 	if (stat_config.iostat_run) {
-		status = iostat_prepare(evsel_list, &stat_config);
+		status = iostat_prepare(&evsel_list, &stat_config);
 		if (status)
 			goto out;
 		if (iostat_mode == IOSTAT_LIST) {
@@ -2882,9 +2886,10 @@ int cmd_stat(int argc, const char **argv)
 	}
 #ifdef HAVE_BPF_SKEL
 	if (target.use_bpf && nr_cgroups &&
-	    (evsel_list->core.nr_entries / nr_cgroups) > BPERF_CGROUP__MAX_EVENTS) {
+	    (evlist__nr_entries(evsel_list) / nr_cgroups) > BPERF_CGROUP__MAX_EVENTS) {
 		pr_warning("Disabling BPF counters due to more events (%d) than the max (%d)\n",
-			   evsel_list->core.nr_entries / nr_cgroups, BPERF_CGROUP__MAX_EVENTS);
+			   evlist__nr_entries(evsel_list) / nr_cgroups,
+			   BPERF_CGROUP__MAX_EVENTS);
 		target.use_bpf = false;
 	}
 #endif // HAVE_BPF_SKEL
@@ -2922,7 +2927,7 @@ int cmd_stat(int argc, const char **argv)
 	 * so we could print it out on output.
 	 */
 	if (stat_config.aggr_mode == AGGR_THREAD) {
-		thread_map__read_comms(evsel_list->core.threads);
+		thread_map__read_comms(evlist__core(evsel_list)->threads);
 	}
 
 	if (stat_config.aggr_mode == AGGR_NODE)

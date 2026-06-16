@@ -3356,7 +3356,7 @@ static inline bool evsel__has_branch_counters(const struct evsel *evsel)
 	if (!leader || !evsel->evlist)
 		return false;
 
-	if (evsel->evlist->nr_br_cntr < 0)
+	if (evlist__nr_br_cntr(evsel->evlist) < 0)
 		evlist__update_br_cntr(evsel->evlist);
 
 	if (leader->br_cntr_nr > 0)
@@ -4388,7 +4388,7 @@ int evsel__open_strerror(struct evsel *evsel, struct target *target,
 
 struct perf_session *evsel__session(struct evsel *evsel)
 {
-	return evsel && evsel->evlist ? evsel->evlist->session : NULL;
+	return evsel && evsel->evlist ? evlist__session(evsel->evlist) : NULL;
 }
 
 struct perf_env *evsel__env(struct evsel *evsel)
@@ -4413,7 +4413,7 @@ static int store_evsel_ids(struct evsel *evsel, struct evlist *evlist)
 		     thread++) {
 			int fd = FD(evsel, cpu_map_idx, thread);
 
-			if (perf_evlist__id_add_fd(&evlist->core, &evsel->core,
+			if (perf_evlist__id_add_fd(evlist__core(evlist), &evsel->core,
 						   cpu_map_idx, thread, fd) < 0)
 				return -1;
 		}

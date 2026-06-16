@@ -205,7 +205,7 @@ struct perf_session *__perf_session__new(struct perf_data *data,
 		session->machines.host.env = host_env;
 	}
 	if (session->evlist)
-		session->evlist->session = session;
+		evlist__set_session(session->evlist, session);
 
 	session->machines.host.single_address_space =
 		perf_env__single_address_space(session->machines.host.env);
@@ -1549,8 +1549,8 @@ static void dump_event(struct evlist *evlist, union perf_event *event,
 	       file_offset, file_path, event->header.size, event->header.type);
 
 	trace_event(event);
-	if (event->header.type == PERF_RECORD_SAMPLE && evlist->trace_event_sample_raw)
-		evlist->trace_event_sample_raw(evlist, event, sample);
+	if (event->header.type == PERF_RECORD_SAMPLE && evlist__trace_event_sample_raw(evlist))
+		evlist__trace_event_sample_raw(evlist)(evlist, event, sample);
 
 	if (sample)
 		evlist__print_tstamp(evlist, event, sample);
@@ -1751,7 +1751,7 @@ static int deliver_sample_value(struct evlist *evlist,
 	}
 
 	if (!storage || sid->evsel == NULL) {
-		++evlist->stats.nr_unknown_id;
+		++evlist__stats(evlist)->nr_unknown_id;
 		return 0;
 	}
 
@@ -1853,7 +1853,7 @@ static int evlist__deliver_deferred_callchain(struct evlist *evlist,
 		return ret;
 	}
 
-	list_for_each_entry_safe(de, tmp, &evlist->deferred_samples, list) {
+	list_for_each_entry_safe(de, tmp, evlist__deferred_samples(evlist), list) {
 		struct perf_sample orig_sample;
 
 		perf_sample__init(&orig_sample, /*all=*/false);
@@ -1902,7 +1902,7 @@ static int session__flush_deferred_samples(struct perf_session *session,
 	struct deferred_event *de, *tmp;
 	int ret = 0;
 
-	list_for_each_entry_safe(de, tmp, &evlist->deferred_samples, list) {
+	list_for_each_entry_safe(de, tmp, evlist__deferred_samples(evlist), list) {
 		struct perf_sample sample;
 
 		perf_sample__init(&sample, /*all=*/false);
@@ -1964,17 +1964,16 @@ static int machines__deliver_event(struct machines *machines,
 		sample->evsel = evlist__id2evsel(evlist, sample->id);
 	else
 		assert(sample->evsel == evlist__id2evsel(evlist, sample->id));
-
 	machine = machines__find_for_cpumode(machines, event, sample);
 
 	switch (event->header.type) {
 	case PERF_RECORD_SAMPLE:
 		if (sample->evsel == NULL) {
-			++evlist->stats.nr_unknown_id;
+			++evlist__stats(evlist)->nr_unknown_id;
 			return 0;
 		}
 		if (machine == NULL) {
-			++evlist->stats.nr_unprocessable_samples;
+			++evlist__stats(evlist)->nr_unprocessable_samples;
 			dump_sample(machine, event, sample);
 			return 0;
 		}
@@ -1993,7 +1992,7 @@ static int machines__deliver_event(struct machines *machines,
 			}
 			memcpy(de->event, event, sz);
 			de->file_offset = sample->file_offset;
-			list_add_tail(&de->list, &evlist->deferred_samples);
+			list_add_tail(&de->list, evlist__deferred_samples(evlist));
 			return 0;
 		}
 		return evlist__deliver_sample(evlist, tool, event, sample, machine);
@@ -2005,7 +2004,7 @@ static int machines__deliver_event(struct machines *machines,
 		return tool->mmap(tool, event, sample, machine);
 	case PERF_RECORD_MMAP2:
 		if (event->header.misc & PERF_RECORD_MISC_PROC_MAP_PARSE_TIMEOUT)
-			++evlist->stats.nr_proc_map_timeout;
+			++evlist__stats(evlist)->nr_proc_map_timeout;
 		if (!perf_event__check_nul(event->mmap2.filename,
 					   (void *)event + event->header.size,
 					   "MMAP2", file_offset))
@@ -2050,13 +2049,13 @@ static int machines__deliver_event(struct machines *machines,
 		return tool->exit(tool, event, sample, machine);
 	case PERF_RECORD_LOST:
 		if (tool->lost == perf_event__process_lost)
-			evlist->stats.total_lost += event->lost.lost;
+			evlist__stats(evlist)->total_lost += event->lost.lost;
 		return tool->lost(tool, event, sample, machine);
 	case PERF_RECORD_LOST_SAMPLES:
 		if (event->header.misc & PERF_RECORD_MISC_LOST_SAMPLES_BPF)
-			evlist->stats.total_dropped_samples += event->lost_samples.lost;
+			evlist__stats(evlist)->total_dropped_samples += event->lost_samples.lost;
 		else if (tool->lost_samples == perf_event__process_lost_samples)
-			evlist->stats.total_lost_samples += event->lost_samples.lost;
+			evlist__stats(evlist)->total_lost_samples += event->lost_samples.lost;
 		return tool->lost_samples(tool, event, sample, machine);
 	case PERF_RECORD_READ:
 		dump_read(sample->evsel, event);
@@ -2068,11 +2067,11 @@ static int machines__deliver_event(struct machines *machines,
 	case PERF_RECORD_AUX:
 		if (tool->aux == perf_event__process_aux) {
 			if (event->aux.flags & PERF_AUX_FLAG_TRUNCATED)
-				evlist->stats.total_aux_lost += 1;
+				evlist__stats(evlist)->total_aux_lost += 1;
 			if (event->aux.flags & PERF_AUX_FLAG_PARTIAL)
-				evlist->stats.total_aux_partial += 1;
+				evlist__stats(evlist)->total_aux_partial += 1;
 			if (event->aux.flags & PERF_AUX_FLAG_COLLISION)
-				evlist->stats.total_aux_collision += 1;
+				evlist__stats(evlist)->total_aux_collision += 1;
 		}
 		return tool->aux(tool, event, sample, machine);
 	case PERF_RECORD_ITRACE_START:
@@ -2108,7 +2107,7 @@ static int machines__deliver_event(struct machines *machines,
 		return evlist__deliver_deferred_callchain(evlist, tool, event,
 							  sample, machine);
 	default:
-		++evlist->stats.nr_unknown_events;
+		++evlist__stats(evlist)->nr_unknown_events;
 		return -1;
 	}
 }
@@ -2520,7 +2519,7 @@ int perf_session__deliver_synth_event(struct perf_session *session,
 	struct evlist *evlist = session->evlist;
 	const struct perf_tool *tool = session->tool;
 
-	events_stats__inc(&evlist->stats, event->header.type);
+	events_stats__inc(evlist__stats(evlist), event->header.type);
 
 	if (event->header.type >= PERF_RECORD_USER_TYPE_START)
 		return perf_session__process_user_event(session, event, 0, NULL);
@@ -2930,7 +2929,7 @@ static s64 perf_session__process_event(struct perf_session *session,
 		return 0;
 	}
 
-	events_stats__inc(&evlist->stats, event->header.type);
+	events_stats__inc(evlist__stats(evlist), event->header.type);
 
 	if (event->header.type >= PERF_RECORD_USER_TYPE_START)
 		return perf_session__process_user_event(session, event, file_offset, file_path);
@@ -2991,7 +2990,7 @@ perf_session__warn_order(const struct perf_session *session)
 
 static void perf_session__warn_about_errors(const struct perf_session *session)
 {
-	const struct events_stats *stats = &session->evlist->stats;
+	const struct events_stats *stats = evlist__stats(session->evlist);
 
 	if (session->tool->lost == perf_event__process_lost &&
 	    stats->nr_events[PERF_RECORD_LOST] != 0) {
@@ -3824,7 +3823,7 @@ size_t perf_session__fprintf_nr_events(struct perf_session *session, FILE *fp)
 
 	ret = fprintf(fp, "\nAggregated stats:%s\n", msg);
 
-	ret += events_stats__fprintf(&session->evlist->stats, fp);
+	ret += events_stats__fprintf(evlist__stats(session->evlist), fp);
 	return ret;
 }
 

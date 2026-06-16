@@ -69,12 +69,12 @@ static int test__pfm_events(struct test_suite *test __maybe_unused,
 		if (evlist == NULL)
 			return -ENOMEM;
 
-		opt.value = evlist;
+		opt.value = &evlist;
 		parse_libpfm_events_option(&opt,
 					table[i].events,
 					0);
 		TEST_ASSERT_EQUAL(table[i].events,
-				count_pfm_events(&evlist->core),
+				count_pfm_events(evlist__core(evlist)),
 				table[i].nr_events);
 		TEST_ASSERT_EQUAL(table[i].events,
 				evlist__nr_groups(evlist),
@@ -154,12 +154,12 @@ static int test__pfm_group(struct test_suite *test __maybe_unused,
 		if (evlist == NULL)
 			return -ENOMEM;
 
-		opt.value = evlist;
+		opt.value = &evlist;
 		parse_libpfm_events_option(&opt,
 					table[i].events,
 					0);
 		TEST_ASSERT_EQUAL(table[i].events,
-				count_pfm_events(&evlist->core),
+				count_pfm_events(evlist__core(evlist)),
 				table[i].nr_events);
 		TEST_ASSERT_EQUAL(table[i].events,
 				evlist__nr_groups(evlist),

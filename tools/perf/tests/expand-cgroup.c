@@ -28,7 +28,7 @@ static int test_expand_events(struct evlist *evlist)
 
 	TEST_ASSERT_VAL("evlist is empty", !evlist__empty(evlist));
 
-	nr_events = evlist->core.nr_entries;
+	nr_events = evlist__nr_entries(evlist);
 	ev_name = calloc(nr_events, sizeof(*ev_name));
 	if (ev_name == NULL) {
 		pr_debug("memory allocation failure\n");
@@ -54,7 +54,7 @@ static int test_expand_events(struct evlist *evlist)
 	}
 
 	ret = TEST_FAIL;
-	if (evlist->core.nr_entries != nr_events * nr_cgrps) {
+	if (evlist__nr_entries(evlist) != nr_events * nr_cgrps) {
 		pr_debug("event count doesn't match\n");
 		goto out;
 	}

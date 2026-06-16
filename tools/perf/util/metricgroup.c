@@ -1490,7 +1490,7 @@ static int parse_groups(struct evlist *perf_evlist,
 			goto out;
 		}
 
-		me = metricgroup__lookup(&perf_evlist->metric_events,
+		me = metricgroup__lookup(evlist__metric_events(perf_evlist),
 					 pick_display_evsel(&metric_list, metric_events),
 					 /*create=*/true);
 
@@ -1541,13 +1541,13 @@ static int parse_groups(struct evlist *perf_evlist,
 
 
 	if (combined_evlist) {
-		evlist__splice_list_tail(perf_evlist, &combined_evlist->core.entries);
+		evlist__splice_list_tail(perf_evlist, &evlist__core(combined_evlist)->entries);
 		evlist__put(combined_evlist);
 	}
 
 	list_for_each_entry(m, &metric_list, nd) {
 		if (m->evlist)
-			evlist__splice_list_tail(perf_evlist, &m->evlist->core.entries);
+			evlist__splice_list_tail(perf_evlist, &evlist__core(m->evlist)->entries);
 	}
 
 out:

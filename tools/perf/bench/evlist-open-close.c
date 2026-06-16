@@ -116,7 +116,7 @@ static int bench__do_evlist_open_close(struct evlist *evlist)
 		return err;
 	}
 
-	err = evlist__mmap(evlist, opts.mmap_pages);
+	err = evlist__do_mmap(evlist, opts.mmap_pages);
 	if (err < 0) {
 		pr_err("evlist__mmap: %s\n", str_error_r(errno, sbuf, sizeof(sbuf)));
 		return err;
@@ -124,7 +124,7 @@ static int bench__do_evlist_open_close(struct evlist *evlist)
 
 	evlist__enable(evlist);
 	evlist__disable(evlist);
-	evlist__munmap(evlist);
+	evlist__do_munmap(evlist);
 	evlist__close(evlist);
 
 	return 0;
@@ -145,10 +145,11 @@ static int bench_evlist_open_close__run(char *evstr, const char *uid_str)
 
 	init_stats(&time_stats);
 
-	printf("  Number of cpus:\t%d\n", perf_cpu_map__nr(evlist->core.user_requested_cpus));
-	printf("  Number of threads:\t%d\n", evlist->core.threads->nr);
+	printf("  Number of cpus:\t%d\n",
+	       perf_cpu_map__nr(evlist__core(evlist)->user_requested_cpus));
+	printf("  Number of threads:\t%d\n", evlist__core(evlist)->threads->nr);
 	printf("  Number of events:\t%d (%d fds)\n",
-		evlist->core.nr_entries, evlist__count_evsel_fds(evlist));
+		evlist__nr_entries(evlist), evlist__count_evsel_fds(evlist));
 	printf("  Number of iterations:\t%d\n", iterations);
 
 	evlist__put(evlist);

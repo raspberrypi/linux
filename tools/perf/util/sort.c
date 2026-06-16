@@ -3487,7 +3487,7 @@ static struct evsel *find_evsel(struct evlist *evlist, char *event_name)
 	if (event_name[0] == '%') {
 		int nr = strtol(event_name+1, NULL, 0);
 
-		if (nr > evlist->core.nr_entries)
+		if (nr > evlist__nr_entries(evlist))
 			return NULL;
 
 		evsel = evlist__first(evlist);

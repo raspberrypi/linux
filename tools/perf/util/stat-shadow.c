@@ -287,7 +287,7 @@ void *perf_stat__print_shadow_stats_metricgroup(struct perf_stat_config *config,
 	void *ctxp = out->ctx;
 	bool header_printed = false;
 	const char *name = NULL;
-	struct rblist *metric_events = &evsel->evlist->metric_events;
+	struct rblist *metric_events = evlist__metric_events(evsel->evlist);
 
 	me = metricgroup__lookup(metric_events, evsel, false);
 	if (me == NULL)
@@ -355,5 +355,5 @@ bool perf_stat__skip_metric_event(struct evsel *evsel)
 	if (!evsel->default_metricgroup)
 		return false;
 
-	return !metricgroup__lookup(&evsel->evlist->metric_events, evsel, false);
+	return !metricgroup__lookup(evlist__metric_events(evsel->evlist), evsel, false);
 }

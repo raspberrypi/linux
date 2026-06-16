@@ -77,7 +77,7 @@ static int test__task_exit(struct test_suite *test __maybe_unused, int subtest _
 		goto out_put_evlist;
 	}
 
-	perf_evlist__set_maps(&evlist->core, cpus, threads);
+	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
 
 	err = evlist__prepare_workload(evlist, &target, argv, false, workload_exec_failed_signal);
 	if (err < 0) {
@@ -104,7 +104,7 @@ static int test__task_exit(struct test_suite *test __maybe_unused, int subtest _
 		goto out_put_evlist;
 	}
 
-	if (evlist__mmap(evlist, 128) < 0) {
+	if (evlist__do_mmap(evlist, 128) < 0) {
 		pr_debug("failed to mmap events: %d (%s)\n", errno,
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		err = -1;
@@ -114,7 +114,7 @@ static int test__task_exit(struct test_suite *test __maybe_unused, int subtest _
 	evlist__start_workload(evlist);
 
 retry:
-	md = &evlist->mmap[0];
+	md = &evlist__mmap(evlist)[0];
 	if (perf_mmap__read_init(&md->core) < 0)
 		goto out_init;
 

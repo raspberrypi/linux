@@ -34,8 +34,8 @@ static int count_samples(struct evlist *evlist, int *sample_count,
 {
 	int i;
 
-	for (i = 0; i < evlist->core.nr_mmaps; i++) {
-		struct mmap *map = &evlist->overwrite_mmap[i];
+	for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
+		struct mmap *map = &evlist__overwrite_mmap(evlist)[i];
 		union perf_event *event;
 
 		perf_mmap__read_init(&map->core);
@@ -65,7 +65,7 @@ static int do_test(struct evlist *evlist, int mmap_pages,
 	int err;
 	char sbuf[STRERR_BUFSIZE];
 
-	err = evlist__mmap(evlist, mmap_pages);
+	err = evlist__do_mmap(evlist, mmap_pages);
 	if (err < 0) {
 		pr_debug("evlist__mmap: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
@@ -77,7 +77,7 @@ static int do_test(struct evlist *evlist, int mmap_pages,
 	evlist__disable(evlist);
 
 	err = count_samples(evlist, sample_count, comm_count);
-	evlist__munmap(evlist);
+	evlist__do_munmap(evlist);
 	return err;
 }
 

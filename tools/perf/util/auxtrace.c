@@ -191,7 +191,7 @@ void auxtrace_mmap_params__set_idx(struct auxtrace_mmap_params *mp,
 				   struct evlist *evlist,
 				   struct evsel *evsel, int idx)
 {
-	bool per_cpu = !perf_cpu_map__has_any_cpu(evlist->core.user_requested_cpus);
+	bool per_cpu = !perf_cpu_map__has_any_cpu(evlist__core(evlist)->user_requested_cpus);
 
 	mp->mmap_needed = evsel->needs_auxtrace_mmap;
 
@@ -201,11 +201,11 @@ void auxtrace_mmap_params__set_idx(struct auxtrace_mmap_params *mp,
 	mp->idx = idx;
 
 	if (per_cpu) {
-		mp->cpu = perf_cpu_map__cpu(evlist->core.all_cpus, idx);
-		mp->tid = perf_thread_map__pid(evlist->core.threads, 0);
+		mp->cpu = perf_cpu_map__cpu(evlist__core(evlist)->all_cpus, idx);
+		mp->tid = perf_thread_map__pid(evlist__core(evlist)->threads, 0);
 	} else {
 		mp->cpu.cpu = -1;
-		mp->tid = perf_thread_map__pid(evlist->core.threads, idx);
+		mp->tid = perf_thread_map__pid(evlist__core(evlist)->threads, idx);
 	}
 }
 
@@ -668,10 +668,10 @@ int auxtrace_parse_snapshot_options(struct auxtrace_record *itr,
 
 static int evlist__enable_event_idx(struct evlist *evlist, struct evsel *evsel, int idx)
 {
-	bool per_cpu_mmaps = !perf_cpu_map__has_any_cpu(evlist->core.user_requested_cpus);
+	bool per_cpu_mmaps = !perf_cpu_map__has_any_cpu(evlist__core(evlist)->user_requested_cpus);
 
 	if (per_cpu_mmaps) {
-		struct perf_cpu evlist_cpu = perf_cpu_map__cpu(evlist->core.all_cpus, idx);
+		struct perf_cpu evlist_cpu = perf_cpu_map__cpu(evlist__core(evlist)->all_cpus, idx);
 		int cpu_map_idx = perf_cpu_map__idx(evsel->core.cpus, evlist_cpu);
 
 		if (cpu_map_idx == -1)
@@ -1838,7 +1838,7 @@ void perf_session__auxtrace_error_inc(struct perf_session *session,
 	struct perf_record_auxtrace_error *e = &event->auxtrace_error;
 
 	if (e->type < PERF_AUXTRACE_ERROR_MAX)
-		session->evlist->stats.nr_auxtrace_errors[e->type] += 1;
+		evlist__stats(session->evlist)->nr_auxtrace_errors[e->type] += 1;
 }
 
 void events_stats__auxtrace_error_warn(const struct events_stats *stats)

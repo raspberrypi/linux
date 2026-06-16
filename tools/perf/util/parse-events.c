@@ -2294,7 +2294,7 @@ int __parse_events(struct evlist *evlist, const char *str, const char *pmu_filte
 {
 	struct parse_events_state parse_state = {
 		.list	  = LIST_HEAD_INIT(parse_state.list),
-		.idx	  = evlist->core.nr_entries,
+		.idx	  = evlist__nr_entries(evlist),
 		.error	  = err,
 		.stoken	  = PE_START_EVENTS,
 		.fake_pmu = fake_pmu,
@@ -2568,7 +2568,7 @@ foreach_evsel_in_last_glob(struct evlist *evlist,
 	 *
 	 * So no need to WARN here, let *func do this.
 	 */
-	if (evlist->core.nr_entries > 0)
+	if (evlist__nr_entries(evlist) > 0)
 		last = evlist__last(evlist);
 
 	do {
@@ -2578,7 +2578,7 @@ foreach_evsel_in_last_glob(struct evlist *evlist,
 		if (!last)
 			return 0;
 
-		if (last->core.node.prev == &evlist->core.entries)
+		if (last->core.node.prev == &evlist__core(evlist)->entries)
 			return 0;
 		last = list_entry(last->core.node.prev, struct evsel, core.node);
 	} while (!last->cmdline_group_boundary);

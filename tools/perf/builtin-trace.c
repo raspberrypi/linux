@@ -2023,7 +2023,7 @@ static int trace__symbols_init(struct trace *trace, int argc, const char **argv,
 		goto out;
 
 	err = __machine__synthesize_threads(trace->host, &trace->tool, &trace->opts.target,
-					    evlist->core.threads, trace__tool_process,
+					    evlist__core(evlist)->threads, trace__tool_process,
 					    /*needs_mmap=*/callchain_param.enabled &&
 							   !trace->summary_only,
 					    /*mmap_data=*/false,
@@ -4216,7 +4216,7 @@ static int trace__set_filter_pids(struct trace *trace)
 			err = augmented_syscalls__set_filter_pids(trace->filter_pids.nr,
 						       trace->filter_pids.entries);
 		}
-	} else if (perf_thread_map__pid(trace->evlist->core.threads, 0) == -1) {
+	} else if (perf_thread_map__pid(evlist__core(trace->evlist)->threads, 0) == -1) {
 		err = trace__set_filter_loop_pids(trace);
 	}
 
@@ -4530,7 +4530,7 @@ create_maps:
 			fprintf(trace->output, "Couldn't run the workload!\n");
 			goto out_put_evlist;
 		}
-		workload_pid = evlist->workload.pid;
+		workload_pid = evlist__workload_pid(evlist);
 	}
 
 	err = evlist__open(evlist);
@@ -4582,7 +4582,7 @@ create_maps:
 		goto out_error_apply_filters;
 
 	if (!trace->summary_only || !trace->summary_bpf) {
-		err = evlist__mmap(evlist, trace->opts.mmap_pages);
+		err = evlist__do_mmap(evlist, trace->opts.mmap_pages);
 		if (err < 0)
 			goto out_error_mmap;
 	}
@@ -4601,8 +4601,8 @@ create_maps:
 	if (trace->summary_bpf)
 		trace_start_bpf_summary();
 
-	trace->multiple_threads = perf_thread_map__pid(evlist->core.threads, 0) == -1 ||
-		perf_thread_map__nr(evlist->core.threads) > 1 ||
+	trace->multiple_threads = perf_thread_map__pid(evlist__core(evlist)->threads, 0) == -1 ||
+		perf_thread_map__nr(evlist__core(evlist)->threads) > 1 ||
 		evlist__first(evlist)->core.attr.inherit;
 
 	/*
@@ -4619,11 +4619,11 @@ create_maps:
 again:
 	before = trace->nr_events;
 
-	for (i = 0; i < evlist->core.nr_mmaps; i++) {
+	for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
 		union perf_event *event;
 		struct mmap *md;
 
-		md = &evlist->mmap[i];
+		md = &evlist__mmap(evlist)[i];
 		if (perf_mmap__read_init(&md->core) < 0)
 			continue;
 
@@ -5325,7 +5325,7 @@ static int trace__parse_cgroups(const struct option *opt, const char *str, int u
 {
 	struct trace *trace = opt->value;
 
-	if (!list_empty(&trace->evlist->core.entries)) {
+	if (!list_empty(&evlist__core(trace->evlist)->entries)) {
 		struct option o = {
 			.value = &trace->evlist,
 		};
@@ -5599,7 +5599,7 @@ int cmd_trace(int argc, const char **argv)
 	 * .perfconfig trace.add_events, and filter those out.
 	 */
 	if (!trace.trace_syscalls && !trace.trace_pgfaults &&
-	    trace.evlist->core.nr_entries == 0 /* Was --events used? */) {
+	    evlist__nr_entries(trace.evlist) == 0 /* Was --events used? */) {
 		trace.trace_syscalls = true;
 	}
 	/*
@@ -5685,7 +5685,7 @@ skip_augmentation:
 		symbol_conf.use_callchain = true;
 	}
 
-	if (trace.evlist->core.nr_entries > 0) {
+	if (evlist__nr_entries(trace.evlist) > 0) {
 		bool use_btf = false;
 
 		evlist__set_default_evsel_handler(trace.evlist, trace__event_handler);
