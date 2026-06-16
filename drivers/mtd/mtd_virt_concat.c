@@ -126,8 +126,8 @@ int mtd_virt_concat_destroy(struct mtd_info *mtd)
 		if (concat->mtd.name) {
 			del_mtd_device(&concat->mtd);
 			kfree(concat->mtd.name);
-			mtd_concat_destroy(&concat->mtd);
 			mtd_virt_concat_put_mtd_devices(item->concat);
+			mtd_concat_destroy(&concat->mtd);
 		}
 
 		for (idx = 0; idx < item->count; idx++)
