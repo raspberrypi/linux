@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- *  Copyright (C) 2023 2023-2024 Raspberry Pi Ltd.
+ *  Copyright (C) 2023-2026 Raspberry Pi Ltd.
  */
 
 #ifndef __SOC_RP1_FIRMWARE_OPS_H__
@@ -49,8 +49,19 @@ enum rp1_pio_ops {
 
 	PIO_SM_FIFO_STATE,	// u16 sm, u8 tx -> u16 level, u8 empty, u8 full
 	PIO_SM_DRAIN_TX,	// u16 sm
+	PIO_SM_GET_FLAGS,	// u16 sm, u8 clear, u8 rsvd, u32 flags, u32 wait -> u32 level
+	PIO_SM_GET_DMACTRL,	// u16 sm, u16 is_tx -> u32 ctrl
 
 	PIO_COUNT
 };
+
+// Don't include this here to avoid multiple definitions
+//
+// enum pio_sm_flags {
+//     PIO_SM_FLAG_TXSTALL = 0x0001,
+//     PIO_SM_FLAG_RXSTALL = 0x0002,
+//     PIO_SM_FLAG_TXOVER  = 0x0004,
+//     PIO_SM_FLAG_RXUNDER = 0x0008,
+// };
 
 #endif
