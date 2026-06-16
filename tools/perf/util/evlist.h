@@ -58,6 +58,7 @@ struct event_enable_timer;
 
 struct evlist {
 	struct perf_evlist core;
+	refcount_t	 refcnt;
 	bool		 enabled;
 	bool		 no_affinity;
 	int		 id_pos;
@@ -106,10 +107,8 @@ struct evsel_str_handler {
 struct evlist *evlist__new(void);
 struct evlist *evlist__new_default(const struct target *target, bool sample_callchains);
 struct evlist *evlist__new_dummy(void);
-void evlist__init(struct evlist *evlist, struct perf_cpu_map *cpus,
-		  struct perf_thread_map *threads);
-void evlist__exit(struct evlist *evlist);
-void evlist__delete(struct evlist *evlist);
+struct evlist *evlist__get(struct evlist *evlist);
+void evlist__put(struct evlist *evlist);
 
 void evlist__add(struct evlist *evlist, struct evsel *entry);
 void evlist__remove(struct evlist *evlist, struct evsel *evsel);

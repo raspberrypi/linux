@@ -2149,7 +2149,7 @@ static int __cmd_contention(int argc, const char **argv)
 
 out_delete:
 	lock_filter_finish();
-	evlist__delete(con.evlist);
+	evlist__put(con.evlist);
 	lock_contention_finish(&con);
 	perf_session__delete(session);
 	perf_env__exit(&host_env);

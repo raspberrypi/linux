@@ -1652,14 +1652,14 @@ int cmd_top(int argc, const char **argv)
 	perf_env__init(&host_env);
 	status = perf_config(perf_top_config, &top);
 	if (status)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	/*
 	 * Since the per arch annotation init routine may need the cpuid, read
 	 * it here, since we are not getting this from the perf.data header.
 	 */
 	status = perf_env__set_cmdline(&host_env, argc, argv);
 	if (status)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	status = perf_env__read_cpuid(&host_env);
 	if (status) {
@@ -1680,30 +1680,30 @@ int cmd_top(int argc, const char **argv)
 		annotate_opts.disassembler_style = strdup(disassembler_style);
 		if (!annotate_opts.disassembler_style) {
 			status = -ENOMEM;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 	if (objdump_path) {
 		annotate_opts.objdump_path = strdup(objdump_path);
 		if (!annotate_opts.objdump_path) {
 			status = -ENOMEM;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 	if (addr2line_path) {
 		symbol_conf.addr2line_path = strdup(addr2line_path);
 		if (!symbol_conf.addr2line_path) {
 			status = -ENOMEM;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 
 	status = symbol__validate_sym_arguments();
 	if (status)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	if (annotate_check_args() < 0)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	status = target__validate(target);
 	if (status) {
@@ -1718,15 +1718,15 @@ int cmd_top(int argc, const char **argv)
 		struct evlist *def_evlist = evlist__new_default(target, callchain_param.enabled);
 
 		if (!def_evlist)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 
 		evlist__splice_list_tail(top.evlist, &def_evlist->core.entries);
-		evlist__delete(def_evlist);
+		evlist__put(def_evlist);
 	}
 
 	status = evswitch__init(&top.evswitch, top.evlist, stderr);
 	if (status)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	if (symbol_conf.report_hierarchy) {
 		/* disable incompatible options */
@@ -1737,18 +1737,18 @@ int cmd_top(int argc, const char **argv)
 			pr_err("Error: --hierarchy and --fields options cannot be used together\n");
 			parse_options_usage(top_usage, options, "fields", 0);
 			parse_options_usage(NULL, options, "hierarchy", 0);
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 
 	if (top.stitch_lbr && !(callchain_param.record_mode == CALLCHAIN_LBR)) {
 		pr_err("Error: --stitch-lbr must be used with --call-graph lbr\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	if (nr_cgroups > 0 && opts->record_cgroup) {
 		pr_err("--cgroup and --all-cgroups cannot be used together\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	if (branch_call_mode) {
@@ -1772,7 +1772,7 @@ int cmd_top(int argc, const char **argv)
 		status = perf_env__read_core_pmu_caps(&host_env);
 		if (status) {
 			pr_err("PMU capability data is not available\n");
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 
@@ -1795,7 +1795,7 @@ int cmd_top(int argc, const char **argv)
 	if (IS_ERR(top.session)) {
 		status = PTR_ERR(top.session);
 		top.session = NULL;
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 	top.evlist->session = top.session;
 
@@ -1805,7 +1805,7 @@ int cmd_top(int argc, const char **argv)
 		if (field_order)
 			parse_options_usage(sort_order ? NULL : top_usage,
 					    options, "fields", 0);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	if (top.uid_str) {
@@ -1814,18 +1814,18 @@ int cmd_top(int argc, const char **argv)
 		if (uid == UINT_MAX) {
 			ui__error("Invalid User: %s", top.uid_str);
 			status = -EINVAL;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 		status = parse_uid_filter(top.evlist, uid);
 		if (status)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 
 	if (evlist__create_maps(top.evlist, target) < 0) {
 		ui__error("Couldn't create thread/CPU maps: %s\n",
 			  errno == ENOENT ? "No such process" : str_error_r(errno, errbuf, sizeof(errbuf)));
 		status = -errno;
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	if (top.delay_secs < 1)
@@ -1833,7 +1833,7 @@ int cmd_top(int argc, const char **argv)
 
 	if (record_opts__config(opts)) {
 		status = -EINVAL;
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	top.sym_evsel = evlist__first(top.evlist);
@@ -1848,14 +1848,14 @@ int cmd_top(int argc, const char **argv)
 
 	status = symbol__annotation_init();
 	if (status < 0)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	annotation_config__init();
 
 	symbol_conf.try_vmlinux_path = (symbol_conf.vmlinux_name == NULL);
 	status = symbol__init(NULL);
 	if (status < 0)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	sort__setup_elide(stdout);
 
@@ -1875,13 +1875,13 @@ int cmd_top(int argc, const char **argv)
 		if (top.sb_evlist == NULL) {
 			pr_err("Couldn't create side band evlist.\n.");
 			status = -EINVAL;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 
 		if (evlist__add_bpf_sb_event(top.sb_evlist, &host_env)) {
 			pr_err("Couldn't ask for PERF_RECORD_BPF_EVENT side band events.\n.");
 			status = -EINVAL;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 	}
 #endif
@@ -1896,8 +1896,8 @@ int cmd_top(int argc, const char **argv)
 	if (!opts->no_bpf_event)
 		evlist__stop_sb_thread(top.sb_evlist);
 
-out_delete_evlist:
-	evlist__delete(top.evlist);
+out_put_evlist:
+	evlist__put(top.evlist);
 	perf_session__delete(top.session);
 	annotation_options__exit();
 	perf_env__exit(&host_env);

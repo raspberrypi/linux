@@ -59,7 +59,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 	evsel = evsel__new(&attr);
 	if (evsel == NULL) {
 		pr_debug("evsel__new\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 	evlist__add(evlist, evsel);
 
@@ -68,7 +68,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 	if (!cpus || !threads) {
 		err = -ENOMEM;
 		pr_debug("Not enough memory to create thread/cpu maps\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	perf_evlist__set_maps(&evlist->core, cpus, threads);
@@ -80,14 +80,14 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 		pr_debug("Couldn't open evlist: %s\nHint: check %s, using %" PRIu64 " in this test.\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)),
 			 knob, (u64)attr.sample_freq);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	err = evlist__mmap(evlist, 128);
 	if (err < 0) {
 		pr_debug("failed to mmap event: %d (%s)\n", errno,
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	evlist__enable(evlist);
@@ -113,7 +113,7 @@ static int __test__sw_clock_freq(enum perf_sw_ids clock_id)
 		if (err < 0) {
 			pr_debug("Error during parse sample\n");
 			perf_sample__exit(&sample);
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 
 		total_periods += sample.period;
@@ -131,10 +131,10 @@ out_init:
 		err = -1;
 	}
 
-out_delete_evlist:
+out_put_evlist:
 	perf_cpu_map__put(cpus);
 	perf_thread_map__put(threads);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return err;
 }
 

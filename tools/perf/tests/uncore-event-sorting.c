@@ -165,7 +165,7 @@ static int test__uncore_event_sorting(struct test_suite *test __maybe_unused,
 	ret = TEST_OK;
 
 out_err:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	parse_events_error__exit(&err);
 	zfree(&pmu_prefix);
 	zfree(&m.event1);

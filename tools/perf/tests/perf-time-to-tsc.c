@@ -201,7 +201,7 @@ next_event:
 	err = TEST_OK;
 
 out_err:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	perf_cpu_map__put(cpus);
 	perf_thread_map__put(threads);
 	return err;

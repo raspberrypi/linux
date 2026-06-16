@@ -106,7 +106,7 @@ static int expand_default_events(void)
 	TEST_ASSERT_VAL("failed to get evlist", evlist);
 
 	ret = test_expand_events(evlist);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 
@@ -133,7 +133,7 @@ static int expand_group_events(void)
 	ret = test_expand_events(evlist);
 out:
 	parse_events_error__exit(&err);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 
@@ -164,7 +164,7 @@ static int expand_libpfm_events(void)
 
 	ret = test_expand_events(evlist);
 out:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 
@@ -188,7 +188,7 @@ static int expand_metric_events(void)
 	ret = test_expand_events(evlist);
 
 out:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 

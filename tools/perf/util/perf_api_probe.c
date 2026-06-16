@@ -57,7 +57,7 @@ static int perf_do_probe_api(setup_probe_fn_t fn, struct perf_cpu cpu, const cha
 	err = 0;
 
 out_delete:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return err;
 }
 

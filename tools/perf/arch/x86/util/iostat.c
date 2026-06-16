@@ -337,7 +337,7 @@ int iostat_prepare(struct evlist *evlist, struct perf_stat_config *config)
 	if (evlist->core.nr_entries > 0) {
 		pr_warning("The -e and -M options are not supported."
 			   "All chosen events/metrics will be dropped\n");
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		evlist = evlist__new();
 		if (!evlist)
 			return -ENOMEM;

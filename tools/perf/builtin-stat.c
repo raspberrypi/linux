@@ -2119,7 +2119,7 @@ static int add_default_events(void)
 							stat_config.user_requested_cpu_list,
 							stat_config.system_wide,
 							stat_config.hardware_aware_grouping) < 0) {
-				evlist__delete(metric_evlist);
+				evlist__put(metric_evlist);
 				ret = -1;
 				break;
 			}
@@ -2131,7 +2131,7 @@ static int add_default_events(void)
 			metricgroup__copy_metric_events(evlist, /*cgrp=*/NULL,
 							&evlist->metric_events,
 							&metric_evlist->metric_events);
-			evlist__delete(metric_evlist);
+			evlist__put(metric_evlist);
 		}
 		list_sort(/*priv=*/NULL, &evlist->core.entries, default_evlist_evsel_cmp);
 
@@ -2152,7 +2152,7 @@ out:
 	metricgroup__copy_metric_events(evsel_list, /*cgrp=*/NULL,
 					&evsel_list->metric_events,
 					&evlist->metric_events);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 
@@ -2387,7 +2387,7 @@ static int __cmd_report(int argc, const char **argv)
 
 	perf_stat.session  = session;
 	stat_config.output = stderr;
-	evlist__delete(evsel_list);
+	evlist__put(evsel_list);
 	evsel_list         = session->evlist;
 
 	ret = perf_session__process_events(session);
@@ -3066,7 +3066,7 @@ out:
 	if (smi_cost && smi_reset)
 		sysfs__write_int(FREEZE_ON_SMI_PATH, 0);
 
-	evlist__delete(evsel_list);
+	evlist__put(evsel_list);
 
 	evlist__close_control(stat_config.ctl_fd, stat_config.ctl_fd_ack, &stat_config.ctl_fd_close);
 

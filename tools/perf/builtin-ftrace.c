@@ -1999,20 +1999,20 @@ int cmd_ftrace(int argc, const char **argv)
 
 	ret = evlist__create_maps(ftrace.evlist, &ftrace.target);
 	if (ret < 0)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	if (argc) {
 		ret = evlist__prepare_workload(ftrace.evlist, &ftrace.target,
 					       argv, false,
 					       ftrace__workload_exec_failed_signal);
 		if (ret < 0)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 
 	ret = cmd_func(&ftrace);
 
-out_delete_evlist:
-	evlist__delete(ftrace.evlist);
+out_put_evlist:
+	evlist__put(ftrace.evlist);
 
 out_delete_filters:
 	delete_filter_func(&ftrace.filters);

@@ -4291,7 +4291,7 @@ int cmd_record(int argc, const char **argv)
 			goto out;
 
 		evlist__splice_list_tail(rec->evlist, &def_evlist->core.entries);
-		evlist__delete(def_evlist);
+		evlist__put(def_evlist);
 	}
 
 	if (rec->opts.target.tid && !rec->opts.no_inherit_set)
@@ -4401,7 +4401,7 @@ out:
 	auxtrace_record__free(rec->itr);
 out_opts:
 	evlist__close_control(rec->opts.ctl_fd, rec->opts.ctl_fd_ack, &rec->opts.ctl_fd_close);
-	evlist__delete(rec->evlist);
+	evlist__put(rec->evlist);
 	return err;
 }
 

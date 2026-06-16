@@ -265,7 +265,7 @@ void perf_session__delete(struct perf_session *session)
 	machines__exit(&session->machines);
 	if (session->data) {
 		if (perf_data__is_read(session->data))
-			evlist__delete(session->evlist);
+			evlist__put(session->evlist);
 		perf_data__close(session->data);
 	}
 #ifdef HAVE_LIBTRACEEVENT

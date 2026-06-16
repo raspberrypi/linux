@@ -58,7 +58,7 @@ static int session_write_header(char *path)
 			!perf_session__write_header(session, session->evlist,
 						    perf_data__fd(&data), true));
 
-	evlist__delete(session->evlist);
+	evlist__put(session->evlist);
 	perf_session__delete(session);
 
 	return 0;

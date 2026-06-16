@@ -102,7 +102,7 @@ int evlist__start_sb_thread(struct evlist *evlist, struct target *target)
 		return 0;
 
 	if (evlist__create_maps(evlist, target))
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	if (evlist->core.nr_entries > 1) {
 		bool can_sample_identifier = perf_can_sample_identifier();
@@ -116,25 +116,25 @@ int evlist__start_sb_thread(struct evlist *evlist, struct target *target)
 	evlist__for_each_entry(evlist, counter) {
 		if (evsel__open(counter, evlist->core.user_requested_cpus,
 				evlist->core.threads) < 0)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 
 	if (evlist__mmap(evlist, UINT_MAX))
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	evlist__for_each_entry(evlist, counter) {
 		if (evsel__enable(counter))
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 
 	evlist->thread.done = 0;
 	if (pthread_create(&evlist->thread.th, NULL, perf_evlist__poll_thread, evlist))
-		goto out_delete_evlist;
+		goto out_put_evlist;
 
 	return 0;
 
-out_delete_evlist:
-	evlist__delete(evlist);
+out_put_evlist:
+	evlist__put(evlist);
 	evlist = NULL;
 	return -1;
 }
@@ -145,5 +145,5 @@ void evlist__stop_sb_thread(struct evlist *evlist)
 		return;
 	evlist->thread.done = 1;
 	pthread_join(evlist->thread.th, NULL);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 }

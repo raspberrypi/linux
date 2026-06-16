@@ -76,7 +76,7 @@ static struct evlist *bench__create_evlist(char *evstr, const char *uid_str)
 		parse_events_error__exit(&err);
 		pr_err("Run 'perf list' for a list of valid events\n");
 		ret = 1;
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 	parse_events_error__exit(&err);
 	if (uid_str) {
@@ -85,24 +85,24 @@ static struct evlist *bench__create_evlist(char *evstr, const char *uid_str)
 		if (uid == UINT_MAX) {
 			pr_err("Invalid User: %s", uid_str);
 			ret = -EINVAL;
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 		ret = parse_uid_filter(evlist, uid);
 		if (ret)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 	ret = evlist__create_maps(evlist, &opts.target);
 	if (ret < 0) {
 		pr_err("Not enough memory to create thread/cpu maps\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	evlist__config(evlist, &opts, NULL);
 
 	return evlist;
 
-out_delete_evlist:
-	evlist__delete(evlist);
+out_put_evlist:
+	evlist__put(evlist);
 	return NULL;
 }
 
@@ -151,7 +151,7 @@ static int bench_evlist_open_close__run(char *evstr, const char *uid_str)
 		evlist->core.nr_entries, evlist__count_evsel_fds(evlist));
 	printf("  Number of iterations:\t%d\n", iterations);
 
-	evlist__delete(evlist);
+	evlist__put(evlist);
 
 	for (i = 0; i < iterations; i++) {
 		pr_debug("Started iteration %d\n", i);
@@ -162,7 +162,7 @@ static int bench_evlist_open_close__run(char *evstr, const char *uid_str)
 		gettimeofday(&start, NULL);
 		err = bench__do_evlist_open_close(evlist);
 		if (err) {
-			evlist__delete(evlist);
+			evlist__put(evlist);
 			return err;
 		}
 
@@ -171,7 +171,7 @@ static int bench_evlist_open_close__run(char *evstr, const char *uid_str)
 		runtime_us = timeval2usec(&diff);
 		update_stats(&time_stats, runtime_us);
 
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		pr_debug("Iteration %d took:\t%" PRIu64 "us\n", i, runtime_us);
 	}
 

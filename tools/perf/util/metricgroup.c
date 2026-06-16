@@ -214,7 +214,7 @@ static void metric__free(struct metric *m)
 	zfree(&m->metric_refs);
 	expr__ctx_free(m->pctx);
 	zfree(&m->modifier);
-	evlist__delete(m->evlist);
+	evlist__put(m->evlist);
 	free(m);
 }
 
@@ -1331,7 +1331,7 @@ static int parse_ids(bool metric_no_merge, bool fake_pmu,
 	parsed_evlist = NULL;
 err_out:
 	parse_events_error__exit(&parse_error);
-	evlist__delete(parsed_evlist);
+	evlist__put(parsed_evlist);
 	strbuf_release(&events);
 	return ret;
 }
@@ -1542,7 +1542,7 @@ static int parse_groups(struct evlist *perf_evlist,
 
 	if (combined_evlist) {
 		evlist__splice_list_tail(perf_evlist, &combined_evlist->core.entries);
-		evlist__delete(combined_evlist);
+		evlist__put(combined_evlist);
 	}
 
 	list_for_each_entry(m, &metric_list, nd) {

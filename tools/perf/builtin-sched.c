@@ -3924,7 +3924,7 @@ static int perf_sched__schedstat_record(struct perf_sched *sched,
 	session = perf_session__new(&data, &sched->tool);
 	if (IS_ERR(session)) {
 		pr_err("Perf session creation failed.\n");
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		return PTR_ERR(session);
 	}
 
@@ -4023,7 +4023,7 @@ out:
 	else
 		fprintf(stderr, "[ perf sched stats: Failed !! ]\n");
 
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	close(fd);
 	return err;
 }
@@ -4927,7 +4927,7 @@ static int perf_sched__schedstat_live(struct perf_sched *sched,
 	free_cpu_domain_info(cd_map, sv, nr);
 out:
 	free_schedstat(&cpu_head);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return err;
 }
 

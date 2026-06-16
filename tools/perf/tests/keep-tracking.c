@@ -153,7 +153,7 @@ static int test__keep_tracking(struct test_suite *test __maybe_unused, int subte
 out_err:
 	if (evlist) {
 		evlist__disable(evlist);
-		evlist__delete(evlist);
+		evlist__put(evlist);
 	}
 	perf_cpu_map__put(cpus);
 	perf_thread_map__put(threads);

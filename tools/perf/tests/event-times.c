@@ -186,7 +186,7 @@ static int test_times(int (attach)(struct evlist *),
 	err = attach(evlist);
 	if (err == TEST_SKIP) {
 		pr_debug("  SKIP  : not enough rights\n");
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		return err;
 	}
 
@@ -205,7 +205,7 @@ static int test_times(int (attach)(struct evlist *),
 		 count.ena, count.run);
 
 out_err:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return !err ? TEST_OK : TEST_FAIL;
 }
 

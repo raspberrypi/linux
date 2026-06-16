@@ -4439,7 +4439,7 @@ static int trace__run(struct trace *trace, int argc, const char **argv)
 
 	if (trace->summary_bpf) {
 		if (trace_prepare_bpf_summary(trace->summary_mode) < 0)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 
 		if (trace->summary_only)
 			goto create_maps;
@@ -4507,19 +4507,19 @@ create_maps:
 	err = evlist__create_maps(evlist, &trace->opts.target);
 	if (err < 0) {
 		fprintf(trace->output, "Problems parsing the target to trace, check your options!\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	err = trace__symbols_init(trace, argc, argv, evlist);
 	if (err < 0) {
 		fprintf(trace->output, "Problems initializing symbol libraries!\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	if (trace->summary_mode == SUMMARY__BY_TOTAL && !trace->summary_bpf) {
 		trace->syscall_stats = alloc_syscall_stats();
 		if (!trace->syscall_stats)
-			goto out_delete_evlist;
+			goto out_put_evlist;
 	}
 
 	evlist__config(evlist, &trace->opts, &callchain_param);
@@ -4528,7 +4528,7 @@ create_maps:
 		err = evlist__prepare_workload(evlist, &trace->opts.target, argv, false, NULL);
 		if (err < 0) {
 			fprintf(trace->output, "Couldn't run the workload!\n");
-			goto out_delete_evlist;
+			goto out_put_evlist;
 		}
 		workload_pid = evlist->workload.pid;
 	}
@@ -4576,7 +4576,7 @@ create_maps:
 
 	err = trace__expand_filters(trace, &evsel);
 	if (err)
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	err = evlist__apply_filters(evlist, &evsel, &trace->opts.target);
 	if (err < 0)
 		goto out_error_apply_filters;
@@ -4693,12 +4693,12 @@ out_disable:
 		}
 	}
 
-out_delete_evlist:
+out_put_evlist:
 	trace_cleanup_bpf_summary();
 	delete_syscall_stats(trace->syscall_stats);
 	trace__symbols__exit(trace);
 	evlist__free_syscall_tp_fields(evlist);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	cgroup__put(trace->cgroup);
 	trace->evlist = NULL;
 	trace->live = false;
@@ -4723,21 +4723,21 @@ out_error_open:
 
 out_error:
 	fprintf(trace->output, "%s\n", errbuf);
-	goto out_delete_evlist;
+	goto out_put_evlist;
 
 out_error_apply_filters:
 	fprintf(trace->output,
 		"Failed to set filter \"%s\" on event %s: %m\n",
 		evsel->filter, evsel__name(evsel));
-	goto out_delete_evlist;
+	goto out_put_evlist;
 }
 out_error_mem:
 	fprintf(trace->output, "Not enough memory to run!\n");
-	goto out_delete_evlist;
+	goto out_put_evlist;
 
 out_errno:
 	fprintf(trace->output, "%m\n");
-	goto out_delete_evlist;
+	goto out_put_evlist;
 }
 
 static int trace__replay(struct trace *trace)
@@ -5417,7 +5417,7 @@ static void trace__exit(struct trace *trace)
 		zfree(&trace->syscalls.table);
 	}
 	zfree(&trace->perfconfig_events);
-	evlist__delete(trace->evlist);
+	evlist__put(trace->evlist);
 	trace->evlist = NULL;
 	ordered_events__free(&trace->oe.data);
 #ifdef HAVE_LIBBPF_SUPPORT

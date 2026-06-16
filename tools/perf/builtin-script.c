@@ -2274,7 +2274,7 @@ static int script_find_metrics(const struct pmu_metric *pm,
 	}
 	pr_debug("Found metric '%s' whose evsels match those of in the perf data\n",
 		 pm->metric_name);
-	evlist__delete(metric_evlist);
+	evlist__put(metric_evlist);
 out:
 	return 0;
 }

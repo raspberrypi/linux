@@ -80,7 +80,7 @@ static int test__pfm_events(struct test_suite *test __maybe_unused,
 				evlist__nr_groups(evlist),
 				0);
 
-		evlist__delete(evlist);
+		evlist__put(evlist);
 	}
 	return 0;
 }
@@ -165,7 +165,7 @@ static int test__pfm_group(struct test_suite *test __maybe_unused,
 				evlist__nr_groups(evlist),
 				table[i].nr_groups);
 
-		evlist__delete(evlist);
+		evlist__put(evlist);
 	}
 	return 0;
 }

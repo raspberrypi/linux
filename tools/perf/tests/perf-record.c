@@ -105,7 +105,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 	err = evlist__create_maps(evlist, &opts.target);
 	if (err < 0) {
 		pr_debug("Not enough memory to create thread/cpu maps\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	/*
@@ -117,7 +117,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 	err = evlist__prepare_workload(evlist, &opts.target, argv, false, NULL);
 	if (err < 0) {
 		pr_debug("Couldn't run the workload!\n");
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	/*
@@ -134,7 +134,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 		pr_debug("sched__get_first_possible_cpu: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		evlist__cancel_workload(evlist);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	cpu = err;
@@ -146,7 +146,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 		pr_debug("sched_setaffinity: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		evlist__cancel_workload(evlist);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	/*
@@ -158,7 +158,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 		pr_debug("perf_evlist__open: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		evlist__cancel_workload(evlist);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	/*
@@ -171,7 +171,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 		pr_debug("evlist__mmap: %s\n",
 			 str_error_r(errno, sbuf, sizeof(sbuf)));
 		evlist__cancel_workload(evlist);
-		goto out_delete_evlist;
+		goto out_put_evlist;
 	}
 
 	/*
@@ -209,7 +209,7 @@ static int test__PERF_RECORD(struct test_suite *test __maybe_unused, int subtest
 					if (verbose > 0)
 						perf_event__fprintf(event, NULL, stderr);
 					pr_debug("Couldn't parse sample\n");
-					goto out_delete_evlist;
+					goto out_put_evlist;
 				}
 
 				if (verbose > 0) {
@@ -350,9 +350,9 @@ found_exit:
 		pr_debug("PERF_RECORD_MMAP for %s missing!\n", "[vdso]");
 		++errs;
 	}
-out_delete_evlist:
+out_put_evlist:
 	CPU_FREE(cpu_mask);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 out:
 	perf_sample__exit(&sample);
 	if (err == -EACCES)

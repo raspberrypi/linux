@@ -520,8 +520,8 @@ int evlist__expand_cgroup(struct evlist *evlist, const char *str, bool open_cgro
 	cgrp_event_expanded = true;
 
 out_err:
-	evlist__delete(orig_list);
-	evlist__delete(tmp_list);
+	evlist__put(orig_list);
+	evlist__put(tmp_list);
 	metricgroup__rblist_exit(&orig_metric_events);
 	release_cgroup_list();
 

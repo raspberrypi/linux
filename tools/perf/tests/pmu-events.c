@@ -798,7 +798,7 @@ static int check_parse_id(const char *id, struct parse_events_error *error)
 			     /*warn_if_reordered=*/true, /*fake_tp=*/false);
 	free(dup);
 
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return ret;
 }
 
@@ -865,7 +865,7 @@ static int test__parsing_callback(const struct pmu_metric *pm,
 
 	cpus = perf_cpu_map__new("0");
 	if (!cpus) {
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		return -ENOMEM;
 	}
 
@@ -919,7 +919,7 @@ out_err:
 	/* ... cleanup. */
 	evlist__free_stats(evlist);
 	perf_cpu_map__put(cpus);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return err;
 }
 

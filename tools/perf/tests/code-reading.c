@@ -810,7 +810,7 @@ static int do_test_code_reading(bool try_kcore)
 			}
 
 			perf_evlist__set_maps(&evlist->core, NULL, NULL);
-			evlist__delete(evlist);
+			evlist__put(evlist);
 			evlist = NULL;
 			continue;
 		}
@@ -847,7 +847,7 @@ static int do_test_code_reading(bool try_kcore)
 out_put:
 	thread__put(thread);
 out_err:
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	perf_cpu_map__put(cpus);
 	perf_thread_map__put(threads);
 	machine__delete(machine);

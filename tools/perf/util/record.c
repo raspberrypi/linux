@@ -264,7 +264,7 @@ bool evlist__can_select_event(struct evlist *evlist, const char *str)
 	ret = true;
 
 out_delete:
-	evlist__delete(temp_evlist);
+	evlist__put(temp_evlist);
 	return ret;
 }
 

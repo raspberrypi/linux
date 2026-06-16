@@ -2568,7 +2568,7 @@ static int test_event(const struct evlist_test *e)
 		ret = e->check(evlist);
 	}
 	parse_events_error__exit(&err);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 
 	return ret;
 }
@@ -2594,7 +2594,7 @@ static int test_event_fake_pmu(const char *str)
 	}
 
 	parse_events_error__exit(&err);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 
 	return ret;
 }

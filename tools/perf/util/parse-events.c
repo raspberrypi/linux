@@ -2343,7 +2343,7 @@ int __parse_events(struct evlist *evlist, const char *str, const char *pmu_filte
 
 	/*
 	 * There are 2 users - builtin-record and builtin-test objects.
-	 * Both call evlist__delete in case of error, so we dont
+	 * Both call evlist__put in case of error, so we dont
 	 * need to bother.
 	 */
 	return ret;
@@ -2546,7 +2546,7 @@ int parse_events_option_new_evlist(const struct option *opt, const char *str, in
 	}
 	ret = parse_events_option(opt, str, unset);
 	if (ret) {
-		evlist__delete(*args->evlistp);
+		evlist__put(*args->evlistp);
 		*args->evlistp = NULL;
 	}
 
