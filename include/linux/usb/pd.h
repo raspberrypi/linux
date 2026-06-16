@@ -493,7 +493,7 @@ static inline unsigned int pdo_epr_avs_apdo_min_voltage_mv(u32 pdo)
 
 static inline unsigned int pdo_epr_avs_apdo_max_voltage_mv(u32 pdo)
 {
-	return FIELD_GET(PDO_EPR_AVS_APDO_MIN_VOLT, pdo) * 100;
+	return FIELD_GET(PDO_EPR_AVS_APDO_MAX_VOLT, pdo) * 100;
 }
 
 static inline unsigned int pdo_epr_avs_apdo_pdp_w(u32 pdo)
