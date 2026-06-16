@@ -490,6 +490,30 @@ int rp1_pio_sm_set_dmactrl(struct rp1_pio_client *client, void *param)
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_set_dmactrl);
 
+int rp1_pio_sm_get_dmactrl(struct rp1_pio_client *client, void *param)
+{
+	struct rp1_pio_device *pio = client->pio;
+	struct rp1_pio_sm_get_dmactrl_args *args = param;
+	int ret;
+
+	if (pio->fw_pio_count >= PIO_SM_GET_DMACTRL) {
+		ret = rp1_pio_message_resp(pio, PIO_SM_GET_DMACTRL, args, sizeof(*args),
+					   &args->ctrl, NULL, 4);
+	} else {
+		struct rp1_access_hw_args hwargs;
+
+		hwargs.addr = 0xf00000cc + args->sm * 0x20 + (args->is_tx ? 0x18 : 0x1c);
+		hwargs.len = 0x4;
+		hwargs.data = &args->ctrl;
+		ret = rp1_pio_message_resp(pio, READ_HW, &hwargs, 8,
+					   &args->ctrl, NULL, 4);
+	}
+	if (ret >= 0)
+		return offsetof(struct rp1_pio_sm_set_dmactrl_args, ctrl) + ret;
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_sm_get_dmactrl);
+
 int rp1_pio_sm_fifo_state(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_fifo_state_args *args = param;
@@ -511,6 +535,20 @@ int rp1_pio_sm_drain_tx(struct rp1_pio_client *client, void *param)
 	return rp1_pio_message(client->pio, PIO_SM_DRAIN_TX, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_drain_tx);
+
+int rp1_pio_sm_get_flags(struct rp1_pio_client *client, void *param)
+{
+	struct rp1_pio_sm_get_flags_args *args = param;
+	int ret;
+
+	ret = rp1_pio_message_resp(client->pio, PIO_SM_GET_FLAGS, args, sizeof(*args),
+				   &args->flags, NULL, 4);
+	if (ret >= 0)
+		return offsetof(struct rp1_pio_sm_get_flags_args, flags) + ret;
+	args->flags = ~0;
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_sm_get_flags);
 
 int rp1_pio_gpio_init(struct rp1_pio_client *client, void *param)
 {
@@ -1054,6 +1092,8 @@ struct handler_info {
 	HANDLER(SM_SET_DMACTRL, sm_set_dmactrl),
 	HANDLER(SM_FIFO_STATE, sm_fifo_state),
 	HANDLER(SM_DRAIN_TX, sm_drain_tx),
+	HANDLER(SM_GET_FLAGS, sm_get_flags),
+	HANDLER(SM_GET_DMACTRL, sm_get_dmactrl),
 
 	HANDLER(GPIO_INIT, gpio_init),
 	HANDLER(GPIO_SET_FUNCTION, gpio_set_function),

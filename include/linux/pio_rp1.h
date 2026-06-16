@@ -172,6 +172,13 @@ enum gpio_drive_strength {
 	GPIO_DRIVE_STRENGTH_12MA = 3
 };
 
+enum pio_sm_flags {
+	PIO_SM_FLAG_TXSTALL = 0x0001,
+	PIO_SM_FLAG_RXSTALL = 0x0002,
+	PIO_SM_FLAG_TXOVER  = 0x0004,
+	PIO_SM_FLAG_RXUNDER = 0x0008,
+};
+
 struct fp24_8 {
 	uint32_t val;
 };
@@ -213,8 +220,10 @@ int rp1_pio_sm_enable_sync(struct rp1_pio_client *client, void *param);
 int rp1_pio_sm_put(struct rp1_pio_client *client, void *param);
 int rp1_pio_sm_get(struct rp1_pio_client *client, void *param);
 int rp1_pio_sm_set_dmactrl(struct rp1_pio_client *client, void *param);
+int rp1_pio_sm_get_dmactrl(struct rp1_pio_client *client, void *param);
 int rp1_pio_sm_fifo_state(struct rp1_pio_client *client, void *param);
 int rp1_pio_sm_drain_tx(struct rp1_pio_client *client, void *param);
+int rp1_pio_sm_get_flags(struct rp1_pio_client *client, void *param);
 int rp1_pio_gpio_init(struct rp1_pio_client *client, void *param);
 int rp1_pio_gpio_set_function(struct rp1_pio_client *client, void *param);
 int rp1_pio_gpio_set_pulls(struct rp1_pio_client *client, void *param);
@@ -611,6 +620,15 @@ static inline int pio_sm_set_dmactrl(struct rp1_pio_client *client, uint sm, boo
 	return rp1_pio_sm_set_dmactrl(client, &args);
 };
 
+static inline uint32_t pio_sm_get_dmactrl(struct rp1_pio_client *client, uint sm, bool is_tx)
+{
+	struct rp1_pio_sm_get_dmactrl_args args = { .sm = sm, .is_tx = is_tx };
+
+	if (!bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES))
+		rp1_pio_sm_get_dmactrl(client, &args);
+	return args.ctrl;
+};
+
 static inline int pio_sm_drain_tx_fifo(struct rp1_pio_client *client, uint sm)
 {
 	struct rp1_pio_sm_clear_fifos_args args = { .sm = sm };
@@ -619,6 +637,37 @@ static inline int pio_sm_drain_tx_fifo(struct rp1_pio_client *client, uint sm)
 		return -EINVAL;
 	return rp1_pio_sm_drain_tx(client, &args);
 };
+
+static inline uint32_t pio_sm_wait_flags(struct rp1_pio_client *client, uint sm, uint32_t flags,
+					bool clear, uint32_t timeout)
+{
+	struct rp1_pio_sm_get_flags_args args = { .sm = sm, .flags = flags, .clear = clear,
+						  .timeout = timeout };
+
+	if (!bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES))
+		rp1_pio_sm_get_flags(client, &args);
+	return args.flags;
+};
+
+static inline uint32_t pio_sm_get_flags(struct rp1_pio_client *client, uint sm, uint32_t flags,
+					bool clear)
+{
+	struct rp1_pio_sm_get_flags_args args = { .sm = sm, .flags = flags, .clear = clear,
+						  .timeout = 0 };
+
+	if (!bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES))
+		rp1_pio_sm_get_flags(client, &args);
+	return args.flags;
+}
+
+static inline void pio_sm_clear_flags(struct rp1_pio_client *client, uint sm, uint32_t flags)
+{
+	struct rp1_pio_sm_get_flags_args args = { .sm = sm, .flags = flags, .clear = true,
+						  .timeout = 0 };
+
+	if (!bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES))
+		rp1_pio_sm_get_flags(client, &args);
+}
 
 static inline int pio_sm_put(struct rp1_pio_client *client, uint sm, uint32_t data)
 {
