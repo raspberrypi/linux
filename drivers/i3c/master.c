@@ -767,11 +767,17 @@ static ssize_t dev_nack_retry_count_store(struct device *dev,
 	if (ret)
 		return ret;
 
+	ret = i3c_master_rpm_get(master);
+	if (ret)
+		return ret;
+
 	i3c_bus_maintenance_lock(i3cbus);
 	ret = master->ops->set_dev_nack_retry(master, val);
 	if (!ret)
 		master->dev_nack_retry_count = val;
 	i3c_bus_maintenance_unlock(i3cbus);
+
+	i3c_master_rpm_put(master);
 
 	return ret ?: count;
 }
