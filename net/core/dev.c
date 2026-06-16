@@ -5041,10 +5041,6 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
 	int max_backlog;
 	u32 tail;
 
-	reason = SKB_DROP_REASON_DEV_READY;
-	if (!netif_running(skb->dev))
-		goto bad_dev;
-
 	reason = SKB_DROP_REASON_CPU_BACKLOG;
 	sd = &per_cpu(softnet_data, cpu);
 
@@ -5055,6 +5051,11 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
 	backlog_lock_irq_save(sd, &flags);
 	qlen = skb_queue_len(&sd->input_pkt_queue);
 	if (qlen <= max_backlog && !skb_flow_limit(skb, qlen)) {
+		if (unlikely(!netif_running(skb->dev))) {
+			backlog_unlock_irq_restore(sd, &flags);
+			reason = SKB_DROP_REASON_DEV_READY;
+			goto bad_dev;
+		}
 		if (!qlen) {
 			/* Schedule NAPI for backlog device. We can use
 			 * non atomic operation as we own the queue lock.
