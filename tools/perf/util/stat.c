@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: GPL-2.0
+#include "stat.h"
+
 #include <errno.h>
-#include <linux/err.h>
 #include <inttypes.h>
 #include <math.h>
 #include <string.h>
+
+#include <linux/err.h>
+#include <linux/zalloc.h>
+
 #include "counts.h"
 #include "cpumap.h"
 #include "debug.h"
-#include "header.h"
-#include "stat.h"
-#include "session.h"
-#include "target.h"
 #include "evlist.h"
 #include "evsel.h"
+#include "hashmap.h"
+#include "header.h"
+#include "pmu.h"
+#include "session.h"
+#include "target.h"
 #include "thread_map.h"
-#include "util/hashmap.h"
-#include <linux/zalloc.h>
 
 void update_stats(struct stats *stats, u64 val)
 {
