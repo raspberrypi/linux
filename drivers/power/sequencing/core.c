@@ -989,8 +989,9 @@ static void *pwrseq_debugfs_seq_start(struct seq_file *seq, loff_t *pos)
 	ctx.index = *pos;
 
 	/*
-	 * We're holding the lock for the entire printout so no need to fiddle
-	 * with device reference count.
+	 * Hold the lock for the entire printout to prevent device removal.
+	 * Reference counts are managed by start()/next()/stop() as required
+	 * by the seq_file contract.
 	 */
 	down_read(&pwrseq_sem);
 
@@ -998,7 +999,7 @@ static void *pwrseq_debugfs_seq_start(struct seq_file *seq, loff_t *pos)
 	if (!ctx.index)
 		return NULL;
 
-	return ctx.dev;
+	return get_device(ctx.dev);
 }
 
 static void *pwrseq_debugfs_seq_next(struct seq_file *seq, void *data,
@@ -1008,8 +1009,9 @@ static void *pwrseq_debugfs_seq_next(struct seq_file *seq, void *data,
 
 	++*pos;
 
-	struct device *next __free(put_device) =
-			bus_find_next_device(&pwrseq_bus, curr);
+	struct device *next = bus_find_next_device(&pwrseq_bus, curr);
+
+	put_device(curr);
 	return next;
 }
 
@@ -1058,6 +1060,8 @@ static int pwrseq_debugfs_seq_show(struct seq_file *seq, void *data)
 
 static void pwrseq_debugfs_seq_stop(struct seq_file *seq, void *data)
 {
+	if (data)
+		put_device(data);
 	up_read(&pwrseq_sem);
 }
 
