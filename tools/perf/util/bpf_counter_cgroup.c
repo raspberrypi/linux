@@ -336,7 +336,7 @@ static int bperf_cgrp__destroy(struct evsel *evsel)
 		return 0;
 
 	bperf_cgroup_bpf__destroy(skel);
-	evsel__delete(cgrp_switch);  // it'll destroy on_switch progs too
+	evsel__put(cgrp_switch);  // it'll destroy on_switch progs too
 
 	return 0;
 }

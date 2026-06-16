@@ -194,7 +194,7 @@ static void evlist__purge(struct evlist *evlist)
 	evlist__for_each_entry_safe(evlist, n, pos) {
 		list_del_init(&pos->core.node);
 		pos->evlist = NULL;
-		evsel__delete(pos);
+		evsel__put(pos);
 	}
 
 	evlist->core.nr_entries = 0;

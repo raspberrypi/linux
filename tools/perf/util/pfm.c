@@ -159,7 +159,7 @@ static bool is_libpfm_event_supported(const char *name, struct perf_cpu_map *cpu
 		result = false;
 
 	evsel__close(evsel);
-	evsel__delete(evsel);
+	evsel__put(evsel);
 
 	return result;
 }

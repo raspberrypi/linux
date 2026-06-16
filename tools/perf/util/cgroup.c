@@ -469,7 +469,7 @@ int evlist__expand_cgroup(struct evlist *evlist, const char *str, bool open_cgro
 
 		/* copy the list and set to the new cgroup. */
 		evlist__for_each_entry(orig_list, pos) {
-			struct evsel *evsel = evsel__clone(/*dest=*/NULL, pos);
+			struct evsel *evsel = evsel__clone(pos);
 
 			if (evsel == NULL)
 				goto out_err;

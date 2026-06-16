@@ -1845,7 +1845,10 @@ static int evlist__deliver_deferred_callchain(struct evlist *evlist,
 		struct evsel *saved_evsel = sample->evsel;
 
 		sample->evsel = evlist__id2evsel(evlist, sample->id);
+		if (sample->evsel)
+			sample->evsel = evsel__get(sample->evsel);
 		ret = tool->callchain_deferred(tool, event, sample, machine);
+		evsel__put(sample->evsel);
 		sample->evsel = saved_evsel;
 		return ret;
 	}

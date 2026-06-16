@@ -271,8 +271,9 @@ static PyMemberDef pyrf_sample_event__members[] = {
 
 static void pyrf_sample_event__delete(struct pyrf_event *pevent)
 {
+	evsel__put(pevent->evsel);
 	perf_sample__exit(&pevent->sample);
-	Py_TYPE(pevent)->tp_free((PyObject*)pevent);
+	Py_TYPE(pevent)->tp_free((PyObject *)pevent);
 }
 
 static PyObject *pyrf_sample_event__repr(const struct pyrf_event *pevent)
@@ -503,8 +504,10 @@ static PyObject *pyrf_event__new(const union perf_event *event)
 
 	ptype = pyrf_event__type[event->header.type];
 	pevent = PyObject_New(struct pyrf_event, ptype);
-	if (pevent != NULL)
+	if (pevent != NULL) {
 		memcpy(&pevent->event, event, event->header.size);
+		pevent->evsel = NULL;
+	}
 	return (PyObject *)pevent;
 }
 
@@ -942,7 +945,7 @@ static int pyrf_counts_values__setup_types(void)
 struct pyrf_evsel {
 	PyObject_HEAD
 
-	struct evsel evsel;
+	struct evsel *evsel;
 };
 
 static int pyrf_evsel__init(struct pyrf_evsel *pevsel,
@@ -983,6 +986,7 @@ static int pyrf_evsel__init(struct pyrf_evsel *pevsel,
 		"bp_type",
 		"bp_addr",
 		"bp_len",
+		"idx",
 		 NULL
 	};
 	u64 sample_period = 0;
@@ -1004,11 +1008,11 @@ static int pyrf_evsel__init(struct pyrf_evsel *pevsel,
 	    watermark = 0,
 	    precise_ip = 0,
 	    mmap_data = 0,
-	    sample_id_all = 1;
-	int idx = 0;
+	    sample_id_all = 1,
+	    idx = 0;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "|iKiKKiiiiiiiiiiiiiiiiiiiiiiKK", kwlist,
+					 "|iKiKKiiiiiiiiiiiiiiiiiiiiiiKKi", kwlist,
 					 &attr.type, &attr.config, &attr.sample_freq,
 					 &sample_period, &attr.sample_type,
 					 &attr.read_format, &disabled, &inherit,
@@ -1050,25 +1054,32 @@ static int pyrf_evsel__init(struct pyrf_evsel *pevsel,
 	attr.sample_id_all  = sample_id_all;
 	attr.size	    = sizeof(attr);
 
-	evsel__init(&pevsel->evsel, &attr, idx);
+	evsel__put(pevsel->evsel);
+	pevsel->evsel = evsel__new(&attr);
+	if (!pevsel->evsel) {
+		PyErr_NoMemory();
+		return -1;
+	}
 	return 0;
 }
 
 static void pyrf_evsel__delete(struct pyrf_evsel *pevsel)
 {
-	evsel__exit(&pevsel->evsel);
+	evsel__put(pevsel->evsel);
 	Py_TYPE(pevsel)->tp_free((PyObject*)pevsel);
 }
 
 static PyObject *pyrf_evsel__open(struct pyrf_evsel *pevsel,
 				  PyObject *args, PyObject *kwargs)
 {
-	struct evsel *evsel = &pevsel->evsel;
+	struct evsel *evsel = pevsel->evsel;
 	struct perf_cpu_map *cpus = NULL;
 	struct perf_thread_map *threads = NULL;
 	PyObject *pcpus = NULL, *pthreads = NULL;
 	int group = 0, inherit = 0;
 	static char *kwlist[] = { "cpus", "threads", "group", "inherit", NULL };
+
+	CHECK_INITIALIZED(evsel, "evsel");
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOii", kwlist,
 					 &pcpus, &pthreads, &group, &inherit))
@@ -1096,21 +1107,26 @@ static PyObject *pyrf_evsel__open(struct pyrf_evsel *pevsel,
 
 static PyObject *pyrf_evsel__cpus(struct pyrf_evsel *pevsel)
 {
-	struct pyrf_cpu_map *pcpu_map = PyObject_New(struct pyrf_cpu_map, &pyrf_cpu_map__type);
+	struct pyrf_cpu_map *pcpu_map;
 
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	pcpu_map = PyObject_New(struct pyrf_cpu_map, &pyrf_cpu_map__type);
 	if (pcpu_map)
-		pcpu_map->cpus = perf_cpu_map__get(pevsel->evsel.core.cpus);
+		pcpu_map->cpus = perf_cpu_map__get(pevsel->evsel->core.cpus);
 
 	return (PyObject *)pcpu_map;
 }
 
 static PyObject *pyrf_evsel__threads(struct pyrf_evsel *pevsel)
 {
-	struct pyrf_thread_map *pthread_map =
-		PyObject_New(struct pyrf_thread_map, &pyrf_thread_map__type);
+	struct pyrf_thread_map *pthread_map;
 
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	pthread_map = PyObject_New(struct pyrf_thread_map, &pyrf_thread_map__type);
 	if (pthread_map)
-		pthread_map->threads = perf_thread_map__get(pevsel->evsel.core.threads);
+		pthread_map->threads = perf_thread_map__get(pevsel->evsel->core.threads);
 
 	return (PyObject *)pthread_map;
 }
@@ -1144,12 +1160,15 @@ static int evsel__ensure_counts(struct evsel *evsel)
 static PyObject *pyrf_evsel__read(struct pyrf_evsel *pevsel,
 				  PyObject *args, PyObject *kwargs)
 {
-	struct evsel *evsel = &pevsel->evsel;
+	struct evsel *evsel = pevsel->evsel;
 	int cpu = 0, cpu_idx, thread = 0, thread_idx;
 	struct perf_counts_values *old_count, *new_count;
-	struct pyrf_counts_values *count_values = PyObject_New(struct pyrf_counts_values,
-							       &pyrf_counts_values__type);
+	struct pyrf_counts_values *count_values;
 
+	CHECK_INITIALIZED(evsel, "evsel");
+
+	count_values = PyObject_New(struct pyrf_counts_values,
+							       &pyrf_counts_values__type);
 	if (!count_values)
 		return NULL;
 
@@ -1189,7 +1208,10 @@ static PyObject *pyrf_evsel__read(struct pyrf_evsel *pevsel,
 static PyObject *pyrf_evsel__str(PyObject *self)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
-	struct evsel *evsel = &pevsel->evsel;
+	struct evsel *evsel = pevsel->evsel;
+
+	if (!evsel)
+		return PyUnicode_FromString("evsel(uninitialized)");
 
 	return PyUnicode_FromFormat("evsel(%s/%s/)", evsel__pmu_name(evsel), evsel__name(evsel));
 }
@@ -1222,29 +1244,226 @@ static PyMethodDef pyrf_evsel__methods[] = {
 	{ .ml_name = NULL, }
 };
 
-#define evsel_member_def(member, ptype, help) \
-	{ #member, ptype, \
-	  offsetof(struct pyrf_evsel, evsel.member), \
-	  0, help }
+static PyObject *pyrf_evsel__get_tracking(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
 
-#define evsel_attr_member_def(member, ptype, help) \
-	{ #member, ptype, \
-	  offsetof(struct pyrf_evsel, evsel.core.attr.member), \
-	  0, help }
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
 
-static PyMemberDef pyrf_evsel__members[] = {
-	evsel_member_def(tracking, T_BOOL, "tracking event."),
-	evsel_attr_member_def(type, T_UINT, "attribute type."),
-	evsel_attr_member_def(size, T_UINT, "attribute size."),
-	evsel_attr_member_def(config, T_ULONGLONG, "attribute config."),
-	evsel_attr_member_def(sample_period, T_ULONGLONG, "attribute sample_period."),
-	evsel_attr_member_def(sample_type, T_ULONGLONG, "attribute sample_type."),
-	evsel_attr_member_def(read_format, T_ULONGLONG, "attribute read_format."),
-	evsel_attr_member_def(wakeup_events, T_UINT, "attribute wakeup_events."),
-	{ .name = NULL, },
+	if (pevsel->evsel->tracking)
+		Py_RETURN_TRUE;
+	else
+		Py_RETURN_FALSE;
+}
+
+static int pyrf_evsel__set_tracking(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+	int is_true;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	is_true = PyObject_IsTrue(val);
+	if (is_true < 0)
+		return -1;
+
+	pevsel->evsel->tracking = is_true;
+	return 0;
+}
+
+static int pyrf_evsel__set_attr_config(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.config = PyLong_AsUnsignedLongLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_config(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLongLong(pevsel->evsel->core.attr.config);
+}
+
+static int pyrf_evsel__set_attr_read_format(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.read_format = PyLong_AsUnsignedLongLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_read_format(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLongLong(pevsel->evsel->core.attr.read_format);
+}
+
+static int pyrf_evsel__set_attr_sample_period(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.sample_period = PyLong_AsUnsignedLongLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_sample_period(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLongLong(pevsel->evsel->core.attr.sample_period);
+}
+
+static int pyrf_evsel__set_attr_sample_type(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.sample_type = PyLong_AsUnsignedLongLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_sample_type(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLongLong(pevsel->evsel->core.attr.sample_type);
+}
+
+static PyObject *pyrf_evsel__get_attr_size(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLong(pevsel->evsel->core.attr.size);
+}
+
+static int pyrf_evsel__set_attr_type(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.type = PyLong_AsUnsignedLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_type(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLong(pevsel->evsel->core.attr.type);
+}
+
+static int pyrf_evsel__set_attr_wakeup_events(PyObject *self, PyObject *val, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
+
+	pevsel->evsel->core.attr.wakeup_events = PyLong_AsUnsignedLong(val);
+	return PyErr_Occurred() ? -1 : 0;
+}
+
+static PyObject *pyrf_evsel__get_attr_wakeup_events(PyObject *self, void *closure __maybe_unused)
+{
+	struct pyrf_evsel *pevsel = (void *)self;
+
+	CHECK_INITIALIZED(pevsel->evsel, "evsel");
+
+	return PyLong_FromUnsignedLong(pevsel->evsel->core.attr.wakeup_events);
+}
+
+static PyGetSetDef pyrf_evsel__getset[] = {
+	{
+		.name = "tracking",
+		.get = pyrf_evsel__get_tracking,
+		.set = pyrf_evsel__set_tracking,
+		.doc = "tracking event.",
+	},
+	{
+		.name = "config",
+		.get = pyrf_evsel__get_attr_config,
+		.set = pyrf_evsel__set_attr_config,
+		.doc = "attribute config.",
+	},
+	{
+		.name = "read_format",
+		.get = pyrf_evsel__get_attr_read_format,
+		.set = pyrf_evsel__set_attr_read_format,
+		.doc = "attribute read_format.",
+	},
+	{
+		.name = "sample_period",
+		.get = pyrf_evsel__get_attr_sample_period,
+		.set = pyrf_evsel__set_attr_sample_period,
+		.doc = "attribute sample_period.",
+	},
+	{
+		.name = "sample_type",
+		.get = pyrf_evsel__get_attr_sample_type,
+		.set = pyrf_evsel__set_attr_sample_type,
+		.doc = "attribute sample_type.",
+	},
+	{
+		.name = "size",
+		.get = pyrf_evsel__get_attr_size,
+		.doc = "attribute size.",
+	},
+	{
+		.name = "type",
+		.get = pyrf_evsel__get_attr_type,
+		.set = pyrf_evsel__set_attr_type,
+		.doc = "attribute type.",
+	},
+	{
+		.name = "wakeup_events",
+		.get = pyrf_evsel__get_attr_wakeup_events,
+		.set = pyrf_evsel__set_attr_wakeup_events,
+		.doc = "attribute wakeup_events.",
+	},
+	{ .name = NULL},
 };
 
 static const char pyrf_evsel__doc[] = PyDoc_STR("perf event selector list object.");
+
+static PyObject *pyrf_evsel__getattro(struct pyrf_evsel *pevsel, PyObject *attr_name)
+{
+	if (!pevsel->evsel) {
+		PyErr_SetString(PyExc_ValueError, "evsel not initialized");
+		return NULL;
+	}
+	return PyObject_GenericGetAttr((PyObject *) pevsel, attr_name);
+}
+
+static int pyrf_evsel__setattro(struct pyrf_evsel *pevsel, PyObject *attr_name, PyObject *value)
+{
+	if (!pevsel->evsel) {
+		PyErr_SetString(PyExc_ValueError, "evsel not initialized");
+		return -1;
+	}
+	return PyObject_GenericSetAttr((PyObject *) pevsel, attr_name, value);
+}
 
 static PyTypeObject pyrf_evsel__type = {
 	PyVarObject_HEAD_INIT(NULL, 0)
@@ -1253,16 +1472,28 @@ static PyTypeObject pyrf_evsel__type = {
 	.tp_dealloc	= (destructor)pyrf_evsel__delete,
 	.tp_flags	= Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
 	.tp_doc		= pyrf_evsel__doc,
-	.tp_members	= pyrf_evsel__members,
+	.tp_getset	= pyrf_evsel__getset,
 	.tp_methods	= pyrf_evsel__methods,
 	.tp_init	= (initproc)pyrf_evsel__init,
 	.tp_str         = pyrf_evsel__str,
 	.tp_repr        = pyrf_evsel__str,
+	.tp_getattro	= (getattrofunc) pyrf_evsel__getattro,
+	.tp_setattro	= (setattrofunc) pyrf_evsel__setattro,
 };
+
+static PyObject *pyrf_evsel__new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+	struct pyrf_evsel *pevsel;
+
+	pevsel = (struct pyrf_evsel *)PyType_GenericNew(type, args, kwargs);
+	if (pevsel)
+		pevsel->evsel = NULL;
+	return (PyObject *)pevsel;
+}
 
 static int pyrf_evsel__setup_types(void)
 {
-	pyrf_evsel__type.tp_new = PyType_GenericNew;
+	pyrf_evsel__type.tp_new = pyrf_evsel__new;
 	return PyType_Ready(&pyrf_evsel__type);
 }
 
@@ -1561,13 +1792,14 @@ static PyObject *pyrf_evlist__add(struct pyrf_evlist *pevlist,
 	PyObject *pevsel;
 	struct evsel *evsel;
 
-	if (!PyArg_ParseTuple(args, "O", &pevsel))
+	if (!PyArg_ParseTuple(args, "O!", &pyrf_evsel__type, &pevsel))
 		return NULL;
 
-	Py_INCREF(pevsel);
-	evsel = &((struct pyrf_evsel *)pevsel)->evsel;
+	CHECK_INITIALIZED(((struct pyrf_evsel *)pevsel)->evsel, "evsel");
+
+	evsel = ((struct pyrf_evsel *)pevsel)->evsel;
 	evsel->core.idx = evlist->core.nr_entries;
-	evlist__add(evlist, evsel);
+	evlist__add(evlist, evsel__get(evsel));
 
 	return Py_BuildValue("i", evlist->core.nr_entries);
 }
@@ -1625,7 +1857,7 @@ static PyObject *pyrf_evlist__read_on_cpu(struct pyrf_evlist *pevlist,
 			return Py_None;
 		}
 
-		pevent->evsel = evsel;
+		pevent->evsel = evsel__get(evsel);
 
 		perf_mmap__consume(&md->core);
 
@@ -1805,12 +2037,7 @@ static PyObject *pyrf_evsel__from_evsel(struct evsel *evsel)
 	if (!pevsel)
 		return NULL;
 
-	memset(&pevsel->evsel, 0, sizeof(pevsel->evsel));
-	evsel__init(&pevsel->evsel, &evsel->core.attr, evsel->core.idx);
-
-	evsel__clone(&pevsel->evsel, evsel);
-	if (evsel__is_group_leader(evsel))
-		evsel__set_leader(&pevsel->evsel, &pevsel->evsel);
+	pevsel->evsel = evsel__get(evsel);
 	return (PyObject *)pevsel;
 }
 
