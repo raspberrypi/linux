@@ -775,9 +775,23 @@ static void rxrpc_input_soft_acks(struct rxrpc_call *call,
 				  rxrpc_seq_t since)
 {
 	struct rxrpc_skb_priv *sp = rxrpc_skb(skb);
-	unsigned int i, old_nacks = 0;
+	unsigned int i, old_nacks = 0, nsack;
 	rxrpc_seq_t lowest_nak = seq + sp->ack.nr_acks;
-	u8 *acks = skb->data + sizeof(struct rxrpc_wire_header) + sizeof(struct rxrpc_ackpacket);
+	u8 sack[256] __aligned(sizeof(unsigned long));
+	u8 *acks = sack;
+
+	/* AF_RXRPC assumes that it can access the SACK table directly from
+	 * skb->data as a flat buffer, but the skb may be non-linear (e.g. a
+	 * fragmented UDP packet) and skb_condense() can silently fail to
+	 * linearise it.  Copy the SACK table out into a local buffer before
+	 * parsing it.
+	 */
+	memset(sack, 0, sizeof(sack));
+	nsack = umin(sp->ack.nr_acks, 256);
+	if (skb_copy_bits(skb,
+			  sizeof(struct rxrpc_wire_header) + sizeof(struct rxrpc_ackpacket),
+			  sack, nsack) < 0)
+		return;
 
 	for (i = 0; i < sp->ack.nr_acks; i++) {
 		if (acks[i] == RXRPC_ACK_TYPE_ACK) {
@@ -933,9 +947,6 @@ static void rxrpc_input_ack(struct rxrpc_call *call, struct sk_buff *skb)
 	if (skb->len >= ioffset + sizeof(trailer) &&
 	    skb_copy_bits(skb, ioffset, &trailer, sizeof(trailer)) < 0)
 		return rxrpc_proto_abort(call, 0, rxrpc_badmsg_short_ack_trailer);
-
-	if (nr_acks > 0)
-		skb_condense(skb);
 
 	if (call->cong_last_nack) {
 		since = rxrpc_input_check_prev_ack(call, &summary, first_soft_ack);
