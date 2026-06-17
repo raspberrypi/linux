@@ -341,6 +341,7 @@ static int kdb_setenv(const char *var, const char *val)
 		}
 	}
 
+	kfree(ep);
 	return KDB_ENVFULL;
 }
 
