@@ -209,7 +209,6 @@ lookup_error:
 	return ERR_PTR(ret);
 
 nomem_d_alloc:
-	inode_unlock(d_inode(dir));
 	_leave(" = -ENOMEM");
 	return ERR_PTR(-ENOMEM);
 }
