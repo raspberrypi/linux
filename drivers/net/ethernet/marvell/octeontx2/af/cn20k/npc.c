@@ -3542,15 +3542,18 @@ static int npc_defrag_alloc_free_slots(struct rvu *rvu,
 	alloc_cnt2 = 0;
 
 	rc = __npc_subbank_alloc(rvu, sb,
-				 NPC_MCAM_KEY_X2, sb->b0b,
+				 f->key_type, sb->b0b,
 				 sb->b0t,
 				 NPC_MCAM_LOWER_PRIO,
 				 false, cnt, save, cnt, true,
 				 &alloc_cnt1);
 
-	if (alloc_cnt1 < cnt) {
+	/* X4 entries only occupy bank 0 (b0b..b0t); see npc_subbank_idx_2_mcam_idx().
+	 * X2 uses both halves of the subbank, so spill into bank 1 if needed.
+	 */
+	if (alloc_cnt1 < cnt && f->key_type == NPC_MCAM_KEY_X2) {
 		rc = __npc_subbank_alloc(rvu, sb,
-					 NPC_MCAM_KEY_X2, sb->b1b,
+					 f->key_type, sb->b1b,
 					 sb->b1t,
 					 NPC_MCAM_LOWER_PRIO,
 					 false, cnt - alloc_cnt1,
