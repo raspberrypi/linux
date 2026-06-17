@@ -51,7 +51,7 @@ static int of_display_mode_bridge_get_modes(struct drm_bridge *bridge,
 	return 0;
 }
 
-struct drm_bridge_funcs of_display_mode_bridge_funcs = {
+static const struct drm_bridge_funcs of_display_mode_bridge_funcs = {
 	.attach = of_display_mode_bridge_attach,
 	.get_modes = of_display_mode_bridge_get_modes,
 };
