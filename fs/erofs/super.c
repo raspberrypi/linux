@@ -1048,11 +1048,11 @@ shrinker_err:
 static void __exit erofs_module_exit(void)
 {
 	unregister_filesystem(&erofs_fs_type);
+	erofs_exit_ishare();
 
-	/* Ensure all RCU free inodes / pclusters are safe to be destroyed. */
+	/* ensure all delayed rcu free inodes & pclusters are flushed */
 	rcu_barrier();
 
-	erofs_exit_ishare();
 	erofs_exit_sysfs();
 	z_erofs_exit_subsystem();
 	erofs_exit_shrinker();
