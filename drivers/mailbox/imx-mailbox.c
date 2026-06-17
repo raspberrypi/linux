@@ -936,38 +936,36 @@ static int imx_mu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, priv);
 
-	ret = devm_mbox_controller_register(dev, &priv->mbox);
-	if (ret)
+	ret = devm_pm_runtime_enable(dev);
+	if (ret < 0)
 		goto disable_clk;
-
-	of_platform_populate(dev->of_node, NULL, NULL, dev);
-
-	pm_runtime_enable(dev);
 
 	ret = pm_runtime_resume_and_get(dev);
 	if (ret < 0)
-		goto disable_runtime_pm;
+		goto disable_clk;
 
 	ret = pm_runtime_put_sync(dev);
 	if (ret < 0)
-		goto disable_runtime_pm;
+		goto disable_clk;
 
 	clk_disable_unprepare(priv->clk);
+
+	ret = devm_mbox_controller_register(dev, &priv->mbox);
+	if (ret)
+		goto err_out;
+
+	of_platform_populate(dev->of_node, NULL, NULL, dev);
 
 	return 0;
 
-disable_runtime_pm:
-	pm_runtime_disable(dev);
 disable_clk:
 	clk_disable_unprepare(priv->clk);
+err_out:
 	return ret;
 }
 
 static void imx_mu_remove(struct platform_device *pdev)
 {
-	struct imx_mu_priv *priv = platform_get_drvdata(pdev);
-
-	pm_runtime_disable(priv->dev);
 }
 
 static const struct imx_mu_dcfg imx_mu_cfg_imx6sx = {
