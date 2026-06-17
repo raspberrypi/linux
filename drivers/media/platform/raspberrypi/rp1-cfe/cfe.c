@@ -1815,7 +1815,9 @@ static int cfe_video_link_validate(struct media_link *link)
 			goto out;
 		}
 
-		if (fmt->fourcc != pix_fmt->pixelformat) {
+		if (fmt->fourcc != pix_fmt->pixelformat &&
+		    fmt->remap[CFE_REMAP_16BIT] != pix_fmt->pixelformat &&
+		    fmt->remap[CFE_REMAP_COMPRESSED] != pix_fmt->pixelformat)  {
 			if ((pix_fmt->pixelformat == V4L2_PIX_FMT_BGR24 &&
 			     source_fmt->code == MEDIA_BUS_FMT_BGR888_1X24) ||
 			    (pix_fmt->pixelformat == V4L2_PIX_FMT_RGB24 &&
