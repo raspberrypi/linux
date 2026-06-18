@@ -169,7 +169,7 @@ static int rp1_mbox_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	mbox->controller.txdone_poll = true;
-	mbox->controller.txpoll_period = 5;
+	mbox->controller.txpoll_period = 0;
 	mbox->controller.ops = &rp1_mbox_chan_ops;
 	mbox->controller.of_xlate = &rp1_mbox_xlate;
 	mbox->controller.dev = dev;
