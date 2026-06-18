@@ -4837,31 +4837,35 @@ static void break_stripe_batch_list(struct stripe_head *head_sh,
 {
 	struct stripe_head *sh, *next;
 	int i;
+	unsigned long state;
 
 	list_for_each_entry_safe(sh, next, &head_sh->batch_list, batch_list) {
 
 		list_del_init(&sh->batch_list);
 
-		WARN_ONCE(sh->state & ((1 << STRIPE_ACTIVE) |
-					  (1 << STRIPE_SYNCING) |
-					  (1 << STRIPE_REPLACED) |
-					  (1 << STRIPE_DELAYED) |
-					  (1 << STRIPE_BIT_DELAY) |
-					  (1 << STRIPE_FULL_WRITE) |
-					  (1 << STRIPE_BIOFILL_RUN) |
-					  (1 << STRIPE_COMPUTE_RUN)  |
-					  (1 << STRIPE_DISCARD) |
-					  (1 << STRIPE_BATCH_READY) |
-					  (1 << STRIPE_BATCH_ERR)),
-			"stripe state: %lx\n", sh->state);
-		WARN_ONCE(head_sh->state & ((1 << STRIPE_DISCARD) |
-					      (1 << STRIPE_REPLACED)),
-			"head stripe state: %lx\n", head_sh->state);
+		state = READ_ONCE(sh->state);
+		WARN_ONCE(state & ((1 << STRIPE_ACTIVE) |
+				   (1 << STRIPE_SYNCING) |
+				   (1 << STRIPE_REPLACED) |
+				   (1 << STRIPE_DELAYED) |
+				   (1 << STRIPE_BIT_DELAY) |
+				   (1 << STRIPE_FULL_WRITE) |
+				   (1 << STRIPE_BIOFILL_RUN) |
+				   (1 << STRIPE_COMPUTE_RUN)  |
+				   (1 << STRIPE_DISCARD) |
+				   (1 << STRIPE_BATCH_READY) |
+				   (1 << STRIPE_BATCH_ERR)),
+			"stripe state: %lx\n", state);
+
+		state = READ_ONCE(head_sh->state);
+		WARN_ONCE(state & ((1 << STRIPE_DISCARD) |
+				   (1 << STRIPE_REPLACED)),
+			"head stripe state: %lx\n", state);
 
 		set_mask_bits(&sh->state, ~(STRIPE_EXPAND_SYNC_FLAGS |
 					    (1 << STRIPE_PREREAD_ACTIVE) |
 					    (1 << STRIPE_ON_UNPLUG_LIST)),
-			      head_sh->state & (1 << STRIPE_INSYNC));
+			      state & (1 << STRIPE_INSYNC));
 
 		sh->check_state = head_sh->check_state;
 		sh->reconstruct_state = head_sh->reconstruct_state;
@@ -4874,8 +4878,9 @@ static void break_stripe_batch_list(struct stripe_head *head_sh,
 			sh->dev[i].flags = head_sh->dev[i].flags &
 				(~((1 << R5_WriteError) | (1 << R5_Overlap)));
 		}
-		if (handle_flags == 0 ||
-		    sh->state & handle_flags)
+
+		state = READ_ONCE(sh->state);
+		if (handle_flags == 0 || (state & handle_flags))
 			set_bit(STRIPE_HANDLE, &sh->state);
 		raid5_release_stripe(sh);
 	}
@@ -4885,7 +4890,9 @@ static void break_stripe_batch_list(struct stripe_head *head_sh,
 	for (i = 0; i < head_sh->disks; i++)
 		if (test_and_clear_bit(R5_Overlap, &head_sh->dev[i].flags))
 			wake_up_bit(&head_sh->dev[i].flags, R5_Overlap);
-	if (head_sh->state & handle_flags)
+
+	state = READ_ONCE(head_sh->state);
+	if (state & handle_flags)
 		set_bit(STRIPE_HANDLE, &head_sh->state);
 }
 
