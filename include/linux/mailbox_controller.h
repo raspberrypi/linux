@@ -11,9 +11,6 @@
 
 struct mbox_chan;
 
-/* Sentinel value distinguishing "no active request" from "NULL message data" */
-#define MBOX_NO_MSG	((void *)-1)
-
 /**
  * struct mbox_chan_ops - methods to control mailbox channels
  * @send_data:	The API asks the MBOX controller driver, in atomic
