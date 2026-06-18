@@ -464,6 +464,9 @@ static struct irdma_pbl *irdma_get_pbl(unsigned long va,
 
 	list_for_each_entry (iwpbl, pbl_list, list) {
 		if (iwpbl->user_base == va) {
+			struct irdma_mr *iwmr = iwpbl->iwmr;
+
+			refcount_inc(&iwmr->user_ring_refs);
 			list_del(&iwpbl->list);
 			iwpbl->on_list = false;
 			return iwpbl;
@@ -1880,6 +1883,11 @@ static void irdma_srq_free_rsrc(struct irdma_pci_f *rf, struct irdma_srq *iwsrq)
 		dma_free_coherent(rf->sc_dev.hw->device, iwsrq->kmem.size,
 				  iwsrq->kmem.va, iwsrq->kmem.pa);
 		iwsrq->kmem.va = NULL;
+	} else {
+		/* Not called in any failure path, so iwpbl is valid. */
+		struct irdma_mr *iwmr = iwsrq->iwpbl->iwmr;
+
+		refcount_dec(&iwmr->user_ring_refs);
 	}
 
 	irdma_free_rsrc(rf, rf->allocated_srqs, srq->srq_uk.srq_id);
@@ -1902,6 +1910,21 @@ static void irdma_cq_free_rsrc(struct irdma_pci_f *rf, struct irdma_cq *iwcq)
 				  iwcq->kmem_shadow.size,
 				  iwcq->kmem_shadow.va, iwcq->kmem_shadow.pa);
 		iwcq->kmem_shadow.va = NULL;
+	} else {
+		struct irdma_mr *iwmr;
+
+		/* May be called in a failure path before iwpbl is valid. */
+		if (iwcq->iwpbl) {
+			iwmr = iwcq->iwpbl->iwmr;
+
+			refcount_dec(&iwmr->user_ring_refs);
+		}
+
+		if (iwcq->iwpbl_shadow) {
+			iwmr = iwcq->iwpbl_shadow->iwmr;
+
+			refcount_dec(&iwmr->user_ring_refs);
+		}
 	}
 
 	irdma_free_rsrc(rf, rf->allocated_cqs, cq->cq_uk.cq_id);
@@ -2017,7 +2040,7 @@ static int irdma_resize_cq(struct ib_cq *ibcq, unsigned int entries,
 	struct irdma_modify_cq_info info = {};
 	struct irdma_dma_mem kmem_buf;
 	struct irdma_cq_mr *cqmr_buf;
-	struct irdma_pbl *iwpbl_buf;
+	struct irdma_pbl *iwpbl_buf = NULL;
 	struct irdma_device *iwdev;
 	struct irdma_pci_f *rf;
 	struct irdma_cq_buf *cq_buf = NULL;
@@ -2128,11 +2151,19 @@ static int irdma_resize_cq(struct ib_cq *ibcq, unsigned int entries,
 		goto error;
 
 	spin_lock_irqsave(&iwcq->lock, flags);
-	if (udata)
+	if (udata) {
+		struct irdma_pbl *old_iwpbl = iwcq->iwpbl;
+
 		/* Only update if the resize was successful. Otherwise, HW is
 		 * still pointing to the old PBL.
 		 */
 		iwcq->iwpbl = iwpbl_buf;
+		if (old_iwpbl) {
+			struct irdma_mr *old_iwmr = old_iwpbl->iwmr;
+
+			refcount_dec(&old_iwmr->user_ring_refs);
+		}
+	}
 	if (cq_buf) {
 		cq_buf->kmem_buf = iwcq->kmem;
 		cq_buf->hw = dev->hw;
@@ -2148,6 +2179,11 @@ static int irdma_resize_cq(struct ib_cq *ibcq, unsigned int entries,
 
 	return 0;
 error:
+	if (iwpbl_buf) {
+		struct irdma_mr *iwmr = iwpbl_buf->iwmr;
+
+		refcount_dec(&iwmr->user_ring_refs);
+	}
 	if (!udata) {
 		dma_free_coherent(dev->hw->device, kmem_buf.size, kmem_buf.va,
 				  kmem_buf.pa);
@@ -2424,6 +2460,11 @@ free_dmem:
 		dma_free_coherent(rf->hw.device, iwsrq->kmem.size,
 				  iwsrq->kmem.va, iwsrq->kmem.pa);
 free_rsrc:
+	if (iwsrq->user_mode && iwsrq->iwpbl) {
+		struct irdma_mr *iwmr = iwsrq->iwpbl->iwmr;
+
+		refcount_dec(&iwmr->user_ring_refs);
+	}
 	irdma_free_rsrc(rf, rf->allocated_srqs, iwsrq->srq_num);
 	return err_code;
 }
