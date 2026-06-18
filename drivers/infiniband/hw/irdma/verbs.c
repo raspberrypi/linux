@@ -2130,6 +2130,11 @@ static int irdma_resize_cq(struct ib_cq *ibcq, int entries,
 		goto error;
 
 	spin_lock_irqsave(&iwcq->lock, flags);
+	if (udata)
+		/* Only update if the resize was successful. Otherwise, HW is
+		 * still pointing to the old PBL.
+		 */
+		iwcq->iwpbl = iwpbl_buf;
 	if (cq_buf) {
 		cq_buf->kmem_buf = iwcq->kmem;
 		cq_buf->hw = dev->hw;
@@ -2500,6 +2505,8 @@ static int irdma_create_cq(struct ib_cq *ibcq,
 	INIT_LIST_HEAD(&iwcq->resize_list);
 	INIT_LIST_HEAD(&iwcq->cmpl_generated);
 	iwcq->cq_num = cq_num;
+	iwcq->iwpbl = NULL;
+	iwcq->iwpbl_shadow = NULL;
 	info.dev = dev;
 	ukinfo->cq_size = max(entries, 4);
 	ukinfo->cq_id = cq_num;
@@ -2518,8 +2525,6 @@ static int irdma_create_cq(struct ib_cq *ibcq,
 		struct irdma_ucontext *ucontext;
 		struct irdma_create_cq_req req = {};
 		struct irdma_cq_mr *cqmr;
-		struct irdma_pbl *iwpbl;
-		struct irdma_pbl *iwpbl_shadow;
 		struct irdma_cq_mr *cqmr_shadow;
 
 		iwcq->user_mode = true;
@@ -2533,34 +2538,34 @@ static int irdma_create_cq(struct ib_cq *ibcq,
 		}
 
 		spin_lock_irqsave(&ucontext->cq_reg_mem_list_lock, flags);
-		iwpbl = irdma_get_pbl((unsigned long)req.user_cq_buf,
-				      &ucontext->cq_reg_mem_list);
+		iwcq->iwpbl = irdma_get_pbl((unsigned long)req.user_cq_buf,
+					    &ucontext->cq_reg_mem_list);
 		spin_unlock_irqrestore(&ucontext->cq_reg_mem_list_lock, flags);
-		if (!iwpbl) {
+		if (!iwcq->iwpbl) {
 			err_code = -EPROTO;
 			goto cq_free_rsrc;
 		}
 
-		cqmr = &iwpbl->cq_mr;
+		cqmr = &iwcq->iwpbl->cq_mr;
 
 		if (rf->sc_dev.hw_attrs.uk_attrs.feature_flags &
 		    IRDMA_FEATURE_CQ_RESIZE) {
 			spin_lock_irqsave(&ucontext->cq_reg_mem_list_lock, flags);
-			iwpbl_shadow = irdma_get_pbl(
+			iwcq->iwpbl_shadow = irdma_get_pbl(
 					(unsigned long)req.user_shadow_area,
 					&ucontext->cq_reg_mem_list);
 			spin_unlock_irqrestore(&ucontext->cq_reg_mem_list_lock, flags);
 
-			if (!iwpbl_shadow) {
+			if (!iwcq->iwpbl_shadow) {
 				err_code = -EPROTO;
 				goto cq_free_rsrc;
 			}
-			cqmr_shadow = &iwpbl_shadow->cq_mr;
+			cqmr_shadow = &iwcq->iwpbl_shadow->cq_mr;
 			info.shadow_area_pa = cqmr_shadow->cq_pbl.addr;
 		} else {
 			info.shadow_area_pa = cqmr->shadow;
 		}
-		if (iwpbl->pbl_allocated) {
+		if (iwcq->iwpbl->pbl_allocated) {
 			info.virtual_map = true;
 			info.pbl_chunk_size = 1;
 			info.first_pm_pbl_idx = cqmr->cq_pbl.idx;
