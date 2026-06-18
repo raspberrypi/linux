@@ -10,6 +10,7 @@
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
+#include <linux/sched/mm.h>
 #include <ufs/ufshcd.h>
 #include <ufs/unipro.h>
 #include "ufshcd-priv.h"
@@ -1216,14 +1217,25 @@ static int ufshcd_tx_eqtr(struct ufs_hba *hba,
 			  struct ufs_pa_layer_attr *pwr_mode)
 {
 	struct ufs_pa_layer_attr old_pwr_info;
+	unsigned int noio_flag;
 	int ret;
+
+	/*
+	 * ufshcd_tx_eqtr() is called from a power-mode-change context where
+	 * I/O is suspended. Use memalloc_noio_save() to propagate GFP_NOIO
+	 * to all allocations in the call tree instead of tagging each call
+	 * site individually.
+	 */
+	noio_flag = memalloc_noio_save();
 
 	if (!params->eqtr_record) {
 		params->eqtr_record = devm_kzalloc(hba->dev,
 						   sizeof(*params->eqtr_record),
 						   GFP_KERNEL);
-		if (!params->eqtr_record)
-			return -ENOMEM;
+		if (!params->eqtr_record) {
+			ret = -ENOMEM;
+			goto out_noio_restore;
+		}
 	}
 
 	memcpy(&old_pwr_info, &hba->pwr_info, sizeof(struct ufs_pa_layer_attr));
@@ -1231,22 +1243,25 @@ static int ufshcd_tx_eqtr(struct ufs_hba *hba,
 	ret = ufshcd_tx_eqtr_prepare(hba, pwr_mode);
 	if (ret) {
 		dev_err(hba->dev, "Failed to prepare TX EQTR: %d\n", ret);
-		goto out;
+		goto out_unprepare;
 	}
 
 	ret = ufshcd_vops_tx_eqtr_notify(hba, PRE_CHANGE, pwr_mode);
 	if (ret)
-		goto out;
+		goto out_unprepare;
 
 	ret = __ufshcd_tx_eqtr(hba, params, pwr_mode);
 	if (ret)
-		goto out;
+		goto out_unprepare;
 
 	ret = ufshcd_vops_tx_eqtr_notify(hba, POST_CHANGE, pwr_mode);
 
-out:
+out_unprepare:
 	if (ret)
 		ufshcd_tx_eqtr_unprepare(hba, &old_pwr_info);
+
+out_noio_restore:
+	memalloc_noio_restore(noio_flag);
 
 	return ret;
 }
