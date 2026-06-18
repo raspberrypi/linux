@@ -1647,6 +1647,11 @@ static void handle_uaudio_stream_req(struct qmi_handle *handle,
 			subs->opened = 0;
 		}
 	} else {
+		if (info_idx < 0) {
+			ret = -EINVAL;
+			goto response;
+		}
+
 		info = &uadev[pcm_card_num].info[info_idx];
 		if (info->data_ep_pipe) {
 			ep = usb_pipe_endpoint(uadev[pcm_card_num].udev,
