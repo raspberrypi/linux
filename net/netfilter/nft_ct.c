@@ -1146,7 +1146,6 @@ static void nft_ct_helper_obj_eval(struct nft_object *obj,
 	help = nf_ct_helper_ext_add(ct, GFP_ATOMIC);
 	if (help) {
 		rcu_assign_pointer(help->helper, to_assign);
-		set_bit(IPS_HELPER_BIT, &ct->status);
 
 		if ((ct->status & IPS_NAT_MASK) && !nfct_seqadj(ct))
 			if (!nfct_seqadj_ext_add(ct))
@@ -1327,7 +1326,7 @@ static void nft_ct_expect_obj_eval(struct nft_object *obj,
 		          &ct->tuplehash[!dir].tuple.src.u3,
 		          &ct->tuplehash[!dir].tuple.dst.u3,
 		          priv->l4proto, NULL, &priv->dport);
-	exp->timeout.expires = jiffies + priv->timeout * HZ;
+	exp->timeout += priv->timeout * HZ;
 
 	if (nf_ct_expect_related(exp, 0) != 0)
 		regs->verdict.code = NF_DROP;
