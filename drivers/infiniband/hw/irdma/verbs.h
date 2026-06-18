@@ -120,6 +120,7 @@ struct irdma_mr {
 	u64 len;
 	u64 pgaddrmem[IRDMA_MAX_SAVED_PHY_PGADDR];
 	struct irdma_pbl iwpbl;
+	refcount_t user_ring_refs;
 };
 
 struct irdma_srq {
