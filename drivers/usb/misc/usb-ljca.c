@@ -585,6 +585,9 @@ static int ljca_enumerate_gpio(struct ljca_adapter *adap)
 	if (gpio_num > LJCA_MAX_GPIO_NUM)
 		return -EINVAL;
 
+	if (desc->bank_num > ARRAY_SIZE(valid_pin))
+		return -EINVAL;
+
 	/* construct platform data */
 	gpio_info = kzalloc(sizeof *gpio_info, GFP_KERNEL);
 	if (!gpio_info)
