@@ -87,14 +87,14 @@ void fscrypt_put_master_key(struct fscrypt_master_key *mk)
 void fscrypt_put_master_key_activeref(struct super_block *sb,
 				      struct fscrypt_master_key *mk)
 {
-	size_t i;
+	struct fscrypt_mode_key *node, *tmp;
 
 	if (!refcount_dec_and_test(&mk->mk_active_refs))
 		return;
 	/*
 	 * No active references left, so complete the full removal of this
 	 * fscrypt_master_key struct by removing it from the keyring and
-	 * destroying any subkeys embedded in it.
+	 * destroying any non-file-scoped subkeys.
 	 */
 
 	if (WARN_ON_ONCE(!sb->s_master_keys))
@@ -110,13 +110,16 @@ void fscrypt_put_master_key_activeref(struct super_block *sb,
 	WARN_ON_ONCE(mk->mk_present);
 	WARN_ON_ONCE(!list_empty(&mk->mk_decrypted_inodes));
 
-	for (i = 0; i <= FSCRYPT_MODE_MAX; i++) {
-		fscrypt_destroy_prepared_key(
-				sb, &mk->mk_direct_keys[i]);
-		fscrypt_destroy_prepared_key(
-				sb, &mk->mk_iv_ino_lblk_64_keys[i]);
-		fscrypt_destroy_prepared_key(
-				sb, &mk->mk_iv_ino_lblk_32_keys[i]);
+	/*
+	 * Destroy any non-file-scoped subkeys.  Since ->mk_active_refs == 0,
+	 * they're no longer referenced by any inodes.  Nor can key setup run
+	 * and use them again.  So they're no longer needed.  (This implies no
+	 * concurrent readers, so we don't need list_del_rcu() for example.)
+	 */
+	list_for_each_entry_safe(node, tmp, &mk->mk_mode_keys, link) {
+		fscrypt_destroy_prepared_key(sb, &node->key);
+		list_del(&node->link);
+		kfree(node);
 	}
 	memzero_explicit(&mk->mk_ino_hash_key,
 			 sizeof(mk->mk_ino_hash_key));
@@ -444,6 +447,8 @@ static int add_new_master_key(struct super_block *sb,
 
 	INIT_LIST_HEAD(&mk->mk_decrypted_inodes);
 	spin_lock_init(&mk->mk_decrypted_inodes_lock);
+
+	INIT_LIST_HEAD(&mk->mk_mode_keys);
 
 	if (mk_spec->type == FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER) {
 		err = allocate_master_key_users_keyring(mk);
