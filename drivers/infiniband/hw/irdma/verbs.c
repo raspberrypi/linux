@@ -3935,35 +3935,28 @@ static void irdma_del_memlist(struct irdma_mr *iwmr,
 {
 	struct irdma_pbl *iwpbl = &iwmr->iwpbl;
 	unsigned long flags;
+	spinlock_t *lock;
 
 	switch (iwmr->type) {
 	case IRDMA_MEMREG_TYPE_CQ:
-		spin_lock_irqsave(&ucontext->cq_reg_mem_list_lock, flags);
-		if (iwpbl->on_list) {
-			iwpbl->on_list = false;
-			list_del(&iwpbl->list);
-		}
-		spin_unlock_irqrestore(&ucontext->cq_reg_mem_list_lock, flags);
+		lock = &ucontext->cq_reg_mem_list_lock;
 		break;
 	case IRDMA_MEMREG_TYPE_QP:
-		spin_lock_irqsave(&ucontext->qp_reg_mem_list_lock, flags);
-		if (iwpbl->on_list) {
-			iwpbl->on_list = false;
-			list_del(&iwpbl->list);
-		}
-		spin_unlock_irqrestore(&ucontext->qp_reg_mem_list_lock, flags);
+		lock = &ucontext->qp_reg_mem_list_lock;
 		break;
 	case IRDMA_MEMREG_TYPE_SRQ:
-		spin_lock_irqsave(&ucontext->srq_reg_mem_list_lock, flags);
-		if (iwpbl->on_list) {
-			iwpbl->on_list = false;
-			list_del(&iwpbl->list);
-		}
-		spin_unlock_irqrestore(&ucontext->srq_reg_mem_list_lock, flags);
+		lock = &ucontext->srq_reg_mem_list_lock;
 		break;
 	default:
-		break;
+		return;
 	}
+
+	spin_lock_irqsave(lock, flags);
+	if (iwpbl->on_list) {
+		iwpbl->on_list = false;
+		list_del(&iwpbl->list);
+	}
+	spin_unlock_irqrestore(lock, flags);
 }
 
 /**
