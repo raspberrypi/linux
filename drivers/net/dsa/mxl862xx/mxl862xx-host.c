@@ -12,6 +12,7 @@
 #include <linux/crc16.h>
 #include <linux/iopoll.h>
 #include <linux/limits.h>
+#include <linux/unaligned.h>
 #include <net/dsa.h>
 #include "mxl862xx.h"
 #include "mxl862xx-host.h"
@@ -349,7 +350,7 @@ int mxl862xx_api_wrap(struct mxl862xx_priv *priv, u16 cmd, void *_data,
 	 * zero words individually.
 	 */
 	for (i = 0, zeros = 0; i < size / 2 && zeros < RST_DATA_THRESHOLD; i++)
-		if (!data[i])
+		if (!get_unaligned_le16(&data[i]))
 			zeros++;
 
 	if (zeros < RST_DATA_THRESHOLD && (size & 1) && !*(u8 *)&data[i])
@@ -395,7 +396,7 @@ int mxl862xx_api_wrap(struct mxl862xx_priv *priv, u16 cmd, void *_data,
 			 */
 			val = *(u8 *)&data[i] | ((crc & 0xff) << 8);
 		} else {
-			val = le16_to_cpu(data[i]);
+			val = get_unaligned_le16(&data[i]);
 		}
 
 		/* After RST_DATA, skip zero data words as the registers
@@ -453,7 +454,7 @@ int mxl862xx_api_wrap(struct mxl862xx_priv *priv, u16 cmd, void *_data,
 			*(uint8_t *)&data[i] = ret & 0xff;
 			crc = (ret >> 8) & 0xff;
 		} else {
-			data[i] = cpu_to_le16((u16)ret);
+			put_unaligned_le16((u16)ret, &data[i]);
 		}
 	}
 
