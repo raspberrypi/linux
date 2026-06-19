@@ -41,12 +41,13 @@ static void mxl862xx_crc_err_work_fn(struct work_struct *work)
 						  crc_err_work);
 	struct dsa_port *dp;
 
-	dev_warn(&priv->mdiodev->dev,
-		 "MDIO CRC error detected, shutting down all ports\n");
-
 	rtnl_lock();
-	dsa_switch_for_each_cpu_port(dp, priv->ds)
-		dev_close(dp->conduit);
+	if (!test_bit(MXL862XX_FLAG_WORK_STOPPED, &priv->flags)) {
+		dev_warn(&priv->mdiodev->dev,
+			 "MDIO CRC error detected, shutting down all ports\n");
+		dsa_switch_for_each_cpu_port(dp, priv->ds)
+			dev_close(dp->conduit);
+	}
 	rtnl_unlock();
 
 	clear_bit(MXL862XX_FLAG_CRC_ERR, &priv->flags);
