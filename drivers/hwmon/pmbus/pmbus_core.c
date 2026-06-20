@@ -1095,9 +1095,27 @@ static u16 pmbus_data2reg_direct(struct pmbus_data *data,
 static u16 pmbus_data2reg_vid(struct pmbus_data *data,
 			      struct pmbus_sensor *sensor, s64 val)
 {
-	val = clamp_val(val, 500, 1600);
-
-	return 2 + DIV_ROUND_CLOSEST_ULL((1600LL - val) * 100LL, 625);
+	switch (data->info->vrm_version[sensor->page]) {
+	case vr12:
+		val = clamp_val(val, 250, 1520);
+		return 1 + DIV_ROUND_CLOSEST_ULL(val - 250, 5);
+	case vr13:
+		val = clamp_val(val, 500, 3040);
+		return 1 + DIV_ROUND_CLOSEST_ULL(val - 500, 10);
+	case imvp9:
+		val = clamp_val(val, 200, 2740);
+		return 1 + DIV_ROUND_CLOSEST_ULL(val - 200, 10);
+	case amd625mv:
+		val = clamp_val(val, 200, 1550);
+		return DIV_ROUND_CLOSEST_ULL((1550LL - val) * 100LL, 625);
+	case nvidia195mv:
+		val = clamp_val(val, 195, 1465);
+		return 1 + DIV_ROUND_CLOSEST_ULL(val - 195, 5);
+	case vr11:
+	default:
+		val = clamp_val(val, 500, 1600);
+		return 2 + DIV_ROUND_CLOSEST_ULL((1600LL - val) * 100LL, 625);
+	}
 }
 
 static u16 pmbus_data2reg(struct pmbus_data *data,
