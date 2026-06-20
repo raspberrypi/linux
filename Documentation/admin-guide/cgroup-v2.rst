@@ -1570,7 +1570,7 @@ The following nested keys are defined.
 	  sock (npn)
 		Amount of memory used in network transmission buffers
 
-	  vmalloc (npn)
+	  vmalloc
 		Amount of memory used for vmap backed memory.
 
 	  shmem
@@ -1735,7 +1735,7 @@ The following nested keys are defined.
 		Number of pages written from zswap to swap.
 
 	  zswap_incomp
-		Number of incompressible pages currently stored in zswap
+		Amount of memory used by incompressible pages currently stored in zswap
 		without compression. These pages could not be compressed to
 		a size smaller than PAGE_SIZE, so they are stored as-is.
 
