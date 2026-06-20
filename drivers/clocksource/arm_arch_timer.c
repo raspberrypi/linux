@@ -1090,6 +1090,16 @@ static int __init arch_timer_common_init(void)
 	return arch_timer_arch_init();
 }
 
+static bool __init has_broken_el2_vtimer(void)
+{
+	static const char * const broken_el2_vtimer[] __initconst = {
+		"brcm,bcm2712",
+		NULL
+	};
+
+	return of_machine_compatible_match(broken_el2_vtimer);
+}
+
 /**
  * arch_timer_select_ppi() - Select suitable PPI for the current system.
  *
@@ -1115,7 +1125,8 @@ static int __init arch_timer_common_init(void)
 static enum arch_timer_ppi_nr __init arch_timer_select_ppi(void)
 {
 	if (is_kernel_in_hyp_mode()) {
-		if (arch_timer_ppi[ARCH_TIMER_HYP_VIRT_PPI])
+		if (arch_timer_ppi[ARCH_TIMER_HYP_VIRT_PPI] &&
+		    !has_broken_el2_vtimer())
 			return ARCH_TIMER_HYP_VIRT_PPI;
 
 		pr_warn_once(FW_BUG "VHE-capable CPU without EL2 virtual timer interrupt\n");
