@@ -45,7 +45,7 @@ bool erofs_ishare_fill_inode(struct inode *inode)
 	struct erofs_inode_fingerprint fp;
 	struct inode *si;
 
-	aops = erofs_get_aops(inode, true);
+	aops = erofs_get_aops(inode);
 	if (IS_ERR(aops))
 		return false;
 	if (erofs_xattr_fill_inode_fingerprint(&fp, inode, sbi->domain_id))

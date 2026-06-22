@@ -127,12 +127,9 @@ dax                    A legacy option which is an alias for ``dax=always``.
 device=%s              Specify a path to an extra device to be used together.
 directio               (For file-backed mounts) Use direct I/O to access backing
                        files, and asynchronous I/O will be enabled if supported.
-fsid=%s                Specify a filesystem image ID for Fscache back-end.
-domain_id=%s           Specify a trusted domain ID for fscache mode so that
-                       different images with the same blobs, identified by blob IDs,
-                       can share storage within the same trusted domain.
-                       Also used for different filesystems with inode page sharing
-                       enabled to share page cache within the trusted domain.
+domain_id=%s           Specify a trusted domain ID. Filesystems sharing the same
+                       domain ID can share page cache across mounts when inode
+                       page sharing is enabled. (not shown in mountinfo output)
 fsoffset=%llu          Specify block-aligned filesystem offset for the primary device.
 inode_share            Enable inode page sharing for this filesystem.  Inodes with
                        identical content within the same domain ID can share the
