@@ -52,9 +52,9 @@ static noinline void dump_vnode(struct afs_vnode *vnode, struct afs_vnode *paren
 /*
  * Set parameters for the netfs library
  */
-static void afs_set_netfs_context(struct afs_vnode *vnode)
+static void afs_set_netfs_context(struct afs_vnode *vnode, bool is_file)
 {
-	netfs_inode_init(&vnode->netfs, &afs_req_ops, true);
+	netfs_inode_init(&vnode->netfs, &afs_req_ops, is_file);
 }
 
 /*
@@ -126,7 +126,6 @@ static int afs_inode_init_from_status(struct afs_operation *op,
 		}
 		inode->i_mapping->a_ops	= &afs_symlink_aops;
 		inode_nohighmem(inode);
-		mapping_set_release_always(inode->i_mapping);
 		break;
 	default:
 		dump_vnode(vnode, op->file[0].vnode != vnode ? op->file[0].vnode : NULL);
@@ -136,7 +135,7 @@ static int afs_inode_init_from_status(struct afs_operation *op,
 
 	i_size_write(inode, status->size);
 	inode_set_bytes(inode, status->size);
-	afs_set_netfs_context(vnode);
+	afs_set_netfs_context(vnode, status->type == AFS_FTYPE_FILE);
 
 	vnode->invalid_before	= status->data_version;
 	trace_afs_set_dv(vnode, status->data_version);
