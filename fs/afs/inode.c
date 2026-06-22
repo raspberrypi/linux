@@ -93,6 +93,10 @@ static int afs_inode_init_from_status(struct afs_operation *op,
 	inode->i_gid = make_kgid(&init_user_ns, status->group);
 	set_nlink(&vnode->netfs.inode, status->nlink);
 
+	i_size_write(inode, status->size);
+	inode_set_bytes(inode, status->size);
+	afs_set_netfs_context(vnode, status->type == AFS_FTYPE_FILE);
+
 	switch (status->type) {
 	case AFS_FTYPE_FILE:
 		inode->i_mode	= S_IFREG | (status->mode & S_IALLUGO);
@@ -132,10 +136,6 @@ static int afs_inode_init_from_status(struct afs_operation *op,
 		write_sequnlock(&vnode->cb_lock);
 		return afs_protocol_error(NULL, afs_eproto_file_type);
 	}
-
-	i_size_write(inode, status->size);
-	inode_set_bytes(inode, status->size);
-	afs_set_netfs_context(vnode, status->type == AFS_FTYPE_FILE);
 
 	vnode->invalid_before	= status->data_version;
 	trace_afs_set_dv(vnode, status->data_version);
