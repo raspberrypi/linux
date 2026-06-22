@@ -205,14 +205,7 @@ static struct afs_cell *afs_alloc_cell(struct afs_net *net,
 	cell->dns_source = vllist->source;
 	cell->dns_status = vllist->status;
 	smp_store_release(&cell->dns_lookup_count, 1); /* vs source/status */
-	down_write(&net->cells_lock);
-	ret = idr_alloc_cyclic(&net->cells_dyn_ino, cell,
-			       2, INT_MAX / 2, GFP_KERNEL);
-	up_write(&net->cells_lock);
-	if (ret < 0)
-		goto error;
 	atomic_inc(&net->cells_outstanding);
-	cell->dynroot_ino = ret;
 	cell->debug_id = atomic_inc_return(&cell_debug_id);
 
 	trace_afs_cell(cell->debug_id, 1, 0, afs_cell_trace_alloc);
@@ -306,6 +299,13 @@ struct afs_cell *afs_lookup_cell(struct afs_net *net,
 			goto cell_already_exists;
 	}
 
+	ret = idr_alloc_cyclic(&net->cells_dyn_ino, candidate,
+			       2, INT_MAX / 2, GFP_KERNEL);
+	if (ret < 0)
+		goto cant_alloc_ino;
+	candidate->dynroot_ino = ret;
+	set_bit(AFS_CELL_FL_HAVE_INO, &candidate->flags);
+
 	cell = candidate;
 	candidate = NULL;
 	afs_use_cell(cell, trace);
@@ -379,6 +379,11 @@ no_wait:
 
 	_leave(" = %p [cell]", cell);
 	return cell;
+
+cant_alloc_ino:
+	up_write(&net->cells_lock);
+	afs_put_cell(candidate, afs_cell_trace_put_candidate);
+	goto error_noput;
 
 cell_already_exists:
 	_debug("cell exists");
@@ -596,9 +601,11 @@ static void afs_destroy_cell_work(struct work_struct *work)
 	timer_delete_sync(&cell->management_timer);
 	cancel_work_sync(&cell->manager);
 
-	down_write(&cell->net->cells_lock);
-	idr_remove(&cell->net->cells_dyn_ino, cell->dynroot_ino);
-	up_write(&cell->net->cells_lock);
+	if (test_bit(AFS_CELL_FL_HAVE_INO, &cell->flags)) {
+		down_write(&cell->net->cells_lock);
+		idr_remove(&cell->net->cells_dyn_ino, cell->dynroot_ino);
+		up_write(&cell->net->cells_lock);
+	}
 
 	call_rcu(&cell->rcu, afs_cell_destroy);
 }
