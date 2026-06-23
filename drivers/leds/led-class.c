@@ -278,12 +278,17 @@ static struct led_classdev *fwnode_led_get(struct fwnode_handle *fwnode,
 
 	/*
 	 * For named LEDs, first look up the name in the "led-names" property.
-	 * If it cannot be found, then fwnode_find_reference() will propagate
-	 * the error.
+	 * If it cannot be found the named LED is simply not present, so report
+	 * -ENOENT (as the historical of_led_get() did). Passing the negative
+	 * match error on as an index makes fwnode_find_reference() return
+	 * -EINVAL, which optional consumers (e.g. the v4l2 privacy LED) treat
+	 * as a hard failure rather than "no LED".
 	 */
-	if (name)
-		index = fwnode_property_match_string(fwnode, "led-names",
-						     name);
+	if (name) {
+		index = fwnode_property_match_string(fwnode, "led-names", name);
+		if (index < 0)
+			return ERR_PTR(-ENOENT);
+	}
 	led_node = fwnode_find_reference(fwnode, "leds", index);
 	if (IS_ERR(led_node))
 		return ERR_CAST(led_node);
