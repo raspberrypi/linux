@@ -1087,7 +1087,7 @@ static void dwc2_hsotg_start_req(struct dwc2_hsotg *hsotg,
 	ctrl = dwc2_readl(hsotg, epctrl_reg);
 
 	if (index && ctrl & DXEPCTL_STALL) {
-		dev_warn(hsotg->dev, "%s: ep%d is stalled\n", __func__, index);
+		dev_dbg(hsotg->dev, "%s: ep%d is stalled\n", __func__, index);
 		return;
 	}
 
@@ -4393,7 +4393,7 @@ static int dwc2_hsotg_ep_sethalt(struct usb_ep *ep, int value, bool now)
 	u32 epctl;
 	u32 xfertype;
 
-	dev_info(hs->dev, "%s(ep %p %s, %d)\n", __func__, ep, ep->name, value);
+	dev_dbg(hs->dev, "%s(ep %p %s, %d)\n", __func__, ep, ep->name, value);
 
 	if (index == 0) {
 		if (value)
