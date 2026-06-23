@@ -2365,20 +2365,20 @@ static int panthor_gpuva_sm_step_remap(struct drm_gpuva_op *op,
 	 */
 	panthor_fix_sparse_map_offset(op->remap.next, unmap_vma->flags);
 
-	/*
-	 * ARM IOMMU page table management code disallows partial unmaps of huge pages,
-	 * so when a partial unmap is requested, we must first unmap the entire huge
-	 * page and then remap the difference between the huge page minus the requested
-	 * unmap region. Calculating the right start address and range for the expanded
-	 * unmap operation is the responsibility of the following function.
-	 */
-	unmap_hugepage_align(&op->remap, &unmap_start, &unmap_range);
-
-	/* If the range changed, we might have to lock a wider region to guarantee
-	 * atomicity. panthor_vm_lock_region() bails out early if the new region
-	 * is already part of the locked region, so no need to do this check here.
-	 */
 	if (!unmap_vma->evicted) {
+		/*
+		 * ARM IOMMU page table management code disallows partial unmaps of huge pages,
+		 * so when a partial unmap is requested, we must first unmap the entire huge
+		 * page and then remap the difference between the huge page minus the requested
+		 * unmap region. Calculating the right start address and range for the expanded
+		 * unmap operation is the responsibility of the following function.
+		 */
+		unmap_hugepage_align(&op->remap, &unmap_start, &unmap_range);
+
+		/* If the range changed, we might have to lock a wider region to guarantee
+		 * atomicity. panthor_vm_lock_region() bails out early if the new region
+		 * is already part of the locked region, so no need to do this check here.
+		 */
 		panthor_vm_lock_region(vm, unmap_start, unmap_range);
 		panthor_vm_unmap_pages(vm, unmap_start, unmap_range);
 	}
