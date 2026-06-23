@@ -2174,6 +2174,7 @@ static int script_find_metrics(const struct pmu_metric *pm,
 	struct evsel *metric_evsel;
 	int ret = metricgroup__parse_groups(metric_evlist,
 					/*pmu=*/"all",
+					/*cputype_filter=*/false,
 					pm->metric_name,
 					/*metric_no_group=*/false,
 					/*metric_no_merge=*/false,

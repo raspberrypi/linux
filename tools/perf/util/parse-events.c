@@ -429,6 +429,9 @@ bool parse_events__filter_pmu(const struct parse_events_state *parse_state,
 	if (parse_state->pmu_filter == NULL)
 		return false;
 
+	if (parse_state->cputype_filter && !pmu->is_core)
+		return false;
+
 	return perf_pmu__wildcard_match(pmu, parse_state->pmu_filter) == 0;
 }
 
@@ -2288,18 +2291,20 @@ static int parse_events__sort_events_and_fix_groups(struct list_head *list)
 	return (idx_changed || num_leaders != orig_num_leaders) ? 1 : 0;
 }
 
-int __parse_events(struct evlist *evlist, const char *str, const char *pmu_filter,
+int __parse_events(struct evlist *evlist, const char *str,
+		   const char *pmu_filter, bool cputype_filter,
 		   struct parse_events_error *err, bool fake_pmu,
 		   bool warn_if_reordered, bool fake_tp)
 {
 	struct parse_events_state parse_state = {
-		.list	  = LIST_HEAD_INIT(parse_state.list),
-		.idx	  = evlist__nr_entries(evlist),
-		.error	  = err,
-		.stoken	  = PE_START_EVENTS,
-		.fake_pmu = fake_pmu,
-		.fake_tp  = fake_tp,
-		.pmu_filter = pmu_filter,
+		.list			= LIST_HEAD_INIT(parse_state.list),
+		.idx			= evlist__nr_entries(evlist),
+		.error			= err,
+		.stoken			= PE_START_EVENTS,
+		.fake_pmu		= fake_pmu,
+		.fake_tp		= fake_tp,
+		.pmu_filter		= pmu_filter,
+		.cputype_filter		= cputype_filter,
 		.match_legacy_cache_terms = true,
 	};
 	int ret, ret2;
@@ -2312,15 +2317,15 @@ int __parse_events(struct evlist *evlist, const char *str, const char *pmu_filte
 	}
 
 	ret2 = parse_events__sort_events_and_fix_groups(&parse_state.list);
-	if (ret2 < 0)
-		return ret;
+	if (ret2 < 0 && !ret)
+		ret = ret2;
 
 	/*
 	 * Add list to the evlist even with errors to allow callers to clean up.
 	 */
 	evlist__splice_list_tail(evlist, &parse_state.list);
 
-	if (ret2 && warn_if_reordered && !parse_state.wild_card_pmus) {
+	if (ret2 > 0 && warn_if_reordered && !parse_state.wild_card_pmus) {
 		evlist__uniquify_evsel_names(evlist, &stat_config);
 		pr_warning("WARNING: events were regrouped to match PMUs\n");
 
@@ -2518,8 +2523,9 @@ int parse_events_option(const struct option *opt, const char *str,
 	int ret;
 
 	parse_events_error__init(&err);
-	ret = __parse_events(*args->evlistp, str, args->pmu_filter, &err,
-			     /*fake_pmu=*/false, /*warn_if_reordered=*/true,
+	ret = __parse_events(*args->evlistp, str, args->pmu_filter,
+			     args->cputype_filter, &err, /*fake_pmu=*/false,
+			     /*warn_if_reordered=*/true,
 			     /*fake_tp=*/false);
 
 	if (ret) {

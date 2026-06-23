@@ -2346,7 +2346,8 @@ static PyObject *pyrf__parse_metrics(PyObject *self, PyObject *args)
 	cpus = pcpus ? ((struct pyrf_cpu_map *)pcpus)->cpus : NULL;
 
 	perf_evlist__set_maps(evlist__core(evlist), cpus, threads);
-	ret = metricgroup__parse_groups(evlist, pmu ?: "all", input,
+	ret = metricgroup__parse_groups(evlist, pmu ?: "all",
+					/*cputype_filter=*/false, input,
 					/*metric_no_group=*/ false,
 					/*metric_no_merge=*/ false,
 					/*metric_no_threshold=*/ true,

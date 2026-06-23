@@ -1213,6 +1213,7 @@ static int parse_cputype(const struct option *opt,
 		return -1;
 	}
 	parse_events_option_args.pmu_filter = pmu->name;
+	parse_events_option_args.cputype_filter = true;
 
 	return 0;
 }
@@ -1229,6 +1230,7 @@ static int parse_pmu_filter(const struct option *opt,
 	}
 
 	parse_events_option_args.pmu_filter = str;
+	parse_events_option_args.cputype_filter = false;
 	return 0;
 }
 
@@ -2003,7 +2005,9 @@ static int add_default_events(void)
 			ret = -1;
 			goto out;
 		}
-		ret = metricgroup__parse_groups(evlist, pmu, "transaction",
+		ret = metricgroup__parse_groups(evlist, pmu,
+						parse_events_option_args.cputype_filter,
+						"transaction",
 						stat_config.metric_no_group,
 						stat_config.metric_no_merge,
 						stat_config.metric_no_threshold,
@@ -2040,7 +2044,9 @@ static int add_default_events(void)
 		if (!force_metric_only)
 			stat_config.metric_only = true;
 
-		ret = metricgroup__parse_groups(evlist, pmu, "smi",
+		ret = metricgroup__parse_groups(evlist, pmu,
+						parse_events_option_args.cputype_filter,
+						"smi",
 						stat_config.metric_no_group,
 						stat_config.metric_no_merge,
 						stat_config.metric_no_threshold,
@@ -2077,7 +2083,7 @@ static int add_default_events(void)
 		}
 		str[8] = stat_config.topdown_level + '0';
 		if (metricgroup__parse_groups(evlist,
-						pmu, str,
+					      pmu, parse_events_option_args.cputype_filter, str,
 						/*metric_no_group=*/false,
 						/*metric_no_merge=*/false,
 						/*metric_no_threshold=*/true,
@@ -2116,7 +2122,9 @@ static int add_default_events(void)
 				ret = -ENOMEM;
 				break;
 			}
-			if (metricgroup__parse_groups(metric_evlist, pmu, default_metricgroup_names[i],
+			if (metricgroup__parse_groups(metric_evlist, pmu,
+						      parse_events_option_args.cputype_filter,
+						      default_metricgroup_names[i],
 							/*metric_no_group=*/false,
 							/*metric_no_merge=*/false,
 							/*metric_no_threshold=*/true,
@@ -2852,7 +2860,9 @@ int cmd_stat(int argc, const char **argv)
 	 */
 	if (metrics) {
 		const char *pmu = parse_events_option_args.pmu_filter ?: "all";
-		int ret = metricgroup__parse_groups(evsel_list, pmu, metrics,
+		int ret = metricgroup__parse_groups(evsel_list, pmu,
+						    parse_events_option_args.cputype_filter,
+						    metrics,
 						stat_config.metric_no_group,
 						stat_config.metric_no_merge,
 						stat_config.metric_no_threshold,
