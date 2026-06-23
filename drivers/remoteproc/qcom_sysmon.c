@@ -736,6 +736,25 @@ bool qcom_sysmon_shutdown_acked(struct qcom_sysmon *sysmon)
 }
 EXPORT_SYMBOL_GPL(qcom_sysmon_shutdown_acked);
 
+bool qcom_sysmon_shutdown_irq_state(struct qcom_sysmon *sysmon)
+{
+	bool shutdown_state;
+	int ret;
+
+	if (!sysmon)
+		return false;
+
+	ret = irq_get_irqchip_state(sysmon->shutdown_irq,
+				    IRQCHIP_STATE_LINE_LEVEL, &shutdown_state);
+	if (ret) {
+		dev_warn(sysmon->dev, "failed to get shutdown_state: %d\n", ret);
+		return false;
+	}
+
+	return shutdown_state;
+}
+EXPORT_SYMBOL_GPL(qcom_sysmon_shutdown_irq_state);
+
 /**
  * sysmon_probe() - probe sys_mon channel
  * @rpdev:	rpmsg device handle
