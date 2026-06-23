@@ -572,7 +572,7 @@ static void dccg35_set_hdmistreamclk_src_new(
 	case 0:
 		REG_UPDATE_2(HDMISTREAMCLK_CNTL, HDMISTREAMCLK0_EN,
 					 (src == HDMI_STREAM_REFCLK) ? 0 : 1,
-					 DPSTREAMCLK0_SRC_SEL,
+					 HDMISTREAMCLK0_SRC_SEL,
 					 (src == HDMI_STREAM_REFCLK) ? 0 : src);
 		break;
 	default:
