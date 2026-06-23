@@ -997,15 +997,18 @@ static int get_l2cap_conn(char *buf, bdaddr_t *addr, u8 *addr_type,
 
 	hci_dev_lock(hdev);
 	hcon = hci_conn_hash_lookup_le(hdev, addr, le_addr_type);
-	hci_dev_unlock(hdev);
-	hci_dev_put(hdev);
-
-	if (!hcon)
+	if (!hcon) {
+		hci_dev_unlock(hdev);
+		hci_dev_put(hdev);
 		return -ENOENT;
+	}
 
-	*conn = (struct l2cap_conn *)hcon->l2cap_data;
+	*conn = l2cap_conn_hold_unless_zero(hcon->l2cap_data);
 
 	BT_DBG("conn %p dst %pMR type %u", *conn, &hcon->dst, hcon->dst_type);
+
+	hci_dev_unlock(hdev);
+	hci_dev_put(hdev);
 
 	return 0;
 }
@@ -1153,18 +1156,22 @@ static ssize_t lowpan_control_write(struct file *fp,
 		if (conn) {
 			struct lowpan_peer *peer;
 
-			if (!is_bt_6lowpan(conn->hcon))
+			if (!is_bt_6lowpan(conn->hcon)) {
+				l2cap_conn_put(conn);
 				return -EINVAL;
+			}
 
 			peer = lookup_peer(conn);
 			if (peer) {
 				BT_DBG("6LoWPAN connection already exists");
+				l2cap_conn_put(conn);
 				return -EALREADY;
 			}
 
 			BT_DBG("conn %p dst %pMR type %d user %u", conn,
 			       &conn->hcon->dst, conn->hcon->dst_type,
 			       addr_type);
+			l2cap_conn_put(conn);
 		}
 
 		ret = bt_6lowpan_connect(&addr, addr_type);
@@ -1180,6 +1187,8 @@ static ssize_t lowpan_control_write(struct file *fp,
 			return ret;
 
 		ret = bt_6lowpan_disconnect(conn, addr_type);
+		if (conn)
+			l2cap_conn_put(conn);
 		if (ret < 0)
 			return ret;
 
