@@ -251,7 +251,7 @@ static bool rxrpc_rotate_tx_window(struct rxrpc_call *call, rxrpc_seq_t to,
 		tq = call->tx_queue;
 	}
 
-	do {
+	while (before_eq(seq, to)) {
 		unsigned int ix = seq - call->tx_qbase;
 
 		_debug("tq=%x seq=%x i=%d f=%x", tq->qbase, seq, ix, tq->bufs[ix]->flags);
@@ -321,8 +321,7 @@ static bool rxrpc_rotate_tx_window(struct rxrpc_call *call, rxrpc_seq_t to,
 				break;
 			}
 		}
-
-	} while (before_eq(seq, to));
+	}
 
 	if (trace)
 		trace_rxrpc_rack_update(call, summary);
@@ -395,6 +394,14 @@ static bool rxrpc_receiving_reply(struct rxrpc_call *call)
 	if (call->ackr_reason) {
 		call->delay_ack_at = KTIME_MAX;
 		trace_rxrpc_timer_can(call, rxrpc_timer_trace_delayed_ack);
+	}
+
+	/* Deal with an apparent reply coming in before we've got the request
+	 * queued or transmitted.
+	 */
+	if (!test_bit(RXRPC_CALL_EXPOSED, &call->flags)) {
+		rxrpc_proto_abort(call, top, rxrpc_eproto_early_reply);
+		return false;
 	}
 
 	if (!test_bit(RXRPC_CALL_TX_LAST, &call->flags)) {
