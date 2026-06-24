@@ -1355,9 +1355,9 @@ static inline struct rxrpc_net *rxrpc_net(struct net *net)
 }
 
 /*
- * out_of_band.c
+ * oob.c
  */
-void rxrpc_notify_socket_oob(struct rxrpc_call *call, struct sk_buff *skb);
+bool rxrpc_notify_socket_oob(struct rxrpc_call *call, struct sk_buff *skb);
 void rxrpc_add_pending_oob(struct rxrpc_sock *rx, struct sk_buff *skb);
 int rxrpc_sendmsg_oob(struct rxrpc_sock *rx, struct msghdr *msg, size_t len);
 
