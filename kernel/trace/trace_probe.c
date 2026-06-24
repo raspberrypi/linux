@@ -622,7 +622,7 @@ static int parse_btf_arg(char *varname,
 	int i, is_ptr, ret;
 	u32 tid;
 
-	if (WARN_ON_ONCE(!ctx->funcname))
+	if (!ctx->funcname)
 		return -EINVAL;
 
 	is_ptr = split_next_field(varname, &field, ctx);
