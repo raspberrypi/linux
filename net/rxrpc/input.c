@@ -181,7 +181,8 @@ void rxrpc_congestion_degrade(struct rxrpc_call *call)
 	if (call->cong_ca_state != RXRPC_CA_SLOW_START &&
 	    call->cong_ca_state != RXRPC_CA_CONGEST_AVOIDANCE)
 		return;
-	if (__rxrpc_call_state(call) == RXRPC_CALL_CLIENT_AWAIT_REPLY)
+	if (__rxrpc_call_state(call) == RXRPC_CALL_CLIENT_AWAIT_ACK ||
+	    __rxrpc_call_state(call) == RXRPC_CALL_CLIENT_AWAIT_REPLY)
 		return;
 
 	rtt = ns_to_ktime(call->srtt_us * (NSEC_PER_USEC / 8));
@@ -359,6 +360,7 @@ static void rxrpc_end_tx_phase(struct rxrpc_call *call, bool reply_begun,
 
 	switch (__rxrpc_call_state(call)) {
 	case RXRPC_CALL_CLIENT_SEND_REQUEST:
+	case RXRPC_CALL_CLIENT_AWAIT_ACK:
 	case RXRPC_CALL_CLIENT_AWAIT_REPLY:
 		if (reply_begun) {
 			rxrpc_set_call_state(call, RXRPC_CALL_CLIENT_RECV_REPLY);
@@ -697,6 +699,7 @@ static void rxrpc_input_data(struct rxrpc_call *call, struct sk_buff *skb)
 
 	switch (__rxrpc_call_state(call)) {
 	case RXRPC_CALL_CLIENT_SEND_REQUEST:
+	case RXRPC_CALL_CLIENT_AWAIT_ACK:
 	case RXRPC_CALL_CLIENT_AWAIT_REPLY:
 		/* Received data implicitly ACKs all of the request
 		 * packets we sent when we're acting as a client.
@@ -1157,10 +1160,12 @@ static void rxrpc_input_ack(struct rxrpc_call *call, struct sk_buff *skb)
 	if (hard_ack + 1 == 0)
 		return rxrpc_proto_abort(call, 0, rxrpc_eproto_ackr_zero);
 
-	/* Ignore ACKs unless we are or have just been transmitting. */
+	/* Ignore ACKs unless we are transmitting or are waiting for
+	 * acknowledgement of the packets we've just been transmitting.
+	 */
 	switch (__rxrpc_call_state(call)) {
 	case RXRPC_CALL_CLIENT_SEND_REQUEST:
-	case RXRPC_CALL_CLIENT_AWAIT_REPLY:
+	case RXRPC_CALL_CLIENT_AWAIT_ACK:
 	case RXRPC_CALL_SERVER_SEND_REPLY:
 	case RXRPC_CALL_SERVER_AWAIT_ACK:
 		break;
@@ -1218,7 +1223,17 @@ static void rxrpc_input_ackall(struct rxrpc_call *call, struct sk_buff *skb)
 {
 	struct rxrpc_ack_summary summary = { 0 };
 
-	if (rxrpc_rotate_tx_window(call, call->tx_top, &summary))
+	switch (__rxrpc_call_state(call)) {
+	case RXRPC_CALL_CLIENT_SEND_REQUEST:
+	case RXRPC_CALL_CLIENT_AWAIT_ACK:
+	case RXRPC_CALL_SERVER_SEND_REPLY:
+	case RXRPC_CALL_SERVER_AWAIT_ACK:
+		break;
+	default:
+		return;
+	}
+
+	if (rxrpc_rotate_tx_window(call, call->tx_transmitted, &summary))
 		rxrpc_end_tx_phase(call, false, rxrpc_eproto_unexpected_ackall);
 }
 
