@@ -4822,6 +4822,12 @@ Params: speed                   SPI bus speed (default 4000000)
         reset_pin               GPIO pin for RESET (default 27)
 
 
+Name:   sixfab_m1m
+Info:   Overlay for the Sixfab M1M PCIe Gen3 AI HAT+
+Load:   dtoverlay=sixfab_m1m
+Params: <None>
+
+
 Name:   smi
 Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
 Load:   dtoverlay=smi
