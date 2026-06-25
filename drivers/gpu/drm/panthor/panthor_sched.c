@@ -1427,7 +1427,7 @@ cs_slot_process_fault_event_locked(struct panthor_device *ptdev,
 		u64 cs_extract = queue->iface.output->extract;
 		struct panthor_job *job;
 
-		spin_lock(&queue->fence_ctx.lock);
+		guard(spinlock_irqsave)(&queue->fence_ctx.lock);
 		list_for_each_entry(job, &queue->fence_ctx.in_flight_jobs, node) {
 			if (cs_extract >= job->ringbuf.end)
 				continue;
@@ -1437,7 +1437,6 @@ cs_slot_process_fault_event_locked(struct panthor_device *ptdev,
 
 			dma_fence_set_error(job->done_fence, -EINVAL);
 		}
-		spin_unlock(&queue->fence_ctx.lock);
 	}
 
 	if (group) {
@@ -2104,13 +2103,13 @@ group_term_post_processing(struct panthor_group *group)
 		if (!queue)
 			continue;
 
-		spin_lock(&queue->fence_ctx.lock);
-		list_for_each_entry_safe(job, tmp, &queue->fence_ctx.in_flight_jobs, node) {
-			list_move_tail(&job->node, &faulty_jobs);
-			dma_fence_set_error(job->done_fence, err);
-			dma_fence_signal_locked(job->done_fence);
+		scoped_guard(spinlock_irqsave, &queue->fence_ctx.lock) {
+			list_for_each_entry_safe(job, tmp, &queue->fence_ctx.in_flight_jobs, node) {
+				list_move_tail(&job->node, &faulty_jobs);
+				dma_fence_set_error(job->done_fence, err);
+				dma_fence_signal_locked(job->done_fence);
+			}
 		}
-		spin_unlock(&queue->fence_ctx.lock);
 
 		/* Manually update the syncobj seqno to unblock waiters. */
 		syncobj = group->syncobjs->kmap + (i * sizeof(*syncobj));
@@ -2991,15 +2990,15 @@ static void group_sync_upd_work(struct work_struct *work)
 
 		syncobj = group->syncobjs->kmap + (queue_idx * sizeof(*syncobj));
 
-		spin_lock(&queue->fence_ctx.lock);
-		list_for_each_entry_safe(job, job_tmp, &queue->fence_ctx.in_flight_jobs, node) {
-			if (syncobj->seqno < job->done_fence->seqno)
-				break;
+		scoped_guard(spinlock_irqsave, &queue->fence_ctx.lock) {
+			list_for_each_entry_safe(job, job_tmp, &queue->fence_ctx.in_flight_jobs, node) {
+				if (syncobj->seqno < job->done_fence->seqno)
+					break;
 
-			list_move_tail(&job->node, &done_jobs);
-			dma_fence_signal_locked(job->done_fence);
+				list_move_tail(&job->node, &done_jobs);
+				dma_fence_signal_locked(job->done_fence);
+			}
 		}
-		spin_unlock(&queue->fence_ctx.lock);
 	}
 	dma_fence_end_signalling(cookie);
 
@@ -3244,9 +3243,8 @@ queue_run_job(struct drm_sched_job *sched_job)
 	job->ringbuf.end = job->ringbuf.start + (instrs.count * sizeof(u64));
 
 	panthor_job_get(&job->base);
-	spin_lock(&queue->fence_ctx.lock);
-	list_add_tail(&job->node, &queue->fence_ctx.in_flight_jobs);
-	spin_unlock(&queue->fence_ctx.lock);
+	scoped_guard(spinlock_irqsave, &queue->fence_ctx.lock)
+		list_add_tail(&job->node, &queue->fence_ctx.in_flight_jobs);
 
 	/* Make sure the ring buffer is updated before the INSERT
 	 * register.
