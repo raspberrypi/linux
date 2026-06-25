@@ -5,6 +5,7 @@
 #include <linux/of_clk.h>
 #include <linux/minmax.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/overflow.h>
 #include <linux/platform_data/simplefb.h>
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
@@ -626,6 +627,7 @@ static struct simpledrm_device *simpledrm_device_create(struct drm_driver *drv,
 	u16 width_mm = 0, height_mm = 0;
 	struct device_node *panel_node;
 	const struct drm_format_info *format;
+	u64 size;
 	struct resource *res, *mem = NULL;
 	struct drm_plane *primary_plane;
 	struct drm_crtc *crtc;
@@ -716,6 +718,14 @@ static struct simpledrm_device *simpledrm_device_create(struct drm_driver *drv,
 		}
 		stride = pitch;
 	}
+	if (check_mul_overflow(height, stride, &size)) {
+		drm_err(dev, "framebuffer size exceeds maximum\n");
+		return ERR_PTR(-EINVAL);
+	}
+	if (ALIGN(size, PAGE_SIZE) < PAGE_SIZE) {
+		drm_err(dev, "page-aligned framebuffer exceeds maximum\n");
+		return ERR_PTR(-EINVAL);
+	}
 
 	sysfb->fb_mode = drm_sysfb_mode(width, height, width_mm, height_mm);
 	sysfb->fb_format = format;
@@ -740,6 +750,13 @@ static struct simpledrm_device *simpledrm_device_create(struct drm_driver *drv,
 		}
 
 		drm_dbg(dev, "using system memory framebuffer at %pr\n", mem);
+
+		if (size > resource_size(mem)) {
+			drm_err(dev,
+				"framebuffer size of %llu exceeds memory range %pr\n",
+				size, mem);
+			return ERR_PTR(-EINVAL);
+		}
 
 		screen_base = devm_memremap(dev->dev, mem->start, resource_size(mem), MEMREMAP_WC);
 		if (IS_ERR(screen_base))
@@ -772,6 +789,13 @@ static struct simpledrm_device *simpledrm_device_create(struct drm_driver *drv,
 			 */
 			drm_warn(dev, "could not acquire memory region %pr\n", res);
 			mem = res;
+		}
+
+		if (size > resource_size(mem)) {
+			drm_err(dev,
+				"framebuffer size of %llu exceeds memory range %pr\n",
+				size, mem);
+			return ERR_PTR(-EINVAL);
 		}
 
 		screen_base = devm_ioremap_wc(&pdev->dev, mem->start, resource_size(mem));
