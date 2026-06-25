@@ -557,6 +557,7 @@ static int mes_v11_0_suspend_gang(struct amdgpu_mes *mes,
 	mes_suspend_gang_pkt.gang_context_addr = input->gang_context_addr;
 	mes_suspend_gang_pkt.suspend_fence_addr = input->suspend_fence_addr;
 	mes_suspend_gang_pkt.suspend_fence_value = input->suspend_fence_value;
+	mes_suspend_gang_pkt.doorbell_offset = input->doorbell_offset;
 
 	return mes_v11_0_submit_pkt_and_poll_completion(mes,
 			&mes_suspend_gang_pkt, sizeof(mes_suspend_gang_pkt),
@@ -576,6 +577,7 @@ static int mes_v11_0_resume_gang(struct amdgpu_mes *mes,
 
 	mes_resume_gang_pkt.resume_all_gangs = input->resume_all_gangs;
 	mes_resume_gang_pkt.gang_context_addr = input->gang_context_addr;
+	mes_resume_gang_pkt.doorbell_offset = input->doorbell_offset;
 
 	return mes_v11_0_submit_pkt_and_poll_completion(mes,
 			&mes_resume_gang_pkt, sizeof(mes_resume_gang_pkt),
