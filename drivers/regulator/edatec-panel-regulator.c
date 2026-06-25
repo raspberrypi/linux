@@ -38,6 +38,7 @@ enum gpio_signals {
 
 struct ed_regulator {
 	struct regmap	*regmap;
+	int bl_power_last;
 };
 
 static bool ed_readable_reg(struct device *dev, unsigned int reg)
@@ -64,10 +65,12 @@ static int ed_update_status(struct backlight_device *bl)
 	int bl_power = props->power;
 	int ret;
 
-	if (bl_power == 1 || bl_power == 4)
+	if (bl_power != regulator->bl_power_last)
 		ret = regmap_write(regmap, REG_PWR, bl_power);
 	else
 		ret = regmap_write(regmap, REG_PWM, brightness);
+
+	regulator->bl_power_last = bl_power;
 
 	return ret;
 }
@@ -146,6 +149,7 @@ static int ed_i2c_probe(struct i2c_client *i2c)
 	props.max_brightness = 0xff;
 	props.brightness = 0xff;
 
+	regulator->bl_power_last = 0;
 	regulator->regmap = regmap;
 	bl = devm_backlight_device_register(&i2c->dev, dev_name(&i2c->dev),
 					    &i2c->dev, regulator, &ed_bl, &props);
