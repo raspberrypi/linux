@@ -1057,6 +1057,8 @@
 			reg = <0xc0 0x40178000  0x0 0x20>;
 			compatible = "raspberrypi,rp1-pio";
 			firmware = <&rp1_firmware>;
+			interrupts = <RP1_INT_PIO_0 IRQ_TYPE_EDGE_RISING>,
+				     <RP1_INT_PIO_1 IRQ_TYPE_EDGE_RISING>;
 			dmas = <&rp1_dma RP1_DMA_PIO_CH0_TX>, <&rp1_dma RP1_DMA_PIO_CH0_RX>,
 				   <&rp1_dma RP1_DMA_PIO_CH1_TX>, <&rp1_dma RP1_DMA_PIO_CH1_RX>,
 				   <&rp1_dma RP1_DMA_PIO_CH2_TX>, <&rp1_dma RP1_DMA_PIO_CH2_RX>,
