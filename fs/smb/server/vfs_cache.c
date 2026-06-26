@@ -980,16 +980,21 @@ void ksmbd_stop_durable_scavenger(void)
 static int ksmbd_vfs_copy_durable_owner(struct ksmbd_file *fp,
 		struct ksmbd_user *user)
 {
+	char *name;
+
 	if (!user)
 		return -EINVAL;
 
 	/* Duplicate the user name to ensure identity persistence */
-	fp->owner.name = kstrdup(user->name, GFP_KERNEL);
-	if (!fp->owner.name)
+	name = kstrdup(user->name, GFP_KERNEL);
+	if (!name)
 		return -ENOMEM;
 
+	spin_lock(&fp->f_lock);
 	fp->owner.uid = user->uid;
 	fp->owner.gid = user->gid;
+	fp->owner.name = name;
+	spin_unlock(&fp->f_lock);
 
 	return 0;
 }
@@ -1007,18 +1012,24 @@ static int ksmbd_vfs_copy_durable_owner(struct ksmbd_file *fp,
 bool ksmbd_vfs_compare_durable_owner(struct ksmbd_file *fp,
 		struct ksmbd_user *user)
 {
-	if (!user || !fp->owner.name)
+	bool ret = false;
+
+	if (!user)
 		return false;
+
+	spin_lock(&fp->f_lock);
+	if (!fp->owner.name)
+		goto out;
 
 	/* Check if the UID and GID match first (fast path) */
 	if (fp->owner.uid != user->uid || fp->owner.gid != user->gid)
-		return false;
+		goto out;
 
 	/* Validate the account name to ensure the same SecurityContext */
-	if (strcmp(fp->owner.name, user->name))
-		return false;
-
-	return true;
+	ret = (strcmp(fp->owner.name, user->name) == 0);
+out:
+	spin_unlock(&fp->f_lock);
+	return ret;
 }
 
 static bool session_fd_check(struct ksmbd_tree_connect *tcon,
@@ -1172,9 +1183,11 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 	}
 	up_write(&ci->m_lock);
 
+	spin_lock(&fp->f_lock);
 	fp->owner.uid = fp->owner.gid = 0;
 	kfree(fp->owner.name);
 	fp->owner.name = NULL;
+	spin_unlock(&fp->f_lock);
 
 	return 0;
 }
