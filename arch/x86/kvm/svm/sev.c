@@ -4350,6 +4350,13 @@ int sev_handle_vmgexit(struct kvm_vcpu *vcpu)
 		if (!control->exit_info_2)
 			return 1;
 
+		if (to_kvm_sev_info(vcpu->kvm)->ghcb_version >= 2 &&
+		    control->exit_info_2 > 8) {
+			ghcb_set_sw_exit_info_1(svm->sev_es.ghcb, 2);
+			ghcb_set_sw_exit_info_2(svm->sev_es.ghcb, GHCB_ERR_INVALID_INPUT);
+			return 1;
+		}
+
 		ret = setup_vmgexit_scratch(svm, true, control->exit_info_2);
 		if (ret)
 			break;
@@ -4362,6 +4369,13 @@ int sev_handle_vmgexit(struct kvm_vcpu *vcpu)
 	case SVM_VMGEXIT_MMIO_WRITE:
 		if (!control->exit_info_2)
 			return 1;
+
+		if (to_kvm_sev_info(vcpu->kvm)->ghcb_version >= 2 &&
+		    control->exit_info_2 > 8) {
+			ghcb_set_sw_exit_info_1(svm->sev_es.ghcb, 2);
+			ghcb_set_sw_exit_info_2(svm->sev_es.ghcb, GHCB_ERR_INVALID_INPUT);
+			return 1;
+		}
 
 		ret = setup_vmgexit_scratch(svm, false, control->exit_info_2);
 		if (ret)
