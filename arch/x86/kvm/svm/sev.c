@@ -4459,6 +4459,11 @@ int sev_handle_vmgexit(struct kvm_vcpu *vcpu)
 			    control->exit_info_1, control->exit_info_2);
 		ret = -EINVAL;
 		break;
+	case SVM_EXIT_IOIO:
+		if (!((control->exit_info_1 & SVM_IOIO_SIZE_MASK) >> SVM_IOIO_SIZE_SHIFT))
+			return 1;
+
+		fallthrough;
 	default:
 		ret = svm_invoke_exit_handler(vcpu, exit_code);
 	}
@@ -4478,6 +4483,9 @@ int sev_es_string_io(struct vcpu_svm *svm, int size, unsigned int port, int in)
 	count = svm->vmcb->control.exit_info_2;
 	if (unlikely(check_mul_overflow(count, size, &bytes)))
 		return -EINVAL;
+
+	if (!bytes)
+		return 1;
 
 	r = setup_vmgexit_scratch(svm, in, bytes);
 	if (r)
