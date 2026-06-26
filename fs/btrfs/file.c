@@ -969,70 +969,64 @@ fail:
 
 /*
  * This function locks the extent and properly waits for data=ordered extents
- * to finish before allowing the pages to be modified if need.
+ * to finish before allowing the pages to be modified.
  *
  * The return value:
- * 1 - the extent is locked
- * 0 - the extent is not locked, and everything is OK
+ * 0 - the extent is locked
  * -EAGAIN - need re-prepare the pages
  * the other < 0 number - Something wrong happens
  */
 static noinline int
-lock_and_cleanup_extent_if_need(struct btrfs_inode *inode, struct page **pages,
-				size_t num_pages, loff_t pos,
-				size_t write_bytes,
-				u64 *lockstart, u64 *lockend, bool nowait,
-				struct extent_state **cached_state)
+lock_and_cleanup_extent(struct btrfs_inode *inode, struct page **pages,
+			size_t num_pages, loff_t pos,
+			size_t write_bytes,
+			u64 *lockstart, u64 *lockend, bool nowait,
+			struct extent_state **cached_state)
 {
 	struct btrfs_fs_info *fs_info = inode->root->fs_info;
+	struct btrfs_ordered_extent *ordered;
 	u64 start_pos;
 	u64 last_pos;
 	int i;
-	int ret = 0;
 
 	start_pos = round_down(pos, fs_info->sectorsize);
 	last_pos = round_up(pos + write_bytes, fs_info->sectorsize) - 1;
 
-	if (start_pos < inode->vfs_inode.i_size) {
-		struct btrfs_ordered_extent *ordered;
-
-		if (nowait) {
-			if (!btrfs_try_lock_extent(&inode->io_tree, start_pos, last_pos,
-					     cached_state)) {
-				for (i = 0; i < num_pages; i++) {
-					unlock_page(pages[i]);
-					put_page(pages[i]);
-					pages[i] = NULL;
-				}
-
-				return -EAGAIN;
-			}
-		} else {
-			btrfs_lock_extent(&inode->io_tree, start_pos, last_pos, cached_state);
-		}
-
-		ordered = btrfs_lookup_ordered_range(inode, start_pos,
-						     last_pos - start_pos + 1);
-		if (ordered &&
-		    ordered->file_offset + ordered->num_bytes > start_pos &&
-		    ordered->file_offset <= last_pos) {
-			btrfs_unlock_extent(&inode->io_tree, start_pos, last_pos,
-				      cached_state);
+	if (nowait) {
+		if (!btrfs_try_lock_extent(&inode->io_tree, start_pos, last_pos,
+				     cached_state)) {
 			for (i = 0; i < num_pages; i++) {
 				unlock_page(pages[i]);
 				put_page(pages[i]);
+				pages[i] = NULL;
 			}
-			btrfs_start_ordered_extent(ordered);
-			btrfs_put_ordered_extent(ordered);
+
 			return -EAGAIN;
 		}
-		if (ordered)
-			btrfs_put_ordered_extent(ordered);
-
-		*lockstart = start_pos;
-		*lockend = last_pos;
-		ret = 1;
+	} else {
+		btrfs_lock_extent(&inode->io_tree, start_pos, last_pos, cached_state);
 	}
+
+	ordered = btrfs_lookup_ordered_range(inode, start_pos,
+					     last_pos - start_pos + 1);
+	if (ordered &&
+	    ordered->file_offset + ordered->num_bytes > start_pos &&
+	    ordered->file_offset <= last_pos) {
+		btrfs_unlock_extent(&inode->io_tree, start_pos, last_pos,
+			      cached_state);
+		for (i = 0; i < num_pages; i++) {
+			unlock_page(pages[i]);
+			put_page(pages[i]);
+		}
+		btrfs_start_ordered_extent(ordered);
+		btrfs_put_ordered_extent(ordered);
+		return -EAGAIN;
+	}
+	if (ordered)
+		btrfs_put_ordered_extent(ordered);
+
+	*lockstart = start_pos;
+	*lockend = last_pos;
 
 	/*
 	 * We should be called after prepare_pages() which should have locked
@@ -1041,7 +1035,7 @@ lock_and_cleanup_extent_if_need(struct btrfs_inode *inode, struct page **pages,
 	for (i = 0; i < num_pages; i++)
 		WARN_ON(!PageLocked(pages[i]));
 
-	return ret;
+	return 0;
 }
 
 /*
@@ -1242,7 +1236,6 @@ ssize_t btrfs_buffered_write(struct kiocb *iocb, struct iov_iter *i)
 		size_t copied;
 		size_t dirty_sectors;
 		size_t num_sectors;
-		int extents_locked;
 
 		/*
 		 * Fault pages before locking them in prepare_pages
@@ -1326,17 +1319,15 @@ again:
 			break;
 		}
 
-		extents_locked = lock_and_cleanup_extent_if_need(
-				BTRFS_I(inode), pages,
+		ret = lock_and_cleanup_extent(BTRFS_I(inode), pages,
 				num_pages, pos, write_bytes, &lockstart,
 				&lockend, nowait, &cached_state);
-		if (extents_locked < 0) {
-			if (!nowait && extents_locked == -EAGAIN)
+		if (ret < 0) {
+			if (!nowait)
 				goto again;
 
 			btrfs_delalloc_release_extents(BTRFS_I(inode),
 						       reserve_bytes);
-			ret = extents_locked;
 			break;
 		}
 
@@ -1389,18 +1380,8 @@ again:
 					dirty_pages, pos, copied,
 					&cached_state, only_release_metadata);
 
-		/*
-		 * If we have not locked the extent range, because the range's
-		 * start offset is >= i_size, we might still have a non-NULL
-		 * cached extent state, acquired while marking the extent range
-		 * as delalloc through btrfs_dirty_pages(). Therefore free any
-		 * possible cached extent state to avoid a memory leak.
-		 */
-		if (extents_locked)
-			btrfs_unlock_extent(&BTRFS_I(inode)->io_tree, lockstart,
-				      lockend, &cached_state);
-		else
-			free_extent_state(cached_state);
+		btrfs_unlock_extent(&BTRFS_I(inode)->io_tree, lockstart,
+			      lockend, &cached_state);
 
 		btrfs_delalloc_release_extents(BTRFS_I(inode), reserve_bytes);
 		if (ret) {
