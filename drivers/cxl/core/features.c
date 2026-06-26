@@ -523,6 +523,9 @@ static void *cxlctl_set_feature(struct cxl_features_state *cxlfs,
 	flags = le32_to_cpu(feat_in->flags);
 	out_size = *out_len;
 
+	if (out_size < offsetof(struct fwctl_rpc_cxl_out, payload))
+		return ERR_PTR(-EINVAL);
+
 	struct fwctl_rpc_cxl_out *rpc_out __free(kvfree) =
 		kvzalloc(out_size, GFP_KERNEL);
 	if (!rpc_out)
