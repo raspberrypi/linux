@@ -475,7 +475,10 @@ static void wave5_vpu_dec_finish_decode(struct vpu_instance *inst)
 			v4l2_m2m_job_finish(inst->v4l2_m2m_dev, m2m_ctx);
 	}
 
-	inst->queuing_fail = false;
+	if (inst->queuing_fail) {
+		inst->queuing_fail = false;
+		v4l2_m2m_try_schedule(m2m_ctx);
+	}
 }
 
 static int wave5_vpu_dec_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
