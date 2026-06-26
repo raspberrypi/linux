@@ -9780,7 +9780,8 @@ static void wakeup_preempt_fair(struct rq *rq, struct task_struct *p, int wake_f
 	/*
 	 * XXX Getting preempted by higher class, try and find idle CPU?
 	 */
-	if (p->sched_class != &fair_sched_class)
+	if (p->sched_class != &fair_sched_class ||
+	    donor->sched_class != &fair_sched_class)
 		return;
 
 	if (unlikely(se == pse))
