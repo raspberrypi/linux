@@ -1663,9 +1663,13 @@ static void wave5_vpu_dec_device_run(void *priv)
 		} else if (!inst->eos &&
 				inst->queuing_num == 0 &&
 				inst->state == VPU_INST_STATE_PIC_RUN) {
-			dev_dbg(inst->dev->dev, "%s: no bitstream for feeding, so skip ", __func__);
-			inst->empty_queue = true;
-			goto finish_job_and_return;
+			wave5_vpu_dec_give_command(inst, DEC_GET_QUEUE_STATUS, &q_status);
+			if (q_status.instance_queue_count == v4l2_m2m_num_src_bufs_ready(m2m_ctx)) {
+				dev_dbg(inst->dev->dev, "%s: no bitstream, skip\n",
+					__func__);
+				inst->empty_queue = true;
+				goto finish_job_and_return;
+			}
 		}
 	}
 
