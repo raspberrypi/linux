@@ -221,6 +221,9 @@ brcmf_cyw_external_auth(struct wiphy *wiphy, struct net_device *dev,
 				      IEEE80211_MAX_SSID_LEN);
 	auth_status.ssid_len = cpu_to_le32(params->ssid.ssid_len);
 	memcpy(auth_status.ssid, params->ssid.ssid, params->ssid.ssid_len);
+	memset(auth_status.pmkid, 0, WLAN_PMKID_LEN);
+	if (params->pmkid)
+		memcpy(auth_status.pmkid, params->pmkid, WLAN_PMKID_LEN);
 
 	ret = brcmf_fil_iovar_data_set(ifp, "auth_status", &auth_status,
 				       sizeof(auth_status));
