@@ -464,12 +464,6 @@ mediatek_gpio_probe(struct platform_device *pdev)
 	mtk->num_gpios = MTK_BANK_WIDTH * MTK_BANK_CNT;
 	platform_set_drvdata(pdev, mtk);
 
-	for (i = 0; i < MTK_BANK_CNT; i++) {
-		ret = mediatek_gpio_bank_probe(dev, i);
-		if (ret)
-			return ret;
-	}
-
 	if (mtk->gpio_irq > 0) {
 		ret = mt7621_gpio_irq_setup(pdev, mtk);
 		if (ret)
@@ -479,6 +473,12 @@ mediatek_gpio_probe(struct platform_device *pdev)
 	ret = devm_add_action_or_reset(dev, mt7621_gpio_remove, mtk);
 	if (ret)
 		return ret;
+
+	for (i = 0; i < MTK_BANK_CNT; i++) {
+		ret = mediatek_gpio_bank_probe(dev, i);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
