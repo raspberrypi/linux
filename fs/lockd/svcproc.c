@@ -55,6 +55,8 @@ nlmsvc_retrieve_args(struct svc_rqst *rqstp, struct nlm_args *argp,
 	struct nlm_host		*host = NULL;
 	struct nlm_file		*file = NULL;
 	struct nlm_lock		*lock = &argp->lock;
+	bool			is_test = (rqstp->rq_proc == NLMPROC_TEST ||
+					   rqstp->rq_proc == NLMPROC_TEST_MSG);
 	int			mode;
 	__be32			error = 0;
 
@@ -70,15 +72,22 @@ nlmsvc_retrieve_args(struct svc_rqst *rqstp, struct nlm_args *argp,
 
 	/* Obtain file pointer. Not used by FREE_ALL call. */
 	if (filp != NULL) {
-		error = cast_status(nlm_lookup_file(rqstp, &file, lock));
+		mode = lock_to_openmode(&lock->fl);
+
+		if (is_test)
+			mode = O_RDWR;
+
+		error = cast_status(nlm_lookup_file(rqstp, &file, lock, mode));
 		if (error != 0)
 			goto no_locks;
 		*filp = file;
 
 		/* Set up the missing parts of the file_lock structure */
-		mode = lock_to_openmode(&lock->fl);
 		lock->fl.c.flc_flags = FL_POSIX;
-		lock->fl.c.flc_file  = file->f_file[mode];
+		if (is_test)
+			lock->fl.c.flc_file = nlmsvc_file_file(file);
+		else
+			lock->fl.c.flc_file = file->f_file[mode];
 		lock->fl.c.flc_pid = current->tgid;
 		lock->fl.fl_lmops = &nlmsvc_lock_operations;
 		nlmsvc_locks_init_private(&lock->fl, host, (pid_t)lock->svid);
