@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2022 Broadcom Corporation
  */
+#include <linux/atomic.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <core.h>
@@ -22,6 +23,8 @@
 
 #define MGMT_AUTH_FRAME_DWELL_TIME	4000
 #define MGMT_AUTH_FRAME_WAIT_TIME	(MGMT_AUTH_FRAME_DWELL_TIME + 100)
+
+static atomic_t brcmf_cyw_mgmt_tx_id = ATOMIC_INIT(0);
 
 static int brcmf_cyw_set_sae_pwd(struct brcmf_if *ifp,
 				 struct cfg80211_crypto_settings *crypto)
@@ -124,7 +127,7 @@ int brcmf_cyw_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	if (!ieee80211_is_auth(mgmt->frame_control))
 		return brcmf_cfg80211_mgmt_tx(wiphy, wdev, params, cookie);
 
-	*cookie = 0;
+	*cookie = (u32)atomic_inc_return(&brcmf_cyw_mgmt_tx_id);
 	vif = container_of(wdev, struct brcmf_cfg80211_vif, wdev);
 
 	reinit_completion(&vif->mgmt_tx);
