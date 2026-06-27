@@ -2077,12 +2077,11 @@ static int validate_tmpl(int nr, struct xfrm_user_tmpl *ut, u16 family,
 		switch (ut[i].mode) {
 		case XFRM_MODE_TUNNEL:
 		case XFRM_MODE_BEET:
+		case XFRM_MODE_IPTFS:
 			if (ut[i].optional && dir == XFRM_POLICY_OUT) {
 				NL_SET_ERR_MSG(extack, "Mode in optional template not allowed in outbound policy");
 				return -EINVAL;
 			}
-			break;
-		case XFRM_MODE_IPTFS:
 			break;
 		default:
 			if (ut[i].family != prev_family) {
