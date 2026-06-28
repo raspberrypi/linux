@@ -237,7 +237,7 @@ int amdgpu_mes_init(struct amdgpu_device *adev)
 	}
 
 	if (adev->mes.hung_queue_db_array_size) {
-		for (i = 0; i < AMDGPU_MAX_MES_PIPES; i++) {
+		for (i = 0; i < AMDGPU_MAX_MES_PIPES * num_xcc; i++) {
 			r = amdgpu_bo_create_kernel(adev,
 						    adev->mes.hung_queue_db_array_size * sizeof(u32),
 						    PAGE_SIZE,
