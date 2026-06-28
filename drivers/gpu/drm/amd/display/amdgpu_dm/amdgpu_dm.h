@@ -689,6 +689,13 @@ struct amdgpu_display_manager {
 	void *bb_from_dmub;
 
 	/**
+	 * @i2c_devres_group:
+	 *
+	 * Devres group for DM i2c adapter lifetime management.
+	 */
+	void *i2c_devres_group;
+
+	/**
 	 * @oem_i2c:
 	 *
 	 * OEM i2c bus
