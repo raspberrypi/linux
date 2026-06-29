@@ -232,7 +232,7 @@ static void refill_skbs(struct netpoll *np)
 	skb_pool = &np->skb_pool;
 
 	while (READ_ONCE(skb_pool->qlen) < MAX_SKBS) {
-		skb = alloc_skb(MAX_SKB_SIZE, GFP_ATOMIC);
+		skb = alloc_skb(MAX_SKB_SIZE, GFP_ATOMIC | __GFP_NOWARN);
 		if (!skb)
 			break;
 
