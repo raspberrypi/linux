@@ -464,12 +464,12 @@ static void amdgpu_dm_crtc_reset_state(struct drm_crtc *crtc)
 {
 	struct dm_crtc_state *state;
 
+	state = kzalloc_obj(*state);
+	if (!state)
+		return;
+
 	if (crtc->state)
 		amdgpu_dm_crtc_destroy_state(crtc, crtc->state);
-
-	state = kzalloc_obj(*state);
-	if (WARN_ON(!state))
-		return;
 
 	__drm_atomic_helper_crtc_reset(crtc, &state->base);
 }
