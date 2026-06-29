@@ -1365,9 +1365,9 @@ static int vd55g1_init_state(struct v4l2_subdev *sd,
 		code = vd55g1_mbus_formats_mono[0];
 	else
 		code = vd55g1_mbus_formats_bayer[0][0];
-	vd55g1_update_pad_fmt(sensor,
-			      &vd55g1_supported_modes[VD55G1_MODE_IDX_DEF],
-			      vd55g1_get_fmt_code(sensor, code), &fmt.format);
+	fmt.format.code = vd55g1_get_fmt_code(sensor, code);
+	fmt.format.width = vd55g1_supported_modes[VD55G1_MODE_IDX_DEF].width;
+	fmt.format.height = vd55g1_supported_modes[VD55G1_MODE_IDX_DEF].height;
 
 	return vd55g1_set_pad_fmt(sd, sd_state, &fmt);
 }
