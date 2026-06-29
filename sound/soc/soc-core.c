@@ -2011,6 +2011,19 @@ static void snd_soc_unbind_card(struct snd_soc_card *card)
 	}
 }
 
+/*
+ * True if @dev is a descendant of @ancestor in the device hierarchy.
+ * device_is_dependent() is not exported, so walk the parent chain.
+ */
+static bool soc_dev_is_descendant(struct device *dev, struct device *ancestor)
+{
+	for (dev = dev->parent; dev; dev = dev->parent)
+		if (dev == ancestor)
+			return true;
+
+	return false;
+}
+
 static int snd_soc_bind_card(struct snd_soc_card *card)
 {
 	struct snd_soc_pcm_runtime *rtd;
@@ -2150,6 +2163,18 @@ static int snd_soc_bind_card(struct snd_soc_card *card)
 	 */
 	for_each_card_components(card, component) {
 		if (card->dev == component->dev)
+			continue;
+
+		/*
+		 * A component that is a descendant of the card device already
+		 * suspends before it by virtue of the parent/child relationship,
+		 * and device_link_add() would (correctly) refuse a link pointing
+		 * from a parent to its own child. This is a legitimate topology
+		 * (e.g. vc4-hdmi and its hdmi-audio-codec child), so skip it
+		 * silently rather than emitting a spurious "Could not create
+		 * device link" warning on every boot.
+		 */
+		if (soc_dev_is_descendant(component->dev, card->dev))
 			continue;
 
 		component->card_device_link = device_link_add(card->dev,
