@@ -545,6 +545,10 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0x3e20), 0x01},
 	{CCI_REG8(0x3e37), 0x00},
 	{CCI_REG8(0x3f50), 0x00},
+	{CCI_REG8(IMX477_REG_OUTIF2), 0x00},
+	{CCI_REG8(IMX477_REG_MNTTEST3_SEL_H), 0x00},
+	{CCI_REG8(IMX477_REG_MNTTEST3_SEL_L), 0x15},
+	{CCI_REG8(IMX477_REG_TESTMNT2), 0xfd},
 };
 
 /* 12 mpix 10fps */
@@ -1662,17 +1666,8 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		  &ret);
 	cci_write(imx477->regmap, IMX477_REG_MC_MODE, (tm > 0) ? 1 : 0, &ret);
 
-	/* in trigger mode 1 we also enable hsync output, for test use only */
-	if (tm == 1) {
-		cci_write(imx477->regmap, IMX477_REG_OUTIF2, 0, &ret);
-		cci_write(imx477->regmap, IMX477_REG_MNTTEST3_SEL_H, 0,
-			  &ret);
-		cci_write(imx477->regmap, IMX477_REG_MNTTEST3_SEL_L, 0x15,
-			  &ret);
-		cci_write(imx477->regmap, IMX477_REG_TESTMNT2, 0xfd, &ret);
-	}
-	cci_write(imx477->regmap, IMX477_REG_CKTESTSEL, (tm == 1) ? 0 : 7,
-		  &ret);
+	/* unconditionally enable hsync output, for test use only */
+	cci_write(imx477->regmap, IMX477_REG_CKTESTSEL, 0, &ret);
 
 	/* set stream on register */
 	cci_write(imx477->regmap, IMX477_REG_MODE_SELECT,
