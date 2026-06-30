@@ -1170,9 +1170,9 @@ static void zynqmp_dma_remove(struct platform_device *pdev)
 	dma_async_device_unregister(&zdev->common);
 
 	zynqmp_dma_chan_remove(zdev->chan);
-	if (pm_runtime_active(zdev->dev))
-		zynqmp_dma_runtime_suspend(zdev->dev);
 	pm_runtime_disable(zdev->dev);
+	if (!pm_runtime_status_suspended(zdev->dev))
+		zynqmp_dma_runtime_suspend(zdev->dev);
 }
 
 static const struct of_device_id zynqmp_dma_of_match[] = {
