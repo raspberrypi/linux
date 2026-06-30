@@ -506,13 +506,7 @@ static int dw_spi_transfer_one(struct spi_controller *ctlr,
 	if (!dws->rx) {
 		dws->rx_len = 0;
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
-	}
-
-	if (!dws->rx) {
-		dws->rx_len = 0;
-		cfg.tmode = DW_SPI_CTRLR0_TMOD_TO;
-	}
-	if (!dws->tx) {
+	} else if (!dws->tx) {
 		dws->tx_len = 0;
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
 		cfg.ndf = dws->rx_len;
