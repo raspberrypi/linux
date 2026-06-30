@@ -7689,13 +7689,31 @@ module_param_named(panic_on_stall_time, wq_panic_on_stall_time, uint, 0644);
 MODULE_PARM_DESC(panic_on_stall_time, "Panic if stall exceeds this many seconds (0=disabled)");
 
 /*
- * Show workers that might prevent the processing of pending work items.
- * A busy worker that is not running on the CPU (e.g. sleeping in
- * wait_event_idle() with PF_WQ_WORKER cleared) can stall the pool just as
- * effectively as a CPU-bound one, so dump every in-flight worker.
+ * Report that a pool has no worker in running state, which is a sign that the
+ * pool may be stuck. Print pool info. Must be called with pool->lock held and
+ * inside a printk_deferred_enter/exit region.
+ */
+static void show_pool_no_running_worker(struct worker_pool *pool)
+{
+	lockdep_assert_held(&pool->lock);
+
+	printk_deferred_enter();
+	pr_info("pool %d: no worker in running state, cpu=%d is %s (nr_workers=%d nr_idle=%d)\n",
+		pool->id, pool->cpu,
+		idle_cpu(pool->cpu) ? "idle" : "busy",
+		pool->nr_workers, pool->nr_idle);
+	pr_info("The pool might have trouble waking an idle worker.\n");
+	printk_deferred_exit();
+}
+
+/*
+ * Show running workers that might prevent the processing of pending work items.
+ * If no running worker is found, the pool may be stuck waiting for an idle
+ * worker to be woken, so report the pool state.
  */
 static void show_cpu_pool_busy_workers(struct worker_pool *pool)
 {
+	bool found_running = false;
 	struct worker *worker;
 	unsigned long irq_flags;
 	int bkt;
@@ -7703,6 +7721,11 @@ static void show_cpu_pool_busy_workers(struct worker_pool *pool)
 	raw_spin_lock_irqsave(&pool->lock, irq_flags);
 
 	hash_for_each(pool->busy_hash, bkt, worker, hentry) {
+		/* Skip workers that are not actively running on the CPU. */
+		if (!task_is_running(worker->task))
+			continue;
+
+		found_running = true;
 		/*
 		 * Defer printing to avoid deadlocks in console
 		 * drivers that queue work while holding locks
@@ -7715,6 +7738,13 @@ static void show_cpu_pool_busy_workers(struct worker_pool *pool)
 
 		printk_deferred_exit();
 	}
+
+	/*
+	 * If no running worker was found, the pool is likely stuck. Print pool
+	 * state.
+	 */
+	if (!found_running)
+		show_pool_no_running_worker(pool);
 
 	raw_spin_unlock_irqrestore(&pool->lock, irq_flags);
 }
