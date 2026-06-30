@@ -106,6 +106,9 @@
 #define ES8389_MIC_SEL_MASK           (7 << 4)
 #define ES8389_MIC_DEFAULT            (1 << 4)
 
+#define ES8389_HPF_DEFAULT            16
+#define ES8389_HPF_OFFSET             4
+
 #define ES8389_MASTER_MODE_EN         (1 << 0)
 
 #define ES8389_TDM_OFF                (0 << 0)
