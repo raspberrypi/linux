@@ -1,3 +1,5 @@
+# Linux 7.0 is now end-of-life
+
 Linux kernel
 ============
 
