@@ -25,6 +25,6 @@ Build status for rpi-6.18.y:
 [![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
 [![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-6.18.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
 
-Build status for rpi-7.0.y:
-[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-7.0.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
-[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-7.0.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
+Build status for rpi-7.2.y:
+[![Pi kernel build tests](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml/badge.svg?branch=rpi-7.2.y)](https://github.com/raspberrypi/linux/actions/workflows/kernel-build.yml)
+[![dtoverlaycheck](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml/badge.svg?branch=rpi-7.2.y)](https://github.com/raspberrypi/linux/actions/workflows/dtoverlaycheck.yml)
