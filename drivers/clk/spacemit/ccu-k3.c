@@ -926,11 +926,10 @@ CCU_MUX_DIV_GATE_FC_DEFINE(dpu_aclk, dpu_aclk_parents, APMU_LCD_CLK_RES_CTRL5, 1
 			   20, 3, BIT(16), 0);
 
 static const struct clk_parent_data ufs_aclk_parents[] = {
-	CCU_PARENT_HW(pll1_d6_409p6),
 	CCU_PARENT_HW(pll1_d5_491p52),
-	CCU_PARENT_HW(pll1_d4_614p4),
-	CCU_PARENT_HW(pll1_d8_307p2),
-	CCU_PARENT_HW(pll2_d4),
+	CCU_PARENT_HW(pll1_d6_409p6),
+	CCU_PARENT_HW(pll2_d6),
+	CCU_PARENT_HW(pll2_d5),
 };
 CCU_MUX_DIV_GATE_FC_DEFINE(ufs_aclk, ufs_aclk_parents, APMU_UFS_CLK_RES_CTRL, 5, 3, BIT(8),
 			   2, 3, BIT(1), 0);
