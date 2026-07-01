@@ -1,4 +1,5 @@
 #include <dt-bindings/clock/rp1.h>
+#include <dt-bindings/gpio/gpio.h>
 /*
  * Device tree overlay for the DRAWS Hardware on Raspberry Pi 5 / RP1
  *
@@ -47,7 +48,7 @@
                 compatible = "pps-gpio";
                 pinctrl-names = "default";
                 pinctrl-0 = <&pps_pins>;
-                gpios = <&gpio 7 0>;
+                gpios = <&gpio 7 GPIO_ACTIVE_HIGH>;
                 status = "okay";
             };
 
@@ -85,9 +86,9 @@
                  * GPIO13 is a shared, active-low reset for the codec and the
                  * SC16IS752. The aic32x4 driver deasserts by driving the line
                  * to its logical-low (released) state, so it must be declared
-                 * GPIO_ACTIVE_LOW (1) for the RP1 to leave it high on release.
+                 * GPIO_ACTIVE_LOW for the RP1 to leave it high on release.
                  */
-                reset-gpios = <&gpio 13 1>;
+                reset-gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
 
                 iov-supply = <&udrc0_ldoin>;
                 ldoin-supply = <&udrc0_ldoin>;
