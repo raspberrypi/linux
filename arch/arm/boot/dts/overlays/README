@@ -1253,6 +1253,10 @@ Params: draws_adc_ch4_gain      Sets the full scale resolution of the ADCs
         alsaname                Name of the ALSA audio device (default "draws")
 
 
+Name:   draws-pi5
+Info:   See draws (this is the Pi 5 version)
+
+
 Name:   dwc-otg
 Info:   The dwc-otg has been deprecated.
 Load:   <Deprecated>
