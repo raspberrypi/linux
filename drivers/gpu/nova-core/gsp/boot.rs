@@ -146,7 +146,7 @@ impl super::Gsp {
         self.cmdq
             .send_command_no_wait(bar, commands::SetSystemInfo::new(pdev, chipset))?;
         self.cmdq
-            .send_command_no_wait(bar, commands::SetRegistry::new())?;
+            .send_command_no_wait(bar, commands::SetRegistry::new()?)?;
 
         hal.post_boot(&self, dev, bar, &gsp_fw, gsp_falcon, sec2_falcon)?;
 
