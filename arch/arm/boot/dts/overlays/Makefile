@@ -60,6 +60,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dpi18cpadhi.dtbo \
 	dpi24.dtbo \
 	draws.dtbo \
+	draws-pi5.dtbo \
 	dwc-otg-deprecated.dtbo \
 	dwc2.dtbo \
 	edt-ft5406.dtbo \

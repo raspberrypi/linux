@@ -53,6 +53,16 @@
 		bcm2712;
 	};
 
+	draws {
+		bcm2835;
+		bcm2711;
+		bcm2712 = "draws-pi5";
+	};
+
+	draws-pi5 {
+		bcm2712;
+	};
+
 	dwc-otg {
 		renamed = "dwc-otg-deprecated";
 	};
