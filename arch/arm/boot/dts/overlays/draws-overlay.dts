@@ -76,7 +76,8 @@
                 pinctrl-names = "default";
                 pinctrl-0 = <&gpclk0_pin &aic3204_reset>;
 
-                reset-gpios = <&gpio 13 0>;
+                /* Shared active-low reset for the codec and the SC16IS752 */
+                reset-gpios = <&gpio 13 1>;
 
                 iov-supply = <&udrc0_ldoin>;
                 ldoin-supply = <&udrc0_ldoin>;
