@@ -4741,6 +4741,11 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
 
         debug                   Enable debug output (default off)
 
+        gpios_22_27             Route SD0 to GPIO 22-27 (CLK, CMD, DAT0-3)
+                                for use with a secondary SD card slot on
+                                custom carrier boards (e.g. CM4 baseboard).
+                                Applies ALT0 function and appropriate pulls.
+
 
 Name:   sdio
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
