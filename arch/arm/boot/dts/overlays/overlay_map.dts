@@ -210,6 +210,10 @@
 		deprecated = "use i2c-sensor,mpu6050";
 	};
 
+	nospi10 {
+		bcm2712;
+	};
+
 	pcie-32bit-dma {
 		bcm2711;
 		bcm2712 = "pcie-32bit-dma-pi5";
