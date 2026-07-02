@@ -71,6 +71,7 @@ struct cs_etm_auxtrace {
 	int num_cpu;
 	u64 latest_kernel_timestamp;
 	u32 auxtrace_type;
+	u32 branches_filter;
 	u64 branches_sample_type;
 	u64 branches_id;
 	u64 instructions_sample_type;
@@ -1704,6 +1705,10 @@ static int cs_etm__synth_branch_sample(struct cs_etm_queue *etmq,
 		struct branch_entry	entries;
 	} dummy_bs;
 	u64 ip;
+
+	if (etm->branches_filter &&
+		!(etm->branches_filter & tidq->prev_packet->flags))
+		return 0;
 
 	perf_sample__init(&sample, /*all=*/true);
 	ip = cs_etm__last_executed_instr(tidq->prev_packet);
@@ -3563,6 +3568,16 @@ int cs_etm__process_auxtrace_info_full(union perf_event *event,
 				session->itrace_synth_opts->default_no_sample);
 		etm->synth_opts.callchain = false;
 	}
+
+	if (etm->synth_opts.calls)
+		etm->branches_filter |= PERF_IP_FLAG_CALL |
+					PERF_IP_FLAG_TRACE_BEGIN |
+					PERF_IP_FLAG_TRACE_END;
+
+	if (etm->synth_opts.returns)
+		etm->branches_filter |= PERF_IP_FLAG_RETURN |
+					PERF_IP_FLAG_TRACE_BEGIN |
+					PERF_IP_FLAG_TRACE_END;
 
 	etm->session = session;
 
