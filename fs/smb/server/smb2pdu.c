@@ -1805,6 +1805,13 @@ int smb2_sess_setup(struct ksmbd_work *work)
 		sess = ksmbd_session_lookup(conn,
 					    le64_to_cpu(req->hdr.SessionId));
 		if (!sess) {
+			sess = ksmbd_session_lookup_slowpath(le64_to_cpu(req->hdr.SessionId));
+			if (sess && !lookup_chann_list(sess, conn)) {
+				ksmbd_user_session_put(sess);
+				sess = NULL;
+			}
+		}
+		if (!sess) {
 			rc = -ENOENT;
 			goto out_err;
 		}
