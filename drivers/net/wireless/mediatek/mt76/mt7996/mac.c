@@ -1936,6 +1936,9 @@ void mt7996_rro_rx_process(struct mt76_dev *mdev, void *data)
 	struct mt7996_msdu_page *p = NULL;
 	int i, seq_num = 0;
 
+	if (seq_id > MT7996_RRO_MAX_SESSION)
+		return;
+
 	for (i = 0; i < ind_count; i++) {
 		struct mt7996_wed_rro_addr *e;
 		struct mt76_rx_status *status;
