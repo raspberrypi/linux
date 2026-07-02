@@ -572,21 +572,32 @@ mt7996_mcu_rx_log_message(struct mt7996_dev *dev, struct sk_buff *skb)
 {
 #define UNI_EVENT_FW_LOG_FORMAT 0
 	struct mt7996_mcu_rxd *rxd = (struct mt7996_mcu_rxd *)skb->data;
-	const char *data = (char *)&rxd[1] + 4, *type;
-	struct tlv *tlv = (struct tlv *)data;
+	const char *data, *type;
+	struct tlv *tlv;
 	int len;
 
+	if (skb->len < sizeof(*rxd))
+		return;
+
 	if (!(rxd->option & MCU_UNI_CMD_EVENT)) {
-		len = skb->len - sizeof(*rxd);
 		data = (char *)&rxd[1];
+		len = skb->len - sizeof(*rxd);
 		goto out;
 	}
 
+	if (skb->len < sizeof(*rxd) + 4 + sizeof(*tlv))
+		return;
+
+	tlv = (struct tlv *)((char *)&rxd[1] + 4);
 	if (le16_to_cpu(tlv->tag) != UNI_EVENT_FW_LOG_FORMAT)
 		return;
 
-	data += sizeof(*tlv) + 4;
+	if (le16_to_cpu(tlv->len) < sizeof(*tlv) + 4)
+		return;
+
+	data = (char *)tlv + sizeof(*tlv) + 4;
 	len = le16_to_cpu(tlv->len) - sizeof(*tlv) - 4;
+	len = min_t(int, len, skb->len - (int)(data - (char *)skb->data));
 
 out:
 	switch (rxd->s2d_index) {
@@ -648,13 +659,38 @@ static void
 mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 {
 	struct mt7996_mcu_all_sta_info_event *res;
+	u32 elem_size;
+	u16 sta_num;
 	u16 i;
+
+	if (skb->len < sizeof(struct mt7996_mcu_rxd))
+		return;
 
 	skb_pull(skb, sizeof(struct mt7996_mcu_rxd));
 
 	res = (struct mt7996_mcu_all_sta_info_event *)skb->data;
+	if (skb->len < sizeof(*res))
+		return;
 
-	for (i = 0; i < le16_to_cpu(res->sta_num); i++) {
+	sta_num = le16_to_cpu(res->sta_num);
+	switch (le16_to_cpu(res->tag)) {
+	case UNI_ALL_STA_TXRX_RATE:
+		elem_size = sizeof(res->rate[0]);
+		break;
+	case UNI_ALL_STA_TXRX_ADM_STAT:
+		elem_size = sizeof(res->adm_stat[0]);
+		break;
+	case UNI_ALL_STA_TXRX_MSDU_COUNT:
+		elem_size = sizeof(res->msdu_cnt[0]);
+		break;
+	default:
+		return;
+	}
+
+	if (sta_num > (skb->len - sizeof(*res)) / elem_size)
+		sta_num = (skb->len - sizeof(*res)) / elem_size;
+
+	for (i = 0; i < sta_num; i++) {
 		u8 ac;
 		u16 wlan_idx;
 		struct mt76_wcid *wcid;
