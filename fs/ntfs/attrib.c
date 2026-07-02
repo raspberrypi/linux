@@ -174,7 +174,10 @@ int ntfs_map_runlist_nolock(struct ntfs_inode *ni, s64 vcn, struct ntfs_attr_sea
 				err = -EIO;
 			goto err_out;
 		}
-		WARN_ON(!ctx->attr->non_resident);
+		if (unlikely(!ctx->attr->non_resident)) {
+			err = -EIO;
+			goto err_out;
+		}
 	}
 	a = ctx->attr;
 	/*
