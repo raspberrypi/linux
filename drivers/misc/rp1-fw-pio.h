@@ -52,6 +52,11 @@ enum rp1_pio_ops {
 	PIO_SM_GET_FLAGS,	// u16 sm, u8 clear, u8 rsvd, u32 flags, u32 wait -> u32 level
 	PIO_SM_GET_DMACTRL,	// u16 sm, u16 is_tx -> u32 ctrl
 
+	PIO_SET_IRQN_SOURCE_MASK_ENABLED,	// u16 irq_index, u8 enabled, u8 rsvd,
+						// uint32_t source_mask
+	PIO_INTERRUPT_GET,	// u16 pio_interrupt_num -> u8 active
+	PIO_INTERRUPT_CLEAR,	// u16 pio_interrupt_num
+
 	PIO_COUNT
 };
 
