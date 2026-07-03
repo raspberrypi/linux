@@ -1783,8 +1783,8 @@ static noinline int bpf_jit_insn(struct bpf_jit *jit, struct bpf_prog *fp,
 		    insn->imm == BPF_FUNC_get_smp_processor_id) {
 			const u32 *cpu_nr = &get_lowcore()->cpu_nr;
 
-			/* ly %b0, cpu_nr */
-			EMIT6_DISP_LH(0xe3000000, 0x0058, BPF_REG_0, REG_0, REG_0,
+			/* llgf %b0, cpu_nr */
+			EMIT6_DISP_LH(0xe3000000, 0x0016, BPF_REG_0, REG_0, REG_0,
 				      (unsigned long)cpu_nr);
 			break;
 		}
