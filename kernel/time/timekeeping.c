@@ -3315,7 +3315,9 @@ static const struct attribute_group aux_clock_enable_attr_group = {
 static int __init tk_aux_sysfs_init(void)
 {
 	struct kobject *auxo, *tko = kobject_create_and_add("time", kernel_kobj);
+	struct kobject *clks[MAX_AUX_CLOCKS];
 	int ret = -ENOMEM;
+	int i;
 
 	if (!tko)
 		return ret;
@@ -3324,21 +3326,28 @@ static int __init tk_aux_sysfs_init(void)
 	if (!auxo)
 		goto err_clean;
 
-	for (int i = 0; i < MAX_AUX_CLOCKS; i++) {
+	for (i = 0; i < MAX_AUX_CLOCKS; i++) {
 		char id[2] = { [0] = '0' + i, };
-		struct kobject *clk = kobject_create_and_add(id, auxo);
+		clks[i] = kobject_create_and_add(id, auxo);
 
-		if (!clk) {
+		if (!clks[i]) {
 			ret = -ENOMEM;
-			goto err_clean;
+			goto err_clks;
 		}
 
-		ret = sysfs_create_group(clk, &aux_clock_enable_attr_group);
+		ret = sysfs_create_group(clks[i], &aux_clock_enable_attr_group);
 		if (ret)
-			goto err_clean;
+			goto err_clk;
 	}
 	return 0;
 
+err_clk:
+	kobject_put(clks[i]);
+err_clks:
+	while (--i >= 0) {
+		sysfs_remove_group(clks[i], &aux_clock_enable_attr_group);
+		kobject_put(clks[i]);
+	}
 err_clean:
 	kobject_put(auxo);
 	kobject_put(tko);
