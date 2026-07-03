@@ -677,10 +677,13 @@ static unsigned long find_nearest_trampoline(unsigned long vaddr)
 	return high_tramp;
 }
 
-static struct vm_area_struct *get_uprobe_trampoline(struct mm_struct *mm, unsigned long vaddr)
+static struct vm_area_struct *get_uprobe_trampoline(struct mm_struct *mm, unsigned long vaddr,
+						    bool *new_mapping)
 {
 	VMA_ITERATOR(vmi, mm, 0);
 	struct vm_area_struct *vma;
+
+	*new_mapping = false;
 
 	if (vaddr > TASK_SIZE || vaddr < PAGE_SIZE)
 		return ERR_PTR(-EINVAL);
@@ -696,6 +699,7 @@ static struct vm_area_struct *get_uprobe_trampoline(struct mm_struct *mm, unsign
 	if (IS_ERR_VALUE(vaddr))
 		return ERR_PTR(vaddr);
 
+	*new_mapping = true;
 	return _install_special_mapping(mm, vaddr, PAGE_SIZE,
 				VM_READ|VM_EXEC|VM_MAYEXEC|VM_MAYREAD|VM_DONTCOPY|VM_IO,
 				&tramp_mapping);
@@ -1053,6 +1057,7 @@ static int __arch_uprobe_optimize(struct arch_uprobe *auprobe, struct mm_struct 
 {
 	struct pt_regs *regs = task_pt_regs(current);
 	struct vm_area_struct *vma, *tramp;
+	bool new_mapping;
 	int ret;
 
 	if (!user_64bit_mode(regs))
@@ -1060,10 +1065,13 @@ static int __arch_uprobe_optimize(struct arch_uprobe *auprobe, struct mm_struct 
 	vma = find_vma(mm, vaddr);
 	if (!vma)
 		return -EINVAL;
-	tramp = get_uprobe_trampoline(mm, vaddr);
+	tramp = get_uprobe_trampoline(mm, vaddr, &new_mapping);
 	if (IS_ERR(tramp))
 		return PTR_ERR(tramp);
-	return WARN_ON_ONCE(swbp_optimize(auprobe, vma, vaddr, tramp->vm_start));
+	ret = swbp_optimize(auprobe, vma, vaddr, tramp->vm_start);
+	if (WARN_ON_ONCE(ret) && new_mapping)
+		WARN_ON_ONCE(do_munmap(mm, tramp->vm_start, PAGE_SIZE, NULL));
+	return ret;
 }
 
 void arch_uprobe_optimize(struct arch_uprobe *auprobe, unsigned long vaddr)
