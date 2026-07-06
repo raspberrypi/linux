@@ -632,8 +632,11 @@ void ir_raw_event_free(struct rc_dev *dev)
 {
 	if (dev->raw) {
 		timer_delete_sync(&dev->raw->edge_handle);
+		mutex_lock(&ir_raw_handler_lock);
 		if (dev->raw->thread)
 			put_task_struct(dev->raw->thread);
+		lirc_bpf_free(dev);
+		mutex_unlock(&ir_raw_handler_lock);
 		kfree(dev->raw);
 		dev->raw = NULL;
 	}
@@ -642,9 +645,6 @@ void ir_raw_event_free(struct rc_dev *dev)
 void ir_raw_event_unregister(struct rc_dev *dev)
 {
 	struct ir_raw_handler *handler;
-
-	if (!dev || !dev->raw)
-		return;
 
 	/*
 	 * After ir_raw_event_unregister() is called, an sync
@@ -665,11 +665,6 @@ void ir_raw_event_unregister(struct rc_dev *dev)
 
 	lirc_bpf_free(dev);
 
-	/*
-	 * A user can be calling bpf(BPF_PROG_{QUERY|ATTACH|DETACH}), so
-	 * ensure that the raw member is null on unlock; this is how
-	 * "device gone" is checked.
-	 */
 	mutex_unlock(&ir_raw_handler_lock);
 }
 
