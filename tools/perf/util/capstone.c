@@ -24,6 +24,13 @@
 #include "symbol.h"
 #include "thread.h"
 
+#if CS_VERSION_MAJOR < 5
+#define CS_ARCH_RISCV    15
+#define CS_MODE_RISCV32  1
+#define CS_MODE_RISCV64  2
+#define CS_MODE_RISCVC   4
+#endif
+
 #ifdef LIBCAPSTONE_DLOPEN
 static void *perf_cs_dll_handle(void)
 {
