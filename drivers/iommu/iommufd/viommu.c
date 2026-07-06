@@ -189,7 +189,7 @@ int iommufd_vdevice_alloc_ioctl(struct iommufd_ucmd *ucmd)
 		if (WARN_ON_ONCE(viommu->ops->vdevice_size < vdev_size ||
 				 !viommu->ops->vdevice_init)) {
 			rc = -EOPNOTSUPP;
-			goto out_put_idev;
+			goto out_unlock_igroup;
 		}
 		vdev_size = viommu->ops->vdevice_size;
 	}
