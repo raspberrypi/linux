@@ -204,6 +204,8 @@ v3d_clean_caches(struct v3d_dev *v3d)
 	struct drm_device *dev = &v3d->drm;
 	int core = 0;
 
+	guard(mutex)(&v3d->cache_clean_lock);
+
 	trace_v3d_cache_clean_begin(dev);
 
 	/* GFXH-1897: Ensure pending flushes complete before writing L2TCACTL */
@@ -220,7 +222,6 @@ v3d_clean_caches(struct v3d_dev *v3d)
 		DRM_ERROR("Timeout waiting for TMU write combiner flush\n");
 	}
 
-	mutex_lock(&v3d->cache_clean_lock);
 	V3D_CORE_WRITE(core, V3D_CTL_L2TCACTL,
 		       V3D_L2TCACTL_L2TFLS |
 		       V3D_SET_FIELD(V3D_L2TCACTL_FLM_CLEAN, V3D_L2TCACTL_FLM));
@@ -229,8 +230,6 @@ v3d_clean_caches(struct v3d_dev *v3d)
 		       V3D_L2TCACTL_L2TFLS), 100)) {
 		DRM_ERROR("Timeout waiting for L2T clean\n");
 	}
-
-	mutex_unlock(&v3d->cache_clean_lock);
 
 	trace_v3d_cache_clean_end(dev);
 }
