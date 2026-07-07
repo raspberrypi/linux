@@ -384,6 +384,13 @@
     "UMask": "0x0c"
   },
   {
+    "EventName": "sse_avx_ops_retired.mmx_pack",
+    "EventCode": "0x0b",
+    "BriefDescription": "This event is deprecated. Refer to new event sse_avx_ops_retired.mmx_vnni",
+    "Deprecated": "1",
+    "UMask": "0x0c"
+  },
+  {
     "EventName": "sse_avx_ops_retired.mmx_logical",
     "EventCode": "0x0b",
     "BriefDescription": "Retired MMX integer logical ops.",
@@ -450,6 +457,13 @@
     "UMask": "0x80"
   },
   {
+    "EventName": "sse_avx_ops_retired.sse_avx_clm",
+    "EventCode": "0x0b",
+    "BriefDescription": "This event is deprecated. Refer to new event sse_avx_ops_retired.sse_avx_cvt",
+    "Deprecated": "1",
+    "UMask": "0x80"
+  },
+  {
     "EventName": "sse_avx_ops_retired.sse_avx_shift",
     "EventCode": "0x0b",
     "BriefDescription": "Retired SSE and AVX integer shift or rotate ops.",
@@ -471,6 +485,13 @@
     "EventName": "sse_avx_ops_retired.sse_avx_vnni",
     "EventCode": "0x0b",
     "BriefDescription": "Retired SSE and AVX integer VNNI ops.",
+    "UMask": "0xc0"
+  },
+  {
+    "EventName": "sse_avx_ops_retired.sse_avx_pack",
+    "EventCode": "0x0b",
+    "BriefDescription": "This event is deprecated. Refer to new event sse_avx_ops_retired.sse_avx_vnni",
+    "Deprecated": "1",
     "UMask": "0xc0"
   },
   {
@@ -732,6 +753,13 @@
     "UMask": "0x08"
   },
   {
+    "EventName": "packed_int_op_type.int128_clm",
+    "EventCode": "0x0d",
+    "BriefDescription": "This event is deprecated. Refer to new event packed_int_op_type.int128_cvt",
+    "Deprecated": "1",
+    "UMask": "0x08"
+  },
+  {
     "EventName": "packed_int_op_type.int128_shift",
     "EventCode": "0x0d",
     "BriefDescription": "Retired 128-bit packed integer shift or rotate ops.",
@@ -753,6 +781,13 @@
     "EventName": "packed_int_op_type.int128_vnni",
     "EventCode": "0x0d",
     "BriefDescription": "Retired 128-bit packed integer VNNI ops.",
+    "UMask": "0x0c"
+  },
+  {
+    "EventName": "packed_int_op_type.int128_pack",
+    "EventCode": "0x0d",
+    "BriefDescription": "This event is deprecated. Refer to new event packed_int_op_type.int128_vnni",
+    "Deprecated": "1",
     "UMask": "0x0c"
   },
   {
@@ -843,6 +878,13 @@
     "EventName": "packed_int_op_type.int256_vnni",
     "EventCode": "0x0d",
     "BriefDescription": "Retired 256-bit packed integer VNNI ops.",
+    "UMask": "0xc0"
+  },
+  {
+    "EventName": "packed_int_op_type.int256_pack",
+    "EventCode": "0x0d",
+    "BriefDescription": "This event is deprecated. Refer to new event packed_int_op_type.int256_vnni",
+    "Deprecated": "1",
     "UMask": "0xc0"
   },
   {
