@@ -8,6 +8,7 @@
 #include <perf/mmap.h>
 #include <linux/perf_event.h>
 #include <limits.h>
+#include <poll.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdbool.h>
@@ -54,6 +55,19 @@ static void *perf_evlist__poll_thread(void *arg)
 
 		if (!draining)
 			evlist__poll(evlist, 1000);
+
+		/*
+		 * When a thread of the monitored target exits, its per-cpu
+		 * ring-buffer fd is closed and starts returning POLLHUP. Such
+		 * dead fds are never requested for POLLIN, but poll() reports
+		 * POLLHUP/POLLERR unconditionally, so leaving them in the
+		 * pollfd array makes the following evlist__poll() return
+		 * immediately forever, spinning this thread at 100% CPU.
+		 *
+		 * Filter them out here, mirroring what the 'perf record' main
+		 * loop does after fdarray__poll().
+		 */
+		evlist__filter_pollfd(evlist, POLLERR | POLLHUP);
 
 		for (i = 0; i < evlist__core(evlist)->nr_mmaps; i++) {
 			struct mmap *map = &evlist__mmap(evlist)[i];
