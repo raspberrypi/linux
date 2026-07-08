@@ -1592,15 +1592,24 @@ static void record__adjust_affinity(struct record *rec, struct mmap *map)
 	}
 }
 
-static size_t process_comp_header(void *record, size_t increment)
+/*
+ * Called once with data_size == 0 to start a record, then once with
+ * data_size == compressed payload size to finalize.
+ * Returns the bytes written, or -1 if it won't fit.
+ */
+static ssize_t process_comp_header(void *record, size_t dst_size,
+				   size_t data_size)
 {
 	struct perf_record_compressed2 *event = record;
 	size_t size = sizeof(*event);
 
-	if (increment) {
-		event->header.size += increment;
-		return increment;
+	if (data_size) {
+		event->header.size += data_size;
+		return 0;
 	}
+
+	if (size > dst_size)
+		return -1;
 
 	event->header.type = PERF_RECORD_COMPRESSED2;
 	event->header.size = size;
