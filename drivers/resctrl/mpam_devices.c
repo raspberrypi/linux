@@ -2595,8 +2595,10 @@ static void __destroy_component_cfg(struct mpam_component *comp)
 		msc = vmsc->msc;
 
 		if (mpam_mon_sel_lock(msc)) {
-			list_for_each_entry(ris, &vmsc->ris, vmsc_list)
-				add_to_garbage(ris->mbwu_state);
+			list_for_each_entry(ris, &vmsc->ris, vmsc_list) {
+				if (ris->mbwu_state)
+					add_to_garbage(ris->mbwu_state);
+			}
 			mpam_mon_sel_unlock(msc);
 		}
 	}
