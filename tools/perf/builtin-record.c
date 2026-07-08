@@ -64,6 +64,7 @@
 #include <poll.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
 #ifndef HAVE_GETTID
 #include <syscall.h>
 #endif
@@ -653,27 +654,14 @@ static int record__pushfn(struct mmap *map, void *to, void *bf, size_t size)
 	struct record *rec = to;
 
 	if (record__comp_enabled(rec)) {
-		struct perf_record_compressed2 *event = map->data;
-		size_t padding = 0;
-		u8 pad[8] = {0};
 		ssize_t compressed = zstd_compress(rec->session, map, map->data,
 						   mmap__mmap_len(map), bf, size);
 
 		if (compressed < 0)
 			return (int)compressed;
 
-		bf = event;
 		thread->samples++;
-
-		/*
-		 * The record from `zstd_compress` is not 8 bytes aligned, which would cause asan
-		 * error. We make it aligned here.
-		 */
-		event->data_size = compressed - sizeof(struct perf_record_compressed2);
-		event->header.size = PERF_ALIGN(compressed, sizeof(u64));
-		padding = event->header.size - compressed;
-		return record__write(rec, map, bf, compressed) ||
-		       record__write(rec, map, &pad, padding);
+		return record__write(rec, map, map->data, compressed);
 	}
 
 	thread->samples++;
@@ -1594,7 +1582,8 @@ static void record__adjust_affinity(struct record *rec, struct mmap *map)
 
 /*
  * Called once with data_size == 0 to start a record, then once with
- * data_size == compressed payload size to finalize.
+ * data_size == compressed payload size to finalize and 8-byte-pad it
+ * (unaligned records trip ASan in the reader).
  * Returns the bytes written, or -1 if it won't fit.
  */
 static ssize_t process_comp_header(void *record, size_t dst_size,
@@ -1604,8 +1593,15 @@ static ssize_t process_comp_header(void *record, size_t dst_size,
 	size_t size = sizeof(*event);
 
 	if (data_size) {
-		event->header.size += data_size;
-		return 0;
+		size_t padding;
+
+		event->data_size = data_size;
+		event->header.size = PERF_ALIGN(size + data_size, sizeof(u64));
+		padding = event->header.size - size - data_size;
+		if (padding > dst_size)
+			return -1;
+		memset(record + size + data_size, 0, padding);
+		return padding;
 	}
 
 	if (size > dst_size)
@@ -1613,6 +1609,7 @@ static ssize_t process_comp_header(void *record, size_t dst_size,
 
 	event->header.type = PERF_RECORD_COMPRESSED2;
 	event->header.size = size;
+	event->data_size = 0;
 
 	return size;
 }
@@ -1621,7 +1618,12 @@ static ssize_t zstd_compress(struct perf_session *session, struct mmap *map,
 			    void *dst, size_t dst_size, void *src, size_t src_size)
 {
 	ssize_t compressed;
-	size_t max_record_size = PERF_SAMPLE_MAX_SIZE - sizeof(struct perf_record_compressed2) - 1;
+	/*
+	 * Reserve space so per-record PERF_ALIGN() padding keeps header.size
+	 * within u16.
+	 */
+	size_t max_record_size = PERF_SAMPLE_MAX_SIZE
+		- sizeof(struct perf_record_compressed2) - sizeof(u64);
 	struct zstd_data *zstd_data = &session->zstd_data;
 
 	if (map && map->file)
