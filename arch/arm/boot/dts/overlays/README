@@ -1278,6 +1278,59 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
                                 mode
 
 
+Name:   ed-ipc
+Info:   Configures the EDATEC IPC/EXP series hardware peripherals.
+        This overlay provides support for PCA9535 GPIO expanders on
+        the EDATEC industrial PC carrier boards, including interrupt
+        handling, GPIO line names, and optional secondary expander
+        on i2c_arm.
+Load:   dtoverlay=ed-ipc,<param>=<val>
+Params: addr                    I2C address for primary PCA9535 GPIO expander
+                                (default 0x20)
+
+        exp_addr                I2C address for secondary PCA9535 GPIO
+                                expander on i2c_arm (default 0x27)
+
+        ipc3100                 Enable configuration for IPC3100 board
+                                (CM5, i2c_csi_dsi0, PCA int GPIO6)
+
+        ipc2100                 Enable configuration for IPC2100 board
+                                (CM4, i2c_csi_dsi, PCA int GPIO6)
+
+        ipc2210                 Enable configuration for IPC2210 board
+                                (CM4, i2c_csi_dsi, PCA int GPIO6)
+
+        ipc3210                 Enable configuration for IPC3210 board
+                                (CM5, i2c_csi_dsi0, PCA int GPIO6)
+
+        ipc1200                 Enable configuration for IPC1200 board
+                                (CM4, i2c_csi_dsi, PCA int GPIO15)
+
+        ipc3300                 Enable configuration for IPC3300 board
+                                (CM5, i2c_arm, PCA int GPIO38)
+
+        ipc2300                 Enable configuration for IPC2300 board
+                                (CM4, i2c_arm, PCA int GPIO44)
+
+        plc2010                 Enable configuration for PLC2010 board
+                                (i2c_arm, PCA int GPIO7, addr 0x21)
+
+        exp8x8y                 Enable 8-input/8-output expansion module
+                                (CM5, i2c_arm)
+
+        exp4x4y                 Enable 4-input/4-output expansion module
+                                (CM5, i2c_arm, exp at addr 0x21)
+
+        ipc3600                 Enable combined configuration for IPC3600
+                                (IPC3100 + exp8x8y)
+
+        ipc2600                 Enable combined configuration for IPC2600
+                                (IPC2100 + exp8x8y)
+
+        ipc1220                 Enable combined configuration for IPC1220
+                                (IPC1200 + exp4x4y)
+
+
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 
 
