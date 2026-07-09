@@ -2547,6 +2547,8 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority,
 
 	cgroup_sk_clone(&newsk->sk_cgrp_data);
 
+	RCU_INIT_POINTER(newsk->sk_reuseport_cb, NULL);
+
 	rcu_read_lock();
 	filter = rcu_dereference(sk->sk_filter);
 	if (filter != NULL)
@@ -2568,8 +2570,6 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority,
 
 		goto free;
 	}
-
-	RCU_INIT_POINTER(newsk->sk_reuseport_cb, NULL);
 
 	if (bpf_sk_storage_clone(sk, newsk))
 		goto free;
