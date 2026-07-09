@@ -263,7 +263,7 @@ static void nested_domain_free(struct iommu_domain *dom)
 {
 	unsigned long irqflags;
 	struct guest_domain_mapping_info *curr;
-	struct nested_domain *ndom = to_ndomain(dom);
+	struct nested_domain *ndom __free(kfree) = to_ndomain(dom);
 	struct amd_iommu_viommu *aviommu = ndom->viommu;
 
 	xa_lock_irqsave(&aviommu->gdomid_array, irqflags);
@@ -290,7 +290,6 @@ static void nested_domain_free(struct iommu_domain *dom)
 
 	amd_iommu_pdom_id_free(ndom->gdom_info->hdom_id);
 	kfree(curr);
-	kfree(ndom);
 }
 
 static const struct iommu_domain_ops nested_domain_ops = {
