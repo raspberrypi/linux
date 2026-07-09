@@ -2351,7 +2351,7 @@ int __init dm_early_create(struct dm_ioctl *dmi,
 	/* resume device */
 	r = dm_resume(md);
 	if (r)
-		goto err_destroy_table;
+		goto err_hash_remove;
 
 	DMINFO("%s (%s) is ready", md->disk->disk_name, dmi->name);
 	dm_put(md);
