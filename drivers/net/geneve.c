@@ -43,8 +43,17 @@ MODULE_PARM_DESC(log_ecn_error, "Log packets received with corrupted ECN");
 #define GENEVE_OPT_GRO_HINT_LEN		1
 
 struct geneve_opt_gro_hint {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
 	u8	inner_proto_id:2,
-		nested_is_v6:1;
+		nested_is_v6:1,
+		rsvd:5;
+#elif defined(__BIG_ENDIAN_BITFIELD)
+	u8	rsvd:5,
+		nested_is_v6:1,
+		inner_proto_id:2;
+#else
+#error "Please fix <asm/byteorder.h>"
+#endif
 	u8	nested_nh_offset;
 	u8	nested_tp_offset;
 	u8	nested_hdr_len;
