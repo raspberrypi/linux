@@ -2522,6 +2522,9 @@ static int dm_integrity_map_inline(struct dm_integrity_io *dio, bool from_map)
 	if (unlikely((bio->bi_opf & REQ_PREFLUSH) != 0))
 		return DM_MAPIO_REMAPPED;
 
+	if (unlikely(!dm_integrity_check_limits(ic, bio->bi_iter.bi_sector, bio)))
+		return DM_MAPIO_KILL;
+
 retry:
 	if (!dio->integrity_payload) {
 		unsigned digest_size, extra_size;
@@ -2585,10 +2588,6 @@ skip_spinlock:
 	}
 
 	dio->bio_details.bi_iter = bio->bi_iter;
-
-	if (unlikely(!dm_integrity_check_limits(ic, bio->bi_iter.bi_sector, bio))) {
-		return DM_MAPIO_KILL;
-	}
 
 	bio->bi_iter.bi_sector += ic->start + SB_SECTORS;
 
