@@ -7440,6 +7440,12 @@ err_unlock_and_disable:
 	percpu_up_write(&scx_fork_rwsem);
 err_disable:
 	mutex_unlock(&scx_enable_mutex);
+	/*
+	 * Some enable failures only return an errno (e.g. -ENOMEM from an
+	 * allocation) without calling scx_error(). Record it so
+	 * scx_flush_disable_work() runs the disable and ops.exit() fires.
+	 */
+	scx_error(sch, "scx_sub_enable() failed (%d)", ret);
 	scx_flush_disable_work(sch);
 	cmd->ret = 0;
 }
