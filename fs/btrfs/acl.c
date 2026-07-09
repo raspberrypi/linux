@@ -14,6 +14,7 @@
 #include "ctree.h"
 #include "xattr.h"
 #include "acl.h"
+#include "btrfs_inode.h"
 
 struct posix_acl *btrfs_get_acl(struct inode *inode, int type, bool rcu)
 {
@@ -115,6 +116,9 @@ int btrfs_set_acl(struct mnt_idmap *idmap, struct dentry *dentry,
 	int ret;
 	struct inode *inode = d_inode(dentry);
 	umode_t old_mode = inode->i_mode;
+
+	if (btrfs_root_readonly(BTRFS_I(inode)->root))
+		return -EROFS;
 
 	if (type == ACL_TYPE_ACCESS && acl) {
 		ret = posix_acl_update_mode(idmap, inode,
