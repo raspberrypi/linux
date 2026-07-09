@@ -138,6 +138,10 @@ static void __kvm_gmem_invalidate_begin(struct kvm_gmem *gmem, pgoff_t start,
 		}
 
 		flush |= kvm_mmu_unmap_gfn_range(kvm, &gfn_range);
+
+#ifdef CONFIG_HAVE_KVM_ARCH_GMEM_INVALIDATE
+		kvm_arch_gmem_invalidate_range(kvm, &gfn_range);
+#endif
 	}
 
 	if (flush)
