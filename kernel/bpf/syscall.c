@@ -1593,7 +1593,7 @@ static int map_create(union bpf_attr *attr, bpfptr_t uattr)
 
 	err = security_bpf_map_create(map, attr, token, uattr.is_kernel);
 	if (err)
-		goto free_map_sec;
+		goto free_map;
 
 	err = bpf_map_alloc_id(map);
 	if (err)
