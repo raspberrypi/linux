@@ -2549,6 +2549,9 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority,
 
 	RCU_INIT_POINTER(newsk->sk_reuseport_cb, NULL);
 
+	if (sock_needs_netstamp(sk) && newsk->sk_flags & SK_FLAGS_TIMESTAMP)
+		net_enable_timestamp();
+
 	rcu_read_lock();
 	filter = rcu_dereference(sk->sk_filter);
 	if (filter != NULL)
@@ -2598,9 +2601,6 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority,
 
 	if (newsk->sk_prot->sockets_allocated)
 		sk_sockets_allocated_inc(newsk);
-
-	if (sock_needs_netstamp(sk) && newsk->sk_flags & SK_FLAGS_TIMESTAMP)
-		net_enable_timestamp();
 out:
 	return newsk;
 free:
