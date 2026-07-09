@@ -1008,7 +1008,6 @@ static int ssd130x_fb_blit_rect(struct drm_framebuffer *fb,
 	struct ssd130x_device *ssd130x = drm_to_ssd130x(fb->dev);
 	struct iosys_map dst;
 	unsigned int dst_pitch;
-	int ret = 0;
 
 	/* Align y to display page boundaries */
 	rect->y1 = round_down(rect->y1, SSD130X_PAGE_HEIGHT);
@@ -1021,7 +1020,7 @@ static int ssd130x_fb_blit_rect(struct drm_framebuffer *fb,
 
 	ssd130x_update_rect(ssd130x, rect, buf, data_array);
 
-	return ret;
+	return 0;
 }
 
 static int ssd132x_fb_blit_rect(struct drm_framebuffer *fb,
@@ -1033,7 +1032,6 @@ static int ssd132x_fb_blit_rect(struct drm_framebuffer *fb,
 	struct ssd130x_device *ssd130x = drm_to_ssd130x(fb->dev);
 	unsigned int dst_pitch;
 	struct iosys_map dst;
-	int ret = 0;
 
 	/* Align x to display segment boundaries */
 	rect->x1 = round_down(rect->x1, SSD132X_SEGMENT_WIDTH);
@@ -1047,7 +1045,7 @@ static int ssd132x_fb_blit_rect(struct drm_framebuffer *fb,
 
 	ssd132x_update_rect(ssd130x, rect, buf, data_array);
 
-	return ret;
+	return 0;
 }
 
 static int ssd133x_fb_blit_rect(struct drm_framebuffer *fb,
@@ -1059,7 +1057,6 @@ static int ssd133x_fb_blit_rect(struct drm_framebuffer *fb,
 	const struct drm_format_info *fi = drm_format_info(DRM_FORMAT_RGB332);
 	unsigned int dst_pitch;
 	struct iosys_map dst;
-	int ret = 0;
 
 	if (!fi)
 		return -EINVAL;
@@ -1071,7 +1068,7 @@ static int ssd133x_fb_blit_rect(struct drm_framebuffer *fb,
 
 	ssd133x_update_rect(ssd130x, rect, data_array, dst_pitch);
 
-	return ret;
+	return 0;
 }
 
 static int ssd130x_primary_plane_atomic_check(struct drm_plane *plane,
