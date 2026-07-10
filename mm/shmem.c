@@ -2005,11 +2005,14 @@ unlock:
 	return ERR_PTR(error);
 }
 
+static DECLARE_WAIT_QUEUE_HEAD(shmem_swapcache_wq);
+
 static struct folio *shmem_swap_alloc_folio(struct inode *inode,
 		struct vm_area_struct *vma, pgoff_t index,
 		swp_entry_t entry, int order, gfp_t gfp)
 {
 	struct shmem_inode_info *info = SHMEM_I(inode);
+	DECLARE_WAITQUEUE(wait, current);
 	int nr_pages = 1 << order;
 	struct folio *new;
 	gfp_t alloc_gfp;
@@ -2066,6 +2069,10 @@ retry:
 	if (swapcache_prepare(entry, nr_pages)) {
 		folio_put(new);
 		new = ERR_PTR(-EEXIST);
+		/* Relax a bit to prevent rapid repeated page faults */
+		add_wait_queue(&shmem_swapcache_wq, &wait);
+		schedule_timeout_uninterruptible(1);
+		remove_wait_queue(&shmem_swapcache_wq, &wait);
 		/* Try smaller folio to avoid cache conflict */
 		goto fallback;
 	}
@@ -2423,6 +2430,8 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 	if (skip_swapcache) {
 		folio->swap.val = 0;
 		swapcache_clear(si, swap, nr_pages);
+		if (waitqueue_active(&shmem_swapcache_wq))
+			wake_up(&shmem_swapcache_wq);
 	} else {
 		swap_cache_del_folio(folio);
 	}
@@ -2442,8 +2451,11 @@ unlock:
 	if (folio)
 		folio_unlock(folio);
 failed_nolock:
-	if (skip_swapcache)
+	if (skip_swapcache) {
 		swapcache_clear(si, folio->swap, folio_nr_pages(folio));
+		if (waitqueue_active(&shmem_swapcache_wq))
+			wake_up(&shmem_swapcache_wq);
+	}
 	if (folio)
 		folio_put(folio);
 	put_swap_device(si);
