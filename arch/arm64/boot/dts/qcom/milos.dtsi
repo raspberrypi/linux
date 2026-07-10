@@ -1724,6 +1724,8 @@
 
 			iommus = <&apps_smmu 0x540 0>;
 
+			resets = <&gcc GCC_SDCC2_BCR>;
+
 			bus-width = <4>;
 
 			qcom,dll-config = <0x0007442c>;
