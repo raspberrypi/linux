@@ -2890,11 +2890,13 @@ static int __cmd_record(struct record *rec, int argc, const char **argv)
 		record__synthesize_workload(rec, true);
 
 out_child:
+	evlist__disable(rec->evlist);
 	record__stop_threads(rec);
 	record__mmap_read_all(rec, true);
 	goto out_free_threads;
 out_child_no_flush:
 	/* mmap read already failed — retrying would just fail again */
+	evlist__disable(rec->evlist);
 	record__stop_threads(rec);
 out_free_threads:
 	record__free_thread_data(rec);
