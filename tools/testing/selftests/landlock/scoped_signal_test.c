@@ -400,6 +400,24 @@ static int setup_signal_handler(int signal)
 	return sigaction(SIGURG, &sa, NULL);
 }
 
+/*
+ * MSG_OOB might be disabled in the kernel via the CONFIG_AF_UNIX_OOB
+ * switch, so this function can be used for probing for its availability.
+ */
+static bool has_af_unix_oob(void)
+{
+	bool available = false;
+	int sp[2];
+
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sp) == 0) {
+		available = (send(sp[0], ".", 1, MSG_OOB) == 1);
+		close(sp[0]);
+		close(sp[1]);
+	}
+
+	return available;
+}
+
 /* clang-format off */
 FIXTURE(fown) {};
 /* clang-format on */
@@ -461,6 +479,9 @@ TEST_F(fown, sigurg_socket)
 	int status;
 	int pipe_parent[2], pipe_child[2];
 	pid_t child;
+
+	if (!has_af_unix_oob())
+		SKIP(return, "CONFIG_AF_UNIX_OOB / MSG_OOB not available");
 
 	memset(&server_address, 0, sizeof(server_address));
 	set_unix_address(&server_address, 0);
