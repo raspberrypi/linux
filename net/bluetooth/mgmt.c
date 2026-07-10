@@ -9911,6 +9911,22 @@ bool mgmt_powering_down(struct hci_dev *hdev)
 	return false;
 }
 
+u8 hci_to_mgmt_reason(u8 err)
+{
+	switch (err) {
+	case HCI_ERROR_CONNECTION_TIMEOUT:
+		return MGMT_DEV_DISCONN_TIMEOUT;
+	case HCI_ERROR_REMOTE_USER_TERM:
+	case HCI_ERROR_REMOTE_LOW_RESOURCES:
+	case HCI_ERROR_REMOTE_POWER_OFF:
+		return MGMT_DEV_DISCONN_REMOTE;
+	case HCI_ERROR_LOCAL_HOST_TERM:
+		return MGMT_DEV_DISCONN_LOCAL_HOST;
+	default:
+		return MGMT_DEV_DISCONN_UNKNOWN;
+	}
+}
+
 void mgmt_device_disconnected(struct hci_dev *hdev, bdaddr_t *bdaddr,
 			      u8 link_type, u8 addr_type, u8 reason,
 			      bool mgmt_connected)
@@ -9972,7 +9988,8 @@ void mgmt_connect_failed(struct hci_dev *hdev, struct hci_conn *conn, u8 status)
 
 	if (test_and_clear_bit(HCI_CONN_MGMT_CONNECTED, &conn->flags)) {
 		mgmt_device_disconnected(hdev, &conn->dst, conn->type,
-					 conn->dst_type, status, true);
+					 conn->dst_type,
+					 hci_to_mgmt_reason(status), true);
 		return;
 	}
 
