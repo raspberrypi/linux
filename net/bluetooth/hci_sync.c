@@ -6679,6 +6679,8 @@ static int hci_le_create_conn_sync(struct hci_dev *hdev, void *data)
 	if (!hci_dev_test_flag(hdev, HCI_LE_SIMULTANEOUS_ROLES))
 		hci_pause_advertising_sync(hdev);
 
+	hci_dev_lock(hdev);
+
 	params = hci_conn_params_lookup(hdev, &conn->dst, conn->dst_type);
 	if (params) {
 		conn->le_conn_min_interval = params->conn_min_interval;
@@ -6691,6 +6693,8 @@ static int hci_le_create_conn_sync(struct hci_dev *hdev, void *data)
 		conn->le_conn_latency = hdev->le_conn_latency;
 		conn->le_supv_timeout = hdev->le_supv_timeout;
 	}
+
+	hci_dev_unlock(hdev);
 
 	/* If controller is scanning, we stop it since some controllers are
 	 * not able to scan and connect at the same time. Also set the
@@ -7249,13 +7253,13 @@ unlock:
 }
 
 static int hci_le_past_params_sync(struct hci_dev *hdev, struct hci_conn *conn,
-				   struct hci_conn *acl, struct bt_iso_qos *qos)
+				   u16 acl_handle, struct bt_iso_qos *qos)
 {
 	struct hci_cp_le_past_params cp;
 	int err;
 
 	memset(&cp, 0, sizeof(cp));
-	cp.handle = cpu_to_le16(acl->handle);
+	cp.handle = cpu_to_le16(acl_handle);
 	/* An HCI_LE_Periodic_Advertising_Sync_Transfer_Received event is sent
 	 * to the Host. HCI_LE_Periodic_Advertising_Report events will be
 	 * enabled with duplicate filtering enabled.
@@ -7320,16 +7324,28 @@ static int hci_le_pa_create_sync(struct hci_dev *hdev, void *data)
 	 * 2. Check if that HCI_CONN_FLAG_PAST has been set which indicates that
 	 *    user really intended to use PAST.
 	 */
+	hci_dev_lock(hdev);
+
 	le = hci_conn_hash_lookup_le(hdev, &conn->dst, conn->dst_type);
 	if (le) {
 		struct hci_conn_params *params;
+		hci_conn_flags_t flags = 0;
+		u16 le_handle = le->handle;
 
 		params = hci_conn_params_lookup(hdev, &le->dst, le->dst_type);
-		if (params && params->flags & HCI_CONN_FLAG_PAST) {
-			err = hci_le_past_params_sync(hdev, conn, le, qos);
+		if (params)
+			flags = params->flags;
+
+		hci_dev_unlock(hdev);
+
+		if (flags & HCI_CONN_FLAG_PAST) {
+			err = hci_le_past_params_sync(hdev, conn, le_handle,
+						      qos);
 			if (!err)
 				goto done;
 		}
+	} else {
+		hci_dev_unlock(hdev);
 	}
 
 	/* SID has not been set listen for HCI_EV_LE_EXT_ADV_REPORT to update
