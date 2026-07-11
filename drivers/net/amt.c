@@ -2320,6 +2320,9 @@ static bool amt_multicast_data_handler(struct amt_dev *amt, struct sk_buff *skb)
 	skb_reset_mac_header(skb);
 	skb_pull(skb, sizeof(*eth));
 
+	if (skb_cow_head(skb, 0))
+		return true;
+
 	if (!pskb_may_pull(skb, sizeof(*iph)))
 		return true;
 	iph = ip_hdr(skb);
@@ -2396,6 +2399,8 @@ static bool amt_membership_query_handler(struct amt_dev *amt,
 	skb_reset_network_header(skb);
 	eth = eth_hdr(skb);
 	ether_addr_copy(h_source, oeth->h_source);
+	if (skb_cow_head(skb, 0))
+		return true;
 	if (!pskb_may_pull(skb, sizeof(*iph)))
 		return true;
 
@@ -2519,6 +2524,9 @@ static bool amt_update_handler(struct amt_dev *amt, struct sk_buff *skb)
 
 report:
 	if (!pskb_may_pull(skb, sizeof(*iph)))
+		return true;
+
+	if (skb_cow_head(skb, 0))
 		return true;
 
 	iph = ip_hdr(skb);
