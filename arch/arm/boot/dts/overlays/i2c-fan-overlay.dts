@@ -17,7 +17,7 @@
 			status = "okay";
 
 			emc2301: emc2301@2f {
-				compatible = "microchip,emc2301";
+				compatible = "microchip,emc2301", "microchip,emc2305";
 				reg = <0x2f>;
 				#cooling-cells = <0x02>;
 			};
