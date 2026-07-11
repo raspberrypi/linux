@@ -612,7 +612,13 @@ struct evsel *evsel__clone(struct evsel *orig)
 	evsel->sample_read = orig->sample_read;
 	evsel->collect_stat = orig->collect_stat;
 	evsel->weak_group = orig->weak_group;
+	evsel->bpf_counter = orig->bpf_counter;
 	evsel->use_config_name = orig->use_config_name;
+	evsel->skippable = orig->skippable;
+	evsel->dont_regroup = orig->dont_regroup;
+	evsel->default_metricgroup = orig->default_metricgroup;
+	evsel->default_show_events = orig->default_show_events;
+
 	evsel->pmu = orig->pmu;
 	evsel->first_wildcard_match = orig->first_wildcard_match;
 
@@ -620,6 +626,10 @@ struct evsel *evsel__clone(struct evsel *orig)
 		goto out_err;
 
 	evsel->alternate_hw_config = orig->alternate_hw_config;
+
+	evsel->retire_lat = orig->retire_lat;
+	if (evsel->retire_lat)
+		evsel->retirement_latency = orig->retirement_latency;
 
 	return evsel;
 
