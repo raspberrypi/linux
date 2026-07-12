@@ -1507,7 +1507,7 @@ static int ntlm_authenticate(struct ksmbd_work *work,
 	struct ksmbd_conn *conn = work->conn;
 	struct ksmbd_session *sess = work->sess;
 	struct ksmbd_user *user;
-	char channel_key[SMB2_NTLMV2_SESSKEY_SIZE] = {};
+	char channel_key[CIFS_KEY_SIZE] = {};
 	char *auth_key = conn->binding ? channel_key : sess->sess_key;
 	u64 prev_id;
 	bool binding = conn->binding;
@@ -1644,7 +1644,7 @@ static int krb5_authenticate(struct ksmbd_work *work,
 	struct ksmbd_conn *conn = work->conn;
 	struct ksmbd_session *sess = work->sess;
 	char *in_blob, *out_blob;
-	char channel_key[SMB2_NTLMV2_SESSKEY_SIZE] = {};
+	char channel_key[CIFS_KEY_SIZE] = {};
 	char *auth_key = conn->binding ? channel_key : sess->sess_key;
 	u64 prev_sess_id;
 	bool binding = conn->binding;
