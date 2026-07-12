@@ -605,6 +605,7 @@ static void dw_axi_dma_synchronize(struct dma_chan *dchan)
 static int dma_chan_alloc_chan_resources(struct dma_chan *dchan)
 {
 	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
+	int ret;
 
 	/* ASSERT: channel is idle */
 	if (axi_chan_is_hw_enable(chan)) {
@@ -624,7 +625,17 @@ static int dma_chan_alloc_chan_resources(struct dma_chan *dchan)
 	}
 	dev_vdbg(dchan2dev(dchan), "%s: allocating\n", axi_chan_name(chan));
 
-	pm_runtime_get(chan->chip->dev);
+	/*
+	 * Callers configure and use the channel's registers as soon as this
+	 * returns, so the chip's clocks must already be running - a plain
+	 * pm_runtime_get() only schedules the resume asynchronously.
+	 */
+	ret = pm_runtime_resume_and_get(chan->chip->dev);
+	if (ret < 0) {
+		dma_pool_destroy(chan->desc_pool);
+		chan->desc_pool = NULL;
+		return ret;
+	}
 
 	return 0;
 }
