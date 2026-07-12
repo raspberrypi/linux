@@ -2479,7 +2479,6 @@ int ni_read_frame(struct ntfs_inode *ni, u64 frame_vbo, struct page **pages,
 	u64 vbo_disk;
 	size_t unc_size;
 	u32 frame_size, i, ondisk_size;
-	struct page *pg;
 	struct ATTRIB *attr;
 	CLST frame, clst_data;
 
@@ -2710,11 +2709,10 @@ out1:
 #endif
 	vunmap(frame_mem);
 out:
-	for (i = 0; i < pages_per_frame; i++) {
-		pg = pages[i];
-		if (err)
-			clear_highpage(pg);
-		SetPageUptodate(pg);
+	if (!err) {
+		for (i = 0; i < pages_per_frame; i++) {
+			SetPageUptodate(pages[i]);
+		}
 	}
 
 	return err;
