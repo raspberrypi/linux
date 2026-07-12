@@ -383,7 +383,7 @@ struct mmc_card {
 
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
 
-	unsigned int		max_posted_writes; /* command queue posted write limit */
+	int			max_posted_writes; /* command queue posted write limit */
 };
 
 static inline bool mmc_large_sector(struct mmc_card *card)
