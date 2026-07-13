@@ -1669,7 +1669,6 @@ static int init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (initfail || ret) {
 		msix_clean_up_interrupts(dd);
 		stop_timers(dd);
-		flush_workqueue(ib_wq);
 		for (pidx = 0; pidx < dd->num_pports; ++pidx) {
 			hfi1_quiet_serdes(dd->pport + pidx);
 			ppd = dd->pport + pidx;
@@ -1742,9 +1741,6 @@ static void remove_one(struct pci_dev *pdev)
 	destroy_workqueues(dd);
 
 	stop_timers(dd);
-
-	/* wait until all of our (qsfp) queue_work() calls complete */
-	flush_workqueue(ib_wq);
 
 	postinit_cleanup(dd);
 }
