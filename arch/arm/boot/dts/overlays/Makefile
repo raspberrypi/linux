@@ -109,6 +109,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hifiberry-digi-pro.dtbo \
 	hifiberry-studio-dac8x.dtbo \
 	hifiberry-studio-dac8x-pro.dtbo \
+	hifiberry-studio-digi.dtbo \
 	highperi.dtbo \
 	hy28a.dtbo \
 	hy28b.dtbo \

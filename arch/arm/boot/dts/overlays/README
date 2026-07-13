@@ -2127,14 +2127,23 @@ Params: <None>
 
 Name:   hifiberry-studio-dac8x
 Info:   Configures the HifiBerry Studio DAC8x audio card
-Load:   dtoverlay=hifiberry-studio-dac8x
-Params: <None>
+Load:   dtoverlay=hifiberry-studio-dac8x,<param>=<val>
+Params: no_controls             Do not register the ALSA controls for
+                                this card
 
 
 Name:   hifiberry-studio-dac8x-pro
 Info:   Configures the HifiBerry Studio DAC8x PRO audio card
-Load:   dtoverlay=hifiberry-studio-dac8x-pro
-Params: <None>
+Load:   dtoverlay=hifiberry-studio-dac8x-pro,<param>=<val>
+Params: no_controls             Do not register the ALSA controls for
+                                this card
+
+
+Name:   hifiberry-studio-digi
+Info:   Configures the HifiBerry Studio Digi/AES audio card
+Load:   dtoverlay=hifiberry-studio-digi,<param>=<val>
+Params: no_controls             Do not register the ALSA controls for
+                                this card
 
 
 Name:   highperi

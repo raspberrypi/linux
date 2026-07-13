@@ -10,6 +10,13 @@
 		target = <&i2c1>;
 		__overlay__ {
 			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			hb_studio_ctrl: hb_studio_ctrl@10 {
+				compatible = "hifiberry,hb-studio-ctrl";
+				reg = <0x10>;
+				status = "okay";
+			};
 		};
 	};
 
@@ -49,12 +56,15 @@
 
 	fragment@4 {
 		target = <&sound>;
-		__overlay__ {
-			compatible = "hifiberry,hifiberry-studio-dac8x";
+		hifiberry_studio: __overlay__ {
+			compatible = "hifiberry,hifiberry-studio";
 			i2s-controller = <&i2s_clk_consumer>;
 			clk-provider;
 			status = "okay";
 		};
 	};
 
+	__overrides__ {
+		no_controls = <&hifiberry_studio>,"no-controls?";
+	};
 };
