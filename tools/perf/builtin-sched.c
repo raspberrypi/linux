@@ -5255,19 +5255,20 @@ int cmd_sched(int argc, const char **argv)
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_record(&sched, argc, argv);
+			ret = perf_sched__schedstat_record(&sched, argc, argv);
 		} else if (argv[0] && !strcmp(argv[0], "report")) {
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_report(&sched);
+			ret = perf_sched__schedstat_report(&sched);
 		} else if (argv[0] && !strcmp(argv[0], "diff")) {
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_diff(&sched, argc, argv);
+			ret = perf_sched__schedstat_diff(&sched, argc, argv);
+		} else {
+			ret = perf_sched__schedstat_live(&sched, argc, argv);
 		}
-		return perf_sched__schedstat_live(&sched, argc, argv);
 	} else {
 		usage_with_options(sched_usage, sched_options);
 	}
