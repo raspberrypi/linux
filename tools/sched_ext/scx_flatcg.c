@@ -105,11 +105,11 @@ static void fcg_read_stats(struct scx_flatcg *skel, __u64 *stats)
 	__u64 *cnts;
 	__u32 idx;
 
+	memset(stats, 0, sizeof(stats[0]) * FCG_NR_STATS);
+
 	cnts = calloc(skel->rodata->nr_cpus, sizeof(__u64));
 	if (!cnts)
 		return;
-
-	memset(stats, 0, sizeof(stats[0]) * FCG_NR_STATS);
 
 	for (idx = 0; idx < FCG_NR_STATS; idx++) {
 		int ret, cpu;
