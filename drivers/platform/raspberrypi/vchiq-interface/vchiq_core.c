@@ -1470,8 +1470,8 @@ cleanup_pagelistinfo(struct vchiq_instance *instance, struct vchiq_pagelist_info
 		dma_pool_free(g_dma_pool, pagelistinfo->pagelist,
 			      pagelistinfo->dma_addr);
 	} else {
-		dma_free_coherent(g_dma_dev, pagelistinfo->pagelist_buffer_size,
-				pagelistinfo->pagelist, pagelistinfo->dma_addr);
+		dma_free_coherent(instance->state->dev, pagelistinfo->pagelist_buffer_size,
+				  pagelistinfo->pagelist, pagelistinfo->dma_addr);
 	}
 }
 
@@ -1637,7 +1637,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 		count -= len;
 	}
 
-	dma_buffers = dma_map_sg(instance->state->dev,
+	dma_buffers = dma_map_sg(g_dma_dev,
 				 scatterlist,
 				 num_pages,
 				 pagelistinfo->dma_dir);
