@@ -106,8 +106,7 @@ EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_host);
 #define emul_to_vcpu(ctxt) \
 	((struct kvm_vcpu *)(ctxt)->vcpu)
 
-/* Enable syscall by default because its emulated by KVM */
-static u64 __read_mostly efer_reserved_bits = ~((u64)EFER_SCE);
+static u64 __read_mostly efer_reserved_bits;
 
 #define KVM_EXIT_HYPERCALL_VALID_MASK (1 << KVM_HC_MAP_GPA_RANGE)
 
@@ -1430,6 +1429,12 @@ static int set_efer(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		kvm_hv_xsaves_xsavec_maybe_warn(vcpu);
 
 	return 0;
+}
+
+static void kvm_init_efer_bits(void)
+{
+	/* Enable syscall by default because its emulated by KVM */
+	efer_reserved_bits = ~((u64)EFER_SCE);
 }
 
 void kvm_enable_efer_bits(u64 mask)
@@ -9756,6 +9761,8 @@ int kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 
 	if (boot_cpu_has(X86_FEATURE_ARCH_CAPABILITIES))
 		rdmsrq(MSR_IA32_ARCH_CAPABILITIES, kvm_host.arch_capabilities);
+
+	kvm_init_efer_bits();
 
 	r = ops->hardware_setup();
 	if (r != 0)
