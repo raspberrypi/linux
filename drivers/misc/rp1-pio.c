@@ -67,6 +67,9 @@ struct dma_xfer_state {
 	struct dma_info *dma;
 	void (*callback)(void *param);
 	void *callback_param;
+	struct dma_buf_info *dbi;
+	void *data;
+	size_t data_bytes;
 };
 
 struct dma_buf_info {
@@ -225,7 +228,7 @@ int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
 	offset = rp1_pio_find_program(pio, args);
 	mutex_unlock(&pio->instr_mutex);
 	if (offset >= 0)
-		return offset;
+		return 1;
 
 	/* Don't send the instructions, just the header */
 	return rp1_pio_message(pio, PIO_CAN_ADD_PROGRAM, args,
@@ -583,6 +586,9 @@ static void rp1_pio_sm_dma_callback(void *param)
 static void rp1_pio_sm_kernel_dma_callback(void *param)
 {
 	struct dma_xfer_state *dxs = param;
+
+	if (dxs->dbi)
+		memcpy(dxs->data, dxs->dbi->buf, dxs->data_bytes);
 
 	dxs->dma->tail_idx++;
 	up(&dxs->dma->buf_sem);
@@ -949,19 +955,25 @@ int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 
 	if (!dma_addr) {
 		dxs = kmalloc(sizeof(*dxs), GFP_KERNEL);
+		if (!dxs)
+			return -ENOMEM;
 		dxs->dma = dma;
 		dxs->callback = callback;
 		dxs->callback_param = param;
+		dxs->dbi = NULL;
 		callback = rp1_pio_sm_kernel_dma_callback;
 		param = dxs;
 
-		if (!dma->buf_count || data_bytes > dma->buf_size)
+		if (!dma->buf_count || data_bytes > dma->buf_size) {
+			kfree(dxs);
 			return -EINVAL;
+		}
 
 		/* Grab a dma buffer */
 		if (dma->head_idx - dma->tail_idx == dma->buf_count) {
 			if (down_timeout(&dma->buf_sem, msecs_to_jiffies(1000))) {
 				dev_err(dev, "DMA wait timed out\n");
+				kfree(dxs);
 				return -ETIMEDOUT;
 			}
 		}
@@ -969,8 +981,13 @@ int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 		dbi = &dma->bufs[dma->head_idx % dma->buf_count];
 		dma_addr = dbi->dma_addr;
 
-		if (dir == PIO_DIR_TO_SM)
+		if (dir == PIO_DIR_TO_SM) {
 			memcpy(dbi->buf, data, data_bytes);
+		} else {
+			dxs->dbi = dbi;
+			dxs->data = data;
+			dxs->data_bytes = data_bytes;
+		}
 	}
 
 	sg_init_table(&sg, 1);
