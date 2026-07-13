@@ -300,7 +300,7 @@ static inline bool pio_can_add_program_at_offset(struct rp1_pio_client *client,
 	args.num_instrs = program->length;
 
 	memcpy(args.instrs, program->instructions, args.num_instrs * sizeof(args.instrs[0]));
-	return !rp1_pio_can_add_program(client, &args);
+	return rp1_pio_can_add_program(client, &args);
 }
 
 static inline uint pio_add_program(struct rp1_pio_client *client, const pio_program_t *program)
@@ -517,7 +517,7 @@ static inline int pio_sm_set_pindirs_with_mask(struct rp1_pio_client *client, ui
 
 	if (bad_params_if(client, sm >= NUM_PIO_STATE_MACHINES ||
 			      (pin_dirs & GPIOS_MASK) != pin_dirs ||
-			      (pin_mask & pin_mask) != pin_mask))
+			      (pin_mask & GPIOS_MASK) != pin_mask))
 		return -EINVAL;
 	return rp1_pio_sm_set_pindirs(client, &args);
 }
