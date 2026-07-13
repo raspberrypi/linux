@@ -4627,6 +4627,8 @@ static int perf_sched__process_schedstat(const struct perf_tool *tool __maybe_un
 			domain_second_pass = list_first_entry(&cpu_second_pass->domain_head,
 							      struct schedstat_domain, domain_list);
 			store_schedstat_cpu_diff(temp);
+			free(temp->cpu_data);
+			free(temp);
 		}
 	} else if (event->header.type == PERF_RECORD_SCHEDSTAT_DOMAIN) {
 		struct schedstat_cpu *cpu_tail;
@@ -4647,6 +4649,8 @@ static int perf_sched__process_schedstat(const struct perf_tool *tool __maybe_un
 		} else {
 			store_schedstat_domain_diff(temp);
 			domain_second_pass = list_next_entry(domain_second_pass, domain_list);
+			free(temp->domain_data);
+			free(temp);
 		}
 	}
 
