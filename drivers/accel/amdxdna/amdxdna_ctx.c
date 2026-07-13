@@ -423,7 +423,14 @@ int amdxdna_cmd_submit(struct amdxdna_client *client,
 			goto free_job;
 		}
 	} else {
-		job->cmd_bo = NULL;
+		/*
+		 * A command submission with the invalid handle would leave
+		 * job->cmd_bo NULL and later fault when the scheduler
+		 * dereferences it in amdxdna_cmd_set_state().
+		 */
+		XDNA_DBG(xdna, "Command BO handle required for user submission");
+		ret = -EINVAL;
+		goto free_job;
 	}
 
 	ret = amdxdna_arg_bos_lookup(client, job, arg_bo_hdls, arg_bo_cnt);
