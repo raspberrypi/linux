@@ -339,6 +339,12 @@ struct vc4_hvs {
 	struct clk *core_clk;
 	struct clk *disp_clk;
 
+	/* Last min rate requested on core_clk and disp_clk. Each
+	 * clk_set_min_rate() on a firmware clock costs at least one
+	 * mailbox round-trip, so skip requests that wouldn't change it.
+	 */
+	unsigned long core_clk_min_rate;
+
 	struct {
 		unsigned int desc;
 		unsigned int enabled: 1;
