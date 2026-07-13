@@ -368,12 +368,6 @@ static void vc4_hdmi_handle_hotplug(struct vc4_hdmi *vc4_hdmi,
 	int ret;
 
 	/*
-	 * Needs to be called for both connects and disconnects for HDMI
-	 * audio hotplug to work correctly.
-	 */
-	drm_atomic_helper_connector_hdmi_hotplug(connector, status);
-
-	/*
 	 * NOTE: This function should really be called with vc4_hdmi->mutex
 	 * held, but doing so results in reentrancy issues since
 	 * cec_s_phys_addr() might call .adap_enable, which leads to that
