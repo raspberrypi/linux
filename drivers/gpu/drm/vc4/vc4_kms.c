@@ -395,6 +395,40 @@ static void vc6_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	}
 }
 
+/* Each clk_set_min_rate() on a firmware clock costs at least one
+ * mailbox round-trip to the VPU, so don't repeat requests that
+ * wouldn't change the rate.
+ */
+static void vc4_hvs_set_min_core_rate(struct vc4_hvs *hvs,
+				      unsigned long core_rate)
+{
+	struct drm_device *dev = &hvs->vc4->base;
+
+	if (core_rate == hvs->core_clk_min_rate)
+		return;
+
+	hvs->core_clk_min_rate = core_rate;
+
+	WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
+	WARN_ON(clk_set_min_rate(hvs->disp_clk, core_rate));
+
+	drm_dbg(dev, "Core clock min rate %lu Hz, actual rate: %lu Hz\n",
+		core_rate, clk_get_rate(hvs->core_clk));
+}
+
+static bool vc4_atomic_needs_modeset(struct drm_atomic_commit *state)
+{
+	struct drm_crtc_state *new_crtc_state;
+	struct drm_crtc *crtc;
+	int i;
+
+	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i)
+		if (drm_atomic_crtc_needs_modeset(new_crtc_state))
+			return true;
+
+	return false;
+}
+
 static void vc4_atomic_commit_tail(struct drm_atomic_commit *state)
 {
 	struct drm_device *dev = state->dev;
@@ -451,17 +485,19 @@ static void vc4_atomic_commit_tail(struct drm_atomic_commit *state)
 	if (vc4->gen == VC4_GEN_5 && !vc4->firmware_kms) {
 		unsigned long state_rate = max(old_hvs_state->core_clock_rate,
 					       new_hvs_state->core_clock_rate);
-		unsigned long core_rate = clamp_t(unsigned long, state_rate,
-						  500000000, hvs->max_core_rate);
-
-		drm_dbg(dev, "Raising the core clock at %lu Hz\n", core_rate);
+		unsigned long core_rate = min_t(unsigned long, state_rate,
+						hvs->max_core_rate);
 
 		/*
 		 * Do a temporary request on the core clock during the
-		 * modeset.
+		 * modeset. Plane-only updates only need the rate the new
+		 * state asked for, not the 500MHz boost.
 		 */
-		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
-		WARN_ON(clk_set_min_rate(hvs->disp_clk, core_rate));
+		if (vc4_atomic_needs_modeset(state))
+			core_rate = clamp_t(unsigned long, state_rate,
+					    500000000, hvs->max_core_rate);
+
+		vc4_hvs_set_min_core_rate(hvs, core_rate);
 	}
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
@@ -508,17 +544,11 @@ static void vc4_atomic_commit_tail(struct drm_atomic_commit *state)
 						hvs->max_core_rate,
 						new_hvs_state->core_clock_rate);
 
-		drm_dbg(dev, "Running the core clock at %lu Hz\n", core_rate);
-
 		/*
 		 * Request a clock rate based on the current HVS
 		 * requirements.
 		 */
-		WARN_ON(clk_set_min_rate(hvs->core_clk, core_rate));
-		WARN_ON(clk_set_min_rate(hvs->disp_clk, core_rate));
-
-		drm_dbg(dev, "Core clock actual rate: %lu Hz\n",
-			clk_get_rate(hvs->core_clk));
+		vc4_hvs_set_min_core_rate(hvs, core_rate);
 	}
 }
 
