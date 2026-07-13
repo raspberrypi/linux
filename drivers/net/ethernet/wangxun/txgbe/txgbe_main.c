@@ -956,6 +956,7 @@ static void txgbe_remove(struct pci_dev *pdev)
 	netdev = wx->netdev;
 	wx_disable_sriov(wx);
 	unregister_netdev(netdev);
+	txgbe_fdir_filter_exit(wx);
 
 	txgbe_remove_phy(txgbe);
 	wx_free_isb_resources(wx);
