@@ -1799,25 +1799,16 @@ static int cxl_type2_mem_init(void)
 		pdev->dev.parent = &dport->dev;
 		set_dev_node(&pdev->dev, i % 2);
 
-		rc = platform_device_add(pdev);
-		if (rc) {
-			rc = -ENOMEM;
-			platform_device_put(pdev);
+		rc = cxl_mock_platform_device_add(pdev, &cxl_mem[i]);
+		if (rc)
 			goto err_mem;
-		}
-		cxl_mem[i] = pdev;
 	}
 
 	return 0;
 
 err_mem:
-	for (i = NR_CXL_TYPE2_ACCEL - 1; i >= 0; i--) {
-		struct platform_device *pdev = cxl_mem[i];
-
-		if (!pdev)
-			continue;
-		platform_device_unregister(pdev);
-	}
+	for (i = NR_CXL_TYPE2_ACCEL - 1; i >= 0; i--)
+		platform_device_unregister(cxl_mem[i]);
 	return rc;
 }
 
