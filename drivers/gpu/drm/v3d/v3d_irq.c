@@ -62,17 +62,17 @@ v3d_overflow_mem_work(struct work_struct *work)
 	 * bin job got scheduled, that's fine.  We'll just give them
 	 * some binner pool anyway.
 	 */
-	spin_lock_irqsave(&v3d->job_lock, irqflags);
+	spin_lock_irqsave(&queue->queue_lock, irqflags);
 	bin_job = (struct v3d_bin_job *)queue->active_job;
 
 	if (!bin_job) {
-		spin_unlock_irqrestore(&v3d->job_lock, irqflags);
+		spin_unlock_irqrestore(&queue->queue_lock, irqflags);
 		goto out;
 	}
 
 	drm_gem_object_get(obj);
 	list_add_tail(&bo->unref_head, &bin_job->render->unref_list);
-	spin_unlock_irqrestore(&v3d->job_lock, irqflags);
+	spin_unlock_irqrestore(&queue->queue_lock, irqflags);
 
 	v3d_mmu_flush_all(v3d);
 
@@ -137,7 +137,7 @@ v3d_irq(int irq, void *arg)
 	/* We shouldn't be triggering these if we have GMP in
 	 * always-allowed mode.
 	 */
-	if (v3d->ver < 71 && (intsts & V3D_INT_GMPV))
+	if (v3d->ver < V3D_GEN_71 && (intsts & V3D_INT_GMPV))
 		dev_err(v3d->drm.dev, "GMP violation\n");
 
 	/* V3D 4.2 wires the hub and core IRQs together, so if we &
@@ -183,27 +183,32 @@ v3d_hub_irq(int irq, void *arg)
 			"GMP",
 		};
 		const char *client = "?";
+		static bool logged_error;
 
 		V3D_WRITE(V3D_MMU_CTL, V3D_READ(V3D_MMU_CTL));
 
-		if (v3d->ver >= 41) {
+		if (v3d->ver >= V3D_GEN_41) {
 			axi_id = axi_id >> 5;
 			if (axi_id < ARRAY_SIZE(v3d41_axi_ids))
 				client = v3d41_axi_ids[axi_id];
 		}
 
-		dev_err(v3d->drm.dev, "MMU error from client %s (%d) at 0x%llx%s%s%s\n",
-			client, axi_id, (long long)vio_addr,
-			((intsts & V3D_HUB_INT_MMU_WRV) ?
-			 ", write violation" : ""),
-			((intsts & V3D_HUB_INT_MMU_PTI) ?
-			 ", pte invalid" : ""),
-			((intsts & V3D_HUB_INT_MMU_CAP) ?
-			 ", cap exceeded" : ""));
+		if (!logged_error || debug_mmu) {
+			dev_err(v3d->drm.dev, "MMU error from client %s (%d) at 0x%llx%s%s%s\n",
+				client, axi_id, (long long)vio_addr,
+				((intsts & V3D_HUB_INT_MMU_WRV) ?
+				 ", write violation" : ""),
+				((intsts & V3D_HUB_INT_MMU_PTI) ?
+				 ", pte invalid" : ""),
+				((intsts & V3D_HUB_INT_MMU_CAP) ?
+				 ", cap exceeded" : ""));
+		}
+		logged_error = true;
+
 		status = IRQ_HANDLED;
 	}
 
-	if (v3d->ver >= 71 && (intsts & V3D_V7_HUB_INT_GMPV)) {
+	if (v3d->ver >= V3D_GEN_71 && (intsts & V3D_V7_HUB_INT_GMPV)) {
 		dev_err(v3d->drm.dev, "GMP Violation\n");
 		status = IRQ_HANDLED;
 	}
