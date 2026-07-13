@@ -180,6 +180,26 @@ struct iommufd_object *iommufd_get_object(struct iommufd_ctx *ictx, u32 id,
 	return obj;
 }
 
+/*
+ * Increment the users count of an object outside the context of an ioctl that
+ * has already locked it. The users refcount cannot be increased on an already
+ * created object unless the object is installed in the xarray, otherwise things
+ * are racing with a parallel destruction.
+ */
+int iommufd_try_inc_users(struct iommufd_ctx *ictx, struct iommufd_object *obj)
+{
+	struct iommufd_object *cur;
+
+	xa_lock(&ictx->objects);
+	cur = xa_load(&ictx->objects, obj->id);
+	if (cur == obj)
+		refcount_inc(&obj->users);
+	xa_unlock(&ictx->objects);
+	if (cur != obj)
+		return -EBUSY;
+	return 0;
+}
+
 static int iommufd_object_dec_wait(struct iommufd_ctx *ictx,
 				   struct iommufd_object *to_destroy)
 {
