@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * hifiberry_studio_dac8x.c -- driver for more complex
+ * hifiberry_studio.c -- driver for more complex
  * multichannel soundcards with own onboard firmware.
  *
  * Copyright (C) 2026 HiFiBerry
@@ -124,7 +124,7 @@
 #define MASK_32_BIT_SF			0x03
 
 /* struct definition for easier access to firmware registers */
-struct hb_studio_dac8x_regs_t {
+struct hb_studio_regs_t {
 	unsigned char firmware_major;
 	unsigned char firmware_minor;
 	unsigned char firmware_subversion;
@@ -196,14 +196,14 @@ struct hb_studio_dac8x_regs_t {
 	};
 
 
-static struct snd_soc_card snd_rpi_hifiberry_studio_dac8x;
+static struct snd_soc_card snd_rpi_hifiberry_studio;
 static struct i2c_client *hb_uni_i2c_client;
 struct hb_uni_private {
 	struct regmap *regmap;
 	uuid_t uuid;
 	unsigned int sample_bits;
 	unsigned int current_rate;
-	struct hb_studio_dac8x_regs_t card_info;
+	struct hb_studio_regs_t card_info;
 };
 
 static struct hb_uni_private *priv;
@@ -514,7 +514,7 @@ static const struct snd_kcontrol_new adc_controls_single[] = {
 	ENUM_CTL_SINGLE("Clipping Attenuation Capture Volume", hb_uni_rec_enum_ctls[0]),
 };
 
-static int snd_rpi_hifiberry_studio_dac8x_hw_params(
+static int snd_rpi_hifiberry_studio_hw_params(
 		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
@@ -625,16 +625,16 @@ static int snd_rpi_hifiberry_studio_dac8x_hw_params(
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
 
-static const struct snd_soc_ops snd_rpi_hifiberry_studio_dac8x_ops = {
-	.hw_params = snd_rpi_hifiberry_studio_dac8x_hw_params,
+static const struct snd_soc_ops snd_rpi_hifiberry_studio_ops = {
+	.hw_params = snd_rpi_hifiberry_studio_hw_params,
 };
 
-SND_SOC_DAILINK_DEFS(hifiberry_studio_dac8x,
+SND_SOC_DAILINK_DEFS(hifiberry_studio,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
 	DAILINK_COMP_ARRAY(COMP_CODEC("snd-soc-dummy", "snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
-static int hifiberry_studio_dac8x_init(struct snd_soc_pcm_runtime *rtd)
+static int hifiberry_studio_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
 	struct snd_soc_card *card = rtd->card;
@@ -676,26 +676,26 @@ static int hifiberry_studio_dac8x_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static struct snd_soc_dai_link snd_rpi_hifiberry_studio_dac8x_dai[] = {
+static struct snd_soc_dai_link snd_rpi_hifiberry_studio_dai[] = {
 	{
 		.name           = "HiFiBerry Studio DAC8x",
 		.stream_name    = "HifiBerry Studio HiFi",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S |
 					SND_SOC_DAIFMT_NB_NF |
 					SND_SOC_DAIFMT_CBC_CFC,
-		.init           = hifiberry_studio_dac8x_init,
-		.ops            = &snd_rpi_hifiberry_studio_dac8x_ops,
-		SND_SOC_DAILINK_REG(hifiberry_studio_dac8x),
+		.init           = hifiberry_studio_init,
+		.ops            = &snd_rpi_hifiberry_studio_ops,
+		SND_SOC_DAILINK_REG(hifiberry_studio),
 	},
 };
 
 /* audio machine driver */
-static struct snd_soc_card snd_rpi_hifiberry_studio_dac8x = {
+static struct snd_soc_card snd_rpi_hifiberry_studio = {
 	.name         = "Hifiberry Studio DAC8x",
 	.driver_name  = "HifiberryStudio",
 	.owner        = THIS_MODULE,
-	.dai_link     = snd_rpi_hifiberry_studio_dac8x_dai,
-	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_studio_dac8x_dai),
+	.dai_link     = snd_rpi_hifiberry_studio_dai,
+	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_studio_dai),
 };
 
 static int hb_uni_read_card_info(struct platform_device *pdev)
@@ -777,10 +777,10 @@ static int hb_uni_read_card_info(struct platform_device *pdev)
 	switch (cpu_to_be32(*(unsigned int *)&priv->card_info.uuid)) {
 	case 0x74e7ae95:
 		if (card_is_clk_provider)
-			snd_rpi_hifiberry_studio_dac8x.name =
+			snd_rpi_hifiberry_studio.name =
 						"HiFiBerry Studio DAC8x Pro";
 		else
-			snd_rpi_hifiberry_studio_dac8x.name =
+			snd_rpi_hifiberry_studio.name =
 						"HiFiBerry Studio DAC8x";
 		break;
 	default:
@@ -800,7 +800,7 @@ static int hb_uni_add_card_controls(struct platform_device *pdev)
 {
 	int ret;
 
-	ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio_dac8x,
+	ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio,
 			hb_uni_gen_controls_single,
 			ARRAY_SIZE(hb_uni_gen_controls_single));
 	if (ret < 0) {
@@ -808,7 +808,7 @@ static int hb_uni_add_card_controls(struct platform_device *pdev)
 			"snd_soc_add_card_controls() failed: %d\n", ret);
 		return ret;
 	}
-	ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio_dac8x,
+	ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio,
 			hb_uni_play_controls_single,
 			ARRAY_SIZE(hb_uni_play_controls_single) / 9 *
 					(priv->card_info.num_of_output_ch + 1));
@@ -820,7 +820,7 @@ static int hb_uni_add_card_controls(struct platform_device *pdev)
 
 	/* add optional ADC controls if inputs detected */
 	if (priv->card_info.num_of_input_ch > 0) {
-		ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio_dac8x,
+		ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio,
 			hb_uni_rec_controls_single,
 			ARRAY_SIZE(hb_uni_rec_controls_single) / 8 *
 					priv->card_info.num_of_input_ch);
@@ -828,7 +828,7 @@ static int hb_uni_add_card_controls(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"snd_soc_add_card_controls() failed: %d\n", ret);
 		}
-		ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio_dac8x,
+		ret = snd_soc_add_card_controls(&snd_rpi_hifiberry_studio,
 			adc_controls_single,
 			ARRAY_SIZE(adc_controls_single));
 		if (ret < 0) {
@@ -877,7 +877,7 @@ static int hb_controller_probe(struct platform_device *pdev)
 	return ret;
 };
 
-static int snd_rpi_hifiberry_studio_dac8x_probe(struct platform_device *pdev)
+static int snd_rpi_hifiberry_studio_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
@@ -886,13 +886,13 @@ static int snd_rpi_hifiberry_studio_dac8x_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	snd_rpi_hifiberry_studio_dac8x.dev = &pdev->dev;
+	snd_rpi_hifiberry_studio.dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
 		struct device_node *i2s_node;
 		struct snd_soc_dai_link *dai;
 
-		dai = &snd_rpi_hifiberry_studio_dac8x_dai[0];
+		dai = &snd_rpi_hifiberry_studio_dai[0];
 		i2s_node = of_parse_phandle(pdev->dev.of_node,
 			"i2s-controller", 0);
 
@@ -905,7 +905,7 @@ static int snd_rpi_hifiberry_studio_dac8x_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev,
-			&snd_rpi_hifiberry_studio_dac8x);
+			&snd_rpi_hifiberry_studio);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev,
 			"devm_snd_soc_register_card() failed: %d\n", ret);
@@ -916,22 +916,22 @@ static int snd_rpi_hifiberry_studio_dac8x_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static const struct of_device_id snd_rpi_hifiberry_studio_dac8x_of_match[] = {
+static const struct of_device_id snd_rpi_hifiberry_studio_of_match[] = {
 	{ .compatible = "hifiberry,hifiberry-studio-dac8x", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, snd_rpi_hifiberry_studio_dac8x_of_match);
+MODULE_DEVICE_TABLE(of, snd_rpi_hifiberry_studio_of_match);
 
-static struct platform_driver snd_rpi_hifiberry_studio_dac8x_driver = {
+static struct platform_driver snd_rpi_hifiberry_studio_driver = {
 	.driver = {
-		.name   = "snd-rpi-hifiberry-studio-dac8x",
+		.name   = "snd-rpi-hifiberry-studio",
 		.owner  = THIS_MODULE,
-		.of_match_table = snd_rpi_hifiberry_studio_dac8x_of_match,
+		.of_match_table = snd_rpi_hifiberry_studio_of_match,
 	},
-	.probe  = snd_rpi_hifiberry_studio_dac8x_probe,
+	.probe  = snd_rpi_hifiberry_studio_probe,
 };
 
-module_platform_driver(snd_rpi_hifiberry_studio_dac8x_driver);
+module_platform_driver(snd_rpi_hifiberry_studio_driver);
 
 MODULE_AUTHOR("Joerg Schambacher <joerg@hifiberry.com>");
 MODULE_DESCRIPTION("HiFiBerry Studio DAC8x Soundcard Driver");

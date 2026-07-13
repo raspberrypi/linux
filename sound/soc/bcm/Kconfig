@@ -102,7 +102,7 @@ config SND_BCM2708_SOC_HIFIBERRY_DACPLUSDSP
         help
          Say Y or M if you want to add support for HifiBerry DSP-DAC.
 
-config SND_BCM2708_SOC_HIFIBERRY_STUDIO_DAC8X
+config SND_BCM2708_SOC_HIFIBERRY_STUDIO
         tristate "Support for HifiBerry Studio DAC8x soundcards"
         help
          Say Y or M if you want to add support for
