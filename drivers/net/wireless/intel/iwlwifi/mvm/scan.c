@@ -3149,8 +3149,6 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 	if (ret)
 		return ret;
 
-	iwl_mvm_build_scan_probe(mvm, vif, ies, &params);
-
 	/* for 6 GHZ band only PSC channels need to be added */
 	for (i = 0; i < params.n_channels; i++) {
 		struct ieee80211_channel *channel = params.channels[i];
@@ -3183,6 +3181,8 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 		ret = -ENOBUFS;
 		goto out;
 	}
+
+	iwl_mvm_build_scan_probe(mvm, vif, ies, &params);
 
 	uid = iwl_mvm_build_scan_cmd(mvm, vif, &hcmd, &params, type);
 	if (uid < 0) {
