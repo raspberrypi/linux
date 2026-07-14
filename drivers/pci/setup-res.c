@@ -429,9 +429,9 @@ void pci_release_resource(struct pci_dev *dev, int resno)
 }
 EXPORT_SYMBOL(pci_release_resource);
 
-int pci_resize_resource(struct pci_dev *dev, int resno, int size)
+int pci_resize_resource(struct pci_dev *dev, int resno, int size,
+			int exclude_bars)
 {
-	struct resource *res = dev->resource + resno;
 	struct pci_host_bridge *host;
 	int old, ret;
 	u32 sizes;
@@ -441,10 +441,6 @@ int pci_resize_resource(struct pci_dev *dev, int resno, int size)
 	host = pci_find_host_bridge(dev->bus);
 	if (host->preserve_config)
 		return -ENOTSUPP;
-
-	/* Make sure the resource isn't assigned before resizing it. */
-	if (!(res->flags & IORESOURCE_UNSET))
-		return -EBUSY;
 
 	pci_read_config_word(dev, PCI_COMMAND, &cmd);
 	if (cmd & PCI_COMMAND_MEMORY)
@@ -465,19 +461,14 @@ int pci_resize_resource(struct pci_dev *dev, int resno, int size)
 	if (ret)
 		return ret;
 
-	res->end = res->start + pci_rebar_size_to_bytes(size) - 1;
+	ret = pci_do_resource_release_and_resize(dev, resno, size, exclude_bars);
+	if (ret)
+		goto error_resize;
 
-	/* Check if the new config works by trying to assign everything. */
-	if (dev->bus->self) {
-		ret = pci_reassign_bridge_resources(dev->bus->self, res->flags);
-		if (ret)
-			goto error_resize;
-	}
 	return 0;
 
 error_resize:
 	pci_rebar_set_size(dev, resno, old);
-	res->end = res->start + pci_rebar_size_to_bytes(old) - 1;
 	return ret;
 }
 EXPORT_SYMBOL(pci_resize_resource);
