@@ -11780,7 +11780,7 @@ static void rtw89_fw_cmd_ofld_write_rf(struct rtw89_dev *rtwdev,
 static void rtw89_fw_cmd_ofld_udelay(struct rtw89_dev *rtwdev, u32 us)
 {
 	struct rtw89_fw_cmd_ofld_arg cmd = {
-		.src = RTW89_FW_CMD_OFLD_SRC_OTHER,
+		.src = RTW89_FW_CMD_OFLD_SRC_MAC,
 		.type = RTW89_FW_CMD_OFLD_DELAY,
 		.value = us,
 	};
@@ -11794,7 +11794,7 @@ static void rtw89_fw_cmd_ofld_udelay(struct rtw89_dev *rtwdev, u32 us)
 static void rtw89_fw_cmd_ofld_mdelay(struct rtw89_dev *rtwdev, u32 ms)
 {
 	struct rtw89_fw_cmd_ofld_arg cmd = {
-		.src = RTW89_FW_CMD_OFLD_SRC_OTHER,
+		.src = RTW89_FW_CMD_OFLD_SRC_MAC,
 		.type = RTW89_FW_CMD_OFLD_DELAY,
 		.value = ms * 1000,
 	};
