@@ -7,6 +7,8 @@
 #include <linux/init.h>
 #include <linux/serial_8250.h>
 
+#include "8250.h"
+
 #define HUB6(card, port)						\
 	{								\
 		.iobase		= 0x302,				\
