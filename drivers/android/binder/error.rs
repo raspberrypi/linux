@@ -12,7 +12,7 @@ pub(crate) type BinderResult<T = ()> = core::result::Result<T, BinderError>;
 /// errno.
 pub(crate) struct BinderError {
     pub(crate) reply: u32,
-    source: Option<Error>,
+    pub(crate) source: Option<Error>,
 }
 
 impl BinderError {
@@ -39,14 +39,6 @@ impl BinderError {
 
     pub(crate) fn is_dead(&self) -> bool {
         self.reply == BR_DEAD_REPLY
-    }
-
-    pub(crate) fn as_errno(&self) -> kernel::ffi::c_int {
-        self.source.unwrap_or(EINVAL).to_errno()
-    }
-
-    pub(crate) fn should_pr_warn(&self) -> bool {
-        self.source.is_some()
     }
 }
 
