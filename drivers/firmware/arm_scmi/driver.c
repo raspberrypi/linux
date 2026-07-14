@@ -2693,6 +2693,7 @@ static int scmi_chan_setup(struct scmi_info *info, struct device_node *of_node,
 
 	cinfo->id = prot_id;
 	cinfo->dev = &tdev->dev;
+	cinfo->handle = &info->handle;
 	ret = info->desc->ops->chan_setup(cinfo, info->dev, tx);
 	if (ret) {
 		of_node_put(of_node);
@@ -2725,7 +2726,6 @@ idr_alloc:
 		return ret;
 	}
 
-	cinfo->handle = &info->handle;
 	return 0;
 }
 
