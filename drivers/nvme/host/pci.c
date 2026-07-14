@@ -761,8 +761,8 @@ static void nvme_unmap_data(struct request *req)
 
 	if (!blk_rq_dma_unmap(req, dma_dev, &iod->dma_state, iod->total_len)) {
 		if (nvme_pci_cmd_use_sgl(&iod->cmd))
-			nvme_free_sgls(req, iod->descriptors[0],
-				       &iod->cmd.common.dptr.sgl);
+			nvme_free_sgls(req, &iod->cmd.common.dptr.sgl,
+				       iod->descriptors[0]);
 		else
 			nvme_free_prps(req);
 	}
