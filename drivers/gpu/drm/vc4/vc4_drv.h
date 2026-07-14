@@ -793,6 +793,11 @@ struct vc4_exec_info {
 	 * (where each tile's binned CL will start)
 	 */
 	uint32_t tile_alloc_offset;
+	/* Stride between adjacent tiles' initial alloc blocks. Equals the
+	 * initial block size programmed in the binning config, and is used
+	 * as the per-tile stride when emitting the RCL branches.
+	 */
+	u32 tile_alloc_stride;
 	/* Bitmask of which binner slots are freed when this job completes. */
 	uint32_t bin_slots;
 

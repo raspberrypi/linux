@@ -356,8 +356,9 @@ validate_tile_binning_config(VALIDATE_ARGS)
 	struct drm_device *dev = exec->exec_bo->base.dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint8_t flags;
-	uint32_t tile_state_size;
+	u32 tile_state_size, tile_state_aligned;
 	uint32_t tile_count, bin_addr;
+	u8 init_block;
 	int bin_slot;
 
 	if (exec->found_tile_binning_mode_config_packet) {
@@ -405,13 +406,35 @@ validate_tile_binning_config(VALIDATE_ARGS)
 	tile_state_size = 48 * tile_count;
 
 	/* Since the tile alloc array will follow us, align. */
-	exec->tile_alloc_offset = bin_addr + roundup(tile_state_size, 4096);
+	tile_state_aligned = roundup(tile_state_size, 4096);
+	exec->tile_alloc_offset = bin_addr + tile_state_aligned;
+
+	/*
+	 * Pick the largest initial tile-alloc block that still fits the slot.
+	 * Larger initial blocks keep more tiles' binned lists off the
+	 * continuation-block chain, which the binner does not always link
+	 * reliably. Denser tile counts fall back to smaller blocks, down to
+	 * the 32-byte minimum which always fits.
+	 */
+	if (tile_state_aligned + 256 * tile_count <= vc4->bin_alloc_size) {
+		exec->tile_alloc_stride = 256;
+		init_block = VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_256;
+	} else if (tile_state_aligned + 128 * tile_count <= vc4->bin_alloc_size) {
+		exec->tile_alloc_stride = 128;
+		init_block = VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_128;
+	} else if (tile_state_aligned + 64 * tile_count <= vc4->bin_alloc_size) {
+		exec->tile_alloc_stride = 64;
+		init_block = VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_64;
+	} else {
+		exec->tile_alloc_stride = 32;
+		init_block = VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_32;
+	}
 
 	*(uint8_t *)(validated + 14) =
 		((flags & ~(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_MASK |
 			    VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_MASK)) |
 		 VC4_BIN_CONFIG_AUTO_INIT_TSDA |
-		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_32,
+		 VC4_SET_FIELD(init_block,
 			       VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE) |
 		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_128,
 			       VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE));
