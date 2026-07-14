@@ -56,7 +56,7 @@ static void resize_bar(struct xe_device *xe, int resno, resource_size_t size)
 
 	release_bars(pdev);
 
-	ret = pci_resize_resource(pdev, resno, bar_size);
+	ret = pci_resize_resource(pdev, resno, bar_size, 0);
 	if (ret) {
 		drm_info(&xe->drm, "Failed to resize BAR%d to %dM (%pe). Consider enabling 'Resizable BAR' support in your BIOS\n",
 			 resno, 1 << bar_size, ERR_PTR(ret));
