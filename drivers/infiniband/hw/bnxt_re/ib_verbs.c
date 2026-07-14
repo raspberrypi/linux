@@ -695,7 +695,7 @@ int bnxt_re_dealloc_pd(struct ib_pd *ib_pd, struct ib_udata *udata)
 	struct bnxt_re_dev *rdev = pd->rdev;
 	int ret;
 
-	ret = ib_is_udata_in_empty(udata);
+	ret = ib_no_udata_io(udata);
 	if (ret)
 		return ret;
 
@@ -712,7 +712,7 @@ int bnxt_re_dealloc_pd(struct ib_pd *ib_pd, struct ib_udata *udata)
 					   &pd->qplib_pd))
 			atomic_dec(&rdev->stats.res.pd_count);
 	}
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 int bnxt_re_alloc_pd(struct ib_pd *ibpd, struct ib_udata *udata)
@@ -844,7 +844,7 @@ int bnxt_re_create_ah(struct ib_ah *ib_ah, struct rdma_ah_init_attr *init_attr,
 	u8 nw_type;
 	int rc;
 
-	rc = ib_is_udata_in_empty(udata);
+	rc = ib_no_udata_io(udata);
 	if (rc)
 		return rc;
 
@@ -901,7 +901,7 @@ int bnxt_re_create_ah(struct ib_ah *ib_ah, struct rdma_ah_init_attr *init_attr,
 	if (active_ahs > rdev->stats.res.ah_watermark)
 		rdev->stats.res.ah_watermark = active_ahs;
 
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 int bnxt_re_query_ah(struct ib_ah *ib_ah, struct rdma_ah_attr *ah_attr)
@@ -1015,7 +1015,7 @@ int bnxt_re_destroy_qp(struct ib_qp *ib_qp, struct ib_udata *udata)
 	unsigned int flags;
 	int rc;
 
-	rc = ib_is_udata_in_empty(udata);
+	rc = ib_no_udata_io(udata);
 	if (rc)
 		return rc;
 
@@ -1064,7 +1064,7 @@ int bnxt_re_destroy_qp(struct ib_qp *ib_qp, struct ib_udata *udata)
 	if (scq_nq != rcq_nq)
 		bnxt_re_synchronize_nq(rcq_nq);
 
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 static u8 __from_ib_qp_type(enum ib_qp_type type)
@@ -2148,7 +2148,7 @@ int bnxt_re_destroy_srq(struct ib_srq *ib_srq, struct ib_udata *udata)
 	struct bnxt_qplib_srq *qplib_srq = &srq->qplib_srq;
 	int ret;
 
-	ret = ib_is_udata_in_empty(udata);
+	ret = ib_no_udata_io(udata);
 	if (ret)
 		return ret;
 
@@ -2159,7 +2159,7 @@ int bnxt_re_destroy_srq(struct ib_srq *ib_srq, struct ib_udata *udata)
 		free_page((unsigned long)srq->uctx_srq_page);
 	ib_umem_release(srq->umem);
 	atomic_dec(&rdev->stats.res.srq_count);
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 static int bnxt_re_init_user_srq(struct bnxt_re_dev *rdev,
@@ -2297,34 +2297,25 @@ int bnxt_re_modify_srq(struct ib_srq *ib_srq, struct ib_srq_attr *srq_attr,
 {
 	struct bnxt_re_srq *srq = container_of(ib_srq, struct bnxt_re_srq,
 					       ib_srq);
-	struct bnxt_re_dev *rdev = srq->rdev;
 	int ret;
 
-	ret = ib_is_udata_in_empty(udata);
+	ret = ib_no_udata_io(udata);
 	if (ret)
 		return ret;
 
-	switch (srq_attr_mask) {
-	case IB_SRQ_MAX_WR:
-		/* SRQ resize is not supported */
+	if (srq_attr_mask != IB_SRQ_LIMIT)
 		return -EINVAL;
-	case IB_SRQ_LIMIT:
-		/* Change the SRQ threshold */
-		if (srq_attr->srq_limit > srq->qplib_srq.max_wqe)
-			return -EINVAL;
 
-		srq->qplib_srq.threshold = srq_attr->srq_limit;
-		bnxt_qplib_srq_arm_db(&srq->qplib_srq.dbinfo, srq->qplib_srq.threshold);
-
-		/* On success, update the shadow */
-		srq->srq_limit = srq_attr->srq_limit;
-		/* No need to Build and send response back to udata */
-		return ib_respond_empty_udata(udata);
-	default:
-		ibdev_err(&rdev->ibdev,
-			  "Unsupported srq_attr_mask 0x%x", srq_attr_mask);
+	if (srq_attr->srq_limit > srq->qplib_srq.max_wqe)
 		return -EINVAL;
-	}
+
+	srq->qplib_srq.threshold = srq_attr->srq_limit;
+	bnxt_qplib_srq_arm_db(&srq->qplib_srq.dbinfo, srq->qplib_srq.threshold);
+
+	/* On success, update the shadow */
+	srq->srq_limit = srq_attr->srq_limit;
+	/* No need to Build and send response back to udata */
+	return 0;
 }
 
 int bnxt_re_query_srq(struct ib_srq *ib_srq, struct ib_srq_attr *srq_attr)
@@ -2437,7 +2428,7 @@ int bnxt_re_modify_qp(struct ib_qp *ib_qp, struct ib_qp_attr *qp_attr,
 	unsigned int flags;
 	u8 nw_type;
 
-	rc = ib_is_udata_in_empty(udata);
+	rc = ib_no_udata_io(udata);
 	if (rc)
 		return rc;
 
@@ -2689,7 +2680,7 @@ int bnxt_re_modify_qp(struct ib_qp *ib_qp, struct ib_qp_attr *qp_attr,
 		if (rc)
 			return rc;
 	}
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 int bnxt_re_query_qp(struct ib_qp *ib_qp, struct ib_qp_attr *qp_attr,
@@ -3471,7 +3462,7 @@ int bnxt_re_destroy_cq(struct ib_cq *ib_cq, struct ib_udata *udata)
 	nq = cq->qplib_cq.nq;
 	cctx = rdev->chip_ctx;
 
-	ret = ib_is_udata_in_empty(udata);
+	ret = ib_no_udata_io(udata);
 	if (ret)
 		return ret;
 
@@ -3486,7 +3477,7 @@ int bnxt_re_destroy_cq(struct ib_cq *ib_cq, struct ib_udata *udata)
 	atomic_dec(&rdev->stats.res.cq_count);
 	kfree(cq->cql);
 	ib_umem_release(cq->umem);
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 int bnxt_re_create_user_cq(struct ib_cq *ibcq, const struct ib_cq_init_attr *attr,
@@ -3688,6 +3679,10 @@ int bnxt_re_resize_cq(struct ib_cq *ibcq, unsigned int cqe,
 	if (rc)
 		goto fail;
 
+	rc = ib_respond_empty_udata(udata);
+	if (rc)
+		goto fail;
+
 	cq->resize_umem = ib_umem_get_va(&rdev->ibdev, req.cq_va,
 					 entries * sizeof(struct cq_base),
 					 IB_ACCESS_LOCAL_WRITE);
@@ -3717,7 +3712,7 @@ int bnxt_re_resize_cq(struct ib_cq *ibcq, unsigned int cqe,
 	cq->ib_cq.cqe = cq->resize_cqe;
 	atomic_inc(&rdev->stats.res.resize_count);
 
-	return ib_respond_empty_udata(udata);
+	return 0;
 
 fail:
 	if (cq->resize_umem) {
@@ -4449,7 +4444,7 @@ int bnxt_re_dereg_mr(struct ib_mr *ib_mr, struct ib_udata *udata)
 	struct bnxt_re_dev *rdev = mr->rdev;
 	int rc;
 
-	rc = ib_is_udata_in_empty(udata);
+	rc = ib_no_udata_io(udata);
 	if (rc)
 		return rc;
 
@@ -4472,7 +4467,7 @@ int bnxt_re_dereg_mr(struct ib_mr *ib_mr, struct ib_udata *udata)
 	atomic_dec(&rdev->stats.res.mr_count);
 	if (rc)
 		return rc;
-	return ib_respond_empty_udata(udata);
+	return 0;
 }
 
 static int bnxt_re_set_page(struct ib_mr *ib_mr, u64 addr)
