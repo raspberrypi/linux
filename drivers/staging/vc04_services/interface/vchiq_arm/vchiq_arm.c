@@ -300,7 +300,7 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 	}
 
 	g_dma_dev = dma_dev ?: dev;
-	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", dev,
+	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", g_dma_dev,
 				      VCHIQ_DMA_POOL_SIZE,
 				      drv_mgmt->info->cache_line_size, 0);
 	if (!g_dma_pool) {

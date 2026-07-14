@@ -1547,7 +1547,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 	 * list
 	 */
 	if (pagelist_size > VCHIQ_DMA_POOL_SIZE) {
-		pagelist = dma_alloc_coherent(instance->state->dev, pagelist_size, &dma_addr,
+		pagelist = dma_alloc_coherent(g_dma_dev, pagelist_size, &dma_addr,
 						GFP_KERNEL);
 		is_from_pool = false;
 	} else {
@@ -1641,7 +1641,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 		count -= len;
 	}
 
-	dma_buffers = dma_map_sg(instance->state->dev,
+	dma_buffers = dma_map_sg(g_dma_dev,
 				 scatterlist,
 				 num_pages,
 				 pagelistinfo->dma_dir);
