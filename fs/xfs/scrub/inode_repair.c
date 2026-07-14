@@ -1753,7 +1753,7 @@ xrep_clamp_timestamp(
 	struct xfs_inode	*ip,
 	struct timespec64	*ts)
 {
-	ts->tv_nsec = clamp_t(long, ts->tv_nsec, 0, NSEC_PER_SEC);
+	ts->tv_nsec = clamp_t(long, ts->tv_nsec, 0, NSEC_PER_SEC - 1);
 	*ts = timestamp_truncate(*ts, VFS_I(ip));
 }
 
