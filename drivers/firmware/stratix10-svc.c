@@ -1487,8 +1487,9 @@ int stratix10_svc_async_poll(struct stratix10_svc_chan *chan,
 			WARN_ON_ONCE(1);
 		}
 		return 0;
-	} else if (handle->res.a0 == INTEL_SIP_SMC_STATUS_BUSY) {
-		dev_dbg(ctrl->dev, "async message is still in progress\n");
+	} else if (handle->res.a0 == INTEL_SIP_SMC_STATUS_BUSY ||
+		   handle->res.a0 == INTEL_SIP_SMC_STATUS_NO_RESPONSE) {
+		dev_dbg(ctrl->dev, "async message is not ready yet\n");
 		return -EAGAIN;
 	}
 
