@@ -1921,10 +1921,13 @@ static int vc4_hdmi_audio_startup(struct drm_connector *connector)
 		goto out;
 	}
 
-	if (!vc4_hdmi_audio_can_stream(vc4_hdmi)) {
-		ret = -ENOTSUPP;
+	/*
+	 * Allow the PCM to open with no sink connected so userspace can probe
+	 * the card profile at start-up. Touch no hardware here (the HDMI block
+	 * may be runtime suspended); streaming is gated in audio_prepare().
+	 */
+	if (!vc4_hdmi_audio_can_stream(vc4_hdmi))
 		goto out_dev_exit;
-	}
 
 	vc4_hdmi->audio.streaming = true;
 
@@ -1981,6 +1984,16 @@ static void vc4_hdmi_audio_shutdown(struct drm_connector *connector)
 
 	if (!drm_dev_enter(drm, &idx))
 		goto out;
+
+	/*
+	 * Nothing was programmed if streaming never started (e.g. PCM opened
+	 * only for profile probing); the HDMI block may be powered down, so
+	 * avoid register access.
+	 */
+	if (!vc4_hdmi->audio.streaming) {
+		drm_dev_exit(idx);
+		goto out;
+	}
 
 	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
 
@@ -2069,10 +2082,15 @@ static int vc4_hdmi_audio_prepare(struct drm_connector *connector,
 		goto out;
 	}
 
-	if (!vc4_hdmi_audio_can_stream(vc4_hdmi)) {
-		ret = -EINVAL;
+	/*
+	 * Let .prepare succeed with no sink connected: snd_pcm_hw_params()
+	 * implicitly prepares, which userspace issues when probing the card
+	 * profile. Failing here would drop the HDMI profile on a headless
+	 * boot. Touch no hardware (the HDMI block may be runtime suspended);
+	 * the MAI is programmed once a sink connects and streaming starts.
+	 */
+	if (!vc4_hdmi_audio_can_stream(vc4_hdmi))
 		goto out_dev_exit;
-	}
 
 	vc4_hdmi_audio_set_mai_clock(vc4_hdmi, sample_rate);
 
