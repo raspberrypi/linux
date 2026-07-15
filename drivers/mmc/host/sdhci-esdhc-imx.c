@@ -2083,8 +2083,7 @@ static int sdhci_esdhc_suspend(struct device *dev)
 	disable_irq(host->irq);
 
 	if (device_may_wakeup(dev)) {
-		ret = sdhci_enable_irq_wakeups(host);
-		if (!ret)
+		if (!sdhci_enable_irq_wakeups(host))
 			dev_warn(dev, "Failed to enable irq wakeup\n");
 	} else {
 		/*
@@ -2095,12 +2094,12 @@ static int sdhci_esdhc_suspend(struct device *dev)
 		 * other function like GPIO function to save power in PM,
 		 * which finally block the SDIO wakeup function.
 		 */
-		ret = pinctrl_pm_select_sleep_state(dev);
-		if (ret)
-			return ret;
+		if (pinctrl_pm_select_sleep_state(dev))
+			dev_warn(dev, "Failed to select sleep pinctrl state\n");
 	}
 
-	ret = mmc_gpio_set_cd_wake(host->mmc, true);
+	if (mmc_gpio_set_cd_wake(host->mmc, true))
+		dev_warn(dev, "Failed to enable cd wake\n");
 
 	/*
 	 * Make sure invoke runtime_suspend to gate off clock.
@@ -2108,7 +2107,7 @@ static int sdhci_esdhc_suspend(struct device *dev)
 	 */
 	pm_runtime_force_suspend(dev);
 
-	return ret;
+	return 0;
 }
 
 static int sdhci_esdhc_resume(struct device *dev)
