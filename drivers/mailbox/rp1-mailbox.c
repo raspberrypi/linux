@@ -101,22 +101,10 @@ static void rp1_shutdown(struct mbox_chan *chan)
 	writel(event, mbox->regs + SYSCFG_HOST_EVENT_IRQ_EN + HW_CLR_BITS);
 }
 
-static bool rp1_last_tx_done(struct mbox_chan *chan)
-{
-	struct rp1_mbox *mbox = rp1_chan_mbox(chan);
-	unsigned int event = rp1_chan_event(chan);
-	unsigned int evs;
-
-	evs = readl(mbox->regs + SYSCFG_HOST_EVENT_IRQ);
-
-	return !(evs & event);
-}
-
 static const struct mbox_chan_ops rp1_mbox_chan_ops = {
 	.send_data	= rp1_send_data,
 	.startup	= rp1_startup,
 	.shutdown	= rp1_shutdown,
-	.last_tx_done	= rp1_last_tx_done
 };
 
 static struct mbox_chan *rp1_mbox_xlate(struct mbox_controller *mbox,
@@ -168,8 +156,6 @@ static int rp1_mbox_probe(struct platform_device *pdev)
 	if (!chans)
 		return -ENOMEM;
 
-	mbox->controller.txdone_poll = true;
-	mbox->controller.txpoll_period = 5;
 	mbox->controller.ops = &rp1_mbox_chan_ops;
 	mbox->controller.of_xlate = &rp1_mbox_xlate;
 	mbox->controller.dev = dev;
