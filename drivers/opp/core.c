@@ -1412,12 +1412,11 @@ static int _set_opp(struct device *dev, struct opp_table *opp_table,
  */
 int dev_pm_opp_set_rate(struct device *dev, unsigned long target_freq)
 {
+	struct opp_table *opp_table __free(put_opp_table) =
+		_find_opp_table(dev);
 	struct dev_pm_opp *opp __free(put_opp) = NULL;
 	unsigned long freq = 0, temp_freq;
 	bool forced = false;
-
-	struct opp_table *opp_table __free(put_opp_table) =
-		_find_opp_table(dev);
 
 	if (IS_ERR(opp_table)) {
 		dev_err(dev, "%s: device's opp table doesn't exist\n", __func__);
@@ -2870,11 +2869,10 @@ EXPORT_SYMBOL_GPL(dev_pm_opp_add_dynamic);
 static int _opp_set_availability(struct device *dev, unsigned long freq,
 				 bool availability_req)
 {
-	struct dev_pm_opp *opp __free(put_opp) = ERR_PTR(-ENODEV), *tmp_opp;
-
 	/* Find the opp_table */
 	struct opp_table *opp_table __free(put_opp_table) =
 		_find_opp_table(dev);
+	struct dev_pm_opp *opp __free(put_opp) = ERR_PTR(-ENODEV), *tmp_opp;
 
 	if (IS_ERR(opp_table)) {
 		dev_warn(dev, "%s: Device OPP not found (%ld)\n", __func__,
@@ -2932,12 +2930,11 @@ int dev_pm_opp_adjust_voltage(struct device *dev, unsigned long freq,
 			      unsigned long u_volt_max)
 
 {
-	struct dev_pm_opp *opp __free(put_opp) = ERR_PTR(-ENODEV), *tmp_opp;
-	int r;
-
 	/* Find the opp_table */
 	struct opp_table *opp_table __free(put_opp_table) =
 		_find_opp_table(dev);
+	struct dev_pm_opp *opp __free(put_opp) = ERR_PTR(-ENODEV), *tmp_opp;
+	int r;
 
 	if (IS_ERR(opp_table)) {
 		r = PTR_ERR(opp_table);
