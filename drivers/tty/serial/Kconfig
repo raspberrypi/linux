@@ -1603,6 +1603,18 @@ config SERIAL_RPI_FW
 
 	  If unsure, say N.
 
+config SERIAL_RP1_PIO_UART
+	tristate "Raspberry Pi RP1 PIO UART support"
+	depends on RP1_PIO || COMPILE_TEST
+	select SERIAL_CORE
+	help
+	  This selects a software UART implemented using the RP1 PIO block,
+	  with DMA moving data in and out of the PIO FIFOs and a PIO
+	  interrupt used for break detection. Only 8N1 with no hardware
+	  flow control is supported. Only useful on Raspberry Pi 5 and
+	  newer platforms that have an RP1 southbridge.
+
+	  If unsure, say N.
 
 endmenu
 
