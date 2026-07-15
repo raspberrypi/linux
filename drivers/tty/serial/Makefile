@@ -11,6 +11,7 @@ obj-$(CONFIG_SERIAL_EARLYCON_SEMIHOST) += earlycon-semihost.o
 obj-$(CONFIG_SERIAL_EARLYCON_RISCV_SBI) += earlycon-riscv-sbi.o
 
 obj-$(CONFIG_SERIAL_RPI_FW) 		+= rpi-fw-uart.o
+obj-$(CONFIG_SERIAL_RP1_PIO_UART)	+= rp1-pio-uart.o
 # These Sparc drivers have to appear before others such as 8250
 # which share ttySx minor node space.  Otherwise console device
 # names change and other unplesantries.
@@ -71,6 +72,7 @@ obj-$(CONFIG_SERIAL_QE)			+= ucc_uart.o
 obj-$(CONFIG_SERIAL_RDA)		+= rda-uart.o
 obj-$(CONFIG_SERIAL_RP2)		+= rp2.o
 obj-$(CONFIG_SERIAL_RPI_FW) 		+= rpi-fw-uart.o
+obj-$(CONFIG_SERIAL_RP1_PIO_UART)	+= rp1-pio-uart.o
 obj-$(CONFIG_SERIAL_RSCI)		+= rsci.o
 obj-$(CONFIG_SERIAL_SA1100)		+= sa1100.o
 obj-$(CONFIG_SERIAL_SAMSUNG)		+= samsung_tty.o
