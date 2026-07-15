@@ -15,6 +15,8 @@
 #include <linux/of_device.h>
 #include <linux/util_macros.h>
 
+#define EMC2305_REG_FAN_STATUS		0x24
+#define EMC2305_REG_FAN_STALL_STATUS	0x25
 #define EMC2305_REG_DRIVE_FAIL_STATUS	0x27
 #define EMC2305_REG_VENDOR		0xfe
 #define EMC2305_FAN_MAX			0xff
@@ -740,6 +742,12 @@ static int emc2305_probe(struct i2c_client *client)
 		if (ret < 0)
 			return ret;
 	}
+
+	/* Acknowledge any existing faults. Stops the device responding on the
+	 * SMBus alert address.
+	 */
+	i2c_smbus_read_byte_data(client, EMC2305_REG_FAN_STALL_STATUS);
+	i2c_smbus_read_byte_data(client, EMC2305_REG_FAN_STATUS);
 
 	return 0;
 }
