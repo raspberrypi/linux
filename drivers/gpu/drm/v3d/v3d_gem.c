@@ -36,7 +36,7 @@ v3d_init_core(struct v3d_dev *v3d, int core)
 	V3D_CORE_WRITE(core, V3D_CTL_L2TFLEND, ~0);
 }
 
-static void
+void
 v3d_idle_axi(struct v3d_dev *v3d, int core)
 {
 	if (v3d->ver >= V3D_GEN_71) {
@@ -61,7 +61,7 @@ v3d_idle_axi(struct v3d_dev *v3d, int core)
 	}
 }
 
-static void
+void
 v3d_idle_gca(struct v3d_dev *v3d)
 {
 	if (v3d->ver >= V3D_GEN_41)
