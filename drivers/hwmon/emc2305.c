@@ -15,8 +15,6 @@
 #include <linux/of_device.h>
 #include <linux/util_macros.h>
 
-#define EMC2305_REG_FAN_STATUS		0x24
-#define EMC2305_REG_FAN_STALL_STATUS	0x25
 #define EMC2305_REG_DRIVE_FAIL_STATUS	0x27
 #define EMC2305_REG_VENDOR		0xfe
 #define EMC2305_FAN_MAX			0xff
@@ -122,7 +120,6 @@ struct emc2305_data {
 	bool pwm_separate;
 	s16 pwm_shutdown[EMC2305_PWM_MAX];
 	u8 pwm_min[EMC2305_PWM_MAX];
-	u8 pwm_max;
 	u16 pwm_freq[EMC2305_PWM_MAX];
 	struct emc2305_cdev_data cdev_data[EMC2305_PWM_MAX];
 };
@@ -294,7 +291,7 @@ static int emc2305_set_pwm(struct device *dev, long val, int channel)
 	struct i2c_client *client = data->client;
 	int ret;
 
-	if (val < data->pwm_min[channel] || val > data->pwm_max)
+	if (val < data->pwm_min[channel] || val > EMC2305_FAN_MAX)
 		return -EINVAL;
 
 	ret = i2c_smbus_write_byte_data(client, EMC2305_REG_FAN_DRIVE(channel), val);
@@ -302,49 +299,6 @@ static int emc2305_set_pwm(struct device *dev, long val, int channel)
 		return ret;
 	data->cdev_data[channel].cur_state = EMC2305_PWM_DUTY2STATE(val, data->max_state,
 								    EMC2305_FAN_MAX);
-	return 0;
-}
-
-static int emc2305_get_tz_of(struct device *dev)
-{
-	struct device_node *np = dev->of_node;
-	struct emc2305_data *data = dev_get_drvdata(dev);
-	int ret = 0;
-	u8 val;
-	int i;
-
-	/* OF parameters are optional - overwrite default setting
-	 * if some of them are provided.
-	 */
-
-	ret = of_property_read_u8(np, "emc2305,cooling-levels", &val);
-	if (!ret)
-		data->max_state = val;
-	else if (ret != -EINVAL)
-		return ret;
-
-	ret = of_property_read_u8(np, "emc2305,pwm-max", &val);
-	if (!ret)
-		data->pwm_max = val;
-	else if (ret != -EINVAL)
-		return ret;
-
-	ret = of_property_read_u8(np, "emc2305,pwm-min", &val);
-	if (!ret)
-		for (i = 0; i < EMC2305_PWM_MAX; i++)
-			data->pwm_min[i] = val;
-	else if (ret != -EINVAL)
-		return ret;
-
-	/* Not defined or 0 means one thermal zone over all cooling devices.
-	 * Otherwise - separated thermal zones for each PWM channel.
-	 */
-	ret = of_property_read_u8(np, "emc2305,pwm-channel", &val);
-	if (!ret)
-		data->pwm_separate = (val != 0);
-	else if (ret != -EINVAL)
-		return ret;
-
 	return 0;
 }
 
@@ -357,16 +311,10 @@ static int emc2305_set_single_tz(struct device *dev, struct device_node *fan_nod
 	cdev_idx = (idx) ? idx - 1 : 0;
 	pwm = data->pwm_min[cdev_idx];
 
-	if (dev->of_node)
-		data->cdev_data[cdev_idx].cdev =
-			devm_thermal_of_child_cooling_device_register(dev, fan_node,
-								      emc2305_fan_name[idx], data,
-								      &emc2305_cooling_ops);
-	else
-		data->cdev_data[cdev_idx].cdev =
-			thermal_cooling_device_register(emc2305_fan_name[idx],
-							data,
-							&emc2305_cooling_ops);
+	data->cdev_data[cdev_idx].cdev =
+		devm_thermal_of_child_cooling_device_register(dev, fan_node,
+							      emc2305_fan_name[idx], data,
+							      &emc2305_cooling_ops);
 
 	if (IS_ERR(data->cdev_data[cdev_idx].cdev)) {
 		dev_err(dev, "Failed to register cooling device %s\n", emc2305_fan_name[idx]);
@@ -399,19 +347,6 @@ static int emc2305_set_single_tz(struct device *dev, struct device_node *fan_nod
 	return 0;
 }
 
-static void emc2305_unset_tz(struct device *dev)
-{
-	struct emc2305_data *data = dev_get_drvdata(dev);
-	int i;
-
-	/* Unregister cooling device. */
-	if (!dev->of_node) {
-		for (i = 0; i < EMC2305_PWM_MAX; i++)
-			if (data->cdev_data[i].cdev)
-				thermal_cooling_device_unregister(data->cdev_data[i].cdev);
-	}
-}
-
 static int emc2305_set_tz(struct device *dev)
 {
 	struct emc2305_data *data = dev_get_drvdata(dev);
@@ -423,13 +358,9 @@ static int emc2305_set_tz(struct device *dev)
 	for (i = 0; i < data->pwm_num; i++) {
 		ret = emc2305_set_single_tz(dev, dev->of_node, i + 1);
 		if (ret)
-			goto thermal_cooling_device_register_fail;
+			return ret;
 	}
 	return 0;
-
-thermal_cooling_device_register_fail:
-	emc2305_unset_tz(dev);
-	return ret;
 }
 
 static umode_t
@@ -748,7 +679,6 @@ static int emc2305_probe(struct i2c_client *client)
 				data->pwm_min[i] = pdata->pwm_min[i];
 				data->pwm_freq[i] = pdata->pwm_freq[i];
 			}
-			data->pwm_max = EMC2305_FAN_MAX;
 		} else {
 			data->max_state = EMC2305_FAN_MAX_STATE;
 			data->pwm_separate = false;
@@ -758,24 +688,12 @@ static int emc2305_probe(struct i2c_client *client)
 				data->pwm_min[i] = EMC2305_FAN_MIN;
 				data->pwm_freq[i] = base_freq_table[3];
 			}
-			data->pwm_max = EMC2305_FAN_MAX;
-			if (dev->of_node) {
-				ret = emc2305_get_tz_of(dev);
-				if (ret < 0)
-					return ret;
-			}
 		}
 	} else {
 		data->max_state = EMC2305_FAN_MAX_STATE;
 		data->pwm_separate = false;
 		for (i = 0; i < EMC2305_PWM_MAX; i++)
 			data->pwm_min[i] = EMC2305_FAN_MIN;
-		data->pwm_max = EMC2305_FAN_MAX;
-		if (dev->of_node) {
-			ret = emc2305_get_tz_of(dev);
-			if (ret < 0)
-				return ret;
-		}
 	}
 
 	data->hwmon_dev = devm_hwmon_device_register_with_info(dev, "emc2305", data,
@@ -823,12 +741,6 @@ static int emc2305_probe(struct i2c_client *client)
 			return ret;
 	}
 
-	/* Acknowledge any existing faults. Stops the device responding on the
-	 * SMBus alert address.
-	 */
-	i2c_smbus_read_byte_data(client, EMC2305_REG_FAN_STALL_STATUS);
-	i2c_smbus_read_byte_data(client, EMC2305_REG_FAN_STATUS);
-
 	return 0;
 }
 
@@ -851,20 +763,9 @@ static void emc2305_shutdown(struct i2c_client *client)
 
 static const struct of_device_id of_emc2305_match_table[] = {
 	{ .compatible = "microchip,emc2305", },
-	{ .compatible = "microchip,emc2303", },
-	{ .compatible = "microchip,emc2302", },
-	{ .compatible = "microchip,emc2301", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_emc2305_match_table);
-
-static void emc2305_remove(struct i2c_client *client)
-{
-	struct device *dev = &client->dev;
-
-	if (IS_REACHABLE(CONFIG_THERMAL))
-		emc2305_unset_tz(dev);
-}
 
 static struct i2c_driver emc2305_driver = {
 	.driver = {
@@ -873,7 +774,6 @@ static struct i2c_driver emc2305_driver = {
 	},
 	.probe = emc2305_probe,
 	.shutdown = emc2305_shutdown,
-	.remove	  = emc2305_remove,
 	.id_table = emc2305_ids,
 };
 
