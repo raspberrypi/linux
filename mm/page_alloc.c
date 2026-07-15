@@ -1585,7 +1585,9 @@ static void free_one_page(struct zone *zone, struct page *page,
 	unsigned long flags;
 
 	if (unlikely(fpi_flags & FPI_TRYLOCK)) {
-		if (!spin_trylock_irqsave(&zone->lock, flags)) {
+		if ((IS_ENABLED(CONFIG_PREEMPT_RT) && (in_nmi() || in_hardirq())) ||
+		    (!IS_ENABLED(CONFIG_SMP) && in_nmi()) ||
+		    !spin_trylock_irqsave(&zone->lock, flags)) {
 			add_page_to_zone_llist(zone, page, order);
 			return;
 		}
