@@ -458,7 +458,8 @@ int lzo_decompress(struct list_head *ws, const u8 *data_in,
 	size_t max_segment_len = workspace_buf_length(fs_info);
 	int ret = 0;
 
-	if (unlikely(srclen < LZO_LEN || srclen > max_segment_len + LZO_LEN * 2))
+	if (unlikely(srclen <= LZO_LEN * 2 ||
+		     srclen > max_segment_len + LZO_LEN * 2))
 		return -EUCLEAN;
 
 	in_len = read_compress_length(data_in);
