@@ -80,6 +80,13 @@ int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 	reinit_completion(&fw->c);
 	ret = mbox_send_message(fw->chan, NULL);
 	if (ret >= 0) {
+		/*
+		 * The doorbell write in rp1_send_data() is already complete by
+		 * the time mbox_send_message() returns, so tell the mailbox
+		 * core immediately rather than have it poll for tx-done.
+		 */
+		mbox_client_txdone(fw->chan, 0);
+
 		if (wait_for_completion_timeout(&fw->c, HZ))
 			ret = 0;
 		else
