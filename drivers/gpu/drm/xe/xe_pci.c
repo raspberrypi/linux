@@ -1029,6 +1029,12 @@ static void xe_pci_remove(struct pci_dev *pdev)
 		return;
 
 	xe_device_remove(xe);
+
+	/*
+	 * Preserve remove-time flush after moving destroy work to module
+	 * lifetime.
+	 */
+	xe_destroy_wq_flush();
 	xe_pm_fini(xe);
 }
 
