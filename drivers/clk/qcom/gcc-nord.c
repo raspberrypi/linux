@@ -701,7 +701,7 @@ static struct clk_branch gcc_pcie_a_phy_rchng_clk = {
 
 static struct clk_branch gcc_pcie_a_pipe_clk = {
 	.halt_reg = 0x49068,
-	.halt_check = BRANCH_HALT_VOTED,
+	.halt_check = BRANCH_HALT_SKIP,
 	.hwcg_reg = 0x49068,
 	.hwcg_bit = 1,
 	.clkr = {
@@ -850,7 +850,7 @@ static struct clk_branch gcc_pcie_b_phy_rchng_clk = {
 
 static struct clk_branch gcc_pcie_b_pipe_clk = {
 	.halt_reg = 0x4a068,
-	.halt_check = BRANCH_HALT_VOTED,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x9d008,
 		.enable_mask = BIT(24),
@@ -995,7 +995,7 @@ static struct clk_branch gcc_pcie_c_phy_rchng_clk = {
 
 static struct clk_branch gcc_pcie_c_pipe_clk = {
 	.halt_reg = 0x4b068,
-	.halt_check = BRANCH_HALT_VOTED,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x9d010,
 		.enable_mask = BIT(1),
@@ -1140,7 +1140,7 @@ static struct clk_branch gcc_pcie_d_phy_rchng_clk = {
 
 static struct clk_branch gcc_pcie_d_pipe_clk = {
 	.halt_reg = 0x4c068,
-	.halt_check = BRANCH_HALT_VOTED,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x9d010,
 		.enable_mask = BIT(10),
