@@ -352,6 +352,18 @@ void vc4_irq_reset(struct drm_device *dev)
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
+
+	/*
+	 * The reset wiped the binner's hardware state, and the job that may
+	 * have been reading overflow memory is torn down just below. Free the
+	 * current overflow slot and clear the overflow registers so the
+	 * re-queued BIN job restarts from a clean OOM state.
+	 */
+	vc4->bin_alloc_used &= ~vc4->bin_alloc_overflow;
+	vc4->bin_alloc_overflow = 0;
+	V3D_WRITE(V3D_BPOA, 0);
+	V3D_WRITE(V3D_BPOS, 0);
+
 	vc4_cancel_bin_job(dev);
 	vc4_irq_finish_render_job(dev);
 	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
