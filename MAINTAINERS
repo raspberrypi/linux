@@ -24921,6 +24921,12 @@ S:	Maintained
 W:	http://www.winischhofer.at/linuxsisusbvga.shtml
 F:	drivers/usb/misc/sisusbvga/
 
+SITRONIX ST7123 TOUCHSCREEN DRIVER
+M:	Waveshare Team <support@waveshare.com>
+L:	linux-input@vger.kernel.org
+S:	Maintained
+F:	drivers/input/touchscreen/st7123.c
+
 SL28 CPLD MFD DRIVER
 M:	Michael Walle <mwalle@kernel.org>
 S:	Maintained
