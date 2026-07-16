@@ -19,7 +19,14 @@
 			emc2301: emc2301@2f {
 				compatible = "microchip,emc2301", "microchip,emc2305";
 				reg = <0x2f>;
-				#cooling-cells = <0x02>;
+				#pwm-cells = <3>;
+
+				fan0: fan@0 {
+					reg = <0x0>;
+					pwms = <&emc2301 26000 0 1>;
+					#cooling-cells = <2>;
+				};
+
 			};
 		};
 	};
@@ -52,26 +59,24 @@
 		__overlay__ {
 			map0: map0 {
 				trip = <&fanmid0>;
-				cooling-device = <&emc2301 2 6>;
+				cooling-device = <&fan0 2 6>;
 			};
 			map1: map1 {
 				trip = <&fanmax0>;
-				cooling-device = <&emc2301 7 THERMAL_NO_LIMIT>;
+				cooling-device = <&fan0 7 THERMAL_NO_LIMIT>;
 			};
 		};
 	};
 
 	__overrides__ {
 		addr =		<&emc2301>,"reg:0";
-		minpwm =	<&emc2301>,"emc2305,pwm-min.0";
-		maxpwm =	<&emc2301>,"emc2305,pwm-max.0";
 		midtemp =	<&fanmid0>,"temperature:0";
 		midtemp_hyst =	<&fanmid0>,"hysteresis:0";
 		maxtemp =	<&fanmax0>,"temperature:0";
 		maxtemp_hyst =	<&fanmax0>,"hysteresis:0";
 
 		emc2301 =	<0>,"+0",
-				<&map0>,"cooling-device:0=",<&emc2301>,
-				<&map1>,"cooling-device:0=",<&emc2301>;
+				<&map0>,"cooling-device:0=",<&fan0>,
+				<&map1>,"cooling-device:0=",<&fan0>;
 	};
 };

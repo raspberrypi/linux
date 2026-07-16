@@ -2247,10 +2247,6 @@ Params: addr                    Sets the address for the fan controller. Note
         i2c-bus                 Supports all the standard I2C bus selection
                                 parameters - see "dtoverlay -h i2c-bus"
 
-        minpwm                  PWM setting for the fan when the SoC is below
-                                mintemp (range 0-255. default 0)
-        maxpwm                  PWM setting for the fan when the SoC is above
-                                maxtemp (range 0-255. default 255)
         midtemp                 Temperature (in millicelsius) at which the fan
                                 begins to speed up (default 50000)
 
