@@ -172,7 +172,13 @@ void fuse_set_initialized(struct fuse_conn *fc)
 
 static bool fuse_block_alloc(struct fuse_conn *fc, bool for_background)
 {
-	return !fc->initialized || (for_background && fc->blocked) ||
+	if (!fc->initialized)
+		return true;
+
+	/* Pairs with smp_wmb() in fuse_set_initialized() */
+	smp_rmb();
+
+	return (for_background && fc->blocked) ||
 	       (fc->io_uring && fc->connected && !fuse_uring_ready(fc));
 }
 
@@ -212,8 +218,6 @@ static struct fuse_req *fuse_get_req(struct mnt_idmap *idmap,
 				(TASK_KILLABLE | TASK_FREEZABLE)))
 			goto out;
 	}
-	/* Matches smp_wmb() in fuse_set_initialized() */
-	smp_rmb();
 
 	err = -ENOTCONN;
 	if (!fc->connected)
