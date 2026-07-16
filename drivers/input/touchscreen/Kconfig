@@ -1241,6 +1241,18 @@ config TOUCHSCREEN_SIS_I2C
 	  To compile this driver as a module, choose M here: the
 	  module will be called sis_i2c.
 
+config TOUCHSCREEN_ST7123
+	tristate "Sitronix ST7123 touchscreen controllers"
+	depends on I2C
+	help
+	  Say Y here if you want to support the Sitronix ST7123
+	  touchscreen controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called st7123.
+
 config TOUCHSCREEN_ST1232
 	tristate "Sitronix ST1232 or ST1633 touchscreen controllers"
 	depends on I2C
