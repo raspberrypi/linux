@@ -5874,15 +5874,22 @@ static void scx_sub_disable(struct scx_sched *sch)
 			/*
 			 * $p is initialized for $parent and still attached to
 			 * @sch. Disable and exit for @sch, switch over to
-			 * $parent, override the state to READY to account for
-			 * $p having already been initialized, and then enable.
+			 * $parent and override the state to READY to account
+			 * for $p having already been initialized.
 			 */
 			scx_disable_and_exit_task(sch, p);
 			scx_set_task_state(p, SCX_TASK_INIT_BEGIN);
 			scx_set_task_state(p, SCX_TASK_INIT);
 			scx_set_task_sched(p, parent);
 			scx_set_task_state(p, SCX_TASK_READY);
-			scx_enable_task(parent, p);
+
+			/*
+			 * A task on a non-ext class, possible under an
+			 * %SCX_OPS_SWITCH_PARTIAL root, stays READY and is
+			 * enabled by switching_to_scx() if it switches over.
+			 */
+			if (p->sched_class == &ext_sched_class)
+				scx_enable_task(parent, p);
 		}
 
 		task_rq_unlock(rq, p, &rf);
@@ -7377,10 +7384,14 @@ static void scx_sub_enable_workfn(struct kthread_work *work)
 
 			/*
 			 * $p is now only initialized for @sch and READY, which
-			 * is what we want. Assign it to @sch and enable.
+			 * is what we want. Assign it to @sch and, if it's on
+			 * the ext class, enable. A non-ext task, possible under
+			 * an %SCX_OPS_SWITCH_PARTIAL root, stays READY and is
+			 * enabled by switching_to_scx() if it switches over.
 			 */
 			scx_set_task_sched(p, sch);
-			scx_enable_task(sch, p);
+			if (p->sched_class == &ext_sched_class)
+				scx_enable_task(sch, p);
 
 			p->scx.flags &= ~SCX_TASK_SUB_INIT;
 		}
