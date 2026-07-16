@@ -3581,6 +3581,9 @@ static int __scx_init_task(struct scx_sched *sch, struct task_struct *p, bool fo
 		} else if (unlikely(fork)) {
 			scx_error(sch, "ops.init_task() set task->scx.disallow for %s[%d] during fork",
 				  p->comm, p->pid);
+		} else if (unlikely(scx_enable_state() != SCX_ENABLING)) {
+			scx_error(sch, "ops.init_task() set task->scx.disallow for %s[%d] outside the enable path",
+				  p->comm, p->pid);
 		} else {
 			struct rq *rq;
 			struct rq_flags rf;
