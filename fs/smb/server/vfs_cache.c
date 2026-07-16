@@ -402,6 +402,17 @@ static void __ksmbd_close_fd(struct ksmbd_file_table *ft, struct ksmbd_file *fp)
 		kfree(smb_lock);
 	}
 
+	/*
+	 * Drop fp's strong reference on conn (taken in ksmbd_open_fd() /
+	 * ksmbd_reopen_durable_fd()).  Durable fps that reached the
+	 * scavenger have already had fp->conn cleared by session_fd_check(),
+	 * in which case there is nothing to drop here.
+	 */
+	if (fp->conn) {
+		ksmbd_conn_put(fp->conn);
+		fp->conn = NULL;
+	}
+
 	if (ksmbd_stream_fd(fp))
 		kfree(fp->stream.name);
 	kfree(fp->owner.name);
@@ -694,7 +705,14 @@ struct ksmbd_file *ksmbd_open_fd(struct ksmbd_work *work, struct file *filp)
 	atomic_set(&fp->refcount, 1);
 
 	fp->filp		= filp;
-	fp->conn		= work->conn;
+	/*
+	 * fp owns a strong reference on fp->conn for as long as fp->conn is
+	 * non-NULL, so session_fd_check() and __ksmbd_close_fd() never
+	 * dereference a dangling pointer.  Paired with ksmbd_conn_put() in
+	 * session_fd_check() (durable preserve), in __ksmbd_close_fd()
+	 * (final close), and on the error paths below.
+	 */
+	fp->conn		= ksmbd_conn_get(work->conn);
 	fp->tcon		= work->tcon;
 	fp->volatile_id		= KSMBD_NO_FID;
 	fp->persistent_id	= KSMBD_NO_FID;
@@ -716,6 +734,8 @@ struct ksmbd_file *ksmbd_open_fd(struct ksmbd_work *work, struct file *filp)
 	return fp;
 
 err_out:
+	/* fp->conn was set and refcounted before every branch here. */
+	ksmbd_conn_put(fp->conn);
 	kmem_cache_free(filp_cache, fp);
 	return ERR_PTR(ret);
 }
@@ -1043,25 +1063,32 @@ static bool session_fd_check(struct ksmbd_tree_connect *tcon,
 	if (!is_reconnectable(fp))
 		return false;
 
+	if (WARN_ON_ONCE(!fp->conn))
+		return false;
+
 	if (ksmbd_vfs_copy_durable_owner(fp, user))
 		return false;
 
+	/*
+	 * fp owns a strong reference on fp->conn (taken in ksmbd_open_fd()
+	 * / ksmbd_reopen_durable_fd()), so conn stays valid for the whole
+	 * body of this function regardless of any op->conn puts below.
+	 */
 	conn = fp->conn;
 	ci = fp->f_ci;
 	down_write(&ci->m_lock);
 	list_for_each_entry_rcu(op, &ci->m_op_list, op_entry) {
 		if (op->conn != conn)
 			continue;
-		if (op->conn && atomic_dec_and_test(&op->conn->refcnt))
-			kfree(op->conn);
+		ksmbd_conn_put(op->conn);
 		op->conn = NULL;
 	}
 	up_write(&ci->m_lock);
 
 	list_for_each_entry_safe(smb_lock, tmp_lock, &fp->lock_list, flist) {
-		spin_lock(&fp->conn->llist_lock);
+		spin_lock(&conn->llist_lock);
 		list_del_init(&smb_lock->clist);
-		spin_unlock(&fp->conn->llist_lock);
+		spin_unlock(&conn->llist_lock);
 	}
 
 	fp->conn = NULL;
@@ -1072,6 +1099,8 @@ static bool session_fd_check(struct ksmbd_tree_connect *tcon,
 		fp->durable_scavenger_timeout =
 			jiffies_to_msecs(jiffies) + fp->durable_timeout;
 
+	/* Drop fp's own reference on conn. */
+	ksmbd_conn_put(conn);
 	return true;
 }
 
@@ -1158,14 +1187,26 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 
 	old_f_state = fp->f_state;
 	fp->f_state = FP_NEW;
+
+	/*
+	 * Initialize fp's connection binding before publishing fp into the
+	 * session's file table.  If __open_id() is ordered first, a
+	 * concurrent teardown that iterates the table can observe a valid
+	 * volatile_id with fp->conn == NULL and preserve a
+	 * partially-initialized fp.  fp owns a strong reference on the new
+	 * conn (see ksmbd_open_fd()); undo it on __open_id() failure.
+	 */
+	fp->conn = ksmbd_conn_get(conn);
+	fp->tcon = work->tcon;
+
 	__open_id(&work->sess->file_table, fp, OPEN_ID_TYPE_VOLATILE_ID);
 	if (!has_file_id(fp->volatile_id)) {
+		fp->conn = NULL;
+		fp->tcon = NULL;
+		ksmbd_conn_put(conn);
 		fp->f_state = old_f_state;
 		return -EBADF;
 	}
-
-	fp->conn = conn;
-	fp->tcon = work->tcon;
 
 	list_for_each_entry(smb_lock, &fp->lock_list, flist) {
 		spin_lock(&conn->llist_lock);
@@ -1178,8 +1219,7 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 	list_for_each_entry_rcu(op, &ci->m_op_list, op_entry) {
 		if (op->conn)
 			continue;
-		op->conn = fp->conn;
-		atomic_inc(&op->conn->refcnt);
+		op->conn = ksmbd_conn_get(fp->conn);
 	}
 	up_write(&ci->m_lock);
 
