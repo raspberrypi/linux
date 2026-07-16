@@ -488,6 +488,7 @@ config PINCTRL_PIC32
 	depends on MACH_PIC32 || COMPILE_TEST
 	select PINMUX
 	select GENERIC_PINCONF
+	select GPIOLIB
 	select GPIOLIB_IRQCHIP
 	help
 	  This is the pin controller and gpio driver for Microchip PIC32
@@ -564,6 +565,7 @@ config PINCTRL_STMFX
 	depends on I2C
 	depends on HAS_IOMEM
 	select GENERIC_PINCONF
+	select GPIOLIB
 	select GPIOLIB_IRQCHIP
 	select MFD_STMFX
 	help
