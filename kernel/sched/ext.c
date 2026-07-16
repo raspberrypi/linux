@@ -5798,6 +5798,15 @@ static void scx_sub_disable(struct scx_sched *sch)
 	percpu_down_write(&scx_fork_rwsem);
 	scx_cgroup_lock();
 
+	/*
+	 * An enable that failed before scx_link_sched() never owned a cgroup or
+	 * task and won't be waited on by an ancestor's drain_descendants().
+	 * Nothing to reparent and walking the tasks can misbehave as the task
+	 * ownership invariant (either owned by self or parent) does not hold.
+	 */
+	if (list_empty(&sch->sibling))
+		goto dump;
+
 	set_cgroup_sched(sch_cgroup(sch), parent);
 
 	scx_task_iter_start(&sti, sch->cgrp);
@@ -5810,8 +5819,8 @@ static void scx_sub_disable(struct scx_sched *sch)
 			continue;
 
 		/*
-		 * By the time control reaches here, all descendant schedulers
-		 * should already have been disabled.
+		 * By the time control reaches here, all linked descendant
+		 * schedulers should have been disabled.
 		 */
 		WARN_ON_ONCE(!scx_task_on_sched(sch, p));
 
@@ -5881,6 +5890,7 @@ static void scx_sub_disable(struct scx_sched *sch)
 	}
 	scx_task_iter_stop(&sti);
 
+dump:
 	scx_disable_dump(sch);
 
 	scx_cgroup_unlock();
