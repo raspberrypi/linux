@@ -45,7 +45,8 @@ static void hfs_write_failed(struct address_space *mapping, loff_t to)
 }
 
 int hfs_write_begin(struct file *file, struct address_space *mapping,
-		loff_t pos, unsigned len, struct folio **foliop, void **fsdata)
+		    loff_t pos, unsigned int len, struct folio **foliop,
+		    void **fsdata)
 {
 	int ret;
 
