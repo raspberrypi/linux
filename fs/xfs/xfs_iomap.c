@@ -113,6 +113,7 @@ xfs_bmbt_to_iomap(
 		return xfs_alert_fsblock_zero(ip, imap);
 	}
 
+	iomap->flags = iomap_flags;
 	if (imap->br_startblock == HOLESTARTBLOCK) {
 		iomap->addr = IOMAP_NULL_ADDR;
 		iomap->type = IOMAP_HOLE;
@@ -147,7 +148,6 @@ xfs_bmbt_to_iomap(
 		iomap->dax_dev = target->bt_daxdev;
 	else
 		iomap->bdev = target->bt_bdev;
-	iomap->flags = iomap_flags;
 
 	/*
 	 * If the inode is dirty for datasync purposes, let iomap know so it
