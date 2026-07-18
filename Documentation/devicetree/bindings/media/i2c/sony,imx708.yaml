@@ -4,10 +4,11 @@
 $id: http://devicetree.org/schemas/media/i2c/sony,imx708.yaml#
 $schema: http://devicetree.org/meta-schemas/core.yaml#
 
-title: Sony 1/2.3-Inch 12Mpixel CMOS Digital Image Sensor
+title: Sony IMX708 Sensor
 
 maintainers:
   - Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
+  - Jai Luthra <jai.luthra@ideasonboard.com>
 
 description: |-
   The Sony IMX708 is a 1/2.3-inch CMOS active pixel digital image sensor
@@ -26,11 +27,6 @@ properties:
   clocks:
     maxItems: 1
 
-  clock-names:
-    description: Input clock (6 to 27 MHz)
-    items:
-      - const: inck
-
   vdig-supply:
     description:
       Digital I/O voltage supply, 1.1 volts
@@ -48,13 +44,12 @@ properties:
       Digital core voltage supply, 1.8 volts
 
   reset-gpios:
-    description: Sensor reset (XCLR) GPIO
+    description: Sensor RESETN (XCLR) GPIO
     maxItems: 1
 
   port:
     $ref: /schemas/graph.yaml#/$defs/port-base
-    description: |
-      Video output port
+    additionalProperties: false
 
     properties:
       endpoint:
@@ -63,7 +58,7 @@ properties:
 
         properties:
           data-lanes:
-            anyOf:
+            oneOf:
               - items:
                   - const: 1
                   - const: 2
@@ -73,19 +68,17 @@ properties:
                   - const: 3
                   - const: 4
 
-          link-frequencies: true
-
         required:
           - data-lanes
           - link-frequencies
 
-    additionalProperties: false
+    required:
+      - endpoint
 
 required:
   - compatible
   - reg
   - clocks
-  - clock-names
   - vdig-supply
   - vana1-supply
   - vana2-supply
@@ -102,12 +95,11 @@ examples:
         #address-cells = <1>;
         #size-cells = <0>;
 
-        imx708: camera-sensor@1a {
+        camera@1a {
             compatible = "sony,imx708";
             reg = <0x1a>;
 
             clocks = <&clk 90>;
-            clock-names = "inck";
 
             vdig-supply = <&camera_vdig>;
             vana1-supply = <&camera_vana1>;
