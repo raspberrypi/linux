@@ -203,6 +203,7 @@ unsafe impl<T: Operations> Sync for Request<T> {}
 /// Store the result of `op(target.load())` in target, returning new value of
 /// target.
 fn atomic_relaxed_op_return(target: &AtomicU64, op: impl Fn(u64) -> u64) -> u64 {
+    #[allow(deprecated)]
     let old = target.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| Some(op(x)));
 
     // SAFETY: Because the operation passed to `fetch_update` above always
@@ -215,6 +216,7 @@ fn atomic_relaxed_op_return(target: &AtomicU64, op: impl Fn(u64) -> u64) -> u64 
 /// Store the result of `op(target.load)` in `target` if `target.load() !=
 /// pred`, returning [`true`] if the target was updated.
 fn atomic_relaxed_op_unless(target: &AtomicU64, op: impl Fn(u64) -> u64, pred: u64) -> bool {
+    #[allow(deprecated)]
     target
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
             if x == pred {
