@@ -676,6 +676,11 @@ static struct ksmbd_file *ksmbd_fp_get(struct ksmbd_file *fp)
 	return fp;
 }
 
+struct ksmbd_file *ksmbd_file_get(struct ksmbd_file *fp)
+{
+	return ksmbd_fp_get(fp);
+}
+
 static struct ksmbd_file *__ksmbd_lookup_fd(struct ksmbd_file_table *ft,
 					    u64 id)
 {
@@ -1519,7 +1524,7 @@ void ksmbd_stop_durable_scavenger(void)
 }
 
 /*
- * ksmbd_vfs_copy_durable_owner - Copy owner info for durable reconnect
+ * ksmbd_vfs_set_durable_owner - Store owner info for durable replay/reconnect
  * @fp: ksmbd file pointer to store owner info
  * @user: user pointer to copy from
  *
@@ -1528,8 +1533,8 @@ void ksmbd_stop_durable_scavenger(void)
  *
  * Return: 0 on success, or negative error code on failure
  */
-static int ksmbd_vfs_copy_durable_owner(struct ksmbd_file *fp,
-		struct ksmbd_user *user)
+int ksmbd_vfs_set_durable_owner(struct ksmbd_file *fp,
+				struct ksmbd_user *user)
 {
 	char *name;
 
@@ -1600,7 +1605,7 @@ static bool session_fd_check(struct ksmbd_tree_connect *tcon,
 	if (WARN_ON_ONCE(!fp->conn))
 		return false;
 
-	if (ksmbd_vfs_copy_durable_owner(fp, user))
+	if (ksmbd_vfs_set_durable_owner(fp, user))
 		return false;
 
 	/*
