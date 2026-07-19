@@ -3518,7 +3518,15 @@ static int btf_get_field_type(const struct btf *btf, const struct btf_type *var_
 	field_mask_test_name(BPF_LIST_NODE, "bpf_list_node");
 	field_mask_test_name(BPF_RB_ROOT,   "bpf_rb_root");
 	field_mask_test_name(BPF_RB_NODE,   "bpf_rb_node");
-	field_mask_test_name(BPF_REFCOUNT,  "bpf_refcount");
+	if (field_mask & BPF_REFCOUNT) {
+		if (!strcmp(name, "bpf_refcount")) {
+			if (*seen_mask & BPF_REFCOUNT)
+				return -E2BIG;
+			*seen_mask |= BPF_REFCOUNT;
+			type = BPF_REFCOUNT;
+			goto end;
+		}
+	}
 
 	/* Only return BPF_KPTR when all other types with matchable names fail */
 	if (field_mask & BPF_KPTR && !__btf_type_is_struct(var_type)) {
