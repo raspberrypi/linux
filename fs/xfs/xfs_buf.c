@@ -319,12 +319,14 @@ xfs_buf_free(
 
 	ASSERT(list_empty(&bp->b_lru));
 
-	if (xfs_buftarg_is_mem(bp->b_target))
-		xmbuf_unmap_page(bp);
-	else if (bp->b_flags & _XBF_PAGES)
+	if (xfs_buftarg_is_mem(bp->b_target)) {
+		if (bp->b_addr)
+			xmbuf_unmap_page(bp);
+	} else if (bp->b_flags & _XBF_PAGES) {
 		xfs_buf_free_pages(bp);
-	else if (bp->b_flags & _XBF_KMEM)
+	} else if (bp->b_flags & _XBF_KMEM) {
 		kfree(bp->b_addr);
+	}
 
 	call_rcu(&bp->b_rcu, xfs_buf_free_callback);
 }
