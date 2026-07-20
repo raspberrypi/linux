@@ -1543,12 +1543,17 @@ static noinline_for_stack int extent_writepage_io(struct btrfs_inode *inode,
 
 	ASSERT(start >= folio_start && end <= folio_end);
 
-	ret = btrfs_writepage_cow_fixup(folio);
-	if (ret) {
-		/* Fixup worker will requeue */
-		folio_redirty_for_writepage(bio_ctrl->wbc, folio);
-		folio_unlock(folio);
-		return 1;
+	if (unlikely(!folio_test_ordered(folio))) {
+		WARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));
+		btrfs_err_rl(fs_info,
+	"root %lld ino %llu folio %llu is marked dirty without notifying the fs",
+			     btrfs_root_id(inode->root),
+			     btrfs_ino(inode),
+			     folio_pos(folio));
+		btrfs_folio_clear_dirty(fs_info, folio, start, len);
+		btrfs_folio_set_writeback(fs_info, folio, start, len);
+		btrfs_folio_clear_writeback(fs_info, folio, start, len);
+		return -EUCLEAN;
 	}
 
 	bitmap_set(&range_bitmap, (start - folio_pos(folio)) >> fs_info->sectorsize_bits,
