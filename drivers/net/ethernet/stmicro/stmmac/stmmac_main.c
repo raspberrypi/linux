@@ -2560,6 +2560,7 @@ static void stmmac_stop_all_dma(struct stmmac_priv *priv)
 {
 	u8 rx_channels_count = priv->plat->rx_queues_to_use;
 	u8 tx_channels_count = priv->plat->tx_queues_to_use;
+	u8 dma_csr_ch = max(rx_channels_count, tx_channels_count);
 	u8 chan;
 
 	for (chan = 0; chan < rx_channels_count; chan++)
@@ -2567,6 +2568,9 @@ static void stmmac_stop_all_dma(struct stmmac_priv *priv)
 
 	for (chan = 0; chan < tx_channels_count; chan++)
 		stmmac_stop_tx_dma(priv, chan);
+
+	for (chan = 0; chan < dma_csr_ch; chan++)
+		stmmac_deinit_chan(priv, priv->ioaddr, chan);
 }
 
 /**
