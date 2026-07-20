@@ -883,12 +883,15 @@ void snd_timer_interrupt(struct snd_timer * timer, unsigned long ticks_left)
 			ack_list_head = &timer->ack_list_head;
 		else
 			ack_list_head = &timer->sack_list_head;
-		if (list_empty(&ti->ack_list))
+		/* don't requeue an instance whose callback is still running */
+		if (list_empty(&ti->ack_list) &&
+		    !(ti->flags & SNDRV_TIMER_IFLG_CALLBACK))
 			list_add_tail(&ti->ack_list, ack_list_head);
 		list_for_each_entry(ts, &ti->slave_active_head, active_list) {
 			ts->pticks = ti->pticks;
 			ts->resolution = resolution;
-			if (list_empty(&ts->ack_list))
+			if (list_empty(&ts->ack_list) &&
+			    !(ts->flags & SNDRV_TIMER_IFLG_CALLBACK))
 				list_add_tail(&ts->ack_list, ack_list_head);
 		}
 	}
