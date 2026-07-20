@@ -194,7 +194,7 @@ static u64 dma_length(struct ethosu_validated_cmdstream_info *info,
 
 static u64 feat_matrix_length(struct ethosu_validated_cmdstream_info *info,
 			      struct feat_matrix *fm,
-			      u32 x, u32 y, u32 c)
+			      u32 x, u32 y, u32 c, bool ofm)
 {
 	u32 element_size, storage = fm->precision >> 14;
 	int tile = 0;
@@ -231,10 +231,11 @@ static u64 feat_matrix_length(struct ethosu_validated_cmdstream_info *info,
 
 	switch ((fm->precision >> 6) & 0x3) { // format
 	case 0: //nhwc:
-		addr += x * fm->stride_x + c;
+		element_size = BIT((fm->precision >> (ofm ? 1 : 2)) & 0x3);
+		addr += x * fm->stride_x + c * element_size;
 		break;
 	case 1: //nhcwb16:
-		element_size = BIT((fm->precision >> 1) & 0x3);
+		element_size = BIT((fm->precision >> (ofm ? 1 : 2)) & 0x3);
 
 		addr += (c / 16) * fm->stride_c + (16 * x + (c & 0xf)) * element_size;
 		break;
@@ -268,7 +269,7 @@ static int calc_sizes(struct drm_device *ddev,
 			return -EINVAL;
 
 		len = feat_matrix_length(info, &st->ifm, ifm_width,
-					 ifm_height, st->ifm.depth);
+					 ifm_height, st->ifm.depth, false);
 		dev_dbg(ddev->dev, "op %d: IFM:%d:0x%llx-0x%llx\n",
 			op, st->ifm.region, st->ifm.base[0], len);
 		if (len == U64_MAX)
@@ -277,7 +278,7 @@ static int calc_sizes(struct drm_device *ddev,
 
 	if (ifm2) {
 		len = feat_matrix_length(info, &st->ifm2, st->ifm.depth,
-					 0, st->ofm.depth);
+					 0, st->ofm.depth, false);
 		dev_dbg(ddev->dev, "op %d: IFM2:%d:0x%llx-0x%llx\n",
 			op, st->ifm2.region, st->ifm2.base[0], len);
 		if (len == U64_MAX)
@@ -309,7 +310,7 @@ static int calc_sizes(struct drm_device *ddev,
 	}
 
 	len = feat_matrix_length(info, &st->ofm, st->ofm.width,
-				 st->ofm.height[2], st->ofm.depth);
+				 st->ofm.height[2], st->ofm.depth, true);
 	dev_dbg(ddev->dev, "op %d: OFM:%d:0x%llx-0x%llx\n",
 		op, st->ofm.region, st->ofm.base[0], len);
 	if (len == U64_MAX)
@@ -333,7 +334,7 @@ static int calc_sizes_elemwise(struct drm_device *ddev,
 		depth = st->ifm.broadcast & 0x4 ? 0 : st->ofm.depth;
 
 		len = feat_matrix_length(info, &st->ifm, width,
-					 height, depth);
+					 height, depth, false);
 		dev_dbg(ddev->dev, "op %d: IFM:%d:0x%llx-0x%llx\n",
 			op, st->ifm.region, st->ifm.base[0], len);
 		if (len == U64_MAX)
@@ -346,7 +347,7 @@ static int calc_sizes_elemwise(struct drm_device *ddev,
 		depth = st->ifm2.broadcast & 0x4 ? 0 : st->ofm.depth;
 
 		len = feat_matrix_length(info, &st->ifm2, width,
-					 height, depth);
+					 height, depth, false);
 		dev_dbg(ddev->dev, "op %d: IFM2:%d:0x%llx-0x%llx\n",
 			op, st->ifm2.region, st->ifm2.base[0], len);
 		if (len == U64_MAX)
@@ -354,7 +355,7 @@ static int calc_sizes_elemwise(struct drm_device *ddev,
 	}
 
 	len = feat_matrix_length(info, &st->ofm, st->ofm.width,
-				 st->ofm.height[2], st->ofm.depth);
+				 st->ofm.height[2], st->ofm.depth, true);
 	dev_dbg(ddev->dev, "op %d: OFM:%d:0x%llx-0x%llx\n",
 		op, st->ofm.region, st->ofm.base[0], len);
 	if (len == U64_MAX)
