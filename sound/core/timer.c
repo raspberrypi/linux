@@ -437,10 +437,20 @@ static void snd_timer_close_locked(struct snd_timer_instance *timeri,
 	snd_timer_stop(timeri);
 
 	if (timer) {
+		struct snd_timer_instance *slave;
+		bool busy;
+
 		timer->num_instances--;
-		/* wait, until the active callback is finished */
+		/* unqueue then drain the slaves' callbacks before remove_slave_links() severs them */
 		spin_lock_irq(&timer->lock);
-		while (timeri->flags & SNDRV_TIMER_IFLG_CALLBACK) {
+		list_for_each_entry(slave, &timeri->slave_list_head, open_list)
+			list_del_init(&slave->ack_list);
+		for (;;) {
+			busy = timeri->flags & SNDRV_TIMER_IFLG_CALLBACK;
+			list_for_each_entry(slave, &timeri->slave_list_head, open_list)
+				busy |= slave->flags & SNDRV_TIMER_IFLG_CALLBACK;
+			if (!busy)
+				break;
 			spin_unlock_irq(&timer->lock);
 			udelay(10);
 			spin_lock_irq(&timer->lock);
