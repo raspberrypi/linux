@@ -573,10 +573,7 @@ static bool mptcp_established_options_dss(struct sock *sk, struct sk_buff *skb,
 	bool ret = false;
 
 	/* Zero `use_ack` and `use_map` flags with one shot. */
-	BUILD_BUG_ON(sizeof_field(struct mptcp_ext, flags) != sizeof(u16));
-	BUILD_BUG_ON(!IS_ALIGNED(offsetof(struct mptcp_ext, flags),
-				 sizeof(u16)));
-	*(u16 *)&opts->ext_copy.flags = 0;
+	memset(&opts->ext_copy.flags, 0, sizeof(opts->ext_copy.flags));
 	opts->csum_reqd = READ_ONCE(msk->csum_enabled);
 	mpext = skb ? mptcp_get_ext(skb) : NULL;
 
