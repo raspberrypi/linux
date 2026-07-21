@@ -12,6 +12,12 @@
 #include <drm/drm_pagemap_util.h>
 #include <drm/drm_print.h>
 
+#if IS_ENABLED(CONFIG_ARCH_ENABLE_THP_MIGRATION)
+#define DRM_PAGEMAP_PMD_ORDER	HPAGE_PMD_ORDER
+#else
+#define DRM_PAGEMAP_PMD_ORDER	(-1)
+#endif
+
 /**
  * DOC: Overview
  *
@@ -480,7 +486,7 @@ static int drm_pagemap_cpages(unsigned long *migrate_pfn, unsigned long npages)
 			order = folio_order(folio);
 			cpages += NR_PAGES(order);
 		} else if (migrate_pfn[i] & MIGRATE_PFN_COMPOUND) {
-			order = HPAGE_PMD_ORDER;
+			order = DRM_PAGEMAP_PMD_ORDER;
 			cpages += NR_PAGES(order);
 		}
 
@@ -670,10 +676,11 @@ int drm_pagemap_migrate_to_devmem(struct drm_pagemap_devmem *devmem_allocation,
 
 		if (migrate.src[i] & MIGRATE_PFN_COMPOUND) {
 			drm_WARN_ONCE(dpagemap->drm, src_page &&
-				      folio_order(page_folio(src_page)) != HPAGE_PMD_ORDER,
+				      folio_order(page_folio(src_page)) !=
+				      DRM_PAGEMAP_PMD_ORDER,
 				      "Unexpected folio order\n");
 
-			order = HPAGE_PMD_ORDER;
+			order = DRM_PAGEMAP_PMD_ORDER;
 			migrate.dst[i] |= MIGRATE_PFN_COMPOUND;
 
 			for (j = 1; j < NR_PAGES(order) && i + j < npages; j++)
