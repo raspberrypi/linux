@@ -227,6 +227,7 @@ struct exfat_sb_info {
 	unsigned long long FAT1_start_sector; /* FAT1 start sector */
 	unsigned long long FAT2_start_sector; /* FAT2 start sector */
 	unsigned long long data_start_sector; /* data area start sector */
+	unsigned long long data_start_bytes;
 	unsigned int num_FAT_sectors; /* num of FAT sectors */
 	unsigned int root_dir; /* root dir cluster */
 	unsigned int dentries_per_clu; /* num of dentries per cluster */
@@ -398,6 +399,13 @@ static inline bool is_valid_cluster(struct exfat_sb_info *sbi,
 static inline loff_t exfat_ondisk_size(const struct inode *inode)
 {
 	return ((loff_t)inode->i_blocks) << 9;
+}
+
+static inline loff_t exfat_cluster_to_phys_bytes(struct exfat_sb_info *sbi,
+		unsigned int clus)
+{
+	return ((loff_t)(clus - EXFAT_RESERVED_CLUSTERS) << sbi->cluster_size_bits) +
+		sbi->data_start_bytes;
 }
 
 /*
