@@ -33,9 +33,9 @@ static int exfat_cont_expand(struct inode *inode, loff_t size)
 	if (ret)
 		return ret;
 
-	num_clusters = EXFAT_B_TO_CLU(exfat_ondisk_size(inode), sbi);
+	num_clusters = exfat_bytes_to_cluster(sbi, exfat_ondisk_size(inode));
 	/* integer overflow is already checked in inode_newsize_ok(). */
-	new_num_clusters = EXFAT_B_TO_CLU_ROUND_UP(size, sbi);
+	new_num_clusters = exfat_bytes_to_cluster_round_up(sbi, size);
 
 	if (new_num_clusters == num_clusters)
 		goto out;
@@ -200,8 +200,8 @@ int __exfat_truncate(struct inode *inode)
 
 	exfat_set_volume_dirty(sb);
 
-	num_clusters_new = EXFAT_B_TO_CLU_ROUND_UP(i_size_read(inode), sbi);
-	num_clusters_phys = EXFAT_B_TO_CLU(exfat_ondisk_size(inode), sbi);
+	num_clusters_new = exfat_bytes_to_cluster_round_up(sbi, i_size_read(inode));
+	num_clusters_phys = exfat_bytes_to_cluster(sbi, exfat_ondisk_size(inode));
 
 	exfat_chain_set(&clu, ei->start_clu, num_clusters_phys, ei->flags);
 

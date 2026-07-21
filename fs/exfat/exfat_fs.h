@@ -85,38 +85,6 @@ enum {
 	<< (PAGE_SHIFT - (sb)->s_blocksize_bits))
 
 /*
- * helpers for cluster size to byte conversion.
- */
-#define EXFAT_CLU_TO_B(b, sbi)		((b) << (sbi)->cluster_size_bits)
-#define EXFAT_B_TO_CLU(b, sbi)		((b) >> (sbi)->cluster_size_bits)
-#define EXFAT_B_TO_CLU_ROUND_UP(b, sbi)	\
-	(((b - 1) >> (sbi)->cluster_size_bits) + 1)
-#define EXFAT_CLU_OFFSET(off, sbi)	((off) & ((sbi)->cluster_size - 1))
-
-/*
- * helpers for block size to byte conversion.
- */
-#define EXFAT_BLK_TO_B(b, sb)		((b) << (sb)->s_blocksize_bits)
-#define EXFAT_B_TO_BLK(b, sb)		((b) >> (sb)->s_blocksize_bits)
-#define EXFAT_B_TO_BLK_ROUND_UP(b, sb)	\
-	(((b - 1) >> (sb)->s_blocksize_bits) + 1)
-#define EXFAT_BLK_OFFSET(off, sb)	((off) & ((sb)->s_blocksize - 1))
-
-/*
- * helpers for block size to dentry size conversion.
- */
-#define EXFAT_B_TO_DEN(b)		((b) >> DENTRY_SIZE_BITS)
-#define EXFAT_DEN_TO_B(b)		((b) << DENTRY_SIZE_BITS)
-
-/*
- * helpers for cluster size to dentry size conversion.
- */
-#define EXFAT_CLU_TO_DEN(clu, sbi)	\
-	((clu) << ((sbi)->cluster_size_bits - DENTRY_SIZE_BITS))
-#define EXFAT_DEN_TO_CLU(dentry, sbi)	\
-	((dentry) >> ((sbi)->cluster_size_bits - DENTRY_SIZE_BITS))
-
-/*
  * helpers for fat entry.
  */
 #define FAT_ENT_SIZE (4)
@@ -149,7 +117,7 @@ enum {
  * The 608 bytes are in 3 sectors at most (even 512 Byte sector).
  */
 #define DIR_CACHE_SIZE		\
-	(DIV_ROUND_UP(EXFAT_DEN_TO_B(ES_MAX_ENTRY_NUM), SECTOR_SIZE) + 1)
+	(DIV_ROUND_UP(ES_MAX_ENTRY_NUM << DENTRY_SIZE_BITS, SECTOR_SIZE) + 1)
 
 /* Superblock flags */
 #define EXFAT_FLAGS_SHUTDOWN	1
@@ -430,6 +398,94 @@ static inline bool is_valid_cluster(struct exfat_sb_info *sbi,
 static inline loff_t exfat_ondisk_size(const struct inode *inode)
 {
 	return ((loff_t)inode->i_blocks) << 9;
+}
+
+/*
+ * helpers for cluster size to byte conversion.
+ */
+static inline loff_t exfat_cluster_to_bytes(struct exfat_sb_info *sbi,
+		u32 nr_clusters)
+{
+	return (loff_t)nr_clusters << sbi->cluster_size_bits;
+}
+
+static inline blkcnt_t exfat_cluster_to_sectors(struct exfat_sb_info *sbi,
+		u32 nr_clusters)
+{
+	return (blkcnt_t)nr_clusters << (sbi->cluster_size_bits - 9);
+}
+
+static inline u32 exfat_bytes_to_cluster(struct exfat_sb_info *sbi, loff_t size)
+{
+	return (u32)(size >> sbi->cluster_size_bits);
+}
+
+static inline u32 exfat_bytes_to_cluster_round_up(struct exfat_sb_info *sbi,
+		loff_t size)
+{
+	if (size <= 0)
+		return 0;
+	return (u32)((size - 1) >> sbi->cluster_size_bits) + 1;
+}
+
+static inline u32 exfat_cluster_offset(struct exfat_sb_info *sbi, loff_t off)
+{
+	return off & (sbi->cluster_size - 1);
+}
+
+/*
+ * helpers for block size to byte conversion.
+ */
+static inline loff_t exfat_block_to_bytes(struct super_block *sb,
+		sector_t block)
+{
+	return (loff_t)block << sb->s_blocksize_bits;
+}
+
+static inline sector_t exfat_bytes_to_block(struct super_block *sb, loff_t size)
+{
+	return (sector_t)(size >> sb->s_blocksize_bits);
+}
+
+static inline sector_t exfat_bytes_to_block_round_up(struct super_block *sb,
+		loff_t size)
+{
+	if (size <= 0)
+		return 0;
+	return (sector_t)(((size - 1) >> sb->s_blocksize_bits) + 1);
+}
+
+static inline u32 exfat_block_offset(struct super_block *sb, loff_t off)
+{
+	return (u32)(off & (sb->s_blocksize - 1));
+}
+
+/*
+ * helpers for block size to dentry size conversion.
+ */
+static inline u32 exfat_bytes_to_dentries(loff_t b)
+{
+	return (u32)(b >> DENTRY_SIZE_BITS);
+}
+
+static inline u32 exfat_dentries_to_bytes(u32 dentry)
+{
+	return dentry << DENTRY_SIZE_BITS;
+}
+
+/*
+ * helpers for cluster size to dentry size conversion.
+ */
+static inline u32 exfat_cluster_to_dentries(struct exfat_sb_info *sbi,
+		u32 nr_clusters)
+{
+	return nr_clusters << (sbi->cluster_size_bits - DENTRY_SIZE_BITS);
+}
+
+static inline u32 exfat_dentries_to_cluster(struct exfat_sb_info *sbi,
+		u32 dentry)
+{
+	return dentry >> (sbi->cluster_size_bits - DENTRY_SIZE_BITS);
 }
 
 /* super.c */

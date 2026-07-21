@@ -135,7 +135,7 @@ static int exfat_map_cluster(struct inode *inode, unsigned int clu_offset,
 	unsigned int local_clu_offset = clu_offset;
 	unsigned int num_to_be_allocated = 0, num_clusters;
 
-	num_clusters = EXFAT_B_TO_CLU(exfat_ondisk_size(inode), sbi);
+	num_clusters = exfat_bytes_to_cluster(sbi, exfat_ondisk_size(inode));
 
 	if (clu_offset >= num_clusters)
 		num_to_be_allocated = clu_offset - num_clusters + 1;
@@ -216,7 +216,8 @@ static int exfat_map_cluster(struct inode *inode, unsigned int clu_offset,
 
 		*clu = new_clu.dir;
 
-		inode->i_blocks += EXFAT_CLU_TO_B(num_to_be_allocated, sbi) >> 9;
+		inode->i_blocks +=
+			exfat_cluster_to_sectors(sbi, num_to_be_allocated);
 
 		/*
 		 * Move *clu pointer along FAT chains (hole care) because the
@@ -254,12 +255,12 @@ static int exfat_get_block(struct inode *inode, sector_t iblock,
 
 	mutex_lock(&sbi->s_lock);
 	i_size = i_size_read(inode);
-	last_block = EXFAT_B_TO_BLK_ROUND_UP(i_size, sb);
+	last_block = exfat_bytes_to_block_round_up(sb, i_size);
 	if (iblock >= last_block && !create)
 		goto done;
 
 	/* Is this block already allocated? */
-	count = EXFAT_B_TO_CLU_ROUND_UP(bh_result->b_size, sbi);
+	count = exfat_bytes_to_cluster_round_up(sbi, bh_result->b_size);
 	err = exfat_map_cluster(inode, iblock >> sbi->sect_per_clus_bits,
 			&cluster, &count, create);
 	if (err) {
@@ -296,9 +297,9 @@ static int exfat_get_block(struct inode *inode, sector_t iblock,
 	 * care the last nested block if valid_size is not equal to i_size.
 	 */
 	if (i_size == ei->valid_size || create || !bh_result->b_folio)
-		valid_blks = EXFAT_B_TO_BLK_ROUND_UP(ei->valid_size, sb);
+		valid_blks = exfat_bytes_to_block_round_up(sb, ei->valid_size);
 	else
-		valid_blks = EXFAT_B_TO_BLK(ei->valid_size, sb);
+		valid_blks = exfat_bytes_to_block(sb, ei->valid_size);
 
 	/* The range has been fully written, map it */
 	if (iblock + max_blocks < valid_blks)
@@ -313,7 +314,7 @@ static int exfat_get_block(struct inode *inode, sector_t iblock,
 	/* The area has not been written, map and mark as new for create case */
 	if (create) {
 		set_buffer_new(bh_result);
-		ei->valid_size = EXFAT_BLK_TO_B(iblock + max_blocks, sb);
+		ei->valid_size = exfat_block_to_bytes(sb, iblock + max_blocks);
 		mark_inode_dirty(inode);
 		goto done;
 	}
@@ -343,7 +344,7 @@ static int exfat_get_block(struct inode *inode, sector_t iblock,
 			goto done;
 		}
 
-		pos = EXFAT_BLK_TO_B(iblock, sb);
+		pos = exfat_block_to_bytes(sb, iblock);
 		size = ei->valid_size - pos;
 		addr = folio_address(bh_result->b_folio) +
 			offset_in_folio(bh_result->b_folio, pos);
@@ -374,7 +375,7 @@ static int exfat_get_block(struct inode *inode, sector_t iblock,
 	 */
 	clear_buffer_mapped(bh_result);
 done:
-	bh_result->b_size = EXFAT_BLK_TO_B(max_blocks, sb);
+	bh_result->b_size = exfat_block_to_bytes(sb, max_blocks);
 	if (err < 0)
 		clear_buffer_mapped(bh_result);
 unlock_ret:
