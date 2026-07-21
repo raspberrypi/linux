@@ -609,11 +609,12 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct rp1_pio_sm_set_dmactrl_args set_dmactrl_args;
 	struct rp1_pio_device *pio = client->pio;
 	struct platform_device *pdev = pio->pdev;
-	struct device *dev = &pdev->dev;
 	struct dma_slave_config config = {};
+	struct device *dev = &pdev->dev;
 	struct dma_slave_caps dma_caps;
-	phys_addr_t fifo_addr;
 	struct dma_info *dma = NULL;
+	bool reconfigure = false;
+	phys_addr_t fifo_addr;
 	uint32_t dma_mask;
 	char chan_name[4];
 	int ret = 0;
@@ -631,13 +632,17 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	if (!(pio->claimed_dmas & dma_mask & ~client->claimed_dmas)) {
 		dma = &pio->dma_configs[sm][dir];
 		if (client->claimed_dmas & dma_mask)
-			rp1_pio_sm_dma_free(dev, dma);
+			reconfigure = true;
 		pio->claimed_dmas |= dma_mask;
 		client->claimed_dmas |= dma_mask;
 	}
 	spin_unlock(&pio->lock);
 	if (!dma)
 		return -EBUSY;
+
+	/* dma_release_channel() sleeps, so free the old channel outside the lock. */
+	if (reconfigure)
+		rp1_pio_sm_dma_free(dev, dma);
 
 	dma->buf_size = buf_size;
 	/* Round up the allocations */
