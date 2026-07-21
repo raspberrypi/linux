@@ -618,6 +618,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct dma_info *dma = NULL;
 	uint32_t dma_mask;
 	char chan_name[4];
+	bool reconfigure = false;
 	int ret = 0;
 
 	if (sm >= RP1_PIO_SMS_COUNT || dir >= RP1_PIO_DIR_COUNT)
@@ -633,13 +634,17 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	if (!(pio->claimed_dmas & dma_mask & ~client->claimed_dmas)) {
 		dma = &pio->dma_configs[sm][dir];
 		if (client->claimed_dmas & dma_mask)
-			rp1_pio_sm_dma_free(dev, dma);
+			reconfigure = true;
 		pio->claimed_dmas |= dma_mask;
 		client->claimed_dmas |= dma_mask;
 	}
 	spin_unlock(&pio->lock);
 	if (!dma)
 		return -EBUSY;
+
+	/* dma_release_channel() sleeps, so free the old channel outside the lock. */
+	if (reconfigure)
+		rp1_pio_sm_dma_free(dev, dma);
 
 	dma->buf_size = buf_size;
 	/* Round up the allocations */
