@@ -242,6 +242,8 @@ cifs_fattr_to_inode(struct inode *inode, struct cifs_fattr *fattr,
 		 * calculating num blocks.
 		 */
 		inode->i_blocks = (512 - 1 + fattr->cf_bytes) >> 9;
+	} else if (from_readdir && i_size_read(inode) != fattr->cf_eof) {
+		cifs_i->time = 0;
 	}
 
 	if (S_ISLNK(fattr->cf_mode) && fattr->cf_symlink_target) {
@@ -3188,6 +3190,8 @@ cifs_setattr_unix(struct dentry *direntry, struct iattr *attrs)
 
 	if ((attrs->ia_valid & ATTR_SIZE) &&
 	    attrs->ia_size != i_size_read(inode)) {
+		/* Pairs with smp_load_acquire() in is_size_safe_to_change(). */
+		smp_store_release(&cifsInode->time_last_write, jiffies);
 		truncate_setsize(inode, attrs->ia_size);
 		netfs_resize_file(&cifsInode->netfs, attrs->ia_size, true);
 		fscache_resize_cookie(cifs_inode_cookie(inode), attrs->ia_size);
@@ -3407,6 +3411,8 @@ cifs_setattr_nounix(struct dentry *direntry, struct iattr *attrs)
 
 	if ((attrs->ia_valid & ATTR_SIZE) &&
 	    attrs->ia_size != i_size_read(inode)) {
+		/* Pairs with smp_load_acquire() in is_size_safe_to_change(). */
+		smp_store_release(&cifsInode->time_last_write, jiffies);
 		truncate_setsize(inode, attrs->ia_size);
 		netfs_resize_file(&cifsInode->netfs, attrs->ia_size, true);
 		fscache_resize_cookie(cifs_inode_cookie(inode), attrs->ia_size);
