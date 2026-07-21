@@ -791,7 +791,8 @@ cifs_close_deferred_file(struct cifsInodeInfo *cifs_inode)
 				cifs_del_deferred_close(cfile);
 				spin_unlock(&cifs_inode->deferred_lock);
 
-				tmp_list = kmalloc(sizeof(struct file_list), GFP_ATOMIC);
+				tmp_list = kmalloc_obj(struct file_list,
+						       GFP_ATOMIC);
 				if (tmp_list == NULL)
 					break;
 				tmp_list->cfile = cfile;
@@ -802,7 +803,14 @@ cifs_close_deferred_file(struct cifsInodeInfo *cifs_inode)
 	spin_unlock(&cifs_inode->open_file_lock);
 
 	list_for_each_entry_safe(tmp_list, tmp_next_list, &file_head, list) {
-		_cifsFileInfo_put(tmp_list->cfile, false, false);
+		struct cifsFileInfo *cfile = tmp_list->cfile;
+
+		if (OPEN_FMODE(cfile->f_flags) & FMODE_WRITE) {
+			/* Pairs with smp_load_acquire() in is_size_safe_to_change(). */
+			smp_store_release(&CIFS_I(d_inode(cfile->dentry))->time_last_write,
+					  jiffies);
+		}
+		_cifsFileInfo_put(cfile, false, false);
 		list_del(&tmp_list->list);
 		kfree(tmp_list);
 	}
@@ -823,7 +831,8 @@ cifs_close_all_deferred_files(struct cifs_tcon *tcon)
 				cifs_del_deferred_close(cfile);
 				spin_unlock(&CIFS_I(d_inode(cfile->dentry))->deferred_lock);
 
-				tmp_list = kmalloc(sizeof(struct file_list), GFP_ATOMIC);
+				tmp_list = kmalloc_obj(struct file_list,
+						       GFP_ATOMIC);
 				if (tmp_list == NULL)
 					break;
 				tmp_list->cfile = cfile;
@@ -834,7 +843,14 @@ cifs_close_all_deferred_files(struct cifs_tcon *tcon)
 	spin_unlock(&tcon->open_file_lock);
 
 	list_for_each_entry_safe(tmp_list, tmp_next_list, &file_head, list) {
-		_cifsFileInfo_put(tmp_list->cfile, true, false);
+		struct cifsFileInfo *cfile = tmp_list->cfile;
+
+		if (OPEN_FMODE(cfile->f_flags) & FMODE_WRITE) {
+			/* Pairs with smp_load_acquire() in is_size_safe_to_change(). */
+			smp_store_release(&CIFS_I(d_inode(cfile->dentry))->time_last_write,
+					  jiffies);
+		}
+		_cifsFileInfo_put(cfile, true, false);
 		list_del(&tmp_list->list);
 		kfree(tmp_list);
 	}
@@ -893,7 +909,7 @@ void cifs_close_deferred_file_under_dentry(struct cifs_tcon *tcon,
 			cifs_del_deferred_close(cfile);
 			spin_unlock(&CIFS_I(d_inode(cfile->dentry))->deferred_lock);
 
-			tmp_list = kmalloc(sizeof(struct file_list), GFP_ATOMIC);
+			tmp_list = kmalloc_obj(struct file_list, GFP_ATOMIC);
 			if (tmp_list == NULL)
 				break;
 			tmp_list->cfile = cfile;
@@ -903,7 +919,14 @@ void cifs_close_deferred_file_under_dentry(struct cifs_tcon *tcon,
 	spin_unlock(&tcon->open_file_lock);
 
 	list_for_each_entry_safe(tmp_list, tmp_next_list, &file_head, list) {
-		_cifsFileInfo_put(tmp_list->cfile, true, false);
+		struct cifsFileInfo *cfile = tmp_list->cfile;
+
+		if (OPEN_FMODE(cfile->f_flags) & FMODE_WRITE) {
+			/* Pairs with smp_load_acquire() in is_size_safe_to_change(). */
+			smp_store_release(&CIFS_I(d_inode(cfile->dentry))->time_last_write,
+					  jiffies);
+		}
+		_cifsFileInfo_put(cfile, true, false);
 		list_del(&tmp_list->list);
 		kfree(tmp_list);
 	}
