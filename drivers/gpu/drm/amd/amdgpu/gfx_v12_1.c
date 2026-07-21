@@ -214,6 +214,8 @@ static void gfx_v12_1_update_perf_clk(struct amdgpu_device *adev,
 static void gfx_v12_1_xcc_update_perf_clk(struct amdgpu_device *adev,
 					 bool enable, int xcc_id);
 static int gfx_v12_1_init_cp_compute_microcode_bo(struct amdgpu_device *adev);
+static void gfx_v12_1_xcc_update_medium_grain_clock_gating(
+	struct amdgpu_device *adev, bool enable, int xcc_id, bool force);
 
 static void gfx_v12_1_kiq_set_resources(struct amdgpu_ring *kiq_ring,
 					uint64_t queue_mask)
@@ -2817,6 +2819,8 @@ static int gfx_v12_1_xcc_cp_resume(struct amdgpu_device *adev, uint16_t xcc_mask
 				return r;
 		}
 
+		gfx_v12_1_xcc_update_medium_grain_clock_gating(adev, false,
+							       xcc_id, true);
 		/* GFX CGCG and LS is disabled by rlc fw */
 		gfx_v12_1_xcc_enable_gui_idle_interrupt(adev, false, xcc_id);
 
@@ -2850,6 +2854,8 @@ static int gfx_v12_1_xcc_cp_resume(struct amdgpu_device *adev, uint16_t xcc_mask
 			if (r)
 				return r;
 		}
+		gfx_v12_1_xcc_update_medium_grain_clock_gating(adev, true,
+							       xcc_id, true);
 	}
 
 	return 0;
@@ -3489,37 +3495,41 @@ static void gfx_v12_1_xcc_update_coarse_grain_clock_gating(struct amdgpu_device 
 	}
 }
 
-static void gfx_v12_1_xcc_update_medium_grain_clock_gating(struct amdgpu_device *adev,
-							   bool enable, int xcc_id)
+static void gfx_v12_1_xcc_update_medium_grain_clock_gating(
+	struct amdgpu_device *adev, bool enable, int xcc_id, bool force)
 {
 	uint32_t data, def;
-	if (!(adev->cg_flags & (AMD_CG_SUPPORT_GFX_MGCG | AMD_CG_SUPPORT_GFX_MGLS)))
+	bool support_mgcg;
+
+	support_mgcg = force || (adev->cg_flags & AMD_CG_SUPPORT_GFX_MGCG);
+
+	if (!support_mgcg)
 		return;
 
 	/* It is disabled by HW by default */
 	if (enable) {
-		if (adev->cg_flags & AMD_CG_SUPPORT_GFX_MGCG) {
-			/* 1 - RLC_CGTT_MGCG_OVERRIDE */
-			def = data = RREG32_SOC15(GC, GET_INST(GC, xcc_id), regRLC_CGTT_MGCG_OVERRIDE);
+		/* 1 - RLC_CGTT_MGCG_OVERRIDE */
+		def = data = RREG32_SOC15(GC, GET_INST(GC, xcc_id),
+					  regRLC_CGTT_MGCG_OVERRIDE);
 
-			data &= ~(RLC_CGTT_MGCG_OVERRIDE__GRBM_CGTT_SCLK_OVERRIDE_MASK |
-				  RLC_CGTT_MGCG_OVERRIDE__RLC_CGTT_SCLK_OVERRIDE_MASK |
-				  RLC_CGTT_MGCG_OVERRIDE__GFXIP_MGCG_OVERRIDE_MASK);
+		data &= ~(RLC_CGTT_MGCG_OVERRIDE__GRBM_CGTT_SCLK_OVERRIDE_MASK |
+			  RLC_CGTT_MGCG_OVERRIDE__RLC_CGTT_SCLK_OVERRIDE_MASK |
+			  RLC_CGTT_MGCG_OVERRIDE__GFXIP_MGCG_OVERRIDE_MASK);
 
-			if (def != data)
-				WREG32_SOC15(GC, GET_INST(GC, xcc_id), regRLC_CGTT_MGCG_OVERRIDE, data);
-		}
+		if (def != data)
+			WREG32_SOC15(GC, GET_INST(GC, xcc_id),
+				     regRLC_CGTT_MGCG_OVERRIDE, data);
 	} else {
-		if (adev->cg_flags & AMD_CG_SUPPORT_GFX_MGCG) {
-			def = data = RREG32_SOC15(GC, GET_INST(GC, xcc_id), regRLC_CGTT_MGCG_OVERRIDE);
+		def = data = RREG32_SOC15(GC, GET_INST(GC, xcc_id),
+					  regRLC_CGTT_MGCG_OVERRIDE);
 
-			data |= (RLC_CGTT_MGCG_OVERRIDE__RLC_CGTT_SCLK_OVERRIDE_MASK |
-				 RLC_CGTT_MGCG_OVERRIDE__GRBM_CGTT_SCLK_OVERRIDE_MASK |
-				 RLC_CGTT_MGCG_OVERRIDE__GFXIP_MGCG_OVERRIDE_MASK);
+		data |= (RLC_CGTT_MGCG_OVERRIDE__RLC_CGTT_SCLK_OVERRIDE_MASK |
+			 RLC_CGTT_MGCG_OVERRIDE__GRBM_CGTT_SCLK_OVERRIDE_MASK |
+			 RLC_CGTT_MGCG_OVERRIDE__GFXIP_MGCG_OVERRIDE_MASK);
 
-			if (def != data)
-				WREG32_SOC15(GC, GET_INST(GC, xcc_id), regRLC_CGTT_MGCG_OVERRIDE, data);
-		}
+		if (def != data)
+			WREG32_SOC15(GC, GET_INST(GC, xcc_id),
+				     regRLC_CGTT_MGCG_OVERRIDE, data);
 	}
 }
 
@@ -3589,7 +3599,8 @@ static int gfx_v12_1_xcc_update_gfx_clock_gating(struct amdgpu_device *adev,
 
 	gfx_v12_1_xcc_update_coarse_grain_clock_gating(adev, enable, xcc_id);
 
-	gfx_v12_1_xcc_update_medium_grain_clock_gating(adev, enable, xcc_id);
+	gfx_v12_1_xcc_update_medium_grain_clock_gating(adev, enable, xcc_id,
+						       false);
 
 	gfx_v12_1_xcc_update_repeater_fgcg(adev, enable, xcc_id);
 
