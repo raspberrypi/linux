@@ -426,6 +426,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	vmmc-supply = <&wl_on_reg>;
 	sd-uhs-ddr50;
 	non-removable;
+	cap-power-off-card;
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
