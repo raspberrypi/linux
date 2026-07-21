@@ -15,6 +15,7 @@
 
 #include <linux/cdev.h>
 #include <linux/compat.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
@@ -28,6 +29,7 @@
 #include <linux/pio_rp1.h>
 #include <linux/platform_device.h>
 #include <linux/rp1-firmware.h>
+#include <linux/sched/signal.h>
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -55,6 +57,14 @@
 #define RP1_PIO_FIFO_DEPTH	8
 
 #define RP1_PIO_DMACTRL_DEFAULT	0x80000100
+
+#define POLL_INTERVAL_MIN	(100)
+#define POLL_INTERVAL_MAX	(100 * 1000)
+#define POLL_INTERVAL_NEXT(ival) \
+	do { \
+		if (ival < POLL_INTERVAL_MAX) \
+			ival = min(ival + (ival >> 1), POLL_INTERVAL_MAX); \
+	} while (0)
 
 #define HANDLER(_n, _f) \
 	[_IOC_NR(PIO_IOC_ ## _n)] = { #_n, rp1_pio_ ## _f, _IOC_SIZE(PIO_IOC_ ## _n) }
@@ -174,6 +184,10 @@ static int rp1_pio_message_resp(struct rp1_pio_device *pio,
 			memcpy(resp, &resp_buf[1], ret);
 		else if (copy_to_user(userbuf, &resp_buf[1], ret))
 			ret = -EFAULT;
+	} else if (ret == 4) {
+		ret = (int)resp_buf[0];
+		if (ret == -1)
+			ret = -EIO;
 	} else if (ret >= 0) {
 		ret = -EIO;
 	}
@@ -410,8 +424,23 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_set_config);
 int rp1_pio_sm_exec(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_exec_args *args = param;
+	unsigned long interval = POLL_INTERVAL_MIN;
+	int ret;
 
-	return rp1_pio_message(client->pio, PIO_SM_EXEC, args, sizeof(*args));
+	if (args->blocking)
+		args->blocking = 2;
+
+	ret = rp1_pio_message(client->pio, PIO_SM_EXEC, args, sizeof(*args));
+	while (ret == -EAGAIN) {
+		if (signal_pending(current))
+			return -ERESTARTSYS;
+		fsleep(interval);
+		POLL_INTERVAL_NEXT(interval);
+		args->blocking = 3;
+		ret = rp1_pio_message(client->pio, PIO_SM_EXEC, args, sizeof(*args));
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_exec);
 
@@ -482,20 +511,48 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_enable_sync);
 int rp1_pio_sm_put(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_put_args *args = param;
+	unsigned long interval = POLL_INTERVAL_MIN;
+	int ret;
 
-	return rp1_pio_message(client->pio, PIO_SM_PUT, args, sizeof(*args));
+	if (args->blocking)
+		args->blocking = 2;
+
+	while (1) {
+		ret = rp1_pio_message(client->pio, PIO_SM_PUT, args, sizeof(*args));
+		if (ret != -EAGAIN)
+			break;
+		if (signal_pending(current))
+			return -ERESTARTSYS;
+		fsleep(interval);
+		POLL_INTERVAL_NEXT(interval);
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_put);
 
 int rp1_pio_sm_get(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_get_args *args = param;
+	unsigned long interval = POLL_INTERVAL_MIN;
 	int ret;
 
-	ret = rp1_pio_message_resp(client->pio, PIO_SM_GET, args, sizeof(*args),
-				   &args->data, NULL, sizeof(args->data));
-	if (ret >= 0)
-		return offsetof(struct rp1_pio_sm_get_args, data) + ret;
+	if (args->blocking)
+		args->blocking = 2;
+
+	while (1) {
+		ret = rp1_pio_message_resp(client->pio, PIO_SM_GET, args, sizeof(*args),
+					&args->data, NULL, sizeof(args->data));
+		if (ret >= 0)
+			return offsetof(struct rp1_pio_sm_get_args, data) + ret;
+		if (ret != -EAGAIN)
+			break;
+		if (signal_pending(current))
+			return -ERESTARTSYS;
+		fsleep(interval);
+		POLL_INTERVAL_NEXT(interval);
+	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_get);
