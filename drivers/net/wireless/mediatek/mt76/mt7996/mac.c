@@ -1798,6 +1798,7 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
 	phy3 = mt7996_phy3(dev);
 	dev->recovery.hw_full_reset = true;
 
+	set_bit(MT76_MCU_RESET, &dev->mphy.state);
 	wake_up(&dev->mt76.mcu.wait);
 	ieee80211_stop_queues(mt76_hw(dev));
 	if (phy2)
