@@ -746,7 +746,8 @@ static int ip_vs_route_me_harder(struct netns_ipvs *ipvs, int af,
  * - inout: 1=in->out, 0=out->in
  */
 void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
-		    struct ip_vs_conn *cp, int inout, unsigned int toff)
+		    struct ip_vs_conn *cp, int inout, unsigned int toff,
+		    bool has_ports)
 {
 	struct iphdr *iph	 = ip_hdr(skb);
 	struct icmphdr *icmph	 = (struct icmphdr *)(skb->data + toff);
@@ -766,8 +767,7 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
 	}
 
 	/* the TCP/UDP/SCTP port */
-	if (IPPROTO_TCP == ciph->protocol || IPPROTO_UDP == ciph->protocol ||
-	    IPPROTO_SCTP == ciph->protocol) {
+	if (has_ports) {
 		__be16 *ports = (void *)ciph + ciph->ihl*4;
 
 		if (inout)
@@ -792,17 +792,14 @@ void ip_vs_nat_icmp(struct sk_buff *skb, struct ip_vs_protocol *pp,
 #ifdef CONFIG_IP_VS_IPV6
 void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
 		       struct ip_vs_conn *cp, int inout, unsigned int toff,
-		       struct ip_vs_iphdr *ciph)
+		       bool has_ports, struct ip_vs_iphdr *ciph)
 {
 	struct ipv6hdr *iph	 = ipv6_hdr(skb);
-	int protocol;
 	struct icmp6hdr *icmph;
 	struct ipv6hdr *cih;
 
 	icmph = (struct icmp6hdr *)(skb->data + toff);
 	cih = (struct ipv6hdr *)(skb->data + ciph->off);
-
-	protocol = ciph->protocol;
 
 	if (inout) {
 		iph->saddr = cp->vaddr.in6;
@@ -813,9 +810,7 @@ void ip_vs_nat_icmp_v6(struct sk_buff *skb, struct ip_vs_protocol *pp,
 	}
 
 	/* the TCP/UDP/SCTP port */
-	if (!ciph->fragoffs &&
-	    (protocol == IPPROTO_TCP  || protocol == IPPROTO_UDP ||
-	     protocol == IPPROTO_SCTP)) {
+	if (has_ports) {
 		__be16 *ports = (void *)(skb->data + ciph->len);
 
 		IP_VS_DBG(11, "%s() changed port %d to %d\n", __func__,
@@ -857,6 +852,7 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
 	int iproto = af == AF_INET6 ? IPPROTO_ICMPV6 : IPPROTO_ICMP;
 	unsigned int verdict = NF_DROP;
 	unsigned int ctoff = ciph->len;
+	bool has_ports = false;
 
 	if (IP_VS_FWD_METHOD(cp) != IP_VS_CONN_F_MASQ)
 		goto after_nat;
@@ -870,17 +866,19 @@ static int handle_response_icmp(int af, struct sk_buff *skb,
 	}
 
 	if (ciph->protocol == IPPROTO_TCP || ciph->protocol == IPPROTO_UDP ||
-	    ciph->protocol == IPPROTO_SCTP)
+	    ciph->protocol == IPPROTO_SCTP) {
 		ctoff += 2 * sizeof(__u16);
+		has_ports = true;
+	}
 	if (skb_ensure_writable(skb, ctoff))
 		goto out;
 
 #ifdef CONFIG_IP_VS_IPV6
 	if (af == AF_INET6)
-		ip_vs_nat_icmp_v6(skb, pp, cp, 1, toff, ciph);
+		ip_vs_nat_icmp_v6(skb, pp, cp, 1, toff, has_ports, ciph);
 	else
 #endif
-		ip_vs_nat_icmp(skb, pp, cp, 1, toff);
+		ip_vs_nat_icmp(skb, pp, cp, 1, toff, has_ports);
 
 	if (ip_vs_route_me_harder(cp->ipvs, af, skb, hooknum))
 		goto out;
@@ -964,8 +962,7 @@ static int ip_vs_out_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb,
 		return NF_ACCEPT;
 
 	/* Is the embedded protocol header present? */
-	if (unlikely(cih->frag_off & htons(IP_OFFSET) &&
-		     pp->dont_defrag))
+	if (unlikely(cih->frag_off & htons(IP_OFFSET) && !pp->dont_defrag))
 		return NF_ACCEPT;
 
 	IP_VS_DBG_PKT(11, AF_INET, pp, skb, offset,
@@ -1027,6 +1024,10 @@ static int ip_vs_out_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
 
 	pp = ip_vs_proto_get(ciph.protocol);
 	if (!pp)
+		return NF_ACCEPT;
+
+	/* Is the embedded protocol header present? */
+	if (unlikely(ciph.fragoffs && !pp->dont_defrag))
 		return NF_ACCEPT;
 
 	/* The embedded headers contain source and dest in reverse order */
@@ -1687,8 +1688,7 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
 	pp = pd->pp;
 
 	/* Is the embedded protocol header present? */
-	if (unlikely(cih->frag_off & htons(IP_OFFSET) &&
-		     pp->dont_defrag))
+	if (unlikely(cih->frag_off & htons(IP_OFFSET) && !pp->dont_defrag))
 		return NF_ACCEPT;
 
 	IP_VS_DBG_PKT(11, AF_INET, pp, skb, offset,
@@ -1696,7 +1696,6 @@ ip_vs_in_icmp(struct netns_ipvs *ipvs, struct sk_buff *skb, int *related,
 
 	offset2 = offset;
 	ip_vs_fill_iph_skb_icmp(AF_INET, skb, offset, !tunnel, &ciph);
-	offset = ciph.len;
 
 	/* The embedded headers contain source and dest in reverse order.
 	 * For IPIP/UDP/GRE tunnel this is error for request, not for reply.
@@ -1790,11 +1789,7 @@ ignore_tunnel:
 
 	/* do the statistics and put it back */
 	ip_vs_in_stats(cp, skb);
-	if (IPPROTO_TCP == cih->protocol || IPPROTO_UDP == cih->protocol ||
-	    IPPROTO_SCTP == cih->protocol)
-		offset += 2 * sizeof(__u16);
-	verdict = ip_vs_icmp_xmit(skb, cp, pp, iph->len, offset, hooknum,
-				  &ciph);
+	verdict = ip_vs_icmp_xmit(skb, cp, pp, iph->len, hooknum, &ciph);
 
 out:
 	if (likely(!new_cp))
@@ -1854,8 +1849,8 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
 		return NF_ACCEPT;
 	pp = pd->pp;
 
-	/* Cannot handle fragmented embedded protocol */
-	if (ciph.fragoffs)
+	/* Is the embedded protocol header present? */
+	if (ciph.fragoffs && !pp->dont_defrag)
 		return NF_ACCEPT;
 
 	IP_VS_DBG_PKT(11, AF_INET6, pp, skb, offset,
@@ -1879,13 +1874,6 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
 		new_cp = true;
 	}
 
-	/* VS/TUN, VS/DR and LOCALNODE just let it go */
-	if ((hooknum == NF_INET_LOCAL_OUT) &&
-	    (IP_VS_FWD_METHOD(cp) != IP_VS_CONN_F_MASQ)) {
-		verdict = NF_ACCEPT;
-		goto out;
-	}
-
 	verdict = NF_DROP;
 
 	/* Ensure the checksum is correct */
@@ -1901,14 +1889,7 @@ static int ip_vs_in_icmp_v6(struct netns_ipvs *ipvs, struct sk_buff *skb,
 	/* do the statistics and put it back */
 	ip_vs_in_stats(cp, skb);
 
-	/* Need to mangle contained IPv6 header in ICMPv6 packet */
-	offset = ciph.len;
-	if (IPPROTO_TCP == ciph.protocol || IPPROTO_UDP == ciph.protocol ||
-	    IPPROTO_SCTP == ciph.protocol)
-		offset += 2 * sizeof(__u16); /* Also mangle ports */
-
-	verdict = ip_vs_icmp_xmit_v6(skb, cp, pp, iph->len, offset, hooknum,
-				     &ciph);
+	verdict = ip_vs_icmp_xmit_v6(skb, cp, pp, iph->len, hooknum, &ciph);
 
 out:
 	if (likely(!new_cp))
