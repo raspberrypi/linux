@@ -121,6 +121,7 @@
 	EM(rxrpc_call_poke_conn_abort,		"Conn-abort")	\
 	EM(rxrpc_call_poke_error,		"Error")	\
 	EM(rxrpc_call_poke_idle,		"Idle")		\
+	EM(rxrpc_call_poke_rx_packet,		"Rx-packet")	\
 	EM(rxrpc_call_poke_set_timeout,		"Set-timo")	\
 	EM(rxrpc_call_poke_start,		"Start")	\
 	EM(rxrpc_call_poke_timer,		"Timer")	\
@@ -139,6 +140,7 @@
 	EM(rxrpc_skb_new_error_report,		"NEW error-rpt") \
 	EM(rxrpc_skb_new_jumbo_subpacket,	"NEW jumbo-sub") \
 	EM(rxrpc_skb_new_unshared,		"NEW unshared ") \
+	EM(rxrpc_skb_put_call_rx,		"PUT call-rx  ") \
 	EM(rxrpc_skb_put_conn_secured,		"PUT conn-secd") \
 	EM(rxrpc_skb_put_conn_work,		"PUT conn-work") \
 	EM(rxrpc_skb_put_error_report,		"PUT error-rep") \
