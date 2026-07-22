@@ -614,7 +614,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct dma_slave_config config = {};
 	struct device *dev = &pdev->dev;
 	struct dma_slave_caps dma_caps;
-	struct dma_info *dma = NULL; 
+	struct dma_info *dma = NULL;
+	bool reconfigure = false;
 	phys_addr_t fifo_addr;
 	uint32_t dma_mask;
 	char chan_name[4];
