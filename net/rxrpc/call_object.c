@@ -48,7 +48,7 @@ void rxrpc_poke_call(struct rxrpc_call *call, enum rxrpc_call_poke_trace what)
 	bool busy;
 
 	if (!test_bit(RXRPC_CALL_DISCONNECTED, &call->flags)) {
-		spin_lock_bh(&local->lock);
+		spin_lock_irq(&local->lock);
 		busy = !list_empty(&call->attend_link);
 		trace_rxrpc_poke_call(call, busy, what);
 		if (!busy && !rxrpc_try_get_call(call, rxrpc_call_get_poke))
@@ -56,7 +56,7 @@ void rxrpc_poke_call(struct rxrpc_call *call, enum rxrpc_call_poke_trace what)
 		if (!busy) {
 			list_add_tail(&call->attend_link, &local->call_attend_q);
 		}
-		spin_unlock_bh(&local->lock);
+		spin_unlock_irq(&local->lock);
 		if (!busy)
 			rxrpc_wake_up_io_thread(local);
 	}
@@ -303,9 +303,9 @@ static int rxrpc_connect_call(struct rxrpc_call *call, gfp_t gfp)
 
 	trace_rxrpc_client(NULL, -1, rxrpc_client_queue_new_call);
 	rxrpc_get_call(call, rxrpc_call_get_io_thread);
-	spin_lock(&local->client_call_lock);
+	spin_lock_irq(&local->client_call_lock);
 	list_add_tail(&call->wait_link, &local->new_client_calls);
-	spin_unlock(&local->client_call_lock);
+	spin_unlock_irq(&local->client_call_lock);
 	rxrpc_wake_up_io_thread(local);
 	return 0;
 
@@ -435,7 +435,7 @@ error_attached_to_socket:
 
 /*
  * Set up an incoming call.  call->conn points to the connection.
- * This is called in BH context and isn't allowed to fail.
+ * This is called with interrupts disabled and isn't allowed to fail.
  */
 void rxrpc_incoming_call(struct rxrpc_sock *rx,
 			 struct rxrpc_call *call,
@@ -560,7 +560,7 @@ void rxrpc_release_call(struct rxrpc_sock *rx, struct rxrpc_call *call)
 	rxrpc_put_call_slot(call);
 
 	/* Make sure we don't get any more notifications */
-	spin_lock(&rx->recvmsg_lock);
+	spin_lock_irq(&rx->recvmsg_lock);
 
 	if (!list_empty(&call->recvmsg_link)) {
 		_debug("unlinking once-pending call %p { e=%lx f=%lx }",
@@ -573,7 +573,7 @@ void rxrpc_release_call(struct rxrpc_sock *rx, struct rxrpc_call *call)
 	call->recvmsg_link.next = NULL;
 	call->recvmsg_link.prev = NULL;
 
-	spin_unlock(&rx->recvmsg_lock);
+	spin_unlock_irq(&rx->recvmsg_lock);
 	if (put)
 		rxrpc_put_call(call, rxrpc_call_put_unnotify);
 
