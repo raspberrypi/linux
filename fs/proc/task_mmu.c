@@ -2485,15 +2485,19 @@ static void make_uffd_wp_huge_pte(struct vm_area_struct *vma,
 
 	psize = huge_page_size(hstate_vma(vma));
 
-	if (is_hugetlb_entry_migration(ptent))
+	if (is_hugetlb_entry_migration(ptent)) {
 		set_huge_pte_at(vma->vm_mm, addr, ptep,
 				pte_swp_mkuffd_wp(ptent), psize);
-	else if (!huge_pte_none(ptent))
-		huge_ptep_modify_prot_commit(vma, addr, ptep, ptent,
-					     huge_pte_mkuffd_wp(ptent));
-	else
+	} else if (!huge_pte_none(ptent)) {
+		pte_t old_pte, new_pte;
+
+		old_pte = huge_ptep_modify_prot_start(vma, addr, ptep);
+		new_pte = huge_pte_mkuffd_wp(old_pte);
+		huge_ptep_modify_prot_commit(vma, addr, ptep, old_pte, new_pte);
+	} else {
 		set_huge_pte_at(vma->vm_mm, addr, ptep,
 				make_pte_marker(PTE_MARKER_UFFD_WP), psize);
+	}
 }
 #endif /* CONFIG_HUGETLB_PAGE */
 
