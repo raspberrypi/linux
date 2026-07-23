@@ -7,7 +7,7 @@
 
 #include <drm/ttm/ttm_placement.h>
 #include <drm/ttm/ttm_tt.h>
-#include <drm/drm_buddy.h>
+#include <linux/gpu_buddy.h>
 
 #include "i915_drv.h"
 #include "i915_ttm_buddy_manager.h"
