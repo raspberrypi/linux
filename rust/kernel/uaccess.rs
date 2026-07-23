@@ -21,6 +21,9 @@ use core::mem::{size_of, MaybeUninit};
 #[derive(Copy, Clone)]
 pub struct UserPtr(*mut c_void);
 
+// SAFETY: Null pointer is a valid value.
+unsafe impl Zeroable for UserPtr {}
+
 impl UserPtr {
     /// Create a `UserPtr` from an integer representing the userspace address.
     #[inline]

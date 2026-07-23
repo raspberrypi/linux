@@ -47,6 +47,7 @@ use crate::{
     range_alloc::{RangeAllocator, ReserveNew, ReserveNewArgs},
     stats::BinderStats,
     thread::{PushWorkRes, Thread},
+    transaction::TransactionInfo,
     BinderfsProcFile, DArc, DLArc, DTRWrap, DeliverToRead,
 };
 
@@ -873,7 +874,11 @@ impl Process {
     pub(crate) fn get_transaction_node(&self, handle: u32) -> BinderResult<NodeRef> {
         // When handle is zero, try to get the context manager.
         if handle == 0 {
-            Ok(self.ctx.get_manager_node(true)?)
+            let node_ref = self.ctx.get_manager_node(true)?;
+            if core::ptr::eq(self, &*node_ref.node.owner) {
+                return Err(EINVAL.into());
+            }
+            Ok(node_ref)
         } else {
             Ok(self.get_node_from_handle(handle, true)?)
         }
@@ -915,6 +920,8 @@ impl Process {
 
         // To preserve original binder behaviour, we only fail requests where the manager tries to
         // increment references on itself.
+        let _to_free_freeze_listener;
+        let _to_free_freeze_listener_cleanup;
         let mut refs = self.node_refs.lock();
         if let Some(info) = refs.by_handle.get_mut(&handle) {
             if info.node_ref().update(inc, strong) {
@@ -930,6 +937,14 @@ impl Process {
                 unsafe { info.node_ref2().node.remove_node_info(info) };
 
                 let id = info.node_ref().node.global_id();
+
+                if let Some(freeze) = *info.freeze() {
+                    if let Some(fl) = refs.freeze_listeners.remove(&freeze) {
+                        _to_free_freeze_listener_cleanup = fl.on_process_cleanup(&self);
+                        _to_free_freeze_listener = fl;
+                    }
+                }
+
                 refs.by_handle.remove(&handle);
                 refs.by_node.remove(&id);
             }
@@ -967,16 +982,15 @@ impl Process {
         self: &Arc<Self>,
         debug_id: usize,
         size: usize,
-        is_oneway: bool,
-        from_pid: i32,
+        info: &mut TransactionInfo,
     ) -> BinderResult<NewAllocation> {
         use kernel::page::PAGE_SIZE;
 
         let mut reserve_new_args = ReserveNewArgs {
             debug_id,
             size,
-            is_oneway,
-            pid: from_pid,
+            is_oneway: info.is_oneway(),
+            pid: info.from_pid,
             ..ReserveNewArgs::default()
         };
 
@@ -992,13 +1006,13 @@ impl Process {
             reserve_new_args = alloc_request.make_alloc()?;
         };
 
+        info.oneway_spam_suspect = new_alloc.oneway_spam_detected;
         let res = Allocation::new(
             self.clone(),
             debug_id,
             new_alloc.offset,
             size,
             addr + new_alloc.offset,
-            new_alloc.oneway_spam_detected,
         );
 
         // This allocation will be marked as in use until the `Allocation` is used to free it.
@@ -1030,7 +1044,7 @@ impl Process {
         let mapping = inner.mapping.as_mut()?;
         let offset = ptr.checked_sub(mapping.address)?;
         let (size, debug_id, odata) = mapping.alloc.reserve_existing(offset).ok()?;
-        let mut alloc = Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
+        let mut alloc = Allocation::new(self.clone(), debug_id, offset, size, ptr);
         if let Some(data) = odata {
             alloc.set_info(data);
         }
@@ -1344,7 +1358,7 @@ impl Process {
         // Clean up freeze listeners.
         let freeze_listeners = take(&mut self.node_refs.lock().freeze_listeners);
         for listener in freeze_listeners.values() {
-            listener.on_process_exit(&self);
+            listener.on_process_cleanup(&self);
         }
         drop(freeze_listeners);
 
@@ -1383,8 +1397,7 @@ impl Process {
                 .alloc
                 .take_for_each(|offset, size, debug_id, odata| {
                     let ptr = offset + address;
-                    let mut alloc =
-                        Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
+                    let mut alloc = Allocation::new(self.clone(), debug_id, offset, size, ptr);
                     if let Some(data) = odata {
                         alloc.set_info(data);
                     }
