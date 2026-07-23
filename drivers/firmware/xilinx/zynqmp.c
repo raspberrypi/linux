@@ -461,6 +461,7 @@ int zynqmp_pm_invoke_fn(u32 pm_api_id, u32 *ret_payload, u32 num_args, ...)
 	return do_fw_call(ret_payload, 8, smc_arg[0], smc_arg[1], smc_arg[2], smc_arg[3],
 			  smc_arg[4], smc_arg[5], smc_arg[6], smc_arg[7]);
 }
+EXPORT_SYMBOL_GPL(zynqmp_pm_invoke_fn);
 
 static u32 pm_api_version;
 static u32 pm_tz_version;
