@@ -169,6 +169,8 @@ static int probe_maple_kbd(struct device *dev)
 	kbd->dev = idev;
 	memcpy(kbd->keycode, dc_kbd_keycode, sizeof(kbd->keycode));
 
+	maple_set_drvdata(mdev, kbd);
+
 	idev->name = mdev->product_name;
 	idev->evbit[0] = BIT(EV_KEY) | BIT(EV_REP);
 	idev->keycode = kbd->keycode;
@@ -192,8 +194,6 @@ static int probe_maple_kbd(struct device *dev)
 		MAPLE_FUNC_KEYBOARD);
 
 	mdev->driver = mdrv;
-
-	maple_set_drvdata(mdev, kbd);
 
 	return error;
 

@@ -1498,6 +1498,7 @@ static int do_cpu_nanosleep(const clockid_t which_clock, int flags,
 		spin_lock_irq(&timer.it_lock);
 		error = posix_cpu_timer_set(&timer, flags, &it, NULL);
 		if (error) {
+			posix_cpu_timer_del(&timer);
 			spin_unlock_irq(&timer.it_lock);
 			return error;
 		}

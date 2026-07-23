@@ -71,24 +71,31 @@ struct nfs4_ff_layoutstat {
 	struct nfs4_ff_busy_timer busy_timer;
 };
 
-struct nfs4_ff_layout_mirror {
-	struct pnfs_layout_hdr		*layout;
-	struct list_head		mirrors;
-	u32				ds_count;
-	u32				efficiency;
+struct nfs4_ff_layout_mirror;
+
+struct nfs4_ff_layout_ds_stripe {
+	struct nfs4_ff_layout_mirror   *mirror;
 	struct nfs4_deviceid		devid;
+	u32				efficiency;
 	struct nfs4_ff_layout_ds	*mirror_ds;
 	u32				fh_versions_cnt;
 	struct nfs_fh			*fh_versions;
 	nfs4_stateid			stateid;
 	const struct cred __rcu		*ro_cred;
 	const struct cred __rcu		*rw_cred;
-	refcount_t			ref;
-	spinlock_t			lock;
-	unsigned long			flags;
 	struct nfs4_ff_layoutstat	read_stat;
 	struct nfs4_ff_layoutstat	write_stat;
 	ktime_t				start_time;
+};
+
+struct nfs4_ff_layout_mirror {
+	struct pnfs_layout_hdr		*layout;
+	struct list_head		mirrors;
+	u32				dss_count;
+	struct nfs4_ff_layout_ds_stripe *dss;
+	refcount_t			ref;
+	spinlock_t			lock;
+	unsigned long			flags;
 	u32				report_interval;
 };
 
@@ -154,7 +161,7 @@ FF_LAYOUT_DEVID_NODE(struct pnfs_layout_segment *lseg, u32 idx)
 	struct nfs4_ff_layout_mirror *mirror = FF_LAYOUT_COMP(lseg, idx);
 
 	if (mirror != NULL) {
-		struct nfs4_ff_layout_ds *mirror_ds = mirror->mirror_ds;
+		struct nfs4_ff_layout_ds *mirror_ds = mirror->dss[0].mirror_ds;
 
 		if (!IS_ERR_OR_NULL(mirror_ds))
 			return &mirror_ds->id_node;
@@ -183,7 +190,7 @@ ff_layout_no_read_on_rw(struct pnfs_layout_segment *lseg)
 static inline int
 nfs4_ff_layout_ds_version(const struct nfs4_ff_layout_mirror *mirror)
 {
-	return mirror->mirror_ds->ds_versions[0].version;
+	return mirror->dss[0].mirror_ds->ds_versions[0].version;
 }
 
 struct nfs4_ff_layout_ds *
