@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/nodemask.h>
+#include <linux/of.h>
 #include <linux/once.h>
 #include <linux/pci.h>
 #include <linux/suspend.h>
@@ -4040,6 +4041,10 @@ static struct nvme_dev *nvme_pci_alloc_dev(struct pci_dev *pdev,
 		quirks |= qentry->enabled_quirks;
 		quirks &= ~qentry->disabled_quirks;
 	}
+	/* pcie-brcmstb takes the link down over system suspend */
+	if (!(quirks & NVME_QUIRK_FORCE_NO_SIMPLE_SUSPEND) &&
+	    of_machine_is_compatible("brcm,bcm2712"))
+		quirks |= NVME_QUIRK_SIMPLE_SUSPEND;
 	ret = nvme_init_ctrl(&dev->ctrl, &pdev->dev, &nvme_pci_ctrl_ops,
 			     quirks);
 	if (ret)
