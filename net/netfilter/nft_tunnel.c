@@ -124,31 +124,6 @@ nla_put_failure:
 	return -1;
 }
 
-static bool nft_tunnel_get_reduce(struct nft_regs_track *track,
-				  const struct nft_expr *expr)
-{
-	const struct nft_tunnel *priv = nft_expr_priv(expr);
-	const struct nft_tunnel *tunnel;
-
-	if (!nft_reg_track_cmp(track, expr, priv->dreg)) {
-		nft_reg_track_update(track, expr, priv->dreg, priv->len);
-		return false;
-	}
-
-	tunnel = nft_expr_priv(track->regs[priv->dreg].selector);
-	if (priv->key != tunnel->key ||
-	    priv->dreg != tunnel->dreg ||
-	    priv->mode != tunnel->mode) {
-		nft_reg_track_update(track, expr, priv->dreg, priv->len);
-		return false;
-	}
-
-	if (!track->regs[priv->dreg].bitwise)
-		return true;
-
-	return false;
-}
-
 static struct nft_expr_type nft_tunnel_type;
 static const struct nft_expr_ops nft_tunnel_get_ops = {
 	.type		= &nft_tunnel_type,
@@ -156,7 +131,6 @@ static const struct nft_expr_ops nft_tunnel_get_ops = {
 	.eval		= nft_tunnel_get_eval,
 	.init		= nft_tunnel_get_init,
 	.dump		= nft_tunnel_get_dump,
-	.reduce		= nft_tunnel_get_reduce,
 };
 
 static struct nft_expr_type nft_tunnel_type __read_mostly = {
