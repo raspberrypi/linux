@@ -247,8 +247,8 @@ void afs_deferred_put_call(struct afs_call *call)
 		schedule_work(&call->free_work);
 }
 
-static struct afs_call *afs_get_call(struct afs_call *call,
-				     enum afs_call_trace why)
+struct afs_call *afs_get_call(struct afs_call *call,
+			      enum afs_call_trace why)
 {
 	int r;
 
