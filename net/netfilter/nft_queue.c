@@ -191,7 +191,6 @@ static const struct nft_expr_ops nft_queue_ops = {
 	.init		= nft_queue_init,
 	.dump		= nft_queue_dump,
 	.validate	= nft_queue_validate,
-	.reduce		= NFT_REDUCE_READONLY,
 };
 
 static const struct nft_expr_ops nft_queue_sreg_ops = {
@@ -201,7 +200,6 @@ static const struct nft_expr_ops nft_queue_sreg_ops = {
 	.init		= nft_queue_sreg_init,
 	.dump		= nft_queue_sreg_dump,
 	.validate	= nft_queue_validate,
-	.reduce		= NFT_REDUCE_READONLY,
 };
 
 static const struct nft_expr_ops *
