@@ -10,9 +10,9 @@
 #include <linux/sched/signal.h>
 #include <linux/sizes.h>
 
-#include <drm/drm_buddy.h>
+#include <linux/gpu_buddy.h>
 
-#include "../lib/drm_random.h"
+#include "gpu_random.h"
 
 static unsigned int random_seed;
 
@@ -21,14 +21,14 @@ static inline u64 get_size(int order, u64 chunk_size)
 	return (1 << order) * chunk_size;
 }
 
-static void drm_test_buddy_alloc_range_bias(struct kunit *test)
+static void gpu_test_buddy_alloc_range_bias(struct kunit *test)
 {
 	u32 mm_size, size, ps, bias_size, bias_start, bias_end, bias_rem;
-	DRM_RND_STATE(prng, random_seed);
+	GPU_RND_STATE(prng, random_seed);
 	unsigned int i, count, *order;
-	struct drm_buddy_block *block;
+	struct gpu_buddy_block *block;
 	unsigned long flags;
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	LIST_HEAD(allocated);
 
 	bias_size = SZ_1M;
@@ -38,11 +38,11 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 
 	kunit_info(test, "mm_size=%u, ps=%u\n", mm_size, ps);
 
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, ps),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, ps),
 			       "buddy_init failed\n");
 
 	count = mm_size / bias_size;
-	order = drm_random_order(count, &prng);
+	order = gpu_random_order(count, &prng);
 	KUNIT_EXPECT_TRUE(test, order);
 
 	/*
@@ -62,79 +62,79 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 
 		/* internal round_up too big */
 		KUNIT_ASSERT_TRUE_MSG(test,
-				      drm_buddy_alloc_blocks(&mm, bias_start,
+				      gpu_buddy_alloc_blocks(&mm, bias_start,
 							     bias_end, bias_size + ps, bias_size,
 							     &allocated,
-							     DRM_BUDDY_RANGE_ALLOCATION),
+							     GPU_BUDDY_RANGE_ALLOCATION),
 				      "buddy_alloc failed with bias(%x-%x), size=%u, ps=%u\n",
 				      bias_start, bias_end, bias_size, bias_size);
 
 		/* size too big */
 		KUNIT_ASSERT_TRUE_MSG(test,
-				      drm_buddy_alloc_blocks(&mm, bias_start,
+				      gpu_buddy_alloc_blocks(&mm, bias_start,
 							     bias_end, bias_size + ps, ps,
 							     &allocated,
-							     DRM_BUDDY_RANGE_ALLOCATION),
+							     GPU_BUDDY_RANGE_ALLOCATION),
 				      "buddy_alloc didn't fail with bias(%x-%x), size=%u, ps=%u\n",
 				      bias_start, bias_end, bias_size + ps, ps);
 
 		/* bias range too small for size */
 		KUNIT_ASSERT_TRUE_MSG(test,
-				      drm_buddy_alloc_blocks(&mm, bias_start + ps,
+				      gpu_buddy_alloc_blocks(&mm, bias_start + ps,
 							     bias_end, bias_size, ps,
 							     &allocated,
-							     DRM_BUDDY_RANGE_ALLOCATION),
+							     GPU_BUDDY_RANGE_ALLOCATION),
 				      "buddy_alloc didn't fail with bias(%x-%x), size=%u, ps=%u\n",
 				      bias_start + ps, bias_end, bias_size, ps);
 
 		/* bias misaligned */
 		KUNIT_ASSERT_TRUE_MSG(test,
-				      drm_buddy_alloc_blocks(&mm, bias_start + ps,
+				      gpu_buddy_alloc_blocks(&mm, bias_start + ps,
 							     bias_end - ps,
 							     bias_size >> 1, bias_size >> 1,
 							     &allocated,
-							     DRM_BUDDY_RANGE_ALLOCATION),
+							     GPU_BUDDY_RANGE_ALLOCATION),
 				      "buddy_alloc h didn't fail with bias(%x-%x), size=%u, ps=%u\n",
 				      bias_start + ps, bias_end - ps, bias_size >> 1, bias_size >> 1);
 
 		/* single big page */
 		KUNIT_ASSERT_FALSE_MSG(test,
-				       drm_buddy_alloc_blocks(&mm, bias_start,
+				       gpu_buddy_alloc_blocks(&mm, bias_start,
 							      bias_end, bias_size, bias_size,
 							      &tmp,
-							      DRM_BUDDY_RANGE_ALLOCATION),
+							      GPU_BUDDY_RANGE_ALLOCATION),
 				       "buddy_alloc i failed with bias(%x-%x), size=%u, ps=%u\n",
 				       bias_start, bias_end, bias_size, bias_size);
-		drm_buddy_free_list(&mm, &tmp, 0);
+		gpu_buddy_free_list(&mm, &tmp, 0);
 
 		/* single page with internal round_up */
 		KUNIT_ASSERT_FALSE_MSG(test,
-				       drm_buddy_alloc_blocks(&mm, bias_start,
+				       gpu_buddy_alloc_blocks(&mm, bias_start,
 							      bias_end, ps, bias_size,
 							      &tmp,
-							      DRM_BUDDY_RANGE_ALLOCATION),
+							      GPU_BUDDY_RANGE_ALLOCATION),
 				       "buddy_alloc failed with bias(%x-%x), size=%u, ps=%u\n",
 				       bias_start, bias_end, ps, bias_size);
-		drm_buddy_free_list(&mm, &tmp, 0);
+		gpu_buddy_free_list(&mm, &tmp, 0);
 
 		/* random size within */
 		size = max(round_up(prandom_u32_state(&prng) % bias_rem, ps), ps);
 		if (size)
 			KUNIT_ASSERT_FALSE_MSG(test,
-					       drm_buddy_alloc_blocks(&mm, bias_start,
+					       gpu_buddy_alloc_blocks(&mm, bias_start,
 								      bias_end, size, ps,
 								      &tmp,
-								      DRM_BUDDY_RANGE_ALLOCATION),
+								      GPU_BUDDY_RANGE_ALLOCATION),
 					       "buddy_alloc failed with bias(%x-%x), size=%u, ps=%u\n",
 					       bias_start, bias_end, size, ps);
 
 		bias_rem -= size;
 		/* too big for current avail */
 		KUNIT_ASSERT_TRUE_MSG(test,
-				      drm_buddy_alloc_blocks(&mm, bias_start,
+				      gpu_buddy_alloc_blocks(&mm, bias_start,
 							     bias_end, bias_rem + ps, ps,
 							     &allocated,
-							     DRM_BUDDY_RANGE_ALLOCATION),
+							     GPU_BUDDY_RANGE_ALLOCATION),
 				      "buddy_alloc didn't fail with bias(%x-%x), size=%u, ps=%u\n",
 				      bias_start, bias_end, bias_rem + ps, ps);
 
@@ -144,10 +144,10 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 			size = max(size, ps);
 
 			KUNIT_ASSERT_FALSE_MSG(test,
-					       drm_buddy_alloc_blocks(&mm, bias_start,
+					       gpu_buddy_alloc_blocks(&mm, bias_start,
 								      bias_end, size, ps,
 								      &allocated,
-								      DRM_BUDDY_RANGE_ALLOCATION),
+								      GPU_BUDDY_RANGE_ALLOCATION),
 					       "buddy_alloc failed with bias(%x-%x), size=%u, ps=%u\n",
 					       bias_start, bias_end, size, ps);
 			/*
@@ -155,15 +155,15 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 			 * unallocated, and ideally not always on the bias
 			 * boundaries.
 			 */
-			drm_buddy_free_list(&mm, &tmp, 0);
+			gpu_buddy_free_list(&mm, &tmp, 0);
 		} else {
 			list_splice_tail(&tmp, &allocated);
 		}
 	}
 
 	kfree(order);
-	drm_buddy_free_list(&mm, &allocated, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, 0);
+	gpu_buddy_fini(&mm);
 
 	/*
 	 * Something more free-form. Idea is to pick a random starting bias
@@ -174,7 +174,7 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 	 * allocated nodes in the middle of the address space.
 	 */
 
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, ps),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, ps),
 			       "buddy_init failed\n");
 
 	bias_start = round_up(prandom_u32_state(&prng) % (mm_size - ps), ps);
@@ -186,10 +186,10 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 		u32 size = max(round_up(prandom_u32_state(&prng) % bias_rem, ps), ps);
 
 		KUNIT_ASSERT_FALSE_MSG(test,
-				       drm_buddy_alloc_blocks(&mm, bias_start,
+				       gpu_buddy_alloc_blocks(&mm, bias_start,
 							      bias_end, size, ps,
 							      &allocated,
-							      DRM_BUDDY_RANGE_ALLOCATION),
+							      GPU_BUDDY_RANGE_ALLOCATION),
 				       "buddy_alloc failed with bias(%x-%x), size=%u, ps=%u\n",
 				       bias_start, bias_end, size, ps);
 		bias_rem -= size;
@@ -215,24 +215,24 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 	KUNIT_ASSERT_EQ(test, bias_start, 0);
 	KUNIT_ASSERT_EQ(test, bias_end, mm_size);
 	KUNIT_ASSERT_TRUE_MSG(test,
-			      drm_buddy_alloc_blocks(&mm, bias_start, bias_end,
+			      gpu_buddy_alloc_blocks(&mm, bias_start, bias_end,
 						     ps, ps,
 						     &allocated,
-						     DRM_BUDDY_RANGE_ALLOCATION),
+						     GPU_BUDDY_RANGE_ALLOCATION),
 			      "buddy_alloc passed with bias(%x-%x), size=%u\n",
 			      bias_start, bias_end, ps);
 
-	drm_buddy_free_list(&mm, &allocated, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, 0);
+	gpu_buddy_fini(&mm);
 
 	/*
-	 * Allocate cleared blocks in the bias range when the DRM buddy's clear avail is
+	 * Allocate cleared blocks in the bias range when the GPU buddy's clear avail is
 	 * zero. This will validate the bias range allocation in scenarios like system boot
 	 * when no cleared blocks are available and exercise the fallback path too. The resulting
 	 * blocks should always be dirty.
 	 */
 
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, ps),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, ps),
 			       "buddy_init failed\n");
 
 	bias_start = round_up(prandom_u32_state(&prng) % (mm_size - ps), ps);
@@ -240,11 +240,11 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 	bias_end = max(bias_end, bias_start + ps);
 	bias_rem = bias_end - bias_start;
 
-	flags = DRM_BUDDY_CLEAR_ALLOCATION | DRM_BUDDY_RANGE_ALLOCATION;
+	flags = GPU_BUDDY_CLEAR_ALLOCATION | GPU_BUDDY_RANGE_ALLOCATION;
 	size = max(round_up(prandom_u32_state(&prng) % bias_rem, ps), ps);
 
 	KUNIT_ASSERT_FALSE_MSG(test,
-			       drm_buddy_alloc_blocks(&mm, bias_start,
+			       gpu_buddy_alloc_blocks(&mm, bias_start,
 						      bias_end, size, ps,
 						      &allocated,
 						      flags),
@@ -252,27 +252,27 @@ static void drm_test_buddy_alloc_range_bias(struct kunit *test)
 			       bias_start, bias_end, size, ps);
 
 	list_for_each_entry(block, &allocated, link)
-		KUNIT_EXPECT_EQ(test, drm_buddy_block_is_clear(block), false);
+		KUNIT_EXPECT_EQ(test, gpu_buddy_block_is_clear(block), false);
 
-	drm_buddy_free_list(&mm, &allocated, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_clear(struct kunit *test)
+static void gpu_test_buddy_alloc_clear(struct kunit *test)
 {
 	unsigned long n_pages, total, i = 0;
 	const unsigned long ps = SZ_4K;
-	struct drm_buddy_block *block;
+	struct gpu_buddy_block *block;
 	const int max_order = 12;
 	LIST_HEAD(allocated);
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	unsigned int order;
 	u32 mm_size, size;
 	LIST_HEAD(dirty);
 	LIST_HEAD(clean);
 
 	mm_size = SZ_4K << max_order;
-	KUNIT_EXPECT_FALSE(test, drm_buddy_init(&mm, mm_size, ps));
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_init(&mm, mm_size, ps));
 
 	KUNIT_EXPECT_EQ(test, mm.max_order, max_order);
 
@@ -285,11 +285,11 @@ static void drm_test_buddy_alloc_clear(struct kunit *test)
 	 * is indeed all dirty pages and vice versa. Free it all again,
 	 * keeping the dirty/clear status.
 	 */
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							    5 * ps, ps, &allocated,
-							    DRM_BUDDY_TOPDOWN_ALLOCATION),
+							    GPU_BUDDY_TOPDOWN_ALLOCATION),
 				"buddy_alloc hit an error size=%lu\n", 5 * ps);
-	drm_buddy_free_list(&mm, &allocated, DRM_BUDDY_CLEARED);
+	gpu_buddy_free_list(&mm, &allocated, GPU_BUDDY_CLEARED);
 
 	n_pages = 10;
 	do {
@@ -302,37 +302,37 @@ static void drm_test_buddy_alloc_clear(struct kunit *test)
 			flags = 0;
 		} else {
 			list = &clean;
-			flags = DRM_BUDDY_CLEAR_ALLOCATION;
+			flags = GPU_BUDDY_CLEAR_ALLOCATION;
 		}
 
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 								    ps, ps, list,
 								    flags),
 					"buddy_alloc hit an error size=%lu\n", ps);
 	} while (++i < n_pages);
 
 	list_for_each_entry(block, &clean, link)
-		KUNIT_EXPECT_EQ(test, drm_buddy_block_is_clear(block), true);
+		KUNIT_EXPECT_EQ(test, gpu_buddy_block_is_clear(block), true);
 
 	list_for_each_entry(block, &dirty, link)
-		KUNIT_EXPECT_EQ(test, drm_buddy_block_is_clear(block), false);
+		KUNIT_EXPECT_EQ(test, gpu_buddy_block_is_clear(block), false);
 
-	drm_buddy_free_list(&mm, &clean, DRM_BUDDY_CLEARED);
+	gpu_buddy_free_list(&mm, &clean, GPU_BUDDY_CLEARED);
 
 	/*
 	 * Trying to go over the clear limit for some allocation.
 	 * The allocation should never fail with reasonable page-size.
 	 */
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							    10 * ps, ps, &clean,
-							    DRM_BUDDY_CLEAR_ALLOCATION),
+							    GPU_BUDDY_CLEAR_ALLOCATION),
 				"buddy_alloc hit an error size=%lu\n", 10 * ps);
 
-	drm_buddy_free_list(&mm, &clean, DRM_BUDDY_CLEARED);
-	drm_buddy_free_list(&mm, &dirty, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &clean, GPU_BUDDY_CLEARED);
+	gpu_buddy_free_list(&mm, &dirty, 0);
+	gpu_buddy_fini(&mm);
 
-	KUNIT_EXPECT_FALSE(test, drm_buddy_init(&mm, mm_size, ps));
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_init(&mm, mm_size, ps));
 
 	/*
 	 * Create a new mm. Intentionally fragment the address space by creating
@@ -354,34 +354,34 @@ static void drm_test_buddy_alloc_clear(struct kunit *test)
 		else
 			list = &clean;
 
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 								    ps, ps, list, 0),
 					"buddy_alloc hit an error size=%lu\n", ps);
 	} while (++i < n_pages);
 
-	drm_buddy_free_list(&mm, &clean, DRM_BUDDY_CLEARED);
-	drm_buddy_free_list(&mm, &dirty, 0);
+	gpu_buddy_free_list(&mm, &clean, GPU_BUDDY_CLEARED);
+	gpu_buddy_free_list(&mm, &dirty, 0);
 
 	order = 1;
 	do {
 		size = SZ_4K << order;
 
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 								    size, size, &allocated,
-								    DRM_BUDDY_CLEAR_ALLOCATION),
+								    GPU_BUDDY_CLEAR_ALLOCATION),
 					"buddy_alloc hit an error size=%u\n", size);
 		total = 0;
 		list_for_each_entry(block, &allocated, link) {
 			if (size != mm_size)
-				KUNIT_EXPECT_EQ(test, drm_buddy_block_is_clear(block), false);
-			total += drm_buddy_block_size(&mm, block);
+				KUNIT_EXPECT_EQ(test, gpu_buddy_block_is_clear(block), false);
+			total += gpu_buddy_block_size(&mm, block);
 		}
 		KUNIT_EXPECT_EQ(test, total, size);
 
-		drm_buddy_free_list(&mm, &allocated, 0);
+		gpu_buddy_free_list(&mm, &allocated, 0);
 	} while (++order <= max_order);
 
-	drm_buddy_fini(&mm);
+	gpu_buddy_fini(&mm);
 
 	/*
 	 * Create a new mm with a non power-of-two size. Allocate a random size from each
@@ -390,44 +390,44 @@ static void drm_test_buddy_alloc_clear(struct kunit *test)
 	 */
 	mm_size = (SZ_4K << max_order) + (SZ_4K << (max_order - 2));
 
-	KUNIT_EXPECT_FALSE(test, drm_buddy_init(&mm, mm_size, ps));
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_init(&mm, mm_size, ps));
 	KUNIT_EXPECT_EQ(test, mm.max_order, max_order);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, SZ_4K << max_order,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, SZ_4K << max_order,
 							    4 * ps, ps, &allocated,
-							    DRM_BUDDY_RANGE_ALLOCATION),
+							    GPU_BUDDY_RANGE_ALLOCATION),
 				"buddy_alloc hit an error size=%lu\n", 4 * ps);
-	drm_buddy_free_list(&mm, &allocated, DRM_BUDDY_CLEARED);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, SZ_4K << max_order,
+	gpu_buddy_free_list(&mm, &allocated, GPU_BUDDY_CLEARED);
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, SZ_4K << max_order,
 							    2 * ps, ps, &allocated,
-							    DRM_BUDDY_CLEAR_ALLOCATION),
+							    GPU_BUDDY_CLEAR_ALLOCATION),
 				"buddy_alloc hit an error size=%lu\n", 2 * ps);
-	drm_buddy_free_list(&mm, &allocated, DRM_BUDDY_CLEARED);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, SZ_4K << max_order, mm_size,
+	gpu_buddy_free_list(&mm, &allocated, GPU_BUDDY_CLEARED);
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, SZ_4K << max_order, mm_size,
 							    ps, ps, &allocated,
-							    DRM_BUDDY_RANGE_ALLOCATION),
+							    GPU_BUDDY_RANGE_ALLOCATION),
 				"buddy_alloc hit an error size=%lu\n", ps);
-	drm_buddy_free_list(&mm, &allocated, DRM_BUDDY_CLEARED);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, GPU_BUDDY_CLEARED);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_contiguous(struct kunit *test)
+static void gpu_test_buddy_alloc_contiguous(struct kunit *test)
 {
 	const unsigned long ps = SZ_4K, mm_size = 16 * 3 * SZ_4K;
 	unsigned long i, n_pages, total;
-	struct drm_buddy_block *block;
-	struct drm_buddy mm;
+	struct gpu_buddy_block *block;
+	struct gpu_buddy mm;
 	LIST_HEAD(left);
 	LIST_HEAD(middle);
 	LIST_HEAD(right);
 	LIST_HEAD(allocated);
 
-	KUNIT_EXPECT_FALSE(test, drm_buddy_init(&mm, mm_size, ps));
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_init(&mm, mm_size, ps));
 
 	/*
 	 * Idea is to fragment the address space by alternating block
 	 * allocations between three different lists; one for left, middle and
 	 * right. We can then free a list to simulate fragmentation. In
-	 * particular we want to exercise the DRM_BUDDY_CONTIGUOUS_ALLOCATION,
+	 * particular we want to exercise the GPU_BUDDY_CONTIGUOUS_ALLOCATION,
 	 * including the try_harder path.
 	 */
 
@@ -444,66 +444,66 @@ static void drm_test_buddy_alloc_contiguous(struct kunit *test)
 		else
 			list = &right;
 		KUNIT_ASSERT_FALSE_MSG(test,
-				       drm_buddy_alloc_blocks(&mm, 0, mm_size,
+				       gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							      ps, ps, list, 0),
 				       "buddy_alloc hit an error size=%lu\n",
 				       ps);
 	} while (++i < n_pages);
 
-	KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							   3 * ps, ps, &allocated,
-							   DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							   GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc didn't error size=%lu\n", 3 * ps);
 
-	drm_buddy_free_list(&mm, &middle, 0);
-	KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	gpu_buddy_free_list(&mm, &middle, 0);
+	KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							   3 * ps, ps, &allocated,
-							   DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							   GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc didn't error size=%lu\n", 3 * ps);
-	KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							   2 * ps, ps, &allocated,
-							   DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							   GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc didn't error size=%lu\n", 2 * ps);
 
-	drm_buddy_free_list(&mm, &right, 0);
-	KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	gpu_buddy_free_list(&mm, &right, 0);
+	KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							   3 * ps, ps, &allocated,
-							   DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							   GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc didn't error size=%lu\n", 3 * ps);
 	/*
 	 * At this point we should have enough contiguous space for 2 blocks,
 	 * however they are never buddies (since we freed middle and right) so
 	 * will require the try_harder logic to find them.
 	 */
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							    2 * ps, ps, &allocated,
-							    DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							    GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc hit an error size=%lu\n", 2 * ps);
 
-	drm_buddy_free_list(&mm, &left, 0);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, 0, mm_size,
+	gpu_buddy_free_list(&mm, &left, 0);
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, 0, mm_size,
 							    3 * ps, ps, &allocated,
-							    DRM_BUDDY_CONTIGUOUS_ALLOCATION),
+							    GPU_BUDDY_CONTIGUOUS_ALLOCATION),
 			       "buddy_alloc hit an error size=%lu\n", 3 * ps);
 
 	total = 0;
 	list_for_each_entry(block, &allocated, link)
-		total += drm_buddy_block_size(&mm, block);
+		total += gpu_buddy_block_size(&mm, block);
 
 	KUNIT_ASSERT_EQ(test, total, ps * 2 + ps * 3);
 
-	drm_buddy_free_list(&mm, &allocated, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_pathological(struct kunit *test)
+static void gpu_test_buddy_alloc_pathological(struct kunit *test)
 {
 	u64 mm_size, size, start = 0;
-	struct drm_buddy_block *block;
+	struct gpu_buddy_block *block;
 	const int max_order = 3;
 	unsigned long flags = 0;
 	int order, top;
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	LIST_HEAD(blocks);
 	LIST_HEAD(holes);
 	LIST_HEAD(tmp);
@@ -516,7 +516,7 @@ static void drm_test_buddy_alloc_pathological(struct kunit *test)
 	 */
 
 	mm_size = SZ_4K << max_order;
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, SZ_4K),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, SZ_4K),
 			       "buddy_init failed\n");
 
 	KUNIT_EXPECT_EQ(test, mm.max_order, max_order);
@@ -526,18 +526,18 @@ static void drm_test_buddy_alloc_pathological(struct kunit *test)
 		block = list_first_entry_or_null(&blocks, typeof(*block), link);
 		if (block) {
 			list_del(&block->link);
-			drm_buddy_free_block(&mm, block);
+			gpu_buddy_free_block(&mm, block);
 		}
 
 		for (order = top; order--;) {
 			size = get_size(order, mm.chunk_size);
-			KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start,
+			KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start,
 									    mm_size, size, size,
 										&tmp, flags),
 					"buddy_alloc hit -ENOMEM with order=%d, top=%d\n",
 					order, top);
 
-			block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+			block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 			KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 			list_move_tail(&block->link, &blocks);
@@ -545,45 +545,45 @@ static void drm_test_buddy_alloc_pathological(struct kunit *test)
 
 		/* There should be one final page for this sub-allocation */
 		size = get_size(0, mm.chunk_size);
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								    size, size, &tmp, flags),
 							   "buddy_alloc hit -ENOMEM for hole\n");
 
-		block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+		block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 		KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 		list_move_tail(&block->link, &holes);
 
 		size = get_size(top, mm.chunk_size);
-		KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								   size, size, &tmp, flags),
 							  "buddy_alloc unexpectedly succeeded at top-order %d/%d, it should be full!",
 							  top, max_order);
 	}
 
-	drm_buddy_free_list(&mm, &holes, 0);
+	gpu_buddy_free_list(&mm, &holes, 0);
 
 	/* Nothing larger than blocks of chunk_size now available */
 	for (order = 1; order <= max_order; order++) {
 		size = get_size(order, mm.chunk_size);
-		KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								   size, size, &tmp, flags),
 							  "buddy_alloc unexpectedly succeeded at order %d, it should be full!",
 							  order);
 	}
 
 	list_splice_tail(&holes, &blocks);
-	drm_buddy_free_list(&mm, &blocks, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &blocks, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_pessimistic(struct kunit *test)
+static void gpu_test_buddy_alloc_pessimistic(struct kunit *test)
 {
 	u64 mm_size, size, start = 0;
-	struct drm_buddy_block *block, *bn;
+	struct gpu_buddy_block *block, *bn;
 	const unsigned int max_order = 16;
 	unsigned long flags = 0;
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	unsigned int order;
 	LIST_HEAD(blocks);
 	LIST_HEAD(tmp);
@@ -595,19 +595,19 @@ static void drm_test_buddy_alloc_pessimistic(struct kunit *test)
 	 */
 
 	mm_size = SZ_4K << max_order;
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, SZ_4K),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, SZ_4K),
 			       "buddy_init failed\n");
 
 	KUNIT_EXPECT_EQ(test, mm.max_order, max_order);
 
 	for (order = 0; order < max_order; order++) {
 		size = get_size(order, mm.chunk_size);
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								    size, size, &tmp, flags),
 							   "buddy_alloc hit -ENOMEM with order=%d\n",
 							   order);
 
-		block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+		block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 		KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 		list_move_tail(&block->link, &blocks);
@@ -615,11 +615,11 @@ static void drm_test_buddy_alloc_pessimistic(struct kunit *test)
 
 	/* And now the last remaining block available */
 	size = get_size(0, mm.chunk_size);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 							    size, size, &tmp, flags),
 						   "buddy_alloc hit -ENOMEM on final alloc\n");
 
-	block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+	block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 	KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 	list_move_tail(&block->link, &blocks);
@@ -627,58 +627,58 @@ static void drm_test_buddy_alloc_pessimistic(struct kunit *test)
 	/* Should be completely full! */
 	for (order = max_order; order--;) {
 		size = get_size(order, mm.chunk_size);
-		KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								   size, size, &tmp, flags),
 							  "buddy_alloc unexpectedly succeeded, it should be full!");
 	}
 
 	block = list_last_entry(&blocks, typeof(*block), link);
 	list_del(&block->link);
-	drm_buddy_free_block(&mm, block);
+	gpu_buddy_free_block(&mm, block);
 
 	/* As we free in increasing size, we make available larger blocks */
 	order = 1;
 	list_for_each_entry_safe(block, bn, &blocks, link) {
 		list_del(&block->link);
-		drm_buddy_free_block(&mm, block);
+		gpu_buddy_free_block(&mm, block);
 
 		size = get_size(order, mm.chunk_size);
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								    size, size, &tmp, flags),
 							   "buddy_alloc hit -ENOMEM with order=%d\n",
 							   order);
 
-		block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+		block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 		KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 		list_del(&block->link);
-		drm_buddy_free_block(&mm, block);
+		gpu_buddy_free_block(&mm, block);
 		order++;
 	}
 
 	/* To confirm, now the whole mm should be available */
 	size = get_size(max_order, mm.chunk_size);
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 							    size, size, &tmp, flags),
 						   "buddy_alloc (realloc) hit -ENOMEM with order=%d\n",
 						   max_order);
 
-	block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+	block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 	KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 	list_del(&block->link);
-	drm_buddy_free_block(&mm, block);
-	drm_buddy_free_list(&mm, &blocks, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_block(&mm, block);
+	gpu_buddy_free_list(&mm, &blocks, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_optimistic(struct kunit *test)
+static void gpu_test_buddy_alloc_optimistic(struct kunit *test)
 {
 	u64 mm_size, size, start = 0;
-	struct drm_buddy_block *block;
+	struct gpu_buddy_block *block;
 	unsigned long flags = 0;
 	const int max_order = 16;
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	LIST_HEAD(blocks);
 	LIST_HEAD(tmp);
 	int order;
@@ -690,19 +690,19 @@ static void drm_test_buddy_alloc_optimistic(struct kunit *test)
 
 	mm_size = SZ_4K * ((1 << (max_order + 1)) - 1);
 
-	KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_init(&mm, mm_size, SZ_4K),
+	KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_init(&mm, mm_size, SZ_4K),
 			       "buddy_init failed\n");
 
 	KUNIT_EXPECT_EQ(test, mm.max_order, max_order);
 
 	for (order = 0; order <= max_order; order++) {
 		size = get_size(order, mm.chunk_size);
-		KUNIT_ASSERT_FALSE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+		KUNIT_ASSERT_FALSE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 								    size, size, &tmp, flags),
 							   "buddy_alloc hit -ENOMEM with order=%d\n",
 							   order);
 
-		block = list_first_entry_or_null(&tmp, struct drm_buddy_block, link);
+		block = list_first_entry_or_null(&tmp, struct gpu_buddy_block, link);
 		KUNIT_ASSERT_TRUE_MSG(test, block, "alloc_blocks has no blocks\n");
 
 		list_move_tail(&block->link, &blocks);
@@ -710,79 +710,79 @@ static void drm_test_buddy_alloc_optimistic(struct kunit *test)
 
 	/* Should be completely full! */
 	size = get_size(0, mm.chunk_size);
-	KUNIT_ASSERT_TRUE_MSG(test, drm_buddy_alloc_blocks(&mm, start, mm_size,
+	KUNIT_ASSERT_TRUE_MSG(test, gpu_buddy_alloc_blocks(&mm, start, mm_size,
 							   size, size, &tmp, flags),
 						  "buddy_alloc unexpectedly succeeded, it should be full!");
 
-	drm_buddy_free_list(&mm, &blocks, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &blocks, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static void drm_test_buddy_alloc_limit(struct kunit *test)
+static void gpu_test_buddy_alloc_limit(struct kunit *test)
 {
 	u64 size = U64_MAX, start = 0;
-	struct drm_buddy_block *block;
+	struct gpu_buddy_block *block;
 	unsigned long flags = 0;
 	LIST_HEAD(allocated);
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 
-	KUNIT_EXPECT_FALSE(test, drm_buddy_init(&mm, size, SZ_4K));
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_init(&mm, size, SZ_4K));
 
-	KUNIT_EXPECT_EQ_MSG(test, mm.max_order, DRM_BUDDY_MAX_ORDER,
+	KUNIT_EXPECT_EQ_MSG(test, mm.max_order, GPU_BUDDY_MAX_ORDER,
 			    "mm.max_order(%d) != %d\n", mm.max_order,
-						DRM_BUDDY_MAX_ORDER);
+						GPU_BUDDY_MAX_ORDER);
 
 	size = mm.chunk_size << mm.max_order;
-	KUNIT_EXPECT_FALSE(test, drm_buddy_alloc_blocks(&mm, start, size, size,
+	KUNIT_EXPECT_FALSE(test, gpu_buddy_alloc_blocks(&mm, start, size, size,
 							mm.chunk_size, &allocated, flags));
 
-	block = list_first_entry_or_null(&allocated, struct drm_buddy_block, link);
+	block = list_first_entry_or_null(&allocated, struct gpu_buddy_block, link);
 	KUNIT_EXPECT_TRUE(test, block);
 
-	KUNIT_EXPECT_EQ_MSG(test, drm_buddy_block_order(block), mm.max_order,
+	KUNIT_EXPECT_EQ_MSG(test, gpu_buddy_block_order(block), mm.max_order,
 			    "block order(%d) != %d\n",
-						drm_buddy_block_order(block), mm.max_order);
+						gpu_buddy_block_order(block), mm.max_order);
 
-	KUNIT_EXPECT_EQ_MSG(test, drm_buddy_block_size(&mm, block),
+	KUNIT_EXPECT_EQ_MSG(test, gpu_buddy_block_size(&mm, block),
 			    BIT_ULL(mm.max_order) * mm.chunk_size,
 						"block size(%llu) != %llu\n",
-						drm_buddy_block_size(&mm, block),
+						gpu_buddy_block_size(&mm, block),
 						BIT_ULL(mm.max_order) * mm.chunk_size);
 
-	drm_buddy_free_list(&mm, &allocated, 0);
-	drm_buddy_fini(&mm);
+	gpu_buddy_free_list(&mm, &allocated, 0);
+	gpu_buddy_fini(&mm);
 }
 
-static int drm_buddy_suite_init(struct kunit_suite *suite)
+static int gpu_buddy_suite_init(struct kunit_suite *suite)
 {
 	while (!random_seed)
 		random_seed = get_random_u32();
 
-	kunit_info(suite, "Testing DRM buddy manager, with random_seed=0x%x\n",
+	kunit_info(suite, "Testing GPU buddy manager, with random_seed=0x%x\n",
 		   random_seed);
 
 	return 0;
 }
 
-static struct kunit_case drm_buddy_tests[] = {
-	KUNIT_CASE(drm_test_buddy_alloc_limit),
-	KUNIT_CASE(drm_test_buddy_alloc_optimistic),
-	KUNIT_CASE(drm_test_buddy_alloc_pessimistic),
-	KUNIT_CASE(drm_test_buddy_alloc_pathological),
-	KUNIT_CASE(drm_test_buddy_alloc_contiguous),
-	KUNIT_CASE(drm_test_buddy_alloc_clear),
-	KUNIT_CASE(drm_test_buddy_alloc_range_bias),
+static struct kunit_case gpu_buddy_tests[] = {
+	KUNIT_CASE(gpu_test_buddy_alloc_limit),
+	KUNIT_CASE(gpu_test_buddy_alloc_optimistic),
+	KUNIT_CASE(gpu_test_buddy_alloc_pessimistic),
+	KUNIT_CASE(gpu_test_buddy_alloc_pathological),
+	KUNIT_CASE(gpu_test_buddy_alloc_contiguous),
+	KUNIT_CASE(gpu_test_buddy_alloc_clear),
+	KUNIT_CASE(gpu_test_buddy_alloc_range_bias),
 	{}
 };
 
-static struct kunit_suite drm_buddy_test_suite = {
-	.name = "drm_buddy",
-	.suite_init = drm_buddy_suite_init,
-	.test_cases = drm_buddy_tests,
+static struct kunit_suite gpu_buddy_test_suite = {
+	.name = "gpu_buddy",
+	.suite_init = gpu_buddy_suite_init,
+	.test_cases = gpu_buddy_tests,
 };
 
-kunit_test_suite(drm_buddy_test_suite);
+kunit_test_suite(gpu_buddy_test_suite);
 
 MODULE_AUTHOR("Intel Corporation");
-MODULE_DESCRIPTION("Kunit test for drm_buddy functions");
+MODULE_DESCRIPTION("Kunit test for gpu_buddy functions");
 MODULE_LICENSE("GPL");
