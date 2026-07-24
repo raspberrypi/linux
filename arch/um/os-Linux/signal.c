@@ -190,6 +190,7 @@ static void hard_handler(int sig, siginfo_t *si, void *p)
 {
 	ucontext_t *uc = p;
 	mcontext_t *mc = &uc->uc_mcontext;
+	int save_errno = errno;
 	unsigned long pending = 1UL << sig;
 
 	do {
@@ -227,6 +228,8 @@ static void hard_handler(int sig, siginfo_t *si, void *p)
 		if (!nested)
 			pending = from_irq_stack(nested);
 	} while (pending);
+
+	errno = save_errno;
 }
 
 void set_handler(int sig)
