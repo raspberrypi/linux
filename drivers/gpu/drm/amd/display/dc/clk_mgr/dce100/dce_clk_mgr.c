@@ -62,56 +62,6 @@ static const struct clk_mgr_mask disp_clk_mask = {
 		CLK_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(_MASK)
 };
 
-unsigned int dentist_get_divider_from_did(unsigned int did)
-{
-	if (did < DENTIST_BASE_DID_1)
-		did = DENTIST_BASE_DID_1;
-	if (did > DENTIST_MAX_DID)
-		did = DENTIST_MAX_DID;
-
-	if (did < DENTIST_BASE_DID_2) {
-		return DENTIST_DIVIDER_RANGE_1_START + DENTIST_DIVIDER_RANGE_1_STEP
-							* (did - DENTIST_BASE_DID_1);
-	} else if (did < DENTIST_BASE_DID_3) {
-		return DENTIST_DIVIDER_RANGE_2_START + DENTIST_DIVIDER_RANGE_2_STEP
-							* (did - DENTIST_BASE_DID_2);
-	} else if (did < DENTIST_BASE_DID_4) {
-		return DENTIST_DIVIDER_RANGE_3_START + DENTIST_DIVIDER_RANGE_3_STEP
-							* (did - DENTIST_BASE_DID_3);
-	} else {
-		return DENTIST_DIVIDER_RANGE_4_START + DENTIST_DIVIDER_RANGE_4_STEP
-							* (did - DENTIST_BASE_DID_4);
-	}
-}
-
-/* SW will adjust DP REF Clock average value for all purposes
- * (DP DTO / DP Audio DTO and DP GTC)
- if clock is spread for all cases:
- -if SS enabled on DP Ref clock and HW de-spreading enabled with SW
- calculations for DS_INCR/DS_MODULO (this is planned to be default case)
- -if SS enabled on DP Ref clock and HW de-spreading enabled with HW
- calculations (not planned to be used, but average clock should still
- be valid)
- -if SS enabled on DP Ref clock and HW de-spreading disabled
- (should not be case with CIK) then SW should program all rates
- generated according to average value (case as with previous ASICs)
-  */
-
-int dce_adjust_dp_ref_freq_for_ss(struct clk_mgr_internal *clk_mgr_dce, int dp_ref_clk_khz)
-{
-	if (clk_mgr_dce->ss_on_dprefclk && clk_mgr_dce->dprefclk_ss_divider != 0) {
-		struct fixed31_32 ss_percentage = dc_fixpt_div_int(
-				dc_fixpt_from_fraction(clk_mgr_dce->dprefclk_ss_percentage,
-							clk_mgr_dce->dprefclk_ss_divider), 200);
-		struct fixed31_32 adj_dp_ref_clk_khz;
-
-		ss_percentage = dc_fixpt_sub(dc_fixpt_one, ss_percentage);
-		adj_dp_ref_clk_khz = dc_fixpt_mul_int(ss_percentage, dp_ref_clk_khz);
-		dp_ref_clk_khz = dc_fixpt_floor(adj_dp_ref_clk_khz);
-	}
-	return dp_ref_clk_khz;
-}
-
 static int dce60_get_dp_ref_freq_khz(struct clk_mgr *clk_mgr_base)
 {
 	struct clk_mgr_internal *clk_mgr = TO_CLK_MGR_INTERNAL(clk_mgr_base);
@@ -153,13 +103,6 @@ int dce_get_dp_ref_freq_khz(struct clk_mgr *clk_mgr_base)
 		* clk_mgr->base.dentist_vco_freq_khz) / target_div;
 
 	return dce_adjust_dp_ref_freq_for_ss(clk_mgr, dp_ref_clk_khz);
-}
-
-int dce12_get_dp_ref_freq_khz(struct clk_mgr *clk_mgr_base)
-{
-	struct clk_mgr_internal *clk_mgr_dce = TO_CLK_MGR_INTERNAL(clk_mgr_base);
-
-	return dce_adjust_dp_ref_freq_for_ss(clk_mgr_dce, clk_mgr_base->dprefclk_khz);
 }
 
 /* unit: in_khz before mode set, get pixel clock from context. ASIC register
@@ -254,64 +197,6 @@ static void dce_clock_read_integrated_info(struct clk_mgr_internal *clk_mgr_dce)
 	if (!debug->disable_dfs_bypass && bp->integrated_info)
 		if (bp->integrated_info->gpu_cap_info & DFS_BYPASS_ENABLE)
 			clk_mgr_dce->dfs_bypass_enabled = true;
-}
-
-void dce_clock_read_ss_info(struct clk_mgr_internal *clk_mgr_dce)
-{
-	struct dc_bios *bp = clk_mgr_dce->base.ctx->dc_bios;
-	int ss_info_num = bp->funcs->get_ss_entry_number(
-			bp, AS_SIGNAL_TYPE_GPU_PLL);
-
-	if (ss_info_num) {
-		struct spread_spectrum_info info = { { 0 } };
-		enum bp_result result = bp->funcs->get_spread_spectrum_info(
-				bp, AS_SIGNAL_TYPE_GPU_PLL, 0, &info);
-
-		/* Based on VBIOS, VBIOS will keep entry for GPU PLL SS
-		 * even if SS not enabled and in that case
-		 * SSInfo.spreadSpectrumPercentage !=0 would be sign
-		 * that SS is enabled
-		 */
-		if (result == BP_RESULT_OK &&
-				info.spread_spectrum_percentage != 0) {
-			clk_mgr_dce->ss_on_dprefclk = true;
-			clk_mgr_dce->dprefclk_ss_divider = info.spread_percentage_divider;
-
-			if (info.type.CENTER_MODE == 0) {
-				/* TODO: Currently for DP Reference clock we
-				 * need only SS percentage for
-				 * downspread */
-				clk_mgr_dce->dprefclk_ss_percentage =
-						info.spread_spectrum_percentage;
-			}
-
-			return;
-		}
-
-		result = bp->funcs->get_spread_spectrum_info(
-				bp, AS_SIGNAL_TYPE_DISPLAY_PORT, 0, &info);
-
-		/* Based on VBIOS, VBIOS will keep entry for DPREFCLK SS
-		 * even if SS not enabled and in that case
-		 * SSInfo.spreadSpectrumPercentage !=0 would be sign
-		 * that SS is enabled
-		 */
-		if (result == BP_RESULT_OK &&
-				info.spread_spectrum_percentage != 0) {
-			clk_mgr_dce->ss_on_dprefclk = true;
-			clk_mgr_dce->dprefclk_ss_divider = info.spread_percentage_divider;
-
-			if (info.type.CENTER_MODE == 0) {
-				/* Currently for DP Reference clock we
-				 * need only SS percentage for
-				 * downspread */
-				clk_mgr_dce->dprefclk_ss_percentage =
-						info.spread_spectrum_percentage;
-			}
-			if (clk_mgr_dce->base.ctx->dc->config.ignore_dpref_ss)
-				clk_mgr_dce->dprefclk_ss_percentage = 0;
-		}
-	}
 }
 
 static void dce_pplib_apply_display_requirements(

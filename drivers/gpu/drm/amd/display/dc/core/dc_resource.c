@@ -55,11 +55,13 @@
 #if defined(CONFIG_DRM_AMD_DC_SI)
 #include "dce60/dce60_resource.h"
 #endif
+#if defined(CONFIG_DRM_AMD_DC_DCE)
 #include "dce80/dce80_resource.h"
 #include "dce100/dce100_resource.h"
 #include "dce110/dce110_resource.h"
 #include "dce112/dce112_resource.h"
 #include "dce120/dce120_resource.h"
+#endif
 #include "dcn10/dcn10_resource.h"
 #include "dcn20/dcn20_resource.h"
 #include "dcn21/dcn21_resource.h"
@@ -293,6 +295,7 @@ struct resource_pool *dc_create_resource_pool(struct dc  *dc,
 			init_data->num_virtual_links, dc);
 		break;
 #endif
+#if defined(CONFIG_DRM_AMD_DC_DCE)
 	case DCE_VERSION_8_0:
 		res_pool = dce80_create_resource_pool(
 				(uint8_t)init_data->num_virtual_links, dc);
@@ -324,6 +327,7 @@ struct resource_pool *dc_create_resource_pool(struct dc  *dc,
 		res_pool = dce120_create_resource_pool(
 				(uint8_t)init_data->num_virtual_links, dc);
 		break;
+#endif
 
 #if defined(CONFIG_DRM_AMD_DC_FP)
 	case DCN_VERSION_1_0:
@@ -5304,6 +5308,81 @@ void resource_build_info_frame(struct pipe_ctx *pipe_ctx)
 	}
 
 	patch_gamut_packet_checksum(&info->gamut);
+}
+
+/*
+ * Physical-clock resource mapping used by the DCE and DCN resource pools.
+ * Unit tests provide their own stub (see dc_resource_ut_helpers.c).
+ */
+enum {
+	CLK_SRC_PLL0 = 0,
+	CLK_SRC_PLL1,
+	CLK_SRC_PLL2,
+	CLK_SRC_PLL3,
+	CLK_SRC_PLL4,
+	CLK_SRC_PLL5,
+};
+
+static struct clock_source *find_matching_pll(
+		struct resource_context *res_ctx,
+		const struct resource_pool *pool,
+		const struct dc_stream_state *const stream)
+{
+	(void)res_ctx;
+	switch (stream->link->link_enc->transmitter) {
+	case TRANSMITTER_UNIPHY_A:
+		return pool->clock_sources[CLK_SRC_PLL0];
+	case TRANSMITTER_UNIPHY_B:
+		return pool->clock_sources[CLK_SRC_PLL1];
+	case TRANSMITTER_UNIPHY_C:
+		return pool->clock_sources[CLK_SRC_PLL2];
+	case TRANSMITTER_UNIPHY_D:
+		return pool->clock_sources[CLK_SRC_PLL3];
+	case TRANSMITTER_UNIPHY_E:
+		return pool->clock_sources[CLK_SRC_PLL4];
+	case TRANSMITTER_UNIPHY_F:
+		return pool->clock_sources[CLK_SRC_PLL5];
+	default:
+		return NULL;
+	}
+}
+
+enum dc_status resource_map_phy_clock_resources(
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream)
+{
+
+	/* acquire new resources */
+	struct pipe_ctx *pipe_ctx = resource_get_otg_master_for_stream(
+			&context->res_ctx, stream);
+
+	if (!pipe_ctx)
+		return DC_ERROR_UNEXPECTED;
+
+	if (dc_is_dp_signal(pipe_ctx->stream->signal)
+		|| dc_is_virtual_signal(pipe_ctx->stream->signal))
+		pipe_ctx->clock_source =
+				dc->res_pool->dp_clock_source;
+	else if (pipe_ctx->stream->signal == SIGNAL_TYPE_HDMI_FRL)
+			pipe_ctx->clock_source =
+				dc->res_pool->dp_clock_source;
+	else {
+		if (stream && stream->link && stream->link->link_enc)
+			pipe_ctx->clock_source = find_matching_pll(
+				&context->res_ctx, dc->res_pool,
+				stream);
+	}
+
+	if (pipe_ctx->clock_source == NULL)
+		return DC_NO_CLOCK_SOURCE_RESOURCE;
+
+	resource_reference_clock_source(
+		&context->res_ctx,
+		dc->res_pool,
+		pipe_ctx->clock_source);
+
+	return DC_OK;
 }
 
 enum dc_status resource_map_clock_resources(

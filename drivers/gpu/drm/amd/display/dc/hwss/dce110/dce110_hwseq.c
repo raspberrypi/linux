@@ -3617,6 +3617,7 @@ void dce110_disable_link_output(struct dc_link *link,
 	dc->link_srv->dp_trace_source_sequence(link, DPCD_SOURCE_SEQ_AFTER_DISABLE_LINK_PHY);
 }
 
+#if defined(CONFIG_DRM_AMD_DC_DCE)
 static const struct hw_sequencer_funcs dce110_funcs = {
 	.program_gamut_remap = program_gamut_remap,
 	.program_output_csc = program_output_csc,
@@ -3685,4 +3686,5 @@ void dce110_hw_sequencer_construct(struct dc *dc)
 	dc->hwss = dce110_funcs;
 	dc->hwseq->funcs = dce110_private_funcs;
 }
+#endif /* CONFIG_DRM_AMD_DC_DCE */
 

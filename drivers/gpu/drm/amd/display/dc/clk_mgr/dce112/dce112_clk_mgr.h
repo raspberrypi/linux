@@ -26,6 +26,8 @@
 #ifndef DAL_DC_DCE_DCE112_CLK_MGR_H_
 #define DAL_DC_DCE_DCE112_CLK_MGR_H_
 
+/* dce112_set_dispclk and dce112_set_dprefclk are declared here. */
+#include "dcn10/dcn10_clk_mgr.h"
 
 void dce112_clk_mgr_construct(
 		struct dc_context *ctx,
@@ -33,7 +35,5 @@ void dce112_clk_mgr_construct(
 
 /* functions shared with other clk mgr */
 int dce112_set_clock(struct clk_mgr *clk_mgr_base, int requested_clk_khz);
-int dce112_set_dispclk(struct clk_mgr_internal *clk_mgr, int requested_clk_khz);
-int dce112_set_dprefclk(struct clk_mgr_internal *clk_mgr);
 
 #endif /* DAL_DC_DCE_DCE112_CLK_MGR_H_ */
