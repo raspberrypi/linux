@@ -14,6 +14,7 @@ import os
 import shlex
 import shutil
 import signal
+import sys
 import threading
 from typing import Iterator, List, Optional, Tuple, Any
 from types import FrameType
@@ -333,6 +334,12 @@ class LinuxSourceTree:
 			return False
 		return self.validate_config(build_dir)
 
+	def _restore_terminal_if_tty(self) -> None:
+		# stty requires a controlling terminal; skip headless runs.
+		if sys.stdin is None or not sys.stdin.isatty():
+			return
+		subprocess.call(['stty', 'sane'])
+
 	def run_kernel(self, args: Optional[List[str]]=None, build_dir: str='', filter_glob: str='', filter: str='', filter_action: Optional[str]=None, timeout: Optional[int]=None) -> Iterator[str]:
 		# Copy to avoid mutating the caller-supplied list. exec_tests() reuses
 		# the same args across repeated run_kernel() calls (e.g. --run_isolated),
@@ -380,11 +387,11 @@ class LinuxSourceTree:
 			output.close()
 
 			waiter.join()
-			subprocess.call(['stty', 'sane'])
+			self._restore_terminal_if_tty()
 
 	def signal_handler(self, unused_sig: int, unused_frame: Optional[FrameType]) -> None:
 		logging.error('Build interruption occurred. Cleaning console.')
 		if self._process:
 				self._process.terminate()
 				self._process.wait()
-		subprocess.call(['stty', 'sane'])
+		self._restore_terminal_if_tty()
