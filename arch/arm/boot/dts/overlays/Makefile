@@ -244,6 +244,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	qca7000-uart0.dtbo \
 	ramoops.dtbo \
 	ramoops-pi4.dtbo \
+	ramoops-pi5.dtbo \
 	rootmaster.dtbo \
 	rotary-encoder.dtbo \
 	rp1-pio-uart.dtbo \
