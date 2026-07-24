@@ -52,6 +52,8 @@
 
 #define RP1_PIO_DMACTRL_DEFAULT	0x80000104
 
+#define WAIT_TIMEOUT		10000
+
 #define HANDLER(_n, _f) \
 	[_IOC_NR(PIO_IOC_ ## _n)] = { #_n, rp1_pio_ ## _f, _IOC_SIZE(PIO_IOC_ ## _n) }
 
@@ -610,7 +612,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct rp1_pio_device *pio = client->pio;
 	struct platform_device *pdev = pio->pdev;
 	struct device *dev = &pdev->dev;
-	struct dma_slave_config config = {};
+	struct dma_slave_config config = { 0 };
 	struct dma_slave_caps dma_caps;
 	phys_addr_t fifo_addr;
 	struct dma_info *dma;
@@ -690,9 +692,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	set_dmactrl_args.sm = sm;
 	set_dmactrl_args.is_tx = (dir == RP1_PIO_DIR_TO_SM);
-	set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT;
-	if (dir == RP1_PIO_DIR_FROM_SM)
-		set_dmactrl_args.ctrl = (RP1_PIO_DMACTRL_DEFAULT & ~0x1f) | 1;
+	set_dmactrl_args.rsvd = 0;
+	set_dmactrl_args.ctrl = (RP1_PIO_DMACTRL_DEFAULT & ~0x1f) | dma_caps.max_burst;
 
 	ret = rp1_pio_sm_set_dmactrl(client, &set_dmactrl_args);
 	if (ret)
@@ -747,7 +748,7 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 		/* grab the next free buffer, waiting if they're all full */
 		if (dma->head_idx - dma->tail_idx == dma->buf_count) {
 			if (down_timeout(&dma->buf_sem,
-				msecs_to_jiffies(1000))) {
+				msecs_to_jiffies(WAIT_TIMEOUT))) {
 				dev_err(dev, "DMA bounce timed out\n");
 				break;
 			}
@@ -791,7 +792,7 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 
 	/* Block for completion */
 	while (dma->tail_idx != dma->head_idx) {
-		if (down_timeout(&dma->buf_sem, msecs_to_jiffies(1000))) {
+		if (down_timeout(&dma->buf_sem, msecs_to_jiffies(WAIT_TIMEOUT))) {
 			dev_err(dev, "DMA wait timed out\n");
 			ret = -ETIMEDOUT;
 			break;
@@ -824,7 +825,7 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 		 */
 		if (!bytes || dma->head_idx - dma->tail_idx == dma->buf_count) {
 			if (down_timeout(&dma->buf_sem,
-				msecs_to_jiffies(1000))) {
+				msecs_to_jiffies(WAIT_TIMEOUT))) {
 				dev_err(dev, "DMA wait timed out\n");
 				ret = -ETIMEDOUT;
 				break;
