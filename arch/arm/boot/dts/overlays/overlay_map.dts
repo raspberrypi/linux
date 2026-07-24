@@ -274,11 +274,14 @@
 	ramoops {
 		bcm2835;
 		bcm2711 = "ramoops-pi4";
-		bcm2712 = "ramoops-pi4";
+		bcm2712 = "ramoops-pi5";
 	};
 
 	ramoops-pi4 {
 		bcm2711;
+	};
+
+	ramoops-pi5 {
 		bcm2712;
 	};
 
