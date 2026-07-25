@@ -1363,6 +1363,7 @@ static const struct pinmux_ops rp1_pmx_ops = {
 	.gpio_disable_free = rp1_pmx_gpio_disable_free,
 	.gpio_set_direction = rp1_pmx_gpio_set_direction,
 	.function_is_gpio = rp1_pmx_function_is_gpio,
+	.strict = true,
 };
 
 static void rp1_pull_config_set(struct rp1_pin_info *pin, unsigned int arg)
