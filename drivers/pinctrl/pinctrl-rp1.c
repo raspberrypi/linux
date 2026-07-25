@@ -1082,6 +1082,31 @@ static int rp1_pctl_legacy_map_func(struct rp1_pinctrl *pc,
 	return 0;
 }
 
+static int rp1_pctl_legacy_map_dir(struct rp1_pinctrl *pc,
+				   struct device_node *np, u32 pin, u32 fnum,
+				   struct pinctrl_map *maps,
+				   unsigned int *num_maps)
+{
+	struct pinctrl_map *map = &maps[*num_maps];
+	enum pin_config_param param;
+	unsigned long *configs;
+
+	param = fnum ? PIN_CONFIG_OUTPUT_ENABLE : PIN_CONFIG_INPUT_ENABLE;
+
+	configs = kzalloc(sizeof(*configs), GFP_KERNEL);
+	if (!configs)
+		return -ENOMEM;
+
+	configs[0] = pinconf_to_config_packed(param, 1);
+	map->type = PIN_MAP_TYPE_CONFIGS_PIN;
+	map->data.configs.group_or_pin = rp1_gpio_pins[pin].name;
+	map->data.configs.configs = configs;
+	map->data.configs.num_configs = 1;
+	(*num_maps)++;
+
+	return 0;
+}
+
 static int rp1_pctl_legacy_map_pull(struct rp1_pinctrl *pc,
 				    struct device_node *np, u32 pin, u32 pull,
 				    struct pinctrl_map *maps,
@@ -1178,6 +1203,8 @@ static int rp1_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 	maps_per_pin = 0;
 	if (function || num_funcs)
 		maps_per_pin++;
+	if (num_funcs)
+		maps_per_pin++;		/* legacy GPIO in/out direction */
 	if (num_configs || num_pulls)
 		maps_per_pin++;
 	reserved_maps = num_pins * maps_per_pin;
@@ -1199,6 +1226,9 @@ static int rp1_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 				goto out;
 			err = rp1_pctl_legacy_map_func(pc, np, pin, func,
 						       maps, num_maps);
+			if (!err && func < 2)
+				err = rp1_pctl_legacy_map_dir(pc, np, pin, func,
+							      maps, num_maps);
 		} else if (function) {
 			err = pinctrl_utils_add_map_mux(pctldev, &maps,
 							&reserved_maps, num_maps,
@@ -1383,10 +1413,14 @@ static int rp1_pinconf_set(struct pinctrl_dev *pctldev, unsigned int offset,
 
 		case PIN_CONFIG_INPUT_ENABLE:
 			rp1_input_enable(pin, arg);
+			if (arg && rp1_get_fsel(pin) == RP1_FSEL_GPIO)
+				rp1_set_dir(pin, RP1_DIR_INPUT);
 			break;
 
 		case PIN_CONFIG_OUTPUT_ENABLE:
 			rp1_output_enable(pin, arg);
+			if (arg && rp1_get_fsel(pin) == RP1_FSEL_GPIO)
+				rp1_set_dir(pin, RP1_DIR_OUTPUT);
 			break;
 
 		case PIN_CONFIG_LEVEL:
