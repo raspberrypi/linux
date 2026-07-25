@@ -4946,8 +4946,8 @@ do_hdmi_vsdb_modes(struct drm_connector *connector, const u8 *db, u8 len)
 			newflag = DRM_MODE_FLAG_3D_TOP_AND_BOTTOM;
 			break;
 		case 8:
-			/* 3D_Detail_X */
-			if ((db[9 + offset + i] >> 4) == 1)
+			/* 3D_Detail_X: 0 and 1 both include horizontal sub-sampling */
+			if ((db[9 + offset + i] >> 4) <= 1)
 				newflag = DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF;
 			break;
 		}
