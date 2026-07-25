@@ -1638,11 +1638,10 @@ static int rp1_pinctrl_probe(struct platform_device *pdev)
 	else if (pace_pin_updates &&
 		 of_device_is_compatible(rp1_node->parent, "brcm,bcm2712-pcie")) {
 		pc->dummy_base = of_iomap(rp1_node->parent, 0);
-		if (IS_ERR(pc->dummy_base)) {
+		if (!pc->dummy_base)
 			dev_warn(&pdev->dev, "could not map bcm2712 root complex registers\n");
-			pc->dummy_base = NULL;
-		}
 	}
+	of_node_put(rp1_node);
 
 	for (i = 0; i < RP1_NUM_BANKS; i++) {
 		const struct rp1_iobank_desc *bank = &rp1_iobanks[i];
