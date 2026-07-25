@@ -1372,8 +1372,10 @@ group_extend_out:
 			goto mext_out;
 		}
 
-		if (file_inode(filp)->i_sb != file_inode(fd_file(donor))->i_sb)
-			return -EXDEV;
+		if (file_inode(filp)->i_sb != file_inode(fd_file(donor))->i_sb) {
+			err = -EXDEV;
+			goto mext_out;
+		}
 
 		err = mnt_want_write_file(filp);
 		if (err)
