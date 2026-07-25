@@ -854,8 +854,10 @@ static int etm4_enable_sysfs(struct coresight_device *csdev)
 	cscfg_config_sysfs_get_active_cfg(&cfg_hash, &preset);
 	if (cfg_hash) {
 		ret = cscfg_csdev_enable_active_config(csdev, cfg_hash, preset);
-		if (ret)
+		if (ret) {
+			etm4_release_trace_id(drvdata);
 			return ret;
+		}
 	}
 
 	spin_lock(&drvdata->spinlock);
