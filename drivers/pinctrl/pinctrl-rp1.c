@@ -1348,6 +1348,12 @@ static int rp1_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+static bool rp1_pmx_function_is_gpio(struct pinctrl_dev *pctldev,
+				     unsigned int selector)
+{
+	return selector == func_gpio;
+}
+
 static const struct pinmux_ops rp1_pmx_ops = {
 	.free = rp1_pmx_free,
 	.get_functions_count = rp1_pmx_get_functions_count,
@@ -1356,6 +1362,8 @@ static const struct pinmux_ops rp1_pmx_ops = {
 	.set_mux = rp1_pmx_set,
 	.gpio_disable_free = rp1_pmx_gpio_disable_free,
 	.gpio_set_direction = rp1_pmx_gpio_set_direction,
+	.function_is_gpio = rp1_pmx_function_is_gpio,
+	.strict = true,
 };
 
 static void rp1_pull_config_set(struct rp1_pin_info *pin, unsigned int arg)
