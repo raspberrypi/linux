@@ -2539,10 +2539,16 @@ static void drop_client(struct nfs4_client *clp)
 static void
 free_client(struct nfs4_client *clp)
 {
-	while (!list_empty(&clp->cl_sessions)) {
+	LIST_HEAD(reaplist);
+
+	/* client_info_show() walks cl_sessions under cl_lock */
+	spin_lock(&clp->cl_lock);
+	list_splice_init(&clp->cl_sessions, &reaplist);
+	spin_unlock(&clp->cl_lock);
+	while (!list_empty(&reaplist)) {
 		struct nfsd4_session *ses;
-		ses = list_entry(clp->cl_sessions.next, struct nfsd4_session,
-				se_perclnt);
+		ses = list_entry(reaplist.next, struct nfsd4_session,
+				 se_perclnt);
 		list_del(&ses->se_perclnt);
 		WARN_ON_ONCE(atomic_read(&ses->se_ref));
 		free_session(ses);
