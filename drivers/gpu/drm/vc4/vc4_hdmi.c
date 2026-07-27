@@ -1812,6 +1812,9 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 		tmds_char_rate = mode->clock * 1000;
 	}
 
+	/* Rebuilds every crtc_* field, so CRTC_INTERLACE_HALVE_V is needed too */
+	drm_mode_set_crtcinfo(mode, CRTC_INTERLACE_HALVE_V | CRTC_STEREO_DOUBLE);
+
 	return 0;
 }
 
