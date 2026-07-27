@@ -945,6 +945,7 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	struct vc4_crtc_state *vc4_crtc_state = to_vc4_crtc_state(crtc->state);
 	unsigned int chan = vc4_crtc_state->assigned_channel;
 	bool interlace = mode->flags & DRM_MODE_FLAG_INTERLACE;
+	int hdisplay, vdisplay;
 	u32 dispbkgndx;
 	u32 dispctrl;
 	int idx;
@@ -953,6 +954,9 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 
 	if (!drm_dev_enter(drm, &idx))
 		return -ENODEV;
+
+	/* Doubled for frame packing stereo modes */
+	drm_mode_get_hv_timing(mode, &hdisplay, &vdisplay);
 
 	HVS_WRITE(SCALER_DISPCTRLX(chan), 0);
 	HVS_WRITE(SCALER_DISPCTRLX(chan), SCALER_DISPCTRLX_RESET);
@@ -967,16 +971,16 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(chan));
 
 	if (vc4->gen == VC4_GEN_4) {
-		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
+		dispctrl |= VC4_SET_FIELD(hdisplay,
 					  SCALER_DISPCTRLX_WIDTH) |
-			    VC4_SET_FIELD(mode->vdisplay,
+			    VC4_SET_FIELD(vdisplay,
 					  SCALER_DISPCTRLX_HEIGHT) |
 			    (oneshot ? SCALER_DISPCTRLX_ONESHOT : 0);
 		dispbkgndx |= SCALER_DISPBKGND_AUTOHS;
 	} else {
-		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
+		dispctrl |= VC4_SET_FIELD(hdisplay,
 					  SCALER5_DISPCTRLX_WIDTH) |
-			    VC4_SET_FIELD(mode->vdisplay,
+			    VC4_SET_FIELD(vdisplay,
 					  SCALER5_DISPCTRLX_HEIGHT) |
 			    (oneshot ? SCALER5_DISPCTRLX_ONESHOT : 0);
 		dispbkgndx &= ~SCALER5_DISPBKGND_BCK2BCK;
@@ -1009,6 +1013,7 @@ static int vc6_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	struct vc4_crtc_state *vc4_crtc_state = to_vc4_crtc_state(crtc->state);
 	unsigned int chan = vc4_crtc_state->assigned_channel;
 	bool interlace = mode->flags & DRM_MODE_FLAG_INTERLACE;
+	int hdisplay, vdisplay;
 	u32 disp_ctrl1;
 	int idx;
 
@@ -1016,6 +1021,9 @@ static int vc6_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 
 	if (!drm_dev_enter(drm, &idx))
 		return -ENODEV;
+
+	/* Doubled for frame packing stereo modes */
+	drm_mode_get_hv_timing(mode, &hdisplay, &vdisplay);
 
 	HVS_WRITE(SCALER6_DISPX_CTRL0(chan), SCALER6_DISPX_CTRL0_RESET);
 
@@ -1026,10 +1034,10 @@ static int vc6_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 
 	HVS_WRITE(SCALER6_DISPX_CTRL0(chan),
 		  SCALER6_DISPX_CTRL0_ENB |
-		  VC4_SET_FIELD(mode->hdisplay - 1,
+		  VC4_SET_FIELD(hdisplay - 1,
 				SCALER6_DISPX_CTRL0_FWIDTH) |
 		  (oneshot ? SCALER6_DISPX_CTRL0_ONESHOT : 0) |
-		  VC4_SET_FIELD(mode->vdisplay - 1,
+		  VC4_SET_FIELD(vdisplay - 1,
 				SCALER6_DISPX_CTRL0_LINES));
 
 	drm_dev_exit(idx);
