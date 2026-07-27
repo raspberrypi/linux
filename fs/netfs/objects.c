@@ -7,7 +7,6 @@
 
 #include <linux/slab.h>
 #include <linux/mempool.h>
-#include <linux/delay.h>
 #include "internal.h"
 
 /*
@@ -24,16 +23,22 @@ struct netfs_io_request *netfs_alloc_request(struct address_space *mapping,
 	struct netfs_io_request *rreq;
 	mempool_t *mempool = ctx->ops->request_pool ?: &netfs_request_pool;
 	struct kmem_cache *cache = mempool->pool_data;
+	gfp_t gfp = GFP_KERNEL;
 	int ret;
 
-	for (;;) {
-		rreq = mempool_alloc(mempool, GFP_KERNEL);
-		if (rreq)
-			break;
-		msleep(10);
+	/* Writeback is part of memory reclaim and must not fail due to ENOMEM. */
+	if (origin == NETFS_WRITEBACK) {
+		gfp = GFP_NOFS; /* Allows use of mempools. */
+
+		rreq = mempool_alloc(mempool, gfp);
+	} else {
+		rreq = mempool->alloc(gfp, mempool->pool_data);
+		if (!rreq)
+			return ERR_PTR(-ENOMEM);
 	}
 
 	memset(rreq, 0, kmem_cache_size(cache));
+	rreq->gfp	= gfp;
 	rreq->start	= start;
 	rreq->len	= len;
 	rreq->origin	= origin;
@@ -182,13 +187,13 @@ struct netfs_io_subrequest *netfs_alloc_subrequest(struct netfs_io_request *rreq
 	mempool_t *mempool = rreq->netfs_ops->subrequest_pool ?: &netfs_subrequest_pool;
 	struct kmem_cache *cache = mempool->pool_data;
 
-	for (;;) {
-		subreq = mempool_alloc(rreq->netfs_ops->subrequest_pool ?: &netfs_subrequest_pool,
-				       GFP_KERNEL);
-		if (subreq)
-			break;
-		msleep(10);
-	}
+	/* The write-side callers don't handle failure, so only reads may fail. */
+	if (rreq->gfp == GFP_KERNEL && rreq->origin <= NETFS_DIO_READ)
+		subreq = mempool->alloc(rreq->gfp, mempool->pool_data);
+	else
+		subreq = mempool_alloc(mempool, rreq->gfp);
+	if (!subreq)
+		return NULL;
 
 	memset(subreq, 0, kmem_cache_size(cache));
 

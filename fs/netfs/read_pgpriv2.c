@@ -95,7 +95,7 @@ static int netfs_pgpriv2_copy_folio(struct netfs_io_request *wreq, struct folio 
 	trace_netfs_folio(folio, netfs_folio_trace_store_copy);
 
 	/* Attach the folio to the rolling buffer. */
-	if (rolling_buffer_append(&wreq->buffer, folio, 0) < 0)
+	if (rolling_buffer_append(&wreq->buffer, folio, 0, wreq->gfp) < 0)
 		return -ENOMEM;
 
 	cache->submit_extendable_to = fsize;
