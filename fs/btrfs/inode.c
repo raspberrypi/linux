@@ -10193,6 +10193,7 @@ out_cb:
 	if (cb)
 		cleanup_compressed_bio(cb);
 out:
+	extent_changeset_free(data_reserved);
 	if (ret >= 0)
 		iocb->ki_pos += encoded->len;
 	return ret;
