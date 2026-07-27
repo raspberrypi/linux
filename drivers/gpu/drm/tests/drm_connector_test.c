@@ -1645,6 +1645,27 @@ static void drm_test_drm_hdmi_compute_mode_clock_rgb_double(struct kunit *test)
 }
 
 /*
+ * Test that for a frame packing stereo mode, the TMDS character rate is
+ * indeed double the mode pixel clock.
+ */
+static void drm_test_drm_hdmi_compute_mode_clock_stereo_frame_packing(struct kunit *test)
+{
+	struct drm_connector_init_priv *priv = test->priv;
+	struct drm_display_mode *mode;
+	unsigned long long rate;
+	struct drm_device *drm = &priv->drm;
+
+	mode = drm_kunit_display_mode_from_cea_vic(test, drm, 32);
+	KUNIT_ASSERT_NOT_NULL(test, mode);
+
+	mode->flags |= DRM_MODE_FLAG_3D_FRAME_PACKING;
+
+	rate = drm_hdmi_compute_mode_clock(mode, 8, HDMI_COLORSPACE_RGB);
+	KUNIT_ASSERT_GT(test, rate, 0);
+	KUNIT_EXPECT_EQ(test, (mode->clock * 1000ULL) * 2, rate);
+}
+
+/*
  * Test that the TMDS character rate computation for the VIC modes
  * explicitly listed in the spec as supporting YUV420 succeed and return
  * half the mode pixel clock.
@@ -1803,6 +1824,7 @@ static struct kunit_case drm_hdmi_compute_mode_clock_tests[] = {
 	KUNIT_CASE(drm_test_drm_hdmi_compute_mode_clock_rgb_12bpc),
 	KUNIT_CASE(drm_test_drm_hdmi_compute_mode_clock_rgb_12bpc_vic_1),
 	KUNIT_CASE(drm_test_drm_hdmi_compute_mode_clock_rgb_double),
+	KUNIT_CASE(drm_test_drm_hdmi_compute_mode_clock_stereo_frame_packing),
 	KUNIT_CASE_PARAM(drm_test_connector_hdmi_compute_mode_clock_yuv420_valid,
 			 drm_hdmi_compute_mode_clock_yuv420_valid_gen_params),
 	KUNIT_CASE(drm_test_connector_hdmi_compute_mode_clock_yuv420_10_bpc),
