@@ -1935,7 +1935,7 @@ static void vc4_hdmi_set_n_cts(struct vc4_hdmi *vc4_hdmi, unsigned int samplerat
 	lockdep_assert_held(&vc4_hdmi->hw_lock);
 
 	n = 128 * samplerate / 1000;
-	tmp = (u64)(mode->clock * 1000) * n;
+	tmp = (u64)(mode->crtc_clock * 1000) * n;
 	do_div(tmp, 128 * samplerate);
 	cts = tmp;
 
