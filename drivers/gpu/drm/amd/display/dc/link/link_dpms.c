@@ -379,7 +379,7 @@ static bool write_i2c_retimer_vga(
 
 	for (size_t i = 0; i < ARRAY_SIZE(vga_data); i++) {
 		if (!write_i2c_retimer_offset_value(link, address, vga_data[i][0], vga_data[i][1])) {
-			DC_LOG_ERROR("Set retimer failed, vga index: %zu\n", i);
+			DC_LOG_DEBUG("Set retimer failed, vga index: %zu\n", i);
 			return false;
 		}
 	}
@@ -400,7 +400,7 @@ static bool write_i2c_retimer_byte(
 		return true;
 
 	if (!write_i2c_retimer_offset_value(link, address, index, value)) {
-		DC_LOG_ERROR("Set retimer failed, 3g index: 0x%x, value: 0x%x\n", index, value);
+		DC_LOG_DEBUG("Set retimer failed, 3g index: 0x%x, value: 0x%x\n", index, value);
 		return false;
 	}
 
@@ -416,14 +416,14 @@ static bool write_i2c_retimer_byte(
 			if (!link_query_ddc_data(
 					link->ddc, address, &offset, 1, &value, 1
 			)) {
-				DC_LOG_ERROR("Set retimer failed, link_query_ddc_data\n");
+				DC_LOG_DEBUG("Set retimer failed, link_query_ddc_data\n");
 				return false;
 			}
 		}
 
 		value |= apply_rx_tx_change;
 		if (!write_i2c_retimer_offset_value(link, address, offset, value)) {
-			DC_LOG_ERROR("Set retimer failed, 3g offset: 0x%x, value: 0x%x\n", offset, value);
+			DC_LOG_DEBUG("Set retimer failed, 3g offset: 0x%x, value: 0x%x\n", offset, value);
 			return false;
 		}
 	}
@@ -444,7 +444,7 @@ static bool write_i2c_retimer_setting(
 		uint8_t value = settings->reg_settings[i].i2c_reg_val;
 
 		if (!write_i2c_retimer_byte(link, address, index, value)) {
-			DC_LOG_ERROR("Set retimer failed, index: %zu\n", i);
+			DC_LOG_DEBUG("Set retimer failed, index: %zu\n", i);
 			return false;
 		}
 	}
@@ -455,7 +455,7 @@ static bool write_i2c_retimer_setting(
 			uint8_t value = settings->reg_settings_6g[i].i2c_reg_val;
 
 			if (!write_i2c_retimer_byte(link, address, index, value)) {
-				DC_LOG_ERROR("Set retimer failed, 6g index: %zu\n", i);
+				DC_LOG_DEBUG("Set retimer failed, 6g index: %zu\n", i);
 				return false;
 			}
 		}
@@ -487,7 +487,7 @@ static bool write_i2c_default_retimer_setting(
 
 	for (size_t i = 0; i < ARRAY_SIZE(data); i++) {
 		if (!write_i2c_retimer_offset_value(link, address, data[i][0], data[i][1])) {
-			DC_LOG_ERROR("Set default retimer failed, index: %zu\n", i);
+			DC_LOG_DEBUG("Set default retimer failed, index: %zu\n", i);
 			return false;
 		}
 	}
@@ -519,7 +519,7 @@ static bool write_i2c_redriver_setting(
 	);
 
 	if (!success)
-		DC_LOG_ERROR("Set redriver failed");
+		DC_LOG_DEBUG("Set redriver failed");
 	return success;
 }
 
