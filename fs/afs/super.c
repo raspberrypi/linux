@@ -194,8 +194,6 @@ static int afs_show_options(struct seq_file *m, struct dentry *root)
 
 	if (as->dyn_root)
 		seq_puts(m, ",dyn");
-	if (test_bit(AFS_VNODE_AUTOCELL, &AFS_FS_I(d_inode(root))->flags))
-		seq_puts(m, ",autocell");
 	switch (as->flock_mode) {
 	case afs_flock_mode_unset:	break;
 	case afs_flock_mode_local:	p = "local";	break;
@@ -468,7 +466,7 @@ static int afs_fill_super(struct super_block *sb, struct afs_fs_context *ctx)
 
 	/* allocate the root inode and dentry */
 	if (as->dyn_root) {
-		inode = afs_iget_pseudo_dir(sb, true);
+		inode = afs_dynroot_iget_root(sb);
 	} else {
 		sprintf(sb->s_id, "%llu", as->volume->vid);
 		afs_activate_volume(as->volume);
@@ -478,9 +476,6 @@ static int afs_fill_super(struct super_block *sb, struct afs_fs_context *ctx)
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
-	if (ctx->autocell || as->dyn_root)
-		set_bit(AFS_VNODE_AUTOCELL, &AFS_FS_I(inode)->flags);
-
 	ret = -ENOMEM;
 	sb->s_root = d_make_root(inode);
 	if (!sb->s_root)
@@ -488,9 +483,6 @@ static int afs_fill_super(struct super_block *sb, struct afs_fs_context *ctx)
 
 	if (as->dyn_root) {
 		sb->s_d_op = &afs_dynroot_dentry_operations;
-		ret = afs_dynroot_populate(sb);
-		if (ret < 0)
-			goto error;
 	} else {
 		sb->s_d_op = &afs_fs_dentry_operations;
 		rcu_assign_pointer(as->volume->sb, sb);
@@ -538,9 +530,6 @@ static void afs_destroy_sbi(struct afs_super_info *as)
 static void afs_kill_super(struct super_block *sb)
 {
 	struct afs_super_info *as = AFS_FS_S(sb);
-
-	if (as->dyn_root)
-		afs_dynroot_depopulate(sb);
 
 	/* Clear the callback interests (which will do ilookup5) before
 	 * deactivating the superblock.
@@ -598,7 +587,8 @@ static int afs_get_tree(struct fs_context *fc)
 	}
 
 	fc->root = dget(sb->s_root);
-	trace_afs_get_tree(as->cell, as->volume);
+	if (!ctx->dyn_root)
+		trace_afs_get_tree(as->cell, as->volume);
 	_leave(" = 0 [%p]", sb);
 	return 0;
 

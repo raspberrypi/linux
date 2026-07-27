@@ -785,7 +785,7 @@ static int hci_le_big_terminate(struct hci_dev *hdev, u8 big, struct hci_conn *c
 	d->sync_handle = conn->sync_handle;
 
 	if (test_and_clear_bit(HCI_CONN_PA_SYNC, &conn->flags)) {
-		hci_conn_hash_list_flag(hdev, find_bis, ISO_LINK,
+		hci_conn_hash_list_flag(hdev, find_bis, BIS_LINK,
 					HCI_CONN_PA_SYNC, d);
 
 		if (!d->count)
@@ -795,7 +795,7 @@ static int hci_le_big_terminate(struct hci_dev *hdev, u8 big, struct hci_conn *c
 	}
 
 	if (test_and_clear_bit(HCI_CONN_BIG_SYNC, &conn->flags)) {
-		hci_conn_hash_list_flag(hdev, find_bis, ISO_LINK,
+		hci_conn_hash_list_flag(hdev, find_bis, BIS_LINK,
 					HCI_CONN_BIG_SYNC, d);
 
 		if (!d->count)
@@ -885,9 +885,11 @@ static void cis_cleanup(struct hci_conn *conn)
 	/* Check if ISO connection is a CIS and remove CIG if there are
 	 * no other connections using it.
 	 */
-	hci_conn_hash_list_state(hdev, find_cis, ISO_LINK, BT_BOUND, &d);
-	hci_conn_hash_list_state(hdev, find_cis, ISO_LINK, BT_CONNECT, &d);
-	hci_conn_hash_list_state(hdev, find_cis, ISO_LINK, BT_CONNECTED, &d);
+	hci_conn_hash_list_state(hdev, find_cis, CIS_LINK, BT_BOUND, &d);
+	hci_conn_hash_list_state(hdev, find_cis, CIS_LINK, BT_CONNECT,
+				 &d);
+	hci_conn_hash_list_state(hdev, find_cis, CIS_LINK, BT_CONNECTED,
+				 &d);
 	if (d.count)
 		return;
 
@@ -910,7 +912,8 @@ static struct hci_conn *__hci_conn_add(struct hci_dev *hdev, int type, bdaddr_t 
 		if (!hdev->acl_mtu)
 			return ERR_PTR(-ECONNREFUSED);
 		break;
-	case ISO_LINK:
+	case CIS_LINK:
+	case BIS_LINK:
 		if (hdev->iso_mtu)
 			/* Dedicated ISO Buffer exists */
 			break;
@@ -975,7 +978,8 @@ static struct hci_conn *__hci_conn_add(struct hci_dev *hdev, int type, bdaddr_t 
 		hci_copy_identity_address(hdev, &conn->src, &conn->src_type);
 		conn->mtu = hdev->le_mtu ? hdev->le_mtu : hdev->acl_mtu;
 		break;
-	case ISO_LINK:
+	case CIS_LINK:
+	case BIS_LINK:
 		/* conn->src should reflect the local identity address */
 		hci_copy_identity_address(hdev, &conn->src, &conn->src_type);
 
@@ -1071,7 +1075,8 @@ static void hci_conn_cleanup_child(struct hci_conn *conn, u8 reason)
 		if (HCI_CONN_HANDLE_UNSET(conn->handle))
 			hci_conn_failed(conn, reason);
 		break;
-	case ISO_LINK:
+	case CIS_LINK:
+	case BIS_LINK:
 		if ((conn->state != BT_CONNECTED &&
 		    !test_bit(HCI_CONN_CREATE_CIS, &conn->flags)) ||
 		    test_bit(HCI_CONN_BIG_CREATED, &conn->flags))
@@ -1146,7 +1151,8 @@ void hci_conn_del(struct hci_conn *conn)
 			hdev->acl_cnt += conn->sent;
 	} else {
 		/* Unacked ISO frames */
-		if (conn->type == ISO_LINK) {
+		if (conn->type == CIS_LINK ||
+		    conn->type == BIS_LINK) {
 			if (hdev->iso_pkts)
 				hdev->iso_cnt += conn->sent;
 			else if (hdev->le_pkts)
@@ -1531,7 +1537,7 @@ static struct hci_conn *hci_add_bis(struct hci_dev *hdev, bdaddr_t *dst,
 		     memcmp(conn->le_per_adv_data, base, base_len)))
 		return ERR_PTR(-EADDRINUSE);
 
-	conn = hci_conn_add_unset(hdev, ISO_LINK, dst, HCI_ROLE_MASTER);
+	conn = hci_conn_add_unset(hdev, BIS_LINK, dst, HCI_ROLE_MASTER);
 	if (IS_ERR(conn))
 		return conn;
 
@@ -1740,7 +1746,7 @@ static int hci_le_create_big(struct hci_conn *conn, struct bt_iso_qos *qos)
 	data.count = 0;
 
 	/* Create a BIS for each bound connection */
-	hci_conn_hash_list_state(hdev, bis_list, ISO_LINK,
+	hci_conn_hash_list_state(hdev, bis_list, BIS_LINK,
 				 BT_BOUND, &data);
 
 	cp.handle = qos->bcast.big;
@@ -1835,12 +1841,12 @@ static bool hci_le_set_cig_params(struct hci_conn *conn, struct bt_iso_qos *qos)
 		for (data.cig = 0x00; data.cig < 0xf0; data.cig++) {
 			data.count = 0;
 
-			hci_conn_hash_list_state(hdev, find_cis, ISO_LINK,
+			hci_conn_hash_list_state(hdev, find_cis, CIS_LINK,
 						 BT_CONNECT, &data);
 			if (data.count)
 				continue;
 
-			hci_conn_hash_list_state(hdev, find_cis, ISO_LINK,
+			hci_conn_hash_list_state(hdev, find_cis, CIS_LINK,
 						 BT_CONNECTED, &data);
 			if (!data.count)
 				break;
@@ -1892,7 +1898,8 @@ struct hci_conn *hci_bind_cis(struct hci_dev *hdev, bdaddr_t *dst,
 	cis = hci_conn_hash_lookup_cis(hdev, dst, dst_type, qos->ucast.cig,
 				       qos->ucast.cis);
 	if (!cis) {
-		cis = hci_conn_add_unset(hdev, ISO_LINK, dst, HCI_ROLE_MASTER);
+		cis = hci_conn_add_unset(hdev, CIS_LINK, dst,
+					 HCI_ROLE_MASTER);
 		if (IS_ERR(cis))
 			return cis;
 		cis->cleanup = cis_cleanup;
@@ -1982,7 +1989,7 @@ bool hci_iso_setup_path(struct hci_conn *conn)
 
 int hci_conn_check_create_cis(struct hci_conn *conn)
 {
-	if (conn->type != ISO_LINK || !bacmp(&conn->dst, BDADDR_ANY))
+	if (conn->type != CIS_LINK)
 		return -EINVAL;
 
 	if (!conn->parent || conn->parent->state != BT_CONNECTED ||
@@ -2082,7 +2089,7 @@ struct hci_conn *hci_pa_create_sync(struct hci_dev *hdev, bdaddr_t *dst,
 
 	bt_dev_dbg(hdev, "dst %pMR type %d sid %d", dst, dst_type, sid);
 
-	conn = hci_conn_add_unset(hdev, ISO_LINK, dst, HCI_ROLE_SLAVE);
+	conn = hci_conn_add_unset(hdev, BIS_LINK, dst, HCI_ROLE_SLAVE);
 	if (IS_ERR(conn))
 		return conn;
 
@@ -2259,7 +2266,7 @@ struct hci_conn *hci_connect_bis(struct hci_dev *hdev, bdaddr_t *dst,
 	 * the start periodic advertising and create BIG commands have
 	 * been queued
 	 */
-	hci_conn_hash_list_state(hdev, bis_mark_per_adv, ISO_LINK,
+	hci_conn_hash_list_state(hdev, bis_mark_per_adv, BIS_LINK,
 				 BT_BOUND, &data);
 
 	/* Queue start periodic advertising and create BIG */
@@ -2914,26 +2921,11 @@ int hci_abort_conn(struct hci_conn *conn, u8 reason)
 
 	conn->abort_reason = reason;
 
-	/* If the connection is pending check the command opcode since that
-	 * might be blocking on hci_cmd_sync_work while waiting its respective
-	 * event so we need to hci_cmd_sync_cancel to cancel it.
-	 *
-	 * hci_connect_le serializes the connection attempts so only one
-	 * connection can be in BT_CONNECT at time.
+	/* Cancel the connect attempt. A return of 0 means the create command
+	 * was still queued and got dequeued, so there is nothing to disconnect.
 	 */
-	if (conn->state == BT_CONNECT && READ_ONCE(hdev->req_status) == HCI_REQ_PEND) {
-		switch (hci_skb_event(hdev->sent_cmd)) {
-		case HCI_EV_CONN_COMPLETE:
-		case HCI_EV_LE_CONN_COMPLETE:
-		case HCI_EV_LE_ENHANCED_CONN_COMPLETE:
-		case HCI_EVT_LE_CIS_ESTABLISHED:
-			hci_cmd_sync_cancel(hdev, ECANCELED);
-			break;
-		}
-	/* Cancel connect attempt if still queued/pending */
-	} else if (!hci_cancel_connect_sync(hdev, conn)) {
+	if (!hci_cancel_connect_sync(hdev, conn))
 		return 0;
-	}
 
 	/* Run immediately if on cmd_sync_work since this may be called
 	 * as a result to MGMT_OP_DISCONNECT/MGMT_OP_UNPAIR which does

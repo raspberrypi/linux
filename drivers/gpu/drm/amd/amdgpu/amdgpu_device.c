@@ -1611,7 +1611,9 @@ int amdgpu_device_resize_fb_bar(struct amdgpu_device *adev)
 
 	pci_release_resource(adev->pdev, 0);
 
-	r = pci_resize_resource(adev->pdev, 0, rbar_size);
+	r = pci_resize_resource(adev->pdev, 0, rbar_size,
+				(adev->asic_type >= CHIP_BONAIRE) ? 1 << 5
+								  : 1 << 2);
 	if (r == -ENOSPC)
 		DRM_INFO("Not enough PCI address space for a large BAR.");
 	else if (r && r != -ENOTSUPP)
@@ -4200,6 +4202,8 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	/* Initialize the mutex for cleaner shader isolation between GFX and compute processes */
 	mutex_init(&adev->enforce_isolation_mutex);
 	mutex_init(&adev->gfx.kfd_sch_mutex);
+
+	spin_lock_init(&adev->irq.lock);
 
 	amdgpu_device_init_apu_flags(adev);
 

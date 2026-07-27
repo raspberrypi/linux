@@ -14,11 +14,8 @@
 #define __CRYPTO4XX_CORE_H__
 
 #include <linux/ratelimit.h>
-#include <linux/mutex.h>
 #include <linux/scatterlist.h>
-#include <crypto/internal/hash.h>
 #include <crypto/internal/aead.h>
-#include <crypto/internal/rng.h>
 #include <crypto/internal/skcipher.h>
 #include "crypto4xx_reg_def.h"
 #include "crypto4xx_sa.h"
@@ -112,7 +109,6 @@ struct crypto4xx_core_device {
 	u32 irq;
 	struct tasklet_struct tasklet;
 	spinlock_t lock;
-	struct mutex rng_lock;
 };
 
 struct crypto4xx_ctx {
@@ -135,9 +131,7 @@ struct crypto4xx_alg_common {
 	u32 type;
 	union {
 		struct skcipher_alg cipher;
-		struct ahash_alg hash;
 		struct aead_alg aead;
-		struct rng_alg rng;
 	} u;
 };
 
@@ -177,11 +171,6 @@ int crypto4xx_encrypt_noiv_block(struct skcipher_request *req);
 int crypto4xx_decrypt_noiv_block(struct skcipher_request *req);
 int crypto4xx_rfc3686_encrypt(struct skcipher_request *req);
 int crypto4xx_rfc3686_decrypt(struct skcipher_request *req);
-int crypto4xx_sha1_alg_init(struct crypto_tfm *tfm);
-int crypto4xx_hash_digest(struct ahash_request *req);
-int crypto4xx_hash_final(struct ahash_request *req);
-int crypto4xx_hash_update(struct ahash_request *req);
-int crypto4xx_hash_init(struct ahash_request *req);
 
 /*
  * Note: Only use this function to copy items that is word aligned.

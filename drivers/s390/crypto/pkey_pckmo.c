@@ -321,6 +321,10 @@ static int pckmo_key2protkey(const u8 *key, u32 keylen,
 				     __func__, t->keytype);
 			goto out;
 		}
+		if (t->len > *protkeylen) {
+			rc = -EINVAL;
+			goto out;
+		}
 		memcpy(protkey, t->protkey, t->len);
 		*protkeylen = t->len;
 		*protkeytype = t->keytype;

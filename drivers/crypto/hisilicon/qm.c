@@ -4505,8 +4505,6 @@ void hisi_qm_reset_prepare(struct pci_dev *pdev)
 	u32 delay = 0;
 	int ret;
 
-	hisi_qm_dev_err_uninit(pf_qm);
-
 	/*
 	 * Check whether there is an ECC mbit error, If it occurs, need to
 	 * wait for soft reset to fix it.
@@ -4522,6 +4520,8 @@ void hisi_qm_reset_prepare(struct pci_dev *pdev)
 		pci_err(pdev, "FLR not ready!\n");
 		return;
 	}
+
+	hisi_qm_dev_err_uninit(pf_qm);
 
 	/* PF obtains the information of VF by querying the register. */
 	if (qm->fun_type == QM_HW_PF)

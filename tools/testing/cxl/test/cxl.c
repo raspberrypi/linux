@@ -402,11 +402,15 @@ static void depopulate_all_mock_resources(void)
 
 static struct cxl_mock_res *alloc_mock_res(resource_size_t size, int align)
 {
-	struct cxl_mock_res *res = kzalloc(sizeof(*res), GFP_KERNEL);
 	struct genpool_data_align data = {
 		.align = align,
 	};
 	unsigned long phys;
+
+	struct cxl_mock_res *res __free(kfree) = kzalloc(sizeof(*res),
+							 GFP_KERNEL);
+	if (!res)
+		return NULL;
 
 	INIT_LIST_HEAD(&res->list);
 	phys = gen_pool_alloc_algo(cxl_mock_pool, size,
@@ -422,7 +426,7 @@ static struct cxl_mock_res *alloc_mock_res(resource_size_t size, int align)
 	list_add(&res->list, &mock_res);
 	mutex_unlock(&mock_res_lock);
 
-	return res;
+	return no_free_ptr(res);
 }
 
 static int populate_cedt(void)
@@ -1448,7 +1452,7 @@ static __init int cxl_test_init(void)
 	return 0;
 
 err_root:
-	platform_device_put(cxl_acpi);
+	platform_device_unregister(cxl_acpi);
 err_rch:
 	cxl_rch_topo_exit();
 err_single:

@@ -1747,7 +1747,6 @@ static int read_backup_root(struct btrfs_fs_info *fs_info, u8 priority)
 /* helper to cleanup workers */
 static void btrfs_stop_all_workers(struct btrfs_fs_info *fs_info)
 {
-	btrfs_destroy_workqueue(fs_info->fixup_workers);
 	btrfs_destroy_workqueue(fs_info->delalloc_workers);
 	btrfs_destroy_workqueue(fs_info->workers);
 	if (fs_info->endio_workers)
@@ -1954,9 +1953,6 @@ static int btrfs_init_workqueues(struct btrfs_fs_info *fs_info)
 	fs_info->caching_workers =
 		btrfs_alloc_workqueue(fs_info, "cache", flags, max_active, 0);
 
-	fs_info->fixup_workers =
-		btrfs_alloc_ordered_workqueue(fs_info, "fixup", ordered_flags);
-
 	fs_info->endio_workers =
 		alloc_workqueue("btrfs-endio", flags, max_active);
 	fs_info->endio_meta_workers =
@@ -1985,7 +1981,7 @@ static int btrfs_init_workqueues(struct btrfs_fs_info *fs_info)
 	      fs_info->compressed_write_workers &&
 	      fs_info->endio_write_workers &&
 	      fs_info->endio_freespace_worker && fs_info->rmw_workers &&
-	      fs_info->caching_workers && fs_info->fixup_workers &&
+	      fs_info->caching_workers &&
 	      fs_info->delayed_workers && fs_info->qgroup_rescan_workers &&
 	      fs_info->discard_ctl.discard_workers)) {
 		return -ENOMEM;
@@ -4245,16 +4241,6 @@ void __cold close_ctree(struct btrfs_fs_info *fs_info)
 	if (unlikely(BTRFS_FS_ERROR(fs_info)))
 		btrfs_error_commit_super(fs_info);
 
-	/*
-	 * Wait for any fixup workers to complete.
-	 * If we don't wait for them here and they are still running by the time
-	 * we call kthread_stop() against the cleaner kthread further below, we
-	 * get an use-after-free on the cleaner because the fixup worker adds an
-	 * inode to the list of delayed iputs and then attempts to wakeup the
-	 * cleaner kthread, which was already stopped and destroyed. We parked
-	 * already the cleaner, but below we run all pending delayed iputs.
-	 */
-	btrfs_flush_workqueue(fs_info->fixup_workers);
 	/*
 	 * Similar case here, we have to wait for delalloc workers before we
 	 * proceed below and stop the cleaner kthread, otherwise we trigger a

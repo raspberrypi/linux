@@ -1420,6 +1420,7 @@ static int nvidiafb_probe(struct pci_dev *pd, const struct pci_device_id *ent)
 
 err_out_iounmap_fb:
 	iounmap(info->screen_base);
+	fb_destroy_modelist(&info->modelist);
 err_out_free_base1:
 	fb_destroy_modedb(info->monspecs.modedb);
 	nvidia_delete_i2c_busses(par);

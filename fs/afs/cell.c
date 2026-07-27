@@ -64,7 +64,8 @@ static struct afs_cell *afs_find_cell_locked(struct afs_net *net,
 		return ERR_PTR(-ENAMETOOLONG);
 
 	if (!name) {
-		cell = net->ws_cell;
+		cell = rcu_dereference_protected(net->ws_cell,
+						 lockdep_is_held(&net->cells_lock));
 		if (!cell)
 			return ERR_PTR(-EDESTADDRREQ);
 		goto found;
@@ -146,18 +147,20 @@ static struct afs_cell *afs_alloc_cell(struct afs_net *net,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	cell->name = kmalloc(namelen + 1, GFP_KERNEL);
+	cell->name = kmalloc(1 + namelen + 1, GFP_KERNEL);
 	if (!cell->name) {
 		kfree(cell);
 		return ERR_PTR(-ENOMEM);
 	}
 
-	cell->net = net;
+	cell->name[0] = '.';
+	cell->name++;
 	cell->name_len = namelen;
 	for (i = 0; i < namelen; i++)
 		cell->name[i] = tolower(name[i]);
 	cell->name[i] = 0;
 
+	cell->net = net;
 	refcount_set(&cell->ref, 1);
 	atomic_set(&cell->active, 0);
 	INIT_WORK(&cell->manager, afs_manage_cell_work);
@@ -200,8 +203,14 @@ static struct afs_cell *afs_alloc_cell(struct afs_net *net,
 	cell->dns_source = vllist->source;
 	cell->dns_status = vllist->status;
 	smp_store_release(&cell->dns_lookup_count, 1); /* vs source/status */
+	ret = idr_alloc_cyclic(&net->cells_dyn_ino, cell,
+			       2, INT_MAX / 2, GFP_KERNEL);
+	if (ret < 0)
+		goto error;
 	atomic_inc(&net->cells_outstanding);
+	cell->dynroot_ino = ret;
 	cell->debug_id = atomic_inc_return(&cell_debug_id);
+
 	trace_afs_cell(cell->debug_id, 1, 0, afs_cell_trace_alloc);
 
 	_leave(" = %p", cell);
@@ -211,7 +220,7 @@ parse_failed:
 	if (ret == -EINVAL)
 		printk(KERN_ERR "kAFS: bad VL server IP address\n");
 error:
-	kfree(cell->name);
+	kfree(cell->name - 1);
 	kfree(cell);
 	_leave(" = %d", ret);
 	return ERR_PTR(ret);
@@ -365,6 +374,14 @@ int afs_cell_init(struct afs_net *net, const char *rootcell)
 		len = cp - rootcell;
 	}
 
+	if (len == 0 || !rootcell[0] || rootcell[0] == '.' || rootcell[len - 1] == '.')
+		return -EINVAL;
+	if (memchr(rootcell, '/', len))
+		return -EINVAL;
+	cp = strstr(rootcell, "..");
+	if (cp && cp < rootcell + len)
+		return -EINVAL;
+
 	/* allocate a cell record for the root cell */
 	new_root = afs_lookup_cell(net, rootcell, len, vllist, false);
 	if (IS_ERR(new_root)) {
@@ -378,8 +395,8 @@ int afs_cell_init(struct afs_net *net, const char *rootcell)
 	/* install the new cell */
 	down_write(&net->cells_lock);
 	afs_see_cell(new_root, afs_cell_trace_see_ws);
-	old_root = net->ws_cell;
-	net->ws_cell = new_root;
+	old_root = rcu_replace_pointer(net->ws_cell, new_root,
+				       lockdep_is_held(&net->cells_lock));
 	up_write(&net->cells_lock);
 
 	afs_unuse_cell(net, old_root, afs_cell_trace_unuse_ws);
@@ -472,6 +489,8 @@ static int afs_update_cell(struct afs_cell *cell)
 		rcu_assign_pointer(cell->vl_servers, vllist);
 		cell->dns_source = vllist->source;
 		old = p;
+	} else {
+		old = vllist;
 	}
 	write_unlock(&cell->vl_servers_lock);
 	afs_put_vlserverlist(cell->net, old);
@@ -502,7 +521,8 @@ static void afs_cell_destroy(struct rcu_head *rcu)
 	afs_put_vlserverlist(net, rcu_access_pointer(cell->vl_servers));
 	afs_unuse_cell(net, cell->alias_of, afs_cell_trace_unuse_alias);
 	key_put(cell->anonymous_key);
-	kfree(cell->name);
+	idr_remove(&net->cells_dyn_ino, cell->dynroot_ino);
+	kfree(cell->name - 1);
 	kfree(cell);
 
 	afs_dec_cells_outstanding(net);
@@ -695,7 +715,6 @@ static int afs_activate_cell(struct afs_net *net, struct afs_cell *cell)
 	if (cell->proc_link.next)
 		cell->proc_link.next->pprev = &cell->proc_link.next;
 
-	afs_dynroot_mkdir(net, cell);
 	mutex_unlock(&net->proc_cells_lock);
 	return 0;
 }
@@ -710,8 +729,8 @@ static void afs_deactivate_cell(struct afs_net *net, struct afs_cell *cell)
 	afs_proc_cell_remove(cell);
 
 	mutex_lock(&net->proc_cells_lock);
-	hlist_del_rcu(&cell->proc_link);
-	afs_dynroot_rmdir(net, cell);
+	if (!hlist_unhashed(&cell->proc_link))
+		hlist_del_rcu(&cell->proc_link);
 	mutex_unlock(&net->proc_cells_lock);
 
 	_leave("");
@@ -934,8 +953,8 @@ void afs_cell_purge(struct afs_net *net)
 	_enter("");
 
 	down_write(&net->cells_lock);
-	ws = net->ws_cell;
-	net->ws_cell = NULL;
+	ws = rcu_replace_pointer(net->ws_cell, NULL,
+				 lockdep_is_held(&net->cells_lock));
 	up_write(&net->cells_lock);
 	afs_unuse_cell(net, ws, afs_cell_trace_unuse_ws);
 

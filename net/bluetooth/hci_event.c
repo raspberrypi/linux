@@ -42,8 +42,6 @@
 #define ZERO_KEY "\x00\x00\x00\x00\x00\x00\x00\x00" \
 		 "\x00\x00\x00\x00\x00\x00\x00\x00"
 
-#define secs_to_jiffies(_secs) msecs_to_jiffies((_secs) * 1000)
-
 /* Handle HCI Event packets */
 
 static void *hci_ev_skb_pull(struct hci_dev *hdev, struct sk_buff *skb,
@@ -3778,7 +3776,7 @@ static void hci_unbound_cis_failed(struct hci_dev *hdev, u8 cig, u8 status)
 	lockdep_assert_held(&hdev->lock);
 
 	list_for_each_entry_safe(conn, tmp, &hdev->conn_hash.list, list) {
-		if (conn->type != ISO_LINK || !bacmp(&conn->dst, BDADDR_ANY) ||
+		if (conn->type != CIS_LINK ||
 		    conn->state == BT_OPEN || conn->iso_qos.ucast.cig != cig)
 			continue;
 
@@ -4448,12 +4446,15 @@ static void hci_num_comp_pkts_evt(struct hci_dev *hdev, void *data,
 			break;
 
 		case SCO_LINK:
+		case ESCO_LINK:
 			hdev->sco_cnt += count;
 			if (hdev->sco_cnt > hdev->sco_pkts)
 				hdev->sco_cnt = hdev->sco_pkts;
+
 			break;
 
-		case ISO_LINK:
+		case CIS_LINK:
+		case BIS_LINK:
 			if (hdev->iso_pkts) {
 				hdev->iso_cnt += count;
 				if (hdev->iso_cnt > hdev->iso_pkts)
@@ -6420,7 +6421,8 @@ static void hci_le_pa_sync_estabilished_evt(struct hci_dev *hdev, void *data,
 	conn->sync_handle = le16_to_cpu(ev->handle);
 	conn->sid = HCI_SID_INVALID;
 
-	mask |= hci_proto_connect_ind(hdev, &ev->bdaddr, ISO_LINK, &flags);
+	mask |= hci_proto_connect_ind(hdev, &ev->bdaddr, BIS_LINK,
+				      &flags);
 	if (!(mask & HCI_LM_ACCEPT)) {
 		hci_le_pa_term_sync(hdev, ev->handle);
 		goto unlock;
@@ -6430,7 +6432,7 @@ static void hci_le_pa_sync_estabilished_evt(struct hci_dev *hdev, void *data,
 		goto unlock;
 
 	/* Add connection to indicate PA sync event */
-	pa_sync = hci_conn_add_unset(hdev, ISO_LINK, BDADDR_ANY,
+	pa_sync = hci_conn_add_unset(hdev, BIS_LINK, BDADDR_ANY,
 				     HCI_ROLE_SLAVE);
 
 	if (IS_ERR(pa_sync))
@@ -6461,7 +6463,7 @@ static void hci_le_per_adv_report_evt(struct hci_dev *hdev, void *data,
 
 	hci_dev_lock(hdev);
 
-	mask |= hci_proto_connect_ind(hdev, BDADDR_ANY, ISO_LINK, &flags);
+	mask |= hci_proto_connect_ind(hdev, BDADDR_ANY, BIS_LINK, &flags);
 	if (!(mask & HCI_LM_ACCEPT))
 		goto unlock;
 
@@ -6752,7 +6754,7 @@ static void hci_le_cis_estabilished_evt(struct hci_dev *hdev, void *data,
 		goto unlock;
 	}
 
-	if (conn->type != ISO_LINK) {
+	if (conn->type != CIS_LINK) {
 		bt_dev_err(hdev,
 			   "Invalid connection link type handle 0x%4.4x",
 			   handle);
@@ -6870,7 +6872,7 @@ static void hci_le_cis_req_evt(struct hci_dev *hdev, void *data,
 	if (!acl)
 		goto unlock;
 
-	mask = hci_proto_connect_ind(hdev, &acl->dst, ISO_LINK, &flags);
+	mask = hci_proto_connect_ind(hdev, &acl->dst, CIS_LINK, &flags);
 	if (!(mask & HCI_LM_ACCEPT)) {
 		hci_le_reject_cis(hdev, ev->cis_handle);
 		goto unlock;
@@ -6878,8 +6880,8 @@ static void hci_le_cis_req_evt(struct hci_dev *hdev, void *data,
 
 	cis = hci_conn_hash_lookup_handle(hdev, cis_handle);
 	if (!cis) {
-		cis = hci_conn_add(hdev, ISO_LINK, &acl->dst, HCI_ROLE_SLAVE,
-				   cis_handle);
+		cis = hci_conn_add(hdev, CIS_LINK, &acl->dst,
+				   HCI_ROLE_SLAVE, cis_handle);
 		if (IS_ERR(cis)) {
 			hci_le_reject_cis(hdev, ev->cis_handle);
 			goto unlock;
@@ -7017,7 +7019,7 @@ static void hci_le_big_sync_established_evt(struct hci_dev *hdev, void *data,
 				bt_dev_dbg(hdev, "ignore too large handle %u", handle);
 				continue;
 			}
-			bis = hci_conn_add(hdev, ISO_LINK, BDADDR_ANY,
+			bis = hci_conn_add(hdev, BIS_LINK, BDADDR_ANY,
 					   HCI_ROLE_SLAVE, handle);
 			if (IS_ERR(bis))
 				continue;
@@ -7076,7 +7078,7 @@ static void hci_le_big_info_adv_report_evt(struct hci_dev *hdev, void *data,
 
 	hci_dev_lock(hdev);
 
-	mask |= hci_proto_connect_ind(hdev, BDADDR_ANY, ISO_LINK, &flags);
+	mask |= hci_proto_connect_ind(hdev, BDADDR_ANY, BIS_LINK, &flags);
 	if (!(mask & HCI_LM_ACCEPT))
 		goto unlock;
 

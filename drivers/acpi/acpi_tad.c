@@ -588,11 +588,15 @@ static void acpi_tad_remove(struct platform_device *pdev)
 static int acpi_tad_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	acpi_handle handle = ACPI_HANDLE(dev);
 	struct acpi_tad_driver_data *dd;
+	acpi_handle handle;
 	acpi_status status;
 	unsigned long long caps;
 	int ret;
+
+	handle = ACPI_HANDLE(dev);
+	if (!handle)
+		return -ENODEV;
 
 	ret = acpi_install_cmos_rtc_space_handler(handle);
 	if (ret < 0) {

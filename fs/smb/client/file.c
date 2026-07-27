@@ -229,7 +229,9 @@ static void cifs_issue_read(struct netfs_io_subrequest *subreq)
 	return;
 
 failed:
-	netfs_read_subreq_terminated(subreq, rc, false);
+	add_credits_and_wake_if(rdata->server, &rdata->credits, 0);
+	subreq->error = rc;
+	netfs_read_subreq_terminated(subreq, false);
 }
 
 /*

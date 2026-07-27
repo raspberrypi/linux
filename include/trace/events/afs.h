@@ -170,6 +170,7 @@ enum yfs_cm_operation {
 #define afs_cell_traces \
 	EM(afs_cell_trace_alloc,		"ALLOC     ") \
 	EM(afs_cell_trace_free,			"FREE      ") \
+	EM(afs_cell_trace_get_atcell,		"GET atcell") \
 	EM(afs_cell_trace_get_queue_dns,	"GET q-dns ") \
 	EM(afs_cell_trace_get_queue_manage,	"GET q-mng ") \
 	EM(afs_cell_trace_get_queue_new,	"GET q-new ") \
@@ -177,6 +178,7 @@ enum yfs_cm_operation {
 	EM(afs_cell_trace_get_vol,		"GET vol   ") \
 	EM(afs_cell_trace_insert,		"INSERT    ") \
 	EM(afs_cell_trace_manage,		"MANAGE    ") \
+	EM(afs_cell_trace_put_atcell,		"PUT atcell") \
 	EM(afs_cell_trace_put_candidate,	"PUT candid") \
 	EM(afs_cell_trace_put_destroy,		"PUT destry") \
 	EM(afs_cell_trace_put_queue_work,	"PUT q-work") \
@@ -188,8 +190,10 @@ enum yfs_cm_operation {
 	EM(afs_cell_trace_unuse_alias,		"UNU alias ") \
 	EM(afs_cell_trace_unuse_check_alias,	"UNU chk-al") \
 	EM(afs_cell_trace_unuse_delete,		"UNU delete") \
+	EM(afs_cell_trace_unuse_dynroot_mntpt,	"UNU dyn-mp") \
 	EM(afs_cell_trace_unuse_fc,		"UNU fc    ") \
 	EM(afs_cell_trace_unuse_lookup,		"UNU lookup") \
+	EM(afs_cell_trace_unuse_lookup_dynroot,	"UNU lu-dyn") \
 	EM(afs_cell_trace_unuse_mntpt,		"UNU mntpt ") \
 	EM(afs_cell_trace_unuse_no_pin,		"UNU no-pin") \
 	EM(afs_cell_trace_unuse_parse,		"UNU parse ") \

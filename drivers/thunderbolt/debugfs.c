@@ -797,7 +797,9 @@ margining_error_counter_write(struct file *file, const char __user *user_buf,
 	else if (!strcmp(buf, "stop"))
 		error_counter = USB4_MARGIN_SW_ERROR_COUNTER_STOP;
 	else
-		return -EINVAL;
+		goto err_free;
+
+	free_page((unsigned long)buf);
 
 	scoped_cond_guard(mutex_intr, return -ERESTARTSYS, &tb->lock) {
 		if (!margining->software)
@@ -807,6 +809,10 @@ margining_error_counter_write(struct file *file, const char __user *user_buf,
 	}
 
 	return count;
+
+err_free:
+	free_page((unsigned long)buf);
+	return -EINVAL;
 }
 
 static int margining_error_counter_show(struct seq_file *s, void *not_used)
