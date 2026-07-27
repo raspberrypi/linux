@@ -25,7 +25,7 @@
 				enable-gpio = <&display_mcu 2 GPIO_ACTIVE_HIGH>;
 			};
 
-			touch: goodix@5d {
+			touch: touch@5d {
 				compatible = "goodix,gt9271";
 				reg = <0x5d>;
 				reset-gpio = <&display_mcu 9 GPIO_ACTIVE_HIGH>;
@@ -84,6 +84,9 @@
 		4_3_inch_a = <&dsi_panel>, "compatible=waveshare,4.3-dsi-touch-a";
 		5_0_inch_a = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a";
 		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
+		6_25_inch_a = <&dsi_panel>, "compatible=waveshare,6.25-dsi-touch-a",
+			      <&touch>, "compatible=sitronix,st7123",
+			      <&touch>, "reg:0=0x55";
 		7_0_inch_a = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-a";
 		7_0_inch_b = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-b";
 		7_0_inch_c = <&dsi_panel>, "compatible=waveshare,7.0-dsi-touch-c";
