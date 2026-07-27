@@ -41,6 +41,8 @@
 			apds9960: apds@39 {
 				compatible = "avago,apds9960";
 				reg = <0x39>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&apds9960_pins>;
 				status = "okay";
 			};
 		};
