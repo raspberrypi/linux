@@ -6062,6 +6062,7 @@ Params: 3_4_inch_c              3.4" 800x800 2lane
         4_3_inch_a              4.3" 480x800 2lane
         5_0_inch_a              5.0" 720x1280 2lane
         5_5_inch_a              5.5" 720x1280 2lane
+        6_25_inch_a             6.25" 720x1560 2lane
         7_0_inch_a              7.0" A 720x1280 2lane
         7_0_inch_b              7.0" B 720x1280 2lane
         7_0_inch_c              7.0" C 1024x600 2lane
