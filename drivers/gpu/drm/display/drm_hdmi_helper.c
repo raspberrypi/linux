@@ -255,6 +255,14 @@ drm_hdmi_compute_mode_clock(const struct drm_display_mode *mode,
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		clock = clock * 2;
 
+	/*
+	 * HDMI 1.4b Spec, Section 8.2.3.2 - Frame Packing Structure
+	 * transmits both eyes within a single frame, at twice the vertical
+	 * total, and thus twice the pixel clock, of the base 2D mode.
+	 */
+	if ((mode->flags & DRM_MODE_FLAG_3D_MASK) == DRM_MODE_FLAG_3D_FRAME_PACKING)
+		clock = clock * 2;
+
 	return DIV_ROUND_CLOSEST_ULL(clock * bpc, 8);
 }
 EXPORT_SYMBOL(drm_hdmi_compute_mode_clock);
