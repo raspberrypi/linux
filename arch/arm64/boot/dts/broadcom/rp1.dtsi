@@ -930,7 +930,7 @@
 			};
 
 			rp1_spi0_cs_gpio7: rp1_spi0_cs_gpio7 {
-				function = "spi0";
+				function = "gpio";
 				pins = "gpio7", "gpio8";
 				bias-pull-up;
 			};
@@ -984,7 +984,7 @@
 			};
 
 			rp1_spi8_cs_gpio52: rp1_spi8_cs_gpio52 {
-				function = "spi0";
+				function = "gpio";
 				pins = "gpio52", "gpio53";
 				bias-pull-up;
 			};
