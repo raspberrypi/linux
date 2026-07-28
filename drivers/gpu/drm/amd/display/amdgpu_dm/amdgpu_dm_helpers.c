@@ -147,6 +147,24 @@ STATIC_IFN_KUNIT void apply_edid_quirks(struct dc_link *link, struct edid *edid,
 		drm_dbg_driver(dev, "Hiding secondary tile on panel id %X\n", panel_id);
 		edid_caps->panel_patch.disable_second_tile = true;
 		break;
+	/*
+	 * Workaround for the Acer Predator X34GS which reports a FreeSync
+	 * minimum refresh rate that does not operate reliably. Force the
+	 * FreeSync range minimum to 55 Hz.
+	 */
+	case drm_edid_encode_panel_id('A', 'C', 'R', 0x08AF):
+		drm_dbg_driver(dev, "Force FreeSync min to 55 Hz on panel id %X\n", panel_id);
+		edid_caps->panel_patch.force_freesync_min_hz = 55;
+		break;
+	/*
+	 * Workaround for the Lenovo G34w-30 which reports a FreeSync
+	 * minimum refresh rate (48 Hz) that fails to light up over DP.
+	 * Force the FreeSync range minimum to 60 Hz.
+	 */
+	case drm_edid_encode_panel_id('L', 'E', 'N', 0x66F1):
+		drm_dbg_driver(dev, "Force FreeSync min to 60 Hz on panel id %X\n", panel_id);
+		edid_caps->panel_patch.force_freesync_min_hz = 60;
+		break;
 	default:
 		return;
 	}

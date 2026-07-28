@@ -194,6 +194,7 @@ struct dc_panel_patch {
 	bool oled_optimize_display_on;
 	unsigned int force_mst_blocked_discovery;
 	unsigned int wait_after_dpcd_poweroff_ms;
+	unsigned int force_freesync_min_hz;
 };
 
 /**
