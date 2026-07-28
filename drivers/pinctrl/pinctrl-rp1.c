@@ -742,12 +742,8 @@ static int rp1_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 static int rp1_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
 {
 	struct rp1_pin_info *pin = rp1_get_pin(chip, offset);
-	u32 fsel;
 
 	if (!pin)
-		return -EINVAL;
-	fsel = rp1_get_fsel(pin);
-	if (fsel != RP1_FSEL_GPIO)
 		return -EINVAL;
 	return (rp1_get_dir(pin) == RP1_DIR_OUTPUT) ?
 		GPIO_LINE_DIRECTION_OUT :
@@ -971,6 +967,23 @@ static int rp1_gpio_irq_set_affinity(struct irq_data *data, const struct cpumask
 	return -EINVAL;
 }
 
+static int rp1_gpio_irq_reqres(struct irq_data *d)
+{
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	int ret;
+
+	ret = gpiochip_irq_reqres(d);
+	if (!ret)
+		ret = rp1_gpio_direction_input(gc, d->hwirq);
+
+	return ret;
+}
+
+static void rp1_gpio_irq_relres(struct irq_data *d)
+{
+	return gpiochip_irq_relres(d);
+}
+
 static struct irq_chip rp1_gpio_irq_chip = {
 	.name = MODULE_NAME,
 	.irq_enable = rp1_gpio_irq_enable,
@@ -980,6 +993,8 @@ static struct irq_chip rp1_gpio_irq_chip = {
 	.irq_mask = rp1_gpio_irq_disable,
 	.irq_unmask = rp1_gpio_irq_enable,
 	.irq_set_affinity = rp1_gpio_irq_set_affinity,
+	.irq_request_resources = rp1_gpio_irq_reqres,
+	.irq_release_resources = rp1_gpio_irq_relres,
 	.flags = IRQCHIP_IMMUTABLE,
 };
 
