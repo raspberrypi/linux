@@ -11,7 +11,6 @@
 		__overlay__ {
 			ws2812_pio_pins: ws2812_pio_pins@4 {
 				brcm,pins = <4>; /* gpio 4 */
-				function = "pio";
 				bias-disable;
 			};
 		};
