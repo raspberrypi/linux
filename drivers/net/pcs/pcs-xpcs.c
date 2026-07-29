@@ -973,6 +973,7 @@ static int xpcs_get_state_c37_sgmii(struct dw_xpcs *xpcs,
 
 	/* Reset link_state */
 	state->link = false;
+	state->an_complete = false;
 	state->speed = SPEED_UNKNOWN;
 	state->duplex = DUPLEX_UNKNOWN;
 	state->pause = 0;
@@ -983,6 +984,8 @@ static int xpcs_get_state_c37_sgmii(struct dw_xpcs *xpcs,
 	ret = xpcs_read(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS);
 	if (ret < 0)
 		return ret;
+
+	state->an_complete = ret & DW_VR_MII_AN_STS_C37_ANCMPLT_INTR;
 
 	if (ret & DW_VR_MII_C37_ANSGM_SP_LNKSTS) {
 		int speed_value;
@@ -1002,34 +1005,13 @@ static int xpcs_get_state_c37_sgmii(struct dw_xpcs *xpcs,
 			state->duplex = DUPLEX_FULL;
 		else
 			state->duplex = DUPLEX_HALF;
-	} else if (ret == DW_VR_MII_AN_STS_C37_ANCMPLT_INTR) {
-		int speed, duplex;
 
-		state->link = true;
-
-		speed = xpcs_read(xpcs, MDIO_MMD_VEND2, MDIO_CTRL1);
-		if (speed < 0)
-			return speed;
-
-		speed &= SGMII_SPEED_SS13 | SGMII_SPEED_SS6;
-		if (speed == SGMII_SPEED_SS6)
-			state->speed = SPEED_1000;
-		else if (speed == SGMII_SPEED_SS13)
-			state->speed = SPEED_100;
-		else if (speed == 0)
-			state->speed = SPEED_10;
-
-		duplex = xpcs_read(xpcs, MDIO_MMD_VEND2, MII_ADVERTISE);
-		if (duplex < 0)
-			return duplex;
-
-		if (duplex & DW_FULL_DUPLEX)
-			state->duplex = DUPLEX_FULL;
-		else if (duplex & DW_HALF_DUPLEX)
-			state->duplex = DUPLEX_HALF;
-
-		xpcs_write(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS, 0);
+		return 0;
 	}
+
+	/* Clear AN complete status or interrupt */
+	if (state->an_complete)
+		xpcs_write(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS, 0);
 
 	return 0;
 }
