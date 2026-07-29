@@ -237,5 +237,7 @@ int perf_env__lookup_objdump(struct perf_env *env, char **path)
  */
 bool perf_env__single_address_space(struct perf_env *env)
 {
-	return strcmp(perf_env__arch(env), "sparc");
+	const char *arch = perf_env__arch(env);
+
+	return strcmp(arch, "s390") && strcmp(arch, "sparc");
 }

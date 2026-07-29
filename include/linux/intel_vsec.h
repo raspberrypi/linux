@@ -29,6 +29,7 @@
 #define INTEL_DVSEC_TABLE_OFFSET(x)	((x) & GENMASK(31, 3))
 #define TABLE_OFFSET_SHIFT		3
 
+struct device;
 struct pci_dev;
 struct resource;
 
@@ -80,16 +81,16 @@ enum intel_vsec_quirks {
 
 /**
  * struct pmt_callbacks - Callback infrastructure for PMT devices
- * ->read_telem() when specified, called by client driver to access PMT data (instead
- * of direct copy).
- * @pdev:  PCI device reference for the callback's use
- * @guid:  ID of data to acccss
- * @data:  buffer for the data to be copied
- * @off:   offset into the requested buffer
- * @count: size of buffer
+ * @read_telem: when specified, called by client driver to access PMT
+ * data (instead of direct copy).
+ * * dev:   device reference for the callback's use
+ * * guid:  ID of data to acccss
+ * * data:  buffer for the data to be copied
+ * * off:   offset into the requested buffer
+ * * count: size of buffer
  */
 struct pmt_callbacks {
-	int (*read_telem)(struct pci_dev *pdev, u32 guid, u64 *data, loff_t off, u32 count);
+	int (*read_telem)(struct device *dev, u32 guid, u64 *data, loff_t off, u32 count);
 };
 
 struct vsec_feature_dependency {
@@ -120,21 +121,22 @@ struct intel_vsec_platform_info {
 };
 
 /**
- * struct intel_sec_device - Auxbus specific device information
+ * struct intel_vsec_device - Auxbus specific device information
  * @auxdev:        auxbus device struct for auxbus access
- * @pcidev:        pci device associated with the device
+ * @dev:           struct device associated with the device
  * @resource:      any resources shared by the parent
  * @ida:           id reference
  * @num_resources: number of resources
  * @id:            xarray id
  * @priv_data:     any private data needed
+ * @priv_data_size: size of private data area
  * @quirks:        specified quirks
  * @base_addr:     base address of entries (if specified)
  * @cap_id:        the enumerated id of the vsec feature
  */
 struct intel_vsec_device {
 	struct auxiliary_device auxdev;
-	struct pci_dev *pcidev;
+	struct device *dev;
 	struct resource *resource;
 	struct ida *ida;
 	int num_resources;
@@ -183,7 +185,7 @@ struct pmt_feature_group {
 	struct telemetry_region	regions[];
 };
 
-int intel_vsec_add_aux(struct pci_dev *pdev, struct device *parent,
+int intel_vsec_add_aux(struct device *parent,
 		       struct intel_vsec_device *intel_vsec_dev,
 		       const char *name);
 
@@ -198,13 +200,13 @@ static inline struct intel_vsec_device *auxdev_to_ivdev(struct auxiliary_device 
 }
 
 #if IS_ENABLED(CONFIG_INTEL_VSEC)
-int intel_vsec_register(struct pci_dev *pdev,
+int intel_vsec_register(struct device *dev,
 			const struct intel_vsec_platform_info *info);
 int intel_vsec_set_mapping(struct oobmsm_plat_info *plat_info,
 			   struct intel_vsec_device *vsec_dev);
 struct oobmsm_plat_info *intel_vsec_get_mapping(struct pci_dev *pdev);
 #else
-static inline int intel_vsec_register(struct pci_dev *pdev,
+static inline int intel_vsec_register(struct device *dev,
 				      const struct intel_vsec_platform_info *info)
 {
 	return -ENODEV;

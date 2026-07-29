@@ -1742,26 +1742,26 @@ __naked void bounds_refinement_tnum_umax(void *ctx)
 /* This test covers the bounds deduction when the u64 range and the tnum
  * overlap only at umin. After instruction 3, the ranges look as follows:
  *
- * 0    umin=0xe00     umax=0xeff                              U64_MAX
+ * 0    umin=0xe1      umax=0xf0                               U64_MAX
  * |    [xxxxxxxxxxxxxx]                                       |
  * |----------------------------|------------------------------|
  * |    x               x                                      | tnum values
  *
- * The verifier can therefore deduce that the R0=0xe0=224.
+ * The verifier can therefore deduce that the R0=0xe1=225.
  */
 SEC("socket")
 __description("bounds refinement with single-value tnum on umin")
-__msg("3: (15) if r0 == 0xf0 {{.*}} R0=224")
+__msg("3: (15) if r0 == 0xf1 {{.*}} R0=225")
 __success __log_level(2)
 __flag(BPF_F_TEST_REG_INVARIANTS)
 __naked void bounds_refinement_tnum_umin(void *ctx)
 {
 	asm volatile("			\
 	call %[bpf_get_prandom_u32];	\
-	r0 |= 0xe0;			\
-	r0 &= 0xf0;			\
-	if r0 == 0xf0 goto +2;		\
-	if r0 == 0xe0 goto +1;		\
+	r0 |= 0xe1;			\
+	r0 &= 0xf1;			\
+	if r0 == 0xf1 goto +2;		\
+	if r0 == 0xe1 goto +1;		\
 	r10 = 0;			\
 	exit;				\
 "	:
