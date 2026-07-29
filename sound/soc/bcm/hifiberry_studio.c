@@ -106,6 +106,7 @@
 #define GAIN_CH6			0x87
 #define GAIN_CH7			0x88
 #define MUTE_INPUTS			0x89
+#define DIGI_CS_FORMAT			0x90	/* AES channel status format */
 #define CLOCK_CONSUMER_MODE		0x00
 #define CLOCK_PROVIDER_MODE		0x01
 
@@ -289,6 +290,7 @@ static bool hb_studio_readable_reg(struct device *dev, unsigned int reg)
 	case UUID:
 	case DAC_STATE:
 	case CARD_BUSY:
+	case DIGI_CS_FORMAT:
 	case CARD_RESET:
 	case CARD_CLOCK_MODE:
 	case CARD_CLK_ACT:
@@ -341,6 +343,8 @@ static const char * const adc_att_texts[] = {
 	"Clip att. off", "-3dB", "-4dB", "-5dB", "-6dB",
 	};
 static const char * const dix_clk_texts[] = {"TX", "RX"};
+static const char * const cs_mode_texts[] = {"Consumer", "Professional",
+					     "Professional CRC"};
 
 struct hb_studio_vol_control_single {
 	unsigned int reg;
@@ -617,6 +621,10 @@ static const struct hb_studio_enum_control hb_studio_dix_clk_enum_ctls[] = {
 	{ CARD_CLK_OVRWR, 0, 0x01, dix_clk_texts, ARRAY_SIZE(dix_clk_texts) },
 };
 
+static const struct hb_studio_enum_control hb_studio_cs_mode_enum_ctls[] = {
+	{ DIGI_CS_FORMAT, 0, 0x03, cs_mode_texts, ARRAY_SIZE(cs_mode_texts) },
+};
+
 static const struct snd_kcontrol_new hb_studio_gen_controls_single[] = {
 	ENUM_CTL_SINGLE("DAC Filter", hb_studio_play_enum_ctls[1]),
 	ENUM_CTL_SINGLE("Output Mute", hb_studio_play_enum_ctls[2]),
@@ -641,6 +649,7 @@ static const struct snd_kcontrol_new dix_controls_single[] = {
 	ENUM_CTL_SINGLE("Input Mute", hb_studio_rec_enum_ctls[1]),
 	ENUM_CTL_SINGLE_RO_GET("Current Sample Rate", hb_studio_samplerate_ctl,
 				hb_studio_samplerate_get),
+	ENUM_CTL_SINGLE("AES CS Mode", hb_studio_cs_mode_enum_ctls[0]),
 };
 
 static int snd_rpi_hifiberry_studio_hw_params(
