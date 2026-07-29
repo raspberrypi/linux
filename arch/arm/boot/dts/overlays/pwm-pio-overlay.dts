@@ -11,7 +11,6 @@
 		__overlay__ {
 			pwm_pio_pins: pwm_pio_pins@4 {
 				brcm,pins = <4>; /* gpio 4 */
-				function = "pio";
 				bias-disable;
 			};
 		};
