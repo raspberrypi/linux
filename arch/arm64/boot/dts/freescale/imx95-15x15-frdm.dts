@@ -188,33 +188,33 @@
 			linux,cma-default;
 		};
 
-		vdev0vring0: memory@88000000 {
+		vdev0vring0: vdev0vring0@88000000 {
 			reg = <0 0x88000000 0 0x8000>;
 			no-map;
 		};
 
-		vdev0vring1: memory@88008000 {
+		vdev0vring1: vdev0vring1@88008000 {
 			reg = <0 0x88008000 0 0x8000>;
 			no-map;
 		};
 
-		vdev1vring0: memory@88010000 {
+		vdev1vring0: vdev1vring0@88010000 {
 			reg = <0 0x88010000 0 0x8000>;
 			no-map;
 		};
 
-		vdev1vring1: memory@88018000 {
+		vdev1vring1: vdev1vring1@88018000 {
 			reg = <0 0x88018000 0 0x8000>;
 			no-map;
 		};
 
-		vdevbuffer: memory@88020000 {
+		vdev0buffer: vdev0buffer@88020000 {
 			compatible = "shared-dma-pool";
 			reg = <0 0x88020000 0 0x100000>;
 			no-map;
 		};
 
-		rsc_table: memory@88220000 {
+		rsc_table: rsc-table@88220000 {
 			reg = <0 0x88220000 0 0x1000>;
 			no-map;
 		};
