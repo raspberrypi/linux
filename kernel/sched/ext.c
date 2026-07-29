@@ -218,8 +218,6 @@ static __printf(4, 5) bool scx_exit(struct scx_sched *sch,
 #define scx_error(sch, fmt, args...)	scx_exit((sch), SCX_EXIT_ERROR, 0, fmt, ##args)
 #define scx_verror(sch, fmt, args)	scx_vexit((sch), SCX_EXIT_ERROR, 0, fmt, args)
 
-#define SCX_HAS_OP(sch, op)	test_bit(SCX_OP_IDX(op), (sch)->has_op)
-
 static long jiffies_delta_msecs(unsigned long at, unsigned long now)
 {
 	if (time_after(at, now))
@@ -234,20 +232,6 @@ static bool u32_before(u32 a, u32 b)
 }
 
 #ifdef CONFIG_EXT_SUB_SCHED
-/**
- * scx_parent - Find the parent sched
- * @sch: sched to find the parent of
- *
- * Returns the parent scheduler or %NULL if @sch is root.
- */
-static struct scx_sched *scx_parent(struct scx_sched *sch)
-{
-	if (sch->level)
-		return sch->ancestors[sch->level - 1];
-	else
-		return NULL;
-}
-
 /**
  * scx_next_descendant_pre - find the next descendant for pre-order walk
  * @pos: the current position (%NULL to initiate traversal)
@@ -295,7 +279,6 @@ static void scx_set_task_sched(struct task_struct *p, struct scx_sched *sch)
 	rcu_assign_pointer(p->scx.sched, sch);
 }
 #else	/* CONFIG_EXT_SUB_SCHED */
-static struct scx_sched *scx_parent(struct scx_sched *sch) { return NULL; }
 static struct scx_sched *scx_next_descendant_pre(struct scx_sched *pos, struct scx_sched *root) { return pos ? NULL : root; }
 static void scx_set_task_sched(struct task_struct *p, struct scx_sched *sch) {}
 #endif	/* CONFIG_EXT_SUB_SCHED */
@@ -454,18 +437,6 @@ static bool rq_is_open(struct rq *rq, u64 enq_flags)
  * knowing which rq is already locked.
  */
 DEFINE_PER_CPU(struct rq *, scx_locked_rq_state);
-
-static inline void update_locked_rq(struct rq *rq)
-{
-	/*
-	 * Check whether @rq is actually locked. This can help expose bugs
-	 * or incorrect assumptions about the context in which a kfunc or
-	 * callback is executed.
-	 */
-	if (rq)
-		lockdep_assert_rq_held(rq);
-	__this_cpu_write(scx_locked_rq_state, rq);
-}
 
 /*
  * SCX ops can recurse via scx_bpf_sub_dispatch() - the inner call must not
