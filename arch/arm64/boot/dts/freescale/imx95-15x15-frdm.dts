@@ -56,7 +56,7 @@
 		num-channels = <2>;
 	};
 
-	flexcan2_phy: can-phy {
+	flexcan2_phy: can-phy0 {
 		compatible = "nxp,tja1051";
 		#phy-cells = <0>;
 		max-bitrate = <5000000>;
@@ -67,7 +67,7 @@
 		silent-gpios = <&pcal6524 7 GPIO_ACTIVE_HIGH>;
 	};
 
-	flexcan5_phy: can-phy {
+	flexcan5_phy: can-phy1 {
 		compatible = "nxp,tja1051";
 		#phy-cells = <0>;
 		max-bitrate = <5000000>;
