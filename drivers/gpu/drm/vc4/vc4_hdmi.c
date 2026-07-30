@@ -1730,6 +1730,9 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 		tmds_char_rate = mode->clock * 1000;
 	}
 
+	/* Rebuilds every crtc_* field, so CRTC_INTERLACE_HALVE_V is needed too */
+	drm_mode_set_crtcinfo(mode, CRTC_INTERLACE_HALVE_V | CRTC_STEREO_DOUBLE);
+
 	return 0;
 }
 
@@ -1853,7 +1856,7 @@ static void vc4_hdmi_set_n_cts(struct vc4_hdmi *vc4_hdmi, unsigned int samplerat
 	lockdep_assert_held(&vc4_hdmi->hw_lock);
 
 	n = 128 * samplerate / 1000;
-	tmp = (u64)(mode->clock * 1000) * n;
+	tmp = (u64)(mode->crtc_clock * 1000) * n;
 	do_div(tmp, 128 * samplerate);
 	cts = tmp;
 

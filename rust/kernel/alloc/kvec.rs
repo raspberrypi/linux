@@ -611,7 +611,7 @@ where
     ///
     /// v.reserve(10, GFP_KERNEL)?;
     /// let cap = v.capacity();
-    /// assert!(cap >= 10);
+    /// assert!(cap >= v.len() + 10);
     ///
     /// v.reserve(10, GFP_KERNEL)?;
     /// let new_cap = v.capacity();
@@ -754,7 +754,7 @@ impl<T: Clone, A: Allocator> Vec<T, A> {
         spare[n - 1].write(value);
 
         // SAFETY:
-        // - `self.len() + n < self.capacity()` due to the call to reserve above,
+        // - `self.len() + n <= self.capacity()` due to the call to reserve above,
         // - the loop and the line above initialized the next `n` elements.
         unsafe { self.inc_len(n) };
 

@@ -2064,8 +2064,7 @@ static void tls_rx_reader_unlock(struct sock *sk, struct tls_sw_context_rx *ctx)
 int tls_sw_recvmsg(struct sock *sk,
 		   struct msghdr *msg,
 		   size_t len,
-		   int flags,
-		   int *addr_len)
+		   int flags)
 {
 	struct tls_context *tls_ctx = tls_get_ctx(sk);
 	struct tls_sw_context_rx *ctx = tls_sw_ctx_rx(tls_ctx);
@@ -2423,6 +2422,17 @@ int tls_sw_read_sock(struct sock *sk, read_descriptor_t *desc,
 		if (tlm->control != TLS_RECORD_TYPE_DATA) {
 			err = -EINVAL;
 			goto read_sock_requeue;
+		}
+
+		/* An empty data record (legal in TLS 1.3) gives a zero
+		 * read_actor return, indistinguishable from the consumer
+		 * stalling; the used <= 0 path would requeue it at the
+		 * head of rx_list and block all later records. Consume it
+		 * here instead.
+		 */
+		if (rxm->full_len == 0) {
+			consume_skb(skb);
+			continue;
 		}
 
 		used = read_actor(desc, skb, rxm->offset, rxm->full_len);

@@ -1455,31 +1455,25 @@ static int dwcmshc_probe(struct platform_device *pdev)
 			return err;
 
 		priv->bus_clk = devm_clk_get(dev, "bus");
-		if (!IS_ERR(priv->bus_clk))
-			clk_prepare_enable(priv->bus_clk);
+		if (!IS_ERR(priv->bus_clk)) {
+			err = clk_prepare_enable(priv->bus_clk);
+			if (err)
+				goto err_clk;
+		}
 
 		pltfm_host->timeout_clk = devm_clk_get(dev, "timeout");
-		if (!IS_ERR(pltfm_host->timeout_clk))
+		if (!IS_ERR(pltfm_host->timeout_clk)) {
 			err = clk_prepare_enable(pltfm_host->timeout_clk);
-		if (err)
-			return err;
+			if (err)
+				goto err_bus_clk;
+		}
 
 		priv->sdio_clk = devm_clk_get_optional(&pdev->dev, "sdio");
 	}
 
-	pltfm_host->timeout_clk = devm_clk_get(&pdev->dev, "timeout");
-	if (IS_ERR(pltfm_host->timeout_clk)) {
-		err = PTR_ERR(pltfm_host->timeout_clk);
-		dev_err(&pdev->dev, "failed to get timeout clk: %d\n", err);
-		return err;
-	}
-	err = clk_prepare_enable(pltfm_host->timeout_clk);
-	if (err)
-		return err;
-
 	err = mmc_of_parse(host->mmc);
 	if (err)
-		goto err_clk;
+		goto err_timeout_clk;
 
 	sdhci_get_of_property(pdev);
 	sdhci_enable_v4_mode(host);
@@ -1494,7 +1488,7 @@ static int dwcmshc_probe(struct platform_device *pdev)
 	if (pltfm_data->init) {
 		err = pltfm_data->init(&pdev->dev, host, priv);
 		if (err)
-			goto err_clk;
+			goto err_timeout_clk;
 	}
 
 #ifdef CONFIG_ACPI
@@ -1540,10 +1534,12 @@ err_setup_host:
 err_rpm:
 	pm_runtime_disable(dev);
 	pm_runtime_put_noidle(dev);
+err_timeout_clk:
+	clk_disable_unprepare(pltfm_host->timeout_clk);
+err_bus_clk:
+	clk_disable_unprepare(priv->bus_clk);
 err_clk:
 	clk_disable_unprepare(pltfm_host->clk);
-	clk_disable_unprepare(pltfm_host->timeout_clk);
-	clk_disable_unprepare(priv->bus_clk);
 	clk_bulk_disable_unprepare(priv->num_other_clks, priv->other_clks);
 	return err;
 }
