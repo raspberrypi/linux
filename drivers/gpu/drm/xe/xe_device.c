@@ -435,8 +435,15 @@ static void xe_device_destroy(struct drm_device *dev, void *dummy)
 	ttm_device_fini(&xe->ttm);
 }
 
-struct xe_device *xe_device_create(struct pci_dev *pdev,
-				   const struct pci_device_id *ent)
+/**
+ * xe_device_create() - Create a new &xe_device instance
+ * @pdev: the parent &pci_dev
+ *
+ * Allocate and initialize a device managed Xe device structure.
+ *
+ * Return: pointer to new &xe_device on success, or ERR_PTR on failure.
+ */
+struct xe_device *xe_device_create(struct pci_dev *pdev)
 {
 	struct xe_device *xe;
 	int err;
