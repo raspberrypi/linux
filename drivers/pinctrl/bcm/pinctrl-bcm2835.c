@@ -1033,6 +1033,13 @@ static int bcm2835_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+static bool bcm2835_pmx_function_is_gpio(struct pinctrl_dev *pctldev,
+					 unsigned int selector)
+{
+	return selector == BCM2835_FSEL_GPIO_IN ||
+	       selector == BCM2835_FSEL_GPIO_OUT;
+}
+
 static const struct pinmux_ops bcm2835_pmx_ops = {
 	.free = bcm2835_pmx_free,
 	.get_functions_count = bcm2835_pmx_get_functions_count,
@@ -1041,6 +1048,8 @@ static const struct pinmux_ops bcm2835_pmx_ops = {
 	.set_mux = bcm2835_pmx_set,
 	.gpio_disable_free = bcm2835_pmx_gpio_disable_free,
 	.gpio_set_direction = bcm2835_pmx_gpio_set_direction,
+	.function_is_gpio = bcm2835_pmx_function_is_gpio,
+	.strict = true,
 };
 
 static int bcm2835_pinconf_get(struct pinctrl_dev *pctldev,
