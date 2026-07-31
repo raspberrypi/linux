@@ -542,16 +542,7 @@ static int ecb_paes_do_one_request(struct crypto_engine *engine, void *areq)
 
 	rc = ecb_paes_do_crypt(ctx, req_ctx, true);
 	if (rc == -EKEYEXPIRED) {
-		/*
-		 * Protected key expired, conversion is in process.
-		 * Trigger a re-schedule of this request by returning
-		 * -ENOSPC ("hardware queue is full") to the crypto engine.
-		 * To avoid immediately re-invocation of this callback,
-		 * tell the scheduler to voluntarily give up the CPU here.
-		 */
-		cond_resched();
-		pr_debug("rescheduling request\n");
-		return -ENOSPC;
+		return pkey_handle_expired();
 	} else if (rc) {
 		skcipher_walk_done(walk, rc);
 	}
@@ -806,16 +797,7 @@ static int cbc_paes_do_one_request(struct crypto_engine *engine, void *areq)
 
 	rc = cbc_paes_do_crypt(ctx, req_ctx, true);
 	if (rc == -EKEYEXPIRED) {
-		/*
-		 * Protected key expired, conversion is in process.
-		 * Trigger a re-schedule of this request by returning
-		 * -ENOSPC ("hardware queue is full") to the crypto engine.
-		 * To avoid immediately re-invocation of this callback,
-		 * tell the scheduler to voluntarily give up the CPU here.
-		 */
-		cond_resched();
-		pr_debug("rescheduling request\n");
-		return -ENOSPC;
+		return pkey_handle_expired();
 	} else if (rc) {
 		skcipher_walk_done(walk, rc);
 	}
@@ -1113,16 +1095,7 @@ static int ctr_paes_do_one_request(struct crypto_engine *engine, void *areq)
 
 	rc = ctr_paes_do_crypt(ctx, req_ctx, true);
 	if (rc == -EKEYEXPIRED) {
-		/*
-		 * Protected key expired, conversion is in process.
-		 * Trigger a re-schedule of this request by returning
-		 * -ENOSPC ("hardware queue is full") to the crypto engine.
-		 * To avoid immediately re-invocation of this callback,
-		 * tell the scheduler to voluntarily give up the CPU here.
-		 */
-		cond_resched();
-		pr_debug("rescheduling request\n");
-		return -ENOSPC;
+		return pkey_handle_expired();
 	} else if (rc) {
 		skcipher_walk_done(walk, rc);
 	}
@@ -1553,16 +1526,7 @@ static int xts_paes_do_one_request(struct crypto_engine *engine, void *areq)
 
 	rc = xts_paes_do_crypt(ctx, req_ctx, true);
 	if (rc == -EKEYEXPIRED) {
-		/*
-		 * Protected key expired, conversion is in process.
-		 * Trigger a re-schedule of this request by returning
-		 * -ENOSPC ("hardware queue is full") to the crypto engine.
-		 * To avoid immediately re-invocation of this callback,
-		 * tell the scheduler to voluntarily give up the CPU here.
-		 */
-		cond_resched();
-		pr_debug("rescheduling request\n");
-		return -ENOSPC;
+		return pkey_handle_expired();
 	} else if (rc) {
 		skcipher_walk_done(walk, rc);
 	}
