@@ -1318,6 +1318,7 @@ struct bnxt_vnic_info {
 #define BNXT_VNIC_RSSCTX_FLAG		0x40
 	struct ethtool_rxfh_context *rss_ctx;
 	u32		vnic_id;
+	u16		default_rx_ring;
 };
 
 struct bnxt_rss_ctx {
