@@ -95,6 +95,20 @@
 	};
 
 	fragment@12 {
+		target-path = "spi6/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@13 {
+		target-path = "spi6/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@14 {
 		target = <&gpio>;
 		__overlay__ {
 			mcp2515_pins: mcp2515_pins {
@@ -104,7 +118,7 @@
 		};
 	};
 
-	fragment@13 {
+	fragment@15 {
 		target-path = "/clocks";
 		__overlay__ {
 			clk_mcp2515_osc: mcp2515-osc {
@@ -115,7 +129,7 @@
 		};
 	};
 
-	mcp2515_frag: fragment@14 {
+	mcp2515_frag: fragment@16 {
 		target = <&spi0>;
 		__overlay__ {
 			status = "okay";
@@ -204,6 +218,19 @@
 			<&mcp2515>, "reg:0=1",
 			<&mcp2515_pins>, "name=mcp2515_spi5_1_pins",
 			<&clk_mcp2515_osc>, "name=mcp2515-spi5-1-osc";
+
+		spi6-0 = <0>, "+12",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi6",
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi6_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi6-0-osc";
+		spi6-1 = <0>, "+13",
+			<&mcp2515_frag>, "target?=0",
+			<&mcp2515_frag>, "target-path=spi6",
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi6_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi6-1-osc";
 
 		oscillator = <&clk_mcp2515_osc>, "clock-frequency:0";
 		speed = <&mcp2515>, "spi-max-frequency:0";
