@@ -234,6 +234,7 @@ void cfg80211_stop_p2p_device(struct cfg80211_registered_device *rdev,
 	if (!wdev_running(wdev))
 		return;
 
+	cfg80211_pmsr_wdev_down(wdev);
 	rdev_stop_p2p_device(rdev, wdev);
 	wdev->is_running = false;
 
@@ -260,6 +261,8 @@ void cfg80211_stop_nan(struct cfg80211_registered_device *rdev,
 
 	if (!wdev_running(wdev))
 		return;
+
+	cfg80211_pmsr_wdev_down(wdev);
 
 	/*
 	 * If there is a scheduled update pending, mark it as canceled, so the
