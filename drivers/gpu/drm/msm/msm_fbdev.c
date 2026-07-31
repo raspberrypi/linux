@@ -70,9 +70,9 @@ static int msm_fbdev_create(struct drm_fb_helper *helper,
 {
 	struct drm_device *dev = helper->dev;
 	struct msm_drm_private *priv = dev->dev_private;
+	struct fb_info *fbi = helper->info;
 	struct drm_framebuffer *fb = NULL;
 	struct drm_gem_object *bo;
-	struct fb_info *fbi = NULL;
 	uint64_t paddr;
 	uint32_t format;
 	int ret, pitch;
@@ -102,13 +102,6 @@ static int msm_fbdev_create(struct drm_fb_helper *helper,
 	ret = msm_gem_get_and_pin_iova(bo, priv->kms->aspace, &paddr);
 	if (ret) {
 		DRM_DEV_ERROR(dev->dev, "failed to get buffer obj iova: %d\n", ret);
-		goto fail;
-	}
-
-	fbi = drm_fb_helper_alloc_info(helper);
-	if (IS_ERR(fbi)) {
-		DRM_DEV_ERROR(dev->dev, "failed to allocate fb info\n");
-		ret = PTR_ERR(fbi);
 		goto fail;
 	}
 
