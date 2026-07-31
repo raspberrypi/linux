@@ -724,6 +724,23 @@ static int bcm2835_gpio_irq_set_wake(struct irq_data *data, unsigned int on)
 	return ret;
 }
 
+static int bcm2835_gpio_irq_reqres(struct irq_data *d)
+{
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	int ret;
+
+	ret = gpiochip_irq_reqres(d);
+	if (!ret)
+		ret = bcm2835_gpio_direction_input(gc, d->hwirq);
+
+	return ret;
+}
+
+static void bcm2835_gpio_irq_relres(struct irq_data *d)
+{
+	return gpiochip_irq_relres(d);
+}
+
 static const struct irq_chip bcm2835_gpio_irq_chip = {
 	.name = MODULE_NAME,
 	.irq_set_type = bcm2835_gpio_irq_set_type,
@@ -731,6 +748,8 @@ static const struct irq_chip bcm2835_gpio_irq_chip = {
 	.irq_mask = bcm2835_gpio_irq_mask,
 	.irq_unmask = bcm2835_gpio_irq_unmask,
 	.irq_set_wake = bcm2835_gpio_irq_set_wake,
+	.irq_request_resources = bcm2835_gpio_irq_reqres,
+	.irq_release_resources = bcm2835_gpio_irq_relres,
 	.flags = (IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_IMMUTABLE),
 	GPIOCHIP_IRQ_RESOURCE_HELPERS,
 };
