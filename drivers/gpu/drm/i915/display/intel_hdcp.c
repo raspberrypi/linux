@@ -97,6 +97,7 @@ intel_hdcp_required_content_stream(struct intel_atomic_state *state,
 {
 	struct intel_display *display = to_intel_display(state);
 	struct drm_connector_list_iter conn_iter;
+	struct drm_connector_state *new_conn_state;
 	struct intel_digital_port *conn_dig_port;
 	struct intel_connector *connector;
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
@@ -121,6 +122,11 @@ intel_hdcp_required_content_stream(struct intel_atomic_state *state,
 
 		conn_dig_port = intel_attached_dig_port(connector);
 		if (conn_dig_port != dig_port)
+			continue;
+
+		new_conn_state = drm_atomic_get_new_connector_state(&state->base,
+								    &connector->base);
+		if (!new_conn_state || !new_conn_state->crtc)
 			continue;
 
 		data->streams[data->k].stream_id =
