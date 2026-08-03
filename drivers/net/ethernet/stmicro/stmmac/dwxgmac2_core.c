@@ -376,7 +376,7 @@ static void dwxgmac2_flow_ctrl(struct mac_device_info *hw, unsigned int duplex,
 			u32 value = XGMAC_TFE;
 
 			if (duplex)
-				value |= pause_time << XGMAC_PT_SHIFT;
+				value |= FIELD_PREP(XGMAC_PT, pause_time);
 
 			writel(value, ioaddr + XGMAC_Qx_TX_FLOW_CTRL(i));
 		}
@@ -1233,8 +1233,7 @@ static void dwxgmac2_sarc_configure(void __iomem *ioaddr, int val)
 {
 	u32 value = readl(ioaddr + XGMAC_TX_CONFIG);
 
-	value &= ~XGMAC_CONFIG_SARC;
-	value |= val << XGMAC_CONFIG_SARC_SHIFT;
+	value = u32_replace_bits(value, val, XGMAC_CONFIG_SARC);
 
 	writel(value, ioaddr + XGMAC_TX_CONFIG);
 }
@@ -1254,14 +1253,16 @@ static int dwxgmac2_filter_read(struct mac_device_info *hw, u32 filter_no,
 				u8 reg, u32 *data)
 {
 	void __iomem *ioaddr = hw->pcsr;
-	u32 value;
+	u32 value, iddr;
 	int ret;
 
 	ret = dwxgmac2_filter_wait(hw);
 	if (ret)
 		return ret;
 
-	value = ((filter_no << XGMAC_IDDR_FNUM) | reg) << XGMAC_IDDR_SHIFT;
+	iddr = FIELD_PREP(XGMAC_IDDR_FNUM_MASK, filter_no) |
+	       FIELD_PREP(XGMAC_IDDR_REG_MASK, reg);
+	value = FIELD_PREP(XGMAC_IDDR, iddr);
 	value |= XGMAC_TT | XGMAC_XB;
 	writel(value, ioaddr + XGMAC_L3L4_ADDR_CTRL);
 
@@ -1277,7 +1278,7 @@ static int dwxgmac2_filter_write(struct mac_device_info *hw, u32 filter_no,
 				 u8 reg, u32 data)
 {
 	void __iomem *ioaddr = hw->pcsr;
-	u32 value;
+	u32 value, iddr;
 	int ret;
 
 	ret = dwxgmac2_filter_wait(hw);
@@ -1286,7 +1287,9 @@ static int dwxgmac2_filter_write(struct mac_device_info *hw, u32 filter_no,
 
 	writel(data, ioaddr + XGMAC_L3L4_DATA);
 
-	value = ((filter_no << XGMAC_IDDR_FNUM) | reg) << XGMAC_IDDR_SHIFT;
+	iddr = FIELD_PREP(XGMAC_IDDR_FNUM_MASK, filter_no) |
+	       FIELD_PREP(XGMAC_IDDR_REG_MASK, reg);
+	value = FIELD_PREP(XGMAC_IDDR, iddr);
 	value |= XGMAC_XB;
 	writel(value, ioaddr + XGMAC_L3L4_ADDR_CTRL);
 
@@ -1378,35 +1381,39 @@ static int dwxgmac2_config_l4_filter(struct mac_device_info *hw, u32 filter_no,
 		value &= ~XGMAC_L4PEN0;
 	}
 
-	value &= ~(XGMAC_L4SPM0 | XGMAC_L4SPIM0);
-	value &= ~(XGMAC_L4DPM0 | XGMAC_L4DPIM0);
 	if (sa) {
 		value |= XGMAC_L4SPM0;
 		if (inv)
 			value |= XGMAC_L4SPIM0;
+		else
+			value &= ~XGMAC_L4SPIM0;
 	} else {
 		value |= XGMAC_L4DPM0;
 		if (inv)
 			value |= XGMAC_L4DPIM0;
+		else
+			value &= ~XGMAC_L4DPIM0;
 	}
 
 	ret = dwxgmac2_filter_write(hw, filter_no, XGMAC_L3L4_CTRL, value);
 	if (ret)
 		return ret;
 
+	ret = dwxgmac2_filter_read(hw, filter_no, XGMAC_L4_ADDR, &value);
+	if (ret)
+		return ret;
+
 	if (sa) {
-		value = match & XGMAC_L4SP0;
-
-		ret = dwxgmac2_filter_write(hw, filter_no, XGMAC_L4_ADDR, value);
-		if (ret)
-			return ret;
+		value &= ~XGMAC_L4SP0;
+		value |= FIELD_PREP(XGMAC_L4SP0, match);
 	} else {
-		value = (match << XGMAC_L4DP0_SHIFT) & XGMAC_L4DP0;
-
-		ret = dwxgmac2_filter_write(hw, filter_no, XGMAC_L4_ADDR, value);
-		if (ret)
-			return ret;
+		value &= ~XGMAC_L4DP0;
+		value |= FIELD_PREP(XGMAC_L4DP0, match);
 	}
+
+	ret = dwxgmac2_filter_write(hw, filter_no, XGMAC_L4_ADDR, value);
+	if (ret)
+		return ret;
 
 	if (!en)
 		return dwxgmac2_filter_write(hw, filter_no, XGMAC_L3L4_CTRL, 0);

@@ -256,11 +256,11 @@ static int iris_probe(struct platform_device *pdev)
 	core->iris_platform_data = of_device_get_match_data(core->dev);
 
 	ret = devm_request_threaded_irq(core->dev, core->irq, iris_hfi_isr,
-					iris_hfi_isr_handler, IRQF_TRIGGER_HIGH, "iris", core);
+					iris_hfi_isr_handler,
+					IRQF_TRIGGER_HIGH | IRQF_NO_AUTOEN,
+					"iris", core);
 	if (ret)
 		return ret;
-
-	disable_irq_nosync(core->irq);
 
 	iris_init_ops(core);
 	core->iris_platform_data->init_hfi_command_ops(core);

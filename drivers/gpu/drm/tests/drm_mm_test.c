@@ -15,8 +15,6 @@
 
 #include <drm/drm_mm.h>
 
-#include "../lib/drm_random.h"
-
 enum {
 	BEST,
 	BOTTOMUP,

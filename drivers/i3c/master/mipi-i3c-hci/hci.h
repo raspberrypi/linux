@@ -46,6 +46,7 @@ struct i3c_hci {
 	void *io_data;
 	const struct hci_cmd_ops *cmd;
 	spinlock_t lock;
+	bool irq_inactive;
 	struct mutex control_mutex;
 	atomic_t next_cmd_tid;
 	u32 caps;

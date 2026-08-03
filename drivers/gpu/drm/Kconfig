@@ -220,6 +220,7 @@ config DRM_GPUSVM
 config DRM_BUDDY
 	tristate
 	depends on DRM
+	select GPU_BUDDY
 	help
 	  A page based buddy allocator
 
@@ -417,10 +418,6 @@ config DRM_HYPERV
 # Separate option as not all DRM drivers use it
 config DRM_PANEL_BACKLIGHT_QUIRKS
 	tristate
-
-config DRM_LIB_RANDOM
-	bool
-	default n
 
 config DRM_PRIVACY_SCREEN
 	bool

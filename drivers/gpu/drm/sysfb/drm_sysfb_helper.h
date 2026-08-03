@@ -39,7 +39,7 @@ struct resource *drm_sysfb_get_memory_si(struct drm_device *dev,
 int drm_sysfb_get_stride_si(struct drm_device *dev, const struct screen_info *si,
 			    const struct drm_format_info *format,
 			    unsigned int width, unsigned int height, u64 size);
-u64 drm_sysfb_get_visible_size_si(struct drm_device *dev, const struct screen_info *si,
+s64 drm_sysfb_get_visible_size_si(struct drm_device *dev, const struct screen_info *si,
 				  unsigned int height, unsigned int stride, u64 size);
 const struct drm_format_info *drm_sysfb_get_format_si(struct drm_device *dev,
 						      const struct drm_sysfb_format *formats,

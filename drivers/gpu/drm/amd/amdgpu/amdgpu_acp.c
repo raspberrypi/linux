@@ -505,6 +505,7 @@ static int acp_hw_fini(struct amdgpu_ip_block *ip_block)
 	u32 val = 0;
 	u32 count = 0;
 	struct amdgpu_device *adev = ip_block->adev;
+	int ret = 0;
 
 	/* return early if no ACP */
 	if (!adev->acp.acp_genpd) {
@@ -526,7 +527,8 @@ static int acp_hw_fini(struct amdgpu_ip_block *ip_block)
 			break;
 		if (--count == 0) {
 			dev_err(&adev->pdev->dev, "Failed to reset ACP\n");
-			return -ETIMEDOUT;
+			ret = -ETIMEDOUT;
+			goto out;
 		}
 		udelay(100);
 	}
@@ -543,20 +545,23 @@ static int acp_hw_fini(struct amdgpu_ip_block *ip_block)
 			break;
 		if (--count == 0) {
 			dev_err(&adev->pdev->dev, "Failed to reset ACP\n");
-			return -ETIMEDOUT;
+			ret = -ETIMEDOUT;
+			goto out;
 		}
 		udelay(100);
 	}
-
+out:
 	device_for_each_child(adev->acp.parent, NULL,
 			      acp_genpd_remove_device);
 
 	mfd_remove_devices(adev->acp.parent);
 	kfree(adev->acp.acp_res);
+	pm_genpd_remove(&adev->acp.acp_genpd->gpd);
 	kfree(adev->acp.acp_genpd);
+	adev->acp.acp_genpd = NULL;
 	kfree(adev->acp.acp_cell);
 
-	return 0;
+	return ret;
 }
 
 static int acp_suspend(struct amdgpu_ip_block *ip_block)
