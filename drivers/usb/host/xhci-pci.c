@@ -461,6 +461,11 @@ static void xhci_pci_quirks(struct device *dev, struct xhci_hcd *xhci)
 		xhci->quirks |= XHCI_LPM_SUPPORT;
 		xhci->quirks |= XHCI_TRB_OVERFETCH;
 		xhci->dma_mask_bits = 36;
+		xhci->quirks |= XHCI_EP_CTX_BROKEN_DCS;
+		xhci->quirks |= XHCI_AVOID_DQ_ON_LINK;
+		xhci->quirks |= XHCI_VLI_SS_BULK_OUT_BUG;
+		if (xhci_vl805_get_fw_version(pdev) < VL805_FW_VER_0138C0)
+			xhci->quirks |= XHCI_VLI_HUB_TT_QUIRK;
 	}
 
 	if (pdev->vendor == PCI_VENDOR_ID_ASMEDIA &&
