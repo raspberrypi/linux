@@ -8585,6 +8585,10 @@ static int process_spin_lock(struct bpf_verifier_env *env, int regno, int flags)
 			return err;
 		}
 	} else {
+		u32 clear_mask = (1 << STACK_SPILL) | (1 << STACK_ITER);
+		struct bpf_func_state *state;
+		struct bpf_reg_state *rcu_reg;
+		bool was_in_rcu_cs;
 		void *ptr;
 		int type;
 
@@ -8612,9 +8616,18 @@ static int process_spin_lock(struct bpf_verifier_env *env, int regno, int flags)
 			verbose(env, "%s_unlock cannot be out of order\n", lock_str);
 			return -EINVAL;
 		}
+		was_in_rcu_cs = in_rcu_cs(env);
 		if (release_lock_state(cur, type, reg->id, ptr)) {
 			verbose(env, "%s_unlock of different lock\n", lock_str);
 			return -EINVAL;
+		}
+		if (was_in_rcu_cs && !in_rcu_cs(env)) {
+			bpf_for_each_reg_in_vstate_mask(env->cur_state, state, rcu_reg, clear_mask, ({
+				if (rcu_reg->type & MEM_RCU) {
+					rcu_reg->type &= ~(MEM_RCU | PTR_MAYBE_NULL);
+					rcu_reg->type |= PTR_UNTRUSTED;
+				}
+			}));
 		}
 
 		invalidate_non_owning_refs(env);
