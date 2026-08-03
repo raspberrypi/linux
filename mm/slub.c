@@ -2096,42 +2096,6 @@ static inline void init_slab_obj_exts(struct slab *slab)
 	slab->obj_exts = 0;
 }
 
-/*
- * Calculate the allocation size for slabobj_ext array.
- *
- * When memory allocation profiling is enabled, the obj_exts array
- * could be allocated from the same slab cache it's being allocated for.
- * This would prevent the slab from ever being freed because it would
- * always contain at least one allocated object (its own obj_exts array).
- *
- * To avoid this, increase the allocation size when we detect the array
- * may come from the same cache, forcing it to use a different cache.
- */
-static inline size_t obj_exts_alloc_size(struct kmem_cache *s,
-					 struct slab *slab, gfp_t gfp)
-{
-	size_t sz = sizeof(struct slabobj_ext) * slab->objects;
-	struct kmem_cache *obj_exts_cache;
-
-	if (sz > KMALLOC_MAX_CACHE_SIZE)
-		return sz;
-
-	if (!is_kmalloc_normal(s))
-		return sz;
-
-	obj_exts_cache = kmalloc_slab(sz, NULL, gfp, 0);
-	/*
-	 * We can't simply compare s with obj_exts_cache, because random kmalloc
-	 * caches have multiple caches per size, selected by caller address.
-	 * Since caller address may differ between kmalloc_slab() and actual
-	 * allocation, bump size when sizes are equal.
-	 */
-	if (s->object_size == obj_exts_cache->object_size)
-		return obj_exts_cache->object_size + 1;
-
-	return sz;
-}
-
 int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 		        gfp_t gfp, bool new_slab)
 {
@@ -2140,13 +2104,17 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 	unsigned long new_exts;
 	unsigned long old_exts;
 	struct slabobj_ext *vec;
-	size_t sz;
+	size_t sz = sizeof(struct slabobj_ext) * slab->objects;
 
 	gfp &= ~OBJCGS_CLEAR_MASK;
-	/* Prevent recursive extension vector allocation */
-	gfp |= __GFP_NO_OBJ_EXT;
 
-	sz = obj_exts_alloc_size(s, slab, gfp);
+	/*
+	 * In most cases, obj_exts arrays are allocated from normal kmalloc.
+	 * However, normal kmalloc caches must allocate them from
+	 * KMALLOC_NO_OBJ_EXT caches to prevent recursion.
+	 */
+	if (is_kmalloc_normal(s))
+		gfp |= __GFP_NO_OBJ_EXT;
 
 	/*
 	 * Note that allow_spin may be false during early boot and its
@@ -2155,7 +2123,7 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 	 * very early allocations on those.
 	 */
 	if (unlikely(!allow_spin))
-		vec = kmalloc_nolock(sz, __GFP_ZERO | __GFP_NO_OBJ_EXT,
+		vec = kmalloc_nolock(sz, __GFP_ZERO | (gfp & __GFP_NO_OBJ_EXT),
 				     slab_nid(slab));
 	else
 		vec = kmalloc_node(sz, gfp | __GFP_ZERO, slab_nid(slab));
@@ -2173,8 +2141,21 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 		return -ENOMEM;
 	}
 
-	VM_WARN_ON_ONCE(virt_to_slab(vec) != NULL &&
-			virt_to_slab(vec)->slab_cache == s);
+	if (IS_ENABLED(CONFIG_DEBUG_VM)) {
+		struct kmem_cache *exts_cache;
+		struct slab *exts_slab;
+
+		exts_slab = virt_to_slab(vec);
+		if (exts_slab) {
+			/*
+			 * The vector must be allocated from either normal or
+			 * KMALLOC_NO_OBJ_EXT kmalloc caches to avoid cycles.
+			 */
+			exts_cache = exts_slab->slab_cache;
+			WARN_ON_ONCE(!is_kmalloc_normal(exts_cache) &&
+					!(exts_cache->flags & SLAB_NO_OBJ_EXT));
+		}
+	}
 
 	new_exts = (unsigned long)vec;
 	if (unlikely(!allow_spin))
@@ -2198,7 +2179,6 @@ retry:
 		 * assign slabobj_exts in parallel. In this case the existing
 		 * objcg vector should be reused.
 		 */
-		mark_objexts_empty(vec);
 		if (unlikely(!allow_spin))
 			kfree_nolock(vec);
 		else
@@ -2229,14 +2209,6 @@ static inline void free_slab_obj_exts(struct slab *slab)
 		return;
 	}
 
-	/*
-	 * obj_exts was created with __GFP_NO_OBJ_EXT flag, therefore its
-	 * corresponding extension will be NULL. alloc_tag_sub() will throw a
-	 * warning if slab has extensions but the extension of an object is
-	 * NULL, therefore replace NULL with CODETAG_EMPTY to indicate that
-	 * the extension for obj_exts is expected to be NULL.
-	 */
-	mark_objexts_empty(obj_exts);
 	if (unlikely(READ_ONCE(slab->obj_exts) & OBJEXTS_NOSPIN_ALLOC))
 		kfree_nolock(obj_exts);
 	else

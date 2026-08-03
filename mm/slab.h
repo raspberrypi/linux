@@ -394,9 +394,13 @@ static inline struct kmem_cache *
 kmalloc_slab(size_t size, kmem_buckets *b, gfp_t flags, unsigned long caller)
 {
 	unsigned int index;
+	enum kmalloc_cache_type type = kmalloc_type(flags, caller);
+
+	if (flags & __GFP_NO_OBJ_EXT)
+		type = KMALLOC_NO_OBJ_EXT;
 
 	if (!b)
-		b = &kmalloc_caches[kmalloc_type(flags, caller)];
+		b = &kmalloc_caches[type];
 	if (size <= 192)
 		index = kmalloc_size_index[size_index_elem(size)];
 	else
@@ -435,7 +439,8 @@ static inline bool is_kmalloc_normal(struct kmem_cache *s)
 {
 	if (!is_kmalloc_cache(s))
 		return false;
-	return !(s->flags & (SLAB_CACHE_DMA|SLAB_ACCOUNT|SLAB_RECLAIM_ACCOUNT));
+
+	return !(s->flags & (SLAB_CACHE_DMA|SLAB_ACCOUNT|SLAB_RECLAIM_ACCOUNT|SLAB_NO_OBJ_EXT));
 }
 
 bool __kfree_rcu_sheaf(struct kmem_cache *s, void *obj);
@@ -519,6 +524,25 @@ bool slab_in_kunit_test(void);
 #else
 static inline bool slab_in_kunit_test(void) { return false; }
 #endif
+
+/*
+ * Return true if KMALLOC_NORMAL caches may need obj_exts arrays.
+ *
+ * Memory allocation profiling requires obj_exts for all caches.
+ * Memcg usually doesn't need them for normal kmalloc caches, but kmalloc types
+ * with a priority higher than KMALLOC_CGROUP can be aliased with KMALLOC_NORMAL.
+ */
+static inline bool need_kmalloc_no_objext(void)
+{
+	if (!mem_alloc_profiling_permanently_disabled())
+		return true;
+
+	if (!mem_cgroup_kmem_disabled() &&
+			(KMALLOC_NORMAL == KMALLOC_RECLAIM))
+		return true;
+
+	return false;
+}
 
 #ifdef CONFIG_SLAB_OBJ_EXT
 
