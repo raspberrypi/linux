@@ -948,8 +948,8 @@ static ssize_t writeback_store(struct device *dev,
 			       const char *buf, size_t len)
 {
 	struct zram *zram = dev_to_zram(dev);
-	u64 nr_pages = zram->disksize >> PAGE_SHIFT;
-	unsigned long lo = 0, hi = nr_pages;
+	u64 nr_pages;
+	unsigned long lo = 0, hi;
 	struct zram_pp_ctl *ctl = NULL;
 	char *args, *param, *val;
 	ssize_t ret = len;
@@ -971,6 +971,9 @@ static ssize_t writeback_store(struct device *dev,
 		ret = -ENODEV;
 		goto release_init_lock;
 	}
+
+	nr_pages = zram->disksize >> PAGE_SHIFT;
+	hi = nr_pages;
 
 	ctl = init_pp_ctl();
 	if (!ctl) {
