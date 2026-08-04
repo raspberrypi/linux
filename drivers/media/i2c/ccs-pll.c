@@ -388,6 +388,14 @@ __ccs_pll_calculate_vt_tree(struct device *dev,
 	return 0;
 }
 
+static inline u32 ccs_pll_vt_pixel_rate(const struct ccs_pll *pll)
+{
+	if (pll->pixel_rate_pixel_array)
+		return pll->pixel_rate_pixel_array;
+
+	return pll->pixel_rate_csi;
+}
+
 static int ccs_pll_calculate_vt_tree(struct device *dev,
 				     const struct ccs_pll_limits *lim,
 				     struct ccs_pll *pll)
@@ -396,11 +404,12 @@ static int ccs_pll_calculate_vt_tree(struct device *dev,
 	struct ccs_pll_branch_fr *pll_fr = &pll->vt_fr;
 	u16 min_pre_pll_clk_div = lim_fr->min_pre_pll_clk_div;
 	u16 max_pre_pll_clk_div = lim_fr->max_pre_pll_clk_div;
+	u32 vt_pixel_rate = ccs_pll_vt_pixel_rate(pll);
 	u32 pre_mul, pre_div;
 
-	pre_div = gcd(pll->pixel_rate_csi,
+	pre_div = gcd(vt_pixel_rate,
 		      pll->ext_clk_freq_hz * pll->vt_lanes);
-	pre_mul = pll->pixel_rate_csi / pre_div;
+	pre_mul = vt_pixel_rate / pre_div;
 	pre_div = pll->ext_clk_freq_hz * pll->vt_lanes / pre_div;
 
 	/* Make sure PLL input frequency is within limits */
