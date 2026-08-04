@@ -1382,7 +1382,7 @@ bool nbcon_kthread_create(struct console *con)
 		return true;
 
 	kt = kthread_run(nbcon_kthread_func, con, "pr/%s%d", con->name, con->index);
-	if (WARN_ON(IS_ERR(kt))) {
+	if (IS_ERR(kt)) {
 		con_printk(KERN_ERR, con, "failed to start printing thread\n");
 		return false;
 	}
