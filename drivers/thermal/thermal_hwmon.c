@@ -157,7 +157,8 @@ int thermal_add_hwmon_sysfs(struct thermal_zone_device *tz)
  unregister_name:
 	hwmon_device_unregister(hwmon->device);
  free_mem:
-	kfree(hwmon);
+	if (new_hwmon_device)
+		kfree(hwmon);
 
 	return result;
 }
