@@ -493,7 +493,6 @@ static const struct mt792x_irq_map mt7925_irq_map = {
 		.all_complete_mask = MT7925_INT_RX_DONE_ALL,
 		.data_complete_mask = MT7925_INT_RX_DONE_DATA,
 		.wm_complete_mask = MT7925_INT_RX_DONE_WM,
-		.wm2_complete_mask = MT_INT_RX_DONE_WM2,
 	},
 };
 
