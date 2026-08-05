@@ -515,13 +515,25 @@ static ssize_t dgpu_disable_current_value_store(struct kobject *kobj,
 	if (err)
 		return err;
 
-	if (asus_armoury.gpu_mux_dev_id) {
-		err = armoury_get_devstate(NULL, &result, asus_armoury.gpu_mux_dev_id);
-		if (err)
-			return err;
-		if (!result && disable) {
-			pr_warn("Cannot disable dGPU when the MUX is in dGPU mode\n");
-			return -EBUSY;
+	if (disable) {
+		if (asus_armoury.gpu_mux_dev_id) {
+			err = armoury_get_devstate(NULL, &result, asus_armoury.gpu_mux_dev_id);
+			if (err)
+				return err;
+			if (!result) {
+				pr_warn("Cannot disable dGPU when the MUX is in dGPU mode\n");
+				return -EBUSY;
+			}
+		}
+
+		if (armoury_has_devstate(ASUS_WMI_DEVID_DGPU_POWER_STATE)) {
+			err = armoury_get_devstate(NULL, &result, ASUS_WMI_DEVID_DGPU_POWER_STATE);
+			if (err)
+				return err;
+			if (result) {
+				pr_warn("Cannot disable dGPU when it is in use\n");
+				return -EBUSY;
+			}
 		}
 	}
 
