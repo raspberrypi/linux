@@ -242,6 +242,10 @@ void xe_reg_whitelist_oa_regs(struct xe_gt *gt)
 	struct xe_hw_engine *hwe;
 	enum xe_hw_engine_id id;
 
+	lockdep_assert_held(&gt->oa.gt_lock);
+	if (gt->oa.whitelist_count++)
+		return;
+
 	for_each_hw_engine(hwe, gt, id)
 		__whitelist_oa_regs(hwe, true);
 }
@@ -256,6 +260,11 @@ void xe_reg_dewhitelist_oa_regs(struct xe_gt *gt)
 {
 	struct xe_hw_engine *hwe;
 	enum xe_hw_engine_id id;
+
+	lockdep_assert_held(&gt->oa.gt_lock);
+	xe_assert(gt_to_xe(gt), gt->oa.whitelist_count);
+	if (--gt->oa.whitelist_count)
+		return;
 
 	for_each_hw_engine(hwe, gt, id)
 		__whitelist_oa_regs(hwe, false);
