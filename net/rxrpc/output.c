@@ -220,7 +220,7 @@ static void rxrpc_send_ack_packet(struct rxrpc_call *call, struct rxrpc_txbuf *t
 		if (ack->reason == RXRPC_ACK_PING)
 			rxrpc_begin_rtt_probe(call, txb->serial, now, rxrpc_rtt_tx_ping);
 		if (txb->flags & RXRPC_REQUEST_ACK)
-			call->peer->rtt_last_req = now;
+			call->rtt_last_req = now;
 		rxrpc_set_keepalive(call, now);
 	}
 	rxrpc_tx_backoff(call, ret);
@@ -358,9 +358,9 @@ static void rxrpc_prepare_data_subpacket(struct rxrpc_call *call, struct rxrpc_t
 		why = rxrpc_reqack_slow_start;
 	else if (call->tx_winsize <= 2)
 		why = rxrpc_reqack_small_txwin;
-	else if (call->peer->rtt_count < 3 && txb->seq & 1)
+	else if (call->rtt_count < 3)
 		why = rxrpc_reqack_more_rtt;
-	else if (ktime_before(ktime_add_ms(call->peer->rtt_last_req, 1000), ktime_get_real()))
+	else if (ktime_before(ktime_add_ms(call->rtt_last_req, 1000), ktime_get_real()))
 		why = rxrpc_reqack_old_rtt;
 	else
 		goto dont_set_request_ack;
@@ -407,9 +407,9 @@ static void rxrpc_tstamp_data_packets(struct rxrpc_call *call, struct rxrpc_txbu
 	if (ack_requested) {
 		rxrpc_begin_rtt_probe(call, txb->serial, now, rxrpc_rtt_tx_data);
 
-		call->peer->rtt_last_req = now;
-		if (call->peer->rtt_count > 1) {
-			ktime_t delay = rxrpc_get_rto_backoff(call->peer, false);
+		call->rtt_last_req = now;
+		if (call->rtt_count > 1) {
+			ktime_t delay = rxrpc_get_rto_backoff(call, false);
 
 			call->ack_lost_at = ktime_add(now, delay);
 			trace_rxrpc_timer_set(call, delay, rxrpc_timer_trace_lost_ack);
@@ -727,7 +727,7 @@ void rxrpc_transmit_one(struct rxrpc_call *call, struct rxrpc_txbuf *txb)
 			rxrpc_instant_resend(call, txb);
 		}
 	} else {
-		ktime_t delay = ns_to_ktime(call->peer->rto_us * NSEC_PER_USEC);
+		ktime_t delay = ns_to_ktime(call->rto_us * NSEC_PER_USEC);
 
 		call->resend_at = ktime_add(ktime_get_real(), delay);
 		trace_rxrpc_timer_set(call, delay, rxrpc_timer_trace_resend_tx);

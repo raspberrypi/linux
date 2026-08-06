@@ -222,11 +222,8 @@ struct rxrpc_peer *rxrpc_alloc_peer(struct rxrpc_local *local, gfp_t gfp,
 		peer->service_conns = RB_ROOT;
 		seqlock_init(&peer->service_conn_lock);
 		spin_lock_init(&peer->lock);
-		spin_lock_init(&peer->rtt_input_lock);
 		peer->debug_id = atomic_inc_return(&rxrpc_debug_id);
-
-		rxrpc_peer_init_rtt(peer);
-
+		peer->recent_srtt_us = UINT_MAX;
 		peer->cong_ssthresh = RXRPC_TX_MAX_WINDOW;
 		trace_rxrpc_peer(peer->debug_id, 1, why);
 	}
@@ -244,7 +241,6 @@ static void rxrpc_init_peer(struct rxrpc_local *local, struct rxrpc_peer *peer,
 	peer->hash_key = hash_key;
 	rxrpc_assess_MTU_size(local, peer);
 	peer->mtu = peer->if_mtu;
-	peer->rtt_last_req = ktime_get_real();
 
 	switch (peer->srx.transport.family) {
 	case AF_INET:
@@ -480,7 +476,7 @@ EXPORT_SYMBOL(rxrpc_kernel_get_call_peer);
  */
 unsigned int rxrpc_kernel_get_srtt(const struct rxrpc_peer *peer)
 {
-	return peer->rtt_count > 0 ? peer->srtt_us >> 3 : UINT_MAX;
+	return READ_ONCE(peer->recent_srtt_us);
 }
 EXPORT_SYMBOL(rxrpc_kernel_get_srtt);
 
