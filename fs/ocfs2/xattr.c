@@ -237,6 +237,21 @@ static int namevalue_size_xe(struct ocfs2_xattr_entry *xe)
 	return namevalue_size(xe->xe_name_len, value_len);
 }
 
+static int ocfs2_validate_xattr_entry(struct super_block *sb, u64 blkno,
+				      struct ocfs2_xattr_entry *xe)
+{
+	u64 value_len = le64_to_cpu(xe->xe_value_size);
+
+	if (value_len > OCFS2_XATTR_INLINE_SIZE &&
+	    ocfs2_xattr_is_local(xe))
+		return ocfs2_error(sb,
+				   "Invalid local xattr in block %llu: value size %llu\n",
+				   (unsigned long long)blkno,
+				   (unsigned long long)value_len);
+
+	return 0;
+}
+
 
 static int ocfs2_xattr_bucket_get_name_value(struct super_block *sb,
 					     struct ocfs2_xattr_header *xh,
@@ -1032,7 +1047,7 @@ static int ocfs2_validate_xattr_entries_flat(struct super_block *sb, u64 blkno,
 	size_t entries_limit = region_size;
 	size_t nv_limit = region_size;
 	size_t max_entries;
-	int i;
+	int i, ret;
 
 	if (region_size < sizeof(*xh))
 		return ocfs2_error(sb,
@@ -1052,6 +1067,11 @@ static int ocfs2_validate_xattr_entries_flat(struct super_block *sb, u64 blkno,
 		struct ocfs2_xattr_entry *xe = &xh->xh_entries[i];
 		size_t name_offset = le16_to_cpu(xe->xe_name_offset);
 		size_t value_offset;
+		u64 value_len = le64_to_cpu(xe->xe_value_size);
+
+		ret = ocfs2_validate_xattr_entry(sb, blkno, xe);
+		if (ret)
+			return ret;
 
 		if (name_offset > nv_limit ||
 		    xe->xe_name_len > nv_limit - name_offset)
@@ -1066,8 +1086,7 @@ static int ocfs2_validate_xattr_entries_flat(struct super_block *sb, u64 blkno,
 					   (unsigned long long)blkno, i);
 
 		if (ocfs2_xattr_is_local(xe)) {
-			if (le64_to_cpu(xe->xe_value_size) >
-			    nv_limit - value_offset)
+			if (value_len > nv_limit - value_offset)
 				return ocfs2_error(sb,
 						   "Invalid xattr in block %llu: entry %d value is out of bounds\n",
 						   (unsigned long long)blkno,
@@ -1158,7 +1177,7 @@ static int ocfs2_validate_xattr_bucket(struct ocfs2_xattr_bucket *bucket,
 	size_t entries_limit = region_size;
 	size_t nv_limit = sb->s_blocksize;
 	size_t max_entries;
-	int i;
+	int i, ret;
 
 	/*
 	 * The entry array is one contiguous region that may span the
@@ -1199,6 +1218,11 @@ static int ocfs2_validate_xattr_bucket(struct ocfs2_xattr_bucket *bucket,
 		size_t block_off = name_offset >> sb->s_blocksize_bits;
 		size_t block_offset = name_offset % nv_limit;
 		size_t value_offset;
+		u64 value_len = le64_to_cpu(xe->xe_value_size);
+
+		ret = ocfs2_validate_xattr_entry(sb, blkno, xe);
+		if (ret)
+			return ret;
 
 		if (name_offset >= region_size || block_off >= bucket->bu_blocks)
 			return ocfs2_error(sb,
@@ -1217,8 +1241,7 @@ static int ocfs2_validate_xattr_bucket(struct ocfs2_xattr_bucket *bucket,
 					   (unsigned long long)blkno, i);
 
 		if (ocfs2_xattr_is_local(xe)) {
-			if (le64_to_cpu(xe->xe_value_size) >
-			    nv_limit - value_offset)
+			if (value_len > nv_limit - value_offset)
 				return ocfs2_error(sb,
 						   "Invalid xattr bucket %llu: entry %d value is out of bounds\n",
 						   (unsigned long long)blkno,
@@ -1366,7 +1389,7 @@ static int ocfs2_xattr_find_entry(struct inode *inode, int name_index,
 {
 	struct ocfs2_xattr_entry *entry;
 	size_t name_len;
-	int i, name_offset, cmp = 1;
+	int i, name_offset, cmp = 1, ret;
 
 	if (name == NULL)
 		return -EINVAL;
@@ -1389,6 +1412,12 @@ static int ocfs2_xattr_find_entry(struct inode *inode, int name_index,
 				return -EFSCORRUPTED;
 			}
 			cmp = memcmp(name, (xs->base + name_offset), name_len);
+			if (!cmp) {
+				ret = ocfs2_validate_xattr_entry(inode->i_sb,
+								 OCFS2_I(inode)->ip_blkno, entry);
+				if (ret)
+					return ret;
+			}
 		}
 		if (cmp == 0)
 			break;
@@ -4162,6 +4191,10 @@ static int ocfs2_find_xe_in_bucket(struct inode *inode,
 
 		xe_name = bucket_block(bucket, block_off) + new_offset;
 		if (!memcmp(name, xe_name, name_len)) {
+			ret = ocfs2_validate_xattr_entry(inode->i_sb,
+							 OCFS2_I(inode)->ip_blkno, xe);
+			if (ret)
+				break;
 			*xe_index = i;
 			*found = 1;
 			ret = 0;
@@ -4900,6 +4933,9 @@ static int ocfs2_defrag_xattr_bucket(struct inode *inode,
 	xe = xh->xh_entries;
 	end = OCFS2_XATTR_BUCKET_SIZE;
 	for (i = 0; i < le16_to_cpu(xh->xh_count); i++, xe++) {
+		ret = ocfs2_validate_xattr_entry(inode->i_sb, blkno, xe);
+		if (ret)
+			goto out;
 		offset = le16_to_cpu(xe->xe_name_offset);
 		len = namevalue_size_xe(xe);
 
@@ -5196,6 +5232,9 @@ static int ocfs2_divide_xattr_bucket(struct inode *inode,
 	name_value_len = 0;
 	for (i = 0; i < start; i++) {
 		xe = &xh->xh_entries[i];
+		ret = ocfs2_validate_xattr_entry(inode->i_sb, blk, xe);
+		if (ret)
+			goto out;
 		name_value_len += namevalue_size_xe(xe);
 		if (le16_to_cpu(xe->xe_name_offset) < name_offset)
 			name_offset = le16_to_cpu(xe->xe_name_offset);
