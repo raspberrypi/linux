@@ -57,8 +57,7 @@ void dcn401_set_cursor_position(struct pipe_ctx *pipe_ctx);
 
 bool dcn401_apply_idle_power_optimizations(struct dc *dc, bool enable);
 
-void dcn401_wait_for_dcc_meta_propagation(const struct dc *dc,
-		const struct pipe_ctx *top_pipe_to_program);
+void dcn401_wait_for_dcc_meta_propagation(uint32_t delay);
 
 void dcn401_prepare_bandwidth(struct dc *dc,
 		struct dc_state *context);

@@ -4973,9 +4973,7 @@ static void commit_planes_for_stream(struct dc *dc,
 						top_pipe_to_program->stream_res.tg);
 		}
 
-	if (dc->hwss.wait_for_dcc_meta_propagation) {
-		dc->hwss.wait_for_dcc_meta_propagation(dc, top_pipe_to_program);
-	}
+	hwss_hubp_wait_for_dcc_meta_prop(dc, top_pipe_to_program);
 
 	if (dc->hwseq->funcs.wait_for_pipe_update_if_needed)
 		dc->hwseq->funcs.wait_for_pipe_update_if_needed(dc, top_pipe_to_program, update_type < UPDATE_TYPE_FULL);

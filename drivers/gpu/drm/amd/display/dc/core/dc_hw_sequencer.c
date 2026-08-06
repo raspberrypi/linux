@@ -1119,6 +1119,22 @@ void hwss_build_post_unlock_full_sequence(struct dc *dc,
 	}
 }
 
+static uint32_t get_dcc_meta_propagation_delay(struct dc *dc, struct pipe_ctx *pipe_ctx)
+{
+	/* check if any surfaces are updating address while using flip immediate and dcc */
+	while (pipe_ctx != NULL) {
+		if (pipe_ctx->plane_state &&
+				pipe_ctx->plane_state->dcc.enable &&
+				pipe_ctx->plane_state->flip_immediate &&
+				pipe_ctx->plane_state->update_bits.addr_update) {
+			return dc->debug.dcc_meta_propagation_delay_us;
+		}
+		/* check next pipe */
+		pipe_ctx = pipe_ctx->bottom_pipe;
+	}
+	return 0;
+}
+
 void hwss_build_fast_sequence(struct dc *dc,
 		struct dc_dmub_cmd *dc_dmub_cmd,
 		unsigned int dmub_cmd_count,
@@ -1142,8 +1158,7 @@ void hwss_build_fast_sequence(struct dc *dc,
 		return;
 
 	if (dc->hwss.wait_for_dcc_meta_propagation) {
-		block_sequence[*num_steps].params.wait_for_dcc_meta_propagation_params.dc = dc;
-		block_sequence[*num_steps].params.wait_for_dcc_meta_propagation_params.top_pipe_to_program = pipe_ctx;
+		block_sequence[*num_steps].params.wait_for_dcc_meta_propagation_params.delay = get_dcc_meta_propagation_delay(dc, pipe_ctx);
 		block_sequence[*num_steps].func = HUBP_WAIT_FOR_DCC_META_PROP;
 		(*num_steps)++;
 	}
@@ -1721,9 +1736,7 @@ void hwss_execute_sequence(struct dc *dc,
 			hwss_subvp_save_surf_addr(params);
 			break;
 		case HUBP_WAIT_FOR_DCC_META_PROP:
-			dc->hwss.wait_for_dcc_meta_propagation(
-					params->wait_for_dcc_meta_propagation_params.dc,
-					params->wait_for_dcc_meta_propagation_params.top_pipe_to_program);
+			dc->hwss.wait_for_dcc_meta_propagation(params->wait_for_dcc_meta_propagation_params.delay);
 			break;
 		case DMUB_HW_CONTROL_LOCK_FAST:
 			dc->hwss.dmub_hw_control_lock_fast(params);
@@ -2432,21 +2445,6 @@ void hwss_add_dmub_subvp_save_surf_addr(struct block_sequence_state *seq_state,
 		seq_state->steps[*seq_state->num_steps].params.subvp_save_surf_addr.addr = addr;
 		seq_state->steps[*seq_state->num_steps].params.subvp_save_surf_addr.subvp_index = subvp_index;
 		seq_state->steps[*seq_state->num_steps].func = DMUB_SUBVP_SAVE_SURF_ADDR;
-		(*seq_state->num_steps)++;
-	}
-}
-
-/*
- * Helper function to add HUBP wait for DCC meta propagation to block sequence
- */
-void hwss_add_hubp_wait_for_dcc_meta_prop(struct block_sequence_state *seq_state,
-		struct dc *dc,
-		struct pipe_ctx *top_pipe_to_program)
-{
-	if (*seq_state->num_steps < MAX_HWSS_BLOCK_SEQUENCE_SIZE) {
-		seq_state->steps[*seq_state->num_steps].params.wait_for_dcc_meta_propagation_params.dc = dc;
-		seq_state->steps[*seq_state->num_steps].params.wait_for_dcc_meta_propagation_params.top_pipe_to_program = top_pipe_to_program;
-		seq_state->steps[*seq_state->num_steps].func = HUBP_WAIT_FOR_DCC_META_PROP;
 		(*seq_state->num_steps)++;
 	}
 }
@@ -6171,3 +6169,12 @@ void get_refresh_rate_confirm_color(struct pipe_ctx *pipe_ctx, struct tg_color *
 		pipe_ctx->visual_confirm_color.color_b_cb = (uint16_t)color_value;
 	}
 }
+
+void hwss_hubp_wait_for_dcc_meta_prop(struct dc *dc, struct pipe_ctx *top_pipe_to_program)
+{
+	if (dc->hwss.wait_for_dcc_meta_propagation) {
+		uint32_t delay = get_dcc_meta_propagation_delay(dc, top_pipe_to_program);
+		dc->hwss.wait_for_dcc_meta_propagation(delay);
+	}
+}
+

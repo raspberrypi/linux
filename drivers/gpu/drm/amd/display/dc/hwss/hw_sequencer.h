@@ -182,8 +182,7 @@ struct subvp_save_surf_addr {
 };
 
 struct wait_for_dcc_meta_propagation_params {
-	const struct dc *dc;
-	const struct pipe_ctx *top_pipe_to_program;
+	uint32_t delay;
 };
 
 struct dmub_hw_control_lock_fast_params {
@@ -1652,8 +1651,7 @@ struct hw_sequencer_funcs {
 	bool (*is_pipe_topology_transition_seamless)(struct dc *dc,
 			const struct dc_state *cur_ctx,
 			const struct dc_state *new_ctx);
-	void (*wait_for_dcc_meta_propagation)(const struct dc *dc,
-		const struct pipe_ctx *top_pipe_to_program);
+	void (*wait_for_dcc_meta_propagation)(uint32_t delay);
 	void (*dmub_hw_control_lock)(struct dc *dc,
 			struct dc_state *context,
 			bool lock);
@@ -2120,6 +2118,8 @@ void hwss_setup_periodic_interrupt(struct dc *dc, union block_sequence_params *p
 
 void hwss_disable_audio_stream(struct dc *dc, union block_sequence_params *params);
 
+void hwss_hubp_wait_for_dcc_meta_prop(struct dc *dc, struct pipe_ctx *top_pipe_to_program);
+
 void hwss_add_optc_pipe_control_lock(struct block_sequence_state *seq_state,
 		struct dc *dc, struct pipe_ctx *pipe_ctx, bool lock);
 
@@ -2166,9 +2166,6 @@ void hwss_add_dmub_send_dmcub_cmd(struct block_sequence_state *seq_state,
 
 void hwss_add_dmub_subvp_save_surf_addr(struct block_sequence_state *seq_state,
 		struct dc_dmub_srv *dc_dmub_srv, struct dc_plane_address *addr, uint8_t subvp_index);
-
-void hwss_add_hubp_wait_for_dcc_meta_prop(struct block_sequence_state *seq_state,
-		struct dc *dc, struct pipe_ctx *top_pipe_to_program);
 
 void hwss_add_hubp_wait_pipe_read_start(struct block_sequence_state *seq_state,
 		struct hubp *hubp);
