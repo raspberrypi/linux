@@ -3195,6 +3195,9 @@ static int amt_newlink(struct net *net, struct net_device *dev,
 	struct amt_dev *amt = netdev_priv(dev);
 	int err = -EINVAL;
 
+	if (!net_eq(net, dev_net(dev)))
+		return err;
+
 	amt->net = net;
 	amt->mode = nla_get_u32(data[IFLA_AMT_MODE]);
 
