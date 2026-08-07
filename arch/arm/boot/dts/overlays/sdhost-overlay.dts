@@ -54,5 +54,6 @@
 		pio_limit        = <&frag0>,"brcm,pio-limit:0";
 		debug            = <&frag0>,"brcm,debug?";
 		gpios_22_27      = <0>,"+3+4";
+		preserve_mmc     = <0>,"-1-2";
 	};
 };
