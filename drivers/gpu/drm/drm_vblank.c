@@ -649,9 +649,15 @@ void drm_calc_timestamping_constants(struct drm_crtc *crtc,
 		framedur_ns = div_u64((u64) frame_size * 1000000, dotclock);
 
 		/*
-		 * Fields of interlaced scanout modes are only half a frame duration.
+		 * Fields of interlaced scanout modes are only half a frame
+		 * duration. Halving is only correct while the crtc timings
+		 * still describe a whole frame: a driver that applied
+		 * CRTC_INTERLACE_HALVE_V has already reduced crtc_vtotal to a
+		 * single field, so frame_size above is a field already and
+		 * halving it again reports half the real vblank interval.
 		 */
-		if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+		if ((mode->flags & DRM_MODE_FLAG_INTERLACE) &&
+		    mode->crtc_vtotal >= mode->vtotal)
 			framedur_ns /= 2;
 	} else {
 		drm_err(dev, "crtc %u: Can't calculate constants, dotclock = 0!\n",
