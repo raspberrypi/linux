@@ -3773,6 +3773,7 @@ static inline void proxy_reset_donor(struct rq *rq)
 	WARN_ON_ONCE(rq->donor == rq->curr);
 
 	put_prev_set_next_task(rq, rq->donor, rq->curr);
+	rq->next_class = rq->curr->sched_class;
 	rq_set_donor(rq, rq->curr);
 	zap_balance_callbacks(rq);
 	resched_curr(rq);
