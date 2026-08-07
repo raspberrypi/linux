@@ -6292,7 +6292,7 @@ static bool try_steal_cookie(int this, int that)
 		return false;
 
 	do {
-		if (p == src->core_pick || p == src->curr)
+		if (p == src->core_pick || p == src->curr || p == src->donor)
 			goto next;
 
 		if (!is_cpu_allowed(p, this))
