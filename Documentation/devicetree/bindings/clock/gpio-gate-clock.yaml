@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/gpio-gate-clock.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Simple GPIO clock gate
+
+maintainers:
+  - Jyri Sarha <jsarha@ti.com>
+
+properties:
+  compatible:
+    enum:
+      - gpio-gate-clock
+      - gpio-gate-clock-releasing
+    description: |
+      Use "gpio-gate-clock" for normal operation where the GPIO is held for the
+      lifetime of the clock. Use "gpio-gate-clock-releasing" for power-sensitive
+      applications where the GPIO should be acquired only when the clock is
+      enabled and released when disabled, allowing shared regulators to be
+      powered down.
+
+  clocks:
+    maxItems: 1
+
+  '#clock-cells':
+    const: 0
+
+  enable-gpios:
+    description: GPIO reference for enabling and disabling the clock.
+    maxItems: 1
+
+required:
+  - compatible
+  - '#clock-cells'
+  - enable-gpios
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    clock {
+        compatible = "gpio-gate-clock";
+        clocks = <&parentclk>;
+        #clock-cells = <0>;
+        enable-gpios = <&gpio 1 GPIO_ACTIVE_HIGH>;
+    };
+
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    /* Power-sensitive clock that releases GPIO when disabled */
+    clock {
+        compatible = "gpio-gate-clock-releasing";
+        clocks = <&parentclk>;
+        #clock-cells = <0>;
+        enable-gpios = <&gpio 1 GPIO_ACTIVE_HIGH>;
+    };

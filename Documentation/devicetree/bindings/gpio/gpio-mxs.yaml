@@ -1,0 +1,205 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/gpio/gpio-mxs.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Freescale MXS GPIO controller
+
+maintainers:
+  - Shawn Guo <shawnguo@kernel.org>
+
+description: |
+  The Freescale MXS GPIO controller is part of MXS PIN controller.
+  The GPIOs are organized in port/bank, each port consists of 32 GPIOs.
+  As the GPIO controller is embedded in the PIN controller and all the
+  GPIO ports share the same IO space with PIN controller, the GPIO node
+  will be represented as sub-nodes of MXS pinctrl node.
+
+properties:
+  compatible:
+    items:
+      - enum:
+          - fsl,imx23-pinctrl
+          - fsl,imx28-pinctrl
+      # Over 10 years old devices, driver use simple-bus to probe child gpio
+      # Devices. Keep it as it to be compatible existed dts files.
+      - const: simple-bus
+
+  '#address-cells':
+    const: 1
+  '#size-cells':
+    const: 0
+
+  reg:
+    maxItems: 1
+
+patternProperties:
+  "^(?!gpio@)[^@]+@[0-9]+$":
+    type: object
+    properties:
+      fsl,pinmux-ids:
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+        description: |
+          An integer array.  Each integer in the array specify a pin
+          with given mux function, with bank, pin and mux packed as below.
+
+          [15..12] : bank number
+          [11..4]  : pin number
+          [3..0]   : mux selection
+
+          This integer with mux selection packed is used as an entity by both group
+          and config nodes to identify a pin.  The mux selection in the integer takes
+          effects only on group node, and will get ignored by driver with config node,
+          since config node is only meant to set up pin configurations.
+
+          Valid values for these integers are listed below.
+
+      reg:
+        items:
+          - description: |
+              pin group index. NOTE: it is supposed wrong use reg property
+              here. But it is over 10 years devices. Just keep it as it.
+
+      fsl,drive-strength:
+        $ref: /schemas/types.yaml#/definitions/uint32
+        enum: [0, 1, 2, 3]
+        description: |
+          0: MXS_DRIVE_4mA
+          1: MXS_DRIVE_8mA
+          2: MXS_DRIVE_12mA
+          3: MXS_DRIVE_16mA
+
+      fsl,voltage:
+        $ref: /schemas/types.yaml#/definitions/uint32
+        enum: [0, 1]
+        description: |
+          0: MXS_VOLTAGE_LOW  - 1.8 V
+          1: MXS_VOLTAGE_HIGH - 3.3 V
+
+      fsl,pull-up:
+        $ref: /schemas/types.yaml#/definitions/uint32
+        enum: [0, 1]
+        description: |
+          0: MXS_PULL_DISABLE - Disable the internal pull-up
+          1: MXS_PULL_ENABLE  - Enable the internal pull-up
+
+          Note that when enabling the pull-up, the internal pad keeper gets disabled.
+          Also, some pins doesn't have a pull up, in that case, setting the fsl,pull-up
+          will only disable the internal pad keeper.
+
+    required:
+      - fsl,pinmux-ids
+
+    additionalProperties: false
+
+  "^gpio@[0-9]+$":
+    type: object
+    properties:
+      compatible:
+        enum:
+          - fsl,imx23-gpio
+          - fsl,imx28-gpio
+
+      reg:
+        maxItems: 1
+
+      interrupts:
+        description: Should be the port interrupt shared by all 32 pins.
+        maxItems: 1
+
+      interrupt-controller: true
+
+      "#interrupt-cells":
+        const: 2
+
+      "#gpio-cells":
+        const: 2
+
+      gpio-controller: true
+
+    required:
+      - compatible
+      - reg
+      - interrupts
+      - interrupt-controller
+      - "#interrupt-cells"
+      - "#gpio-cells"
+      - gpio-controller
+
+    additionalProperties: false
+
+required:
+  - compatible
+  - reg
+  - '#address-cells'
+  - '#size-cells'
+
+additionalProperties: false
+
+examples:
+  - |
+    pinctrl@80018000 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        compatible = "fsl,imx28-pinctrl", "simple-bus";
+        reg = <0x80018000 0x2000>;
+
+        gpio@0 {
+            compatible = "fsl,imx28-gpio";
+            reg = <0>;
+            interrupts = <127>;
+            gpio-controller;
+            #gpio-cells = <2>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
+        gpio@1 {
+            compatible = "fsl,imx28-gpio";
+            reg = <1>;
+            interrupts = <126>;
+            gpio-controller;
+            #gpio-cells = <2>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
+        gpio@2 {
+            compatible = "fsl,imx28-gpio";
+            reg = <2>;
+            interrupts = <125>;
+            gpio-controller;
+            #gpio-cells = <2>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
+        gpio@3 {
+            compatible = "fsl,imx28-gpio";
+            reg = <3>;
+            interrupts = <124>;
+            gpio-controller;
+            #gpio-cells = <2>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
+        gpio@4 {
+            compatible = "fsl,imx28-gpio";
+            reg = <4>;
+            interrupts = <123>;
+            gpio-controller;
+            #gpio-cells = <2>;
+            interrupt-controller;
+            #interrupt-cells = <2>;
+        };
+
+        lcdif-apx4@5 {
+            reg = <5>;
+            fsl,pinmux-ids = <0x1181 0x1191>;
+            fsl,drive-strength = <0>;
+            fsl,voltage = <0>;
+            fsl,pull-up = <0>;
+        };
+    };

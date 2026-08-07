@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright (c) 2020 Facebook Inc.
+
+#include "aspeed-bmc-facebook-fuji-data64.dts"
+
+/ {
+	model = "Facebook Fuji BMC";
+	compatible = "facebook,fuji-bmc", "aspeed,ast2600";
+};
+
+&fmc {
+	flash@0 {
+		/delete-node/partitions;
+#include "facebook-bmc-flash-layout-128.dtsi"
+	};
+};

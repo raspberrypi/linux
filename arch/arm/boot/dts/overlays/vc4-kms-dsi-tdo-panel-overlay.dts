@@ -1,0 +1,77 @@
+/*
+ * Device Tree overlay for TDO DSI Touchscreens
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	dsi_frag: fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			panel: panel_dsi1@0 {
+				compatible = "tdo,4.0-dsi-tl040wvs17";
+				status = "okay";
+				reg = <0>;
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	i2c_frag: fragment@1 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&panel>;
+		reset_gpio_frag: __dormant__ {
+			reset-gpios = <&gpio 25 1>;
+		};
+	};
+
+	__overrides__ {
+		tl034wvs03 = <&panel>, "compatible=tdo,4.0-dsi-tl034wvs03";
+		tl040wvs17 = <&panel>, "compatible=tdo,4.0-dsi-tl040wvs17";
+		tl040hds31 = <&panel>, "compatible=tdo,4.0-dsi-tl040hds31";
+		rotation = <&panel>, "rotation:0";
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
+		reset_pin = <0>, "+4",
+				<&reset_gpio_frag>, "reset-gpios:4";
+	};
+};

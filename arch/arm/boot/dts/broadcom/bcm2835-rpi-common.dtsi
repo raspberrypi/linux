@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * This include file covers the common peripherals and configuration between
+ * bcm2835, bcm2836 and bcm2837 implementations that interact with RPi's
+ * firmware interface.
+ */
+
+#include <dt-bindings/power/raspberrypi-power.h>
+
+&hdmi {
+	clocks = <&firmware_clocks 9>,
+		 <&firmware_clocks 13>;
+	clock-names = "pixel", "hdmi";
+};
+
+&pm {
+	clocks = <&firmware_clocks 5>,
+		 <&clocks BCM2835_CLOCK_PERI_IMAGE>,
+		 <&clocks BCM2835_CLOCK_H264>,
+		 <&clocks BCM2835_CLOCK_ISP>;
+	clock-names = "v3d", "peri_image", "h264", "isp";
+};
+
+&v3d {
+	clocks = <&firmware_clocks 5>;
+	power-domains = <&power RPI_POWER_DOMAIN_V3D>;
+};
+
+&vec {
+	clocks = <&firmware_clocks 15>;
+};

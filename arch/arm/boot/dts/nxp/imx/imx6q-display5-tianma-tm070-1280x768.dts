@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+/*
+ * Copyright 2017
+ * Lukasz Majewski, DENX Software Engineering, lukma@denx.de
+ */
+
+/dts-v1/;
+
+#include "imx6q-display5.dtsi"
+
+&panel {
+	compatible = "tianma,tm070jdhg30";
+};
+
+&ldb {
+	lvds0: lvds-channel@0 {
+		fsl,data-mapping = "spwg";
+		fsl,data-width = <18>;
+	};
+};

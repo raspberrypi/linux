@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# HabanaLabs AI accelerators driver
+#
+
+config DRM_ACCEL_HABANALABS
+	tristate "HabanaLabs AI accelerators"
+	depends on DRM_ACCEL
+	depends on X86 && X86_64
+	depends on PCI && HAS_IOMEM
+	select GENERIC_ALLOCATOR
+	select HWMON
+	select DMA_SHARED_BUFFER
+	select CRC32
+	select FW_LOADER
+	help
+	  Enables PCIe card driver for Habana's AI Processors (AIP) that are
+	  designed to accelerate Deep Learning inference and training workloads.
+
+	  The driver manages the PCIe devices and provides IOCTL interface for
+	  the user to submit workloads to the devices.
+
+	  The user-space interface is described in
+	  include/uapi/drm/habanalabs_accel.h
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called habanalabs.
+
+if DRM_ACCEL_HABANALABS
+
+config HL_HLDIO
+	bool "Habanalabs NVMe Direct I/O (HLDIO)"
+	depends on PCI_P2PDMA
+	depends on BLOCK
+	help
+	  Enable NVMe peer-to-peer direct I/O support for Habanalabs AI
+	  accelerators.
+
+	  This allows direct data transfers between NVMe storage devices
+	  and Habanalabs accelerators without involving system memory,
+	  using PCI peer-to-peer DMA capabilities.
+
+	  Requirements:
+	  - CONFIG_PCI_P2PDMA=y
+	  - NVMe device and Habanalabs accelerator under same PCI root complex
+	  - IOMMU disabled or in passthrough mode
+	  - Hardware supporting PCI P2P DMA
+
+	  If unsure, say N
+endif # DRM_ACCEL_HABANALABS

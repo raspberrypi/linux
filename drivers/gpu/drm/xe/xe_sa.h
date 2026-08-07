@@ -1,0 +1,87 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * Copyright © 2022 Intel Corporation
+ */
+#ifndef _XE_SA_H_
+#define _XE_SA_H_
+
+#include <linux/sizes.h>
+#include <linux/types.h>
+
+#include "xe_bo.h"
+#include "xe_sa_types.h"
+
+struct dma_fence;
+struct xe_tile;
+
+#define XE_SA_BO_MANAGER_FLAG_SHADOW	BIT(0)
+struct xe_sa_manager *__xe_sa_bo_manager_init(struct xe_tile *tile, u32 size,
+					      u32 guard, u32 align, u32 flags);
+struct drm_suballoc *__xe_sa_bo_new(struct xe_sa_manager *sa_manager, u32 size, gfp_t gfp);
+
+static inline struct xe_sa_manager *xe_sa_bo_manager_init(struct xe_tile *tile, u32 size, u32 align)
+{
+	return __xe_sa_bo_manager_init(tile, size, SZ_4K, align, 0);
+}
+
+/**
+ * xe_sa_bo_new() - Make a suballocation.
+ * @sa_manager: the &xe_sa_manager
+ * @size: number of bytes we want to suballocate
+ *
+ * Try to make a suballocation of size @size.
+ *
+ * Return: a &drm_suballoc, or an ERR_PTR.
+ */
+static inline struct drm_suballoc *xe_sa_bo_new(struct xe_sa_manager *sa_manager, u32 size)
+{
+	return __xe_sa_bo_new(sa_manager, size, GFP_KERNEL);
+}
+
+void xe_sa_bo_flush_write(struct drm_suballoc *sa_bo);
+void xe_sa_bo_free(struct drm_suballoc *sa_bo, struct dma_fence *fence);
+
+static inline struct xe_sa_manager *
+to_xe_sa_manager(struct drm_suballoc_manager *mng)
+{
+	return container_of(mng, struct xe_sa_manager, base);
+}
+
+/**
+ * xe_sa_manager_gpu_addr - Retrieve GPU address of a back storage BO
+ * within suballocator.
+ * @sa_manager: the &xe_sa_manager struct instance
+ * Return: GGTT address of the back storage BO.
+ */
+static inline u64 xe_sa_manager_gpu_addr(struct xe_sa_manager *sa_manager)
+{
+	return xe_bo_ggtt_addr(sa_manager->bo);
+}
+
+static inline u64 xe_sa_bo_gpu_addr(struct drm_suballoc *sa)
+{
+	return xe_sa_manager_gpu_addr(to_xe_sa_manager(sa->manager)) +
+		drm_suballoc_soffset(sa);
+}
+
+static inline void *xe_sa_bo_cpu_addr(struct drm_suballoc *sa)
+{
+	return to_xe_sa_manager(sa->manager)->cpu_ptr +
+		drm_suballoc_soffset(sa);
+}
+
+void xe_sa_bo_swap_shadow(struct xe_sa_manager *sa_manager);
+void xe_sa_bo_sync_shadow(struct drm_suballoc *sa_bo);
+
+/**
+ * xe_sa_bo_swap_guard() - Retrieve the SA BO swap guard within sub-allocator.
+ * @sa_manager: the &xe_sa_manager
+ *
+ * Return: Sub alloctor swap guard mutex.
+ */
+static inline struct mutex *xe_sa_bo_swap_guard(struct xe_sa_manager *sa_manager)
+{
+	return &sa_manager->swap_guard;
+}
+
+#endif

@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+/*
+ * support for the imx6 based aristainetos2 board
+ *
+ * Copyright (C) 2015 Heiko Schocher <hs@denx.de>
+ */
+/dts-v1/;
+#include "imx6dl.dtsi"
+#include "imx6qdl-aristainetos2.dtsi"
+
+/ {
+	model = "aristainetos2 i.MX6 Dual Lite Board 7";
+	compatible = "abb,aristainetos2-imx6dl-7", "fsl,imx6dl";
+
+	memory@10000000 {
+		device_type = "memory";
+		reg = <0x10000000 0x40000000>;
+	};
+
+	panel: panel {
+		compatible = "lg,lb070wv8";
+		backlight = <&backlight>;
+		enable-gpios = <&gpio6 15 GPIO_ACTIVE_HIGH>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&lvds0_out>;
+			};
+		};
+	};
+};
+
+&i2c3 {
+	touch: touch@4d {
+		compatible = "atmel,maxtouch";
+		reg = <0x4d>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <9 8>;
+	};
+};
+
+&ldb {
+	status = "okay";
+
+	lvds-channel@0 {
+		status = "okay";
+
+		port@0 {
+			reg = <0>;
+			lvds0_in: endpoint {
+				remote-endpoint = <&ipu1_di0_lvds0>;
+			};
+		};
+
+		port@4 {
+			reg = <4>;
+			lvds0_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+	};
+};
