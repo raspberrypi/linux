@@ -147,20 +147,29 @@ static ssize_t target_type_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(target_type);
 
+/*
+ * Interleave ways selects how many targets a decoder uses, but the target
+ * array is only nr_targets long. Bound array access by both.
+ */
+static int cxlsd_nr_used_targets(struct cxl_switch_decoder *cxlsd)
+{
+	return min(cxlsd->cxld.interleave_ways, cxlsd->nr_targets);
+}
+
 static ssize_t emit_target_list(struct cxl_switch_decoder *cxlsd, char *buf)
 {
-	struct cxl_decoder *cxld = &cxlsd->cxld;
+	int nr_used = cxlsd_nr_used_targets(cxlsd);
 	ssize_t offset = 0;
 	int i, rc = 0;
 
-	for (i = 0; i < cxld->interleave_ways; i++) {
+	for (i = 0; i < nr_used; i++) {
 		struct cxl_dport *dport = cxlsd->target[i];
 		struct cxl_dport *next = NULL;
 
 		if (!dport)
 			break;
 
-		if (i + 1 < cxld->interleave_ways)
+		if (i + 1 < nr_used)
 			next = cxlsd->target[i + 1];
 		rc = sysfs_emit_at(buf, offset, "%d%s", dport->port_id,
 				   next ? "," : "");
@@ -1602,7 +1611,7 @@ static int update_decoder_targets(struct device *dev, void *data)
 	struct cxl_dport *dport = data;
 	struct cxl_switch_decoder *cxlsd;
 	struct cxl_decoder *cxld;
-	int i;
+	int i, nr_used;
 
 	if (!is_switch_decoder(dev))
 		return 0;
@@ -1610,8 +1619,9 @@ static int update_decoder_targets(struct device *dev, void *data)
 	cxlsd = to_cxl_switch_decoder(dev);
 	cxld = &cxlsd->cxld;
 	guard(rwsem_write)(&cxl_rwsem.region);
+	nr_used = cxlsd_nr_used_targets(cxlsd);
 
-	for (i = 0; i < cxld->interleave_ways; i++) {
+	for (i = 0; i < nr_used; i++) {
 		if (cxld->target_map[i] == dport->port_id) {
 			cxlsd->target[i] = dport;
 			dev_dbg(dev, "dport%d found in target list, index %d\n",
@@ -1914,7 +1924,7 @@ static int decoder_populate_targets(struct cxl_switch_decoder *cxlsd,
 				    struct cxl_port *port)
 {
 	struct cxl_decoder *cxld = &cxlsd->cxld;
-	int i;
+	int i, nr_used;
 
 	device_lock_assert(&port->dev);
 
@@ -1922,7 +1932,8 @@ static int decoder_populate_targets(struct cxl_switch_decoder *cxlsd,
 		return 0;
 
 	guard(rwsem_write)(&cxl_rwsem.region);
-	for (i = 0; i < cxlsd->cxld.interleave_ways; i++) {
+	nr_used = cxlsd_nr_used_targets(cxlsd);
+	for (i = 0; i < nr_used; i++) {
 		struct cxl_dport *dport = find_dport(port, cxld->target_map[i]);
 
 		if (!dport) {
