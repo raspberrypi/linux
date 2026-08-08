@@ -238,6 +238,39 @@ static int svc_one_sock_name(struct svc_sock *svsk, char *buf, int remaining)
 	return len;
 }
 
+/*
+ * kTLS delivers a record only up to the caller's buffer and keeps
+ * the remainder on its receive list, where no further data_ready
+ * announces it. Consume the whole record.
+ */
+static void
+svc_tcp_sock_drain_record(struct socket *sock)
+{
+	union {
+		struct cmsghdr	cmsg;
+		u8		buf[CMSG_SPACE(sizeof(u8))];
+	} u;
+	u8 discard[64];
+	struct kvec discard_kvec = {
+		.iov_base = discard,
+		.iov_len = sizeof(discard),
+	};
+
+	for (;;) {
+		struct msghdr msg = {
+			.msg_control = &u,
+			.msg_controllen = sizeof(u),
+		};
+
+		iov_iter_kvec(&msg.msg_iter, ITER_DEST, &discard_kvec, 1,
+			      discard_kvec.iov_len);
+		if (sock_recvmsg(sock, &msg, MSG_DONTWAIT) <= 0)
+			break;
+		if (msg.msg_flags & MSG_EOR)
+			break;
+	}
+}
+
 static int
 svc_tcp_sock_process_cmsg(struct socket *sock, struct msghdr *msg,
 			  struct cmsghdr *cmsg, int ret)
@@ -293,12 +326,20 @@ svc_tcp_sock_recv_cmsg(struct socket *sock, unsigned int *msg_flags)
 	 * kTLS filled in u.cmsg.
 	 */
 	if (ret >= 0 && msg.msg_controllen < sizeof(u)) {
+		u8 content_type = tls_get_record_type(sock->sk, &u.cmsg);
+
 		/* Returning the count would credit the RPC stream with
 		 * octets that never reached the caller's buffer.
 		 */
-		if (tls_get_record_type(sock->sk, &u.cmsg) !=
-		    TLS_RECORD_TYPE_ALERT)
+		if (content_type != TLS_RECORD_TYPE_ALERT) {
+			/* An application data record carries RPC payload.
+			 * Draining one breaks RPC fragment framing.
+			 */
+			if (content_type != TLS_RECORD_TYPE_DATA &&
+			    !(msg.msg_flags & MSG_EOR))
+				svc_tcp_sock_drain_record(sock);
 			return -EAGAIN;
+		}
 		/* An Alert record carries exactly one two-octet message
 		 * (RFC 8446 Section 5.1). alert_kvec caps the receive at two,
 		 * so a longer record produces the same count. MSG_EOR appears
@@ -321,8 +362,16 @@ svc_tcp_sock_recvmsg(struct svc_sock *svsk, struct msghdr *msg)
 	ret = sock_recvmsg(sock, msg, MSG_DONTWAIT);
 	if (msg->msg_flags & MSG_CTRUNC) {
 		msg->msg_flags &= ~(MSG_CTRUNC | MSG_EOR);
-		if (ret == 0 || ret == -EIO)
+		if (ret == 0 || ret == -EIO) {
 			ret = svc_tcp_sock_recv_cmsg(sock, &msg->msg_flags);
+			/* A control record delivers nothing to the caller,
+			 * and kTLS announces no data_ready for records it
+			 * already holds. Mark the transport ready so that
+			 * the records behind this one can be received.
+			 */
+			if (ret == -EAGAIN)
+				set_bit(XPT_DATA, &svsk->sk_xprt.xpt_flags);
+		}
 	}
 	return ret;
 }
