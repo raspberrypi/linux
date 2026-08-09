@@ -1295,6 +1295,11 @@ static int pyrf_evsel__set_tracking(PyObject *self, PyObject *val, void *closure
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
 	is_true = PyObject_IsTrue(val);
 	if (is_true < 0)
 		return -1;
@@ -1306,11 +1311,21 @@ static int pyrf_evsel__set_tracking(PyObject *self, PyObject *val, void *closure
 static int pyrf_evsel__set_attr_config(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.config = PyLong_AsUnsignedLongLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLongLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.config = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_config(PyObject *self, void *closure __maybe_unused)
@@ -1325,11 +1340,21 @@ static PyObject *pyrf_evsel__get_attr_config(PyObject *self, void *closure __may
 static int pyrf_evsel__set_attr_read_format(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.read_format = PyLong_AsUnsignedLongLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLongLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.read_format = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_read_format(PyObject *self, void *closure __maybe_unused)
@@ -1344,11 +1369,21 @@ static PyObject *pyrf_evsel__get_attr_read_format(PyObject *self, void *closure 
 static int pyrf_evsel__set_attr_sample_period(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.sample_period = PyLong_AsUnsignedLongLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLongLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.sample_period = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_sample_period(PyObject *self, void *closure __maybe_unused)
@@ -1363,11 +1398,21 @@ static PyObject *pyrf_evsel__get_attr_sample_period(PyObject *self, void *closur
 static int pyrf_evsel__set_attr_sample_type(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.sample_type = PyLong_AsUnsignedLongLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLongLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.sample_type = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_sample_type(PyObject *self, void *closure __maybe_unused)
@@ -1391,11 +1436,21 @@ static PyObject *pyrf_evsel__get_attr_size(PyObject *self, void *closure __maybe
 static int pyrf_evsel__set_attr_type(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.type = PyLong_AsUnsignedLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.type = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_type(PyObject *self, void *closure __maybe_unused)
@@ -1410,11 +1465,21 @@ static PyObject *pyrf_evsel__get_attr_type(PyObject *self, void *closure __maybe
 static int pyrf_evsel__set_attr_wakeup_events(PyObject *self, PyObject *val, void *closure __maybe_unused)
 {
 	struct pyrf_evsel *pevsel = (void *)self;
+	unsigned long new_val;
 
 	CHECK_INITIALIZED_INT(pevsel->evsel, "evsel");
 
-	pevsel->evsel->core.attr.wakeup_events = PyLong_AsUnsignedLong(val);
-	return PyErr_Occurred() ? -1 : 0;
+	if (val == NULL) {
+		PyErr_SetString(PyExc_TypeError, "cannot delete attribute");
+		return -1;
+	}
+
+	new_val = PyLong_AsUnsignedLong(val);
+	if (PyErr_Occurred())
+		return -1;
+
+	pevsel->evsel->core.attr.wakeup_events = new_val;
+	return 0;
 }
 
 static PyObject *pyrf_evsel__get_attr_wakeup_events(PyObject *self, void *closure __maybe_unused)
