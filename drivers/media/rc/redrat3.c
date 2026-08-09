@@ -975,6 +975,7 @@ static int redrat3_dev_probe(struct usb_interface *intf,
 	struct device *dev = &intf->dev;
 	struct usb_host_interface *uhi;
 	struct redrat3_dev *rr3;
+	struct rc_dev *rc;
 	struct usb_endpoint_descriptor *ep;
 	struct usb_endpoint_descriptor *ep_narrow = NULL;
 	struct usb_endpoint_descriptor *ep_wide = NULL;
@@ -1119,9 +1120,12 @@ static int redrat3_dev_probe(struct usb_interface *intf,
 	return 0;
 
 led_free:
+	rc_unregister_device(rr3->rc);
 	led_classdev_unregister(&rr3->led);
 redrat_free:
+	rc = rr3->rc;
 	redrat3_delete(rr3, rr3->udev);
+	rc_free_device(rc);
 
 no_endpoints:
 	return retval;
