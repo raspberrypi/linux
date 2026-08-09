@@ -404,11 +404,13 @@ static struct kmem_cache *pwq_cache __ro_after_init;
 
 /*
  * List of files with newly added links, where we may need to limit the number
- * of emanating paths. Protected by the epnested_mutex.
+ * of emanating paths. Protected by the epnested_mutex. The ->file field holds
+ * a reference to the associated file while the head is on the list.
  */
 struct epitems_head {
 	struct hlist_head epitems;
 	struct epitems_head *next;
+	struct file *file;
 };
 static struct epitems_head *tfile_check_list = EP_UNACTIVE_PTR;
 
@@ -426,6 +428,16 @@ static void list_file(struct file *file)
 
 	head = container_of(file->f_ep, struct epitems_head, epitems);
 	if (!head->next) {
+		/*
+		 * The caller owns a reference to @file or holds the ep->mtx for the
+		 * epitem that led here. The latter blocks eventpoll_release_file()
+		 * before the file allocation can be freed and reused. A dying leaf
+		 * can be skipped since removing links cannot increase the reverse
+		 * path count.
+		 */
+		if (!atomic_long_inc_not_zero(&file->f_count))
+			return;
+		head->file = file;
 		head->next = tfile_check_list;
 		tfile_check_list = head;
 	}
@@ -435,15 +447,18 @@ static void unlist_file(struct epitems_head *head)
 {
 	struct epitems_head *to_free = head;
 	struct hlist_node *p = rcu_dereference(hlist_first_rcu(&head->epitems));
+	struct file *file = head->file;
 	if (p) {
 		struct epitem *epi= container_of(p, struct epitem, fllink);
 		spin_lock(&epi->ffd.file->f_lock);
 		if (!hlist_empty(&head->epitems))
 			to_free = NULL;
 		head->next = NULL;
+		head->file = NULL;
 		spin_unlock(&epi->ffd.file->f_lock);
 	}
 	free_ephead(to_free);
+	fput(file);
 }
 
 #ifdef CONFIG_SYSCTL
