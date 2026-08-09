@@ -181,6 +181,13 @@ do {								\
 #define ASSERT(expr)	(void)(expr)
 #endif
 
+#ifdef CONFIG_BTRFS_DEBUG
+/* Verbose warning only under debug build. */
+#define DEBUG_WARN(args...)			WARN(1, KERN_ERR args)
+#else
+#define DEBUG_WARN(...)				do {} while(0)
+#endif
+
 __printf(5, 6)
 __cold
 void __btrfs_handle_fs_error(struct btrfs_fs_info *fs_info, const char *function,
