@@ -453,7 +453,7 @@ static int iommufd_hwpt_replace_device(struct iommufd_device *idev,
 		goto out_disable_iopf;
 
 	if (old->fault) {
-		iommufd_auto_response_faults(hwpt, old_handle);
+		iommufd_auto_response_faults(old, old_handle);
 		if (!hwpt->fault)
 			iommufd_fault_iopf_disable(idev);
 	}
