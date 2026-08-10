@@ -9,6 +9,7 @@
 #include <dt-bindings/interconnect/qcom,msm8974.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/reset/qcom,gcc-msm8974.h>
+#include <dt-bindings/reset/qcom,mmcc-msm8974.h>
 
 / {
 	#address-cells = <1>;
@@ -1909,6 +1910,8 @@
 
 			interrupt-controller;
 			#interrupt-cells = <1>;
+
+			resets = <&mmcc MDSS_RESET>;
 
 			status = "disabled";
 
