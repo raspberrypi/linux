@@ -12982,6 +12982,19 @@ EXPORT_SYMBOL_GPL(__x86_set_memory_region);
 
 void kvm_arch_pre_destroy_vm(struct kvm *kvm)
 {
+	/*
+	 * Cancel (and flush) the I/O APIC's delayed EOI handling before vCPUs
+	 * are destroyed, as processing the EOI broadcast will inject another
+	 * IRQ if the line is asserted, i.e. will try to deliver an IRQ to the
+	 * target vCPU(s).
+	 *
+	 * Do NOT free the in-kernel PIC or I/O APIC here (but do make sure to
+	 * flush any background work), as KVM expects interrupt routing
+	 * structures to be valid until vCPUs are destroyed.
+	 */
+	if (kvm->arch.vioapic)
+		cancel_delayed_work_sync(&kvm->arch.vioapic->eoi_inject);
+
 	kvm_mmu_pre_destroy_vm(kvm);
 }
 
