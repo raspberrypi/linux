@@ -44,6 +44,11 @@ impl super::Gsp {
 
         let gsp_fw = KBox::pin_init(GspFirmware::new(dev, chipset), GFP_KERNEL)?;
 
+        self.cmdq
+            .send_command_no_wait(bar, commands::SetSystemInfo::new(pdev, chipset))?;
+        self.cmdq
+            .send_command_no_wait(bar, commands::SetRegistry::new(ctx.vgpu.state())?)?;
+
         // Perform the chipset-specific boot sequence, and retrieve the unload bundle.
         let unload_bundle = hal.boot(&self, &mut ctx, &gsp_fw)?.or_else(|| {
             dev_warn!(dev, "The GSP won't be able to unload properly on unbind.\n");
@@ -72,11 +77,6 @@ impl super::Gsp {
         )?;
 
         dev_dbg!(pdev, "RISC-V active? {}\n", gsp_falcon.is_riscv_active(),);
-
-        self.cmdq
-            .send_command_no_wait(bar, commands::SetSystemInfo::new(pdev, chipset))?;
-        self.cmdq
-            .send_command_no_wait(bar, commands::SetRegistry::new(ctx.vgpu.state())?)?;
 
         hal.post_boot(&self, ctx, &gsp_fw)?;
 
