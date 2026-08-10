@@ -74,8 +74,7 @@ void dcn10_program_output_csc(struct dc *dc,
 		uint16_t *matrix,
 		int opp_id);
 bool dcn10_set_output_transfer_func(struct set_output_transfer_func_params *params);
-bool dcn10_set_input_transfer_func(struct dc *dc, struct pipe_ctx *pipe_ctx,
-			const struct dc_plane_state *plane_state);
+bool dcn10_set_input_transfer_func(struct set_input_transfer_func_params *params);
 void dcn10_update_plane_addr(const struct dc *dc, struct pipe_ctx *pipe_ctx);
 void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx);
 void dcn10_reset_hw_ctx_wrap(

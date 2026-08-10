@@ -477,14 +477,18 @@ bool dcn32_set_mpc_shaper_3dlut(struct dpp *dpp, struct mpc *mpc,
 	return result;
 }
 
-bool dcn32_set_mcm_luts(
-	struct pipe_ctx *pipe_ctx, const struct dc_plane_state *plane_state)
+bool dcn32_set_mcm_luts(struct dc *dc, struct dpp *dpp, struct hubp *hubp,
+	struct hubp *primary_hubp, struct mpc *mpc, int mpcc_id,
+	struct dc_stream_state *stream,
+	struct dc_plane_state *plane_state)
 {
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
-	int mpcc_id = pipe_ctx->plane_res.hubp->inst;
-	struct mpc *mpc = pipe_ctx->stream_res.opp->ctx->dc->res_pool->mpc;
 	bool rval, result;
 	const struct pwl_params *lut_params = NULL;
+
+	(void)dc;
+	(void)hubp;
+	(void)primary_hubp;
+	(void)stream;
 
 	// 1D LUT
 	if (plane_state->cm.blend_func.type == TF_TYPE_HWPWL)
@@ -492,11 +496,11 @@ bool dcn32_set_mcm_luts(
 	else if (plane_state->cm.blend_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
 		result = cm3_helper_translate_curve_to_degamma_hw_format(
 			&plane_state->cm.blend_func,
-			&dpp_base->regamma_params);
+			&dpp->regamma_params);
 		if (!result)
 			return result;
 
-		lut_params = &dpp_base->regamma_params;
+		lut_params = &dpp->regamma_params;
 	}
 	mpc->funcs->program_1dlut(mpc, lut_params, mpcc_id);
 	lut_params = NULL;
@@ -505,12 +509,12 @@ bool dcn32_set_mcm_luts(
 	if (plane_state->cm.shaper_func.type == TF_TYPE_HWPWL)
 		lut_params = &plane_state->cm.shaper_func.pwl;
 	else if (plane_state->cm.shaper_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
-		// TODO: dpp_base replace
+		// TODO: dpp replace
 		rval = cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
 			&plane_state->cm.shaper_func,
-			&dpp_base->shaper_params,
+			&dpp->shaper_params,
 			true);
-		lut_params = rval ? &dpp_base->shaper_params : NULL;
+		lut_params = rval ? &dpp->shaper_params : NULL;
 	}
 
 	mpc->funcs->program_shaper(mpc, lut_params, mpcc_id);
@@ -524,19 +528,17 @@ bool dcn32_set_mcm_luts(
 	return result;
 }
 
-bool dcn32_set_input_transfer_func(struct dc *dc,
-				struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state)
+bool dcn32_set_input_transfer_func(struct set_input_transfer_func_params *params)
 {
-	struct dce_hwseq *hws = dc->hwseq;
-	struct mpc *mpc = dc->res_pool->mpc;
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
+	struct dce_hwseq *hws = params->dc->hwseq;
+	struct dpp *dpp = params->dpp;
+	struct dc_plane_state *plane_state = params->plane_state;
 
 	enum dc_transfer_func_predefined tf;
 	bool result = true;
-	const struct pwl_params *params = NULL;
+	const struct pwl_params *pwl_params = NULL;
 
-	if (mpc == NULL || plane_state == NULL)
+	if (params->mpc == NULL || plane_state == NULL)
 		return false;
 
 	tf = TRANSFER_FUNCTION_UNITY;
@@ -544,24 +546,24 @@ bool dcn32_set_input_transfer_func(struct dc *dc,
 	if (plane_state->in_transfer_func.type == TF_TYPE_PREDEFINED)
 		tf = plane_state->in_transfer_func.tf;
 
-	if (dpp_base->funcs->dpp_set_pregam_state)
-		dpp_base->funcs->dpp_set_pregam_state(dpp_base, tf, plane_state->scaling_linearity);
+	if (dpp->funcs->dpp_set_pregam_state)
+		dpp->funcs->dpp_set_pregam_state(dpp, tf, plane_state->scaling_linearity);
 	else
-		dpp_base->funcs->dpp_set_pre_degam(dpp_base, tf);
+		dpp->funcs->dpp_set_pre_degam(dpp, tf);
 
 	if (plane_state->in_transfer_func.type == TF_TYPE_HWPWL)
-		params = &plane_state->in_transfer_func.pwl;
+		pwl_params = &plane_state->in_transfer_func.pwl;
 	else if (plane_state->in_transfer_func.type == TF_TYPE_DISTRIBUTED_POINTS &&
 		cm3_helper_translate_curve_to_degamma_hw_format(&plane_state->in_transfer_func,
-								&dpp_base->degamma_params))
-		params = &dpp_base->degamma_params;
+								&dpp->degamma_params))
+		pwl_params = &dpp->degamma_params;
 
-	dpp_base->funcs->dpp_program_gamcor_lut(dpp_base, params);
+	dpp->funcs->dpp_program_gamcor_lut(dpp, pwl_params);
 
-	if (pipe_ctx->stream_res.opp &&
-			pipe_ctx->stream_res.opp->ctx &&
-			hws->funcs.set_mcm_luts)
-		result = hws->funcs.set_mcm_luts(pipe_ctx, plane_state);
+	if (hws->funcs.set_mcm_luts)
+		result = hws->funcs.set_mcm_luts(params->dc, dpp, params->hubp,
+			params->primary_hubp, params->mpc, params->mpcc_id,
+			params->stream, plane_state);
 
 	return result;
 }

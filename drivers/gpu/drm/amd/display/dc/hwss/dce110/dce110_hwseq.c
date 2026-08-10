@@ -283,11 +283,10 @@ static void dce110_prescale_params(struct ipp_prescale_params *prescale_params,
 }
 
 static bool
-dce110_set_input_transfer_func(struct dc *dc, struct pipe_ctx *pipe_ctx,
-			       const struct dc_plane_state *plane_state)
+dce110_set_input_transfer_func(struct set_input_transfer_func_params *params)
 {
-	(void)dc;
-	struct input_pixel_processor *ipp = pipe_ctx->plane_res.ipp;
+	struct input_pixel_processor *ipp = params->ipp;
+	struct dc_plane_state *plane_state = params->plane_state;
 	const struct dc_transfer_func *tf = NULL;
 	struct ipp_prescale_params prescale_params = { 0 };
 	bool result = true;
@@ -3140,7 +3139,6 @@ static void dce110_program_front_end_for_pipe(
 	struct xfm_grph_csc_adjustment adjust;
 	struct out_csc_color_matrix tbl_entry;
 	unsigned int i;
-	struct dce_hwseq *hws = dc->hwseq;
 
 	memset(&tbl_entry, 0, sizeof(tbl_entry));
 
@@ -3199,7 +3197,7 @@ static void dce110_program_front_end_for_pipe(
 	if (pipe_ctx->plane_state->update_bits.full_update ||
 			pipe_ctx->plane_state->update_bits.in_transfer_func_change ||
 			pipe_ctx->plane_state->update_bits.gamma_change)
-		hws->funcs.set_input_transfer_func(dc, pipe_ctx, pipe_ctx->plane_state);
+		hwss_set_input_transfer_func(dc, pipe_ctx);
 
 	if (pipe_ctx->plane_state->update_bits.full_update)
 		hwss_set_output_transfer_func(dc, pipe_ctx);
@@ -3686,5 +3684,6 @@ void dce110_hw_sequencer_construct(struct dc *dc)
 	dc->hwss = dce110_funcs;
 	dc->hwseq->funcs = dce110_private_funcs;
 }
+
 #endif /* CONFIG_DRM_AMD_DC_DCE */
 

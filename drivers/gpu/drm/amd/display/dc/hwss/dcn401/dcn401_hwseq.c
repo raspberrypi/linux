@@ -420,24 +420,21 @@ void dcn401_trigger_3dlut_dma_load(struct pipe_ctx *pipe_ctx)
 	}
 }
 
-bool dcn401_set_mcm_luts(struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state)
+bool dcn401_set_mcm_luts(struct dc *dc, struct dpp *dpp, struct hubp *hubp,
+				struct hubp *primary_hubp, struct mpc *mpc, int mpcc_id,
+				struct dc_stream_state *stream,
+				struct dc_plane_state *plane_state)
 {
-	struct dc *dc = pipe_ctx->plane_res.hubp->ctx->dc;
-	const struct pipe_ctx *primary_dpp_pipe_ctx = resource_get_primary_dpp_pipe(pipe_ctx);
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
-	struct hubp *hubp = pipe_ctx->plane_res.hubp;
-	struct hubp *primary_hubp = primary_dpp_pipe_ctx ?
-			primary_dpp_pipe_ctx->plane_res.hubp : hubp;   /* fall back to current pipe */
 	const struct dc_plane_cm *cm = &plane_state->cm;
-	int mpcc_id = hubp->inst;
-	struct mpc *mpc = dc->res_pool->mpc;
 	union mcm_lut_params m_lut_params;
 	struct dc_3dlut_dma lut3d_dma;
 	bool lut_enable;
 	bool lut_bank_a;
 	bool rval;
 	bool result = true;
+
+	(void)dc;
+	(void)stream;
 
 	/* decide LUT bank based on current in use */
 	mpc->funcs->get_lut_mode(mpc, MCM_LUT_1DLUT, mpcc_id, &lut_enable, &lut_bank_a);
@@ -465,9 +462,9 @@ bool dcn401_set_mcm_luts(struct pipe_ctx *pipe_ctx,
 		else if (cm->blend_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
 			rval = cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
 					&cm->blend_func,
-					&dpp_base->regamma_params,
+					&dpp->regamma_params,
 					false);
-			m_lut_params.pwl = rval ? &dpp_base->regamma_params : NULL;
+			m_lut_params.pwl = rval ? &dpp->regamma_params : NULL;
 		}
 
 		if (!m_lut_params.pwl) {
@@ -492,9 +489,9 @@ bool dcn401_set_mcm_luts(struct pipe_ctx *pipe_ctx,
 			ASSERT(false);
 			rval = cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
 					&cm->shaper_func,
-					&dpp_base->shaper_params,
+					&dpp->shaper_params,
 					true);
-			m_lut_params.pwl = rval ? &dpp_base->shaper_params : NULL;
+			m_lut_params.pwl = rval ? &dpp->shaper_params : NULL;
 		}
 		if (!m_lut_params.pwl) {
 			lut_enable = false;
@@ -2287,7 +2284,7 @@ void dcn401_program_pipe(
 			pipe_ctx->plane_state->update_bits.gamma_change ||
 			pipe_ctx->plane_state->update_bits.lut_3d ||
 			pipe_ctx->update_flags.bits.enable))
-		hws->funcs.set_input_transfer_func(dc, pipe_ctx, pipe_ctx->plane_state);
+		hwss_set_input_transfer_func(dc, pipe_ctx);
 
 	/* dcn10_translate_regamma_to_hw_format takes 750us to finish
 	 * only do gamma programming for powering on, internal memcmp to avoid
@@ -2444,7 +2441,7 @@ void dcn401_program_pipe_sequence(
 			pipe_ctx->plane_state->update_bits.lut_3d ||
 			pipe_ctx->update_flags.bits.enable)) {
 
-		hwss_add_dpp_set_input_transfer_func(seq_state, dc, pipe_ctx, pipe_ctx->plane_state);
+		hwss_add_dpp_set_input_transfer_func(seq_state, dc, pipe_ctx);
 	}
 
 	/* dcn10_translate_regamma_to_hw_format takes 750us to finish

@@ -275,7 +275,6 @@ dce60_program_front_end_for_pipe(
 	struct xfm_grph_csc_adjustment adjust;
 	struct out_csc_color_matrix tbl_entry;
 	unsigned int i;
-	struct dce_hwseq *hws = dc->hwseq;
 
 	DC_LOGGER_INIT();
 	memset(&tbl_entry, 0, sizeof(tbl_entry));
@@ -335,7 +334,7 @@ dce60_program_front_end_for_pipe(
 	if (pipe_ctx->plane_state->update_bits.full_update ||
 			pipe_ctx->plane_state->update_bits.in_transfer_func_change ||
 			pipe_ctx->plane_state->update_bits.gamma_change)
-		hws->funcs.set_input_transfer_func(dc, pipe_ctx, pipe_ctx->plane_state);
+		hwss_set_input_transfer_func(dc, pipe_ctx);
 
 	if (pipe_ctx->plane_state->update_bits.full_update)
 		hwss_set_output_transfer_func(dc, pipe_ctx);

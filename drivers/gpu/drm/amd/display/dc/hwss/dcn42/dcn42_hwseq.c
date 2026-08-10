@@ -413,19 +413,18 @@ static bool dc_is_rmcm_3dlut_supported(struct hubp *hubp, struct mpc *mpc)
 }
 
 bool dcn42_program_rmcm_luts(
+	struct dc *dc,
+	struct dpp *dpp,
 	struct hubp *hubp,
-	struct pipe_ctx *pipe_ctx,
 	const struct dc_plane_cm *cm,
 	struct mpc *mpc,
-	int mpcc_id)
+	int mpcc_id,
+	struct dc_stream_state *stream)
 {
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
 	union mcm_lut_params m_lut_params = {0};
 
-	struct dc *dc = hubp->ctx->dc;
 	struct mpc_fl_3dlut_config mpc_fl_config;
 
-	struct dc_stream_state *stream = pipe_ctx->stream;
 	bool bypass_rmcm_shaper = false;
 	// true->false when it can be allocated at DI time
 	struct dc_rmcm_3dlut *rmcm_3dlut = dc_stream_get_3dlut_for_stream(dc, stream, false);
@@ -457,8 +456,8 @@ bool dcn42_program_rmcm_luts(
 			cm_helper_translate_curve_to_hw_format(
 					dc->ctx,
 					&cm->shaper_func,
-					&dpp_base->shaper_params, true);
-			m_lut_params.pwl = &dpp_base->shaper_params;
+					&dpp->shaper_params, true);
+			m_lut_params.pwl = &dpp->shaper_params;
 		}
 		if (m_lut_params.pwl) {
 			if (mpc->funcs->rmcm.populate_lut)
@@ -511,31 +510,29 @@ bool dcn42_program_rmcm_luts(
 	return true;
 }
 
-bool dcn42_set_mcm_luts(struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state)
+bool dcn42_set_mcm_luts(struct dc *dc, struct dpp *dpp, struct hubp *hubp,
+				struct hubp *primary_hubp, struct mpc *mpc, int mpcc_id,
+				struct dc_stream_state *stream,
+				struct dc_plane_state *plane_state)
 {
 	bool result;
+	const struct dc_plane_cm *cm = &plane_state->cm;
 
 	/* MCM */
-	result = dcn401_set_mcm_luts(pipe_ctx, plane_state);
+	result = dcn401_set_mcm_luts(dc, dpp, hubp, primary_hubp, mpc, mpcc_id,
+			stream, plane_state);
 
 	/* RMCM */
-	{
-		struct dc *dc = pipe_ctx->plane_res.hubp->ctx->dc;
-		struct hubp *hubp = pipe_ctx->plane_res.hubp;
-		const struct dc_plane_cm *cm = &plane_state->cm;
-		struct mpc *mpc = dc->res_pool->mpc;
-		int mpcc_id = hubp->inst;
-
-		if (cm->flags.bits.rmcm_enable && cm->flags.bits.lut3d_dma_enable) {
-			/* TODO - move RMCM to its own block */
-			dcn42_program_rmcm_luts(
-				hubp,
-				pipe_ctx,
-				cm,
-				mpc,
-				mpcc_id);
-		}
+	if (cm->flags.bits.rmcm_enable && cm->flags.bits.lut3d_dma_enable) {
+		/* TODO - move RMCM to its own block */
+		dcn42_program_rmcm_luts(
+			dc,
+			dpp,
+			hubp,
+			cm,
+			mpc,
+			mpcc_id,
+			stream);
 	}
 
 	return result;

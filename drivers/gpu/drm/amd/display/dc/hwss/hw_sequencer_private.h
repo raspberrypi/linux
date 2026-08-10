@@ -90,9 +90,7 @@ struct hwseq_private_funcs {
 	void (*update_mpcc)(struct dc *dc, struct pipe_ctx *pipe_ctx);
 	void (*update_mpcc_sequence)(struct dc *dc, struct pipe_ctx *pipe_ctx,
 			struct block_sequence_state *seq_state);
-	bool (*set_input_transfer_func)(struct dc *dc,
-				struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state);
+	bool (*set_input_transfer_func)(struct set_input_transfer_func_params *params);
 	bool (*set_output_transfer_func)(struct set_output_transfer_func_params *params);
 	void (*power_down)(struct dc *dc);
 	void (*enable_display_pipe_clock_gating)(struct dc_context *ctx,
@@ -187,12 +185,14 @@ struct hwseq_private_funcs {
 		struct block_sequence_state *seq_state);
 	bool (*wait_for_blank_complete)(struct output_pixel_processor *opp);
 	void (*dccg_init)(struct dce_hwseq *hws);
-	bool (*set_blend_lut)(struct pipe_ctx *pipe_ctx,
-			const struct dc_plane_state *plane_state);
-	bool (*set_shaper_3dlut)(struct pipe_ctx *pipe_ctx,
-			const struct dc_plane_state *plane_state);
-	bool (*set_mcm_luts)(struct pipe_ctx *pipe_ctx,
-			const struct dc_plane_state *plane_state);
+	bool (*set_blend_lut)(struct dpp *dpp,
+			struct dc_plane_state *plane_state);
+	bool (*set_shaper_3dlut)(struct dpp *dpp,
+			struct dc_plane_state *plane_state);
+	bool (*set_mcm_luts)(struct dc *dc, struct dpp *dpp, struct hubp *hubp,
+			struct hubp *primary_hubp, struct mpc *mpc, int mpcc_id,
+			struct dc_stream_state *stream,
+			struct dc_plane_state *plane_state);
 	void (*PLAT_58856_wa)(struct dc_state *context,
 			struct pipe_ctx *pipe_ctx);
 	void (*setup_hpo_hw_control)(const struct dce_hwseq *hws, bool enable);

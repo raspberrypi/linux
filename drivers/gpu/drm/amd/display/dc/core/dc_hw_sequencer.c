@@ -1474,9 +1474,22 @@ void hwss_build_fast_sequence(struct dc *dc,
 					(*num_steps)++;
 				}
 				if (hws->funcs.set_input_transfer_func && current_mpc_pipe->plane_state->update_bits.gamma_change) {
-					block_sequence[*num_steps].params.set_input_transfer_func_params.dc = dc;
-					block_sequence[*num_steps].params.set_input_transfer_func_params.pipe_ctx = current_mpc_pipe;
-					block_sequence[*num_steps].params.set_input_transfer_func_params.plane_state = current_mpc_pipe->plane_state;
+					struct pipe_ctx *primary_dpp_pipe =
+						resource_get_primary_dpp_pipe(current_mpc_pipe);
+
+					block_sequence[*num_steps].params.set_input_transfer_func_params =
+						(struct set_input_transfer_func_params) {
+						.dc = dc,
+						.dpp = current_mpc_pipe->plane_res.dpp,
+						.hubp = current_mpc_pipe->plane_res.hubp,
+						.primary_hubp = primary_dpp_pipe ?
+							primary_dpp_pipe->plane_res.hubp : current_mpc_pipe->plane_res.hubp,
+						.ipp = current_mpc_pipe->plane_res.ipp,
+						.mpc = dc->res_pool->mpc,
+						.mpcc_id = current_mpc_pipe->plane_res.mpcc_inst,
+						.stream = current_mpc_pipe->stream,
+						.plane_state = current_mpc_pipe->plane_state,
+					};
 					block_sequence[*num_steps].func = DPP_SET_INPUT_TRANSFER_FUNC;
 					(*num_steps)++;
 				}
@@ -1677,9 +1690,7 @@ void hwss_execute_sequence(struct dc *dc,
 					params->update_plane_addr_params.pipe_ctx);
 			break;
 		case DPP_SET_INPUT_TRANSFER_FUNC:
-			hws->funcs.set_input_transfer_func(params->set_input_transfer_func_params.dc,
-					params->set_input_transfer_func_params.pipe_ctx,
-					params->set_input_transfer_func_params.plane_state);
+			hws->funcs.set_input_transfer_func(&params->set_input_transfer_func_params);
 			break;
 		case DPP_PROGRAM_GAMUT_REMAP:
 			if (dc->hwss.program_gamut_remap)
@@ -2246,15 +2257,25 @@ void hwss_add_hubp_update_plane_addr(struct block_sequence_state *seq_state,
 /*
  * Helper function to add DPP set input transfer function to block sequence
  */
-void hwss_add_dpp_set_input_transfer_func(struct block_sequence_state *seq_state,
-		struct dc *dc,
-		struct pipe_ctx *pipe_ctx,
-		struct dc_plane_state *plane_state)
+void hwss_add_dpp_set_input_transfer_func(struct block_sequence_state *seq_state, struct dc *dc,
+	struct pipe_ctx *pipe_ctx)
 {
 	if (*seq_state->num_steps < MAX_HWSS_BLOCK_SEQUENCE_SIZE) {
-		seq_state->steps[*seq_state->num_steps].params.set_input_transfer_func_params.dc = dc;
-		seq_state->steps[*seq_state->num_steps].params.set_input_transfer_func_params.pipe_ctx = pipe_ctx;
-		seq_state->steps[*seq_state->num_steps].params.set_input_transfer_func_params.plane_state = plane_state;
+		struct pipe_ctx *primary_dpp_pipe = resource_get_primary_dpp_pipe(pipe_ctx);
+
+		seq_state->steps[*seq_state->num_steps].params.set_input_transfer_func_params =
+			(struct set_input_transfer_func_params) {
+			.dc = dc,
+			.dpp = pipe_ctx->plane_res.dpp,
+			.hubp = pipe_ctx->plane_res.hubp,
+			.primary_hubp = primary_dpp_pipe ?
+				primary_dpp_pipe->plane_res.hubp : pipe_ctx->plane_res.hubp,
+			.ipp = pipe_ctx->plane_res.ipp,
+			.mpc = dc->res_pool->mpc,
+			.mpcc_id = pipe_ctx->plane_res.mpcc_inst,
+			.plane_state = pipe_ctx->plane_state,
+			.stream = pipe_ctx->stream,
+		};
 		seq_state->steps[*seq_state->num_steps].func = DPP_SET_INPUT_TRANSFER_FUNC;
 		(*seq_state->num_steps)++;
 	}
@@ -4526,6 +4547,26 @@ void hwss_disable_audio_stream(struct dc *dc, union block_sequence_params *param
 			params->disable_audio_stream_params.pipe_ctx);
 }
 
+void hwss_set_input_transfer_func(struct dc *dc, struct pipe_ctx *pipe_ctx)
+{
+	if (dc->hwseq->funcs.set_input_transfer_func) {
+		struct pipe_ctx *primary_dpp_pipe = resource_get_primary_dpp_pipe(pipe_ctx);
+
+		dc->hwseq->funcs.set_input_transfer_func(&(struct set_input_transfer_func_params) {
+			.dc = dc,
+			.dpp = pipe_ctx->plane_res.dpp,
+			.hubp = pipe_ctx->plane_res.hubp,
+			.primary_hubp = primary_dpp_pipe ?
+				primary_dpp_pipe->plane_res.hubp : pipe_ctx->plane_res.hubp,
+			.ipp = pipe_ctx->plane_res.ipp,
+			.mpc = dc->res_pool->mpc,
+			.mpcc_id = pipe_ctx->plane_res.mpcc_inst,
+			.plane_state = pipe_ctx->plane_state,
+			.stream = pipe_ctx->stream,
+		});
+	}
+}
+
 void hwss_prepare_bandwidth(struct dc *dc, union block_sequence_params *params)
 {
 	if (dc && dc->hwss.prepare_bandwidth)
@@ -6177,4 +6218,3 @@ void hwss_hubp_wait_for_dcc_meta_prop(struct dc *dc, struct pipe_ctx *top_pipe_t
 		dc->hwss.wait_for_dcc_meta_propagation(delay);
 	}
 }
-

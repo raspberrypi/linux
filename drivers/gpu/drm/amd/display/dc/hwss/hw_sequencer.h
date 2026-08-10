@@ -90,7 +90,13 @@ struct update_plane_addr_params {
 
 struct set_input_transfer_func_params {
 	struct dc *dc;
-	struct pipe_ctx *pipe_ctx;
+	struct dpp *dpp;
+	struct hubp *hubp;
+	struct hubp *primary_hubp;
+	struct mpc *mpc;
+	int mpcc_id;
+	struct dc_stream_state *stream;
+	struct input_pixel_processor *ipp;
 	struct dc_plane_state *plane_state;
 };
 
@@ -2120,6 +2126,8 @@ void hwss_disable_audio_stream(struct dc *dc, union block_sequence_params *param
 
 void hwss_hubp_wait_for_dcc_meta_prop(struct dc *dc, struct pipe_ctx *top_pipe_to_program);
 
+void hwss_set_input_transfer_func(struct dc *dc, struct pipe_ctx *pipe_ctx);
+
 void hwss_add_optc_pipe_control_lock(struct block_sequence_state *seq_state,
 		struct dc *dc, struct pipe_ctx *pipe_ctx, bool lock);
 
@@ -2133,7 +2141,7 @@ void hwss_add_hubp_update_plane_addr(struct block_sequence_state *seq_state,
 		struct dc *dc, struct pipe_ctx *pipe_ctx);
 
 void hwss_add_dpp_set_input_transfer_func(struct block_sequence_state *seq_state,
-		struct dc *dc, struct pipe_ctx *pipe_ctx, struct dc_plane_state *plane_state);
+		struct dc *dc, struct pipe_ctx *pipe_ctx);
 
 void hwss_add_dpp_program_gamut_remap(struct block_sequence_state *seq_state,
 		struct pipe_ctx *pipe_ctx);

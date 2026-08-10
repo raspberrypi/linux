@@ -36,8 +36,10 @@ void dcn401_program_gamut_remap(struct program_gamut_remap_params *params);
 
 void dcn401_init_hw(struct dc *dc);
 
-bool dcn401_set_mcm_luts(struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state);
+bool dcn401_set_mcm_luts(struct dc *dc, struct dpp *dpp, struct hubp *hubp,
+				struct hubp *primary_hubp, struct mpc *mpc, int mpcc_id,
+				struct dc_stream_state *stream,
+				struct dc_plane_state *plane_state);
 bool dcn401_set_output_transfer_func(struct set_output_transfer_func_params *params);
 void dcn401_trigger_3dlut_dma_load(struct pipe_ctx *pipe_ctx);
 void dcn401_calculate_dccg_tmds_div_value(struct pipe_ctx *pipe_ctx,

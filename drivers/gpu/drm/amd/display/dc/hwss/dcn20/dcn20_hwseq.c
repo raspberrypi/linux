@@ -1065,9 +1065,8 @@ bool dcn20_set_output_transfer_func(struct set_output_transfer_func_params *otf_
 }
 
 bool dcn20_set_blend_lut(
-	struct pipe_ctx *pipe_ctx, const struct dc_plane_state *plane_state)
+	struct dpp *dpp, struct dc_plane_state *plane_state)
 {
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
 	bool result = true;
 	const struct pwl_params *blend_lut = NULL;
 
@@ -1076,18 +1075,17 @@ bool dcn20_set_blend_lut(
 	else if (plane_state->cm.blend_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
 		cm_helper_translate_curve_to_hw_format(plane_state->ctx,
 				&plane_state->cm.blend_func,
-				&dpp_base->regamma_params, false);
-		blend_lut = &dpp_base->regamma_params;
+				&dpp->regamma_params, false);
+		blend_lut = &dpp->regamma_params;
 	}
-	result = dpp_base->funcs->dpp_program_blnd_lut(dpp_base, blend_lut);
+	result = dpp->funcs->dpp_program_blnd_lut(dpp, blend_lut);
 
 	return result;
 }
 
 bool dcn20_set_shaper_3dlut(
-	struct pipe_ctx *pipe_ctx, const struct dc_plane_state *plane_state)
+	struct dpp *dpp, struct dc_plane_state *plane_state)
 {
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
 	bool result = true;
 	const struct pwl_params *shaper_lut = NULL;
 
@@ -1096,35 +1094,34 @@ bool dcn20_set_shaper_3dlut(
 	else if (plane_state->cm.shaper_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
 		cm_helper_translate_curve_to_hw_format(plane_state->ctx,
 				&plane_state->cm.shaper_func,
-				&dpp_base->shaper_params, true);
-		shaper_lut = &dpp_base->shaper_params;
+				&dpp->shaper_params, true);
+		shaper_lut = &dpp->shaper_params;
 	}
 
-	result = dpp_base->funcs->dpp_program_shaper_lut(dpp_base, shaper_lut);
+	dpp->funcs->dpp_program_shaper_lut(dpp, shaper_lut);
 	if (plane_state->cm.lut3d_func.state.bits.initialized == 1)
-		result = dpp_base->funcs->dpp_program_3dlut(dpp_base,
+		result = dpp->funcs->dpp_program_3dlut(dpp,
 								&plane_state->cm.lut3d_func.lut_3d);
 	else
-		result = dpp_base->funcs->dpp_program_3dlut(dpp_base, NULL);
+		result = dpp->funcs->dpp_program_3dlut(dpp, NULL);
 
 	return result;
 }
 
-bool dcn20_set_input_transfer_func(struct dc *dc,
-				struct pipe_ctx *pipe_ctx,
-				const struct dc_plane_state *plane_state)
+bool dcn20_set_input_transfer_func(struct set_input_transfer_func_params *params)
 {
-	struct dce_hwseq *hws = dc->hwseq;
-	struct dpp *dpp_base = pipe_ctx->plane_res.dpp;
+	struct dpp *dpp = params->dpp;
+	struct dc_plane_state *plane_state = params->plane_state;
+	struct dce_hwseq *hws = params->dc->hwseq;
 	const struct dc_transfer_func *tf = NULL;
 	bool result = true;
 	bool use_degamma_ram = false;
 
-	if (dpp_base == NULL || plane_state == NULL)
+	if (dpp == NULL || plane_state == NULL)
 		return false;
 
-	hws->funcs.set_shaper_3dlut(pipe_ctx, plane_state);
-	hws->funcs.set_blend_lut(pipe_ctx, plane_state);
+	hws->funcs.set_shaper_3dlut(dpp, plane_state);
+	hws->funcs.set_blend_lut(dpp, plane_state);
 
 	tf = &plane_state->in_transfer_func;
 
@@ -1133,13 +1130,13 @@ bool dcn20_set_input_transfer_func(struct dc *dc,
 
 	if (use_degamma_ram == true) {
 		if (tf->type == TF_TYPE_HWPWL)
-			dpp_base->funcs->dpp_program_degamma_pwl(dpp_base,
+			dpp->funcs->dpp_program_degamma_pwl(dpp,
 					&tf->pwl);
 		else if (tf->type == TF_TYPE_DISTRIBUTED_POINTS) {
 			cm_helper_translate_curve_to_degamma_hw_format(tf,
-					&dpp_base->degamma_params);
-			dpp_base->funcs->dpp_program_degamma_pwl(dpp_base,
-				&dpp_base->degamma_params);
+					&dpp->degamma_params);
+			dpp->funcs->dpp_program_degamma_pwl(dpp,
+				&dpp->degamma_params);
 		}
 		return true;
 	}
@@ -1149,21 +1146,21 @@ bool dcn20_set_input_transfer_func(struct dc *dc,
 	if (tf->type == TF_TYPE_PREDEFINED) {
 		switch (tf->tf) {
 		case TRANSFER_FUNCTION_SRGB:
-			dpp_base->funcs->dpp_set_degamma(dpp_base,
+			dpp->funcs->dpp_set_degamma(dpp,
 					IPP_DEGAMMA_MODE_HW_sRGB);
 			break;
 		case TRANSFER_FUNCTION_BT709:
-			dpp_base->funcs->dpp_set_degamma(dpp_base,
+			dpp->funcs->dpp_set_degamma(dpp,
 					IPP_DEGAMMA_MODE_HW_xvYCC);
 			break;
 		case TRANSFER_FUNCTION_LINEAR:
-			dpp_base->funcs->dpp_set_degamma(dpp_base,
+			dpp->funcs->dpp_set_degamma(dpp,
 					IPP_DEGAMMA_MODE_BYPASS);
 			break;
 		case TRANSFER_FUNCTION_PQ:
-			dpp_base->funcs->dpp_set_degamma(dpp_base, IPP_DEGAMMA_MODE_USER_PWL);
-			cm_helper_translate_curve_to_degamma_hw_format(tf, &dpp_base->degamma_params);
-			dpp_base->funcs->dpp_program_degamma_pwl(dpp_base, &dpp_base->degamma_params);
+			dpp->funcs->dpp_set_degamma(dpp, IPP_DEGAMMA_MODE_USER_PWL);
+			cm_helper_translate_curve_to_degamma_hw_format(tf, &dpp->degamma_params);
+			dpp->funcs->dpp_program_degamma_pwl(dpp, &dpp->degamma_params);
 			result = true;
 			break;
 		default:
@@ -1171,7 +1168,7 @@ bool dcn20_set_input_transfer_func(struct dc *dc,
 			break;
 		}
 	} else if (tf->type == TF_TYPE_BYPASS)
-		dpp_base->funcs->dpp_set_degamma(dpp_base,
+		dpp->funcs->dpp_set_degamma(dpp,
 				IPP_DEGAMMA_MODE_BYPASS);
 	else {
 		/*
@@ -1179,7 +1176,7 @@ bool dcn20_set_input_transfer_func(struct dc *dc,
 		 * fix is required for this use case
 		 */
 		BREAK_TO_DEBUGGER();
-		dpp_base->funcs->dpp_set_degamma(dpp_base,
+		dpp->funcs->dpp_set_degamma(dpp,
 				IPP_DEGAMMA_MODE_BYPASS);
 	}
 
@@ -1987,7 +1984,7 @@ static void dcn20_program_pipe(
 			pipe_ctx->plane_state->update_bits.gamma_change ||
 			pipe_ctx->plane_state->update_bits.lut_3d ||
 			pipe_ctx->update_flags.bits.enable))
-		hws->funcs.set_input_transfer_func(dc, pipe_ctx, pipe_ctx->plane_state);
+		hwss_set_input_transfer_func(dc, pipe_ctx);
 
 	/* dcn10_translate_regamma_to_hw_format takes 750us to finish
 	 * only do gamma programming for powering on, internal memcmp to avoid

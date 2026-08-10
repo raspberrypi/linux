@@ -31,9 +31,9 @@
 void dcn20_log_color_state(struct dc *dc,
 			   struct dc_log_buffer_ctx *log_ctx);
 bool dcn20_set_blend_lut(
-	struct pipe_ctx *pipe_ctx, const struct dc_plane_state *plane_state);
+	struct dpp *dpp, struct dc_plane_state *plane_state);
 bool dcn20_set_shaper_3dlut(
-	struct pipe_ctx *pipe_ctx, const struct dc_plane_state *plane_state);
+	struct dpp *dpp, struct dc_plane_state *plane_state);
 void dcn20_program_front_end_for_ctx(
 		struct dc *dc,
 		struct dc_state *context);
@@ -42,8 +42,7 @@ void dcn20_post_unlock_program_front_end(
 		struct dc_state *context);
 void dcn20_update_plane_addr(const struct dc *dc, struct pipe_ctx *pipe_ctx);
 void dcn20_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx);
-bool dcn20_set_input_transfer_func(struct dc *dc, struct pipe_ctx *pipe_ctx,
-			const struct dc_plane_state *plane_state);
+bool dcn20_set_input_transfer_func(struct set_input_transfer_func_params *params);
 bool dcn20_set_output_transfer_func(struct set_output_transfer_func_params *params);
 void dcn20_program_output_csc(struct dc *dc,
 		struct pipe_ctx *pipe_ctx,
