@@ -57,7 +57,7 @@ int arch_check_excluded_range(struct kimage *image, unsigned long start,
 
 	emem = image->arch.exclude_ranges;
 	for (i = 0; i < emem->nr_ranges; i++)
-		if (start < emem->ranges[i].end && end > emem->ranges[i].start)
+		if (start <= emem->ranges[i].end && end >= emem->ranges[i].start)
 			return 1;
 
 	return 0;
