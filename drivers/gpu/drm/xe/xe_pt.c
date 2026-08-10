@@ -715,7 +715,7 @@ xe_pt_stage_bind(struct xe_tile *tile, struct xe_vma *vma,
 		.vm = vm,
 		.tile = tile,
 		.curs = &curs,
-		.va_curs_start = range ? range->base.itree.start :
+		.va_curs_start = range ? xe_svm_range_start(range) :
 			xe_vma_start(vma),
 		.vma = vma,
 		.wupd.entries = entries,
@@ -734,7 +734,7 @@ xe_pt_stage_bind(struct xe_tile *tile, struct xe_vma *vma,
 		}
 		if (xe_svm_range_has_dma_mapping(range)) {
 			xe_res_first_dma(range->base.pages.dma_addr, 0,
-					 range->base.itree.last + 1 - range->base.itree.start,
+					 xe_svm_range_size(range),
 					 &curs);
 			xe_svm_range_debug(range, "BIND PREPARE - MIXED");
 		} else {
@@ -778,8 +778,8 @@ xe_pt_stage_bind(struct xe_tile *tile, struct xe_vma *vma,
 
 walk_pt:
 	ret = xe_pt_walk_range(&pt->base, pt->level,
-			       range ? range->base.itree.start : xe_vma_start(vma),
-			       range ? range->base.itree.last + 1 : xe_vma_end(vma),
+			       range ? xe_svm_range_start(range) : xe_vma_start(vma),
+			       range ? xe_svm_range_end(range) : xe_vma_end(vma),
 			       &xe_walk.base);
 
 	*num_entries = xe_walk.wupd.num_used_entries;
@@ -983,8 +983,8 @@ bool xe_pt_zap_ptes_range(struct xe_tile *tile, struct xe_vm *vm,
 	if (!(pt_mask & BIT(tile->id)))
 		return false;
 
-	(void)xe_pt_walk_shared(&pt->base, pt->level, range->base.itree.start,
-				range->base.itree.last + 1, &xe_walk.base);
+	(void)xe_pt_walk_shared(&pt->base, pt->level, xe_svm_range_start(range),
+				xe_svm_range_end(range), &xe_walk.base);
 
 	return xe_walk.needs_invalidate;
 }
@@ -1711,8 +1711,8 @@ static unsigned int xe_pt_stage_unbind(struct xe_tile *tile,
 				       struct xe_svm_range *range,
 				       struct xe_vm_pgtable_update *entries)
 {
-	u64 start = range ? range->base.itree.start : xe_vma_start(vma);
-	u64 end = range ? range->base.itree.last + 1 : xe_vma_end(vma);
+	u64 start = range ? xe_svm_range_start(range) : xe_vma_start(vma);
+	u64 end = range ? xe_svm_range_end(range) : xe_vma_end(vma);
 	struct xe_pt_stage_unbind_walk xe_walk = {
 		.base = {
 			.ops = &xe_pt_stage_unbind_ops,
@@ -1922,7 +1922,7 @@ static int bind_range_prepare(struct xe_vm *vm, struct xe_tile *tile,
 
 	vm_dbg(&xe_vma_vm(vma)->xe->drm,
 	       "Preparing bind, with range [%lx...%lx)\n",
-	       range->base.itree.start, range->base.itree.last);
+	       xe_svm_range_start(range), xe_svm_range_end(range) - 1);
 
 	pt_op->vma = NULL;
 	pt_op->bind = true;
@@ -1937,8 +1937,8 @@ static int bind_range_prepare(struct xe_vm *vm, struct xe_tile *tile,
 					pt_op->num_entries, true);
 
 		xe_pt_update_ops_rfence_interval(pt_update_ops,
-						 range->base.itree.start,
-						 range->base.itree.last + 1);
+						 xe_svm_range_start(range),
+						 xe_svm_range_end(range));
 		++pt_update_ops->current_op;
 		pt_update_ops->needs_svm_lock = true;
 
@@ -2033,7 +2033,7 @@ static int unbind_range_prepare(struct xe_vm *vm,
 
 	vm_dbg(&vm->xe->drm,
 	       "Preparing unbind, with range [%lx...%lx)\n",
-	       range->base.itree.start, range->base.itree.last);
+	       xe_svm_range_start(range), xe_svm_range_end(range) - 1);
 
 	pt_op->vma = XE_INVALID_VMA;
 	pt_op->bind = false;
@@ -2044,8 +2044,8 @@ static int unbind_range_prepare(struct xe_vm *vm,
 
 	xe_vm_dbg_print_entries(tile_to_xe(tile), pt_op->entries,
 				pt_op->num_entries, false);
-	xe_pt_update_ops_rfence_interval(pt_update_ops, range->base.itree.start,
-					 range->base.itree.last + 1);
+	xe_pt_update_ops_rfence_interval(pt_update_ops, xe_svm_range_start(range),
+					 xe_svm_range_end(range));
 	++pt_update_ops->current_op;
 	pt_update_ops->needs_svm_lock = true;
 	pt_update_ops->needs_invalidation |= xe_vm_has_scratch(vm) ||
@@ -2153,8 +2153,11 @@ static void
 xe_pt_update_ops_init(struct xe_vm_pgtable_update_ops *pt_update_ops)
 {
 	init_llist_head(&pt_update_ops->deferred);
+	pt_update_ops->current_op = 0;
 	pt_update_ops->start = ~0x0ull;
 	pt_update_ops->last = 0x0ull;
+	pt_update_ops->needs_svm_lock = false;
+	pt_update_ops->needs_invalidation = false;
 }
 
 /**

@@ -676,13 +676,30 @@ static void dm_crtc_high_irq_handler(struct amdgpu_device *adev,
 	 * Deliver pageflip completion events (DCN only).
 	 *
 	 * Since GRPH_PFLIP is not used, VUPDATE_NO_LOCK is the flip latch
-	 * point. Deliver any pending pageflip completion event from here.
+	 * point. Deliver any pending pageflip completion event from here,
+	 * once HW has consumed the new address (the OTG no longer reports a
+	 * pending flip).
 	 *
-	 * NOTE: This can deliver an event for a flip that was armed but not yet
-	 * programmed into HW; that race is closed in a follow-up change by
-	 * checking the programmed flip status.
+	 * Also handle the case here where there aren't any active planes and
+	 * DCN HUBP may be clock-gated, so the flip-pending status may be
+	 * undefined.
 	 */
-	if (is_dcn && acrtc->pflip_status == AMDGPU_FLIP_SUBMITTED) {
+	if (is_dcn && acrtc->pflip_status == AMDGPU_FLIP_SUBMITTED &&
+	    acrtc->event) {
+
+		if (!dc_get_flip_pending_on_otg(adev->dm.dc, acrtc->otg_inst)) {
+			drm_crtc_send_vblank_event(&acrtc->base, acrtc->event);
+			acrtc->event = NULL;
+			drm_crtc_vblank_put(&acrtc->base);
+			acrtc->pflip_status = AMDGPU_FLIP_NONE;
+		}
+		/*
+		 * If the flip is still pending, leave it armed and
+		 * retry on the next vupdate.
+		 */
+	} else if (is_dcn && acrtc->pflip_status == AMDGPU_FLIP_SUBMITTED &&
+		   acrtc->dm_irq_params.active_planes == 0) {
+
 		if (acrtc->event) {
 			drm_crtc_send_vblank_event(&acrtc->base, acrtc->event);
 			acrtc->event = NULL;
@@ -9309,25 +9326,6 @@ static void remove_stream(struct amdgpu_device *adev,
 	acrtc->enabled = false;
 }
 
-static void prepare_flip_isr(struct amdgpu_crtc *acrtc)
-{
-
-	assert_spin_locked(&acrtc->base.dev->event_lock);
-	WARN_ON(acrtc->event);
-
-	acrtc->event = acrtc->base.state->event;
-
-	/* Set the flip status */
-	acrtc->pflip_status = AMDGPU_FLIP_SUBMITTED;
-
-	/* Mark this event as consumed */
-	acrtc->base.state->event = NULL;
-
-	drm_dbg_state(acrtc->base.dev,
-		      "crtc:%d, pflip_stat:AMDGPU_FLIP_SUBMITTED\n",
-		      acrtc->crtc_id);
-}
-
 static void update_freesync_state_on_stream(
 	struct amdgpu_display_manager *dm,
 	struct dm_crtc_state *new_crtc_state,
@@ -9664,6 +9662,58 @@ static void amdgpu_dm_enable_self_refresh(struct amdgpu_crtc *acrtc_attach,
 	}
 }
 
+static void dm_arm_vblank_event(struct amdgpu_crtc *acrtc,
+				struct dm_crtc_state *acrtc_state,
+				bool pflip_update,
+				bool cursor_update)
+{
+	assert_spin_locked(&acrtc->base.dev->event_lock);
+
+	if (!acrtc->base.state->event || acrtc_state->active_planes == 0)
+		return;
+
+	if (pflip_update) {
+		WARN_ON(acrtc->pflip_status != AMDGPU_FLIP_NONE);
+		WARN_ON(acrtc->event);
+
+		acrtc->pflip_status = AMDGPU_FLIP_SUBMITTED;
+		acrtc->event = acrtc->base.state->event;
+		acrtc->base.state->event = NULL;
+
+		drm_dbg_state(acrtc->base.dev,
+			      "crtc:%d, pflip_stat:AMDGPU_FLIP_SUBMITTED\n",
+			      acrtc->crtc_id);
+	} else if (cursor_update) {
+		acrtc->event = acrtc->base.state->event;
+		acrtc->base.state->event = NULL;
+	}
+}
+
+/**
+ * dm_arm_vblank_event_pre_programming - Prepare for programming
+ * @acrtc: The amdgpu CRTC to prepare
+ * @acrtc_state: The new CRTC state
+ * @pflip_update: Whether a page flip is being programmed
+ * @cursor_update: Whether a cursor update is being programmed
+ *
+ * Grab a reference on the vblank counter if a page flip or cursor update is to
+ * be programmed. Do this before programming so the HW is not in any
+ * idle-optimized state (such as PSR).
+ */
+static void dm_arm_vblank_event_pre_programming(struct amdgpu_crtc *acrtc,
+						struct dm_crtc_state *acrtc_state,
+						bool pflip_update,
+						bool cursor_update)
+{
+	assert_spin_locked(&acrtc->base.dev->event_lock);
+
+	if (!acrtc->base.state->event || acrtc_state->active_planes == 0)
+		return;
+
+	if (pflip_update || cursor_update)
+		drm_crtc_vblank_get(&acrtc->base);
+}
+
 static void amdgpu_dm_commit_planes(struct drm_atomic_state *state,
 				    struct drm_device *dev,
 				    struct amdgpu_display_manager *dm,
@@ -9687,6 +9737,7 @@ static void amdgpu_dm_commit_planes(struct drm_atomic_state *state,
 	bool cursor_update = false;
 	bool pflip_present = false;
 	bool immediate_flip = false;
+	bool flip_latched_during_prog = false;
 	bool dirty_rects_changed = false;
 	bool updated_planes_and_streams = false;
 	struct {
@@ -9922,39 +9973,27 @@ static void amdgpu_dm_commit_planes(struct drm_atomic_state *state,
 			usleep_range(1000, 1100);
 		}
 
-		/**
-		 * Prepare the flip event for the pageflip interrupt to handle.
-		 *
-		 * This only works in the case where we've already turned on the
-		 * appropriate hardware blocks (eg. HUBP) so in the transition case
-		 * from 0 -> n planes we have to skip a hardware generated event
-		 * and rely on sending it from software.
-		 */
-		if (acrtc_attach->base.state->event &&
-		    acrtc_state->active_planes > 0) {
-			drm_crtc_vblank_get(pcrtc);
-
-			spin_lock_irqsave(&pcrtc->dev->event_lock, flags);
-
-			WARN_ON(acrtc_attach->pflip_status != AMDGPU_FLIP_NONE);
-			prepare_flip_isr(acrtc_attach);
-
-			spin_unlock_irqrestore(&pcrtc->dev->event_lock, flags);
-		}
-
 		if (acrtc_state->stream) {
 			if (acrtc_state->freesync_vrr_info_changed)
 				bundle->stream_update.vrr_infopacket =
 					&acrtc_state->stream->vrr_infopacket;
 		}
-	} else if (cursor_update && acrtc_state->active_planes > 0) {
-		spin_lock_irqsave(&pcrtc->dev->event_lock, flags);
-		if (acrtc_attach->base.state->event) {
-			drm_crtc_vblank_get(pcrtc);
-			acrtc_attach->event = acrtc_attach->base.state->event;
-			acrtc_attach->base.state->event = NULL;
+	}
+
+	scoped_guard(spinlock_irqsave, &pcrtc->dev->event_lock) {
+		dm_arm_vblank_event_pre_programming(acrtc_attach, acrtc_state,
+						    pflip_present,
+						    cursor_update);
+		/*
+		 * DCE depends on a combination of GRPH_FLIP, VLINE0, and
+		 * VUPDATE for event delivery. Only GRPH_FLIP handler can send
+		 * pflip events, and it only fires if HW latched to the flip.
+		 * Maintain legacy behavior by arming event before programming.
+		 */
+		if (amdgpu_ip_version(dm->adev, DCE_HWIP, 0) == 0) {
+			dm_arm_vblank_event(acrtc_attach, acrtc_state,
+					    pflip_present, cursor_update);
 		}
-		spin_unlock_irqrestore(&pcrtc->dev->event_lock, flags);
 	}
 
 	/* Update the planes if changed or disable if we don't have any. */
@@ -10056,17 +10095,103 @@ static void amdgpu_dm_commit_planes(struct drm_atomic_state *state,
 		amdgpu_dm_commit_cursors(state);
 
 	/*
-	 * On DCN, flip completion is normally delivered from VUPDATE_NO_LOCK.
-	 * However, an immediate (tearing / async) flip is latched by HW right
-	 * away and does not wait for the next vupdate, so deliver its
-	 * completion event here after programming.
+	 * DCN specific vblank handling
+	 * ============================
 	 *
-	 * On DCE, GRPH_PFLIP already fires immediately for immediate flips, so
-	 * this is DCN-only.
+	 * With the event_lock held, arm the vblank event, and determine whether
+	 * deliver it immediately, or in VUPDATE_NO_LOCK IRQ (i.e. HW latch
+	 * point) handler. Do this *after* programming so that the IRQ handler
+	 * will not deliver the event before HW laches onto the programmed
+	 * values:
+	 *
+	 *     Commit thread      IRQ handler                       HW
+	 *     -----------------------------------------------------------------
+	 *     arm_vblank_event()
+	 *                                                          vupdate()
+	 *                        vupdate_handler()
+	 *                          cook_timestamp()
+	 *                          # prev flip already latched,
+	 *                          # so flip_latched == true.
+	 *                          if event_armed && flip_latched:
+	 *                            send_vblank_event()
+	 *                            # sent before latch, **BAD!**
+	 *     hw_program()
+	 *                                                          vupdate()
+	 *                                                          **latch**
+	 *
+	 * There's a consequence of arming after: it's possible for HW to latch
+	 * between start of HW programming and acrtc->event/pflip_status arming.
+	 * When this happens, the IRQ handler will send the event on the next
+	 * immediate latch point, even though HW has already latched. This is
+	 * handled by optimistically checking for HW latch after programming,
+	 * and if latched, send the event immediately:
+	 *
+	 *     Commit thread             IRQ handler                HW
+	 *     -----------------------------------------------------------------
+	 *     hw_program()
+	 *                                                          vupdate()
+	 *                                                          **latch**
+	 *                               vupdate_handler()
+	 *                                 cook_timestamp()
+	 *                                 # event_armed == false
+	 *                                 # **no event sent!**
+	 *     arm_vblank_event()
+	 *     if flip_latched:
+	 *       **send_vblank_event()**
+	 *       disarm_vblank_event()
+	 *
+	 * The IRQ handler is expected to cook the timestamp, but we need to
+	 * cook the timestamp before optimistic sending as well. That's because
+	 * the following sequence is possible:
+	 *
+	 *     Commit thread              IRQ handler              HW
+	 *     -----------------------------------------------------------------
+	 *     hw_program()
+	 *     arm_vblank_event()
+	 *                                                         vupdate()
+	 *                                                         **latch**
+	 *     if flip_latched:
+	 *       # Need cook before send!
+	 *       **cook_timestamp()**
+	 *       send_vblank_event()
+	 *       disarm_vblank_event()
+	 *                                vupdate_handler()
+	 *                                  cook_timestamp()
+	 *                                  # event_armed == false
+	 *                                  # no event sent!
+	 *
+	 * Cooking twice is OK, since DRM scanout accurate timestamps report A)
+	 * the previous vactive start if currently in vactive, or B) the next
+	 * vactive start if currently in vblank (see &get_vblank_counter). 'A)'
+	 * is what we want for the optimistic send, and for 'B)', we'll cook a
+	 * timestamp no later than the next IRQ handler run.
+	 *
+	 * The more correct fix is to wrap programming and arming with the
+	 * event_lock and thus serializing it with the IRQ handler. However,
+	 * there are various sleep-waits within
+	 * update_planes_and_stream_adapter() that makes spin locking illegal.
+	 * And on full updates, it can take 1-2 frame-times to return (see
+	 * commit_planes_for_stream).
+	 *
+	 * On DCE, GRPH_PFLIP IRQ is used and takes care of this.
 	 */
-	if (immediate_flip && amdgpu_ip_version(dm->adev, DCE_HWIP, 0) != 0) {
+	if (amdgpu_ip_version(dm->adev, DCE_HWIP, 0) != 0) {
 		spin_lock_irqsave(&pcrtc->dev->event_lock, flags);
-		if (acrtc_attach->pflip_status == AMDGPU_FLIP_SUBMITTED &&
+
+		if (updated_planes_and_streams) {
+			flip_latched_during_prog =
+				!dc_get_flip_pending_on_otg(dm->dc, acrtc_attach->otg_inst);
+		}
+
+		dm_arm_vblank_event(acrtc_attach, acrtc_state,
+				    pflip_present, cursor_update);
+
+		/*
+		 * Deliver the event immediately on immediate flip, or on a
+		 * update that has already latched.
+		 */
+		if ((immediate_flip || flip_latched_during_prog) &&
+		    acrtc_attach->pflip_status == AMDGPU_FLIP_SUBMITTED &&
 		    acrtc_attach->event) {
 			drm_crtc_accurate_vblank_count(&acrtc_attach->base);
 			drm_crtc_send_vblank_event(&acrtc_attach->base,

@@ -75,10 +75,9 @@ int tegra_fbdev_driver_fbdev_probe(struct drm_fb_helper *helper,
 	struct tegra_drm *tegra = helper->dev->dev_private;
 	struct drm_device *drm = helper->dev;
 	struct drm_mode_fb_cmd2 cmd = { 0 };
+	struct fb_info *info = helper->info;
 	unsigned int bytes_per_pixel;
 	struct drm_framebuffer *fb;
-	unsigned long offset;
-	struct fb_info *info;
 	struct tegra_bo *bo;
 	size_t size;
 	int err;
@@ -99,13 +98,6 @@ int tegra_fbdev_driver_fbdev_probe(struct drm_fb_helper *helper,
 	if (IS_ERR(bo))
 		return PTR_ERR(bo);
 
-	info = drm_fb_helper_alloc_info(helper);
-	if (IS_ERR(info)) {
-		dev_err(drm->dev, "failed to allocate framebuffer info\n");
-		drm_gem_object_put(&bo->gem);
-		return PTR_ERR(info);
-	}
-
 	fb = tegra_fb_alloc(drm,
 			    drm_get_format_info(drm, cmd.pixel_format, cmd.modifier[0]),
 			    &cmd, &bo, 1);
@@ -119,14 +111,10 @@ int tegra_fbdev_driver_fbdev_probe(struct drm_fb_helper *helper,
 
 	helper->funcs = &tegra_fbdev_helper_funcs;
 	helper->fb = fb;
-	helper->info = info;
 
 	info->fbops = &tegra_fb_ops;
 
 	drm_fb_helper_fill_info(info, helper, sizes);
-
-	offset = info->var.xoffset * bytes_per_pixel +
-		 info->var.yoffset * fb->pitches[0];
 
 	if (bo->pages) {
 		bo->vaddr = vmap(bo->pages, bo->num_pages, VM_MAP,
@@ -139,9 +127,9 @@ int tegra_fbdev_driver_fbdev_probe(struct drm_fb_helper *helper,
 	}
 
 	info->flags |= FBINFO_VIRTFB;
-	info->screen_buffer = bo->vaddr + offset;
+	info->screen_buffer = bo->vaddr;
 	info->screen_size = size;
-	info->fix.smem_start = (unsigned long)(bo->iova + offset);
+	info->fix.smem_start = (unsigned long)(bo->iova);
 	info->fix.smem_len = size;
 
 	return 0;

@@ -161,8 +161,10 @@ static Node *get_binfmt_handler(struct binfmt_misc *misc,
 static void put_binfmt_handler(Node *e)
 {
 	if (refcount_dec_and_test(&e->users)) {
-		if (e->flags & MISC_FMT_OPEN_FILE)
+		if (e->flags & MISC_FMT_OPEN_FILE) {
+			exe_file_allow_write_access(e->interp_file);
 			filp_close(e->interp_file, NULL);
+		}
 		kfree(e);
 	}
 }
@@ -246,8 +248,14 @@ static int load_misc_binary(struct linux_binprm *bprm)
 
 	if (fmt->flags & MISC_FMT_OPEN_FILE) {
 		interp_file = file_clone_open(fmt->interp_file);
-		if (!IS_ERR(interp_file))
-			deny_write_access(interp_file);
+		if (!IS_ERR(interp_file)) {
+			int err = exe_file_deny_write_access(interp_file);
+
+			if (err) {
+				fput(interp_file);
+				interp_file = ERR_PTR(err);
+			}
+		}
 	} else {
 		interp_file = open_exec(fmt->interpreter);
 	}
@@ -374,6 +382,10 @@ static Node *create_entry(const char __user *buffer, size_t count)
 	del = *p++;	/* delimeter */
 
 	pr_debug("register: delim: %#x {%c}\n", del, del);
+
+	/* A flag-char delimiter runs the flag scan off the buffer. */
+	if (del == 'P' || del == 'O' || del == 'C' || del == 'F')
+		goto einval;
 
 	/* Pad the buffer with the delim to simplify parsing below. */
 	memset(buf + count, del, 8);
@@ -943,6 +955,10 @@ static int bm_fill_super(struct super_block *sb, struct fs_context *fc)
 
 	if (WARN_ON(user_ns != current_user_ns()))
 		return -EINVAL;
+
+	/* Never exec off this instance and never let anything stack on it. */
+	sb->s_iflags |= SB_I_NOEXEC | SB_I_NODEV;
+	sb->s_stack_depth = FILESYSTEM_MAX_STACK_DEPTH;
 
 	/*
 	 * Lazily allocate a new binfmt_misc instance for this namespace, i.e.

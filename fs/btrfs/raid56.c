@@ -1583,8 +1583,10 @@ static void verify_bio_data_sectors(struct btrfs_raid_bio *rbio,
 		int ret;
 
 		/* No csum for this sector, skip to the next sector. */
-		if (!test_bit(total_sector_nr, rbio->csum_bitmap))
+		if (!test_bit(total_sector_nr, rbio->csum_bitmap)) {
+			total_sector_nr++;
 			continue;
+		}
 
 		ret = btrfs_check_block_csum(fs_info, paddr,
 					     csum_buf, expected_csum);
