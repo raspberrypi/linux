@@ -420,7 +420,7 @@ static int bu27034_try_set_int_time(struct bu27034_data *data, int time_us)
 	for (i = 0; i < numg; i++) {
 		ret = bu27034_get_gain(data, gains[i].chan, &gains[i].old_gain);
 		if (ret)
-			return 0;
+			return ret;
 
 		ret = iio_gts_find_new_gain_by_old_gain_time(&data->gts,
 							     gains[i].old_gain,
