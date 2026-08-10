@@ -991,7 +991,7 @@ pmd_table:
 				goto found;
 			}
 		} else if ((flags & FW_MIGRATION) &&
-			   is_pmd_migration_entry(pmd)) {
+			   pmd_is_migration_entry(pmd)) {
 			swp_entry_t entry = pmd_to_swp_entry(pmd);
 
 			page = pfn_swap_entry_to_page(entry);
