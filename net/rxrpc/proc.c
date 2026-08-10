@@ -299,15 +299,15 @@ static int rxrpc_peer_seq_show(struct seq_file *seq, void *v)
 	now = ktime_get_seconds();
 	seq_printf(seq,
 		   "UDP   %-47.47s %-47.47s %3u"
-		   " %3u %5u %6ds %8u %8u\n",
+		   " %3u %5u %6ds %8d %8d\n",
 		   lbuff,
 		   rbuff,
 		   refcount_read(&peer->ref),
 		   peer->cong_ssthresh,
 		   peer->mtu,
 		   (s32)now - (s32)READ_ONCE(peer->last_tx_at),
-		   peer->srtt_us >> 3,
-		   peer->rto_us);
+		   READ_ONCE(peer->recent_srtt_us),
+		   READ_ONCE(peer->recent_rto_us));
 
 	return 0;
 }

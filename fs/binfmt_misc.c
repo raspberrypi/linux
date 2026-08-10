@@ -375,6 +375,10 @@ static Node *create_entry(const char __user *buffer, size_t count)
 
 	pr_debug("register: delim: %#x {%c}\n", del, del);
 
+	/* A flag-char delimiter runs the flag scan off the buffer. */
+	if (del == 'P' || del == 'O' || del == 'C' || del == 'F')
+		goto einval;
+
 	/* Pad the buffer with the delim to simplify parsing below. */
 	memset(buf + count, del, 8);
 
@@ -981,6 +985,10 @@ static int bm_fill_super(struct super_block *sb, struct fs_context *fc)
 
 	if (WARN_ON(user_ns != current_user_ns()))
 		return -EINVAL;
+
+	/* Never exec off this instance and never let anything stack on it. */
+	sb->s_iflags |= SB_I_NOEXEC | SB_I_NODEV;
+	sb->s_stack_depth = FILESYSTEM_MAX_STACK_DEPTH;
 
 	/*
 	 * Lazily allocate a new binfmt_misc instance for this namespace, i.e.

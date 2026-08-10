@@ -53,6 +53,37 @@ Supported chips:
 
 	       https://www.ti.com/
 
+  * Texas Instruments INA260
+
+    Prefix: 'ina260'
+
+    Addresses: I2C 0x40 - 0x4f
+
+    Datasheet: Publicly available at the Texas Instruments website
+
+	       https://www.ti.com/
+
+  * Silergy SY24655
+
+    Prefix: 'sy24655'
+
+    Addresses: I2C 0x40 - 0x4f
+
+    Datasheet: Publicly available at the Silergy website
+
+	       https://us1.silergy.com/
+
+
+  * Texas Instruments INA234
+
+    Prefix: 'ina234'
+
+    Addresses: I2C 0x40 - 0x43
+
+    Datasheet: Publicly available at the Texas Instruments website
+
+	       https://www.ti.com/
+
 Author: Lothar Felten <lothar.felten@gmail.com>
 
 Description
@@ -68,9 +99,17 @@ interface. The INA220 monitors both shunt drop and supply voltage.
 The INA226 is a current shunt and power monitor with an I2C interface.
 The INA226 monitors both a shunt voltage drop and bus supply voltage.
 
-INA230 and INA231 are high or low side current shunt and power monitors
+INA230, INA231, and INA234 are high or low side current shunt and power monitors
 with an I2C interface. The chips monitor both a shunt voltage drop and
 bus supply voltage.
+
+INA260 is a high or low side current and power monitor with integrated shunt
+resistor.
+
+The SY24655 is a high- and low-side current shunt and power monitor with an I2C
+interface. The SY24655 supports both shunt drop and supply voltage, with
+programmable calibration value and conversion times. The SY24655 can also
+calculate average power for use in energy conversion.
 
 The shunt value in micro-ohms can be set via platform data or device tree at
 compile-time or via the shunt_resistor attribute in sysfs at run-time. Please
@@ -87,16 +126,25 @@ The actual programmed interval may vary from the desired value.
 General sysfs entries
 ---------------------
 
-======================= ===============================
+======================= ===============================================
 in0_input		Shunt voltage(mV) channel
 in1_input		Bus voltage(mV) channel
 curr1_input		Current(mA) measurement channel
 power1_input		Power(uW) measurement channel
-shunt_resistor		Shunt resistance(uOhm) channel
-======================= ===============================
+shunt_resistor		Shunt resistance(uOhm) channel (not for ina260)
+======================= ===============================================
 
-Sysfs entries for ina226, ina230 and ina231 only
-------------------------------------------------
+Additional sysfs entries
+------------------------
+
+Additional entries are available for the following chips:
+
+  * ina226
+  * ina230
+  * ina231
+  * ina234
+  * ina260
+  * sy24655
 
 ======================= ====================================================
 curr1_lcrit		Critical low current
@@ -115,6 +163,13 @@ power1_crit		Critical high power
 power1_crit_alarm	Power critical high alarm
 update_interval		data conversion time; affects number of samples used
 			to average results for shunt and bus voltages.
+======================= ====================================================
+
+Sysfs entries for sy24655 only
+------------------------------
+
+======================= ====================================================
+power1_average		average power from last reading to the present.
 ======================= ====================================================
 
 .. note::

@@ -183,6 +183,15 @@ static bool mem_profiling_support __meminitdata = true;
 static bool mem_profiling_support __meminitdata;
 #endif
 
+/*
+ * Memory allocation profiling is permanently disabled and cannot be enabled.
+ * Must be called after setup_early_mem_profiling().
+ */
+bool __init mem_alloc_profiling_permanently_disabled(void)
+{
+	return !mem_profiling_support;
+}
+
 static int __init setup_early_mem_profiling(char *str)
 {
 	bool enable;

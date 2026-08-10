@@ -214,6 +214,9 @@ static int userspace_tramp(void *stack)
 				     (unsigned long) stub_segv_handler -
 				     (unsigned long) __syscall_stub_start;
 
+	/* Make sure this process dies if the kernel dies */
+	os_set_pdeathsig();
+
 	ptrace(PTRACE_TRACEME, 0, 0, 0);
 
 	signal(SIGTERM, SIG_DFL);
