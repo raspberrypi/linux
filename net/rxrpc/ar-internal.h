@@ -142,8 +142,7 @@ struct rxrpc_backlog {
 struct rxrpc_sock {
 	/* WARNING: sk has to be the first member */
 	struct sock		sk;
-	rxrpc_notify_new_call_t	notify_new_call; /* Func to notify of new call */
-	rxrpc_discard_new_call_t discard_new_call; /* Func to discard a new call */
+	const struct rxrpc_kernel_ops *app_ops;	/* Table of kernel app notification funcs */
 	struct rxrpc_local	*local;		/* local endpoint */
 	struct rxrpc_backlog	*backlog;	/* Preallocation for services */
 	spinlock_t		incoming_lock;	/* Incoming call vs service shutdown lock */
@@ -334,6 +333,7 @@ struct rxrpc_peer {
 	struct hlist_head	error_targets;	/* targets for net error distribution */
 	struct rb_root		service_conns;	/* Service connections */
 	struct list_head	keepalive_link;	/* Link in net->peer_keepalive[] */
+	unsigned long		app_data;	/* Application data (e.g. afs_server) */
 	unsigned int		last_tx_at;	/* Last time packet sent here (time64_t LSW) */
 	seqlock_t		service_conn_lock;
 	spinlock_t		lock;		/* access lock */
@@ -684,6 +684,7 @@ struct rxrpc_call {
 
 	/* Received data tracking */
 	struct sk_buff_head	recvmsg_queue;	/* Queue of packets ready for recvmsg() */
+	struct sk_buff_head	rx_queue;	/* Queue of packets for this call to receive */
 	struct sk_buff_head	rx_oos_queue;	/* Queue of out of sequence packets */
 	void			*rx_dec_buffer;	/* Decryption buffer */
 	unsigned short		rx_dec_bsize;	/* rx_dec_buffer size */
@@ -872,7 +873,7 @@ void rxrpc_propose_delay_ACK(struct rxrpc_call *, rxrpc_serial_t,
 void rxrpc_shrink_call_tx_buffer(struct rxrpc_call *);
 void rxrpc_resend(struct rxrpc_call *call, struct sk_buff *ack_skb);
 
-bool rxrpc_input_call_event(struct rxrpc_call *call, struct sk_buff *skb);
+bool rxrpc_input_call_event(struct rxrpc_call *call);
 
 /*
  * call_object.c
@@ -1319,6 +1320,13 @@ static inline bool after(u32 seq1, u32 seq2)
 static inline bool after_eq(u32 seq1, u32 seq2)
 {
         return (s32)(seq1 - seq2) >= 0;
+}
+
+static inline void rxrpc_queue_rx_call_packet(struct rxrpc_call *call, struct sk_buff *skb)
+{
+	rxrpc_get_skb(skb, rxrpc_skb_get_call_rx);
+	__skb_queue_tail(&call->rx_queue, skb);
+	rxrpc_poke_call(call, rxrpc_call_poke_rx_packet);
 }
 
 /*

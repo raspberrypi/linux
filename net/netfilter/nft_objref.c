@@ -123,7 +123,6 @@ static const struct nft_expr_ops nft_objref_ops = {
 	.deactivate	= nft_objref_deactivate,
 	.dump		= nft_objref_dump,
 	.validate	= nft_objref_validate,
-	.reduce		= NFT_REDUCE_READONLY,
 };
 
 struct nft_objref_map {
@@ -245,7 +244,6 @@ static const struct nft_expr_ops nft_objref_map_ops = {
 	.destroy	= nft_objref_map_destroy,
 	.dump		= nft_objref_map_dump,
 	.validate	= nft_objref_map_validate,
-	.reduce		= NFT_REDUCE_READONLY,
 };
 
 static const struct nft_expr_ops *

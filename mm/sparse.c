@@ -79,7 +79,7 @@ static noinline struct mem_section __ref *sparse_index_alloc(int nid)
 	return section;
 }
 
-static int __meminit sparse_index_init(unsigned long section_nr, int nid)
+int __meminit sparse_index_init(unsigned long section_nr, int nid)
 {
 	unsigned long root = SECTION_NR_TO_ROOT(section_nr);
 	struct mem_section *section;
@@ -103,7 +103,7 @@ static int __meminit sparse_index_init(unsigned long section_nr, int nid)
 	return 0;
 }
 #else /* !SPARSEMEM_EXTREME */
-static inline int sparse_index_init(unsigned long section_nr, int nid)
+int sparse_index_init(unsigned long section_nr, int nid)
 {
 	return 0;
 }
@@ -161,14 +161,6 @@ static void __meminit mminit_validate_memmodel_limits(unsigned long *start_pfn,
  * those loops early.
  */
 unsigned long __highest_present_section_nr;
-static void __section_mark_present(struct mem_section *ms,
-		unsigned long section_nr)
-{
-	if (section_nr > __highest_present_section_nr)
-		__highest_present_section_nr = section_nr;
-
-	ms->section_mem_map |= SECTION_MARKED_PRESENT;
-}
 
 #define for_each_present_section_nr(start, section_nr)		\
 	for (section_nr = next_present_section_nr(start-1);	\
@@ -179,44 +171,6 @@ static inline unsigned long first_present_section_nr(void)
 {
 	return next_present_section_nr(-1);
 }
-
-#ifdef CONFIG_SPARSEMEM_VMEMMAP
-static void subsection_mask_set(unsigned long *map, unsigned long pfn,
-		unsigned long nr_pages)
-{
-	int idx = subsection_map_index(pfn);
-	int end = subsection_map_index(pfn + nr_pages - 1);
-
-	bitmap_set(map, idx, end - idx + 1);
-}
-
-void __init subsection_map_init(unsigned long pfn, unsigned long nr_pages)
-{
-	int end_sec_nr = pfn_to_section_nr(pfn + nr_pages - 1);
-	unsigned long nr, start_sec_nr = pfn_to_section_nr(pfn);
-
-	for (nr = start_sec_nr; nr <= end_sec_nr; nr++) {
-		struct mem_section *ms;
-		unsigned long pfns;
-
-		pfns = min(nr_pages, PAGES_PER_SECTION
-				- (pfn & ~PAGE_SECTION_MASK));
-		ms = __nr_to_section(nr);
-		subsection_mask_set(ms->usage->subsection_map, pfn, pfns);
-
-		pr_debug("%s: sec: %lu pfns: %lu set(%d, %d)\n", __func__, nr,
-				pfns, subsection_map_index(pfn),
-				subsection_map_index(pfn + pfns - 1));
-
-		pfn += pfns;
-		nr_pages -= pfns;
-	}
-}
-#else
-void __init subsection_map_init(unsigned long pfn, unsigned long nr_pages)
-{
-}
-#endif
 
 /* Record a memory area against a node. */
 static void __init memory_present(int nid, unsigned long start, unsigned long end)
@@ -268,20 +222,6 @@ static void __init memblocks_present(void)
 		memory_present(nid, start, end);
 }
 
-/*
- * Subtle, we encode the real pfn into the mem_map such that
- * the identity pfn - section_mem_map will return the actual
- * physical page frame number.
- */
-static unsigned long sparse_encode_mem_map(struct page *mem_map, unsigned long pnum)
-{
-	unsigned long coded_mem_map =
-		(unsigned long)(mem_map - (section_nr_to_pfn(pnum)));
-	BUILD_BUG_ON(SECTION_MAP_LAST_BIT > PFN_SECTION_SHIFT);
-	BUG_ON(coded_mem_map & ~SECTION_MAP_MASK);
-	return coded_mem_map;
-}
-
 #ifdef CONFIG_MEMORY_HOTPLUG
 /*
  * Decode mem_map from the coded memmap
@@ -293,16 +233,6 @@ struct page *sparse_decode_mem_map(unsigned long coded_mem_map, unsigned long pn
 	return ((struct page *)coded_mem_map) + section_nr_to_pfn(pnum);
 }
 #endif /* CONFIG_MEMORY_HOTPLUG */
-
-static void __meminit sparse_init_one_section(struct mem_section *ms,
-		unsigned long pnum, struct page *mem_map,
-		struct mem_section_usage *usage, unsigned long flags)
-{
-	ms->section_mem_map &= ~SECTION_MAP_MASK;
-	ms->section_mem_map |= sparse_encode_mem_map(mem_map, pnum)
-		| SECTION_HAS_MEM_MAP | flags;
-	ms->usage = usage;
-}
 
 static unsigned long usemap_size(void)
 {
@@ -587,6 +517,7 @@ void __init sparse_init(void)
 	vmemmap_populate_print_last();
 }
 
+#ifndef CONFIG_SPARSEMEM_VMEMMAP
 #ifdef CONFIG_MEMORY_HOTPLUG
 
 /* Mark all memory sections within the pfn range as online */
@@ -633,7 +564,12 @@ static struct page * __meminit populate_section_memmap(unsigned long pfn,
 		unsigned long nr_pages, int nid, struct vmem_altmap *altmap,
 		struct dev_pagemap *pgmap)
 {
-	return __populate_section_memmap(pfn, nr_pages, nid, altmap, pgmap);
+	struct page *page = __populate_section_memmap(pfn, nr_pages, nid, altmap,
+						      pgmap);
+
+	memmap_pages_add(DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE));
+
+	return page;
 }
 
 static void depopulate_section_memmap(unsigned long pfn, unsigned long nr_pages,
@@ -642,13 +578,17 @@ static void depopulate_section_memmap(unsigned long pfn, unsigned long nr_pages,
 	unsigned long start = (unsigned long) pfn_to_page(pfn);
 	unsigned long end = start + nr_pages * sizeof(struct page);
 
+	memmap_pages_add(-1L * (DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE)));
 	vmemmap_free(start, end, altmap);
 }
+
 static void free_map_bootmem(struct page *memmap)
 {
 	unsigned long start = (unsigned long)memmap;
 	unsigned long end = (unsigned long)(memmap + PAGES_PER_SECTION);
 
+	memmap_boot_pages_add(-1L * (DIV_ROUND_UP(PAGES_PER_SECTION * sizeof(struct page),
+						  PAGE_SIZE)));
 	vmemmap_free(start, end, NULL);
 }
 
@@ -705,13 +645,18 @@ static struct page * __meminit populate_section_memmap(unsigned long pfn,
 		unsigned long nr_pages, int nid, struct vmem_altmap *altmap,
 		struct dev_pagemap *pgmap)
 {
-	return kvmalloc_node(array_size(sizeof(struct page),
-					PAGES_PER_SECTION), GFP_KERNEL, nid);
+	struct page *page = kvmalloc_node(array_size(sizeof(struct page),
+						PAGES_PER_SECTION), GFP_KERNEL, nid);
+
+	memmap_pages_add(DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE));
+
+	return page;
 }
 
 static void depopulate_section_memmap(unsigned long pfn, unsigned long nr_pages,
 		struct vmem_altmap *altmap)
 {
+	memmap_pages_add(-1L * (DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE)));
 	kvfree(pfn_to_page(pfn));
 }
 
@@ -723,6 +668,9 @@ static void free_map_bootmem(struct page *memmap)
 
 	nr_pages = PAGE_ALIGN(PAGES_PER_SECTION * sizeof(struct page))
 		>> PAGE_SHIFT;
+
+	memmap_boot_pages_add(-1L * (DIV_ROUND_UP(PAGES_PER_SECTION * sizeof(struct page),
+						  PAGE_SIZE)));
 
 	for (i = 0; i < nr_pages; i++, page++) {
 		magic = page->index;
@@ -817,14 +765,10 @@ static void section_deactivate(unsigned long pfn, unsigned long nr_pages,
 	 * The memmap of early sections is always fully populated. See
 	 * section_activate() and pfn_valid() .
 	 */
-	if (!section_is_early) {
-		memmap_pages_add(-1L * (DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE)));
+	if (!section_is_early)
 		depopulate_section_memmap(pfn, nr_pages, altmap);
-	} else if (memmap) {
-		memmap_boot_pages_add(-1L * (DIV_ROUND_UP(nr_pages * sizeof(struct page),
-							  PAGE_SIZE)));
+	else if (memmap)
 		free_map_bootmem(memmap);
-	}
 
 	if (empty)
 		ms->section_mem_map = (unsigned long)NULL;
@@ -869,7 +813,6 @@ static struct page * __meminit section_activate(int nid, unsigned long pfn,
 		section_deactivate(pfn, nr_pages, altmap);
 		return ERR_PTR(-ENOMEM);
 	}
-	memmap_pages_add(DIV_ROUND_UP(nr_pages * sizeof(struct page), PAGE_SIZE));
 
 	return memmap;
 }
@@ -918,7 +861,6 @@ int __meminit sparse_add_section(int nid, unsigned long start_pfn,
 		page_init_poison(memmap, sizeof(struct page) * nr_pages);
 
 	ms = __nr_to_section(section_nr);
-	set_section_nid(section_nr, nid);
 	__section_mark_present(ms, section_nr);
 
 	/* Align memmap to section boundary in the subsection case */
@@ -930,7 +872,8 @@ int __meminit sparse_add_section(int nid, unsigned long start_pfn,
 }
 
 void sparse_remove_section(unsigned long pfn, unsigned long nr_pages,
-			   struct vmem_altmap *altmap)
+			   struct vmem_altmap *altmap,
+			   struct dev_pagemap *pgmap)
 {
 	struct mem_section *ms = __pfn_to_section(pfn);
 
@@ -940,3 +883,4 @@ void sparse_remove_section(unsigned long pfn, unsigned long nr_pages,
 	section_deactivate(pfn, nr_pages, altmap);
 }
 #endif /* CONFIG_MEMORY_HOTPLUG */
+#endif /* !CONFIG_SPARSEMEM_VMEMMAP */

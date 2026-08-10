@@ -167,13 +167,14 @@ xdr_free_bvec(struct xdr_buf *buf)
 /**
  * xdr_buf_to_bvec - Copy components of an xdr_buf into a bio_vec array
  * @bvec: bio_vec array to populate
- * @bvec_size: element count of @bio_vec
+ * @bvec_size: element count of @bvec
  * @xdr: xdr_buf to be copied
  *
- * Returns the number of entries consumed in @bvec.
+ * Returns the number of entries consumed in @bvec on success, or
+ * -ESERVERFAULT when @xdr does not fit within @bvec_size entries.
  */
-unsigned int xdr_buf_to_bvec(struct bio_vec *bvec, unsigned int bvec_size,
-			     const struct xdr_buf *xdr)
+int xdr_buf_to_bvec(struct bio_vec *bvec, unsigned int bvec_size,
+		    const struct xdr_buf *xdr)
 {
 	const struct kvec *head = xdr->head;
 	const struct kvec *tail = xdr->tail;
@@ -215,8 +216,207 @@ unsigned int xdr_buf_to_bvec(struct bio_vec *bvec, unsigned int bvec_size,
 
 bvec_overflow:
 	pr_warn_once("%s: bio_vec array overflow\n", __func__);
-	return count;
+	return -ESERVERFAULT;
 }
+
+/**
+ * xdr_buf_to_sg - Populate a scatterlist from an xdr_buf range
+ * @buf: xdr_buf to map
+ * @offset: starting byte offset within @buf
+ * @len: number of bytes to cover
+ * @sg: scatterlist array initialized with sg_init_table()
+ * @nsg: number of entries available in @sg
+ *
+ * @sg is traversed with sg_next(), so callers may pass a list
+ * assembled with sg_chain().
+ *
+ * Return: on success, the number of scatterlist entries used; the
+ * last used entry is marked with sg_mark_end().  On failure, a
+ * negative errno.
+ */
+int xdr_buf_to_sg(const struct xdr_buf *buf, unsigned int offset,
+		  unsigned int len, struct scatterlist *sg, unsigned int nsg)
+{
+	unsigned int page_len, thislen, page_offset;
+	struct scatterlist *cur = sg, *prev = NULL;
+	int nents = 0;
+	int i;
+
+	if (len == 0)
+		return 0;
+
+	if (offset >= buf->head[0].iov_len) {
+		offset -= buf->head[0].iov_len;
+	} else {
+		thislen = min_t(unsigned int,
+				buf->head[0].iov_len - offset, len);
+		if (nents >= nsg)
+			return -ENOSPC;
+		sg_set_buf(cur, buf->head[0].iov_base + offset,
+			   thislen);
+		prev = cur;
+		cur = sg_next(cur);
+		nents++;
+		len -= thislen;
+		offset = 0;
+	}
+	if (len == 0)
+		goto done;
+
+	if (offset >= buf->page_len) {
+		offset -= buf->page_len;
+	} else {
+		page_len = min(buf->page_len - offset, len);
+		len -= page_len;
+		page_offset = (offset + buf->page_base) & (PAGE_SIZE - 1);
+		i = (offset + buf->page_base) >> PAGE_SHIFT;
+		thislen = PAGE_SIZE - page_offset;
+		do {
+			if (thislen > page_len)
+				thislen = page_len;
+			if (nents >= nsg)
+				return -ENOSPC;
+			sg_set_page(cur, buf->pages[i],
+				    thislen, page_offset);
+			prev = cur;
+			cur = sg_next(cur);
+			nents++;
+			page_len -= thislen;
+			i++;
+			page_offset = 0;
+			thislen = PAGE_SIZE;
+		} while (page_len != 0);
+		offset = 0;
+	}
+	if (len == 0)
+		goto done;
+
+	if (offset < buf->tail[0].iov_len) {
+		thislen = min_t(unsigned int,
+				buf->tail[0].iov_len - offset, len);
+		if (nents >= nsg)
+			return -ENOSPC;
+		sg_set_buf(cur, buf->tail[0].iov_base + offset,
+			   thislen);
+		prev = cur;
+		nents++;
+		len -= thislen;
+	}
+	if (len != 0)
+		return -EINVAL;
+
+done:
+	if (prev)
+		sg_mark_end(prev);
+	return nents;
+}
+EXPORT_SYMBOL_GPL(xdr_buf_to_sg);
+
+/*
+ * Count the scatterlist entries needed to cover [offset, offset + len)
+ * within @buf.  Mirrors the walk in xdr_buf_to_sg() so the caller can
+ * size an allocation that matches the requested sub-range rather than
+ * the full xdr_buf.
+ */
+static unsigned int xdr_buf_sg_nents(const struct xdr_buf *buf,
+				     unsigned int offset, unsigned int len)
+{
+	unsigned int nsg = 0, thislen, page_offset;
+
+	if (len == 0)
+		return 0;
+
+	if (offset < buf->head[0].iov_len) {
+		thislen = min_t(unsigned int,
+				buf->head[0].iov_len - offset, len);
+		nsg++;
+		len -= thislen;
+		offset = 0;
+	} else {
+		offset -= buf->head[0].iov_len;
+	}
+	if (len == 0)
+		return nsg;
+
+	if (offset < buf->page_len) {
+		thislen = min(buf->page_len - offset, len);
+		page_offset = (offset + buf->page_base) & (PAGE_SIZE - 1);
+		nsg += DIV_ROUND_UP(page_offset + thislen, PAGE_SIZE);
+		len -= thislen;
+		offset = 0;
+	} else {
+		offset -= buf->page_len;
+	}
+	if (len == 0)
+		return nsg;
+
+	if (offset < buf->tail[0].iov_len)
+		nsg++;
+	return nsg;
+}
+
+/**
+ * xdr_buf_to_sg_alloc - Populate a scatterlist for an xdr_buf range
+ * @buf: xdr_buf to map
+ * @offset: starting byte offset within @buf
+ * @len: number of bytes to cover
+ * @sg_head: caller-provided scatterlist array (typically stack-allocated)
+ * @sg_head_nents: number of entries in @sg_head
+ * @sg_overflow: OUT: chained extension, or NULL when @sg_head sufficed
+ * @gfp: memory allocation flags for overflow
+ *
+ * Populates @sg_head directly when the xdr_buf fits.  When more
+ * entries are needed, an overflow scatterlist is allocated and
+ * chained from @sg_head so that the result is traversable with
+ * sg_next().
+ *
+ * Return: on success, the number of populated scatterlist entries
+ * (counting only data entries, not chain entries).  @sg_head is
+ * the head of the resulting list.  Caller must kfree @sg_overflow
+ * when done.  On failure, a negative errno.
+ */
+int xdr_buf_to_sg_alloc(const struct xdr_buf *buf, unsigned int offset,
+			unsigned int len, struct scatterlist *sg_head,
+			unsigned int sg_head_nents,
+			struct scatterlist **sg_overflow, gfp_t gfp)
+{
+	unsigned int nsg;
+	int ret;
+
+	*sg_overflow = NULL;
+	if (len == 0)
+		return 0;
+
+	nsg = xdr_buf_sg_nents(buf, offset, len);
+	if (nsg == 0)
+		return -EINVAL;
+
+	if (nsg <= sg_head_nents) {
+		sg_init_table(sg_head, nsg);
+	} else {
+		/* +1 replaces the slot sg_chain() consumes as the link. */
+		unsigned int overflow_nents = nsg - sg_head_nents + 1;
+		struct scatterlist *overflow;
+
+		overflow = kmalloc_array(overflow_nents, sizeof(*overflow),
+					 gfp);
+		if (!overflow)
+			return -ENOMEM;
+
+		sg_init_table(sg_head, sg_head_nents);
+		sg_init_table(overflow, overflow_nents);
+		sg_chain(sg_head, sg_head_nents, overflow);
+		*sg_overflow = overflow;
+	}
+
+	ret = xdr_buf_to_sg(buf, offset, len, sg_head, nsg);
+	if (ret < 0) {
+		kfree(*sg_overflow);
+		*sg_overflow = NULL;
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(xdr_buf_to_sg_alloc);
 
 /**
  * xdr_inline_pages - Prepare receive buffer for a large reply

@@ -1201,7 +1201,7 @@ struct ss_tmp {
 	spinlock_t	*lock_irqsave;
 };
 
-static inline void __scoped_seqlock_cleanup(struct ss_tmp *sst)
+static __always_inline void __scoped_seqlock_cleanup(struct ss_tmp *sst)
 {
 	if (sst->lock)
 		spin_unlock(sst->lock);
@@ -1211,11 +1211,15 @@ static inline void __scoped_seqlock_cleanup(struct ss_tmp *sst)
 
 extern void __scoped_seqlock_invalid_target(void);
 
-#if defined(CONFIG_CC_IS_GCC) && CONFIG_GCC_VERSION < 90000
+#if (defined(CONFIG_CC_IS_GCC) && CONFIG_GCC_VERSION < 90000) || \
+	defined(CONFIG_KASAN) || defined(CONFIG_UBSAN_ALIGNMENT)
 /*
  * For some reason some GCC-8 architectures (nios2, alpha) have trouble
  * determining that the ss_done state is impossible in __scoped_seqlock_next()
  * below.
+ *
+ * Similarly KASAN and UBSAN_ALIGNMENT are known to confuse compilers enough
+ * to break this. But we don't care about code quality for such builds anyway.
  */
 static inline void __scoped_seqlock_bug(void) { }
 #else
@@ -1226,7 +1230,7 @@ static inline void __scoped_seqlock_bug(void) { }
 extern void __scoped_seqlock_bug(void);
 #endif
 
-static inline void
+static __always_inline void
 __scoped_seqlock_next(struct ss_tmp *sst, seqlock_t *lock, enum ss_state target)
 {
 	switch (sst->state) {

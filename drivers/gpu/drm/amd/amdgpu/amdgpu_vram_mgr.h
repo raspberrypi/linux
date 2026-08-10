@@ -24,11 +24,11 @@
 #ifndef __AMDGPU_VRAM_MGR_H__
 #define __AMDGPU_VRAM_MGR_H__
 
-#include <drm/drm_buddy.h>
+#include <linux/gpu_buddy.h>
 
 struct amdgpu_vram_mgr {
 	struct ttm_resource_manager manager;
-	struct drm_buddy mm;
+	struct gpu_buddy mm;
 	/* protects access to buffer objects */
 	struct mutex lock;
 	struct list_head reservations_pending;
@@ -43,19 +43,19 @@ struct amdgpu_vram_mgr_resource {
 	unsigned long flags;
 };
 
-static inline u64 amdgpu_vram_mgr_block_start(struct drm_buddy_block *block)
+static inline u64 amdgpu_vram_mgr_block_start(struct gpu_buddy_block *block)
 {
-	return drm_buddy_block_offset(block);
+	return gpu_buddy_block_offset(block);
 }
 
-static inline u64 amdgpu_vram_mgr_block_size(struct drm_buddy_block *block)
+static inline u64 amdgpu_vram_mgr_block_size(struct gpu_buddy_block *block)
 {
-	return (u64)PAGE_SIZE << drm_buddy_block_order(block);
+	return (u64)PAGE_SIZE << gpu_buddy_block_order(block);
 }
 
-static inline bool amdgpu_vram_mgr_is_cleared(struct drm_buddy_block *block)
+static inline bool amdgpu_vram_mgr_is_cleared(struct gpu_buddy_block *block)
 {
-	return drm_buddy_block_is_clear(block);
+	return gpu_buddy_block_is_clear(block);
 }
 
 static inline struct amdgpu_vram_mgr_resource *
@@ -66,7 +66,7 @@ to_amdgpu_vram_mgr_resource(struct ttm_resource *res)
 
 static inline void amdgpu_vram_mgr_set_cleared(struct ttm_resource *res)
 {
-	to_amdgpu_vram_mgr_resource(res)->flags |= DRM_BUDDY_CLEARED;
+	to_amdgpu_vram_mgr_resource(res)->flags |= GPU_BUDDY_CLEARED;
 }
 
 #endif

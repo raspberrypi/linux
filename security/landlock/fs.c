@@ -1666,6 +1666,14 @@ static bool control_current_fowner(struct fown_struct *const fown)
 	lockdep_assert_held(&fown->lock);
 
 	/*
+	 * A process-group or session owner (PIDTYPE_PGID/PIDTYPE_SID) fans the
+	 * signal out to every member at delivery time, so record the domain and
+	 * let hook_file_send_sigiotask() check the live scope per recipient.
+	 */
+	if (fown->pid_type != PIDTYPE_PID && fown->pid_type != PIDTYPE_TGID)
+		return true;
+
+	/*
 	 * Some callers (e.g. fcntl_dirnotify) may not be in an RCU read-side
 	 * critical section.
 	 */
@@ -1680,23 +1688,54 @@ static bool control_current_fowner(struct fown_struct *const fown)
 static void hook_file_set_fowner(struct file *file)
 {
 	struct landlock_ruleset *prev_dom;
-	struct landlock_ruleset *new_dom = NULL;
+	struct landlock_cred_security fown_subject = {};
+	struct pid *prev_tg, *fown_tg = NULL;
+	size_t fown_layer = 0;
+
+	/*
+	 * Keep this local to match the layout expected by follow-up changes
+	 * shared with audit-enabled kernels.
+	 */
+	(void)fown_layer;
 
 	if (control_current_fowner(file_f_owner(file))) {
-		new_dom = landlock_get_current_domain();
-		landlock_get_ruleset(new_dom);
+		static const struct access_masks signal_scope = {
+			.scope = LANDLOCK_SCOPE_SIGNAL,
+		};
+		struct landlock_ruleset *const current_domain =
+			landlock_get_current_domain();
+		const struct landlock_cred_security applicable_subject = {
+			.domain = current_domain,
+		};
+		const struct landlock_cred_security *new_subject = NULL;
+
+		if (landlock_get_applicable_domain(current_domain, signal_scope))
+			new_subject = &applicable_subject;
+
+		if (new_subject) {
+			landlock_get_ruleset(new_subject->domain);
+			fown_subject = *new_subject;
+			fown_tg = get_pid(task_tgid(current));
+		}
 	}
 
-	prev_dom = landlock_file(file)->fown_domain;
-	landlock_file(file)->fown_domain = new_dom;
+	prev_dom = landlock_file(file)->fown_subject.domain;
+	prev_tg = landlock_file(file)->fown_tg;
+	landlock_file(file)->fown_subject = fown_subject;
+	landlock_file(file)->fown_tg = fown_tg;
+#ifdef CONFIG_AUDIT
+	landlock_file(file)->fown_layer = fown_layer;
+#endif /* CONFIG_AUDIT*/
 
 	/* May be called in an RCU read-side critical section. */
 	landlock_put_ruleset_deferred(prev_dom);
+	put_pid(prev_tg);
 }
 
 static void hook_file_free_security(struct file *file)
 {
-	landlock_put_ruleset_deferred(landlock_file(file)->fown_domain);
+	put_pid(landlock_file(file)->fown_tg);
+	landlock_put_ruleset_deferred(landlock_file(file)->fown_subject.domain);
 }
 
 static struct security_hook_list landlock_hooks[] __ro_after_init = {

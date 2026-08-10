@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Landlock LSM - Filesystem management and hooks
+ * Landlock - Filesystem management and hooks
  *
  * Copyright © 2017-2020 Mickaël Salaün <mic@digikod.net>
  * Copyright © 2018-2020 ANSSI
+ * Copyright © 2024-2025 Microsoft Corporation
  */
 
 #ifndef _SECURITY_LANDLOCK_FS_H
@@ -13,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/rcupdate.h>
 
+#include "cred.h"
 #include "ruleset.h"
 #include "setup.h"
 
@@ -52,13 +54,32 @@ struct landlock_file_security {
 	 * needed to authorize later operations on the open file.
 	 */
 	access_mask_t allowed_access;
+
+#ifdef CONFIG_AUDIT
 	/**
-	 * @fown_domain: Domain of the task that set the PID that may receive a
-	 * signal e.g., SIGURG when writing MSG_OOB to the related socket.
-	 * This pointer is protected by the related file->f_owner->lock, as for
-	 * fown_struct's members: pid, uid, and euid.
+	 * @fown_layer: Compatibility storage for follow-up fowner changes.
 	 */
-	struct landlock_ruleset *fown_domain;
+	u8 fown_layer;
+#endif /* CONFIG_AUDIT */
+
+	/**
+	 * @fown_subject: Landlock credential of the task that set the PID that
+	 * may receive a signal e.g., SIGURG when writing MSG_OOB to the
+	 * related socket.  This pointer is protected by the related
+	 * file->f_owner->lock, as for fown_struct's members: pid, uid, and
+	 * euid.
+	 */
+	struct landlock_cred_security fown_subject;
+	/**
+	 * @fown_tg: Thread group of the task that set the file owner, pinned
+	 * while @fown_subject holds a domain.  It lets
+	 * hook_file_send_sigiotask() always allow a SIGIO delivered to the
+	 * owner's own process -- e.g. the thread-group leader reached through a
+	 * process-group owner -- matching the same-process exemption of
+	 * hook_task_kill().  NULL when no domain is recorded.  Protected by
+	 * file->f_owner->lock, like @fown_subject.
+	 */
+	struct pid *fown_tg;
 };
 
 /**

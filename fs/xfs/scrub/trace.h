@@ -2553,9 +2553,9 @@ TRACE_EVENT(xrep_cow_mark_file_range,
 );
 
 TRACE_EVENT(xrep_cow_replace_mapping,
-	TP_PROTO(struct xfs_inode *ip, const struct xfs_bmbt_irec *irec,
-		 xfs_fsblock_t new_startblock, xfs_extlen_t new_blockcount),
-	TP_ARGS(ip, irec, new_startblock, new_blockcount),
+	TP_PROTO(struct xfs_inode *ip, const struct xfs_bmbt_irec *got,
+		 const struct xfs_bmbt_irec *rep),
+	TP_ARGS(ip, got, rep),
 	TP_STRUCT__entry(
 		__field(dev_t, dev)
 		__field(xfs_ino_t, ino)
@@ -2563,28 +2563,34 @@ TRACE_EVENT(xrep_cow_replace_mapping,
 		__field(xfs_fileoff_t, startoff)
 		__field(xfs_filblks_t, blockcount)
 		__field(xfs_exntst_t, state)
+		__field(xfs_fileoff_t, new_startoff)
 		__field(xfs_fsblock_t, new_startblock)
 		__field(xfs_extlen_t, new_blockcount)
+		__field(xfs_exntst_t, new_state)
 	),
 	TP_fast_assign(
 		__entry->dev = ip->i_mount->m_super->s_dev;
 		__entry->ino = ip->i_ino;
-		__entry->startoff = irec->br_startoff;
-		__entry->startblock = irec->br_startblock;
-		__entry->blockcount = irec->br_blockcount;
-		__entry->state = irec->br_state;
-		__entry->new_startblock = new_startblock;
-		__entry->new_blockcount = new_blockcount;
+		__entry->startoff = got->br_startoff;
+		__entry->startblock = got->br_startblock;
+		__entry->blockcount = got->br_blockcount;
+		__entry->state = got->br_state;
+		__entry->new_startoff = rep->br_startoff;
+		__entry->new_startblock = rep->br_startblock;
+		__entry->new_blockcount = rep->br_blockcount;
+		__entry->new_state = rep->br_state;
 	),
-	TP_printk("dev %d:%d ino 0x%llx startoff 0x%llx startblock 0x%llx fsbcount 0x%llx state 0x%x new_startblock 0x%llx new_fsbcount 0x%x",
+	TP_printk("dev %d:%d ino 0x%llx startoff 0x%llx startblock 0x%llx fsbcount 0x%llx state 0x%x new_startoff 0x%llx new_startblock 0x%llx new_fsbcount 0x%x new_state 0x%x",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  __entry->ino,
 		  __entry->startoff,
 		  __entry->startblock,
 		  __entry->blockcount,
 		  __entry->state,
+		  __entry->new_startoff,
 		  __entry->new_startblock,
-		  __entry->new_blockcount)
+		  __entry->new_blockcount,
+		  __entry->new_state)
 );
 
 TRACE_EVENT(xrep_cow_free_staging,

@@ -6,6 +6,7 @@
 // Author: KaiChieh Chuang <kaichieh.chuang@mediatek.com>
 
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
 #include <linux/module.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
@@ -425,196 +426,70 @@ static const struct snd_soc_component_driver mt8183_afe_pcm_dai_component = {
 	.name = "mt8183-afe-pcm-dai",
 };
 
+#define MT8183_MEMIF_BASE(_id, _en_reg, _fs_reg, _mono_reg)    \
+	[MT8183_MEMIF_##_id] = { \
+		.name = #_id,				\
+		.id = MT8183_MEMIF_##_id,		\
+		.reg_ofs_base = AFE_##_id##_BASE,	\
+		.reg_ofs_cur = AFE_##_id##_CUR,		\
+		.reg_ofs_end = AFE_##_id##_END,		\
+		.reg_ofs_base_msb = AFE_##_id##_BASE_MSB,	\
+		.reg_ofs_cur_msb = AFE_##_id##_CUR_MSB,		\
+		.reg_ofs_end_msb = AFE_##_id##_END_MSB,		\
+		.fs_reg = (_fs_reg),			\
+		.fs_shift = _id##_MODE_SFT,		\
+		.fs_maskbit = _id##_MODE_MASK,		\
+		.mono_reg = (_mono_reg),		\
+		.mono_shift = _id##_DATA_SFT,		\
+		.enable_reg = (_en_reg),		\
+		.enable_shift = _id##_ON_SFT,		\
+		.hd_reg = AFE_MEMIF_HD_MODE,		\
+		.hd_align_reg = AFE_MEMIF_HDALIGN,	\
+		.hd_shift = _id##_HD_SFT,		\
+		.hd_align_mshift = _id##_HD_ALIGN_SFT,	\
+		.agent_disable_reg = -1,		\
+		.agent_disable_shift = -1,		\
+		.msb_reg = -1,				\
+		.msb_shift = -1,			\
+	}
+
+#define MT8183_MEMIF(_id, _fs_reg, _mono_reg) \
+		MT8183_MEMIF_BASE(_id, AFE_DAC_CON0, _fs_reg, _mono_reg)
+
+/* For convenience with macros: missing register fields */
+#define MOD_DAI_DATA_SFT	-1
+#define HDMI_MODE_SFT		-1
+#define HDMI_MODE_MASK		-1
+#define HDMI_DATA_SFT		-1
+#define HDMI_ON_SFT		-1
+
+/* For convenience with macros: register name differences */
+#define AFE_VUL12_BASE		AFE_VUL_D2_BASE
+#define AFE_VUL12_CUR		AFE_VUL_D2_CUR
+#define AFE_VUL12_END		AFE_VUL_D2_END
+#define AFE_VUL12_BASE_MSB	AFE_VUL_D2_BASE_MSB
+#define AFE_VUL12_CUR_MSB	AFE_VUL_D2_CUR_MSB
+#define AFE_VUL12_END_MSB	AFE_VUL_D2_END_MSB
+#define AWB2_HD_ALIGN_SFT	AWB2_ALIGN_SFT
+#define VUL12_DATA_SFT		VUL12_MONO_SFT
+#define AFE_HDMI_BASE		AFE_HDMI_OUT_BASE
+#define AFE_HDMI_CUR		AFE_HDMI_OUT_CUR
+#define AFE_HDMI_END		AFE_HDMI_OUT_END
+#define AFE_HDMI_BASE_MSB	AFE_HDMI_OUT_BASE_MSB
+#define AFE_HDMI_CUR_MSB	AFE_HDMI_OUT_CUR_MSB
+#define AFE_HDMI_END_MSB	AFE_HDMI_OUT_END_MSB
+
 static const struct mtk_base_memif_data memif_data[MT8183_MEMIF_NUM] = {
-	[MT8183_MEMIF_DL1] = {
-		.name = "DL1",
-		.id = MT8183_MEMIF_DL1,
-		.reg_ofs_base = AFE_DL1_BASE,
-		.reg_ofs_cur = AFE_DL1_CUR,
-		.fs_reg = AFE_DAC_CON1,
-		.fs_shift = DL1_MODE_SFT,
-		.fs_maskbit = DL1_MODE_MASK,
-		.mono_reg = AFE_DAC_CON1,
-		.mono_shift = DL1_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = DL1_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = DL1_HD_SFT,
-		.hd_align_mshift = DL1_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_DL2] = {
-		.name = "DL2",
-		.id = MT8183_MEMIF_DL2,
-		.reg_ofs_base = AFE_DL2_BASE,
-		.reg_ofs_cur = AFE_DL2_CUR,
-		.fs_reg = AFE_DAC_CON1,
-		.fs_shift = DL2_MODE_SFT,
-		.fs_maskbit = DL2_MODE_MASK,
-		.mono_reg = AFE_DAC_CON1,
-		.mono_shift = DL2_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = DL2_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = DL2_HD_SFT,
-		.hd_align_mshift = DL2_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_DL3] = {
-		.name = "DL3",
-		.id = MT8183_MEMIF_DL3,
-		.reg_ofs_base = AFE_DL3_BASE,
-		.reg_ofs_cur = AFE_DL3_CUR,
-		.fs_reg = AFE_DAC_CON2,
-		.fs_shift = DL3_MODE_SFT,
-		.fs_maskbit = DL3_MODE_MASK,
-		.mono_reg = AFE_DAC_CON1,
-		.mono_shift = DL3_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = DL3_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = DL3_HD_SFT,
-		.hd_align_mshift = DL3_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_VUL2] = {
-		.name = "VUL2",
-		.id = MT8183_MEMIF_VUL2,
-		.reg_ofs_base = AFE_VUL2_BASE,
-		.reg_ofs_cur = AFE_VUL2_CUR,
-		.fs_reg = AFE_DAC_CON2,
-		.fs_shift = VUL2_MODE_SFT,
-		.fs_maskbit = VUL2_MODE_MASK,
-		.mono_reg = AFE_DAC_CON2,
-		.mono_shift = VUL2_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = VUL2_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = VUL2_HD_SFT,
-		.hd_align_mshift = VUL2_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_AWB] = {
-		.name = "AWB",
-		.id = MT8183_MEMIF_AWB,
-		.reg_ofs_base = AFE_AWB_BASE,
-		.reg_ofs_cur = AFE_AWB_CUR,
-		.fs_reg = AFE_DAC_CON1,
-		.fs_shift = AWB_MODE_SFT,
-		.fs_maskbit = AWB_MODE_MASK,
-		.mono_reg = AFE_DAC_CON1,
-		.mono_shift = AWB_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = AWB_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = AWB_HD_SFT,
-		.hd_align_mshift = AWB_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_AWB2] = {
-		.name = "AWB2",
-		.id = MT8183_MEMIF_AWB2,
-		.reg_ofs_base = AFE_AWB2_BASE,
-		.reg_ofs_cur = AFE_AWB2_CUR,
-		.fs_reg = AFE_DAC_CON2,
-		.fs_shift = AWB2_MODE_SFT,
-		.fs_maskbit = AWB2_MODE_MASK,
-		.mono_reg = AFE_DAC_CON2,
-		.mono_shift = AWB2_DATA_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = AWB2_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = AWB2_HD_SFT,
-		.hd_align_mshift = AWB2_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_VUL12] = {
-		.name = "VUL12",
-		.id = MT8183_MEMIF_VUL12,
-		.reg_ofs_base = AFE_VUL_D2_BASE,
-		.reg_ofs_cur = AFE_VUL_D2_CUR,
-		.fs_reg = AFE_DAC_CON0,
-		.fs_shift = VUL12_MODE_SFT,
-		.fs_maskbit = VUL12_MODE_MASK,
-		.mono_reg = AFE_DAC_CON0,
-		.mono_shift = VUL12_MONO_SFT,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = VUL12_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = VUL12_HD_SFT,
-		.hd_align_mshift = VUL12_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_MOD_DAI] = {
-		.name = "MOD_DAI",
-		.id = MT8183_MEMIF_MOD_DAI,
-		.reg_ofs_base = AFE_MOD_DAI_BASE,
-		.reg_ofs_cur = AFE_MOD_DAI_CUR,
-		.fs_reg = AFE_DAC_CON1,
-		.fs_shift = MOD_DAI_MODE_SFT,
-		.fs_maskbit = MOD_DAI_MODE_MASK,
-		.mono_reg = -1,
-		.mono_shift = 0,
-		.enable_reg = AFE_DAC_CON0,
-		.enable_shift = MOD_DAI_ON_SFT,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = MOD_DAI_HD_SFT,
-		.hd_align_mshift = MOD_DAI_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
-	[MT8183_MEMIF_HDMI] = {
-		.name = "HDMI",
-		.id = MT8183_MEMIF_HDMI,
-		.reg_ofs_base = AFE_HDMI_OUT_BASE,
-		.reg_ofs_cur = AFE_HDMI_OUT_CUR,
-		.fs_reg = -1,
-		.fs_shift = -1,
-		.fs_maskbit = -1,
-		.mono_reg = -1,
-		.mono_shift = -1,
-		.enable_reg = -1,	/* control in tdm for sync start */
-		.enable_shift = -1,
-		.hd_reg = AFE_MEMIF_HD_MODE,
-		.hd_align_reg = AFE_MEMIF_HDALIGN,
-		.hd_shift = HDMI_HD_SFT,
-		.hd_align_mshift = HDMI_HD_ALIGN_SFT,
-		.agent_disable_reg = -1,
-		.agent_disable_shift = -1,
-		.msb_reg = -1,
-		.msb_shift = -1,
-	},
+	MT8183_MEMIF(DL1, AFE_DAC_CON1, AFE_DAC_CON1),
+	MT8183_MEMIF(DL2, AFE_DAC_CON1, AFE_DAC_CON1),
+	MT8183_MEMIF(DL3, AFE_DAC_CON2, AFE_DAC_CON1),
+	MT8183_MEMIF(VUL2, AFE_DAC_CON2, AFE_DAC_CON2),
+	MT8183_MEMIF(AWB, AFE_DAC_CON1, AFE_DAC_CON1),
+	MT8183_MEMIF(AWB2, AFE_DAC_CON2, AFE_DAC_CON2),
+	MT8183_MEMIF(VUL12, AFE_DAC_CON0, AFE_DAC_CON0),
+	MT8183_MEMIF(MOD_DAI, AFE_DAC_CON1, -1),
+	/* enable control in tdm for sync start */
+	MT8183_MEMIF_BASE(HDMI, -1, -1, -1),
 };
 
 static const struct mtk_base_irq_data irq_data[MT8183_IRQ_NUM] = {
@@ -1082,23 +957,25 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 {
 	struct mtk_base_afe *afe;
 	struct mt8183_afe_private *afe_priv;
-	struct device *dev;
+	struct device *dev = &pdev->dev;
 	struct reset_control *rstc;
 	int i, irq_id, ret;
 
-	afe = devm_kzalloc(&pdev->dev, sizeof(*afe), GFP_KERNEL);
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(34));
+	if (ret)
+		return ret;
+
+	afe = devm_kzalloc(dev, sizeof(*afe), GFP_KERNEL);
 	if (!afe)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, afe);
 
-	afe->platform_priv = devm_kzalloc(&pdev->dev, sizeof(*afe_priv),
-					  GFP_KERNEL);
+	afe->platform_priv = devm_kzalloc(dev, sizeof(*afe_priv), GFP_KERNEL);
 	if (!afe->platform_priv)
 		return -ENOMEM;
 
 	afe_priv = afe->platform_priv;
-	afe->dev = &pdev->dev;
-	dev = afe->dev;
+	afe->dev = dev;
 
 	ret = of_reserved_mem_device_init(dev);
 	if (ret) {
@@ -1149,16 +1026,20 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 
 	/* enable clock for regcache get default value from hw */
 	afe_priv->pm_runtime_bypass_reg_ctl = true;
-	pm_runtime_get_sync(&pdev->dev);
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret) {
+		afe_priv->pm_runtime_bypass_reg_ctl = false;
+		goto err_pm_disable;
+	}
 
 	ret = regmap_reinit_cache(afe->regmap, &mt8183_afe_regmap_config);
+	pm_runtime_put_sync(dev);
+	afe_priv->pm_runtime_bypass_reg_ctl = false;
+
 	if (ret) {
 		dev_err(dev, "regmap_reinit_cache fail, ret %d\n", ret);
 		goto err_pm_disable;
 	}
-
-	pm_runtime_put_sync(&pdev->dev);
-	afe_priv->pm_runtime_bypass_reg_ctl = false;
 
 	regcache_cache_only(afe->regmap, true);
 	regcache_mark_dirty(afe->regmap);
@@ -1215,7 +1096,7 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 	for (i = 0; i < ARRAY_SIZE(dai_register_cbs); i++) {
 		ret = dai_register_cbs[i](afe);
 		if (ret) {
-			dev_warn(afe->dev, "dai register i %d fail, ret %d\n",
+			dev_warn(dev, "dai register i %d fail, ret %d\n",
 				 i, ret);
 			goto err_pm_disable;
 		}
@@ -1224,8 +1105,7 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 	/* init dai_driver and component_driver */
 	ret = mtk_afe_combine_sub_dai(afe);
 	if (ret) {
-		dev_warn(afe->dev, "mtk_afe_combine_sub_dai fail, ret %d\n",
-			 ret);
+		dev_warn(dev, "mtk_afe_combine_sub_dai fail, ret %d\n", ret);
 		goto err_pm_disable;
 	}
 
@@ -1237,16 +1117,14 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 	afe->runtime_suspend = mt8183_afe_runtime_suspend;
 
 	/* register component */
-	ret = devm_snd_soc_register_component(&pdev->dev,
-					      &mtk_afe_pcm_platform,
+	ret = devm_snd_soc_register_component(dev, &mtk_afe_pcm_platform,
 					      NULL, 0);
 	if (ret) {
 		dev_warn(dev, "err_platform\n");
 		goto err_pm_disable;
 	}
 
-	ret = devm_snd_soc_register_component(afe->dev,
-					      &mt8183_afe_pcm_dai_component,
+	ret = devm_snd_soc_register_component(dev, &mt8183_afe_pcm_dai_component,
 					      afe->dai_drivers,
 					      afe->num_dai_drivers);
 	if (ret) {
@@ -1257,15 +1135,17 @@ static int mt8183_afe_pcm_dev_probe(struct platform_device *pdev)
 	return ret;
 
 err_pm_disable:
-	pm_runtime_disable(&pdev->dev);
+	pm_runtime_disable(dev);
 	return ret;
 }
 
 static void mt8183_afe_pcm_dev_remove(struct platform_device *pdev)
 {
-	pm_runtime_disable(&pdev->dev);
-	if (!pm_runtime_status_suspended(&pdev->dev))
-		mt8183_afe_runtime_suspend(&pdev->dev);
+	struct device *dev = &pdev->dev;
+
+	pm_runtime_disable(dev);
+	if (!pm_runtime_status_suspended(dev))
+		mt8183_afe_runtime_suspend(dev);
 }
 
 static const struct of_device_id mt8183_afe_pcm_dt_match[] = {

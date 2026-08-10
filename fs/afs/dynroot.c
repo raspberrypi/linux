@@ -108,7 +108,9 @@ static struct dentry *afs_dynroot_lookup_cell(struct inode *dir, struct dentry *
 		dotted = true;
 	}
 
-	cell = afs_lookup_cell(net, name, len, NULL, false);
+	cell = afs_lookup_cell(net, name, len, NULL,
+			       AFS_LOOKUP_CELL_DYNROOT,
+			       afs_cell_trace_use_lookup_dynroot);
 	if (IS_ERR(cell)) {
 		ret = PTR_ERR(cell);
 		goto out_no_cell;
@@ -124,7 +126,7 @@ static struct dentry *afs_dynroot_lookup_cell(struct inode *dir, struct dentry *
 	return d_splice_alias(inode, dentry);
 
 out:
-	afs_unuse_cell(cell->net, cell, afs_cell_trace_unuse_lookup_dynroot);
+	afs_unuse_cell(cell, afs_cell_trace_unuse_lookup_dynroot);
 out_no_cell:
 	if (!inode)
 		return d_splice_alias(inode, dentry);
@@ -166,7 +168,7 @@ static void afs_dynroot_d_release(struct dentry *dentry)
 {
 	struct afs_cell *cell = dentry->d_fsdata;
 
-	afs_unuse_cell(cell->net, cell, afs_cell_trace_unuse_dynroot_mntpt);
+	afs_unuse_cell(cell, afs_cell_trace_unuse_dynroot_mntpt);
 }
 
 /*
@@ -276,7 +278,7 @@ static struct dentry *afs_lookup_atcell(struct inode *dir, struct dentry *dentry
 }
 
 /*
- * Transcribe the cell database into readdir content under the RCU read lock.
+ * Transcribe the cell database into readdir content under net->cells_lock.
  * Each cell produces two entries, one prefixed with a dot and one not.
  */
 static int afs_dynroot_readdir_cells(struct afs_net *net, struct dir_context *ctx)
@@ -292,8 +294,8 @@ static int afs_dynroot_readdir_cells(struct afs_net *net, struct dir_context *ct
 		cell = idr_get_next(&net->cells_dyn_ino, &ix);
 		if (!cell)
 			return 0;
-		if (READ_ONCE(cell->state) == AFS_CELL_FAILED ||
-		    READ_ONCE(cell->state) == AFS_CELL_REMOVED) {
+		if (READ_ONCE(cell->state) == AFS_CELL_REMOVING ||
+		    READ_ONCE(cell->state) == AFS_CELL_DEAD) {
 			ctx->pos += 2;
 			ctx->pos &= ~1;
 			continue;

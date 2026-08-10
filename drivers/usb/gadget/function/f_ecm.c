@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/etherdevice.h>
+#include <linux/string_choices.h>
 
 #include <linux/usb/gadget.h>
 
@@ -390,8 +391,7 @@ static void ecm_do_notify(struct f_ecm *ecm)
 		event->wLength = 0;
 		req->length = sizeof *event;
 
-		DBG(cdev, "notify connect %s\n",
-				ecm->is_open ? "true" : "false");
+		DBG(cdev, "notify connect %s\n", str_true_false(ecm->is_open));
 		ecm->notify_state = ECM_NOTIFY_SPEED;
 		break;
 
