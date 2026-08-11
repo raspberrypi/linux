@@ -2072,6 +2072,7 @@ static int sunxi_nand_hw_ecc_ctrl_init(struct nand_chip *nand,
 	int total_user_data_sz = 0;
 	int nsectors;
 	int ecc_mode;
+	int ret;
 	int i;
 
 	if (nanddev->ecc.user_conf.flags & NAND_ECC_MAXIMIZE_STRENGTH) {
@@ -2172,9 +2173,12 @@ static int sunxi_nand_hw_ecc_ctrl_init(struct nand_chip *nand,
 	 * The rationale for variable data length is to prioritize maximum ECC
 	 * strength, and then use the remaining space for user data.
 	 */
-	if (nfc->caps->reg_user_data_len)
-		sunxi_nfc_maximize_user_data(nand, mtd->oobsize, ecc->bytes,
-					     nsectors);
+	if (nfc->caps->reg_user_data_len) {
+		ret = sunxi_nfc_maximize_user_data(nand, mtd->oobsize,
+						   ecc->bytes, nsectors);
+		if (ret)
+			return ret;
+	}
 
 	if (total_user_data_sz == 0)
 		for (i = 0; i < nsectors; i++)
