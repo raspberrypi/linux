@@ -55,7 +55,12 @@
 
 #define dont_test_bit(b,d) (0)
 
-#define REJECT_HOTPLUG_TAX 1
+/*
+ * The SRCU bypass below skips srcu_read_lock() while the core retains its
+ * lockdep_assert_held(&gc->gpiodev->srcu) checks, so every gpiod_*() call
+ * splats under lockdep. Keep the optimisation for production builds only.
+ */
+#define REJECT_HOTPLUG_TAX (!IS_ENABLED(CONFIG_LOCKDEP))
 
 #if REJECT_HOTPLUG_TAX
 
