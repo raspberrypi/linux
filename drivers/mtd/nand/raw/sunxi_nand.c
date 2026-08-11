@@ -1991,7 +1991,7 @@ static int sunxi_nand_ooblayout_free(struct mtd_info *mtd, int section,
 	struct nand_chip *nand = mtd_to_nand(mtd);
 	struct nand_ecc_ctrl *ecc = &nand->ecc;
 	struct sunxi_nand_chip *sunxi_nand = to_sunxi_nand(nand);
-	unsigned int user_data_sz = sunxi_nfc_user_data_sz(sunxi_nand, section);
+	unsigned int user_data_sz;
 
 	/*
 	 * The controller does not provide access to OOB bytes
@@ -2000,6 +2000,8 @@ static int sunxi_nand_ooblayout_free(struct mtd_info *mtd, int section,
 	if (section >= ecc->steps)
 		return -ERANGE;
 
+	user_data_sz = sunxi_nfc_user_data_sz(sunxi_nand, section);
+
 	/*
 	 * The first 2 bytes are used for BB markers, hence we
 	 * only have user_data_sz - 2 bytes available in the first user data
@@ -2007,7 +2009,7 @@ static int sunxi_nand_ooblayout_free(struct mtd_info *mtd, int section,
 	 */
 	if (section == 0) {
 		oobregion->offset = 2;
-		oobregion->length = user_data_sz - 2;
+		oobregion->length = user_data_sz > 2 ? user_data_sz - 2 : 0;
 
 		return 0;
 	}
@@ -2041,6 +2043,9 @@ static int sunxi_nfc_maximize_user_data(struct nand_chip *nand, uint32_t oobsize
 	int remaining_bytes = oobsize - (ecc_bytes * nsectors);
 	int i, step;
 
+	if (nsectors <= 0)
+		return -EINVAL;
+
 	sunxi_nand->user_data_bytes = devm_kzalloc(nfc->dev, nsectors,
 						   GFP_KERNEL);
 	if (!sunxi_nand->user_data_bytes)
@@ -2056,6 +2061,8 @@ static int sunxi_nfc_maximize_user_data(struct nand_chip *nand, uint32_t oobsize
 		if (sunxi_nand->user_data_bytes[step] == 0)
 			break;
 	}
+	if (sunxi_nand->user_data_bytes[0] < USER_DATA_SZ)
+		return -EINVAL;
 
 	return 0;
 }
@@ -2106,10 +2113,10 @@ static int sunxi_nand_hw_ecc_ctrl_init(struct nand_chip *nand,
 			bytes -= total_user_data_sz;
 		} else {
 			/*
-			 * remove at least the BBM size before computing the
-			 * max ECC
+			 * User-data lengths are encoded in four-byte units. Reserve
+			 * the first word because it contains the two BBM bytes.
 			 */
-			bytes -= 2;
+			bytes -= USER_DATA_SZ;
 		}
 
 		/*
