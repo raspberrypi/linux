@@ -162,7 +162,7 @@ static int mm81x_fw_load_fw(struct mm81x *mors, const struct firmware *fw)
 			mm81x_release_bus(mors);
 			if (status) {
 				ret = -EIO;
-				break;
+				goto out_free;
 			}
 		}
 	}
