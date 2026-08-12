@@ -29,6 +29,7 @@
 #include <linux/iopoll.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
 #include <linux/spinlock.h>
 #include <linux/sizes.h>
 #include <linux/generic_pt/iommu.h>
@@ -154,6 +155,20 @@ to_bcm2712_domain(struct iommu_domain *domain)
 	return container_of(domain, struct bcm2712_iommu_domain, base);
 }
 
+static void bcm2712_iommu_hw_init(struct bcm2712_iommu *mmu)
+{
+	/* Disable MMU and clear sticky flags */
+	bcm2712_iommu_writel(mmu, MMMU_CTRL_OFFSET,
+			     MMMU_CTRL_CAP_EXCEEDED | MMMU_CTRL_PT_INVALID |
+			     MMMU_CTRL_WRITE_VIOLATION |
+			     MMMU_CTRL_STATS_CLEAR);
+
+	/* Put MMU into 2-level mode */
+	bcm2712_iommu_writel(mmu, MMMU_MISC_OFFSET,
+			     bcm2712_iommu_readl(mmu, MMMU_MISC_OFFSET) &
+				     ~MMMU_MISC_SINGLE_TABLE);
+}
+
 static void bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 {
 	unsigned int bigpage_width, superpage_width;
@@ -177,16 +192,7 @@ static void bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 	if (superpage_width)
 		mmu->superpage_size = IOMMU_PAGE_SIZE << superpage_width;
 
-	/* Disable MMU and clear sticky flags */
-	bcm2712_iommu_writel(mmu, MMMU_CTRL_OFFSET,
-			     MMMU_CTRL_CAP_EXCEEDED | MMMU_CTRL_PT_INVALID |
-			     MMMU_CTRL_WRITE_VIOLATION |
-			     MMMU_CTRL_STATS_CLEAR);
-
-	/* Put MMU into 2-level mode */
-	bcm2712_iommu_writel(mmu, MMMU_MISC_OFFSET,
-			     bcm2712_iommu_readl(mmu, MMMU_MISC_OFFSET) &
-				     ~MMMU_MISC_SINGLE_TABLE);
+	bcm2712_iommu_hw_init(mmu);
 }
 
 static int bcm2712_iommu_identity_attach(struct iommu_domain *identity_domain,
@@ -229,14 +235,71 @@ static u64 bcm2712_iommu_va_base(struct bcm2712_iommu *mmu)
 	return mmu->aperture_base + mmu->dma_iova_offset;
 }
 
+static int bcm2712_iommu_program_domain(struct bcm2712_iommu *mmu,
+					struct bcm2712_iommu_domain *mydomain)
+	__must_hold(&mmu->hw_lock)
+{
+	struct pt_iommu_bcm2712_hw_info info;
+	u32 default_page_pfn;
+	int ret;
+
+	/* Configure translation aperture */
+	bcm2712_iommu_writel(mmu, MMMU_ADDR_CAP_OFFSET,
+			     MMMU_ADDR_CAP_ENABLE |
+				     ((mmu->aperture_base +
+				       mmu->aperture_size - 1) >>
+				      ADDR_CAP_SHIFT));
+
+	/*
+	 * When the IOMMU handles a request, it adds the
+	 * PT_PA_BASE_OFFSET to (IOVA>>32) to calculate the PFN of the
+	 * corresponding L1 directory page.
+	 * IOVA bits [31:22] are then used to fetch the L1 descriptor
+	 * within (which in turn points to the L2 table).
+	 * This clever logic would allow for a L1 table larger than 4kb
+	 * (and hence a larger aperture).
+	 */
+	pt_iommu_bcm2712_hw_info(&mydomain->pt, &info);
+	bcm2712_iommu_writel(mmu, MMMU_PT_PA_BASE_OFFSET,
+			     (info.pt_base >> IOMMU_PAGE_SHIFT) -
+			     (mmu->aperture_base >> 32));
+
+	/*
+	 * Pass through addresses below the aperture, for masters
+	 * sharing this IOMMU whose drivers are not IOMMU-aware.
+	 */
+	bcm2712_iommu_writel(mmu, MMMU_BYPASS_START_OFFSET, 0);
+	if (mmu->aperture_base)
+		bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET,
+				     MMMU_BYPASS_END_ENABLE |
+				     (mmu->aperture_base >>
+				      (mmu->bypass_4m ? ilog2(SZ_4M) :
+							ADDR_CAP_SHIFT)));
+	else
+		bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET, 0);
+
+	/*
+	 * A default (error) page is used to catch illegal reads/writes.
+	 */
+	default_page_pfn = virt_to_phys(mydomain->default_page) >>
+			   IOMMU_PAGE_SHIFT;
+	bcm2712_iommu_writel(mmu, MMMU_ILLEGAL_ADR_OFFSET,
+			     MMMU_ILLEGAL_ADR_ENABLE |
+				     default_page_pfn);
+
+	ret = bcm2712_iommu_clear_and_enable(mmu);
+	if (ret)
+		bcm2712_iommu_writel(mmu, MMMU_CTRL_OFFSET, 0);
+
+	return ret;
+}
+
 static int bcm2712_iommu_attach_dev(struct iommu_domain *domain,
 				    struct device *dev,
 				    struct iommu_domain *old)
 {
 	struct bcm2712_iommu *mmu = dev_iommu_priv_get(dev);
 	struct bcm2712_iommu_domain *mydomain = to_bcm2712_domain(domain);
-	struct pt_iommu_bcm2712_hw_info info;
-	u32 default_page_pfn;
 	int ret = 0;
 
 	/* all attached devices must belong to the same IOMMU instance */
@@ -247,58 +310,8 @@ static int bcm2712_iommu_attach_dev(struct iommu_domain *domain,
 		if (mmu->domain == mydomain)
 			break;
 
-		/* Configure translation aperture */
-		bcm2712_iommu_writel(mmu, MMMU_ADDR_CAP_OFFSET,
-				     MMMU_ADDR_CAP_ENABLE |
-					     ((mmu->aperture_base +
-					       mmu->aperture_size - 1) >>
-					      ADDR_CAP_SHIFT));
-
-		/*
-		 * When the IOMMU handles a request, it adds the
-		 * PT_PA_BASE_OFFSET to (IOVA>>32) to calculate the PFN of the
-		 * corresponding L1 directory page.
-		 * IOVA bits [31:22] are then used to fetch the L1 descriptor
-		 * within (which in turn points to the L2 table).
-		 * This clever logic would allow for a L1 table larger than 4kb
-		 * (and hence a larger aperture).
-		 */
-		pt_iommu_bcm2712_hw_info(&mydomain->pt, &info);
-		bcm2712_iommu_writel(mmu, MMMU_PT_PA_BASE_OFFSET,
-				     (info.pt_base >> IOMMU_PAGE_SHIFT) -
-				     (mmu->aperture_base >> 32));
-
-		/*
-		 * Pass through addresses below the aperture, for masters
-		 * sharing this IOMMU whose drivers are not IOMMU-aware.
-		 */
-		bcm2712_iommu_writel(mmu, MMMU_BYPASS_START_OFFSET, 0);
-		if (mmu->aperture_base)
-			bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET,
-					     MMMU_BYPASS_END_ENABLE |
-					     (mmu->aperture_base >>
-					      (mmu->bypass_4m ? ilog2(SZ_4M) :
-								ADDR_CAP_SHIFT)));
-		else
-			bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET, 0);
-
-		/*
-		 * A default (error) page is used to catch illegal reads/writes.
-		 */
-		default_page_pfn = virt_to_phys(mydomain->default_page) >>
-				   IOMMU_PAGE_SHIFT;
-		bcm2712_iommu_writel(mmu, MMMU_ILLEGAL_ADR_OFFSET,
-				     MMMU_ILLEGAL_ADR_ENABLE |
-					     default_page_pfn);
-
-		ret = bcm2712_iommu_clear_and_enable(mmu);
-		if (ret) {
-			bcm2712_iommu_writel(mmu, MMMU_CTRL_OFFSET, 0);
-			mmu->domain = NULL;
-			break;
-		}
-
-		mmu->domain = mydomain;
+		ret = bcm2712_iommu_program_domain(mmu, mydomain);
+		mmu->domain = ret ? NULL : mydomain;
 	}
 
 	if (ret)
@@ -651,10 +664,45 @@ static int bcm2712_iommu_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static int bcm2712_iommu_suspend(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+
+	guard(spinlock_irqsave)(&mmu->hw_lock);
+	bcm2712_iommu_writel(mmu, MMMU_CTRL_OFFSET, 0); /* disable the MMU */
+
+	return 0;
+}
+
+static int bcm2712_iommu_resume(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+	int ret = 0;
+
+	scoped_guard(spinlock_irqsave, &mmu->hw_lock) {
+		bcm2712_iommu_hw_init(mmu);
+		if (mmu->domain) {
+			ret = bcm2712_iommu_program_domain(mmu, mmu->domain);
+			if (ret)
+				mmu->domain = NULL;
+		}
+	}
+
+	if (ret)
+		dev_err(dev, "TLB clear timed out during resume\n");
+
+	return ret;
+}
+
+static const struct dev_pm_ops bcm2712_iommu_pm_ops = {
+	LATE_SYSTEM_SLEEP_PM_OPS(bcm2712_iommu_suspend, bcm2712_iommu_resume)
+};
+
 static struct platform_driver bcm2712_iommu_driver = {
 	.driver	= {
 		.name		     = "bcm2712-iommu",
 		.of_match_table	     = bcm2712_iommu_of_match,
+		.pm		     = pm_sleep_ptr(&bcm2712_iommu_pm_ops),
 		.suppress_bind_attrs = true,
 	},
 	.probe	= bcm2712_iommu_probe,
