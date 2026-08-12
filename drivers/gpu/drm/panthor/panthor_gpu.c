@@ -317,6 +317,21 @@ int panthor_gpu_l2_power_on(struct panthor_device *ptdev)
 	return panthor_gpu_power_on(ptdev, L2, 1, 20000);
 }
 
+static inline void panthor_gpu_emit_flush_caches_tp(struct panthor_device *ptdev,
+						    u64 start, u32 l2, u32 lsc,
+						    u32 other, int ret)
+{
+	u32 duration;
+
+	if (!tracepoint_enabled(gpu_cache_flush) || !start)
+		return;
+
+	if (check_sub_overflow(ktime_get_ns(), start, &duration))
+		duration = U32_MAX;
+
+	trace_gpu_cache_flush(ptdev->base.dev, l2, lsc, other, duration, ret);
+}
+
 /**
  * panthor_gpu_flush_caches() - Flush caches
  * @ptdev: Device.
@@ -331,12 +346,17 @@ int panthor_gpu_flush_caches(struct panthor_device *ptdev,
 {
 	struct panthor_gpu *gpu = ptdev->gpu;
 	unsigned long flags;
+	u64 start = 0;
 	int ret = 0;
 
 	/* Serialize cache flush operations. */
 	guard(mutex)(&ptdev->gpu->cache_flush_lock);
 
 	spin_lock_irqsave(&ptdev->gpu->reqs_lock, flags);
+
+	if (tracepoint_enabled(gpu_cache_flush))
+		start = ktime_get_ns();
+
 	if (!(ptdev->gpu->pending_reqs & GPU_IRQ_CLEAN_CACHES_COMPLETED)) {
 		ptdev->gpu->pending_reqs |= GPU_IRQ_CLEAN_CACHES_COMPLETED;
 		gpu_write(gpu->iomem, GPU_CMD, GPU_FLUSH_CACHES(l2, lsc, other));
@@ -345,8 +365,10 @@ int panthor_gpu_flush_caches(struct panthor_device *ptdev,
 	}
 	spin_unlock_irqrestore(&ptdev->gpu->reqs_lock, flags);
 
-	if (ret)
+	if (ret) {
+		panthor_gpu_emit_flush_caches_tp(ptdev, start, l2, lsc, other, ret);
 		return ret;
+	}
 
 	if (!wait_event_timeout(ptdev->gpu->reqs_acked,
 				!(ptdev->gpu->pending_reqs & GPU_IRQ_CLEAN_CACHES_COMPLETED),
@@ -359,6 +381,8 @@ int panthor_gpu_flush_caches(struct panthor_device *ptdev,
 			ptdev->gpu->pending_reqs &= ~GPU_IRQ_CLEAN_CACHES_COMPLETED;
 		spin_unlock_irqrestore(&ptdev->gpu->reqs_lock, flags);
 	}
+
+	panthor_gpu_emit_flush_caches_tp(ptdev, start, l2, lsc, other, ret);
 
 	if (ret) {
 		panthor_device_schedule_reset(ptdev);
