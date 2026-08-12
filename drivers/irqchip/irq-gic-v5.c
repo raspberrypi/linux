@@ -1110,7 +1110,7 @@ static int __init gicv5_of_init(struct device_node *node, struct device_node *pa
 
 	ret = gicv5_starting_cpu(smp_processor_id());
 	if (ret)
-		goto out_dom;
+		goto out_int;
 
 	ret = set_handle_irq(gicv5_handle_irq);
 	if (ret)
@@ -1118,7 +1118,7 @@ static int __init gicv5_of_init(struct device_node *node, struct device_node *pa
 
 	ret = gicv5_irs_enable();
 	if (ret)
-		goto out_int;
+		goto out_handle;
 
 	gicv5_smp_init();
 
@@ -1128,9 +1128,10 @@ static int __init gicv5_of_init(struct device_node *node, struct device_node *pa
 
 	return 0;
 
+out_handle:
+	set_handle_irq(NULL);
 out_int:
 	gicv5_cpu_disable_interrupts();
-out_dom:
 	gicv5_free_domains();
 out_irs:
 	gicv5_irs_remove();
