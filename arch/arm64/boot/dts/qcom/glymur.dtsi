@@ -4618,6 +4618,8 @@
 			usb-role-switch;
 			wakeup-source;
 
+			dma-coherent;
+
 			status = "disabled";
 
 			ports {
@@ -4706,6 +4708,8 @@
 			usb-role-switch;
 			wakeup-source;
 
+			dma-coherent;
+
 			status = "disabled";
 
 			ports {
@@ -4793,6 +4797,8 @@
 
 			usb-role-switch;
 			wakeup-source;
+
+			dma-coherent;
 
 			status = "disabled";
 
@@ -4884,6 +4890,8 @@
 			usb-role-switch;
 			wakeup-source;
 
+			dma-coherent;
+
 			status = "disabled";
 		};
 
@@ -4967,6 +4975,8 @@
 
 			dr_mode = "host";
 			wakeup-source;
+
+			dma-coherent;
 
 			status = "disabled";
 		};
