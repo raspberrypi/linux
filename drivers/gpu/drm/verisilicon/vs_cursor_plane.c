@@ -200,7 +200,7 @@ static void vs_cursor_plane_atomic_update(struct drm_plane *plane,
 	} else {
 		regmap_update_bits(dc->regs, VSDC_CURSOR_CONFIG(output),
 				   VSDC_CURSOR_CONFIG_X_OFF_MASK,
-				   -state->crtc_x);
+				   VSDC_CURSOR_CONFIG_X_OFF(-state->crtc_x));
 		regmap_update_bits(dc->regs, VSDC_CURSOR_LOCATION(output),
 				   VSDC_CURSOR_LOCATION_X_MASK, 0);
 	}
@@ -214,7 +214,7 @@ static void vs_cursor_plane_atomic_update(struct drm_plane *plane,
 	} else {
 		regmap_update_bits(dc->regs, VSDC_CURSOR_CONFIG(output),
 				   VSDC_CURSOR_CONFIG_Y_OFF_MASK,
-				   -state->crtc_y);
+				   VSDC_CURSOR_CONFIG_Y_OFF(-state->crtc_y));
 		regmap_update_bits(dc->regs, VSDC_CURSOR_LOCATION(output),
 				   VSDC_CURSOR_LOCATION_Y_MASK, 0);
 	}
