@@ -798,6 +798,7 @@ static void aspm_l1ss_init(struct pcie_link_state *link)
 static void pcie_aspm_cap_init(struct pcie_link_state *link, int blacklist)
 {
 	struct pci_dev *child = link->downstream, *parent = link->pdev;
+	struct pci_dev *fn;
 	u16 parent_lnkctl, child_lnkctl;
 	struct pci_bus *linkbus = parent->subordinate;
 
@@ -831,8 +832,9 @@ static void pcie_aspm_cap_init(struct pcie_link_state *link, int blacklist)
 	/* Disable L0s/L1 before updating L1SS config */
 	if (FIELD_GET(PCI_EXP_LNKCTL_ASPMC, child_lnkctl) ||
 	    FIELD_GET(PCI_EXP_LNKCTL_ASPMC, parent_lnkctl)) {
-		pcie_capability_clear_and_set_word(child, PCI_EXP_LNKCTL,
-					PCI_EXP_LNKCTL_ASPMC, 0);
+		list_for_each_entry(fn, &linkbus->devices, bus_list)
+			pcie_capability_clear_and_set_word(fn, PCI_EXP_LNKCTL,
+						PCI_EXP_LNKCTL_ASPMC, 0);
 		pcie_capability_clear_and_set_word(parent, PCI_EXP_LNKCTL,
 						PCI_EXP_LNKCTL_ASPMC, 0);
 	}
@@ -867,7 +869,8 @@ static void pcie_aspm_cap_init(struct pcie_link_state *link, int blacklist)
 		pcie_capability_clear_and_set_word(parent, PCI_EXP_LNKCTL,
 					PCI_EXP_LNKCTL_ASPMC,
 					parent_lnkctl & PCI_EXP_LNKCTL_ASPMC);
-		pcie_capability_clear_and_set_word(child, PCI_EXP_LNKCTL,
+		list_for_each_entry(fn, &linkbus->devices, bus_list)
+			pcie_capability_clear_and_set_word(fn, PCI_EXP_LNKCTL,
 					PCI_EXP_LNKCTL_ASPMC,
 					child_lnkctl & PCI_EXP_LNKCTL_ASPMC);
 	}
