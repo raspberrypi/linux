@@ -494,6 +494,22 @@ static void vc4_platform_drm_shutdown(struct platform_device *pdev)
 	drm_atomic_helper_shutdown(platform_get_drvdata(pdev));
 }
 
+static int vc4_drm_suspend(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+
+	return drm_mode_config_helper_suspend(drm);
+}
+
+static int vc4_drm_resume(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+
+	return drm_mode_config_helper_resume(drm);
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(vc4_drm_pm_ops, vc4_drm_suspend, vc4_drm_resume);
+
 static const struct of_device_id vc4_of_match[] = {
 	{ .compatible = "brcm,bcm2711-vc5", .data = (void *)VC4_GEN_5 },
 	/* NB GEN_6_C will be corrected on D0 hw to GEN_6_D via vc4_hvs_bind */
@@ -511,6 +527,7 @@ static struct platform_driver vc4_platform_driver = {
 	.driver		= {
 		.name	= "vc4-drm",
 		.of_match_table = vc4_of_match,
+		.pm	= pm_sleep_ptr(&vc4_drm_pm_ops),
 	},
 };
 
