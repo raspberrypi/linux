@@ -14,6 +14,7 @@
 #include <linux/minmax.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
 #include <linux/spinlock.h>
 
 #define MMU_WR(off, val)   writel(val, mmu->reg_base + (off))
@@ -144,7 +145,24 @@ static void bcm2712_iommu_free_page(struct bcm2712_iommu *mmu, void *ptr)
 	}
 }
 
-static int bcm2712_iommu_init(struct bcm2712_iommu *mmu)
+static int bcm2712_iommu_init_pages(struct bcm2712_iommu *mmu)
+{
+	/*
+	 * Allocate pages for the top level table, and for the default page.
+	 * For simplicity, both these regions are whole Linux pages.
+	 */
+	if (!bcm2712_iommu_get_page(mmu, &mmu->top_table))
+		return -ENOMEM;
+
+	if (!bcm2712_iommu_get_page(mmu, &mmu->default_page)) {
+		bcm2712_iommu_free_page(mmu, mmu->top_table);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static int bcm2712_iommu_hw_init(struct bcm2712_iommu *mmu)
 {
 	u32 u = MMU_RD(MMMU_DEBUG_INFO_OFFSET);
 
@@ -161,8 +179,6 @@ static int bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 		FIELD_GET(MMMU_DEBUG_INFO_PA_WIDTH_MASK, u) < 6 ||
 		!(u & MMMU_DEBUG_INFO_BYPASS));
 
-	dma_set_mask_and_coherent(mmu->dev,
-				  DMA_BIT_MASK(FIELD_GET(MMMU_DEBUG_INFO_PA_WIDTH_MASK, u) + 30u));
 	mmu->bigpage_mask =
 		((1u << FIELD_GET(MMMU_DEBUG_INFO_BIGPAGE_WIDTH_MASK, u)) - 1u) <<
 		IOMMU_PAGE_SHIFT;
@@ -205,20 +221,12 @@ static int bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 	/*
 	 * Configure the addresses of the top-level table (offset because
 	 * the aperture does not start from zero), and of the default page.
-	 * For simplicity, both these regions are whole Linux pages.
 	 */
-	u = bcm2712_iommu_get_page(mmu, &mmu->top_table);
-	if (!u)
-		return -ENOMEM;
 	MMU_WR(MMMU_PT_PA_BASE_OFFSET,
-	       u - ((mmu->aperture_base - mmu->dma_iova_offset) >> L1_AP_BASE_SHIFT));
-	u = bcm2712_iommu_get_page(mmu, &mmu->default_page);
-	if (!u) {
-		bcm2712_iommu_free_page(mmu, mmu->top_table);
-		return -ENOMEM;
-	}
-	MMU_WR(MMMU_ILLEGAL_ADR_OFFSET, MMMU_ILLEGAL_ADR_ENABLE + u);
-	mmu->nmapped_pages = 0;
+	       (u32)(virt_to_phys(mmu->top_table) >> IOMMU_PAGE_SHIFT) -
+	       ((mmu->aperture_base - mmu->dma_iova_offset) >> L1_AP_BASE_SHIFT));
+	MMU_WR(MMMU_ILLEGAL_ADR_OFFSET, MMMU_ILLEGAL_ADR_ENABLE +
+	       (u32)(virt_to_phys(mmu->default_page) >> IOMMU_PAGE_SHIFT));
 
 	/* Flush (and enable) the shared TLB cache; enable this MMU. */
 	if (mmu->cache)
@@ -714,8 +722,18 @@ static int bcm2712_iommu_probe(struct platform_device *pdev)
 	if (ret)
 		goto done_err;
 
-	/* Initialize hardware -- this will try to allocate 2 pages */
-	ret = bcm2712_iommu_init(mmu);
+	/* The mask must be set before init_pages() maps the tables */
+	dma_set_mask_and_coherent(mmu->dev,
+				  DMA_BIT_MASK(FIELD_GET(MMMU_DEBUG_INFO_PA_WIDTH_MASK,
+							 MMU_RD(MMMU_DEBUG_INFO_OFFSET)) + 30u));
+
+	/* This will try to allocate 2 pages */
+	ret = bcm2712_iommu_init_pages(mmu);
+	if (ret)
+		goto done_err;
+
+	/* Initialize hardware */
+	ret = bcm2712_iommu_hw_init(mmu);
 	if (ret)
 		goto done_err;
 
@@ -745,6 +763,26 @@ static void bcm2712_iommu_remove(struct platform_device *pdev)
 		MMU_WR(MMMU_CTRL_OFFSET, 0); /* disable the MMU */
 }
 
+static int bcm2712_iommu_suspend(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+
+	MMU_WR(MMMU_CTRL_OFFSET, 0); /* disable the MMU */
+
+	return 0;
+}
+
+static int bcm2712_iommu_resume(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+
+	return bcm2712_iommu_hw_init(mmu);
+}
+
+static const struct dev_pm_ops bcm2712_iommu_pm_ops = {
+	LATE_SYSTEM_SLEEP_PM_OPS(bcm2712_iommu_suspend, bcm2712_iommu_resume)
+};
+
 static const struct of_device_id bcm2712_iommu_of_match[] = {
 	{
 		. compatible = "brcm,bcm2712-iommu"
@@ -757,7 +795,8 @@ static struct platform_driver bcm2712_iommu_driver = {
 	.remove = bcm2712_iommu_remove,
 	.driver = {
 		.name = "bcm2712-iommu",
-		.of_match_table = bcm2712_iommu_of_match
+		.of_match_table = bcm2712_iommu_of_match,
+		.pm = pm_sleep_ptr(&bcm2712_iommu_pm_ops),
 	},
 };
 
