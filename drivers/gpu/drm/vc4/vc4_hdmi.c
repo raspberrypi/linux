@@ -3441,6 +3441,8 @@ static const struct dev_pm_ops vc4_hdmi_pm_ops = {
 	SET_RUNTIME_PM_OPS(vc4_hdmi_runtime_suspend,
 			   vc4_hdmi_runtime_resume,
 			   NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 };
 
 struct platform_driver vc4_hdmi_driver = {
