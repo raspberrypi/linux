@@ -15,6 +15,7 @@
 #include <linux/etherdevice.h>
 #include <linux/firmware/xlnx-zynqmp.h>
 #include <linux/gpio/consumer.h>
+#include <linux/if_vlan.h>
 #include <linux/inetdevice.h>
 #include <linux/inetdevice.h>
 #include <linux/init.h>
@@ -2441,6 +2442,17 @@ static netdev_features_t macb_features_check(struct sk_buff *skb,
 {
 	unsigned int nr_frags, f;
 	unsigned int hdrlen;
+
+	/* The GEM skips the RFC 768 substitution of 0xffff for a zero
+	 * UDPv4 checksum (UDPv6 is handled), have the core complete
+	 * UDPv4 in software. One-step PTP sync frames keep the hardware
+	 * path, the MAC rewrites their timestamp in flight.
+	 */
+	if (skb->ip_summed == CHECKSUM_PARTIAL &&
+	    vlan_get_protocol(skb) == htons(ETH_P_IP) &&
+	    skb->csum_offset == offsetof(struct udphdr, check) &&
+	    !ptp_one_step_sync(skb))
+		features &= ~NETIF_F_CSUM_MASK;
 
 	/* Validate LSO compatibility */
 
