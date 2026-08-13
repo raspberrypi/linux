@@ -1355,8 +1355,8 @@ static void macb_tx_error_task(struct work_struct *work)
 				bp->dev->stats.tx_packets++;
 				queue->stats.tx_packets++;
 				packets++;
-				bp->dev->stats.tx_bytes += skb->len;
-				queue->stats.tx_bytes += skb->len;
+				bp->dev->stats.tx_bytes += tx_skb->skb_len;
+				queue->stats.tx_bytes += tx_skb->skb_len;
 				bytes += skb->len;
 			}
 		} else {
@@ -1483,8 +1483,8 @@ static int macb_tx_complete(struct macb_queue *queue, int budget)
 					    skb->data);
 				bp->dev->stats.tx_packets++;
 				queue->stats.tx_packets++;
-				bp->dev->stats.tx_bytes += skb->len;
-				queue->stats.tx_bytes += skb->len;
+				bp->dev->stats.tx_bytes += tx_skb->skb_len;
+				queue->stats.tx_bytes += tx_skb->skb_len;
 				packets++;
 				bytes += skb->len;
 			}
@@ -2262,7 +2262,8 @@ static void macb_poll_controller(struct net_device *dev)
 static unsigned int macb_tx_map(struct macb *bp,
 				struct macb_queue *queue,
 				struct sk_buff *skb,
-				unsigned int hdrlen)
+				unsigned int hdrlen,
+				unsigned int skb_len)
 {
 	dma_addr_t mapping;
 	unsigned int len, entry, i, tx_head = queue->tx_head;
@@ -2351,6 +2352,7 @@ static unsigned int macb_tx_map(struct macb *bp,
 
 	/* This is the last buffer of the frame: save socket buffer */
 	tx_skb->skb = skb;
+	tx_skb->skb_len = skb_len;
 
 	/* Update TX ring: update buffer descriptors in reverse order
 	 * to avoid race condition
@@ -2543,7 +2545,7 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct macb *bp = netdev_priv(dev);
 	struct macb_queue *queue = &bp->queues[queue_index];
 	unsigned int desc_cnt, nr_frags, frag_size, f;
-	unsigned int hdrlen;
+	unsigned int hdrlen, skb_len;
 	unsigned long flags;
 	bool is_lso;
 	netdev_tx_t ret = NETDEV_TX_OK;
@@ -2553,6 +2555,7 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		return ret;
 	}
 
+	skb_len = skb->len;
 	if (macb_pad_and_fcs(&skb, dev)) {
 		dev_kfree_skb_any(skb);
 		return ret;
@@ -2618,7 +2621,7 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	/* Map socket buffer for DMA transfer */
-	if (!macb_tx_map(bp, queue, skb, hdrlen)) {
+	if (!macb_tx_map(bp, queue, skb, hdrlen, skb_len)) {
 		dev_kfree_skb_any(skb);
 		goto unlock;
 	}
