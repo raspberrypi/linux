@@ -253,12 +253,15 @@ static bool amdxdna_hmm_invalidate(struct mmu_interval_notifier *mni,
 	struct amdxdna_gem_obj *abo = mapp->abo;
 	struct amdxdna_dev *xdna;
 
+	if (!mmu_notifier_range_blockable(range))
+		return false;
+
+	if (mapp->unmapped)
+		return true;
+
 	xdna = to_xdna_dev(to_gobj(abo)->dev);
 	XDNA_DBG(xdna, "Invalidating range 0x%lx, 0x%lx, type %d",
 		 mapp->range.start, mapp->range.end, abo->type);
-
-	if (!mmu_notifier_range_blockable(range))
-		return false;
 
 	down_write(&xdna->notifier_lock);
 	abo->mem.map_invalid = true;
@@ -301,33 +304,40 @@ static void amdxdna_hmm_unregister(struct amdxdna_gem_obj *abo,
 
 	down_write(&xdna->notifier_lock);
 	list_for_each_entry(mapp, &abo->mem.umap_list, node) {
-		if (!vma || compare_range(mapp, vma->vm_mm, vma->vm_start, vma->vm_end)) {
-			if (!mapp->unmapped) {
-				queue_work(xdna->notifier_wq, &mapp->hmm_unreg_work);
-				mapp->unmapped = true;
-			}
-			if (vma)
-				break;
-		}
+		if (!compare_range(mapp, vma->vm_mm, vma->vm_start, vma->vm_end))
+			continue;
+
+		queue_work(xdna->notifier_wq, &mapp->hmm_unreg_work);
+		mapp->unmapped = true;
 	}
 	up_write(&xdna->notifier_lock);
+}
+
+static void amdxdna_hmm_unregister_all(struct amdxdna_gem_obj *abo)
+{
+	struct amdxdna_dev *xdna = to_xdna_dev(to_gobj(abo)->dev);
+	struct amdxdna_umap *mapp, *tmp;
+	LIST_HEAD(dead);
+
+	down_write(&xdna->notifier_lock);
+	list_for_each_entry_safe(mapp, tmp, &abo->mem.umap_list, node) {
+		mapp->unmapped = true;
+		mapp->cleanup = true;
+		list_move(&mapp->node, &dead);
+	}
+	up_write(&xdna->notifier_lock);
+
+	list_for_each_entry_safe(mapp, tmp, &dead, node) {
+		cancel_work_sync(&mapp->hmm_unreg_work);
+		amdxdna_umap_put(mapp);
+	}
 }
 
 static void amdxdna_umap_release(struct kref *ref)
 {
 	struct amdxdna_umap *mapp = container_of(ref, struct amdxdna_umap, refcnt);
-	struct amdxdna_gem_obj *abo = mapp->abo;
-	struct amdxdna_dev *xdna;
 
 	mmu_interval_notifier_remove(&mapp->notifier);
-
-	xdna = to_xdna_dev(to_gobj(mapp->abo)->dev);
-	down_write(&xdna->notifier_lock);
-	list_del(&mapp->node);
-	if (list_empty(&abo->mem.umap_list))
-		abo->mem.uva = AMDXDNA_INVALID_ADDR;
-	up_write(&xdna->notifier_lock);
-
 	kvfree(mapp->range.hmm_pfns);
 	kfree(mapp);
 }
@@ -341,6 +351,20 @@ static void amdxdna_hmm_unreg_work(struct work_struct *work)
 {
 	struct amdxdna_umap *mapp = container_of(work, struct amdxdna_umap,
 						 hmm_unreg_work);
+	struct amdxdna_gem_obj *abo = mapp->abo;
+	struct amdxdna_dev *xdna;
+
+	xdna = to_xdna_dev(to_gobj(mapp->abo)->dev);
+	down_write(&xdna->notifier_lock);
+	if (mapp->cleanup) {
+		up_write(&xdna->notifier_lock);
+		return;
+	}
+
+	list_del(&mapp->node);
+	if (list_empty(&abo->mem.umap_list))
+		abo->mem.uva = AMDXDNA_INVALID_ADDR;
+	up_write(&xdna->notifier_lock);
 
 	amdxdna_umap_put(mapp);
 }
@@ -643,8 +667,7 @@ static void amdxdna_gem_obj_free(struct drm_gem_object *gobj)
 	struct amdxdna_dev *xdna = to_xdna_dev(gobj->dev);
 	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
 
-	amdxdna_hmm_unregister(abo, NULL);
-	flush_workqueue(xdna->notifier_wq);
+	amdxdna_hmm_unregister_all(abo);
 
 	if (abo->pinned)
 		amdxdna_gem_unpin(abo);
