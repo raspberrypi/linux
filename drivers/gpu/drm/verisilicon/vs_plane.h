@@ -75,8 +75,6 @@ static inline struct vs_plane_state *to_vs_plane_state(struct drm_plane_state *s
 }
 
 int drm_format_to_vs_format(u32 drm_format, struct vs_format *vs_format);
-dma_addr_t vs_fb_get_dma_addr(struct drm_framebuffer *fb,
-			      const struct drm_rect *src_rect);
 
 struct drm_plane_state *vs_plane_duplicate_state(struct drm_plane *plane);
 void vs_plane_destroy_state(struct drm_plane *plane,
