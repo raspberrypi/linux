@@ -440,6 +440,8 @@ static int nsm_device_probe(struct virtio_device *vdev)
 
 	mutex_init(&nsm->lock);
 
+	virtio_device_ready(vdev);
+
 	/* Register as hwrng provider */
 	nsm->hwrng = (struct hwrng) {
 		.read = nsm_rng_read,
@@ -472,6 +474,7 @@ static int nsm_device_probe(struct virtio_device *vdev)
 err_misc:
 	hwrng_unregister(&nsm->hwrng);
 err_hwrng:
+	virtio_reset_device(vdev);
 	vdev->config->del_vqs(vdev);
 err_init_vq:
 	return rc;
