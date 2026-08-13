@@ -2433,9 +2433,8 @@ static void clear_garbage(struct jit_ctx *ctx, int reg, int effective_bytes)
 }
 
 static void save_args(struct jit_ctx *ctx, int bargs_off, int oargs_off,
-		      const struct btf_func_model *m,
-		      const struct arg_aux *a,
-		      bool for_call_origin)
+		      const struct btf_func_model *m, const struct arg_aux *a,
+		      bool for_call_origin, bool is_struct_ops)
 {
 	int i;
 	int reg;
@@ -2455,7 +2454,15 @@ static void save_args(struct jit_ctx *ctx, int bargs_off, int oargs_off,
 		bargs_off += 8;
 	}
 
-	soff = 32; /* on stack arguments start from FP + 32 */
+	/*
+	 * On-stack arguments start above the frame(s) pushed by the trampoline
+	 * prologue. Entered through the fentry call from a traced function, the
+	 * prologue saves both the parent (FP/x9) and the traced function
+	 * (FP/LR) frames, so the arguments start at FP + 32. A struct_ops
+	 * callback is called indirectly and only the FP/LR frame is saved, so
+	 * they start at FP + 16.
+	 */
+	soff = is_struct_ops ? 16 : 32;
 	doff = (for_call_origin ? oargs_off : bargs_off);
 
 	/* save on stack arguments */
@@ -2633,7 +2640,7 @@ static int prepare_trampoline(struct jit_ctx *ctx, struct bpf_tramp_image *im,
 	emit(A64_STR64I(A64_R(10), A64_SP, nfuncargs_off), ctx);
 
 	/* save args for bpf */
-	save_args(ctx, bargs_off, oargs_off, m, a, false);
+	save_args(ctx, bargs_off, oargs_off, m, a, false, is_struct_ops);
 
 	/* save callee saved registers */
 	emit(A64_STR64I(A64_R(19), A64_SP, regs_off), ctx);
@@ -2665,7 +2672,7 @@ static int prepare_trampoline(struct jit_ctx *ctx, struct bpf_tramp_image *im,
 
 	if (flags & BPF_TRAMP_F_CALL_ORIG) {
 		/* save args for original func */
-		save_args(ctx, bargs_off, oargs_off, m, a, true);
+		save_args(ctx, bargs_off, oargs_off, m, a, true, is_struct_ops);
 		/* call original func */
 		emit(A64_LDR64I(A64_R(10), A64_SP, retaddr_off), ctx);
 		emit(A64_ADR(A64_LR, AARCH64_INSN_SIZE * 2), ctx);
