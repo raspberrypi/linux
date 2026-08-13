@@ -1232,9 +1232,9 @@ static bool get_dp_dto_frequency_100hz(
 			 */
 			modulo_hz = REG_READ(MODULO[inst]);
 			if (modulo_hz) {
-				temp = clock_hz * dp_dto_ref_khz * 10;
+				temp = (unsigned long long)clock_hz * dp_dto_ref_khz * 10;
 				ASSERT(temp <= UINT_MAX * modulo_hz * 100ULL);
-				*pixel_clk_100hz = div_u64(temp, modulo_hz * 100);
+				*pixel_clk_100hz = (unsigned int)div_u64(temp, modulo_hz * 100);
 			} else
 				*pixel_clk_100hz = 0;
 		} else {
@@ -1293,7 +1293,7 @@ static bool dcn401_get_dp_dto_frequency_100hz(const struct clock_source *clock_s
 			BREAK_TO_DEBUGGER();
 			*pixel_clk_100hz = 0;
 		} else {
-			*pixel_clk_100hz = div_u64(temp, 100);
+			*pixel_clk_100hz = (unsigned int)div_u64(temp, 100);
 		}
 
 		return true;
