@@ -9471,8 +9471,10 @@ void perf_l2_init(void)
 				free_fd_l2_percpu();
 				return;
 			}
-		} else
-			err(-1, "%s: cpu%d: type %d", __func__, cpu, cpus[cpu].type);
+		} else {
+			warn("%s: cpu%d: type %d: Update kernel perf support or use \"--hide L2MRPS,L2%%hit\" or \"--hide cache\" or \"--no-perf\"", __func__, cpu, cpus[cpu].type);
+			return;
+		}
 	}
 	BIC_PRESENT(BIC_L2_MRPS);
 	BIC_PRESENT(BIC_L2_HIT);
