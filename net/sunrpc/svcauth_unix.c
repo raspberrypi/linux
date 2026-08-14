@@ -730,6 +730,8 @@ static int sunrpc_nl_parse_one_unix_gid(struct cache_detail *cd,
 			   boot.tv_sec;
 
 	if (tb[SUNRPC_A_UNIX_GID_NEGATIVE]) {
+		/* failed lookup: keep the credential's own groups */
+		set_bit(CACHE_NEGATIVE, &ug.h.flags);
 		ug.gi = groups_alloc(0);
 		if (!ug.gi)
 			return -ENOMEM;
