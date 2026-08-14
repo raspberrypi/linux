@@ -53,3 +53,8 @@ int __init serial8250_hub6_init(void)
 {
 	return platform_device_register(&hub6_device);
 }
+
+void __init_or_module serial8250_hub6_exit(void)
+{
+	platform_device_unregister(&hub6_device);
+}
