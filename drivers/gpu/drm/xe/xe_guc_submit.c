@@ -1279,8 +1279,14 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 	 * doesn't work for SRIOV. For now assuming timeouts in wedged mode are
 	 * genuine timeouts.
 	 */
+	/*
+	 * Killed queues must not newly wedge the device, but preserve an
+	 * already-wedged state to avoid warning on teardown timeouts.
+	 */
 	if (!exec_queue_killed(q))
 		wedged = guc_submit_hint_wedged(exec_queue_to_guc(q));
+	else
+		wedged = xe_device_wedged(xe);
 
 	/* Engine state now stable, disable scheduling to check timestamp */
 	if (!wedged && exec_queue_registered(q)) {
@@ -1374,9 +1380,10 @@ trigger_reset:
 	 * Kernel jobs should never fail, nor should VM jobs if they do
 	 * somethings has gone wrong and the GT needs a reset
 	 */
-	xe_gt_WARN(q->gt, q->flags & EXEC_QUEUE_FLAG_KERNEL,
+	xe_gt_WARN(q->gt, !wedged && q->flags & EXEC_QUEUE_FLAG_KERNEL,
 		   "Kernel-submitted job timed out\n");
-	xe_gt_WARN(q->gt, q->flags & EXEC_QUEUE_FLAG_VM && !exec_queue_killed(q),
+	xe_gt_WARN(q->gt, !wedged && q->flags & EXEC_QUEUE_FLAG_VM &&
+		   !exec_queue_killed(q),
 		   "VM job timed out on non-killed execqueue\n");
 	if (!wedged && (q->flags & EXEC_QUEUE_FLAG_KERNEL ||
 			(q->flags & EXEC_QUEUE_FLAG_VM && !exec_queue_killed(q)))) {
