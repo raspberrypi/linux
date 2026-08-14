@@ -788,15 +788,36 @@ static const struct conversion_matrix yuv_bt601_full = {
 };
 
 /*
- * numpy.around(colour.matrix_YCbCr(K=colour.WEIGHTS_YCBCR["ITU-R BT.601"],
- *                                  is_legal = True,
- *                                  bits = 8) * 2**32).astype(int)
+ * BT.601 limited-/studio-range YCbCr to full-range RGB.
+ *
+ * The coefficients are derived as follows:
+ *
+ *  1. Take the standard ITU-R YCbCr -> RGB relations for luma weights
+ *     Kr, Kb (Kg = 1 - Kr - Kb), with Y in [0, 1] and Cb, Cr in
+ *     [-0.5, 0.5]. For BT.601 Kr = 0.299 and Kb = 0.114:
+ *
+ *       R = Y                                + 2 * (1 - Kr)          * Cr
+ *       G = Y - 2 * (1 - Kb) * Kb / Kg * Cb - 2 * (1 - Kr) * Kr / Kg * Cr
+ *       B = Y + 2 * (1 - Kb)          * Cb
+ *
+ *     These are exactly the yuv_bt601_full coefficients above.
+ *
+ *  2. Expand the studio input range to full range, relative to a
+ *     full-range maximum of 2^n - 1 (255 for 8-bit): the luma
+ *     coefficient is scaled by 255/(235 - 16) and the chroma
+ *     coefficients by 255/(240 - 16). This matches the DRM UAPI
+ *     definition and IGT's igt_ycbcr_to_rgb_matrix(). Note this differs
+ *     from colour.matrix_YCbCr(is_legal=True), which normalises by 2^n
+ *     and is thus off by a factor of 256/255.
+ *
+ *  3. Convert each coefficient to S31.32 fixed point, i.e.
+ *     round(coeff * 2^32).
  */
 static const struct conversion_matrix yuv_bt601_limited = {
 	.matrix = {
-		{ 5020601039, 0,           6881764740 },
-		{ 5020601039, -1689204679, -3505362278 },
-		{ 5020601039, 8697922339,  0 },
+		{ 5000989317, 0,           6854882848 },
+		{ 5000989317, -1682606224, -3491669458 },
+		{ 5000989317, 8663946082,  0 },
 	},
 	.y_offset = 16,
 };
@@ -816,15 +837,14 @@ static const struct conversion_matrix yuv_bt709_full = {
 };
 
 /*
- * numpy.around(colour.matrix_YCbCr(K=colour.WEIGHTS_YCBCR["ITU-R BT.709"],
- *                                  is_legal = True,
- *                                  bits = 8) * 2**32).astype(int)
+ * BT.709 limited-range YCbCr to full-range RGB (Kr = 0.2126, Kb = 0.0722).
+ * Derived as described for yuv_bt601_limited.
  */
 static const struct conversion_matrix yuv_bt709_limited = {
 	.matrix = {
-		{ 5020601039, 0,          7729959424 },
-		{ 5020601039, -919487572, -2297803934 },
-		{ 5020601039, 9108275786, 0 },
+		{ 5000989317, 0,          7699764272 },
+		{ 5000989317, -915895824, -2288828138 },
+		{ 5000989317, 9072696586, 0 },
 	},
 	.y_offset = 16,
 };
@@ -844,15 +864,14 @@ static const struct conversion_matrix yuv_bt2020_full = {
 };
 
 /*
- * numpy.around(colour.matrix_YCbCr(K=colour.WEIGHTS_YCBCR["ITU-R BT.2020"],
- *                                  is_legal = True,
- *                                  bits = 8) * 2**32).astype(int)
+ * BT.2020 non-constant-luminance limited-range YCbCr to full-range RGB
+ * (Kr = 0.2627, Kb = 0.0593). Derived as described for yuv_bt601_limited.
  */
 static const struct conversion_matrix yuv_bt2020_limited = {
 	.matrix = {
-		{ 5020601039, 0,          7238124312 },
-		{ 5020601039, -807714626, -2804506279 },
-		{ 5020601039, 9234915964, 0 },
+		{ 5000989317, 0,          7209850391 },
+		{ 5000989317, -804559491, -2793551177 },
+		{ 5000989317, 9198842076, 0 },
 	},
 	.y_offset = 16,
 };
