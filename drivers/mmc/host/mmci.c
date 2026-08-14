@@ -2520,6 +2520,9 @@ static void mmci_remove(struct amba_device *dev)
 		writel(0, host->base + MMCICOMMAND);
 		writel(0, host->base + MMCIDATACTRL);
 
+		if (variant->busy_detect)
+			disable_delayed_work_sync(&host->ux500_busy_timeout_work);
+
 		mmci_dma_release(host);
 		clk_disable_unprepare(host->clk);
 		mmc_free_host(mmc);
