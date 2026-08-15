@@ -194,6 +194,7 @@ static const struct video_device hevc_d_video_device = {
 
 static const struct v4l2_m2m_ops hevc_d_m2m_ops = {
 	.device_run	= hevc_d_device_run,
+	.job_abort	= hevc_d_job_abort,
 };
 
 static const struct media_device_ops hevc_d_m2m_media_ops = {

@@ -2413,6 +2413,14 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+void hevc_d_job_abort(void *priv)
+{
+	struct hevc_d_ctx *const ctx = priv;
+
+	ctx->fatal_err = 1;
+	v4l2_m2m_job_finish(ctx->dev->m2m_dev, ctx->fh.m2m_ctx);
+}
+
 const struct v4l2_ctrl_ops hevc_d_hevc_sps_ctrl_ops = {
 	.try_ctrl = try_ctrl_sps,
 };

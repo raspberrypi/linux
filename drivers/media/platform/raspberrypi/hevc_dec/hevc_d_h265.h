@@ -18,5 +18,6 @@ void hevc_d_h265_stop(struct hevc_d_ctx *ctx);
 void hevc_d_h265_trigger(struct hevc_d_ctx *ctx);
 
 void hevc_d_device_run(void *priv);
+void hevc_d_job_abort(void *priv);
 
 #endif
