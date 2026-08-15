@@ -434,8 +434,8 @@ static const struct joycon_ctlr_button_mapping procon_button_mappings[] = {
 	{ /* sentinel */ },
 };
 
-/* Licensed Pro Controllers (e.g. HORI) swap X/Y bits in the report */
-static const struct joycon_ctlr_button_mapping lic_procon_button_mappings[] = {
+/* HORI Licensed Pro Controllers swap X/Y bits in the report */
+static const struct joycon_ctlr_button_mapping lic_hori_procon_button_mappings[] = {
 	{ BTN_EAST,	JC_BTN_A,	},
 	{ BTN_SOUTH,	JC_BTN_B,	},
 	{ BTN_NORTH,	JC_BTN_Y,	},
@@ -1767,8 +1767,8 @@ static void joycon_parse_report(struct joycon_ctlr *ctlr,
 		joycon_report_left_stick(ctlr, rep);
 		joycon_report_right_stick(ctlr, rep);
 		joycon_report_dpad(ctlr, rep);
-		if (ctlr->ctlr_type == JOYCON_CTLR_TYPE_LIC_PRO)
-			joycon_report_buttons(ctlr, rep, lic_procon_button_mappings);
+		if (ctlr->hdev->vendor == USB_VENDOR_ID_HORI)
+			joycon_report_buttons(ctlr, rep, lic_hori_procon_button_mappings);
 		else
 			joycon_report_buttons(ctlr, rep, procon_button_mappings);
 	} else if (joycon_type_is_any_nescon(ctlr)) {
@@ -2212,8 +2212,8 @@ static int joycon_input_create(struct joycon_ctlr *ctlr)
 		joycon_config_left_stick(ctlr->input);
 		joycon_config_right_stick(ctlr->input);
 		joycon_config_dpad(ctlr->input);
-		if (ctlr->ctlr_type == JOYCON_CTLR_TYPE_LIC_PRO)
-			joycon_config_buttons(ctlr->input, lic_procon_button_mappings);
+		if (ctlr->hdev->vendor == USB_VENDOR_ID_HORI)
+			joycon_config_buttons(ctlr->input, lic_hori_procon_button_mappings);
 		else
 			joycon_config_buttons(ctlr->input, procon_button_mappings);
 	} else if (joycon_type_is_any_nescon(ctlr)) {
@@ -2905,6 +2905,8 @@ static const struct hid_device_id nintendo_hid_devices[] = {
 			 USB_DEVICE_ID_NINTENDO_N64CON) },
 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_HORI,
 			 USB_DEVICE_ID_HORI_WIRELESS_SWITCH_PAD) },
+	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_PDP,
+			 USB_DEVICE_ID_PDP_SWITCH_AFTERGLOW) },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, nintendo_hid_devices);
