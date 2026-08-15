@@ -19,6 +19,7 @@
 struct hevc_d_hw_irq_ent {
 	struct hevc_d_hw_irq_ent *next;
 	hevc_d_irq_callback cb;
+	hevc_d_irq_callback abort;
 	void *v;
 };
 
@@ -293,7 +294,8 @@ void hevc_d_hw_irq_active1_enable_claim(struct hevc_d_dev *dev,
 /* Auto release once all CBs called */
 void hevc_d_hw_irq_active1_claim(struct hevc_d_dev *dev,
 				 struct hevc_d_hw_irq_ent *ient,
-				 hevc_d_irq_callback ready_cb, void *ctx);
+				 hevc_d_irq_callback ready_cb,
+				 hevc_d_irq_callback abort_cb, void *ctx);
 /* May only be called in claim cb */
 void hevc_d_hw_irq_active1_irq(struct hevc_d_dev *dev,
 			       struct hevc_d_hw_irq_ent *ient,
@@ -306,7 +308,8 @@ void hevc_d_hw_irq_active1_thread(struct hevc_d_dev *dev,
 /* Auto release once all CBs called */
 void hevc_d_hw_irq_active2_claim(struct hevc_d_dev *dev,
 				 struct hevc_d_hw_irq_ent *ient,
-				 hevc_d_irq_callback ready_cb, void *ctx);
+				 hevc_d_irq_callback ready_cb,
+				 hevc_d_irq_callback abort_cb, void *ctx);
 /* May only be called in claim cb */
 void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
 			       struct hevc_d_hw_irq_ent *ient,
@@ -314,6 +317,7 @@ void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
 
 int hevc_d_hw_start_clock(struct hevc_d_dev *dev);
 void hevc_d_hw_stop_clock(struct hevc_d_dev *dev);
+void hevc_d_hw_recover(struct hevc_d_dev *dev);
 
 int hevc_d_hw_probe(struct hevc_d_dev *dev);
 void hevc_d_hw_remove(struct hevc_d_dev *dev);

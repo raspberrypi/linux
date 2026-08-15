@@ -1941,6 +1941,40 @@ static int check_status(const struct hevc_d_dev *const dev)
 	return -1;
 }
 
+static void decode_abort(struct hevc_d_dev *const dev, void *v)
+{
+	struct hevc_d_dec_env *const de = v;
+	struct hevc_d_ctx *const ctx = de->ctx;
+	struct hevc_d_slot *const slot = ctx->slots + de->frame_slot;
+	bool finish_job = false;
+
+	if (de->state == HEVC_D_DECODE_END)
+		return;
+
+	slot->refybase = 0;
+	slot->refcbase = 0;
+	slot->colbase = 0;
+
+	if (de->frame_buf) {
+		v4l2_m2m_buf_done(de->frame_buf, VB2_BUF_STATE_ERROR);
+		de->frame_buf = NULL;
+	}
+	if (de->src_buf) {
+		v4l2_m2m_buf_done(de->src_buf, VB2_BUF_STATE_ERROR);
+		de->src_buf = NULL;
+		finish_job = atomic_add_return(-1, &ctx->p1out) >=
+			     HEVC_D_P1BUF_COUNT - 1;
+	}
+	if (de->request) {
+		media_request_manual_complete(de->request);
+		de->request = NULL;
+	}
+
+	dec_env_delete(de);
+	if (finish_job)
+		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
+}
+
 static void phase2_done(struct hevc_d_dev *const dev,
 			struct hevc_d_dec_env *const de,
 			enum vb2_buffer_state state)
@@ -2085,7 +2119,7 @@ static void phase1_done(struct hevc_d_dev *const dev,
 	if (atomic_add_return(-1, &ctx->p1out) >= HEVC_D_P1BUF_COUNT - 1)
 		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
 
-	hevc_d_hw_irq_active2_claim(dev, &de->irq_ent, p2_cb, de);
+	hevc_d_hw_irq_active2_claim(dev, &de->irq_ent, p2_cb, decode_abort, de);
 }
 
 static void phase1_thread(struct hevc_d_dev *const dev, void *v)
@@ -2227,6 +2261,7 @@ static void dec_state_delete(struct hevc_d_ctx *const ctx)
 
 struct irq_sync {
 	atomic_t done;
+	bool failed;
 	wait_queue_head_t wq;
 	struct hevc_d_hw_irq_ent irq_ent;
 };
@@ -2239,31 +2274,50 @@ static void phase2_sync_claimed(struct hevc_d_dev *const dev, void *v)
 	wake_up(&sync->wq);
 }
 
+static void irq_sync_aborted(struct hevc_d_dev *const dev, void *v)
+{
+	struct irq_sync *const sync = v;
+
+	WRITE_ONCE(sync->failed, true);
+	atomic_set(&sync->done, 1);
+	wake_up(&sync->wq);
+}
+
 static void phase1_sync_claimed(struct hevc_d_dev *const dev, void *v)
 {
 	struct irq_sync *const sync = v;
 
 	hevc_d_hw_irq_active1_enable_claim(dev, 1);
-	hevc_d_hw_irq_active2_claim(dev, &sync->irq_ent, phase2_sync_claimed, sync);
+	hevc_d_hw_irq_active2_claim(dev, &sync->irq_ent, phase2_sync_claimed,
+				    irq_sync_aborted, sync);
 }
 
 /* Sync with IRQ operations
  *
  * Claims phase1 and phase2 in turn and waits for the phase2 claim so any
- * pending IRQ ops will have completed by the time this returns
+ * pending IRQ ops will have completed by the time this returns.
  *
  * phase1 has counted enables so must reenable once claimed
  * phase2 has unlimited enables
  */
-static void irq_sync(struct hevc_d_dev *const dev)
+static int irq_sync(struct hevc_d_dev *const dev)
 {
-	struct irq_sync sync;
+	struct irq_sync sync = {};
 
 	atomic_set(&sync.done, 0);
 	init_waitqueue_head(&sync.wq);
 
-	hevc_d_hw_irq_active1_claim(dev, &sync.irq_ent, phase1_sync_claimed, &sync);
-	wait_event(sync.wq, atomic_read(&sync.done));
+	hevc_d_hw_irq_active1_claim(dev, &sync.irq_ent, phase1_sync_claimed,
+				    irq_sync_aborted, &sync);
+	if (!wait_event_timeout(sync.wq, atomic_read(&sync.done),
+				msecs_to_jiffies(1000))) {
+		v4l2_err(&dev->v4l2_dev,
+			 "decoder did not become idle; resetting hardware\n");
+		WRITE_ONCE(sync.failed, true);
+		hevc_d_hw_recover(dev);
+	}
+
+	return READ_ONCE(sync.failed) ? -EIO : 0;
 }
 
 static void h265_ctx_uninit(struct hevc_d_dev *const dev, struct hevc_d_ctx *ctx)
@@ -2289,7 +2343,9 @@ void hevc_d_h265_stop(struct hevc_d_ctx *ctx)
 {
 	struct hevc_d_dev *const dev = ctx->dev;
 
-	irq_sync(dev);
+	if (irq_sync(dev))
+		v4l2_warn(&dev->v4l2_dev,
+			  "aborted incomplete decode requests during stop\n");
 	h265_ctx_uninit(dev, ctx);
 }
 
@@ -2367,7 +2423,7 @@ void hevc_d_h265_trigger(struct hevc_d_ctx *ctx)
 	if (atomic_add_return(1, &ctx->p1out) < HEVC_D_P1BUF_COUNT)
 		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
 
-	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, de);
+	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, decode_abort, de);
 }
 
 static int try_ctrl_sps(struct v4l2_ctrl *ctrl)

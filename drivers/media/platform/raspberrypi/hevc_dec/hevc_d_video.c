@@ -551,20 +551,27 @@ static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct hevc_d_dev *dev = ctx->dev;
+	struct vb2_queue *src_vq;
+	struct vb2_queue *dst_vq;
 	int ret = 0;
 
 	v4l2_m2m_update_start_streaming_state(ctx->fh.m2m_ctx, vq);
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-		ret = hevc_d_hw_start_clock(dev);
-		if (ret)
-			goto fail_cleanup;
+	src_vq = v4l2_m2m_get_src_vq(ctx->fh.m2m_ctx);
+	dst_vq = v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx);
+	if (ctx->h265_started || !vb2_start_streaming_called(src_vq) ||
+	    !vb2_start_streaming_called(dst_vq))
+		return 0;
 
-		ret = hevc_d_h265_start(ctx);
-		if (ret)
-			goto fail_stop_clock;
-	}
+	ret = hevc_d_hw_start_clock(dev);
+	if (ret)
+		goto fail_cleanup;
 
+	ret = hevc_d_h265_start(ctx);
+	if (ret)
+		goto fail_stop_clock;
+
+	ctx->h265_started = true;
 	return 0;
 
 fail_stop_clock:
@@ -580,14 +587,13 @@ static void hevc_d_stop_streaming(struct vb2_queue *vq)
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct hevc_d_dev *dev = ctx->dev;
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	if (ctx->h265_started) {
+		ctx->h265_started = false;
 		hevc_d_h265_stop(ctx);
 		hevc_d_hw_stop_clock(dev);
 	}
 
 	hevc_d_queue_cleanup(vq, VB2_BUF_STATE_ERROR);
-
-	vb2_wait_for_all_buffers(vq);
 
 	v4l2_m2m_update_stop_streaming_state(ctx->fh.m2m_ctx, vq);
 }

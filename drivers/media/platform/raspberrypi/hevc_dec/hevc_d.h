@@ -109,6 +109,8 @@ struct hevc_d_ctx {
 	 * continue (such as running out of CMA)
 	 */
 	int fatal_err;
+	/* Hardware resources shared by the output and capture queues. */
+	bool h265_started;
 
 	/* Lock for queue operations */
 	struct mutex			ctx_mutex;
@@ -154,7 +156,7 @@ struct hevc_d_hw_irq_ent;
 #define HEVC_D_ICTL_ENABLE_UNLIMITED (-1)
 
 struct hevc_d_hw_irq_ctrl {
-	/* Spinlock protecting claim and tail */
+	/* Spinlock protecting the scheduler state */
 	spinlock_t lock;
 	struct hevc_d_hw_irq_ent *claim;
 	struct hevc_d_hw_irq_ent *tail;
@@ -167,6 +169,10 @@ struct hevc_d_hw_irq_ctrl {
 	int enable;
 	/* Thread CB requested */
 	bool thread_reqed;
+	/* Stop dispatch while the hardware is being reset. */
+	bool aborting;
+	atomic_t callbacks;
+	wait_queue_head_t idle;
 };
 
 struct hevc_d_dev {
@@ -185,10 +191,14 @@ struct hevc_d_dev {
 
 	struct clk		*clock;
 	unsigned long		max_clock_rate;
-	/* Protects the shared decoder clock state. */
+	/* Protects clock_users, clock_enabled, and hw_failed. */
 	struct mutex		clock_lock;
+	/* Serializes global hardware recovery. */
+	struct mutex		recovery_lock;
 	unsigned int		clock_users;
 	bool			clock_enabled;
+	bool			hw_failed;
+	int			irq_dec;
 
 	struct hevc_d_hw_irq_ctrl ic_active1;
 	struct hevc_d_hw_irq_ctrl ic_active2;

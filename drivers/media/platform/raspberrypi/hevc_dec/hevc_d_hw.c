@@ -11,6 +11,7 @@
  * Copyright (C) 2018 Bootlin
  */
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 
@@ -45,7 +46,7 @@ static void pre_irq(struct hevc_d_dev *dev, struct hevc_d_hw_irq_ent *ient,
 /* Should be called from inside ictl->lock */
 static inline bool sched_enabled(const struct hevc_d_hw_irq_ctrl * const ictl)
 {
-	return ictl->no_sched <= 0 && ictl->enable;
+	return !ictl->aborting && ictl->no_sched <= 0 && ictl->enable;
 }
 
 /* Should be called from inside ictl->lock & after checking sched_enabled() */
@@ -54,6 +55,7 @@ static inline void set_claimed(struct hevc_d_hw_irq_ctrl * const ictl)
 	if (ictl->enable > 0)
 		--ictl->enable;
 	ictl->no_sched = 1;
+	atomic_inc(&ictl->callbacks);
 }
 
 /* Should be called from inside ictl->lock */
@@ -80,6 +82,7 @@ static void sched_cb(struct hevc_d_dev * const dev,
 {
 	while (ient) {
 		unsigned long flags;
+		struct hevc_d_hw_irq_ent *next;
 
 		ient->cb(dev, ient->v);
 
@@ -90,9 +93,13 @@ static void sched_cb(struct hevc_d_dev * const dev,
 		 * on entry to cb
 		 */
 		--ictl->no_sched;
-		ient = get_sched(ictl);
+		next = get_sched(ictl);
 
 		spin_unlock_irqrestore(&ictl->lock, flags);
+
+		if (atomic_dec_and_test(&ictl->callbacks))
+			wake_up(&ictl->idle);
+		ient = next;
 	}
 }
 
@@ -119,6 +126,8 @@ static void do_irq(struct hevc_d_dev * const dev,
 	spin_lock_irqsave(&ictl->lock, flags);
 	ient = ictl->irq;
 	ictl->irq = NULL;
+	if (ient)
+		atomic_inc(&ictl->callbacks);
 	spin_unlock_irqrestore(&ictl->lock, flags);
 
 	sched_cb(dev, ictl, ient);
@@ -126,18 +135,23 @@ static void do_irq(struct hevc_d_dev * const dev,
 
 static void do_claim(struct hevc_d_dev * const dev,
 		     struct hevc_d_hw_irq_ent *ient,
-		     const hevc_d_irq_callback cb, void * const v,
+		     const hevc_d_irq_callback cb,
+		     const hevc_d_irq_callback abort, void * const v,
 		     struct hevc_d_hw_irq_ctrl * const ictl)
 {
 	unsigned long flags;
+	bool abort_now = false;
 
 	ient->next = NULL;
 	ient->cb = cb;
+	ient->abort = abort;
 	ient->v = v;
 
 	spin_lock_irqsave(&ictl->lock, flags);
 
-	if (ictl->claim) {
+	if (ictl->aborting || READ_ONCE(dev->hw_failed)) {
+		abort_now = true;
+	} else if (ictl->claim) {
 		/* If we have a Q then add to end */
 		ictl->tail->next = ient;
 		ictl->tail = ient;
@@ -157,7 +171,10 @@ static void do_claim(struct hevc_d_dev * const dev,
 
 	spin_unlock_irqrestore(&ictl->lock, flags);
 
-	sched_cb(dev, ictl, ient);
+	if (abort_now)
+		abort(dev, ient->v);
+	else
+		sched_cb(dev, ictl, ient);
 }
 
 /* Enable n claims.
@@ -191,6 +208,9 @@ static void ictl_init(struct hevc_d_hw_irq_ctrl * const ictl, int enables)
 	ictl->no_sched = 0;
 	ictl->enable = enables;
 	ictl->thread_reqed = false;
+	ictl->aborting = false;
+	atomic_set(&ictl->callbacks, 0);
+	init_waitqueue_head(&ictl->idle);
 }
 
 static void ictl_uninit(struct hevc_d_hw_irq_ctrl * const ictl)
@@ -237,6 +257,8 @@ static void do_thread(struct hevc_d_dev * const dev,
 		ient = ictl->irq;
 		ictl->thread_reqed = false;
 		ictl->irq = NULL;
+		if (ient)
+			atomic_inc(&ictl->callbacks);
 	}
 
 	spin_unlock_irqrestore(&ictl->lock, flags);
@@ -273,9 +295,10 @@ void hevc_d_hw_irq_active1_enable_claim(struct hevc_d_dev *dev,
 
 void hevc_d_hw_irq_active1_claim(struct hevc_d_dev *dev,
 				 struct hevc_d_hw_irq_ent *ient,
-				 hevc_d_irq_callback ready_cb, void *ctx)
+				 hevc_d_irq_callback ready_cb,
+				 hevc_d_irq_callback abort_cb, void *ctx)
 {
-	do_claim(dev, ient, ready_cb, ctx, &dev->ic_active1);
+	do_claim(dev, ient, ready_cb, abort_cb, ctx, &dev->ic_active1);
 }
 
 void hevc_d_hw_irq_active1_irq(struct hevc_d_dev *dev,
@@ -287,9 +310,10 @@ void hevc_d_hw_irq_active1_irq(struct hevc_d_dev *dev,
 
 void hevc_d_hw_irq_active2_claim(struct hevc_d_dev *dev,
 				 struct hevc_d_hw_irq_ent *ient,
-				 hevc_d_irq_callback ready_cb, void *ctx)
+				 hevc_d_irq_callback ready_cb,
+				 hevc_d_irq_callback abort_cb, void *ctx)
 {
-	do_claim(dev, ient, ready_cb, ctx, &dev->ic_active2);
+	do_claim(dev, ient, ready_cb, abort_cb, ctx, &dev->ic_active2);
 }
 
 void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
@@ -320,7 +344,10 @@ int hevc_d_hw_start_clock(struct hevc_d_dev *dev)
 
 	mutex_lock(&dev->clock_lock);
 	if (dev->clock_users) {
-		++dev->clock_users;
+		if (READ_ONCE(dev->hw_failed))
+			rv = -EIO;
+		else
+			++dev->clock_users;
 		goto unlock;
 	}
 
@@ -338,10 +365,118 @@ int hevc_d_hw_start_clock(struct hevc_d_dev *dev)
 
 	dev->clock_users = 1;
 	dev->clock_enabled = true;
+	if (READ_ONCE(dev->hw_failed)) {
+		u32 irq_stat;
+
+		irq_write(dev, ARG_IC_ICTRL,
+			  ARG_IC_ICTRL_ACTIVE1_EN_SET |
+			  ARG_IC_ICTRL_ACTIVE2_EN_SET);
+		irq_stat = irq_read(dev, ARG_IC_ICTRL);
+		irq_write(dev, ARG_IC_ICTRL, irq_stat);
+	}
+	WRITE_ONCE(dev->hw_failed, false);
 
 unlock:
 	mutex_unlock(&dev->clock_lock);
 	return rv;
+}
+
+static void ictl_set_aborting(struct hevc_d_hw_irq_ctrl *ictl)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ictl->lock, flags);
+	ictl->aborting = true;
+	spin_unlock_irqrestore(&ictl->lock, flags);
+}
+
+static struct hevc_d_hw_irq_ent *ictl_detach(struct hevc_d_hw_irq_ctrl *ictl,
+					     int enables)
+{
+	struct hevc_d_hw_irq_ent *head;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ictl->lock, flags);
+	head = ictl->irq;
+	if (head)
+		head->next = ictl->claim;
+	else
+		head = ictl->claim;
+	ictl->claim = NULL;
+	ictl->tail = NULL;
+	ictl->irq = NULL;
+	ictl->no_sched = 0;
+	ictl->enable = enables;
+	ictl->thread_reqed = false;
+	spin_unlock_irqrestore(&ictl->lock, flags);
+
+	return head;
+}
+
+static void abort_entries(struct hevc_d_dev *dev,
+			  struct hevc_d_hw_irq_ent *ient)
+{
+	while (ient) {
+		struct hevc_d_hw_irq_ent *next = ient->next;
+
+		ient->abort(dev, ient->v);
+		ient = next;
+	}
+}
+
+static void ictl_resume(struct hevc_d_hw_irq_ctrl *ictl)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ictl->lock, flags);
+	ictl->aborting = false;
+	spin_unlock_irqrestore(&ictl->lock, flags);
+}
+
+/*
+ * Stop both hardware phases before returning any DMA buffers. The clock gate
+ * is the only reset exposed by the firmware clock binding.
+ */
+void hevc_d_hw_recover(struct hevc_d_dev *dev)
+{
+	struct hevc_d_hw_irq_ent *active1;
+	struct hevc_d_hw_irq_ent *active2;
+	u32 irq_stat;
+
+	mutex_lock(&dev->recovery_lock);
+	ictl_set_aborting(&dev->ic_active1);
+	ictl_set_aborting(&dev->ic_active2);
+
+	disable_irq(dev->irq_dec);
+	wait_event(dev->ic_active1.idle,
+		   !atomic_read(&dev->ic_active1.callbacks));
+	wait_event(dev->ic_active2.idle,
+		   !atomic_read(&dev->ic_active2.callbacks));
+
+	active1 = ictl_detach(&dev->ic_active1, HEVC_D_P2BUF_COUNT);
+	active2 = ictl_detach(&dev->ic_active2,
+			      HEVC_D_ICTL_ENABLE_UNLIMITED);
+
+	irq_stat = irq_read(dev, ARG_IC_ICTRL);
+	irq_write(dev, ARG_IC_ICTRL, irq_stat);
+
+	mutex_lock(&dev->clock_lock);
+	if (dev->clock_enabled) {
+		clk_disable_unprepare(dev->clock);
+		dev->clock_enabled = false;
+		usleep_range(1000, 2000);
+	}
+	/* All existing streams must stop before the next clock start. */
+	WRITE_ONCE(dev->hw_failed, true);
+	mutex_unlock(&dev->clock_lock);
+
+	abort_entries(dev, active1);
+	abort_entries(dev, active2);
+
+	ictl_resume(&dev->ic_active1);
+	ictl_resume(&dev->ic_active2);
+	enable_irq(dev->irq_dec);
+	mutex_unlock(&dev->recovery_lock);
 }
 
 static int hw_setup(struct hevc_d_dev *dev)
@@ -392,6 +527,7 @@ int hevc_d_hw_probe(struct hevc_d_dev *dev)
 	ictl_init(&dev->ic_active1, HEVC_D_P2BUF_COUNT);
 	ictl_init(&dev->ic_active2, HEVC_D_ICTL_ENABLE_UNLIMITED);
 	mutex_init(&dev->clock_lock);
+	mutex_init(&dev->recovery_lock);
 
 	dev->base_irq = devm_platform_ioremap_resource_byname(dev->pdev, "intc");
 	if (IS_ERR(dev->base_irq))
@@ -416,6 +552,7 @@ int hevc_d_hw_probe(struct hevc_d_dev *dev)
 	irq_dec = platform_get_irq(dev->pdev, 0);
 	if (irq_dec < 0)
 		return irq_dec;
+	dev->irq_dec = irq_dec;
 	ret = devm_request_threaded_irq(dev->dev, irq_dec,
 					hevc_d_irq_irq,
 					hevc_d_irq_thread,
