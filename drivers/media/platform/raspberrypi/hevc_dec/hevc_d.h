@@ -185,6 +185,10 @@ struct hevc_d_dev {
 
 	struct clk		*clock;
 	unsigned long		max_clock_rate;
+	/* Protects the shared decoder clock state. */
+	struct mutex		clock_lock;
+	unsigned int		clock_users;
+	bool			clock_enabled;
 
 	struct hevc_d_hw_irq_ctrl ic_active1;
 	struct hevc_d_hw_irq_ctrl ic_active2;

@@ -299,33 +299,49 @@ void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
 	pre_irq(dev, ient, irq_cb, ctx, &dev->ic_active2);
 }
 
-/*
- * Stop the clock for this context
- * clk_disable_unprepare does ref counting so this will not actually
- * disable the clock if there are other running contexts
- */
 void hevc_d_hw_stop_clock(struct hevc_d_dev *dev)
 {
-	clk_disable_unprepare(dev->clock);
+	mutex_lock(&dev->clock_lock);
+	if (WARN_ON(!dev->clock_users))
+		goto unlock;
+
+	if (!--dev->clock_users && dev->clock_enabled) {
+		clk_disable_unprepare(dev->clock);
+		dev->clock_enabled = false;
+	}
+
+unlock:
+	mutex_unlock(&dev->clock_lock);
 }
 
-/* Always starts the clock if it isn't already on this ctx */
 int hevc_d_hw_start_clock(struct hevc_d_dev *dev)
 {
-	int rv;
+	int rv = 0;
+
+	mutex_lock(&dev->clock_lock);
+	if (dev->clock_users) {
+		++dev->clock_users;
+		goto unlock;
+	}
 
 	rv = clk_set_min_rate(dev->clock, dev->max_clock_rate);
 	if (rv) {
 		dev_err(dev->dev, "Failed to set clock rate\n");
-		return rv;
+		goto unlock;
 	}
 
 	rv = clk_prepare_enable(dev->clock);
 	if (rv) {
 		dev_err(dev->dev, "Failed to enable clock\n");
-		return rv;
+		goto unlock;
 	}
-	return 0;
+
+	dev->clock_users = 1;
+	dev->clock_enabled = true;
+
+unlock:
+	mutex_unlock(&dev->clock_lock);
+	return rv;
 }
 
 static int hw_setup(struct hevc_d_dev *dev)
@@ -375,6 +391,7 @@ int hevc_d_hw_probe(struct hevc_d_dev *dev)
 
 	ictl_init(&dev->ic_active1, HEVC_D_P2BUF_COUNT);
 	ictl_init(&dev->ic_active2, HEVC_D_ICTL_ENABLE_UNLIMITED);
+	mutex_init(&dev->clock_lock);
 
 	dev->base_irq = devm_platform_ioremap_resource_byname(dev->pdev, "intc");
 	if (IS_ERR(dev->base_irq))
