@@ -177,6 +177,25 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
 	return devm_mbox_controller_register(dev, &mbox->controller);
 }
 
+static int bcm2835_mbox_resume_noirq(struct device *dev)
+{
+	struct bcm2835_mbox *mbox = dev_get_drvdata(dev);
+
+	/*
+	 * MAIL0_CNF is reset while the SoC is powered down in suspend-to-RAM.
+	 * Re-enable the receive interrupt before any driver resumes, otherwise
+	 * the replies are never signalled and every firmware transaction times
+	 * out.
+	 */
+	writel(ARM_MC_IHAVEDATAIRQEN, mbox->regs + MAIL0_CNF);
+
+	return 0;
+}
+
+static const struct dev_pm_ops bcm2835_mbox_pm_ops = {
+	NOIRQ_SYSTEM_SLEEP_PM_OPS(NULL, bcm2835_mbox_resume_noirq)
+};
+
 static const struct of_device_id bcm2835_mbox_of_match[] = {
 	{ .compatible = "brcm,bcm2835-mbox", },
 	{},
@@ -187,6 +206,7 @@ static struct platform_driver bcm2835_mbox_driver = {
 	.driver = {
 		.name = "bcm2835-mbox",
 		.of_match_table = bcm2835_mbox_of_match,
+		.pm = pm_sleep_ptr(&bcm2835_mbox_pm_ops),
 	},
 	.probe		= bcm2835_mbox_probe,
 };
