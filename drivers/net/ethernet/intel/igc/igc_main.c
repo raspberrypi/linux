@@ -7405,11 +7405,13 @@ static int igc_resume(struct device *dev)
 
 	if (netif_running(netdev)) {
 		err = __igc_open(netdev, true);
-		if (!err)
-			netif_device_attach(netdev);
+		if (err)
+			return err;
 	}
 
-	return err;
+	netif_device_attach(netdev);
+
+	return 0;
 }
 
 static int igc_runtime_resume(struct device *dev)
