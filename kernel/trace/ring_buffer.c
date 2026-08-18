@@ -2193,7 +2193,7 @@ static int rb_allocate_pages(struct ring_buffer_per_cpu *cpu_buffer,
 static struct ring_buffer_per_cpu *
 rb_allocate_cpu_buffer(struct trace_buffer *buffer, long nr_pages, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ring_buffer_per_cpu *cpu_buffer __free(kfree) = NULL;
 	struct ring_buffer_meta *meta;
 	struct buffer_page *bpage;
 	struct page *page;
@@ -2219,7 +2219,7 @@ rb_allocate_cpu_buffer(struct trace_buffer *buffer, long nr_pages, int cpu)
 	bpage = kzalloc_node(ALIGN(sizeof(*bpage), cache_line_size()),
 			    GFP_KERNEL, cpu_to_node(cpu));
 	if (!bpage)
-		goto fail_free_buffer;
+		return NULL;
 
 	rb_check_bpage(cpu_buffer, bpage);
 
@@ -2285,13 +2285,11 @@ rb_allocate_cpu_buffer(struct trace_buffer *buffer, long nr_pages, int cpu)
 		rb_head_page_activate(cpu_buffer);
 	}
 
-	return cpu_buffer;
+	return_ptr(cpu_buffer);
 
  fail_free_reader:
 	free_buffer_page(cpu_buffer->reader_page);
 
- fail_free_buffer:
-	kfree(cpu_buffer);
 	return NULL;
 }
 
@@ -2335,7 +2333,7 @@ static struct trace_buffer *alloc_buffer(unsigned long size, unsigned flags,
 					 unsigned long end,
 					 struct lock_class_key *key)
 {
-	struct trace_buffer *buffer;
+	struct trace_buffer *buffer __free(kfree) = NULL;
 	long nr_pages;
 	int subbuf_size;
 	int bsize;
@@ -2349,7 +2347,7 @@ static struct trace_buffer *alloc_buffer(unsigned long size, unsigned flags,
 		return NULL;
 
 	if (!zalloc_cpumask_var(&buffer->cpumask, GFP_KERNEL))
-		goto fail_free_buffer;
+		return NULL;
 
 	buffer->subbuf_order = order;
 	subbuf_size = (PAGE_SIZE << order);
@@ -2441,7 +2439,7 @@ static struct trace_buffer *alloc_buffer(unsigned long size, unsigned flags,
 		atomic_notifier_chain_register(&panic_notifier_list, &buffer->flush_nb);
 	}
 
-	return buffer;
+	return_ptr(buffer);
 
  fail_free_buffers:
 	for_each_buffer_cpu(buffer, cpu) {
@@ -2453,8 +2451,6 @@ static struct trace_buffer *alloc_buffer(unsigned long size, unsigned flags,
  fail_free_cpumask:
 	free_cpumask_var(buffer->cpumask);
 
- fail_free_buffer:
-	kfree(buffer);
 	return NULL;
 }
 
@@ -7007,7 +7003,7 @@ static int __rb_map_vma(struct ring_buffer_per_cpu *cpu_buffer,
 {
 	unsigned long nr_subbufs, nr_pages, nr_vma_pages, pgoff = vma->vm_pgoff;
 	unsigned int subbuf_pages, subbuf_order;
-	struct page **pages;
+	struct page **pages __free(kfree) = NULL;
 	int p = 0, s = 0;
 	int err;
 
@@ -7075,10 +7071,8 @@ static int __rb_map_vma(struct ring_buffer_per_cpu *cpu_buffer,
 		struct page *page;
 		int off = 0;
 
-		if (WARN_ON_ONCE(s >= nr_subbufs)) {
-			err = -EINVAL;
-			goto out;
-		}
+		if (WARN_ON_ONCE(s >= nr_subbufs))
+			return -EINVAL;
 
 		page = virt_to_page((void *)cpu_buffer->subbuf_ids[s]);
 
@@ -7092,9 +7086,6 @@ static int __rb_map_vma(struct ring_buffer_per_cpu *cpu_buffer,
 	}
 
 	err = vm_insert_pages(vma, vma->vm_start, pages, &nr_pages);
-
-out:
-	kfree(pages);
 
 	return err;
 }
