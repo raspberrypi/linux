@@ -120,8 +120,15 @@ static int starfive_cryp_probe(struct platform_device *pdev)
 		return dev_err_probe(&pdev->dev, PTR_ERR(cryp->rst),
 				     "Error getting hardware reset line\n");
 
-	clk_prepare_enable(cryp->hclk);
-	clk_prepare_enable(cryp->ahb);
+	ret = clk_prepare_enable(cryp->hclk);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(cryp->ahb);
+	if (ret) {
+		clk_disable_unprepare(cryp->hclk);
+		return ret;
+	}
 	reset_control_deassert(cryp->rst);
 
 	spin_lock(&dev_list.lock);
