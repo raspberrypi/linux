@@ -90,7 +90,7 @@ struct loongson2_cmc_dma_chan {
 	struct dma_slave_config	dma_sconfig;
 	struct loongson2_cmc_dma_desc *desc;
 	u32 id;
-	u32 irq;
+	int irq;
 	u32 next_sg;
 	struct loongson2_cmc_dma_chan_reg chan_reg;
 };
