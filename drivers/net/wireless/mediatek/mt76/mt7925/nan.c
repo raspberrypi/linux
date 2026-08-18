@@ -91,9 +91,6 @@ mt7925_nan_mp_tlv(struct sk_buff *skb, u8 master_pref)
 
 	mp_tlv = (struct mt7925_nan_master_preference_tlv *)tlv;
 
-	if (master_pref > NAN_MAX_MASTER_PREFERENCE)
-		return 0;
-
 	mp_tlv->master_preference = master_pref;
 
 	return 0;
