@@ -1457,6 +1457,24 @@ static void pl011_stop_rx(struct uart_port *port)
 	pl011_dma_rx_stop(uap);
 }
 
+static void pl011_start_rx(struct uart_port *port)
+{
+	struct uart_amba_port *uap =
+	    container_of(port, struct uart_amba_port, port);
+
+	uap->im |= UART011_RTIM;
+	if (!pl011_dma_rx_running(uap))
+		uap->im |= UART011_RXIM;
+	pl011_write(uap->im, uap, REG_IMSC);
+
+#ifdef CONFIG_DMA_ENGINE
+	if (uap->using_rx_dma) {
+		uap->dmacr |= UART011_RXDMAE;
+		pl011_write(uap->dmacr, uap, REG_DMACR);
+	}
+#endif
+}
+
 static void pl011_throttle_rx(struct uart_port *port)
 {
 	unsigned long flags;
@@ -2334,6 +2352,7 @@ static const struct uart_ops amba_pl011_pops = {
 	.stop_tx	= pl011_stop_tx,
 	.start_tx	= pl011_start_tx,
 	.stop_rx	= pl011_stop_rx,
+	.start_rx	= pl011_start_rx,
 	.throttle	= pl011_throttle_rx,
 	.unthrottle	= pl011_unthrottle_rx,
 	.enable_ms	= pl011_enable_ms,
@@ -2368,6 +2387,7 @@ static const struct uart_ops sbsa_uart_pops = {
 	.stop_tx	= pl011_stop_tx,
 	.start_tx	= pl011_start_tx,
 	.stop_rx	= pl011_stop_rx,
+	.start_rx	= pl011_start_rx,
 	.startup	= sbsa_uart_startup,
 	.shutdown	= sbsa_uart_shutdown,
 	.set_termios	= sbsa_uart_set_termios,
