@@ -10,6 +10,7 @@
 #include <linux/msi.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
+#include <linux/pm.h>
 
 #include <linux/irqchip/irq-msi-lib.h>
 
@@ -170,6 +171,19 @@ static const struct msi_parent_ops mip_msi_parent_ops = {
 	.init_dev_msi_info	= msi_lib_init_dev_msi_info,
 };
 
+static void mip_hw_init(struct mip_priv *mip)
+{
+	/*
+	 * All MSI-X unmasked for the host, masked for the VPU, and edge-triggered.
+	 */
+	writel(0, mip->base + MIP_INT_MASKL_HOST);
+	writel(0, mip->base + MIP_INT_MASKH_HOST);
+	writel(~0, mip->base + MIP_INT_MASKL_VPU);
+	writel(~0, mip->base + MIP_INT_MASKH_VPU);
+	writel(~0, mip->base + MIP_INT_CFGL_HOST);
+	writel(~0, mip->base + MIP_INT_CFGH_HOST);
+}
+
 static int mip_init_domains(struct mip_priv *mip, struct device_node *np)
 {
 	struct irq_domain_info info = {
@@ -184,15 +198,7 @@ static int mip_init_domains(struct mip_priv *mip, struct device_node *np)
 	if (!msi_create_parent_irq_domain(&info, &mip_msi_parent_ops))
 		return -ENOMEM;
 
-	/*
-	 * All MSI-X unmasked for the host, masked for the VPU, and edge-triggered.
-	 */
-	writel(0, mip->base + MIP_INT_MASKL_HOST);
-	writel(0, mip->base + MIP_INT_MASKH_HOST);
-	writel(~0, mip->base + MIP_INT_MASKL_VPU);
-	writel(~0, mip->base + MIP_INT_MASKH_VPU);
-	writel(~0, mip->base + MIP_INT_CFGL_HOST);
-	writel(~0, mip->base + MIP_INT_CFGH_HOST);
+	mip_hw_init(mip);
 
 	return 0;
 }
@@ -244,6 +250,7 @@ static int mip_msi_probe(struct platform_device *pdev, struct device_node *paren
 
 	spin_lock_init(&mip->lock);
 	mip->dev = &pdev->dev;
+	platform_set_drvdata(pdev, mip);
 
 	ret = mip_parse_dt(mip, node);
 	if (ret)
@@ -279,9 +286,22 @@ err_priv:
 	return ret;
 }
 
+static int mip_resume(struct device *dev)
+{
+	struct mip_priv *mip = dev_get_drvdata(dev);
+
+	mip_hw_init(mip);
+
+	return 0;
+}
+
+static const struct dev_pm_ops mip_pm_ops = {
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(NULL, mip_resume)
+};
+
 IRQCHIP_PLATFORM_DRIVER_BEGIN(mip_msi)
 IRQCHIP_MATCH("brcm,bcm2712-mip", mip_msi_probe)
-IRQCHIP_PLATFORM_DRIVER_END(mip_msi)
+IRQCHIP_PLATFORM_DRIVER_END(mip_msi, .pm = pm_sleep_ptr(&mip_pm_ops))
 MODULE_DESCRIPTION("Broadcom BCM2712 MSI-X interrupt controller");
 MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.com>");
 MODULE_AUTHOR("Stanimir Varbanov <svarbanov@suse.de>");
