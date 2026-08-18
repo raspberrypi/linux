@@ -29,6 +29,13 @@ static void mt76_scan_complete(struct mt76_dev *dev, bool abort)
 		__mt76_set_channel(phy, &phy->main_chandef, false);
 		if (offchannel)
 			mt76_offchannel_notify(phy, false);
+	} else {
+		/* A phy that has no operating channel has nothing to restore,
+		 * but the flag also gates the TX queues of every station whose
+		 * wcid points at this band, so leaving it set stalls them until
+		 * something else happens to set a channel.
+		 */
+		phy->offchannel = false;
 	}
 	mt76_put_vif_phy_link(phy, dev->scan.vif, dev->scan.mlink);
 	memset(&dev->scan, 0, sizeof(dev->scan));
