@@ -3011,7 +3011,7 @@ void mana_remove(struct gdma_dev *gd, bool suspending)
 		if (!ndev) {
 			if (i == 0)
 				dev_err(dev, "No net device to remove\n");
-			goto out;
+			break;
 		}
 
 		/* All cleanup actions should stay after rtnl_lock(), otherwise
@@ -3039,7 +3039,7 @@ void mana_remove(struct gdma_dev *gd, bool suspending)
 	}
 
 	mana_destroy_eq(ac);
-out:
+
 	mana_gd_deregister_device(gd);
 
 	if (suspending)
