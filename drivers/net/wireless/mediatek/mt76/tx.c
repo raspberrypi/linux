@@ -234,6 +234,8 @@ mt76_tx_check_non_aql(struct mt76_dev *dev, struct mt76_wcid *wcid,
 	if (!wcid || info->tx_time_est)
 		return;
 
+	wcid = mt76_wcid_primary(wcid);
+
 	pending = atomic_dec_return(&wcid->non_aql_packets);
 	if (pending < 0)
 		atomic_cmpxchg(&wcid->non_aql_packets, pending, 0);
@@ -344,7 +346,8 @@ __mt76_tx_queue_skb(struct mt76_phy *phy, int qid, struct sk_buff *skb,
 	if (!non_aql)
 		return idx;
 
-	pending = atomic_inc_return(&wcid->non_aql_packets);
+	/* the hardware can report the completion on a different link */
+	pending = atomic_inc_return(&mt76_wcid_primary(wcid)->non_aql_packets);
 	if (stop && pending >= MT_MAX_NON_AQL_PKT)
 		*stop = true;
 
@@ -498,7 +501,8 @@ mt76_txq_send_burst(struct mt76_phy *phy, struct mt76_queue *q,
 			return 0;
 	}
 
-	if (atomic_read(&wcid->non_aql_packets) >= MT_MAX_NON_AQL_PKT)
+	if (atomic_read(&mt76_wcid_primary(wcid)->non_aql_packets) >=
+	    MT_MAX_NON_AQL_PKT)
 		return 0;
 
 	skb = mt76_txq_dequeue(phy, mtxq);
@@ -595,7 +599,8 @@ mt76_txq_schedule_list(struct mt76_phy *phy, enum mt76_txq_id qid)
 			continue;
 		}
 
-		if (atomic_read(&wcid->non_aql_packets) >= MT_MAX_NON_AQL_PKT)
+		if (atomic_read(&mt76_wcid_primary(wcid)->non_aql_packets) >=
+		    MT_MAX_NON_AQL_PKT)
 			continue;
 		if (dev->queue_ops->tx_cleanup &&
 		    q->queued + 2 * MT_TXQ_FREE_THR >= q->ndesc) {
