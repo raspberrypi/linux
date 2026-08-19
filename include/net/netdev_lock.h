@@ -64,7 +64,7 @@ static inline void netdev_unlock_full_to_ops(struct net_device *dev)
 		netdev_unlock(dev);
 }
 
-static inline void netdev_ops_assert_locked(const struct net_device *dev)
+static inline void netdev_assert_locked_ops_compat(const struct net_device *dev)
 {
 	if (netdev_need_ops_lock(dev))
 		lockdep_assert_held(&dev->lock);
@@ -73,11 +73,11 @@ static inline void netdev_ops_assert_locked(const struct net_device *dev)
 }
 
 static inline void
-netdev_ops_assert_locked_or_invisible(const struct net_device *dev)
+netdev_assert_locked_ops_compat_or_invisible(const struct net_device *dev)
 {
 	if (dev->reg_state == NETREG_REGISTERED ||
 	    dev->reg_state == NETREG_UNREGISTERING)
-		netdev_ops_assert_locked(dev);
+		netdev_assert_locked_ops_compat(dev);
 }
 
 static inline void netdev_lock_ops_compat(struct net_device *dev)
