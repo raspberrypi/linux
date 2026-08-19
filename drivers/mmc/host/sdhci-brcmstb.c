@@ -756,8 +756,20 @@ static int sdhci_brcmstb_resume(struct device *dev)
 	const struct brcmstb_match_priv *match_priv = priv->match_priv;
 	int ret;
 
-	ret = sdhci_pltfm_resume(dev);
-	if (!ret && priv->base_freq_hz) {
+	ret = clk_prepare_enable(pltfm_host->clk);
+	if (ret)
+		return ret;
+
+	if (match_priv->cfginit)
+		match_priv->cfginit(host);
+
+	ret = sdhci_resume_host(host);
+	if (ret) {
+		clk_disable_unprepare(pltfm_host->clk);
+		return ret;
+	}
+
+	if (priv->base_freq_hz) {
 		ret = clk_prepare_enable(priv->base_clk);
 		/*
 		 * Note: using clk_get_rate() below as clk_get_rate()
