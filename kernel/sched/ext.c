@@ -3313,16 +3313,21 @@ void scx_group_set_bandwidth(struct task_group *tg,
 	percpu_up_read(&scx_cgroup_ops_rwsem);
 }
 
+/*
+ * cgroup_lock() must nest outside the rwsem write side: a writer waiting
+ * for cgroup_mutex deadlocks with cgroup teardown, which holds it while
+ * draining a set_* file write blocked on the rwsem behind the writer.
+ */
 static void scx_cgroup_lock(void)
 {
-	percpu_down_write(&scx_cgroup_ops_rwsem);
 	cgroup_lock();
+	percpu_down_write(&scx_cgroup_ops_rwsem);
 }
 
 static void scx_cgroup_unlock(void)
 {
-	cgroup_unlock();
 	percpu_up_write(&scx_cgroup_ops_rwsem);
+	cgroup_unlock();
 }
 
 #else	/* CONFIG_EXT_GROUP_SCHED */
