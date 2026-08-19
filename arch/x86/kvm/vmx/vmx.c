@@ -6055,9 +6055,6 @@ static int handle_encls(struct kvm_vcpu *vcpu)
 static int handle_notify(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qual = vmx_get_exit_qual(vcpu);
-	bool context_invalid = exit_qual & NOTIFY_VM_CONTEXT_INVALID;
-
-	++vcpu->stat.notify_window_exits;
 
 	/*
 	 * Notify VM exit happened while executing iret from NMI,
@@ -6067,15 +6064,7 @@ static int handle_notify(struct kvm_vcpu *vcpu)
 		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO,
 			      GUEST_INTR_STATE_NMI);
 
-	if (vcpu->kvm->arch.notify_vmexit_flags & KVM_X86_NOTIFY_VMEXIT_USER ||
-	    context_invalid) {
-		vcpu->run->exit_reason = KVM_EXIT_NOTIFY;
-		vcpu->run->notify.flags = context_invalid ?
-					  KVM_NOTIFY_CONTEXT_INVALID : 0;
-		return 0;
-	}
-
-	return 1;
+	return __vt_handle_notify(vcpu, exit_qual);
 }
 
 static int vmx_get_msr_imm_reg(struct kvm_vcpu *vcpu)
