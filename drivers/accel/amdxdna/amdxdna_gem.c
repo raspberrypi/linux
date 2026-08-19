@@ -1503,7 +1503,7 @@ int amdxdna_drm_sync_bo_ioctl(struct drm_device *dev,
 		amdxdna_gem_unpin(abo);
 
 		if (ret) {
-			drm_WARN(&xdna->ddev, 1, "Can not get flush memory");
+			XDNA_DBG(xdna, "Flush BO %d failed, ret %d", args->handle, ret);
 			goto put_obj;
 		}
 	}
