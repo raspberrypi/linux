@@ -3386,7 +3386,7 @@ int tcf_exts_init_ex(struct tcf_exts *exts, struct net *net, int action,
 	 */
 	exts->net = net;
 	exts->actions = kcalloc(TCA_ACT_MAX_PRIO, sizeof(struct tc_action *),
-				GFP_KERNEL);
+				GFP_KERNEL_ACCOUNT);
 	if (!exts->actions)
 		return -ENOMEM;
 #endif

@@ -95,7 +95,7 @@ static int cls_cgroup_change(struct net *net, struct sk_buff *in_skb,
 	if (head && handle != head->handle)
 		return -ENOENT;
 
-	new = kzalloc(sizeof(*head), GFP_KERNEL);
+	new = kzalloc(sizeof(*head), GFP_KERNEL_ACCOUNT);
 	if (!new)
 		return -ENOBUFS;
 
