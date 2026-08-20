@@ -683,6 +683,9 @@ static int qcom_pmic_typec_port_start(struct pmic_typec *tcpm,
 		enable_irq(pmic_typec_port->irq_data[i].irq);
 
 done:
+	if (ret)
+		disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
+
 	return ret;
 }
 
