@@ -968,7 +968,7 @@ void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif)
 static void ath12k_dp_cc_cleanup(struct ath12k_base *ab)
 {
 	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
-	u32 pool_id, tx_spt_page, tx_spt_pages_per_pool;
+	u32 pool_id, tx_spt_page, tx_spt_pages_per_pool, num_rx_spt_pages;
 	struct ath12k_tx_desc_info *tx_desc_info, *tmp1;
 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
 	struct ath12k_rx_desc_info *desc_info;
@@ -983,8 +983,10 @@ static void ath12k_dp_cc_cleanup(struct ath12k_base *ab)
 	/* RX Descriptor cleanup */
 	spin_lock_bh(&dp->rx_desc_lock);
 
+	num_rx_spt_pages = ath12k_dp_num_rx_spt_pages(dp_params);
+
 	if (dp->rxbaddr) {
-		for (i = 0; i < ATH12K_NUM_RX_SPT_PAGES(ab); i++) {
+		for (i = 0; i < num_rx_spt_pages; i++) {
 			if (!dp->rxbaddr[i])
 				continue;
 
@@ -1166,7 +1168,7 @@ struct ath12k_rx_desc_info *ath12k_dp_get_rx_desc(struct ath12k_dp *dp,
 	dp_params = &dp->ab->profile_param->dp_params;
 
 	start_ppt_idx = dp->rx_ppt_base + ath12k_dp_rx_spt_page_offset(dp_params);
-	end_ppt_idx = start_ppt_idx + ATH12K_NUM_RX_SPT_PAGES(dp->ab);
+	end_ppt_idx = start_ppt_idx + ath12k_dp_num_rx_spt_pages(dp_params);
 
 	if (ppt_idx < start_ppt_idx ||
 	    ppt_idx >= end_ppt_idx ||
@@ -1208,10 +1210,10 @@ EXPORT_SYMBOL(ath12k_dp_get_tx_desc);
 static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 {
 	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
+	u32 num_rx_spt_pages = ath12k_dp_num_rx_spt_pages(dp_params);
 	struct ath12k_rx_desc_info *rx_descs, **rx_desc_addr;
 	struct ath12k_tx_desc_info *tx_descs, **tx_desc_addr;
 	u32 i, j, pool_id, tx_spt_page, tx_spt_pages_per_pool;
-	u32 num_rx_spt_pages = ATH12K_NUM_RX_SPT_PAGES(ab);
 	u32 ppt_idx, cookie_ppt_idx, rx_spt_page_offset;
 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
 
@@ -1317,7 +1319,7 @@ static int ath12k_dp_cmem_init(struct ath12k_base *ab,
 	case ATH12K_DP_RX_DESC:
 		cmem_base += ATH12K_PPT_ADDR_OFFSET(dp->rx_ppt_base);
 		start = ath12k_dp_rx_spt_page_offset(dp_params);
-		end = start + ATH12K_NUM_RX_SPT_PAGES(ab);
+		end = start + ath12k_dp_num_rx_spt_pages(dp_params);
 		break;
 	default:
 		ath12k_err(ab, "invalid descriptor type %d in cmem init\n", type);
@@ -1349,7 +1351,8 @@ static u32 ath12k_dp_get_num_spt_pages(struct ath12k_base *ab)
 {
 	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
 
-	return ATH12K_NUM_RX_SPT_PAGES(ab) + ath12k_dp_num_tx_spt_pages(dp_params);
+	return ath12k_dp_num_rx_spt_pages(dp_params) +
+	       ath12k_dp_num_tx_spt_pages(dp_params);
 }
 
 static int ath12k_dp_cc_init(struct ath12k_base *ab)
@@ -1377,7 +1380,8 @@ static int ath12k_dp_cc_init(struct ath12k_base *ab)
 		return -ENOMEM;
 	}
 
-	dp->rx_ppt_base = ab->device_id * ATH12K_NUM_RX_SPT_PAGES(ab);
+	dp->rx_ppt_base = ab->device_id *
+			  ath12k_dp_num_rx_spt_pages(&ab->profile_param->dp_params);
 
 	for (i = 0; i < dp->num_spt_pages; i++) {
 		dp->spt_info[i].vaddr = dma_alloc_coherent(ab->dev,
