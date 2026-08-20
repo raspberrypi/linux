@@ -206,8 +206,6 @@ struct ath12k_pdev_dp {
 #define DP_REO_DST_RING_MAX		8
 #define DP_REO_DST_RING_SIZE		2048
 #define DP_REO_REINJECT_RING_SIZE	32
-#define DP_RX_RELEASE_RING_SIZE(ab) \
-	((ab)->profile_param->dp_params.rx_release_ring_size)
 #define DP_REO_EXCEPTION_RING_SIZE	128
 #define DP_REO_CMD_RING_SIZE		256
 #define DP_REO_STATUS_RING_SIZE		2048
@@ -714,6 +712,12 @@ static inline u32
 ath12k_dp_num_rx_spt_pages(const struct ath12k_dp_profile_params *p)
 {
 	return ath12k_dp_rx_desc_count(p) / ATH12K_MAX_SPT_ENTRIES;
+}
+
+static inline u32
+ath12k_dp_rx_release_ring_size(const struct ath12k_dp_profile_params *p)
+{
+	return p->rx_release_ring_size;
 }
 
 void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
