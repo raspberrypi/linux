@@ -242,10 +242,9 @@ bool dcn30_set_blend_lut(
 	if (plane_state->cm.blend_func.type == TF_TYPE_HWPWL)
 		blend_lut = &plane_state->cm.blend_func.pwl;
 	else if (plane_state->cm.blend_func.type == TF_TYPE_DISTRIBUTED_POINTS) {
-		result = cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
+		result = cm3_helper_translate_curve_to_degamma_hw_format(
 				&plane_state->cm.blend_func,
-				&dpp->regamma_params,
-				false);
+				&dpp->regamma_params);
 		if (!result)
 			return result;
 
@@ -335,9 +334,8 @@ bool dcn30_set_input_transfer_func(struct set_input_transfer_func_params *params
 	if (plane_state->in_transfer_func.type == TF_TYPE_HWPWL)
 		pwl_params = &plane_state->in_transfer_func.pwl;
 	else if (plane_state->in_transfer_func.type == TF_TYPE_DISTRIBUTED_POINTS &&
-		cm3_helper_translate_curve_to_hw_format(plane_state->ctx,
-							&plane_state->in_transfer_func,
-							&dpp->degamma_params, false))
+		cm3_helper_translate_curve_to_degamma_hw_format(&plane_state->in_transfer_func,
+								&dpp->degamma_params))
 		pwl_params = &dpp->degamma_params;
 
 	result = dpp->funcs->dpp_program_gamcor_lut(dpp, pwl_params);
