@@ -3620,6 +3620,7 @@ static size_t intel_iommu_unmap(struct iommu_domain *domain,
 				unsigned long iova, size_t size,
 				struct iommu_iotlb_gather *gather)
 {
+	struct iommu_pages_list freelist = IOMMU_PAGES_LIST_INIT(freelist);
 	struct dmar_domain *dmar_domain = to_dmar_domain(domain);
 	unsigned long start_pfn, last_pfn;
 	int level = 0;
@@ -3636,7 +3637,7 @@ static size_t intel_iommu_unmap(struct iommu_domain *domain,
 	start_pfn = iova >> VTD_PAGE_SHIFT;
 	last_pfn = (iova + size - 1) >> VTD_PAGE_SHIFT;
 
-	domain_unmap(dmar_domain, start_pfn, last_pfn, &gather->freelist);
+	domain_unmap(dmar_domain, start_pfn, last_pfn, &freelist);
 
 	if (dmar_domain->max_addr == iova + size)
 		dmar_domain->max_addr = iova;
@@ -3647,6 +3648,14 @@ static size_t intel_iommu_unmap(struct iommu_domain *domain,
 	 */
 	if (!iommu_iotlb_gather_queued(gather))
 		iommu_iotlb_gather_add_page(domain, gather, iova, size);
+
+	/*
+	 * iommu_iotlb_gather_add_page() may have synced, which frees
+	 * gather->freelist. Hand this range's page tables over only after
+	 * that call. A queued gather frees them from the flush queue
+	 * instead.
+	 */
+	iommu_pages_list_splice(&freelist, &gather->freelist);
 
 	return size;
 }

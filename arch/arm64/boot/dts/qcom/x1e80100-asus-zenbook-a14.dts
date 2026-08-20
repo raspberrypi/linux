@@ -6,7 +6,7 @@
 
 /dts-v1/;
 
-#include "x1e80100.dtsi"
+#include "hamoa.dtsi"
 #include "x1-asus-zenbook-a14.dtsi"
 
 / {
@@ -20,6 +20,14 @@
 
 &gpu_zap_shader {
 	firmware-name = "qcom/x1e80100/ASUSTeK/zenbook-a14/qcdxkmsuc8380.mbn";
+};
+
+&panel {
+	compatible = "samsung,atna40cu11", "samsung,atna33xc20";
+	enable-gpios = <&pmc8380_3_gpios 4 GPIO_ACTIVE_HIGH>;
+
+	pinctrl-0 = <&edp_bl_en>;
+	pinctrl-names = "default";
 };
 
 &remoteproc_adsp {

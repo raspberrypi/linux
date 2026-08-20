@@ -5427,12 +5427,16 @@ u32 bpf_prog_run_generic_xdp(struct sk_buff *skb, struct xdp_buff *xdp,
 	}
 
 	/* XDP frag metadata (e.g. nr_frags) are updated in eBPF helpers
-	 * (e.g. bpf_xdp_adjust_tail), we need to update data_len here.
+	 * (e.g. bpf_xdp_adjust_tail). Remove the old fragment contribution
+	 * from skb->len before updating data_len, then add the new one back.
 	 */
-	if (xdp_buff_has_frags(xdp))
+	skb->len -= skb->data_len;
+	if (xdp_buff_has_frags(xdp)) {
 		skb->data_len = skb_shinfo(skb)->xdp_frags_size;
-	else
+		skb->len += skb->data_len;
+	} else {
 		skb->data_len = 0;
+	}
 
 	/* check if XDP changed eth hdr such SKB needs update */
 	eth = (struct ethhdr *)xdp->data;
@@ -11223,6 +11227,21 @@ static void netdev_free_phy_link_topology(struct net_device *dev)
 	}
 }
 
+static void init_rx_queue_cfgs(struct net_device *dev)
+{
+	const struct netdev_queue_mgmt_ops *qops = dev->queue_mgmt_ops;
+	struct netdev_rx_queue *rxq;
+	int i;
+
+	if (!qops || !qops->ndo_default_qcfg)
+		return;
+
+	for (i = 0; i < dev->num_rx_queues; i++) {
+		rxq = __netif_get_rx_queue(dev, i);
+		qops->ndo_default_qcfg(dev, &rxq->qcfg);
+	}
+}
+
 /**
  * register_netdevice() - register a network device
  * @dev: device to register
@@ -11267,6 +11286,8 @@ int register_netdevice(struct net_device *dev)
 	dev->name_node = netdev_name_node_head_alloc(dev);
 	if (!dev->name_node)
 		goto out;
+
+	init_rx_queue_cfgs(dev);
 
 	/* Init, if this function is available */
 	if (dev->netdev_ops->ndo_init) {
