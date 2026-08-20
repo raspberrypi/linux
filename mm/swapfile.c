@@ -770,11 +770,11 @@ static void swap_reclaim_full_clusters(struct swap_info_struct *si, bool force)
 			}
 			offset++;
 		}
+		cond_resched();
 		spin_lock(&si->lock);
 
 		if (to_scan <= 0)
 			break;
-		cond_resched();
 	}
 }
 
