@@ -216,8 +216,6 @@ struct ath12k_pdev_dp {
 #define DP_RXDMA_REFILL_RING_SIZE	2048
 #define DP_RXDMA_ERR_DST_RING_SIZE	1024
 #define DP_RXDMA_MON_STATUS_RING_SIZE	1024
-#define DP_RXDMA_MONITOR_DST_RING_SIZE(ab) \
-	((ab)->profile_param->dp_params.rxdma_monitor_dst_ring_size)
 #define DP_RXDMA_MONITOR_DESC_RING_SIZE	4096
 #define DP_TX_MONITOR_BUF_RING_SIZE	4096
 #define DP_TX_MONITOR_DEST_RING_SIZE	2048
@@ -694,6 +692,12 @@ static inline u32
 ath12k_dp_rxdma_monitor_buf_ring_size(const struct ath12k_dp_profile_params *p)
 {
 	return p->rxdma_monitor_buf_ring_size;
+}
+
+static inline u32
+ath12k_dp_rxdma_monitor_dst_ring_size(const struct ath12k_dp_profile_params *p)
+{
+	return p->rxdma_monitor_dst_ring_size;
 }
 
 void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
