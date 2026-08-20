@@ -657,12 +657,8 @@ static int snd_mtpav_get_RAWMIDI(struct mtpav *mcard)
 static void snd_mtpav_free(struct snd_card *card)
 {
 	struct mtpav *crd = card->private_data;
-	unsigned long flags;
 
-	spin_lock_irqsave(&crd->spinlock, flags);
-	if (crd->istimer > 0)
-		snd_mtpav_remove_output_timer(crd);
-	spin_unlock_irqrestore(&crd->spinlock, flags);
+	timer_shutdown_sync(&crd->timer);
 }
 
 /*
