@@ -967,14 +967,15 @@ void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif)
 
 static void ath12k_dp_cc_cleanup(struct ath12k_base *ab)
 {
-	struct ath12k_rx_desc_info *desc_info;
+	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
+	u32 pool_id, tx_spt_page, tx_spt_pages_per_pool;
 	struct ath12k_tx_desc_info *tx_desc_info, *tmp1;
 	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
+	struct ath12k_rx_desc_info *desc_info;
 	struct ath12k_skb_cb *skb_cb;
 	struct sk_buff *skb;
 	struct ath12k *ar;
 	int i, j;
-	u32 pool_id, tx_spt_page;
 
 	if (!dp->spt_info)
 		return;
@@ -1056,12 +1057,13 @@ static void ath12k_dp_cc_cleanup(struct ath12k_base *ab)
 	}
 
 	if (dp->txbaddr) {
+		tx_spt_pages_per_pool = ath12k_dp_tx_spt_pages_per_pool(dp_params);
+
 		for (pool_id = 0; pool_id < ATH12K_HW_MAX_QUEUES; pool_id++) {
 			spin_lock_bh(&dp->tx_desc_lock[pool_id]);
 
-			for (i = 0; i < ATH12K_TX_SPT_PAGES_PER_POOL(ab); i++) {
-				tx_spt_page = i + pool_id *
-					      ATH12K_TX_SPT_PAGES_PER_POOL(ab);
+			for (i = 0; i < tx_spt_pages_per_pool; i++) {
+				tx_spt_page = i + pool_id * tx_spt_pages_per_pool;
 				if (!dp->txbaddr[tx_spt_page])
 					continue;
 
@@ -1155,13 +1157,15 @@ static void *ath12k_dp_cc_get_desc_addr_ptr(struct ath12k_dp *dp,
 struct ath12k_rx_desc_info *ath12k_dp_get_rx_desc(struct ath12k_dp *dp,
 						  u32 cookie)
 {
+	const struct ath12k_dp_profile_params *dp_params;
 	struct ath12k_rx_desc_info **desc_addr_ptr;
 	u16 start_ppt_idx, end_ppt_idx, ppt_idx, spt_idx;
 
 	ppt_idx = u32_get_bits(cookie, ATH12K_DP_CC_COOKIE_PPT);
 	spt_idx = u32_get_bits(cookie, ATH12K_DP_CC_COOKIE_SPT);
+	dp_params = &dp->ab->profile_param->dp_params;
 
-	start_ppt_idx = dp->rx_ppt_base + ATH12K_RX_SPT_PAGE_OFFSET(dp->ab);
+	start_ppt_idx = dp->rx_ppt_base + ath12k_dp_rx_spt_page_offset(dp_params);
 	end_ppt_idx = start_ppt_idx + ATH12K_NUM_RX_SPT_PAGES(dp->ab);
 
 	if (ppt_idx < start_ppt_idx ||
@@ -1179,15 +1183,16 @@ EXPORT_SYMBOL(ath12k_dp_get_rx_desc);
 struct ath12k_tx_desc_info *ath12k_dp_get_tx_desc(struct ath12k_dp *dp,
 						  u32 cookie)
 {
+	const struct ath12k_dp_profile_params *dp_params;
 	struct ath12k_tx_desc_info **desc_addr_ptr;
 	u16 start_ppt_idx, end_ppt_idx, ppt_idx, spt_idx;
 
 	ppt_idx = u32_get_bits(cookie, ATH12K_DP_CC_COOKIE_PPT);
 	spt_idx = u32_get_bits(cookie, ATH12K_DP_CC_COOKIE_SPT);
+	dp_params = &dp->ab->profile_param->dp_params;
 
 	start_ppt_idx = ATH12K_TX_SPT_PAGE_OFFSET;
-	end_ppt_idx = start_ppt_idx +
-		      (ATH12K_TX_SPT_PAGES_PER_POOL(dp->ab) * ATH12K_HW_MAX_QUEUES);
+	end_ppt_idx = start_ppt_idx + ath12k_dp_num_tx_spt_pages(dp_params);
 
 	if (ppt_idx < start_ppt_idx ||
 	    ppt_idx >= end_ppt_idx ||
@@ -1202,12 +1207,13 @@ EXPORT_SYMBOL(ath12k_dp_get_tx_desc);
 
 static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 {
-	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
+	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
 	struct ath12k_rx_desc_info *rx_descs, **rx_desc_addr;
 	struct ath12k_tx_desc_info *tx_descs, **tx_desc_addr;
+	u32 i, j, pool_id, tx_spt_page, tx_spt_pages_per_pool;
 	u32 num_rx_spt_pages = ATH12K_NUM_RX_SPT_PAGES(ab);
-	u32 i, j, pool_id, tx_spt_page;
-	u32 ppt_idx, cookie_ppt_idx;
+	u32 ppt_idx, cookie_ppt_idx, rx_spt_page_offset;
+	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
 
 	spin_lock_bh(&dp->rx_desc_lock);
 
@@ -1219,9 +1225,9 @@ static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 		return -ENOMEM;
 	}
 
-	/* First ATH12K_NUM_RX_SPT_PAGES(ab) of allocated SPT pages are used for
-	 * RX
-	 */
+	rx_spt_page_offset = ath12k_dp_rx_spt_page_offset(dp_params);
+
+	/* First num_rx_spt_pages of allocated SPT pages are used for RX */
 	for (i = 0; i < num_rx_spt_pages; i++) {
 		rx_descs = kzalloc_objs(*rx_descs, ATH12K_MAX_SPT_ENTRIES,
 					GFP_ATOMIC);
@@ -1231,7 +1237,7 @@ static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 			return -ENOMEM;
 		}
 
-		ppt_idx = ATH12K_RX_SPT_PAGE_OFFSET(ab) + i;
+		ppt_idx = rx_spt_page_offset + i;
 		cookie_ppt_idx = dp->rx_ppt_base + ppt_idx;
 		dp->rxbaddr[i] = &rx_descs[0];
 
@@ -1250,14 +1256,17 @@ static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 	spin_unlock_bh(&dp->rx_desc_lock);
 
 	dp->txbaddr = kzalloc_objs(struct ath12k_tx_desc_info *,
-				   ATH12K_NUM_TX_SPT_PAGES(ab), GFP_ATOMIC);
+				   ath12k_dp_num_tx_spt_pages(dp_params),
+				   GFP_ATOMIC);
 
 	if (!dp->txbaddr)
 		return -ENOMEM;
 
+	tx_spt_pages_per_pool = ath12k_dp_tx_spt_pages_per_pool(dp_params);
+
 	for (pool_id = 0; pool_id < ATH12K_HW_MAX_QUEUES; pool_id++) {
 		spin_lock_bh(&dp->tx_desc_lock[pool_id]);
-		for (i = 0; i < ATH12K_TX_SPT_PAGES_PER_POOL(ab); i++) {
+		for (i = 0; i < tx_spt_pages_per_pool; i++) {
 			tx_descs = kzalloc_objs(*tx_descs,
 						ATH12K_MAX_SPT_ENTRIES,
 						GFP_ATOMIC);
@@ -1268,8 +1277,7 @@ static int ath12k_dp_cc_desc_init(struct ath12k_base *ab)
 				return -ENOMEM;
 			}
 
-			tx_spt_page = i + pool_id *
-				      ATH12K_TX_SPT_PAGES_PER_POOL(ab);
+			tx_spt_page = i + pool_id * tx_spt_pages_per_pool;
 			ppt_idx = ATH12K_TX_SPT_PAGE_OFFSET + tx_spt_page;
 
 			dp->txbaddr[tx_spt_page] = &tx_descs[0];
@@ -1295,6 +1303,7 @@ static int ath12k_dp_cmem_init(struct ath12k_base *ab,
 			       struct ath12k_dp *dp,
 			       enum ath12k_dp_desc_type type)
 {
+	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
 	u32 cmem_base;
 	int i, start, end;
 
@@ -1303,11 +1312,11 @@ static int ath12k_dp_cmem_init(struct ath12k_base *ab,
 	switch (type) {
 	case ATH12K_DP_TX_DESC:
 		start = ATH12K_TX_SPT_PAGE_OFFSET;
-		end = start + ATH12K_NUM_TX_SPT_PAGES(ab);
+		end = start + ath12k_dp_num_tx_spt_pages(dp_params);
 		break;
 	case ATH12K_DP_RX_DESC:
 		cmem_base += ATH12K_PPT_ADDR_OFFSET(dp->rx_ppt_base);
-		start = ATH12K_RX_SPT_PAGE_OFFSET(ab);
+		start = ath12k_dp_rx_spt_page_offset(dp_params);
 		end = start + ATH12K_NUM_RX_SPT_PAGES(ab);
 		break;
 	default:
@@ -1338,7 +1347,9 @@ void ath12k_dp_partner_cc_init(struct ath12k_base *ab)
 
 static u32 ath12k_dp_get_num_spt_pages(struct ath12k_base *ab)
 {
-	return ATH12K_NUM_RX_SPT_PAGES(ab) + ATH12K_NUM_TX_SPT_PAGES(ab);
+	const struct ath12k_dp_profile_params *dp_params = &ab->profile_param->dp_params;
+
+	return ATH12K_NUM_RX_SPT_PAGES(ab) + ath12k_dp_num_tx_spt_pages(dp_params);
 }
 
 static int ath12k_dp_cc_init(struct ath12k_base *ab)

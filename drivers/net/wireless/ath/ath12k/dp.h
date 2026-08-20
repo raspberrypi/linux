@@ -249,8 +249,6 @@ struct ath12k_pdev_dp {
 #define ATH12K_SHADOW_DP_TIMER_INTERVAL 20
 #define ATH12K_SHADOW_CTRL_TIMER_INTERVAL 10
 
-#define ATH12K_NUM_POOL_TX_DESC(ab) \
-	((ab)->profile_param->dp_params.num_pool_tx_desc)
 /* TODO: revisit this count during testing */
 #define ATH12K_RX_DESC_COUNT(ab) \
 	((ab)->profile_param->dp_params.rx_desc_count)
@@ -268,13 +266,7 @@ struct ath12k_pdev_dp {
 #define ATH12K_NUM_RX_SPT_PAGES(ab)	((ATH12K_RX_DESC_COUNT(ab)) / \
 					  ATH12K_MAX_SPT_ENTRIES)
 
-#define ATH12K_TX_SPT_PAGES_PER_POOL(ab) (ATH12K_NUM_POOL_TX_DESC(ab) / \
-					  ATH12K_MAX_SPT_ENTRIES)
-#define ATH12K_NUM_TX_SPT_PAGES(ab)	(ATH12K_TX_SPT_PAGES_PER_POOL(ab) * \
-					 ATH12K_HW_MAX_QUEUES)
-
 #define ATH12K_TX_SPT_PAGE_OFFSET 0
-#define ATH12K_RX_SPT_PAGE_OFFSET(ab) ATH12K_NUM_TX_SPT_PAGES(ab)
 
 /* The SPT pages are divided for RX and TX, first block for RX
  * and remaining for TX
@@ -698,6 +690,30 @@ static inline u32
 ath12k_dp_rxdma_monitor_dst_ring_size(const struct ath12k_dp_profile_params *p)
 {
 	return p->rxdma_monitor_dst_ring_size;
+}
+
+static inline u32
+ath12k_dp_num_pool_tx_desc(const struct ath12k_dp_profile_params *p)
+{
+	return p->num_pool_tx_desc;
+}
+
+static inline u32
+ath12k_dp_tx_spt_pages_per_pool(const struct ath12k_dp_profile_params *p)
+{
+	return ath12k_dp_num_pool_tx_desc(p) / ATH12K_MAX_SPT_ENTRIES;
+}
+
+static inline u32
+ath12k_dp_num_tx_spt_pages(const struct ath12k_dp_profile_params *p)
+{
+	return ath12k_dp_tx_spt_pages_per_pool(p) * ATH12K_HW_MAX_QUEUES;
+}
+
+static inline u32
+ath12k_dp_rx_spt_page_offset(const struct ath12k_dp_profile_params *p)
+{
+	return ath12k_dp_num_tx_spt_pages(p);
 }
 
 void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
