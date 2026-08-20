@@ -299,6 +299,9 @@ static int riscv_cfi_get(struct task_struct *target,
 	struct user_cfi_state user_cfi;
 	struct pt_regs *regs;
 
+	if (!is_user_lpad_enabled() && !is_user_shstk_enabled())
+		return -EINVAL;
+
 	memset(&user_cfi, 0, sizeof(user_cfi));
 	regs = task_pt_regs(target);
 
@@ -336,6 +339,9 @@ static int riscv_cfi_set(struct task_struct *target,
 	int ret;
 	struct user_cfi_state user_cfi;
 	struct pt_regs *regs;
+
+	if (!is_user_lpad_enabled() && !is_user_shstk_enabled())
+		return -EINVAL;
 
 	regs = task_pt_regs(target);
 
