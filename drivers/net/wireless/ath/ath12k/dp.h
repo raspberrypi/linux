@@ -61,7 +61,7 @@ struct dp_rxdma_ring {
 	int bufs_max;
 };
 
-#define ATH12K_TX_COMPL_NEXT(ab, x)	(((x) + 1) % DP_TX_COMP_RING_SIZE(ab))
+#define ATH12K_TX_COMPL_NEXT(ring_size, x)	(((x) + 1) % (ring_size))
 
 struct dp_tx_ring {
 	u8 tcl_data_ring_id;
@@ -201,9 +201,6 @@ struct ath12k_pdev_dp {
 
 #define DP_WBM_RELEASE_RING_SIZE	64
 #define DP_TCL_DATA_RING_SIZE		512
-#define DP_TX_COMP_RING_SIZE(ab) \
-	((ab)->profile_param->dp_params.tx_comp_ring_size)
-#define DP_TX_IDR_SIZE(ab)		DP_TX_COMP_RING_SIZE(ab)
 #define DP_TCL_CMD_RING_SIZE		32
 #define DP_TCL_STATUS_RING_SIZE		32
 #define DP_REO_DST_RING_MAX		8
@@ -687,6 +684,12 @@ ath12k_dp_to_pdev_dp(struct ath12k_dp *dp, u8 pdev_idx)
 			 "ath12k dp to dp pdev called without rcu lock");
 
 	return rcu_dereference(dp->dp_pdevs[pdev_idx]);
+}
+
+static inline u32
+ath12k_dp_tx_comp_ring_size(const struct ath12k_dp_profile_params *p)
+{
+	return p->tx_comp_ring_size;
 }
 
 void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
