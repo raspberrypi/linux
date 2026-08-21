@@ -1194,11 +1194,16 @@ static void usb_serial_disconnect(struct usb_interface *interface)
 		usb_serial_port_poison_urbs(port);
 		wake_up_interruptible(&port->port.delta_msr_wait);
 		cancel_work_sync(&port->work);
+	}
+
+	if (serial->type->disconnect)
+		serial->type->disconnect(serial);
+
+	for (i = 0; i < serial->num_ports; ++i) {
+		port = serial->port[i];
 		if (device_is_registered(&port->dev))
 			device_del(&port->dev);
 	}
-	if (serial->type->disconnect)
-		serial->type->disconnect(serial);
 
 	release_sibling(serial, interface);
 
