@@ -1253,23 +1253,31 @@ int fuse_uring_cmd(struct io_uring_cmd *cmd, unsigned int issue_flags)
 	}
 	fc = fud->fc;
 
-	/* Once a connection has io-uring enabled on it, it can't be disabled */
-	if (!enable_uring && !fc->io_uring) {
-		pr_info_ratelimited("fuse-io-uring is disabled\n");
-		return -EOPNOTSUPP;
-	}
+	/*
+	 * The ring is sized from values negotiated by FUSE_INIT
+	 */
+	if (!fc->initialized)
+		return -EAGAIN;
+
+	/* Pairs with smp_wmb() in fuse_set_initialized() */
+	smp_rmb();
 
 	if (fc->aborted)
 		return -ECONNABORTED;
 	if (!fc->connected)
 		return -ENOTCONN;
 
-	/*
-	 * fuse_uring_register() needs the ring to be initialized,
-	 * we need to know the max payload size
-	 */
-	if (!fc->initialized)
-		return -EAGAIN;
+	/* Once a connection has io-uring enabled on it, it can't be disabled */
+	if (!enable_uring && !fc->io_uring) {
+		pr_info_ratelimited("fuse-io-uring is disabled by module parameter\n");
+		return -EOPNOTSUPP;
+	}
+
+	if (cmd_op == FUSE_IO_URING_CMD_REGISTER && !fc->io_uring) {
+		pr_info_ratelimited(
+			"fuse-io-uring not enabled on this connection\n");
+		return -EOPNOTSUPP;
+	}
 
 	switch (cmd_op) {
 	case FUSE_IO_URING_CMD_REGISTER:
