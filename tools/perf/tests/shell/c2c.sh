@@ -39,6 +39,7 @@ test_c2c_record_report() {
 	# Run a workload that does some memory operations.
 	if ! perf c2c record -o "${perfdata}" -- perf test -w datasym 1 > /dev/null 2>&1 ; then
 		echo "c2c record and report test [Skipped: perf c2c record failed during workload]"
+		err=2
 		return
 	fi
 
