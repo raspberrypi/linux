@@ -290,8 +290,17 @@ again:
 		DEFINE_WAIT(wait);
 
 		prepare_to_wait(&wsm.wait, &wait, TASK_UNINTERRUPTIBLE);
-		schedule();
+		/*
+		 * Re-check after being queued: zstd_put_workspace() only wakes
+		 * a queue that already has a sleeper, so a workspace returned
+		 * since the failed allocation woke nobody.
+		 */
+		ws = zstd_find_workspace(level);
+		if (!ws)
+			schedule();
 		finish_wait(&wsm.wait, &wait);
+		if (ws)
+			return ws;
 
 		goto again;
 	}
