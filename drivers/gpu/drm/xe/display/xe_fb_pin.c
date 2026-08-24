@@ -418,15 +418,15 @@ intel_fb_pin_to_ggtt(const struct drm_framebuffer *fb,
 		     unsigned int alignment,
 		     unsigned int phys_alignment,
 		     unsigned int vtd_guard,
-		     bool uses_fence,
-		     unsigned long *out_flags)
+		     int *out_fence_id)
 {
-	*out_flags = 0;
+	if (out_fence_id)
+		*out_fence_id = -1;
 
 	return __xe_pin_fb_vma(to_intel_framebuffer(fb), view, alignment);
 }
 
-void intel_fb_unpin_vma(struct i915_vma *vma, unsigned long flags)
+void intel_fb_unpin_vma(struct i915_vma *vma, int fence_id)
 {
 	__xe_unpin_fb_vma(vma);
 }

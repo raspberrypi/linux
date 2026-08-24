@@ -26,7 +26,6 @@ static struct i915_vma *
 intel_fb_pin_to_dpt(const struct drm_framebuffer *fb,
 		    const struct i915_gtt_view *view,
 		    unsigned int alignment,
-		    unsigned long *out_flags,
 		    struct intel_dpt *dpt)
 {
 	struct intel_display *display = to_intel_display(fb->dev);
@@ -114,8 +113,7 @@ intel_fb_pin_to_ggtt(const struct drm_framebuffer *fb,
 		     unsigned int alignment,
 		     unsigned int phys_alignment,
 		     unsigned int vtd_guard,
-		     bool uses_fence,
-		     unsigned long *out_flags)
+		     int *out_fence_id)
 {
 	struct intel_display *display = to_intel_display(fb->dev);
 	struct drm_i915_private *i915 = to_i915(fb->dev);
@@ -175,7 +173,10 @@ retry:
 		goto err_unpin;
 	}
 
-	if (uses_fence && i915_vma_is_map_and_fenceable(vma)) {
+	if (out_fence_id)
+		*out_fence_id = -1;
+
+	if (out_fence_id && i915_vma_is_map_and_fenceable(vma)) {
 		/*
 		 * Install a fence for tiled scan-out. Pre-i965 always needs a
 		 * fence, whereas 965+ only requires a fence if using
@@ -201,7 +202,7 @@ retry:
 		ret = 0;
 
 		if (vma->fence)
-			*out_flags |= PLANE_HAS_FENCE;
+			*out_fence_id = vma->fence->id;
 	}
 
 	i915_vma_get(vma);
@@ -223,9 +224,9 @@ err:
 	return vma;
 }
 
-void intel_fb_unpin_vma(struct i915_vma *vma, unsigned long flags)
+void intel_fb_unpin_vma(struct i915_vma *vma, int fence_id)
 {
-	if (flags & PLANE_HAS_FENCE)
+	if (fence_id >= 0)
 		i915_vma_unpin_fence(vma);
 	i915_vma_unpin(vma);
 	i915_vma_put(vma);
@@ -269,17 +270,18 @@ int intel_plane_pin_fb(struct intel_plane_state *plane_state,
 	struct i915_vma *vma;
 
 	if (!intel_fb_uses_dpt(&fb->base)) {
+		int fence_id = -1;
+
 		vma = intel_fb_pin_to_ggtt(&fb->base, &plane_state->view.gtt,
 					   intel_plane_fb_min_alignment(plane_state),
 					   intel_plane_fb_min_phys_alignment(plane_state),
 					   intel_plane_fb_vtd_guard(plane_state),
-					   intel_plane_uses_fence(plane_state),
-					   &plane_state->flags);
+					   intel_plane_uses_fence(plane_state) ? &fence_id : NULL);
 		if (IS_ERR(vma))
 			return PTR_ERR(vma);
 
 		plane_state->ggtt_vma = vma;
-
+		plane_state->fence_id = fence_id;
 	} else {
 		unsigned int alignment = intel_plane_fb_min_alignment(plane_state);
 
@@ -290,8 +292,7 @@ int intel_plane_pin_fb(struct intel_plane_state *plane_state,
 		plane_state->ggtt_vma = vma;
 
 		vma = intel_fb_pin_to_dpt(&fb->base, &plane_state->view.gtt,
-					  alignment, &plane_state->flags,
-					  fb->dpt);
+					  alignment, fb->dpt);
 		if (IS_ERR(vma)) {
 			i915_dpt_unpin_from_ggtt(fb->dpt);
 			plane_state->ggtt_vma = NULL;
@@ -336,12 +337,14 @@ void intel_plane_unpin_fb(struct intel_plane_state *old_plane_state)
 
 	if (!intel_fb_uses_dpt(&fb->base)) {
 		vma = fetch_and_zero(&old_plane_state->ggtt_vma);
-		if (vma)
-			intel_fb_unpin_vma(vma, old_plane_state->flags);
+		if (vma) {
+			intel_fb_unpin_vma(vma, old_plane_state->fence_id);
+			old_plane_state->fence_id = -1;
+		}
 	} else {
 		vma = fetch_and_zero(&old_plane_state->dpt_vma);
 		if (vma)
-			intel_fb_unpin_vma(vma, old_plane_state->flags);
+			intel_fb_unpin_vma(vma, -1);
 
 		vma = fetch_and_zero(&old_plane_state->ggtt_vma);
 		if (vma)

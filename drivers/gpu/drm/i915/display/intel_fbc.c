@@ -1458,13 +1458,10 @@ static void intel_fbc_update_state(struct intel_atomic_state *state,
 
 	fbc_state->fence_y_offset = intel_plane_fence_y_offset(plane_state);
 
-	drm_WARN_ON(display->drm, plane_state->flags & PLANE_HAS_FENCE &&
+	drm_WARN_ON(display->drm, plane_state->fence_id >= 0 &&
 		    !intel_fbc_has_fences(display));
 
-	if (plane_state->flags & PLANE_HAS_FENCE)
-		fbc_state->fence_id = intel_parent_vma_fence_id(display, plane_state->ggtt_vma);
-	else
-		fbc_state->fence_id = -1;
+	fbc_state->fence_id = plane_state->fence_id;
 
 	fbc_state->cfb_stride = intel_fbc_cfb_stride(plane_state);
 	fbc_state->cfb_size = intel_fbc_cfb_size(plane_state);
@@ -1487,9 +1484,7 @@ static bool intel_fbc_is_fence_ok(const struct intel_plane_state *plane_state)
 	 * so have no fence associated with it) due to aperture constraints
 	 * at the time of pinning.
 	 */
-	return DISPLAY_VER(display) >= 9 ||
-		(plane_state->flags & PLANE_HAS_FENCE &&
-		 intel_parent_vma_fence_id(display, plane_state->ggtt_vma) != -1);
+	return DISPLAY_VER(display) >= 9 || plane_state->fence_id >= 0;
 }
 
 static bool intel_fbc_is_cfb_ok(const struct intel_plane_state *plane_state)

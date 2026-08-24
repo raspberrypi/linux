@@ -684,13 +684,14 @@ struct intel_plane_state {
 
 	struct i915_vma *ggtt_vma;
 	struct i915_vma *dpt_vma;
-	unsigned long flags;
-#define PLANE_HAS_FENCE BIT(0)
 
 	struct intel_fb_view view;
 
 	/* for legacy cursor fb unpin */
 	struct drm_vblank_work unpin_work;
+
+	/* fenced region ID (-1 if none) */
+	s8 fence_id;
 
 	/* Plane pxp decryption state */
 	bool decrypt;
