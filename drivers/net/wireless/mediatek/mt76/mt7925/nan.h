@@ -348,8 +348,7 @@ struct mt7925_nan_sched_update_peer_cap_tlv {
 
 struct mt7925_nan_sched_timeline {
 	u8 map_id;
-	u8 local_map_id;
-	u8 reserved[2];
+	u8 reserved[3];
 	union {
 		__le32 avail_map[NAN_TOTAL_DW];
 		u8 avail_block[NAN_TOTAL_DW * 4];

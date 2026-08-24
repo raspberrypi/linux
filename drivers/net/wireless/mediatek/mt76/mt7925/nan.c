@@ -753,52 +753,38 @@ static int mt7925_nan_peer_cap_tlv(struct sk_buff *skb,
 
 static void
 mt7925_nan_fill_crb_committed(struct mt7925_nan_sched_update_crb_tlv *crb_tlv,
-			      struct ieee80211_vif *vif,
 			      struct ieee80211_nan_peer_sched *sched)
 {
-	struct ieee80211_nan_sched_cfg *local_sched;
-	u8 local_map_id;
 	u32 m, slot;
 
-	if (!vif || !sched)
+	if (!sched)
 		return;
-
-	local_sched = &vif->cfg.nan_sched;
-	local_map_id = mt7925_nan_avail_attr_ctrl(local_sched) &
-		       NAN_AVAIL_CTRL_MAPID;
 
 	for (m = 0; m < CFG80211_NAN_MAX_PEER_MAPS &&
 	     m < NAN_TIMELINE_MGMT_SIZE; m++) {
+		struct ieee80211_nan_peer_map *map = &sched->maps[m];
 		struct mt7925_nan_sched_timeline *tl =
 			&crb_tlv->comm_faw_timeline[m];
-		struct ieee80211_nan_peer_map *map = &sched->maps[m];
-		u32 avail_map = 0;
 
 		if (map->map_id == CFG80211_NAN_INVALID_MAP_ID)
 			continue;
 
 		tl->map_id = map->map_id;
-		tl->local_map_id = local_map_id;
 
+		/*
+		 * Convert peer schedule slots to FW avail_map bitmap.
+		 * Each bit in avail_map[0] represents one time slot where
+		 * the peer has committed availability.
+		 */
 		for (slot = 0; slot < CFG80211_NAN_SCHED_NUM_TIME_SLOTS;
 		     slot++) {
-			struct ieee80211_nan_channel *local_ch;
-			struct ieee80211_nan_channel *peer_ch;
+			struct ieee80211_nan_channel *ch = map->slots[slot];
 
-			local_ch = local_sched->schedule[slot];
-			peer_ch = map->slots[slot];
-
-			if (!local_ch || !local_ch->chanctx_conf ||
-			    !peer_ch || !peer_ch->chanctx_conf)
+			if (!ch || !ch->chanctx_conf)
 				continue;
 
-			if (local_ch->chanctx_conf != peer_ch->chanctx_conf)
-				continue;
-
-			avail_map |= BIT(slot);
+			tl->avail_map[0] |= cpu_to_le32(BIT(slot));
 		}
-
-		tl->avail_map[0] = cpu_to_le32(avail_map);
 	}
 }
 
@@ -824,8 +810,7 @@ static int mt7925_nan_update_crb_tlv(struct sk_buff *skb,
 	crb_tlv->is_use_ranging = false;
 	crb_tlv->comm_ndc_ctrl.is_valid = false;
 
-	mt7925_nan_fill_crb_committed(crb_tlv, msta->vif->phy->dev->nan_vif,
-				      sta->nan_sched);
+	mt7925_nan_fill_crb_committed(crb_tlv, sta->nan_sched);
 
 	return 0;
 }
