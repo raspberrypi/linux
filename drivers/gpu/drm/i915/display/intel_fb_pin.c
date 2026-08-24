@@ -24,9 +24,8 @@
 
 static struct i915_vma *
 intel_fb_pin_to_dpt(const struct drm_framebuffer *fb,
-		    const struct i915_gtt_view *view,
-		    unsigned int alignment,
-		    struct intel_dpt *dpt)
+		    struct intel_dpt *dpt,
+		    const struct intel_fb_pin_params *pin_params)
 {
 	struct intel_display *display = to_intel_display(fb->dev);
 	struct drm_i915_private *i915 = to_i915(fb->dev);
@@ -75,19 +74,20 @@ intel_fb_pin_to_dpt(const struct drm_framebuffer *fb,
 		if (ret)
 			continue;
 
-		vma = i915_vma_instance(obj, vm, view);
+		vma = i915_vma_instance(obj, vm, pin_params->view);
 		if (IS_ERR(vma)) {
 			ret = PTR_ERR(vma);
 			continue;
 		}
 
-		if (i915_vma_misplaced(vma, 0, alignment, 0)) {
+		if (i915_vma_misplaced(vma, 0, pin_params->alignment, 0)) {
 			ret = i915_vma_unbind(vma);
 			if (ret)
 				continue;
 		}
 
-		ret = i915_vma_pin_ww(vma, &ww, 0, alignment, PIN_GLOBAL);
+		ret = i915_vma_pin_ww(vma, &ww, 0, pin_params->alignment,
+				      PIN_GLOBAL);
 		if (ret)
 			continue;
 	}
@@ -96,7 +96,8 @@ intel_fb_pin_to_dpt(const struct drm_framebuffer *fb,
 		goto err;
 	}
 
-	vma->display_alignment = max(vma->display_alignment, alignment);
+	vma->display_alignment = max(vma->display_alignment,
+				     pin_params->alignment);
 
 	i915_gem_object_flush_if_display(obj);
 
@@ -109,10 +110,7 @@ err:
 
 struct i915_vma *
 intel_fb_pin_to_ggtt(const struct drm_framebuffer *fb,
-		     const struct i915_gtt_view *view,
-		     unsigned int alignment,
-		     unsigned int phys_alignment,
-		     unsigned int vtd_guard,
+		     const struct intel_fb_pin_params *pin_params,
 		     int *out_fence_id)
 {
 	struct intel_display *display = to_intel_display(fb->dev);
@@ -128,7 +126,8 @@ intel_fb_pin_to_ggtt(const struct drm_framebuffer *fb,
 	if (drm_WARN_ON(&i915->drm, !i915_gem_object_is_framebuffer(obj)))
 		return ERR_PTR(-EINVAL);
 
-	if (drm_WARN_ON(&i915->drm, alignment && !is_power_of_2(alignment)))
+	if (drm_WARN_ON(&i915->drm, pin_params->alignment &&
+			!is_power_of_2(pin_params->alignment)))
 		return ERR_PTR(-EINVAL);
 
 	/*
@@ -157,8 +156,8 @@ intel_fb_pin_to_ggtt(const struct drm_framebuffer *fb,
 	i915_gem_ww_ctx_init(&ww, true);
 retry:
 	ret = i915_gem_object_lock(obj, &ww);
-	if (!ret && phys_alignment)
-		ret = i915_gem_object_attach_phys(obj, phys_alignment);
+	if (!ret && pin_params->phys_alignment)
+		ret = i915_gem_object_attach_phys(obj, pin_params->phys_alignment);
 	else if (!ret && HAS_LMEM(i915))
 		ret = i915_gem_object_migrate(obj, &ww, INTEL_REGION_LMEM_0);
 	if (!ret)
@@ -166,8 +165,10 @@ retry:
 	if (ret)
 		goto err;
 
-	vma = i915_gem_object_pin_to_display_plane(obj, &ww, alignment,
-						   vtd_guard, view, pinctl);
+	vma = i915_gem_object_pin_to_display_plane(obj, &ww,
+						   pin_params->alignment,
+						   pin_params->vtd_guard,
+						   pin_params->view, pinctl);
 	if (IS_ERR(vma)) {
 		ret = PTR_ERR(vma);
 		goto err_unpin;
@@ -270,12 +271,15 @@ int intel_plane_pin_fb(struct intel_plane_state *plane_state,
 	struct i915_vma *vma;
 
 	if (!intel_fb_uses_dpt(&fb->base)) {
+		struct intel_fb_pin_params pin_params = {
+			.view = &plane_state->view.gtt,
+			.alignment = intel_plane_fb_min_alignment(plane_state),
+			.phys_alignment = intel_plane_fb_min_phys_alignment(plane_state),
+			.vtd_guard = intel_plane_fb_vtd_guard(plane_state),
+		};
 		int fence_id = -1;
 
-		vma = intel_fb_pin_to_ggtt(&fb->base, &plane_state->view.gtt,
-					   intel_plane_fb_min_alignment(plane_state),
-					   intel_plane_fb_min_phys_alignment(plane_state),
-					   intel_plane_fb_vtd_guard(plane_state),
+		vma = intel_fb_pin_to_ggtt(&fb->base, &pin_params,
 					   intel_plane_uses_fence(plane_state) ? &fence_id : NULL);
 		if (IS_ERR(vma))
 			return PTR_ERR(vma);
@@ -283,16 +287,18 @@ int intel_plane_pin_fb(struct intel_plane_state *plane_state,
 		plane_state->ggtt_vma = vma;
 		plane_state->fence_id = fence_id;
 	} else {
-		unsigned int alignment = intel_plane_fb_min_alignment(plane_state);
+		struct intel_fb_pin_params pin_params = {
+			.view = &plane_state->view.gtt,
+			.alignment = intel_plane_fb_min_alignment(plane_state),
+		};
 
-		vma = i915_dpt_pin_to_ggtt(fb->dpt, alignment / 512);
+		vma = i915_dpt_pin_to_ggtt(fb->dpt, pin_params.alignment / 512);
 		if (IS_ERR(vma))
 			return PTR_ERR(vma);
 
 		plane_state->ggtt_vma = vma;
 
-		vma = intel_fb_pin_to_dpt(&fb->base, &plane_state->view.gtt,
-					  alignment, fb->dpt);
+		vma = intel_fb_pin_to_dpt(&fb->base, fb->dpt, &pin_params);
 		if (IS_ERR(vma)) {
 			i915_dpt_unpin_from_ggtt(fb->dpt);
 			plane_state->ggtt_vma = NULL;
