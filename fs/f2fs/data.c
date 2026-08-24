@@ -950,7 +950,7 @@ alloc_new:
 		wbc_account_cgroup_owner(fio->io_wbc, page_folio(fio->page),
 					 PAGE_SIZE);
 
-	inc_page_count(fio->sbi, WB_DATA_TYPE(page, false));
+	inc_page_count(fio->sbi, WB_DATA_TYPE(fio->page, false));
 
 	*fio->last_block = fio->new_blkaddr;
 	*fio->bio = bio;

@@ -2965,6 +2965,8 @@ void cifs_setsize(struct inode *inode, loff_t offset)
 	/* Cached inode must be refreshed on truncate */
 	cifs_i->time = 0;
 	truncate_pagecache(inode, offset);
+	netfs_wait_for_outstanding_io(inode);
+	fscache_resize_cookie(cifs_inode_cookie(inode), offset);
 }
 
 static int
