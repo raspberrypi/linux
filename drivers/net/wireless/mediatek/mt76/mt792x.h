@@ -342,6 +342,14 @@ struct mt792x_dev {
 	struct ieee80211_vif *nan_vif;
 	const struct ieee80211_iface_combination *iface_combinations;
 	int n_iface_combinations;
+	/* deferred NAN MCU events run out of the atomic RX path on one shared
+	 * work; see mt7925_nan_deferred_work() and enum mt7925_nan_deferred_event
+	 */
+	struct work_struct nan_deferred_work;
+	/* protects @nan_deferred_pending */
+	spinlock_t nan_deferred_lock;
+	unsigned long nan_deferred_pending;
+	u8 nan_started_cluster_id[ETH_ALEN];
 };
 
 static inline struct mt792x_bss_conf *

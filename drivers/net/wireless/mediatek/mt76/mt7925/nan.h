@@ -97,13 +97,23 @@ enum nan_uni_cmd_tag {
 enum nan_uni_event_tag {
 	NAN_UNI_EVENT_ID_DE_EVENT_IND		= 19,
 	NAN_UNI_EVENT_ID_ULW_UPDATE		= 39,
+	NAN_UNI_EVENT_ID_SCHED_UPDATE_DONE	= 43,
 	NAN_UNI_EVENT_REPORT_DW_START		= 59,
 	NAN_UNI_EVENT_REPORT_DW_END		= 60,
 };
 
 enum nan_disc_event_type {
 	NAN_EVENT_ID_DISC_MAC_ADDR		= 0,
+	NAN_EVENT_ID_STARTED_CLUSTER		= 1,
 	NAN_EVENT_ID_JOINED_CLUSTER		= 2,
+};
+
+/* bit indices into mt792x_dev->nan_deferred_pending, set from the atomic
+ * MCU-event RX path and consumed by mt7925_nan_deferred_work()
+ */
+enum mt7925_nan_deferred_event {
+	MT7925_NAN_DEFERRED_STARTED_CLUSTER,
+	MT7925_NAN_DEFERRED_SCHED_UPDATE_DONE,
 };
 
 /* NAN 4.0 Table 79. Device Capability attribute format, Supported Bands */
@@ -345,7 +355,7 @@ struct mt7925_nan_avail_ctrl_tlv {
 	__le16 len;
 	__le16 avail_ctrl;
 	u8 seq_id;
-	u8 reserved[1];
+	u8 is_deferred;
 } __packed __aligned(4);
 
 struct mt7925_nan_ch_timeline {

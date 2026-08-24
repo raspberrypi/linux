@@ -2627,6 +2627,13 @@ static int mt7925_stop_nan(struct ieee80211_hw *hw,
 	struct mt792x_dev *dev = mt792x_hw_dev(hw);
 	int err, ret;
 
+	/* Drop a deferred event queued just before stop so a stale cluster_id
+	 * cannot leak into a restart; the work re-checks liveness anyway.
+	 */
+	spin_lock_bh(&dev->nan_deferred_lock);
+	dev->nan_deferred_pending = 0;
+	spin_unlock_bh(&dev->nan_deferred_lock);
+
 	mt792x_mutex_acquire(dev);
 
 	err = mt7925_nan_disable(vif, dev);

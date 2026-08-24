@@ -454,8 +454,26 @@ mt7925_nan_mcu_handle_de_event(struct mt792x_dev *dev, struct tlv *tlv)
 	dev_dbg(dev->mt76.dev, "nan: evt=%u cluster=%pM\n",
 		de_evt->event_type, de_evt->cluster_id);
 
-	if (de_evt->event_type != NAN_EVENT_ID_JOINED_CLUSTER)
+	if (de_evt->event_type != NAN_EVENT_ID_JOINED_CLUSTER &&
+	    de_evt->event_type != NAN_EVENT_ID_STARTED_CLUSTER)
 		return;
+
+	/* STARTED_CLUSTER fires during NAN_START, before nan.started is set and
+	 * before the supplicant subscribes - defer past NAN_START via the work
+	 * so ieee80211_nan_cluster_joined() actually reaches userspace.
+	 */
+	if (de_evt->event_type == NAN_EVENT_ID_STARTED_CLUSTER) {
+		dev_dbg(dev->mt76.dev,
+			"nan: deferring STARTED_CLUSTER cluster=%pM\n",
+			cluster_id);
+		spin_lock_bh(&dev->nan_deferred_lock);
+		memcpy(dev->nan_started_cluster_id, cluster_id, ETH_ALEN);
+		set_bit(MT7925_NAN_DEFERRED_STARTED_CLUSTER,
+			&dev->nan_deferred_pending);
+		spin_unlock_bh(&dev->nan_deferred_lock);
+		ieee80211_queue_work(dev->mt76.hw, &dev->nan_deferred_work);
+		return;
+	}
 
 	if (!dev->nan_vif || !ieee80211_vif_nan_started(dev->nan_vif)) {
 		dev_warn(dev->mt76.dev, "nan: joined-cluster event but NAN not started\n");
@@ -468,7 +486,43 @@ mt7925_nan_mcu_handle_de_event(struct mt792x_dev *dev, struct tlv *tlv)
 	dev_dbg(dev->mt76.dev, "nan: own_nmi=%pM master_nmi=%pM\n",
 		de_evt->own_nmi, de_evt->master_nmi);
 
-	ieee80211_nan_cluster_joined(dev->nan_vif, cluster_id, true, GFP_KERNEL);
+	/* joined an existing cluster, not a self-anchored new one */
+	ieee80211_nan_cluster_joined(dev->nan_vif, cluster_id, false, GFP_KERNEL);
+}
+
+/* Runs the deferred NAN MCU events in process context; takes wiphy_lock
+ * before nan_vif, which the NAN stop path frees under that mutex.
+ */
+void
+mt7925_nan_deferred_work(struct work_struct *work)
+{
+	struct mt792x_dev *dev = container_of(work, struct mt792x_dev,
+					      nan_deferred_work);
+	struct ieee80211_vif *vif;
+	unsigned long pending;
+	u8 cluster_id[ETH_ALEN];
+
+	spin_lock_bh(&dev->nan_deferred_lock);
+	pending = dev->nan_deferred_pending;
+	dev->nan_deferred_pending = 0;
+	memcpy(cluster_id, dev->nan_started_cluster_id, ETH_ALEN);
+	spin_unlock_bh(&dev->nan_deferred_lock);
+
+	if (!pending)
+		return;
+
+	wiphy_lock(dev->mt76.hw->wiphy);
+	vif = dev->nan_vif;
+	if (!vif || !ieee80211_vif_nan_started(vif))
+		goto out;
+
+	if (test_bit(MT7925_NAN_DEFERRED_STARTED_CLUSTER, &pending))
+		ieee80211_nan_cluster_joined(vif, cluster_id, true, GFP_KERNEL);
+
+	if (test_bit(MT7925_NAN_DEFERRED_SCHED_UPDATE_DONE, &pending))
+		ieee80211_nan_sched_update_done(vif);
+out:
+	wiphy_unlock(dev->mt76.hw->wiphy);
 }
 
 static void
@@ -517,6 +571,27 @@ mt7925_nan_handle_ulw_update(struct mt792x_dev *dev, struct tlv *tlv)
 				GFP_KERNEL);
 }
 
+static void
+mt7925_nan_handle_sched_update_done(struct mt792x_dev *dev, struct tlv *tlv)
+{
+	struct ieee80211_vif *vif;
+
+	if (!dev || !tlv)
+		return;
+
+	vif = dev->nan_vif;
+	if (!vif || !ieee80211_vif_nan_started(vif))
+		return;
+
+	/* Runs in the BH-disabled MCU-event RX path; the mac80211 helper needs
+	 * the wiphy mutex and may sleep, so hand it to the work instead.
+	 */
+	spin_lock_bh(&dev->nan_deferred_lock);
+	set_bit(MT7925_NAN_DEFERRED_SCHED_UPDATE_DONE, &dev->nan_deferred_pending);
+	spin_unlock_bh(&dev->nan_deferred_lock);
+	ieee80211_queue_work(dev->mt76.hw, &dev->nan_deferred_work);
+}
+
 void mt7925_nan_mcu_event(struct mt792x_dev *dev, struct sk_buff *skb)
 {
 	struct tlv *tlv;
@@ -547,6 +622,9 @@ void mt7925_nan_mcu_event(struct mt792x_dev *dev, struct sk_buff *skb)
 			break;
 		case NAN_UNI_EVENT_ID_ULW_UPDATE:
 			mt7925_nan_handle_ulw_update(dev, tlv);
+			break;
+		case NAN_UNI_EVENT_ID_SCHED_UPDATE_DONE:
+			mt7925_nan_handle_sched_update_done(dev, tlv);
 			break;
 		default:
 			break;
@@ -585,6 +663,7 @@ static int mt7925_nan_avail_ctrl_tlv(struct sk_buff *skb,
 	avail_ctrl_tlv->avail_ctrl =
 		cpu_to_le16(ctrl & NAN_AVAIL_CTRL_CHECK_FOR_CHANGED);
 	avail_ctrl_tlv->seq_id = seq_id;
+	avail_ctrl_tlv->is_deferred = sched->deferred ? 1 : 0;
 
 	return 0;
 }
@@ -710,7 +789,7 @@ void mt7925_nan_local_sched_changed(struct mt792x_dev *dev,
 		goto out;
 	}
 
-	mt76_mcu_skb_send_msg(mdev, skb, MCU_UNI_CMD(NAN), true);
+	mt76_mcu_skb_send_msg(mdev, skb, MCU_UNI_CMD(NAN), false);
 out:
 	mt792x_mutex_release(dev);
 }

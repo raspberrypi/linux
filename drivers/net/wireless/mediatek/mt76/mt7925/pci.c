@@ -55,6 +55,7 @@ static void mt7925e_unregister_device(struct mt792x_dev *dev)
 	cancel_delayed_work_sync(&pm->ps_work);
 	cancel_delayed_work_sync(&dev->mlo_pm_work);
 	cancel_work_sync(&pm->wake_work);
+	cancel_work_sync(&dev->nan_deferred_work);
 
 	mt7925_tx_token_put(dev);
 	__mt792x_mcu_drv_pmctrl(dev);
