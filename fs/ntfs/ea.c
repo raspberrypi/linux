@@ -699,7 +699,7 @@ static int ntfs_new_attr_flags(struct ntfs_inode *ni, __le32 fattr)
 	mp_ofs = (name_ofs + a->name_length * sizeof(__le16) + 7) & ~7;
 	arec_size = (mp_ofs + mp_size + 7) & ~7;
 
-	err = ntfs_attr_record_resize(m, a, arec_size);
+	err = ntfs_attr_record_resize(ctx->mrec, a, arec_size);
 	if (unlikely(err))
 		goto err_out;
 
