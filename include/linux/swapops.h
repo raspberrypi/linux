@@ -570,7 +570,7 @@ static inline pmd_t swp_entry_to_pmd(swp_entry_t entry)
 	return __swp_entry_to_pmd(arch_entry);
 }
 
-static inline int is_pmd_migration_entry(pmd_t pmd)
+static inline int pmd_is_migration_entry(pmd_t pmd)
 {
 	return is_swap_pmd(pmd) && is_migration_entry(pmd_to_swp_entry(pmd));
 }
@@ -599,7 +599,7 @@ static inline pmd_t swp_entry_to_pmd(swp_entry_t entry)
 	return __pmd(0);
 }
 
-static inline int is_pmd_migration_entry(pmd_t pmd)
+static inline int pmd_is_migration_entry(pmd_t pmd)
 {
 	return 0;
 }
