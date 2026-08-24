@@ -28,6 +28,13 @@
 #define NAN_MAX_CONN_CFG		8
 #define NAN_MAX_NDP_CXT			4
 
+#define MT7925_NAN_ENABLE_MAX_SIZE					\
+	(sizeof(struct mt7925_nan_common_hdr) +				\
+	 sizeof(struct mt7925_nan_enable_req_tlv) +			\
+	 sizeof(struct mt7925_nan_dw_interval_tlv) +			\
+	 sizeof(struct mt7925_nan_cluster_id_tlv) +			\
+	 sizeof(struct mt7925_nan_sync_rssi_tlv))
+
 #define MT7925_NAN_CONF_MAX_SIZE					\
 	(sizeof(struct mt7925_nan_common_hdr) +				\
 	 sizeof(struct mt7925_nan_master_preference_tlv) +		\

@@ -42,63 +42,6 @@ static void mt7925_nan_set_5g_channel(struct mt792x_dev *dev,
 	req->channel_5g_val = cpu_to_le32(ch5g);
 }
 
-static void mt7925_nan_set_cluster_id(struct mt7925_nan_enable_req_tlv *req,
-				      const u8 *cluster_id)
-{
-	if (!cluster_id)
-		return;
-
-	req->cluster_high = cpu_to_le16(cluster_id[4] | cluster_id[5] << 8);
-	req->cluster_low = cpu_to_le16((u16)cluster_id[3]);
-}
-
-static void mt7925_nan_set_dw_interval(struct mt7925_nan_enable_req_tlv *req,
-				       struct cfg80211_nan_conf *conf)
-{
-	if (conf->band_cfgs[NL80211_BAND_2GHZ].awake_dw_interval > 0) {
-		req->config_dw.config_2dot4g_dw_band = 1;
-		req->config_dw.dw_2dot4g_interval_val =
-			cpu_to_le32(conf->band_cfgs[NL80211_BAND_2GHZ].awake_dw_interval);
-	}
-
-	if (conf->band_cfgs[NL80211_BAND_5GHZ].awake_dw_interval > 0) {
-		req->config_dw.config_5g_dw_band = 1;
-		req->config_dw.dw_5g_interval_val =
-			cpu_to_le32(conf->band_cfgs[NL80211_BAND_5GHZ].awake_dw_interval);
-	}
-}
-
-static void mt7925_nan_set_disc_beacon(struct mt7925_nan_enable_req_tlv *req,
-				       struct cfg80211_nan_conf *conf)
-{
-	if (conf->discovery_beacon_interval > 0) {
-		req->config_2dot4g_beacons = true;
-		req->beacon_2dot4g_val = conf->discovery_beacon_interval;
-	}
-}
-
-static void mt7925_nan_set_rssi_thresholds(struct mt7925_nan_enable_req_tlv *req,
-					   struct cfg80211_nan_conf *conf)
-{
-	if (conf->band_cfgs[NL80211_BAND_2GHZ].chan) {
-		req->config_2dot4g_rssi_close = 1;
-		req->rssi_close_2dot4g_val =
-			abs(conf->band_cfgs[NL80211_BAND_2GHZ].rssi_close);
-		req->config_2dot4g_rssi_middle = 1;
-		req->rssi_middle_2dot4g_val =
-			abs(conf->band_cfgs[NL80211_BAND_2GHZ].rssi_middle);
-	}
-
-	if (conf->band_cfgs[NL80211_BAND_5GHZ].chan) {
-		req->config_5g_rssi_close = 1;
-		req->rssi_close_5g_val =
-			abs(conf->band_cfgs[NL80211_BAND_5GHZ].rssi_close);
-		req->config_5g_rssi_middle = 1;
-		req->rssi_middle_5g_val =
-			abs(conf->band_cfgs[NL80211_BAND_5GHZ].rssi_middle);
-	}
-}
-
 static void mt7925_nan_set_scan_params(struct mt7925_nan_enable_req_tlv *req,
 				       struct cfg80211_nan_conf *conf)
 {
@@ -130,68 +73,6 @@ mt7925_nan_update_conf(struct mt792x_vif *mvif,
 		conf->enable_dw_notification;
 
 	memcpy(mvif->nan.conf.cluster_id, conf->cluster_id, ETH_ALEN);
-}
-
-int mt7925_nan_enable(struct ieee80211_vif *vif,
-		      struct mt792x_dev *dev,
-		      struct cfg80211_nan_conf *conf)
-{
-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
-	struct mt76_dev *mdev = &dev->mt76;
-	struct {
-		u8 rsv[4];
-		struct mt7925_nan_enable_req_tlv nan_req_tlv;
-	} nan_cmd = {
-		.rsv = { 0 },
-		.nan_req_tlv = {
-			.tag = cpu_to_le16(NAN_UNI_CMD_ENABLE_REQUEST),
-			.len = cpu_to_le16(sizeof(struct mt7925_nan_enable_req_tlv)),
-			.config_random_factor_force = 0,
-			.random_factor_force_val = 0,
-			.config_hop_count_force = 0,
-			.hop_count_force_val = 0,
-		},
-	};
-	struct mt7925_nan_enable_req_tlv *p_nan_req_tlv = &nan_cmd.nan_req_tlv;
-	int ret;
-
-	if (!vif || !dev || !conf)
-		return -EINVAL;
-
-	p_nan_req_tlv->master_pref = conf->master_pref;
-
-	mt7925_nan_set_5g_channel(dev, p_nan_req_tlv, conf);
-	mt7925_nan_set_cluster_id(p_nan_req_tlv, conf->cluster_id);
-	mt7925_nan_set_dw_interval(p_nan_req_tlv, conf);
-	mt7925_nan_set_disc_beacon(p_nan_req_tlv, conf);
-	mt7925_nan_set_rssi_thresholds(p_nan_req_tlv, conf);
-	mt7925_nan_set_scan_params(p_nan_req_tlv, conf);
-
-	mt7925_nan_update_conf(mvif, conf);
-
-	ret = mt76_mcu_send_msg(mdev, MCU_UNI_CMD(NAN), &nan_cmd, sizeof(nan_cmd), true);
-
-	return ret;
-}
-
-int mt7925_nan_disable(struct ieee80211_vif *vif, struct mt792x_dev *dev)
-{
-	struct mt76_dev *mdev = &dev->mt76;
-	struct {
-		u8 rsv[4];
-		struct tlv nan_dis_tlv;
-	} nan_cmd = {
-		.rsv = { 0 },
-		.nan_dis_tlv = {
-			.tag = cpu_to_le16(NAN_UNI_CMD_DISABLE_REQUEST),
-			.len = cpu_to_le16(sizeof(struct tlv)),
-		},
-	};
-
-	if (!dev)
-		return -EINVAL;
-
-	return mt76_mcu_send_msg(mdev, MCU_UNI_CMD(NAN), &nan_cmd, sizeof(nan_cmd), true);
 }
 
 static int
@@ -310,6 +191,77 @@ mt7925_nan_sync_rssi_tlv(struct sk_buff *skb, struct cfg80211_nan_conf *conf)
 	}
 
 	return 0;
+}
+
+int mt7925_nan_enable(struct ieee80211_vif *vif,
+		      struct mt792x_dev *dev,
+		      struct cfg80211_nan_conf *conf)
+{
+	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+	struct mt76_dev *mdev = &dev->mt76;
+	struct mt7925_nan_common_hdr *hdr;
+	struct mt7925_nan_enable_req_tlv *req;
+	struct sk_buff *skb;
+
+	if (!vif || !dev || !conf)
+		return -EINVAL;
+
+	skb = mt76_mcu_msg_alloc(mdev, NULL, MT7925_NAN_ENABLE_MAX_SIZE);
+	if (!skb)
+		return -ENOMEM;
+
+	hdr = (struct mt7925_nan_common_hdr *)skb_put(skb, sizeof(*hdr));
+	memset(hdr, 0, sizeof(*hdr));
+
+	/* Set cluster id before joining cluster */
+	if (mt7925_nan_cluster_id_tlv(skb, conf->cluster_id)) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	/* NAN enable request tlv */
+	req = (struct mt7925_nan_enable_req_tlv *)
+		mt76_connac_mcu_add_tlv(skb, NAN_UNI_CMD_ENABLE_REQUEST,
+					sizeof(*req));
+	if (!req) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	req->master_pref = conf->master_pref;
+
+	mt7925_nan_set_5g_channel(dev, req, conf);
+	mt7925_nan_set_scan_params(req, conf);
+
+	if (mt7925_nan_dw_tlv(skb, conf) ||
+	    mt7925_nan_sync_rssi_tlv(skb, conf)) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	mt7925_nan_update_conf(mvif, conf);
+
+	return mt76_mcu_skb_send_msg(mdev, skb, MCU_UNI_CMD(NAN), true);
+}
+
+int mt7925_nan_disable(struct ieee80211_vif *vif, struct mt792x_dev *dev)
+{
+	struct mt76_dev *mdev = &dev->mt76;
+	struct {
+		u8 rsv[4];
+		struct tlv nan_dis_tlv;
+	} nan_cmd = {
+		.rsv = { 0 },
+		.nan_dis_tlv = {
+			.tag = cpu_to_le16(NAN_UNI_CMD_DISABLE_REQUEST),
+			.len = cpu_to_le16(sizeof(struct tlv)),
+		},
+	};
+
+	if (!dev)
+		return -EINVAL;
+
+	return mt76_mcu_send_msg(mdev, MCU_UNI_CMD(NAN), &nan_cmd, sizeof(nan_cmd), true);
 }
 
 int mt7925_nan_change_configure(struct ieee80211_vif *vif,
