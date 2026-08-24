@@ -51,7 +51,8 @@
 	(sizeof(struct mt7925_nan_common_hdr) +				\
 	 sizeof(struct mt7925_nan_sched_manage_peer_rec_tlv) +		\
 	 sizeof(struct mt7925_nan_sched_update_peer_cap_tlv) +		\
-	 sizeof(struct mt7925_nan_sched_update_crb_tlv))
+	 sizeof(struct mt7925_nan_sched_update_crb_tlv) +		\
+	 sizeof(struct mt7925_nan_update_ulw_tlv))
 
 /* NAN Availability Attribute */
 #define NAN_AVAIL_ATTR_ID_OFFSET	0
@@ -82,6 +83,7 @@ enum nan_uni_cmd_tag {
 	NAN_UNI_CMD_UPDATE_CRB			= 10,
 	NAN_UNI_CMD_MANAGE_PEER_SCH_RECORD	= 12,
 	NAN_UNI_CMD_MAP_STA_RECORD		= 13,
+	NAN_UNI_CMD_UPDATE_ULW			= 16,
 	NAN_UNI_CMD_UPDATE_AVAILABILITY_CTRL	= 20,
 	NAN_UNI_CMD_UPDATE_PEER_CAPABILITY	= 21,
 	NAN_UNI_CMD_CHANGE_NMI_ADDRESS		= 24,
@@ -93,6 +95,7 @@ enum nan_uni_cmd_tag {
 
 enum nan_uni_event_tag {
 	NAN_UNI_EVENT_ID_DE_EVENT_IND		= 19,
+	NAN_UNI_EVENT_ID_ULW_UPDATE		= 39,
 	NAN_UNI_EVENT_REPORT_DW_START		= 59,
 	NAN_UNI_EVENT_REPORT_DW_END		= 60,
 };
@@ -165,6 +168,32 @@ struct nan_rpt_dw_evt {
 	__le16 channel;
 	__le16 dw_num;
 };
+
+#define NAN_ULW_ATTR_ID		0x17
+#define NAN_ULW_FIXED_PAYLOAD	16	/* Table 109 fixed fields */
+
+struct mt7925_nan_ulw_event {
+	u8 sched_id;
+	u8 seq_id;
+	u8 count_down;
+	u8 ulw_overwrite;
+	__le32 start_time;
+	__le32 duration;
+	__le32 period;
+} __packed;
+
+/* ULW attribute laid out in NAN spec Table 109 field order */
+struct mt7925_nan_ulw_attr {
+	u8 attr_id;
+	__le16 length;
+	u8 sched_id;
+	u8 seq_id;
+	__le32 start_time;
+	__le32 duration;
+	__le32 period;
+	u8 count_down;
+	u8 ulw_overwrite;
+} __packed;
 
 struct mt7925_nan_conf_dw {
 	u8 config_2dot4g_dw_band;
@@ -388,6 +417,15 @@ struct mt7925_nan_sched_update_crb_tlv {
 	struct mt7925_nan_sched_timeline comm_faw_timeline[NAN_TIMELINE_MGMT_SIZE];
 	struct mt7925_nan_sched_ndc_ctrl comm_ndc_ctrl;
 	struct mt7925_nan_sched_faw_ndc_timeline faw_ndc_timeline[NAN_TIMELINE_MGMT_SIZE];
+} __packed __aligned(4);
+
+#define NAN_ULW_MAX_SIZE	256
+
+struct mt7925_nan_update_ulw_tlv {
+	__le16 tag;
+	__le16 len;
+	u8 nmi_addr[ETH_ALEN];
+	u8 ulw_attr[NAN_ULW_MAX_SIZE];
 } __packed __aligned(4);
 
 struct mt7925_nan_sched_map_sta_rec_tlv {

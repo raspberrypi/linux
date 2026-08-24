@@ -397,6 +397,52 @@ mt7925_nan_mcu_handle_de_event(struct mt792x_dev *dev, struct tlv *tlv)
 	ieee80211_nan_cluster_joined(dev->nan_vif, cluster_id, true, GFP_KERNEL);
 }
 
+static void
+mt7925_nan_handle_ulw_update(struct mt792x_dev *dev, struct tlv *tlv)
+{
+	struct mt7925_nan_ulw_event *evt;
+	struct mt7925_nan_ulw_attr attr;
+	struct wireless_dev *wdev;
+	u16 len;
+
+	if (!dev || !tlv)
+		return;
+
+	if (!dev->nan_vif || !ieee80211_vif_nan_started(dev->nan_vif))
+		return;
+
+	len = le16_to_cpu(tlv->len);
+	if (len < sizeof(*tlv) + sizeof(*evt)) {
+		dev_warn(dev->mt76.dev,
+			 "nan: short ulw event tlv len=%u\n", len);
+		return;
+	}
+
+	evt = (struct mt7925_nan_ulw_event *)tlv->data;
+	wdev = ieee80211_vif_to_wdev(dev->nan_vif);
+	if (!wdev)
+		return;
+
+	dev_dbg(dev->mt76.dev,
+		"nan: ulw_update wdev=%p owner_nlportid=%u sched_id=%u seq=%u dur=%u\n",
+		wdev, wdev->owner_nlportid,
+		evt->sched_id, evt->seq_id, le32_to_cpu(evt->duration));
+
+	/* Reorder the FW fields into NAN spec Table 109 attribute layout */
+	attr.attr_id = NAN_ULW_ATTR_ID;
+	attr.length = cpu_to_le16(NAN_ULW_FIXED_PAYLOAD);
+	attr.sched_id = evt->sched_id;
+	attr.seq_id = evt->seq_id;
+	attr.start_time = evt->start_time;
+	attr.duration = evt->duration;
+	attr.period = evt->period;
+	attr.count_down = evt->count_down;
+	attr.ulw_overwrite = evt->ulw_overwrite;
+
+	cfg80211_nan_ulw_update(wdev, (const u8 *)&attr, sizeof(attr),
+				GFP_KERNEL);
+}
+
 void mt7925_nan_mcu_event(struct mt792x_dev *dev, struct sk_buff *skb)
 {
 	struct tlv *tlv;
@@ -424,6 +470,9 @@ void mt7925_nan_mcu_event(struct mt792x_dev *dev, struct sk_buff *skb)
 			break;
 		case NAN_UNI_EVENT_REPORT_DW_START:
 			mt7925_nan_handle_dw_ind(dev, tlv);
+			break;
+		case NAN_UNI_EVENT_ID_ULW_UPDATE:
+			mt7925_nan_handle_ulw_update(dev, tlv);
 			break;
 		default:
 			break;
@@ -736,6 +785,37 @@ static int mt7925_nan_update_crb_tlv(struct sk_buff *skb,
 	return 0;
 }
 
+static int
+mt7925_nan_peer_ulw_tlv(struct sk_buff *skb,
+			struct ieee80211_sta *sta,
+			struct mt792x_sta *msta)
+{
+	struct mt7925_nan_update_ulw_tlv *ulw_tlv = NULL;
+	struct ieee80211_nan_peer_sched *sched = NULL;
+	struct tlv *tlv = NULL;
+
+	if (!skb || !sta || !msta)
+		return -EINVAL;
+
+	sched = sta->nan_sched;
+	if (!sched || !sched->init_ulw || !sched->ulw_size)
+		return 0; /* No ULW to send, not an error */
+
+	if (sched->ulw_size > NAN_ULW_MAX_SIZE)
+		return -EINVAL;
+
+	tlv = mt76_connac_mcu_add_tlv(skb, NAN_UNI_CMD_UPDATE_ULW,
+				      sizeof(struct mt7925_nan_update_ulw_tlv));
+	if (!tlv)
+		return -ENOMEM;
+
+	ulw_tlv = (struct mt7925_nan_update_ulw_tlv *)tlv;
+	ether_addr_copy(ulw_tlv->nmi_addr, sta->addr);
+	memcpy(ulw_tlv->ulw_attr, sched->init_ulw, sched->ulw_size);
+
+	return 0;
+}
+
 int mt792x_nan_set_peer_schedule(struct mt792x_dev *dev,
 				 struct ieee80211_sta *sta)
 {
@@ -787,6 +867,10 @@ int mt792x_nan_set_peer_schedule(struct mt792x_dev *dev,
 		ret = -ENOMEM;
 		goto free_skb;
 	}
+
+	ret = mt7925_nan_peer_ulw_tlv(skb, sta, msta);
+	if (ret)
+		goto free_skb;
 
 	ret = mt76_mcu_skb_send_msg(mdev, skb, MCU_UNI_CMD(NAN), true);
 	if (ret && idx_allocated)
