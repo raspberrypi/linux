@@ -2607,8 +2607,12 @@ static int mt7925_start_nan(struct ieee80211_hw *hw,
 		goto out;
 
 	err = mt7925_nan_enable(vif, dev, conf);
-	if (err)
+	if (err) {
 		mt7925_mcu_add_bss_info(&dev->phy, NULL, link_conf, NULL, false);
+		goto out;
+	}
+
+	err = mt7925_nan_update_phy_setting(dev);
 
 out:
 	mt792x_mutex_release(dev);

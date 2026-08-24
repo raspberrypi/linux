@@ -193,6 +193,80 @@ mt7925_nan_sync_rssi_tlv(struct sk_buff *skb, struct cfg80211_nan_conf *conf)
 	return 0;
 }
 
+/* FW rate set bit definitions (matches FW wlan_def_cmm.h) */
+#define NAN_RATE_SET_BIT_1M	BIT(0)
+#define NAN_RATE_SET_BIT_2M	BIT(1)
+#define NAN_RATE_SET_BIT_5_5M	BIT(2)
+#define NAN_RATE_SET_BIT_11M	BIT(3)
+#define NAN_RATE_SET_BIT_6M	BIT(6)
+#define NAN_RATE_SET_BIT_9M	BIT(7)
+#define NAN_RATE_SET_BIT_12M	BIT(8)
+#define NAN_RATE_SET_BIT_18M	BIT(9)
+#define NAN_RATE_SET_BIT_24M	BIT(10)
+#define NAN_RATE_SET_BIT_36M	BIT(11)
+#define NAN_RATE_SET_BIT_48M	BIT(12)
+#define NAN_RATE_SET_BIT_54M	BIT(13)
+
+#define NAN_RATE_SET_ALL_A	(NAN_RATE_SET_BIT_6M | NAN_RATE_SET_BIT_9M | \
+				 NAN_RATE_SET_BIT_12M | NAN_RATE_SET_BIT_18M | \
+				 NAN_RATE_SET_BIT_24M | NAN_RATE_SET_BIT_36M | \
+				 NAN_RATE_SET_BIT_48M | NAN_RATE_SET_BIT_54M)
+
+/* 5G basic: 6M+12M+24M (OFDM) */
+#define NAN_BASIC_RATE_SET_5G	(NAN_RATE_SET_BIT_6M | NAN_RATE_SET_BIT_12M | \
+				 NAN_RATE_SET_BIT_24M)
+
+/* GF_MODE_DISALLOWED = 2, RIFS_MODE_DISALLOWED = 1 */
+#define NAN_GF_MODE_DISALLOWED		2
+#define NAN_RIFS_MODE_DISALLOWED	1
+
+int mt7925_nan_update_phy_setting(struct mt792x_dev *dev)
+{
+	struct mt76_phy *mphy = &dev->mphy;
+	struct ieee80211_supported_band *sband_5g;
+	struct mt7925_nan_phy_setting *phy;
+	struct {
+		u8 rsv[4];
+		struct mt7925_nan_update_phy_setting_tlv tlv;
+	} req = {};
+
+	sband_5g = mphy->hw->wiphy->bands[NL80211_BAND_5GHZ];
+
+	req.tlv.tag = cpu_to_le16(NAN_UNI_CMD_UPDATE_PHY_SETTING);
+	req.tlv.len = cpu_to_le16(sizeof(req.tlv));
+
+	/* 2G: ERP + HT (no CCK/HR_DSSS - NAN uses OFDM only) */
+	phy = &req.tlv.phy_2g;
+	phy->phy_type_set = PHY_TYPE_BIT_ERP | PHY_TYPE_BIT_HT;
+	phy->non_ht_basic_phy_type = PHY_TYPE_ERP_INDEX;
+	phy->use_short_preamble = 1;
+	phy->use_short_slot_time = 1;
+	phy->operational_rate_set = cpu_to_le16(NAN_RATE_SET_ALL_A);
+	phy->bss_basic_rate_set = cpu_to_le16(NAN_BASIC_RATE_SET_5G);
+	phy->gf_operation_mode = cpu_to_le32(NAN_GF_MODE_DISALLOWED);
+	phy->rifs_operation_mode = cpu_to_le32(NAN_RIFS_MODE_DISALLOWED);
+
+	/* 5G: OFDM + HT + VHT (NAN_MODE_11A) */
+	phy = &req.tlv.phy_5g;
+	phy->phy_type_set = PHY_TYPE_BIT_OFDM | PHY_TYPE_BIT_HT |
+			    PHY_TYPE_BIT_VHT;
+	phy->non_ht_basic_phy_type = PHY_TYPE_OFDM_INDEX;
+	phy->use_short_preamble = 1;
+	phy->use_short_slot_time = 1;
+	phy->operational_rate_set = cpu_to_le16(NAN_RATE_SET_ALL_A);
+	phy->bss_basic_rate_set = cpu_to_le16(NAN_BASIC_RATE_SET_5G);
+	phy->gf_operation_mode = cpu_to_le32(NAN_GF_MODE_DISALLOWED);
+	phy->rifs_operation_mode = cpu_to_le32(NAN_RIFS_MODE_DISALLOWED);
+
+	/* VHT basic MCS set from sband capability */
+	if (sband_5g && sband_5g->vht_cap.vht_supported)
+		phy->vht_basic_mcs_set =
+			sband_5g->vht_cap.vht_mcs.rx_mcs_map;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(NAN),
+				 &req, sizeof(req), true);
+}
+
 int mt7925_nan_enable(struct ieee80211_vif *vif,
 		      struct mt792x_dev *dev,
 		      struct cfg80211_nan_conf *conf)
