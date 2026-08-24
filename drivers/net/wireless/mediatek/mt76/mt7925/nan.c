@@ -809,18 +809,18 @@ clear_idx:
 int mt792x_nan_set_peer_rec(struct mt76_dev *mdev,
 			    struct ieee80211_sta *sta)
 {
+	struct mt7925_nan_sched_update_crb_tlv *crb_tlv;
 	struct mt7925_nan_common_hdr *hdr;
 	struct mt792x_sta *msta;
 	struct mt792x_nan *nan;
 	struct sk_buff *skb;
+	struct tlv *tlv;
 	int ret;
 
 	if (!mdev || !sta)
 		return -EINVAL;
 
-	skb = mt76_mcu_msg_alloc(mdev, NULL,
-				 sizeof(struct mt7925_nan_common_hdr) +
-				 sizeof(struct mt7925_nan_sched_manage_peer_rec_tlv));
+	skb = mt76_mcu_msg_alloc(mdev, NULL, MT7925_NAN_PEER_MAX_SIZE);
 	if (!skb)
 		return -ENOMEM;
 
@@ -835,6 +835,25 @@ int mt792x_nan_set_peer_rec(struct mt76_dev *mdev,
 		return 0;
 	}
 
+	/* Send a zero-avail_map CRB TLV before deactivating the peer record so
+	 * firmware clears the committed schedule slots for this peer.  Without
+	 * this, stale CRB entries linger and cause scheduling conflicts for
+	 * subsequent NDP connections that reuse the same sch_idx.
+	 */
+	tlv = mt76_connac_mcu_add_tlv(skb, NAN_UNI_CMD_UPDATE_CRB,
+				      sizeof(struct mt7925_nan_sched_update_crb_tlv));
+	if (!tlv) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+	crb_tlv = (struct mt7925_nan_sched_update_crb_tlv *)tlv;
+	crb_tlv->sch_idx = cpu_to_le32(msta->nan_sched.sch_idx);
+	crb_tlv->flags = NAN_CRB_USE_DATA_PATH;
+	crb_tlv->is_use_ranging = false;
+	crb_tlv->comm_ndc_ctrl.is_valid = false;
+	/* avail_map is zero-initialised by mt76_connac_mcu_add_tlv */
+
+	/* Deactivate peer record and release connection index */
 	if (mt7925_nan_peer_rec_tlv(skb, sta, msta, false)) {
 		dev_kfree_skb(skb);
 		return -ENOMEM;
