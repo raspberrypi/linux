@@ -1914,11 +1914,9 @@ mt7925_mcu_sta_phy_tlv(struct sk_buff *skb,
 	phy = (struct sta_rec_phy *)tlv;
 
 	if (mt7925_vif_is_nan(vif)) {
-		enum nl80211_band band = chandef->chan ? chandef->chan->band
-						       : NL80211_BAND_2GHZ;
 		phy->phy_type = PHY_TYPE_BIT_OFDM | PHY_TYPE_BIT_ERP;
 		phy->phy_type |= mt76_connac_get_phy_mode_v2(mvif->phy->mt76, vif,
-							     band,
+							     NL80211_BAND_5GHZ,
 							     link_sta);
 	} else {
 		phy->phy_type = mt76_connac_get_phy_mode_v2(mvif->phy->mt76, vif,
@@ -2003,7 +2001,11 @@ mt7925_mcu_sta_rate_ctrl_tlv(struct sk_buff *skb,
 	ra_info = (struct sta_rec_ra_info *)tlv;
 
 	if (mt7925_vif_is_nan(vif))
-		band = chandef->chan ? chandef->chan->band : NL80211_BAND_2GHZ;
+		/* NAN is OFDM-only per spec; borrow the 5 GHz band lookup to
+		 * avoid PHY_TYPE_BIT_HR_DSSS/CCK bits being added to phy_type.
+		 * NAN interfaces have no chanctx, so chandef->chan is always NULL.
+		 */
+		band = NL80211_BAND_5GHZ;
 	else
 		band = chandef->chan->band;
 
@@ -2847,7 +2849,7 @@ mt7925_mcu_bss_bmc_tlv(struct sk_buff *skb, struct mt792x_phy *phy,
 	bmc = (struct bss_rate_tlv *)tlv;
 
 	if (mt7925_vif_is_nan(vif))
-		band = chandef->chan ? chandef->chan->band : NL80211_BAND_2GHZ;
+		band = NL80211_BAND_5GHZ;
 	else
 		band = chandef->chan->band;
 
