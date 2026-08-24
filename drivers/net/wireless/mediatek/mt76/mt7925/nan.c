@@ -602,15 +602,12 @@ void mt7925_nan_local_sched_changed(struct mt792x_dev *dev,
 {
 	struct mt7925_nan_common_hdr *hdr;
 	struct mt76_dev *mdev;
-	bool deferred;
 	struct sk_buff *skb;
-	int ret = -ENOMEM;
 
 	if (!dev || !vif)
 		return;
 
 	mdev = &dev->mt76;
-	deferred = vif->cfg.nan_sched.deferred;
 
 	mt792x_mutex_acquire(dev);
 
@@ -627,19 +624,9 @@ void mt7925_nan_local_sched_changed(struct mt792x_dev *dev,
 		goto out;
 	}
 
-	ret = mt76_mcu_skb_send_msg(mdev, skb,
-				    MCU_UNI_CMD(NAN), true);
+	mt76_mcu_skb_send_msg(mdev, skb, MCU_UNI_CMD(NAN), true);
 out:
 	mt792x_mutex_release(dev);
-
-	if (deferred) {
-		if (ret)
-			dev_err(mdev->dev,
-				"NAN: local schedule update failed: %d\n",
-				ret);
-
-		ieee80211_nan_sched_update_done(vif);
-	}
 }
 
 static int mt7925_nan_peer_rec_tlv(struct sk_buff *skb,
