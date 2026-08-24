@@ -32,8 +32,6 @@ static void mt7925_nan_set_5g_channel(struct mt792x_dev *dev,
 	if (!mt7925_regd_is_valid_channel(dev, NL80211_BAND_5GHZ, chan))
 		return;
 
-	req->config_support_5g = 1;
-	req->support_5g_val = 1;
 	req->config_5g_channel = 1;
 
 	if (chan->hw_value == NAN_5G_LOW_DISC_CHANNEL)
@@ -42,16 +40,6 @@ static void mt7925_nan_set_5g_channel(struct mt792x_dev *dev,
 		ch5g |= BIT(1);
 
 	req->channel_5g_val = cpu_to_le32(ch5g);
-}
-
-static void mt7925_nan_set_2g_support(struct mt7925_nan_enable_req_tlv *req,
-				      struct cfg80211_nan_conf *conf)
-{
-	if (!conf->band_cfgs[NL80211_BAND_2GHZ].chan)
-		return;
-
-	req->config_2dot4g_support = 1;
-	req->support_2dot4g_val = 1;
 }
 
 static void mt7925_nan_set_cluster_id(struct mt7925_nan_enable_req_tlv *req,
@@ -172,7 +160,6 @@ int mt7925_nan_enable(struct ieee80211_vif *vif,
 
 	p_nan_req_tlv->master_pref = conf->master_pref;
 
-	mt7925_nan_set_2g_support(p_nan_req_tlv, conf);
 	mt7925_nan_set_5g_channel(dev, p_nan_req_tlv, conf);
 	mt7925_nan_set_cluster_id(p_nan_req_tlv, conf->cluster_id);
 	mt7925_nan_set_dw_interval(p_nan_req_tlv, conf);
