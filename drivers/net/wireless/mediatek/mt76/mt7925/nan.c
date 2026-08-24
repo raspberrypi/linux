@@ -984,21 +984,17 @@ int mt792x_nan_map_sta_rec(struct mt76_dev *mdev,
 	struct mt7925_nan_common_hdr *hdr;
 	struct ieee80211_sta *nmi_sta;
 	struct mt792x_sta *nmi_msta;
-	struct mt792x_vif *mvif;
 	struct mt792x_sta *msta;
 	u8 nmi_addr[ETH_ALEN];
 	struct sk_buff *skb;
 	int ndp_ctx_id = 0;
 	int ret = -ENOMEM;
-	struct mt792x_dev *dev;
 	struct tlv *tlv;
 
 	if (!mdev || !vif || !sta)
 		return -EINVAL;
 
-	dev = container_of(mdev, struct mt792x_dev, mt76);
 	msta = (struct mt792x_sta *)sta->drv_priv;
-	mvif = (struct mt792x_vif *)vif->drv_priv;
 
 	rcu_read_lock();
 	nmi_sta = rcu_dereference(sta->nmi);
@@ -1011,33 +1007,6 @@ int mt792x_nan_map_sta_rec(struct mt76_dev *mdev,
 
 	memcpy(nmi_addr, nmi_sta->addr, ETH_ALEN);
 	nmi_msta = (struct mt792x_sta *)nmi_sta->drv_priv;
-
-	if (!nmi_msta->nan_sched.idx_assigned) {
-		if (!nmi_sta->nan_sched) {
-			rcu_read_unlock();
-			dev_err(mdev->dev,
-				"NAN: peer schedule missing for NDI sta %pM\n",
-				sta->addr);
-			return -EAGAIN;
-		}
-
-		rcu_read_unlock();
-		ret = mt792x_nan_set_peer_schedule(dev, nmi_sta);
-		if (ret)
-			return ret;
-
-		rcu_read_lock();
-		nmi_sta = rcu_dereference(sta->nmi);
-		if (!nmi_sta) {
-			rcu_read_unlock();
-			dev_err(mdev->dev,
-				"NAN: NMI sta not found for NDI sta %pM\n",
-				sta->addr);
-			return -EINVAL;
-		}
-
-		nmi_msta = (struct mt792x_sta *)nmi_sta->drv_priv;
-	}
 
 	ndp_ctx_id = find_first_zero_bit(&nmi_msta->nan_sched.ndp_ctx_bitmap,
 					 NAN_MAX_NDP_CXT);
@@ -1073,7 +1042,7 @@ int mt792x_nan_map_sta_rec(struct mt76_dev *mdev,
 	memcpy(map_tlv->nmi_addr, nmi_addr, ETH_ALEN);
 	map_tlv->sta_rec_idx = msta->deflink.wcid.idx;
 	map_tlv->ndp_ctx_id = ndp_ctx_id;
-	map_tlv->role_idx = cpu_to_le32(mvif->bss_conf.mt76.idx);
+	map_tlv->role_idx = cpu_to_le32(NAN_BSS_INDEX_BAND0);
 	memcpy(map_tlv->ndi_addr, vif->addr, ETH_ALEN);
 
 	ret = mt76_mcu_skb_send_msg(mdev, skb,
