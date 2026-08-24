@@ -422,7 +422,7 @@ void mt7925_nan_mcu_event(struct mt792x_dev *dev, struct sk_buff *skb)
 		case NAN_UNI_EVENT_ID_DE_EVENT_IND:
 			mt7925_nan_mcu_handle_de_event(dev, tlv);
 			break;
-		case NAN_UNI_EVENT_REPORT_DW_END:
+		case NAN_UNI_EVENT_REPORT_DW_START:
 			mt7925_nan_handle_dw_ind(dev, tlv);
 			break;
 		default:
