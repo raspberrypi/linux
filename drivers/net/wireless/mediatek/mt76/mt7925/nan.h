@@ -118,11 +118,14 @@ enum nan_peer_supported_bands {
 	NAN_SUPPORTED_BN_NUM
 };
 
+#define NAN_CH_CTRL_CH_TYPE		BIT(0)
 #define NAN_CH_CTRL_OP_CLASS		GENMASK(15, 8)
 #define NAN_CH_CTRL_PRIMARY_CH		GENMASK(23, 16)
 
 #define NAN_CRB_USE_DATA_PATH		BIT(0)
 #define NAN_CRB_AVAIL_6G_FORMAT		GENMASK(2, 1)
+
+#define NAN_BAND_CHANNEL_ENTRY_LIST_TYPE_CHANNEL	1
 
 struct mt7925_nan_social_ch_scan_params {
 	u8 dwell_time[NAN_MAX_SOCIAL_CHANNELS];

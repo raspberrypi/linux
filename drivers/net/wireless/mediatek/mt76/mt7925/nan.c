@@ -491,9 +491,14 @@ static u32 mt7925_nan_slot_to_bitmap(struct ieee80211_vif *vif,
 
 			if (FIELD_GET(NAN_CH_CTRL_PRIMARY_CH, raw) ==
 			    slot_chan->chan->hw_value) {
-				u32 map = le32_to_cpu(ch_list[j].avail_map[0]);
+				u32 dw;
 
-				ch_list[j].avail_map[0] = cpu_to_le32(map | BIT(i));
+				for (dw = 0; dw < NAN_TOTAL_DW; dw++) {
+					u32 map = le32_to_cpu(ch_list[j].avail_map[dw]);
+
+					ch_list[j].avail_map[dw] =
+						cpu_to_le32(map | BIT(i));
+				}
 				le32_add_cpu(&ch_list[j].num, 1);
 				is_found = true;
 				break;
@@ -501,12 +506,18 @@ static u32 mt7925_nan_slot_to_bitmap(struct ieee80211_vif *vif,
 		}
 
 		if (!is_found && num_channels < NAN_TIMELINE_MGMT_CHNL_LIST_NUM) {
+			u32 dw;
+
 			ch_list[num_channels].ch_info =
-				cpu_to_le32(FIELD_PREP(NAN_CH_CTRL_OP_CLASS,
+				cpu_to_le32(FIELD_PREP(NAN_CH_CTRL_CH_TYPE,
+						       NAN_BAND_CHANNEL_ENTRY_LIST_TYPE_CHANNEL) |
+					    FIELD_PREP(NAN_CH_CTRL_OP_CLASS,
 						       slot->channel_entry[0]) |
 					    FIELD_PREP(NAN_CH_CTRL_PRIMARY_CH,
 						       slot_chan->chan->hw_value));
-			ch_list[num_channels].avail_map[0] = cpu_to_le32(BIT(i));
+			for (dw = 0; dw < NAN_TOTAL_DW; dw++)
+				ch_list[num_channels].avail_map[dw] =
+					cpu_to_le32(BIT(i));
 			le32_add_cpu(&ch_list[num_channels].num, 1);
 			ch_list[num_channels].is_valid++;
 			num_channels++;
@@ -681,17 +692,19 @@ mt7925_nan_fill_crb_committed(struct mt7925_nan_sched_update_crb_tlv *crb_tlv,
 
 		/*
 		 * Convert peer schedule slots to FW avail_map bitmap.
-		 * Each bit in avail_map[0] represents one time slot where
-		 * the peer has committed availability.
+		 * Each bit represents one time slot where the peer has
+		 * committed availability. Fill all DW intervals the same.
 		 */
 		for (slot = 0; slot < CFG80211_NAN_SCHED_NUM_TIME_SLOTS;
 		     slot++) {
 			struct ieee80211_nan_channel *ch = map->slots[slot];
+			u32 dw;
 
 			if (!ch || !ch->chanctx_conf)
 				continue;
 
-			tl->avail_map[0] |= cpu_to_le32(BIT(slot));
+			for (dw = 0; dw < NAN_TOTAL_DW; dw++)
+				tl->avail_map[dw] |= cpu_to_le32(BIT(slot));
 		}
 	}
 }
