@@ -2606,21 +2606,9 @@ static int mt7925_start_nan(struct ieee80211_hw *hw,
 	if (err < 0)
 		goto out;
 
-	dev->nan_vif = vif;
-
-	err = mt7925_nan_set_nmi_addr(dev, vif->addr);
-	if (err)
-		goto rollback_bss;
-
 	err = mt7925_nan_enable(vif, dev, conf);
 	if (err)
-		goto rollback_bss;
-
-	goto out;
-
-rollback_bss:
-	dev->nan_vif = NULL;
-	mt7925_mcu_add_bss_info(&dev->phy, NULL, link_conf, NULL, false);
+		mt7925_mcu_add_bss_info(&dev->phy, NULL, link_conf, NULL, false);
 
 out:
 	mt792x_mutex_release(dev);
@@ -2643,9 +2631,6 @@ static int mt7925_stop_nan(struct ieee80211_hw *hw,
 				      NULL, false);
 	if (!err)
 		err = ret;
-
-	if (dev->nan_vif == vif)
-		dev->nan_vif = NULL;
 
 	mt792x_mutex_release(dev);
 

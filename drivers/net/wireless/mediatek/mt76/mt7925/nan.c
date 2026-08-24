@@ -144,38 +144,6 @@ mt7925_nan_update_conf(struct mt792x_vif *mvif,
 	memcpy(mvif->nan.conf.cluster_id, conf->cluster_id, ETH_ALEN);
 }
 
-int mt7925_nan_set_nmi_addr(struct mt792x_dev *dev, const u8 *addr)
-{
-	struct mt76_dev *mdev;
-	struct {
-		u8 rsv[4];
-		struct mt7925_nan_nmi_addr_tlv nmi_addr_tlv;
-	} nmi_cmd = {
-		.rsv = { 0 },
-		.nmi_addr_tlv = {
-			.tag = cpu_to_le16(NAN_UNI_CMD_CHANGE_NMI_ADDRESS),
-			.len = cpu_to_le16(sizeof(struct mt7925_nan_nmi_addr_tlv)),
-		},
-	};
-	int ret;
-
-	if (!dev || !addr)
-		return -EINVAL;
-
-	if (is_zero_ether_addr(addr) || is_multicast_ether_addr(addr)) {
-		dev_err(dev->mt76.dev, "NAN: invalid NMI address %pM\n", addr);
-		return -EINVAL;
-	}
-
-	mdev = &dev->mt76;
-	memcpy(nmi_cmd.nmi_addr_tlv.nmi_addr, addr, ETH_ALEN);
-
-	ret = mt76_mcu_send_msg(mdev, MCU_UNI_CMD(NAN), &nmi_cmd,
-				sizeof(nmi_cmd), true);
-
-	return ret;
-}
-
 int mt7925_nan_enable(struct ieee80211_vif *vif,
 		      struct mt792x_dev *dev,
 		      struct cfg80211_nan_conf *conf)
