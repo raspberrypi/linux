@@ -964,6 +964,21 @@ static int mt7925_mac_link_sta_add(struct mt76_dev *mdev,
 
 	link_conf = mt792x_vif_to_bss_conf(vif, link_id);
 
+	/* NAN_DATA (NDI) peers skip association - fill link_sta caps
+	 * from sband and push BSS_INFO with correct phymode + RLM.
+	 */
+	if (vif->type == NL80211_IFTYPE_NAN_DATA) {
+		struct ieee80211_chanctx_conf *nan_ctx;
+
+		nan_ctx = mt7925_nan_seed_link_sta(dev, link_sta);
+		mconf->mt76.ctx = nan_ctx;
+
+		ret = mt7925_mcu_add_bss_info(&dev->phy, nan_ctx,
+					      link_conf, link_sta, true);
+		if (ret)
+			goto out_pm;
+	}
+
 	/* should update bss info before STA add */
 	if (vif->type == NL80211_IFTYPE_STATION && !link_sta->sta->tdls) {
 		struct mt792x_link_sta *mlink_bc;
@@ -2601,8 +2616,8 @@ static int mt7925_start_nan(struct ieee80211_hw *hw,
 	cfg80211_chandef_create(&link_conf->chanreq.oper, chan,
 				NL80211_CHAN_NO_HT);
 
-	err = mt7925_mcu_add_bss_info(&dev->phy, NULL, link_conf,
-				      NULL, true);
+	err = mt7925_mcu_add_bss_info(&dev->phy, NULL,
+				      link_conf, NULL, true);
 	if (err < 0)
 		goto out;
 

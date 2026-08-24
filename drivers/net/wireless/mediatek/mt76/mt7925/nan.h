@@ -479,6 +479,10 @@ struct mt7925_nan_update_phy_setting_tlv {
 
 int mt7925_nan_update_phy_setting(struct mt792x_dev *dev);
 
+struct ieee80211_chanctx_conf *
+mt7925_nan_seed_link_sta(struct mt792x_dev *dev,
+			 struct ieee80211_link_sta *link_sta);
+
 int mt7925_nan_enable(struct ieee80211_vif *vif,
 		      struct mt792x_dev *dev,
 		      struct cfg80211_nan_conf *conf);

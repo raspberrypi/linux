@@ -267,6 +267,68 @@ int mt7925_nan_update_phy_setting(struct mt792x_dev *dev)
 				 &req, sizeof(req), true);
 }
 
+struct ieee80211_chanctx_conf *
+mt7925_nan_seed_link_sta(struct mt792x_dev *dev,
+			 struct ieee80211_link_sta *link_sta)
+{
+	struct ieee80211_supported_band *sband_2g, *sband_5g;
+	struct ieee80211_chanctx_conf *nan_ctx = NULL;
+	struct ieee80211_vif *nan_vif = dev->nan_vif;
+
+	/* Fill HT cap from 2G sband */
+	sband_2g = dev->mphy.hw->wiphy->bands[NL80211_BAND_2GHZ];
+	sband_5g = dev->mphy.hw->wiphy->bands[NL80211_BAND_5GHZ];
+	if (sband_2g)
+		link_sta->ht_cap = sband_2g->ht_cap;
+
+	link_sta->sta->wme = true;
+	link_sta->rx_nss = hweight8(dev->mphy.antenna_mask);
+
+	/* Get chanctx from NAN schedule.
+	 * Prefer 5G committed slot for wider BW (VHT), fallback
+	 * to first valid slot if no 5G data slot is scheduled.
+	 */
+	if (nan_vif) {
+		struct ieee80211_nan_channel **slots =
+			nan_vif->cfg.nan_sched.schedule;
+		int i;
+
+		for (i = 0; i < CFG80211_NAN_SCHED_NUM_TIME_SLOTS; i++) {
+			struct ieee80211_chanctx_conf *ctx;
+
+			if (!slots[i] || IS_ERR(slots[i]) ||
+			    !slots[i]->chanctx_conf)
+				continue;
+
+			ctx = slots[i]->chanctx_conf;
+			if (!nan_ctx)
+				nan_ctx = ctx;
+			if (ctx->def.chan->band == NL80211_BAND_5GHZ) {
+				nan_ctx = ctx;
+				break;
+			}
+		}
+	}
+
+	/* Capability describes what the device can do and must not be
+	 * filtered by the current schedule - firmware gates the VHT rate
+	 * mode per the data schedule and re-derives it on schedule
+	 * change, which only works if the caps are present up front.
+	 */
+	if (sband_5g)
+		link_sta->vht_cap = sband_5g->vht_cap;
+
+	/* Bandwidth here is the capability ceiling, not the operating
+	 * width - the per-slot operating bandwidth follows the current
+	 * slot channel via the firmware RLM sync, so deriving it from
+	 * the schedule at STA-add time would cap a later 5 GHz schedule
+	 * at the bring-up width.
+	 */
+	link_sta->bandwidth = IEEE80211_STA_RX_BW_80;
+
+	return nan_ctx;
+}
+
 int mt7925_nan_enable(struct ieee80211_vif *vif,
 		      struct mt792x_dev *dev,
 		      struct cfg80211_nan_conf *conf)
