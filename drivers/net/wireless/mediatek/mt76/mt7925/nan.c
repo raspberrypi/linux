@@ -680,23 +680,6 @@ static int mt7925_nan_peer_rec_tlv(struct sk_buff *skb,
 	return 0;
 }
 
-static u8 mt7925_nan_get_supported_bands(struct mt792x_vif *mvif)
-{
-	struct wiphy *wiphy;
-	u8 bands = 0;
-
-	if (!mvif || !mvif->phy)
-		return BIT(NAN_SUPPORTED_BAND_ID_2P4G);
-
-	wiphy = mvif->phy->mt76->hw->wiphy;
-	if (wiphy->nan_supported_bands & BIT(NL80211_BAND_2GHZ))
-		bands |= BIT(NAN_SUPPORTED_BAND_ID_2P4G);
-	if (wiphy->nan_supported_bands & BIT(NL80211_BAND_5GHZ))
-		bands |= BIT(NAN_SUPPORTED_BAND_ID_5G);
-
-	return bands ?: BIT(NAN_SUPPORTED_BAND_ID_2P4G);
-}
-
 static int mt7925_nan_peer_cap_tlv(struct sk_buff *skb,
 				   struct ieee80211_sta *sta,
 				   struct mt792x_sta *msta)
@@ -723,8 +706,7 @@ static int mt7925_nan_peer_cap_tlv(struct sk_buff *skb,
 
 	peer_cap_tlv = (struct mt7925_nan_sched_update_peer_cap_tlv *)tlv;
 	peer_cap_tlv->sch_idx = cpu_to_le32(msta->nan_sched.sch_idx);
-	peer_cap_tlv->supported_bands =
-		mt7925_nan_get_supported_bands(msta->vif);
+	peer_cap_tlv->supported_bands = BIT(NAN_SUPPORTED_BAND_ID_2P4G);
 	peer_cap_tlv->max_chnl_switch_time = cpu_to_le16(sched->max_chan_switch);
 
 	for (i = 0; i < sched->n_channels; i++) {
