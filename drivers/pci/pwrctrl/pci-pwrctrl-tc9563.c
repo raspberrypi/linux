@@ -481,7 +481,7 @@ static int tc9563_pwrctrl_power_off(struct pci_pwrctrl *pwrctrl)
 	struct tc9563_pwrctrl *tc9563 = container_of(pwrctrl,
 					    struct tc9563_pwrctrl, pwrctrl);
 
-	gpiod_set_value(tc9563->reset_gpio, 1);
+	gpiod_set_value_cansleep(tc9563->reset_gpio, 1);
 
 	regulator_bulk_disable(ARRAY_SIZE(tc9563->supplies), tc9563->supplies);
 
@@ -501,7 +501,7 @@ static int tc9563_pwrctrl_power_on(struct pci_pwrctrl *pwrctrl)
 	if (ret < 0)
 		return dev_err_probe(dev, ret, "cannot enable regulators\n");
 
-	gpiod_set_value(tc9563->reset_gpio, 0);
+	gpiod_set_value_cansleep(tc9563->reset_gpio, 0);
 
 	fsleep(TC9563_OSC_STAB_DELAY_US);
 
