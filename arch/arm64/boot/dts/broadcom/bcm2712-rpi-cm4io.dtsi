@@ -1,5 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0
 
+/ {
+	/*
+	 * The CM4IO PCIe slot supply is not switched. This only exists so that
+	 * overlays written for the Pi 5 (pciex1-compat-pi5) can resolve it.
+	 */
+	pcie1_3v3: pcie1_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie1-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+};
+
 i2c_csi_dsi0: &i2c0 { // Note: For CAM0 and DISP0 connectors
 };
 
