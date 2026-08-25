@@ -141,8 +141,10 @@ static bool futex_private_hash_get(struct futex_private_hash *fph)
 
 void futex_private_hash_put(struct futex_private_hash *fph)
 {
+	struct mm_struct *mm = fph->mm;
+
 	if (futex_ref_put(fph))
-		wake_up_var(fph->mm);
+		wake_up_var(mm);
 }
 
 /**
