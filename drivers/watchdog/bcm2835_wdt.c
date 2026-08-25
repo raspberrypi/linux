@@ -209,6 +209,7 @@ static int bcm2835_wdt_probe(struct platform_device *pdev)
 	watchdog_set_restart_priority(&bcm2835_wdt_wdd, 128);
 
 	watchdog_stop_on_reboot(&bcm2835_wdt_wdd);
+	watchdog_stop_ping_on_suspend(&bcm2835_wdt_wdd);
 	err = devm_watchdog_register_device(dev, &bcm2835_wdt_wdd);
 	if (err)
 		return err;
