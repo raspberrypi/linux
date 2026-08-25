@@ -102,6 +102,20 @@ static int rpi_rtc_alarm_clear_pending(struct device *dev)
 				     &data, sizeof(data));
 }
 
+static bool rpi_rtc_alarm_pending(struct device *dev)
+{
+	struct rpi_rtc_data *rtc = dev_get_drvdata(dev);
+	struct rpi_rtc_reg data = {
+		.reg = cpu_to_le32(RTC_ALARM_PENDING)
+	};
+
+	if (rpi_firmware_property(rtc->fw, RPI_FIRMWARE_GET_RTC_REG,
+				  &data, sizeof(data)))
+		return true;
+
+	return le32_to_cpu(data.val) & 0x1;
+}
+
 static int rpi_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 {
 	struct rpi_rtc_data *rtc = dev_get_drvdata(dev);
@@ -323,6 +337,21 @@ static int rpi_rtc_probe(struct platform_device *pdev)
 	return devm_rtc_register_device(rtc->rtc);
 }
 
+static int rpi_rtc_resume(struct device *dev)
+{
+	struct rpi_rtc_data *rtc = dev_get_drvdata(dev);
+
+	if (!rpi_rtc_alarm_pending(dev))
+		return 0;
+
+	rpi_rtc_alarm_clear_pending(dev);
+	rtc_update_irq(rtc->rtc, 1, RTC_AF);
+
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(rpi_rtc_pm_ops, NULL, rpi_rtc_resume);
+
 static const struct platform_device_id raspberrypi_rtc_id[] = {
 	{ "raspberrypi-rtc" },
 	{ }
@@ -332,6 +361,7 @@ MODULE_DEVICE_TABLE(platform, raspberrypi_rtc_id);
 static struct platform_driver rpi_rtc_driver = {
 	.driver = {
 		.name = "raspberrypi-rtc",
+		.pm = pm_sleep_ptr(&rpi_rtc_pm_ops),
 	},
 	.id_table = raspberrypi_rtc_id,
 	.probe = rpi_rtc_probe
