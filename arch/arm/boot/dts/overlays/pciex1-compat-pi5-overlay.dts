@@ -51,10 +51,22 @@
 		};
 	};
 
+	/*
+	 * Disable the regulator on the PCIe 3v3 supply.
+	 * Its is enabled by default by the firmware.
+	 */
+	fragment@4 {
+		target = <&pcie1_3v3>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
 	__overrides__ {
 		l1ss = <0>, "+0";
 		no-l0s = <0>, "+1";
 		no-mip = <0>, "+2";
 		mmio-hi = <0>, "+3";
+		no-pwr-ctrl = <0>, "+4";
 	};
 };
