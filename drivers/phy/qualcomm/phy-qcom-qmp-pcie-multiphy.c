@@ -538,7 +538,8 @@ static int qmp_pcie_multiphy_register_clocks(struct device *dev,
 
 	num_pipe_outputs = of_property_count_strings(np, "clock-output-names");
 	if (num_pipe_outputs < 0)
-		return num_pipe_outputs;
+		return dev_err_probe(dev, num_pipe_outputs,
+				     "failed to read clock-output-names\n");
 
 	qmp_data->num_pipe_outputs = num_pipe_outputs;
 	qmp_data->pipe_out_clks = devm_kcalloc(dev, num_pipe_outputs,
