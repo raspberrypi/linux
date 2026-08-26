@@ -111,13 +111,23 @@ static int sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
 		 * let the queue segment size sort out the real limit.
 		 */
 		lim->max_hw_sectors = 0x7FFFFF;
-	} else if (us->pusb_dev->speed >= USB_SPEED_SUPER) {
+	} else if (us->pusb_dev->speed >= USB_SPEED_SUPER ||
+		   (us->pusb_dev->bos && us->pusb_dev->bos->ss_cap)) {
 		/*
 		 * USB3 devices will be limited to 2048 sectors. This gives us
 		 * better throughput on most devices.
 		 */
 		lim->max_hw_sectors = 2048;
 	}
+
+	/*
+	 * The default of 240 sectors on 16K page platforms causes decomposition
+	 * of transfers into lengths of 224 sectors aligned to 32 sectors.
+	 * Middle-of-the-range devices show a modest sequential speed increase
+	 * with 192 sectors (64s alignment).
+	 */
+	if (lim->max_hw_sectors == 240 && PAGE_SIZE == SZ_16K)
+		lim->max_hw_sectors = 192;
 
 	/*
 	 * The max_hw_sectors should be up to maximum size of a mapping for
