@@ -5845,7 +5845,7 @@ int ntfs_attr_fallocate(struct ntfs_inode *ni, loff_t start, loff_t byte_len, bo
 				}
 
 				if (signal_pending(current))
-					goto out;
+					goto signal_out;
 
 				vcn += alloc_cnt;
 				try_alloc_cnt -= alloc_cnt;
@@ -5866,7 +5866,7 @@ int ntfs_attr_fallocate(struct ntfs_inode *ni, loff_t start, loff_t byte_len, bo
 		up_write(&ni->runlist.lock);
 		mutex_unlock(&ni->mrec_lock);
 		if (err || signal_pending(current))
-			goto out;
+			goto signal_out;
 
 		vcn += alloc_cnt;
 		try_alloc_cnt -= alloc_cnt;
@@ -5892,4 +5892,8 @@ out_unmap:
 	mutex_unlock(&ni->mrec_lock);
 out:
 	return err >= 0 ? 0 : err;
+signal_out:
+	if (!err)
+		err = -EINTR;
+	goto out;
 }
