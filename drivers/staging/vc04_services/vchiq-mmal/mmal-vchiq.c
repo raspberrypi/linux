@@ -1349,6 +1349,9 @@ static int port_parameter_set(struct vchiq_mmal_instance *instance,
 	struct mmal_msg *rmsg;
 	struct vchiq_header *rmsg_handle;
 
+	if (value_size > sizeof(m.u.port_parameter_set.value))
+		return -EINVAL;
+
 	m.h.type = MMAL_MSG_TYPE_PORT_PARAMETER_SET;
 
 	m.u.port_parameter_set.component_handle = port->component->handle;
@@ -1389,6 +1392,9 @@ static int port_parameter_get(struct vchiq_mmal_instance *instance,
 	struct mmal_msg m;
 	struct mmal_msg *rmsg;
 	struct vchiq_header *rmsg_handle;
+
+	if (*value_size > sizeof(rmsg->u.port_parameter_get_reply.value))
+		return -EINVAL;
 
 	m.h.type = MMAL_MSG_TYPE_PORT_PARAMETER_GET;
 
