@@ -169,7 +169,7 @@ static int rsassa_pkcs1_sign(struct crypto_sig *tfm,
 	u8 *in_buf;
 	int err;
 
-	if (!ctx->key_size)
+	if (ctx->key_size < 11)
 		return -EINVAL;
 
 	if (dlen < ctx->key_size)
