@@ -24,9 +24,6 @@
 #define IMX355_CHIP_ID			0x0355
 
 /* PLL registers that depend on the external clock frequency */
-#define IMX355_REG_PLL_OP_PREDIV	CCI_REG8(0x030d)
-#define IMX355_REG_PLL_IVT_PCK_DIV	CCI_REG8(0x0301)
-#define IMX355_REG_PLL_IVT_SYSCK_DIV	CCI_REG8(0x0303)
 #define IMX355_PLL_OP_PREDIV		2
 #define IMX355_PLL_IVT_PCK_DIV		5
 
@@ -205,13 +202,13 @@ static const struct cci_reg_sequence imx355_global_regs[] = {
 	{ CCI_REG8(0x305a), 0x00 },
 	{ CCI_REG8(0x0112), 0x0a },
 	{ CCI_REG8(0x0113), 0x0a },
-	{ IMX355_REG_PLL_IVT_PCK_DIV, IMX355_PLL_IVT_PCK_DIV },
-	{ CCI_REG8(0x0303), 0x01 },
+	{ CCS_R_VT_PIX_CLK_DIV, IMX355_PLL_IVT_PCK_DIV },
+	{ CCS_R_VT_SYS_CLK_DIV, 0x01 },
 	{ CCI_REG8(0x0305), 0x02 },
 	{ CCI_REG8(0x0306), 0x00 },
 	{ CCI_REG8(0x0307), 0x78 },
 	{ CCI_REG8(0x030b), 0x01 },
-	{ IMX355_REG_PLL_OP_PREDIV, IMX355_PLL_OP_PREDIV },
+	{ CCS_R_OP_PRE_PLL_CLK_DIV, IMX355_PLL_OP_PREDIV },
 	{ CCI_REG8(0x0310), 0x00 },
 	{ CCI_REG8(0x0220), 0x00 },
 	{ CCI_REG8(0x0222), 0x01 },
@@ -816,9 +813,9 @@ static int imx355_start_streaming(struct imx355 *imx355)
 		  imx355->clk_params->extclk_freq, &ret);
 	cci_write(imx355->regmap, CCS_R_OP_PLL_MULTIPLIER,
 		  imx355->clk_params->pll_op_mpy[lane_idx], &ret);
-	cci_write(imx355->regmap, IMX355_REG_PLL_OP_PREDIV,
+	cci_write(imx355->regmap, CCS_R_OP_PRE_PLL_CLK_DIV,
 		  imx355->clk_params->pll_op_prediv[lane_idx], &ret);
-	cci_write(imx355->regmap, IMX355_REG_PLL_IVT_SYSCK_DIV,
+	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV,
 		  lane_idx ? 2 : 1, &ret);
 
 	/* Set MIPI configuration */
