@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for the Realtek RT5616 I2S audio codec
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			rt5616_mclk: rt5616-mclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <12288000>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rt5616: rt5616@1b {
+				#sound-dai-cells = <0>;
+				compatible = "realtek,rt5616";
+				reg = <0x1b>;
+				clocks = <&rt5616_mclk>;
+				clock-names = "mclk";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		rt5616_card: __overlay__ {
+			compatible = "simple-audio-card";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,name = "rt5616-codec";
+			simple-audio-card,mclk-fs = <256>;
+			status = "okay";
+
+			simple-audio-card,bitclock-master = <&sound_master>;
+			simple-audio-card,frame-master = <&sound_master>;
+
+			simple-audio-card,widgets =
+				"Microphone", "Mic Jack",
+				"Headphone", "Headphone Jack";
+			simple-audio-card,routing =
+				"IN1P", "Mic Jack",
+				"IN2P", "Mic Jack",
+				"Headphone Jack", "HPOL",
+				"Headphone Jack", "HPOR";
+
+			simple-audio-card,cpu {
+				sound-dai = <&i2s_clk_consumer>;
+			};
+
+			sound_master: simple-audio-card,codec {
+				sound-dai = <&rt5616>;
+			};
+		};
+	};
+
+	__overrides__ {
+		alsaname = <&rt5616_card>,"simple-audio-card,name";
+	};
+};

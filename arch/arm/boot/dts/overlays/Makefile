@@ -263,6 +263,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-sense-v2.dtbo \
 	rpi-tv.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
+	rt5616.dtbo \
 	sainsmart18.dtbo \
 	sc16is750-i2c.dtbo \
 	sc16is752-i2c.dtbo \
