@@ -6069,6 +6069,8 @@ Params: 2_8_inch                2.8" 480x640
         11_9_inch               11.9" 320x1480
         13_3_inch_4lane         13.3" 1920x1080 4lane
         13_3_inch_2lane         13.3" 1920x1080 2lane
+        auto_detect             Automatic panel detection (1200x1920 or
+                                1920x1200 at 30fps/60fps)
         i2c1                    Use i2c-1 with jumper wires from GPIOs 2&3
         disable_touch           Disable the touch controller
         rotation                Set the panel orientation property
