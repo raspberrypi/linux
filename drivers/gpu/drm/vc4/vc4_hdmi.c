@@ -679,7 +679,7 @@ static int vc4_hdmi_write_infoframe(struct drm_connector *connector,
 	if (!drm_dev_enter(drm, &idx))
 		return 0;
 
-	if (len > sizeof(buffer)) {
+	if (len > VC4_HDMI_PACKET_SIZE) {
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -704,6 +704,9 @@ static int vc4_hdmi_write_infoframe(struct drm_connector *connector,
 		       buffer[i + 2] << 16,
 		       base + packet_reg);
 		packet_reg += 4;
+
+		if (packet_reg >= packet_reg_next)
+			break;
 
 		writel(buffer[i + 3] << 0 |
 		       buffer[i + 4] << 8 |
