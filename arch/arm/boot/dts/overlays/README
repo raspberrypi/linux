@@ -4725,6 +4725,14 @@ Load:   dtoverlay=rra-digidac1-wm8741-audio
 Params: <None>
 
 
+Name:   rt5616
+Info:   Overlay for the Realtek RT5616 I2S audio codec (HAT with the RT5616
+        codec on I2C1 at 0x1b, MCLK 12.288 MHz, I2S connected to the I2S
+        consumer controller on GPIO 18-21).
+Load:   dtoverlay=rt5616,<param>=<val>
+Params: alsaname                Changes the card name in ALSA
+
+
 Name:   sainsmart18
 Info:   Overlay for the SPI-connected Sainsmart 1.8" display (based on the
         ST7735R chip).
