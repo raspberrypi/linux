@@ -231,7 +231,7 @@ static int rsassa_pkcs1_verify(struct crypto_sig *tfm,
 	int err;
 
 	/* RFC 8017 sec 8.2.2 step 1 - length checking */
-	if (!ctx->key_size ||
+	if (ctx->key_size < 11 ||
 	    slen != ctx->key_size ||
 	    rsassa_pkcs1_invalid_hash_len(dlen, hash_prefix))
 		return -EINVAL;
