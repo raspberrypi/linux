@@ -33,6 +33,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dma-buf.h>
 #include <linux/errno.h>
+#include <linux/fdtable.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -1200,8 +1201,10 @@ static int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	buffer->alloc.sg_table = sgt;
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
-	if (fd < 0)
+	if (fd < 0) {
+		ret = fd;
 		goto error;
+	}
 
 	vc_sm_add_resource(private, buffer);
 
@@ -1276,9 +1279,9 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 		if (!ret &&
 		    (copy_to_user((void *)arg, &ioparam,
 				  sizeof(ioparam)) != 0)) {
-			/* FIXME: Release allocation */
 			pr_err("[%s]: failed to copy-to-user for cmd %x\n",
 			       __func__, cmdnr);
+			close_fd(ioparam.handle);
 			ret = -EFAULT;
 		}
 		break;
@@ -1312,11 +1315,12 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 			ioparam.vc_handle = buf->vc_handle;
 			ioparam.dma_addr = buf->dma_addr;
 
-			if (ioparam.handle < 0 ||
-			    (copy_to_user((void *)arg, &ioparam,
-					  sizeof(ioparam)) != 0)) {
+			if (ioparam.handle < 0) {
 				dma_buf_put(new_dmabuf);
-				/* FIXME: Release allocation */
+				ret = -EFAULT;
+			} else if (copy_to_user((void *)arg, &ioparam,
+						sizeof(ioparam)) != 0) {
+				close_fd(ioparam.handle);
 				ret = -EFAULT;
 			}
 		}
