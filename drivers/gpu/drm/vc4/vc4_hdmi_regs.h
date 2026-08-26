@@ -7,6 +7,12 @@
 
 #define VC4_HDMI_PACKET_STRIDE			0x24
 
+/*
+ * A packet RAM slot is 9 words, holding a 3-byte packet header followed by
+ * four 7-byte subpackets, so only 31 of its 36 bytes are addressable.
+ */
+#define VC4_HDMI_PACKET_SIZE			31
+
 enum vc4_hdmi_regs {
 	VC4_INVALID = 0,
 	VC4_HDMI,
