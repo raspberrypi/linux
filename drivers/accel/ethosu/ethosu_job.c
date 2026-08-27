@@ -425,13 +425,13 @@ static int ethosu_ioctl_submit_job(struct drm_device *dev, struct drm_file *file
 			if (!cmd_info->region_size[i])
 				continue;
 			if (i == ETHOSU_SRAM_REGION) {
-				if (cmd_info->region_size[i] <= edev->npu_info.sram_size)
+				if (cmd_info->region_size[i] <= ejob->sram_size)
 					continue;
 
 				dev_err(dev->dev,
-					"cmd stream region %d size greater than SRAM size (%llu > %u)\n",
+					"cmd stream region %d size greater than job SRAM size (%llu > %u)\n",
 					i, cmd_info->region_size[i],
-					edev->npu_info.sram_size);
+					ejob->sram_size);
 				ret = -EINVAL;
 				goto out_cleanup_job;
 			}
