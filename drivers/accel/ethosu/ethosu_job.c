@@ -325,7 +325,7 @@ int ethosu_job_init(struct ethosu_device *edev)
 	ret = devm_request_threaded_irq(dev, edev->irq,
 					ethosu_job_irq_handler,
 					ethosu_job_irq_handler_thread,
-					IRQF_SHARED, KBUILD_MODNAME,
+					0, KBUILD_MODNAME,
 					edev);
 	if (ret) {
 		dev_err(dev, "failed to request irq\n");
