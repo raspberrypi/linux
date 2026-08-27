@@ -356,12 +356,10 @@ int ethosu_job_open(struct ethosu_file_priv *ethosu_priv)
 {
 	struct ethosu_device *dev = ethosu_priv->edev;
 	struct drm_gpu_scheduler *sched = &dev->sched;
-	int ret;
 
-	ret = drm_sched_entity_init(&ethosu_priv->sched_entity,
-				    DRM_SCHED_PRIORITY_NORMAL,
-				    &sched, 1, NULL);
-	return WARN_ON(ret);
+	return drm_sched_entity_init(&ethosu_priv->sched_entity,
+				     DRM_SCHED_PRIORITY_NORMAL,
+				     &sched, 1, NULL);
 }
 
 void ethosu_job_close(struct ethosu_file_priv *ethosu_priv)
