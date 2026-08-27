@@ -111,6 +111,7 @@ static inline void netfs_see_subrequest(struct netfs_io_subrequest *subreq,
  * read_collect.c
  */
 void netfs_cancel_copy_to_cache(struct netfs_io_request *rreq, struct folio *folio);
+void netfs_read_set_unlock_at(struct netfs_io_request *rreq);
 bool netfs_read_collection(struct netfs_io_request *rreq);
 void netfs_read_collection_worker(struct work_struct *work);
 void netfs_cancel_read(struct netfs_io_subrequest *subreq, int error);
