@@ -19,7 +19,6 @@
 #define MADE_PROGRESS	0x04	/* Made progress cleaning up a stream or the folio set */
 #define BUFFERED	0x08	/* The pagecache needs cleaning up */
 #define NEED_RETRY	0x10	/* A front op requests retrying */
-#define COPY_TO_CACHE	0x40	/* Need to copy subrequest to cache */
 #define ABANDON_SREQ	0x80	/* Need to abandon untransferred part of subrequest */
 
 /*
@@ -32,6 +31,30 @@ static void netfs_clear_unread(struct netfs_io_subrequest *subreq)
 	iov_iter_zero(iov_iter_count(&subreq->io_iter), &subreq->io_iter);
 	if (subreq->start + subreq->transferred >= subreq->rreq->i_size)
 		__set_bit(NETFS_SREQ_HIT_EOF, &subreq->flags);
+}
+
+/*
+ * Cancel the copy-to-cache mark on a folio.
+ */
+void netfs_cancel_copy_to_cache(struct netfs_io_request *rreq, struct folio *folio)
+{
+	if (!test_bit(NETFS_RREQ_USE_PGPRIV2, &rreq->flags)) {
+		if (folio_get_private(folio) == NETFS_FOLIO_COPY_TO_CACHE) {
+			folio_detach_private(folio);
+			trace_netfs_folio(folio, netfs_folio_trace_cancel_copy);
+		} else if (netfs_folio_group(folio) == NETFS_FOLIO_COPY_TO_CACHE)  {
+			struct netfs_folio *finfo = netfs_folio_info(folio);
+
+			finfo->netfs_group = NULL;
+			trace_netfs_folio(folio, netfs_folio_trace_cancel_copy);
+		}
+	} else {
+		// TODO: Use of PG_private_2 is deprecated.
+		if (folio_test_private_2(folio)) {
+			folio_end_private_2(folio);
+			trace_netfs_folio(folio, netfs_folio_trace_cancel_copy);
+		}
+	}
 }
 
 /*
@@ -48,37 +71,37 @@ static void netfs_unlock_read_folio(struct netfs_io_request *rreq,
 
 	if (unlikely(folio_pos(folio) < rreq->abandon_to)) {
 		trace_netfs_folio(folio, netfs_folio_trace_abandon);
+		netfs_cancel_copy_to_cache(rreq, folio);
 		goto just_unlock;
 	}
 
 	flush_dcache_folio(folio);
 	folio_mark_uptodate(folio);
 
-	if (!test_bit(NETFS_RREQ_USE_PGPRIV2, &rreq->flags)) {
-		finfo = netfs_folio_info(folio);
-		if (finfo) {
-			trace_netfs_folio(folio, netfs_folio_trace_filled_gaps);
-			if (finfo->netfs_group)
-				folio_change_private(folio, finfo->netfs_group);
-			else
-				folio_detach_private(folio);
-			kfree(finfo);
-		}
+	if (unlikely(test_bit(NETFS_RREQ_CANCEL_CACHING, &rreq->flags)))
+		netfs_cancel_copy_to_cache(rreq, folio);
 
-		if (test_bit(NETFS_RREQ_FOLIO_COPY_TO_CACHE, &rreq->flags)) {
-			if (!WARN_ON_ONCE(folio_get_private(folio) != NULL)) {
-				trace_netfs_folio(folio, netfs_folio_trace_copy_to_cache);
-				folio_attach_private(folio, NETFS_FOLIO_COPY_TO_CACHE);
-				folio_mark_dirty(folio);
-			}
+	if (!test_bit(NETFS_RREQ_USE_PGPRIV2, &rreq->flags)) {
+		if (netfs_folio_group(folio) == NETFS_FOLIO_COPY_TO_CACHE)  {
+			trace_netfs_folio(folio, netfs_folio_trace_sched_copy);
+			folio_mark_dirty(folio);
 		} else {
+			finfo = netfs_folio_info(folio);
+			if (finfo) {
+				trace_netfs_folio(folio, netfs_folio_trace_filled_gaps);
+				if (finfo->netfs_group)
+					folio_change_private(folio, finfo->netfs_group);
+				else
+					folio_detach_private(folio);
+				kfree(finfo);
+			}
 			trace_netfs_folio(folio, netfs_folio_trace_read_done);
 		}
 
 		folioq_clear(folioq, slot);
 	} else {
 		// TODO: Use of PG_private_2 is deprecated.
-		if (test_bit(NETFS_RREQ_FOLIO_COPY_TO_CACHE, &rreq->flags))
+		if (folio_test_private_2(folio))
 			netfs_pgpriv2_copy_to_cache(rreq, folio);
 	}
 
@@ -131,9 +154,6 @@ static void netfs_read_unlock_folios(struct netfs_io_request *rreq,
 		unsigned int order;
 		size_t fsize;
 
-		if (*notes & COPY_TO_CACHE)
-			set_bit(NETFS_RREQ_FOLIO_COPY_TO_CACHE, &rreq->flags);
-
 		folio = folioq_folio(folioq, slot);
 		if (WARN_ONCE(!folio_test_locked(folio),
 			      "R=%08x: folio %lx is not locked\n",
@@ -155,8 +175,6 @@ static void netfs_read_unlock_folios(struct netfs_io_request *rreq,
 		netfs_unlock_read_folio(rreq, folioq, slot);
 		WRITE_ONCE(rreq->cleaned_to, fpos + fsize);
 		*notes |= MADE_PROGRESS;
-
-		clear_bit(NETFS_RREQ_FOLIO_COPY_TO_CACHE, &rreq->flags);
 
 		/* Clean up the head folioq.  If we clear an entire folioq, then
 		 * we can get rid of it provided it's not also the tail folioq
@@ -254,9 +272,6 @@ reassess:
 
 			stream->collected_to = front->start + transferred;
 			rreq->collected_to = stream->collected_to;
-
-			if (test_bit(NETFS_SREQ_COPY_TO_CACHE, &front->flags))
-				notes |= COPY_TO_CACHE;
 
 			if (test_bit(NETFS_SREQ_FAILED, &front->flags)) {
 				rreq->abandon_to = front->start + front->len;

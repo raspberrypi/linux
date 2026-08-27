@@ -303,7 +303,11 @@ void netfs_unlock_abandoned_read_pages(struct netfs_io_request *rreq)
 		for (int slot = 0; slot < folioq_count(p); slot++) {
 			struct folio *folio = folioq_folio(p, slot);
 
-			if (folio && !folioq_is_marked2(p, slot)) {
+			if (!folio)
+				continue;
+			netfs_cancel_copy_to_cache(rreq, folio);
+
+			if (!folioq_is_marked2(p, slot)) {
 				if (folio == rreq->no_unlock_folio &&
 				    test_bit(NETFS_RREQ_NO_UNLOCK_FOLIO,
 					     &rreq->flags)) {
