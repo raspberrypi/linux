@@ -6379,6 +6379,13 @@ Info:   Overlay for the Waveshare wm8960 soundcard
 Load:   dtoverlay=wm8960-soundcard,<param>=<val>
 Params: alsaname                Changes the card name in ALSA
         compatible              Changes the codec compatibility
+        mclk                    Sets the MCLK clock frequency in Hz (default
+                                12.288 MHz for the standard Waveshare HAT,
+                                24 MHz when the media parameter is used)
+        media                   Uses the media board configuration: 24 MHz
+                                MCLK, enables headphone jack detection
+                                (wlf,hp-cfg) and an on-board microphone /
+                                dual speaker sound card
 
 
 Name:   ws2812-pio
