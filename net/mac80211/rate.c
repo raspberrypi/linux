@@ -57,7 +57,6 @@ void rate_control_rate_init(struct link_sta_info *link_sta)
 
 	/* TODO: check for minstrel_s1g ? */
 	if (sband->band == NL80211_BAND_S1GHZ) {
-		ieee80211_s1g_sta_rate_init(sta);
 		rcu_read_unlock();
 		return;
 	}

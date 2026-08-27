@@ -6347,7 +6347,6 @@ out:
 }
 
 static int ieee80211_mgd_setup_link_sta(struct ieee80211_link_data *link,
-					struct sta_info *sta,
 					struct link_sta_info *link_sta,
 					struct cfg80211_bss *cbss)
 {
@@ -6362,11 +6361,9 @@ static int ieee80211_mgd_setup_link_sta(struct ieee80211_link_data *link,
 	memcpy(link_sta->addr, cbss->bssid, ETH_ALEN);
 	memcpy(link_sta->pub->addr, cbss->bssid, ETH_ALEN);
 
-	/* TODO: S1G Basic Rate Set is expressed elsewhere */
-	if (cbss->channel->band == NL80211_BAND_S1GHZ) {
-		ieee80211_s1g_sta_rate_init(sta);
+	/* S1G does not use basic rates */
+	if (cbss->channel->band == NL80211_BAND_S1GHZ)
 		return 0;
-	}
 
 	sband = local->hw.wiphy->bands[cbss->channel->band];
 
@@ -7107,7 +7104,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 			}
 		}
 
-		err = ieee80211_mgd_setup_link_sta(link, sta, link_sta,
+		err = ieee80211_mgd_setup_link_sta(link, link_sta,
 						   assoc_data->link[link_id].bss);
 		if (err)
 			goto out_err;
@@ -9699,8 +9696,7 @@ static int ieee80211_prep_connection(struct ieee80211_sub_if_data *sdata,
 			goto out_err;
 		}
 
-		err = ieee80211_mgd_setup_link_sta(link, new_sta,
-						   link_sta, cbss);
+		err = ieee80211_mgd_setup_link_sta(link, link_sta, cbss);
 		if (err) {
 			rcu_read_unlock();
 			sta_info_free(local, new_sta);
@@ -11090,7 +11086,7 @@ ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
 			goto disconnect;
 		}
 
-		if (ieee80211_mgd_setup_link_sta(link, sta, link_sta,
+		if (ieee80211_mgd_setup_link_sta(link, link_sta,
 						 add_links_data->link[link_id].bss))
 			goto disconnect;
 

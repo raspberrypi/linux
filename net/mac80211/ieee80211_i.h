@@ -2388,7 +2388,6 @@ ieee80211_he_op_ie_to_bss_conf(struct ieee80211_vif *vif,
 			const struct ieee80211_he_operation *he_op_ie_elem);
 
 /* S1G */
-void ieee80211_s1g_sta_rate_init(struct sta_info *sta);
 bool ieee80211_s1g_is_twt_setup(struct sk_buff *skb);
 void ieee80211_s1g_rx_twt_action(struct ieee80211_sub_if_data *sdata,
 				 struct sk_buff *skb);
