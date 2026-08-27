@@ -219,7 +219,7 @@ static void smem_dram_parse_v3_data(struct smem_dram *dram, void *data)
 
 		if (freq_entry->freq_khz && freq_entry->enabled) {
 			u32 freq_khz = le32_to_cpu(freq_entry->freq_khz);
-			dram->frequencies[dram->num_frequencies++] = 1000 * freq_khz;
+			dram->frequencies[dram->num_frequencies++] = 1000UL * freq_khz;
 		}
 	}
 }
@@ -232,7 +232,7 @@ static void smem_dram_parse_v3_14freqs_data(struct smem_dram *dram, void *data)
 		struct ddr_freq_table *freq_entry = &details->ddr_freq_tbl.ddr_freq[i];
 
 		if (freq_entry->freq_khz && freq_entry->enabled)
-			dram->frequencies[dram->num_frequencies++] = 1000 * freq_entry->freq_khz;
+			dram->frequencies[dram->num_frequencies++] = 1000UL * freq_entry->freq_khz;
 	}
 }
 
@@ -248,7 +248,7 @@ static void smem_dram_parse_v4_data(struct smem_dram *dram, void *data)
 
 		if (freq_entry->freq_khz && freq_entry->enabled) {
 			u32 freq_khz = le32_to_cpu(freq_entry->freq_khz);
-			dram->frequencies[dram->num_frequencies++] = 1000 * freq_khz;
+			dram->frequencies[dram->num_frequencies++] = 1000UL * freq_khz;
 		}
 	}
 }
@@ -265,7 +265,7 @@ static void smem_dram_parse_v5_data(struct smem_dram *dram, void *data)
 
 		if (freq_entry->freq_khz && freq_entry->enabled) {
 			u32 freq_khz = le32_to_cpu(freq_entry->freq_khz);
-			dram->frequencies[dram->num_frequencies++] = 1000 * freq_khz;
+			dram->frequencies[dram->num_frequencies++] = 1000UL * freq_khz;
 		}
 	}
 }
@@ -282,7 +282,7 @@ static void smem_dram_parse_v7_data(struct smem_dram *dram, void *data)
 
 		if (freq_entry->freq_khz && freq_entry->enabled) {
 			u32 freq_khz = le32_to_cpu(freq_entry->freq_khz);
-			dram->frequencies[dram->num_frequencies++] = 1000 * freq_khz;
+			dram->frequencies[dram->num_frequencies++] = 1000UL * freq_khz;
 		}
 	}
 }
