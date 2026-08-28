@@ -314,7 +314,7 @@ xchk_metapath(
 
 	/* Parent required to do anything else. */
 	if (mpath->dp == NULL) {
-		xchk_ino_set_corrupt(sc, sc->ip->i_ino);
+		xchk_ip_set_corrupt(sc, sc->ip);
 		return 0;
 	}
 
@@ -329,7 +329,7 @@ xchk_metapath(
 	trace_xchk_metapath_lookup(sc, mpath->path, mpath->dp, ino);
 	if (error == -ENOENT) {
 		/* No directory entry at all */
-		xchk_ino_set_corrupt(sc, sc->ip->i_ino);
+		xchk_ip_set_corrupt(sc, sc->ip);
 		error = 0;
 		goto out_ilock;
 	}
@@ -337,7 +337,7 @@ xchk_metapath(
 		goto out_ilock;
 	if (ino != sc->ip->i_ino) {
 		/* Pointing to wrong inode */
-		xchk_ino_set_corrupt(sc, sc->ip->i_ino);
+		xchk_ip_set_corrupt(sc, sc->ip);
 	}
 
 out_ilock:

@@ -979,10 +979,10 @@ xchk_dirtree(
 	xchk_dirtree_evaluate(dl, &oc);
 	if (xchk_dirtree_parentless(dl)) {
 		if (oc.good || oc.bad || oc.suspect)
-			xchk_ino_set_corrupt(sc, sc->ip->i_ino);
+			xchk_ip_set_corrupt(sc, sc->ip);
 	} else {
 		if (oc.bad || oc.good + oc.suspect != 1)
-			xchk_ino_set_corrupt(sc, sc->ip->i_ino);
+			xchk_ip_set_corrupt(sc, sc->ip);
 		if (oc.suspect)
 			xchk_ino_xref_set_corrupt(sc, sc->ip->i_ino);
 	}
