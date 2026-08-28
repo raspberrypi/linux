@@ -67,7 +67,7 @@ static inline void xfs_buf_dquot_io_fail(struct xfs_buf *bp)
 }
 #endif /* CONFIG_XFS_QUOTA */
 void	xfs_buf_iodone(struct xfs_buf *);
-bool	xfs_buf_log_check_iovec(struct xfs_log_iovec *iovec);
+bool	xfs_buf_log_check_iovec(struct kvec *iovec);
 
 extern struct kmem_cache	*xfs_buf_item_cache;
 
