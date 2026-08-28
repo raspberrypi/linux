@@ -502,6 +502,11 @@ struct ocfs2_super
 	 */
 	struct workqueue_struct *ocfs2_wq;
 
+	/* deferred reclaim of fully freed suballocator block groups */
+	spinlock_t os_suballoc_reclaim_lock;
+	struct list_head os_suballoc_reclaim_list;
+	struct work_struct os_suballoc_reclaim_work;
+
 	/* sysfs directory per partition */
 	struct kset *osb_dev_kset;
 
