@@ -659,6 +659,7 @@ config EYEQ
 	select USB_UHCI_BIG_ENDIAN_MMIO if CPU_BIG_ENDIAN
 	select USE_OF
 	select HOTPLUG_PARALLEL if HOTPLUG_CPU
+	select WEAK_REORDERING_BEYOND_LLSC
 	help
 	  Select this to build a kernel supporting EyeQ SoC from Mobileye.
 
