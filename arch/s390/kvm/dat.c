@@ -620,17 +620,20 @@ int dat_get_storage_key(union asce asce, gfn_t gfn, union skey *skey)
 	union pte *ptep;
 	int rc;
 
+again:
 	skey->skey = 0;
 	rc = dat_entry_walk(NULL, gfn, asce, DAT_WALK_ANY, TABLE_TYPE_PAGE_TABLE, &crstep, &ptep);
 	if (rc)
 		return rc;
 
 	if (!ptep) {
-		union crste crste;
+		union crste crste = READ_ONCE(*crstep);
 
-		crste = READ_ONCE(*crstep);
-		if (!crste.h.fc || !crste.s.fc1.pr)
+		if (!crste_leaf(crste) && !crste.h.i)
+			goto again;
+		if (!crste.s.fc1.pr)
 			return 0;
+
 		skey->skey = page_get_storage_key(large_crste_to_phys(crste, gfn));
 		return 0;
 	}
@@ -661,13 +664,20 @@ int dat_set_storage_key(struct kvm_s390_mmu_cache *mc, union asce asce, gfn_t gf
 	union pte *ptep;
 	int rc;
 
+again:
 	rc = dat_entry_walk(mc, gfn, asce, DAT_WALK_LEAF_ALLOC, TABLE_TYPE_PAGE_TABLE,
 			    &crstep, &ptep);
 	if (rc)
 		return rc;
 
 	if (!ptep) {
-		page_set_storage_key(large_crste_to_phys(*crstep, gfn), skey.skey, !nq);
+		union crste crste = READ_ONCE(*crstep);
+
+		/* A large page has been split concurrently, try again */
+		if (!crste_leaf(crste))
+			goto again;
+
+		page_set_storage_key(large_crste_to_phys(crste, gfn), skey.skey, !nq);
 		return 0;
 	}
 
@@ -717,15 +727,22 @@ int dat_cond_set_storage_key(struct kvm_s390_mmu_cache *mmc, union asce asce, gf
 	union pte *ptep;
 	int rc;
 
+again:
 	rc = dat_entry_walk(mmc, gfn, asce, DAT_WALK_LEAF_ALLOC, TABLE_TYPE_PAGE_TABLE,
 			    &crstep, &ptep);
 	if (rc)
 		return rc;
 
 	if (!ptep) {
+		union crste crste = READ_ONCE(*crstep);
+
+		/* A large page has been split concurrently, try again */
+		if (!crste_leaf(crste))
+			goto again;
 		if (!oldkey)
 			oldkey = &prev;
-		return page_cond_set_storage_key(large_crste_to_phys(*crstep, gfn), skey, oldkey,
+
+		return page_cond_set_storage_key(large_crste_to_phys(crste, gfn), skey, oldkey,
 						 nq, mr, mc);
 	}
 
@@ -766,7 +783,7 @@ int dat_reset_reference_bit(union asce asce, gfn_t gfn, union skey *skey)
 	int rc;
 
 	skey->skey = 0;
-
+again:
 	rc = dat_entry_walk(NULL, gfn, asce, DAT_WALK_ANY, TABLE_TYPE_PAGE_TABLE, &crstep, &ptep);
 	if (rc)
 		return rc;
@@ -774,9 +791,12 @@ int dat_reset_reference_bit(union asce asce, gfn_t gfn, union skey *skey)
 	if (!ptep) {
 		union crste crste = READ_ONCE(*crstep);
 
-		if (!crste.h.fc || !crste.s.fc1.pr)
+		/* A large page has been split concurrently, try again */
+		if (!crste_leaf(crste) && !crste.h.i)
+			goto again;
+		if (!crste.s.fc1.pr)
 			return 0;
-		skey->skey = page_reset_referenced(large_crste_to_phys(*crstep, gfn)) << 1;
+		skey->skey = page_reset_referenced(large_crste_to_phys(crste, gfn)) << 1;
 		return 0;
 	}
 	old = pgste_get_lock(ptep);
