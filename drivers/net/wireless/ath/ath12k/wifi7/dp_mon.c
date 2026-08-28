@@ -3211,18 +3211,23 @@ __ath12k_wifi7_dp_mon_process_ring(struct ath12k *ar, int mac_id,
 		goto exit;
 
 	while ((skb = __skb_dequeue(&skb_list))) {
-		memset(ppdu_info, 0, sizeof(*ppdu_info));
-		ppdu_info->peer_id = HAL_INVALID_PEERID;
+		if (!ppdu_info->ppdu_continuation)
+			ath12k_wifi7_dp_mon_rx_memset_ppdu_info(ppdu_info);
 
 		hal_status = ath12k_wifi7_dp_mon_parse_rx_dest(&ar->dp, pmon, skb);
 
-		if (ar->monitor_started &&
-		    pmon->mon_ppdu_status == DP_PPDU_STATUS_START &&
-		    hal_status == HAL_TLV_STATUS_PPDU_DONE) {
-			rx_mon_stats->status_ppdu_done++;
-			pmon->mon_ppdu_status = DP_PPDU_STATUS_DONE;
-			ath12k_wifi7_dp_rx_mon_dest_process(ar, mac_id, *budget, napi);
-			pmon->mon_ppdu_status = DP_PPDU_STATUS_START;
+		if (hal_status == HAL_TLV_STATUS_PPDU_DONE) {
+			ppdu_info->ppdu_continuation = false;
+			if (ar->monitor_started &&
+			    pmon->mon_ppdu_status == DP_PPDU_STATUS_START) {
+				rx_mon_stats->status_ppdu_done++;
+				pmon->mon_ppdu_status = DP_PPDU_STATUS_DONE;
+				ath12k_wifi7_dp_rx_mon_dest_process(ar, mac_id,
+								    *budget, napi);
+				pmon->mon_ppdu_status = DP_PPDU_STATUS_START;
+			}
+		} else {
+			ppdu_info->ppdu_continuation = true;
 		}
 
 		dev_kfree_skb_any(skb);
