@@ -118,7 +118,9 @@ TEST_GEN_PROGS += test_progs-cpuv4
 TEST_INST_SUBDIRS += cpuv4
 endif
 
-TEST_FILES = xsk_prereqs.sh $(wildcard progs/btf_dump_test_case_*.c)
+TEST_FILES = xsk_prereqs.sh $(wildcard progs/btf_dump_test_case_*.c)	\
+	     bpftool_btf_dump_sorted.expected					\
+	     bpftool_btf_dump_unsorted.expected
 
 # Order correspond to 'make run_tests' order
 TEST_PROGS := test_kmod.sh \
@@ -882,7 +884,9 @@ TRUNNER_EXTRA_FILES := $(OUTPUT)/urandom_read				\
 		       ima_setup.sh 					\
 		       $(VERIFY_SIG_SETUP)				\
 		       $(wildcard progs/btf_dump_test_case_*.c)		\
-		       $(wildcard progs/*.bpf.o)
+		       $(wildcard progs/*.bpf.o)			\
+		       bpftool_btf_dump_sorted.expected			\
+		       bpftool_btf_dump_unsorted.expected
 TRUNNER_BPF_BUILD_RULE := CLANG_BPF_BUILD_RULE
 TRUNNER_BPF_CFLAGS := $(BPF_CFLAGS) $(CLANG_CFLAGS) -DENABLE_ATOMICS_TESTS
 $(eval $(call DEFINE_TEST_RUNNER,test_progs))
