@@ -3224,9 +3224,9 @@ int kvm_s390_set_irq_state(struct kvm_vcpu *vcpu, void __user *irqstate, int len
 				break;
 		}
 	}
-
 	if (storestatus) {
-		n = kvm_s390_store_status_unloaded(vcpu, KVM_S390_STORE_STATUS_NOADDR);
+		scoped_guard(srcu, &vcpu->kvm->srcu)
+			n = kvm_s390_store_status_unloaded(vcpu, KVM_S390_STORE_STATUS_NOADDR);
 		return r ? r : n;
 	}
 
