@@ -21,6 +21,10 @@
 #endif
 #endif
 
+enum {
+	E0 = 1,
+};
+
 struct holey {
 	int c;
 	long: 32;
