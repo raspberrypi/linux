@@ -149,6 +149,7 @@
 
 		width         = <&timing>, "hactive:0";
 		height        = <&timing>, "vactive:0";
+		rgb666        = <&panel>, "format=b6x2g6x2r6x2";
 		x-offset      = <&timing>, "hback-porch:0";
 		y-offset      = <&timing>, "vback-porch:0";
 		clock-frequency = <&timing>, "clock-frequency:0";
