@@ -515,8 +515,14 @@ static inline void arch_exit_to_user_mode_prepare(struct pt_regs *regs,
 #ifdef CONFIG_PPC_TRANSACTIONAL_MEM
 	local_paca->tm_scratch = regs->msr;
 #endif
-	/* Restore user access locks last */
-	kuap_user_restore(regs);
+	/*
+	 * Do not restore KUAP here. Generic entry might treat this as the last
+	 * arch step before userspace but PowerPC still has kernel work after
+	 * irqentry_exit()/syscall_exit_to_user_mode() i.e. in
+	 * interrupt_exit_user_prepare() / syscall_exit_prepare() may enable
+	 * IRQs and retry. Those functions restore KUAP immediately before rfi,
+	 * which is where it should belong.
+	 */
 }
 
 #define arch_exit_to_user_mode_prepare arch_exit_to_user_mode_prepare
