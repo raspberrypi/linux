@@ -1059,10 +1059,14 @@ static int nau8822_suspend(struct snd_soc_component *component)
 {
 	struct nau8822 *nau8822 = snd_soc_component_get_drvdata(component);
 	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
+	int ret;
 
 	snd_soc_dapm_force_bias_level(dapm, SND_SOC_BIAS_OFF);
-	regulator_bulk_disable(NAU8822_NUM_SUPPLIES, nau8822->supplies);
+	ret = regulator_bulk_disable(NAU8822_NUM_SUPPLIES, nau8822->supplies);
+	if (ret)
+		return ret;
 
+	regcache_cache_only(nau8822->regmap, true);
 	regcache_mark_dirty(nau8822->regmap);
 
 	return 0;
@@ -1072,7 +1076,9 @@ static int nau8822_resume(struct snd_soc_component *component)
 {
 	struct nau8822 *nau8822 = snd_soc_component_get_drvdata(component);
 	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
-	int ret = regulator_bulk_enable(NAU8822_NUM_SUPPLIES, nau8822->supplies);
+	int ret;
+
+	ret = regulator_bulk_enable(NAU8822_NUM_SUPPLIES, nau8822->supplies);
 
 	if (ret) {
 		dev_err(component->dev,
@@ -1082,7 +1088,10 @@ static int nau8822_resume(struct snd_soc_component *component)
 
 	fsleep(100);
 
-	regcache_sync(nau8822->regmap);
+	regcache_cache_only(nau8822->regmap, false);
+	ret = regcache_sync(nau8822->regmap);
+	if (ret)
+		return ret;
 
 	snd_soc_dapm_force_bias_level(dapm, SND_SOC_BIAS_STANDBY);
 
