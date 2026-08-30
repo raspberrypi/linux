@@ -283,7 +283,7 @@
 			cache-unified;
 			cache-size = <0x1000000>;
 		};
-	 };
+	};
 
 	die0: soc@200000000 {
 		compatible = "simple-bus";
