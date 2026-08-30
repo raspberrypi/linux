@@ -1490,6 +1490,8 @@ static void sdhci_set_transfer_mode(struct sdhci_host *host,
 
 static bool sdhci_needs_reset(struct sdhci_host *host, struct mmc_request *mrq)
 {
+	if (!mrq)
+		return false;
 	return (!(host->flags & SDHCI_DEVICE_DEAD) &&
 		((mrq->cmd && mrq->cmd->error) ||
 		 (mrq->sbc && mrq->sbc->error) ||
@@ -1629,6 +1631,7 @@ static void sdhci_finish_data(struct sdhci_host *host)
 
 static bool sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
+	const unsigned long default_timeout_secs = 5;
 	int flags;
 	u32 mask;
 	unsigned long timeout;
@@ -1704,10 +1707,10 @@ static bool sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	timeout = jiffies;
 	if (host->data_timeout)
 		timeout += nsecs_to_jiffies(host->data_timeout);
-	else if (!cmd->data && cmd->busy_timeout > 9000)
+	else if (!cmd->data && cmd->busy_timeout > (default_timeout_secs - 1) * 1000)
 		timeout += DIV_ROUND_UP(cmd->busy_timeout, 1000) * HZ + HZ;
 	else
-		timeout += 10 * HZ;
+		timeout += default_timeout_secs * HZ;
 	sdhci_mod_timer(host, cmd->mrq, timeout);
 
 	if (host->use_external_dma)
