@@ -157,7 +157,12 @@ static long long sym_get_range_val(struct symbol *sym, int base)
 	return strtoll(sym->curr.val, NULL, base);
 }
 
-static void sym_validate_range(struct symbol *sym)
+/*
+ * Return the nearest range bound for an out-of-range default value.
+ * Return NULL if the value is valid or the symbol has no active range.
+ */
+static struct symbol *sym_get_near_range_bound(struct symbol *sym,
+					  const char *value)
 {
 	struct property *prop;
 	struct symbol *range_sym;
@@ -172,21 +177,31 @@ static void sym_validate_range(struct symbol *sym)
 		base = 16;
 		break;
 	default:
-		return;
+		return NULL;
 	}
 	prop = sym_get_range_prop(sym);
 	if (!prop)
-		return;
-	val = strtoll(sym->curr.val, NULL, base);
+		return NULL;
+	val = strtoll(value, NULL, base);
 	range_sym = prop->expr->left.sym;
 	val2 = sym_get_range_val(range_sym, base);
 	if (val >= val2) {
 		range_sym = prop->expr->right.sym;
 		val2 = sym_get_range_val(range_sym, base);
 		if (val <= val2)
-			return;
+			return NULL;
 	}
-	sym->curr.val = range_sym->curr.val;
+
+	return range_sym;
+}
+
+static void sym_validate_range(struct symbol *sym)
+{
+	struct symbol *range_sym;
+
+	range_sym = sym_get_near_range_bound(sym, sym->curr.val);
+	if (range_sym)
+		sym->curr.val = range_sym->curr.val;
 }
 
 static void sym_set_changed(struct symbol *sym)
@@ -812,7 +827,7 @@ bool sym_set_string_value(struct symbol *sym, const char *newval)
 const char *sym_get_string_default(struct symbol *sym)
 {
 	struct property *prop;
-	struct symbol *ds;
+	struct symbol *ds, *range_sym;
 	const char *str = "";
 	tristate val;
 
@@ -830,11 +845,6 @@ const char *sym_get_string_default(struct symbol *sym)
 			val = EXPR_AND(expr_calc_value(prop->expr), prop->visible.tri);
 			break;
 		default:
-			/*
-			 * The following fails to handle the situation
-			 * where a default value is further limited by
-			 * the valid range.
-			 */
 			ds = prop_get_symbol(prop);
 			if (ds != NULL) {
 				sym_calc_value(ds);
@@ -878,6 +888,11 @@ const char *sym_get_string_default(struct symbol *sym)
 	default:
 		break;
 	}
+
+	range_sym = sym_get_near_range_bound(sym, str);
+	if (range_sym)
+		str = range_sym->curr.val;
+
 	return str;
 }
 
