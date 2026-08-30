@@ -1701,7 +1701,9 @@ static void sma1307_setting_loaded(struct sma1307_priv *sma1307, const char *fil
 			__func__, setting_file, ERR_PTR(ret));
 		sma1307->set.status = false;
 		return;
-	} else if ((fw->size) < SMA1307_SETTING_HEADER_SIZE) {
+	} else if (fw->size % sizeof(int) ||
+		   fw->size < (SMA1307_SETTING_HEADER_SIZE +
+				       SMA1307_SETTING_DEFAULT_SIZE) * sizeof(int)) {
 		dev_err(sma1307->dev, "%s: Invalid file\n", __func__);
 		sma1307->set.status = false;
 		return;
@@ -1720,6 +1722,10 @@ static void sma1307_setting_loaded(struct sma1307_priv *sma1307, const char *fil
 	sma1307->set.checksum = data[sma1307->set.header_size - 2];
 	sma1307->set.num_mode = data[sma1307->set.header_size - 1];
 	num_mode = sma1307->set.num_mode;
+	if (num_mode < 0 || num_mode > ARRAY_SIZE(sma1307->set.mode_set)) {
+		sma1307->set.status = false;
+		return;
+	}
 	sma1307->set.header = devm_kmalloc_array(sma1307->dev,
 						 sma1307->set.header_size,
 						 sizeof(int),
@@ -1755,7 +1761,11 @@ static void sma1307_setting_loaded(struct sma1307_priv *sma1307, const char *fil
 
 	/* MODE */
 	offset = sma1307->set.header_size + sma1307->set.def_size;
-	sma1307->set.mode_size = DIV_ROUND_CLOSEST(size - offset, num_mode + 1);
+	if ((size - offset) % (num_mode + 1)) {
+		sma1307->set.status = false;
+		return;
+	}
+	sma1307->set.mode_size = (size - offset) / (num_mode + 1);
 	for (int i = 0; i < num_mode; i++) {
 		sma1307->set.mode_set[i]
 		    = devm_kzalloc(sma1307->dev,
