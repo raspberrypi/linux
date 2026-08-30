@@ -342,27 +342,48 @@ static int sta32x_sync_coef_shadow(struct snd_soc_component *component)
 {
 	struct sta32x_priv *sta32x = snd_soc_component_get_drvdata(component);
 	unsigned int cfud;
-	int i;
+	int i, ret;
 
 	/* preserve reserved bits in STA32X_CFUD */
-	regmap_read(sta32x->regmap, STA32X_CFUD, &cfud);
+	ret = regmap_read(sta32x->regmap, STA32X_CFUD, &cfud);
+	if (ret)
+		return ret;
+
 	cfud &= 0xf0;
 
 	for (i = 0; i < STA32X_COEF_COUNT; i++) {
-		regmap_write(sta32x->regmap, STA32X_CFADDR2, i);
-		regmap_write(sta32x->regmap, STA32X_B1CF1,
-			     (sta32x->coef_shadow[i] >> 16) & 0xff);
-		regmap_write(sta32x->regmap, STA32X_B1CF2,
-			     (sta32x->coef_shadow[i] >> 8) & 0xff);
-		regmap_write(sta32x->regmap, STA32X_B1CF3,
-			     (sta32x->coef_shadow[i]) & 0xff);
+		ret = regmap_write(sta32x->regmap, STA32X_CFADDR2, i);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(sta32x->regmap, STA32X_B1CF1,
+				   (sta32x->coef_shadow[i] >> 16) & 0xff);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(sta32x->regmap, STA32X_B1CF2,
+				   (sta32x->coef_shadow[i] >> 8) & 0xff);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(sta32x->regmap, STA32X_B1CF3,
+				   sta32x->coef_shadow[i] & 0xff);
+		if (ret)
+			return ret;
+
 		/*
 		 * chip documentation does not say if the bits are
 		 * self-clearing, so do it explicitly
 		 */
-		regmap_write(sta32x->regmap, STA32X_CFUD, cfud);
-		regmap_write(sta32x->regmap, STA32X_CFUD, cfud | 0x01);
+		ret = regmap_write(sta32x->regmap, STA32X_CFUD, cfud);
+		if (ret)
+			return ret;
+
+		ret = regmap_write(sta32x->regmap, STA32X_CFUD, cfud | 0x01);
+		if (ret)
+			return ret;
 	}
+
 	return 0;
 }
 
@@ -370,15 +391,24 @@ static int sta32x_cache_sync(struct snd_soc_component *component)
 {
 	struct sta32x_priv *sta32x = snd_soc_component_get_drvdata(component);
 	unsigned int mute;
-	int rc;
+	int restore_ret, ret;
 
 	/* mute during register sync */
-	regmap_read(sta32x->regmap, STA32X_MMUTE, &mute);
-	regmap_write(sta32x->regmap, STA32X_MMUTE, mute | STA32X_MMUTE_MMUTE);
-	sta32x_sync_coef_shadow(component);
-	rc = regcache_sync(sta32x->regmap);
-	regmap_write(sta32x->regmap, STA32X_MMUTE, mute);
-	return rc;
+	ret = regmap_read(sta32x->regmap, STA32X_MMUTE, &mute);
+	if (ret)
+		return ret;
+
+	ret = regmap_write(sta32x->regmap, STA32X_MMUTE,
+			   mute | STA32X_MMUTE_MMUTE);
+	if (ret)
+		return ret;
+
+	ret = sta32x_sync_coef_shadow(component);
+	if (!ret)
+		ret = regcache_sync(sta32x->regmap);
+
+	restore_ret = regmap_write(sta32x->regmap, STA32X_MMUTE, mute);
+	return ret ?: restore_ret;
 }
 
 /* work around ESD issue where sta32x resets and loses all configuration */
@@ -794,9 +824,9 @@ static int sta32x_startup_sequence(struct sta32x_priv *sta32x)
 static int sta32x_set_bias_level(struct snd_soc_component *component,
 				 enum snd_soc_bias_level level)
 {
-	int ret;
 	struct sta32x_priv *sta32x = snd_soc_component_get_drvdata(component);
 	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
+	int cleanup_ret, ret;
 
 	dev_dbg(component->dev, "level = %d\n", level);
 	switch (level) {
@@ -820,15 +850,28 @@ static int sta32x_set_bias_level(struct snd_soc_component *component,
 				return ret;
 			}
 
-			sta32x_startup_sequence(sta32x);
-			sta32x_cache_sync(component);
+			ret = sta32x_startup_sequence(sta32x);
+			if (!ret)
+				ret = sta32x_cache_sync(component);
+			if (ret)
+				goto restore_failed;
+
+			ret = regmap_update_bits(sta32x->regmap, STA32X_CONFF,
+						 STA32X_CONFF_PWDN | STA32X_CONFF_EAPD,
+						 0);
+			if (ret)
+				goto restore_failed;
+
 			sta32x_watchdog_start(sta32x);
+			break;
 		}
 
 		/* Power down */
-		regmap_update_bits(sta32x->regmap, STA32X_CONFF,
-				   STA32X_CONFF_PWDN | STA32X_CONFF_EAPD,
-				   0);
+		ret = regmap_update_bits(sta32x->regmap, STA32X_CONFF,
+					 STA32X_CONFF_PWDN | STA32X_CONFF_EAPD,
+					 0);
+		if (ret)
+			return ret;
 
 		break;
 
@@ -846,6 +889,16 @@ static int sta32x_set_bias_level(struct snd_soc_component *component,
 		break;
 	}
 	return 0;
+
+restore_failed:
+	gpiod_set_value(sta32x->gpiod_nreset, 0);
+	regcache_mark_dirty(sta32x->regmap);
+	cleanup_ret = regulator_bulk_disable(ARRAY_SIZE(sta32x->supplies),
+					     sta32x->supplies);
+	if (cleanup_ret)
+		dev_warn(component->dev, "Failed to disable supplies: %d\n",
+			 cleanup_ret);
+	return ret;
 }
 
 static const struct snd_soc_dai_ops sta32x_dai_ops = {
