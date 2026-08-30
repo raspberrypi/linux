@@ -125,11 +125,12 @@ static int starfive_cryp_probe(struct platform_device *pdev)
 		return ret;
 
 	ret = clk_prepare_enable(cryp->ahb);
-	if (ret) {
-		clk_disable_unprepare(cryp->hclk);
-		return ret;
-	}
-	reset_control_deassert(cryp->rst);
+	if (ret)
+		goto disable_hclk;
+
+	ret = reset_control_deassert(cryp->rst);
+	if (ret)
+		goto disable_ahb;
 
 	spin_lock(&dev_list.lock);
 	list_add(&cryp->list, &dev_list.dev_list);
@@ -177,9 +178,11 @@ err_dma_init:
 	list_del(&cryp->list);
 	spin_unlock(&dev_list.lock);
 
-	clk_disable_unprepare(cryp->hclk);
-	clk_disable_unprepare(cryp->ahb);
 	reset_control_assert(cryp->rst);
+disable_ahb:
+	clk_disable_unprepare(cryp->ahb);
+disable_hclk:
+	clk_disable_unprepare(cryp->hclk);
 
 	return ret;
 }
