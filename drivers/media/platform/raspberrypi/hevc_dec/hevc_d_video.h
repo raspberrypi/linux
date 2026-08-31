@@ -14,12 +14,6 @@
 #ifndef _HEVC_D_VIDEO_H_
 #define _HEVC_D_VIDEO_H_
 
-struct hevc_d_format {
-	u32		pixelformat;
-	u32		directions;
-	unsigned int	capabilities;
-};
-
 static inline int is_sps_set(const struct v4l2_ctrl_hevc_sps * const sps)
 {
 	return sps && sps->pic_width_in_luma_samples;
