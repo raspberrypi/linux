@@ -133,6 +133,9 @@ struct hevc_d_ctx {
 	unsigned int p2idx;
 	struct hevc_d_hwbuf pu_bufs[HEVC_D_P2BUF_COUNT];
 	struct hevc_d_hwbuf coeff_bufs[HEVC_D_P2BUF_COUNT];
+	/* Last sizes we expanded to */
+	size_t pu_size_max;
+	size_t coeff_size_max;
 
 	/* Spinlock protecting aux_free */
 	spinlock_t aux_lock;
@@ -189,7 +192,6 @@ extern int hevc_d_v4l2_debug;
 #define hevc_d_dbg(level, dev, fmt, arg...)\
 	v4l2_dbg((level), hevc_d_v4l2_debug, (dev), fmt, ## arg)
 
-struct v4l2_ctrl *hevc_d_find_ctrl(struct hevc_d_ctx *ctx, u32 id);
 void *hevc_d_find_control_data(struct hevc_d_ctx *ctx, u32 id);
 
 #endif
