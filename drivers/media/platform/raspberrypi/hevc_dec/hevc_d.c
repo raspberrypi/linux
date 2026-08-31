@@ -52,6 +52,7 @@ static const struct v4l2_ctrl_config hevc_d_ctrls[] = {
 	}, {
 		.name	= "Slice param array",
 		.id	= V4L2_CID_STATELESS_HEVC_SLICE_PARAMS,
+		.ops	= &hevc_d_hevc_slice_params_ctrl_ops,
 		.type	= V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS,
 		.flags	= V4L2_CTRL_FLAG_DYNAMIC_ARRAY,
 		.dims	= { 600 },
@@ -78,7 +79,6 @@ void *hevc_d_find_control_data(struct hevc_d_ctx *ctx, u32 id)
 static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *hdl = &ctx->hdl;
-	struct v4l2_ctrl *ctrl;
 	unsigned int i;
 
 	v4l2_ctrl_handler_init(hdl, ARRAY_SIZE(hevc_d_ctrls));
@@ -89,7 +89,7 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(hevc_d_ctrls); i++) {
-		ctrl = v4l2_ctrl_new_custom(hdl, &hevc_d_ctrls[i], ctx);
+		v4l2_ctrl_new_custom(hdl, &hevc_d_ctrls[i], ctx);
 		if (hdl->error) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Failed to create new custom control id=%#x\n",
@@ -154,16 +154,13 @@ static int hevc_d_release(struct file *file)
 	struct hevc_d_ctx *ctx = container_of(file->private_data,
 					      struct hevc_d_ctx, fh);
 
-	v4l2_fh_del(&ctx->fh, file);
-
-	v4l2_ctrl_handler_free(&ctx->hdl);
-
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
-
+	v4l2_fh_del(&ctx->fh, file);
 	v4l2_fh_exit(&ctx->fh);
+	v4l2_ctrl_handler_free(&ctx->hdl);
 	mutex_destroy(&ctx->ctx_mutex);
-
 	kfree(ctx);
+
 	return 0;
 }
 
@@ -221,13 +218,13 @@ static int hevc_d_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	mutex_init(&dev->dev_mutex);
-
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to register V4L2 device\n");
-		return ret;
+		dev_err_probe(&pdev->dev, ret, "Failed to register V4L2 device\n");
+		goto err_hw;
 	}
+
+	mutex_init(&dev->dev_mutex);
 
 	vfd = &dev->vfd;
 	vfd->lock = &dev->dev_mutex;
@@ -293,9 +290,13 @@ err_m2m_mc:
 err_video:
 	video_unregister_device(&dev->vfd);
 err_m2m:
+	media_device_cleanup(&dev->mdev);
 	v4l2_m2m_release(dev->m2m_dev);
 err_v4l2:
+	mutex_destroy(&dev->dev_mutex);
 	v4l2_device_unregister(&dev->v4l2_dev);
+err_hw:
+	hevc_d_hw_remove(dev);
 
 	return ret;
 }
@@ -310,6 +311,7 @@ static void hevc_d_remove(struct platform_device *pdev)
 
 	v4l2_m2m_release(dev->m2m_dev);
 	video_unregister_device(&dev->vfd);
+	mutex_destroy(&dev->dev_mutex);
 	v4l2_device_unregister(&dev->v4l2_dev);
 
 	hevc_d_hw_remove(dev);
