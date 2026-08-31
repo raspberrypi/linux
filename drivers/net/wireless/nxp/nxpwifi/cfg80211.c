@@ -844,8 +844,7 @@ nxpwifi_change_vif_to_sta(struct net_device *dev,
 	update_vif_type_counter(adapter, type, 1);
 	dev->ieee80211_ptr->iftype = type;
 
-	if (nxpwifi_set_bss_mode(priv))
-		return -1;
+	ret = nxpwifi_set_bss_mode(priv);
 
 	if (ret)
 		goto done;
@@ -888,8 +887,7 @@ nxpwifi_change_vif_to_ap(struct net_device *dev,
 	update_vif_type_counter(adapter, type, 1);
 	dev->ieee80211_ptr->iftype = type;
 
-	if (nxpwifi_set_bss_mode(priv))
-		return -1;
+	ret = nxpwifi_set_bss_mode(priv);
 
 	if (ret)
 		goto done;
