@@ -12,6 +12,7 @@
 
 extern const struct v4l2_ctrl_ops hevc_d_hevc_sps_ctrl_ops;
 extern const struct v4l2_ctrl_ops hevc_d_hevc_pps_ctrl_ops;
+extern const struct v4l2_ctrl_ops hevc_d_hevc_slice_params_ctrl_ops;
 
 int hevc_d_h265_start(struct hevc_d_ctx *ctx);
 void hevc_d_h265_stop(struct hevc_d_ctx *ctx);
