@@ -1540,6 +1540,8 @@ static int ab8500_audio_init_audioblock(struct snd_soc_component *component)
 static int ab8500_audio_setup_mics(struct snd_soc_component *component,
 			struct amic_settings *amics)
 {
+	struct device *dev = component->dev;
+	struct ab8500 *ab8500 = dev_get_drvdata(dev->parent);
 	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
 	u8 value8;
 	unsigned int value;
@@ -1548,20 +1550,21 @@ static int ab8500_audio_setup_mics(struct snd_soc_component *component,
 
 	dev_dbg(component->dev, "%s: Enter.\n", __func__);
 
-	/* Set DMic-clocks to outputs */
-	status = abx500_get_register_interruptible(component->dev, AB8500_MISC,
-						AB8500_GPIO_DIR4_REG,
-						&value8);
-	if (status < 0)
-		return status;
-	value = value8 | GPIO27_DIR_OUTPUT | GPIO29_DIR_OUTPUT |
-		GPIO31_DIR_OUTPUT;
-	status = abx500_set_register_interruptible(component->dev,
-						AB8500_MISC,
-						AB8500_GPIO_DIR4_REG,
-						value);
-	if (status < 0)
-		return status;
+	/* Set DMic-clocks to outputs; these GPIOs do not exist on AB8505. */
+	if (!is_ab8505(ab8500)) {
+		status = abx500_get_register_interruptible(dev, AB8500_MISC,
+							   AB8500_GPIO_DIR4_REG,
+							   &value8);
+		if (status < 0)
+			return status;
+		value = value8 | GPIO27_DIR_OUTPUT | GPIO29_DIR_OUTPUT |
+			GPIO31_DIR_OUTPUT;
+		status = abx500_set_register_interruptible(dev, AB8500_MISC,
+							   AB8500_GPIO_DIR4_REG,
+							   value);
+		if (status < 0)
+			return status;
+	}
 
 	/* Attach regulators to AMic DAPM-paths */
 	dev_dbg(component->dev, "%s: Mic 1a regulator: %s\n", __func__,
