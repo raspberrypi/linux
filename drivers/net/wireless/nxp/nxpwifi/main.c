@@ -603,14 +603,18 @@ static int _nxpwifi_fw_dpc(const struct firmware *firmware, void *context)
 	maybe_quirk_fw_disable_ds(adapter);
 
 	if (!adapter->wiphy) {
-		if (nxpwifi_register_cfg80211(adapter)) {
+		ret = nxpwifi_register_cfg80211(adapter);
+
+		if (ret) {
 			nxpwifi_dbg(adapter, ERROR,
 				    "cannot register with cfg80211\n");
 			goto err_init_fw;
 		}
 	}
 
-	if (nxpwifi_init_channel_scan_gap(adapter)) {
+	ret = nxpwifi_init_channel_scan_gap(adapter);
+
+	if (ret) {
 		nxpwifi_dbg(adapter, ERROR,
 			    "could not init channel stats table\n");
 		goto err_init_chan_scan;
@@ -623,6 +627,7 @@ static int _nxpwifi_fw_dpc(const struct firmware *firmware, void *context)
 	if (IS_ERR(wdev)) {
 		nxpwifi_dbg(adapter, ERROR,
 			    "cannot create default STA interface\n");
+		ret = PTR_ERR(wdev);
 		rtnl_unlock();
 		goto err_add_intf;
 	}
@@ -632,6 +637,7 @@ static int _nxpwifi_fw_dpc(const struct firmware *firmware, void *context)
 	if (IS_ERR(wdev)) {
 		nxpwifi_dbg(adapter, ERROR,
 			    "cannot create AP interface\n");
+		ret = PTR_ERR(wdev);
 		rtnl_unlock();
 		goto err_add_intf;
 	}
