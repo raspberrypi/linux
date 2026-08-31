@@ -963,7 +963,8 @@
 &tlmm {
 	gpio-reserved-ranges = <4 4>, /* EC TZ Secure I3C */
 			       <10 2>, /* OOB UART */
-			       <44 4>; /* Security SPI (TPM) */
+			       <44 4>, /* Security SPI (TPM) */
+			       <65 1>; /* EC reset */
 
 	edp_bl_en: edp-bl-en-state {
 		pins = "gpio18";
