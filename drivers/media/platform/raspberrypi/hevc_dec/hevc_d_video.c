@@ -38,9 +38,9 @@ static inline unsigned int constrain2x(unsigned int x, unsigned int y)
 size_t hevc_d_round_up_size(const size_t x)
 {
 	/* Admit no size < 256 */
-	const unsigned int n = x < 256 ? 8 : ilog2(x);
+	const unsigned int n = x < 256 ? 7 : ilog2(x) - 1;
 
-	return x >= (3 << n) ? 4 << n : (3 << n);
+	return x >= ((size_t)3 << n) ? (size_t)4 << n : ((size_t)3 << n);
 }
 
 size_t hevc_d_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
@@ -95,6 +95,11 @@ void hevc_d_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 	/* Zero bytes per line for encoded source. */
 	pix_fmt->plane_fmt[0].bytesperline = 0;
 	pix_fmt->plane_fmt[0].sizeimage = size;
+
+	/* Zero all unused planes */
+	memset(pix_fmt->plane_fmt + pix_fmt->num_planes, 0,
+	       (ARRAY_SIZE(pix_fmt->plane_fmt) - pix_fmt->num_planes) *
+		sizeof(*pix_fmt->plane_fmt));
 }
 
 /* Take any pix_format and make it valid */
@@ -189,6 +194,11 @@ static void hevc_d_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 		pix_fmt->num_planes = 1;
 		break;
 	}
+
+	/* Zero all unused planes */
+	memset(pix_fmt->plane_fmt + pix_fmt->num_planes, 0,
+	       (ARRAY_SIZE(pix_fmt->plane_fmt) - pix_fmt->num_planes) *
+		sizeof(*pix_fmt->plane_fmt));
 }
 
 static int hevc_d_querycap(struct file *file, void *priv,
@@ -217,61 +227,8 @@ static int hevc_d_enum_fmt_vid_out(struct file *file, void *priv,
 	return -EINVAL;
 }
 
-static int hevc_d_hevc_validate_sps(const struct v4l2_ctrl_hevc_sps * const sps)
-{
-	const unsigned int ctb_log2_size_y =
-			sps->log2_min_luma_coding_block_size_minus3 + 3 +
-			sps->log2_diff_max_min_luma_coding_block_size;
-	const unsigned int min_tb_log2_size_y =
-			sps->log2_min_luma_transform_block_size_minus2 + 2;
-	const unsigned int max_tb_log2_size_y = min_tb_log2_size_y +
-			sps->log2_diff_max_min_luma_transform_block_size;
-
-	/* Local limitations */
-	if (sps->pic_width_in_luma_samples < 32 ||
-	    sps->pic_width_in_luma_samples > 4096)
-		return 0;
-	if (sps->pic_height_in_luma_samples < 32 ||
-	    sps->pic_height_in_luma_samples > 4096)
-		return 0;
-	if (!(sps->bit_depth_luma_minus8 == 0 ||
-	      sps->bit_depth_luma_minus8 == 2))
-		return 0;
-	if (sps->bit_depth_luma_minus8 != sps->bit_depth_chroma_minus8)
-		return 0;
-	if (sps->chroma_format_idc != 1)
-		return 0;
-
-	/*  Limits from H.265 7.4.3.2.1 */
-	if (sps->log2_max_pic_order_cnt_lsb_minus4 > 12)
-		return 0;
-	if (sps->sps_max_dec_pic_buffering_minus1 > 15)
-		return 0;
-	if (sps->sps_max_num_reorder_pics >
-				sps->sps_max_dec_pic_buffering_minus1)
-		return 0;
-	if (ctb_log2_size_y > 6)
-		return 0;
-	if (max_tb_log2_size_y > 5)
-		return 0;
-	if (max_tb_log2_size_y > ctb_log2_size_y)
-		return 0;
-	if (sps->max_transform_hierarchy_depth_inter >
-				(ctb_log2_size_y - min_tb_log2_size_y))
-		return 0;
-	if (sps->max_transform_hierarchy_depth_intra >
-				(ctb_log2_size_y - min_tb_log2_size_y))
-		return 0;
-	/* Check pcm stuff */
-	if (sps->num_short_term_ref_pic_sets > 64)
-		return 0;
-	if (sps->num_long_term_ref_pics_sps > 32)
-		return 0;
-	return 1;
-}
-
 static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
-				const int index)
+				const unsigned int index)
 {
 	static const u32 all_formats[] = {
 		V4L2_PIX_FMT_NV12MT_COL128,
@@ -281,7 +238,7 @@ static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 	};
 	u32 pf = 0;
 
-	if (!is_sps_set(sps) || !hevc_d_hevc_validate_sps(sps)) {
+	if (!is_sps_set(sps)) {
 		/* Treat this as an error? For now return both */
 
 		if (index < ARRAY_SIZE(all_formats))
@@ -333,7 +290,7 @@ hevc_d_hevc_default_dst_fmt(struct hevc_d_ctx * const ctx)
 }
 
 static u32 hevc_d_hevc_get_dst_pixelformat(struct hevc_d_ctx * const ctx,
-					   const int index)
+					   const unsigned int index)
 {
 	const struct v4l2_ctrl_hevc_sps * const sps =
 		hevc_d_find_control_data(ctx, V4L2_CID_STATELESS_HEVC_SPS);
@@ -391,7 +348,7 @@ static int hevc_d_try_fmt_vid_cap(struct file *file, void *priv,
 	const struct v4l2_ctrl_hevc_sps * const sps =
 		hevc_d_find_control_data(ctx, V4L2_CID_STATELESS_HEVC_SPS);
 	u32 pixelformat;
-	int i;
+	unsigned int i;
 
 	for (i = 0; (pixelformat = pixelformat_from_sps(sps, i)) != 0; i++) {
 		if (f->fmt.pix_mp.pixelformat == pixelformat)
