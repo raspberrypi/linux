@@ -7564,6 +7564,11 @@ void kvm_arch_flush_shadow_memslot(struct kvm *kvm,
 
 	write_lock(&kvm->mmu_lock);
 
+#ifdef CONFIG_HAVE_KVM_ARCH_GMEM_INVALIDATE
+	if (slot->gmem.file)
+		kvm_arch_gmem_invalidate_range(kvm, &range);
+#endif
+
 	if (zap_all) {
 		__kvm_mmu_zap_all_fast_front_half(kvm);
 	} else {

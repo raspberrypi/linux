@@ -4021,19 +4021,25 @@ static int snp_begin_psc(struct vcpu_svm *svm)
 	return snp_do_psc(svm);
 }
 
-static void sev_snp_reload_vmsa(struct kvm_vcpu *vcpu, gpa_t gpa)
+static void __sev_snp_reload_vmsa(struct kvm_vcpu *vcpu, gpa_t gpa)
 {
 	struct vcpu_svm *svm = to_svm(vcpu);
 	struct kvm_memory_slot *slot;
+	struct kvm *kvm = vcpu->kvm;
 	gfn_t gfn = gpa_to_gfn(gpa);
+	unsigned long mmu_seq;
 	struct page *page;
 	kvm_pfn_t pfn;
 
 	lockdep_assert_held(&svm->sev_es.snp_vmsa_mutex);
 
-	/* Clear use of the VMSA. */
+	/*
+	 * Clear use of the VMSA.  Ensure snp_guest_vmsa_gpa is written exactly
+	 * once, as it is read locklessly when responding to gfn invalidations.
+	 * Pairs with the READ_ONCE() in sev_gmem_invalidate_range().
+	 */
 	svm->vmcb->control.vmsa_pa = INVALID_PAGE;
-	svm->sev_es.snp_guest_vmsa_gpa = INVALID_PAGE;
+	WRITE_ONCE(svm->sev_es.snp_guest_vmsa_gpa, INVALID_PAGE);
 
 	/*
 	 * When replacing the VMSA during SEV-SNP AP creation,
@@ -4047,6 +4053,9 @@ static void sev_snp_reload_vmsa(struct kvm_vcpu *vcpu, gpa_t gpa)
 	slot = gfn_to_memslot(vcpu->kvm, gfn);
 	if (!slot)
 		return;
+
+	mmu_seq = kvm->mmu_invalidate_seq;
+	smp_rmb();
 
 	/*
 	 * The new VMSA will be private memory guest memory, so retrieve the
@@ -4066,15 +4075,20 @@ static void sev_snp_reload_vmsa(struct kvm_vcpu *vcpu, gpa_t gpa)
 	 */
 	svm->sev_es.snp_has_guest_vmsa = true;
 
-	/* Use the new VMSA */
-	svm->sev_es.snp_guest_vmsa_gpa = gpa;
-	svm->vmcb->control.vmsa_pa = pfn_to_hpa(pfn);
-
+	read_lock(&kvm->mmu_lock);
 	/*
-	 * gmem pages aren't currently migratable, but if this ever changes
-	 * then care should be taken to ensure svm->sev_es.vmsa is pinned
-	 * through some other means.
+	 * Save the guest-provided GPA.  If retry is needed, then KVM will try
+	 * again with the same GPA.  If the VMSA is usable, then KVM needs to
+	 * track the GPA so that the VMSA can be reloaded if the backing page
+	 * for the GPA is invalidated.
 	 */
+	svm->sev_es.snp_guest_vmsa_gpa = gpa;
+	if (mmu_invalidate_retry_gfn(kvm, mmu_seq, gfn))
+		kvm_make_request(KVM_REQ_VMSA_PAGE_RELOAD, vcpu);
+	else
+		svm->vmcb->control.vmsa_pa = pfn_to_hpa(pfn);
+	read_unlock(&kvm->mmu_lock);
+
 	kvm_release_page_clean(page);
 }
 
@@ -4100,7 +4114,7 @@ static void sev_snp_init_protected_guest_state(struct kvm_vcpu *vcpu)
 	gpa = svm->sev_es.snp_pending_vmsa_gpa;
 	svm->sev_es.snp_pending_vmsa_gpa = INVALID_PAGE;
 
-	sev_snp_reload_vmsa(vcpu, gpa);
+	__sev_snp_reload_vmsa(vcpu, gpa);
 
 	/*
 	 * Mark the vCPU as runnable for CREATE requests, indicated by a valid
@@ -4110,6 +4124,15 @@ static void sev_snp_init_protected_guest_state(struct kvm_vcpu *vcpu)
 	 */
 	if (VALID_PAGE(gpa))
 		kvm_set_mp_state(vcpu, KVM_MP_STATE_RUNNABLE);
+}
+
+void sev_snp_reload_vmsa(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_sev_es_state *sev_es = &to_svm(vcpu)->sev_es;
+
+	guard(mutex)(&sev_es->snp_vmsa_mutex);
+
+	__sev_snp_reload_vmsa(vcpu, sev_es->snp_guest_vmsa_gpa);
 }
 
 static int sev_snp_ap_creation(struct vcpu_svm *svm)
@@ -5238,6 +5261,41 @@ void sev_gmem_invalidate(kvm_pfn_t start, kvm_pfn_t end)
 next_pfn:
 		pfn += use_2m_update ? PTRS_PER_PMD : 1;
 		cond_resched();
+	}
+}
+
+void sev_gmem_invalidate_range(struct kvm *kvm, struct kvm_gfn_range *range)
+{
+	struct kvm_vcpu *vcpu;
+	unsigned long i;
+
+	lockdep_assert_held_write(&kvm->mmu_lock);
+
+	/*
+	 * An unstable result for "is SNP" is a-ok here, thanks to mmu_lock.
+	 * The vCPU's VMSA GPA is invalidated before the vCPU is made visible
+	 * to other tasks, and can only become valid while holding mmu_lock,
+	 * after the VM is fully committed to being an SNP VM.
+	 */
+	if (!____sev_snp_guest(kvm))
+		return;
+
+	kvm_for_each_vcpu(i, vcpu, kvm) {
+		/*
+		 * Read snp_guest_vmsa_gpa without taking the vCPU's VMSA mutex
+		 * (or its generic mutex) as mmu_lock is held, i.e. this task
+		 * can't sleep.  The VMSA is invalidated outside of mmu_lock,
+		 * but can only become valid inside of mmu_lock, i.e. the below
+		 * can get false positives, but not false negatives.  A false
+		 * positive is benign, as a spurious request simply forces the
+		 * vCPU to re-establish its VMSA.
+		 */
+		gpa_t gpa = READ_ONCE(to_svm(vcpu)->sev_es.snp_guest_vmsa_gpa);
+
+		if (VALID_PAGE(gpa) &&
+		    gpa_to_gfn(gpa) >= range->start &&
+		    gpa_to_gfn(gpa) < range->end)
+			kvm_make_request_and_kick(KVM_REQ_VMSA_PAGE_RELOAD, vcpu);
 	}
 }
 
