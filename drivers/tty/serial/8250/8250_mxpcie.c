@@ -542,6 +542,8 @@ static int mxpcie8250_probe(struct pci_dev *pdev, const struct pci_device_id *id
 
 	mxpcie8250_init_board(pdev, priv);
 
+	pci_set_drvdata(pdev, priv);
+
 	up.port.dev = dev;
 	up.port.irq = pdev->irq;
 	up.port.uartclk = MOXA_PUART_BASE_BAUD * 16;
@@ -578,7 +580,6 @@ static int mxpcie8250_probe(struct pci_dev *pdev, const struct pci_device_id *id
 		}
 		priv->port[i].rx_trig_level = MOXA_PUART_RX_TRIG_DEFAULT;
 	}
-	pci_set_drvdata(pdev, priv);
 
 	return 0;
 }
