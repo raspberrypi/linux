@@ -1429,6 +1429,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			else if (sta->mlo && links == BIT(link_id)) /* last link */
 				mt7996_mcu_teardown_mld_sta(dev, link,
 							    msta_link);
+			msta_link->wcid.tx_info &= ~MT_WCID_TX_INFO_SET;
 			msta_link->wcid.sta_disabled = 1;
 			msta_link->wcid.sta = 0;
 			links = links & ~BIT(link_id);
