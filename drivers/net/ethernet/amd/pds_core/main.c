@@ -503,8 +503,8 @@ static void pdsc_reset_prepare(struct pci_dev *pdev)
 		mutex_lock(&pdsc->devcmd_lock);
 		pdsc_unmap_bars(pdsc);
 		mutex_unlock(&pdsc->devcmd_lock);
+		pci_release_regions(pdev);
 	}
-	pci_release_regions(pdev);
 	if (pci_is_enabled(pdev))
 		pci_disable_device(pdev);
 }
