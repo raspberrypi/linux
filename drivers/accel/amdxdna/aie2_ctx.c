@@ -799,6 +799,7 @@ free_cmd_bufs:
 	for (i = 0; i < ARRAY_SIZE(priv->cmd_buf); i++) {
 		if (!priv->cmd_buf[i])
 			continue;
+		amdxdna_gem_heap_free(client, priv->cmd_buf[i]);
 		drm_gem_object_put(to_gobj(priv->cmd_buf[i]));
 	}
 	amdxdna_gem_unpin(heap);
@@ -836,8 +837,14 @@ void aie2_hwctx_fini(struct amdxdna_hwctx *hwctx)
 	drm_sched_fini(&hwctx->priv->sched);
 	aie2_ctx_syncobj_destroy(hwctx);
 
-	for (idx = 0; idx < ARRAY_SIZE(hwctx->priv->cmd_buf); idx++)
+	for (idx = 0; idx < ARRAY_SIZE(hwctx->priv->cmd_buf); idx++) {
+		/*
+		 * The open/close will never be called for driver allocated
+		 * dev bo. Call amdxdna_gem_heap_free explicitly.
+		 */
+		amdxdna_gem_heap_free(hwctx->client, hwctx->priv->cmd_buf[idx]);
 		drm_gem_object_put(to_gobj(hwctx->priv->cmd_buf[idx]));
+	}
 	amdxdna_gem_unpin(hwctx->priv->heap);
 	drm_gem_object_put(to_gobj(hwctx->priv->heap));
 

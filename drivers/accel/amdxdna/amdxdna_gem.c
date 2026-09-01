@@ -37,6 +37,7 @@ amdxdna_init_dev_bo(struct amdxdna_gem_obj *dev_bo)
 	struct amdxdna_gem_obj *heap;
 	u64 heap_addr, exp_heap_uva;
 	u32 heap_id;
+	int ret;
 
 	if (xa_empty(&client->dev_heap_xa)) {
 		XDNA_DBG(xdna, "Empty heap xa");
@@ -58,24 +59,32 @@ amdxdna_init_dev_bo(struct amdxdna_gem_obj *dev_bo)
 	heap = xa_load(&client->dev_heap_xa, heap_id);
 	exp_heap_uva = amdxdna_gem_uva(heap);
 	heap_addr = amdxdna_gem_dev_addr(heap);
-	dev_bo->heap_start_id = heap_id;
 	dev_bo->mem.uva = dev_bo->mm_node.start - heap_addr + exp_heap_uva;
 
 	for (; heap_id < client->dev_heap_nid; heap_id++) {
 		heap = xa_load(&client->dev_heap_xa, heap_id);
 		if (!heap) {
 			XDNA_ERR(xdna, "Failed to load heap %d", heap_id);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto cleanup_heap_xa;
 		}
 		heap_addr = amdxdna_gem_uva(heap);
 		if (heap_addr == AMDXDNA_INVALID_ADDR) {
 			XDNA_ERR(xdna, "Heap %d is not mapped", heap_id);
-			return -EAGAIN;
+			ret = -EAGAIN;
+			goto cleanup_heap_xa;
 		}
 
 		if (heap_addr != exp_heap_uva) {
 			XDNA_ERR(xdna, "Heap %d uva is not contiguous", heap_id);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto cleanup_heap_xa;
+		}
+
+		ret = xa_insert(&dev_bo->heap_xa, heap_id, heap, GFP_KERNEL);
+		if (ret) {
+			ret = -ENOMEM;
+			goto cleanup_heap_xa;
 		}
 
 		if (heap->dev_addr + heap->mem.size >=
@@ -87,12 +96,15 @@ amdxdna_init_dev_bo(struct amdxdna_gem_obj *dev_bo)
 
 	if (heap_id == client->dev_heap_nid) {
 		XDNA_DBG(xdna, "Can not find heap end");
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto cleanup_heap_xa;
 	}
 
-	dev_bo->heap_end_id = heap_id;
-
 	return 0;
+
+cleanup_heap_xa:
+	xa_destroy(&dev_bo->heap_xa);
+	return ret;
 }
 
 static int
@@ -132,8 +144,7 @@ amdxdna_gem_heap_alloc(struct amdxdna_gem_obj *abo)
 	}
 
 	client->heap_usage += mem->size;
-	xa_for_each_range(&client->dev_heap_xa, heap_id, heap,
-			  abo->heap_start_id, abo->heap_end_id)
+	xa_for_each(&abo->heap_xa, heap_id, heap)
 		drm_gem_object_get(to_gobj(heap));
 
 unlock_out:
@@ -142,21 +153,12 @@ unlock_out:
 	return ret;
 }
 
-static void
-amdxdna_gem_heap_free(struct amdxdna_gem_obj *abo)
+void amdxdna_gem_heap_free(struct amdxdna_client *client, struct amdxdna_gem_obj *abo)
 {
-	struct amdxdna_client *client = abo->client;
-	struct amdxdna_gem_obj *heap;
-	unsigned long heap_id;
-
 	mutex_lock(&client->mm_lock);
 
 	drm_mm_remove_node(&abo->mm_node);
 	client->heap_usage -= abo->mem.size;
-
-	xa_for_each_range(&client->dev_heap_xa, heap_id, heap,
-			  abo->heap_start_id, abo->heap_end_id)
-		drm_gem_object_put(to_gobj(heap));
 
 	mutex_unlock(&client->mm_lock);
 }
@@ -180,6 +182,7 @@ amdxdna_gem_create_obj(struct drm_device *dev, size_t size)
 	abo->open_ref = 0;
 	abo->internal = false;
 	INIT_LIST_HEAD(&abo->mem.umap_list);
+	xa_init_flags(&abo->heap_xa, XA_FLAGS_ALLOC);
 
 	return abo;
 }
@@ -449,13 +452,18 @@ static void amdxdna_gem_dev_obj_free(struct drm_gem_object *gobj)
 {
 	struct amdxdna_dev *xdna = to_xdna_dev(gobj->dev);
 	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
+	struct amdxdna_gem_obj *heap;
+	unsigned long heap_id;
 
 	XDNA_DBG(xdna, "BO type %d xdna_addr 0x%llx", abo->type, amdxdna_gem_dev_addr(abo));
 	if (abo->pinned)
 		amdxdna_gem_unpin(abo);
 
 	amdxdna_gem_vunmap(abo);
-	amdxdna_gem_heap_free(abo);
+	xa_for_each(&abo->heap_xa, heap_id, heap)
+		drm_gem_object_put(to_gobj(heap));
+	xa_destroy(&abo->heap_xa);
+
 	drm_gem_object_release(gobj);
 	amdxdna_gem_destroy_obj(abo);
 }
@@ -757,19 +765,72 @@ static void amdxdna_gem_obj_vunmap(struct drm_gem_object *obj, struct iosys_map 
 		drm_gem_shmem_object_vunmap(obj, map);
 }
 
+static int amdxdna_gem_dev_obj_open(struct drm_gem_object *gobj, struct drm_file *filp)
+{
+	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
+
+	guard(mutex)(&abo->lock);
+	if (filp->driver_priv != abo->client)
+		return -EPERM;
+	abo->open_ref++;
+
+	return 0;
+}
+
+static void amdxdna_gem_dev_obj_close(struct drm_gem_object *gobj, struct drm_file *filp)
+{
+	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
+	struct amdxdna_client *client = NULL;
+
+	mutex_lock(&abo->lock);
+	abo->open_ref--;
+
+	/*
+	 * Freeing the heap allocation here, when the handle is closed, is
+	 * intentional.  DEV BOs are carved out of a per-client drm_mm heap;
+	 * any subsequent allocation that lands on the same device address will
+	 * also belong to the same client.  If the user closes the handle while
+	 * a job is still in flight the only consequence is self-inflicted
+	 * corruption within their own context -- it cannot affect other
+	 * processes.  The GEM reference held by the in-flight job keeps the
+	 * amdxdna_gem_obj struct alive until the job completes; it does not
+	 * prevent the device address from being reclaimed by the allocator.
+	 *
+	 * Cross-process handle creation for DEV BOs is rejected in
+	 * amdxdna_gem_dev_obj_open(), which prevents the following UAF:
+	 * if a second process shared the handle via GEM flink and the
+	 * original creator exited (freeing client), the importer would later
+	 * reach open_ref == 0 here and call amdxdna_gem_heap_free() with a
+	 * dangling abo->client pointer.  Because cross-process opens are
+	 * rejected, the process arriving here is always the owning client,
+	 * which is still alive.  abo->client is nulled out afterwards so that
+	 * any code path running on a lingering GEM reference (e.g. an
+	 * in-flight job) cannot silently dereference a stale pointer.
+	 */
+	if (abo->open_ref == 0) {
+		client = abo->client;
+		abo->client = NULL;
+	}
+	mutex_unlock(&abo->lock);
+
+	if (client)
+		amdxdna_gem_heap_free(client, abo);
+}
+
 static int amdxdna_gem_dev_obj_vmap(struct drm_gem_object *obj, struct iosys_map *map)
 {
 	struct amdxdna_gem_obj *abo = to_xdna_obj(obj);
 	struct amdxdna_gem_obj *heap;
+	unsigned long index = 0;
 	void *base;
 	u64 offset;
 
-	/* vmap dev bo which is across more than 1 heap is not allowed */
-	if (abo->heap_start_id != abo->heap_end_id)
+	heap = xa_find(&abo->heap_xa, &index, ULONG_MAX, XA_PRESENT);
+	if (!heap)
 		return -ENOMEM;
 
-	heap = xa_load(&abo->client->dev_heap_xa, abo->heap_start_id);
-	if (!heap)
+	/* vmap dev bo which is across more than 1 heap is not allowed */
+	if (xa_find_after(&abo->heap_xa, &index, ULONG_MAX, XA_PRESENT))
 		return -ENOMEM;
 
 	base = amdxdna_gem_vmap(heap);
@@ -788,6 +849,8 @@ static struct dma_buf *amdxdna_gem_dev_obj_export(struct drm_gem_object *gobj, i
 
 static const struct drm_gem_object_funcs amdxdna_gem_dev_obj_funcs = {
 	.free = amdxdna_gem_dev_obj_free,
+	.open = amdxdna_gem_dev_obj_open,
+	.close = amdxdna_gem_dev_obj_close,
 	.vmap = amdxdna_gem_dev_obj_vmap,
 	.export = amdxdna_gem_dev_obj_export,
 };
@@ -1126,6 +1189,8 @@ int amdxdna_drm_create_bo_ioctl(struct drm_device *dev, void *data, struct drm_f
 		 args->handle, args->type, amdxdna_gem_uva(abo),
 		 amdxdna_gem_dev_addr(abo), abo->mem.size);
 put_obj:
+	if (ret && abo->type == AMDXDNA_BO_DEV)
+		amdxdna_gem_heap_free(client, abo);
 	/* Dereference object reference. Handle holds it now. */
 	drm_gem_object_put(to_gobj(abo));
 	return ret;
@@ -1159,7 +1224,6 @@ static void amdxdna_bo_unpin(struct amdxdna_gem_obj *abo)
 
 int amdxdna_gem_pin_nolock(struct amdxdna_gem_obj *abo)
 {
-	struct amdxdna_client *client = abo->client;
 	struct amdxdna_gem_obj *heap;
 	unsigned long heap_id, last = ULONG_MAX;
 	int ret = 0;
@@ -1167,17 +1231,15 @@ int amdxdna_gem_pin_nolock(struct amdxdna_gem_obj *abo)
 	if (abo->type != AMDXDNA_BO_DEV)
 		return amdxdna_bo_pin(abo);
 
-	xa_for_each_range(&client->dev_heap_xa, heap_id, heap,
-			  abo->heap_start_id, abo->heap_end_id) {
+	xa_for_each(&abo->heap_xa, heap_id, heap) {
 		ret = amdxdna_bo_pin(heap);
 		if (ret)
 			break;
 		last = heap_id;
 	}
 
-	if (ret && last <= abo->heap_end_id) {
-		xa_for_each_range(&client->dev_heap_xa, heap_id, heap,
-				  abo->heap_start_id, last)
+	if (ret && last != ULONG_MAX) {
+		xa_for_each_range(&abo->heap_xa, heap_id, heap, 0, last)
 			amdxdna_bo_unpin(heap);
 	}
 
@@ -1202,8 +1264,7 @@ void amdxdna_gem_unpin(struct amdxdna_gem_obj *abo)
 		struct amdxdna_gem_obj *heap;
 		unsigned long heap_id;
 
-		xa_for_each_range(&abo->client->dev_heap_xa, heap_id, heap,
-				  abo->heap_start_id, abo->heap_end_id)
+		xa_for_each(&abo->heap_xa, heap_id, heap)
 			amdxdna_bo_unpin(heap);
 	} else {
 		amdxdna_bo_unpin(abo);
@@ -1323,8 +1384,7 @@ int amdxdna_drm_sync_bo_ioctl(struct drm_device *dev,
 		u64 flush_start = bo_start + args->offset;
 		u64 flush_end = flush_start + args->size;
 
-		xa_for_each_range(&client->dev_heap_xa, heap_id, heap,
-				  abo->heap_start_id, abo->heap_end_id) {
+		xa_for_each(&abo->heap_xa, heap_id, heap) {
 			u64 heap_start = amdxdna_gem_dev_addr(heap);
 			u64 heap_end = heap_start + heap->mem.size;
 			u64 start = max(flush_start, heap_start);
