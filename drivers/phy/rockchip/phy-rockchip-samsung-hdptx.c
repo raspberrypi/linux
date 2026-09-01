@@ -2346,13 +2346,15 @@ static int rk_hdptx_phy_clk_determine_rate(struct clk_hw *hw,
 	 * to ensure rk_hdptx_phy_clk_set_rate() will be always invoked.
 	 * Otherwise, restrict the rate according to the PHY link setup.
 	 */
-	if (hdptx->pll_config_dirty)
-		req->rate = 0;
-	else if (hdptx->hdmi_cfg.mode == PHY_HDMI_MODE_FRL)
+
+	if (hdptx->hdmi_cfg.mode == PHY_HDMI_MODE_FRL)
 		req->rate = hdptx->hdmi_cfg.rate;
 	else
 		req->rate = DIV_ROUND_CLOSEST_ULL(hdptx->hdmi_cfg.rate * 8,
 						  hdptx->hdmi_cfg.bpc);
+
+	if (hdptx->pll_config_dirty && req->rate == clk_hw_get_rate(hw))
+		req->rate = 0;
 
 	return 0;
 }
