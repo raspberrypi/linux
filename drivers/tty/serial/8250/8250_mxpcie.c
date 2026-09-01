@@ -109,6 +109,7 @@ struct mxpcie8250_port {
 struct mxpcie8250 {
 	unsigned int supp_rs;
 	unsigned int num_ports;
+	unsigned int nr;	/* ports actually registered */
 	void __iomem *bar1_base; /* UART registers (MMIO) */
 	void __iomem *bar2_base; /* UIR / GPIO / CPLD (IO) */
 	struct mxpcie8250_port port[] __counted_by(num_ports);
@@ -517,6 +518,7 @@ static int mxpcie8250_probe(struct pci_dev *pdev, const struct pci_device_id *id
 	struct mxpcie8250 *priv;
 	unsigned short device = pdev->device;
 	unsigned int num_ports;
+	unsigned int i;
 	int ret;
 
 	ret = pcim_enable_device(pdev);
@@ -564,7 +566,7 @@ static int mxpcie8250_probe(struct pci_dev *pdev, const struct pci_device_id *id
 	up.port.handle_irq = mxpcie8250_handle_irq;
 	up.port.break_ctl = mxpcie8250_break_ctl;
 
-	for (unsigned int i = 0; i < num_ports; i++) {
+	for (i = 0; i < num_ports; i++) {
 		mxpcie8250_setup_port(pdev, priv, &up, i);
 
 		dev_dbg(dev, "Setup PCI port: port %lx, irq %d, type %d\n",
@@ -580,6 +582,7 @@ static int mxpcie8250_probe(struct pci_dev *pdev, const struct pci_device_id *id
 		}
 		priv->port[i].rx_trig_level = MOXA_PUART_RX_TRIG_DEFAULT;
 	}
+	priv->nr = i;
 
 	return 0;
 }
@@ -588,7 +591,7 @@ static void mxpcie8250_remove(struct pci_dev *pdev)
 {
 	struct mxpcie8250 *priv = pci_get_drvdata(pdev);
 
-	for (unsigned int i = 0; i < priv->num_ports; i++)
+	for (unsigned int i = 0; i < priv->nr; i++)
 		serial8250_unregister_port(priv->port[i].line);
 }
 
