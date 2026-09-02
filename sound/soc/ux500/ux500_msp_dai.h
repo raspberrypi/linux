@@ -46,8 +46,6 @@ struct ux500_msp_i2s_drvdata {
 	struct clk *clk;
 	struct clk *pclk;
 
-	/* Regulators */
-	int vape_opp_constraint;
 };
 
 int ux500_msp_dai_set_data_delay(struct snd_soc_dai *dai, int delay);

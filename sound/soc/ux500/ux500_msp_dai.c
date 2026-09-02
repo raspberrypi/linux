@@ -15,7 +15,6 @@
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
-#include <linux/mfd/db8500-prcmu.h>
 
 #include <sound/soc.h>
 #include <sound/soc-dai.h>
@@ -393,12 +392,6 @@ static void ux500_msp_dai_shutdown(struct snd_pcm_substream *substream,
 	dev_dbg(dai->dev, "%s: MSP %d (%s): Enter.\n", __func__, dai->id,
 		snd_pcm_stream_str(substream));
 
-	if (drvdata->vape_opp_constraint == 1) {
-		prcmu_qos_update_requirement(PRCMU_QOS_APE_OPP,
-					"ux500_msp_i2s", 50);
-		drvdata->vape_opp_constraint = 0;
-	}
-
 	if (ux500_msp_i2s_close(drvdata->msp,
 				is_playback ? MSP_DIR_TX : MSP_DIR_RX)) {
 		dev_err(dai->dev,
@@ -438,21 +431,6 @@ static int ux500_msp_dai_prepare(struct snd_pcm_substream *substream,
 		dev_err(dai->dev, "%s: Error: msp_setup failed (ret = %d)!\n",
 			__func__, ret);
 		return ret;
-	}
-
-	/* Set OPP-level */
-	if ((drvdata->fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) &&
-		(drvdata->msp->f_bitclk > 19200000)) {
-		/* If the bit-clock is higher than 19.2MHz, Vape should be
-		 * run in 100% OPP. Only when bit-clock is used (MSP master)
-		 */
-		prcmu_qos_update_requirement(PRCMU_QOS_APE_OPP,
-					"ux500-msp-i2s", 100);
-		drvdata->vape_opp_constraint = 1;
-	} else {
-		prcmu_qos_update_requirement(PRCMU_QOS_APE_OPP,
-					"ux500-msp-i2s", 50);
-		drvdata->vape_opp_constraint = 0;
 	}
 
 	return ret;
@@ -710,8 +688,6 @@ static int ux500_msp_drv_probe(struct platform_device *pdev)
 			__func__, ret);
 		return ret;
 	}
-	prcmu_qos_add_requirement(PRCMU_QOS_APE_OPP, (char *)pdev->name, 50);
-
 	drvdata->pclk = devm_clk_get(&pdev->dev, "apb_pclk");
 	if (IS_ERR(drvdata->pclk)) {
 		ret = PTR_ERR(drvdata->pclk);
@@ -779,8 +755,6 @@ static void ux500_msp_drv_remove(struct platform_device *pdev)
 	ux500_pcm_unregister_platform(pdev);
 
 	snd_soc_unregister_component(&pdev->dev);
-
-	prcmu_qos_remove_requirement(PRCMU_QOS_APE_OPP, "ux500_msp_i2s");
 
 	ux500_msp_i2s_cleanup_msp(pdev, drvdata->msp);
 }
