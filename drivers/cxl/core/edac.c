@@ -89,7 +89,7 @@ static int cxl_mem_scrub_get_attrbs(struct cxl_mailbox *cxl_mbox, u8 *cap,
 				    rd_data_size, 0, NULL);
 	if (data_size < 0)
 		return data_size;
-	if (!data_size)
+	if ((size_t)data_size != rd_data_size)
 		return -EIO;
 
 	*cap = rd_attrbs->scrub_cycle_cap;
@@ -567,7 +567,7 @@ static int cxl_mem_ecs_get_attrbs(struct device *dev,
 				    rd_data_size, 0, NULL);
 	if (data_size < 0)
 		return data_size;
-	if (!data_size)
+	if ((size_t)data_size != rd_data_size)
 		return -EIO;
 
 	fru_rd_attrbs = rd_attrbs->fru_attrbs;
@@ -602,7 +602,7 @@ static int cxl_mem_ecs_set_attrbs(struct device *dev,
 				    rd_data_size, 0, NULL);
 	if (data_size < 0)
 		return data_size;
-	if (!data_size)
+	if ((size_t)data_size != rd_data_size)
 		return -EIO;
 
 	struct cxl_ecs_wr_attrbs *wr_attrbs __free(kvfree) =
@@ -1282,7 +1282,7 @@ cxl_mem_sparing_get_attrbs(struct cxl_mem_sparing_context *cxl_sparing_ctx)
 				    rd_data_size, 0, &return_code);
 	if (data_size < 0)
 		return data_size;
-	if (!data_size)
+	if ((size_t)data_size != rd_data_size)
 		return -EIO;
 
 	cxl_sparing_ctx->op_class = rd_attrbs->hdr.op_class;
@@ -1771,7 +1771,7 @@ static int cxl_mem_ppr_get_attrbs(struct cxl_ppr_context *cxl_ppr_ctx)
 				    rd_data_size, 0, &return_code);
 	if (data_size < 0)
 		return data_size;
-	if (!data_size)
+	if ((size_t)data_size != rd_data_size)
 		return -EIO;
 
 	cxl_ppr_ctx->op_class = rd_attrbs->hdr.op_class;
