@@ -733,9 +733,7 @@ static int es8323_resume(struct snd_soc_component *component)
 	struct es8323_priv *es8323 = snd_soc_component_get_drvdata(component);
 
 	regcache_cache_only(es8323->regmap, false);
-	regcache_sync(es8323->regmap);
-
-	return 0;
+	return regcache_sync(es8323->regmap);
 }
 
 static const struct snd_soc_component_driver soc_component_dev_es8323 = {
