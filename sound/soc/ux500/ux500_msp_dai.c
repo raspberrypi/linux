@@ -388,15 +388,21 @@ static void ux500_msp_dai_shutdown(struct snd_pcm_substream *substream,
 	int ret;
 	struct ux500_msp_i2s_drvdata *drvdata = dev_get_drvdata(dai->dev);
 	bool is_playback = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK);
+	unsigned int configured = is_playback ? PLAYBACK_CONFIGURED :
+		CAPTURE_CONFIGURED;
+	unsigned int dir = is_playback ? MSP_DIR_TX : MSP_DIR_RX;
 
 	dev_dbg(dai->dev, "%s: MSP %d (%s): Enter.\n", __func__, dai->id,
 		snd_pcm_stream_str(substream));
 
-	if (ux500_msp_i2s_close(drvdata->msp,
-				is_playback ? MSP_DIR_TX : MSP_DIR_RX)) {
-		dev_err(dai->dev,
-			"%s: Error: MSP %d (%s): Unable to close i2s.\n",
-			__func__, dai->id, snd_pcm_stream_str(substream));
+	if (drvdata->configured & configured) {
+		if (ux500_msp_i2s_close(drvdata->msp, dir)) {
+			dev_err(dai->dev,
+				"%s: Error: MSP %d (%s): Unable to close i2s.\n",
+				__func__, dai->id,
+				snd_pcm_stream_str(substream));
+		}
+		drvdata->configured &= ~configured;
 	}
 
 	/* Disable and unprepare clocks */
@@ -414,13 +420,19 @@ static void ux500_msp_dai_shutdown(struct snd_pcm_substream *substream,
 static int ux500_msp_dai_prepare(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
-	int ret = 0;
 	struct ux500_msp_i2s_drvdata *drvdata = dev_get_drvdata(dai->dev);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct ux500_msp_config msp_config;
+	bool is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
+	unsigned int configured = is_playback ? PLAYBACK_CONFIGURED :
+		CAPTURE_CONFIGURED;
+	int ret;
 
 	dev_dbg(dai->dev, "%s: MSP %d (%s): Enter (rate = %d).\n", __func__,
 		dai->id, snd_pcm_stream_str(substream), runtime->rate);
+
+	if (drvdata->configured & configured)
+		return 0;
 
 	ret = setup_msp_config(substream, dai, &msp_config);
 	if (ret)
@@ -433,7 +445,9 @@ static int ux500_msp_dai_prepare(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	return ret;
+	drvdata->configured |= configured;
+
+	return 0;
 }
 
 static int ux500_msp_dai_hw_params(struct snd_pcm_substream *substream,
