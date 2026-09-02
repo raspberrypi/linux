@@ -697,6 +697,8 @@ static int amdxdna_gem_obj_open(struct drm_gem_object *gobj, struct drm_file *fi
 	int ret;
 
 	guard(mutex)(&abo->lock);
+	if (abo->open_ref > 0 && filp->driver_priv != abo->client)
+		return -EPERM;
 	abo->open_ref++;
 	if (abo->open_ref > 1)
 		return 0;
