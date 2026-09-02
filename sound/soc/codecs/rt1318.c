@@ -1075,8 +1075,7 @@ static int rt1318_resume(struct snd_soc_component *component)
 	struct rt1318_priv *rt1318 = snd_soc_component_get_drvdata(component);
 
 	regcache_cache_only(rt1318->regmap, false);
-	regcache_sync(rt1318->regmap);
-	return 0;
+	return regcache_sync(rt1318->regmap);
 }
 #else
 #define rt1318_suspend NULL
