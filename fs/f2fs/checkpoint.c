@@ -824,15 +824,6 @@ static void __clear_ino_bitmap(struct f2fs_sb_info *sbi, nid_t ino, int type)
 	spin_unlock(&im->ino_lock);
 }
 
-static void f2fs_wait_for_inode_record(struct f2fs_sb_info *sbi, int mode)
-{
-	if (mode != APPEND_INO && mode != UPDATE_INO)
-		return;
-
-	/* Let's wait for some pending updates for APPEND_INO and UPDATE_INO. */
-	flush_workqueue(sbi->evict_wq);
-}
-
 static void __f2fs_add_ino_entry(struct f2fs_sb_info *sbi, nid_t ino,
 					unsigned int devidx, int type)
 {
@@ -886,8 +877,6 @@ void f2fs_release_ino_entry(struct f2fs_sb_info *sbi, bool all)
 	for (i = all ? ORPHAN_INO : FLUSH_INO; i <= FLUSH_INO; i++) {
 		struct inode_management *im = &sbi->im[i];
 
-		f2fs_wait_for_inode_record(sbi, i);
-
 		spin_lock(&im->ino_lock);
 		list_for_each_entry_safe(e, tmp, &im->ino_list, list) {
 			list_del(&e->list);
@@ -897,6 +886,9 @@ void f2fs_release_ino_entry(struct f2fs_sb_info *sbi, bool all)
 		}
 		spin_unlock(&im->ino_lock);
 	}
+
+	/* Wait for pending APPEND/UPDATE inode state updates. */
+	flush_workqueue(sbi->evict_wq);
 
 	for (i = APPEND_INO; i < MAX_INO_ENTRY; i++) {
 		struct inode_management *im = &sbi->im[i];
