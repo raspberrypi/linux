@@ -212,35 +212,20 @@ static int configure_protocol(struct ux500_msp *msp,
 
 static int setup_bitclk(struct ux500_msp *msp, struct ux500_msp_config *config)
 {
+	struct msp_protdesc *protdesc;
+	u64 desired_bitclk;
+	unsigned int bitclk;
 	u32 reg_val_GCR;
-	u32 frame_per = 0;
-	u32 sck_div = 0;
-	u32 frame_width = 0;
-	u32 temp_reg = 0;
-	struct msp_protdesc *protdesc = NULL;
+	u32 sck_div;
+	u32 temp_reg;
 
 	reg_val_GCR = readl(msp->registers + MSP_GCR);
 	writel(reg_val_GCR & ~SRG_ENABLE, msp->registers + MSP_GCR);
 
-	if (config->default_protdesc)
-		protdesc =
-			(struct msp_protdesc *)&prot_descs[config->protocol];
-	else
-		protdesc = (struct msp_protdesc *)&config->protdesc;
-
 	switch (config->protocol) {
 	case MSP_PCM_PROTOCOL:
 	case MSP_PCM_COMPAND_PROTOCOL:
-		frame_width = protdesc->frame_width;
-		sck_div = config->f_inputclk / (config->frame_freq *
-			(protdesc->clocks_per_frame));
-		frame_per = protdesc->frame_period;
-		break;
 	case MSP_I2S_PROTOCOL:
-		frame_width = protdesc->frame_width;
-		sck_div = config->f_inputclk / (config->frame_freq *
-			(protdesc->clocks_per_frame));
-		frame_per = protdesc->frame_period;
 		break;
 	default:
 		dev_err(msp->dev, "%s: ERROR: Unknown protocol (%d)!\n",
@@ -249,12 +234,35 @@ static int setup_bitclk(struct ux500_msp *msp, struct ux500_msp_config *config)
 		return -EINVAL;
 	}
 
+	if (config->default_protdesc)
+		protdesc = (struct msp_protdesc *)&prot_descs[config->protocol];
+	else
+		protdesc = &config->protdesc;
+
+	if (!config->frame_freq || !protdesc->clocks_per_frame)
+		return -EINVAL;
+
+	desired_bitclk = (u64)config->frame_freq * protdesc->clocks_per_frame;
+	if (desired_bitclk > config->f_inputclk)
+		return -EINVAL;
+	bitclk = desired_bitclk;
+	if (config->f_inputclk % bitclk) {
+		dev_err(msp->dev,
+			"Input clock %u cannot generate bit clock %u\n",
+			config->f_inputclk, bitclk);
+		return -EINVAL;
+	}
+
+	sck_div = config->f_inputclk / bitclk;
+	if (!sck_div || sck_div > SCK_DIV_MASK + 1)
+		return -EINVAL;
+
 	temp_reg = (sck_div - 1) & SCK_DIV_MASK;
-	temp_reg |= FRAME_WIDTH_BITS(frame_width);
-	temp_reg |= FRAME_PERIOD_BITS(frame_per);
+	temp_reg |= FRAME_WIDTH_BITS(protdesc->frame_width);
+	temp_reg |= FRAME_PERIOD_BITS(protdesc->frame_period);
 	writel(temp_reg, msp->registers + MSP_SRG);
 
-	msp->f_bitclk = (config->f_inputclk)/(sck_div + 1);
+	msp->f_bitclk = config->f_inputclk / sck_div;
 
 	/* Enable bit-clock */
 	udelay(100);
