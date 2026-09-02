@@ -555,7 +555,8 @@ static void axi_chan_block_xfer_start(struct axi_dma_chan *chan,
 
 	write_chan_llp(chan, first->hw_desc[0].llp | lms);
 
-	irq_mask = DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_ALL_ERR;
+	irq_mask = DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_BLOCK_TRF |
+		   DWAXIDMAC_IRQ_ALL_ERR;
 	axi_chan_irq_sig_set(chan, irq_mask);
 
 	/* Generate 'suspend' status but don't generate interrupt */
@@ -704,6 +705,15 @@ static void set_desc_last(struct axi_dma_hw_desc *desc)
 
 	val = le32_to_cpu(desc->lli->ctl_hi);
 	val |= CH_CTL_H_LLI_LAST;
+	desc->lli->ctl_hi = cpu_to_le32(val);
+}
+
+static void set_desc_blktrf(struct axi_dma_hw_desc *desc)
+{
+	u32 val;
+
+	val = le32_to_cpu(desc->lli->ctl_hi);
+	val |= CH_CTL_H_LLI_BLKTRF;
 	desc->lli->ctl_hi = cpu_to_le32(val);
 }
 
@@ -889,19 +899,20 @@ dw_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 	size_t axi_block_len;
 	u32 total_segments;
 	u32 segment_len;
-	unsigned int i;
+	unsigned int i, p;
 	int status;
 	u64 llp = 0;
 	u8 lms = 0; /* Select AXI0 master for LLI fetching */
 
 	num_periods = buf_len / period_len;
+	if (num_periods * period_len != buf_len)
+		return NULL;
 
 	axi_block_len = calculate_block_len(chan, dma_addr, buf_len, direction);
 	if (axi_block_len == 0)
 		return NULL;
 
 	num_segments = DIV_ROUND_UP(period_len, axi_block_len);
-	segment_len = DIV_ROUND_UP(period_len, num_segments);
 
 	total_segments = num_periods * num_segments;
 
@@ -915,26 +926,34 @@ dw_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 	desc->length = 0;
 	desc->period_len = period_len;
 
-	for (i = 0; i < total_segments; i++) {
-		hw_desc = &desc->hw_desc[i];
+	for (p = 0; p < num_periods; p++) {
+		u32 len = period_len;
 
-		status = dw_axi_dma_set_hw_desc(chan, hw_desc, src_addr,
-						segment_len);
-		if (status < 0)
-			goto err_desc_get;
+		for (i = 0; i < num_segments; i++) {
+			hw_desc = &desc->hw_desc[p * num_segments + i];
 
-		desc->length += hw_desc->len;
+			segment_len = min(len, axi_block_len);
+			status = dw_axi_dma_set_hw_desc(chan, hw_desc, src_addr,
+							segment_len);
+			if (status < 0)
+				goto err_desc_get;
+
+			desc->length += hw_desc->len;
+
+			src_addr += segment_len;
+			len -= segment_len;
+		}
+		set_desc_blktrf(hw_desc);
 		/* Set end-of-link to the linked descriptor, so that cyclic
 		 * callback function can be triggered during interrupt.
 		 */
-		set_desc_last(hw_desc);
-
-		src_addr += segment_len;
 	}
 
 	desc->nr_hw_descs = total_segments;
 
 	llp = desc->hw_desc[0].llp;
+	if (!total_segments)
+		goto err_desc_get;
 
 	/* Managed transfer list */
 	do {
@@ -1214,18 +1233,14 @@ out:
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
 }
 
-static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
+static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan, bool block_trf)
 {
-	struct axi_dma_hw_desc *hw_desc;
 	struct axi_dma_desc *desc;
 	struct virt_dma_desc *vd;
 	unsigned long flags;
-	int count;
-	u64 llp;
-	int i;
 
 	spin_lock_irqsave(&chan->vc.lock, flags);
-	if (unlikely(axi_chan_is_hw_enable(chan))) {
+	if (!block_trf && unlikely(axi_chan_is_hw_enable(chan))) {
 		dev_err(chan2dev(chan), "BUG: %s caught DWAXIDMAC_IRQ_DMA_TRF, but channel not idle!\n",
 			axi_chan_name(chan));
 		axi_chan_disable(chan);
@@ -1242,22 +1257,52 @@ static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
 	if (chan->cyclic) {
 		desc = vd_to_axi_desc(vd);
 		if (desc) {
-			count = desc->nr_hw_descs;
-			llp = lo_hi_readq(chan->chan_regs + CH_LLP);
-			for (i = 0; i < count; i++) {
-				hw_desc = &desc->hw_desc[i];
-				if (hw_desc->llp == llp) {
-					axi_chan_irq_clear(chan, hw_desc->lli->status_lo);
-					hw_desc->lli->ctl_hi |= CH_CTL_H_LLI_VALID;
-					desc->completed_blocks = i;
+			u32 num_periods = desc->length / desc->period_len;
+			u32 perlen = desc->nr_hw_descs / num_periods;
 
-					if (((hw_desc->len * (i + 1)) % desc->period_len) == 0)
-						vchan_cyclic_callback(vd);
-					break;
-				}
+			if (block_trf)
+				axi_chan_irq_clear(chan, DWAXIDMAC_IRQ_BLOCK_TRF);
+			else
+				axi_chan_irq_clear(chan, DWAXIDMAC_IRQ_DMA_TRF);
+
+			/*
+			 * The DMAC clears LLI_VALID in memory as it retires
+			 * each descriptor, and writes the period data into the
+			 * destination buffer. Order both against the reads
+			 * below and against the consumer woken by the callback.
+			 */
+			dma_rmb();
+
+			for (int i = 0; i < num_periods; i++) {
+				u32 idx = i * perlen;
+				u32 last = idx + perlen - 1;
+				int j;
+
+				if (le32_to_cpu(desc->hw_desc[last].lli->ctl_hi) &
+				    CH_CTL_H_LLI_VALID)
+					continue;
+
+				desc->hw_desc[last].lli->status_lo &= ~cpu_to_le32(4);
+
+				/*
+				 * Re-arm back-to-front and publish the period's
+				 * first descriptor last. The engine enters the
+				 * period at hw_desc[idx] and walks forward, so
+				 * validating that one before its successors
+				 * lets it run into a descriptor that is still
+				 * retired.
+				 */
+				for (j = last; j > idx; j--)
+					desc->hw_desc[j].lli->ctl_hi |=
+						cpu_to_le32(CH_CTL_H_LLI_VALID);
+				dma_wmb();
+				desc->hw_desc[idx].lli->ctl_hi |=
+					cpu_to_le32(CH_CTL_H_LLI_VALID);
+				/* Publish the re-armed chain to the DMAC. */
+				dma_wmb();
+
+				vchan_cyclic_callback(vd);
 			}
-
-			axi_chan_enable(chan);
 		}
 	} else {
 		/* Remove the completed descriptor from issued list before completing */
@@ -1294,8 +1339,8 @@ static irqreturn_t dw_axi_dma_interrupt(int irq, void *dev_id)
 
 		if (status & DWAXIDMAC_IRQ_ALL_ERR)
 			axi_chan_handle_err(chan, status);
-		else if (status & DWAXIDMAC_IRQ_DMA_TRF)
-			axi_chan_block_xfer_complete(chan);
+		else if (status & (DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_BLOCK_TRF))
+			axi_chan_block_xfer_complete(chan, status & DWAXIDMAC_IRQ_BLOCK_TRF);
 	}
 
 	/* Re-enable interrupts */
