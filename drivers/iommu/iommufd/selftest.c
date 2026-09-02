@@ -2056,11 +2056,9 @@ static int iommufd_test_dmabuf_get(struct iommufd_ucmd *ucmd,
 	}
 
 	rc = dma_buf_fd(dmabuf, open_flags);
-	if (rc < 0) {
+	if (rc < 0)
 		dma_buf_put(dmabuf);
-		return rc;
-	}
-	return 0;
+	return rc;
 
 err_free:
 	kfree(priv->memory);
