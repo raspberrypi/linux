@@ -1097,7 +1097,9 @@ int cgroup1_reconfigure(struct fs_context *fc)
 	int ret = 0;
 	u32 added_mask, removed_mask;
 
-	cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+	ret = cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+	if (unlikely(ret))
+		return ret;
 
 	/* See what subsystems are wanted */
 	ret = check_cgroupfs_options(fc);
@@ -1262,7 +1264,9 @@ int cgroup1_get_tree(struct fs_context *fc)
 	if (!ns_capable(ctx->ns->user_ns, CAP_SYS_ADMIN))
 		return -EPERM;
 
-	cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+	ret = cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
+	if (unlikely(ret))
+		return ret;
 
 	ret = cgroup1_root_to_use(fc);
 	if (!ret && !percpu_ref_tryget_live(&ctx->root->cgrp.self.refcnt))
