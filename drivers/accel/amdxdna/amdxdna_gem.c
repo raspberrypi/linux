@@ -641,10 +641,8 @@ amdxdna_gem_skip_bo_usage(struct amdxdna_gem_obj *abo)
 }
 
 static void
-amdxdna_gem_add_bo_usage(struct amdxdna_gem_obj *abo)
+amdxdna_gem_add_bo_usage(struct amdxdna_client *client, struct amdxdna_gem_obj *abo)
 {
-	struct amdxdna_client *client = abo->client;
-
 	if (amdxdna_gem_skip_bo_usage(abo))
 		return;
 
@@ -656,10 +654,8 @@ amdxdna_gem_add_bo_usage(struct amdxdna_gem_obj *abo)
 }
 
 static void
-amdxdna_gem_del_bo_usage(struct amdxdna_gem_obj *abo)
+amdxdna_gem_del_bo_usage(struct amdxdna_client *client, struct amdxdna_gem_obj *abo)
 {
-	struct amdxdna_client *client = abo->client;
-
 	if (amdxdna_gem_skip_bo_usage(abo))
 		return;
 
@@ -694,14 +690,20 @@ static int amdxdna_gem_obj_open(struct drm_gem_object *gobj, struct drm_file *fi
 {
 	struct amdxdna_dev *xdna = to_xdna_dev(gobj->dev);
 	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
+	struct amdxdna_client *client;
 	int ret;
 
-	guard(mutex)(&abo->lock);
-	if (abo->open_ref > 0 && filp->driver_priv != abo->client)
+	mutex_lock(&abo->lock);
+	if (abo->open_ref > 0 && filp->driver_priv != abo->client) {
+		mutex_unlock(&abo->lock);
 		return -EPERM;
+	}
+
 	abo->open_ref++;
-	if (abo->open_ref > 1)
+	if (abo->open_ref > 1) {
+		mutex_unlock(&abo->lock);
 		return 0;
+	}
 
 	/* Attached to the client when first opened by it. */
 	abo->client = filp->driver_priv;
@@ -712,26 +714,34 @@ static int amdxdna_gem_obj_open(struct drm_gem_object *gobj, struct drm_file *fi
 		if (ret) {
 			abo->open_ref--;
 			abo->client = NULL;
+			mutex_unlock(&abo->lock);
 			return ret;
 		}
 	}
+	client = abo->client;
+	mutex_unlock(&abo->lock);
 
-	amdxdna_gem_add_bo_usage(abo);
+	amdxdna_gem_add_bo_usage(client, abo);
 	return 0;
 }
 
 static void amdxdna_gem_obj_close(struct drm_gem_object *gobj, struct drm_file *filp)
 {
 	struct amdxdna_gem_obj *abo = to_xdna_obj(gobj);
+	struct amdxdna_client *client = NULL;
 
-	guard(mutex)(&abo->lock);
+	mutex_lock(&abo->lock);
 	abo->open_ref--;
 
 	if (abo->open_ref == 0) {
-		amdxdna_gem_del_bo_usage(abo);
 		/* Detach from the client when last closed by it. */
+		client = abo->client;
 		abo->client = NULL;
 	}
+	mutex_unlock(&abo->lock);
+
+	if (client)
+		amdxdna_gem_del_bo_usage(client, abo);
 }
 
 static int amdxdna_gem_obj_vmap(struct drm_gem_object *obj, struct iosys_map *map)
