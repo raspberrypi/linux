@@ -344,20 +344,27 @@ static int configure_multichannel(struct ux500_msp *msp,
 	return 0;
 }
 
-static int enable_msp(struct ux500_msp *msp, struct ux500_msp_config *config)
+static int enable_msp(struct ux500_msp *msp, struct ux500_msp_config *config,
+		      bool first)
 {
-	int status = 0;
-	u32 reg_val_DMACR, reg_val_GCR;
+	int status;
+	u32 reg_val_DMACR;
 
 	/* Configure msp with protocol dependent settings */
-	configure_protocol(msp, config);
-	setup_bitclk(msp, config);
+	status = configure_protocol(msp, config);
+	if (status)
+		return status;
+
+	if (first && config->clock_provider) {
+		status = setup_bitclk(msp, config);
+		if (status)
+			return status;
+	}
+
 	if (config->multichannel_configured == 1) {
 		status = configure_multichannel(msp, config);
 		if (status)
-			dev_warn(msp->dev,
-				"%s: WARN: configure_multichannel failed (%d)!\n",
-				__func__, status);
+			return status;
 	}
 
 	reg_val_DMACR = readl(msp->registers + MSP_DMACR);
@@ -369,11 +376,7 @@ static int enable_msp(struct ux500_msp *msp, struct ux500_msp_config *config)
 
 	writel(config->iodelay, msp->registers + MSP_IODLY);
 
-	/* Enable frame generation logic */
-	reg_val_GCR = readl(msp->registers + MSP_GCR);
-	writel(reg_val_GCR | FRAME_GEN_ENABLE, msp->registers + MSP_GCR);
-
-	return status;
+	return 0;
 }
 
 static void flush_fifo_rx(struct ux500_msp *msp)
@@ -411,12 +414,36 @@ static void flush_fifo_tx(struct ux500_msp *msp)
 	writel(reg_val_GCR, msp->registers + MSP_GCR);
 }
 
+static bool ux500_msp_config_compatible(struct ux500_msp *msp,
+					struct ux500_msp_config *config)
+{
+	struct ux500_msp_config *active = &msp->config;
+
+	return active->f_inputclk == config->f_inputclk &&
+	       active->tx_clk_sel == config->tx_clk_sel &&
+	       active->rx_clk_sel == config->rx_clk_sel &&
+	       active->srg_clk_sel == config->srg_clk_sel &&
+	       active->rx_fsync_pol == config->rx_fsync_pol &&
+	       active->tx_fsync_pol == config->tx_fsync_pol &&
+	       active->rx_fsync_sel == config->rx_fsync_sel &&
+	       active->tx_fsync_sel == config->tx_fsync_sel &&
+	       active->default_protdesc == config->default_protdesc &&
+	       active->protocol == config->protocol &&
+	       active->frame_freq == config->frame_freq &&
+	       active->data_size == config->data_size &&
+	       active->def_elem_len == config->def_elem_len &&
+	       active->clock_provider == config->clock_provider &&
+	       !memcmp(&active->protdesc, &config->protdesc,
+		       sizeof(active->protdesc));
+}
+
 int ux500_msp_i2s_open(struct ux500_msp *msp,
 		struct ux500_msp_config *config)
 {
 	u32 old_reg, new_reg, mask;
 	int res;
 	unsigned int tx_sel, rx_sel, tx_busy, rx_busy;
+	bool first;
 
 	if (in_interrupt()) {
 		dev_err(msp->dev,
@@ -444,40 +471,66 @@ int ux500_msp_i2s_open(struct ux500_msp *msp,
 		return -EBUSY;
 	}
 
-	msp->dir_busy |= (tx_sel ? MSP_DIR_TX : 0) | (rx_sel ? MSP_DIR_RX : 0);
+	first = !msp->dir_busy;
+	if (!first && !ux500_msp_config_compatible(msp, config)) {
+		dev_err(msp->dev, "%s: Incompatible duplex configuration\n",
+			__func__);
+		return -EBUSY;
+	}
 
-	/* First do the global config register */
-	mask = RX_CLK_SEL_MASK | TX_CLK_SEL_MASK | RX_FSYNC_MASK |
-	    TX_FSYNC_MASK | RX_SYNC_SEL_MASK | TX_SYNC_SEL_MASK |
-	    RX_FIFO_ENABLE_MASK | TX_FIFO_ENABLE_MASK | SRG_CLK_SEL_MASK |
-	    LOOPBACK_MASK | TX_EXTRA_DELAY_MASK;
+	if (first) {
+		/* First do the global config register */
+		mask = RX_CLK_SEL_MASK | TX_CLK_SEL_MASK | RX_FSYNC_MASK |
+		       TX_FSYNC_MASK | RX_SYNC_SEL_MASK | TX_SYNC_SEL_MASK |
+		       RX_FIFO_ENABLE_MASK | TX_FIFO_ENABLE_MASK |
+		       SRG_CLK_SEL_MASK | LOOPBACK_MASK | TX_EXTRA_DELAY_MASK;
 
-	new_reg = (config->tx_clk_sel | config->rx_clk_sel |
-		config->rx_fsync_pol | config->tx_fsync_pol |
-		config->rx_fsync_sel | config->tx_fsync_sel |
-		config->rx_fifo_config | config->tx_fifo_config |
-		config->srg_clk_sel | config->loopback_enable |
-		config->tx_data_enable);
+		new_reg = config->tx_clk_sel | config->rx_clk_sel |
+			  config->rx_fsync_pol | config->tx_fsync_pol |
+			  config->rx_fsync_sel | config->tx_fsync_sel |
+			  config->rx_fifo_config | config->tx_fifo_config |
+			  config->srg_clk_sel | config->loopback_enable |
+			  config->tx_data_enable;
 
-	old_reg = readl(msp->registers + MSP_GCR);
-	old_reg &= ~mask;
-	new_reg |= old_reg;
-	writel(new_reg, msp->registers + MSP_GCR);
+		old_reg = readl(msp->registers + MSP_GCR);
+		old_reg &= ~mask;
+		new_reg |= old_reg;
+		writel(new_reg, msp->registers + MSP_GCR);
+	}
 
-	res = enable_msp(msp, config);
+	res = enable_msp(msp, config, first);
 	if (res < 0) {
 		dev_err(msp->dev, "%s: ERROR: enable_msp failed (%d)!\n",
 			__func__, res);
-		return -EBUSY;
+		if (tx_sel)
+			writel(0, msp->registers + MSP_TCF);
+		if (rx_sel)
+			writel(0, msp->registers + MSP_RCF);
+		if (first) {
+			writel(0, msp->registers + MSP_GCR);
+			writel(0, msp->registers + MSP_DMACR);
+			writel(0, msp->registers + MSP_SRG);
+			writel(0, msp->registers + MSP_MCR);
+		}
+		return res;
+	}
+
+	msp->dir_busy |= config->direction;
+	if (first) {
+		msp->config = *config;
+		msp->clock_provider = config->clock_provider;
 	}
 	if (config->loopback_enable & 0x80)
 		msp->loopback_enable = 1;
 
 	/* Flush FIFOs */
-	flush_fifo_tx(msp);
-	flush_fifo_rx(msp);
+	if (tx_sel)
+		flush_fifo_tx(msp);
+	if (rx_sel)
+		flush_fifo_rx(msp);
 
-	msp->msp_state = MSP_STATE_CONFIGURED;
+	if (!msp->dir_running)
+		msp->msp_state = MSP_STATE_CONFIGURED;
 	return 0;
 }
 
@@ -494,7 +547,6 @@ static void disable_msp_rx(struct ux500_msp *msp)
 			~(RX_SERVICE_INT | RX_OVERRUN_ERROR_INT),
 			msp->registers + MSP_IMSC);
 
-	msp->dir_busy &= ~MSP_DIR_RX;
 }
 
 static void disable_msp_tx(struct ux500_msp *msp)
@@ -510,7 +562,6 @@ static void disable_msp_tx(struct ux500_msp *msp)
 			~(TX_SERVICE_INT | TX_UNDERRUN_ERR_INT),
 			msp->registers + MSP_IMSC);
 
-	msp->dir_busy &= ~MSP_DIR_TX;
 }
 
 static int disable_msp(struct ux500_msp *msp, unsigned int dir)
@@ -520,7 +571,7 @@ static int disable_msp(struct ux500_msp *msp, unsigned int dir)
 
 	reg_val_GCR = readl(msp->registers + MSP_GCR);
 	disable_tx = dir & MSP_DIR_TX;
-	disable_rx = dir & MSP_DIR_TX;
+	disable_rx = dir & MSP_DIR_RX;
 	if (disable_tx && disable_rx) {
 		reg_val_GCR = readl(msp->registers + MSP_GCR);
 		writel(reg_val_GCR | LOOPBACK_MASK,
@@ -553,7 +604,15 @@ static int disable_msp(struct ux500_msp *msp, unsigned int dir)
 
 int ux500_msp_i2s_trigger(struct ux500_msp *msp, int cmd, int direction)
 {
-	u32 reg_val_GCR, enable_bit;
+	u32 reg_val_DMACR, reg_val_GCR, dma_enable_bit, enable_bit;
+	unsigned int dir;
+
+	if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+		dir = MSP_DIR_TX;
+	else if (direction == SNDRV_PCM_STREAM_CAPTURE)
+		dir = MSP_DIR_RX;
+	else
+		return -EINVAL;
 
 	if (msp->msp_state == MSP_STATE_IDLE) {
 		dev_err(msp->dev, "%s: ERROR: MSP is not configured!\n",
@@ -565,21 +624,44 @@ int ux500_msp_i2s_trigger(struct ux500_msp *msp, int cmd, int direction)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+		if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
 			enable_bit = TX_ENABLE;
-		else
+			dma_enable_bit = TX_DMA_ENABLE;
+		} else {
 			enable_bit = RX_ENABLE;
+			dma_enable_bit = RX_DMA_ENABLE;
+		}
+		if (!(msp->dir_busy & dir))
+			return -EINVAL;
+		reg_val_DMACR = readl(msp->registers + MSP_DMACR);
+		writel(reg_val_DMACR | dma_enable_bit,
+		       msp->registers + MSP_DMACR);
 		reg_val_GCR = readl(msp->registers + MSP_GCR);
+		if (msp->clock_provider)
+			enable_bit |= FRAME_GEN_ENABLE;
 		writel(reg_val_GCR | enable_bit, msp->registers + MSP_GCR);
+		msp->dir_running |= dir;
+		msp->msp_state = MSP_STATE_RUNNING;
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+		if (!(msp->dir_busy & dir))
+			return -EINVAL;
+		if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
 			disable_msp_tx(msp);
-		else
+			msp->dir_running &= ~MSP_DIR_TX;
+		} else {
 			disable_msp_rx(msp);
+			msp->dir_running &= ~MSP_DIR_RX;
+		}
+		if (!msp->dir_running) {
+			reg_val_GCR = readl(msp->registers + MSP_GCR);
+			writel(reg_val_GCR & ~FRAME_GEN_ENABLE,
+			       msp->registers + MSP_GCR);
+			msp->msp_state = MSP_STATE_CONFIGURED;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -594,7 +676,18 @@ int ux500_msp_i2s_close(struct ux500_msp *msp, unsigned int dir)
 
 	dev_dbg(msp->dev, "%s: Enter (dir = 0x%01x).\n", __func__, dir);
 
+	if (!dir || dir & ~(MSP_DIR_TX | MSP_DIR_RX) ||
+	    (msp->dir_busy & dir) != dir)
+		return -EINVAL;
+
 	status = disable_msp(msp, dir);
+	msp->dir_busy &= ~dir;
+	msp->dir_running &= ~dir;
+	if (msp->dir_busy && !msp->dir_running) {
+		writel(readl(msp->registers + MSP_GCR) & ~FRAME_GEN_ENABLE,
+		       msp->registers + MSP_GCR);
+		msp->msp_state = MSP_STATE_CONFIGURED;
+	}
 	if (msp->dir_busy == 0) {
 		/* disable sample rate and frame generators */
 		msp->msp_state = MSP_STATE_IDLE;
@@ -618,6 +711,8 @@ int ux500_msp_i2s_close(struct ux500_msp *msp, unsigned int dir)
 		writel(0, msp->registers + MSP_RCE1);
 		writel(0, msp->registers + MSP_RCE2);
 		writel(0, msp->registers + MSP_RCE3);
+		memset(&msp->config, 0, sizeof(msp->config));
+		msp->clock_provider = false;
 	}
 
 	return status;

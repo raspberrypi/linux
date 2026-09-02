@@ -34,8 +34,10 @@ static int setup_pcm_multichan(struct snd_soc_dai *dai,
 	if (drvdata->slots > 1) {
 		msp_config->multichannel_configured = 1;
 
-		multi->tx_multichannel_enable = true;
-		multi->rx_multichannel_enable = true;
+		multi->tx_multichannel_enable =
+			msp_config->direction & MSP_DIR_TX;
+		multi->rx_multichannel_enable =
+			msp_config->direction & MSP_DIR_RX;
 		multi->rx_comparison_enable_mode = MSP_COMPARISON_DISABLED;
 
 		multi->tx_channel_0_enable = drvdata->tx_mask;
@@ -192,6 +194,7 @@ static int setup_clocking(struct snd_soc_dai *dai,
 	case SND_SOC_DAIFMT_BC_FC:
 		dev_dbg(dai->dev, "%s: Codec is master.\n", __func__);
 
+		msp_config->clock_provider = false;
 		msp_config->iodelay = 0x20;
 		msp_config->rx_fsync_sel = 0;
 		msp_config->tx_fsync_sel = 1 << TFSSEL_SHIFT;
@@ -204,6 +207,7 @@ static int setup_clocking(struct snd_soc_dai *dai,
 	case SND_SOC_DAIFMT_BP_FP:
 		dev_dbg(dai->dev, "%s: Codec is slave.\n", __func__);
 
+		msp_config->clock_provider = true;
 		msp_config->tx_clk_sel = TX_CLK_SEL_SRG;
 		msp_config->tx_fsync_sel = TX_SYNC_SRG_PROG;
 		msp_config->rx_clk_sel = RX_CLK_SEL_SRG;
