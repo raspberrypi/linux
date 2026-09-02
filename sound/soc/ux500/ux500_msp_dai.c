@@ -59,72 +59,21 @@ static int setup_pcm_multichan(struct snd_soc_dai *dai,
 	return 0;
 }
 
-static int setup_frameper(struct snd_soc_dai *dai, unsigned int rate,
-			struct msp_protdesc *prot_desc)
+static void setup_frameper(struct snd_soc_dai *dai,
+			   struct msp_protdesc *prot_desc)
 {
 	struct ux500_msp_i2s_drvdata *drvdata = dev_get_drvdata(dai->dev);
 
-	switch (drvdata->slots) {
-	case 1:
-		switch (rate) {
-		case 8000:
-			prot_desc->frame_period =
-				FRAME_PER_SINGLE_SLOT_8_KHZ;
-			break;
-
-		case 16000:
-			prot_desc->frame_period =
-				FRAME_PER_SINGLE_SLOT_16_KHZ;
-			break;
-
-		case 44100:
-			prot_desc->frame_period =
-				FRAME_PER_SINGLE_SLOT_44_1_KHZ;
-			break;
-
-		case 48000:
-			prot_desc->frame_period =
-				FRAME_PER_SINGLE_SLOT_48_KHZ;
-			break;
-
-		default:
-			dev_err(dai->dev,
-				"%s: Error: Unsupported sample-rate (freq = %d)!\n",
-				__func__, rate);
-			return -EINVAL;
-		}
-		break;
-
-	case 2:
-		prot_desc->frame_period = FRAME_PER_2_SLOTS;
-		break;
-
-	case 8:
-		prot_desc->frame_period = FRAME_PER_8_SLOTS;
-		break;
-
-	case 16:
-		prot_desc->frame_period = FRAME_PER_16_SLOTS;
-		break;
-	default:
-		dev_err(dai->dev,
-			"%s: Error: Unsupported slot-count (slots = %d)!\n",
-			__func__, drvdata->slots);
-		return -EINVAL;
-	}
-
-	prot_desc->clocks_per_frame =
-			prot_desc->frame_period+1;
+	prot_desc->clocks_per_frame = drvdata->slots * drvdata->slot_width;
+	prot_desc->frame_period = prot_desc->clocks_per_frame - 1;
 
 	dev_dbg(dai->dev, "%s: Clocks per frame: %u\n",
 		__func__,
 		prot_desc->clocks_per_frame);
-
-	return 0;
 }
 
-static int setup_pcm_framing(struct snd_soc_dai *dai, unsigned int rate,
-			struct msp_protdesc *prot_desc)
+static int setup_pcm_framing(struct snd_soc_dai *dai,
+			     struct msp_protdesc *prot_desc)
 {
 	struct ux500_msp_i2s_drvdata *drvdata = dev_get_drvdata(dai->dev);
 
@@ -165,7 +114,9 @@ static int setup_pcm_framing(struct snd_soc_dai *dai, unsigned int rate,
 	prot_desc->tx_elem_len_2 = MSP_ELEM_LEN_16;
 	prot_desc->rx_elem_len_2 = MSP_ELEM_LEN_16;
 
-	return setup_frameper(dai, rate, prot_desc);
+	setup_frameper(dai, prot_desc);
+
+	return 0;
 }
 
 static int setup_clocking(struct snd_soc_dai *dai,
@@ -366,7 +317,7 @@ static int setup_msp_config(struct snd_pcm_substream *substream,
 		if (ret < 0)
 			return ret;
 
-		ret = setup_pcm_framing(dai, runtime->rate, prot_desc);
+		ret = setup_pcm_framing(dai, prot_desc);
 		if (ret < 0)
 			return ret;
 
@@ -735,7 +686,6 @@ static int ux500_msp_drv_probe(struct platform_device *pdev)
 	drvdata->tx_mask = 0x01;
 	drvdata->rx_mask = 0x01;
 	drvdata->slot_width = 16;
-	drvdata->master_clk = MSP_INPUT_FREQ_APB;
 
 	drvdata->reg_vape = devm_regulator_get(&pdev->dev, "v-ape");
 	if (IS_ERR(drvdata->reg_vape)) {
@@ -763,6 +713,11 @@ static int ux500_msp_drv_probe(struct platform_device *pdev)
 			"%s: ERROR: devm_clk_get failed (%d)!\n",
 			__func__, ret);
 		return ret;
+	}
+	drvdata->master_clk = clk_get_rate(drvdata->clk);
+	if (!drvdata->master_clk) {
+		dev_err(&pdev->dev, "MSP clock has no rate\n");
+		return -EINVAL;
 	}
 
 	ret = ux500_msp_i2s_init_msp(pdev, &drvdata->msp);
