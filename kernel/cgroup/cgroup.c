@@ -3791,7 +3791,7 @@ static ssize_t cgroup_type_write(struct kernfs_open_file *of, char *buf,
 	/* drain dying csses before we re-apply (threaded) subtree control */
 	cgrp = cgroup_kn_lock_live(of->kn, true);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	/* threaded can only be enabled */
 	ret = cgroup_enable_threaded(cgrp);
@@ -3834,7 +3834,7 @@ static ssize_t cgroup_max_descendants_write(struct kernfs_open_file *of,
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	WRITE_ONCE(cgrp->max_descendants, descendants);
 
@@ -3877,7 +3877,7 @@ static ssize_t cgroup_max_depth_write(struct kernfs_open_file *of,
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	WRITE_ONCE(cgrp->max_depth, depth);
 
@@ -4193,7 +4193,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of,
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	psi = cgroup_psi(cgrp);
 	if (psi->enabled != enable) {
@@ -4269,7 +4269,7 @@ static ssize_t cgroup_freeze_write(struct kernfs_open_file *of,
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	cgroup_freeze(cgrp, freeze);
 
@@ -4331,7 +4331,7 @@ static ssize_t cgroup_kill_write(struct kernfs_open_file *of, char *buf,
 
 	cgrp = cgroup_kn_lock_live(of->kn, false);
 	if (!cgrp)
-		return -ENOENT;
+		return -ENODEV;
 
 	/*
 	 * Killing is a process directed operation, i.e. the whole thread-group
