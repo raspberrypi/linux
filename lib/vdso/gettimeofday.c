@@ -380,8 +380,8 @@ __cvdso_gettimeofday_data(const struct vdso_time_data *vd,
 		    vc->clock_mode == VDSO_CLOCKMODE_TIMENS)
 			vd = __arch_get_vdso_u_timens_data(vd);
 
-		tz->tz_minuteswest = vd[CS_HRES_COARSE].tz_minuteswest;
-		tz->tz_dsttime = vd[CS_HRES_COARSE].tz_dsttime;
+		tz->tz_minuteswest = vd->tz_minuteswest;
+		tz->tz_dsttime = vd->tz_dsttime;
 	}
 
 	return 0;
