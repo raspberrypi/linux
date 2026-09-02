@@ -62,6 +62,7 @@ enum msp_direction {
 #define MSP_SRG		0x10
 #define MSP_FLR		0x14
 #define MSP_DMACR	0x18
+#define MSP_WMRK	0x1c
 
 #define MSP_IMSC	0x20
 #define MSP_RIS		0x24
@@ -227,6 +228,10 @@ enum msp_direction {
 
 #define RDMAE_SHIFT		0
 #define TDMAE_SHIFT		1
+
+/* FIFO watermark register */
+#define MSP_WMRK_RX_4_ELEMENTS	BIT(0)
+#define MSP_WMRK_TX_4_ELEMENTS	BIT(3)
 
 /* Interrupt Register */
 #define RX_SERVICE_INT		BIT(0)
