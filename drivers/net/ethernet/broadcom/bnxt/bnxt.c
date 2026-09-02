@@ -462,6 +462,16 @@ u16 bnxt_xmit_get_cfa_action(struct sk_buff *skb)
 static void bnxt_txr_db_kick(struct bnxt *bp, struct bnxt_tx_ring_info *txr,
 			     u16 prod)
 {
+	/* If the most recent BD has its completion suppressed, unset the bit
+	 * so that a completion is generated, otherwise nothing is left to
+	 * clean the ring and wake the queue.
+	 */
+	if (txr->kick_txbd0) {
+		txr->kick_txbd0->tx_bd_len_flags_type &=
+			cpu_to_le32(~TX_BD_FLAGS_NO_CMPL);
+		txr->kick_txbd0 = NULL;
+	}
+
 	/* Sync BD data before updating doorbell */
 	wmb();
 	bnxt_db_write(bp, &txr->tx_db, prod);
@@ -485,7 +495,6 @@ static netdev_tx_t bnxt_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct bnxt_sw_tx_bd *tx_buf;
 	__le32 lflags = 0;
 	skb_frag_t *frag;
-	netdev_tx_t ret;
 
 	i = skb_get_queue_mapping(skb);
 	if (unlikely(i >= bp->tx_nr_rings)) {
@@ -509,11 +518,22 @@ static netdev_tx_t bnxt_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (skb_is_gso(skb) &&
 	    (skb_shinfo(skb)->gso_type & SKB_GSO_UDP_L4) &&
 	    !(bp->flags & BNXT_FLAG_UDP_GSO_CAP)) {
-		ret = bnxt_sw_udp_gso_xmit(bp, txr, txq, skb);
-		if (txr->kick_pending)
+		int rc = bnxt_sw_udp_gso_xmit(bp, txr, txq, skb);
+
+		/* if SW USO queued a packet, the doorbell will be written
+		 * below and there is no reason to track the last BD with
+		 * suppressed completions
+		 */
+		if (rc > 0)
+			txr->kick_txbd0 = NULL;
+
+		/* if a packet was queued by SW USO or a doorbell was pending
+		 * from a previous xmit that was deferred, write the doorbell.
+		 */
+		if (rc > 0 || txr->kick_pending)
 			bnxt_txr_db_kick(bp, txr, txr->tx_prod);
 
-		return ret;
+		return rc < 0 ? NETDEV_TX_BUSY : NETDEV_TX_OK;
 	}
 
 	free_size = bnxt_tx_avail(bp, txr);
@@ -751,23 +771,23 @@ normal_tx:
 	prod = NEXT_TX(prod);
 	WRITE_ONCE(txr->tx_prod, prod);
 
+	txr->kick_txbd0 = NULL;
 	if (!netdev_xmit_more() || netif_xmit_stopped(txq)) {
 		bnxt_txr_db_kick(bp, txr, prod);
 	} else {
-		if (free_size >= bp->tx_wake_thresh)
+		if (free_size >= bp->tx_wake_thresh) {
 			txbd0->tx_bd_len_flags_type |=
 				cpu_to_le32(TX_BD_FLAGS_NO_CMPL);
+			txr->kick_txbd0 = txbd0;
+		}
 		txr->kick_pending = 1;
 	}
 
 tx_done:
 
 	if (unlikely(bnxt_tx_avail(bp, txr) <= MAX_SKB_FRAGS + 1)) {
-		if (netdev_xmit_more() && !tx_buf->is_push) {
-			txbd0->tx_bd_len_flags_type &=
-				cpu_to_le32(~TX_BD_FLAGS_NO_CMPL);
+		if (txr->kick_pending)
 			bnxt_txr_db_kick(bp, txr, prod);
-		}
 
 		netif_txq_try_stop(txq, bnxt_tx_avail(bp, txr),
 				   bp->tx_wake_thresh);
@@ -5435,6 +5455,8 @@ static void bnxt_clear_ring_indices(struct bnxt *bp)
 			txr->tx_prod = 0;
 			txr->tx_cons = 0;
 			txr->tx_hw_cons = 0;
+			txr->kick_pending = 0;
+			txr->kick_txbd0 = NULL;
 		}
 
 		rxr = bnapi->rx_ring;
@@ -11785,6 +11807,8 @@ static int bnxt_tx_queue_start(struct bnxt *bp, int idx)
 		txr->tx_prod = 0;
 		txr->tx_cons = 0;
 		txr->tx_hw_cons = 0;
+		txr->kick_pending = 0;
+		txr->kick_txbd0 = NULL;
 start_tx:
 		WRITE_ONCE(txr->dev_state, 0);
 		synchronize_net();
