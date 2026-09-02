@@ -1584,6 +1584,73 @@ Load:   dtoverlay=googlevoicehat-soundcard
 Params: <None>
 
 
+Name:   gpclk
+Info:   Configure a general purpose clock (GPCLK0, GPCLK1 or GPCLK2) output
+        on a GPIO pin, and set its rate. The clock is held open by a
+        clk-hog device (see drivers/clk/clk-hog.c, CONFIG_CLK_HOG), so it
+        stays enabled for as long as the overlay is loaded, with no other
+        consumer required.
+        Legal pin,function combinations, and the override that selects
+        each one directly:
+          GPCLK0: 4,4(Alt0)/gpclk0_4   20,2(Alt5)/gpclk0_20
+                  32,4(Alt0)/gpclk0_32 34,4(Alt0)/gpclk0_34
+          GPCLK1: 5,4(Alt0)/gpclk1_5   21,2(Alt5)/gpclk1_21
+                  42,4(Alt0)/gpclk1_42 44,4(Alt0)/gpclk1_44
+          GPCLK2: 6,4(Alt0)/gpclk2_6   43,4(Alt0)/gpclk2_43
+        N.B.: Check the chosen pin and clock aren't already used by the
+        firmware, other overlays, or onboard hardware.
+Load:   dtoverlay=gpclk,<param>=<val>
+Params: freq                    Output frequency in Hz (default 500000)
+        gpclk0_4                Output GPCLK0 on GPIO4 (Alt0) - the default
+        gpclk0_20               Output GPCLK0 on GPIO20 (Alt5)
+        gpclk0_32               Output GPCLK0 on GPIO32 (Alt0)
+        gpclk0_34               Output GPCLK0 on GPIO34 (Alt0)
+        gpclk1_5                Output GPCLK1 on GPIO5 (Alt0)
+        gpclk1_21               Output GPCLK1 on GPIO21 (Alt5)
+        gpclk1_42               Output GPCLK1 on GPIO42 (Alt0)
+        gpclk1_44               Output GPCLK1 on GPIO44 (Alt0)
+        gpclk2_6                Output GPCLK2 on GPIO6 (Alt0)
+        gpclk2_43               Output GPCLK2 on GPIO43 (Alt0)
+
+
+Name:   gpclk-pi5
+Info:   Configure an RP1 general purpose clock (GPCLK0-GPCLK5) output on a
+        GPIO pin, and set its rate. This is the Pi 5 counterpart of gpclk,
+        selected automatically when gpclk is requested on a Pi 5. As with
+        gpclk, the clock is held open by a clk-hog device (see
+        drivers/clk/clk-hog.c, CONFIG_CLK_HOG), so it stays enabled for as
+        long as the overlay is loaded, with no other consumer required.
+        Legal pin,clock combinations, and the override that selects each
+        one directly:
+          GPCLK0: gpio4/gpclk0_4    gpio20/gpclk0_20
+          GPCLK1: gpio5/gpclk1_5    gpio18/gpclk1_18   gpio21/gpclk1_21
+          GPCLK2: gpio6/gpclk2_6
+          GPCLK3: gpio32/gpclk3_32  gpio34/gpclk3_34   gpio46/gpclk3_46
+          GPCLK4: gpio33/gpclk4_33  gpio43/gpclk4_43
+          GPCLK5: gpio42/gpclk5_42  gpio44/gpclk5_44   gpio47/gpclk5_47
+        GPCLK0-GPCLK2 on pins 4/20, 5/21 and 6 are the combinations in
+        common with gpclk (see above); the rest (GPCLK1 on pin 18, and
+        GPCLK3-GPCLK5) only exist on RP1, so aren't offered by gpclk.
+        N.B.: Check the chosen pin and clock aren't already used by the
+        firmware, other overlays, or onboard hardware.
+Load:   dtoverlay=gpclk-pi5,<param>=<val>
+Params: freq                    Output frequency in Hz (default 500000)
+        gpclk0_4                Output GPCLK0 on GPIO4 - the default
+        gpclk0_20               Output GPCLK0 on GPIO20
+        gpclk1_5                Output GPCLK1 on GPIO5
+        gpclk1_18               Output GPCLK1 on GPIO18
+        gpclk1_21               Output GPCLK1 on GPIO21
+        gpclk2_6                Output GPCLK2 on GPIO6
+        gpclk3_32               Output GPCLK3 on GPIO32
+        gpclk3_34               Output GPCLK3 on GPIO34
+        gpclk3_46               Output GPCLK3 on GPIO46
+        gpclk4_33               Output GPCLK4 on GPIO33
+        gpclk4_43               Output GPCLK4 on GPIO43
+        gpclk5_42               Output GPCLK5 on GPIO42
+        gpclk5_44               Output GPCLK5 on GPIO44
+        gpclk5_47               Output GPCLK5 on GPIO47
+
+
 Name:   gpio-charger
 Info:   This is a generic overlay for detecting charger with GPIO.
 Load:   dtoverlay=gpio-charger,<param>=<val>
