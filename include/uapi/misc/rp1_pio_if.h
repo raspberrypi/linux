@@ -188,6 +188,8 @@ struct rp1_pio_sm_config_xfer32_args {
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_HEAVY  2
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_LIGHT  3
 
+#define RP1_PIO_SM_CONFIG_XFER_FL_DMA_CYCLE (1 << 2)
+
 struct rp1_pio_sm_config_xfer_v2_args {
 	uint16_t sm;
 	uint16_t dir;
