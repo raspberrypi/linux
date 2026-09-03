@@ -665,6 +665,7 @@ static struct sk_buff *xsk_build_skb(struct xdp_sock *xs,
 	struct xsk_tx_metadata *meta = NULL;
 	struct net_device *dev = xs->dev;
 	struct sk_buff *skb = xs->skb;
+	u16 csum_start, csum_offset;
 	bool first_frag = false;
 	int err;
 
@@ -733,15 +734,17 @@ static struct sk_buff *xsk_build_skb(struct xdp_sock *xs,
 			}
 
 			if (meta->flags & XDP_TXMD_FLAGS_CHECKSUM) {
-				if (unlikely(meta->request.csum_start +
-					     meta->request.csum_offset +
+				csum_start = READ_ONCE(meta->request.csum_start);
+				csum_offset = READ_ONCE(meta->request.csum_offset);
+
+				if (unlikely(csum_start + csum_offset +
 					     sizeof(__sum16) > len)) {
 					err = -EINVAL;
 					goto free_err;
 				}
 
-				skb->csum_start = hr + meta->request.csum_start;
-				skb->csum_offset = meta->request.csum_offset;
+				skb->csum_start = hr + csum_start;
+				skb->csum_offset = csum_offset;
 				skb->ip_summed = CHECKSUM_PARTIAL;
 
 				if (unlikely(xs->pool->tx_sw_csum)) {
