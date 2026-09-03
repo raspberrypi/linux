@@ -248,6 +248,7 @@ static efi_status_t efi_measure_tagged_event(unsigned long load_addr,
 					     unsigned long load_size,
 					     enum efistub_event_type event)
 {
+	static efi_guid_t tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
 	union {
 		efi_status_t
 		(__efiapi *hash_log_extend_event)(void *, u64, efi_physical_addr_t,
@@ -257,7 +258,6 @@ static efi_status_t efi_measure_tagged_event(unsigned long load_addr,
 	struct efistub_measured_event *evt __free(efi_pool) = NULL;
 	int size = struct_size(evt, tagged_event.tagged_event_data,
 			       events[event].event_data_len);
-	efi_guid_t tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
 	efi_tcg2_protocol_t *tcg2 = NULL;
 	union efistub_event ev;
 	efi_status_t status;
@@ -276,7 +276,7 @@ static efi_status_t efi_measure_tagged_event(unsigned long load_addr,
 		method.hash_log_extend_event =
 			(void *)efi_table_attr(tcg2, hash_log_extend_event);
 	} else {
-		efi_guid_t cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
+		static efi_guid_t cc_guid = EFI_CC_MEASUREMENT_PROTOCOL_GUID;
 		efi_cc_protocol_t *cc = NULL;
 
 		efi_bs_call(locate_protocol, &cc_guid, NULL, (void **)&cc);
@@ -552,7 +552,7 @@ static
 efi_status_t efi_load_initrd_dev_path(struct linux_efi_initrd *initrd,
 				      unsigned long max)
 {
-	efi_guid_t lf2_proto_guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
+	static efi_guid_t lf2_proto_guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
 	efi_device_path_protocol_t *dp;
 	efi_load_file2_protocol_t *lf2;
 	efi_handle_t handle;
@@ -614,7 +614,7 @@ efi_status_t efi_load_initrd(efi_loaded_image_t *image,
 			     unsigned long hard_limit,
 			     const struct linux_efi_initrd **out)
 {
-	efi_guid_t tbl_guid = LINUX_EFI_INITRD_MEDIA_GUID;
+	static efi_guid_t tbl_guid = LINUX_EFI_INITRD_MEDIA_GUID;
 	efi_status_t status = EFI_SUCCESS;
 	struct linux_efi_initrd initrd, *tbl;
 
@@ -725,7 +725,7 @@ efi_status_t efi_wait_for_key(unsigned long usec, efi_input_key_t *key)
 void efi_remap_image(unsigned long image_base, unsigned alloc_size,
 		     unsigned long code_size)
 {
-	efi_guid_t guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
+	static efi_guid_t guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
 	efi_memory_attribute_protocol_t *memattr;
 	efi_status_t status;
 	u64 attr;

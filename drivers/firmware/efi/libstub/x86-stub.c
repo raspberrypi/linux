@@ -114,9 +114,9 @@ preserve_pci_rom_image(efi_pci_io_protocol_t *pci, struct pci_setup_rom **__rom)
  */
 static void setup_efi_pci(struct boot_params *params)
 {
+	static efi_guid_t pci_proto = EFI_PCI_IO_PROTOCOL_GUID;
 	efi_status_t status;
 	efi_handle_t *pci_handle __free(efi_pool) = NULL;
-	efi_guid_t pci_proto = EFI_PCI_IO_PROTOCOL_GUID;
 	struct setup_data *data;
 	unsigned long num;
 	efi_handle_t h;
@@ -155,7 +155,7 @@ static void setup_efi_pci(struct boot_params *params)
 
 static void retrieve_apple_device_properties(struct boot_params *boot_params)
 {
-	efi_guid_t guid = APPLE_PROPERTIES_PROTOCOL_GUID;
+	static efi_guid_t guid = APPLE_PROPERTIES_PROTOCOL_GUID;
 	struct setup_data *data, *new;
 	efi_status_t status;
 	u32 size = 0;
@@ -444,7 +444,7 @@ efi_status_t efi_adjust_memory_range_protection(unsigned long start,
 
 static void setup_unaccepted_memory(void)
 {
-	efi_guid_t mem_acceptance_proto = OVMF_SEV_MEMORY_ACCEPTANCE_PROTOCOL_GUID;
+	static efi_guid_t mem_acceptance_proto = OVMF_SEV_MEMORY_ACCEPTANCE_PROTOCOL_GUID;
 	sev_memory_acceptance_protocol_t *proto;
 	efi_status_t status;
 
@@ -507,7 +507,7 @@ static void __noreturn efi_exit(efi_handle_t handle, efi_status_t status)
 static efi_status_t efi_allocate_bootparams(efi_handle_t handle,
 					    struct boot_params **bp)
 {
-	efi_guid_t proto = LOADED_IMAGE_PROTOCOL_GUID;
+	static efi_guid_t proto = LOADED_IMAGE_PROTOCOL_GUID;
 	struct boot_params *boot_params;
 	struct setup_header *hdr;
 	efi_status_t status;
@@ -914,7 +914,7 @@ void __noreturn efi_stub_entry(efi_handle_t handle,
 			       struct boot_params *boot_params)
 
 {
-	efi_guid_t guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
+	static efi_guid_t guid = EFI_MEMORY_ATTRIBUTE_PROTOCOL_GUID;
 	const struct linux_efi_initrd *initrd = NULL;
 	unsigned long kernel_entry;
 	struct setup_header *hdr;
