@@ -1537,6 +1537,17 @@ void rp1_pio_close(struct rp1_pio_client *client)
 	}
 	spin_unlock(&pio->lock);
 
+	if (client->claimed_sms) {
+		struct rp1_pio_sm_set_enabled_args se_args = {
+			.mask = client->claimed_sms, .enable = 0
+		};
+		struct rp1_pio_sm_claim_args uc_args = {
+			.mask = client->claimed_sms
+		};
+		rp1_pio_sm_set_enabled(client, &se_args);
+		rp1_pio_sm_unclaim(client, &uc_args);
+	}
+
 	claimed = client->claimed_dmas;
 
 	for (i = 0; claimed; i++) {
@@ -1553,18 +1564,6 @@ void rp1_pio_close(struct rp1_pio_client *client)
 	spin_lock(&pio->lock);
 	pio->claimed_dmas &= ~client->claimed_dmas;
 	spin_unlock(&pio->lock);
-
-	if (client->claimed_sms) {
-		struct rp1_pio_sm_set_enabled_args se_args = {
-			.mask = client->claimed_sms, .enable = 0
-		};
-		struct rp1_pio_sm_claim_args uc_args = {
-			.mask = client->claimed_sms
-		};
-
-		rp1_pio_sm_set_enabled(client, &se_args);
-		rp1_pio_sm_unclaim(client, &uc_args);
-	}
 
 	if (client->claimed_instrs)
 		rp1_pio_remove_instrs(pio, client->claimed_instrs);
