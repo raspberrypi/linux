@@ -1590,7 +1590,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 		for (actual_pages = 0; actual_pages < num_pages;
 		     actual_pages++) {
 			struct page *pg =
-				vmalloc_to_page(((unsigned int *)bulk->offset +
+				vmalloc_to_page(((void *)bulk->offset +
 						 (actual_pages * PAGE_SIZE)));
 			size_t bytes = PAGE_SIZE - off;
 
