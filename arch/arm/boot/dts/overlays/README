@@ -1278,6 +1278,20 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
                                 mode
 
 
+Name:   ed-backlight-pwm
+Info:   Configures the EDATEC PWM backlight for CM4 based boards
+        (BCM2711). Creates a pwm-backlight device with a 16-step gamma
+        brightness table and an optional pca9535 GPIO expander at 0x20
+        for the backlight enable signal.
+Load:   dtoverlay=ed-backlight-pwm,<param>=<val>
+Params: sg215                   Invert the brightness curve for 21.5"
+                                SG215 panels
+
+
+Name:   ed-backlight-pwm-pi5
+Info:   See ed-backlight-pwm (this is the CM5 version)
+
+
 Name:   ed-ipc
 Info:   Configures the EDATEC IPC/EXP series hardware peripherals.
         This overlay provides support for PCA9535 GPIO expanders on
