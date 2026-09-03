@@ -24,7 +24,7 @@ properties:
       - const: chrp,open-pic
 
   device_type:
-    const: open-pci
+    const: open-pic
     deprecated: true
 
   reg:
