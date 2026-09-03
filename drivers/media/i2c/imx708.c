@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
@@ -19,6 +20,8 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
+
+#include "ccs-pll.h"
 
 /*
  * Parameter to adjust Quad Bayer re-mosaic broken line correction
@@ -193,6 +196,33 @@ struct imx708_mode {
 	bool remosaic;
 };
 
+/*
+ * PLL clock tree. The values written here all come from the CCS PLL
+ * calculator, apart from the dual PLL mode selection which is fixed.
+ */
+#define IMX708_REG_IVT_PXCK_DIV		0x0301
+#define IMX708_REG_IVT_SYCK_DIV		0x0303
+#define IMX708_REG_IVT_PREPLLCK_DIV	0x0305
+#define IMX708_REG_IVT_PLL_MPY		0x0306
+#define IMX708_REG_IOP_SYCK_DIV		0x030b
+#define IMX708_REG_IOP_PREPLLCK_DIV	0x030d
+#define IMX708_REG_IOP_PLL_MPY		0x030e
+#define IMX708_REG_PLL_MULT_DRIV	0x0310
+#define IMX708_PLL_MULT_DRIV_DUAL	1
+
+/*
+ * The sensor reads out four pixels per internal video timing pixel clock,
+ * so its pixel rate is that clock times this.
+ */
+#define IMX708_VT_LANES			4
+
+/* The sensor is wired up with two CSI-2 data lanes. */
+#define IMX708_NUM_DATA_LANES		2
+
+/* Shortest line length each mode permits, in pixels. */
+#define IMX708_LINE_LENGTH_MIN_FULL	5216
+#define IMX708_LINE_LENGTH_MIN_BIN	2608
+
 /* Default PDAF pixel correction gains */
 static const u8 pdaf_gains[2][9] = {
 	{ 0x4c, 0x4c, 0x4c, 0x46, 0x3e, 0x39, 0x36, 0x36, 0x36 },
@@ -210,37 +240,6 @@ static const s64 link_freqs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = 450000000,
 	[IMX708_LINK_FREQ_447MHZ] = 447000000,
 	[IMX708_LINK_FREQ_453MHZ] = 453000000,
-};
-
-/* 450MHz is the nominal "default" link frequency */
-static const struct imx708_reg link_450Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2c},
-};
-
-static const struct imx708_reg link_447Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2a},
-};
-
-static const struct imx708_reg link_453Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2e},
-};
-
-static const struct imx708_reg_list link_freq_regs[] = {
-	[IMX708_LINK_FREQ_450MHZ] = {
-		.regs = link_450Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_450Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_447MHZ] = {
-		.regs = link_447Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_447Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_453MHZ] = {
-		.regs = link_453Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
-	},
 };
 
 static const struct imx708_reg mode_common_regs[] = {
@@ -333,14 +332,6 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x034D, 0x00},
 	{0x034E, 0x0A},
 	{0x034F, 0x20},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7C},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
 	{0x3CA0, 0x00},
 	{0x3CA1, 0x64},
 	{0x3CA4, 0x00},
@@ -427,14 +418,6 @@ static const struct imx708_reg mode_2x2binned_regs[] = {
 	{0x034D, 0x00},
 	{0x034E, 0x05},
 	{0x034F, 0x10},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7A},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
 	{0x3CA0, 0x00},
 	{0x3CA1, 0x3C},
 	{0x3CA4, 0x00},
@@ -521,14 +504,6 @@ static const struct imx708_reg mode_2x2binned_720p_regs[] = {
 	{0x034D, 0x00},
 	{0x034E, 0x03},
 	{0x034F, 0x60},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x76},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
 	{0x3CA0, 0x00},
 	{0x3CA1, 0x3C},
 	{0x3CA4, 0x01},
@@ -615,14 +590,6 @@ static const struct imx708_reg mode_hdr_regs[] = {
 	{0x034D, 0x00},
 	{0x034E, 0x05},
 	{0x034F, 0x10},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0xA2},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
 	{0x3CA0, 0x00},
 	{0x3CA1, 0x00},
 	{0x3CA4, 0x00},
@@ -852,6 +819,9 @@ struct imx708 {
 
 	/* Current mode */
 	const struct imx708_mode *mode;
+
+	/* PLL configuration for the current mode and link frequency */
+	struct ccs_pll pll;
 
 	/*
 	 * Mutex for serialized access:
@@ -1110,14 +1080,176 @@ static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
 				IMX708_REG_VALUE_08BIT, imx708->long_exp_shift);
 }
 
+/*
+ * Work out the PLL tree for a mode and link frequency.
+ *
+ * The pre-PLL dividers are pinned to the single value, which leaves the
+ * multipliers as the only variable.
+ */
+static int imx708_pll_calculate(struct imx708 *imx708, struct ccs_pll *pll,
+				const struct imx708_mode *mode, s64 link_freq)
+{
+	struct ccs_pll_limits limits = {
+		.min_ext_clk_freq_hz = 6000000,
+		.max_ext_clk_freq_hz = 27000000,
+
+		/* Internal video timing branch, IVTCK and IVTPXCK. */
+		.vt_fr = {
+			.min_pre_pll_clk_div = 2,
+			.max_pre_pll_clk_div = 2,
+			.min_pll_ip_clk_freq_hz = 6000000,
+			.max_pll_ip_clk_freq_hz = 27000000,
+			.min_pll_multiplier = 92,
+			.max_pll_multiplier = 360,
+			.min_pll_op_clk_freq_hz = 1100000000,
+			.max_pll_op_clk_freq_hz = 2160000000,
+		},
+		.vt_bk = {
+			/* IVT_SYCK_DIV is 2 or 4, IVT_PXCK_DIV always 5. */
+			.min_sys_clk_div = 2,
+			.max_sys_clk_div = 4,
+			.min_pix_clk_div = 5,
+			.max_pix_clk_div = 5,
+			.min_pix_clk_freq_hz = 108000000,
+			.max_pix_clk_freq_hz = 216000000,
+		},
+
+		/* Output branch, IOPCK and IOPSYCK. */
+		.op_fr = {
+			.min_pre_pll_clk_div = 4,
+			.max_pre_pll_clk_div = 4,
+			.min_pll_ip_clk_freq_hz = 6000000,
+			.max_pll_ip_clk_freq_hz = 27000000,
+			.min_pll_multiplier = 105,
+			.max_pll_multiplier = 2500,
+			.min_pll_op_clk_freq_hz = 1250000000,
+			.max_pll_op_clk_freq_hz = 2500000000,
+		},
+		.op_bk = {
+			/* IOP_SYCK_DIV is 1, 2 or 4. */
+			.min_sys_clk_div = 1,
+			.max_sys_clk_div = 4,
+			.min_pix_clk_div = 1,
+			.max_pix_clk_div = 32,
+			.min_pix_clk_freq_hz = 30000000,
+			.max_pix_clk_freq_hz = 2500000000,
+		},
+
+		.min_line_length_pck_bin = IMX708_LINE_LENGTH_MIN_BIN,
+		.min_line_length_pck = IMX708_LINE_LENGTH_MIN_FULL,
+	};
+	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
+	unsigned int binning = mode->remosaic ? 1 : 2;
+
+	/*
+	 * There is no documented range for either system clock, so derive one
+	 * from the PLL output and the pixel clock either side of it.
+	 */
+	limits.vt_bk.min_sys_clk_freq_hz =
+		max(limits.vt_fr.min_pll_op_clk_freq_hz / limits.vt_bk.max_sys_clk_div,
+		    limits.vt_bk.min_pix_clk_freq_hz * limits.vt_bk.min_pix_clk_div);
+	limits.vt_bk.max_sys_clk_freq_hz =
+		min(limits.vt_fr.max_pll_op_clk_freq_hz / limits.vt_bk.min_sys_clk_div,
+		    limits.vt_bk.max_pix_clk_freq_hz * limits.vt_bk.max_pix_clk_div);
+	limits.op_bk.min_sys_clk_freq_hz =
+		limits.op_fr.min_pll_op_clk_freq_hz / limits.op_bk.max_sys_clk_div;
+	limits.op_bk.max_sys_clk_freq_hz =
+		limits.op_fr.max_pll_op_clk_freq_hz / limits.op_bk.min_sys_clk_div;
+
+	memset(pll, 0, sizeof(*pll));
+
+	pll->bus_type = CCS_PLL_BUS_TYPE_CSI2_DPHY;
+	pll->op_lanes = IMX708_NUM_DATA_LANES;
+	pll->vt_lanes = IMX708_VT_LANES;
+	pll->csi2.lanes = IMX708_NUM_DATA_LANES;
+	pll->binning_horizontal = binning;
+	pll->binning_vertical = binning;
+	pll->scale_m = 1;
+	pll->scale_n = 1;
+	pll->bits_per_pixel = 10;
+	pll->flags = CCS_PLL_FLAG_LANE_SPEED_MODEL |
+		     CCS_PLL_FLAG_DUAL_PLL |
+		     CCS_PLL_FLAG_FIFO_DERATING;
+	pll->link_freq = link_freq;
+	/*
+	 * The pixel array runs faster than the link, with the horizontal
+	 * blanking absorbing the difference, so ask for the rate the mode
+	 * needs rather than letting the calculator derive it from the link.
+	 */
+	pll->pixel_rate_pixel_array = mode->pixel_rate;
+	pll->ext_clk_freq_hz = imx708->inclk_freq;
+
+	return ccs_pll_calculate(&client->dev, &limits, pll);
+}
+
+/* Recalculate the PLL tree for the current mode and link frequency. */
+static int imx708_pll_update(struct imx708 *imx708)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
+	int ret;
+
+	ret = imx708_pll_calculate(imx708, &imx708->pll, imx708->mode,
+				   link_freqs[imx708->link_freq_idx]);
+	if (ret)
+		dev_err(&client->dev, "PLL calculation failed: %d\n", ret);
+
+	return ret;
+}
+
+/* Program the PLL tree the calculator worked out. */
+static int imx708_pll_write(struct imx708 *imx708)
+{
+	const struct ccs_pll *pll = &imx708->pll;
+	int ret = 0;
+
+	ret = imx708_write_reg(imx708, IMX708_REG_PLL_MULT_DRIV,
+			       IMX708_REG_VALUE_08BIT,
+			       IMX708_PLL_MULT_DRIV_DUAL);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IVT_PREPLLCK_DIV,
+				       IMX708_REG_VALUE_08BIT,
+				       pll->vt_fr.pre_pll_clk_div);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IVT_PLL_MPY,
+				       IMX708_REG_VALUE_16BIT,
+				       pll->vt_fr.pll_multiplier);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IVT_SYCK_DIV,
+				       IMX708_REG_VALUE_08BIT,
+				       pll->vt_bk.sys_clk_div);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IVT_PXCK_DIV,
+				       IMX708_REG_VALUE_08BIT,
+				       pll->vt_bk.pix_clk_div);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IOP_PREPLLCK_DIV,
+				       IMX708_REG_VALUE_08BIT,
+				       pll->op_fr.pre_pll_clk_div);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IOP_PLL_MPY,
+				       IMX708_REG_VALUE_16BIT,
+				       pll->op_fr.pll_multiplier);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IOP_SYCK_DIV,
+				       IMX708_REG_VALUE_08BIT,
+				       pll->op_bk.sys_clk_div);
+
+
+	return ret;
+}
+
 static void imx708_set_framing_limits(struct imx708 *imx708)
 {
 	const struct imx708_mode *mode = imx708->mode;
 	unsigned int hblank;
+	u64 pixel_rate;
 
-	__v4l2_ctrl_modify_range(imx708->pixel_rate,
-				 mode->pixel_rate, mode->pixel_rate,
-				 1, mode->pixel_rate);
+	if (imx708_pll_update(imx708))
+		return;
+
+	pixel_rate = imx708->pll.pixel_rate_pixel_array;
+	__v4l2_ctrl_modify_range(imx708->pixel_rate, pixel_rate, pixel_rate,
+				 1, pixel_rate);
 
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
@@ -1491,7 +1623,7 @@ static int imx708_get_selection(struct v4l2_subdev *sd,
 static int imx708_start_streaming(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	const struct imx708_reg_list *reg_list, *freq_regs;
+	const struct imx708_reg_list *reg_list;
 	int i, ret;
 	u32 val;
 
@@ -1548,9 +1680,9 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	}
 
 	/* Update the link frequency registers */
-	freq_regs = &link_freq_regs[imx708->link_freq_idx];
-	ret = imx708_write_regs(imx708, freq_regs->regs,
-				freq_regs->num_of_regs);
+	ret = imx708_pll_update(imx708);
+	if (!ret)
+		ret = imx708_pll_write(imx708);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set link frequency registers\n",
 			__func__);
