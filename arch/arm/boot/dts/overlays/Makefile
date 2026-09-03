@@ -379,6 +379,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	waveshare-can-fd-hat-mode-b.dtbo \
 	wifimac.dtbo \
 	wittypi.dtbo \
+	wk2xxx-uart.dtbo \
 	wm8960-soundcard.dtbo \
 	ws2812-pio.dtbo
 

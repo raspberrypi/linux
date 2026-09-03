@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * WK2xxx SPI UART overlay for EDATEC IPC1200 (SPI0) and SBC2300 (SPI1).
+ *
+ * Updated for the upstream-style wk2xxx driver:
+ *  - uses the standard "interrupt-parent"/"interrupts" properties instead
+ *    of the vendor "irq_gpio" property
+ *  - the gpio-controller/#gpio-cells properties were dropped because the
+ *    driver does not (yet) implement the WK2168 GPIO block
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__dormant__ {
+			spi0_pins: spi0_pins {
+				brcm,pins = <9 10 11>;
+				brcm,function = <4>;
+			};
+
+			spi0_cs_pins: spi0_cs_pins {
+				brcm,pins = <8>;
+				brcm,function = <1>;
+			};
+
+			spi0_int_pins: spi0_int_pins {
+				brcm,pins = <24>;
+				brcm,function = <0>;
+				brcm,pull = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+			cs-gpios = <&gpio 8 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wk2xxx_spi0: wk2xxx@0 {
+				compatible = "wkmic,wk2132";
+				reg = <0>; /* CE0 */
+				spi-max-frequency = <10000000>;
+				clock-frequency = <11059200>; /* on-board crystal 11.0592 MHz */
+				interrupt-parent = <&gpio>;
+				interrupts = <24 IRQ_TYPE_LEVEL_LOW>; /* GPIO24 */
+				pinctrl-0 = <&spi0_int_pins>;
+				pinctrl-names = "default";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			spi1_pins: spi1_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <3>;
+			};
+
+			spi1_cs_pins: spi1_cs_pins {
+				brcm,pins = <18>;
+				brcm,function = <1>;
+			};
+
+			spi1_int_pins: spi1_int_pins {
+				brcm,pins = <17>;
+				brcm,function = <0>;
+				brcm,pull = <0>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+			cs-gpios = <&gpio 18 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&aux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wk2xxx_spi1: wk2xxx@0 {
+				compatible = "wkmic,wk2204";
+				reg = <0>; /* CE0 */
+				spi-max-frequency = <10000000>;
+				clock-frequency = <12000000>; /* on-board crystal 12 MHz */
+				interrupt-parent = <&gpio>;
+				interrupts = <17 IRQ_TYPE_LEVEL_LOW>; /* GPIO17 */
+				pinctrl-0 = <&spi1_int_pins>;
+				pinctrl-names = "default";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&aux>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	__overrides__ {
+		ipc1200 = <0>, "+0+1+2-3-4-5-6-7";
+		sbc2300 = <0>, "-0-1-2+3+4+5+6-7";
+	};
+};
