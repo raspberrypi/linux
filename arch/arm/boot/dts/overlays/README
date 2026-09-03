@@ -6382,6 +6382,18 @@ Params: led_gpio                GPIO for LED (default "17")
                                 "default-on")
 
 
+Name:   wk2xxx-uart
+Info:   Overlay for the WK2xxx SPI to UART bridge (WK2124/WK2132/WK2168/
+        WK2202/WK2204). Two board configurations are provided:
+        - ipc1200: WK2132 on SPI0 (CE0), crystal 11.0592 MHz, IRQ on GPIO24
+        - sbc2300: WK2204 on SPI1 (CE0), crystal 12 MHz, IRQ on GPIO17
+Load:   dtoverlay=wk2xxx-uart,<param>=<val>
+Params: ipc1200                 Enable the IPC1200 configuration (SPI0/WK2132)
+        sbc2300                 Enable the SBC2300 configuration (SPI1/WK2204)
+        int-gpio                GPIO used for the WK2xxx interrupt.
+        clock-frequency         On-board crystal frequency in Hz.
+
+
 Name:   wm8960-soundcard
 Info:   Overlay for the Waveshare wm8960 soundcard
 Load:   dtoverlay=wm8960-soundcard,<param>=<val>
