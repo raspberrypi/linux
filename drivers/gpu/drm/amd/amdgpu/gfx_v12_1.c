@@ -216,6 +216,8 @@ static void gfx_v12_1_xcc_update_perf_clk(struct amdgpu_device *adev,
 static int gfx_v12_1_init_cp_compute_microcode_bo(struct amdgpu_device *adev);
 static void gfx_v12_1_xcc_update_medium_grain_clock_gating(
 	struct amdgpu_device *adev, bool enable, int xcc_id, bool force);
+static void gfx_v12_1_update_spm_vmid(struct amdgpu_device *adev, int xcc_id,
+				      struct amdgpu_ring *ring, unsigned vmid);
 
 static void gfx_v12_1_kiq_set_resources(struct amdgpu_ring *kiq_ring,
 					uint64_t queue_mask)
@@ -682,7 +684,7 @@ static void gfx_v12_1_init_rlcg_reg_access_ctrl(struct amdgpu_device *adev)
 static int gfx_v12_1_rlc_init(struct amdgpu_device *adev)
 {
 	const struct cs_section_def *cs_data;
-	int r, i, num_xcc;
+	int r;
 
 	adev->gfx.rlc.cs_data = gfx12_cs_data;
 
@@ -693,13 +695,6 @@ static int gfx_v12_1_rlc_init(struct amdgpu_device *adev)
 		r = amdgpu_gfx_rlc_init_csb(adev);
 		if (r)
 			return r;
-	}
-
-	/* init spm vmid with 0xf */
-	num_xcc = NUM_XCC(adev->gfx.xcc_mask);
-	for (i = 0; i < num_xcc; i++) {
-		if (adev->gfx.rlc.funcs->update_spm_vmid)
-			adev->gfx.rlc.funcs->update_spm_vmid(adev, i, NULL, 0xf);
 	}
 
 	return 0;
@@ -2053,6 +2048,9 @@ static int gfx_v12_1_xcc_rlc_resume(struct amdgpu_device *adev,
 				    int xcc_id)
 {
 	int r;
+
+	/* init spm vmid with 0xf */
+	gfx_v12_1_update_spm_vmid(adev, xcc_id, NULL, 0xf);
 
 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP) {
 		gfx_v12_1_xcc_init_csb(adev, xcc_id);
