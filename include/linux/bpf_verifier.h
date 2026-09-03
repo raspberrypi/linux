@@ -704,6 +704,8 @@ struct bpf_insn_aux_data {
 	 */
 	u32 calls_callback:1;
 	u32 indirect_target:1; /* if it is an indirect jump target */
+	/* true if some jump or call instruction targets this instruction */
+	u32 jump_target:1;
 	/*
 	 * CFG strongly connected component this instruction belongs to,
 	 * zero if it is a singleton SCC.
@@ -1113,6 +1115,16 @@ static inline bool bpf_calls_callback(struct bpf_verifier_env *env, int insn_idx
 static inline void mark_jmp_point(struct bpf_verifier_env *env, int idx)
 {
 	env->insn_aux_data[idx].jmp_point = true;
+}
+
+static inline void mark_jump_target(struct bpf_verifier_env *env, int idx)
+{
+	env->insn_aux_data[idx].jump_target = true;
+}
+
+static inline bool bpf_is_jump_target(struct bpf_verifier_env *env, int insn_idx)
+{
+	return env->insn_aux_data[insn_idx].jump_target;
 }
 
 static inline struct bpf_func_state *cur_func(struct bpf_verifier_env *env)
