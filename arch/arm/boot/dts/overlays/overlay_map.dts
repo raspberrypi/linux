@@ -63,6 +63,15 @@
 		bcm2712;
 	};
 
+	ed-backlight-pwm {
+		bcm2711;
+		bcm2712 = "ed-backlight-pwm-pi5";
+	};
+
+	ed-backlight-pwm-pi5 {
+		bcm2712;
+	};
+
 	dwc-otg {
 		renamed = "dwc-otg-deprecated";
 	};
