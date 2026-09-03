@@ -565,6 +565,8 @@ int netfs_read_folio(struct file *file, struct folio *folio)
 	struct netfs_inode *ctx = netfs_inode(mapping->host);
 	int ret;
 
+	folio_wait_writeback(folio);
+
 	if (folio_test_dirty(folio)) {
 		trace_netfs_folio(folio, netfs_folio_trace_read_gaps);
 		return netfs_read_gaps(file, folio);
