@@ -12544,6 +12544,11 @@ check_ok:
 		{
 			int flags = PROCESS_RES_LOCK;
 
+			if (in_rbtree_lock_required_cb(env)) {
+				verbose(env, "can't res_spin_{lock,unlock} in rbtree cb\n");
+				return -EACCES;
+			}
+
 			if (reg->type != PTR_TO_MAP_VALUE && reg->type != (PTR_TO_BTF_ID | MEM_ALLOC)) {
 				verbose(env, "%s doesn't point to map value or allocated object\n",
 					reg_arg_name(env, argno));
