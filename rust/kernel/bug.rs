@@ -98,6 +98,10 @@ macro_rules! warn_flags {
 #[cfg(all(CONFIG_BUG, any(CONFIG_LOONGARCH, CONFIG_ARM)))]
 macro_rules! warn_flags {
     ($flags:expr) => {
+        if false {
+            _ = $flags;
+        }
+
         // SAFETY: It is always safe to call `WARN_ON()`.
         unsafe { $crate::bindings::WARN_ON(true) }
     };
@@ -107,7 +111,11 @@ macro_rules! warn_flags {
 #[doc(hidden)]
 #[cfg(any(testlib, not(CONFIG_BUG)))]
 macro_rules! warn_flags {
-    ($flags:expr) => {};
+    ($flags:expr) => {
+        if false {
+            _ = $flags;
+        }
+    };
 }
 
 #[doc(hidden)]
