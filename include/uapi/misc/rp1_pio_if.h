@@ -183,6 +183,19 @@ struct rp1_pio_sm_config_xfer32_args {
 	uint32_t buf_count;
 };
 
+#define RP1_PIO_SM_CONFIG_XFER_FL_DMA_PREFER_HEAVY 0
+#define RP1_PIO_SM_CONFIG_XFER_FL_DMA_PREFER_LIGHT 1
+#define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_HEAVY  2
+#define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_LIGHT  3
+
+struct rp1_pio_sm_config_xfer_v2_args {
+	uint16_t sm;
+	uint16_t dir;
+	uint32_t flags;
+	uint32_t buf_size;
+	uint32_t buf_count;
+};
+
 struct rp1_pio_sm_xfer_data_args {
 	uint16_t sm;
 	uint16_t dir;
@@ -242,6 +255,7 @@ struct rp1_pio_interrupt_clear_args {
 #define PIO_IOC_SM_XFER_DATA _IOW(PIO_IOC_MAGIC, 1, struct rp1_pio_sm_xfer_data_args)
 #define PIO_IOC_SM_XFER_DATA32 _IOW(PIO_IOC_MAGIC, 2, struct rp1_pio_sm_xfer_data32_args)
 #define PIO_IOC_SM_CONFIG_XFER32 _IOW(PIO_IOC_MAGIC, 3, struct rp1_pio_sm_config_xfer32_args)
+#define PIO_IOC_SM_CONFIG_XFER_V2 _IOW(PIO_IOC_MAGIC, 4, struct rp1_pio_sm_config_xfer_v2_args)
 
 #define PIO_IOC_READ_HW _IOW(PIO_IOC_MAGIC, 8, struct rp1_access_hw_args)
 #define PIO_IOC_WRITE_HW _IOW(PIO_IOC_MAGIC, 9, struct rp1_access_hw_args)
