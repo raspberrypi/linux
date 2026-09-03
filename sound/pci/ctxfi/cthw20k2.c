@@ -993,6 +993,7 @@ static int daio_mgr_dao_init(void *blk, unsigned int idx, unsigned int conf)
 		/* S/PDIF output */
 		switch ((conf & 0xf)) {
 		case 1:
+		case 9:
 			set_field(&ctl->txctl[idx], ATXCTL_NUC, 0);
 			break;
 		case 2:
