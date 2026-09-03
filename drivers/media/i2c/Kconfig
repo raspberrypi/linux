@@ -352,14 +352,11 @@ config VIDEO_IMX708
 
 config VIDEO_IMX678
 	tristate "Sony IMX678 sensor support"
-	depends on GPIOLIB
-	select V4L2_CCI_I2C
+	select VIDEO_SONY_STARVIS2
 	help
 	  This is a Video4Linux2 sensor driver for the Sony
-	  IMX678 camera.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called imx678.
+	  IMX678 camera. This sensor is now supported by the common
+	  Sony Starvis 2 sensor driver.
 
 config VIDEO_MAX9271_LIB
 	tristate
@@ -852,6 +849,17 @@ config VIDEO_S5K6A3
 	help
 	  This is a V4L2 sensor driver for Samsung S5K6A3 raw
 	  camera sensor.
+
+config VIDEO_SONY_STARVIS2
+	tristate "Sony Starvis 2 sensor support"
+	depends on GPIOLIB
+	select V4L2_CCI_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the Sony Starvis
+	  2 image sensors.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sony-starvis2.
 
 config VIDEO_VD55G1
 	tristate "ST VD55G1 sensor support"
