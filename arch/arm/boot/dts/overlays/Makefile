@@ -63,6 +63,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	draws-pi5.dtbo \
 	dwc-otg-deprecated.dtbo \
 	dwc2.dtbo \
+	ed-backlight-pwm.dtbo \
+	ed-backlight-pwm-pi5.dtbo \
 	ed-ipc.dtbo \
 	edt-ft5406.dtbo \
 	enc28j60.dtbo \
