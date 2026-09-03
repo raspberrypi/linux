@@ -3531,6 +3531,16 @@ static bool is_jmp_point(struct bpf_verifier_env *env, int insn_idx)
 	return env->insn_aux_data[insn_idx].jmp_point;
 }
 
+static void mark_jump_target(struct bpf_verifier_env *env, int idx)
+{
+	env->insn_aux_data[idx].jump_target = true;
+}
+
+static bool bpf_is_jump_target(struct bpf_verifier_env *env, int insn_idx)
+{
+	return env->insn_aux_data[insn_idx].jump_target;
+}
+
 #define LR_FRAMENO_BITS	3
 #define LR_SPI_BITS	6
 #define LR_ENTRY_BITS	(LR_SPI_BITS + LR_FRAMENO_BITS + 1)
@@ -16629,6 +16639,7 @@ static int push_insn(int t, int w, int e, struct bpf_verifier_env *env)
 		/* mark branch target for state pruning */
 		mark_prune_point(env, w);
 		mark_jmp_point(env, w);
+		mark_jump_target(env, w);
 	}
 
 	if (insn_state[w] == 0) {
@@ -16817,6 +16828,10 @@ static bool is_fastcall_kfunc_call(struct bpf_kfunc_call_arg_meta *meta)
  *   r0 = *(u64 *)(r10 - 8);             r0 += r1;
  *   r0 += r1;                           exit;
  *   exit;
+ *
+ * Both uses of the marks assume that a pattern is entered at its first
+ * spill and thus executes as a unit, hence a pattern is not grown past
+ * an instruction targeted by a jump.
  */
 static void mark_fastcall_pattern_for_call(struct bpf_verifier_env *env,
 					   struct bpf_subprog_info *subprog,
@@ -16870,6 +16885,10 @@ static void mark_fastcall_pattern_for_call(struct bpf_verifier_env *env,
 	 */
 	for (i = 1, off = lowest_off; i <= ARRAY_SIZE(caller_saved); ++i, off += BPF_REG_SIZE) {
 		if (insn_idx - i < 0 || insn_idx + i >= env->prog->len)
+			break;
+		/* stx/ldx/call must not be a jump targets, a jump to the first stx is fine */
+		if (bpf_is_jump_target(env, insn_idx - i + 1) ||
+		    bpf_is_jump_target(env, insn_idx + i))
 			break;
 		stx = &insns[insn_idx - i];
 		ldx = &insns[insn_idx + i];
@@ -17036,6 +17055,7 @@ static int visit_insn(int t, struct bpf_verifier_env *env)
 
 		mark_prune_point(env, t + off + 1);
 		mark_jmp_point(env, t + off + 1);
+		mark_jump_target(env, t + off + 1);
 
 		return ret;
 
