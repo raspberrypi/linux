@@ -18,7 +18,7 @@
  */
 u32 efi_kaslr_get_phys_seed(efi_handle_t image_handle)
 {
-	efi_guid_t li_fixed_proto = LINUX_EFI_LOADED_IMAGE_FIXED_GUID;
+	static efi_guid_t li_fixed_proto = LINUX_EFI_LOADED_IMAGE_FIXED_GUID;
 	void *p;
 
 	if (!IS_ENABLED(CONFIG_RANDOMIZE_BASE))
