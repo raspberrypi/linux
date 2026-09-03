@@ -972,7 +972,7 @@ static void rp1_pio_sm_dma_free(struct device *dev, struct dma_info *dma)
 }
 
 static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint sm, uint dir,
-					   uint buf_size, uint buf_count)
+					   uint buf_size, uint buf_count, uint flags)
 {
 	struct rp1_pio_sm_set_dmactrl_args set_dmactrl_args;
 	struct rp1_pio_device *pio = client->pio;
@@ -981,10 +981,12 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct device *dev = &pdev->dev;
 	struct dma_slave_caps dma_caps;
 	struct dma_info *dma = NULL;
+	bool prefer_light_dma = flags & BIT(0);
+	bool force_dma_type = flags & BIT(1);
 	bool reconfigure = false;
 	phys_addr_t fifo_addr;
 	uint32_t dma_mask;
-	char chan_name[4];
+	char chan_name[5];
 	int ret = 0;
 
 	if (sm >= RP1_PIO_SMS_COUNT || dir >= RP1_PIO_DIR_COUNT)
@@ -1022,12 +1024,22 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	chan_name[0] = (dir == RP1_PIO_DIR_TO_SM) ? 't' : 'r';
 	chan_name[1] = 'x';
 	chan_name[2] = '0' + sm;
-	chan_name[3] = '\0';
+	if (prefer_light_dma)
+		chan_name[3] = 'l';
+	else
+		chan_name[3] = '\0';
+	chan_name[4] = '\0';
 
 	dma->chan = dma_request_chan(dev, chan_name);
 	if (IS_ERR(dma->chan)) {
 		ret = PTR_ERR(dma->chan);
 		goto err_unclaim;
+	}
+	dma_get_slave_caps(dma->chan, &dma_caps);
+	if (force_dma_type &&
+	    dma_caps.max_burst != (prefer_light_dma ? 4 : 8)) {
+		ret = -EBUSY;
+		goto err_dma_free;
 	}
 
 	/* Alloc and map bounce buffers */
@@ -1100,7 +1112,8 @@ static int rp1_pio_sm_config_xfer_user(struct rp1_pio_client *client, void *para
 	struct rp1_pio_sm_config_xfer_args *args = param;
 
 	return rp1_pio_sm_config_xfer_internal(client, args->sm, args->dir,
-					       args->buf_size, args->buf_count);
+					       args->buf_size, args->buf_count,
+					       RP1_PIO_SM_CONFIG_XFER_FL_DMA_PREFER_HEAVY);
 }
 
 static int rp1_pio_sm_config_xfer32_user(struct rp1_pio_client *client, void *param)
@@ -1108,7 +1121,17 @@ static int rp1_pio_sm_config_xfer32_user(struct rp1_pio_client *client, void *pa
 	struct rp1_pio_sm_config_xfer32_args *args = param;
 
 	return rp1_pio_sm_config_xfer_internal(client, args->sm, args->dir,
-					       args->buf_size, args->buf_count);
+					       args->buf_size, args->buf_count,
+					       RP1_PIO_SM_CONFIG_XFER_FL_DMA_PREFER_HEAVY);
+}
+
+static int rp1_pio_sm_config_xfer_v2_user(struct rp1_pio_client *client, void *param)
+{
+	struct rp1_pio_sm_config_xfer_v2_args *args = param;
+
+	return rp1_pio_sm_config_xfer_internal(client, args->sm, args->dir,
+					       args->buf_size, args->buf_count,
+					       args->flags);
 }
 
 static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
@@ -1302,7 +1325,8 @@ static int rp1_pio_sm_xfer_data_user(struct rp1_pio_client *client, void *param)
 int rp1_pio_sm_config_xfer(struct rp1_pio_client *client, uint sm, uint dir,
 			      uint buf_size, uint buf_count)
 {
-	return rp1_pio_sm_config_xfer_internal(client, sm, dir, buf_size, buf_count);
+	return rp1_pio_sm_config_xfer_internal(client, sm, dir, buf_size, buf_count,
+					       RP1_PIO_SM_CONFIG_XFER_FL_DMA_PREFER_HEAVY);
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_config_xfer);
 
@@ -1400,6 +1424,7 @@ struct handler_info {
 	HANDLER(SM_XFER_DATA, sm_xfer_data_user),
 	HANDLER(SM_XFER_DATA32, sm_xfer_data32_user),
 	HANDLER(SM_CONFIG_XFER32, sm_config_xfer32_user),
+	HANDLER(SM_CONFIG_XFER_V2, sm_config_xfer_v2_user),
 
 	HANDLER(CAN_ADD_PROGRAM, can_add_program),
 	HANDLER(ADD_PROGRAM, add_program),
