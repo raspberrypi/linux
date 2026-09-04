@@ -679,8 +679,10 @@ static void floppy_release(struct gendisk *disk)
 	else if (fs->ref_count > 0)
 		--fs->ref_count;
 
-	if (fs->ref_count == 0)
+	if (fs->ref_count == 0) {
+		swim_drive(base, fs->location);
 		swim_motor(base, OFF);
+	}
 	mutex_unlock(&swim_mutex);
 }
 
@@ -751,8 +753,6 @@ static int swim_add_floppy(struct swim_priv *swd, enum drive_location location)
 	struct swim __iomem *base = swd->base;
 
 	fs->location = location;
-
-	swim_drive(base, location);
 
 	swim_motor(base, OFF);
 
