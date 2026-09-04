@@ -67,6 +67,7 @@ obj-$(CONFIG_VIDEO_IMX415) += imx415.o
 obj-$(CONFIG_VIDEO_IMX477) += imx477.o
 obj-$(CONFIG_VIDEO_IMX500) += imx500.o
 obj-$(CONFIG_VIDEO_IMX519) += imx519.o
+obj-$(CONFIG_VIDEO_IMX662) += imx662.o
 obj-$(CONFIG_VIDEO_IMX708) += imx708.o
 obj-$(CONFIG_VIDEO_IR_I2C) += ir-kbd-i2c.o
 obj-$(CONFIG_VIDEO_IRS1125) += irs1125.o
