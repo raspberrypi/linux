@@ -1514,6 +1514,9 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	return 0;
 
 error:
+	link_conf->enable_beacon = false;
+	link_conf->beacon_int = prev_beacon_int;
+	sdata->vif.cfg.ssid_len = 0;
 	ieee80211_link_release_channel(link);
 
 	return err;
