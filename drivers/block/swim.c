@@ -402,15 +402,14 @@ static inline int swim_track00(struct swim __iomem *base)
 	for (try = 0; try < 100; try++) {
 
 		swim_select(base, RELAX);
+		msleep(3);
+
 		if (swim_readbit(base, TRACK_ZERO))
-			break;
+			return 0;
 
 		if (swim_step(base))
-			return -1;
+			break;
 	}
-
-	if (swim_readbit(base, TRACK_ZERO))
-		return 0;
 
 	pr_err("swim: track zero recalibration failed\n");
 	return -1;
