@@ -209,15 +209,23 @@ static void i2s_start(struct dw_i2s_dev *dev,
 static void i2s_stop(struct dw_i2s_dev *dev,
 		struct snd_pcm_substream *substream)
 {
-	if (dev->is_jh7110) {
-		struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
-		struct snd_soc_dai_link *dai_link = rtd->dai_link;
 
-		dai_link->trigger_stop = SND_SOC_TRIGGER_ORDER_LDC;
-	}
 	i2s_clear_irqs(dev, substream->stream);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		i2s_write_reg(dev->i2s_base, ITER, 0);
+	else
+		i2s_write_reg(dev->i2s_base, IRER, 0);
+
+	if (!(dev->use_pio || dev->is_jh7110))
+		i2s_disable_dma(dev, substream->stream);
 
 	i2s_disable_irqs(dev, substream->stream, 8);
+
+
+	if (!dev->active) {
+		i2s_write_reg(dev->i2s_base, CER, 0);
+		i2s_write_reg(dev->i2s_base, IER, 0);
+	}
 }
 
 static void i2s_pause(struct dw_i2s_dev *dev,
