@@ -2355,14 +2355,13 @@ static void cfg80211_calculate_bi_data(struct wiphy *wiphy, u32 new_beacon_int,
 		if (wdev->valid_links)
 			continue;
 
+		wdev_bi = cfg80211_wdev_bi(wdev);
+		if (!wdev_bi)
+			continue;
+
 		/* skip wdevs not active on the given wiphy radio */
 		if (radio_idx >= 0 &&
 		    !(rdev_get_radio_mask(rdev, wdev->netdev) & BIT(radio_idx)))
-			continue;
-
-		wdev_bi = cfg80211_wdev_bi(wdev);
-
-		if (!wdev_bi)
 			continue;
 
 		if (!*beacon_int_gcd) {
