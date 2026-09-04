@@ -238,6 +238,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	proto-codec.dtbo \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
+	pwm-fan.dtbo \
 	pwm-gpio.dtbo \
 	pwm-gpio-fan.dtbo \
 	pwm-ir-tx.dtbo \
