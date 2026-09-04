@@ -190,7 +190,7 @@ static int fuse_notify_store(struct fuse_conn *fc, unsigned int size,
 		folio_offset = offset_in_folio(folio, pos);
 		nr_bytes = min(num, folio_size(folio) - folio_offset);
 
-		err = fuse_copy_folio(cs, &folio, folio_offset, nr_bytes, 0);
+		err = fuse_copy_folio(cs, &folio, folio_offset, nr_bytes);
 		if (!folio_test_uptodate(folio) && !err && folio_offset == 0 &&
 		    (nr_bytes == folio_size(folio) || file_size == end)) {
 			folio_zero_segment(folio, nr_bytes, folio_size(folio));

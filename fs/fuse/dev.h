@@ -90,7 +90,7 @@ int fuse_backing_close(struct fuse_conn *fc, int backing_id);
 
 int fuse_copy_one(struct fuse_copy_state *cs, void *val, unsigned size);
 int fuse_copy_folio(struct fuse_copy_state *cs, struct folio **foliop,
-		    unsigned offset, unsigned count, int zeroing);
+		    unsigned offset, unsigned count);
 void fuse_copy_finish(struct fuse_copy_state *cs);
 
 #ifdef CONFIG_FUSE_IO_URING

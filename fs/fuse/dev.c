@@ -1253,31 +1253,10 @@ static int fuse_ref_folio(struct fuse_copy_state *cs, struct folio *folio,
  * done atomically
  */
 int fuse_copy_folio(struct fuse_copy_state *cs, struct folio **foliop,
-		    unsigned offset, unsigned count, int zeroing)
+		    unsigned offset, unsigned count)
 {
 	int err;
 	struct folio *folio = *foliop;
-	size_t size;
-
-	if (folio) {
-		size = folio_size(folio);
-		if (zeroing && count < size) {
-			/*
-			 * When the copy is skipped the folio already holds the
-			 * payload, so only the bytes outside [offset, offset +
-			 * count) may be zeroed.
-			 *
-			 * Otherwise, the whole folio is cleared first so that a
-			 * failed copy leaves zeros rather than stale folio
-			 * contents.
-			 */
-			if (cs->skip_folio_copy)
-				folio_zero_segments(folio, 0, offset,
-						    offset + count, size);
-			else
-				folio_zero_range(folio, 0, size);
-		}
-	}
 
 	while (!cs->skip_folio_copy && count) {
 		if (cs->write && cs->pipebufs && folio) {
@@ -1294,7 +1273,7 @@ int fuse_copy_folio(struct fuse_copy_state *cs, struct folio **foliop,
 			}
 		} else if (!cs->len) {
 			if (cs->move_folios && folio &&
-			    offset == 0 && count == size) {
+			    offset == 0 && count == folio_size(folio)) {
 				err = fuse_try_move_folio(cs, foliop);
 				if (err <= 0)
 					return err;
@@ -1335,10 +1314,25 @@ static int fuse_copy_folios(struct fuse_copy_state *cs, unsigned nbytes,
 
 	for (i = 0; i < ap->num_folios && (nbytes || zeroing); i++) {
 		int err;
+		struct folio *folio = ap->folios[i];
 		unsigned int offset = ap->descs[i].offset;
-		unsigned int count = min(nbytes, ap->descs[i].length);
+		unsigned int length = ap->descs[i].length;
+		unsigned int count = min(nbytes, length);
 
-		err = fuse_copy_folio(cs, &ap->folios[i], offset, count, zeroing);
+		/*
+		 * The reply may be shorter than what was asked for. The full
+		 * descs[i].length is reported as read, so the tail bytes the
+		 * server did not send are about to be marked uptodate and need
+		 * to be zeroed.
+		 *
+		 * Only [offset, offset + length) can be touched since the
+		 * rest of the folio can hold blocks that are already uptodate
+		 * or dirty, and clearing those would lose data.
+		 */
+		if (folio && zeroing && count < length)
+			folio_zero_range(folio, offset + count, length - count);
+
+		err = fuse_copy_folio(cs, &ap->folios[i], offset, count);
 		if (err)
 			return err;
 
