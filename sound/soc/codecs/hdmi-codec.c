@@ -362,6 +362,10 @@ static int hdmi_codec_get_ch_alloc_table_idx(struct hdmi_codec_priv *hcp,
 	unsigned long spk_mask;
 	const struct hdmi_codec_cea_spk_alloc *cap = hdmi_codec_channel_alloc;
 
+	/* Index 0 is CA 0x00, which is valid for any sink */
+	if (channels <= 2)
+		return 0;
+
 	spk_alloc = drm_eld_get_spk_alloc(hcp->eld);
 	spk_mask = hdmi_codec_spk_mask_from_alloc(spk_alloc);
 
