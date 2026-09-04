@@ -67,7 +67,6 @@ mfm_read_addrmark:
 	movew	#seek_time, %d2
 
 wait_header_init:
-	tstb	%a3@(read_error - read_mark)
 	moveb	#0x18, %a3@(write_mode0 - read_mark)
 	moveb	#0x01, %a3@(write_mode1 - read_mark)
 	moveb	#0x01, %a3@(write_mode0 - read_mark)
@@ -140,8 +139,6 @@ crc1:	tstb	%a2@
 	andb	#.Lhr_crc_error, %d5
 	bne	signal_nonyb
 
-	tstb	%a3@(read_error - read_mark)
-
 	moveq	#0, %d0
 signal_nonyb:
 	moveb	#0x18, %a3@(write_mode0 - read_mark)
@@ -166,7 +163,6 @@ mfm_read_data:
 	movew	#seek_time, %d2
 
 wait_data_init:
-	tstb	%a3@(read_error - read_mark)
 	moveb	#0x18, %a3@(write_mode0 - read_mark)
 	moveb	#0x01, %a3@(write_mode1 - read_mark)
 	moveb	#0x01, %a3@(write_mode0 - read_mark)
@@ -190,8 +186,6 @@ wait_data_mark_byte:
 	bne	wait_data_init
 
 	/* read data */
-
-	tstb	%a3@(read_error - read_mark)
 
 	movel	#sector_size-1, %d4		/* sector size */
 read_new_data:
@@ -233,8 +227,6 @@ data_crc1:
 	moveb	%a2@, %d5
 	andb	#.Lhr_crc_error, %d5
 	bne	data_exit
-
-	tstb	%a3@(read_error - read_mark)
 
 	/* return number of bytes read */
 
