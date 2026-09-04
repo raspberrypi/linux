@@ -24,6 +24,14 @@ static int trigger_mode;
 module_param(trigger_mode, int, 0644);
 MODULE_PARM_DESC(trigger_mode, "Set trigger mode: 0=default, 1=XTRIG");
 
+static int tout_width;
+module_param(tout_width, int, 0644);
+MODULE_PARM_DESC(tout_width, "Strobe output width in scanlines; 0=disabled");
+
+static int tout_delay;
+module_param(tout_delay, int, 0644);
+MODULE_PARM_DESC(tout_delay, "Strobe output delay in scanlines (wrt XVS)");
+
 #define IMX296_PIXEL_ARRAY_WIDTH			1456
 #define IMX296_PIXEL_ARRAY_HEIGHT			1088
 
@@ -89,6 +97,7 @@ MODULE_PARM_DESC(trigger_mode, "Set trigger mode: 0=default, 1=XTRIG");
 #define IMX296_PULSE2_EN_TRIG				BIT(1)
 #define IMX296_PULSE2_POL_HIGH				(0 << 2)
 #define IMX296_PULSE2_POL_LOW				(1 << 2)
+#define IMX296_PULSE2_FIX1				BIT(3)
 #define IMX296_PULSE2_UP				IMX296_REG_24BIT(0x307c)
 #define IMX296_PULSE2_DN				IMX296_REG_24BIT(0x3080)
 #define IMX296_INCKSEL(n)				IMX296_REG_8BIT(0x3089 + (n))
@@ -644,6 +653,30 @@ static int imx296_setup(struct imx296 *sensor, struct v4l2_subdev_state *state)
 	return ret;
 }
 
+static void imx296_enable_tout(struct imx296 *sensor, bool enable)
+{
+	imx296_write(sensor, IMX296_CTRLTOUT,
+		     enable ?
+		     (IMX296_CTRLTOUT_TOUT1SEL_PULSE | IMX296_CTRLTOUT_TOUT2SEL_PULSE) : 0,
+		     0);
+	imx296_write(sensor, IMX296_CTRLTRIG,
+		     enable ?
+		     (IMX296_CTRLTRIG_TOUT1_SEL_PULSE1 | IMX296_CTRLTRIG_TOUT2_SEL_PULSE2) : 0,
+		     0);
+	imx296_write(sensor, IMX296_PULSE1, enable ?
+		     (IMX296_PULSE1_EN_NOR | IMX296_PULSE1_POL_HIGH) : 0,
+		     0);
+	imx296_write(sensor, IMX296_PULSE2, enable ?
+		     (IMX296_PULSE2_EN_NOR | IMX296_PULSE2_POL_HIGH | IMX296_PULSE2_FIX1) :
+		     IMX296_PULSE2_FIX1, 0);
+	if (enable) {
+		imx296_write(sensor, IMX296_PULSE1_UP, tout_delay, 0);
+		imx296_write(sensor, IMX296_PULSE1_DN, tout_delay + tout_width, 0);
+		imx296_write(sensor, IMX296_PULSE2_UP, tout_delay, 0);
+		imx296_write(sensor, IMX296_PULSE2_DN, tout_delay + tout_width, 0);
+	}
+}
+
 static int imx296_stream_on(struct imx296 *sensor)
 {
 	int ret = 0, tm;
@@ -657,6 +690,9 @@ static int imx296_stream_on(struct imx296 *sensor)
 		     (tm == 1) ? IMX296_CTRL0B_TRIGEN : 0, &ret);
 	imx296_write(sensor, IMX296_LOWLAGTRG,
 		     (tm == 1) ? IMX296_LOWLAGTRG_FAST : 0, &ret);
+
+	/* Enable TOUT[12] when running in "normal" mode only */
+	imx296_enable_tout(sensor, tout_width > 0 && tm == 0);
 
 	imx296_write(sensor, IMX296_CTRL0A, 0, &ret);
 
