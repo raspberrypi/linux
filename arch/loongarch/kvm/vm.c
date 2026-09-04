@@ -38,6 +38,7 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 		return -ENOMEM;
 	}
 	spin_lock_init(&kvm->arch.phyid_map_lock);
+	spin_lock_init(&kvm->arch.pv_setting_lock);
 
 	kvm_init_vmcs(kvm);
 
