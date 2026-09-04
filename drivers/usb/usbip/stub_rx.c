@@ -481,6 +481,8 @@ static void stub_recv_cmd_submit(struct stub_device *sdev,
 
 	if (pipe == -1)
 		return;
+	if (!usb_pipeisoc(pipe))
+		pdu->u.cmd_submit.number_of_packets = 0;
 
 	/*
 	 * Smatch reported the error case where use_sg is true and buf_len is 0.
