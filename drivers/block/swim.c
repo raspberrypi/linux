@@ -630,14 +630,16 @@ static int floppy_open(struct gendisk *disk, blk_mode_t mode)
 		fs->ref_count++;
 
 	swim_drive(base, fs->location);
-	swim_motor(base, ON);
-	swim_action(base, SETMFM);
+
 	if (fs->ejected)
 		setup_medium(fs);
 	if (!fs->disk_in) {
 		err = -ENXIO;
 		goto out;
 	}
+
+	swim_motor(base, ON);
+	swim_action(base, SETMFM);
 
 	set_capacity(fs->disk, fs->total_secs);
 
