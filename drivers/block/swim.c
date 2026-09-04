@@ -473,8 +473,6 @@ static inline int swim_read_sector(struct floppy_state *fs,
 	short i;
 
 	swim_track(fs, track);
-
-	swim_write(base, mode1, MOTON);
 	swim_head(base, side);
 	swim_write(base, mode0, side);
 
@@ -489,8 +487,6 @@ static inline int swim_read_sector(struct floppy_state *fs,
 		}
 	}
 	local_irq_restore(flags);
-
-	swim_write(base, mode0, MOTON);
 
 	if ((header.side != side)  || (header.track != track) ||
 	     (header.sector != sector))
