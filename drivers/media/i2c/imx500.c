@@ -3250,6 +3250,50 @@ err_start_streaming:
 	return ret;
 }
 
+static int __maybe_unused imx500_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct imx500 *imx500 = to_imx500(sd);
+
+	mutex_lock(&imx500->mutex);
+
+	if (imx500->streaming)
+		imx500_stop_streaming(imx500);
+
+	mutex_unlock(&imx500->mutex);
+
+	return 0;
+}
+
+static int __maybe_unused imx500_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct imx500 *imx500 = to_imx500(sd);
+	int ret;
+
+	mutex_lock(&imx500->mutex);
+
+	if (imx500->streaming) {
+		ret = imx500_start_streaming(imx500);
+		if (ret)
+			goto error;
+	}
+
+	mutex_unlock(&imx500->mutex);
+
+	return 0;
+
+error:
+	imx500_stop_streaming(imx500);
+	imx500->streaming = false;
+
+	mutex_unlock(&imx500->mutex);
+
+	return ret;
+}
+
 static int imx500_get_regulators(struct imx500 *imx500)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx500->sd);
@@ -3734,8 +3778,10 @@ static const struct of_device_id imx500_dt_ids[] = {
 
 MODULE_DEVICE_TABLE(of, imx500_dt_ids);
 
-static const struct dev_pm_ops imx500_pm_ops = { SET_RUNTIME_PM_OPS(
-	imx500_power_off, imx500_power_on, NULL) };
+static const struct dev_pm_ops imx500_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(imx500_suspend, imx500_resume)
+	SET_RUNTIME_PM_OPS(imx500_power_off, imx500_power_on, NULL)
+};
 
 static struct i2c_driver imx500_i2c_driver = {
 	.driver = {

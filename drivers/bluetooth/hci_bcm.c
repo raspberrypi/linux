@@ -107,6 +107,9 @@ struct bcm_device_data {
  * @no_uart_clock_set: UART clock set command for >3Mbps mode is unavailable
  * @pcm_int_params: keep the initial PCM configuration
  * @use_autobaud_mode: start Bluetooth device in autobaud mode
+ * @power_off_in_suspend: controller loses power during a system suspend and
+ *	has to be rebuilt on resume
+ * @hci_registered: whether the hci_uart currently has a registered hci_dev
  * @max_autobaud_speed: max baudrate supported by device in autobaud mode
  */
 struct bcm_device {
@@ -147,6 +150,8 @@ struct bcm_device {
 	bool			drive_rts_on_open;
 	bool			no_uart_clock_set;
 	bool			use_autobaud_mode;
+	bool			power_off_in_suspend;
+	bool			hci_registered;
 	u8			pcm_int_params[5];
 	u32			max_autobaud_speed;
 };
@@ -158,6 +163,8 @@ struct bcm_data {
 
 	struct bcm_device	*dev;
 };
+
+static const struct hci_uart_proto bcm_proto;
 
 /* List of BCM BT UART devices */
 static DEFINE_MUTEX(bcm_device_lock);
@@ -485,6 +492,14 @@ static int bcm_open(struct hci_uart *hu)
 
 out:
 	if (bcm->dev) {
+		/*
+		 * Since bcm_resume() reprobes the device, the suspend handling
+		 * done by the hci_suspend_notifier is not necessary.
+		 */
+		if (IS_ENABLED(CONFIG_PM_SLEEP) && hu->serdev &&
+		    bcm->dev->power_off_in_suspend)
+			set_bit(HCI_UART_NO_SUSPEND_NOTIFIER, &hu->flags);
+
 		if (bcm->dev->use_autobaud_mode)
 			hci_uart_set_flow_control(hu, false);	/* Assert BT_UART_CTS_N */
 		else if (bcm->dev->drive_rts_on_open)
@@ -826,6 +841,21 @@ static int bcm_suspend(struct device *dev)
 	bt_dev_dbg(bdev, "suspend: is_suspended %d", bdev->is_suspended);
 
 	/*
+	 * Unregister the device before suspend since it will lose power.
+	 * Flush power_on so that bcm_setup is not running. This avoids a
+	 * timeout when the device is being unregistered during bcm_setup
+	 */
+	if (bdev->power_off_in_suspend && bdev->hu && bdev->hci_registered) {
+		struct hci_dev *hdev = bdev->hu->hdev;
+
+		if (hdev)
+			disable_work_sync(&hdev->power_on);
+
+		hci_uart_unregister_device(bdev->hu);
+		bdev->hci_registered = false;
+	}
+
+	/*
 	 * When used with a device instantiated as platform_device, bcm_suspend
 	 * can be called at any time as long as the platform device is bound,
 	 * so it should use bcm_device_lock to protect access to hci_uart
@@ -836,10 +866,11 @@ static int bcm_suspend(struct device *dev)
 	if (!bdev->hu)
 		goto unlock;
 
-	if (pm_runtime_active(dev))
+	if (!bdev->power_off_in_suspend && pm_runtime_active(dev))
 		bcm_suspend_device(dev);
 
-	if (device_may_wakeup(dev) && bdev->irq > 0) {
+	if (!bdev->power_off_in_suspend && device_may_wakeup(dev) &&
+	    bdev->irq > 0) {
 		error = enable_irq_wake(bdev->irq);
 		if (!error)
 			bt_dev_dbg(bdev, "BCM irq: enabled");
@@ -855,6 +886,7 @@ unlock:
 static int bcm_resume(struct device *dev)
 {
 	struct bcm_device *bdev = dev_get_drvdata(dev);
+	struct hci_uart *hu;
 	int err = 0;
 
 	bt_dev_dbg(bdev, "resume: is_suspended %d", bdev->is_suspended);
@@ -867,15 +899,18 @@ static int bcm_resume(struct device *dev)
 	 */
 	mutex_lock(&bcm_device_lock);
 
-	if (!bdev->hu)
+	hu = bdev->hu;
+	if (!hu)
 		goto unlock;
 
-	if (device_may_wakeup(dev) && bdev->irq > 0) {
+	if (!bdev->power_off_in_suspend && device_may_wakeup(dev) &&
+	    bdev->irq > 0) {
 		disable_irq_wake(bdev->irq);
 		bt_dev_dbg(bdev, "BCM irq: disabled");
 	}
 
-	err = bcm_resume_device(dev);
+	if (!bdev->power_off_in_suspend)
+		err = bcm_resume_device(dev);
 
 unlock:
 	mutex_unlock(&bcm_device_lock);
@@ -884,6 +919,26 @@ unlock:
 		pm_runtime_disable(dev);
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);
+	}
+
+	/*
+	 * On boards flagged with brcm,power-off-in-suspend the controller is
+	 * powered down entirely across a system suspend.
+	 *
+	 * Register the HCI device again.
+	 *
+	 * This has to be outside bcm_device_lock, which bcm_open() takes.
+	 */
+	if (hu && hu->serdev && bdev->power_off_in_suspend &&
+	    !bdev->hci_registered) {
+		int rerr;
+
+		rerr = hci_uart_register_device(hu, &bcm_proto);
+		if (rerr)
+			dev_err(dev, "Failed to register HCI device: %d\n",
+				rerr);
+		else
+			bdev->hci_registered = true;
 	}
 
 	return 0;
@@ -1229,6 +1284,8 @@ static int bcm_of_probe(struct bcm_device *bdev)
 {
 	bdev->use_autobaud_mode = device_property_read_bool(bdev->dev,
 							    "brcm,requires-autobaud-mode");
+	bdev->power_off_in_suspend = device_property_read_bool(bdev->dev,
+							      "brcm,power-off-in-suspend");
 	device_property_read_u32(bdev->dev, "max-speed", &bdev->oper_speed);
 	device_property_read_u8_array(bdev->dev, "brcm,bt-pcm-int-params",
 				      bdev->pcm_int_params, 5);
@@ -1557,14 +1614,23 @@ static int bcm_serdev_probe(struct serdev_device *serdev)
 			bcmdev->oper_speed = data->max_speed;
 	}
 
-	return hci_uart_register_device(&bcmdev->serdev_hu, &bcm_proto);
+	err = hci_uart_register_device(&bcmdev->serdev_hu, &bcm_proto);
+	if (err)
+		return err;
+
+	bcmdev->hci_registered = true;
+
+	return 0;
 }
 
 static void bcm_serdev_remove(struct serdev_device *serdev)
 {
 	struct bcm_device *bcmdev = serdev_device_get_drvdata(serdev);
 
-	hci_uart_unregister_device(&bcmdev->serdev_hu);
+	if (bcmdev->hci_registered) {
+		hci_uart_unregister_device(&bcmdev->serdev_hu);
+		bcmdev->hci_registered = false;
+	}
 }
 
 #ifdef CONFIG_OF

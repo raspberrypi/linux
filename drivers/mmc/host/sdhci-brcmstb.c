@@ -50,8 +50,16 @@
 #define SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE	BIT(31)
 #define SDIO_CFG_MAX_50MHZ_MODE_ENABLE		BIT(0)
 
+struct brcmstb_match_priv {
+	void (*cfginit)(struct sdhci_host *host);
+	void (*hs400es)(struct mmc_host *mmc, struct mmc_ios *ios);
+	struct sdhci_ops *ops;
+	const unsigned int flags;
+};
+
 struct sdhci_brcmstb_priv {
 	void __iomem *cfg_regs;
+	const struct brcmstb_match_priv *match_priv;
 	unsigned int flags;
 	struct clk *base_clk;
 	u32 base_freq_hz;
@@ -62,13 +70,6 @@ struct sdhci_brcmstb_priv {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_default;
 	struct pinctrl_state *pins_sdex;
-};
-
-struct brcmstb_match_priv {
-	void (*cfginit)(struct sdhci_host *host);
-	void (*hs400es)(struct mmc_host *mmc, struct mmc_ios *ios);
-	struct sdhci_ops *ops;
-	const unsigned int flags;
 };
 
 static inline void enable_clock_gating(struct sdhci_host *host)
@@ -600,6 +601,7 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	pltfm_host->clk = clk;
 
 	priv = sdhci_pltfm_priv(pltfm_host);
+	priv->match_priv = match_priv;
 	cqe = 0;
 	device_property_read_u32(&pdev->dev, "supports-cqe", &cqe);
 	if (cqe > 0) {
@@ -771,6 +773,9 @@ static int sdhci_brcmstb_resume(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_brcmstb_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
+
+	if (priv->match_priv->cfginit)
+		priv->match_priv->cfginit(host);
 
 	ret = sdhci_pltfm_resume(dev);
 	if (!ret && priv->base_freq_hz) {

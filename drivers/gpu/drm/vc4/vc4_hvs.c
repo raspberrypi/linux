@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_drv.h>
@@ -437,12 +438,28 @@ static const u32 nearest_neighbour_kernel[] =
 	VC4_LINEAR_PHASE_KERNEL(0, 0, 0, 0, 0, 0, 0, 0,
 				1, 1, 1, 1, 255, 255, 255, 255);
 
+static void vc4_hvs_write_linear_kernel(struct vc4_hvs *hvs,
+					struct drm_mm_node *space,
+					const u32 *kernel)
+{
+	u32 __iomem *dst_kernel = hvs->dlist + space->start;
+	unsigned int i;
+
+	for (i = 0; i < VC4_KERNEL_DWORDS; i++) {
+		if (i < VC4_LINEAR_PHASE_KERNEL_DWORDS)
+			writel(kernel[i], &dst_kernel[i]);
+		else {
+			writel(kernel[VC4_KERNEL_DWORDS - i - 1],
+			       &dst_kernel[i]);
+		}
+	}
+}
+
 static int vc4_hvs_upload_linear_kernel(struct vc4_hvs *hvs,
 					struct drm_mm_node *space,
 					const u32 *kernel)
 {
-	int ret, i;
-	u32 __iomem *dst_kernel;
+	int ret;
 
 	/*
 	 * NOTE: We don't need a call to drm_dev_enter()/drm_dev_exit()
@@ -456,16 +473,7 @@ static int vc4_hvs_upload_linear_kernel(struct vc4_hvs *hvs,
 		return ret;
 	}
 
-	dst_kernel = hvs->dlist + space->start;
-
-	for (i = 0; i < VC4_KERNEL_DWORDS; i++) {
-		if (i < VC4_LINEAR_PHASE_KERNEL_DWORDS)
-			writel(kernel[i], &dst_kernel[i]);
-		else {
-			writel(kernel[VC4_KERNEL_DWORDS - i - 1],
-			       &dst_kernel[i]);
-		}
-	}
+	vc4_hvs_write_linear_kernel(hvs, space, kernel);
 
 	return 0;
 }
@@ -2117,6 +2125,8 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(hvs))
 		return PTR_ERR(hvs);
 
+	platform_set_drvdata(pdev, hvs);
+
 	hvs->regset.base = hvs->regs;
 
 	if (vc4->gen == VC4_GEN_6_C) {
@@ -2299,6 +2309,35 @@ static void vc4_hvs_dev_remove(struct platform_device *pdev)
 	component_del(&pdev->dev, &vc4_hvs_ops);
 }
 
+static int vc4_hvs_resume_early(struct device *dev)
+{
+	struct vc4_hvs *hvs = platform_get_drvdata(to_platform_device(dev));
+	struct vc4_dev *vc4;
+	int ret;
+
+	if (!hvs)
+		return 0;
+
+	vc4 = hvs->vc4;
+	if (vc4->gen >= VC4_GEN_6_C)
+		ret = vc6_hvs_hw_init(hvs);
+	else
+		ret = vc4_hvs_hw_init(hvs);
+	if (ret)
+		return ret;
+
+	vc4_hvs_write_linear_kernel(hvs, &hvs->mitchell_netravali_filter,
+				    mitchell_netravali_1_3_1_3_kernel);
+	vc4_hvs_write_linear_kernel(hvs, &hvs->nearest_neighbour_filter,
+				    nearest_neighbour_kernel);
+
+	return vc4_hvs_cob_init(hvs);
+}
+
+static const struct dev_pm_ops vc4_hvs_pm_ops = {
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(NULL, vc4_hvs_resume_early)
+};
+
 static const struct of_device_id vc4_hvs_dt_match[] = {
 	{ .compatible = "brcm,bcm2711-hvs" },
 	{ .compatible = "brcm,bcm2712-hvs" },
@@ -2312,5 +2351,6 @@ struct platform_driver vc4_hvs_driver = {
 	.driver = {
 		.name = "vc4_hvs",
 		.of_match_table = vc4_hvs_dt_match,
+		.pm = pm_sleep_ptr(&vc4_hvs_pm_ops),
 	},
 };

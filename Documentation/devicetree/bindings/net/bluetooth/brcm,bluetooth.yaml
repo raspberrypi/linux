@@ -109,6 +109,12 @@ properties:
       if the device's initial baud rate in normal mode is not supported by the
       host or if the device requires autobaud mode startup before loading FW.
 
+  brcm,power-off-in-suspend:
+    type: boolean
+    description:
+      Set this property if the controller is powered off during a system
+      suspend.
+
   interrupts:
     items:
       - description: Handle to the line HOST_WAKE used to wake

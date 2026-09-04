@@ -4006,6 +4006,8 @@ Params: l1ss                    Enable RC ASPM L1 sub-state support. Requires
                                 requires DMA and MSI addresses to be 32bit.
         mmio-hi                 Move the start of outbound 32bit addresses to
                                 2GB and expand 64bit outbound space to 14GB.
+        no-pwr-ctrl             Disable the regulator on the PCIe 3v3 supply.
+                                This leaves it always enabled.
 
 
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]

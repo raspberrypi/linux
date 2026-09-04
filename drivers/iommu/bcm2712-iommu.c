@@ -14,6 +14,7 @@
 #include <linux/minmax.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
 #include <linux/spinlock.h>
 
 #define MMU_WR(off, val)   writel(val, mmu->reg_base + (off))
@@ -207,18 +208,25 @@ static int bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 	 * the aperture does not start from zero), and of the default page.
 	 * For simplicity, both these regions are whole Linux pages.
 	 */
-	u = bcm2712_iommu_get_page(mmu, &mmu->top_table);
-	if (!u)
-		return -ENOMEM;
+	if (mmu->top_table) {
+		u = (u32)(virt_to_phys(mmu->top_table) >> IOMMU_PAGE_SHIFT);
+	} else {
+		u = bcm2712_iommu_get_page(mmu, &mmu->top_table);
+		if (!u)
+			return -ENOMEM;
+	}
 	MMU_WR(MMMU_PT_PA_BASE_OFFSET,
 	       u - ((mmu->aperture_base - mmu->dma_iova_offset) >> L1_AP_BASE_SHIFT));
-	u = bcm2712_iommu_get_page(mmu, &mmu->default_page);
-	if (!u) {
-		bcm2712_iommu_free_page(mmu, mmu->top_table);
-		return -ENOMEM;
+	if (mmu->default_page) {
+		u = (u32)(virt_to_phys(mmu->default_page) >> IOMMU_PAGE_SHIFT);
+	} else {
+		u = bcm2712_iommu_get_page(mmu, &mmu->default_page);
+		if (!u) {
+			bcm2712_iommu_free_page(mmu, mmu->top_table);
+			return -ENOMEM;
+		}
 	}
 	MMU_WR(MMMU_ILLEGAL_ADR_OFFSET, MMMU_ILLEGAL_ADR_ENABLE + u);
-	mmu->nmapped_pages = 0;
 
 	/* Flush (and enable) the shared TLB cache; enable this MMU. */
 	if (mmu->cache)
@@ -744,6 +752,26 @@ static void bcm2712_iommu_remove(struct platform_device *pdev)
 		MMU_WR(MMMU_CTRL_OFFSET, 0); /* disable the MMU */
 }
 
+static int bcm2712_iommu_suspend(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+
+	if (mmu->reg_base)
+		MMU_WR(MMMU_CTRL_OFFSET, 0); /* disable the MMU */
+
+	return 0;
+}
+
+static int bcm2712_iommu_resume(struct device *dev)
+{
+	struct bcm2712_iommu *mmu = dev_get_drvdata(dev);
+
+	return bcm2712_iommu_init(mmu);
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(bcm2712_iommu_pm_ops, bcm2712_iommu_suspend,
+				bcm2712_iommu_resume);
+
 static const struct of_device_id bcm2712_iommu_of_match[] = {
 	{
 		. compatible = "brcm,bcm2712-iommu"
@@ -756,7 +784,8 @@ static struct platform_driver bcm2712_iommu_driver = {
 	.remove = bcm2712_iommu_remove,
 	.driver = {
 		.name = "bcm2712-iommu",
-		.of_match_table = bcm2712_iommu_of_match
+		.of_match_table = bcm2712_iommu_of_match,
+		.pm = pm_sleep_ptr(&bcm2712_iommu_pm_ops),
 	},
 };
 

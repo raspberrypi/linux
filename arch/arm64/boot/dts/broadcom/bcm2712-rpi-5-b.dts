@@ -101,6 +101,17 @@
 		gpio = <&rp1_gpio 46 0>;  // CD1_IO0_MICCLK, to MIPI 1 connector
 	};
 
+	pcie1_3v3: pcie1_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie1-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&rp1_gpio 28 GPIO_ACTIVE_HIGH>;  // PCIE_RP1_WAKE
+		startup-delay-us = <20000>;
+	};
+
 	cam_dummy_reg: cam_dummy_reg {
 		compatible = "regulator-fixed";
 		regulator-name = "cam-dummy-reg";
@@ -125,6 +136,24 @@ rp1_target: &pcie2 {
 
 &pcie1 {
 	brcm,fifo-qos-map = /bits/ 8 <3 3 3 3>;
+
+	/*
+	 * Hack to get linux to probe this pcie after pcie2.
+	 * The pcie-brcmstb driver does not defer probe if
+	 * the regulator is not found yet. This forces pcie1
+	 * to be probed after pcie2 so that the regulator
+	 * is found.
+	 */
+	vpcie3v3-supply = <&pcie1_3v3>;
+
+	pci@0,0 {
+		device_type = "pci";
+		reg = <0 0 0 0 0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+		vpcie3v3-supply = <&pcie1_3v3>;
+	};
 };
 
 // The system SPI for the bootloader EEPROM
@@ -374,6 +403,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 		compatible = "brcm,bcm43438-bt";
 		max-speed = <3000000>;
 		shutdown-gpios = <&gio 29 GPIO_ACTIVE_HIGH>;
+		brcm,power-off-in-suspend;
 		local-bd-address = [ 00 00 00 00 00 00 ];
 	};
 };
@@ -426,6 +456,7 @@ dpi_16bit_gpio2:        &rp1_dpi_16bit_gpio2        { };
 	vmmc-supply = <&wl_on_reg>;
 	sd-uhs-ddr50;
 	non-removable;
+	cap-power-off-card;
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;

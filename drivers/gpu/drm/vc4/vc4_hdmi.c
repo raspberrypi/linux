@@ -3097,19 +3097,13 @@ static int vc4_hdmi_runtime_resume(struct device *dev)
 		return ret;
 
 	/*
-	 * Whenever the RaspberryPi boots without an HDMI monitor
-	 * plugged in, the firmware won't have initialized the HSM clock
-	 * rate and it will be reported as 0.
-	 *
-	 * If we try to access a register of the controller in such a
-	 * case, it will lead to a silent CPU stall. Let's make sure we
-	 * prevent such a case.
+	 * The clock rate may be reported wrong after suspend to RAM.
+	 * This may cause a cpu stall.
 	 */
 	rate = clk_get_rate(vc4_hdmi->hsm_clock);
-	if (!rate) {
-		ret = -EINVAL;
-		goto err_disable_clk;
-	}
+	if (!rate)
+		dev_warn(&vc4_hdmi->pdev->dev,
+			 "hsm_clock rate is 0, proceeding anyway\n");
 
 	ret = clk_prepare_enable(vc4_hdmi->audio_clock);
 	if (ret)
@@ -3447,6 +3441,8 @@ static const struct dev_pm_ops vc4_hdmi_pm_ops = {
 	SET_RUNTIME_PM_OPS(vc4_hdmi_runtime_suspend,
 			   vc4_hdmi_runtime_resume,
 			   NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 };
 
 struct platform_driver vc4_hdmi_driver = {
