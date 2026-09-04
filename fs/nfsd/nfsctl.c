@@ -2269,7 +2269,7 @@ int nfsd_nl_listener_set_doit(struct sk_buff *skb, struct genl_info *info)
 					   bad_xprt);
 		else if (skipped_rpcb)
 			NL_SET_ERR_MSG_FMT(info->extack,
-					   "cannot create %s listener; rpcbind did not answer earlier, so some listeners are not registered",
+					   "cannot create %s listener; rpcbind did not answer earlier",
 					   bad_xprt);
 		else
 			NL_SET_ERR_MSG_FMT(info->extack,
