@@ -852,6 +852,21 @@ void rose_link_device_down(struct net_device *dev)
 }
 
 /*
+ *	Is this Call Request the very same call as the one an existing route
+ *	was built for?  Both the loop detection and the reuse of a stale LCI
+ *	below rely on this test.
+ */
+static bool rose_same_call(const struct rose_route *rose_route,
+			   const rose_address *src_addr,
+			   const struct rose_facilities_struct *facilities)
+{
+	return rose_route->rand == facilities->rand &&
+	       rosecmp(src_addr, &rose_route->src_addr) == 0 &&
+	       ax25cmp(&facilities->dest_call, &rose_route->src_call) == 0 &&
+	       ax25cmp(&facilities->source_call, &rose_route->dest_call) == 0;
+}
+
+/*
  *	Route a frame to an appropriate AX.25 connection.
  *	A NULL ax25_cb indicates an internally generated frame.
  */
@@ -961,6 +976,16 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 		goto out;
 	}
 
+	memset(&facilities, 0x00, sizeof(struct rose_facilities_struct));
+
+	if (frametype == ROSE_CALL_REQUEST &&
+	    !rose_parse_facilities(skb->data + ROSE_CALL_REQ_FACILITIES_OFF,
+				   skb->len - ROSE_CALL_REQ_FACILITIES_OFF,
+				   &facilities)) {
+		rose_transmit_clear_request(rose_neigh, lci, ROSE_INVALID_FACILITY, 76);
+		goto out;
+	}
+
 	/*
 	 *	Route it to the next in line if we have an entry for it.
 	 */
@@ -969,7 +994,21 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 		if (rose_route->lci1 == lci &&
 		    rose_route->neigh1 == rose_neigh) {
 			if (frametype == ROSE_CALL_REQUEST) {
-				/* F6FBB - Remove an existing unused route */
+				if (rose_same_call(rose_route, src_addr,
+						   &facilities)) {
+					/*
+					 *	The very same call coming back
+					 *	to us: a routing loop.  Keep
+					 *	the route, the loop detection
+					 *	below is what matches on it.
+					 */
+					rose_transmit_clear_request(rose_neigh,
+								    lci,
+								    ROSE_NOT_OBTAINABLE,
+								    120);
+					goto out;
+				}
+				/* Remove an existing unused route */
 				rose_remove_route(rose_route);
 				break;
 			} else if (rose_route->neigh2 != NULL) {
@@ -990,7 +1029,21 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 		if (rose_route->lci2 == lci &&
 		    rose_route->neigh2 == rose_neigh) {
 			if (frametype == ROSE_CALL_REQUEST) {
-				/* F6FBB - Remove an existing unused route */
+				if (rose_same_call(rose_route, src_addr,
+						   &facilities)) {
+					/*
+					 *	The very same call coming back
+					 *	to us: a routing loop.  Keep
+					 *	the route, the loop detection
+					 *	below is what matches on it.
+					 */
+					rose_transmit_clear_request(rose_neigh,
+								    lci,
+								    ROSE_NOT_OBTAINABLE,
+								    120);
+					goto out;
+				}
+				/* Remove an existing unused route */
 				rose_remove_route(rose_route);
 				break;
 			} else if (rose_route->neigh1 != NULL) {
@@ -1021,24 +1074,12 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 		goto out;
 	}
 
-	memset(&facilities, 0x00, sizeof(struct rose_facilities_struct));
-
-	if (!rose_parse_facilities(skb->data + ROSE_CALL_REQ_FACILITIES_OFF,
-				   skb->len - ROSE_CALL_REQ_FACILITIES_OFF,
-				   &facilities)) {
-		rose_transmit_clear_request(rose_neigh, lci, ROSE_INVALID_FACILITY, 76);
-		goto out;
-	}
-
 	/*
 	 *	Check for routing loops.
 	 */
 	rose_route = rose_route_list;
 	while (rose_route != NULL) {
-		if (rose_route->rand == facilities.rand &&
-		    rosecmp(src_addr, &rose_route->src_addr) == 0 &&
-		    ax25cmp(&facilities.dest_call, &rose_route->src_call) == 0 &&
-		    ax25cmp(&facilities.source_call, &rose_route->dest_call) == 0) {
+		if (rose_same_call(rose_route, src_addr, &facilities)) {
 			rose_transmit_clear_request(rose_neigh, lci, ROSE_NOT_OBTAINABLE, 120);
 			goto out;
 		}
