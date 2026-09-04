@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
@@ -49,6 +50,16 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 /* V_TIMING internal */
 #define IMX708_REG_FRAME_LENGTH		0x0340
 #define IMX708_FRAME_LENGTH_MAX		0xffff
+
+/* H_TIMING internal */
+#define IMX708_REG_LINE_LENGTH		0x0342
+
+/*
+ * IVT PLL multiplier, which sets the pixel rate. All modes share the same
+ * divider chain, so the pixel rate is the multiplier times this step.
+ */
+#define IMX708_REG_IVT_PLL_MPY		0x0306
+#define IMX708_IVT_PLL_STEP		4800000
 
 /* Long exposure multiplier */
 #define IMX708_LONG_EXP_SHIFT_MAX	7
@@ -154,6 +165,34 @@ struct imx708_reg_list {
 	const struct imx708_reg *regs;
 };
 
+/*
+ * Mode timings, which depend on how much bandwidth the CSI-2 link has to
+ * drain each line. A mode lists one set per link frequency it has a timing
+ * for, the first being the default used by any other link frequency.
+ *
+ * A line has to be serialised within the line period, and the sensor needs
+ * headroom there: with only a per cent or two to spare the image breaks up,
+ * and a mode can stream once but then fail to start again. Each timing below
+ * keeps at least 4% in hand, that is
+ *
+ *	line_length_pix / pixel_rate > 1.04 * width * bpp / link bandwidth
+ */
+#define IMX708_NUM_MODE_TIMINGS		2
+
+struct imx708_mode_timing {
+	/* Link frequency this timing is for, unset in the default entry. */
+	s64 link_frequency;
+
+	/* H-timing in pixels */
+	unsigned int line_length_pix;
+
+	/* Default framerate. */
+	unsigned int vblank_default;
+
+	/* Not all timings have the same pixel rate. */
+	u64 pixel_rate;
+};
+
 /* Mode : resolution and related config&values */
 struct imx708_mode {
 	/* Frame width */
@@ -162,23 +201,17 @@ struct imx708_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* H-timing in pixels */
-	unsigned int line_length_pix;
-
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
 
 	/* Highest possible framerate. */
 	unsigned int vblank_min;
 
-	/* Default framerate. */
-	unsigned int vblank_default;
-
 	/* Default register values */
 	struct imx708_reg_list reg_list;
 
-	/* Not all modes have the same pixel rate. */
-	u64 pixel_rate;
+	/* Timings, the first being the default. */
+	struct imx708_mode_timing timings[IMX708_NUM_MODE_TIMINGS];
 
 	/* Not all modes have the same minimum exposure. */
 	u32 exposure_lines_min;
@@ -204,12 +237,14 @@ enum {
 	IMX708_LINK_FREQ_450MHZ,
 	IMX708_LINK_FREQ_447MHZ,
 	IMX708_LINK_FREQ_453MHZ,
+	IMX708_LINK_FREQ_960MHZ,
 };
 
 static const s64 link_freqs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = 450000000,
 	[IMX708_LINK_FREQ_447MHZ] = 447000000,
 	[IMX708_LINK_FREQ_453MHZ] = 453000000,
+	[IMX708_LINK_FREQ_960MHZ] = 960000000,
 };
 
 /* 450MHz is the nominal "default" link frequency */
@@ -228,6 +263,16 @@ static const struct imx708_reg link_453Mhz_regs[] = {
 	{0x030F, 0x2e},
 };
 
+static const struct imx708_reg link_960Mhz_regs[] = {
+	{0x030B, 0x01},
+	{0x030E, 0x01},
+	{0x030F, 0x40},
+	{0x0820, 0x0f},
+	{0x0821, 0x00},
+	{0x0822, 0x00},
+	{0x0823, 0x00},
+};
+
 static const struct imx708_reg_list link_freq_regs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = {
 		.regs = link_450Mhz_regs,
@@ -240,6 +285,10 @@ static const struct imx708_reg_list link_freq_regs[] = {
 	[IMX708_LINK_FREQ_453MHZ] = {
 		.regs = link_453Mhz_regs,
 		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
+	},
+	[IMX708_LINK_FREQ_960MHZ] = {
+		.regs = link_960Mhz_regs,
+		.num_of_regs = ARRAY_SIZE(link_960Mhz_regs)
 	},
 };
 
@@ -296,8 +345,6 @@ static const struct imx708_reg mode_common_regs[] = {
 
 /* 10-bit. */
 static const struct imx708_reg mode_4608x2592_regs[] = {
-	{0x0342, 0x3D},
-	{0x0343, 0x20},
 	{0x0340, 0x0A},
 	{0x0341, 0x59},
 	{0x0344, 0x00},
@@ -336,8 +383,6 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 	{0x0301, 0x05},
 	{0x0303, 0x02},
 	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7C},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -390,8 +435,6 @@ static const struct imx708_reg mode_4608x2592_regs[] = {
 };
 
 static const struct imx708_reg mode_2x2binned_regs[] = {
-	{0x0342, 0x1E},
-	{0x0343, 0x90},
 	{0x0340, 0x05},
 	{0x0341, 0x38},
 	{0x0344, 0x00},
@@ -430,8 +473,6 @@ static const struct imx708_reg mode_2x2binned_regs[] = {
 	{0x0301, 0x05},
 	{0x0303, 0x02},
 	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7A},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -484,8 +525,6 @@ static const struct imx708_reg mode_2x2binned_regs[] = {
 };
 
 static const struct imx708_reg mode_2x2binned_720p_regs[] = {
-	{0x0342, 0x14},
-	{0x0343, 0x60},
 	{0x0340, 0x04},
 	{0x0341, 0xB6},
 	{0x0344, 0x03},
@@ -524,8 +563,6 @@ static const struct imx708_reg mode_2x2binned_720p_regs[] = {
 	{0x0301, 0x05},
 	{0x0303, 0x02},
 	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x76},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -578,8 +615,6 @@ static const struct imx708_reg mode_2x2binned_720p_regs[] = {
 };
 
 static const struct imx708_reg mode_hdr_regs[] = {
-	{0x0342, 0x14},
-	{0x0343, 0x60},
 	{0x0340, 0x0A},
 	{0x0341, 0x5B},
 	{0x0344, 0x00},
@@ -618,8 +653,6 @@ static const struct imx708_reg mode_hdr_regs[] = {
 	{0x0301, 0x05},
 	{0x0303, 0x02},
 	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0xA2},
 	{0x030B, 0x02},
 	{0x030D, 0x04},
 	{0x0310, 0x01},
@@ -679,7 +712,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 0x3d20,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -687,12 +719,23 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 58,
-		.vblank_default = 58,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rate = 595200000,
+		.timings = {
+			{
+				.line_length_pix = 0x3d20,
+				.vblank_default = 58,
+				.pixel_rate = 595200000,
+			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x28c0,
+				.vblank_default = 58,
+				.pixel_rate = 830400000,
+			},
+		},
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -702,7 +745,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* regular 2x2 binned. */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1e90,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -710,12 +752,23 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 40,
-		.vblank_default = 1198,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_regs),
 			.regs = mode_2x2binned_regs,
 		},
-		.pixel_rate = 585600000,
+		.timings = {
+			{
+				.line_length_pix = 0x1e90,
+				.vblank_default = 1198,
+				.pixel_rate = 585600000,
+			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x1460,
+				.vblank_default = 3888,
+				.pixel_rate = 811200000,
+			},
+		},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -725,7 +778,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* 2x2 binned and cropped for 720p. */
 		.width = 1536,
 		.height = 864,
-		.line_length_pix = 0x1460,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT + 768,
 			.top = IMX708_PIXEL_ARRAY_TOP + 432,
@@ -733,12 +785,23 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 1728,
 		},
 		.vblank_min = 40,
-		.vblank_default = 2755,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_720p_regs),
 			.regs = mode_2x2binned_720p_regs,
 		},
-		.pixel_rate = 566400000,
+		.timings = {
+			{
+				.line_length_pix = 0x1460,
+				.vblank_default = 2755,
+				.pixel_rate = 566400000,
+			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x1460,
+				.vblank_default = 4627,
+				.pixel_rate = 859200000,
+			},
+		},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -751,7 +814,6 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 		/* There's only one HDR mode, which is 2x2 downscaled */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1460,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -759,12 +821,17 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 3673,
-		.vblank_default = 3673,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_hdr_regs),
 			.regs = mode_hdr_regs,
 		},
-		.pixel_rate = 777600000,
+		.timings = {
+			{
+				.line_length_pix = 0x1460,
+				.vblank_default = 3673,
+				.pixel_rate = 777600000,
+			},
+		},
 		.exposure_lines_min = 8 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.exposure_lines_step = 2 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.hdr = true,
@@ -876,6 +943,25 @@ struct imx708 {
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
 {
 	return container_of(_sd, struct imx708, sd);
+}
+
+/*
+ * Return the current mode's timing for the selected link frequency, falling
+ * back to the mode's default timing when it has none for that frequency.
+ */
+static const struct imx708_mode_timing *
+imx708_get_timing(const struct imx708 *imx708)
+{
+	const struct imx708_mode *mode = imx708->mode;
+	s64 link_freq = link_freqs[imx708->link_freq_idx];
+	unsigned int i;
+
+	for (i = 1; i < ARRAY_SIZE(mode->timings); i++) {
+		if (mode->timings[i].link_frequency == link_freq)
+			return &mode->timings[i];
+	}
+
+	return &mode->timings[0];
 }
 
 static inline void get_mode_table(unsigned int code,
@@ -1113,24 +1199,25 @@ static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
 static void imx708_set_framing_limits(struct imx708 *imx708)
 {
 	const struct imx708_mode *mode = imx708->mode;
+	const struct imx708_mode_timing *timing = imx708_get_timing(imx708);
 	unsigned int hblank;
 
 	__v4l2_ctrl_modify_range(imx708->pixel_rate,
-				 mode->pixel_rate, mode->pixel_rate,
-				 1, mode->pixel_rate);
+				 timing->pixel_rate, timing->pixel_rate,
+				 1, timing->pixel_rate);
 
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
 				 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
 					IMX708_FRAME_LENGTH_MAX) - mode->height,
-				 1, mode->vblank_default);
+				 1, timing->vblank_default);
 
 	/*
-	 * Currently PPL is fixed to the mode specified value, so hblank
-	 * depends on mode->width only, and is not changeable in any
-	 * way other than changing the mode.
+	 * Currently PPL is fixed to the timing's specified value, so hblank
+	 * depends on mode->width only, and is not changeable in any way
+	 * other than changing the mode or the link frequency.
 	 */
-	hblank = mode->line_length_pix - mode->width;
+	hblank = timing->line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
 }
 
@@ -1492,6 +1579,7 @@ static int imx708_start_streaming(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
 	const struct imx708_reg_list *reg_list, *freq_regs;
+	const struct imx708_mode_timing *timing;
 	int i, ret;
 	u32 val;
 
@@ -1537,6 +1625,25 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		}
 
 		imx708->common_regs_written = true;
+	}
+
+	/*
+	 * Apply the timing for the selected link frequency. The mode register
+	 * lists no longer carry the line length or the PLL multiplier, so
+	 * these are written for every mode, default timing or not.
+	 */
+	timing = imx708_get_timing(imx708);
+	ret = imx708_write_reg(imx708, IMX708_REG_LINE_LENGTH,
+			       IMX708_REG_VALUE_16BIT, timing->line_length_pix);
+	if (!ret)
+		ret = imx708_write_reg(imx708, IMX708_REG_IVT_PLL_MPY,
+				       IMX708_REG_VALUE_16BIT,
+				       div_u64(timing->pixel_rate,
+					       IMX708_IVT_PLL_STEP));
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set mode timing\n",
+			__func__);
+		return ret;
 	}
 
 	/* Apply default values of current mode */
