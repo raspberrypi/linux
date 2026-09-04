@@ -628,8 +628,7 @@ static int floppy_open(struct gendisk *disk, blk_mode_t mode)
 		fs->ref_count = -1;
 	else
 		fs->ref_count++;
-	swim_write(base, setup, S_IBM_DRIVE  | S_FCLK_DIV2);
-	udelay(10);
+
 	swim_drive(base, fs->location);
 	swim_motor(base, ON);
 	swim_action(base, SETMFM);
@@ -815,6 +814,8 @@ static int swim_floppy_init(struct swim_priv *swd)
 	int err;
 	int drive;
 	struct swim __iomem *base = swd->base;
+
+	swim_write(base, setup, S_IBM_DRIVE | S_FCLK_DIV2);
 
 	swim_set_parameters(base);
 
