@@ -357,26 +357,35 @@ static void hdmi_codec_eld_chmap(struct hdmi_codec_priv *hcp)
 static int hdmi_codec_get_ch_alloc_table_idx(struct hdmi_codec_priv *hcp,
 					     unsigned char channels)
 {
-	int i;
+	int i, fallback = -1;
 	u8 spk_alloc;
 	unsigned long spk_mask;
 	const struct hdmi_codec_cea_spk_alloc *cap = hdmi_codec_channel_alloc;
+
+	/* Index 0 is CA 0x00, which is valid for any sink */
+	if (channels <= 2)
+		return 0;
 
 	spk_alloc = drm_eld_get_spk_alloc(hcp->eld);
 	spk_mask = hdmi_codec_spk_mask_from_alloc(spk_alloc);
 
 	for (i = 0; i < ARRAY_SIZE(hdmi_codec_channel_alloc); i++, cap++) {
-		/* If spk_alloc == 0, HDMI is unplugged return stereo config*/
-		if (!spk_alloc && cap->ca_id == 0)
-			return i;
 		if (cap->n_ch != channels)
 			continue;
-		if (!(cap->mask == (spk_mask & cap->mask)))
-			continue;
-		return i;
+		if (cap->mask == (spk_mask & cap->mask))
+			return i;
+		if (fallback < 0)
+			fallback = i;
 	}
 
-	return -EINVAL;
+	/*
+	 * A ca_id above 0 is only indexable while hdmi_codec_eld_chmap() has
+	 * installed the 8 channel maps, which it does under this same test.
+	 */
+	if (fallback >= 0 && (spk_mask & ~(FL | FR)))
+		return fallback;
+
+	return 0;
 }
 static int hdmi_codec_chmap_ctl_get(struct snd_kcontrol *kcontrol,
 			      struct snd_ctl_elem_value *ucontrol)
