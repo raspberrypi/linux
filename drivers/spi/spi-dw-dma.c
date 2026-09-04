@@ -540,7 +540,7 @@ static int dw_spi_dma_transfer_all(struct dw_spi *dws,
 		usleep_range(5, 10);
 
 		/* Write something to the TX FIFO to start the transfer */
-		dw_writel(dws, DW_SPI_DR, 0);
+		dw_spi_start_frame(dws);
 	}
 
 	ret = dw_spi_dma_wait(dws, xfer->len, xfer->effective_speed_hz);
