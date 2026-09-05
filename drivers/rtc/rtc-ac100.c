@@ -316,6 +316,8 @@ static int ac100_rtc_register_clks(struct ac100_rtc_dev *chip)
 	if (!chip->clk_data)
 		return -ENOMEM;
 
+	chip->clk_data->num = AC100_CLKOUT_NUM;
+
 	chip->rtc_32k_clk = clk_hw_register_fixed_rate(chip->dev,
 						       AC100_RTC_32K_NAME,
 						       NULL, 0,
@@ -359,7 +361,6 @@ static int ac100_rtc_register_clks(struct ac100_rtc_dev *chip)
 		chip->clk_data->hws[i] = &clk->hw;
 	}
 
-	chip->clk_data->num = i;
 	ret = of_clk_add_hw_provider(np, of_clk_hw_onecell_get, chip->clk_data);
 	if (ret)
 		goto err_unregister_rtc_32k;
