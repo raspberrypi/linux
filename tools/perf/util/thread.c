@@ -536,7 +536,7 @@ uint16_t thread__e_machine_endian(struct thread *thread, struct machine *machine
 								    struct perf_session,
 								    machines);
 
-			is_live = !!session->data;
+			is_live = !session->data;
 		}
 		/* Read from /proc/pid/exe if live. */
 		if (is_live) {

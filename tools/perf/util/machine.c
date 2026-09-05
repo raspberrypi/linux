@@ -237,6 +237,7 @@ int machines__init(struct machines *machines)
 {
 	int err = machine__init(&machines->host, "", HOST_KERNEL_ID);
 
+	machines->host.machines = machines;
 	machines->guests = RB_ROOT_CACHED;
 	return err;
 }
