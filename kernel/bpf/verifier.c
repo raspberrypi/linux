@@ -10188,33 +10188,45 @@ static struct bpf_insn_aux_data *cur_aux(const struct bpf_verifier_env *env)
 	return &env->insn_aux_data[env->insn_idx];
 }
 
-static bool loop_flag_is_zero(struct bpf_verifier_env *env)
+/* Returns 1 if R4 is a known zero, 0 if it is not, a negative errno on error. */
+static int loop_flag_is_zero(struct bpf_verifier_env *env)
 {
 	struct bpf_reg_state *reg = reg_state(env, BPF_REG_4);
-	bool reg_is_null = bpf_register_is_null(reg);
+	int err;
 
-	if (reg_is_null)
-		mark_chain_precision(env, BPF_REG_4);
+	if (!bpf_register_is_null(reg))
+		return 0;
 
-	return reg_is_null;
+	err = mark_chain_precision(env, BPF_REG_4);
+	if (err)
+		return err;
+	return 1;
 }
 
-static void update_loop_inline_state(struct bpf_verifier_env *env, u32 subprogno)
+static int update_loop_inline_state(struct bpf_verifier_env *env, u32 subprogno)
 {
 	struct bpf_loop_inline_state *state = &cur_aux(env)->loop_inline_state;
+	int flag_is_zero;
 
 	if (!state->initialized) {
+		flag_is_zero = loop_flag_is_zero(env);
+		if (flag_is_zero < 0)
+			return flag_is_zero;
 		state->initialized = 1;
-		state->fit_for_inline = loop_flag_is_zero(env);
+		state->fit_for_inline = flag_is_zero;
 		state->callback_subprogno = subprogno;
-		return;
+		return 0;
 	}
 
 	if (!state->fit_for_inline)
-		return;
+		return 0;
 
-	state->fit_for_inline = (loop_flag_is_zero(env) &&
+	flag_is_zero = loop_flag_is_zero(env);
+	if (flag_is_zero < 0)
+		return flag_is_zero;
+	state->fit_for_inline = (flag_is_zero &&
 				 state->callback_subprogno == subprogno);
+	return 0;
 }
 
 /* Returns whether or not the given map can potentially elide
@@ -10426,7 +10438,9 @@ static int check_helper_call(struct bpf_verifier_env *env, struct bpf_insn *insn
 		err = check_bpf_snprintf_call(env, regs);
 		break;
 	case BPF_FUNC_loop:
-		update_loop_inline_state(env, meta.subprogno);
+		err = update_loop_inline_state(env, meta.subprogno);
+		if (err)
+			return err;
 		/* Verifier relies on R1 value to determine if bpf_loop() iteration
 		 * is finished, thus mark it precise.
 		 */
