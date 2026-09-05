@@ -2828,12 +2828,17 @@ static int __init reserve_mem(char *p)
 	if (*p != ':')
 		goto err_param;
 
+	if (!IS_ALIGNED(size, PAGE_SIZE) || !IS_ALIGNED(align, PAGE_SIZE)) {
+		pr_err("reserve_mem: size and align must be multiples of the page size\n");
+		return -EINVAL;
+	}
+
 	/*
 	 * memblock_phys_alloc() doesn't like a zero size align,
 	 * but it is OK for this command to have it.
 	 */
-	if (align < SMP_CACHE_BYTES)
-		align = SMP_CACHE_BYTES;
+	if (!align)
+		align = PAGE_SIZE;
 
 	name = p + 1;
 	len = strlen(name);
