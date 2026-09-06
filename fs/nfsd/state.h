@@ -123,7 +123,7 @@ struct nfs4_stid {
 #define SC_TYPE_LAYOUT		BIT(3)
 	unsigned short		sc_type;
 
-/* state_lock protects sc_status for delegation stateids.
+/* nn->deleg_lock protects sc_status for delegation stateids.
  * ->cl_lock protects sc_status for open and lock stateids.
  * ->st_mutex also protect sc_status for open stateids.
  * ->ls_lock protects sc_status for layout stateids.
