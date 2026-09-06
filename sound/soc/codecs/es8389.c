@@ -1032,20 +1032,28 @@ static int es8389_resume(struct snd_soc_component *component)
 {
 	struct es8389_private *es8389 = snd_soc_component_get_drvdata(component);
 	unsigned int regv;
+	int ret;
 
 	regcache_cache_only(es8389->regmap, false);
 	regcache_cache_bypass(es8389->regmap, true);
-	regmap_read(es8389->regmap, ES8389_RESET, &regv);
+	ret = regmap_read(es8389->regmap, ES8389_RESET, &regv);
+	if (ret)
+		goto disable_bypass;
 
-	if (regv == 0xff)
+	if (regv == 0xff) {
 		es8389_init(component);
-	else
-		es8389_set_bias_level(component, SND_SOC_BIAS_ON);
+	} else {
+		ret = es8389_set_bias_level(component, SND_SOC_BIAS_ON);
+		if (ret)
+			goto disable_bypass;
+	}
 
+disable_bypass:
 	regcache_cache_bypass(es8389->regmap, false);
-	regcache_sync(es8389->regmap);
+	if (ret)
+		return ret;
 
-	return 0;
+	return regcache_sync(es8389->regmap);
 }
 
 static int es8389_probe(struct snd_soc_component *component)
