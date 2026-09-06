@@ -487,6 +487,7 @@ irq_unsubscribe:
 		wdev->hwbus_ops->irq_unsubscribe(wdev->hwbus_priv);
 bh_unregister:
 	wfx_bh_unregister(wdev);
+	cancel_delayed_work_sync(&wdev->cooling_timeout_work);
 	destroy_workqueue(wdev->bh_wq);
 	return err;
 }
@@ -497,6 +498,7 @@ void wfx_release(struct wfx_dev *wdev)
 	wfx_hif_shutdown(wdev);
 	wdev->hwbus_ops->irq_unsubscribe(wdev->hwbus_priv);
 	wfx_bh_unregister(wdev);
+	cancel_delayed_work_sync(&wdev->cooling_timeout_work);
 	destroy_workqueue(wdev->bh_wq);
 }
 
