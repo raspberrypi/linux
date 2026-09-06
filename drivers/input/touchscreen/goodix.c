@@ -1382,6 +1382,17 @@ reset:
 			ts->reset_controller_at_probe = true;
 			goto reset;
 		}
+		/*
+		 * Without reset/irq GPIOs the controller reset is sequenced
+		 * externally (e.g. by the display MCU on the Raspberry Pi
+		 * Touch Display 2) and the controller may simply not be out
+		 * of reset yet. Defer probing so it is retried once the rest
+		 * of the display stack has been brought up.
+		 */
+		if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE)
+			return dev_err_probe(&client->dev, -EPROBE_DEFER,
+					     "I2C communication failure: %d\n",
+					     error);
 		dev_err(&client->dev, "I2C communication failure: %d\n", error);
 		return error;
 	}
