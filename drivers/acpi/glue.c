@@ -394,8 +394,7 @@ void acpi_device_notify(struct device *dev)
 		adev->handler->bind(dev);
 
 done:
-	acpi_handle_debug(ACPI_HANDLE(dev), "Bound to device %s\n",
-			  dev_name(dev));
+	dev_dbg(dev, "Bound to ACPI device %s\n", acpi_dev_name(adev));
 }
 
 void acpi_device_notify_remove(struct device *dev)
