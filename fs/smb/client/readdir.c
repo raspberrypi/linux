@@ -242,6 +242,7 @@ static void
 cifs_posix_to_fattr(struct cifs_fattr *fattr, struct smb2_posix_info *info,
 		    struct cifs_sb_info *cifs_sb)
 {
+	unsigned int sbflags = cifs_sb_flags(cifs_sb);
 	struct smb2_posix_info_parsed parsed;
 	int rc;
 
@@ -288,8 +289,10 @@ cifs_posix_to_fattr(struct cifs_fattr *fattr, struct smb2_posix_info *info,
 		cifs_dbg(VFS, "%s: failed to parse SIDs: %d\n",
 			 __func__, rc);
 	} else {
-		sid_to_id(cifs_sb, &parsed.owner, fattr, SIDOWNER);
-		sid_to_id(cifs_sb, &parsed.group, fattr, SIDGROUP);
+		if (!(sbflags & CIFS_MOUNT_OVERR_UID))
+			sid_to_id(cifs_sb, &parsed.owner, fattr, SIDOWNER);
+		if (!(sbflags & CIFS_MOUNT_OVERR_GID))
+			sid_to_id(cifs_sb, &parsed.group, fattr, SIDGROUP);
 	}
 }
 
