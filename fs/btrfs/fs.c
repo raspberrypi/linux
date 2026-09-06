@@ -5,6 +5,15 @@
 #include "fs.h"
 #include "accessors.h"
 
+bool __pure btrfs_is_empty_uuid(const u8 *uuid)
+{
+	for (int i = 0; i < BTRFS_UUID_SIZE; i++) {
+		if (uuid[i] != 0)
+			return false;
+	}
+	return true;
+}
+
 void __btrfs_set_fs_incompat(struct btrfs_fs_info *fs_info, u64 flag,
 			     const char *name)
 {
