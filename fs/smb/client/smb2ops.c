@@ -3553,7 +3553,7 @@ static int smb3_simple_fallocate_range(unsigned int xid,
 	int rc;
 
 	buf = kvzalloc(min_t(loff_t, len, SMB2_MAX_BUFFER_SIZE), GFP_KERNEL);
-	if (buf == NULL) {
+	if (!buf) {
 		rc = -ENOMEM;
 		goto out;
 	}
