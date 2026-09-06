@@ -2975,7 +2975,7 @@ static int btrfs_zero_range(struct inode *inode,
 		ASSERT(IS_ALIGNED(alloc_start, sectorsize));
 		len = offset + len - alloc_start;
 		offset = alloc_start;
-		alloc_hint = extent_map_block_start(em) + em->len;
+		alloc_hint = btrfs_extent_map_block_start(em) + em->len;
 	}
 	btrfs_free_extent_map(em);
 
@@ -3203,8 +3203,8 @@ static long btrfs_fallocate(struct file *file, int mode,
 			ret = PTR_ERR(em);
 			break;
 		}
-		last_byte = min(extent_map_end(em), alloc_end);
-		actual_end = min_t(u64, extent_map_end(em), offset + len);
+		last_byte = min(btrfs_extent_map_end(em), alloc_end);
+		actual_end = min_t(u64, btrfs_extent_map_end(em), offset + len);
 		last_byte = ALIGN(last_byte, blocksize);
 		if (em->disk_bytenr == EXTENT_MAP_HOLE ||
 		    (cur_offset >= inode->i_size &&

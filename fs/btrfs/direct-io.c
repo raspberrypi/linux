@@ -249,7 +249,7 @@ static int btrfs_get_blocks_direct_write(struct extent_map **map,
 		else
 			type = BTRFS_ORDERED_NOCOW;
 		len = min(len, em->len - (start - em->start));
-		block_start = extent_map_block_start(em) + (start - em->start);
+		block_start = btrfs_extent_map_block_start(em) + (start - em->start);
 
 		if (can_nocow_extent(inode, start, &len,
 				     &file_extent, false, false) == 1) {
@@ -567,7 +567,7 @@ static int btrfs_dio_iomap_begin(struct inode *inode, loff_t start,
 		iomap->addr = IOMAP_NULL_ADDR;
 		iomap->type = IOMAP_HOLE;
 	} else {
-		iomap->addr = extent_map_block_start(em) + (start - em->start);
+		iomap->addr = btrfs_extent_map_block_start(em) + (start - em->start);
 		iomap->type = IOMAP_MAPPED;
 	}
 	iomap->offset = start;

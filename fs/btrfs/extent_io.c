@@ -941,8 +941,8 @@ static struct extent_map *get_extent_map(struct btrfs_inode *inode,
 
 	if (*em_cached) {
 		em = *em_cached;
-		if (extent_map_in_tree(em) && start >= em->start &&
-		    start < extent_map_end(em)) {
+		if (btrfs_extent_map_in_tree(em) && start >= em->start &&
+		    start < btrfs_extent_map_end(em)) {
 			refcount_inc(&em->refs);
 			return em;
 		}
@@ -1035,12 +1035,12 @@ static int btrfs_do_readpage(struct folio *folio, struct extent_map **em_cached,
 			return PTR_ERR(em);
 		}
 		extent_offset = cur - em->start;
-		BUG_ON(extent_map_end(em) <= cur);
+		BUG_ON(btrfs_extent_map_end(em) <= cur);
 		BUG_ON(end < cur);
 
 		compress_type = extent_map_compression(em);
 
-		iosize = min(extent_map_end(em) - cur, end - cur + 1);
+		iosize = min(btrfs_extent_map_end(em) - cur, end - cur + 1);
 		iosize = ALIGN(iosize, blocksize);
 
 		/*
@@ -1056,8 +1056,8 @@ static int btrfs_do_readpage(struct folio *folio, struct extent_map **em_cached,
 		if (compress_type != BTRFS_COMPRESS_NONE)
 			disk_bytenr = em->disk_bytenr;
 		else
-			disk_bytenr = extent_map_block_start(em) + extent_offset;
-		block_start = extent_map_block_start(em);
+			disk_bytenr = btrfs_extent_map_block_start(em) + extent_offset;
+		block_start = btrfs_extent_map_block_start(em);
 		if (em->flags & EXTENT_FLAG_PREALLOC)
 			block_start = EXTENT_MAP_HOLE;
 
@@ -1479,13 +1479,13 @@ static int submit_one_sector(struct btrfs_inode *inode,
 	}
 
 	extent_offset = filepos - em->start;
-	em_end = extent_map_end(em);
+	em_end = btrfs_extent_map_end(em);
 	ASSERT(filepos <= em_end);
 	ASSERT(IS_ALIGNED(em->start, sectorsize));
 	ASSERT(IS_ALIGNED(em->len, sectorsize));
 
-	block_start = extent_map_block_start(em);
-	disk_bytenr = extent_map_block_start(em) + extent_offset;
+	block_start = btrfs_extent_map_block_start(em);
+	disk_bytenr = btrfs_extent_map_block_start(em) + extent_offset;
 
 	ASSERT(!extent_map_is_compressed(em));
 	ASSERT(block_start != EXTENT_MAP_HOLE);
@@ -2606,7 +2606,8 @@ bool try_release_extent_mapping(struct folio *folio, gfp_t mask)
 			break;
 		}
 		if (test_range_bit_exists(io_tree, em->start,
-					  extent_map_end(em) - 1, EXTENT_LOCKED))
+						btrfs_extent_map_end(em) - 1,
+						EXTENT_LOCKED))
 			goto next;
 		/*
 		 * If it's not in the list of modified extents, used by a fast
@@ -2637,7 +2638,7 @@ remove_em:
 		/* Once for the inode's extent map tree. */
 		btrfs_free_extent_map(em);
 next:
-		start = extent_map_end(em);
+		start = btrfs_extent_map_end(em);
 		write_unlock(&extent_tree->lock);
 
 		/* Once for us, for the lookup_extent_mapping() reference. */
