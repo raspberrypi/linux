@@ -1113,6 +1113,7 @@ static bool wsl_to_fattr(struct cifs_open_info_data *data,
 	bool have_xattr_dev = false;
 	u32 next = 0;
 
+	fattr->cf_mode &= ~S_IFMT;
 	switch (tag) {
 	case IO_REPARSE_TAG_LX_SYMLINK:
 		fattr->cf_mode |= S_IFLNK;
