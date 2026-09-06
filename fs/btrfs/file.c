@@ -884,7 +884,7 @@ static int prepare_uptodate_page(struct inode *inode,
 
 static fgf_t get_prepare_fgp_flags(bool nowait)
 {
-	fgf_t fgp_flags = FGP_LOCK | FGP_ACCESSED | FGP_CREAT;
+	fgf_t fgp_flags = FGP_LOCK | FGP_ACCESSED | FGP_CREAT | FGP_STABLE;
 
 	if (nowait)
 		fgp_flags |= FGP_NOWAIT;
@@ -954,7 +954,6 @@ again:
 			faili = i - 1;
 			goto fail;
 		}
-		wait_on_page_writeback(pages[i]);
 	}
 
 	return 0;
