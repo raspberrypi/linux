@@ -579,6 +579,38 @@ static void rp1vec_platform_shutdown(struct platform_device *pdev)
 	rp1vec_stopall(drm);
 }
 
+static int rp1vec_platform_suspend(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct rp1_vec *vec = drm->dev_private;
+	int ret;
+
+	ret = drm_mode_config_helper_suspend(drm);
+	if (ret)
+		return ret;
+
+	rp1vec_vidout_poweroff(vec);
+	clk_disable_unprepare(vec->vec_clock);
+
+	return 0;
+}
+
+static int rp1vec_platform_resume(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct rp1_vec *vec = drm->dev_private;
+	int ret;
+
+	clk_prepare_enable(vec->vec_clock);
+
+	ret = drm_mode_config_helper_resume(drm);
+
+	return ret;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(rp1vec_pm_ops, rp1vec_platform_suspend,
+			    rp1vec_platform_resume);
+
 static const struct of_device_id rp1vec_of_match[] = {
 	{
 		.compatible = "raspberrypi,rp1vec",
@@ -596,6 +628,7 @@ static struct platform_driver rp1vec_platform_driver = {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.of_match_table = rp1vec_of_match,
+		.pm	= pm_sleep_ptr(&rp1vec_pm_ops),
 	},
 };
 
