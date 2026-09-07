@@ -263,6 +263,11 @@ void rose_transmit_link(struct sk_buff *skb, struct rose_neigh *neigh)
 {
 	unsigned char *dptr;
 
+	if (!neigh) {
+		kfree_skb(skb);
+		return;
+	}
+
 	if (neigh->loopback) {
 		rose_loopback_queue(skb, neigh);
 		return;
