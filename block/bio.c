@@ -1392,6 +1392,14 @@ static int bio_iov_iter_bounce_write(struct bio *bio, struct iov_iter *iter,
 		folio = folio_alloc_greedy(GFP_KERNEL, &this_len, minsize);
 		if (!folio)
 			break;
+
+		/*
+		 * Align down the size to the minimum alignment.  In practice
+		 * this should not happen as minsize is expected to be a power
+		 * of two, as is the allocation size, but it offers us a cheap
+		 * extra safety belt.
+		 */
+		this_len &= ~(minsize - 1);
 		bio_add_folio_nofail(bio, folio, this_len, 0);
 
 		if (iter->nofault)
@@ -1419,8 +1427,7 @@ static int bio_iov_iter_bounce_write(struct bio *bio, struct iov_iter *iter,
 
 	if (!bio->bi_iter.bi_size)
 		return -ENOMEM;
-	return bio_iov_iter_align_down(bio, iter,
-			&bio->bi_io_vec[bio->bi_vcnt - 1], minsize - 1);
+	return 0;
 }
 
 static int bio_iov_iter_bounce_read(struct bio *bio, struct iov_iter *iter,
