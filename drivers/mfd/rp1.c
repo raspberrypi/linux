@@ -323,8 +323,8 @@ static int rp1_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	pcie_pdev = of_find_device_by_node(rp1_node->parent);
-	rp1->domain = irq_domain_add_linear(rp1_node, RP1_IRQS,
-					    &rp1_domain_ops, rp1);
+	rp1->domain = irq_domain_create_linear(of_fwnode_handle(rp1_node), RP1_IRQS,
+					       &rp1_domain_ops, rp1);
 
 	g_rp1 = rp1;
 
