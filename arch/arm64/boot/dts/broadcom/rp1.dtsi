@@ -1127,6 +1127,7 @@
 			snps,enhanced-nak-fs-quirk;
 			snps,parkmode-disable-ss-quirk;
 			snps,parkmode-disable-fsls-quirk;
+			snps,power-off-in-s2ram;
 			snps,tx-max-burst = /bits/ 8 <8>;
 			snps,tx-thr-num-pkt = /bits/ 8 <2>;
 			interrupts = <RP1_INT_USBHOST0_0 IRQ_TYPE_EDGE_RISING>;
@@ -1143,6 +1144,7 @@
 			snps,enhanced-nak-fs-quirk;
 			snps,parkmode-disable-ss-quirk;
 			snps,parkmode-disable-fsls-quirk;
+			snps,power-off-in-s2ram;
 			snps,tx-max-burst = /bits/ 8 <8>;
 			snps,tx-thr-num-pkt = /bits/ 8 <2>;
 			interrupts = <RP1_INT_USBHOST1_0 IRQ_TYPE_EDGE_RISING>;
