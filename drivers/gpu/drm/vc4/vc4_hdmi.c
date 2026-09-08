@@ -2167,8 +2167,17 @@ static int vc4_hdmi_audio_cpu_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+static int vc4_hdmi_audio_cpu_dai_startup(struct snd_pcm_substream *substream,
+					  struct snd_soc_dai *dai)
+{
+	/* hdmi-codec has no channel allocation for odd channel counts */
+	return snd_pcm_hw_constraint_step(substream->runtime, 0,
+					  SNDRV_PCM_HW_PARAM_CHANNELS, 2);
+}
+
 static const struct snd_soc_dai_ops vc4_snd_dai_ops = {
 	.probe  = vc4_hdmi_audio_cpu_dai_probe,
+	.startup = vc4_hdmi_audio_cpu_dai_startup,
 };
 
 static struct snd_soc_dai_driver vc4_hdmi_audio_cpu_dai_drv = {
