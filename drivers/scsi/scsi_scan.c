@@ -653,12 +653,12 @@ static int scsi_probe_lun(struct scsi_device *sdev, unsigned char *inq_result,
 		 * so anyway.
 		 */
 		{
-			.sense = UNIT_ATTENTION,
+			.sense_key = UNIT_ATTENTION,
 			.asc = 0x28,
 			.result = SAM_STAT_CHECK_CONDITION,
 		},
 		{
-			.sense = UNIT_ATTENTION,
+			.sense_key = UNIT_ATTENTION,
 			.asc = 0x29,
 			.result = SAM_STAT_CHECK_CONDITION,
 		},
@@ -1426,14 +1426,14 @@ static int scsi_report_lun_scan(struct scsi_target *starget, blist_flags_t bflag
 	struct Scsi_Host *shost = dev_to_shost(&starget->dev);
 	struct scsi_failure failure_defs[] = {
 		{
-			.sense = UNIT_ATTENTION,
+			.sense_key = UNIT_ATTENTION,
 			.asc = SCMD_FAILURE_ASC_ANY,
 			.ascq = SCMD_FAILURE_ASCQ_ANY,
 			.result = SAM_STAT_CHECK_CONDITION,
 		},
 		/* Fail all CCs except the UA above */
 		{
-			.sense = SCMD_FAILURE_SENSE_ANY,
+			.sense_key = SCMD_FAILURE_SENSE_KEY_ANY,
 			.result = SAM_STAT_CHECK_CONDITION,
 		},
 		/* Retry any other errors not listed above */
