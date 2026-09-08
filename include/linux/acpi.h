@@ -785,7 +785,11 @@ int acpi_mrrm_max_mem_region(void);
 	{ "PNP0B02", },		\
 	{ "", }
 
+#ifdef CONFIG_X86
 extern bool cmos_rtc_platform_device_present;
+#else
+#define cmos_rtc_platform_device_present	false
+#endif
 
 #else	/* !CONFIG_ACPI */
 
