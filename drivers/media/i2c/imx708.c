@@ -49,6 +49,9 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 #define IMX708_REG_FRAME_LENGTH		CCI_REG16(0x0340)
 #define IMX708_FRAME_LENGTH_MAX		0xffff
 
+/* H_TIMING internal */
+#define IMX708_REG_LINE_LENGTH		CCI_REG16(0x0342)
+
 /* Long exposure multiplier */
 #define IMX708_LONG_EXP_SHIFT_MAX	7
 #define IMX708_LONG_EXP_SHIFT_REG	CCI_REG8(0x3100)
@@ -148,6 +151,25 @@ struct imx708_reg_list {
 	const struct cci_reg_sequence *regs;
 };
 
+/*
+ * Mode timings, which depend on how much bandwidth the CSI-2 link has to
+ * drain each line. A mode lists one set per link frequency it has a timing
+ * for, the first entry has no link frequency and is the fallback for any
+ * link too slow for the others.
+ */
+#define IMX708_NUM_MODE_TIMINGS		2
+
+struct imx708_mode_timing {
+	/* Link frequency this timing needs, unset in the fallback entry. */
+	s64 link_frequency;
+	/* H-timing in pixels */
+	unsigned int line_length_pix;
+	/* Default framerate. */
+	unsigned int vblank_default;
+	/* Not all timings have the same pixel rate. */
+	u64 pixel_rate;
+};
+
 /* Mode : resolution and related config&values */
 struct imx708_mode {
 	/* Frame width */
@@ -156,23 +178,17 @@ struct imx708_mode {
 	/* Frame height */
 	unsigned int height;
 
-	/* H-timing in pixels */
-	unsigned int line_length_pix;
-
 	/* Analog crop rectangle. */
 	struct v4l2_rect crop;
 
 	/* Highest possible framerate. */
 	unsigned int vblank_min;
 
-	/* Default framerate. */
-	unsigned int vblank_default;
-
 	/* Default register values */
 	struct imx708_reg_list reg_list;
 
-	/* Not all modes have the same pixel rate. */
-	u64 pixel_rate;
+	/* Timings, the first being the fallback. */
+	struct imx708_mode_timing timings[IMX708_NUM_MODE_TIMINGS];
 
 	/* Not all modes have the same minimum exposure. */
 	u32 exposure_lines_min;
@@ -288,8 +304,6 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 
 /* 10-bit. */
 static const struct cci_reg_sequence mode_4608x2592_regs[] = {
-	{ CCI_REG8(0x0342), 0x3d },
-	{ CCI_REG8(0x0343), 0x20 },
 	{ CCI_REG8(0x0340), 0x0a },
 	{ CCI_REG8(0x0341), 0x59 },
 	{ CCI_REG8(0x0344), 0x00 },
@@ -374,8 +388,6 @@ static const struct cci_reg_sequence mode_4608x2592_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_2x2binned_regs[] = {
-	{ CCI_REG8(0x0342), 0x1e },
-	{ CCI_REG8(0x0343), 0x90 },
 	{ CCI_REG8(0x0340), 0x05 },
 	{ CCI_REG8(0x0341), 0x38 },
 	{ CCI_REG8(0x0344), 0x00 },
@@ -460,8 +472,6 @@ static const struct cci_reg_sequence mode_2x2binned_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
-	{ CCI_REG8(0x0342), 0x14 },
-	{ CCI_REG8(0x0343), 0x60 },
 	{ CCI_REG8(0x0340), 0x04 },
 	{ CCI_REG8(0x0341), 0xb6 },
 	{ CCI_REG8(0x0344), 0x03 },
@@ -546,8 +556,6 @@ static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
 };
 
 static const struct cci_reg_sequence mode_hdr_regs[] = {
-	{ CCI_REG8(0x0342), 0x14 },
-	{ CCI_REG8(0x0343), 0x60 },
 	{ CCI_REG8(0x0340), 0x0a },
 	{ CCI_REG8(0x0341), 0x5b },
 	{ CCI_REG8(0x0344), 0x00 },
@@ -639,7 +647,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 0x3d20,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -647,12 +654,17 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 58,
-		.vblank_default = 58,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4608x2592_regs),
 			.regs = mode_4608x2592_regs,
 		},
-		.pixel_rate = 595200000,
+		.timings = {
+			{
+				.line_length_pix = 0x3d20,
+				.vblank_default = 58,
+				.pixel_rate = 595200000,
+			},
+		},
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
 		.hdr = false,
@@ -662,7 +674,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* regular 2x2 binned. */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1e90,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -670,12 +681,17 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 40,
-		.vblank_default = 1198,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_regs),
 			.regs = mode_2x2binned_regs,
 		},
-		.pixel_rate = 585600000,
+		.timings = {
+			{
+				.line_length_pix = 0x1e90,
+				.vblank_default = 1198,
+				.pixel_rate = 585600000,
+			},
+		},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -685,7 +701,6 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* 2x2 binned and cropped for 720p. */
 		.width = 1536,
 		.height = 864,
-		.line_length_pix = 0x1460,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT + 768,
 			.top = IMX708_PIXEL_ARRAY_TOP + 432,
@@ -693,12 +708,17 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 			.height = 1728,
 		},
 		.vblank_min = 40,
-		.vblank_default = 2755,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_2x2binned_720p_regs),
 			.regs = mode_2x2binned_720p_regs,
 		},
-		.pixel_rate = 566400000,
+		.timings = {
+			{
+				.line_length_pix = 0x1460,
+				.vblank_default = 2755,
+				.pixel_rate = 566400000,
+			},
+		},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
 		.hdr = false,
@@ -711,7 +731,6 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 		/* There's only one HDR mode, which is 2x2 downscaled */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1460,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -719,12 +738,17 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 			.height = 2592,
 		},
 		.vblank_min = 3673,
-		.vblank_default = 3673,
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_hdr_regs),
 			.regs = mode_hdr_regs,
 		},
-		.pixel_rate = 777600000,
+		.timings = {
+			{
+				.line_length_pix = 0x1460,
+				.vblank_default = 3673,
+				.pixel_rate = 777600000,
+			},
+		},
 		.exposure_lines_min = 8 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.exposure_lines_step = 2 * IMX708_HDR_EXPOSURE_RATIO * IMX708_HDR_EXPOSURE_RATIO,
 		.hdr = true,
@@ -1002,6 +1026,30 @@ static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
 }
 
 /*
+ * Return the timing to use for the current mode, based on the highest link
+ * frequency settings available.
+ */
+static const struct imx708_mode_timing *
+imx708_get_timing(const struct imx708 *imx708)
+{
+	const struct imx708_mode *mode = imx708->mode;
+	s64 link_freq = link_freqs[imx708->link_freq_idx];
+	const struct imx708_mode_timing *best = &mode->timings[0];
+	unsigned int i;
+
+	for (i = 1; i < ARRAY_SIZE(mode->timings); i++) {
+		const struct imx708_mode_timing *timing = &mode->timings[i];
+
+		if (timing->link_frequency &&
+		    timing->link_frequency <= link_freq &&
+		    timing->link_frequency > best->link_frequency)
+			best = timing;
+	}
+
+	return best;
+}
+
+/*
  * Work out the PLL tree for a mode and link frequency.
  *
  * The limits are the sensor manual's, except that the pre-PLL dividers are
@@ -1114,7 +1162,7 @@ static int imx708_pll_update(struct imx708 *imx708)
 	int ret;
 
 	ret = imx708_pll_calculate(imx708, &imx708->pll, imx708->mode,
-				   imx708->mode->pixel_rate,
+				   imx708_get_timing(imx708)->pixel_rate,
 				   link_freqs[imx708->link_freq_idx]);
 	if (ret)
 		dev_err(&client->dev, "PLL calculation failed: %d\n", ret);
@@ -1150,6 +1198,7 @@ static int imx708_pll_write(struct imx708 *imx708)
 
 static void imx708_set_framing_limits(struct imx708 *imx708)
 {
+	const struct imx708_mode_timing *timing = imx708_get_timing(imx708);
 	const struct imx708_mode *mode = imx708->mode;
 	unsigned int hblank;
 	u64 pixel_rate;
@@ -1165,14 +1214,14 @@ static void imx708_set_framing_limits(struct imx708 *imx708)
 	__v4l2_ctrl_modify_range(imx708->vblank, mode->vblank_min,
 				 ((1 << IMX708_LONG_EXP_SHIFT_MAX) *
 					IMX708_FRAME_LENGTH_MAX) - mode->height,
-				 1, mode->vblank_default);
+				 1, timing->vblank_default);
 
 	/*
-	 * Currently PPL is fixed to the mode specified value, so hblank
-	 * depends on mode->width only, and is not changeable in any
-	 * way other than changing the mode.
+	 * Currently PPL is fixed to the timing's value, so hblank depends on
+	 * mode->width only, and is not changeable in any way other than
+	 * changing the mode.
 	 */
-	hblank = mode->line_length_pix - mode->width;
+	hblank = timing->line_length_pix - mode->width;
 	__v4l2_ctrl_modify_range(imx708->hblank, hblank, hblank, 1, hblank);
 }
 
@@ -1582,7 +1631,10 @@ static int imx708_start_streaming(struct imx708 *imx708)
 	}
 
 	/* Update the link frequency registers */
-	ret = imx708_pll_update(imx708);
+	cci_write(imx708->cci, IMX708_REG_LINE_LENGTH,
+		  imx708_get_timing(imx708)->line_length_pix, &ret);
+	if (!ret)
+		ret = imx708_pll_update(imx708);
 	if (!ret)
 		ret = imx708_pll_write(imx708);
 	if (ret) {
