@@ -44,6 +44,7 @@ struct avtab_key {
 	 AVTAB_XPERMS_DONTAUDIT)
 #define AVTAB_ENABLED_OLD 0x80000000 /* reserved for used in cond_avtab */
 #define AVTAB_ENABLED	  0x8000 /* reserved for used in cond_avtab */
+#define AVTAB_SPECIFIER_MASK (AVTAB_AV | AVTAB_TYPE | AVTAB_XPERMS | AVTAB_ENABLED)
 	u16 specified; /* what field is specified */
 };
 
@@ -66,6 +67,17 @@ struct avtab_extended_perms {
 	/* 256 bits of permissions */
 	struct extended_perms_data perms;
 };
+
+static inline bool avtab_is_valid_xperm_specified(u8 specified)
+{
+	switch (specified) {
+	case AVTAB_XPERMS_IOCTLFUNCTION:
+	case AVTAB_XPERMS_IOCTLDRIVER:
+		return true;
+	default:
+		return false;
+	}
+}
 
 struct avtab_datum {
 	union {
@@ -104,15 +116,16 @@ static inline void avtab_hash_eval(struct avtab *h, const char *tag)
 #endif
 
 struct policydb;
-int avtab_read_item(struct avtab *a, void *fp, struct policydb *pol,
+struct policy_file;
+int avtab_read_item(struct avtab *a, struct policy_file *fp, struct policydb *pol,
 		    int (*insert)(struct avtab *a, const struct avtab_key *k,
 				  const struct avtab_datum *d, void *p),
 		    void *p);
 
-int avtab_read(struct avtab *a, void *fp, struct policydb *pol);
+int avtab_read(struct avtab *a, struct policy_file *fp, struct policydb *pol);
 int avtab_write_item(struct policydb *p, const struct avtab_node *cur,
-		     void *fp);
-int avtab_write(struct policydb *p, struct avtab *a, void *fp);
+		     struct policy_file *fp);
+int avtab_write(struct policydb *p, struct avtab *a, struct policy_file *fp);
 
 struct avtab_node *avtab_insert_nonunique(struct avtab *h,
 					  const struct avtab_key *key,

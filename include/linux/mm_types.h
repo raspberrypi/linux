@@ -283,6 +283,9 @@ typedef struct {
 	unsigned long val;
 } swp_entry_t;
 
+/* Transitional name used by newer MM fixes. */
+typedef swp_entry_t softleaf_t;
+
 /**
  * struct folio - Represents a contiguous set of bytes.
  * @flags: Identical to the page flags.

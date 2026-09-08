@@ -464,6 +464,21 @@ cros_ec_sensor_ring_process_event(struct cros_ec_sensorhub *sensorhub,
 						  fifo_timestamp,
 						  *current_timestamp,
 						  now);
+
+		/*
+		 * A standalone timestamp event typically has a sensor_num of
+		 * 0xff.  Return early here to prevent it from hitting the
+		 * bounds check below and spamming the logs.
+		 */
+		return false;
+	}
+
+	/* Skip event if sensor_num from EC is out of bounds. */
+	if (in->sensor_num >= sensorhub->sensor_num) {
+		dev_warn_ratelimited(sensorhub->dev,
+				     "Invalid sensor number %u from EC\n",
+				     in->sensor_num);
+		return false;
 	}
 
 	if (in->flags & MOTIONSENSE_SENSOR_FLAG_ODR) {
@@ -490,10 +505,6 @@ cros_ec_sensor_ring_process_event(struct cros_ec_sensorhub *sensorhub,
 		 */
 		return true;
 	}
-
-	if (in->flags & MOTIONSENSE_SENSOR_FLAG_TIMESTAMP)
-		/* If we just have a timestamp, skip this entry. */
-		return false;
 
 	/* Regular sample */
 	out->sensor_id = in->sensor_num;

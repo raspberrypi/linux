@@ -189,7 +189,7 @@ void __init snp_fixup_e820_tables(void)
  * described in the SNP_INIT_EX firmware command description in the SNP
  * firmware ABI spec.
  */
-static int __init snp_rmptable_init(void)
+int __init snp_rmptable_init(void)
 {
 	u64 max_rmp_pfn, calc_rmp_sz, rmptable_size, rmp_end, val;
 	void *rmptable_start;
@@ -197,11 +197,11 @@ static int __init snp_rmptable_init(void)
 	if (!cc_platform_has(CC_ATTR_HOST_SEV_SNP))
 		return 0;
 
-	if (!amd_iommu_snp_en)
-		goto nosnp;
+	if (WARN_ON_ONCE(!amd_iommu_snp_en))
+		return -ENOSYS;
 
 	if (!probed_rmp_size)
-		goto nosnp;
+		return -ENOSYS;
 
 	rmp_end = probed_rmp_base + probed_rmp_size - 1;
 
@@ -218,13 +218,13 @@ static int __init snp_rmptable_init(void)
 	if (calc_rmp_sz > probed_rmp_size) {
 		pr_err("Memory reserved for the RMP table does not cover full system RAM (expected 0x%llx got 0x%llx)\n",
 		       calc_rmp_sz, probed_rmp_size);
-		goto nosnp;
+		return -ENOSYS;
 	}
 
 	rmptable_start = memremap(probed_rmp_base, probed_rmp_size, MEMREMAP_WB);
 	if (!rmptable_start) {
 		pr_err("Failed to map RMP table\n");
-		goto nosnp;
+		return -ENOSYS;
 	}
 
 	/*
@@ -261,16 +261,7 @@ skip_enable:
 	crash_kexec_post_notifiers = true;
 
 	return 0;
-
-nosnp:
-	cc_platform_clear(CC_ATTR_HOST_SEV_SNP);
-	return -ENOSYS;
 }
-
-/*
- * This must be called after the IOMMU has been initialized.
- */
-device_initcall(snp_rmptable_init);
 
 static struct rmpentry *get_rmpentry(u64 pfn)
 {
