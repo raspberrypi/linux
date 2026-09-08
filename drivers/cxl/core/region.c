@@ -3751,6 +3751,61 @@ static int cxl_region_debugfs_poison_clear(void *data, u64 offset)
 DEFINE_DEBUGFS_ATTRIBUTE(cxl_poison_clear_fops, NULL,
 			 cxl_region_debugfs_poison_clear, "%llx\n");
 
+static int cxl_region_setup_poison(struct cxl_region *cxlr)
+{
+	struct device *dev = &cxlr->dev;
+	struct cxl_region_params *p = &cxlr->params;
+	struct dentry *dentry;
+
+	/* Create poison attributes if all memdevs support the capabilities */
+	for (int i = 0; i < p->nr_targets; i++) {
+		struct cxl_endpoint_decoder *cxled = p->targets[i];
+		struct cxl_memdev *cxlmd = cxled_to_memdev(cxled);
+
+		if (!cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_INJECT) ||
+		    !cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_CLEAR))
+			return 0;
+	}
+
+	dentry = cxl_debugfs_create_dir(dev_name(dev));
+	debugfs_create_file("inject_poison", 0200, dentry, cxlr,
+			    &cxl_poison_inject_fops);
+	debugfs_create_file("clear_poison", 0200, dentry, cxlr,
+			    &cxl_poison_clear_fops);
+
+	return devm_add_action_or_reset(dev, remove_debugfs, dentry);
+}
+
+static int region_contains_resource(struct device *dev, const void *data)
+{
+	const struct resource *res = data;
+	struct cxl_region *cxlr;
+	struct cxl_region_params *p;
+
+	if (!is_cxl_region(dev))
+		return 0;
+
+	cxlr = to_cxl_region(dev);
+	p = &cxlr->params;
+
+	if (p->state != CXL_CONFIG_COMMIT)
+		return 0;
+
+	if (!p->res)
+		return 0;
+
+	return resource_contains(p->res, res) ? 1 : 0;
+}
+
+bool cxl_region_contains_resource(const struct resource *res)
+{
+	guard(rwsem_read)(&cxl_rwsem.region);
+	struct device *dev __free(put_device) = bus_find_device(
+		&cxl_bus_type, NULL, res, region_contains_resource);
+	return !!dev;
+}
+EXPORT_SYMBOL_FOR_MODULES(cxl_region_contains_resource, "dax_hmem");
+
 static int cxl_region_can_probe(struct cxl_region *cxlr)
 {
 	struct cxl_region_params *p = &cxlr->params;
@@ -3780,7 +3835,6 @@ static int cxl_region_probe(struct device *dev)
 {
 	struct cxl_region *cxlr = to_cxl_region(dev);
 	struct cxl_region_params *p = &cxlr->params;
-	bool poison_supported = true;
 	int rc;
 
 	rc = cxl_region_can_probe(cxlr);
@@ -3804,30 +3858,9 @@ static int cxl_region_probe(struct device *dev)
 	if (rc)
 		return rc;
 
-	/* Create poison attributes if all memdevs support the capabilities */
-	for (int i = 0; i < p->nr_targets; i++) {
-		struct cxl_endpoint_decoder *cxled = p->targets[i];
-		struct cxl_memdev *cxlmd = cxled_to_memdev(cxled);
-
-		if (!cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_INJECT) ||
-		    !cxl_memdev_has_poison_cmd(cxlmd, CXL_POISON_ENABLED_CLEAR)) {
-			poison_supported = false;
-			break;
-		}
-	}
-
-	if (poison_supported) {
-		struct dentry *dentry;
-
-		dentry = cxl_debugfs_create_dir(dev_name(dev));
-		debugfs_create_file("inject_poison", 0200, dentry, cxlr,
-				    &cxl_poison_inject_fops);
-		debugfs_create_file("clear_poison", 0200, dentry, cxlr,
-				    &cxl_poison_clear_fops);
-		rc = devm_add_action_or_reset(dev, remove_debugfs, dentry);
-		if (rc)
-			return rc;
-	}
+	rc = cxl_region_setup_poison(cxlr);
+	if (rc)
+		return rc;
 
 	switch (cxlr->mode) {
 	case CXL_PARTMODE_PMEM:
