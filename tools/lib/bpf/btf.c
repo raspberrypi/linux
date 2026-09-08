@@ -4831,7 +4831,7 @@ recur:
 			return false;
 
 		a1 = btf_array(t1);
-		a2 = btf_array(t1);
+		a2 = btf_array(t2);
 
 		if (a1->index_type != a2->index_type &&
 		    !btf_dedup_identical_types(d, a1->index_type, a2->index_type, depth - 1))
