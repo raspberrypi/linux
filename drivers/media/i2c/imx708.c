@@ -243,12 +243,14 @@ enum {
 	IMX708_LINK_FREQ_450MHZ,
 	IMX708_LINK_FREQ_447MHZ,
 	IMX708_LINK_FREQ_453MHZ,
+	IMX708_LINK_FREQ_960MHZ,
 };
 
 static const s64 link_freqs[] = {
 	[IMX708_LINK_FREQ_450MHZ] = 450000000,
 	[IMX708_LINK_FREQ_447MHZ] = 447000000,
 	[IMX708_LINK_FREQ_453MHZ] = 453000000,
+	[IMX708_LINK_FREQ_960MHZ] = 960000000,
 };
 
 static const struct cci_reg_sequence mode_common_regs[] = {
@@ -664,6 +666,12 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 				.vblank_default = 58,
 				.pixel_rate = 595200000,
 			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x28c0,
+				.vblank_default = 58,
+				.pixel_rate = 830400000,
+			},
 		},
 		.exposure_lines_min = 8,
 		.exposure_lines_step = 1,
@@ -691,6 +699,12 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 				.vblank_default = 1198,
 				.pixel_rate = 585600000,
 			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x1460,
+				.vblank_default = 3888,
+				.pixel_rate = 811200000,
+			},
 		},
 		.exposure_lines_min = 4,
 		.exposure_lines_step = 2,
@@ -717,6 +731,12 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 				.line_length_pix = 0x1460,
 				.vblank_default = 2755,
 				.pixel_rate = 566400000,
+			},
+			{
+				.link_frequency = 960000000,
+				.line_length_pix = 0x1460,
+				.vblank_default = 4627,
+				.pixel_rate = 859200000,
 			},
 		},
 		.exposure_lines_min = 4,
