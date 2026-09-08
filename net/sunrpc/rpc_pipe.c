@@ -698,12 +698,14 @@ static int rpc_populate(struct dentry *parent,
 	struct dentry *dentry;
 	int i, err;
 
-	inode_lock(dir);
 	for (i = start; i < eof; i++) {
+		inode_lock(dir);
 		dentry = __rpc_lookup_create_exclusive(parent, files[i].name);
 		err = PTR_ERR(dentry);
-		if (IS_ERR(dentry))
+		if (IS_ERR(dentry)) {
+			inode_unlock(dir);
 			goto out_bad;
+		}
 		switch (files[i].mode & S_IFMT) {
 			default:
 				BUG();
@@ -712,20 +714,20 @@ static int rpc_populate(struct dentry *parent,
 						files[i].mode,
 						files[i].i_fop,
 						private);
+				inode_unlock(dir);
 				break;
 			case S_IFDIR:
 				err = __rpc_mkdir(dir, dentry,
 						files[i].mode,
 						NULL,
 						private);
+				inode_unlock(dir);
 		}
 		if (err != 0)
 			goto out_bad;
 	}
-	inode_unlock(dir);
 	return 0;
 out_bad:
-	inode_unlock(dir);
 	printk(KERN_WARNING "%s: %s failed to populate directory %pd\n",
 			__FILE__, __func__, parent);
 	return err;
@@ -741,25 +743,22 @@ static struct dentry *rpc_mkdir_populate(struct dentry *parent,
 
 	inode_lock_nested(dir, I_MUTEX_PARENT);
 	dentry = __rpc_lookup_create_exclusive(parent, name);
-	if (IS_ERR(dentry))
-		goto out;
+	if (IS_ERR(dentry)) {
+		inode_unlock(dir);
+		return dentry;
+	}
 	error = __rpc_mkdir(dir, dentry, mode, NULL, private);
+	inode_unlock(dir);
 	if (error != 0)
-		goto out_err;
+		return ERR_PTR(error);
 	if (populate != NULL) {
 		error = populate(dentry, args_populate);
 		if (error) {
-			inode_unlock(dir);
 			simple_recursive_removal(dentry, NULL);
 			return ERR_PTR(error);
 		}
 	}
-out:
-	inode_unlock(dir);
 	return dentry;
-out_err:
-	dentry = ERR_PTR(error);
-	goto out;
 }
 
 static int rpc_rmdir_depopulate(struct dentry *dentry,
