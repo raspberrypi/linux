@@ -1175,6 +1175,8 @@ struct dwc3_glue_ops {
  * @dis_split_quirk: set to disable split boundary.
  * @enable_usb2_transceiver_delay: Set to insert a delay before the
  *			assertion of the TxValid signal during a HS Chirp.
+ * @power_off_in_suspend: set if the controller is powered off during system
+ *			  suspend, so all of its state is lost.
  * @sys_wakeup: set if the device may do system wakeup.
  * @wakeup_configured: set if the device is configured for remote wakeup.
  * @suspended: set to track suspend event due to U3/L2.
@@ -1422,6 +1424,7 @@ struct dwc3 {
 
 	unsigned		dis_split_quirk:1;
 	unsigned		enable_usb2_transceiver_delay:1;
+	unsigned		power_off_in_suspend:1;
 	unsigned		async_callbacks:1;
 	unsigned		sys_wakeup:1;
 	unsigned		wakeup_configured:1;
