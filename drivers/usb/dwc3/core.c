@@ -1925,6 +1925,9 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	dwc->dis_split_quirk = device_property_read_bool(dev,
 				"snps,dis-split-quirk");
 
+	dwc->power_off_in_suspend = device_property_read_bool(dev,
+				"snps,power-off-in-s2ram");
+
 	device_property_read_u8(dev, "snps,axi-pipe-limit",
 				   &axi_pipe_limit);
 
