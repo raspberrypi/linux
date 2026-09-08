@@ -243,13 +243,13 @@ static int scsi_check_passthrough(struct scsi_cmnd *scmd,
 			continue;
 
 		if (status_byte(failure->result) != SAM_STAT_CHECK_CONDITION ||
-		    failure->sense == SCMD_FAILURE_SENSE_ANY)
+		    failure->sense_key == SCMD_FAILURE_SENSE_KEY_ANY)
 			goto maybe_retry;
 
 		if (!scsi_command_normalize_sense(scmd, &sshdr))
 			return 0;
 
-		if (failure->sense != sshdr.sense_key)
+		if (failure->sense_key != sshdr.sense_key)
 			continue;
 
 		if (failure->asc == SCMD_FAILURE_ASC_ANY)
@@ -2372,7 +2372,7 @@ scsi_mode_sense(struct scsi_device *sdev, int dbd, int modepage, int subpage,
 	struct scsi_sense_hdr my_sshdr;
 	struct scsi_failure failure_defs[] = {
 		{
-			.sense = UNIT_ATTENTION,
+			.sense_key = UNIT_ATTENTION,
 			.asc = SCMD_FAILURE_ASC_ANY,
 			.ascq = SCMD_FAILURE_ASCQ_ANY,
 			.allowed = retries,
