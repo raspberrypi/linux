@@ -127,7 +127,7 @@ extern void rpc_remove_cache_dir(struct dentry *);
 
 struct rpc_pipe *rpc_mkpipe_data(const struct rpc_pipe_ops *ops, int flags);
 void rpc_destroy_pipe_data(struct rpc_pipe *pipe);
-extern struct dentry *rpc_mkpipe_dentry(struct dentry *, const char *, void *,
+extern int rpc_mkpipe_dentry(struct dentry *, const char *, void *,
 					struct rpc_pipe *);
 extern int rpc_unlink(struct dentry *);
 extern int register_rpc_pipefs(void);
