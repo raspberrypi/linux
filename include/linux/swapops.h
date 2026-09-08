@@ -120,6 +120,8 @@ static inline unsigned long swp_offset_pfn(swp_entry_t entry)
 	return swp_offset(entry) & SWP_PFN_MASK;
 }
 
+#define softleaf_to_pfn swp_offset_pfn
+
 /* check whether a pte points to a swap entry */
 static inline int is_swap_pte(pte_t pte)
 {
@@ -138,6 +140,8 @@ static inline swp_entry_t pte_to_swp_entry(pte_t pte)
 	arch_entry = __pte_to_swp_entry(pte);
 	return swp_entry(__swp_type(arch_entry), __swp_offset(arch_entry));
 }
+
+#define softleaf_from_pte pte_to_swp_entry
 
 /*
  * Convert the arch-independent representation of a swp_entry_t into the
@@ -572,7 +576,13 @@ static inline pmd_t swp_entry_to_pmd(swp_entry_t entry)
 
 static inline int pmd_is_migration_entry(pmd_t pmd)
 {
-	return is_swap_pmd(pmd) && is_migration_entry(pmd_to_swp_entry(pmd));
+	swp_entry_t entry;
+
+	if (pmd_present(pmd))
+		return 0;
+
+	entry = pmd_to_swp_entry(pmd);
+	return is_migration_entry(entry);
 }
 #else  /* CONFIG_ARCH_ENABLE_THP_MIGRATION */
 static inline int set_pmd_migration_entry(struct page_vma_mapped_walk *pvmw,

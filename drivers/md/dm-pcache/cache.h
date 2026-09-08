@@ -491,6 +491,27 @@ static inline u32 cache_key_data_crc(struct pcache_cache_key *key)
 	return crc32c(PCACHE_CRC_SEED, data, key->len);
 }
 
+/**
+ * kset_onmedia_valid - Validate a kset header read from the cache device.
+ * @kset_onmedia: Pointer to the kset copied from on-media metadata.
+ *
+ * The magic and CRC are attacker-computable (fixed public seed). A non-last
+ * kset stores key_num keys inline, and cache_kset_crc() and the replay loop
+ * read struct_size(.., data, key_num) bytes from a buffer sized for
+ * PCACHE_KSET_KEYS_MAX keys, so key_num must be bounded before any such use.
+ */
+static inline bool kset_onmedia_valid(struct pcache_cache_kset_onmedia *kset_onmedia)
+{
+	if (kset_onmedia->magic != PCACHE_KSET_MAGIC)
+		return false;
+
+	if (!(kset_onmedia->flags & PCACHE_KSET_FLAGS_LAST) &&
+	    kset_onmedia->key_num > PCACHE_KSET_KEYS_MAX)
+		return false;
+
+	return true;
+}
+
 static inline u32 cache_kset_crc(struct pcache_cache_kset_onmedia *kset_onmedia)
 {
 	u32 crc_size;

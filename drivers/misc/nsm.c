@@ -243,7 +243,7 @@ static int nsm_sendrecv_msg_locked(struct nsm *nsm)
 		goto cleanup;
 	}
 
-	msg->resp.len = len;
+	msg->resp.len = min_t(unsigned int, len, sizeof(msg->resp.data));
 
 	rc = 0;
 

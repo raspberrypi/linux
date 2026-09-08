@@ -97,6 +97,14 @@ int cache_key_decode(struct pcache_cache *cache,
 	key->cache_pos.cache_seg = &cache->segments[key_onmedia->cache_seg_id];
 	key->cache_pos.seg_off = key_onmedia->cache_seg_off;
 
+	if ((u64)key->cache_pos.seg_off + key->len >
+			key->cache_pos.cache_seg->segment.data_size) {
+		pcache_dev_err(pcache, "key seg_off %u + len %u exceeds segment data size %u\n",
+				key->cache_pos.seg_off, key->len,
+				key->cache_pos.cache_seg->segment.data_size);
+		return -EIO;
+	}
+
 	key->seg_gen = key_onmedia->seg_gen;
 	key->flags = key_onmedia->flags;
 
@@ -728,18 +736,17 @@ static int kset_replay(struct pcache_cache *cache, struct pcache_cache_kset_onme
 			goto err;
 		}
 
-		__set_bit(key->cache_pos.cache_seg->cache_seg_id, cache->seg_map);
-
 		/* Check if the segment generation is valid for insertion. */
 		if (key->seg_gen < key->cache_pos.cache_seg->gen) {
 			cache_key_put(key);
-		} else {
-			cache_subtree = get_subtree(&cache->req_key_tree, key->off);
-			spin_lock(&cache_subtree->tree_lock);
-			cache_key_insert(&cache->req_key_tree, key, true);
-			spin_unlock(&cache_subtree->tree_lock);
+			continue;
 		}
 
+		__set_bit(key->cache_pos.cache_seg->cache_seg_id, cache->seg_map);
+		cache_subtree = get_subtree(&cache->req_key_tree, key->off);
+		spin_lock(&cache_subtree->tree_lock);
+		cache_key_insert(&cache->req_key_tree, key, true);
+		spin_unlock(&cache_subtree->tree_lock);
 		cache_seg_get(key->cache_pos.cache_seg);
 	}
 
@@ -754,7 +761,7 @@ int cache_replay(struct pcache_cache *cache)
 	struct pcache_cache_pos pos_tail;
 	struct pcache_cache_pos *pos;
 	struct pcache_cache_kset_onmedia *kset_onmedia;
-	u32 to_copy, count = 0;
+	u32 to_copy, count = 0, last_hops = 0;
 	int ret = 0;
 
 	kset_onmedia = kzalloc(PCACHE_KSET_ONMEDIA_SIZE_MAX, GFP_KERNEL);
@@ -771,14 +778,14 @@ int cache_replay(struct pcache_cache *cache)
 	__set_bit(pos->cache_seg->cache_seg_id, cache->seg_map);
 
 	while (true) {
-		to_copy = min(PCACHE_KSET_ONMEDIA_SIZE_MAX, PCACHE_SEG_SIZE - pos->seg_off);
+		to_copy = min(PCACHE_KSET_ONMEDIA_SIZE_MAX, cache_seg_remain(pos));
 		ret = copy_mc_to_kernel(kset_onmedia, cache_pos_addr(pos), to_copy);
 		if (ret) {
 			ret = -EIO;
 			goto out;
 		}
 
-		if (kset_onmedia->magic != PCACHE_KSET_MAGIC ||
+		if (!kset_onmedia_valid(kset_onmedia) ||
 				kset_onmedia->crc != cache_kset_crc(kset_onmedia)) {
 			break;
 		}
@@ -788,6 +795,11 @@ int cache_replay(struct pcache_cache *cache)
 			struct pcache_cache_segment *next_seg;
 
 			pcache_dev_debug(pcache, "last kset replay, next: %u\n", kset_onmedia->next_cache_seg_id);
+
+			if (++last_hops > cache->n_segs) {
+				ret = -EIO;
+				goto out;
+			}
 
 			next_seg = &cache->segments[kset_onmedia->next_cache_seg_id];
 

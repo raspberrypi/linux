@@ -43,6 +43,7 @@
  */
 
 #include <linux/interrupt.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -226,12 +227,16 @@ svc_rdma_parse_connect_private(struct svcxprt_rdma *newxprt,
  * structure for the listening endpoint.
  *
  * This function creates a new xprt for the new connection and enqueues it on
- * the accept queue for the listent xprt. When the listen thread is kicked, it
+ * the accept queue for the listen xprt. When the listen thread is kicked, it
  * will call the recvfrom method on the listen xprt which will accept the new
  * connection.
+ *
+ * Return values:
+ *     %0: Do not destroy @new_cma_id
+ *     %1: Destroy @new_cma_id (allocation failure)
  */
-static void handle_connect_req(struct rdma_cm_id *new_cma_id,
-			       struct rdma_conn_param *param)
+static int handle_connect_req(struct rdma_cm_id *new_cma_id,
+			      struct rdma_conn_param *param)
 {
 	struct svcxprt_rdma *listen_xprt = new_cma_id->context;
 	struct svcxprt_rdma *newxprt;
@@ -241,7 +246,7 @@ static void handle_connect_req(struct rdma_cm_id *new_cma_id,
 				       listen_xprt->sc_xprt.xpt_net,
 				       ibdev_to_node(new_cma_id->device));
 	if (!newxprt)
-		return;
+		return 1;
 	newxprt->sc_cm_id = new_cma_id;
 	new_cma_id->context = newxprt;
 	svc_rdma_parse_connect_private(newxprt, param);
@@ -275,6 +280,7 @@ static void handle_connect_req(struct rdma_cm_id *new_cma_id,
 
 	set_bit(XPT_CONN, &listen_xprt->sc_xprt.xpt_flags);
 	svc_xprt_enqueue(&listen_xprt->sc_xprt);
+	return 0;
 }
 
 /**
@@ -298,8 +304,7 @@ static int svc_rdma_listen_handler(struct rdma_cm_id *cma_id,
 
 	switch (event->event) {
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
-		handle_connect_req(cma_id, &event->param.conn);
-		break;
+		return handle_connect_req(cma_id, &event->param.conn);
 	case RDMA_CM_EVENT_ADDR_CHANGE:
 		listen_id = svc_rdma_create_listen_id(cma_rdma->xpt_net,
 						      sap, cma_xprt);
@@ -576,13 +581,26 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
 	return &newxprt->sc_xprt;
 
  errout:
-	/* Take a reference in case the DTO handler runs */
-	svc_xprt_get(&newxprt->sc_xprt);
-	if (newxprt->sc_qp && !IS_ERR(newxprt->sc_qp))
-		ib_destroy_qp(newxprt->sc_qp);
-	rdma_destroy_id(newxprt->sc_cm_id);
-	rpcrdma_rn_unregister(dev, &newxprt->sc_rn);
-	/* This call to put will destroy the transport */
+	/*
+	 * Drop the kref_init birth reference. svc_xprt_free will
+	 * dispatch xpo_free = svc_rdma_free, which tears down sc_qp,
+	 * sc_sq_cq, sc_rq_cq, and sc_pd under existing IS_ERR/NULL
+	 * guards, and sc_rn under the rn_done sentinel guard inside
+	 * rpcrdma_rn_unregister.
+	 *
+	 * sc_cm_id is destroyed unconditionally by svc_rdma_free; that
+	 * is safe here because sc_cm_id is non-NULL by caller invariant
+	 * on every path that reaches this errout: handle_connect_req
+	 * installs newxprt->sc_cm_id before queueing the new xprt for
+	 * accept, and svc_rdma_accept has already dereferenced it above
+	 * the first goto errout.
+	 *
+	 * svc_handle_xprt() drops its pre-acquired module reference when
+	 * ->xpo_accept() returns NULL. Take a replacement reference before
+	 * freeing @newxprt, because svc_xprt_free() drops the module
+	 * reference associated with @newxprt.
+	 */
+	__module_get(newxprt->sc_xprt.xpt_class->xcl_owner);
 	svc_xprt_put(&newxprt->sc_xprt);
 	return NULL;
 }
