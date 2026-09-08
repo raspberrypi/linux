@@ -1751,11 +1751,11 @@ static long vduse_dev_compat_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 	default:
-		ret = -ENOIOCTLCMD;
-		break;
+		return vduse_dev_ioctl(file, cmd,
+				       (unsigned long)compat_ptr(arg));
 	}
 
-	return vduse_dev_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
+	return ret;
 }
 #else
 #define vduse_dev_compat_ioctl compat_ptr_ioctl
