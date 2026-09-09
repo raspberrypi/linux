@@ -3,7 +3,6 @@
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
-#include <asm/div64.h>
 #include <linux/interconnect-provider.h>
 #include <linux/list_sort.h>
 #include <linux/module.h>
@@ -14,6 +13,7 @@
 #include <soc/qcom/tcs.h>
 
 #include "bcm-voter.h"
+#include "icc-common.h"
 #include "icc-rpmh.h"
 
 static LIST_HEAD(bcm_voters);
@@ -45,17 +45,6 @@ static int cmp_vcd(void *priv, const struct list_head *a, const struct list_head
 	const struct qcom_icc_bcm *bcm_b = list_entry(b, struct qcom_icc_bcm, list);
 
 	return bcm_a->aux_data.vcd - bcm_b->aux_data.vcd;
-}
-
-static u64 bcm_div(u64 num, u32 base)
-{
-	/* Ensure that small votes aren't lost. */
-	if (num && num < base)
-		return 1;
-
-	do_div(num, base);
-
-	return num;
 }
 
 /* BCMs with enable_mask use one-hot-encoding for on/off signaling */
@@ -99,20 +88,20 @@ static void bcm_aggregate(struct qcom_icc_bcm *bcm)
 	for (bucket = 0; bucket < QCOM_ICC_NUM_BUCKETS; bucket++) {
 		for (i = 0; i < bcm->num_nodes; i++) {
 			node = bcm->nodes[i];
-			temp = bcm_div(node->sum_avg[bucket] * bcm->aux_data.width,
-				       node->buswidth * node->channels);
+			temp = qcom_bw_div(node->sum_avg[bucket] * bcm->aux_data.width,
+					   node->buswidth * node->channels);
 			agg_avg[bucket] = max(agg_avg[bucket], temp);
 
-			temp = bcm_div(node->max_peak[bucket] * bcm->aux_data.width,
-				       node->buswidth);
+			temp = qcom_bw_div(node->max_peak[bucket] * bcm->aux_data.width,
+					   node->buswidth);
 			agg_peak[bucket] = max(agg_peak[bucket], temp);
 		}
 
 		temp = agg_avg[bucket] * bcm->vote_scale;
-		bcm->vote_x[bucket] = bcm_div(temp, bcm->aux_data.unit);
+		bcm->vote_x[bucket] = qcom_bw_div(temp, bcm->aux_data.unit);
 
 		temp = agg_peak[bucket] * bcm->vote_scale;
-		bcm->vote_y[bucket] = bcm_div(temp, bcm->aux_data.unit);
+		bcm->vote_y[bucket] = qcom_bw_div(temp, bcm->aux_data.unit);
 	}
 
 	if (bcm->keepalive && bcm->vote_x[QCOM_ICC_BUCKET_AMC] == 0 &&
