@@ -59,14 +59,31 @@ static int qcom_icc_set_qnoc_qos(struct icc_node *src)
 	int rc;
 
 	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->qos_port),
+				QNOC_QOS_MCTL_DFLT_PRIO_MASK,
+				qos->areq_prio << QNOC_QOS_MCTL_DFLT_PRIO_SHIFT);
+	if (rc)
+		return rc;
+
+	rc = regmap_update_bits(qp->regmap,
 			qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->qos_port),
-			QNOC_QOS_MCTL_DFLT_PRIO_MASK,
-			qos->areq_prio << QNOC_QOS_MCTL_DFLT_PRIO_SHIFT);
+			QNOC_QOS_MCTL_URGFWD_EN_MASK,
+			!!qos->urg_fwd_en << QNOC_QOS_MCTL_URGFWD_EN_SHIFT);
+	if (rc)
+		return rc;
+
+	if (!qos->aux_qos_port)
+		return 0;
+
+	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->aux_qos_port),
+				QNOC_QOS_MCTL_DFLT_PRIO_MASK,
+				qos->areq_prio << QNOC_QOS_MCTL_DFLT_PRIO_SHIFT);
 	if (rc)
 		return rc;
 
 	return regmap_update_bits(qp->regmap,
-			qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->qos_port),
+			qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->aux_qos_port),
 			QNOC_QOS_MCTL_URGFWD_EN_MASK,
 			!!qos->urg_fwd_en << QNOC_QOS_MCTL_URGFWD_EN_SHIFT);
 }
@@ -75,8 +92,9 @@ static int qcom_icc_bimc_set_qos_health(struct qcom_icc_provider *qp,
 					struct qcom_icc_qos *qos,
 					int regnum)
 {
-	u32 val;
 	u32 mask;
+	u32 val;
+	int ret;
 
 	val = qos->prio_level;
 	mask = M_BKE_HEALTH_CFG_PRIOLVL_MASK;
@@ -90,8 +108,17 @@ static int qcom_icc_bimc_set_qos_health(struct qcom_icc_provider *qp,
 		mask |= M_BKE_HEALTH_CFG_LIMITCMDS_MASK;
 	}
 
+	ret = regmap_update_bits(qp->regmap,
+				 qp->qos_offset + M_BKE_HEALTH_CFG_ADDR(regnum, qos->qos_port),
+				 mask, val);
+	if (ret)
+		return ret;
+
+	if (!qos->aux_qos_port)
+		return 0;
+
 	return regmap_update_bits(qp->regmap,
-				  qp->qos_offset + M_BKE_HEALTH_CFG_ADDR(regnum, qos->qos_port),
+				  qp->qos_offset + M_BKE_HEALTH_CFG_ADDR(regnum, qos->aux_qos_port),
 				  mask, val);
 }
 
@@ -102,7 +129,7 @@ static int qcom_icc_set_bimc_qos(struct icc_node *src)
 	struct icc_provider *provider;
 	u32 mode = NOC_QOS_MODE_BYPASS;
 	u32 val = 0;
-	int i, rc = 0;
+	int i, rc;
 
 	qn = src->data;
 	provider = src->provider;
@@ -116,8 +143,7 @@ static int qcom_icc_set_bimc_qos(struct icc_node *src)
 	 */
 	if (mode != NOC_QOS_MODE_BYPASS) {
 		for (i = 3; i >= 0; i--) {
-			rc = qcom_icc_bimc_set_qos_health(qp,
-							  &qn->qos, i);
+			rc = qcom_icc_bimc_set_qos_health(qp, &qn->qos, i);
 			if (rc)
 				return rc;
 		}
@@ -126,8 +152,17 @@ static int qcom_icc_set_bimc_qos(struct icc_node *src)
 		val = 1;
 	}
 
+	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + M_BKE_EN_ADDR(qn->qos.qos_port),
+				M_BKE_EN_EN_BMASK, val);
+	if (rc)
+		return rc;
+
+	if (!qn->qos.aux_qos_port)
+		return 0;
+
 	return regmap_update_bits(qp->regmap,
-				  qp->qos_offset + M_BKE_EN_ADDR(qn->qos.qos_port),
+				  qp->qos_offset + M_BKE_EN_ADDR(qn->qos.aux_qos_port),
 				  M_BKE_EN_EN_BMASK, val);
 }
 
@@ -145,8 +180,24 @@ static int qcom_icc_noc_set_qos_priority(struct qcom_icc_provider *qp,
 	if (rc)
 		return rc;
 
+	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + NOC_QOS_PRIORITYn_ADDR(qos->qos_port),
+				NOC_QOS_PRIORITY_P0_MASK, qos->prio_level);
+	if (rc)
+		return rc;
+
+	if (!qos->aux_qos_port)
+		return 0;
+
+	val = qos->areq_prio << NOC_QOS_PRIORITY_P1_SHIFT;
+	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + NOC_QOS_PRIORITYn_ADDR(qos->aux_qos_port),
+				NOC_QOS_PRIORITY_P1_MASK, val);
+	if (rc)
+		return rc;
+
 	return regmap_update_bits(qp->regmap,
-				  qp->qos_offset + NOC_QOS_PRIORITYn_ADDR(qos->qos_port),
+				  qp->qos_offset + NOC_QOS_PRIORITYn_ADDR(qos->aux_qos_port),
 				  NOC_QOS_PRIORITY_P0_MASK, qos->prio_level);
 }
 
@@ -182,8 +233,17 @@ static int qcom_icc_set_noc_qos(struct icc_node *src)
 		/* How did we get here? */
 	}
 
+	rc = regmap_update_bits(qp->regmap,
+				qp->qos_offset + NOC_QOS_MODEn_ADDR(qn->qos.qos_port),
+				NOC_QOS_MODEn_MASK, mode);
+	if (rc)
+		return rc;
+
+	if (!qn->qos.aux_qos_port)
+		return 0;
+
 	return regmap_update_bits(qp->regmap,
-				  qp->qos_offset + NOC_QOS_MODEn_ADDR(qn->qos.qos_port),
+				  qp->qos_offset + NOC_QOS_MODEn_ADDR(qn->qos.aux_qos_port),
 				  NOC_QOS_MODEn_MASK, mode);
 }
 
