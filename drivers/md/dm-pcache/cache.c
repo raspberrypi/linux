@@ -118,6 +118,9 @@ int cache_pos_decode(struct pcache_cache *cache,
 	if (!latest_addr)
 		return -EIO;
 
+	if (!cache_seg_id_valid(cache, latest.cache_seg_id))
+		return -EIO;
+
 	pos->cache_seg = &cache->segments[latest.cache_seg_id];
 
 	if (latest.seg_off >= pos->cache_seg->segment.data_size)
@@ -159,6 +162,7 @@ static int cache_init(struct dm_pcache *pcache)
 	cache->cache_dev = &pcache->cache_dev;
 	cache->n_segs = cache_dev->seg_num;
 	atomic_set(&cache->gc_errors, 0);
+	atomic_set(&cache->writeback_errors, 0);
 	spin_lock_init(&cache->seg_map_lock);
 	spin_lock_init(&cache->key_head_lock);
 
