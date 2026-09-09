@@ -60,7 +60,8 @@ mes_userq_create_wptr_mapping(struct amdgpu_device *adev,
 		}
 
 		obj = wptr_mapping->bo_va->base.bo;
-		ret = drm_exec_lock_obj(&exec, &obj->tbo.base);
+		ret = drm_exec_prepare_obj(&exec, &obj->tbo.base,
+					   TTM_NUM_MOVE_FENCES + 1);
 		drm_exec_retry_on_contention(&exec);
 		if (unlikely(ret))
 			goto fail_lock;
