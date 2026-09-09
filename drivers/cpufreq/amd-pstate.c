@@ -145,19 +145,6 @@ static struct quirk_entry quirk_amd_7k62 = {
 	.lowest_freq = 550,
 };
 
-static inline u8 freq_to_perf(union perf_cached perf, u32 nominal_freq, unsigned int freq_val)
-{
-	u32 perf_val = DIV_ROUND_UP_ULL((u64)freq_val * perf.nominal_perf, nominal_freq);
-
-	return (u8)clamp(perf_val, perf.lowest_perf, perf.highest_perf);
-}
-
-static inline u32 perf_to_freq(union perf_cached perf, u32 nominal_freq, u8 perf_val)
-{
-	return DIV_ROUND_UP_ULL((u64)nominal_freq * perf_val,
-				perf.nominal_perf);
-}
-
 static int __init dmi_matched_7k62_bios_bug(const struct dmi_system_id *dmi)
 {
 	/**
