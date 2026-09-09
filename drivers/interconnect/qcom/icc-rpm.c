@@ -298,25 +298,25 @@ static u64 qcom_icc_calc_rate(struct qcom_icc_provider *qp, struct qcom_icc_node
 	u64 agg_avg_rate, agg_peak_rate, agg_rate;
 
 	if (qn->channels)
-		agg_avg_rate = div_u64(qn->sum_avg[ctx], qn->channels);
+		agg_avg_rate = qcom_bw_div(qn->sum_avg[ctx], qn->channels);
 	else
 		agg_avg_rate = qn->sum_avg[ctx];
 
 	if (qn->ab_coeff) {
 		agg_avg_rate = agg_avg_rate * qn->ab_coeff;
-		agg_avg_rate = div_u64(agg_avg_rate, 100);
+		agg_avg_rate = qcom_bw_div(agg_avg_rate, 100);
 	}
 
 	if (qn->ib_coeff) {
 		agg_peak_rate = qn->max_peak[ctx] * 100;
-		agg_peak_rate = div_u64(agg_peak_rate, qn->ib_coeff);
+		agg_peak_rate = qcom_bw_div(agg_peak_rate, qn->ib_coeff);
 	} else {
 		agg_peak_rate = qn->max_peak[ctx];
 	}
 
 	agg_rate = max_t(u64, agg_avg_rate, agg_peak_rate);
 
-	return div_u64(agg_rate, qn->buswidth);
+	return qcom_bw_div(agg_rate, qn->buswidth);
 }
 
 /**
