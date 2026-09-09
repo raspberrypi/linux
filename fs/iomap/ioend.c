@@ -25,6 +25,7 @@ struct iomap_ioend *iomap_init_ioend(struct inode *inode,
 	ioend->io_parent = NULL;
 	INIT_LIST_HEAD(&ioend->io_list);
 	ioend->io_flags = ioend_flags;
+	ioend->io_bvec_offset = bio->bi_iter.bi_offset;
 	ioend->io_inode = inode;
 	ioend->io_offset = file_offset;
 	ioend->io_size = bio->bi_iter.bi_size;
@@ -319,6 +320,13 @@ new_ioend:
 }
 EXPORT_SYMBOL_GPL(iomap_add_to_ioend);
 
+static int iomap_ioend_integrity_verify(struct iomap_ioend *ioend)
+{
+	struct bvec_iter data_iter = BVEC_ITER_IOEND(ioend);
+
+	return fs_bio_integrity_verify(&ioend->io_bio, &data_iter);
+}
+
 static u32 iomap_finish_ioend(struct iomap_ioend *ioend, int error)
 {
 	if (ioend->io_parent) {
@@ -336,10 +344,8 @@ static u32 iomap_finish_ioend(struct iomap_ioend *ioend, int error)
 
 	if (!ioend->io_error &&
 	    bio_integrity(&ioend->io_bio) &&
-	    bio_op(&ioend->io_bio) == REQ_OP_READ) {
-		ioend->io_error = fs_bio_integrity_verify(&ioend->io_bio,
-			ioend->io_sector, ioend->io_size);
-	}
+	    bio_op(&ioend->io_bio) == REQ_OP_READ)
+		ioend->io_error = iomap_ioend_integrity_verify(ioend);
 
 	if (ioend->io_flags & IOMAP_IOEND_DIRECT)
 		return iomap_finish_ioend_direct(ioend);

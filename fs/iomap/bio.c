@@ -169,6 +169,7 @@ int iomap_bio_read_folio_range_sync(const struct iomap_iter *iter,
 {
 	const struct iomap *srcmap = iomap_iter_srcmap(iter);
 	sector_t sector = iomap_sector(srcmap, pos);
+	struct bvec_iter saved_iter;
 	struct bio_vec bvec;
 	struct bio bio;
 	int error;
@@ -178,10 +179,11 @@ int iomap_bio_read_folio_range_sync(const struct iomap_iter *iter,
 	bio_add_folio_nofail(&bio, folio, len, offset_in_folio(folio, pos));
 	if (srcmap->flags & IOMAP_F_INTEGRITY)
 		fs_bio_integrity_alloc(&bio);
+	saved_iter = bio.bi_iter;
 	error = submit_bio_wait(&bio);
 	if (bio_integrity(&bio)) {
 		if (!error)
-			error = fs_bio_integrity_verify(&bio, sector, len);
+			error = fs_bio_integrity_verify(&bio, &saved_iter);
 		fs_bio_integrity_free(&bio);
 	}
 	bio_uninit(&bio);
