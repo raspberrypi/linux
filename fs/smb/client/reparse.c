@@ -580,7 +580,8 @@ int smb2_parse_native_symlink(char **target, const char *buf, unsigned int len,
 			linux_target[i*3 + 1] = '.';
 			linux_target[i*3 + 2] = sep;
 		}
-		memcpy(linux_target + levels*3, smb_target+1, smb_target_len); /* +1 to skip leading sep */
+		/* +1 to skip leading sep */
+		memcpy(linux_target + levels*3, smb_target+1, smb_target_len-1);
 	} else {
 		linux_target = smb_target;
 		smb_target = NULL;
