@@ -115,8 +115,8 @@ struct qcom_adsp {
 	struct qcom_rproc_ssr ssr_subdev;
 	struct qcom_sysmon *sysmon;
 
-	struct qcom_scm_pas_metadata pas_metadata;
-	struct qcom_scm_pas_metadata dtb_pas_metadata;
+	struct qcom_scm_pas_context *pas_ctx;
+	struct qcom_scm_pas_context *dtb_pas_ctx;
 };
 
 static void adsp_segment_dump(struct rproc *rproc, struct rproc_dump_segment *segment,
@@ -203,47 +203,50 @@ static int adsp_unprepare(struct rproc *rproc)
 	struct qcom_adsp *adsp = rproc->priv;
 
 	/*
-	 * adsp_load() did pass pas_metadata to the SCM driver for storing
+	 * adsp_load() did pass the PAS context to the SCM driver for storing
 	 * metadata context. It might have been released already if
 	 * auth_and_reset() was successful, but in other cases clean it up
 	 * here.
 	 */
-	qcom_scm_pas_metadata_release(&adsp->pas_metadata);
+	qcom_pas_metadata_release(adsp->pas_ctx);
 	if (adsp->dtb_pas_id)
-		qcom_scm_pas_metadata_release(&adsp->dtb_pas_metadata);
+		qcom_pas_metadata_release(adsp->dtb_pas_ctx);
 
 	return 0;
 }
 
 static int adsp_load(struct rproc *rproc, const struct firmware *fw)
 {
-	struct qcom_adsp *adsp = rproc->priv;
+	struct qcom_adsp *pas = rproc->priv;
 	int ret;
 
 	/* Store firmware handle to be used in adsp_start() */
-	adsp->firmware = fw;
+	pas->firmware = fw;
 
-	if (adsp->lite_pas_id)
-		ret = qcom_scm_pas_shutdown(adsp->lite_pas_id);
+	if (pas->lite_pas_id)
+		ret = qcom_scm_pas_shutdown(pas->lite_pas_id);
 
-	if (adsp->dtb_pas_id) {
-		ret = request_firmware(&adsp->dtb_firmware, adsp->dtb_firmware_name, adsp->dev);
+	if (pas->dtb_pas_id) {
+		ret = request_firmware(&pas->dtb_firmware, pas->dtb_firmware_name, pas->dev);
 		if (ret) {
-			dev_err(adsp->dev, "request_firmware failed for %s: %d\n",
-				adsp->dtb_firmware_name, ret);
+			dev_err(pas->dev, "request_firmware failed for %s: %d\n",
+				pas->dtb_firmware_name, ret);
 			return ret;
 		}
 
-		ret = qcom_mdt_pas_init(adsp->dev, adsp->dtb_firmware, adsp->dtb_firmware_name,
-					adsp->dtb_pas_id, adsp->dtb_mem_phys,
-					&adsp->dtb_pas_metadata);
-		if (ret)
-			goto release_dtb_firmware;
+		ret = qcom_mdt_pas_init(pas->dev, pas->dtb_firmware, pas->dtb_firmware_name,
+					pas->dtb_pas_id, pas->dtb_mem_phys,
+					pas->dtb_pas_ctx);
+		if (ret) {
+			release_firmware(pas->dtb_firmware);
+			return ret;
+		}
 
-		ret = qcom_mdt_load_no_init(adsp->dev, adsp->dtb_firmware, adsp->dtb_firmware_name,
-					    adsp->dtb_pas_id, adsp->dtb_mem_region,
-					    adsp->dtb_mem_phys, adsp->dtb_mem_size,
-					    &adsp->dtb_mem_reloc);
+		ret = qcom_mdt_load_no_init(
+					pas->dev, pas->dtb_firmware, pas->dtb_firmware_name,
+					pas->dtb_pas_id, pas->dtb_mem_region,
+					pas->dtb_mem_phys, pas->dtb_mem_size,
+					&pas->dtb_mem_reloc);
 		if (ret)
 			goto release_dtb_metadata;
 	}
@@ -251,10 +254,8 @@ static int adsp_load(struct rproc *rproc, const struct firmware *fw)
 	return 0;
 
 release_dtb_metadata:
-	qcom_scm_pas_metadata_release(&adsp->dtb_pas_metadata);
-
-release_dtb_firmware:
-	release_firmware(adsp->dtb_firmware);
+	qcom_pas_metadata_release(pas->dtb_pas_ctx);
+	release_firmware(pas->dtb_firmware);
 
 	return ret;
 }
@@ -302,7 +303,7 @@ static int adsp_start(struct rproc *rproc)
 	}
 
 	ret = qcom_mdt_pas_init(adsp->dev, adsp->firmware, rproc->firmware, adsp->pas_id,
-				adsp->mem_phys, &adsp->pas_metadata);
+				adsp->mem_phys, adsp->pas_ctx);
 	if (ret)
 		goto disable_px_supply;
 
@@ -328,9 +329,9 @@ static int adsp_start(struct rproc *rproc)
 		goto release_pas_metadata;
 	}
 
-	qcom_scm_pas_metadata_release(&adsp->pas_metadata);
+	qcom_pas_metadata_release(adsp->pas_ctx);
 	if (adsp->dtb_pas_id)
-		qcom_scm_pas_metadata_release(&adsp->dtb_pas_metadata);
+		qcom_pas_metadata_release(adsp->dtb_pas_ctx);
 
 	/* Remove pointer to the loaded firmware, only valid in adsp_load() & adsp_start() */
 	adsp->firmware = NULL;
@@ -338,9 +339,9 @@ static int adsp_start(struct rproc *rproc)
 	return 0;
 
 release_pas_metadata:
-	qcom_scm_pas_metadata_release(&adsp->pas_metadata);
+	qcom_pas_metadata_release(adsp->pas_ctx);
 	if (adsp->dtb_pas_id)
-		qcom_scm_pas_metadata_release(&adsp->dtb_pas_metadata);
+		qcom_pas_metadata_release(adsp->dtb_pas_ctx);
 disable_px_supply:
 	if (adsp->px_supply)
 		regulator_disable(adsp->px_supply);
@@ -788,6 +789,27 @@ static int adsp_probe(struct platform_device *pdev)
 	}
 
 	qcom_add_ssr_subdev(rproc, &adsp->ssr_subdev, desc->ssr_name);
+
+	adsp->pas_ctx = devm_kzalloc(adsp->dev, sizeof(*adsp->pas_ctx), GFP_KERNEL);
+	if (!adsp->pas_ctx) {
+		ret = -ENOMEM;
+		goto remove_ssr_sysmon;
+	}
+	adsp->pas_ctx->dev = adsp->dev;
+	adsp->pas_ctx->pas_id = adsp->pas_id;
+	adsp->pas_ctx->mem_phys = adsp->mem_phys;
+	adsp->pas_ctx->mem_size = adsp->mem_size;
+
+	adsp->dtb_pas_ctx = devm_kzalloc(adsp->dev, sizeof(*adsp->dtb_pas_ctx), GFP_KERNEL);
+	if (!adsp->dtb_pas_ctx) {
+		ret = -ENOMEM;
+		goto remove_ssr_sysmon;
+	}
+	adsp->dtb_pas_ctx->dev = adsp->dev;
+	adsp->dtb_pas_ctx->pas_id = adsp->dtb_pas_id;
+	adsp->dtb_pas_ctx->mem_phys = adsp->dtb_mem_phys;
+	adsp->dtb_pas_ctx->mem_size = adsp->dtb_mem_size;
+
 	ret = rproc_add(rproc);
 	if (ret)
 		goto remove_ssr_sysmon;

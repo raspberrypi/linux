@@ -577,16 +577,16 @@ static void qcom_scm_set_download_mode(u32 dload_mode)
  *		and optional blob of data used for authenticating the metadata
  *		and the rest of the firmware
  * @size:	size of the metadata
- * @ctx:	optional metadata context
+ * @ctx:	optional pas context
  *
  * Return: 0 on success.
  *
  * Upon successful return, the PAS metadata context (@ctx) will be used to
  * track the metadata allocation, this needs to be released by invoking
- * qcom_scm_pas_metadata_release() by the caller.
+ * qcom_pas_metadata_release() by the caller.
  */
 int qcom_scm_pas_init_image(u32 pas_id, const void *metadata, size_t size,
-			    struct qcom_scm_pas_metadata *ctx)
+			    struct qcom_scm_pas_context *ctx)
 {
 	dma_addr_t mdata_phys;
 	void *mdata_buf;
@@ -649,10 +649,10 @@ out:
 EXPORT_SYMBOL_GPL(qcom_scm_pas_init_image);
 
 /**
- * qcom_scm_pas_metadata_release() - release metadata context
- * @ctx:	metadata context
+ * qcom_pas_metadata_release() - release metadata context
+ * @ctx:	pas context
  */
-void qcom_scm_pas_metadata_release(struct qcom_scm_pas_metadata *ctx)
+void qcom_pas_metadata_release(struct qcom_scm_pas_context *ctx)
 {
 	if (!ctx->ptr)
 		return;
@@ -663,7 +663,7 @@ void qcom_scm_pas_metadata_release(struct qcom_scm_pas_metadata *ctx)
 	ctx->phys = 0;
 	ctx->size = 0;
 }
-EXPORT_SYMBOL_GPL(qcom_scm_pas_metadata_release);
+EXPORT_SYMBOL_GPL(qcom_pas_metadata_release);
 
 /**
  * qcom_scm_pas_mem_setup() - Prepare the memory related to a given peripheral
