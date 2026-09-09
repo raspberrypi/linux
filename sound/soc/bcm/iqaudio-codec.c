@@ -59,20 +59,15 @@ static int snd_rpi_iqaudio_pll_control(struct snd_soc_dapm_widget *w,
 	return ret;
 }
 
-static int snd_rpi_iqaudio_post_dapm_event(struct snd_soc_dapm_widget *w,
-                              struct snd_kcontrol *kcontrol,
-                              int event)
+static int snd_rpi_iqaudio_mic_bias_event(struct snd_soc_dapm_widget *w,
+					  struct snd_kcontrol *kcontrol,
+					  int event)
 {
-     switch (event) {
-     case SND_SOC_DAPM_POST_PMU:
-           /* Delay for mic bias ramp */
-           msleep(1000);
-           break;
-     default:
-           break;
-     }
+	if (event == SND_SOC_DAPM_POST_PMU)
+		/* Delay for mic bias ramp */
+		msleep(1000);
 
-     return 0;
+	return 0;
 }
 
 static const struct snd_kcontrol_new dapm_controls[] = {
@@ -90,7 +85,9 @@ static const struct snd_soc_dapm_widget dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("PLL Control", SND_SOC_NOPM, 0, 0,
 			    snd_rpi_iqaudio_pll_control,
 			    SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
-	SND_SOC_DAPM_POST("Post Power Up Event", snd_rpi_iqaudio_post_dapm_event),
+	SND_SOC_DAPM_SUPPLY("Mic Bias Ramp", SND_SOC_NOPM, 0, 0,
+			    snd_rpi_iqaudio_mic_bias_event,
+			    SND_SOC_DAPM_POST_PMU),
 };
 
 static const struct snd_soc_dapm_route audio_map[] = {
@@ -105,8 +102,10 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	/* Assume Mic1 is linked to Headset and Mic2 to on-board mic */
 	{"MIC1", NULL, "MIC Jack"},
 	{"MIC Jack", NULL, "PLL Control"},
+	{"MIC Jack", NULL, "Mic Bias Ramp"},
 	{"MIC2", NULL, "Onboard MIC"},
 	{"Onboard MIC", NULL, "PLL Control"},
+	{"Onboard MIC", NULL, "Mic Bias Ramp"},
 };
 
 /* machine stream operations */
