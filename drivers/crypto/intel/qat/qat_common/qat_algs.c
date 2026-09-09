@@ -1320,19 +1320,22 @@ int qat_algs_register(void)
 	ret = crypto_register_skciphers(qat_skciphers,
 					ARRAY_SIZE(qat_skciphers));
 	if (ret)
-		goto unlock;
+		goto err_dec;
 
 	ret = crypto_register_aeads(qat_aeads, ARRAY_SIZE(qat_aeads));
 	if (ret)
-		goto unreg_algs;
+		goto err_unreg_skciphers;
 
+	mutex_unlock(&algs_lock);
+	return 0;
+
+err_unreg_skciphers:
+	crypto_unregister_skciphers(qat_skciphers, ARRAY_SIZE(qat_skciphers));
+err_dec:
+	active_devs--;
 unlock:
 	mutex_unlock(&algs_lock);
 	return ret;
-
-unreg_algs:
-	crypto_unregister_skciphers(qat_skciphers, ARRAY_SIZE(qat_skciphers));
-	goto unlock;
 }
 
 void qat_algs_unregister(void)
