@@ -8879,7 +8879,7 @@ static void set_cpus_allowed_fair(struct task_struct *p, struct affinity_context
 }
 
 static int
-balance_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
+balance_fair(struct rq *rq, struct rq_flags *rf)
 {
 	if (sched_fair_runnable(rq))
 		return 1;
@@ -9200,6 +9200,8 @@ simple:
 idle:
 	if (rf) {
 		new_tasks = sched_balance_newidle(rq, rf);
+		/* The donor may have changed while the rq lock was dropped. */
+		prev = rq->donor;
 
 		/*
 		 * Because sched_balance_newidle() releases (and re-acquires)

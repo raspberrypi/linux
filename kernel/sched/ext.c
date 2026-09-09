@@ -2200,14 +2200,13 @@ has_tasks:
 	return true;
 }
 
-static int balance_scx(struct rq *rq, struct task_struct *prev,
-		       struct rq_flags *rf)
+static int balance_scx(struct rq *rq, struct rq_flags *rf)
 {
 	int ret;
 
 	rq_unpin_lock(rq, rf);
 
-	ret = balance_one(rq, prev);
+	ret = balance_one(rq, rq->donor);
 
 #ifdef CONFIG_SCHED_SMT
 	/*
