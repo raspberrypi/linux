@@ -248,14 +248,13 @@ static int qcom_pas_load(struct rproc *rproc, const struct firmware *fw)
 		ret = qcom_mdt_load_no_init(pas->dev, pas->dtb_firmware, pas->dtb_firmware_name,
 					    pas->dtb_mem_region, pas->dtb_mem_phys,
 					    pas->dtb_mem_size, &pas->dtb_mem_reloc);
-		if (ret)
-			goto release_dtb_metadata;
+		if (ret) {
+			qcom_scm_pas_metadata_release(&pas->dtb_pas_metadata);
+			goto release_dtb_firmware;
+		}
 	}
 
 	return 0;
-
-release_dtb_metadata:
-	qcom_scm_pas_metadata_release(&pas->dtb_pas_metadata);
 
 release_dtb_firmware:
 	release_firmware(pas->dtb_firmware);
