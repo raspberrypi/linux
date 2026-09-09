@@ -41,6 +41,8 @@ TEST_PROGS += test_stress_04.sh
 TEST_PROGS += test_stress_05.sh
 
 TEST_FILES := settings
+TEST_FILES += test_common.sh
+TEST_FILES += trace
 
 TEST_GEN_PROGS_EXTENDED = kublk metadata_size
 STANDALONE_UTILS := metadata_size.c
