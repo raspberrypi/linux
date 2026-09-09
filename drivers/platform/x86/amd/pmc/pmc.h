@@ -39,7 +39,6 @@ struct amd_pmc_dev {
 	void __iomem *smu_virt_addr;
 	void __iomem *stb_virt_addr;
 	void __iomem *fch_virt_addr;
-	bool msg_port;
 	u32 base_addr;
 	u32 cpu_id;
 	u32 active_ips;
@@ -51,6 +50,7 @@ struct amd_pmc_dev {
 	u8 major;
 	u8 minor;
 	u8 rev;
+	u8 msg_port;
 	struct device *dev;
 	struct pci_dev *rdev;
 	struct mutex lock; /* generic mutex lock */
