@@ -247,17 +247,14 @@ static int adsp_load(struct rproc *rproc, const struct firmware *fw)
 					pas->dtb_pas_id, pas->dtb_mem_region,
 					pas->dtb_mem_phys, pas->dtb_mem_size,
 					&pas->dtb_mem_reloc);
-		if (ret)
-			goto release_dtb_metadata;
+		if (ret) {
+			qcom_pas_metadata_release(pas->dtb_pas_ctx);
+			release_firmware(pas->dtb_firmware);
+			return ret;
+		}
 	}
 
 	return 0;
-
-release_dtb_metadata:
-	qcom_pas_metadata_release(pas->dtb_pas_ctx);
-	release_firmware(pas->dtb_firmware);
-
-	return ret;
 }
 
 static int adsp_start(struct rproc *rproc)
