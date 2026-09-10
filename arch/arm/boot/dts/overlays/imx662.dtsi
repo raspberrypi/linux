@@ -20,7 +20,12 @@ cam_node: imx662@1a {
 			data-lanes = <1 2>;
 			clock-noncontinuous;
 			link-frequencies =
-				/bits/ 64 <594000000>;
+				/bits/ 64
+					<720000000
+					 594000000
+					 445500000
+					 360000000
+					 297000000>;
 		};
 	};
 };
