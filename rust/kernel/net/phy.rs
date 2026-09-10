@@ -130,7 +130,7 @@ impl Device {
         // SAFETY: The struct invariant ensures that we may access
         // this field without additional synchronization.
         let bit_field = unsafe { &(*self.0.get())._bitfield_1 };
-        bit_field.get(14, 1) == LINK_IS_UP
+        bit_field.get(15, 1) == LINK_IS_UP
     }
 
     /// Gets the current auto-negotiation configuration.
@@ -142,7 +142,7 @@ impl Device {
         // SAFETY: The struct invariant ensures that we may access
         // this field without additional synchronization.
         let bit_field = unsafe { &(*self.0.get())._bitfield_1 };
-        bit_field.get(13, 1) == u64::from(bindings::AUTONEG_ENABLE)
+        bit_field.get(14, 1) == u64::from(bindings::AUTONEG_ENABLE)
     }
 
     /// Gets the current auto-negotiation state.
@@ -155,7 +155,7 @@ impl Device {
         // SAFETY: The struct invariant ensures that we may access
         // this field without additional synchronization.
         let bit_field = unsafe { &(*self.0.get())._bitfield_1 };
-        bit_field.get(15, 1) == AUTONEG_COMPLETED
+        bit_field.get(16, 1) == AUTONEG_COMPLETED
     }
 
     /// Sets the speed of the PHY.
