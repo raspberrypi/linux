@@ -191,6 +191,7 @@ int rp1_pio_sm_config_xfer(struct rp1_pio_client *client, uint sm, uint dir,
 int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 			 uint data_bytes, void *data, dma_addr_t dma_addr,
 			 void (*callback)(void *param), void *param);
+void *rp1_pio_sm_buffer_virt(struct rp1_pio_client *client, unsigned sm, unsigned dir, int index);
 
 int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param);
 int rp1_pio_add_program(struct rp1_pio_client *client, void *param);

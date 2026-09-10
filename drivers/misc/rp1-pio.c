@@ -996,6 +996,24 @@ int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_xfer_data);
 
+void *rp1_pio_sm_buffer_virt(struct rp1_pio_client *client,
+                             unsigned sm, unsigned dir, int index)
+{
+    struct rp1_pio_device *pio = client->pio;
+    struct dma_info *dma;
+
+    if (sm >= RP1_PIO_SMS_COUNT || dir >= RP1_PIO_DIR_COUNT)
+        return NULL;
+
+    dma = &pio->dma_configs[sm][dir];
+
+    if (index >= dma->buf_count)
+        return NULL;
+
+    return dma->bufs[index].buf;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_sm_buffer_virt);
+
 struct handler_info {
 	const char *name;
 	int (*func)(struct rp1_pio_client *client, void *param);
