@@ -6737,6 +6737,7 @@ static void perf_mmap_open(struct vm_area_struct *vma)
 }
 
 static void perf_pmu_output_stop(struct perf_event *event);
+static void perf_mmap_unaccount(struct vm_area_struct *vma, struct perf_buffer *rb);
 
 /*
  * A buffer can be mmap()ed multiple times; either directly through the same
@@ -6752,8 +6753,6 @@ static void perf_mmap_close(struct vm_area_struct *vma)
 	mapped_f unmapped = get_mapped(event, event_unmapped);
 	struct perf_buffer *rb = ring_buffer_get(event);
 	struct user_struct *mmap_user = rb->mmap_user;
-	int mmap_locked = rb->mmap_locked;
-	unsigned long size = perf_data_size(rb);
 	bool detach_rest = false;
 
 	/* FIXIES vs perf_pmu_unregister() */
@@ -6848,11 +6847,7 @@ again:
 	 * Aside from that, this buffer is 'fully' detached and unmapped,
 	 * undo the VM accounting.
 	 */
-
-	atomic_long_sub((size >> PAGE_SHIFT) + 1 - mmap_locked,
-			&mmap_user->locked_vm);
-	atomic64_sub(mmap_locked, &vma->vm_mm->pinned_vm);
-	free_uid(mmap_user);
+	perf_mmap_unaccount(vma, rb);
 
 out_put:
 	ring_buffer_put(rb); /* could be last */
@@ -6994,6 +6989,15 @@ static void perf_mmap_account(struct vm_area_struct *vma, long user_extra, long 
 	atomic64_add(extra, &vma->vm_mm->pinned_vm);
 }
 
+static void perf_mmap_unaccount(struct vm_area_struct *vma, struct perf_buffer *rb)
+{
+	struct user_struct *user = rb->mmap_user;
+
+	atomic_long_sub((perf_data_size(rb) >> PAGE_SHIFT) + 1 - rb->mmap_locked,
+			&user->locked_vm);
+	atomic64_sub(rb->mmap_locked, &vma->vm_mm->pinned_vm);
+}
+
 static int perf_mmap_rb(struct vm_area_struct *vma, struct perf_event *event,
 			unsigned long nr_pages)
 {
@@ -7056,8 +7060,6 @@ static int perf_mmap_rb(struct vm_area_struct *vma, struct perf_event *event,
 	if (!rb)
 		return -ENOMEM;
 
-	refcount_set(&rb->mmap_count, 1);
-	rb->mmap_user = get_current_user();
 	rb->mmap_locked = extra;
 
 	ring_buffer_attach(event, rb);
@@ -7207,16 +7209,54 @@ static int perf_mmap(struct file *file, struct vm_area_struct *vma)
 			mapped(event, vma->vm_mm);
 
 		/*
-		 * Try to map it into the page table. On fail, invoke
-		 * perf_mmap_close() to undo the above, as the callsite expects
-		 * full cleanup in this case and therefore does not invoke
-		 * vmops::close().
+		 * Try to map it into the page table. On fail undo the above,
+		 * as the callsite expects full cleanup in this case and
+		 * therefore does not invoke vmops::close().
 		 */
 		ret = map_range(event->rb, vma);
-		if (ret)
-			perf_mmap_close(vma);
+		if (likely(!ret))
+			return 0;
+
+		/* Error path */
+
+		/*
+		 * If this is the first mmap(), then event->mmap_count should
+		 * be stable at 1. It is only modified by:
+		 * perf_mmap_{open,close}() and perf_mmap().
+		 *
+		 * The former are not possible because this mmap() hasn't been
+		 * successful yet, and the latter is serialized by
+		 * event->mmap_mutex which we still hold (note that mmap_lock
+		 * is not strictly sufficient here, because the event fd can
+		 * be passed to another process through trivial means like
+		 * fork(), leading to concurrent mmap() from different mm).
+		 *
+		 * Make sure to remove event->rb before releasing
+		 * event->mmap_mutex, such that any concurrent mmap() will not
+		 * attempt use this failed buffer.
+		 */
+		if (refcount_read(&event->mmap_count) == 1) {
+			/*
+			 * Minimal perf_mmap_close(); there can't be AUX or
+			 * other events on account of this being the first.
+			 */
+			mapped = get_mapped(event, event_unmapped);
+			if (mapped)
+				mapped(event, vma->vm_mm);
+			perf_mmap_unaccount(vma, event->rb);
+			ring_buffer_attach(event, NULL);	/* drops last rb->refcount */
+			refcount_set(&event->mmap_count, 0);
+			return ret;
+		}
+
+		/*
+		 * Otherwise this is an already existing buffer, and there is
+		 * no race vs first exposure, so fall-through and call
+		 * perf_mmap_close().
+		 */
 	}
 
+	perf_mmap_close(vma);
 	return ret;
 }
 
