@@ -759,10 +759,10 @@ static const struct cci_reg_sequence imx662_common_regs[] = {
 	{ STARVIS2_REG_XXS_DRV, 0x00 },
 };
 
-static const u16 imx662_min_hmax_4lane[] = {
-	[STARVIS2_LINK_FREQ_297MHZ] = 990,
-	[STARVIS2_LINK_FREQ_360MHZ] = 990,
-	[STARVIS2_LINK_FREQ_445MHZ] = 990,
+static const u16 imx662_min_hmax_2lane[] = {
+	[STARVIS2_LINK_FREQ_297MHZ] = 1980,
+	[STARVIS2_LINK_FREQ_360MHZ] = 1980,
+	[STARVIS2_LINK_FREQ_445MHZ] = 1188,
 	[STARVIS2_LINK_FREQ_594MHZ] = 990,
 	[STARVIS2_LINK_FREQ_720MHZ] = 990,
 	[STARVIS2_LINK_FREQ_891MHZ] = 990,
@@ -791,7 +791,8 @@ const struct starvis2_variant imx662_variant_def = {
 	.common_regs = imx662_common_regs,
 	.num_common_regs = ARRAY_SIZE(imx662_common_regs),
 	.vmax_default = 1136,
-	.hmax_min = imx662_min_hmax_4lane,
+	.hmax_min_link_freq = imx662_min_hmax_2lane,
+	.hmax_min_pixel_array = 990,
 };
 
 static const struct cci_reg_sequence imx675_common_regs[] = {
@@ -990,7 +991,8 @@ const struct starvis2_variant imx675_variant_def = {
 	.common_regs = imx675_common_regs,
 	.num_common_regs = ARRAY_SIZE(imx675_common_regs),
 	.vmax_default = 2024,
-	.hmax_min = imx675_min_hmax_4lane,
+	.hmax_min_link_freq = imx675_min_hmax_4lane,
+	.hmax_min_pixel_array = 452,
 };
 
 struct starvis2_model_info {
