@@ -1197,7 +1197,8 @@ int amd_sof_acp7x_suspend(struct snd_sof_dev *sdev, u32 target_state)
 		enable = true;
 		break;
 	default:
-		break;
+		dev_err(sdev->dev, "Unexpected PCI revision: 0x%x\n", acp_data->pci_rev);
+		return -EINVAL;
 	}
 	snd_sof_dsp_write(sdev, ACP_DSP_BAR, ACP_CONTROL, enable);
 	snd_sof_dsp_write(sdev, ACP_DSP_BAR, ACP7X_ZSC_DSP_CTRL, 1);
