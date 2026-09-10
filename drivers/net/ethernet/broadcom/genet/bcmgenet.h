@@ -37,9 +37,26 @@
 #define ENET_RBUF_ALIGN		2
 #define ENET_RX_OFFSET		(ENET_RSB_LEN + ENET_RBUF_ALIGN)
 
-/* Longest frame the MAC must accept for the default MTU */
-#define ENET_MAX_FRAME_LEN	(ETH_DATA_LEN + ETH_HLEN + VLAN_HLEN + \
+/* Longest frame the MAC must accept for a given MTU */
+#define ENET_MAX_FRAME_LEN(mtu)	((mtu) + ETH_HLEN + VLAN_HLEN + \
 				 ENET_BRCM_TAG_LEN + ETH_FCS_LEN + ENET_PAD)
+
+/* RBUF and TBUF hand a frame to the DMA once the threshold is reached, so a
+ * longer frame arrives without an end of packet marker and is dropped. Both
+ * registers are 8 bit in units of 16 bytes and want a multiple of the 256
+ * byte burst size, so 0xf0 is the largest usable value.
+ */
+#define ENET_THLD_UNIT		16
+#define ENET_THLD_BURST		256
+#define ENET_THLD_DEFAULT	0x80
+#define ENET_THLD_MAX		0xf0
+#define ENET_THLD_MAX_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
+
+/* Largest MTU the threshold allows, with room for a VLAN tag so a VLAN
+ * interface can use the parent MTU.
+ */
+#define ENET_MAX_MTU		(ENET_THLD_MAX_LEN - ENET_RBUF_ALIGN - \
+				 ETH_HLEN - VLAN_HLEN)
 #define DMA_MAX_BURST_LENGTH    0x10
 
 /* misc. configuration */
@@ -225,6 +242,8 @@ struct bcmgenet_rx_stats64 {
 #define  RBUF_ALIGN_2B			(1 << 1)
 #define  RBUF_BAD_DIS			(1 << 2)
 
+#define RBUF_PKT_RDY_THLD		0x08
+
 #define RBUF_STATUS			0x0C
 #define  RBUF_STATUS_WOL		(1 << 0)
 #define  RBUF_STATUS_MPD_INTR_ACTIVE	(1 << 1)
@@ -255,6 +274,7 @@ struct bcmgenet_rx_stats64 {
 #define TBUF_CTRL			0x00
 #define  TBUF_64B_EN			(1 << 0)
 #define TBUF_BP_MC			0x0C
+#define TBUF_PKT_RDY_THLD		0x10
 #define TBUF_ENERGY_CTRL		0x14
 #define  TBUF_EEE_EN			(1 << 0)
 #define  TBUF_PM_EN			(1 << 1)
@@ -622,6 +642,7 @@ struct bcmgenet_priv {
 	struct bcmgenet_rx_ring rx_rings[GENET_MAX_MQ_CNT + 1];
 
 	/* other misc variables */
+	bool datapath_up;
 	const struct bcmgenet_hw_params *hw_params;
 	u32 flags;
 	unsigned autoneg_pause:1;
