@@ -743,7 +743,7 @@ int efa_com_admin_init(struct efa_com_dev *edev,
 
 	aq->dmadev = edev->dmadev;
 	aq->efa_dev = edev->efa_dev;
-	set_bit(EFA_AQ_STATE_POLLING_BIT, &aq->state);
+	efa_com_set_admin_polling_mode(edev, true);
 
 	sema_init(&aq->avail_cmds, aq->depth);
 
@@ -760,8 +760,6 @@ int efa_com_admin_init(struct efa_com_dev *edev,
 	err = efa_com_admin_init_cq(edev);
 	if (err)
 		goto err_destroy_sq;
-
-	efa_com_set_admin_polling_mode(edev, false);
 
 	err = efa_com_admin_init_aenq(edev, aenq_handlers);
 	if (err)
