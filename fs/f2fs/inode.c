@@ -1055,9 +1055,9 @@ static void f2fs_post_evict_inode(struct inode *inode)
 		goto skip_record;
 
 	if (is_inode_flag_set(inode, FI_APPEND_WRITE))
-		record_bits = BIT(APPEND_INO);
+		record_bits |= BIT(APPEND_INO);
 	if (is_inode_flag_set(inode, FI_UPDATE_WRITE))
-		record_bits = BIT(UPDATE_INO);
+		record_bits |= BIT(UPDATE_INO);
 
 	if (!record_bits)
 		goto skip_record;
