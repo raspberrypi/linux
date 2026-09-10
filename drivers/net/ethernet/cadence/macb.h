@@ -1373,6 +1373,7 @@ struct macb {
 
 	struct gpio_desc	*phy_reset_gpio;
 	int			phy_reset_ms;
+	int			phy_reset_post_ms;
 
 	/* AT91RM9200 transmit queue (1 on wire + 1 queued) */
 	struct macb_tx_skb	rm9200_txq[2];

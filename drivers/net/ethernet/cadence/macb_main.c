@@ -502,6 +502,7 @@ static int macb_mdio_reset(struct mii_bus *bus)
 		gpiod_set_value_cansleep(bp->phy_reset_gpio, 1);
 		msleep(bp->phy_reset_ms);
 		gpiod_set_value_cansleep(bp->phy_reset_gpio, 0);
+		msleep(bp->phy_reset_post_ms);
 	}
 
 	return 0;
@@ -6006,6 +6007,12 @@ static int macb_probe(struct platform_device *pdev)
 	/* A sane reset duration should not be longer than 1s */
 	if (bp->phy_reset_ms > 1000)
 		bp->phy_reset_ms = 1000;
+
+	bp->phy_reset_post_ms = 0;
+	of_property_read_u32(np, "phy-reset-post-delay", &bp->phy_reset_post_ms);
+	/* A sane post-reset delay should not be longer than 1s */
+	if (bp->phy_reset_post_ms > 1000)
+		bp->phy_reset_post_ms = 1000;
 
 	/* IP specific init */
 	err = init(pdev);
