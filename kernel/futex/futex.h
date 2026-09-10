@@ -144,7 +144,6 @@ struct futex_hash_bucket {
 	atomic_t waiters;
 	spinlock_t lock;
 	struct plist_head chain;
-	struct futex_private_hash *priv;
 } ____cacheline_aligned_in_smp;
 
 /*
@@ -184,7 +183,7 @@ typedef void (futex_wake_fn)(struct wake_q_head *wake_q, struct futex_q *q);
  * @requeue_pi_key:	the requeue_pi target futex key
  * @bitset:		bitset for the optional bitmasked wakeup
  * @requeue_state:	State field for futex_requeue_pi()
- * @drop_hb_ref:	Waiter should drop the extra hash bucket reference if true
+ * @drop_fph:		Waiter should drop the extra private hash reference when set
  * @requeue_wait:	RCU wait for futex_requeue_pi() (RT only)
  *
  * We use this hashed waitqueue, instead of a normal wait_queue_entry_t, so
@@ -211,7 +210,7 @@ struct futex_q {
 	union futex_key *requeue_pi_key;
 	u32 bitset;
 	atomic_t requeue_state;
-	bool drop_hb_ref;
+	struct futex_private_hash *drop_fph;
 #ifdef CONFIG_PREEMPT_RT
 	struct rcuwait requeue_wait;
 #endif
@@ -231,28 +230,29 @@ extern struct hrtimer_sleeper *
 futex_setup_timer(ktime_t *time, struct hrtimer_sleeper *timeout,
 		  int flags, u64 range_ns);
 
-extern struct futex_hash_bucket *futex_hash(union futex_key *key);
-#ifdef CONFIG_FUTEX_PRIVATE_HASH
-extern void futex_hash_get(struct futex_hash_bucket *hb);
-extern void futex_hash_put(struct futex_hash_bucket *hb);
+struct futex_bucket_ref {
+	struct futex_hash_bucket *hb;
+	struct futex_private_hash *fph;
+};
 
-extern struct futex_private_hash *futex_private_hash(void);
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+extern struct futex_private_hash *futex_private_hash(struct mm_struct *mm);
 extern void futex_private_hash_put(struct futex_private_hash *fph);
 
 #else /* !CONFIG_FUTEX_PRIVATE_HASH */
-static inline void futex_hash_get(struct futex_hash_bucket *hb) { }
-static inline void futex_hash_put(struct futex_hash_bucket *hb) { }
-static inline struct futex_private_hash *futex_private_hash(void) { return NULL; }
+static inline struct futex_private_hash *futex_private_hash(struct mm_struct *mm) { return NULL; }
 static inline void futex_private_hash_put(struct futex_private_hash *fph) { }
 #endif
 
-DEFINE_CLASS(hb, struct futex_hash_bucket *,
-	     if (_T) futex_hash_put(_T),
+extern struct futex_bucket_ref futex_hash(union futex_key *key);
+
+DEFINE_CLASS(hbr, struct futex_bucket_ref,
+	     if (_T.fph) futex_private_hash_put(_T.fph),
 	     futex_hash(key), union futex_key *key);
 
 DEFINE_CLASS(private_hash, struct futex_private_hash *,
 	     if (_T) futex_private_hash_put(_T),
-	     futex_private_hash(), void);
+	     futex_private_hash(mm), struct mm_struct *mm);
 
 /**
  * futex_match - Check whether two futex keys are equal
