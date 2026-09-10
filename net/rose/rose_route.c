@@ -229,8 +229,14 @@ static void rose_remove_neigh(struct rose_neigh *rose_neigh)
 {
 	struct rose_neigh *s;
 
-	timer_delete_sync(&rose_neigh->ftimer);
-	timer_delete_sync(&rose_neigh->t0timer);
+	/* Being removed from the list is final teardown for this neighbour:
+	 * shut the timers down rather than just deleting them, so a t0timer
+	 * self-rearm losing the race with this removal can't bring it back to
+	 * life later.  See the comment in rose_neigh_put() (include/net/rose.h)
+	 * for the full story.
+	 */
+	timer_shutdown_sync(&rose_neigh->ftimer);
+	timer_shutdown_sync(&rose_neigh->t0timer);
 
 	skb_queue_purge(&rose_neigh->queue);
 
