@@ -1180,7 +1180,7 @@ static int __soc_pcm_hw_params(struct snd_soc_pcm_runtime *rtd,
 		 */
 		for_each_rtd_ch_maps(rtd, j, ch_maps)
 			if (ch_maps->cpu == i)
-				ch_mask |= ch_maps->ch_mask;
+				ch_mask |= ch_maps->cpu_ch_mask;
 
 		/* fixup cpu channel number */
 		if (ch_mask)
