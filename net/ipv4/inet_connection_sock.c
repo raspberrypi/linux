@@ -1533,7 +1533,8 @@ skip_child_forget:
 		local_bh_enable();
 		sock_put(child);
 
-		cond_resched();
+		if (!has_current_bpf_ctx())
+			cond_resched();
 	}
 	if (queue->fastopenq.rskq_rst_head) {
 		/* Free all the reqs queued in rskq_rst_head. */
