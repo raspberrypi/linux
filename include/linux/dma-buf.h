@@ -582,6 +582,11 @@ void dma_buf_unpin(struct dma_buf_attachment *attach);
 struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info);
 
 int dma_buf_fd(struct dma_buf *dmabuf, int flags);
+/*
+ * This tree has no DMA-BUF fd tracepoint, so publishing a reserved fd only
+ * requires fd_install(). Call this after all fallible work has succeeded.
+ */
+#define dma_buf_fd_install(dmabuf, fd) fd_install((fd), (dmabuf)->file)
 struct dma_buf *dma_buf_get(int fd);
 void dma_buf_put(struct dma_buf *dmabuf);
 
