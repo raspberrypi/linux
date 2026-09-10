@@ -1048,11 +1048,11 @@ void amd_sof_acp_remove(struct snd_sof_dev *sdev)
 {
 	struct acp_dev_data *adata = sdev->pdata->hw_pdata;
 
-	if (adata->sdw)
-		amd_sof_sdw_exit(sdev);
-
 	if (sdev->ipc_irq)
 		free_irq(sdev->ipc_irq, sdev);
+
+	if (adata->sdw)
+		amd_sof_sdw_exit(sdev);
 
 	if (adata->dmic_dev)
 		platform_device_unregister(adata->dmic_dev);
