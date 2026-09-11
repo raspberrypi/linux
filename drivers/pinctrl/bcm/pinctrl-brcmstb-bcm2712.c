@@ -13,6 +13,7 @@
 
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/of.h>
+#include <linux/pm.h>
 #include "pinctrl-brcmstb.h"
 
 #define BRCMSTB_FSEL_COUNT	8
@@ -729,12 +730,17 @@ static const struct of_device_id bcm2712_pinctrl_match[] = {
 };
 MODULE_DEVICE_TABLE(of, bcm2712_pinctrl_match);
 
+static const struct dev_pm_ops bcm2712_pinctrl_pm_ops = {
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(brcmstb_pinctrl_suspend, brcmstb_pinctrl_resume)
+};
+
 static struct platform_driver bcm2712_pinctrl_driver = {
 	.probe = bcm2712_pinctrl_probe,
 	.driver = {
 		.name = "pinctrl-bcm2712",
 		.of_match_table = bcm2712_pinctrl_match,
 		.suppress_bind_attrs = true,
+		.pm = &bcm2712_pinctrl_pm_ops,
 	},
 };
 module_platform_driver(bcm2712_pinctrl_driver);

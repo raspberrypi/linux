@@ -401,6 +401,13 @@ properties:
     items:
       enum: [1, 4, 8, 16, 32, 64, 128, 256]
 
+  snps,power-off-in-s2ram:
+    description:
+      Set if the controller is powered off while the system is suspended, so
+      that all of its state is lost. When set, the host side is fully
+      reinitialised on resume instead of having its saved state restored.
+    type: boolean
+
   num-hc-interrupters:
     maximum: 8
     default: 1
