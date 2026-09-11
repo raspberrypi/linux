@@ -172,7 +172,7 @@ class NestedMatch:
         into a stack, yielding a start/stop position of each match  when the
         stack is zeroed.
 
-        The algorithm shoud work fine for properly paired lines, but will
+        The algorithm should work fine for properly paired lines, but will
         silently ignore end delimiters that preceeds an start delimiter.
         This should be OK for kernel-doc parser, as unaligned delimiters
         would cause compilation errors. So, we don't need to rise exceptions
