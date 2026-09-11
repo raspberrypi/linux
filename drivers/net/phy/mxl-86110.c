@@ -883,56 +883,6 @@ static int mxl86111_write_page(struct phy_device *phydev, int page)
 					      MXL86111_EXT_SMI_SDS_PHYSPACE_MASK, page);
 };
 
-static int mxl86111_config_inband(struct phy_device *phydev, unsigned int modes)
-{
-	int ret;
-
-	ret = phy_modify_paged(phydev, MXL86111_EXT_SMI_SDS_PHYFIBER_SPACE,
-			       MII_BMCR, BMCR_ANENABLE,
-			       (modes == LINK_INBAND_DISABLE) ? 0 : BMCR_ANENABLE);
-	if (ret < 0)
-		goto out;
-
-	phy_lock_mdio_bus(phydev);
-
-	ret = __mxl86110_modify_extended_reg(phydev, MXL86111_EXT_SDS_LINK_TIMER_CFG2_REG,
-					     MXL86111_EXT_SDS_LINK_TIMER_CFG2_EN_AUTOSEN,
-					     (modes == LINK_INBAND_DISABLE) ? 0 :
-					     MXL86111_EXT_SDS_LINK_TIMER_CFG2_EN_AUTOSEN);
-	if (ret < 0)
-		goto out;
-
-	ret = __mxl86110_modify_extended_reg(phydev, MXL86110_EXT_CHIP_CFG_REG,
-					     MXL86110_EXT_CHIP_CFG_SW_RST_N_MODE, 0);
-	if (ret < 0)
-		goto out;
-
-	/* For fiber forced mode, power down/up to re-aneg */
-	if (modes != LINK_INBAND_DISABLE) {
-		__phy_modify(phydev, MII_BMCR, 0, BMCR_PDOWN);
-		usleep_range(1000, 1050);
-		__phy_modify(phydev, MII_BMCR, BMCR_PDOWN, 0);
-	}
-
-out:
-	phy_unlock_mdio_bus(phydev);
-
-	return ret;
-}
-
-static unsigned int mxl86111_inband_caps(struct phy_device *phydev,
-					 phy_interface_t interface)
-{
-	switch (interface) {
-	case PHY_INTERFACE_MODE_100BASEX:
-	case PHY_INTERFACE_MODE_1000BASEX:
-	case PHY_INTERFACE_MODE_SGMII:
-		return LINK_INBAND_DISABLE | LINK_INBAND_ENABLE;
-	default:
-		return 0;
-	}
-}
-
 static struct phy_driver mxl_phy_drvs[] = {
 	{
 		PHY_ID_MATCH_EXACT(PHY_ID_MXL86110),
@@ -955,8 +905,6 @@ static struct phy_driver mxl_phy_drvs[] = {
 		.config_init		= mxl86111_config_init,
 		.get_wol		= mxl86110_get_wol,
 		.set_wol		= mxl86110_set_wol,
-		.inband_caps		= mxl86111_inband_caps,
-		.config_inband		= mxl86111_config_inband,
 		.read_page		= mxl86111_read_page,
 		.write_page		= mxl86111_write_page,
 		.led_brightness_set	= mxl86110_led_brightness_set,
