@@ -3035,8 +3035,8 @@ EXPORT_SYMBOL(ath9k_hw_gettsf64);
 
 void ath9k_hw_settsf64(struct ath_hw *ah, u64 tsf64)
 {
-	REG_WRITE(ah, AR_TSF_L32, tsf64 & 0xffffffff);
-	REG_WRITE(ah, AR_TSF_U32, (tsf64 >> 32) & 0xffffffff);
+//	REG_WRITE(ah, AR_TSF_L32, tsf64 & 0xffffffff);
+//	REG_WRITE(ah, AR_TSF_U32, (tsf64 >> 32) & 0xffffffff);
 }
 EXPORT_SYMBOL(ath9k_hw_settsf64);
 
@@ -3056,6 +3056,7 @@ void ath9k_hw_set_tsfadjust(struct ath_hw *ah, bool set)
 	if (set)
 		ah->misc_mode |= AR_PCU_TX_ADD_TSF;
 	else
+    //    ;
 		ah->misc_mode &= ~AR_PCU_TX_ADD_TSF;
 }
 EXPORT_SYMBOL(ath9k_hw_set_tsfadjust);
