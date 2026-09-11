@@ -177,6 +177,14 @@ static int madvise_update_vma(vm_flags_t new_flags,
 	/* vm_flags is protected by the mmap_lock held in write mode. */
 	vma_start_write(vma);
 	vm_flags_reset(vma, new_flags);
+	/*
+	 * If the vma become good for khugepaged to scan,
+	 * register it here without waiting a page fault that
+	 * may not happen any time soon.
+	 */
+	if (new_flags & VM_HUGEPAGE)
+		khugepaged_enter_vma(vma, new_flags);
+
 	if (set_new_anon_name)
 		return replace_anon_vma_name(vma, anon_name);
 
