@@ -1,0 +1,32 @@
+// Fragment to configure and IMX675 image sensor
+
+cam_node: imx675@1a {
+	compatible = "sony,imx675";
+	reg = <0x1a>;
+
+#ifdef DISABLE_CAM
+	status = "disabled";
+#else
+	status = "okay";
+#endif
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+	clock-frequency = <37125000>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	avdd-supply = <&cam1_reg>;	/* 2.8v */
+	ovdd-supply = <&cam_dummy_reg>;	/* 1.8v */
+	dvdd-supply = <&cam_dummy_reg>;	/* 1.5v */
+
+	port {
+		cam_endpoint: endpoint {
+			remote-endpoint = <&csi_ep>;
+			clock-lanes = <0>;
+			link-frequencies =
+				/bits/ 64 <594000000>;
+		};
+	};
+};

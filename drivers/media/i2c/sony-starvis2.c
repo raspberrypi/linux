@@ -1,0 +1,1901 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * V4L2 driver for Sony Starvis 2 sensors
+ *
+ * Many of the Sony Starvis 2 sensors share a common register layout, so
+ * many can be supported by a common driver.
+ *
+ * Currently supported are:
+ * IMX678: Diagonal 8.86 mm (Type 1/1.8) CMOS image sensor with 8.40 M effective
+ *         pixels.
+ * IMX662: Diagonal 6.45mm (Type 1/2.8) CMOS image sensor with 2.12 M effective
+ *         pixels.
+ * IMX675: Diagonal 6.53mm (Type 1/2.8) CMOS image sensor with 5.12 M effective
+ *         pixels.
+ *
+ * Copyright (C) 2026 Ideas On Board Oy.
+ *
+ * Based on Sony IMX678 driver prepared by Will Whang & Soho Enterprise Ltd.
+ */
+#include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/gpio/consumer.h>
+#include <linux/i2c.h>
+#include <linux/media-bus-format.h>
+#include <linux/module.h>
+#include <linux/property.h>
+#include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
+#include <media/v4l2-cci.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-fwnode.h>
+#include <media/v4l2-mediabus.h>
+#include <media/v4l2-rect.h>
+#include <media/v4l2-subdev.h>
+
+/* Standby or streaming mode */
+#define STARVIS2_REG_MODE_SELECT          CCI_REG8(0x3000)
+#define STARVIS2_MODE_STANDBY             0x01
+#define STARVIS2_MODE_STREAMING           0x00
+#define STARVIS2_STREAM_DELAY_US          25000
+#define STARVIS2_STREAM_DELAY_RANGE_US    1000
+
+/* XVS/XHS sync control */
+#define STARVIS2_REG_XMSTA                CCI_REG8(0x3002)
+#define STARVIS2_REG_XXS_DRV              CCI_REG8(0x30a6)
+#define STARVIS2_REG_XXS_OUTSEL           CCI_REG8(0x30a4)
+
+/* Clk selection */
+#define STARVIS2_REG_INCK_SEL             CCI_REG8(0x3014)
+
+/* Link Speed */
+#define STARVIS2_REG_DATARATE_SEL         CCI_REG8(0x3015)
+
+/* Lane Count */
+#define STARVIS2_REG_LANEMODE             CCI_REG8(0x3040)
+
+/* VMAX - Frame Length in Lines */
+#define STARVIS2_REG_VMAX                 CCI_REG24_LE(0x3028)
+#define STARVIS2_VMAX_MAX                 0xfffff
+
+/* HMAX - Line Length in Cycles (8 Pixels) */
+#define STARVIS2_REG_HMAX                 CCI_REG16_LE(0x302c)
+#define STARVIS2_HMAX_MAX                 0xffff
+
+/* SHR internal */
+#define STARVIS2_REG_SHR                  CCI_REG24_LE(0x3050)
+#define STARVIS2_SHR_MIN                  8
+
+/* Exposure control */
+#define STARVIS2_EXPOSURE_MIN             2
+#define STARVIS2_EXPOSURE_STEP            1
+#define STARVIS2_EXPOSURE_DEFAULT         1000
+
+/*
+ * Analogue gain control
+ * Range is from 0 to 100 (0dB - 30dB) with 0.3dB step size
+ * Values from 101 to 240 are valid but correspond to additional digital gain
+ * (0.3dB - 42dB) so don't expose it to userspace
+ */
+#define STARVIS2_REG_GAIN			CCI_REG16_LE(0x3070)
+#define STARVIS2_ANA_GAIN_MIN_NORMAL      0
+#define STARVIS2_ANA_GAIN_MAX_NORMAL      100
+#define STARVIS2_ANA_GAIN_STEP            1
+#define STARVIS2_ANA_GAIN_DEFAULT         0
+
+/* Crop */
+#define STARVIS2_REG_WINMODE		CCI_REG8(0x3018)
+#define STARVIS2_REG_PIX_HST		CCI_REG16_LE(0x303c)
+#define STARVIS2_REG_PIX_HWIDTH		CCI_REG16_LE(0x303e)
+#define STARVIS2_REG_PIX_VST		CCI_REG16_LE(0x3044)
+#define STARVIS2_REG_PIX_VWIDTH		CCI_REG16_LE(0x3046)
+
+/* Flip */
+#define STARVIS2_REG_WINMODEH             CCI_REG8(0x3020)
+#define STARVIS2_REG_WINMODEV             CCI_REG8(0x3021)
+
+/* Sensor Identification */
+#define STARVIS2_REG_MONOCHROME		CCI_REG8(0x4d18)
+#define STARVIS2_TYPE			BIT(0)
+#define STARVIS2_REG_MODULE_ID		CCI_REG16_LE(0x4d1c)
+#define IMX678_MODULE_ID_DELAY		80000
+
+/* Common configuration registers */
+#define STARVIS2_REG_WDMODE               CCI_REG8(0x301a)
+#define STARVIS2_REG_ADDMODE              CCI_REG8(0x301b)
+#define STARVIS2_REG_THIN_V_EN            CCI_REG8(0x301c)
+#define STARVIS2_REG_VCMODE               CCI_REG8(0x301e)
+#define STARVIS2_REG_ADBIT                CCI_REG8(0x3022)
+#define STARVIS2_REG_MDBIT                CCI_REG8(0x3023)
+#define STARVIS2_REG_GAIN_PGC_FIDMD       CCI_REG8(0x3400)
+
+/* Test pattern generator */
+#define STARVIS2_REG_TPG_EN_DUOUT		CCI_REG8(0x30e0)
+#define STARVIS2_REG_TPG_PATSEL_DUOUT	CCI_REG8(0x30e2)
+#define STARVIS2_TPG_ALL_000		0
+#define STARVIS2_TPG_ALL_FFF		1
+#define STARVIS2_TPG_ALL_555		2
+#define STARVIS2_TPG_ALL_AAA		3
+#define STARVIS2_TPG_TOG_555_AAA	4
+#define STARVIS2_TPG_TOG_AAA_555	5
+#define STARVIS2_TPG_TOG_000_555	6
+#define STARVIS2_TPG_TOG_555_000	7
+#define STARVIS2_TPG_TOG_000_FFF	8
+#define STARVIS2_TPG_TOG_FFF_000	9
+#define STARVIS2_TPG_H_COLOR_BARS	10
+#define STARVIS2_TPG_V_COLOR_BARS	11
+#define STARVIS2_REG_TPG_COLORWIDTH	CCI_REG8(0x30e4)
+#define STARVIS2_TPG_COLORWIDTH_80PIX	0
+#define STARVIS2_TPG_COLORWIDTH_160PIX	1
+#define STARVIS2_TPG_COLORWIDTH_320PIX	2
+#define STARVIS2_TPG_COLORWIDTH_640PIX	3
+
+#define STARVIS2_REG_INTERFACE_SEL	CCI_REG8(0x4e3c)
+#define STARVIS2_INTERFACE_2L_4L	0x07
+#define STARVIS2_INTERFACE_8L_2x4L	0x7f
+
+/* Minimum output resolution */
+#define IMX678_PIXEL_ARRAY_MIN_WIDTH	1040
+#define IMX678_PIXEL_ARRAY_MIN_HEIGHT	956
+
+/* Sensor windowing register alignment */
+#define IMX678_CROP_HWIDTH_ALIGN	16
+#define IMX678_CROP_VWIDTH_ALIGN	4
+#define IMX678_CROP_HST_ALIGN		4
+#define IMX678_CROP_VST_ALIGN		4
+
+/* Subdev pads */
+#define STARVIS2_SOURCE_PAD		0
+
+enum starvis2_type {
+	STARVIS2_COLOR = 0,
+	STARVIS2_MONOCHROME = 1,
+};
+
+enum starvis2_lanemode {
+	STARVIS2_LANEMODE_2L = 1,
+	STARVIS2_LANEMODE_4L = 3,
+};
+
+/* Link frequency setup (DDR: lane rate = 2 x link freq) */
+enum {
+	STARVIS2_LINK_FREQ_1188MHZ = 0x00,
+	STARVIS2_LINK_FREQ_1039MHZ = 0x01,
+	STARVIS2_LINK_FREQ_891MHZ = 0x02,
+	STARVIS2_LINK_FREQ_720MHZ = 0x03,
+	STARVIS2_LINK_FREQ_594MHZ = 0x04,
+	STARVIS2_LINK_FREQ_445MHZ = 0x05,
+	STARVIS2_LINK_FREQ_360MHZ = 0x06,
+	STARVIS2_LINK_FREQ_297MHZ = 0x07,
+};
+
+static const u64 link_freqs[] = {
+	[STARVIS2_LINK_FREQ_297MHZ]  = 297000000,
+	[STARVIS2_LINK_FREQ_360MHZ]  = 360000000,
+	[STARVIS2_LINK_FREQ_445MHZ]  = 445500000,
+	[STARVIS2_LINK_FREQ_594MHZ]  = 594000000,
+	[STARVIS2_LINK_FREQ_720MHZ]  = 720000000,
+	[STARVIS2_LINK_FREQ_891MHZ]  = 891000000,
+	[STARVIS2_LINK_FREQ_1039MHZ] = 1039500000,
+	[STARVIS2_LINK_FREQ_1188MHZ] = 1188000000,
+};
+
+static const u16 imx678_min_hmax_2lane[] = {
+	[STARVIS2_LINK_FREQ_297MHZ]  = 3168,
+	[STARVIS2_LINK_FREQ_360MHZ]  = 2640,
+	[STARVIS2_LINK_FREQ_445MHZ]  = 2200,
+	[STARVIS2_LINK_FREQ_594MHZ]  = 1584,
+	[STARVIS2_LINK_FREQ_720MHZ]  = 1320,
+	[STARVIS2_LINK_FREQ_891MHZ]  = 1100,
+	[STARVIS2_LINK_FREQ_1039MHZ] = 1100,
+	[STARVIS2_LINK_FREQ_1188MHZ] = 1100,
+};
+
+struct starvis2_inck_cfg {
+	u32 xclk_hz;   /* platform clock rate  */
+	u8  inck_sel;  /* value for reg        */
+};
+
+static const struct starvis2_inck_cfg starvis2_inck_table[] = {
+	{ 74250000, 0x00 },
+	{ 37125000, 0x01 },
+	{ 72000000, 0x02 },
+	{ 27000000, 0x03 },
+	{ 24000000, 0x04 },
+	{ 36000000, 0x05 },
+	{ 18000000, 0x06 },
+	{ 13500000, 0x07 },
+};
+
+static const char * const starvis2_tpg_menu[] = {
+	"Disabled",
+	"All 000h",
+	"All FFFh",
+	"All 555h",
+	"All AAAh",
+	"Toggle 555/AAAh",
+	"Toggle AAA/555h",
+	"Toggle 000/555h",
+	"Toggle 555/000h",
+	"Toggle 000/FFFh",
+	"Toggle FFF/000h",
+	"Horizontal color bars",
+	"Vertical color bars",
+};
+
+static const int starvis2_tpg_val[] = {
+	STARVIS2_TPG_ALL_000,
+	STARVIS2_TPG_ALL_000,
+	STARVIS2_TPG_ALL_FFF,
+	STARVIS2_TPG_ALL_555,
+	STARVIS2_TPG_ALL_AAA,
+	STARVIS2_TPG_TOG_555_AAA,
+	STARVIS2_TPG_TOG_AAA_555,
+	STARVIS2_TPG_TOG_000_555,
+	STARVIS2_TPG_TOG_555_000,
+	STARVIS2_TPG_TOG_000_FFF,
+	STARVIS2_TPG_TOG_FFF_000,
+	STARVIS2_TPG_H_COLOR_BARS,
+	STARVIS2_TPG_V_COLOR_BARS,
+};
+
+/* Common configuration */
+static const struct cci_reg_sequence imx678_common_regs[] = {
+	{ STARVIS2_REG_THIN_V_EN, 0x00 },
+	{ STARVIS2_REG_VCMODE, 0x01 },
+	{ CCI_REG8(0x306b), 0x00 },
+	{ STARVIS2_REG_GAIN_PGC_FIDMD, 0x01 },
+	{ CCI_REG8(0x3460), 0x22 },
+	{ CCI_REG8(0x355a), 0x64 },
+	{ CCI_REG8(0x3a02), 0x7a },
+	{ CCI_REG8(0x3a10), 0xec },
+	{ CCI_REG8(0x3a12), 0x71 },
+	{ CCI_REG8(0x3a14), 0xde },
+	{ CCI_REG8(0x3a20), 0x2b },
+	{ CCI_REG8(0x3a24), 0x22 },
+	{ CCI_REG8(0x3a25), 0x25 },
+	{ CCI_REG8(0x3a26), 0x2a },
+	{ CCI_REG8(0x3a27), 0x2c },
+	{ CCI_REG8(0x3a28), 0x39 },
+	{ CCI_REG8(0x3a29), 0x38 },
+	{ CCI_REG8(0x3a30), 0x04 },
+	{ CCI_REG8(0x3a31), 0x04 },
+	{ CCI_REG8(0x3a32), 0x03 },
+	{ CCI_REG8(0x3a33), 0x03 },
+	{ CCI_REG8(0x3a34), 0x09 },
+	{ CCI_REG8(0x3a35), 0x06 },
+	{ CCI_REG8(0x3a38), 0xcd },
+	{ CCI_REG8(0x3a3a), 0x4c },
+	{ CCI_REG8(0x3a3c), 0xb9 },
+	{ CCI_REG8(0x3a3e), 0x30 },
+	{ CCI_REG8(0x3a40), 0x2c },
+	{ CCI_REG8(0x3a42), 0x39 },
+	{ CCI_REG8(0x3a4e), 0x00 },
+	{ CCI_REG8(0x3a52), 0x00 },
+	{ CCI_REG8(0x3a56), 0x00 },
+	{ CCI_REG8(0x3a5a), 0x00 },
+	{ CCI_REG8(0x3a5e), 0x00 },
+	{ CCI_REG8(0x3a62), 0x00 },
+	{ CCI_REG8(0x3a64), 0x00 },
+	{ CCI_REG8(0x3a6e), 0xa0 },
+	{ CCI_REG8(0x3a70), 0x50 },
+	{ CCI_REG8(0x3a8c), 0x04 },
+	{ CCI_REG8(0x3a8d), 0x03 },
+	{ CCI_REG8(0x3a8e), 0x09 },
+	{ CCI_REG8(0x3a90), 0x38 },
+	{ CCI_REG8(0x3a91), 0x42 },
+	{ CCI_REG8(0x3a92), 0x3c },
+	{ CCI_REG8(0x3b0e), 0xf3 },
+	{ CCI_REG8(0x3b12), 0xe5 },
+	{ CCI_REG8(0x3b27), 0xc0 },
+	{ CCI_REG8(0x3b2e), 0xef },
+	{ CCI_REG8(0x3b30), 0x6a },
+	{ CCI_REG8(0x3b32), 0xf6 },
+	{ CCI_REG8(0x3b36), 0xe1 },
+	{ CCI_REG8(0x3b3a), 0xe8 },
+	{ CCI_REG8(0x3b5a), 0x17 },
+	{ CCI_REG8(0x3b5e), 0xef },
+	{ CCI_REG8(0x3b60), 0x6a },
+	{ CCI_REG8(0x3b62), 0xf6 },
+	{ CCI_REG8(0x3b66), 0xe1 },
+	{ CCI_REG8(0x3b6a), 0xe8 },
+	{ CCI_REG8(0x3b88), 0xec },
+	{ CCI_REG8(0x3b8a), 0xed },
+	{ CCI_REG8(0x3b94), 0x71 },
+	{ CCI_REG8(0x3b96), 0x72 },
+	{ CCI_REG8(0x3b98), 0xde },
+	{ CCI_REG8(0x3b9a), 0xdf },
+	{ CCI_REG8(0x3c0f), 0x06 },
+	{ CCI_REG8(0x3c10), 0x06 },
+	{ CCI_REG8(0x3c11), 0x06 },
+	{ CCI_REG8(0x3c12), 0x06 },
+	{ CCI_REG8(0x3c13), 0x06 },
+	{ CCI_REG8(0x3c18), 0x20 },
+	{ CCI_REG8(0x3c37), 0x10 },
+	{ CCI_REG8(0x3c3a), 0x7a },
+	{ CCI_REG8(0x3c40), 0xf4 },
+	{ CCI_REG8(0x3c48), 0xe6 },
+	{ CCI_REG8(0x3c54), 0xce },
+	{ CCI_REG8(0x3c56), 0xd0 },
+	{ CCI_REG8(0x3c6c), 0x53 },
+	{ CCI_REG8(0x3c6e), 0x55 },
+	{ CCI_REG8(0x3c70), 0xc0 },
+	{ CCI_REG8(0x3c72), 0xc2 },
+	{ CCI_REG8(0x3c7e), 0xce },
+	{ CCI_REG8(0x3c8c), 0xcf },
+	{ CCI_REG8(0x3c8e), 0xeb },
+	{ CCI_REG8(0x3c98), 0x54 },
+	{ CCI_REG8(0x3c9a), 0x70 },
+	{ CCI_REG8(0x3c9c), 0xc1 },
+	{ CCI_REG8(0x3c9e), 0xdd },
+	{ CCI_REG8(0x3cb0), 0x7a },
+	{ CCI_REG8(0x3cb2), 0xba },
+	{ CCI_REG8(0x3cc8), 0xbc },
+	{ CCI_REG8(0x3cca), 0x7c },
+	{ CCI_REG8(0x3cd4), 0xea },
+	{ CCI_REG8(0x3cd5), 0x01 },
+	{ CCI_REG8(0x3cd6), 0x4a },
+	{ CCI_REG8(0x3cd8), 0x00 },
+	{ CCI_REG8(0x3cd9), 0x00 },
+	{ CCI_REG8(0x3cda), 0xff },
+	{ CCI_REG8(0x3cdb), 0x03 },
+	{ CCI_REG8(0x3cdc), 0x00 },
+	{ CCI_REG8(0x3cdd), 0x00 },
+	{ CCI_REG8(0x3cde), 0xff },
+	{ CCI_REG8(0x3cdf), 0x03 },
+	{ CCI_REG8(0x3ce4), 0x4c },
+	{ CCI_REG8(0x3ce6), 0xec },
+	{ CCI_REG8(0x3ce7), 0x01 },
+	{ CCI_REG8(0x3ce8), 0xff },
+	{ CCI_REG8(0x3ce9), 0x03 },
+	{ CCI_REG8(0x3cea), 0x00 },
+	{ CCI_REG8(0x3ceb), 0x00 },
+	{ CCI_REG8(0x3cec), 0xff },
+	{ CCI_REG8(0x3ced), 0x03 },
+	{ CCI_REG8(0x3cee), 0x00 },
+	{ CCI_REG8(0x3cef), 0x00 },
+	{ CCI_REG8(0x3cf2), 0xff },
+	{ CCI_REG8(0x3cf3), 0x03 },
+	{ CCI_REG8(0x3cf4), 0x00 },
+	{ CCI_REG8(0x3e28), 0x82 },
+	{ CCI_REG8(0x3e2a), 0x80 },
+	{ CCI_REG8(0x3e30), 0x85 },
+	{ CCI_REG8(0x3e32), 0x7d },
+	{ CCI_REG8(0x3e5c), 0xce },
+	{ CCI_REG8(0x3e5e), 0xd3 },
+	{ CCI_REG8(0x3e70), 0x53 },
+	{ CCI_REG8(0x3e72), 0x58 },
+	{ CCI_REG8(0x3e74), 0xc0 },
+	{ CCI_REG8(0x3e76), 0xc5 },
+	{ CCI_REG8(0x3e78), 0xc0 },
+	{ CCI_REG8(0x3e79), 0x01 },
+	{ CCI_REG8(0x3e7a), 0xd4 },
+	{ CCI_REG8(0x3e7b), 0x01 },
+	{ CCI_REG8(0x3eb4), 0x0b },
+	{ CCI_REG8(0x3eb5), 0x02 },
+	{ CCI_REG8(0x3eb6), 0x4d },
+	{ CCI_REG8(0x3eb7), 0x42 },
+	{ CCI_REG8(0x3eec), 0xf3 },
+	{ CCI_REG8(0x3eee), 0xe7 },
+	{ CCI_REG8(0x3f01), 0x01 },
+	{ CCI_REG8(0x3f24), 0x10 },
+	{ CCI_REG8(0x3f28), 0x2d },
+	{ CCI_REG8(0x3f2a), 0x2d },
+	{ CCI_REG8(0x3f2c), 0x2d },
+	{ CCI_REG8(0x3f2e), 0x2d },
+	{ CCI_REG8(0x3f30), 0x23 },
+	{ CCI_REG8(0x3f38), 0x2d },
+	{ CCI_REG8(0x3f3a), 0x2d },
+	{ CCI_REG8(0x3f3c), 0x2d },
+	{ CCI_REG8(0x3f3e), 0x28 },
+	{ CCI_REG8(0x3f40), 0x1e },
+	{ CCI_REG8(0x3f48), 0x2d },
+	{ CCI_REG8(0x3f4a), 0x2d },
+	{ CCI_REG8(0x3f4c), 0x00 },
+	{ CCI_REG8(0x4004), 0xe4 },
+	{ CCI_REG8(0x4006), 0xff },
+	{ CCI_REG8(0x4018), 0x69 },
+	{ CCI_REG8(0x401a), 0x84 },
+	{ CCI_REG8(0x401c), 0xd6 },
+	{ CCI_REG8(0x401e), 0xf1 },
+	{ CCI_REG8(0x4038), 0xde },
+	{ CCI_REG8(0x403a), 0x00 },
+	{ CCI_REG8(0x403b), 0x01 },
+	{ CCI_REG8(0x404c), 0x63 },
+	{ CCI_REG8(0x404e), 0x85 },
+	{ CCI_REG8(0x4050), 0xd0 },
+	{ CCI_REG8(0x4052), 0xf2 },
+	{ CCI_REG8(0x4108), 0xdd },
+	{ CCI_REG8(0x410a), 0xf7 },
+	{ CCI_REG8(0x411c), 0x62 },
+	{ CCI_REG8(0x411e), 0x7c },
+	{ CCI_REG8(0x4120), 0xcf },
+	{ CCI_REG8(0x4122), 0xe9 },
+	{ CCI_REG8(0x4138), 0xe6 },
+	{ CCI_REG8(0x413a), 0xf1 },
+	{ CCI_REG8(0x414c), 0x6b },
+	{ CCI_REG8(0x414e), 0x76 },
+	{ CCI_REG8(0x4150), 0xd8 },
+	{ CCI_REG8(0x4152), 0xe3 },
+	{ CCI_REG8(0x417e), 0x03 },
+	{ CCI_REG8(0x417f), 0x01 },
+	{ CCI_REG8(0x4186), 0xe0 },
+	{ CCI_REG8(0x4190), 0xf3 },
+	{ CCI_REG8(0x4192), 0xf7 },
+	{ CCI_REG8(0x419c), 0x78 },
+	{ CCI_REG8(0x419e), 0x7c },
+	{ CCI_REG8(0x41a0), 0xe5 },
+	{ CCI_REG8(0x41a2), 0xe9 },
+	{ CCI_REG8(0x41c8), 0xe2 },
+	{ CCI_REG8(0x41ca), 0xfd },
+	{ CCI_REG8(0x41dc), 0x67 },
+	{ CCI_REG8(0x41de), 0x82 },
+	{ CCI_REG8(0x41e0), 0xd4 },
+	{ CCI_REG8(0x41e2), 0xef },
+	{ CCI_REG8(0x4200), 0xde },
+	{ CCI_REG8(0x4202), 0xda },
+	{ CCI_REG8(0x4218), 0x63 },
+	{ CCI_REG8(0x421a), 0x5f },
+	{ CCI_REG8(0x421c), 0xd0 },
+	{ CCI_REG8(0x421e), 0xcc },
+	{ CCI_REG8(0x425a), 0x82 },
+	{ CCI_REG8(0x425c), 0xef },
+	{ CCI_REG8(0x4348), 0xfe },
+	{ CCI_REG8(0x4349), 0x06 },
+	{ CCI_REG8(0x4352), 0xce },
+	{ CCI_REG8(0x4420), 0x0b },
+	{ CCI_REG8(0x4421), 0x02 },
+	{ CCI_REG8(0x4422), 0x4d },
+	{ CCI_REG8(0x4423), 0x0a },
+	{ CCI_REG8(0x4426), 0xf5 },
+	{ CCI_REG8(0x442a), 0xe7 },
+	{ CCI_REG8(0x4432), 0xf5 },
+	{ CCI_REG8(0x4436), 0xe7 },
+	{ CCI_REG8(0x4466), 0xb4 },
+	{ CCI_REG8(0x446e), 0x32 },
+	{ CCI_REG8(0x449f), 0x1c },
+	{ CCI_REG8(0x44a4), 0x2c },
+	{ CCI_REG8(0x44a6), 0x2c },
+	{ CCI_REG8(0x44a8), 0x2c },
+	{ CCI_REG8(0x44aa), 0x2c },
+	{ CCI_REG8(0x44b4), 0x2c },
+	{ CCI_REG8(0x44b6), 0x2c },
+	{ CCI_REG8(0x44b8), 0x2c },
+	{ CCI_REG8(0x44ba), 0x2c },
+	{ CCI_REG8(0x44c4), 0x2c },
+	{ CCI_REG8(0x44c6), 0x2c },
+	{ CCI_REG8(0x44c8), 0x2c },
+	{ CCI_REG8(0x4506), 0xf3 },
+	{ CCI_REG8(0x450e), 0xe5 },
+	{ CCI_REG8(0x4516), 0xf3 },
+	{ CCI_REG8(0x4522), 0xe5 },
+	{ CCI_REG8(0x4524), 0xf3 },
+	{ CCI_REG8(0x452c), 0xe5 },
+	{ CCI_REG8(0x453c), 0x22 },
+	{ CCI_REG8(0x453d), 0x1b },
+	{ CCI_REG8(0x453e), 0x1b },
+	{ CCI_REG8(0x453f), 0x15 },
+	{ CCI_REG8(0x4540), 0x15 },
+	{ CCI_REG8(0x4541), 0x15 },
+	{ CCI_REG8(0x4542), 0x15 },
+	{ CCI_REG8(0x4543), 0x15 },
+	{ CCI_REG8(0x4544), 0x15 },
+	{ CCI_REG8(0x4548), 0x00 },
+	{ CCI_REG8(0x4549), 0x01 },
+	{ CCI_REG8(0x454a), 0x01 },
+	{ CCI_REG8(0x454b), 0x06 },
+	{ CCI_REG8(0x454c), 0x06 },
+	{ CCI_REG8(0x454d), 0x06 },
+	{ CCI_REG8(0x454e), 0x06 },
+	{ CCI_REG8(0x454f), 0x06 },
+	{ CCI_REG8(0x4550), 0x06 },
+	{ CCI_REG8(0x4554), 0x55 },
+	{ CCI_REG8(0x4555), 0x02 },
+	{ CCI_REG8(0x4556), 0x42 },
+	{ CCI_REG8(0x4557), 0x05 },
+	{ CCI_REG8(0x4558), 0xfd },
+	{ CCI_REG8(0x4559), 0x05 },
+	{ CCI_REG8(0x455a), 0x94 },
+	{ CCI_REG8(0x455b), 0x06 },
+	{ CCI_REG8(0x455d), 0x06 },
+	{ CCI_REG8(0x455e), 0x49 },
+	{ CCI_REG8(0x455f), 0x07 },
+	{ CCI_REG8(0x4560), 0x7f },
+	{ CCI_REG8(0x4561), 0x07 },
+	{ CCI_REG8(0x4562), 0xa5 },
+	{ CCI_REG8(0x4564), 0x55 },
+	{ CCI_REG8(0x4565), 0x02 },
+	{ CCI_REG8(0x4566), 0x42 },
+	{ CCI_REG8(0x4567), 0x05 },
+	{ CCI_REG8(0x4568), 0xfd },
+	{ CCI_REG8(0x4569), 0x05 },
+	{ CCI_REG8(0x456a), 0x94 },
+	{ CCI_REG8(0x456b), 0x06 },
+	{ CCI_REG8(0x456d), 0x06 },
+	{ CCI_REG8(0x456e), 0x49 },
+	{ CCI_REG8(0x456f), 0x07 },
+	{ CCI_REG8(0x4572), 0xa5 },
+	{ CCI_REG8(0x460c), 0x7d },
+	{ CCI_REG8(0x460e), 0xb1 },
+	{ CCI_REG8(0x4614), 0xa8 },
+	{ CCI_REG8(0x4616), 0xb2 },
+	{ CCI_REG8(0x461c), 0x7e },
+	{ CCI_REG8(0x461e), 0xa7 },
+	{ CCI_REG8(0x4624), 0xa8 },
+	{ CCI_REG8(0x4626), 0xb2 },
+	{ CCI_REG8(0x462c), 0x7e },
+	{ CCI_REG8(0x462e), 0x8a },
+	{ CCI_REG8(0x4630), 0x94 },
+	{ CCI_REG8(0x4632), 0xa7 },
+	{ CCI_REG8(0x4634), 0xfb },
+	{ CCI_REG8(0x4636), 0x2f },
+	{ CCI_REG8(0x4638), 0x81 },
+	{ CCI_REG8(0x4639), 0x01 },
+	{ CCI_REG8(0x463a), 0xb5 },
+	{ CCI_REG8(0x463b), 0x01 },
+	{ CCI_REG8(0x463c), 0x26 },
+	{ CCI_REG8(0x463e), 0x30 },
+	{ CCI_REG8(0x4640), 0xac },
+	{ CCI_REG8(0x4641), 0x01 },
+	{ CCI_REG8(0x4642), 0xb6 },
+	{ CCI_REG8(0x4643), 0x01 },
+	{ CCI_REG8(0x4644), 0xfc },
+	{ CCI_REG8(0x4646), 0x25 },
+	{ CCI_REG8(0x4648), 0x82 },
+	{ CCI_REG8(0x4649), 0x01 },
+	{ CCI_REG8(0x464a), 0xab },
+	{ CCI_REG8(0x464b), 0x01 },
+	{ CCI_REG8(0x464c), 0x26 },
+	{ CCI_REG8(0x464e), 0x30 },
+	{ CCI_REG8(0x4654), 0xfc },
+	{ CCI_REG8(0x4656), 0x08 },
+	{ CCI_REG8(0x4658), 0x12 },
+	{ CCI_REG8(0x465a), 0x25 },
+	{ CCI_REG8(0x4662), 0xfc },
+	{ CCI_REG8(0x46a2), 0xfb },
+	{ CCI_REG8(0x46d6), 0xf3 },
+	{ CCI_REG8(0x46e6), 0x00 },
+	{ CCI_REG8(0x46e8), 0xff },
+	{ CCI_REG8(0x46e9), 0x03 },
+	{ CCI_REG8(0x46ec), 0x7a },
+	{ CCI_REG8(0x46ee), 0xe5 },
+	{ CCI_REG8(0x46f4), 0xee },
+	{ CCI_REG8(0x46f6), 0xf2 },
+	{ CCI_REG8(0x470c), 0xff },
+	{ CCI_REG8(0x470d), 0x03 },
+	{ CCI_REG8(0x470e), 0x00 },
+	{ CCI_REG8(0x4714), 0xe0 },
+	{ CCI_REG8(0x4716), 0xe4 },
+	{ CCI_REG8(0x471e), 0xed },
+	{ CCI_REG8(0x472e), 0x00 },
+	{ CCI_REG8(0x4730), 0xff },
+	{ CCI_REG8(0x4731), 0x03 },
+	{ CCI_REG8(0x4734), 0x7b },
+	{ CCI_REG8(0x4736), 0xdf },
+	{ CCI_REG8(0x4754), 0x7d },
+	{ CCI_REG8(0x4756), 0x8b },
+	{ CCI_REG8(0x4758), 0x93 },
+	{ CCI_REG8(0x475a), 0xb1 },
+	{ CCI_REG8(0x475c), 0xfb },
+	{ CCI_REG8(0x475e), 0x09 },
+	{ CCI_REG8(0x4760), 0x11 },
+	{ CCI_REG8(0x4762), 0x2f },
+	{ CCI_REG8(0x4766), 0xcc },
+	{ CCI_REG8(0x4776), 0xcb },
+	{ CCI_REG8(0x477e), 0x4a },
+	{ CCI_REG8(0x478e), 0x49 },
+	{ CCI_REG8(0x4794), 0x7c },
+	{ CCI_REG8(0x4796), 0x8f },
+	{ CCI_REG8(0x4798), 0xb3 },
+	{ CCI_REG8(0x4799), 0x00 },
+	{ CCI_REG8(0x479a), 0xcc },
+	{ CCI_REG8(0x479c), 0xc1 },
+	{ CCI_REG8(0x479e), 0xcb },
+	{ CCI_REG8(0x47a4), 0x7d },
+	{ CCI_REG8(0x47a6), 0x8e },
+	{ CCI_REG8(0x47a8), 0xb4 },
+	{ CCI_REG8(0x47a9), 0x00 },
+	{ CCI_REG8(0x47aa), 0xc0 },
+	{ CCI_REG8(0x47ac), 0xfa },
+	{ CCI_REG8(0x47ae), 0x0d },
+	{ CCI_REG8(0x47b0), 0x31 },
+	{ CCI_REG8(0x47b1), 0x01 },
+	{ CCI_REG8(0x47b2), 0x4a },
+	{ CCI_REG8(0x47b3), 0x01 },
+	{ CCI_REG8(0x47b4), 0x3f },
+	{ CCI_REG8(0x47b6), 0x49 },
+	{ CCI_REG8(0x47bc), 0xfb },
+	{ CCI_REG8(0x47be), 0x0c },
+	{ CCI_REG8(0x47c0), 0x32 },
+	{ CCI_REG8(0x47c1), 0x01 },
+	{ CCI_REG8(0x47c2), 0x3e },
+	{ CCI_REG8(0x47c3), 0x01 },
+	{ STARVIS2_REG_WDMODE, 0x00 },
+	{ STARVIS2_REG_MDBIT, 0x01 },
+	{ STARVIS2_REG_XXS_DRV, 0x00 },
+};
+
+static const u32 codes_bayer[] = {
+	MEDIA_BUS_FMT_SRGGB12_1X12,
+};
+
+static const u32 codes_monochrome[] = {
+	MEDIA_BUS_FMT_Y12_1X12,
+};
+
+struct starvis2_variant {
+	const char *name;
+	u32 id_reg;
+	u32 id_value;
+	struct v4l2_rect native_area;
+	struct v4l2_rect active_area;
+	u64 pixel_rate;
+	unsigned int pix_per_clk;
+	const struct cci_reg_sequence *common_regs;
+	unsigned int num_common_regs;
+	unsigned int vmax_default;
+	const u16 *hmax_min_link_freq;
+	u16 hmax_min_pixel_array;
+};
+
+const struct starvis2_variant imx678_variant_def = {
+	.name = "imx678",
+	.id_reg = STARVIS2_REG_MODULE_ID,
+	.id_value = 0x2a6,
+	.native_area = {
+		.top = 0,
+		.left = 0,
+		.width = 3857,
+		.height = 2201,
+	},
+	.active_area = {
+		.top = 20,
+		.left = 0,
+		.width = 3856,
+		.height = 2180,
+	},
+	.pixel_rate = 594000000,
+	.pix_per_clk = 8,
+	.common_regs = imx678_common_regs,
+	.num_common_regs = ARRAY_SIZE(imx678_common_regs),
+	.vmax_default = 2250,
+	.hmax_min_link_freq = imx678_min_hmax_2lane,
+	.hmax_min_pixel_array = 550,
+};
+
+static const struct cci_reg_sequence imx662_common_regs[] = {
+	{ CCI_REG8(0x3444), 0xac },
+	{ CCI_REG8(0x3492), 0x08 },
+	{ CCI_REG8(0x3b00), 0x39 },
+	{ CCI_REG8(0x3b23), 0x2d },
+	{ CCI_REG8(0x3b00), 0x39 },
+	{ CCI_REG8(0x3b23), 0x2d },
+	{ CCI_REG8(0x3b45), 0x04 },
+	{ CCI_REG8(0x3c0a), 0x1f },
+	{ CCI_REG8(0x3c0b), 0x1e },
+	{ CCI_REG8(0x3c38), 0x21 },
+	{ CCI_REG8(0x3c44), 0x00 },
+	{ CCI_REG8(0x3cb6), 0xd8 },
+	{ CCI_REG8(0x3cc4), 0xda },
+	{ CCI_REG8(0x3e24), 0x79 },
+	{ CCI_REG8(0x3e2c), 0x15 },
+	{ CCI_REG8(0x3edc), 0x2d },
+	{ CCI_REG8(0x4498), 0x05 },
+	{ CCI_REG8(0x449c), 0x19 },
+	{ CCI_REG8(0x449d), 0x00 },
+	{ CCI_REG8(0x449e), 0x32 },
+	{ CCI_REG8(0x449f), 0x01 },
+	{ CCI_REG8(0x44a0), 0x92 },
+	{ CCI_REG8(0x44a2), 0x91 },
+	{ CCI_REG8(0x44a4), 0x8c },
+	{ CCI_REG8(0x44a6), 0x87 },
+	{ CCI_REG8(0x44a8), 0x82 },
+	{ CCI_REG8(0x44aa), 0x78 },
+	{ CCI_REG8(0x44ac), 0x6e },
+	{ CCI_REG8(0x44ae), 0x69 },
+	{ CCI_REG8(0x44b0), 0x92 },
+	{ CCI_REG8(0x44b2), 0x91 },
+	{ CCI_REG8(0x44b4), 0x8c },
+	{ CCI_REG8(0x44b6), 0x87 },
+	{ CCI_REG8(0x44b8), 0x82 },
+	{ CCI_REG8(0x44ba), 0x78 },
+	{ CCI_REG8(0x44bc), 0x6e },
+	{ CCI_REG8(0x44be), 0x69 },
+	{ CCI_REG8(0x44c0), 0x7f },
+	{ CCI_REG8(0x44c1), 0x01 },
+	{ CCI_REG8(0x44c2), 0x7f },
+	{ CCI_REG8(0x44c3), 0x01 },
+	{ CCI_REG8(0x44c4), 0x7a },
+	{ CCI_REG8(0x44c5), 0x01 },
+	{ CCI_REG8(0x44c6), 0x7a },
+	{ CCI_REG8(0x44c7), 0x01 },
+	{ CCI_REG8(0x44c8), 0x70 },
+	{ CCI_REG8(0x44c9), 0x01 },
+	{ CCI_REG8(0x44ca), 0x6b },
+	{ CCI_REG8(0x44cb), 0x01 },
+	{ CCI_REG8(0x44cc), 0x6b },
+	{ CCI_REG8(0x44cd), 0x01 },
+	{ CCI_REG8(0x44ce), 0x5c },
+	{ CCI_REG8(0x44cf), 0x01 },
+	{ CCI_REG8(0x44d0), 0x7f },
+	{ CCI_REG8(0x44d1), 0x01 },
+	{ CCI_REG8(0x44d2), 0x7f },
+	{ CCI_REG8(0x44d3), 0x01 },
+	{ CCI_REG8(0x44d4), 0x7a },
+	{ CCI_REG8(0x44d5), 0x01 },
+	{ CCI_REG8(0x44d6), 0x7a },
+	{ CCI_REG8(0x44d7), 0x01 },
+	{ CCI_REG8(0x44d8), 0x70 },
+	{ CCI_REG8(0x44d9), 0x01 },
+	{ CCI_REG8(0x44da), 0x6b },
+	{ CCI_REG8(0x44db), 0x01 },
+	{ CCI_REG8(0x44dc), 0x6b },
+	{ CCI_REG8(0x44dd), 0x01 },
+	{ CCI_REG8(0x44de), 0x5c },
+	{ CCI_REG8(0x44df), 0x01 },
+	{ CCI_REG8(0x4534), 0x1c },
+	{ CCI_REG8(0x4535), 0x03 },
+	{ CCI_REG8(0x4538), 0x1c },
+	{ CCI_REG8(0x4539), 0x1c },
+	{ CCI_REG8(0x453a), 0x1c },
+	{ CCI_REG8(0x453b), 0x1c },
+	{ CCI_REG8(0x453c), 0x1c },
+	{ CCI_REG8(0x453d), 0x1c },
+	{ CCI_REG8(0x453e), 0x1c },
+	{ CCI_REG8(0x453f), 0x1c },
+	{ CCI_REG8(0x4540), 0x1c },
+	{ CCI_REG8(0x4541), 0x03 },
+	{ CCI_REG8(0x4542), 0x03 },
+	{ CCI_REG8(0x4543), 0x03 },
+	{ CCI_REG8(0x4544), 0x03 },
+	{ CCI_REG8(0x4545), 0x03 },
+	{ CCI_REG8(0x4546), 0x03 },
+	{ CCI_REG8(0x4547), 0x03 },
+	{ CCI_REG8(0x4548), 0x03 },
+	{ CCI_REG8(0x4549), 0x03 },
+	{ STARVIS2_REG_WDMODE, 0x00 },
+	{ STARVIS2_REG_MDBIT, 0x01 },
+	{ STARVIS2_REG_XXS_DRV, 0x00 },
+};
+
+static const u16 imx662_min_hmax_2lane[] = {
+	[STARVIS2_LINK_FREQ_297MHZ] = 1980,
+	[STARVIS2_LINK_FREQ_360MHZ] = 1980,
+	[STARVIS2_LINK_FREQ_445MHZ] = 1188,
+	[STARVIS2_LINK_FREQ_594MHZ] = 990,
+	[STARVIS2_LINK_FREQ_720MHZ] = 990,
+	[STARVIS2_LINK_FREQ_891MHZ] = 990,
+	[STARVIS2_LINK_FREQ_1039MHZ] = 990,
+	[STARVIS2_LINK_FREQ_1188MHZ] = 990,
+};
+
+const struct starvis2_variant imx662_variant_def = {
+	.name = "imx662",
+	.id_reg = STARVIS2_REG_MODULE_ID,
+	.id_value = 0x296,
+	.native_area = {
+		.top = 0,
+		.left = 0,
+		.width = 1937,
+		.height = 1101,
+	},
+	.active_area = {
+		.top = 0,
+		.left = 0,
+		.width = 1936,
+		.height = 1096,
+	},
+	.pixel_rate = 222750000,
+	.pix_per_clk = 3,
+	.common_regs = imx662_common_regs,
+	.num_common_regs = ARRAY_SIZE(imx662_common_regs),
+	.vmax_default = 1136,
+	.hmax_min_link_freq = imx662_min_hmax_2lane,
+	.hmax_min_pixel_array = 990,
+};
+
+static const struct cci_reg_sequence imx675_common_regs[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x301c), 0x00 },
+	{ CCI_REG8(0x301e), 0x01 },
+
+	{ CCI_REG8(0x3060), 0x95 },
+	{ CCI_REG8(0x3061), 0x00 },
+	{ CCI_REG8(0x3062), 0x00 },
+	{ CCI_REG8(0x3064), 0x56 },
+	{ CCI_REG8(0x3065), 0x00 },
+	{ CCI_REG8(0x3066), 0x00 },
+
+	{ CCI_REG8(0x3072), 0x00 },
+	{ CCI_REG8(0x3073), 0x00 },
+	{ CCI_REG8(0x3074), 0x00 },
+	{ CCI_REG8(0x3075), 0x00 },
+	{ CCI_REG8(0x3081), 0x00 },
+	{ CCI_REG8(0x30a4), 0xaa },
+	{ CCI_REG8(0x30a6), 0x0f },
+	{ CCI_REG8(0x30cc), 0x00 },
+	{ CCI_REG8(0x30cd), 0x00 },
+	{ CCI_REG8(0x30ce), 0x02 },
+	{ CCI_REG8(0x3400), 0x01 },
+
+	{ CCI_REG8(0x3400), 0x01 },
+	{ CCI_REG8(0x3460), 0x22 },
+	{ CCI_REG8(0x3492), 0x08 },
+	{ CCI_REG8(0x3b1d), 0x17 },
+	{ CCI_REG8(0x3b44), 0x3f },
+	{ CCI_REG8(0x3b60), 0x03 },
+	{ CCI_REG8(0x3c03), 0x04 },
+	{ CCI_REG8(0x3c04), 0x04 },
+	{ CCI_REG8(0x3c0a), 0x00 },
+	{ CCI_REG8(0x3c0b), 0x00 },
+	{ CCI_REG8(0x3c0c), 0x00 },
+	{ CCI_REG8(0x3c0d), 0x00 },
+	{ CCI_REG8(0x3c0e), 0x00 },
+	{ CCI_REG8(0x3c0f), 0x00 },
+	{ CCI_REG8(0x3c30), 0x73 },
+	{ CCI_REG8(0x3c3c), 0x20 },
+	{ CCI_REG8(0x3c7c), 0xb9 },
+	{ CCI_REG8(0x3c7d), 0x01 },
+	{ CCI_REG8(0x3c7e), 0xb7 },
+	{ CCI_REG8(0x3c7f), 0x01 },
+	{ CCI_REG8(0x3cb0), 0x00 },
+	{ CCI_REG8(0x3cb2), 0xff },
+	{ CCI_REG8(0x3cb3), 0x03 },
+	{ CCI_REG8(0x3cb4), 0xff },
+	{ CCI_REG8(0x3cb5), 0x03 },
+	{ CCI_REG8(0x3cba), 0xff },
+	{ CCI_REG8(0x3cbb), 0x03 },
+	{ CCI_REG8(0x3cc0), 0xff },
+	{ CCI_REG8(0x3cc1), 0x03 },
+	{ CCI_REG8(0x3cc2), 0x00 },
+	{ CCI_REG8(0x3cc6), 0xff },
+	{ CCI_REG8(0x3cc7), 0x03 },
+	{ CCI_REG8(0x3cc8), 0xff },
+	{ CCI_REG8(0x3cc9), 0x03 },
+	{ CCI_REG8(0x3e00), 0x1e },
+	{ CCI_REG8(0x3e02), 0x04 },
+	{ CCI_REG8(0x3e03), 0x00 },
+	{ CCI_REG8(0x3e20), 0x04 },
+	{ CCI_REG8(0x3e21), 0x00 },
+	{ CCI_REG8(0x3e22), 0x1e },
+	{ CCI_REG8(0x3e24), 0xba },
+	{ CCI_REG8(0x3e72), 0x85 },
+	{ CCI_REG8(0x3e76), 0x0c },
+
+	{ CCI_REG8(0x3e77), 0x01 },
+	{ CCI_REG8(0x3e7a), 0x85 },
+	{ CCI_REG8(0x3e7e), 0x1f },
+	{ CCI_REG8(0x3e82), 0xa6 },
+	{ CCI_REG8(0x3e86), 0x2d },
+	{ CCI_REG8(0x3ee2), 0x33 },
+	{ CCI_REG8(0x3ee3), 0x03 },
+	{ CCI_REG8(0x4490), 0x07 },
+	{ CCI_REG8(0x4494), 0x19 },
+	{ CCI_REG8(0x4495), 0x00 },
+	{ CCI_REG8(0x4496), 0xbb },
+	{ CCI_REG8(0x4497), 0x00 },
+	{ CCI_REG8(0x4498), 0x55 },
+	{ CCI_REG8(0x449a), 0x50 },
+	{ CCI_REG8(0x449c), 0x50 },
+	{ CCI_REG8(0x449e), 0x50 },
+	{ CCI_REG8(0x44a0), 0x3c },
+	{ CCI_REG8(0x44a2), 0x19 },
+	{ CCI_REG8(0x44a4), 0x19 },
+	{ CCI_REG8(0x44a6), 0x19 },
+	{ CCI_REG8(0x44a8), 0x4b },
+	{ CCI_REG8(0x44aa), 0x4b },
+	{ CCI_REG8(0x44ac), 0x4b },
+	{ CCI_REG8(0x44ae), 0x4b },
+	{ CCI_REG8(0x44b0), 0x3c },
+	{ CCI_REG8(0x44b2), 0x19 },
+	{ CCI_REG8(0x44b4), 0x19 },
+	{ CCI_REG8(0x44b6), 0x19 },
+	{ CCI_REG8(0x44b8), 0x4b },
+	{ CCI_REG8(0x44ba), 0x4b },
+	{ CCI_REG8(0x44bc), 0x4b },
+	{ CCI_REG8(0x44be), 0x4b },
+	{ CCI_REG8(0x44c0), 0x3c },
+	{ CCI_REG8(0x44c2), 0x19 },
+	{ CCI_REG8(0x44c4), 0x19 },
+	{ CCI_REG8(0x44c6), 0x19 },
+	{ CCI_REG8(0x44c8), 0xf0 },
+	{ CCI_REG8(0x44ca), 0xeb },
+	{ CCI_REG8(0x44cc), 0xeb },
+	{ CCI_REG8(0x44ce), 0xe6 },
+	{ CCI_REG8(0x44d0), 0xe6 },
+	{ CCI_REG8(0x44d2), 0xbb },
+
+	{ CCI_REG8(0x44d4), 0xbb },
+	{ CCI_REG8(0x44d6), 0xbb },
+	{ CCI_REG8(0x44d8), 0xe6 },
+	{ CCI_REG8(0x44da), 0xe6 },
+	{ CCI_REG8(0x44dc), 0xe6 },
+	{ CCI_REG8(0x44de), 0xe6 },
+	{ CCI_REG8(0x44e0), 0xe6 },
+	{ CCI_REG8(0x44e2), 0xbb },
+	{ CCI_REG8(0x44e4), 0xbb },
+	{ CCI_REG8(0x44e6), 0xbb },
+	{ CCI_REG8(0x44e8), 0xe6 },
+	{ CCI_REG8(0x44ea), 0xe6 },
+	{ CCI_REG8(0x44ec), 0xe6 },
+	{ CCI_REG8(0x44ee), 0xe6 },
+	{ CCI_REG8(0x44f0), 0xe6 },
+	{ CCI_REG8(0x44f2), 0xbb },
+	{ CCI_REG8(0x44f4), 0xbb },
+	{ CCI_REG8(0x44f6), 0xbb },
+	{ CCI_REG8(0x4538), 0x15 },
+	{ CCI_REG8(0x4539), 0x15 },
+	{ CCI_REG8(0x453a), 0x15 },
+	{ CCI_REG8(0x4544), 0x15 },
+	{ CCI_REG8(0x4545), 0x15 },
+	{ CCI_REG8(0x4546), 0x15 },
+	{ CCI_REG8(0x4550), 0x11 },
+	{ CCI_REG8(0x4551), 0x11 },
+	{ CCI_REG8(0x4552), 0x11 },
+	{ CCI_REG8(0x4553), 0x11 },
+	{ CCI_REG8(0x4554), 0x11 },
+	{ CCI_REG8(0x4555), 0x11 },
+	{ CCI_REG8(0x4556), 0x11 },
+	{ CCI_REG8(0x4557), 0x11 },
+	{ CCI_REG8(0x4558), 0x11 },
+	{ CCI_REG8(0x455c), 0x11 },
+	{ CCI_REG8(0x455d), 0x11 },
+	{ CCI_REG8(0x455e), 0x11 },
+	{ CCI_REG8(0x455f), 0x11 },
+	{ CCI_REG8(0x4560), 0x11 },
+	{ CCI_REG8(0x4561), 0x11 },
+	{ CCI_REG8(0x4562), 0x11 },
+	{ CCI_REG8(0x4563), 0x11 },
+	{ CCI_REG8(0x4564), 0x11 },
+
+	{ CCI_REG8(0x4569), 0x01 },
+	{ CCI_REG8(0x456a), 0x01 },
+	{ CCI_REG8(0x456b), 0x06 },
+	{ CCI_REG8(0x456c), 0x06 },
+	{ CCI_REG8(0x456d), 0x06 },
+	{ CCI_REG8(0x456e), 0x06 },
+	{ CCI_REG8(0x456f), 0x06 },
+	{ CCI_REG8(0x4570), 0x06 },
+};
+
+static const u16 imx675_min_hmax_4lane[] = {
+	[STARVIS2_LINK_FREQ_297MHZ] = 1125,
+	[STARVIS2_LINK_FREQ_360MHZ] = 1125,
+	[STARVIS2_LINK_FREQ_445MHZ] = 1125,
+	[STARVIS2_LINK_FREQ_594MHZ] = 1125 / 2,
+	[STARVIS2_LINK_FREQ_720MHZ] = 1125 / 2,
+	[STARVIS2_LINK_FREQ_891MHZ] = 1125 / 2,
+	[STARVIS2_LINK_FREQ_1039MHZ] = 1125 / 2,
+	[STARVIS2_LINK_FREQ_1188MHZ] = 1125 / 2,
+};
+
+const struct starvis2_variant imx675_variant_def = {
+	.name = "imx675",
+	.id_reg = STARVIS2_REG_MODULE_ID,
+	.id_value = 0x296,
+	.native_area = {
+		.top = 0,
+		.left = 0,
+		.width = 2609,
+		.height = 1984,
+	},
+	.active_area = {
+		.top = 0,
+		.left = 0,
+		.width = 2608,
+		.height = 1984,
+	},
+	.pixel_rate = 594000000,
+	.pix_per_clk = 8,
+	.common_regs = imx675_common_regs,
+	.num_common_regs = ARRAY_SIZE(imx675_common_regs),
+	.vmax_default = 2024,
+	.hmax_min_link_freq = imx675_min_hmax_4lane,
+	.hmax_min_pixel_array = 452,
+};
+
+struct starvis2_model_info {
+	enum starvis2_type type;
+	const u32 *codes;
+	unsigned int num_codes;
+	const struct starvis2_variant *variant;
+
+	const struct starvis2_model_info *auto_detect_colour;
+	const struct starvis2_model_info *auto_detect_mono;
+};
+
+static const struct starvis2_model_info imx678_aaqr_info = {
+	.type = STARVIS2_COLOR,
+	.codes = codes_bayer,
+	.num_codes = ARRAY_SIZE(codes_bayer),
+	.variant = &imx678_variant_def,
+};
+
+static const struct starvis2_model_info imx678_aamr_info = {
+	.type = STARVIS2_MONOCHROME,
+	.codes = codes_monochrome,
+	.num_codes = ARRAY_SIZE(codes_monochrome),
+	.variant = &imx678_variant_def,
+};
+
+static const struct starvis2_model_info imx678_autodetect_info = {
+	.variant = &imx678_variant_def,
+	.auto_detect_colour = &imx678_aaqr_info,
+	.auto_detect_mono = &imx678_aamr_info,
+};
+
+static const struct starvis2_model_info imx662_aaqr_info = {
+	.type = STARVIS2_COLOR,
+	.codes = codes_bayer,
+	.num_codes = ARRAY_SIZE(codes_bayer),
+	.variant = &imx662_variant_def,
+};
+
+static const struct starvis2_model_info imx662_aamr_info = {
+	.type = STARVIS2_MONOCHROME,
+	.codes = codes_monochrome,
+	.num_codes = ARRAY_SIZE(codes_monochrome),
+	.variant = &imx662_variant_def,
+};
+
+static const struct starvis2_model_info imx662_autodetect_info = {
+	.variant = &imx662_variant_def,
+	.auto_detect_colour = &imx662_aaqr_info,
+	.auto_detect_mono = &imx662_aamr_info,
+};
+
+static const struct starvis2_model_info imx675_aaqr_info = {
+	.type = STARVIS2_COLOR,
+	.codes = codes_bayer,
+	.num_codes = ARRAY_SIZE(codes_bayer),
+	.variant = &imx675_variant_def,
+};
+
+static const struct starvis2_model_info imx675_aamr_info = {
+	.type = STARVIS2_MONOCHROME,
+	.codes = codes_monochrome,
+	.num_codes = ARRAY_SIZE(codes_monochrome),
+	.variant = &imx675_variant_def,
+};
+
+static const struct starvis2_model_info imx675_autodetect_info = {
+	.variant = &imx675_variant_def,
+	.auto_detect_colour = &imx675_aaqr_info,
+	.auto_detect_mono = &imx675_aamr_info,
+};
+
+static const char * const starvis2_supply_name[] = {
+	"avdd",  /* Analog (3.3V) supply */
+	"dvdd",  /* Digital Core (1.1V) supply */
+	"ovdd",  /* IF (1.8V) supply */
+};
+
+struct starvis2 {
+	struct v4l2_subdev sd;
+	struct media_pad pad;
+	struct regmap *cci;
+
+	const struct starvis2_model_info *info;
+	const struct starvis2_variant *variant;
+
+	struct clk *xclk;
+	u32 xclk_freq;
+
+	/* chosen INCK_SEL register value */
+	u8 inck_sel_val;
+
+	/* Link configurations */
+	enum starvis2_lanemode lane_mode;
+	unsigned long link_freq_bitmap;
+
+	struct gpio_desc *reset_gpio;
+	struct regulator_bulk_data supplies[ARRAY_SIZE(starvis2_supply_name)];
+
+	struct v4l2_ctrl_handler ctrl_handler;
+
+	/* V4L2 Controls */
+	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *vblank;
+	struct v4l2_ctrl *hblank;
+	struct v4l2_ctrl *link_freq;
+
+	/* Track VMAX for exposure updates */
+	u32 vmax;
+};
+
+static inline struct starvis2 *to_starvis2(struct v4l2_subdev *_sd)
+{
+	return container_of_const(_sd, struct starvis2, sd);
+}
+
+static u32 starvis2_default_mbus_code(struct starvis2 *starvis2)
+{
+	return starvis2->info->codes[0];
+}
+
+static bool starvis2_mbus_code_supported(struct starvis2 *starvis2, u32 code)
+{
+	for (unsigned int i = 0; i < starvis2->info->num_codes; i++) {
+		if (starvis2->info->codes[i] == code)
+			return true;
+	}
+
+	return false;
+}
+
+static int starvis2_set_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct starvis2 *starvis2 = container_of_const(ctrl->handler, struct
+						       starvis2, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&starvis2->sd);
+	const struct starvis2_variant *variant = starvis2->variant;
+	const struct v4l2_mbus_framefmt *format;
+	struct v4l2_subdev_state *state;
+	int ret = 0;
+
+	state = v4l2_subdev_get_locked_active_state(&starvis2->sd);
+	format = v4l2_subdev_state_get_format(state, STARVIS2_SOURCE_PAD);
+
+	if (ctrl->id == V4L2_CID_VBLANK) {
+		u32 current_exposure = starvis2->exposure->cur.val;
+
+		starvis2->vmax = format->height + ctrl->val;
+
+		current_exposure = clamp_t(u32, current_exposure,
+					   STARVIS2_EXPOSURE_MIN,
+					   starvis2->vmax - STARVIS2_SHR_MIN);
+		ret = __v4l2_ctrl_modify_range(starvis2->exposure,
+					       STARVIS2_EXPOSURE_MIN,
+					       starvis2->vmax - STARVIS2_SHR_MIN,
+					       1, current_exposure);
+		if (ret)
+			return ret;
+	}
+
+	if (ctrl->id == V4L2_CID_LINK_FREQ) {
+		u32 hmax = variant->hmax_min_link_freq[ctrl->val];
+		s32 hblank;
+
+		if (starvis2->lane_mode == STARVIS2_LANEMODE_4L)
+			hmax = min(hmax >> 1, variant->hmax_min_pixel_array);
+
+		hblank = hmax * variant->pix_per_clk -
+					variant->active_area.width;
+
+		ret = __v4l2_ctrl_modify_range(starvis2->hblank,
+					       hblank,
+					       starvis2->hblank->maximum,
+					       starvis2->hblank->step,
+					       hblank);
+		if (ret)
+			return ret;
+	}
+
+	/*
+	 * Only apply control values when device is powered on (RPM ACTIVE)
+	 * and streaming (usage count != 0)
+	 */
+	if (!pm_runtime_get_if_in_use(&client->dev))
+		return 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VBLANK:
+		cci_write(starvis2->cci, STARVIS2_REG_VMAX, starvis2->vmax,
+			  &ret);
+		fallthrough; /* SHR = VMAX - exposure, so update it */
+	case V4L2_CID_EXPOSURE: {
+		u32 shr = starvis2->vmax - starvis2->exposure->val;
+
+		cci_write(starvis2->cci, STARVIS2_REG_SHR, shr, &ret);
+		break;
+	}
+	case V4L2_CID_ANALOGUE_GAIN:
+		cci_write(starvis2->cci, STARVIS2_REG_GAIN, ctrl->val, &ret);
+		break;
+	case V4L2_CID_HBLANK: {
+		u32 hmax = (format->width + ctrl->val) /
+						starvis2->variant->pix_per_clk;
+
+		cci_write(starvis2->cci, STARVIS2_REG_HMAX, hmax, &ret);
+		break;
+	}
+	case V4L2_CID_TEST_PATTERN: {
+		cci_write(starvis2->cci, STARVIS2_REG_TPG_COLORWIDTH,
+			  STARVIS2_TPG_COLORWIDTH_160PIX, &ret);
+		cci_write(starvis2->cci, STARVIS2_REG_TPG_PATSEL_DUOUT,
+			  starvis2_tpg_val[ctrl->val], &ret);
+		cci_write(starvis2->cci, STARVIS2_REG_TPG_EN_DUOUT,
+			  (ctrl->val) ? 1 : 0,
+			  &ret);
+		break;
+	}
+	case V4L2_CID_HFLIP:
+		cci_write(starvis2->cci, STARVIS2_REG_WINMODEH, ctrl->val,
+			  &ret);
+		break;
+	case V4L2_CID_VFLIP:
+		cci_write(starvis2->cci, STARVIS2_REG_WINMODEV, ctrl->val,
+			  &ret);
+		break;
+	case V4L2_CID_LINK_FREQ:
+		/* The STARVIS2_LINK_FREQ_ enums match up with the register */
+		cci_write(starvis2->cci, STARVIS2_REG_DATARATE_SEL, ctrl->val,
+			  &ret);
+		break;
+
+	default:
+		dev_warn(&client->dev,
+			 "ctrl(id:0x%x,val:0x%x) is not handled\n",
+			 ctrl->id, ctrl->val);
+		break;
+	}
+
+	pm_runtime_put(&client->dev);
+
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops starvis2_ctrl_ops = {
+	.s_ctrl = starvis2_set_ctrl,
+};
+
+static int starvis2_enum_mbus_code(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_state *sd_state,
+				   struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct starvis2 *starvis2 = to_starvis2(sd);
+
+	if (code->index >= starvis2->info->num_codes)
+		return -EINVAL;
+
+	code->code = starvis2->info->codes[code->index];
+
+	return 0;
+}
+
+static int starvis2_enum_frame_size(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_state *sd_state,
+				    struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct starvis2 *starvis2 = to_starvis2(sd);
+	const struct v4l2_rect *crop;
+
+	if (fse->index)
+		return -EINVAL;
+
+	if (!starvis2_mbus_code_supported(starvis2, fse->code))
+		return -EINVAL;
+
+	crop = v4l2_subdev_state_get_crop(sd_state, fse->pad);
+
+	fse->min_width = crop->width;
+	fse->max_width = fse->min_width;
+	fse->min_height = crop->height;
+	fse->max_height = fse->min_height;
+
+	return 0;
+}
+
+static int starvis2_get_selection(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *sd_state,
+				  struct v4l2_subdev_selection *sel)
+{
+	struct starvis2 *starvis2 = to_starvis2(sd);
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		sel->r = *v4l2_subdev_state_get_crop(sd_state, sel->pad);
+		return 0;
+
+	case V4L2_SEL_TGT_NATIVE_SIZE:
+		sel->r = starvis2->variant->native_area;
+		return 0;
+
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r = starvis2->variant->active_area;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int starvis2_init_state(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_state *state)
+{
+	struct starvis2 *starvis2 = to_starvis2(sd);
+	struct v4l2_mbus_framefmt *format;
+	struct v4l2_rect *crop;
+
+	crop = v4l2_subdev_state_get_crop(state, STARVIS2_SOURCE_PAD);
+	*crop = starvis2->variant->active_area;
+
+	format = v4l2_subdev_state_get_format(state, STARVIS2_SOURCE_PAD);
+	format->code = starvis2_default_mbus_code(starvis2);
+	format->width = starvis2->variant->active_area.width;
+	format->height = starvis2->variant->active_area.height;
+	format->field = V4L2_FIELD_NONE;
+	format->colorspace = V4L2_COLORSPACE_RAW;
+	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+	format->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+	format->xfer_func = V4L2_XFER_FUNC_NONE;
+
+	return 0;
+}
+
+static int starvis2_write_common(struct starvis2 *starvis2)
+{
+	int ret = 0;
+
+	if (!starvis2->variant)
+		/* Powered on during probe to do detection. Variant unknown. */
+		return 0;
+
+	cci_multi_reg_write(starvis2->cci, starvis2->variant->common_regs,
+			    starvis2->variant->num_common_regs, &ret);
+
+	cci_write(starvis2->cci, STARVIS2_REG_INCK_SEL, starvis2->inck_sel_val,
+		  &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_LANEMODE, starvis2->lane_mode,
+		  &ret);
+
+	cci_write(starvis2->cci, STARVIS2_REG_INTERFACE_SEL,
+		  STARVIS2_INTERFACE_2L_4L, &ret);
+
+	return ret;
+}
+
+static int starvis2_program_window(struct starvis2 *starvis2,
+				   const struct v4l2_rect *crop)
+{
+	int ret = 0;
+
+	cci_write(starvis2->cci, STARVIS2_REG_ADDMODE, 0x00, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_WINMODE, 0x04, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_PIX_HST,
+		  crop->left - starvis2->variant->active_area.left, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_PIX_HWIDTH, crop->width, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_PIX_VST,
+		  crop->top - starvis2->variant->active_area.top, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_PIX_VWIDTH, crop->height, &ret);
+	cci_write(starvis2->cci, STARVIS2_REG_ADBIT, 0x01, &ret);
+
+	return ret;
+}
+
+static int starvis2_enable_streams(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_state *state, u32 pad,
+				   u64 mask)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct starvis2 *starvis2 = to_starvis2(sd);
+	const struct v4l2_rect *crop;
+	int ret;
+
+	ret = pm_runtime_resume_and_get(&client->dev);
+	if (ret < 0)
+		return ret;
+
+	crop = v4l2_subdev_state_get_crop(state, pad);
+	ret = starvis2_program_window(starvis2, crop);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set mode\n", __func__);
+		goto err_rpm_put;
+	}
+
+	ret = __v4l2_ctrl_handler_setup(starvis2->sd.ctrl_handler);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to apply user values\n",
+			__func__);
+		goto err_rpm_put;
+	}
+
+	cci_write(starvis2->cci, STARVIS2_REG_MODE_SELECT,
+		  STARVIS2_MODE_STREAMING, &ret);
+	usleep_range(STARVIS2_STREAM_DELAY_US, STARVIS2_STREAM_DELAY_US +
+		     STARVIS2_STREAM_DELAY_RANGE_US);
+	cci_write(starvis2->cci, STARVIS2_REG_XMSTA, 0x00, &ret);
+
+	if (ret) {
+		dev_err(&client->dev, "%s failed to start streaming\n",
+			__func__);
+		goto err_rpm_put;
+	}
+
+	__v4l2_ctrl_grab(starvis2->link_freq, true);
+	return 0;
+
+err_rpm_put:
+	pm_runtime_put(&client->dev);
+
+	return ret;
+}
+
+static int starvis2_disable_streams(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_state *state,
+				    u32 pad, u64 mask)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct starvis2 *starvis2 = to_starvis2(sd);
+	int ret = 0;
+
+	/* Master mode disable */
+	cci_write(starvis2->cci, STARVIS2_REG_XMSTA, 0x01, &ret);
+	/* Standby */
+	cci_write(starvis2->cci, STARVIS2_REG_MODE_SELECT,
+		  STARVIS2_MODE_STANDBY, &ret);
+	if (ret)
+		dev_err(&client->dev, "%s failed to stop stream\n", __func__);
+
+	__v4l2_ctrl_grab(starvis2->link_freq, false);
+
+	pm_runtime_put(&client->dev);
+
+	return ret;
+}
+
+static int starvis2_power_on(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct starvis2 *starvis2 = to_starvis2(sd);
+	int ret;
+
+	ret = regulator_bulk_enable(ARRAY_SIZE(starvis2_supply_name),
+				    starvis2->supplies);
+	if (ret) {
+		dev_err(&client->dev, "%s: failed to enable regulators\n",
+			__func__);
+		return ret;
+	}
+
+	fsleep(1); /* Tlow > 500ns */
+
+	gpiod_set_value_cansleep(starvis2->reset_gpio, 0);
+
+	fsleep(1); /* T3 > 1us */
+
+	ret = clk_prepare_enable(starvis2->xclk);
+	if (ret) {
+		dev_err(&client->dev, "%s: failed to enable clock\n",
+			__func__);
+		goto reg_off;
+	}
+
+	fsleep(20); /* T4 > 20us */
+
+	ret = starvis2_write_common(starvis2);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to write registers\n",
+			__func__);
+		goto clk_off;
+	}
+
+	return 0;
+
+clk_off:
+	clk_disable_unprepare(starvis2->xclk);
+
+reg_off:
+	gpiod_set_value_cansleep(starvis2->reset_gpio, 1);
+	regulator_bulk_disable(ARRAY_SIZE(starvis2_supply_name),
+			       starvis2->supplies);
+
+	return ret;
+}
+
+static int starvis2_power_off(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct starvis2 *starvis2 = to_starvis2(sd);
+
+	clk_disable_unprepare(starvis2->xclk);
+	gpiod_set_value_cansleep(starvis2->reset_gpio, 1);
+	regulator_bulk_disable(ARRAY_SIZE(starvis2_supply_name),
+			       starvis2->supplies);
+
+	return 0;
+}
+
+static int starvis2_identify_model(struct starvis2 *starvis2)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&starvis2->sd);
+	const struct starvis2_model_info *info;
+	const struct starvis2_variant *variant;
+	enum starvis2_type detected;
+	int ret = 0;
+	u64 val = 0;
+
+	info = device_get_match_data(&client->dev);
+	if (!info)
+		return -EINVAL;
+
+	variant = info->variant;
+
+	/*
+	 * This sensor's ID registers become accessible 80ms after coming out
+	 * of STANDBY mode.
+	 */
+	cci_write(starvis2->cci, STARVIS2_REG_MODE_SELECT, 0, &ret);
+	fsleep(IMX678_MODULE_ID_DELAY);
+
+	cci_read(starvis2->cci, variant->id_reg, &val, &ret);
+
+	if (ret) {
+		dev_err(&client->dev,
+			"I2C transaction failed ret = %d\n", ret);
+		return ret;
+	}
+
+	if (val != variant->id_value) {
+		dev_err(&client->dev, "Chip ID mismatch: %x!=%llx\n",
+			variant->id_value, val);
+		return -ENXIO;
+	}
+
+	cci_read(starvis2->cci, STARVIS2_REG_MONOCHROME, &val, &ret);
+
+	if (ret) {
+		dev_err(&client->dev,
+			"I2C transaction failed ret = %d\n", ret);
+		return ret;
+	}
+
+	detected = val & STARVIS2_TYPE;
+
+	/* Prefer to use sensor type specified in device tree */
+	if (info->codes) {
+		starvis2->info = info;
+		if (detected != info->type)
+			dev_err(&client->dev,
+				"detected %s sensor, DT specifies %s; using DT value\n",
+				detected == STARVIS2_COLOR ? "color" : "mono",
+				info->type == STARVIS2_COLOR ? "color" : "mono");
+	} else {
+		starvis2->info = detected == STARVIS2_MONOCHROME ?
+			    info->auto_detect_mono : info->auto_detect_colour;
+		dev_info(&client->dev,
+			 "sensor type missing in DT; detected %s sensor\n",
+			 detected == STARVIS2_MONOCHROME ? "mono" : "color");
+	}
+	starvis2->variant = starvis2->info->variant;
+
+	return 0;
+}
+
+static const struct v4l2_subdev_video_ops starvis2_video_ops = {
+	.s_stream = v4l2_subdev_s_stream_helper,
+};
+
+static const struct v4l2_subdev_pad_ops starvis2_pad_ops = {
+	.enum_mbus_code = starvis2_enum_mbus_code,
+	.get_fmt = v4l2_subdev_get_fmt,
+	.set_fmt = v4l2_subdev_get_fmt,
+	.get_selection = starvis2_get_selection,
+	.enum_frame_size = starvis2_enum_frame_size,
+	.enable_streams = starvis2_enable_streams,
+	.disable_streams = starvis2_disable_streams,
+};
+
+static const struct v4l2_subdev_ops starvis2_subdev_ops = {
+	.video = &starvis2_video_ops,
+	.pad = &starvis2_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops starvis2_internal_ops = {
+	.init_state = starvis2_init_state,
+};
+
+static int starvis2_init_controls(struct starvis2 *starvis2)
+{
+	struct v4l2_ctrl_handler *ctrl_hdlr;
+	struct i2c_client *client = v4l2_get_subdevdata(&starvis2->sd);
+	const struct starvis2_variant *variant = starvis2->variant;
+	struct v4l2_fwnode_device_properties props;
+	s32 hblank, max_hblank, vblank, max_vblank;
+	u32 hmax;
+	int ret;
+
+	ret = v4l2_fwnode_device_parse(&client->dev, &props);
+	if (ret < 0)
+		return ret;
+
+	ctrl_hdlr = &starvis2->ctrl_handler;
+	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 11);
+	if (ret)
+		return ret;
+
+	starvis2->vmax = starvis2->variant->vmax_default;
+
+	/* PIXEL_RATE is fixed and read-only */
+	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_PIXEL_RATE,
+			  starvis2->variant->pixel_rate,
+			  starvis2->variant->pixel_rate, 1,
+			  starvis2->variant->pixel_rate);
+
+	starvis2->link_freq =
+		v4l2_ctrl_new_int_menu(ctrl_hdlr, &starvis2_ctrl_ops,
+				       V4L2_CID_LINK_FREQ,
+				       __fls(starvis2->link_freq_bitmap),
+				       __ffs(starvis2->link_freq_bitmap),
+				       link_freqs);
+	__v4l2_ctrl_modify_range(starvis2->link_freq,
+				 __ffs(starvis2->link_freq_bitmap),
+				 __fls(starvis2->link_freq_bitmap),
+				 ~(starvis2->link_freq_bitmap),
+				 __ffs(starvis2->link_freq_bitmap));
+
+	hmax = variant->hmax_min_link_freq[starvis2->link_freq->val];
+	if (starvis2->lane_mode == STARVIS2_LANEMODE_4L)
+		hmax = min(hmax >> 1, variant->hmax_min_pixel_array);
+
+	vblank = starvis2->vmax - starvis2->variant->active_area.height;
+	max_vblank = STARVIS2_VMAX_MAX - starvis2->variant->active_area.height;
+	starvis2->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops,
+					     V4L2_CID_VBLANK, vblank, max_vblank,
+					     2, vblank);
+
+	hblank = hmax * starvis2->variant->pix_per_clk -
+					starvis2->variant->active_area.width;
+	max_hblank = STARVIS2_HMAX_MAX * starvis2->variant->pix_per_clk -
+		     starvis2->variant->active_area.width;
+	starvis2->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops,
+					     V4L2_CID_HBLANK, hblank, max_hblank,
+					     starvis2->variant->pix_per_clk,
+					     hblank);
+
+	starvis2->exposure = v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops,
+					       V4L2_CID_EXPOSURE,
+					       STARVIS2_EXPOSURE_MIN,
+					       starvis2->variant->vmax_default -
+					       STARVIS2_SHR_MIN,
+					       STARVIS2_EXPOSURE_STEP,
+					       STARVIS2_EXPOSURE_DEFAULT);
+
+	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
+			  STARVIS2_ANA_GAIN_MIN_NORMAL,
+			  STARVIS2_ANA_GAIN_MAX_NORMAL, STARVIS2_ANA_GAIN_STEP,
+			  STARVIS2_ANA_GAIN_DEFAULT);
+
+	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_HFLIP,
+			  0, 1, 1, 0);
+	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_VFLIP,
+			  0, 1, 1, 0);
+
+	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &starvis2_ctrl_ops,
+				     V4L2_CID_TEST_PATTERN,
+				     ARRAY_SIZE(starvis2_tpg_menu) - 1, 0, 0,
+				     starvis2_tpg_menu);
+
+	v4l2_ctrl_new_fwnode_properties(ctrl_hdlr, &starvis2_ctrl_ops, &props);
+
+	if (ctrl_hdlr->error) {
+		ret = ctrl_hdlr->error;
+		dev_err(&client->dev, "%s control init failed (%d)\n",
+			__func__, ret);
+		v4l2_ctrl_handler_free(ctrl_hdlr);
+		return ret;
+	}
+
+	starvis2->sd.ctrl_handler = ctrl_hdlr;
+
+	return 0;
+}
+
+static int starvis2_check_hwcfg(struct device *dev, struct starvis2 *starvis2)
+{
+	struct fwnode_handle *endpoint;
+	struct v4l2_fwnode_endpoint ep_cfg = {
+		.bus_type = V4L2_MBUS_CSI2_DPHY
+	};
+	int ret = -EINVAL;
+
+	endpoint = fwnode_graph_get_endpoint_by_id(dev_fwnode(dev), 0, 0, 0);
+	if (!endpoint) {
+		dev_err(dev, "endpoint node not found\n");
+		return -EINVAL;
+	}
+
+	if (v4l2_fwnode_endpoint_alloc_parse(endpoint, &ep_cfg)) {
+		dev_err(dev, "could not parse endpoint\n");
+		goto error_out;
+	}
+
+	switch (ep_cfg.bus.mipi_csi2.num_data_lanes) {
+	case 2:
+		starvis2->lane_mode = STARVIS2_LANEMODE_2L;
+		break;
+	case 4:
+		starvis2->lane_mode = STARVIS2_LANEMODE_4L;
+		break;
+	default:
+		dev_err(dev,
+			"only 2 or 4 CSI2 data lanes are currently supported\n");
+		goto error_out;
+	}
+
+	ret = v4l2_link_freq_to_bitmap(dev, ep_cfg.link_frequencies,
+				       ep_cfg.nr_of_link_frequencies,
+				       link_freqs, ARRAY_SIZE(link_freqs),
+				       &starvis2->link_freq_bitmap);
+
+error_out:
+	v4l2_fwnode_endpoint_free(&ep_cfg);
+	fwnode_handle_put(endpoint);
+
+	return ret;
+}
+
+static int starvis2_probe(struct i2c_client *client)
+{
+	struct device *dev = &client->dev;
+	struct starvis2 *starvis2;
+	int ret, i;
+
+	starvis2 = devm_kzalloc(&client->dev, sizeof(*starvis2), GFP_KERNEL);
+	if (!starvis2)
+		return -ENOMEM;
+
+	v4l2_i2c_subdev_init(&starvis2->sd, client, &starvis2_subdev_ops);
+
+	starvis2->cci = devm_cci_regmap_init_i2c(client, 16);
+	if (IS_ERR(starvis2->cci))
+		return dev_err_probe(dev, PTR_ERR(starvis2->cci),
+				     "failed to init CCI\n");
+
+	if (starvis2_check_hwcfg(dev, starvis2))
+		return -EINVAL;
+
+	starvis2->xclk = devm_v4l2_sensor_clk_get(dev, NULL);
+	if (IS_ERR(starvis2->xclk))
+		return dev_err_probe(dev, PTR_ERR(starvis2->xclk),
+				     "failed to get xclk\n");
+
+	starvis2->xclk_freq = clk_get_rate(starvis2->xclk);
+
+	for (i = 0; i < ARRAY_SIZE(starvis2_inck_table); ++i) {
+		if (starvis2_inck_table[i].xclk_hz == starvis2->xclk_freq) {
+			starvis2->inck_sel_val = starvis2_inck_table[i].inck_sel;
+			break;
+		}
+	}
+
+	if (i == ARRAY_SIZE(starvis2_inck_table))
+		return dev_err_probe(dev, -EINVAL,
+				     "unsupported XCLK rate %u Hz\n",
+				     starvis2->xclk_freq);
+
+	for (i = 0; i < ARRAY_SIZE(starvis2_supply_name); i++)
+		starvis2->supplies[i].supply = starvis2_supply_name[i];
+
+	ret = devm_regulator_bulk_get(&client->dev,
+				      ARRAY_SIZE(starvis2_supply_name),
+				      starvis2->supplies);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to get regulators\n");
+
+	starvis2->reset_gpio = devm_gpiod_get_optional(dev, "reset",
+						       GPIOD_OUT_HIGH);
+	if (IS_ERR(starvis2->reset_gpio))
+		return dev_err_probe(dev, PTR_ERR(starvis2->reset_gpio),
+				     "failed to get reset GPIO\n");
+
+	ret = starvis2_power_on(dev);
+	if (ret)
+		return ret;
+
+	ret = starvis2_identify_model(starvis2);
+	if (ret)
+		goto error_power_off;
+
+	v4l2_i2c_subdev_set_name(&starvis2->sd, client, starvis2->variant->name,
+				 NULL);
+
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+
+	ret = starvis2_init_controls(starvis2);
+	if (ret)
+		goto error_pm_runtime;
+
+	starvis2->sd.internal_ops = &starvis2_internal_ops;
+	starvis2->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	starvis2->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
+
+	starvis2->pad.flags = MEDIA_PAD_FL_SOURCE;
+
+	ret = media_entity_pads_init(&starvis2->sd.entity, 1, &starvis2->pad);
+	if (ret) {
+		dev_err_probe(dev, ret, "failed to init entity pads\n");
+		goto error_handler_free;
+	}
+
+	starvis2->sd.state_lock = starvis2->ctrl_handler.lock;
+	ret = v4l2_subdev_init_finalize(&starvis2->sd);
+	if (ret < 0) {
+		dev_err_probe(dev, ret, "subdev init error\n");
+		goto error_media_entity;
+	}
+
+	ret = v4l2_async_register_subdev_sensor(&starvis2->sd);
+	if (ret < 0) {
+		dev_err_probe(dev, ret,
+			      "failed to register sensor sub-device\n");
+		goto error_subdev_cleanup;
+	}
+
+	pm_runtime_idle(dev);
+
+	return 0;
+
+error_subdev_cleanup:
+	v4l2_subdev_cleanup(&starvis2->sd);
+
+error_media_entity:
+	media_entity_cleanup(&starvis2->sd.entity);
+
+error_handler_free:
+	v4l2_ctrl_handler_free(starvis2->sd.ctrl_handler);
+
+error_pm_runtime:
+	pm_runtime_disable(&client->dev);
+	pm_runtime_set_suspended(&client->dev);
+
+error_power_off:
+	starvis2_power_off(&client->dev);
+
+	return ret;
+}
+
+static void starvis2_remove(struct i2c_client *client)
+{
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct starvis2 *starvis2 = to_starvis2(sd);
+
+	v4l2_async_unregister_subdev(sd);
+	v4l2_subdev_cleanup(sd);
+	media_entity_cleanup(&sd->entity);
+	v4l2_ctrl_handler_free(starvis2->sd.ctrl_handler);
+
+	pm_runtime_disable(&client->dev);
+	if (!pm_runtime_status_suspended(&client->dev))
+		starvis2_power_off(&client->dev);
+	pm_runtime_set_suspended(&client->dev);
+}
+
+static const struct dev_pm_ops starvis2_pm_ops = {
+	SET_RUNTIME_PM_OPS(starvis2_power_off, starvis2_power_on, NULL)
+};
+
+static const struct of_device_id starvis2_of_match[] = {
+	{ .compatible = "sony,imx678-aamr", .data = &imx678_aamr_info },
+	{ .compatible = "sony,imx678-aaqr", .data = &imx678_aaqr_info },
+	{ .compatible = "sony,imx662-aamr", .data = &imx662_aamr_info },
+	{ .compatible = "sony,imx662-aaqr", .data = &imx662_aaqr_info },
+	/* for non-conforming DTs that rely on runtime check */
+	{ .compatible = "sony,imx678", .data = &imx678_autodetect_info },
+	{ .compatible = "sony,imx662", .data = &imx662_autodetect_info },
+	{ /* sentinel */ }
+};
+
+MODULE_DEVICE_TABLE(of, starvis2_of_match);
+
+static struct i2c_driver starvis2_i2c_driver = {
+	.driver = {
+		.name = "starvis2",
+		.of_match_table = starvis2_of_match,
+		.pm = pm_ptr(&starvis2_pm_ops),
+	},
+	.probe = starvis2_probe,
+	.remove = starvis2_remove,
+};
+
+module_i2c_driver(starvis2_i2c_driver);
+
+MODULE_AUTHOR("Will Whang <will@willwhang.com>");
+MODULE_AUTHOR("Tetsuya NOMURA <tetsuya.nomura@soho-enterprise.com>");
+MODULE_AUTHOR("Jai Luthra <jai.luthra@ideasonboard.com>");
+MODULE_DESCRIPTION("Sony Starvis 2 sensor driver");
+MODULE_LICENSE("GPL");

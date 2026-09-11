@@ -1,0 +1,27 @@
+// Fragment that configures an imx678
+
+cam_node: imx678@37 {
+	compatible = "sony,imx678";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "inck";
+
+	avdd-supply = <&cam1_reg>;	/* 2.8v */
+	dvdd-supply = <&cam_dummy_reg>;	/* 1.8v */
+	ovdd-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2 3 4>;
+			//clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <594000000>;
+		};
+	};
+};
