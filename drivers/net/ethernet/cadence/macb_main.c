@@ -6199,7 +6199,11 @@ static int __maybe_unused macb_suspend(struct device *dev)
 			spin_unlock_irqrestore(&bp->lock, flags);
 		}
 
-		enable_irq_wake(bp->queues[0].irq);
+		err = enable_irq_wake(bp->queues[0].irq);
+		if (err)
+			netdev_warn(netdev, "Unable to enable IRQ %d as a wake source (error %d)\n",
+				    bp->queues[0].irq, err);
+		bp->pm_data.irq_wake_enabled = !err;
 	}
 
 	netif_device_detach(netdev);
@@ -6277,7 +6281,10 @@ static int __maybe_unused macb_resume(struct device *dev)
 			return err;
 		}
 
-		disable_irq_wake(bp->queues[0].irq);
+		if (bp->pm_data.irq_wake_enabled) {
+			disable_irq_wake(bp->queues[0].irq);
+			bp->pm_data.irq_wake_enabled = false;
+		}
 
 		/* Now make sure we disable phy before moving
 		 * to common restore path

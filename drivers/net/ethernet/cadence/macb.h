@@ -1245,6 +1245,7 @@ struct macb_ptp_info {
 struct macb_pm_data {
 	u32 scrt2;
 	u32 usrio;
+	bool irq_wake_enabled;
 };
 
 struct macb_usrio_config {
