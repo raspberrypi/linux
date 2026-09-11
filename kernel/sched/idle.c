@@ -460,7 +460,7 @@ select_task_rq_idle(struct task_struct *p, int cpu, int flags)
 }
 
 static int
-balance_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
+balance_idle(struct rq *rq, struct rq_flags *rf)
 {
 	return WARN_ON_ONCE(1);
 }

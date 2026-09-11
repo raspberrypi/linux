@@ -18,11 +18,10 @@
 #include "../internal.h"
 
 static const struct acpi_device_id acpi_cmos_rtc_ids[] = {
-	{ "PNP0B00" },
-	{ "PNP0B01" },
-	{ "PNP0B02" },
-	{}
+	ACPI_CMOS_RTC_IDS
 };
+
+bool cmos_rtc_platform_device_present;
 
 static bool cmos_rtc_space_handler_present __read_mostly;
 
@@ -103,6 +102,12 @@ static int acpi_cmos_rtc_attach(struct acpi_device *adev,
 	if (ret < 0)
 		return ret;
 
+	if (IS_ERR_OR_NULL(acpi_create_platform_device(adev, NULL))) {
+		pr_err("Failed to create CMOS-RTC platform device\n");
+		return 0;
+	} else {
+		cmos_rtc_platform_device_present = true;
+	}
 	return 1;
 }
 

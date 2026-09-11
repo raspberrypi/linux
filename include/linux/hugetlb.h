@@ -173,6 +173,7 @@ struct address_space *hugetlb_folio_mapping_lock_write(struct folio *folio);
 extern int sysctl_hugetlb_shm_group;
 extern struct list_head huge_boot_pages[MAX_NUMNODES];
 
+void hugetlb_bootmem_struct_page_init(void);
 void hugetlb_bootmem_alloc(void);
 bool hugetlb_bootmem_allocated(void);
 extern nodemask_t hugetlb_bootmem_nodes;
@@ -1315,6 +1316,10 @@ static inline void hugetlb_bootmem_alloc(void)
 static inline bool hugetlb_bootmem_allocated(void)
 {
 	return false;
+}
+
+static inline void hugetlb_bootmem_struct_page_init(void)
+{
 }
 #endif	/* CONFIG_HUGETLB_PAGE */
 
