@@ -279,6 +279,11 @@ static void mm81x_mac_check_fw_disabled_chans(struct ieee80211_hw *hw)
 	if (ret)
 		goto out;
 
+	if (le32_to_cpu(resp->n_channels) > ARRAY_SIZE(mors_s1ghz_channels)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(mors_s1ghz_channels); i++) {
 		struct ieee80211_channel *ch = &mors_s1ghz_channels[i];
 
