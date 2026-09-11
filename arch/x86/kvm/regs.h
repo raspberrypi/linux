@@ -420,4 +420,9 @@ static inline bool is_guest_mode(struct kvm_vcpu *vcpu)
 	return vcpu->arch.hflags & HF_GUEST_MASK;
 }
 
+static inline unsigned long kvm_get_segment_base(struct kvm_vcpu *vcpu, int seg)
+{
+	return kvm_x86_call(get_segment_base)(vcpu, seg);
+}
+
 #endif

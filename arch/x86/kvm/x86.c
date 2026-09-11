@@ -8495,11 +8495,6 @@ static int emulator_pio_out_emulated(struct x86_emulate_ctxt *ctxt,
 	return emulator_pio_out(emul_to_vcpu(ctxt), size, port, val, count);
 }
 
-static unsigned long get_segment_base(struct kvm_vcpu *vcpu, int seg)
-{
-	return kvm_x86_call(get_segment_base)(vcpu, seg);
-}
-
 static void emulator_invlpg(struct x86_emulate_ctxt *ctxt, ulong address)
 {
 	kvm_mmu_invlpg(emul_to_vcpu(ctxt), address);
@@ -8644,7 +8639,7 @@ static void emulator_set_idt(struct x86_emulate_ctxt *ctxt, struct desc_ptr *dt)
 static unsigned long emulator_get_cached_segment_base(
 	struct x86_emulate_ctxt *ctxt, int seg)
 {
-	return get_segment_base(emul_to_vcpu(ctxt), seg);
+	return kvm_get_segment_base(emul_to_vcpu(ctxt), seg);
 }
 
 static bool emulator_get_segment(struct x86_emulate_ctxt *ctxt, u16 *selector,
@@ -13854,7 +13849,7 @@ unsigned long kvm_get_linear_rip(struct kvm_vcpu *vcpu)
 
 	if (is_64_bit_mode(vcpu))
 		return kvm_rip_read(vcpu);
-	return (u32)(get_segment_base(vcpu, VCPU_SREG_CS) +
+	return (u32)(kvm_get_segment_base(vcpu, VCPU_SREG_CS) +
 		     kvm_rip_read(vcpu));
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_get_linear_rip);
