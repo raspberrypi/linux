@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2711";
+
+    fragment@0 {
+        target = <&dsi1>;
+        __overlay__ {
+            status = "okay";
+            #address-cells = <1>;
+            #size-cells = <0>;
+            port {
+                dsi1_out: endpoint {
+                    remote-endpoint = <&panel_in>;
+                };
+            };
+            
+            panel: panel@0 {
+                compatible = "ronbo,rb070d30";
+                reg = <0>;
+                status = "okay";
+                port {
+                    panel_in: endpoint {
+                        remote-endpoint = <&dsi1_out>;
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&vc4>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+};
