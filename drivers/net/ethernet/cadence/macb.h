@@ -797,6 +797,11 @@
  * read-back to guarantee delivery.  Currently set only on RP1.
  */
 #define MACB_CAPS_PCIE_POSTED_WRITES		0x00004000
+/* The MAC cannot act as a system wakeup source, because the interrupt it
+ * would raise cannot be armed as a wakeup by the parent irqchip.  Refuse
+ * WoL rather than arming hardware that will never wake anything.
+ */
+#define MACB_CAPS_NO_WOL			0x00008000
 #define MACB_CAPS_PCS				0x01000000
 #define MACB_CAPS_HIGH_SPEED			0x02000000
 #define MACB_CAPS_CLK_HW_CHG			0x04000000
