@@ -403,6 +403,7 @@ int handle_ud(struct kvm_vcpu *vcpu);
 
 void kvm_deliver_exception_payload(struct kvm_vcpu *vcpu,
 				   struct kvm_queued_exception *ex);
+void kvm_handle_exception_payload_quirk(struct kvm_vcpu *vcpu);
 
 int kvm_mtrr_set_msr(struct kvm_vcpu *vcpu, u32 msr, u64 data);
 int kvm_mtrr_get_msr(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata);
@@ -597,6 +598,7 @@ static inline void kvm_machine_check(void)
 int kvm_spec_ctrl_test_value(u64 value);
 int kvm_handle_memory_failure(struct kvm_vcpu *vcpu, int r,
 			      struct x86_exception *e);
+void kvm_invalidate_pcid(struct kvm_vcpu *vcpu, unsigned long pcid);
 int kvm_handle_invpcid(struct kvm_vcpu *vcpu, unsigned long type, gva_t gva);
 bool kvm_msr_allowed(struct kvm_vcpu *vcpu, u32 index, u32 type);
 

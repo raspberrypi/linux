@@ -397,6 +397,14 @@ static inline bool kvm_dr6_valid(u64 data)
 	return !(data >> 32);
 }
 
+static inline unsigned long kvm_get_effective_dr7(struct kvm_vcpu *vcpu)
+{
+	if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
+		return vcpu->arch.guest_debug_dr7;
+
+	return vcpu->arch.dr7;
+}
+
 static inline void enter_guest_mode(struct kvm_vcpu *vcpu)
 {
 	vcpu->arch.hflags |= HF_GUEST_MASK;
@@ -424,5 +432,22 @@ static inline unsigned long kvm_get_segment_base(struct kvm_vcpu *vcpu, int seg)
 {
 	return kvm_x86_call(get_segment_base)(vcpu, seg);
 }
+
+void __kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
+
+void kvm_vcpu_ioctl_x86_get_sregs2(struct kvm_vcpu *vcpu,
+				   struct kvm_sregs2 *sregs2);
+int kvm_vcpu_ioctl_x86_set_sregs2(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs2 *sregs2);
+
+void kvm_run_sync_regs_to_user(struct kvm_vcpu *vcpu);
+int kvm_run_sync_regs_from_user(struct kvm_vcpu *vcpu);
+
+void kvm_update_dr0123(struct kvm_vcpu *vcpu);
+int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+
 
 #endif
