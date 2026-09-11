@@ -1938,10 +1938,14 @@ static int kernfs_fop_readdir(struct file *file, struct dir_context *ctx)
 		file->private_data = pos;
 		kernfs_get(pos);
 
-		if (!dir_emit(ctx, name, len, ino, type)) {
-			up_read(&root->kernfs_rwsem);
+		/*
+		 * dir_emit() can fault, so run it unlocked.  @pos is pinned
+		 * above and kernfs_dir_pos() rechecks it on the way back.
+		 */
+		up_read(&root->kernfs_rwsem);
+		if (!dir_emit(ctx, name, len, ino, type))
 			return 0;
-		}
+		down_read(&root->kernfs_rwsem);
 	}
 	up_read(&root->kernfs_rwsem);
 	file->private_data = NULL;
