@@ -1281,6 +1281,8 @@ static int imx355_probe(struct i2c_client *client)
 		goto error_media_entity_runtime_pm;
 
 	pm_runtime_idle(imx355->dev);
+	pm_runtime_set_autosuspend_delay(imx355->dev, 1000);
+	pm_runtime_use_autosuspend(imx355->dev);
 
 	return 0;
 
