@@ -38,8 +38,9 @@
 #define ENET_RX_OFFSET		(ENET_RSB_LEN + ENET_RBUF_ALIGN)
 
 /* Longest frame the MAC must accept for a given MTU */
-#define ENET_MAX_FRAME_LEN(mtu)	((mtu) + ETH_HLEN + VLAN_HLEN + \
-				 ENET_BRCM_TAG_LEN + ETH_FCS_LEN + ENET_PAD)
+#define ENET_FRAME_OVERHEAD	(ETH_HLEN + VLAN_HLEN + ENET_BRCM_TAG_LEN + \
+				 ETH_FCS_LEN + ENET_PAD)
+#define ENET_MAX_FRAME_LEN(mtu)	((mtu) + ENET_FRAME_OVERHEAD)
 
 /* RBUF and TBUF hand a frame to the DMA once the threshold is reached, so a
  * longer frame arrives without an end of packet marker and is dropped. Both
@@ -52,11 +53,15 @@
 #define ENET_THLD_MAX		0xf0
 #define ENET_THLD_MAX_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
 
-/* Largest MTU the threshold allows, with room for a VLAN tag so a VLAN
- * interface can use the parent MTU.
+/* Largest MTU that fits one descriptor, with room for a VLAN tag so a VLAN
+ * interface can use the parent MTU. Longer frames are split at the threshold
+ * and reassembled in bcmgenet_desc_rx().
  */
 #define ENET_MAX_MTU		(ENET_THLD_MAX_LEN - ENET_RBUF_ALIGN - \
 				 ETH_HLEN - VLAN_HLEN)
+
+/* UMAC_MAX_FRAME_LEN is 14 bits wide and counts the FCS */
+#define ENET_MAX_JUMBO_MTU	(GENMASK(13, 0) - ENET_FRAME_OVERHEAD)
 #define DMA_MAX_BURST_LENGTH    0x10
 
 /* misc. configuration */
@@ -598,6 +603,8 @@ struct bcmgenet_rx_ring {
 	unsigned int	cb_ptr;		/* Rx ring initial CB ptr */
 	unsigned int	end_ptr;	/* Rx ring end CB ptr */
 	unsigned int	old_discards;
+	struct sk_buff	*frag_head;	/* frame being reassembled */
+	struct sk_buff	*frag_tail;	/* its last fragment */
 	struct bcmgenet_net_dim dim;
 	u32		rx_max_coalesced_frames;
 	u32		rx_coalesce_usecs;
@@ -636,6 +643,7 @@ struct bcmgenet_priv {
 	struct enet_cb *rx_cbs;
 	unsigned int num_rx_bds;
 	unsigned int rx_buf_len;
+	unsigned int tx_csum_max_len;
 	struct bcmgenet_rxnfc_rule rxnfc_rules[MAX_NUM_OF_FS_RULES];
 	struct list_head rxnfc_list;
 

@@ -2145,6 +2145,20 @@ static netdev_tx_t bcmgenet_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto out;
 	}
 
+	/* The MAC holds a frame to insert its checksum, but only up to the
+	 * packet ready threshold. Longer frames are dropped silently.
+	 */
+	if (unlikely(skb->len > priv->tx_csum_max_len) &&
+	    skb->ip_summed == CHECKSUM_PARTIAL) {
+		if (skb_checksum_help(skb)) {
+			BCMGENET_STATS64_INC((&ring->stats64), dropped);
+			dev_kfree_skb_any(skb);
+			ret = NETDEV_TX_OK;
+			goto out;
+		}
+		nr_frags = skb_shinfo(skb)->nr_frags;
+	}
+
 	/* Retain how many bytes will be sent on the wire, without TSB inserted
 	 * by transmit checksum offload
 	 */
@@ -2287,6 +2301,16 @@ static struct sk_buff *bcmgenet_rx_refill(struct bcmgenet_priv *priv,
 	return rx_skb;
 }
 
+static void bcmgenet_discard_frags(struct bcmgenet_rx_ring *ring)
+{
+	if (!ring->frag_head)
+		return;
+
+	dev_kfree_skb_any(ring->frag_head);
+	ring->frag_head = NULL;
+	ring->frag_tail = NULL;
+}
+
 /* bcmgenet_desc_rx - descriptor based rx process.
  * this could be called from bottom half, or from NAPI polling method.
  */
@@ -2343,6 +2367,7 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 
 		if (unlikely(!skb)) {
 			BCMGENET_STATS64_INC(stats, dropped);
+			bcmgenet_discard_frags(ring);
 			goto next;
 		}
 
@@ -2370,13 +2395,18 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 		if (unlikely(len > priv->rx_buf_len)) {
 			netif_err(priv, rx_status, dev, "oversized packet\n");
 			BCMGENET_STATS64_INC(stats, length_errors);
+			bcmgenet_discard_frags(ring);
 			dev_kfree_skb_any(skb);
 			goto next;
 		}
 
-		if (unlikely(!(dma_flag & DMA_EOP) || !(dma_flag & DMA_SOP))) {
-			netif_err(priv, rx_status, dev,
-				  "dropping fragmented packet!\n");
+		/* A new SOP resynchronizes after an incomplete frame */
+		if (dma_flag & DMA_SOP) {
+			if (ring->frag_head) {
+				BCMGENET_STATS64_INC(stats, fragmented_errors);
+				bcmgenet_discard_frags(ring);
+			}
+		} else if (unlikely(!ring->frag_head)) {
 			BCMGENET_STATS64_INC(stats, fragmented_errors);
 			dev_kfree_skb_any(skb);
 			goto next;
@@ -2406,15 +2436,51 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 						DMA_RX_RXER)) == DMA_RX_RXER)
 				u64_stats_inc(&stats->errors);
 			u64_stats_update_end(&stats->syncp);
+			bcmgenet_discard_frags(ring);
 			dev_kfree_skb_any(skb);
 			goto next;
 		} /* error packet */
 
 		skb_put(skb, len);
 
-		/* remove RSB and hardware 2bytes added for IP alignment */
-		skb_pull(skb, ENET_RX_OFFSET);
-		len -= ENET_RX_OFFSET;
+		/* Every fragment has a status block, only the first one also
+		 * has the alignment bytes.
+		 */
+		if (dma_flag & DMA_SOP) {
+			skb_pull(skb, ENET_RX_OFFSET);
+			len -= ENET_RX_OFFSET;
+		} else {
+			skb_pull(skb, ENET_RSB_LEN);
+			len -= ENET_RSB_LEN;
+		}
+
+		if (!(dma_flag & DMA_SOP)) {
+			/* chain onto the frame already being collected */
+			if (!skb_shinfo(ring->frag_head)->frag_list)
+				skb_shinfo(ring->frag_head)->frag_list = skb;
+			else
+				ring->frag_tail->next = skb;
+			ring->frag_tail = skb;
+
+			ring->frag_head->len += len;
+			ring->frag_head->data_len += len;
+			ring->frag_head->truesize += skb->truesize;
+		}
+
+		if (!(dma_flag & DMA_EOP)) {
+			if (dma_flag & DMA_SOP) {
+				ring->frag_head = skb;
+				ring->frag_tail = skb;
+			}
+			goto next;
+		}
+
+		if (!(dma_flag & DMA_SOP)) {
+			skb = ring->frag_head;
+			len = skb->len;
+			ring->frag_head = NULL;
+			ring->frag_tail = NULL;
+		}
 
 		if (priv->crc_fwd_en) {
 			skb_trim(skb, len - ETH_FCS_LEN);
@@ -2622,11 +2688,13 @@ static void bcmgenet_set_mtu_regs(struct bcmgenet_priv *priv, unsigned int mtu)
 
 	bcmgenet_umac_writel(priv, ENET_MAX_FRAME_LEN(mtu), UMAC_MAX_FRAME_LEN);
 
+	thld = bcmgenet_pkt_rdy_thld(mtu);
+	priv->tx_csum_max_len = thld * ENET_THLD_UNIT;
+
 	/* GENET v1 maps other registers at these offsets */
 	if (GENET_IS_V1(priv))
 		return;
 
-	thld = bcmgenet_pkt_rdy_thld(mtu);
 	bcmgenet_rbuf_writel(priv, thld, RBUF_PKT_RDY_THLD);
 	bcmgenet_writel(thld, priv->base + priv->hw_params->tbuf_offset +
 			TBUF_PKT_RDY_THLD);
@@ -3068,6 +3136,9 @@ static void bcmgenet_fini_dma(struct bcmgenet_priv *priv)
 		txq = netdev_get_tx_queue(priv->dev, i);
 		netdev_tx_reset_queue(txq);
 	}
+
+	for (i = 0; i <= priv->hw_params->rx_queues; i++)
+		bcmgenet_discard_frags(&priv->rx_rings[i]);
 
 	bcmgenet_free_rx_buffers(priv);
 	kfree(priv->rx_cbs);
@@ -4147,7 +4218,7 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	/* v1 cannot program the thresholds, so it stays at the default MTU */
 	priv->rx_buf_len = bcmgenet_rx_buf_len(dev->mtu);
 	if (!GENET_IS_V1(priv))
-		dev->max_mtu = ENET_MAX_MTU;
+		dev->max_mtu = ENET_MAX_JUMBO_MTU;
 	INIT_WORK(&priv->bcmgenet_irq_work, bcmgenet_irq_task);
 
 	priv->clk_wol = devm_clk_get_optional(&priv->pdev->dev, "enet-wol");
