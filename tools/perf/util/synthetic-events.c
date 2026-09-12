@@ -2817,7 +2817,6 @@ int perf_event__synthesize_schedstat(const struct perf_tool *tool,
 				     struct perf_cpu_map *user_requested_cpus)
 {
 	char *line = NULL, path[PATH_MAX];
-	union perf_event *event = NULL;
 	size_t line_len = 0;
 	char bf[BUFSIZ];
 	__u64 timestamp;
@@ -2858,6 +2857,7 @@ int perf_event__synthesize_schedstat(const struct perf_tool *tool,
 	 * for filtered out cpus.
 	 */
 	for (ch = io__get_char(&io); !io.eof; ch = io__get_char(&io)) {
+		union perf_event *event = NULL;
 		struct perf_cpu this_cpu;
 
 		if (ch == 'c') {
@@ -2872,12 +2872,12 @@ int perf_event__synthesize_schedstat(const struct perf_tool *tool,
 
 		this_cpu.cpu = cpu;
 
-		if (user_requested_cpus && !perf_cpu_map__has(user_requested_cpus, this_cpu))
-			continue;
-
-		if (process(tool, event, NULL, NULL) < 0) {
-			free(event);
-			goto out_free_line;
+		if (!user_requested_cpus ||
+		    perf_cpu_map__has(user_requested_cpus, this_cpu)) {
+			if (process(tool, event, NULL, NULL) < 0) {
+				free(event);
+				goto out_free_line;
+			}
 		}
 
 		free(event);
