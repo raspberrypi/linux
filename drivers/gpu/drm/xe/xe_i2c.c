@@ -6,6 +6,7 @@
  */
 
 #include <linux/array_size.h>
+#include <linux/bitfield.h>
 #include <linux/container_of.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -22,6 +23,8 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
+
+#include <linux/designware_i2c.h>
 
 #include "regs/xe_i2c_regs.h"
 #include "regs/xe_irq_regs.h"
@@ -230,8 +233,15 @@ static int xe_i2c_write(void *context, unsigned int reg, unsigned int val)
 {
 	struct xe_i2c *i2c = context;
 
-	xe_mmio_write32(i2c->mmio, XE_REG(reg + I2C_MEM_SPACE_OFFSET), val);
+	switch (reg) {
+	case DW_IC_SMBUS_INTR_MASK:
+		/* Preserve the interrupt mask requested by the adapter driver. */
+		break;
+	default:
+		break;
+	}
 
+	xe_mmio_write32(i2c->mmio, I2C_REG(reg), val);
 	return 0;
 }
 
