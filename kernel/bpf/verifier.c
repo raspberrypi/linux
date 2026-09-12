@@ -13600,13 +13600,14 @@ s64 bpf_kfunc_stack_access_bytes(struct bpf_verifier_env *env, struct bpf_insn *
 		goto out;
 	}
 
-	/* ptr + __sz/__szk pair: size is in the next register */
+	/* ptr + __sz/__szk pair: the size follows the pointer */
 	if (arg + 1 < nargs &&
 	    (btf_param_match_suffix(btf, &args[arg + 1], "__sz") ||
 	     btf_param_match_suffix(btf, &args[arg + 1], "__szk"))) {
 		int size_reg = BPF_REG_1 + arg + 1;
 
-		if (aux->const_reg_mask & BIT(size_reg)) {
+		if (size_reg <= MAX_BPF_FUNC_REG_ARGS &&
+		    (aux->const_reg_mask & BIT(size_reg))) {
 			size = (s64)aux->const_reg_vals[size_reg];
 			goto out;
 		}
