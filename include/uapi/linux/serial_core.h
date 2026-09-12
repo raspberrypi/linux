@@ -237,6 +237,9 @@
 /* RP1 PIO UART */
 #define PORT_RP1_PIO	125
 
+/* WK2xxx SPI to UART bridge */
+#define PORT_WK2XXX	126
+
 /* Generic type identifier for ports which type is not important to userspace. */
 #define PORT_GENERIC	(-1)
 
