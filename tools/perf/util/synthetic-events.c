@@ -2776,6 +2776,8 @@ static union perf_event *__synthesize_schedstat_domain(struct io *io, __u16 vers
 	size = sizeof(*ds);
 	size = PERF_ALIGN(size, sizeof(u64));
 	event = zalloc(size);
+	if (!event)
+		return NULL;
 
 	ds = &event->schedstat_domain;
 	ds->header.type = PERF_RECORD_SCHEDSTAT_DOMAIN;
