@@ -901,6 +901,9 @@ i2c_dw_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	ret = i2c_dw_wait_transfer(dev);
 	if (ret) {
 		dev_err(dev->dev, "controller timed out\n");
+		dev_err(dev->dev, "%s: message err %d msgs_num %u, addr %02x, flags %04x, len %u, first byte %02x\n",
+			__func__, ret, num, msgs[0].addr, msgs[0].flags, msgs[0].len,
+			(!msgs[0].flags & I2C_M_RD) && msgs[0].len >= 1 ? msgs[0].buf[0] : 0);
 		/* i2c_dw_init_master() implicitly disables the adapter */
 		i2c_recover_bus(&dev->adapter);
 		i2c_dw_init_master(dev);
@@ -941,6 +944,9 @@ i2c_dw_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	/* We have an error */
 	if (dev->cmd_err == DW_IC_ERR_TX_ABRT) {
 		ret = i2c_dw_handle_tx_abort(dev);
+		dev_err(dev->dev, "%s: Aborted message err %d msgs_num %u, addr %02x, flags %04x, len %u, first byte %02x\n",
+			__func__, ret, num, msgs[0].addr, msgs[0].flags, msgs[0].len,
+			(!msgs[0].flags & I2C_M_RD) && msgs[0].len >= 1 ? msgs[0].buf[0] : 0);
 		goto done;
 	}
 
