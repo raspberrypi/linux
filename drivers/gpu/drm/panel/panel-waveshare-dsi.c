@@ -24,6 +24,10 @@
 
 #define WS_DSI_DRIVER_NAME "ws-ts-dsi"
 
+#define WS_I2C_RETRIES		3	/* Number of retry attempts for I2C operations */
+#define WS_I2C_RETRY_DELAY_MS	50	/* Delay between retries in milliseconds */
+#define WS_INIT_DELAY_MS	100	/* Initial stabilization delay for panel controller */
+
 struct ws_panel {
 	struct drm_panel base;
 	struct mipi_dsi_device *dsi;
@@ -329,13 +333,19 @@ static struct ws_panel *panel_to_ts(struct drm_panel *panel)
 	return container_of(panel, struct ws_panel, base);
 }
 
-static void ws_panel_i2c_write(struct ws_panel *ts, u8 reg, u8 val)
+static int ws_panel_i2c_write(struct ws_panel *ts, u8 reg, u8 val)
 {
-	int ret;
+	int ret, retries = WS_I2C_RETRIES;
 
-	ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
-	if (ret)
-		dev_err(&ts->i2c->dev, "I2C write failed: %d\n", ret);
+	while (retries--) {
+		ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
+		if (!ret)
+			return 0;
+		msleep(WS_I2C_RETRY_DELAY_MS);
+	}
+	dev_err(&ts->i2c->dev, "I2C write failed after %d retries: %d\n",
+		WS_I2C_RETRIES, ret);
+	return ret;
 }
 
 static int ws_panel_disable(struct drm_panel *panel)
@@ -478,6 +488,9 @@ static int ws_panel_probe(struct i2c_client *i2c)
 	i2c_set_clientdata(i2c, ts);
 
 	ts->i2c = i2c;
+
+	/* Allow panel controller to stabilize after power-up */
+	msleep(WS_INIT_DELAY_MS);
 
 	ws_panel_i2c_write(ts, 0xc0, 0x01);
 	ws_panel_i2c_write(ts, 0xc2, 0x01);
