@@ -52,6 +52,12 @@
 #define ENET_THLD_DEFAULT	0x80
 #define ENET_THLD_MAX		0xf0
 #define ENET_THLD_MAX_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
+
+/* Largest MTU that fits one descriptor, with room for a VLAN tag so a VLAN
+ * interface can use the parent MTU.
+ */
+#define ENET_MAX_MTU		(ENET_THLD_MAX_LEN - ENET_RBUF_ALIGN - \
+				 ETH_HLEN - VLAN_HLEN)
 #define DMA_MAX_BURST_LENGTH    0x10
 
 /* misc. configuration */
@@ -642,6 +648,7 @@ struct bcmgenet_priv {
 	unsigned autoneg_pause:1;
 	unsigned tx_pause:1;
 	unsigned rx_pause:1;
+	unsigned datapath_up:1;
 
 	/* MDIO bus variables */
 	wait_queue_head_t wq;
