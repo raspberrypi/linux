@@ -60,6 +60,9 @@
 #define ENET_THLD_DEFAULT	0x80
 #define ENET_THLD_MAX		0xf0
 
+/* The transmitter has to hold a frame completely to insert its checksum */
+#define ENET_TX_CSUM_MAX_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
+
 /* Page pool RX buffer layout:
  * RSB(64) + pad(2) | frame data | skb_shared_info
  * The HW writes the 64B RSB + 2B alignment padding before the frame.
@@ -67,11 +70,25 @@
 #define GENET_RBUF_ALIGN	2
 #define GENET_RSB_PAD		(sizeof(struct status_64) + GENET_RBUF_ALIGN)
 
+/* A descriptor is one page, which also holds skb_shared_info behind the frame,
+ * so on 4K pages the page bounds the threshold before the register does.
+ */
+#define ENET_SHINFO_LEN		SKB_DATA_ALIGN(sizeof(struct skb_shared_info))
+#define ENET_THLD_PAGE_LEN	round_down(PAGE_SIZE - ENET_SHINFO_LEN - \
+					   sizeof(struct status_64), \
+					   ENET_THLD_BURST)
+#define ENET_THLD_MAX_LEN	min_t(unsigned int, \
+				      ENET_THLD_MAX * ENET_THLD_UNIT, \
+				      ENET_THLD_PAGE_LEN)
+
 /* Largest MTU that fits one descriptor, with room for a VLAN tag so a VLAN
  * interface can use the parent MTU.
  */
-#define ENET_MAX_MTU		(ENET_THLD_MAX * ENET_THLD_UNIT - \
-				 GENET_RBUF_ALIGN - ETH_HLEN - VLAN_HLEN)
+#define ENET_MAX_MTU		(ENET_THLD_MAX_LEN - GENET_RBUF_ALIGN - \
+				 ETH_HLEN - VLAN_HLEN)
+
+/* UMAC_MAX_FRAME_LEN is 14 bits wide and counts the FCS */
+#define ENET_MAX_JUMBO_MTU	(GENMASK(13, 0) - ENET_FRAME_OVERHEAD)
 
 /* Tx/Rx DMA register offset, skip 256 descriptors */
 #define WORDS_PER_BD(p)		(p->hw_params->words_per_bd)
@@ -2163,6 +2180,20 @@ static netdev_tx_t bcmgenet_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto out;
 	}
 
+	/* The MAC holds a frame to insert its checksum, but only as much as
+	 * its FIFO takes. Longer frames are dropped silently.
+	 */
+	if (unlikely(skb->len > ENET_TX_CSUM_MAX_LEN) &&
+	    skb->ip_summed == CHECKSUM_PARTIAL) {
+		if (skb_checksum_help(skb)) {
+			BCMGENET_STATS64_INC((&ring->stats64), dropped);
+			dev_kfree_skb_any(skb);
+			ret = NETDEV_TX_OK;
+			goto out;
+		}
+		nr_frags = skb_shinfo(skb)->nr_frags;
+	}
+
 	/* Retain how many bytes will be sent on the wire, without TSB inserted
 	 * by transmit checksum offload
 	 */
@@ -2288,6 +2319,41 @@ static int bcmgenet_rx_refill(struct bcmgenet_rx_ring *ring,
 	return 0;
 }
 
+static void bcmgenet_discard_frags(struct bcmgenet_rx_ring *ring)
+{
+	if (!ring->frag_head)
+		return;
+
+	dev_kfree_skb_any(ring->frag_head);
+	ring->frag_head = NULL;
+}
+
+/* A frame longer than the threshold arrives in several descriptors, each with
+ * its own status block. Only the first one carries a header, so hand the page
+ * of every later one to the frame already being collected.
+ */
+static struct sk_buff *bcmgenet_add_frag(struct bcmgenet_rx_ring *ring,
+					 struct page *page,
+					 unsigned int dma_flag,
+					 unsigned int len)
+{
+	struct sk_buff *head = ring->frag_head;
+
+	if (unlikely(skb_shinfo(head)->nr_frags >= MAX_SKB_FRAGS))
+		return NULL;
+
+	skb_add_rx_frag(head, skb_shinfo(head)->nr_frags, page,
+			sizeof(struct status_64),
+			len - sizeof(struct status_64), PAGE_SIZE);
+
+	if (!(dma_flag & DMA_EOP))
+		return NULL;
+
+	ring->frag_head = NULL;
+
+	return head;
+}
+
 /* bcmgenet_desc_rx - descriptor based rx process.
  * this could be called from bottom half, or from NAPI polling method.
  */
@@ -2348,6 +2414,7 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 
 		if (bcmgenet_rx_refill(ring, cb)) {
 			BCMGENET_STATS64_INC(stats, dropped);
+			bcmgenet_discard_frags(ring);
 			goto next;
 		}
 
@@ -2377,14 +2444,19 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 			netif_err(priv, rx_status, dev,
 				  "invalid packet length %d\n", len);
 			BCMGENET_STATS64_INC(stats, length_errors);
+			bcmgenet_discard_frags(ring);
 			page_pool_put_full_page(ring->page_pool, rx_page,
 						true);
 			goto next;
 		}
 
-		if (unlikely(!(dma_flag & DMA_EOP) || !(dma_flag & DMA_SOP))) {
-			netif_err(priv, rx_status, dev,
-				  "dropping fragmented packet!\n");
+		/* A new SOP resynchronizes after an incomplete frame */
+		if (dma_flag & DMA_SOP) {
+			if (ring->frag_head) {
+				BCMGENET_STATS64_INC(stats, fragmented_errors);
+				bcmgenet_discard_frags(ring);
+			}
+		} else if (unlikely(!ring->frag_head)) {
 			BCMGENET_STATS64_INC(stats, fragmented_errors);
 			page_pool_put_full_page(ring->page_pool, rx_page,
 						true);
@@ -2415,10 +2487,18 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 						DMA_RX_RXER)) == DMA_RX_RXER)
 				u64_stats_inc(&stats->errors);
 			u64_stats_update_end(&stats->syncp);
+			bcmgenet_discard_frags(ring);
 			page_pool_put_full_page(ring->page_pool, rx_page,
 						true);
 			goto next;
 		} /* error packet */
+
+		if (!(dma_flag & DMA_SOP)) {
+			skb = bcmgenet_add_frag(ring, rx_page, dma_flag, len);
+			if (!skb)
+				goto next;
+			goto deliver;
+		}
 
 		/* Build SKB from the page - data starts at hard_start,
 		 * frame begins after RSB(64) + pad(2) = 66 bytes.
@@ -2436,6 +2516,13 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 		/* Reserve the RSB + pad, then set the data length */
 		skb_reserve(skb, GENET_RSB_PAD);
 		__skb_put(skb, len - GENET_RSB_PAD);
+
+		if (unlikely(!(dma_flag & DMA_EOP))) {
+			ring->frag_head = skb;
+			goto next;
+		}
+
+deliver:
 
 		if (priv->crc_fwd_en) {
 			skb_trim(skb, skb->len - ETH_FCS_LEN);
@@ -2634,7 +2721,8 @@ static unsigned int bcmgenet_pkt_rdy_thld(unsigned int mtu)
 	len = round_up(len, ENET_THLD_BURST) / ENET_THLD_UNIT;
 
 	/* Keep the reset default for the common MTUs */
-	return clamp_t(unsigned int, len, ENET_THLD_DEFAULT, ENET_THLD_MAX);
+	return clamp_t(unsigned int, len, ENET_THLD_DEFAULT,
+		       ENET_THLD_MAX_LEN / ENET_THLD_UNIT);
 }
 
 /* A buffer has to hold everything the threshold lets the hardware deliver */
@@ -4228,7 +4316,7 @@ static int bcmgenet_probe(struct platform_device *pdev)
 	/* v1 cannot program the thresholds, so it stays at the default MTU */
 	priv->rx_buf_len = bcmgenet_rx_buf_len(dev->mtu);
 	if (!GENET_IS_V1(priv))
-		dev->max_mtu = ENET_MAX_MTU;
+		dev->max_mtu = ENET_MAX_JUMBO_MTU;
 	INIT_WORK(&priv->bcmgenet_irq_work, bcmgenet_irq_task);
 
 	priv->clk_wol = devm_clk_get_optional(&priv->pdev->dev, "enet-wol");
