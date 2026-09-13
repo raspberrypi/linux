@@ -3625,6 +3625,7 @@ Params:
 
         width                   Panel width in pixels (required)
         height                  Panel height in pixels (required)
+        rgb666                  Drive the display as RGB666 instead of RGB565.
         width-mm                Panel width in mm
         height-mm               Panel height in mm
         x-offset                Panel x-offset in controller RAM
