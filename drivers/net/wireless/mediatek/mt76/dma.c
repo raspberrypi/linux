@@ -459,8 +459,13 @@ mt76_dma_get_buf(struct mt76_dev *dev, struct mt76_queue *q, int idx,
 		t->ptr = NULL;
 
 		mt76_put_rxwi(dev, t);
-		if (drop)
+#ifdef CONFIG_NET_MEDIATEK_SOC_WED
+		/* the WO MCU owns the RX path only on WED v2, on newer
+		 * versions this buf1 bit carries no drop information
+		 */
+		if (drop && dev->mmio.wed.version == 2)
 			*drop |= !!(buf1 & MT_DMA_CTL_WO_DROP);
+#endif
 	} else {
 		dma_sync_single_for_cpu(dev->dma_dev, e->dma_addr[0],
 				SKB_WITH_OVERHEAD(q->buf_size),
@@ -490,6 +495,15 @@ mt76_dma_dequeue(struct mt76_dev *dev, struct mt76_queue *q, bool flush,
 			q->desc[idx].ctrl |= cpu_to_le32(MT_DMA_CTL_DMA_DONE);
 		else if (!(q->desc[idx].ctrl & cpu_to_le32(MT_DMA_CTL_DMA_DONE)))
 			return NULL;
+#ifdef CONFIG_NET_MEDIATEK_SOC_WED
+		/* on WED v3 the M_DONE bit signals that WED is done reading
+		 * the txfree descriptor; WED v2 does not set it
+		 */
+		else if (dev->mmio.wed.version > 2 &&
+			 mt76_queue_is_wed_tx_free(q) &&
+			 !(q->desc[idx].ctrl & cpu_to_le32(MT_DMA_CTL_M_DONE)))
+			return NULL;
+#endif
 	}
 
 	q->tail = (q->tail + 1) % q->ndesc;

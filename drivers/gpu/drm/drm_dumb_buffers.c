@@ -29,7 +29,6 @@
 #include <drm/drm_mode.h>
 
 #include "drm_crtc_internal.h"
-#include "drm_internal.h"
 
 /**
  * DOC: overview

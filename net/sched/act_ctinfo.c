@@ -88,13 +88,11 @@ TC_INDIRECT_SCOPE int tcf_ctinfo_act(struct sk_buff *skb,
 	struct tcf_ctinfo_params *cp;
 	struct nf_conn *ct;
 	int proto, wlen;
-	int action;
 
 	cp = rcu_dereference_bh(ca->params);
 
 	tcf_lastuse_update(&ca->tcf_tm);
 	tcf_action_update_bstats(&ca->common, skb);
-	action = READ_ONCE(ca->tcf_action);
 
 	wlen = skb_network_offset(skb);
 	switch (skb_protocol(skb, true)) {
@@ -141,7 +139,7 @@ TC_INDIRECT_SCOPE int tcf_ctinfo_act(struct sk_buff *skb,
 	if (thash)
 		nf_ct_put(ct);
 out:
-	return action;
+	return cp->action;
 }
 
 static const struct nla_policy ctinfo_policy[TCA_CTINFO_MAX + 1] = {
@@ -258,6 +256,8 @@ static int tcf_ctinfo_init(struct net *net, struct nlattr *nla,
 		cp_new->mode |= CTINFO_MODE_CPMARK;
 	}
 
+	cp_new->action = actparm->action;
+
 	spin_lock_bh(&ci->tcf_lock);
 	goto_ch = tcf_action_set_ctrlact(*a, actparm->action, goto_ch);
 	cp_new = rcu_replace_pointer(ci->params, cp_new,
@@ -282,25 +282,24 @@ release_idr:
 static int tcf_ctinfo_dump(struct sk_buff *skb, struct tc_action *a,
 			   int bind, int ref)
 {
-	struct tcf_ctinfo *ci = to_ctinfo(a);
+	const struct tcf_ctinfo *ci = to_ctinfo(a);
+	unsigned char *b = skb_tail_pointer(skb);
+	const struct tcf_ctinfo_params *cp;
 	struct tc_ctinfo opt = {
 		.index   = ci->tcf_index,
 		.refcnt  = refcount_read(&ci->tcf_refcnt) - ref,
 		.bindcnt = atomic_read(&ci->tcf_bindcnt) - bind,
 	};
-	unsigned char *b = skb_tail_pointer(skb);
-	struct tcf_ctinfo_params *cp;
 	struct tcf_t t;
 
-	spin_lock_bh(&ci->tcf_lock);
-	cp = rcu_dereference_protected(ci->params,
-				       lockdep_is_held(&ci->tcf_lock));
+	rcu_read_lock();
+	cp = rcu_dereference(ci->params);
 
 	tcf_tm_dump(&t, &ci->tcf_tm);
 	if (nla_put_64bit(skb, TCA_CTINFO_TM, sizeof(t), &t, TCA_CTINFO_PAD))
 		goto nla_put_failure;
 
-	opt.action = ci->tcf_action;
+	opt.action = cp->action;
 	if (nla_put(skb, TCA_CTINFO_ACT, sizeof(opt), &opt))
 		goto nla_put_failure;
 
@@ -337,11 +336,11 @@ static int tcf_ctinfo_dump(struct sk_buff *skb, struct tc_action *a,
 			      TCA_CTINFO_PAD))
 		goto nla_put_failure;
 
-	spin_unlock_bh(&ci->tcf_lock);
+	rcu_read_unlock();
 	return skb->len;
 
 nla_put_failure:
-	spin_unlock_bh(&ci->tcf_lock);
+	rcu_read_unlock();
 	nlmsg_trim(skb, b);
 	return -1;
 }
@@ -356,6 +355,16 @@ static void tcf_ctinfo_cleanup(struct tc_action *a)
 		kfree_rcu(cp, rcu);
 }
 
+static size_t tcf_ctinfo_get_fill_size(const struct tc_action *act)
+{
+	return nla_total_size(sizeof(struct tc_ctinfo)) /* TCA_CTINFO_ACT */
+		+ nla_total_size(sizeof(u16)) /* TCA_CTINFO_ZONE */
+		/* TCA_CTINFO_PARMS_{DSCP_MASK,DSCP_STATEMASK,CPMARK_MASK} */
+		+ 3 * nla_total_size(sizeof(u32))
+		/* TCA_CTINFO_STATS_{DSCP_SET,DSCP_ERROR,CPMARK_SET} */
+		+ 3 * nla_total_size_64bit(sizeof(u64));
+}
+
 static struct tc_action_ops act_ctinfo_ops = {
 	.kind	= "ctinfo",
 	.id	= TCA_ID_CTINFO,
@@ -364,6 +373,7 @@ static struct tc_action_ops act_ctinfo_ops = {
 	.dump	= tcf_ctinfo_dump,
 	.init	= tcf_ctinfo_init,
 	.cleanup= tcf_ctinfo_cleanup,
+	.get_fill_size = tcf_ctinfo_get_fill_size,
 	.size	= sizeof(struct tcf_ctinfo),
 };
 MODULE_ALIAS_NET_ACT("ctinfo");

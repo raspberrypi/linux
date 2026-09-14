@@ -1976,12 +1976,12 @@ static void bitmap_dirty_bits(struct mddev *mddev, unsigned long s,
 
 		md_bitmap_set_memory_bits(bitmap, sec, 1);
 		md_bitmap_file_set_bit(bitmap, sec);
-		if (sec < bitmap->mddev->recovery_cp)
+		if (sec < bitmap->mddev->resync_offset)
 			/* We are asserting that the array is dirty,
-			 * so move the recovery_cp address back so
+			 * so move the resync_offset address back so
 			 * that it is obvious that it is dirty
 			 */
-			bitmap->mddev->recovery_cp = sec;
+			bitmap->mddev->resync_offset = sec;
 	}
 }
 
@@ -2097,7 +2097,7 @@ static void bitmap_destroy(struct mddev *mddev)
 		return;
 
 	bitmap_wait_behind_writes(mddev);
-	if (!mddev->serialize_policy)
+	if (!test_bit(MD_SERIALIZE_POLICY, &mddev->flags))
 		mddev_destroy_serial_pool(mddev, NULL);
 
 	mutex_lock(&mddev->bitmap_info.mutex);
@@ -2247,7 +2247,7 @@ static int bitmap_load(struct mddev *mddev)
 	    || bitmap->events_cleared == mddev->events)
 		/* no need to keep dirty bits to optimise a
 		 * re-add of a missing device */
-		start = mddev->recovery_cp;
+		start = mddev->resync_offset;
 
 	mutex_lock(&mddev->bitmap_info.mutex);
 	err = md_bitmap_init_from_disk(bitmap, start);
@@ -2612,10 +2612,12 @@ static ssize_t
 location_store(struct mddev *mddev, const char *buf, size_t len)
 {
 	int rv;
+	unsigned int noio_flags;
 
 	rv = mddev_suspend_and_lock(mddev);
 	if (rv)
 		return rv;
+	noio_flags = memalloc_noio_save();
 
 	if (mddev->pers) {
 		if (mddev->recovery || mddev->sync_thread) {
@@ -2689,6 +2691,7 @@ location_store(struct mddev *mddev, const char *buf, size_t len)
 	}
 	rv = 0;
 out:
+	memalloc_noio_restore(noio_flags);
 	mddev_unlock_and_resume(mddev);
 	if (rv)
 		return rv;
@@ -2816,14 +2819,14 @@ backlog_store(struct mddev *mddev, const char *buf, size_t len)
 	if (!has_write_mostly) {
 		pr_warn_ratelimited("%s: can't set backlog, no write mostly device available\n",
 				    mdname(mddev));
-		mddev_unlock(mddev);
+		mddev_unlock_and_resume(mddev);
 		return -EINVAL;
 	}
 
 	mddev->bitmap_info.max_write_behind = backlog;
 	if (!backlog && mddev->serial_info_pool) {
 		/* serial_info_pool is not needed if backlog is zero */
-		if (!mddev->serialize_policy)
+		if (!test_bit(MD_SERIALIZE_POLICY, &mddev->flags))
 			mddev_destroy_serial_pool(mddev, NULL);
 	} else if (backlog && !mddev->serial_info_pool) {
 		/* serial_info_pool is needed since backlog is not zero */

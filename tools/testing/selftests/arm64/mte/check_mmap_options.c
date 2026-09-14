@@ -188,6 +188,8 @@ int main(int argc, char *argv[])
 	int err;
 	int item = ARRAY_SIZE(sizes);
 
+	ksft_print_header();
+
 	err = mte_default_setup();
 	if (err)
 		return err;

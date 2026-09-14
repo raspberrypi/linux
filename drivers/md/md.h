@@ -312,6 +312,9 @@ struct md_cluster_info;
  *		   array is ready yet.
  * @MD_BROKEN: This is used to stop writes and mark array as failed.
  * @MD_DELETED: This device is being deleted
+ * @MD_HAS_SUPERBLOCK: There is persistence sb in member disks.
+ * @MD_FAILLAST_DEV: Allow last rdev to be removed.
+ * @MD_SERIALIZE_POLICY: Enforce write IO is not reordered, just used by raid1.
  *
  * change UNSUPPORTED_MDDEV_FLAGS for each array type if new flag is added
  */
@@ -327,6 +330,9 @@ enum mddev_flags {
 	MD_NOT_READY,
 	MD_BROKEN,
 	MD_DELETED,
+	MD_HAS_SUPERBLOCK,
+	MD_FAILLAST_DEV,
+	MD_SERIALIZE_POLICY,
 };
 
 enum mddev_sb_flags {
@@ -493,7 +499,7 @@ struct mddev {
 
 	atomic_t			recovery_active; /* blocks scheduled, but not written */
 	wait_queue_head_t		recovery_wait;
-	sector_t			recovery_cp;
+	sector_t			resync_offset;
 	sector_t			resync_min;	/* user requested sync
 							 * starts here */
 	sector_t			resync_max;	/* resync should pause
@@ -577,7 +583,6 @@ struct mddev {
 	void (*sync_super)(struct mddev *mddev, struct md_rdev *rdev);
 	struct md_cluster_info		*cluster_info;
 	unsigned int			good_device_nr;	/* good device num within cluster raid */
-	unsigned int			noio_flag; /* for memalloc scope API */
 
 	/*
 	 * Temporarily store rdev that will be finally removed when
@@ -587,10 +592,6 @@ struct mddev {
 
 	/* The sequence number for sync thread */
 	atomic_t sync_seq;
-
-	bool	has_superblocks:1;
-	bool	fail_last_dev:1;
-	bool	serialize_policy:1;
 };
 
 enum recovery_flags {
@@ -634,6 +635,8 @@ enum recovery_flags {
 	MD_RECOVERY_RESHAPE,
 	/* remote node is running resync thread */
 	MD_RESYNCING_REMOTE,
+	/* raid456 lazy initial recover */
+	MD_RECOVERY_LAZY_RECOVER,
 };
 
 enum md_ro_state {

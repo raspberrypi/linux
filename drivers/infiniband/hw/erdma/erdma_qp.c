@@ -11,20 +11,20 @@
 
 void erdma_qp_llp_close(struct erdma_qp *qp)
 {
-	struct erdma_qp_attrs qp_attrs;
+	struct erdma_mod_qp_params_iwarp params;
 
 	down_write(&qp->state_lock);
 
-	switch (qp->attrs.state) {
-	case ERDMA_QP_STATE_RTS:
-	case ERDMA_QP_STATE_RTR:
-	case ERDMA_QP_STATE_IDLE:
-	case ERDMA_QP_STATE_TERMINATE:
-		qp_attrs.state = ERDMA_QP_STATE_CLOSING;
-		erdma_modify_qp_internal(qp, &qp_attrs, ERDMA_QP_ATTR_STATE);
+	switch (qp->attrs.iwarp.state) {
+	case ERDMA_QPS_IWARP_RTS:
+	case ERDMA_QPS_IWARP_RTR:
+	case ERDMA_QPS_IWARP_IDLE:
+	case ERDMA_QPS_IWARP_TERMINATE:
+		params.state = ERDMA_QPS_IWARP_CLOSING;
+		erdma_modify_qp_state_iwarp(qp, &params, ERDMA_QPA_IWARP_STATE);
 		break;
-	case ERDMA_QP_STATE_CLOSING:
-		qp->attrs.state = ERDMA_QP_STATE_IDLE;
+	case ERDMA_QPS_IWARP_CLOSING:
+		qp->attrs.iwarp.state = ERDMA_QPS_IWARP_IDLE;
 		break;
 	default:
 		break;
@@ -48,9 +48,10 @@ struct ib_qp *erdma_get_ibqp(struct ib_device *ibdev, int id)
 	return NULL;
 }
 
-static int erdma_modify_qp_state_to_rts(struct erdma_qp *qp,
-					struct erdma_qp_attrs *attrs,
-					enum erdma_qp_attr_mask mask)
+static int
+erdma_modify_qp_state_to_rts(struct erdma_qp *qp,
+			     struct erdma_mod_qp_params_iwarp *params,
+			     enum erdma_qpa_mask_iwarp mask)
 {
 	int ret;
 	struct erdma_dev *dev = qp->dev;
@@ -59,11 +60,14 @@ static int erdma_modify_qp_state_to_rts(struct erdma_qp *qp,
 	struct erdma_cep *cep = qp->cep;
 	struct sockaddr_storage local_addr, remote_addr;
 
-	if (!(mask & ERDMA_QP_ATTR_LLP_HANDLE))
+	if (!(mask & ERDMA_QPA_IWARP_LLP_HANDLE))
 		return -EINVAL;
 
-	if (!(mask & ERDMA_QP_ATTR_MPA))
+	if (!(mask & ERDMA_QPA_IWARP_MPA))
 		return -EINVAL;
+
+	if (!(mask & ERDMA_QPA_IWARP_CC))
+		params->cc = qp->attrs.cc;
 
 	ret = getname_local(cep->sock, &local_addr);
 	if (ret < 0)
@@ -73,18 +77,16 @@ static int erdma_modify_qp_state_to_rts(struct erdma_qp *qp,
 	if (ret < 0)
 		return ret;
 
-	qp->attrs.state = ERDMA_QP_STATE_RTS;
-
 	tp = tcp_sk(qp->cep->sock->sk);
 
 	erdma_cmdq_build_reqhdr(&req.hdr, CMDQ_SUBMOD_RDMA,
 				CMDQ_OPCODE_MODIFY_QP);
 
-	req.cfg = FIELD_PREP(ERDMA_CMD_MODIFY_QP_STATE_MASK, qp->attrs.state) |
-		  FIELD_PREP(ERDMA_CMD_MODIFY_QP_CC_MASK, qp->attrs.cc) |
+	req.cfg = FIELD_PREP(ERDMA_CMD_MODIFY_QP_STATE_MASK, params->state) |
+		  FIELD_PREP(ERDMA_CMD_MODIFY_QP_CC_MASK, params->cc) |
 		  FIELD_PREP(ERDMA_CMD_MODIFY_QP_QPN_MASK, QP_ID(qp));
 
-	req.cookie = be32_to_cpu(qp->cep->mpa.ext_data.cookie);
+	req.cookie = be32_to_cpu(cep->mpa.ext_data.cookie);
 	req.dip = to_sockaddr_in(remote_addr).sin_addr.s_addr;
 	req.sip = to_sockaddr_in(local_addr).sin_addr.s_addr;
 	req.dport = to_sockaddr_in(remote_addr).sin_port;
@@ -92,33 +94,57 @@ static int erdma_modify_qp_state_to_rts(struct erdma_qp *qp,
 
 	req.send_nxt = tp->snd_nxt;
 	/* rsvd tcp seq for mpa-rsp in server. */
-	if (qp->attrs.qp_type == ERDMA_QP_PASSIVE)
-		req.send_nxt += MPA_DEFAULT_HDR_LEN + qp->attrs.pd_len;
+	if (params->qp_type == ERDMA_QP_PASSIVE)
+		req.send_nxt += MPA_DEFAULT_HDR_LEN + params->pd_len;
 	req.recv_nxt = tp->rcv_nxt;
 
-	return erdma_post_cmd_wait(&dev->cmdq, &req, sizeof(req), NULL, NULL);
+	ret = erdma_post_cmd_wait(&dev->cmdq, &req, sizeof(req), NULL, NULL,
+				  true);
+	if (ret)
+		return ret;
+
+	if (mask & ERDMA_QPA_IWARP_IRD)
+		qp->attrs.irq_size = params->irq_size;
+
+	if (mask & ERDMA_QPA_IWARP_ORD)
+		qp->attrs.orq_size = params->orq_size;
+
+	if (mask & ERDMA_QPA_IWARP_CC)
+		qp->attrs.cc = params->cc;
+
+	qp->attrs.iwarp.state = ERDMA_QPS_IWARP_RTS;
+
+	return 0;
 }
 
-static int erdma_modify_qp_state_to_stop(struct erdma_qp *qp,
-					 struct erdma_qp_attrs *attrs,
-					 enum erdma_qp_attr_mask mask)
+static int
+erdma_modify_qp_state_to_stop(struct erdma_qp *qp,
+			      struct erdma_mod_qp_params_iwarp *params,
+			      enum erdma_qpa_mask_iwarp mask)
 {
 	struct erdma_dev *dev = qp->dev;
 	struct erdma_cmdq_modify_qp_req req;
-
-	qp->attrs.state = attrs->state;
+	int ret;
 
 	erdma_cmdq_build_reqhdr(&req.hdr, CMDQ_SUBMOD_RDMA,
 				CMDQ_OPCODE_MODIFY_QP);
 
-	req.cfg = FIELD_PREP(ERDMA_CMD_MODIFY_QP_STATE_MASK, attrs->state) |
+	req.cfg = FIELD_PREP(ERDMA_CMD_MODIFY_QP_STATE_MASK, params->state) |
 		  FIELD_PREP(ERDMA_CMD_MODIFY_QP_QPN_MASK, QP_ID(qp));
 
-	return erdma_post_cmd_wait(&dev->cmdq, &req, sizeof(req), NULL, NULL);
+	ret = erdma_post_cmd_wait(&dev->cmdq, &req, sizeof(req), NULL, NULL,
+				  true);
+	if (ret)
+		return ret;
+
+	qp->attrs.iwarp.state = params->state;
+
+	return 0;
 }
 
-int erdma_modify_qp_internal(struct erdma_qp *qp, struct erdma_qp_attrs *attrs,
-			     enum erdma_qp_attr_mask mask)
+int erdma_modify_qp_state_iwarp(struct erdma_qp *qp,
+				struct erdma_mod_qp_params_iwarp *params,
+				int mask)
 {
 	bool need_reflush = false;
 	int drop_conn, ret = 0;
@@ -126,31 +152,31 @@ int erdma_modify_qp_internal(struct erdma_qp *qp, struct erdma_qp_attrs *attrs,
 	if (!mask)
 		return 0;
 
-	if (!(mask & ERDMA_QP_ATTR_STATE))
+	if (!(mask & ERDMA_QPA_IWARP_STATE))
 		return 0;
 
-	switch (qp->attrs.state) {
-	case ERDMA_QP_STATE_IDLE:
-	case ERDMA_QP_STATE_RTR:
-		if (attrs->state == ERDMA_QP_STATE_RTS) {
-			ret = erdma_modify_qp_state_to_rts(qp, attrs, mask);
-		} else if (attrs->state == ERDMA_QP_STATE_ERROR) {
-			qp->attrs.state = ERDMA_QP_STATE_ERROR;
+	switch (qp->attrs.iwarp.state) {
+	case ERDMA_QPS_IWARP_IDLE:
+	case ERDMA_QPS_IWARP_RTR:
+		if (params->state == ERDMA_QPS_IWARP_RTS) {
+			ret = erdma_modify_qp_state_to_rts(qp, params, mask);
+		} else if (params->state == ERDMA_QPS_IWARP_ERROR) {
+			qp->attrs.iwarp.state = ERDMA_QPS_IWARP_ERROR;
 			need_reflush = true;
 			if (qp->cep) {
 				erdma_cep_put(qp->cep);
 				qp->cep = NULL;
 			}
-			ret = erdma_modify_qp_state_to_stop(qp, attrs, mask);
+			ret = erdma_modify_qp_state_to_stop(qp, params, mask);
 		}
 		break;
-	case ERDMA_QP_STATE_RTS:
+	case ERDMA_QPS_IWARP_RTS:
 		drop_conn = 0;
 
-		if (attrs->state == ERDMA_QP_STATE_CLOSING ||
-		    attrs->state == ERDMA_QP_STATE_TERMINATE ||
-		    attrs->state == ERDMA_QP_STATE_ERROR) {
-			ret = erdma_modify_qp_state_to_stop(qp, attrs, mask);
+		if (params->state == ERDMA_QPS_IWARP_CLOSING ||
+		    params->state == ERDMA_QPS_IWARP_TERMINATE ||
+		    params->state == ERDMA_QPS_IWARP_ERROR) {
+			ret = erdma_modify_qp_state_to_stop(qp, params, mask);
 			drop_conn = 1;
 			need_reflush = true;
 		}
@@ -159,17 +185,17 @@ int erdma_modify_qp_internal(struct erdma_qp *qp, struct erdma_qp_attrs *attrs,
 			erdma_qp_cm_drop(qp);
 
 		break;
-	case ERDMA_QP_STATE_TERMINATE:
-		if (attrs->state == ERDMA_QP_STATE_ERROR)
-			qp->attrs.state = ERDMA_QP_STATE_ERROR;
+	case ERDMA_QPS_IWARP_TERMINATE:
+		if (params->state == ERDMA_QPS_IWARP_ERROR)
+			qp->attrs.iwarp.state = ERDMA_QPS_IWARP_ERROR;
 		break;
-	case ERDMA_QP_STATE_CLOSING:
-		if (attrs->state == ERDMA_QP_STATE_IDLE) {
-			qp->attrs.state = ERDMA_QP_STATE_IDLE;
-		} else if (attrs->state == ERDMA_QP_STATE_ERROR) {
-			ret = erdma_modify_qp_state_to_stop(qp, attrs, mask);
-			qp->attrs.state = ERDMA_QP_STATE_ERROR;
-		} else if (attrs->state != ERDMA_QP_STATE_CLOSING) {
+	case ERDMA_QPS_IWARP_CLOSING:
+		if (params->state == ERDMA_QPS_IWARP_IDLE) {
+			qp->attrs.iwarp.state = ERDMA_QPS_IWARP_IDLE;
+		} else if (params->state == ERDMA_QPS_IWARP_ERROR) {
+			ret = erdma_modify_qp_state_to_stop(qp, params, mask);
+			qp->attrs.iwarp.state = ERDMA_QPS_IWARP_ERROR;
+		} else if (params->state != ERDMA_QPS_IWARP_CLOSING) {
 			return -ECONNABORTED;
 		}
 		break;
@@ -184,6 +210,98 @@ int erdma_modify_qp_internal(struct erdma_qp *qp, struct erdma_qp_attrs *attrs,
 	}
 
 	return ret;
+}
+
+static int modify_qp_cmd_rocev2(struct erdma_qp *qp,
+				struct erdma_mod_qp_params_rocev2 *params,
+				enum erdma_qpa_mask_rocev2 attr_mask)
+{
+	struct erdma_cmdq_mod_qp_req_rocev2 req;
+
+	memset(&req, 0, sizeof(req));
+
+	erdma_cmdq_build_reqhdr(&req.hdr, CMDQ_SUBMOD_RDMA,
+				CMDQ_OPCODE_MODIFY_QP);
+
+	req.cfg0 = FIELD_PREP(ERDMA_CMD_MODIFY_QP_QPN_MASK, QP_ID(qp));
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_STATE)
+		req.cfg0 |= FIELD_PREP(ERDMA_CMD_MODIFY_QP_STATE_MASK,
+				       params->state);
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_DST_QPN)
+		req.cfg1 = FIELD_PREP(ERDMA_CMD_MODIFY_QP_DQPN_MASK,
+				      params->dst_qpn);
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_QKEY)
+		req.qkey = params->qkey;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_AV)
+		erdma_set_av_cfg(&req.av_cfg, &params->av);
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_SQ_PSN)
+		req.sq_psn = params->sq_psn;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_RQ_PSN)
+		req.rq_psn = params->rq_psn;
+
+	req.attr_mask = attr_mask;
+
+	return erdma_post_cmd_wait(&qp->dev->cmdq, &req, sizeof(req), NULL,
+				   NULL, true);
+}
+
+static void erdma_reset_qp(struct erdma_qp *qp)
+{
+	qp->kern_qp.sq_pi = 0;
+	qp->kern_qp.sq_ci = 0;
+	qp->kern_qp.rq_pi = 0;
+	qp->kern_qp.rq_ci = 0;
+	memset(qp->kern_qp.swr_tbl, 0, qp->attrs.sq_size * sizeof(u64));
+	memset(qp->kern_qp.rwr_tbl, 0, qp->attrs.rq_size * sizeof(u64));
+	memset(qp->kern_qp.sq_buf, 0, qp->attrs.sq_size << SQEBB_SHIFT);
+	memset(qp->kern_qp.rq_buf, 0, qp->attrs.rq_size << RQE_SHIFT);
+	erdma_remove_cqes_of_qp(&qp->scq->ibcq, QP_ID(qp));
+	if (qp->rcq != qp->scq)
+		erdma_remove_cqes_of_qp(&qp->rcq->ibcq, QP_ID(qp));
+}
+
+int erdma_modify_qp_state_rocev2(struct erdma_qp *qp,
+				 struct erdma_mod_qp_params_rocev2 *params,
+				 int attr_mask)
+{
+	struct erdma_dev *dev = to_edev(qp->ibqp.device);
+	int ret;
+
+	ret = modify_qp_cmd_rocev2(qp, params, attr_mask);
+	if (ret)
+		return ret;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_STATE)
+		qp->attrs.rocev2.state = params->state;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_QKEY)
+		qp->attrs.rocev2.qkey = params->qkey;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_DST_QPN)
+		qp->attrs.rocev2.dst_qpn = params->dst_qpn;
+
+	if (attr_mask & ERDMA_QPA_ROCEV2_AV)
+		memcpy(&qp->attrs.rocev2.av, &params->av,
+		       sizeof(struct erdma_av));
+
+	if (rdma_is_kernel_res(&qp->ibqp.res) &&
+	    params->state == ERDMA_QPS_ROCEV2_RESET)
+		erdma_reset_qp(qp);
+
+	if (rdma_is_kernel_res(&qp->ibqp.res) &&
+	    params->state == ERDMA_QPS_ROCEV2_ERROR) {
+		qp->flags |= ERDMA_QP_IN_FLUSHING;
+		mod_delayed_work(dev->reflush_wq, &qp->reflush_dwork,
+				 usecs_to_jiffies(100));
+	}
+
+	return 0;
 }
 
 static void erdma_qp_safe_free(struct kref *ref)

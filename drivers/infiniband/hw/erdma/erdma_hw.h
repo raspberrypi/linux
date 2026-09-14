@@ -9,6 +9,7 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/if_ether.h>
 
 /* PCIe device related definition. */
 #define ERDMA_PCI_WIDTH 64
@@ -21,8 +22,21 @@
 #define ERDMA_NUM_MSIX_VEC 32U
 #define ERDMA_MSIX_VECTOR_CMDQ 0
 
+/* RoCEv2 related */
+#define ERDMA_ROCEV2_GID_SIZE 16
+#define ERDMA_MAX_PKEYS 1
+#define ERDMA_DEFAULT_PKEY 0xFFFF
+
+/* erdma device protocol type */
+enum erdma_proto_type {
+	ERDMA_PROTO_IWARP = 0,
+	ERDMA_PROTO_ROCEV2 = 1,
+	ERDMA_PROTO_COUNT = 2,
+};
+
 /* PCIe Bar0 Registers. */
 #define ERDMA_REGS_VERSION_REG 0x0
+#define ERDMA_REGS_DEV_PROTO_REG 0xC
 #define ERDMA_REGS_DEV_CTRL_REG 0x10
 #define ERDMA_REGS_DEV_ST_REG 0x14
 #define ERDMA_REGS_NETDEV_MAC_L_REG 0x18
@@ -136,7 +150,11 @@ enum CMDQ_RDMA_OPCODE {
 	CMDQ_OPCODE_DESTROY_CQ = 5,
 	CMDQ_OPCODE_REFLUSH = 6,
 	CMDQ_OPCODE_REG_MR = 8,
-	CMDQ_OPCODE_DEREG_MR = 9
+	CMDQ_OPCODE_DEREG_MR = 9,
+	CMDQ_OPCODE_SET_GID = 14,
+	CMDQ_OPCODE_CREATE_AH = 15,
+	CMDQ_OPCODE_DESTROY_AH = 16,
+	CMDQ_OPCODE_QUERY_QP = 17,
 };
 
 enum CMDQ_COMMON_OPCODE {
@@ -284,6 +302,36 @@ struct erdma_cmdq_dereg_mr_req {
 	u32 cfg;
 };
 
+/* create_av cfg0 */
+#define ERDMA_CMD_CREATE_AV_FL_MASK GENMASK(19, 0)
+#define ERDMA_CMD_CREATE_AV_NTYPE_MASK BIT(20)
+
+struct erdma_av_cfg {
+	u32 cfg0;
+	u8 traffic_class;
+	u8 hop_limit;
+	u8 sl;
+	u8 rsvd;
+	u16 udp_sport;
+	u16 sgid_index;
+	u8 dmac[ETH_ALEN];
+	u8 padding[2];
+	u8 dgid[ERDMA_ROCEV2_GID_SIZE];
+};
+
+struct erdma_cmdq_create_ah_req {
+	u64 hdr;
+	u32 pdn;
+	u32 ahn;
+	struct erdma_av_cfg av_cfg;
+};
+
+struct erdma_cmdq_destroy_ah_req {
+	u64 hdr;
+	u32 pdn;
+	u32 ahn;
+};
+
 /* modify qp cfg */
 #define ERDMA_CMD_MODIFY_QP_STATE_MASK GENMASK(31, 24)
 #define ERDMA_CMD_MODIFY_QP_CC_MASK GENMASK(23, 20)
@@ -299,6 +347,31 @@ struct erdma_cmdq_modify_qp_req {
 	__be16 dport;
 	u32 send_nxt;
 	u32 recv_nxt;
+};
+
+/* modify qp cfg1 for roce device */
+#define ERDMA_CMD_MODIFY_QP_DQPN_MASK GENMASK(19, 0)
+
+struct erdma_cmdq_mod_qp_req_rocev2 {
+	u64 hdr;
+	u32 cfg0;
+	u32 cfg1;
+	u32 attr_mask;
+	u32 qkey;
+	u32 rq_psn;
+	u32 sq_psn;
+	struct erdma_av_cfg av_cfg;
+};
+
+/* query qp response mask */
+#define ERDMA_CMD_QUERY_QP_RESP_SQ_PSN_MASK GENMASK_ULL(23, 0)
+#define ERDMA_CMD_QUERY_QP_RESP_RQ_PSN_MASK GENMASK_ULL(47, 24)
+#define ERDMA_CMD_QUERY_QP_RESP_QP_STATE_MASK GENMASK_ULL(55, 48)
+#define ERDMA_CMD_QUERY_QP_RESP_SQ_DRAINING_MASK GENMASK_ULL(56, 56)
+
+struct erdma_cmdq_query_qp_req_rocev2 {
+	u64 hdr;
+	u32 qpn;
 };
 
 /* create qp cfg0 */
@@ -394,10 +467,33 @@ struct erdma_cmdq_query_stats_resp {
 	u64 rx_pps_meter_drop_packets_cnt;
 };
 
+enum erdma_network_type {
+	ERDMA_NETWORK_TYPE_IPV4 = 0,
+	ERDMA_NETWORK_TYPE_IPV6 = 1,
+};
+
+enum erdma_set_gid_op {
+	ERDMA_SET_GID_OP_ADD = 0,
+	ERDMA_SET_GID_OP_DEL = 1,
+};
+
+/* set gid cfg */
+#define ERDMA_CMD_SET_GID_SGID_IDX_MASK GENMASK(15, 0)
+#define ERDMA_CMD_SET_GID_NTYPE_MASK BIT(16)
+#define ERDMA_CMD_SET_GID_OP_MASK BIT(31)
+
+struct erdma_cmdq_set_gid_req {
+	u64 hdr;
+	u32 cfg;
+	u8 gid[ERDMA_ROCEV2_GID_SIZE];
+};
+
 /* cap qword 0 definition */
+#define ERDMA_CMD_DEV_CAP_MAX_GID_MASK GENMASK_ULL(51, 48)
 #define ERDMA_CMD_DEV_CAP_MAX_CQE_MASK GENMASK_ULL(47, 40)
 #define ERDMA_CMD_DEV_CAP_FLAGS_MASK GENMASK_ULL(31, 24)
 #define ERDMA_CMD_DEV_CAP_MAX_RECV_WR_MASK GENMASK_ULL(23, 16)
+#define ERDMA_CMD_DEV_CAP_MAX_AH_MASK GENMASK_ULL(15, 8)
 #define ERDMA_CMD_DEV_CAP_MAX_MR_SIZE_MASK GENMASK_ULL(7, 0)
 
 /* cap qword 1 definition */
