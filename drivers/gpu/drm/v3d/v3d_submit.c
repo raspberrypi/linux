@@ -5,58 +5,16 @@
  */
 
 #include <drm/drm_syncobj.h>
-#include <linux/clk.h>
 
 #include "v3d_drv.h"
 #include "v3d_regs.h"
 #include "v3d_trace.h"
 
-static void
-v3d_clock_down_work(struct work_struct *work)
-{
-	struct v3d_dev *v3d =
-		container_of(work, struct v3d_dev, clk_down_work.work);
-	int ret;
-
-	ret = clk_set_min_rate(v3d->clk, v3d->clk_down_rate);
-	v3d->clk_up = false;
-	WARN_ON_ONCE(ret != 0);
-}
-
-static void
-v3d_clock_up_get(struct v3d_dev *v3d)
-{
-	mutex_lock(&v3d->clk_lock);
-	if (v3d->clk_refcount++ == 0) {
-		cancel_delayed_work_sync(&v3d->clk_down_work);
-		if (!v3d->clk_up)  {
-			int ret;
-
-			ret = clk_set_min_rate(v3d->clk, v3d->clk_up_rate);
-			WARN_ON_ONCE(ret != 0);
-			v3d->clk_up = true;
-		}
-	}
-	mutex_unlock(&v3d->clk_lock);
-}
-
-static void
-v3d_clock_up_put(struct v3d_dev *v3d)
-{
-	mutex_lock(&v3d->clk_lock);
-	if (--v3d->clk_refcount == 0) {
-		schedule_delayed_work(&v3d->clk_down_work,
-			msecs_to_jiffies(100));
-	}
-	mutex_unlock(&v3d->clk_lock);
-}
-
 /* Takes the reservation lock on all the BOs being referenced, so that
- * we can attach fences and update the reservations after pushing the job
- * to the queue.
+ * at queue submit time we can update the reservations.
  *
  * We don't lock the RCL the tile alloc/state BOs, or overflow memory
- * (all of which are on render->unref_list). They're entirely private
+ * (all of which are on exec->unref_list).  They're entirely private
  * to v3d, so we don't attach dma-buf fences to them.
  */
 static int
@@ -97,11 +55,11 @@ fail:
  * @bo_count: Number of GEM handles passed in
  *
  * The command validator needs to reference BOs by their index within
- * the submitted job's BO list. This does the validation of the job's
+ * the submitted job's BO list.  This does the validation of the job's
  * BO list and reference counting for the lifetime of the job.
  *
  * Note that this function doesn't need to unreference the BOs on
- * failure, because that will happen at `v3d_job_free()`.
+ * failure, because that will happen at v3d_exec_cleanup() time.
  */
 static int
 v3d_lookup_bos(struct drm_device *dev,
@@ -126,10 +84,9 @@ v3d_lookup_bos(struct drm_device *dev,
 }
 
 static void
-v3d_job_free_common(struct v3d_job *job,
-		    bool is_gpu_job)
+v3d_job_free(struct kref *ref)
 {
-	struct v3d_dev *v3d = job->v3d;
+	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
 	int i;
 
 	if (job->bo) {
@@ -141,29 +98,10 @@ v3d_job_free_common(struct v3d_job *job,
 	dma_fence_put(job->irq_fence);
 	dma_fence_put(job->done_fence);
 
-	if (is_gpu_job)
-		v3d_clock_up_put(v3d);
-
 	if (job->perfmon)
 		v3d_perfmon_put(job->perfmon);
 
 	kfree(job);
-}
-
-static void
-v3d_job_free(struct kref *ref)
-{
-	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
-
-	v3d_job_free_common(job, true);
-}
-
-static void
-v3d_cpu_job_free(struct kref *ref)
-{
-	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
-
-	v3d_job_free_common(job, false);
 }
 
 static void
@@ -176,6 +114,24 @@ v3d_render_job_free(struct kref *ref)
 	list_for_each_entry_safe(bo, save, &job->unref_list, unref_head) {
 		drm_gem_object_put(&bo->base.base);
 	}
+
+	v3d_job_free(ref);
+}
+
+static void
+v3d_cpu_job_free(struct kref *ref)
+{
+	struct v3d_cpu_job *job = container_of(ref, struct v3d_cpu_job,
+					       base.refcount);
+
+	v3d_timestamp_query_info_free(&job->timestamp_query,
+				      job->timestamp_query.count);
+
+	v3d_performance_query_info_free(&job->performance_query,
+					job->performance_query.count);
+
+	if (job->indirect_csd.indirect)
+		drm_gem_object_put(job->indirect_csd.indirect);
 
 	v3d_job_free(ref);
 }
@@ -227,7 +183,7 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 
 	job->v3d = v3d;
 	job->free = free;
-	job->file_priv = v3d_priv;
+	job->file = file_priv;
 
 	ret = drm_sched_job_init(&job->base, &v3d_priv->sched_entity[queue],
 				 1, v3d_priv, file_priv->client_id);
@@ -260,8 +216,6 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 		if (ret && ret != -ENOENT)
 			goto fail_deps;
 	}
-	if (queue != V3D_CPU)
-		v3d_clock_up_get(v3d);
 
 	kref_init(&job->refcount);
 
@@ -1052,11 +1006,6 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 		goto fail;
 
 	if (args->perfmon_id) {
-		if (v3d->global_perfmon) {
-			ret = -EAGAIN;
-			goto fail_perfmon;
-		}
-
 		render->base.perfmon = v3d_perfmon_find(v3d_priv,
 							args->perfmon_id);
 
@@ -1272,11 +1221,6 @@ v3d_submit_csd_ioctl(struct drm_device *dev, void *data,
 		goto fail;
 
 	if (args->perfmon_id) {
-		if (v3d->global_perfmon) {
-			ret = -EAGAIN;
-			goto fail_perfmon;
-		}
-
 		job->base.perfmon = v3d_perfmon_find(v3d_priv,
 						     args->perfmon_id);
 		if (!job->base.perfmon) {
@@ -1469,19 +1413,6 @@ fail:
 	v3d_job_cleanup((void *)csd_job);
 	v3d_job_cleanup(clean_job);
 	v3d_put_multisync_post_deps(&se);
-	kvfree(cpu_job->timestamp_query.queries);
-	kvfree(cpu_job->performance_query.queries);
 
 	return ret;
-}
-
-void v3d_submit_init(struct drm_device *dev) {
-	struct v3d_dev *v3d = to_v3d_dev(dev);
-
-	mutex_init(&v3d->clk_lock);
-	INIT_DELAYED_WORK(&v3d->clk_down_work, v3d_clock_down_work);
-
-	/* kick the clock so firmware knows we are using firmware clock interface */
-	v3d_clock_up_get(v3d);
-	v3d_clock_up_put(v3d);
 }
