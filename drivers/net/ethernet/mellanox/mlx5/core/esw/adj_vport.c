@@ -4,15 +4,32 @@
 #include "fs_core.h"
 #include "eswitch.h"
 
-enum {
-	MLX5_ADJ_VPORT_DISCONNECT = 0x0,
-	MLX5_ADJ_VPORT_CONNECT = 0x1,
-};
-
-static int mlx5_esw_adj_vport_modify(struct mlx5_core_dev *dev,
-				     u16 vport, bool connect)
+int mlx5_esw_adj_vport_modify(struct mlx5_core_dev *dev, u16 vport,
+			      bool connect)
 {
 	u32 in[MLX5_ST_SZ_DW(modify_vport_state_in)] = {};
+
+	lockdep_assert_held(&dev->priv.eswitch->state_lock);
+
+	if (MLX5_CAP_ESW(dev, esw_vport_state_max_tx_speed)) {
+		u8 op_mod = MLX5_VPORT_STATE_OP_MOD_ESW_VPORT;
+		struct mlx5_vport *esw_vport;
+		u32 speed = 0;
+		int err;
+
+		err = mlx5_query_vport_max_tx_speed(dev, op_mod, vport,
+						    true, &speed, NULL);
+		if (err) {
+			esw_vport = mlx5_eswitch_get_vport(dev->priv.eswitch,
+							   vport);
+			speed = IS_ERR(esw_vport) ? 0 :
+				esw_vport->agg_max_tx_speed;
+			mlx5_core_dbg(dev,
+				      "Failed to query vport %d max tx speed, err=%d, using cached %u\n",
+				      vport, err, speed);
+		}
+		MLX5_SET(modify_vport_state_in, in, max_tx_speed, speed);
+	}
 
 	MLX5_SET(modify_vport_state_in, in, opcode,
 		 MLX5_CMD_OP_MODIFY_VPORT_STATE);
@@ -24,7 +41,7 @@ static int mlx5_esw_adj_vport_modify(struct mlx5_core_dev *dev,
 	MLX5_SET(modify_vport_state_in, in, egress_connect_valid, 1);
 	MLX5_SET(modify_vport_state_in, in, ingress_connect, connect);
 	MLX5_SET(modify_vport_state_in, in, egress_connect, connect);
-
+	MLX5_SET(modify_vport_state_in, in, admin_state, connect);
 	return mlx5_cmd_exec_in(dev, modify_vport_state, in);
 }
 
@@ -96,7 +113,6 @@ static int mlx5_esw_adj_vport_create(struct mlx5_eswitch *esw, u16 vhca_id,
 	if (err)
 		goto acl_ns_remove;
 
-	mlx5_esw_adj_vport_modify(esw->dev, vport_num, MLX5_ADJ_VPORT_CONNECT);
 	return 0;
 
 acl_ns_remove:
@@ -117,8 +133,7 @@ static void mlx5_esw_adj_vport_destroy(struct mlx5_eswitch *esw,
 
 	esw_debug(esw->dev, "Destroying adjacent vport %d for vhca_id 0x%x\n",
 		  vport_num, vport->vhca_id);
-	mlx5_esw_adj_vport_modify(esw->dev, vport_num,
-				  MLX5_ADJ_VPORT_DISCONNECT);
+
 	mlx5_esw_offloads_rep_remove(esw, vport);
 	mlx5_fs_vport_egress_acl_ns_remove(esw->dev->priv.steering,
 					   vport->index);

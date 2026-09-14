@@ -2499,18 +2499,18 @@ static int scarlett2_usb(
 {
 	struct scarlett2_data *private = mixer->private_data;
 	struct usb_device *dev = mixer->chip->dev;
-	struct scarlett2_usb_packet *req __free(kfree) = NULL;
-	struct scarlett2_usb_packet *resp __free(kfree) = NULL;
-	size_t req_buf_size = struct_size(req, data, req_size);
-	size_t resp_buf_size = struct_size(resp, data, resp_size);
 	int retries = 0;
 	const int max_retries = 5;
 	int err;
 
+	struct scarlett2_usb_packet *req __free(kfree) = NULL;
+	size_t req_buf_size = struct_size(req, data, req_size);
 	req = kmalloc(req_buf_size, GFP_KERNEL);
 	if (!req)
 		return -ENOMEM;
 
+	struct scarlett2_usb_packet *resp __free(kfree) = NULL;
+	size_t resp_buf_size = struct_size(resp, data, resp_size);
 	resp = kmalloc(resp_buf_size, GFP_KERNEL);
 	if (!resp)
 		return -ENOMEM;
@@ -4065,9 +4065,9 @@ static int scarlett2_input_select_ctl_info(
 	struct scarlett2_data *private = mixer->private_data;
 	int inputs = private->info->gain_input_count;
 	int i, err;
-	char **values __free(kfree) = NULL;
+	char **values __free(kfree) =
+		kcalloc(inputs, sizeof(char *), GFP_KERNEL);
 
-	values = kcalloc(inputs, sizeof(char *), GFP_KERNEL);
 	if (!values)
 		return -ENOMEM;
 
@@ -9293,8 +9293,6 @@ static long scarlett2_hwdep_read(struct snd_hwdep *hw,
 		__le32 len;
 	} __packed req;
 
-	u8 *resp __free(kfree) = NULL;
-
 	/* Flash segment must first be selected */
 	if (private->flash_write_state != SCARLETT2_FLASH_WRITE_STATE_SELECTED)
 		return -EINVAL;
@@ -9332,7 +9330,8 @@ static long scarlett2_hwdep_read(struct snd_hwdep *hw,
 	req.offset = cpu_to_le32(*offset);
 	req.len = cpu_to_le32(count);
 
-	resp = kzalloc(count, GFP_KERNEL);
+	u8 *resp __free(kfree) =
+		kzalloc(count, GFP_KERNEL);
 	if (!resp)
 		return -ENOMEM;
 
@@ -9480,7 +9479,6 @@ static ssize_t scarlett2_devmap_read(
 	loff_t                 pos)
 {
 	struct usb_mixer_interface *mixer = entry->private_data;
-	u8           *resp_buf __free(kfree) = NULL;
 	const size_t  block_size = SCARLETT2_DEVMAP_BLOCK_SIZE;
 	size_t        copied = 0;
 
@@ -9490,7 +9488,8 @@ static ssize_t scarlett2_devmap_read(
 	if (pos + count > entry->size)
 		count = entry->size - pos;
 
-	resp_buf = kmalloc(block_size, GFP_KERNEL);
+	u8 *resp_buf __free(kfree) =
+		kmalloc(block_size, GFP_KERNEL);
 	if (!resp_buf)
 		return -ENOMEM;
 

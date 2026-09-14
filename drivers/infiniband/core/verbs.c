@@ -213,6 +213,57 @@ __attribute_const__ int ib_rate_to_mbps(enum ib_rate rate)
 }
 EXPORT_SYMBOL(ib_rate_to_mbps);
 
+struct ib_speed_attr {
+	const char *str;
+	int speed;
+};
+
+#define IB_SPEED_ATTR(speed_type, _str, _speed) \
+	[speed_type] = {.str = _str, .speed = _speed}
+
+static const struct ib_speed_attr ib_speed_attrs[] = {
+	IB_SPEED_ATTR(IB_SPEED_SDR, " SDR", 25),
+	IB_SPEED_ATTR(IB_SPEED_DDR, " DDR", 50),
+	IB_SPEED_ATTR(IB_SPEED_QDR, " QDR", 100),
+	IB_SPEED_ATTR(IB_SPEED_FDR10, " FDR10", 100),
+	IB_SPEED_ATTR(IB_SPEED_FDR, " FDR", 140),
+	IB_SPEED_ATTR(IB_SPEED_EDR, " EDR", 250),
+	IB_SPEED_ATTR(IB_SPEED_HDR, " HDR", 500),
+	IB_SPEED_ATTR(IB_SPEED_NDR, " NDR", 1000),
+	IB_SPEED_ATTR(IB_SPEED_XDR, " XDR", 2000),
+};
+
+int ib_port_attr_to_speed_info(struct ib_port_attr *attr,
+			       struct ib_port_speed_info *speed_info)
+{
+	int speed_idx = attr->active_speed;
+
+	switch (attr->active_speed) {
+	case IB_SPEED_DDR:
+	case IB_SPEED_QDR:
+	case IB_SPEED_FDR10:
+	case IB_SPEED_FDR:
+	case IB_SPEED_EDR:
+	case IB_SPEED_HDR:
+	case IB_SPEED_NDR:
+	case IB_SPEED_XDR:
+	case IB_SPEED_SDR:
+		break;
+	default:
+		speed_idx = IB_SPEED_SDR; /* Default to SDR for invalid rates */
+		break;
+	}
+
+	speed_info->str = ib_speed_attrs[speed_idx].str;
+	speed_info->rate = ib_speed_attrs[speed_idx].speed;
+	speed_info->rate *= ib_width_enum_to_int(attr->active_width);
+	if (speed_info->rate < 0)
+		return -EINVAL;
+
+	return 0;
+}
+EXPORT_SYMBOL(ib_port_attr_to_speed_info);
+
 __attribute_const__ enum rdma_transport_type
 rdma_node_get_transport(unsigned int node_type)
 {
@@ -335,6 +386,7 @@ int ib_dealloc_pd_user(struct ib_pd *pd, struct ib_udata *udata)
 {
 	int ret;
 
+	rdma_restrack_begin_del(&pd->res);
 	if (pd->__internal_mr) {
 		ret = pd->device->ops.dereg_mr(pd->__internal_mr, NULL);
 		WARN_ON(ret);
@@ -342,10 +394,12 @@ int ib_dealloc_pd_user(struct ib_pd *pd, struct ib_udata *udata)
 	}
 
 	ret = pd->device->ops.dealloc_pd(pd, udata);
-	if (ret)
+	if (ret) {
+		rdma_restrack_abort_del(&pd->res);
 		return ret;
+	}
 
-	rdma_restrack_del(&pd->res);
+	rdma_restrack_commit_del(&pd->res);
 	kfree(pd);
 	return ret;
 }
@@ -1083,16 +1137,20 @@ int ib_destroy_srq_user(struct ib_srq *srq, struct ib_udata *udata)
 	if (atomic_read(&srq->usecnt))
 		return -EBUSY;
 
+	rdma_restrack_begin_del(&srq->res);
+
 	ret = srq->device->ops.destroy_srq(srq, udata);
-	if (ret)
+	if (ret) {
+		rdma_restrack_abort_del(&srq->res);
 		return ret;
+	}
 
 	atomic_dec(&srq->pd->usecnt);
 	if (srq->srq_type == IB_SRQT_XRC && srq->ext.xrc.xrcd)
 		atomic_dec(&srq->ext.xrc.xrcd->usecnt);
 	if (ib_srq_has_cq(srq->srq_type))
 		atomic_dec(&srq->ext.cq->usecnt);
-	rdma_restrack_del(&srq->res);
+	rdma_restrack_commit_del(&srq->res);
 	kfree(srq);
 
 	return ret;
@@ -2098,6 +2156,8 @@ int ib_destroy_qp_user(struct ib_qp *qp, struct ib_udata *udata)
 	if (qp->real_qp != qp)
 		return __ib_destroy_shared_qp(qp);
 
+	rdma_restrack_begin_del(&qp->res);
+
 	sec  = qp->qp_sec;
 	if (sec)
 		ib_destroy_qp_security_begin(sec);
@@ -2110,6 +2170,7 @@ int ib_destroy_qp_user(struct ib_qp *qp, struct ib_udata *udata)
 	if (ret) {
 		if (sec)
 			ib_destroy_qp_security_abort(sec);
+		rdma_restrack_abort_del(&qp->res);
 		return ret;
 	}
 
@@ -2122,7 +2183,7 @@ int ib_destroy_qp_user(struct ib_qp *qp, struct ib_udata *udata)
 	if (sec)
 		ib_destroy_qp_security_end(sec);
 
-	rdma_restrack_del(&qp->res);
+	rdma_restrack_commit_del(&qp->res);
 	kfree(qp);
 	return ret;
 }
@@ -2187,11 +2248,15 @@ int ib_destroy_cq_user(struct ib_cq *cq, struct ib_udata *udata)
 	if (atomic_read(&cq->usecnt))
 		return -EBUSY;
 
-	ret = cq->device->ops.destroy_cq(cq, udata);
-	if (ret)
-		return ret;
+	rdma_restrack_begin_del(&cq->res);
 
-	rdma_restrack_del(&cq->res);
+	ret = cq->device->ops.destroy_cq(cq, udata);
+	if (ret) {
+		rdma_restrack_abort_del(&cq->res);
+		return ret;
+	}
+
+	rdma_restrack_commit_del(&cq->res);
 	kfree(cq);
 	return ret;
 }

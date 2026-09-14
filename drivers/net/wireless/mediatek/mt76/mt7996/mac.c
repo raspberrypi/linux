@@ -87,7 +87,7 @@ static struct mt76_wcid *mt7996_rx_get_wcid(struct mt7996_dev *dev,
 		if (mlink->band_idx != band_idx)
 			continue;
 
-		msta_link = rcu_dereference(msta->link[i]);
+		msta_link = mt7996_sta_link(msta, i);
 		break;
 	}
 
@@ -480,7 +480,13 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 	memset(status, 0, sizeof(*status));
 
 	band_idx = FIELD_GET(MT_RXD1_NORMAL_BAND_IDX, rxd1);
+	if (!mt7996_band_valid(dev, band_idx))
+		return -EINVAL;
+
 	mphy = dev->mt76.phys[band_idx];
+	if (!mphy)
+		return -EINVAL;
+
 	phy = mphy->priv;
 	status->phy_idx = mphy->band_idx;
 
@@ -893,6 +899,33 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
 		txwi[6] |= cpu_to_le32(MT_TXD6_DIS_MAT);
 }
 
+/* The WLAN_IDX in the TXD and TXP must belong to the primary or secondary
+ * link of an MLD station; any other link id can make the firmware spin when
+ * that link is in powersave. Completion events carry the same index, so the
+ * wcid used for status tracking and accounting must match it
+ */
+struct mt76_wcid *mt7996_get_tx_wcid(struct mt76_wcid *wcid)
+{
+	struct mt7996_sta_link *msta_link;
+	struct mt7996_sta *msta;
+
+	if (!wcid->sta)
+		return wcid;
+
+	msta_link = container_of(wcid, struct mt7996_sta_link, wcid);
+	msta = msta_link->sta;
+
+	if (!msta || wcid->link_id == msta->seclink_id ||
+	    wcid->link_id == msta->deflink_id)
+		return wcid;
+
+	msta_link = mt7996_sta_link(msta, msta->deflink_id);
+	if (msta_link)
+		return &msta_link->wcid;
+
+	return wcid;
+}
+
 void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
 			   struct sk_buff *skb, struct mt76_wcid *wcid,
 			   struct ieee80211_key_conf *key, int pid,
@@ -1069,10 +1102,15 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 				       IEEE80211_TX_CTRL_MLO_LINK);
 	}
 
+	/* non-MLD frames are LINK_UNSPECIFIED; use the wcid's own link */
+	if (link_id == IEEE80211_LINK_UNSPECIFIED &&
+	    wcid != &dev->mt76.global_wcid)
+		link_id = wcid->link_id;
+
 	if (link_id != wcid->link_id && link_id != IEEE80211_LINK_UNSPECIFIED) {
 		if (msta) {
 			struct mt7996_sta_link *msta_link =
-				rcu_dereference(msta->link[link_id]);
+				mt7996_sta_link(msta, link_id);
 
 			if (msta_link)
 				wcid = &msta_link->wcid;
@@ -1124,6 +1162,8 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 		dma_sync_single_for_device(mdev->dma_dev, tx_info->buf[1].addr,
 					   tx_info->buf[1].len, DMA_TO_DEVICE);
 	}
+
+	wcid = mt7996_get_tx_wcid(wcid);
 
 	pid = mt76_tx_status_skb_add(mdev, wcid, tx_info->skb);
 	memset(txwi_ptr, 0, MT_TXD_SIZE);
@@ -1408,7 +1448,7 @@ mt7996_mac_tx_free(struct mt7996_dev *dev, void *data, int len)
 					 IEEE80211_MLD_MAX_NUM_LINKS) {
 				struct mt7996_sta_link *msta_link;
 
-				msta_link = rcu_dereference(msta->link[id]);
+				msta_link = mt7996_sta_link(msta, id);
 				if (!msta_link)
 					continue;
 
@@ -2476,6 +2516,7 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
 
 	dev->recovery.hw_full_reset = true;
 
+	set_bit(MT76_MCU_RESET, &dev->mphy.state);
 	wake_up(&dev->mt76.mcu.wait);
 	ieee80211_stop_queues(hw);
 
@@ -2498,10 +2539,10 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
 		phy->omac_mask = 0;
 
 	ieee80211_iterate_stations_atomic(hw, mt7996_mac_reset_sta_iter, dev);
+	mt76_reset_device(&dev->mt76);
 	ieee80211_iterate_active_interfaces_atomic(hw,
 						   IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVER,
 						   mt7996_mac_reset_vif_iter, dev);
-	mt76_reset_device(&dev->mt76);
 
 	INIT_LIST_HEAD(&dev->sta_rc_list);
 	INIT_LIST_HEAD(&dev->twt_list);
@@ -2579,8 +2620,8 @@ void mt7996_mac_reset_work(struct work_struct *work)
 
 	set_bit(MT76_RESET, &dev->mphy.state);
 	set_bit(MT76_MCU_RESET, &dev->mphy.state);
-	mt76_abort_scan(&dev->mt76);
 	wake_up(&dev->mt76.mcu.wait);
+	mt76_abort_scan(&dev->mt76);
 
 	cancel_work_sync(&dev->wed_rro.work);
 	mt7996_for_each_phy(dev, phy) {
@@ -2588,6 +2629,8 @@ void mt7996_mac_reset_work(struct work_struct *work)
 		set_bit(MT76_RESET, &phy->mt76->state);
 		cancel_delayed_work_sync(&phy->mt76->mac_work);
 	}
+
+	mutex_lock(&dev->mt76.mutex);
 
 	mt76_worker_disable(&dev->mt76.tx_worker);
 	mt76_for_each_q_rx(&dev->mt76, i) {
@@ -2598,8 +2641,6 @@ void mt7996_mac_reset_work(struct work_struct *work)
 		napi_disable(&dev->mt76.napi[i]);
 	}
 	napi_disable(&dev->mt76.tx_napi);
-
-	mutex_lock(&dev->mt76.mutex);
 
 	mt76_wr(dev, MT_MCU_INT_EVENT, MT_MCU_INT_EVENT_DMA_STOPPED);
 

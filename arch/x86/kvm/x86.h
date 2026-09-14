@@ -54,6 +54,20 @@ struct kvm_host_values {
 	u64 arch_capabilities;
 };
 
+void kvm_vcpu_ioctl_x86_get_sregs2(struct kvm_vcpu *vcpu,
+				   struct kvm_sregs2 *sregs2);
+int kvm_vcpu_ioctl_x86_set_sregs2(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs2 *sregs2);
+
+void kvm_run_sync_regs_to_user(struct kvm_vcpu *vcpu);
+int kvm_run_sync_regs_from_user(struct kvm_vcpu *vcpu);
+
+void kvm_update_dr0123(struct kvm_vcpu *vcpu);
+int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+
 void kvm_spurious_fault(void);
 
 #define SIZE_OF_MEMSLOTS_HASHTABLE \
@@ -439,6 +453,7 @@ int handle_ud(struct kvm_vcpu *vcpu);
 
 void kvm_deliver_exception_payload(struct kvm_vcpu *vcpu,
 				   struct kvm_queued_exception *ex);
+void kvm_handle_exception_payload_quirk(struct kvm_vcpu *vcpu);
 
 int kvm_mtrr_set_msr(struct kvm_vcpu *vcpu, u32 msr, u64 data);
 int kvm_mtrr_get_msr(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata);
@@ -629,6 +644,7 @@ void kvm_load_host_xsave_state(struct kvm_vcpu *vcpu);
 int kvm_spec_ctrl_test_value(u64 value);
 int kvm_handle_memory_failure(struct kvm_vcpu *vcpu, int r,
 			      struct x86_exception *e);
+void kvm_invalidate_pcid(struct kvm_vcpu *vcpu, unsigned long pcid);
 int kvm_handle_invpcid(struct kvm_vcpu *vcpu, unsigned long type, gva_t gva);
 bool kvm_msr_allowed(struct kvm_vcpu *vcpu, u32 index, u32 type);
 

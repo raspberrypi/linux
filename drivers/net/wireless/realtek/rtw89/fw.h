@@ -3989,6 +3989,7 @@ enum rtw89_fw_element_id {
 	RTW89_FW_ELEMENT_ID_TXPWR_DA_LMT_RU_5GHZ = 25,
 	RTW89_FW_ELEMENT_ID_TXPWR_DA_LMT_RU_6GHZ = 26,
 	RTW89_FW_ELEMENT_ID_AFE_PWR_SEQ = 27,
+	RTW89_FW_ELEMENT_ID_DIAG_MAC = 28,
 
 	RTW89_FW_ELEMENT_ID_NUM,
 };
@@ -4166,6 +4167,11 @@ struct rtw89_fw_element_hdr {
 				__le32 val;
 			} __packed infos[];
 		} __packed afe;
+		struct {
+			__le32 rule_size;
+			u8 rsvd[4];
+			u8 rules_and_msgs[];
+		} __packed diag_mac;
 		struct __rtw89_fw_txpwr_element txpwr;
 		struct __rtw89_fw_regd_element regd;
 	} __packed u;
@@ -4827,7 +4833,8 @@ int rtw89_fw_h2c_tbtt_tuning(struct rtw89_dev *rtwdev,
 			     struct rtw89_vif_link *rtwvif_link, u32 offset);
 int rtw89_fw_h2c_pwr_lvl(struct rtw89_dev *rtwdev, struct rtw89_vif_link *rtwvif_link);
 int rtw89_fw_h2c_cam(struct rtw89_dev *rtwdev, struct rtw89_vif_link *vif,
-		     struct rtw89_sta_link *rtwsta_link, const u8 *scan_mac_addr);
+		     struct rtw89_sta_link *rtwsta_link, const u8 *scan_mac_addr,
+		     enum rtw89_upd_mode upd_mode);
 int rtw89_fw_h2c_dctl_sec_cam_v1(struct rtw89_dev *rtwdev,
 				 struct rtw89_vif_link *rtwvif_link,
 				 struct rtw89_sta_link *rtwsta_link);

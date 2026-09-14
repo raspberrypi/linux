@@ -64,9 +64,8 @@ static int ngbe_set_ringparam(struct net_device *netdev,
 	    new_rx_count == wx->rx_ring_count)
 		return 0;
 
-	err = wx_set_state_reset(wx);
-	if (err)
-		return err;
+	mutex_lock(&wx->reset_lock);
+	set_bit(WX_STATE_RESETTING, wx->state);
 
 	if (!netif_running(wx->netdev)) {
 		for (i = 0; i < wx->num_tx_queues; i++)
@@ -97,6 +96,7 @@ static int ngbe_set_ringparam(struct net_device *netdev,
 
 clear_reset:
 	clear_bit(WX_STATE_RESETTING, wx->state);
+	mutex_unlock(&wx->reset_lock);
 	return err;
 }
 

@@ -67,7 +67,7 @@ static irqreturn_t wx_msix_misc_vf(int __always_unused irq, void *data)
 
 	set_bit(WX_FLAG_NEED_UPDATE_LINK, wx->flags);
 	/* Clear the interrupt */
-	if (netif_running(wx->netdev))
+	if (!test_bit(WX_STATE_DOWN, wx->state))
 		wr32(wx, WX_VXIMC, wx->eims_other);
 
 	return IRQ_HANDLED;
@@ -277,6 +277,7 @@ static void wxvf_up_complete(struct wx *wx)
 
 	wx_configure_msix_vf(wx);
 	smp_mb__before_atomic();
+	clear_bit(WX_STATE_DOWN, wx->state);
 	wx_napi_enable_all(wx);
 
 	/* clear any pending interrupts, may auto mask */
@@ -326,6 +327,9 @@ static void wxvf_down(struct wx *wx)
 {
 	struct net_device *netdev = wx->netdev;
 
+	if (test_and_set_bit(WX_STATE_DOWN, wx->state))
+		return;
+
 	timer_delete_sync(&wx->service_timer);
 	netif_tx_stop_all_queues(netdev);
 	netif_tx_disable(netdev);
@@ -339,14 +343,16 @@ static void wxvf_down(struct wx *wx)
 
 static void wxvf_reinit_locked(struct wx *wx)
 {
-	while (test_and_set_bit(WX_STATE_RESETTING, wx->state))
-		usleep_range(1000, 2000);
+	mutex_lock(&wx->reset_lock);
+	set_bit(WX_STATE_RESETTING, wx->state);
+
 	wxvf_down(wx);
 	wx_free_irq(wx);
 	wx_configure_vf(wx);
 	wx_request_msix_irqs_vf(wx);
 	wxvf_up_complete(wx);
 	clear_bit(WX_STATE_RESETTING, wx->state);
+	mutex_unlock(&wx->reset_lock);
 }
 
 static void wxvf_reset_subtask(struct wx *wx)
@@ -357,7 +363,7 @@ static void wxvf_reset_subtask(struct wx *wx)
 
 	rtnl_lock();
 	if (test_bit(WX_STATE_RESETTING, wx->state) ||
-	    !(netif_running(wx->netdev))) {
+	    test_bit(WX_STATE_DOWN, wx->state)) {
 		rtnl_unlock();
 		return;
 	}

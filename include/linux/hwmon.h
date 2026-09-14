@@ -13,6 +13,7 @@
 #define _HWMON_H_
 
 #include <linux/bitops.h>
+#include <linux/cleanup.h>
 
 struct device;
 struct attribute_group;
@@ -494,6 +495,8 @@ char *devm_hwmon_sanitize_name(struct device *dev, const char *name);
 
 void hwmon_lock(struct device *dev);
 void hwmon_unlock(struct device *dev);
+
+DEFINE_GUARD(hwmon_lock, struct device *, hwmon_lock(_T), hwmon_unlock(_T))
 
 /**
  * hwmon_is_bad_char - Is the char invalid in a hwmon name

@@ -2000,8 +2000,14 @@ static void wait_for_xmitr(struct uart_8250_port *up, int bits)
 
 	wait_for_lsr(up, bits);
 
-	/* Wait up to 1s for flow control if necessary */
-	if (up->port.flags & UPF_CONS_FLOW) {
+	/*
+	 * Wait up to 1s for flow control if necessary.
+	 * When 'no_console_suspend' is active (in the window between
+	 * suspend() and resume()), flow control is temporarily ignored
+	 * because the canary workaround is not reliable in all situations,
+	 * leading to flow control timeouts for every character.
+	 */
+	if (uart_console_hwflow_active(&up->port) && !up->canary) {
 		for (tmout = 1000000; tmout; tmout--) {
 			unsigned int msr = serial_in(up, UART_MSR);
 			up->msr_saved_flags |= msr & MSR_SAVE_FLAGS;
@@ -2795,6 +2801,12 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial8250_set_efr(port, termios);
 		serial8250_set_divisor(port, baud, quot, frac);
 		serial8250_set_fcr(port, termios);
+		/* Consoles manually poll CTS for hardware flow control. */
+		if (uart_console(port) &&
+		    !(port->rs485.flags & SER_RS485_ENABLED)
+		    && termios->c_cflag & CRTSCTS) {
+			port->mctrl |= TIOCM_RTS;
+		}
 		serial8250_set_mctrl(port, port->mctrl);
 	}
 
@@ -3364,7 +3376,7 @@ void serial8250_console_write(struct uart_8250_port *up, const char *s,
 		 * it regardless of the CTS state. Therefore, only use fifo
 		 * if we don't use control flow.
 		 */
-		!(up->port.flags & UPF_CONS_FLOW);
+		!uart_console_hwflow_active(&up->port);
 
 	if (likely(use_fifo))
 		serial8250_console_fifo_write(up, s, count);
@@ -3433,6 +3445,9 @@ int serial8250_console_setup(struct uart_port *port, char *options, bool probe)
 	ret = uart_set_options(port, port->cons, baud, parity, bits, flow);
 	if (ret)
 		return ret;
+
+	/* Track user-specified console flow control. */
+	uart_set_cons_flow_enabled(port, flow == 'r');
 
 	if (port->dev)
 		pm_runtime_get_sync(port->dev);

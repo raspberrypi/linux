@@ -8,6 +8,7 @@
 #include <linux/ns_common.h>
 #include <linux/err.h>
 #include <linux/time64.h>
+#include <linux/cleanup.h>
 
 struct user_namespace;
 extern struct user_namespace init_user_ns;
@@ -38,8 +39,6 @@ static inline struct time_namespace *to_time_ns(struct ns_common *ns)
 	return container_of(ns, struct time_namespace, ns);
 }
 void __init time_ns_init(void);
-extern int vdso_join_timens(struct task_struct *task,
-			    struct time_namespace *ns);
 extern void timens_commit(struct task_struct *tsk, struct time_namespace *ns);
 
 static inline struct time_namespace *get_time_ns(struct time_namespace *ns)
@@ -117,12 +116,6 @@ static inline void __init time_ns_init(void)
 {
 }
 
-static inline int vdso_join_timens(struct task_struct *task,
-				   struct time_namespace *ns)
-{
-	return 0;
-}
-
 static inline void timens_commit(struct task_struct *tsk,
 				 struct time_namespace *ns)
 {
@@ -174,5 +167,7 @@ static inline ktime_t timens_ktime_to_host(clockid_t clockid, ktime_t tim)
 	return tim;
 }
 #endif
+
+DEFINE_FREE(time_ns, struct time_namespace *, if (_T) put_time_ns(_T))
 
 #endif /* _LINUX_TIMENS_H */

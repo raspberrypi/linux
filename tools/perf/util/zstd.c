@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 
 #include <string.h>
+#include <linux/perf_event.h>
 
 #include "util/compress.h"
 #include "util/debug.h"
@@ -30,9 +31,11 @@ int zstd_fini(struct zstd_data *data)
 
 ssize_t zstd_compress_stream_to_records(struct zstd_data *data, void *dst, size_t dst_size,
 				       void *src, size_t src_size, size_t max_record_size,
-				       size_t process_header(void *record, size_t increment))
+				       ssize_t process_header(void *record, size_t dst_size,
+							      size_t data_size))
 {
-	size_t ret, size, compressed = 0;
+	size_t ret, compressed = 0;
+	ssize_t size;
 	ZSTD_inBuffer input = { src, src_size, 0 };
 	ZSTD_outBuffer output;
 	void *record;
@@ -54,7 +57,10 @@ ssize_t zstd_compress_stream_to_records(struct zstd_data *data, void *dst, size_
 
 	while (input.pos < input.size) {
 		record = dst;
-		size = process_header(record, 0);
+		size = process_header(record, dst_size, 0);
+		/* Output buffer full — cannot fit even the record header */
+		if (size < 0)
+			goto reset;
 		compressed += size;
 		dst += size;
 		dst_size -= size;
@@ -65,17 +71,37 @@ ssize_t zstd_compress_stream_to_records(struct zstd_data *data, void *dst, size_
 		if (ZSTD_isError(ret)) {
 			pr_err("failed to compress %ld bytes: %s\n",
 				(long)src_size, ZSTD_getErrorName(ret));
-			memcpy(dst, src, src_size);
-			return src_size;
+			goto reset;
 		}
-		size = output.pos;
-		size = process_header(record, size);
+		compressed += output.pos;
+		dst += output.pos;
+		dst_size -= output.pos;
+		/*
+		 * No progress: ZSTD couldn't emit any bytes into the
+		 * remaining output buffer.  Calling process_header
+		 * with output.pos=0 would re-trigger header initialization,
+		 * double-subtracting the header size from dst_size and
+		 * underflowing the unsigned counter.
+		 */
+		if (output.pos == 0)
+			goto reset;
+		size = process_header(record, dst_size, output.pos);
+		if (size < 0)
+			goto reset;
 		compressed += size;
 		dst += size;
 		dst_size -= size;
 	}
 
 	return compressed;
+
+reset:
+	/* Reset so the context is usable if the caller retries */
+	ret = ZSTD_initCStream(data->cstream, data->comp_level);
+	if (ZSTD_isError(ret))
+		pr_err("failed to reset compression context: %s\n",
+			ZSTD_getErrorName(ret));
+	return -1;
 }
 
 size_t zstd_decompress_stream(struct zstd_data *data, void *src, size_t src_size,

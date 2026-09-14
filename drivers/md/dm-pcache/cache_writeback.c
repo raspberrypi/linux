@@ -229,6 +229,9 @@ void cache_writeback_fn(struct work_struct *work)
 	if (pcache_is_stopping(pcache))
 		goto unlock;
 
+	if (atomic_read(&cache->writeback_errors))
+		goto unlock;
+
 	kset_onmedia = (struct pcache_cache_kset_onmedia *)cache->wb_kset_onmedia_buf;
 
 	mutex_lock(&cache->dirty_tail_lock);
@@ -244,6 +247,11 @@ void cache_writeback_fn(struct work_struct *work)
 		last_kset_writeback(cache, kset_onmedia);
 		delay = 0;
 		goto queue_work;
+	}
+
+	if (get_kset_onmedia_size(kset_onmedia) > cache_seg_remain(&dirty_tail)) {
+		atomic_inc(&cache->writeback_errors);
+		goto unlock;
 	}
 
 	ret = cache_kset_insert_tree(cache, kset_onmedia);

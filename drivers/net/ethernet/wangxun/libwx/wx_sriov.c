@@ -122,6 +122,10 @@ static int __wx_enable_sriov(struct wx *wx, u8 num_vfs)
 	      WX_CFG_PORT_CTL_NUM_VT_MASK,
 	      value);
 
+	/* Disable RSC when in SR-IOV mode */
+	clear_bit(WX_FLAG_RSC_CAPABLE, wx->flags);
+	clear_bit(WX_FLAG_RSC_ENABLED, wx->flags);
+
 	return ret;
 }
 
@@ -896,7 +900,7 @@ static void wx_set_vf_link_state(struct wx *wx, int vf, int state)
 	wx->vfinfo[vf].link_state = state;
 	switch (state) {
 	case IFLA_VF_LINK_STATE_AUTO:
-		if (netif_running(wx->netdev))
+		if (!test_bit(WX_STATE_DOWN, wx->state))
 			wx->vfinfo[vf].link_enable = true;
 		else
 			wx->vfinfo[vf].link_enable = false;

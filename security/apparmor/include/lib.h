@@ -76,6 +76,19 @@ int aa_print_debug_params(char *buffer);
 /* Flag indicating whether initialization completed */
 extern int apparmor_initialized;
 
+/* semantic split of scope and view */
+#define aa_in_scope(SUBJ, OBJ)						\
+	aa_ns_visible(SUBJ, OBJ, false)
+
+#define aa_in_view(SUBJ, OBJ)						\
+	aa_ns_visible(SUBJ, OBJ, true)
+
+#define label_for_each_in_scope(I, NS, L, P)				\
+	label_for_each_in_ns(I, NS, L, P)
+
+#define fn_for_each_in_scope(L, P, FN)					\
+	fn_for_each_in_ns(L, P, FN)
+
 /* fn's in lib */
 const char *skipn_spaces(const char *str, size_t n);
 const char *aa_splitn_fqname(const char *fqname, size_t n, const char **ns_name,
@@ -259,7 +272,6 @@ void aa_policy_destroy(struct aa_policy *policy);
  *
  * Returns: new label on success
  *          ERR_PTR if build @FN fails
- *          NULL if label_build fails due to low memory conditions
  *
  * @FN must return a label or ERR_PTR on failure. NULL is not allowed
  */
@@ -275,7 +287,7 @@ void aa_policy_destroy(struct aa_policy *policy);
 		DEFINE_VEC(label, __lvec);				\
 		DEFINE_VEC(profile, __pvec);				\
 		if (vec_setup(label, __lvec, (L)->size, (GFP)))	{	\
-			__new_ = NULL;					\
+			__new_ = ERR_PTR(-ENOMEM);			\
 			goto __done;					\
 		}							\
 		__j = 0;						\
@@ -297,28 +309,29 @@ void aa_policy_destroy(struct aa_policy *policy);
 			if (__count > 1) {				\
 				__new_ = aa_vec_find_or_create_label(__pvec,\
 						     __count, (GFP));	\
-				/* only fails if out of Mem */		\
 				if (!__new_)				\
-					__new_ = NULL;			\
+					__new_ = ERR_PTR(-ENOMEM);	\
 			} else						\
 				__new_ = aa_get_label(&__pvec[0]->label); \
 			vec_cleanup(profile, __pvec, __count);		\
 		} else							\
-			__new_ = NULL;					\
+			__new_ = ERR_PTR(-ENOMEM);			\
 __do_cleanup:								\
 		vec_cleanup(label, __lvec, (L)->size);			\
 	} else {							\
 		(P) = labels_profile(L);				\
 		__new_ = (FN);						\
+		AA_BUG(!__new_);					\
 	}								\
 __done:									\
-	if (!__new_)							\
+	if (PTR_ERR(__new_))						\
 		AA_DEBUG(DEBUG_LABEL, "label build failed\n");		\
+	AA_BUG(!__new_);						\
 	(__new_);							\
 })
 
 
-#define __fn_build_in_ns(NS, P, NS_FN, OTHER_FN)			\
+#define __fn_build_in_scope(NS, P, NS_FN, OTHER_FN)			\
 ({									\
 	struct aa_label *__new;						\
 	if ((P)->ns != (NS))						\
@@ -328,10 +341,10 @@ __done:									\
 	(__new);							\
 })
 
-#define fn_label_build_in_ns(L, P, GFP, NS_FN, OTHER_FN)		\
+#define fn_label_build_in_scope(L, P, GFP, NS_FN, OTHER_FN)		\
 ({									\
 	fn_label_build((L), (P), (GFP),					\
-		__fn_build_in_ns(labels_ns(L), (P), (NS_FN), (OTHER_FN))); \
+		__fn_build_in_scope(labels_ns(L), (P), (NS_FN), (OTHER_FN))); \
 })
 
 #endif /* __AA_LIB_H */

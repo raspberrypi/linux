@@ -1612,6 +1612,8 @@ int blkcg_activate_policy(struct gendisk *disk, const struct blkcg_policy *pol)
 
 	if (queue_is_mq(q))
 		memflags = blk_mq_freeze_queue(q);
+
+	mutex_lock(&q->blkcg_mutex);
 retry:
 	spin_lock_irq(&q->queue_lock);
 
@@ -1620,6 +1622,8 @@ retry:
 		struct blkg_policy_data *pd;
 
 		if (blkg->pd[pol->plid])
+			continue;
+		if (hlist_unhashed(&blkg->blkcg_node))
 			continue;
 
 		/* If prealloc matches, use it; otherwise try GFP_NOWAIT */
@@ -1674,6 +1678,7 @@ retry:
 
 	spin_unlock_irq(&q->queue_lock);
 out:
+	mutex_unlock(&q->blkcg_mutex);
 	if (queue_is_mq(q))
 		blk_mq_unfreeze_queue(q, memflags);
 	if (pinned_blkg)

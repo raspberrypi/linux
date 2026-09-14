@@ -48,6 +48,11 @@ enum rx_pkt_type {
 #define MT_TXD_LEN_MSDU_LAST		BIT(14)
 #define MT_TXD_LEN_AMSDU_LAST		BIT(15)
 
+/* PCIE part */
+#define PCIE_AER_UNC_STATUS_OFFSET  0x204
+#define PCIE_AER_UNC_MASK_OFFSET    0x208
+#define PCIE_AER_CO_STATUS_OFFSET   0x210
+
 enum {
 	CMD_CBW_20MHZ = IEEE80211_STA_RX_BW_20,
 	CMD_CBW_40MHZ = IEEE80211_STA_RX_BW_40,
@@ -177,6 +182,11 @@ static inline bool is_mt7925(struct mt76_dev *dev)
 	return mt76_chip(dev) == 0x7925;
 }
 
+static inline bool is_320mhz_supported(struct mt76_dev *dev)
+{
+	return mt76_chip(dev) == 0x7927;
+}
+
 static inline bool is_mt7920(struct mt76_dev *dev)
 {
 	return mt76_chip(dev) == 0x7920;
@@ -224,7 +234,8 @@ static inline bool is_mt798x(struct mt76_dev *dev)
 
 static inline bool is_mt7996(struct mt76_dev *dev)
 {
-	return mt76_chip(dev) == 0x7990;
+	u16 chip = mt76_chip(dev);
+	return chip == 0x7990 || chip == 0x7991;
 }
 
 static inline bool is_mt7992(struct mt76_dev *dev)

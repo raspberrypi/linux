@@ -105,6 +105,7 @@ MODULE_DEVICE_TABLE(i2c, ad_dpot_id);
 static struct i2c_driver ad_dpot_i2c_driver = {
 	.driver = {
 		.name	= "ad_dpot",
+		.dev_groups = ad_dpot_groups,
 	},
 	.probe		= ad_dpot_i2c_probe,
 	.remove		= ad_dpot_i2c_remove,

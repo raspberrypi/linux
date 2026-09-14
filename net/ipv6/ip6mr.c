@@ -1063,10 +1063,14 @@ static void ip6mr_cache_resolve(struct net *net, struct mr_table *mrt,
 static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
 			      mifi_t mifi, int assert)
 {
+	enum skb_drop_reason reason;
 	struct sock *mroute6_sk;
 	struct sk_buff *skb;
 	struct mrt6msg *msg;
-	int ret;
+
+	mroute6_sk = rcu_dereference(mrt->mroute_sk);
+	if (!mroute6_sk)
+		return -EINVAL;
 
 #ifdef CONFIG_IPV6_PIMSM_V2
 	if (assert == MRT6MSG_WHOLEPKT || assert == MRT6MSG_WRMIFWHOLE)
@@ -1136,23 +1140,17 @@ static int ip6mr_cache_report(const struct mr_table *mrt, struct sk_buff *pkt,
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 	}
 
-	mroute6_sk = rcu_dereference(mrt->mroute_sk);
-	if (!mroute6_sk) {
-		kfree_skb(skb);
-		return -EINVAL;
-	}
-
 	mrt6msg_netlink_event(mrt, skb);
 
 	/* Deliver to user space multicast routing algorithms */
-	ret = sock_queue_rcv_skb(mroute6_sk, skb);
+	reason = sock_queue_rcv_skb_reason(mroute6_sk, skb);
 
-	if (ret < 0) {
-		net_warn_ratelimited("mroute6: pending queue full, dropping entries\n");
-		kfree_skb(skb);
+	if (reason) {
+		sk_skb_reason_drop(mroute6_sk, skb, reason);
+		return -ENOMEM;
 	}
 
-	return ret;
+	return 0;
 }
 
 /* Queue a packet for resolution. It gets locked cache entry! */

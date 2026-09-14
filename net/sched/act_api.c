@@ -452,7 +452,10 @@ static size_t tcf_action_shared_attrs_size(const struct tc_action *act)
 		/* TCA_STATS_QUEUE */
 		+ nla_total_size_64bit(sizeof(struct gnet_stats_queue))
 		+ nla_total_size(0) /* TCA_ACT_OPTIONS nested */
-		+ nla_total_size(sizeof(struct tcf_t)); /* TCA_GACT_TM */
+		/* TCA_GACT_TM; actions dump their tcf_t with nla_put_64bit(),
+		 * which may emit an extra NLA_PAD attribute.
+		 */
+		+ nla_total_size_64bit(sizeof(struct tcf_t));
 }
 
 static size_t tcf_action_full_attrs_size(size_t sz)
@@ -1578,7 +1581,7 @@ void tcf_action_update_stats(struct tc_action *a, u64 bytes, u64 packets,
 	if (a->cpu_bstats) {
 		_bstats_update(this_cpu_ptr(a->cpu_bstats), bytes, packets);
 
-		this_cpu_ptr(a->cpu_qstats)->drops += drops;
+		this_cpu_add(a->cpu_qstats->drops, drops);
 
 		if (hw)
 			_bstats_update(this_cpu_ptr(a->cpu_bstats_hw),

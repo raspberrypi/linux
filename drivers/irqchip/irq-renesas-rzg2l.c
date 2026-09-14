@@ -103,7 +103,7 @@ static void rzg2l_clear_irq_int(struct rzg2l_irqc_priv *priv, unsigned int hwirq
 	 * falling/rising-edge.
 	 */
 	if ((iscr & bit) && (iitsr & IITSR_IITSEL_MASK(hw_irq))) {
-		writel_relaxed(iscr & ~bit, priv->base + ISCR);
+		writel_relaxed(~bit, priv->base + ISCR);
 		/*
 		 * Enforce that the posted write is flushed to prevent that the
 		 * just handled interrupt is raised again.
@@ -119,7 +119,7 @@ static void rzg2l_clear_tint_int(struct rzg2l_irqc_priv *priv, unsigned int hwir
 
 	reg = readl_relaxed(priv->base + TSCR);
 	if (reg & bit) {
-		writel_relaxed(reg & ~bit, priv->base + TSCR);
+		writel_relaxed(~bit, priv->base + TSCR);
 		/*
 		 * Enforce that the posted write is flushed to prevent that the
 		 * just handled interrupt is raised again.
@@ -398,7 +398,7 @@ static int rzg2l_irqc_set_type(struct irq_data *d, unsigned int type)
 	return irq_chip_set_type_parent(d, IRQ_TYPE_LEVEL_HIGH);
 }
 
-static int rzg2l_irqc_irq_suspend(void)
+static int rzg2l_irqc_irq_suspend(void *data)
 {
 	struct rzg2l_irqc_reg_cache *cache = &rzg2l_irqc_data->cache;
 	void __iomem *base = rzg2l_irqc_data->base;
@@ -410,7 +410,7 @@ static int rzg2l_irqc_irq_suspend(void)
 	return 0;
 }
 
-static void rzg2l_irqc_irq_resume(void)
+static void rzg2l_irqc_irq_resume(void *data)
 {
 	struct rzg2l_irqc_reg_cache *cache = &rzg2l_irqc_data->cache;
 	void __iomem *base = rzg2l_irqc_data->base;
@@ -425,9 +425,13 @@ static void rzg2l_irqc_irq_resume(void)
 	writel_relaxed(cache->iitsr, base + IITSR);
 }
 
-static struct syscore_ops rzg2l_irqc_syscore_ops = {
+static const struct syscore_ops rzg2l_irqc_syscore_ops = {
 	.suspend	= rzg2l_irqc_irq_suspend,
 	.resume		= rzg2l_irqc_irq_resume,
+};
+
+static struct syscore rzg2l_irqc_syscore = {
+	.ops = &rzg2l_irqc_syscore_ops,
 };
 
 static const struct irq_chip rzg2l_irqc_chip = {
@@ -577,7 +581,7 @@ static int rzg2l_irqc_common_probe(struct platform_device *pdev, struct device_n
 		return -ENOMEM;
 	}
 
-	register_syscore_ops(&rzg2l_irqc_syscore_ops);
+	register_syscore(&rzg2l_irqc_syscore);
 
 	return 0;
 }
