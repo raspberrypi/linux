@@ -88,47 +88,41 @@ struct imx355_mode {
 						       1000000U)
 
 /*
- * The sensor does not implement the CCS capability and limit registers, and
- * its datasheet does not document the PLL limits. The values below are
- * educated guesses that cover the known good configurations, e.g.:
+ * The sensor does not implement the CCS capability and limit registers.
+ * The datasheet gives some limits on PLL configuration, so these have been
+ * translated into the CCS PLL helper equivalents.
  *
+ * The main configurations used are:
  * - 4 lanes, 19.2 MHz extclk: pre-div 2, multiplier 75 -> 720 MHz OP PLL
  *   output clock (360 MHz link frequency),
- * - 2 lanes, 24 MHz extclk: pre-div 3, multiplier 111 -> 888 MHz OP PLL
+ * - 2 lanes, 24 MHz extclk: pre-div 2, multiplier 74 -> 888 MHz OP PLL
  *   output clock (444 MHz link frequency).
  *
- * In both cases the PLL input clock is 8--12 MHz.
+ * The supported PLL input clock range is 6-27 MHz.
  */
 static const struct ccs_pll_limits imx355_ccs_pll_limits = {
 	.min_ext_clk_freq_hz = 6000000,
 	.max_ext_clk_freq_hz = 27000000,
 
 	.vt_fr = {
-		.min_pre_pll_clk_div = 1,
-		.max_pre_pll_clk_div = 15,
-		/* Value is an educated guess as we don't have a spec */
-		.min_pll_ip_clk_freq_hz = 2000000,
-		/* Value is an educated guess as we don't have a spec */
-		.max_pll_ip_clk_freq_hz = 24000000,
-		.min_pll_multiplier = 10,
-		.max_pll_multiplier = 500,
-		.min_pll_op_clk_freq_hz = 320000000,
-		.max_pll_op_clk_freq_hz = 1000000000,
+		.min_pre_pll_clk_div = 2,
+		.max_pre_pll_clk_div = 4,
+		.min_pll_ip_clk_freq_hz = 6000000,
+		.max_pll_ip_clk_freq_hz = 27000000,
+		.min_pll_multiplier = 16,
+		.max_pll_multiplier = 148,
+		.min_pll_op_clk_freq_hz = 360000000,
+		.max_pll_op_clk_freq_hz = 890000000,
 	},
 	.op_fr = {
-		.min_pre_pll_clk_div = 1,
-		.max_pre_pll_clk_div = 15,
-		.min_pll_ip_clk_freq_hz = 2000000,
-		.max_pll_ip_clk_freq_hz = 24000000,
-		.min_pll_multiplier = 10,
-		.max_pll_multiplier = 500,
-		.min_pll_op_clk_freq_hz = 320000000,
-		.max_pll_op_clk_freq_hz = 1000000000,
+		/* Not required as dual PPL mode not supported */
 	},
 
 	.vt_bk = {
 		.min_sys_clk_div = 1,
 		.max_sys_clk_div = 2,
+		.min_sys_clk_freq_hz = 320000000,
+		.max_sys_clk_freq_hz = 1000000000,
 		.min_pix_clk_div = 4,
 		.max_pix_clk_div = 10,
 		.min_pix_clk_freq_hz = 80000000,
@@ -137,11 +131,15 @@ static const struct ccs_pll_limits imx355_ccs_pll_limits = {
 	.op_bk = {
 		.min_sys_clk_div = 1,
 		.max_sys_clk_div = 2,
-		.min_pix_clk_div = 4,
-		.max_pix_clk_div = 10,
-		.min_pix_clk_freq_hz = 80000000,
-		.max_pix_clk_freq_hz = 180000000,
+		.min_sys_clk_freq_hz = 360000000,
+		.max_sys_clk_freq_hz = 1000000000,
+		.min_pix_clk_div = 5,
+		.max_pix_clk_div = 5,
+		.min_pix_clk_freq_hz = 72000000,
+		.max_pix_clk_freq_hz = 288000000,
 	},
+	.min_line_length_pck_bin = 1836,
+	.min_line_length_pck = 3672,
 };
 
 struct imx355_hwcfg {
@@ -234,13 +232,6 @@ static const struct cci_reg_sequence imx355_global_regs[] = {
 	{ CCI_REG8(0x305a), 0x00 },
 	{ CCI_REG8(0x0112), 0x0a },
 	{ CCI_REG8(0x0113), 0x0a },
-	{ CCS_R_VT_PIX_CLK_DIV, IMX355_PLL_IVT_PCK_DIV },
-	{ CCS_R_VT_SYS_CLK_DIV, 0x01 },
-	{ CCI_REG8(0x0305), 0x02 },
-	{ CCI_REG8(0x0306), 0x00 },
-	{ CCI_REG8(0x0307), 0x78 },
-	{ CCI_REG8(0x030b), 0x01 },
-	{ CCS_R_OP_PRE_PLL_CLK_DIV, IMX355_PLL_OP_PREDIV },
 	{ CCI_REG8(0x0310), 0x00 },
 	{ CCI_REG8(0x0220), 0x00 },
 	{ CCI_REG8(0x0222), 0x01 },
@@ -842,6 +833,26 @@ static int imx355_start_streaming(struct imx355 *imx355)
 	cci_multi_reg_write(imx355->regmap, imx355_global_regs,
 			    ARRAY_SIZE(imx355_global_regs), &ret);
 
+	/* Set PLL registers for the external clock frequency */
+	cci_write(imx355->regmap, CCS_R_EXTCLK_FREQUENCY_MHZ,
+		  IMX355_EXTCLK_FREQ_MHZ_REG(imx355->extclk_freq), &ret);
+
+	/* CCS 1-PLL mode uses VT PLL, but IMX355 uses OP PLL */
+	cci_write(imx355->regmap, CCS_R_OP_PRE_PLL_CLK_DIV,
+		  pll.vt_fr.pre_pll_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_OP_PLL_MULTIPLIER,
+		  pll.vt_fr.pll_multiplier, &ret);
+	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV,
+		  lane_idx ? 2 : 1, &ret);
+
+	cci_write(imx355->regmap, CCS_R_VT_PIX_CLK_DIV, pll.vt_bk.pix_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV, pll.vt_bk.sys_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_PRE_PLL_CLK_DIV, pll.vt_fr.pre_pll_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_PLL_MULTIPLIER, pll.vt_fr.pll_multiplier, &ret);
+
+	cci_write(imx355->regmap, CCS_R_OP_PIX_CLK_DIV, pll.op_bk.pix_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_OP_SYS_CLK_DIV, pll.op_bk.sys_clk_div, &ret);
+
 	/* Apply values of current mode */
 	state = v4l2_subdev_get_locked_active_state(&imx355->sd);
 	fmt = v4l2_subdev_state_get_format(state, 0);
@@ -869,16 +880,6 @@ static int imx355_start_streaming(struct imx355 *imx355)
 		  binning_mode == 0x11 ? 0x00 : 0x01, &ret);
 	cci_write(imx355->regmap, CCS_R_BINNING_TYPE, binning_mode, &ret);
 	cci_write(imx355->regmap, CCS_R_BINNING_WEIGHTING, 0x00, &ret);
-
-	/* Set PLL registers for the external clock frequency */
-	cci_write(imx355->regmap, CCS_R_EXTCLK_FREQUENCY_MHZ,
-		  IMX355_EXTCLK_FREQ_MHZ_REG(imx355->extclk_freq), &ret);
-	cci_write(imx355->regmap, CCS_R_OP_PRE_PLL_CLK_DIV,
-		  pll.op_fr.pre_pll_clk_div, &ret);
-	cci_write(imx355->regmap, CCS_R_OP_PLL_MULTIPLIER,
-		  pll.op_fr.pll_multiplier, &ret);
-	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV,
-		  lane_idx ? 2 : 1, &ret);
 
 	/* Set MIPI configuration */
 	cci_write(imx355->regmap, CCS_R_CSI_LANE_MODE,
