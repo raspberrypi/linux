@@ -835,6 +835,11 @@ static int cxl_einj_inject(void *data, u64 type)
 DEFINE_DEBUGFS_ATTRIBUTE(cxl_einj_inject_fops, NULL, cxl_einj_inject,
 			 "0x%llx\n");
 
+static void remove_debugfs(void *dentry)
+{
+	debugfs_remove_recursive(dentry);
+}
+
 static void cxl_debugfs_create_dport_dir(struct cxl_dport *dport)
 {
 	struct cxl_port *parent = parent_port_of(dport->port);
@@ -852,6 +857,8 @@ static void cxl_debugfs_create_dport_dir(struct cxl_dport *dport)
 		return;
 
 	dir = cxl_debugfs_create_dir(dev_name(dport->dport_dev));
+
+	devm_add_action_or_reset(dport_to_host(dport), remove_debugfs, dir);
 
 	debugfs_create_file("einj_inject", 0200, dir, dport,
 			    &cxl_einj_inject_fops);
