@@ -686,36 +686,18 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 #define PHASE_BITS 6
 
 static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
-			  u32 xy, int channel, int chroma_offset,
-			  bool no_interpolate)
+			  u32 xy, int channel, unsigned int subsample,
+			  int chroma_offset, bool no_interpolate)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(vc4_state->base.plane->dev);
+	unsigned int sub_shift = subsample == 2 ? 1 : 0;
 	u32 scale = src / dst;
 	s32 offset, offset2;
 	s32 phase;
 
 	WARN_ON_ONCE(vc4->gen > VC4_GEN_6_D);
 
-	/*
-	 * Start the phase at 1/2 pixel from the 1st pixel at src_x.
-	 * 1/4 pixel for YUV, plus the offset for chroma siting.
-	 */
-	if (channel) {
-		/*
-		 * The phase is relative to scale_src->x, so shift it for
-		 * display list's x value
-		 */
-		offset = (xy & 0x1ffff) >> (16 - PHASE_BITS) >> 1;
-		offset -= chroma_offset >> (17 - PHASE_BITS);
-		offset += -(1 << PHASE_BITS >> 2);
-	} else {
-		/*
-		 * The phase is relative to scale_src->x, so shift it for
-		 * display list's x value
-		 */
-		offset = (xy & 0xffff) >> (16 - PHASE_BITS);
-		offset += -(1 << PHASE_BITS >> 1);
-
+	if (!channel) {
 		/*
 		 * This is a kludge to make sure the scaling factors are
 		 * consistent with YUV's luma scaling. We lose 1-bit precision
@@ -723,6 +705,18 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 		 */
 		scale &= ~1;
 	}
+
+	/*
+	 * Start the phase at 1/2 pixel from the 1st pixel at src_x, less the
+	 * chroma siting offset. The phase is relative to scale_src->x, so
+	 * shift it for the display list's x value. Everything is computed in
+	 * luma pixels and then converted to this channel's pixels, so that a
+	 * subsampled chroma channel lands on the same position as the luma.
+	 */
+	offset = (xy & ((0x10000 << sub_shift) - 1)) >> (16 - PHASE_BITS);
+	offset -= chroma_offset >> (16 - PHASE_BITS);
+	offset -= 1 << PHASE_BITS >> 1;
+	offset >>= sub_shift;
 
 	/*
 	 * There may be a also small error introduced by precision of scale.
@@ -928,7 +922,10 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 {
 	struct vc4_dev *vc4 = to_vc4_dev(state->plane->dev);
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	const struct drm_format_info *info = state->fb->format;
 	bool no_interpolate = state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR;
+	unsigned int hsub = channel ? info->hsub : 1;
+	unsigned int vsub = channel ? info->vsub : 1;
 
 	if (vc4_state->is_yuv444_unity)
 		no_interpolate = 1;
@@ -939,16 +936,14 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_w[channel],
 			      vc4_state->crtc_w, vc4_state->src_x, channel,
-			      state->chroma_siting_h,
-			      no_interpolate);
+			      hsub, state->chroma_siting_h, no_interpolate);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_h[channel],
 			      vc4_state->crtc_h, vc4_state->src_y, channel,
-			      state->chroma_siting_v,
-			      no_interpolate);
+			      vsub, state->chroma_siting_v, no_interpolate);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
@@ -2682,29 +2677,11 @@ static const struct drm_plane_helper_funcs vc4_plane_helper_funcs = {
 	.atomic_async_update = vc4_plane_atomic_async_update,
 };
 
-static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
-	.atomic_check = vc4_plane_atomic_check,
-	.atomic_update = vc4_plane_atomic_update,
-	.prepare_fb = vc4_prepare_fb,
-	.cleanup_fb = vc4_cleanup_fb,
-	.atomic_async_check = vc4_plane_atomic_async_check,
-	.atomic_async_update = vc4_plane_atomic_async_update,
-	.get_scanout_buffer = drm_fb_dma_get_scanout_buffer,
-};
-
 static const struct drm_plane_helper_funcs vc5_plane_helper_funcs = {
 	.atomic_check = vc4_plane_atomic_check,
 	.atomic_update = vc4_plane_atomic_update,
 	.atomic_async_check = vc4_plane_atomic_async_check,
 	.atomic_async_update = vc4_plane_atomic_async_update,
-};
-
-static const struct drm_plane_helper_funcs vc5_primary_plane_helper_funcs = {
-	.atomic_check = vc4_plane_atomic_check,
-	.atomic_update = vc4_plane_atomic_update,
-	.atomic_async_check = vc4_plane_atomic_async_check,
-	.atomic_async_update = vc4_plane_atomic_async_update,
-	.get_scanout_buffer = drm_fb_dma_get_scanout_buffer,
 };
 
 static bool vc4_format_mod_supported(struct drm_plane *plane,
@@ -2825,13 +2802,9 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 	plane = &vc4_plane->base;
 
 	if (vc4->gen >= VC4_GEN_5)
-		drm_plane_helper_add(plane, type == DRM_PLANE_TYPE_PRIMARY ?
-				     &vc5_primary_plane_helper_funcs :
-				     &vc5_plane_helper_funcs);
+		drm_plane_helper_add(plane, &vc5_plane_helper_funcs);
 	else
-		drm_plane_helper_add(plane, type == DRM_PLANE_TYPE_PRIMARY ?
-				     &vc4_primary_plane_helper_funcs :
-				     &vc4_plane_helper_funcs);
+		drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
 	drm_plane_create_blend_mode_property(plane,
