@@ -2176,6 +2176,22 @@ static int cfe_async_bound(struct v4l2_async_notifier *notifier,
 	return 0;
 }
 
+static void cfe_async_unbind(struct v4l2_async_notifier *notifier,
+			     struct v4l2_subdev *subdev,
+			     struct v4l2_async_connection *asd)
+{
+	struct cfe_device *cfe = to_cfe_device(notifier->v4l2_dev);
+
+	if (cfe->sensor != subdev)
+		return;
+
+	cfe_unregister_nodes(cfe);
+	media_entity_remove_links(&cfe->csi2.sd.entity);
+	media_entity_remove_links(&cfe->fe.sd.entity);
+
+	cfe->sensor = NULL;
+}
+
 static int cfe_async_complete(struct v4l2_async_notifier *notifier)
 {
 	struct cfe_device *cfe = to_cfe_device(notifier->v4l2_dev);
@@ -2185,6 +2201,7 @@ static int cfe_async_complete(struct v4l2_async_notifier *notifier)
 
 static const struct v4l2_async_notifier_operations cfe_async_ops = {
 	.bound = cfe_async_bound,
+	.unbind = cfe_async_unbind,
 	.complete = cfe_async_complete,
 };
 
