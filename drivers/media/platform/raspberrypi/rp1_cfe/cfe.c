@@ -1915,6 +1915,13 @@ static int cfe_register_node(struct cfe_device *cfe, int id)
 	struct cfe_node *node = &cfe->node[id];
 	int ret;
 
+	/*
+	 * The node may be re-registered after the source subdev has been
+	 * unbound and rebound. The embedded video_device must be reset before
+	 * being re-registered.
+	 */
+	memset(&node->video_dev, 0, sizeof(node->video_dev));
+
 	node->cfe = cfe;
 	node->id = id;
 
