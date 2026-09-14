@@ -315,6 +315,11 @@ static const struct cci_reg_sequence mode_820x616_regs[] = {
 	{ CCI_REG8(0x0701), 0x78 },
 };
 
+static const struct cci_reg_sequence mode_640x480_regs[] = {
+	{ CCI_REG8(0x0700), 0x00 },
+	{ CCI_REG8(0x0701), 0x10 },
+};
+
 static const char * const imx355_test_pattern_menu[] = {
 	"Disabled",
 	"Solid Colour",
@@ -547,6 +552,22 @@ static const struct imx355_mode supported_modes[] = {
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_820x616_regs),
 			.regs = mode_820x616_regs,
+		},
+	},
+	{
+		.width = 640,
+		.height = 480,
+		.crop = {
+			.width = 1280,
+			.height = 960,
+			.left = 1000,
+			.top = 752,
+		},
+		.fll_def = 520,
+		.llp = 1836,
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_640x480_regs),
+			.regs = mode_640x480_regs,
 		},
 	},
 };
