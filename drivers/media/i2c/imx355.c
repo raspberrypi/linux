@@ -112,7 +112,7 @@ static const struct ccs_pll_limits imx355_ccs_pll_limits = {
 		.min_pll_multiplier = 16,
 		.max_pll_multiplier = 148,
 		.min_pll_op_clk_freq_hz = 360000000,
-		.max_pll_op_clk_freq_hz = 890000000,
+		.max_pll_op_clk_freq_hz = 960000000,
 	},
 	.op_fr = {
 		/* Not required as dual PPL mode not supported */
@@ -136,7 +136,7 @@ static const struct ccs_pll_limits imx355_ccs_pll_limits = {
 		.min_pix_clk_div = 5,
 		.max_pix_clk_div = 5,
 		.min_pix_clk_freq_hz = 72000000,
-		.max_pix_clk_freq_hz = 288000000,
+		.max_pix_clk_freq_hz = 312000000,
 	},
 	.min_line_length_pck_bin = 1836,
 	.min_line_length_pck = 3672,
