@@ -928,6 +928,9 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	bool no_interpolate = state->scaling_filter == DRM_SCALING_FILTER_NEAREST_NEIGHBOR;
 	unsigned int hsub = channel ? info->hsub : 1;
 	unsigned int vsub = channel ? info->vsub : 1;
+	/* Chroma siting only has any meaning on a subsampled axis */
+	int siting_h = hsub > 1 ? state->chroma_siting_h : 0;
+	int siting_v = vsub > 1 ? state->chroma_siting_v : 0;
 
 	if (vc4_state->is_yuv444_unity)
 		no_interpolate = 1;
@@ -938,14 +941,14 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_w[channel],
 			      vc4_state->crtc_w, vc4_state->src_x, channel,
-			      hsub, state->chroma_siting_h, no_interpolate);
+			      hsub, siting_h, no_interpolate);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state, vc4_state->src_h[channel],
 			      vc4_state->crtc_h, vc4_state->src_y, channel,
-			      vsub, state->chroma_siting_v, no_interpolate);
+			      vsub, siting_v, no_interpolate);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
