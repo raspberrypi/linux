@@ -2088,6 +2088,18 @@ static void asus_wmi_led_exit(struct asus_wmi *asus)
 
 	if (asus->led_workqueue)
 		destroy_workqueue(asus->led_workqueue);
+
+	/*
+	 * kbd_led is registered lazily by kbd_led_work: now that the
+	 * workqueue is destroyed and asus_ref.asus is NULL, the work can
+	 * neither run nor be queued anymore, furthermore leaving it to
+	 * devres would run the unregister from devres_release_all(),
+	 * after .remove() returned and the struct asus_wmi embedding
+	 * kbd_led has been freed.
+	 */
+	if (asus->kbd_led_registered)
+		devm_led_classdev_unregister(&asus->platform_device->dev,
+					     &asus->kbd_led);
 }
 
 static int asus_wmi_led_init(struct asus_wmi *asus)
