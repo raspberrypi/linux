@@ -173,27 +173,6 @@ static int __st1202_channel_set(struct st1202_chip *chip, int led_num, bool acti
 	return 0;
 }
 
-static int st1202_channel_set(struct st1202_chip *chip, int led_num, bool active)
-{
-	guard(mutex)(&chip->lock);
-
-	return __st1202_channel_set(chip, led_num, active);
-}
-
-static void st1202_brightness_set(struct led_classdev *led_cdev,
-				enum led_brightness value)
-{
-	struct st1202_led *led = cdev_to_st1202_led(led_cdev);
-	struct st1202_chip *chip = led->chip;
-
-	guard(mutex)(&chip->lock);
-
-	for (int pattern = 0; pattern < ST1202_MAX_PATTERNS; pattern++)
-		st1202_pwm_pattern_write(chip, led->led_num, pattern, ST1202_PATTERN_PWM_FULL);
-	st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num, value);
-	__st1202_channel_set(chip, led->led_num, !!value);
-}
-
 static enum led_brightness st1202_brightness_get(struct led_classdev *led_cdev)
 {
 	struct st1202_led *led = cdev_to_st1202_led(led_cdev);
@@ -210,8 +189,29 @@ static enum led_brightness st1202_brightness_get(struct led_classdev *led_cdev)
 static int st1202_led_set(struct led_classdev *ldev, enum led_brightness value)
 {
 	struct st1202_led *led = cdev_to_st1202_led(ldev);
+	struct st1202_chip *chip = led->chip;
+	int ret;
 
-	return st1202_channel_set(led->chip, led->led_num, !!value);
+	guard(mutex)(&chip->lock);
+
+	/*
+	 * The output of a channel is ILED x Pattern_PWM / 4095. Setting every
+	 * PWM slot to full scale makes it equal ILED whatever the state of the
+	 * sequencer, so the brightness takes effect without stopping the
+	 * sequencer, which is global and would disturb the other channels.
+	 */
+	for (int pattern = 0; pattern < ST1202_MAX_PATTERNS; pattern++) {
+		ret = st1202_pwm_pattern_write(chip, led->led_num, pattern,
+						ST1202_PATTERN_PWM_FULL);
+		if (ret)
+			return ret;
+	}
+
+	ret = st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num, value);
+	if (ret)
+		return ret;
+
+	return __st1202_channel_set(chip, led->led_num, !!value);
 }
 
 static int st1202_led_pattern_clear(struct led_classdev *ldev)
@@ -436,7 +436,6 @@ static int st1202_dt_init(struct st1202_chip *chip)
 		led->led_cdev.pattern_clear = st1202_led_pattern_clear;
 		led->led_cdev.default_trigger = "pattern";
 		led->led_cdev.blink_set = st1202_blink_set;
-		led->led_cdev.brightness_set = st1202_brightness_set;
 		led->led_cdev.brightness_get = st1202_brightness_get;
 	}
 
