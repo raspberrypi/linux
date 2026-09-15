@@ -12,7 +12,7 @@
 #include <drm/drm_cache.h>
 #include <drm/drm_debugfs.h>
 #include <drm/drm_file.h>
-#include <drm/drm_utils.h>
+#include <drm/drm_timeout.h>
 
 #include "ivpu_drv.h"
 #include "ivpu_fw.h"

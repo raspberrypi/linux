@@ -68,6 +68,7 @@ drm-y := \
 	drm_rect.o \
 	drm_syncobj.o \
 	drm_sysfs.o \
+	drm_timeout.o \
 	drm_trace_points.o \
 	drm_vblank.o \
 	drm_vblank_work.o \

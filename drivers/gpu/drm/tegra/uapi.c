@@ -7,7 +7,7 @@
 
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
-#include <drm/drm_utils.h>
+#include <drm/drm_timeout.h>
 
 #include "drm.h"
 #include "uapi.h"
