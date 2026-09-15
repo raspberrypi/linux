@@ -221,6 +221,14 @@ static int st1202_led_pattern_clear(struct led_classdev *ldev)
 
 	guard(mutex)(&chip->lock);
 
+	ret = st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num, LED_OFF);
+	if (ret != 0)
+		return ret;
+
+	ret = __st1202_channel_set(chip, led->led_num, false);
+	if (ret != 0)
+		return ret;
+
 	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret != 0)
 		return ret;
@@ -284,6 +292,10 @@ static int st1202_led_pattern_set(struct led_classdev *ldev,
 	}
 
 	ret = st1202_write_reg(chip, ST1202_PATTERN_REP, repeat);
+	if (ret != 0)
+		return ret;
+
+	ret = st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num, max_brightness);
 	if (ret != 0)
 		return ret;
 
@@ -455,7 +467,7 @@ static int st1202_setup(struct st1202_chip *chip)
 	/* Duration of initialization */
 	usleep_range(6500, 10000);
 
-	/* Deactivate all LEDS (channels) and activate only the ones found in Device Tree */
+	/* Deactivate all LEDs (channels); each is enabled when it is lit */
 	ret = st1202_write_reg(chip, ST1202_CHAN_ENABLE_LOW, ST1202_CHAN_DISABLE_ALL);
 	if (ret < 0)
 		return ret;
@@ -501,11 +513,6 @@ static int st1202_probe(struct i2c_client *client)
 
 		if (!led->is_active)
 			continue;
-
-		ret = st1202_channel_set(led->chip, led->led_num, true);
-		if (ret < 0)
-			return dev_err_probe(&client->dev, ret,
-					"Failed to activate LED channel\n");
 
 		ret = st1202_led_pattern_clear(&led->led_cdev);
 		if (ret < 0)
