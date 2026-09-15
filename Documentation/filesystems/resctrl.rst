@@ -658,7 +658,7 @@ When monitoring is enabled all MON groups will also contain:
 	during execution of instructions summed across all logical CPUs on a
 	package for the current monitoring group.
 
-	"activity" also reports a floating point value (in Farads).  This provides
+	"activity" also reports a floating point value (in nanofarads).  This provides
 	an estimate of work done independent of the frequency that the CPUs used
 	for execution.
 
