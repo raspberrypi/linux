@@ -845,13 +845,14 @@ attribute-sets:
         name: linecard-supported-types
         type: nest
         nested-attributes: dl-linecard-supported-types
-
-      # TODO: fill in the attributes in between
-
+      -
+        name: nested-devlink
+        type: nest
+        multi-attr: true
+        nested-attributes: dl-nested-devlink
       -
         name: selftests
         type: nest
-        value: 176
         nested-attributes: dl-selftest-id
       -
         name: rate-tx-priority
@@ -1338,6 +1339,19 @@ attribute-sets:
       -
         name: index
 
+  -
+    name: dl-nested-devlink
+    subset-of: devlink
+    attributes:
+      -
+        name: bus-name
+      -
+        name: dev-name
+      -
+        name: index
+      -
+        name: netns-id
+
 operations:
   enum-model: directional
   list:
@@ -1363,6 +1377,7 @@ operations:
             - index
             - reload-failed
             - dev-stats
+            - nested-devlink
       dump:
         reply: *get-reply
 
