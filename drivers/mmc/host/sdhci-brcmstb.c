@@ -52,6 +52,7 @@
 
 struct sdhci_brcmstb_priv {
 	void __iomem *cfg_regs;
+	void (*cfginit)(struct sdhci_host *host);
 	unsigned int flags;
 	struct clk *base_clk;
 	u32 base_freq_hz;
@@ -600,6 +601,7 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	pltfm_host->clk = clk;
 
 	priv = sdhci_pltfm_priv(pltfm_host);
+	priv->cfginit = match_priv->cfginit;
 	cqe = 0;
 	device_property_read_u32(&pdev->dev, "supports-cqe", &cqe);
 	if (cqe > 0) {
@@ -681,8 +683,8 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	    (priv->flags & BRCMSTB_PRIV_FLAGS_HAS_SD_EXPRESS))
 		host->mmc->caps2 |= MMC_CAP2_SD_EXP;
 
-	if (match_priv->cfginit)
-		match_priv->cfginit(host);
+	if (priv->cfginit)
+		priv->cfginit(host);
 
 	/*
 	 * Supply the existing CAPS, but clear the UHS modes. This
@@ -771,6 +773,9 @@ static int sdhci_brcmstb_resume(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_brcmstb_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
+
+	if (priv->cfginit)
+		priv->cfginit(host);
 
 	ret = sdhci_pltfm_resume(dev);
 	if (!ret && priv->base_freq_hz) {

@@ -5,6 +5,7 @@
  *
  */
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -1826,8 +1827,41 @@ static void pispbe_remove(struct platform_device *pdev)
 	pm_runtime_disable(pispbe->dev);
 }
 
+static int pispbe_suspend(struct device *dev)
+{
+	struct pispbe_dev *pispbe = dev_get_drvdata(dev);
+	bool busy;
+
+	scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
+		busy = pispbe->hw_busy;
+	}
+
+	if (busy) {
+		msleep(100);
+
+		scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
+			busy = pispbe->hw_busy;
+		}
+	}
+
+	if (busy) {
+		dev_err(dev, "Timed out waiting for ISP-BE to finish.\n");
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
+static int pispbe_resume(struct device *dev)
+{
+	struct pispbe_dev *pispbe = dev_get_drvdata(dev);
+
+	return pispbe_hw_init(pispbe);
+}
+
 static const struct dev_pm_ops pispbe_pm_ops = {
 	SET_RUNTIME_PM_OPS(pispbe_runtime_suspend, pispbe_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pispbe_suspend, pispbe_resume)
 };
 
 static const struct of_device_id pispbe_of_match[] = {

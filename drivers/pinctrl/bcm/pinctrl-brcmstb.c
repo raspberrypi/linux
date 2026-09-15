@@ -49,6 +49,8 @@ struct brcmstb_pinctrl {
 	struct pinctrl_gpio_range gpio_range;
 	/* Protect FSEL registers */
 	spinlock_t fsel_lock;
+	u32 *saved_mux;
+	u32 *saved_pad;
 };
 
 static unsigned int brcmstb_pinctrl_fsel_get(struct brcmstb_pinctrl *pc,
@@ -422,6 +424,13 @@ int brcmstb_pinctrl_probe(struct platform_device *pdev)
 	pc->func_count = pdata->func_count;
 	pc->func_names = pdata->func_names;
 
+	pc->saved_mux = devm_kcalloc(dev, num_pins, sizeof(*pc->saved_mux),
+				     GFP_KERNEL);
+	pc->saved_pad = devm_kcalloc(dev, num_pins, sizeof(*pc->saved_pad),
+				     GFP_KERNEL);
+	if (!pc->saved_mux || !pc->saved_pad)
+		return -ENOMEM;
+
 	pc->pctl_dev = devm_pinctrl_register(dev, &pc->pctl_desc, pc);
 	if (IS_ERR(pc->pctl_dev))
 		return dev_err_probe(&pdev->dev, PTR_ERR(pc->pctl_dev),
@@ -433,6 +442,46 @@ int brcmstb_pinctrl_probe(struct platform_device *pdev)
 	return 0;
 }
 EXPORT_SYMBOL(brcmstb_pinctrl_probe);
+
+int brcmstb_pinctrl_suspend(struct device *dev)
+{
+	struct brcmstb_pinctrl *pc = dev_get_drvdata(dev);
+	unsigned int i, num_pins = pc->pctl_desc.npins;
+	u32 bit;
+
+	for (i = 0; i < num_pins; i++) {
+		bit = pc->pin_regs[i].mux_bit;
+		if (bit)
+			pc->saved_mux[i] = readl(pc->base + BIT_TO_REG(bit & ~MUX_BIT_VALID));
+
+		bit = pc->pin_regs[i].pad_bit;
+		if (bit != PAD_BIT_INVALID)
+			pc->saved_pad[i] = readl(pc->base + BIT_TO_REG(bit));
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(brcmstb_pinctrl_suspend);
+
+int brcmstb_pinctrl_resume(struct device *dev)
+{
+	struct brcmstb_pinctrl *pc = dev_get_drvdata(dev);
+	unsigned int i, num_pins = pc->pctl_desc.npins;
+	u32 bit;
+
+	for (i = 0; i < num_pins; i++) {
+		bit = pc->pin_regs[i].mux_bit;
+		if (bit)
+			writel(pc->saved_mux[i], pc->base + BIT_TO_REG(bit & ~MUX_BIT_VALID));
+
+		bit = pc->pin_regs[i].pad_bit;
+		if (bit != PAD_BIT_INVALID)
+			writel(pc->saved_pad[i], pc->base + BIT_TO_REG(bit));
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(brcmstb_pinctrl_resume);
 
 MODULE_AUTHOR("Phil Elwell");
 MODULE_AUTHOR("Jonathan Bell");

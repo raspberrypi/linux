@@ -130,6 +130,7 @@ out:
 int dwc3_host_init(struct dwc3 *dwc)
 {
 	struct platform_device	*pdev = to_platform_device(dwc->dev);
+	struct xhci_plat_priv	xhci_priv = dwc3_xhci_plat_quirk;
 	struct property_entry	props[6];
 	struct platform_device	*xhci;
 	int			ret, irq;
@@ -203,8 +204,9 @@ int dwc3_host_init(struct dwc3 *dwc)
 		}
 	}
 
-	ret = platform_device_add_data(xhci, &dwc3_xhci_plat_quirk,
-				       sizeof(struct xhci_plat_priv));
+	xhci_priv.power_lost = dwc->power_off_in_suspend;
+
+	ret = platform_device_add_data(xhci, &xhci_priv, sizeof(xhci_priv));
 	if (ret)
 		goto err;
 
