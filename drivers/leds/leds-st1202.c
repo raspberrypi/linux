@@ -207,7 +207,8 @@ static int st1202_led_set(struct led_classdev *ldev, enum led_brightness value)
 			return ret;
 	}
 
-	ret = st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num, value);
+	ret = st1202_write_reg(chip, ST1202_ILED_REG0 + led->led_num,
+				min_t(unsigned int, value, U8_MAX));
 	if (ret)
 		return ret;
 
