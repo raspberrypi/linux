@@ -410,30 +410,53 @@ static int vc4_hvs_debugfs_lbm_allocs(struct seq_file *m, void *data)
 	 (((c1) & 0x1ff) << 9) |				\
 	 (((c2) & 0x1ff) << 18))
 
-/* The whole filter kernel is arranged as the coefficients 0-16 going
+/* The PPF is a 4-tap filter with 64 phases, of which only 8 key phases
+ * (at 0, 1/8, ..., 7/8 of a source pixel) are stored; the hardware
+ * linearly interpolates the rest.  The 32 coefficients are indexed
+ * tap * 8 + phase, taps ordered +2, +1, 0, -1 from the sample point.
+ *
+ * The whole filter kernel is arranged as the coefficients 0-16 going
  * up, then a pad, then 17-31 going down and reversed within the
- * dwords.  This means that a linear phase kernel (where it's
- * symmetrical at the boundary between 15 and 16) has the last 5
- * dwords matching the first 5, but reversed.
+ * dwords.
  */
-#define VC4_LINEAR_PHASE_KERNEL(c0, c1, c2, c3, c4, c5, c6, c7, c8,	\
-				c9, c10, c11, c12, c13, c14, c15)	\
+#define VC4_KERNEL(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,	\
+		   c12, c13, c14, c15, c16, c17, c18, c19, c20, c21,	\
+		   c22, c23, c24, c25, c26, c27, c28, c29, c30, c31)	\
 	{VC4_PPF_FILTER_WORD(c0, c1, c2),				\
 	 VC4_PPF_FILTER_WORD(c3, c4, c5),				\
 	 VC4_PPF_FILTER_WORD(c6, c7, c8),				\
 	 VC4_PPF_FILTER_WORD(c9, c10, c11),				\
 	 VC4_PPF_FILTER_WORD(c12, c13, c14),				\
-	 VC4_PPF_FILTER_WORD(c15, c15, 0)}
+	 VC4_PPF_FILTER_WORD(c15, c16, 0),				\
+	 VC4_PPF_FILTER_WORD(c19, c18, c17),				\
+	 VC4_PPF_FILTER_WORD(c22, c21, c20),				\
+	 VC4_PPF_FILTER_WORD(c25, c24, c23),				\
+	 VC4_PPF_FILTER_WORD(c28, c27, c26),				\
+	 VC4_PPF_FILTER_WORD(c31, c30, c29)}
 
-#define VC4_LINEAR_PHASE_KERNEL_DWORDS 6
-#define VC4_KERNEL_DWORDS (VC4_LINEAR_PHASE_KERNEL_DWORDS * 2 - 1)
+/* A linear phase kernel is symmetrical at the boundary between 15 and
+ * 16, so only the first half need be given.
+ */
+#define VC4_LINEAR_PHASE_KERNEL(c0, c1, c2, c3, c4, c5, c6, c7, c8,	\
+				c9, c10, c11, c12, c13, c14, c15)	\
+	VC4_KERNEL(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,	\
+		   c12, c13, c14, c15, c15, c14, c13, c12, c11, c10,	\
+		   c9, c8, c7, c6, c5, c4, c3, c2, c1, c0)
+
+#define VC4_KERNEL_DWORDS 11
 
 /* Recommended B=1/3, C=1/3 filter choice from Mitchell/Netravali.
  * http://www.cs.utexas.edu/~fussell/courses/cs384g/lectures/mitchell/Mitchell.pdf
+ *
+ * Tabulated at the key phases the hardware actually uses, so it is not
+ * linear phase: a symmetric table would have to put the key phases at
+ * (p + 1/2) / 8, half a key phase late.
  */
 static const u32 mitchell_netravali_1_3_1_3_kernel[] =
-	VC4_LINEAR_PHASE_KERNEL(0, -2, -6, -8, -10, -8, -3, 2, 18,
-				50, 82, 119, 155, 187, 213, 227);
+	VC4_KERNEL(0, -1, -4, -7, -9, -9, -6, 1,
+		   14, 36, 66, 101, 137, 171, 200, 220,
+		   228, 220, 200, 171, 137, 101, 66, 36,
+		   14, 1, -6, -9, -9, -7, -4, -1);
 static const u32 nearest_neighbour_kernel[] =
 	VC4_LINEAR_PHASE_KERNEL(0, 0, 0, 0, 0, 0, 0, 0,
 				1, 1, 1, 1, 255, 255, 255, 255);
@@ -459,14 +482,8 @@ static int vc4_hvs_upload_linear_kernel(struct vc4_hvs *hvs,
 
 	dst_kernel = hvs->dlist + space->start;
 
-	for (i = 0; i < VC4_KERNEL_DWORDS; i++) {
-		if (i < VC4_LINEAR_PHASE_KERNEL_DWORDS)
-			writel(kernel[i], &dst_kernel[i]);
-		else {
-			writel(kernel[VC4_KERNEL_DWORDS - i - 1],
-			       &dst_kernel[i]);
-		}
-	}
+	for (i = 0; i < VC4_KERNEL_DWORDS; i++)
+		writel(kernel[i], &dst_kernel[i]);
 
 	return 0;
 }
