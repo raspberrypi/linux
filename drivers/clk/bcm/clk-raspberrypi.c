@@ -306,8 +306,14 @@ static int raspberrypi_fw_prepare(struct clk_hw *hw)
 		return ret;
 	}
 
+	/*
+	 * Set the clock rate to the maximum possible rate or restore the rate
+	 * the consumer requested.
+	 */
 	if (variant->maximize)
 		ret = raspberrypi_fw_set_rate(hw, variant->max_rate, 0);
+	else
+		ret = raspberrypi_fw_set_rate(hw, clk_hw_get_rate(hw), 0);
 
 	return ret;
 }
