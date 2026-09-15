@@ -683,7 +683,7 @@ void dcn42_prepare_bandwidth(
 	/* valid C-state watermarks have now been committed to HW, so it
 	 * is safe to vote "allow" to PMFW.
 	 */
-	if (dc->clk_mgr && dc->clk_mgr->funcs && dc->clk_mgr->funcs->notify_cstate_disable)
+	if (dc->clk_mgr->funcs->notify_cstate_disable)
 		dc->clk_mgr->funcs->notify_cstate_disable(dc->clk_mgr, false);
 }
 
