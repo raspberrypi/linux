@@ -12,5 +12,6 @@
 #include <linux/types.h>
 
 signed long drm_timeout_abs_to_jiffies(s64 timeout_nsec);
+unsigned long drm_timeout_rel_to_jiffies(u64 timeout_nsec);
 
 #endif
