@@ -7825,9 +7825,8 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_commit *_state
 	if (state->base.legacy_cursor_update) {
 		struct intel_crtc_state *new_crtc_state;
 		struct intel_crtc *crtc;
-		int i;
 
-		for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i)
+		for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state)
 			complete_all(&new_crtc_state->uapi.commit->flip_done);
 	}
 
