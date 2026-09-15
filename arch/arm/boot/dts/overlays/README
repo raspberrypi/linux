@@ -3118,6 +3118,7 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 Compute Module (CSI0, i2c_vc, and cam0_reg).
         link-frequency          Allowable link frequency values to use in Hz:
                                 450000000 (default), 447000000, 453000000.
+        4lane                   Use 4 CSI2 data lanes.
 
 
 Name:   interludeaudio-analog
