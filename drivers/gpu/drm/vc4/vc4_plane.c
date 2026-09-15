@@ -719,6 +719,13 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 	offset >>= sub_shift;
 
 	/*
+	 * Output pixel r samples the source at (r + 1/2) * scale - 1/2, so the
+	 * phase the first output pixel starts at needs half a destination
+	 * pixel's worth of source added to it.
+	 */
+	offset += (s32)(scale >> (17 - PHASE_BITS));
+
+	/*
 	 * There may be a also small error introduced by precision of scale.
 	 * Add half of that as a compromise
 	 */
