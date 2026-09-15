@@ -398,6 +398,7 @@ int rtc_read_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 	} else {
 		memset(alarm, 0, sizeof(struct rtc_wkalrm));
 		alarm->enabled = rtc->aie_timer.enabled;
+		alarm->pending = test_bit(RTC_PENDING_ALARM, &rtc->flags);
 		alarm->time = rtc_ktime_to_tm(rtc->aie_timer.node.expires);
 	}
 	mutex_unlock(&rtc->ops_lock);
@@ -504,6 +505,7 @@ int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 
 	rtc->aie_timer.node.expires = alarm_time;
 	rtc->aie_timer.period = 0;
+	clear_bit(RTC_PENDING_ALARM, &rtc->flags);
 	if (alarm->enabled)
 		err = rtc_timer_enqueue(rtc, &rtc->aie_timer);
 
@@ -533,6 +535,8 @@ int rtc_initialize_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 
 	rtc->aie_timer.node.expires = rtc_tm_to_ktime(alarm->time);
 	rtc->aie_timer.period = 0;
+	if (alarm->pending)
+		set_bit(RTC_PENDING_ALARM, &rtc->flags);
 
 	/* Alarm has to be enabled & in the future for us to enqueue it */
 	if (alarm->enabled && (rtc_tm_to_ktime(now) <
