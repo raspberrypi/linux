@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/serial/wkmic,wk2xxx.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: WKmic WK2xxx SPI to UART bridge
+
+maintainers:
+  - EDATEC Technology Co., Ltd. <zjzhao@edatec.cn>
+
+description:
+  The WK2xxx family (WK2124, WK2132, WK2168, WK2202 and WK2204) are SPI to
+  UART bridge ICs from WKmic (Chengdu Weikai Microelectronics). Each IC
+  exposes two or four full-duplex UART channels with 256-byte RX/TX FIFOs
+  through a single SPI slave interface and one interrupt line.
+
+properties:
+  compatible:
+    enum:
+      - wkmic,wk2124
+      - wkmic,wk2132
+      - wkmic,wk2168
+      - wkmic,wk2202
+      - wkmic,wk2204
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    description:
+      When missing, the device driver uses polling instead.
+    maxItems: 1
+
+  clock-frequency:
+    description:
+      Crystal or external clock frequency for the IC in Hz. The WK2xxx has
+      no internal clock, so this must match the connected crystal. Defaults
+      to 11059200 Hz when the property is absent.
+    minimum: 1
+    maximum: 30000000
+
+required:
+  - compatible
+  - reg
+
+allOf:
+  - $ref: /schemas/spi/spi-peripheral-props.yaml#
+  - $ref: /schemas/serial/serial.yaml#
+  - $ref: /schemas/serial/rs485.yaml#
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/irq.h>
+    spi {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        serial@0 {
+            compatible = "wkmic,wk2132";
+            reg = <0>;
+            spi-max-frequency = <10000000>;
+            clock-frequency = <11059200>;
+            interrupt-parent = <&gpio>;
+            interrupts = <24 IRQ_TYPE_LEVEL_LOW>;
+        };
+    };
