@@ -27,6 +27,7 @@
 #include <linux/i2c.h>
 #include <linux/media-bus-format.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/property.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
@@ -37,6 +38,10 @@
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-rect.h>
 #include <media/v4l2-subdev.h>
+
+static bool hcg_mode;
+module_param(hcg_mode, bool, 0664);
+MODULE_PARM_DESC(hcg_mode, "Enable HCG mode");
 
 /* Standby or streaming mode */
 #define STARVIS2_REG_MODE_SELECT          CCI_REG8(0x3000)
@@ -84,9 +89,13 @@
  */
 #define STARVIS2_REG_GAIN			CCI_REG16_LE(0x3070)
 #define STARVIS2_ANA_GAIN_MIN_NORMAL      0
+#define STARVIS2_ANA_GAIN_MIN_HCG         34
 #define STARVIS2_ANA_GAIN_MAX_NORMAL      100
 #define STARVIS2_ANA_GAIN_STEP            1
 #define STARVIS2_ANA_GAIN_DEFAULT         0
+
+#define STARVIS2_REG_FDG_SEL0		CCI_REG8(0x3030)
+#define STARVIS2_FDG_SEL0_HCG		BIT(0)
 
 /* Crop */
 #define STARVIS2_REG_WINMODE		CCI_REG8(0x3018)
@@ -1647,6 +1656,8 @@ struct starvis2 {
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *link_freq;
+	struct v4l2_ctrl *gain;
+	bool hcg_mode;
 
 	/* Track VMAX for exposure updates */
 	u32 vmax;
@@ -1925,6 +1936,17 @@ static int starvis2_enable_streams(struct v4l2_subdev *sd,
 	if (ret < 0)
 		return ret;
 
+	starvis2->hcg_mode = hcg_mode;
+	__v4l2_ctrl_modify_range(starvis2->gain,
+				 starvis2->hcg_mode ?
+					  STARVIS2_ANA_GAIN_MIN_HCG :
+					  STARVIS2_ANA_GAIN_MIN_NORMAL,
+				 STARVIS2_ANA_GAIN_MAX_NORMAL,
+				 STARVIS2_ANA_GAIN_STEP,
+				 starvis2->hcg_mode ?
+					  STARVIS2_ANA_GAIN_MIN_HCG :
+					  STARVIS2_ANA_GAIN_DEFAULT);
+
 	crop = v4l2_subdev_state_get_crop(state, pad);
 	ret = starvis2_program_window(starvis2, crop);
 	if (ret) {
@@ -1938,6 +1960,9 @@ static int starvis2_enable_streams(struct v4l2_subdev *sd,
 			__func__);
 		goto err_rpm_put;
 	}
+
+	cci_write(starvis2->cci, STARVIS2_REG_FDG_SEL0,
+		  starvis2->hcg_mode ? STARVIS2_FDG_SEL0_HCG : 0, &ret);
 
 	cci_write(starvis2->cci, STARVIS2_REG_MODE_SELECT,
 		  STARVIS2_MODE_STREAMING, &ret);
@@ -2221,10 +2246,16 @@ static int starvis2_init_controls(struct starvis2 *starvis2)
 					       STARVIS2_EXPOSURE_STEP,
 					       STARVIS2_EXPOSURE_DEFAULT);
 
-	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
-			  STARVIS2_ANA_GAIN_MIN_NORMAL,
-			  STARVIS2_ANA_GAIN_MAX_NORMAL, STARVIS2_ANA_GAIN_STEP,
-			  STARVIS2_ANA_GAIN_DEFAULT);
+	starvis2->gain = v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops,
+					   V4L2_CID_ANALOGUE_GAIN,
+					   starvis2->hcg_mode ?
+						  STARVIS2_ANA_GAIN_MIN_HCG :
+						  STARVIS2_ANA_GAIN_MIN_NORMAL,
+					   STARVIS2_ANA_GAIN_MAX_NORMAL,
+					   STARVIS2_ANA_GAIN_STEP,
+					   starvis2->hcg_mode ?
+						  STARVIS2_ANA_GAIN_MIN_HCG :
+						  STARVIS2_ANA_GAIN_DEFAULT);
 
 	v4l2_ctrl_new_std(ctrl_hdlr, &starvis2_ctrl_ops, V4L2_CID_HFLIP,
 			  0, 1, 1, 0);
@@ -2362,6 +2393,8 @@ static int starvis2_probe(struct i2c_client *client)
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
+
+	starvis2->hcg_mode = hcg_mode;
 
 	ret = starvis2_init_controls(starvis2);
 	if (ret)
