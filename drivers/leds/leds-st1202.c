@@ -24,7 +24,8 @@
 #define ST1202_CONFIG_REG_PATS             BIT(7)
 /* PATSR: Pattern sequence runs (self-clear when sequence is finished) */
 #define ST1202_CONFIG_REG_PATSR            BIT(6)
-#define ST1202_CONFIG_REG_SHFT             BIT(3)
+/* SHFT: Phase-shift delay enable */
+#define ST1202_CONFIG_REG_PHASE_SHIFT      BIT(3)
 #define ST1202_DEV_ENABLE                  0x01
 #define ST1202_DEV_ENABLE_ON               BIT(0)
 #define ST1202_DEV_ENABLE_RESET            BIT(7)
@@ -220,7 +221,7 @@ static int st1202_led_pattern_clear(struct led_classdev *ldev)
 
 	guard(mutex)(&chip->lock);
 
-	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_SHFT);
+	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret != 0)
 		return ret;
 
@@ -260,7 +261,7 @@ static int st1202_led_pattern_set(struct led_classdev *ldev,
 
 	guard(mutex)(&chip->lock);
 
-	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_SHFT);
+	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret != 0)
 		return ret;
 
@@ -290,8 +291,9 @@ static int st1202_led_pattern_set(struct led_classdev *ldev,
 	if (ret != 0)
 		return ret;
 
-	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, (ST1202_CONFIG_REG_PATSR |
-							ST1202_CONFIG_REG_PATS | ST1202_CONFIG_REG_SHFT));
+	ret = st1202_write_reg(chip, ST1202_CONFIG_REG,
+				ST1202_CONFIG_REG_PATSR | ST1202_CONFIG_REG_PATS |
+				ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret != 0)
 		return ret;
 
@@ -321,7 +323,7 @@ static int st1202_blink_set(struct led_classdev *led_cdev,
 
 	guard(mutex)(&chip->lock);
 
-	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_SHFT);
+	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret)
 		return ret;
 
@@ -375,7 +377,7 @@ static int st1202_blink_set(struct led_classdev *led_cdev,
 
 	ret = st1202_write_reg(chip, ST1202_CONFIG_REG,
 				ST1202_CONFIG_REG_PATSR | ST1202_CONFIG_REG_PATS |
-				ST1202_CONFIG_REG_SHFT);
+				ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret)
 		return ret;
 
@@ -441,7 +443,7 @@ static int st1202_setup(struct st1202_chip *chip)
 		return ret;
 
 	/* Enable phase-shift delay feature */
-	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_SHFT);
+	ret = st1202_write_reg(chip, ST1202_CONFIG_REG, ST1202_CONFIG_REG_PHASE_SHIFT);
 	if (ret < 0)
 		return ret;
 
