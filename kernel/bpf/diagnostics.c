@@ -794,8 +794,9 @@ static void diag_print_insn_context(struct bpf_verifier_env *env, u32 insn_idx,
 	}
 }
 
-static void bpf_diag_source(struct bpf_verifier_env *env, u32 insn_idx, const char *label,
-			    const char *fmt, ...)
+static __printf(4, 5) void bpf_diag_source(struct bpf_verifier_env *env,
+					   u32 insn_idx, const char *label,
+					   const char *fmt, ...)
 {
 	struct bpf_diag_scratch *scratch;
 	struct bpf_linfo_source *source_lines;
