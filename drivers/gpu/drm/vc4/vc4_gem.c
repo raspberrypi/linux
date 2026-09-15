@@ -32,6 +32,7 @@
 #include <drm/drm_exec.h>
 #include <drm/drm_print.h>
 #include <drm/drm_syncobj.h>
+#include <drm/drm_timeout.h>
 
 #include "vc4_drv.h"
 #include "vc4_regs.h"
@@ -984,7 +985,7 @@ vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 	int ret;
 	struct drm_vc4_wait_bo *args = data;
 	unsigned long timeout_jiffies =
-		usecs_to_jiffies(div_u64(args->timeout_ns, 1000));
+		drm_timeout_rel_to_jiffies(args->timeout_ns);
 	ktime_t start = ktime_get();
 	u64 delta_ns;
 
