@@ -358,9 +358,11 @@ static int st1202_blink_set(struct led_classdev *led_cdev,
 	if (ret)
 		return ret;
 
-	ret = st1202_pwm_pattern_write(chip, led->led_num, 1, LED_OFF);
-	if (ret)
-		return ret;
+	for (int pattern = 1; pattern < ST1202_MAX_PATTERNS; pattern++) {
+		ret = st1202_pwm_pattern_write(chip, led->led_num, pattern, LED_OFF);
+		if (ret)
+			return ret;
+	}
 
 	ret = st1202_duration_pattern_write(chip, 0, on);
 	if (ret)
