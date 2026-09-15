@@ -2840,7 +2840,8 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 						 BIT(DRM_SCALING_FILTER_DEFAULT) |
 						 BIT(DRM_SCALING_FILTER_NEAREST_NEIGHBOR));
 
-	drm_plane_create_chroma_siting_properties(plane, 0, 0);
+	/* MPEG-2 / H.264 / HEVC 4:2:0 siting: H cosited, V interstitial */
+	drm_plane_create_chroma_siting_properties(plane, 0, 0x8000);
 
 	if (type == DRM_PLANE_TYPE_PRIMARY)
 		drm_plane_create_zpos_immutable_property(plane, 0);
