@@ -846,7 +846,8 @@ static void cxl_debugfs_create_dport_dir(struct cxl_dport *dport)
 
 	dir = cxl_debugfs_create_dir(dev_name(dport->dport_dev));
 
-	devm_add_action_or_reset(dport_to_host(dport), remove_debugfs, dir);
+	if (devm_add_action_or_reset(dport_to_host(dport), remove_debugfs, dir))
+		return;
 
 	debugfs_create_file("einj_inject", 0200, dir, dport,
 			    &cxl_einj_inject_fops);
