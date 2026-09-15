@@ -528,7 +528,7 @@ static int en7581_thermal_probe(struct platform_device *pdev,
 	struct device_node *chip_scu_np;
 	struct device *dev = &pdev->dev;
 	void __iomem *base;
-	int i, irq, ret;
+	int i;
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
@@ -567,16 +567,6 @@ static int en7581_thermal_probe(struct platform_device *pdev,
 	of_address_to_resource(chip_scu_np, 0, &priv->scu_adc_res);
 	of_node_put(chip_scu_np);
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return irq;
-
-	ret = devm_request_threaded_irq(&pdev->dev, irq, NULL,
-					en7581_thermal_irq, IRQF_ONESHOT,
-					pdev->name, priv);
-	if (ret)
-		return ret;
-
 	en7581_thermal_setup_monitor(priv);
 	en7581_thermal_setup_adc_val(dev, priv);
 
@@ -586,6 +576,18 @@ static int en7581_thermal_probe(struct platform_device *pdev,
 static int en7581_thermal_post_probe(struct platform_device *pdev)
 {
 	struct airoha_thermal_priv *priv = platform_get_drvdata(pdev);
+	int irq, ret;
+
+	/* After zone registration: the handler uses priv->tz */
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
+		return irq;
+
+	ret = devm_request_threaded_irq(&pdev->dev, irq, NULL,
+					en7581_thermal_irq, IRQF_ONESHOT,
+					pdev->name, priv);
+	if (ret)
+		return ret;
 
 	/* Enable LOW and HIGH interrupt (if supported) */
 	regmap_write(priv->map, EN7581_TEMPMONINT,
