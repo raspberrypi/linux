@@ -33,8 +33,6 @@ struct virtio_spi_priv {
 	struct virtqueue *vq;
 	/* Copy of config space mode_func_supported */
 	u32 mode_func_supported;
-	/* Copy of config space max_freq_hz */
-	u32 max_freq_hz;
 };
 
 static void virtio_spi_msg_done(struct virtqueue *vq)
@@ -304,7 +302,7 @@ static void virtio_spi_read_config(struct virtio_device *vdev)
 		virtio_cread32(vdev, offsetof(struct virtio_spi_config,
 					      bits_per_word_mask));
 
-	priv->max_freq_hz =
+	ctrl->max_speed_hz =
 		virtio_cread32(vdev, offsetof(struct virtio_spi_config,
 					      max_freq_hz));
 }
