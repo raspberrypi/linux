@@ -220,7 +220,7 @@ nfs4_ff_layout_calc_dss_id(const u64 stripe_unit, const u32 dss_count, const lof
 	if (dss_count == 1 || stripe_unit == 0)
 		return 0;
 
-	do_div(tmp, stripe_unit);
+	tmp = div64_u64(tmp, stripe_unit);
 
 	return do_div(tmp, dss_count);
 }
