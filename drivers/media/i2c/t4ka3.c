@@ -1034,7 +1034,6 @@ err_media_entity:
 
 err_pm_disable:
 	pm_runtime_disable(&client->dev);
-	pm_runtime_put_noidle(&client->dev);
 	t4ka3_pm_suspend(&client->dev);
 
 	return ret;
