@@ -899,7 +899,7 @@ attribute-sets:
       -
         name: parent-dev
         type: nest
-        nested-attributes: dl-parent-dev
+        nested-attributes: dl-nested-devlink
         doc: |
           Identifies the devlink instance which owns the parent rate node.
           Used with rate-set and rate-new to parent a rate object to a node on
@@ -1331,6 +1331,10 @@ attribute-sets:
   -
     name: dl-parent-dev
     subset-of: devlink
+    doc: |
+      Devlink handle accepted as the parent-dev input; the netns id the
+      kernel reports back is not accepted, the parent is always resolved
+      in the caller's netns.
     attributes:
       -
         name: bus-name
@@ -1338,6 +1342,37 @@ attribute-sets:
         name: dev-name
       -
         name: index
+
+  -
+    name: dl-rate-set
+    subset-of: devlink
+    doc: Attributes accepted by the rate-set and rate-new requests.
+    attributes:
+      -
+        name: bus-name
+      -
+        name: dev-name
+      -
+        name: index
+      -
+        name: port-index
+      -
+        name: rate-node-name
+      -
+        name: rate-tx-share
+      -
+        name: rate-tx-max
+      -
+        name: rate-tx-priority
+      -
+        name: rate-tx-weight
+      -
+        name: rate-parent-node-name
+      -
+        name: rate-tc-bws
+      -
+        name: parent-dev
+        nested-attributes: dl-parent-dev
 
   -
     name: dl-nested-devlink
@@ -2320,7 +2355,7 @@ operations:
     -
       name: rate-set
       doc: Set rate instances.
-      attribute-set: devlink
+      attribute-set: dl-rate-set
       dont-validate: [strict]
       flags: [admin-perm]
       do:
@@ -2343,7 +2378,7 @@ operations:
     -
       name: rate-new
       doc: Create rate instances.
-      attribute-set: devlink
+      attribute-set: dl-rate-set
       dont-validate: [strict]
       flags: [admin-perm]
       do:
