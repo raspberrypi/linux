@@ -90,6 +90,16 @@ static uint8_t st1202_prescalar_to_miliseconds(unsigned int value)
 	return value / ST1202_MILLIS_PATTERN_DUR_MIN;
 }
 
+static u16 st1202_brightness_to_pwm(int brightness, unsigned int max_brightness)
+{
+	if (!max_brightness)
+		return 0;
+
+	brightness = clamp_t(int, brightness, LED_OFF, max_brightness);
+
+	return brightness * ST1202_PATTERN_PWM_FULL / max_brightness;
+}
+
 static int st1202_pwm_pattern_write(struct st1202_chip *chip, int led_num,
 				int pattern, unsigned int value)
 {
@@ -234,7 +244,10 @@ static int st1202_led_pattern_set(struct led_classdev *ldev,
 {
 	struct st1202_led *led = cdev_to_st1202_led(ldev);
 	struct st1202_chip *chip = led->chip;
+	unsigned int max_brightness;
 	int ret;
+
+	max_brightness = min_t(unsigned int, ldev->max_brightness, U8_MAX);
 
 	if (len > ST1202_MAX_PATTERNS)
 		return -EINVAL;
@@ -253,7 +266,8 @@ static int st1202_led_pattern_set(struct led_classdev *ldev,
 
 	for (int pattern = 0; pattern < len; pattern++) {
 		ret = st1202_pwm_pattern_write(chip, led->led_num, pattern,
-						patterns[pattern].brightness);
+					st1202_brightness_to_pwm(patterns[pattern].brightness,
+								max_brightness));
 		if (ret != 0)
 			return ret;
 
