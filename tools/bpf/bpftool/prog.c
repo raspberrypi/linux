@@ -2062,37 +2062,52 @@ static int do_profile(int argc, char **argv)
 
 #include "profiler.skel.h"
 
+enum ratio_metric {
+	METRIC_NONE = -2,
+	METRIC_RUN_CNT = -1,
+	METRIC_CYCLES = 0,
+	METRIC_INSTRUCTIONS = 1,
+	METRIC_L1D_LOADS = 2,
+	METRIC_LLC_MISSES = 3,
+	METRIC_ITLB_MISSES = 4,
+	METRIC_DTLB_MISSES = 5,
+};
+
 struct profile_metric {
 	const char *name;
 	struct bpf_perf_event_value val;
+	__u64 scaled_val;
 	struct perf_event_attr attr;
 	bool selected;
 
 	/* calculate ratios like instructions per cycle */
-	const int ratio_metric; /* 0 for N/A, 1 for index 0 (cycles) */
+	const enum ratio_metric ratio_metric;
 	const char *ratio_desc;
 	const float ratio_mul;
 } metrics[] = {
-	{
+	[METRIC_CYCLES] = {
 		.name = "cycles",
 		.attr = {
 			.type = PERF_TYPE_HARDWARE,
 			.config = PERF_COUNT_HW_CPU_CYCLES,
 			.exclude_user = 1,
 		},
+		.ratio_metric = METRIC_RUN_CNT,
+		.ratio_desc = "cycles per run",
+		.ratio_mul = 1.0,
 	},
-	{
+	[METRIC_INSTRUCTIONS] = {
 		.name = "instructions",
 		.attr = {
 			.type = PERF_TYPE_HARDWARE,
 			.config = PERF_COUNT_HW_INSTRUCTIONS,
 			.exclude_user = 1,
 		},
-		.ratio_metric = 1,
+		.ratio_metric = METRIC_CYCLES,
 		.ratio_desc = "insns per cycle",
 		.ratio_mul = 1.0,
 	},
-	{
+	[METRIC_L1D_LOADS] = {
 		.name = "l1d_loads",
 		.attr = {
 			.type = PERF_TYPE_HW_CACHE,
@@ -2102,8 +2117,9 @@ struct profile_metric {
 				(PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16),
 			.exclude_user = 1,
 		},
+		.ratio_metric = METRIC_NONE,
 	},
-	{
+	[METRIC_LLC_MISSES] = {
 		.name = "llc_misses",
 		.attr = {
 			.type = PERF_TYPE_HW_CACHE,
@@ -2113,11 +2129,11 @@ struct profile_metric {
 				(PERF_COUNT_HW_CACHE_RESULT_MISS << 16),
 			.exclude_user = 1
 		},
-		.ratio_metric = 2,
+		.ratio_metric = METRIC_INSTRUCTIONS,
 		.ratio_desc = "LLC misses per million insns",
 		.ratio_mul = 1e6,
 	},
-	{
+	[METRIC_ITLB_MISSES] = {
 		.name = "itlb_misses",
 		.attr = {
 			.type = PERF_TYPE_HW_CACHE,
@@ -2127,11 +2143,11 @@ struct profile_metric {
 				(PERF_COUNT_HW_CACHE_RESULT_MISS << 16),
 			.exclude_user = 1
 		},
-		.ratio_metric = 2,
+		.ratio_metric = METRIC_INSTRUCTIONS,
 		.ratio_desc = "itlb misses per million insns",
 		.ratio_mul = 1e6,
 	},
-	{
+	[METRIC_DTLB_MISSES] = {
 		.name = "dtlb_misses",
 		.attr = {
 			.type = PERF_TYPE_HW_CACHE,
@@ -2141,7 +2157,7 @@ struct profile_metric {
 				(PERF_COUNT_HW_CACHE_RESULT_MISS << 16),
 			.exclude_user = 1
 		},
-		.ratio_metric = 2,
+		.ratio_metric = METRIC_INSTRUCTIONS,
 		.ratio_desc = "dtlb misses per million insns",
 		.ratio_mul = 1e6,
 	},
@@ -2182,7 +2198,7 @@ static int profile_parse_metrics(int argc, char **argv)
 	return selected_cnt;
 }
 
-static void profile_read_values(struct profiler_bpf *obj)
+static int profile_read_values(struct profiler_bpf *obj)
 {
 	__u32 m, cpu, num_cpu = obj->rodata->num_cpu;
 	int reading_map_fd, count_map_fd;
@@ -2192,15 +2208,11 @@ static void profile_read_values(struct profiler_bpf *obj)
 
 	reading_map_fd = bpf_map__fd(obj->maps.accum_readings);
 	count_map_fd = bpf_map__fd(obj->maps.counts);
-	if (reading_map_fd < 0 || count_map_fd < 0) {
-		p_err("failed to get fd for map");
-		return;
-	}
 
 	err = bpf_map_lookup_elem(count_map_fd, &key, counts);
 	if (err) {
 		p_err("failed to read count_map: %s", strerror(errno));
-		return;
+		return err;
 	}
 
 	profile_total_count = 0;
@@ -2208,24 +2220,37 @@ static void profile_read_values(struct profiler_bpf *obj)
 		profile_total_count += counts[cpu];
 
 	for (m = 0; m < ARRAY_SIZE(metrics); m++) {
-		struct bpf_perf_event_value values[num_cpu];
+		struct bpf_perf_event_value values[num_cpu], *val;
+		double scale;
 
 		if (!metrics[m].selected)
 			continue;
 
 		err = bpf_map_lookup_elem(reading_map_fd, &key, values);
 		if (err) {
-			p_err("failed to read reading_map: %s",
-			      strerror(errno));
-			return;
+			p_err("failed to read reading_map: %s", strerror(errno));
+			return err;
 		}
+
 		for (cpu = 0; cpu < num_cpu; cpu++) {
-			metrics[m].val.counter += values[cpu].counter;
-			metrics[m].val.enabled += values[cpu].enabled;
-			metrics[m].val.running += values[cpu].running;
+			val = &values[cpu];
+			if (counts[cpu] && !val->running) {
+				p_err("perf event %s was not counted on CPU %u",
+				      metrics[m].name, cpu);
+				return -EAGAIN;
+			}
+			metrics[m].val.enabled += val->enabled;
+			metrics[m].val.running += val->running;
+			metrics[m].val.counter += val->counter;
+			if (val->running) {
+				/* Scale values to account for perf event multiplexing. */
+				scale = (double)val->enabled / val->running;
+				metrics[m].scaled_val += val->counter * scale;
+			}
 		}
 		key++;
 	}
+	return 0;
 }
 
 static void profile_print_readings_json(void)
@@ -2242,6 +2267,7 @@ static void profile_print_readings_json(void)
 		jsonw_lluint_field(json_wtr, "value", metrics[m].val.counter);
 		jsonw_lluint_field(json_wtr, "enabled", metrics[m].val.enabled);
 		jsonw_lluint_field(json_wtr, "running", metrics[m].val.running);
+		jsonw_lluint_field(json_wtr, "value_scaled", metrics[m].scaled_val);
 
 		jsonw_end_object(json_wtr);
 	}
@@ -2250,24 +2276,34 @@ static void profile_print_readings_json(void)
 
 static void profile_print_readings_plain(void)
 {
-	__u32 m;
+	__u32 i;
 
 	printf("\n%18llu %-20s\n", profile_total_count, "run_cnt");
-	for (m = 0; m < ARRAY_SIZE(metrics); m++) {
-		struct bpf_perf_event_value *val = &metrics[m].val;
+	for (i = 0; i < ARRAY_SIZE(metrics); i++) {
+		struct profile_metric *m = &metrics[i];
+		struct bpf_perf_event_value *val = &m->val;
 		int r;
+		__u64 ratio;
 
-		if (!metrics[m].selected)
+		if (!m->selected)
 			continue;
-		printf("%18llu %-20s", val->counter, metrics[m].name);
+		printf("%18llu %-20s", m->scaled_val, m->name);
 
-		r = metrics[m].ratio_metric - 1;
-		if (r >= 0 && metrics[r].selected &&
-		    metrics[r].val.counter > 0) {
+		r = m->ratio_metric;
+		switch (r) {
+		case METRIC_RUN_CNT:
+			ratio = profile_total_count;
+			break;
+		case METRIC_NONE:
+			ratio = 0;
+			break;
+		default:
+			ratio = metrics[r].scaled_val;
+		}
+		if (ratio) {
 			printf("# %8.2f %-30s",
-			       val->counter * metrics[m].ratio_mul /
-			       metrics[r].val.counter,
-			       metrics[m].ratio_desc);
+			       m->scaled_val * m->ratio_mul / ratio,
+			       m->ratio_desc);
 		} else {
 			printf("%-41s", "");
 		}
@@ -2438,21 +2474,24 @@ static int profile_open_perf_events(struct profiler_bpf *obj)
 	return 0;
 }
 
-static void profile_print_and_cleanup(void)
+static int profile_print_and_cleanup(void)
 {
+	int err;
+
 	profile_close_perf_events();
-	profile_read_values(profile_obj);
-	profile_print_readings();
+	err = profile_read_values(profile_obj);
+	if (!err)
+		profile_print_readings();
 	profiler_bpf__destroy(profile_obj);
 
 	close(profile_tgt_fd);
 	free(profile_tgt_name);
+	return err;
 }
 
 static void int_exit(int signo)
 {
-	profile_print_and_cleanup();
-	exit(0);
+	exit(!!profile_print_and_cleanup());
 }
 
 static int do_profile(int argc, char **argv)
@@ -2542,8 +2581,7 @@ static int do_profile(int argc, char **argv)
 	signal(SIGINT, int_exit);
 
 	sleep(duration);
-	profile_print_and_cleanup();
-	return 0;
+	return profile_print_and_cleanup();
 
 out:
 	profile_close_perf_events();

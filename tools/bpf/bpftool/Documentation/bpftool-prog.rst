@@ -217,7 +217,14 @@ bpftool prog run *PROG* data_in *FILE* [data_out *FILE* [data_size_out *L*]] [ct
 bpftool prog profile *PROG* [duration *DURATION*] *METRICs*
     Profile *METRICs* for bpf program *PROG* for *DURATION* seconds or until
     user hits <Ctrl+C>. *DURATION* is optional. If *DURATION* is not specified,
-    the profiling will run up to **UINT_MAX** seconds.
+    the profiling will run up to **UINT_MAX** seconds. Selected metrics form a
+    perf event group on each CPU so that ratios use counters scheduled over the
+    same intervals. Plain output scales each per-CPU metric value to correct
+    for perf event multiplexing. When **cycles** is selected, it also reports
+    cycles per program run.
+
+    In JSON output, **value** is raw, **value_scaled** is scaled, and
+    **run_cnt** is the total number of program runs.
 
 bpftool prog help
     Print short help message.
@@ -360,7 +367,7 @@ EXAMPLES
 ::
 
          51397 run_cnt
-      40176203 cycles                                                 (83.05%)
+      40176203 cycles          # 781.68 cycles per run                (83.05%)
       42518139 instructions    #   1.06 insns per cycle               (83.39%)
            123 llc_misses      #   2.89 LLC misses per million insns  (83.15%)
 
