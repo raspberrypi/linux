@@ -88,6 +88,7 @@ struct rzg3e_thermal_info {
  * @info: chip type specific information
  * @trmval0: calibration value 0 (b)
  * @trmval1: calibration value 1 (c)
+ * @sier: cached interrupt enable register
  * @lock: protects hardware access during conversions
  */
 struct rzg3e_thermal_priv {
@@ -98,6 +99,7 @@ struct rzg3e_thermal_priv {
 	const struct rzg3e_thermal_info *info;
 	u16 trmval0;
 	u16 trmval1;
+	u32 sier;
 	struct mutex lock;
 };
 
@@ -143,12 +145,16 @@ static int rzg3e_thermal_power_on(struct rzg3e_thermal_priv *priv)
 		return ret;
 	}
 
+	/* Restore interrupt enable state */
+	writel(priv->sier, priv->base + TSU_SIER);
+
 	return 0;
 }
 
 static void rzg3e_thermal_power_off(struct rzg3e_thermal_priv *priv)
 {
-	/* Disable all interrupts */
+	/* Save and disable all interrupts */
+	priv->sier = readl(priv->base + TSU_SIER);
 	writel(0, priv->base + TSU_SIER);
 
 	/* Clear pending interrupts */
