@@ -1758,6 +1758,7 @@ extern void clear_event_triggers(struct trace_array *tr);
 
 enum {
 	EVENT_TRIGGER_FL_PROBE		= BIT(0),
+	EVENT_TRIGGER_FL_COUNT		= BIT(1),
 };
 
 struct event_trigger_data {
@@ -1788,6 +1789,10 @@ struct enable_trigger_data {
 	bool				enable;
 	bool				hist;
 };
+
+bool event_trigger_count(struct event_trigger_data *data,
+			 struct trace_buffer *buffer,  void *rec,
+			 struct ring_buffer_event *event);
 
 extern int event_enable_trigger_print(struct seq_file *m,
 				      struct event_trigger_data *data);
@@ -1876,6 +1881,11 @@ extern void event_file_put(struct trace_event_file *file);
  *	registered the trigger (see struct event_command) along with
  *	the trace record, rec.
  *
+ * @count_func: If defined and a numeric parameter is passed to the
+ *	trigger, then this function will be called before @trigger
+ *	is called. If this function returns false, then @trigger is not
+ *	executed.
+ *
  * @init: An optional initialization function called for the trigger
  *	when the trigger is registered (via the event_command reg()
  *	function).  This can be used to perform per-trigger
@@ -1903,6 +1913,10 @@ struct event_trigger_ops {
 					   struct trace_buffer *buffer,
 					   void *rec,
 					   struct ring_buffer_event *rbe);
+	bool			(*count_func)(struct event_trigger_data *data,
+					      struct trace_buffer *buffer,
+					      void *rec,
+					      struct ring_buffer_event *rbe);
 	int			(*init)(struct event_trigger_data *data);
 	void			(*free)(struct event_trigger_data *data);
 	int			(*print)(struct seq_file *m,
@@ -1928,6 +1942,9 @@ struct event_trigger_ops {
  *
  * @name: The unique name that identifies the event command.  This is
  *	the name used when setting triggers via trigger files.
+ *
+ * @trigger_ops: The event_trigger_ops implementation associated with
+ *	the command.
  *
  * @trigger_type: A unique id that identifies the event command
  *	'type'.  This value has two purposes, the first to ensure that
@@ -1980,17 +1997,11 @@ struct event_trigger_ops {
  *	event command, filters set by the user for the command will be
  *	ignored.  This is usually implemented by the generic utility
  *	function @set_trigger_filter() (see trace_event_triggers.c).
- *
- * @get_trigger_ops: The callback function invoked to retrieve the
- *	event_trigger_ops implementation associated with the command.
- *	This callback function allows a single event_command to
- *	support multiple trigger implementations via different sets of
- *	event_trigger_ops, depending on the value of the @param
- *	string.
  */
 struct event_command {
 	struct list_head	list;
 	char			*name;
+	const struct event_trigger_ops *trigger_ops;
 	enum event_trigger_type	trigger_type;
 	int			flags;
 	int			(*parse)(struct event_command *cmd_ops,
@@ -2007,7 +2018,6 @@ struct event_command {
 	int			(*set_filter)(char *filter_str,
 					      struct event_trigger_data *data,
 					      struct trace_event_file *file);
-	const struct event_trigger_ops *(*get_trigger_ops)(char *cmd, char *param);
 };
 
 /**
