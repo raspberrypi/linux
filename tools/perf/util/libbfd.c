@@ -72,6 +72,23 @@ static void ensure_bfd_init(void)
 	pthread_once(&bfd_init_once, perf_bfd_init);
 }
 
+/*
+ * Flags from libiberty's demangle.h. bfd.h declares bfd_demangle but not the
+ * flags to pass to it, and demangle.h isn't installed by every binutils
+ * package.
+ */
+#ifndef DMGL_PARAMS
+#define DMGL_PARAMS	(1 << 0)	/* Include function arguments. */
+#define DMGL_ANSI	(1 << 1)	/* Include const, volatile, etc. */
+#endif
+
+char *libbfd__demangle_sym(const char *str, bool params, bool modifiers)
+{
+	int flags = (params ? DMGL_PARAMS : 0) | (modifiers ? DMGL_ANSI : 0);
+
+	return bfd_demangle(/*abfd=*/NULL, str, flags);
+}
+
 static int bfd_error(const char *string)
 {
 	const char *errmsg;

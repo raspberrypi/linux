@@ -27,6 +27,7 @@
 #include "dso.h"
 #include "util.h" // lsdir()
 #include "event.h"
+#include "libbfd.h"
 #include "machine.h"
 #include "map.h"
 #include "symbol.h"
@@ -2707,13 +2708,24 @@ static bool want_demangle(bool is_kernel_sym)
  * version.
  */
 #ifndef HAVE_CXA_DEMANGLE_SUPPORT
+#ifdef HAVE_CPLUS_DEMANGLE_SUPPORT
+/*
+ * Declarations from libiberty's demangle.h, the header isn't installed by
+ * every binutils package.
+ */
+#ifndef DMGL_PARAMS
+#define DMGL_PARAMS	(1 << 0)	/* Include function arguments. */
+#define DMGL_ANSI	(1 << 1)	/* Include const, volatile, etc. */
+#endif
+
+char *cplus_demangle(const char *mangled, int options);
+#endif
+
 char *cxx_demangle_sym(const char *str __maybe_unused, bool params __maybe_unused,
 		       bool modifiers __maybe_unused)
 {
 #ifdef HAVE_LIBBFD_SUPPORT
-	int flags = (params ? DMGL_PARAMS : 0) | (modifiers ? DMGL_ANSI : 0);
-
-	return bfd_demangle(NULL, str, flags);
+	return libbfd__demangle_sym(str, params, modifiers);
 #elif defined(HAVE_CPLUS_DEMANGLE_SUPPORT)
 	int flags = (params ? DMGL_PARAMS : 0) | (modifiers ? DMGL_ANSI : 0);
 
