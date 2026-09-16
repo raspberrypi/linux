@@ -2802,7 +2802,7 @@ next_msdu:
 	if (last)
 		last->next = NULL;
 
-	*tail_msdu = msdu;
+	*tail_msdu = last;
 
 	if (msdu_cnt == 0)
 		*npackets = 1;
