@@ -2718,7 +2718,6 @@ ath12k_wifi7_dp_rx_mon_mpdu_pop(struct ath12k *ar, int mac_id,
 					   i, (unsigned long)rxcb->paddr,
 					   (unsigned long)msdu_list.paddr[i]);
 				drop_mpdu = true;
-				continue;
 			}
 			if (!rxcb->unmapped) {
 				dma_unmap_single(ar->ab->dev, rxcb->paddr,
