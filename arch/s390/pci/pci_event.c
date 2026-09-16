@@ -320,8 +320,10 @@ static void __zpci_event_error(struct zpci_ccdf_err *ccdf)
 	pr_err("%s: Event 0x%x reports an error for PCI function 0x%x\n",
 	       pdev ? pci_name(pdev) : "n/a", ccdf->pec, ccdf->fid);
 
-	if (!pdev)
+	if (!pdev) {
+		zpci_report_status(zdev, NULL, "error event", "no pdev bound");
 		goto no_pdev;
+	}
 
 	switch (ccdf->pec) {
 	case 0x002a: /* Error event concerns FMB */
