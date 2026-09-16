@@ -2350,7 +2350,7 @@ static char *profile_tgt_name;
 static int *profile_perf_events;
 static int profile_perf_event_cnt;
 
-static void profile_close_perf_events(struct profiler_bpf *obj)
+static void profile_close_perf_events(void)
 {
 	int i;
 
@@ -2361,61 +2361,78 @@ static void profile_close_perf_events(struct profiler_bpf *obj)
 	profile_perf_event_cnt = 0;
 }
 
-static int profile_open_perf_event(int mid, int cpu, int map_fd)
+static int profile_open_perf_event(int mid, int cpu,
+				   int map_fd, int group_fd, __u32 map_key)
 {
+	struct perf_event_attr attr = metrics[mid].attr;
+	bool group_leader = group_fd < 0;
 	int pmu_fd;
+	int err;
 
-	pmu_fd = syscall(__NR_perf_event_open, &metrics[mid].attr,
-			 -1 /*pid*/, cpu, -1 /*group_fd*/, 0);
+	attr.disabled = group_leader;
+	pmu_fd = syscall(__NR_perf_event_open, &attr, -1 /* pid */, cpu,
+			 group_fd, 0);
 	if (pmu_fd < 0) {
-		if (errno == ENODEV) {
-			p_info("cpu %d may be offline, skip %s profiling.",
-				cpu, metrics[mid].name);
-			profile_perf_event_cnt++;
-			return 0;
-		}
-		return -1;
+		err = -errno;
+		if (errno == ENODEV && group_leader)
+			p_info("cpu %d may be offline, skip profiling.", cpu);
+		return err;
 	}
 
-	if (bpf_map_update_elem(map_fd,
-				&profile_perf_event_cnt,
-				&pmu_fd, BPF_ANY) ||
-	    ioctl(pmu_fd, PERF_EVENT_IOC_ENABLE, 0)) {
+	if (bpf_map_update_elem(map_fd, &map_key, &pmu_fd, BPF_ANY)) {
+		err = -errno;
 		close(pmu_fd);
-		return -1;
+		return err;
 	}
 
 	profile_perf_events[profile_perf_event_cnt++] = pmu_fd;
-	return 0;
+	return pmu_fd;
 }
 
 static int profile_open_perf_events(struct profiler_bpf *obj)
 {
+	__u32 num_cpu = obj->rodata->num_cpu;
+	__u32 map_key;
 	unsigned int cpu, m;
-	int map_fd;
+	int group_fd, map_fd, pmu_fd;
+	int err;
 
-	profile_perf_events = calloc(
-		obj->rodata->num_cpu * obj->rodata->num_metric, sizeof(int));
+	profile_perf_events = calloc(num_cpu * obj->rodata->num_metric,
+				     sizeof(*profile_perf_events));
 	if (!profile_perf_events) {
 		p_err("failed to allocate memory for perf_event array: %s",
 		      strerror(errno));
-		return -1;
-	}
-	map_fd = bpf_map__fd(obj->maps.events);
-	if (map_fd < 0) {
-		p_err("failed to get fd for events map");
-		return -1;
+		return -ENOMEM;
 	}
 
-	for (m = 0; m < ARRAY_SIZE(metrics); m++) {
-		if (!metrics[m].selected)
-			continue;
-		for (cpu = 0; cpu < obj->rodata->num_cpu; cpu++) {
-			if (profile_open_perf_event(m, cpu, map_fd)) {
-				p_err("failed to create event %s on cpu %u",
-				      metrics[m].name, cpu);
-				return -1;
+	map_fd = bpf_map__fd(obj->maps.events);
+	for (cpu = 0; cpu < num_cpu; cpu++) {
+		group_fd = -1;
+		map_key = cpu;
+		for (m = 0; m < ARRAY_SIZE(metrics); m++) {
+			if (!metrics[m].selected)
+				continue;
+
+			pmu_fd = profile_open_perf_event(m, cpu, map_fd, group_fd,
+						     map_key);
+			if (pmu_fd == -ENODEV && group_fd < 0)
+				break;
+			if (pmu_fd < 0) {
+				p_err("failed to add event %s to group on CPU %u: %s",
+				      metrics[m].name, cpu, strerror(-pmu_fd));
+				return pmu_fd;
 			}
+			if (group_fd < 0)
+				group_fd = pmu_fd;
+			map_key += num_cpu;
+		}
+		if (group_fd < 0)
+			continue;
+		if (ioctl(group_fd, PERF_EVENT_IOC_ENABLE, PERF_IOC_FLAG_GROUP)) {
+			err = -errno;
+			p_err("failed to enable perf event group on CPU %u: %s",
+			      cpu, strerror(-err));
+			return err;
 		}
 	}
 	return 0;
@@ -2423,7 +2440,7 @@ static int profile_open_perf_events(struct profiler_bpf *obj)
 
 static void profile_print_and_cleanup(void)
 {
-	profile_close_perf_events(profile_obj);
+	profile_close_perf_events();
 	profile_read_values(profile_obj);
 	profile_print_readings();
 	profiler_bpf__destroy(profile_obj);
@@ -2529,7 +2546,7 @@ static int do_profile(int argc, char **argv)
 	return 0;
 
 out:
-	profile_close_perf_events(profile_obj);
+	profile_close_perf_events();
 	if (profile_obj)
 		profiler_bpf__destroy(profile_obj);
 	close(profile_tgt_fd);
