@@ -51,6 +51,7 @@ with_vm_locks(void (*fn)(struct drm_gem_object *obj),
 	 * success paths
 	 */
 	struct drm_gpuvm_bo *vm_bo, *last_locked = NULL;
+	struct drm_gpuvm_bo *next;
 	bool locked = true;
 
 	drm_gem_for_each_gpuvm_bo (vm_bo, obj) {
@@ -82,7 +83,7 @@ with_vm_locks(void (*fn)(struct drm_gem_object *obj),
 
 out_unlock:
 	if (last_locked) {
-		drm_gem_for_each_gpuvm_bo (vm_bo, obj) {
+		drm_gem_for_each_gpuvm_bo_safe(vm_bo, next, obj) {
 			struct dma_resv *resv = drm_gpuvm_resv(vm_bo->vm);
 
 			if (resv == obj->resv)
