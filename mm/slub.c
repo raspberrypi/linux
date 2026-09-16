@@ -2161,15 +2161,8 @@ alloc_tagging_slab_free_hook(struct kmem_cache *s, struct slab *slab, void **p,
 		return;
 
 	obj_exts = slab_obj_exts(slab);
-	if (!obj_exts) {
-		/*
-		 * If obj_exts allocation failed, slab->obj_exts is set to
-		 * OBJEXTS_ALLOC_FAIL. In this case, we end up here and should
-		 * clear the flag.
-		 */
-		slab->obj_exts = 0;
+	if (!obj_exts)
 		return;
-	}
 
 	for (i = 0; i < objects; i++) {
 		unsigned int off = obj_to_index(s, slab, p[i]);
