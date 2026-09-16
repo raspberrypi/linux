@@ -82,15 +82,15 @@ MODULE_PARM_DESC(hcg_mode, "Enable HCG mode");
 #define STARVIS2_EXPOSURE_DEFAULT         1000
 
 /*
- * Analogue gain control
- * Range is from 0 to 100 (0dB - 30dB) with 0.3dB step size
+ * Gain control
+ * Range is from 0 to 100 (0dB - 30dB) analogue gain with 0.3dB step size
  * Values from 101 to 240 are valid but correspond to additional digital gain
- * (0.3dB - 42dB) so don't expose it to userspace
+ * (0.3dB - 42dB).
  */
 #define STARVIS2_REG_GAIN			CCI_REG16_LE(0x3070)
 #define STARVIS2_ANA_GAIN_MIN_NORMAL      0
 #define STARVIS2_ANA_GAIN_MIN_HCG         34
-#define STARVIS2_ANA_GAIN_MAX_NORMAL      100
+#define STARVIS2_ANA_GAIN_MAX_NORMAL      240
 #define STARVIS2_ANA_GAIN_STEP            1
 #define STARVIS2_ANA_GAIN_DEFAULT         0
 
