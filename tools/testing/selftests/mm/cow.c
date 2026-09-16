@@ -1717,13 +1717,8 @@ static void run_with_tmpfile(non_anon_test_fn fn, const char *desc)
 
 	/* File consists of a single page filled with zeroes. */
 	if (fallocate(fd, 0, 0, pagesize)) {
-		if (errno == EOPNOTSUPP) {
-			ksft_print_msg("fallocate() not supported by filesystem\n");
-			log_test_result(KSFT_SKIP);
-		} else {
-			ksft_perror("fallocate() failed");
-			log_test_result(KSFT_FAIL);
-		}
+		ksft_perror("fallocate() failed");
+		log_test_result(KSFT_FAIL);
 		goto close;
 	}
 
