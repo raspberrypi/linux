@@ -1683,7 +1683,7 @@ static inline void kick_process(struct task_struct *tsk)
 }
 #endif
 
-extern struct pid *cad_pid;
+extern struct pid __rcu *cad_pid;
 
 /*
  * Per process flags
