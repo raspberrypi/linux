@@ -7,6 +7,7 @@
  */
 
 #include <linux/bitfield.h>
+#include <linux/brcmphy.h> // For compatible LED definitions
 #include <linux/etherdevice.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -652,6 +653,67 @@ static int mxl86110_enable_led_activity_blink(struct phy_device *phydev)
 }
 
 /**
+ * mxl86110_emulate_brcm_leds - Support LED configuration from Device Tree, in a
+ * a manner similar to the Broadcom Ethernet PHYs.
+ * @phydev: Pointer to the PHY device structure
+ *
+ * If the PHY DT node contains an led-modes property, it is interpreted as 2
+ * integers - one for each LED - where each value is one of the following:
+ *   0=Link/activity
+ *   1=Speed
+ *   3=FDX
+ *   4=Off
+ *   5=On
+ *   8=Link
+ *   9=Activity
+ * Other values are undefined.
+ */
+static int mxl86110_emulate_brcm_leds(struct phy_device *phydev)
+{
+	int i, ret = 0;
+	static const u16 brcm_to_mxl[16] = {
+		[BCM_LED_MULTICOLOR_LINK_ACT]	= 0x670,
+		[BCM_LED_MULTICOLOR_SPEED]	= 0x62,
+		[BCM_LED_MULTICOLOR_FDX]	= 0x1000,
+		[BCM_LED_MULTICOLOR_OFF]	= 0x8000,
+		[BCM_LED_MULTICOLOR_ON]		= 0xc000,
+		[BCM_LED_MULTICOLOR_LINK]	= 0x70,
+		[BCM_LED_MULTICOLOR_ACT]	= 0x2600,
+	};
+	u32 led_modes[] = { BCM_LED_MULTICOLOR_LINK_ACT, BCM_LED_MULTICOLOR_LINK };
+	struct device_node *np = phydev->mdio.dev.of_node;
+
+	if (!of_property_read_u32_array(np, "led-modes", led_modes, 2)) {
+		int led_swap = of_property_read_bool(np, "led-swap") ? 1 : 0;
+
+		for (i = 0; i < 2; i++) {
+			u16 led_mode = brcm_to_mxl[led_modes[i] & 0xf];
+			int led_num = 1 + (i ^ led_swap);
+
+			if (led_mode & 0x8000) {
+				// This is a static on/off
+				u16 set = MXL86110_COM_EXT_LED_GEN_CFG_LFE(led_num);
+
+				if (led_mode & 0x4000)
+					set |= MXL86110_COM_EXT_LED_GEN_CFG_LFME(led_num);
+				ret = __mxl86110_modify_extended_reg(phydev,
+					MXL86110_COM_EXT_LED_GEN_CFG,
+					MXL86110_COM_EXT_LED_GEN_CFG_LFM(led_num),
+					set);
+			} else {
+				ret = __mxl86110_write_extended_reg(phydev,
+						MXL86110_LED0_CFG_REG + led_num,
+						led_mode);
+			}
+			if (ret < 0)
+				break;
+		}
+	}
+
+	return ret;
+}
+
+/**
  * mxl86110_config_rgmii_delay() - configure RGMII delays
  * @phydev: pointer to the phy_device
  *
@@ -728,6 +790,10 @@ static int mxl86110_config_init(struct phy_device *phydev)
 		goto out;
 
 	ret = mxl86110_enable_led_activity_blink(phydev);
+	if (ret < 0)
+		goto out;
+
+	ret = mxl86110_emulate_brcm_leds(phydev);
 	if (ret < 0)
 		goto out;
 
