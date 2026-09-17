@@ -1652,17 +1652,26 @@ static int mpam_restore_mbwu_state(void *_ris)
 	u64 val;
 	struct mon_read mwbu_arg;
 	struct mpam_msc_ris *ris = _ris;
+	struct mpam_msc *msc = ris->vmsc->msc;
 	struct mpam_class *class = ris->vmsc->comp->class;
 
 	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
-		if (ris->mbwu_state[i].enabled) {
-			mwbu_arg.ris = ris;
-			mwbu_arg.ctx = &ris->mbwu_state[i].cfg;
-			mwbu_arg.type = mpam_msmon_choose_counter(class);
-			mwbu_arg.val = &val;
+		if (WARN_ON_ONCE(!mpam_mon_sel_lock(msc)))
+			return -EIO;
 
-			__ris_msmon_read(&mwbu_arg);
+		if (!ris->mbwu_state[i].enabled) {
+			mpam_mon_sel_unlock(msc);
+			continue;
 		}
+
+		mwbu_arg.ris = ris;
+		mwbu_arg.ctx = &ris->mbwu_state[i].cfg;
+		mwbu_arg.type = mpam_msmon_choose_counter(class);
+		mwbu_arg.val = &val;
+
+		mpam_mon_sel_unlock(msc);
+
+		__ris_msmon_read(&mwbu_arg);
 	}
 
 	return 0;
@@ -1680,11 +1689,11 @@ static int mpam_save_mbwu_state(void *arg)
 	struct mpam_msc *msc = ris->vmsc->msc;
 
 	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
-		mbwu_state = &ris->mbwu_state[i];
-		cfg = &mbwu_state->cfg;
-
 		if (WARN_ON_ONCE(!mpam_mon_sel_lock(msc)))
 			return -EIO;
+
+		mbwu_state = &ris->mbwu_state[i];
+		cfg = &mbwu_state->cfg;
 
 		mon_sel = FIELD_PREP(MSMON_CFG_MON_SEL_MON_SEL, i) |
 			  FIELD_PREP(MSMON_CFG_MON_SEL_RIS, ris->ris_idx);
