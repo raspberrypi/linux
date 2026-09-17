@@ -125,7 +125,7 @@ struct smb3_notify_info {
 
 static inline bool cifs_forced_shutdown(struct cifs_sb_info *sbi)
 {
-	if (CIFS_MOUNT_SHUTDOWN & sbi->mnt_cifs_flags)
+	if (CIFS_MOUNT_SHUTDOWN & cifs_sb_flags(sbi))
 		return true;
 	else
 		return false;

@@ -593,14 +593,14 @@ cifs_symlink(struct mnt_idmap *idmap, struct inode *inode,
 		break;
 
 	case CIFS_SYMLINK_TYPE_MFSYMLINKS:
-		if (cifs_sb->mnt_cifs_flags & CIFS_MOUNT_MF_SYMLINKS) {
+		if (cifs_sb_flags(cifs_sb) & CIFS_MOUNT_MF_SYMLINKS) {
 			rc = create_mf_symlink(xid, pTcon, cifs_sb,
 					       full_path, symname);
 		}
 		break;
 
 	case CIFS_SYMLINK_TYPE_SFU:
-		if (cifs_sb->mnt_cifs_flags & CIFS_MOUNT_UNX_EMUL) {
+		if (cifs_sb_flags(cifs_sb) & CIFS_MOUNT_UNX_EMUL) {
 			rc = __cifs_sfu_make_node(xid, inode, direntry, pTcon,
 						  full_path, S_IFLNK,
 						  0, symname);

@@ -10,6 +10,7 @@
 #ifndef _CIFS_FS_SB_H
 #define _CIFS_FS_SB_H
 
+#include <linux/atomic.h>
 #include <linux/backing-dev.h>
 
 #define CIFS_MOUNT_NO_PERM      1 /* do not do client vfs_perm check */
@@ -55,7 +56,7 @@ struct cifs_sb_info {
 	struct nls_table *local_nls;
 	struct smb3_fs_context *ctx;
 	atomic_t active;
-	unsigned int mnt_cifs_flags;
+	atomic_t mnt_cifs_flags;
 	struct delayed_work prune_tlinks;
 	struct rcu_head rcu;
 
@@ -72,4 +73,9 @@ struct cifs_sb_info {
 	 */
 	struct dentry *root;
 };
+
+/* Mount flags are accessed locklessly by mount/remount and reconnect paths. */
+#define cifs_sb_flags(cifs_sb) \
+	((unsigned int)atomic_read(&(cifs_sb)->mnt_cifs_flags))
+
 #endif				/* _CIFS_FS_SB_H */
