@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright(c) 2022 Intel Corporation. All rights reserved. */
+#include <linux/acpi.h>
 #include <linux/memregion.h>
 #include <linux/genalloc.h>
 #include <linux/debugfs.h>
@@ -2630,7 +2631,19 @@ static bool cxl_region_update_coordinates(struct cxl_region *cxlr, int nid)
 
 	for (int i = 0; i < ACCESS_COORDINATE_MAX; i++) {
 		if (cxlr->coord[i].read_bandwidth) {
-			node_update_perf_attrs(nid, &cxlr->coord[i], i);
+			/*
+			 * A CFMWS-only node (not backed by a real SRAT pxm)
+			 * has no HMAT memory_target, so hmat_callback()
+			 * never created the access attributes for it:
+			 * create them here instead of only updating them.
+			 * This is called at most once per node (see
+			 * nodemask_region_seen), so the attributes are not
+			 * created twice.
+			 */
+			if (!acpi_node_backed_by_real_pxm(nid))
+				node_set_perf_attrs(nid, &cxlr->coord[i], i);
+			else
+				node_update_perf_attrs(nid, &cxlr->coord[i], i);
 			cset++;
 		}
 	}
