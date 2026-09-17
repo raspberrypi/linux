@@ -622,6 +622,7 @@ static const u32 codes_monochrome[] = {
 struct starvis2_variant {
 	const char *name;
 	u32 id_reg;
+	u32 id_mask;
 	u32 id_value;
 	struct v4l2_rect native_area;
 	struct v4l2_rect active_area;
@@ -637,6 +638,7 @@ struct starvis2_variant {
 const struct starvis2_variant imx678_variant_def = {
 	.name = "imx678",
 	.id_reg = CCI_REG16_LE(0x4d1c),
+	.id_mask = 0x3ff,
 	.id_value = 0x2a6,
 	.native_area = {
 		.top = 0,
@@ -687,6 +689,10 @@ static const struct starvis2_model_info imx678_autodetect_info = {
 	.variant = &imx678_variant_def,
 	.auto_detect_colour = &imx678_aaqr_info,
 	.auto_detect_mono = &imx678_aamr_info,
+};
+
+static const struct starvis2_model_info *starvis2_all_model_autodetect[] = {
+	&imx678_autodetect_info,
 };
 
 static const char * const starvis2_supply_name[] = {
@@ -1133,10 +1139,6 @@ static int starvis2_identify_model(struct starvis2 *starvis2)
 	u64 val = 0;
 
 	info = device_get_match_data(&client->dev);
-	if (!info)
-		return -EINVAL;
-
-	variant = info->variant;
 
 	/*
 	 * This sensor's ID registers become accessible 80ms after coming out
@@ -1145,18 +1147,40 @@ static int starvis2_identify_model(struct starvis2 *starvis2)
 	cci_write(starvis2->cci, STARVIS2_REG_MODE_SELECT, 0, &ret);
 	fsleep(IMX678_MODULE_ID_DELAY);
 
-	cci_read(starvis2->cci, variant->id_reg, &val, &ret);
+	if (!info) {
+		/* Generic "sony,starvis2" - identify the module */
+		int i;
 
-	if (ret) {
-		dev_err(&client->dev,
-			"I2C transaction failed ret = %d\n", ret);
-		return ret;
-	}
+		for (i = 0; i < ARRAY_SIZE(starvis2_all_model_autodetect); i++) {
+			variant = starvis2_all_model_autodetect[i]->variant;
 
-	if (val != variant->id_value) {
-		dev_err(&client->dev, "Chip ID mismatch: %x!=%llx\n",
-			variant->id_value, val);
-		return -ENXIO;
+			cci_read(starvis2->cci, variant->id_reg, &val, &ret);
+			if ((val & variant->id_mask) == variant->id_value) {
+				info = starvis2_all_model_autodetect[i];
+				break;
+			}
+		}
+
+		if (!info) {
+			dev_err(&client->dev, "No Starvis2 camera found\n");
+			return -ENXIO;
+		}
+	} else {
+		variant = info->variant;
+
+		cci_read(starvis2->cci, variant->id_reg, &val, &ret);
+
+		if (ret) {
+			dev_err(&client->dev,
+				"I2C transaction failed ret = %d\n", ret);
+			return ret;
+		}
+
+		if (val != variant->id_value) {
+			dev_err(&client->dev, "Chip ID mismatch: %x!=%llx\n",
+				variant->id_value, val);
+			return -ENXIO;
+		}
 	}
 
 	cci_read(starvis2->cci, STARVIS2_REG_MONOCHROME, &val, &ret);
@@ -1181,8 +1205,9 @@ static int starvis2_identify_model(struct starvis2 *starvis2)
 		starvis2->info = detected == STARVIS2_MONOCHROME ?
 			    info->auto_detect_mono : info->auto_detect_colour;
 		dev_info(&client->dev,
-			 "sensor type missing in DT; detected %s sensor\n",
-			 detected == STARVIS2_MONOCHROME ? "mono" : "color");
+			 "sensor type not specified in DT; detected %s %s sensor\n",
+			 detected == STARVIS2_MONOCHROME ? "mono" : "color",
+			 info->variant->name);
 	}
 	starvis2->variant = starvis2->info->variant;
 
@@ -1498,6 +1523,7 @@ static const struct of_device_id starvis2_of_match[] = {
 	{ .compatible = "sony,imx678-aaqr", .data = &imx678_aaqr_info },
 	/* for non-conforming DTs that rely on runtime check */
 	{ .compatible = "sony,imx678", .data = &imx678_autodetect_info },
+	{ .compatible = "sony,starvis2", .data = NULL },
 	{ /* sentinel */ }
 };
 
