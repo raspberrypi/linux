@@ -380,7 +380,15 @@ static int amdxdna_hmm_register(struct amdxdna_gem_obj *abo,
 	mapp->range.notifier = &mapp->notifier;
 	mapp->range.start = vma->vm_start;
 	mapp->range.end = vma->vm_end;
+	/*
+	 * Access permissions are fixed at mmap() time. Changing them later
+	 * with mprotect() is not supported: the range keeps requesting the
+	 * original permissions, so the application may see a fault failure
+	 * or an IOMMU fault.
+	 */
 	mapp->range.default_flags = HMM_PFN_REQ_FAULT;
+	if (vma->vm_flags & VM_WRITE)
+		mapp->range.default_flags |= HMM_PFN_REQ_WRITE;
 	mapp->abo = abo;
 	kref_init(&mapp->refcnt);
 
