@@ -1943,10 +1943,6 @@ static void mpam_resctrl_teardown_mon(struct mpam_resctrl_mon *mon, struct mpam_
 	mon->mbwu_idx_to_mon = NULL;
 }
 
-/*
- * The driver is detaching an MSC from this class, if resctrl was using it,
- * pull on resctrl_exit().
- */
 void mpam_resctrl_teardown_class(struct mpam_class *class)
 {
 	struct mpam_resctrl_res *res;
@@ -1957,17 +1953,14 @@ void mpam_resctrl_teardown_class(struct mpam_class *class)
 	might_sleep();
 
 	for_each_mpam_resctrl_control(res, rid) {
-		if (res->class == class) {
+		if (res->class == class)
 			res->class = NULL;
-			break;
-		}
 	}
 	for_each_mpam_resctrl_mon(mon, eventid) {
 		if (mon->class == class) {
 			mon->class = NULL;
 
 			mpam_resctrl_teardown_mon(mon, class);
-			break;
 		}
 	}
 }
