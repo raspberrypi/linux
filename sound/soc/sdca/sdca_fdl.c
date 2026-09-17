@@ -301,6 +301,8 @@ static struct sdca_fdl_set *fdl_get_set(struct sdca_interrupt *interrupt)
 
 	range = sdca_selector_find_range(dev, xu, SDCA_CTL_XU_FDL_SET_INDEX,
 					 SDCA_FDL_SET_INDEX_NCOLS, 0);
+	if (!range)
+		return NULL;
 
 	val = sdca_range_search(range, SDCA_FDL_SET_INDEX_SET_NUMBER,
 				val, SDCA_FDL_SET_INDEX_FILE_SET_ID);
