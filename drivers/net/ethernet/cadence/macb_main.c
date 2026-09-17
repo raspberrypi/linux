@@ -3956,9 +3956,11 @@ static unsigned int gem_get_tsu_rate(struct macb *bp)
 	struct clk *tsu_clk;
 	unsigned int tsu_rate;
 
-	tsu_clk = devm_clk_get(&bp->pdev->dev, "tsu_clk");
-	if (!IS_ERR(tsu_clk))
+	tsu_clk = clk_get(&bp->pdev->dev, "tsu_clk");
+	if (!IS_ERR(tsu_clk)) {
 		tsu_rate = clk_get_rate(tsu_clk);
+		clk_put(tsu_clk);
+	}
 	/* try pclk instead */
 	else if (!IS_ERR(bp->pclk)) {
 		tsu_clk = bp->pclk;
