@@ -14,6 +14,7 @@ struct_inet_bind2_bucket            icsk_bind2_hash        read_mostly         -
 unsigned_long                       icsk_timeout           read_mostly         -                   inet_csk_reset_xmit_timer,tcp_connect
 struct_timer_list                   icsk_retransmit_timer  read_mostly         -                   inet_csk_reset_xmit_timer,tcp_connect
 struct_timer_list                   icsk_delack_timer      read_mostly         -                   inet_csk_reset_xmit_timer,tcp_connect
+struct_timer_list                   icsk_keepalive_timer  -                   -
 u32                                 icsk_rto               read_write          -                   tcp_cwnd_validate,tcp_schedule_loss_probe,tcp_connect_init,tcp_connect,tcp_write_xmit,tcp_push_one
 u32                                 icsk_rto_min           -                   -                   
 u32                                 icsk_delack_max        -                   -                   
