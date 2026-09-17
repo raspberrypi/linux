@@ -17,6 +17,7 @@
 #include <linux/hwmon-sysfs.h>
 #include <linux/err.h>
 #include <linux/sysfs.h>
+#include <linux/mutex.h>
 #include <linux/regmap.h>
 #include <linux/util_macros.h>
 
@@ -29,6 +30,7 @@ enum emc1403_chip { emc1402, emc1403, emc1404, emc1428 };
 struct thermal_data {
 	enum emc1403_chip chip;
 	struct regmap *regmap;
+	struct mutex mutex;
 };
 
 static ssize_t power_state_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -266,8 +268,8 @@ static s8 emc1403_temp_regs_low[][4] = {
 	},
 };
 
-static int emc1403_get_temp(struct thermal_data *data, int channel,
-			    enum emc1403_reg_map map, long *val)
+static int __emc1403_get_temp(struct thermal_data *data, int channel,
+			      enum emc1403_reg_map map, long *val)
 {
 	unsigned int regvalh;
 	unsigned int regvall = 0;
@@ -293,23 +295,38 @@ static int emc1403_get_temp(struct thermal_data *data, int channel,
 	return 0;
 }
 
+static int emc1403_get_temp(struct thermal_data *data, int channel,
+			    enum emc1403_reg_map map, long *val)
+{
+	int ret;
+
+	mutex_lock(&data->mutex);
+	ret = __emc1403_get_temp(data, channel, map, val);
+	mutex_unlock(&data->mutex);
+
+	return ret;
+}
+
 static int emc1403_get_hyst(struct thermal_data *data, int channel,
 			    enum emc1403_reg_map map, long *val)
 {
 	int hyst, ret;
 	long limit;
 
-	ret = emc1403_get_temp(data, channel, map, &limit);
+	mutex_lock(&data->mutex);
+	ret = __emc1403_get_temp(data, channel, map, &limit);
 	if (ret < 0)
-		return ret;
+		goto unlock;
 	ret = regmap_read(data->regmap, 0x21, &hyst);
 	if (ret < 0)
-		return ret;
+		goto unlock;
 	if (map == temp_min)
 		*val = limit + hyst * 1000;
 	else
 		*val = limit - hyst * 1000;
-	return 0;
+unlock:
+	mutex_unlock(&data->mutex);
+	return ret;
 }
 
 static int emc1403_temp_read(struct thermal_data *data, u32 attr, int channel, long *val)
@@ -434,16 +451,20 @@ static int emc1403_set_hyst(struct thermal_data *data, long val)
 	else
 		val = clamp_val(val, 0, 255000);
 
-	ret = emc1403_get_temp(data, 0, temp_crit, &limit);
+	mutex_lock(&data->mutex);
+	ret = __emc1403_get_temp(data, 0, temp_crit, &limit);
 	if (ret < 0)
-		return ret;
+		goto unlock;
 
 	hyst = limit - val;
 	if (data->chip == emc1428)
 		hyst = clamp_val(DIV_ROUND_CLOSEST(hyst, 1000), 0, 127);
 	else
 		hyst = clamp_val(DIV_ROUND_CLOSEST(hyst, 1000), 0, 255);
-	return regmap_write(data->regmap, 0x21, hyst);
+	ret = regmap_write(data->regmap, 0x21, hyst);
+unlock:
+	mutex_unlock(&data->mutex);
+	return ret;
 }
 
 static int emc1403_set_temp(struct thermal_data *data, int channel,
@@ -457,6 +478,7 @@ static int emc1403_set_temp(struct thermal_data *data, int channel,
 	regh = emc1403_temp_regs[channel][map];
 	regl = emc1403_temp_regs_low[channel][map];
 
+	mutex_lock(&data->mutex);
 	if (regl >= 0) {
 		if (data->chip == emc1428)
 			val = clamp_val(val, -128000, 127875);
@@ -465,7 +487,7 @@ static int emc1403_set_temp(struct thermal_data *data, int channel,
 		regval = DIV_ROUND_CLOSEST(val, 125);
 		ret = regmap_write(data->regmap, regh, (regval >> 3) & 0xff);
 		if (ret < 0)
-			return ret;
+			goto unlock;
 		ret = regmap_write(data->regmap, regl, (regval & 0x07) << 5);
 	} else {
 		if (data->chip == emc1428)
@@ -475,6 +497,8 @@ static int emc1403_set_temp(struct thermal_data *data, int channel,
 		regval = DIV_ROUND_CLOSEST(val, 1000);
 		ret = regmap_write(data->regmap, regh, regval);
 	}
+unlock:
+	mutex_unlock(&data->mutex);
 	return ret;
 }
 
@@ -670,6 +694,8 @@ static int emc1403_probe(struct i2c_client *client)
 	data->regmap = devm_regmap_init_i2c(client, &emc1403_regmap_config);
 	if (IS_ERR(data->regmap))
 		return PTR_ERR(data->regmap);
+
+	mutex_init(&data->mutex);
 
 	hwmon_dev = devm_hwmon_device_register_with_info(&client->dev,
 							 client->name, data,
