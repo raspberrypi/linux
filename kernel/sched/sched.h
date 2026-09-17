@@ -2620,6 +2620,12 @@ struct affinity_context {
 
 extern s64 update_curr_common(struct rq *rq);
 
+enum snt_e {
+	SNT_NORMAL,	/* set_next_task() */
+	SNT_PICK,	/* put_prev_set_next_task(): prev != next */
+	SNT_REPICK,	/* put_prev_set_next_task(): prev == next */
+};
+
 struct sched_class {
 
 #ifdef CONFIG_UCLAMP_TASK
@@ -2677,7 +2683,7 @@ struct sched_class {
 	 * __schedule: rq->lock
 	 */
 	void (*put_prev_task)(struct rq *rq, struct task_struct *p, struct task_struct *next);
-	void (*set_next_task)(struct rq *rq, struct task_struct *p, bool first);
+	void (*set_next_task)(struct rq *rq, struct task_struct *p, enum snt_e type);
 
 	/*
 	 * select_task_rq: p->pi_lock
@@ -2780,7 +2786,7 @@ static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
 
 static inline void set_next_task(struct rq *rq, struct task_struct *next)
 {
-	next->sched_class->set_next_task(rq, next, false);
+	next->sched_class->set_next_task(rq, next, SNT_NORMAL);
 }
 
 static inline void
@@ -2801,11 +2807,13 @@ static inline void put_prev_set_next_task(struct rq *rq,
 
 	__put_prev_set_next_dl_server(rq, prev, next);
 
-	if (next == prev)
+	if (next == prev) {
+		next->sched_class->set_next_task(rq, next, SNT_REPICK);
 		return;
+	}
 
 	prev->sched_class->put_prev_task(rq, prev, next);
-	next->sched_class->set_next_task(rq, next, true);
+	next->sched_class->set_next_task(rq, next, SNT_PICK);
 }
 
 /*

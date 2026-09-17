@@ -3056,9 +3056,12 @@ has_tasks:
 	return verdict;
 }
 
-static void set_next_task_scx(struct rq *rq, struct task_struct *p, bool first)
+static void set_next_task_scx(struct rq *rq, struct task_struct *p, enum snt_e type)
 {
 	struct scx_sched *sch = scx_task_sched(p);
+
+	if (type == SNT_REPICK)
+		return;
 
 	if (p->scx.flags & SCX_TASK_QUEUED) {
 		/*

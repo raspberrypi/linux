@@ -7241,7 +7241,7 @@ pick_again:
 			 * on_cpu.
 			 */
 			donor->sched_class->put_prev_task(rq, donor, donor);
-			donor->sched_class->set_next_task(rq, donor, true);
+			donor->sched_class->set_next_task(rq, donor, SNT_PICK);
 		}
 	} else {
 		rq_set_donor(rq, next);

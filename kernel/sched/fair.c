@@ -15547,13 +15547,17 @@ static void switched_to_fair(struct rq *rq, struct task_struct *p)
 	}
 }
 
-static void set_next_task_fair(struct rq *rq, struct task_struct *p, bool first)
+static void set_next_task_fair(struct rq *rq, struct task_struct *p, enum snt_e type)
 {
 	struct sched_entity *se = &p->se;
-	bool throttled = false;
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	unsigned long weight = NICE_0_LOAD;
+	bool first = type == SNT_PICK;
+	bool throttled = false;
 	bool on_rq = se->on_rq;
+
+	if (type == SNT_REPICK)
+		goto repick;
 
 	clear_buddies(cfs_rq, se);
 
@@ -15598,11 +15602,18 @@ static void set_next_task_fair(struct rq *rq, struct task_struct *p, bool first)
 
 	WARN_ON_ONCE(se->sched_delayed);
 
-	if (hrtick_enabled_fair(rq))
-		hrtick_start_fair(rq, p);
-
 	update_misfit_status(p, rq);
 	sched_fair_update_stop_tick(rq, p);
+
+repick:
+	/*
+	 * A same-task repick skips put_prev_task_fair(), but
+	 * pick_task_fair() refreshed the entity hrtick_start_fair() reads
+	 * before selecting it again. rq->cfs.curr identifies that entity,
+	 * including with group scheduling.
+	 */
+	if (hrtick_enabled_fair(rq))
+		hrtick_start_fair(rq, p);
 }
 
 void init_cfs_rq(struct cfs_rq *cfs_rq)
