@@ -1655,7 +1655,7 @@ static int mpam_restore_mbwu_state(void *_ris)
 {
 	int i;
 	u64 val;
-	struct mon_read mwbu_arg;
+	struct mon_read mbwu_arg;
 	struct mpam_msc_ris *ris = _ris;
 	struct msmon_mbwu_state *mbwu_state;
 	struct mpam_msc *msc = ris->vmsc->msc;
@@ -1672,14 +1672,17 @@ static int mpam_restore_mbwu_state(void *_ris)
 			continue;
 		}
 
-		mwbu_arg.ris = ris;
-		mwbu_arg.ctx = &mbwu_state->cfg;
-		mwbu_arg.type = mpam_msmon_choose_counter(class);
-		mwbu_arg.val = &val;
+		val = 0;
+		mbwu_arg = (struct mon_read) {
+			.ris = ris,
+			.ctx = &mbwu_state->cfg,
+			.type = mpam_msmon_choose_counter(class),
+			.val = &val,
+		};
 
 		mbwu_state->reset_on_next_read = true;
 
-		__ris_msmon_read_locked(&mwbu_arg);
+		__ris_msmon_read_locked(&mbwu_arg);
 
 		mpam_mon_sel_unlock(msc);
 	}
