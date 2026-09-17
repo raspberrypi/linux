@@ -1450,6 +1450,13 @@ const char *describe_metricgroup(const char *group)
 }
 """)
 
+# Upper bound on the number of workers reading JSON files in parallel.
+_max_parallel_workers = 32
+
+def _parallel_worker_count(num_tasks: int) -> int:
+  return max(1, min(getattr(os, 'process_cpu_count', os.cpu_count)() or 1,
+                    _max_parallel_workers, num_tasks))
+
 def _parallel_read_json_events(task: Tuple[str, str]) -> Tuple[str, str, Sequence[JsonEvent]]:
   path, topic = task
   return path, topic, _read_json_events_impl(path, topic)
@@ -1549,7 +1556,9 @@ struct pmu_table_entry {
     preprocess_arch_std_files(arch_path)
     ftw(arch_path, [], collect_json)
 
-  with concurrent.futures.ProcessPoolExecutor(initializer=_init_worker, initargs=(_arch_std_events,)) as executor:
+  with concurrent.futures.ProcessPoolExecutor(max_workers=_parallel_worker_count(len(tasks)),
+                                              initializer=_init_worker,
+                                              initargs=(_arch_std_events,)) as executor:
     for path, topic, events in executor.map(_parallel_read_json_events, tasks):
       _json_cache[(path, topic)] = events
 
