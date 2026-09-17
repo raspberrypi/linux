@@ -1,38 +1,44 @@
 // SPDX-License-Identifier: GPL-2.0
+#include "dso.h"
+
+#include <errno.h>
+#include <stdlib.h>
+
 #include <asm/bug.h>
+#include <fcntl.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/zalloc.h>
-#include <sys/time.h>
 #include <sys/resource.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdlib.h>
+
+#include "annotate-data.h"
+#include "auxtrace.h"
+#include "compress.h"
+#include "debug.h"
+#include "dsos.h"
+#include "env.h"
+#include "libbfd.h"
+#include "libdw.h"
+#include "machine.h"
+#include "map.h"
+#include "namespaces.h"
+#include "path.h"
+#include "srcline.h"
+#include "string2.h"
+#include "symbol.h"
+#include "util.h" /* O_CLOEXEC for older systems */
+#include "vdso.h"
+
 #ifdef HAVE_LIBBPF_SUPPORT
 #include <bpf/libbpf.h>
+
 #include "bpf-event.h"
 #include "bpf-utils.h"
 #endif
-#include "compress.h"
-#include "env.h"
-#include "namespaces.h"
-#include "path.h"
-#include "map.h"
-#include "symbol.h"
-#include "srcline.h"
-#include "dso.h"
-#include "dsos.h"
-#include "machine.h"
-#include "auxtrace.h"
-#include "util.h" /* O_CLOEXEC for older systems */
-#include "debug.h"
-#include "string2.h"
-#include "vdso.h"
-#include "annotate-data.h"
-#include "libdw.h"
 
 static const char * const debuglink_paths[] = {
 	"%.0s%s",
@@ -1757,6 +1763,7 @@ void dso__delete(struct dso *dso)
 	auxtrace_cache__free(RC_CHK_ACCESS(dso)->auxtrace_cache);
 	dso_cache__free(dso);
 	dso__free_a2l(dso);
+	dso__free_a2l_libbfd(dso);
 	dso__free_libdw(dso);
 	dso__free_symsrc_filename(dso);
 	nsinfo__zput(RC_CHK_ACCESS(dso)->nsinfo);
@@ -2081,6 +2088,7 @@ void dso__set_symsrc_filename(struct dso *dso, char *val)
 	RC_CHK_ACCESS(dso)->symsrc_filename = val;
 	dso__free_libdw(dso);
 	dso__free_a2l(dso);
+	dso__free_a2l_libbfd(dso);
 	dso__set_has_srcline(dso, true);
 	dso__set_a2l_fails(dso, 0);
 }
