@@ -1029,12 +1029,6 @@ struct mon_read {
 	bool				waited_timeout;
 };
 
-static bool mpam_ris_has_mbwu_long_counter(struct mpam_msc_ris *ris)
-{
-	return (mpam_has_feature(mpam_feat_msmon_mbwu_63counter, &ris->props) ||
-		mpam_has_feature(mpam_feat_msmon_mbwu_44counter, &ris->props));
-}
-
 static u64 mpam_msc_read_mbwu_l(struct mpam_msc *msc)
 {
 	int retry = 3;
@@ -1202,13 +1196,12 @@ static u64 mpam_msmon_overflow_val(enum mpam_device_features type,
 	return overflow_val;
 }
 
-static void __ris_msmon_read(void *arg)
+static void __ris_msmon_read_locked(struct mon_read *m)
 {
 	u64 now;
 	bool nrdy = false;
 	bool config_mismatch;
 	bool overflow = false;
-	struct mon_read *m = arg;
 	struct mon_cfg *ctx = m->ctx;
 	bool reset_on_next_read = false;
 	struct mpam_msc_ris *ris = m->ris;
@@ -1216,10 +1209,8 @@ static void __ris_msmon_read(void *arg)
 	struct mpam_msc *msc = m->ris->vmsc->msc;
 	u32 mon_sel, ctl_val, flt_val, cur_ctl, cur_flt;
 
-	if (!mpam_mon_sel_lock(msc)) {
-		m->err = -EIO;
-		return;
-	}
+	mpam_mon_sel_lock_held(msc);
+
 	mon_sel = FIELD_PREP(MSMON_CFG_MON_SEL_MON_SEL, ctx->mon) |
 		  FIELD_PREP(MSMON_CFG_MON_SEL_RIS, ris->ris_idx);
 	mpam_write_monsel_reg(msc, CFG_MON_SEL, mon_sel);
@@ -1312,7 +1303,6 @@ static void __ris_msmon_read(void *arg)
 	default:
 		m->err = -EINVAL;
 	}
-	mpam_mon_sel_unlock(msc);
 
 	if (nrdy)
 		m->err = -EBUSY;
@@ -1321,6 +1311,21 @@ static void __ris_msmon_read(void *arg)
 		return;
 
 	*m->val += now;
+}
+
+static void __ris_msmon_read(void *arg)
+{
+	struct mon_read *m = arg;
+	struct mpam_msc *msc = m->ris->vmsc->msc;
+
+	if (!mpam_mon_sel_lock(msc)) {
+		m->err = -EIO;
+		return;
+	}
+
+	__ris_msmon_read_locked(m);
+
+	mpam_mon_sel_unlock(msc);
 }
 
 static int _msmon_read(struct mpam_component *comp, struct mon_read *arg)
@@ -1674,9 +1679,9 @@ static int mpam_restore_mbwu_state(void *_ris)
 
 		mbwu_state->reset_on_next_read = true;
 
-		mpam_mon_sel_unlock(msc);
+		__ris_msmon_read_locked(&mwbu_arg);
 
-		__ris_msmon_read(&mwbu_arg);
+		mpam_mon_sel_unlock(msc);
 	}
 
 	return 0;
@@ -1688,10 +1693,12 @@ static int mpam_save_mbwu_state(void *arg)
 	int i;
 	u64 val;
 	struct mon_cfg *cfg;
+	struct mon_read mbwu_arg;
 	u32 cur_flt, cur_ctl, mon_sel;
 	struct mpam_msc_ris *ris = arg;
 	struct msmon_mbwu_state *mbwu_state;
 	struct mpam_msc *msc = ris->vmsc->msc;
+	struct mpam_class *class = ris->vmsc->comp->class;
 
 	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
 		if (WARN_ON_ONCE(!mpam_mon_sel_lock(msc)))
@@ -1708,17 +1715,36 @@ static int mpam_save_mbwu_state(void *arg)
 		cur_ctl = mpam_read_monsel_reg(msc, CFG_MBWU_CTL);
 		mpam_write_monsel_reg(msc, CFG_MBWU_CTL, 0);
 
-		if (mpam_ris_has_mbwu_long_counter(ris))
-			val = mpam_msc_read_mbwu_l(msc);
-		else
-			val = mpam_read_monsel_reg(msc, MBWU);
-
 		cfg->mon = i;
 		cfg->pmg = FIELD_GET(MSMON_CFG_x_FLT_PMG, cur_flt);
 		cfg->match_pmg = FIELD_GET(MSMON_CFG_x_CTL_MATCH_PMG, cur_ctl);
 		cfg->partid = FIELD_GET(MSMON_CFG_x_FLT_PARTID, cur_flt);
-		mbwu_state->correction += val;
 		mbwu_state->enabled = FIELD_GET(MSMON_CFG_x_CTL_EN, cur_ctl);
+
+		if (!mbwu_state->enabled) {
+			mpam_mon_sel_unlock(msc);
+			continue;
+		}
+
+		val = 0;
+		mbwu_arg = (struct mon_read) {
+			.ris = ris,
+			.ctx = cfg,
+			.type = mpam_msmon_choose_counter(class),
+			.val = &val,
+		};
+
+		__ris_msmon_read_locked(&mbwu_arg);
+
+		mbwu_state->reset_on_next_read = true;
+		if (!mbwu_arg.err) {
+			/*
+			 * __ris_msmon_read_locked() already included the
+			 * previous correction value.
+			 */
+			mbwu_state->correction = val;
+		}
+
 		mpam_mon_sel_unlock(msc);
 	}
 
