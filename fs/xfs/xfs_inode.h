@@ -178,6 +178,9 @@ static inline const struct inode *VFS_IC(const struct xfs_inode *ip)
 	return &ip->i_vnode;
 }
 
+/* Keep the full inode number on systems with a 32-bit VFS i_ino. */
+#define I_INO(ip)	((ip)->i_ino)
+
 /*
  * For regular files we only update the on-disk filesize when actually
  * writing data back to disk.  Until then only the copy in the VFS inode
