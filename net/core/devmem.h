@@ -14,6 +14,7 @@
 #include <net/netdev_netlink.h>
 
 struct netlink_ext_ack;
+struct dmabuf_genpool_chunk_owner;
 
 struct net_devmem_dmabuf_binding {
 	struct dma_buf *dmabuf;
@@ -26,7 +27,7 @@ struct net_devmem_dmabuf_binding {
 	 * dereferenced.
 	 */
 	void *vdev;
-	struct gen_pool *chunk_pool;
+	struct dmabuf_genpool_chunk_owner *chunk_owner;
 	/* Protect dev */
 	struct mutex lock;
 
@@ -57,6 +58,10 @@ struct net_devmem_dmabuf_binding {
 	/* rxq's this binding is active on. */
 	struct xarray bound_rxqs;
 
+	spinlock_t freelist_lock ____cacheline_aligned_in_smp;
+	size_t free_count;
+	struct net_iov **freelist;
+
 	/* ID of this binding. Globally unique to all bindings currently
 	 * active.
 	 */
@@ -77,17 +82,9 @@ struct net_devmem_dmabuf_binding {
 };
 
 #if defined(CONFIG_NET_DEVMEM)
-/* Owner of the dma-buf chunks inserted into the gen pool. Each scatterlist
- * entry from the dmabuf is inserted into the genpool as a chunk, and needs
- * this owner struct to keep track of some metadata necessary to create
- * allocations from this chunk.
- */
 struct dmabuf_genpool_chunk_owner {
 	struct net_iov_area area;
 	struct net_devmem_dmabuf_binding *binding;
-
-	/* dma_addr of the start of the chunk.  */
-	dma_addr_t base_dma_addr;
 };
 
 void __net_devmem_dmabuf_binding_free(struct work_struct *wq);
