@@ -735,10 +735,7 @@ static inline const char *dso__symsrc_filename(const struct dso *dso)
 	return RC_CHK_ACCESS(dso)->symsrc_filename;
 }
 
-static inline void dso__set_symsrc_filename(struct dso *dso, char *val)
-{
-	RC_CHK_ACCESS(dso)->symsrc_filename = val;
-}
+void dso__set_symsrc_filename(struct dso *dso, char *val);
 
 static inline void dso__free_symsrc_filename(struct dso *dso)
 {

@@ -2075,3 +2075,12 @@ struct debuginfo *dso__debuginfo(struct dso *dso)
 	free(name);
 	return dinfo;
 }
+
+void dso__set_symsrc_filename(struct dso *dso, char *val)
+{
+	RC_CHK_ACCESS(dso)->symsrc_filename = val;
+	dso__free_libdw(dso);
+	dso__free_a2l(dso);
+	dso__set_has_srcline(dso, true);
+	dso__set_a2l_fails(dso, 0);
+}

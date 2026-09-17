@@ -42,8 +42,10 @@ static int __find_debuginfo(Dwfl_Module *mod __maybe_unused, void **userdata,
 	const struct dso *dso = *userdata;
 
 	assert(dso);
+	mutex_lock(dso__lock((struct dso *)dso));
 	if (dso__symsrc_filename(dso) && strcmp(file_name, dso__symsrc_filename(dso)))
 		*debuginfo_file_name = strdup(dso__symsrc_filename(dso));
+	mutex_unlock(dso__lock((struct dso *)dso));
 	return -1;
 }
 

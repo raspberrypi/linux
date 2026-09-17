@@ -226,7 +226,11 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 		      struct symbol *sym)
 {
 	int ret = 0;
-	struct a2l_data *a2l = dso__a2l(dso);
+	struct a2l_data *a2l;
+
+	mutex_lock(dso__lock(dso));
+	dso_name = dso__symsrc_filename(dso) ?: dso_name;
+	a2l = dso__a2l(dso);
 
 	if (!a2l) {
 		a2l = addr2line_init(dso_name);
@@ -236,7 +240,8 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 	if (a2l == NULL) {
 		if (!symbol_conf.addr2line_disable_warn)
 			pr_warning("addr2line_init failed for %s\n", dso_name);
-		return 0;
+		ret = -1;
+		goto out;
 	}
 
 	a2l->addr = addr;
@@ -244,14 +249,18 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 
 	bfd_map_over_sections(a2l->abfd, find_address_in_section, a2l);
 
-	if (!a2l->found)
-		return 0;
+	if (!a2l->found) {
+		ret = 0;
+		goto out;
+	}
 
 	if (unwind_inlines) {
 		int cnt = 0;
 
-		if (node && inline_list__append_dso_a2l(dso, node, sym))
-			return 0;
+		if (node && inline_list__append_dso_a2l(dso, node, sym)) {
+			ret = 0;
+			goto out;
+		}
 
 		while (bfd_find_inliner_info(a2l->abfd, &a2l->filename,
 					     &a2l->funcname, &a2l->line) &&
@@ -261,8 +270,10 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 				a2l->filename = NULL;
 
 			if (node != NULL) {
-				if (inline_list__append_dso_a2l(dso, node, sym))
-					return 0;
+				if (inline_list__append_dso_a2l(dso, node, sym)) {
+					ret = 0;
+					goto out;
+				}
 				// found at least one inline frame
 				ret = 1;
 			}
@@ -277,6 +288,8 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 	if (line)
 		*line = a2l->line;
 
+out:
+	mutex_unlock(dso__lock(dso));
 	return ret;
 }
 

@@ -1,40 +1,49 @@
 // SPDX-License-Identifier: GPL-2.0
 #include "srcline.h"
-#include "addr2line.h"
-#include "dso.h"
-#include "callchain.h"
-#include "libbfd.h"
-#include "llvm.h"
-#include "symbol.h"
-#include "libdw.h"
-#include "debug.h"
-#include "util.h"
 
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
 #include <linux/string.h>
 #include <linux/zalloc.h>
+
+#include "addr2line.h"
+#include "callchain.h"
+#include "debug.h"
+#include "dso.h"
+#include "libbfd.h"
+#include "libdw.h"
+#include "llvm.h"
+#include "symbol.h"
+#include "util.h"
 
 bool srcline_full_filename;
 
 char *srcline__unknown = (char *)"??:0";
 
-static const char *srcline_dso_name(struct dso *dso)
+static char *srcline_dso_name(struct dso *dso)
 {
 	const char *dso_name;
+	char *ret = NULL;
 
+	mutex_lock(dso__lock(dso));
 	if (dso__symsrc_filename(dso))
 		dso_name = dso__symsrc_filename(dso);
 	else
 		dso_name = dso__long_name(dso);
 
 	if (dso_name[0] == '[')
-		return NULL;
+		goto out;
 
 	if (is_perf_pid_map_name(dso_name))
-		return NULL;
+		goto out;
 
-	return dso_name;
+	ret = strdup(dso_name);
+out:
+	mutex_unlock(dso__lock(dso));
+	return ret;
 }
 
 int inline_list__append(struct symbol *symbol, char *srcline, struct inline_node *node)
@@ -258,7 +267,7 @@ char *__get_srcline(struct dso *dso, u64 addr, struct symbol *sym,
 	char *file = NULL;
 	unsigned line = 0;
 	char *srcline;
-	const char *dso_name;
+	char *dso_name;
 
 	if (!dso__has_srcline(dso))
 		goto out;
@@ -268,8 +277,11 @@ char *__get_srcline(struct dso *dso, u64 addr, struct symbol *sym,
 		goto out_err;
 
 	if (!addr2line(dso_name, addr, &file, &line, dso,
-		       unwind_inlines, /*node=*/NULL, sym))
+		       unwind_inlines, /*node=*/NULL, sym)) {
+		free(dso_name);
 		goto out_err;
+	}
+	free(dso_name);
 
 	srcline = srcline_from_fileline(file, line);
 	free(file);
@@ -277,16 +289,20 @@ char *__get_srcline(struct dso *dso, u64 addr, struct symbol *sym,
 	if (!srcline)
 		goto out_err;
 
+	mutex_lock(dso__lock(dso));
 	dso__set_a2l_fails(dso, 0);
+	mutex_unlock(dso__lock(dso));
 
 	return srcline;
 
 out_err:
+	mutex_lock(dso__lock(dso));
 	dso__set_a2l_fails(dso, dso__a2l_fails(dso) + 1);
 	if (dso__a2l_fails(dso) > A2L_FAIL_LIMIT) {
 		dso__set_has_srcline(dso, false);
 		dso__free_a2l(dso);
 	}
+	mutex_unlock(dso__lock(dso));
 out:
 	if (!show_addr)
 		return (show_sym && sym) ?
@@ -305,7 +321,7 @@ out:
 char *get_srcline_split(struct dso *dso, u64 addr, unsigned *line)
 {
 	char *file = NULL;
-	const char *dso_name;
+	char *dso_name;
 
 	if (!dso__has_srcline(dso))
 		return NULL;
@@ -315,18 +331,25 @@ char *get_srcline_split(struct dso *dso, u64 addr, unsigned *line)
 		goto out_err;
 
 	if (!addr2line(dso_name, addr, &file, line, dso, /*unwind_inlines=*/true,
-			/*node=*/NULL, /*sym=*/NULL))
+			/*node=*/NULL, /*sym=*/NULL)) {
+		free(dso_name);
 		goto out_err;
+	}
+	free(dso_name);
 
+	mutex_lock(dso__lock(dso));
 	dso__set_a2l_fails(dso, 0);
+	mutex_unlock(dso__lock(dso));
 	return file;
 
 out_err:
+	mutex_lock(dso__lock(dso));
 	dso__set_a2l_fails(dso, dso__a2l_fails(dso) + 1);
 	if (dso__a2l_fails(dso) > A2L_FAIL_LIMIT) {
 		dso__set_has_srcline(dso, false);
 		dso__free_a2l(dso);
 	}
+	mutex_unlock(dso__lock(dso));
 
 	return NULL;
 }
@@ -420,13 +443,16 @@ void srcline__tree_delete(struct rb_root_cached *tree)
 struct inline_node *dso__parse_addr_inlines(struct dso *dso, u64 addr,
 					    struct symbol *sym)
 {
-	const char *dso_name;
+	char *dso_name;
+	struct inline_node *node;
 
 	dso_name = srcline_dso_name(dso);
 	if (dso_name == NULL)
 		return NULL;
 
-	return addr2inlines(dso_name, addr, dso, sym);
+	node = addr2inlines(dso_name, addr, dso, sym);
+	free(dso_name);
+	return node;
 }
 
 void inline_node__clear_frames(struct inline_node *node)

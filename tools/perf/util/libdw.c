@@ -35,7 +35,7 @@ struct Dwfl *dso__libdw_dwfl(struct dso *dso)
 	if (dwfl)
 		return dwfl;
 
-	dso_name = dso__long_name(dso);
+	dso_name = dso__symsrc_filename(dso) ?: dso__long_name(dso);
 	/*
 	 * Initialize Dwfl session.
 	 * We need to open the DSO file to report it to libdw.
@@ -167,32 +167,41 @@ int libdw__addr2line(u64 addr, char **file, unsigned int *line_nr,
 		     struct dso *dso, bool unwind_inlines,
 		     struct inline_node *node, struct symbol *sym)
 {
-	Dwfl *dwfl = dso__libdw_dwfl(dso);
+	Dwfl *dwfl;
 	Dwfl_Module *mod;
 	Dwfl_Line *dwline;
 	Dwarf_Addr bias;
 	const char *src;
 	int lineno = 0;
+	int ret = 0;
 
+	mutex_lock(dso__lock(dso));
+	dwfl = dso__libdw_dwfl(dso);
 	if (!dwfl)
-		return 0;
+		goto out;
 
 	mod = dwfl_addrmodule(dwfl, addr);
-	if (!mod)
-		return 0;
+	if (!mod) {
+		ret = 0;
+		goto out;
+	}
 
 	/*
 	 * Get/ignore the dwarf information. Determine the bias, difference
 	 * between the regular ELF addr2line addresses and those to use with
 	 * libdw.
 	 */
-	if (!dwfl_module_getdwarf(mod, &bias))
-		return 0;
+	if (!dwfl_module_getdwarf(mod, &bias)) {
+		ret = -1;
+		goto out;
+	}
 
 	/* Find source line information for the address. */
 	dwline = dwfl_module_getsrc(mod, addr + bias);
-	if (!dwline)
-		return 0;
+	if (!dwline) {
+		ret = -1;
+		goto out;
+	}
 
 	/* Get line information. */
 	src = dwfl_lineinfo(dwline, /*addr=*/NULL, &lineno, /*col=*/NULL, /*mtime=*/NULL,
@@ -219,7 +228,8 @@ int libdw__addr2line(u64 addr, char **file, unsigned int *line_nr,
 				free(*file);
 				*file = NULL;
 			}
-			return 0;
+			ret = 0;
+			goto out;
 		}
 
 		/* Walk from the parent down to the leaf. */
@@ -235,8 +245,13 @@ int libdw__addr2line(u64 addr, char **file, unsigned int *line_nr,
 				*file = NULL;
 			}
 			inline_node__clear_frames(node);
-			return 0;
+			ret = 0;
+			goto out;
 		}
 	}
-	return 1;
+	ret = 1;
+
+out:
+	mutex_unlock(dso__lock(dso));
+	return ret;
 }

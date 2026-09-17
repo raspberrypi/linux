@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MAX_INLINE_NEST 1024
 
@@ -284,7 +285,7 @@ int cmd__addr2line(const char *dso_name, u64 addr,
 		   struct inline_node *node,
 		   struct symbol *sym __maybe_unused)
 {
-	struct child_process *a2l = dso__a2l(dso);
+	struct child_process *a2l;
 	char *record_function = NULL;
 	char *record_filename = NULL;
 	unsigned int record_line_nr = 0;
@@ -296,24 +297,38 @@ int cmd__addr2line(const char *dso_name, u64 addr,
 	ssize_t written;
 	struct io io = { .eof = false };
 	enum cmd_a2l_style cmd_a2l_style;
+	const char *current_dso_name;
+
+	mutex_lock(dso__lock(dso));
+	current_dso_name = dso__symsrc_filename(dso) ?: dso_name;
+	a2l = dso__a2l(dso);
 
 	if (!a2l) {
-		if (!filename__has_section(dso_name, ".debug_line"))
-			goto out;
+		if (!filename__has_section(current_dso_name, ".debug_line"))
+			goto out_unlock;
 
 		dso__set_a2l(dso,
-			     addr2line_subprocess_init(symbol_conf.addr2line_path, dso_name));
+			     addr2line_subprocess_init(symbol_conf.addr2line_path,
+						       current_dso_name));
 		a2l = dso__a2l(dso);
 	}
 
 	if (a2l == NULL) {
 		if (!symbol_conf.addr2line_disable_warn)
 			pr_warning("%s %s: addr2line_subprocess_init failed\n", __func__, dso_name);
-		goto out;
+		goto out_unlock;
 	}
 	cmd_a2l_style = cmd_addr2line_configure(a2l, dso_name);
 	if (cmd_a2l_style == BROKEN)
-		goto out;
+		goto out_unlock;
+
+	/*
+	 * Take ownership of the a2l subprocess so we can safely perform
+	 * blocking IPC without holding the dso lock. If another thread
+	 * resolves a symbol concurrently, it will spawn a new a2l process.
+	 */
+	dso__set_a2l(dso, NULL);
+	mutex_unlock(dso__lock(dso));
 
 	/*
 	 * Send our request and then *deliberately* send something that can't be
@@ -414,12 +429,21 @@ int cmd__addr2line(const char *dso_name, u64 addr,
 	}
 
 out:
+	mutex_lock(dso__lock(dso));
 	free(record_function);
 	free(record_filename);
-	if (io.eof) {
-		dso__set_a2l(dso, NULL);
+
+	current_dso_name = dso__symsrc_filename(dso) ?: dso__long_name(dso);
+	if (!io.eof && dso__a2l(dso) == NULL && current_dso_name &&
+	    !strcmp(current_dso_name, dso_name))
+		dso__set_a2l(dso, a2l);
+	else
 		addr2line_subprocess_cleanup(a2l);
-	}
+	mutex_unlock(dso__lock(dso));
+	return ret;
+
+out_unlock:
+	mutex_unlock(dso__lock(dso));
 	return ret;
 }
 
