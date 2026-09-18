@@ -3487,6 +3487,10 @@ void dce110_enable_tmds_link_output(struct dc_link *link,
 		uint32_t pixel_clock)
 {
 	(void)link_res;
+
+	if (!link->link_enc)
+		return;
+
 	link->link_enc->funcs->enable_tmds_output(
 			link->link_enc,
 			clock_source,
@@ -3497,12 +3501,12 @@ void dce110_enable_tmds_link_output(struct dc_link *link,
 
 	// For dongle Type 2 with no I2C support on board, setup sw mode of Ri/Pj check with proper aux instance
 	if (link->force_to_use_aux) {
-		if (link->link_enc && link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode)
+		if (link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode)
 			link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode(link->link_enc,
 				link->aux_hw_inst, true);
 	} else
 		// For HDMI setup hw mode of Ri/Pj check with proper ddc pin instance
-		if (link->link_enc && link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode)
+		if (link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode)
 			link->link_enc->funcs->setup_ri_pj_check_in_sw_or_hw_mode(link->link_enc,
 				link->ddc_hw_inst, false);
 }
