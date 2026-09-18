@@ -215,7 +215,7 @@ config RTW89_LEDS
 config RTW89_LEDS_MC
 	bool
 	depends on RTW89_LEDS
-	depends on LEDS_CLASS_MULTICOLOR
+	depends on LEDS_CLASS_MULTICOLOR=y || LEDS_CLASS_MULTICOLOR=RTW89_CORE
 	imply LEDS_TRIGGER_TIMER
 	default y
 
