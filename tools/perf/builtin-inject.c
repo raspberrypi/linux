@@ -2880,6 +2880,9 @@ int cmd_inject(int argc, const char **argv)
 		goto out_close_output;
 	}
 
+	if (inject.aslr)
+		aslr_tool__register_session(tool, inject.session);
+
 	if (zstd_init(&(inject.session->zstd_data), 0) < 0)
 		pr_warning("Decompression initialization failed.\n");
 

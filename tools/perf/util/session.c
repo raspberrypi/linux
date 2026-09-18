@@ -161,7 +161,7 @@ struct perf_session *__perf_session__new(struct perf_data *data,
 	session->active_decomp = &session->decomp_data;
 	INIT_LIST_HEAD(&session->auxtrace_index);
 	perf_env__init(&session->header.env);
-	if (machines__init(&session->machines))
+	if (machines__init(&session->machines, session))
 		goto out_delete;
 
 	ordered_events__init(&session->ordered_events,

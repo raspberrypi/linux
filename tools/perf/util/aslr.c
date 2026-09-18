@@ -1243,7 +1243,7 @@ static int aslr_tool__init(struct aslr_tool *aslr, struct perf_tool *delegate)
 	delegate_tool__init(&aslr->tool, delegate);
 	aslr->tool.tool.ordered_events = true;
 
-	if (machines__init(&aslr->machines))
+	if (machines__init(&aslr->machines, /*session=*/NULL))
 		return -ENOMEM;
 
 	hashmap__init(&aslr->remap_addresses,
@@ -1341,6 +1341,14 @@ void aslr_tool__delete(struct perf_tool *tool)
 
 	machines__exit(&aslr->machines);
 	free(aslr);
+}
+
+void aslr_tool__register_session(struct perf_tool *tool, struct perf_session *session)
+{
+	struct delegate_tool *del_tool = container_of(tool, struct delegate_tool, tool);
+	struct aslr_tool *aslr = container_of(del_tool, struct aslr_tool, tool);
+
+	aslr->machines.session = session;
 }
 
 int aslr_tool__cache_orig_attrs(struct perf_tool *tool, struct evsel *evsel)

@@ -531,12 +531,10 @@ uint16_t thread__e_machine_endian(struct thread *thread, struct machine *machine
 		bool is_live = machine->machines == NULL;
 
 		if (!is_live) {
-			/* Check if the session has a data file. */
-			struct perf_session *session = container_of(machine->machines,
-								    struct perf_session,
-								    machines);
+			/* Check if the session has a data file (assume no session is a test). */
+			struct perf_session *session = machines__session(machine->machines);
 
-			is_live = !session->data;
+			is_live = !session || !session->data;
 		}
 		/* Read from /proc/pid/exe if live. */
 		if (is_live) {
