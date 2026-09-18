@@ -1503,7 +1503,8 @@ mt7996_mac_add_txs_skb(struct mt7996_dev *dev, struct mt76_wcid *wcid,
 		}
 	}
 
-	if (mtk_wed_device_active(&dev->mt76.mmio.wed) && wcid->sta) {
+	if ((mtk_wed_device_active(&dev->mt76.mmio.wed) ||
+	     mt76_npu_device_active(&dev->mt76)) && wcid->sta) {
 		struct ieee80211_sta *sta;
 		u8 tid;
 
