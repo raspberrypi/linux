@@ -85,7 +85,7 @@ static void task_work_run(const char *prog_name, const char *map_name)
 
 	skel = task_work__open();
 	if (!ASSERT_OK_PTR(skel, "task_work__open"))
-		return;
+		goto cleanup;
 
 	bpf_object__for_each_program(prog, skel->obj) {
 		bpf_program__set_autoload(prog, false);
