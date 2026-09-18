@@ -6239,6 +6239,29 @@ Params: 3_4_inch_c              3.4" 800x800 2lane
                                 the default DSI1 and i2c_csi_dsi).
 
 
+Name:   vc4-kms-dsi-viewe-7inch
+Info:   Enable the VIEWE 7" 720x1280 JD9365TX in-cell DSI panel.
+        2-lane, for Raspberry Pi 3/4 on DSI1.
+Load:   dtoverlay=vc4-kms-dsi-viewe-7inch,<param>
+Params: rotation                Display rotation {0,90,180,270}
+        notouch                 Disable the touch controller
+        nobl                    Disable the backlight
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
+Name:   vc4-kms-dsi-viewe-7inch-pi5
+Info:   Enable the VIEWE 7" panel on Raspberry Pi 5 DISP1.
+Load:   dtoverlay=vc4-kms-dsi-viewe-7inch-pi5,<param>
+Params: rotation                Display rotation {0,90,180,270}
+        notouch                 Disable the touch controller
+        nobl                    Disable the backlight
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   vc4-kms-kippah-7inch
 Info:   This overlay is now deprecated - see vc4-kms-dpi-panel,kippah-7inch
 Load:   <Deprecated>
