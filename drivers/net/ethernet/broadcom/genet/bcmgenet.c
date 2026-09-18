@@ -60,8 +60,16 @@
 #define ENET_THLD_DEFAULT	0x80
 #define ENET_THLD_MAX		0xf0
 
+/* The transmit threshold stays at the register maximum, see init_umac() */
+#define ENET_TX_THLD_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
+
 /* The transmitter has to hold a frame completely to insert its checksum */
-#define ENET_TX_CSUM_MAX_LEN	(ENET_THLD_MAX * ENET_THLD_UNIT)
+#define ENET_TX_CSUM_MAX_LEN	ENET_TX_THLD_LEN
+
+/* A frame ending just past the threshold stops the transmitter once a
+ * shorter frame follows, so keep frame lengths out of that window.
+ */
+#define ENET_TX_SAFE_LEN	(ENET_TX_THLD_LEN + 64)
 
 /* Page pool RX buffer layout:
  * RSB(64) + pad(2) | frame data | skb_shared_info
@@ -2191,8 +2199,21 @@ static netdev_tx_t bcmgenet_xmit(struct sk_buff *skb, struct net_device *dev)
 			ret = NETDEV_TX_OK;
 			goto out;
 		}
-		nr_frags = skb_shinfo(skb)->nr_frags;
 	}
+
+	/* Frames that end just past the packet ready threshold stop the
+	 * transmitter, so pad them past the window.
+	 */
+	if (unlikely(skb->len > ENET_TX_THLD_LEN &&
+		     skb->len < ENET_TX_SAFE_LEN)) {
+		if (skb_put_padto(skb, ENET_TX_SAFE_LEN)) {
+			BCMGENET_STATS64_INC((&ring->stats64), dropped);
+			ret = NETDEV_TX_OK;
+			goto out;
+		}
+	}
+
+	nr_frags = skb_shinfo(skb)->nr_frags;
 
 	/* Retain how many bytes will be sent on the wire, without TSB inserted
 	 * by transmit checksum offload
