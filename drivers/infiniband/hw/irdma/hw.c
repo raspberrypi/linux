@@ -1252,12 +1252,21 @@ static int irdma_cfg_ceq_vector(struct irdma_pci_f *rf, struct irdma_ceq *iwceq,
 	}
 
 	msix_vec->ceq_id = ceq_id;
-	if (rf->sc_dev.privileged)
+	if (rf->sc_dev.privileged) {
 		rf->sc_dev.irq_ops->irdma_cfg_ceq(&rf->sc_dev, ceq_id,
 						  msix_vec->idx, true);
-	else
+	} else {
 		status = irdma_vchnl_req_ceq_vec_map(&rf->sc_dev, ceq_id,
 						     msix_vec->idx);
+		if (!status)
+			return 0;
+
+		if (rf->msix_shared && !ceq_id)
+			irdma_destroy_irq(rf, msix_vec, rf);
+		else
+			irdma_destroy_irq(rf, msix_vec, iwceq);
+	}
+
 	return status;
 }
 
