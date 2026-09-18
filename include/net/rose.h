@@ -180,6 +180,18 @@ static inline void rose_neigh_put(struct rose_neigh *rose_neigh)
 		 */
 		timer_shutdown_sync(&rose_neigh->ftimer);
 		timer_shutdown_sync(&rose_neigh->t0timer);
+		/* rose_transmit_link() queues a frame here instead of sending
+		 * it immediately whenever the neighbour isn't "restarted" yet
+		 * (link not up) -- e.g. the CLEAR_REQUEST built by
+		 * rose_write_internal() when a socket is released while its
+		 * underlying AX.25 link is still coming up. If this neighbour
+		 * is freed before that link ever comes up, nothing else ever
+		 * empties this queue: kfree() below only frees the
+		 * rose_neigh struct itself (including the three next/prev/len
+		 * words of the sk_buff_head), not the skbs it points to,
+		 * leaking every frame still queued here.
+		 */
+		skb_queue_purge(&rose_neigh->queue);
 		if (rose_neigh->ax25)
 			ax25_cb_put(rose_neigh->ax25);
 		kfree(rose_neigh->digipeat);
