@@ -321,11 +321,11 @@ module_init(test_sysctl_init);
 
 static void __exit test_sysctl_exit(void)
 {
-	kfree(test_data.bitmap_0001);
 	for (int i = 0; i < TEST_H_SIZE; i++) {
 		if (ctl_headers[i])
 			unregister_sysctl_table(ctl_headers[i]);
 	}
+	kfree(test_data.bitmap_0001);
 }
 
 module_exit(test_sysctl_exit);
