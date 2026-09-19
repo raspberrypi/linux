@@ -486,6 +486,9 @@ static int mm81x_yaps_hw_read_pkts(struct mm81x_yaps *yaps,
 		int total_len;
 		int pkt_size;
 
+		if (bytes_remaining < (int)sizeof(delim))
+			break;
+
 		delim = le32_to_cpu(*((__le32 *)read_ptr));
 		read_ptr += sizeof(delim);
 		bytes_remaining -= sizeof(delim);
