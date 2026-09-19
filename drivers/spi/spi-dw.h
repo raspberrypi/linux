@@ -32,6 +32,7 @@
 /* DW SPI controller capabilities */
 #define DW_SPI_CAP_CS_OVERRIDE		BIT(0)
 #define DW_SPI_CAP_DFS32		BIT(1)
+#define DW_SPI_CAP_QUAD			BIT(2)
 
 /* Register offsets (Generic for both DWC APB SSI and DWC SSI IP-cores) */
 #define DW_SPI_CTRLR0			0x00
@@ -62,6 +63,9 @@
 #define DW_SPI_RX_SAMPLE_DLY		0xf0
 #define DW_SPI_CS_OVERRIDE		0xf4
 
+/* SPI_CTRLR0, same address as CS_OVERRIDE (controller has only one of them) */
+#define DW_SPI_ENH_CTRLR0		0xf4
+
 /* Bit fields in CTRLR0 (DWC APB SSI) */
 #define DW_PSSI_CTRLR0_DFS_MASK			GENMASK(3, 0)
 #define DW_PSSI_CTRLR0_DFS32_MASK		GENMASK(20, 16)
@@ -85,6 +89,11 @@
 #define DW_PSSI_CTRLR0_SLV_OE			BIT(10)
 #define DW_PSSI_CTRLR0_SRL			BIT(11)
 #define DW_PSSI_CTRLR0_CFS			BIT(12)
+
+#define DW_PSSI_CTRLR0_ENH_FRF_MASK		GENMASK(22, 21)
+#define DW_SPI_CTRLR0_ENH_FRF_STD		0x0
+#define DW_SPI_CTRLR0_ENH_FRF_DUAL		0x1
+#define DW_SPI_CTRLR0_ENH_FRF_QUAD		0x2
 
 /* Bit fields in CTRLR0 (DWC SSI with AHB interface) */
 #define DW_HSSI_CTRLR0_DFS_MASK			GENMASK(4, 0)
@@ -121,6 +130,18 @@
 #define DW_SPI_DMACR_RDMAE			BIT(0)
 #define DW_SPI_DMACR_TDMAE			BIT(1)
 
+/* Bit fields in ENH_CTRLR0 */
+#define DW_SPI_ENH_CTRLR0_WAIT_CYCLE_MASK	GENMASK(15, 11)
+#define DW_SPI_ENH_CTRLR0_INST_L_MASK		GENMASK(9, 8)
+#define DW_SPI_ENH_CTRLR0_INST_L_0BIT		0x0
+#define DW_SPI_ENH_CTRLR0_INST_L_8BIT		0x2
+#define DW_SPI_ENH_CTRLR0_INST_L_16BIT		0x3
+#define DW_SPI_ENH_CTRLR0_ADDR_L_MASK		GENMASK(5, 2)
+#define DW_SPI_ENH_CTRLR0_TRANS_TYPE_MASK	GENMASK(1, 0)
+#define DW_SPI_ENH_CTRLR0_TRANS_TYPE_TT0	0x0	/* inst std, addr std */
+#define DW_SPI_ENH_CTRLR0_TRANS_TYPE_TT1	0x1	/* inst std, addr enh */
+#define DW_SPI_ENH_CTRLR0_TRANS_TYPE_TT2	0x2	/* inst enh, addr enh */
+
 /* Mem/DMA operations helpers */
 #define DW_SPI_WAIT_RETRIES			5
 #define DW_SPI_BUF_SIZE \
@@ -128,13 +149,38 @@
 	 sizeof_field(struct spi_mem_op, addr.val) + 256)
 #define DW_SPI_GET_BYTE(_val, _idx) \
 	((_val) >> (BITS_PER_BYTE * (_idx)) & 0xff)
+/*
+ * Tx FIFO entries used by the control words. The controller reads INST_L
+ * bits from one entry and ADDR_L bits from the next. DFS does not apply.
+ */
+#define DW_SPI_ENH_CTRL_ENTRIES		2
 
 /* Slave spi_transfer/spi_mem_op related */
 struct dw_spi_cfg {
 	u8 tmode;
 	u8 dfs;
+	u8 enh_frf;			/* CTRLR0     [22:21] */
 	u32 ndf;
 	u32 freq;
+};
+
+/* The SPI_CTRLR0 layout of an enhanced frame */
+struct dw_spi_enh_cfg {
+	u8 trans_type;			/* SPI_CTRLR0 [1:0]   */
+	u8 addr_l;			/* SPI_CTRLR0 [5:2]   */
+	u8 inst_l;			/* SPI_CTRLR0 [9:8]   */
+	u8 wait_l;			/* SPI_CTRLR0 [15:11] */
+};
+
+/*
+ * Enhanced frame being collected. cfg holds the SPI_CTRLR0 phase lengths.
+ * inst and addr are the two control words for the Tx FIFO.
+ */
+struct dw_spi_enh_frame {
+	struct dw_spi_enh_cfg	cfg;
+	u32			inst;
+	u32			addr;
+	u8			ctrl_len;	/* control Tx FIFO entries */
 };
 
 struct dw_spi;
@@ -176,6 +222,7 @@ struct dw_spi {
 	u8			buf[DW_SPI_BUF_SIZE];
 	int			dma_mapped;
 	u8			n_bytes;	/* current is a 1/2 bytes op */
+	struct dw_spi_enh_frame	enh;	/* Enhanced frame */
 	irqreturn_t		(*transfer_handler)(struct dw_spi *dws);
 	u32			current_freq;	/* frequency in hz */
 	u32			cur_rx_sample_dly;
@@ -290,8 +337,10 @@ static inline void dw_spi_shutdown_chip(struct dw_spi *dws)
 
 extern void dw_spi_set_cs(struct spi_device *spi, bool enable);
 extern void dw_spi_update_config(struct dw_spi *dws, struct spi_device *spi,
-				 struct dw_spi_cfg *cfg);
+				 struct dw_spi_cfg *cfg,
+				 struct dw_spi_enh_cfg *ecfg);
 extern int dw_spi_check_status(struct dw_spi *dws, bool raw);
+extern void dw_spi_start_frame(struct dw_spi *dws);
 extern int dw_spi_add_host(struct device *dev, struct dw_spi *dws);
 extern void dw_spi_remove_host(struct dw_spi *dws);
 extern int dw_spi_suspend_host(struct dw_spi *dws);
