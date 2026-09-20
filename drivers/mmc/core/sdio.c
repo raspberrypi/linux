@@ -673,6 +673,10 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 		ocr |= R4_18V_PRESENT;
 
 try_again:
+	if (host->rescan_disable) {
+		err = -ENOENT;
+		goto remove;
+	}
 	if (!retries) {
 		pr_warn("%s: Skipping voltage switch\n", mmc_hostname(host));
 		ocr &= ~R4_18V_PRESENT;
