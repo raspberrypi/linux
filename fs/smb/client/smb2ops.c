@@ -2278,6 +2278,7 @@ smb2_duplicate_extents(const unsigned int xid,
 	struct duplicate_extents_to_file dup_ext_buf;
 	struct timespec64 ts;
 	struct cifs_tcon *tcon = tlink_tcon(trgtfile->tlink);
+	loff_t old_size;
 	u64 asize;
 
 	/* server fileays advertise duplicate extent support with this flag */
@@ -2296,11 +2297,12 @@ smb2_duplicate_extents(const unsigned int xid,
 			       trgtfile->fid.volatile_fid, tcon->tid,
 			       tcon->ses->Suid, src_off, dest_off, len);
 	inode = d_inode(trgtfile->dentry);
-	if (i_size_read(inode) < dest_off + len) {
+	old_size = i_size_read(inode);
+	if (old_size < dest_off + len) {
 		rc = smb2_set_file_size(xid, tcon, trgtfile, dest_off + len, false);
 		if (rc)
 			goto duplicate_extents_out;
-		cifs_resize_file_locked(inode, dest_off + len);
+		cifs_resize_file_locked(inode, old_size, dest_off + len);
 	}
 	rc = SMB2_ioctl(xid, tcon, trgtfile->fid.persistent_fid,
 			trgtfile->fid.volatile_fid,
@@ -3902,7 +3904,7 @@ static long smb3_simple_falloc(struct file *file, struct cifs_tcon *tcon,
 			}
 
 			new_eof = off + len;
-			cifs_resize_file_locked(inode, new_eof);
+			cifs_resize_file_locked(inode, old_eof, new_eof);
 
 			qrc = SMB2_query_info(xid, tcon,
 					      cfile->fid.persistent_fid,
@@ -3927,7 +3929,7 @@ static long smb3_simple_falloc(struct file *file, struct cifs_tcon *tcon,
 		if (rc)
 			goto out;
 
-		cifs_resize_file_locked(inode, new_eof);
+		cifs_resize_file_locked(inode, old_eof, new_eof);
 
 		qrc = SMB2_query_info(xid, tcon,
 				      cfile->fid.persistent_fid,
