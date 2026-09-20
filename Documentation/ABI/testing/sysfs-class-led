@@ -28,7 +28,9 @@ Description:
 		Writing 0 to this file clears active trigger.
 
 		Writing non-zero to this file while trigger is active changes the
-		top brightness trigger is going to use.
+		top brightness trigger is going to use, unless the current
+		trigger is offloaded to hardware (in which case writing any
+		value will deactivate the trigger).
 
 
 
