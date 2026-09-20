@@ -1337,9 +1337,14 @@ static const u32 a5xx_registers[] = {
 	0xE800, 0xE806, 0xE810, 0xE89A, 0xE8A0, 0xE8A4, 0xE8AA, 0xE8EB,
 	0xE900, 0xE905, 0xEB80, 0xEB8F, 0xEBB0, 0xEBB0, 0xEC00, 0xEC05,
 	0xEC08, 0xECE9, 0xECF0, 0xECF0, 0xEA80, 0xEA80, 0xEA82, 0xEAA3,
-	0xEAA5, 0xEAC2, 0xA800, 0xA800, 0xA820, 0xA828, 0xA840, 0xA87D,
-	0XA880, 0xA88D, 0xA890, 0xA8A3, 0xA8D0, 0xA8D8, 0xA8E0, 0xA8F5,
-	0xAC60, 0xAC60, ~0,
+	0xEAA5, 0xEAC2, ~0,
+};
+
+/* GPMU registers, only valid on parts with a GPMU (a530/a540) */
+static const u32 a5xx_gpmu_registers[] = {
+	0xA800, 0xA800, 0xA820, 0xA828, 0xA840, 0xA87D, 0xA880, 0xA88D,
+	0xA890, 0xA8A3, 0xA8D0, 0xA8D8, 0xA8E0, 0xA8F5, 0xAC60, 0xAC60,
+	~0,
 };
 
 static void a5xx_dump(struct msm_gpu *gpu)
@@ -1448,6 +1453,7 @@ struct a5xx_crashdumper {
 struct a5xx_gpu_state {
 	struct msm_gpu_state base;
 	u32 *hlsqregs;
+	u32 *gpmuregs;
 };
 
 static int a5xx_crashdumper_init(struct msm_gpu *gpu,
@@ -1565,8 +1571,30 @@ static void a5xx_gpu_state_get_hlsq_regs(struct msm_gpu *gpu,
 	msm_gem_kernel_put(dumper.bo, gpu->vm);
 }
 
+static void a5xx_gpu_state_get_gpmu_regs(struct msm_gpu *gpu,
+		struct a5xx_gpu_state *a5xx_state)
+{
+	u32 count = 0, pos = 0;
+	int i;
+
+	for (i = 0; a5xx_gpmu_registers[i] != ~0; i += 2)
+		count += a5xx_gpmu_registers[i + 1] - a5xx_gpmu_registers[i] + 1;
+
+	a5xx_state->gpmuregs = kcalloc(count, sizeof(u32), GFP_KERNEL);
+	if (!a5xx_state->gpmuregs)
+		return;
+
+	for (i = 0; a5xx_gpmu_registers[i] != ~0; i += 2) {
+		u32 addr;
+
+		for (addr = a5xx_gpmu_registers[i]; addr <= a5xx_gpmu_registers[i + 1]; addr++)
+			a5xx_state->gpmuregs[pos++] = gpu_read(gpu, addr);
+	}
+}
+
 static struct msm_gpu_state *a5xx_gpu_state_get(struct msm_gpu *gpu)
 {
+	struct adreno_gpu *adreno_gpu = to_adreno_gpu(gpu);
 	struct a5xx_gpu_state *a5xx_state = kzalloc_obj(*a5xx_state);
 	bool stalled = !!(gpu_read(gpu, REG_A5XX_RBBM_STATUS3) & BIT(24));
 
@@ -1580,6 +1608,9 @@ static struct msm_gpu_state *a5xx_gpu_state_get(struct msm_gpu *gpu)
 	adreno_gpu_state_get(gpu, &(a5xx_state->base));
 
 	a5xx_state->base.rbbm_status = gpu_read(gpu, REG_A5XX_RBBM_STATUS);
+
+	if (adreno_is_a530(adreno_gpu) || adreno_is_a540(adreno_gpu))
+		a5xx_gpu_state_get_gpmu_regs(gpu, a5xx_state);
 
 	/*
 	 * Get the HLSQ regs with the help of the crashdumper, but only if
@@ -1602,6 +1633,7 @@ static void a5xx_gpu_state_destroy(struct kref *kref)
 		struct a5xx_gpu_state, base);
 
 	kfree(a5xx_state->hlsqregs);
+	kfree(a5xx_state->gpmuregs);
 
 	adreno_gpu_state_destroy(state);
 	kfree(a5xx_state);
@@ -1629,6 +1661,17 @@ static void a5xx_show(struct msm_gpu *gpu, struct msm_gpu_state *state,
 		return;
 
 	adreno_show(gpu, state, p);
+
+	if (a5xx_state->gpmuregs) {
+		u32 o, pos = 0;
+
+		drm_printf(p, "registers-gpmu:\n");
+
+		for (i = 0; a5xx_gpmu_registers[i] != ~0; i += 2)
+			for (o = a5xx_gpmu_registers[i]; o <= a5xx_gpmu_registers[i + 1]; o++)
+				drm_printf(p, "  - { offset: 0x%04x, value: 0x%08x }\n",
+					o << 2, a5xx_state->gpmuregs[pos++]);
+	}
 
 	/* Dump the additional a5xx HLSQ registers */
 	if (!a5xx_state->hlsqregs)
