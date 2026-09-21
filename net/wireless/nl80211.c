@@ -17766,6 +17766,69 @@ static int nl80211_nan_set_local_sched(struct sk_buff *skb,
 	return cfg80211_nan_set_local_schedule(rdev, wdev, sched);
 }
 
+static int
+nl80211_parse_non_evac_channel(struct cfg80211_registered_device *rdev,
+			       struct nlattr *channel, struct genl_info *info,
+			       struct cfg80211_chan_def *chandef)
+{
+	struct nlattr **channel_parsed __free(kfree) =
+		kcalloc(NL80211_ATTR_MAX + 1, sizeof(*channel_parsed),
+			GFP_KERNEL);
+	int ret;
+
+	if (!channel_parsed)
+		return -ENOMEM;
+
+	ret = nla_parse_nested(channel_parsed, NL80211_ATTR_MAX, channel, NULL,
+			       info->extack);
+	if (ret)
+		return ret;
+
+	return nl80211_parse_chandef(rdev, info->extack, channel_parsed,
+				     chandef, false);
+}
+
+static int nl80211_nan_set_non_evac_channels(struct sk_buff *skb,
+					     struct genl_info *info)
+{
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct wireless_dev *wdev = info->user_ptr[1];
+	int rem, i = 0, n_channels = 0;
+	struct nlattr *channel;
+
+	if (wdev->iftype != NL80211_IFTYPE_NAN)
+		return -EOPNOTSUPP;
+
+	if (!wdev_running(wdev))
+		return -ENOTCONN;
+
+	/* Count how many channel attributes we got */
+	nlmsg_for_each_attr_type(channel, NL80211_ATTR_NAN_CHANNEL,
+				 info->nlhdr, GENL_HDRLEN, rem)
+		n_channels++;
+
+	struct cfg80211_nan_non_evac_channels *channels __free(kfree) =
+		kzalloc(struct_size(channels, chandefs, n_channels),
+			GFP_KERNEL);
+	if (!channels)
+		return -ENOMEM;
+
+	channels->n_channels = n_channels;
+
+	nlmsg_for_each_attr_type(channel, NL80211_ATTR_NAN_CHANNEL,
+				 info->nlhdr, GENL_HDRLEN, rem) {
+		int ret;
+
+		ret = nl80211_parse_non_evac_channel(rdev, channel, info,
+						     &channels->chandefs[i]);
+		if (ret)
+			return ret;
+		i++;
+	}
+
+	return cfg80211_nan_set_non_evac_channels(rdev, wdev, channels);
+}
+
 static int nl80211_get_protocol_features(struct sk_buff *skb,
 					 struct genl_info *info)
 {
@@ -20619,6 +20682,12 @@ static const struct genl_small_ops nl80211_small_ops[] = {
 	{
 		.cmd = NL80211_CMD_NAN_SET_PEER_SCHED,
 		.doit = nl80211_nan_set_peer_sched,
+		.flags = GENL_ADMIN_PERM,
+		.internal_flags = IFLAGS(NL80211_FLAG_NEED_WDEV_UP),
+	},
+	{
+		.cmd = NL80211_CMD_NAN_SET_NON_EVAC_CHANNELS,
+		.doit = nl80211_nan_set_non_evac_channels,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = IFLAGS(NL80211_FLAG_NEED_WDEV_UP),
 	},

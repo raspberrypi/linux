@@ -4257,6 +4257,21 @@ struct cfg80211_nan_local_sched {
 };
 
 /**
+ * struct cfg80211_nan_non_evac_channels - NAN non-evacuable channels
+ *
+ * This struct defines the set of NAN local schedule channels that must not
+ * be evacuated for concurrent operations.
+ *
+ * @n_channels: number of channel definitions in %chandefs.
+ * @chandefs: array of channel definitions that must not be evacuated. Each
+ *	must match a channel of the current local schedule.
+ */
+struct cfg80211_nan_non_evac_channels {
+	u8 n_channels;
+	struct cfg80211_chan_def chandefs[] __counted_by(n_channels);
+};
+
+/**
  * struct cfg80211_nan_peer_map - NAN peer schedule map
  *
  * This struct defines a single NAN peer schedule map
@@ -5204,6 +5219,12 @@ struct mgmt_frame_regs {
  *	schedule, the full new schedule is provided - partial updates are not
  *	supported, and the new schedule completely replaces the previous one.
  *
+ * @nan_set_non_evac_channels: set the list of local schedule channels that
+ *	must not be evacuated for concurrent operations. The provided list
+ *	replaces the previous set; channels of the current schedule that are
+ *	not included become evacuable again. All provided channels are
+ *	guaranteed by cfg80211 to belong to the current local schedule.
+ *
  * @set_multicast_to_unicast: configure multicast to unicast conversion for BSS
  *
  * @get_txq_stats: Get TXQ stats for interface or phy. If wdev is %NULL, this
@@ -5590,6 +5611,9 @@ struct cfg80211_ops {
 	int	(*nan_set_peer_sched)(struct wiphy *wiphy,
 				      struct wireless_dev *wdev,
 				      struct cfg80211_nan_peer_sched *sched);
+	int	(*nan_set_non_evac_channels)(struct wiphy *wiphy,
+					     struct wireless_dev *wdev,
+					     struct cfg80211_nan_non_evac_channels *channels);
 	int	(*set_multicast_to_unicast)(struct wiphy *wiphy,
 					    struct net_device *dev,
 					    const bool enabled);

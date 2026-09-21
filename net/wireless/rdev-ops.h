@@ -1096,6 +1096,23 @@ rdev_nan_set_peer_sched(struct cfg80211_registered_device *rdev,
 	return ret;
 }
 
+static inline int
+rdev_nan_set_non_evac_channels(struct cfg80211_registered_device *rdev,
+			       struct wireless_dev *wdev,
+			       struct cfg80211_nan_non_evac_channels *channels)
+{
+	int ret;
+
+	trace_rdev_nan_set_non_evac_channels(&rdev->wiphy, wdev, channels);
+	if (rdev->ops->nan_set_non_evac_channels)
+		ret = rdev->ops->nan_set_non_evac_channels(&rdev->wiphy, wdev,
+							   channels);
+	else
+		ret = -EOPNOTSUPP;
+	trace_rdev_return_int(&rdev->wiphy, ret);
+	return ret;
+}
+
 static inline int rdev_start_pd(struct cfg80211_registered_device *rdev,
 				struct wireless_dev *wdev)
 {

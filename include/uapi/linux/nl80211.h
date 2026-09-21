@@ -1383,6 +1383,13 @@
  *	from the device to perform an announced schedule update. See
  *	%NL80211_ATTR_NAN_SCHED_DEFERRED for more details.
  *	If not set, the schedule should be applied immediately.
+ *	Setting a new schedule is always allowed and is never treated as an
+ *	evacuation, even if it removes channels that were previously marked as
+ *	non-evacuable with %NL80211_CMD_NAN_SET_NON_EVAC_CHANNELS. The
+ *	non-evacuable marking is a per-channel property of the schedule:
+ *	channels that remain in the new schedule keep their marking, channels
+ *	that are removed simply lose it, and newly added channels are
+ *	evacuable by default.
  * @NL80211_CMD_NAN_SCHED_UPDATE_DONE: Event sent to user space to notify that
  *	a deferred local NAN schedule update (requested with
  *	%NL80211_CMD_NAN_SET_LOCAL_SCHED and %NL80211_ATTR_NAN_SCHED_DEFERRED)
@@ -1427,6 +1434,28 @@
  * @NL80211_CMD_STOP_PD: Stop the PD operation, identified by
  *	its %NL80211_ATTR_WDEV interface.
  *
+ * @NL80211_CMD_NAN_SET_NON_EVAC_CHANNELS: Set the list of NAN local schedule
+ *	channels that must not be evacuated. NAN must be operational
+ *	(%NL80211_CMD_START_NAN was executed) and a local schedule must have
+ *	been set (%NL80211_CMD_NAN_SET_LOCAL_SCHED). The command carries zero
+ *	or more nested %NL80211_ATTR_NAN_CHANNEL attributes, each identifying a
+ *	channel (by its channel definition) of the current local schedule that
+ *	must not be evacuated for concurrent operations. The provided list
+ *	replaces the previous set of non-evacuable channels; channels of the
+ *	current schedule that are not included become evacuable again. All
+ *	provided channels must exist in the current local schedule, otherwise
+ *	the command fails. This is used to protect channels carrying NDC or
+ *	immutable schedules, whose evacuation would break existing NDP
+ *	connections.
+ *	The non-evacuable marking is a per-channel property of the current
+ *	local schedule and only affects evacuation for concurrent operations;
+ *	it does not prevent the schedule itself from being changed. Removing a
+ *	channel from the schedule with %NL80211_CMD_NAN_SET_LOCAL_SCHED is a
+ *	user-initiated change, not an evacuation, and is allowed even for a
+ *	non-evacuable channel. Across a schedule update, channels that remain
+ *	keep their non-evacuable marking, removed channels lose it, and newly
+ *	added channels are evacuable by default; issue this command again to
+ *	change the non-evacuable set.
  * @NL80211_CMD_MAX: highest used command number
  * @__NL80211_CMD_AFTER_LAST: internal use
  */
@@ -1704,6 +1733,8 @@ enum nl80211_commands {
 
 	NL80211_CMD_START_PD,
 	NL80211_CMD_STOP_PD,
+
+	NL80211_CMD_NAN_SET_NON_EVAC_CHANNELS,
 
 	/* add new commands above here */
 

@@ -348,6 +348,41 @@ int cfg80211_nan_set_local_schedule(struct cfg80211_registered_device *rdev,
 	return 0;
 }
 
+int cfg80211_nan_set_non_evac_channels(struct cfg80211_registered_device *rdev,
+				       struct wireless_dev *wdev,
+				       struct cfg80211_nan_non_evac_channels *channels)
+{
+	lockdep_assert_held(&rdev->wiphy.mtx);
+
+	if (wdev->iftype != NL80211_IFTYPE_NAN || !wdev_running(wdev))
+		return -EINVAL;
+
+	/*
+	 * Don't allow updating the non-evacuable channels while a deferred
+	 * schedule update is pending, as the set of channels may still change.
+	 */
+	if (wdev->u.nan.sched_update_pending)
+		return -EBUSY;
+
+	/* All provided channels must belong to the current local schedule. */
+	for (int i = 0; i < channels->n_channels; i++) {
+		bool found = false;
+
+		for (int j = 0; j < wdev->u.nan.n_channels; j++) {
+			if (cfg80211_chandef_identical(&wdev->u.nan.chandefs[j],
+						       &channels->chandefs[i])) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+			return -ENOENT;
+	}
+
+	return rdev_nan_set_non_evac_channels(rdev, wdev, channels);
+}
+
 void cfg80211_stop_pd(struct cfg80211_registered_device *rdev,
 		      struct wireless_dev *wdev)
 {

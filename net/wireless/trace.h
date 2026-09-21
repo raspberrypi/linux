@@ -2483,6 +2483,31 @@ TRACE_EVENT(rdev_nan_set_peer_sched,
 	)
 );
 
+TRACE_EVENT(rdev_nan_set_non_evac_channels,
+	TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+		 struct cfg80211_nan_non_evac_channels *channels),
+	TP_ARGS(wiphy, wdev, channels),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		WDEV_ENTRY
+		__field(u8, n_channels)
+		__dynamic_array(u32, freqs, channels->n_channels)
+	),
+	TP_fast_assign(
+		u32 *freqs = __get_dynamic_array(freqs);
+
+		WIPHY_ASSIGN;
+		WDEV_ASSIGN;
+		__entry->n_channels = channels->n_channels;
+		for (int i = 0; i < channels->n_channels; i++)
+			freqs[i] = channels->chandefs[i].chan->center_freq;
+	),
+	TP_printk(WIPHY_PR_FMT ", " WDEV_PR_FMT ", n_channels: %u, freqs: %s",
+		  WIPHY_PR_ARG, WDEV_PR_ARG, __entry->n_channels,
+		  __print_array(__get_dynamic_array(freqs),
+				__entry->n_channels, sizeof(u32)))
+);
+
 TRACE_EVENT(rdev_set_mac_acl,
 	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
 		 struct cfg80211_acl_data *params),
