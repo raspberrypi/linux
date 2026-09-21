@@ -287,7 +287,7 @@ static void disable_usb9pfs(struct f_usb9pfs *usb9pfs)
 	}
 
 	if (usb9pfs->out_req) {
-		usb_ep_free_request(usb9pfs->out_ep, usb9pfs->out_req);
+		free_ep_req(usb9pfs->out_ep, usb9pfs->out_req);
 		usb9pfs->out_req = NULL;
 	}
 	dev_dbg(&cdev->gadget->dev, "%s disabled\n",
