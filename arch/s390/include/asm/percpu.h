@@ -14,17 +14,16 @@
 
 #define arch_raw_cpu_ptr(_ptr)						\
 ({									\
-	unsigned long lc_percpu, tcp_ptr__;				\
+	unsigned long tcp_ptr__;					\
 									\
 	tcp_ptr__ = (__force unsigned long)(_ptr);			\
-	lc_percpu = offsetof(struct lowcore, percpu_offset);		\
 	asm_inline volatile(						\
 	ALTERNATIVE("ag		%[__ptr__],%[offzero](%%r0)\n",		\
 		    "ag		%[__ptr__],%[offalt](%%r0)\n",		\
 		    ALT_FEATURE(MFEATURE_LOWCORE))			\
 	: [__ptr__] "+d" (tcp_ptr__)					\
-	: [offzero] "i" (lc_percpu),					\
-	  [offalt] "i" (lc_percpu + LOWCORE_ALT_ADDRESS),		\
+	: [offzero] "i" (LC_PERCPU_OFFSET),				\
+	  [offalt] "i" (LC_PERCPU_OFFSET + LOWCORE_ALT_ADDRESS),	\
 	  "m" (((struct lowcore *)0)->percpu_offset)			\
 	: "cc");							\
 	(TYPEOF_UNQUAL(*(_ptr)) __force __kernel *)tcp_ptr__;		\
@@ -144,13 +143,10 @@
 
 #define arch_this_cpu_add(pcp, val, op1, op2, szcast)				\
 do {										\
-	unsigned long lc_pcpr, lc_pcpo;						\
 	typedef typeof(pcp) pcp_op_T__;						\
 	pcp_op_T__ val__ = (val);						\
 	pcp_op_T__ old__, *ptr__;						\
 										\
-	lc_pcpr = offsetof(struct lowcore, percpu_register);			\
-	lc_pcpo = offsetof(struct lowcore, percpu_offset);			\
 	ptr__ = PERCPU_PTR(&(pcp));						\
 	if (__builtin_constant_p(val__) &&					\
 	    ((szcast)val__ > -129) && ((szcast)val__ < 128)) {			\
@@ -162,8 +158,8 @@ do {										\
 			: [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
 			: [val__] "i" ((szcast)val__),				\
-			  [disppcpr] "i" (lc_pcpr),				\
-			  [disppcpo] "i" (lc_pcpo),				\
+			  [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+			  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 			  "m" (((struct lowcore *)0)->percpu_offset)		\
 			: "cc");						\
 	} else {								\
@@ -176,8 +172,8 @@ do {										\
 			  [ptr__] "+&a" (ptr__),  "+m" (*ptr__),		\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
 			: [val__] "d" (val__),					\
-			  [disppcpr] "i" (lc_pcpr),				\
-			  [disppcpo] "i" (lc_pcpo),				\
+			  [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+			  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 			  "m" (((struct lowcore *)0)->percpu_offset)		\
 			: "cc");						\
 	}									\
@@ -188,13 +184,10 @@ do {										\
 
 #define arch_this_cpu_add_return(pcp, val, op)				\
 ({									\
-	unsigned long lc_pcpr, lc_pcpo;					\
 	typedef typeof(pcp) pcp_op_T__; 				\
 	pcp_op_T__ val__ = (val);					\
 	pcp_op_T__ old__, *ptr__;					\
 									\
-	lc_pcpr = offsetof(struct lowcore, percpu_register);		\
-	lc_pcpo = offsetof(struct lowcore, percpu_offset);		\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
 		MVIY_PERCPU("%[disppcpr]","%[ptr__]")			\
@@ -205,8 +198,8 @@ do {										\
 		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
 		: [val__] "d" (val__),					\
-		  [disppcpr] "i" (lc_pcpr),				\
-		  [disppcpo] "i" (lc_pcpo),				\
+		  [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+		  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
 		: "cc");						\
 	old__ + val__;							\
@@ -217,13 +210,10 @@ do {										\
 
 #define arch_this_cpu_to_op(pcp, val, op)				\
 do {									\
-	unsigned long lc_pcpr, lc_pcpo;					\
 	typedef typeof(pcp) pcp_op_T__; 				\
 	pcp_op_T__ val__ = (val);					\
 	pcp_op_T__ old__, *ptr__;					\
 									\
-	lc_pcpr = offsetof(struct lowcore, percpu_register);		\
-	lc_pcpo = offsetof(struct lowcore, percpu_offset);		\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
 		MVIY_PERCPU("%[disppcpr]","%[ptr__]")			\
@@ -234,8 +224,8 @@ do {									\
 		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
 		: [val__] "d" (val__),					\
-		  [disppcpr] "i" (lc_pcpr),				\
-		  [disppcpo] "i" (lc_pcpo),				\
+		  [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+		  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
 		: "cc");						\
 } while (0)
@@ -249,12 +239,10 @@ do {									\
 
 #define arch_this_cpu_read(pcp, op)					\
 ({									\
-	unsigned long lc_pcpr, lc_pcpo, res__;				\
 	typedef typeof(pcp) pcp_op_T__;					\
+	unsigned long res__;						\
 	pcp_op_T__ *ptr__;						\
 									\
-	lc_pcpr = offsetof(struct lowcore, percpu_register);		\
-	lc_pcpo = offsetof(struct lowcore, percpu_offset);		\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
 		MVIY_PERCPU("%[disppcpr]","%[ptr__]")			\
@@ -263,8 +251,8 @@ do {									\
 		MVIY_ALT("%[disppcpr]")					\
 		: [res__] "=&d" (res__), [ptr__] "+&a" (ptr__),		\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [disppcpr] "i" (lc_pcpr),				\
-		  [disppcpo] "i" (lc_pcpo),				\
+		: [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+		  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (*ptr__),						\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
 		: "cc");						\
@@ -278,12 +266,9 @@ do {									\
 
 #define arch_this_cpu_write(pcp, val, op)				\
 do {									\
-	unsigned long lc_pcpr, lc_pcpo;					\
 	typedef typeof(pcp) pcp_op_T__;					\
 	pcp_op_T__ *ptr__, val__ = (val);				\
 									\
-	lc_pcpr = offsetof(struct lowcore, percpu_register);		\
-	lc_pcpo = offsetof(struct lowcore, percpu_offset);		\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
 		MVIY_PERCPU("%[disppcpr]","%[ptr__]")			\
@@ -293,8 +278,8 @@ do {									\
 		: [ptr__] "+&a" (ptr__), "=m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
 		: [val__] "d" (val__),					\
-		  [disppcpr] "i" (lc_pcpr),				\
-		  [disppcpo] "i" (lc_pcpo),				\
+		  [disppcpr] "i" (LC_PERCPU_REGISTER),			\
+		  [disppcpo] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
 		: "cc");						\
 } while (0)

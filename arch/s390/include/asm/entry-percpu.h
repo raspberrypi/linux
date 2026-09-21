@@ -49,7 +49,7 @@ again:
 	}
 	if ((insn & 0xff0f) != 0xe300)
 		return true;
-	disp = offsetof(struct lowcore, percpu_offset);
+	disp = LC_PERCPU_OFFSET;
 	if (machine_has_relocated_lowcore())
 		disp += LOWCORE_ALT_ADDRESS;
 	insn = (disp & 0xff000) >> 4 | (disp & 0x00fff) << 16 | 0x8;

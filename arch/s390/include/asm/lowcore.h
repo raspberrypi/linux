@@ -222,6 +222,9 @@ struct lowcore {
 	__u8	pad_0x1900[0x2000-0x1900];	/* 0x1900 */
 } __packed __aligned(8192);
 
+#define LC_PERCPU_OFFSET	offsetof(struct lowcore, percpu_offset)
+#define LC_PERCPU_REGISTER	offsetof(struct lowcore, percpu_register)
+
 static __always_inline struct lowcore *get_lowcore(void)
 {
 	struct lowcore *lc;
