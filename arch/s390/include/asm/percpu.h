@@ -67,28 +67,32 @@
  * this. The idea is that this_cpu operations based on atomic instructions are
  * guarded with mviy instructions:
  *
- * - The first mviy instruction writes the register number, which contains the
- *   percpu address variable to lowcore. This also indicates that a percpu
- *   code section is executed.
+ * - The first mviy instruction writes the register number of the percpu address
+ *   variable and the even register number of a register pair (which encodes two
+ *   registers: the even register for the percpu offset and the odd register for
+ *   the percpu pointer) to lowcore. This also indicates that a percpu code
+ *   section is executed.
  *
- * - The first mviy instruction following the mviy instruction must be the ag
- *   instruction which adds the percpu offset to the percpu address register.
+ * - The mviy instruction is followed by the lg instruction which loads the
+ *   percpu offset into the even register of the pair and the la instruction
+ *   which adds the percpu offset and the percpu address into the odd register
+ *   of the pair (the percpu pointer register).
  *
  * - Afterwards the atomic percpu operation follows.
  *
  * - Then a second mviy instruction writes a zero to lowcore, which indicates
  *   the end of the percpu code section.
  *
- * - In case of an interrupt/exception/nmi the register number which was
- *   written to lowcore is copied to the exception frame (pt_regs), and a zero
- *   is written to lowcore.
+ * - In case of an interrupt/exception/nmi the encoded register numbers which
+ *   were written to lowcore are copied to the exception frame (pt_regs), and a
+ *   zero is written to lowcore.
  *
  * - On return to the previous context it is checked if a percpu code section
- *   was executed (saved register number not zero), and if the process was
- *   migrated to a different cpu. If the percpu offset was already added to
- *   the percpu address register (instruction address does _not_ point to the
- *   ag instruction) the content of the percpu address register is adjusted so
- *   it points to percpu variable of the new cpu.
+ *   was executed (saved register value not zero), and if the process was
+ *   migrated to a different cpu. The content of the percpu offset register
+ *   (even register of the pair) is reloaded with the current cpu's percpu
+ *   offset and the percpu pointer register (odd register of the pair) is
+ *   recalculated so it points to the percpu variable of the new cpu.
  *
  * Inline assemblies making use of this typically have a code sequence like:
  *
@@ -115,22 +119,53 @@
 #define UNDEF_GR_NUM								\
 	".purgem _GR_NUM\n"
 
+#define PCPU_REG_PCP_SHIFT		0
+#define PCPU_REG_PCP			GENMASK(3, 0)
+#define PCPU_REG_OFF_SHIFT		4
+#define PCPU_REG_OFF			GENMASK(7, 4)
+
 #define __PCPU_MVIY(lcreg, imm)							\
 	ALTERNATIVE("	mviy	" lcreg			"(%%r0)," imm "\n",	\
 		    "	mviy	" lcreg "+" LC_ALT_ADDR "(%%r0)," imm "\n",	\
 		    ALT_FEATURE(MFEATURE_LOWCORE))
 
-#define __PCPU_AG(reg, lcoff)							\
-	ALTERNATIVE("	ag	" reg ", " lcoff		 "(%%r0)\n",	\
-		    "	ag	" reg ", " lcoff "+" LC_ALT_ADDR "(%%r0)\n",	\
+#define __PCPU_LG(regoff, lcoff)						\
+	ALTERNATIVE("	lg	" regoff ", " lcoff		    "(%%r0)\n",	\
+		    "	lg	" regoff ", " lcoff "+" LC_ALT_ADDR "(%%r0)\n",	\
 		    ALT_FEATURE(MFEATURE_LOWCORE))
 
-#define __PCPU_BEGIN(lcreg, lcoff, reg)						\
+#define __PCPU_LA(regptr, regoff, regpcp)					\
+	"	la	" regptr ",0(" regoff "," regpcp ")\n"
+
+#define __PCPU_CALC_REGVAL(regpcp, regoff)					\
+	"(" regpcp " << " __stringify(PCPU_REG_PCP_SHIFT) ") |"			\
+	"(" regoff " << " __stringify(PCPU_REG_OFF_SHIFT) ")"
+
+#define __PCPU_CHECK_REGS(regpcp, regoff, regptr)				\
+	".if " regoff " & 1\n"							\
+	"	.error \"Percpu offset register must be even\"\n"		\
+	".endif\n"								\
+	".if (" regpcp " == 0) || (" regoff " == 0)\n"				\
+	"	.error \"Percpu address and offset register must be non-zero\"\n"\
+	".endif\n"								\
+	".if " regptr " != " regoff " + 1\n"					\
+	"	.error \"Percpu pointer and offset register must be a pair\"\n" \
+	".endif\n"								\
+	".if (" regpcp " == " regoff ") || (" regpcp " == " regptr ")\n"	\
+	"	.error \"Percpu registers must be distinct\"\n"			\
+	".endif\n"
+
+#define __PCPU_BEGIN(lcreg, lcoff, regpcp, regoff, regptr)			\
 	DEFINE_GR_NUM								\
-	"_GR_NUM .Lreg, " reg "\n"						\
+	"_GR_NUM .Lregpcp, " regpcp "\n"					\
+	"_GR_NUM .Lregoff, " regoff "\n"					\
+	"_GR_NUM .Lregptr, " regptr "\n"					\
 	UNDEF_GR_NUM								\
-	__PCPU_MVIY(lcreg, ".Lreg")						\
-	__PCPU_AG(reg, lcoff)
+	__PCPU_CHECK_REGS(".Lregpcp", ".Lregoff", ".Lregptr")			\
+	".set .Lregval, " __PCPU_CALC_REGVAL(".Lregpcp", ".Lregoff") "\n"	\
+	__PCPU_MVIY(lcreg, ".Lregval")						\
+	__PCPU_LG(regoff, lcoff)						\
+	__PCPU_LA(regptr, regoff, regpcp)
 
 #define __PCPU_END(lcreg)							\
 	__PCPU_MVIY(lcreg, "0")
@@ -151,6 +186,7 @@
 #define arch_this_cpu_add(pcp, val, op1, op2, szcast)				\
 do {										\
 	typedef typeof(pcp) pcp_op_T__;						\
+	union register_pair rp__;						\
 	pcp_op_T__ val__ = (val);						\
 	pcp_op_T__ old__, *ptr__;						\
 										\
@@ -158,25 +194,27 @@ do {										\
 	if (__builtin_constant_p(val__) &&					\
 	    ((szcast)val__ > -129) && ((szcast)val__ < 128)) {			\
 		asm volatile(							\
-			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-			op2 "   0(%[ptr__]),%[val__]\n"				\
+			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+				      "%[pair__]","%N[pair__]")			\
+			op2 "   0(%N[pair__]),%[val__]\n"			\
 			__PCPU_END("%[lcreg]")					\
-			: [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
+			: [pair__] "=&a" (rp__.pair), "+m" (*ptr__),		\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
-			: [val__] "i" ((szcast)val__),				\
+			: [val__] "i" ((szcast)val__), [ptr__] "a" (ptr__),	\
 			  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 			  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 			  "m" (((struct lowcore *)0)->percpu_offset)		\
 			: "cc");						\
 	} else {								\
 		asm volatile(							\
-			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-			op1 "   %[old__],%[val__],0(%[ptr__])\n"		\
+			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+				     "%[pair__]","%N[pair__]")			\
+			op1 "   %[old__],%[val__],0(%N[pair__])\n"		\
 			__PCPU_END("%[lcreg]")					\
-			: [old__] "=&d" (old__),				\
-			  [ptr__] "+&a" (ptr__),  "+m" (*ptr__),		\
+			: [old__] "=&d" (old__), [pair__] "=&a" (rp__.pair),	\
+			  "+m" (*ptr__),					\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
-			: [val__] "d" (val__),					\
+			: [val__] "d" (val__), [ptr__] "a" (ptr__),		\
 			  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 			  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 			  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -190,18 +228,20 @@ do {										\
 #define arch_this_cpu_add_return(pcp, val, op)				\
 ({									\
 	typedef typeof(pcp) pcp_op_T__; 				\
+	union register_pair rp__;					\
 	pcp_op_T__ val__ = (val);					\
 	pcp_op_T__ old__, *ptr__;					\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		op "	%[old__],%[val__],0(%[ptr__])\n"		\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			     "%[pair__]","%N[pair__]")			\
+		op "	%[old__],%[val__],0(%N[pair__])\n"		\
 		__PCPU_END("%[lcreg]")					\
-		: [old__] "=&d" (old__),				\
-		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
+		: [old__] "=&d" (old__), [pair__] "=&a" (rp__.pair),	\
+		  "+m" (*ptr__),					\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [val__] "d" (val__),					\
+		: [val__] "d" (val__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -215,18 +255,20 @@ do {										\
 #define arch_this_cpu_to_op(pcp, val, op)				\
 do {									\
 	typedef typeof(pcp) pcp_op_T__; 				\
+	union register_pair rp__;					\
 	pcp_op_T__ val__ = (val);					\
 	pcp_op_T__ old__, *ptr__;					\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		op "    %[old__],%[val__],0(%[ptr__])\n"		\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			     "%[pair__]","%N[pair__]")			\
+		op "    %[old__],%[val__],0(%N[pair__])\n"		\
 		__PCPU_END("%[lcreg]")					\
-		: [old__] "=&d" (old__),				\
-		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
+		: [old__] "=&d" (old__), [pair__] "=&a" (rp__.pair),	\
+		  "+m" (*ptr__),					\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [val__] "d" (val__),					\
+		: [val__] "d" (val__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -243,17 +285,20 @@ do {									\
 #define arch_this_cpu_read(pcp, op)					\
 ({									\
 	typedef typeof(pcp) pcp_op_T__;					\
+	union register_pair rp__;					\
 	unsigned long res__;						\
 	pcp_op_T__ *ptr__;						\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		op "	%[res__],0(%[ptr__])\n"				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			      "%[pair__]","%N[pair__]")			\
+		op "	%[res__],0(%N[pair__])\n"			\
 		__PCPU_END("%[lcreg]")					\
-		: [res__] "=&d" (res__), [ptr__] "+&a" (ptr__),		\
+		: [res__] "=&d" (res__), [pair__] "=&a" (rp__.pair),	\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [lcreg] "i" (LC_PERCPU_REGISTER),			\
+		: [ptr__] "a" (ptr__),					\
+		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (*ptr__),						\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -269,16 +314,18 @@ do {									\
 #define arch_this_cpu_write(pcp, val, op)				\
 do {									\
 	typedef typeof(pcp) pcp_op_T__;					\
+	union register_pair rp__;					\
 	pcp_op_T__ *ptr__, val__ = (val);				\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		op "    %[val__],0(%[ptr__])\n"				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			      "%[pair__]","%N[pair__]")			\
+		op "    %[val__],0(%N[pair__])\n"			\
 		__PCPU_END("%[lcreg]")					\
-		: [ptr__] "+&a" (ptr__), "=m" (*ptr__),			\
+		: [pair__] "=&a" (rp__.pair), "=m" (*ptr__),		\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [val__] "d" (val__),					\
+		: [val__] "d" (val__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -306,17 +353,19 @@ do {									\
 ({									\
 	typedef typeof(pcp) pcp_op_T__;					\
 	pcp_op_T__ old__ = (oval), new__ = (nval);			\
+	union register_pair rp__;					\
 	pcp_op_T__ *ptr__;						\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		op "	%[old__],%[new__],0(%[ptr__])\n"		\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			     "%[pair__]","%N[pair__]")			\
+		op "	%[old__],%[new__],0(%N[pair__])\n"		\
 		__PCPU_END("%[lcreg]")					\
-		: [old__] "+&d" (old__),				\
-		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
+		: [old__] "+&d" (old__), [pair__] "=&a" (rp__.pair),	\
+		  "+m" (*ptr__),					\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [new__] "d" (new__),					\
+		: [new__] "d" (new__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -335,17 +384,19 @@ do {									\
 ({									\
 	typedef typeof(pcp) pcp_op_T__;					\
 	u128 old__ = (oval), new__ = (nval);				\
+	union register_pair rp__;					\
 	pcp_op_T__ *ptr__;						\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		"	cdsg	%[old__],%[new__],0(%[ptr__])\n"	\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			     "%[pair__]","%N[pair__]")			\
+		"	cdsg	%[old__],%[new__],0(%N[pair__])\n"	\
 		__PCPU_END("%[lcreg]")					\
-		: [old__] "+&d" (old__), [ptr__] "+&a" (ptr__),		\
+		: [old__] "+&d" (old__), [pair__] "=&a" (rp__.pair),	\
 		  "+m" (*ptr__),					\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [new__] "d" (new__),					\
+		: [new__] "d" (new__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
@@ -368,19 +419,21 @@ do {									\
 ({									\
 	typedef typeof(pcp) pcp_op_T__;					\
 	pcp_op_T__ old__, new__ = (nval);				\
+	union register_pair rp__;					\
 	pcp_op_T__ *ptr__;						\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
-		"	" ldop "	%[old__],0(%[ptr__])\n"		\
-		"0:	" csop "	%[old__],%[new__],0(%[ptr__])\n"\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]",		\
+			     "%[pair__]","%N[pair__]")			\
+		"	" ldop "	%[old__],0(%N[pair__])\n"	\
+		"0:	" csop "	%[old__],%[new__],0(%N[pair__])\n"\
 		"	jnz	0b\n"					\
 		__PCPU_END("%[lcreg]")					\
-		: [old__] "=&d" (old__),				\
-		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
+		: [old__] "=&d" (old__), [pair__] "=&a" (rp__.pair),	\
+		  "+m" (*ptr__),					\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
-		: [new__] "d" (new__),					\
+		: [new__] "d" (new__), [ptr__] "a" (ptr__),		\
 		  [lcreg] "i" (LC_PERCPU_REGISTER),			\
 		  [lcoff] "i" (LC_PERCPU_OFFSET),			\
 		  "m" (((struct lowcore *)0)->percpu_offset)		\
