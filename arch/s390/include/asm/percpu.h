@@ -92,41 +92,48 @@
  *
  * Inline assemblies making use of this typically have a code sequence like:
  *
- *   MVIY_PERCPU(...) <- start of percpu code section
- *   AG_ALT(...)      <- add percpu offset; must be the second instruction
- *   atomic_op	      <- atomic op
- *   MVIY_ALT(...)    <- end of percpu code section
+ *   __PCPU_BEGIN(...) <- start of percpu code section
+ *   atomic_op	       <- atomic op
+ *   __PCPU_END(...)   <- end of percpu code section
  */
 
 #define LC_ALT_ADDR	__stringify(LOWCORE_ALT_ADDRESS)
 
-#define MVIY_PERCPU(disp, reg)							\
-	".macro GEN_MVIY disp, reg\n"						\
-	".set	.Lreg,255\n"							\
-	".irp	rs,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15\n"			\
-	"	.ifc \\reg,%%r\\rs\n"						\
-	"		.set	.Lreg,\\rs\n"					\
+#define DEFINE_GR_NUM								\
+	".macro _GR_NUM opd, gr\n"						\
+	".set	\\opd,255\n"							\
+	".irp rs,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15\n"			\
+	"	.ifc \\gr,%%r\\rs\n"						\
+	"		\\opd = \\rs\n"						\
 	"	.endif\n"							\
 	".endr\n"								\
-	".if .Lreg == 255\n"							\
+	".if \\opd == 255\n"							\
 	"	.error \"Illegal register number\"\n"				\
 	".endif\n"								\
-	"mviy	\\disp(%%r0),.Lreg\n"						\
-	".endm\n"								\
-	ALTERNATIVE("GEN_MVIY " disp		     " , " reg "\n",		\
-		    "GEN_MVIY " disp "+" LC_ALT_ADDR " , " reg "\n",		\
-		    ALT_FEATURE(MFEATURE_LOWCORE))				\
-	".purgem GEN_MVIY\n"
+	".endm\n"
 
-#define MVIY_ALT(disp)								\
-	ALTERNATIVE("	mviy	" disp		       "(%%r0),0\n",		\
-		    "	mviy	" disp "+" LC_ALT_ADDR "(%%r0),0\n",		\
+#define UNDEF_GR_NUM								\
+	".purgem _GR_NUM\n"
+
+#define __PCPU_MVIY(lcreg, imm)							\
+	ALTERNATIVE("	mviy	" lcreg			"(%%r0)," imm "\n",	\
+		    "	mviy	" lcreg "+" LC_ALT_ADDR "(%%r0)," imm "\n",	\
 		    ALT_FEATURE(MFEATURE_LOWCORE))
 
-#define AG_ALT(disp, reg)							\
-	ALTERNATIVE("	ag	" reg ", " disp			"(%%r0)\n",	\
-		    "	ag	" reg ", " disp "+" LC_ALT_ADDR "(%%r0)\n",	\
+#define __PCPU_AG(reg, lcoff)							\
+	ALTERNATIVE("	ag	" reg ", " lcoff		 "(%%r0)\n",	\
+		    "	ag	" reg ", " lcoff "+" LC_ALT_ADDR "(%%r0)\n",	\
 		    ALT_FEATURE(MFEATURE_LOWCORE))
+
+#define __PCPU_BEGIN(lcreg, lcoff, reg)						\
+	DEFINE_GR_NUM								\
+	"_GR_NUM .Lreg, " reg "\n"						\
+	UNDEF_GR_NUM								\
+	__PCPU_MVIY(lcreg, ".Lreg")						\
+	__PCPU_AG(reg, lcoff)
+
+#define __PCPU_END(lcreg)							\
+	__PCPU_MVIY(lcreg, "0")
 
 #ifndef MARCH_HAS_Z196_FEATURES
 
@@ -151,10 +158,9 @@ do {										\
 	if (__builtin_constant_p(val__) &&					\
 	    ((szcast)val__ > -129) && ((szcast)val__ < 128)) {			\
 		asm volatile(							\
-			MVIY_PERCPU("%[lcreg]","%[ptr__]")			\
-			AG_ALT("%[lcoff]", "%[ptr__]")				\
+			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 			op2 "   0(%[ptr__]),%[val__]\n"				\
-			MVIY_ALT("%[lcreg]")					\
+			__PCPU_END("%[lcreg]")					\
 			: [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
 			: [val__] "i" ((szcast)val__),				\
@@ -164,10 +170,9 @@ do {										\
 			: "cc");						\
 	} else {								\
 		asm volatile(							\
-			MVIY_PERCPU("%[lcreg]", "%[ptr__]")			\
-			AG_ALT("%[lcoff]", "%[ptr__]")				\
+			__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 			op1 "   %[old__],%[val__],0(%[ptr__])\n"		\
-			MVIY_ALT("%[lcreg]")					\
+			__PCPU_END("%[lcreg]")					\
 			: [old__] "=&d" (old__),				\
 			  [ptr__] "+&a" (ptr__),  "+m" (*ptr__),		\
 			  "=m" (((struct lowcore *)0)->percpu_register)		\
@@ -190,10 +195,9 @@ do {										\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		MVIY_PERCPU("%[lcreg]","%[ptr__]")			\
-		AG_ALT("%[lcoff]","%[ptr__]")				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 		op "	%[old__],%[val__],0(%[ptr__])\n"		\
-		MVIY_ALT("%[lcreg]")					\
+		__PCPU_END("%[lcreg]")					\
 		: [old__] "=&d" (old__),				\
 		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
@@ -216,10 +220,9 @@ do {									\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		MVIY_PERCPU("%[lcreg]","%[ptr__]")			\
-		AG_ALT("%[lcoff]","%[ptr__]")				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 		op "    %[old__],%[val__],0(%[ptr__])\n"		\
-		MVIY_ALT("%[lcreg]")					\
+		__PCPU_END("%[lcreg]")					\
 		: [old__] "=&d" (old__),				\
 		  [ptr__] "+&a" (ptr__), "+m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
@@ -245,10 +248,9 @@ do {									\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		MVIY_PERCPU("%[lcreg]","%[ptr__]")			\
-		AG_ALT("%[lcoff]","%[ptr__]")				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 		op "	%[res__],0(%[ptr__])\n"				\
-		MVIY_ALT("%[lcreg]")					\
+		__PCPU_END("%[lcreg]")					\
 		: [res__] "=&d" (res__), [ptr__] "+&a" (ptr__),		\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
 		: [lcreg] "i" (LC_PERCPU_REGISTER),			\
@@ -271,10 +273,9 @@ do {									\
 									\
 	ptr__ = PERCPU_PTR(&(pcp));					\
 	asm_inline volatile(						\
-		MVIY_PERCPU("%[lcreg]","%[ptr__]")			\
-		AG_ALT("%[lcoff]","%[ptr__]")				\
+		__PCPU_BEGIN("%[lcreg]","%[lcoff]","%[ptr__]")		\
 		op "    %[val__],0(%[ptr__])\n"				\
-		MVIY_ALT("%[lcreg]")					\
+		__PCPU_END("%[lcreg]")					\
 		: [ptr__] "+&a" (ptr__), "=m" (*ptr__),			\
 		  "=m" (((struct lowcore *)0)->percpu_register)		\
 		: [val__] "d" (val__),					\
