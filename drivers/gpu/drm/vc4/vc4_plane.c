@@ -2682,11 +2682,29 @@ static const struct drm_plane_helper_funcs vc4_plane_helper_funcs = {
 	.atomic_async_update = vc4_plane_atomic_async_update,
 };
 
+static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
+	.atomic_check = vc4_plane_atomic_check,
+	.atomic_update = vc4_plane_atomic_update,
+	.prepare_fb = vc4_prepare_fb,
+	.cleanup_fb = vc4_cleanup_fb,
+	.atomic_async_check = vc4_plane_atomic_async_check,
+	.atomic_async_update = vc4_plane_atomic_async_update,
+	.get_scanout_buffer = drm_fb_dma_get_scanout_buffer,
+};
+
 static const struct drm_plane_helper_funcs vc5_plane_helper_funcs = {
 	.atomic_check = vc4_plane_atomic_check,
 	.atomic_update = vc4_plane_atomic_update,
 	.atomic_async_check = vc4_plane_atomic_async_check,
 	.atomic_async_update = vc4_plane_atomic_async_update,
+};
+
+static const struct drm_plane_helper_funcs vc5_primary_plane_helper_funcs = {
+	.atomic_check = vc4_plane_atomic_check,
+	.atomic_update = vc4_plane_atomic_update,
+	.atomic_async_check = vc4_plane_atomic_async_check,
+	.atomic_async_update = vc4_plane_atomic_async_update,
+	.get_scanout_buffer = drm_fb_dma_get_scanout_buffer,
 };
 
 static bool vc4_format_mod_supported(struct drm_plane *plane,
@@ -2807,9 +2825,13 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 	plane = &vc4_plane->base;
 
 	if (vc4->gen >= VC4_GEN_5)
-		drm_plane_helper_add(plane, &vc5_plane_helper_funcs);
+		drm_plane_helper_add(plane, type == DRM_PLANE_TYPE_PRIMARY ?
+				     &vc5_primary_plane_helper_funcs :
+				     &vc5_plane_helper_funcs);
 	else
-		drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
+		drm_plane_helper_add(plane, type == DRM_PLANE_TYPE_PRIMARY ?
+				     &vc4_primary_plane_helper_funcs :
+				     &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
 	drm_plane_create_blend_mode_property(plane,
