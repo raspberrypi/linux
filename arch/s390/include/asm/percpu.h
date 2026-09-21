@@ -100,12 +100,17 @@
  */
 
 #define MVIY_PERCPU(disp, dispalt, reg)						\
-	".macro GEN_MVIY disp reg\n"						\
+	".macro GEN_MVIY disp, reg\n"						\
+	".set	.Lreg,255\n"							\
 	".irp	rs,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15\n"			\
 	"	.ifc \\reg,%%r\\rs\n"						\
-	"	mviy	\\disp(%%r0),\\rs\n"					\
+	"		.set	.Lreg,\\rs\n"					\
 	"	.endif\n"							\
 	".endr\n"								\
+	".if .Lreg == 255\n"							\
+	"	.error \"Illegal register number\"\n"				\
+	".endif\n"								\
+	"mviy	\\disp(%%r0),.Lreg\n"						\
 	".endm\n"								\
 	ALTERNATIVE("GEN_MVIY " disp    ", " reg "\n",				\
 		    "GEN_MVIY " dispalt ", " reg "\n",				\
