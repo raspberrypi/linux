@@ -113,31 +113,19 @@ static const char * const glymur_vreg_l[] = {
 	"vdda-phy", "vdda-pll", "vdda-refgen0p9", "vdda-refgen1p2",
 };
 
-static const char * const glymur_pciephy_a_reg_l[] = {
+static const char * const pciephy_port_a_reg_l[] = {
 	"port_a",
 };
 
-static const char * const glymur_pciephy_b_reg_l[] = {
+static const char * const pciephy_port_b_reg_l[] = {
 	"port_b",
 };
 
-static const char * const glymur_pciephy_reg_l[] = {
+static const char * const pciephy_port_ab_reg_l[] = {
 	"port_a", "port_b",
 };
 
-static const char * const glymur_pciephy_a_pd_l[] = {
-	"port_a",
-};
-
-static const char * const glymur_pciephy_b_pd_l[] = {
-	"port_b",
-};
-
-static const char * const glymur_pciephy_pd_l[] = {
-	"port_a", "port_b",
-};
-
-static const char * const glymur_pciephy_a_nocsr_reset_l[] = {
+static const char * const pciephy_port_a_nocsr_reset_l[] = {
 	"port_a_nocsr",
 };
 
@@ -145,7 +133,7 @@ static const char * const glymur_pciephy_nocsr_reset_l[] = {
 	"port_a_nocsr", "port_b_nocsr",
 };
 
-static const char * const glymur_pciephy_b_nocsr_reset_l[] = {
+static const char * const pciephy_port_b_nocsr_reset_l[] = {
 	"port_b_nocsr",
 };
 
@@ -155,12 +143,12 @@ static const struct qmp_pcie_offsets glymur_pcie_offsets_v8_50 = {
 
 static const struct qmp_phy_cfg glymur_qmp_gen5x4_pciephy_a_cfg = {
 	.offsets		= &glymur_pcie_offsets_v8_50,
-	.reg_names		= glymur_pciephy_a_reg_l,
-	.num_regs		= ARRAY_SIZE(glymur_pciephy_a_reg_l),
-	.pd_names		= glymur_pciephy_a_pd_l,
-	.num_pds		= ARRAY_SIZE(glymur_pciephy_a_pd_l),
-	.nocsr_reset_list	= glymur_pciephy_a_nocsr_reset_l,
-	.num_nocsr_resets	= ARRAY_SIZE(glymur_pciephy_a_nocsr_reset_l),
+	.reg_names		= pciephy_port_a_reg_l,
+	.num_regs		= ARRAY_SIZE(pciephy_port_a_reg_l),
+	.pd_names		= pciephy_port_a_reg_l,
+	.num_pds		= ARRAY_SIZE(pciephy_port_a_reg_l),
+	.nocsr_reset_list	= pciephy_port_a_nocsr_reset_l,
+	.num_nocsr_resets	= ARRAY_SIZE(pciephy_port_a_nocsr_reset_l),
 	.vreg_list		= glymur_vreg_l,
 	.num_vregs		= ARRAY_SIZE(glymur_vreg_l),
 	.regs			= pciephy_v8_50_regs_layout,
@@ -173,12 +161,12 @@ static const struct qmp_phy_cfg glymur_qmp_gen5x4_pciephy_a_cfg = {
 
 static const struct qmp_phy_cfg glymur_qmp_gen5x4_pciephy_b_cfg = {
 	.offsets		= &glymur_pcie_offsets_v8_50,
-	.reg_names		= glymur_pciephy_b_reg_l,
-	.num_regs		= ARRAY_SIZE(glymur_pciephy_b_reg_l),
-	.pd_names		= glymur_pciephy_b_pd_l,
-	.num_pds		= ARRAY_SIZE(glymur_pciephy_b_pd_l),
-	.nocsr_reset_list	= glymur_pciephy_b_nocsr_reset_l,
-	.num_nocsr_resets	= ARRAY_SIZE(glymur_pciephy_b_nocsr_reset_l),
+	.reg_names		= pciephy_port_b_reg_l,
+	.num_regs		= ARRAY_SIZE(pciephy_port_b_reg_l),
+	.pd_names		= pciephy_port_b_reg_l,
+	.num_pds		= ARRAY_SIZE(pciephy_port_b_reg_l),
+	.nocsr_reset_list	= pciephy_port_b_nocsr_reset_l,
+	.num_nocsr_resets	= ARRAY_SIZE(pciephy_port_b_nocsr_reset_l),
 	.vreg_list		= glymur_vreg_l,
 	.num_vregs		= ARRAY_SIZE(glymur_vreg_l),
 	.regs			= pciephy_v8_50_regs_layout,
@@ -191,10 +179,10 @@ static const struct qmp_phy_cfg glymur_qmp_gen5x4_pciephy_b_cfg = {
 
 static const struct qmp_phy_cfg glymur_qmp_gen5x8_pciephy_cfg = {
 	.offsets		= &glymur_pcie_offsets_v8_50,
-	.reg_names		= glymur_pciephy_reg_l,
-	.num_regs		= ARRAY_SIZE(glymur_pciephy_reg_l),
-	.pd_names		= glymur_pciephy_pd_l,
-	.num_pds		= ARRAY_SIZE(glymur_pciephy_pd_l),
+	.reg_names		= pciephy_port_ab_reg_l,
+	.num_regs		= ARRAY_SIZE(pciephy_port_ab_reg_l),
+	.pd_names		= pciephy_port_ab_reg_l,
+	.num_pds		= ARRAY_SIZE(pciephy_port_ab_reg_l),
 	.nocsr_reset_list	= glymur_pciephy_nocsr_reset_l,
 	.num_nocsr_resets	= ARRAY_SIZE(glymur_pciephy_nocsr_reset_l),
 	.vreg_list		= glymur_vreg_l,
@@ -398,45 +386,39 @@ static const struct phy_ops qmp_pcie_phy_ops = {
 static void qmp_pcie_pd_detach(void *data)
 {
 	struct qmp_pcie *qmp = data;
-	const struct qmp_phy_cfg *cfg = qmp->cfg;
 	int i;
 
-	for (i = 0; i < cfg->num_pds; i++) {
+	for (i = 0; i < qmp->cfg->num_pds; i++) {
 		if (!IS_ERR_OR_NULL(qmp->pd_devs[i]))
 			dev_pm_domain_detach(qmp->pd_devs[i], true);
 	}
 }
 
-static int qmp_pcie_pd_init(struct qmp_pcie *qmp)
+static int qmp_pcie_pd_init(struct qmp_pcie *qmp, struct phy *phy)
 {
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
-	struct device *dev = qmp->dev;
+	struct device *pd_dev = &phy->dev;
 	int i, ret;
 
 	if (!cfg->num_pds)
 		return 0;
 
-	qmp->pd_devs = devm_kcalloc(dev, cfg->num_pds, sizeof(*qmp->pd_devs),
+	qmp->pd_devs = devm_kcalloc(pd_dev, cfg->num_pds, sizeof(*qmp->pd_devs),
 				    GFP_KERNEL);
 	if (!qmp->pd_devs)
 		return -ENOMEM;
 
+	ret = devm_add_action_or_reset(pd_dev, qmp_pcie_pd_detach, qmp);
+	if (ret)
+		return ret;
+
 	for (i = 0; i < cfg->num_pds; i++) {
-		qmp->pd_devs[i] = dev_pm_domain_attach_by_name(dev,
-							       cfg->pd_names[i]);
-		if (IS_ERR_OR_NULL(qmp->pd_devs[i])) {
-			ret = PTR_ERR(qmp->pd_devs[i]) ? : -ENODATA;
-			goto err_detach;
-		}
+		qmp->pd_devs[i] = dev_pm_domain_attach_by_name(pd_dev, cfg->pd_names[i]);
+		if (IS_ERR_OR_NULL(qmp->pd_devs[i]))
+			return PTR_ERR_OR_ZERO(qmp->pd_devs[i]) ? : -ENODATA;
 	}
 
-	return devm_add_action_or_reset(dev, qmp_pcie_pd_detach, qmp);
-
-err_detach:
-	while (--i >= 0)
-		dev_pm_domain_detach(qmp->pd_devs[i], false);
-
-	return ret;
+	return 0;
 }
 
 static int qmp_pcie_vreg_init(struct qmp_pcie *qmp)
@@ -555,6 +537,8 @@ static int qmp_pcie_multiphy_register_clocks(struct device *dev,
 	int i, ret;
 
 	num_pipe_outputs = of_property_count_strings(np, "clock-output-names");
+	if (num_pipe_outputs < 0)
+		return num_pipe_outputs;
 
 	qmp_data->num_pipe_outputs = num_pipe_outputs;
 	qmp_data->pipe_out_clks = devm_kcalloc(dev, num_pipe_outputs,
@@ -630,6 +614,7 @@ static struct phy *qmp_pcie_multiphy_xlate(struct device *dev,
 static int qmp_pcie_probe_phy(struct qmp_pcie *qmp, struct device_node *np,
 			      struct phy **out_phy)
 {
+	struct phy *phy;
 	int ret;
 
 	ret = qmp_pcie_get_mmio(qmp);
@@ -648,15 +633,16 @@ static int qmp_pcie_probe_phy(struct qmp_pcie *qmp, struct device_node *np,
 	if (ret)
 		return ret;
 
-	ret = qmp_pcie_pd_init(qmp);
+	phy = devm_phy_create(qmp->dev, np, &qmp_pcie_phy_ops);
+	if (IS_ERR(phy))
+		return PTR_ERR(phy);
+
+	ret = qmp_pcie_pd_init(qmp, phy);
 	if (ret)
 		return ret;
 
-	*out_phy = devm_phy_create(qmp->dev, np, &qmp_pcie_phy_ops);
-	if (IS_ERR(*out_phy))
-		return PTR_ERR(*out_phy);
-
-	phy_set_drvdata(*out_phy, qmp);
+	phy_set_drvdata(phy, qmp);
+	*out_phy = phy;
 
 	return 0;
 }
@@ -739,5 +725,5 @@ static struct platform_driver qmp_pcie_multiphy_driver = {
 module_platform_driver(qmp_pcie_multiphy_driver);
 
 MODULE_AUTHOR("Qiang Yu <qiang.yu@oss.qualcomm.com>");
-MODULE_DESCRIPTION("Qualcomm QMP PCIe Multi-PHY driver for Glymur");
+MODULE_DESCRIPTION("Qualcomm QMP PCIe Multi-PHY driver");
 MODULE_LICENSE("GPL");
