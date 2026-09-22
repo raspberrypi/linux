@@ -1408,7 +1408,7 @@ err_out4:
 err_out3:
 	lockdep_unregister_key(&sch->root_lock_key);
 	netdev_put(dev, &sch->dev_tracker);
-	qdisc_free(sch);
+	qdisc_free_rcu(sch);
 err_out2:
 	module_put(ops->owner);
 err_out:

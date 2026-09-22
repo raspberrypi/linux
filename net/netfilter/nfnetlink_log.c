@@ -228,12 +228,17 @@ static void __nfulnl_flush(struct nfulnl_instance *inst);
 static void
 __instance_destroy(struct nfulnl_instance *inst)
 {
+	spin_lock(&inst->lock);
+	if (inst->copy_mode == NFULNL_COPY_DISABLED) {
+		/* attempt to UNBIND a queue already pending
+		 * destruction via netlink close event. Ignore.
+		 */
+		spin_unlock(&inst->lock);
+		return;
+	}
+
 	/* first pull it out of the global list */
 	hlist_del_rcu(&inst->hlist);
-
-	/* then flush all pending packets from skb */
-
-	spin_lock(&inst->lock);
 
 	/* lockless readers wont be able to use us */
 	inst->copy_mode = NFULNL_COPY_DISABLED;
@@ -1160,21 +1165,26 @@ static int __net_init nfnl_log_net_init(struct net *net)
 	return 0;
 }
 
+static void __net_exit nfnl_log_net_pre_exit(struct net *net)
+{
+#ifdef CONFIG_PROC_FS
+	remove_proc_entry("nfnetlink_log", net->nf.proc_netfilter);
+#endif
+	nf_log_unset(net, &nfulnl_logger);
+}
+
 static void __net_exit nfnl_log_net_exit(struct net *net)
 {
 	struct nfnl_log_net *log = nfnl_log_pernet(net);
 	unsigned int i;
 
-#ifdef CONFIG_PROC_FS
-	remove_proc_entry("nfnetlink_log", net->nf.proc_netfilter);
-#endif
-	nf_log_unset(net, &nfulnl_logger);
 	for (i = 0; i < INSTANCE_BUCKETS; i++)
 		WARN_ON_ONCE(!hlist_empty(&log->instance_table[i]));
 }
 
 static struct pernet_operations nfnl_log_net_ops = {
 	.init	= nfnl_log_net_init,
+	.pre_exit = nfnl_log_net_pre_exit,
 	.exit	= nfnl_log_net_exit,
 	.id	= &nfnl_log_net_id,
 	.size	= sizeof(struct nfnl_log_net),
@@ -1218,8 +1228,8 @@ static void __exit nfnetlink_log_fini(void)
 {
 	nfnetlink_subsys_unregister(&nfulnl_subsys);
 	netlink_unregister_notifier(&nfulnl_rtnl_notifier);
-	unregister_pernet_subsys(&nfnl_log_net_ops);
 	nf_log_unregister(&nfulnl_logger);
+	unregister_pernet_subsys(&nfnl_log_net_ops);
 }
 
 MODULE_DESCRIPTION("netfilter userspace logging");

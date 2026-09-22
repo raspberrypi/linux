@@ -1252,7 +1252,7 @@ static struct cpufreq_policy *cpufreq_policy_alloc(unsigned int cpu)
 	if (!policy)
 		return NULL;
 
-	if (!alloc_cpumask_var(&policy->cpus, GFP_KERNEL))
+	if (!zalloc_cpumask_var(&policy->cpus, GFP_KERNEL))
 		goto err_free_policy;
 
 	if (!zalloc_cpumask_var(&policy->related_cpus, GFP_KERNEL))
@@ -1260,6 +1260,8 @@ static struct cpufreq_policy *cpufreq_policy_alloc(unsigned int cpu)
 
 	if (!zalloc_cpumask_var(&policy->real_cpus, GFP_KERNEL))
 		goto err_free_rcpumask;
+
+	init_rwsem(&policy->rwsem);
 
 	init_completion(&policy->kobj_unregister);
 	ret = kobject_init_and_add(&policy->kobj, &ktype_cpufreq,
@@ -1274,8 +1276,6 @@ static struct cpufreq_policy *cpufreq_policy_alloc(unsigned int cpu)
 		kobject_put(&policy->kobj);
 		goto err_free_real_cpus;
 	}
-
-	init_rwsem(&policy->rwsem);
 
 	freq_constraints_init(&policy->constraints);
 

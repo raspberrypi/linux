@@ -36,7 +36,7 @@ static int free_extent_map_tree(struct btrfs_inode *inode)
 			refcount_set(&em->refs, 1);
 		}
 #endif
-		free_extent_map(em);
+		btrfs_free_extent_map(em);
 	}
 	write_unlock(&em_tree->lock);
 
@@ -87,7 +87,7 @@ static int test_case_1(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("cannot add extent range [0, 16K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	/* Add [16K, 20K) following [0, 16K)  */
 	em = alloc_extent_map();
@@ -109,7 +109,7 @@ static int test_case_1(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("cannot add extent range [16K, 20K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -137,7 +137,7 @@ static int test_case_1(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		ret = -ENOENT;
 		goto out;
 	}
-	if (em->start != 0 || extent_map_end(em) != SZ_16K ||
+	if (em->start != 0 || btrfs_extent_map_end(em) != SZ_16K ||
 	    em->disk_bytenr != 0 || em->disk_num_bytes != SZ_16K) {
 		test_err(
 "case1 [%llu %llu]: ret %d return a wrong em (start %llu len %llu disk_bytenr %llu disk_num_bytes %llu",
@@ -145,7 +145,7 @@ static int test_case_1(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 			 em->disk_bytenr, em->disk_num_bytes);
 		ret = -EINVAL;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 out:
 	ret2 = free_extent_map_tree(inode);
 	if (ret == 0)
@@ -186,7 +186,7 @@ static int test_case_2(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("cannot add extent range [0, 1K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	/* Add [4K, 8K) following [0, 1K)  */
 	em = alloc_extent_map();
@@ -208,7 +208,7 @@ static int test_case_2(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("cannot add extent range [4K, 8K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -235,14 +235,14 @@ static int test_case_2(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		ret = -ENOENT;
 		goto out;
 	}
-	if (em->start != 0 || extent_map_end(em) != SZ_1K ||
+	if (em->start != 0 || btrfs_extent_map_end(em) != SZ_1K ||
 	    em->disk_bytenr != EXTENT_MAP_INLINE) {
 		test_err(
 "case2 [0 1K]: ret %d return a wrong em (start %llu len %llu disk_bytenr %llu",
 			 ret, em->start, em->len, em->disk_bytenr);
 		ret = -EINVAL;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 out:
 	ret2 = free_extent_map_tree(inode);
 	if (ret == 0)
@@ -279,7 +279,7 @@ static int __test_case_3(struct btrfs_fs_info *fs_info,
 		test_err("cannot add extent range [4K, 8K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -312,15 +312,15 @@ static int __test_case_3(struct btrfs_fs_info *fs_info,
 	 * Since bytes within em are contiguous, em->block_start is identical to
 	 * em->start.
 	 */
-	if (start < em->start || start + len > extent_map_end(em) ||
-	    em->start != extent_map_block_start(em)) {
+	if (start < em->start || start + len > btrfs_extent_map_end(em) ||
+	    em->start != btrfs_extent_map_block_start(em)) {
 		test_err(
 "case3 [%llu %llu): ret %d em (start %llu len %llu disk_bytenr %llu block_len %llu)",
 			 start, start + len, ret, em->start, em->len,
 			 em->disk_bytenr, em->disk_num_bytes);
 		ret = -EINVAL;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 out:
 	ret2 = free_extent_map_tree(inode);
 	if (ret == 0)
@@ -388,7 +388,7 @@ static int __test_case_4(struct btrfs_fs_info *fs_info,
 		test_err("cannot add extent range [0, 8K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -410,7 +410,7 @@ static int __test_case_4(struct btrfs_fs_info *fs_info,
 		test_err("cannot add extent range [8K, 32K)");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -438,14 +438,14 @@ static int __test_case_4(struct btrfs_fs_info *fs_info,
 		ret = -ENOENT;
 		goto out;
 	}
-	if (start < em->start || start + len > extent_map_end(em)) {
+	if (start < em->start || start + len > btrfs_extent_map_end(em)) {
 		test_err(
 "case4 [%llu %llu): ret %d, added wrong em (start %llu len %llu disk_bytenr %llu disk_num_bytes %llu)",
 			 start, start + len, ret, em->start, em->len,
 			 em->disk_bytenr, em->disk_num_bytes);
 		ret = -EINVAL;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 out:
 	ret2 = free_extent_map_tree(inode);
 	if (ret == 0)
@@ -513,7 +513,7 @@ static int add_compressed_extent(struct btrfs_inode *inode,
 	write_lock(&em_tree->lock);
 	ret = btrfs_add_extent_mapping(inode, &em, em->start, em->len);
 	write_unlock(&em_tree->lock);
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 	if (ret < 0) {
 		test_err("cannot add extent map [%llu, %llu)", start, start + len);
 		return ret;
@@ -751,7 +751,7 @@ static int test_case_6(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 	}
 	ret = 0;
 out:
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 	ret2 = free_extent_map_tree(inode);
 	if (ret == 0)
 		ret = ret2;
@@ -793,7 +793,7 @@ static int test_case_7(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("couldn't add extent map");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	em = alloc_extent_map();
 	if (!em) {
@@ -815,7 +815,7 @@ static int test_case_7(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		test_err("couldn't add extent map");
 		goto out;
 	}
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	/*
 	 * Drop [0, 36K) This should skip the [0, 4K) extent and then split the
@@ -842,7 +842,7 @@ static int test_case_7(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		goto out;
 	}
 
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	read_lock(&em_tree->lock);
 	em = lookup_extent_mapping(em_tree, SZ_16K, SZ_16K);
@@ -870,13 +870,13 @@ static int test_case_7(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 		goto out;
 	}
 
-	if (extent_map_block_start(em) != SZ_32K + SZ_4K) {
+	if (btrfs_extent_map_block_start(em) != SZ_32K + SZ_4K) {
 		test_err("em->block_start is %llu, expected 36K",
-				extent_map_block_start(em));
+			 btrfs_extent_map_block_start(em));
 		goto out;
 	}
 
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 
 	read_lock(&em_tree->lock);
 	em = lookup_extent_mapping(em_tree, 48 * SZ_1K, (u64)-1);
@@ -888,7 +888,7 @@ static int test_case_7(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 
 	ret = 0;
 out:
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 	/* Unpin our extent to prevent warning when removing it below. */
 	ret2 = unpin_extent_cache(inode, 0, SZ_16K, 0);
 	if (ret == 0)
@@ -928,7 +928,7 @@ static int test_case_8(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 	write_lock(&em_tree->lock);
 	ret = btrfs_add_extent_mapping(inode, &em, em->start, em->len);
 	write_unlock(&em_tree->lock);
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 	if (ret < 0) {
 		test_err("couldn't add extent map for range [120K, 128K)");
 		goto out;
@@ -967,7 +967,7 @@ static int test_case_8(struct btrfs_fs_info *fs_info, struct btrfs_inode *inode)
 	write_lock(&em_tree->lock);
 	ret = btrfs_add_extent_mapping(inode, &em, SZ_1K * 140, SZ_4K);
 	write_unlock(&em_tree->lock);
-	free_extent_map(em);
+	btrfs_free_extent_map(em);
 	if (ret < 0) {
 		test_err("couldn't add extent map for range [108K, 144K)");
 		goto out;

@@ -929,6 +929,10 @@ static void hw_breakpoint_cfi_handler(struct pt_regs *regs)
 		break;
 	}
 }
+#else
+static void hw_breakpoint_cfi_handler(struct pt_regs *regs)
+{
+}
 #endif
 
 /*
@@ -960,14 +964,9 @@ static int hw_breakpoint_pending(unsigned long addr, unsigned int fsr,
 	case ARM_ENTRY_SYNC_WATCHPOINT:
 		watchpoint_handler(addr, fsr, regs);
 		break;
-#ifdef CONFIG_CFI
 	case ARM_ENTRY_CFI_BREAKPOINT:
-		if (user_mode(regs))
-			ret = 1; /* Don't handle userspace BKPT */
-		else
-			hw_breakpoint_cfi_handler(regs);
+		hw_breakpoint_cfi_handler(regs);
 		break;
-#endif
 	default:
 		ret = 1; /* Unhandled fault. */
 	}

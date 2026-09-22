@@ -1303,9 +1303,10 @@ static u32 ethtool_flow_to_nfp_flag(u32 flow_type)
 	return xlate_ethtool_to_nfp[flow_type];
 }
 
-static int nfp_net_get_rss_hash_opts(struct nfp_net *nn,
-				     struct ethtool_rxnfc *cmd)
+static int nfp_net_get_rxfh_fields(struct net_device *netdev,
+				   struct ethtool_rxfh_fields *cmd)
 {
+	struct nfp_net *nn = netdev_priv(netdev);
 	u32 nfp_rss_flag;
 
 	cmd->data = 0;
@@ -1420,7 +1421,8 @@ static int nfp_net_get_fs_rule(struct nfp_net *nn, struct ethtool_rxnfc *cmd)
 	return -ENOENT;
 }
 
-static int nfp_net_get_fs_loc(struct nfp_net *nn, u32 *rule_locs)
+static int nfp_net_get_fs_loc(struct nfp_net *nn, struct ethtool_rxnfc *cmd,
+			      u32 *rule_locs)
 {
 	struct nfp_fs_entry *entry;
 	u32 count = 0;
@@ -1428,8 +1430,12 @@ static int nfp_net_get_fs_loc(struct nfp_net *nn, u32 *rule_locs)
 	if (!(nn->cap_w1 & NFP_NET_CFG_CTRL_FLOW_STEER))
 		return -EOPNOTSUPP;
 
-	list_for_each_entry(entry, &nn->fs.list, node)
+	list_for_each_entry(entry, &nn->fs.list, node) {
+		if (count == cmd->rule_cnt)
+			return -EMSGSIZE;
 		rule_locs[count++] = entry->loc;
+	}
+	cmd->rule_cnt = count;
 
 	return 0;
 }
@@ -1450,17 +1456,17 @@ static int nfp_net_get_rxnfc(struct net_device *netdev,
 		return nfp_net_get_fs_rule(nn, cmd);
 	case ETHTOOL_GRXCLSRLALL:
 		cmd->data = NFP_FS_MAX_ENTRY;
-		return nfp_net_get_fs_loc(nn, rule_locs);
-	case ETHTOOL_GRXFH:
-		return nfp_net_get_rss_hash_opts(nn, cmd);
+		return nfp_net_get_fs_loc(nn, cmd, rule_locs);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
 
-static int nfp_net_set_rss_hash_opt(struct nfp_net *nn,
-				    struct ethtool_rxnfc *nfc)
+static int nfp_net_set_rxfh_fields(struct net_device *netdev,
+				   const struct ethtool_rxfh_fields *nfc,
+				   struct netlink_ext_ack *extack)
 {
+	struct nfp_net *nn = netdev_priv(netdev);
 	u32 new_rss_cfg = nn->rss_cfg;
 	u32 nfp_rss_flag;
 	int err;
@@ -1693,8 +1699,14 @@ static int nfp_net_fs_add(struct nfp_net *nn, struct ethtool_rxnfc *cmd)
 
 			nn->fs.count--;
 			err = nfp_net_fs_add_hw(nn, new);
-			if (err)
+			if (err) {
+				/* mbox broken, adding the old rule back will
+				 * likely also fail.
+				 */
+				list_del(&entry->node);
+				kfree(entry);
 				goto err;
+			}
 
 			nn->fs.count++;
 			list_replace(&entry->node, &new->node);
@@ -1763,8 +1775,6 @@ static int nfp_net_set_rxnfc(struct net_device *netdev,
 	struct nfp_net *nn = netdev_priv(netdev);
 
 	switch (cmd->cmd) {
-	case ETHTOOL_SRXFH:
-		return nfp_net_set_rss_hash_opt(nn, cmd);
 	case ETHTOOL_SRXCLSRLINS:
 		return nfp_net_fs_add(nn, cmd);
 	case ETHTOOL_SRXCLSRLDEL:
@@ -2506,6 +2516,8 @@ static const struct ethtool_ops nfp_net_ethtool_ops = {
 	.get_rxfh_key_size	= nfp_net_get_rxfh_key_size,
 	.get_rxfh		= nfp_net_get_rxfh,
 	.set_rxfh		= nfp_net_set_rxfh,
+	.get_rxfh_fields	= nfp_net_get_rxfh_fields,
+	.set_rxfh_fields	= nfp_net_set_rxfh_fields,
 	.get_regs_len		= nfp_net_get_regs_len,
 	.get_regs		= nfp_net_get_regs,
 	.set_dump		= nfp_app_set_dump,

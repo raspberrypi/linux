@@ -3,7 +3,6 @@ config DRM_LOGICVC
 	depends on DRM
 	depends on OF || COMPILE_TEST
 	select DRM_KMS_HELPER
-	select DRM_KMS_DMA_HELPER
 	select DRM_GEM_DMA_HELPER
 	select REGMAP
 	select REGMAP_MMIO

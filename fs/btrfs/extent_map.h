@@ -144,12 +144,12 @@ static inline bool extent_map_is_compressed(const struct extent_map *em)
 			     EXTENT_FLAG_COMPRESS_ZSTD)) != 0;
 }
 
-static inline int extent_map_in_tree(const struct extent_map *em)
+static inline int btrfs_extent_map_in_tree(const struct extent_map *em)
 {
 	return !RB_EMPTY_NODE(&em->rb_node);
 }
 
-static inline u64 extent_map_block_start(const struct extent_map *em)
+static inline u64 btrfs_extent_map_block_start(const struct extent_map *em)
 {
 	if (em->disk_bytenr < EXTENT_MAP_LAST_BYTE) {
 		if (extent_map_is_compressed(em))
@@ -159,7 +159,7 @@ static inline u64 extent_map_block_start(const struct extent_map *em)
 	return em->disk_bytenr;
 }
 
-static inline u64 extent_map_end(const struct extent_map *em)
+static inline u64 btrfs_extent_map_end(const struct extent_map *em)
 {
 	if (em->start + em->len < em->start)
 		return (u64)-1;
@@ -174,7 +174,7 @@ int split_extent_map(struct btrfs_inode *inode, u64 start, u64 len, u64 pre,
 		     u64 new_logical);
 
 struct extent_map *alloc_extent_map(void);
-void free_extent_map(struct extent_map *em);
+void btrfs_free_extent_map(struct extent_map *em);
 int __init extent_map_init(void);
 void __cold extent_map_exit(void);
 int unpin_extent_cache(struct btrfs_inode *inode, u64 start, u64 len, u64 gen);
