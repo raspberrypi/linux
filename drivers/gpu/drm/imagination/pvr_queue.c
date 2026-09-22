@@ -818,7 +818,9 @@ static void pvr_queue_start(struct pvr_queue *queue)
  * the scheduler, and re-assign parent fences in the middle.
  *
  * Return:
- *  * DRM_GPU_SCHED_STAT_RESET.
+ *  *%DRM_GPU_SCHED_STAT_NO_HANG if the job fence has already been
+ *   signaled, or
+ *  *%DRM_GPU_SCHED_STAT_RESET otherwise.
  */
 static enum drm_gpu_sched_stat
 pvr_queue_timedout_job(struct drm_sched_job *s_job)
@@ -828,6 +830,9 @@ pvr_queue_timedout_job(struct drm_sched_job *s_job)
 	struct pvr_device *pvr_dev = queue->ctx->pvr_dev;
 	struct pvr_job *job;
 	u32 job_count = 0;
+
+	if (dma_fence_is_signaled(s_job->s_fence->parent))
+		return DRM_GPU_SCHED_STAT_NO_HANG;
 
 	dev_err(sched->dev, "Job timeout\n");
 

@@ -613,14 +613,49 @@ static const struct NTFS_DE *hdr_insert_head(struct INDEX_HDR *hdr,
  */
 static bool index_hdr_check(const struct INDEX_HDR *hdr, u32 bytes)
 {
+	const bool has_subnode = hdr_has_subnode(hdr);
+	const u16 min_size = sizeof(struct NTFS_DE) +
+			     (has_subnode ? sizeof(u64) : 0);
 	u32 end = le32_to_cpu(hdr->used);
 	u32 tot = le32_to_cpu(hdr->total);
 	u32 off = le32_to_cpu(hdr->de_off);
+	const struct NTFS_DE *e;
 
 	if (!IS_ALIGNED(off, 8) || tot > bytes || end > tot ||
-	    size_add(off, sizeof(struct NTFS_DE)) > end) {
+	    size_add(off, min_size) > end) {
 		/* incorrect index buffer. */
 		return false;
+	}
+
+	/* Ensure every key stays inside its entry before lookup walks it. */
+	e = (const struct NTFS_DE *)((const u8 *)hdr + off);
+	for (;;) {
+		u16 e_size = le16_to_cpu(e->size);
+		u16 key_size = le16_to_cpu(e->key_size);
+		u16 data_size;
+
+		if (!IS_ALIGNED(e_size, 8) || e_size < min_size ||
+		    de_has_vcn(e) != has_subnode) {
+			/* incorrect index entry. */
+			return false;
+		}
+
+		if (size_add(off, e_size) > end)
+			return false;
+
+		if (de_is_last(e)) {
+			if (key_size)
+				return false;
+
+			break;
+		}
+
+		data_size = e_size - min_size;
+		if (key_size > data_size)
+			return false;
+
+		off += e_size;
+		e = (const struct NTFS_DE *)((const u8 *)hdr + off);
 	}
 
 	return true;
@@ -758,6 +793,10 @@ fill_table:
 
 binary_search:
 	e_key_len = le16_to_cpu(e->key_size);
+
+	/* Validate key_size fits within the entry data area. */
+	if (e_key_len > le16_to_cpu(e->size) - sizeof(struct NTFS_DE))
+		return NULL;
 
 	diff2 = (*cmp)(key, key_len, e + 1, e_key_len, ctx);
 	if (diff2 > 0) {

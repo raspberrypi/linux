@@ -48,7 +48,7 @@ static int current_check_access_socket(struct socket *const sock,
 {
 	unsigned short sock_family;
 	__be16 port;
-	layer_mask_t layer_masks[LANDLOCK_NUM_ACCESS_NET] = {};
+	struct layer_access_masks layer_masks = {};
 	const struct landlock_rule *rule;
 	struct landlock_id id = {
 		.type = LANDLOCK_KEY_NET_PORT,
@@ -201,8 +201,10 @@ static int current_check_access_socket(struct socket *const sock,
 	access_request = landlock_init_layer_masks(subject->domain,
 						   access_request, &layer_masks,
 						   LANDLOCK_KEY_NET_PORT);
-	if (landlock_unmask_layers(rule, access_request, &layer_masks,
-				   ARRAY_SIZE(layer_masks)))
+	if (!access_request)
+		return 0;
+
+	if (landlock_unmask_layers(rule, &layer_masks))
 		return 0;
 
 	audit_net.family = address->sa_family;
@@ -214,7 +216,6 @@ static int current_check_access_socket(struct socket *const sock,
 				    .audit.u.net = &audit_net,
 				    .access = access_request,
 				    .layer_masks = &layer_masks,
-				    .layer_masks_size = ARRAY_SIZE(layer_masks),
 			    });
 	return -EACCES;
 }

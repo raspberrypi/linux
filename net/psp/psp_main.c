@@ -294,6 +294,9 @@ int psp_dev_rcv(struct sk_buff *skb, u16 dev_id, u8 generation, bool strip_icv)
 	if (proto == htons(ETH_P_IP)) {
 		struct iphdr *iph = (struct iphdr *)(skb->data + l2_hlen);
 
+		if (unlikely(iph->ihl < 5))
+			return -EINVAL;
+
 		is_udp = iph->protocol == IPPROTO_UDP;
 		l3_hlen = iph->ihl * 4;
 		if (l3_hlen != sizeof(struct iphdr) &&
@@ -347,12 +350,18 @@ int psp_dev_rcv(struct sk_buff *skb, u16 dev_id, u8 generation, bool strip_icv)
 	if (proto == htons(ETH_P_IP)) {
 		struct iphdr *iph = (struct iphdr *)(skb->data + l2_hlen);
 
+		if (unlikely(ntohs(iph->tot_len) < l3_hlen + encap))
+			return -EINVAL;
+
 		iph->protocol = psph->nexthdr;
 		iph->tot_len = htons(ntohs(iph->tot_len) - encap);
 		iph->check = 0;
 		iph->check = ip_fast_csum((u8 *)iph, iph->ihl);
 	} else {
 		struct ipv6hdr *ipv6h = (struct ipv6hdr *)(skb->data + l2_hlen);
+
+		if (unlikely(ntohs(ipv6h->payload_len) < encap))
+			return -EINVAL;
 
 		ipv6h->nexthdr = psph->nexthdr;
 		ipv6h->payload_len = htons(ntohs(ipv6h->payload_len) - encap);

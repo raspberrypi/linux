@@ -156,6 +156,9 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
 
 	edid_caps->edid_hdmi = connector->display_info.is_hdmi;
 
+	if (edid_caps->edid_hdmi)
+		edid_caps->qs_bit = connector->display_info.rgb_quant_range_selectable;
+
 	apply_edid_quirks(link, edid_buf, edid_caps);
 
 	sad_count = drm_edid_to_sad((struct edid *) edid->raw_edid, &sads);

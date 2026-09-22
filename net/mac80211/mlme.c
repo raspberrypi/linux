@@ -5008,12 +5008,14 @@ static void ieee80211_rx_mgmt_deauth(struct ieee80211_sub_if_data *sdata,
 				     struct ieee80211_mgmt *mgmt, size_t len)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	u16 reason_code = le16_to_cpu(mgmt->u.deauth.reason_code);
+	u16 reason_code;
 
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
 
-	if (len < 24 + 2)
+	if (len < offsetofend(struct ieee80211_mgmt, u.deauth.reason_code))
 		return;
+
+	reason_code = le16_to_cpu(mgmt->u.deauth.reason_code);
 
 	if (!ether_addr_equal(mgmt->bssid, mgmt->sa)) {
 		ieee80211_tdls_handle_disconnect(sdata, mgmt->sa, reason_code);
@@ -7400,8 +7402,6 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 	struct link_sta_info *link_sta;
 	struct sta_info *sta;
 	u64 changed = 0;
-	bool erp_valid;
-	u8 erp_value = 0;
 	u32 ncrc = 0;
 	u8 *bssid, *variable = mgmt->u.beacon.variable;
 	u8 deauth_buf[IEEE80211_DEAUTH_FRAME_LEN];
@@ -7521,6 +7521,13 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 	if (!elems)
 		return;
 
+	/*
+	 * Note: with MBSSID and an EMA (or broken) AP, we could fail to find
+	 * the correct multi-BSSID profile for the non-transmitting AP we're
+	 * connected to. The result's elems->mbssid_nontx_profile_missing is
+	 * indicating that, but some things must happen regardless.
+	 */
+
 	if (rx_status->flag & RX_FLAG_DECRYPTED &&
 	    ieee80211_mgd_ssid_mismatch(sdata, elems)) {
 		sdata_info(sdata, "SSID mismatch for AP %pM, disconnect\n",
@@ -7556,6 +7563,11 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 		}
 	}
 
+	/*
+	 * P2P will almost certainly not have MBSSID, but this just
+	 * assumes that it would at least always inherit NoA anyway
+	 * since it's absent from the channel.
+	 */
 	if (sdata->vif.p2p ||
 	    sdata->vif.driver_flags & IEEE80211_VIF_GET_NOA_UPDATE) {
 		struct ieee80211_p2p_noa_attr noa = {};
@@ -7613,22 +7625,16 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 
 	ieee80211_rx_bss_info(link, mgmt, len, rx_status);
 
+	/*
+	 * This assumes that all members of a multiple BSS set must be
+	 * switching together, so we can parse channel switch elements
+	 * from the transmitted BSS even if our non-transmitted one is
+	 * not present in this beacon (due to EMA.)
+	 */
 	ieee80211_sta_process_chanswitch(link, rx_status->mactime,
 					 rx_status->device_timestamp,
 					 elems, elems,
 					 IEEE80211_CSA_SOURCE_BEACON);
-
-	/* note that after this elems->ml_basic can no longer be used fully */
-	ieee80211_mgd_check_cross_link_csa(sdata, rx_status->link_id, elems);
-
-	ieee80211_mgd_update_bss_param_ch_cnt(sdata, bss_conf, elems);
-
-	if (!sdata->u.mgd.epcs.enabled &&
-	    !link->u.mgd.disable_wmm_tracking &&
-	    ieee80211_sta_wmm_params(local, link, elems->wmm_param,
-				     elems->wmm_param_len,
-				     elems->mu_edca_param_set))
-		changed |= BSS_CHANGED_QOS;
 
 	/*
 	 * If we haven't had a beacon before, tell the driver about the
@@ -7646,17 +7652,53 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 		ieee80211_recalc_ps_vif(sdata);
 	}
 
-	if (elems->erp_info) {
-		erp_valid = true;
-		erp_value = elems->erp_info[0];
-	} else {
-		erp_valid = false;
-	}
+	/* RNR isn't inside an MBSSID profile */
+	ieee80211_mgd_update_bss_param_ch_cnt(sdata, bss_conf, elems);
 
-	if (!ieee80211_is_s1g_beacon(hdr->frame_control))
+	/* assume ERP would be inherited anyway */
+	if (!ieee80211_is_s1g_beacon(hdr->frame_control)) {
+		u8 erp_value = 0;
+		bool erp_valid;
+
+		if (elems->erp_info) {
+			erp_valid = true;
+			erp_value = elems->erp_info[0];
+		} else {
+			erp_valid = false;
+		}
+
 		changed |= ieee80211_handle_bss_capability(link,
 				le16_to_cpu(mgmt->u.beacon.capab_info),
 				erp_valid, erp_value);
+	}
+
+	/*
+	 * There are some other things that we can only do when the
+	 * real non-transmitted profile was actually parsed, so exit
+	 * here before doing those.
+	 */
+	if (elems->mbssid_nontx_profile_missing)
+		goto apply;
+
+	/*
+	 * This requires multi-link element, which is from the MBSSID profile.
+	 * Note that after this elems->ml_basic can no longer be used fully.
+	 *
+	 * Note also that currently the parsing is incorrect, so this will
+	 * never actually do anything.
+	 */
+	ieee80211_mgd_check_cross_link_csa(sdata, rx_status->link_id, elems);
+
+	/*
+	 * EDCA parameters should be the same, but perhaps ACM can differ
+	 * between BSSes in an MBSSID set.
+	 */
+	if (!sdata->u.mgd.epcs.enabled &&
+	    !link->u.mgd.disable_wmm_tracking &&
+	    ieee80211_sta_wmm_params(local, link, elems->wmm_param,
+				     elems->wmm_param_len,
+				     elems->mu_edca_param_set))
+		changed |= BSS_CHANGED_QOS;
 
 	sta = sta_info_get(sdata, sdata->vif.cfg.ap_addr);
 	if (WARN_ON(!sta)) {
@@ -7702,6 +7744,7 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 	ieee80211_process_adv_ttlm(sdata, elems,
 				      le64_to_cpu(mgmt->u.beacon.timestamp));
 
+apply:
 	ieee80211_link_info_change_notify(sdata, link, changed);
 free:
 	kfree(elems);
@@ -10863,14 +10906,6 @@ int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
 				   "mlo: reconf: failed set valid links\n");
 			kfree_skb(skb);
 			goto err_free;
-		}
-
-		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
-		     link_id++) {
-			if (!(req->rem_links & BIT(link_id)))
-				continue;
-
-			ieee80211_sta_remove_link(sta, link_id);
 		}
 
 		/* notify the driver and upper layers */

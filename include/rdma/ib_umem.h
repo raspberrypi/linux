@@ -85,7 +85,7 @@ int ib_umem_copy_from(void *dst, struct ib_umem *umem, size_t offset,
 		      size_t length);
 unsigned long ib_umem_find_best_pgsz(struct ib_umem *umem,
 				     unsigned long pgsz_bitmap,
-				     unsigned long virt);
+				     u64 virt);
 
 /**
  * ib_umem_find_best_pgoff - Find best HW page size
@@ -121,16 +121,11 @@ static inline unsigned long ib_umem_find_best_pgoff(struct ib_umem *umem,
 
 static inline bool ib_umem_is_contiguous(struct ib_umem *umem)
 {
-	dma_addr_t dma_addr;
 	unsigned long pgsz;
 
-	/*
-	 * Select the smallest aligned page that can contain the whole umem if
-	 * it was contiguous.
-	 */
-	dma_addr = ib_umem_start_dma_addr(umem);
-	pgsz = roundup_pow_of_two((dma_addr ^ (umem->length - 1 + dma_addr)) + 1);
-	return !!ib_umem_find_best_pgoff(umem, pgsz, U64_MAX);
+	pgsz = ib_umem_find_best_pgsz(umem, ULONG_MAX,
+				      ib_umem_start_dma_addr(umem));
+	return pgsz && ib_umem_num_dma_blocks(umem, pgsz) == 1;
 }
 
 struct ib_umem_dmabuf *ib_umem_dmabuf_get(struct ib_device *device,
@@ -178,7 +173,7 @@ static inline int ib_umem_copy_from(void *dst, struct ib_umem *umem, size_t offs
 }
 static inline unsigned long ib_umem_find_best_pgsz(struct ib_umem *umem,
 						   unsigned long pgsz_bitmap,
-						   unsigned long virt)
+						   u64 virt)
 {
 	return 0;
 }

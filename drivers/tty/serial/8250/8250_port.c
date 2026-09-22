@@ -458,6 +458,8 @@ static void set_io_from_upio(struct uart_port *p)
 		p->serial_out = io_serial_out;
 		break;
 #endif
+	case UPIO_AU:
+		break;
 	default:
 		WARN(p->iotype != UPIO_PORT || p->iobase,
 		     "Unsupported UART type %x\n", p->iotype);
@@ -1809,6 +1811,13 @@ void serial8250_handle_irq_locked(struct uart_port *port, unsigned int iir)
 	lockdep_assert_held_once(&port->lock);
 
 	status = serial_lsr_in(up);
+
+	/*
+	 * Recover from no-data-ready and FIFO error condition to avoid getting
+	 * stuck in the ISR.
+	 */
+	if (!(status & UART_LSR_DR) && (status & UART_LSR_FIFOE))
+		serial8250_clear_and_reinit_fifos(up);
 
 	/*
 	 * If port is stopped and there are no error conditions in the

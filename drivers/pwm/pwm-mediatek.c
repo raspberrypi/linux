@@ -458,7 +458,7 @@ static const struct pwm_mediatek_of_data mt7623_pwm_data = {
 
 static const struct pwm_mediatek_of_data mt7628_pwm_data = {
 	.num_pwms = 4,
-	.pwm45_fixup = true,
+	.pwm45_fixup = false,
 	.chanreg_base = 0x10,
 	.chanreg_width = 0x40,
 };
