@@ -34,6 +34,7 @@
 #include <net/netdev_lock.h>
 #include <net/netdev_queues.h>
 
+#include "../core/dev.h"
 #include "common.h"
 
 /* State held across locks and calls for commands which have devlink fallback */
@@ -1302,11 +1303,17 @@ static int ethtool_copy_validate_indir(u32 *indir, void __user *useraddr,
 }
 
 u8 netdev_rss_key[NETDEV_RSS_KEY_LEN] __read_mostly;
+bool netdev_rss_key_initialized __read_mostly;
 
 void netdev_rss_key_fill(void *buffer, size_t len)
 {
 	BUG_ON(len > sizeof(netdev_rss_key));
 	net_get_random_once(netdev_rss_key, sizeof(netdev_rss_key));
+	if (unlikely(!READ_ONCE(netdev_rss_key_initialized))) {
+		/* Pair with smp_rmb() in proc_do_rss_key(). */
+		smp_wmb();
+		WRITE_ONCE(netdev_rss_key_initialized, true);
+	}
 	memcpy(buffer, netdev_rss_key, len);
 }
 EXPORT_SYMBOL(netdev_rss_key_fill);
