@@ -293,7 +293,7 @@ OPTIONS
 
 --call-graph::
 	Setup and enable call-graph (stack chain/backtrace) recording,
-	implies -g.  Default is "fp" (for user space).
+	implies -g.  Default is "fp" for user space (s390 uses "dwarf").
 
 	The unwinding method used for kernel space is dependent on the
 	unwinder used by the active kernel configuration, i.e
@@ -328,6 +328,11 @@ OPTIONS
 	Also "defer" can be used with "fp" (like "--call-graph fp,defer") to
 	enable deferred user callchain which will collect user-space callchains
 	when the thread returns to the user space.
+
+	On s390, the "fp" method uses back chain instead of frame pointers,
+	which requires user space to maintain a back chain (e.g. compiler
+	option -mbackchain).  Without a maintained back chain this produces
+	bogus call graphs.  In that case use "dwarf" instead.
 
 -q::
 --quiet::
