@@ -559,18 +559,23 @@ void mm_update_next_owner(struct mm_struct *mm)
  */
 static void exit_mm_sched_cache(struct mm_struct *mm)
 {
+	struct sched_cache_group *grp;
 	unsigned long fp, sub;
 
 	if (!current->total_numa_faults)
 		return;
 	/*
 	 * No lock protection due to performance considerations.
-	 * Make sure mm->sc_stat.footprint does not become
+	 * Make sure the group footprint does not become
 	 * negative.
 	 */
-	fp = READ_ONCE(mm->sc_stat.footprint);
+	grp = READ_ONCE(mm->sched_cache_grp);
+	if (!grp)
+		return;
+
+	fp = READ_ONCE(grp->footprint);
 	sub = min(fp, current->total_numa_faults);
-	WRITE_ONCE(mm->sc_stat.footprint, fp - sub);
+	WRITE_ONCE(grp->footprint, fp - sub);
 }
 #else
 static inline void exit_mm_sched_cache(struct mm_struct *mm)
