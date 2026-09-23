@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/touchscreen/jadard,jd9365tx.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Jadard JD9365TX in-cell touchscreen
+
+maintainers:
+  - Hefei <3066883572@qq.com>
+
+description: |
+  In-cell touch integrated with Jadard JD9365TX DSI panels. The module FPC
+  often exposes only I2C (no interrupt GPIO); the driver polls coordinate
+  reports.
+
+allOf:
+  - $ref: touchscreen.yaml#
+
+properties:
+  compatible:
+    enum:
+      - jadard,jd9365tx
+      - jadard,jd9365tx-tp
+
+  reg:
+    maxItems: 1
+
+  jadard,poll-interval-ms:
+    description: Polling interval in milliseconds (default 16)
+    minimum: 8
+    maximum: 100
+
+  jadard,max-touch-number:
+    description: Maximum simultaneous contacts
+    minimum: 1
+    maximum: 10
+
+  jadard,coord-addr:
+    description: Optional fixed coordinate SRAM address override
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        touchscreen@68 {
+            compatible = "jadard,jd9365tx";
+            reg = <0x68>;
+            touchscreen-size-x = <720>;
+            touchscreen-size-y = <1280>;
+            jadard,poll-interval-ms = <16>;
+            jadard,max-touch-number = <10>;
+        };
+    };
+...
