@@ -67,6 +67,8 @@ static void erofs_fscache_req_complete(struct erofs_fscache_rq *req)
 			continue;
 		if (!failed)
 			folio_mark_uptodate(folio);
+		/* Skip the entire folio before unlocking allows it to be split. */
+		xas_advance(&xas, folio_next_index(folio) - 1);
 		folio_unlock(folio);
 	}
 	rcu_read_unlock();
