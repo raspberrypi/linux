@@ -219,6 +219,8 @@ void lan937x_config_cpu_port(struct dsa_switch *ds)
 
 			/* enable cpu port */
 			lan937x_port_setup(dev, dp->index, true);
+		} else {
+			dev_warn(ds->dev, "port %d cannot be used as cpu port on this device.\n", dp->index);
 		}
 	}
 
