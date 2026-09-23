@@ -638,9 +638,8 @@ static void rxe_sock_put(struct sock *sk,
 	if (refcount_read(&sk->sk_refcnt) > SK_REF_FOR_TUNNEL) {
 		__sock_put(sk);
 	} else {
+		set_sk(net, NULL);
 		rxe_release_udp_tunnel(sk);
-		sk = NULL;
-		set_sk(net, sk);
 	}
 }
 
