@@ -1,0 +1,68 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2711";
+
+    fragment@0 {
+        target=<&dsi1>;
+
+        __overlay__ {
+            status = "okay";
+
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            port {
+                dsi1_out_port: endpoint {
+                    remote-endpoint = <&panel_dsi_in1>;
+                };
+            };
+
+            display1: panel@0 {
+                compatible = "txw,txw700071s0";
+                reg=<0>;
+                backlight = <&rpi_backlight>;
+                reset-gpios = <&gpio 20 1>;
+                port {
+                    panel_dsi_in1: endpoint {
+                        remote-endpoint = <&dsi1_out_port>;
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&gpio>;
+        __overlay__ {
+            pwm0_pins: pwm0_pins {
+                brcm,pins = <12>;
+                brcm,function = <4>;
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&pwm>;
+        frag1: __overlay__ {
+            pinctrl-names = "default";
+            pinctrl-0 = <&pwm0_pins>;
+            assigned-clock-rates = <1000000>;
+            status = "okay";
+        };
+    };
+
+    fragment@3 {
+        target-path = "/";
+        __overlay__ {
+            rpi_backlight: rpi_backlight {
+                compatible = "pwm-backlight";
+                brightness-levels = <0 6 8 12 16 24 32 40 48 64 96 128 160 192 224 255>;
+                default-brightness-level = <6>;
+                pwms = <&pwm 0 50000 0>;
+                status = "okay";
+            };
+        };
+    };
+};
