@@ -19,6 +19,7 @@
 #include <linux/nl80211.h>
 #include <linux/pci.h>
 #include <linux/module.h>
+#include <linux/clocksource.h>
 #include "ath9k.h"
 
 static const struct pci_device_id ath_pci_id_table[] = {
@@ -881,6 +882,64 @@ static const struct ath_bus_ops ath_pci_bus_ops = {
 	.aspm_init = ath_pci_aspm_init,
 };
 
+static u64 ath9k_cyclecounter_read(const struct cyclecounter *cc) {
+    struct ath_softc *sc = container_of(cc, struct ath_softc, cc);
+    return ath9k_hw_gettsf32(sc->sc_ah);
+}
+
+static enum hrtimer_restart ath_off_timer_cb(struct hrtimer *t) {
+    struct ath_softc *sc = container_of(t, struct ath_softc, off_timer);
+    struct ath_hw *ah = sc->sc_ah;
+    struct ptp_clock_info *ptp = &sc->ptp_clock_info;
+    ktime_t kt1, kt3;
+    u64 t1, t2, t3;
+    s64 offset;
+    struct timespec64 ts;
+    u64 next;
+    int i;
+
+    if (sc->off_counter == 0) {
+        ath9k_hw_ops(ah)->config_pci_powersave(ah, false);
+    }
+
+    for (i = 0; i < 1024; ++i) {
+        kt1 = ktime_get();
+        ptp->gettime64(ptp, &ts);
+        kt3 = ktime_get();
+        t3 = ktime_to_ns(kt3);
+        t1 = ktime_to_ns(kt1);
+        printk("ath9k timer: %lld\n", t3 - t1);
+    }
+
+    return HRTIMER_NORESTART;
+
+    if (!sc->off_base_time) {
+        sc->off_base_time = ktime_to_ns(ktime_get());
+    }
+
+    next = sc->off_base_time + sc->off_counter * ktime_to_ns(sc->off_interval);
+    hrtimer_forward(t, ns_to_ktime(next), sc->off_interval);
+
+    if (sc->off_counter++ >= 1024) {
+        return HRTIMER_NORESTART;
+    }
+
+    t2 = ath9k_cyclecounter_read(&sc->cc);
+
+    offset = t2 - sc->off_last;
+
+    /*
+    if (t3 - t1 > 3000) {
+        return HRTIMER_RESTART;
+    }
+    */
+
+    printk("ath9k: tsf value = %lld, diff=%lld\n", (s64)t2, offset);
+    sc->off_last = t2;
+
+    return HRTIMER_RESTART;
+}
+
 static int ath_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct ath_softc *sc;
@@ -989,6 +1048,25 @@ static int ath_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	wiphy_info(hw->wiphy, "%s mem=0x%p, irq=%d\n",
 		   hw_name, sc->mem, pdev->irq);
 
+    sc->cc.read  = ath9k_cyclecounter_read;
+    sc->cc.mask  = CYCLECOUNTER_MASK(32);
+    sc->cc.shift = ATH9K_PTP_FAKE_SHIFT;
+    sc->cc_mult  = clocksource_khz2mult(1000, sc->cc.shift);
+    sc->cc.mult  = sc->cc_mult;
+    spin_lock_init(&sc->systim_lock);
+
+    timecounter_init(&sc->tc, &sc->cc, ktime_to_ns(ktime_get_real()));
+
+    ath9k_ptp_init(sc);
+
+    sc->off_last = 0;
+    sc->off_interval = ktime_set(0, 1000000);
+    sc->off_base_time = 0;
+    sc->off_counter  = 0;
+    hrtimer_init(&sc->off_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    sc->off_timer.function = &ath_off_timer_cb;
+//    hrtimer_start(&sc->off_timer, ktime_set(30, 0), HRTIMER_MODE_REL);
+
 	return 0;
 
 err_init:
@@ -1002,6 +1080,9 @@ static void ath_pci_remove(struct pci_dev *pdev)
 {
 	struct ieee80211_hw *hw = pci_get_drvdata(pdev);
 	struct ath_softc *sc = hw->priv;
+
+    hrtimer_cancel(&sc->off_timer);
+    ath9k_ptp_remove(sc);
 
 	if (!is_ath9k_unloaded)
 		sc->sc_ah->ah_flags |= AH_UNPLUGGED;
@@ -1089,3 +1170,4 @@ void ath_pci_exit(void)
 {
 	pci_unregister_driver(&ath_pci_driver);
 }
+

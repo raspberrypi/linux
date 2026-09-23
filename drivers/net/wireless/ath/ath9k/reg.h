@@ -1112,7 +1112,7 @@ enum {
 #define AR_PCIE_SERDES                           0x4040
 #define AR_PCIE_SERDES2                          0x4044
 #define AR_PCIE_PM_CTRL(_ah)                     (AR_SREV_9340(_ah) ? 0x4004 : 0x4014)
-#define AR_PCIE_PM_CTRL_ENA                      0x00080000
+#define AR_PCIE_PM_CTRL_ENA                      0x00040000
 
 #define AR_PCIE_PHY_REG3			 0x18c08
 
