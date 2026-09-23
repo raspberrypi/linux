@@ -275,15 +275,40 @@ static void mipi_dbi_fb_dirty(struct iosys_map *src, struct drm_framebuffer *fb,
 			      struct drm_format_conv_state *fmtcnv_state)
 {
 	struct mipi_dbi_dev *dbidev = drm_to_mipi_dbi_dev(fb->dev);
-	unsigned int height = rect->y2 - rect->y1;
-	unsigned int width = rect->x2 - rect->x1;
 	const struct drm_format_info *dst_format;
 	struct mipi_dbi *dbi = &dbidev->dbi;
 	bool swap = dbi->swap_bytes;
+	unsigned int height, width;
 	int ret = 0;
 	size_t len;
 	bool full;
 	void *tr;
+
+	/*
+	 * @rect is in framebuffer coordinates, clipped to the plane's src
+	 * rectangle by the damage iterator against that rectangle's exact
+	 * 16.16 fixed-point bounds. @src_x/@src_y are that same origin
+	 * truncated to whole pixels. When the origin has a fractional part,
+	 * that truncation can leave @rect's far edge up to a pixel past
+	 * where a whole-pixel @src_x/@src_y would place the panel's own
+	 * width/height -- and tx_buf is sized for exactly the panel, with no
+	 * slack for that overshoot. Clamp before using @rect for anything.
+	 *
+	 * A damage clip can lie entirely in that one-pixel sliver past the
+	 * panel edge -- the iterator above clips only against the exact
+	 * fixed-point bound, not the whole-pixel one used here -- in which
+	 * case the clamp collapses @rect to zero width or height. Nothing in
+	 * it was ever visible on the panel, so skip the flush rather than
+	 * program an inverted (start past end) address window.
+	 */
+	rect->x2 = min_t(int, rect->x2, src_x + dbidev->mode.hdisplay);
+	rect->y2 = min_t(int, rect->y2, src_y + dbidev->mode.vdisplay);
+
+	if (rect->x2 <= rect->x1 || rect->y2 <= rect->y1)
+		return;
+
+	height = rect->y2 - rect->y1;
+	width = rect->x2 - rect->x1;
 
 	full = width == fb->width && height == fb->height;
 
