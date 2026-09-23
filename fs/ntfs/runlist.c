@@ -702,9 +702,8 @@ static struct runlist_element *__ntfs_runlists_merge(struct runlist *d_runlist,
 				/* Add an unmapped runlist element. */
 				if (!slots) {
 					drl = ntfs_rl_realloc_nofail(drl, ds,
-							ds + 2);
+							ds + 3);
 					slots = 2;
-					*new_rl_count += 2;
 				}
 				ds++;
 				/* Need to set vcn if it isn't set already. */
@@ -720,11 +719,11 @@ static struct runlist_element *__ntfs_runlists_merge(struct runlist *d_runlist,
 			ds++;
 			if (!slots) {
 				drl = ntfs_rl_realloc_nofail(drl, ds, ds + 1);
-				*new_rl_count += 1;
 			}
 			drl[ds].vcn = marker_vcn;
 			drl[ds].lcn = LCN_ENOENT;
 			drl[ds].length = (s64)0;
+			*new_rl_count = ds + 1;
 		}
 	}
 	}
