@@ -620,8 +620,7 @@ static int panthor_mmu_as_enable(struct panthor_device *ptdev, u32 as_nr,
 	return as_send_cmd_and_wait(ptdev, as_nr, AS_COMMAND_UPDATE);
 }
 
-static int panthor_mmu_as_disable(struct panthor_device *ptdev, u32 as_nr,
-				  bool recycle_slot)
+static int panthor_mmu_as_disable(struct panthor_device *ptdev, u32 as_nr)
 {
 	struct panthor_mmu *mmu = ptdev->mmu;
 	struct panthor_vm *vm = ptdev->mmu->as.slots[as_nr].vm;
@@ -644,12 +643,6 @@ static int panthor_mmu_as_disable(struct panthor_device *ptdev, u32 as_nr,
 		if (ret)
 			return ret;
 	}
-
-	/* If the slot is going to be used immediately, don't bother changing
-	 * the config.
-	 */
-	if (recycle_slot)
-		return 0;
 
 	gpu_write64(mmu->iomem, AS_TRANSTAB(as_nr), 0);
 	gpu_write64(mmu->iomem, AS_MEMATTR(as_nr), 0);
@@ -777,7 +770,7 @@ int panthor_vm_active(struct panthor_vm *vm)
 		drm_WARN_ON(&ptdev->base, refcount_read(&lru_vm->as.active_cnt));
 		as = lru_vm->as.id;
 
-		ret = panthor_mmu_as_disable(ptdev, as, true);
+		ret = panthor_mmu_as_disable(ptdev, as);
 		if (ret)
 			goto out_unlock;
 
@@ -919,7 +912,7 @@ static void panthor_vm_declare_unusable(struct panthor_vm *vm)
 	vm->unusable = true;
 	mutex_lock(&ptdev->mmu->as.slots_lock);
 	if (vm->as.id >= 0 && drm_dev_enter(&ptdev->base, &cookie)) {
-		panthor_mmu_as_disable(ptdev, vm->as.id, false);
+		panthor_mmu_as_disable(ptdev, vm->as.id);
 		drm_dev_exit(cookie);
 	}
 	mutex_unlock(&ptdev->mmu->as.slots_lock);
@@ -1911,7 +1904,7 @@ static void panthor_mmu_irq_handler(struct panthor_device *ptdev, u32 status)
 			ptdev->mmu->as.slots[as].vm->unhandled_fault = true;
 
 		/* Disable the MMU to kill jobs on this AS. */
-		panthor_mmu_as_disable(ptdev, as, false);
+		panthor_mmu_as_disable(ptdev, as);
 		mutex_unlock(&ptdev->mmu->as.slots_lock);
 
 		status &= ~mask;
@@ -1940,7 +1933,7 @@ void panthor_mmu_suspend(struct panthor_device *ptdev)
 
 		if (vm) {
 			drm_WARN_ON(&ptdev->base,
-				    panthor_mmu_as_disable(ptdev, i, false));
+				    panthor_mmu_as_disable(ptdev, i));
 			panthor_vm_release_as_locked(vm);
 		}
 	}
@@ -2065,7 +2058,7 @@ static void panthor_vm_free(struct drm_gpuvm *gpuvm)
 		int cookie;
 
 		if (drm_dev_enter(&ptdev->base, &cookie)) {
-			panthor_mmu_as_disable(ptdev, vm->as.id, false);
+			panthor_mmu_as_disable(ptdev, vm->as.id);
 			drm_dev_exit(cookie);
 		}
 
@@ -3360,7 +3353,7 @@ void panthor_mmu_unplug(struct panthor_device *ptdev)
 
 		if (vm) {
 			drm_WARN_ON(&ptdev->base,
-				    panthor_mmu_as_disable(ptdev, i, false));
+				    panthor_mmu_as_disable(ptdev, i));
 			panthor_vm_release_as_locked(vm);
 		}
 	}
