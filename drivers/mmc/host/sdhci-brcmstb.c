@@ -384,6 +384,15 @@ static void sdhci_brcmstb_set_72116_uhs_signaling(struct sdhci_host *host, unsig
 	sdhci_set_uhs_signaling(host, timing);
 }
 
+static unsigned int bcm2712_get_min_clock(struct sdhci_host *host)
+{
+	/*
+	 * At card clock frequencies lower than 400kHz, register writes may be
+	 * dropped by the host bus interface.
+	 */
+	return 400000;
+}
+
 static void sdhci_brcmstb_dumpregs(struct mmc_host *mmc)
 {
 	sdhci_dumpregs(mmc_priv(mmc));
@@ -439,6 +448,7 @@ static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = brcmstb_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.get_min_clock = bcm2712_get_min_clock,
 };
 
 static struct sdhci_ops sdhci_brcmstb_ops_72116 = {
