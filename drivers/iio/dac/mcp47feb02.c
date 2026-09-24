@@ -442,8 +442,6 @@ static int mcp47feb02_write_to_eeprom(struct mcp47feb02_data *data, unsigned int
 	 * Wait until the currently occurring EEPROM Write Cycle is completed.
 	 * Only serial commands to the volatile memory are allowed.
 	 */
-	guard(mutex)(&data->lock);
-
 	ret = regmap_read_poll_timeout(data->regmap, MCP47FEB02_GAIN_CTRL_STATUS_REG_ADDR,
 				       eewa_val,
 				       !(eewa_val & MCP47FEB02_GAIN_BIT_STATUS_EEWA_MASK),
@@ -468,6 +466,8 @@ static ssize_t store_eeprom_store(struct device *dev, struct device_attribute *a
 
 	if (!state)
 		return len;
+
+	guard(mutex)(&data->lock);
 
 	/*
 	 * Verify DAC Wiper and DAC Configuration are unlocked. If both are disabled,
