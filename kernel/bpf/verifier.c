@@ -10020,11 +10020,16 @@ static int check_func_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 		}
 
 		if (env->subprog_info[subprog].might_sleep && !in_sleepable_context(env)) {
+			const char *suggestion;
+
 			verbose(env, "sleepable global function %s() called in %s\n",
 				sub_name, non_sleepable_context_description(env));
+			if (in_sleepable(env))
+				suggestion = "Move the call outside the critical section, or use a non-sleepable function.";
+			else
+				suggestion = "Mark the program sleepable if the program type allows it, or use a non-sleepable function.";
 			operation = bpf_diag_fmt(env, "sleepable global function %s()", sub_name);
-			bpf_diag_ctx_forbidden(env, *insn_idx, operation,
-				"Move the call outside the critical section, or use a non-sleepable function.");
+			bpf_diag_ctx_forbidden(env, *insn_idx, operation, suggestion);
 			return -EINVAL;
 		}
 
@@ -10872,14 +10877,16 @@ static inline bool in_sleepable_context(struct bpf_verifier_env *env)
 
 static const char *non_sleepable_context_description(struct bpf_verifier_env *env)
 {
-	if (env->cur_state->active_rcu_locks)
-		return "rcu_read_lock region";
-	if (env->cur_state->active_preempt_locks)
-		return "non-preemptible region";
-	if (env->cur_state->active_irq_id)
-		return "IRQ-disabled region";
-	if (env->cur_state->active_locks)
-		return "lock region";
+	if (in_sleepable(env)) {
+		if (env->cur_state->active_rcu_locks)
+			return "rcu_read_lock region";
+		if (env->cur_state->active_preempt_locks)
+			return "non-preemptible region";
+		if (env->cur_state->active_irq_id)
+			return "IRQ-disabled region";
+		if (env->cur_state->active_locks)
+			return "lock region";
+	}
 	return "non-sleepable prog";
 }
 
@@ -10971,12 +10978,17 @@ static int check_helper_call(struct bpf_verifier_env *env, struct bpf_insn *insn
 	}
 
 	if (fn->might_sleep && !in_sleepable_context(env)) {
+		const char *suggestion;
+
 		verbose(env, "sleepable helper %s#%d in %s\n", func_id_name(func_id), func_id,
 			non_sleepable_context_description(env));
+		if (in_sleepable(env))
+			suggestion = "Move the helper call outside the critical section, or use a non-sleepable helper.";
+		else
+			suggestion = "Mark the program sleepable if the program type allows it, or use a non-sleepable helper.";
 		operation = bpf_diag_fmt(env, "sleepable helper %s#%d",
 					 func_id_name(func_id), func_id);
-		bpf_diag_ctx_forbidden(env, insn_idx, operation,
-			"Move the helper call outside the critical section, or use a non-sleepable helper.");
+		bpf_diag_ctx_forbidden(env, insn_idx, operation, suggestion);
 		return -EINVAL;
 	}
 
@@ -13941,11 +13953,20 @@ static int check_kfunc_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 	}
 
 	sleepable = bpf_is_kfunc_sleepable(&meta);
-	if (sleepable && !in_sleepable(env)) {
-		verbose(env, "program must be sleepable to call sleepable kfunc %s\n", func_name);
+	if (sleepable && !in_sleepable_context(env)) {
+		const char *suggestion;
+
+		if (in_sleepable(env)) {
+			verbose(env, "kernel func %s is sleepable within %s\n",
+				func_name, non_sleepable_context_description(env));
+			suggestion = "Move the kfunc call outside the critical section, or use a non-sleepable kfunc.";
+		} else {
+			verbose(env, "program must be sleepable to call sleepable kfunc %s\n",
+				func_name);
+			suggestion = "Mark the program sleepable if the program type allows it, or use a non-sleepable kfunc.";
+		}
 		operation = bpf_diag_fmt(env, "sleepable kfunc %s", func_name);
-		bpf_diag_ctx_forbidden(env, insn_idx, operation,
-			"Mark the program sleepable if the program type allows it, or use a non-sleepable kfunc.");
+		bpf_diag_ctx_forbidden(env, insn_idx, operation, suggestion);
 		return -EACCES;
 	}
 
@@ -14043,15 +14064,6 @@ static int check_kfunc_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 					env->cur_state->active_preempt_locks);
 		if (!in_rcu_cs(env))
 			invalidate_rcu_protected_refs(env);
-	}
-
-	if (sleepable && !in_sleepable_context(env)) {
-		verbose(env, "kernel func %s is sleepable within %s\n",
-			func_name, non_sleepable_context_description(env));
-		operation = bpf_diag_fmt(env, "sleepable kfunc %s", func_name);
-		bpf_diag_ctx_forbidden(env, insn_idx, operation,
-			"Move the kfunc call outside the critical section, or use a non-sleepable kfunc.");
-		return -EACCES;
 	}
 
 	if (in_rbtree_lock_required_cb(env) && (rcu_lock || rcu_unlock)) {

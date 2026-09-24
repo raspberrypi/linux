@@ -1088,16 +1088,17 @@ void bpf_diag_ctx_forbidden(struct bpf_verifier_env *env, u32 insn_idx,
 	const char *constraint, *context;
 	u32 depth;
 
-	if (env->cur_state->active_rcu_locks)
-		ctx_kind = BPF_DIAG_CONTEXT_RCU;
-	else if (env->cur_state->active_preempt_locks)
-		ctx_kind = BPF_DIAG_CONTEXT_PREEMPT;
-	else if (env->cur_state->active_irq_id)
-		ctx_kind = BPF_DIAG_CONTEXT_IRQ;
-	else if (env->cur_state->active_locks)
-		ctx_kind = BPF_DIAG_CONTEXT_LOCK;
-	else
-		ctx_kind = BPF_DIAG_CONTEXT_NONE;
+	ctx_kind = BPF_DIAG_CONTEXT_NONE;
+	if (env->cur_state->in_sleepable) {
+		if (env->cur_state->active_rcu_locks)
+			ctx_kind = BPF_DIAG_CONTEXT_RCU;
+		else if (env->cur_state->active_preempt_locks)
+			ctx_kind = BPF_DIAG_CONTEXT_PREEMPT;
+		else if (env->cur_state->active_irq_id)
+			ctx_kind = BPF_DIAG_CONTEXT_IRQ;
+		else if (env->cur_state->active_locks)
+			ctx_kind = BPF_DIAG_CONTEXT_LOCK;
+	}
 
 	depth = diag_context_depth(env, ctx_kind);
 	opts = (struct bpf_diag_history_opts) {
