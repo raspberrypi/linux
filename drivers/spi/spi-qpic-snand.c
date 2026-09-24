@@ -1642,6 +1642,7 @@ static void qcom_spi_remove(struct platform_device *pdev)
 static const struct qcom_nandc_props ipq9574_snandc_props = {
 	.dev_cmd_reg_start = 0x7000,
 	.bam_offset = 0x30000,
+	.qpic_version2 = true,
 	.supports_bam = true,
 };
 
