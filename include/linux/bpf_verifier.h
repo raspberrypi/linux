@@ -254,52 +254,6 @@ enum bpf_stack_slot_type {
 /* 4-byte stack slot granularity for liveness analysis */
 #define BPF_HALF_REG_SIZE	4
 #define STACK_SLOT_SZ		4
-#define STACK_SLOTS		(MAX_BPF_STACK / BPF_HALF_REG_SIZE)	/* 128 */
-
-typedef struct {
-	u64 v[2];
-} spis_t;
-
-#define SPIS_ZERO	((spis_t){})
-#define SPIS_ALL	((spis_t){{ U64_MAX, U64_MAX }})
-
-static inline bool spis_is_zero(spis_t s)
-{
-	return s.v[0] == 0 && s.v[1] == 0;
-}
-
-static inline bool spis_equal(spis_t a, spis_t b)
-{
-	return a.v[0] == b.v[0] && a.v[1] == b.v[1];
-}
-
-static inline spis_t spis_or(spis_t a, spis_t b)
-{
-	return (spis_t){{ a.v[0] | b.v[0], a.v[1] | b.v[1] }};
-}
-
-static inline spis_t spis_and(spis_t a, spis_t b)
-{
-	return (spis_t){{ a.v[0] & b.v[0], a.v[1] & b.v[1] }};
-}
-
-static inline spis_t spis_not(spis_t s)
-{
-	return (spis_t){{ ~s.v[0], ~s.v[1] }};
-}
-
-static inline bool spis_test_bit(spis_t s, u32 slot)
-{
-	return s.v[slot / 64] & BIT_ULL(slot % 64);
-}
-
-static inline void spis_or_range(spis_t *mask, u32 lo, u32 hi)
-{
-	u32 w;
-
-	for (w = lo; w <= hi && w < STACK_SLOTS; w++)
-		mask->v[w / 64] |= BIT_ULL(w % 64);
-}
 
 #define BPF_REGMASK_ARGS ((1 << BPF_REG_1) | (1 << BPF_REG_2) | \
 			  (1 << BPF_REG_3) | (1 << BPF_REG_4) | \
@@ -1013,8 +967,8 @@ struct bpf_verifier_env {
 	} cfg;
 	struct backtrack_state bt;
 	struct bpf_jmp_history_entry *cur_hist_ent;
-	/* Per-callsite copy of parent's converged at_stack_in for cross-frame fills. */
-	struct arg_track **callsite_at_stack;
+	/* Per-callsite snapshot of the parent's tracked spill slots for cross-frame fills. */
+	struct spill_snapshot **callsite_at_stack;
 	u32 pass_cnt; /* number of times do_check() was called */
 	u32 subprog_cnt;
 	/* number of instructions analyzed by the verifier */
