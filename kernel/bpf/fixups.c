@@ -356,6 +356,44 @@ struct bpf_prog *bpf_patch_insn_data(struct bpf_verifier_env *env, u32 off,
 }
 
 /*
+ * insn was moved down by delta insns inside its own patch. Operands relative
+ * to the pc that point in front of the old position did not move with it.
+ */
+static int bpf_adj_moved_insn(struct bpf_insn *insn, u32 delta)
+{
+	u8 class = BPF_CLASS(insn->code), op = BPF_OP(insn->code);
+	s64 off = insn->imm, off_min = S32_MIN;
+	bool is_imm = true;
+
+	if (bpf_pseudo_func(insn) || bpf_pseudo_call(insn)) {
+		/* subprog that started at the old position starts with the patch */
+		if (off >= 0)
+			return 0;
+	} else if ((class == BPF_JMP || class == BPF_JMP32) &&
+		   op != BPF_CALL && op != BPF_EXIT) {
+		if (insn->code != (BPF_JMP32 | BPF_JA)) {
+			off = insn->off;
+			off_min = S16_MIN;
+			is_imm = false;
+		}
+		/* jump to itself stays */
+		if (off >= -1)
+			return 0;
+	} else {
+		return 0;
+	}
+
+	off -= delta;
+	if (off < off_min)
+		return -ERANGE;
+	if (is_imm)
+		insn->imm = off;
+	else
+		insn->off = off;
+	return 0;
+}
+
+/*
  * For all jmp insns in a given 'prog' that point to 'tgt_idx' insn adjust the
  * jump offset by 'delta'.
  */
@@ -845,7 +883,13 @@ int bpf_convert_ctx_accesses(struct bpf_verifier_env *env)
 			struct bpf_insn *patch = insn_buf;
 
 			*patch++ = BPF_ST_NOSPEC();
-			*patch++ = *insn;
+			*patch = *insn;
+			ret = bpf_adj_moved_insn(patch++, 1);
+			if (ret) {
+				verbose(env, "insn %d cannot be patched due to 16-bit range\n",
+					env->insn_aux_data[i + delta].orig_idx);
+				return ret;
+			}
 			cnt = patch - insn_buf;
 			new_prog = bpf_patch_insn_data(env, i + delta, insn_buf, cnt);
 			if (!new_prog)
@@ -2477,7 +2521,14 @@ next_insn:
 						     BPF_MAX_LOOPS);
 		}
 		/* Copy first actual insn to preserve it */
-		insn_buf[cnt++] = env->prog->insnsi[subprog_start];
+		insn_buf[cnt] = env->prog->insnsi[subprog_start];
+		ret = bpf_adj_moved_insn(&insn_buf[cnt], cnt);
+		if (ret) {
+			verbose(env, "insn %d cannot be patched due to 16-bit range\n",
+				env->insn_aux_data[subprog_start].orig_idx);
+			return ret;
+		}
+		cnt++;
 
 		new_prog = bpf_patch_insn_data(env, subprog_start, insn_buf, cnt);
 		if (!new_prog)
