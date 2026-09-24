@@ -18,5 +18,6 @@ trap trap_cleanup EXIT TERM INT
 shelldir=$(dirname "$0")
 perf_path=$(which perf)
 python "${shelldir}"/lib/attr.py -d "${shelldir}"/attr -v -p "$perf_path"
+err=$?
 cleanup
 exit $err
