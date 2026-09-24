@@ -394,6 +394,15 @@ static int bcm2712_init_sd_express(struct sdhci_host *host, struct mmc_ios *ios)
 	return ret;
 }
 
+static unsigned int bcm2712_get_min_clock(struct sdhci_host *host)
+{
+	/*
+	 * At card clock frequencies lower than 400kHz, register writes may be
+	 * dropped by the host bus interface.
+	 */
+	return 400000;
+}
+
 static void sdhci_brcmstb_dumpregs(struct mmc_host *mmc)
 {
 	sdhci_dumpregs(mmc_priv(mmc));
@@ -450,6 +459,7 @@ static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
 	.reset = brcmstb_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.init_sd_express = bcm2712_init_sd_express,
+	.get_min_clock = bcm2712_get_min_clock,
 };
 
 static struct sdhci_ops sdhci_brcmstb_ops_7216 = {
