@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/perf/brcm,bcm2835-axiperf.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Broadcom BCM2835/2711/2712 AXI Performance Monitor
+
+maintainers:
+  - Ian Rogers <irogers@google.com>
+
+description: |
+  The Broadcom BCM2835 series (including BCM2711 and BCM2712) features hardware
+  performance monitors on the AXI bus for evaluating memory bandwidth and
+  system traffic. Depending on the SoC architecture, multiple monitors exist.
+  The primary
+  monitor evaluates the System fabric, while the secondary monitor evaluates the
+  VideoCore VPU hardware.
+
+  Older silicon generally restricts direct MMIO access to the VPU endpoints,
+  requiring them to be accessed over the Raspberry Pi firmware mailbox
+  interface. If the VPU endpoints are memory-mapped, they are supplied as
+  secondary resources.
+
+properties:
+  compatible:
+    enum:
+      - brcm,bcm2835-axiperf
+      - brcm,bcm2711-axiperf
+      - brcm,bcm2712-axiperf
+
+  reg:
+    minItems: 1
+    maxItems: 2
+    description: |
+      Memory-mapped I/O resource regions for the AXI PMU endpoints.
+      Typically ordered as System monitor, followed by VPU monitor if directly
+      mapped.
+
+  firmware:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: |
+      Phandle to the Raspberry Pi firmware node. Required on older silicon
+      (BCM2835-BCM2711) where VideoCore VPU endpoints are exclusively accessed
+      via firmware mailbox IPC.
+
+required:
+  - compatible
+  - reg
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - brcm,bcm2835-axiperf
+              - brcm,bcm2711-axiperf
+    then:
+      required:
+        - firmware
+
+additionalProperties: false
+
+examples:
+  - |
+    pmu@7e00a000 {
+        compatible = "brcm,bcm2835-axiperf";
+        reg = <0x7e00a000 0x100>;
+        firmware = <&firmware>;
+    };
+  - |
+    pmu@7d620000 {
+        compatible = "brcm,bcm2712-axiperf";
+        reg = <0x7d620000 0x100>,
+              <0x7d630000 0x100>;
+    };
