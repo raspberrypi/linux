@@ -693,10 +693,12 @@ void bpf_mark_all_scalars_precise(struct bpf_verifier_env *env,
 						i, j);
 				}
 			}
-			for (j = 0; j < func->allocated_stack / BPF_REG_SIZE; j++) {
-				if (!bpf_is_spilled_reg(&func->stack[j]))
+			for (j = 0; j < bpf_stack_nr_slots(func); j++) {
+				struct bpf_stack_state *ss = bpf_stack_slot(func, j);
+
+				if (!bpf_is_spilled_reg(ss))
 					continue;
-				reg = &func->stack[j].spilled_ptr;
+				reg = &ss->spilled_ptr;
 				if (reg->type != SCALAR_VALUE || reg->precise)
 					continue;
 				reg->precise = true;
@@ -808,6 +810,7 @@ int bpf_mark_chain_precision(struct bpf_verifier_env *env,
 	int subseq_idx = -1;
 	struct bpf_func_state *func;
 	bool tmp, skip_first = true;
+	struct bpf_stack_state *ss;
 	struct bpf_reg_state *reg;
 	int i, fr, err;
 
@@ -932,16 +935,17 @@ int bpf_mark_chain_precision(struct bpf_verifier_env *env,
 
 			bitmap_from_u64(mask, bt_frame_stack_mask(bt, fr));
 			for_each_set_bit(i, mask, 64) {
-				if (verifier_bug_if(i >= func->allocated_stack / BPF_REG_SIZE,
+				if (verifier_bug_if(i >= bpf_stack_nr_slots(func),
 						    env, "stack slot %d, total slots %d",
-						    i, func->allocated_stack / BPF_REG_SIZE))
+						    i, bpf_stack_nr_slots(func)))
 					return -EFAULT;
 
-				if (!bpf_is_spilled_scalar_reg(&func->stack[i])) {
+				ss = bpf_stack_slot(func, i);
+				if (!bpf_is_spilled_scalar_reg(ss)) {
 					bt_clear_frame_slot(bt, fr, i);
 					continue;
 				}
-				reg = &func->stack[i].spilled_ptr;
+				reg = &ss->spilled_ptr;
 				if (reg->precise) {
 					bt_clear_frame_slot(bt, fr, i);
 				} else {

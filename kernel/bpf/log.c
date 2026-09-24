@@ -716,7 +716,8 @@ void print_verifier_state(struct bpf_verifier_env *env, const struct bpf_verifie
 		verbose(env, "=");
 		print_reg_state(env, state, reg);
 	}
-	for (i = 0; i < state->allocated_stack / BPF_REG_SIZE; i++) {
+	for (i = 0; i < bpf_stack_nr_slots(state); i++) {
+		struct bpf_stack_state *slot = bpf_stack_slot(state, i);
 		char types_buf[BPF_REG_SIZE + 1];
 		const char *sep = "";
 		bool valid = false;
@@ -727,7 +728,7 @@ void print_verifier_state(struct bpf_verifier_env *env, const struct bpf_verifie
 			continue;
 
 		for (j = 0; j < BPF_REG_SIZE; j++) {
-			slot_type = state->stack[i].slot_type[j];
+			slot_type = slot->slot_type[j];
 			if (slot_type != STACK_INVALID && slot_type != STACK_POISON)
 				valid = true;
 			types_buf[j] = slot_type_char[slot_type];
@@ -736,12 +737,12 @@ void print_verifier_state(struct bpf_verifier_env *env, const struct bpf_verifie
 		if (!valid)
 			continue;
 
-		reg = &state->stack[i].spilled_ptr;
-		switch (state->stack[i].slot_type[BPF_REG_SIZE - 1]) {
+		reg = &slot->spilled_ptr;
+		switch (slot->slot_type[BPF_REG_SIZE - 1]) {
 		case STACK_SPILL:
 			/* print MISC/ZERO/INVALID slots above subreg spill */
 			for (j = 0; j < BPF_REG_SIZE; j++)
-				if (state->stack[i].slot_type[j] == STACK_SPILL)
+				if (slot->slot_type[j] == STACK_SPILL)
 					break;
 			types_buf[j] = '\0';
 
@@ -751,7 +752,7 @@ void print_verifier_state(struct bpf_verifier_env *env, const struct bpf_verifie
 		case STACK_DYNPTR:
 			/* skip to main dynptr slot */
 			i += BPF_DYNPTR_NR_SLOTS - 1;
-			reg = &state->stack[i].spilled_ptr;
+			reg = &bpf_stack_slot(state, i)->spilled_ptr;
 
 			verbose(env, " fp%d", (-i - 1) * BPF_REG_SIZE);
 			verbose(env, "=dynptr_%s(", dynptr_type_str(reg->dynptr.type));

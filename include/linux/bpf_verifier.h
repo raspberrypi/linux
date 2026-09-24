@@ -530,12 +530,31 @@ struct bpf_verifier_state {
 	u32 may_goto_depth;
 };
 
+/* Number of BPF_REG_SIZE stack slots tracked for the frame so far. */
+static inline u32 bpf_stack_nr_slots(const struct bpf_func_state *frame)
+{
+	return frame->allocated_stack / BPF_REG_SIZE;
+}
+
+/*
+ * Stack slot @spi of @frame, covering bytes [fp - (spi + 1) * 8, fp - spi * 8).
+ * The caller must ensure spi < bpf_stack_nr_slots(frame), see grow_stack_state().
+ */
+static inline struct bpf_stack_state *bpf_stack_slot(const struct bpf_func_state *frame, u32 spi)
+{
+	return &frame->stack[spi];
+}
+
 static inline struct bpf_reg_state *
 bpf_get_spilled_reg(int slot, struct bpf_func_state *frame, u32 mask)
 {
-	if (slot < frame->allocated_stack / BPF_REG_SIZE &&
-	    (1 << frame->stack[slot].slot_type[BPF_REG_SIZE - 1]) & mask)
-		return &frame->stack[slot].spilled_ptr;
+	struct bpf_stack_state *ss;
+
+	if (slot >= bpf_stack_nr_slots(frame))
+		return NULL;
+	ss = bpf_stack_slot(frame, slot);
+	if ((1 << ss->slot_type[BPF_REG_SIZE - 1]) & mask)
+		return &ss->spilled_ptr;
 	return NULL;
 }
 
@@ -551,7 +570,7 @@ bpf_get_spilled_stack_arg(int slot, struct bpf_func_state *frame)
 /* Iterate over 'frame', setting 'reg' to either NULL or a spilled register. */
 #define bpf_for_each_spilled_reg(iter, frame, reg, mask)			\
 	for (iter = 0, reg = bpf_get_spilled_reg(iter, frame, mask);		\
-	     iter < frame->allocated_stack / BPF_REG_SIZE;		\
+	     iter < bpf_stack_nr_slots(frame);				\
 	     iter++, reg = bpf_get_spilled_reg(iter, frame, mask))
 
 /* Iterate over 'frame', setting 'reg' to either NULL or a spilled stack arg. */
@@ -576,7 +595,7 @@ bpf_get_spilled_stack_arg(int slot, struct bpf_func_state *frame)
 			bpf_for_each_spilled_reg(___j, __state, __reg, __mask) { \
 				if (!__reg)                              \
 					continue;                        \
-				__stack = &__state->stack[___j];         \
+				__stack = bpf_stack_slot(__state, ___j); \
 				(void)(__expr);                          \
 			}                                                \
 			__stack = NULL;                                  \
