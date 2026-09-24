@@ -1335,8 +1335,9 @@ int bpf_is_state_visited(struct bpf_verifier_env *env, int insn_idx)
 			 */
 			if (is_iter_next_insn(env, insn_idx)) {
 				if (states_equal(env, &sl->state, cur, RANGE_WITHIN)) {
-					struct bpf_func_state *cur_frame, *iter_frame;
+					struct bpf_func_state *cur_frame, *iter_frame, *old_frame;
 					struct bpf_reg_state *iter_state, *iter_reg;
+					struct bpf_reg_state *old_iter;
 					int spi;
 
 					cur_frame = cur->frame[cur->curframe];
@@ -1351,7 +1352,16 @@ int bpf_is_state_visited(struct bpf_verifier_env *env, int insn_idx)
 					spi = bpf_get_spi(iter_reg->var_off.value);
 					iter_frame = bpf_func(env, iter_reg);
 					iter_state = &bpf_stack_slot(iter_frame, spi)->spilled_ptr;
-					if (iter_state->iter.state == BPF_ITER_STATE_ACTIVE) {
+					old_frame = sl->state.frame[iter_reg->frameno];
+					old_iter = &bpf_stack_slot(old_frame, spi)->spilled_ptr;
+					/*
+					 * states_equal() matches ids through idmap.
+					 * The loop converged only if it's the same
+					 * iterator. The one that was destroyed and
+					 * created again starts from the beginning.
+					 */
+					if (iter_state->iter.state == BPF_ITER_STATE_ACTIVE &&
+					    iter_state->id == old_iter->id) {
 						loop = true;
 						goto hit;
 					}
