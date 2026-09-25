@@ -679,6 +679,7 @@ int bpf_opt_remove_dead_code(struct bpf_verifier_env *env)
 
 int bpf_opt_remove_nops(struct bpf_verifier_env *env)
 {
+	struct bpf_insn_aux_data *aux = env->insn_aux_data;
 	struct bpf_insn *insn = env->prog->insnsi;
 	int insn_cnt = env->prog->len;
 	bool is_may_goto_0, is_ja;
@@ -689,6 +690,8 @@ int bpf_opt_remove_nops(struct bpf_verifier_env *env)
 		is_ja = !memcmp(&insn[i], &NOP, sizeof(NOP));
 
 		if (!is_may_goto_0 && !is_ja)
+			continue;
+		if (aux[i].indirect_target)
 			continue;
 
 		err = verifier_remove_insns(env, i, 1);
