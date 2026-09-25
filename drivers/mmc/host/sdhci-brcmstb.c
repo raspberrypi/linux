@@ -52,6 +52,7 @@
 
 struct sdhci_brcmstb_priv {
 	void __iomem *cfg_regs;
+	void (*cfginit)(struct sdhci_host *host);
 	unsigned int flags;
 	struct clk *base_clk;
 	u32 base_freq_hz;
@@ -393,6 +394,15 @@ static int bcm2712_init_sd_express(struct sdhci_host *host, struct mmc_ios *ios)
 	return ret;
 }
 
+static unsigned int bcm2712_get_min_clock(struct sdhci_host *host)
+{
+	/*
+	 * At card clock frequencies lower than 400kHz, register writes may be
+	 * dropped by the host bus interface.
+	 */
+	return 400000;
+}
+
 static void sdhci_brcmstb_dumpregs(struct mmc_host *mmc)
 {
 	sdhci_dumpregs(mmc_priv(mmc));
@@ -449,6 +459,7 @@ static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
 	.reset = brcmstb_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.init_sd_express = bcm2712_init_sd_express,
+	.get_min_clock = bcm2712_get_min_clock,
 };
 
 static struct sdhci_ops sdhci_brcmstb_ops_7216 = {
@@ -600,6 +611,7 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	pltfm_host->clk = clk;
 
 	priv = sdhci_pltfm_priv(pltfm_host);
+	priv->cfginit = match_priv->cfginit;
 	cqe = 0;
 	device_property_read_u32(&pdev->dev, "supports-cqe", &cqe);
 	if (cqe > 0) {
@@ -681,8 +693,8 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 	    (priv->flags & BRCMSTB_PRIV_FLAGS_HAS_SD_EXPRESS))
 		host->mmc->caps2 |= MMC_CAP2_SD_EXP;
 
-	if (match_priv->cfginit)
-		match_priv->cfginit(host);
+	if (priv->cfginit)
+		priv->cfginit(host);
 
 	/*
 	 * Supply the existing CAPS, but clear the UHS modes. This
@@ -771,6 +783,9 @@ static int sdhci_brcmstb_resume(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_brcmstb_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	int ret;
+
+	if (priv->cfginit)
+		priv->cfginit(host);
 
 	ret = sdhci_pltfm_resume(dev);
 	if (!ret && priv->base_freq_hz) {

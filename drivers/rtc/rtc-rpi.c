@@ -108,6 +108,8 @@ static int rpi_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 	u32 data[2] = {RTC_ALARM, rtc_tm_to_time64(&alarm->time)};
 	int err;
 
+	rpi_rtc_alarm_clear_pending(dev);
+
 	err = rpi_firmware_property(vrtc->fw, RPI_FIRMWARE_SET_RTC_REG,
 				    &data, sizeof(data));
 
@@ -257,6 +259,19 @@ static int rpi_rtc_probe(struct platform_device *pdev)
 	return devm_rtc_register_device(vrtc->rtc);
 }
 
+static int rpi_rtc_resume(struct device *dev)
+{
+	struct rpi_rtc_data *vrtc = dev_get_drvdata(dev);
+
+	rpi_rtc_alarm_clear_pending(dev);
+
+	rtc_update_irq(vrtc->rtc, 1, RTC_AF);
+
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(rpi_rtc_pm_ops, NULL, rpi_rtc_resume);
+
 static const struct of_device_id rpi_rtc_dt_match[] = {
 	{ .compatible = "raspberrypi,rpi-rtc"},
 	{},
@@ -268,6 +283,7 @@ static struct platform_driver rpi_rtc_driver = {
 	.driver = {
 		.name = "rpi-rtc",
 		.of_match_table = rpi_rtc_dt_match,
+		.pm = pm_sleep_ptr(&rpi_rtc_pm_ops),
 	},
 };
 

@@ -89,5 +89,7 @@ struct brcmstb_pdata {
 };
 
 int brcmstb_pinctrl_probe(struct platform_device *pdev);
+int brcmstb_pinctrl_suspend(struct device *dev);
+int brcmstb_pinctrl_resume(struct device *dev);
 
 #endif

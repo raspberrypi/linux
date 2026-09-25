@@ -26,6 +26,7 @@
 #include <linux/dmi.h>
 #include <linux/pm_runtime.h>
 #include <linux/serdev.h>
+#include <linux/workqueue.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -107,6 +108,8 @@ struct bcm_device_data {
  * @no_uart_clock_set: UART clock set command for >3Mbps mode is unavailable
  * @pcm_int_params: keep the initial PCM configuration
  * @use_autobaud_mode: start Bluetooth device in autobaud mode
+ * @power_off_in_suspend: controller loses power during a system suspend, so
+ *	the device is reprobed on resume
  * @max_autobaud_speed: max baudrate supported by device in autobaud mode
  */
 struct bcm_device {
@@ -147,6 +150,7 @@ struct bcm_device {
 	bool			drive_rts_on_open;
 	bool			no_uart_clock_set;
 	bool			use_autobaud_mode;
+	bool			power_off_in_suspend;
 	u8			pcm_int_params[5];
 	u32			max_autobaud_speed;
 };
@@ -158,6 +162,38 @@ struct bcm_data {
 
 	struct bcm_device	*dev;
 };
+
+/* True when the controller will be powered off across a system suspend and
+ * rebuilt by a reprobe. Runtime PM is switched off for these devices, so the
+ * runtime callbacks cannot race the suspend path.
+ */
+static bool bcm_powers_off_in_suspend(const struct bcm_device *bdev)
+{
+	return IS_ENABLED(CONFIG_PM_SLEEP) && bdev &&
+	       bdev->power_off_in_suspend && bdev->hu && bdev->hu->serdev;
+}
+
+#ifdef CONFIG_PM_SLEEP
+struct bcm_reprobe {
+	struct device *dev;
+	struct work_struct work;
+};
+
+static void bcm_reprobe_worker(struct work_struct *work)
+{
+	struct bcm_reprobe *reprobe =
+		container_of(work, struct bcm_reprobe, work);
+	int ret;
+
+	ret = device_reprobe(reprobe->dev);
+	if (ret && ret != -EPROBE_DEFER)
+		dev_err(reprobe->dev, "Reprobe error %d\n", ret);
+
+	put_device(reprobe->dev);
+	kfree(reprobe);
+	module_put(THIS_MODULE);
+}
+#endif
 
 /* List of BCM BT UART devices */
 static DEFINE_MUTEX(bcm_device_lock);
@@ -485,6 +521,12 @@ static int bcm_open(struct hci_uart *hu)
 
 out:
 	if (bcm->dev) {
+		/* Since bcm_resume() reprobes the device, the suspend handling
+		 * done by the hci_suspend_notifier is not necessary.
+		 */
+		if (bcm_powers_off_in_suspend(bcm->dev))
+			set_bit(HCI_UART_NO_SUSPEND_NOTIFIER, &hu->flags);
+
 		if (bcm->dev->use_autobaud_mode)
 			hci_uart_set_flow_control(hu, false);	/* Assert BT_UART_CTS_N */
 		else if (bcm->dev->drive_rts_on_open)
@@ -546,6 +588,7 @@ static int bcm_close(struct hci_uart *hu)
 
 	if (bdev) {
 		if (IS_ENABLED(CONFIG_PM) && bdev->irq_acquired) {
+			bdev->irq_acquired = false;
 			devm_free_irq(bdev->dev, bdev->irq, bdev);
 			device_init_wakeup(bdev->dev, false);
 			pm_runtime_dont_use_autosuspend(bdev->dev);
@@ -647,7 +690,7 @@ static int bcm_setup(struct hci_uart *hu)
 	if (hci_test_quirk(hu->hdev, HCI_QUIRK_INVALID_BDADDR))
 		hci_set_quirk(hu->hdev, HCI_QUIRK_USE_BDADDR_PROPERTY);
 
-	if (!bcm_request_irq(bcm))
+	if (!bcm_powers_off_in_suspend(bcm->dev) && !bcm_request_irq(bcm))
 		err = bcm_setup_sleep(hu);
 
 	return err;
@@ -826,6 +869,25 @@ static int bcm_suspend(struct device *dev)
 
 	bt_dev_dbg(bdev, "suspend: is_suspended %d", bdev->is_suspended);
 
+	/* The controller loses power across the suspend and bcm_resume()
+	 * reprobes it, so there is no state here worth preserving. Stop the
+	 * UART and drive the controller off, as h5_btrtl_suspend() does.
+	 */
+	if (bcm_powers_off_in_suspend(bdev)) {
+		struct hci_dev *hdev = bdev->hu->hdev;
+
+		/* Wait for power_on before suspending. bcm_setup causes
+		 * a timeout if a suspend occurs duriung it
+		 */
+		if (hdev)
+			flush_work(&hdev->power_on);
+
+		hci_uart_set_flow_control(bdev->hu, true);
+		bcm_gpio_set_power(bdev, false);
+
+		return 0;
+	}
+
 	/*
 	 * When used with a device instantiated as platform_device, bcm_suspend
 	 * can be called at any time as long as the platform device is bound,
@@ -859,6 +921,23 @@ static int bcm_resume(struct device *dev)
 	int err = 0;
 
 	bt_dev_dbg(bdev, "resume: is_suspended %d", bdev->is_suspended);
+
+	/* The device has lost all of its firmware and state so reprobe it. */
+	if (bcm_powers_off_in_suspend(bdev)) {
+		struct bcm_reprobe *reprobe;
+
+		reprobe = kzalloc(sizeof(*reprobe), GFP_KERNEL);
+		if (!reprobe)
+			return -ENOMEM;
+
+		__module_get(THIS_MODULE);
+
+		INIT_WORK(&reprobe->work, bcm_reprobe_worker);
+		reprobe->dev = get_device(bdev->dev);
+		queue_work(system_long_wq, &reprobe->work);
+
+		return 0;
+	}
 
 	/*
 	 * When used with a device instantiated as platform_device, bcm_resume
@@ -1230,6 +1309,8 @@ static int bcm_of_probe(struct bcm_device *bdev)
 {
 	bdev->use_autobaud_mode = device_property_read_bool(bdev->dev,
 							    "brcm,requires-autobaud-mode");
+	bdev->power_off_in_suspend = device_property_read_bool(bdev->dev,
+							       "brcm,power-off-in-suspend");
 	device_property_read_u32(bdev->dev, "max-speed", &bdev->oper_speed);
 	device_property_read_u8_array(bdev->dev, "brcm,bt-pcm-int-params",
 				      bdev->pcm_int_params, 5);

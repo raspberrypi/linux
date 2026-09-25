@@ -10,6 +10,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
 #include <linux/string_choices.h>
 
 enum gio_reg_index {
@@ -576,8 +577,7 @@ static int brcmstb_gpio_resume(struct device *dev)
 #endif /* CONFIG_PM_SLEEP */
 
 static const struct dev_pm_ops brcmstb_gpio_pm_ops = {
-	.suspend_noirq	= brcmstb_gpio_suspend,
-	.resume_noirq = brcmstb_gpio_resume,
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(brcmstb_gpio_suspend, brcmstb_gpio_resume)
 };
 
 static int brcmstb_gpio_probe(struct platform_device *pdev)
