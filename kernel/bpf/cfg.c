@@ -445,17 +445,21 @@ static int visit_abnormal_return_insn(struct bpf_verifier_env *env, int t)
 {
 	struct bpf_subprog_info *subprog;
 	struct bpf_iarray *jt;
+	u32 n;
 
 	if (env->insn_aux_data[t].jt)
 		return 0;
 
-	jt = bpf_iarray_realloc(NULL, 2);
+	/* A subprogram without an exit has no hidden exit edge to take. */
+	subprog = bpf_find_containing_subprog(env, t);
+	n = subprog->exit_idx == U32_MAX ? 1 : 2;
+	jt = bpf_iarray_realloc(NULL, n);
 	if (!jt)
 		return -ENOMEM;
 
-	subprog = bpf_find_containing_subprog(env, t);
 	jt->items[0] = t + 1;
-	jt->items[1] = subprog->exit_idx;
+	if (n == 2)
+		jt->items[1] = subprog->exit_idx;
 	env->insn_aux_data[t].jt = jt;
 	return 0;
 }

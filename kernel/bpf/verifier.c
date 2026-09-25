@@ -2412,6 +2412,7 @@ static int add_subprog(struct bpf_verifier_env *env, int off)
 		return -E2BIG;
 	}
 	/* determine subprog starts. The end is one before the next starts */
+	env->subprog_info[env->subprog_cnt].exit_idx = U32_MAX;
 	env->subprog_info[env->subprog_cnt++].start = off;
 	sort(env->subprog_info, env->subprog_cnt,
 	     sizeof(env->subprog_info[0]), cmp_subprogs, NULL);

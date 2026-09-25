@@ -825,7 +825,11 @@ struct bpf_subprog_info {
 	u32 start; /* insn idx of function entry point */
 	u32 linfo_idx; /* The idx to the main_prog->aux->linfo */
 	u32 postorder_start; /* The idx to the env->cfg.insn_postorder */
-	u32 exit_idx; /* Index of one of the BPF_EXIT instructions in this subprogram */
+	/*
+	 * Index of one of the BPF_EXIT instructions in this subprogram, or
+	 * U32_MAX when it has none.
+	 */
+	u32 exit_idx;
 	u16 stack_depth; /* max. stack depth used by this function */
 	u16 stack_extra;
 	u32 insns_total;
