@@ -1,0 +1,2 @@
+cflags-$(CONFIG_CPU_LOONGSON32)		+= -march=mips32r2 -Wa,--trap
+load-$(CONFIG_CPU_LOONGSON32)		+= 0xffffffff80200000

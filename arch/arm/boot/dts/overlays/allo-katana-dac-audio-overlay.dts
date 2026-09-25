@@ -1,0 +1,58 @@
+/*
+ * Definitions for Allo Katana DAC boards
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			#sound-dai-cells = <0>;
+			status = "okay";
+			cpu_port: port {
+				cpu_endpoint: endpoint {
+					remote-endpoint = <&codec_endpoint>;
+					bitclock-master = <&codec_endpoint>;
+					frame-master = <&codec_endpoint>;
+					dai-format = "i2s";
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			clock-frequency = <50000>;
+
+			allo-katana-codec@30 {
+				#sound-dai-cells = <0>;
+				compatible = "allo,allo-katana-codec";
+				reg = <0x30>;
+				port {
+					codec_endpoint: endpoint {
+					remote-endpoint = <&cpu_endpoint>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		katana_dac: __overlay__ {
+			compatible = "audio-graph-card";
+			label = "Allo Katana";
+			dais = <&cpu_port>;
+			status = "okay";
+		};
+	};
+};
+

@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0
+syscall-y += syscall_table_64.h
+generated-y += orc_hash.h
+
+generic-y += mcs_spinlock.h
+generic-y += parport.h
+generic-y += early_ioremap.h
+generic-y += qrwlock.h
+generic-y += user.h
+generic-y += ioctl.h
+generic-y += mmzone.h
+generic-y += ring_buffer.h
+generic-y += statfs.h
+generic-y += text-patching.h

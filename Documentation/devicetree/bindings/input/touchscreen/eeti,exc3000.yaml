@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/touchscreen/eeti,exc3000.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: EETI EXC3000 series touchscreen controller
+
+maintainers:
+  - Dmitry Torokhov <dmitry.torokhov@gmail.com>
+
+properties:
+  compatible:
+    oneOf:
+      - const: eeti,exc3000
+      - const: eeti,exc80h60
+      - const: eeti,exc80h84
+      - const: eeti,egalax_ts # Do NOT use for new binding
+      - const: eeti,exc3000-i2c
+        deprecated: true
+      - items:
+          - enum:
+              - eeti,exc81w32
+          - const: eeti,exc80h84
+  reg:
+    enum: [0x4, 0xa, 0x2a]
+  interrupts:
+    maxItems: 1
+  reset-gpios:
+    maxItems: 1
+  wakeup-gpios:
+    maxItems: 1
+  vdd-supply:
+    description: Power supply regulator for the chip
+  attn-gpios:
+    deprecated: true
+    maxItems: 1
+    description: Phandle to a GPIO to check whether interrupt is still
+                 latched. This is necessary for platforms that lack
+                 support for level-triggered IRQs.
+  touchscreen-size-x: true
+  touchscreen-size-y: true
+  touchscreen-inverted-x: true
+  touchscreen-inverted-y: true
+  touchscreen-swapped-x-y: true
+
+required:
+  - compatible
+  - reg
+  - interrupts
+
+additionalProperties: false
+
+allOf:
+  - $ref: touchscreen.yaml#
+
+  - if:
+      properties:
+        compatible:
+          not:
+            contains:
+              enum:
+                - eeti,egalax_ts
+                - eeti,exc3000-i2c
+    then:
+      properties:
+        reg:
+          const: 0x2a
+
+        wakeup-gpios: false
+
+        attn-gpios: false
+
+      required:
+        - touchscreen-size-x
+        - touchscreen-size-y
+
+examples:
+  - |
+    #include "dt-bindings/interrupt-controller/irq.h"
+    i2c {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        touchscreen@2a {
+                compatible = "eeti,exc3000";
+                reg = <0x2a>;
+                interrupt-parent = <&gpio1>;
+                interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
+                touchscreen-size-x = <4096>;
+                touchscreen-size-y = <4096>;
+                touchscreen-inverted-x;
+                touchscreen-swapped-x-y;
+        };
+    };

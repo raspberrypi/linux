@@ -1,0 +1,26 @@
+// Fragment that configures an imx355
+
+cam_node: imx355@1a {
+	compatible = "sony,imx355";
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	avdd-supply = <&cam1_reg>;	/* 2.8v */
+	dvdd-supply = <&cam_dummy_reg>;	/* 1.8v */
+	dovdd-supply = <&cam_dummy_reg>;/* 1.2v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <444000000>;
+		};
+	};
+};

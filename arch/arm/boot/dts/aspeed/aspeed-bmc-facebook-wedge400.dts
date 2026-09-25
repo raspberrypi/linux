@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright (c) 2019 Facebook Inc.
+
+#include "aspeed-bmc-facebook-wedge400-data64.dts"
+
+/ {
+	model = "Facebook Wedge 400 BMC";
+	compatible = "facebook,wedge400-bmc", "aspeed,ast2500";
+};
+
+&fmc_flash0 {
+	/delete-node/partitions;
+#include "facebook-bmc-flash-layout-128.dtsi"
+};

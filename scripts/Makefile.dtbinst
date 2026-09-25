@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-2.0
+# ==========================================================================
+# Installing dtb files
+#
+# Installs all dtb files listed in $(dtb-y) either in the
+# INSTALL_DTBS_PATH directory or the default location:
+#
+#   $INSTALL_PATH/dtbs/$KERNELRELEASE
+# ==========================================================================
+
+PHONY := __dtbs_install
+__dtbs_install:
+
+include include/config/auto.conf
+include $(srctree)/scripts/Kbuild.include
+
+dst := $(INSTALL_DTBS_PATH)
+
+quiet_cmd_dtb_install = INSTALL $@
+      cmd_dtb_install = install -D -m 0644 $< $@
+
+$(dst)/%: $(obj)/%
+	$(call cmd,dtb_install)
+
+dtbs := $(patsubst $(obj)/%,%,$(call read-file, $(obj)/dtbs-list))
+
+ifdef CONFIG_ARCH_WANT_FLAT_DTB_INSTALL
+
+define gen_install_rules
+$(dst)/%: $(obj)/$(1)%
+	$$(call cmd,dtb_install)
+endef
+
+define overlays_install_rules
+$(dst)/overlays/%: $(obj)/$(1)%
+	$$(call cmd,dtb_install)
+endef
+
+$(foreach d, $(sort $(dir $(dtbs))), $(if $(findstring "overlays/","$(d)"),$(eval $(call overlays_install_rules,$(d))),$(eval $(call gen_install_rules,$(d)))))
+
+dtbs := $(foreach d, $(dtbs), $(if $(findstring overlays/,$(d)),$(d),$(notdir $(d))))
+
+endif # CONFIG_ARCH_WANT_FLAT_DTB_INSTALL
+
+__dtbs_install: $(addprefix $(dst)/, $(dtbs))
+	@:
+
+.PHONY: $(PHONY)

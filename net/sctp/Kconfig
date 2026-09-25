@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# SCTP configuration
+#
+
+menuconfig IP_SCTP
+	tristate "The SCTP Protocol"
+	depends on INET
+	depends on IPV6 || IPV6=n
+	select CRYPTO_LIB_SHA1
+	select CRYPTO_LIB_SHA256
+	select CRYPTO_LIB_UTILS
+	select NET_CRC32C
+	select NET_UDP_TUNNEL
+	help
+	  Stream Control Transmission Protocol
+
+	  From RFC 2960 <http://www.ietf.org/rfc/rfc2960.txt>.
+
+	  "SCTP is a reliable transport protocol operating on top of a
+	  connectionless packet network such as IP.  It offers the following
+	  services to its users:
+
+	  -- acknowledged error-free non-duplicated transfer of user data,
+	  -- data fragmentation to conform to discovered path MTU size,
+	  -- sequenced delivery of user messages within multiple streams,
+	  with an option for order-of-arrival delivery of individual user
+	  messages,
+	  -- optional bundling of multiple user messages into a single SCTP
+	  packet, and
+	  -- network-level fault tolerance through supporting of multi-
+	  homing at either or both ends of an association."
+
+	  To compile this protocol support as a module, choose M here: the
+	  module will be called sctp. Debug messages are handled by the
+	  kernel's dynamic debugging framework.
+
+	  If in doubt, say N.
+
+if IP_SCTP
+
+config SCTP_DBG_OBJCNT
+	bool "SCTP: Debug object counts"
+	depends on PROC_FS
+	help
+	  If you say Y, this will enable debugging support for counting the
+	  type of objects that are currently allocated.  This is useful for
+	  identifying memory leaks. This debug information can be viewed by
+	  'cat /proc/net/sctp/sctp_dbg_objcnt'
+
+	  If unsure, say N
+
+choice
+	prompt "Default SCTP cookie authentication method"
+	default SCTP_DEFAULT_COOKIE_HMAC_SHA256
+	help
+	  This option sets the default SCTP cookie authentication method, for
+	  when a method hasn't been explicitly selected via the
+	  net.sctp.cookie_hmac_alg sysctl.
+
+	  If unsure, choose the default (HMAC-SHA256).
+
+config SCTP_DEFAULT_COOKIE_HMAC_SHA256
+	bool "HMAC-SHA256"
+
+config SCTP_DEFAULT_COOKIE_HMAC_NONE
+	bool "None"
+
+endchoice
+
+config INET_SCTP_DIAG
+	depends on INET_DIAG
+	def_tristate INET_DIAG
+
+
+endif # IP_SCTP

@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * gpclk-pi5-overlay.dts
+ *
+ * Route one of the RP1 general-purpose clocks (GPCLK0-GPCLK5) to a GPIO
+ * pin, set its output frequency, and keep it running via a clk-hog
+ * device (see clk-hog.c) so it stays enabled with no other consumer.
+ * This is the Pi 5 / RP1 counterpart of gpclk-overlay.dts (which targets
+ * the BCM2835 GPCLKs on earlier Pis).
+ *
+ * The RP1 pinctrl driver still accepts the old-style numeric brcm,pins
+ * property for pin selection, but functions are selected by name rather
+ * than by BCM283x ALT number (RP1 has three more GPCLKs, and not every
+ * pin's gpclkN alternate function lines up with a BCM283x ALT number
+ * anyway), so rather than trying to make a single numeric "func" value
+ * mean the same thing on both chips, each legal pin+clock combination is
+ * exposed as its own named override, using the same names as
+ * gpclk-overlay.dts for the combinations the two chips have in common.
+ * That means a line such as "dtoverlay=gpclk,gpclk0_20" has the same
+ * effect on any Pi, whichever of the two overlays it resolves to.
+ *
+ * Legal pin,clock combinations, and the override that selects each one:
+ *   GPCLK0: gpio4(gpclk0_4)  gpio20(gpclk0_20)
+ *   GPCLK1: gpio5(gpclk1_5)  gpio18(gpclk1_18)  gpio21(gpclk1_21)
+ *   GPCLK2: gpio6(gpclk2_6)
+ *   GPCLK3: gpio32(gpclk3_32)  gpio34(gpclk3_34)  gpio46(gpclk3_46)
+ *   GPCLK4: gpio33(gpclk4_33)  gpio43(gpclk4_43)
+ *   GPCLK5: gpio42(gpclk5_42)  gpio44(gpclk5_44)  gpio47(gpclk5_47)
+ *
+ * GPCLK0-GPCLK2 on pins 4/20, 5/21 and 6 are the combinations in common
+ * with gpclk-overlay.dts; the rest (GPCLK1 on pin18, and GPCLK3-GPCLK5)
+ * only exist on RP1.
+ *
+ * N.B. Some pins/GPCLKs may already be in use by the firmware, other
+ * overlays, or onboard hardware - check for conflicts before choosing a
+ * pin.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/rp1.h>
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			clk_hog: gpclk_hog@4 {
+				compatible = "clk-hog";
+
+				clocks = <&rp1_clocks RP1_CLK_GP0>;
+				assigned-clocks = <&rp1_clocks RP1_CLK_GP0>;
+				assigned-clock-rates = <500000>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&gpclk0_4>;
+			};
+		};
+	};
+
+	/* Each pin's pinctrl node lives in its own fragment, numbered by
+	 * pin number, so that only one is ever instantiated at a time -
+	 * the kernel rejects an overlay that tries to create a gpio node
+	 * that already exists in the live Device Tree, which would happen
+	 * if two gpclk overlay instances both carried, say, the gpclk1_5
+	 * node. gpclk0_4 is the default and so is the only one enabled
+	 * (__overlay__) from the start; the rest start __dormant__ and are
+	 * swapped in by the relevant override, which also disables
+	 * gpclk0_4's fragment.
+	 */
+
+	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			gpclk0_4: gpclk0_4 {
+				brcm,pins = <4>;
+				function = "gpclk0";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_5: gpclk1_5 {
+				brcm,pins = <5>;
+				function = "gpclk1";
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk2_6: gpclk2_6 {
+				brcm,pins = <6>;
+				function = "gpclk2";
+			};
+		};
+	};
+
+	fragment@20 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk0_20: gpclk0_20 {
+				brcm,pins = <20>;
+				function = "gpclk0";
+			};
+		};
+	};
+
+	fragment@21 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_21: gpclk1_21 {
+				brcm,pins = <21>;
+				function = "gpclk1";
+			};
+		};
+	};
+
+	fragment@18 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk1_18: gpclk1_18 {
+				brcm,pins = <18>;
+				function = "gpclk1";
+			};
+		};
+	};
+
+	fragment@32 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk3_32: gpclk3_32 {
+				brcm,pins = <32>;
+				function = "gpclk3";
+			};
+		};
+	};
+
+	fragment@33 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk4_33: gpclk4_33 {
+				brcm,pins = <33>;
+				function = "gpclk4";
+			};
+		};
+	};
+
+	fragment@34 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk3_34: gpclk3_34 {
+				brcm,pins = <34>;
+				function = "gpclk3";
+			};
+		};
+	};
+
+	fragment@42 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk5_42: gpclk5_42 {
+				brcm,pins = <42>;
+				function = "gpclk5";
+			};
+		};
+	};
+
+	fragment@43 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk4_43: gpclk4_43 {
+				brcm,pins = <43>;
+				function = "gpclk4";
+			};
+		};
+	};
+
+	fragment@44 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk5_44: gpclk5_44 {
+				brcm,pins = <44>;
+				function = "gpclk5";
+			};
+		};
+	};
+
+	fragment@46 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk3_46: gpclk3_46 {
+				brcm,pins = <46>;
+				function = "gpclk3";
+			};
+		};
+	};
+
+	fragment@47 {
+		target = <&gpio>;
+		__dormant__ {
+			gpclk5_47: gpclk5_47 {
+				brcm,pins = <47>;
+				function = "gpclk5";
+			};
+		};
+	};
+
+	__overrides__ {
+		/* Named pin+clock combinations - the recommended way to
+		 * select a legal combination in one go.
+		 */
+		gpclk0_4  = <&clk_hog>,"pinctrl-0:0=",<&gpclk0_4>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP0>,
+			    <&clk_hog>,"reg:0=4";
+		gpclk0_20 = <0>,"-4+20",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk0_20>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP0>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP0>,
+			    <&clk_hog>,"reg:0=20";
+		gpclk1_5  = <0>,"-4+5",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_5>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"reg:0=5";
+		gpclk1_18 = <0>,"-4+18",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_18>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"reg:0=18";
+		gpclk1_21 = <0>,"-4+21",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk1_21>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP1>,
+			    <&clk_hog>,"reg:0=21";
+		gpclk2_6  = <0>,"-4+6",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk2_6>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP2>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP2>,
+			    <&clk_hog>,"reg:0=6";
+		gpclk3_32 = <0>,"-4+32",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk3_32>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"reg:0=32";
+		gpclk3_34 = <0>,"-4+34",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk3_34>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"reg:0=34";
+		gpclk3_46 = <0>,"-4+46",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk3_46>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP3>,
+			    <&clk_hog>,"reg:0=46";
+		gpclk4_33 = <0>,"-4+33",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk4_33>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP4>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP4>,
+			    <&clk_hog>,"reg:0=33";
+		gpclk4_43 = <0>,"-4+43",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk4_43>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP4>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP4>,
+			    <&clk_hog>,"reg:0=43";
+		gpclk5_42 = <0>,"-4+42",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk5_42>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"reg:0=42";
+		gpclk5_44 = <0>,"-4+44",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk5_44>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"reg:0=44";
+		gpclk5_47 = <0>,"-4+47",
+			    <&clk_hog>,"pinctrl-0:0=",<&gpclk5_47>,
+			    <&clk_hog>,"clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"assigned-clocks:4=", <RP1_CLK_GP5>,
+			    <&clk_hog>,"reg:0=47";
+
+		freq = <&clk_hog>,"assigned-clock-rates:0";
+	};
+};

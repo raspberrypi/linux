@@ -1,0 +1,10 @@
+How to compile perf for Android
+===============================
+
+There are two ways to build perf and run it on Android:
+
+- Method 1: Build perf with static linking. See Build.txt, section
+  "4) Cross compilation" for how to build a static perf binary.
+
+- Method 2: Download the Android NDK and use the bundled Clang to
+  build perf. See Build.txt, section "5) Build with clang" for details.

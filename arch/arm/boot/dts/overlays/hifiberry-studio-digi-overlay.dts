@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: GPL-2.0
+// Definitions for HiFiBerry Studio Digi/AES soundcard
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			hb_studio_ctrl: hb_studio_ctrl@10 {
+				compatible = "hifiberry,hb-studio-ctrl";
+				reg = <0x10>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			rp1_i2s1_digi: rp1_i2s1_digi {
+				function = "i2s1";
+				pins = "gpio18", "gpio19", "gpio20",
+				       "gpio21", "gpio22", "gpio23",
+				       "gpio24", "gpio25", "gpio26",
+				       "gpio27";
+				bias-disable;
+			};
+			digi_int_pin: digi_int_pin {
+				pins = "gpio7";
+				bias-pull-up;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rp1_i2s1_digi>;
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/";
+		__overlay__ {
+			dummy-codec {
+				#sound-dai-cells = <0>;
+				compatible = "snd-soc-dummy";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&sound>;
+		hifiberry_studio: __overlay__ {
+			compatible = "hifiberry,hifiberry-studio";
+			i2s-controller = <&i2s_clk_consumer>;
+			clk-provider;
+			pinctrl-names = "default";
+			pinctrl-0 = <&digi_int_pin>;
+			interrupt-parent = <&gpio>;
+			interrupts = <7 IRQ_TYPE_EDGE_BOTH>;
+			gpios = <&gpio 7 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		no_controls = <&hifiberry_studio>,"no-controls?";
+	};
+};
