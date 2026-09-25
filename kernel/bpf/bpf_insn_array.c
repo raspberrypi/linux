@@ -232,7 +232,8 @@ void bpf_insn_array_release(struct bpf_map *map)
 {
 	struct bpf_insn_array *insn_array = cast_insn_array(map);
 
-	atomic_set(&insn_array->used, 0);
+	/* Paired with atomic_xchg() in bpf_insn_array_init(). */
+	atomic_set_release(&insn_array->used, 0);
 }
 
 void bpf_insn_array_adjust(struct bpf_map *map, u32 off, u32 len)
