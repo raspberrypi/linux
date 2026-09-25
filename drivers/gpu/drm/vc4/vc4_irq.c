@@ -276,7 +276,7 @@ vc4_irq_disable(struct drm_device *dev)
 	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
 
 	/* Finish any interrupt handler still in flight. */
-	synchronize_irq(vc4->irq);
+	disable_irq(vc4->irq);
 
 	cancel_work_sync(&vc4->overflow_mem_work);
 }
@@ -284,7 +284,6 @@ vc4_irq_disable(struct drm_device *dev)
 int vc4_irq_install(struct drm_device *dev, int irq)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	int ret;
 
 	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
 		return -ENODEV;
@@ -298,19 +297,8 @@ int vc4_irq_install(struct drm_device *dev, int irq)
 	init_waitqueue_head(&vc4->job_wait_queue);
 	INIT_WORK(&vc4->overflow_mem_work, vc4_overflow_mem_work);
 
-	/* Clear any pending interrupts someone might have left around
-	 * for us.
-	 */
-	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
-
-	ret = devm_request_irq(dev->dev, irq, vc4_irq, 0,
-			       dev_name(dev->dev), dev);
-	if (ret)
-		return ret;
-
-	vc4_irq_enable(dev);
-
-	return 0;
+	return devm_request_irq(dev->dev, irq, vc4_irq, IRQF_NO_AUTOEN,
+				dev_name(dev->dev), dev);
 }
 
 void vc4_irq_uninstall(struct drm_device *dev)
