@@ -320,8 +320,8 @@ static struct ionic_ibdev *ionic_create_ibdev(struct ionic_aux_dev *ionic_adev)
 
 	ionic_fill_lif_cfg(ionic_adev->lif, &dev->lif_cfg);
 
-	xa_init_flags(&dev->qp_tbl, GFP_ATOMIC);
-	xa_init_flags(&dev->cq_tbl, GFP_ATOMIC);
+	xa_init_flags(&dev->qp_tbl, XA_FLAGS_LOCK_IRQ);
+	xa_init_flags(&dev->cq_tbl, XA_FLAGS_LOCK_IRQ);
 
 	ionic_init_resids(dev);
 
