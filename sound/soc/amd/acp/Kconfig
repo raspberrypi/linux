@@ -167,7 +167,7 @@ config SND_SOC_AMD_SOF_SDW_MACH
 
 config SND_SOC_AMD_LEGACY_SDW_MACH
 	tristate "AMD Legacy(No DSP) Soundwire Machine Driver Support"
-	depends on X86 && PCI && ACPI
+	depends on X86 && PCI && ACPI && EFI
 	depends on SOUNDWIRE
 	select SND_SOC_AMD_SDW_MACH_COMMON
 	select SND_SOC_SDW_UTILS
