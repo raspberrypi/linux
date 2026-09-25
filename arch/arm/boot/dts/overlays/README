@@ -2733,6 +2733,8 @@ Params: addr                    Set the address for the AD799X, ADS7828,
                                 use the "jc42" option.
                                 Valid addresses are 0x18-0x1f (default 0x18)
 
+        mpl3115                 Select the Freescale MPL3115 pressure sensor
+
         mpu6050                 Select the InvenSense MPU6050 IMU. Valid
                                 valid addresses are 0x68 and 0x69 (default 0x68)
 
