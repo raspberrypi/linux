@@ -419,10 +419,8 @@ static int rt721_sdca_sdw_remove(struct sdw_slave *slave)
 {
 	struct rt721_sdca_priv *rt721 = dev_get_drvdata(&slave->dev);
 
-	if (rt721->hw_init) {
-		cancel_delayed_work_sync(&rt721->jack_detect_work);
-		cancel_delayed_work_sync(&rt721->jack_btn_check_work);
-	}
+	cancel_delayed_work_sync(&rt721->jack_detect_work);
+	cancel_delayed_work_sync(&rt721->jack_btn_check_work);
 
 	if (rt721->first_hw_init)
 		pm_runtime_disable(&slave->dev);
