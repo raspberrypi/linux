@@ -202,6 +202,7 @@ void mtd_virt_concat_destroy_items(void)
 	int i;
 
 	list_for_each_entry_safe(item, temp, &concat_node_list, head) {
+		list_del(&item->head);
 		for (i = 0; i < item->count; i++)
 			of_node_put(item->nodes[i]);
 
