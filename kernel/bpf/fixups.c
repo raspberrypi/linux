@@ -478,6 +478,9 @@ static int adjust_subprog_starts_after_remove(struct bpf_verifier_env *env,
 			 * in adjust_btf_func() - no need to adjust
 			 */
 		}
+		/* The exception callback is live, so it cannot sit inside the removed range. */
+		if (env->exception_callback_subprog >= j)
+			env->exception_callback_subprog -= j - i;
 	} else {
 		/* convert i from "first prog to remove" to "first to adjust" */
 		if (env->subprog_info[i].start == off)
