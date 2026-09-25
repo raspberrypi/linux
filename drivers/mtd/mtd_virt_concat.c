@@ -130,6 +130,7 @@ int mtd_virt_concat_destroy(struct mtd_info *mtd)
 			mtd_concat_destroy(&concat->mtd);
 		}
 
+		list_del(&item->head);
 		for (idx = 0; idx < item->count; idx++)
 			of_node_put(item->nodes[idx]);
 
