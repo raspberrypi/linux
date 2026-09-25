@@ -1244,7 +1244,7 @@ static const struct arducam_64mp_mode supported_modes[] = {
 		.crop = {
 			.left = ARDUCAM_64MP_PIXEL_ARRAY_LEFT,
 			.top = ARDUCAM_64MP_PIXEL_ARRAY_TOP,
-			.width = 9248,
+			.width = 9152,
 			.height = 6944,
 		},
 		.timeperframe_default = {
@@ -1262,8 +1262,8 @@ static const struct arducam_64mp_mode supported_modes[] = {
 		.crop = {
 			.left = ARDUCAM_64MP_PIXEL_ARRAY_LEFT + 624,
 			.top = ARDUCAM_64MP_PIXEL_ARRAY_TOP + 472,
-			.width = 9248,
-			.height = 6944,
+			.width = 8000,
+			.height = 6000,
 		},
 		.timeperframe_default = {
 			.numerator = 100,
