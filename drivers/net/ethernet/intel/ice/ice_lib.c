@@ -634,10 +634,15 @@ static int ice_vsi_install_stat_arrays(struct ice_vsi *vsi, u16 txq, u16 rxq)
 /**
  * ice_vsi_alloc_stat_arrays - Allocate statistics arrays
  * @vsi: VSI pointer
+ *
+ * Runs after ice_vsi_set_num_qs(), so this is the first point where the queue
+ * count is final. Grow the arrays if an earlier sizing guessed too low.
+ *
+ * Return: 0 on success, negative error code otherwise.
  */
 static int ice_vsi_alloc_stat_arrays(struct ice_vsi *vsi)
 {
-	struct ice_vsi_stats *vsi_stat;
+	struct ice_vsi_stats *old_stat;
 	struct ice_pf *pf = vsi->back;
 
 	if (vsi->type == ICE_VSI_CHNL)
@@ -645,16 +650,13 @@ static int ice_vsi_alloc_stat_arrays(struct ice_vsi *vsi)
 	if (!pf->vsi_stats)
 		return -ENOENT;
 
-	if (pf->vsi_stats[vsi->idx])
-	/* realloc will happen in rebuild path */
+	old_stat = pf->vsi_stats[vsi->idx];
+	if (old_stat && old_stat->tx_ring_stats_len >= vsi->alloc_txq &&
+	    old_stat->rx_ring_stats_len >= vsi->alloc_rxq)
 		return 0;
 
-	vsi_stat = ice_vsi_new_stat_arrays(vsi->alloc_txq, vsi->alloc_rxq);
-	if (!vsi_stat)
-		return -ENOMEM;
-
-	pf->vsi_stats[vsi->idx] = vsi_stat;
-	return 0;
+	return ice_vsi_install_stat_arrays(vsi, vsi->alloc_txq,
+					   vsi->alloc_rxq);
 }
 
 /**
