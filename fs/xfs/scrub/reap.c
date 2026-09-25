@@ -796,9 +796,9 @@ xreap_fsmeta_extent(
 	xfs_agblock_t		agbno_next = agbno + len;
 	int			error = 0;
 
-	ASSERT(len <= XFS_MAX_BMBT_EXTLEN);
 	ASSERT(sc->ip != NULL);
 	ASSERT(!sc->sa.pag);
+	ASSERT(agno == XFS_FSB_TO_AGNO(sc->mp, fsbno + len - 1));
 
 	/*
 	 * We're reaping blocks after repairing file metadata, which means that
