@@ -75,8 +75,13 @@ static void bpf_stream_release_capacity(struct bpf_stream *stream, int len)
 
 static int bpf_stream_push_str(struct bpf_stream *stream, const char *str, int len)
 {
-	int ret = bpf_stream_consume_capacity(stream, len);
+	int ret;
 
+	/* Nothing to publish; do not allocate an element for it. */
+	if (!len)
+		return 0;
+
+	ret = bpf_stream_consume_capacity(stream, len);
 	if (ret)
 		return ret;
 
@@ -333,8 +338,8 @@ int bpf_stream_stage_printk(struct bpf_stream_stage *ss, const char *fmt, ...)
 	va_start(args, fmt);
 	len = vscnprintf(buf->buf, ARRAY_SIZE(buf->buf), fmt, args);
 	va_end(args);
-	/* Exclude NULL byte during push. */
-	ret = __bpf_stream_push_str(&ss->log, buf->buf, len);
+	/* Exclude NULL byte during push; skip empty output entirely. */
+	ret = len ? __bpf_stream_push_str(&ss->log, buf->buf, len) : 0;
 	if (!ret)
 		ss->len += len;
 	bpf_put_buffers();
