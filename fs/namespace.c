@@ -5316,15 +5316,25 @@ static void statmount_sb_basic(struct kstatmount *s)
 	s->sm.sb_flags = sb->s_flags & (SB_RDONLY|SB_SYNCHRONOUS|SB_DIRSYNC|SB_LAZYTIME);
 }
 
+static void statmount_mnt_parent(struct kstatmount *s, const struct mount *m)
+{
+	s->sm.mnt_parent_id = m->mnt_parent->mnt_id_unique;
+	s->sm.mnt_parent_id_old = m->mnt_parent->mnt_id;
+}
+
 static void statmount_mnt_basic(struct kstatmount *s)
 {
 	struct mount *m = real_mount(s->mnt);
 
 	s->sm.mask |= STATMOUNT_MNT_BASIC;
 	s->sm.mnt_id = m->mnt_id_unique;
-	s->sm.mnt_parent_id = m->mnt_parent->mnt_id_unique;
 	s->sm.mnt_id_old = m->mnt_id;
-	s->sm.mnt_parent_id_old = m->mnt_parent->mnt_id;
+	/* An unmounted mount is cut loose from its parent under mount_lock alone. */
+	if (likely(is_mounted(s->mnt)))
+		statmount_mnt_parent(s, m);
+	else
+		scoped_guard(mount_locked_reader)
+			statmount_mnt_parent(s, m);
 	s->sm.mnt_attr = mnt_to_attr_flags(&m->mnt);
 	s->sm.mnt_propagation = mnt_to_propagation_flags(m);
 	s->sm.mnt_peer_group = m->mnt_group_id;
