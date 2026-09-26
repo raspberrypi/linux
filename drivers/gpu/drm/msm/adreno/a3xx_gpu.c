@@ -500,14 +500,18 @@ static u64 a3xx_gpu_busy(struct msm_gpu *gpu, unsigned long *out_sample_rate)
 
 static int a3xx_vbif_halt(struct msm_gpu *gpu)
 {
+	struct adreno_gpu *adreno_gpu = to_adreno_gpu(gpu);
+	u32 mask = A3XX_VBIF_XIN_HALT_CTRL0_MASK;
 	u32 ack;
 	int ret;
 
-	gpu_write(gpu, REG_A3XX_VBIF_XIN_HALT_CTRL0,
-		  A3XX_VBIF_XIN_HALT_CTRL0_MASK);
+	/* A306(A) only have three VBIF XIN ports. */
+	if (adreno_is_a306(adreno_gpu) || adreno_is_a306a(adreno_gpu))
+		mask = GENMASK(2, 0);
+
+	gpu_write(gpu, REG_A3XX_VBIF_XIN_HALT_CTRL0, mask);
 	ret = spin_until(((ack = gpu_read(gpu, REG_A3XX_VBIF_XIN_HALT_CTRL1)) &
-			  A3XX_VBIF_XIN_HALT_CTRL0_MASK) ==
-			 A3XX_VBIF_XIN_HALT_CTRL0_MASK);
+			  mask) == mask);
 	gpu_write(gpu, REG_A3XX_VBIF_XIN_HALT_CTRL0, 0);
 
 	if (ret)
