@@ -188,6 +188,11 @@ static void rose_heartbeat_expiry(struct timer_list *t)
 				rose_neigh_put(rose->neighbour);
 				rose->neighbour = NULL;
 			}
+			/* Tell rose_accept() and the listener's teardown, which
+			 * may still hold this socket on their queue, that it is
+			 * gone.
+			 */
+			sock_set_flag(sk, SOCK_DESTROY);
 			bh_unlock_sock(sk);
 			rose_destroy_socket(sk);
 			sock_put(sk);
