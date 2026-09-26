@@ -501,6 +501,20 @@ config BACKLIGHT_LED
 	  If you have a LCD backlight adjustable by LED class driver, say Y
 	  to enable this driver.
 
+config VIEWE_DSI_I2C_BUS
+	tristate "VIEWE DSI FPC I2C backlight queue"
+	depends on I2C
+	help
+	  Queue for backlight writes on the shared touch/backlight I2C bus.
+
+config BACKLIGHT_VIEWE_I2C
+	tristate "VIEWE I2C backlight"
+	depends on I2C
+	depends on VIEWE_DSI_I2C_BUS
+	help
+	  Backlight driver for VIEWE DSI panels. Brightness is written to
+	  the panel MCU at I2C address 0x45, register 0x86.
+
 endif # BACKLIGHT_CLASS_DEVICE
 
 endmenu

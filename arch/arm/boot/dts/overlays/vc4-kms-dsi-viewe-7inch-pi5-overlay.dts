@@ -1,0 +1,115 @@
+/*
+ * dtoverlay=vc4-kms-dsi-viewe-7inch-pi5
+ * VIEWE 7" 720x1280 JD9365TX, DISP1 + i2c_csi_dsi1 (Pi 5).
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+					data-lanes = <0 1>;
+				};
+			};
+
+			panel: panel@0 {
+				compatible = "viewe,7kf82";
+				reg = <0>;
+				status = "okay";
+
+				vdd-supply = <&vdd_viewe7>;
+				iovcc-supply = <&iovcc_viewe7>;
+				backlight = <&viewe_bl>;
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+						data-lanes = <0 1>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			vdd_viewe7: regulator-vdd-viewe7 {
+				compatible = "regulator-fixed";
+				regulator-name = "vdd-viewe7";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			iovcc_viewe7: regulator-iovcc-viewe7 {
+				compatible = "regulator-fixed";
+				regulator-name = "iovcc-viewe7";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c_csi_dsi1>;
+		__overlay__ {
+			status = "okay";
+			clock-frequency = <100000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			jadard_tp: touch@68 {
+				compatible = "jadard,jd9365tx-tp";
+				reg = <0x68>;
+				touchscreen-size-x = <720>;
+				touchscreen-size-y = <1280>;
+				jadard,max-touch-number = <10>;
+				jadard,poll-interval-ms = <16>;
+				status = "okay";
+			};
+
+			viewe_bl: bl@45 {
+				compatible = "viewe,i2c-backlight";
+				reg = <0x45>;
+				default-brightness = <200>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		rotation = <&panel>, "rotation:0";
+		notouch = <&jadard_tp>, "status=disabled";
+		nobl = <&viewe_bl>, "status=disabled";
+		invx = <&jadard_tp>, "touchscreen-inverted-x?";
+		invy = <&jadard_tp>, "touchscreen-inverted-y?";
+		swapxy = <&jadard_tp>, "touchscreen-swapped-x-y?";
+	};
+};
