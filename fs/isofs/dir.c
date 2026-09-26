@@ -195,7 +195,9 @@ static int do_isofs_readdir(struct inode *inode, struct file *file,
 		if (map) {
 #ifdef CONFIG_JOLIET
 			if (sbi->s_joliet_level) {
-				len = get_joliet_filename(de, tmpname, inode);
+				len = get_joliet_filename(de, tmpname,
+							  JOLIET_NAME_MAX + 1,
+							  inode);
 				p = tmpname;
 			} else
 #endif

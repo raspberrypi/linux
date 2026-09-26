@@ -109,7 +109,8 @@ isofs_find_entry(struct inode *dir, struct dentry *dentry,
 			dpnt = tmpname;
 #ifdef CONFIG_JOLIET
 		} else if (sbi->s_joliet_level) {
-			dlen = get_joliet_filename(de, tmpname, dir);
+			dlen = get_joliet_filename(de, tmpname,
+						   JOLIET_NAME_MAX + 1, dir);
 			dpnt = tmpname;
 #endif
 		} else if (sbi->s_mapping == 'a') {

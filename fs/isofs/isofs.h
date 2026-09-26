@@ -121,7 +121,16 @@ bool isofs_dir_record_valid(struct iso_directory_record *de,
 			    unsigned long offset,
 			    unsigned long bufsize);
 
-int get_joliet_filename(struct iso_directory_record *, unsigned char *, struct inode *);
+/*
+ * The longest name the Joliet converter returns, in bytes.  A directory
+ * record is at most 255 bytes long, which leaves room for 111 UTF-16 units
+ * of name, and no character set needs more than three bytes for one unit.
+ */
+#define JOLIET_NAME_MAX \
+	((255 - sizeof(struct iso_directory_record)) / 2 * 3)
+
+int get_joliet_filename(struct iso_directory_record *de, unsigned char *outname,
+			int outsize, struct inode *inode);
 int get_acorn_filename(struct iso_directory_record *, char *, struct inode *);
 
 extern struct dentry *isofs_lookup(struct inode *, struct dentry *, unsigned int flags);
