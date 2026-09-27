@@ -838,7 +838,7 @@ defined(CONFIG_AUTOFDO_CLANG) || defined(CONFIG_PROPELLER_CLANG)
 		.shstrtab 0 : { *(.shstrtab) }
 
 #define MODINFO								\
-		.modinfo (INFO) : { *(.modinfo) }
+		.modinfo (INFO) : { KEEP(*(.modinfo)) }
 
 #ifdef CONFIG_GENERIC_BUG
 #define BUG_TABLE							\
