@@ -669,6 +669,21 @@ static void mark_dynptr_cb_reg(struct bpf_verifier_env *env,
 static int destroy_if_dynptr_stack_slot(struct bpf_verifier_env *env,
 				        struct bpf_func_state *state, int spi);
 
+static int destroy_dynptrs_in_stack_slots(struct bpf_verifier_env *env,
+					  struct bpf_func_state *state,
+					  int first_spi, int last_spi)
+{
+	int spi, err;
+
+	for (spi = first_spi; spi <= last_spi; spi++) {
+		err = destroy_if_dynptr_stack_slot(env, state, spi);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int mark_stack_slots_dynptr(struct bpf_verifier_env *env, struct bpf_reg_state *reg,
 				   enum bpf_arg_type arg_type, int insn_idx,
 				   struct ref_obj_desc *ref_obj, struct bpf_dynptr_desc *dynptr)
@@ -682,7 +697,7 @@ static int mark_stack_slots_dynptr(struct bpf_verifier_env *env, struct bpf_reg_
 		return spi;
 
 	/* We cannot assume both spi and spi - 1 belong to the same dynptr,
-	 * hence we need to call destroy_if_dynptr_stack_slot twice for both,
+	 * hence we need to destroy dynptrs in both slots,
 	 * to ensure that for the following example:
 	 *	[d1][d1][d2][d2]
 	 * spi    3   2   1   0
@@ -690,10 +705,7 @@ static int mark_stack_slots_dynptr(struct bpf_verifier_env *env, struct bpf_reg_
 	 * case they do belong to same dynptr, second call won't see slot_type
 	 * as STACK_DYNPTR and will simply skip destruction.
 	 */
-	err = destroy_if_dynptr_stack_slot(env, state, spi);
-	if (err)
-		return err;
-	err = destroy_if_dynptr_stack_slot(env, state, spi - 1);
+	err = destroy_dynptrs_in_stack_slots(env, state, spi - 1, spi);
 	if (err)
 		return err;
 
@@ -3696,14 +3708,10 @@ static int check_stack_write_var_off(struct bpf_verifier_env *env,
 	    (!value_reg && is_bpf_st_mem(insn) && insn->imm == 0))
 		writing_zero = true;
 
-	for (i = min_off; i < max_off; i++) {
-		int spi;
-
-		spi = bpf_get_spi(i);
-		err = destroy_if_dynptr_stack_slot(env, state, spi);
-		if (err)
-			return err;
-	}
+	err = destroy_dynptrs_in_stack_slots(env, state, bpf_get_spi(max_off - 1),
+					     bpf_get_spi(min_off));
+	if (err)
+		return err;
 
 	/* Variable offset writes destroy any spilled pointers in range. */
 	for (i = min_off; i < max_off; i++) {
@@ -10462,6 +10470,12 @@ static int prepare_func_exit(struct bpf_verifier_env *env, int *insn_idx)
 		caller->regs[BPF_REG_0] = *r0;
 		bpf_diag_mod_end(env);
 	}
+
+	/* Invalidate callee-local dynptrs and their slices before the frame goes away. */
+	err = destroy_dynptrs_in_stack_slots(env, callee, 0,
+					     callee->allocated_stack / BPF_REG_SIZE - 1);
+	if (err)
+		return err;
 
 	/* for callbacks like bpf_loop or bpf_for_each_map_elem go back to callsite,
 	 * there function call logic would reschedule callback visit. If iteration

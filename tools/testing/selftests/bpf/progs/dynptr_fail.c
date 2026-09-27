@@ -125,9 +125,9 @@ static int missing_release_callback_fn(__u32 index, void *data)
 	return 0;
 }
 
-/* Any dynptr initialized within a callback must have bpf_dynptr_put called */
+/* A callback cannot return with the last dynptr for a referenced resource. */
 SEC("?raw_tp")
-__failure __msg("Unreleased reference id")
+__failure __msg("cannot overwrite referenced dynptr")
 int ringbuf_missing_release_callback(void *ctx)
 {
 	bpf_loop(10, missing_release_callback_fn, NULL, 0);
