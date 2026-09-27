@@ -3835,19 +3835,18 @@ static int __init d40_probe(struct platform_device *pdev)
 	}
 	pm_runtime_use_autosuspend(base->dev);
 
+	dma_set_max_seg_size(base->dev, STEDMA40_MAX_SEG_SIZE);
+
+	d40_hw_init(base);
+
 	ret = request_irq(base->irq, d40_handle_interrupt, 0, D40_NAME, base);
 	if (ret) {
 		d40_err(dev, "No IRQ defined\n");
 		goto destroy_cache;
 	}
-
 	ret = d40_dmaengine_init(base, num_reserved_chans);
 	if (ret)
 		goto destroy_cache;
-
-	dma_set_max_seg_size(base->dev, STEDMA40_MAX_SEG_SIZE);
-
-	d40_hw_init(base);
 
 	ret = of_dma_controller_register(np, d40_xlate, NULL);
 	if (ret) {
