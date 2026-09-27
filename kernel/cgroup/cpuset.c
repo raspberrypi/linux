@@ -622,8 +622,8 @@ static int validate_change(struct cpuset *cur, struct cpuset *trial)
 	 * For v1, effective_cpus == cpus_allowed & user_xcpus() returns
 	 * cpus_allowed.
 	 *
-	 * For v2, is_cpu_exclusive() & is_sched_load_balance() are true only
-	 * for non-isolated partition root. At this point, the target
+	 * For v2, is_partition_valid(cur) & is_sched_load_balance() are true
+	 * only for non-isolated partition root. At this point, the target
 	 * effective_cpus isn't computed yet. user_xcpus() is the best
 	 * approximation.
 	 *
@@ -632,7 +632,8 @@ static int validate_change(struct cpuset *cur, struct cpuset *trial)
 	 * becomes an issue.
 	 */
 	ret = -EBUSY;
-	if (is_cpu_exclusive(cur) && is_sched_load_balance(cur) &&
+	if ((is_partition_valid(cur) || (!cpuset_v2() && is_cpu_exclusive(cur))) &&
+	    is_sched_load_balance(cur) &&
 	    !cpuset_cpumask_can_shrink(cur->effective_cpus, user_xcpus(trial)))
 		goto out;
 
