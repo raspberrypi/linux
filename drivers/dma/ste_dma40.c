@@ -1807,6 +1807,11 @@ static irqreturn_t d40_handle_interrupt(int irq, void *data)
 	u32 *regs = base->regs_interrupt;
 	struct d40_interrupt_lookup *il = base->gen_dmac.il;
 	u32 il_size = base->gen_dmac.il_size;
+	int ret;
+
+	ret = pm_runtime_get_if_active(base->dev);
+	if (IS_ENABLED(CONFIG_PM) && ret <= 0)
+		return IRQ_NONE;
 
 	spin_lock(&base->interrupt_lock);
 
@@ -1854,6 +1859,9 @@ static irqreturn_t d40_handle_interrupt(int irq, void *data)
 	}
 
 	spin_unlock(&base->interrupt_lock);
+
+	if (ret > 0)
+		pm_runtime_put_autosuspend(base->dev);
 
 	return IRQ_HANDLED;
 }
