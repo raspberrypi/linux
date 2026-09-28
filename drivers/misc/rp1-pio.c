@@ -99,6 +99,7 @@ struct dma_info {
 	struct dma_chan *chan;
 	size_t buf_size;
 	size_t buf_count;
+	size_t burst_bytes;
 	bool cyclic;
 	unsigned int head_idx;
 	unsigned int tail_idx;
@@ -965,6 +966,42 @@ static void rp1_pio_sm_kernel_dma_callback(void *param)
 	kfree(dxs);
 }
 
+/*
+ * Once the RX FIFO reaches its DMA threshold, the DMA request is held until
+ * the DMAC acknowledges a burst, even if the FIFO is emptied in the meantime.
+ * A request still held when the SM is released makes the next user's first
+ * burst read stale data from the empty FIFO, so retire it (and any data that
+ * is left) with a throwaway transfer. Only one request can be outstanding, and
+ * it is satisfied by whatever is at the head of the FIFO, so a full FIFO is the
+ * most that can be pending - the extra burst is just a margin. The SM must
+ * already be disabled, so that no new data can arrive and any bursts complete
+ * almost immediately; the transfer is then stopped, finished or not.
+ */
+static void rp1_pio_sm_dma_flush_rx(struct dma_info *dma)
+{
+	size_t len = RP1_PIO_FIFO_DEPTH * sizeof(uint32_t) + dma->burst_bytes;
+	struct device *dma_dev = dma->chan->device->dev;
+	struct dma_async_tx_descriptor *desc;
+	dma_addr_t dma_addr;
+	void *buf;
+
+	dmaengine_terminate_sync(dma->chan);
+
+	buf = dma_alloc_coherent(dma_dev, len, &dma_addr, GFP_KERNEL);
+	if (!buf)
+		return;
+
+	desc = dmaengine_prep_slave_single(dma->chan, dma_addr, len,
+					   DMA_DEV_TO_MEM, DMA_CTRL_ACK);
+	if (desc && dmaengine_submit(desc) >= 0) {
+		dma_async_issue_pending(dma->chan);
+		fsleep(1000);
+	}
+
+	dmaengine_terminate_sync(dma->chan);
+	dma_free_coherent(dma_dev, len, buf, dma_addr);
+}
+
 static void rp1_pio_sm_dma_free(struct device *dev, struct dma_info *dma)
 {
 	dmaengine_terminate_all(dma->chan);
@@ -1116,6 +1153,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		config.dst_maxburst = dma_caps.max_burst;
 	else
 		config.src_maxburst = dma_caps.max_burst;
+	dma->burst_bytes = dma_caps.max_burst * sizeof(uint32_t);
 
 	ret = dmaengine_slave_config(dma->chan, &config);
 	if (ret)
@@ -1671,6 +1709,9 @@ void rp1_pio_close(struct rp1_pio_client *client)
 			struct dma_info *dma = &pio->dma_configs[i >> 1][i & 1];
 
 			claimed &= ~mask;
+			/* The SMs have been disabled, so this is safe */
+			if ((i & 1) == RP1_PIO_DIR_FROM_SM)
+				rp1_pio_sm_dma_flush_rx(dma);
 			rp1_pio_sm_dma_free(&pio->pdev->dev, dma);
 		}
 	}
