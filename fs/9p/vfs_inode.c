@@ -495,6 +495,12 @@ static int v9fs_at_to_dotl_flags(int flags)
  * nothing and races with concurrent metadata fetches that may already
  * have observed the post-unlink value (nlink == 0).
  *
+ * The same applies to a regular file whose cached nlink has already been
+ * driven to zero by the server: in the cached modes the attributes come
+ * from GETATTR and are applied verbatim, so decrementing a link count the
+ * server does not maintain only trips the drop_nlink() WARN_ON and
+ * underflows i_nlink.
+ *
  * @inode: inode whose nlink is being dropped
  */
 static void v9fs_dec_count(struct inode *inode)
@@ -502,6 +508,8 @@ static void v9fs_dec_count(struct inode *inode)
 	struct v9fs_session_info *v9ses = v9fs_inode2v9ses(inode);
 
 	if (!(v9ses->cache & (CACHE_META | CACHE_LOOSE)))
+		return;
+	if (inode->i_nlink == 0)
 		return;
 	if (!S_ISDIR(inode->i_mode) || inode->i_nlink > 2)
 		drop_nlink(inode);
