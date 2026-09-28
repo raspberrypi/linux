@@ -831,6 +831,11 @@ xrep_dirtree(
 	 */
 	mutex_lock(&dl->lock);
 	do {
+		if (dl->aborted) {
+			error = -EIO;
+			break;
+		}
+
 		/*
 		 * Decide what we're going to do, then do it.  An -ESTALE
 		 * return here means the scan results are invalid and we have
