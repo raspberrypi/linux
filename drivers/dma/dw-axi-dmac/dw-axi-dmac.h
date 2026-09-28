@@ -221,6 +221,9 @@ static inline struct axi_dma_chan *dchan_to_axi_dma_chan(struct dma_chan *dchan)
 #define DMAC_CHAN_SUSP_SHIFT		16
 #define DMAC_CHAN_SUSP_WE_SHIFT		24
 
+#define DMAC_CHAN_ABORT_SHIFT		32
+#define DMAC_CHAN_ABORT_WE_SHIFT	40
+
 /* DMAC_CHEN2 */
 #define DMAC_CHAN_EN2_WE_SHIFT		16
 
@@ -231,6 +234,10 @@ static inline struct axi_dma_chan *dchan_to_axi_dma_chan(struct dma_chan *dchan)
 /* DMAC_CHSUSP */
 #define DMAC_CHAN_SUSP2_SHIFT		0
 #define DMAC_CHAN_SUSP2_WE_SHIFT	16
+
+/* DMAC_CHABORT */
+#define DMAC_CHAN_ABORT2_SHIFT		0
+#define DMAC_CHAN_ABORT2_WE_SHIFT	16
 
 /* CH_CTL_H */
 #define CH_CTL_H_ARLEN_EN		BIT(6)
