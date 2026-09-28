@@ -20,8 +20,10 @@
 #include <linux/net_tstamp.h>
 #include <linux/circ_buf.h>
 #include <linux/spinlock.h>
+#include <linux/of.h>
 
 #include "macb.h"
+#include "macb_rp1_ptp.h"
 
 #define  GEM_PTP_TIMER_NAME "gem-ptp-timer"
 
@@ -74,8 +76,8 @@ static int gem_tsu_get_time(struct ptp_clock_info *ptp, struct timespec64 *ts,
 	return 0;
 }
 
-static int gem_tsu_set_time(struct ptp_clock_info *ptp,
-			    const struct timespec64 *ts)
+static int __gem_tsu_set_time(struct ptp_clock_info *ptp,
+			      const struct timespec64 *ts)
 {
 	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
 	unsigned long flags;
@@ -99,6 +101,20 @@ static int gem_tsu_set_time(struct ptp_clock_info *ptp,
 	return 0;
 }
 
+static int gem_tsu_set_time(struct ptp_clock_info *ptp,
+			    const struct timespec64 *ts)
+{
+	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
+	int ret, unlock_ret;
+
+	ret = rp1_extts_clock_lock(bp);
+	if (ret)
+		return ret;
+	ret = __gem_tsu_set_time(ptp, ts);
+	unlock_ret = rp1_extts_clock_unlock(bp);
+	return ret ? ret : unlock_ret;
+}
+
 static int gem_tsu_incr_set(struct macb *bp, struct tsu_incr *incr_spec)
 {
 	unsigned long flags;
@@ -119,7 +135,7 @@ static int gem_tsu_incr_set(struct macb *bp, struct tsu_incr *incr_spec)
 	return 0;
 }
 
-static int gem_ptp_adjfine(struct ptp_clock_info *ptp, long scaled_ppm)
+static int __gem_ptp_adjfine(struct ptp_clock_info *ptp, long scaled_ppm)
 {
 	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
 	struct tsu_incr incr_spec;
@@ -154,7 +170,18 @@ static int gem_ptp_adjfine(struct ptp_clock_info *ptp, long scaled_ppm)
 	return 0;
 }
 
-static int gem_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
+static int gem_ptp_adjfine(struct ptp_clock_info *ptp, long scaled_ppm)
+{
+	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
+	int ret;
+
+	rp1_extts_rate_lock(bp);
+	ret = __gem_ptp_adjfine(ptp, scaled_ppm);
+	rp1_extts_rate_unlock(bp);
+	return ret;
+}
+
+static int __gem_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 {
 	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
 	struct timespec64 now, then = ns_to_timespec64(delta);
@@ -169,8 +196,8 @@ static int gem_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 		gem_tsu_get_time(&bp->ptp_clock_info, &now, NULL);
 		now = timespec64_add(now, then);
 
-		gem_tsu_set_time(&bp->ptp_clock_info,
-				 (const struct timespec64 *)&now);
+		__gem_tsu_set_time(&bp->ptp_clock_info,
+				   (const struct timespec64 *)&now);
 	} else {
 		adj = (sign << GEM_ADDSUB_OFFSET) | delta;
 
@@ -180,10 +207,33 @@ static int gem_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 	return 0;
 }
 
+static int gem_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
+{
+	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
+	int ret, unlock_ret;
+
+	ret = rp1_extts_clock_lock(bp);
+	if (ret)
+		return ret;
+	ret = __gem_ptp_adjtime(ptp, delta);
+	unlock_ret = rp1_extts_clock_unlock(bp);
+	return ret ? ret : unlock_ret;
+}
+
 static int gem_ptp_enable(struct ptp_clock_info *ptp,
 			  struct ptp_clock_request *rq, int on)
 {
-	return -EOPNOTSUPP;
+	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
+
+	return rp1_extts_enable(bp, rq, on);
+}
+
+static int gem_ptp_verify(struct ptp_clock_info *ptp, unsigned int pin,
+			  enum ptp_pin_function func, unsigned int chan)
+{
+	struct macb *bp = container_of(ptp, struct macb, ptp_clock_info);
+
+	return rp1_extts_verify(bp, pin, func, chan);
 }
 
 static const struct ptp_clock_info gem_ptp_caps_template = {
@@ -200,6 +250,7 @@ static const struct ptp_clock_info gem_ptp_caps_template = {
 	.gettimex64	= gem_tsu_get_time,
 	.settime64	= gem_tsu_set_time,
 	.enable		= gem_ptp_enable,
+	.verify		= gem_ptp_verify,
 };
 
 static void gem_ptp_init_timer(struct macb *bp)
@@ -333,14 +384,23 @@ void gem_ptp_init(struct net_device *netdev)
 	bp->ptp_clock_info.max_adj = bp->ptp_info->get_ptp_max_adj();
 	gem_ptp_init_timer(bp);
 	gem_ptp_init_tsu(bp);
+	if (of_device_is_compatible(bp->pdev->dev.of_node, "raspberrypi,rp1-gem")) {
+		int err = rp1_extts_create(bp);
+
+		if (err)
+			dev_err(&bp->pdev->dev,
+				"failed to initialize RP1 PTP GPIO support: %d\n", err);
+	}
 	bp->ptp_clock = ptp_clock_register(&bp->ptp_clock_info, &netdev->dev);
 	if (IS_ERR(bp->ptp_clock)) {
 		pr_err("ptp clock register failed: %ld\n",
 			PTR_ERR(bp->ptp_clock));
 		bp->ptp_clock = NULL;
+		rp1_extts_destroy(bp);
 		return;
 	} else if (bp->ptp_clock == NULL) {
 		pr_err("ptp clock register failed\n");
+		rp1_extts_destroy(bp);
 		return;
 	}
 
@@ -352,10 +412,12 @@ void gem_ptp_remove(struct net_device *ndev)
 {
 	struct macb *bp = netdev_priv(ndev);
 
+	rp1_extts_quiesce(bp);
 	if (bp->ptp_clock) {
 		ptp_clock_unregister(bp->ptp_clock);
 		bp->ptp_clock = NULL;
 	}
+	rp1_extts_destroy(bp);
 
 	gem_ptp_clear_timer(bp);
 
@@ -462,4 +524,3 @@ int gem_set_hwtst(struct net_device *dev,
 
 	return 0;
 }
-

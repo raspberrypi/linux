@@ -18,6 +18,7 @@ Contents:
    amd/pds_vdpa
    amd/pds_vfio_pci
    aquantia/atlantic
+   cadence/macb-rp1-ptp
    chelsio/cxgb
    cirrus/cs89x0
    dlink/dl2k
