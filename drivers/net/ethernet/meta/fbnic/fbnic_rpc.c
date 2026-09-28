@@ -117,7 +117,7 @@ void fbnic_bmc_rpc_all_multi_config(struct fbnic_dev *fbd,
 	 * BMC.
 	 */
 	mac_addr = &fbd->mac_addr[fbd->mac_addr_boundary - 1];
-	if (fbnic_bmc_present(fbd) && fbd->fw_cap.all_multi) {
+	if (fbnic_bmc_all_multi(fbd)) {
 		if (mac_addr->state != FBNIC_TCAM_S_VALID) {
 			eth_zero_addr(mac_addr->value.addr8);
 			eth_broadcast_addr(mac_addr->mask.addr8);
@@ -148,7 +148,7 @@ void fbnic_bmc_rpc_all_multi_config(struct fbnic_dev *fbd,
 	/* If we are not enabling the rule just delete it. We will fall
 	 * back to the RSS rules that support the multicast addresses.
 	 */
-	if (!fbnic_bmc_present(fbd) || !fbd->fw_cap.all_multi || enable_host) {
+	if (!fbnic_bmc_all_multi(fbd) || enable_host) {
 		if (act_tcam->state == FBNIC_TCAM_S_VALID)
 			act_tcam->state = FBNIC_TCAM_S_DELETE;
 		return;
@@ -242,20 +242,25 @@ void fbnic_bmc_rpc_check(struct fbnic_dev *fbd)
 {
 	int err;
 
-	if (fbd->fw_cap.need_bmc_tcam_reinit) {
+	/* Consume the flag before the state it advertises. The ordering
+	 * implied by test_and_clear_bit() pairs with the barrier in
+	 * fbnic_fw_parse_bmc_cap(), and claiming it atomically means a set
+	 * racing with us is kept and retried rather than overwritten.
+	 */
+	if (test_and_clear_bit(FBNIC_FW_CAP_F_BMC_TCAM_REINIT,
+			       &fbd->fw_cap.state)) {
 		fbnic_bmc_rpc_init(fbd);
 		netif_addr_lock_bh(fbd->netdev);
 		__fbnic_set_rx_mode(fbd, &fbd->netdev->uc, &fbd->netdev->mc);
 		netif_addr_unlock_bh(fbd->netdev);
-		fbd->fw_cap.need_bmc_tcam_reinit = false;
 	}
 
-	if (fbd->fw_cap.need_bmc_macda_sync) {
+	if (test_and_clear_bit(FBNIC_FW_CAP_F_BMC_MACDA_SYNC,
+			       &fbd->fw_cap.state)) {
 		err = fbnic_fw_xmit_rpc_macda_sync(fbd);
 		if (err)
 			dev_warn(fbd->dev,
 				 "Writing MACDA table to FW failed, err: %d\n", err);
-		fbd->fw_cap.need_bmc_macda_sync = false;
 	}
 }
 
@@ -488,8 +493,7 @@ void fbnic_promisc_sync(struct fbnic_dev *fbd,
 				mac_addr->act_tcam);
 			mac_addr->state = FBNIC_TCAM_S_ADD;
 		}
-	} else if (mc_promisc &&
-		   (!fbnic_bmc_present(fbd) || !fbd->fw_cap.all_multi)) {
+	} else if (mc_promisc && !fbnic_bmc_all_multi(fbd)) {
 		/* We have to add a special handler for multicast as the
 		 * BMC may have an all-multi rule already in place. As such
 		 * adding a rule ourselves won't do any good so we will have
@@ -660,12 +664,12 @@ void fbnic_write_macda(struct fbnic_dev *fbd)
 	}
 
 	/* If reinitializing the BMC TCAM we are doing an initial update */
-	if (fbd->fw_cap.need_bmc_tcam_reinit)
+	if (test_bit(FBNIC_FW_CAP_F_BMC_TCAM_REINIT, &fbd->fw_cap.state))
 		updates++;
 
 	/* If needed notify firmware of changes to MACDA TCAM */
 	if (updates != 0 && fbnic_bmc_present(fbd))
-		fbd->fw_cap.need_bmc_macda_sync = true;
+		set_bit(FBNIC_FW_CAP_F_BMC_MACDA_SYNC, &fbd->fw_cap.state);
 }
 
 static void fbnic_clear_act_tcam(struct fbnic_dev *fbd, unsigned int idx)
