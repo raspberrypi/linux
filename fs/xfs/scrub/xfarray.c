@@ -943,8 +943,10 @@ xfarray_sort(
 		 * problems, we're done.
 		 */
 		ret = xfarray_foliosort(si, lo, hi);
-		if (ret < 0)
+		if (ret < 0) {
+			error = ret;
 			goto out_free;
+		}
 		if (ret == 1) {
 			si->stack_depth--;
 			continue;
