@@ -3987,6 +3987,14 @@ static int identity_domain_attach_dev(struct iommu_domain *domain,
 	if (dev_is_real_dma_subdevice(dev))
 		return 0;
 
+	if (sm_supported(iommu))
+		ret = intel_pasid_setup_pass_through(iommu, dev, IOMMU_NO_PASID);
+	else
+		ret = device_setup_pass_through(dev);
+
+	if (ret)
+		return ret;
+
 	/*
 	 * The identity domain has no iopf_handler, so no IOPF reference is
 	 * taken for it.  The reference held by the old domain must still be
@@ -3994,16 +4002,9 @@ static int identity_domain_attach_dev(struct iommu_domain *domain,
 	 * not affect the IOPF reference count.
 	 */
 	iopf_for_domain_remove(old, dev);
+	info->domain_attached = true;
 
-	if (sm_supported(iommu))
-		ret = intel_pasid_setup_pass_through(iommu, dev, IOMMU_NO_PASID);
-	else
-		ret = device_setup_pass_through(dev);
-
-	if (!ret)
-		info->domain_attached = true;
-
-	return ret;
+	return 0;
 }
 
 static int identity_domain_set_dev_pasid(struct iommu_domain *domain,
