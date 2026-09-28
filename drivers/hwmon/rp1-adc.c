@@ -98,14 +98,17 @@ static int rp1_adc_read(struct rp1_adc_data *data,
 
 	ret = rp1_adc_ready_wait(data);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Asserted if the completed conversion had a convergence error */
-	if (readl(data->base + RP1_ADC_CS) & RP1_ADC_CS_ERR)
-		return -EIO;
+	if (readl(data->base + RP1_ADC_CS) & RP1_ADC_CS_ERR) {
+		ret = -EIO;
+		goto out;
+	}
 
 	*val = readl(data->base + RP1_ADC_RESULT);
 
+out:
 	spin_unlock(&data->lock);
 
 	return ret;
