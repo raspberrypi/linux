@@ -1479,6 +1479,70 @@ static int reserve_domain_id(struct intel_iommu *iommu, int did)
 	return ret;
 }
 
+/*
+ * Reserve the domain IDs used by a scalable mode context entry copied from
+ * the previous kernel.
+ */
+static int copy_pasid_table_dids(struct intel_iommu *iommu, struct context_entry *ce)
+{
+	struct pasid_dir_entry *dir;
+	unsigned long dir_size;
+	phys_addr_t dir_phys;
+	int ret = 0;
+	int i, j;
+
+	dir_phys = ce->lo & VTD_PAGE_MASK;
+	if (!dir_phys)
+		return 0;
+
+	dir_size = get_pasid_dir_size(ce);
+	dir = memremap(dir_phys, dir_size * sizeof(*dir), MEMREMAP_WB);
+	if (!dir)
+		return -ENOMEM;
+
+	for (i = 0; i < dir_size; i++) {
+		struct pasid_entry *table;
+		phys_addr_t table_phys;
+
+		if (!pasid_pde_is_present(&dir[i]))
+			continue;
+
+		/*
+		 * Do not use get_pasid_table_from_pde(); that returns a
+		 * phys_to_virt() pointer, which is not valid for memory
+		 * owned by the previous kernel.
+		 */
+		table_phys = READ_ONCE(dir[i].val) & PDE_PFN_MASK;
+		if (!table_phys)
+			continue;
+
+		/* A PASID table is one page: PASID_TBL_ENTRIES * 64 bytes. */
+		table = memremap(table_phys, PAGE_SIZE, MEMREMAP_WB);
+		if (!table) {
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		for (j = 0; j < PASID_TBL_ENTRIES; j++) {
+			if (!pasid_pte_is_present(&table[j]))
+				continue;
+
+			ret = reserve_domain_id(iommu, pasid_get_domain_id(&table[j]));
+			if (ret) {
+				memunmap(table);
+				goto out;
+			}
+		}
+
+		memunmap(table);
+	}
+
+out:
+	memunmap(dir);
+
+	return ret;
+}
+
 static int copy_context_table(struct intel_iommu *iommu,
 			      struct root_entry *old_re,
 			      struct context_entry **tbl,
@@ -1546,8 +1610,14 @@ static int copy_context_table(struct intel_iommu *iommu,
 
 		if (!context_present(&ce))
 			continue;
-
-		ret = reserve_domain_id(iommu, context_domain_id(&ce));
+		/*
+		 * The context entry only holds a domain ID in legacy mode.
+		 * In scalable mode the IDs are in the PASID table entries.
+		 */
+		if (ext)
+			ret = copy_pasid_table_dids(iommu, &ce);
+		else
+			ret = reserve_domain_id(iommu, context_domain_id(&ce));
 		if (ret) {
 			/* Not yet published through @tbl, so free it here. */
 			iommu_free_pages(new_ce);
