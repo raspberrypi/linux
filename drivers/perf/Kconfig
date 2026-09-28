@@ -319,4 +319,17 @@ config MARVELL_PEM_PMU
 	  Enable support for PCIe Interface performance monitoring
 	  on Marvell platform.
 
+config RPI_AXI_PMU
+	tristate "Raspberry Pi AXI Performance Monitor"
+	depends on ARCH_BCM2835 || COMPILE_TEST
+	depends on !RPI_AXIPERF
+	depends on RASPBERRYPI_FIRMWARE || RASPBERRYPI_FIRMWARE=n
+	help
+	  Enable support for the Raspberry Pi AXI Performance Monitor.
+	  This provides access to the System and VideoCore performance
+	  counters on Broadcom BCM2835 and BCM2711 platforms.
+
+	  Expect 100ms ping latencies to the VideoCore firmware mailbox
+	  when reading counters on these platforms.
+
 endmenu
