@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/pio_rp1.h>
 #include <linux/platform_device.h>
 #include <linux/rp1-firmware.h>
@@ -113,6 +114,7 @@ struct irq_info {
 
 struct rp1_pio_device {
 	struct platform_device *pdev;
+	void __iomem *regs;
 	struct rp1_firmware *fw;
 	uint16_t fw_pio_base;
 	uint16_t fw_pio_count;
@@ -126,7 +128,10 @@ struct rp1_pio_device {
 	uint32_t claimed_dmas;
 	spinlock_t lock;
 	struct mutex instr_mutex;
+	/* Covers each PIO request through response validation and fault latching. */
+	struct mutex message_mutex;
 	struct dma_info dma_configs[RP1_PIO_SMS_COUNT][RP1_PIO_DIR_COUNT];
+	struct dma_chan *external_dma[RP1_PIO_SMS_COUNT][RP1_PIO_DIR_COUNT];
 	uint32_t used_instrs;
 	uint8_t instr_refcounts[RP1_PIO_INSTR_COUNT];
 	uint16_t instrs[RP1_PIO_INSTR_COUNT];
@@ -146,6 +151,7 @@ struct rp1_pio_client {
 };
 
 static struct rp1_pio_device *g_pio;
+static DEFINE_MUTEX(rp1_pio_lock);
 
 static int rp1_pio_message(struct rp1_pio_device *pio,
 			   uint16_t op, const void *data, unsigned int data_len)
@@ -155,11 +161,15 @@ static int rp1_pio_message(struct rp1_pio_device *pio,
 
 	if (op >= pio->fw_pio_count)
 		return -EOPNOTSUPP;
+	mutex_lock(&pio->message_mutex);
 	ret = rp1_firmware_message(pio->fw, pio->fw_pio_base + op,
 				   data, data_len,
 				   &rc, sizeof(rc));
-	if (ret == 4)
-		ret = rc;
+	if (ret == sizeof(rc))
+		ret = (int32_t)rc;
+	else if (ret >= 0)
+		ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+	mutex_unlock(&pio->message_mutex);
 	return ret;
 }
 
@@ -172,25 +182,32 @@ static int rp1_pio_message_resp(struct rp1_pio_device *pio,
 
 	if (op >= pio->fw_pio_count)
 		return -EOPNOTSUPP;
-	if (resp_len + 4 >= sizeof(resp_buf))
+	if (resp_len > sizeof(resp_buf) - 4)
 		return -EINVAL;
 	if (!resp && !userbuf)
 		return -EINVAL;
+	mutex_lock(&pio->message_mutex);
 	ret = rp1_firmware_message(pio->fw, pio->fw_pio_base + op,
 				   data, data_len,
 				   resp_buf, resp_len + 4);
-	if (ret >= 4 && !resp_buf[0]) {
+	if (ret >= 0 && ret < 4) {
+		ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+	} else if (ret >= 4 && resp_buf[0]) {
+		ret = (int32_t)resp_buf[0];
+		if (ret == -1)
+			ret = -EIO;
+	} else if (ret >= 4 && ret != resp_len + 4) {
+		ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+	} else if (ret >= 4) {
 		ret -= 4;
+	}
+	mutex_unlock(&pio->message_mutex);
+	/* User copies must not serialize other PIO/firmware clients. */
+	if (ret >= 0) {
 		if (resp)
 			memcpy(resp, &resp_buf[1], ret);
 		else if (copy_to_user(userbuf, &resp_buf[1], ret))
 			ret = -EFAULT;
-	} else if (ret == 4) {
-		ret = (int)resp_buf[0];
-		if (ret == -1)
-			ret = -EIO;
-	} else if (ret >= 0) {
-		ret = -EIO;
 	}
 	return ret;
 }
@@ -209,14 +226,17 @@ static int rp1_pio_write_hw(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	struct rp1_access_hw_args *args = param;
 	uint32_t write_buf[32 + 1];
-	int len;
+	int len, ret;
 
 	len = min(args->len, sizeof(write_buf) - 4);
 	write_buf[0] = args->addr;
 	if (copy_from_user(&write_buf[1], args->data, len))
 		return -EFAULT;
-	return rp1_firmware_message(pio->fw, pio->fw_pio_base + WRITE_HW,
-				    write_buf, 4 + len, NULL, 0);
+	mutex_lock(&pio->message_mutex);
+	ret = rp1_firmware_message(pio->fw, pio->fw_pio_base + WRITE_HW,
+				   write_buf, 4 + len, NULL, 0);
+	mutex_unlock(&pio->message_mutex);
+	return ret;
 }
 
 static int rp1_pio_find_program(struct rp1_pio_device *pio,
@@ -251,13 +271,18 @@ int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	int offset;
 
-	if (args->num_instrs > RP1_PIO_INSTR_COUNT ||
-		((args->origin != RP1_PIO_ORIGIN_ANY) &&
-		 (args->origin >= RP1_PIO_INSTR_COUNT ||
-		  ((args->origin + args->num_instrs) > RP1_PIO_INSTR_COUNT))))
+	if (!args->num_instrs || args->num_instrs > RP1_PIO_INSTR_COUNT ||
+	    (args->origin != RP1_PIO_ORIGIN_ANY &&
+	     (args->origin >= RP1_PIO_INSTR_COUNT ||
+	      args->origin + args->num_instrs > RP1_PIO_INSTR_COUNT)))
 		return -EINVAL;
 
 	mutex_lock(&pio->instr_mutex);
+	offset = rp1_firmware_transport_error(pio->fw);
+	if (offset) {
+		mutex_unlock(&pio->instr_mutex);
+		return offset;
+	}
 	offset = rp1_pio_find_program(pio, args);
 	mutex_unlock(&pio->instr_mutex);
 	if (offset >= 0)
@@ -276,16 +301,23 @@ int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
 	int offset;
 	uint i;
 
-	if (args->num_instrs > RP1_PIO_INSTR_COUNT ||
-		((args->origin != RP1_PIO_ORIGIN_ANY) &&
-		 (args->origin >= RP1_PIO_INSTR_COUNT ||
-		  ((args->origin + args->num_instrs) > RP1_PIO_INSTR_COUNT))))
+	if (!args->num_instrs || args->num_instrs > RP1_PIO_INSTR_COUNT ||
+	    (args->origin != RP1_PIO_ORIGIN_ANY &&
+	     (args->origin >= RP1_PIO_INSTR_COUNT ||
+	      args->origin + args->num_instrs > RP1_PIO_INSTR_COUNT)))
 		return -EINVAL;
 
 	mutex_lock(&pio->instr_mutex);
+	offset = rp1_firmware_transport_error(pio->fw);
+	if (offset) {
+		mutex_unlock(&pio->instr_mutex);
+		return offset;
+	}
 	offset = rp1_pio_find_program(pio, args);
 	if (offset < 0)
 		offset = rp1_pio_message(client->pio, PIO_ADD_PROGRAM, args, sizeof(*args));
+	if (offset >= 0 && offset > RP1_PIO_INSTR_COUNT - args->num_instrs)
+		offset = rp1_firmware_report_fault(pio->fw, -EPROTO);
 
 	if (offset >= 0) {
 		uint32_t used_mask;
@@ -370,8 +402,13 @@ int rp1_pio_sm_claim(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	int ret;
 
+	if (args->mask & ~GENMASK(RP1_PIO_SMS_COUNT - 1, 0))
+		return -EINVAL;
+
 	mutex_lock(&pio->instr_mutex);
 	ret = rp1_pio_message(client->pio, PIO_SM_CLAIM, args, sizeof(*args));
+	if (!args->mask && ret >= RP1_PIO_SMS_COUNT)
+		ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
 	if (ret >= 0) {
 		if (args->mask)
 			client->claimed_sms |= args->mask;
@@ -1565,19 +1602,56 @@ struct handler_info {
 	HANDLER(INTERRUPT_CLEAR, interrupt_clear),
 };
 
+static int rp1_pio_link_firmware(struct device *dev)
+{
+	struct device_node *fw_node;
+	struct platform_device *fw_pdev;
+	struct device_link *link;
+	enum device_link_state status;
+	int ret = 0;
+
+	fw_node = of_parse_phandle(dev->of_node, "firmware", 0);
+	if (!fw_node)
+		return -ENODEV;
+
+	fw_pdev = of_find_device_by_node(fw_node);
+	of_node_put(fw_node);
+	if (!fw_pdev)
+		return -EPROBE_DEFER;
+
+	link = device_link_add(dev, &fw_pdev->dev, DL_FLAG_AUTOREMOVE_CONSUMER);
+	if (!link) {
+		ret = -ENOMEM;
+	} else {
+		status = READ_ONCE(link->status);
+		if (status != DL_STATE_ACTIVE && status != DL_STATE_CONSUMER_PROBE)
+			ret = -EPROBE_DEFER;
+	}
+
+	put_device(&fw_pdev->dev);
+	return ret;
+}
+
 struct rp1_pio_client *rp1_pio_open(void)
 {
 	struct rp1_pio_client *client;
 	int i;
 
-	if (!g_pio)
-		return ERR_PTR(-EPROBE_DEFER);
-	if (IS_ERR(g_pio))
-		return ERR_CAST(g_pio);
+	mutex_lock(&rp1_pio_lock);
+	if (!g_pio) {
+		client = ERR_PTR(-EPROBE_DEFER);
+		goto out;
+	}
+	if (IS_ERR(g_pio)) {
+		client = ERR_CAST(g_pio);
+		goto out;
+	}
 
 	client = kzalloc(sizeof(*client), GFP_KERNEL);
-	if (!client)
-		return ERR_PTR(-ENOMEM);
+	if (!client) {
+		client = ERR_PTR(-ENOMEM);
+		goto out;
+	}
 
 	for (i = 0; i < RP1_PIO_IRQ_COUNT; i++)
 		client->irqs[i] = -1;
@@ -1585,10 +1659,359 @@ struct rp1_pio_client *rp1_pio_open(void)
 	client->pio = g_pio;
 	spin_lock_init(&client->lock);
 	init_completion(&client->completion);
-
+out:
+	mutex_unlock(&rp1_pio_lock);
 	return client;
 }
 EXPORT_SYMBOL_GPL(rp1_pio_open);
+
+/**
+ * rp1_pio_open_for_device - open a PIO client and order its supplier
+ * @consumer: device which will use the returned client
+ * @provider_node: device-tree node for the RP1 PIO provider
+ *
+ * The device link keeps the PIO provider bound until the consumer unbinds.
+ * The consumer must serialize use and close of the returned client with its
+ * own removal path. Repeated calls for the same device pair reuse the link.
+ */
+struct rp1_pio_client *
+rp1_pio_open_for_device(struct device *consumer,
+			struct device_node *provider_node)
+{
+	struct platform_device *pdev;
+	struct device_link *link;
+	struct rp1_pio_client *client;
+	enum device_link_state state;
+	int i;
+
+	if (!consumer || !provider_node)
+		return ERR_PTR(-EINVAL);
+
+	pdev = of_find_device_by_node(provider_node);
+	if (!pdev)
+		return ERR_PTR(-EPROBE_DEFER);
+
+	link = device_link_add(consumer, &pdev->dev, DL_FLAG_AUTOREMOVE_CONSUMER);
+	if (!link) {
+		client = ERR_PTR(-ENODEV);
+		goto put_device;
+	}
+	state = READ_ONCE(link->status);
+	if (state != DL_STATE_ACTIVE && state != DL_STATE_CONSUMER_PROBE) {
+		client = ERR_PTR(-EPROBE_DEFER);
+		goto put_device;
+	}
+
+	mutex_lock(&rp1_pio_lock);
+	if (!g_pio || IS_ERR(g_pio) || g_pio->pdev != pdev) {
+		client = ERR_PTR(-EPROBE_DEFER);
+		goto unlock;
+	}
+	client = kzalloc(sizeof(*client), GFP_KERNEL);
+	if (!client) {
+		client = ERR_PTR(-ENOMEM);
+		goto unlock;
+	}
+	for (i = 0; i < RP1_PIO_IRQ_COUNT; i++)
+		client->irqs[i] = -1;
+	client->pio = g_pio;
+	spin_lock_init(&client->lock);
+	init_completion(&client->completion);
+unlock:
+	mutex_unlock(&rp1_pio_lock);
+put_device:
+	put_device(&pdev->dev);
+	return client;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_open_for_device);
+
+/**
+ * rp1_pio_sm_put_mmio - append a word to an owned state-machine TX FIFO
+ * @client: PIO client which claimed @sm
+ * @sm: state-machine index
+ * @data: word to append
+ *
+ * This avoids a firmware round trip. The caller must ensure the FIFO has room
+ * and serialize writers. The MMIO write is ordered, but may be posted.
+ */
+int rp1_pio_sm_put_mmio(struct rp1_pio_client *client, unsigned int sm, u32 data)
+{
+	struct rp1_pio_device *pio;
+
+	if (!client || sm >= RP1_PIO_SMS_COUNT ||
+	    !(client->claimed_sms & BIT(sm)))
+		return -EINVAL;
+
+	pio = client->pio;
+	if (!pio->regs)
+		return -ENODEV;
+
+	writel(data, pio->regs + RP1_PIO_FIFO_TX0 + sizeof(data) * sm);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_sm_put_mmio);
+
+/**
+ * rp1_pio_dma_request - request a DMA channel for an owned state machine
+ * @client: PIO client which owns @sm
+ * @sm: state-machine index
+ * @dir: data direction relative to the state machine
+ *
+ * The returned channel transfers one 32-bit word per FIFO request. The PIO
+ * client must release it after stopping its DMA activity and before closing.
+ */
+struct dma_chan *rp1_pio_dma_request(struct rp1_pio_client *client,
+				     unsigned int sm, enum pio_xfer_dir dir)
+{
+	struct rp1_pio_device *pio;
+	struct dma_slave_config config = {};
+	struct dma_chan *chan;
+	unsigned long flags;
+	phys_addr_t fifo_addr;
+	char name[5];
+	u32 mask;
+	int ret;
+
+	if (!client || sm >= RP1_PIO_SMS_COUNT || dir >= RP1_PIO_DIR_COUNT)
+		return ERR_PTR(-EINVAL);
+	pio = client->pio;
+	mask = BIT(sm * RP1_PIO_DIR_COUNT + dir);
+
+	spin_lock_irqsave(&pio->lock, flags);
+	if (!(client->claimed_sms & BIT(sm))) {
+		spin_unlock_irqrestore(&pio->lock, flags);
+		return ERR_PTR(-EPERM);
+	}
+	if (pio->claimed_dmas & mask) {
+		spin_unlock_irqrestore(&pio->lock, flags);
+		return ERR_PTR(-EBUSY);
+	}
+	pio->claimed_dmas |= mask;
+	client->claimed_dmas |= mask;
+	spin_unlock_irqrestore(&pio->lock, flags);
+
+	name[0] = dir == PIO_DIR_TO_SM ? 't' : 'r';
+	name[1] = 'x';
+	name[2] = '0' + sm;
+	name[3] = '\0';
+	name[4] = '\0';
+	chan = dma_request_chan(&pio->pdev->dev, name);
+	if (IS_ERR(chan)) {
+		ret = PTR_ERR(chan);
+		goto err_unclaim;
+	}
+
+	fifo_addr = pio->phys_addr + sm * sizeof(u32);
+	if (dir == PIO_DIR_FROM_SM)
+		fifo_addr += RP1_PIO_FIFO_RX0;
+	else
+		fifo_addr += RP1_PIO_FIFO_TX0;
+	config.src_addr = fifo_addr;
+	config.dst_addr = fifo_addr;
+	config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+	config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+	config.src_maxburst = 1;
+	config.dst_maxburst = 1;
+	config.direction = dir == PIO_DIR_FROM_SM ? DMA_DEV_TO_MEM : DMA_MEM_TO_DEV;
+	ret = dmaengine_slave_config(chan, &config);
+	if (ret)
+		goto err_release;
+
+	spin_lock_irqsave(&pio->lock, flags);
+	if (pio->external_dma[sm][dir]) {
+		spin_unlock_irqrestore(&pio->lock, flags);
+		ret = -EBUSY;
+		goto err_release;
+	}
+	pio->external_dma[sm][dir] = chan;
+	spin_unlock_irqrestore(&pio->lock, flags);
+	return chan;
+
+err_release:
+	dma_release_channel(chan);
+err_unclaim:
+	spin_lock_irqsave(&pio->lock, flags);
+	pio->claimed_dmas &= ~mask;
+	client->claimed_dmas &= ~mask;
+	spin_unlock_irqrestore(&pio->lock, flags);
+	return ERR_PTR(ret);
+}
+EXPORT_SYMBOL_GPL(rp1_pio_dma_request);
+
+/**
+ * rp1_pio_dma_release - stop and release a channel acquired by this client
+ * @client: PIO client which owns @sm
+ * @sm: state-machine index
+ * @dir: data direction relative to the state machine
+ * @chan: channel returned by rp1_pio_dma_request()
+ *
+ * If synchronous termination fails, the channel and PIO ownership are retained
+ * so the caller can retry cleanup.
+ */
+int rp1_pio_dma_release(struct rp1_pio_client *client, unsigned int sm,
+			enum pio_xfer_dir dir, struct dma_chan *chan)
+{
+	struct rp1_pio_device *pio;
+	unsigned long flags;
+	u32 mask;
+	int ret;
+
+	if (!client || !chan || sm >= RP1_PIO_SMS_COUNT || dir >= RP1_PIO_DIR_COUNT)
+		return -EINVAL;
+	pio = client->pio;
+	mask = BIT(sm * RP1_PIO_DIR_COUNT + dir);
+
+	spin_lock_irqsave(&pio->lock, flags);
+	if (!(client->claimed_dmas & mask) || pio->external_dma[sm][dir] != chan) {
+		spin_unlock_irqrestore(&pio->lock, flags);
+		return -EPERM;
+	}
+	spin_unlock_irqrestore(&pio->lock, flags);
+
+	ret = dmaengine_terminate_sync(chan);
+	if (ret)
+		return ret;
+	dma_release_channel(chan);
+
+	spin_lock_irqsave(&pio->lock, flags);
+	pio->external_dma[sm][dir] = NULL;
+	pio->claimed_dmas &= ~mask;
+	client->claimed_dmas &= ~mask;
+	spin_unlock_irqrestore(&pio->lock, flags);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_dma_release);
+
+/**
+ * rp1_pio_gpio_is_synchronized - report whether an RP1 GPIO uses input sync
+ * @client: PIO client
+ * @gpio: RP1 GPIO number
+ * @synchronized: set to true when the GPIO input synchronizer is enabled
+ */
+int rp1_pio_gpio_is_synchronized(struct rp1_pio_client *client,
+				 unsigned int gpio, bool *synchronized)
+{
+	u32 request[2] = { 0xf000003c, sizeof(u32) };
+	u32 mask;
+	int ret;
+
+	if (!client || !synchronized || gpio >= 28)
+		return -EINVAL;
+	ret = rp1_pio_message_resp(client->pio, READ_HW, request, sizeof(request),
+				   &mask, NULL, sizeof(mask));
+	if (ret < 0)
+		return ret;
+	if (ret != sizeof(mask))
+		return rp1_firmware_report_fault(client->pio->fw, -EPROTO);
+	/* READ_HW returns the bypass mask, so a clear bit means synchronized. */
+	*synchronized = !(mask & BIT(gpio));
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_gpio_is_synchronized);
+
+/* Caller holds instr_mutex. Remove only acknowledged, exclusively-owned runs. */
+static int rp1_pio_remove_checked(struct rp1_pio_client *client)
+{
+	struct rp1_pio_device *pio = client->pio;
+	struct rp1_pio_remove_program_args args;
+	unsigned int i, count;
+	u32 mask;
+	int ret;
+
+	for (i = 0; i < RP1_PIO_INSTR_COUNT; i++) {
+		if (!(client->claimed_instrs & BIT(i)))
+			continue;
+		if (!pio->instr_refcounts[i])
+			return rp1_firmware_report_fault(pio->fw, -EUCLEAN);
+		if (pio->instr_refcounts[i] > 1) {
+			pio->instr_refcounts[i]--;
+			client->claimed_instrs &= ~BIT(i);
+			continue;
+		}
+
+		for (count = 1; i + count < RP1_PIO_INSTR_COUNT; count++) {
+			if (!(client->claimed_instrs & BIT(i + count)) ||
+			    pio->instr_refcounts[i + count] != 1)
+				break;
+		}
+		args.origin = i;
+		args.num_instrs = count;
+		ret = rp1_pio_message(pio, PIO_REMOVE_PROGRAM, &args, sizeof(args));
+		if (ret > 0)
+			ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+		if (ret)
+			return ret;
+
+		mask = GENMASK(i + count - 1, i);
+		memset(&pio->instr_refcounts[i], 0, count);
+		pio->used_instrs &= ~mask;
+		client->claimed_instrs &= ~mask;
+		i += count - 1;
+	}
+
+	return 0;
+}
+
+/**
+ * rp1_pio_close_checked - stop and release kernel-client PIO ownership
+ * @client: exclusively accessed client; caller has drained its own DMA
+ *
+ * Clients using the PIO bounce-buffer DMA helper are not supported here.
+ * A zero return consumes the client. An error retains it for retry or
+ * quarantine, with acknowledged releases reflected in its ownership state.
+ */
+int rp1_pio_close_checked(struct rp1_pio_client *client)
+{
+	struct rp1_pio_device *pio;
+	struct rp1_pio_sm_set_enabled_args stop = {};
+	struct rp1_pio_sm_claim_args release = {};
+	int ret;
+
+	if (!client)
+		return -EINVAL;
+	pio = client->pio;
+
+	mutex_lock(&pio->instr_mutex);
+	ret = rp1_firmware_transport_error(pio->fw);
+	if (ret)
+		goto out;
+	if (client->claimed_dmas) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+	stop.mask = client->claimed_sms;
+	if (stop.mask) {
+		ret = rp1_pio_message(pio, PIO_SM_SET_ENABLED, &stop, sizeof(stop));
+		if (ret > 0)
+			ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+		if (ret)
+			goto out;
+	}
+
+	ret = rp1_pio_remove_checked(client);
+	if (ret)
+		goto out;
+
+	release.mask = client->claimed_sms;
+	if (release.mask) {
+		ret = rp1_pio_message(pio, PIO_SM_UNCLAIM, &release, sizeof(release));
+		if (ret > 0)
+			ret = rp1_firmware_report_fault(pio->fw, -EPROTO);
+		if (ret)
+			goto out;
+		pio->claimed_sms &= ~release.mask;
+		client->claimed_sms = 0;
+	}
+
+	mutex_unlock(&pio->instr_mutex);
+	kfree(client);
+	return 0;
+out:
+	mutex_unlock(&pio->instr_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rp1_pio_close_checked);
 
 void rp1_pio_close(struct rp1_pio_client *client)
 {
@@ -1868,7 +2291,7 @@ static int rp1_pio_probe(struct platform_device *pdev)
 	uint32_t op_base = 0;
 	struct device *cdev;
 	char dev_name[16];
-	void *p;
+	void __iomem *p;
 	int irq;
 	int ret;
 	int i;
@@ -1884,6 +2307,12 @@ static int rp1_pio_probe(struct platform_device *pdev)
 	pdev->id = of_alias_get_id(dev->of_node, "pio");
 	if (pdev->id < 0)
 		return dev_err_probe(dev, pdev->id, "alias is missing\n");
+
+	/* PIO accesses the firmware provider's device-managed shared mapping. */
+	ret = rp1_pio_link_firmware(dev);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to link RP1 firmware supplier\n");
 
 	fw = devm_rp1_firmware_get(dev, dev->of_node);
 	if (!fw)
@@ -1910,12 +2339,14 @@ static int rp1_pio_probe(struct platform_device *pdev)
 	pio->fw = fw;
 	spin_lock_init(&pio->lock);
 	mutex_init(&pio->instr_mutex);
+	mutex_init(&pio->message_mutex);
 
 	p = devm_platform_get_and_ioremap_resource(pdev, 0, &ioresource);
 	if (IS_ERR(p)) {
 		ret = PTR_ERR(p);
 		goto out_err;
 	}
+	pio->regs = p;
 
 	if (pio->fw_pio_count > PIO_INTERRUPT_CLEAR) {
 		for (i = 0; i < ARRAY_SIZE(pio->irqs); i++) {
@@ -1966,7 +2397,9 @@ static int rp1_pio_probe(struct platform_device *pdev)
 		goto out_cdev_del;
 	}
 
+	mutex_lock(&rp1_pio_lock);
 	g_pio = pio;
+	mutex_unlock(&rp1_pio_lock);
 
 	dev_info(dev, "Created instance as %s (op count %d, %d interrupts)\n",
 		 dev_name, pio->fw_pio_count, pio->irq_count);
@@ -1992,8 +2425,10 @@ static void rp1_pio_remove(struct platform_device *pdev)
 
 	/* There should be no clients */
 
+	mutex_lock(&rp1_pio_lock);
 	if (g_pio == pio)
 		g_pio = NULL;
+	mutex_unlock(&rp1_pio_lock);
 
 	device_destroy(pio->dev_class, pio->dev_num);
 	cdev_del(&pio->cdev);
