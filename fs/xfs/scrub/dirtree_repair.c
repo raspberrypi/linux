@@ -427,6 +427,11 @@ again:
 		error = -ESTALE;
 		goto out_trans_cancel;
 	}
+	if (dl->aborted) {
+		mutex_unlock(&dl->lock);
+		error = -EIO;
+		goto out_trans_cancel;
+	}
 	xrep_dirpath_set_outcome(dl, path, XREP_DIRPATH_DELETING);
 	mutex_unlock(&dl->lock);
 
