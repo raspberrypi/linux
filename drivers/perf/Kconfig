@@ -327,7 +327,7 @@ config RPI_AXI_PMU
 	help
 	  Enable support for the Raspberry Pi AXI Performance Monitor.
 	  This provides access to the System and VideoCore performance
-	  counters on Broadcom BCM2835 and BCM2711 platforms.
+	  counters on Broadcom BCM2835, BCM2711, and BCM2712 platforms.
 
 	  Expect 100ms ping latencies to the VideoCore firmware mailbox
 	  when reading counters on these platforms.
