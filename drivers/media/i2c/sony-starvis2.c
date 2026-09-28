@@ -77,7 +77,7 @@ MODULE_PARM_DESC(hcg_mode, "Enable HCG mode");
 #define STARVIS2_SHR_MIN                  8
 
 /* Exposure control */
-#define STARVIS2_EXPOSURE_MIN             2
+#define STARVIS2_EXPOSURE_MIN             1
 #define STARVIS2_EXPOSURE_STEP            1
 #define STARVIS2_EXPOSURE_DEFAULT         1000
 
