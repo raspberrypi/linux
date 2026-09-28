@@ -1452,12 +1452,39 @@ static void intel_iommu_init_qi(struct intel_iommu *iommu)
 	}
 }
 
+/*
+ * Reserve a domain ID inherited from the previous kernel so that it is not
+ * handed out again while the copied translation structures are still live.
+ *
+ * Returns 0 when the ID is reserved, was already reserved, or cannot be
+ * re-assigned, and a negative errno for a genuine allocation failure.
+ */
+static int reserve_domain_id(struct intel_iommu *iommu, int did)
+{
+	int ret;
+
+	if (did < 0 || did >= iommu->max_domain_id)
+		return 0;
+
+	ret = ida_alloc_range(&iommu->domain_ida, did, did, GFP_KERNEL);
+	/*
+	 * Devices sharing a domain share its ID, so the same ID is seen in
+	 * more than one context entry; -ENOSPC merely reports that it is
+	 * already reserved.  On success the allocated ID is returned, which
+	 * is not an error either.
+	 */
+	if (ret == -ENOSPC || ret >= 0)
+		return 0;
+
+	return ret;
+}
+
 static int copy_context_table(struct intel_iommu *iommu,
 			      struct root_entry *old_re,
 			      struct context_entry **tbl,
 			      int bus, bool ext)
 {
-	int tbl_idx, tbl_slot = 0, idx, devfn, ret = 0, did;
+	int tbl_idx, tbl_slot = 0, idx, devfn, ret = 0;
 	struct context_entry *new_ce = NULL, ce;
 	struct context_entry *old_ce = NULL;
 	struct root_entry re;
@@ -1520,9 +1547,13 @@ static int copy_context_table(struct intel_iommu *iommu,
 		if (!context_present(&ce))
 			continue;
 
-		did = context_domain_id(&ce);
-		if (did >= 0 && did < iommu->max_domain_id)
-			ida_alloc_range(&iommu->domain_ida, did, did, GFP_KERNEL);
+		ret = reserve_domain_id(iommu, context_domain_id(&ce));
+		if (ret) {
+			/* Not yet published through @tbl, so free it here. */
+			iommu_free_pages(new_ce);
+			new_ce = NULL;
+			goto out_unmap;
+		}
 
 		set_context_copied(iommu, bus, devfn);
 		new_ce[idx] = ce;
