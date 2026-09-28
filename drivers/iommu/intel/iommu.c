@@ -2911,10 +2911,10 @@ static unsigned int compute_vasz_lg2_ss(struct intel_iommu *iommu,
 		*top_level = 4;
 		return min(57, mgaw);
 	} else if (mgaw > 39 && sagaw >= BIT(2)) {
-		*top_level = 3 + ffs(sagaw >> 3);
+		*top_level = 2 + ffs(sagaw >> 2);
 		return min(48, mgaw);
 	} else if (mgaw > 30 && sagaw >= BIT(1)) {
-		*top_level = 2 + ffs(sagaw >> 2);
+		*top_level = 1 + ffs(sagaw >> 1);
 		return min(39, mgaw);
 	}
 	return 0;
