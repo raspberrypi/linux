@@ -223,9 +223,11 @@ ifneq ($(strip $(ORPHAN_FILES)),)
 # of a build step.
 quiet_cmd_rm = RM      ...$(words $^) orphan file(s)...
 
-# The list of files can be long. Use xargs to prevent issues.
+# The list of files can be long. Remove the $(OUT_DIR)/ prefix, and
+# restore it with printf, to prevent "Argument list too long"
+# (see scripts/Makefile.clean).
 prune_orphans: $(ORPHAN_FILES)
-	$(Q)$(call echo-cmd,rm)echo "$^" | xargs rm -f
+	$(Q)$(call echo-cmd,rm)printf '$(OUT_DIR)/%s ' $(patsubst $(OUT_DIR)/%,%,$(ORPHAN_FILES)) | xargs rm -f
 
 JEVENTS_DEPS += prune_orphans
 endif
