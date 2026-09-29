@@ -6086,6 +6086,10 @@ static int resp_atomic_write(struct scsi_cmnd *scp,
 		}
 	}
 
+	ret = check_device_access_params(scp, lba, len, true);
+	if (ret)
+		return ret;
+
 	/*
 	 * Short atomic writes are not allowed: SBC-6 4.28.2 requires an
 	 * atomic write that cannot complete to leave its LBAs unaltered, and
