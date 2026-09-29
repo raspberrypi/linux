@@ -209,7 +209,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			pcf85063@51 {
+			pcf85063: pcf85063@51 {
 				compatible = "nxp,pcf85063";
 				reg = <0x51>;
 			};
@@ -222,7 +222,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			pcf85063a@51 {
+			pcf85063a: pcf85063a@51 {
 				compatible = "nxp,pcf85063a";
 				reg = <0x51>;
 			};
@@ -378,5 +378,7 @@
 				<&m41t62>,"wakeup-source?",
 				<&m41t80>,"wakeup-source?",
 				<&pcf8563>,"wakeup-source?";
+		quartz-load-femtofarads = <&pcf85063>,"quartz-load-femtofarads:0",
+					  <&pcf85063a>,"quartz-load-femtofarads:0";
 	};
 };
