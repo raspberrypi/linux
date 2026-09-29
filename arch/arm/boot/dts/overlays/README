@@ -2492,7 +2492,8 @@ Params: abx80x                  Select one of the ABx80x family:
                                 and Vdd < Vddsw and Vbackup > Vddsw)
                                 (RV3028, RV3032)
 
-        quartz-load-femtofarads  Quartz load capacitance in femtofarads,
+        quartz-load-femtofarads
+                                Quartz load capacitance in femtofarads,
                                 7000 or 12500 (PCF85063, PCF85063A)
 
 
@@ -2577,7 +2578,8 @@ Params: abx80x                  Select one of the ABx80x family:
                                 and Vdd < Vddsw and Vbackup > Vddsw)
                                 (RV3028, RV3032)
 
-        quartz-load-femtofarads  Quartz load capacitance in femtofarads,
+        quartz-load-femtofarads
+                                Quartz load capacitance in femtofarads,
                                 7000 or 12500 (PCF85063, PCF85063A)
 
         i2c_gpio_sda            GPIO used for I2C data (default "23")
