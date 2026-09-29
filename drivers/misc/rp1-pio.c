@@ -1101,7 +1101,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	if (cyclic) {
 		dma->buf_size = buf_size * buf_count;
-		dma->buf_count = buf_count;
+		dma->buf_count = 0;
 		/* Round up the allocations */
 		buf_size = ROUND_UP(dma->buf_size, PAGE_SIZE);
 
@@ -1116,6 +1116,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		}
 		sg_init_table(&dbi->sgl, 1);
 		sg_dma_address(&dbi->sgl) = dbi->dma_addr;
+		dma->buf_count = buf_count;
+		dma->cyclic = cyclic;
 	} else {
 		dma->buf_size = buf_size;
 		/* Round up the allocations */
@@ -1185,6 +1187,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 					       DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 		if (!desc) {
 			dev_err(dev, "DMA preparation failed\n");
+			ret = -EIO;
 			goto err_dma_free;
 		}
 
@@ -1196,7 +1199,6 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		if (ret < 0)
 			goto err_dma_free;
 
-		dma->cyclic = cyclic;
 		dma_async_issue_pending(dma->chan);
 	}
 	return 0;
