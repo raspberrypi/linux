@@ -1069,9 +1069,14 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	 */
 	if (buf_count && buf_size > RP1_PIO_MAX_TOTAL_BUF_SIZE / buf_count)
 		return -EINVAL;
-	/* Cyclic DMA is currently only supported for FROM_SM */
-	if (cyclic && dir == RP1_PIO_DIR_TO_SM)
-		return -EINVAL;
+	if (cyclic) {
+		/*
+		 * Cyclic DMA is currently not supported for TO_SM, and
+		 * needs at least two real buffers to cycle through.
+		 */
+		if (tx || !buf_size || buf_count < 2)
+			return -EINVAL;
+	}
 
 	dma_mask = 1 << (sm * 2 + dir);
 
