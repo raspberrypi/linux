@@ -275,7 +275,7 @@ static void intel_connector_info(struct seq_file *m,
 	switch (connector->connector_type) {
 	case DRM_MODE_CONNECTOR_DisplayPort:
 	case DRM_MODE_CONNECTOR_eDP:
-		if (intel_connector->mst_port)
+		if (intel_connector->mst.dp)
 			intel_dp_mst_info(m, intel_connector);
 		else
 			intel_dp_info(m, intel_connector);
@@ -288,7 +288,7 @@ static void intel_connector_info(struct seq_file *m,
 	}
 
 	seq_puts(m, "\tHDCP version: ");
-	if (intel_connector->mst_port) {
+	if (intel_connector->mst.dp) {
 		intel_hdcp_info(m, intel_connector, true);
 		seq_puts(m, "\tMST Hub HDCP version: ");
 	}
@@ -766,7 +766,7 @@ static int i915_dp_mst_info(struct seq_file *m, void *unused)
 		seq_printf(m, "MST Source Port [ENCODER:%d:%s]\n",
 			   dig_port->base.base.base.id,
 			   dig_port->base.base.name);
-		drm_dp_mst_dump_topology(m, &dig_port->dp.mst_mgr);
+		drm_dp_mst_dump_topology(m, &dig_port->dp.mst.mgr);
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
@@ -1533,7 +1533,7 @@ void intel_connector_debugfs_add(struct intel_connector *connector)
 	}
 
 	if (DISPLAY_VER(i915) >= 11 &&
-	    ((connector_type == DRM_MODE_CONNECTOR_DisplayPort && !connector->mst_port) ||
+	    ((connector_type == DRM_MODE_CONNECTOR_DisplayPort && !connector->mst.dp) ||
 	     connector_type == DRM_MODE_CONNECTOR_eDP)) {
 		debugfs_create_file("i915_dsc_fec_support", 0644, root,
 				    connector, &i915_dsc_fec_support_fops);

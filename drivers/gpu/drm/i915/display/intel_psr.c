@@ -3951,7 +3951,7 @@ void intel_psr_connector_debugfs_add(struct intel_connector *connector)
 	/* TODO: Add support for MST connectors as well. */
 	if ((connector->base.connector_type != DRM_MODE_CONNECTOR_eDP &&
 	     connector->base.connector_type != DRM_MODE_CONNECTOR_DisplayPort) ||
-	    connector->mst_port)
+	    connector->mst.dp)
 		return;
 
 	debugfs_create_file("i915_psr_sink_status", 0444, root,

@@ -2585,7 +2585,7 @@ static void mtl_ddi_pre_enable_dp(struct intel_atomic_state *state,
 	 * Train Display Port" step.  Note that steps that are specific to
 	 * MST will be handled by intel_mst_pre_enable_dp() before/after it
 	 * calls into this function.  Also intel_mst_pre_enable_dp() only calls
-	 * us when active_mst_links==0, so any steps designated for "single
+	 * us when mst.active_links==0, so any steps designated for "single
 	 * stream or multi-stream master transcoder" can just be performed
 	 * unconditionally here.
 	 *
@@ -2674,7 +2674,7 @@ static void tgl_ddi_pre_enable_dp(struct intel_atomic_state *state,
 	 * Train Display Port" step.  Note that steps that are specific to
 	 * MST will be handled by intel_mst_pre_enable_dp() before/after it
 	 * calls into this function.  Also intel_mst_pre_enable_dp() only calls
-	 * us when active_mst_links==0, so any steps designated for "single
+	 * us when mst.active_links==0, so any steps designated for "single
 	 * stream or multi-stream master transcoder" can just be performed
 	 * unconditionally here.
 	 */
