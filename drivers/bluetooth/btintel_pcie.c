@@ -1023,6 +1023,13 @@ static int btintel_pcie_config_pcie(struct pci_dev *pdev,
 	if (!data->base_addr)
 		return -ENODEV;
 
+	/* Do shared hardware reset to ensure a clean start before
+	 * configuring interrupts.
+	 */
+	err = btintel_pcie_reset_bt(data);
+	if (err)
+		return err;
+
 	err = btintel_pcie_setup_irq(data);
 	if (err)
 		return err;
