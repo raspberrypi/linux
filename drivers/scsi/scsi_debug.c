@@ -6080,6 +6080,14 @@ static int resp_atomic_write(struct scsi_cmnd *scp,
 		}
 	}
 
+	/*
+	 * Short atomic writes are not allowed: SBC-6 4.28.2 requires an
+	 * atomic write that cannot complete to leave its LBAs unaltered, and
+	 * do_device_access() would already have written part of it.
+	 */
+	if (scsi_bufflen(scp) < len * sdebug_sector_size)
+		return DID_ERROR << 16;
+
 	ret = do_device_access(sip, scp, 0, lba, len, 0, true, true);
 	if (unlikely(ret == -1))
 		return DID_ERROR << 16;
