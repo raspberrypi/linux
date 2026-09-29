@@ -463,13 +463,11 @@ void ivpu_ipc_irq_handler(struct ivpu_device *vdev)
 			ivpu_ipc_rx_mark_free(vdev, ipc_hdr, jsm_msg);
 		}
 	}
-
-	queue_work(system_percpu_wq, &vdev->irq_ipc_work);
 }
 
-void ivpu_ipc_irq_work_fn(struct work_struct *work)
+irqreturn_t ivpu_ipc_irq_thread_handler(int irq, void *ptr)
 {
-	struct ivpu_device *vdev = container_of(work, struct ivpu_device, irq_ipc_work);
+	struct ivpu_device *vdev = ptr;
 	struct ivpu_ipc_info *ipc = vdev->ipc;
 	struct ivpu_ipc_rx_msg *rx_msg, *r;
 	struct list_head cb_msg_list;
@@ -484,6 +482,8 @@ void ivpu_ipc_irq_work_fn(struct work_struct *work)
 		rx_msg->callback(vdev, rx_msg->ipc_hdr, rx_msg->jsm_msg);
 		ivpu_ipc_rx_msg_del(vdev, rx_msg);
 	}
+
+	return IRQ_HANDLED;
 }
 
 int ivpu_ipc_init(struct ivpu_device *vdev)
