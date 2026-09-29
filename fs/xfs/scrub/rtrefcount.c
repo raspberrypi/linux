@@ -379,6 +379,8 @@ xchk_rtrefcount_mergeable(
 	if (r1->rc_blockcount == 0)
 		return false;
 
+	if (r1->rc_domain != r2->rc_domain)
+		return false;
 	if (r1->rc_startblock + r1->rc_blockcount != r2->rc_startblock)
 		return false;
 	if (r1->rc_refcount != r2->rc_refcount)
