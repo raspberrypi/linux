@@ -22,7 +22,7 @@
 	};
 
 	chosen {
-		stdout-path = "serial0";
+		stdout-path = "serial0:115200n8";
 	};
 
 	pcie_vcc3v3: regulator-pcie-vcc3v3 {
