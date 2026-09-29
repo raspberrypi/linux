@@ -57,9 +57,12 @@ class Conf:
         # Override 'srctree' environment to make the test as the top directory
         extra_env['srctree'] = self._test_dir
 
-        # Clear KCONFIG_DEFCONFIG_LIST to keep unit tests from being affected
-        # by the user's environment.
-        extra_env['KCONFIG_DEFCONFIG_LIST'] = ''
+        # Clear all KCONFIG_* environment variables
+        env = {
+            varname: os.environ[varname]
+            for varname in os.environ.keys()
+            if not varname.startswith("KCONFIG_")
+        }
 
         # Run Kconfig in a temporary directory.
         # This directory is automatically removed when done.
@@ -75,7 +78,7 @@ class Conf:
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   cwd=temp_dir,
-                                  env=dict(os.environ, **extra_env))
+                                  env=dict(env, **extra_env))
 
             # If input key sequence is given, feed it to stdin.
             if in_keys:
