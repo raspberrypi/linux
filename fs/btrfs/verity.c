@@ -94,6 +94,20 @@ static loff_t merkle_file_pos(const struct inode *inode)
 }
 
 /*
+ * Start a transaction for removing verity items or the verity orphan.
+ *
+ * Like unlink, this only deletes items and frees space in the end, so the
+ * reservation may come from the global reserve when the filesystem is full
+ * (-ENOSPC) and is not subject to the qgroup limit (-EDQUOT). Otherwise a
+ * failed enable could never be cleaned up in either situation.
+ */
+static struct btrfs_trans_handle *start_verity_cleanup_trans(struct btrfs_root *root,
+							     unsigned int num_items)
+{
+	return btrfs_start_transaction_fallback_global_rsv(root, num_items);
+}
+
+/*
  * Drop all the items for this inode with this key_type.
  *
  * @inode:     inode to drop items for
@@ -109,7 +123,7 @@ static int drop_verity_items(struct btrfs_inode *inode, u8 key_type)
 {
 	struct btrfs_trans_handle *trans;
 	struct btrfs_root *root = inode->root;
-	struct btrfs_path *path;
+	BTRFS_PATH_AUTO_FREE(path);
 	struct btrfs_key key;
 	int count = 0;
 	int ret;
@@ -120,11 +134,9 @@ static int drop_verity_items(struct btrfs_inode *inode, u8 key_type)
 
 	while (1) {
 		/* 1 for the item being dropped */
-		trans = btrfs_start_transaction(root, 1);
-		if (IS_ERR(trans)) {
-			ret = PTR_ERR(trans);
-			goto out;
-		}
+		trans = start_verity_cleanup_trans(root, 1);
+		if (IS_ERR(trans))
+			return PTR_ERR(trans);
 
 		/*
 		 * Walk backwards through all the items until we find one that
@@ -143,7 +155,7 @@ static int drop_verity_items(struct btrfs_inode *inode, u8 key_type)
 			path->slots[0]--;
 		} else if (ret < 0) {
 			btrfs_end_transaction(trans);
-			goto out;
+			return ret;
 		}
 
 		btrfs_item_key_to_cpu(path->nodes[0], &key, path->slots[0]);
@@ -161,17 +173,14 @@ static int drop_verity_items(struct btrfs_inode *inode, u8 key_type)
 		ret = btrfs_del_items(trans, root, path, path->slots[0], 1);
 		if (ret) {
 			btrfs_end_transaction(trans);
-			goto out;
+			return ret;
 		}
 		count++;
 		btrfs_release_path(path);
 		btrfs_end_transaction(trans);
 	}
-	ret = count;
 	btrfs_end_transaction(trans);
-out:
-	btrfs_free_path(path);
-	return ret;
+	return count;
 }
 
 /*
@@ -217,7 +226,7 @@ static int write_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 			   const char *src, u64 len)
 {
 	struct btrfs_trans_handle *trans;
-	struct btrfs_path *path;
+	BTRFS_PATH_AUTO_FREE(path);
 	struct btrfs_root *root = inode->root;
 	struct extent_buffer *leaf;
 	struct btrfs_key key;
@@ -233,10 +242,8 @@ static int write_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 	while (len > 0) {
 		/* 1 for the new item being inserted */
 		trans = btrfs_start_transaction(root, 1);
-		if (IS_ERR(trans)) {
-			ret = PTR_ERR(trans);
-			break;
-		}
+		if (IS_ERR(trans))
+			return PTR_ERR(trans);
 
 		key.objectid = btrfs_ino(inode);
 		key.type = key_type;
@@ -267,7 +274,6 @@ static int write_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 		btrfs_end_transaction(trans);
 	}
 
-	btrfs_free_path(path);
 	return ret;
 }
 
@@ -296,7 +302,7 @@ static int write_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 static int read_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 			  char *dest, u64 len, struct folio *dest_folio)
 {
-	struct btrfs_path *path;
+	BTRFS_PATH_AUTO_FREE(path);
 	struct btrfs_root *root = inode->root;
 	struct extent_buffer *leaf;
 	struct btrfs_key key;
@@ -404,7 +410,6 @@ static int read_key_bytes(struct btrfs_inode *inode, u8 key_type, u64 offset,
 		}
 	}
 out:
-	btrfs_free_path(path);
 	if (!ret)
 		ret = copied;
 	return ret;
@@ -475,7 +480,7 @@ static int rollback_verity(struct btrfs_inode *inode)
 	 * 1 for updating the inode flag
 	 * 1 for deleting the orphan
 	 */
-	trans = btrfs_start_transaction(root, 2);
+	trans = start_verity_cleanup_trans(root, 2);
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
 		trans = NULL;

@@ -410,6 +410,7 @@ void fnic_fdls_add_tport(struct fnic_iport_s *iport,
 void fnic_fdls_remove_tport(struct fnic_iport_s *iport,
 			    struct fnic_tport_s *tport,
 			    unsigned long flags);
+void fnic_fcpio_reset(struct fnic *fnic);
 
 /* fip.c */
 void fnic_fcoe_send_vlan_req(struct fnic *fnic);
@@ -422,7 +423,6 @@ void fnic_handle_fip_timer(struct timer_list *t);
 extern void fdls_fabric_timer_callback(struct timer_list *t);
 
 /* fnic_scsi.c */
-void fnic_scsi_fcpio_reset(struct fnic *fnic);
 extern void fdls_fabric_timer_callback(struct timer_list *t);
 void fnic_rport_exch_reset(struct fnic *fnic, u32 fcid);
 int fnic_fdls_register_portid(struct fnic_iport_s *iport, u32 port_id,

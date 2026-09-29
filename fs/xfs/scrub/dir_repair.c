@@ -1473,8 +1473,8 @@ xrep_dir_swap_prep(
 			.geo		= sc->mp->m_dir_geo,
 			.whichfork	= XFS_DATA_FORK,
 			.trans		= sc->tp,
-			.total		= 1,
-			.owner		= sc->ip->i_ino,
+			.total		= xfs_dabuf_nfsb(sc->mp, XFS_DATA_FORK),
+			.owner		= I_INO(sc->ip),
 		};
 
 		error = xfs_dir2_sf_to_block(&args);

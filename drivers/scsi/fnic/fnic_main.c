@@ -184,7 +184,7 @@ static void fnic_get_host_speed(struct Scsi_Host *shost)
 	u32 port_speed = vnic_dev_port_speed(fnic->vdev);
 	struct fnic_stats *fnic_stats = &fnic->fnic_stats;
 
-	FNIC_MAIN_DBG(KERN_INFO, fnic->host, fnic->fnic_num,
+	FNIC_MAIN_DBG(KERN_INFO, fnic,
 				  "port_speed: %d Mbps", port_speed);
 	atomic64_set(&fnic_stats->misc_stats.port_speed_in_mbps, port_speed);
 
@@ -234,7 +234,7 @@ static void fnic_get_host_speed(struct Scsi_Host *shost)
 		fc_host_speed(shost) = FC_PORTSPEED_128GBIT;
 		break;
 	default:
-		FNIC_MAIN_DBG(KERN_INFO, fnic->host, fnic->fnic_num,
+		FNIC_MAIN_DBG(KERN_INFO, fnic,
 					  "Unknown FC speed: %d Mbps", port_speed);
 		fc_host_speed(shost) = FC_PORTSPEED_UNKNOWN;
 		break;
@@ -260,7 +260,7 @@ static struct fc_host_statistics *fnic_get_stats(struct Scsi_Host *host)
 	spin_unlock_irqrestore(&fnic->fnic_lock, flags);
 
 	if (ret) {
-		FNIC_MAIN_DBG(KERN_DEBUG, fnic->host, fnic->fnic_num,
+		FNIC_MAIN_DBG(KERN_DEBUG, fnic,
 					  "fnic: Get vnic stats failed: 0x%x", ret);
 		return stats;
 	}
@@ -286,64 +286,66 @@ static struct fc_host_statistics *fnic_get_stats(struct Scsi_Host *host)
 void fnic_dump_fchost_stats(struct Scsi_Host *host,
 				struct fc_host_statistics *stats)
 {
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	struct fnic *fnic = *((struct fnic **) shost_priv(host));
+
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: seconds since last reset = %llu\n",
 			stats->seconds_since_last_reset);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: tx frames		= %llu\n",
 			stats->tx_frames);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: tx words		= %llu\n",
 			stats->tx_words);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: rx frames		= %llu\n",
 			stats->rx_frames);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: rx words		= %llu\n",
 			stats->rx_words);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: lip count		= %llu\n",
 			stats->lip_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: nos count		= %llu\n",
 			stats->nos_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: error frames		= %llu\n",
 			stats->error_frames);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: dumped frames	= %llu\n",
 			stats->dumped_frames);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: link failure count	= %llu\n",
 			stats->link_failure_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: loss of sync count	= %llu\n",
 			stats->loss_of_sync_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: loss of signal count	= %llu\n",
 			stats->loss_of_signal_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: prim seq protocol err count = %llu\n",
 			stats->prim_seq_protocol_err_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: invalid tx word count= %llu\n",
 			stats->invalid_tx_word_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: invalid crc count	= %llu\n",
 			stats->invalid_crc_count);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: fcp input requests	= %llu\n",
 			stats->fcp_input_requests);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: fcp output requests	= %llu\n",
 			stats->fcp_output_requests);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: fcp control requests	= %llu\n",
 			stats->fcp_control_requests);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: fcp input megabytes	= %llu\n",
 			stats->fcp_input_megabytes);
-	FNIC_MAIN_NOTE(KERN_NOTICE, host,
+	FNIC_MAIN_NOTE(KERN_NOTICE, fnic,
 			"fnic: fcp output megabytes	= %llu\n",
 			stats->fcp_output_megabytes);
 	return;
@@ -369,7 +371,7 @@ static void fnic_reset_host_stats(struct Scsi_Host *host)
 	spin_unlock_irqrestore(&fnic->fnic_lock, flags);
 
 	if (ret) {
-		FNIC_MAIN_DBG(KERN_DEBUG, fnic->host, fnic->fnic_num,
+		FNIC_MAIN_DBG(KERN_DEBUG, fnic,
 				"fnic: Reset vnic stats failed"
 				" 0x%x", ret);
 		return;
@@ -676,27 +678,58 @@ static int fnic_scsi_drv_init(struct fnic *fnic)
 
 void fnic_mq_map_queues_cpus(struct Scsi_Host *host)
 {
+	const struct cpumask *mask;
+	unsigned int queue, cpu;
 	struct fnic *fnic = *((struct fnic **) shost_priv(host));
 	struct pci_dev *l_pdev = fnic->pdev;
 	int intr_mode = fnic->config.intr_mode;
 	struct blk_mq_queue_map *qmap = &host->tag_set.map[HCTX_TYPE_DEFAULT];
 
 	if (intr_mode == VNIC_DEV_INTR_MODE_MSI || intr_mode == VNIC_DEV_INTR_MODE_INTX) {
-		FNIC_MAIN_DBG(KERN_ERR, fnic->host, fnic->fnic_num,
+		FNIC_MAIN_DBG(KERN_ERR, fnic,
 			"intr_mode is not msix\n");
 		return;
 	}
 
-	FNIC_MAIN_DBG(KERN_INFO, fnic->host, fnic->fnic_num,
+	FNIC_MAIN_DBG(KERN_INFO, fnic,
 			"qmap->nr_queues: %d\n", qmap->nr_queues);
 
 	if (l_pdev == NULL) {
-		FNIC_MAIN_DBG(KERN_ERR, fnic->host, fnic->fnic_num,
+		FNIC_MAIN_DBG(KERN_ERR, fnic,
 						"l_pdev is null\n");
 		return;
 	}
 
-	blk_mq_map_hw_queues(qmap, &l_pdev->dev, FNIC_PCI_OFFSET);
+	for_each_possible_cpu(cpu)
+		qmap->mq_map[cpu] = 0;
+
+	/*
+	 * Setup CPU to Queue mapping for all managed MSI-X IRQs.
+	 * Q0 is driver critical and non-managed, hence start from Q1.
+	 */
+	for (queue = 1; queue < qmap->nr_queues; queue++) {
+		int irq_num = pci_irq_vector(fnic->pdev,
+					     queue + FNIC_PCI_OFFSET);
+
+		if (irq_num < 0)
+			continue;
+
+		mask = pci_irq_get_affinity(fnic->pdev,
+					    queue + FNIC_PCI_OFFSET);
+		if (!mask) {
+			shost_printk(KERN_ERR, host,
+				"failed to get irq_affinity map for queue:%d\n", irq_num);
+			continue;
+		}
+		FNIC_MAIN_DBG(KERN_INFO, fnic,
+				"got irq_affinity map for %d:\n", irq_num);
+		for_each_cpu(cpu, mask) {
+			qmap->mq_map[cpu] = qmap->queue_offset + queue;
+			FNIC_MAIN_DBG(KERN_INFO, fnic,
+				      "[Q%d] cpu:%d <=> irq:%d\n",
+				      queue, cpu, irq_num);
+		}
+	}
 }
 
 static int fnic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)

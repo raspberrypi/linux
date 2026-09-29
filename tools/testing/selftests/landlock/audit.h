@@ -45,17 +45,25 @@ struct audit_message {
 	};
 };
 
-static const struct timeval audit_tv_dom_drop = {
+static const struct timeval audit_tv_default = {
 	/*
-	 * Because domain deallocation is tied to asynchronous credential
-	 * freeing, receiving such event may take some time.  In practice,
-	 * on a small VM, it should not exceed 100k usec, but let's wait up
-	 * to 1 second to be safe.
+	 * Default socket timeout for audit_match_record() callers that expect a
+	 * record to arrive.  Asynchronous kauditd delivery can exceed 1 usec
+	 * under heavy debug configs (KASAN, lockdep), where kauditd_thread
+	 * scheduling between audit_log_end() and netlink_unicast() takes longer
+	 * than the previous 1 usec timeout. 1 second is a generous ceiling: on
+	 * the happy path, kauditd delivers within dozens of usec.
 	 */
 	.tv_sec = 1,
 };
 
-static const struct timeval audit_tv_default = {
+static const struct timeval audit_tv_fast = {
+	/*
+	 * Fast timeout for paths that expect no record (audit_init() drain,
+	 * audit_count_records(), probes).  Causes audit_recv() to return
+	 * -EAGAIN once the socket buffer is empty, naturally terminating the
+	 * read loop.
+	 */
 	.tv_usec = 1,
 };
 
@@ -334,8 +342,13 @@ static int __maybe_unused matches_log_domain_allocated(int audit_fd, pid_t pid,
  * Matches a domain deallocation record.  When expected_domain_id is non-zero,
  * the pattern includes the specific domain ID so that stale deallocation
  * records from a previous test (with a different domain ID) are skipped by
- * audit_match_record(), and the socket timeout is temporarily increased to
- * audit_tv_dom_drop to wait for the asynchronous kworker deallocation.
+ * audit_match_record(), waiting for the asynchronous kworker deallocation with
+ * the default patient timeout.
+ *
+ * When expected_domain_id is zero, the caller is probing for any dealloc record
+ * that may or may not arrive.  Temporarily lowers the socket timeout to
+ * audit_tv_fast for this probe so it returns promptly when no record is
+ * pending; restores audit_tv_default after.
  */
 static int __maybe_unused
 matches_log_domain_deallocated(int audit_fd, unsigned int num_denials,
@@ -361,16 +374,21 @@ matches_log_domain_deallocated(int audit_fd, unsigned int num_denials,
 	if (log_match_len >= sizeof(log_match))
 		return -E2BIG;
 
-	if (expected_domain_id)
-		setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO,
-			   &audit_tv_dom_drop, sizeof(audit_tv_dom_drop));
+	if (!expected_domain_id) {
+		if (setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO,
+			       &audit_tv_fast, sizeof(audit_tv_fast)))
+			return -errno;
+	}
 
 	err = audit_match_record(audit_fd, AUDIT_LANDLOCK_DOMAIN, log_match,
 				 domain_id);
 
-	if (expected_domain_id)
-		setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_default,
-			   sizeof(audit_tv_default));
+	if (!expected_domain_id) {
+		if (setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO,
+			       &audit_tv_default, sizeof(audit_tv_default)) &&
+		    !err)
+			err = -errno;
+	}
 
 	return err;
 }
@@ -387,6 +405,11 @@ struct audit_records {
  * audit_init() and after the preceding audit_match_record() call.  Allocation
  * records are emitted synchronously during landlock_log_denial() in the current
  * test's syscall context, so only those are counted in records->domain.
+ *
+ * Temporarily lowers SO_RCVTIMEO to audit_tv_fast for the read loop: this is a
+ * "no record expected" path that should terminate on the first -EAGAIN.  The
+ * default patient timeout is restored on exit for subsequent
+ * audit_match_record() callers.
  */
 static int audit_count_records(int audit_fd, struct audit_records *records)
 {
@@ -402,6 +425,12 @@ static int audit_count_records(int audit_fd, struct audit_records *records)
 
 	records->access = 0;
 	records->domain = 0;
+
+	if (setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_fast,
+		       sizeof(audit_tv_fast))) {
+		err = -errno;
+		goto out;
+	}
 
 	do {
 		memset(&msg, 0, sizeof(msg));
@@ -429,6 +458,10 @@ static int audit_count_records(int audit_fd, struct audit_records *records)
 	} while (true);
 
 out:
+	if (setsockopt(audit_fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_default,
+		       sizeof(audit_tv_default)) &&
+	    !err)
+		err = -errno;
 	regfree(&dealloc_re);
 	return err;
 }
@@ -443,17 +476,19 @@ static int audit_init(void)
 
 	err = audit_set_status(fd, AUDIT_STATUS_ENABLED, 1);
 	if (err)
-		return err;
+		goto err_close;
 
 	err = audit_set_status(fd, AUDIT_STATUS_PID, getpid());
 	if (err)
-		return err;
+		goto err_close;
 
-	/* Sets a timeout for negative tests. */
-	err = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_default,
-			 sizeof(audit_tv_default));
-	if (err)
-		return -errno;
+	/* Uses the fast timeout to drain stale records below. */
+	err = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_fast,
+			 sizeof(audit_tv_fast));
+	if (err) {
+		err = -errno;
+		goto err_close;
+	}
 
 	/*
 	 * Drains stale audit records that accumulated in the kernel backlog
@@ -465,7 +500,24 @@ static int audit_init(void)
 	while (audit_recv(fd, NULL) == 0)
 		;
 
+	/*
+	 * Restores the default timeout for audit_match_record() callers that
+	 * expect a record to arrive.  Paths that expect no record restore the
+	 * fast timeout locally (audit_count_records(), the expected_domain_id
+	 * == 0 probe in matches_log_domain_deallocated()).
+	 */
+	err = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &audit_tv_default,
+			 sizeof(audit_tv_default));
+	if (err) {
+		err = -errno;
+		goto err_close;
+	}
+
 	return fd;
+
+err_close:
+	close(fd);
+	return err;
 }
 
 static int audit_init_filter_exe(struct audit_filter *filter, const char *path)
@@ -501,10 +553,9 @@ static int audit_init_filter_exe(struct audit_filter *filter, const char *path)
 static int audit_cleanup(int audit_fd, struct audit_filter *filter)
 {
 	struct audit_filter new_filter;
+	int err = 0;
 
 	if (audit_fd < 0 || !filter) {
-		int err;
-
 		/*
 		 * Simulates audit_init_with_exe_filter() when called from
 		 * FIXTURE_TEARDOWN_PARENT().
@@ -516,20 +567,18 @@ static int audit_cleanup(int audit_fd, struct audit_filter *filter)
 		filter = &new_filter;
 		err = audit_init_filter_exe(filter, NULL);
 		if (err)
-			return err;
+			goto err_close;
 	}
 
 	/* Filters might not be in place. */
 	audit_filter_exe(audit_fd, filter, AUDIT_DEL_RULE);
 	audit_filter_drop(audit_fd, AUDIT_DEL_RULE);
 
-	/*
-	 * Because audit_cleanup() might not be called by the test auditd
-	 * process, it might not be possible to explicitly set it.  Anyway,
-	 * AUDIT_STATUS_ENABLED will implicitly be set to 0 when the auditd
-	 * process will exit.
-	 */
-	return close(audit_fd);
+	err = audit_set_status(audit_fd, AUDIT_STATUS_ENABLED, 0);
+
+err_close:
+	close(audit_fd);
+	return err;
 }
 
 static int audit_init_with_exe_filter(struct audit_filter *filter)
@@ -542,11 +591,15 @@ static int audit_init_with_exe_filter(struct audit_filter *filter)
 
 	err = audit_init_filter_exe(filter, NULL);
 	if (err)
-		return err;
+		goto err_close;
 
 	err = audit_filter_exe(fd, filter, AUDIT_ADD_RULE);
 	if (err)
-		return err;
+		goto err_close;
 
 	return fd;
+
+err_close:
+	close(fd);
+	return err;
 }

@@ -10545,7 +10545,7 @@ int __sched_mm_cid_migrate_from_try_steal_cid(struct rq *src_rq,
 	 *
 	 * The implicit barrier after cmpxchg per-mm/cpu cid before loading
 	 * rq->curr->mm_cid_active matches the barrier in
-	 * sched_mm_cid_exit_signals(), sched_mm_cid_before_execve(), and
+	 * sched_mm_cid_exit(), sched_mm_cid_before_execve(), and
 	 * sched_mm_cid_after_execve() between store to t->mm_cid_active and
 	 * load of per-mm/cpu cid.
 	 */
@@ -10665,7 +10665,7 @@ static void sched_mm_cid_remote_clear(struct mm_struct *mm, struct mm_cid *pcpu_
 	 *
 	 * The implicit barrier after cmpxchg per-mm/cpu cid before loading
 	 * rq->curr->mm_cid_active matches the barrier in
-	 * sched_mm_cid_exit_signals(), sched_mm_cid_before_execve(), and
+	 * sched_mm_cid_exit(), sched_mm_cid_before_execve(), and
 	 * sched_mm_cid_after_execve() between store to t->mm_cid_active and
 	 * load of per-mm/cpu cid.
 	 */
@@ -10810,7 +10810,7 @@ void task_tick_mm_cid(struct rq *rq, struct task_struct *curr)
 	task_work_add(curr, work, TWA_RESUME);
 }
 
-void sched_mm_cid_exit_signals(struct task_struct *t)
+void sched_mm_cid_exit(struct task_struct *t)
 {
 	struct mm_struct *mm = t->mm;
 	struct rq *rq;
