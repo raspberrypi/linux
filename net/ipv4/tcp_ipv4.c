@@ -238,6 +238,9 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr_unsized *uaddr, int addr_len
 	if (usin->sin_family != AF_INET)
 		return -EAFNOSUPPORT;
 
+	if (psp_sk_assoc(sk))
+		return -EINVAL;
+
 	nexthop = daddr = usin->sin_addr.s_addr;
 	inet_opt = rcu_dereference_protected(inet->inet_opt,
 					     lockdep_sock_is_held(sk));
@@ -291,9 +294,9 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr_unsized *uaddr, int addr_len
 	inet->inet_dport = usin->sin_port;
 	sk_daddr_set(sk, daddr);
 
-	inet_csk(sk)->icsk_ext_hdr_len = psp_sk_overhead(sk);
+	inet_csk(sk)->icsk_ext_hdr_len = 0;
 	if (inet_opt)
-		inet_csk(sk)->icsk_ext_hdr_len += inet_opt->opt.optlen;
+		inet_csk(sk)->icsk_ext_hdr_len = inet_opt->opt.optlen;
 
 	tp->rx_opt.mss_clamp = TCP_MSS_DEFAULT;
 
