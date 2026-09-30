@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
+#include <linux/wait.h>
 #include <uapi/misc/rp1_pio_if.h>
 
 #include "rp1-fw-pio.h"
@@ -96,6 +97,7 @@ struct dma_buf_info {
 
 struct dma_info {
 	struct semaphore buf_sem;
+	wait_queue_head_t cyclic_wait;
 	struct dma_chan *chan;
 	size_t buf_size;
 	size_t buf_count;
@@ -946,8 +948,17 @@ static void rp1_pio_sm_dma_callback(void *param)
 {
 	struct dma_info *dma = param;
 
-	if (dma->cyclic)
+	if (dma->cyclic) {
+		/*
+		 * The reader re-checks the live head/tail relationship itself
+		 * (see rp1_pio_sm_rx_user()) instead of relying on a count of
+		 * wakeups, so it can't drift out of sync if more than one
+		 * period completes before it gets to run.
+		 */
 		WRITE_ONCE(dma->head_idx, dma->head_idx + 1);
+		wake_up_interruptible(&dma->cyclic_wait);
+		return;
+	}
 	up(&dma->buf_sem);
 }
 
@@ -1079,6 +1090,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		rp1_pio_sm_dma_free(dma);
 
 	sema_init(&dma->buf_sem, 0);
+	init_waitqueue_head(&dma->cyclic_wait);
 
 	/* Allocate and configure a DMA channel */
 	/* Careful - each SM FIFO has its own DREQ value */
@@ -1378,15 +1390,30 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 			return -EINVAL;
 
 		/*
-		 * The callback posts the semaphore once per period, so consume
-		 * exactly one 'period' worth of data per read.
+		 * Wait until there is at least one unread period, i.e. until
+		 * head is ahead of tail. Re-checking the live head/tail
+		 * relationship (instead of counting a fixed number of
+		 * semaphore posts from the callback) means a wakeup that
+		 * covers more than one completed period - e.g. because the
+		 * completion tasklet didn't run between them - can't leave
+		 * this counter permanently out of sync with the hardware.
 		 */
-		if (down_interruptible(&dma->buf_sem))
-			return -ERESTARTSYS;
+		ret = wait_event_interruptible(dma->cyclic_wait,
+				(int)(READ_ONCE(dma->head_idx) - dma->tail_idx) > 0);
+		if (ret)
+			return ret;
 
-		/* The DMA has wrapped onto the period we were about to read. */
-		if (READ_ONCE(dma->head_idx) - dma->tail_idx > dma->buf_count)
+		/*
+		 * The DMA has wrapped onto (or past) the period we were about
+		 * to read: its data has already been overwritten. Resync tail
+		 * to the oldest period that is still valid so that later
+		 * reads recover instead of returning -EOVERFLOW forever, and
+		 * report the loss for this call.
+		 */
+		if (READ_ONCE(dma->head_idx) - dma->tail_idx > dma->buf_count) {
+			dma->tail_idx = READ_ONCE(dma->head_idx) - dma->buf_count;
 			return -EOVERFLOW;
+		}
 
 		/* Pair with the DMAC's writes into the period we are about to copy. */
 		dma_rmb();

@@ -188,6 +188,17 @@ struct rp1_pio_sm_config_xfer32_args {
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_HEAVY  2
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_LIGHT  3
 
+/*
+ * Use cyclic DMA: buf_size is the size of one period and buf_count is the
+ * number of periods. Each PIO_IOC_SM_XFER_DATA* call transfers at most one
+ * period and blocks until that period is available; a zero-byte transfer is
+ * rejected with -EINVAL.
+ *
+ * For input a read returns -EOVERFLOW if the DMA wrapped onto the period
+ * that was about to be read; no data is copied for that call, but the
+ * stream resynchronises to the oldest still-valid period so that
+ * subsequent reads succeed again without needing to be reconfigured.
+ */
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_CYCLE (1 << 2)
 
 struct rp1_pio_sm_config_xfer_v2_args {
