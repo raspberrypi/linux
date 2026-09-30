@@ -4337,7 +4337,7 @@ int cpuset_num_cpus(struct cgroup *cgrp)
 	int nr = num_online_cpus();
 	struct cpuset *cs;
 
-	if (is_in_v2_mode()) {
+	if (cpuset_v2()) {
 		guard(rcu)();
 		cs = css_cs(cgroup_e_css(cgrp, &cpuset_cgrp_subsys));
 		if (cs)
