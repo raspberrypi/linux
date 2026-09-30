@@ -5662,6 +5662,7 @@ static __init int svm_hardware_setup(void)
 		if (r)
 			return r;
 	}
+	svm_nested_ops.enabled = nested;
 
 	/*
 	 * KVM's MMU doesn't support using 2-level paging for itself, and thus
