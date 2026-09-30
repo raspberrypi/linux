@@ -345,6 +345,45 @@ static const struct ws_panel_data ws_panel_7_0_h_data = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
 };
 
+/* 10.1inch DSI LCD (E)
+ * https://www.waveshare.com/10.1inch-dsi-lcd-e.htm
+ */
+static const struct drm_display_mode ws_panel_1920x1200_60fps_mode = {
+	.clock = 166666,
+	.hdisplay = 1920,
+	.hsync_start = 1920 + 238,
+	.hsync_end = 1920 + 238 + 4,
+	.htotal = 1920 + 238 + 4 + 28,
+	.vdisplay = 1200,
+	.vsync_start = 1200 + 28,
+	.vsync_end = 1200 + 28 + 10,
+	.vtotal = 1200 + 28 + 10 + 30,
+};
+
+static const struct drm_display_mode ws_panel_1920x1200_30fps_mode = {
+	.clock = 83333,
+	.hdisplay = 1920,
+	.hsync_start = 1920 + 238,
+	.hsync_end = 1920 + 238 + 4,
+	.htotal = 1920 + 238 + 4 + 28,
+	.vdisplay = 1200,
+	.vsync_start = 1200 + 28,
+	.vsync_end = 1200 + 28 + 10,
+	.vtotal = 1200 + 28 + 10 + 30,
+};
+
+static const struct ws_panel_data ws_panel_10_1_e_4lane_data = {
+	.mode = &ws_panel_1920x1200_60fps_mode,
+	.lanes = 4,
+	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
+};
+
+static const struct ws_panel_data ws_panel_10_1_e_2lane_data = {
+	.mode = &ws_panel_1920x1200_30fps_mode,
+	.lanes = 2,
+	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
+};
+
 static struct ws_panel *panel_to_ts(struct drm_panel *panel)
 {
 	return container_of(panel, struct ws_panel, base);
@@ -493,12 +532,17 @@ static int ws_panel_probe(struct i2c_client *i2c)
 		return -EINVAL;
 
 	ts->mode = _ws_panel_data->mode;
+
 	if (!ts->mode)
 		return -EINVAL;
 
 	i2c_set_clientdata(i2c, ts);
 
 	ts->i2c = i2c;
+	if (of_device_is_compatible(dev->of_node, "waveshare,10.1inch-e-4lane-panel"))
+		ws_panel_i2c_write(ts, 0xd0, 60);
+	else if (of_device_is_compatible(dev->of_node, "waveshare,10.1inch-e-2lane-panel"))
+		ws_panel_i2c_write(ts, 0xd0, 30);
 
 	ws_panel_i2c_write(ts, 0xc0, 0x01);
 	ws_panel_i2c_write(ts, 0xc2, 0x01);
@@ -570,10 +614,18 @@ error:
 	return -ENODEV;
 }
 
+static void ws_panel_reset(struct drm_panel *panel)
+{
+	struct ws_panel *ts = panel_to_ts(panel);
+
+	ws_panel_i2c_write(ts, 0xd2, 0x5a);
+}
+
 static void ws_panel_remove(struct i2c_client *i2c)
 {
 	struct ws_panel *ts = i2c_get_clientdata(i2c);
 
+	ws_panel_reset(&ts->base);
 	ws_panel_disable(&ts->base);
 
 	drm_panel_remove(&ts->base);
@@ -583,6 +635,7 @@ static void ws_panel_shutdown(struct i2c_client *i2c)
 {
 	struct ws_panel *ts = i2c_get_clientdata(i2c);
 
+	ws_panel_reset(&ts->base);
 	ws_panel_disable(&ts->base);
 }
 
@@ -635,6 +688,12 @@ static const struct of_device_id ws_panel_of_ids[] = {
 	}, {
 		.compatible = "waveshare,7.0inch-h-panel",
 		.data = &ws_panel_7_0_h_data,
+	}, {
+		.compatible = "waveshare,10.1inch-e-4lane-panel",
+		.data = &ws_panel_10_1_e_4lane_data,
+	}, {
+		.compatible = "waveshare,10.1inch-e-2lane-panel",
+		.data = &ws_panel_10_1_e_2lane_data,
 	}, {
 		/* sentinel */
 	}
