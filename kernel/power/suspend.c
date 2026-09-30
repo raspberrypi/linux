@@ -197,6 +197,22 @@ void __init pm_states_init(void)
 	mem_sleep_states[PM_SUSPEND_TO_IDLE] = mem_sleep_labels[PM_SUSPEND_TO_IDLE];
 }
 
+/*
+ * Without platform suspend (PSCI SYSTEM_SUSPEND) there are no wake sources
+ * enabled by default, so suspend-to-idle never returns.
+ */
+static int __init rpi_disable_s2idle(void)
+{
+	if (suspend_ops)
+		return 0;
+
+	pm_states[PM_SUSPEND_MEM] = NULL;
+	pm_states[PM_SUSPEND_TO_IDLE] = NULL;
+	mem_sleep_states[PM_SUSPEND_TO_IDLE] = NULL;
+	return 0;
+}
+late_initcall(rpi_disable_s2idle);
+
 static int __init mem_sleep_default_setup(char *str)
 {
 	suspend_state_t state;
