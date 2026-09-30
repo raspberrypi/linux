@@ -3008,6 +3008,10 @@ static struct mount *__do_loopback(const struct path *old_path,
 	if (!may_copy_tree(old_path))
 		return ERR_PTR(-EINVAL);
 
+	/* a pseudo dentry is freed without an RCU delay, no walk may find it */
+	if (old_path->dentry->d_flags & DCACHE_NORCU)
+		return ERR_PTR(-EINVAL);
+
 	if (recurse && !old->mnt_ns)
 		return ERR_PTR(-EINVAL);
 
