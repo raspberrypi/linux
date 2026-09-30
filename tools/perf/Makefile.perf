@@ -756,6 +756,7 @@ strip: $(PROGRAMS) $(OUTPUT)perf
 	$(STRIP) $(STRIP_OPTS) $(PROGRAMS) $(OUTPUT)perf
 
 PERF_IN := $(OUTPUT)perf-in.o
+
 export NO_JEVENTS
 
 build := -f $(srctree)/tools/build/Makefile.build dir=. obj
@@ -813,6 +814,20 @@ $(SCRIPTS) : % : %.sh
 
 $(OUTPUT)PERF-VERSION-FILE: .FORCE-PERF-VERSION-FILE
 	$(Q)$(SHELL_PATH) util/PERF-VERSION-GEN $(OUTPUT)
+
+ifdef PYLINT
+# Run Python checks after the extension is ready, independently of C builds.
+all: pylint-perf pylint-tests
+.PHONY: pylint-perf pylint-tests
+
+pylint-perf pylint-tests: | $(LANG_BINDINGS)
+
+pylint-perf:
+	$(Q)$(MAKE) $(build)=perf pylint
+
+pylint-tests:
+	$(Q)$(MAKE) $(build)=perf-test dir=tests pylint
+endif
 
 # These can record PERF_VERSION
 perf.spec $(SCRIPTS) \
