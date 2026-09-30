@@ -114,7 +114,7 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <26 2>; //gpio 26, 2=high-to-low trigger
 				irq-gpios = <&gpio 26 0>; //gpio 26, 0=active-high
-				reset-gpios = <&pcf8574a 1 1>;
+				reset-gpios = <&pcf8574a 1 0>;
 				touchscreen-inverted-x;
 				touchscreen-inverted-y;
 			};
