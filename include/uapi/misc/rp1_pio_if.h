@@ -197,7 +197,12 @@ struct rp1_pio_sm_config_xfer32_args {
  * For input a read returns -EOVERFLOW if the DMA wrapped onto the period
  * that was about to be read; no data is copied for that call, but the
  * stream resynchronises to the oldest still-valid period so that
- * subsequent reads succeed again without needing to be reconfigured.
+ * subsequent reads succeed again without needing to be reconfigured. For
+ * output a write returns -EPIPE if the DMA caught up and resent stale
+ * data; the data for that call was still queued (into the next available
+ * period), so a caller that blindly retries on -EPIPE will end up sending
+ * that period's data twice. A write shorter than a period zeroes the
+ * remainder of that period.
  */
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_CYCLE (1 << 2)
 
