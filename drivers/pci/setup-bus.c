@@ -2368,6 +2368,11 @@ static int pci_reassign_bridge_resources(struct pci_dev *bridge, unsigned long t
 	return 0;
 }
 
+/* Keep the resize follow-up compatible with the 6.12 resource helpers. */
+#define pbus_reassign_bridge_resources(bus, res, saved) \
+	pci_reassign_bridge_resources((bus)->self, (res)->flags, (saved))
+#define resource_assigned(res) ((res)->parent != NULL)
+
 int pci_do_resource_release_and_resize(struct pci_dev *pdev, int resno, int size,
 				       int exclude_bars)
 {
@@ -2375,12 +2380,20 @@ int pci_do_resource_release_and_resize(struct pci_dev *pdev, int resno, int size
 	unsigned long flags = res->flags;
 	struct pci_dev_resource *dev_res;
 	struct pci_bus *bus = pdev->bus;
-	struct resource *r;
+	struct resource *b_win, *r;
 	LIST_HEAD(saved);
 	unsigned int i;
-	int ret = 0;
+	int old, ret;
 
-	down_read(&pci_bus_sem);
+	b_win = res->parent;
+
+	old = pci_rebar_get_current_size(pdev, resno);
+	if (old < 0)
+		return old;
+
+	ret = pci_rebar_set_size(pdev, resno, size);
+	if (ret)
+		return ret;
 
 	pci_dev_for_each_resource(pdev, r, i) {
 		if (i >= PCI_BRIDGE_RESOURCES)
@@ -2389,7 +2402,10 @@ int pci_do_resource_release_and_resize(struct pci_dev *pdev, int resno, int size
 		if (exclude_bars & BIT(i))
 			continue;
 
-		if (!pci_resource_len(pdev, i) || r->flags != flags)
+		if (!pci_resource_len(pdev, i))
+			continue;
+
+		if (b_win ? r->parent != b_win : r->flags != flags)
 			continue;
 
 		ret = add_to_list(&saved, pdev, r, 0, 0);
@@ -2403,7 +2419,8 @@ int pci_do_resource_release_and_resize(struct pci_dev *pdev, int resno, int size
 	if (!bus->self)
 		goto out;
 
-	ret = pci_reassign_bridge_resources(bus->self, res->flags, &saved);
+	down_read(&pci_bus_sem);
+	ret = pbus_reassign_bridge_resources(bus, res, &saved);
 	if (ret)
 		goto restore;
 
@@ -2413,14 +2430,22 @@ out:
 	return ret;
 
 restore:
-	/* Revert to the old configuration */
+	/*
+	 * Revert to the old configuration.
+	 *
+	 * BAR Size must be restored first because it affects the read-only
+	 * bits in BAR (the old address might not be restorable otherwise
+	 * due to low address bits).
+	 */
+	pci_rebar_set_size(pdev, resno, old);
+
 	list_for_each_entry(dev_res, &saved, list) {
 		struct resource *res = dev_res->res;
 		struct pci_dev *dev = dev_res->dev;
 
 		i = res - dev->resource;
 
-		if (res->parent) {
+		if (resource_assigned(res)) {
 			release_child_resources(res);
 			pci_release_resource(dev, i);
 		}
