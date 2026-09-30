@@ -308,9 +308,8 @@ static inline gpa_t kvm_translate_gpa(struct kvm_vcpu *vcpu,
 {
 	if (mmu != &vcpu->arch.nested_mmu)
 		return gpa;
-	return kvm_x86_ops.nested_ops->translate_nested_gpa(vcpu, gpa, access,
-							    exception,
-							    pte_access);
+	return kvm_nested_call(translate_nested_gpa)(vcpu, gpa, access,
+						     exception, pte_access);
 }
 
 static inline bool kvm_has_mirrored_tdp(const struct kvm *kvm)
