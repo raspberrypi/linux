@@ -74,7 +74,7 @@ vc4_overflow_mem_work(struct work_struct *work)
 
 	bo = vc4->bin_bo;
 
-	bin_bo_slot = vc4_v3d_get_bin_slot(vc4);
+	bin_bo_slot = vc4_v3d_get_bin_slot(vc4, msecs_to_jiffies(500));
 	if (bin_bo_slot < 0) {
 		drm_err(&vc4->base, "Couldn't allocate binner overflow mem\n");
 		goto complete;
@@ -165,6 +165,10 @@ vc4_irq_finish_render_job(struct drm_device *dev)
 	trace_vc4_rcl_end_irq(dev, exec->seqno);
 
 	vc4->finished_seqno++;
+
+	vc4->bin_alloc_used &= ~exec->bin_slots;
+	exec->bin_slots = 0;
+
 	list_move_tail(&exec->head, &vc4->job_done_list);
 
 	nextbin = vc4_first_bin_job(vc4);
