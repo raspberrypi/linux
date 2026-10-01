@@ -83,6 +83,7 @@ struct rtc_timer {
 /* flags */
 #define RTC_DEV_BUSY 0
 #define RTC_NO_CDEV  1
+#define RTC_PENDING_ALARM 2
 
 struct rtc_device {
 	struct device dev;
