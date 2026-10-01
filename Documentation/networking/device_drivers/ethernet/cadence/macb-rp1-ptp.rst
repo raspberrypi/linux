@@ -10,8 +10,8 @@ hardware clock (PHC) through the standard Linux PTP device interface. With
 external timestamp input and periodic output. Applications use the standard
 PTP clock ioctls; no private userspace interface is added.
 
-The driver advertises GPIO0 through GPIO27 as PTP pins. Select a BCM/RP1 GPIO
-number, not a 40-pin header position. Pin reservation is checked when a
+The driver advertises GPIO0 through GPIO27 as PTP pins. Select an RP1 GPIO
+number, not a 40-pin header pin number. Pin reservation is checked when a
 channel is enabled. A pin in use by another peripheral or GPIO interrupt is
 rejected. Board wiring and other pin users can make a listed pin unavailable.
 This PHC interface is separate from the ``pps-rp1`` overlay, which configures

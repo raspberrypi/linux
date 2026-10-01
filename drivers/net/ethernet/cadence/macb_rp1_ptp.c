@@ -42,22 +42,100 @@
 #define RP1_COUNTER_PROGRAM_WORDS 10
 #define RP1_COUNTER_RING_WORDS 256
 
-/* The compact output program generates both the pad waveform and TSU markers.
- * Do not add an input-direction monitor SM on this same GPIO: its direction
- * request removes the pad output enable on RP1.
+/* pioasm source:
+ *
+ * .program rp1_output
+ * .side_set 1
+ * .wrap_target
+ *     pull block side 0
+ *     mov x, osr side 0
+ *     jmp x--, 2 side 0
+ *     pull block side 0
+ *     mov isr, null side 0
+ *     push block side 0
+ *     mov isr, osr side 0
+ *     mov y, ~null side 0
+ *     mov x, null side 0
+ *     pull noblock side 0
+ *     mov x, osr side 0
+ *     jmp x != y, 20 side 0
+ *     jmp !x, 20 side 0
+ *     mov y, isr side 0
+ *     mov isr, null side 0
+ *     push noblock side 1
+ *     mov x, y side 1
+ *     jmp x--, 17 side 1
+ *     nop side 0
+ *     jmp 0 side 0
+ *     jmp y--, 9 side 0
+ *     jmp 9 side 0
+ * .wrap
+ *
+ * The words and instruction comments below are pioasm output. The program
+ * generates the pad waveform and TSU markers. Do not add an input-direction
+ * monitor SM on this same GPIO: its direction request removes the pad output
+ * enable on RP1.
  */
 static const u16 rp1_compact_output_program[RP1_OUTPUT_PROGRAM_WORDS] = {
-	0x80a0, 0xa027, 0x0042, 0x80a0, 0xa0c3, 0x8020, 0xa0c7, 0xa04b,
-	0xa023, 0x8080, 0xa027, 0x00b4, 0x0034, 0xa046, 0xa0c3, 0x9000,
-	0xb022, 0x1051, 0xa042, 0x0000, 0x0089, 0x0009,
+	0x80a0, /*  0: pull   block           side 0 */
+	0xa027, /*  1: mov    x, osr          side 0 */
+	0x0042, /*  2: jmp    x--, 2          side 0 */
+	0x80a0, /*  3: pull   block           side 0 */
+	0xa0c3, /*  4: mov    isr, null       side 0 */
+	0x8020, /*  5: push   block           side 0 */
+	0xa0c7, /*  6: mov    isr, osr        side 0 */
+	0xa04b, /*  7: mov    y, ~null        side 0 */
+	0xa023, /*  8: mov    x, null         side 0 */
+	0x8080, /*  9: pull   noblock         side 0 */
+	0xa027, /* 10: mov    x, osr          side 0 */
+	0x00b4, /* 11: jmp    x != y, 20      side 0 */
+	0x0034, /* 12: jmp    !x, 20          side 0 */
+	0xa046, /* 13: mov    y, isr          side 0 */
+	0xa0c3, /* 14: mov    isr, null       side 0 */
+	0x9000, /* 15: push   noblock         side 1 */
+	0xb022, /* 16: mov    x, y            side 1 */
+	0x1051, /* 17: jmp    x--, 17         side 1 */
+	0xa042, /* 18: nop                    side 0 */
+	0x0000, /* 19: jmp    0               side 0 */
+	0x0089, /* 20: jmp    y--, 9          side 0 */
+	0x0009, /* 21: jmp    9               side 0 */
 };
 
-/* Rising-edge counter shared by the output monitor and external-input lanes.
- * PIO_ADD_PROGRAM relocates its JMP addresses.
+/* pioasm source for the rising-edge counter shared by the output monitor and
+ * external-input lanes:
+ *
+ * .program rp1_counter
+ * .wrap_target
+ * start:
+ *     jmp pin, capture
+ *     jmp y--, start
+ *     jmp start
+ * high_test:
+ *     jmp pin, high_loop
+ *     jmp y--, start
+ * high_loop:
+ *     jmp y--, high_loop
+ *     jmp high_loop
+ * capture:
+ *     mov isr, y
+ *     push noblock
+ *     jmp high_test
+ * .wrap
+ *
+ * The words and instruction comments below are pioasm output. PIO_ADD_PROGRAM
+ * relocates the absolute JMP addresses when it loads this program.
  */
 static const u16 rp1_counter_program[RP1_COUNTER_PROGRAM_WORDS] = {
-	0x00c7, 0x0080, 0x0000, 0x00c5, 0x0080,
-	0x0083, 0x0003, 0xa0c2, 0x8000, 0x0003,
+	0x00c7, /* 0: jmp    pin, 7 */
+	0x0080, /* 1: jmp    y--, 0 */
+	0x0000, /* 2: jmp    0 */
+	0x00c5, /* 3: jmp    pin, 5 */
+	0x0080, /* 4: jmp    y--, 0 */
+	0x0085, /* 5: jmp    y--, 5 */
+	0x0005, /* 6: jmp    5 */
+	0xa0c2, /* 7: mov    isr, y */
+	0x8000, /* 8: push   noblock */
+	0x0003, /* 9: jmp    3 */
 };
 
 struct out_record { u64 sequence, target, stamp; s64 error; };
