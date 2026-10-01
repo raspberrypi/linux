@@ -31,6 +31,7 @@
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/fs.h>
+#include <linux/of.h>
 
 #include "power.h"
 
@@ -198,14 +199,44 @@ void __init pm_states_init(void)
 }
 
 /*
- * Without platform suspend (PSCI SYSTEM_SUSPEND) there are no wake sources
- * enabled by default, so suspend-to-idle never returns.
+ * Nothing wakes a Raspberry Pi from suspend-to-idle by default (the RTC alarm
+ * is only seen by the bootloader), so it never returns. Suspend-to-RAM needs
+ * PSCI SYSTEM_SUSPEND and a bootloader that supports it.
  */
 static int __init rpi_disable_s2idle(void)
 {
-	if (suspend_ops)
-		return 0;
+	struct device_node *np;
+	u32 val;
+	int ret;
 
+	np = of_find_compatible_node(NULL, NULL, "raspberrypi,bcm2835-firmware");
+	if (!np)
+		return 0;
+	of_node_put(np);
+
+	if (!suspend_ops)
+		goto disable_s2idle;
+
+	np = of_find_node_by_path("/chosen/bootloader");
+	if (!np)
+		goto disable_suspend;
+
+	ret = of_property_read_u32(np, "suspend-to-ram", &val);
+	of_node_put(np);
+	if (ret)
+		goto disable_suspend;
+
+	if (val != 1)
+		goto disable_suspend;
+
+	pm_states[PM_SUSPEND_TO_IDLE] = NULL;
+	mem_sleep_states[PM_SUSPEND_TO_IDLE] = NULL;
+	return 0;
+
+disable_suspend:
+	mem_sleep_states[PM_SUSPEND_MEM] = NULL;
+
+disable_s2idle:
 	pm_states[PM_SUSPEND_MEM] = NULL;
 	pm_states[PM_SUSPEND_TO_IDLE] = NULL;
 	mem_sleep_states[PM_SUSPEND_TO_IDLE] = NULL;
