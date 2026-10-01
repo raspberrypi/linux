@@ -707,6 +707,10 @@ void rtnl_link_unregister(struct rtnl_link_ops *ops)
 	list_del_rcu(&ops->list);
 	mutex_unlock(&link_ops_mutex);
 
+	/* Wait for rtnl_link_ops_get() readers that found ops but have
+	 * not yet taken ops->srcu.
+	 */
+	synchronize_rcu();
 	synchronize_srcu(&ops->srcu);
 	cleanup_srcu_struct(&ops->srcu);
 
