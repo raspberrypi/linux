@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
+#include <linux/wait.h>
 #include <uapi/misc/rp1_pio_if.h>
 
 #include "rp1-fw-pio.h"
@@ -96,11 +97,14 @@ struct dma_buf_info {
 
 struct dma_info {
 	struct semaphore buf_sem;
+	wait_queue_head_t cyclic_wait;
 	struct dma_chan *chan;
 	size_t buf_size;
 	size_t buf_count;
 	size_t burst_bytes;
 	bool cyclic;
+	bool tx;
+	bool issued;
 	unsigned int head_idx;
 	unsigned int tail_idx;
 	struct dma_buf_info bufs[DMA_BOUNCE_BUFFER_COUNT];
@@ -946,8 +950,18 @@ static void rp1_pio_sm_dma_callback(void *param)
 {
 	struct dma_info *dma = param;
 
-	if (dma->cyclic)
+	if (dma->cyclic) {
+		/*
+		 * The reader/writer re-checks the live head/tail relationship
+		 * itself (see rp1_pio_sm_tx_user()/rp1_pio_sm_rx_user())
+		 * instead of relying on a count of wakeups, so it can't drift
+		 * out of sync if more than one period completes before it
+		 * gets to run.
+		 */
 		WRITE_ONCE(dma->head_idx, dma->head_idx + 1);
+		wake_up_interruptible(&dma->cyclic_wait);
+		return;
+	}
 	up(&dma->buf_sem);
 }
 
@@ -1024,6 +1038,8 @@ static void rp1_pio_sm_dma_free(struct dma_info *dma)
 	dma_release_channel(dma->chan);
 	dma->chan = NULL;
 	dma->cyclic = false;
+	dma->tx = false;
+	dma->issued = false;
 }
 
 static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint sm, uint dir,
@@ -1037,6 +1053,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	struct dma_slave_caps dma_caps;
 	struct dma_info *dma = NULL;
 	bool cyclic = flags & RP1_PIO_SM_CONFIG_XFER_FL_DMA_CYCLE;
+	bool tx = dir == RP1_PIO_DIR_TO_SM;
 	bool prefer_light_dma = flags & BIT(0);
 	bool force_dma_type = flags & BIT(1);
 	bool reconfigure = false;
@@ -1051,8 +1068,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	    (!buf_size || (buf_size & 3) ||
 	     !buf_count || buf_count > DMA_BOUNCE_BUFFER_COUNT))
 		return -EINVAL;
-	/* Cyclic DMA is currently only supported for FROM_SM */
-	if (cyclic && dir == RP1_PIO_DIR_TO_SM)
+	/* Cyclic DMA needs at least two real buffers to cycle through */
+	if (cyclic && (!buf_size || buf_count < 2))
 		return -EINVAL;
 
 	dma_mask = 1 << (sm * 2 + dir);
@@ -1073,11 +1090,18 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	if (reconfigure)
 		rp1_pio_sm_dma_free(dma);
 
+	/*
+	 * Cyclic transfers derive their flow-control wait condition from
+	 * head_idx/tail_idx directly (see cyclic_wait below), so the
+	 * semaphore (used by non-cyclic transfers) only needs its plain
+	 * initial state here.
+	 */
 	sema_init(&dma->buf_sem, 0);
+	init_waitqueue_head(&dma->cyclic_wait);
 
 	/* Allocate and configure a DMA channel */
 	/* Careful - each SM FIFO has its own DREQ value */
-	chan_name[0] = (dir == RP1_PIO_DIR_TO_SM) ? 't' : 'r';
+	chan_name[0] = tx ? 't' : 'r';
 	chan_name[1] = 'x';
 	chan_name[2] = '0' + sm;
 	if (prefer_light_dma)
@@ -1087,6 +1111,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	chan_name[4] = '\0';
 
 	dma->cyclic = false;
+	dma->tx = tx;
+	dma->issued = false;
 	dma->chan = dma_request_chan(dev, chan_name);
 	if (IS_ERR(dma->chan)) {
 		ret = PTR_ERR(dma->chan);
@@ -1143,18 +1169,18 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	fifo_addr = pio->phys_addr;
 	fifo_addr += sm * (RP1_PIO_FIFO_TX1 - RP1_PIO_FIFO_TX0);
-	fifo_addr += (dir == RP1_PIO_DIR_TO_SM) ? RP1_PIO_FIFO_TX0 : RP1_PIO_FIFO_RX0;
+	fifo_addr += tx ? RP1_PIO_FIFO_TX0 : RP1_PIO_FIFO_RX0;
 
 	config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	config.src_addr = fifo_addr;
 	config.dst_addr = fifo_addr;
-	config.direction = (dir == RP1_PIO_DIR_TO_SM) ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
+	config.direction = tx ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM;
 	dma_caps.max_burst = 4;
 	dma_get_slave_caps(dma->chan, &dma_caps);
 	if (dma_caps.max_burst > RP1_PIO_FIFO_DEPTH)
 		dma_caps.max_burst = RP1_PIO_FIFO_DEPTH;
-	if (dir == RP1_PIO_DIR_TO_SM)
+	if (tx)
 		config.dst_maxburst = dma_caps.max_burst;
 	else
 		config.src_maxburst = dma_caps.max_burst;
@@ -1165,12 +1191,12 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		goto err_dma_free;
 
 	set_dmactrl_args.sm = sm;
-	set_dmactrl_args.is_tx = (dir == RP1_PIO_DIR_TO_SM);
-	if (dir == RP1_PIO_DIR_FROM_SM)
-		set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT | config.src_maxburst;
-	else
+	set_dmactrl_args.is_tx = tx;
+	if (tx)
 		set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT |
 					(RP1_PIO_FIFO_DEPTH - config.dst_maxburst);
+	else
+		set_dmactrl_args.ctrl = RP1_PIO_DMACTRL_DEFAULT | config.src_maxburst;
 
 	ret = rp1_pio_sm_set_dmactrl(client, &set_dmactrl_args);
 	if (ret)
@@ -1182,9 +1208,9 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 		sg_dma_len(&dbi->sgl) = dma->buf_size;
 		desc = dmaengine_prep_dma_cyclic(dma->chan, dbi->dma_addr,
-						 dma->buf_size, dma->buf_size / dma->buf_count,
-					       DMA_DEV_TO_MEM,
-					       DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+						  dma->buf_size, dma->buf_size / dma->buf_count,
+						  tx ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM,
+						  DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 		if (!desc) {
 			dev_err(dev, "DMA preparation failed\n");
 			ret = -EIO;
@@ -1199,7 +1225,20 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		if (ret < 0)
 			goto err_dma_free;
 
-		dma_async_issue_pending(dma->chan);
+		if (tx) {
+			/*
+			 * The TX DREQ is asserted whenever the FIFO has room,
+			 * even while the state machine is disabled. Starting
+			 * the DMA now would let it drain the still-zeroed
+			 * first period into the FIFO before userspace has
+			 * written anything. Defer dma_async_issue_pending()
+			 * until the first write has filled that period.
+			 */
+			dma->issued = false;
+		} else {
+			dma_async_issue_pending(dma->chan);
+			dma->issued = true;
+		}
 	}
 	return 0;
 
@@ -1263,6 +1302,73 @@ static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 	struct dma_async_tx_descriptor *desc;
 	struct device *dev = &pdev->dev;
 	int ret = 0;
+
+	if (dma->cyclic) {
+		size_t period = dma->buf_size / dma->buf_count;
+		struct dma_buf_info *dbi = &dma->bufs[0];
+		bool underflow;
+		void *dst;
+
+		if (!bytes || bytes > period)
+			return -EINVAL;
+
+		/*
+		 * Wait for a free period, i.e. until tail is less than
+		 * buf_count periods ahead of head. Re-checking the live
+		 * head/tail relationship (instead of counting a fixed number
+		 * of semaphore posts from the callback) means a wakeup that
+		 * covers more than one completed period - e.g. because the
+		 * completion tasklet didn't run between them - can't leave
+		 * this counter permanently out of sync with the hardware.
+		 */
+		ret = wait_event_interruptible(dma->cyclic_wait,
+				(int)(dma->tail_idx - READ_ONCE(dma->head_idx)) <
+				(int)dma->buf_count);
+		if (ret)
+			return ret;
+
+		/*
+		 * The DMA has already started reading (or finished reading)
+		 * the period we were about to write: it went out with stale,
+		 * previously-sent contents. Skip ahead to the next period the
+		 * DMA hasn't reached yet instead of tearing the one it is
+		 * currently transferring, and report the loss.
+		 *
+		 * This check is best effort: it runs from a tasklet, so a
+		 * write that lands in the gap between the DMA moving on and
+		 * the tasklet running isn't flagged even though the period it
+		 * fills may already be stale by the time it goes out.
+		 */
+		underflow = (int)(READ_ONCE(dma->head_idx) - dma->tail_idx) >= 0;
+		if (underflow)
+			dma->tail_idx = READ_ONCE(dma->head_idx) + 1;
+
+		dst = dbi->buf + (dma->tail_idx % dma->buf_count) * period;
+		if (copy_from_user(dst, userbuf, bytes)) {
+			bytes = 0;
+			ret = -EFAULT;
+		}
+		memset(dst + bytes, 0, period - bytes);
+
+		/*
+		 * Ensure the data just written is visible in memory before
+		 * the DMA engine wraps back around and reads this period
+		 * again.
+		 */
+		dma_wmb();
+
+		WRITE_ONCE(dma->tail_idx, dma->tail_idx + 1);
+
+		if (!ret && underflow)
+			ret = -EPIPE;
+
+		if (!dma->issued) {
+			dma_async_issue_pending(dma->chan);
+			dma->issued = true;
+		}
+
+		return ret;
+	}
 
 	while (bytes > 0) {
 		size_t copy_bytes = min(bytes, dma->buf_size);
@@ -1373,15 +1479,30 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 			return -EINVAL;
 
 		/*
-		 * The callback posts the semaphore once per period, so consume
-		 * exactly one 'period' worth of data per read.
+		 * Wait until there is at least one unread period, i.e. until
+		 * head is ahead of tail. Re-checking the live head/tail
+		 * relationship (instead of counting a fixed number of
+		 * semaphore posts from the callback) means a wakeup that
+		 * covers more than one completed period - e.g. because the
+		 * completion tasklet didn't run between them - can't leave
+		 * this counter permanently out of sync with the hardware.
 		 */
-		if (down_interruptible(&dma->buf_sem))
-			return -ERESTARTSYS;
+		ret = wait_event_interruptible(dma->cyclic_wait,
+				(int)(READ_ONCE(dma->head_idx) - dma->tail_idx) > 0);
+		if (ret)
+			return ret;
 
-		/* The DMA has wrapped onto the period we were about to read. */
-		if (READ_ONCE(dma->head_idx) - dma->tail_idx > dma->buf_count)
+		/*
+		 * The DMA has wrapped onto (or past) the period we were about
+		 * to read: its data has already been overwritten. Resync tail
+		 * to the oldest period that is still valid so that later
+		 * reads recover instead of returning -EOVERFLOW forever, and
+		 * report the loss for this call.
+		 */
+		if (READ_ONCE(dma->head_idx) - dma->tail_idx > dma->buf_count) {
+			dma->tail_idx = READ_ONCE(dma->head_idx) - dma->buf_count;
 			return -EOVERFLOW;
+		}
 
 		/* Pair with the DMAC's writes into the period we are about to copy. */
 		dma_rmb();
@@ -1504,6 +1625,10 @@ int rp1_pio_sm_xfer_data(struct rp1_pio_client *client, uint sm, uint dir,
 		return -EINVAL;
 
 	dma = &pio->dma_configs[sm][dir];
+
+	/* The cyclic configuration owns the buffer and the descriptor */
+	if (dma->cyclic)
+		return -EINVAL;
 
 	if (!dma_addr) {
 		dxs = kmalloc(sizeof(*dxs), GFP_KERNEL);
