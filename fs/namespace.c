@@ -1984,6 +1984,9 @@ out:
  * detach_mounts allows lazily unmounting those mounts instead of
  * leaking them.
  *
+ * The dentry is unhashed before the mounts go so that no lookup finds
+ * what they covered. The caller removes it for good afterwards.
+ *
  * The caller may hold dentry->d_inode->i_rwsem.
  */
 void __detach_mounts(struct dentry *dentry)
@@ -1997,6 +2000,8 @@ void __detach_mounts(struct dentry *dentry)
 	if (!lookup_mountpoint(dentry, &mp))
 		return;
 
+	/* the name goes first, what covered it goes second */
+	d_drop(dentry);
 	event++;
 	while (mp.node.next) {
 		mnt = hlist_entry(mp.node.next, struct mount, mnt_mp_list);
