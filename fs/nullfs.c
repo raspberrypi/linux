@@ -30,8 +30,8 @@ static int nullfs_fs_fill_super(struct super_block *s, struct fs_context *fc)
 	make_empty_dir_inode(inode);
 	simple_inode_init_ts(inode);
 	inode->i_ino	= 1;
-	/* ... and immutable. */
-	inode->i_flags |= S_IMMUTABLE;
+	/* ... and immutable, reading it leaves no trace either. */
+	inode->i_flags |= S_IMMUTABLE | S_NOATIME;
 
 	s->s_root = d_make_root(inode);
 	if (!s->s_root)
