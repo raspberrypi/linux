@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * WK2xxx SPI UART overlay for EDATEC IPC1200 (SPI0) and SBC2300 (SPI1).
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__dormant__ {
+			wk2xxx_spi0_pins: wk2xxx_spi0_pins {
+				brcm,pins = <9 10 11>;
+				brcm,function = <4>;
+			};
+
+			wk2xxx_spi0_cs_pins: wk2xxx_spi0_cs_pins {
+				brcm,pins = <8>;
+				brcm,function = <1>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&wk2xxx_spi0_pins &wk2xxx_spi0_cs_pins>;
+			cs-gpios = <&gpio 8 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wk2xxx_spi0: wk2xxx@0 {
+				compatible = "wkmic,wk2132";
+				reg = <0>; /* CE0 */
+				spi-max-frequency = <10000000>;
+				clock-frequency = <11059200>; /* on-board crystal 11.0592 MHz */
+				interrupt-parent = <&gpio>;
+				interrupts = <24 IRQ_TYPE_LEVEL_LOW>; /* GPIO24 */
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			wk2xxx_spi1_pins: wk2xxx_spi1_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <3>;
+			};
+
+			wk2xxx_spi1_cs_pins: wk2xxx_spi1_cs_pins {
+				brcm,pins = <18>;
+				brcm,function = <1>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&wk2xxx_spi1_pins &wk2xxx_spi1_cs_pins>;
+			cs-gpios = <&gpio 18 1>;
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&aux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wk2xxx_spi1: wk2xxx@0 {
+				compatible = "wkmic,wk2204";
+				reg = <0>; /* CE0 */
+				spi-max-frequency = <10000000>;
+				clock-frequency = <12000000>; /* on-board crystal 12 MHz */
+				interrupt-parent = <&gpio>;
+				interrupts = <17 IRQ_TYPE_LEVEL_LOW>; /* GPIO17 */
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		ipc1200 = <0>, "+0+1+2-3-4-5-6";
+		sbc2300 = <0>, "-0-1-2+3+4+5+6";
+		int-gpio = <&wk2xxx_spi0>, "interrupts:0", <&wk2xxx_spi1>, "interrupts:0";
+		clock-frequency = <&wk2xxx_spi0>, "clock-frequency:0", <&wk2xxx_spi1>, "clock-frequency:0";
+	};
+};
