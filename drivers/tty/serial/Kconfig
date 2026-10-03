@@ -1208,6 +1208,23 @@ config SERIAL_MXS_AUART_CONSOLE
 	help
 	  Enable a MXS AUART port to be the system console.
 
+config SERIAL_WK2XXX
+	tristate "WK2xxx SPI UART support"
+	depends on SPI_MASTER
+	select SERIAL_CORE
+	help
+	  This selects the WK2xxx SPI to UART bridge driver.
+	  Supported ICs are:
+
+	    WK2124
+	    WK2132
+	    WK2168
+	    WK2202
+	    WK2204
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called wk2xxx.
+
 config SERIAL_XILINX_PS_UART
 	tristate "Cadence (Xilinx Zynq) UART support"
 	depends on OF
