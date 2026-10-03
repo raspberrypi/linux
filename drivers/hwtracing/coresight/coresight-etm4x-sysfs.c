@@ -1435,6 +1435,8 @@ static ssize_t seq_state_store(struct device *dev,
 
 	if (kstrtoul(buf, 16, &val))
 		return -EINVAL;
+	if (IS_ERR_OR_NULL(drvdata->csdev) || coresight_get_mode(drvdata->csdev))
+		return -EBUSY;
 	if (val >= drvdata->nrseqstate)
 		return -EINVAL;
 
