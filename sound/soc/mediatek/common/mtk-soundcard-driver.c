@@ -185,6 +185,43 @@ const struct snd_soc_ops mtk_soundcard_common_capture_ops = {
 };
 EXPORT_SYMBOL_GPL(mtk_soundcard_common_capture_ops);
 
+struct mtk_soundcard_name {
+	struct snd_soc_card *card;
+	const char *name;
+};
+
+static void mtk_soundcard_restore_name(void *data)
+{
+	struct mtk_soundcard_name *saved = data;
+
+	saved->card->name = saved->name;
+	saved->card->topology_shortname = NULL;
+}
+
+/*
+ * The card is static and outlives this probe, but the topology name is
+ * devm-allocated. Restore the original name when the probe's resources are
+ * released, so that a deferred or failed probe does not leave the card name
+ * pointing to freed memory for the next one.
+ */
+static int mtk_soundcard_set_topology_name(struct device *dev,
+					   struct snd_soc_card *card)
+{
+	struct mtk_soundcard_name *saved;
+
+	saved = devm_kzalloc(dev, sizeof(*saved), GFP_KERNEL);
+	if (!saved)
+		return -ENOMEM;
+
+	saved->card = card;
+	saved->name = card->name;
+	card->topology_shortname = NULL;
+
+	snd_soc_card_set_topology_name(card, "sof");
+
+	return devm_add_action_or_reset(dev, mtk_soundcard_restore_name, saved);
+}
+
 int mtk_soundcard_common_probe(struct platform_device *pdev)
 {
 	struct device_node *platform_node, *adsp_node, *accdet_node;
@@ -292,7 +329,12 @@ int mtk_soundcard_common_probe(struct platform_device *pdev)
 		card->probe = mtk_sof_card_probe;
 		card->late_probe = mtk_sof_card_late_probe;
 
-		snd_soc_card_set_topology_name(card, "sof");
+		ret = mtk_soundcard_set_topology_name(&pdev->dev, card);
+		if (ret) {
+			of_node_put(adsp_node);
+			of_node_put(platform_node);
+			return ret;
+		}
 	}
 
 	/*
