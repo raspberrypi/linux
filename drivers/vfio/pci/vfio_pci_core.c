@@ -2607,6 +2607,7 @@ EXPORT_SYMBOL_GPL(vfio_pci_core_set_params);
 static void vfio_pci_core_cleanup(void)
 {
 	vfio_pci_uninit_perm_bits();
+	rcu_barrier();
 }
 
 static int __init vfio_pci_core_init(void)
