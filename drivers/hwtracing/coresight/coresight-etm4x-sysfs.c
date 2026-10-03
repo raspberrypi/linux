@@ -1435,7 +1435,8 @@ static ssize_t seq_state_store(struct device *dev,
 
 	if (kstrtoul(buf, 16, &val))
 		return -EINVAL;
-	if (IS_ERR_OR_NULL(drvdata->csdev) || coresight_get_mode(drvdata->csdev))
+	if (IS_ERR_OR_NULL(drvdata->csdev) ||
+	    coresight_get_mode(drvdata->csdev) == CS_MODE_SYSFS)
 		return -EBUSY;
 	if (val >= drvdata->nrseqstate)
 		return -EINVAL;
@@ -1616,7 +1617,7 @@ static ssize_t cntr_val_store(struct device *dev,
 	if (val > ETM_CNTR_MAX_VAL)
 		return -EINVAL;
 	if (IS_ERR_OR_NULL(drvdata->csdev) ||
-	    coresight_get_mode(drvdata->csdev))
+	    coresight_get_mode(drvdata->csdev) == CS_MODE_SYSFS)
 		return -EBUSY;
 
 	raw_spin_lock(&drvdata->spinlock);
