@@ -153,25 +153,12 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	}
 }
 
-#if defined(CONFIG_SMP)
-void bcm2836_arm_irqchip_spin_gpu_irq(void);
-
-static void armctrl_ack_irq(struct irq_data *d)
-{
-	bcm2836_arm_irqchip_spin_gpu_irq();
-}
-
-#endif
-
 static struct irq_chip armctrl_chip = {
 	.name = "ARMCTRL-level",
 	.irq_mask = armctrl_mask_irq,
 	.irq_unmask = armctrl_unmask_irq,
 	.flags = IRQCHIP_MASK_ON_SUSPEND |
 		 IRQCHIP_SKIP_SET_WAKE,
-#if defined(CONFIG_SMP)
-	.irq_ack    = armctrl_ack_irq
-#endif
 };
 
 static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
@@ -347,8 +334,20 @@ static void bcm2836_chained_handle_irq(struct irq_desc *desc)
 	u32 hwirq;
 
 	hwirq = get_next_armctrl_hwirq();
-	if (hwirq != ~0)
-		generic_handle_domain_irq(intc.domain, hwirq);
+	if (hwirq == ~0)
+		return;
+
+	generic_handle_domain_irq(intc.domain, hwirq);
+
+#if defined(CONFIG_SMP)
+	/*
+	 * Only hand the GPU interrupt on once this core has finished with it.
+	 * Rerouting any earlier lets the next core sample the pending register
+	 * before this one has masked its interrupt, so both can dispatch the
+	 * same hwirq.
+	 */
+	bcm2836_arm_irqchip_spin_gpu_irq();
+#endif
 }
 
 IRQCHIP_DECLARE(bcm2835_armctrl_ic, "brcm,bcm2835-armctrl-ic",
