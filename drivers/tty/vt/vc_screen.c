@@ -591,7 +591,6 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	struct inode *inode = file_inode(file);
 	struct vc_data *vc;
-	char *con_buf;
 	u16 *org0, *org;
 	unsigned int written;
 	int size;
@@ -602,7 +601,7 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 	if (use_unicode(inode))
 		return -EOPNOTSUPP;
 
-	con_buf = (char *) __get_free_page(GFP_KERNEL);
+	char *con_buf __free(kfree) = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!con_buf)
 		return -ENOMEM;
 
@@ -611,22 +610,18 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 	/* Select the proper current console and verify
 	 * sanity of the situation under the console lock.
 	 */
-	console_lock();
+	guard(console_lock)();
 
 	attr = use_attributes(inode);
-	ret = -ENXIO;
 	vc = vcs_vc(inode, &viewed);
 	if (!vc)
-		goto unlock_out;
+		return -ENXIO;
 
 	size = vcs_size(vc, attr, false);
-	if (size < 0) {
-		ret = size;
-		goto unlock_out;
-	}
-	ret = -EINVAL;
+	if (size < 0)
+		return size;
 	if (pos < 0 || pos > size)
-		goto unlock_out;
+		return -EINVAL;
 	if (count > size - pos)
 		count = size - pos;
 	written = 0;
@@ -651,8 +646,7 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 				 */
 				if (written)
 					break;
-				ret = -EFAULT;
-				goto unlock_out;
+				return -EFAULT;
 			}
 		}
 
@@ -664,15 +658,13 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 		if (!vc) {
 			if (written)
 				break;
-			ret = -ENXIO;
-			goto unlock_out;
+			return -ENXIO;
 		}
 		size = vcs_size(vc, attr, false);
 		if (size < 0) {
 			if (written)
 				break;
-			ret = size;
-			goto unlock_out;
+			return size;
 		}
 		if (pos >= size)
 			break;
@@ -702,9 +694,6 @@ vcs_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 	if (written && vc)
 		vcs_scr_updated(vc);
 
-unlock_out:
-	console_unlock();
-	free_page((unsigned long) con_buf);
 	return ret;
 }
 
