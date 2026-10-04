@@ -647,8 +647,6 @@ vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec,
 
 	vc4_attach_fences(exec);
 
-	drm_exec_fini(exec_ctx);
-
 	list_add_tail(&exec->head, &vc4->bin_job_list);
 
 	/* If no bin job was executing and if the render job (if any) has the
@@ -664,6 +662,8 @@ vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec,
 	}
 
 	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
+
+	drm_exec_fini(exec_ctx);
 
 	if (out_sync) {
 		drm_syncobj_replace_fence(out_sync, &fence->base);
