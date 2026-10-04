@@ -1503,7 +1503,7 @@ mt7925_vif_connect_iter(void *priv, u8 *mac,
 					    true, NULL);
 		mt7925_mcu_sta_update(dev, NULL, vif,
 				      &mvif->sta.deflink, true,
-				      MT76_STA_INFO_STATE_NONE);
+				      MT76_STA_INFO_STATE_NONE, NULL);
 		mt7925_mcu_uni_add_beacon_offload(dev, hw, vif, true);
 	}
 }
