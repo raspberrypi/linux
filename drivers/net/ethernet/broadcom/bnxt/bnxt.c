@@ -15505,7 +15505,7 @@ static void bnxt_fw_reset_task(struct work_struct *work)
 		if (test_and_clear_bit(BNXT_STATE_FW_ACTIVATE_RESET, &bp->state) &&
 		    !test_bit(BNXT_STATE_FW_ACTIVATE, &bp->state))
 			bnxt_dl_remote_reload(bp);
-		if (pci_enable_device(bp->pdev)) {
+		if (!pci_is_enabled(bp->pdev) && pci_enable_device(bp->pdev)) {
 			netdev_err(bp->dev, "Cannot re-enable PCI device\n");
 			rc = -ENODEV;
 			goto fw_reset_abort;
@@ -17557,10 +17557,8 @@ static pci_ers_result_t bnxt_io_error_detected(struct pci_dev *pdev,
 	 * so we disable bus master to prevent any potential bad DMAs before
 	 * freeing kernel memory.
 	 */
-	if (state == pci_channel_io_frozen) {
-		set_bit(BNXT_STATE_PCI_CHANNEL_IO_FROZEN, &bp->state);
+	if (state == pci_channel_io_frozen)
 		bnxt_fw_fatal_close(bp);
-	}
 
 	if (netif_running(netdev))
 		__bnxt_close_nic(bp, true, true);
@@ -17590,64 +17588,79 @@ static pci_ers_result_t bnxt_io_slot_reset(struct pci_dev *pdev)
 	struct bnxt *bp = netdev_priv(netdev);
 	int retry = 0;
 	int err = 0;
+	u16 cmd;
 
 	netdev_info(bp->dev, "PCI Slot Reset\n");
 
-	if (test_bit(BNXT_STATE_PCI_CHANNEL_IO_FROZEN, &bp->state)) {
-		/* After DPC, the chip should return CRS when the vendor ID
-		 * config register is read until it is ready.  On all chips,
-		 * this is not happening reliably so add a 5-second delay as a
-		 * workaround.
-		 */
-		msleep(5000);
-	}
+	/* After a PCIe hot reset, the chip should return CRS when the
+	 * vendor ID config register is read until it is ready.  On all
+	 * chips, this is not happening reliably so add a 5-second delay
+	 * as a workaround.
+	 */
+	msleep(5000);
 
 	netdev_lock(netdev);
 
-	if (pci_enable_device(pdev)) {
+	pci_read_config_word(pdev, PCI_COMMAND, &cmd);
+	if (PCI_POSSIBLE_ERROR(cmd)) {
+		dev_err(&pdev->dev,
+			"PCI config space inaccessible after reset\n");
+		goto reset_exit;
+	}
+
+	/* Upon PCIe error, our device internal logic that latches to
+	 * BAR value is getting reset and will restore only upon
+	 * rewriting the BARs.
+	 *
+	 * As pci_restore_state() does not re-write the BARs if the
+	 * value is same as saved value earlier, driver needs to
+	 * write the BARs to 0 to force restore.
+	 */
+	pci_clear_master(pdev);
+	pci_read_config_word(pdev, PCI_COMMAND, &cmd);
+	cmd &= ~PCI_COMMAND_MEMORY;
+	pci_write_config_word(pdev, PCI_COMMAND, cmd);
+
+	bnxt_clear_bars(pdev);
+	pci_restore_state(pdev);
+
+	if (!pci_is_enabled(pdev) && pci_enable_device(pdev)) {
 		dev_err(&pdev->dev,
 			"Cannot re-enable PCI device after reset.\n");
-	} else {
-		pci_set_master(pdev);
-		/* Upon fatal error, our device internal logic that latches to
-		 * BAR value is getting reset and will restore only upon
-		 * rewriting the BARs.
-		 *
-		 * As pci_restore_state() does not re-write the BARs if the
-		 * value is same as saved value earlier, driver needs to
-		 * write the BARs to 0 to force restore, in case of fatal error.
-		 */
-		if (test_and_clear_bit(BNXT_STATE_PCI_CHANNEL_IO_FROZEN,
-				       &bp->state))
-			bnxt_clear_bars(pdev);
-		pci_restore_state(pdev);
-
-		bnxt_inv_fw_health_reg(bp);
-		bnxt_try_map_fw_health_reg(bp);
-
-		/* In some PCIe AER scenarios, firmware may take up to
-		 * 10 seconds to become ready in the worst case.
-		 */
-		do {
-			err = bnxt_try_recover_fw(bp);
-			if (!err)
-				break;
-			retry++;
-		} while (retry < BNXT_FW_SLOT_RESET_RETRY);
-
-		if (err) {
-			dev_err(&pdev->dev, "Firmware not ready\n");
-			goto reset_exit;
+		pci_read_config_word(pdev, PCI_COMMAND, &cmd);
+		if (!PCI_POSSIBLE_ERROR(cmd)) {
+			cmd &= ~(PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY);
+			pci_write_config_word(pdev, PCI_COMMAND, cmd);
 		}
-
-		err = bnxt_hwrm_func_reset(bp);
-		if (!err)
-			result = PCI_ERS_RESULT_RECOVERED;
-
-		/* IRQ will be initialized later in bnxt_io_resume */
-		bnxt_ulp_irq_stop(bp);
-		bnxt_clear_int_mode(bp);
+		goto reset_exit;
 	}
+	pci_set_master(pdev);
+
+	bnxt_inv_fw_health_reg(bp);
+	bnxt_try_map_fw_health_reg(bp);
+
+	/* In some PCIe AER scenarios, firmware may take up to
+	 * 10 seconds to become ready in the worst case.
+	 */
+	do {
+		err = bnxt_try_recover_fw(bp);
+		if (!err)
+			break;
+		retry++;
+	} while (retry < BNXT_FW_SLOT_RESET_RETRY);
+
+	if (err) {
+		dev_err(&pdev->dev, "Firmware not ready\n");
+		goto reset_exit;
+	}
+
+	err = bnxt_hwrm_func_reset(bp);
+	if (!err)
+		result = PCI_ERS_RESULT_RECOVERED;
+
+	/* IRQ will be initialized later in bnxt_io_resume */
+	bnxt_ulp_irq_stop(bp);
+	bnxt_clear_int_mode(bp);
 
 reset_exit:
 	clear_bit(BNXT_STATE_IN_FW_RESET, &bp->state);
