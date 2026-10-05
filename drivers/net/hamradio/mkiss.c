@@ -526,6 +526,14 @@ static void ax_encaps(struct net_device *dev, unsigned char *icp, int len)
 
 	set_bit(TTY_DO_WRITE_WAKEUP, &ax->tty->flags);
 	actual = ax->tty->ops->write(ax->tty, ax->xbuff, count);
+	if (actual < 0) {
+		/* The tty refused the frame: drop it. */
+		clear_bit(TTY_DO_WRITE_WAKEUP, &ax->tty->flags);
+		dev->stats.tx_errors++;
+		ax->xleft = 0;
+		netif_start_queue(dev);
+		return;
+	}
 	dev->stats.tx_packets++;
 	dev->stats.tx_bytes += actual;
 
@@ -939,6 +947,14 @@ static void mkiss_write_wakeup(struct tty_struct *tty)
 	}
 
 	actual = tty->ops->write(tty, ax->xhead, ax->xleft);
+	if (actual < 0) {
+		/* Give up on the rest of this frame. */
+		clear_bit(TTY_DO_WRITE_WAKEUP, &tty->flags);
+		ax->dev->stats.tx_errors++;
+		ax->xleft = 0;
+		netif_wake_queue(ax->dev);
+		goto out;
+	}
 	ax->xleft -= actual;
 	ax->xhead += actual;
 
