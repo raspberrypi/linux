@@ -497,6 +497,48 @@ int __mdiobus_write(struct mii_bus *bus, int addr, u32 regnum, u16 val)
 EXPORT_SYMBOL(__mdiobus_write);
 
 /**
+ * __mdiobus_write_sts - Timestamped version of the __mdiobus_write function
+ * @bus: the mii_bus struct
+ * @addr: the phy address
+ * @regnum: register number to write
+ * @val: value to write to @regnum
+ * @sts: system timestamps bounding completion, or NULL
+ *
+ * Write a MDIO bus register, with system timestamps bounding completion;
+ * a transfer is considered complete on the rising edge of the MDC
+ * that clocks the last data bit. Caller must hold the mdio bus lock.
+ *
+ * If @sts is NULL, perform an ordinary write. Otherwise, return
+ * -EOPNOTSUPP if the bus has no write_sts operation.
+ *
+ * NOTE: MUST NOT be called from interrupt context.
+ */
+int __mdiobus_write_sts(struct mii_bus *bus, int addr, u32 regnum, u16 val,
+			struct ptp_system_timestamp *sts)
+{
+	int err;
+
+	if (!sts)
+		return __mdiobus_write(bus, addr, regnum, val);
+
+	lockdep_assert_held_once(&bus->mdio_lock);
+
+	if (addr >= PHY_MAX_ADDR)
+		return -ENXIO;
+
+	if (bus->write_sts)
+		err = bus->write_sts(bus, addr, regnum, val, sts);
+	else
+		err = -EOPNOTSUPP;
+
+	trace_mdio_access(bus, 0, addr, regnum, val, err);
+	mdiobus_stats_acct(&bus->stats[addr], false, err);
+
+	return err;
+}
+EXPORT_SYMBOL_GPL(__mdiobus_write_sts);
+
+/**
  * __mdiobus_modify_changed - Unlocked version of the mdiobus_modify function
  * @bus: the mii_bus struct
  * @addr: the phy address
