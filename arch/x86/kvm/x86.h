@@ -615,4 +615,32 @@ int kvm_sev_es_string_io(struct kvm_vcpu *vcpu, unsigned int size,
 			 unsigned int port, void *data,  unsigned int count,
 			 int in);
 
+static inline bool kvm_pv_async_pf_enabled(struct kvm_vcpu *vcpu)
+{
+	u64 mask = KVM_ASYNC_PF_ENABLED | KVM_ASYNC_PF_DELIVERY_AS_INT;
+
+	return (vcpu->arch.apf.msr_en_val & mask) == mask;
+}
+
+static inline unsigned long get_segment_base(struct kvm_vcpu *vcpu, int seg)
+{
+	return kvm_x86_call(get_segment_base)(vcpu, seg);
+}
+
+void __kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
+void kvm_vcpu_ioctl_x86_get_sregs2(struct kvm_vcpu *vcpu,
+				   struct kvm_sregs2 *sregs2);
+int kvm_vcpu_ioctl_x86_set_sregs2(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs2 *sregs2);
+void kvm_run_sync_regs_to_user(struct kvm_vcpu *vcpu);
+int kvm_run_sync_regs_from_user(struct kvm_vcpu *vcpu);
+void kvm_update_dr0123(struct kvm_vcpu *vcpu);
+int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+void kvm_invalidate_pcid(struct kvm_vcpu *vcpu, unsigned long pcid);
+void kvm_handle_exception_payload_quirk(struct kvm_vcpu *vcpu);
+void update_cr8_intercept(struct kvm_vcpu *vcpu);
+
 #endif

@@ -861,7 +861,7 @@ xreap_bmapi_binval(
 			 * much of the mapping we've seen so far.
 			 */
 			if (invalidated > XREAP_MAX_BINVAL) {
-				imap->br_blockcount = agbno_next - bno;
+				imap->br_blockcount = bno - agbno;
 				goto out;
 			}
 		}

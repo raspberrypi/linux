@@ -534,6 +534,7 @@ static int parse_btf_field(char *fieldname, const struct btf_type *type,
 {
 	struct fetch_insn *code = *pcode;
 	const struct btf_member *field;
+	const struct btf_type *mtype;
 	u32 bitoffs, anon_offs;
 	char *next;
 	int is_ptr;
@@ -562,7 +563,7 @@ static int parse_btf_field(char *fieldname, const struct btf_type *type,
 
 			anon_offs = 0;
 			field = btf_find_struct_member(ctx->btf, type, fieldname,
-						       &anon_offs);
+						       &anon_offs, &mtype);
 			if (IS_ERR(field)) {
 				trace_probe_log_err(ctx->offset, BAD_BTF_TID);
 				return PTR_ERR(field);
@@ -575,7 +576,7 @@ static int parse_btf_field(char *fieldname, const struct btf_type *type,
 			bitoffs += anon_offs;
 
 			/* Accumulate the bit-offsets of the dot-connected fields */
-			if (btf_type_kflag(type)) {
+			if (btf_type_kflag(mtype)) {
 				bitoffs += BTF_MEMBER_BIT_OFFSET(field->offset);
 				ctx->last_bitsize = BTF_MEMBER_BITFIELD_SIZE(field->offset);
 			} else {

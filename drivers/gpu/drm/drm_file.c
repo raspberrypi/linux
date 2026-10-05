@@ -388,7 +388,7 @@ EXPORT_SYMBOL(drm_open);
 
 static void drm_lastclose(struct drm_device *dev)
 {
-	drm_client_dev_restore(dev);
+	drm_client_dev_restore(dev, false);
 
 	if (dev_is_pci(dev->dev))
 		vga_switcheroo_process_delayed_switch();
@@ -839,6 +839,16 @@ static void print_size(struct drm_printer *p, const char *stat,
 
 	drm_printf(p, "drm-%s-%s:\t%llu%s\n", stat, region, sz, units[u]);
 }
+
+int drm_memory_stats_is_zero(const struct drm_memory_stats *stats)
+{
+	return (stats->shared == 0 &&
+		stats->private == 0 &&
+		stats->resident == 0 &&
+		stats->purgeable == 0 &&
+		stats->active == 0);
+}
+EXPORT_SYMBOL(drm_memory_stats_is_zero);
 
 /**
  * drm_print_memory_stats - A helper to print memory stats

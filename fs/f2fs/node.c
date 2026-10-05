@@ -125,14 +125,14 @@ bool f2fs_available_free_memory(struct f2fs_sb_info *sbi, int type)
 	return res;
 }
 
-static void clear_node_page_dirty(struct page *page)
+static void clear_node_folio_dirty(struct folio *folio)
 {
-	if (PageDirty(page)) {
-		f2fs_clear_page_cache_dirty_tag(page_folio(page));
-		clear_page_dirty_for_io(page);
-		dec_page_count(F2FS_P_SB(page), F2FS_DIRTY_NODES);
+	if (folio_test_dirty(folio)) {
+		f2fs_clear_page_cache_dirty_tag(folio);
+		folio_clear_dirty_for_io(folio);
+		dec_page_count(F2FS_M_SB(folio->mapping), F2FS_DIRTY_NODES);
 	}
-	ClearPageUptodate(page);
+	folio_clear_uptodate(folio);
 }
 
 static struct page *get_current_nat_page(struct f2fs_sb_info *sbi, nid_t nid)
@@ -941,7 +941,7 @@ static int truncate_node(struct dnode_of_data *dn)
 		f2fs_inode_synced(dn->inode);
 	}
 
-	clear_node_page_dirty(dn->node_page);
+	clear_node_folio_dirty(page_folio(dn->node_page));
 	set_sbi_flag(sbi, SBI_IS_DIRTY);
 
 	index = page_folio(dn->node_page)->index;
@@ -1394,7 +1394,7 @@ struct page *f2fs_new_node_page(struct dnode_of_data *dn, unsigned int ofs)
 		inc_valid_inode_count(sbi);
 	return page;
 fail:
-	clear_node_page_dirty(page);
+	clear_node_folio_dirty(page_folio(page));
 	f2fs_put_page(page, 1);
 	return ERR_PTR(err);
 }
@@ -1476,6 +1476,7 @@ static struct page *__get_node_page(struct f2fs_sb_info *sbi, pgoff_t nid,
 					struct page *parent, int start)
 {
 	struct page *page;
+	struct folio *folio;
 	int err;
 
 	if (!nid)
@@ -1487,6 +1488,7 @@ repeat:
 	if (!page)
 		return ERR_PTR(-ENOMEM);
 
+	folio = page_folio(page);
 	err = read_node_page(page, 0);
 	if (err < 0) {
 		goto out_put_err;
@@ -1526,11 +1528,11 @@ page_hit:
 	f2fs_handle_error(sbi, ERROR_INCONSISTENT_FOOTER);
 	err = -EFSCORRUPTED;
 out_err:
-	ClearPageUptodate(page);
+	clear_node_folio_dirty(folio);
 out_put_err:
 	/* ENOENT comes from read_node_page which is not an error. */
 	if (err != -ENOENT)
-		f2fs_handle_page_eio(sbi, page_folio(page), NODE);
+		f2fs_handle_page_eio(sbi, folio, NODE);
 	f2fs_put_page(page, 1);
 	return ERR_PTR(err);
 }

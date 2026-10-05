@@ -62,13 +62,13 @@ static int intel_conn_to_vcpi(struct intel_atomic_state *state,
 	int vcpi = 0;
 
 	/* For HDMI this is forced to be 0x0. For DP SST also this is 0x0. */
-	if (!connector->port)
+	if (!connector->mst.port)
 		return 0;
-	mgr = connector->port->mgr;
+	mgr = connector->mst.port->mgr;
 
 	drm_modeset_lock(&mgr->base.lock, state->base.acquire_ctx);
 	mst_state = to_drm_dp_mst_topology_state(mgr->base.state);
-	payload = drm_atomic_get_mst_payload_state(mst_state, connector->port);
+	payload = drm_atomic_get_mst_payload_state(mst_state, connector->mst.port);
 	if (drm_WARN_ON(mgr->dev, !payload))
 		goto out;
 
@@ -137,7 +137,7 @@ intel_hdcp_required_content_stream(struct intel_atomic_state *state,
 		data->k++;
 
 		/* if there is only one active stream */
-		if (dig_port->dp.active_mst_links <= 1)
+		if (dig_port->dp.mst.active_links <= 1)
 			break;
 	}
 	drm_connector_list_iter_end(&conn_iter);

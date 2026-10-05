@@ -460,31 +460,23 @@ static void io_req_end_write(struct io_kiocb *req)
 	}
 }
 
-/*
- * Trigger the notifications after having done some IO, and finish the write
- * accounting, if any.
- */
-static void io_req_io_end(struct io_kiocb *req)
+/* Trigger the notifications after having done some IO. */
+static void io_req_io_notify(struct io_kiocb *req)
 {
 	struct io_rw *rw = io_kiocb_to_cmd(req, struct io_rw);
 
-	if (rw->kiocb.ki_flags & IOCB_WRITE) {
-		io_req_end_write(req);
+	if (rw->kiocb.ki_flags & IOCB_WRITE)
 		fsnotify_modify(req->file);
-	} else {
+	else
 		fsnotify_access(req->file);
-	}
 }
 
 static bool __io_complete_rw_common(struct io_kiocb *req, long res)
 {
 	if (unlikely(res != req->cqe.res)) {
 		if ((res == -EOPNOTSUPP || res == -EAGAIN) && io_rw_should_reissue(req)) {
-			/*
-			 * Reissue will start accounting again, finish the
-			 * current cycle.
-			 */
-			io_req_io_end(req);
+			/* Reissue bypasses task_work, so notify here. */
+			io_req_io_notify(req);
 			req->flags |= REQ_F_REISSUE | REQ_F_BL_NO_RECYCLE;
 			return true;
 		}
@@ -519,7 +511,7 @@ void io_req_rw_complete(struct io_kiocb *req, struct io_tw_state *ts)
 		io_req_set_res(req, io_fixup_rw_res(req, res), 0);
 	}
 
-	io_req_io_end(req);
+	io_req_io_notify(req);
 
 	if (req->flags & (REQ_F_BUFFER_SELECTED|REQ_F_BUFFER_RING))
 		req->cqe.flags |= io_put_kbuf(req, req->cqe.res, NULL);
@@ -532,6 +524,10 @@ static void io_complete_rw(struct kiocb *kiocb, long res)
 {
 	struct io_rw *rw = container_of(kiocb, struct io_rw, kiocb);
 	struct io_kiocb *req = cmd_to_io_kiocb(rw);
+
+	/* ring owner may block in freeze_super() before task_work runs */
+	if (kiocb->ki_flags & IOCB_WRITE)
+		io_req_end_write(req);
 
 	if (!kiocb->dio_complete || !(kiocb->ki_flags & IOCB_DIO_CALLER_COMP)) {
 		if (__io_complete_rw_common(req, res))
@@ -604,11 +600,13 @@ static int kiocb_done(struct io_kiocb *req, ssize_t ret,
 		if (!__io_complete_rw_common(req, ret)) {
 			u32 cflags = 0;
 
+			if (rw->kiocb.ki_flags & IOCB_WRITE)
+				io_req_end_write(req);
 			/*
-			 * Safe to call io_end from here as we're inline
+			 * Safe to notify from here as we're inline
 			 * from the submission path.
 			 */
-			io_req_io_end(req);
+			io_req_io_notify(req);
 			if (sel)
 				cflags = io_put_kbuf(req, ret, sel->buf_list);
 			io_req_set_res(req, final_ret, cflags);

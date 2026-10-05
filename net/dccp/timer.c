@@ -160,7 +160,9 @@ out:
 
 static void dccp_keepalive_timer(struct timer_list *t)
 {
-	struct sock *sk = from_timer(sk, t, sk_timer);
+	struct inet_connection_sock *icsk =
+		from_timer(icsk, t, icsk_keepalive_timer);
+	struct sock *sk = &icsk->icsk_inet.sk;
 
 	pr_err("dccp should not use a keepalive timer !\n");
 	sock_put(sk);

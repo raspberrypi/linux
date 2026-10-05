@@ -1505,6 +1505,8 @@ static void br_mdb_flush_pgs(struct net_bridge *br,
 		}
 
 		br_multicast_del_pg(mp, p, pp);
+		/* br_multicast_del_pg() can remove other groups from this list. */
+		pp = &mp->ports;
 	}
 }
 

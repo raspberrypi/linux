@@ -2144,8 +2144,9 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 
  wake_up:
 
+	/* Passing NULL means an interface is picked for configuration */
 	if (local->monitors == local->open_count && local->monitors > 0)
-		ieee80211_add_virtual_monitor(local);
+		ieee80211_add_virtual_monitor(local, NULL);
 
 	/*
 	 * Clear the WLAN_STA_BLOCK_BA flag so new aggregation

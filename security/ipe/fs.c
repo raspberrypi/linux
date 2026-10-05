@@ -155,10 +155,6 @@ static ssize_t new_policy(struct file *f, const char __user *data,
 	}
 
 	rc = ipe_new_policyfs_node(p);
-	if (rc)
-		goto out;
-
-	ipe_audit_policy_load(p);
 
 out:
 	if (rc < 0)

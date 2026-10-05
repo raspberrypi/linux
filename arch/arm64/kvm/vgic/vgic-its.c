@@ -31,6 +31,41 @@ static int vgic_its_commit_v0(struct vgic_its *its);
 static int update_lpi_config(struct kvm *kvm, struct vgic_irq *irq,
 			     struct kvm_vcpu *filter_vcpu, bool needs_inv);
 
+#define vgic_its_read_entry_lock(i, g, valp, t)				\
+	({								\
+		int __sz = vgic_its_get_abi(i)->t##_esz;		\
+		struct kvm *__k = (i)->dev->kvm;			\
+		int __ret;						\
+									\
+		BUILD_BUG_ON(NR_ITS_ABIS == 1 &&			\
+			     sizeof(*(valp)) != ABI_0_ESZ);		\
+		if (NR_ITS_ABIS > 1 &&					\
+		    KVM_BUG_ON(__sz != sizeof(*(valp)), __k))		\
+			__ret = -EINVAL;				\
+		else							\
+			__ret = kvm_read_guest_lock(__k, (g),		\
+						    valp, __sz);	\
+		__ret;							\
+	})
+
+#define vgic_its_write_entry_lock(i, g, val, t)				\
+	({								\
+		int __sz = vgic_its_get_abi(i)->t##_esz;		\
+		struct kvm *__k = (i)->dev->kvm;			\
+		typeof(val) __v = (val);				\
+		int __ret;						\
+									\
+		BUILD_BUG_ON(NR_ITS_ABIS == 1 &&			\
+			     sizeof(__v) != ABI_0_ESZ);			\
+		if (NR_ITS_ABIS > 1 &&					\
+		    KVM_BUG_ON(__sz != sizeof(__v), __k))		\
+			__ret = -EINVAL;				\
+		else							\
+			__ret = vgic_write_guest_lock(__k, (g),		\
+						      &__v, __sz);	\
+		__ret;							\
+	})
+
 /*
  * Creates a new (reference to a) struct vgic_irq for a given LPI.
  * If this LPI is already mapped on another ITS, we increase its refcount
@@ -798,7 +833,7 @@ static int vgic_its_cmd_handle_discard(struct kvm *kvm, struct vgic_its *its,
 
 		its_free_ite(kvm, ite);
 
-		return vgic_its_write_entry_lock(its, gpa, 0, ite_esz);
+		return vgic_its_write_entry_lock(its, gpa, 0ULL, ite);
 	}
 
 	return E_ITS_DISCARD_UNMAPPED_INTERRUPT;
@@ -1147,7 +1182,6 @@ static int vgic_its_cmd_handle_mapd(struct kvm *kvm, struct vgic_its *its,
 	bool valid = its_cmd_get_validbit(its_cmd);
 	u8 num_eventid_bits = its_cmd_get_size(its_cmd);
 	gpa_t itt_addr = its_cmd_get_ittaddr(its_cmd);
-	int dte_esz = vgic_its_get_abi(its)->dte_esz;
 	struct its_device *device;
 	gpa_t gpa;
 
@@ -1172,7 +1206,7 @@ static int vgic_its_cmd_handle_mapd(struct kvm *kvm, struct vgic_its *its,
 	 * is an error, so we are done in any case.
 	 */
 	if (!valid)
-		return vgic_its_write_entry_lock(its, gpa, 0, dte_esz);
+		return vgic_its_write_entry_lock(its, gpa, 0ULL, dte);
 
 	device = vgic_its_alloc_device(its, device_id, itt_addr,
 				       num_eventid_bits);
@@ -1637,7 +1671,7 @@ static void vgic_mmio_write_its_baser(struct kvm *kvm,
 				      unsigned long val)
 {
 	const struct vgic_its_abi *abi = vgic_its_get_abi(its);
-	u64 entry_size, table_type;
+	u64 old, entry_size, table_type;
 	u64 reg, *regptr, clearbits = 0;
 
 	/* When GITS_CTLR.Enable is 1, we ignore write accesses. */
@@ -1660,7 +1694,9 @@ static void vgic_mmio_write_its_baser(struct kvm *kvm,
 		return;
 	}
 
-	reg = update_64bit_reg(*regptr, addr & 7, len, val);
+	old = *regptr;
+
+	reg = update_64bit_reg(old, addr & 7, len, val);
 	reg &= ~GITS_BASER_RO_MASK;
 	reg &= ~clearbits;
 
@@ -1670,7 +1706,8 @@ static void vgic_mmio_write_its_baser(struct kvm *kvm,
 
 	*regptr = reg;
 
-	if (!(reg & GITS_BASER_VALID)) {
+	/* The ITS driver rewrites an unchanged GITS_BASER<n> on resume. */
+	if (reg != old) {
 		/* Take the its_lock to prevent a race with a save/restore */
 		mutex_lock(&its->its_lock);
 		switch (table_type) {
@@ -1681,6 +1718,8 @@ static void vgic_mmio_write_its_baser(struct kvm *kvm,
 			vgic_its_free_collection_list(kvm, its);
 			break;
 		}
+		/* A concurrent injection may have cached a translation. */
+		vgic_its_invalidate_cache(its);
 		mutex_unlock(&its->its_lock);
 	}
 }
@@ -1999,18 +2038,22 @@ out:
 	return ret;
 }
 
-static u32 compute_next_devid_offset(struct list_head *h,
+static u32 compute_next_devid_offset(struct vgic_its *its, u64 baser,
 				     struct its_device *dev)
 {
-	struct its_device *next;
-	u32 next_offset;
+	struct its_device *next = dev;
 
-	if (list_is_last(&dev->dev_list, h))
-		return 0;
-	next = list_next_entry(dev, dev_list);
-	next_offset = next->device_id - dev->device_id;
+	/*
+	 * Point at the next device vgic_its_save_device_tables() saves. It
+	 * sorts device_list first, so the subtraction cannot underflow.
+	 */
+	list_for_each_entry_continue(next, &its->device_list, dev_list) {
+		if (vgic_its_check_id(its, baser, next->device_id, NULL))
+			return min_t(u32, next->device_id - dev->device_id,
+				     VITS_DTE_MAX_DEVID_OFFSET);
+	}
 
-	return min_t(u32, next_offset, VITS_DTE_MAX_DEVID_OFFSET);
+	return 0;
 }
 
 static u32 compute_next_eventid_offset(struct list_head *h, struct its_ite *ite)
@@ -2094,7 +2137,7 @@ static int scan_its_table(struct vgic_its *its, gpa_t base, int size, u32 esz,
  * vgic_its_save_ite - Save an interrupt translation entry at @gpa
  */
 static int vgic_its_save_ite(struct vgic_its *its, struct its_device *dev,
-			      struct its_ite *ite, gpa_t gpa, int ite_esz)
+			      struct its_ite *ite, gpa_t gpa)
 {
 	u32 next_offset;
 	u64 val;
@@ -2105,7 +2148,7 @@ static int vgic_its_save_ite(struct vgic_its *its, struct its_device *dev,
 		ite->collection->collection_id;
 	val = cpu_to_le64(val);
 
-	return vgic_its_write_entry_lock(its, gpa, val, ite_esz);
+	return vgic_its_write_entry_lock(its, gpa, val, ite);
 }
 
 /**
@@ -2205,7 +2248,7 @@ static int vgic_its_save_itt(struct vgic_its *its, struct its_device *device)
 		if (ite->irq->hw && !kvm_vgic_global_state.has_gicv4_1)
 			return -EACCES;
 
-		ret = vgic_its_save_ite(its, device, ite, gpa, ite_esz);
+		ret = vgic_its_save_ite(its, device, ite, gpa);
 		if (ret)
 			return ret;
 	}
@@ -2242,25 +2285,25 @@ static int vgic_its_restore_itt(struct vgic_its *its, struct its_device *dev)
  * vgic_its_save_dte - Save a device table entry at a given GPA
  *
  * @its: ITS handle
+ * @baser: GITS_BASER<dev> the caller is saving against
  * @dev: ITS device
  * @ptr: GPA
- * @dte_esz: device table entry size
  */
-static int vgic_its_save_dte(struct vgic_its *its, struct its_device *dev,
-			     gpa_t ptr, int dte_esz)
+static int vgic_its_save_dte(struct vgic_its *its, u64 baser,
+			     struct its_device *dev, gpa_t ptr)
 {
 	u64 val, itt_addr_field;
 	u32 next_offset;
 
 	itt_addr_field = dev->itt_addr >> 8;
-	next_offset = compute_next_devid_offset(&its->device_list, dev);
+	next_offset = compute_next_devid_offset(its, baser, dev);
 	val = (1ULL << KVM_ITS_DTE_VALID_SHIFT |
 	       ((u64)next_offset << KVM_ITS_DTE_NEXT_SHIFT) |
 	       (itt_addr_field << KVM_ITS_DTE_ITTADDR_SHIFT) |
 		(dev->num_eventid_bits - 1));
 	val = cpu_to_le64(val);
 
-	return vgic_its_write_entry_lock(its, ptr, val, dte_esz);
+	return vgic_its_write_entry_lock(its, ptr, val, dte);
 }
 
 /**
@@ -2340,10 +2383,8 @@ static int vgic_its_device_cmp(void *priv, const struct list_head *a,
  */
 static int vgic_its_save_device_tables(struct vgic_its *its)
 {
-	const struct vgic_its_abi *abi = vgic_its_get_abi(its);
 	u64 baser = its->baser_device_table;
 	struct its_device *dev;
-	int dte_esz = abi->dte_esz;
 
 	if (!(baser & GITS_BASER_VALID))
 		return 0;
@@ -2354,15 +2395,16 @@ static int vgic_its_save_device_tables(struct vgic_its *its)
 		int ret;
 		gpa_t eaddr;
 
+		/* Don't fail a save that userspace must be able to issue. */
 		if (!vgic_its_check_id(its, baser,
 				       dev->device_id, &eaddr))
-			return -EINVAL;
+			continue;
 
 		ret = vgic_its_save_itt(its, dev);
 		if (ret)
 			return ret;
 
-		ret = vgic_its_save_dte(its, dev, eaddr, dte_esz);
+		ret = vgic_its_save_dte(its, baser, dev, eaddr);
 		if (ret)
 			return ret;
 	}
@@ -2443,7 +2485,7 @@ static int vgic_its_restore_device_tables(struct vgic_its *its)
 
 static int vgic_its_save_cte(struct vgic_its *its,
 			     struct its_collection *collection,
-			     gpa_t gpa, int esz)
+			     gpa_t gpa)
 {
 	u64 val;
 
@@ -2452,7 +2494,7 @@ static int vgic_its_save_cte(struct vgic_its *its,
 	       collection->collection_id);
 	val = cpu_to_le64(val);
 
-	return vgic_its_write_entry_lock(its, gpa, val, esz);
+	return vgic_its_write_entry_lock(its, gpa, val, cte);
 }
 
 /*
@@ -2460,7 +2502,7 @@ static int vgic_its_save_cte(struct vgic_its *its,
  * Return +1 on success, 0 if the entry was invalid (which should be
  * interpreted as end-of-table), and a negative error value for generic errors.
  */
-static int vgic_its_restore_cte(struct vgic_its *its, gpa_t gpa, int esz)
+static int vgic_its_restore_cte(struct vgic_its *its, gpa_t gpa)
 {
 	struct its_collection *collection;
 	struct kvm *kvm = its->dev->kvm;
@@ -2468,7 +2510,7 @@ static int vgic_its_restore_cte(struct vgic_its *its, gpa_t gpa, int esz)
 	u64 val;
 	int ret;
 
-	ret = vgic_its_read_entry_lock(its, gpa, &val, esz);
+	ret = vgic_its_read_entry_lock(its, gpa, &val, cte);
 	if (ret)
 		return ret;
 	val = le64_to_cpu(val);
@@ -2515,7 +2557,7 @@ static int vgic_its_save_collection_table(struct vgic_its *its)
 	max_size = GITS_BASER_NR_PAGES(baser) * SZ_64K;
 
 	list_for_each_entry(collection, &its->collection_list, coll_list) {
-		ret = vgic_its_save_cte(its, collection, gpa, cte_esz);
+		ret = vgic_its_save_cte(its, collection, gpa);
 		if (ret)
 			return ret;
 		gpa += cte_esz;
@@ -2529,7 +2571,7 @@ static int vgic_its_save_collection_table(struct vgic_its *its)
 	 * table is not fully filled, add a last dummy element
 	 * with valid bit unset
 	 */
-	return vgic_its_write_entry_lock(its, gpa, 0, cte_esz);
+	return vgic_its_write_entry_lock(its, gpa, 0ULL, cte);
 }
 
 /*
@@ -2554,7 +2596,7 @@ static int vgic_its_restore_collection_table(struct vgic_its *its)
 	max_size = GITS_BASER_NR_PAGES(baser) * SZ_64K;
 
 	while (read < max_size) {
-		ret = vgic_its_restore_cte(its, gpa, cte_esz);
+		ret = vgic_its_restore_cte(its, gpa);
 		if (ret <= 0)
 			break;
 		gpa += cte_esz;

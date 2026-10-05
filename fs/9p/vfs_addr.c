@@ -54,9 +54,21 @@ static void v9fs_begin_writeback(struct netfs_io_request *wreq)
 static void v9fs_issue_write(struct netfs_io_subrequest *subreq)
 {
 	struct p9_fid *fid = subreq->rreq->netfs_priv;
+	struct inode *inode = subreq->rreq->inode;
+	struct netfs_inode *ictx = netfs_inode(inode);
 	int err, len;
 
 	len = p9_client_write(fid, subreq->start, &subreq->io_iter, &err);
+	if (len > 0) {
+		unsigned long long end = subreq->start + len;
+
+		spin_lock(&inode->i_lock);
+		if (end > i_size_read(inode))
+			i_size_write(inode, end);
+		if (end > ictx->remote_i_size)
+			ictx->remote_i_size = end;
+		spin_unlock(&inode->i_lock);
+	}
 	netfs_write_subrequest_terminated(subreq, len ?: err, false);
 }
 

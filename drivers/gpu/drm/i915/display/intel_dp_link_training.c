@@ -1692,8 +1692,8 @@ void intel_dp_128b132b_sdp_crc16(struct intel_dp *intel_dp,
 
 static struct intel_dp *intel_connector_to_intel_dp(struct intel_connector *connector)
 {
-	if (connector->mst_port)
-		return connector->mst_port;
+	if (connector->mst.dp)
+		return connector->mst.dp;
 	else
 		return enc_to_intel_dp(intel_attached_encoder(connector));
 }

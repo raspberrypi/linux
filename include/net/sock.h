@@ -300,6 +300,7 @@ struct sk_filter;
   *	@sk_txrehash: enable TX hash rethink
   *	@sk_filter: socket filtering instructions
   *	@sk_timer: sock cleanup timer
+  *	@mptcp_retransmit_timer: MPTCP retransmit timer
   *	@sk_stamp: time stamp of last packet received
   *	@sk_stamp_seq: lock for accessing sk_stamp on 32 bit architectures only
   *	@sk_tsflags: SO_TIMESTAMPING flags
@@ -465,7 +466,10 @@ struct sock {
 	u32			sk_dst_pending_confirm;
 	u32			sk_pacing_status; /* see enum sk_pacing */
 	struct page_frag	sk_frag;
-	struct timer_list	sk_timer;
+	union {
+		struct timer_list sk_timer;
+		struct timer_list mptcp_retransmit_timer;
+	};
 
 	unsigned long		sk_pacing_rate; /* bytes per second */
 	atomic_t		sk_zckey;
@@ -1840,6 +1844,8 @@ static inline struct sk_buff *sock_alloc_send_skb(struct sock *sk,
 }
 
 void *sock_kmalloc(struct sock *sk, int size, gfp_t priority);
+void *sock_kmemdup(struct sock *sk, const void *src,
+		   int size, gfp_t priority);
 void sock_kfree_s(struct sock *sk, void *mem, int size);
 void sock_kzfree_s(struct sock *sk, void *mem, int size);
 void sk_send_sigurg(struct sock *sk);

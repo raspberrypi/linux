@@ -77,6 +77,8 @@ enum geni_i2c_err_code {
 #define XFER_TIMEOUT		HZ
 #define RST_TIMEOUT		HZ
 
+#define GENI_SE_CLK_19P2MHZ	19200000UL
+
 struct geni_i2c_dev {
 	struct geni_se se;
 	u32 tx_wm;
@@ -91,6 +93,7 @@ struct geni_i2c_dev {
 	struct clk *core_clk;
 	u32 clk_freq_out;
 	const struct geni_i2c_clk_fld *clk_fld;
+	u32 clk_idx;
 	int suspended;
 	void *dma_buf;
 	size_t xfer_len;
@@ -157,13 +160,36 @@ static int geni_i2c_clk_map_idx(struct geni_i2c_dev *gi2c)
 {
 	int i;
 	const struct geni_i2c_clk_fld *itr = geni_i2c_clk_map;
+	unsigned long res_freq;
+
+	/*
+	 * Frequency counters are calibrated for a 19.2 MHz source clock
+	 * and are not valid for any multiple of it (e.g. 38.4 MHz).
+	 * Use exact=true and verify res_freq matches req_freq literally
+	 * to reject harmonics that would produce an incorrect I2C frequency.
+	 * ACPI systems have firmware-managed clocks and retain the default index.
+	 */
+	if (!has_acpi_companion(gi2c->se.dev) &&
+	    (geni_se_clk_freq_match(&gi2c->se, GENI_SE_CLK_19P2MHZ,
+				    &gi2c->clk_idx, &res_freq, true) ||
+	     res_freq != GENI_SE_CLK_19P2MHZ)) {
+		dev_err(gi2c->se.dev,
+			"Unsupported SE source clock: must be exactly 19.2 MHz\n");
+		return -EINVAL;
+	}
 
 	for (i = 0; i < ARRAY_SIZE(geni_i2c_clk_map); i++, itr++) {
 		if (itr->clk_freq_out == gi2c->clk_freq_out) {
 			gi2c->clk_fld = itr;
+			dev_dbg(gi2c->se.dev,
+				"I2C clk selected: freq: %u Hz, clk_idx: %u\n",
+				gi2c->clk_freq_out, gi2c->clk_idx);
 			return 0;
 		}
 	}
+
+	dev_err(gi2c->se.dev, "Unsupported I2C output frequency %u Hz\n", gi2c->clk_freq_out);
+
 	return -EINVAL;
 }
 
@@ -172,7 +198,7 @@ static void qcom_geni_i2c_conf(struct geni_i2c_dev *gi2c)
 	const struct geni_i2c_clk_fld *itr = gi2c->clk_fld;
 	u32 val;
 
-	writel_relaxed(0, gi2c->se.base + SE_GENI_CLK_SEL);
+	writel_relaxed(gi2c->clk_idx, gi2c->se.base + SE_GENI_CLK_SEL);
 
 	val = (itr->clk_div << CLK_DIV_SHFT) | SER_CLK_EN;
 	writel_relaxed(val, gi2c->se.base + GENI_SER_M_CLK_CFG);
@@ -809,11 +835,8 @@ static int geni_i2c_probe(struct platform_device *pdev)
 		return gi2c->irq;
 
 	ret = geni_i2c_clk_map_idx(gi2c);
-	if (ret) {
-		dev_err(dev, "Invalid clk frequency %d Hz: %d\n",
-			gi2c->clk_freq_out, ret);
+	if (ret)
 		return ret;
-	}
 
 	gi2c->adap.algo = &geni_i2c_algo;
 	init_completion(&gi2c->done);

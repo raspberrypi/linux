@@ -9,6 +9,7 @@ Type                    Name                  fastpath_tx_access  fastpath_rx_ac
 ..struct                ..inet_sock                                                     
 struct_sock             sk                    read_mostly         read_mostly         tcp_init_buffer_space,tcp_init_transfer,tcp_finish_connect,tcp_connect,tcp_send_rcvq,tcp_send_syn_data
 struct_ipv6_pinfo*      pinet6                -                   -                   
+struct_ipv6_fl_socklist* ipv6_fl_list         read_mostly         -                   tcp_v6_connect,__ip6_datagram_connect,udpv6_sendmsg,rawv6_sendmsg
 be16                    inet_sport            read_mostly         -                   __tcp_transmit_skb
 be32                    inet_daddr            read_mostly         -                   ip_select_ident_segs
 be32                    inet_rcv_saddr        -                   -                   

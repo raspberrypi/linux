@@ -347,6 +347,7 @@ static void damon_hugetlb_mkold(pte_t *pte, struct mm_struct *mm,
 
 	if (pte_young(entry)) {
 		referenced = true;
+		entry = huge_ptep_get_and_clear(mm, addr, pte, psize);
 		entry = pte_mkold(entry);
 		set_huge_pte_at(mm, addr, pte, entry, psize);
 	}

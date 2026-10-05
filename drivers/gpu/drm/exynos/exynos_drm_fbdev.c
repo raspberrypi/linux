@@ -149,9 +149,9 @@ static void exynos_drm_fbdev_client_unregister(struct drm_client_dev *client)
 	}
 }
 
-static int exynos_drm_fbdev_client_restore(struct drm_client_dev *client)
+static int exynos_drm_fbdev_client_restore(struct drm_client_dev *client, bool force)
 {
-	drm_fb_helper_lastclose(client->dev);
+	drm_fb_helper_restore_fbdev_mode_unlocked(client->dev->fb_helper, force);
 
 	return 0;
 }

@@ -626,9 +626,7 @@ static struct sock *rose_make_new(struct sock *osk)
 	rose->hb	= orose->hb;
 	rose->idle	= orose->idle;
 	rose->defer	= orose->defer;
-	rose->device	= orose->device;
-	if (rose->device)
-		netdev_hold(rose->device, &rose->dev_tracker, GFP_ATOMIC);
+	rose->device	= NULL;  /* rose_rx_call_request() sets this */
 	rose->qbitincl	= orose->qbitincl;
 
 	return sk;
@@ -1078,9 +1076,11 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 		make_rose->source_digis[n] = facilities.source_digis[n];
 	make_rose->neighbour     = neigh;
 	make_rose->device        = dev;
-	/* Caller got a reference for us. */
-	netdev_tracker_alloc(make_rose->device, &make_rose->dev_tracker,
-			     GFP_ATOMIC);
+	/* Take an independent reference for this socket; callers keep their
+	 * own reference (from rose_dev_get / dev_hold) and will release it
+	 * themselves via dev_put().
+	 */
+	netdev_hold(make_rose->device, &make_rose->dev_tracker, GFP_ATOMIC);
 	make_rose->facilities    = facilities;
 
 	rose_neigh_hold(make_rose->neighbour);
@@ -1667,18 +1667,27 @@ static void __exit rose_exit(void)
 #ifdef CONFIG_SYSCTL
 	rose_unregister_sysctl();
 #endif
-	unregister_netdevice_notifier(&rose_dev_notifier);
-
 	sock_unregister(PF_ROSE);
 
 	for (i = 0; i < rose_ndevs; i++) {
 		struct net_device *dev = dev_rose[i];
 
 		if (dev) {
+			/* unregister_netdev() fires NETDEV_DOWN, which -- while the
+			 * notifier is still registered below -- invokes
+			 * rose_kill_by_device(dev).  That releases every socket's
+			 * netdev reference and disconnects all active circuits.
+			 * Unregistering the notifier before this loop was the
+			 * original bug: NETDEV_DOWN was never delivered, leaving
+			 * 165 netdev_tracker entries leaked and stale timers live.
+			 */
 			unregister_netdev(dev);
 			free_netdev(dev);
 		}
 	}
+
+	/* Now safe to remove the notifier -- all ROSE devices are gone. */
+	unregister_netdevice_notifier(&rose_dev_notifier);
 
 	kfree(dev_rose);
 	proto_unregister(&rose_proto);

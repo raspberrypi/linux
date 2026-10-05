@@ -1009,6 +1009,17 @@ cfg80211_chandef_compatible(const struct cfg80211_chan_def *chandef1,
 int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
 
 /**
+ * cfg80211_chandef_get_width - return chandef width in MHz
+ * @c: chandef to return bandwidth for
+ * Return: channel width in MHz for the given chandef; note that it returns
+ *	80 for 80+80 configurations
+ */
+static inline int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
+{
+	return nl80211_chan_width_to_mhz(c->width);
+}
+
+/**
  * cfg80211_chandef_valid - check if a channel definition is valid
  * @chandef: the channel definition to check
  * Return: %true if the channel definition is valid. %false otherwise.
@@ -6353,6 +6364,7 @@ enum ieee80211_ap_reg_power {
  *	entered.
  * @links.cac_time_ms: CAC time in ms
  * @valid_links: bitmap describing what elements of @links are valid
+ * @radio_mask: Bitmask of radios that this interface is allowed to operate on.
  */
 struct wireless_dev {
 	struct wiphy *wiphy;
@@ -6465,6 +6477,8 @@ struct wireless_dev {
 		unsigned int cac_time_ms;
 	} links[IEEE80211_MLD_MAX_NUM_LINKS];
 	u16 valid_links;
+
+	u32 radio_mask;
 };
 
 static inline const u8 *wdev_address(struct wireless_dev *wdev)
@@ -6649,6 +6663,17 @@ static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
  */
 bool cfg80211_radio_chandef_valid(const struct wiphy_radio *radio,
 				  const struct cfg80211_chan_def *chandef);
+
+/**
+ * cfg80211_wdev_channel_allowed - Check if the wdev may use the channel
+ *
+ * @wdev: the wireless device
+ * @chan: channel to check
+ *
+ * Return: whether or not the wdev may use the channel
+ */
+bool cfg80211_wdev_channel_allowed(struct wireless_dev *wdev,
+				   struct ieee80211_channel *chan);
 
 /**
  * ieee80211_get_response_rate - get basic rate for a given rate

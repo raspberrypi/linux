@@ -13,7 +13,9 @@
 #include <linux/kexec.h>
 #include <linux/kmod.h>
 #include <linux/kmsg_dump.h>
+#include <linux/rcupdate.h>
 #include <linux/reboot.h>
+#include <linux/sched/signal.h>
 #include <linux/suspend.h>
 #include <linux/syscalls.h>
 #include <linux/syscore_ops.h>
@@ -24,8 +26,7 @@
  */
 
 static int C_A_D = 1;
-struct pid *cad_pid;
-EXPORT_SYMBOL(cad_pid);
+struct pid __rcu *cad_pid;
 
 #if defined(CONFIG_ARM)
 #define DEFAULT_REBOOT_MODE		= REBOOT_HARD
@@ -1280,7 +1281,42 @@ static struct attribute *reboot_attrs[] = {
 	NULL,
 };
 
+#endif /* CONFIG_SYSFS */
+
 #ifdef CONFIG_SYSCTL
+static int proc_do_cad_pid(const struct ctl_table *table, int write, void *buffer,
+			   size_t *lenp, loff_t *ppos)
+{
+	struct ctl_table tmp_table = *table;
+	struct pid *new_pid;
+	struct pid *old_pid;
+	pid_t tmp_pid;
+	int r;
+
+	rcu_read_lock();
+	tmp_pid = pid_vnr(rcu_dereference(cad_pid));
+	rcu_read_unlock();
+
+	tmp_table.data = &tmp_pid;
+
+	r = proc_dointvec(&tmp_table, write, buffer, lenp, ppos);
+	if (r || !write)
+		return r;
+
+	new_pid = find_get_pid(tmp_pid);
+	if (!new_pid)
+		return -ESRCH;
+
+	old_pid = unrcu_pointer(xchg(&cad_pid, RCU_INITIALIZER(new_pid)));
+	/*
+	 * Wait for cad_pid readers before put_pid().  We cannot use
+	 * call_rcu() here because free_pid() already owns pid->rcu.
+	 */
+	synchronize_rcu();
+	put_pid(old_pid);
+	return 0;
+}
+
 static struct ctl_table kern_reboot_table[] = {
 	{
 		.procname       = "poweroff_cmd",
@@ -1296,16 +1332,23 @@ static struct ctl_table kern_reboot_table[] = {
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec,
 	},
+	{
+		.procname	= "cad_pid",
+		.maxlen		= sizeof(int),
+		.mode		= 0600,
+		.proc_handler	= proc_do_cad_pid,
+	},
 };
 
-static void __init kernel_reboot_sysctls_init(void)
+static int __init kernel_reboot_sysctls_init(void)
 {
 	register_sysctl_init("kernel", kern_reboot_table);
+	return 0;
 }
-#else
-#define kernel_reboot_sysctls_init() do { } while (0)
+late_initcall(kernel_reboot_sysctls_init);
 #endif /* CONFIG_SYSCTL */
 
+#ifdef CONFIG_SYSFS
 static const struct attribute_group reboot_attr_group = {
 	.attrs = reboot_attrs,
 };
@@ -1324,8 +1367,6 @@ static int __init reboot_ksysfs_init(void)
 		kobject_put(reboot_kobj);
 		return ret;
 	}
-
-	kernel_reboot_sysctls_init();
 
 	return 0;
 }

@@ -12,12 +12,14 @@
 #include <net/rose.h>
 #include <linux/init.h>
 
-static struct sk_buff_head loopback_queue;
 #define ROSE_LOOPBACK_LIMIT 1000
-static struct timer_list loopback_timer;
 
+static struct timer_list loopback_timer;
+static struct sk_buff_head loopback_queue;
 static void rose_set_loopback_timer(void);
 static void rose_loopback_timer(struct timer_list *unused);
+
+static atomic_t loopback_stopping = ATOMIC_INIT(0);
 
 void rose_loopback_init(void)
 {
@@ -66,10 +68,25 @@ static void rose_loopback_timer(struct timer_list *unused)
 	unsigned int lci_i, lci_o;
 	int count;
 
+	if (atomic_read(&loopback_stopping))
+		return;
+
+	if (rose_loopback_neigh)
+		rose_neigh_hold(rose_loopback_neigh);
+	else
+		return;
+
 	for (count = 0; count < ROSE_LOOPBACK_LIMIT; count++) {
 		skb = skb_dequeue(&loopback_queue);
 		if (!skb)
-			return;
+			goto out;
+
+		if (atomic_read(&loopback_stopping)) {
+			kfree_skb(skb);
+			skb_queue_purge(&loopback_queue);
+			goto out;
+		}
+
 		if (skb->len < ROSE_MIN_LEN) {
 			kfree_skb(skb);
 			continue;
@@ -96,27 +113,34 @@ static void rose_loopback_timer(struct timer_list *unused)
 		}
 
 		if (frametype == ROSE_CALL_REQUEST) {
-			if (!rose_loopback_neigh->dev &&
-			    !rose_loopback_neigh->loopback) {
-				kfree_skb(skb);
-				continue;
-			}
-
 			dev = rose_dev_get(dest);
 			if (!dev) {
 				kfree_skb(skb);
 				continue;
 			}
-
-			if (rose_rx_call_request(skb, dev, rose_loopback_neigh, lci_o) == 0) {
+			/* rose_kill_by_device() runs on NETDEV_DOWN (IFF_UP cleared)
+			 * before the device is unregistered.  If we create a new
+			 * socket here after that cleanup, the ref never gets released
+			 * because NETDEV_DOWN fires only once.  Drop the call instead.
+			 */
+			if (!netif_running(dev)) {
 				dev_put(dev);
 				kfree_skb(skb);
+				continue;
 			}
+
+			if (rose_rx_call_request(skb, dev, rose_loopback_neigh, lci_o) == 0)
+				kfree_skb(skb);
+			dev_put(dev);
 		} else {
 			kfree_skb(skb);
 		}
 	}
-	if (!skb_queue_empty(&loopback_queue))
+
+out:
+	rose_neigh_put(rose_loopback_neigh);
+
+	if (!atomic_read(&loopback_stopping) && !skb_queue_empty(&loopback_queue))
 		mod_timer(&loopback_timer, jiffies + 1);
 }
 
@@ -124,10 +148,15 @@ void __exit rose_loopback_clear(void)
 {
 	struct sk_buff *skb;
 
-	del_timer(&loopback_timer);
+	atomic_set(&loopback_stopping, 1);
+	/* Pairs with atomic_read() in rose_loopback_timer(): ensure the
+	 * stopping flag is visible before we cancel, so a concurrent
+	 * callback aborts its loop early rather than re-arming the timer.
+	 */
+	smp_mb();
 
-	while ((skb = skb_dequeue(&loopback_queue)) != NULL) {
-		skb->sk = NULL;
+	timer_delete_sync(&loopback_timer);
+
+	while ((skb = skb_dequeue(&loopback_queue)) != NULL)
 		kfree_skb(skb);
-	}
 }

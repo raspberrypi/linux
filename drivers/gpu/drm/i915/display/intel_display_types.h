@@ -647,10 +647,6 @@ struct intel_connector {
 	   state of connector->polled in case hotplug storm detection changes it */
 	u8 polled;
 
-	struct drm_dp_mst_port *port;
-
-	struct intel_dp *mst_port;
-
 	bool force_bigjoiner_enable;
 
 	struct {
@@ -661,6 +657,11 @@ struct intel_connector {
 		u8 dsc_hblank_expansion_quirk:1;
 		u8 dsc_decompression_enabled:1;
 	} dp;
+
+	struct {
+		struct drm_dp_mst_port *port;
+		struct intel_dp *dp;
+	} mst;
 
 	/* Work struct to schedule a uevent on link train failure */
 	struct work_struct modeset_retry_work;
@@ -1213,6 +1214,8 @@ struct intel_crtc_state {
 	bool has_sel_update;
 	bool enable_psr2_sel_fetch;
 	bool enable_psr2_su_region_et;
+	/* Drop the stale selective fetch enable bits as selective fetch is turned off */
+	bool clear_psr2_sel_fetch;
 	bool req_psr2_sdp_prior_scanline;
 	bool has_panel_replay;
 	bool wm_level_disabled;
@@ -1832,7 +1835,6 @@ struct intel_dp {
 	struct intel_pps pps;
 
 	bool is_mst;
-	int active_mst_links;
 	enum drm_dp_mst_mode mst_detect;
 
 	/* connector directly attached - won't be use for modeset in mst world */
@@ -1842,9 +1844,11 @@ struct intel_dp {
 	struct drm_dp_tunnel *tunnel;
 	bool tunnel_suspended:1;
 
-	/* mst connector list */
-	struct intel_dp_mst_encoder *mst_encoders[I915_MAX_PIPES];
-	struct drm_dp_mst_topology_mgr mst_mgr;
+	struct {
+		struct intel_dp_mst_encoder *stream_encoders[I915_MAX_PIPES];
+		struct drm_dp_mst_topology_mgr mgr;
+		int active_links;
+	} mst;
 
 	u32 (*get_aux_clock_divider)(struct intel_dp *dp, int index);
 	/*
