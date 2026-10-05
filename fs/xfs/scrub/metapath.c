@@ -129,6 +129,8 @@ static int
 xchk_setup_metapath_rtdir(
 	struct xfs_scrub	*sc)
 {
+	if (sc->sm->sm_agno)
+		return -EINVAL;
 	if (!sc->mp->m_rtdirip)
 		return -ENOENT;
 
@@ -176,6 +178,8 @@ xchk_setup_metapath_quotadir(
 {
 	struct xfs_quotainfo	*qi = sc->mp->m_quotainfo;
 
+	if (sc->sm->sm_agno)
+		return -EINVAL;
 	if (!qi || !qi->qi_dirip)
 		return -ENOENT;
 
@@ -192,6 +196,8 @@ xchk_setup_metapath_dqinode(
 	struct xfs_quotainfo	*qi = sc->mp->m_quotainfo;
 	struct xfs_inode	*ip = NULL;
 
+	if (sc->sm->sm_agno)
+		return -EINVAL;
 	if (!qi)
 		return -ENOENT;
 
