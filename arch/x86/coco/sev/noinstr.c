@@ -16,7 +16,8 @@
 #include <asm/msr.h>
 #include <asm/ptrace.h>
 #include <asm/sev.h>
-#include <asm/sev-internal.h>
+
+#include "internal.h"
 
 static __always_inline bool on_vc_stack(struct pt_regs *regs)
 {
@@ -120,8 +121,10 @@ noinstr struct ghcb *__sev_get_ghcb(struct ghcb_state *state)
 
 	WARN_ON(!irqs_disabled());
 
-	if (!sev_cfg.ghcbs_initialized)
+	if (!sev_cfg.ghcbs_initialized) {
+		state->ghcb = NULL;
 		return boot_ghcb;
+	}
 
 	data = this_cpu_read(runtime_data);
 	ghcb = &data->ghcb_page;

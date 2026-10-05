@@ -47,12 +47,14 @@ struct drm_client_funcs {
 	 *
 	 * Note that the core does not guarantee exclusion against concurrent
 	 * drm_open(). Clients need to ensure this themselves, for example by
-	 * using drm_master_internal_acquire() and
-	 * drm_master_internal_release().
+	 * using drm_master_internal_acquire() and drm_master_internal_release().
+	 *
+	 * If the caller passes force, the client should ignore any present DRM
+	 * master and restore the display anyway.
 	 *
 	 * This callback is optional.
 	 */
-	int (*restore)(struct drm_client_dev *client);
+	int (*restore)(struct drm_client_dev *client, bool force);
 
 	/**
 	 * @hotplug:
@@ -70,13 +72,8 @@ struct drm_client_funcs {
 	 * Called when suspending the device.
 	 *
 	 * This callback is optional.
-	 *
-	 * FIXME: Some callers hold the console lock when invoking this
-	 *        function. This interferes with fbdev emulation, which
-	 *        also tries to acquire the lock. Push the console lock
-	 *        into the callback and remove 'holds_console_lock'.
 	 */
-	int (*suspend)(struct drm_client_dev *client, bool holds_console_lock);
+	int (*suspend)(struct drm_client_dev *client);
 
 	/**
 	 * @resume:
@@ -84,13 +81,8 @@ struct drm_client_funcs {
 	 * Called when resuming the device from suspend.
 	 *
 	 * This callback is optional.
-	 *
-	 * FIXME: Some callers hold the console lock when invoking this
-	 *        function. This interferes with fbdev emulation, which
-	 *        also tries to acquire the lock. Push the console lock
-	 *        into the callback and remove 'holds_console_lock'.
 	 */
-	int (*resume)(struct drm_client_dev *client, bool holds_console_lock);
+	int (*resume)(struct drm_client_dev *client);
 };
 
 /**

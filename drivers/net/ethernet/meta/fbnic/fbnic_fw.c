@@ -40,7 +40,7 @@ static void __fbnic_mbx_invalidate_desc(struct fbnic_dev *fbd, int mbx_idx,
 	fw_wr32(fbd, desc_offset + 1, 0);
 }
 
-static u64 __fbnic_mbx_rd_desc(struct fbnic_dev *fbd, int mbx_idx, int desc_idx)
+u64 __fbnic_mbx_rd_desc(struct fbnic_dev *fbd, int mbx_idx, int desc_idx)
 {
 	u32 desc_offset = FBNIC_IPC_MBX(mbx_idx, desc_idx);
 	u64 desc;
@@ -60,8 +60,15 @@ static void fbnic_mbx_reset_desc_ring(struct fbnic_dev *fbd, int mbx_idx)
 	 */
 	switch (mbx_idx) {
 	case FBNIC_IPC_MBX_RX_IDX:
+		/* Clearing BME blocks the device from writing to the host
+		 * but leaves the requests parked in the write pipeline. The
+		 * write path only clears outstanding requests when both FLUSH
+		 * and FLUSH_MODE are set; FLUSH_MODE lets them drain without
+		 * landing on the host.
+		 */
 		wr32(fbd, FBNIC_PUL_OB_TLP_HDR_AW_CFG,
-		     FBNIC_PUL_OB_TLP_HDR_AW_CFG_FLUSH);
+		     FBNIC_PUL_OB_TLP_HDR_AW_CFG_FLUSH |
+		     FBNIC_PUL_OB_TLP_HDR_AW_CFG_FLUSH_MODE);
 		break;
 	case FBNIC_IPC_MBX_TX_IDX:
 		wr32(fbd, FBNIC_PUL_OB_TLP_HDR_AR_CFG,
@@ -285,6 +292,12 @@ static void fbnic_mbx_process_tx_msgs(struct fbnic_dev *fbd)
 		desc = __fbnic_mbx_rd_desc(fbd, FBNIC_IPC_MBX_TX_IDX, head);
 		if (!(desc & FBNIC_IPC_MBX_DESC_FW_CMPL))
 			break;
+
+		if (desc & FBNIC_IPC_MBX_DESC_FW_ERR) {
+			tx_mbx->resp_error++;
+			dev_warn_ratelimited(fbd->dev,
+					     "FW completed a Tx mailbox request with an error\n");
+		}
 
 		fbnic_mbx_unmap_and_free_msg(fbd, FBNIC_IPC_MBX_TX_IDX, head);
 
@@ -1591,7 +1604,7 @@ static const struct fbnic_tlv_parser fbnic_fw_tlv_parser[] = {
 static void fbnic_mbx_process_rx_msgs(struct fbnic_dev *fbd)
 {
 	struct fbnic_fw_mbx *rx_mbx = &fbd->mbx[FBNIC_IPC_MBX_RX_IDX];
-	u8 head = rx_mbx->head;
+	u8 head = rx_mbx->head, tail = rx_mbx->tail;
 	u64 desc, length;
 
 	while (head != rx_mbx->tail) {
@@ -1602,8 +1615,15 @@ static void fbnic_mbx_process_rx_msgs(struct fbnic_dev *fbd)
 		if (!(desc & FBNIC_IPC_MBX_DESC_FW_CMPL))
 			break;
 
-		dma_unmap_single(fbd->dev, rx_mbx->buf_info[head].addr,
-				 PAGE_SIZE, DMA_FROM_DEVICE);
+		if (desc & FBNIC_IPC_MBX_DESC_FW_ERR) {
+			rx_mbx->resp_error++;
+			dev_warn_ratelimited(fbd->dev,
+					     "FW reported an error on an Rx mailbox message; dropping\n");
+			goto next_page;
+		}
+
+		dma_sync_single_for_cpu(fbd->dev, rx_mbx->buf_info[head].addr,
+					FBNIC_RX_PAGE_SIZE, DMA_FROM_DEVICE);
 
 		msg = rx_mbx->buf_info[head].msg;
 
@@ -1636,19 +1656,26 @@ static void fbnic_mbx_process_rx_msgs(struct fbnic_dev *fbd)
 
 		dev_dbg(fbd->dev, "Parsed msg type %d\n", msg->hdr.type);
 next_page:
+		fw_wr32(fbd, FBNIC_IPC_MBX(FBNIC_IPC_MBX_RX_IDX, head), 0);
 
-		free_page((unsigned long)rx_mbx->buf_info[head].msg);
+		rx_mbx->buf_info[tail] = rx_mbx->buf_info[head];
 		rx_mbx->buf_info[head].msg = NULL;
+		rx_mbx->buf_info[head].addr = 0;
 
-		head++;
-		head %= FBNIC_IPC_MBX_DESC_LEN;
+		__fbnic_mbx_wr_desc(fbd, FBNIC_IPC_MBX_RX_IDX, tail,
+				    FIELD_PREP(FBNIC_IPC_MBX_DESC_LEN_MASK,
+					       FBNIC_RX_PAGE_SIZE) |
+				    (rx_mbx->buf_info[tail].addr &
+				     FBNIC_IPC_MBX_DESC_ADDR_MASK) |
+				    FBNIC_IPC_MBX_DESC_HOST_CMPL);
+
+		head = (head + 1) & (FBNIC_IPC_MBX_DESC_LEN - 1);
+		tail = (tail + 1) & (FBNIC_IPC_MBX_DESC_LEN - 1);
 	}
 
 	/* Record head for next interrupt */
 	rx_mbx->head = head;
-
-	/* Make sure we have at least one page for the FW to write to */
-	fbnic_mbx_alloc_rx_msgs(fbd);
+	rx_mbx->tail = tail;
 }
 
 void fbnic_mbx_poll(struct fbnic_dev *fbd)
@@ -1662,7 +1689,9 @@ void fbnic_mbx_poll(struct fbnic_dev *fbd)
 int fbnic_mbx_poll_tx_ready(struct fbnic_dev *fbd)
 {
 	struct fbnic_fw_mbx *tx_mbx = &fbd->mbx[FBNIC_IPC_MBX_TX_IDX];
+	struct fbnic_fw_mbx *rx_mbx = &fbd->mbx[FBNIC_IPC_MBX_RX_IDX];
 	unsigned long timeout = jiffies + 10 * HZ + 1;
+	u64 tx_resp_error, rx_resp_error;
 	int err, i;
 
 	do {
@@ -1690,6 +1719,9 @@ int fbnic_mbx_poll_tx_ready(struct fbnic_dev *fbd)
 	 * mgmt.version once we get the actual version from the firmware
 	 * in the capabilities request message.
 	 */
+send_cap_req:
+	tx_resp_error = tx_mbx->resp_error;
+	rx_resp_error = rx_mbx->resp_error;
 	err = fbnic_fw_xmit_simple_msg(fbd, FBNIC_TLV_MSG_ID_HOST_CAP_REQ);
 	if (err)
 		goto clean_mbx;
@@ -1707,9 +1739,27 @@ int fbnic_mbx_poll_tx_ready(struct fbnic_dev *fbd)
 		msleep(20);
 		fbnic_mbx_poll(fbd);
 
+		/* A valid capabilities response ends the poll. Check it
+		 * before the FW_ERR retry below so a response parsed in the
+		 * same poll as an unrelated FW_ERR is not discarded.
+		 */
+		if (fbd->fw_cap.running.mgmt.version >= MIN_FW_VER_CODE)
+			break;
+
 		/* set err, but wait till mgmt.version check to report it */
-		if (!time_is_after_jiffies(timeout))
+		if (!time_is_after_jiffies(timeout)) {
 			err = -ETIMEDOUT;
+			continue;
+		}
+
+		/* The FW can flag our capabilities request (Tx) or its
+		 * response (Rx) with FW_ERR, in which case it produced no
+		 * usable response. The ring is not wedged, so re-issue the
+		 * request instead of spinning until the timeout.
+		 */
+		if (tx_mbx->resp_error != tx_resp_error ||
+		    rx_mbx->resp_error != rx_resp_error)
+			goto send_cap_req;
 	}
 
 	return 0;
