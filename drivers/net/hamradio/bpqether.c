@@ -287,11 +287,10 @@ static netdev_tx_t bpq_xmit(struct sk_buff *skb, struct net_device *dev)
 	skb->protocol = ax25_type_trans(skb, dev);
 	skb_reset_network_header(skb);
 	dev_hard_header(skb, dev, ETH_P_BPQ, bpq->dest_addr, NULL, 0);
-	dev->stats.tx_packets++;
-	dev->stats.tx_bytes+=skb->len;
-  
+	orig_dev->stats.tx_packets++;
+	orig_dev->stats.tx_bytes += skb->len;
+
 	dev_queue_xmit(skb);
-	netif_wake_queue(dev);
 	return NETDEV_TX_OK;
 }
 
