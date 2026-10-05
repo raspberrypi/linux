@@ -1,5 +1,38 @@
 // SPDX-License-Identifier: GPL-2.0
 
+/ {
+	pcie1_3v3: pcie1_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "pcie1-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&rp1_gpio 28 GPIO_ACTIVE_HIGH>;  // PCIE_PWR_EN
+		startup-delay-us = <20000>;
+	};
+};
+
+&pcie1 {
+	/*
+	 * Hack to get linux to probe this pcie after pcie2.
+	 * The pcie-brcmstb driver does not defer probe if
+	 * the regulator is not found yet. This forces pcie1
+	 * to be probed after pcie2 so that the regulator
+	 * is found.
+	 */
+	vpcie3v3-supply = <&pcie1_3v3>;
+
+	pci@0,0 {
+		device_type = "pci";
+		reg = <0 0 0 0 0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+		vpcie3v3-supply = <&pcie1_3v3>;
+	};
+};
+
 i2c_csi_dsi1: &i2c0 { // Note: This is for CAM/DISP 1 connector
 	symlink = "i2c-11";
 };
