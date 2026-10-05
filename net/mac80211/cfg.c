@@ -1477,6 +1477,7 @@ ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 	struct beacon_data *new, *old;
 	int new_head_len, new_tail_len;
 	int size, err;
+	u8 *pos;
 	u64 _changed = BSS_CHANGED_BEACON;
 	struct ieee80211_bss_conf *link_conf = link->conf;
 
@@ -1504,20 +1505,16 @@ ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 	/* new or old multiple BSSID elements? */
 	if (params->mbssid_ies) {
 		mbssid = params->mbssid_ies;
-		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
-		if (params->rnr_ies) {
-			rnr = params->rnr_ies;
-			size += struct_size(new->rnr_ies, elem, rnr->cnt);
-		}
-		size += ieee80211_get_mbssid_beacon_len(mbssid, rnr,
-							mbssid->cnt);
+		rnr = params->rnr_ies;
 	} else if (old && old->mbssid_ies) {
 		mbssid = old->mbssid_ies;
+		rnr = old->rnr_ies;
+	}
+
+	if (mbssid) {
 		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
-		if (old->rnr_ies) {
-			rnr = old->rnr_ies;
+		if (rnr)
 			size += struct_size(new->rnr_ies, elem, rnr->cnt);
-		}
 		size += ieee80211_get_mbssid_beacon_len(mbssid, rnr,
 							mbssid->cnt);
 	}
@@ -1529,26 +1526,38 @@ ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 	/* start filling the new info now */
 
 	/*
-	 * pointers go into the block we allocated,
-	 * memory is | beacon_data | head | tail | mbssid_ies | rnr_ies
+	 * pointers go into the block we allocated, the order in memory is
+	 *  - struct beacon_data
+	 *  - struct mbssid_ies (including variable array)
+	 *  - struct rnr_ies (including variable array)
+	 *  - beacon head
+	 *  - beacon tail
+	 *  - mbssid/rnr elements
+	 * so that the structs (which contain pointers) are all aligned
 	 */
-	new->head = ((u8 *) new) + sizeof(*new);
-	new->tail = new->head + new_head_len;
-	new->head_len = new_head_len;
-	new->tail_len = new_tail_len;
-	/* copy in optional mbssid_ies */
+	pos = (u8 *)(new + 1);
 	if (mbssid) {
-		u8 *pos = new->tail + new->tail_len;
-
 		new->mbssid_ies = (void *)pos;
 		pos += struct_size(new->mbssid_ies, elem, mbssid->cnt);
-		pos += ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies,
-						    mbssid);
 		if (rnr) {
 			new->rnr_ies = (void *)pos;
 			pos += struct_size(new->rnr_ies, elem, rnr->cnt);
-			ieee80211_copy_rnr_beacon(pos, new->rnr_ies, rnr);
 		}
+	}
+
+	new->head = pos;
+	new->head_len = new_head_len;
+	pos += new_head_len;
+	new->tail = pos;
+	new->tail_len = new_tail_len;
+	pos += new_tail_len;
+
+	/* copy in optional mbssid_ies */
+	if (mbssid) {
+		pos += ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies,
+						    mbssid);
+		if (rnr)
+			ieee80211_copy_rnr_beacon(pos, new->rnr_ies, rnr);
 		/* update bssid_indicator */
 		if (new->mbssid_ies->cnt && new->mbssid_ies->elem[0].len > 2)
 			link_conf->bssid_indicator =
