@@ -1491,7 +1491,7 @@ xrep_xattr_rebuild_tree(
 
 	error = xrep_xattr_reset_tempfile_fork(sc);
 	if (error)
-		return error;
+		goto forget_acls;
 
 	/*
 	 * Roll to get a transaction without any inodes joined to it.  Then we
@@ -1500,7 +1500,7 @@ xrep_xattr_rebuild_tree(
 	 */
 	error = xfs_trans_roll(&sc->tp);
 	if (error)
-		return error;
+		goto forget_acls;
 
 	xrep_tempfile_iunlock(sc);
 	xrep_tempfile_iounlock(sc);
@@ -1509,7 +1509,7 @@ forget_acls:
 	/* Invalidate cached ACLs now that we've reloaded all the xattrs. */
 	xfs_forget_acl(VFS_I(sc->ip), SGI_ACL_FILE);
 	xfs_forget_acl(VFS_I(sc->ip), SGI_ACL_DEFAULT);
-	return 0;
+	return error;
 }
 
 /* Tear down all the incore scan stuff we created. */
