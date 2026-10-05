@@ -441,7 +441,6 @@ static int hdlcdrv_open(struct net_device *dev)
 	/*
 	 * initialise some variables
 	 */
-	s->opened = 1;
 	s->hdlcrx.hbuf.rd = s->hdlcrx.hbuf.wr = 0;
 	s->hdlcrx.in_hdlc_rx = 0;
 	s->hdlcrx.rx_state = 0;
@@ -458,6 +457,7 @@ static int hdlcdrv_open(struct net_device *dev)
 	i = s->ops->open(dev);
 	if (i)
 		return i;
+	s->opened = 1;
 	netif_start_queue(dev);
 	return 0;
 }
@@ -725,8 +725,7 @@ void hdlcdrv_unregister(struct net_device *dev)
 
 	BUG_ON(s->magic != HDLCDRV_MAGIC);
 
-	if (s->opened && s->ops->close)
-		s->ops->close(dev);
+	/* unregister_netdev() closes the device if it is still up */
 	unregister_netdev(dev);
 	
 	free_netdev(dev);
