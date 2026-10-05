@@ -366,6 +366,7 @@ static void *bpq_seq_start(struct seq_file *seq, loff_t *pos)
 	list_for_each_entry_rcu(bpqdev, &bpq_devices, bpq_list) {
 		if (i == *pos)
 			return bpqdev;
+		i++;
 	}
 	return NULL;
 }
