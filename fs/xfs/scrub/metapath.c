@@ -325,6 +325,13 @@ xchk_metapath(
 		return 0;
 	}
 
+	/* Callers should not set the parent to the child. */
+	if (mpath->dp == sc->ip) {
+		ASSERT(mpath->dp != sc->ip);
+		xchk_set_incomplete(sc);
+		return -EIO;
+	}
+
 	xchk_trans_alloc_empty(sc);
 
 	error = xchk_metapath_ilock_both(mpath);
