@@ -30,6 +30,7 @@
 #include <net/ax25.h>
 
 #define AX_MTU		236
+#define AX_MAX_MTU	65535
 
 /* some arch define END as assembly function ending, just undef it */
 #undef	END
@@ -355,13 +356,19 @@ static int ax_set_mac_address(struct net_device *dev, void *addr)
 
 /*---------------------------------------------------------------------------*/
 
-static void ax_changedmtu(struct mkiss *ax)
-{
-	struct net_device *dev = ax->dev;
-	unsigned char *xbuff, *rbuff, *oxbuff, *orbuff;
-	int len;
+/*
+ * Length of the frame buffers for the current MTU.
+ *
+ * ax_encaps() accepts frames of up to dev->mtu + 73 bytes and KISS escaping
+ * can double every one of them.  The buffers are allocated AX_BUF_SLACK bytes
+ * larger than this, for the two END delimiters and the two CRC bytes, which
+ * can need escaping as well.
+ */
+#define AX_BUF_SLACK	6
 
-	len = dev->mtu * 2;
+static int ax_buflen(const struct net_device *dev)
+{
+	int len = (dev->mtu + 73) * 2;
 
 	/*
 	 * allow for arrival of larger UDP packets, even if we say not to
@@ -371,8 +378,19 @@ static void ax_changedmtu(struct mkiss *ax)
 	if (len < 576 * 2)
 		len = 576 * 2;
 
-	xbuff = kmalloc(len + 4, GFP_ATOMIC);
-	rbuff = kmalloc(len + 4, GFP_ATOMIC);
+	return len;
+}
+
+static void ax_changedmtu(struct mkiss *ax)
+{
+	struct net_device *dev = ax->dev;
+	unsigned char *xbuff, *rbuff, *oxbuff, *orbuff;
+	int len;
+
+	len = ax_buflen(dev);
+
+	xbuff = kmalloc(len + AX_BUF_SLACK, GFP_ATOMIC);
+	rbuff = kmalloc(len + AX_BUF_SLACK, GFP_ATOMIC);
 
 	if (xbuff == NULL || rbuff == NULL)  {
 		printk(KERN_ERR "mkiss: %s: unable to grow ax25 buffers, "
@@ -581,20 +599,12 @@ static int ax_open(struct net_device *dev)
 	 * rbuff	Receive buffer.
 	 * xbuff	Transmit buffer.
 	 */
-	len = dev->mtu * 2;
+	len = ax_buflen(dev);
 
-	/*
-	 * allow for arrival of larger UDP packets, even if we say not to
-	 * also fixes a bug in which SunOS sends 512-byte packets even with
-	 * an MSS of 128
-	 */
-	if (len < 576 * 2)
-		len = 576 * 2;
-
-	if ((ax->rbuff = kmalloc(len + 4, GFP_KERNEL)) == NULL)
+	if ((ax->rbuff = kmalloc(len + AX_BUF_SLACK, GFP_KERNEL)) == NULL)
 		goto norbuff;
 
-	if ((ax->xbuff = kmalloc(len + 4, GFP_KERNEL)) == NULL)
+	if ((ax->xbuff = kmalloc(len + AX_BUF_SLACK, GFP_KERNEL)) == NULL)
 		goto noxbuff;
 
 	ax->mtu	     = dev->mtu + 73;
@@ -640,6 +650,7 @@ static void ax_setup(struct net_device *dev)
 {
 	/* Finish setting up the DEVICE info. */
 	dev->mtu             = AX_MTU;
+	dev->max_mtu         = AX_MAX_MTU;
 	dev->hard_header_len = AX25_MAX_HEADER_LEN;
 	dev->addr_len        = AX25_ADDR_LEN;
 	dev->type            = ARPHRD_AX25;
