@@ -336,6 +336,18 @@ struct scx_sub_detach_args {
 	char			*cgroup_path;
 };
 
+/*
+ * What a sched sees running on a cid, as reported by
+ * ops.sub_cid_sched_updated(): NONE when the cid is idle or runs a task outside
+ * the sched's subtree, SELF for the sched itself, or a direct child by its
+ * cgroup id. The sentinels lie outside the cgroup id space, whose low 32 bits
+ * are an idr value of at most INT_MAX.
+ */
+enum scx_cid_sched_consts {
+	SCX_CID_SCHED_NONE = (u64)-2,
+	SCX_CID_SCHED_SELF = (u64)-1,
+};
+
 /**
  * struct sched_ext_ops - Operation table for BPF scheduler implementation
  *
@@ -874,6 +886,22 @@ struct sched_ext_ops {
 	 */
 	void (*sub_ecaps_updated)(s32 cid, u64 before, u64 after);
 
+	/**
+	 * @sub_cid_sched_updated: The sched running on a cid changed
+	 * @cid: cid whose running sched changed
+	 * @sched: what this sched now sees running there
+	 *
+	 * Invoked when the sched owning the task running on @cid changes.
+	 * @sched is %SCX_CID_SCHED_NONE when no task of this sched's subtree
+	 * runs there, %SCX_CID_SCHED_SELF for its own task, or the cgroup id of
+	 * the direct child whose subtree the task belongs to. Changes inside a
+	 * child's subtree, whether across tasks or nested sub-scheds, are not
+	 * reported. Every sched for which @sched changes is notified.
+	 *
+	 * Runs with the rq lock held on the context switch path.
+	 */
+	void (*sub_cid_sched_updated)(s32 cid, u64 sched);
+
 	/*
 	 * All online ops must come before ops.cpu_online().
 	 */
@@ -1131,6 +1159,7 @@ struct sched_ext_ops_cid {
 	void (*sub_detach)(struct scx_sub_detach_args *args);
 	void (*sub_caps_updated)(const struct scx_cmask *cmask__arena, u64 caps);
 	void (*sub_ecaps_updated)(s32 cid, u64 before, u64 after);
+	void (*sub_cid_sched_updated)(s32 cid, u64 sched);
 	void (*cid_online)(s32 cid);
 	void (*cid_offline)(s32 cid);
 	s32 (*init_cids)(void);

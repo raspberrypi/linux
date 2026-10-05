@@ -3074,6 +3074,8 @@ static void scx_start_task_running(struct rq *rq, struct task_struct *p)
 	if (p->scx.flags & SCX_TASK_RUN_TRACKED)
 		return;
 
+	scx_cid_sched_update(rq, sch);
+
 	if (SCX_HAS_OP(sch, running))
 		SCX_CALL_OP_TASK(sch, running, rq, p);
 
@@ -3322,8 +3324,10 @@ static void put_prev_task_scx(struct rq *rq, struct task_struct *p,
 	}
 
 switch_class:
-	if (next && next->sched_class != &ext_sched_class)
+	if (next && next->sched_class != &ext_sched_class) {
+		scx_cid_sched_update(rq, NULL);
 		switch_class(rq, next);
+	}
 }
 
 static void kick_sync_wait_bal_cb(struct rq *rq)
@@ -4484,6 +4488,13 @@ static void switching_to_scx(struct rq *rq, struct task_struct *p)
 
 static void switched_from_scx(struct rq *rq, struct task_struct *p)
 {
+	/*
+	 * A class change of the running task: sched_change_begin() put @p with
+	 * no successor, which leaves rq->scx.sched set.
+	 */
+	if (task_current_donor(rq, p))
+		scx_cid_sched_update(rq, NULL);
+
 	if (task_dead_and_done(p))
 		return;
 
@@ -6777,6 +6788,8 @@ static void scx_root_disable(struct scx_sched *sch)
 		}
 	}
 
+	scx_ops_cid_sched_updated_disable(sch);
+
 	/* no task is on scx, turn off all the switches and flush in-progress calls */
 	static_branch_disable(&__scx_enabled);
 	static_branch_disable(&__scx_is_cid_type);
@@ -7969,6 +7982,8 @@ static void scx_root_enable_workfn(struct kthread_work *work)
 		if (((void (**)(void))ops)[i])
 			set_bit(i, sch->has_op);
 
+	scx_ops_cid_sched_updated_enable(sch);
+
 	if (sch->ops.cpu_acquire || sch->ops.cpu_release)
 		sch->ops.flags |= SCX_OPS_HAS_CPU_PREEMPT;
 
@@ -8615,6 +8630,7 @@ static void sched_ext_ops_cid__set_cmask(struct task_struct *p, const struct scx
 static void sched_ext_ops_cid__enable(struct task_struct *p, struct scx_enable_args *args) {}
 static void sched_ext_ops__sub_caps_updated(const struct scx_cmask *cmask__arena, u64 caps) {}
 static void sched_ext_ops__sub_ecaps_updated(s32 cid, u64 before, u64 after) {}
+static void sched_ext_ops__sub_cid_sched_updated(s32 cid, u64 sched) {}
 
 static struct sched_ext_ops_cid __bpf_ops_sched_ext_ops_cid = {
 	.select_cid		= sched_ext_ops__select_cpu,
@@ -8649,6 +8665,7 @@ static struct sched_ext_ops_cid __bpf_ops_sched_ext_ops_cid = {
 	.sub_detach		= sched_ext_ops__sub_detach,
 	.sub_caps_updated	= sched_ext_ops__sub_caps_updated,
 	.sub_ecaps_updated	= sched_ext_ops__sub_ecaps_updated,
+	.sub_cid_sched_updated	= sched_ext_ops__sub_cid_sched_updated,
 	.cid_online		= sched_ext_ops__cpu_online,
 	.cid_offline		= sched_ext_ops__cpu_offline,
 	.init_cids		= sched_ext_ops__init_cids,
@@ -11292,6 +11309,7 @@ static int __init scx_init(void)
 	CID_OFFSET_MATCH(sub_detach, sub_detach);
 	CID_OFFSET_MATCH(sub_caps_updated, sub_caps_updated);
 	CID_OFFSET_MATCH(sub_ecaps_updated, sub_ecaps_updated);
+	CID_OFFSET_MATCH(sub_cid_sched_updated, sub_cid_sched_updated);
 	CID_OFFSET_MATCH(init_cids, init_cids);
 	CID_OFFSET_MATCH(init, init);
 	CID_OFFSET_MATCH(exit, exit);
