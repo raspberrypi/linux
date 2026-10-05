@@ -399,9 +399,15 @@ void mmc_wait_for_req_done(struct mmc_host *host, struct mmc_request *mrq)
 	struct mmc_command *cmd;
 
 	while (1) {
-		wait_for_completion(&mrq->completion);
+		if (!host->rescan_disable)
+			wait_for_completion(&mrq->completion);
 
 		cmd = mrq->cmd;
+
+		if (host->rescan_disable) {
+			cmd->error = -ENOENT;
+			break;
+		}
 
 		if (!cmd->error || !cmd->retries ||
 		    mmc_card_removed(host->card))
@@ -619,6 +625,11 @@ EXPORT_SYMBOL(mmc_is_req_done);
  */
 void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 {
+	if (host->rescan_disable) {
+		mrq->cmd->error = -ENOENT;
+		return;
+	}
+
 	__mmc_start_req(host, mrq);
 
 	if (!mrq->cap_cmd_during_tfr)
@@ -2265,6 +2276,8 @@ void mmc_rescan(struct work_struct *work)
 
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
 		unsigned int freq = freqs[i];
+		if (host->rescan_disable)
+			return;
 		if (freq > host->f_max) {
 			if (i + 1 < ARRAY_SIZE(freqs))
 				continue;
