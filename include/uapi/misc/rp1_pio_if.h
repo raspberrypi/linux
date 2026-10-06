@@ -189,17 +189,31 @@ struct rp1_pio_sm_config_xfer32_args {
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_FORCE_LIGHT  3
 
 /*
- * Use cyclic DMA: buf_size is the size of one period and buf_count is the
- * number of periods. Each PIO_IOC_SM_XFER_DATA* call transfers at most one
+ * How to use cyclic DMA: buf_size is the size of one period and buf_count is
+ * the number of periods. Each PIO_IOC_SM_XFER_DATA* call transfers at most one
  * period and blocks until that period is available; a zero-byte transfer is
  * rejected with -EINVAL.
  *
- * Currently only cyclic RX DMA is supported.
+ * Input accepts any buf_count of two or more. Output requires at least three
+ * periods.
+ *
+ * The minimum value for buf_size is RP1_PIO_CYCLIC_MIN_BUF_SIZE. This ensures
+ * that the size of each period is more than the PIO FIFO size plus DMA burst
+ * plus margin.
  *
  * A read returns -EOVERFLOW if the DMA wrapped onto the period that was about
  * to be read. No data is returned in that case. Detection is best effort, but
  * the stream resynchronises to the oldest still-valid period so that subsequent
  * reads succeed again without needing to be reconfigured.
+ *
+ * For output a write returns -EPIPE if the DMA caught up and resent stale data.
+ * Detection is best effort, but the stream resynchronises to the first available
+ * period that has not yet been transmitted so that subsequent writes succeed
+ * again without needing to be reconfigured. A failed user copy does not
+ * advance the writer or start DMA. A write shorter than a period zeroes the
+ * remainder of that period.
+ *
+ * All buffers must be filled before the output DMA will start.
  */
 #define RP1_PIO_SM_CONFIG_XFER_FL_DMA_CYCLE (1 << 2)
 #define RP1_PIO_CYCLIC_MIN_BUF_SIZE 128
