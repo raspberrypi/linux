@@ -1753,9 +1753,16 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 {
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
-	struct mt7996_sta_link *msta_link = &msta->deflink;
-	struct rate_info *txrate = &msta_link->wcid.rate;
+	struct mt7996_sta_link *msta_link;
+	struct rate_info *txrate;
 
+	rcu_read_lock();
+
+	msta_link = mt7996_sta_link(msta, msta->deflink_id);
+	if (!msta_link)
+		goto out;
+
+	txrate = &msta_link->wcid.rate;
 	if (txrate->legacy || txrate->flags) {
 		if (txrate->legacy) {
 			sinfo->txrate.legacy = txrate->legacy;
@@ -1798,6 +1805,9 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 		sinfo->rx_packets = msta_link->wcid.stats.rx_packets;
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
 	}
+
+out:
+	rcu_read_unlock();
 }
 
 static void mt7996_link_rate_ctrl_update(void *data,
@@ -2084,9 +2094,13 @@ static void mt7996_ethtool_worker(void *wi_data, struct ieee80211_sta *sta)
 {
 	struct mt76_ethtool_worker_info *wi = wi_data;
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
-	struct mt7996_sta_link *msta_link = &msta->deflink;
+	struct mt7996_sta_link *msta_link;
 
 	if (msta->vif->deflink.mt76.idx != wi->idx)
+		return;
+
+	msta_link = mt7996_sta_link(msta, msta->deflink_id);
+	if (!msta_link)
 		return;
 
 	mt76_ethtool_worker(wi, &msta_link->wcid.stats, true);
