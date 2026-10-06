@@ -1406,34 +1406,26 @@ mt7996_mac_sta_add(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 }
 
 static int
-mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
-		     struct ieee80211_sta *sta, enum mt76_sta_event ev)
+mt7996_mac_sta_links_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+			   struct ieee80211_sta *sta, unsigned long links,
+			   enum mt76_sta_event ev)
 {
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
-	unsigned long links = sta->valid_links;
-	struct ieee80211_link_sta *link_sta;
+	unsigned long iter_links = links;
 	unsigned int link_id;
-	int err = 0;
+	int err;
 
-	mutex_lock(&dev->mt76.mutex);
-
-	for_each_sta_active_link(vif, sta, link_sta, link_id) {
+	for_each_set_bit(link_id, &iter_links, IEEE80211_MLD_MAX_NUM_LINKS) {
 		struct ieee80211_bss_conf *link_conf;
+		struct ieee80211_link_sta *link_sta;
 		struct mt7996_sta_link *msta_link;
 		struct mt7996_vif_link *link;
 		int i;
 
 		link_conf = link_conf_dereference_protected(vif, link_id);
-		if (!link_conf)
-			continue;
-
-		link = mt7996_vif_link(dev, vif, link_id);
-		if (!link)
-			continue;
-
+		link_sta = link_sta_dereference_protected(sta, link_id);
 		msta_link = mt7996_sta_link_protected(dev, msta, link_id);
-		if (!msta_link)
-			continue;
+		link = mt7996_vif_link(dev, vif, link_id);
 
 		switch (ev) {
 		case MT76_STA_EVENT_ASSOC:
@@ -1441,12 +1433,12 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 						 link, msta_link,
 						 CONN_STATE_CONNECT, true);
 			if (err)
-				goto unlock;
+				return err;
 
 			err = mt7996_mcu_add_rate_ctrl(dev, msta_link->sta, vif,
 						       link_id, false);
 			if (err)
-				goto unlock;
+				return err;
 
 			msta_link->wcid.tx_info |= MT_WCID_TX_INFO_SET;
 			break;
@@ -1455,7 +1447,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 						 link, msta_link,
 						 CONN_STATE_PORT_SECURE, false);
 			if (err)
-				goto unlock;
+				return err;
 			break;
 		case MT76_STA_EVENT_DISASSOC:
 			for (i = 0; i < ARRAY_SIZE(msta_link->twt.flow); i++)
@@ -1476,7 +1468,20 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			break;
 		}
 	}
-unlock:
+
+	return 0;
+}
+
+static int
+mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+		     struct ieee80211_sta *sta, enum mt76_sta_event ev)
+{
+	int err;
+
+	mutex_lock(&dev->mt76.mutex);
+	err = mt7996_mac_sta_links_event(dev, vif, sta,
+					 mt7996_mac_sta_links(dev, vif, sta),
+					 ev);
 	mutex_unlock(&dev->mt76.mutex);
 
 	return err;
