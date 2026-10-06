@@ -291,6 +291,9 @@ mt7996_key_iter(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	if (sta)
 		return;
 
+	if (key->link_id >= 0 && key->link_id != it->link_id)
+		return;
+
 	WARN_ON(mt7996_set_hw_key(hw, it->cmd, vif, NULL, it->link_id, key));
 }
 
