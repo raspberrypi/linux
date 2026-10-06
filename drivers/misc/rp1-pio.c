@@ -103,12 +103,18 @@ struct dma_buf_info {
 
 struct dma_info {
 	struct semaphore buf_sem;
+	wait_queue_head_t cyclic_wait;
 	struct dma_chan *chan;
 	size_t buf_size;
 	size_t buf_count;
 	size_t burst_bytes;
 	bool cyclic;
 	bool tx;
+	dma_cookie_t cyclic_cookie;
+	spinlock_t cyclic_lock;
+	bool dma_not_running;
+	bool cyclic_overflow;
+	unsigned int wrap_around;
 	unsigned int head_idx;
 	unsigned int tail_idx;
 	struct dma_buf_info bufs[DMA_BOUNCE_BUFFER_COUNT];
@@ -954,9 +960,47 @@ static void rp1_pio_sm_dma_callback(void *param)
 {
 	struct dma_info *dma = param;
 
-	if (dma->cyclic)
-		WRITE_ONCE(dma->head_idx, dma->head_idx + 1);
-	up(&dma->buf_sem);
+	if (!dma->cyclic) {
+		up(&dma->buf_sem);
+		return;
+	}
+
+	struct dma_tx_state state;
+
+	int ret = dmaengine_tx_status(dma->chan, dma->cyclic_cookie, &state);
+
+	if (ret != DMA_IN_PROGRESS && ret != DMA_PAUSED) {
+		spin_lock(&dma->cyclic_lock);
+		dma->dma_not_running = true;
+		spin_unlock(&dma->cyclic_lock);
+		wake_up_interruptible(&dma->cyclic_wait);
+		return;
+	}
+
+	spin_lock(&dma->cyclic_lock);
+	unsigned int period = dma->buf_size / dma->buf_count;
+	size_t completed = dma->buf_size - state.residue;
+	unsigned int cur_slot = (completed / period) % dma->buf_count;
+	unsigned int head_slot = dma->head_idx % dma->buf_count;
+
+	dma->head_idx += (cur_slot + dma->buf_count - head_slot) % dma->buf_count;
+
+	if (dma->head_idx - dma->tail_idx >= dma->buf_count) {
+		/*
+		 * The new head is more than buf_count ahead of tail_idx,
+		 * so mark this as an overflow condition and set
+		 * tail_idx to the first available valid buffer.
+		 */
+		dma->tail_idx = dma->head_idx - dma->buf_count + 1;
+		dma->cyclic_overflow = true;
+	}
+	if (dma->head_idx > dma->wrap_around &&
+	    dma->tail_idx > dma->wrap_around) {
+		dma->head_idx -= dma->wrap_around;
+		dma->tail_idx -= dma->wrap_around;
+	}
+	spin_unlock(&dma->cyclic_lock);
+	wake_up_interruptible(&dma->cyclic_wait);
 }
 
 static void rp1_pio_sm_kernel_dma_callback(void *param)
@@ -1015,7 +1059,7 @@ static void rp1_pio_sm_dma_free(struct dma_info *dma)
 	/* The buffers were allocated for the DMA controller, so free them there */
 	struct device *dma_dev = dma->chan->device->dev;
 
-	dmaengine_terminate_all(dma->chan);
+	dmaengine_terminate_sync(dma->chan);
 	if (dma->cyclic) {
 		dma->buf_count = 0;
 		dma_free_coherent(dma_dev, ROUND_UP(dma->buf_size, PAGE_SIZE),
@@ -1103,7 +1147,14 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	if (reconfigure)
 		rp1_pio_sm_dma_free(dma);
 
+	/* Note: the semaphore is only used by non-cyclic DMA */
 	sema_init(&dma->buf_sem, 0);
+
+	if (!reconfigure) {
+		/* the waitqueue and spinlock are only used by cyclic DMA */
+		init_waitqueue_head(&dma->cyclic_wait);
+		spin_lock_init(&dma->cyclic_lock);
+	}
 
 	/* Allocate and configure a DMA channel */
 	/* Careful - each SM FIFO has its own DREQ value */
@@ -1117,6 +1168,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	chan_name[4] = '\0';
 
 	dma->cyclic = false;
+	dma->dma_not_running = false;
+	dma->cyclic_overflow = false;
 	dma->tx = tx;
 	dma->chan = dma_request_chan(dev, chan_name);
 	if (IS_ERR(dma->chan)) {
@@ -1149,6 +1202,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		sg_dma_address(&dbi->sgl) = dbi->dma_addr;
 		dma->buf_count = buf_count;
 		dma->cyclic = cyclic;
+		dma->wrap_around = rounddown(INT_MAX, buf_count);
 	} else {
 		dma->buf_size = buf_size;
 		/* Round up the allocations */
@@ -1225,10 +1279,11 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		desc->callback = rp1_pio_sm_dma_callback;
 		desc->callback_param = dma;
 
-		/* Submit the buffer - the callback will kick the semaphore */
+		/* Submit the buffer - the callback will wake cyclic_wait */
 		ret = dmaengine_submit(desc);
 		if (ret < 0)
 			goto err_dma_free;
+		dma->cyclic_cookie = ret;
 
 		dma_async_issue_pending(dma->chan);
 	}
@@ -1399,29 +1454,54 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 	if (dma->cyclic) {
 		size_t period = dma->buf_size / dma->buf_count;
 		struct dma_buf_info *dbi = &dma->bufs[0];
+		unsigned int tail_slot;
 
 		if (bytes > period)
 			return -EINVAL;
 
+retry:
 		/*
-		 * The callback posts the semaphore once per period, so consume
-		 * exactly one 'period' worth of data per read.
+		 * Wait until there is new data, or the dma is no longer in
+		 * progress, or there is an overflow.
 		 */
-		if (down_interruptible(&dma->buf_sem))
-			return -ERESTARTSYS;
+		ret = wait_event_interruptible(dma->cyclic_wait,
+					       dma->dma_not_running ||
+					       dma->cyclic_overflow ||
+					       dma->head_idx > dma->tail_idx);
+		if (ret)
+			return ret;
 
-		/* The DMA has wrapped onto the period we were about to read. */
-		if (READ_ONCE(dma->head_idx) - dma->tail_idx > dma->buf_count)
-			return -EOVERFLOW;
+		scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+			if (dma->dma_not_running)
+				return -EIO;
+			if (dma->cyclic_overflow) {
+				dma->cyclic_overflow = false;
+				return -EOVERFLOW;
+			}
+			/* Check that this condition still holds */
+			if (dma->head_idx > dma->tail_idx)
+				tail_slot = dma->tail_idx % dma->buf_count;
+			else
+				goto retry;
+		}
 
 		/* Pair with the DMAC's writes into the period we are about to copy. */
 		dma_rmb();
 
-		if (copy_to_user(userbuf,
-				 dbi->buf + (dma->tail_idx % dma->buf_count) * period,
-				 bytes))
+		if (copy_to_user(userbuf, dbi->buf + tail_slot * period, bytes))
 			return -EFAULT;
-		dma->tail_idx++;
+		scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+			if (dma->cyclic_overflow) {
+				/*
+				 * copy_to_user can take so much time that
+				 * the buffer is overwritten, so exit with
+				 * -EOVERFLOW in that case.
+				 */
+				dma->cyclic_overflow = false;
+				return -EOVERFLOW;
+			}
+			dma->tail_idx++;
+		}
 		return 0;
 	}
 
