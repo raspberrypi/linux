@@ -5836,15 +5836,24 @@ static int macb_probe(struct platform_device *pdev)
 	bool native_io;
 	phy_interface_t interface;
 	struct net_device *dev;
-	struct resource *regs;
+	struct resource *regs, *eth_cfg_res;
 	u32 wtrmrk_rst_val;
-	void __iomem *mem;
+	void __iomem *mem, *eth_cfg = NULL;
 	struct macb *bp;
 	int err, val;
 
 	mem = devm_platform_get_and_ioremap_resource(pdev, 0, &regs);
 	if (IS_ERR(mem))
 		return PTR_ERR(mem);
+
+	/* Older RP1 DTBs do not describe ETH_CFG, so keep the PHC usable. */
+	eth_cfg_res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "eth_cfg");
+	if (eth_cfg_res) {
+		eth_cfg = devm_ioremap_resource(&pdev->dev, eth_cfg_res);
+		if (IS_ERR(eth_cfg))
+			return dev_err_probe(&pdev->dev, PTR_ERR(eth_cfg),
+					     "failed to map RP1 ETH_CFG\n");
+	}
 
 	if (np) {
 		const struct of_device_id *match;
@@ -5883,6 +5892,8 @@ static int macb_probe(struct platform_device *pdev)
 	bp->pdev = pdev;
 	bp->dev = dev;
 	bp->regs = mem;
+	bp->rp1_eth_cfg = eth_cfg;
+	bp->rp1_eth_cfg_phys = eth_cfg_res ? eth_cfg_res->start : 0;
 	bp->native_io = native_io;
 	if (native_io) {
 		bp->macb_reg_readl = hw_readl_native;
