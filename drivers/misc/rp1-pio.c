@@ -1071,10 +1071,17 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		return -EINVAL;
 	if (cyclic) {
 		/*
+		 * RP1_PIO_CYCLIC_MIN_BUF_SIZE is > FIFO + burst + margin,
+		 * which ensures that you can't fit a period of data in just
+		 * the FIFO + burst, which might cause weird behavior.
+		 */
+		if (buf_size < RP1_PIO_CYCLIC_MIN_BUF_SIZE)
+			return -EINVAL;
+		/*
 		 * Cyclic DMA is currently not supported for TO_SM, and
 		 * needs at least two real buffers to cycle through.
 		 */
-		if (tx || !buf_size || buf_count < 2)
+		if (tx || buf_count < 2)
 			return -EINVAL;
 	}
 
