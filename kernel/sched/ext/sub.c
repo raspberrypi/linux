@@ -1154,6 +1154,34 @@ void scx_offline_ecaps(struct rq *rq)
 }
 
 /*
+ * Clear every cap @sch holds. The pshard caps go first as they are the source a
+ * pending sync recomputes ecaps from. ecaps are then zeroed directly for the
+ * cap checks.
+ */
+static void clear_all_caps(struct scx_sched *sch)
+{
+	s32 si, cpu;
+	u32 cap_bit;
+
+	/* enable may have failed before scx_alloc_pshards() */
+	if (!sch->pshard)
+		return;
+
+	for (si = 0; si < sch->nr_pshards; si++) {
+		struct scx_pshard *ps = sch->pshard[si];
+
+		guard(raw_spinlock_irqsave)(&ps->lock);
+		for (cap_bit = 0; cap_bit < __SCX_NR_CAPS; cap_bit++)
+			scx_cmask_clear(&ps->caps[cap_bit].cmask);
+	}
+
+	for_each_possible_cpu(cpu) {
+		guard(rq_lock_irqsave)(cpu_rq(cpu));
+		WRITE_ONCE(per_cpu_ptr(sch->pcpu, cpu)->ecaps, 0);
+	}
+}
+
+/*
  * @pcpu's sched was unhashed before the grace period, so nothing re-queues its
  * sync node. Remove the node from @rq's pending list so the pcpu can be freed.
  */
@@ -1627,6 +1655,12 @@ dump:
 	scx_disable_bypass_dsp(sch);
 
 	scx_unlink_sched(sch);
+
+	/*
+	 * The parent restores what it delegated in ops.sub_detach(). @sch must
+	 * hold no caps by then.
+	 */
+	clear_all_caps(sch);
 
 	mutex_unlock(&scx_enable_mutex);
 
@@ -2306,8 +2340,8 @@ static s32 sub_cap_preamble(u64 cgroup_id, u64 caps, const struct bpf_prog_aux *
  * All-or-nothing keeps the caller-visible result binary per cid, so the denied
  * mask is one mask to interpret rather than a per-cap matrix.
  *
- * Return 0 on full success, -EPERM if any cid was refused, or a negative
- * errno on other failures.
+ * Return 0 on full success, -EPERM if any cid was refused, -ENODEV if the child
+ * is gone or being disabled, or a negative errno on other failures.
  */
 __bpf_kfunc s32 scx_bpf_sub_grant(u64 cgroup_id, u64 caps,
 				  const struct scx_cmask *cmask__arena,
@@ -2361,6 +2395,12 @@ __bpf_kfunc s32 scx_bpf_sub_grant(u64 cgroup_id, u64 caps,
 		scoped_guard (raw_spinlock, &pps->lock) {
 			guard(raw_spinlock_nested)(&cps->lock);
 
+			/* the child is being disabled, see clear_all_caps() */
+			if (unlikely(READ_ONCE(child->aborting))) {
+				ret = -ENODEV;
+				goto out;
+			}
+
 			/*
 			 * Narrow granted_cids to cids the parent holds every
 			 * requested cap on. All-or-nothing per cid.
@@ -2413,9 +2453,10 @@ __bpf_kfunc s32 scx_bpf_sub_grant(u64 cgroup_id, u64 caps,
 		}
 	}
 
+	ret = any_denied ? -EPERM : 0;
+out:
 	caps_updated_deliver(&to_deliver);
-
-	return any_denied ? -EPERM : 0;
+	return ret;
 }
 
 /**

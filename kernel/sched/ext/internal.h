@@ -828,6 +828,10 @@ struct sched_ext_ops {
 	/**
 	 * @sub_detach: Detach a sub-scheduler
 	 * @args: argument container, see the struct definition
+	 *
+	 * The sub-scheduler holds no caps by this point and can no longer
+	 * affect any cid. Whatever was delegated to it, e.g. cpuperf targets,
+	 * is the parent's to restore here.
 	 */
 	void (*sub_detach)(struct scx_sub_detach_args *args);
 
@@ -911,6 +915,9 @@ struct sched_ext_ops {
 	 * ops.exit() is also called on ops.init() failure, which is a bit
 	 * unusual. This is to allow rich reporting through @info on how
 	 * ops.init() failed.
+	 *
+	 * A sub-scheduler holds no caps by the time ops.exit() runs. Its
+	 * cap-gated kfuncs are denied.
 	 */
 	void (*exit)(struct scx_exit_info *info);
 
