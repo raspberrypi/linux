@@ -1134,12 +1134,12 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		dma->buf_size = buf_size * buf_count;
 		dma->buf_count = 0;
 		/* Round up the allocations */
-		buf_size = ROUND_UP(dma->buf_size, PAGE_SIZE);
+		uint size = ROUND_UP(dma->buf_size, PAGE_SIZE);
 
 		/* Alloc and map bounce buffer */
 		struct dma_buf_info *dbi = &dma->bufs[0];
 
-		dbi->buf = dma_alloc_coherent(dma->chan->device->dev, buf_size,
+		dbi->buf = dma_alloc_coherent(dma->chan->device->dev, size,
 					      &dbi->dma_addr, GFP_KERNEL);
 		if (!dbi->buf) {
 			ret = -ENOMEM;
@@ -1152,13 +1152,13 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	} else {
 		dma->buf_size = buf_size;
 		/* Round up the allocations */
-		buf_size = ROUND_UP(buf_size, PAGE_SIZE);
+		uint size = ROUND_UP(buf_size, PAGE_SIZE);
 
 		/* Alloc and map bounce buffers */
 		for (dma->buf_count = 0; dma->buf_count < buf_count; dma->buf_count++) {
 			struct dma_buf_info *dbi = &dma->bufs[dma->buf_count];
 
-			dbi->buf = dma_alloc_coherent(dma->chan->device->dev, buf_size,
+			dbi->buf = dma_alloc_coherent(dma->chan->device->dev, size,
 						      &dbi->dma_addr, GFP_KERNEL);
 			if (!dbi->buf) {
 				ret = -ENOMEM;
