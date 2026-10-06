@@ -111,7 +111,7 @@ int mt76_assign_vif_chanctx(struct ieee80211_hw *hw,
 	bool mlink_alloc = false;
 	int ret = 0;
 
-	if (dev->scan.vif == vif)
+	if (dev->scan.vif == vif && dev->scan.phy == phy)
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
@@ -160,7 +160,7 @@ void mt76_unassign_vif_chanctx(struct ieee80211_hw *hw,
 	struct mt76_phy *phy = ctx->phy;
 	struct mt76_dev *dev = phy->dev;
 
-	if (dev->scan.vif == vif)
+	if (dev->scan.vif == vif && dev->scan.phy == phy)
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
