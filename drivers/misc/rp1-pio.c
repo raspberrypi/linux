@@ -112,8 +112,10 @@ struct dma_info {
 	bool tx;
 	dma_cookie_t cyclic_cookie;
 	spinlock_t cyclic_lock;
+	bool cyclic_tx_issued;
 	bool dma_not_running;
 	bool cyclic_overflow;
+	bool cyclic_underflow;
 	unsigned int wrap_around;
 	unsigned int head_idx;
 	unsigned int tail_idx;
@@ -985,7 +987,15 @@ static void rp1_pio_sm_dma_callback(void *param)
 
 	dma->head_idx += (cur_slot + dma->buf_count - head_slot) % dma->buf_count;
 
-	if (dma->head_idx - dma->tail_idx >= dma->buf_count) {
+	if (dma->tx && dma->head_idx >= dma->tail_idx) {
+		/*
+		 * We started writing from a buffer that has stale data.
+		 * Mark this as underflow. Increment tail_idx to head_idx + 2,
+		 * which gives userspace the chance to write new data.
+		 */
+		dma->tail_idx = dma->head_idx + 2;
+		dma->cyclic_underflow = true;
+	} else if (!dma->tx && dma->head_idx - dma->tail_idx >= dma->buf_count) {
 		/*
 		 * The new head is more than buf_count ahead of tail_idx,
 		 * so mark this as an overflow condition and set
@@ -1122,10 +1132,10 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		if (buf_size < RP1_PIO_CYCLIC_MIN_BUF_SIZE)
 			return -EINVAL;
 		/*
-		 * Cyclic DMA is currently not supported for TO_SM, and
-		 * needs at least two real buffers to cycle through.
+		 * Cyclic DMA needs at least two (RX) or three (TX) real
+		 * buffers to cycle through.
 		 */
-		if (tx || buf_count < 2)
+		if (buf_count < (tx ? 3 : 2))
 			return -EINVAL;
 	}
 
@@ -1170,6 +1180,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	dma->cyclic = false;
 	dma->dma_not_running = false;
 	dma->cyclic_overflow = false;
+	dma->cyclic_underflow = false;
+	dma->cyclic_tx_issued = false;
 	dma->tx = tx;
 	dma->chan = dma_request_chan(dev, chan_name);
 	if (IS_ERR(dma->chan)) {
@@ -1267,9 +1279,9 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 		sg_dma_len(&dbi->sgl) = dma->buf_size;
 		desc = dmaengine_prep_dma_cyclic(dma->chan, dbi->dma_addr,
-						 dma->buf_size, dma->buf_size / dma->buf_count,
-					       DMA_DEV_TO_MEM,
-					       DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+				dma->buf_size, dma->buf_size / dma->buf_count,
+				tx ? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM,
+				DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 		if (!desc) {
 			dev_err(dev, "DMA preparation failed\n");
 			ret = -EIO;
@@ -1285,7 +1297,8 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 			goto err_dma_free;
 		dma->cyclic_cookie = ret;
 
-		dma_async_issue_pending(dma->chan);
+		if (!tx)
+			dma_async_issue_pending(dma->chan);
 	}
 	return 0;
 
@@ -1338,6 +1351,85 @@ static void rp1_pio_sm_xfer_progress(struct rp1_pio_sm_xfer_data32_args *args,
 {
 	args->data += bytes;
 	args->data_bytes -= bytes;
+}
+
+static int rp1_pio_sm_tx_user_cyclic(struct rp1_pio_device *pio,
+				     struct dma_info *dma,
+				     struct rp1_pio_sm_xfer_data32_args *args)
+{
+	size_t period = dma->buf_size / dma->buf_count;
+	struct dma_buf_info *dbi = &dma->bufs[0];
+	const void __user *userbuf = args->data;
+	size_t bytes = args->data_bytes;
+	unsigned int tail_idx;
+	void *dst;
+	int ret;
+
+	if (!bytes || bytes > period)
+		return -EINVAL;
+
+	if (!dma->cyclic_tx_issued) {
+		unsigned int tail_slot = dma->tail_idx % dma->buf_count;
+
+		dst = dbi->buf + tail_slot * period;
+		if (copy_from_user(dst, userbuf, bytes))
+			return -EFAULT;
+		memset(dst + bytes, 0, period - bytes);
+		scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+			dma->tail_idx++;
+			if (dma->tail_idx == dma->buf_count) {
+				/* All buffers are filled, start DMA */
+				dma->cyclic_tx_issued = true;
+				dma_async_issue_pending(dma->chan);
+			}
+		}
+		return 0;
+	}
+
+retry:
+	/*
+	 * Wait until a free slot is available, or the dma is no longer
+	 * in progress, or there is an underflow.
+	 */
+	ret = wait_event_interruptible(dma->cyclic_wait,
+				       dma->dma_not_running ||
+				       dma->cyclic_underflow ||
+				       dma->tail_idx - dma->head_idx < dma->buf_count);
+	if (ret)
+		return ret;
+
+	scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+		if (dma->dma_not_running)
+			return -EIO;
+		if (dma->cyclic_underflow) {
+			dma->cyclic_underflow = false;
+			return -EPIPE;
+		}
+		/* Check that this condition still holds */
+		if (dma->tail_idx - dma->head_idx < dma->buf_count)
+			tail_idx = dma->tail_idx;
+		else
+			goto retry;
+	}
+
+	dst = dbi->buf + (tail_idx % dma->buf_count) * period;
+	if (copy_from_user(dst, userbuf, bytes))
+		return -EFAULT;
+	memset(dst + bytes, 0, period - bytes);
+
+	scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+		if (dma->cyclic_underflow) {
+			/*
+			 * copy_from_user can take so much time that
+			 * the buffer was DMAed before it was fully
+			 * written, so exit with -EPIPE in that case.
+			 */
+			dma->cyclic_underflow = false;
+			return -EPIPE;
+		}
+		dma->tail_idx++;
+	}
+	return 0;
 }
 
 static int rp1_pio_sm_tx_user(struct rp1_pio_device *pio, struct dma_info *dma,
@@ -1575,7 +1667,8 @@ static int rp1_pio_sm_xfer_data32_user(struct rp1_pio_client *client, void *para
 		return -EINVAL;
 
 	if (args->dir == RP1_PIO_DIR_TO_SM)
-		return rp1_pio_sm_tx_user(pio, dma, args);
+		return dma->cyclic ? rp1_pio_sm_tx_user_cyclic(pio, dma, args) :
+				     rp1_pio_sm_tx_user(pio, dma, args);
 	else
 		return dma->cyclic ? rp1_pio_sm_rx_user_cyclic(pio, dma, args) :
 				     rp1_pio_sm_rx_user(pio, dma, args);
