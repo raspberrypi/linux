@@ -34,6 +34,8 @@ static int erofs_init_inode_xattrs(struct inode *inode)
 	struct super_block *sb = inode->i_sb;
 	int ret = 0;
 
+	it.buf = __EROFS_BUF_INITIALIZER;
+
 	/* the most case is that xattrs of this inode are initialized. */
 	if (test_bit(EROFS_I_EA_INITED_BIT, &vi->flags)) {
 		/*
@@ -76,7 +78,6 @@ static int erofs_init_inode_xattrs(struct inode *inode)
 		goto out_unlock;
 	}
 
-	it.buf = __EROFS_BUF_INITIALIZER;
 	ret = erofs_init_metabuf(&it.buf, sb, erofs_inode_in_metabox(inode));
 	if (ret)
 		goto out_unlock;
@@ -95,7 +96,6 @@ static int erofs_init_inode_xattrs(struct inode *inode)
 	vi->xattr_shared_xattrs = kmalloc_array(vi->xattr_shared_count,
 						sizeof(uint), GFP_KERNEL);
 	if (!vi->xattr_shared_xattrs) {
-		erofs_put_metabuf(&it.buf);
 		ret = -ENOMEM;
 		goto out_unlock;
 	}
@@ -114,13 +114,13 @@ static int erofs_init_inode_xattrs(struct inode *inode)
 		vi->xattr_shared_xattrs[i] = le32_to_cpu(*(__le32 *)it.kaddr);
 		it.pos += sizeof(__le32);
 	}
-	erofs_put_metabuf(&it.buf);
 
 	/* paired with smp_mb() at the beginning of the function. */
 	smp_mb();
 	set_bit(EROFS_I_EA_INITED_BIT, &vi->flags);
 
 out_unlock:
+	erofs_put_metabuf(&it.buf);
 	clear_and_wake_up_bit(EROFS_I_BL_XATTR_BIT, &vi->flags);
 	return ret;
 }
