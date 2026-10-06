@@ -894,6 +894,8 @@ void mt7996_mac_twt_teardown_flow(struct mt7996_dev *dev,
 void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
 				struct ieee80211_sta *sta,
 				unsigned int link_id, bool flush);
+u16 mt7996_mac_sta_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+			 struct ieee80211_sta *sta);
 void mt7996_mac_add_twt_setup(struct ieee80211_hw *hw,
 			      struct ieee80211_sta *sta,
 			      struct ieee80211_twt_setup *twt);

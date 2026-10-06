@@ -1262,6 +1262,36 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
 	}
 }
 
+u16 mt7996_mac_sta_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+			 struct ieee80211_sta *sta)
+{
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct ieee80211_link_sta *link_sta;
+	unsigned int link_id;
+	u16 links = 0;
+
+	for_each_sta_active_link(vif, sta, link_sta, link_id) {
+		struct mt7996_sta_link *msta_link;
+
+		msta_link = mt7996_sta_link_protected(dev, msta, link_id);
+		if (!msta_link)
+			continue;
+
+		if (sta->valid_links && !msta_link->wcid.link_valid)
+			continue;
+
+		if (!link_conf_dereference_protected(vif, link_id))
+			continue;
+
+		if (!mt7996_vif_link(dev, vif, link_id))
+			continue;
+
+		links |= BIT(link_id);
+	}
+
+	return links;
+}
+
 static void
 mt7996_mac_sta_remove_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, unsigned long links,
