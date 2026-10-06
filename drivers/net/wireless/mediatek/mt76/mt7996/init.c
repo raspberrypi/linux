@@ -1810,6 +1810,8 @@ error:
 
 void mt7996_unregister_device(struct mt7996_dev *dev)
 {
+	int i;
+
 	cancel_work_sync(&dev->dump_work);
 	cancel_work_sync(&dev->wed_rro.work);
 	cancel_work_sync(&dev->reset_work);
@@ -1820,6 +1822,10 @@ void mt7996_unregister_device(struct mt7996_dev *dev)
 	mt7996_coredump_unregister(dev);
 	mt76_unregister_device(&dev->mt76);
 	mt7996_wed_rro_free(dev);
+	for (i = 0; i < ARRAY_SIZE(dev->mt76.napi); i++) {
+		if (dev->mt76.napi[i].dev)
+			napi_disable(&dev->mt76.napi[i]);
+	}
 	mt7996_mcu_exit(dev);
 	mt7996_tx_token_put(dev);
 	mt7996_dma_cleanup(dev);
