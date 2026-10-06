@@ -341,6 +341,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		return -ENOSPC;
 
 	link->mld_idx = mld_idx;
+	eth_zero_addr(link->bmc_bssid);
 	mlink->omac_idx = idx;
 	mlink->band_idx = band_idx;
 	mlink->wmm_idx = vif->type == NL80211_IFTYPE_AP ? 0 : 3;
@@ -906,6 +907,23 @@ mt7996_update_mu_group(struct ieee80211_hw *hw, struct mt7996_vif_link *link,
 }
 
 static void
+mt7996_vif_link_bss_add(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+			struct ieee80211_bss_conf *link_conf,
+			struct mt7996_vif_link *link, bool newly)
+{
+	if (vif->type == NL80211_IFTYPE_STATION) {
+		newly = !ether_addr_equal_unaligned(link->bmc_bssid,
+						    link_conf->bssid);
+		memcpy(link->bmc_bssid, link_conf->bssid, ETH_ALEN);
+	}
+
+	mt7996_mcu_add_bss_info(phy, vif, link_conf, &link->mt76,
+				&link->msta_link, true);
+	mt7996_mcu_add_sta(phy->dev, link_conf, NULL, link, NULL,
+			   CONN_STATE_PORT_SECURE, newly);
+}
+
+static void
 mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		       u64 changed)
 {
@@ -936,12 +954,8 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			if (!phy)
 				continue;
 
-			mt7996_mcu_add_bss_info(phy, vif, link_conf,
-						&link->mt76, &link->msta_link,
-						true);
-			mt7996_mcu_add_sta(dev, link_conf, NULL, link, NULL,
-					   CONN_STATE_PORT_SECURE,
-					   !!(changed & BSS_CHANGED_BSSID));
+			mt7996_vif_link_bss_add(phy, vif, link_conf, link,
+						!!(changed & BSS_CHANGED_BSSID));
 		}
 	}
 
@@ -987,13 +1001,11 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	 * and then peer references bss_info_rfch to set bandwidth cap.
 	 */
 	if ((changed & BSS_CHANGED_BSSID && !is_zero_ether_addr(info->bssid)) ||
-	    (changed & BSS_CHANGED_BEACON_ENABLED && info->enable_beacon)) {
-		mt7996_mcu_add_bss_info(phy, vif, info, &link->mt76,
-					&link->msta_link, true);
-		mt7996_mcu_add_sta(dev, info, NULL, link, NULL,
-				   CONN_STATE_PORT_SECURE,
-				   !!(changed & BSS_CHANGED_BSSID));
-	}
+	    (changed & BSS_CHANGED_BEACON_ENABLED && info->enable_beacon))
+		mt7996_vif_link_bss_add(phy, vif, info, link,
+					!!(changed & BSS_CHANGED_BSSID));
+	else if (changed & BSS_CHANGED_BSSID)
+		eth_zero_addr(link->bmc_bssid);
 
 	if (changed & BSS_CHANGED_HT || changed & BSS_CHANGED_ERP_CTS_PROT)
 		mt7996_mcu_set_protection(phy, link, info->ht_operation_mode,
