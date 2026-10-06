@@ -1362,6 +1362,7 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			 struct ieee80211_sta *sta, unsigned long new_links)
 {
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	unsigned long created = 0, returned = 0;
 	unsigned int link_id;
 	int err = 0;
 
@@ -1379,6 +1380,7 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 				mt7996_sta_deflink_set(sta, link_id,
 						       msta_link->wcid.idx);
 			msta->seclink_id = mt7996_sta_seclink_get(dev, msta);
+			returned |= BIT(link_id);
 			continue;
 		}
 
@@ -1412,12 +1414,14 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			goto error_unlink;
 
 		mphy->num_sta++;
+		created |= BIT(link_id);
 	}
 
 	return 0;
 
 error_unlink:
-	mt7996_mac_sta_remove_links(dev, vif, sta, new_links, true);
+	mt7996_mac_sta_remove_links(dev, vif, sta, created, true);
+	mt7996_mac_sta_remove_links(dev, vif, sta, returned, false);
 
 	return err;
 }
