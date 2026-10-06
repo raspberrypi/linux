@@ -1150,6 +1150,20 @@ mt7996_sta_deflink_set(struct ieee80211_sta *sta, unsigned int link_id,
 	mt7996_sta_init_txq_wcid(sta, idx);
 }
 
+static bool
+mt7996_sta_deflink_busy(struct mt7996_dev *dev, struct mt7996_sta *msta)
+{
+	unsigned int link_id;
+
+	for (link_id = 0; link_id < ARRAY_SIZE(msta->link); link_id++) {
+		if (mt7996_sta_link_protected(dev, msta, link_id) ==
+		    &msta->deflink)
+			return true;
+	}
+
+	return false;
+}
+
 static void
 mt7996_sta_deflink_release(struct mt7996_dev *dev, struct ieee80211_sta *sta,
 			   unsigned int link_id)
@@ -1217,16 +1231,18 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 	if (idx < 0)
 		return -ENOSPC;
 
-	if (msta->deflink_id == IEEE80211_LINK_UNSPECIFIED) {
-		msta_link = &msta->deflink;
-		mt7996_sta_deflink_set(sta, link_id, idx);
-	} else {
+	if (mt7996_sta_deflink_busy(dev, msta)) {
 		msta_link = kzalloc_obj(*msta_link);
 		if (!msta_link) {
 			mt76_wcid_mask_clear(dev->mt76.wcid_mask, idx);
 			return -ENOMEM;
 		}
+	} else {
+		msta_link = &msta->deflink;
 	}
+
+	if (msta->deflink_id == IEEE80211_LINK_UNSPECIFIED)
+		mt7996_sta_deflink_set(sta, link_id, idx);
 
 	INIT_LIST_HEAD(&msta_link->rc_list);
 	INIT_LIST_HEAD(&msta_link->wcid.poll_list);
