@@ -312,14 +312,14 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 
 	if ((mvif->mt76.valid_links & BIT(link_conf->link_id)) &&
 	    !mlink->offchannel) {
-		if (vif->type == NL80211_IFTYPE_AP)
-			return mt7996_mcu_mld_link_oper(dev, link_conf, link,
-							true);
-
 		/* update the link address */
 		ret = mt7996_mcu_add_dev_info(phy, vif, link_conf, mlink, true);
 		if (ret)
 			return ret;
+
+		if (vif->type == NL80211_IFTYPE_AP)
+			return mt7996_mcu_mld_link_oper(dev, link_conf, link,
+							true);
 
 		return mt7996_mcu_add_bss_info(phy, vif, link_conf, mlink,
 					       msta_link, true);
