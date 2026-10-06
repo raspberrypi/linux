@@ -269,6 +269,8 @@ struct mt7996_sta {
 	u8 deflink_id;
 	u8 seclink_id;
 
+	unsigned long wcid_flags;
+
 	struct mt7996_vif *vif;
 };
 

@@ -1162,6 +1162,16 @@ mt7996_sta_deflink_set(struct ieee80211_sta *sta, unsigned int link_id,
 	mt7996_sta_init_txq_wcid(sta, idx);
 }
 
+static void
+mt7996_sta_link_hdr_trans_set(struct mt7996_sta *msta,
+			      struct mt7996_sta_link *msta_link)
+{
+	assign_bit(MT_WCID_FLAG_4ADDR, &msta_link->wcid.flags,
+		   test_bit(MT_WCID_FLAG_4ADDR, &msta->wcid_flags));
+	assign_bit(MT_WCID_FLAG_HDR_TRANS, &msta_link->wcid.flags,
+		   test_bit(MT_WCID_FLAG_HDR_TRANS, &msta->wcid_flags));
+}
+
 static bool
 mt7996_sta_deflink_busy(struct mt7996_dev *dev, struct mt7996_sta *msta)
 {
@@ -1267,6 +1277,8 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 
 	if (link_sta->sta->tdls)
 		set_bit(MT_WCID_FLAG_TDLS_PEER, &msta_link->wcid.flags);
+
+	mt7996_sta_link_hdr_trans_set(msta, msta_link);
 
 	ewma_avg_signal_init(&msta_link->avg_ack_signal);
 	ewma_signal_init(&msta_link->wcid.rssi);
@@ -1388,6 +1400,7 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
 		if (msta_link) {
 			msta_link->wcid.link_valid = true;
+			mt7996_sta_link_hdr_trans_set(msta, msta_link);
 			if (msta->deflink_id == IEEE80211_LINK_UNSPECIFIED)
 				mt7996_sta_deflink_set(sta, link_id,
 						       msta_link->wcid.idx);
@@ -2174,6 +2187,7 @@ static void mt7996_sta_set_4addr(struct ieee80211_hw *hw,
 
 	mutex_lock(&dev->mt76.mutex);
 
+	assign_bit(MT_WCID_FLAG_4ADDR, &msta->wcid_flags, enabled);
 	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct mt7996_sta_link *msta_link;
 		struct mt7996_vif_link *link;
@@ -2186,11 +2200,7 @@ static void mt7996_sta_set_4addr(struct ieee80211_hw *hw,
 		if (!msta_link)
 			continue;
 
-		if (enabled)
-			set_bit(MT_WCID_FLAG_4ADDR, &msta_link->wcid.flags);
-		else
-			clear_bit(MT_WCID_FLAG_4ADDR, &msta_link->wcid.flags);
-
+		mt7996_sta_link_hdr_trans_set(msta, msta_link);
 		if (!msta_link->wcid.sta)
 			continue;
 
@@ -2220,6 +2230,7 @@ static void mt7996_sta_set_decap_offload(struct ieee80211_hw *hw,
 
 	mutex_lock(&dev->mt76.mutex);
 
+	assign_bit(MT_WCID_FLAG_HDR_TRANS, &msta->wcid_flags, enabled);
 	for_each_sta_active_link(vif, sta, link_sta, link_id) {
 		struct mt7996_sta_link *msta_link;
 		struct mt7996_vif_link *link;
@@ -2232,13 +2243,7 @@ static void mt7996_sta_set_decap_offload(struct ieee80211_hw *hw,
 		if (!msta_link)
 			continue;
 
-		if (enabled)
-			set_bit(MT_WCID_FLAG_HDR_TRANS,
-				&msta_link->wcid.flags);
-		else
-			clear_bit(MT_WCID_FLAG_HDR_TRANS,
-				  &msta_link->wcid.flags);
-
+		mt7996_sta_link_hdr_trans_set(msta, msta_link);
 		if (!msta_link->wcid.sta)
 			continue;
 
