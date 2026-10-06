@@ -1166,8 +1166,10 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 		mt7996_sta_init_txq_wcid(sta, idx);
 	} else {
 		msta_link = kzalloc_obj(*msta_link);
-		if (!msta_link)
+		if (!msta_link) {
+			mt76_wcid_mask_clear(dev->mt76.wcid_mask, idx);
 			return -ENOMEM;
+		}
 
 		if (msta->seclink_id == msta->deflink_id &&
 		    (sta->valid_links & ~BIT(msta->deflink_id)))
