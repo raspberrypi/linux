@@ -1140,6 +1140,38 @@ mt7996_sta_init_txq_wcid(struct ieee80211_sta *sta, int idx)
 	}
 }
 
+static void
+mt7996_sta_deflink_set(struct ieee80211_sta *sta, unsigned int link_id,
+		       int idx)
+{
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+
+	msta->deflink_id = link_id;
+	mt7996_sta_init_txq_wcid(sta, idx);
+}
+
+static void
+mt7996_sta_deflink_release(struct mt7996_dev *dev, struct ieee80211_sta *sta,
+			   unsigned int link_id)
+{
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct mt7996_sta_link *msta_seclink;
+
+	if (msta->deflink_id != link_id)
+		return;
+
+	msta->deflink_id = IEEE80211_LINK_UNSPECIFIED;
+	if (msta->seclink_id == link_id)
+		return;
+
+	/* switch to the secondary link */
+	msta_seclink = mt76_dereference(msta->link[msta->seclink_id],
+					&dev->mt76);
+	if (msta_seclink)
+		mt7996_sta_deflink_set(sta, msta->seclink_id,
+				       msta_seclink->wcid.idx);
+}
+
 static u8
 mt7996_sta_seclink_get(struct mt7996_dev *dev, struct mt7996_sta *msta)
 {
@@ -1187,8 +1219,7 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 
 	if (msta->deflink_id == IEEE80211_LINK_UNSPECIFIED) {
 		msta_link = &msta->deflink;
-		msta->deflink_id = link_id;
-		mt7996_sta_init_txq_wcid(sta, idx);
+		mt7996_sta_deflink_set(sta, link_id, idx);
 	} else {
 		msta_link = kzalloc_obj(*msta_link);
 		if (!msta_link) {
@@ -1249,22 +1280,7 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
 		mt7996_mac_wtbl_update(dev, msta_link->wcid.idx,
 				       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
 
-		if (msta->deflink_id == link_id) {
-			msta->deflink_id = IEEE80211_LINK_UNSPECIFIED;
-			if (msta->seclink_id != link_id) {
-				struct mt7996_sta_link *msta_seclink;
-
-				/* switch to the secondary link */
-				msta_seclink = mt76_dereference(
-						msta->link[msta->seclink_id],
-						&dev->mt76);
-				if (msta_seclink) {
-					msta->deflink_id = msta->seclink_id;
-					mt7996_sta_init_txq_wcid(sta,
-						msta_seclink->wcid.idx);
-				}
-			}
-		}
+		mt7996_sta_deflink_release(dev, sta, link_id);
 		msta_link->wcid.link_valid = false;
 		msta->seclink_id = mt7996_sta_seclink_get(dev, msta);
 	}
@@ -1343,6 +1359,9 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
 		if (msta_link) {
 			msta_link->wcid.link_valid = true;
+			if (msta->deflink_id == IEEE80211_LINK_UNSPECIFIED)
+				mt7996_sta_deflink_set(sta, link_id,
+						       msta_link->wcid.idx);
 			msta->seclink_id = mt7996_sta_seclink_get(dev, msta);
 			continue;
 		}
