@@ -41,7 +41,7 @@ int mt76_add_chanctx(struct ieee80211_hw *hw,
 	if (WARN_ON_ONCE(!phy))
 		return ret;
 
-	if (dev->scan.phy == phy)
+	if (mt76_phy_scanning(phy))
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
@@ -66,7 +66,7 @@ void mt76_remove_chanctx(struct ieee80211_hw *hw,
 	if (WARN_ON_ONCE(!phy))
 		return;
 
-	if (dev->scan.phy == phy)
+	if (mt76_phy_scanning(phy))
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
@@ -114,7 +114,7 @@ int mt76_assign_vif_chanctx(struct ieee80211_hw *hw,
 	bool mlink_alloc = false;
 	int ret = 0;
 
-	if (dev->scan.vif == vif && dev->scan.phy == phy)
+	if (dev->scan.vif == vif && mt76_phy_scanning(phy))
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
@@ -161,7 +161,7 @@ void mt76_unassign_vif_chanctx(struct ieee80211_hw *hw,
 	struct mt76_phy *phy = ctx->phy;
 	struct mt76_dev *dev = phy->dev;
 
-	if (dev->scan.vif == vif && dev->scan.phy == phy)
+	if (dev->scan.vif == vif && mt76_phy_scanning(phy))
 		mt76_abort_scan(dev);
 
 	mutex_lock(&dev->mutex);
@@ -209,7 +209,7 @@ int mt76_switch_vif_chanctx(struct ieee80211_hw *hw,
 			continue;
 
 		if (phy->chanctx != new_ctx) {
-			if (dev->scan.phy == phy)
+			if (mt76_phy_scanning(phy))
 				mt76_abort_scan(dev);
 
 			cancel_delayed_work_sync(&phy->mac_work);
@@ -381,7 +381,7 @@ int mt76_remain_on_channel(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
 	mutex_lock(&dev->mutex);
 
-	if (phy->roc_vif || dev->scan.phy == phy ||
+	if (phy->roc_vif || mt76_phy_scanning(phy) ||
 	    test_bit(MT76_MCU_RESET, &dev->phy.state) ||
 	    test_bit(MT76_RESTART, &dev->phy.state)) {
 		ret = -EBUSY;
