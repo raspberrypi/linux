@@ -39,8 +39,7 @@ static void mt76_scan_complete(struct mt76_dev *dev, bool abort)
 	}
 	mt76_put_vif_phy_link(phy, dev->scan.vif, dev->scan.mlink);
 	memset(&dev->scan, 0, sizeof(dev->scan));
-	if (!test_bit(MT76_MCU_RESET, &dev->phy.state))
-		ieee80211_scan_completed(phy->hw, &info);
+	ieee80211_scan_completed(phy->hw, &info);
 }
 
 void mt76_abort_scan(struct mt76_dev *dev)

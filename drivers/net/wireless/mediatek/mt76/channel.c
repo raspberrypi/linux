@@ -336,7 +336,7 @@ void mt76_roc_complete(struct mt76_phy *phy)
 	mt76_put_vif_phy_link(phy, phy->roc_vif, phy->roc_link);
 	phy->roc_vif = NULL;
 	phy->roc_link = NULL;
-	if (!test_bit(MT76_MCU_RESET, &dev->phy.state))
+	if (!test_bit(MT76_RESTART, &dev->phy.state))
 		ieee80211_remain_on_channel_expired(phy->hw);
 }
 
