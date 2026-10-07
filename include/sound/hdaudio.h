@@ -97,6 +97,7 @@ struct hdac_device {
 	bool caps_overwriting:1; /* caps overwrite being in process */
 	bool cache_coef:1;	/* cache COEF read/write too */
 	unsigned int registered:1; /* codec was registered */
+	bool unsol_disabled;	/* unsol events blocked; protected by bus->reg_lock */
 };
 
 /* device/driver type used for matching */
@@ -123,6 +124,7 @@ int snd_hdac_device_init(struct hdac_device *dev, struct hdac_bus *bus,
 			 const char *name, unsigned int addr);
 void snd_hdac_device_exit(struct hdac_device *dev);
 int snd_hdac_device_register(struct hdac_device *codec);
+void snd_hdac_device_disable_unsol(struct hdac_device *codec);
 void snd_hdac_device_unregister(struct hdac_device *codec);
 int snd_hdac_device_set_chip_name(struct hdac_device *codec, const char *name);
 int snd_hdac_codec_modalias(const struct hdac_device *hdac, char *buf, size_t size);

@@ -180,7 +180,7 @@ static void snd_hdac_bus_process_unsol_events(struct work_struct *work)
 		if (!(caddr & (1 << 4))) /* no unsolicited event? */
 			continue;
 		codec = bus->caddr_tbl[caddr & 0x0f];
-		if (!codec || !codec->registered)
+		if (!codec || !codec->registered || codec->unsol_disabled)
 			continue;
 		spin_unlock_irq(&bus->reg_lock);
 		drv = drv_to_hdac_driver(codec->dev.driver);
@@ -190,6 +190,25 @@ static void snd_hdac_bus_process_unsol_events(struct work_struct *work)
 	}
 	spin_unlock_irq(&bus->reg_lock);
 }
+
+/**
+ * snd_hdac_device_disable_unsol - block and flush unsol events for the codec
+ * @codec: the HDA core device
+ *
+ * Stop dispatching the unsolicited events to the given codec, and wait for
+ * the pending unsol event handler to finish.  Called at unbinding the codec
+ * driver before releasing the driver resources.
+ */
+void snd_hdac_device_disable_unsol(struct hdac_device *codec)
+{
+	struct hdac_bus *bus = codec->bus;
+
+	spin_lock_irq(&bus->reg_lock);
+	codec->unsol_disabled = true;
+	spin_unlock_irq(&bus->reg_lock);
+	flush_work(&bus->unsol_work);
+}
+EXPORT_SYMBOL_GPL(snd_hdac_device_disable_unsol);
 
 /**
  * snd_hdac_bus_add_device - Add a codec to bus
