@@ -76,14 +76,17 @@ void mt76_abort_scan(struct mt76_dev *dev)
 		phy->scan.beacon_wait = false;
 		spin_unlock_bh(&dev->scan_lock);
 
-		cancel_delayed_work_sync(&phy->scan_work);
+		disable_delayed_work_sync(&phy->scan_work);
 	}
 
 	mutex_lock(&dev->mutex);
 	for (i = 0; i < ARRAY_SIZE(dev->phys); i++) {
 		phy = dev->phys[i];
-		if (phy)
-			mt76_scan_phy_complete(phy, true);
+		if (!phy)
+			continue;
+
+		mt76_scan_phy_complete(phy, true);
+		enable_delayed_work(&phy->scan_work);
 	}
 	mutex_unlock(&dev->mutex);
 }
