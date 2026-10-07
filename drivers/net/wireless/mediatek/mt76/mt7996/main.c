@@ -59,6 +59,8 @@ static int mt7996_start(struct ieee80211_hw *hw)
 
 	flush_work(&dev->init_work);
 
+	clear_bit(MT76_RESTART, &dev->mphy.state);
+
 	mutex_lock(&dev->mt76.mutex);
 	ret = mt7996_mcu_set_hdr_trans(dev, true);
 	if (!ret && !is_mt7996(&dev->mt76)) {

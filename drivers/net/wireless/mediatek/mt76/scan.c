@@ -216,7 +216,8 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	mutex_lock(&dev->mutex);
 
 	if (dev->scan.req || phy->roc_vif ||
-	    test_bit(MT76_MCU_RESET, &dev->phy.state)) {
+	    test_bit(MT76_MCU_RESET, &dev->phy.state) ||
+	    test_bit(MT76_RESTART, &dev->phy.state)) {
 		ret = -EBUSY;
 		goto out;
 	}
