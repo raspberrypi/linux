@@ -92,7 +92,7 @@ static int ublk_fault_inject_queue_io(struct ublk_thread *t,
 	 * reads it only when the SQE is submitted.
 	 */
 	ublk_io_alloc_sqes(t, &sqe, 1);
-	io_uring_prep_timeout(sqe, &opts->delay, 1, 0);
+	io_uring_prep_timeout(sqe, &opts->delay, 0, 0);
 	sqe->user_data = build_user_data(tag, ublksrv_get_op(iod), 0, q->q_id, 1);
 
 	ublk_queued_tgt_io(t, q, tag, 1);
