@@ -1180,27 +1180,43 @@ void scx_process_sync_ecaps(struct rq *rq, struct task_struct *prev)
 		lost_all |= lost;
 
 		/*
-		 * Tell the sched its effective caps on this cid changed. The
-		 * invocation is equivalent to the dispatch path and may drop
-		 * and re-acquire the rq lock temporarily while the rest of
-		 * @batch is held privately, see scx_discard_ecaps_to_sync().
-		 * The dispatch kfuncs resolve their context on the executing
-		 * cpu, which under core scheduling can differ from @rq's cpu,
-		 * so the context is set up there. The rq recorded in it keeps
-		 * the dispatches targeting @rq.
+		 * Tell the sched and its parent that the sched's effective caps
+		 * on this cid changed. The invocations are equivalent to the
+		 * dispatch path and may drop and re-acquire the rq lock
+		 * temporarily while the rest of @batch is held privately, see
+		 * scx_discard_ecaps_to_sync(). The dispatch kfuncs resolve
+		 * their context on the executing cpu, which under core
+		 * scheduling can differ from @rq's cpu, so the context is set
+		 * up there. The rq recorded in it keeps the dispatches
+		 * targeting @rq.
+		 *
+		 * Bypass propagates down the hierarchy, so a sched that isn't
+		 * bypassing has no bypassing parent. The child's bypass state
+		 * gates both deliveries. Both report the same before value, so
+		 * one reported_ecaps covers them.
 		 */
-		if (ecaps != pcpu->reported_ecaps &&
-		    SCX_HAS_OP(pcpu->sch, sub_ecaps_updated) &&
-		    !scx_bypassing(pcpu->sch, cpu)) {
-			struct scx_dsp_ctx *dspc = &this_cpu_ptr(pcpu->sch->pcpu)->dsp_ctx;
+		if (ecaps != pcpu->reported_ecaps && !scx_bypassing(pcpu->sch, cpu)) {
+			struct scx_sched *parent = scx_parent(pcpu->sch);
+			struct scx_dsp_ctx *dspc;
 
-			dspc->rq = rq;
 			/* stash @prev so nested dispatches can access it */
 			rq->scx.sub_dispatch_prev = prev;
-			SCX_CALL_OP(pcpu->sch, sub_ecaps_updated, rq, scx_cpu_arg(cpu),
-				    pcpu->reported_ecaps, ecaps);
+			if (SCX_HAS_OP(pcpu->sch, sub_ecaps_updated)) {
+				dspc = &this_cpu_ptr(pcpu->sch->pcpu)->dsp_ctx;
+				dspc->rq = rq;
+				SCX_CALL_OP(pcpu->sch, sub_ecaps_updated, rq,
+					    scx_cpu_arg(cpu), pcpu->reported_ecaps, ecaps);
+				scx_flush_dispatch_buf(pcpu->sch, rq);
+			}
+			if (SCX_HAS_OP(parent, sub_child_ecaps_updated)) {
+				dspc = &this_cpu_ptr(parent->pcpu)->dsp_ctx;
+				dspc->rq = rq;
+				SCX_CALL_OP(parent, sub_child_ecaps_updated, rq,
+					    pcpu->sch->ops.sub_cgroup_id, scx_cpu_arg(cpu),
+					    pcpu->reported_ecaps, ecaps);
+				scx_flush_dispatch_buf(parent, rq);
+			}
 			rq->scx.sub_dispatch_prev = NULL;
-			scx_flush_dispatch_buf(pcpu->sch, rq);
 			pcpu->reported_ecaps = ecaps;
 		}
 
@@ -1995,6 +2011,15 @@ void scx_sub_enable_workfn(struct kthread_work *work)
 	if (ret)
 		goto err_disable;
 
+	/*
+	 * Bypass before @sch is linked and grants can reach it. The parent's
+	 * delivery advances reported_ecaps, so a sync consumed before @sch's
+	 * ops are registered would reach the parent and never be replayed to
+	 * @sch. While bypassed, the syncs are consumed without a delivery and
+	 * replayed to both at unbypass.
+	 */
+	scx_bypass(sch, true);
+
 	ret = scx_link_sched(sch);
 	if (ret)
 		goto err_disable;
@@ -2039,8 +2064,6 @@ void scx_sub_enable_workfn(struct kthread_work *work)
 		goto err_disable;
 	}
 	sch->sub_attached = true;
-
-	scx_bypass(sch, true);
 
 	for (i = SCX_OPI_BEGIN; i < SCX_OPI_END; i++)
 		if (((void (**)(void))ops)[i])

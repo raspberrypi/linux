@@ -8631,6 +8631,7 @@ static void sched_ext_ops_cid__enable(struct task_struct *p, struct scx_enable_a
 static void sched_ext_ops__sub_caps_updated(const struct scx_cmask *cmask__arena, u64 caps) {}
 static void sched_ext_ops__sub_ecaps_updated(s32 cid, u64 before, u64 after) {}
 static void sched_ext_ops__sub_cid_sched_updated(s32 cid, u64 sched) {}
+static void sched_ext_ops__sub_child_ecaps_updated(u64 cgroup_id, s32 cid, u64 before, u64 after) {}
 
 static struct sched_ext_ops_cid __bpf_ops_sched_ext_ops_cid = {
 	.select_cid		= sched_ext_ops__select_cpu,
@@ -8666,6 +8667,7 @@ static struct sched_ext_ops_cid __bpf_ops_sched_ext_ops_cid = {
 	.sub_caps_updated	= sched_ext_ops__sub_caps_updated,
 	.sub_ecaps_updated	= sched_ext_ops__sub_ecaps_updated,
 	.sub_cid_sched_updated	= sched_ext_ops__sub_cid_sched_updated,
+	.sub_child_ecaps_updated = sched_ext_ops__sub_child_ecaps_updated,
 	.cid_online		= sched_ext_ops__cpu_online,
 	.cid_offline		= sched_ext_ops__cpu_offline,
 	.init_cids		= sched_ext_ops__init_cids,
@@ -11165,6 +11167,7 @@ static const u32 scx_kf_allow_flags[] = {
 	[SCX_OP_IDX(sub_attach)]	= SCX_KF_ALLOW_UNLOCKED,
 	[SCX_OP_IDX(sub_detach)]	= SCX_KF_ALLOW_UNLOCKED,
 	[SCX_OP_IDX(sub_ecaps_updated)]	= SCX_KF_ALLOW_ENQUEUE | SCX_KF_ALLOW_DISPATCH,
+	[SCX_OP_IDX(sub_child_ecaps_updated)] = SCX_KF_ALLOW_ENQUEUE | SCX_KF_ALLOW_DISPATCH,
 	[SCX_OP_IDX(cpu_online)]	= SCX_KF_ALLOW_UNLOCKED,
 	[SCX_OP_IDX(cpu_offline)]	= SCX_KF_ALLOW_UNLOCKED,
 	[SCX_OP_IDX(init_cids)]		= SCX_KF_ALLOW_UNLOCKED | SCX_KF_ALLOW_INIT_CIDS,
@@ -11310,6 +11313,7 @@ static int __init scx_init(void)
 	CID_OFFSET_MATCH(sub_caps_updated, sub_caps_updated);
 	CID_OFFSET_MATCH(sub_ecaps_updated, sub_ecaps_updated);
 	CID_OFFSET_MATCH(sub_cid_sched_updated, sub_cid_sched_updated);
+	CID_OFFSET_MATCH(sub_child_ecaps_updated, sub_child_ecaps_updated);
 	CID_OFFSET_MATCH(init_cids, init_cids);
 	CID_OFFSET_MATCH(init, init);
 	CID_OFFSET_MATCH(exit, exit);
