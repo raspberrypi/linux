@@ -711,6 +711,7 @@ static void __ksmbd_close_fd(struct ksmbd_file_table *ft, struct ksmbd_file *fp)
 
 	if (ksmbd_stream_fd(fp))
 		kfree(fp->stream.name);
+	ksmbd_share_config_put(fp->share_conf);
 	kfree(fp->owner.name);
 
 	kmem_cache_free(filp_cache, fp);
@@ -1009,37 +1010,54 @@ bool ksmbd_has_other_active_fd(struct ksmbd_file *fp)
 	return ret;
 }
 
-struct ksmbd_file *ksmbd_lookup_fd_app_instance_id(char *app_instance_id)
+bool ksmbd_app_instance_id_matches(struct ksmbd_work *work,
+				   struct ksmbd_file *fp)
 {
-	struct ksmbd_file *fp = NULL;
-	unsigned int id;
+	bool matches;
+
+	/* Keep the current connection and share alive across the comparison. */
+	spin_lock(&fp->f_lock);
+	matches = READ_ONCE(fp->f_state) == FP_INITED &&
+		  fp->conn && fp->share_conf &&
+		  !strcmp(fp->share_conf->name, work->tcon->share_conf->name) &&
+		  memcmp(fp->conn->ClientGUID, work->conn->ClientGUID,
+			 SMB2_CLIENT_GUID_SIZE);
+	spin_unlock(&fp->f_lock);
+
+	return matches;
+}
+
+struct ksmbd_file *
+ksmbd_lookup_fd_app_instance_id_next(char *app_instance_id, int *cursor)
+{
+	struct ksmbd_file *fp, *found = NULL;
+	int id = *cursor;
 
 	read_lock(&global_ft.lock);
-	idr_for_each_entry(global_ft.idr, fp, id) {
-		if (!fp->has_app_instance_id)
-			continue;
-		if (!memcmp(fp->app_instance_id, app_instance_id,
+	while ((fp = idr_get_next(global_ft.idr, &id))) {
+		*cursor = id + 1;
+		if (fp->has_app_instance_id &&
+		    !memcmp(fp->app_instance_id, app_instance_id,
 			    SMB2_CREATE_GUID_SIZE)) {
-			fp = ksmbd_fp_get(fp);
-			break;
+			found = ksmbd_fp_get(fp);
+			if (found)
+				break;
 		}
+		id++;
 	}
 	read_unlock(&global_ft.lock);
 
-	return fp;
+	return found;
 }
 
-int ksmbd_close_fd_app_instance_id(char *app_instance_id)
+int ksmbd_close_fd_app_instance_id(struct ksmbd_work *work,
+				 struct ksmbd_file *fp, bool *closed)
 {
 	struct ksmbd_file_table *ft;
-	struct ksmbd_file *fp;
 	struct oplock_info *opinfo;
 	int n_to_drop = 0;
 
-	fp = ksmbd_lookup_fd_app_instance_id(app_instance_id);
-	if (!fp)
-		return 0;
-
+	*closed = false;
 	opinfo = opinfo_get(fp);
 	if (!opinfo)
 		goto out;
@@ -1052,7 +1070,8 @@ int ksmbd_close_fd_app_instance_id(char *app_instance_id)
 
 	ft = &opinfo->sess->file_table;
 	write_lock(&ft->lock);
-	if (fp->f_state == FP_INITED && has_file_id(fp->volatile_id)) {
+	if (fp->f_state == FP_INITED && has_file_id(fp->volatile_id) &&
+	    ksmbd_app_instance_id_matches(work, fp)) {
 		idr_remove(ft->idr, fp->volatile_id);
 		fp->volatile_id = KSMBD_NO_FID;
 		n_to_drop = ksmbd_mark_fp_closed(fp);
@@ -1069,6 +1088,7 @@ int ksmbd_close_fd_app_instance_id(char *app_instance_id)
 	list_del_init(&fp->node);
 	up_write(&fp->f_ci->m_lock);
 
+	*closed = true;
 	if (atomic_sub_and_test(n_to_drop, &fp->refcount)) {
 		if (fp->conn)
 			atomic_dec(&fp->conn->stats.open_files_count);
@@ -1281,6 +1301,8 @@ struct ksmbd_file *ksmbd_open_fd(struct ksmbd_work *work, struct file *filp)
 	 */
 	fp->conn		= ksmbd_conn_get(work->conn);
 	fp->tcon		= work->tcon;
+	fp->share_conf		= work->tcon->share_conf;
+	atomic_inc(&fp->share_conf->refcount);
 	fp->volatile_id		= KSMBD_NO_FID;
 	fp->persistent_id	= KSMBD_NO_FID;
 	fp->f_state		= FP_NEW;
@@ -1303,6 +1325,7 @@ struct ksmbd_file *ksmbd_open_fd(struct ksmbd_work *work, struct file *filp)
 err_out:
 	/* fp->conn was set and refcounted before every branch here. */
 	ksmbd_conn_put(fp->conn);
+	ksmbd_share_config_put(fp->share_conf);
 	kmem_cache_free(filp_cache, fp);
 	return ERR_PTR(ret);
 }
@@ -1807,9 +1830,11 @@ static bool session_fd_check(struct ksmbd_tree_connect *tcon,
 		ksmbd_conn_put(lock_conn);
 	}
 
+	spin_lock(&fp->f_lock);
 	fp->conn = NULL;
 	fp->tcon = NULL;
 	fp->volatile_id = KSMBD_NO_FID;
+	spin_unlock(&fp->f_lock);
 
 	if (fp->durable_timeout)
 		fp->durable_scavenger_timeout =
@@ -1904,6 +1929,7 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 	struct ksmbd_inode *ci;
 	struct oplock_info *op;
 	struct ksmbd_conn *conn = work->conn;
+	struct ksmbd_share_config *old_share;
 	struct ksmbd_lock *smb_lock;
 	unsigned int old_f_state;
 
@@ -1928,21 +1954,29 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 	 * partially-initialized fp.  fp owns a strong reference on the new
 	 * conn (see ksmbd_open_fd()); undo it on __open_id() failure.
 	 */
-	fp->conn = ksmbd_conn_get(conn);
-	fp->tcon = work->tcon;
-	write_unlock(&global_ft.lock);
-
+	spin_lock(&fp->f_lock);
 	old_f_state = fp->f_state;
 	fp->f_state = FP_NEW;
+	old_share = fp->share_conf;
+	fp->share_conf = work->tcon->share_conf;
+	atomic_inc(&fp->share_conf->refcount);
+	fp->conn = ksmbd_conn_get(conn);
+	fp->tcon = work->tcon;
+	spin_unlock(&fp->f_lock);
+	write_unlock(&global_ft.lock);
 
 	__open_id(&work->sess->file_table, fp, OPEN_ID_TYPE_VOLATILE_ID);
 	if (!has_file_id(fp->volatile_id)) {
 		write_lock(&global_ft.lock);
+		spin_lock(&fp->f_lock);
 		fp->conn = NULL;
 		fp->tcon = NULL;
+		fp->share_conf = old_share;
+		fp->f_state = old_f_state;
+		spin_unlock(&fp->f_lock);
 		write_unlock(&global_ft.lock);
 		ksmbd_conn_put(conn);
-		fp->f_state = old_f_state;
+		ksmbd_share_config_put(work->tcon->share_conf);
 		return -EBADF;
 	}
 
@@ -1969,6 +2003,7 @@ int ksmbd_reopen_durable_fd(struct ksmbd_work *work, struct ksmbd_file *fp)
 	kfree(fp->owner.name);
 	fp->owner.name = NULL;
 	spin_unlock(&fp->f_lock);
+	ksmbd_share_config_put(old_share);
 
 	return 0;
 }
