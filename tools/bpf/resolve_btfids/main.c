@@ -1842,8 +1842,7 @@ dump_btf:
 			goto out;
 	}
 
-	if (!(fatal_warnings && warnings))
-		err = 0;
+	err = fatal_warnings && warnings ? -1 : 0;
 out:
 	btf__free(obj.base_btf);
 	btf__free(obj.btf);
