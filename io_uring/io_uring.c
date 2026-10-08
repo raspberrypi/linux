@@ -2967,7 +2967,8 @@ static void io_ctx_restriction_clone(struct io_ring_ctx *ctx,
 	if (dst->op_registered)
 		ctx->int_flags |= IO_RING_F_OP_RESTRICTED;
 	if (dst->reg_registered)
-		ctx->int_flags |= IO_RING_F_REG_RESTRICTED;
+		ctx->int_flags |= IO_RING_F_REG_RESTRICTED |
+				  IO_RING_F_RESTRICT_INHERITED;
 }
 
 static __cold int io_uring_create(struct io_ctx_config *config)
