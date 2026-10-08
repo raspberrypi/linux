@@ -1435,6 +1435,70 @@ static int rp1_pio_sm_rx_submit(struct rp1_pio_device *pio, struct dma_info *dma
 	return 0;
 }
 
+static int rp1_pio_sm_rx_user_cyclic(struct rp1_pio_device *pio,
+				     struct dma_info *dma,
+				     struct rp1_pio_sm_xfer_data32_args *args)
+{
+	size_t period = dma->buf_size / dma->buf_count;
+	struct dma_buf_info *dbi = &dma->bufs[0];
+	void __user *userbuf = args->data;
+	size_t bytes = args->data_bytes;
+	unsigned int tail_slot;
+	int ret;
+
+	if (!bytes)
+		return -EINVAL;
+
+	if (bytes > period)
+		return -EINVAL;
+
+retry:
+	/*
+	 * Wait until there is new data, or the dma is no longer in
+	 * progress, or there is an overflow.
+	 */
+	ret = wait_event_interruptible(dma->cyclic_wait,
+				       dma->dma_not_running ||
+				       dma->cyclic_overflow ||
+				       dma->head_idx > dma->tail_idx);
+	if (ret)
+		return ret;
+
+	scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+		if (dma->dma_not_running)
+			return -EIO;
+		if (dma->cyclic_overflow) {
+			dma->cyclic_overflow = false;
+			return -EOVERFLOW;
+		}
+		/* Check that this condition still holds */
+		if (dma->head_idx > dma->tail_idx)
+			tail_slot = dma->tail_idx % dma->buf_count;
+		else
+			goto retry;
+	}
+
+	/* Pair with the DMAC's writes into the period we are about to copy. */
+	dma_rmb();
+
+	if (copy_to_user(userbuf, dbi->buf + tail_slot * period, bytes))
+		return -EFAULT;
+
+	scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
+		if (dma->cyclic_overflow) {
+			/*
+			 * copy_to_user can take so much time that
+			 * the buffer is overwritten, so exit with
+			 * -EOVERFLOW in that case.
+			 */
+			dma->cyclic_overflow = false;
+			return -EOVERFLOW;
+		}
+		dma->tail_idx++;
+	}
+	return 0;
+}
+
 /*
  * A NULL userbuf queues a receive of exactly "bytes" and returns without
  * waiting: it puts the app in control of its own read-ahead depth and
@@ -1450,60 +1514,6 @@ static int rp1_pio_sm_rx_user(struct rp1_pio_device *pio, struct dma_info *dma,
 
 	if (!bytes)
 		return -EINVAL;
-
-	if (dma->cyclic) {
-		size_t period = dma->buf_size / dma->buf_count;
-		struct dma_buf_info *dbi = &dma->bufs[0];
-		unsigned int tail_slot;
-
-		if (bytes > period)
-			return -EINVAL;
-
-retry:
-		/*
-		 * Wait until there is new data, or the dma is no longer in
-		 * progress, or there is an overflow.
-		 */
-		ret = wait_event_interruptible(dma->cyclic_wait,
-					       dma->dma_not_running ||
-					       dma->cyclic_overflow ||
-					       dma->head_idx > dma->tail_idx);
-		if (ret)
-			return ret;
-
-		scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
-			if (dma->dma_not_running)
-				return -EIO;
-			if (dma->cyclic_overflow) {
-				dma->cyclic_overflow = false;
-				return -EOVERFLOW;
-			}
-			/* Check that this condition still holds */
-			if (dma->head_idx > dma->tail_idx)
-				tail_slot = dma->tail_idx % dma->buf_count;
-			else
-				goto retry;
-		}
-
-		/* Pair with the DMAC's writes into the period we are about to copy. */
-		dma_rmb();
-
-		if (copy_to_user(userbuf, dbi->buf + tail_slot * period, bytes))
-			return -EFAULT;
-		scoped_guard(spinlock_irqsave, &dma->cyclic_lock) {
-			if (dma->cyclic_overflow) {
-				/*
-				 * copy_to_user can take so much time that
-				 * the buffer is overwritten, so exit with
-				 * -EOVERFLOW in that case.
-				 */
-				dma->cyclic_overflow = false;
-				return -EOVERFLOW;
-			}
-			dma->tail_idx++;
-		}
-		return 0;
-	}
 
 	if (!userbuf) {
 		if (dma->head_idx - dma->tail_idx == dma->buf_count)
@@ -1567,7 +1577,8 @@ static int rp1_pio_sm_xfer_data32_user(struct rp1_pio_client *client, void *para
 	if (args->dir == RP1_PIO_DIR_TO_SM)
 		return rp1_pio_sm_tx_user(pio, dma, args);
 	else
-		return rp1_pio_sm_rx_user(pio, dma, args);
+		return dma->cyclic ? rp1_pio_sm_rx_user_cyclic(pio, dma, args) :
+				     rp1_pio_sm_rx_user(pio, dma, args);
 }
 
 static int rp1_pio_sm_xfer_data_user(struct rp1_pio_client *client, void *param)
