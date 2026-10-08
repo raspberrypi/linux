@@ -8,10 +8,13 @@
 
 #include <uapi/linux/mdio.h>
 #include <linux/bitfield.h>
+#include <linux/math64.h>
 #include <linux/mod_devicetable.h>
+#include <linux/time64.h>
 
 struct gpio_desc;
 struct mii_bus;
+struct ptp_system_timestamp;
 struct reset_control;
 
 /* Multiple levels of nesting are possible. However typically this is
@@ -569,8 +572,21 @@ static inline void mii_c73_mod_linkmode(unsigned long *adv, u16 *lpa)
 	/* 5GBASE_KR not implemented */
 }
 
+/* Round the lower bound down and the upper bound up. rate must be nonzero. */
+static inline void mdiobus_sts_bounds(unsigned long rate, u32 divisor,
+				      u32 min_cycles, u32 max_cycles,
+				      u64 *pre_ns, u64 *post_ns)
+{
+	u64 numerator = (u64)divisor * NSEC_PER_SEC;
+
+	*pre_ns = div64_u64(min_cycles * numerator, rate);
+	*post_ns = div64_u64(max_cycles * numerator + rate - 1, rate);
+}
+
 int __mdiobus_read(struct mii_bus *bus, int addr, u32 regnum);
 int __mdiobus_write(struct mii_bus *bus, int addr, u32 regnum, u16 val);
+int __mdiobus_write_sts(struct mii_bus *bus, int addr, u32 regnum, u16 val,
+			struct ptp_system_timestamp *sts);
 int __mdiobus_modify(struct mii_bus *bus, int addr, u32 regnum, u16 mask,
 		     u16 set);
 int __mdiobus_modify_changed(struct mii_bus *bus, int addr, u32 regnum,
