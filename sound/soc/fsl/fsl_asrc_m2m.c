@@ -469,6 +469,7 @@ static int fsl_asrc_m2m_comp_task_create(struct snd_compr_stream *stream,
 	task->input = dma_buf_export(&exp_info_in);
 	if (IS_ERR(task->input)) {
 		ret = PTR_ERR(task->input);
+		task->input = NULL;
 		return ret;
 	}
 
@@ -479,6 +480,7 @@ static int fsl_asrc_m2m_comp_task_create(struct snd_compr_stream *stream,
 	task->output = dma_buf_export(&exp_info_out);
 	if (IS_ERR(task->output)) {
 		ret = PTR_ERR(task->output);
+		task->output = NULL;
 		return ret;
 	}
 
