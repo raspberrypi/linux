@@ -934,6 +934,7 @@ int amdxdna_drm_sync_bo_ioctl(struct drm_device *dev,
 	struct amdxdna_drm_sync_bo *args = data;
 	struct amdxdna_gem_obj *abo;
 	struct drm_gem_object *gobj;
+	u64 end, size;
 	int ret;
 
 	gobj = drm_gem_object_lookup(filp, args->handle);
@@ -942,6 +943,13 @@ int amdxdna_drm_sync_bo_ioctl(struct drm_device *dev,
 		return -ENOENT;
 	}
 	abo = to_xdna_obj(gobj);
+
+	if (args->offset >= abo->mem.size ||
+	    check_add_overflow(args->offset, args->size, &end)) {
+		ret = -EINVAL;
+		goto put_obj;
+	}
+	size = min(abo->mem.size, end) - args->offset;
 
 	ret = amdxdna_gem_pin(abo);
 	if (ret) {
@@ -955,7 +963,7 @@ int amdxdna_drm_sync_bo_ioctl(struct drm_device *dev,
 	if (is_import_bo(abo))
 		drm_clflush_sg(abo->base.sgt);
 	else if (abo->mem.kva)
-		drm_clflush_virt_range(abo->mem.kva + args->offset, args->size);
+		drm_clflush_virt_range(abo->mem.kva + args->offset, size);
 	else if (abo->base.pages)
 		drm_clflush_pages(abo->base.pages, gobj->size >> PAGE_SHIFT);
 	else
