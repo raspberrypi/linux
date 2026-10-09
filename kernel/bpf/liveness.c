@@ -1240,6 +1240,29 @@ static bool can_be_local_fp(int depth, int regno, struct arg_track *at)
 }
 
 /*
+ * Model 8-byte reads through @reg, including load-acquire
+ * and the old value fetched by atomic operations.
+ */
+static struct arg_track arg_track_deref(struct bpf_verifier_env *env, struct bpf_insn *insn,
+					struct arg_track *at_out, int reg,
+					struct arg_track *at_stack_out, u32 nslots,
+					int depth, u32 *callsites)
+{
+	struct arg_track *ptr = &at_out[reg];
+
+	if (can_be_local_fp(depth, reg, ptr))
+		return fill_from_stack(insn, at_out, reg, at_stack_out, nslots, depth);
+	if (ptr->frame >= 0 && ptr->frame < depth) {
+		struct spill_snapshot *parent = env->callsite_at_stack[callsites[ptr->frame]];
+
+		return fill_from_stack(insn, at_out, reg, parent->at, parent->slots, ptr->frame);
+	}
+	if (ptr->frame == ARG_IMPRECISE && !(ptr->mask & BIT(depth)) && ptr->mask)
+		return *ptr;
+	return (struct arg_track){ .frame = ARG_NONE };
+}
+
+/*
  * Pure dataflow transfer function for arg_track state.
  * Updates at_out[] based on how the instruction modifies registers.
  * Tracks spill/fill, but not other memory accesses.
@@ -1320,56 +1343,42 @@ static void arg_track_xfer(struct bpf_verifier_env *env, struct bpf_insn *insn,
 		for (r = BPF_REG_0; r <= BPF_REG_5; r++)
 			at_out[r] = none;
 	} else if (class == BPF_LDX) {
-		u32 sz = bpf_size_to_bytes(BPF_SIZE(insn->code));
-		bool src_is_local_fp = can_be_local_fp(depth, insn->src_reg, src);
-
-		/*
-		 * Reload from callee stack: if src is current-frame FP-derived
-		 * and the load is an 8-byte BPF_MEM, try to restore the spill
-		 * identity.  For imprecise sources fill_from_stack() returns
-		 * ARG_IMPRECISE (off_cnt == 0).
-		 */
-		if (src_is_local_fp && BPF_MODE(insn->code) == BPF_MEM && sz == 8) {
-			*dst = fill_from_stack(insn, at_out, insn->src_reg, at_stack_out, nslots,
-					       depth);
-		} else if (src->frame >= 0 && src->frame < depth &&
-			   BPF_MODE(insn->code) == BPF_MEM && sz == 8) {
-			struct spill_snapshot *parent =
-				env->callsite_at_stack[callsites[src->frame]];
-
-			*dst = fill_from_stack(insn, at_out, insn->src_reg,
-					       parent->at, parent->slots, src->frame);
-		} else if (src->frame == ARG_IMPRECISE &&
-			   !(src->mask & BIT(depth)) && src->mask &&
-			   BPF_MODE(insn->code) == BPF_MEM && sz == 8) {
-			/*
-			 * Imprecise src with only parent-frame bits:
-			 * conservative fallback.
-			 */
-			*dst = *src;
-		} else {
+		/* Only an 8-byte BPF_MEM load can be a fill, see arg_track_deref(). */
+		if (BPF_MODE(insn->code) == BPF_MEM && BPF_SIZE(insn->code) == BPF_DW)
+			*dst = arg_track_deref(env, insn, at_out, insn->src_reg,
+					       at_stack_out, nslots, depth, callsites);
+		else
 			*dst = none;
-		}
 	} else if (class == BPF_LD && BPF_MODE(insn->code) == BPF_IMM) {
 		*dst = none;
 	} else if (class == BPF_STX) {
 		u32 sz = bpf_size_to_bytes(BPF_SIZE(insn->code));
-		bool dst_is_local_fp;
+		bool dst_is_local_fp = can_be_local_fp(depth, insn->dst_reg, dst);
+		u8 mode = BPF_MODE(insn->code);
 
-		/* Track spills to current-frame FP-derived callee stack */
-		dst_is_local_fp = can_be_local_fp(depth, insn->dst_reg, dst);
-		if (dst_is_local_fp && BPF_MODE(insn->code) == BPF_MEM)
-			spill_to_stack(insn, at_out, insn->dst_reg,
-				       at_stack_out, nslots, src, sz);
-
-		if (BPF_MODE(insn->code) == BPF_ATOMIC) {
-			if (dst_is_local_fp && insn->imm != BPF_LOAD_ACQ)
-				clear_stack_for_all_offs(insn, at_out, insn->dst_reg,
-							 at_stack_out, nslots, sz);
+		if (mode == BPF_MEM || (mode == BPF_ATOMIC && insn->imm == BPF_STORE_REL)) {
+			if (dst_is_local_fp)
+				spill_to_stack(insn, at_out, insn->dst_reg,
+					       at_stack_out, nslots, src, sz);
+		} else if (mode == BPF_ATOMIC && insn->imm == BPF_LOAD_ACQ) {
+			if (sz == 8)
+				*dst = arg_track_deref(env, insn, at_out, insn->src_reg,
+						       at_stack_out, nslots, depth, callsites);
+			else
+				*dst = none;
+		} else if (mode == BPF_ATOMIC) {
+			/* BPF_XCHG, BPF_CMPXCHG or BPF_{ADD,AND,OR,XOR} | [BPF_FETCH] */
+			struct arg_track old = none;
 
 			r = bpf_atomic_load_reg(insn);
+			if (r >= 0 && sz == 8)
+				old = arg_track_deref(env, insn, at_out, insn->dst_reg,
+						      at_stack_out, nslots, depth, callsites);
+			if (dst_is_local_fp)
+				clear_stack_for_all_offs(insn, at_out, insn->dst_reg,
+							 at_stack_out, nslots, sz);
 			if (r >= 0)
-				at_out[r] = none;
+				at_out[r] = old;
 		}
 	} else if (class == BPF_ST && BPF_MODE(insn->code) == BPF_MEM) {
 		u32 sz = bpf_size_to_bytes(BPF_SIZE(insn->code));
