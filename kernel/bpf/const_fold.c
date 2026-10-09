@@ -394,5 +394,7 @@ int bpf_prune_dead_branches(struct bpf_verifier_env *env)
 	/* recompute postorder, since CFG has changed */
 	kvfree(env->cfg.insn_postorder);
 	env->cfg.insn_postorder = NULL;
+	kvfree(env->cfg.postorder_nums);
+	env->cfg.postorder_nums = NULL;
 	return bpf_compute_postorder(env);
 }

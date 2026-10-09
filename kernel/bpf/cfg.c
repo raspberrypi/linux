@@ -703,6 +703,11 @@ err_free:
 	return ret;
 }
 
+struct dfs_state {
+	u32 traversed:1;
+	u32 next_succ:31;
+};
+
 /*
  * For each subprogram 'i' fill array env->cfg.insn_subprogram sub-range
  * [env->subprog_info[i].postorder_start, env->subprog_info[i+1].postorder_start)
@@ -710,43 +715,52 @@ err_free:
  */
 int bpf_compute_postorder(struct bpf_verifier_env *env)
 {
-	u32 cur_postorder, i, top, stack_sz, s;
-	int *stack = NULL, *postorder = NULL, *state = NULL;
-	struct bpf_iarray *succ;
+	int *stack = NULL, *postorder = NULL, *postorder_nums = NULL;
+	int subprog_idx, stack_sz, cur, s, cur_postorder, start;
+	struct dfs_state *state = NULL;
+	struct bpf_iarray *succ = NULL;
 
+	postorder_nums = kvzalloc_objs(int, env->prog->len, GFP_KERNEL_ACCOUNT);
 	postorder = kvzalloc_objs(int, env->prog->len, GFP_KERNEL_ACCOUNT);
-	state = kvzalloc_objs(int, env->prog->len, GFP_KERNEL_ACCOUNT);
 	stack = kvzalloc_objs(int, env->prog->len, GFP_KERNEL_ACCOUNT);
-	if (!postorder || !state || !stack) {
+	state = kvzalloc_objs(struct dfs_state, env->prog->len, GFP_KERNEL_ACCOUNT);
+	if (!postorder_nums || !postorder || !stack || !state) {
+		kvfree(postorder_nums);
 		kvfree(postorder);
-		kvfree(state);
 		kvfree(stack);
+		kvfree(state);
 		return -ENOMEM;
 	}
 	cur_postorder = 0;
-	for (i = 0; i < env->subprog_cnt; i++) {
-		env->subprog_info[i].postorder_start = cur_postorder;
-		stack[0] = env->subprog_info[i].start;
+	for (subprog_idx = 0; subprog_idx < env->subprog_cnt; subprog_idx++) {
+		start = env->subprog_info[subprog_idx].start;
+		env->subprog_info[subprog_idx].postorder_start = cur_postorder;
+		stack[0] = start;
 		stack_sz = 1;
+		state[start].traversed = true;
 		do {
-			top = stack[stack_sz - 1];
-			state[top] |= DISCOVERED;
-			if (state[top] & EXPLORED) {
-				postorder[cur_postorder++] = top;
+			cur = stack[stack_sz - 1];
+			succ = bpf_insn_successors(env, cur);
+			if (state[cur].next_succ == succ->cnt) {
+				postorder_nums[cur] = cur_postorder;
+				postorder[cur_postorder] = cur;
+				cur_postorder++;
 				stack_sz--;
 				continue;
 			}
-			succ = bpf_insn_successors(env, top);
-			for (s = 0; s < succ->cnt; ++s) {
-				if (!state[succ->items[s]]) {
-					stack[stack_sz++] = succ->items[s];
-					state[succ->items[s]] |= DISCOVERED;
-				}
+			s = succ->items[state[cur].next_succ];
+			if (!state[s].traversed) {
+				state[s].traversed = true;
+				state[s].next_succ = 0;
+				stack[stack_sz] = s;
+				stack_sz++;
+				continue;
 			}
-			state[top] |= EXPLORED;
+			state[cur].next_succ++;
 		} while (stack_sz);
 	}
-	env->subprog_info[i].postorder_start = cur_postorder;
+	env->subprog_info[subprog_idx].postorder_start = cur_postorder;
+	env->cfg.postorder_nums = postorder_nums;
 	env->cfg.insn_postorder = postorder;
 	env->cfg.cur_postorder = cur_postorder;
 	kvfree(stack);
