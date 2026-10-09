@@ -19,49 +19,28 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 
-#define IMX355_REG_MODE_SELECT		CCI_REG8(0x0100)
-#define IMX355_MODE_STANDBY		0x00
-#define IMX355_MODE_STREAMING		0x01
+#include "ccs/ccs-regs.h"
+#include "ccs-pll.h"
 
-/* Chip ID */
-#define IMX355_REG_CHIP_ID		CCI_REG16(0x0016)
 #define IMX355_CHIP_ID			0x0355
 
-#define IMX355_REG_LANE_SEL		CCI_REG8(0x0114)
-
 /* PLL registers that depend on the external clock frequency */
-#define IMX355_REG_EXTCLK_FREQ		CCI_REG16(0x0136)
-#define IMX355_REG_PLL_OP_PREDIV	CCI_REG8(0x030d)
-#define IMX355_REG_PLL_OP_MUL		CCI_REG16(0x030e)
-#define IMX355_REG_PLL_IVT_PCK_DIV	CCI_REG8(0x0301)
-#define IMX355_REG_PLL_IVT_SYSCK_DIV	CCI_REG8(0x0303)
 #define IMX355_PLL_OP_PREDIV		2
 #define IMX355_PLL_IVT_PCK_DIV		5
 
 /* V_TIMING internal */
-#define IMX355_REG_FLL			CCI_REG16(0x0340)
 #define IMX355_FLL_MAX			0xffff
 #define IMX355_VBLANK_MIN		20
 
-#define IMX355_REG_LLP			CCI_REG16(0x0342)
 #define IMX355_LLP_MAX			0xffff
 
-#define IMX355_REG_X_ADD_START		CCI_REG16(0x0344)
-#define IMX355_REG_Y_ADD_START		CCI_REG16(0x0346)
-#define IMX355_REG_X_ADD_END		CCI_REG16(0x0348)
-#define IMX355_REG_Y_ADD_END		CCI_REG16(0x034a)
-#define IMX355_REG_X_OUT_SIZE		CCI_REG16(0x034c)
-#define IMX355_REG_Y_OUT_SIZE		CCI_REG16(0x034e)
-
 /* Exposure control */
-#define IMX355_REG_EXPOSURE		CCI_REG16(0x0202)
 #define IMX355_EXPOSURE_MIN		1
 #define IMX355_EXPOSURE_STEP		1
 #define IMX355_EXPOSURE_DEFAULT		0x0282
 #define IMX355_EXPOSURE_OFFSET		10
 
 /* Analog gain control */
-#define IMX355_REG_ANALOG_GAIN		CCI_REG16(0x0204)
 #define IMX355_ANA_GAIN_MIN		0
 #define IMX355_ANA_GAIN_MAX		960
 #define IMX355_ANA_GAIN_STEP		1
@@ -69,28 +48,13 @@
 
 /* Digital gain control */
 #define IMX355_REG_DPGA_USE_GLOBAL_GAIN	CCI_REG8(0x3070)
-#define IMX355_REG_DIG_GAIN_GLOBAL	CCI_REG16(0x020e)
 #define IMX355_DGTL_GAIN_MIN		256
 #define IMX355_DGTL_GAIN_MAX		4095
 #define IMX355_DGTL_GAIN_STEP		1
 #define IMX355_DGTL_GAIN_DEFAULT	256
 
-/* Test Pattern Control */
-#define IMX355_REG_TEST_PATTERN		CCI_REG8(0x0600)
-#define IMX355_TEST_PATTERN_DISABLED		0
-#define IMX355_TEST_PATTERN_SOLID_COLOR		1
-#define IMX355_TEST_PATTERN_COLOR_BARS		2
-#define IMX355_TEST_PATTERN_GRAY_COLOR_BARS	3
-#define IMX355_TEST_PATTERN_PN9			4
-
+/* Link rate register: 16-bit wide, unlike the CCS 32-bit one */
 #define IMX355_REG_REQ_LINK_BIT_RATE	CCI_REG16(0x0820)
-
-#define IMX355_REG_BINNING_MODE		CCI_REG8(0x0900)
-#define IMX355_REG_BINNING_TYPE		CCI_REG8(0x0901)
-#define IMX355_REG_BINNING_WEIGHTING	CCI_REG8(0x0902)
-
-/* Flip Control */
-#define IMX355_REG_ORIENTATION		CCI_REG8(0x0101)
 
 #define IMX355_PIXEL_ARRAY_TOP		0
 #define IMX355_PIXEL_ARRAY_LEFT		0
@@ -120,38 +84,67 @@ struct imx355_mode {
 	struct imx355_reg_list reg_list;
 };
 
-struct imx355_clk_params {
-	u32 ext_clk;
-	u16 extclk_freq;	/* External clock (MHz) in 8.8 fixed point) */
-	u16 pll_op_mpy[2];	/* OP system PLL multiplier */
-	u8 pll_op_prediv[2];	/* OP system pre PLL d */
-};
+#define IMX355_EXTCLK_FREQ_MHZ_REG(x)	DIV_ROUND_CLOSEST_ULL((x) * 256, \
+						       1000000U)
 
 /*
- * The clock tree is in single PLL mode, so PREDIV_VT and MPY_IVT do nothing.
- * In 4 lane mode the MIPI rate is 360Mhz (720Mbit/s) and pixel rate is
- * 288MPix/s.
- * In 2 lane mode the MIPI rate is 444MHz (888Mbit/s) and pixel rate
- * 177.6MPix/s with a 24MHz clock, and 441.6MHz (883.2Mbit/s) and 176.6MPix/s
- * with a 19.2MHz clock.
+ * The sensor does not implement the CCS capability and limit registers.
+ * The datasheet gives some limits on PLL configuration, so these have been
+ * translated into the CCS PLL helper equivalents.
+ *
+ * The main configurations used are:
+ * - 4 lanes, 19.2 MHz extclk: pre-div 2, multiplier 75 -> 720 MHz OP PLL
+ *   output clock (360 MHz link frequency),
+ * - 2 lanes, 24 MHz extclk: pre-div 2, multiplier 74 -> 888 MHz OP PLL
+ *   output clock (444 MHz link frequency).
+ *
+ * The supported PLL input clock range is 6-27 MHz.
  */
-static const struct imx355_clk_params imx355_clk_params[] = {
-	{
-		.ext_clk = 19200000,
-		.extclk_freq = 0x1333,
-		.pll_op_mpy = { 75, 92 },
-		.pll_op_prediv = { 2, 2 }
+static const struct ccs_pll_limits imx355_ccs_pll_limits = {
+	.min_ext_clk_freq_hz = 6000000,
+	.max_ext_clk_freq_hz = 27000000,
+
+	.vt_fr = {
+		.min_pre_pll_clk_div = 2,
+		.max_pre_pll_clk_div = 4,
+		.min_pll_ip_clk_freq_hz = 6000000,
+		.max_pll_ip_clk_freq_hz = 27000000,
+		.min_pll_multiplier = 16,
+		.max_pll_multiplier = 148,
+		.min_pll_op_clk_freq_hz = 360000000,
+		.max_pll_op_clk_freq_hz = 960000000,
 	},
-	{
-		.ext_clk = 24000000,
-		.extclk_freq = 0x1800,
-		.pll_op_mpy = { 60, 111 },
-		.pll_op_prediv = { 2, 3 }
+	.op_fr = {
+		/* Not required as dual PPL mode not supported */
 	},
+
+	.vt_bk = {
+		.min_sys_clk_div = 1,
+		.max_sys_clk_div = 2,
+		.min_sys_clk_freq_hz = 320000000,
+		.max_sys_clk_freq_hz = 1000000000,
+		.min_pix_clk_div = 4,
+		.max_pix_clk_div = 10,
+		.min_pix_clk_freq_hz = 80000000,
+		.max_pix_clk_freq_hz = 180000000,
+	},
+	.op_bk = {
+		.min_sys_clk_div = 1,
+		.max_sys_clk_div = 2,
+		.min_sys_clk_freq_hz = 360000000,
+		.max_sys_clk_freq_hz = 1000000000,
+		.min_pix_clk_div = 5,
+		.max_pix_clk_div = 5,
+		.min_pix_clk_freq_hz = 72000000,
+		.max_pix_clk_freq_hz = 312000000,
+	},
+	.min_line_length_pck_bin = 1836,
+	.min_line_length_pck = 3672,
 };
 
 struct imx355_hwcfg {
-	s64 link_freq_menu;
+	s64 *link_frequencies;
+	unsigned int n_link_frequencies;
 	unsigned long link_freq_bitmap;
 	unsigned int num_lanes;
 };
@@ -174,7 +167,7 @@ struct imx355 {
 	struct v4l2_ctrl *hflip;
 
 	struct imx355_hwcfg *hwcfg;
-	const struct imx355_clk_params *clk_params;
+	u32 extclk_freq;		/* External clock frequency (Hz) */
 
 	struct gpio_desc *reset_gpio;
 	struct regulator_bulk_data *supplies;
@@ -239,12 +232,6 @@ static const struct cci_reg_sequence imx355_global_regs[] = {
 	{ CCI_REG8(0x305a), 0x00 },
 	{ CCI_REG8(0x0112), 0x0a },
 	{ CCI_REG8(0x0113), 0x0a },
-	{ IMX355_REG_PLL_IVT_PCK_DIV, IMX355_PLL_IVT_PCK_DIV },
-	{ CCI_REG8(0x0303), 0x01 },
-	{ CCI_REG8(0x0305), 0x02 },
-	{ CCI_REG8(0x0306), 0x78 },
-	{ CCI_REG8(0x0307), 0x02 },
-	{ IMX355_REG_PLL_OP_PREDIV, IMX355_PLL_OP_PREDIV },
 	{ CCI_REG8(0x0310), 0x00 },
 	{ CCI_REG8(0x0220), 0x00 },
 	{ CCI_REG8(0x0222), 0x01 },
@@ -326,6 +313,11 @@ static const struct cci_reg_sequence mode_1280x720_regs[] = {
 static const struct cci_reg_sequence mode_820x616_regs[] = {
 	{ CCI_REG8(0x0700), 0x02 },
 	{ CCI_REG8(0x0701), 0x78 },
+};
+
+static const struct cci_reg_sequence mode_640x480_regs[] = {
+	{ CCI_REG8(0x0700), 0x00 },
+	{ CCI_REG8(0x0701), 0x10 },
 };
 
 static const char * const imx355_test_pattern_menu[] = {
@@ -562,6 +554,22 @@ static const struct imx355_mode supported_modes[] = {
 			.regs = mode_820x616_regs,
 		},
 	},
+	{
+		.width = 640,
+		.height = 480,
+		.crop = {
+			.width = 1280,
+			.height = 960,
+			.left = 1000,
+			.top = 752,
+		},
+		.fll_def = 520,
+		.llp = 1836,
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_640x480_regs),
+			.regs = mode_640x480_regs,
+		},
+	},
 };
 
 static inline struct imx355 *to_imx355(struct v4l2_subdev *_sd)
@@ -620,34 +628,34 @@ static int imx355_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
 		/* Analog gain = 1024/(1024 - ctrl->val) times */
-		ret = cci_write(imx355->regmap, IMX355_REG_ANALOG_GAIN,
+		ret = cci_write(imx355->regmap, CCS_R_ANALOG_GAIN_CODE_GLOBAL,
 				ctrl->val, NULL);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
-		ret = cci_write(imx355->regmap, IMX355_REG_DIG_GAIN_GLOBAL,
+		ret = cci_write(imx355->regmap, CCS_R_DIGITAL_GAIN_GLOBAL,
 				ctrl->val, NULL);
 		break;
 	case V4L2_CID_EXPOSURE:
-		ret = cci_write(imx355->regmap, IMX355_REG_EXPOSURE,
+		ret = cci_write(imx355->regmap, CCS_R_COARSE_INTEGRATION_TIME,
 				ctrl->val, NULL);
 		break;
 	case V4L2_CID_VBLANK:
 		/* Update FLL that meets expected vertical blanking */
-		ret = cci_write(imx355->regmap, IMX355_REG_FLL,
+		ret = cci_write(imx355->regmap, CCS_R_FRAME_LENGTH_LINES,
 				format->height + ctrl->val, NULL);
 		break;
 	case V4L2_CID_HBLANK:
-		ret = cci_write(imx355->regmap, IMX355_REG_LLP,
+		ret = cci_write(imx355->regmap, CCS_R_LINE_LENGTH_PCK,
 				format->width + ctrl->val,
 				NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN:
-		ret = cci_write(imx355->regmap, IMX355_REG_TEST_PATTERN,
+		ret = cci_write(imx355->regmap, CCS_R_TEST_PATTERN_MODE,
 				ctrl->val, NULL);
 		break;
 	case V4L2_CID_HFLIP:
 	case V4L2_CID_VFLIP:
-		ret = cci_write(imx355->regmap, IMX355_REG_ORIENTATION,
+		ret = cci_write(imx355->regmap, CCS_R_IMAGE_ORIENTATION,
 				imx355->hflip->val | imx355->vflip->val << 1,
 				NULL);
 		break;
@@ -738,7 +746,6 @@ imx355_set_pad_format(struct v4l2_subdev *sd,
 				      width, height,
 				      fmt->format.width, fmt->format.height);
 	imx355_update_pad_format(imx355, mode, fmt);
-
 	framefmt = v4l2_subdev_state_get_format(sd_state, 0);
 
 	*framefmt = fmt->format;
@@ -804,6 +811,29 @@ static int imx355_entity_init_state(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+static int imx355_pll_calculate(struct imx355 *imx355, unsigned int num_lanes,
+				s64 link_freq, struct ccs_pll *pll)
+{
+	memset(pll, 0, sizeof(*pll));
+
+	pll->bus_type = CCS_PLL_BUS_TYPE_CSI2_DPHY;
+	pll->op_lanes = num_lanes;
+	pll->vt_lanes = num_lanes;
+	pll->csi2.lanes = num_lanes;
+
+	pll->binning_horizontal = 1;
+	pll->binning_vertical = 1;
+	pll->scale_m = 1;
+	pll->scale_n = 1;
+	pll->bits_per_pixel = 10;
+	pll->op_bits_per_lane = 10;
+	pll->flags = CCS_PLL_FLAG_LANE_SPEED_MODEL;
+	pll->link_freq = link_freq;
+	pll->ext_clk_freq_hz = imx355->extclk_freq;
+
+	return ccs_pll_calculate(imx355->dev, &imx355_ccs_pll_limits, pll);
+}
+
 /* Start streaming */
 static int imx355_start_streaming(struct imx355 *imx355)
 {
@@ -812,13 +842,40 @@ static int imx355_start_streaming(struct imx355 *imx355)
 	const struct imx355_mode *mode;
 	int lane_idx = imx355->hwcfg->num_lanes == 4 ? 0 : 1;
 	struct v4l2_rect *crop;
+	struct ccs_pll pll;
 	u64 link_bitrate;
 	u8 binning_mode;
-	int ret = 0;
+	int ret;
+
+	ret = imx355_pll_calculate(imx355, imx355->hwcfg->num_lanes,
+				   imx355->link_freq->qmenu_int[imx355->link_freq->val],
+				   &pll);
+	if (ret)
+		return ret;
 
 	/* Global Setting */
 	cci_multi_reg_write(imx355->regmap, imx355_global_regs,
 			    ARRAY_SIZE(imx355_global_regs), &ret);
+
+	/* Set PLL registers for the external clock frequency */
+	cci_write(imx355->regmap, CCS_R_EXTCLK_FREQUENCY_MHZ,
+		  IMX355_EXTCLK_FREQ_MHZ_REG(imx355->extclk_freq), &ret);
+
+	/* CCS 1-PLL mode uses VT PLL, but IMX355 uses OP PLL */
+	cci_write(imx355->regmap, CCS_R_OP_PRE_PLL_CLK_DIV,
+		  pll.vt_fr.pre_pll_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_OP_PLL_MULTIPLIER,
+		  pll.vt_fr.pll_multiplier, &ret);
+	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV,
+		  lane_idx ? 2 : 1, &ret);
+
+	cci_write(imx355->regmap, CCS_R_VT_PIX_CLK_DIV, pll.vt_bk.pix_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_VT_SYS_CLK_DIV, pll.vt_bk.sys_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_PRE_PLL_CLK_DIV, pll.vt_fr.pre_pll_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_PLL_MULTIPLIER, pll.vt_fr.pll_multiplier, &ret);
+
+	cci_write(imx355->regmap, CCS_R_OP_PIX_CLK_DIV, pll.op_bk.pix_clk_div, &ret);
+	cci_write(imx355->regmap, CCS_R_OP_SYS_CLK_DIV, pll.op_bk.sys_clk_div, &ret);
 
 	/* Apply values of current mode */
 	state = v4l2_subdev_get_locked_active_state(&imx355->sd);
@@ -831,35 +888,25 @@ static int imx355_start_streaming(struct imx355 *imx355)
 			    mode->reg_list.num_of_regs, &ret);
 
 	/* Set readout crop and size registers  */
-	cci_write(imx355->regmap, IMX355_REG_X_ADD_START, crop->left,
+	cci_write(imx355->regmap, CCS_R_X_ADDR_START, crop->left,
 		  &ret);
-	cci_write(imx355->regmap, IMX355_REG_Y_ADD_START, crop->top, &ret);
-	cci_write(imx355->regmap, IMX355_REG_X_ADD_END,
+	cci_write(imx355->regmap, CCS_R_Y_ADDR_START, crop->top, &ret);
+	cci_write(imx355->regmap, CCS_R_X_ADDR_END,
 		  crop->width + crop->left - 1, &ret);
-	cci_write(imx355->regmap, IMX355_REG_Y_ADD_END,
+	cci_write(imx355->regmap, CCS_R_Y_ADDR_END,
 		  crop->height + crop->top - 1, &ret);
-	cci_write(imx355->regmap, IMX355_REG_X_OUT_SIZE, fmt->width, &ret);
-	cci_write(imx355->regmap, IMX355_REG_Y_OUT_SIZE, fmt->height, &ret);
+	cci_write(imx355->regmap, CCS_R_X_OUTPUT_SIZE, fmt->width, &ret);
+	cci_write(imx355->regmap, CCS_R_Y_OUTPUT_SIZE, fmt->height, &ret);
 
 	binning_mode = ((crop->width / fmt->width) << 4) |
 			(crop->height / fmt->height);
-	cci_write(imx355->regmap, IMX355_REG_BINNING_MODE,
+	cci_write(imx355->regmap, CCS_R_BINNING_MODE,
 		  binning_mode == 0x11 ? 0x00 : 0x01, &ret);
-	cci_write(imx355->regmap, IMX355_REG_BINNING_TYPE, binning_mode, &ret);
-	cci_write(imx355->regmap, IMX355_REG_BINNING_WEIGHTING, 0x00, &ret);
-
-	/* Set PLL registers for the external clock frequency */
-	cci_write(imx355->regmap, IMX355_REG_EXTCLK_FREQ,
-		  imx355->clk_params->extclk_freq, &ret);
-	cci_write(imx355->regmap, IMX355_REG_PLL_OP_MUL,
-		  imx355->clk_params->pll_op_mpy[lane_idx], &ret);
-	cci_write(imx355->regmap, IMX355_REG_PLL_OP_PREDIV,
-		  imx355->clk_params->pll_op_prediv[lane_idx], &ret);
-	cci_write(imx355->regmap, IMX355_REG_PLL_IVT_SYSCK_DIV,
-		  lane_idx ? 2 : 1, &ret);
+	cci_write(imx355->regmap, CCS_R_BINNING_TYPE, binning_mode, &ret);
+	cci_write(imx355->regmap, CCS_R_BINNING_WEIGHTING, 0x00, &ret);
 
 	/* Set MIPI configuration */
-	cci_write(imx355->regmap, IMX355_REG_LANE_SEL,
+	cci_write(imx355->regmap, CCS_R_CSI_LANE_MODE,
 		  imx355->hwcfg->num_lanes - 1, &ret);
 
 	link_bitrate = imx355->link_freq->qmenu_int[imx355->link_freq->val] *
@@ -875,7 +922,7 @@ static int imx355_start_streaming(struct imx355 *imx355)
 	if (!ret)
 		ret = __v4l2_ctrl_handler_setup(imx355->sd.ctrl_handler);
 
-	cci_write(imx355->regmap, IMX355_REG_MODE_SELECT, IMX355_MODE_STREAMING,
+	cci_write(imx355->regmap, CCS_R_MODE_SELECT, CCS_MODE_SELECT_STREAMING,
 		  &ret);
 
 	return ret;
@@ -884,19 +931,22 @@ static int imx355_start_streaming(struct imx355 *imx355)
 /* Stop streaming */
 static int imx355_stop_streaming(struct imx355 *imx355)
 {
-	return cci_write(imx355->regmap, IMX355_REG_MODE_SELECT,
-			 IMX355_MODE_STANDBY, NULL);
+	return cci_write(imx355->regmap, CCS_R_MODE_SELECT,
+			 CCS_MODE_SELECT_SOFTWARE_STANDBY, NULL);
 }
 
 static int imx355_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct imx355 *imx355 = to_imx355(sd);
+	struct v4l2_subdev_state *state;
 	int ret = 0;
+
+	state = v4l2_subdev_lock_and_get_active_state(sd);
 
 	if (enable) {
 		ret = pm_runtime_resume_and_get(imx355->dev);
 		if (ret < 0)
-			return ret;
+			goto err_unlock;
 
 		/*
 		 * Apply default & customized values
@@ -914,10 +964,14 @@ static int imx355_set_stream(struct v4l2_subdev *sd, int enable)
 	__v4l2_ctrl_grab(imx355->vflip, enable);
 	__v4l2_ctrl_grab(imx355->hflip, enable);
 
+	v4l2_subdev_unlock_state(state);
+
 	return ret;
 
 err_rpm_put:
 	pm_runtime_put_autosuspend(imx355->dev);
+err_unlock:
+	v4l2_subdev_unlock_state(state);
 
 	return ret;
 }
@@ -928,7 +982,7 @@ static int imx355_identify_module(struct imx355 *imx355)
 	int ret;
 	u64 val;
 
-	ret = cci_read(imx355->regmap, IMX355_REG_CHIP_ID, &val, NULL);
+	ret = cci_read(imx355->regmap, CCS_R_SENSOR_MODEL_ID, &val, NULL);
 	if (ret)
 		return ret;
 
@@ -1035,13 +1089,15 @@ static int imx355_init_controls(struct imx355 *imx355)
 		return ret;
 
 	imx355->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx355_ctrl_ops,
-						   V4L2_CID_LINK_FREQ, 0, 0,
-						   &imx355->hwcfg->link_freq_menu);
+					   V4L2_CID_LINK_FREQ,
+					   imx355->hwcfg->n_link_frequencies - 1,
+					   0, imx355->hwcfg->link_frequencies);
 	if (imx355->link_freq)
 		imx355->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/* pixel_rate = link_freq * 2 * nr_of_lanes / bits_per_sample */
-	pixel_rate = imx355->hwcfg->link_freq_menu * 2 * imx355->hwcfg->num_lanes;
+	pixel_rate = imx355->hwcfg->link_frequencies[0] * 2 *
+		     imx355->hwcfg->num_lanes;
 	do_div(pixel_rate, 10);
 
 	v4l2_ctrl_new_std(ctrl_hdlr, &imx355_ctrl_ops, V4L2_CID_PIXEL_RATE,
@@ -1122,10 +1178,9 @@ static struct imx355_hwcfg *imx355_get_hwcfg(struct imx355 *imx355)
 	struct v4l2_fwnode_endpoint bus_cfg = {
 		.bus_type = V4L2_MBUS_CSI2_DPHY
 	};
-	const struct imx355_clk_params *clk = imx355->clk_params;
 	struct fwnode_handle *ep;
 	struct fwnode_handle *fwnode = dev_fwnode(dev);
-	int lane_idx;
+	unsigned int i;
 	int ret;
 
 	if (!fwnode)
@@ -1149,12 +1204,37 @@ static struct imx355_hwcfg *imx355_get_hwcfg(struct imx355 *imx355)
 
 	cfg->num_lanes = bus_cfg.bus.mipi_csi2.num_data_lanes;
 
-	lane_idx = cfg->num_lanes == 4 ? 0 : 1;
-	cfg->link_freq_menu = (clk->ext_clk * clk->pll_op_mpy[lane_idx]) /
-			      (clk->pll_op_prediv[lane_idx] * 2);
+	cfg->link_frequencies = devm_kcalloc(dev, bus_cfg.nr_of_link_frequencies,
+					     sizeof(*cfg->link_frequencies),
+					     GFP_KERNEL);
+	if (!cfg->link_frequencies)
+		goto out_err;
+
+	/*
+	 * Validate each advertised link frequency against the PLL limits of
+	 * the sensor, for the number of lanes in use.
+	 */
+	for (i = 0; i < bus_cfg.nr_of_link_frequencies; i++) {
+		struct ccs_pll pll;
+		int pll_ret;
+
+		pll_ret = imx355_pll_calculate(imx355, cfg->num_lanes,
+					       bus_cfg.link_frequencies[i],
+					       &pll);
+		if (pll_ret)
+			continue;
+
+		cfg->link_frequencies[cfg->n_link_frequencies++] =
+			bus_cfg.link_frequencies[i];
+	}
+
+	if (!cfg->n_link_frequencies)
+		goto out_err;
+
 	ret = v4l2_link_freq_to_bitmap(dev, bus_cfg.link_frequencies,
 				       bus_cfg.nr_of_link_frequencies,
-				       &cfg->link_freq_menu, 1,
+				       cfg->link_frequencies,
+				       cfg->n_link_frequencies,
 				       &cfg->link_freq_bitmap);
 	if (ret)
 		goto out_err;
@@ -1182,10 +1262,9 @@ static int imx355_probe(struct i2c_client *client)
 	imx355->dev = &client->dev;
 
 	imx355->regmap = devm_cci_regmap_init_i2c(client, 16);
-	if (IS_ERR(imx355->regmap)) {
-		dev_err(imx355->dev, "Unable to initialize I2C\n");
-		return -ENODEV;
-	}
+	if (IS_ERR(imx355->regmap))
+		return dev_err_probe(imx355->dev, PTR_ERR(imx355->regmap),
+				     "Unable to initialize I2C\n");
 
 	imx355->clk = devm_v4l2_sensor_clk_get(imx355->dev, NULL);
 	if (IS_ERR(imx355->clk))
@@ -1193,16 +1272,13 @@ static int imx355_probe(struct i2c_client *client)
 				     "failed to get clock\n");
 
 	freq = clk_get_rate(imx355->clk);
-	for (unsigned int i = 0; i < ARRAY_SIZE(imx355_clk_params); i++) {
-		if (freq == imx355_clk_params[i].ext_clk) {
-			imx355->clk_params = &imx355_clk_params[i];
-			break;
-		}
-	}
-	if (!imx355->clk_params)
+	if (freq < imx355_ccs_pll_limits.min_ext_clk_freq_hz ||
+	    freq > imx355_ccs_pll_limits.max_ext_clk_freq_hz) {
 		return dev_err_probe(imx355->dev, -EINVAL,
 				     "external clock %lu is not supported\n",
 				     freq);
+	}
+	imx355->extclk_freq = freq;
 
 	ret = devm_regulator_bulk_get_const(imx355->dev,
 					    ARRAY_SIZE(imx355_supplies),
@@ -1266,7 +1342,7 @@ static int imx355_probe(struct i2c_client *client)
 	ret = v4l2_subdev_init_finalize(&imx355->sd);
 	if (ret < 0) {
 		dev_err_probe(imx355->dev, ret, "subdev init error\n");
-		goto error_handler_free;
+		goto error_media_entity_free;
 	}
 
 	/*
@@ -1275,21 +1351,23 @@ static int imx355_probe(struct i2c_client *client)
 	 */
 	pm_runtime_set_active(imx355->dev);
 	pm_runtime_enable(imx355->dev);
-
-	ret = v4l2_async_register_subdev_sensor(&imx355->sd);
-	if (ret < 0)
-		goto error_media_entity_runtime_pm;
-
-	pm_runtime_idle(imx355->dev);
 	pm_runtime_set_autosuspend_delay(imx355->dev, 1000);
 	pm_runtime_use_autosuspend(imx355->dev);
 
+	ret = v4l2_async_register_subdev_sensor(&imx355->sd);
+	if (ret < 0)
+		goto error_subdev_cleanup_runtime_pm;
+
+	pm_runtime_idle(imx355->dev);
+
 	return 0;
 
-error_media_entity_runtime_pm:
+error_subdev_cleanup_runtime_pm:
 	pm_runtime_disable(imx355->dev);
 	pm_runtime_set_suspended(imx355->dev);
+	pm_runtime_dont_use_autosuspend(imx355->dev);
 	v4l2_subdev_cleanup(&imx355->sd);
+error_media_entity_free:
 	media_entity_cleanup(&imx355->sd.entity);
 
 error_handler_free:
@@ -1317,6 +1395,8 @@ static void imx355_remove(struct i2c_client *client)
 		imx355_power_off(imx355->dev);
 		pm_runtime_set_suspended(imx355->dev);
 	}
+
+	pm_runtime_dont_use_autosuspend(imx355->dev);
 }
 
 static const struct acpi_device_id imx355_acpi_ids[] __maybe_unused = {
