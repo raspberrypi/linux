@@ -1274,6 +1274,10 @@ static void schedule_dsq_reenq(struct scx_sched *sch, struct scx_dispatch_q *dsq
 
 			guard(raw_spinlock_irqsave)(&rq->scx.deferred_reenq_lock);
 
+			/* @dsq is being destroyed, see free_dsq_irq_workfn() */
+			if (unlikely(READ_ONCE(dsq->id) == SCX_DSQ_INVALID))
+				return;
+
 			if (list_empty(&dru->node))
 				list_move_tail(&dru->node, &rq->scx.deferred_reenq_users);
 			WRITE_ONCE(dru->flags, dru->flags | reenq_flags);
@@ -4899,8 +4903,8 @@ static void exit_dsq(struct scx_dispatch_q *dsq)
 		struct rq *rq = cpu_rq(cpu);
 
 		/*
-		 * There must have been a RCU grace period since the last
-		 * insertion and @dsq should be off the deferred list by now.
+		 * free_dsq_irq_workfn() cancelled the reenqs before the grace
+		 * period and schedule_dsq_reenq() queues nothing after that.
 		 */
 		if (WARN_ON_ONCE(!list_empty(&dru->node))) {
 			guard(raw_spinlock_irqsave)(&rq->scx.deferred_reenq_lock);
@@ -4924,8 +4928,26 @@ static void free_dsq_irq_workfn(struct irq_work *irq_work)
 	struct llist_node *to_free = llist_del_all(&dsqs_to_free);
 	struct scx_dispatch_q *dsq, *tmp_dsq;
 
-	llist_for_each_entry_safe(dsq, tmp_dsq, to_free, free_node)
+	llist_for_each_entry_safe(dsq, tmp_dsq, to_free, free_node) {
+		s32 cpu;
+
+		/*
+		 * Cancel pending reenqs. Only a run_deferred() that started
+		 * before the grace period can hold one, and it keeps IRQs off,
+		 * so the grace period waits for it. After this sweep,
+		 * schedule_dsq_reenq() sees the invalid id under the same lock
+		 * and queues nothing.
+		 */
+		for_each_possible_cpu(cpu) {
+			struct scx_dsq_pcpu *pcpu = per_cpu_ptr(dsq->pcpu, cpu);
+			struct rq *rq = cpu_rq(cpu);
+
+			guard(raw_spinlock_irqsave)(&rq->scx.deferred_reenq_lock);
+			list_del_init(&pcpu->deferred_reenq_user.node);
+		}
+
 		call_rcu(&dsq->rcu, free_dsq_rcufn);
+	}
 }
 
 static DEFINE_IRQ_WORK(free_dsq_irq_work, free_dsq_irq_workfn);
