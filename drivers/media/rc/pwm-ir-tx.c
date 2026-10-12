@@ -138,7 +138,7 @@ static enum hrtimer_restart pwm_ir_timer(struct hrtimer *timer)
 		hrtimer_add_expires_ns(timer, ns);
 
 		pwm_ir->txbuf_index++;
-	} while (hrtimer_expires_remaining(timer) > 0);
+	} while (hrtimer_get_expires(timer) < hrtimer_cb_get_time(timer));
 
 	return HRTIMER_RESTART;
 }
