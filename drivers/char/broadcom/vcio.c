@@ -67,6 +67,8 @@ static const u32 vcio_ab_tags[] = {
 /* Tags permitted via /dev/vcio_gencmd. */
 static const u32 vcio_gencmd_tags[] = {
 	0x00030080, /* GET_GENCMD_RESULT */
+	0x0003009d, /* GET_WAKE_SOURCES */
+	0x0003809d, /* SET_WAKE_SOURCES */
 };
 
 /* Tags permitted via /dev/vcio_crypto. */
