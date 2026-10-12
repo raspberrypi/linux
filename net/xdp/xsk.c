@@ -600,6 +600,28 @@ static void xsk_cq_cancel_locked(struct xdp_sock *xs, u32 n)
 	spin_unlock_irqrestore(&xs->pool->cq_lock, flags);
 }
 
+static int xsk_cq_submit_addr_single_locked(struct xsk_buff_pool *pool,
+					    struct xdp_desc *desc)
+{
+	struct xsk_queue *cq = pool->cq;
+	unsigned long flags;
+	int err = -EAGAIN;
+
+	spin_lock_irqsave(&pool->cq_lock, flags);
+	/* Addresses are written at reserve time and publishing is positional,
+	 * so the entry can only be published if no earlier Tx is still in
+	 * flight in front of it. The caller retries later otherwise.
+	 */
+	if (cq->cached_prod == READ_ONCE(cq->ring->producer)) {
+		err = xskq_prod_reserve_addr(cq, desc->addr);
+		if (!err)
+			xskq_prod_submit_n(cq, 1);
+	}
+	spin_unlock_irqrestore(&pool->cq_lock, flags);
+
+	return err;
+}
+
 static u32 xsk_get_num_desc(struct sk_buff *skb)
 {
 	return skb ? (long)skb_shinfo(skb)->destructor_arg : 0;
@@ -822,12 +844,13 @@ static int __xsk_generic_xmit(struct sock *sk)
 {
 	struct xdp_sock *xs = xdp_sk(sk);
 	u32 max_batch = TX_BATCH_SIZE;
-	bool sent_frame = false;
 	struct xdp_desc desc;
 	struct sk_buff *skb;
+	u32 cached_cons;
 	int err = 0;
 
 	mutex_lock(&xs->mutex);
+	cached_cons = xs->tx->cached_cons;
 
 	/* Since we dropped the RCU read lock, the socket state might have changed. */
 	if (unlikely(!xsk_is_bound(xs))) {
@@ -844,6 +867,17 @@ static int __xsk_generic_xmit(struct sock *sk)
 			goto out;
 		}
 
+		if (unlikely(xs->drain_cont)) {
+			if (xsk_cq_submit_addr_single_locked(xs->pool, &desc)) {
+				err = -EAGAIN;
+				goto out;
+			}
+			xs->tx->invalid_descs++;
+			xskq_cons_release(xs->tx);
+			xs->drain_cont = xp_mb_desc(&desc);
+			continue;
+		}
+
 		/* This is the backpressure mechanism for the Tx path.
 		 * Reserve space in the completion queue and only proceed
 		 * if there is space in it. This avoids having to implement
@@ -857,6 +891,8 @@ static int __xsk_generic_xmit(struct sock *sk)
 			err = PTR_ERR(skb);
 			if (err != -EOVERFLOW)
 				goto out;
+			if (xp_mb_desc(&desc))
+				xs->drain_cont = true;
 			err = 0;
 			continue;
 		}
@@ -885,18 +921,29 @@ static int __xsk_generic_xmit(struct sock *sk)
 			goto out;
 		}
 
-		sent_frame = true;
 		xs->skb = NULL;
 	}
 
 	if (xskq_has_descs(xs->tx)) {
+		bool drain = xs->skb || xs->drain_cont || xp_mb_desc(&desc);
+
 		if (xs->skb)
 			xsk_drop_skb(xs->skb);
+
+		err = xsk_cq_submit_addr_single_locked(xs->pool, &desc);
+		if (err) {
+			xs->tx->invalid_descs--;
+			xs->drain_cont = drain;
+			err = -EAGAIN;
+			goto out;
+		}
+
 		xskq_cons_release(xs->tx);
+		xs->drain_cont = xp_mb_desc(&desc);
 	}
 
 out:
-	if (sent_frame)
+	if (xs->tx->cached_cons != cached_cons)
 		if (xsk_tx_writeable(xs))
 			sk->sk_write_space(sk);
 
