@@ -1807,7 +1807,7 @@ static int stmmac_test_sph(struct stmmac_priv *priv)
 	struct stmmac_packet_attrs attr = { };
 	int ret;
 
-	if (!priv->sph)
+	if (!priv->sph_active)
 		return -EOPNOTSUPP;
 
 	/* Check for UDP first */
