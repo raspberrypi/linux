@@ -8,6 +8,34 @@ static const struct super_operations nullfs_super_operations = {
 	.statfs	= simple_statfs,
 };
 
+static loff_t nullfs_dir_llseek(struct file *file, loff_t offset, int whence)
+{
+	/* an empty directory has two entries . and .. at offsets 0 and 1 */
+	return generic_file_llseek_size(file, offset, whence, 2, 2);
+}
+
+static int nullfs_dir_readdir(struct file *file, struct dir_context *ctx)
+{
+	dir_emit_dots(file, ctx);
+	return 0;
+}
+
+/* the one inode of nullfs is shared by every holder, so no locks on it */
+static int nullfs_nolock(struct file *file, int cmd, struct file_lock *fl)
+{
+	return -ENOLCK;
+}
+
+/* what libfs gives an empty directory, plus the refusal of file locks */
+static const struct file_operations nullfs_dir_operations = {
+	.llseek		= nullfs_dir_llseek,
+	.read		= generic_read_dir,
+	.iterate_shared	= nullfs_dir_readdir,
+	.fsync		= noop_fsync,
+	.lock		= nullfs_nolock,
+	.flock		= nullfs_nolock,
+};
+
 static int nullfs_fs_fill_super(struct super_block *s, struct fs_context *fc)
 {
 	struct inode *inode;
@@ -28,6 +56,7 @@ static int nullfs_fs_fill_super(struct super_block *s, struct fs_context *fc)
 
 	/* nullfs is permanently empty... */
 	make_empty_dir_inode(inode);
+	inode->i_fop = &nullfs_dir_operations;
 	simple_inode_init_ts(inode);
 	inode->i_ino	= 1;
 	/* ... and immutable, reading it leaves no trace either. */
