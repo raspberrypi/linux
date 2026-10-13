@@ -325,7 +325,9 @@ struct mana_recv_buf_oob {
 #define MANA_RXBUF_PAD (SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) \
 			+ ETH_HLEN)
 
-#define MANA_XDP_MTU_MAX (PAGE_SIZE - MANA_RXBUF_PAD - XDP_PACKET_HEADROOM)
+#define MANA_XDP_MTU_MAX(ndev) \
+	(PAGE_SIZE - MANA_RXBUF_PAD - \
+	 max_t(u32, LL_RESERVED_SPACE(ndev), XDP_PACKET_HEADROOM))
 
 struct mana_rxq {
 	struct gdma_queue *gdma_rq;
