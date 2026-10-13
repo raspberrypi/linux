@@ -755,26 +755,62 @@ static void *mana_get_rxbuf_pre(struct mana_rxq *rxq, dma_addr_t *da)
 	return va;
 }
 
-/* Get RX buffer's data size, alloc size, XDP headroom based on MTU */
+/* Reserve enough headroom to satisfy the skb_cow() in ip_forward() and avoid
+ * reallocation: the TX path keeps the SGE DMA mappings in struct mana_skb_head
+ * at skb->head, so the port advertises ndev->needed_headroom = MANA_HEADROOM.
+ */
+static u32 mana_get_rxbuf_headroom(struct mana_port_context *apc)
+{
+	if (mana_xdp_get(apc))
+		return mana_xdp_headroom(apc->ndev);
+
+	return LL_RESERVED_SPACE(apc->ndev);
+}
+
+static u32 mana_get_rxbuf_size(struct mana_port_context *apc, u32 mtu)
+{
+	u32 len = SKB_DATA_ALIGN(mtu + MANA_RXBUF_PAD +
+				 mana_get_rxbuf_headroom(apc));
+
+	return ALIGN(len, MANA_RX_FRAG_ALIGNMENT);
+}
+
+/* Returns true when one RX buffer per page is already required by XDP or by
+ * the buffer size implied by the MTU, i.e. regardless of the
+ * MANA_PRIV_FLAG_USE_FULL_PAGE_RXBUF private flag.
+ */
+bool mana_single_rxbuf_per_page_forced(struct mana_port_context *apc, u32 mtu)
+{
+	/* For xdp make sure only one packet fits per page. */
+	if (mana_xdp_get(apc))
+		return true;
+
+	/* Only use the page_pool fragment path when at least two buffers,
+	 * including the headroom each of them has to reserve, actually fit
+	 * into one page. Otherwise the fragment path degenerates into one
+	 * buffer per page while still paying the fragment accounting cost.
+	 */
+	return PAGE_SIZE / mana_get_rxbuf_size(apc, mtu) < 2;
+}
+
+/* Get RX buffer's data size, alloc size, headroom and frag count based on MTU */
 static void mana_get_rxbuf_cfg(struct mana_port_context *apc,
 			       int mtu, u32 *datasize, u32 *alloc_size,
 			       u32 *headroom, u32 *frag_count)
 {
-	u32 len, buf_size;
+	u32 buf_size;
 
 	/* Calculate datasize first (consistent across all cases) */
 	*datasize = mtu + ETH_HLEN;
 
-	/* For xdp and jumbo frames make sure only one packet fits per page */
-	if (mtu + MANA_RXBUF_PAD > PAGE_SIZE / 2 || mana_xdp_get(apc)) {
-		if (mana_xdp_get(apc)) {
-			*headroom = XDP_PACKET_HEADROOM;
+	*headroom = mana_get_rxbuf_headroom(apc);
+
+	if (mana_single_rxbuf_per_page_forced(apc, mtu)) {
+		if (mana_xdp_get(apc))
 			*alloc_size = PAGE_SIZE;
-		} else {
-			*headroom = 0; /* no support for XDP */
+		else
 			*alloc_size = SKB_DATA_ALIGN(mtu + MANA_RXBUF_PAD +
 						     *headroom);
-		}
 
 		*frag_count = 1;
 
@@ -788,11 +824,7 @@ static void mana_get_rxbuf_cfg(struct mana_port_context *apc,
 	}
 
 	/* Standard MTU case - optimize for multiple packets per page */
-	*headroom = 0;
-
-	/* Calculate base buffer size needed */
-	len = SKB_DATA_ALIGN(mtu + MANA_RXBUF_PAD + *headroom);
-	buf_size = ALIGN(len, MANA_RX_FRAG_ALIGNMENT);
+	buf_size = mana_get_rxbuf_size(apc, mtu);
 
 	/* Calculate how many packets can fit in a page */
 	*frag_count = PAGE_SIZE / buf_size;
