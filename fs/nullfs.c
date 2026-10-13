@@ -34,6 +34,7 @@ static const struct file_operations nullfs_dir_operations = {
 	.fsync		= noop_fsync,
 	.lock		= nullfs_nolock,
 	.flock		= nullfs_nolock,
+	.fop_flags	= FOP_IMMUTABLE,
 };
 
 static int nullfs_fs_fill_super(struct super_block *s, struct fs_context *fc)
