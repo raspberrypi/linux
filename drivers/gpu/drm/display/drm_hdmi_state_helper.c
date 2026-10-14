@@ -611,13 +611,14 @@ static int
 hdmi_compute_format_bpc(const struct drm_connector *connector,
 			struct drm_connector_state *conn_state,
 			const struct drm_display_mode *mode,
-			unsigned int max_bpc, enum hdmi_colorspace fmt)
+			unsigned int max_bpc, unsigned int min_bpc,
+			enum hdmi_colorspace fmt)
 {
 	struct drm_device *dev = connector->dev;
 	unsigned int bpc;
 	int ret;
 
-	for (bpc = max_bpc; bpc >= 8; bpc -= 2) {
+	for (bpc = max_bpc; bpc >= min_bpc; bpc -= 2) {
 		ret = hdmi_try_format_bpc(connector, conn_state, mode, bpc, fmt);
 		if (!ret)
 			continue;
@@ -651,17 +652,25 @@ hdmi_compute_config(const struct drm_connector *connector,
 				       8, connector->max_bpc);
 	int ret;
 
+	/*
+	 * If more than 8 bpc was requested, YUV422 at 12 bpc needs the same
+	 * TMDS rate as RGB at 8 bpc, so try it before dropping RGB to 8 bpc.
+	 */
 	ret = hdmi_compute_format_bpc(connector, conn_state, mode, max_bpc,
-				      HDMI_COLORSPACE_RGB);
+				      min(max_bpc, 10), HDMI_COLORSPACE_RGB);
 
 	if (ret)
 		ret = hdmi_compute_format_bpc(connector, conn_state, mode,
-					      max_bpc, HDMI_COLORSPACE_YUV422);
+					      max_bpc, 8, HDMI_COLORSPACE_YUV422);
+
+	if (ret && max_bpc > 8)
+		ret = hdmi_compute_format_bpc(connector, conn_state, mode,
+					      8, 8, HDMI_COLORSPACE_RGB);
 
 	if (ret) {
 		if (connector->ycbcr_420_allowed) {
 			ret = hdmi_compute_format_bpc(connector, conn_state,
-						      mode, max_bpc,
+						      mode, max_bpc, 8,
 						      HDMI_COLORSPACE_YUV420);
 			if (ret)
 				drm_dbg_kms(connector->dev,
