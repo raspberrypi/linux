@@ -70,7 +70,6 @@ struct tb_ctl {
 #define tb_ctl_dbg(ctl, format, arg...) \
 	dev_dbg(&(ctl)->nhi->pdev->dev, format, ## arg)
 
-static DECLARE_WAIT_QUEUE_HEAD(tb_cfg_request_cancel_queue);
 /* Serializes access to request kref_get/put */
 static DEFINE_MUTEX(tb_cfg_request_lock);
 
@@ -128,41 +127,42 @@ void tb_cfg_request_put(struct tb_cfg_request *req)
 static int tb_cfg_request_enqueue(struct tb_ctl *ctl,
 				  struct tb_cfg_request *req)
 {
+	tb_cfg_request_get(req);
+
 	WARN_ON(test_bit(TB_CFG_REQUEST_ACTIVE, &req->flags));
 	WARN_ON(req->ctl);
 
-	mutex_lock(&ctl->request_queue_lock);
+	guard(mutex)(&ctl->request_queue_lock);
 	if (!ctl->running) {
-		mutex_unlock(&ctl->request_queue_lock);
+		tb_cfg_request_put(req);
 		return -ENOTCONN;
 	}
 	req->ctl = ctl;
 	list_add_tail(&req->list, &ctl->request_queue);
 	set_bit(TB_CFG_REQUEST_ACTIVE, &req->flags);
-	mutex_unlock(&ctl->request_queue_lock);
 	return 0;
+}
+
+static bool tb_cfg_request_is_active(struct tb_cfg_request *req)
+{
+	return test_bit(TB_CFG_REQUEST_ACTIVE, &req->flags);
+}
+
+static bool tb_cfg_request_is_canceled(struct tb_cfg_request *req)
+{
+	return test_bit(TB_CFG_REQUEST_CANCELED, &req->flags);
 }
 
 static void tb_cfg_request_dequeue(struct tb_cfg_request *req)
 {
 	struct tb_ctl *ctl = req->ctl;
 
-	mutex_lock(&ctl->request_queue_lock);
-	if (!test_bit(TB_CFG_REQUEST_ACTIVE, &req->flags)) {
-		mutex_unlock(&ctl->request_queue_lock);
-		return;
+	guard(mutex)(&ctl->request_queue_lock);
+	if (tb_cfg_request_is_active(req)) {
+		list_del(&req->list);
+		clear_bit(TB_CFG_REQUEST_ACTIVE, &req->flags);
+		tb_cfg_request_put(req);
 	}
-
-	list_del(&req->list);
-	clear_bit(TB_CFG_REQUEST_ACTIVE, &req->flags);
-	if (test_bit(TB_CFG_REQUEST_CANCELED, &req->flags))
-		wake_up(&tb_cfg_request_cancel_queue);
-	mutex_unlock(&ctl->request_queue_lock);
-}
-
-static bool tb_cfg_request_is_active(struct tb_cfg_request *req)
-{
-	return test_bit(TB_CFG_REQUEST_ACTIVE, &req->flags);
 }
 
 static struct tb_cfg_request *
@@ -173,7 +173,7 @@ tb_cfg_request_find(struct tb_ctl *ctl, struct ctl_pkg *pkg)
 	mutex_lock(&pkg->ctl->request_queue_lock);
 	list_for_each_entry(iter, &pkg->ctl->request_queue, list) {
 		tb_cfg_request_get(iter);
-		if (iter->match(iter, pkg)) {
+		if (!tb_cfg_request_is_canceled(iter) && iter->match(iter, pkg)) {
 			req = iter;
 			break;
 		}
@@ -507,8 +507,11 @@ static void tb_ctl_rx_callback(struct tb_ring *ring, struct ring_frame *frame,
 	trace_tb_rx(pkg->ctl->index, frame->eof, pkg->buffer, frame->size, !req);
 
 	if (req) {
-		if (req->copy(req, pkg))
-			schedule_work(&req->work);
+		scoped_guard(mutex, &pkg->ctl->request_queue_lock) {
+			if (!tb_cfg_request_is_canceled(req) &&
+			    req->copy(req, pkg))
+				schedule_work(&req->work);
+		}
 		tb_cfg_request_put(req);
 	}
 
@@ -520,11 +523,10 @@ static void tb_cfg_request_work(struct work_struct *work)
 {
 	struct tb_cfg_request *req = container_of(work, typeof(*req), work);
 
-	if (!test_bit(TB_CFG_REQUEST_CANCELED, &req->flags))
+	if (!tb_cfg_request_is_canceled(req))
 		req->callback(req->callback_data);
 
 	tb_cfg_request_dequeue(req);
-	tb_cfg_request_put(req);
 }
 
 /**
@@ -548,10 +550,9 @@ int tb_cfg_request(struct tb_ctl *ctl, struct tb_cfg_request *req,
 	INIT_WORK(&req->work, tb_cfg_request_work);
 	INIT_LIST_HEAD(&req->list);
 
-	tb_cfg_request_get(req);
 	ret = tb_cfg_request_enqueue(ctl, req);
 	if (ret)
-		goto err_put;
+		return ret;
 
 	ret = tb_ctl_tx(ctl, req->request, req->request_size,
 			req->request_type);
@@ -565,9 +566,6 @@ int tb_cfg_request(struct tb_ctl *ctl, struct tb_cfg_request *req,
 
 err_dequeue:
 	tb_cfg_request_dequeue(req);
-err_put:
-	tb_cfg_request_put(req);
-
 	return ret;
 }
 
@@ -581,9 +579,10 @@ err_put:
  */
 void tb_cfg_request_cancel(struct tb_cfg_request *req, int err)
 {
-	set_bit(TB_CFG_REQUEST_CANCELED, &req->flags);
-	schedule_work(&req->work);
-	wait_event(tb_cfg_request_cancel_queue, !tb_cfg_request_is_active(req));
+	scoped_guard(mutex, &req->ctl->request_queue_lock)
+		set_bit(TB_CFG_REQUEST_CANCELED, &req->flags);
+	cancel_work_sync(&req->work);
+	tb_cfg_request_dequeue(req);
 	req->result.err = err;
 }
 

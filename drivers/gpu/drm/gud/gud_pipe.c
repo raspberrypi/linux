@@ -486,6 +486,7 @@ int gud_pipe_check(struct drm_simple_display_pipe *pipe,
 	for_each_new_connector_in_state(state, connector, connector_state, i) {
 		if (connector_state->crtc)
 			break;
+		connector_state = NULL;
 	}
 
 	/*

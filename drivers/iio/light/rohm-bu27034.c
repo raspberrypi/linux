@@ -7,6 +7,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/bits.h>
+#include <linux/cleanup.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
@@ -136,6 +137,7 @@ static const struct iio_gain_sel_pair bu27034_gains[] = {
 #define BU27034_MEAS_MODE_200MS		2
 #define BU27034_MEAS_MODE_400MS		4
 
+#define BU27034_INT_TIME_US_MIN (55 * USEC_PER_MSEC)
 static const struct iio_itime_sel_mul bu27034_itimes[] = {
 	GAIN_SCALE_ITIME_US(400000, BU27034_MEAS_MODE_400MS, 8),
 	GAIN_SCALE_ITIME_US(200000, BU27034_MEAS_MODE_200MS, 4),
@@ -295,7 +297,7 @@ static int bu27034_get_gain(struct bu27034_data *data, int chan, int *gain)
 	return 0;
 }
 
-static int bu27034_get_int_time(struct bu27034_data *data)
+static int bu27034_get_int_time(struct bu27034_data *data, int *itime)
 {
 	int ret, sel;
 
@@ -303,24 +305,30 @@ static int bu27034_get_int_time(struct bu27034_data *data)
 	if (ret)
 		return ret;
 
-	return iio_gts_find_int_time_by_sel(&data->gts,
-					    sel & BU27034_MASK_MEAS_MODE);
+	ret = iio_gts_find_int_time_by_sel(&data->gts,
+					   sel & BU27034_MASK_MEAS_MODE);
+	if (ret < 0)
+		return ret;
+
+	*itime = ret;
+
+	return 0;
 }
 
 static int _bu27034_get_scale(struct bu27034_data *data, int channel, int *val,
 			      int *val2)
 {
-	int gain, ret;
+	int gain, itime, ret;
 
 	ret = bu27034_get_gain(data, channel, &gain);
 	if (ret)
 		return ret;
 
-	ret = bu27034_get_int_time(data);
-	if (ret < 0)
+	ret = bu27034_get_int_time(data, &itime);
+	if (ret)
 		return ret;
 
-	return iio_gts_get_scale(&data->gts, gain, ret, val, val2);
+	return iio_gts_get_scale(&data->gts, gain, itime, val, val2);
 }
 
 static int bu27034_get_scale(struct bu27034_data *data, int channel, int *val,
@@ -395,30 +403,24 @@ static int bu27034_try_set_int_time(struct bu27034_data *data, int time_us)
 	int numg = ARRAY_SIZE(gains);
 	int ret, int_time_old, i;
 
-	mutex_lock(&data->mutex);
-	ret = bu27034_get_int_time(data);
-	if (ret < 0)
-		goto unlock_out;
-
-	int_time_old = ret;
+	guard(mutex)(&data->mutex);
+	ret = bu27034_get_int_time(data, &int_time_old);
+	if (ret)
+		return ret;
 
 	if (!iio_gts_valid_time(&data->gts, time_us)) {
 		dev_err(data->dev, "Unsupported integration time %u\n",
 			time_us);
-		ret = -EINVAL;
-
-		goto unlock_out;
+		return -EINVAL;
 	}
 
-	if (time_us == int_time_old) {
-		ret = 0;
-		goto unlock_out;
-	}
+	if (time_us == int_time_old)
+		return 0;
 
 	for (i = 0; i < numg; i++) {
 		ret = bu27034_get_gain(data, gains[i].chan, &gains[i].old_gain);
 		if (ret)
-			goto unlock_out;
+			return ret;
 
 		ret = iio_gts_find_new_gain_by_old_gain_time(&data->gts,
 							     gains[i].old_gain,
@@ -434,7 +436,7 @@ static int bu27034_try_set_int_time(struct bu27034_data *data, int time_us)
 				gains[i].chan, time_us, scale1, scale2);
 
 			if (gains[i].new_gain < 0)
-				goto unlock_out;
+				return ret;
 
 			/*
 			 * If caller requests for integration time change and we
@@ -455,7 +457,7 @@ static int bu27034_try_set_int_time(struct bu27034_data *data, int time_us)
 					 "Total gain increase. Risk of saturation");
 				ret = iio_gts_get_min_gain(&data->gts);
 				if (ret < 0)
-					goto unlock_out;
+					return ret;
 			}
 			dev_dbg(data->dev, "chan %u scale changed\n",
 				 gains[i].chan);
@@ -468,15 +470,10 @@ static int bu27034_try_set_int_time(struct bu27034_data *data, int time_us)
 	for (i = 0; i < numg; i++) {
 		ret = bu27034_set_gain(data, gains[i].chan, gains[i].new_gain);
 		if (ret)
-			goto unlock_out;
+			return ret;
 	}
 
-	ret = bu27034_set_int_time(data, time_us);
-
-unlock_out:
-	mutex_unlock(&data->mutex);
-
-	return ret;
+	return bu27034_set_int_time(data, time_us);
 }
 
 static int bu27034_set_scale(struct bu27034_data *data, int chan,
@@ -492,10 +489,10 @@ static int bu27034_set_scale(struct bu27034_data *data, int chan,
 		return -EINVAL;
 	}
 
-	mutex_lock(&data->mutex);
+	guard(mutex)(&data->mutex);
 	ret = regmap_read(data->regmap, BU27034_REG_MODE_CONTROL1, &time_sel);
 	if (ret)
-		goto unlock_out;
+		return ret;
 
 	ret = iio_gts_find_gain_sel_for_scale_using_time(&data->gts, time_sel,
 						val, val2, &gain_sel);
@@ -518,7 +515,7 @@ static int bu27034_set_scale(struct bu27034_data *data, int chan,
 
 		ret = bu27034_get_gain(data, gain.chan, &gain.old_gain);
 		if (ret)
-			goto unlock_out;
+			return ret;
 
 		/*
 		 * Iterate through all the times to see if we find one which
@@ -551,26 +548,20 @@ static int bu27034_set_scale(struct bu27034_data *data, int chan,
 		if (!found) {
 			dev_dbg(data->dev,
 				"Can't set scale maintaining other channel\n");
-			ret = -EINVAL;
-
-			goto unlock_out;
+			return -EINVAL;
 		}
 
 		ret = bu27034_set_gain(data, gain.chan, gain.new_gain);
 		if (ret)
-			goto unlock_out;
+			return ret;
 
 		ret = regmap_update_bits(data->regmap, BU27034_REG_MODE_CONTROL1,
 				  BU27034_MASK_MEAS_MODE, new_time_sel);
 		if (ret)
-			goto unlock_out;
+			return ret;
 	}
 
-	ret = bu27034_write_gain_sel(data, chan, gain_sel);
-unlock_out:
-	mutex_unlock(&data->mutex);
-
-	return ret;
+	return bu27034_write_gain_sel(data, chan, gain_sel);
 }
 
 /*
@@ -855,7 +846,7 @@ static int bu27034_meas_set(struct bu27034_data *data, bool en)
 static int bu27034_get_single_result(struct bu27034_data *data, int chan,
 				     int *val)
 {
-	int ret;
+	int ret, itime;
 
 	if (chan < BU27034_CHAN_DATA0 || chan > BU27034_CHAN_DATA1)
 		return -EINVAL;
@@ -864,11 +855,11 @@ static int bu27034_get_single_result(struct bu27034_data *data, int chan,
 	if (ret)
 		return ret;
 
-	ret = bu27034_get_int_time(data);
-	if (ret < 0)
+	ret = bu27034_get_int_time(data, &itime);
+	if (ret)
 		return ret;
 
-	msleep(ret / 1000);
+	msleep(itime / 1000);
 
 	return bu27034_read_result(data, chan, val);
 }
@@ -918,11 +909,9 @@ static int bu27034_calc_mlux(struct bu27034_data *data, __le16 *res, int *val)
 	if (ret)
 		return ret;
 
-	ret = bu27034_get_int_time(data);
-	if (ret < 0)
+	ret = bu27034_get_int_time(data, &meastime);
+	if (ret)
 		return ret;
-
-	meastime = ret;
 
 	d1_d0_ratio_scaled = (unsigned int)ch1 * (unsigned int)gain0 * 100;
 	helper64 = (u64)ch1 * (u64)gain0 * 100LLU;
@@ -984,9 +973,9 @@ static int bu27034_read_raw(struct iio_dev *idev,
 	switch (mask) {
 	case IIO_CHAN_INFO_INT_TIME:
 		*val = 0;
-		*val2 = bu27034_get_int_time(data);
-		if (*val2 < 0)
-			return *val2;
+		ret = bu27034_get_int_time(data, val2);
+		if (ret)
+			return ret;
 
 		return IIO_VAL_INT_PLUS_MICRO;
 
@@ -1173,11 +1162,20 @@ static int bu27034_buffer_thread(void *arg)
 {
 	struct iio_dev *idev = arg;
 	struct bu27034_data *data;
-	int wait_ms;
+	int wait_ms, ret;
 
 	data = iio_priv(idev);
 
-	wait_ms = bu27034_get_int_time(data);
+	/*
+	 * If reading the integration time fails, default to the minimum so we
+	 * don't lose samples. This may waste CPU cycles, but as a hardening
+	 * against theoretical, once-in-a-blue-moon error, this should be Ok.
+	 */
+	wait_ms = BU27034_INT_TIME_US_MIN;
+	ret = bu27034_get_int_time(data, &wait_ms);
+	if (ret)
+		dev_warn(data->dev, "Failed to get integration time\n");
+
 	wait_ms /= 1000;
 
 	wait_ms -= BU27034_MEAS_WAIT_PREMATURE_MS;
@@ -1221,42 +1219,33 @@ static int bu27034_buffer_enable(struct iio_dev *idev)
 	struct task_struct *task;
 	int ret;
 
-	mutex_lock(&data->mutex);
+	guard(mutex)(&data->mutex);
 	ret = bu27034_meas_set(data, true);
 	if (ret)
-		goto unlock_out;
+		return ret;
 
 	task = kthread_run(bu27034_buffer_thread, idev,
 				 "bu27034-buffering-%u",
 				 iio_device_id(idev));
-	if (IS_ERR(task)) {
-		ret = PTR_ERR(task);
-		goto unlock_out;
-	}
+	if (IS_ERR(task))
+		return PTR_ERR(task);
 
 	data->task = task;
 
-unlock_out:
-	mutex_unlock(&data->mutex);
-
-	return ret;
+	return 0;
 }
 
 static int bu27034_buffer_disable(struct iio_dev *idev)
 {
 	struct bu27034_data *data = iio_priv(idev);
-	int ret;
 
-	mutex_lock(&data->mutex);
+	guard(mutex)(&data->mutex);
 	if (data->task) {
 		kthread_stop(data->task);
 		data->task = NULL;
 	}
 
-	ret = bu27034_meas_set(data, false);
-	mutex_unlock(&data->mutex);
-
-	return ret;
+	return bu27034_meas_set(data, false);
 }
 
 static const struct iio_buffer_setup_ops bu27034_buffer_ops = {
