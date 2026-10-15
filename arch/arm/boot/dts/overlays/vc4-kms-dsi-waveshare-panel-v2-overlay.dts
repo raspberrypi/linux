@@ -104,6 +104,7 @@
 			      <&touch>, "touchscreen-inverted-y";
 		10_1_inch_b_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-b,4lane",
 				    <&touch>, "touchscreen-inverted-y";
+		10_1_inch_e_4lane = <&dsi_panel>, "compatible=waveshare,10.1-dsi-touch-e,4lane";
 		12_3_inch_a_4lane = <&dsi_panel>, "compatible=waveshare,12.3-dsi-touch-a,4lane",
 				    <&touch>, "touchscreen-swapped-x-y",
 				    <&touch>, "touchscreen-inverted-y";
