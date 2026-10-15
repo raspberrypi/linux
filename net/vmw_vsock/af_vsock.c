@@ -890,6 +890,8 @@ static void vsock_sk_destruct(struct sock *sk)
 {
 	struct vsock_sock *vsk = vsock_sk(sk);
 
+	/* Socket buffers may remain in the queue in VMCI datagram mode */
+	__skb_queue_purge(&sk->sk_receive_queue);
 	/* Flush MSG_ZEROCOPY leftovers. */
 	__skb_queue_purge(&sk->sk_error_queue);
 
@@ -987,7 +989,7 @@ static int vsock_release(struct socket *sock)
 }
 
 static int
-vsock_bind(struct socket *sock, struct sockaddr *addr, int addr_len)
+vsock_bind(struct socket *sock, struct sockaddr_unsized *addr, int addr_len)
 {
 	int err;
 	struct sock *sk;
@@ -995,7 +997,7 @@ vsock_bind(struct socket *sock, struct sockaddr *addr, int addr_len)
 
 	sk = sock->sk;
 
-	if (vsock_addr_cast(addr, addr_len, &vm_addr) != 0)
+	if (vsock_addr_cast((struct sockaddr *)addr, addr_len, &vm_addr) != 0)
 		return -EINVAL;
 
 	lock_sock(sk);

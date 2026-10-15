@@ -135,6 +135,33 @@ int amdxdna_cmd_get_cu_idx(struct amdxdna_gem_obj *abo)
 	return -1;
 }
 
+int amdxdna_cmd_set_error(struct amdxdna_gem_obj *abo,
+			  struct amdxdna_sched_job *job, u32 cmd_idx,
+			  enum ert_cmd_state error_state)
+{
+	struct amdxdna_client *client = job->hwctx->client;
+	struct amdxdna_cmd *cmd = abo->mem.kva;
+	struct amdxdna_cmd_chain *cc = NULL;
+
+	cmd->header &= ~AMDXDNA_CMD_STATE;
+	cmd->header |= FIELD_PREP(AMDXDNA_CMD_STATE, error_state);
+
+	if (amdxdna_cmd_get_op(abo) == ERT_CMD_CHAIN) {
+		cc = amdxdna_cmd_get_payload(abo, NULL);
+		cc->error_index = (cmd_idx < cc->command_count) ? cmd_idx : 0;
+		abo = amdxdna_gem_get_obj(client, cc->data[cc->error_index], AMDXDNA_BO_CMD);
+		if (!abo)
+			return -EINVAL;
+		cmd = abo->mem.kva;
+	}
+
+	memset(cmd->data, 0xff, abo->mem.size - sizeof(*cmd));
+	if (cc)
+		amdxdna_gem_put_obj(abo);
+
+	return 0;
+}
+
 /*
  * This should be called in close() and remove(). DO NOT call in other syscalls.
  * This guarantee that when hwctx and resources will be released, if user
@@ -164,19 +191,14 @@ int amdxdna_drm_create_hwctx_ioctl(struct drm_device *dev, void *data, struct dr
 	if (args->ext || args->ext_flags)
 		return -EINVAL;
 
-	if (!drm_dev_enter(dev, &idx))
-		return -ENODEV;
-
 	hwctx = kzalloc(sizeof(*hwctx), GFP_KERNEL);
-	if (!hwctx) {
-		ret = -ENOMEM;
-		goto exit;
-	}
+	if (!hwctx)
+		return -ENOMEM;
 
 	if (copy_from_user(&hwctx->qos, u64_to_user_ptr(args->qos_p), sizeof(hwctx->qos))) {
 		XDNA_ERR(xdna, "Access QoS info failed");
-		ret = -EFAULT;
-		goto free_hwctx;
+		kfree(hwctx);
+		return -EFAULT;
 	}
 
 	hwctx->client = client;
@@ -184,30 +206,36 @@ int amdxdna_drm_create_hwctx_ioctl(struct drm_device *dev, void *data, struct dr
 	hwctx->num_tiles = args->num_tiles;
 	hwctx->mem_size = args->mem_size;
 	hwctx->max_opc = args->max_opc;
+
+	guard(mutex)(&xdna->dev_lock);
+
+	if (!drm_dev_enter(dev, &idx)) {
+		ret = -ENODEV;
+		goto free_hwctx;
+	}
+
+	ret = xdna->dev_info->ops->hwctx_init(hwctx);
+	if (ret) {
+		XDNA_ERR(xdna, "Init hwctx failed, ret %d", ret);
+		goto dev_exit;
+	}
+
+	hwctx->name = kasprintf(GFP_KERNEL, "hwctx.%d.%d", client->pid, hwctx->fw_ctx_id);
+	if (!hwctx->name) {
+		ret = -ENOMEM;
+		goto fini_hwctx;
+	}
+
 	ret = xa_alloc_cyclic(&client->hwctx_xa, &hwctx->id, hwctx,
 			      XA_LIMIT(AMDXDNA_INVALID_CTX_HANDLE + 1, MAX_HWCTX_ID),
 			      &client->next_hwctxid, GFP_KERNEL);
 	if (ret < 0) {
 		XDNA_ERR(xdna, "Allocate hwctx ID failed, ret %d", ret);
-		goto free_hwctx;
-	}
-
-	hwctx->name = kasprintf(GFP_KERNEL, "hwctx.%d.%d", client->pid, hwctx->id);
-	if (!hwctx->name) {
-		ret = -ENOMEM;
-		goto rm_id;
-	}
-
-	mutex_lock(&xdna->dev_lock);
-	ret = xdna->dev_info->ops->hwctx_init(hwctx);
-	if (ret) {
-		mutex_unlock(&xdna->dev_lock);
-		XDNA_ERR(xdna, "Init hwctx failed, ret %d", ret);
 		goto free_name;
 	}
+
 	args->handle = hwctx->id;
 	args->syncobj_handle = hwctx->syncobj_hdl;
-	mutex_unlock(&xdna->dev_lock);
 
 	atomic64_set(&hwctx->job_submit_cnt, 0);
 	atomic64_set(&hwctx->job_free_cnt, 0);
@@ -217,12 +245,12 @@ int amdxdna_drm_create_hwctx_ioctl(struct drm_device *dev, void *data, struct dr
 
 free_name:
 	kfree(hwctx->name);
-rm_id:
-	xa_erase(&client->hwctx_xa, hwctx->id);
+fini_hwctx:
+	xdna->dev_info->ops->hwctx_fini(hwctx);
+dev_exit:
+	drm_dev_exit(idx);
 free_hwctx:
 	kfree(hwctx);
-exit:
-	drm_dev_exit(idx);
 	return ret;
 }
 
@@ -422,7 +450,14 @@ int amdxdna_cmd_submit(struct amdxdna_client *client,
 			goto free_job;
 		}
 	} else {
-		job->cmd_bo = NULL;
+		/*
+		 * A command submission with the invalid handle would leave
+		 * job->cmd_bo NULL and later fault when the scheduler
+		 * dereferences it in amdxdna_cmd_set_state().
+		 */
+		XDNA_DBG(xdna, "Command BO handle required for user submission");
+		ret = -EINVAL;
+		goto free_job;
 	}
 
 	ret = amdxdna_arg_bos_lookup(client, job, arg_bo_hdls, arg_bo_cnt);
@@ -440,11 +475,6 @@ int amdxdna_cmd_submit(struct amdxdna_client *client,
 		goto unlock_srcu;
 	}
 
-	if (hwctx->status != HWCTX_STAT_READY) {
-		XDNA_ERR(xdna, "HW Context is not ready");
-		ret = -EINVAL;
-		goto unlock_srcu;
-	}
 
 	job->hwctx = hwctx;
 	job->mm = current->mm;

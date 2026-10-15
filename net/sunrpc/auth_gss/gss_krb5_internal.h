@@ -8,6 +8,8 @@
 #ifndef _NET_SUNRPC_AUTH_GSS_KRB5_INTERNAL_H
 #define _NET_SUNRPC_AUTH_GSS_KRB5_INTERNAL_H
 
+#include <crypto/krb5.h>
+
 /*
  * The RFCs often specify payload lengths in bits. This helper
  * converts a specified bit-length to the number of octets/bytes.
@@ -62,6 +64,11 @@ struct krb5_ctx {
 	u32			enctype;
 	u32			flags;
 	const struct gss_krb5_enctype *gk5e; /* enctype-specific info */
+	const struct krb5_enctype *krb5e; /* crypto/krb5 enctype */
+	struct crypto_aead	*initiator_enc_aead;
+	struct crypto_aead	*acceptor_enc_aead;
+	struct crypto_shash	*initiator_sign_shash;
+	struct crypto_shash	*acceptor_sign_shash;
 	struct crypto_sync_skcipher *enc;
 	struct crypto_sync_skcipher *seq;
 	struct crypto_sync_skcipher *acceptor_enc;
@@ -176,6 +183,19 @@ u32 krb5_etm_encrypt(struct krb5_ctx *kctx, u32 offset, struct xdr_buf *buf,
 
 u32 krb5_etm_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
 		     struct xdr_buf *buf, u32 *headskip, u32 *tailskip);
+
+u32 gss_krb5_errno_to_status(int err);
+
+int gss_krb5_mic_build_sg(const struct xdr_buf *body,
+			  void *cksum, unsigned int cksum_len,
+			  void *hdr,
+			  struct scatterlist *sg_head,
+			  struct scatterlist **sg_overflow);
+
+u32 gss_krb5_aead_encrypt(struct krb5_ctx *kctx, u32 offset,
+			  struct xdr_buf *buf, struct page **pages);
+u32 gss_krb5_aead_decrypt(struct krb5_ctx *kctx, u32 offset, u32 len,
+			  struct xdr_buf *buf, u32 *headskip, u32 *tailskip);
 
 #if IS_ENABLED(CONFIG_KUNIT)
 void krb5_nfold(u32 inbits, const u8 *in, u32 outbits, u8 *out);

@@ -710,10 +710,15 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	}
 
 	/* determine who this is for */
+	spin_lock(&hci->lock);
 	dev = i3c_hci_addr_to_dev(hci, ibi_addr);
 	if (!dev) {
-		dev_err(&hci->master.dev,
-			"IBI for unknown device %#x\n", ibi_addr);
+		/*
+		 * Either an IBI received just before IBI's were disabled, or
+		 * the controller is broken. Assume the former.
+		 */
+		dev_dbg(&hci->master.dev, "IBI when not enabled at address %#x\n", ibi_addr);
+		spin_unlock(&hci->lock);
 		goto done;
 	}
 
@@ -722,6 +727,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	if (ibi_size > dev_ibi->max_len) {
 		dev_err(&hci->master.dev, "IBI payload too big (%d > %d)\n",
 			ibi_size, dev_ibi->max_len);
+		spin_unlock(&hci->lock);
 		goto done;
 	}
 
@@ -738,6 +744,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	slot = i3c_generic_ibi_get_free_slot(dev_ibi->pool);
 	if (!slot) {
 		dev_err(&hci->master.dev, "no free slot for IBI\n");
+		spin_unlock(&hci->lock);
 		goto done;
 	}
 
@@ -768,6 +775,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	slot->dev = dev;
 	slot->len = ibi_size;
 	i3c_master_queue_ibi(dev, slot);
+	spin_unlock(&hci->lock);
 
 done:
 	/* take care to update the ibi dequeue pointer atomically */

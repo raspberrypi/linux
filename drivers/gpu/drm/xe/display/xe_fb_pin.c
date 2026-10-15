@@ -308,7 +308,7 @@ static struct i915_vma *__xe_pin_fb_vma(const struct intel_framebuffer *fb,
 		drm_exec_retry_on_contention(&exec);
 		xe_validation_retry_on_oom(&ctx, &ret);
 		if (!ret)
-			ttm_bo_pin(&bo->ttm);
+			xe_bo_pin_account(bo);
 	}
 	if (ret)
 		goto err;
@@ -325,7 +325,7 @@ static struct i915_vma *__xe_pin_fb_vma(const struct intel_framebuffer *fb,
 
 err_unpin:
 	ttm_bo_reserve(&bo->ttm, false, false, NULL);
-	ttm_bo_unpin(&bo->ttm);
+	xe_bo_unpin_account(bo);
 	ttm_bo_unreserve(&bo->ttm);
 err:
 	kfree(vma);
@@ -346,7 +346,7 @@ static void __xe_unpin_fb_vma(struct i915_vma *vma)
 		xe_ggtt_node_remove(vma->node, false);
 
 	ttm_bo_reserve(&vma->bo->ttm, false, false, NULL);
-	ttm_bo_unpin(&vma->bo->ttm);
+	xe_bo_unpin_account(vma->bo);
 	ttm_bo_unreserve(&vma->bo->ttm);
 	kfree(vma);
 }

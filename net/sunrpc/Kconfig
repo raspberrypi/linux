@@ -21,6 +21,7 @@ config RPCSEC_GSS_KRB5
 	depends on SUNRPC && CRYPTO
 	default y
 	select SUNRPC_GSS
+	select CRYPTO_KRB5
 	select CRYPTO_SKCIPHER
 	select CRYPTO_HASH
 	help

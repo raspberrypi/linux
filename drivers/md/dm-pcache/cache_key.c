@@ -103,6 +103,12 @@ int cache_key_decode(struct pcache_cache *cache,
 		return -EIO;
 	}
 
+	if (!cache_seg_id_valid(cache, key_onmedia->cache_seg_id)) {
+		pcache_dev_err(pcache, "invalid cache_seg_id %u in cache key (n_segs %u)\n",
+				key_onmedia->cache_seg_id, cache->n_segs);
+		return -EIO;
+	}
+
 	key->cache_pos.cache_seg = &cache->segments[key_onmedia->cache_seg_id];
 	key->cache_pos.seg_off = key_onmedia->cache_seg_off;
 
@@ -806,6 +812,11 @@ int cache_replay(struct pcache_cache *cache)
 			pcache_dev_debug(pcache, "last kset replay, next: %u\n", kset_onmedia->next_cache_seg_id);
 
 			if (++last_hops > cache->n_segs) {
+				ret = -EIO;
+				goto out;
+			}
+
+			if (!cache_seg_id_valid(cache, kset_onmedia->next_cache_seg_id)) {
 				ret = -EIO;
 				goto out;
 			}

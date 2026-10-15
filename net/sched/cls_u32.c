@@ -841,7 +841,7 @@ static struct tc_u_knode *u32_init_knode(struct net *net, struct tcf_proto *tp,
 	struct tc_u32_sel *s = &n->sel;
 	struct tc_u_knode *new;
 
-	new = kzalloc(struct_size(new, sel.keys, s->nkeys), GFP_KERNEL);
+	new = kzalloc(struct_size(new, sel.keys, s->nkeys), GFP_KERNEL_ACCOUNT);
 	if (!new)
 		return NULL;
 
@@ -1132,15 +1132,23 @@ static int u32_change(struct net *net, struct sk_buff *in_skb,
 		goto erridr;
 	}
 
-	n = kzalloc(struct_size(n, sel.keys, s->nkeys), GFP_KERNEL);
+	if (s->offshift >= 16) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "offshift must be less than 16");
+		err = -EINVAL;
+		goto erridr;
+	}
+
+	n = kzalloc(struct_size(n, sel.keys, s->nkeys), GFP_KERNEL_ACCOUNT);
 	if (n == NULL) {
 		err = -ENOBUFS;
 		goto erridr;
 	}
 
 #ifdef CONFIG_CLS_U32_PERF
-	n->pf = __alloc_percpu(struct_size(n->pf, kcnts, s->nkeys),
-			       __alignof__(struct tc_u32_pcnt));
+	n->pf = __alloc_percpu_gfp(struct_size(n->pf, kcnts, s->nkeys),
+				   __alignof__(struct tc_u32_pcnt),
+				   GFP_KERNEL_ACCOUNT);
 	if (!n->pf) {
 		err = -ENOBUFS;
 		goto errfree;
@@ -1162,7 +1170,7 @@ static int u32_change(struct net *net, struct sk_buff *in_skb,
 		goto errout;
 
 #ifdef CONFIG_CLS_U32_MARK
-	n->pcpu_success = alloc_percpu(u32);
+	n->pcpu_success = alloc_percpu_gfp(u32, GFP_KERNEL_ACCOUNT);
 	if (!n->pcpu_success) {
 		err = -ENOMEM;
 		goto errout;

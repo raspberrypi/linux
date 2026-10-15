@@ -69,6 +69,9 @@ void pch_pic_set_irq(struct loongarch_pch_pic *s, int irq, int level)
 /* msi irq handler */
 void pch_msi_set_irq(struct kvm *kvm, int irq, int level)
 {
+	if (irq < 0 || irq >= EIOINTC_IRQS)
+		return;
+
 	eiointc_set_irq(kvm->arch.eiointc, irq, level);
 }
 

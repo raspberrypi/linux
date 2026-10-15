@@ -470,6 +470,7 @@ static int iomap_dio_bio_iter(struct iomap_iter *iter, struct iomap_dio *dio)
 			 * bio_iov_iter_get_pages() returns an error, above.
 			 */
 			ret = -EINVAL;
+			bio_release_pages(bio, false);
 			bio_put(bio);
 			goto zero_tail;
 		}

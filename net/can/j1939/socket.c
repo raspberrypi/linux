@@ -441,7 +441,7 @@ static int j1939_sk_sanity_check(struct sockaddr_can *addr, int len)
 	return 0;
 }
 
-static int j1939_sk_bind(struct socket *sock, struct sockaddr *uaddr, int len)
+static int j1939_sk_bind(struct socket *sock, struct sockaddr_unsized *uaddr, int len)
 {
 	struct sockaddr_can *addr = (struct sockaddr_can *)uaddr;
 	struct j1939_sock *jsk = j1939_sk(sock->sk);
@@ -898,6 +898,7 @@ static struct sk_buff *j1939_sk_alloc_skb(struct net_device *ndev,
 
 	can_skb_reserve(skb);
 	can_skb_prv(skb)->ifindex = ndev->ifindex;
+	can_skb_prv(skb)->skbcnt = 0;
 	skb_reserve(skb, offsetof(struct can_frame, data));
 
 	ret = memcpy_from_msg(skb_put(skb, size), msg, size);

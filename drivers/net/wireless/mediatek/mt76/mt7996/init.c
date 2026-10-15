@@ -1178,7 +1178,7 @@ static int mt7996_variant_fem_init(struct mt7996_dev *dev)
 	adie_ver = u32_get_bits(regval, MT_ADIE_VERSION_MASK);
 	idx = MT7976C_EFUSE_OFFSET % MT7996_EEPROM_BLOCK_SIZE;
 	is_7976c = adie_ver == 0x8a10 || adie_ver == 0x8b00 ||
-		   adie_ver == 0x8c10 || buf[idx] == 0xc;
+		   adie_ver == 0x8c10 || (!ret && buf[idx] == 0xc);
 
 	adie_id = u32_get_bits(regval, MT_ADIE_CHIP_ID_MASK);
 	if (adie_id == 0x7975 || adie_id == 0x7979 ||
@@ -1736,6 +1736,8 @@ void mt7996_unregister_device(struct mt7996_dev *dev)
 {
 	cancel_work_sync(&dev->dump_work);
 	cancel_work_sync(&dev->wed_rro.work);
+	cancel_work_sync(&dev->reset_work);
+	cancel_work_sync(&dev->rc_work);
 	mt7996_unregister_phy(mt7996_phy3(dev));
 	mt7996_unregister_phy(mt7996_phy2(dev));
 	mt7996_unregister_thermal(&dev->phy);

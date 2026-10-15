@@ -6,6 +6,7 @@
 #ifndef _AMDXDNA_PCI_DRV_H_
 #define _AMDXDNA_PCI_DRV_H_
 
+#include <drm/drm_print.h>
 #include <linux/workqueue.h>
 #include <linux/xarray.h>
 

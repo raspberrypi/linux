@@ -309,43 +309,50 @@ void gfs2_lm(struct gfs2_sbd *sdp, const char *fmt, ...)
 	va_end(args);
 }
 
-void gfs2_withdraw(struct gfs2_sbd *sdp)
+void gfs2_withdraw_func(struct work_struct *work)
 {
+	struct gfs2_sbd *sdp = container_of(work, struct gfs2_sbd, sd_withdraw_work);
 	struct lm_lockstruct *ls = &sdp->sd_lockstruct;
 	const struct lm_lockops *lm = ls->ls_ops;
 
+	if (test_bit(SDF_KILL, &sdp->sd_flags))
+		return;
+
+	BUG_ON(sdp->sd_args.ar_debug);
+
+	signal_our_withdraw(sdp);
+
+	kobject_uevent(&sdp->sd_kobj, KOBJ_OFFLINE);
+
+	if (!strcmp(sdp->sd_lockstruct.ls_ops->lm_proto_name, "lock_dlm"))
+		wait_for_completion(&sdp->sd_wdack);
+
+	if (lm->lm_unmount)
+		lm->lm_unmount(sdp, false);
+	fs_err(sdp, "file system withdrawn\n");
+	clear_bit(SDF_WITHDRAW_IN_PROG, &sdp->sd_flags);
+}
+
+void gfs2_withdraw(struct gfs2_sbd *sdp)
+{
 	if (sdp->sd_args.ar_errors == GFS2_ERRORS_WITHDRAW) {
 		unsigned long old = READ_ONCE(sdp->sd_flags), new;
 
 		do {
-			if (old & BIT(SDF_WITHDRAWN)) {
-				wait_on_bit(&sdp->sd_flags,
-					    SDF_WITHDRAW_IN_PROG,
-					    TASK_UNINTERRUPTIBLE);
+			if (old & BIT(SDF_WITHDRAWN))
 				return;
-			}
 			new = old | BIT(SDF_WITHDRAWN) | BIT(SDF_WITHDRAW_IN_PROG);
 		} while (unlikely(!try_cmpxchg(&sdp->sd_flags, &old, new)));
 
-		fs_err(sdp, "about to withdraw this file system\n");
-		BUG_ON(sdp->sd_args.ar_debug);
-
-		signal_our_withdraw(sdp);
-
-		kobject_uevent(&sdp->sd_kobj, KOBJ_OFFLINE);
-
-		if (!strcmp(sdp->sd_lockstruct.ls_ops->lm_proto_name, "lock_dlm"))
-			wait_for_completion(&sdp->sd_wdack);
-
-		if (lm->lm_unmount) {
-			fs_err(sdp, "telling LM to unmount\n");
-			lm->lm_unmount(sdp);
-		}
-		fs_err(sdp, "File system withdrawn\n");
 		dump_stack();
-		clear_bit(SDF_WITHDRAW_IN_PROG, &sdp->sd_flags);
-		smp_mb__after_atomic();
-		wake_up_bit(&sdp->sd_flags, SDF_WITHDRAW_IN_PROG);
+		/*
+		 * There is no need to withdraw when the superblock hasn't been
+		 * fully initialized, yet.
+		 */
+		if (!(sdp->sd_vfs->s_flags & SB_BORN))
+			return;
+		fs_err(sdp, "about to withdraw this file system\n");
+		schedule_work(&sdp->sd_withdraw_work);
 	}
 
 	if (sdp->sd_args.ar_errors == GFS2_ERRORS_PANIC)
@@ -357,10 +364,9 @@ void gfs2_withdraw(struct gfs2_sbd *sdp)
  */
 
 void gfs2_assert_withdraw_i(struct gfs2_sbd *sdp, char *assertion,
-			    const char *function, char *file, unsigned int line,
-			    bool delayed)
+			    const char *function, char *file, unsigned int line)
 {
-	if (gfs2_withdrawing_or_withdrawn(sdp))
+	if (gfs2_withdrawn(sdp))
 		return;
 
 	fs_err(sdp,
@@ -368,17 +374,7 @@ void gfs2_assert_withdraw_i(struct gfs2_sbd *sdp, char *assertion,
 	       "function = %s, file = %s, line = %u\n",
 	       assertion, function, file, line);
 
-	/*
-	 * If errors=panic was specified on mount, it won't help to delay the
-	 * withdraw.
-	 */
-	if (sdp->sd_args.ar_errors == GFS2_ERRORS_PANIC)
-		delayed = false;
-
-	if (delayed)
-		gfs2_withdraw_delayed(sdp);
-	else
-		gfs2_withdraw(sdp);
+	gfs2_withdraw(sdp);
 	dump_stack();
 }
 
@@ -528,7 +524,7 @@ void gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
 			const char *function, char *file, unsigned int line,
 			bool withdraw)
 {
-	if (gfs2_withdrawing_or_withdrawn(sdp))
+	if (gfs2_withdrawn(sdp))
 		return;
 
 	fs_err(sdp, "fatal: I/O error - "

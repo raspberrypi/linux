@@ -71,6 +71,7 @@ static int linear_set_limits(struct mddev *mddev)
 	int err;
 
 	md_init_stacking_limits(&lim);
+	lim.features |= BLK_FEAT_NOWAIT;
 	lim.max_hw_sectors = mddev->chunk_sectors;
 	lim.max_write_zeroes_sectors = mddev->chunk_sectors;
 	lim.max_hw_wzeroes_unmap_sectors = mddev->chunk_sectors;

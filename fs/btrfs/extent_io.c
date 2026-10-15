@@ -2316,6 +2316,76 @@ void btrfs_btree_wait_writeback_range(struct btrfs_fs_info *fs_info, u64 start,
 	}
 }
 
+static int write_meta_extent_buffer(struct btrfs_eb_write_context *ctx,
+				    struct writeback_control *wbc)
+{
+	struct extent_buffer *eb = ctx->eb;
+	int ret;
+
+	ret = btrfs_check_meta_write_pointer(eb->fs_info, ctx);
+	if (ret)
+		return ret;
+
+	if (!lock_extent_buffer_for_io(eb, wbc))
+		return 0;
+
+	/* Implies write in zoned mode. */
+	if (ctx->zoned_bg) {
+		/* Mark the last eb in the block group. */
+		btrfs_schedule_zone_finish_bg(ctx->zoned_bg, eb);
+		ctx->zoned_bg->meta_write_pointer += eb->len;
+	}
+	write_one_eb(eb, wbc);
+	return 0;
+}
+
+/*
+ * On a zoned filesystem, write out the currently dirty metadata extent buffers
+ * of @bg. Used to flush the active metadata/system block group before the
+ * ascending-address walk in btree_writepages(), so that walk can pivot the
+ * active block group away (finishing it) instead of aborting the commit; see
+ * the caller for details.
+ */
+static void flush_active_meta_bg(struct address_space *mapping,
+				 struct writeback_control *wbc,
+				 struct btrfs_eb_write_context *ctx,
+				 struct btrfs_block_group *bg)
+{
+	struct btrfs_fs_info *fs_info = inode_to_fs_info(mapping->host);
+	unsigned long index = bg->start >> fs_info->nodesize_bits;
+	unsigned long end = (btrfs_block_group_end(bg) - 1) >> fs_info->nodesize_bits;
+	struct eb_batch batch;
+	unsigned int nr_ebs;
+
+	ASSERT(btrfs_is_zoned(fs_info));
+	lockdep_assert_held(&fs_info->zoned_meta_io_lock);
+
+	eb_batch_init(&batch);
+	while (index <= end &&
+	       (nr_ebs = buffer_tree_get_ebs_tag(fs_info, &index, end,
+						 PAGECACHE_TAG_DIRTY, &batch))) {
+		struct extent_buffer *eb;
+
+		while ((eb = eb_batch_next(&batch)) != NULL) {
+			ctx->eb = eb;
+
+			/*
+			 * If the eb is behind the write pointer (-EBUSY, e.g.
+			 * already being written by someone else) skip it and
+			 * carry on. Only a hole at the write pointer (-EAGAIN)
+			 * stops the flush. The main walk in btree_writepages()
+			 * then deals with it.
+			 */
+			if (write_meta_extent_buffer(ctx, wbc) == -EAGAIN) {
+				eb_batch_release(&batch);
+				return;
+			}
+		}
+		eb_batch_release(&batch);
+		cond_resched();
+	}
+}
+
 int btree_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	struct btrfs_eb_write_context ctx = { .wbc = wbc };
@@ -2351,6 +2421,22 @@ int btree_writepages(struct address_space *mapping, struct writeback_control *wb
 	else
 		tag = PAGECACHE_TAG_DIRTY;
 	btrfs_zoned_meta_io_lock(fs_info);
+
+	/*
+	 * On a zoned filesystem, flush the currently active metadata/system
+	 * block group(s) first, under this same lock, so the ascending-address
+	 * walk below can pivot the active block group instead of aborting the
+	 * transaction commit with -EAGAIN.
+	 */
+	if (btrfs_is_zoned(fs_info) && wbc->sync_mode == WB_SYNC_ALL &&
+	    !wbc->for_sync) {
+		if (fs_info->active_meta_bg)
+			flush_active_meta_bg(mapping, wbc, &ctx,
+					     fs_info->active_meta_bg);
+		if (fs_info->active_system_bg)
+			flush_active_meta_bg(mapping, wbc, &ctx,
+					     fs_info->active_system_bg);
+	}
 retry:
 	if (wbc->sync_mode == WB_SYNC_ALL)
 		buffer_tree_tag_for_writeback(fs_info, index, end);
@@ -2361,28 +2447,13 @@ retry:
 		while ((eb = eb_batch_next(&batch)) != NULL) {
 			ctx.eb = eb;
 
-			ret = btrfs_check_meta_write_pointer(eb->fs_info, &ctx);
-			if (ret) {
-				if (ret == -EBUSY)
-					ret = 0;
-
-				if (ret) {
-					done = 1;
-					break;
-				}
-				continue;
+			ret = write_meta_extent_buffer(&ctx, wbc);
+			if (ret == -EBUSY) {
+				ret = 0;
+			} else if (ret) {
+				done = 1;
+				break;
 			}
-
-			if (!lock_extent_buffer_for_io(eb, wbc))
-				continue;
-
-			/* Implies write in zoned mode. */
-			if (ctx.zoned_bg) {
-				/* Mark the last eb in the block group. */
-				btrfs_schedule_zone_finish_bg(ctx.zoned_bg, eb);
-				ctx.zoned_bg->meta_write_pointer += eb->len;
-			}
-			write_one_eb(eb, wbc);
 		}
 		nr_to_write_done = (wbc->nr_to_write <= 0);
 		eb_batch_release(&batch);
@@ -2904,12 +2975,6 @@ next:
 		}
 	}
 	return try_release_extent_state(io_tree, folio);
-}
-
-static int extent_buffer_under_io(const struct extent_buffer *eb)
-{
-	return (test_bit(EXTENT_BUFFER_WRITEBACK, &eb->bflags) ||
-		test_bit(EXTENT_BUFFER_DIRTY, &eb->bflags));
 }
 
 static bool folio_range_has_eb(struct folio *folio)
@@ -3661,11 +3726,30 @@ static int release_extent_buffer(struct extent_buffer *eb)
 	return 0;
 }
 
-void free_extent_buffer(struct extent_buffer *eb)
+static void clear_extent_buffer_reading(struct extent_buffer *eb)
+{
+	clear_and_wake_up_bit(EXTENT_BUFFER_READING, &eb->bflags);
+}
+
+static void free_extent_buffer_clear_reading(struct extent_buffer *eb,
+					     bool clear_reading)
 {
 	int refs;
+
 	if (!eb)
 		return;
+
+	/*
+	 * We want to clear EXTENT_BUFFER_READING flag and decrease refs
+	 * in the same critical section.
+	 * This will make sure invalidate_and_check_btree_folios() won't
+	 * see an eb with EXTENT_BUFFER_READING cleared but refs not yet
+	 * decreased.
+	 */
+	if (clear_reading) {
+		spin_lock(&eb->refs_lock);
+		clear_extent_buffer_reading(eb);
+	}
 
 	refs = refcount_read(&eb->refs);
 	while (1) {
@@ -3677,11 +3761,16 @@ void free_extent_buffer(struct extent_buffer *eb)
 		}
 
 		/* Optimization to avoid locking eb->refs_lock. */
-		if (atomic_try_cmpxchg(&eb->refs.refs, &refs, refs - 1))
+		if (atomic_try_cmpxchg(&eb->refs.refs, &refs, refs - 1)) {
+			if (clear_reading)
+				spin_unlock(&eb->refs_lock);
 			return;
+		}
 	}
 
-	spin_lock(&eb->refs_lock);
+	if (!clear_reading)
+		spin_lock(&eb->refs_lock);
+
 	if (refcount_read(&eb->refs) == 2 &&
 	    test_bit(EXTENT_BUFFER_STALE, &eb->bflags) &&
 	    !extent_buffer_under_io(eb) &&
@@ -3693,6 +3782,11 @@ void free_extent_buffer(struct extent_buffer *eb)
 	 * the uptodate bits and such for the extent buffers.
 	 */
 	release_extent_buffer(eb);
+}
+
+void free_extent_buffer(struct extent_buffer *eb)
+{
+	return free_extent_buffer_clear_reading(eb, false);
 }
 
 void free_extent_buffer_stale(struct extent_buffer *eb)
@@ -3831,11 +3925,6 @@ void set_extent_buffer_uptodate(struct extent_buffer *eb)
 		btrfs_meta_folio_set_uptodate(eb->folios[i], eb);
 }
 
-static void clear_extent_buffer_reading(struct extent_buffer *eb)
-{
-	clear_and_wake_up_bit(EXTENT_BUFFER_READING, &eb->bflags);
-}
-
 static void end_bbio_meta_read(struct btrfs_bio *bbio)
 {
 	struct extent_buffer *eb = bbio->private;
@@ -3859,8 +3948,7 @@ static void end_bbio_meta_read(struct btrfs_bio *bbio)
 	else
 		clear_extent_buffer_uptodate(eb);
 
-	clear_extent_buffer_reading(eb);
-	free_extent_buffer(eb);
+	free_extent_buffer_clear_reading(eb, true);
 
 	bio_put(&bbio->bio);
 }

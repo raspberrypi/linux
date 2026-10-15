@@ -153,7 +153,7 @@ EXPORT_SYMBOL(pn_sock_unhash);
 
 static DEFINE_MUTEX(port_mutex);
 
-static int pn_socket_bind(struct socket *sock, struct sockaddr *addr, int len)
+static int pn_socket_bind(struct socket *sock, struct sockaddr_unsized *addr, int len)
 {
 	struct sock *sk = sock->sk;
 	struct pn_sock *pn = pn_sk(sk);
@@ -163,7 +163,7 @@ static int pn_socket_bind(struct socket *sock, struct sockaddr *addr, int len)
 	u8 saddr;
 
 	if (sk->sk_prot->bind)
-		return sk->sk_prot->bind(sk, addr, len);
+		return sk->sk_prot->bind(sk, (struct sockaddr *)addr, len);
 
 	if (len < sizeof(struct sockaddr_pn))
 		return -EINVAL;
@@ -206,11 +206,17 @@ static int pn_socket_autobind(struct socket *sock)
 
 	memset(&sa, 0, sizeof(sa));
 	sa.spn_family = AF_PHONET;
-	err = pn_socket_bind(sock, (struct sockaddr *)&sa,
-				sizeof(struct sockaddr_pn));
-	if (err != -EINVAL)
+	err = pn_socket_bind(sock, (struct sockaddr_unsized *)&sa,
+			     sizeof(struct sockaddr_pn));
+	/*
+	 * pn_socket_bind() also returns -EINVAL when sk_state != TCP_CLOSE
+	 * without a prior bind, so -EINVAL alone is not sufficient to infer
+	 * that the socket was already bound.  Only treat it as "already
+	 * bound" when the port is non-zero; otherwise propagate the error
+	 * instead of crashing the kernel.
+	 */
+	if (err != -EINVAL || unlikely(!pn_port(pn_sk(sock->sk)->sobject)))
 		return err;
-	BUG_ON(!pn_port(pn_sk(sock->sk)->sobject));
 	return 0; /* socket was already bound */
 }
 

@@ -434,6 +434,12 @@ static int route4_set_parms(struct net *net, struct tcf_proto *tp,
 	if (handle && (!fold || nhandle == (handle & ~0x7F00)))
 		nhandle |= handle & 0x7F00;
 
+	if (fold && !tb[TCA_ROUTE4_TO] && !tb[TCA_ROUTE4_FROM] &&
+	    !tb[TCA_ROUTE4_IIF] && nhandle != fold->handle) {
+		NL_SET_ERR_MSG(extack, "Routing attributes required");
+		return -EINVAL;
+	}
+
 	if (handle && !fold && nhandle != handle) {
 		NL_SET_ERR_MSG_FMT(extack,
 				   "Handle mismatch constructed: %x (expected: %x)",
@@ -449,7 +455,7 @@ static int route4_set_parms(struct net *net, struct tcf_proto *tp,
 	h1 = to_hash(nhandle);
 	b = rtnl_dereference(head->table[h1]);
 	if (!b) {
-		b = kzalloc(sizeof(struct route4_bucket), GFP_KERNEL);
+		b = kzalloc(sizeof(struct route4_bucket), GFP_KERNEL_ACCOUNT);
 		if (b == NULL)
 			return -ENOBUFS;
 
@@ -524,7 +530,7 @@ static int route4_change(struct net *net, struct sk_buff *in_skb,
 			return -EINVAL;
 
 	err = -ENOBUFS;
-	f = kzalloc(sizeof(struct route4_filter), GFP_KERNEL);
+	f = kzalloc(sizeof(struct route4_filter), GFP_KERNEL_ACCOUNT);
 	if (!f)
 		goto errout;
 

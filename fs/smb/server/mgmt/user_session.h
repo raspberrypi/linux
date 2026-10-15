@@ -61,7 +61,7 @@ struct ksmbd_session {
 
 	struct ksmbd_file_table		file_table;
 	unsigned long			last_active;
-	rwlock_t			tree_conns_lock;
+	struct rw_semaphore		tree_conns_lock;
 
 	atomic_t			refcnt;
 	struct rw_semaphore		rpc_lock;

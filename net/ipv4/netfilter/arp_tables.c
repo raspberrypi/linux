@@ -1518,13 +1518,11 @@ int arpt_register_table(struct net *net,
 			const struct arpt_replace *repl,
 			const struct nf_hook_ops *template_ops)
 {
-	struct nf_hook_ops *ops;
-	unsigned int num_ops;
-	int ret, i;
-	struct xt_table_info *newinfo;
 	struct xt_table_info bootstrap = {0};
-	void *loc_cpu_entry;
+	struct xt_table_info *newinfo;
 	struct xt_table *new_table;
+	void *loc_cpu_entry;
+	int ret;
 
 	newinfo = xt_alloc_table_info(repl->size);
 	if (!newinfo)
@@ -1539,7 +1537,7 @@ int arpt_register_table(struct net *net,
 		return ret;
 	}
 
-	new_table = xt_register_table(net, table, &bootstrap, newinfo);
+	new_table = xt_register_table(net, table, template_ops, &bootstrap, newinfo);
 	if (IS_ERR(new_table)) {
 		struct arpt_entry *iter;
 
@@ -1549,31 +1547,6 @@ int arpt_register_table(struct net *net,
 		return PTR_ERR(new_table);
 	}
 
-	num_ops = hweight32(table->valid_hooks);
-	if (num_ops == 0) {
-		ret = -EINVAL;
-		goto out_free;
-	}
-
-	ops = kmemdup_array(template_ops, num_ops, sizeof(*ops), GFP_KERNEL);
-	if (!ops) {
-		ret = -ENOMEM;
-		goto out_free;
-	}
-
-	for (i = 0; i < num_ops; i++)
-		ops[i].priv = new_table;
-
-	new_table->ops = ops;
-
-	ret = nf_register_net_hooks(net, ops, num_ops);
-	if (ret != 0)
-		goto out_free;
-
-	return ret;
-
-out_free:
-	__arpt_unregister_table(net, new_table);
 	return ret;
 }
 
