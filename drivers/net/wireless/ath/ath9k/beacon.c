@@ -314,8 +314,8 @@ static int ath9k_beacon_choose_slot(struct ath_softc *sc)
 
 	if (sc->sc_ah->opmode != NL80211_IFTYPE_AP &&
 	    sc->sc_ah->opmode != NL80211_IFTYPE_MESH_POINT) {
-		ath_dbg(common, BEACON, "slot 0, tsf: %llu\n",
-			ath9k_hw_gettsf64(sc->sc_ah));
+//		ath_dbg(common, BEACON, "slot 0, tsf: %llu\n",
+//			ath9k_hw_gettsf64(sc->sc_ah));
 		return 0;
 	}
 
