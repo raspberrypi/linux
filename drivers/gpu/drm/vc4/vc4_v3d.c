@@ -127,7 +127,7 @@ static int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused)
 int
 vc4_v3d_pm_get(struct vc4_dev *vc4)
 {
-	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
+	if (WARN_ON_ONCE(vc4->gen == VC4_GEN_5))
 		return -ENODEV;
 
 	mutex_lock(&vc4->power_lock);
@@ -148,7 +148,7 @@ vc4_v3d_pm_get(struct vc4_dev *vc4)
 void
 vc4_v3d_pm_put(struct vc4_dev *vc4)
 {
-	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
+	if (WARN_ON_ONCE(vc4->gen == VC4_GEN_5))
 		return;
 
 	mutex_lock(&vc4->power_lock);
@@ -178,7 +178,7 @@ int vc4_v3d_get_bin_slot(struct vc4_dev *vc4)
 	uint64_t seqno = 0;
 	struct vc4_exec_info *exec;
 
-	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
+	if (WARN_ON_ONCE(vc4->gen == VC4_GEN_5))
 		return -ENODEV;
 
 try_again:
@@ -325,7 +325,7 @@ int vc4_v3d_bin_bo_get(struct vc4_dev *vc4, bool *used)
 {
 	int ret = 0;
 
-	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
+	if (WARN_ON_ONCE(vc4->gen == VC4_GEN_5))
 		return -ENODEV;
 
 	mutex_lock(&vc4->bin_bo_lock);
@@ -360,7 +360,7 @@ static void bin_bo_release(struct kref *ref)
 
 void vc4_v3d_bin_bo_put(struct vc4_dev *vc4)
 {
-	if (WARN_ON_ONCE(vc4->gen > VC4_GEN_4))
+	if (WARN_ON_ONCE(vc4->gen == VC4_GEN_5))
 		return;
 
 	mutex_lock(&vc4->bin_bo_lock);
@@ -376,8 +376,6 @@ static int vc4_v3d_runtime_suspend(struct device *dev)
 
 	vc4_irq_disable(&vc4->base);
 
-	/* we no longer require a minimum clock rate */
-	clk_set_min_rate(v3d->clk, 0);
 	clk_disable_unprepare(v3d->clk);
 
 	return 0;
