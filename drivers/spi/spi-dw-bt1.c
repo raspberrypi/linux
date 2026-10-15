@@ -135,7 +135,7 @@ static ssize_t dw_spi_bt1_dirmap_read(struct spi_mem_dirmap_desc *desc,
 
 	dw_spi_enable_chip(dws, 0);
 
-	dw_spi_update_config(dws, mem->spi, &cfg);
+	dw_spi_update_config(dws, mem->spi, &cfg, NULL);
 
 	dw_spi_umask_intr(dws, DW_SPI_INT_RXFI);
 
