@@ -6304,6 +6304,7 @@ Params: 3_4_inch_c              3.4" 800x800 2lane
         10_1_inch_a_4lane       10.1" 800x1280 4lane
         10_1_inch_b             10.1" 720x1280 2lane
         10_1_inch_b_4lane       10.1" 720x1280 4lane
+        10_1_inch_e_4lane       10.1" 1200x1920 4lane
         12_3_inch_a_4lane       12.3" 720x1920 4lane
         disable_touch           Disable the touch controller
         invx                    Touchscreen inverted x axis
