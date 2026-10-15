@@ -13,23 +13,16 @@ use crate::{
     ffi::c_void,
     prelude::*,
     revocable::{Revocable, RevocableGuard},
-    sync::{aref::ARef, rcu, Completion},
-    types::{ForeignOwnable, Opaque, ScopeGuard},
+    sync::{aref::ARef, rcu, Arc, Completion},
+    types::ForeignOwnable,
 };
 
-use pin_init::Wrapper;
-
-/// [`Devres`] inner data accessed from [`Devres::callback`].
 #[pin_data]
-struct Inner<T: Send> {
+struct Inner<T> {
     #[pin]
     data: Revocable<T>,
-    /// Tracks whether [`Devres::callback`] has been completed.
     #[pin]
-    devm: Completion,
-    /// Tracks whether revoking [`Self::data`] has been completed.
-    #[pin]
-    revoke: Completion,
+    revocation: Completion,
 }
 
 /// This abstraction is meant to be used by subsystems to containerize [`Device`] bound resources to
@@ -45,6 +38,10 @@ struct Inner<T: Send> {
 ///
 /// After the [`Devres`] has been unbound it is not possible to access the encapsulated resource
 /// anymore.
+///
+/// When a [`Devres`] is dropped, it is guaranteed that `T` has been fully dropped by the time
+/// [`Devres::drop`] returns, even if a concurrent revocation through the release callback is in
+/// progress.
 ///
 /// [`Devres`] users should make sure to simply free the corresponding backing resource in `T`'s
 /// [`Drop`] implementation.
@@ -105,107 +102,82 @@ struct Inner<T: Send> {
 /// # fn no_run(dev: &Device<Bound>) -> Result<(), Error> {
 /// // SAFETY: Invalid usage for example purposes.
 /// let iomem = unsafe { IoMem::<{ core::mem::size_of::<u32>() }>::new(0xBAAAAAAD)? };
-/// let devres = KBox::pin_init(Devres::new(dev, iomem), GFP_KERNEL)?;
+/// let devres = Devres::new(dev, iomem)?;
 ///
 /// let res = devres.try_access().ok_or(ENXIO)?;
 /// res.write8(0x42, 0x0);
 /// # Ok(())
 /// # }
 /// ```
-///
-/// # Invariants
-///
-/// `Self::inner` is guaranteed to be initialized and is always accessed read-only.
-#[pin_data(PinnedDrop)]
-pub struct Devres<T: Send> {
+pub struct Devres<T: Send + 'static> {
     dev: ARef<Device>,
     /// Pointer to [`Self::devres_callback`].
     ///
     /// Has to be stored, since Rust does not guarantee to always return the same address for a
     /// function. However, the C API uses the address as a key.
     callback: unsafe extern "C" fn(*mut c_void),
-    /// Contains all the fields shared with [`Self::callback`].
-    // TODO: Replace with `UnsafePinned`, once available.
-    //
-    // Subsequently, the `drop_in_place()` in `Devres::drop` and `Devres::new` as well as the
-    // explicit `Send` and `Sync' impls can be removed.
-    #[pin]
-    inner: Opaque<Inner<T>>,
-    _add_action: (),
+    inner: Arc<Inner<T>>,
 }
 
-impl<T: Send> Devres<T> {
+impl<T: Send + 'static> Devres<T> {
     /// Creates a new [`Devres`] instance of the given `data`.
     ///
     /// The `data` encapsulated within the returned `Devres` instance' `data` will be
     /// (revoked)[`Revocable`] once the device is detached.
-    pub fn new<'a, E>(
-        dev: &'a Device<Bound>,
-        data: impl PinInit<T, E> + 'a,
-    ) -> impl PinInit<Self, Error> + 'a
+    pub fn new<E>(dev: &Device<Bound>, data: impl PinInit<T, E>) -> Result<Self>
     where
-        T: 'a,
         Error: From<E>,
     {
-        try_pin_init!(&this in Self {
+        let callback = Self::devres_callback;
+        let inner = Arc::pin_init::<Error>(
+            try_pin_init!(Inner {
+                data <- Revocable::new(data),
+                revocation <- Completion::new(),
+            }),
+            GFP_KERNEL,
+        )?;
+        let devres_inner = inner.clone();
+
+        // SAFETY:
+        // - `dev.as_raw()` is a pointer to a valid bound device.
+        // - `inner` is guaranteed to be a valid for the duration of the lifetime of `Self`.
+        // - `devm_add_action()` is guaranteed not to call `callback` for the entire lifetime of
+        //   `dev`.
+        to_result(unsafe {
+            bindings::devm_add_action(
+                dev.as_raw(),
+                Some(callback),
+                Arc::as_ptr(&inner).cast_mut().cast(),
+            )
+        })?;
+
+        // `devm_add_action()` was successful and has consumed the reference count.
+        core::mem::forget(devres_inner);
+
+        Ok(Self {
             dev: dev.into(),
-            callback: Self::devres_callback,
-            // INVARIANT: `inner` is properly initialized.
-            inner <- Opaque::pin_init(try_pin_init!(Inner {
-                    devm <- Completion::new(),
-                    revoke <- Completion::new(),
-                    data <- Revocable::new(data),
-            })),
-            // TODO: Replace with "initializer code blocks" [1] once available.
-            //
-            // [1] https://github.com/Rust-for-Linux/pin-init/pull/69
-            _add_action: {
-                // SAFETY: `this` is a valid pointer to uninitialized memory.
-                let inner = unsafe { &raw mut (*this.as_ptr()).inner };
-
-                // SAFETY:
-                // - `dev.as_raw()` is a pointer to a valid bound device.
-                // - `inner` is guaranteed to be a valid for the duration of the lifetime of `Self`.
-                // - `devm_add_action()` is guaranteed not to call `callback` until `this` has been
-                //    properly initialized, because we require `dev` (i.e. the *bound* device) to
-                //    live at least as long as the returned `impl PinInit<Self, Error>`.
-                to_result(unsafe {
-                    bindings::devm_add_action(dev.as_raw(), Some(*callback), inner.cast())
-                }).inspect_err(|_| {
-                    let inner = Opaque::cast_into(inner);
-
-                    // SAFETY: `inner` is a valid pointer to an `Inner<T>` and valid for both reads
-                    // and writes.
-                    unsafe { core::ptr::drop_in_place(inner) };
-                })?;
-            },
+            callback,
+            inner,
         })
     }
 
-    fn inner(&self) -> &Inner<T> {
-        // SAFETY: By the type invairants of `Self`, `inner` is properly initialized and always
-        // accessed read-only.
-        unsafe { &*self.inner.get() }
-    }
-
     fn data(&self) -> &Revocable<T> {
-        &self.inner().data
+        &self.inner.data
     }
 
     #[allow(clippy::missing_safety_doc)]
     unsafe extern "C" fn devres_callback(ptr: *mut kernel::ffi::c_void) {
-        // SAFETY: In `Self::new` we've passed a valid pointer to `Inner` to `devm_add_action()`,
-        // hence `ptr` must be a valid pointer to `Inner`.
-        let inner = unsafe { &*ptr.cast::<Inner<T>>() };
+        // SAFETY: In `Self::new` we've passed a valid pointer of `Inner<T>` to
+        // `devm_add_action()`, hence `ptr` must be a valid pointer to `Inner<T>`.
+        let inner = unsafe { Arc::from_raw(ptr.cast::<Inner<T>>()) };
 
-        // Ensure that `inner` can't be used anymore after we signal completion of this callback.
-        let inner = ScopeGuard::new_with_data(inner, |inner| inner.devm.complete_all());
-
-        if !inner.data.revoke() {
-            // If `revoke()` returns false, it means that `Devres::drop` already started revoking
-            // `data` for us. Hence we have to wait until `Devres::drop` signals that it
-            // completed revoking `data`.
-            inner.revoke.wait_for_completion();
+        if inner.data.revoke() {
+            inner.revocation.complete_all();
+        } else {
+            // Devres::drop() is concurrently revoking; wait for it to finish `drop_in_place()`
+            // before returning to `devres_release_all()`, ensuring `T` is fully torn down before
+            // the device finishes unbinding.
+            inner.revocation.wait_for_completion();
         }
     }
 
@@ -218,7 +190,7 @@ impl<T: Send> Devres<T> {
             bindings::devm_remove_action_nowarn(
                 self.dev.as_raw(),
                 Some(self.callback),
-                core::ptr::from_ref(self.inner()).cast_mut().cast(),
+                Arc::as_ptr(&self.inner).cast_mut().cast(),
             )
         } == 0)
     }
@@ -289,31 +261,25 @@ unsafe impl<T: Send> Send for Devres<T> {}
 // SAFETY: `Devres` can be shared with any task, if `T: Sync`.
 unsafe impl<T: Send + Sync> Sync for Devres<T> {}
 
-#[pinned_drop]
-impl<T: Send> PinnedDrop for Devres<T> {
-    fn drop(self: Pin<&mut Self>) {
+impl<T: Send + 'static> Drop for Devres<T> {
+    fn drop(&mut self) {
         // SAFETY: When `drop` runs, it is guaranteed that nobody is accessing the revocable data
         // anymore, hence it is safe not to wait for the grace period to finish.
         if unsafe { self.data().revoke_nosync() } {
-            // We revoked `self.data` before the devres action did, hence try to remove it.
-            if !self.remove_action() {
-                // We could not remove the devres action, which means that it now runs concurrently,
-                // hence signal that `self.data` has been revoked by us successfully.
-                self.inner().revoke.complete_all();
+            self.inner.revocation.complete_all();
 
-                // Wait for `Self::devres_callback` to be done using this object.
-                self.inner().devm.wait_for_completion();
+            // We revoked `self.data` before the devres action did, hence try to remove it.
+            if self.remove_action() {
+                // SAFETY: In `Self::new` we have taken an additional reference count of `self.inner`
+                // for `devm_add_action()`. Since `remove_action()` was successful, we have to drop
+                // this additional reference count.
+                drop(unsafe { Arc::from_raw(Arc::as_ptr(&self.inner)) });
             }
         } else {
-            // `Self::devres_callback` revokes `self.data` for us, hence wait for it to be done
-            // using this object.
-            self.inner().devm.wait_for_completion();
+            // The release callback is concurrently revoking; wait for it to finish
+            // `drop_in_place()` of the wrapped object before returning.
+            self.inner.revocation.wait_for_completion();
         }
-
-        // INVARIANT: At this point it is guaranteed that `inner` can't be accessed any more.
-        //
-        // SAFETY: `inner` is valid for dropping.
-        unsafe { core::ptr::drop_in_place(self.inner.get()) };
     }
 }
 
