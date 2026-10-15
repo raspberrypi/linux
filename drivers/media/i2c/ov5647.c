@@ -816,6 +816,9 @@ static int ov5647_s_stream(struct v4l2_subdev *sd, int enable)
 		pm_runtime_put(&client->dev);
 	}
 
+	__v4l2_ctrl_grab(sensor->vflip, enable);
+	__v4l2_ctrl_grab(sensor->hflip, enable);
+
 	mutex_unlock(&sensor->lock);
 
 	return 0;
