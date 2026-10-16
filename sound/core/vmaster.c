@@ -288,6 +288,8 @@ EXPORT_SYMBOL(_snd_ctl_add_follower);
  *
  * Adds the multiple follower kcontrols with the given names.
  * Returns 0 for success or a negative error code.
+ *
+ * Note that this function takes card->controls_rwsem lock internally.
  */
 int snd_ctl_add_followers(struct snd_card *card, struct snd_kcontrol *master,
 			  const char * const *list)
@@ -295,6 +297,7 @@ int snd_ctl_add_followers(struct snd_card *card, struct snd_kcontrol *master,
 	struct snd_kcontrol *follower;
 	int err;
 
+	guard(rwsem_write)(&card->controls_rwsem);
 	for (; *list; list++) {
 		follower = snd_ctl_find_id_mixer(card, *list);
 		if (follower) {
