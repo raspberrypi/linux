@@ -1975,8 +1975,12 @@ EXPORT_SYMBOL_GPL(hrtimer_setup);
  * @clock_id:	The clock to be used
  * @mode:       The timer mode
  *
- * Similar to hrtimer_setup(), except that this one must be used if struct hrtimer is in stack
- * memory.
+ * Similar to hrtimer_setup(), except that this one must be used if struct
+ * hrtimer is in stack memory.
+ *
+ * Callers that do not use the hrtimer_on_stack cleanup class must call
+ * destroy_hrtimer_on_stack() before the stack storage goes out of scope. The
+ * cleanup class pairs setup and destruction automatically.
  */
 void hrtimer_setup_on_stack(struct hrtimer *timer,
 			    enum hrtimer_restart (*function)(struct hrtimer *),
