@@ -459,13 +459,7 @@ static int fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 		pr_err("Palette overflow. Entries clipped\n");
 
 	// Set logo palette
-	palette = kzalloc(256 * 4, GFP_KERNEL);
-	if (!palette)
-		goto cleanup;
 	fb_set_logo_RGB_palette(info, &image_palette, palette, current_rows);
-	if (info->pseudo_palette)
-		memcpy(palette, info->pseudo_palette, 32 * sizeof(uint32_t));
-	info->pseudo_palette = palette;
 
 	image->width = min_t(unsigned int, width, info->var.xres);
 	image->height = min_t(unsigned int, height, info->var.yres);
@@ -503,9 +497,18 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 		return 0;
 
 	if (fullscreen_logo_enabled) {
-		if (fb_set_logo_from_file(info, fullscreen_logo_path,
-					  &image, palette))
+		palette = kzalloc(256 * 4, GFP_KERNEL);
+		if (palette == NULL)
 			return 0;
+
+		if (fb_set_logo_from_file(info, fullscreen_logo_path,
+					  &image, palette)) {
+			kfree(palette);
+			return 0;
+		}
+
+		saved_pseudo_palette = info->pseudo_palette;
+		info->pseudo_palette = palette;
 	} else {
 		image.depth = 8;
 		image.data = logo->data;
