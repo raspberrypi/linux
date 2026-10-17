@@ -95,8 +95,10 @@ static unsigned int session_open_file_count(struct ksmbd_session *session)
 	unsigned int id;
 
 	read_lock(&session->file_table.lock);
-	idr_for_each_entry(session->file_table.idr, fp, id)
-		count++;
+	if (session->file_table.idr) {
+		idr_for_each_entry(session->file_table.idr, fp, id)
+			count++;
+	}
 	read_unlock(&session->file_table.lock);
 	return count;
 }
@@ -477,6 +479,7 @@ int ksmbd_session_register(struct ksmbd_conn *conn,
 		down_write(&sessions_table_lock);
 		ksmbd_session_remove_from_table(sess);
 		up_write(&sessions_table_lock);
+		delete_proc_session(sess);
 		ksmbd_user_session_put(sess);
 	}
 
@@ -604,6 +607,7 @@ static int ksmbd_chann_del(struct ksmbd_conn *conn, struct ksmbd_session *sess)
 
 void ksmbd_conn_sessions_cleanup(struct ksmbd_conn *conn)
 {
+	LIST_HEAD(dispose);
 	struct ksmbd_session *sess;
 	unsigned long id;
 	struct hlist_node *tmp;
@@ -617,8 +621,7 @@ void ksmbd_conn_sessions_cleanup(struct ksmbd_conn *conn)
 			down_write(&conn->session_lock);
 			xa_erase(&conn->sessions, sess->id);
 			up_write(&conn->session_lock);
-			if (atomic_dec_and_test(&sess->refcnt))
-				ksmbd_session_destroy(sess);
+			list_add_tail(&sess->dispose_entry, &dispose);
 		}
 	}
 
@@ -628,12 +631,12 @@ void ksmbd_conn_sessions_cleanup(struct ksmbd_conn *conn)
 		if (xa_empty(&sess->ksmbd_chann_list)) {
 			xa_erase(&conn->sessions, sess->id);
 			ksmbd_session_remove_from_table(sess);
-			if (atomic_dec_and_test(&sess->refcnt))
-				ksmbd_session_destroy(sess);
+			list_add_tail(&sess->dispose_entry, &dispose);
 		}
 	}
 	up_write(&conn->session_lock);
 	up_write(&sessions_table_lock);
+	ksmbd_dispose_sessions(&dispose);
 }
 
 bool is_ksmbd_session_in_connection(struct ksmbd_conn *conn,
