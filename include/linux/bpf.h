@@ -1902,6 +1902,7 @@ struct bpf_prog_aux {
 	union {
 		struct work_struct work;
 		struct rcu_head	rcu;
+		struct rcu_work rwork;
 	};
 	struct bpf_stream stream[2];
 	struct mutex st_ops_assoc_mutex;
