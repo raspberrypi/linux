@@ -354,7 +354,7 @@ static int fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 	struct image_palette image_palette;
 	const char *current_ptr, *end_ptr;
 	long width = 0, height = 0;
-	bool top_to_bottom;
+	bool top_to_bottom, clipped = false;
 	u8 B, G, R;
 	u8 entry[3];
 	ssize_t len;
@@ -444,8 +444,10 @@ static int fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 						image_palette.colors[current_rows][k] =
 								entry[k];
 					palette_index = current_rows;
+					current_rows++;
+				} else {
+					clipped = true;
 				}
-				current_rows++;
 			}
 			actual_row = top_to_bottom ? i : (height - 1 - i);
 
@@ -455,7 +457,7 @@ static int fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 		current_ptr += skip_x * 3 * 2;
 	}
 
-	if (current_rows >= 224)
+	if (clipped)
 		pr_err("Palette overflow. Entries clipped\n");
 
 	// Set logo palette
