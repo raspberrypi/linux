@@ -344,8 +344,8 @@ static bool fb_palette_contains_entry(struct image_palette *palette, int num_exi
 	return false; // No duplicate found
 }
 
-static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
-				   struct fb_image *image, u32 *palette)
+static int fb_set_logo_from_file(struct fb_info *info, const char *filepath,
+				 struct fb_image *image, u32 *palette)
 {
 	int current_rows = 0, palette_index = 0, actual_row, skip_x = 0, skip_y = 0, ret;
 	unsigned char *read_logo = NULL, *header;
@@ -366,6 +366,7 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 	}
 	len = fw->size;
 	file_content = fw->data;
+	ret = -EINVAL;
 
 	if (!len) {
 		pr_err("Error: logo TGA file is empty. Not drawing fullscreen logo.\n");
@@ -391,14 +392,18 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 		       header[2], header[16]);
 		goto cleanup;
 	}
+	if (!width || !height) {
+		pr_err("Invalid logo file: TGA image is %ldx%ld\n", width, height);
+		goto cleanup;
+	}
 	// Skip header + ID field
 	current_ptr = file_content + 18 + header[0];
 
 	read_logo = kmalloc_array(width, height, GFP_KERNEL);
-	if (!read_logo)
+	if (!read_logo) {
+		ret = -ENOMEM;
 		goto cleanup;
-
-	image->data = read_logo;
+	}
 
 	// TGA pixels are stored bottom-to-top by default, unless bit 5 of
 	// image_descriptor is set
@@ -473,9 +478,14 @@ static void fb_set_logo_from_file(struct fb_info *info, const char *filepath,
 	if (image->width < info->var.xres)
 		image->dx = (info->var.xres - image->width) / 2;
 
+	image->data = read_logo;
+	release_firmware(fw);
+	return 0;
+
 cleanup:
 	kfree(read_logo);
 	release_firmware(fw);
+	return ret;
 }
 
 
@@ -493,8 +503,9 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 		return 0;
 
 	if (fullscreen_logo_enabled) {
-		fb_set_logo_from_file(info, fullscreen_logo_path,
-			&image, palette);
+		if (fb_set_logo_from_file(info, fullscreen_logo_path,
+					  &image, palette))
+			return 0;
 	} else {
 		image.depth = 8;
 		image.data = logo->data;
@@ -580,6 +591,8 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 	kfree(palette);
 	if (saved_pseudo_palette != NULL)
 		info->pseudo_palette = saved_pseudo_palette;
+	if (fullscreen_logo_enabled)
+		kfree(image.data);
 	kfree(logo_new);
 	kfree(logo_rotate);
 	return image.dy + logo->height;
