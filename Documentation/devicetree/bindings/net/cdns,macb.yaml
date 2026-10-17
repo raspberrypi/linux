@@ -40,6 +40,10 @@ properties:
           - const: cdns,macb          # Generic
 
       - items:
+          - const: raspberrypi,rp1-gem # Raspberry Pi RP1 gigabit ethernet interface
+          - const: cdns,macb           # Generic
+
+      - items:
           - enum:
               - atmel,sama5d3-macb    # 10/100Mbit IP on Atmel sama5d3 SoCs
           - enum:
@@ -70,7 +74,13 @@ properties:
     minItems: 1
     items:
       - description: Basic register set
-      - description: GEMGXL Management block registers on SiFive FU540-C000 SoC
+      - description: SoC-specific auxiliary register set
+
+  reg-names:
+    minItems: 1
+    items:
+      - const: macb
+      - enum: [gemxl_mgmt, eth_cfg]
 
   interrupts:
     minItems: 1
@@ -87,7 +97,7 @@ properties:
       - enum: [ ether_clk, hclk, pclk ]
       - enum: [ hclk, pclk ]
       - enum: [ tx_clk, tsu_clk ]
-      - enum: [ rx_clk, tsu_clk ]
+      - enum: [ rx_clk, tx_clk, tsu_clk ]
       - const: tsu_clk
 
   local-mac-address: true
@@ -95,6 +105,26 @@ properties:
   phy-mode: true
 
   phy-handle: true
+
+  raspberrypi,pio:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      RP1 PIO provider used for Ethernet PTP GPIO timestamping and output.
+
+  raspberrypi,gpio-controller:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description:
+      RP1 GPIO provider used to reserve and route PTP-capable pins.
+
+  phy-reset-gpios:
+    maxItems: 1
+    deprecated: true
+    description: GPIO used to reset the Ethernet PHY.
+
+  phy-reset-duration:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    deprecated: true
+    description: PHY reset duration in milliseconds.
 
   phys:
     maxItems: 1
@@ -146,12 +176,16 @@ properties:
       be direct children.
 
   cdns,aw2w-max-pipe:
-    $ref: /schemas/types.yaml#/definitions/uint32
+    oneOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - $ref: /schemas/types.yaml#/definitions/uint8
     description:
       Maximum number of outstanding AXI write requests
 
   cdns,ar2r-max-pipe:
-    $ref: /schemas/types.yaml#/definitions/uint32
+    oneOf:
+      - $ref: /schemas/types.yaml#/definitions/uint32
+      - $ref: /schemas/types.yaml#/definitions/uint8
     description:
       Maximum number of outstanding AXI read requests
 
@@ -168,6 +202,19 @@ patternProperties:
 
     properties:
       reset-gpios: true
+
+      brcm,powerdown-enable:
+        type: boolean
+        description:
+          Allow the Broadcom PHY to enter its low-power mode when the link is
+          down.
+
+      led-modes:
+        $ref: /schemas/types.yaml#/definitions/uint32-array
+        minItems: 2
+        maxItems: 2
+        description:
+          Broadcom PHY LED mode values for the two integrated LED outputs.
 
       magic-packet:
         type: boolean
@@ -189,15 +236,40 @@ allOf:
   - $ref: ethernet-controller.yaml#
 
   - if:
-      not:
-        properties:
-          compatible:
-            contains:
-              const: sifive,fu540-c000-gem
+      properties:
+        compatible:
+          contains:
+            const: raspberrypi,rp1-gem
     then:
       properties:
         reg:
-          maxItems: 1
+          minItems: 2
+          maxItems: 2
+        reg-names:
+          items:
+            - const: macb
+            - const: eth_cfg
+        clock-names:
+          items:
+            - const: pclk
+            - const: hclk
+            - const: tsu_clk
+            - const: tx_clk
+      required:
+        - reg-names
+        - raspberrypi,pio
+        - raspberrypi,gpio-controller
+    else:
+      if:
+        not:
+          properties:
+            compatible:
+              contains:
+                const: sifive,fu540-c000-gem
+      then:
+        properties:
+          reg:
+            maxItems: 1
 
 unevaluatedProperties: false
 
