@@ -66,8 +66,11 @@ static irqreturn_t rp1_mbox_irq(int irq, void *dev_id)
 
 	while (evs) {
 		doorbell = __ffs(evs);
+		if (doorbell >= MAX_CHANS)
+			break;
 		chan = &mbox->controller.chans[doorbell];
-		mbox_chan_received_data(chan, NULL);
+		if (chan)
+			mbox_chan_received_data(chan, NULL);
 		evs &= ~(1 << doorbell);
 	}
 	return IRQ_HANDLED;

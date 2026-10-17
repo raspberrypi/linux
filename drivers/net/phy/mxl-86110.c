@@ -70,6 +70,8 @@
 
 /* EXT Sleep Control register */
 #define MXL86110_UTP_EXT_SLEEP_CTRL_REG			0x27
+#define MXL86110_UTP_EXT_SLEEP_CTRL_PLL_IN_SLEEP_OFF	0
+#define MXL86110_UTP_EXT_SLEEP_CTRL_PLL_IN_SLEEP_MASK	BIT(14)
 #define MXL86110_UTP_EXT_SLEEP_CTRL_EN_SLEEP_SW_OFF	0
 #define MXL86110_UTP_EXT_SLEEP_CTRL_EN_SLEEP_SW_MASK	BIT(15)
 
@@ -769,6 +771,31 @@ out:
 }
 
 /**
+ * mxl86110_config_sleep_pll() - configure PLL power-down behaviour in sleep
+ * @phydev: pointer to the phy_device
+ * @pd: true = turn off PLL in sleep
+ *
+ * The initial value is set by the power-on state of the RXD2 pin,
+ * which is pulled down.
+ * 0 = PLL is kept on during suspend or sleep
+ * 1 = powerdown PLL in suspend or sleep.
+ *
+ * Return: 0 or negative errno code.
+ */
+static int mxl86110_config_sleep_pll(struct phy_device *phydev, bool pd)
+{
+	u16 val = 0;
+
+	if (!pd)
+		val = MXL86110_UTP_EXT_SLEEP_CTRL_PLL_IN_SLEEP_MASK;
+
+	return __mxl86110_modify_extended_reg(phydev,
+					      MXL86110_UTP_EXT_SLEEP_CTRL_REG,
+					      MXL86110_UTP_EXT_SLEEP_CTRL_PLL_IN_SLEEP_MASK,
+					      val);
+}
+
+/**
  * mxl86110_config_init() - initialize the MXL86110 PHY
  * @phydev: pointer to the phy_device
  *
@@ -913,6 +940,10 @@ static int mxl86111_config_init(struct phy_device *phydev)
 		goto out;
 
 	ret = mxl86110_broadcast_cfg(phydev);
+	if (ret < 0)
+		goto out;
+
+	ret = mxl86110_config_sleep_pll(phydev, true);
 out:
 	phy_unlock_mdio_bus(phydev);
 
