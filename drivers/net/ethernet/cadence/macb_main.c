@@ -1921,7 +1921,11 @@ static int macb_rx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_rx_pending(queue)) {
 			queue_writel(queue, IDR, bp->rx_intr_mask);
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
@@ -2016,7 +2020,11 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_tx_complete_pending(queue)) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
