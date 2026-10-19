@@ -60,6 +60,7 @@ static const char * const perr_strings[] = {
 	[PERR_HKEEPING]  = "partition config conflicts with housekeeping setup",
 	[PERR_ACCESS]    = "Enable partition not permitted",
 	[PERR_REMOTE]    = "Have remote partition underneath",
+	[PERR_ISOPARENT] = "Root partition is not allowed with isolated parent",
 };
 
 /*
@@ -1963,6 +1964,10 @@ static int update_parent_effective_cpumask(struct cpuset *cs, int cmd,
 			part_error = PERR_CPUSEMPTY;
 			goto write_error;
 		}
+		if ((parent_prs == PRS_ISOLATED) && (old_prs == -PRS_ROOT)) {
+			part_error = PERR_ISOPARENT;
+			goto write_error;
+		}
 
 		/* Check newmask again, whether cpus are available for parent/cs */
 		nocpu |= tasks_nocpu_error(parent, cs, newmask);
@@ -2038,6 +2043,13 @@ static int update_parent_effective_cpumask(struct cpuset *cs, int cmd,
 				adding = cpumask_and(tmp->addmask,
 						     cs->effective_xcpus,
 						     parent->effective_xcpus);
+		} else if ((parent_prs == PRS_ISOLATED) &&
+			   ((old_prs == PRS_ROOT) || (old_prs == -PRS_ROOT))) {
+			part_error = PERR_ISOPARENT;
+			if (old_prs == PRS_ROOT) {
+				cpumask_copy(tmp->addmask, cs->effective_xcpus);
+				adding = true;
+			}
 		} else if (is_partition_invalid(cs) && !cpumask_empty(xcpus) &&
 			   cpumask_subset(xcpus, parent->effective_xcpus)) {
 			struct cgroup_subsys_state *css;
@@ -3025,6 +3037,7 @@ static int update_prstate(struct cpuset *cs, int new_prs)
 	int err = PERR_NONE, old_prs = cs->partition_root_state;
 	struct cpuset *parent = parent_cs(cs);
 	struct tmpmasks tmpmask;
+	int parent_prs = parent->partition_root_state;
 	bool isolcpus_updated = false;
 	bool disable_partition = false;
 
@@ -3074,6 +3087,14 @@ static int update_prstate(struct cpuset *cs, int new_prs)
 			enum partition_cmd cmd = (new_prs == PRS_ROOT)
 					       ? partcmd_enable : partcmd_enablei;
 
+			/*
+			 * It is not allowed to create a root partition under
+			 * an isolated parent partition.
+			 */
+			if ((new_prs == PRS_ROOT) && (parent_prs == PRS_ISOLATED)) {
+				err = PERR_ISOPARENT;
+				goto out;
+			}
 			err = update_parent_effective_cpumask(cs, cmd, NULL, &tmpmask);
 		} else {
 			err = remote_partition_enable(cs, new_prs, &tmpmask);
@@ -3087,12 +3108,15 @@ static int update_prstate(struct cpuset *cs, int new_prs)
 		 * Need to update isolated_cpus.
 		 */
 		if (prstate_housekeeping_conflict(new_prs, parent_prs,
-						  cs->effective_xcpus, NULL)) {
-			disable_partition = true;
+						  cs->effective_xcpus, NULL))
 			err = PERR_HKEEPING;
-		} else {
+		else if (parent_prs == PRS_ISOLATED)
+			err = PERR_ISOPARENT;
+
+		if (!err)
 			isolcpus_updated = true;
-		}
+		else
+			disable_partition = true;
 	} else {
 		/*
 		 * Switching back to member is always allowed even if it
