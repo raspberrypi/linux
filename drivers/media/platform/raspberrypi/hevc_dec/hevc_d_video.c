@@ -316,11 +316,15 @@ static int hevc_d_enum_fmt_vid_cap(struct file *file, void *priv,
 
 /*
  * get dst format - sets it to default if otherwise unset
- * returns a pointer to the struct as a convienience
+ * default is not updated whilst CAPTURE buffers exist as they were sized
+ * from it
+ * returns a pointer to the struct as a convenience
  */
 static struct v4l2_pix_format_mplane *get_dst_fmt(struct hevc_d_ctx *const ctx)
 {
-	if (!ctx->dst_fmt_set)
+	struct vb2_queue *vq = v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx);
+
+	if (!ctx->dst_fmt_set && !vb2_is_busy(vq))
 		ctx->dst_fmt = hevc_d_hevc_default_dst_fmt(ctx);
 	return &ctx->dst_fmt;
 }
@@ -405,7 +409,7 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 	int ret;
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
-	if (vb2_is_busy(vq))
+	if (vb2_is_streaming(vq))
 		return -EBUSY;
 
 	ret = hevc_d_try_fmt_vid_out(file, priv, f);
@@ -413,7 +417,6 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 		return ret;
 
 	ctx->src_fmt = f->fmt.pix_mp;
-	ctx->dst_fmt_set = 0;  /* Setting src invalidates dst */
 
 	/* Propagate colorspace information to capture. */
 	copy_color(&ctx->dst_fmt, &f->fmt.pix_mp);
