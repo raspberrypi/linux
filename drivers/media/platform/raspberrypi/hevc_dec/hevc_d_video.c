@@ -405,7 +405,7 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 	int ret;
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
-	if (vb2_is_busy(vq))
+	if (vb2_is_streaming(vq))
 		return -EBUSY;
 
 	ret = hevc_d_try_fmt_vid_out(file, priv, f);
