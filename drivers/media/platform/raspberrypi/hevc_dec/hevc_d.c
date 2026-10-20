@@ -46,7 +46,7 @@ static const struct v4l2_ctrl_config hevc_d_ctrls[] = {
 		.id	= V4L2_CID_STATELESS_HEVC_PPS,
 		.ops	= &hevc_d_hevc_pps_ctrl_ops,
 	}, {
-		.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
+		.id	= V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
 	}, {
 		.id	= V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
 	}, {
@@ -66,7 +66,17 @@ static const struct v4l2_ctrl_config hevc_d_ctrls[] = {
 		.min	= V4L2_STATELESS_HEVC_START_CODE_NONE,
 		.max	= V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
 		.def	= V4L2_STATELESS_HEVC_START_CODE_NONE,
-	},
+	}, {
+		.id	= V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
+		.min	= V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
+		.max	= V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10,
+		.def	= V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
+	}, {
+		.id	= V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
+		.min	= V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
+		.max	= V4L2_MPEG_VIDEO_HEVC_LEVEL_5_1,
+		.def	= V4L2_MPEG_VIDEO_HEVC_LEVEL_4_1,
+	}
 };
 
 void *hevc_d_find_control_data(struct hevc_d_ctx *ctx, u32 id)
