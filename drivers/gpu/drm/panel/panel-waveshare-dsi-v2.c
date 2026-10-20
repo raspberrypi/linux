@@ -1975,11 +1975,11 @@ static const struct drm_display_mode ws_panel_12_3_a_4lane_mode = {
 };
 
 static const struct drm_display_mode ws_panel_10_1_a_mode = {
-	.clock = 70000,
+	.clock = 71000,
 	.hdisplay = 800,
 	.hsync_start = 800 + 40,
-	.hsync_end = 800 + 40 + 20,
-	.htotal = 800 + 40 + 20 + 20,
+	.hsync_end = 800 + 40 + 30,
+	.htotal = 800 + 40 + 30 + 20,
 	.vdisplay = 1280,
 	.vsync_start = 1280 + 20,
 	.vsync_end = 1280 + 20 + 20,
