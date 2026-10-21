@@ -786,16 +786,16 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 			VC4_SET_FIELD(phase, SCALER_PPF_IPHASE));
 }
 
-/* Source pixels fetched per line: the mode_set functions add one per partial end */
+/* Number of whole pixels covered by a 16.16 source start and size */
+static u32 vc4_src_span(u32 start, u32 size)
+{
+	return ((start + size + 0xffff) >> 16) - (start >> 16);
+}
+
+/* Source pixels fetched per line */
 static u32 vc4_lbm_src_w(const struct vc4_plane_state *vc4_state)
 {
-	u32 w = vc4_state->src_w[0] >> 16;
-
-	if (vc4_state->src_x & 0xffff)
-		w++;
-	if ((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff)
-		w++;
-	return w;
+	return vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
 }
 
 static u32 __vc4_lbm_size(struct drm_plane_state *state)
@@ -1714,23 +1714,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return -EINVAL;
 	}
 
-	/* fetch an extra pixel if we don't actually line up with the left edge. */
-	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
-		width++;
-
-	/* same for the right side */
-	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
-	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
-		width++;
-
-	/* now for the top */
-	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
-		height++;
-
-	/* and the bottom */
-	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
-	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
-		height++;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	/* For YUV444 the hardware wants double the width, otherwise it doesn't
 	 * fetch full width of chroma
@@ -2125,23 +2111,9 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 	src_x = vc4_state->src_x >> 16;
 
-	/* fetch an extra pixel if we don't actually line up with the left edge. */
-	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
-		width++;
-
-	/* same for the right side */
-	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
-	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
-		width++;
-
-	/* now for the top */
-	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
-		height++;
-
-	/* and the bottom */
-	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
-	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
-		height++;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
