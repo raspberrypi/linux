@@ -328,7 +328,7 @@ static const struct hvs_format *vc4_get_hvs_format(u32 drm_format)
 
 static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
-	if (dst == src >> 16)
+	if (dst << 16 == src)
 		return VC4_SCALING_NONE;
 
 	if (src <= (1 << 16))
@@ -613,6 +613,12 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 						       vc4_state->crtc_w);
 	vc4_state->y_scaling[0] = vc4_get_scaling_mode(vc4_state->src_h[0],
 						       vc4_state->crtc_h);
+
+	/* A fractional start fetches an extra pixel, which needs scaling out */
+	if (vc4_state->x_scaling[0] == VC4_SCALING_NONE && (vc4_state->src_x & 0xffff))
+		vc4_state->x_scaling[0] = VC4_SCALING_PPF;
+	if (vc4_state->y_scaling[0] == VC4_SCALING_NONE && (vc4_state->src_y & 0xffff))
+		vc4_state->y_scaling[0] = VC4_SCALING_PPF;
 
 	vc4_state->is_unity = (vc4_state->x_scaling[0] == VC4_SCALING_NONE &&
 			       vc4_state->y_scaling[0] == VC4_SCALING_NONE);
