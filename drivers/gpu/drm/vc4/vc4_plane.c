@@ -781,6 +781,18 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 			VC4_SET_FIELD(phase, SCALER_PPF_IPHASE));
 }
 
+/* Source pixels fetched per line: the mode_set functions add one per partial end */
+static u32 vc4_lbm_src_w(const struct vc4_plane_state *vc4_state)
+{
+	u32 w = vc4_state->src_w[0] >> 16;
+
+	if (vc4_state->src_x & 0xffff)
+		w++;
+	if ((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff)
+		w++;
+	return w;
+}
+
 static u32 __vc4_lbm_size(struct drm_plane_state *state)
 {
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
@@ -803,7 +815,7 @@ static u32 __vc4_lbm_size(struct drm_plane_state *state)
 	if (vc4_state->x_scaling[0] == VC4_SCALING_TPZ)
 		pix_per_line = vc4_state->crtc_w;
 	else
-		pix_per_line = vc4_state->src_w[0] >> 16;
+		pix_per_line = vc4_lbm_src_w(vc4_state);
 
 	if (!vc4_state->is_yuv) {
 		if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ)
@@ -873,7 +885,7 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	const struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	const struct drm_format_info *info = state->fb->format;
 	unsigned int components, words, wpc;
-	unsigned int width, lines;
+	unsigned int width, lines, src_w = vc4_lbm_src_w(vc4_state);
 
 	/* LBM is meant to use the smaller of source or dest width, but there
 	 * is a issue with UV scaling that the size required for the second
@@ -882,11 +894,11 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	 * source, repeats that pixel out to crtc_w, so it needs crtc_w.
 	 */
 	if (info->hsub > 1 && channel == 1)
-		width = state->src_w >> 16;
+		width = src_w;
 	else if (vc4_state->x_scaling[channel] == VC4_SCALING_TPZ)
 		width = state->crtc_w;
 	else
-		width = min(state->src_w >> 16, state->crtc_w);
+		width = min(src_w, state->crtc_w);
 	width = round_up(width / info->hsub, 4);
 
 	wpc = vc4_lbm_words_per_component(state, channel);
