@@ -899,7 +899,7 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 		width = state->crtc_w;
 	else
 		width = min(src_w, state->crtc_w);
-	width = round_up(width / info->hsub, 4);
+	width = round_up(DIV_ROUND_UP(width, info->hsub), 4);
 
 	wpc = vc4_lbm_words_per_component(state, channel);
 	if (!wpc)
