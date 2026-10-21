@@ -31,12 +31,13 @@ properties:
           - waveshare,8.0-dsi-touch-a-4lane
           - waveshare,8.8-dsi-touch-a
           - waveshare,9.0-dsi-touch-b
-          - waveshare,9.0-dsi-touch-b,4lane
+          - waveshare,9.0-dsi-touch-b-4lane
           - waveshare,10.1-dsi-touch-a
           - waveshare,10.1-dsi-touch-a-4lane
           - waveshare,10.1-dsi-touch-b
-          - waveshare,10.1-dsi-touch-b,4lane
-          - waveshare,12.3-dsi-touch-a,4lane
+          - waveshare,10.1-dsi-touch-b-4lane
+          - waveshare,10.1-dsi-touch-e-4lane
+          - waveshare,12.3-dsi-touch-a-4lane
 
   reg:
     description: DSI virtual channel
