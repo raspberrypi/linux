@@ -619,6 +619,14 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 			       vc4_state->y_scaling[0] == VC4_SCALING_NONE);
 
 	if (num_planes > 1) {
+		/*
+		 * A source smaller than one chroma sample is rendered the wrong
+		 * colour, and on BCM2712 one that narrow corrupts other planes.
+		 */
+		if ((vc4_state->src_w[0] >> 16) < h_subsample ||
+		    (vc4_state->src_h[0] >> 16) < v_subsample)
+			return -EINVAL;
+
 		vc4_state->is_yuv = true;
 
 		vc4_state->src_w[1] = vc4_state->src_w[0] / h_subsample;
