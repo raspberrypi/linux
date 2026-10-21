@@ -225,13 +225,12 @@ void amdgpu_i2c_destroy(struct amdgpu_i2c_chan *i2c)
 	kfree(i2c);
 }
 
-/* Add the default buses */
 void amdgpu_i2c_init(struct amdgpu_device *adev)
 {
-	if (amdgpu_hw_i2c)
-		DRM_INFO("hw_i2c forced on, you may experience display detection problems!\n");
-
-	amdgpu_atombios_i2c_init(adev);
+	if (!adev->is_atom_fw) {
+		if (!amdgpu_device_has_dc_support(adev))
+			amdgpu_atombios_i2c_init(adev);
+	}
 }
 
 /* remove all the buses */
@@ -243,22 +242,6 @@ void amdgpu_i2c_fini(struct amdgpu_device *adev)
 		if (adev->i2c_bus[i]) {
 			amdgpu_i2c_destroy(adev->i2c_bus[i]);
 			adev->i2c_bus[i] = NULL;
-		}
-	}
-}
-
-/* Add additional buses */
-void amdgpu_i2c_add(struct amdgpu_device *adev,
-		    const struct amdgpu_i2c_bus_rec *rec,
-		    const char *name)
-{
-	struct drm_device *dev = adev_to_drm(adev);
-	int i;
-
-	for (i = 0; i < AMDGPU_MAX_I2C_BUS; i++) {
-		if (!adev->i2c_bus[i]) {
-			adev->i2c_bus[i] = amdgpu_i2c_create(dev, rec, name);
-			return;
 		}
 	}
 }

@@ -1839,18 +1839,21 @@ static void end_bbio_meta_write(struct btrfs_bio *bbio)
 	struct extent_buffer *eb = bbio->private;
 	struct btrfs_fs_info *fs_info = eb->fs_info;
 	bool uptodate = !bbio->bio.bi_status;
-	struct folio_iter fi;
 	u32 bio_offset = 0;
 
 	if (!uptodate)
 		set_btree_ioerr(eb);
 
-	bio_for_each_folio_all(fi, &bbio->bio) {
-		u64 start = eb->start + bio_offset;
-		struct folio *folio = fi.folio;
-		u32 len = fi.length;
+	/*
+	 * Clear writeback on the buffer's own folios. The bio may carry the
+	 * shared zero page instead (EXTENT_BUFFER_ZONED_ZEROOUT), so iterate
+	 * the extent buffer folios rather than the bio folios.
+	 */
+	for (int i = 0; i < num_extent_folios(eb); i++) {
+		u32 len = min(eb->len - bio_offset, (u32)eb->folio_size);
 
-		btrfs_folio_clear_writeback(fs_info, folio, start, len);
+		btrfs_folio_clear_writeback(fs_info, eb->folios[i],
+					    eb->start + bio_offset, len);
 		bio_offset += len;
 	}
 
@@ -1895,7 +1898,8 @@ static noinline_for_stack void write_one_eb(struct extent_buffer *eb,
 	struct btrfs_fs_info *fs_info = eb->fs_info;
 	struct btrfs_bio *bbio;
 
-	prepare_eb_write(eb);
+	if (!test_bit(EXTENT_BUFFER_ZONED_ZEROOUT, &eb->bflags))
+		prepare_eb_write(eb);
 
 	bbio = btrfs_bio_alloc(INLINE_EXTENT_BUFFER_PAGES,
 			       REQ_OP_WRITE | REQ_META | wbc_to_write_flags(wbc),
@@ -1916,9 +1920,23 @@ static noinline_for_stack void write_one_eb(struct extent_buffer *eb,
 			folio_clear_dirty_for_io(folio);
 			wbc->nr_to_write--;
 		}
-		ret = bio_add_folio(&bbio->bio, folio, eb->len,
-				    eb->start - folio_pos(folio));
-		ASSERT(ret);
+		if (test_bit(EXTENT_BUFFER_ZONED_ZEROOUT, &eb->bflags)) {
+			u32 off = 0;
+
+			while (off < eb->len) {
+				u32 add = min_t(u32, PAGE_SIZE, eb->len - off);
+
+				ret = bio_add_folio(&bbio->bio,
+						    page_folio(ZERO_PAGE(0)),
+						    add, 0);
+				ASSERT(ret);
+				off += add;
+			}
+		} else {
+			ret = bio_add_folio(&bbio->bio, folio, eb->len,
+					    eb->start - folio_pos(folio));
+			ASSERT(ret);
+		}
 		wbc_account_cgroup_owner(wbc, folio, eb->len);
 		folio_unlock(folio);
 	} else {
@@ -1931,8 +1949,24 @@ static noinline_for_stack void write_one_eb(struct extent_buffer *eb,
 			folio_lock(folio);
 			folio_clear_dirty_for_io(folio);
 			folio_start_writeback(folio);
-			ret = bio_add_folio(&bbio->bio, folio, eb->folio_size, 0);
-			ASSERT(ret);
+			if (test_bit(EXTENT_BUFFER_ZONED_ZEROOUT, &eb->bflags)) {
+				u32 off = 0;
+
+				while (off < eb->folio_size) {
+					u32 add = min_t(u32, PAGE_SIZE,
+							eb->folio_size - off);
+
+					ret = bio_add_folio(&bbio->bio,
+							page_folio(ZERO_PAGE(0)),
+							add, 0);
+					ASSERT(ret);
+					off += add;
+				}
+			} else {
+				ret = bio_add_folio(&bbio->bio, folio,
+						    eb->folio_size, 0);
+				ASSERT(ret);
+			}
 			wbc_account_cgroup_owner(wbc, folio, eb->folio_size);
 			wbc->nr_to_write -= folio_nr_pages(folio);
 			folio_unlock(folio);

@@ -41,7 +41,7 @@ static void io_eventfd_do_signal(struct rcu_head *rcu)
 		call_rcu(&ev_fd->rcu, io_eventfd_free);
 }
 
-void io_eventfd_signal(struct io_ring_ctx *ctx)
+void io_eventfd_signal(struct io_ring_ctx *ctx, bool defer)
 {
 	struct io_ev_fd *ev_fd = NULL;
 
@@ -68,7 +68,7 @@ void io_eventfd_signal(struct io_ring_ctx *ctx)
 	if (ev_fd->eventfd_async && !io_wq_current_is_worker())
 		goto out;
 
-	if (likely(eventfd_signal_allowed())) {
+	if (likely(!defer && eventfd_signal_allowed())) {
 		eventfd_signal_mask(ev_fd->cq_ev_fd, EPOLL_URING_WAKE);
 	} else {
 		if (!atomic_fetch_or(BIT(IO_EVENTFD_OP_SIGNAL_BIT), &ev_fd->ops)) {
@@ -101,7 +101,7 @@ void io_eventfd_flush_signal(struct io_ring_ctx *ctx)
 	if (skip)
 		return;
 
-	io_eventfd_signal(ctx);
+	io_eventfd_signal(ctx, false);
 }
 
 int io_eventfd_register(struct io_ring_ctx *ctx, void __user *arg,

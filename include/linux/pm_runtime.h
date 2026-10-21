@@ -78,8 +78,11 @@ extern int pm_runtime_get_if_in_use(struct device *dev);
 extern int pm_schedule_suspend(struct device *dev, unsigned int delay);
 extern int __pm_runtime_set_status(struct device *dev, unsigned int status);
 extern int pm_runtime_barrier(struct device *dev);
+extern void pm_runtime_block_if_disabled(struct device *dev);
+extern void pm_runtime_unblock(struct device *dev);
 extern void pm_runtime_enable(struct device *dev);
 extern void __pm_runtime_disable(struct device *dev, bool check_resume);
+extern bool pm_runtime_blocked(struct device *dev);
 extern void pm_runtime_allow(struct device *dev);
 extern void pm_runtime_forbid(struct device *dev);
 extern void pm_runtime_no_callbacks(struct device *dev);
@@ -275,8 +278,11 @@ static inline int pm_runtime_get_if_active(struct device *dev)
 static inline int __pm_runtime_set_status(struct device *dev,
 					    unsigned int status) { return 0; }
 static inline int pm_runtime_barrier(struct device *dev) { return 0; }
+static inline void pm_runtime_block_if_disabled(struct device *dev) {}
+static inline void pm_runtime_unblock(struct device *dev) {}
 static inline void pm_runtime_enable(struct device *dev) {}
 static inline void __pm_runtime_disable(struct device *dev, bool c) {}
+static inline bool pm_runtime_blocked(struct device *dev) { return true; }
 static inline void pm_runtime_allow(struct device *dev) {}
 static inline void pm_runtime_forbid(struct device *dev) {}
 
@@ -562,11 +568,18 @@ static inline int pm_runtime_set_suspended(struct device *dev)
  * pm_runtime_disable - Disable runtime PM for a device.
  * @dev: Target device.
  *
- * Prevent the runtime PM framework from working with @dev (by incrementing its
- * "blocking" counter).
+ * Prevent the runtime PM framework from working with @dev by incrementing its
+ * "disable" counter.
  *
- * For each invocation of this function for @dev there must be a matching
- * pm_runtime_enable() call in order for runtime PM to be enabled for it.
+ * If the counter is zero when this function runs and there is a pending runtime
+ * resume request for @dev, it will be resumed.  If the counter is still zero at
+ * that point, all of the pending runtime PM requests for @dev will be canceled
+ * and all runtime PM operations in progress involving it will be waited for to
+ * complete.
+ *
+ * For each invocation of this function for @dev, there must be a matching
+ * pm_runtime_enable() call, so that runtime PM is eventually enabled for it
+ * again.
  */
 static inline void pm_runtime_disable(struct device *dev)
 {

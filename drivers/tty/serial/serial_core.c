@@ -75,22 +75,23 @@ static inline void uart_port_deref(struct uart_port *uport)
 		wake_up(&uport->state->remove_wait);
 }
 
-#define uart_port_lock(state, flags)					\
-	({								\
-		struct uart_port *__uport = uart_port_ref(state);	\
-		if (__uport)						\
-			uart_port_lock_irqsave(__uport, &flags);	\
-		__uport;						\
-	})
+static inline struct uart_port *uart_port_ref_lock(struct uart_state *state, unsigned long *flags)
+{
+	struct uart_port *uport = uart_port_ref(state);
 
-#define uart_port_unlock(uport, flags)					\
-	({								\
-		struct uart_port *__uport = uport;			\
-		if (__uport) {						\
-			uart_port_unlock_irqrestore(__uport, flags);	\
-			uart_port_deref(__uport);			\
-		}							\
-	})
+	if (uport)
+		uart_port_lock_irqsave(uport, flags);
+
+	return uport;
+}
+
+static inline void uart_port_unlock_deref(struct uart_port *uport, unsigned long flags)
+{
+	if (uport) {
+		uart_port_unlock_irqrestore(uport, flags);
+		uart_port_deref(uport);
+	}
+}
 
 static inline struct uart_port *uart_port_check(struct uart_state *state)
 {
@@ -127,10 +128,10 @@ static void uart_stop(struct tty_struct *tty)
 	struct uart_port *port;
 	unsigned long flags;
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	if (port)
 		port->ops->stop_tx(port);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 }
 
 static void __uart_start(struct uart_state *state)
@@ -168,9 +169,9 @@ static void uart_start(struct tty_struct *tty)
 	struct uart_port *port;
 	unsigned long flags;
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	__uart_start(state);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 }
 
 static void
@@ -258,14 +259,14 @@ static int uart_alloc_xmit_buf(struct tty_port *port)
 	if (!page)
 		return -ENOMEM;
 
-	uport = uart_port_lock(state, flags);
+	uport = uart_port_ref_lock(state, &flags);
 	if (!state->port.xmit_buf) {
 		state->port.xmit_buf = (unsigned char *)page;
 		kfifo_init(&state->port.xmit_fifo, state->port.xmit_buf,
 				PAGE_SIZE);
-		uart_port_unlock(uport, flags);
+		uart_port_unlock_deref(uport, flags);
 	} else {
-		uart_port_unlock(uport, flags);
+		uart_port_unlock_deref(uport, flags);
 		/*
 		 * Do not free() the page under the port lock, see
 		 * uart_free_xmit_buf().
@@ -289,11 +290,11 @@ static void uart_free_xmit_buf(struct tty_port *port)
 	 * console driver may need to allocate/free a debug object, which
 	 * can end up in printk() recursion.
 	 */
-	uport = uart_port_lock(state, flags);
+	uport = uart_port_ref_lock(state, &flags);
 	xmit_buf = port->xmit_buf;
 	port->xmit_buf = NULL;
 	INIT_KFIFO(port->xmit_fifo);
-	uart_port_unlock(uport, flags);
+	uart_port_unlock_deref(uport, flags);
 
 	free_page((unsigned long)xmit_buf);
 }
@@ -592,15 +593,15 @@ static int uart_put_char(struct tty_struct *tty, u8 c)
 	unsigned long flags;
 	int ret = 0;
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	if (!state->port.xmit_buf) {
-		uart_port_unlock(port, flags);
+		uart_port_unlock_deref(port, flags);
 		return 0;
 	}
 
 	if (port)
 		ret = kfifo_put(&state->port.xmit_fifo, c);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 	return ret;
 }
 
@@ -623,9 +624,9 @@ static ssize_t uart_write(struct tty_struct *tty, const u8 *buf, size_t count)
 	if (WARN_ON(!state))
 		return -EL3HLT;
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	if (!state->port.xmit_buf) {
-		uart_port_unlock(port, flags);
+		uart_port_unlock_deref(port, flags);
 		return 0;
 	}
 
@@ -633,7 +634,7 @@ static ssize_t uart_write(struct tty_struct *tty, const u8 *buf, size_t count)
 		ret = kfifo_in(&state->port.xmit_fifo, buf, count);
 
 	__uart_start(state);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 	return ret;
 }
 
@@ -644,9 +645,12 @@ static unsigned int uart_write_room(struct tty_struct *tty)
 	unsigned long flags;
 	unsigned int ret;
 
-	port = uart_port_lock(state, flags);
-	ret = kfifo_avail(&state->port.xmit_fifo);
-	uart_port_unlock(port, flags);
+	port = uart_port_ref_lock(state, &flags);
+	if (!state->port.xmit_buf)
+		ret = 0;
+	else
+		ret = kfifo_avail(&state->port.xmit_fifo);
+	uart_port_unlock_deref(port, flags);
 	return ret;
 }
 
@@ -657,9 +661,9 @@ static unsigned int uart_chars_in_buffer(struct tty_struct *tty)
 	unsigned long flags;
 	unsigned int ret;
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	ret = kfifo_len(&state->port.xmit_fifo);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 	return ret;
 }
 
@@ -678,13 +682,13 @@ static void uart_flush_buffer(struct tty_struct *tty)
 
 	pr_debug("uart_flush_buffer(%d) called\n", tty->index);
 
-	port = uart_port_lock(state, flags);
+	port = uart_port_ref_lock(state, &flags);
 	if (!port)
 		return;
 	kfifo_reset(&state->port.xmit_fifo);
 	if (port->ops->flush_buffer)
 		port->ops->flush_buffer(port);
-	uart_port_unlock(port, flags);
+	uart_port_unlock_deref(port, flags);
 	tty_port_tty_wakeup(&state->port);
 }
 
@@ -2857,8 +2861,10 @@ int uart_register_driver(struct uart_driver *drv)
 	for (i = 0; i < drv->nr; i++)
 		tty_port_destroy(&drv->state[i].port);
 	tty_driver_kref_put(normal);
+	drv->tty_driver = NULL;
 out_kfree:
 	kfree(drv->state);
+	drv->state = NULL;
 out:
 	return retval;
 }
@@ -3138,7 +3144,6 @@ static int serial_core_add_one_port(struct uart_driver *drv, struct uart_port *u
 	struct tty_port *port;
 	int ret = 0;
 	struct device *tty_dev;
-	int num_groups;
 
 	if (uport->line >= drv->nr)
 		return -EINVAL;
@@ -3151,6 +3156,25 @@ static int serial_core_add_one_port(struct uart_driver *drv, struct uart_port *u
 		ret = -EINVAL;
 		goto out;
 	}
+
+	uport->name = kasprintf(GFP_KERNEL, "%s%u", drv->dev_name,
+				drv->tty_driver->name_base + uport->line);
+	if (!uport->name) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	/*
+	 * uart_configure_port() may set uport->attr_group and register the
+	 * console. Allocate room for both groups and a NULL terminator first.
+	 */
+	uport->tty_groups = kcalloc(3, sizeof(*uport->tty_groups), GFP_KERNEL);
+	if (!uport->tty_groups) {
+		kfree(uport->name);
+		ret = -ENOMEM;
+		goto out;
+	}
+	uport->tty_groups[0] = &tty_dev_attr_group;
 
 	/* Link the port to the driver state table and vice versa */
 	atomic_set(&state->refcount, 1);
@@ -3168,12 +3192,6 @@ static int serial_core_add_one_port(struct uart_driver *drv, struct uart_port *u
 	state->pm_state = UART_PM_STATE_UNDEFINED;
 	uart_port_set_cons(uport, drv->cons);
 	uport->minor = drv->tty_driver->minor_start + uport->line;
-	uport->name = kasprintf(GFP_KERNEL, "%s%u", drv->dev_name,
-				drv->tty_driver->name_base + uport->line);
-	if (!uport->name) {
-		ret = -ENOMEM;
-		goto out;
-	}
 
 	if (uport->cons && uport->dev)
 		of_console_check(uport->dev->of_node, uport->cons->name, uport->line);
@@ -3183,17 +3201,6 @@ static int serial_core_add_one_port(struct uart_driver *drv, struct uart_port *u
 
 	port->console = uart_console(uport);
 
-	num_groups = 2;
-	if (uport->attr_group)
-		num_groups++;
-
-	uport->tty_groups = kcalloc(num_groups, sizeof(*uport->tty_groups),
-				    GFP_KERNEL);
-	if (!uport->tty_groups) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	uport->tty_groups[0] = &tty_dev_attr_group;
 	if (uport->attr_group)
 		uport->tty_groups[1] = uport->attr_group;
 

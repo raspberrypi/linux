@@ -12,6 +12,7 @@
 #include <linux/bio.h>
 #include <linux/workqueue.h>
 #include <linux/slab.h>
+#include <linux/t10-pi.h>
 #include "blk.h"
 
 static struct kmem_cache *bip_slab;
@@ -428,7 +429,10 @@ bool bio_integrity_prep(struct bio *bio)
 		 * memory to disk for non-integrity metadata where nothing else
 		 * initializes the memory.
 		 */
-		if (bi->csum_type == BLK_INTEGRITY_CSUM_NONE)
+		if (bi->csum_type == BLK_INTEGRITY_CSUM_NONE ||
+		    bi->tuple_size > (bi->csum_type == BLK_INTEGRITY_CSUM_CRC64 ?
+				      sizeof(struct crc64_pi_tuple) :
+				      sizeof(struct t10_pi_tuple)))
 			gfp |= __GFP_ZERO;
 		break;
 	default:

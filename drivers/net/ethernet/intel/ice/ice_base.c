@@ -546,13 +546,16 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 			err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 						 ring->q_index,
 						 ring->q_vector->napi.napi_id,
-						 ring->rx_buf_len);
+						 ice_get_frame_sz(ring));
 			if (err)
 				return err;
 		}
 
 		ice_rx_xsk_pool(ring);
 		if (ring->xsk_pool) {
+			u32 frag_size =
+				xsk_pool_get_rx_frag_step(ring->xsk_pool);
+
 			xdp_rxq_info_unreg(&ring->xdp_rxq);
 
 			ring->rx_buf_len =
@@ -560,7 +563,7 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 			err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 						 ring->q_index,
 						 ring->q_vector->napi.napi_id,
-						 ring->rx_buf_len);
+						 frag_size);
 			if (err)
 				return err;
 			err = xdp_rxq_info_reg_mem_model(&ring->xdp_rxq,
@@ -578,7 +581,7 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 				err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 							 ring->q_index,
 							 ring->q_vector->napi.napi_id,
-							 ring->rx_buf_len);
+							 ice_get_frame_sz(ring));
 				if (err)
 					return err;
 			}

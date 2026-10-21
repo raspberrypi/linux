@@ -31,6 +31,7 @@ struct s390_domain {
 	unsigned long		*dma_table;
 	spinlock_t		list_lock;
 	struct rcu_head		rcu;
+	u8			origin_type;
 };
 
 static struct iommu_domain blocking_domain;
@@ -345,6 +346,7 @@ static struct iommu_domain *s390_domain_alloc_paging(struct device *dev)
 	s390_domain->domain.geometry.force_aperture = true;
 	s390_domain->domain.geometry.aperture_start = 0;
 	s390_domain->domain.geometry.aperture_end = ZPCI_TABLE_SIZE_RT - 1;
+	s390_domain->origin_type = ZPCI_TABLE_TYPE_RTX;
 
 	spin_lock_init(&s390_domain->list_lock);
 	INIT_LIST_HEAD_RCU(&s390_domain->devices);
@@ -379,6 +381,61 @@ static void zdev_s390_domain_update(struct zpci_dev *zdev,
 	spin_lock_irqsave(&zdev->dom_lock, flags);
 	zdev->s390_domain = domain;
 	spin_unlock_irqrestore(&zdev->dom_lock, flags);
+}
+
+static u64 get_iota_region_flag(struct s390_domain *domain)
+{
+	switch (domain->origin_type) {
+	case ZPCI_TABLE_TYPE_RTX:
+		return ZPCI_IOTA_RTTO_FLAG;
+	case ZPCI_TABLE_TYPE_RSX:
+		return ZPCI_IOTA_RSTO_FLAG;
+	case ZPCI_TABLE_TYPE_RFX:
+		return ZPCI_IOTA_RFTO_FLAG;
+	default:
+		WARN_ONCE(1, "Invalid IOMMU table (%x)\n", domain->origin_type);
+		return 0;
+	}
+}
+
+static int s390_iommu_domain_reg_ioat(struct zpci_dev *zdev,
+				      struct iommu_domain *domain, u8 *status)
+{
+	struct s390_domain *s390_domain;
+	int rc = 0;
+	u64 iota;
+
+	switch (domain->type) {
+	case IOMMU_DOMAIN_IDENTITY:
+		rc = zpci_register_ioat(zdev, 0, zdev->start_dma,
+					zdev->end_dma, 0, status);
+		break;
+	case IOMMU_DOMAIN_BLOCKED:
+		/* Nothing to do in this case */
+		break;
+	default:
+		s390_domain = to_s390_domain(domain);
+		iota = virt_to_phys(s390_domain->dma_table) |
+		       get_iota_region_flag(s390_domain);
+		rc = zpci_register_ioat(zdev, 0, zdev->start_dma,
+					zdev->end_dma, iota, status);
+	}
+
+	return rc;
+}
+
+int zpci_iommu_register_ioat(struct zpci_dev *zdev, u8 *status)
+{
+	unsigned long flags;
+	int rc;
+
+	spin_lock_irqsave(&zdev->dom_lock, flags);
+
+	rc = s390_iommu_domain_reg_ioat(zdev, zdev->s390_domain, status);
+
+	spin_unlock_irqrestore(&zdev->dom_lock, flags);
+
+	return rc;
 }
 
 static int blocking_domain_attach_device(struct iommu_domain *domain,
@@ -422,9 +479,9 @@ static int s390_iommu_attach_device(struct iommu_domain *domain,
 	blocking_domain_attach_device(&blocking_domain, dev);
 
 	/* If we fail now DMA remains blocked via blocking domain */
-	cc = zpci_register_ioat(zdev, 0, zdev->start_dma, zdev->end_dma,
-				virt_to_phys(s390_domain->dma_table), &status);
-	if (cc && status != ZPCI_PCI_ST_FUNC_NOT_AVAIL)
+	cc = s390_iommu_domain_reg_ioat(zdev, domain, &status);
+	if (cc != ZPCI_CC_OK && cc != ZPCI_CC_INVAL_HANDLE &&
+	    (cc != ZPCI_CC_ERR || status != ZPCI_PCI_ST_FUNC_NOT_AVAIL))
 		return -EIO;
 	zdev->dma_table = s390_domain->dma_table;
 	zdev_s390_domain_update(zdev, domain);

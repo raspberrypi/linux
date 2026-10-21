@@ -117,8 +117,8 @@ module_init(riscv_kvm_init);
 
 static void __exit riscv_kvm_exit(void)
 {
-	kvm_riscv_aia_exit();
-
 	kvm_exit();
+
+	kvm_riscv_aia_exit();
 }
 module_exit(riscv_kvm_exit);

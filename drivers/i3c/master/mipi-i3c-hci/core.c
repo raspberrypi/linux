@@ -804,6 +804,7 @@ static int i3c_hci_probe(struct platform_device *pdev)
 	hci = devm_kzalloc(&pdev->dev, sizeof(*hci), GFP_KERNEL);
 	if (!hci)
 		return -ENOMEM;
+	mutex_init(&hci->control_mutex);
 	hci->base_regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(hci->base_regs))
 		return PTR_ERR(hci->base_regs);

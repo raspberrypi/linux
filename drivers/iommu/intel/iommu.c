@@ -1921,7 +1921,7 @@ static void domain_context_clear_one(struct device_domain_info *info, u8 bus, u8
 	context_clear_present(context);
 	__iommu_flush_cache(iommu, context, sizeof(*context));
 	spin_unlock(&iommu->lock);
-	intel_context_flush_no_pasid(info, context, did);
+	intel_context_flush_no_pasid(info, context, did, PCI_DEVID(bus, devfn));
 	context_clear_entry(context);
 	__iommu_flush_cache(iommu, context, sizeof(*context));
 }
@@ -2504,7 +2504,7 @@ static void iommu_flush_all(void)
 	}
 }
 
-static int iommu_suspend(void)
+static int iommu_suspend(void *data)
 {
 	struct dmar_drhd_unit *drhd;
 	struct intel_iommu *iommu = NULL;
@@ -2531,7 +2531,7 @@ static int iommu_suspend(void)
 	return 0;
 }
 
-static void iommu_resume(void)
+static void iommu_resume(void *data)
 {
 	struct dmar_drhd_unit *drhd;
 	struct intel_iommu *iommu = NULL;
@@ -2562,14 +2562,18 @@ static void iommu_resume(void)
 	}
 }
 
-static struct syscore_ops iommu_syscore_ops = {
+static const struct syscore_ops iommu_syscore_ops = {
 	.resume		= iommu_resume,
 	.suspend	= iommu_suspend,
 };
 
+static struct syscore iommu_syscore = {
+	.ops = &iommu_syscore_ops,
+};
+
 static void __init init_iommu_pm_ops(void)
 {
-	register_syscore_ops(&iommu_syscore_ops);
+	register_syscore(&iommu_syscore);
 }
 
 #else
@@ -4160,7 +4164,7 @@ static int context_flip_pri(struct device_domain_info *info, bool enable)
 
 	if (!ecap_coherent(iommu->ecap))
 		clflush_cache_range(context, sizeof(*context));
-	intel_context_flush_no_pasid(info, context, did);
+	intel_context_flush_no_pasid(info, context, did, PCI_DEVID(bus, devfn));
 	spin_unlock(&iommu->lock);
 
 	return 0;
@@ -4335,9 +4339,9 @@ static void intel_iommu_remove_dev_pasid(struct device *dev, ioasid_t pasid,
 	}
 	spin_unlock_irqrestore(&dmar_domain->lock, flags);
 
-	cache_tag_unassign_domain(dmar_domain, dev, pasid);
-	domain_detach_iommu(dmar_domain, iommu);
 	if (!WARN_ON_ONCE(!dev_pasid)) {
+		cache_tag_unassign_domain(dmar_domain, dev, pasid);
+		domain_detach_iommu(dmar_domain, iommu);
 		intel_iommu_debugfs_remove_dev_pasid(dev_pasid);
 		kfree(dev_pasid);
 	}

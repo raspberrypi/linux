@@ -27,6 +27,7 @@
 #include <linux/uaccess.h>
 #include "kfd_priv.h"
 #include "kfd_mqd_manager.h"
+#include "kfd_topology.h"
 #include "v9_structs.h"
 #include "gc/gc_9_0_offset.h"
 #include "gc/gc_9_0_sh_mask.h"
@@ -375,20 +376,26 @@ static int get_wave_state(struct mqd_manager *mm, void *mqd,
 static void get_checkpoint_info(struct mqd_manager *mm, void *mqd, u32 *ctl_stack_size)
 {
 	struct v9_mqd *m = get_mqd(mqd);
+	struct kfd_topology_device *topo_dev = kfd_topology_device_by_id(mm->dev->id);
+	u32 bo_size = topo_dev ? ALIGN(topo_dev->node_props.ctl_stack_size, PAGE_SIZE) : 0;
 
-	*ctl_stack_size = m->cp_hqd_cntl_stack_size;
+	*ctl_stack_size = min_t(u32, m->cp_hqd_cntl_stack_size, bo_size);
 }
 
 static void checkpoint_mqd(struct mqd_manager *mm, void *mqd, void *mqd_dst, void *ctl_stack_dst)
 {
 	struct v9_mqd *m;
+	struct kfd_topology_device *topo_dev = kfd_topology_device_by_id(mm->dev->id);
+	u32 bo_size = topo_dev ? ALIGN(topo_dev->node_props.ctl_stack_size, PAGE_SIZE) : 0;
+	u32 ctl_stack_copy_size;
 	/* Control stack is located one page after MQD. */
 	void *ctl_stack = (void *)((uintptr_t)mqd + PAGE_SIZE);
 
 	m = get_mqd(mqd);
+	ctl_stack_copy_size = min_t(u32, m->cp_hqd_cntl_stack_size, bo_size);
 
 	memcpy(mqd_dst, m, sizeof(struct v9_mqd));
-	memcpy(ctl_stack_dst, ctl_stack, m->cp_hqd_cntl_stack_size);
+	memcpy(ctl_stack_dst, ctl_stack, ctl_stack_copy_size);
 }
 
 static void restore_mqd(struct mqd_manager *mm, void **mqd,

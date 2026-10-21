@@ -20,7 +20,6 @@
 #include <linux/sysfs.h>
 #include <linux/types.h>
 
-#define DWC_PCIE_VSEC_RAS_DES_ID		0x02
 #define DWC_PCIE_EVENT_CNT_CTL			0x8
 
 /*
@@ -101,13 +100,21 @@ struct dwc_pcie_dev_info {
 	struct list_head dev_node;
 };
 
-struct dwc_pcie_vendor_id {
-	int vendor_id;
+struct dwc_pcie_pmu_vsec_id {
+	u16 vendor_id;
+	u16 vsec_id;
+	u8 vsec_rev;
 };
 
-static const struct dwc_pcie_vendor_id dwc_pcie_vendor_ids[] = {
-	{.vendor_id = PCI_VENDOR_ID_ALIBABA },
-	{.vendor_id = PCI_VENDOR_ID_QCOM },
+/*
+ * VSEC IDs are allocated by the vendor, so a given ID may mean different
+ * things to different vendors.  See PCIe r6.0, sec 7.9.5.2.
+ */
+static const struct dwc_pcie_pmu_vsec_id dwc_pcie_pmu_vsec_ids[] = {
+	{ .vendor_id = PCI_VENDOR_ID_ALIBABA,
+	  .vsec_id = 0x02, .vsec_rev = 0x4 },
+	{ .vendor_id = PCI_VENDOR_ID_QCOM,
+	  .vsec_id = 0x02, .vsec_rev = 0x4 },
 	{} /* terminator */
 };
 
@@ -519,31 +526,28 @@ static void dwc_pcie_unregister_pmu(void *data)
 	perf_pmu_unregister(&pcie_pmu->pmu);
 }
 
-static bool dwc_pcie_match_des_cap(struct pci_dev *pdev)
+static u16 dwc_pcie_des_cap(struct pci_dev *pdev)
 {
-	const struct dwc_pcie_vendor_id *vid;
-	u16 vsec = 0;
+	const struct dwc_pcie_pmu_vsec_id *vid;
+	u16 vsec;
 	u32 val;
 
 	if (!pci_is_pcie(pdev) || !(pci_pcie_type(pdev) == PCI_EXP_TYPE_ROOT_PORT))
-		return false;
+		return 0;
 
-	for (vid = dwc_pcie_vendor_ids; vid->vendor_id; vid++) {
+	for (vid = dwc_pcie_pmu_vsec_ids; vid->vendor_id; vid++) {
 		vsec = pci_find_vsec_capability(pdev, vid->vendor_id,
-						DWC_PCIE_VSEC_RAS_DES_ID);
-		if (vsec)
-			break;
+						vid->vsec_id);
+		if (vsec) {
+			pci_read_config_dword(pdev, vsec + PCI_VNDR_HEADER,
+					      &val);
+			if (PCI_VNDR_HEADER_REV(val) == vid->vsec_rev) {
+				pci_dbg(pdev, "Detected PCIe Vendor-Specific Extended Capability RAS DES\n");
+				return vsec;
+			}
+		}
 	}
-	if (!vsec)
-		return false;
-
-	pci_read_config_dword(pdev, vsec + PCI_VNDR_HEADER, &val);
-	if (PCI_VNDR_HEADER_REV(val) != 0x04)
-		return false;
-
-	pci_dbg(pdev,
-		"Detected PCIe Vendor-Specific Extended Capability RAS DES\n");
-	return true;
+	return 0;
 }
 
 static void dwc_pcie_unregister_dev(struct dwc_pcie_dev_info *dev_info)
@@ -560,9 +564,7 @@ static int dwc_pcie_register_dev(struct pci_dev *pdev)
 	u32 sbdf;
 
 	sbdf = (pci_domain_nr(pdev->bus) << 16) | PCI_DEVID(pdev->bus->number, pdev->devfn);
-	plat_dev = platform_device_register_data(NULL, "dwc_pcie_pmu", sbdf,
-						 pdev, sizeof(*pdev));
-
+	plat_dev = platform_device_register_simple("dwc_pcie_pmu", sbdf, NULL, 0);
 	if (IS_ERR(plat_dev))
 		return PTR_ERR(plat_dev);
 
@@ -589,7 +591,7 @@ static int dwc_pcie_pmu_notifier(struct notifier_block *nb,
 
 	switch (action) {
 	case BUS_NOTIFY_ADD_DEVICE:
-		if (!dwc_pcie_match_des_cap(pdev))
+		if (!dwc_pcie_des_cap(pdev))
 			return NOTIFY_DONE;
 		if (dwc_pcie_register_dev(pdev))
 			return NOTIFY_BAD;
@@ -611,17 +613,26 @@ static struct notifier_block dwc_pcie_pmu_nb = {
 
 static int dwc_pcie_pmu_probe(struct platform_device *plat_dev)
 {
-	struct pci_dev *pdev = plat_dev->dev.platform_data;
+	struct pci_dev *pdev;
 	struct dwc_pcie_pmu *pcie_pmu;
 	char *name;
-	u32 sbdf, val;
+	u32 sbdf;
 	u16 vsec;
 	int ret;
 
-	vsec = pci_find_vsec_capability(pdev, pdev->vendor,
-					DWC_PCIE_VSEC_RAS_DES_ID);
-	pci_read_config_dword(pdev, vsec + PCI_VNDR_HEADER, &val);
 	sbdf = plat_dev->id;
+	pdev = pci_get_domain_bus_and_slot(sbdf >> 16, PCI_BUS_NUM(sbdf & 0xffff),
+					   sbdf & 0xff);
+	if (!pdev) {
+		pr_err("No pdev found for the sbdf 0x%x\n", sbdf);
+		return -ENODEV;
+	}
+
+	vsec = dwc_pcie_des_cap(pdev);
+	if (!vsec)
+		return -ENODEV;
+
+	pci_dev_put(pdev);
 	name = devm_kasprintf(&plat_dev->dev, GFP_KERNEL, "dwc_rootport_%x", sbdf);
 	if (!name)
 		return -ENOMEM;
@@ -636,7 +647,7 @@ static int dwc_pcie_pmu_probe(struct platform_device *plat_dev)
 	pcie_pmu->on_cpu = -1;
 	pcie_pmu->pmu = (struct pmu){
 		.name		= name,
-		.parent		= &pdev->dev,
+		.parent		= &plat_dev->dev,
 		.module		= THIS_MODULE,
 		.attr_groups	= dwc_pcie_attr_groups,
 		.capabilities	= PERF_PMU_CAP_NO_EXCLUDE,
@@ -741,7 +752,7 @@ static int __init dwc_pcie_pmu_init(void)
 	int ret;
 
 	for_each_pci_dev(pdev) {
-		if (!dwc_pcie_match_des_cap(pdev))
+		if (!dwc_pcie_des_cap(pdev))
 			continue;
 
 		ret = dwc_pcie_register_dev(pdev);

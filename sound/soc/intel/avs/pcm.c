@@ -9,6 +9,7 @@
 #include <linux/cleanup.h>
 #include <linux/debugfs.h>
 #include <linux/device.h>
+#include <linux/module.h>
 #include <sound/hda_register.h>
 #include <sound/hdaudio_ext.h>
 #include <sound/pcm_params.h>
@@ -20,6 +21,10 @@
 #include "pcm.h"
 #include "topology.h"
 #include "../../codecs/hda.h"
+
+static bool obsolete_card_names;
+module_param_named(obsolete_card_names, obsolete_card_names, bool, 0444);
+MODULE_PARM_DESC(obsolete_card_names, "Use obsolete PCM device numbering 0=no, 1=yes");
 
 struct avs_dma_data {
 	struct avs_tplg_path_template *template;
@@ -1274,7 +1279,7 @@ static int avs_component_construct(struct snd_soc_component *component,
 	return 0;
 }
 
-static const struct snd_soc_component_driver avs_component_driver = {
+static struct snd_soc_component_driver avs_component_driver = {
 	.name			= "avs-pcm",
 	.probe			= avs_component_probe,
 	.remove			= avs_component_remove,
@@ -1289,7 +1294,7 @@ static const struct snd_soc_component_driver avs_component_driver = {
 };
 
 int avs_soc_component_register(struct device *dev, const char *name,
-			       const struct snd_soc_component_driver *drv,
+			       struct snd_soc_component_driver *drv,
 			       struct snd_soc_dai_driver *cpu_dais, int num_cpu_dais)
 {
 	struct avs_soc_component *acomp;
@@ -1299,13 +1304,17 @@ int avs_soc_component_register(struct device *dev, const char *name,
 	if (!acomp)
 		return -ENOMEM;
 
+	acomp->base.name = devm_kstrdup(dev, name, GFP_KERNEL);
+	if (!acomp->base.name)
+		return -ENOMEM;
+
+	INIT_LIST_HEAD(&acomp->node);
+
+	drv->use_dai_pcm_id = !obsolete_card_names;
+
 	ret = snd_soc_component_initialize(&acomp->base, drv, dev);
 	if (ret < 0)
 		return ret;
-
-	/* force name change after ASoC is done with its init */
-	acomp->base.name = name;
-	INIT_LIST_HEAD(&acomp->node);
 
 	return snd_soc_add_component(&acomp->base, cpu_dais, num_cpu_dais);
 }
@@ -1630,7 +1639,7 @@ static int avs_component_hda_open(struct snd_soc_component *component,
 	return 0;
 }
 
-static const struct snd_soc_component_driver avs_hda_component_driver = {
+static struct snd_soc_component_driver avs_hda_component_driver = {
 	.name			= "avs-hda-pcm",
 	.probe			= avs_component_hda_probe,
 	.remove			= avs_component_hda_remove,

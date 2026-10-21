@@ -502,7 +502,6 @@ static void kvm_s390_pci_dev_release(struct zpci_dev *zdev)
 static int kvm_s390_pci_register_kvm(void *opaque, struct kvm *kvm)
 {
 	struct zpci_dev *zdev = opaque;
-	u8 status;
 	int rc;
 
 	if (!zdev)
@@ -549,13 +548,7 @@ static int kvm_s390_pci_register_kvm(void *opaque, struct kvm *kvm)
 	 */
 	zdev->gisa = (u32)virt_to_phys(&kvm->arch.sie_page2->gisa);
 
-	rc = zpci_enable_device(zdev);
-	if (rc)
-		goto clear_gisa;
-
-	/* Re-register the IOMMU that was already created */
-	rc = zpci_register_ioat(zdev, 0, zdev->start_dma, zdev->end_dma,
-				virt_to_phys(zdev->dma_table), &status);
+	rc = zpci_reenable_device(zdev);
 	if (rc)
 		goto clear_gisa;
 
@@ -585,7 +578,6 @@ static void kvm_s390_pci_unregister_kvm(void *opaque)
 {
 	struct zpci_dev *zdev = opaque;
 	struct kvm *kvm;
-	u8 status;
 
 	if (!zdev)
 		return;
@@ -619,12 +611,7 @@ static void kvm_s390_pci_unregister_kvm(void *opaque)
 			goto out;
 	}
 
-	if (zpci_enable_device(zdev))
-		goto out;
-
-	/* Re-register the IOMMU that was already created */
-	zpci_register_ioat(zdev, 0, zdev->start_dma, zdev->end_dma,
-			   virt_to_phys(zdev->dma_table), &status);
+	zpci_reenable_device(zdev);
 
 out:
 	spin_lock(&kvm->arch.kzdev_list_lock);

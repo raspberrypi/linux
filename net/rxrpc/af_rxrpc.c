@@ -265,11 +265,15 @@ static int rxrpc_listen(struct socket *sock, int backlog)
  * @gfp: Allocation flags
  *
  * Lookup or create a remote transport endpoint record for the specified
- * address and return it with a ref held.
+ * address.
+ *
+ * Return: The peer record found with a reference or a negative error code if
+ * the address is invalid or unsupported.
  */
 struct rxrpc_peer *rxrpc_kernel_lookup_peer(struct socket *sock,
 					    struct sockaddr_rxrpc *srx, gfp_t gfp)
 {
+	struct rxrpc_peer *peer;
 	struct rxrpc_sock *rx = rxrpc_sk(sock->sk);
 	int ret;
 
@@ -277,15 +281,18 @@ struct rxrpc_peer *rxrpc_kernel_lookup_peer(struct socket *sock,
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	return rxrpc_lookup_peer(rx->local, srx, gfp);
+	peer = rxrpc_lookup_peer(rx->local, srx, gfp);
+	return peer ?: ERR_PTR(-ENOMEM);
 }
 EXPORT_SYMBOL(rxrpc_kernel_lookup_peer);
 
 /**
  * rxrpc_kernel_get_peer - Get a reference on a peer
- * @peer: The peer to get a reference on.
+ * @peer: The peer to get a reference on (may be NULL).
  *
- * Get a record for the remote peer in a call.
+ * Get a reference for a remote peer record (if not NULL).
+ *
+ * Return: The @peer argument.
  */
 struct rxrpc_peer *rxrpc_kernel_get_peer(struct rxrpc_peer *peer)
 {
@@ -296,6 +303,8 @@ EXPORT_SYMBOL(rxrpc_kernel_get_peer);
 /**
  * rxrpc_kernel_put_peer - Allow a kernel app to drop a peer reference
  * @peer: The peer to drop a ref on
+ *
+ * Drop a reference on a peer record.
  */
 void rxrpc_kernel_put_peer(struct rxrpc_peer *peer)
 {
@@ -320,10 +329,12 @@ EXPORT_SYMBOL(rxrpc_kernel_put_peer);
  *
  * Allow a kernel service to begin a call on the nominated socket.  This just
  * sets up all the internal tracking structures and allocates connection and
- * call IDs as appropriate.  The call to be used is returned.
+ * call IDs as appropriate.
  *
  * The default socket destination address and security may be overridden by
  * supplying @srx and @key.
+ *
+ * Return: The new call or an error code.
  */
 struct rxrpc_call *rxrpc_kernel_begin_call(struct socket *sock,
 					   struct rxrpc_peer *peer,
@@ -437,6 +448,8 @@ EXPORT_SYMBOL(rxrpc_kernel_put_call);
  *
  * Allow a kernel service to find out whether a call is still alive - whether
  * it has completed successfully and all received data has been consumed.
+ *
+ * Return: %true if the call is still ongoing and %false if it has completed.
  */
 bool rxrpc_kernel_check_life(const struct socket *sock,
 			     const struct rxrpc_call *call)
@@ -456,6 +469,8 @@ EXPORT_SYMBOL(rxrpc_kernel_check_life);
  *
  * Allow a kernel service to retrieve the epoch value from a service call to
  * see if the client at the other end rebooted.
+ *
+ * Return: The epoch of the call's connection.
  */
 u32 rxrpc_kernel_get_epoch(struct socket *sock, struct rxrpc_call *call)
 {

@@ -2932,7 +2932,7 @@ static int do_setlink(const struct sk_buff *skb,
 		else
 			new_ifindex = 0;
 
-		err = __dev_change_net_namespace(dev, net, pat, new_ifindex);
+		err = __dev_change_net_namespace(dev, net, pat, new_ifindex, extack);
 		put_net(net);
 		if (err)
 			goto errout;

@@ -442,7 +442,7 @@ static int dell_wmi_process_key(struct wmi_device *wdev, int type, int code, u16
 				      SW_TABLET_MODE, !buffer[0]);
 		return 1;
 	} else if (type == 0x0012 && code == 0x000d && remaining > 0) {
-		value = (buffer[2] == 2);
+		value = (buffer[0] == 2);
 		used = 1;
 	}
 

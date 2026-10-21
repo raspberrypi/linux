@@ -11,6 +11,7 @@
 struct drm_printer;
 
 int xe_guc_ct_init(struct xe_guc_ct *ct);
+int xe_guc_ct_init_post_hwconfig(struct xe_guc_ct *ct);
 int xe_guc_ct_enable(struct xe_guc_ct *ct);
 void xe_guc_ct_disable(struct xe_guc_ct *ct);
 void xe_guc_ct_stop(struct xe_guc_ct *ct);

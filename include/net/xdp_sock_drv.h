@@ -232,11 +232,11 @@ xsk_buff_valid_tx_metadata(const struct xsk_tx_metadata *meta)
 	return !(meta->flags & ~XDP_TXMD_FLAGS_VALID);
 }
 
-static inline struct xsk_tx_metadata *xsk_buff_get_metadata(struct xsk_buff_pool *pool, u64 addr)
+static inline struct xsk_tx_metadata *xsk_buff_get_metadata(struct xsk_buff_pool *pool, u64 addr, u32 options)
 {
 	struct xsk_tx_metadata *meta;
 
-	if (!pool->tx_metadata_len)
+	if (!pool->tx_metadata_len || !(options & XDP_TX_METADATA))
 		return NULL;
 
 	meta = xp_raw_get_data(pool, addr) - pool->tx_metadata_len;
@@ -426,7 +426,7 @@ static inline bool xsk_buff_valid_tx_metadata(struct xsk_tx_metadata *meta)
 	return false;
 }
 
-static inline struct xsk_tx_metadata *xsk_buff_get_metadata(struct xsk_buff_pool *pool, u64 addr)
+static inline struct xsk_tx_metadata *xsk_buff_get_metadata(struct xsk_buff_pool *pool, u64 addr, u32 options)
 {
 	return NULL;
 }

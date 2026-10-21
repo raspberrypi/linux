@@ -97,7 +97,7 @@ bool mlx5e_xsk_tx(struct mlx5e_xdpsq *sq, unsigned int budget)
 		xdptxd.dma_addr = xsk_buff_raw_get_dma(pool, desc.addr);
 		xdptxd.data = xsk_buff_raw_get_data(pool, desc.addr);
 		xdptxd.len = desc.len;
-		meta = xsk_buff_get_metadata(pool, desc.addr);
+		meta = xsk_buff_get_metadata(pool, desc.addr, desc.options);
 
 		xsk_buff_raw_dma_sync_for_device(pool, xdptxd.dma_addr, xdptxd.len);
 
@@ -112,7 +112,7 @@ bool mlx5e_xsk_tx(struct mlx5e_xdpsq *sq, unsigned int budget)
 		} else {
 			mlx5e_xdpi_fifo_push(&sq->db.xdpi_fifo, xdpi);
 			if (xp_tx_metadata_enabled(sq->xsk_pool)) {
-				struct xsk_tx_metadata_compl compl;
+				struct xsk_tx_metadata_compl compl = {};
 
 				xsk_tx_metadata_to_compl(meta, &compl);
 				XSK_TX_COMPL_FITS(void *);

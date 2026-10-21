@@ -83,9 +83,9 @@ end_wb:
 static void netfs_writeback_unlock_folios(struct netfs_io_request *wreq,
 					  unsigned int *notes)
 {
-	struct folio_queue *folioq = wreq->buffer;
+	struct folio_queue *folioq = wreq->buffer.tail;
 	unsigned long long collected_to = wreq->collected_to;
-	unsigned int slot = wreq->buffer_head_slot;
+	unsigned int slot = wreq->buffer.first_tail_slot;
 
 	if (wreq->origin == NETFS_PGPRIV2_COPY_TO_CACHE) {
 		if (netfs_pgpriv2_unlock_copied_folios(wreq))
@@ -94,7 +94,9 @@ static void netfs_writeback_unlock_folios(struct netfs_io_request *wreq,
 	}
 
 	if (slot >= folioq_nr_slots(folioq)) {
-		folioq = netfs_delete_buffer_head(wreq);
+		folioq = rolling_buffer_delete_spent(&wreq->buffer);
+		if (!folioq)
+			return;
 		slot = 0;
 	}
 
@@ -134,9 +136,9 @@ static void netfs_writeback_unlock_folios(struct netfs_io_request *wreq,
 		folioq_clear(folioq, slot);
 		slot++;
 		if (slot >= folioq_nr_slots(folioq)) {
-			if (READ_ONCE(wreq->buffer_tail) == folioq)
-				break;
-			folioq = netfs_delete_buffer_head(wreq);
+			folioq = rolling_buffer_delete_spent(&wreq->buffer);
+			if (!folioq)
+				goto done;
 			slot = 0;
 		}
 
@@ -144,8 +146,9 @@ static void netfs_writeback_unlock_folios(struct netfs_io_request *wreq,
 			break;
 	}
 
-	wreq->buffer = folioq;
-	wreq->buffer_head_slot = slot;
+	wreq->buffer.tail = folioq;
+done:
+	wreq->buffer.first_tail_slot = slot;
 }
 
 /*
@@ -263,7 +266,9 @@ static void netfs_retry_write_stream(struct netfs_io_request *wreq,
 			list_for_each_entry_safe_from(subreq, tmp,
 						      &stream->subrequests, rreq_link) {
 				trace_netfs_sreq(subreq, netfs_sreq_trace_discard);
+				spin_lock_bh(&wreq->lock);
 				list_del(&subreq->rreq_link);
+				spin_unlock_bh(&wreq->lock);
 				netfs_put_subrequest(subreq, false, netfs_sreq_trace_put_done);
 				if (subreq == to)
 					break;
@@ -287,8 +292,10 @@ static void netfs_retry_write_stream(struct netfs_io_request *wreq,
 					     netfs_sreq_trace_new);
 			trace_netfs_sreq(subreq, netfs_sreq_trace_split);
 
+			spin_lock_bh(&wreq->lock);
 			list_add(&subreq->rreq_link, &to->rreq_link);
-			to = list_next_entry(to, rreq_link);
+			spin_unlock_bh(&wreq->lock);
+			to = subreq;
 			trace_netfs_sreq(subreq, netfs_sreq_trace_retry);
 
 			stream->sreq_max_len	= len;

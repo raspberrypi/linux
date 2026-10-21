@@ -386,6 +386,8 @@ struct kfd_dev {
 
 	/* bitmap for dynamic doorbell allocation from doorbell object */
 	unsigned long *doorbell_bitmap;
+
+	atomic_t kfd_processes_count;
 };
 
 enum kfd_mempool {
@@ -438,7 +440,8 @@ enum kfd_queue_type  {
 	KFD_QUEUE_TYPE_HIQ,
 	KFD_QUEUE_TYPE_DIQ,
 	KFD_QUEUE_TYPE_SDMA_XGMI,
-	KFD_QUEUE_TYPE_SDMA_BY_ENG_ID
+	KFD_QUEUE_TYPE_SDMA_BY_ENG_ID,
+	KFD_QUEUE_TYPE_MAX,
 };
 
 enum kfd_queue_format {

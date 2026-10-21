@@ -3854,12 +3854,13 @@ static int btrfs_read_locked_inode(struct inode *inode,
 
 	btrfs_inode_split_flags(btrfs_inode_flags(leaf, inode_item),
 				&BTRFS_I(inode)->flags, &BTRFS_I(inode)->ro_flags);
+
+cache_index:
 	if (BTRFS_I(inode)->flags & BTRFS_INODE_NODATASUM)
 		mapping_clear_stable_writes(inode->i_mapping);
 	else
 		mapping_set_stable_writes(inode->i_mapping);
 
-cache_index:
 	/*
 	 * If we were modified in the current generation and evicted from memory
 	 * and then re-read we need to do a full sync since we don't have any

@@ -1858,8 +1858,12 @@ new_ioend:
 	 * appending writes.
 	 */
 	wpc->ioend->io_size += len;
-	if (wpc->ioend->io_offset + wpc->ioend->io_size > end_pos)
-		wpc->ioend->io_size = end_pos - wpc->ioend->io_offset;
+	if (wpc->ioend->io_offset + wpc->ioend->io_size > end_pos) {
+		if (wpc->ioend->io_offset >= end_pos)
+			wpc->ioend->io_size = 0;
+		else
+			wpc->ioend->io_size = end_pos - wpc->ioend->io_offset;
+	}
 
 	wbc_account_cgroup_owner(wbc, folio, len);
 	return 0;

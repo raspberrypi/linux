@@ -7,11 +7,6 @@
 #include "compress.h"
 #include <linux/lz4.h>
 
-#ifndef LZ4_DISTANCE_MAX	/* history window size */
-#define LZ4_DISTANCE_MAX 65535	/* set to maximum value by default */
-#endif
-
-#define LZ4_MAX_DISTANCE_PAGES	(DIV_ROUND_UP(LZ4_DISTANCE_MAX, PAGE_SIZE) + 1)
 #ifndef LZ4_DECOMPRESS_INPLACE_MARGIN
 #define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 8) + 32)
 #endif
@@ -21,15 +16,12 @@ static int z_erofs_load_lz4_config(struct super_block *sb,
 {
 	struct erofs_sb_info *sbi = EROFS_SB(sb);
 	struct z_erofs_lz4_cfgs *lz4 = data;
-	u16 distance;
 
 	if (lz4) {
 		if (size < sizeof(struct z_erofs_lz4_cfgs)) {
 			erofs_err(sb, "invalid lz4 cfgs, size=%u", size);
 			return -EINVAL;
 		}
-		distance = le16_to_cpu(lz4->max_distance);
-
 		sbi->lz4.max_pclusterblks = le16_to_cpu(lz4->max_pclusterblks);
 		if (!sbi->lz4.max_pclusterblks) {
 			sbi->lz4.max_pclusterblks = 1;	/* reserved case */
@@ -40,48 +32,27 @@ static int z_erofs_load_lz4_config(struct super_block *sb,
 			return -EINVAL;
 		}
 	} else {
-		distance = le16_to_cpu(dsb->u1.lz4_max_distance);
 		sbi->lz4.max_pclusterblks = 1;
 	}
-
-	sbi->lz4.max_distance_pages = distance ?
-					DIV_ROUND_UP(distance, PAGE_SIZE) + 1 :
-					LZ4_MAX_DISTANCE_PAGES;
 	return z_erofs_gbuf_growsize(sbi->lz4.max_pclusterblks);
 }
 
 /*
- * Fill all gaps with bounce pages if it's a sparse page list. Also check if
- * all physical pages are consecutive, which can be seen for moderate CR.
+ * Fill all gaps with bounce pages if it's a sparse page list (for example some
+ * folios are already uptodate and thus can be mapped into userspace). Also
+ * check if pages are physically consecutive, which can be seen for moderate CR.
  */
-static int z_erofs_lz4_prepare_dstpages(struct z_erofs_decompress_req *rq,
-					struct page **pagepool)
+static int z_erofs_oneshot_prepare_dstpages(struct z_erofs_decompress_req *rq,
+					    struct page **pagepool)
 {
-	struct page *availables[LZ4_MAX_DISTANCE_PAGES] = { NULL };
-	unsigned long bounced[DIV_ROUND_UP(LZ4_MAX_DISTANCE_PAGES,
-					   BITS_PER_LONG)] = { 0 };
-	unsigned int lz4_max_distance_pages =
-				EROFS_SB(rq->sb)->lz4.max_distance_pages;
 	void *kaddr = NULL;
-	unsigned int i, j, top;
+	unsigned int i;
 
-	top = 0;
-	for (i = j = 0; i < rq->outpages; ++i, ++j) {
-		struct page *const page = rq->out[i];
-		struct page *victim;
+	for (i = 0; i < rq->outpages; ++i) {
+		struct page *page, *victim;
 
-		if (j >= lz4_max_distance_pages)
-			j = 0;
-
-		/* 'valid' bounced can only be tested after a complete round */
-		if (!rq->fillgaps && test_bit(j, bounced)) {
-			DBG_BUGON(i < lz4_max_distance_pages);
-			DBG_BUGON(top >= lz4_max_distance_pages);
-			availables[top++] = rq->out[i - lz4_max_distance_pages];
-		}
-
+		page = rq->out[i];
 		if (page) {
-			__clear_bit(j, bounced);
 			if (!PageHighMem(page)) {
 				if (!i) {
 					kaddr = page_address(page);
@@ -93,21 +64,14 @@ static int z_erofs_lz4_prepare_dstpages(struct z_erofs_decompress_req *rq,
 					continue;
 				}
 			}
-			kaddr = NULL;
-			continue;
-		}
-		kaddr = NULL;
-		__set_bit(j, bounced);
-
-		if (top) {
-			victim = availables[--top];
 		} else {
 			victim = __erofs_allocpage(pagepool, rq->gfp, true);
 			if (!victim)
 				return -ENOMEM;
 			set_page_private(victim, Z_EROFS_SHORTLIVED_PAGE);
+			rq->out[i] = victim;
 		}
-		rq->out[i] = victim;
+		kaddr = NULL;
 	}
 	return kaddr ? 1 : 0;
 }
@@ -279,7 +243,7 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq,
 		dst_maptype = 0;
 	} else {
 		/* general decoding path which can be used for all cases */
-		ret = z_erofs_lz4_prepare_dstpages(rq, pagepool);
+		ret = z_erofs_oneshot_prepare_dstpages(rq, pagepool);
 		if (ret < 0)
 			return ret;
 		if (ret > 0) {
@@ -312,6 +276,7 @@ static int z_erofs_transform_plain(struct z_erofs_decompress_req *rq,
 		return -EOPNOTSUPP;
 	if (rq->alg == Z_EROFS_COMPRESSION_INTERLACED) {
 		cur = bs - (rq->pageofs_out & (bs - 1));
+		DBG_BUGON(rq->pageofs_in & (bs - 1));
 		pi = (rq->pageofs_in + rq->inputsize - cur) & ~PAGE_MASK;
 		cur = min(cur, rq->outputsize);
 		if (cur && rq->out[0]) {

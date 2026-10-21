@@ -10,11 +10,10 @@
 #include "dp_tx.h"
 #include "peer.h"
 
-static void ath12k_dp_mon_rx_handle_ofdma_info(void *rx_tlv,
-					       struct hal_rx_user_status *rx_user_status)
+static void
+ath12k_dp_mon_rx_handle_ofdma_info(const struct hal_rx_ppdu_end_user_stats *ppdu_end_user,
+				   struct hal_rx_user_status *rx_user_status)
 {
-	struct hal_rx_ppdu_end_user_stats *ppdu_end_user = rx_tlv;
-
 	rx_user_status->ul_ofdma_user_v0_word0 =
 		__le32_to_cpu(ppdu_end_user->usr_resp_ref);
 	rx_user_status->ul_ofdma_user_v0_word1 =
@@ -38,7 +37,7 @@ ath12k_dp_mon_rx_populate_byte_count(const struct hal_rx_ppdu_end_user_stats *st
 }
 
 static void
-ath12k_dp_mon_rx_populate_mu_user_info(void *rx_tlv,
+ath12k_dp_mon_rx_populate_mu_user_info(const struct hal_rx_ppdu_end_user_stats *rx_tlv,
 				       struct hal_rx_mon_ppdu_info *ppdu_info,
 				       struct hal_rx_user_status *rx_user_status)
 {
@@ -76,11 +75,9 @@ ath12k_dp_mon_rx_populate_mu_user_info(void *rx_tlv,
 	ath12k_dp_mon_rx_populate_byte_count(rx_tlv, ppdu_info, rx_user_status);
 }
 
-static void ath12k_dp_mon_parse_vht_sig_a(u8 *tlv_data,
+static void ath12k_dp_mon_parse_vht_sig_a(const struct hal_rx_vht_sig_a_info *vht_sig,
 					  struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_vht_sig_a_info *vht_sig =
-			(struct hal_rx_vht_sig_a_info *)tlv_data;
 	u32 nsts, group_id, info0, info1;
 	u8 gi_setting;
 
@@ -122,11 +119,9 @@ static void ath12k_dp_mon_parse_vht_sig_a(u8 *tlv_data,
 		u32_get_bits(info1, HAL_RX_VHT_SIG_A_INFO_INFO1_SU_MU_CODING);
 }
 
-static void ath12k_dp_mon_parse_ht_sig(u8 *tlv_data,
+static void ath12k_dp_mon_parse_ht_sig(const struct hal_rx_ht_sig_info *ht_sig,
 				       struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_ht_sig_info *ht_sig =
-			(struct hal_rx_ht_sig_info *)tlv_data;
 	u32 info0 = __le32_to_cpu(ht_sig->info0);
 	u32 info1 = __le32_to_cpu(ht_sig->info1);
 
@@ -139,11 +134,9 @@ static void ath12k_dp_mon_parse_ht_sig(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_SU;
 }
 
-static void ath12k_dp_mon_parse_l_sig_b(u8 *tlv_data,
+static void ath12k_dp_mon_parse_l_sig_b(const struct hal_rx_lsig_b_info *lsigb,
 					struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_lsig_b_info *lsigb =
-			(struct hal_rx_lsig_b_info *)tlv_data;
 	u32 info0 = __le32_to_cpu(lsigb->info0);
 	u8 rate;
 
@@ -173,11 +166,9 @@ static void ath12k_dp_mon_parse_l_sig_b(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_SU;
 }
 
-static void ath12k_dp_mon_parse_l_sig_a(u8 *tlv_data,
+static void ath12k_dp_mon_parse_l_sig_a(const struct hal_rx_lsig_a_info *lsiga,
 					struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_lsig_a_info *lsiga =
-			(struct hal_rx_lsig_a_info *)tlv_data;
 	u32 info0 = __le32_to_cpu(lsiga->info0);
 	u8 rate;
 
@@ -215,14 +206,13 @@ static void ath12k_dp_mon_parse_l_sig_a(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_SU;
 }
 
-static void ath12k_dp_mon_parse_he_sig_b2_ofdma(u8 *tlv_data,
-						struct hal_rx_mon_ppdu_info *ppdu_info)
+static void
+ath12k_dp_mon_parse_he_sig_b2_ofdma(const struct hal_rx_he_sig_b2_ofdma_info *ofdma,
+				    struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_he_sig_b2_ofdma_info *he_sig_b2_ofdma =
-			(struct hal_rx_he_sig_b2_ofdma_info *)tlv_data;
 	u32 info0, value;
 
-	info0 = __le32_to_cpu(he_sig_b2_ofdma->info0);
+	info0 = __le32_to_cpu(ofdma->info0);
 
 	ppdu_info->he_data1 |= HE_MCS_KNOWN | HE_DCM_KNOWN | HE_CODING_KNOWN;
 
@@ -253,11 +243,10 @@ static void ath12k_dp_mon_parse_he_sig_b2_ofdma(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_MU_OFDMA;
 }
 
-static void ath12k_dp_mon_parse_he_sig_b2_mu(u8 *tlv_data,
-					     struct hal_rx_mon_ppdu_info *ppdu_info)
+static void
+ath12k_dp_mon_parse_he_sig_b2_mu(const struct hal_rx_he_sig_b2_mu_info *he_sig_b2_mu,
+				 struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_he_sig_b2_mu_info *he_sig_b2_mu =
-			(struct hal_rx_he_sig_b2_mu_info *)tlv_data;
 	u32 info0, value;
 
 	info0 = __le32_to_cpu(he_sig_b2_mu->info0);
@@ -280,11 +269,10 @@ static void ath12k_dp_mon_parse_he_sig_b2_mu(u8 *tlv_data,
 	ppdu_info->nss = u32_get_bits(info0, HAL_RX_HE_SIG_B2_MU_INFO_INFO0_STA_NSTS);
 }
 
-static void ath12k_dp_mon_parse_he_sig_b1_mu(u8 *tlv_data,
-					     struct hal_rx_mon_ppdu_info *ppdu_info)
+static void
+ath12k_dp_mon_parse_he_sig_b1_mu(const struct hal_rx_he_sig_b1_mu_info *he_sig_b1_mu,
+				 struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_he_sig_b1_mu_info *he_sig_b1_mu =
-			(struct hal_rx_he_sig_b1_mu_info *)tlv_data;
 	u32 info0 = __le32_to_cpu(he_sig_b1_mu->info0);
 	u16 ru_tones;
 
@@ -295,11 +283,10 @@ static void ath12k_dp_mon_parse_he_sig_b1_mu(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_MU_MIMO;
 }
 
-static void ath12k_dp_mon_parse_he_sig_mu(u8 *tlv_data,
-					  struct hal_rx_mon_ppdu_info *ppdu_info)
+static void
+ath12k_dp_mon_parse_he_sig_mu(const struct hal_rx_he_sig_a_mu_dl_info *he_sig_a_mu_dl,
+			      struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_he_sig_a_mu_dl_info *he_sig_a_mu_dl =
-			(struct hal_rx_he_sig_a_mu_dl_info *)tlv_data;
 	u32 info0, info1, value;
 	u16 he_gi = 0, he_ltf = 0;
 
@@ -430,11 +417,9 @@ static void ath12k_dp_mon_parse_he_sig_mu(u8 *tlv_data,
 	ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_MU_MIMO;
 }
 
-static void ath12k_dp_mon_parse_he_sig_su(u8 *tlv_data,
+static void ath12k_dp_mon_parse_he_sig_su(const struct hal_rx_he_sig_a_su_info *he_sig_a,
 					  struct hal_rx_mon_ppdu_info *ppdu_info)
 {
-	struct hal_rx_he_sig_a_su_info *he_sig_a =
-			(struct hal_rx_he_sig_a_su_info *)tlv_data;
 	u32 info0, info1, value;
 	u32 dcm;
 	u8 he_dcm = 0, he_stbc = 0;
@@ -583,15 +568,15 @@ static void ath12k_dp_mon_parse_he_sig_su(u8 *tlv_data,
 static enum hal_rx_mon_status
 ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 				  struct ath12k_mon_data *pmon,
-				  u32 tlv_tag, u8 *tlv_data, u32 userid)
+				  u32 tlv_tag, const void *tlv_data,
+				  u32 userid)
 {
 	struct hal_rx_mon_ppdu_info *ppdu_info = &pmon->mon_ppdu_info;
 	u32 info[7];
 
 	switch (tlv_tag) {
 	case HAL_RX_PPDU_START: {
-		struct hal_rx_ppdu_start *ppdu_start =
-			(struct hal_rx_ppdu_start *)tlv_data;
+		const struct hal_rx_ppdu_start *ppdu_start = tlv_data;
 
 		info[0] = __le32_to_cpu(ppdu_start->info0);
 
@@ -610,8 +595,8 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 		break;
 	}
 	case HAL_RX_PPDU_END_USER_STATS: {
-		struct hal_rx_ppdu_end_user_stats *eu_stats =
-			(struct hal_rx_ppdu_end_user_stats *)tlv_data;
+		const struct hal_rx_ppdu_end_user_stats *eu_stats = tlv_data;
+		u32 tid_bitmap;
 
 		info[0] = __le32_to_cpu(eu_stats->info0);
 		info[1] = __le32_to_cpu(eu_stats->info1);
@@ -624,10 +609,9 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 			u32_get_bits(info[2], HAL_RX_PPDU_END_USER_STATS_INFO2_AST_INDEX);
 		ppdu_info->fc_valid =
 			u32_get_bits(info[1], HAL_RX_PPDU_END_USER_STATS_INFO1_FC_VALID);
-		ppdu_info->tid =
-			ffs(u32_get_bits(info[6],
-					 HAL_RX_PPDU_END_USER_STATS_INFO6_TID_BITMAP)
-					 - 1);
+		tid_bitmap = u32_get_bits(info[6],
+					  HAL_RX_PPDU_END_USER_STATS_INFO6_TID_BITMAP);
+		ppdu_info->tid = ffs(tid_bitmap) - 1;
 		ppdu_info->tcp_msdu_count =
 			u32_get_bits(info[4],
 				     HAL_RX_PPDU_END_USER_STATS_INFO4_TCP_MSDU_CNT);
@@ -673,8 +657,8 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 
 			ppdu_info->num_users += 1;
 
-			ath12k_dp_mon_rx_handle_ofdma_info(tlv_data, rxuser_stats);
-			ath12k_dp_mon_rx_populate_mu_user_info(tlv_data, ppdu_info,
+			ath12k_dp_mon_rx_handle_ofdma_info(eu_stats, rxuser_stats);
+			ath12k_dp_mon_rx_populate_mu_user_info(eu_stats, ppdu_info,
 							       rxuser_stats);
 		}
 		ppdu_info->mpdu_fcs_ok_bitmap[0] = __le32_to_cpu(eu_stats->rsvd1[0]);
@@ -682,8 +666,8 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 		break;
 	}
 	case HAL_RX_PPDU_END_USER_STATS_EXT: {
-		struct hal_rx_ppdu_end_user_stats_ext *eu_stats =
-			(struct hal_rx_ppdu_end_user_stats_ext *)tlv_data;
+		const struct hal_rx_ppdu_end_user_stats_ext *eu_stats = tlv_data;
+
 		ppdu_info->mpdu_fcs_ok_bitmap[2] = __le32_to_cpu(eu_stats->info1);
 		ppdu_info->mpdu_fcs_ok_bitmap[3] = __le32_to_cpu(eu_stats->info2);
 		ppdu_info->mpdu_fcs_ok_bitmap[4] = __le32_to_cpu(eu_stats->info3);
@@ -729,40 +713,25 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 		break;
 
 	case HAL_PHYRX_RSSI_LEGACY: {
-		struct hal_rx_phyrx_rssi_legacy_info *rssi =
-			(struct hal_rx_phyrx_rssi_legacy_info *)tlv_data;
-		u32 reception_type = 0;
-		u32 rssi_legacy_info = __le32_to_cpu(rssi->rsvd[0]);
+		const struct hal_rx_phyrx_rssi_legacy_info *rssi = tlv_data;
 
 		info[0] = __le32_to_cpu(rssi->info0);
+		info[1] = __le32_to_cpu(rssi->info1);
 
 		/* TODO: Please note that the combined rssi will not be accurate
 		 * in MU case. Rssi in MU needs to be retrieved from
 		 * PHYRX_OTHER_RECEIVE_INFO TLV.
 		 */
 		ppdu_info->rssi_comb =
-			u32_get_bits(info[0],
-				     HAL_RX_PHYRX_RSSI_LEGACY_INFO_INFO0_RSSI_COMB);
-		reception_type =
-			u32_get_bits(rssi_legacy_info,
-				     HAL_RX_PHYRX_RSSI_LEGACY_INFO_RSVD1_RECEPTION);
+			u32_get_bits(info[1],
+				     HAL_RX_PHYRX_RSSI_LEGACY_INFO_INFO1_RSSI_COMB);
 
-		switch (reception_type) {
-		case HAL_RECEPTION_TYPE_ULOFMDA:
-			ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_MU_OFDMA;
-			break;
-		case HAL_RECEPTION_TYPE_ULMIMO:
-			ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_MU_MIMO;
-			break;
-		default:
-			ppdu_info->reception_type = HAL_RX_RECEPTION_TYPE_SU;
-			break;
-		}
+		ppdu_info->bw = u32_get_bits(info[0],
+					     HAL_RX_PHYRX_RSSI_LEGACY_INFO_INFO0_RX_BW);
 		break;
 	}
 	case HAL_RXPCU_PPDU_END_INFO: {
-		struct hal_rx_ppdu_end_duration *ppdu_rx_duration =
-			(struct hal_rx_ppdu_end_duration *)tlv_data;
+		const struct hal_rx_ppdu_end_duration *ppdu_rx_duration = tlv_data;
 
 		info[0] = __le32_to_cpu(ppdu_rx_duration->info0);
 		ppdu_info->rx_duration =
@@ -773,9 +742,7 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 		break;
 	}
 	case HAL_RX_MPDU_START: {
-		struct hal_rx_mpdu_start *mpdu_start =
-			(struct hal_rx_mpdu_start *)tlv_data;
-		struct dp_mon_mpdu *mon_mpdu = pmon->mon_mpdu;
+		const struct hal_rx_mpdu_start *mpdu_start = tlv_data;
 		u16 peer_id;
 
 		info[1] = __le32_to_cpu(mpdu_start->info1);
@@ -792,67 +759,17 @@ ath12k_dp_mon_rx_parse_status_tlv(struct ath12k_base *ab,
 				u32_get_bits(info[0], HAL_RX_MPDU_START_INFO0_PPDU_ID);
 		}
 
-		mon_mpdu = kzalloc(sizeof(*mon_mpdu), GFP_ATOMIC);
-		if (!mon_mpdu)
-			return HAL_RX_MON_STATUS_PPDU_NOT_DONE;
-
 		break;
 	}
 	case HAL_RX_MSDU_START:
 		/* TODO: add msdu start parsing logic */
 		break;
-	case HAL_MON_BUF_ADDR: {
-		struct dp_rxdma_mon_ring *buf_ring = &ab->dp.rxdma_mon_buf_ring;
-		struct dp_mon_packet_info *packet_info =
-			(struct dp_mon_packet_info *)tlv_data;
-		int buf_id = u32_get_bits(packet_info->cookie,
-					  DP_RXDMA_BUF_COOKIE_BUF_ID);
-		struct sk_buff *msdu;
-		struct dp_mon_mpdu *mon_mpdu = pmon->mon_mpdu;
-		struct ath12k_skb_rxcb *rxcb;
-
-		spin_lock_bh(&buf_ring->idr_lock);
-		msdu = idr_remove(&buf_ring->bufs_idr, buf_id);
-		spin_unlock_bh(&buf_ring->idr_lock);
-
-		if (unlikely(!msdu)) {
-			ath12k_warn(ab, "monitor destination with invalid buf_id %d\n",
-				    buf_id);
-			return HAL_RX_MON_STATUS_PPDU_NOT_DONE;
-		}
-
-		rxcb = ATH12K_SKB_RXCB(msdu);
-		dma_unmap_single(ab->dev, rxcb->paddr,
-				 msdu->len + skb_tailroom(msdu),
-				 DMA_FROM_DEVICE);
-
-		if (mon_mpdu->tail)
-			mon_mpdu->tail->next = msdu;
-		else
-			mon_mpdu->tail = msdu;
-
-		ath12k_dp_mon_buf_replenish(ab, buf_ring, 1);
-
-		break;
-	}
-	case HAL_RX_MSDU_END: {
-		struct rx_msdu_end_qcn9274 *msdu_end =
-			(struct rx_msdu_end_qcn9274 *)tlv_data;
-		bool is_first_msdu_in_mpdu;
-		u16 msdu_end_info;
-
-		msdu_end_info = __le16_to_cpu(msdu_end->info5);
-		is_first_msdu_in_mpdu = u32_get_bits(msdu_end_info,
-						     RX_MSDU_END_INFO5_FIRST_MSDU);
-		if (is_first_msdu_in_mpdu) {
-			pmon->mon_mpdu->head = pmon->mon_mpdu->tail;
-			pmon->mon_mpdu->tail = NULL;
-		}
-		break;
-	}
+	case HAL_MON_BUF_ADDR:
+		return HAL_RX_MON_STATUS_BUF_ADDR;
+	case HAL_RX_MSDU_END:
+		return HAL_RX_MON_STATUS_MSDU_END;
 	case HAL_RX_MPDU_END:
-		list_add_tail(&pmon->mon_mpdu->list, &pmon->dp_rx_mon_mpdu_list);
-		break;
+		return HAL_RX_MON_STATUS_MPDU_END;
 	case HAL_DUMMY:
 		return HAL_RX_MON_STATUS_BUF_DONE;
 	case HAL_RX_PPDU_END_STATUS_DONE:
@@ -1230,7 +1147,10 @@ ath12k_dp_mon_parse_rx_dest(struct ath12k_base *ab, struct ath12k_mon_data *pmon
 		if ((ptr - skb->data) >= DP_RX_BUFFER_SIZE)
 			break;
 
-	} while (hal_status == HAL_RX_MON_STATUS_PPDU_NOT_DONE);
+	} while ((hal_status == HAL_RX_MON_STATUS_PPDU_NOT_DONE) ||
+		 (hal_status == HAL_RX_MON_STATUS_BUF_ADDR) ||
+		 (hal_status == HAL_RX_MON_STATUS_MPDU_END) ||
+		 (hal_status == HAL_RX_MON_STATUS_MSDU_END));
 
 	return hal_status;
 }
@@ -1602,7 +1522,7 @@ ath12k_dp_mon_tx_gen_prot_frame(struct dp_mon_tx_ppdu_info *tx_ppdu_info)
 static enum dp_mon_tx_tlv_status
 ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 				  struct ath12k_mon_data *pmon,
-				  u16 tlv_tag, u8 *tlv_data, u32 userid)
+				  u16 tlv_tag, const void *tlv_data, u32 userid)
 {
 	struct dp_mon_tx_ppdu_info *tx_ppdu_info;
 	enum dp_mon_tx_tlv_status status = DP_MON_TX_STATUS_PPDU_NOT_DONE;
@@ -1612,8 +1532,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 
 	switch (tlv_tag) {
 	case HAL_TX_FES_SETUP: {
-		struct hal_tx_fes_setup *tx_fes_setup =
-					(struct hal_tx_fes_setup *)tlv_data;
+		const struct hal_tx_fes_setup *tx_fes_setup = tlv_data;
 
 		info[0] = __le32_to_cpu(tx_fes_setup->info0);
 		tx_ppdu_info->ppdu_id = __le32_to_cpu(tx_fes_setup->schedule_id);
@@ -1624,8 +1543,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_TX_FES_STATUS_END: {
-		struct hal_tx_fes_status_end *tx_fes_status_end =
-			(struct hal_tx_fes_status_end *)tlv_data;
+		const struct hal_tx_fes_status_end *tx_fes_status_end = tlv_data;
 		u32 tst_15_0, tst_31_16;
 
 		info[0] = __le32_to_cpu(tx_fes_status_end->info0);
@@ -1642,8 +1560,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_RX_RESPONSE_REQUIRED_INFO: {
-		struct hal_rx_resp_req_info *rx_resp_req_info =
-			(struct hal_rx_resp_req_info *)tlv_data;
+		const struct hal_rx_resp_req_info *rx_resp_req_info = tlv_data;
 		u32 addr_32;
 		u16 addr_16;
 
@@ -1688,8 +1605,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_PCU_PPDU_SETUP_INIT: {
-		struct hal_tx_pcu_ppdu_setup_init *ppdu_setup =
-			(struct hal_tx_pcu_ppdu_setup_init *)tlv_data;
+		const struct hal_tx_pcu_ppdu_setup_init *ppdu_setup = tlv_data;
 		u32 addr_32;
 		u16 addr_16;
 
@@ -1735,8 +1651,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_TX_QUEUE_EXTENSION: {
-		struct hal_tx_queue_exten *tx_q_exten =
-			(struct hal_tx_queue_exten *)tlv_data;
+		const struct hal_tx_queue_exten *tx_q_exten = tlv_data;
 
 		info[0] = __le32_to_cpu(tx_q_exten->info0);
 
@@ -1748,8 +1663,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_TX_FES_STATUS_START: {
-		struct hal_tx_fes_status_start *tx_fes_start =
-			(struct hal_tx_fes_status_start *)tlv_data;
+		const struct hal_tx_fes_status_start *tx_fes_start = tlv_data;
 
 		info[0] = __le32_to_cpu(tx_fes_start->info0);
 
@@ -1760,8 +1674,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_TX_FES_STATUS_PROT: {
-		struct hal_tx_fes_status_prot *tx_fes_status =
-			(struct hal_tx_fes_status_prot *)tlv_data;
+		const struct hal_tx_fes_status_prot *tx_fes_status = tlv_data;
 		u32 start_timestamp;
 		u32 end_timestamp;
 
@@ -1788,8 +1701,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 
 	case HAL_TX_FES_STATUS_START_PPDU:
 	case HAL_TX_FES_STATUS_START_PROT: {
-		struct hal_tx_fes_status_start_prot *tx_fes_stat_start =
-			(struct hal_tx_fes_status_start_prot *)tlv_data;
+		const struct hal_tx_fes_status_start_prot *tx_fes_stat_start = tlv_data;
 		u64 ppdu_ts;
 
 		info[0] = __le32_to_cpu(tx_fes_stat_start->info0);
@@ -1804,8 +1716,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_TX_FES_STATUS_USER_PPDU: {
-		struct hal_tx_fes_status_user_ppdu *tx_fes_usr_ppdu =
-			(struct hal_tx_fes_status_user_ppdu *)tlv_data;
+		const struct hal_tx_fes_status_user_ppdu *tx_fes_usr_ppdu = tlv_data;
 
 		info[0] = __le32_to_cpu(tx_fes_usr_ppdu->info0);
 
@@ -1848,8 +1759,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 		break;
 
 	case HAL_RX_FRAME_BITMAP_ACK: {
-		struct hal_rx_frame_bitmap_ack *fbm_ack =
-			(struct hal_rx_frame_bitmap_ack *)tlv_data;
+		const struct hal_rx_frame_bitmap_ack *fbm_ack = tlv_data;
 		u32 addr_32;
 		u16 addr_16;
 
@@ -1867,8 +1777,7 @@ ath12k_dp_mon_tx_parse_status_tlv(struct ath12k_base *ab,
 	}
 
 	case HAL_MACTX_PHY_DESC: {
-		struct hal_tx_phy_desc *tx_phy_desc =
-			(struct hal_tx_phy_desc *)tlv_data;
+		const struct hal_tx_phy_desc *tx_phy_desc = tlv_data;
 
 		info[0] = __le32_to_cpu(tx_phy_desc->info0);
 		info[1] = __le32_to_cpu(tx_phy_desc->info1);

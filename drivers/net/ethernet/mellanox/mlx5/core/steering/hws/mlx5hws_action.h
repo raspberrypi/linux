@@ -70,12 +70,12 @@ struct mlx5hws_action_default_stc {
 	struct mlx5hws_pool_chunk nop_dw6;
 	struct mlx5hws_pool_chunk nop_dw7;
 	struct mlx5hws_pool_chunk default_hit;
-	u32 refcount;
+	u32 refcount; /* protected by context ctrl lock */
 };
 
 struct mlx5hws_action_shared_stc {
 	struct mlx5hws_pool_chunk stc_chunk;
-	u32 refcount;
+	u32 refcount; /* protected by context ctrl lock */
 };
 
 struct mlx5hws_actions_apply_data {
@@ -124,7 +124,7 @@ struct mlx5hws_action {
 	struct mlx5hws_context *ctx;
 	union {
 		struct {
-			struct mlx5hws_pool_chunk stc[MLX5HWS_TABLE_TYPE_MAX];
+			struct mlx5hws_pool_chunk stc;
 			union {
 				struct {
 					u32 pat_id;
