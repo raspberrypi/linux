@@ -637,6 +637,11 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 		vc4_state->x_scaling[1] =
 			vc4_get_scaling_mode(vc4_state->src_w[1],
 					     vc4_state->crtc_w);
+		/* The BCM2835 HVS misplaces chroma with a PPF downscale of exactly 1.5 */
+		if (to_vc4_dev(state->plane->dev)->gen == VC4_GEN_4 &&
+		    vc4_state->x_scaling[1] == VC4_SCALING_PPF &&
+		    (u64)vc4_state->src_w[1] * 2 >= ((u64)vc4_state->crtc_w * 3) << 16)
+			vc4_state->x_scaling[1] = VC4_SCALING_TPZ;
 		vc4_state->y_scaling[1] =
 			vc4_get_scaling_mode(vc4_state->src_h[1],
 					     vc4_state->crtc_h);
