@@ -2792,6 +2792,14 @@ static bool vc4_format_mod_supported(struct drm_plane *plane,
 				     uint32_t format,
 				     uint64_t modifier)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+
+	/* vc6_plane_mode_set() only handles linear, SAND128 and SAND256 */
+	if (vc4->gen >= VC4_GEN_6_C &&
+	    (modifier == DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED ||
+	     fourcc_mod_broadcom_mod(modifier) == DRM_FORMAT_MOD_BROADCOM_SAND64))
+		return false;
+
 	/* Support T_TILING for RGB formats only. */
 	switch (format) {
 	case DRM_FORMAT_XRGB8888:
