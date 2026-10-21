@@ -106,6 +106,9 @@
 #define ES8389_MIC_SEL_MASK           (7 << 4)
 #define ES8389_MIC_DEFAULT            (1 << 4)
 
+#define ES8389_HPF_DEFAULT            16
+#define ES8389_HPF_OFFSET             4
+
 #define ES8389_MASTER_MODE_EN         (1 << 0)
 
 #define ES8389_TDM_OFF                (0 << 0)
@@ -116,9 +119,11 @@
 #define ES8389_TDM_SLOT               (0x70 << 0)
 #define ES8389_TDM_SHIFT              4
 
-#define ES8389_MCLK_SOURCE            (1 << 6)
-#define ES8389_MCLK_PIN               (1 << 6)
-#define ES8389_SCLK_PIN               (0 << 6)
+#define ES8389_MCLK_MASK              (3 << 6)
+#define ES8389_MCLK_FROM_SCLK         (1 << 6)
+#define ES8389_MCLK_SOURCE            ES8389_MCLK_PIN
+#define ES8389_MCLK_PIN               0
+#define ES8389_SCLK_PIN               1
 
 /* ES8389_FMT */
 #define ES8389_S24_LE                 (0 << 5)
@@ -136,5 +141,13 @@
 
 #define ES8389_STATE_ON               (13 << 0)
 #define ES8389_STATE_STANDBY          (7 << 0)
+
+enum ES8389_supplies {
+	ES8389_SUPPLY_VD = 0,
+	ES8389_SUPPLY_VA,
+};
+
+#define ES8389_3V3  1
+#define ES8389_1V8  0
 
 #endif

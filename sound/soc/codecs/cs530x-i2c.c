@@ -28,9 +28,9 @@ static const struct of_device_id cs530x_of_match[] = {
 MODULE_DEVICE_TABLE(of, cs530x_of_match);
 
 static const struct i2c_device_id cs530x_i2c_id[] = {
-	{ "cs5302", CS5302 },
-	{ "cs5304", CS5304 },
-	{ "cs5308", CS5308 },
+	{ .name = "cs5302", .driver_data = CS5302 },
+	{ .name = "cs5304", .driver_data = CS5304 },
+	{ .name = "cs5308", .driver_data = CS5308 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, cs530x_i2c_id);

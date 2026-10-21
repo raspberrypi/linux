@@ -39,8 +39,8 @@ static void cs35l41_hda_i2c_remove(struct i2c_client *clt)
 }
 
 static const struct i2c_device_id cs35l41_hda_i2c_id[] = {
-	{ "cs35l41-hda" },
-	{}
+	{ .name = "cs35l41-hda" },
+	{ }
 };
 
 static const struct acpi_device_id cs35l41_acpi_hda_match[] = {

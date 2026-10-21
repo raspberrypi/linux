@@ -1240,8 +1240,8 @@ static const struct snd_soc_component_driver soc_codec_dev_aw88081 = {
 };
 
 static const struct i2c_device_id aw88081_i2c_id[] = {
-	{ AW88081_I2C_NAME, AW88081},
-	{ AW88083_I2C_NAME, AW88083},
+	{ .name = AW88081_I2C_NAME, .driver_data = AW88081 },
+	{ .name = AW88083_I2C_NAME, .driver_data = AW88083 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, aw88081_i2c_id);
