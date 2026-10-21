@@ -2544,19 +2544,19 @@ static const struct ws_panel_desc ws_panel_3_4_inch_c_desc = {
 };
 
 static const struct of_device_id ws_panel_of_match[] = {
-	{ .compatible = "waveshare,12.3-dsi-touch-a,4lane",
+	{ .compatible = "waveshare,12.3-dsi-touch-a-4lane",
 	  &ws_panel_12_3_inch_a_4lane_desc },
 	{ .compatible = "waveshare,10.1-dsi-touch-a-4lane",
 	  &ws_panel_10_1_inch_a_4lane_desc },
 	{ .compatible = "waveshare,10.1-dsi-touch-a",
 	  &ws_panel_10_1_inch_a_desc },
-	{ .compatible = "waveshare,10.1-dsi-touch-b,4lane",
+	{ .compatible = "waveshare,10.1-dsi-touch-b-4lane",
 	  &ws_panel_10_1_inch_b_4lane_desc },
 	{ .compatible = "waveshare,10.1-dsi-touch-b",
 	  &ws_panel_10_1_inch_b_desc },
-	{ .compatible = "waveshare,10.1-dsi-touch-e,4lane",
+	{ .compatible = "waveshare,10.1-dsi-touch-e-4lane",
 	  &ws_panel_10_1_inch_e_4lane_desc },
-	{ .compatible = "waveshare,9.0-dsi-touch-b,4lane",
+	{ .compatible = "waveshare,9.0-dsi-touch-b-4lane",
 	  &ws_panel_9_inch_b_4lane_desc },
 	{ .compatible = "waveshare,9.0-dsi-touch-b", &ws_panel_9_inch_b_desc },
 	{ .compatible = "waveshare,8.8-dsi-touch-a",
