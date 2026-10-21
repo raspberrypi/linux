@@ -899,6 +899,9 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 		width = state->crtc_w;
 	else
 		width = min(src_w, state->crtc_w);
+	/* vc6_plane_mode_set() programs double the width for YUV444 */
+	if (info->format == DRM_FORMAT_YUV444 || info->format == DRM_FORMAT_YVU444)
+		width *= 2;
 	width = round_up(DIV_ROUND_UP(width, info->hsub), 4);
 
 	wpc = vc4_lbm_words_per_component(state, channel);
@@ -920,7 +923,7 @@ static unsigned int __vc6_lbm_size(const struct drm_plane_state *state)
 {
 	const struct drm_format_info *info = state->fb->format;
 
-	if (info->hsub > 1)
+	if (info->is_yuv)
 		return max(vc4_lbm_channel_size(state, 0),
 			   vc4_lbm_channel_size(state, 1));
 	else
