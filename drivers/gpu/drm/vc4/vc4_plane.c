@@ -1738,6 +1738,10 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	if (format->drm == DRM_FORMAT_YUV444 || format->drm == DRM_FORMAT_YVU444)
 		width <<= 1;
 
+	if (width > (vc4->gen >= VC4_GEN_5 ? FIELD_MAX(SCALER5_POS2_WIDTH_MASK) :
+					     FIELD_MAX(SCALER_POS2_WIDTH_MASK)))
+		return -EINVAL;
+
 	/* Don't waste cycles mixing with plane alpha if the set alpha
 	 * is opaque or there is no per-pixel alpha information.
 	 * In any case we use the alpha property value as the fixed alpha.
