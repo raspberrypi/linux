@@ -624,6 +624,11 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 			       vc4_state->y_scaling[0] == VC4_SCALING_NONE);
 
 	if (num_planes > 1) {
+		/* The HVS6 corrupts other planes if a chroma line is under a pixel */
+		if (to_vc4_dev(state->plane->dev)->gen >= VC4_GEN_6_C &&
+		    (vc4_state->src_w[0] >> 16) < h_subsample)
+			return -EINVAL;
+
 		vc4_state->is_yuv = true;
 
 		vc4_state->src_w[1] = vc4_state->src_w[0] / h_subsample;
