@@ -1837,7 +1837,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		if (hvs_format != HVS_PIXEL_FORMAT_H264 &&
 		    hvs_format != HVS_PIXEL_FORMAT_YCBCR_10BIT)
 			vc4_dlist_write(vc4_state,
-					VC4_SET_FIELD(fb->pitches[i] /
+					VC4_SET_FIELD(fb->pitches[i] *
 							 vc4_state->vdownsample,
 						      SCALER_SRC_PITCH));
 		else
