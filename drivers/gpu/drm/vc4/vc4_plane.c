@@ -842,6 +842,7 @@ static unsigned int vc4_lbm_components(const struct drm_plane_state *state,
 static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 					 unsigned int channel)
 {
+	const struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	const struct drm_format_info *info = state->fb->format;
 	unsigned int components, words, wpc;
 	unsigned int width, lines;
@@ -849,9 +850,13 @@ static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 	/* LBM is meant to use the smaller of source or dest width, but there
 	 * is a issue with UV scaling that the size required for the second
 	 * channel is based on the source width only.
+	 * H-TPZ runs before the vertical scaler and, when upscaling a 1 pixel
+	 * source, repeats that pixel out to crtc_w, so it needs crtc_w.
 	 */
 	if (info->hsub > 1 && channel == 1)
 		width = state->src_w >> 16;
+	else if (vc4_state->x_scaling[channel] == VC4_SCALING_TPZ)
+		width = state->crtc_w;
 	else
 		width = min(state->src_w >> 16, state->crtc_w);
 	width = round_up(width / info->hsub, 4);
