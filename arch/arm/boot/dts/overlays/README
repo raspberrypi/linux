@@ -6144,6 +6144,42 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 Only supported on Pi5 and CM
 
 
+Name:   vc4-kms-dsi-huadi-480x480
+Info:   Huadi HD40007C30-V5 two-lane DSI panel on Raspberry Pi 5, using
+        the externally powered Adafruit 30-pin DSI adapter Rev B.
+        Requires vc4-kms-v3d. Connect to CAM/DISP1 by default.
+        Touch defaults to I2C polling with APX803 power-on reset; no extra
+        GPIO wiring is required. Optional TP_INT wiring enables interrupts.
+        For host-controlled reset, wire both TP_RESET and TP_INT and set
+        touch_reset and touch_interrupt. Reset uses open-drain operation.
+Load:   dtoverlay=vc4-kms-dsi-huadi-480x480,<param>=<val>
+Params: dsi0                    Use CAM/DISP0 instead
+        notouch                 Disable the touch controller
+        touch_reset             Optional touch reset GPIO (unset by default)
+        touch_interrupt         Optional touch interrupt GPIO (unset by default)
+        touch_inverted_x        Invert the touch X axis
+        touch_inverted_y        Invert the touch Y axis
+        touch_swapped_xy        Swap the touch X and Y axes
+
+
+Name:   vc4-kms-dsi-huadi-720x720
+Info:   Huadi HD395003C30-V2 two-lane DSI panel on Raspberry Pi 5, using
+        the externally powered Adafruit 30-pin DSI adapter Rev B.
+        Requires vc4-kms-v3d. Connect to CAM/DISP1 by default.
+        Touch defaults to I2C polling with APX803 power-on reset; no extra
+        GPIO wiring is required. Optional TP_INT wiring enables interrupts.
+        For host-controlled reset, wire both TP_RESET and TP_INT and set
+        touch_reset and touch_interrupt. Reset uses open-drain operation.
+Load:   dtoverlay=vc4-kms-dsi-huadi-720x720,<param>=<val>
+Params: dsi0                    Use CAM/DISP0 instead
+        notouch                 Disable the touch controller
+        touch_reset             Optional touch reset GPIO (unset by default)
+        touch_interrupt         Optional touch interrupt GPIO (unset by default)
+        touch_inverted_x        Invert the touch X axis
+        touch_inverted_y        Invert the touch Y axis
+        touch_swapped_xy        Swap the touch X and Y axes
+
+
 Name:   vc4-kms-dsi-ili79600-10-1inch
 Info:   Enable the Raspberry Pi 10" ILI79600 based touchscreen panel.
         Requires vc4-kms-v3d to be loaded.
