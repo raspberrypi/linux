@@ -1333,7 +1333,8 @@ static u32 vc4_hvs5_get_alpha_blend_mode(struct drm_plane_state *state)
 		}
 	case VC4_GEN_6_D:
 		/* 2712-D configures fixed alpha mode in CTL0 */
-		return state->pixel_blend_mode == DRM_MODE_BLEND_PREMULTI ?
+		return state->fb->format->has_alpha &&
+		       state->pixel_blend_mode == DRM_MODE_BLEND_PREMULTI ?
 			SCALER5_CTL2_ALPHA_PREMULT : 0;
 	}
 }
