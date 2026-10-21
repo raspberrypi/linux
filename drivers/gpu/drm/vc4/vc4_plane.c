@@ -1434,6 +1434,15 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
+	/* The doubled YUV444 width below has to be scaled back for the luma */
+	if ((fb->format->format == DRM_FORMAT_YUV444 ||
+	     fb->format->format == DRM_FORMAT_YVU444) &&
+	    vc4_state->x_scaling[0] == VC4_SCALING_NONE) {
+		vc4_state->x_scaling[0] = VC4_SCALING_PPF;
+		vc4_state->is_unity = false;
+		vc4_state->is_yuv444_unity = true;
+	}
+
 	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
 	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen */
