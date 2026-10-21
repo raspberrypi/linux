@@ -662,6 +662,11 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 		    (vc4_state->crtc_h << 16) > vc4_state->src_h[i] &&
 		    (vc4_state->is_yuv || (vc4_state->src_y & 0xffff)))
 			vc4_state->y_scaling[i] = VC4_SCALING_PPF;
+
+		if (vc4_state->x_scaling[i] == VC4_SCALING_TPZ &&
+		    vc4_state->src_w[i] / vc4_state->crtc_w >
+		    FIELD_MAX(SCALER_TPZ0_SCALE_MASK))
+			return -EINVAL;
 	}
 
 	return 0;
