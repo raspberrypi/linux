@@ -1407,6 +1407,47 @@ static u32 vc4_hvs6_get_alpha_mask_mode(struct drm_plane_state *state)
 	return VC4_SET_FIELD(SCALER6_CTL0_ALPHA_MASK_NONE, SCALER6_CTL0_ALPHA_MASK);
 }
 
+/*
+ * Skips source lines for a vertical TPZ downscale of more than x3, to limit
+ * SDRAM bandwidth. The skip is applied through the pitch or the tile line
+ * skip field, so it is capped to what those hold, and to keep the chroma
+ * downscaling.
+ */
+static int vc4_plane_set_vdownsample(struct drm_plane_state *state,
+				     u32 max_pitch, u32 max_tile_skip)
+{
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct drm_framebuffer *fb = state->fb;
+	u64 mod = fourcc_mod_broadcom_mod(fb->modifier);
+	u32 vds = 1, max;
+
+	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ &&
+	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
+		vds = ((vc4_state->src_h[0] / (vc4_state->crtc_h * 3)) >> 16) + 1;
+
+		if (mod == DRM_FORMAT_MOD_BROADCOM_SAND64 ||
+		    mod == DRM_FORMAT_MOD_BROADCOM_SAND128 ||
+		    mod == DRM_FORMAT_MOD_BROADCOM_SAND256)
+			max = max_tile_skip;
+		else if (mod == DRM_FORMAT_MOD_LINEAR)
+			max = max_pitch / fb->pitches[0];
+		else
+			max = 1;
+		if (fb->format->num_planes > 1)
+			max = min(max, (vc4_state->src_h[1] / vc4_state->crtc_h) >> 16);
+		vds = clamp_t(u32, max, 1, vds);
+	}
+	vc4_state->vdownsample = vds;
+
+	for (int i = 0; i < 2; i++)
+		if (vc4_state->y_scaling[i] == VC4_SCALING_TPZ &&
+		    vc4_state->src_h[i] / vds / vc4_state->crtc_h >
+		    FIELD_MAX(SCALER_TPZ0_SCALE_MASK))
+			return -EINVAL;
+
+	return 0;
+}
+
 /* Writes out a full display list for an active plane to the plane's
  * private dlist state.
  */
@@ -1455,16 +1496,10 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return 0;
 	}
 
-	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ  &&
-	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
-		/* Downscaling by more than x3. Reduce the number of lines read
-		 * to avoid exceeding SDRAM bandwidth.
-		 */
-		vc4_state->vdownsample = ((vc4_state->src_h[0] /
-					  (vc4_state->crtc_h * 3)) >> 16) + 1;
-	} else {
-		vc4_state->vdownsample = 1;
-	}
+	ret = vc4_plane_set_vdownsample(state, FIELD_MAX(SCALER_SRC_PITCH_MASK),
+					FIELD_MAX(SCALER_TILE_SKIP_0_MASK) + 1);
+	if (ret)
+		return ret;
 
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
@@ -2055,16 +2090,10 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 	width = vc4_state->src_w[0] >> 16;
 	height = vc4_state->src_h[0] >> 16;
 
-	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ &&
-	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
-		/* Downscaling by more than x3. Reduce the number of lines read
-		 * to avoid exceeding SDRAM bandwidth.
-		 */
-		vc4_state->vdownsample = ((vc4_state->src_h[0] /
-					   (vc4_state->crtc_h * 3)) >> 16) + 1;
-	} else {
-		vc4_state->vdownsample = 1;
-	}
+	ret = vc4_plane_set_vdownsample(state, FIELD_MAX(SCALER6_PTR2_PITCH_MASK),
+					FIELD_MAX(SCALER6_PTR2_TILE_LSKIP_MASK) + 1);
+	if (ret)
+		return ret;
 
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
