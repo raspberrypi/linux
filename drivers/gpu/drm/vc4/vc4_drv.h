@@ -442,6 +442,8 @@ struct vc4_plane_state {
 	u32 pos0_offset;
 	u32 pos2_offset;
 	u32 ptr0_offset[DRM_FORMAT_MAX_PLANES];
+	/* Offset of the first pixel scanned out from the start of the fb */
+	u32 ptr0_src_offset;
 	u32 lbm_offset;
 
 	/* Offset where the plane's dlist was last stored in the
