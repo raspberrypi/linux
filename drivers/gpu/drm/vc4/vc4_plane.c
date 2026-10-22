@@ -1506,8 +1506,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
-	width = vc4_state->src_w[0] >> 16;
-	height = vc4_state->src_h[0] >> 16;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
@@ -1719,9 +1720,6 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return -EINVAL;
 	}
 
-	/* Fetch every pixel the source rectangle touches, including partial ones */
-	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
-	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	/* For YUV444 the hardware wants double the width, otherwise it doesn't
 	 * fetch full width of chroma
@@ -2082,8 +2080,9 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		return 0;
 	}
 
-	width = vc4_state->src_w[0] >> 16;
-	height = vc4_state->src_h[0] >> 16;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	ret = vc4_plane_set_vdownsample(state, FIELD_MAX(SCALER6_PTR2_PITCH_MASK),
 					FIELD_MAX(SCALER6_PTR2_TILE_LSKIP_MASK) + 1);
@@ -2116,9 +2115,6 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 	src_x = vc4_state->src_x >> 16;
 
-	/* Fetch every pixel the source rectangle touches, including partial ones */
-	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
-	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
