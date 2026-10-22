@@ -910,7 +910,7 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	if (!count) {
 		txq->head = 0;
 		txq->tail = 0;
-		goto unlock;
+		goto reset_hw_ptr;
 	}
 
 	shift = tail % ring_size;
@@ -959,6 +959,13 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	/* Make descriptor updates visible to hardware */
 	wmb();
 
+reset_hw_ptr:
+	/* tx_tail was reset to the ring base, so TBQP must be reprogrammed
+	 * to match; otherwise it keeps pointing at a stale descriptor. Safe
+	 * to write directly here as TX is still disabled (called from
+	 * macb_mac_link_up() before TE is set).
+	 */
+	queue_writel(queue, TBQP, lower_32_bits(txq->ring_dma));
 unlock:
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 }
@@ -1432,7 +1439,7 @@ static void macb_tx_error_task(struct work_struct *work)
 					    skb->data);
 				bp->netdev->stats.tx_packets++;
 				queue->stats.tx_packets++;
-				bp->dev->stats.tx_bytes += skb->len;
+				bp->netdev->stats.tx_bytes += skb->len;
 				queue->stats.tx_bytes += skb->len;
 			}
 		} else {
