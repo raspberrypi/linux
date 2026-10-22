@@ -51,10 +51,6 @@ struct amdgpu_bo_list {
 	unsigned first_userptr;
 	unsigned num_entries;
 
-	/* Protect access during command submission.
-	 */
-	struct mutex bo_list_mutex;
-
 	struct amdgpu_bo_list_entry entries[] __counted_by(num_entries);
 };
 
