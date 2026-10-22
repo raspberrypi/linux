@@ -2721,6 +2721,8 @@ static void update_nodemasks_hier(struct cpuset *cs, nodemask_t *new_mems)
 			continue;
 		rcu_read_unlock();
 
+		check_insane_mems_config(new_mems);
+
 		spin_lock_irq(&callback_lock);
 		cp->effective_mems = *new_mems;
 		spin_unlock_irq(&callback_lock);
@@ -2790,8 +2792,6 @@ static int update_nodemask(struct cpuset *cs, struct cpuset *trialcs,
 	retval = validate_change(cs, trialcs);
 	if (retval < 0)
 		goto done;
-
-	check_insane_mems_config(&trialcs->mems_allowed);
 
 	spin_lock_irq(&callback_lock);
 	cs->mems_allowed = trialcs->mems_allowed;
