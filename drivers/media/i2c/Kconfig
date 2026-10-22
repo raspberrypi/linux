@@ -360,6 +360,18 @@ select VIDEO_SONY_STARVIS2
 	  IMX678 camera. This sensor is now supported by the common
 	  Sony Starvis 2 sensor driver.
 
+config VIDEO_MIRA016
+	tristate "ams OSRAM MIRA016 sensor support"
+	depends on I2C && VIDEO_DEV
+	depends on GPIOLIB
+	select V4L2_CCI_I2C
+	help
+	  This is a Video4Linux2 sensor driver for the ams OSRAM
+	  MIRA016 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mira016.
+
 config VIDEO_MAX9271_LIB
 	tristate
 

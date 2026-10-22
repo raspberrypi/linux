@@ -1382,6 +1382,7 @@ M:	Philippe Baetens <philippebaetens@gmail.com>
 L:	linux-media@vger.kernel.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/media/i2c/ams,mira016.yaml
+F:	drivers/media/i2c/mira016.c
 
 AMS MIRA220 DRIVER
 M:	Jacopo Mondi <jacopo.mondi@ideasonboard.com>
