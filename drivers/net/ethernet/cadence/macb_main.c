@@ -924,6 +924,8 @@ static void gem_shuffle_tx_rings(struct macb *bp)
 		gem_shuffle_tx_one_ring(queue);
 }
 
+static void macb_tx_restart(struct macb_queue *queue);
+
 static void macb_mac_link_up(struct phylink_config *config,
 			     struct phy_device *phy,
 			     unsigned int mode, phy_interface_t interface,
@@ -986,6 +988,12 @@ static void macb_mac_link_up(struct phylink_config *config,
 		ctrl |= MACB_BIT(PTPUNI);
 
 	macb_writel(bp, NCR, ctrl | MACB_BIT(RE) | MACB_BIT(TE));
+
+	if (!(bp->caps & MACB_CAPS_MACB_IS_EMAC)) {
+		/* With BQL holding a queue stopped no xmit would issue TSTART */
+		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue)
+			macb_tx_restart(queue);
+	}
 
 	netif_tx_wake_all_queues(ndev);
 }
