@@ -219,9 +219,6 @@
 };
 
 &gpio {
-	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
-		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
-
 	spi0_pins: spi0_pins {
 		brcm,pins = <9 10 11>;
 		brcm,function = <BCM2835_FSEL_ALT0>;
