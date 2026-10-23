@@ -4,6 +4,7 @@
 DTC_FLAGS := -@
 
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2711-rpi-400.dtb \
+			      bcm2711-rpi-4-a.dtb \
 			      bcm2711-rpi-4-b.dtb \
 			      bcm2711-rpi-cm4-io.dtb \
 			      bcm2711-rpi-zero-3-w.dtb \
