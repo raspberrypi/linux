@@ -1921,7 +1921,9 @@ static void nvmet_port_release(struct config_item *item)
 
 	/* Let inflight controllers teardown complete */
 	flush_workqueue(nvmet_wq);
+	down_write(&nvmet_config_sem);
 	list_del(&port->global_entry);
+	up_write(&nvmet_config_sem);
 
 	key_put(port->keyring);
 	kfree(port->ana_state);
@@ -1989,8 +1991,6 @@ static struct config_group *nvmet_ports_make(struct config_group *group,
 			port->ana_state[i] = NVME_ANA_INACCESSIBLE;
 	}
 
-	list_add(&port->global_entry, &nvmet_ports_list);
-
 	INIT_LIST_HEAD(&port->entry);
 	INIT_LIST_HEAD(&port->subsystems);
 	INIT_LIST_HEAD(&port->referrals);
@@ -2021,6 +2021,10 @@ static struct config_group *nvmet_ports_make(struct config_group *group,
 			&nvmet_ana_group_type);
 	configfs_add_default_group(&port->ana_default_group.group,
 			&port->ana_groups_group);
+
+	down_write(&nvmet_config_sem);
+	list_add(&port->global_entry, &nvmet_ports_list);
+	up_write(&nvmet_config_sem);
 
 	return &port->group;
 }
