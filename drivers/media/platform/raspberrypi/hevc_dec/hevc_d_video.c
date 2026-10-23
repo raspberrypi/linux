@@ -535,19 +535,19 @@ static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 	v4l2_m2m_update_start_streaming_state(ctx->fh.m2m_ctx, vq);
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-		ret = hevc_d_hw_start_clock(dev);
+		ret = hevc_d_hw_pm_get(dev);
 		if (ret)
 			goto fail_cleanup;
 
 		ret = hevc_d_h265_start(ctx);
 		if (ret)
-			goto fail_stop_clock;
+			goto fail_pm_put;
 	}
 
 	return 0;
 
-fail_stop_clock:
-	hevc_d_hw_stop_clock(dev);
+fail_pm_put:
+	hevc_d_hw_pm_put(dev);
 fail_cleanup:
 	v4l2_err(&dev->v4l2_dev, "%s: qtype=%d: FAIL\n", __func__, vq->type);
 	hevc_d_queue_cleanup(vq, VB2_BUF_STATE_QUEUED);
@@ -561,7 +561,7 @@ static void hevc_d_stop_streaming(struct vb2_queue *vq)
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		hevc_d_h265_stop(ctx);
-		hevc_d_hw_stop_clock(dev);
+		hevc_d_hw_pm_put(dev);
 	}
 
 	hevc_d_queue_cleanup(vq, VB2_BUF_STATE_ERROR);

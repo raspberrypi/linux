@@ -312,8 +312,10 @@ void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
 			       struct hevc_d_hw_irq_ent *ient,
 			       hevc_d_irq_callback irq_cb, void *ctx);
 
-int hevc_d_hw_start_clock(struct hevc_d_dev *dev);
-void hevc_d_hw_stop_clock(struct hevc_d_dev *dev);
+int hevc_d_hw_power_on(struct hevc_d_dev *dev);
+void hevc_d_hw_power_off(struct hevc_d_dev *dev);
+int hevc_d_hw_pm_get(struct hevc_d_dev *dev);
+void hevc_d_hw_pm_put(struct hevc_d_dev *dev);
 
 int hevc_d_hw_probe(struct hevc_d_dev *dev);
 void hevc_d_hw_remove(struct hevc_d_dev *dev);
