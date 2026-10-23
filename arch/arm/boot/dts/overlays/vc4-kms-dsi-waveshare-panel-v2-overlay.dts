@@ -83,6 +83,8 @@
 		4_0_inch_c = <&dsi_panel>, "compatible=waveshare,4.0-dsi-touch-c";
 		4_3_inch_a = <&dsi_panel>, "compatible=waveshare,4.3-dsi-touch-a";
 		5_0_inch_a = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a";
+		5_0_inch_a_v2 = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-a-v2";
+		5_0_inch_b = <&dsi_panel>, "compatible=waveshare,5.0-dsi-touch-b";
 		5_5_inch_a = <&dsi_panel>, "compatible=waveshare,5.5-dsi-touch-a";
 		6_25_inch_a = <&dsi_panel>, "compatible=waveshare,6.25-dsi-touch-a",
 			      <&touch>, "compatible=sitronix,st7123",
