@@ -3826,7 +3826,8 @@ static void macb_get_wol(struct net_device *netdev, struct ethtool_wolinfo *wol)
 	struct macb *bp = netdev_priv(netdev);
 
 	phylink_ethtool_get_wol(bp->phylink, wol);
-	wol->supported |= (WAKE_MAGIC | WAKE_ARP);
+	if (device_can_wakeup(&bp->pdev->dev))
+		wol->supported |= (WAKE_MAGIC | WAKE_ARP);
 
 	/* Add macb wolopts to phy wolopts */
 	wol->wolopts |= bp->wolopts;
@@ -3836,6 +3837,9 @@ static int macb_set_wol(struct net_device *netdev, struct ethtool_wolinfo *wol)
 {
 	struct macb *bp = netdev_priv(netdev);
 	int ret;
+
+	if (wol->wolopts && !device_can_wakeup(&bp->pdev->dev))
+		return -EOPNOTSUPP;
 
 	/* Pass the order to phylink layer */
 	ret = phylink_ethtool_set_wol(bp->phylink, wol);
@@ -3929,8 +3933,10 @@ static unsigned int gem_get_tsu_rate(struct macb *bp)
 	unsigned int tsu_rate;
 
 	tsu_clk = devm_clk_get(&bp->pdev->dev, "tsu_clk");
-	if (!IS_ERR(tsu_clk))
+	if (!IS_ERR(tsu_clk)) {
 		tsu_rate = clk_get_rate(tsu_clk);
+		devm_clk_put(&bp->pdev->dev, tsu_clk);
+	}
 	/* try pclk instead */
 	else if (!IS_ERR(bp->pclk)) {
 		tsu_clk = bp->pclk;
@@ -5774,6 +5780,7 @@ static const struct macb_config raspberrypi_rp1_config = {
 		MACB_CAPS_JUMBO |
 		MACB_CAPS_GEM_HAS_PTP |
 		MACB_CAPS_PCIE_POSTED_WRITES |
+		MACB_CAPS_NO_WOL |
 		MACB_CAPS_EEE,
 	.dma_burst_length = 16,
 	.clk_init = macb_clk_init,
@@ -5911,7 +5918,6 @@ static int macb_probe(struct platform_device *pdev)
 		bp->max_tx_length = GEM_MAX_TX_LEN;
 
 	bp->wol = 0;
-	device_set_wakeup_capable(&pdev->dev, 1);
 
 	bp->usrio = macb_config->usrio;
 
@@ -5945,6 +5951,9 @@ static int macb_probe(struct platform_device *pdev)
 
 	/* setup capabilities */
 	macb_configure_caps(bp, macb_config);
+
+	if (!(bp->caps & MACB_CAPS_NO_WOL))
+		device_set_wakeup_capable(&pdev->dev, 1);
 
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
 	if (GEM_BFEXT(DAW64, gem_readl(bp, DCFG6))) {
@@ -6207,7 +6216,11 @@ static int __maybe_unused macb_suspend(struct device *dev)
 			spin_unlock_irqrestore(&bp->lock, flags);
 		}
 
-		enable_irq_wake(bp->queues[0].irq);
+		err = enable_irq_wake(bp->queues[0].irq);
+		if (err)
+			netdev_warn(netdev, "Unable to enable IRQ %d as a wake source (error %d)\n",
+				    bp->queues[0].irq, err);
+		bp->pm_data.irq_wake_enabled = !err;
 	}
 
 	netif_device_detach(netdev);
@@ -6285,7 +6298,10 @@ static int __maybe_unused macb_resume(struct device *dev)
 			return err;
 		}
 
-		disable_irq_wake(bp->queues[0].irq);
+		if (bp->pm_data.irq_wake_enabled) {
+			disable_irq_wake(bp->queues[0].irq);
+			bp->pm_data.irq_wake_enabled = false;
+		}
 
 		/* Now make sure we disable phy before moving
 		 * to common restore path
