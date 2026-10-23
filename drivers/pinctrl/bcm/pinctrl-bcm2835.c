@@ -485,7 +485,7 @@ static void bcm2835_gpio_irq_handler(struct irq_desc *desc)
 		bcm2835_gpio_irq_handle_bank(pc, 1, 0x00003fff);
 		break;
 	case 2: /* IRQ2 covers GPIOs 46-57 */
-		bcm2835_gpio_irq_handle_bank(pc, 1, 0x003fc000);
+		bcm2835_gpio_irq_handle_bank(pc, 1, 0x03ffc000);
 		break;
 	}
 
