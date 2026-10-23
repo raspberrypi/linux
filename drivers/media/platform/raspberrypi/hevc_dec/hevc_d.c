@@ -13,6 +13,7 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/module.h>
 
 #include <media/v4l2-device.h>
@@ -221,6 +222,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 	dev->vfd = hevc_d_video_device;
 	dev->dev = &pdev->dev;
 	dev->pdev = pdev;
+	platform_set_drvdata(pdev, dev);
 
 	ret = hevc_d_hw_probe(dev);
 	if (ret) {
@@ -291,8 +293,6 @@ static int hevc_d_probe(struct platform_device *pdev)
 		goto err_m2m_mc;
 	}
 
-	platform_set_drvdata(pdev, dev);
-
 	return 0;
 
 err_m2m_mc:
@@ -327,6 +327,59 @@ static void hevc_d_remove(struct platform_device *pdev)
 	hevc_d_hw_remove(dev);
 }
 
+static int hevc_d_runtime_suspend(struct device *d)
+{
+	struct hevc_d_dev *dev = dev_get_drvdata(d);
+
+	hevc_d_hw_power_off(dev);
+	return 0;
+}
+
+static int hevc_d_runtime_resume(struct device *d)
+{
+	struct hevc_d_dev *dev = dev_get_drvdata(d);
+
+	return hevc_d_hw_power_on(dev);
+}
+
+static int hevc_d_suspend(struct device *d)
+{
+	struct hevc_d_dev *dev = dev_get_drvdata(d);
+	int ret;
+
+	/* Stop new jobs being started */
+	v4l2_m2m_suspend(dev->m2m_dev);
+	/*
+	 * v4l2_m2m_suspend only waits for the current job to finish but we
+	 * finish jobs before the h/w is done with them so also wait for any
+	 * phase 1 / phase 2 work still in flight
+	 */
+	hevc_d_h265_sync(dev);
+
+	ret = pm_runtime_force_suspend(d);
+	if (ret)
+		v4l2_m2m_resume(dev->m2m_dev);
+	return ret;
+}
+
+static int hevc_d_resume(struct device *d)
+{
+	struct hevc_d_dev *dev = dev_get_drvdata(d);
+	int ret;
+
+	ret = pm_runtime_force_resume(d);
+	if (ret)
+		return ret;
+
+	v4l2_m2m_resume(dev->m2m_dev);
+	return 0;
+}
+
+static const struct dev_pm_ops hevc_d_pm_ops = {
+	SYSTEM_SLEEP_PM_OPS(hevc_d_suspend, hevc_d_resume)
+	RUNTIME_PM_OPS(hevc_d_runtime_suspend, hevc_d_runtime_resume, NULL)
+};
+
 static const struct of_device_id hevc_d_dt_match[] = {
 	{ .compatible = "brcm,bcm2711-hevc-dec", },
 	{ .compatible = "brcm,bcm2712-hevc-dec", },
@@ -340,6 +393,7 @@ static struct platform_driver hevc_d_driver = {
 	.driver		= {
 		.name = HEVC_D_NAME,
 		.of_match_table	= hevc_d_dt_match,
+		.pm = pm_ptr(&hevc_d_pm_ops),
 	},
 };
 module_platform_driver(hevc_d_driver);

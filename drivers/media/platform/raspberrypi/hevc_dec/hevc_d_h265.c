@@ -2286,7 +2286,7 @@ static void phase1_sync_claimed(struct hevc_d_dev *const dev, void *v)
  * phase1 has counted enables so must reenable once claimed
  * phase2 has unlimited enables
  */
-static void irq_sync(struct hevc_d_dev *const dev)
+void hevc_d_h265_sync(struct hevc_d_dev *dev)
 {
 	struct irq_sync sync;
 
@@ -2322,7 +2322,7 @@ void hevc_d_h265_stop(struct hevc_d_ctx *ctx)
 {
 	struct hevc_d_dev *const dev = ctx->dev;
 
-	irq_sync(dev);
+	hevc_d_h265_sync(dev);
 	h265_ctx_uninit(dev, ctx);
 }
 
