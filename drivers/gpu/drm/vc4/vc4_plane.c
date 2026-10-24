@@ -328,7 +328,7 @@ static const struct hvs_format *vc4_get_hvs_format(u32 drm_format)
 
 static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
-	if (dst == src >> 16)
+	if (dst << 16 == src)
 		return VC4_SCALING_NONE;
 
 	if (src <= (1 << 16))
@@ -614,10 +614,24 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 	vc4_state->y_scaling[0] = vc4_get_scaling_mode(vc4_state->src_h[0],
 						       vc4_state->crtc_h);
 
+	/* A fractional start fetches an extra pixel, which needs scaling out */
+	if (vc4_state->x_scaling[0] == VC4_SCALING_NONE && (vc4_state->src_x & 0xffff))
+		vc4_state->x_scaling[0] = VC4_SCALING_PPF;
+	if (vc4_state->y_scaling[0] == VC4_SCALING_NONE && (vc4_state->src_y & 0xffff))
+		vc4_state->y_scaling[0] = VC4_SCALING_PPF;
+
 	vc4_state->is_unity = (vc4_state->x_scaling[0] == VC4_SCALING_NONE &&
 			       vc4_state->y_scaling[0] == VC4_SCALING_NONE);
 
 	if (num_planes > 1) {
+		/*
+		 * A source smaller than one chroma sample is rendered the wrong
+		 * colour, and on BCM2712 one that narrow corrupts other planes.
+		 */
+		if ((vc4_state->src_w[0] >> 16) < h_subsample ||
+		    (vc4_state->src_h[0] >> 16) < v_subsample)
+			return -EINVAL;
+
 		vc4_state->is_yuv = true;
 
 		vc4_state->src_w[1] = vc4_state->src_w[0] / h_subsample;
@@ -626,6 +640,11 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 		vc4_state->x_scaling[1] =
 			vc4_get_scaling_mode(vc4_state->src_w[1],
 					     vc4_state->crtc_w);
+		/* The BCM2835 HVS misplaces chroma with a PPF downscale of exactly 1.5 */
+		if (to_vc4_dev(state->plane->dev)->gen == VC4_GEN_4 &&
+		    vc4_state->x_scaling[1] == VC4_SCALING_PPF &&
+		    (u64)vc4_state->src_w[1] * 2 >= ((u64)vc4_state->crtc_w * 3) << 16)
+			vc4_state->x_scaling[1] = VC4_SCALING_TPZ;
 		vc4_state->y_scaling[1] =
 			vc4_get_scaling_mode(vc4_state->src_h[1],
 					     vc4_state->crtc_h);
@@ -649,6 +668,28 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 		vc4_state->x_scaling[1] = VC4_SCALING_NONE;
 		vc4_state->y_scaling[1] = VC4_SCALING_NONE;
 	}
+
+	/*
+	 * The 1 pixel TPZ upscale renders YUV wrongly, and with a fractional
+	 * start it repeats the extra pixel fetched beyond the source, so use
+	 * PPF for those.
+	 */
+	for (int i = 0; i < 2; i++) {
+		if (vc4_state->x_scaling[i] == VC4_SCALING_TPZ &&
+		    ((u64)vc4_state->crtc_w << 16) > vc4_state->src_w[i] &&
+		    (vc4_state->is_yuv || (vc4_state->src_x & 0xffff)))
+			vc4_state->x_scaling[i] = VC4_SCALING_PPF;
+		if (vc4_state->y_scaling[i] == VC4_SCALING_TPZ &&
+		    ((u64)vc4_state->crtc_h << 16) > vc4_state->src_h[i] &&
+		    (vc4_state->is_yuv || (vc4_state->src_y & 0xffff)))
+			vc4_state->y_scaling[i] = VC4_SCALING_PPF;
+	}
+
+	for (int i = 0; i < 2; i++)
+		if (vc4_state->x_scaling[i] == VC4_SCALING_TPZ &&
+		    vc4_state->src_w[i] / vc4_state->crtc_w >
+		    FIELD_MAX(SCALER_TPZ0_SCALE_MASK))
+			return -EINVAL;
 
 	return 0;
 }
@@ -753,6 +794,18 @@ static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst,
 			VC4_SET_FIELD(phase, SCALER_PPF_IPHASE));
 }
 
+/* Number of whole pixels covered by a 16.16 source start and size */
+static u32 vc4_src_span(u32 start, u32 size)
+{
+	return ((start + size + 0xffff) >> 16) - (start >> 16);
+}
+
+/* Source pixels fetched per line */
+static u32 vc4_lbm_src_w(const struct vc4_plane_state *vc4_state)
+{
+	return vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+}
+
 static u32 __vc4_lbm_size(struct drm_plane_state *state)
 {
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
@@ -775,7 +828,7 @@ static u32 __vc4_lbm_size(struct drm_plane_state *state)
 	if (vc4_state->x_scaling[0] == VC4_SCALING_TPZ)
 		pix_per_line = vc4_state->crtc_w;
 	else
-		pix_per_line = vc4_state->src_w[0] >> 16;
+		pix_per_line = vc4_lbm_src_w(vc4_state);
 
 	if (!vc4_state->is_yuv) {
 		if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ)
@@ -842,19 +895,27 @@ static unsigned int vc4_lbm_components(const struct drm_plane_state *state,
 static unsigned int vc4_lbm_channel_size(const struct drm_plane_state *state,
 					 unsigned int channel)
 {
+	const struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	const struct drm_format_info *info = state->fb->format;
 	unsigned int components, words, wpc;
-	unsigned int width, lines;
+	unsigned int width, lines, src_w = vc4_lbm_src_w(vc4_state);
 
 	/* LBM is meant to use the smaller of source or dest width, but there
 	 * is a issue with UV scaling that the size required for the second
 	 * channel is based on the source width only.
+	 * H-TPZ runs before the vertical scaler and, when upscaling a 1 pixel
+	 * source, repeats that pixel out to crtc_w, so it needs crtc_w.
 	 */
 	if (info->hsub > 1 && channel == 1)
-		width = state->src_w >> 16;
+		width = src_w;
+	else if (vc4_state->x_scaling[channel] == VC4_SCALING_TPZ)
+		width = state->crtc_w;
 	else
-		width = min(state->src_w >> 16, state->crtc_w);
-	width = round_up(width / info->hsub, 4);
+		width = min(src_w, state->crtc_w);
+	/* vc6_plane_mode_set() programs double the width for YUV444 */
+	if (info->format == DRM_FORMAT_YUV444 || info->format == DRM_FORMAT_YVU444)
+		width *= 2;
+	width = round_up(DIV_ROUND_UP(width, info->hsub), 4);
 
 	wpc = vc4_lbm_words_per_component(state, channel);
 	if (!wpc)
@@ -875,7 +936,7 @@ static unsigned int __vc6_lbm_size(const struct drm_plane_state *state)
 {
 	const struct drm_format_info *info = state->fb->format;
 
-	if (info->hsub > 1)
+	if (info->is_yuv)
 		return max(vc4_lbm_channel_size(state, 0),
 			   vc4_lbm_channel_size(state, 1));
 	else
@@ -1354,6 +1415,47 @@ static u32 vc4_hvs6_get_alpha_mask_mode(struct drm_plane_state *state)
 	return VC4_SET_FIELD(SCALER6_CTL0_ALPHA_MASK_NONE, SCALER6_CTL0_ALPHA_MASK);
 }
 
+/*
+ * Skips source lines for a vertical TPZ downscale of more than x3, to limit
+ * SDRAM bandwidth. The skip is applied through the pitch or the tile line
+ * skip field, so it is capped to what those hold, and to keep the chroma
+ * downscaling.
+ */
+static int vc4_plane_set_vdownsample(struct drm_plane_state *state,
+				     u32 max_pitch, u32 max_tile_skip)
+{
+	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
+	struct drm_framebuffer *fb = state->fb;
+	u64 mod = fourcc_mod_broadcom_mod(fb->modifier);
+	u32 vds = 1, max;
+
+	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ &&
+	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
+		vds = ((vc4_state->src_h[0] / (vc4_state->crtc_h * 3)) >> 16) + 1;
+
+		if (mod == DRM_FORMAT_MOD_BROADCOM_SAND64 ||
+		    mod == DRM_FORMAT_MOD_BROADCOM_SAND128 ||
+		    mod == DRM_FORMAT_MOD_BROADCOM_SAND256)
+			max = max_tile_skip;
+		else if (mod == DRM_FORMAT_MOD_LINEAR)
+			max = max_pitch / fb->pitches[0];
+		else
+			max = 1;
+		if (fb->format->num_planes > 1)
+			max = min(max, (vc4_state->src_h[1] / vc4_state->crtc_h) >> 16);
+		vds = clamp_t(u32, max, 1, vds);
+	}
+	vc4_state->vdownsample = vds;
+
+	for (int i = 0; i < 2; i++)
+		if (vc4_state->y_scaling[i] == VC4_SCALING_TPZ &&
+		    vc4_state->src_h[i] / vds / vc4_state->crtc_h >
+		    FIELD_MAX(SCALER_TPZ0_SCALE_MASK))
+			return -EINVAL;
+
+	return 0;
+}
+
 /* Writes out a full display list for an active plane to the plane's
  * private dlist state.
  */
@@ -1386,6 +1488,15 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	if (ret)
 		return ret;
 
+	/* The doubled YUV444 width below has to be scaled back for the luma */
+	if ((fb->format->format == DRM_FORMAT_YUV444 ||
+	     fb->format->format == DRM_FORMAT_YVU444) &&
+	    vc4_state->x_scaling[0] == VC4_SCALING_NONE) {
+		vc4_state->x_scaling[0] = VC4_SCALING_PPF;
+		vc4_state->is_unity = false;
+		vc4_state->is_yuv444_unity = true;
+	}
+
 	if (!vc4_state->src_w[0] || !vc4_state->src_h[0] ||
 	    !vc4_state->crtc_w || !vc4_state->crtc_h) {
 		/* 0 source size probably means the plane is offscreen */
@@ -1393,19 +1504,14 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return 0;
 	}
 
-	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ  &&
-	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
-		/* Downscaling by more than x3. Reduce the number of lines read
-		 * to avoid exceeding SDRAM bandwidth.
-		 */
-		vc4_state->vdownsample = ((vc4_state->src_h[0] /
-					  (vc4_state->crtc_h * 3)) >> 16) + 1;
-	} else {
-		vc4_state->vdownsample = 1;
-	}
+	ret = vc4_plane_set_vdownsample(state, FIELD_MAX(SCALER_SRC_PITCH_MASK),
+					FIELD_MAX(SCALER_TILE_SKIP_0_MASK) + 1);
+	if (ret)
+		return ret;
 
-	width = vc4_state->src_w[0] >> 16;
-	height = vc4_state->src_h[0] >> 16;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
@@ -1617,29 +1723,16 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		return -EINVAL;
 	}
 
-	/* fetch an extra pixel if we don't actually line up with the left edge. */
-	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
-		width++;
-
-	/* same for the right side */
-	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
-	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
-		width++;
-
-	/* now for the top */
-	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
-		height++;
-
-	/* and the bottom */
-	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
-	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
-		height++;
 
 	/* For YUV444 the hardware wants double the width, otherwise it doesn't
 	 * fetch full width of chroma
 	 */
 	if (format->drm == DRM_FORMAT_YUV444 || format->drm == DRM_FORMAT_YVU444)
 		width <<= 1;
+
+	if (width > (vc4->gen >= VC4_GEN_5 ? FIELD_MAX(SCALER5_POS2_WIDTH_MASK) :
+					     FIELD_MAX(SCALER_POS2_WIDTH_MASK)))
+		return -EINVAL;
 
 	/* Don't waste cycles mixing with plane alpha if the set alpha
 	 * is opaque or there is no per-pixel alpha information.
@@ -1752,6 +1845,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	 * The pointers may be any byte address.
 	 */
 	vc4_state->ptr0_offset[0] = vc4_state->dlist_count;
+	vc4_state->ptr0_src_offset = offsets[0];
 
 	for (i = 0; i < num_planes; i++) {
 		struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, i);
@@ -1775,7 +1869,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		if (hvs_format != HVS_PIXEL_FORMAT_H264 &&
 		    hvs_format != HVS_PIXEL_FORMAT_YCBCR_10BIT)
 			vc4_dlist_write(vc4_state,
-					VC4_SET_FIELD(fb->pitches[i] /
+					VC4_SET_FIELD(fb->pitches[i] *
 							 vc4_state->vdownsample,
 						      SCALER_SRC_PITCH));
 		else
@@ -1990,19 +2084,14 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 		return 0;
 	}
 
-	width = vc4_state->src_w[0] >> 16;
-	height = vc4_state->src_h[0] >> 16;
+	/* Fetch every pixel the source rectangle touches, including partial ones */
+	width = vc4_src_span(vc4_state->src_x, vc4_state->src_w[0]);
+	height = vc4_src_span(vc4_state->src_y, vc4_state->src_h[0]);
 
-	if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ &&
-	    vc4_state->src_h[0] / vc4_state->crtc_h > (3 << 16)) {
-		/* Downscaling by more than x3. Reduce the number of lines read
-		 * to avoid exceeding SDRAM bandwidth.
-		 */
-		vc4_state->vdownsample = ((vc4_state->src_h[0] /
-					   (vc4_state->crtc_h * 3)) >> 16) + 1;
-	} else {
-		vc4_state->vdownsample = 1;
-	}
+	ret = vc4_plane_set_vdownsample(state, FIELD_MAX(SCALER6_PTR2_PITCH_MASK),
+					FIELD_MAX(SCALER6_PTR2_TILE_LSKIP_MASK) + 1);
+	if (ret)
+		return ret;
 
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
@@ -2030,23 +2119,6 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 	src_x = vc4_state->src_x >> 16;
 
-	/* fetch an extra pixel if we don't actually line up with the left edge. */
-	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
-		width++;
-
-	/* same for the right side */
-	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
-	    vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
-		width++;
-
-	/* now for the top */
-	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
-		height++;
-
-	/* and the bottom */
-	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
-	    vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
-		height++;
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
@@ -2240,6 +2312,8 @@ static int vc6_plane_mode_set(struct drm_plane *plane,
 
 		/* Pointer Word 0 */
 		vc4_state->ptr0_offset[i] = vc4_state->dlist_count;
+		if (!i)
+			vc4_state->ptr0_src_offset = offsets[idx];
 		vc4_dlist_write(vc4_state,
 				(rotation & DRM_MODE_REFLECT_Y ? SCALER6_PTR0_VFLIP : 0) |
 				/*
@@ -2473,21 +2547,12 @@ void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb)
 	struct vc4_plane_state *vc4_state = to_vc4_plane_state(state);
 	struct drm_gem_dma_object *bo = drm_fb_dma_get_gem_obj(fb, 0);
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
-	dma_addr_t dma_addr = bo->dma_addr + fb->offsets[0];
-	unsigned int rotation;
+	dma_addr_t dma_addr = bo->dma_addr + fb->offsets[0] +
+			      vc4_state->ptr0_src_offset;
 	int idx;
 
 	if (!drm_dev_enter(plane->dev, &idx))
 		return;
-
-	rotation = drm_rotation_simplify(state->rotation,
-					 DRM_MODE_ROTATE_0 |
-					 DRM_MODE_REFLECT_X |
-					 DRM_MODE_REFLECT_Y);
-
-	/* We must point to the last line when Y reflection is enabled. */
-	if (rotation & DRM_MODE_REFLECT_Y)
-		dma_addr += fb->pitches[0] * ((vc4_state->src_h[0] >> 16) - 1);
 
 	/* We're skipping the address adjustment for negative origin,
 	 * because this is only called on the primary plane.
@@ -2701,6 +2766,14 @@ static bool vc4_format_mod_supported(struct drm_plane *plane,
 				     uint32_t format,
 				     uint64_t modifier)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+
+	/* vc6_plane_mode_set() only handles linear, SAND128 and SAND256 */
+	if (vc4->gen >= VC4_GEN_6_C &&
+	    (modifier == DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED ||
+	     fourcc_mod_broadcom_mod(modifier) == DRM_FORMAT_MOD_BROADCOM_SAND64))
+		return false;
+
 	/* Support T_TILING for RGB formats only. */
 	switch (format) {
 	case DRM_FORMAT_XRGB8888:
