@@ -20,7 +20,7 @@ cam_node: imx355@1a {
 			clock-lanes = <0>;
 			data-lanes = <1 2>;
 			link-frequencies =
-				/bits/ 64 <444000000>;
+				/bits/ 64 <480000000>;
 		};
 	};
 };
