@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/plugin/;
+
+/* Huadi HD40007C30-V5 on the Adafruit 30-pin DSI adapter, Raspberry Pi 5. */
+/ {
+	compatible = "brcm,bcm2712";
+
+	dsi_frag: fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+			panel: panel@0 {
+				compatible = "huadi,hd40007c30-v5", "sitronix,st7701";
+				reg = <0>;
+				reset-gpios = <&gpio 46 0>;
+				VCC-supply = <&panel_supply>;
+				IOVCC-supply = <&panel_supply>;
+				backlight = <&panel_backlight>;
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			panel_backlight: backlight-huadi {
+				compatible = "gpio-backlight";
+				gpios = <&gpio 48 0>;
+			};
+			panel_supply: regulator-huadi {
+				compatible = "regulator-fixed";
+				regulator-name = "huadi-3v3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+		};
+	};
+
+	/* The adapter uses the camera power GPIO for panel reset. */
+	reg_frag: fragment@2 {
+		target = <&cam1_reg>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	i2c_frag: fragment@3 {
+		target = <&i2c_csi_dsi1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			clock-frequency = <100000>;
+			touch: touchscreen@5d {
+				compatible = "goodix,gt911";
+				reg = <0x5d>;
+				AVDD28-supply = <&panel_supply>;
+				VDDIO-supply = <&panel_supply>;
+				touchscreen-size-x = <480>;
+				touchscreen-size-y = <480>;
+			};
+		};
+	};
+
+	/* The adapter supervisor resets touch; GPIO wiring is optional. */
+	fragment@4 {
+		target = <&touch>;
+		touch_reset_cfg: __dormant__ {
+			/* Goodix uses physical levels; open drain for APX803. */
+			reset-gpios = <&gpio 17 6>;
+		};
+	};
+
+	fragment@5 {
+		target = <&touch>;
+		touch_irq_cfg: __dormant__ {
+			interrupt-parent = <&gpio>;
+			interrupts = <27 2>;
+			irq-gpios = <&gpio 27 0>;
+		};
+	};
+
+	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=", <&dsi0>,
+		       <&i2c_frag>, "target:0=", <&i2c_csi_dsi0>,
+		       <&reg_frag>, "target:0=", <&cam0_reg>,
+		       <&panel>, "reset-gpios:4=34",
+		       <&panel_backlight>, "gpios:4=35";
+		notouch = <&touch>, "status=disabled";
+		touch_reset = <0>, "+4", <&touch_reset_cfg>, "reset-gpios:4";
+		touch_interrupt = <0>, "+5", <&touch_irq_cfg>, "interrupts:0",
+				  <&touch_irq_cfg>, "irq-gpios:4";
+		touch_inverted_x = <&touch>, "touchscreen-inverted-x?";
+		touch_inverted_y = <&touch>, "touchscreen-inverted-y?";
+		touch_swapped_xy = <&touch>, "touchscreen-swapped-x-y?";
+	};
+};
