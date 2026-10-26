@@ -276,7 +276,7 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 
 		if (node && inline_list__append_dso_a2l(dso, node, sym)) {
 			inline_node__clear_frames(node);
-			ret = 0;
+			ret = -ENOMEM;
 			goto out;
 		}
 
@@ -290,7 +290,7 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 			if (node != NULL) {
 				if (inline_list__append_dso_a2l(dso, node, sym)) {
 					inline_node__clear_frames(node);
-					ret = 0;
+					ret = -ENOMEM;
 					goto out;
 				}
 			}
@@ -300,7 +300,7 @@ int libbfd__addr2line(const char *dso_name, u64 addr,
 	if (file) {
 		*file = a2l->filename ? strdup(a2l->filename) : NULL;
 		if (!*file) {
-			/* Leave ret as 0 so that another addr2line is tried. */
+			ret = a2l->filename ? -ENOMEM : 0;
 			goto out;
 		}
 	}
