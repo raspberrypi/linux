@@ -2,6 +2,7 @@
 /* Copyright (c) 2019, Intel Corporation. */
 
 #include <net/xdp_sock_drv.h>
+#include <linux/net/intel/libie/rx.h>
 #include "ice_base.h"
 #include "ice_lib.h"
 #include "ice_dcb_lib.h"
@@ -123,6 +124,8 @@ static int ice_vsi_alloc_q_vector(struct ice_vsi *vsi, u16 v_idx)
 	if (vsi->type == ICE_VSI_VF) {
 		ice_calc_vf_reg_idx(vsi->vf, q_vector);
 		goto out;
+	} else if (vsi->type == ICE_VSI_LB) {
+		goto skip_alloc;
 	} else if (vsi->type == ICE_VSI_CTRL && vsi->vf) {
 		struct ice_vsi *ctrl_vsi = ice_get_vf_ctrl_vsi(pf, vsi);
 
@@ -462,19 +465,6 @@ u16 ice_calc_ts_ring_count(struct ice_tx_ring *tx_ring)
 }
 
 /**
- * ice_rx_offset - Return expected offset into page to access data
- * @rx_ring: Ring we are requesting offset of
- *
- * Returns the offset value for ring into the data buffer.
- */
-static unsigned int ice_rx_offset(struct ice_rx_ring *rx_ring)
-{
-	if (ice_ring_uses_build_skb(rx_ring))
-		return ICE_SKB_PAD;
-	return 0;
-}
-
-/**
  * ice_setup_rx_ctx - Configure a receive ring context
  * @ring: The Rx ring to configure
  *
@@ -549,7 +539,7 @@ static int ice_setup_rx_ctx(struct ice_rx_ring *ring)
 	/* Max packet size for this queue - must not be set to a larger value
 	 * than 5 x DBUF
 	 */
-	rlan_ctx.rxmax = min_t(u32, ring->max_frame,
+	rlan_ctx.rxmax = min_t(u32, vsi->max_frame,
 			       ICE_MAX_CHAINED_RX_BUFS * ring->rx_buf_len);
 
 	/* Rx queue threshold in units of 64 */
@@ -586,51 +576,11 @@ static int ice_setup_rx_ctx(struct ice_rx_ring *ring)
 	if (vsi->type == ICE_VSI_VF)
 		return 0;
 
-	/* configure Rx buffer alignment */
-	if (!vsi->netdev || test_bit(ICE_FLAG_LEGACY_RX, vsi->back->flags))
-		ice_clear_ring_build_skb_ena(ring);
-	else
-		ice_set_ring_build_skb_ena(ring);
-
-	ring->rx_offset = ice_rx_offset(ring);
-
 	/* init queue specific tail register */
 	ring->tail = hw->hw_addr + QRX_TAIL(pf_q);
 	writel(0, ring->tail);
 
 	return 0;
-}
-
-static void ice_xsk_pool_fill_cb(struct ice_rx_ring *ring)
-{
-	void *ctx_ptr = &ring->pkt_ctx;
-	struct xsk_cb_desc desc = {};
-
-	XSK_CHECK_PRIV_TYPE(struct ice_xdp_buff);
-	desc.src = &ctx_ptr;
-	desc.off = offsetof(struct ice_xdp_buff, pkt_ctx) -
-		   sizeof(struct xdp_buff);
-	desc.bytes = sizeof(ctx_ptr);
-	xsk_pool_fill_cb(ring->xsk_pool, &desc);
-}
-
-/**
- * ice_get_frame_sz - calculate xdp_buff::frame_sz
- * @rx_ring: the ring being configured
- *
- * Return frame size based on underlying PAGE_SIZE
- */
-static unsigned int ice_get_frame_sz(struct ice_rx_ring *rx_ring)
-{
-	unsigned int frame_sz;
-
-#if (PAGE_SIZE >= 8192)
-	frame_sz = rx_ring->rx_buf_len;
-#else
-	frame_sz = ice_rx_pg_size(rx_ring) / 2;
-#endif
-
-	return frame_sz;
 }
 
 /**
@@ -641,11 +591,19 @@ static unsigned int ice_get_frame_sz(struct ice_rx_ring *rx_ring)
  */
 static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 {
+	struct libeth_fq fq = {
+		.count		= ring->count,
+		.nid		= NUMA_NO_NODE,
+		.xdp		= ice_is_xdp_ena_vsi(ring->vsi),
+		.buf_len	= LIBIE_MAX_RX_BUF_LEN,
+	};
 	struct device *dev = ice_pf_to_dev(ring->vsi->back);
-	u32 num_bufs = ICE_RX_DESC_UNUSED(ring);
+	u32 num_bufs = ICE_DESC_UNUSED(ring);
+	u32 rx_buf_len;
 	int err;
 
-	if (ring->vsi->type == ICE_VSI_PF || ring->vsi->type == ICE_VSI_SF) {
+	if (ring->vsi->type == ICE_VSI_PF || ring->vsi->type == ICE_VSI_SF ||
+	    ring->vsi->type == ICE_VSI_LB) {
 		if (!xdp_rxq_info_is_reg(&ring->xdp_rxq)) {
 			err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 						 ring->q_index,
@@ -656,15 +614,19 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 		}
 
 		ice_rx_xsk_pool(ring);
+		err = ice_realloc_rx_xdp_bufs(ring, ring->xsk_pool);
+		if (err)
+			return err;
+
 		if (ring->xsk_pool) {
 			xdp_rxq_info_unreg(&ring->xdp_rxq);
 
-			ring->rx_buf_len =
+			rx_buf_len =
 				xsk_pool_get_rx_frame_size(ring->xsk_pool);
 			err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 						 ring->q_index,
 						 ring->q_vector->napi.napi_id,
-						 ring->rx_buf_len);
+						 rx_buf_len);
 			if (err)
 				return err;
 			err = xdp_rxq_info_reg_mem_model(&ring->xdp_rxq,
@@ -673,36 +635,38 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 			if (err)
 				return err;
 			xsk_pool_set_rxq_info(ring->xsk_pool, &ring->xdp_rxq);
-			ice_xsk_pool_fill_cb(ring);
 
 			dev_info(dev, "Registered XDP mem model MEM_TYPE_XSK_BUFF_POOL on Rx ring %d\n",
 				 ring->q_index);
 		} else {
+			err = libeth_rx_fq_create(&fq, &ring->q_vector->napi);
+			if (err)
+				return err;
+
+			ring->pp = fq.pp;
+			ring->rx_fqes = fq.fqes;
+			ring->truesize = fq.truesize;
+			ring->rx_buf_len = fq.buf_len;
+
 			if (!xdp_rxq_info_is_reg(&ring->xdp_rxq)) {
 				err = __xdp_rxq_info_reg(&ring->xdp_rxq, ring->netdev,
 							 ring->q_index,
 							 ring->q_vector->napi.napi_id,
 							 ring->rx_buf_len);
 				if (err)
-					return err;
+					goto err_destroy_fq;
 			}
-
-			err = xdp_rxq_info_reg_mem_model(&ring->xdp_rxq,
-							 MEM_TYPE_PAGE_SHARED,
-							 NULL);
-			if (err)
-				return err;
+			xdp_rxq_info_attach_page_pool(&ring->xdp_rxq,
+						      ring->pp);
 		}
 	}
 
-	xdp_init_buff(&ring->xdp, ice_get_frame_sz(ring), &ring->xdp_rxq);
 	ring->xdp.data = NULL;
-	ring->xdp_ext.pkt_ctx = &ring->pkt_ctx;
 	err = ice_setup_rx_ctx(ring);
 	if (err) {
 		dev_err(dev, "ice_setup_rx_ctx failed for RxQ %d, err %d\n",
 			ring->q_index, err);
-		return err;
+		goto err_destroy_fq;
 	}
 
 	if (ring->xsk_pool) {
@@ -730,9 +694,19 @@ static int ice_vsi_cfg_rxq(struct ice_rx_ring *ring)
 	if (ring->vsi->type == ICE_VSI_CTRL)
 		ice_init_ctrl_rx_descs(ring, num_bufs);
 	else
-		ice_alloc_rx_bufs(ring, num_bufs);
+		err = ice_alloc_rx_bufs(ring, num_bufs);
+
+	if (err)
+		goto err_destroy_fq;
 
 	return 0;
+
+err_destroy_fq:
+	libeth_rx_fq_destroy(&fq);
+	ring->rx_fqes = NULL;
+	ring->pp = NULL;
+
+	return err;
 }
 
 int ice_vsi_cfg_single_rxq(struct ice_vsi *vsi, u16 q_idx)
@@ -753,18 +727,10 @@ int ice_vsi_cfg_single_rxq(struct ice_vsi *vsi, u16 q_idx)
  */
 static void ice_vsi_cfg_frame_size(struct ice_vsi *vsi, struct ice_rx_ring *ring)
 {
-	if (!vsi->netdev || test_bit(ICE_FLAG_LEGACY_RX, vsi->back->flags)) {
-		ring->max_frame = ICE_MAX_FRAME_LEGACY_RX;
-		ring->rx_buf_len = ICE_RXBUF_1664;
-#if (PAGE_SIZE < 8192)
-	} else if (!ICE_2K_TOO_SMALL_WITH_PADDING &&
-		   (vsi->netdev->mtu <= ETH_DATA_LEN)) {
-		ring->max_frame = ICE_RXBUF_1536 - NET_IP_ALIGN;
-		ring->rx_buf_len = ICE_RXBUF_1536 - NET_IP_ALIGN;
-#endif
+	if (!vsi->netdev) {
+		vsi->max_frame = ICE_MAX_FRAME_LEGACY_RX;
 	} else {
-		ring->max_frame = ICE_AQ_SET_MAC_FRAME_SIZE_MAX;
-		ring->rx_buf_len = ICE_RXBUF_3072;
+		vsi->max_frame = ICE_AQ_SET_MAC_FRAME_SIZE_MAX;
 	}
 }
 

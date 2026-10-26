@@ -441,12 +441,35 @@ futex_setup_timer(ktime_t *time, struct hrtimer_sleeper *timeout,
 }
 
 /*
- * Generate a machine wide unique identifier for this inode.
+ * Generate a machine wide unique identifier for this object (inode or mm).
  *
  * This relies on u64 not wrapping in the life-time of the machine; which with
  * 1ns resolution means almost 585 years.
- *
- * This further relies on the fact that a well formed program will not unmap
+ */
+static u64 get_object_id(atomic64_t *object_seq)
+{
+	static atomic64_t last_assigned_seq;
+	u64 old;
+
+	/* Does the object already have a sequence number? */
+	old = atomic64_read(object_seq);
+	if (likely(old))
+		return old;
+
+	for (;;) {
+		u64 new = atomic64_inc_return(&last_assigned_seq);
+		if (WARN_ON_ONCE(!new))
+			continue;
+
+		old = 0;
+		if (!atomic64_try_cmpxchg_relaxed(object_seq, &old, new))
+			return old;
+		return new;
+	}
+}
+
+/*
+ * This relies on the fact that a well formed program will not unmap
  * the file while it has a (shared) futex waiting on it. This mapping will have
  * a file reference which pins the mount and inode.
  *
@@ -460,24 +483,7 @@ futex_setup_timer(ktime_t *time, struct hrtimer_sleeper *timeout,
  */
 static u64 get_inode_sequence_number(struct inode *inode)
 {
-	static atomic64_t i_seq;
-	u64 old;
-
-	/* Does the inode already have a sequence number? */
-	old = atomic64_read(&inode->i_sequence);
-	if (likely(old))
-		return old;
-
-	for (;;) {
-		u64 new = atomic64_inc_return(&i_seq);
-		if (WARN_ON_ONCE(!new))
-			continue;
-
-		old = 0;
-		if (!atomic64_try_cmpxchg_relaxed(&inode->i_sequence, &old, new))
-			return old;
-		return new;
-	}
+	return get_object_id(&inode->i_sequence);
 }
 
 /**
@@ -685,8 +691,8 @@ again:
 			goto out;
 		}
 
-		key->both.offset |= FUT_OFF_MMSHARED; /* ref taken on mm */
-		key->private.mm = mm;
+		key->both.offset |= FUT_OFF_MMSHARED;
+		key->private.mm_seq = get_object_id(&mm->futex_unique_id);
 		key->private.address = address;
 
 	} else {
@@ -1724,18 +1730,6 @@ static bool futex_ref_is_dead(struct futex_private_hash *fph)
 	return atomic_long_read(&mm->futex_atomic) == 0;
 }
 
-int futex_mm_init(struct mm_struct *mm)
-{
-	mutex_init(&mm->futex_hash_lock);
-	RCU_INIT_POINTER(mm->futex_phash, NULL);
-	mm->futex_phash_new = NULL;
-	/* futex-ref */
-	mm->futex_ref = NULL;
-	atomic_long_set(&mm->futex_atomic, 0);
-	mm->futex_batches = get_state_synchronize_rcu();
-	return 0;
-}
-
 void futex_hash_free(struct mm_struct *mm)
 {
 	struct futex_private_hash *fph;
@@ -1981,6 +1975,21 @@ static int futex_hash_get_slots(void)
 }
 
 #endif
+
+int futex_mm_init(struct mm_struct *mm)
+{
+	atomic64_set(&mm->futex_unique_id, 0);
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+	mutex_init(&mm->futex_hash_lock);
+	RCU_INIT_POINTER(mm->futex_phash, NULL);
+	mm->futex_phash_new = NULL;
+	/* futex-ref */
+	mm->futex_ref = NULL;
+	atomic_long_set(&mm->futex_atomic, 0);
+	mm->futex_batches = get_state_synchronize_rcu();
+#endif
+	return 0;
+}
 
 int futex_hash_prctl(unsigned long arg2, unsigned long arg3, unsigned long arg4)
 {

@@ -196,6 +196,38 @@ static int ax25_std_state3_machine(ax25_cb *ax25, struct sk_buff *skb, int frame
 		if (ax25_validate_nr(ax25, nr)) {
 			ax25_frames_acked(ax25, nr);
 			ax25_calculate_rtt(ax25);
+			/*
+			 * REJ triggers an immediate go-back-N retransmit,
+			 * deliberately bypassing the T1/N2 backoff that
+			 * paces every other recovery path in this state
+			 * machine -- that is the whole point of REJ, fast
+			 * recovery from a single lost/out-of-order frame.
+			 * But unlike every other recovery path here, this
+			 * one never touches n2count, so it has no bound: if
+			 * something keeps corrupting or reordering each
+			 * retransmitted burst (lossy RF, or reordering over
+			 * a UDP-based link such as axudp), every attempt
+			 * draws an immediate fresh REJ and the link is
+			 * retransmitted at wire/CPU speed indefinitely
+			 * ("machine-gun" storm), never reaching the N2 give
+			 * up that bounds every other recovery attempt.
+			 * Count consecutive REJ-driven fast retransmits the
+			 * same way a T1 timeout would in this state, and
+			 * once N2 of them have failed to make it through,
+			 * fall back to the normal paced state 4 enquiry
+			 * (which will genuinely give up and disconnect after
+			 * N2 further tries if the link stays bad). A single
+			 * frame accepted in sequence resets the counter (see
+			 * the AX25_I case below), so an isolated REJ during
+			 * otherwise healthy traffic never gets close to N2.
+			 */
+			if (ax25->n2count == ax25->n2) {
+				ax25->n2count = 1;
+				ax25_std_transmit_enquiry(ax25);
+				ax25->state = AX25_STATE_4;
+				break;
+			}
+			ax25->n2count++;
 			ax25_stop_t1timer(ax25);
 			ax25_start_t3timer(ax25);
 			ax25_requeue_frames(ax25);
@@ -226,6 +258,10 @@ static int ax25_std_state3_machine(ax25_cb *ax25, struct sk_buff *skb, int frame
 			if (ax25->condition & AX25_COND_OWN_RX_BUSY)
 				ax25->vr = ns;	/* ax25->vr - 1 */
 			ax25->condition &= ~AX25_COND_REJECT;
+			/* Genuine forward progress: a frame made it through in
+			 * sequence, so this is not part of a REJ storm.
+			 */
+			ax25->n2count = 0;
 			if (pf) {
 				ax25_std_enquiry_response(ax25);
 			} else {

@@ -1979,7 +1979,7 @@ static void integrity_metadata(struct work_struct *w)
 
 		if (unlikely(dio->op == REQ_OP_DISCARD)) {
 			unsigned int bi_size = dio->bio_details.bi_iter.bi_size;
-			unsigned int max_size = likely(checksums != checksums_onstack) ? PAGE_SIZE : HASH_MAX_DIGESTSIZE;
+			unsigned int max_size = likely(checksums != checksums_onstack) ? PAGE_SIZE : sizeof(checksums_onstack);
 			unsigned int max_blocks = (max_size - extra_space) / ic->tag_size;
 			sector_t sector = dio->range.logical_sector;
 
@@ -4178,6 +4178,10 @@ static void dm_integrity_io_hints(struct dm_target *ti, struct queue_limits *lim
 		limits->dma_alignment = limits->logical_block_size - 1;
 		limits->discard_granularity = ic->sectors_per_block << SECTOR_SHIFT;
 	}
+
+	if (ic->internal_hash &&
+	    (ic->mode == 'D' || ic->mode == 'B' || ic->mode == 'I'))
+		limits->features |= BLK_FEAT_STABLE_WRITES;
 
 	if (!ic->internal_hash) {
 		struct blk_integrity *bi = &limits->integrity;
