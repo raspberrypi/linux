@@ -520,6 +520,28 @@ u32 cfe_find_16bit_code(u32 code)
 }
 
 /*
+ * Given an unpacked LSB-aligned 16-bit pixel format, find the right shift of the
+ * FE output that writes it: 16 - the bit depth of the code it is the
+ * CFE_REMAP_LSB16 remap of. Returns 0 for any other pixel format. These formats
+ * are only available on the FE output nodes, as the CSI-2 REMAP mode is
+ * MSB-aligned.
+ */
+unsigned int cfe_find_lsb16_shift(u32 pixelformat)
+{
+	unsigned int i;
+
+	if (!pixelformat)
+		return 0;
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++) {
+		if (formats[i].remap[CFE_REMAP_LSB16] == pixelformat)
+			return 16 - formats[i].depth;
+	}
+
+	return 0;
+}
+
+/*
  * Given the mbus code, find the 8 bit compressed code. Returns 0 if no remap
  * possible.
  */
@@ -1303,6 +1325,9 @@ static int cfe_enum_fmt_vid_cap(struct file *file, void *priv,
 		    !(formats[i].flags & CFE_FORMAT_FLAG_FE_OUT))
 			continue;
 
+		if (is_csi2_node(node) && cfe_find_lsb16_shift(formats[i].fourcc))
+			continue;
+
 		if (j == f->index) {
 			f->pixelformat = formats[i].fourcc;
 			f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -1347,7 +1372,7 @@ static int try_fmt_vid_cap(struct cfe_node *node, struct v4l2_format *f)
 	 * Default to a format that works for both CSI2 and FE.
 	 */
 	fmt = find_format_by_pix(f->fmt.pix.pixelformat);
-	if (!fmt)
+	if (!fmt || (is_csi2_node(node) && cfe_find_lsb16_shift(fmt->fourcc)))
 		fmt = find_format_by_code(MEDIA_BUS_FMT_SBGGR10_1X10);
 
 	f->fmt.pix.pixelformat = fmt->fourcc;
@@ -1672,6 +1697,25 @@ static const struct v4l2_file_operations cfe_fops = {
 	.mmap = vb2_fop_mmap,
 };
 
+/* The mbus code of the CSI-2 data feeding the FE, 0 if none. */
+static u32 cfe_fe_input_code(struct cfe_device *cfe)
+{
+	struct v4l2_subdev_state *state;
+	struct v4l2_mbus_framefmt *fmt;
+	u32 code = 0;
+
+	if (!is_fe_enabled(cfe))
+		return 0;
+
+	state = v4l2_subdev_lock_and_get_active_state(&cfe->csi2.sd);
+	fmt = v4l2_subdev_state_get_format(state, cfe->fe_csi2_channel);
+	if (fmt)
+		code = fmt->code;
+	v4l2_subdev_unlock_state(state);
+
+	return code;
+}
+
 static int cfe_video_link_validate(struct cfe_node *node,
 				   struct v4l2_subdev *remote_sd,
 				   struct v4l2_mbus_framefmt *remote_fmt)
@@ -1701,6 +1745,27 @@ static int cfe_video_link_validate(struct cfe_node *node,
 			cfe_err("Format not found. %08x %p4cc\n",
 				remote_fmt->code, &pix_fmt->pixelformat);
 			return -EINVAL;
+		}
+
+		if (is_fe_node(node)) {
+			const struct cfe_fmt *pix = find_format_by_pix(pix_fmt->pixelformat);
+
+			/*
+			 * An LSB-aligned format of the FE source pad's code, at
+			 * the bit depth of the CSI-2 data feeding the FE.
+			 */
+			if (pix && cfe_find_lsb16_shift(pix->fourcc) &&
+			    pix->code == remote_fmt->code) {
+				u32 code = cfe_fe_input_code(cfe);
+
+				if (cfe_find_remap_fourcc(code, CFE_REMAP_LSB16) ==
+				    pix_fmt->pixelformat)
+					return 0;
+
+				cfe_err("Format %p4cc doesn't match the CSI-2 input code 0x%04x\n",
+					&pix_fmt->pixelformat, code);
+				return -EINVAL;
+			}
 		}
 
 		if (fmt->fourcc != pix_fmt->pixelformat &&
