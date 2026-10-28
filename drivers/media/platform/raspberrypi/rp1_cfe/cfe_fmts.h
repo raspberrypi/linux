@@ -114,56 +114,64 @@ static const struct cfe_fmt formats[] = {
 		.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.depth = 10,
 		.csi_dt = MIPI_CSI2_DT_RAW10,
-		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR },
+		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR,
+			   V4L2_PIX_FMT_SBGGR10 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SGBRG10P,
 		.code = MEDIA_BUS_FMT_SGBRG10_1X10,
 		.depth = 10,
 		.csi_dt = MIPI_CSI2_DT_RAW10,
-		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG },
+		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG,
+			   V4L2_PIX_FMT_SGBRG10 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SGRBG10P,
 		.code = MEDIA_BUS_FMT_SGRBG10_1X10,
 		.depth = 10,
 		.csi_dt = MIPI_CSI2_DT_RAW10,
-		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG },
+		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG,
+			   V4L2_PIX_FMT_SGRBG10 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SRGGB10P,
 		.code = MEDIA_BUS_FMT_SRGGB10_1X10,
 		.depth = 10,
 		.csi_dt = MIPI_CSI2_DT_RAW10,
-		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB },
+		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB,
+			   V4L2_PIX_FMT_SRGGB10 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SBGGR12P,
 		.code = MEDIA_BUS_FMT_SBGGR12_1X12,
 		.depth = 12,
 		.csi_dt = MIPI_CSI2_DT_RAW12,
-		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR },
+		.remap = { V4L2_PIX_FMT_SBGGR16, V4L2_PIX_FMT_PISP_COMP1_BGGR,
+			   V4L2_PIX_FMT_SBGGR12 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SGBRG12P,
 		.code = MEDIA_BUS_FMT_SGBRG12_1X12,
 		.depth = 12,
 		.csi_dt = MIPI_CSI2_DT_RAW12,
-		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG },
+		.remap = { V4L2_PIX_FMT_SGBRG16, V4L2_PIX_FMT_PISP_COMP1_GBRG,
+			   V4L2_PIX_FMT_SGBRG12 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SGRBG12P,
 		.code = MEDIA_BUS_FMT_SGRBG12_1X12,
 		.depth = 12,
 		.csi_dt = MIPI_CSI2_DT_RAW12,
-		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG },
+		.remap = { V4L2_PIX_FMT_SGRBG16, V4L2_PIX_FMT_PISP_COMP1_GRBG,
+			   V4L2_PIX_FMT_SGRBG12 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SRGGB12P,
 		.code = MEDIA_BUS_FMT_SRGGB12_1X12,
 		.depth = 12,
 		.csi_dt = MIPI_CSI2_DT_RAW12,
-		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB },
+		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB,
+			   V4L2_PIX_FMT_SRGGB12 },
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_SBGGR14P,
@@ -224,6 +232,59 @@ static const struct cfe_fmt formats[] = {
 		.csi_dt = 0, /* Avoid RP1 HW mismatch for 16-bit modes. */
 		.flags = CFE_FORMAT_FLAG_FE_OUT,
 		.remap = { V4L2_PIX_FMT_SRGGB16, V4L2_PIX_FMT_PISP_COMP1_RGGB },
+	},
+	/*
+	 * Unpacked LSB-aligned Bayer FE output: code is the FE source pad code, so
+	 * these come after the 16-bit entries (find_format_by_code() returns
+	 * the first match).
+	 */
+	{
+		.fourcc = V4L2_PIX_FMT_SBGGR10,
+		.code = MEDIA_BUS_FMT_SBGGR16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SBGGR12,
+		.code = MEDIA_BUS_FMT_SBGGR16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SGBRG10,
+		.code = MEDIA_BUS_FMT_SGBRG16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SGBRG12,
+		.code = MEDIA_BUS_FMT_SGBRG16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SGRBG10,
+		.code = MEDIA_BUS_FMT_SGRBG16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SGRBG12,
+		.code = MEDIA_BUS_FMT_SGRBG16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SRGGB10,
+		.code = MEDIA_BUS_FMT_SRGGB16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_SRGGB12,
+		.code = MEDIA_BUS_FMT_SRGGB16_1X16,
+		.depth = 16,
+		.flags = CFE_FORMAT_FLAG_FE_OUT,
 	},
 	/* PiSP Compressed Mode 1 */
 	{
