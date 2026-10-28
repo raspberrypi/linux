@@ -13,6 +13,7 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 
 #include <media/videobuf2-core.h>
 #include <media/v4l2-mem2mem.h>
@@ -300,18 +301,22 @@ void hevc_d_hw_irq_active2_irq(struct hevc_d_dev *dev,
 }
 
 /*
- * Stop the clock for this context
- * clk_disable_unprepare does ref counting so this will not actually
- * disable the clock if there are other running contexts
+ * Power down the h/w
+ * Called from runtime suspend (or directly if runtime PM is unavailable)
  */
-void hevc_d_hw_stop_clock(struct hevc_d_dev *dev)
+void hevc_d_hw_power_off(struct hevc_d_dev *dev)
 {
+	clk_set_min_rate(dev->clock, 0);
 	clk_disable_unprepare(dev->clock);
 }
 
-/* Always starts the clock if it isn't already on this ctx */
-int hevc_d_hw_start_clock(struct hevc_d_dev *dev)
+/*
+ * Power up the h/w and (re)initialise any state that is not set per-job
+ * Called from runtime resume (or directly if runtime PM is unavailable)
+ */
+int hevc_d_hw_power_on(struct hevc_d_dev *dev)
 {
+	u32 irq_stat;
 	int rv;
 
 	rv = clk_set_min_rate(dev->clock, dev->max_clock_rate);
@@ -325,21 +330,46 @@ int hevc_d_hw_start_clock(struct hevc_d_dev *dev)
 		dev_err(dev->dev, "Failed to enable clock\n");
 		return rv;
 	}
+
+	/*
+	 * Enable IRQs & reset anything pending
+	 * Whilst this seems the wrong way round the h/w doesn't actually
+	 * set the IRQ status bits till the IRQs are enabled. On probe we
+	 * haven't got the IRQ yet and on resume nothing is in flight so
+	 * this should still be safe.
+	 */
+	irq_write(dev, ARG_IC_ICTRL,
+		  ARG_IC_ICTRL_ACTIVE1_EN_SET | ARG_IC_ICTRL_ACTIVE2_EN_SET);
+	irq_stat = irq_read(dev, ARG_IC_ICTRL);
+	irq_write(dev, ARG_IC_ICTRL, irq_stat);
+
 	return 0;
 }
 
-static int hw_setup(struct hevc_d_dev *dev)
+/*
+ * Take a power reference for this context
+ * Runtime PM does ref counting so the h/w stays powered whilst any
+ * context holds a reference
+ */
+int hevc_d_hw_pm_get(struct hevc_d_dev *dev)
+{
+	int rv;
+
+	rv = pm_runtime_resume_and_get(dev->dev);
+	if (rv)
+		dev_err(dev->dev, "Failed to power up: %d\n", rv);
+	return rv;
+}
+
+void hevc_d_hw_pm_put(struct hevc_d_dev *dev)
+{
+	pm_runtime_put(dev->dev);
+}
+
+static int get_max_clock_rate(struct hevc_d_dev *dev)
 {
 	struct device_node *node;
-	u32 ver;
-	u32 irq_stat;
 	struct rpi_firmware *firmware;
-
-	ver = apb_read(dev, RPI_VERSION);
-	if (ver != 0x202) {
-		dev_err(dev->dev, "Unexpected version %#x only 0x202 supported\n", ver);
-		return -ENODEV;
-	}
 
 	node = rpi_firmware_find_node();
 	if (!node)
@@ -354,17 +384,19 @@ static int hw_setup(struct hevc_d_dev *dev)
 							    RPI_FIRMWARE_HEVC_CLK_ID);
 	rpi_firmware_put(firmware);
 
-	/*
-	 * Enable IRQs & reset anything pending
-	 * Whilst this seems the wrong way round the h/w doesn't actually
-	 * set the IRQ status bits till the IRQs are enabled. As we haven't
-	 * got the IRQ yet this should still be safe.
-	 */
-	irq_write(dev, ARG_IC_ICTRL,
-		  ARG_IC_ICTRL_ACTIVE1_EN_SET | ARG_IC_ICTRL_ACTIVE2_EN_SET);
-	irq_stat = irq_read(dev, ARG_IC_ICTRL);
-	irq_write(dev, ARG_IC_ICTRL, irq_stat);
+	return 0;
+}
 
+/* H/w must be powered */
+static int check_version(struct hevc_d_dev *dev)
+{
+	u32 ver;
+
+	ver = apb_read(dev, RPI_VERSION);
+	if (ver != 0x202) {
+		dev_err(dev->dev, "Unexpected version %#x only 0x202 supported\n", ver);
+		return -ENODEV;
+	}
 	return 0;
 }
 
@@ -388,29 +420,54 @@ int hevc_d_hw_probe(struct hevc_d_dev *dev)
 	if (IS_ERR(dev->clock))
 		return PTR_ERR(dev->clock);
 
-	ret = clk_prepare_enable(dev->clock);
-	if (ret)
-		return ret;
-	ret = hw_setup(dev);
-	clk_disable_unprepare(dev->clock);
+	ret = get_max_clock_rate(dev);
 	if (ret)
 		return ret;
 
+	/*
+	 * Power up manually so this works without runtime PM. Runtime PM is
+	 * told we are active once enabled and the driver core idles us after
+	 * probe completes.
+	 */
+	ret = hevc_d_hw_power_on(dev);
+	if (ret)
+		return ret;
+
+	ret = check_version(dev);
+	if (ret)
+		goto fail_power_off;
+
 	irq_dec = platform_get_irq(dev->pdev, 0);
-	if (irq_dec < 0)
-		return irq_dec;
+	if (irq_dec < 0) {
+		ret = irq_dec;
+		goto fail_power_off;
+	}
 	ret = devm_request_threaded_irq(dev->dev, irq_dec,
 					hevc_d_irq_irq,
 					hevc_d_irq_thread,
 					0, dev_name(dev->dev), dev);
-	if (ret)
+	if (ret) {
 		dev_err(dev->dev, "Failed to request IRQ - %d\n", ret);
+		goto fail_power_off;
+	}
 
+	pm_runtime_set_active(dev->dev);
+	pm_runtime_enable(dev->dev);
+
+	return 0;
+
+fail_power_off:
+	hevc_d_hw_power_off(dev);
 	return ret;
 }
 
 void hevc_d_hw_remove(struct hevc_d_dev *dev)
 {
+	pm_runtime_disable(dev->dev);
+	if (!pm_runtime_status_suspended(dev->dev))
+		hevc_d_hw_power_off(dev);
+	pm_runtime_set_suspended(dev->dev);
+
 	/*
 	 * IRQ auto freed on unload so no need to do it here
 	 * ioremap auto freed on unload
@@ -418,4 +475,3 @@ void hevc_d_hw_remove(struct hevc_d_dev *dev)
 	ictl_uninit(&dev->ic_active1);
 	ictl_uninit(&dev->ic_active2);
 }
-

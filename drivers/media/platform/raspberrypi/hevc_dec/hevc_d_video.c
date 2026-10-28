@@ -194,6 +194,26 @@ static int hevc_d_querycap(struct file *file, void *priv,
 	return 0;
 }
 
+static int hevc_d_enum_framesizes(struct file *file, void *priv,
+				  struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->index != 0)
+		return -EINVAL;
+
+	if (fsize->pixel_format != V4L2_PIX_FMT_HEVC_SLICE)
+		return -EINVAL;
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	fsize->stepwise.min_width = HEVC_D_MIN_WIDTH;
+	fsize->stepwise.max_width = HEVC_D_MAX_WIDTH;
+	fsize->stepwise.step_width = 4;
+	fsize->stepwise.min_height = HEVC_D_MIN_HEIGHT;
+	fsize->stepwise.max_height = HEVC_D_MAX_HEIGHT;
+	fsize->stepwise.step_height = 4;
+
+	return 0;
+}
+
 static int hevc_d_enum_fmt_vid_out(struct file *file, void *priv,
 				   struct v4l2_fmtdesc *f)
 {
@@ -385,7 +405,7 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 	int ret;
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
-	if (vb2_is_busy(vq))
+	if (vb2_is_streaming(vq))
 		return -EBUSY;
 
 	ret = hevc_d_try_fmt_vid_out(file, priv, f);
@@ -402,6 +422,7 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 
 const struct v4l2_ioctl_ops hevc_d_ioctl_ops = {
 	.vidioc_querycap		= hevc_d_querycap,
+	.vidioc_enum_framesizes		= hevc_d_enum_framesizes,
 
 	.vidioc_enum_fmt_vid_cap	= hevc_d_enum_fmt_vid_cap,
 	.vidioc_g_fmt_vid_cap_mplane	= hevc_d_g_fmt_vid_cap,
@@ -419,6 +440,7 @@ const struct v4l2_ioctl_ops hevc_d_ioctl_ops = {
 	.vidioc_dqbuf			= v4l2_m2m_ioctl_dqbuf,
 	.vidioc_prepare_buf		= v4l2_m2m_ioctl_prepare_buf,
 	.vidioc_create_bufs		= v4l2_m2m_ioctl_create_bufs,
+	.vidioc_remove_bufs		= v4l2_m2m_ioctl_remove_bufs,
 	.vidioc_expbuf			= v4l2_m2m_ioctl_expbuf,
 
 	.vidioc_streamon		= v4l2_m2m_ioctl_streamon,
@@ -513,19 +535,19 @@ static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 	v4l2_m2m_update_start_streaming_state(ctx->fh.m2m_ctx, vq);
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-		ret = hevc_d_hw_start_clock(dev);
+		ret = hevc_d_hw_pm_get(dev);
 		if (ret)
 			goto fail_cleanup;
 
 		ret = hevc_d_h265_start(ctx);
 		if (ret)
-			goto fail_stop_clock;
+			goto fail_pm_put;
 	}
 
 	return 0;
 
-fail_stop_clock:
-	hevc_d_hw_stop_clock(dev);
+fail_pm_put:
+	hevc_d_hw_pm_put(dev);
 fail_cleanup:
 	v4l2_err(&dev->v4l2_dev, "%s: qtype=%d: FAIL\n", __func__, vq->type);
 	hevc_d_queue_cleanup(vq, VB2_BUF_STATE_QUEUED);
@@ -539,7 +561,7 @@ static void hevc_d_stop_streaming(struct vb2_queue *vq)
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		hevc_d_h265_stop(ctx);
-		hevc_d_hw_stop_clock(dev);
+		hevc_d_hw_pm_put(dev);
 	}
 
 	hevc_d_queue_cleanup(vq, VB2_BUF_STATE_ERROR);
