@@ -306,7 +306,7 @@ static const u8 *decode_t1_elem(struct mldsa_ring_elem *out,
  * Reference: FIPS 204 Algorithm 27, sigDecode.
  *
  * This also validates that the coefficients of z are in range, corresponding
- * the infinity norm check at the end of Algorithm 8, ML-DSA.Verify_internal.
+ * to the infinity norm check at the end of Algorithm 8, ML-DSA.Verify_internal.
  *
  * Finally, this also converts z to NTT form.
  */
@@ -533,7 +533,7 @@ int mldsa_verify(enum mldsa_alg alg, const u8 *sig, size_t sig_len,
 	/* For now this just does pure ML-DSA with an empty context string. */
 	static const u8 msg_prefix[2] = { /* dom_sep= */ 0, /* ctx_len= */ 0 };
 	const u8 *ctilde; /* The signer's commitment hash */
-	const u8 *t1_encoded = &pk[RHO_LEN]; /* Next encoded element of t_1 */
+	const u8 *t1_encoded; /* Next encoded element of t_1 */
 	u8 *h; /* The signer's hint vector, length k * N */
 	size_t w1_enc_len;
 
@@ -587,6 +587,7 @@ int mldsa_verify(enum mldsa_alg alg, const u8 *sig, size_t sig_len,
 	 * The computation is the same for each of the k rows.  Just do each row
 	 * before moving on to the next, resulting in only one loop over k.
 	 */
+	t1_encoded = &pk[RHO_LEN];
 	for (int i = 0; i < k; i++) {
 		/*
 		 * tmp = NTT(A) * NTT(z) * 2^-32
