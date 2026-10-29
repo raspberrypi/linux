@@ -1027,10 +1027,13 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 	if (window < nr_make->window)
 		nr_make->window = window;
 
-	/* L4 timeout negotiation */
+	/*
+	 * L4 timeout negotiation.  Ignore a proposal shorter than the
+	 * smallest transport timeout the sysctl accepts (5 s), such as 0.
+	 */
 	if (skb->len == 37) {
 		timeout = skb->data[36] * 256 + skb->data[35];
-		if (timeout * HZ < nr_make->t1)
+		if (timeout >= 5 && timeout * HZ < nr_make->t1)
 			nr_make->t1 = timeout * HZ;
 		nr_make->bpqext = 1;
 	} else {
