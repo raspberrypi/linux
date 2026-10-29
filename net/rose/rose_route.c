@@ -102,8 +102,7 @@ static int __must_check rose_add_node(struct rose_route_struct *rose_route,
 
 		skb_queue_head_init(&rose_neigh->queue);
 
-		timer_setup(&rose_neigh->ftimer, NULL, 0);
-		timer_setup(&rose_neigh->t0timer, NULL, 0);
+		rose_neigh_init_timers(rose_neigh);
 
 		if (rose_route->ndigis != 0) {
 			rose_neigh->digipeat =
@@ -446,8 +445,7 @@ void rose_add_loopback_neigh(void)
 
 	skb_queue_head_init(&sn->queue);
 
-	timer_setup(&sn->ftimer, NULL, 0);
-	timer_setup(&sn->t0timer, NULL, 0);
+	rose_neigh_init_timers(sn);
 
 	spin_lock_bh(&rose_neigh_list_lock);
 	sn->next = rose_neigh_list;

@@ -231,6 +231,7 @@ int rose_rcv_frame(struct sock *sk, struct sk_buff *skb);
 int rose_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 /* rose_link.c */
+void rose_neigh_init_timers(struct rose_neigh *neigh);
 void rose_start_ftimer(struct rose_neigh *);
 void rose_stop_ftimer(struct rose_neigh *);
 void rose_stop_t0timer(struct rose_neigh *);
