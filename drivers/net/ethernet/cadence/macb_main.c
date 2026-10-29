@@ -854,7 +854,7 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	if (!count) {
 		queue->tx_head = 0;
 		queue->tx_tail = 0;
-		goto unlock;
+		goto reset_hw_ptr;
 	}
 
 	shift = tail % ring_size;
@@ -903,6 +903,13 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	/* Make descriptor updates visible to hardware */
 	wmb();
 
+reset_hw_ptr:
+	/* tx_tail was reset to the ring base, so TBQP must be reprogrammed
+	 * to match; otherwise it keeps pointing at a stale descriptor. Safe
+	 * to write directly here as TX is still disabled (called from
+	 * macb_mac_link_up() before TE is set).
+	 */
+	queue_writel(queue, TBQP, lower_32_bits(queue->tx_ring_dma));
 unlock:
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 }
@@ -916,6 +923,8 @@ static void gem_shuffle_tx_rings(struct macb *bp)
 	for (q = 0, queue = bp->queues; q < bp->num_queues; q++, queue++)
 		gem_shuffle_tx_one_ring(queue);
 }
+
+static void macb_tx_restart(struct macb_queue *queue);
 
 static void macb_mac_link_up(struct phylink_config *config,
 			     struct phy_device *phy,
@@ -979,6 +988,12 @@ static void macb_mac_link_up(struct phylink_config *config,
 		ctrl |= MACB_BIT(PTPUNI);
 
 	macb_writel(bp, NCR, ctrl | MACB_BIT(RE) | MACB_BIT(TE));
+
+	if (!(bp->caps & MACB_CAPS_MACB_IS_EMAC)) {
+		/* With BQL holding a queue stopped no xmit would issue TSTART */
+		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue)
+			macb_tx_restart(queue);
+	}
 
 	netif_tx_wake_all_queues(ndev);
 }
@@ -1357,10 +1372,8 @@ static void macb_tx_error_task(struct work_struct *work)
 					    skb->data);
 				bp->dev->stats.tx_packets++;
 				queue->stats.tx_packets++;
-				packets++;
 				bp->dev->stats.tx_bytes += skb->len;
 				queue->stats.tx_bytes += skb->len;
-				bytes += skb->len;
 			}
 		} else {
 			/* "Buffers exhausted mid-frame" errors may only happen
@@ -1372,6 +1385,12 @@ static void macb_tx_error_task(struct work_struct *work)
 					   "BUG: TX buffers exhausted mid-frame\n");
 
 			desc->ctrl = ctrl | MACB_BIT(TX_USED);
+		}
+
+		/* BQL has to see every frame leaving the ring, sent or not */
+		if (skb) {
+			packets++;
+			bytes += skb->len;
 		}
 
 		macb_tx_unmap(bp, tx_skb, 0);
@@ -1917,7 +1936,11 @@ static int macb_rx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_rx_pending(queue)) {
 			queue_writel(queue, IDR, bp->rx_intr_mask);
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
@@ -2012,7 +2035,11 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_tx_complete_pending(queue)) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
@@ -4709,8 +4736,21 @@ static int macb_setup_tc(struct net_device *dev, enum tc_setup_type type,
 static void macb_tx_timeout(struct net_device *dev, unsigned int q)
 {
 	struct macb *bp = netdev_priv(dev);
+	struct macb_queue *queue = &bp->queues[q];
 
-	macb_tx_restart(&bp->queues[q]);
+	macb_tx_restart(queue);
+
+	/* The frames may have gone out with their TCOMP interrupt lost.
+	 * macb_tx_restart() does nothing then as TBQP already matches
+	 * tx_head, so run TX NAPI to complete them or the queue stays
+	 * stopped.
+	 */
+	if (macb_tx_complete_pending(queue)) {
+		queue_writel(queue, IDR, MACB_BIT(TCOMP));
+		if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+			queue_writel(queue, ISR, MACB_BIT(TCOMP));
+		napi_schedule(&queue->napi_tx);
+	}
 }
 
 static const struct net_device_ops macb_netdev_ops = {
