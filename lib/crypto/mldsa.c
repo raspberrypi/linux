@@ -528,14 +528,20 @@ static size_t encode_w1(u8 out[MAX_W1_ENCODED_LEN],
 int mldsa_verify(enum mldsa_alg alg, const u8 *sig, size_t sig_len,
 		 const u8 *msg, size_t msg_len, const u8 *pk, size_t pk_len)
 {
-	const struct mldsa_parameter_set *params = &mldsa_parameter_sets[alg];
-	const int k = params->k, l = params->l;
+	const struct mldsa_parameter_set *params;
+	int k, l;
 	/* For now this just does pure ML-DSA with an empty context string. */
 	static const u8 msg_prefix[2] = { /* dom_sep= */ 0, /* ctx_len= */ 0 };
 	const u8 *ctilde; /* The signer's commitment hash */
 	const u8 *t1_encoded; /* Next encoded element of t_1 */
 	u8 *h; /* The signer's hint vector, length k * N */
 	size_t w1_enc_len;
+
+	if (alg != MLDSA44 && alg != MLDSA65 && alg != MLDSA87)
+		return -EINVAL;
+	params = &mldsa_parameter_sets[alg];
+	k = params->k;
+	l = params->l;
 
 	/* Validate the public key and signature lengths. */
 	if (pk_len != params->pk_len || sig_len != params->sig_len)

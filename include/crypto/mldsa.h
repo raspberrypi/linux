@@ -48,6 +48,7 @@ enum mldsa_alg {
  * Return:
  * * 0 if the signature is valid
  * * -EBADMSG if the signature and/or public key is malformed
+ * * -EINVAL if @alg is not a valid value
  * * -EKEYREJECTED if the signature is invalid but otherwise well-formed
  * * -ENOMEM if out of memory so the validity of the signature is unknown
  */
