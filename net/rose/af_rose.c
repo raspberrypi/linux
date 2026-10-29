@@ -330,6 +330,7 @@ found:
 
 /*
  *	Find a unique LCI for a given device.
+ *	The caller holds rose_route_list_lock.
  */
 unsigned int rose_new_lci(struct rose_neigh *neigh)
 {
@@ -854,20 +855,6 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 	sk->sk_state   = TCP_CLOSE;
 	sock->state = SS_UNCONNECTED;
 
-	rose->neighbour = rose_get_neigh(&addr->srose_addr, &cause,
-					 &diagnostic, 0);
-	if (!rose->neighbour) {
-		err = -ENETUNREACH;
-		goto out_release;
-	}
-
-	rose->lci = rose_new_lci(rose->neighbour);
-	if (!rose->lci) {
-		err = -ENETUNREACH;
-		rose_neigh_put(rose->neighbour);
-		goto out_release;
-	}
-
 	if (sock_flag(sk, SOCK_ZAPPED)) {	/* Must bind first - autobinding in this may or may not work */
 		struct net_device *dev;
 
@@ -876,14 +863,12 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 		dev = rose_dev_first();
 		if (!dev) {
 			err = -ENETUNREACH;
-			rose_neigh_put(rose->neighbour);
 			goto out_release;
 		}
 
 		user = ax25_findbyuid(current_euid());
 		if (!user) {
 			err = -EINVAL;
-			rose_neigh_put(rose->neighbour);
 			dev_put(dev);
 			goto out_release;
 		}
@@ -897,6 +882,21 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 
 		rose_insert_socket(sk);		/* Finish the bind */
 	}
+
+	rose->neighbour = rose_get_neigh(&addr->srose_addr, &cause,
+					 &diagnostic, 0);
+	if (!rose->neighbour) {
+		err = -ENETUNREACH;
+		goto out_release;
+	}
+
+	/* The socket is on the list now, so others see the LCI it gets */
+	if (!rose_assign_lci(sk)) {
+		err = -ENETUNREACH;
+		rose_neigh_put(rose->neighbour);
+		goto out_release;
+	}
+
 	rose->dest_addr   = addr->srose_addr;
 	rose->dest_call   = addr->srose_call;
 	rose->rand        = ((long)rose & 0xFFFF) + rose->lci;

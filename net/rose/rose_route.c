@@ -724,12 +724,31 @@ struct rose_route *rose_route_free_lci(unsigned int lci, struct rose_neigh *neig
 {
 	struct rose_route *rose_route;
 
+	lockdep_assert_held(&rose_route_list_lock);
+
 	for (rose_route = rose_route_list; rose_route != NULL; rose_route = rose_route->next)
 		if ((rose_route->neigh1 == neigh && rose_route->lci1 == lci) ||
 		    (rose_route->neigh2 == neigh && rose_route->lci2 == lci))
 			return rose_route;
 
 	return NULL;
+}
+
+/*
+ *	Give a socket placing a call a free LCI on its neighbour. As for a
+ *	through route in rose_route_frame(), the search and the assignment
+ *	are done under rose_route_list_lock, so two calls cannot pick the
+ *	same LCI. The socket must already be on the socket list.
+ */
+unsigned int rose_assign_lci(struct sock *sk)
+{
+	struct rose_sock *rose = rose_sk(sk);
+
+	spin_lock_bh(&rose_route_list_lock);
+	rose->lci = rose_new_lci(rose->neighbour);
+	spin_unlock_bh(&rose_route_list_lock);
+
+	return rose->lci;
 }
 
 /*
