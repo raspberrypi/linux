@@ -9,6 +9,11 @@
 
 #include <uapi/misc/rp1_pio_if.h>
 
+struct device;
+struct device_node;
+struct dma_chan;
+struct rp1_pio_client;
+
 #define PARAM_WARNINGS_ENABLED 1
 
 #ifdef DEBUG
@@ -224,7 +229,20 @@ static struct rp1_pio_client *g_client;
 
 int rp1_pio_init(void);
 PIO rp1_pio_open(void);
+struct rp1_pio_client *
+rp1_pio_open_for_device(struct device *consumer,
+			struct device_node *provider_node);
+struct dma_chan *rp1_pio_dma_request(struct rp1_pio_client *client,
+				     unsigned int sm, enum pio_xfer_dir dir);
+int rp1_pio_dma_release(struct rp1_pio_client *client, unsigned int sm,
+			enum pio_xfer_dir dir, struct dma_chan *chan);
+int rp1_pio_gpio_is_synchronized(struct rp1_pio_client *client,
+				 unsigned int gpio, bool *synchronized);
 void rp1_pio_close(struct rp1_pio_client *client);
+/* On error, ownership remains with the caller. No PIO-helper DMA is released. */
+int rp1_pio_close_checked(struct rp1_pio_client *client);
+int rp1_pio_sm_put_mmio(struct rp1_pio_client *client, unsigned int sm,
+			uint32_t data);
 void rp1_pio_set_error(struct rp1_pio_client *client, int err);
 int rp1_pio_get_error(const struct rp1_pio_client *client);
 void rp1_pio_clear_error(struct rp1_pio_client *client);

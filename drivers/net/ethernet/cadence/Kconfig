@@ -42,6 +42,17 @@ config MACB_USE_HWSTAMP
 	help
 	  Enable IEEE 1588 Precision Time Protocol (PTP) support for MACB.
 
+config MACB_RP1_PPS
+	bool "RP1 Ethernet PTP GPIO timestamp and periodic output"
+	depends on MACB_USE_HWSTAMP
+	depends on FIRMWARE_RP1=y && RP1_PIO=y && PINCTRL_RP1=y
+	default n
+	help
+	  Enable RP1-specific external timestamp input and periodic output on
+	  the RP1 Ethernet PHC. The firmware, PIO and pinctrl providers must be
+	  built into the kernel so their lifetimes are ordered with the built-in
+	  MACB driver.
+
 config MACB_PCI
 	tristate "Cadence PCI MACB/GEM support"
 	depends on MACB && PCI
