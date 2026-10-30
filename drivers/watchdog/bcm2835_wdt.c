@@ -209,6 +209,7 @@ static int bcm2835_wdt_probe(struct platform_device *pdev)
 	watchdog_set_restart_priority(&bcm2835_wdt_wdd, 128);
 
 	watchdog_stop_on_reboot(&bcm2835_wdt_wdd);
+	watchdog_stop_ping_on_suspend(&bcm2835_wdt_wdd);
 	err = devm_watchdog_register_device(dev, &bcm2835_wdt_wdd);
 	if (err)
 		return err;
@@ -232,11 +233,31 @@ static void bcm2835_wdt_remove(struct platform_device *pdev)
 		pm_power_off = NULL;
 }
 
+static int bcm2835_wdt_suspend(struct device *dev)
+{
+	if (watchdog_active(&bcm2835_wdt_wdd) || watchdog_hw_running(&bcm2835_wdt_wdd))
+		bcm2835_wdt_stop(&bcm2835_wdt_wdd);
+
+	return 0;
+}
+
+static int bcm2835_wdt_resume(struct device *dev)
+{
+	if (watchdog_active(&bcm2835_wdt_wdd) || watchdog_hw_running(&bcm2835_wdt_wdd))
+		bcm2835_wdt_start(&bcm2835_wdt_wdd);
+
+	return 0;
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(bcm2835_wdt_pm_ops,
+	bcm2835_wdt_suspend, bcm2835_wdt_resume);
+
 static struct platform_driver bcm2835_wdt_driver = {
 	.probe		= bcm2835_wdt_probe,
 	.remove		= bcm2835_wdt_remove,
 	.driver = {
 		.name =		"bcm2835-wdt",
+		.pm   =		pm_sleep_ptr(&bcm2835_wdt_pm_ops),
 	},
 };
 module_platform_driver(bcm2835_wdt_driver);
