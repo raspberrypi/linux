@@ -29,9 +29,16 @@ properties:
   "#msi-cells":
     const: 0
 
+  msi-ranges:
+    description:
+      Each entry maps the next consecutive MIP outputs, starting at
+      output 0, to the given GIC SPIs.
+
   brcm,msi-offset:
     $ref: /schemas/types.yaml#/definitions/uint32
-    description: Shift the allocated MSI's.
+    description:
+      Legacy. Shifts both the MIP output and the GIC SPI of a single
+      msi-ranges entry. Not allowed with more than one entry.
 
 unevaluatedProperties: false
 
