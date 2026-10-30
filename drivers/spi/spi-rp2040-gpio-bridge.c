@@ -85,6 +85,16 @@ static_assert(MD5_DIGEST_SIZE == MANIFEST_UNIT_SIZE);
 
 #define NUM_GPIO 24
 
+/* RP1 GPIO/RIO register layout, see pinctrl-rp1 */
+#define RP1_RIO_OUT 0x00
+#define RP1_RIO_OE 0x04
+#define RP1_SET_OFFSET 0x2000
+#define RP1_CLR_OFFSET 0x3000
+#define RP1_GPIO_CTRL_FUNCSEL_MASK 0x0000001f
+#define RP1_GPIO_CTRL_OUTOVER_MASK 0x00003000
+#define RP1_GPIO_CTRL_OEOVER_MASK 0x0000c000
+#define RP1_FSEL_GPIO 0x05
+
 enum rp2040_gbdg_fixed_size_commands {
 	/* 10-byte commands */
 	CMD_SAVE_CACHE = 0x07,
@@ -114,8 +124,9 @@ struct rp2040_gbdg {
 	u32 gpio_requested;
 	u32 gpio_direction;
 
+	bool fast_xfer;
 	bool fast_xfer_requires_i2c_lock;
-	struct gpio_descs *fast_xfer_gpios;
+	struct gpio_desc *fast_xfer_clock_gpio;
 	u32 fast_xfer_recv_gpio_base;
 	u8 fast_xfer_data_index;
 	u8 fast_xfer_clock_index;
@@ -196,6 +207,44 @@ static int rp2040_gbdg_rp1_write_mux(struct rp2040_gbdg *priv_data, u8 gpio,
 	writel(val, priv_data->gpio_base + offset);
 
 	return 0;
+}
+
+/*
+ * Equivalent of gpiod_direction_output() for an RP1 pin, done through the
+ * registers directly. The fast_xfer data pin doubles as the I2C SDA line and
+ * is owned by the I2C controller through pinctrl, so it can't be requested
+ * from gpiolib while RP1 pinmux is strict. It is only driven with the I2C bus
+ * locked, and rp2040_gbdg_fast_xfer() restores the original mux afterwards.
+ * The pad is left as is: pinctrl-rp1 enables input and output on it for any
+ * muxed function.
+ */
+static int rp2040_gbdg_rp1_set_output(struct rp2040_gbdg *priv_data, u8 gpio,
+				      int value)
+{
+	size_t bank_offset;
+	u8 shift_offset;
+	u32 ctrl;
+	int ret;
+
+	ret = rp2040_gbdg_rp1_calc_offsets(gpio, &bank_offset, &shift_offset);
+	if (ret)
+		return ret;
+
+	writel(BIT(shift_offset),
+	       priv_data->rio_base + bank_offset + RP1_RIO_OUT +
+		       (value ? RP1_SET_OFFSET : RP1_CLR_OFFSET));
+	writel(BIT(shift_offset),
+	       priv_data->rio_base + bank_offset + RP1_RIO_OE + RP1_SET_OFFSET);
+
+	ret = rp2040_gbdg_rp1_read_mux(priv_data, gpio, &ctrl);
+	if (ret)
+		return ret;
+
+	ctrl &= ~(RP1_GPIO_CTRL_FUNCSEL_MASK | RP1_GPIO_CTRL_OUTOVER_MASK |
+		  RP1_GPIO_CTRL_OEOVER_MASK);
+	ctrl |= RP1_FSEL_GPIO;
+
+	return rp2040_gbdg_rp1_write_mux(priv_data, gpio, ctrl);
 }
 
 static size_t rp2040_gbdg_max_transfer_size(struct spi_device *spi)
@@ -402,7 +451,7 @@ static int rp2040_gbdg_set_remote_buffer_fast(struct rp2040_gbdg *priv_data,
 
 	if (len > RP2040_GBDG_BLOCK_SIZE)
 		return -EMSGSIZE;
-	if (!priv_data->fast_xfer_gpios)
+	if (!priv_data->fast_xfer)
 		return -EIO;
 
 	ret = rp2040_gbdg_10byte_cmd(client, CMD_DAT_RECV,
@@ -450,7 +499,7 @@ static int rp2040_gbdg_set_remote_buffer_i2c(struct rp2040_gbdg *priv_data,
 static int rp2040_gbdg_set_remote_buffer(struct rp2040_gbdg *priv_data,
 					 const u8 *data, unsigned int len)
 {
-	if (priv_data->fast_xfer_gpios)
+	if (priv_data->fast_xfer)
 		return rp2040_gbdg_set_remote_buffer_fast(priv_data, data, len);
 	else
 		return rp2040_gbdg_set_remote_buffer_i2c(priv_data, data, len);
@@ -625,7 +674,7 @@ static int rp2040_gbdg_fast_xfer(struct rp2040_gbdg *priv_data, const u8 *data,
 	rp2040_gbdg_rp1_read_mux(priv_data, priv_data->fast_xfer_clock_index,
 				 &clock_mux);
 
-	gpiod_direction_output(priv_data->fast_xfer_gpios->desc[0], 1);
+	rp2040_gbdg_rp1_set_output(priv_data, priv_data->fast_xfer_data_index, 1);
 
 	rp2040_gbdg_rp1_calc_offsets(priv_data->fast_xfer_data_index,
 				     &data_bank, &data_offset);
@@ -671,7 +720,7 @@ static int rp2040_gbdg_transfer_bypass(struct rp2040_gbdg *priv_data,
 	int ret;
 	u8 *buf;
 
-	if (priv_data->fast_xfer_gpios) {
+	if (priv_data->fast_xfer) {
 		ret = rp2040_gbdg_10byte_cmd(
 			priv_data->client, CMD_DAT_EMIT,
 			priv_data->fast_xfer_recv_gpio_base, length);
@@ -927,6 +976,8 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 	struct of_phandle_args of_args[2] = { 0 };
 	struct device *dev = &client->dev;
 	struct device_node *dn;
+	size_t bank_offset;
+	u8 shift_offset;
 
 	rp2040_gbdg->bypass_cache =
 		of_property_read_bool(client->dev.of_node, "bypass-cache");
@@ -963,11 +1014,22 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 		goto node_put;
 	}
 
-	rp2040_gbdg->fast_xfer_gpios =
-		devm_gpiod_get_array_optional(dev, "fast_xfer", GPIOD_ASIS);
-	if (IS_ERR_OR_NULL(rp2040_gbdg->fast_xfer_gpios)) {
-		rp2040_gbdg->fast_xfer_gpios = NULL;
-		dev_info(dev, "Could not acquire fast_xfer-gpios\n");
+	/*
+	 * Only the clock pin is requested from gpiolib. The data pin is shared
+	 * with the I2C bus, see rp2040_gbdg_rp1_set_output().
+	 */
+	if (rp2040_gbdg_rp1_calc_offsets(of_args[0].args[0], &bank_offset,
+					 &shift_offset)) {
+		dev_info(dev, "Invalid fast_xfer data gpio %u\n",
+			 of_args[0].args[0]);
+		goto node_put;
+	}
+
+	rp2040_gbdg->fast_xfer_clock_gpio =
+		devm_gpiod_get_index(dev, "fast_xfer", 1, GPIOD_ASIS);
+	if (IS_ERR(rp2040_gbdg->fast_xfer_clock_gpio)) {
+		rp2040_gbdg->fast_xfer_clock_gpio = NULL;
+		dev_info(dev, "Could not acquire fast_xfer clock gpio\n");
 		goto node_put;
 	}
 
@@ -981,8 +1043,8 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 		dev_info(&client->dev, "%s() unable to map gpio_base\n",
 			 __func__);
 		rp2040_gbdg->gpio_base = NULL;
-		devm_gpiod_put_array(dev, rp2040_gbdg->fast_xfer_gpios);
-		rp2040_gbdg->fast_xfer_gpios = NULL;
+		devm_gpiod_put(dev, rp2040_gbdg->fast_xfer_clock_gpio);
+		rp2040_gbdg->fast_xfer_clock_gpio = NULL;
 		goto node_put;
 	}
 
@@ -993,8 +1055,8 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 		rp2040_gbdg->rio_base = NULL;
 		iounmap(rp2040_gbdg->gpio_base);
 		rp2040_gbdg->gpio_base = NULL;
-		devm_gpiod_put_array(dev, rp2040_gbdg->fast_xfer_gpios);
-		rp2040_gbdg->fast_xfer_gpios = NULL;
+		devm_gpiod_put(dev, rp2040_gbdg->fast_xfer_clock_gpio);
+		rp2040_gbdg->fast_xfer_clock_gpio = NULL;
 		goto node_put;
 	}
 
@@ -1002,7 +1064,11 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 	 * fast_xfer mode requires first data bit to be clocked on a rising
 	 * edge. Configure as output-low here before fast_xfer mode is entered.
 	 */
-	gpiod_direction_output(rp2040_gbdg->fast_xfer_gpios->desc[1], 0);
+	gpiod_direction_output(rp2040_gbdg->fast_xfer_clock_gpio, 0);
+	rp2040_gbdg->fast_xfer = true;
+	dev_info(dev, "fast_xfer enabled (data gpio %u, clock gpio %u)\n",
+		 rp2040_gbdg->fast_xfer_data_index,
+		 rp2040_gbdg->fast_xfer_clock_index);
 node_put:
 	if (of_args[0].np)
 		of_node_put(of_args[0].np);
