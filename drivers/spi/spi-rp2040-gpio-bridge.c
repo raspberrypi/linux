@@ -1035,7 +1035,7 @@ static void rp2040_gbdg_parse_dt(struct rp2040_gbdg *rp2040_gbdg)
 
 	rp2040_gbdg->fast_xfer_data_index = of_args[0].args[0];
 	rp2040_gbdg->fast_xfer_clock_index = of_args[1].args[0];
-	rp2040_gbdg->fast_xfer_requires_i2c_lock = of_property_read_bool(
+	rp2040_gbdg->fast_xfer_requires_i2c_lock = of_property_present(
 		client->dev.of_node, "fast_xfer_requires_i2c_lock");
 
 	rp2040_gbdg->gpio_base = of_iomap(dn, 0);
