@@ -71,15 +71,23 @@ static struct irq_chip mip_middle_irq_chip = {
 
 static int mip_alloc_hwirq(struct mip_priv *mip, unsigned int nr_irqs)
 {
+	unsigned long hwirq;
+
 	guard(spinlock)(&mip->lock);
-	return bitmap_find_free_region(mip->bitmap, mip->num_msis, ilog2(nr_irqs));
+	hwirq = bitmap_find_next_zero_area(mip->bitmap, mip->num_msis, 0, nr_irqs,
+					   roundup_pow_of_two(nr_irqs) - 1);
+	if (hwirq >= mip->num_msis)
+		return -ENOSPC;
+
+	bitmap_set(mip->bitmap, hwirq, nr_irqs);
+	return hwirq;
 }
 
 static void mip_free_hwirq(struct mip_priv *mip, unsigned int hwirq,
 			   unsigned int nr_irqs)
 {
 	guard(spinlock)(&mip->lock);
-	bitmap_release_region(mip->bitmap, hwirq, ilog2(nr_irqs));
+	bitmap_clear(mip->bitmap, hwirq, nr_irqs);
 }
 
 static int mip_middle_domain_alloc(struct irq_domain *domain, unsigned int virq,
