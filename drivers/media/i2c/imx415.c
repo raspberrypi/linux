@@ -109,7 +109,8 @@ static const char *const imx415_supply_names[] = {
  */
 static const s64 link_freq_menu_items[] = {
 	594000000 / 2,	720000000 / 2,	891000000 / 2,
-	1440000000 / 2, 1485000000 / 2,
+	1440000000 / 2, 1485000000 / 2, 1782000000 / 2,
+	2079000000 / 2, 2376000000 / 2,
 };
 
 struct imx415_clk_params {
@@ -452,6 +453,19 @@ static const struct imx415_clk_params imx415_clk_params[] = {
 	},
 };
 
+/* 594 Mbps CSI configuration */
+static const struct cci_reg_sequence imx415_linkrate_594mbps[] = {
+	{ IMX415_TCLKPOST, 0x0067 },
+	{ IMX415_TCLKPREPARE, 0x0027 },
+	{ IMX415_TCLKTRAIL, 0x0027 },
+	{ IMX415_TCLKZERO, 0x00B7 },
+	{ IMX415_THSPREPARE, 0x002F },
+	{ IMX415_THSZERO, 0x004F },
+	{ IMX415_THSTRAIL, 0x002F },
+	{ IMX415_THSEXIT, 0x0047 },
+	{ IMX415_TLPX, 0x0027 },
+};
+
 /* 720 Mbps CSI configuration */
 static const struct cci_reg_sequence imx415_linkrate_720mbps[] = {
 	{ IMX415_TCLKPOST, 0x006F },
@@ -491,6 +505,58 @@ static const struct cci_reg_sequence imx415_linkrate_891mbps[] = {
 	{ IMX415_TLPX, 0x002F },
 };
 
+/* 1485 Mbps CSI configuration */
+static const struct cci_reg_sequence imx415_linkrate_1485mbps[] = {
+	{ IMX415_TCLKPOST, 0x00A7 },
+	{ IMX415_TCLKPREPARE, 0x0057 },
+	{ IMX415_TCLKTRAIL, 0x005F },
+	{ IMX415_TCLKZERO, 0x0197 },
+	{ IMX415_THSPREPARE, 0x005F },
+	{ IMX415_THSZERO, 0x00AF },
+	{ IMX415_THSTRAIL, 0x005F },
+	{ IMX415_THSEXIT, 0x009F },
+	{ IMX415_TLPX, 0x004F },
+};
+
+/* 1782 Mbps CSI configuration */
+static const struct cci_reg_sequence imx415_linkrate_1782mbps[] = {
+	{ IMX415_TCLKPOST, 0x00B7 },
+	{ IMX415_TCLKPREPARE, 0x0067 },
+	{ IMX415_TCLKTRAIL, 0x006F },
+	{ IMX415_TCLKZERO, 0x01DF },
+	{ IMX415_THSPREPARE, 0x006F },
+	{ IMX415_THSZERO, 0x00CF },
+	{ IMX415_THSTRAIL, 0x006F },
+	{ IMX415_THSEXIT, 0x00B7 },
+	{ IMX415_TLPX, 0x005F },
+};
+
+/* 2079 Mbps CSI configuration */
+static const struct cci_reg_sequence imx415_linkrate_2079mbps[] = {
+	{ IMX415_TCLKPOST, 0x00D7 },
+	{ IMX415_TCLKPREPARE, 0x007F },
+	{ IMX415_TCLKTRAIL, 0x007F },
+	{ IMX415_TCLKZERO, 0x0237 },
+	{ IMX415_THSPREPARE, 0x0087 },
+	{ IMX415_THSZERO, 0x00EF },
+	{ IMX415_THSTRAIL, 0x0087 },
+	{ IMX415_THSEXIT, 0x00DF },
+	{ IMX415_TLPX, 0x006F },
+};
+
+/* 2376 Mbps CSI configuration */
+static const struct cci_reg_sequence imx415_linkrate_2376mbps[] = {
+	{ IMX415_TCLKPOST, 0x00E7 },
+	{ IMX415_TCLKPREPARE, 0x008F },
+	{ IMX415_TCLKTRAIL, 0x008F },
+	{ IMX415_TCLKZERO, 0x027F },
+	{ IMX415_THSPREPARE, 0x0097 },
+	{ IMX415_THSZERO, 0x010F },
+	{ IMX415_THSTRAIL, 0x0097 },
+	{ IMX415_THSEXIT, 0x00F7 },
+	{ IMX415_TLPX, 0x007F },
+};
+
 struct imx415_mode_reg_list {
 	u32 num_of_regs;
 	const struct cci_reg_sequence *regs;
@@ -505,11 +571,28 @@ struct imx415_mode {
 /* mode configs */
 static const struct imx415_mode supported_modes[] = {
 	{
+		.lane_rate = 594000000,
+		/* 2 lane mode lists 10fps. 4 lane mode lists 25fps */
+		.hmax_min = { 3300, 1320 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_594mbps),
+			.regs = imx415_linkrate_594mbps,
+		},
+	},
+	{
 		.lane_rate = 720000000,
 		.hmax_min = { 2032, 1066 },
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(imx415_linkrate_720mbps),
 			.regs = imx415_linkrate_720mbps,
+		},
+	},
+	{
+		.lane_rate = 891000000,
+		.hmax_min = { 2200, 1100 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_891mbps),
+			.regs = imx415_linkrate_891mbps,
 		},
 	},
 	{
@@ -521,13 +604,49 @@ static const struct imx415_mode supported_modes[] = {
 		},
 	},
 	{
-		.lane_rate = 891000000,
-		.hmax_min = { 2200, 1100 },
+		.lane_rate = 1485000000,
+		/* Datasheet says this lane rate is only supported on 4 lanes */
+		.hmax_min = { 0, 550 },
 		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(imx415_linkrate_891mbps),
-			.regs = imx415_linkrate_891mbps,
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_1485mbps),
+			.regs = imx415_linkrate_1485mbps,
 		},
 	},
+	{
+		.lane_rate = 1782000000,
+		.hmax_min = { 1100, 550 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_1782mbps),
+			.regs = imx415_linkrate_1782mbps,
+		},
+	},
+	{
+		.lane_rate = 2079000000,
+		.hmax_min = { 1100, 550 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_2079mbps),
+			.regs = imx415_linkrate_2079mbps,
+		},
+	},
+	{
+		.lane_rate = 2376000000,
+		/* Datasheet says this lane rate is only supported on 4 lanes */
+		.hmax_min = { 0, 366 },
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(imx415_linkrate_2376mbps),
+			.regs = imx415_linkrate_2376mbps,
+		},
+	},
+};
+
+static const struct cci_reg_sequence imx415_10bit_readout[] = {
+	{ IMX415_ADBIT, 0x00 },
+	{ IMX415_MDBIT, 0x00 },
+};
+
+static const struct cci_reg_sequence imx415_12bit_readout[] = {
+	{ IMX415_ADBIT, 0x01 },
+	{ IMX415_MDBIT, 0x01 },
 };
 
 static const char *const imx415_test_pattern_menu[] = {
@@ -579,9 +698,6 @@ static const struct cci_reg_sequence imx415_init_table[] = {
 	{ IMX415_WINMODE, 0x00 },
 	{ IMX415_ADDMODE, 0x00 },
 	{ IMX415_REVERSE, 0x00 },
-	/* use RAW 10-bit mode */
-	{ IMX415_ADBIT, 0x00 },
-	{ IMX415_MDBIT, 0x00 },
 	/* output VSYNC on XVS and low on XHS */
 	{ IMX415_OUTSEL, 0x22 },
 	{ IMX415_DRV, 0x00 },
@@ -891,12 +1007,31 @@ static int imx415_set_mode(struct imx415 *sensor, int mode)
 
 static int imx415_setup(struct imx415 *sensor, struct v4l2_subdev_state *state)
 {
+	struct v4l2_mbus_framefmt *format;
 	int ret;
 
 	ret = cci_multi_reg_write(sensor->regmap,
 				  imx415_init_table,
 				  ARRAY_SIZE(imx415_init_table),
 				  NULL);
+	if (ret)
+		return ret;
+
+	format = v4l2_subdev_state_get_format(state, 0);
+	switch (format->code) {
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+		ret = cci_multi_reg_write(sensor->regmap,
+					  imx415_10bit_readout,
+					  ARRAY_SIZE(imx415_10bit_readout),
+					  NULL);
+		break;
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+		ret = cci_multi_reg_write(sensor->regmap,
+					  imx415_12bit_readout,
+					  ARRAY_SIZE(imx415_12bit_readout),
+					  NULL);
+		break;
+	}
 	if (ret)
 		return ret;
 
@@ -994,10 +1129,16 @@ static int imx415_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (code->index != 0)
+	switch (code->index) {
+	default:
 		return -EINVAL;
-
-	code->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	case 0:
+		code->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+		break;
+	case 1:
+		code->code = MEDIA_BUS_FMT_SGBRG12_1X12;
+		break;
+	}
 
 	return 0;
 }
@@ -1010,7 +1151,8 @@ static int imx415_enum_frame_size(struct v4l2_subdev *sd,
 
 	format = v4l2_subdev_state_get_format(state, fse->pad);
 
-	if (fse->index > 0 || fse->code != format->code)
+	if (fse->index > 0 || (fse->code != MEDIA_BUS_FMT_SGBRG10_1X10 &&
+			       fse->code != MEDIA_BUS_FMT_SGBRG12_1X12))
 		return -EINVAL;
 
 	fse->min_width = IMX415_PIXEL_ARRAY_WIDTH;
@@ -1030,7 +1172,14 @@ static int imx415_set_format(struct v4l2_subdev *sd,
 
 	format->width = fmt->format.width;
 	format->height = fmt->format.height;
-	format->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	switch (fmt->format.code) {
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+		format->code = fmt->format.code;
+		break;
+	default:
+		format->code = MEDIA_BUS_FMT_SGBRG10_1X10;
+	}
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_RAW;
 	format->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
@@ -1299,6 +1448,10 @@ static int imx415_parse_hw_config(struct imx415 *sensor)
 			if (bus_cfg.link_frequencies[i] * 2 !=
 			    supported_modes[j].lane_rate)
 				continue;
+			if (sensor->num_data_lanes == 2 &&
+			    !supported_modes[j].hmax_min[0])
+				continue;
+
 			sensor->cur_mode = j;
 			break;
 		}
