@@ -78,6 +78,7 @@ static void ax25_kill_by_device(struct net_device *dev)
 	ax25_dev *ax25_dev;
 	ax25_cb *s;
 	struct sock *sk;
+	bool orphan;
 
 	if ((ax25_dev = ax25_dev_ax25dev(dev)) == NULL)
 		return;
@@ -109,6 +110,16 @@ again:
 			sock_hold(sk);
 			spin_unlock_bh(&ax25_list_lock);
 			lock_sock(sk);
+			/*
+			 * A socket closed by its owner, or a connection left
+			 * unaccepted by a closed listener, is freed by its
+			 * heartbeat once it is down. ax25_disconnect() below
+			 * stops that heartbeat for good, so free the socket
+			 * here, or it is never freed and pins the module.
+			 */
+			orphan = sock_flag(sk, SOCK_DESTROY) ||
+				 (sk->sk_state == TCP_LISTEN &&
+				  sock_flag(sk, SOCK_DEAD));
 			ax25_disconnect(s, ENETUNREACH);
 			WRITE_ONCE(s->ax25_dev, NULL);
 			if (sk->sk_socket) {
@@ -116,7 +127,10 @@ again:
 					   &s->dev_tracker);
 				ax25_dev_put(ax25_dev);
 			}
-			ax25_cb_del(s);
+			if (orphan)
+				ax25_destroy_socket(s);
+			else
+				ax25_cb_del(s);
 			release_sock(sk);
 			spin_lock_bh(&ax25_list_lock);
 			sock_put(sk);
