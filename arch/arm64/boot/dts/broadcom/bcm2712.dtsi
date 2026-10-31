@@ -588,8 +588,17 @@
 			reg = <0x10 0x00131000 0x00 0xc0>,
 			      <0xff 0xfffff000 0x00 0x1000>;
 			msi-controller;
-			msi-ranges = <&gicv2 GIC_SPI 247 IRQ_TYPE_EDGE_RISING 8>;
-			brcm,msi-offset = <8>;
+			/* In MIP output order, the SPIs are not contiguous */
+			msi-ranges = <&gicv2 GIC_SPI 196 IRQ_TYPE_EDGE_RISING 2>,
+				     <&gicv2 GIC_SPI 200 IRQ_TYPE_EDGE_RISING 2>,
+				     <&gicv2 GIC_SPI 206 IRQ_TYPE_EDGE_RISING 2>,
+				     <&gicv2 GIC_SPI 240 IRQ_TYPE_EDGE_RISING 1>,
+				     <&gicv2 GIC_SPI 246 IRQ_TYPE_EDGE_RISING 1>,
+				     <&gicv2 GIC_SPI 255 IRQ_TYPE_EDGE_RISING 8>,
+				     <&gicv2 GIC_SPI 275 IRQ_TYPE_EDGE_RISING 1>,
+				     <&gicv2 GIC_SPI 282 IRQ_TYPE_EDGE_RISING 1>,
+				     <&gicv2 GIC_SPI 263 IRQ_TYPE_EDGE_RISING 1>,
+				     <&gicv2 GIC_SPI 283 IRQ_TYPE_EDGE_RISING 1>;
 		};
 	};
 

@@ -26,12 +26,14 @@
 #define MIP_INT_STATUSL_VPU	0xa0
 #define MIP_INT_STATUSH_VPU	0xb0
 
+#define MIP_NUM_IRQS		64
+
 /**
  * struct mip_priv - MSI-X interrupt controller data
  * @lock:	Used to protect bitmap alloc/free
  * @base:	Base address of MMIO area
  * @msg_addr:	PCIe MSI-X address
- * @msi_base:	MSI base
+ * @parent_irqs:	GIC SPI numbers indexed by MIP message data
  * @num_msis:	Count of MSIs
  * @msi_offset:	MSI offset
  * @bitmap:	A bitmap for hwirqs
@@ -42,7 +44,7 @@ struct mip_priv {
 	spinlock_t		lock;
 	void __iomem		*base;
 	u64			msg_addr;
-	u32			msi_base;
+	u32			parent_irqs[MIP_NUM_IRQS];
 	u32			num_msis;
 	u32			msi_offset;
 	unsigned long		*bitmap;
@@ -71,15 +73,23 @@ static struct irq_chip mip_middle_irq_chip = {
 
 static int mip_alloc_hwirq(struct mip_priv *mip, unsigned int nr_irqs)
 {
+	unsigned long hwirq;
+
 	guard(spinlock)(&mip->lock);
-	return bitmap_find_free_region(mip->bitmap, mip->num_msis, ilog2(nr_irqs));
+	hwirq = bitmap_find_next_zero_area(mip->bitmap, MIP_NUM_IRQS, 0, nr_irqs,
+					   roundup_pow_of_two(nr_irqs) - 1);
+	if (hwirq >= MIP_NUM_IRQS)
+		return -ENOSPC;
+
+	bitmap_set(mip->bitmap, hwirq, nr_irqs);
+	return hwirq;
 }
 
 static void mip_free_hwirq(struct mip_priv *mip, unsigned int hwirq,
 			   unsigned int nr_irqs)
 {
 	guard(spinlock)(&mip->lock);
-	bitmap_release_region(mip->bitmap, hwirq, ilog2(nr_irqs));
+	bitmap_clear(mip->bitmap, hwirq, nr_irqs);
 }
 
 static int mip_middle_domain_alloc(struct irq_domain *domain, unsigned int virq,
@@ -87,7 +97,7 @@ static int mip_middle_domain_alloc(struct irq_domain *domain, unsigned int virq,
 {
 	struct mip_priv *mip = domain->host_data;
 	struct irq_fwspec fwspec = {0};
-	unsigned int hwirq, i;
+	unsigned int hwirq, i, allocated = 0;
 	struct irq_data *irqd;
 	int irq, ret;
 
@@ -95,21 +105,24 @@ static int mip_middle_domain_alloc(struct irq_domain *domain, unsigned int virq,
 	if (irq < 0)
 		return irq;
 
-	hwirq = irq + mip->msi_offset;
+	hwirq = irq;
 
 	fwspec.fwnode = domain->parent->fwnode;
 	fwspec.param_count = 3;
 	fwspec.param[0] = 0;
-	fwspec.param[1] = hwirq + mip->msi_base;
 	fwspec.param[2] = IRQ_TYPE_EDGE_RISING;
 
-	ret = irq_domain_alloc_irqs_parent(domain, virq, nr_irqs, &fwspec);
-	if (ret)
-		goto err_free_hwirq;
-
 	for (i = 0; i < nr_irqs; i++) {
+		fwspec.param[1] = mip->parent_irqs[hwirq + i];
+		ret = irq_domain_alloc_irqs_parent(domain, virq + i, 1, &fwspec);
+		if (ret)
+			goto err_free;
+		allocated++;
+
 		irqd = irq_domain_get_irq_data(domain->parent, virq + i);
-		irqd->chip->irq_set_type(irqd, IRQ_TYPE_EDGE_RISING);
+		ret = irqd->chip->irq_set_type(irqd, IRQ_TYPE_EDGE_RISING);
+		if (ret)
+			goto err_free;
 
 		ret = irq_domain_set_hwirq_and_chip(domain, virq + i, hwirq + i,
 						    &mip_middle_irq_chip, mip);
@@ -124,8 +137,8 @@ static int mip_middle_domain_alloc(struct irq_domain *domain, unsigned int virq,
 	return 0;
 
 err_free:
-	irq_domain_free_irqs_parent(domain, virq, nr_irqs);
-err_free_hwirq:
+	if (allocated)
+		irq_domain_free_irqs_parent(domain, virq, allocated);
 	mip_free_hwirq(mip, irq, nr_irqs);
 	return ret;
 }
@@ -143,7 +156,7 @@ static void mip_middle_domain_free(struct irq_domain *domain, unsigned int virq,
 	mip = irq_data_get_irq_chip_data(irqd);
 	hwirq = irqd_to_hwirq(irqd);
 	irq_domain_free_irqs_parent(domain, virq, nr_irqs);
-	mip_free_hwirq(mip, hwirq - mip->msi_offset, nr_irqs);
+	mip_free_hwirq(mip, hwirq, nr_irqs);
 }
 
 static const struct irq_domain_ops mip_middle_domain_ops = {
@@ -176,7 +189,7 @@ static int mip_init_domains(struct mip_priv *mip, struct device_node *np)
 		.fwnode		= of_fwnode_handle(np),
 		.ops		= &mip_middle_domain_ops,
 		.host_data	= mip,
-		.size		= mip->num_msis,
+		.size		= MIP_NUM_IRQS,
 		.parent		= mip->parent,
 		.dev		= mip->dev,
 	};
@@ -200,32 +213,59 @@ static int mip_init_domains(struct mip_priv *mip, struct device_node *np)
 static int mip_parse_dt(struct mip_priv *mip, struct device_node *np)
 {
 	struct of_phandle_args args;
+	struct irq_domain *parent;
+	u32 first, span, i, cells;
 	u64 size;
-	int ret;
+	int ret, count, range;
 
 	ret = of_property_read_u32(np, "brcm,msi-offset", &mip->msi_offset);
 	if (ret)
 		mip->msi_offset = 0;
-
-	ret = of_parse_phandle_with_args(np, "msi-ranges", "#interrupt-cells",
-					 0, &args);
-	if (ret)
-		return ret;
-
-	ret = of_property_read_u32_index(np, "msi-ranges", args.args_count + 1,
-					 &mip->num_msis);
-	if (ret)
-		goto err_put;
+	if (mip->msi_offset >= MIP_NUM_IRQS)
+		return -EINVAL;
 
 	ret = of_property_read_reg(np, 1, &mip->msg_addr, &size);
 	if (ret)
-		goto err_put;
+		return ret;
 
-	mip->msi_base = args.args[1];
+	/* <&gic type spi flags span> per range */
+	count = of_property_count_u32_elems(np, "msi-ranges");
+	if (count <= 0 || count % 5)
+		return -EINVAL;
+	if (count > 5 && mip->msi_offset)
+		return -EINVAL;
 
-	mip->parent = irq_find_host(args.np);
-	if (!mip->parent)
+	first = mip->msi_offset;
+	for (range = 0; range < count / 5; range++) {
+		ret = of_parse_phandle_with_fixed_args(np, "msi-ranges", 4,
+						       range, &args);
+		if (ret)
+			return ret;
+
+		ret = of_property_read_u32(args.np, "#interrupt-cells", &cells);
+		if (ret)
+			goto err_put;
 		ret = -EINVAL;
+		span = args.args[3];
+		if (cells != 3 || args.args[0] != 0 ||
+		    args.args[2] != IRQ_TYPE_EDGE_RISING ||
+		    !span || span > MIP_NUM_IRQS - first)
+			goto err_put;
+
+		parent = irq_find_host(args.np);
+		if (!parent || (mip->parent && parent != mip->parent))
+			goto err_put;
+		mip->parent = parent;
+
+		/* The legacy offset shifts the SPI as well as the message data */
+		for (i = 0; i < span; i++)
+			mip->parent_irqs[first + i] = args.args[1] +
+						    mip->msi_offset + i;
+		first += span;
+		of_node_put(args.np);
+	}
+	mip->num_msis = first - mip->msi_offset;
+	return 0;
 
 err_put:
 	of_node_put(args.np);
@@ -255,18 +295,20 @@ static int mip_msi_probe(struct platform_device *pdev, struct device_node *paren
 		goto err_priv;
 	}
 
-	mip->bitmap = bitmap_zalloc(mip->num_msis, GFP_KERNEL);
+	mip->bitmap = bitmap_alloc(MIP_NUM_IRQS, GFP_KERNEL);
 	if (!mip->bitmap) {
 		ret = -ENOMEM;
 		goto err_base;
 	}
+	bitmap_fill(mip->bitmap, MIP_NUM_IRQS);
+	bitmap_clear(mip->bitmap, mip->msi_offset, mip->num_msis);
 
 	ret = mip_init_domains(mip, node);
 	if (ret)
 		goto err_map;
 
-	dev_dbg(&pdev->dev, "MIP: MSI-X count: %u, base: %u, offset: %u, msg_addr: %llx\n",
-		mip->num_msis, mip->msi_base, mip->msi_offset, mip->msg_addr);
+	dev_dbg(&pdev->dev, "MIP: MSI-X count: %u, offset: %u, msg_addr: %llx\n",
+		mip->num_msis, mip->msi_offset, mip->msg_addr);
 
 	return 0;
 
