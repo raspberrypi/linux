@@ -589,6 +589,11 @@ static int ax_open_dev(struct net_device *dev)
 	if (ax->tty == NULL)
 		return -ENODEV;
 
+	/* ax_close() stopped the queue: restart it, or the interface
+	 * never transmits again after it is set down and up.
+	 */
+	netif_start_queue(dev);
+
 	return 0;
 }
 
