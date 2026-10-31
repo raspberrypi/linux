@@ -724,6 +724,33 @@ static int dwc2_uframe_schedule_split(struct dwc2_hsotg *hsotg,
 		}
 
 		/*
+		 * For full-speed isochronous OUT transfers the spec forbids
+		 * scheduling start-splits in H-microframe 7; ehci-hcd got
+		 * the same fix in commit 8c05dc598e5b ("USB: EHCI: No SSPLIT
+		 * allowed in uframe 7").
+		 * Starting in rel_uframe 0 does exactly that: the first
+		 * data-carrying start-split goes on the wire in uframe 7 of
+		 * the _previous_ frame, and (for transfers > 188 bytes) the
+		 * remaining start-splits land in the next frame, straddling
+		 * the frame boundary.  Some hub TTs (e.g. Terminus FE2.1)
+		 * silently discard such transactions: every packet completes
+		 * fine on the host side but nothing ever appears on the
+		 * downstream FS bus.  Start one uframe later instead, which
+		 * keeps all start-splits of a transaction inside one frame.
+		 */
+		if (qh->ep_type == USB_ENDPOINT_XFER_ISOC && !qh->ep_is_in &&
+		    rel_uframe == 0) {
+			dwc2_sch_dbg(hsotg,
+				     "QH=%p avoiding ISOC OUT ssplit in uframe 7\n",
+				     qh);
+			if (qh->schedule_low_speed)
+				dwc2_ls_pmap_unschedule(hsotg, qh);
+			ls_search_slice = (start_s_uframe + 1) *
+				DWC2_SLICES_PER_UFRAME;
+			continue;
+		}
+
+		/*
 		 * For ISOC in:
 		 * - start split            (frame -1)
 		 * - complete split w/ data (frame +1)
