@@ -256,6 +256,12 @@ static int sp_open_dev(struct net_device *dev)
 
 	if (sp->tty == NULL)
 		return -ENODEV;
+
+	/* sp_close() stopped the queue: restart it, or the interface
+	 * never transmits again after it is set down and up.
+	 */
+	netif_start_queue(dev);
+
 	return 0;
 }
 
