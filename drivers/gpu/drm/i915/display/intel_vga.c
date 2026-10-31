@@ -78,6 +78,7 @@ void intel_vga_disable(struct intel_display *display)
 
 void intel_vga_reset_io_mem(struct intel_display *display)
 {
+#if defined(CONFIG_VGA_CONSOLE)
 	struct pci_dev *pdev = to_pci_dev(display->drm->dev);
 
 	/*
@@ -93,6 +94,7 @@ void intel_vga_reset_io_mem(struct intel_display *display)
 	vga_get_uninterruptible(pdev, VGA_RSRC_LEGACY_IO);
 	outb(inb(VGA_MIS_R), VGA_MIS_W);
 	vga_put(pdev, VGA_RSRC_LEGACY_IO);
+#endif
 }
 
 int intel_vga_register(struct intel_display *display)
