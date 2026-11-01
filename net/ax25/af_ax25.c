@@ -1498,16 +1498,29 @@ static int ax25_accept(struct socket *sock, struct socket *newsock,
 		goto out;
 
 	newsk		 = skb->sk;
+
+	/*
+	 * ax25_kill_by_device() detaches a connection from a device going
+	 * down under the lock of its socket, clears its ax25_dev and drops
+	 * the device references if the socket has been grafted by then.
+	 * Graft the socket and take those references under the same lock,
+	 * and take none if the device has already gone: the connection is
+	 * closed then, and the socket is returned as such.
+	 */
+	lock_sock_nested(newsk, SINGLE_DEPTH_NESTING);
 	sock_graft(newsk, newsock);
+	ax25 = sk_to_ax25(newsk);
+	ax25_dev = ax25->ax25_dev;
+	if (ax25_dev) {
+		netdev_hold(ax25_dev->dev, &ax25->dev_tracker, GFP_ATOMIC);
+		ax25_dev_hold(ax25_dev);
+	}
+	release_sock(newsk);
 
 	/* Now attach up the new socket */
 	kfree_skb(skb);
 	sk_acceptq_removed(sk);
 	newsock->state = SS_CONNECTED;
-	ax25 = sk_to_ax25(newsk);
-	ax25_dev = ax25->ax25_dev;
-	netdev_hold(ax25_dev->dev, &ax25->dev_tracker, GFP_ATOMIC);
-	ax25_dev_hold(ax25_dev);
 
 out:
 	release_sock(sk);
