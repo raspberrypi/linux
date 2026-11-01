@@ -401,11 +401,12 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 			}
 		}
 
-		skb_set_owner_r(skb, make);
-		skb_queue_head(&sk->sk_receive_queue, skb);
-
-		make->sk_state = TCP_ESTABLISHED;
-
+		/*
+		 * Keep a place in the backlog, but put the skb on the
+		 * listener's queue only once the connection is set up
+		 * below: accept() takes it from there, and close() on the
+		 * new socket frees the connection.
+		 */
 		sk_acceptq_added(sk);
 		bh_unlock_sock(sk);
 	} else {
@@ -488,8 +489,25 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 		ax25_kick(ax25);
 
 	if (sk) {
-		if (!sock_flag(sk, SOCK_DEAD))
+		bh_lock_sock(sk);
+		skb_set_owner_r(skb, make);
+		if (sk->sk_state == TCP_LISTEN && !sock_flag(sk, SOCK_DEAD)) {
+			skb_queue_head(&sk->sk_receive_queue, skb);
 			sk->sk_data_ready(sk);
+		} else {
+			/*
+			 * The listener was closed meanwhile: leave the
+			 * connection to its heartbeat, as
+			 * ax25_destroy_socket() does with the connections
+			 * that were still waiting on its queue.
+			 */
+			sk_acceptq_removed(sk);
+			kfree_skb(skb);
+			sock_orphan(make);
+			make->sk_state = TCP_LISTEN;
+			ax25->state = AX25_STATE_0;
+		}
+		bh_unlock_sock(sk);
 		sock_put(sk);
 	} else {
 free:
