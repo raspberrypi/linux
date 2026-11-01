@@ -6368,6 +6368,10 @@ Params: cma-512                 CMA is 512MB
         nohdmi                  Disable both HDMI 0 & 1 outputs
         nohdmi0                 Disable HDMI 0 output
         nohdmi1                 Disable HDMI 1 output
+        hdmi0_edp               Configure HDMI 0 as an internal eDP panel
+                                (for CM4/CM5 laptops and handhelds)
+        hdmi1_edp               Configure HDMI 1 as an internal eDP panel
+                                (for CM4/CM5 laptops and handhelds)
 
 
 Name:   vc4-kms-v3d-pi5

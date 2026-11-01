@@ -567,6 +567,14 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 	if (ret)
 		return ret;
 
+	/* CM4/CM5 internal panels: allow overriding connector type to eDP */
+	if (of_property_read_bool(vc4_hdmi->pdev->dev.of_node, "raspberrypi,is-internal-panel")) {
+		connector->connector_type = DRM_MODE_CONNECTOR_eDP;
+		connector->connector_type_id = 1;
+		kfree(connector->name);
+		connector->name = kasprintf(GFP_KERNEL, "eDP-1");
+	}
+
 	drm_connector_helper_add(connector, &vc4_hdmi_connector_helper_funcs);
 
 	/*
