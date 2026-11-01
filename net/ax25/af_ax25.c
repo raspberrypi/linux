@@ -1302,6 +1302,15 @@ static int __must_check ax25_connect(struct socket *sock,
 		goto out_release;
 	}
 
+	/*
+	 * A connection that failed or ended through ax25_disconnect() left
+	 * the socket SOCK_DEAD and shut down for sending. The socket is still
+	 * its owner's: start afresh, or the state changes of the new attempt
+	 * would wake no one and every send() would fail with -EPIPE.
+	 */
+	sock_reset_flag(sk, SOCK_DEAD);
+	sk->sk_shutdown = 0;
+
 	sk->sk_state   = TCP_CLOSE;
 	sock->state = SS_UNCONNECTED;
 
