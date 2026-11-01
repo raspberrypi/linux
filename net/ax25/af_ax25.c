@@ -1803,25 +1803,36 @@ static int ax25_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 	if (msg->msg_name) {
 		ax25_digi digi;
 		ax25_address src;
-		const unsigned char *mac = skb_mac_header(skb);
+		const unsigned char *mac;
 		DECLARE_SOCKADDR(struct sockaddr_ax25 *, sax, msg->msg_name);
 
 		memset(sax, 0, sizeof(struct full_sockaddr_ax25));
-		ax25_addr_parse(mac + 1, skb->data - mac - 1, &src, NULL,
-				&digi, NULL, NULL);
 		sax->sax25_family = AF_AX25;
-		/* We set this correctly, even though we may not let the
-		   application know the digi calls further down (because it
-		   did NOT ask to know them).  This could get political... **/
-		sax->sax25_ndigis = digi.ndigi;
-		sax->sax25_call   = src;
 
-		if (sax->sax25_ndigis != 0) {
-			int ct;
-			struct full_sockaddr_ax25 *fsa = (struct full_sockaddr_ax25 *)sax;
+		/*
+		 * A frame put together from fragments by ax25_rx_fragment()
+		 * has no address header left, and no mac header: give no
+		 * address then. ax25_addr_parse() fills neither src nor digi
+		 * when it fails.
+		 */
+		mac = skb_mac_header_was_set(skb) ? skb_mac_header(skb) : NULL;
+		if (mac && ax25_addr_parse(mac + 1, skb->data - mac - 1, &src,
+					   NULL, &digi, NULL, NULL)) {
+			/*
+			 * We set this correctly, even though we may not let the
+			 * application know the digi calls further down (because
+			 * it did NOT ask to know them). This could get political...
+			 */
+			sax->sax25_ndigis = digi.ndigi;
+			sax->sax25_call   = src;
 
-			for (ct = 0; ct < digi.ndigi; ct++)
-				fsa->fsa_digipeater[ct] = digi.calls[ct];
+			if (sax->sax25_ndigis != 0) {
+				int ct;
+				struct full_sockaddr_ax25 *fsa = (struct full_sockaddr_ax25 *)sax;
+
+				for (ct = 0; ct < digi.ndigi; ct++)
+					fsa->fsa_digipeater[ct] = digi.calls[ct];
+			}
 		}
 		msg->msg_namelen = sizeof(struct full_sockaddr_ax25);
 	}
