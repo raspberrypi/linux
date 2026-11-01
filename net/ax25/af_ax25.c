@@ -1374,6 +1374,15 @@ static int __must_check ax25_connect(struct socket *sock,
 		goto out_release;
 	}
 
+	/*
+	 * The socket is on ax25_list with the destination of its previous
+	 * attempt, if any: forget it, or the lookup below finds the socket
+	 * itself when the same station is called again.
+	 */
+	spin_lock_bh(&ax25_list_lock);
+	ax25->dest_addr = null_ax25_address;
+	spin_unlock_bh(&ax25_list_lock);
+
 	if (sk->sk_type == SOCK_SEQPACKET &&
 	    (ax25t=ax25_find_cb(&ax25->source_addr, &fsa->fsa_ax25.sax25_call, digi,
 			 ax25->ax25_dev->dev))) {
