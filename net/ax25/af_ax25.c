@@ -1247,7 +1247,7 @@ static int __must_check ax25_connect(struct socket *sock,
 	struct sock *sk = sock->sk;
 	ax25_cb *ax25 = sk_to_ax25(sk), *ax25t;
 	struct full_sockaddr_ax25 *fsa = (struct full_sockaddr_ax25 *)uaddr;
-	ax25_digi *digi = NULL;
+	ax25_digi *digi = NULL, *old_digi;
 	int ct = 0, err = 0;
 
 	/*
@@ -1299,8 +1299,16 @@ static int __must_check ax25_connect(struct socket *sock,
 	sk->sk_state   = TCP_CLOSE;
 	sock->state = SS_UNCONNECTED;
 
-	kfree(ax25->digipeat);
+	/*
+	 * A bound socket is on ax25_list, where the receive path and
+	 * /proc/net/ax25 read its digipeater path under ax25_list_lock:
+	 * take the old path off under that lock before freeing it.
+	 */
+	spin_lock_bh(&ax25_list_lock);
+	old_digi = ax25->digipeat;
 	ax25->digipeat = NULL;
+	spin_unlock_bh(&ax25_list_lock);
+	kfree(old_digi);
 
 	/*
 	 *	Handle digi-peaters to be used.
@@ -1360,8 +1368,10 @@ static int __must_check ax25_connect(struct socket *sock,
 		goto out_release;
 	}
 
+	spin_lock_bh(&ax25_list_lock);
 	ax25->dest_addr = fsa->fsa_ax25.sax25_call;
 	ax25->digipeat  = digi;
+	spin_unlock_bh(&ax25_list_lock);
 
 	/* First the easy one */
 	if (sk->sk_type != SOCK_SEQPACKET) {
