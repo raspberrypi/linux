@@ -708,6 +708,12 @@ static int ax25_setsockopt(struct socket *sock, int level, int optname,
 
 	case AX25_EXTSEQ:
 		ax25->modulus = opt ? AX25_EMODULUS : AX25_MODULUS;
+		/*
+		 * A window set for modulo 128 may not fit modulo 8:
+		 * ax25_kick() would then find it full and send nothing.
+		 */
+		if (ax25->modulus == AX25_MODULUS && ax25->window > 7)
+			ax25->window = 7;
 		break;
 
 	case AX25_PIDINCL:
