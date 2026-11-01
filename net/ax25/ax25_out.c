@@ -137,7 +137,9 @@ EXPORT_SYMBOL(ax25_send_frame);
  */
 void ax25_output(ax25_cb *ax25, int paclen, struct sk_buff *skb)
 {
+	struct sk_buff_head frags;
 	struct sk_buff *skbn;
+	unsigned long flags;
 	unsigned char *p;
 	int frontlen, len, fragno, ka9qfrag, first = 1;
 
@@ -161,11 +163,20 @@ void ax25_output(ax25_cb *ax25, int paclen, struct sk_buff *skb)
 
 		frontlen = skb_headroom(skb);	/* Address space + CTRL */
 
+		/*
+		 * Build the fragments on a list of our own: a message that
+		 * cannot be fragmented whole is not sent at all, and its
+		 * fragments go on the write queue one after the other.
+		 */
+		__skb_queue_head_init(&frags);
+
 		while (skb->len > 0) {
 			spin_lock_bh(&ax25_frag_lock);
 			if ((skbn = alloc_skb(paclen + 2 + frontlen, GFP_ATOMIC)) == NULL) {
 				spin_unlock_bh(&ax25_frag_lock);
 				printk(KERN_CRIT "AX.25: ax25_output - out of memory\n");
+				__skb_queue_purge(&frags);
+				kfree_skb(skb);
 				return;
 			}
 
@@ -200,10 +211,14 @@ void ax25_output(ax25_cb *ax25, int paclen, struct sk_buff *skb)
 			}
 
 			skb_pull(skb, len);
-			skb_queue_tail(&ax25->write_queue, skbn); /* Throw it on the queue */
+			__skb_queue_tail(&frags, skbn);
 		}
 
 		kfree_skb(skb);
+
+		spin_lock_irqsave(&ax25->write_queue.lock, flags);
+		skb_queue_splice_tail_init(&frags, &ax25->write_queue);
+		spin_unlock_irqrestore(&ax25->write_queue.lock, flags);
 	} else {
 		skb_queue_tail(&ax25->write_queue, skb);	  /* Throw it on the queue */
 	}
