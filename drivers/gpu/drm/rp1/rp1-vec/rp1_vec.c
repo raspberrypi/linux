@@ -34,7 +34,6 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_encoder.h>
-#include <drm/drm_fb_helper.h>
 #include <drm/drm_fbdev_dma.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_gem.h>
