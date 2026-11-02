@@ -455,6 +455,7 @@ static int ov2311_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 }
 
 static int ov2311_set_fmt(struct v4l2_subdev *sd,
+			  const struct v4l2_subdev_client_info *ci,
 			  struct v4l2_subdev_state *sd_state,
 			  struct v4l2_subdev_format *fmt)
 {
@@ -605,6 +606,7 @@ __ov2311_get_pad_crop(struct ov2311 *ov2311, struct v4l2_subdev_state *sd_state,
 }
 
 static int ov2311_get_selection(struct v4l2_subdev *sd,
+				const struct v4l2_subdev_client_info *ci,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
