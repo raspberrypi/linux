@@ -1451,6 +1451,7 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 }
 
 static int imx477_set_pad_format(struct v4l2_subdev *sd,
+				 const struct v4l2_subdev_client_info *ci,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
@@ -1516,6 +1517,7 @@ __imx477_get_pad_crop(struct imx477 *imx477,
 }
 
 static int imx477_get_selection(struct v4l2_subdev *sd,
+				const struct v4l2_subdev_client_info *ci,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
