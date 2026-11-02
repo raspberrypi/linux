@@ -726,7 +726,7 @@ static void vc4_hvs_schedule_dlist_sweep(struct vc4_hvs *hvs,
 	spin_lock_irqsave(&hvs->mm_lock, flags);
 
 	if (!list_empty(&hvs->stale_dlist_entries))
-		queue_work(system_unbound_wq, &hvs->free_dlist_work);
+		queue_work(system_dfl_wq, &hvs->free_dlist_work);
 
 	if (list_empty(&hvs->stale_dlist_entries))
 		vc4_hvs_irq_clear_eof(hvs, channel);
