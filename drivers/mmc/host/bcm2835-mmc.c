@@ -1393,6 +1393,14 @@ untasklet:
 	return ret;
 }
 
+static struct dma_chan *bcm2835_mmc_request_chan(struct device *dev,
+						 const char *name)
+{
+	struct dma_chan *ch = dma_request_chan(dev, name);
+
+	return IS_ERR(ch) ? NULL : ch;
+}
+
 static int bcm2835_mmc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1423,13 +1431,13 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 #ifndef FORCE_PIO
 	if (node) {
-		host->dma_chan_rxtx = dma_request_slave_channel(dev, "rx-tx");
+		host->dma_chan_rxtx = bcm2835_mmc_request_chan(dev, "rx-tx");
 		if (!host->dma_chan_rxtx)
 			host->dma_chan_rxtx =
-				dma_request_slave_channel(dev, "tx");
+				bcm2835_mmc_request_chan(dev, "tx");
 		if (!host->dma_chan_rxtx)
 			host->dma_chan_rxtx =
-				dma_request_slave_channel(dev, "rx");
+				bcm2835_mmc_request_chan(dev, "rx");
 	} else {
 		dma_cap_mask_t mask;
 
