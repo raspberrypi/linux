@@ -114,6 +114,15 @@ struct bcm2712_iommu {
 	spinlock_t hw_lock;
 	size_t bigpage_size;
 	size_t superpage_size;
+	/*
+	 * Translated window in IOMMU input address space is
+	 * [aperture_base, aperture_base + aperture_size); addresses below it
+	 * bypass translation. DMA addresses are dma_iova_offset above that.
+	 */
+	u64 aperture_base;
+	u64 aperture_size;
+	u64 dma_iova_offset;
+	bool bypass_4m;
 };
 
 struct bcm2712_iommu_domain {
@@ -123,6 +132,8 @@ struct bcm2712_iommu_domain {
 	};
 	struct bcm2712_iommu *mmu;
 	void *default_page;
+	const struct pt_iommu_ops *pt_ops;
+	struct pt_iommu_ops offset_pt_ops;
 };
 
 static inline void bcm2712_iommu_writel(struct bcm2712_iommu *mmu,
@@ -155,6 +166,8 @@ static void bcm2712_iommu_init(struct bcm2712_iommu *mmu)
 		pa_width < 6 || !(u & MMMU_DEBUG_INFO_BYPASS));
 
 	dma_set_mask_and_coherent(mmu->dev, DMA_BIT_MASK(pa_width + 30u));
+
+	mmu->bypass_4m = u & MMMU_DEBUG_INFO_BYPASS_4M;
 
 	bigpage_width = FIELD_GET(MMMU_DEBUG_INFO_BIGPAGE_WIDTH_MASK, u);
 	if (bigpage_width)
@@ -210,6 +223,12 @@ static int bcm2712_iommu_clear_and_enable(struct bcm2712_iommu *mmu)
 }
 
 
+/* DMA address of the start of the translated window, i.e. page table VA 0 */
+static u64 bcm2712_iommu_va_base(struct bcm2712_iommu *mmu)
+{
+	return mmu->aperture_base + mmu->dma_iova_offset;
+}
+
 static int bcm2712_iommu_attach_dev(struct iommu_domain *domain,
 				    struct device *dev,
 				    struct iommu_domain *old)
@@ -231,7 +250,8 @@ static int bcm2712_iommu_attach_dev(struct iommu_domain *domain,
 		/* Configure translation aperture */
 		bcm2712_iommu_writel(mmu, MMMU_ADDR_CAP_OFFSET,
 				     MMMU_ADDR_CAP_ENABLE |
-					     (domain->geometry.aperture_end >>
+					     ((mmu->aperture_base +
+					       mmu->aperture_size - 1) >>
 					      ADDR_CAP_SHIFT));
 
 		/*
@@ -245,11 +265,22 @@ static int bcm2712_iommu_attach_dev(struct iommu_domain *domain,
 		 */
 		pt_iommu_bcm2712_hw_info(&mydomain->pt, &info);
 		bcm2712_iommu_writel(mmu, MMMU_PT_PA_BASE_OFFSET,
-				     info.pt_base >> IOMMU_PAGE_SHIFT);
+				     (info.pt_base >> IOMMU_PAGE_SHIFT) -
+				     (mmu->aperture_base >> 32));
 
-		/* Disable bypass window */
+		/*
+		 * Pass through addresses below the aperture, for masters
+		 * sharing this IOMMU whose drivers are not IOMMU-aware.
+		 */
 		bcm2712_iommu_writel(mmu, MMMU_BYPASS_START_OFFSET, 0);
-		bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET, 0);
+		if (mmu->aperture_base)
+			bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET,
+					     MMMU_BYPASS_END_ENABLE |
+					     (mmu->aperture_base >>
+					      (mmu->bypass_4m ? ilog2(SZ_4M) :
+								ADDR_CAP_SHIFT)));
+		else
+			bcm2712_iommu_writel(mmu, MMMU_BYPASS_END_OFFSET, 0);
 
 		/*
 		 * A default (error) page is used to catch illegal reads/writes.
@@ -281,8 +312,9 @@ static int bcm2712_iommu_shootdown_range(struct bcm2712_iommu *mmu,
 					 unsigned long iova, size_t size)
 	__must_hold(&mmu->hw_lock)
 {
-	unsigned long start_pfn = iova >> IOMMU_PAGE_SHIFT;
-	unsigned long end_pfn = (iova + size - 1) >> IOMMU_PAGE_SHIFT;
+	u64 addr = mmu->aperture_base + iova;
+	unsigned long start_pfn = addr >> IOMMU_PAGE_SHIFT;
+	unsigned long end_pfn = (addr + size - 1) >> IOMMU_PAGE_SHIFT;
 	unsigned long pfn;
 	u32 val;
 	int ret;
@@ -342,7 +374,10 @@ static void bcm2712_iommu_sync(struct iommu_domain *domain,
 static int bcm2712_iommu_sync_map(struct iommu_domain *domain,
 				  unsigned long iova, size_t size)
 {
-	return bcm2712_iommu_sync_range(domain, iova, size);
+	struct bcm2712_iommu *mmu = to_bcm2712_domain(domain)->mmu;
+
+	return bcm2712_iommu_sync_range(domain,
+					iova - bcm2712_iommu_va_base(mmu), size);
 }
 
 static void bcm2712_iommu_sync_all(struct iommu_domain *domain)
@@ -350,8 +385,54 @@ static void bcm2712_iommu_sync_all(struct iommu_domain *domain)
 	size_t aperture_size = domain->geometry.aperture_end -
 			       domain->geometry.aperture_start + 1;
 
-	bcm2712_iommu_sync_range(domain, domain->geometry.aperture_start,
-				 aperture_size);
+	bcm2712_iommu_sync_range(domain, 0, aperture_size);
+}
+
+/*
+ * The page table covers VAs from 0, but the domain aperture starts at
+ * bcm2712_iommu_va_base(), so rebase IOVAs on the way in. The IOTLB gather
+ * is therefore filled with page table VAs.
+ */
+static struct bcm2712_iommu_domain *
+to_bcm2712_domain_pt(struct pt_iommu *iommu_table)
+{
+	return container_of(iommu_table, struct bcm2712_iommu_domain, pt.iommu);
+}
+
+static int bcm2712_iommu_map_range(struct pt_iommu *iommu_table,
+				   dma_addr_t iova, phys_addr_t paddr,
+				   dma_addr_t len, unsigned int prot,
+				   gfp_t gfp, size_t *mapped)
+{
+	struct bcm2712_iommu_domain *mydomain = to_bcm2712_domain_pt(iommu_table);
+
+	return mydomain->pt_ops->map_range(iommu_table,
+					   iova - bcm2712_iommu_va_base(mydomain->mmu),
+					   paddr, len, prot, gfp, mapped);
+}
+
+static size_t bcm2712_iommu_unmap_range(struct pt_iommu *iommu_table,
+					dma_addr_t iova, dma_addr_t len,
+					struct iommu_iotlb_gather *iotlb_gather)
+{
+	struct bcm2712_iommu_domain *mydomain = to_bcm2712_domain_pt(iommu_table);
+
+	return mydomain->pt_ops->unmap_range(iommu_table,
+					     iova - bcm2712_iommu_va_base(mydomain->mmu),
+					     len, iotlb_gather);
+}
+
+static phys_addr_t bcm2712_iommu_iova_to_phys(struct iommu_domain *domain,
+					      dma_addr_t iova)
+{
+	struct bcm2712_iommu *mmu = to_bcm2712_domain(domain)->mmu;
+
+	if (iova < domain->geometry.aperture_start ||
+	    iova > domain->geometry.aperture_end)
+		return 0;
+
+	return pt_iommu_bcm2712_iova_to_phys(domain,
+					     iova - bcm2712_iommu_va_base(mmu));
 }
 
 static void bcm2712_iommu_domain_free(struct iommu_domain *domain)
@@ -373,7 +454,7 @@ static void bcm2712_iommu_domain_free(struct iommu_domain *domain)
 }
 
 static const struct iommu_domain_ops bcm2712_paging_domain_ops = {
-	IOMMU_PT_DOMAIN_OPS(bcm2712),
+	.iova_to_phys	 = bcm2712_iommu_iova_to_phys,
 	.attach_dev	 = bcm2712_iommu_attach_dev,
 	.iotlb_sync      = bcm2712_iommu_sync,
 	.iotlb_sync_map  = bcm2712_iommu_sync_map,
@@ -412,6 +493,16 @@ static struct iommu_domain *bcm2712_iommu_domain_alloc(struct device *dev)
 	ret = pt_iommu_bcm2712_init(&domain->pt, &cfg, GFP_KERNEL);
 	if (ret)
 		goto err;
+
+	domain->base.geometry.aperture_start = bcm2712_iommu_va_base(mmu);
+	domain->base.geometry.aperture_end = bcm2712_iommu_va_base(mmu) +
+					     mmu->aperture_size - 1;
+
+	domain->pt_ops = domain->pt.iommu.ops;
+	domain->offset_pt_ops = *domain->pt_ops;
+	domain->offset_pt_ops.map_range = bcm2712_iommu_map_range;
+	domain->offset_pt_ops.unmap_range = bcm2712_iommu_unmap_range;
+	domain->pt.iommu.ops = &domain->offset_pt_ops;
 
 	/* Set up a default (error) page used to catch illegal reads/writes */
 	domain->default_page = iommu_alloc_pages_sz(GFP_KERNEL, PAGE_SIZE);
@@ -517,6 +608,31 @@ static int bcm2712_iommu_probe(struct platform_device *pdev)
 	ret = bcm2712_iommu_init_cache(mmu, pdev);
 	if (ret)
 		return ret;
+
+	/*
+	 * The aperture base may be any multiple of 4GB; when it is zero,
+	 * pass-through is disabled. Its size may be any multiple of 256MB up
+	 * to 4GB.
+	 *
+	 * When the IOMMU is downstream of a PCIe RC and serves some of the
+	 * masters on the far side (others using pass-through), the
+	 * "dma-ranges" offset for those masters is lost; "dma-iova-offset"
+	 * restores it by being added to all DMA addresses.
+	 */
+	mmu->aperture_size = SZ_4G;
+	of_property_read_u64(dev->of_node, "aperture-base", &mmu->aperture_base);
+	mmu->aperture_base &= ~(SZ_4G - 1);
+	if (!of_property_read_u64(dev->of_node, "aperture-size",
+				  &mmu->aperture_size))
+		mmu->aperture_size = clamp_t(u64, mmu->aperture_size & ~(SZ_256M - 1),
+					     SZ_256M, SZ_4G);
+	of_property_read_u64(dev->of_node, "dma-iova-offset",
+			     &mmu->dma_iova_offset);
+	if (mmu->aperture_base || mmu->dma_iova_offset)
+		dev_info(dev, "IOVA aperture %#llx..%#llx including DMA offset %#llx\n",
+			 bcm2712_iommu_va_base(mmu),
+			 bcm2712_iommu_va_base(mmu) + mmu->aperture_size - 1,
+			 mmu->dma_iova_offset);
 
 	platform_set_drvdata(pdev, mmu);
 	bcm2712_iommu_init(mmu);
