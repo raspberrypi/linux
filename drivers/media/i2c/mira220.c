@@ -1352,6 +1352,7 @@ static void mira220_update_pad_format(struct mira220 *mira220,
 }
 
 static int mira220_set_pad_format(struct v4l2_subdev *sd,
+				  const struct v4l2_subdev_client_info *ci,
 				  struct v4l2_subdev_state *state,
 				  struct v4l2_subdev_format *fmt)
 {
@@ -1471,7 +1472,7 @@ static int mira220_init_state(struct v4l2_subdev *sd,
 		},
 	};
 
-	mira220_set_pad_format(sd, state, &fmt);
+	mira220_set_pad_format(sd, NULL, state, &fmt);
 
 	return 0;
 }
@@ -1529,6 +1530,7 @@ static int mira220_set_framefmt(struct mira220 *mira220,
 
 
 static int mira220_get_selection(struct v4l2_subdev *sd,
+				 const struct v4l2_subdev_client_info *ci,
 				 struct v4l2_subdev_state *state,
 				 struct v4l2_subdev_selection *sel)
 {
