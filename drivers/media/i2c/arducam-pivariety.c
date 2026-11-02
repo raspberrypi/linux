@@ -640,6 +640,7 @@ static int update_controls(struct pivariety *pivariety)
 }
 
 static int pivariety_set_fmt(struct v4l2_subdev *sd,
+			     const struct v4l2_subdev_client_info *ci,
 			     struct v4l2_subdev_state *sd_state,
 			     struct v4l2_subdev_format *format)
 {
@@ -783,6 +784,7 @@ __pivariety_get_pad_crop(struct pivariety *pivariety,
 }
 
 static int pivariety_get_selection(struct v4l2_subdev *sd,
+				   const struct v4l2_subdev_client_info *ci,
 				   struct v4l2_subdev_state *sd_state,
 				   struct v4l2_subdev_selection *sel)
 {
