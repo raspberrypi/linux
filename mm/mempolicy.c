@@ -2165,7 +2165,19 @@ static unsigned int interleave_nodes(struct mempolicy *policy)
 	return nid;
 }
 
-static unsigned int read_once_policy_nodemask(struct mempolicy *pol, nodemask_t *mask);
+static unsigned int read_once_policy_nodemask(struct mempolicy *pol,
+					      nodemask_t *mask)
+{
+	/*
+	 * barrier stabilizes the nodemask locally so that it can be iterated
+	 * over safely without concern for changes. Allocators validate node
+	 * selection does not violate mems_allowed, so this is safe.
+	 */
+	barrier();
+	memcpy(mask, &pol->nodes, sizeof(nodemask_t));
+	barrier();
+	return nodes_weight(*mask);
+}
 
 static unsigned int random_nodes(struct mempolicy *policy)
 {
