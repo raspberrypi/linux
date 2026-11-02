@@ -324,6 +324,9 @@ static void rpi_register_rtc_driver(struct device *dev)
 	if (!of_machine_is_compatible("brcm,bcm2712"))
 		return;
 
+	if (of_property_read_bool(dev->of_node, "raspberrypi,disable-rtc"))
+		return;
+
 	pdev = platform_device_register_data(dev, "raspberrypi-rtc",
 					     -1, NULL, 0);
 
