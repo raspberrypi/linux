@@ -820,7 +820,9 @@ static int bcm2835_smi_dma_setup(struct bcm2835_smi_instance *inst)
 {
 	int i, rv = 0;
 
-	inst->dma_chan = dma_request_slave_channel(inst->dev, "rx-tx");
+	inst->dma_chan = dma_request_chan(inst->dev, "rx-tx");
+	if (IS_ERR(inst->dma_chan))
+		return PTR_ERR(inst->dma_chan);
 
 	inst->dma_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	inst->dma_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
