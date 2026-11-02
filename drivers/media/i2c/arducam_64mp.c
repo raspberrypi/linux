@@ -1902,6 +1902,7 @@ static void arducam_64mp_set_framing_limits(struct arducam_64mp *arducam_64mp)
 }
 
 static int arducam_64mp_set_pad_format(struct v4l2_subdev *sd,
+				       const struct v4l2_subdev_client_info *ci,
 				       struct v4l2_subdev_state *sd_state,
 				       struct v4l2_subdev_format *fmt)
 {
@@ -1967,6 +1968,7 @@ __arducam_64mp_get_pad_crop(struct arducam_64mp *arducam_64mp,
 }
 
 static int arducam_64mp_get_selection(struct v4l2_subdev *sd,
+				      const struct v4l2_subdev_client_info *ci,
 				      struct v4l2_subdev_state *sd_state,
 				      struct v4l2_subdev_selection *sel)
 {
