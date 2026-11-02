@@ -276,7 +276,8 @@
 		/* IOMMU2 for PISP-BE, HEVC; and (unused) H264 accelerators */
 		compatible = "brcm,bcm2712-iommu";
 		reg = <0x10 0x5100  0x0 0x80>;
-		cache = <&iommuc>;
+		brcm,iommu-cache = <&iommuc>;
+		aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
 		aperture-size = <0x1 0x00000000>; // Increase IOVA aperture size to 4GBytes
 		#iommu-cells = <0>;
 	};
@@ -285,7 +286,8 @@
 		/* IOMMU4 for HVS, MPL/TXP; and (unused) Unicam, PISP-FE, MiniBVN */
 		compatible = "brcm,bcm2712-iommu";
 		reg = <0x10 0x5200  0x0 0x80>;
-		cache = <&iommuc>;
+		brcm,iommu-cache = <&iommuc>;
+		aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
 		#iommu-cells = <0>;
 		#interconnect-cells = <0>;
 	};
@@ -294,7 +296,8 @@
 		/* IOMMU5 for PCIe2 (RP1); and (unused) BSTM */
 		compatible = "brcm,bcm2712-iommu";
 		reg = <0x10 0x5280  0x0 0x80>;
-		cache = <&iommuc>;
+		brcm,iommu-cache = <&iommuc>;
+		aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
 		#iommu-cells = <0>;
 		dma-iova-offset = <0x10 0x00000000>; // HACK for RP1 masters over PCIe
 	};
