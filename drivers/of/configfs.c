@@ -172,7 +172,7 @@ out_err:
 
 CONFIGFS_BIN_ATTR(cfs_overlay_item_, dtbo, NULL, SZ_1M);
 
-static struct configfs_bin_attribute *cfs_overlay_bin_attrs[] = {
+static const struct configfs_bin_attribute *const cfs_overlay_bin_attrs[] = {
 	&cfs_overlay_item_attr_dtbo,
 	NULL,
 };
