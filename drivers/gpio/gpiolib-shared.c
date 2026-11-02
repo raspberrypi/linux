@@ -147,6 +147,13 @@ static bool gpio_shared_of_node_ignore(struct device_node *node)
 		return true;
 
 	/*
+	 * Properties of /aliases are paths to other nodes, even where an
+	 * alias is named "gpio" or "foo-gpios".
+	 */
+	if (node == of_aliases)
+		return true;
+
+	/*
 	 * GPIO hogs have a "gpios" property which is not a phandle and can't
 	 * possibly refer to a shared GPIO.
 	 */
