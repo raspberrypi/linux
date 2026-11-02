@@ -202,6 +202,66 @@ static void rpi_rtc_set_charge_voltage(struct device *dev)
 			 rtc->bbat_vchg_millivolts);
 }
 
+static ssize_t rpi_rtc_print_uint_reg(struct device *dev, char *buf, u32 reg)
+{
+	struct rpi_rtc_data *rtc = dev_get_drvdata(dev->parent);
+	struct rpi_rtc_reg data = {
+		.reg = cpu_to_le32(reg)
+	};
+	int err;
+
+	err = rpi_firmware_property(rtc->fw, RPI_FIRMWARE_GET_RTC_REG,
+				    &data, sizeof(data));
+	if (err < 0)
+		return err;
+
+	return sysfs_emit(buf, "%u\n", le32_to_cpu(data.val));
+}
+
+static ssize_t charging_voltage_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	return rpi_rtc_print_uint_reg(dev, buf, RTC_BBAT_CHG_VOLTS);
+}
+static DEVICE_ATTR_RO(charging_voltage);
+
+static ssize_t charging_voltage_min_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	return rpi_rtc_print_uint_reg(dev, buf, RTC_BBAT_CHG_VOLTS_MIN);
+}
+static DEVICE_ATTR_RO(charging_voltage_min);
+
+static ssize_t charging_voltage_max_show(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	return rpi_rtc_print_uint_reg(dev, buf, RTC_BBAT_CHG_VOLTS_MAX);
+}
+static DEVICE_ATTR_RO(charging_voltage_max);
+
+static ssize_t battery_voltage_show(struct device *dev,
+				    struct device_attribute *attr,
+				    char *buf)
+{
+	return rpi_rtc_print_uint_reg(dev, buf, RTC_BBAT_VOLTS);
+}
+static DEVICE_ATTR_RO(battery_voltage);
+
+static struct attribute *rpi_rtc_attrs[] = {
+	&dev_attr_charging_voltage.attr,
+	&dev_attr_charging_voltage_min.attr,
+	&dev_attr_charging_voltage_max.attr,
+	&dev_attr_battery_voltage.attr,
+	NULL
+};
+
+static const struct attribute_group rpi_rtc_sysfs_files = {
+	.attrs = rpi_rtc_attrs,
+};
+
 static int rpi_rtc_probe(struct platform_device *pdev)
 {
 	struct rpi_rtc_data *rtc;
@@ -247,11 +307,18 @@ static int rpi_rtc_probe(struct platform_device *pdev)
 	 * The firmware driver registers us as a platform device at runtime.
 	 */
 	rtc->bbat_vchg_millivolts = 0;
-	of_property_read_u32(dev->parent->of_node, "trickle-voltage-millivolt",
-			     &rtc->bbat_vchg_millivolts);
+	if (of_property_read_u32(dev->parent->of_node, "trickle-voltage-millivolt",
+				 &rtc->bbat_vchg_millivolts) &&
+	    !of_property_read_u32(dev->parent->of_node, "trickle-charge-microvolt",
+				  &rtc->bbat_vchg_millivolts))
+		rtc->bbat_vchg_millivolts /= 1000U;
 
 	rpi_rtc_set_limits(dev);
 	rpi_rtc_set_charge_voltage(dev);
+
+	ret = rtc_add_group(rtc->rtc, &rpi_rtc_sysfs_files);
+	if (ret)
+		return ret;
 
 	return devm_rtc_register_device(rtc->rtc);
 }
