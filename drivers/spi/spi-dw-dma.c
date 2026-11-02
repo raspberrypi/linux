@@ -325,7 +325,8 @@ static inline bool dw_spi_dma_tx_busy(struct dw_spi *dws)
 		(DW_SPI_SR_BUSY | DW_SPI_SR_TF_EMPT)) != DW_SPI_SR_TF_EMPT;
 }
 
-static int dw_spi_dma_wait_tx_done(struct dw_spi *dws, u32 speed_hz)
+static int dw_spi_dma_wait_tx_done(struct dw_spi *dws, u32 speed_hz,
+				   bool tx_only)
 {
 	int retry = DW_SPI_WAIT_RETRIES;
 	struct spi_delay delay;
@@ -352,10 +353,19 @@ static int dw_spi_dma_wait_tx_done(struct dw_spi *dws, u32 speed_hz)
 		return -EIO;
 	}
 
-	if (!xfer->rx_buf) {
-		delay.value = dws->n_bytes * BITS_PER_BYTE;
+	if (tx_only) {
+		ns = DIV_ROUND_UP(NSEC_PER_SEC, speed_hz) * dws->n_bytes *
+		     BITS_PER_BYTE;
+		if (ns <= NSEC_PER_USEC) {
+			delay.unit = SPI_DELAY_UNIT_NSECS;
+			delay.value = ns;
+		} else {
+			delay.unit = SPI_DELAY_UNIT_USECS;
+			delay.value = clamp_val(DIV_ROUND_UP(ns, NSEC_PER_USEC),
+						0, USHRT_MAX);
+		}
 		while (dw_readl(dws, DW_SPI_SR) & DW_SPI_SR_BUSY)
-			spi_delay_exec(&delay, xfer);
+			spi_delay_exec(&delay, NULL);
 	}
 
 	return 0;
@@ -722,7 +732,8 @@ static int dw_spi_dma_transfer(struct dw_spi *dws, struct spi_transfer *xfer)
 		return ret;
 
 	if (dws->ctlr->cur_msg->status == -EINPROGRESS) {
-		ret = dw_spi_dma_wait_tx_done(dws, xfer->effective_speed_hz);
+		ret = dw_spi_dma_wait_tx_done(dws, xfer->effective_speed_hz,
+					      !xfer->rx_buf);
 		if (ret)
 			return ret;
 	}
@@ -885,7 +896,7 @@ static int dw_spi_enh_mem_dma_transfer(struct spi_mem *mem, const struct spi_mem
 
 		ret = dw_spi_dma_wait(dws, dws->tx_len, dws->current_freq);
 		if (!ret)
-			ret = dw_spi_dma_wait_tx_done(dws, dws->current_freq);
+			ret = dw_spi_dma_wait_tx_done(dws, dws->current_freq, true);
 	} else {
 		ret = dw_spi_dma_submit_rx(dws, sgt.sgl, sgt.nents);
 		if (ret)
