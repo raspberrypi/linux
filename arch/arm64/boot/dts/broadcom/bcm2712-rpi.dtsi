@@ -39,12 +39,6 @@
 		firmware = <&firmware>;
 	};
 
-	rpi_rtc: rpi_rtc {
-		compatible = "raspberrypi,rpi-rtc";
-		firmware = <&firmware>;
-		trickle-charge-microvolt = <0>;
-	};
-
 	nvmem {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -239,8 +233,8 @@ watchdog: &pm {};
 		pwr_led_activelow = <&led_pwr>, "gpios:8";
 		pwr_led_trigger = <&led_pwr>, "linux,default-trigger";
 		random = <&random>, "status";
-		rtc = <&rpi_rtc>, "status";
-		rtc_bbat_vchg = <&rpi_rtc>, "trickle-charge-microvolt:0";
+		rtc = <&firmware>, "raspberrypi,disable-rtc!";
+		rtc_bbat_vchg = <&firmware>, "trickle-charge-microvolt:0";
 		spi = <&spi0>, "status";
 		strict_gpiod = <&chosen>, "bootargs=pinctrl_rp1.persist_gpio_outputs=n";
 		suspend = <&pwr_key>, "linux,code:0=205";
