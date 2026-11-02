@@ -877,7 +877,7 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 
 	if (chan->chip->dw->hdata->restrict_axi_burst_len &&
 	    chan->config.src_maxburst > chan->chip->dw->hdata->axi_rw_burst_len[chan->id])
-		dev_warn_ratelimited(chan2dev(chan),
+		dev_warn_ratelimited(vchan_chan_dev(&chan->vc),
 				     "%s: requested source burst length %u exceeds supported burst length %u - data may be lost\n",
 				     axi_chan_name(chan), chan->config.src_maxburst,
 				     chan->chip->dw->hdata->axi_rw_burst_len[chan->id]);
