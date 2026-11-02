@@ -443,17 +443,10 @@ void do_secure_storage_access(struct pt_regs *regs)
 		folio = phys_to_folio(addr);
 		if (unlikely(!folio_try_get(folio)))
 			return;
-		rc = uv_convert_from_secure(folio_to_phys(folio));
-		if (!rc)
-			clear_bit(PG_arch_1, &folio->flags.f);
+		rc = arch_make_folio_accessible(folio);
 		folio_put(folio);
-		/*
-		 * There are some valid fixup types for kernel
-		 * accesses to donated secure memory. zeropad is one
-		 * of them.
-		 */
 		if (rc)
-			return handle_fault_error_nolock(regs, 0);
+			BUG();
 	} else {
 		if (faulthandler_disabled())
 			return handle_fault_error_nolock(regs, 0);

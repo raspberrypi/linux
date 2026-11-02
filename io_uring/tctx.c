@@ -35,6 +35,7 @@ static struct io_wq *io_init_wq_offload(struct io_ring_ctx *ctx,
 
 	data.hash = hash;
 	data.task = task;
+	data.put_work = io_wq_put_work;
 	data.free_work = io_wq_free_work;
 	data.do_work = io_wq_submit_work;
 

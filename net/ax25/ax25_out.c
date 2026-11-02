@@ -32,36 +32,36 @@ static DEFINE_SPINLOCK(ax25_frag_lock);
 ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, const ax25_address *src, ax25_address *dest, ax25_digi *digi, struct net_device *dev)
 {
 	ax25_dev *ax25_dev;
-	ax25_cb *ax25;
+	ax25_cb *ax25, *existing;
+
+	/*
+	 * The connection made or used here holds no reference on the
+	 * ax25_dev. ax25_kill_by_device() clears device_up, waits for the RCU
+	 * readers and only then detaches the connections of the device: stay
+	 * under the RCU read lock until the frame is queued, and do not start
+	 * anything on a device that is going down.
+	 */
+	rcu_read_lock();
+	ax25_dev = ax25_dev_ax25dev(dev);
+	if (!ax25_dev || !READ_ONCE(ax25_dev->device_up)) {
+		rcu_read_unlock();
+		return NULL;
+	}
 
 	/*
 	 * Take the default packet length for the device if zero is
 	 * specified.
 	 */
-	if (paclen == 0) {
-		rcu_read_lock();
-		ax25_dev = ax25_dev_ax25dev(dev);
-		if (!ax25_dev) {
-			rcu_read_unlock();
-			return NULL;
-		}
+	if (paclen == 0)
 		paclen = ax25_dev->values[AX25_VALUES_PACLEN];
-		rcu_read_unlock();
-	}
 
 	/*
 	 * Look for an existing connection.
 	 */
 	if ((ax25 = ax25_find_cb(src, dest, digi, dev)) != NULL) {
 		ax25_output(ax25, paclen, skb);
-		return ax25;		/* It already existed */
-	}
-
-	rcu_read_lock();
-	ax25_dev = ax25_dev_ax25dev(dev);
-	if (!ax25_dev) {
 		rcu_read_unlock();
-		return NULL;
+		return ax25;		/* It already existed */
 	}
 
 	if ((ax25 = ax25_create_cb()) == NULL) {
@@ -69,7 +69,6 @@ ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, const ax25_address *sr
 		return NULL;
 	}
 	ax25_fillin_cb(ax25, ax25_dev);
-	rcu_read_unlock();
 
 	ax25->source_addr = *src;
 	ax25->dest_addr   = *dest;
@@ -78,11 +77,25 @@ ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, const ax25_address *sr
 		ax25->digipeat = kmemdup(digi, sizeof(*digi), GFP_ATOMIC);
 		if (ax25->digipeat == NULL) {
 			ax25_cb_put(ax25);
+			rcu_read_unlock();
 			return NULL;
 		}
 	}
 
-	switch (ax25->ax25_dev->values[AX25_VALUES_PROTOCOL]) {
+	/*
+	 * Another sender may have created the connection since the lookup
+	 * above: the list is searched again and the new control block added
+	 * under one lock. If we lost, use the other one.
+	 */
+	existing = ax25_cb_add_unique(ax25);
+	if (existing) {
+		ax25_cb_put(ax25);
+		ax25_output(existing, paclen, skb);
+		rcu_read_unlock();
+		return existing;
+	}
+
+	switch (ax25_dev->values[AX25_VALUES_PROTOCOL]) {
 	case AX25_PROTO_STD_SIMPLEX:
 	case AX25_PROTO_STD_DUPLEX:
 		ax25_std_establish_data_link(ax25);
@@ -104,13 +117,12 @@ ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, const ax25_address *sr
 	 */
 	ax25_cb_hold(ax25);
 
-	ax25_cb_add(ax25);
-
 	ax25->state = AX25_STATE_1;
 
 	ax25_start_heartbeat(ax25);
 
 	ax25_output(ax25, paclen, skb);
+	rcu_read_unlock();
 
 	return ax25;			/* We had to create it */
 }
@@ -218,6 +230,11 @@ void ax25_output(ax25_cb *ax25, int paclen, struct sk_buff *skb)
  *  This procedure is passed a buffer descriptor for an iframe. It builds
  *  the rest of the control part of the frame and then writes it out.
  */
+/*
+ *	Number an I frame and queue it for the device. Called by ax25_kick()
+ *	with ax25->lock held: the frame is sent by ax25_run_xmit_queue() once
+ *	the lock is dropped.
+ */
 static void ax25_send_iframe(ax25_cb *ax25, struct sk_buff *skb, int poll_bit)
 {
 	unsigned char *frame;
@@ -245,7 +262,34 @@ static void ax25_send_iframe(ax25_cb *ax25, struct sk_buff *skb, int poll_bit)
 
 	ax25_start_idletimer(ax25);
 
-	ax25_transmit_buffer(ax25, skb, AX25_COMMAND);
+	skb_queue_tail(&ax25->xmit_queue, skb);
+}
+
+/*
+ *	Hand the frames numbered by ax25_kick() to the device, in order. Only
+ *	one context does it at a time, so that frames queued by two senders
+ *	cannot overtake each other; the one already running picks up whatever
+ *	the others have queued. The lock is not held while transmitting.
+ */
+static void ax25_run_xmit_queue(ax25_cb *ax25)
+{
+	struct sk_buff *skb;
+
+	spin_lock_bh(&ax25->lock);
+	if (ax25->xmit_running) {
+		spin_unlock_bh(&ax25->lock);
+		return;
+	}
+	ax25->xmit_running = 1;
+
+	while ((skb = skb_dequeue(&ax25->xmit_queue)) != NULL) {
+		spin_unlock_bh(&ax25->lock);
+		ax25_transmit_buffer(ax25, skb, AX25_COMMAND);
+		spin_lock_bh(&ax25->lock);
+	}
+
+	ax25->xmit_running = 0;
+	spin_unlock_bh(&ax25->lock);
 }
 
 void ax25_kick(ax25_cb *ax25)
@@ -260,14 +304,25 @@ void ax25_kick(ax25_cb *ax25)
 	if (ax25->condition & AX25_COND_PEER_RX_BUSY)
 		return;
 
+	/*
+	 * ax25_kick() is called from process context by the senders and
+	 * from softirq context by the receive path and the timers, possibly
+	 * for several ROSE or NET/ROM circuits sharing this connection. Two
+	 * of them running here at the same time would read the same V(S) and
+	 * send two different frames under the same N(S); the peer keeps one
+	 * and the other is never sent again. Take the frames off the write
+	 * queue and number them under the lock.
+	 */
+	spin_lock_bh(&ax25->lock);
+
 	if (skb_peek(&ax25->write_queue) == NULL)
-		return;
+		goto out;
 
 	start = (skb_peek(&ax25->ack_queue) == NULL) ? ax25->va : ax25->vs;
 	end   = (ax25->va + ax25->window) % ax25->modulus;
 
 	if (start == end)
-		return;
+		goto out;
 
 	/*
 	 * Transmit data until either we're out of data to send or
@@ -281,12 +336,21 @@ void ax25_kick(ax25_cb *ax25)
 	 */
 	skb  = skb_dequeue(&ax25->write_queue);
 	if (!skb)
-		return;
+		goto out;
 
 	ax25->vs = start;
 
 	do {
-		if ((skbn = skb_clone(skb, GFP_ATOMIC)) == NULL) {
+		/*
+		 * Send a private copy, not a clone. The frame stays on the
+		 * ack queue and is sent again after a REJ or a T1 timeout,
+		 * while the previous copy may still be waiting in the device
+		 * queue. A clone shares its data with the original: building
+		 * the frame again would rewrite the control field, and so
+		 * the N(R), of the copy already queued.
+		 */
+		skbn = skb_copy(skb, GFP_ATOMIC);
+		if (!skbn) {
 			skb_queue_head(&ax25->write_queue, skb);
 			break;
 		}
@@ -331,6 +395,11 @@ void ax25_kick(ax25_cb *ax25)
 		ax25_calculate_t1(ax25);
 		ax25_start_t1timer(ax25);
 	}
+
+out:
+	spin_unlock_bh(&ax25->lock);
+
+	ax25_run_xmit_queue(ax25);
 }
 
 void ax25_transmit_buffer(ax25_cb *ax25, struct sk_buff *skb, int type)

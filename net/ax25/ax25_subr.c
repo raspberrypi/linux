@@ -34,6 +34,7 @@ void ax25_clear_queues(ax25_cb *ax25)
 {
 	skb_queue_purge(&ax25->write_queue);
 	skb_queue_purge(&ax25->ack_queue);
+	skb_queue_purge(&ax25->xmit_queue);
 	skb_queue_purge(&ax25->reseq_queue);
 	skb_queue_purge(&ax25->frag_queue);
 }
@@ -45,31 +46,51 @@ void ax25_clear_queues(ax25_cb *ax25)
  */
 void ax25_frames_acked(ax25_cb *ax25, unsigned short nr)
 {
+	struct sk_buff_head acked;
 	struct sk_buff *skb;
 
+	__skb_queue_head_init(&acked);
+
 	/*
-	 * Remove all the ack-ed frames from the ack queue.
+	 * Remove all the ack-ed frames from the ack queue. ax25_kick() may be
+	 * filling it from another CPU: move V(A) and the queue together, and
+	 * free the frames once the lock is dropped.
 	 */
-	if (ax25->va != nr) {
-		while (skb_peek(&ax25->ack_queue) != NULL && ax25->va != nr) {
-			skb = skb_dequeue(&ax25->ack_queue);
-			kfree_skb(skb);
-			ax25->va = (ax25->va + 1) % ax25->modulus;
-		}
+	spin_lock_bh(&ax25->lock);
+	/*
+	 * ax25_clear_queues() purges the ack queue without ax25->lock: test
+	 * what skb_dequeue() returns, not what skb_peek() saw before it.
+	 */
+	while (ax25->va != nr && (skb = skb_dequeue(&ax25->ack_queue)) != NULL) {
+		__skb_queue_tail(&acked, skb);
+		ax25->va = (ax25->va + 1) % ax25->modulus;
 	}
+	spin_unlock_bh(&ax25->lock);
+
+	__skb_queue_purge(&acked);
 }
 
 void ax25_requeue_frames(ax25_cb *ax25)
 {
+	struct sk_buff_head stale;
 	struct sk_buff *skb;
+
+	__skb_queue_head_init(&stale);
 
 	/*
 	 * Requeue all the un-ack-ed frames on the output queue to be picked
 	 * up by ax25_kick called from the timer. This arrangement handles the
-	 * possibility of an empty output queue.
+	 * possibility of an empty output queue. Copies that ax25_kick() has
+	 * numbered but not sent yet are stale: they will be sent again.
 	 */
+	spin_lock_bh(&ax25->lock);
+	while ((skb = skb_dequeue(&ax25->xmit_queue)) != NULL)
+		__skb_queue_tail(&stale, skb);
 	while ((skb = skb_dequeue_tail(&ax25->ack_queue)) != NULL)
 		skb_queue_head(&ax25->write_queue, skb);
+	spin_unlock_bh(&ax25->lock);
+
+	__skb_queue_purge(&stale);
 }
 
 /*
@@ -102,6 +123,9 @@ int ax25_decode(ax25_cb *ax25, struct sk_buff *skb, int *ns, int *nr, int *pf)
 	frame = skb->data;
 	*ns = *nr = *pf = 0;
 
+	if (skb->len < 1)
+		return frametype;
+
 	if (ax25->modulus == AX25_MODULUS) {
 		if ((frame[0] & AX25_S) == 0) {
 			frametype = AX25_I;			/* I frame - carries NR/NS/PF */
@@ -118,6 +142,10 @@ int ax25_decode(ax25_cb *ax25, struct sk_buff *skb, int *ns, int *nr, int *pf)
 		}
 		skb_pull(skb, 1);
 	} else {
+		/* I and S frames carry a two-byte control field here */
+		if ((frame[0] & AX25_U) != 3 && skb->len < 2)
+			return frametype;
+
 		if ((frame[0] & AX25_S) == 0) {
 			frametype = AX25_I;			/* I frame - carries NR/NS/PF */
 			*ns = (frame[0] >> 1) & 0x7F;

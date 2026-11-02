@@ -80,7 +80,12 @@ struct ieee802154_local {
 	spinlock_t rx_lock;
 
 	/* Association */
-	struct ieee802154_pan_device *assoc_dev;
+	/* assoc_lock protects assoc_dev_extended_addr, assoc_addr,
+	 * assoc_status, the assoc_done reinit/complete pairing and the
+	 * IEEE802154_IS_ASSOCIATING bit in @ongoing.
+	 */
+	spinlock_t assoc_lock;
+	__le64 assoc_dev_extended_addr;
 	struct completion assoc_done;
 	__le16 assoc_addr;
 	u8 assoc_status;

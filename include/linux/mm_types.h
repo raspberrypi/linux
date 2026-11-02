@@ -945,6 +945,9 @@ struct mm_struct {
 		 */
 		seqcount_t mm_lock_seq;
 #endif
+#ifdef CONFIG_FUTEX
+		atomic64_t futex_unique_id;
+#endif
 
 
 		unsigned long hiwater_rss; /* High-watermark of RSS usage */

@@ -161,17 +161,37 @@ static inline void rose_neigh_put(struct rose_neigh *rose_neigh)
 {
 	if (refcount_dec_and_test(&rose_neigh->use)) {
 		/* We are dropping the last reference, so we are about to free the
-		 * neighbour.  Its timers may still be armed -- t0timer in particular
-		 * re-arms itself in rose_t0timer_expiry().  rose_remove_neigh()
-		 * cancels them before its own put, but callers that drop the final
-		 * reference without first calling rose_remove_neigh() (the socket
-		 * heartbeat reaping path) would otherwise kfree() a neighbour with a
-		 * live timer -> use-after-free.  timer_delete_sync() (not the async
-		 * variant) is required: it waits out a concurrently running handler
-		 * and loops until the self-rearming timer stays stopped.
+		 * neighbour.  t0timer is self-rearming: rose_t0timer_expiry() calls
+		 * rose_start_t0timer() at its own tail, so a plain timer_delete_sync()
+		 * is not enough here.  It only guarantees that the callback is not
+		 * running *at the moment it returns* -- it does nothing to stop the
+		 * very invocation we just waited out from re-arming the timer on its
+		 * way out, which races the kfree() below (syzbot: use-after-free read
+		 * in ax25_find_cb(), reached via rose_t0timer_expiry() ->
+		 * rose_transmit_restart_request() -> rose_send_frame() ->
+		 * ax25_send_frame(), dereferencing the freed neigh->digipeat).
+		 * timer_shutdown_sync() closes that hole: once it returns, any
+		 * further add_timer()/mod_timer() on this timer is silently ignored,
+		 * so a self-rearm racing the free can no longer bring the timer back
+		 * to life on freed memory.  ftimer's handler is a no-op and never
+		 * re-arms, but it is shut down the same way here for consistency --
+		 * this is final teardown, neither timer has any business firing
+		 * again.
 		 */
-		timer_delete_sync(&rose_neigh->ftimer);
-		timer_delete_sync(&rose_neigh->t0timer);
+		timer_shutdown_sync(&rose_neigh->ftimer);
+		timer_shutdown_sync(&rose_neigh->t0timer);
+		/* rose_transmit_link() queues a frame here instead of sending
+		 * it immediately whenever the neighbour isn't "restarted" yet
+		 * (link not up) -- e.g. the CLEAR_REQUEST built by
+		 * rose_write_internal() when a socket is released while its
+		 * underlying AX.25 link is still coming up. If this neighbour
+		 * is freed before that link ever comes up, nothing else ever
+		 * empties this queue: kfree() below only frees the
+		 * rose_neigh struct itself (including the three next/prev/len
+		 * words of the sk_buff_head), not the skbs it points to,
+		 * leaking every frame still queued here.
+		 */
+		skb_queue_purge(&rose_neigh->queue);
 		if (rose_neigh->ax25)
 			ax25_cb_put(rose_neigh->ax25);
 		kfree(rose_neigh->digipeat);
@@ -207,6 +227,8 @@ void rose_setup(struct net_device *);
 
 /* rose_in.c */
 int rose_process_rx_frame(struct sock *, struct sk_buff *);
+int rose_rcv_frame(struct sock *sk, struct sk_buff *skb);
+int rose_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 /* rose_link.c */
 void rose_start_ftimer(struct rose_neigh *);
@@ -217,6 +239,8 @@ void rose_link_rx_restart(struct sk_buff *, struct rose_neigh *,
 			  unsigned short);
 void rose_transmit_clear_request(struct rose_neigh *, unsigned int,
 				 unsigned char, unsigned char);
+void rose_link_restart(struct rose_neigh *neigh);
+void rose_link_bring_up(struct rose_neigh *neigh);
 void rose_transmit_link(struct sk_buff *, struct rose_neigh *);
 
 /* rose_loopback.c */
@@ -246,6 +270,7 @@ struct rose_neigh *rose_get_neigh(rose_address *, unsigned char *,
 				  unsigned char *, int);
 int rose_rt_ioctl(unsigned int, void __user *);
 void rose_link_failed(ax25_cb *, int);
+void rose_link_restarted(struct rose_neigh *);
 int rose_route_frame(struct sk_buff *, ax25_cb *);
 void rose_rt_free(void);
 

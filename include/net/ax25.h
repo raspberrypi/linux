@@ -252,6 +252,11 @@ typedef struct ax25_cb {
 	struct sk_buff_head	reseq_queue;
 	struct sk_buff_head	ack_queue;
 	struct sk_buff_head	frag_queue;
+	/* I frames numbered by ax25_kick(), waiting to go to the device */
+	struct sk_buff_head	xmit_queue;
+	/* serialises V(S)/V(A) and the write, ack and xmit queues */
+	spinlock_t		lock;
+	unsigned char		xmit_running;
 	unsigned char		window;
 	struct timer_list	timer, dtimer;
 	struct sock		*sk;		/* Backlink to socket */
@@ -306,6 +311,7 @@ static inline __be16 ax25_type_trans(struct sk_buff *skb, struct net_device *dev
 extern struct hlist_head ax25_list;
 extern spinlock_t ax25_list_lock;
 void ax25_cb_add(ax25_cb *);
+ax25_cb *ax25_cb_add_unique(ax25_cb *ax25);
 struct sock *ax25_find_listener(ax25_address *, int, struct net_device *, int);
 struct sock *ax25_get_socket(ax25_address *, ax25_address *, int);
 ax25_cb *ax25_find_cb(const ax25_address *, ax25_address *, ax25_digi *,

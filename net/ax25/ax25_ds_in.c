@@ -58,6 +58,8 @@ static int ax25_ds_state1_machine(ax25_cb *ax25, struct sk_buff *skb, int framet
 		ax25->vr      = 0;
 		ax25->state   = AX25_STATE_3;
 		ax25->n2count = 0;
+		/* I frames left unacknowledged by a link reset: send them again */
+		ax25_requeue_frames(ax25);
 		if (ax25->sk != NULL) {
 			bh_lock_sock(ax25->sk);
 			ax25->sk->sk_state = TCP_ESTABLISHED;

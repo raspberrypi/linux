@@ -211,8 +211,21 @@ start:
 		spin_lock_bh(&rose_list_lock);
 		if (rose->device == dev) {
 			rose_disconnect(sk, ENETUNREACH, ROSE_OUT_OF_ORDER, 0);
-			if (rose->neighbour)
+			/* Mark for destruction so rose_heartbeat_expiry()
+			 * cleans up the socket at its next tick rather than
+			 * looping forever in ROSE_STATE_0 with no owner.
+			 */
+			sock_set_flag(sk, SOCK_DESTROY);
+			if (rose->neighbour) {
 				rose_neigh_put(rose->neighbour);
+				/* Clear the pointer after dropping the reference, as
+				 * every other rose_neigh_put() site does.  Otherwise
+				 * rose_heartbeat_expiry() (STATE_0 reaping) sees a stale
+				 * rose->neighbour and puts it a second time -> rose_neigh
+				 * refcount underflow / use-after-free.
+				 */
+				rose->neighbour = NULL;
+			}
 			netdev_put(rose->device, &rose->dev_tracker);
 			rose->device = NULL;
 		}
@@ -358,6 +371,7 @@ static void rose_destroy_timer(struct timer_list *t)
  */
 void rose_destroy_socket(struct sock *sk)
 {
+	struct rose_sock *rose = rose_sk(sk);
 	struct sk_buff *skb;
 
 	rose_remove_socket(sk);
@@ -365,14 +379,36 @@ void rose_destroy_socket(struct sock *sk)
 	rose_stop_idletimer(sk);
 	rose_stop_timer(sk);
 
+	/* Drop any device reference not already released by rose_kill_by_device()
+	 * or rose_release() -- e.g. incoming sockets that were never accepted.
+	 */
+	if (rose->device) {
+		netdev_put(rose->device, &rose->dev_tracker);
+		rose->device = NULL;
+	}
+
 	rose_clear_queues(sk);		/* Flush the queues */
 
 	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
-		if (skb->sk != sk) {	/* A pending connection */
-			/* Queue the unaccepted socket for death */
-			sock_set_flag(skb->sk, SOCK_DEAD);
-			rose_start_heartbeat(skb->sk);
-			rose_sk(skb->sk)->state = ROSE_STATE_0;
+		struct sock *child = skb->sk;
+
+		if (child != sk) {	/* A pending connection */
+			/* Queue the unaccepted socket for death, unless
+			 * rose_heartbeat_expiry() has already reaped it or is
+			 * about to (SOCK_DESTROY).
+			 */
+			local_bh_disable();
+			bh_lock_sock_nested(child);
+			if (!sock_flag(child, SOCK_DESTROY)) {
+				sock_set_flag(child, SOCK_DEAD);
+				rose_start_heartbeat(child);
+				rose_sk(child)->state = ROSE_STATE_0;
+			}
+			bh_unlock_sock(child);
+			local_bh_enable();
+
+			skb->sk = NULL;
+			sock_put(child);	/* the queue's reference */
 		}
 
 		kfree_skb(skb);
@@ -562,6 +598,7 @@ static int rose_create(struct net *net, struct socket *sock, int protocol,
 	rose = rose_sk(sk);
 
 	sock_init_data(sock, sk);
+	sk->sk_backlog_rcv = rose_backlog_rcv;
 
 	skb_queue_head_init(&rose->ack_queue);
 #ifdef M_BIT
@@ -601,6 +638,7 @@ static struct sock *rose_make_new(struct sock *osk)
 	rose = rose_sk(sk);
 
 	sock_init_data(NULL, sk);
+	sk->sk_backlog_rcv = rose_backlog_rcv;
 
 	skb_queue_head_init(&rose->ack_queue);
 #ifdef M_BIT
@@ -958,6 +996,7 @@ static int rose_accept(struct socket *sock, struct socket *newsock,
 	 *	The write queue this time is holding sockets ready to use
 	 *	hooked into the SABM we saved
 	 */
+again:
 	for (;;) {
 		prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
 
@@ -983,12 +1022,27 @@ static int rose_accept(struct socket *sock, struct socket *newsock,
 		goto out_release;
 
 	newsk = skb->sk;
+	lock_sock_nested(newsk, SINGLE_DEPTH_NESTING);
+	if (sock_flag(newsk, SOCK_DESTROY)) {
+		/* The call went away and rose_heartbeat_expiry() reaped (or
+		 * is about to reap) the socket before it was accepted: drop
+		 * it and wait for the next one.
+		 */
+		release_sock(newsk);
+		skb->sk = NULL;
+		kfree_skb(skb);
+		sk_acceptq_removed(sk);
+		sock_put(newsk);	/* the queue's reference */
+		goto again;
+	}
 	sock_graft(newsk, newsock);
+	release_sock(newsk);
 
 	/* Now attach up the new socket */
 	skb->sk = NULL;
 	kfree_skb(skb);
 	sk_acceptq_removed(sk);
+	sock_put(newsk);		/* the queue's reference */
 
 out_release:
 	release_sock(sk);
@@ -1102,6 +1156,10 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 
 	rose_insert_socket(make);
 
+	/* The listener's queue holds a reference on the pending socket
+	 * until rose_accept() or rose_destroy_socket() takes it off.
+	 */
+	sock_hold(make);
 	skb_queue_head(&sk->sk_receive_queue, skb);
 
 	rose_start_heartbeat(make);
@@ -1270,7 +1328,10 @@ static int rose_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	skb_queue_tail(&sk->sk_write_queue, skb);	/* Shove it onto the queue */
 #endif
 
+	/* The receive path and the timers run rose_kick() too */
+	lock_sock(sk);
 	rose_kick(sk);
+	release_sock(sk);
 
 	return len;
 }
