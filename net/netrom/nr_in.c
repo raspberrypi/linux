@@ -26,6 +26,9 @@
 #include <linux/interrupt.h>
 #include <net/netrom.h>
 
+/* nr_sendmsg() never sends more than this in one message */
+#define NR_MAX_REASM_LEN	65536
+
 static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
 {
 	struct sk_buff *skbo, *skbn = skb;
@@ -34,6 +37,29 @@ static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
 	skb_pull(skb, NR_NETWORK_LEN + NR_TRANSPORT_LEN);
 
 	nr_start_idletimer(sk);
+
+	/* Rest of a message already found to be too long: drop it */
+	if (nr->condition & NR_COND_FRAG_DISCARD) {
+		if (!more)
+			nr->condition &= ~NR_COND_FRAG_DISCARD;
+		kfree_skb(skb);
+		return 0;
+	}
+
+	/*
+	 * Give up on a message that would grow beyond what a peer may
+	 * send. The frame is consumed rather than handed back to the
+	 * caller, which would queue it again after skb_pull().
+	 */
+	if ((more || nr->fraglen > 0) &&
+	    nr->fraglen + skb->len > NR_MAX_REASM_LEN) {
+		skb_queue_purge(&nr->frag_queue);
+		nr->fraglen = 0;
+		if (more)
+			nr->condition |= NR_COND_FRAG_DISCARD;
+		kfree_skb(skb);
+		return 0;
+	}
 
 	if (more) {
 		nr->fraglen += skb->len;

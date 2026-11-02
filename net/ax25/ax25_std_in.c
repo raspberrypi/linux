@@ -66,6 +66,14 @@ static int ax25_std_state1_machine(ax25_cb *ax25, struct sk_buff *skb, int frame
 			ax25->vr      = 0;
 			ax25->state   = AX25_STATE_3;
 			ax25->n2count = 0;
+			/*
+			 * The link may have been re-established from state
+			 * 3 or 4 with I frames still waiting for their
+			 * acknowledgment. V(S) and V(A) start again from
+			 * zero: send those frames again, as is done when
+			 * the peer resets the link with a SABM.
+			 */
+			ax25_requeue_frames(ax25);
 			if (ax25->sk != NULL) {
 				bh_lock_sock(ax25->sk);
 				ax25->sk->sk_state = TCP_ESTABLISHED;

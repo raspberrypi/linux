@@ -36,46 +36,58 @@
 
 static unsigned int nr_neigh_no = 1;
 
+/*
+ * nr_route_lock protects both lists and the routing data hanging off them:
+ * which, count and routes[] of every node. It is taken with bottom halves
+ * disabled, is never nested with itself, and may be held while calling into
+ * AX.25 (nr_route_frame() -> ax25_send_frame()), so it must never be taken
+ * with an AX.25 list lock held.
+ */
+static DEFINE_SPINLOCK(nr_route_lock);
 static HLIST_HEAD(nr_node_list);
-static DEFINE_SPINLOCK(nr_node_list_lock);
 static HLIST_HEAD(nr_neigh_list);
-static DEFINE_SPINLOCK(nr_neigh_list_lock);
 
-static struct nr_node *nr_node_get(ax25_address *callsign)
+static struct nr_node *__nr_node_get(ax25_address *callsign)
 {
-	struct nr_node *found = NULL;
 	struct nr_node *nr_node;
 
-	spin_lock_bh(&nr_node_list_lock);
+	lockdep_assert_held(&nr_route_lock);
+
 	nr_node_for_each(nr_node, &nr_node_list)
 		if (ax25cmp(callsign, &nr_node->callsign) == 0) {
 			nr_node_hold(nr_node);
-			found = nr_node;
-			break;
+			return nr_node;
 		}
-	spin_unlock_bh(&nr_node_list_lock);
+	return NULL;
+}
+
+static struct nr_node *nr_node_get(ax25_address *callsign)
+{
+	struct nr_node *found;
+
+	spin_lock_bh(&nr_route_lock);
+	found = __nr_node_get(callsign);
+	spin_unlock_bh(&nr_route_lock);
 	return found;
 }
 
-static struct nr_neigh *nr_neigh_get_dev(ax25_address *callsign,
-					 struct net_device *dev)
+static struct nr_neigh *__nr_neigh_get_dev(ax25_address *callsign,
+					   struct net_device *dev)
 {
-	struct nr_neigh *found = NULL;
 	struct nr_neigh *nr_neigh;
 
-	spin_lock_bh(&nr_neigh_list_lock);
+	lockdep_assert_held(&nr_route_lock);
+
 	nr_neigh_for_each(nr_neigh, &nr_neigh_list)
 		if (ax25cmp(callsign, &nr_neigh->callsign) == 0 &&
 		    nr_neigh->dev == dev) {
 			nr_neigh_hold(nr_neigh);
-			found = nr_neigh;
-			break;
+			return nr_neigh;
 		}
-	spin_unlock_bh(&nr_neigh_list_lock);
-	return found;
+	return NULL;
 }
 
-static void nr_remove_neigh(struct nr_neigh *);
+static void nr_remove_neigh_locked(struct nr_neigh *nr_neigh);
 
 /*      re-sort the routes in quality order.    */
 static void re_sort_routes(struct nr_node *nr_node, int x, int y)
@@ -91,6 +103,66 @@ static void re_sort_routes(struct nr_node *nr_node, int x, int y)
 }
 
 /*
+ * Allocate a neighbour and link it into nr_neigh_list. The list holds one
+ * reference and the caller gets another one. Called with nr_route_lock held.
+ */
+static struct nr_neigh *nr_neigh_create_locked(ax25_address *callsign,
+					       ax25_digi *ax25_digi,
+					       struct net_device *dev,
+					       unsigned int quality,
+					       unsigned char locked)
+{
+	struct nr_neigh *nr_neigh;
+
+	lockdep_assert_held(&nr_route_lock);
+
+	nr_neigh = kmalloc(sizeof(*nr_neigh), GFP_ATOMIC);
+	if (!nr_neigh)
+		return NULL;
+
+	nr_neigh->callsign = *callsign;
+	nr_neigh->digipeat = NULL;
+	nr_neigh->ax25     = NULL;
+	nr_neigh->dev      = dev;
+	nr_neigh->quality  = quality;
+	nr_neigh->locked   = locked;
+	nr_neigh->count    = 0;
+	nr_neigh->number   = nr_neigh_no++;
+	nr_neigh->failed   = 0;
+	refcount_set(&nr_neigh->refcount, 1);
+
+	if (ax25_digi && ax25_digi->ndigi > 0) {
+		nr_neigh->digipeat = kmemdup(ax25_digi, sizeof(*ax25_digi),
+					     GFP_ATOMIC);
+		if (!nr_neigh->digipeat) {
+			kfree(nr_neigh);
+			return NULL;
+		}
+	}
+
+	hlist_add_head(&nr_neigh->neigh_node, &nr_neigh_list);
+	nr_neigh_hold(nr_neigh);
+
+	return nr_neigh;
+}
+
+/*
+ * Drop one route's use of a neighbour. The neighbour is unlinked when no
+ * route uses it any more and it was not added explicitly; count and locked
+ * are read before the route's reference is dropped, since that reference
+ * may be the last one. Called with nr_route_lock held.
+ */
+static void nr_neigh_route_put_locked(struct nr_neigh *nr_neigh)
+{
+	lockdep_assert_held(&nr_route_lock);
+
+	nr_neigh->count--;
+	if (nr_neigh->count == 0 && !nr_neigh->locked)
+		nr_remove_neigh_locked(nr_neigh);
+	nr_neigh_put(nr_neigh);
+}
+
+/*
  *	Add a new route to a node, and in the process add the node and the
  *	neighbour if it is new.
  */
@@ -100,7 +172,7 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 {
 	struct nr_node  *nr_node;
 	struct nr_neigh *nr_neigh;
-	int i, found;
+	int i, found, ret = 0;
 	struct net_device *odev;
 
 	if ((odev=nr_dev_get(nr)) != NULL) {	/* Can't add routes to ourself */
@@ -108,9 +180,15 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 		return -EINVAL;
 	}
 
-	nr_node = nr_node_get(nr);
+	/*
+	 * Look up and update under one critical section, so that a node or
+	 * neighbour found here cannot be unlinked before it is used.
+	 */
+	spin_lock_bh(&nr_route_lock);
 
-	nr_neigh = nr_neigh_get_dev(ax25, dev);
+	nr_node = __nr_node_get(nr);
+
+	nr_neigh = __nr_neigh_get_dev(ax25, dev);
 
 	/*
 	 * The L2 link to a neighbour has failed in the past
@@ -121,16 +199,12 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 	if (nr_neigh != NULL && nr_neigh->failed != 0 && quality == 0) {
 		struct nr_node *nr_nodet;
 
-		spin_lock_bh(&nr_node_list_lock);
 		nr_node_for_each(nr_nodet, &nr_node_list) {
-			nr_node_lock(nr_nodet);
 			for (i = 0; i < nr_nodet->count; i++)
 				if (nr_nodet->routes[i].neighbour == nr_neigh)
 					if (i < nr_nodet->which)
 						nr_nodet->which = i;
-			nr_node_unlock(nr_nodet);
 		}
-		spin_unlock_bh(&nr_node_list_lock);
 	}
 
 	if (nr_neigh != NULL)
@@ -139,43 +213,19 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 	if (quality == 0 && nr_neigh != NULL && nr_node != NULL) {
 		nr_neigh_put(nr_neigh);
 		nr_node_put(nr_node);
-		return 0;
+		goto out;
 	}
 
 	if (nr_neigh == NULL) {
-		if ((nr_neigh = kmalloc(sizeof(*nr_neigh), GFP_ATOMIC)) == NULL) {
+		unsigned int q = READ_ONCE(sysctl_netrom_default_path_quality);
+
+		nr_neigh = nr_neigh_create_locked(ax25, ax25_digi, dev, q, 0);
+		if (!nr_neigh) {
 			if (nr_node)
 				nr_node_put(nr_node);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto out;
 		}
-
-		nr_neigh->callsign = *ax25;
-		nr_neigh->digipeat = NULL;
-		nr_neigh->ax25     = NULL;
-		nr_neigh->dev      = dev;
-		nr_neigh->quality  = READ_ONCE(sysctl_netrom_default_path_quality);
-		nr_neigh->locked   = 0;
-		nr_neigh->count    = 0;
-		nr_neigh->number   = nr_neigh_no++;
-		nr_neigh->failed   = 0;
-		refcount_set(&nr_neigh->refcount, 1);
-
-		if (ax25_digi != NULL && ax25_digi->ndigi > 0) {
-			nr_neigh->digipeat = kmemdup(ax25_digi,
-						     sizeof(*ax25_digi),
-						     GFP_KERNEL);
-			if (nr_neigh->digipeat == NULL) {
-				kfree(nr_neigh);
-				if (nr_node)
-					nr_node_put(nr_node);
-				return -ENOMEM;
-			}
-		}
-
-		spin_lock_bh(&nr_neigh_list_lock);
-		hlist_add_head(&nr_neigh->neigh_node, &nr_neigh_list);
-		nr_neigh_hold(nr_neigh);
-		spin_unlock_bh(&nr_neigh_list_lock);
 	}
 
 	if (quality != 0 && ax25cmp(nr, ax25) == 0 && !nr_neigh->locked)
@@ -183,9 +233,9 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 
 	if (nr_node == NULL) {
 		if ((nr_node = kmalloc(sizeof(*nr_node), GFP_ATOMIC)) == NULL) {
-			if (nr_neigh)
-				nr_neigh_put(nr_neigh);
-			return -ENOMEM;
+			nr_neigh_put(nr_neigh);
+			ret = -ENOMEM;
+			goto out;
 		}
 
 		nr_node->callsign = *nr;
@@ -194,7 +244,6 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 		nr_node->which = 0;
 		nr_node->count = 1;
 		refcount_set(&nr_node->refcount, 1);
-		spin_lock_init(&nr_node->node_lock);
 
 		nr_node->routes[0].quality   = quality;
 		nr_node->routes[0].obs_count = obs_count;
@@ -203,15 +252,12 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 		nr_neigh_hold(nr_neigh);
 		nr_neigh->count++;
 
-		spin_lock_bh(&nr_node_list_lock);
 		hlist_add_head(&nr_node->node_node, &nr_node_list);
 		/* refcount initialized at 1 */
-		spin_unlock_bh(&nr_node_list_lock);
 
 		nr_neigh_put(nr_neigh);
-		return 0;
+		goto out;
 	}
-	nr_node_lock(nr_node);
 
 	if (quality != 0)
 		strscpy(nr_node->mnemonic, mnemonic);
@@ -242,11 +288,7 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 		} else {
 			/* It must be better than the worst */
 			if (quality > nr_node->routes[2].quality) {
-				nr_node->routes[2].neighbour->count--;
-				nr_neigh_put(nr_node->routes[2].neighbour);
-
-				if (nr_node->routes[2].neighbour->count == 0 && !nr_node->routes[2].neighbour->locked)
-					nr_remove_neigh(nr_node->routes[2].neighbour);
+				nr_neigh_route_put_locked(nr_node->routes[2].neighbour);
 
 				nr_node->routes[2].quality   = quality;
 				nr_node->routes[2].obs_count = obs_count;
@@ -280,33 +322,26 @@ static int __must_check nr_add_node(ax25_address *nr, const char *mnemonic,
 	}
 
 	nr_neigh_put(nr_neigh);
-	nr_node_unlock(nr_node);
 	nr_node_put(nr_node);
-	return 0;
+out:
+	spin_unlock_bh(&nr_route_lock);
+	return ret;
 }
 
 static void nr_remove_node_locked(struct nr_node *nr_node)
 {
-	lockdep_assert_held(&nr_node_list_lock);
+	lockdep_assert_held(&nr_route_lock);
 
 	hlist_del_init(&nr_node->node_node);
 	nr_node_put(nr_node);
 }
 
-static inline void __nr_remove_neigh(struct nr_neigh *nr_neigh)
+static void nr_remove_neigh_locked(struct nr_neigh *nr_neigh)
 {
+	lockdep_assert_held(&nr_route_lock);
+
 	hlist_del_init(&nr_neigh->neigh_node);
 	nr_neigh_put(nr_neigh);
-}
-
-#define nr_remove_neigh_locked(__neigh) \
-	__nr_remove_neigh(__neigh)
-
-static void nr_remove_neigh(struct nr_neigh *nr_neigh)
-{
-	spin_lock_bh(&nr_neigh_list_lock);
-	__nr_remove_neigh(nr_neigh);
-	spin_unlock_bh(&nr_neigh_list_lock);
 }
 
 /*
@@ -317,29 +352,25 @@ static int nr_del_node(ax25_address *callsign, ax25_address *neighbour, struct n
 {
 	struct nr_node  *nr_node;
 	struct nr_neigh *nr_neigh;
-	int i;
+	int i, ret = -EINVAL;
 
-	nr_node = nr_node_get(callsign);
+	spin_lock_bh(&nr_route_lock);
+
+	nr_node = __nr_node_get(callsign);
 
 	if (nr_node == NULL)
-		return -EINVAL;
+		goto out;
 
-	nr_neigh = nr_neigh_get_dev(neighbour, dev);
+	nr_neigh = __nr_neigh_get_dev(neighbour, dev);
 
 	if (nr_neigh == NULL) {
 		nr_node_put(nr_node);
-		return -EINVAL;
+		goto out;
 	}
 
-	spin_lock_bh(&nr_node_list_lock);
-	nr_node_lock(nr_node);
 	for (i = 0; i < nr_node->count; i++) {
 		if (nr_node->routes[i].neighbour == nr_neigh) {
-			nr_neigh->count--;
-			nr_neigh_put(nr_neigh);
-
-			if (nr_neigh->count == 0 && !nr_neigh->locked)
-				nr_remove_neigh(nr_neigh);
+			nr_neigh_route_put_locked(nr_neigh);
 			nr_neigh_put(nr_neigh);
 
 			nr_node->count--;
@@ -357,20 +388,18 @@ static int nr_del_node(ax25_address *callsign, ax25_address *neighbour, struct n
 				case 2:
 					break;
 				}
-				nr_node_put(nr_node);
 			}
-			nr_node_unlock(nr_node);
-			spin_unlock_bh(&nr_node_list_lock);
-
-			return 0;
+			/* Drop the reference taken by __nr_node_get() */
+			nr_node_put(nr_node);
+			ret = 0;
+			goto out;
 		}
 	}
 	nr_neigh_put(nr_neigh);
-	nr_node_unlock(nr_node);
-	spin_unlock_bh(&nr_node_list_lock);
 	nr_node_put(nr_node);
-
-	return -EINVAL;
+out:
+	spin_unlock_bh(&nr_route_lock);
+	return ret;
 }
 
 /*
@@ -380,44 +409,25 @@ static int __must_check nr_add_neigh(ax25_address *callsign,
 	ax25_digi *ax25_digi, struct net_device *dev, unsigned int quality)
 {
 	struct nr_neigh *nr_neigh;
+	int ret = 0;
 
-	nr_neigh = nr_neigh_get_dev(callsign, dev);
+	spin_lock_bh(&nr_route_lock);
+
+	nr_neigh = __nr_neigh_get_dev(callsign, dev);
 	if (nr_neigh) {
 		nr_neigh->quality = quality;
 		nr_neigh->locked  = 1;
+	} else {
+		nr_neigh = nr_neigh_create_locked(callsign, ax25_digi, dev,
+						  quality, 1);
+		if (!nr_neigh)
+			ret = -ENOMEM;
+	}
+	if (nr_neigh)
 		nr_neigh_put(nr_neigh);
-		return 0;
-	}
 
-	if ((nr_neigh = kmalloc(sizeof(*nr_neigh), GFP_ATOMIC)) == NULL)
-		return -ENOMEM;
-
-	nr_neigh->callsign = *callsign;
-	nr_neigh->digipeat = NULL;
-	nr_neigh->ax25     = NULL;
-	nr_neigh->dev      = dev;
-	nr_neigh->quality  = quality;
-	nr_neigh->locked   = 1;
-	nr_neigh->count    = 0;
-	nr_neigh->number   = nr_neigh_no++;
-	nr_neigh->failed   = 0;
-	refcount_set(&nr_neigh->refcount, 1);
-
-	if (ax25_digi != NULL && ax25_digi->ndigi > 0) {
-		nr_neigh->digipeat = kmemdup(ax25_digi, sizeof(*ax25_digi),
-					     GFP_KERNEL);
-		if (nr_neigh->digipeat == NULL) {
-			kfree(nr_neigh);
-			return -ENOMEM;
-		}
-	}
-
-	spin_lock_bh(&nr_neigh_list_lock);
-	hlist_add_head(&nr_neigh->neigh_node, &nr_neigh_list);
-	/* refcount is initialized at 1 */
-	spin_unlock_bh(&nr_neigh_list_lock);
-
-	return 0;
+	spin_unlock_bh(&nr_route_lock);
+	return ret;
 }
 
 /*
@@ -428,17 +438,23 @@ static int nr_del_neigh(ax25_address *callsign, struct net_device *dev, unsigned
 {
 	struct nr_neigh *nr_neigh;
 
-	nr_neigh = nr_neigh_get_dev(callsign, dev);
+	spin_lock_bh(&nr_route_lock);
 
-	if (nr_neigh == NULL) return -EINVAL;
+	nr_neigh = __nr_neigh_get_dev(callsign, dev);
+
+	if (nr_neigh == NULL) {
+		spin_unlock_bh(&nr_route_lock);
+		return -EINVAL;
+	}
 
 	nr_neigh->quality = quality;
 	nr_neigh->locked  = 0;
 
 	if (nr_neigh->count == 0)
-		nr_remove_neigh(nr_neigh);
+		nr_remove_neigh_locked(nr_neigh);
 	nr_neigh_put(nr_neigh);
 
+	spin_unlock_bh(&nr_route_lock);
 	return 0;
 }
 
@@ -454,9 +470,8 @@ static int nr_dec_obs(void)
 	struct hlist_node *nodet;
 	int i;
 
-	spin_lock_bh(&nr_node_list_lock);
+	spin_lock_bh(&nr_route_lock);
 	nr_node_for_each_safe(s, nodet, &nr_node_list) {
-		nr_node_lock(s);
 		for (i = 0; i < s->count; i++) {
 			switch (s->routes[i].obs_count) {
 			case 0:		/* A locked entry */
@@ -465,11 +480,7 @@ static int nr_dec_obs(void)
 			case 1:		/* From 1 -> 0 */
 				nr_neigh = s->routes[i].neighbour;
 
-				nr_neigh->count--;
-				nr_neigh_put(nr_neigh);
-
-				if (nr_neigh->count == 0 && !nr_neigh->locked)
-					nr_remove_neigh(nr_neigh);
+				nr_neigh_route_put_locked(nr_neigh);
 
 				s->count--;
 
@@ -494,9 +505,8 @@ static int nr_dec_obs(void)
 
 		if (s->count <= 0)
 			nr_remove_node_locked(s);
-		nr_node_unlock(s);
 	}
-	spin_unlock_bh(&nr_node_list_lock);
+	spin_unlock_bh(&nr_route_lock);
 
 	return 0;
 }
@@ -511,14 +521,15 @@ void nr_rt_device_down(struct net_device *dev)
 	struct nr_node  *t;
 	int i;
 
-	spin_lock_bh(&nr_neigh_list_lock);
+	spin_lock_bh(&nr_route_lock);
 	nr_neigh_for_each_safe(s, nodet, &nr_neigh_list) {
 		if (s->dev == dev) {
-			spin_lock_bh(&nr_node_list_lock);
 			nr_node_for_each_safe(t, node2t, &nr_node_list) {
-				nr_node_lock(t);
 				for (i = 0; i < t->count; i++) {
 					if (t->routes[i].neighbour == s) {
+						s->count--;
+						nr_neigh_put(s);
+
 						t->count--;
 
 						switch (i) {
@@ -536,14 +547,12 @@ void nr_rt_device_down(struct net_device *dev)
 
 				if (t->count <= 0)
 					nr_remove_node_locked(t);
-				nr_node_unlock(t);
 			}
-			spin_unlock_bh(&nr_node_list_lock);
 
 			nr_remove_neigh_locked(s);
 		}
 	}
-	spin_unlock_bh(&nr_neigh_list_lock);
+	spin_unlock_bh(&nr_route_lock);
 }
 
 /*
@@ -707,36 +716,35 @@ void nr_link_failed(ax25_cb *ax25, int reason)
 	struct nr_neigh *s, *nr_neigh = NULL;
 	struct nr_node  *nr_node = NULL;
 
-	spin_lock_bh(&nr_neigh_list_lock);
+	/*
+	 * nr_route_frame() replaces nr_neigh->ax25 under nr_route_lock;
+	 * clear it and drop its reference under the same lock, so that the
+	 * two paths cannot both put the same ax25_cb.
+	 */
+	spin_lock_bh(&nr_route_lock);
 	nr_neigh_for_each(s, &nr_neigh_list) {
 		if (s->ax25 == ax25) {
-			nr_neigh_hold(s);
 			nr_neigh = s;
 			break;
 		}
 	}
-	spin_unlock_bh(&nr_neigh_list_lock);
 
 	if (nr_neigh == NULL)
-		return;
+		goto out;
 
 	nr_neigh->ax25 = NULL;
 	ax25_cb_put(ax25);
 
-	if (++nr_neigh->failed < READ_ONCE(sysctl_netrom_link_fails_count)) {
-		nr_neigh_put(nr_neigh);
-		return;
-	}
-	spin_lock_bh(&nr_node_list_lock);
+	if (++nr_neigh->failed < READ_ONCE(sysctl_netrom_link_fails_count))
+		goto out;
+
 	nr_node_for_each(nr_node, &nr_node_list) {
-		nr_node_lock(nr_node);
 		if (nr_node->which < nr_node->count &&
 		    nr_node->routes[nr_node->which].neighbour == nr_neigh)
 			nr_node->which++;
-		nr_node_unlock(nr_node);
 	}
-	spin_unlock_bh(&nr_node_list_lock);
-	nr_neigh_put(nr_neigh);
+out:
+	spin_unlock_bh(&nr_route_lock);
 }
 
 /*
@@ -755,10 +763,11 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	struct sk_buff *nskb, *oskb;
 
 	/*
-	 * Reject malformed packets early. Check that it contains at least 2
-	 * addresses and 1 byte more for Time-To-Live
+	 * Reject malformed packets early. Check that it contains at least
+	 * the network and transport headers (20 bytes), and that they are
+	 * in the linear part of the skb.
 	 */
-	if (skb->len < 2 * sizeof(ax25_address) + 1)
+	if (!pskb_may_pull(skb, NR_NETWORK_LEN + NR_TRANSPORT_LEN))
 		return 0;
 
 	nr_src  = (ax25_address *)(skb->data + 0);
@@ -792,10 +801,10 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	nr_node = nr_node_get(nr_dest);
 	if (nr_node == NULL)
 		return 0;
-	nr_node_lock(nr_node);
+	spin_lock_bh(&nr_route_lock);
 
 	if (nr_node->which >= nr_node->count) {
-		nr_node_unlock(nr_node);
+		spin_unlock_bh(&nr_route_lock);
 		nr_node_put(nr_node);
 		return 0;
 	}
@@ -803,7 +812,7 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	nr_neigh = nr_node->routes[nr_node->which].neighbour;
 
 	if ((dev = nr_dev_first()) == NULL) {
-		nr_node_unlock(nr_node);
+		spin_unlock_bh(&nr_route_lock);
 		nr_node_put(nr_node);
 		return 0;
 	}
@@ -814,7 +823,7 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	nskb = skb_copy_expand(skb, dev->hard_header_len, 0, GFP_ATOMIC);
 
 	if (!nskb) {
-		nr_node_unlock(nr_node);
+		spin_unlock_bh(&nr_route_lock);
 		nr_node_put(nr_node);
 		dev_put(dev);
 		return 0;
@@ -836,7 +845,7 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 
 	dev_put(dev);
 	ret = (nr_neigh->ax25 != NULL);
-	nr_node_unlock(nr_node);
+	spin_unlock_bh(&nr_route_lock);
 	nr_node_put(nr_node);
 
 	if (ret)
@@ -848,9 +857,9 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 #ifdef CONFIG_PROC_FS
 
 static void *nr_node_start(struct seq_file *seq, loff_t *pos)
-	__acquires(&nr_node_list_lock)
+	__acquires(&nr_route_lock)
 {
-	spin_lock_bh(&nr_node_list_lock);
+	spin_lock_bh(&nr_route_lock);
 	return seq_hlist_start_head(&nr_node_list, *pos);
 }
 
@@ -860,9 +869,9 @@ static void *nr_node_next(struct seq_file *seq, void *v, loff_t *pos)
 }
 
 static void nr_node_stop(struct seq_file *seq, void *v)
-	__releases(&nr_node_list_lock)
+	__releases(&nr_route_lock)
 {
-	spin_unlock_bh(&nr_node_list_lock);
+	spin_unlock_bh(&nr_route_lock);
 }
 
 static int nr_node_show(struct seq_file *seq, void *v)
@@ -877,7 +886,6 @@ static int nr_node_show(struct seq_file *seq, void *v)
 		struct nr_node *nr_node = hlist_entry(v, struct nr_node,
 						      node_node);
 
-		nr_node_lock(nr_node);
 		seq_printf(seq, "%-9s %-7s  %d %d",
 			ax2asc(buf, &nr_node->callsign),
 			(nr_node->mnemonic[0] == '\0') ? "*" : nr_node->mnemonic,
@@ -890,7 +898,6 @@ static int nr_node_show(struct seq_file *seq, void *v)
 				nr_node->routes[i].obs_count,
 				nr_node->routes[i].neighbour->number);
 		}
-		nr_node_unlock(nr_node);
 
 		seq_puts(seq, "\n");
 	}
@@ -905,9 +912,9 @@ const struct seq_operations nr_node_seqops = {
 };
 
 static void *nr_neigh_start(struct seq_file *seq, loff_t *pos)
-	__acquires(&nr_neigh_list_lock)
+	__acquires(&nr_route_lock)
 {
-	spin_lock_bh(&nr_neigh_list_lock);
+	spin_lock_bh(&nr_route_lock);
 	return seq_hlist_start_head(&nr_neigh_list, *pos);
 }
 
@@ -917,9 +924,9 @@ static void *nr_neigh_next(struct seq_file *seq, void *v, loff_t *pos)
 }
 
 static void nr_neigh_stop(struct seq_file *seq, void *v)
-	__releases(&nr_neigh_list_lock)
+	__releases(&nr_route_lock)
 {
-	spin_unlock_bh(&nr_neigh_list_lock);
+	spin_unlock_bh(&nr_route_lock);
 }
 
 static int nr_neigh_show(struct seq_file *seq, void *v)
@@ -970,12 +977,9 @@ void nr_rt_free(void)
 	struct nr_node  *t = NULL;
 	struct hlist_node *nodet;
 
-	spin_lock_bh(&nr_neigh_list_lock);
-	spin_lock_bh(&nr_node_list_lock);
+	spin_lock_bh(&nr_route_lock);
 	nr_node_for_each_safe(t, nodet, &nr_node_list) {
-		nr_node_lock(t);
 		nr_remove_node_locked(t);
-		nr_node_unlock(t);
 	}
 	nr_neigh_for_each_safe(s, nodet, &nr_neigh_list) {
 		while(s->count) {
@@ -984,6 +988,5 @@ void nr_rt_free(void)
 		}
 		nr_remove_neigh_locked(s);
 	}
-	spin_unlock_bh(&nr_node_list_lock);
-	spin_unlock_bh(&nr_neigh_list_lock);
+	spin_unlock_bh(&nr_route_lock);
 }

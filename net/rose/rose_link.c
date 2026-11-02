@@ -142,6 +142,14 @@ void rose_link_rx_restart(struct sk_buff *skb, struct rose_neigh *neigh, unsigne
 
 	switch (frametype) {
 	case ROSE_RESTART_REQUEST:
+		/*
+		 * A Restart Request on a link that is already up means that
+		 * the other end has lost its virtual circuits, clear ours.
+		 * Nothing is established over a link that is not up yet, and
+		 * the calls waiting in neigh->queue must be left alone.
+		 */
+		if (neigh->restarted)
+			rose_link_restarted(neigh);
 		rose_stop_t0timer(neigh);
 		neigh->restarted = 1;
 		neigh->dce_mode  = (skb->data[3] == ROSE_DTE_ORIGINATED);
@@ -257,6 +265,40 @@ void rose_transmit_clear_request(struct rose_neigh *neigh, unsigned int lci, uns
 
 	if (!rose_send_frame(skb, neigh))
 		kfree_skb(skb);
+}
+
+/*
+ * A neighbour has just been created while an AX.25 connection to it is
+ * already up, e.g. it was removed from the routing tables and added back.
+ * The other end still regards the link as restarted and will not restart it,
+ * and through calls only use restarted neighbours, so nothing would ever
+ * restart it from this end either: do it now.
+ */
+void rose_link_restart(struct rose_neigh *neigh)
+{
+	if (neigh->loopback || neigh->restarted || rose_t0timer_running(neigh))
+		return;
+
+	if (!rose_link_up(neigh))
+		return;
+
+	rose_transmit_restart_request(neigh);
+	neigh->dce_mode = 0;
+	rose_start_t0timer(neigh);
+}
+
+/*
+ * Start the restart procedure on a link that is down without waiting for
+ * a frame to send over it. Nothing is done while a restart is under way.
+ */
+void rose_link_bring_up(struct rose_neigh *neigh)
+{
+	if (neigh->loopback || neigh->restarted || rose_t0timer_running(neigh))
+		return;
+
+	rose_transmit_restart_request(neigh);
+	neigh->dce_mode = 0;
+	rose_start_t0timer(neigh);
 }
 
 void rose_transmit_link(struct sk_buff *skb, struct rose_neigh *neigh)
