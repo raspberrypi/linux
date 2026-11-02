@@ -596,7 +596,6 @@ static int irs1125_set_get_fmt(struct v4l2_subdev *sd,
 
 static const struct v4l2_subdev_pad_ops irs1125_subdev_pad_ops = {
 	.enum_mbus_code = irs1125_enum_mbus_code,
-	.set_fmt = irs1125_set_get_fmt,
 	.get_fmt = irs1125_set_get_fmt,
 };
 
