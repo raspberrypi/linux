@@ -734,17 +734,17 @@ static int vc4_plane_atomic_async_check(struct drm_plane *plane,
 }
 
 /* Called during init to allocate the plane's atomic state. */
-static void vc4_fkms_plane_reset(struct drm_plane *plane)
+static struct drm_plane_state *vc4_fkms_plane_create_state(struct drm_plane *plane)
 {
 	struct vc4_plane_state *vc4_state;
 
-	WARN_ON(plane->state);
-
 	vc4_state = kzalloc(sizeof(*vc4_state), GFP_KERNEL);
 	if (!vc4_state)
-		return;
+		return ERR_PTR(-ENOMEM);
 
-	__drm_atomic_helper_plane_reset(plane, &vc4_state->base);
+	__drm_atomic_helper_plane_state_init(&vc4_state->base, plane);
+
+	return &vc4_state->base;
 }
 
 static void vc4_plane_destroy(struct drm_plane *plane)
@@ -815,7 +815,7 @@ static const struct drm_plane_funcs vc4_plane_funcs = {
 	.disable_plane = drm_atomic_helper_disable_plane,
 	.destroy = vc4_plane_destroy,
 	.set_property = NULL,
-	.reset = vc4_fkms_plane_reset,
+	.atomic_create_state = vc4_fkms_plane_create_state,
 	.atomic_duplicate_state = vc4_fkms_plane_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_plane_destroy_state,
 	.format_mod_supported = vc4_fkms_format_mod_supported,
@@ -1317,17 +1317,6 @@ vc4_fkms_crtc_duplicate_state(struct drm_crtc *crtc)
 	return &vc4_state->base;
 }
 
-static void
-vc4_fkms_crtc_reset(struct drm_crtc *crtc)
-{
-	if (crtc->state)
-		__drm_atomic_helper_crtc_destroy_state(crtc->state);
-
-	crtc->state = kzalloc(sizeof(*crtc->state), GFP_KERNEL);
-	if (crtc->state)
-		crtc->state->crtc = crtc;
-}
-
 static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
 {
 	struct vc4_fkms_crtc *vc4_fkms_crtc = to_vc4_fkms_crtc(crtc);
@@ -1355,7 +1344,7 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.set_property = NULL,
 	.cursor_set = NULL, /* handled by drm_mode_cursor_universal */
 	.cursor_move = NULL, /* handled by drm_mode_cursor_universal */
-	.reset = vc4_fkms_crtc_reset,
+	.atomic_create_state = drm_atomic_helper_crtc_create_state,
 	.atomic_duplicate_state = vc4_fkms_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
 	.enable_vblank = vc4_fkms_enable_vblank,
