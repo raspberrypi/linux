@@ -4870,7 +4870,9 @@ M:	Ian Rogers <irogers@google.com>
 L:	linux-perf-users@vger.kernel.org
 L:	linux-rpi-kernel@lists.infradead.org (moderated for non-subscribers)
 S:	Maintained
+F:	Documentation/admin-guide/perf/rpi-axi-pmu.rst
 F:	Documentation/devicetree/bindings/perf/brcm,bcm2835-axiperf.yaml
+F:	drivers/perf/rpi_axi_pmu.c
 
 BROADCOM BCM2835 CAMERA DRIVERS
 M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
