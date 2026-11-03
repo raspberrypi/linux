@@ -73,10 +73,12 @@
  * enum rpi_axi_chip - Supported Broadcom SoC generations
  * @CHIP_BCM2835: BCM2835 / BCM2836 / BCM2837 (RPi 1-3, CM 1-3, Zero/W)
  * @CHIP_BCM2711: BCM2711 (RPi 4, CM 4)
+ * @CHIP_BCM2712: BCM2712 (RPi 5, CM 5)
  */
 enum rpi_axi_chip {
 	CHIP_BCM2835 = 0,
 	CHIP_BCM2711,
+	CHIP_BCM2712,
 };
 
 /**
@@ -132,6 +134,68 @@ enum bcm2835_system_bus {
 	BCM2835_SB_CPU_UC = 14,
 	BCM2835_SB_CPU_L2 = 15,
 	BCM2835_SB_MAX,
+};
+
+/**
+ * enum bcm2712_system_bus - AXI buses monitored by the system monitor on BCM2712 C0 (RPi 5)
+ * @BCM2712_SB_VPU_UC: VPU uncached bus
+ * @BCM2712_SB_DISPLAY: Display (HVS) bus
+ * @BCM2712_SB_V3D: V3D GPU bus
+ * @BCM2712_SB_ARM: Arm CPU cluster bus
+ * @BCM2712_SB_XPT: XPT bus (unused on Raspberry Pi)
+ * @BCM2712_SB_PCIE_02: PCIe2 (RP1 south bridge on Raspberry Pi 5; BSTM_TOP in Broadcom docs)
+ * @BCM2712_SB_PCIE_01: External PCIe bus
+ * @BCM2712_SB_ARGON: Argon (HEVC decoder and PiSP back end) bus
+ * @BCM2712_SB_EMMC2: SD/eMMC2 controller bus (ARB3 in Broadcom documentation)
+ * @BCM2712_SB_SD_DMA: SD/eMMC, DMA0 and DMA1 bus (SRC in Broadcom documentation)
+ * @BCM2712_SB_HVDP: HVDP bus (unused on Raspberry Pi)
+ * @BCM2712_SB_PER: Peripheral access bus
+ * @BCM2712_SB_SYSTEM_L2: System L2 cache bus
+ * @BCM2712_SB_MAX: Number of buses
+ */
+enum bcm2712_system_bus {
+	BCM2712_SB_VPU_UC = 0,
+	BCM2712_SB_DISPLAY = 1,
+	BCM2712_SB_V3D = 2,
+	BCM2712_SB_ARM = 3,
+	BCM2712_SB_XPT = 4,
+	BCM2712_SB_PCIE_02 = 5,
+	BCM2712_SB_PCIE_01 = 6,
+	BCM2712_SB_ARGON = 7,
+	BCM2712_SB_EMMC2 = 8,
+	BCM2712_SB_SD_DMA = 9,
+	BCM2712_SB_HVDP = 10,
+	BCM2712_SB_PER = 11,
+	BCM2712_SB_SYSTEM_L2 = 12,
+	BCM2712_SB_MAX,
+};
+
+/**
+ * enum bcm2712d0_system_bus - AXI buses monitored by the system monitor on BCM2712 D0 and later
+ * @BCM2712D0_SB_VPU_UC: VPU uncached bus
+ * @BCM2712D0_SB_DISPLAY: Display (HVS) bus
+ * @BCM2712D0_SB_V3D: V3D GPU bus
+ * @BCM2712D0_SB_ARM: Arm CPU cluster bus
+ * @BCM2712D0_SB_PCIE_02: PCIe2 (RP1 south bridge on Raspberry Pi 5) bus
+ * @BCM2712D0_SB_ARGON: Argon (HEVC decoder, PiSP back end and external PCIe) bus
+ * @BCM2712D0_SB_EMMC2: SD/eMMC2 controller bus
+ * @BCM2712D0_SB_SD_DMA: SD/eMMC, DMA0 and DMA1 bus
+ * @BCM2712D0_SB_PER: Peripheral access bus
+ * @BCM2712D0_SB_SYSTEM_L2: System L2 cache bus
+ * @BCM2712D0_SB_MAX: Number of buses
+ */
+enum bcm2712d0_system_bus {
+	BCM2712D0_SB_VPU_UC = 0,
+	BCM2712D0_SB_DISPLAY = 1,
+	BCM2712D0_SB_V3D = 2,
+	BCM2712D0_SB_ARM = 3,
+	BCM2712D0_SB_PCIE_02 = 4,
+	BCM2712D0_SB_ARGON = 5,
+	BCM2712D0_SB_EMMC2 = 6,
+	BCM2712D0_SB_SD_DMA = 7,
+	BCM2712D0_SB_PER = 8,
+	BCM2712D0_SB_SYSTEM_L2 = 9,
+	BCM2712D0_SB_MAX,
 };
 
 /**
@@ -414,6 +478,116 @@ enum bcm2711_filter {
 	BCM2711_FLT_MAX,
 };
 
+/**
+ * enum bcm2712_filter - AXI master ID filter options for BCM2712 (RPi 5)
+ * @BCM2712_FLT_0: Disable master ID filtering (monitor all traffic on bus)
+ * @BCM2712_FLT_VPU_UC0: VPU Uncached 0 master ID
+ * @BCM2712_FLT_VPU_IC0: VPU I-Cache 0 master ID
+ * @BCM2712_FLT_VPU_DC0: VPU D-Cache 0 master ID
+ * @BCM2712_FLT_VPU_UC1: VPU Uncached 1 master ID
+ * @BCM2712_FLT_VPU_IC1: VPU I-Cache 1 master ID
+ * @BCM2712_FLT_VPU_DC1: VPU D-Cache 1 master ID
+ * @BCM2712_FLT_VPU_L2: VPU L2 Cache master ID
+ * @BCM2712_FLT_DMA2: DMA2 master ID
+ * @BCM2712_FLT_VPU_DEBUG: VPU Debug master ID
+ * @BCM2712_FLT_ARM: Arm Quad-Core CPU Cluster master ID
+ * @BCM2712_FLT_DMA0: DMA0 master ID
+ * @BCM2712_FLT_DMA1: DMA1 master ID
+ * @BCM2712_FLT_RAAGA: RAAGA Audio Engine master ID
+ * @BCM2712_FLT_BBSI: BBSI master ID
+ * @BCM2712_FLT_PCIE0: PCIe 0 master ID
+ * @BCM2712_FLT_PCIE1: PCIe 1 master ID
+ * @BCM2712_FLT_PCIE2: PCIe 2 (RP1) master ID
+ * @BCM2712_FLT_UMR: UMR master ID
+ * @BCM2712_FLT_SAGE: SAGE master ID
+ * @BCM2712_FLT_HVDP: HVDP master ID
+ * @BCM2712_FLT_BSP: BSP master ID
+ * @BCM2712_FLT_HVS: Hardware Video Scaler (HVS) display engine master ID
+ * @BCM2712_FLT_HVS_WMK: HVS Watermark master ID
+ * @BCM2712_FLT_MOP0: MOP0 master ID
+ * @BCM2712_FLT_MOP1: MOP1 master ID
+ * @BCM2712_FLT_MBVN: MBVN master ID
+ * @BCM2712_FLT_DSI: DSI Display Interface master ID
+ * @BCM2712_FLT_XPT: XPT master ID
+ * @BCM2712_FLT_EMMC0: SD/eMMC Controller 0 master ID
+ * @BCM2712_FLT_GENET: Gigabit Ethernet Controller master ID
+ * @BCM2712_FLT_USB: USB Controller master ID
+ * @BCM2712_FLT_ARGON: Argon master ID
+ * @BCM2712_FLT_UNICAM: Unicam master ID
+ * @BCM2712_FLT_PISP: ISP master ID
+ * @BCM2712_FLT_PISPFE: ISP Front End master ID
+ * @BCM2712_FLT_JPEG: JPEG decoder master ID
+ * @BCM2712_FLT_EMMC1: SD/eMMC 1 master ID
+ * @BCM2712_FLT_EMMC2: SD/eMMC 2 master ID
+ * @BCM2712_FLT_TRC: TRC master ID
+ * @BCM2712_FLT_BSTM0: BSTM0 master ID
+ * @BCM2712_FLT_BSTM1: BSTM1 master ID
+ * @BCM2712_FLT_BSTM0_SEC: BSTM0 Secure master ID
+ * @BCM2712_FLT_BSTM1_SEC: BSTM1 Secure master ID
+ * @BCM2712_FLT_AIO: AIO master ID
+ * @BCM2712_FLT_MAP: MAP master ID
+ * @BCM2712_FLT_SYS_DMA: System DMA master ID
+ * @BCM2712_FLT_MMUCACHE0: MMU Cache 0 master ID
+ * @BCM2712_FLT_MMUCACHE1: MMU Cache 1 master ID
+ * @BCM2712_FLT_MPUCACHE0: MPU Cache 0 master ID
+ * @BCM2712_FLT_MPUCACHE1: MPU Cache 1 master ID
+ * @BCM2712_FLT_MAX: Maximum filter ID count for BCM2712
+ */
+enum bcm2712_filter {
+	BCM2712_FLT_0 = 0,
+	BCM2712_FLT_VPU_UC0 = 1,
+	BCM2712_FLT_VPU_IC0 = 2,
+	BCM2712_FLT_VPU_DC0 = 3,
+	BCM2712_FLT_VPU_UC1 = 4,
+	BCM2712_FLT_VPU_IC1 = 5,
+	BCM2712_FLT_VPU_DC1 = 6,
+	BCM2712_FLT_VPU_L2 = 8,
+	BCM2712_FLT_DMA2 = 9,
+	BCM2712_FLT_VPU_DEBUG = 10,
+	BCM2712_FLT_ARM = 11,
+	BCM2712_FLT_DMA0 = 12,
+	BCM2712_FLT_DMA1 = 13,
+	BCM2712_FLT_RAAGA = 14,
+	BCM2712_FLT_BBSI = 16,
+	BCM2712_FLT_PCIE0 = 18,
+	BCM2712_FLT_PCIE1 = 19,
+	BCM2712_FLT_PCIE2 = 20,
+	BCM2712_FLT_UMR = 27,
+	BCM2712_FLT_SAGE = 28,
+	BCM2712_FLT_HVDP = 29,
+	BCM2712_FLT_BSP = 30,
+	BCM2712_FLT_HVS = 32,
+	BCM2712_FLT_HVS_WMK = 33,
+	BCM2712_FLT_MOP0 = 34,
+	BCM2712_FLT_MOP1 = 35,
+	BCM2712_FLT_MBVN = 36,
+	BCM2712_FLT_DSI = 37,
+	BCM2712_FLT_XPT = 38,
+	BCM2712_FLT_EMMC0 = 39,
+	BCM2712_FLT_GENET = 40,
+	BCM2712_FLT_USB = 41,
+	BCM2712_FLT_ARGON = 42,
+	BCM2712_FLT_UNICAM = 43,
+	BCM2712_FLT_PISP = 44,
+	BCM2712_FLT_PISPFE = 45,
+	BCM2712_FLT_JPEG = 46,
+	BCM2712_FLT_EMMC1 = 47,
+	BCM2712_FLT_EMMC2 = 48,
+	BCM2712_FLT_TRC = 52,
+	BCM2712_FLT_BSTM0 = 53,
+	BCM2712_FLT_BSTM1 = 54,
+	BCM2712_FLT_BSTM0_SEC = 55,
+	BCM2712_FLT_BSTM1_SEC = 56,
+	BCM2712_FLT_AIO = 57,
+	BCM2712_FLT_MAP = 58,
+	BCM2712_FLT_SYS_DMA = 59,
+	BCM2712_FLT_MMUCACHE0 = 60,
+	BCM2712_FLT_MMUCACHE1 = 61,
+	BCM2712_FLT_MPUCACHE0 = 62,
+	BCM2712_FLT_MPUCACHE1 = 63,
+	BCM2712_FLT_MAX = 64,
+};
+
 /* Hardware register offsets & control bitwise constants */
 #define GEN_CTRL			0x00
 #define GEN_CTL_ENABLE_BIT		BIT(0)
@@ -451,6 +625,13 @@ enum bcm2711_filter {
 #define BW_CTRL_BUS_WATCH_MASK		GENMASK(4, 0)
 #define BW_CTRL_BUS_FILTER_SHIFT	8
 #define BW_CTRL_BUS_FILTER_MASK		GENMASK(12, 8)
+#define BW_CTRL_2712_FILTER_MASK	GENMASK(13, 8)
+#define BW_CTRL_AXI_ID			GENMASK(17, 8)
+#define BW_CTRL_AXI_ID_MASK		GENMASK(27, 18)
+#define AXI_ID_MASTER			GENMASK(8, 3)
+/* The D0 VPU monitor has a 6-bit ID holding the master directly, with its own mask */
+#define BW_CTRL_VPU_ID			GENMASK(13, 8)
+#define BW_CTRL_VPU_ID_MASK		GENMASK(23, 18)
 
 /*
  * RPI_AXI_PMU_TIMER_INTERVAL determines the background polling frequency
@@ -623,6 +804,7 @@ static int rpi_axi_hw_events__get_alloc_event_idx(struct rpi_axi_hw_events *hw_e
  * @pmu: Core Linux perf PMU structure
  * @pdev: Owning platform_device pointer
  * @chip: Detected Broadcom SoC generation (CHIP_BCM2835)
+ * @axi_id_mask: Bus watchers match a full AXI ID under a mask (BCM2712 D0)
  * @firmware: Raspberry Pi firmware handle for VideoCore mailbox calls (BCM2835-BCM2711)
  * @cpu: CPU core assigned to process uncore PMU events
  * @cpuhp_node: Dynamic CPU hotplug instance node
@@ -640,6 +822,7 @@ struct rpi_axi_pmu {
 	struct pmu		pmu;
 	struct platform_device	*pdev;
 	enum rpi_axi_chip	chip;
+	bool			axi_id_mask;
 	struct rpi_firmware	*firmware;
 	int			cpu;
 	struct hlist_node	cpuhp_node;
@@ -701,6 +884,16 @@ static bool config_is_valid(struct rpi_axi_pmu *pmu, __u64 config)
 		if (mon == MON_VPU && bus >= BCM2711_VB_MAX)
 			return false;
 		if (filter >= BCM2711_FLT_MAX)
+			return false;
+		break;
+	case CHIP_BCM2712:
+		if (mon == MON_SYSTEM && pmu->axi_id_mask && bus >= BCM2712D0_SB_MAX)
+			return false;
+		if (mon == MON_SYSTEM && !pmu->axi_id_mask && bus >= BCM2712_SB_MAX)
+			return false;
+		if (mon == MON_VPU && bus >= BCM2711_VB_MAX)
+			return false;
+		if (filter >= BCM2712_FLT_MAX)
 			return false;
 		break;
 	}
@@ -1923,6 +2116,995 @@ static const struct attribute_group rpi_axi_pmu_bcm2711_events_group = {
 	.is_visible = rpi_axi_pmu_events_is_visible,
 };
 
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_atwait, bcm2712_vpu_vpu1_d_l2_atwait, "monitor=1,bus=0,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_atrans, bcm2712_vpu_vpu1_d_l2_atrans, "monitor=1,bus=0,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_amax, bcm2712_vpu_vpu1_d_l2_amax, "monitor=1,bus=0,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_wwait, bcm2712_vpu_vpu1_d_l2_wwait, "monitor=1,bus=0,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_wtrans, bcm2712_vpu_vpu1_d_l2_wtrans, "monitor=1,bus=0,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_wmax, bcm2712_vpu_vpu1_d_l2_wmax, "monitor=1,bus=0,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_rwait, bcm2712_vpu_vpu1_d_l2_rwait, "monitor=1,bus=0,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_rtrans, bcm2712_vpu_vpu1_d_l2_rtrans, "monitor=1,bus=0,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_rmax, bcm2712_vpu_vpu1_d_l2_rmax, "monitor=1,bus=0,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_rpend, bcm2712_vpu_vpu1_d_l2_rpend, "monitor=1,bus=0,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_l2_ratrans, bcm2712_vpu_vpu1_d_l2_ratrans, "monitor=1,bus=0,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_atwait, bcm2712_vpu_vpu0_d_l2_atwait, "monitor=1,bus=1,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_atrans, bcm2712_vpu_vpu0_d_l2_atrans, "monitor=1,bus=1,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_amax, bcm2712_vpu_vpu0_d_l2_amax, "monitor=1,bus=1,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_wwait, bcm2712_vpu_vpu0_d_l2_wwait, "monitor=1,bus=1,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_wtrans, bcm2712_vpu_vpu0_d_l2_wtrans, "monitor=1,bus=1,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_wmax, bcm2712_vpu_vpu0_d_l2_wmax, "monitor=1,bus=1,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_rwait, bcm2712_vpu_vpu0_d_l2_rwait, "monitor=1,bus=1,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_rtrans, bcm2712_vpu_vpu0_d_l2_rtrans, "monitor=1,bus=1,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_rmax, bcm2712_vpu_vpu0_d_l2_rmax, "monitor=1,bus=1,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_rpend, bcm2712_vpu_vpu0_d_l2_rpend, "monitor=1,bus=1,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_l2_ratrans, bcm2712_vpu_vpu0_d_l2_ratrans, "monitor=1,bus=1,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_atwait, bcm2712_vpu_vpu1_i_l2_atwait, "monitor=1,bus=2,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_atrans, bcm2712_vpu_vpu1_i_l2_atrans, "monitor=1,bus=2,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_amax, bcm2712_vpu_vpu1_i_l2_amax, "monitor=1,bus=2,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_wwait, bcm2712_vpu_vpu1_i_l2_wwait, "monitor=1,bus=2,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_wtrans, bcm2712_vpu_vpu1_i_l2_wtrans, "monitor=1,bus=2,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_wmax, bcm2712_vpu_vpu1_i_l2_wmax, "monitor=1,bus=2,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_rwait, bcm2712_vpu_vpu1_i_l2_rwait, "monitor=1,bus=2,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_rtrans, bcm2712_vpu_vpu1_i_l2_rtrans, "monitor=1,bus=2,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_rmax, bcm2712_vpu_vpu1_i_l2_rmax, "monitor=1,bus=2,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_rpend, bcm2712_vpu_vpu1_i_l2_rpend, "monitor=1,bus=2,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_l2_ratrans, bcm2712_vpu_vpu1_i_l2_ratrans, "monitor=1,bus=2,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_atwait, bcm2712_vpu_vpu0_i_l2_atwait, "monitor=1,bus=3,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_atrans, bcm2712_vpu_vpu0_i_l2_atrans, "monitor=1,bus=3,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_amax, bcm2712_vpu_vpu0_i_l2_amax, "monitor=1,bus=3,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_wwait, bcm2712_vpu_vpu0_i_l2_wwait, "monitor=1,bus=3,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_wtrans, bcm2712_vpu_vpu0_i_l2_wtrans, "monitor=1,bus=3,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_wmax, bcm2712_vpu_vpu0_i_l2_wmax, "monitor=1,bus=3,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_rwait, bcm2712_vpu_vpu0_i_l2_rwait, "monitor=1,bus=3,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_rtrans, bcm2712_vpu_vpu0_i_l2_rtrans, "monitor=1,bus=3,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_rmax, bcm2712_vpu_vpu0_i_l2_rmax, "monitor=1,bus=3,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_rpend, bcm2712_vpu_vpu0_i_l2_rpend, "monitor=1,bus=3,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_l2_ratrans, bcm2712_vpu_vpu0_i_l2_ratrans, "monitor=1,bus=3,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_atwait, bcm2712_vpu_system_l2_atwait, "monitor=1,bus=4,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_atrans, bcm2712_vpu_system_l2_atrans, "monitor=1,bus=4,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_amax, bcm2712_vpu_system_l2_amax, "monitor=1,bus=4,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_wwait, bcm2712_vpu_system_l2_wwait, "monitor=1,bus=4,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_wtrans, bcm2712_vpu_system_l2_wtrans, "monitor=1,bus=4,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_wmax, bcm2712_vpu_system_l2_wmax, "monitor=1,bus=4,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_rwait, bcm2712_vpu_system_l2_rwait, "monitor=1,bus=4,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_rtrans, bcm2712_vpu_system_l2_rtrans, "monitor=1,bus=4,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_rmax, bcm2712_vpu_system_l2_rmax, "monitor=1,bus=4,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_rpend, bcm2712_vpu_system_l2_rpend, "monitor=1,bus=4,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_system_l2_ratrans, bcm2712_vpu_system_l2_ratrans, "monitor=1,bus=4,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_atwait, bcm2712_vpu_dma_l2_atwait, "monitor=1,bus=5,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_atrans, bcm2712_vpu_dma_l2_atrans, "monitor=1,bus=5,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_amax, bcm2712_vpu_dma_l2_amax, "monitor=1,bus=5,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_wwait, bcm2712_vpu_dma_l2_wwait, "monitor=1,bus=5,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_wtrans, bcm2712_vpu_dma_l2_wtrans, "monitor=1,bus=5,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_wmax, bcm2712_vpu_dma_l2_wmax, "monitor=1,bus=5,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_rwait, bcm2712_vpu_dma_l2_rwait, "monitor=1,bus=5,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_rtrans, bcm2712_vpu_dma_l2_rtrans, "monitor=1,bus=5,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_rmax, bcm2712_vpu_dma_l2_rmax, "monitor=1,bus=5,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_rpend, bcm2712_vpu_dma_l2_rpend, "monitor=1,bus=5,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_dma_l2_ratrans, bcm2712_vpu_dma_l2_ratrans, "monitor=1,bus=5,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_atwait, bcm2712_vpu_vpu1_d_uc_atwait, "monitor=1,bus=6,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_atrans, bcm2712_vpu_vpu1_d_uc_atrans, "monitor=1,bus=6,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_amax, bcm2712_vpu_vpu1_d_uc_amax, "monitor=1,bus=6,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_wwait, bcm2712_vpu_vpu1_d_uc_wwait, "monitor=1,bus=6,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_wtrans, bcm2712_vpu_vpu1_d_uc_wtrans, "monitor=1,bus=6,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_wmax, bcm2712_vpu_vpu1_d_uc_wmax, "monitor=1,bus=6,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_rwait, bcm2712_vpu_vpu1_d_uc_rwait, "monitor=1,bus=6,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_rtrans, bcm2712_vpu_vpu1_d_uc_rtrans, "monitor=1,bus=6,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_rmax, bcm2712_vpu_vpu1_d_uc_rmax, "monitor=1,bus=6,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_rpend, bcm2712_vpu_vpu1_d_uc_rpend, "monitor=1,bus=6,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_d_uc_ratrans, bcm2712_vpu_vpu1_d_uc_ratrans, "monitor=1,bus=6,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_atwait, bcm2712_vpu_vpu0_d_uc_atwait, "monitor=1,bus=7,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_atrans, bcm2712_vpu_vpu0_d_uc_atrans, "monitor=1,bus=7,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_amax, bcm2712_vpu_vpu0_d_uc_amax, "monitor=1,bus=7,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_wwait, bcm2712_vpu_vpu0_d_uc_wwait, "monitor=1,bus=7,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_wtrans, bcm2712_vpu_vpu0_d_uc_wtrans, "monitor=1,bus=7,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_wmax, bcm2712_vpu_vpu0_d_uc_wmax, "monitor=1,bus=7,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_rwait, bcm2712_vpu_vpu0_d_uc_rwait, "monitor=1,bus=7,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_rtrans, bcm2712_vpu_vpu0_d_uc_rtrans, "monitor=1,bus=7,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_rmax, bcm2712_vpu_vpu0_d_uc_rmax, "monitor=1,bus=7,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_rpend, bcm2712_vpu_vpu0_d_uc_rpend, "monitor=1,bus=7,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_d_uc_ratrans, bcm2712_vpu_vpu0_d_uc_ratrans, "monitor=1,bus=7,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_atwait, bcm2712_vpu_vpu1_i_uc_atwait, "monitor=1,bus=8,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_atrans, bcm2712_vpu_vpu1_i_uc_atrans, "monitor=1,bus=8,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_amax, bcm2712_vpu_vpu1_i_uc_amax, "monitor=1,bus=8,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_wwait, bcm2712_vpu_vpu1_i_uc_wwait, "monitor=1,bus=8,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_wtrans, bcm2712_vpu_vpu1_i_uc_wtrans, "monitor=1,bus=8,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_wmax, bcm2712_vpu_vpu1_i_uc_wmax, "monitor=1,bus=8,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_rwait, bcm2712_vpu_vpu1_i_uc_rwait, "monitor=1,bus=8,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_rtrans, bcm2712_vpu_vpu1_i_uc_rtrans, "monitor=1,bus=8,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_rmax, bcm2712_vpu_vpu1_i_uc_rmax, "monitor=1,bus=8,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_rpend, bcm2712_vpu_vpu1_i_uc_rpend, "monitor=1,bus=8,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu1_i_uc_ratrans, bcm2712_vpu_vpu1_i_uc_ratrans, "monitor=1,bus=8,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_atwait, bcm2712_vpu_vpu0_i_uc_atwait, "monitor=1,bus=9,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_atrans, bcm2712_vpu_vpu0_i_uc_atrans, "monitor=1,bus=9,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_amax, bcm2712_vpu_vpu0_i_uc_amax, "monitor=1,bus=9,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_wwait, bcm2712_vpu_vpu0_i_uc_wwait, "monitor=1,bus=9,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_wtrans, bcm2712_vpu_vpu0_i_uc_wtrans, "monitor=1,bus=9,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_wmax, bcm2712_vpu_vpu0_i_uc_wmax, "monitor=1,bus=9,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_rwait, bcm2712_vpu_vpu0_i_uc_rwait, "monitor=1,bus=9,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_rtrans, bcm2712_vpu_vpu0_i_uc_rtrans, "monitor=1,bus=9,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_rmax, bcm2712_vpu_vpu0_i_uc_rmax, "monitor=1,bus=9,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_rpend, bcm2712_vpu_vpu0_i_uc_rpend, "monitor=1,bus=9,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu0_i_uc_ratrans, bcm2712_vpu_vpu0_i_uc_ratrans, "monitor=1,bus=9,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_atwait, bcm2712_vpu_vpu_uc_atwait, "monitor=1,bus=10,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_atrans, bcm2712_vpu_vpu_uc_atrans, "monitor=1,bus=10,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_amax, bcm2712_vpu_vpu_uc_amax, "monitor=1,bus=10,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_wwait, bcm2712_vpu_vpu_uc_wwait, "monitor=1,bus=10,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_wtrans, bcm2712_vpu_vpu_uc_wtrans, "monitor=1,bus=10,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_wmax, bcm2712_vpu_vpu_uc_wmax, "monitor=1,bus=10,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_rwait, bcm2712_vpu_vpu_uc_rwait, "monitor=1,bus=10,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_rtrans, bcm2712_vpu_vpu_uc_rtrans, "monitor=1,bus=10,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_rmax, bcm2712_vpu_vpu_uc_rmax, "monitor=1,bus=10,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_rpend, bcm2712_vpu_vpu_uc_rpend, "monitor=1,bus=10,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_vpu_uc_ratrans, bcm2712_vpu_vpu_uc_ratrans, "monitor=1,bus=10,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_atwait, bcm2712_vpu_l2_out_atwait, "monitor=1,bus=11,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_atrans, bcm2712_vpu_l2_out_atrans, "monitor=1,bus=11,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_amax, bcm2712_vpu_l2_out_amax, "monitor=1,bus=11,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_wwait, bcm2712_vpu_l2_out_wwait, "monitor=1,bus=11,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_wtrans, bcm2712_vpu_l2_out_wtrans, "monitor=1,bus=11,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_wmax, bcm2712_vpu_l2_out_wmax, "monitor=1,bus=11,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_rwait, bcm2712_vpu_l2_out_rwait, "monitor=1,bus=11,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_rtrans, bcm2712_vpu_l2_out_rtrans, "monitor=1,bus=11,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_rmax, bcm2712_vpu_l2_out_rmax, "monitor=1,bus=11,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_rpend, bcm2712_vpu_l2_out_rpend, "monitor=1,bus=11,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_l2_out_ratrans, bcm2712_vpu_l2_out_ratrans, "monitor=1,bus=11,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_atwait, bcm2712_vpu_dma_uc_atwait, "monitor=1,bus=12,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_atrans, bcm2712_vpu_dma_uc_atrans, "monitor=1,bus=12,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_amax, bcm2712_vpu_dma_uc_amax, "monitor=1,bus=12,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_wwait, bcm2712_vpu_dma_uc_wwait, "monitor=1,bus=12,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_wtrans, bcm2712_vpu_dma_uc_wtrans, "monitor=1,bus=12,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_wmax, bcm2712_vpu_dma_uc_wmax, "monitor=1,bus=12,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_rwait, bcm2712_vpu_dma_uc_rwait, "monitor=1,bus=12,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_rtrans, bcm2712_vpu_dma_uc_rtrans, "monitor=1,bus=12,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_rmax, bcm2712_vpu_dma_uc_rmax, "monitor=1,bus=12,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_rpend, bcm2712_vpu_dma_uc_rpend, "monitor=1,bus=12,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_dma_uc_ratrans, bcm2712_vpu_dma_uc_ratrans, "monitor=1,bus=12,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_atwait, bcm2712_vpu_l2_in_atwait, "monitor=1,bus=13,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_atrans, bcm2712_vpu_l2_in_atrans, "monitor=1,bus=13,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_amax, bcm2712_vpu_l2_in_amax, "monitor=1,bus=13,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_wwait, bcm2712_vpu_l2_in_wwait, "monitor=1,bus=13,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_wtrans, bcm2712_vpu_l2_in_wtrans, "monitor=1,bus=13,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_wmax, bcm2712_vpu_l2_in_wmax, "monitor=1,bus=13,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_rwait, bcm2712_vpu_l2_in_rwait, "monitor=1,bus=13,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_rtrans, bcm2712_vpu_l2_in_rtrans, "monitor=1,bus=13,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_rmax, bcm2712_vpu_l2_in_rmax, "monitor=1,bus=13,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_rpend, bcm2712_vpu_l2_in_rpend, "monitor=1,bus=13,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_l2_in_ratrans, bcm2712_vpu_l2_in_ratrans, "monitor=1,bus=13,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_uc_atwait, bcm2712_vpu_uc_atwait, "monitor=0,bus=0,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_uc_atrans, bcm2712_vpu_uc_atrans, "monitor=0,bus=0,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_uc_amax, bcm2712_vpu_uc_amax, "monitor=0,bus=0,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_uc_wwait, bcm2712_vpu_uc_wwait, "monitor=0,bus=0,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_uc_wtrans, bcm2712_vpu_uc_wtrans, "monitor=0,bus=0,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_uc_wmax, bcm2712_vpu_uc_wmax, "monitor=0,bus=0,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_uc_rwait, bcm2712_vpu_uc_rwait, "monitor=0,bus=0,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_uc_rtrans, bcm2712_vpu_uc_rtrans, "monitor=0,bus=0,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_uc_rmax, bcm2712_vpu_uc_rmax, "monitor=0,bus=0,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_uc_rpend, bcm2712_vpu_uc_rpend, "monitor=0,bus=0,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_uc_ratrans, bcm2712_vpu_uc_ratrans, "monitor=0,bus=0,counter=10");
+PMU_EVENT_ATTR_STRING(display_atwait, bcm2712_display_atwait, "monitor=0,bus=1,counter=0");
+PMU_EVENT_ATTR_STRING(display_atrans, bcm2712_display_atrans, "monitor=0,bus=1,counter=1");
+PMU_EVENT_ATTR_STRING(display_amax, bcm2712_display_amax, "monitor=0,bus=1,counter=2");
+PMU_EVENT_ATTR_STRING(display_wwait, bcm2712_display_wwait, "monitor=0,bus=1,counter=3");
+PMU_EVENT_ATTR_STRING(display_wtrans, bcm2712_display_wtrans, "monitor=0,bus=1,counter=4");
+PMU_EVENT_ATTR_STRING(display_wmax, bcm2712_display_wmax, "monitor=0,bus=1,counter=5");
+PMU_EVENT_ATTR_STRING(display_rwait, bcm2712_display_rwait, "monitor=0,bus=1,counter=6");
+PMU_EVENT_ATTR_STRING(display_rtrans, bcm2712_display_rtrans, "monitor=0,bus=1,counter=7");
+PMU_EVENT_ATTR_STRING(display_rmax, bcm2712_display_rmax, "monitor=0,bus=1,counter=8");
+PMU_EVENT_ATTR_STRING(display_rpend, bcm2712_display_rpend, "monitor=0,bus=1,counter=9");
+PMU_EVENT_ATTR_STRING(display_ratrans, bcm2712_display_ratrans, "monitor=0,bus=1,counter=10");
+PMU_EVENT_ATTR_STRING(v3d_atwait, bcm2712_v3d_atwait, "monitor=0,bus=2,counter=0");
+PMU_EVENT_ATTR_STRING(v3d_atrans, bcm2712_v3d_atrans, "monitor=0,bus=2,counter=1");
+PMU_EVENT_ATTR_STRING(v3d_amax, bcm2712_v3d_amax, "monitor=0,bus=2,counter=2");
+PMU_EVENT_ATTR_STRING(v3d_wwait, bcm2712_v3d_wwait, "monitor=0,bus=2,counter=3");
+PMU_EVENT_ATTR_STRING(v3d_wtrans, bcm2712_v3d_wtrans, "monitor=0,bus=2,counter=4");
+PMU_EVENT_ATTR_STRING(v3d_wmax, bcm2712_v3d_wmax, "monitor=0,bus=2,counter=5");
+PMU_EVENT_ATTR_STRING(v3d_rwait, bcm2712_v3d_rwait, "monitor=0,bus=2,counter=6");
+PMU_EVENT_ATTR_STRING(v3d_rtrans, bcm2712_v3d_rtrans, "monitor=0,bus=2,counter=7");
+PMU_EVENT_ATTR_STRING(v3d_rmax, bcm2712_v3d_rmax, "monitor=0,bus=2,counter=8");
+PMU_EVENT_ATTR_STRING(v3d_rpend, bcm2712_v3d_rpend, "monitor=0,bus=2,counter=9");
+PMU_EVENT_ATTR_STRING(v3d_ratrans, bcm2712_v3d_ratrans, "monitor=0,bus=2,counter=10");
+PMU_EVENT_ATTR_STRING(arm_atwait, bcm2712_arm_atwait, "monitor=0,bus=3,counter=0");
+PMU_EVENT_ATTR_STRING(arm_atrans, bcm2712_arm_atrans, "monitor=0,bus=3,counter=1");
+PMU_EVENT_ATTR_STRING(arm_amax, bcm2712_arm_amax, "monitor=0,bus=3,counter=2");
+PMU_EVENT_ATTR_STRING(arm_wwait, bcm2712_arm_wwait, "monitor=0,bus=3,counter=3");
+PMU_EVENT_ATTR_STRING(arm_wtrans, bcm2712_arm_wtrans, "monitor=0,bus=3,counter=4");
+PMU_EVENT_ATTR_STRING(arm_wmax, bcm2712_arm_wmax, "monitor=0,bus=3,counter=5");
+PMU_EVENT_ATTR_STRING(arm_rwait, bcm2712_arm_rwait, "monitor=0,bus=3,counter=6");
+PMU_EVENT_ATTR_STRING(arm_rtrans, bcm2712_arm_rtrans, "monitor=0,bus=3,counter=7");
+PMU_EVENT_ATTR_STRING(arm_rmax, bcm2712_arm_rmax, "monitor=0,bus=3,counter=8");
+PMU_EVENT_ATTR_STRING(arm_rpend, bcm2712_arm_rpend, "monitor=0,bus=3,counter=9");
+PMU_EVENT_ATTR_STRING(arm_ratrans, bcm2712_arm_ratrans, "monitor=0,bus=3,counter=10");
+PMU_EVENT_ATTR_STRING(xpt_atwait, bcm2712_xpt_atwait, "monitor=0,bus=4,counter=0");
+PMU_EVENT_ATTR_STRING(xpt_atrans, bcm2712_xpt_atrans, "monitor=0,bus=4,counter=1");
+PMU_EVENT_ATTR_STRING(xpt_amax, bcm2712_xpt_amax, "monitor=0,bus=4,counter=2");
+PMU_EVENT_ATTR_STRING(xpt_wwait, bcm2712_xpt_wwait, "monitor=0,bus=4,counter=3");
+PMU_EVENT_ATTR_STRING(xpt_wtrans, bcm2712_xpt_wtrans, "monitor=0,bus=4,counter=4");
+PMU_EVENT_ATTR_STRING(xpt_wmax, bcm2712_xpt_wmax, "monitor=0,bus=4,counter=5");
+PMU_EVENT_ATTR_STRING(xpt_rwait, bcm2712_xpt_rwait, "monitor=0,bus=4,counter=6");
+PMU_EVENT_ATTR_STRING(xpt_rtrans, bcm2712_xpt_rtrans, "monitor=0,bus=4,counter=7");
+PMU_EVENT_ATTR_STRING(xpt_rmax, bcm2712_xpt_rmax, "monitor=0,bus=4,counter=8");
+PMU_EVENT_ATTR_STRING(xpt_rpend, bcm2712_xpt_rpend, "monitor=0,bus=4,counter=9");
+PMU_EVENT_ATTR_STRING(xpt_ratrans, bcm2712_xpt_ratrans, "monitor=0,bus=4,counter=10");
+PMU_EVENT_ATTR_STRING(pcie_02_atwait, bcm2712_pcie_02_atwait, "monitor=0,bus=5,counter=0");
+PMU_EVENT_ATTR_STRING(pcie_02_atrans, bcm2712_pcie_02_atrans, "monitor=0,bus=5,counter=1");
+PMU_EVENT_ATTR_STRING(pcie_02_amax, bcm2712_pcie_02_amax, "monitor=0,bus=5,counter=2");
+PMU_EVENT_ATTR_STRING(pcie_02_wwait, bcm2712_pcie_02_wwait, "monitor=0,bus=5,counter=3");
+PMU_EVENT_ATTR_STRING(pcie_02_wtrans, bcm2712_pcie_02_wtrans, "monitor=0,bus=5,counter=4");
+PMU_EVENT_ATTR_STRING(pcie_02_wmax, bcm2712_pcie_02_wmax, "monitor=0,bus=5,counter=5");
+PMU_EVENT_ATTR_STRING(pcie_02_rwait, bcm2712_pcie_02_rwait, "monitor=0,bus=5,counter=6");
+PMU_EVENT_ATTR_STRING(pcie_02_rtrans, bcm2712_pcie_02_rtrans, "monitor=0,bus=5,counter=7");
+PMU_EVENT_ATTR_STRING(pcie_02_rmax, bcm2712_pcie_02_rmax, "monitor=0,bus=5,counter=8");
+PMU_EVENT_ATTR_STRING(pcie_02_rpend, bcm2712_pcie_02_rpend, "monitor=0,bus=5,counter=9");
+PMU_EVENT_ATTR_STRING(pcie_02_ratrans, bcm2712_pcie_02_ratrans, "monitor=0,bus=5,counter=10");
+PMU_EVENT_ATTR_STRING(pcie_01_atwait, bcm2712_pcie_01_atwait, "monitor=0,bus=6,counter=0");
+PMU_EVENT_ATTR_STRING(pcie_01_atrans, bcm2712_pcie_01_atrans, "monitor=0,bus=6,counter=1");
+PMU_EVENT_ATTR_STRING(pcie_01_amax, bcm2712_pcie_01_amax, "monitor=0,bus=6,counter=2");
+PMU_EVENT_ATTR_STRING(pcie_01_wwait, bcm2712_pcie_01_wwait, "monitor=0,bus=6,counter=3");
+PMU_EVENT_ATTR_STRING(pcie_01_wtrans, bcm2712_pcie_01_wtrans, "monitor=0,bus=6,counter=4");
+PMU_EVENT_ATTR_STRING(pcie_01_wmax, bcm2712_pcie_01_wmax, "monitor=0,bus=6,counter=5");
+PMU_EVENT_ATTR_STRING(pcie_01_rwait, bcm2712_pcie_01_rwait, "monitor=0,bus=6,counter=6");
+PMU_EVENT_ATTR_STRING(pcie_01_rtrans, bcm2712_pcie_01_rtrans, "monitor=0,bus=6,counter=7");
+PMU_EVENT_ATTR_STRING(pcie_01_rmax, bcm2712_pcie_01_rmax, "monitor=0,bus=6,counter=8");
+PMU_EVENT_ATTR_STRING(pcie_01_rpend, bcm2712_pcie_01_rpend, "monitor=0,bus=6,counter=9");
+PMU_EVENT_ATTR_STRING(pcie_01_ratrans, bcm2712_pcie_01_ratrans, "monitor=0,bus=6,counter=10");
+PMU_EVENT_ATTR_STRING(argon_atwait, bcm2712_argon_atwait, "monitor=0,bus=7,counter=0");
+PMU_EVENT_ATTR_STRING(argon_atrans, bcm2712_argon_atrans, "monitor=0,bus=7,counter=1");
+PMU_EVENT_ATTR_STRING(argon_amax, bcm2712_argon_amax, "monitor=0,bus=7,counter=2");
+PMU_EVENT_ATTR_STRING(argon_wwait, bcm2712_argon_wwait, "monitor=0,bus=7,counter=3");
+PMU_EVENT_ATTR_STRING(argon_wtrans, bcm2712_argon_wtrans, "monitor=0,bus=7,counter=4");
+PMU_EVENT_ATTR_STRING(argon_wmax, bcm2712_argon_wmax, "monitor=0,bus=7,counter=5");
+PMU_EVENT_ATTR_STRING(argon_rwait, bcm2712_argon_rwait, "monitor=0,bus=7,counter=6");
+PMU_EVENT_ATTR_STRING(argon_rtrans, bcm2712_argon_rtrans, "monitor=0,bus=7,counter=7");
+PMU_EVENT_ATTR_STRING(argon_rmax, bcm2712_argon_rmax, "monitor=0,bus=7,counter=8");
+PMU_EVENT_ATTR_STRING(argon_rpend, bcm2712_argon_rpend, "monitor=0,bus=7,counter=9");
+PMU_EVENT_ATTR_STRING(argon_ratrans, bcm2712_argon_ratrans, "monitor=0,bus=7,counter=10");
+PMU_EVENT_ATTR_STRING(emmc2_atwait, bcm2712_emmc2_atwait, "monitor=0,bus=8,counter=0");
+PMU_EVENT_ATTR_STRING(emmc2_atrans, bcm2712_emmc2_atrans, "monitor=0,bus=8,counter=1");
+PMU_EVENT_ATTR_STRING(emmc2_amax, bcm2712_emmc2_amax, "monitor=0,bus=8,counter=2");
+PMU_EVENT_ATTR_STRING(emmc2_wwait, bcm2712_emmc2_wwait, "monitor=0,bus=8,counter=3");
+PMU_EVENT_ATTR_STRING(emmc2_wtrans, bcm2712_emmc2_wtrans, "monitor=0,bus=8,counter=4");
+PMU_EVENT_ATTR_STRING(emmc2_wmax, bcm2712_emmc2_wmax, "monitor=0,bus=8,counter=5");
+PMU_EVENT_ATTR_STRING(emmc2_rwait, bcm2712_emmc2_rwait, "monitor=0,bus=8,counter=6");
+PMU_EVENT_ATTR_STRING(emmc2_rtrans, bcm2712_emmc2_rtrans, "monitor=0,bus=8,counter=7");
+PMU_EVENT_ATTR_STRING(emmc2_rmax, bcm2712_emmc2_rmax, "monitor=0,bus=8,counter=8");
+PMU_EVENT_ATTR_STRING(emmc2_rpend, bcm2712_emmc2_rpend, "monitor=0,bus=8,counter=9");
+PMU_EVENT_ATTR_STRING(emmc2_ratrans, bcm2712_emmc2_ratrans, "monitor=0,bus=8,counter=10");
+PMU_EVENT_ATTR_STRING(sd_dma_atwait, bcm2712_sd_dma_atwait, "monitor=0,bus=9,counter=0");
+PMU_EVENT_ATTR_STRING(sd_dma_atrans, bcm2712_sd_dma_atrans, "monitor=0,bus=9,counter=1");
+PMU_EVENT_ATTR_STRING(sd_dma_amax, bcm2712_sd_dma_amax, "monitor=0,bus=9,counter=2");
+PMU_EVENT_ATTR_STRING(sd_dma_wwait, bcm2712_sd_dma_wwait, "monitor=0,bus=9,counter=3");
+PMU_EVENT_ATTR_STRING(sd_dma_wtrans, bcm2712_sd_dma_wtrans, "monitor=0,bus=9,counter=4");
+PMU_EVENT_ATTR_STRING(sd_dma_wmax, bcm2712_sd_dma_wmax, "monitor=0,bus=9,counter=5");
+PMU_EVENT_ATTR_STRING(sd_dma_rwait, bcm2712_sd_dma_rwait, "monitor=0,bus=9,counter=6");
+PMU_EVENT_ATTR_STRING(sd_dma_rtrans, bcm2712_sd_dma_rtrans, "monitor=0,bus=9,counter=7");
+PMU_EVENT_ATTR_STRING(sd_dma_rmax, bcm2712_sd_dma_rmax, "monitor=0,bus=9,counter=8");
+PMU_EVENT_ATTR_STRING(sd_dma_rpend, bcm2712_sd_dma_rpend, "monitor=0,bus=9,counter=9");
+PMU_EVENT_ATTR_STRING(sd_dma_ratrans, bcm2712_sd_dma_ratrans, "monitor=0,bus=9,counter=10");
+PMU_EVENT_ATTR_STRING(hvdp_atwait, bcm2712_hvdp_atwait, "monitor=0,bus=10,counter=0");
+PMU_EVENT_ATTR_STRING(hvdp_atrans, bcm2712_hvdp_atrans, "monitor=0,bus=10,counter=1");
+PMU_EVENT_ATTR_STRING(hvdp_amax, bcm2712_hvdp_amax, "monitor=0,bus=10,counter=2");
+PMU_EVENT_ATTR_STRING(hvdp_wwait, bcm2712_hvdp_wwait, "monitor=0,bus=10,counter=3");
+PMU_EVENT_ATTR_STRING(hvdp_wtrans, bcm2712_hvdp_wtrans, "monitor=0,bus=10,counter=4");
+PMU_EVENT_ATTR_STRING(hvdp_wmax, bcm2712_hvdp_wmax, "monitor=0,bus=10,counter=5");
+PMU_EVENT_ATTR_STRING(hvdp_rwait, bcm2712_hvdp_rwait, "monitor=0,bus=10,counter=6");
+PMU_EVENT_ATTR_STRING(hvdp_rtrans, bcm2712_hvdp_rtrans, "monitor=0,bus=10,counter=7");
+PMU_EVENT_ATTR_STRING(hvdp_rmax, bcm2712_hvdp_rmax, "monitor=0,bus=10,counter=8");
+PMU_EVENT_ATTR_STRING(hvdp_rpend, bcm2712_hvdp_rpend, "monitor=0,bus=10,counter=9");
+PMU_EVENT_ATTR_STRING(hvdp_ratrans, bcm2712_hvdp_ratrans, "monitor=0,bus=10,counter=10");
+PMU_EVENT_ATTR_STRING(per_atwait, bcm2712_per_atwait, "monitor=0,bus=11,counter=0");
+PMU_EVENT_ATTR_STRING(per_atrans, bcm2712_per_atrans, "monitor=0,bus=11,counter=1");
+PMU_EVENT_ATTR_STRING(per_amax, bcm2712_per_amax, "monitor=0,bus=11,counter=2");
+PMU_EVENT_ATTR_STRING(per_wwait, bcm2712_per_wwait, "monitor=0,bus=11,counter=3");
+PMU_EVENT_ATTR_STRING(per_wtrans, bcm2712_per_wtrans, "monitor=0,bus=11,counter=4");
+PMU_EVENT_ATTR_STRING(per_wmax, bcm2712_per_wmax, "monitor=0,bus=11,counter=5");
+PMU_EVENT_ATTR_STRING(per_rwait, bcm2712_per_rwait, "monitor=0,bus=11,counter=6");
+PMU_EVENT_ATTR_STRING(per_rtrans, bcm2712_per_rtrans, "monitor=0,bus=11,counter=7");
+PMU_EVENT_ATTR_STRING(per_rmax, bcm2712_per_rmax, "monitor=0,bus=11,counter=8");
+PMU_EVENT_ATTR_STRING(per_rpend, bcm2712_per_rpend, "monitor=0,bus=11,counter=9");
+PMU_EVENT_ATTR_STRING(per_ratrans, bcm2712_per_ratrans, "monitor=0,bus=11,counter=10");
+PMU_EVENT_ATTR_STRING(system_l2_atwait, bcm2712_system_l2_atwait, "monitor=0,bus=12,counter=0");
+PMU_EVENT_ATTR_STRING(system_l2_atrans, bcm2712_system_l2_atrans, "monitor=0,bus=12,counter=1");
+PMU_EVENT_ATTR_STRING(system_l2_amax, bcm2712_system_l2_amax, "monitor=0,bus=12,counter=2");
+PMU_EVENT_ATTR_STRING(system_l2_wwait, bcm2712_system_l2_wwait, "monitor=0,bus=12,counter=3");
+PMU_EVENT_ATTR_STRING(system_l2_wtrans, bcm2712_system_l2_wtrans, "monitor=0,bus=12,counter=4");
+PMU_EVENT_ATTR_STRING(system_l2_wmax, bcm2712_system_l2_wmax, "monitor=0,bus=12,counter=5");
+PMU_EVENT_ATTR_STRING(system_l2_rwait, bcm2712_system_l2_rwait, "monitor=0,bus=12,counter=6");
+PMU_EVENT_ATTR_STRING(system_l2_rtrans, bcm2712_system_l2_rtrans, "monitor=0,bus=12,counter=7");
+PMU_EVENT_ATTR_STRING(system_l2_rmax, bcm2712_system_l2_rmax, "monitor=0,bus=12,counter=8");
+PMU_EVENT_ATTR_STRING(system_l2_rpend, bcm2712_system_l2_rpend, "monitor=0,bus=12,counter=9");
+PMU_EVENT_ATTR_STRING(system_l2_ratrans, bcm2712_system_l2_ratrans, "monitor=0,bus=12,counter=10");
+PMU_EVENT_ATTR_STRING(vpu_uc_atwait, bcm2712d0_vpu_uc_atwait, "monitor=0,bus=0,counter=0");
+PMU_EVENT_ATTR_STRING(vpu_uc_atrans, bcm2712d0_vpu_uc_atrans, "monitor=0,bus=0,counter=1");
+PMU_EVENT_ATTR_STRING(vpu_uc_amax, bcm2712d0_vpu_uc_amax, "monitor=0,bus=0,counter=2");
+PMU_EVENT_ATTR_STRING(vpu_uc_wwait, bcm2712d0_vpu_uc_wwait, "monitor=0,bus=0,counter=3");
+PMU_EVENT_ATTR_STRING(vpu_uc_wtrans, bcm2712d0_vpu_uc_wtrans, "monitor=0,bus=0,counter=4");
+PMU_EVENT_ATTR_STRING(vpu_uc_wmax, bcm2712d0_vpu_uc_wmax, "monitor=0,bus=0,counter=5");
+PMU_EVENT_ATTR_STRING(vpu_uc_rwait, bcm2712d0_vpu_uc_rwait, "monitor=0,bus=0,counter=6");
+PMU_EVENT_ATTR_STRING(vpu_uc_rtrans, bcm2712d0_vpu_uc_rtrans, "monitor=0,bus=0,counter=7");
+PMU_EVENT_ATTR_STRING(vpu_uc_rmax, bcm2712d0_vpu_uc_rmax, "monitor=0,bus=0,counter=8");
+PMU_EVENT_ATTR_STRING(vpu_uc_rpend, bcm2712d0_vpu_uc_rpend, "monitor=0,bus=0,counter=9");
+PMU_EVENT_ATTR_STRING(vpu_uc_ratrans, bcm2712d0_vpu_uc_ratrans, "monitor=0,bus=0,counter=10");
+PMU_EVENT_ATTR_STRING(display_atwait, bcm2712d0_display_atwait, "monitor=0,bus=1,counter=0");
+PMU_EVENT_ATTR_STRING(display_atrans, bcm2712d0_display_atrans, "monitor=0,bus=1,counter=1");
+PMU_EVENT_ATTR_STRING(display_amax, bcm2712d0_display_amax, "monitor=0,bus=1,counter=2");
+PMU_EVENT_ATTR_STRING(display_wwait, bcm2712d0_display_wwait, "monitor=0,bus=1,counter=3");
+PMU_EVENT_ATTR_STRING(display_wtrans, bcm2712d0_display_wtrans, "monitor=0,bus=1,counter=4");
+PMU_EVENT_ATTR_STRING(display_wmax, bcm2712d0_display_wmax, "monitor=0,bus=1,counter=5");
+PMU_EVENT_ATTR_STRING(display_rwait, bcm2712d0_display_rwait, "monitor=0,bus=1,counter=6");
+PMU_EVENT_ATTR_STRING(display_rtrans, bcm2712d0_display_rtrans, "monitor=0,bus=1,counter=7");
+PMU_EVENT_ATTR_STRING(display_rmax, bcm2712d0_display_rmax, "monitor=0,bus=1,counter=8");
+PMU_EVENT_ATTR_STRING(display_rpend, bcm2712d0_display_rpend, "monitor=0,bus=1,counter=9");
+PMU_EVENT_ATTR_STRING(display_ratrans, bcm2712d0_display_ratrans, "monitor=0,bus=1,counter=10");
+PMU_EVENT_ATTR_STRING(v3d_atwait, bcm2712d0_v3d_atwait, "monitor=0,bus=2,counter=0");
+PMU_EVENT_ATTR_STRING(v3d_atrans, bcm2712d0_v3d_atrans, "monitor=0,bus=2,counter=1");
+PMU_EVENT_ATTR_STRING(v3d_amax, bcm2712d0_v3d_amax, "monitor=0,bus=2,counter=2");
+PMU_EVENT_ATTR_STRING(v3d_wwait, bcm2712d0_v3d_wwait, "monitor=0,bus=2,counter=3");
+PMU_EVENT_ATTR_STRING(v3d_wtrans, bcm2712d0_v3d_wtrans, "monitor=0,bus=2,counter=4");
+PMU_EVENT_ATTR_STRING(v3d_wmax, bcm2712d0_v3d_wmax, "monitor=0,bus=2,counter=5");
+PMU_EVENT_ATTR_STRING(v3d_rwait, bcm2712d0_v3d_rwait, "monitor=0,bus=2,counter=6");
+PMU_EVENT_ATTR_STRING(v3d_rtrans, bcm2712d0_v3d_rtrans, "monitor=0,bus=2,counter=7");
+PMU_EVENT_ATTR_STRING(v3d_rmax, bcm2712d0_v3d_rmax, "monitor=0,bus=2,counter=8");
+PMU_EVENT_ATTR_STRING(v3d_rpend, bcm2712d0_v3d_rpend, "monitor=0,bus=2,counter=9");
+PMU_EVENT_ATTR_STRING(v3d_ratrans, bcm2712d0_v3d_ratrans, "monitor=0,bus=2,counter=10");
+PMU_EVENT_ATTR_STRING(arm_atwait, bcm2712d0_arm_atwait, "monitor=0,bus=3,counter=0");
+PMU_EVENT_ATTR_STRING(arm_atrans, bcm2712d0_arm_atrans, "monitor=0,bus=3,counter=1");
+PMU_EVENT_ATTR_STRING(arm_amax, bcm2712d0_arm_amax, "monitor=0,bus=3,counter=2");
+PMU_EVENT_ATTR_STRING(arm_wwait, bcm2712d0_arm_wwait, "monitor=0,bus=3,counter=3");
+PMU_EVENT_ATTR_STRING(arm_wtrans, bcm2712d0_arm_wtrans, "monitor=0,bus=3,counter=4");
+PMU_EVENT_ATTR_STRING(arm_wmax, bcm2712d0_arm_wmax, "monitor=0,bus=3,counter=5");
+PMU_EVENT_ATTR_STRING(arm_rwait, bcm2712d0_arm_rwait, "monitor=0,bus=3,counter=6");
+PMU_EVENT_ATTR_STRING(arm_rtrans, bcm2712d0_arm_rtrans, "monitor=0,bus=3,counter=7");
+PMU_EVENT_ATTR_STRING(arm_rmax, bcm2712d0_arm_rmax, "monitor=0,bus=3,counter=8");
+PMU_EVENT_ATTR_STRING(arm_rpend, bcm2712d0_arm_rpend, "monitor=0,bus=3,counter=9");
+PMU_EVENT_ATTR_STRING(arm_ratrans, bcm2712d0_arm_ratrans, "monitor=0,bus=3,counter=10");
+PMU_EVENT_ATTR_STRING(pcie_02_atwait, bcm2712d0_pcie_02_atwait, "monitor=0,bus=4,counter=0");
+PMU_EVENT_ATTR_STRING(pcie_02_atrans, bcm2712d0_pcie_02_atrans, "monitor=0,bus=4,counter=1");
+PMU_EVENT_ATTR_STRING(pcie_02_amax, bcm2712d0_pcie_02_amax, "monitor=0,bus=4,counter=2");
+PMU_EVENT_ATTR_STRING(pcie_02_wwait, bcm2712d0_pcie_02_wwait, "monitor=0,bus=4,counter=3");
+PMU_EVENT_ATTR_STRING(pcie_02_wtrans, bcm2712d0_pcie_02_wtrans, "monitor=0,bus=4,counter=4");
+PMU_EVENT_ATTR_STRING(pcie_02_wmax, bcm2712d0_pcie_02_wmax, "monitor=0,bus=4,counter=5");
+PMU_EVENT_ATTR_STRING(pcie_02_rwait, bcm2712d0_pcie_02_rwait, "monitor=0,bus=4,counter=6");
+PMU_EVENT_ATTR_STRING(pcie_02_rtrans, bcm2712d0_pcie_02_rtrans, "monitor=0,bus=4,counter=7");
+PMU_EVENT_ATTR_STRING(pcie_02_rmax, bcm2712d0_pcie_02_rmax, "monitor=0,bus=4,counter=8");
+PMU_EVENT_ATTR_STRING(pcie_02_rpend, bcm2712d0_pcie_02_rpend, "monitor=0,bus=4,counter=9");
+PMU_EVENT_ATTR_STRING(pcie_02_ratrans, bcm2712d0_pcie_02_ratrans, "monitor=0,bus=4,counter=10");
+PMU_EVENT_ATTR_STRING(argon_atwait, bcm2712d0_argon_atwait, "monitor=0,bus=5,counter=0");
+PMU_EVENT_ATTR_STRING(argon_atrans, bcm2712d0_argon_atrans, "monitor=0,bus=5,counter=1");
+PMU_EVENT_ATTR_STRING(argon_amax, bcm2712d0_argon_amax, "monitor=0,bus=5,counter=2");
+PMU_EVENT_ATTR_STRING(argon_wwait, bcm2712d0_argon_wwait, "monitor=0,bus=5,counter=3");
+PMU_EVENT_ATTR_STRING(argon_wtrans, bcm2712d0_argon_wtrans, "monitor=0,bus=5,counter=4");
+PMU_EVENT_ATTR_STRING(argon_wmax, bcm2712d0_argon_wmax, "monitor=0,bus=5,counter=5");
+PMU_EVENT_ATTR_STRING(argon_rwait, bcm2712d0_argon_rwait, "monitor=0,bus=5,counter=6");
+PMU_EVENT_ATTR_STRING(argon_rtrans, bcm2712d0_argon_rtrans, "monitor=0,bus=5,counter=7");
+PMU_EVENT_ATTR_STRING(argon_rmax, bcm2712d0_argon_rmax, "monitor=0,bus=5,counter=8");
+PMU_EVENT_ATTR_STRING(argon_rpend, bcm2712d0_argon_rpend, "monitor=0,bus=5,counter=9");
+PMU_EVENT_ATTR_STRING(argon_ratrans, bcm2712d0_argon_ratrans, "monitor=0,bus=5,counter=10");
+PMU_EVENT_ATTR_STRING(emmc2_atwait, bcm2712d0_emmc2_atwait, "monitor=0,bus=6,counter=0");
+PMU_EVENT_ATTR_STRING(emmc2_atrans, bcm2712d0_emmc2_atrans, "monitor=0,bus=6,counter=1");
+PMU_EVENT_ATTR_STRING(emmc2_amax, bcm2712d0_emmc2_amax, "monitor=0,bus=6,counter=2");
+PMU_EVENT_ATTR_STRING(emmc2_wwait, bcm2712d0_emmc2_wwait, "monitor=0,bus=6,counter=3");
+PMU_EVENT_ATTR_STRING(emmc2_wtrans, bcm2712d0_emmc2_wtrans, "monitor=0,bus=6,counter=4");
+PMU_EVENT_ATTR_STRING(emmc2_wmax, bcm2712d0_emmc2_wmax, "monitor=0,bus=6,counter=5");
+PMU_EVENT_ATTR_STRING(emmc2_rwait, bcm2712d0_emmc2_rwait, "monitor=0,bus=6,counter=6");
+PMU_EVENT_ATTR_STRING(emmc2_rtrans, bcm2712d0_emmc2_rtrans, "monitor=0,bus=6,counter=7");
+PMU_EVENT_ATTR_STRING(emmc2_rmax, bcm2712d0_emmc2_rmax, "monitor=0,bus=6,counter=8");
+PMU_EVENT_ATTR_STRING(emmc2_rpend, bcm2712d0_emmc2_rpend, "monitor=0,bus=6,counter=9");
+PMU_EVENT_ATTR_STRING(emmc2_ratrans, bcm2712d0_emmc2_ratrans, "monitor=0,bus=6,counter=10");
+PMU_EVENT_ATTR_STRING(sd_dma_atwait, bcm2712d0_sd_dma_atwait, "monitor=0,bus=7,counter=0");
+PMU_EVENT_ATTR_STRING(sd_dma_atrans, bcm2712d0_sd_dma_atrans, "monitor=0,bus=7,counter=1");
+PMU_EVENT_ATTR_STRING(sd_dma_amax, bcm2712d0_sd_dma_amax, "monitor=0,bus=7,counter=2");
+PMU_EVENT_ATTR_STRING(sd_dma_wwait, bcm2712d0_sd_dma_wwait, "monitor=0,bus=7,counter=3");
+PMU_EVENT_ATTR_STRING(sd_dma_wtrans, bcm2712d0_sd_dma_wtrans, "monitor=0,bus=7,counter=4");
+PMU_EVENT_ATTR_STRING(sd_dma_wmax, bcm2712d0_sd_dma_wmax, "monitor=0,bus=7,counter=5");
+PMU_EVENT_ATTR_STRING(sd_dma_rwait, bcm2712d0_sd_dma_rwait, "monitor=0,bus=7,counter=6");
+PMU_EVENT_ATTR_STRING(sd_dma_rtrans, bcm2712d0_sd_dma_rtrans, "monitor=0,bus=7,counter=7");
+PMU_EVENT_ATTR_STRING(sd_dma_rmax, bcm2712d0_sd_dma_rmax, "monitor=0,bus=7,counter=8");
+PMU_EVENT_ATTR_STRING(sd_dma_rpend, bcm2712d0_sd_dma_rpend, "monitor=0,bus=7,counter=9");
+PMU_EVENT_ATTR_STRING(sd_dma_ratrans, bcm2712d0_sd_dma_ratrans, "monitor=0,bus=7,counter=10");
+PMU_EVENT_ATTR_STRING(per_atwait, bcm2712d0_per_atwait, "monitor=0,bus=8,counter=0");
+PMU_EVENT_ATTR_STRING(per_atrans, bcm2712d0_per_atrans, "monitor=0,bus=8,counter=1");
+PMU_EVENT_ATTR_STRING(per_amax, bcm2712d0_per_amax, "monitor=0,bus=8,counter=2");
+PMU_EVENT_ATTR_STRING(per_wwait, bcm2712d0_per_wwait, "monitor=0,bus=8,counter=3");
+PMU_EVENT_ATTR_STRING(per_wtrans, bcm2712d0_per_wtrans, "monitor=0,bus=8,counter=4");
+PMU_EVENT_ATTR_STRING(per_wmax, bcm2712d0_per_wmax, "monitor=0,bus=8,counter=5");
+PMU_EVENT_ATTR_STRING(per_rwait, bcm2712d0_per_rwait, "monitor=0,bus=8,counter=6");
+PMU_EVENT_ATTR_STRING(per_rtrans, bcm2712d0_per_rtrans, "monitor=0,bus=8,counter=7");
+PMU_EVENT_ATTR_STRING(per_rmax, bcm2712d0_per_rmax, "monitor=0,bus=8,counter=8");
+PMU_EVENT_ATTR_STRING(per_rpend, bcm2712d0_per_rpend, "monitor=0,bus=8,counter=9");
+PMU_EVENT_ATTR_STRING(per_ratrans, bcm2712d0_per_ratrans, "monitor=0,bus=8,counter=10");
+PMU_EVENT_ATTR_STRING(system_l2_atwait, bcm2712d0_system_l2_atwait, "monitor=0,bus=9,counter=0");
+PMU_EVENT_ATTR_STRING(system_l2_atrans, bcm2712d0_system_l2_atrans, "monitor=0,bus=9,counter=1");
+PMU_EVENT_ATTR_STRING(system_l2_amax, bcm2712d0_system_l2_amax, "monitor=0,bus=9,counter=2");
+PMU_EVENT_ATTR_STRING(system_l2_wwait, bcm2712d0_system_l2_wwait, "monitor=0,bus=9,counter=3");
+PMU_EVENT_ATTR_STRING(system_l2_wtrans, bcm2712d0_system_l2_wtrans, "monitor=0,bus=9,counter=4");
+PMU_EVENT_ATTR_STRING(system_l2_wmax, bcm2712d0_system_l2_wmax, "monitor=0,bus=9,counter=5");
+PMU_EVENT_ATTR_STRING(system_l2_rwait, bcm2712d0_system_l2_rwait, "monitor=0,bus=9,counter=6");
+PMU_EVENT_ATTR_STRING(system_l2_rtrans, bcm2712d0_system_l2_rtrans, "monitor=0,bus=9,counter=7");
+PMU_EVENT_ATTR_STRING(system_l2_rmax, bcm2712d0_system_l2_rmax, "monitor=0,bus=9,counter=8");
+PMU_EVENT_ATTR_STRING(system_l2_rpend, bcm2712d0_system_l2_rpend, "monitor=0,bus=9,counter=9");
+PMU_EVENT_ATTR_STRING(system_l2_ratrans, bcm2712d0_system_l2_ratrans, "monitor=0,bus=9,counter=10");
+
+static struct attribute *bcm2712_events[] = {
+	&bcm2712_vpu_uc_atwait.attr.attr,
+	&bcm2712_vpu_uc_atrans.attr.attr,
+	&bcm2712_vpu_uc_amax.attr.attr,
+	&bcm2712_vpu_uc_wwait.attr.attr,
+	&bcm2712_vpu_uc_wtrans.attr.attr,
+	&bcm2712_vpu_uc_wmax.attr.attr,
+	&bcm2712_vpu_uc_rwait.attr.attr,
+	&bcm2712_vpu_uc_rtrans.attr.attr,
+	&bcm2712_vpu_uc_rmax.attr.attr,
+	&bcm2712_vpu_uc_rpend.attr.attr,
+	&bcm2712_vpu_uc_ratrans.attr.attr,
+	&bcm2712_display_atwait.attr.attr,
+	&bcm2712_display_atrans.attr.attr,
+	&bcm2712_display_amax.attr.attr,
+	&bcm2712_display_wwait.attr.attr,
+	&bcm2712_display_wtrans.attr.attr,
+	&bcm2712_display_wmax.attr.attr,
+	&bcm2712_display_rwait.attr.attr,
+	&bcm2712_display_rtrans.attr.attr,
+	&bcm2712_display_rmax.attr.attr,
+	&bcm2712_display_rpend.attr.attr,
+	&bcm2712_display_ratrans.attr.attr,
+	&bcm2712_v3d_atwait.attr.attr,
+	&bcm2712_v3d_atrans.attr.attr,
+	&bcm2712_v3d_amax.attr.attr,
+	&bcm2712_v3d_wwait.attr.attr,
+	&bcm2712_v3d_wtrans.attr.attr,
+	&bcm2712_v3d_wmax.attr.attr,
+	&bcm2712_v3d_rwait.attr.attr,
+	&bcm2712_v3d_rtrans.attr.attr,
+	&bcm2712_v3d_rmax.attr.attr,
+	&bcm2712_v3d_rpend.attr.attr,
+	&bcm2712_v3d_ratrans.attr.attr,
+	&bcm2712_arm_atwait.attr.attr,
+	&bcm2712_arm_atrans.attr.attr,
+	&bcm2712_arm_amax.attr.attr,
+	&bcm2712_arm_wwait.attr.attr,
+	&bcm2712_arm_wtrans.attr.attr,
+	&bcm2712_arm_wmax.attr.attr,
+	&bcm2712_arm_rwait.attr.attr,
+	&bcm2712_arm_rtrans.attr.attr,
+	&bcm2712_arm_rmax.attr.attr,
+	&bcm2712_arm_rpend.attr.attr,
+	&bcm2712_arm_ratrans.attr.attr,
+	&bcm2712_xpt_atwait.attr.attr,
+	&bcm2712_xpt_atrans.attr.attr,
+	&bcm2712_xpt_amax.attr.attr,
+	&bcm2712_xpt_wwait.attr.attr,
+	&bcm2712_xpt_wtrans.attr.attr,
+	&bcm2712_xpt_wmax.attr.attr,
+	&bcm2712_xpt_rwait.attr.attr,
+	&bcm2712_xpt_rtrans.attr.attr,
+	&bcm2712_xpt_rmax.attr.attr,
+	&bcm2712_xpt_rpend.attr.attr,
+	&bcm2712_xpt_ratrans.attr.attr,
+	&bcm2712_pcie_02_atwait.attr.attr,
+	&bcm2712_pcie_02_atrans.attr.attr,
+	&bcm2712_pcie_02_amax.attr.attr,
+	&bcm2712_pcie_02_wwait.attr.attr,
+	&bcm2712_pcie_02_wtrans.attr.attr,
+	&bcm2712_pcie_02_wmax.attr.attr,
+	&bcm2712_pcie_02_rwait.attr.attr,
+	&bcm2712_pcie_02_rtrans.attr.attr,
+	&bcm2712_pcie_02_rmax.attr.attr,
+	&bcm2712_pcie_02_rpend.attr.attr,
+	&bcm2712_pcie_02_ratrans.attr.attr,
+	&bcm2712_pcie_01_atwait.attr.attr,
+	&bcm2712_pcie_01_atrans.attr.attr,
+	&bcm2712_pcie_01_amax.attr.attr,
+	&bcm2712_pcie_01_wwait.attr.attr,
+	&bcm2712_pcie_01_wtrans.attr.attr,
+	&bcm2712_pcie_01_wmax.attr.attr,
+	&bcm2712_pcie_01_rwait.attr.attr,
+	&bcm2712_pcie_01_rtrans.attr.attr,
+	&bcm2712_pcie_01_rmax.attr.attr,
+	&bcm2712_pcie_01_rpend.attr.attr,
+	&bcm2712_pcie_01_ratrans.attr.attr,
+	&bcm2712_argon_atwait.attr.attr,
+	&bcm2712_argon_atrans.attr.attr,
+	&bcm2712_argon_amax.attr.attr,
+	&bcm2712_argon_wwait.attr.attr,
+	&bcm2712_argon_wtrans.attr.attr,
+	&bcm2712_argon_wmax.attr.attr,
+	&bcm2712_argon_rwait.attr.attr,
+	&bcm2712_argon_rtrans.attr.attr,
+	&bcm2712_argon_rmax.attr.attr,
+	&bcm2712_argon_rpend.attr.attr,
+	&bcm2712_argon_ratrans.attr.attr,
+	&bcm2712_emmc2_atwait.attr.attr,
+	&bcm2712_emmc2_atrans.attr.attr,
+	&bcm2712_emmc2_amax.attr.attr,
+	&bcm2712_emmc2_wwait.attr.attr,
+	&bcm2712_emmc2_wtrans.attr.attr,
+	&bcm2712_emmc2_wmax.attr.attr,
+	&bcm2712_emmc2_rwait.attr.attr,
+	&bcm2712_emmc2_rtrans.attr.attr,
+	&bcm2712_emmc2_rmax.attr.attr,
+	&bcm2712_emmc2_rpend.attr.attr,
+	&bcm2712_emmc2_ratrans.attr.attr,
+	&bcm2712_sd_dma_atwait.attr.attr,
+	&bcm2712_sd_dma_atrans.attr.attr,
+	&bcm2712_sd_dma_amax.attr.attr,
+	&bcm2712_sd_dma_wwait.attr.attr,
+	&bcm2712_sd_dma_wtrans.attr.attr,
+	&bcm2712_sd_dma_wmax.attr.attr,
+	&bcm2712_sd_dma_rwait.attr.attr,
+	&bcm2712_sd_dma_rtrans.attr.attr,
+	&bcm2712_sd_dma_rmax.attr.attr,
+	&bcm2712_sd_dma_rpend.attr.attr,
+	&bcm2712_sd_dma_ratrans.attr.attr,
+	&bcm2712_hvdp_atwait.attr.attr,
+	&bcm2712_hvdp_atrans.attr.attr,
+	&bcm2712_hvdp_amax.attr.attr,
+	&bcm2712_hvdp_wwait.attr.attr,
+	&bcm2712_hvdp_wtrans.attr.attr,
+	&bcm2712_hvdp_wmax.attr.attr,
+	&bcm2712_hvdp_rwait.attr.attr,
+	&bcm2712_hvdp_rtrans.attr.attr,
+	&bcm2712_hvdp_rmax.attr.attr,
+	&bcm2712_hvdp_rpend.attr.attr,
+	&bcm2712_hvdp_ratrans.attr.attr,
+	&bcm2712_per_atwait.attr.attr,
+	&bcm2712_per_atrans.attr.attr,
+	&bcm2712_per_amax.attr.attr,
+	&bcm2712_per_wwait.attr.attr,
+	&bcm2712_per_wtrans.attr.attr,
+	&bcm2712_per_wmax.attr.attr,
+	&bcm2712_per_rwait.attr.attr,
+	&bcm2712_per_rtrans.attr.attr,
+	&bcm2712_per_rmax.attr.attr,
+	&bcm2712_per_rpend.attr.attr,
+	&bcm2712_per_ratrans.attr.attr,
+	&bcm2712_system_l2_atwait.attr.attr,
+	&bcm2712_system_l2_atrans.attr.attr,
+	&bcm2712_system_l2_amax.attr.attr,
+	&bcm2712_system_l2_wwait.attr.attr,
+	&bcm2712_system_l2_wtrans.attr.attr,
+	&bcm2712_system_l2_wmax.attr.attr,
+	&bcm2712_system_l2_rwait.attr.attr,
+	&bcm2712_system_l2_rtrans.attr.attr,
+	&bcm2712_system_l2_rmax.attr.attr,
+	&bcm2712_system_l2_rpend.attr.attr,
+	&bcm2712_system_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_ratrans.attr.attr,
+	&bcm2712_vpu_system_l2_atwait.attr.attr,
+	&bcm2712_vpu_system_l2_atrans.attr.attr,
+	&bcm2712_vpu_system_l2_amax.attr.attr,
+	&bcm2712_vpu_system_l2_wwait.attr.attr,
+	&bcm2712_vpu_system_l2_wtrans.attr.attr,
+	&bcm2712_vpu_system_l2_wmax.attr.attr,
+	&bcm2712_vpu_system_l2_rwait.attr.attr,
+	&bcm2712_vpu_system_l2_rtrans.attr.attr,
+	&bcm2712_vpu_system_l2_rmax.attr.attr,
+	&bcm2712_vpu_system_l2_rpend.attr.attr,
+	&bcm2712_vpu_system_l2_ratrans.attr.attr,
+	&bcm2712_vpu_dma_l2_atwait.attr.attr,
+	&bcm2712_vpu_dma_l2_atrans.attr.attr,
+	&bcm2712_vpu_dma_l2_amax.attr.attr,
+	&bcm2712_vpu_dma_l2_wwait.attr.attr,
+	&bcm2712_vpu_dma_l2_wtrans.attr.attr,
+	&bcm2712_vpu_dma_l2_wmax.attr.attr,
+	&bcm2712_vpu_dma_l2_rwait.attr.attr,
+	&bcm2712_vpu_dma_l2_rtrans.attr.attr,
+	&bcm2712_vpu_dma_l2_rmax.attr.attr,
+	&bcm2712_vpu_dma_l2_rpend.attr.attr,
+	&bcm2712_vpu_dma_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu_uc_ratrans.attr.attr,
+	&bcm2712_vpu_l2_out_atwait.attr.attr,
+	&bcm2712_vpu_l2_out_atrans.attr.attr,
+	&bcm2712_vpu_l2_out_amax.attr.attr,
+	&bcm2712_vpu_l2_out_wwait.attr.attr,
+	&bcm2712_vpu_l2_out_wtrans.attr.attr,
+	&bcm2712_vpu_l2_out_wmax.attr.attr,
+	&bcm2712_vpu_l2_out_rwait.attr.attr,
+	&bcm2712_vpu_l2_out_rtrans.attr.attr,
+	&bcm2712_vpu_l2_out_rmax.attr.attr,
+	&bcm2712_vpu_l2_out_rpend.attr.attr,
+	&bcm2712_vpu_l2_out_ratrans.attr.attr,
+	&bcm2712_vpu_dma_uc_atwait.attr.attr,
+	&bcm2712_vpu_dma_uc_atrans.attr.attr,
+	&bcm2712_vpu_dma_uc_amax.attr.attr,
+	&bcm2712_vpu_dma_uc_wwait.attr.attr,
+	&bcm2712_vpu_dma_uc_wtrans.attr.attr,
+	&bcm2712_vpu_dma_uc_wmax.attr.attr,
+	&bcm2712_vpu_dma_uc_rwait.attr.attr,
+	&bcm2712_vpu_dma_uc_rtrans.attr.attr,
+	&bcm2712_vpu_dma_uc_rmax.attr.attr,
+	&bcm2712_vpu_dma_uc_rpend.attr.attr,
+	&bcm2712_vpu_dma_uc_ratrans.attr.attr,
+	&bcm2712_vpu_l2_in_atwait.attr.attr,
+	&bcm2712_vpu_l2_in_atrans.attr.attr,
+	&bcm2712_vpu_l2_in_amax.attr.attr,
+	&bcm2712_vpu_l2_in_wwait.attr.attr,
+	&bcm2712_vpu_l2_in_wtrans.attr.attr,
+	&bcm2712_vpu_l2_in_wmax.attr.attr,
+	&bcm2712_vpu_l2_in_rwait.attr.attr,
+	&bcm2712_vpu_l2_in_rtrans.attr.attr,
+	&bcm2712_vpu_l2_in_rmax.attr.attr,
+	&bcm2712_vpu_l2_in_rpend.attr.attr,
+	&bcm2712_vpu_l2_in_ratrans.attr.attr,
+	NULL,
+};
+
+static struct attribute *bcm2712d0_events[] = {
+	&bcm2712d0_vpu_uc_atwait.attr.attr,
+	&bcm2712d0_vpu_uc_atrans.attr.attr,
+	&bcm2712d0_vpu_uc_amax.attr.attr,
+	&bcm2712d0_vpu_uc_wwait.attr.attr,
+	&bcm2712d0_vpu_uc_wtrans.attr.attr,
+	&bcm2712d0_vpu_uc_wmax.attr.attr,
+	&bcm2712d0_vpu_uc_rwait.attr.attr,
+	&bcm2712d0_vpu_uc_rtrans.attr.attr,
+	&bcm2712d0_vpu_uc_rmax.attr.attr,
+	&bcm2712d0_vpu_uc_rpend.attr.attr,
+	&bcm2712d0_vpu_uc_ratrans.attr.attr,
+	&bcm2712d0_display_atwait.attr.attr,
+	&bcm2712d0_display_atrans.attr.attr,
+	&bcm2712d0_display_amax.attr.attr,
+	&bcm2712d0_display_wwait.attr.attr,
+	&bcm2712d0_display_wtrans.attr.attr,
+	&bcm2712d0_display_wmax.attr.attr,
+	&bcm2712d0_display_rwait.attr.attr,
+	&bcm2712d0_display_rtrans.attr.attr,
+	&bcm2712d0_display_rmax.attr.attr,
+	&bcm2712d0_display_rpend.attr.attr,
+	&bcm2712d0_display_ratrans.attr.attr,
+	&bcm2712d0_v3d_atwait.attr.attr,
+	&bcm2712d0_v3d_atrans.attr.attr,
+	&bcm2712d0_v3d_amax.attr.attr,
+	&bcm2712d0_v3d_wwait.attr.attr,
+	&bcm2712d0_v3d_wtrans.attr.attr,
+	&bcm2712d0_v3d_wmax.attr.attr,
+	&bcm2712d0_v3d_rwait.attr.attr,
+	&bcm2712d0_v3d_rtrans.attr.attr,
+	&bcm2712d0_v3d_rmax.attr.attr,
+	&bcm2712d0_v3d_rpend.attr.attr,
+	&bcm2712d0_v3d_ratrans.attr.attr,
+	&bcm2712d0_arm_atwait.attr.attr,
+	&bcm2712d0_arm_atrans.attr.attr,
+	&bcm2712d0_arm_amax.attr.attr,
+	&bcm2712d0_arm_wwait.attr.attr,
+	&bcm2712d0_arm_wtrans.attr.attr,
+	&bcm2712d0_arm_wmax.attr.attr,
+	&bcm2712d0_arm_rwait.attr.attr,
+	&bcm2712d0_arm_rtrans.attr.attr,
+	&bcm2712d0_arm_rmax.attr.attr,
+	&bcm2712d0_arm_rpend.attr.attr,
+	&bcm2712d0_arm_ratrans.attr.attr,
+	&bcm2712d0_pcie_02_atwait.attr.attr,
+	&bcm2712d0_pcie_02_atrans.attr.attr,
+	&bcm2712d0_pcie_02_amax.attr.attr,
+	&bcm2712d0_pcie_02_wwait.attr.attr,
+	&bcm2712d0_pcie_02_wtrans.attr.attr,
+	&bcm2712d0_pcie_02_wmax.attr.attr,
+	&bcm2712d0_pcie_02_rwait.attr.attr,
+	&bcm2712d0_pcie_02_rtrans.attr.attr,
+	&bcm2712d0_pcie_02_rmax.attr.attr,
+	&bcm2712d0_pcie_02_rpend.attr.attr,
+	&bcm2712d0_pcie_02_ratrans.attr.attr,
+	&bcm2712d0_argon_atwait.attr.attr,
+	&bcm2712d0_argon_atrans.attr.attr,
+	&bcm2712d0_argon_amax.attr.attr,
+	&bcm2712d0_argon_wwait.attr.attr,
+	&bcm2712d0_argon_wtrans.attr.attr,
+	&bcm2712d0_argon_wmax.attr.attr,
+	&bcm2712d0_argon_rwait.attr.attr,
+	&bcm2712d0_argon_rtrans.attr.attr,
+	&bcm2712d0_argon_rmax.attr.attr,
+	&bcm2712d0_argon_rpend.attr.attr,
+	&bcm2712d0_argon_ratrans.attr.attr,
+	&bcm2712d0_emmc2_atwait.attr.attr,
+	&bcm2712d0_emmc2_atrans.attr.attr,
+	&bcm2712d0_emmc2_amax.attr.attr,
+	&bcm2712d0_emmc2_wwait.attr.attr,
+	&bcm2712d0_emmc2_wtrans.attr.attr,
+	&bcm2712d0_emmc2_wmax.attr.attr,
+	&bcm2712d0_emmc2_rwait.attr.attr,
+	&bcm2712d0_emmc2_rtrans.attr.attr,
+	&bcm2712d0_emmc2_rmax.attr.attr,
+	&bcm2712d0_emmc2_rpend.attr.attr,
+	&bcm2712d0_emmc2_ratrans.attr.attr,
+	&bcm2712d0_sd_dma_atwait.attr.attr,
+	&bcm2712d0_sd_dma_atrans.attr.attr,
+	&bcm2712d0_sd_dma_amax.attr.attr,
+	&bcm2712d0_sd_dma_wwait.attr.attr,
+	&bcm2712d0_sd_dma_wtrans.attr.attr,
+	&bcm2712d0_sd_dma_wmax.attr.attr,
+	&bcm2712d0_sd_dma_rwait.attr.attr,
+	&bcm2712d0_sd_dma_rtrans.attr.attr,
+	&bcm2712d0_sd_dma_rmax.attr.attr,
+	&bcm2712d0_sd_dma_rpend.attr.attr,
+	&bcm2712d0_sd_dma_ratrans.attr.attr,
+	&bcm2712d0_per_atwait.attr.attr,
+	&bcm2712d0_per_atrans.attr.attr,
+	&bcm2712d0_per_amax.attr.attr,
+	&bcm2712d0_per_wwait.attr.attr,
+	&bcm2712d0_per_wtrans.attr.attr,
+	&bcm2712d0_per_wmax.attr.attr,
+	&bcm2712d0_per_rwait.attr.attr,
+	&bcm2712d0_per_rtrans.attr.attr,
+	&bcm2712d0_per_rmax.attr.attr,
+	&bcm2712d0_per_rpend.attr.attr,
+	&bcm2712d0_per_ratrans.attr.attr,
+	&bcm2712d0_system_l2_atwait.attr.attr,
+	&bcm2712d0_system_l2_atrans.attr.attr,
+	&bcm2712d0_system_l2_amax.attr.attr,
+	&bcm2712d0_system_l2_wwait.attr.attr,
+	&bcm2712d0_system_l2_wtrans.attr.attr,
+	&bcm2712d0_system_l2_wmax.attr.attr,
+	&bcm2712d0_system_l2_rwait.attr.attr,
+	&bcm2712d0_system_l2_rtrans.attr.attr,
+	&bcm2712d0_system_l2_rmax.attr.attr,
+	&bcm2712d0_system_l2_rpend.attr.attr,
+	&bcm2712d0_system_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_d_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_d_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_i_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_amax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_i_l2_ratrans.attr.attr,
+	&bcm2712_vpu_system_l2_atwait.attr.attr,
+	&bcm2712_vpu_system_l2_atrans.attr.attr,
+	&bcm2712_vpu_system_l2_amax.attr.attr,
+	&bcm2712_vpu_system_l2_wwait.attr.attr,
+	&bcm2712_vpu_system_l2_wtrans.attr.attr,
+	&bcm2712_vpu_system_l2_wmax.attr.attr,
+	&bcm2712_vpu_system_l2_rwait.attr.attr,
+	&bcm2712_vpu_system_l2_rtrans.attr.attr,
+	&bcm2712_vpu_system_l2_rmax.attr.attr,
+	&bcm2712_vpu_system_l2_rpend.attr.attr,
+	&bcm2712_vpu_system_l2_ratrans.attr.attr,
+	&bcm2712_vpu_dma_l2_atwait.attr.attr,
+	&bcm2712_vpu_dma_l2_atrans.attr.attr,
+	&bcm2712_vpu_dma_l2_amax.attr.attr,
+	&bcm2712_vpu_dma_l2_wwait.attr.attr,
+	&bcm2712_vpu_dma_l2_wtrans.attr.attr,
+	&bcm2712_vpu_dma_l2_wmax.attr.attr,
+	&bcm2712_vpu_dma_l2_rwait.attr.attr,
+	&bcm2712_vpu_dma_l2_rtrans.attr.attr,
+	&bcm2712_vpu_dma_l2_rmax.attr.attr,
+	&bcm2712_vpu_dma_l2_rpend.attr.attr,
+	&bcm2712_vpu_dma_l2_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_d_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_d_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu1_i_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu0_i_uc_ratrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_atwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_atrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_amax.attr.attr,
+	&bcm2712_vpu_vpu_uc_wwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_wtrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_wmax.attr.attr,
+	&bcm2712_vpu_vpu_uc_rwait.attr.attr,
+	&bcm2712_vpu_vpu_uc_rtrans.attr.attr,
+	&bcm2712_vpu_vpu_uc_rmax.attr.attr,
+	&bcm2712_vpu_vpu_uc_rpend.attr.attr,
+	&bcm2712_vpu_vpu_uc_ratrans.attr.attr,
+	&bcm2712_vpu_l2_out_atwait.attr.attr,
+	&bcm2712_vpu_l2_out_atrans.attr.attr,
+	&bcm2712_vpu_l2_out_amax.attr.attr,
+	&bcm2712_vpu_l2_out_wwait.attr.attr,
+	&bcm2712_vpu_l2_out_wtrans.attr.attr,
+	&bcm2712_vpu_l2_out_wmax.attr.attr,
+	&bcm2712_vpu_l2_out_rwait.attr.attr,
+	&bcm2712_vpu_l2_out_rtrans.attr.attr,
+	&bcm2712_vpu_l2_out_rmax.attr.attr,
+	&bcm2712_vpu_l2_out_rpend.attr.attr,
+	&bcm2712_vpu_l2_out_ratrans.attr.attr,
+	&bcm2712_vpu_dma_uc_atwait.attr.attr,
+	&bcm2712_vpu_dma_uc_atrans.attr.attr,
+	&bcm2712_vpu_dma_uc_amax.attr.attr,
+	&bcm2712_vpu_dma_uc_wwait.attr.attr,
+	&bcm2712_vpu_dma_uc_wtrans.attr.attr,
+	&bcm2712_vpu_dma_uc_wmax.attr.attr,
+	&bcm2712_vpu_dma_uc_rwait.attr.attr,
+	&bcm2712_vpu_dma_uc_rtrans.attr.attr,
+	&bcm2712_vpu_dma_uc_rmax.attr.attr,
+	&bcm2712_vpu_dma_uc_rpend.attr.attr,
+	&bcm2712_vpu_dma_uc_ratrans.attr.attr,
+	&bcm2712_vpu_l2_in_atwait.attr.attr,
+	&bcm2712_vpu_l2_in_atrans.attr.attr,
+	&bcm2712_vpu_l2_in_amax.attr.attr,
+	&bcm2712_vpu_l2_in_wwait.attr.attr,
+	&bcm2712_vpu_l2_in_wtrans.attr.attr,
+	&bcm2712_vpu_l2_in_wmax.attr.attr,
+	&bcm2712_vpu_l2_in_rwait.attr.attr,
+	&bcm2712_vpu_l2_in_rtrans.attr.attr,
+	&bcm2712_vpu_l2_in_rmax.attr.attr,
+	&bcm2712_vpu_l2_in_rpend.attr.attr,
+	&bcm2712_vpu_l2_in_ratrans.attr.attr,
+	NULL,
+};
+
+static const struct attribute_group rpi_axi_pmu_bcm2712_events_group = {
+	.name = "events",
+	.attrs = bcm2712_events,
+	.is_visible = rpi_axi_pmu_events_is_visible,
+};
+
+static const struct attribute_group rpi_axi_pmu_bcm2712d0_events_group = {
+	.name = "events",
+	.attrs = bcm2712d0_events,
+	.is_visible = rpi_axi_pmu_events_is_visible,
+};
+
 static const struct attribute_group *rpi_axi_pmu_bcm2835_attr_groups[] = {
 	&rpi_axi_pmu_format_group,
 	&rpi_axi_pmu_bcm2835_events_group,
@@ -1933,6 +3115,20 @@ static const struct attribute_group *rpi_axi_pmu_bcm2835_attr_groups[] = {
 static const struct attribute_group *rpi_axi_pmu_bcm2711_attr_groups[] = {
 	&rpi_axi_pmu_format_group,
 	&rpi_axi_pmu_bcm2711_events_group,
+	&rpi_axi_pmu_cpumask_group,
+	NULL,
+};
+
+static const struct attribute_group *rpi_axi_pmu_bcm2712_attr_groups[] = {
+	&rpi_axi_pmu_format_group,
+	&rpi_axi_pmu_bcm2712_events_group,
+	&rpi_axi_pmu_cpumask_group,
+	NULL,
+};
+
+static const struct attribute_group *rpi_axi_pmu_bcm2712d0_attr_groups[] = {
+	&rpi_axi_pmu_format_group,
+	&rpi_axi_pmu_bcm2712d0_events_group,
 	&rpi_axi_pmu_cpumask_group,
 	NULL,
 };
@@ -2105,6 +3301,19 @@ static void set_bus_watcher_control(struct rpi_axi_pmu *pmu, enum monitor mon, i
 	}
 }
 
+static u32 rpi_axi_pmu_filter_bits(struct rpi_axi_pmu *pmu, enum monitor mon, int filter)
+{
+	if (pmu->axi_id_mask && mon == MON_VPU)
+		return FIELD_PREP(BW_CTRL_VPU_ID, filter) |
+		       FIELD_PREP(BW_CTRL_VPU_ID_MASK, GENMASK(5, 0));
+	if (pmu->axi_id_mask)
+		return FIELD_PREP(BW_CTRL_AXI_ID, FIELD_PREP(AXI_ID_MASTER, filter)) |
+		       FIELD_PREP(BW_CTRL_AXI_ID_MASK, AXI_ID_MASTER);
+	if (pmu->chip == CHIP_BCM2712)
+		return FIELD_PREP(BW_CTRL_2712_FILTER_MASK, filter);
+	return FIELD_PREP(BW_CTRL_BUS_FILTER_MASK, filter);
+}
+
 /**
  * rpi_axi_pmu_enable_bus_watcher() - Enables a hardware bus watcher unit
  * @pmu: Pointer to PMU context
@@ -2124,7 +3333,7 @@ static void rpi_axi_pmu_enable_bus_watcher(struct rpi_axi_pmu *pmu, enum monitor
 		      ((bus << BW_CTRL_BUS_WATCH_SHIFT) & BW_CTRL_BUS_WATCH_MASK);
 	if (filter) {
 		bus_control |= BW_CTRL_ENABLE_ID_FILTER_BIT;
-		bus_control |= FIELD_PREP(BW_CTRL_BUS_FILTER_MASK, filter);
+		bus_control |= rpi_axi_pmu_filter_bits(pmu, mon, filter);
 	}
 	if (!monitor_running) {
 		set_monitor_control(pmu, mon, GEN_CTL_RESET_BIT);
@@ -2780,6 +3989,16 @@ static int rpi_axi_pmu__init(struct rpi_axi_pmu *pmu, struct platform_device *pd
 		}
 	}
 
+	/* Only BCM2712 D0 and later implement the AXI ID mask field */
+	if (pmu->chip == CHIP_BCM2712 && pmu->monitor[MON_SYSTEM].base_address) {
+		void __iomem *ctrl = pmu->monitor[MON_SYSTEM].base_address + BW0_CTRL;
+		u32 old = readl(ctrl);
+
+		writel(BW_CTRL_AXI_ID_MASK, ctrl);
+		pmu->axi_id_mask = !!(readl(ctrl) & BW_CTRL_AXI_ID_MASK);
+		writel(old, ctrl);
+	}
+
 	if (pmu->monitor[MON_VPU].use_mailbox_interface &&
 	    !rpi_axi_pmu_vpu_accessible(pmu)) {
 		dev_warn(dev, "VPU monitor not accessible through firmware\n");
@@ -2801,7 +4020,11 @@ static int rpi_axi_pmu__init(struct rpi_axi_pmu *pmu, struct platform_device *pd
 		goto err_teardown;
 	}
 
-	if (pmu->chip == CHIP_BCM2711)
+	if (pmu->chip == CHIP_BCM2712 && pmu->axi_id_mask)
+		pmu->pmu.attr_groups = (const struct attribute_group **)rpi_axi_pmu_bcm2712d0_attr_groups;
+	else if (pmu->chip == CHIP_BCM2712)
+		pmu->pmu.attr_groups = (const struct attribute_group **)rpi_axi_pmu_bcm2712_attr_groups;
+	else if (pmu->chip == CHIP_BCM2711)
 		pmu->pmu.attr_groups = (const struct attribute_group **)rpi_axi_pmu_bcm2711_attr_groups;
 	else
 		pmu->pmu.attr_groups = (const struct attribute_group **)rpi_axi_pmu_bcm2835_attr_groups;
@@ -2890,6 +4113,10 @@ static const struct of_device_id rpi_axi_pmu_match[] = {
 	{
 		.compatible = "brcm,bcm2711-axiperf",
 		.data = (void *)CHIP_BCM2711,
+	},
+	{
+		.compatible = "brcm,bcm2712-axiperf",
+		.data = (void *)CHIP_BCM2712,
 	},
 	{ }
 };
