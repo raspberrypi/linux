@@ -4,8 +4,8 @@
 Broadcom Raspberry Pi AXI Performance Monitoring Unit (PMU)
 ==============================================================
 
-Broadcom BCM2835 and BCM2711 SoCs used in Raspberry Pi boards include two AXI
-bus-watcher performance monitor blocks:
+Broadcom BCM2835, BCM2711, and BCM2712 SoCs used in Raspberry Pi boards include
+two AXI bus-watcher performance monitor blocks:
 
 - **System monitor** (``monitor=0``): Observes the primary System AXI fabric
   and is read directly via MMIO.
@@ -51,6 +51,7 @@ Counter Suffix   Width  Description
 7       rtrans   32-bit Read data beats
 8       rmax     28-bit Maximum read transaction latency (cycles)
 9       rpend    8-bit  Pending read transactions (instantaneous level)
+10      ratrans  32-bit Read address transactions (BCM2712 only)
 ======= ======== ====== =======================================================
 
 Level Counters (``*max`` and ``rpend``)
@@ -113,6 +114,35 @@ BCM2711
 - **5-bit AXI master ID filters (1..31):** Same as BCM2835 except ``ARGON``
   (8), ``PCIE`` (9), ``DMA2`` (18), ``GIGE`` (23), ``GISB_AXI`` (28),
   ``ARM`` (30), and ``EMMCSTB`` (31).
+
+BCM2712 (C0 and D0)
+-------------------
+
+BCM2712 D0 removes three unused set-top-box System fabric ports (``xpt``,
+``pcie_01``, and ``hvdp``) and renumbers the remaining ports; the driver
+detects D0 at probe time via the bus-watcher AXI ID mask field and exposes the
+matching sysfs event table.
+
+- **BCM2712 C0 System buses (0..12):** ``vpu_uc`` (0), ``display`` (1),
+  ``v3d`` (2), ``arm`` (3), ``xpt`` (4), ``pcie_02`` (5), ``pcie_01`` (6),
+  ``argon`` (7), ``emmc2`` (8), ``sd_dma`` (9), ``hvdp`` (10), ``per`` (11),
+  ``system_l2`` (12).
+- **BCM2712 D0 System buses (0..9):** ``vpu_uc`` (0), ``display`` (1),
+  ``v3d`` (2), ``arm`` (3), ``pcie_02`` (4), ``argon`` (5), ``emmc2`` (6),
+  ``sd_dma`` (7), ``per`` (8), ``system_l2`` (9).
+- **VPU buses (0..13):** Same ``0..13`` layout as BCM2711.
+- **6-bit AXI master ID filters (1..63):** ``VPU_UC0`` (1), ``VPU_IC0`` (2),
+  ``VPU_DC0`` (3), ``VPU_UC1`` (4), ``VPU_IC1`` (5), ``VPU_DC1`` (6),
+  ``VPU_L2`` (8), ``DMA2`` (9), ``VPU_DEBUG`` (10), ``ARM`` (11),
+  ``DMA0`` (12), ``DMA1`` (13), ``RAAGA`` (14), ``BBSI`` (16), ``PCIE0`` (18),
+  ``PCIE1`` (19), ``PCIE2`` (20, RP1), ``UMR`` (27), ``SAGE`` (28),
+  ``HVDP`` (29), ``BSP`` (30), ``HVS`` (32), ``HVS_WMK`` (33), ``MOP0`` (34),
+  ``MOP1`` (35), ``MBVN`` (36), ``DSI`` (37), ``XPT`` (38), ``EMMC0`` (39),
+  ``GENET`` (40), ``USB`` (41), ``ARGON`` (42), ``UNICAM`` (43), ``PISP`` (44),
+  ``PISPFE`` (45), ``JPEG`` (46), ``EMMC1`` (47), ``EMMC2`` (48), ``TRC`` (52),
+  ``BSTM0`` (53), ``BSTM1`` (54), ``BSTM0_SEC`` (55), ``BSTM1_SEC`` (56),
+  ``AIO`` (57), ``MAP`` (58), ``SYS_DMA`` (59), ``MMUCACHE0`` (60),
+  ``MMUCACHE1`` (61), ``MPUCACHE0`` (62), ``MPUCACHE1`` (63).
 
 Examples
 ========
