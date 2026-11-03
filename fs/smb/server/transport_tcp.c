@@ -536,10 +536,10 @@ static int create_socket(struct interface *iface)
 	}
 
 	if (ipv4)
-		ret = kernel_bind(ksmbd_socket, (struct sockaddr_unsized *)&sin,
+		ret = kernel_bind(ksmbd_socket, (struct sockaddr *)&sin,
 				  sizeof(sin));
 	else
-		ret = kernel_bind(ksmbd_socket, (struct sockaddr_unsized *)&sin6,
+		ret = kernel_bind(ksmbd_socket, (struct sockaddr *)&sin6,
 				  sizeof(sin6));
 	if (ret) {
 		pr_err("Failed to bind socket: %d\n", ret);
