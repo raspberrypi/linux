@@ -1012,10 +1012,15 @@ static int oplock_break(struct oplock_info *brk_opinfo, struct ksmbd_inode *ci,
 	if (brk_opinfo->is_lease) {
 		struct lease *lease = brk_opinfo->o_lease;
 
-		atomic_inc(&brk_opinfo->breaking_cnt);
 		err = oplock_break_pending(brk_opinfo, req_op_level);
 		if (err)
 			return err < 0 ? err : 0;
+		/*
+		 * Increment breaking_cnt only after the pending check
+		 * above: its early returns would otherwise strand the
+		 * counter, as wait_lease_breaking() is never reached.
+		 */
+		atomic_inc(&brk_opinfo->breaking_cnt);
 
 		if (brk_opinfo->open_trunc) {
 			/*
