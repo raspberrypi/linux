@@ -87,6 +87,19 @@ struct nr_sock {
 
 #define nr_sk(sk) ((struct nr_sock *)(sk))
 
+/*
+ * Window negotiation, for a CONNREQ received or a CONNACK: use the smaller
+ * of our window and the peer's. A window of 0 would never let a frame
+ * out: take it as 1.
+ */
+static inline void nr_negotiate_window(struct nr_sock *nr, unsigned char window)
+{
+	if (window == 0)
+		window = 1;
+	if (window < nr->window)
+		nr->window = window;
+}
+
 struct nr_neigh {
 	struct hlist_node	neigh_node;
 	ax25_address		callsign;

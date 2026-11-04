@@ -1034,8 +1034,7 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 	bh_lock_sock(sk);
 
 	/* Window negotiation */
-	if (window < nr_make->window)
-		nr_make->window = window;
+	nr_negotiate_window(nr_make, window);
 
 	/*
 	 * L4 timeout negotiation.  Ignore a proposal shorter than the
