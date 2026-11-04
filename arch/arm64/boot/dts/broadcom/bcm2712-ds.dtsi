@@ -19,66 +19,8 @@
 	};
 };
 
-/*
- * With a #size-cells of 2, the 'size' property should be 2 cells long.
- * Unfortunately the old firmware will only write the CMA value correctly
- * if the property is 1 cell long. Fortunately the new firmware silently
- * makes 'size' 2 cells long, so create what is actually an invalid DTS file
- * on the understanding that it will be patched up as needed.
- */
-&cma {
-	size = <0x4000000>; /* 64MB */
-};
-
-&soc {
-	axiperf: axiperf@7c012800 {
-		compatible = "brcm,bcm2712-axiperf";
-		reg = <0x7c012800 0x100>,
-			<0x7e000000 0x100>;
-		firmware = <&firmware>;
-		status = "disabled";
-	};
-
-	spi10: spi@7d004000 {
-		compatible = "brcm,bcm2835-spi";
-		reg = <0x7d004000 0x200>;
-		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_vpu>;
-		num-cs = <1>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		status = "disabled";
-	};
-
-	i2c10: i2c@7d005600 {
-		compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
-		reg = <0x7d005600 0x20>;
-		interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_vpu>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		status = "disabled";
-	};
-
-	cpu_l2_irq: intc@7d503000 {
-		compatible = "brcm,l2-intc";
-		reg = <0x7d503000 0x18>;
-		interrupts = <GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-controller;
-		#interrupt-cells = <1>;
-	};
-
-	interrupt-controller@7d517000 {
-		status = "disabled";
-	};
-
-	main_aon_irq: intc@7d517ac0 {
-		compatible = "brcm,bcm7271-l2-intc";
-		reg = <0x7d517ac0 0x10>;
-		interrupts = <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-controller;
-		#interrupt-cells = <1>;
-	};
+&aon_intr {
+	status = "disabled";
 };
 
 &axi {
@@ -159,16 +101,54 @@
 		clock-names = "hevc";
 		iommus = <&iommu2>;
 	};
+};
 
-	pisp_be: pisp_be@880000  {
-		compatible = "raspberrypi,pispbe";
-		reg = <0x10 0x00880000  0x0 0x4000>;
-		interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&firmware_clocks 7>;
-		clocks-names = "isp_be";
-		status = "okay";
-		iommus = <&iommu2>;
-	};
+/*
+ * With a #size-cells of 2, the 'size' property should be 2 cells long.
+ * Unfortunately the old firmware will only write the CMA value correctly
+ * if the property is 1 cell long. Fortunately the new firmware silently
+ * makes 'size' 2 cells long, so create what is actually an invalid DTS file
+ * on the understanding that it will be patched up as needed.
+ */
+&cma {
+	size = <0x4000000>; /* 64MB */
+};
+
+&gicv2 {
+	interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) |
+				 IRQ_TYPE_LEVEL_HIGH)>;
+};
+
+&gio {
+	brcm,gpio-direct;
+};
+
+&gio_aon {
+	compatible = "brcm,brcmstb-gpio";
+	brcm,gpio-direct;
+};
+
+&iommu4 {
+	aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
+	#interconnect-cells = <0>;
+};
+
+&isp {
+	clocks-names = "isp_be";
+	status = "okay";
+	iommus = <&iommu2>;
+};
+
+&pcie1 {
+	ranges =
+		/* 2GiB, 32-bit, non-prefetchable at PCIe 00_80000000 */
+		<0x02000000 0x00 0x80000000 0x1b 0x80000000 0x00 0x80000000>,
+		/* 14GiB, 64-bit, prefetchable at PCIe 04_00000000 */
+		<0x43000000 0x04 0x00000000 0x18 0x00000000 0x03 0x80000000>;
+};
+
+&pcie2 {
+	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
 };
 
 &pinctrl {
@@ -253,9 +233,59 @@
 	};
 };
 
-&gicv2 {
-	interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) |
-				 IRQ_TYPE_LEVEL_HIGH)>;
+&sdio2 {
+	supports-cqe = <1>;
+};
+
+&soc {
+	axiperf: axiperf@7c012800 {
+		compatible = "brcm,bcm2712-axiperf";
+		reg = <0x7c012800 0x100>,
+			<0x7e000000 0x100>;
+		firmware = <&firmware>;
+		status = "disabled";
+	};
+
+	spi10: spi@7d004000 {
+		compatible = "brcm,bcm2835-spi";
+		reg = <0x7d004000 0x200>;
+		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_vpu>;
+		num-cs = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	i2c10: i2c@7d005600 {
+		compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
+		reg = <0x7d005600 0x20>;
+		interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_vpu>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	cpu_l2_irq: intc@7d503000 {
+		compatible = "brcm,l2-intc";
+		reg = <0x7d503000 0x18>;
+		interrupts = <GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	interrupt-controller@7d517000 {
+		status = "disabled";
+	};
+
+	main_aon_irq: intc@7d517ac0 {
+		compatible = "brcm,bcm7271-l2-intc";
+		reg = <0x7d517ac0 0x10>;
+		interrupts = <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
 };
 
 &uart10 {
@@ -266,42 +296,6 @@
 	reg-shift = <2>;
 	reg-io-width = <4>;
 	skip-init;
-};
-
-&aon_intr {
-	status = "disabled";
-};
-
-&gio {
-	brcm,gpio-direct;
-};
-
-&gio_aon {
-	compatible = "brcm,brcmstb-gpio";
-	brcm,gpio-direct;
-};
-
-&pcie1 {
-	status = "disabled";
-	ranges =
-		/* 2GiB, 32-bit, non-prefetchable at PCIe 00_80000000 */
-		<0x02000000 0x00 0x80000000 0x1b 0x80000000 0x00 0x80000000>,
-		/* 14GiB, 64-bit, prefetchable at PCIe 04_00000000 */
-		<0x43000000 0x04 0x00000000 0x18 0x00000000 0x03 0x80000000>;
-};
-
-&pcie2 {
-	status = "disabled";
-	brcm,vdm-qos-map = /bits/ 8 <8 8 8 9 10 10 11 11>;
-};
-
-&sdio2 {
-	supports-cqe = <1>;
-};
-
-&iommu4 {
-	aperture-base = <0xa 0x00000000>; // Translate from 40GB, pass through below
-	#interconnect-cells = <0>;
 };
 
 &v3d {
