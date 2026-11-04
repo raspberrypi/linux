@@ -129,7 +129,7 @@ static int nr_state1_machine(struct sock *sk, struct sk_buff *skb,
 		nr->vl	       = 0;
 		nr->state      = NR_STATE_3;
 		nr->n2count    = 0;
-		nr->window     = skb->data[20];
+		nr_negotiate_window(nr, skb->data[20]);
 		sk->sk_state   = TCP_ESTABLISHED;
 		if (!sock_flag(sk, SOCK_DEAD))
 			sk->sk_state_change(sk);
