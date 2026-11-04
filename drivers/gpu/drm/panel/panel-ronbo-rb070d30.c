@@ -25,210 +25,256 @@
 #include <drm/drm_panel.h>
 
 struct rb070d30_panel {
-	struct drm_panel panel;
-	struct mipi_dsi_device *dsi;
-	struct regulator *supply;
-
+        struct drm_panel panel;
+        struct mipi_dsi_device *dsi;
+        struct regulator *supply;
 	struct {
 		struct gpio_desc *power;
-		struct gpio_desc *reset;
-		struct gpio_desc *updn;
-		struct gpio_desc *shlr;
-	} gpios;
+                struct gpio_desc *reset;
+                struct gpio_desc *updn;
+                struct gpio_desc *shlr;
+        } gpios;
 };
 
 static inline struct rb070d30_panel *panel_to_rb070d30_panel(struct drm_panel *panel)
 {
-	return container_of(panel, struct rb070d30_panel, panel);
+        return container_of(panel, struct rb070d30_panel, panel);
 }
 
 static int rb070d30_panel_prepare(struct drm_panel *panel)
 {
-	struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
-	int ret;
+        struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        int ret;
 
-	ret = regulator_enable(ctx->supply);
-	if (ret < 0) {
-		dev_err(&ctx->dsi->dev, "Failed to enable supply: %d\n", ret);
-		return ret;
-	}
+        dev_info(&ctx->dsi->dev, "Panel PREPARE called\n");
+
+        if (ctx->supply) {
+        ret = regulator_enable(ctx->supply);
+        if (ret < 0) {
+                dev_err(&ctx->dsi->dev, "Failed to enable supply: %d\n", ret);
+                return ret;
+                }
+        }
+
+        msleep(20);
+        // gpiod_set_value(ctx->gpios.power, 1);
+        // gpiod_set_value(ctx->gpios.reset, 1);
+
+	ret = mipi_dsi_dcs_exit_sleep_mode(ctx->dsi);
+        if (ret < 0)
+	{
+        dev_err(&ctx->dsi->dev, "Failed to exit sleep mode in PREPARE function\n");
+        return ret;
+        }
 
 	msleep(20);
-	gpiod_set_value(ctx->gpios.power, 1);
-	msleep(20);
-	gpiod_set_value(ctx->gpios.reset, 1);
-	msleep(20);
-	return 0;
+
+        return 0;
 }
 
 static int rb070d30_panel_unprepare(struct drm_panel *panel)
 {
-	struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
 
-	gpiod_set_value(ctx->gpios.reset, 0);
-	gpiod_set_value(ctx->gpios.power, 0);
-	regulator_disable(ctx->supply);
+        dev_info(&ctx->dsi->dev, "Panel UNPREPARE completed\n");
 
-	return 0;
+        // gpiod_set_value(ctx->gpios.reset, 0);
+        // gpiod_set_value(ctx->gpios.power, 0);
+        if (ctx->supply) {
+                regulator_disable(ctx->supply);
+        }
+
+        return 0;
 }
 
 static int rb070d30_panel_enable(struct drm_panel *panel)
 {
-	struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        int ret;
 
-	return mipi_dsi_dcs_exit_sleep_mode(ctx->dsi);
+        dev_info(&ctx->dsi->dev, "Panel ENABLE called\n");
+
+        ret = mipi_dsi_dcs_exit_sleep_mode(ctx->dsi);
+        if (ret < 0) {
+                dev_err(&ctx->dsi->dev, "Failed to exit sleep mode in ENABLE func: %d\n", ret);
+                return ret;
+        }
+
+        msleep(120);
+
+        return 0;
 }
 
 static int rb070d30_panel_disable(struct drm_panel *panel)
 {
-	struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        int ret;
+        dev_info(&ctx->dsi->dev, "Panel DISABLE called\n");
 
-	return mipi_dsi_dcs_enter_sleep_mode(ctx->dsi);
+        ret = mipi_dsi_dcs_enter_sleep_mode(ctx->dsi);
+        if (ret < 0){
+            dev_err(&ctx->dsi->dev, "Failed to turn off display in DISABLE func: %d\n", ret);
+                }
+        return 0;
 }
 
 /* Default timings */
 static const struct drm_display_mode default_mode = {
-	.clock		= 51206,
-	.hdisplay	= 1024,
-	.hsync_start	= 1024 + 160,
-	.hsync_end	= 1024 + 160 + 80,
-	.htotal		= 1024 + 160 + 80 + 80,
-	.vdisplay	= 600,
-	.vsync_start	= 600 + 12,
-	.vsync_end	= 600 + 12 + 10,
-	.vtotal		= 600 + 12 + 10 + 13,
+        .clock          = 50000,
+        .hdisplay       = 1024,
+        .hsync_start    = 1024 + 160,
+        .hsync_end      = 1024 + 160 + 80,
+        .htotal         = 1024 + 160 + 80 + 80,
+        .vdisplay       = 600,
+        .vsync_start    = 600 + 12,
+        .vsync_end      = 600 + 12 + 10,
+        .vtotal         = 600 + 12 + 10 + 13,
 
-	.width_mm	= 154,
-	.height_mm	= 85,
+        .width_mm       = 154,
+        .height_mm      = 85,
 };
 
 static int rb070d30_panel_get_modes(struct drm_panel *panel,
-				    struct drm_connector *connector)
+                                    struct drm_connector *connector)
 {
-	struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
-	struct drm_display_mode *mode;
-	static const u32 bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+        struct rb070d30_panel *ctx = panel_to_rb070d30_panel(panel);
+        struct drm_display_mode *mode;
+        static const u32 bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 
-	mode = drm_mode_duplicate(connector->dev, &default_mode);
-	if (!mode) {
-		dev_err(&ctx->dsi->dev, "Failed to add mode " DRM_MODE_FMT "\n",
-			DRM_MODE_ARG(&default_mode));
-		return -EINVAL;
-	}
+        dev_info(&ctx->dsi->dev, "Panel GET_MODES called\n");
 
-	drm_mode_set_name(mode);
+	printk(KERN_INFO "RB070D30: Requesting mode - clock: %d, htotal: %d, vtotal: %d\n", default_mode.clock, default_mode.htotal, default_mode.vtotal);
+       
+	 mode = drm_mode_duplicate(connector->dev, &default_mode);
+        if (!mode) {
+                dev_err(&ctx->dsi->dev, "Failed to add mode " DRM_MODE_FMT "\n",
+                        DRM_MODE_ARG(&default_mode));
+                return -EINVAL;
+        }
 
-	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-	drm_mode_probed_add(connector, mode);
+        drm_mode_set_name(mode);
 
-	connector->display_info.bpc = 8;
-	connector->display_info.width_mm = mode->width_mm;
-	connector->display_info.height_mm = mode->height_mm;
-	drm_display_info_set_bus_formats(&connector->display_info,
-					 &bus_format, 1);
+        mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+        drm_mode_probed_add(connector, mode);
 
-	return 1;
+        connector->display_info.bpc = 8;
+        connector->display_info.width_mm = mode->width_mm;
+        connector->display_info.height_mm = mode->height_mm;
+        drm_display_info_set_bus_formats(&connector->display_info,
+                                         &bus_format, 1);
+
+        return 1;
 }
 
 static const struct drm_panel_funcs rb070d30_panel_funcs = {
-	.get_modes	= rb070d30_panel_get_modes,
-	.prepare	= rb070d30_panel_prepare,
-	.enable		= rb070d30_panel_enable,
-	.disable	= rb070d30_panel_disable,
-	.unprepare	= rb070d30_panel_unprepare,
+        .get_modes      = rb070d30_panel_get_modes,
+        .prepare        = rb070d30_panel_prepare,
+//        .enable         = rb070d30_panel_enable,
+        .disable        = rb070d30_panel_disable,
+        .unprepare      = rb070d30_panel_unprepare,
 };
 
 static int rb070d30_panel_dsi_probe(struct mipi_dsi_device *dsi)
 {
-	struct rb070d30_panel *ctx;
-	int ret;
+        struct rb070d30_panel *ctx;
+        int ret;
 
-	ctx = devm_kzalloc(&dsi->dev, sizeof(*ctx), GFP_KERNEL);
-	if (!ctx)
-		return -ENOMEM;
+        dev_info(&dsi->dev, "RB070D30 Panel probe started\n");
 
-	ctx->supply = devm_regulator_get(&dsi->dev, "vcc-lcd");
-	if (IS_ERR(ctx->supply))
-		return PTR_ERR(ctx->supply);
+        ctx = devm_kzalloc(&dsi->dev, sizeof(*ctx), GFP_KERNEL);
+        if (!ctx){
+                dev_info(&dsi->dev, "RB070D30 Panel probe error: ENOMEM\n");
+                return -ENOMEM;
+        }
+                
 
-	mipi_dsi_set_drvdata(dsi, ctx);
-	ctx->dsi = dsi;
+        ctx->supply = devm_regulator_get_optional(&dsi->dev, "vcc-lcd");
+        if (IS_ERR(ctx->supply)){
+        if (PTR_ERR(ctx->supply) == -EPROBE_DEFER)
+                {return -EPROBE_DEFER;}
+    ctx->supply = NULL;  // Set to NULL if not found
+}
 
-	drm_panel_init(&ctx->panel, &dsi->dev, &rb070d30_panel_funcs,
-		       DRM_MODE_CONNECTOR_DSI);
+        mipi_dsi_set_drvdata(dsi, ctx);
+        ctx->dsi = dsi;
 
-	ctx->gpios.reset = devm_gpiod_get(&dsi->dev, "reset", GPIOD_OUT_LOW);
-	if (IS_ERR(ctx->gpios.reset)) {
-		dev_err(&dsi->dev, "Couldn't get our reset GPIO\n");
-		return PTR_ERR(ctx->gpios.reset);
-	}
+        drm_panel_init(&ctx->panel, &dsi->dev, &rb070d30_panel_funcs,
+                       DRM_MODE_CONNECTOR_DSI);
 
-	ctx->gpios.power = devm_gpiod_get(&dsi->dev, "power", GPIOD_OUT_LOW);
-	if (IS_ERR(ctx->gpios.power)) {
-		dev_err(&dsi->dev, "Couldn't get our power GPIO\n");
-		return PTR_ERR(ctx->gpios.power);
-	}
+        ctx->gpios.reset = devm_gpiod_get_optional(&dsi->dev, "reset", GPIOD_OUT_LOW);
+        if (IS_ERR(ctx->gpios.reset)) {
+                dev_err(&dsi->dev, "Couldn't get our reset GPIO\n");
+                return PTR_ERR(ctx->gpios.reset);
+        }
 
-	/*
-	 * We don't change the state of that GPIO later on but we need
-	 * to force it into a low state.
-	 */
-	ctx->gpios.updn = devm_gpiod_get(&dsi->dev, "updn", GPIOD_OUT_LOW);
-	if (IS_ERR(ctx->gpios.updn)) {
-		dev_err(&dsi->dev, "Couldn't get our updn GPIO\n");
-		return PTR_ERR(ctx->gpios.updn);
-	}
+        ctx->gpios.power = devm_gpiod_get_optional(&dsi->dev, "power", GPIOD_OUT_LOW);
+        if (IS_ERR(ctx->gpios.power)) {
+                dev_err(&dsi->dev, "Couldn't get our power GPIO\n");
+                return PTR_ERR(ctx->gpios.power);
+        }
 
-	/*
-	 * We don't change the state of that GPIO later on but we need
-	 * to force it into a low state.
-	 */
-	ctx->gpios.shlr = devm_gpiod_get(&dsi->dev, "shlr", GPIOD_OUT_LOW);
-	if (IS_ERR(ctx->gpios.shlr)) {
-		dev_err(&dsi->dev, "Couldn't get our shlr GPIO\n");
-		return PTR_ERR(ctx->gpios.shlr);
-	}
+        /*
+         * We don't change the state of that GPIO later on but we need
+         * to force it into a low state.
+         */
+        ctx->gpios.updn = devm_gpiod_get_optional(&dsi->dev, "updn", GPIOD_OUT_LOW);
+        if (IS_ERR(ctx->gpios.updn)) {
+                dev_err(&dsi->dev, "Couldn't get our updn GPIO\n");
+                return PTR_ERR(ctx->gpios.updn);
+        }
 
-	ret = drm_panel_of_backlight(&ctx->panel);
-	if (ret)
-		return ret;
+        /*
+         * We don't change the state of that GPIO later on but we need
+         * to force it into a low state.
+         */
+        ctx->gpios.shlr = devm_gpiod_get_optional(&dsi->dev, "shlr", GPIOD_OUT_LOW);
+        if (IS_ERR(ctx->gpios.shlr)) {
+                dev_err(&dsi->dev, "Couldn't get our shlr GPIO\n");
+                return PTR_ERR(ctx->gpios.shlr);
+        }
+
+        ret = drm_panel_of_backlight(&ctx->panel);
+        if (ret)
+                return ret;
+
+	ctx->panel.prepare_prev_first = true;
 
 	drm_panel_add(&ctx->panel);
 
-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM;
-	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->lanes = 4;
+        dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM;
+        dsi->format = MIPI_DSI_FMT_RGB888;
+        dsi->lanes = 4;
 
-	ret = mipi_dsi_attach(dsi);
-	if (ret < 0) {
-		drm_panel_remove(&ctx->panel);
-		return ret;
-	}
-
-	return 0;
+        ret = mipi_dsi_attach(dsi);
+        if (ret < 0) {
+                drm_panel_remove(&ctx->panel);
+                return ret;
+        }
+        dev_info(&dsi->dev, "RB070D30 Panel probe ended\n");
+        return 0;
 }
 
 static void rb070d30_panel_dsi_remove(struct mipi_dsi_device *dsi)
 {
-	struct rb070d30_panel *ctx = mipi_dsi_get_drvdata(dsi);
+        struct rb070d30_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
-	mipi_dsi_detach(dsi);
-	drm_panel_remove(&ctx->panel);
+        mipi_dsi_detach(dsi);
+        drm_panel_remove(&ctx->panel);
 }
 
 static const struct of_device_id rb070d30_panel_of_match[] = {
-	{ .compatible = "ronbo,rb070d30" },
-	{ /* sentinel */ },
+        { .compatible = "ronbo,rb070d30" },
+        { /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, rb070d30_panel_of_match);
 
 static struct mipi_dsi_driver rb070d30_panel_driver = {
-	.probe = rb070d30_panel_dsi_probe,
-	.remove = rb070d30_panel_dsi_remove,
-	.driver = {
-		.name = "panel-ronbo-rb070d30",
-		.of_match_table	= rb070d30_panel_of_match,
-	},
+        .probe = rb070d30_panel_dsi_probe,
+        .remove = rb070d30_panel_dsi_remove,
+        .driver = {
+                .name = "panel-ronbo-rb070d30",
+                .of_match_table = rb070d30_panel_of_match,
+        },
 };
 module_mipi_dsi_driver(rb070d30_panel_driver);
 
