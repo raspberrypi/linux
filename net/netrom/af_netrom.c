@@ -208,29 +208,40 @@ found:
 }
 
 /*
- *	Find next free circuit ID.
+ *	Give a socket the next free circuit ID. The search and the assignment
+ *	are done under nr_list_lock, which the caller holds, with the socket
+ *	already on nr_list: two sockets cannot pick the same ID.
  */
-static unsigned short nr_find_next_circuit(void)
+static void nr_assign_circuit(struct nr_sock *nr)
 {
 	unsigned short id = circuit;
 	unsigned char i, j;
-	struct sock *sk;
+	struct sock *s;
+	bool used;
+
+	lockdep_assert_held(&nr_list_lock);
 
 	for (;;) {
 		i = id / 256;
 		j = id % 256;
 
 		if (i != 0 && j != 0) {
-			sk = nr_find_socket(i, j, NULL);
-			if (!sk)
+			used = false;
+			sk_for_each(s, &nr_list)
+				if (nr_sk(s)->my_index == i && nr_sk(s)->my_id == j) {
+					used = true;
+					break;
+				}
+			if (!used)
 				break;
-			sock_put(sk);
 		}
 
 		id++;
 	}
 
-	return id;
+	nr->my_index = i;
+	nr->my_id    = j;
+	circuit      = id + 1;
 }
 
 /*
@@ -709,14 +720,10 @@ static int nr_connect(struct socket *sock, struct sockaddr *uaddr,
 
 	nr->dest_addr = addr->sax25_call;
 
-	release_sock(sk);
-	circuit = nr_find_next_circuit();
-	lock_sock(sk);
-
-	nr->my_index = circuit / 256;
-	nr->my_id    = circuit % 256;
-
-	circuit++;
+	/* The socket is on nr_list now, so others see the ID it gets */
+	spin_lock_bh(&nr_list_lock);
+	nr_assign_circuit(nr);
+	spin_unlock_bh(&nr_list_lock);
 
 	/* Move to connecting socket, start sending Connect Requests */
 	sock->state  = SS_CONNECTING;
@@ -1013,14 +1020,18 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 	nr_make->your_index  = circuit_index;
 	nr_make->your_id     = circuit_id;
 
+	/*
+	 * Put the new socket on nr_list as it gets its circuit ID, under the
+	 * same lock, so that no other socket can be given the same ID.
+	 * nr_list_lock is not taken under a socket lock (nr_info_show() takes
+	 * them the other way round).
+	 */
 	bh_unlock_sock(sk);
-	circuit = nr_find_next_circuit();
+	spin_lock_bh(&nr_list_lock);
+	nr_assign_circuit(nr_make);
+	sk_add_node(make, &nr_list);
+	spin_unlock_bh(&nr_list_lock);
 	bh_lock_sock(sk);
-
-	nr_make->my_index    = circuit / 256;
-	nr_make->my_id       = circuit % 256;
-
-	circuit++;
 
 	/* Window negotiation */
 	if (window < nr_make->window)
@@ -1055,8 +1066,6 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 
 	bh_unlock_sock(sk);
 	sock_put(sk);
-
-	nr_insert_socket(make);
 
 	nr_start_heartbeat(make);
 	nr_start_idletimer(make);
