@@ -67,26 +67,44 @@ static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
 		return 0;
 	}
 
-	if (!more && nr->fraglen > 0) {	/* End of fragment */
-		nr->fraglen += skb->len;
-		skb_queue_tail(&nr->frag_queue, skb);
-
-		if ((skbn = alloc_skb(nr->fraglen, GFP_ATOMIC)) == NULL)
-			return 1;
+	if (nr->fraglen > 0) {	/* End of fragment */
+		skbn = alloc_skb(nr->fraglen + skb->len, GFP_ATOMIC);
+		if (!skbn)
+			goto busy;
 
 		skb_reset_transport_header(skbn);
 
-		while ((skbo = skb_dequeue(&nr->frag_queue)) != NULL) {
+		skb_queue_walk(&nr->frag_queue, skbo)
 			skb_copy_from_linear_data(skbo,
 						  skb_put(skbn, skbo->len),
 						  skbo->len);
-			kfree_skb(skbo);
-		}
-
-		nr->fraglen = 0;
+		skb_copy_from_linear_data(skb, skb_put(skbn, skb->len),
+					  skb->len);
 	}
 
-	return sock_queue_rcv_skb(sk, skbn);
+	if (sock_queue_rcv_skb(sk, skbn) != 0) {
+		if (skbn != skb)
+			kfree_skb(skbn);
+		goto busy;
+	}
+
+	if (skbn != skb) {
+		/* The whole message is delivered: drop its pieces */
+		skb_queue_purge(&nr->frag_queue);
+		nr->fraglen = 0;
+		kfree_skb(skb);
+	}
+
+	return 0;
+
+busy:
+	/*
+	 * Not delivered: give the frame back as it came, headers included,
+	 * and leave the earlier fragments where they are, so that the
+	 * caller can keep it on reseq_queue and deliver it later.
+	 */
+	skb_push(skb, NR_NETWORK_LEN + NR_TRANSPORT_LEN);
+	return 1;
 }
 
 /*
