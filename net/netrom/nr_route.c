@@ -785,10 +785,12 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	if (!READ_ONCE(sysctl_netrom_routing_control) && ax25 != NULL)
 		return 0;
 
-	/* Its Time-To-Live has expired */
-	if (skb->data[14] == 1) {
+	/*
+	 * Its Time-To-Live has expired. A frame received with a TTL of 0
+	 * has expired too: decremented below, it would leave with 255.
+	 */
+	if (skb->data[14] <= 1)
 		return 0;
-	}
 
 	nr_node = nr_node_get(nr_dest);
 	if (nr_node == NULL)
