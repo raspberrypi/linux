@@ -1173,9 +1173,9 @@ static int nr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		goto out;
 	}
 
-	nr_output(sk, skb);	/* Shove it onto the queue */
-
-	err = len;
+	err = nr_output(sk, skb);	/* Shove it onto the queue */
+	if (!err)
+		err = len;
 out:
 	release_sock(sk);
 	return err;

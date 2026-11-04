@@ -202,7 +202,7 @@ void nr_loopback_clear(void);
 int nr_loopback_queue(struct sk_buff *);
 
 /* nr_out.c */
-void nr_output(struct sock *, struct sk_buff *);
+int nr_output(struct sock *sk, struct sk_buff *skb);
 void nr_send_nak_frame(struct sock *);
 void nr_kick(struct sock *);
 void nr_transmit_buffer(struct sock *, struct sk_buff *);
