@@ -1225,10 +1225,13 @@ static int nr_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 	}
 
 	if (sax != NULL) {
+		/*
+		 * The NET/ROM headers were pulled when the frame was queued:
+		 * give the node at the other end of the circuit.
+		 */
 		memset(sax, 0, sizeof(*sax));
 		sax->sax25_family = AF_NETROM;
-		skb_copy_from_linear_data_offset(skb, 7, sax->sax25_call.ax25_call,
-			      AX25_ADDR_LEN);
+		sax->sax25_call   = nr_sk(sk)->dest_addr;
 		msg->msg_namelen = sizeof(*sax);
 	}
 
