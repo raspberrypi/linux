@@ -961,10 +961,16 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 		bh_lock_sock(sk);
 		skb_reset_transport_header(skb);
 
-		if (frametype == NR_CONNACK && skb->len == 22)
-			nr_sk(sk)->bpqext = 1;
-		else
-			nr_sk(sk)->bpqext = 0;
+		/*
+		 * Only the circuit set-up frames tell whether the peer uses
+		 * the BPQ extension: a CONNACK of 22 bytes, or a CONNREQ of
+		 * 37 bytes (repeated, for a circuit already accepted). The
+		 * other frames say nothing about it.
+		 */
+		if (frametype == NR_CONNACK)
+			nr_sk(sk)->bpqext = (skb->len == 22);
+		else if (frametype == NR_CONNREQ)
+			nr_sk(sk)->bpqext = (skb->len == 37);
 
 		ret = nr_process_rx_frame(sk, skb);
 		bh_unlock_sock(sk);
