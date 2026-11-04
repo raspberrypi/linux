@@ -908,11 +908,6 @@ static int ov9282_apply_trigger_config(struct ov9282 *ov9282)
 	if (ret)
 		return ret;
 
-	/* External trigger snapshot */
-	ret = cci_write(ov9282->regmap, OV9282_REG_LOW_POWER_MODE_CTRL, 0x04, NULL);
-	if (ret)
-		return ret;
-
 	/* 1 frame per trigger */
 	ret = cci_write(ov9282->regmap, OV9282_REG_NUM_FRAME_ON_TRIG, 0x01, NULL);
 	if (ret)
@@ -928,6 +923,11 @@ static int ov9282_apply_trigger_config(struct ov9282 *ov9282)
 
 	/* No auto wake */
 	ret = cci_write(ov9282->regmap, OV9282_REG_TIMING_23, 0x00, NULL);
+	if (ret)
+		return ret;
+
+	/* External trigger snapshot */
+	cci_write(ov9282->regmap, OV9282_REG_LOW_POWER_MODE_CTRL, 0x04, NULL);
 	if (ret)
 		return ret;
 
