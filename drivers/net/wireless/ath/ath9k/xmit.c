@@ -14,9 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/ktime.h>
 #include <linux/dma-mapping.h>
 #include "ath9k.h"
 #include "ar9003_mac.h"
+#include "../ath.h"
 
 #define BITS_PER_BYTE           8
 #define OFDM_PLCP_BITS          22
@@ -200,12 +202,17 @@ static void ath_set_rates(struct ieee80211_vif *vif, struct ieee80211_sta *sta,
 			  struct ath_buf *bf)
 {
 	struct ieee80211_tx_info *tx_info;
+	int i;
 
 	tx_info = IEEE80211_SKB_CB(bf->bf_mpdu);
 
-	if (!ath_merge_ratetbl(sta, bf, tx_info))
+	if (!ath_merge_ratetbl(sta, bf, tx_info)) {
 		ieee80211_get_tx_rates(vif, sta, bf->bf_mpdu, bf->rates,
 				       ARRAY_SIZE(bf->rates));
+
+		for (i = 0; i < ARRAY_SIZE(bf->rates); ++i)
+			bf->rates[i].idx = 0x0;
+	}
 }
 
 static void ath_txq_skb_done(struct ath_softc *sc, struct ath_txq *txq,
@@ -305,6 +312,7 @@ static void ath_tx_flush_tid(struct ath_softc *sc, struct ath_atx_tid *tid)
 		}
 
 		list_add_tail(&bf->list, &bf_head);
+        ath_warn(ath9k_hw_common(sc->sc_ah), "ath_tx_flush_tid skb=%p\n", skb);
 		ath_tx_complete_buf(sc, bf, txq, &bf_head, NULL, &ts, 0);
 	}
 
@@ -383,6 +391,7 @@ static void ath_tid_drain(struct ath_softc *sc, struct ath_txq *txq,
 		}
 
 		list_add_tail(&bf->list, &bf_head);
+        ath_warn(ath9k_hw_common(sc->sc_ah), "ath_tid_drain, skb=%p\n", skb);
 		ath_tx_complete_buf(sc, bf, txq, &bf_head, NULL, &ts, 0);
 	}
 }
@@ -508,6 +517,9 @@ static void ath_tx_complete_aggr(struct ath_softc *sc, struct ath_txq *txq,
 	int bar_index = -1;
 
 	skb = bf->bf_mpdu;
+
+	ath_warn(ath9k_hw_common(sc->sc_ah), "ath9k: ath_tx_complete_aggr skb=%p\n", skb);
+	
 	tx_info = IEEE80211_SKB_CB(skb);
 
 	memcpy(rates, bf->rates, sizeof(rates));
@@ -767,6 +779,7 @@ static void ath_tx_process_buffer(struct ath_softc *sc, struct ath_txq *txq,
 			ath_dynack_sample_tx_ts(sc->sc_ah, bf->bf_mpdu, ts,
 						sta);
 		}
+        ath_warn(ath9k_hw_common(sc->sc_ah), "ath_tx_process_buffer: skb=%p\n", bf->bf_mpdu);
 		ath_tx_complete_buf(sc, bf, txq, bf_head, sta, ts, txok);
 	} else
 		ath_tx_complete_aggr(sc, txq, bf, bf_head, sta, tid, ts, txok);
@@ -1013,6 +1026,7 @@ ath_tx_get_tid_subframe(struct ath_softc *sc, struct ath_txq *txq,
 			INIT_LIST_HEAD(&bf_head);
 			list_add(&bf->list, &bf_head);
 			ath_tx_update_baw(sc, tid, bf);
+            ath_warn(ath9k_hw_common(sc->sc_ah), "%s: skb=%p\n", __FUNCTION__, bf->bf_mpdu);
 			ath_tx_complete_buf(sc, bf, txq, &bf_head, NULL, &ts, 0);
 			continue;
 		}
@@ -1404,6 +1418,8 @@ static enum ath9k_pkt_type get_hw_packet_type(struct sk_buff *skb)
 	return htype;
 }
 
+static u64 pkt_counter;
+
 static void ath_tx_fill_desc(struct ath_softc *sc, struct ath_buf *bf,
 			     struct ath_txq *txq, int len)
 {
@@ -1476,6 +1492,15 @@ static void ath_tx_fill_desc(struct ath_softc *sc, struct ath_buf *bf,
 		info.keyix = fi->keyix;
 		info.keytype = fi->keytype;
 
+        if (info.type == ATH9K_PKT_TYPE_NORMAL) {
+            pkt_counter++;
+            if (pkt_counter % 4 == 0) {
+           //     info.flags |= ATH9K_TXDESC_VEOL;
+                printk("ath9k: veol set %#llx\n", pkt_counter);
+            }
+            printk("ath9k: cbr expired counter 0x%08x linkaddr = 0x%pAD\n", REG_READ(sc->sc_ah, AR_QSTS(info.qcu)), &info.link);
+        }
+
 		if (aggr) {
 			if (bf == bf_first)
 				info.aggr = AGGR_BUF_FIRST;
@@ -1513,7 +1538,7 @@ ath_tx_form_burst(struct ath_softc *sc, struct ath_txq *txq,
 			bf_prev->bf_next = bf;
 		bf_prev = bf;
 
-		if (nframes >= 2)
+		if (nframes >= 32)
 			break;
 
 		ret = ath_tx_get_tid_subframe(sc, txq, tid, &bf);
@@ -1552,6 +1577,7 @@ static int ath_tx_sched_aggr(struct ath_softc *sc, struct ath_txq *txq,
 		__skb_queue_tail(&tid->retry_q, bf->bf_mpdu);
 		return -EBUSY;
 	}
+    printk("ath9k: aggr = %d, qdepth = %d\n", aggr, txq->axq_depth);
 
 	ath_set_rates(tid->an->vif, tid->an->sta, bf);
 	if (aggr)
@@ -1896,6 +1922,7 @@ static void ath_drain_txq_list(struct ath_softc *sc, struct ath_txq *txq,
 
 		lastbf = bf->bf_lastbf;
 		list_cut_position(&bf_head, list, &lastbf->list);
+        ath_warn(ath9k_hw_common(sc->sc_ah), "%s: skb=%p\n", __FUNCTION__, bf->bf_mpdu);
 		ath_tx_process_buffer(sc, txq, &ts, bf, &bf_head);
 	}
 }
@@ -2248,6 +2275,13 @@ static struct ath_buf *ath_tx_setup_buffer(struct ath_softc *sc,
 		bf->bf_state.seqno = seqno;
 	}
 
+    if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
+        ath_warn(common, "ath9k: ath_tx_setup_buffer SKBTX_HW_TSTAMP\n");
+        skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
+    }
+    printk("ath9k: ath_tx_setup_buffer skb=%p, tx_flags: %d\n", skb, skb_shinfo(skb)->tx_flags);
+    skb_tx_timestamp(skb);
+
 	bf->bf_mpdu = skb;
 
 	bf->bf_buf_addr = dma_map_single(sc->dev, skb->data,
@@ -2478,6 +2512,7 @@ static void ath_tx_complete(struct ath_softc *sc, struct sk_buff *skb,
 	unsigned long flags;
 
 	ath_dbg(common, XMIT, "TX complete: skb: %p\n", skb);
+    ath_warn(common, "ath9k: ath_tx_complete skb=%p\n", skb);
 
 	if (sc->sc_ah->caldata)
 		set_bit(PAPRD_PACKET_SENT, &sc->sc_ah->caldata->cal_flags);
@@ -2528,6 +2563,16 @@ static void ath_tx_complete_buf(struct ath_softc *sc, struct ath_buf *bf,
 	struct ieee80211_tx_info *tx_info = IEEE80211_SKB_CB(skb);
 	unsigned long flags;
 	int tx_flags = 0;
+
+    if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
+        struct skb_shared_hwtstamps shhwtstamps;
+        u64 fns;
+        ath9k_cyc2hwtstamp(sc, &shhwtstamps, ts->ts_tstamp);
+        shhwtstamps.hwtstamp = ktime_add_us(shhwtstamps.hwtstamp, ts->duration);
+        fns = (u64)(ts->ts_tstamp + ts->duration - 16);
+        shhwtstamps.hwtstamp = ns_to_ktime(fns);
+        skb_tstamp_tx(skb, &shhwtstamps);
+    }
 
 	if (!txok)
 		tx_flags |= ATH_TX_ERROR;
@@ -2702,6 +2747,7 @@ static void ath_tx_processq(struct ath_softc *sc, struct ath_txq *txq)
 			ath_tx_return_buffer(sc, bf_held);
 		}
 
+        ath_warn(ath9k_hw_common(sc->sc_ah), "%s: skb=%p\n", __FUNCTION__, bf->bf_mpdu);
 		ath_tx_process_buffer(sc, txq, &ts, bf, &bf_head);
 	}
 	ath_txq_unlock_complete(sc, txq);
@@ -2721,7 +2767,7 @@ void ath_tx_tasklet(struct ath_softc *sc)
 	rcu_read_unlock();
 }
 
-void ath_tx_edma_tasklet(struct ath_softc *sc)
+void ath_tx_edma_tasklet(struct ath_softc *sc, ktime_t *tstamp)
 {
 	struct ath_tx_status ts;
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
@@ -2777,6 +2823,8 @@ void ath_tx_edma_tasklet(struct ath_softc *sc)
 		}
 
 		bf = list_first_entry(fifo_list, struct ath_buf, list);
+        ath_warn(ath9k_hw_common(sc->sc_ah), "%s: skb=%p\n", __FUNCTION__, bf->bf_mpdu);
+
 		if (bf->bf_state.stale) {
 			list_del(&bf->list);
 			ath_tx_return_buffer(sc, bf);
