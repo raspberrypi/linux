@@ -774,11 +774,16 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	nr_dest = (ax25_address *)(skb->data + 7);
 
 	if (ax25 != NULL) {
-		ret = nr_add_node(nr_src, "", &ax25->dest_addr, ax25->digipeat,
-				  ax25->ax25_dev->dev, 0,
-				  READ_ONCE(sysctl_netrom_obsolescence_count_initialiser));
-		if (ret)
-			return ret;
+		/*
+		 * A frame that cannot be noted here (it claims to come from
+		 * one of our own callsigns, or memory is short) is dropped.
+		 * Return 0, not the error: AX.25 takes any other value as
+		 * "frame consumed" and would never free it.
+		 */
+		if (nr_add_node(nr_src, "", &ax25->dest_addr, ax25->digipeat,
+				ax25->ax25_dev->dev, 0,
+				READ_ONCE(sysctl_netrom_obsolescence_count_initialiser)))
+			return 0;
 	}
 
 	if ((dev = nr_dev_get(nr_dest)) != NULL) {	/* Its for me */
@@ -848,8 +853,14 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	spin_unlock_bh(&nr_route_lock);
 	nr_node_put(nr_node);
 
+	/*
+	 * ax25_send_frame() only returns NULL before taking the frame:
+	 * free our copy then; the caller frees the original.
+	 */
 	if (ret)
 		kfree_skb(oskb);
+	else
+		kfree_skb(skb);
 
 	return ret;
 }
