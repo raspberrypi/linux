@@ -96,16 +96,22 @@ static void nr_remove_socket(struct sock *sk)
 }
 
 /*
- *	Kill all bound sockets on a dropped device.
+ *	Kill all bound sockets on a dropped device. Each socket is disconnected
+ *	under its lock, which its timers and nr_rx_frame() hold while they work
+ *	on it; nr_info_show() takes the two locks in the same order.
  */
 static void nr_kill_by_device(struct net_device *dev)
 {
 	struct sock *s;
 
 	spin_lock_bh(&nr_list_lock);
-	sk_for_each(s, &nr_list)
-		if (nr_sk(s)->device == dev)
-			nr_disconnect(s, ENETUNREACH);
+	sk_for_each(s, &nr_list) {
+		if (nr_sk(s)->device != dev)
+			continue;
+		bh_lock_sock(s);
+		nr_disconnect(s, ENETUNREACH);
+		bh_unlock_sock(s);
+	}
 	spin_unlock_bh(&nr_list_lock);
 }
 
