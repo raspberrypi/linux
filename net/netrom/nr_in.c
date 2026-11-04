@@ -176,7 +176,7 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 	struct sk_buff *skbn;
 	unsigned short save_vr;
 	unsigned short nr, ns;
-	int queued = 0;
+	int queued = 0, more;
 
 	nr = skb->data[18];
 
@@ -258,7 +258,9 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 			while ((skbn = skb_dequeue(&nrom->reseq_queue)) != NULL) {
 				ns = skbn->data[17];
 				if (ns == nrom->vr) {
-					if (nr_queue_rx_frame(sk, skbn, frametype & NR_MORE_FLAG) == 0) {
+					/* The flags of this frame, not of the one just received */
+					more = skbn->data[19] & NR_MORE_FLAG;
+					if (nr_queue_rx_frame(sk, skbn, more) == 0) {
 						nrom->vr = (nrom->vr + 1) % NR_MODULUS;
 					} else {
 						nrom->condition |= NR_COND_OWN_RX_BUSY;
