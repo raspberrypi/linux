@@ -606,6 +606,13 @@ xchk_fscounters(
 			try_again = true;
 	}
 
+	if (fsc->frextents < fsc->frextents_delayed) {
+		if (fsc->frozen)
+			xchk_set_incomplete(sc);
+		else
+			try_again = true;
+	}
+
 	if (!xchk_fscount_within_range(sc, frextents, &mp->m_frextents,
 			fsc->frextents - fsc->frextents_delayed)) {
 		if (fsc->frozen)
