@@ -75,17 +75,24 @@ static int rose_state1_machine(struct sock *sk, struct sk_buff *skb, int framety
 static int rose_state2_machine(struct sock *sk, struct sk_buff *skb, int frametype)
 {
 	struct rose_sock *rose = rose_sk(sk);
+	/*
+	 * A call whose Call Request timed out (T1) is cleared from state 2
+	 * while connect() is still waiting for it: report the timeout, or
+	 * connect() and SO_ERROR would find no error on a call that never
+	 * got through.
+	 */
+	int reason = sk->sk_state == TCP_SYN_SENT ? ETIMEDOUT : 0;
 
 	switch (frametype) {
 	case ROSE_CLEAR_REQUEST:
 		rose_write_internal(sk, ROSE_CLEAR_CONFIRMATION);
-		rose_disconnect(sk, 0, skb->data[3], skb->data[4]);
+		rose_disconnect(sk, reason, skb->data[3], skb->data[4]);
 		rose_neigh_put(rose->neighbour);
 		rose->neighbour = NULL;
 		break;
 
 	case ROSE_CLEAR_CONFIRMATION:
-		rose_disconnect(sk, 0, -1, -1);
+		rose_disconnect(sk, reason, -1, -1);
 		rose_neigh_put(rose->neighbour);
 		rose->neighbour = NULL;
 		break;
