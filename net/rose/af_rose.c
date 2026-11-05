@@ -312,20 +312,35 @@ found:
 
 /*
  *	Find a connected ROSE socket given my LCI and device.
+ *	The caller holds rose_list_lock.
+ */
+static struct sock *__rose_find_socket(unsigned int lci, struct rose_neigh *neigh)
+{
+	struct sock *s;
+
+	sk_for_each(s, &rose_list) {
+		struct rose_sock *rose = rose_sk(s);
+
+		if (rose->lci == lci && rose->neighbour == neigh)
+			return s;
+	}
+
+	return NULL;
+}
+
+/*
+ *	Find a connected ROSE socket given my LCI and device. A reference is
+ *	taken on the socket found: it can be released and destroyed as soon
+ *	as rose_list_lock is dropped.
  */
 struct sock *rose_find_socket(unsigned int lci, struct rose_neigh *neigh)
 {
 	struct sock *s;
 
 	spin_lock_bh(&rose_list_lock);
-	sk_for_each(s, &rose_list) {
-		struct rose_sock *rose = rose_sk(s);
-
-		if (rose->lci == lci && rose->neighbour == neigh)
-			goto found;
-	}
-	s = NULL;
-found:
+	s = __rose_find_socket(lci, neigh);
+	if (s)
+		sock_hold(s);
 	spin_unlock_bh(&rose_list_lock);
 	return s;
 }
@@ -336,19 +351,26 @@ found:
  */
 unsigned int rose_new_lci(struct rose_neigh *neigh)
 {
+	unsigned int res = 0;
 	int lci;
 
+	spin_lock_bh(&rose_list_lock);
 	if (neigh->dce_mode) {
 		for (lci = 1; lci <= sysctl_rose_maximum_vcs; lci++)
-			if (rose_find_socket(lci, neigh) == NULL && rose_route_free_lci(lci, neigh) == NULL)
-				return lci;
+			if (!__rose_find_socket(lci, neigh) && !rose_route_free_lci(lci, neigh)) {
+				res = lci;
+				break;
+			}
 	} else {
 		for (lci = sysctl_rose_maximum_vcs; lci > 0; lci--)
-			if (rose_find_socket(lci, neigh) == NULL && rose_route_free_lci(lci, neigh) == NULL)
-				return lci;
+			if (!__rose_find_socket(lci, neigh) && !rose_route_free_lci(lci, neigh)) {
+				res = lci;
+				break;
+			}
 	}
+	spin_unlock_bh(&rose_list_lock);
 
-	return 0;
+	return res;
 }
 
 /*
