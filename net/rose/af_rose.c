@@ -698,6 +698,7 @@ static struct sock *rose_make_new(struct sock *osk)
 static int rose_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
+	struct rose_neigh *neigh;
 	struct rose_sock *rose;
 
 	if (sk == NULL) return 0;
@@ -716,10 +717,21 @@ static int rose_release(struct socket *sock)
 		break;
 
 	case ROSE_STATE_2:
-		rose_neigh_put(rose->neighbour);
-		release_sock(sk);
+		/*
+		 * Disconnect before the socket lock is dropped: frames put on
+		 * the backlog meanwhile, a Clear Confirmation for one, then
+		 * find it in state 0 instead of dropping the neighbour
+		 * reference a second time. rose_kill_by_neigh() does not take
+		 * the socket lock: take the neighbour under rose_list_lock, as
+		 * it does, so that only one of them drops the reference.
+		 */
 		rose_disconnect(sk, 0, -1, -1);
-		lock_sock(sk);
+		spin_lock_bh(&rose_list_lock);
+		neigh = rose->neighbour;
+		rose->neighbour = NULL;
+		spin_unlock_bh(&rose_list_lock);
+		if (neigh)
+			rose_neigh_put(neigh);
 		rose_destroy_socket(sk);
 		break;
 
