@@ -278,7 +278,7 @@ static void rose_insert_socket(struct sock *sk)
 
 /*
  *	Find a socket that wants to accept the Call Request we just
- *	received.
+ *	received. A reference is taken on the socket found.
  */
 static struct sock *rose_find_listener(rose_address *addr, ax25_address *call)
 {
@@ -304,6 +304,8 @@ static struct sock *rose_find_listener(rose_address *addr, ax25_address *call)
 	}
 	s = NULL;
 found:
+	if (s)
+		sock_hold(s);
 	spin_unlock_bh(&rose_list_lock);
 	return s;
 }
@@ -1103,12 +1105,31 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 	}
 
 	sk = rose_find_listener(&facilities.source_addr, &facilities.source_call);
+	if (!sk) {
+		rose_transmit_clear_request(neigh, lci, ROSE_NETWORK_CONGESTION, 120);
+		return 0;
+	}
+
+	/*
+	 * The listener may be closed by rose_release() at any time. It is
+	 * marked dead before rose_destroy_socket() empties its queue, so
+	 * once it is locked a listener that is not dead will see the new
+	 * socket on its queue, either in rose_accept() or when it is
+	 * destroyed.
+	 */
+	bh_lock_sock(sk);
 
 	/*
 	 * We can't accept the Call Request.
 	 */
-	if (sk == NULL || sk_acceptq_is_full(sk) ||
-	    (make = rose_make_new(sk)) == NULL) {
+	if (sock_flag(sk, SOCK_DEAD) || sk->sk_state != TCP_LISTEN ||
+	    sk_acceptq_is_full(sk))
+		make = NULL;
+	else
+		make = rose_make_new(sk);
+	if (!make) {
+		bh_unlock_sock(sk);
+		sock_put(sk);
 		rose_transmit_clear_request(neigh, lci, ROSE_NETWORK_CONGESTION, 120);
 		return 0;
 	}
@@ -1164,8 +1185,9 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 
 	rose_start_heartbeat(make);
 
-	if (!sock_flag(sk, SOCK_DEAD))
-		sk->sk_data_ready(sk);
+	sk->sk_data_ready(sk);
+	bh_unlock_sock(sk);
+	sock_put(sk);
 
 	return 1;
 }
