@@ -1054,25 +1054,34 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 		if (frametype == ROSE_CALL_REQUEST) {
 			struct rose_sock *rose = rose_sk(sk);
 
-			/* Remove an existing unused socket */
-			rose_clear_queues(sk);
-			rose->cause	 = ROSE_NETWORK_CONGESTION;
-			rose->diagnostic = 0;
-			rose_neigh_put(rose->neighbour);
-			rose->neighbour	 = NULL;
-			rose->lci	 = 0;
-			rose->state	 = ROSE_STATE_0;
-			sk->sk_state	 = TCP_CLOSE;
-			sk->sk_err	 = 0;
-			sk->sk_shutdown	 |= SEND_SHUTDOWN;
-			if (!sock_flag(sk, SOCK_DEAD)) {
-				sk->sk_state_change(sk);
-				sock_set_flag(sk, SOCK_DEAD);
+			/*
+			 * Remove an existing unused socket, unless it was
+			 * disconnected or reaped since it was found.
+			 */
+			bh_lock_sock(sk);
+			if (rose->lci == lci && rose->neighbour == rose_neigh) {
+				rose_clear_queues(sk);
+				rose->cause	 = ROSE_NETWORK_CONGESTION;
+				rose->diagnostic = 0;
+				rose_neigh_put(rose->neighbour);
+				rose->neighbour	 = NULL;
+				rose->lci	 = 0;
+				rose->state	 = ROSE_STATE_0;
+				sk->sk_state	 = TCP_CLOSE;
+				sk->sk_err	 = 0;
+				sk->sk_shutdown	 |= SEND_SHUTDOWN;
+				if (!sock_flag(sk, SOCK_DEAD)) {
+					sk->sk_state_change(sk);
+					sock_set_flag(sk, SOCK_DEAD);
+				}
 			}
+			bh_unlock_sock(sk);
+			sock_put(sk);
 		}
 		else {
 			skb_reset_transport_header(skb);
 			res = rose_rcv_frame(sk, skb);
+			sock_put(sk);
 			goto out;
 		}
 	}
