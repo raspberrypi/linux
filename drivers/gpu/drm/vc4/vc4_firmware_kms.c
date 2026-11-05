@@ -836,6 +836,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 					     u8 display_num,
 					     u8 plane_id)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_plane *plane = NULL;
 	struct vc4_fkms_plane *vc4_plane;
 	u32 formats[ARRAY_SIZE(vc_image_formats)];
@@ -874,6 +875,11 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 	drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
+	/* The firmware picks the blend mode; it can't be changed */
+	drm_plane_create_blend_mode_property(plane,
+					     vc4->fkms->revision >= BCM2712 ?
+					     BIT(DRM_MODE_BLEND_COVERAGE) :
+					     BIT(DRM_MODE_BLEND_PREMULTI));
 	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
 					   DRM_MODE_ROTATE_0 |
 					   DRM_MODE_ROTATE_180 |
@@ -1939,6 +1945,7 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	if (!match)
 		return -ENODEV;
 	fkms->revision = (enum vc4_fkms_revision)match->data;
+	vc4->fkms = fkms;
 
 	firmware_node = of_parse_phandle(dev->of_node, "brcm,firmware", 0);
 	vc4->firmware = devm_rpi_firmware_get(&pdev->dev, firmware_node);
@@ -2020,8 +2027,6 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	} else {
 		DRM_WARN("No displays found. Consider forcing hotplug if HDMI is attached\n");
 	}
-
-	vc4->fkms = fkms;
 
 	platform_set_drvdata(pdev, crtc_list);
 
