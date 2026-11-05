@@ -60,7 +60,7 @@ xrep_newbt_estimate_slack(
 		free = sc->sa.pag->pagf_freeblks;
 		sz = xfs_ag_block_count(sc->mp, sc->sa.pag->pag_agno);
 	} else {
-		free = percpu_counter_sum(&sc->mp->m_fdblocks);
+		free = percpu_counter_sum_positive(&sc->mp->m_fdblocks);
 		sz = sc->mp->m_sb.sb_dblocks;
 	}
 
