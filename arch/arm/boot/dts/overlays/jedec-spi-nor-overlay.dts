@@ -4,6 +4,7 @@
 //     flash-spi<n>-<m>        - Enables flash device on SPI<n>, CS#<m>.
 //     flash-fastr-spi<n>-<m>  - Enables flash device with fast read capability on SPI<n>, CS#<m>.
 //     speed                   - Set the SPI clock speed in Hz
+//     quad                    - Enable quad (4-wire) I/O mode
 //
 // If devices are present on SPI1 or SPI2, those interfaces must be enabled with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
 //
@@ -89,6 +90,13 @@
 		};
 	};
 
+	fragment@9 {
+		target = <&spi0_pins>;
+		__dormant__ {
+			pins = "gpio9", "gpio10", "gpio11", "gpio0", "gpio1";
+		};
+	};
+
 	payload: fragment@100 {
 		target = <&spi0>;
 		__overlay__ {
@@ -100,6 +108,9 @@
 				compatible = "jedec,spi-nor";
 				reg = <0>;
 				spi-max-frequency = <500000>;
+				/* The defaults. The quad parameter changes them. */
+				spi-rx-bus-width = <1>;
+				spi-tx-bus-width = <1>;
 			};
 		};
 	};
@@ -131,6 +142,9 @@
 		flash-fastr-spi2-2 = <0>,"+7+8", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=2";
 		fastr              = <0>,"+8";
 		speed              = <&spi_nor>, "spi-max-frequency:0";
+		quad               = <0>,"+9",
+					<&spi_nor>,"spi-rx-bus-width:0=4",
+					<&spi_nor>,"spi-tx-bus-width:0=4";
 	};
 };
 
