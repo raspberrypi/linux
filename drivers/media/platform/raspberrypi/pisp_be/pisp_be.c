@@ -5,7 +5,6 @@
  *
  */
 #include <linux/clk.h>
-#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -15,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
+#include <linux/wait.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
@@ -242,6 +242,8 @@ struct pispbe_dev {
 	/* protects "hw_busy" flag, streaming_map and job_queue */
 	spinlock_t hw_lock;
 	bool hw_busy; /* non-zero if a job is queued or is being started */
+	bool suspending; /* protected by hw_lock */
+	wait_queue_head_t idle_wq;
 	struct list_head job_queue;
 	int irq;
 	u32 hw_version;
@@ -603,7 +605,7 @@ static void pispbe_schedule(struct pispbe_dev *pispbe, bool clear_hw_busy)
 		if (clear_hw_busy)
 			pispbe->hw_busy = false;
 
-		if (pispbe->hw_busy)
+		if (pispbe->hw_busy || pispbe->suspending)
 			return;
 
 		job = list_first_entry_or_null(&pispbe->job_queue,
@@ -700,6 +702,9 @@ static irqreturn_t pispbe_isr(int irq, void *dev)
 
 	/* check if there's more to do before going to sleep */
 	pispbe_schedule(pispbe, can_queue_another);
+
+	if (READ_ONCE(pispbe->suspending))
+		wake_up(&pispbe->idle_wq);
 
 	return IRQ_HANDLED;
 }
@@ -1784,6 +1789,7 @@ static int pispbe_probe(struct platform_device *pdev)
 
 	pispbe->hw_busy = false;
 	spin_lock_init(&pispbe->hw_lock);
+	init_waitqueue_head(&pispbe->idle_wq);
 	ret = pispbe_hw_init(pispbe);
 	if (ret)
 		goto pm_runtime_suspend_err;
@@ -1827,25 +1833,30 @@ static void pispbe_remove(struct platform_device *pdev)
 	pm_runtime_disable(pispbe->dev);
 }
 
+/*
+ * hw_busy only covers a job that has not started yet; running_job is the one
+ * the hardware is working on.
+ */
+static bool pispbe_idle(struct pispbe_dev *pispbe)
+{
+	guard(spinlock_irqsave)(&pispbe->hw_lock);
+
+	return !pispbe->hw_busy && !pispbe->running_job.node_group;
+}
+
 static int pispbe_suspend(struct device *dev)
 {
 	struct pispbe_dev *pispbe = dev_get_drvdata(dev);
-	bool busy;
 
-	scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
-		busy = pispbe->hw_busy;
-	}
+	scoped_guard(spinlock_irqsave, &pispbe->hw_lock)
+		WRITE_ONCE(pispbe->suspending, true);
 
-	if (busy) {
-		msleep(100);
-
-		scoped_guard(spinlock_irqsave, &pispbe->hw_lock) {
-			busy = pispbe->hw_busy;
-		}
-	}
-
-	if (busy) {
+	if (!wait_event_timeout(pispbe->idle_wq, pispbe_idle(pispbe),
+				msecs_to_jiffies(500))) {
 		dev_err(dev, "Timed out waiting for ISP-BE to finish.\n");
+		scoped_guard(spinlock_irqsave, &pispbe->hw_lock)
+			WRITE_ONCE(pispbe->suspending, false);
+		pispbe_schedule(pispbe, false);
 		return -EBUSY;
 	}
 
@@ -1869,6 +1880,11 @@ static int pispbe_resume(struct device *dev)
 
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
+
+	scoped_guard(spinlock_irqsave, &pispbe->hw_lock)
+		WRITE_ONCE(pispbe->suspending, false);
+	if (!ret)
+		pispbe_schedule(pispbe, false);
 
 	return ret;
 }
