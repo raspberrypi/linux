@@ -17,6 +17,7 @@
 #include <net/ax25.h>
 #include <linux/inet.h>
 #include <linux/netdevice.h>
+#include <linux/rtnetlink.h>
 #include <net/arp.h>
 #include <linux/if_arp.h>
 #include <linux/skbuff.h>
@@ -829,23 +830,29 @@ int rose_rt_ioctl(unsigned int cmd, void __user *arg)
 	case SIOCADDRT:
 		if (copy_from_user(&rose_route, arg, sizeof(struct rose_route_struct)))
 			return -EFAULT;
-		if ((dev = rose_ax25_dev_find(rose_route.device)) == NULL)
-			return -EINVAL;
 		if (rose_dev_exists(&rose_route.address)) /* Can't add routes to ourself */
 			return -EINVAL;
 		if (rose_route.mask > 10) /* Mask can't be more than 10 digits */
 			return -EINVAL;
 		if (rose_route.ndigis > AX25_MAX_DIGIS)
 			return -EINVAL;
-		err = rose_add_node(&rose_route, dev);
+		/*
+		 * RTNL keeps the device up until the neighbour that uses it
+		 * is on the list, where rose_rt_device_down() finds it.
+		 */
+		rtnl_lock();
+		dev = rose_ax25_dev_find(rose_route.device);
+		err = dev ? rose_add_node(&rose_route, dev) : -EINVAL;
+		rtnl_unlock();
 		return err;
 
 	case SIOCDELRT:
 		if (copy_from_user(&rose_route, arg, sizeof(struct rose_route_struct)))
 			return -EFAULT;
-		if ((dev = rose_ax25_dev_find(rose_route.device)) == NULL)
-			return -EINVAL;
-		err = rose_del_node(&rose_route, dev);
+		rtnl_lock();
+		dev = rose_ax25_dev_find(rose_route.device);
+		err = dev ? rose_del_node(&rose_route, dev) : -EINVAL;
+		rtnl_unlock();
 		return err;
 
 	case SIOCRSCLRRT:
