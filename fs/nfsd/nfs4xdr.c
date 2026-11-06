@@ -1606,7 +1606,7 @@ nfsd4_decode_write(struct nfsd4_compoundargs *argp, union nfsd4_op_u *u)
 		return nfserr_bad_xdr;
 	if (xdr_stream_decode_u32(argp->xdr, &write->wr_stable_how) < 0)
 		return nfserr_bad_xdr;
-	if (write->wr_stable_how > NFS_FILE_SYNC)
+	if (write->wr_stable_how > FILE_SYNC4)
 		return nfserr_bad_xdr;
 	if (xdr_stream_decode_u32(argp->xdr, &write->wr_buflen) < 0)
 		return nfserr_bad_xdr;

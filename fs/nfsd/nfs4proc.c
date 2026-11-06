@@ -69,6 +69,20 @@ MODULE_PARM_DESC(nfsd4_ssc_umount_timeout,
 
 #define NFSDDBG_FACILITY		NFSDDBG_PROC
 
+static int nfsd4_iocb_flags(enum stable_how4 how)
+{
+	switch (how) {
+	case FILE_SYNC4:
+		/* persist data and timestamps */
+		return IOCB_DSYNC | IOCB_SYNC;
+	case DATA_SYNC4:
+		/* persist data only */
+		return IOCB_DSYNC;
+	default:
+		return 0;
+	}
+}
+
 static u32 nfsd_attrmask[] = {
 	NFSD_WRITEABLE_ATTRS_WORD0,
 	NFSD_WRITEABLE_ATTRS_WORD1,
@@ -1377,7 +1391,7 @@ nfsd4_write(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	write->wr_how_written = write->wr_stable_how;
 	status = nfsd_vfs_write(rqstp, &cstate->current_fh, nf,
 				write->wr_offset, &write->wr_payload,
-				&cnt, write->wr_how_written,
+				&cnt, nfsd4_iocb_flags(write->wr_how_written),
 				(__be32 *)write->wr_verifier.data);
 	nfsd_file_put(nf);
 
@@ -1974,7 +1988,7 @@ static void nfsd4_init_copy_res(struct nfsd4_copy *copy, bool sync)
 {
 	copy->cp_res.wr_stable_how =
 		test_bit(NFSD4_COPY_F_COMMITTED, &copy->cp_flags) ?
-			NFS_FILE_SYNC : NFS_UNSTABLE;
+			FILE_SYNC4 : UNSTABLE4;
 	nfsd4_copy_set_sync(copy, sync);
 }
 

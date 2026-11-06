@@ -39,7 +39,7 @@ struct nfsd3_writeargs {
 	svc_fh			fh;
 	__u64			offset;
 	__u32			count;
-	int			stable;
+	__u32			stable;
 	__u32			len;
 	struct xdr_buf		payload;
 };
