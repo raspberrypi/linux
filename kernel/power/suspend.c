@@ -31,6 +31,7 @@
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/fs.h>
+#include <linux/of.h>
 
 #include "power.h"
 
@@ -206,6 +207,11 @@ static int __init rpi_disable_s2idle(void)
 	struct device_node *np;
 	u32 val;
 	int ret;
+
+	np = of_find_compatible_node(NULL, NULL, "raspberrypi,bcm2835-firmware");
+	if (!np)
+		return 0;
+	of_node_put(np);
 
 	if (!suspend_ops)
 		goto disable_s2idle;
