@@ -34,6 +34,7 @@
 #include <drm/drm_gem_dma_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_managed.h>
+#include <drm/drm_modeset_helper.h>
 #include <drm/drm_modeset_helper_vtables.h>
 #include <drm/drm_of.h>
 #include <drm/drm_print.h>
@@ -522,6 +523,23 @@ static void rp1dsi_platform_shutdown(struct platform_device *pdev)
 	rp1dsi_stopall(drm);
 }
 
+static int rp1dsi_platform_suspend(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+
+	return drm_mode_config_helper_suspend(drm);
+}
+
+static int rp1dsi_platform_resume(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+
+	return drm_mode_config_helper_resume(drm);
+}
+
+static DEFINE_SIMPLE_DEV_PM_OPS(rp1dsi_pm_ops, rp1dsi_platform_suspend,
+				rp1dsi_platform_resume);
+
 static const struct of_device_id rp1dsi_of_match[] = {
 	{
 		.compatible = "raspberrypi,rp1dsi",
@@ -539,6 +557,7 @@ static struct platform_driver rp1dsi_platform_driver = {
 		.name	= DRIVER_NAME,
 		.owner  = THIS_MODULE,
 		.of_match_table = rp1dsi_of_match,
+		.pm	= pm_sleep_ptr(&rp1dsi_pm_ops),
 	},
 };
 
