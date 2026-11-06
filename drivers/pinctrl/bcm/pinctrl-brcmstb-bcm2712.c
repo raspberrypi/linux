@@ -740,7 +740,7 @@ static struct platform_driver bcm2712_pinctrl_driver = {
 		.name = "pinctrl-bcm2712",
 		.of_match_table = bcm2712_pinctrl_match,
 		.suppress_bind_attrs = true,
-		.pm = &bcm2712_pinctrl_pm_ops,
+		.pm = pm_sleep_ptr(&bcm2712_pinctrl_pm_ops),
 	},
 };
 module_platform_driver(bcm2712_pinctrl_driver);
