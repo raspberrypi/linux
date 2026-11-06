@@ -1237,8 +1237,26 @@ static int rp2040_gbdg_runtime_resume(struct device *dev)
 	return rp2040_gbdg_power_on(i2c_get_clientdata(client));
 }
 
-static const struct dev_pm_ops rp2040_gbdg_pm_ops = { SET_RUNTIME_PM_OPS(
-	rp2040_gbdg_runtime_suspend, rp2040_gbdg_runtime_resume, NULL) };
+/*
+ * Intentionally empty: having system sleep callbacks stops the PM core from
+ * treating the device as smart suspend capable, so its runtime PM status is
+ * left alone across system sleep.
+ */
+static int __maybe_unused rp2040_gbdg_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int __maybe_unused rp2040_gbdg_resume(struct device *dev)
+{
+	return 0;
+}
+
+static const struct dev_pm_ops rp2040_gbdg_pm_ops = {
+	SET_RUNTIME_PM_OPS(rp2040_gbdg_runtime_suspend,
+			   rp2040_gbdg_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(rp2040_gbdg_suspend, rp2040_gbdg_resume)
+};
 
 static struct i2c_driver rp2040_gbdg_driver = {
 	.driver = {
