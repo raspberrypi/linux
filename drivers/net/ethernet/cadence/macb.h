@@ -1218,6 +1218,7 @@ static const struct gem_statistic queue_statistics[] = {
 
 struct macb;
 struct macb_queue;
+struct rp1_extts;
 
 struct macb_or_gem_ops {
 	int	(*mog_alloc_rx_buffers)(struct macb *bp);
@@ -1323,6 +1324,9 @@ struct ethtool_rx_fs_list {
 
 struct macb {
 	void __iomem		*regs;
+	void __iomem		*rp1_eth_cfg;
+	resource_size_t		rp1_eth_cfg_phys;
+	struct rp1_extts	*rp1_extts;
 	bool			native_io;
 
 	/* hardware IO accessors */
