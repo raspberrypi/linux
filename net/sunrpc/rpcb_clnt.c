@@ -400,7 +400,8 @@ static struct rpc_clnt *rpcb_create(struct net *net, const char *nodename,
 	return rpc_create(&args);
 }
 
-static int rpcb_register_call(struct sunrpc_net *sn, struct rpc_clnt *clnt, struct rpc_message *msg, bool is_set)
+static int rpcb_register_call(struct sunrpc_net *sn, struct rpc_clnt *clnt,
+			      struct rpc_message *msg, bool is_set)
 {
 	int flags = RPC_TASK_NOCONNECT;
 	int error, result = 0;
@@ -410,8 +411,23 @@ static int rpcb_register_call(struct sunrpc_net *sn, struct rpc_clnt *clnt, stru
 	msg->rpc_resp = &result;
 
 	error = rpc_call_sync(clnt, msg, flags);
-	if (error < 0)
-		return error;
+	if (error < 0) {
+		switch (error) {
+		/* rpcbind answered; the reply itself carries the error */
+		case -EPROTONOSUPPORT:
+		case -EPFNOSUPPORT:
+		case -EOPNOTSUPP:
+		case -EACCES:
+		/* the call never made it onto the wire */
+		case -ENOMEM:
+		case -EMSGSIZE:
+		/* the caller is going away; this says nothing about rpcbind */
+		case -ERESTARTSYS:
+			return error;
+		}
+		/* anything else, we assume that rpcbind isn't functional */
+		return -EIO;
+	}
 
 	if (!result)
 		return -EACCES;
