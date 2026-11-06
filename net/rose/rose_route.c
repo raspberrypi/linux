@@ -463,6 +463,7 @@ int rose_add_loopback_node(const rose_address *address)
 	int err = 0;
 
 	spin_lock_bh(&rose_node_list_lock);
+	spin_lock_bh(&rose_neigh_list_lock);
 
 	rose_node = rose_node_list;
 	while (rose_node != NULL) {
@@ -495,6 +496,7 @@ int rose_add_loopback_node(const rose_address *address)
 	rose_neigh_hold(rose_loopback_neigh);
 
 out:
+	spin_unlock_bh(&rose_neigh_list_lock);
 	spin_unlock_bh(&rose_node_list_lock);
 
 	return err;
@@ -508,6 +510,7 @@ void rose_del_loopback_node(const rose_address *address)
 	struct rose_node *rose_node;
 
 	spin_lock_bh(&rose_node_list_lock);
+	spin_lock_bh(&rose_neigh_list_lock);
 
 	rose_node = rose_node_list;
 	while (rose_node != NULL) {
@@ -527,6 +530,7 @@ void rose_del_loopback_node(const rose_address *address)
 	rose_neigh_put(rose_loopback_neigh);
 
 out:
+	spin_unlock_bh(&rose_neigh_list_lock);
 	spin_unlock_bh(&rose_node_list_lock);
 }
 
