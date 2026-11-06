@@ -114,7 +114,9 @@ struct ccs_pll_branch_bk {
  * @op_bk: Operational timing back-end configuration (output)
  * @pixel_rate_csi: Pixel rate on the output data bus (output)
  * @pixel_rate_pixel_array: Nominal pixel rate in the sensor's pixel array
- *			    (output)
+ *			    (input/output). It is a valid input only when
+ *			    FLAG_DUAL_PLL is set, serving as a target rate
+ *			    for the VT tree.
  */
 struct ccs_pll {
 	/* input values */
