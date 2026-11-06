@@ -355,6 +355,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	vc4-kms-dsi-edatec-panel-070c.dtbo \
 	vc4-kms-dsi-edatec-panel-101c.dtbo \
 	vc4-kms-dsi-generic.dtbo \
+	vc4-kms-dsi-huadi-480x480.dtbo \
+	vc4-kms-dsi-huadi-720x720.dtbo \
 	vc4-kms-dsi-ili79600-10-1inch.dtbo \
 	vc4-kms-dsi-ili9881-5inch.dtbo \
 	vc4-kms-dsi-ili9881-7inch.dtbo \

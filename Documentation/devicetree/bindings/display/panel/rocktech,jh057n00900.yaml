@@ -24,6 +24,8 @@ properties:
       - anbernic,rg353v-panel-v2
       # GameForce Chi 3.5" 640x480 TFT LCD panel
       - gameforce,chi-panel
+      # Huadi HD395003C30-V2 3.95" 720x720 TFT LCD panel
+      - huadi,hd395003c30-v2
       # Powkiddy RGB10MAX3 5.0" 720x1280 TFT LCD panel
       - powkiddy,rgb10max3-panel
       # Powkiddy RGB30 3.0" 720x720 TFT LCD panel
