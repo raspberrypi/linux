@@ -2005,11 +2005,16 @@ static int cipso_v4_delopt(struct ip_options_rcu __rcu **opt_ptr)
 	if (!opt || opt->opt.cipso == 0)
 		return 0;
 	if (opt->opt.srr || opt->opt.rr || opt->opt.ts || opt->opt.router_alert) {
+		struct ip_options_rcu *old_opt = opt;
 		u8 cipso_len;
 		u8 cipso_off;
 		unsigned char *cipso_ptr;
 		int optlen_new;
 
+		/* ip_options_rcu must not be modified in place, use a copy */
+		opt = kmemdup(opt, sizeof(*opt) + opt->opt.optlen, GFP_ATOMIC);
+		if (!opt)
+			return -ENOMEM;
 		cipso_off = opt->opt.cipso - sizeof(struct iphdr);
 		cipso_ptr = &opt->opt.__data[cipso_off];
 		cipso_len = cipso_ptr[1];
@@ -2037,6 +2042,8 @@ static int cipso_v4_delopt(struct ip_options_rcu __rcu **opt_ptr)
 
 		memset(&opt->opt.__data[optlen_new], IPOPT_END,
 		       opt->opt.optlen - optlen_new);
+		rcu_assign_pointer(*opt_ptr, opt);
+		kfree_rcu(old_opt, rcu);
 	} else {
 		/* only the cipso option was present on the socket so we can
 		 * remove the entire option struct */
@@ -2056,7 +2063,7 @@ static int cipso_v4_delopt(struct ip_options_rcu __rcu **opt_ptr)
  * Removes the CIPSO option from a socket, if present.
  *
  */
-void cipso_v4_sock_delattr(struct sock *sk)
+int cipso_v4_sock_delattr(struct sock *sk)
 {
 	struct inet_sock *sk_inet;
 	int hdr_delta;
@@ -2069,6 +2076,7 @@ void cipso_v4_sock_delattr(struct sock *sk)
 		sk_conn->icsk_ext_hdr_len -= hdr_delta;
 		sk_conn->icsk_sync_mss(sk, sk_conn->icsk_pmtu_cookie);
 	}
+	return (hdr_delta < 0) ? hdr_delta : 0;
 }
 
 /**
@@ -2079,9 +2087,11 @@ void cipso_v4_sock_delattr(struct sock *sk)
  * Removes the CIPSO option from a request socket, if present.
  *
  */
-void cipso_v4_req_delattr(struct request_sock *req)
+int cipso_v4_req_delattr(struct request_sock *req)
 {
-	cipso_v4_delopt(&inet_rsk(req)->ireq_opt);
+	int hdr_delta = cipso_v4_delopt(&inet_rsk(req)->ireq_opt);
+
+	return (hdr_delta < 0) ? hdr_delta : 0;
 }
 
 /**
