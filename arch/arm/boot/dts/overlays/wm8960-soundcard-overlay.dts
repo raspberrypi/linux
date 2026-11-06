@@ -34,7 +34,10 @@
 				reg = <0x1a>;
 				#sound-dai-cells = <0>;
 				AVDD-supply = <&vdd_5v0_reg>;
-				DVDD-supply = <&vdd_3v3_reg>;
+				DBVDD-supply = <&vdd_3v3_reg>;
+				DCVDD-supply = <&vdd_3v3_reg>;
+				SPKVDD1-supply = <&vdd_5v0_reg>;
+				SPKVDD2-supply = <&vdd_5v0_reg>;
 				clocks = <&wm8960_mclk>;
 				clock-names = "mclk";
 			};
