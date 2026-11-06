@@ -1145,8 +1145,24 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 								    120);
 					goto out;
 				}
-				/* Remove an existing unused route */
-				rose_remove_route(rose_route);
+				/*
+				 *	Another call on the LCI of a through
+				 *	route: the neighbour no longer has the
+				 *	call it was built for.  Clear the other
+				 *	half, which keeps the route until its
+				 *	Clear Confirmation, and leave the LCI
+				 *	to the new call.
+				 */
+				if (rose_route->neigh2 != NULL) {
+					rose_neigh_put(rose_route->neigh1);
+					rose_route->neigh1 = NULL;
+					rose_transmit_clear_request(rose_route->neigh2,
+								    rose_route->lci2,
+								    ROSE_NETWORK_CONGESTION,
+								    0);
+				} else {
+					rose_remove_route(rose_route);
+				}
 				break;
 			} else if (rose_route->neigh2 != NULL) {
 				skb->data[0] &= 0xF0;
@@ -1180,8 +1196,24 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 								    120);
 					goto out;
 				}
-				/* Remove an existing unused route */
-				rose_remove_route(rose_route);
+				/*
+				 *	Another call on the LCI of a through
+				 *	route: the neighbour no longer has the
+				 *	call it was built for.  Clear the other
+				 *	half, which keeps the route until its
+				 *	Clear Confirmation, and leave the LCI
+				 *	to the new call.
+				 */
+				if (rose_route->neigh1 != NULL) {
+					rose_neigh_put(rose_route->neigh2);
+					rose_route->neigh2 = NULL;
+					rose_transmit_clear_request(rose_route->neigh1,
+								    rose_route->lci1,
+								    ROSE_NETWORK_CONGESTION,
+								    0);
+				} else {
+					rose_remove_route(rose_route);
+				}
 				break;
 			} else if (rose_route->neigh1 != NULL) {
 				skb->data[0] &= 0xF0;
