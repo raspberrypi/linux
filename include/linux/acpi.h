@@ -13,7 +13,6 @@
 #include <linux/resource_ext.h>
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
-#include <linux/of.h>
 #include <linux/property.h>
 #include <linux/uuid.h>
 #include <linux/node.h>
@@ -1197,7 +1196,7 @@ static inline int acpi_dev_pm_attach(struct device *dev, bool power_on)
 }
 static inline bool acpi_storage_d3(struct device *dev)
 {
-	return of_machine_is_compatible("brcm,bcm2712");
+	return false;
 }
 static inline bool acpi_dev_state_d0(struct device *dev)
 {
