@@ -877,7 +877,11 @@ static int bcm_suspend(struct device *dev)
 		struct hci_dev *hdev = bdev->hu->hdev;
 
 		/* Wait for power_on before suspending. bcm_setup causes
-		 * a timeout if a suspend occurs duriung it
+		 * a timeout if a suspend occurs during it.
+		 * bcm_device_lock is not needed: this is a serdev device, and
+		 * bdev->hu only changes in serdev probe/remove, which hold the
+		 * device_lock that the PM core holds here. Taking it would
+		 * deadlock against bcm_dequeue()/bcm_recv() during setup.
 		 */
 		if (hdev)
 			flush_work(&hdev->power_on);
