@@ -2027,12 +2027,10 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 
 	work_done = macb_tx_complete(queue, budget);
 
-	rmb(); // ensure txubr_pending is up to date
-	if (queue->txubr_pending) {
-		queue->txubr_pending = false;
-		netdev_vdbg(bp->dev, "poll: tx restart\n");
-		macb_tx_restart(queue);
-	}
+	/* The DMA can park in front of a queued frame without raising
+	 * TXUBR, so check the ring position on every poll.
+	 */
+	macb_tx_restart(queue);
 
 	netdev_vdbg(bp->dev, "TX poll: queue = %u, work_done = %d, budget = %d\n",
 		    (unsigned int)(queue - bp->queues), work_done, budget);
@@ -2210,12 +2208,6 @@ static irqreturn_t macb_interrupt(int irq, void *dev_id)
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
 				queue_writel(queue, ISR, MACB_BIT(TCOMP) |
 							 MACB_BIT(TXUBR));
-
-			if (status & MACB_BIT(TXUBR) || queue->tx_pending) {
-				queue->txubr_pending = true;
-				queue->tx_pending = 0;
-				wmb(); // ensure softirq can see update
-			}
 
 			napi_schedule(&queue->napi_tx);
 		}
@@ -2670,14 +2662,9 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	spin_lock(&bp->lock);
 	macb_tx_lpi_wake(bp);
 
-	/* TSTART write might get dropped, so make the IRQ retrigger a buffer read */
-	if (macb_readl(bp, TSR) & MACB_BIT(TGO))
-		queue->tx_pending = 1;
-
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
-	/* Flush PCIe posted-write queue; see comment in macb_tx_restart().
-	 * Also flushes the preceding macb_tx_lpi_wake() NCR write and the
-	 * TSR-read tx_pending breadcrumb above.
+	/* Flush the PCIe posted-write queue, see macb_tx_restart(). Also
+	 * flushes the preceding macb_tx_lpi_wake() NCR write.
 	 */
 	if (bp->caps & MACB_CAPS_PCIE_POSTED_WRITES)
 		(void)macb_readl(bp, NCR);
