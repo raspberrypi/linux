@@ -883,7 +883,7 @@ static void macb_mac_link_down(struct phylink_config *config, unsigned int mode,
 /* Use juggling algorithm to left rotate tx ring and tx skb array */
 static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 {
-	unsigned int head, tail, count, ring_size, desc_size;
+	unsigned int head, tail, count, ring_size, desc_size, start, done;
 	struct macb_tx_skb tx_skb, *skb_curr, *skb_next;
 	struct macb_dma_desc *desc_curr, *desc_next;
 	unsigned int q = queue - queue->bp->queues;
@@ -904,8 +904,19 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	ring_size = ctx->tx_ring_size;
 	count = CIRC_CNT(head, tail, ring_size);
 
-	if (!(tail % ring_size))
-		goto unlock;
+	/* Frames completed while link-down had TCOMP masked are still
+	 * unreaped and their used bit would stop the controller at the ring
+	 * base, so rotate the first frame still to be sent there instead.
+	 */
+	rmb();
+	for (start = tail; start != head &&
+	     (macb_tx_desc(ctx, q, start)->ctrl & MACB_BIT(TX_USED)); start++)
+		while (start + 1 != head && !macb_tx_skb(queue, start)->skb)
+			start++;
+	done = start - tail;
+
+	if (!(start % ring_size))
+		goto reset_hw_ptr;
 
 	if (!count) {
 		txq->head = 0;
@@ -913,7 +924,7 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 		goto reset_hw_ptr;
 	}
 
-	shift = tail % ring_size;
+	shift = start % ring_size;
 	cycles = gcd(ring_size, shift);
 
 	for (i = 0; i < cycles; i++) {
@@ -953,24 +964,23 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 		       sizeof(struct macb_tx_skb));
 	}
 
-	txq->head = count;
-	txq->tail = 0;
+	txq->tail = done ? ring_size - done : 0;
+	txq->head = txq->tail + count;
 
 	/* Make descriptor updates visible to hardware */
 	wmb();
 
 reset_hw_ptr:
-	/* tx_tail was reset to the ring base, so TBQP must be reprogrammed
-	 * to match; otherwise it keeps pointing at a stale descriptor. Safe
-	 * to write directly here as TX is still disabled (called from
-	 * macb_mac_link_up() before TE is set).
+	/* The first frame to be sent is now at the ring base, so TBQP must
+	 * be reprogrammed to match; otherwise it keeps pointing at a stale
+	 * descriptor. Safe to write directly here as TX is still disabled
+	 * (called from macb_mac_link_up() before TE is set).
 	 */
 	queue_writel(queue, TBQP, lower_32_bits(txq->ring_dma));
-unlock:
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 }
 
-/* Rotate the queue so that the tail is at index 0 */
+/* Rotate the queue so that the first frame to be sent is at index 0 */
 static void gem_shuffle_tx_rings(struct macb *bp)
 {
 	struct macb_queue *queue;
@@ -1045,6 +1055,17 @@ static void macb_mac_link_up(struct phylink_config *config,
 		ctrl |= MACB_BIT(PTPUNI);
 
 	macb_writel(bp, NCR, ctrl | MACB_BIT(RE) | MACB_BIT(TE));
+
+	if (!(bp->caps & MACB_CAPS_MACB_IS_EMAC)) {
+		/* Reap the frames completed while link-down had TCOMP masked */
+		local_bh_disable();
+		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue) {
+			struct macb_txq *txq = macb_txq(queue);
+			if (READ_ONCE(txq->tail) != READ_ONCE(txq->head))
+				napi_schedule(&queue->napi_tx);
+		}
+		local_bh_enable();
+	}
 
 	netif_tx_wake_all_queues(netdev);
 
