@@ -1431,10 +1431,8 @@ static void macb_tx_error_task(struct work_struct *work)
 					    skb->data);
 				bp->netdev->stats.tx_packets++;
 				queue->stats.tx_packets++;
-				packets++;
-				bp->netdev->stats.tx_bytes += skb->len - tx_skb->fcs_len;
-				queue->stats.tx_bytes += skb->len - tx_skb->fcs_len;
-				bytes += skb->len;
+				bp->dev->stats.tx_bytes += skb->len;
+				queue->stats.tx_bytes += skb->len;
 			}
 		} else {
 			/* "Buffers exhausted mid-frame" errors may only happen
@@ -1445,6 +1443,12 @@ static void macb_tx_error_task(struct work_struct *work)
 				buggy_driver = true;
 
 			desc->ctrl = ctrl | MACB_BIT(TX_USED);
+		}
+
+		/* BQL has to see every frame leaving the ring, sent or not */
+		if (skb) {
+			packets++;
+			bytes += skb->len;
 		}
 
 		macb_tx_unmap(&bp->info, tx_skb, 0);
