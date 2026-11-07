@@ -1293,8 +1293,6 @@ struct macb_queue {
 	/* Lock to protect ctx->txq[q].head and ctx->txq[q].tail */
 	spinlock_t		tx_ptr_lock;
 	struct work_struct	tx_error_task;
-	bool			txubr_pending;
-	bool			tx_pending;
 	struct napi_struct	napi_tx;
 
 	struct napi_struct	napi_rx;
