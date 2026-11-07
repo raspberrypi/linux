@@ -369,6 +369,15 @@ static int ensure_verity_info(struct inode *inode)
 		goto out_free_desc;
 	}
 
+	/*
+	 * Now that the signature (if any) has been verified, report it to LSMs.
+	 * Do this before setting the fsverity_info, so that anyone who
+	 * concurrently retrieves the fsverity_info for the same inode is
+	 * guaranteed to see the LSM's signature status populated.
+	 */
+	fsverity_report_valid_sig(inode, desc->signature,
+				  le32_to_cpu(desc->sig_size));
+
 	fsverity_set_info(inode, vi);
 	err = 0;
 out_free_desc:
