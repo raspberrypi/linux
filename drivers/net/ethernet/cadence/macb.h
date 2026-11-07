@@ -1296,8 +1296,6 @@ struct macb_queue {
 	struct macb_tx_skb	*tx_skb;
 	dma_addr_t		tx_ring_dma;
 	struct work_struct	tx_error_task;
-	bool			txubr_pending;
-	bool			tx_pending;
 	struct napi_struct	napi_tx;
 
 	dma_addr_t		rx_ring_dma;

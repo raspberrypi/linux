@@ -829,7 +829,7 @@ static void macb_mac_link_down(struct phylink_config *config, unsigned int mode,
 /* Use juggling algorithm to left rotate tx ring and tx skb array */
 static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 {
-	unsigned int head, tail, count, ring_size, desc_size;
+	unsigned int head, tail, count, ring_size, desc_size, start, done;
 	struct macb_tx_skb tx_skb, *skb_curr, *skb_next;
 	struct macb_dma_desc *desc_curr, *desc_next;
 	unsigned int i, cycles, shift, curr, next;
@@ -848,16 +848,27 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 	ring_size = bp->tx_ring_size;
 	count = CIRC_CNT(head, tail, ring_size);
 
-	if (!(tail % ring_size))
-		goto unlock;
+	/* Frames completed while link-down had TCOMP masked are still
+	 * unreaped and their used bit would stop the controller at the ring
+	 * base, so rotate the first frame still to be sent there instead.
+	 */
+	rmb();
+	for (start = tail; start != head &&
+	     (macb_tx_desc(queue, start)->ctrl & MACB_BIT(TX_USED)); start++)
+		while (start + 1 != head && !macb_tx_skb(queue, start)->skb)
+			start++;
+	done = start - tail;
+
+	if (!(start % ring_size))
+		goto reset_hw_ptr;
 
 	if (!count) {
 		queue->tx_head = 0;
 		queue->tx_tail = 0;
-		goto unlock;
+		goto reset_hw_ptr;
 	}
 
-	shift = tail % ring_size;
+	shift = start % ring_size;
 	cycles = gcd(ring_size, shift);
 
 	for (i = 0; i < cycles; i++) {
@@ -897,17 +908,23 @@ static void gem_shuffle_tx_one_ring(struct macb_queue *queue)
 		       sizeof(struct macb_tx_skb));
 	}
 
-	queue->tx_head = count;
-	queue->tx_tail = 0;
+	queue->tx_tail = done ? ring_size - done : 0;
+	queue->tx_head = queue->tx_tail + count;
 
 	/* Make descriptor updates visible to hardware */
 	wmb();
 
-unlock:
+reset_hw_ptr:
+	/* The first frame to be sent is now at the ring base, so TBQP must
+	 * be reprogrammed to match; otherwise it keeps pointing at a stale
+	 * descriptor. Safe to write directly here as TX is still disabled
+	 * (called from macb_mac_link_up() before TE is set).
+	 */
+	queue_writel(queue, TBQP, lower_32_bits(queue->tx_ring_dma));
 	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
 }
 
-/* Rotate the queue so that the tail is at index 0 */
+/* Rotate the queue so that the first frame to be sent is at index 0 */
 static void gem_shuffle_tx_rings(struct macb *bp)
 {
 	struct macb_queue *queue;
@@ -979,6 +996,15 @@ static void macb_mac_link_up(struct phylink_config *config,
 		ctrl |= MACB_BIT(PTPUNI);
 
 	macb_writel(bp, NCR, ctrl | MACB_BIT(RE) | MACB_BIT(TE));
+
+	if (!(bp->caps & MACB_CAPS_MACB_IS_EMAC)) {
+		/* Reap the frames completed while link-down had TCOMP masked */
+		local_bh_disable();
+		for (q = 0, queue = bp->queues; q < bp->num_queues; ++q, ++queue)
+			if (READ_ONCE(queue->tx_tail) != READ_ONCE(queue->tx_head))
+				napi_schedule(&queue->napi_tx);
+		local_bh_enable();
+	}
 
 	netif_tx_wake_all_queues(ndev);
 }
@@ -1357,10 +1383,8 @@ static void macb_tx_error_task(struct work_struct *work)
 					    skb->data);
 				bp->dev->stats.tx_packets++;
 				queue->stats.tx_packets++;
-				packets++;
 				bp->dev->stats.tx_bytes += skb->len;
 				queue->stats.tx_bytes += skb->len;
-				bytes += skb->len;
 			}
 		} else {
 			/* "Buffers exhausted mid-frame" errors may only happen
@@ -1372,6 +1396,12 @@ static void macb_tx_error_task(struct work_struct *work)
 					   "BUG: TX buffers exhausted mid-frame\n");
 
 			desc->ctrl = ctrl | MACB_BIT(TX_USED);
+		}
+
+		/* BQL has to see every frame leaving the ring, sent or not */
+		if (skb) {
+			packets++;
+			bytes += skb->len;
 		}
 
 		macb_tx_unmap(bp, tx_skb, 0);
@@ -1917,7 +1947,11 @@ static int macb_rx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_rx_pending(queue)) {
 			queue_writel(queue, IDR, bp->rx_intr_mask);
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
@@ -1943,9 +1977,9 @@ static void macb_tx_restart(struct macb_queue *queue)
 	if (queue->tx_head == queue->tx_tail)
 		goto out_tx_ptr_unlock;
 
-	tbqp = queue_readl(queue, TBQP) / macb_dma_desc_get_size(bp);
-	tbqp = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, tbqp));
-	head_idx = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, queue->tx_head));
+	tbqp = queue_readl(queue, TBQP) - lower_32_bits(queue->tx_ring_dma);
+	tbqp /= macb_dma_desc_get_size(bp);
+	head_idx = macb_tx_ring_wrap(bp, queue->tx_head);
 
 	if (tbqp == head_idx)
 		goto out_tx_ptr_unlock;
@@ -1990,12 +2024,10 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 
 	work_done = macb_tx_complete(queue, budget);
 
-	rmb(); // ensure txubr_pending is up to date
-	if (queue->txubr_pending) {
-		queue->txubr_pending = false;
-		netdev_vdbg(bp->dev, "poll: tx restart\n");
-		macb_tx_restart(queue);
-	}
+	/* The DMA can park in front of a queued frame without raising
+	 * TXUBR, so check the ring position on every poll.
+	 */
+	macb_tx_restart(queue);
 
 	netdev_vdbg(bp->dev, "TX poll: queue = %u, work_done = %d, budget = %d\n",
 		    (unsigned int)(queue - bp->queues), work_done, budget);
@@ -2012,7 +2044,11 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 		 * potentially race with the interrupt handler doing the same
 		 * actions if an interrupt is raised just after enabling them,
 		 * but this should be harmless.
+		 *
+		 * The IER write is posted. Flush it before checking the ring,
+		 * a completion in between would raise no interrupt.
 		 */
+		queue_readl(queue, IMR);
 		if (macb_tx_complete_pending(queue)) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
@@ -2169,12 +2205,6 @@ static irqreturn_t macb_interrupt(int irq, void *dev_id)
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
 				queue_writel(queue, ISR, MACB_BIT(TCOMP) |
 							 MACB_BIT(TXUBR));
-
-			if (status & MACB_BIT(TXUBR) || queue->tx_pending) {
-				queue->txubr_pending = true;
-				queue->tx_pending = 0;
-				wmb(); // ensure softirq can see update
-			}
 
 			napi_schedule(&queue->napi_tx);
 		}
@@ -2629,14 +2659,9 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	spin_lock(&bp->lock);
 	macb_tx_lpi_wake(bp);
 
-	/* TSTART write might get dropped, so make the IRQ retrigger a buffer read */
-	if (macb_readl(bp, TSR) & MACB_BIT(TGO))
-		queue->tx_pending = 1;
-
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
-	/* Flush PCIe posted-write queue; see comment in macb_tx_restart().
-	 * Also flushes the preceding macb_tx_lpi_wake() NCR write and the
-	 * TSR-read tx_pending breadcrumb above.
+	/* Flush the PCIe posted-write queue, see macb_tx_restart(). Also
+	 * flushes the preceding macb_tx_lpi_wake() NCR write.
 	 */
 	if (bp->caps & MACB_CAPS_PCIE_POSTED_WRITES)
 		(void)macb_readl(bp, NCR);
@@ -4709,8 +4734,28 @@ static int macb_setup_tc(struct net_device *dev, enum tc_setup_type type,
 static void macb_tx_timeout(struct net_device *dev, unsigned int q)
 {
 	struct macb *bp = netdev_priv(dev);
+	struct macb_queue *queue = &bp->queues[q];
+	u32 tbqp, tsr, ncr, imr, ctrl;
+	unsigned int head, tail;
+	unsigned long flags;
 
-	macb_tx_restart(&bp->queues[q]);
+	spin_lock_irqsave(&queue->tx_ptr_lock, flags);
+	head = queue->tx_head;
+	tail = queue->tx_tail;
+	ctrl = macb_tx_desc(queue, tail)->ctrl;
+	tbqp = queue_readl(queue, TBQP);
+	tsr = macb_readl(bp, TSR);
+	ncr = macb_readl(bp, NCR);
+	imr = queue_readl(queue, IMR);
+	spin_unlock_irqrestore(&queue->tx_ptr_lock, flags);
+
+	netdev_warn(dev, "TX timeout q%u: head %u tail %u tbqp 0x%08x tsr 0x%08x ncr 0x%08x imr 0x%08x napi 0x%lx tail ctrl 0x%08x\n",
+		    q, head, tail, tbqp, tsr, ncr, imr, queue->napi_tx.state, ctrl);
+
+	queue_writel(queue, IDR, MACB_BIT(TCOMP));
+	if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+		queue_writel(queue, ISR, MACB_BIT(TCOMP));
+	napi_schedule(&queue->napi_tx);
 }
 
 static const struct net_device_ops macb_netdev_ops = {
