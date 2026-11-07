@@ -1977,9 +1977,9 @@ static void macb_tx_restart(struct macb_queue *queue)
 	if (queue->tx_head == queue->tx_tail)
 		goto out_tx_ptr_unlock;
 
-	tbqp = queue_readl(queue, TBQP) / macb_dma_desc_get_size(bp);
-	tbqp = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, tbqp));
-	head_idx = macb_adj_dma_desc_idx(bp, macb_tx_ring_wrap(bp, queue->tx_head));
+	tbqp = queue_readl(queue, TBQP) - lower_32_bits(queue->tx_ring_dma);
+	tbqp /= macb_dma_desc_get_size(bp);
+	head_idx = macb_tx_ring_wrap(bp, queue->tx_head);
 
 	if (tbqp == head_idx)
 		goto out_tx_ptr_unlock;
