@@ -4737,8 +4737,12 @@ static int macb_setup_tc(struct net_device *dev, enum tc_setup_type type,
 static void macb_tx_timeout(struct net_device *dev, unsigned int q)
 {
 	struct macb *bp = netdev_priv(dev);
+	struct macb_queue *queue = &bp->queues[q];
 
-	macb_tx_restart(&bp->queues[q]);
+	queue_writel(queue, IDR, MACB_BIT(TCOMP));
+	if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+		queue_writel(queue, ISR, MACB_BIT(TCOMP));
+	napi_schedule(&queue->napi_tx);
 }
 
 static const struct net_device_ops macb_netdev_ops = {
