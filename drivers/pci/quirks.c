@@ -93,8 +93,12 @@ int pcie_failed_link_retrain(struct pci_dev *dev)
 	pcie_capability_read_word(dev, PCI_EXP_LNKCTL2, &lnkctl2);
 	pcie_capability_read_word(dev, PCI_EXP_LNKSTA, &lnksta);
 	oldlnkctl2 = lnkctl2;
-	if ((lnksta & (PCI_EXP_LNKSTA_LBMS | PCI_EXP_LNKSTA_DLLLA)) ==
-	    PCI_EXP_LNKSTA_LBMS) {
+	if (lnksta & PCI_EXP_LNKSTA_DLLLA) {
+		;
+	} else if ((lnkctl2 & PCI_EXP_LNKCTL2_TLS) ==
+		   PCI_EXP_LNKCTL2_TLS_2_5GT) {
+		return ret;
+	} else if (lnksta & PCI_EXP_LNKSTA_LBMS) {
 		pci_info(dev, "broken device, retraining non-functional downstream link at 2.5GT/s\n");
 
 		lnkctl2 &= ~PCI_EXP_LNKCTL2_TLS;
