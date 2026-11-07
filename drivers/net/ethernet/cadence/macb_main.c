@@ -2117,9 +2117,9 @@ static void macb_tx_restart(struct macb_queue *queue)
 	if (txq->head == txq->tail)
 		goto out_unlock;
 
-	tbqp = queue_readl(queue, TBQP) / macb_dma_desc_get_size(ctx->info);
-	tbqp = macb_adj_dma_desc_idx(ctx, macb_tx_ring_wrap(ctx, tbqp));
-	head_idx = macb_adj_dma_desc_idx(ctx, macb_tx_ring_wrap(ctx, txq->head));
+	tbqp = queue_readl(queue, TBQP) - lower_32_bits(txq->ring_dma);
+	tbqp /= macb_dma_desc_get_size(ctx->info);
+	head_idx = macb_tx_ring_wrap(ctx, txq->head);
 
 	if (tbqp == head_idx)
 		goto out_unlock;
