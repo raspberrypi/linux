@@ -75,6 +75,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	fe-pi-audio.dtbo \
 	fsm-demo.dtbo \
 	gc9a01.dtbo \
+	geekworm-x120x.dtbo \
 	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
