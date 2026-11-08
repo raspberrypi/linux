@@ -890,6 +890,7 @@ static ssize_t store_auto_select(struct cpufreq_policy *policy,
 				 const char *buf, size_t count)
 {
 	struct cppc_cpudata *cpu_data = policy->driver_data;
+	bool old_auto_sel = cpu_data->perf_ctrls.auto_sel;
 	bool val;
 	int ret;
 
@@ -918,8 +919,8 @@ static ssize_t store_auto_select(struct cpufreq_policy *policy,
 		if (ret) {
 			cpu_data->perf_ctrls.min_perf = old_min_perf;
 			cpu_data->perf_ctrls.max_perf = old_max_perf;
-			cppc_set_auto_sel(policy->cpu, false);
-			cpu_data->perf_ctrls.auto_sel = false;
+			cppc_set_auto_sel(policy->cpu, old_auto_sel);
+			cpu_data->perf_ctrls.auto_sel = old_auto_sel;
 			return ret;
 		}
 	}
