@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Geekworm X120x UPS boards such as the X1202 and X1206:
+// a MAX17040-compatible fuel gauge on I2C plus a GPIO that reports input
+// power, linked so the battery knows its charger.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			x120x_charger: charger {
+				compatible = "gpio-charger";
+				gpios = <&gpio 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+				charger-type = "mains";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			x120x_battery: fuel-gauge@36 {
+				compatible = "maxim,max17040";
+				reg = <0x36>;
+				power-supplies = <&x120x_charger>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio = <&x120x_charger>,"gpios:4";
+	};
+};

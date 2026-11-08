@@ -1561,6 +1561,15 @@ Params: speed                   Display SPI bus speed
         debug                   Debug output level {0-7}
 
 
+Name:   geekworm-x120x
+Info:   Geekworm X120x UPS boards for the Raspberry Pi 5, such as the X1202
+        and X1206. Adds the MAX17040-compatible fuel gauge at I2C address
+        0x36 and a gpio-charger for the GPIO that reports input power, and
+        links the two so the battery can report whether it is charging.
+Load:   dtoverlay=geekworm-x120x,<param>=<val>
+Params: gpio                    GPIO that reports input power (default 6)
+
+
 Name:   ghost-amp
 Info:   An overlay for the Ghost amplifier.
 Load:   dtoverlay=ghost-amp,<param>=<val>
