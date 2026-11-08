@@ -499,6 +499,7 @@ static int max17040_probe(struct i2c_client *client)
 
 	i2c_set_clientdata(client, chip);
 	psy_cfg.drv_data = chip;
+	psy_cfg.fwnode = dev_fwnode(&client->dev);
 
 	/* Switch to devm_iio_channel_get_optional when available  */
 	chip->channel_temp = devm_iio_channel_get(&client->dev, "temp");
