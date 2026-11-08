@@ -228,6 +228,26 @@ static int max17040_get_online(struct max17040_chip *chip)
 	return 1;
 }
 
+/*
+ * Used when no supplier reports a status, e.g. a gpio-charger that only
+ * signals input power: derive the status from whether a supplier is online.
+ */
+static int max17040_get_supplied_status(struct power_supply *psy,
+					struct max17040_chip *chip)
+{
+	int ret;
+
+	ret = power_supply_am_i_supplied(psy);
+	if (ret < 0)
+		return POWER_SUPPLY_STATUS_UNKNOWN;
+	if (!ret)
+		return POWER_SUPPLY_STATUS_DISCHARGING;
+	if (max17040_get_soc(chip) >= 100)
+		return POWER_SUPPLY_STATUS_FULL;
+
+	return POWER_SUPPLY_STATUS_CHARGING;
+}
+
 static int max17040_get_of_data(struct max17040_chip *chip)
 {
 	struct device *dev = &chip->client->dev;
@@ -423,7 +443,7 @@ static int max17040_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		ret = power_supply_get_property_from_supplier(psy, psp, val);
 		if (ret == -ENODEV)
-			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+			val->intval = max17040_get_supplied_status(psy, chip);
 		else if (ret)
 			return ret;
 		break;
@@ -467,6 +487,7 @@ static const struct power_supply_desc max17040_battery_desc = {
 	.get_property		= max17040_get_property,
 	.set_property		= max17040_set_property,
 	.property_is_writeable  = max17040_prop_writeable,
+	.external_power_changed	= power_supply_changed,
 	.properties		= max17040_battery_props,
 	.num_properties		= ARRAY_SIZE(max17040_battery_props),
 };
