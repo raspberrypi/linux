@@ -14,6 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/minmax.h>
 #include <linux/power_supply.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
@@ -210,7 +211,8 @@ static int max17040_get_soc(struct max17040_chip *chip)
 	if (ret)
 		return ret;
 
-	return soc >> (chip->quirk_double_soc ? 9 : 8);
+	/* the register overshoots 100 % when the cell is full */
+	return min(soc >> (chip->quirk_double_soc ? 9 : 8), 100U);
 }
 
 static int max17040_get_version(struct max17040_chip *chip)
