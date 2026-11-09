@@ -65,18 +65,7 @@
 		};
 	};
 
-	fragment@4 {
-		target = <&gpio>;
-		__overlay__ {
-			gt928_pins: gt928_pins {
-				brcm,pins = <16>;
-				brcm,function = <0>;
-				brcm,pull = <2>;
-			};
-		};
-	};
-
-	i2c_frag: fragment@5 {
+	i2c_frag: fragment@4 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -93,23 +82,20 @@
 			gt928:gt928@14 {
 				compatible = "goodix,gt928";
 				reg = <0x14>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&gt928_pins>;
 
 				reset-gpios = <&reg_display 3 GPIO_ACTIVE_HIGH>;
 				interrupt-parent = <&gpio>;
 				interrupts = <16 2>;
-				irq-gpios = <&gpio 16 GPIO_ACTIVE_HIGH>;
+				irq-gpios = <&gpio 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
 			};
 		};
 	};
 
 	__overrides__ {
 		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
-			   <0>, "-3-4+5";
+			   <0>, "-3+4";
 		i2c4 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
-		interrupt = <&gt928_pins>, "brcm,pins:0",
-				    <&gt928>, "interrupts:0",
+		interrupt = <&gt928>, "interrupts:0",
 				    <&gt928>, "irq-gpios:4";
 		rotation = <&ili9881c>, "rotation:0";
 	};
