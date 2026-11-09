@@ -3,7 +3,7 @@
 / {
 	compatible = "brcm,bcm2712";
 
-	fragment@2 {
+	fragment@1 {
 		target = <&w1>;
 		__overlay__ {
 			raspberrypi,delay-needs-poll;
