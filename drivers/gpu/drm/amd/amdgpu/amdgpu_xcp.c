@@ -572,6 +572,9 @@ static void amdgpu_xcp_gpu_sched_update(struct amdgpu_device *adev,
 {
 	unsigned int *num_gpu_sched;
 
+	if (sel_xcp_id >= MAX_XCP || sel_xcp_id == AMDGPU_XCP_NO_PARTITION)
+		return;
+
 	num_gpu_sched = &adev->xcp_mgr->xcp[sel_xcp_id]
 			.gpu_sched[ring->funcs->type][ring->hw_prio].num_scheds;
 	adev->xcp_mgr->xcp[sel_xcp_id].gpu_sched[ring->funcs->type][ring->hw_prio]
@@ -901,7 +904,7 @@ static void amdgpu_xcp_cfg_sysfs_init(struct amdgpu_device *adev)
 {
 	struct amdgpu_xcp_res_details *xcp_res;
 	struct amdgpu_xcp_cfg *xcp_cfg;
-	int i, r, j, rid, mode;
+	int i, r, rid, mode;
 
 	if (!adev->xcp_mgr)
 		return;
@@ -947,14 +950,16 @@ static void amdgpu_xcp_cfg_sysfs_init(struct amdgpu_device *adev)
 					 &xcp_cfg_res_sysfs_ktype,
 					 &xcp_cfg->kobj, "%s",
 					 xcp_res_names[rid]);
-		if (r)
+		if (r) {
+			kobject_put(&xcp_res->kobj);
 			goto err;
+		}
 	}
 
 	adev->xcp_mgr->xcp_cfg = xcp_cfg;
 	return;
 err:
-	for (j = 0; j < i; j++) {
+	while (i--) {
 		xcp_res = &xcp_cfg->xcp_res[i];
 		kobject_put(&xcp_res->kobj);
 	}

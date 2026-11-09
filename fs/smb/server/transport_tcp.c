@@ -312,6 +312,12 @@ skip_max_ip_conns_limit:
 		ksmbd_debug(CONN, "connect success: accepted new connection\n");
 		client_sk->sk->sk_rcvtimeo = KSMBD_TCP_RECV_TIMEOUT;
 		client_sk->sk->sk_sndtimeo = KSMBD_TCP_SEND_TIMEOUT;
+		/*
+		 * Detect peers that disappear without sending a FIN or RST.
+		 * Otherwise the connection handler can retry receive timeouts
+		 * indefinitely and keep the connection in conn_list.
+		 */
+		sock_set_keepalive(client_sk->sk);
 
 		ksmbd_tcp_new_connection(client_sk);
 	}
@@ -530,10 +536,10 @@ static int create_socket(struct interface *iface)
 	}
 
 	if (ipv4)
-		ret = kernel_bind(ksmbd_socket, (struct sockaddr_unsized *)&sin,
+		ret = kernel_bind(ksmbd_socket, (struct sockaddr *)&sin,
 				  sizeof(sin));
 	else
-		ret = kernel_bind(ksmbd_socket, (struct sockaddr_unsized *)&sin6,
+		ret = kernel_bind(ksmbd_socket, (struct sockaddr *)&sin6,
 				  sizeof(sin6));
 	if (ret) {
 		pr_err("Failed to bind socket: %d\n", ret);
@@ -582,6 +588,15 @@ static int ksmbd_netdev_event(struct notifier_block *nb, unsigned long event,
 	struct net_device *netdev = netdev_notifier_info_to_dev(ptr);
 	struct interface *iface;
 	int ret;
+
+	/*
+	 * ksmbd serves the initial namespace only. create_socket() listens in
+	 * the namespace of the task raising the event, so a container bringing
+	 * up its own interface would get a listener on its port 445, and the
+	 * name-only interface lookup would let its interfaces stop ours.
+	 */
+	if (!net_eq(dev_net(netdev), &init_net))
+		return NOTIFY_DONE;
 
 	switch (event) {
 	case NETDEV_UP:

@@ -468,7 +468,7 @@ static ssize_t write_pool_threads(struct file *file, char *buf, size_t size)
 	char *mesg = buf;
 	int i;
 	int rv;
-	int len;
+	size_t len;
 	int npools;
 	int *nthreads;
 	struct net *net = netns(file);
@@ -522,9 +522,13 @@ static ssize_t write_pool_threads(struct file *file, char *buf, size_t size)
 
 	mesg = buf;
 	size = SIMPLE_TRANSACTION_LIMIT;
-	for (i = 0; i < npools && size > 0; i++) {
-		snprintf(mesg, size, "%d%c", nthreads[i], (i == npools-1 ? '\n' : ' '));
-		len = strlen(mesg);
+	for (i = 0; i < npools; i++) {
+		len = snprintf(mesg, size, "%d%c", nthreads[i],
+			       (i == npools - 1 ? '\n' : ' '));
+		if (len >= size) {
+			rv = -ENAMETOOLONG;
+			goto out_free;
+		}
 		size -= len;
 		mesg += len;
 	}
@@ -1572,14 +1576,29 @@ int nfsd_nl_rpc_status_get_dumpit(struct sk_buff *skb,
 			    rqstp->rq_proc == NFSPROC4_COMPOUND) {
 				/* NFSv4 compound */
 				struct nfsd4_compoundargs *args;
+				struct nfsd4_op *ops;
+				u32 opcnt;
 				int j;
 
 				args = rqstp->rq_argp;
-				genl_rqstp.rq_opcnt = min_t(u32, args->opcnt,
+				opcnt = READ_ONCE(args->opcnt);
+				ops = READ_ONCE(args->ops);
+
+				/*
+				 * Finish the seqcount retry before
+				 * dereferencing ops. An unchanged counter means
+				 * opcnt and ops came from the same COMPOUND,
+				 * where opcnt cannot exceed what ops holds.
+				 */
+				smp_rmb();
+				if (READ_ONCE(rqstp->rq_status_counter) !=
+				    status_counter)
+					continue;
+
+				genl_rqstp.rq_opcnt = min_t(u32, opcnt,
 							    ARRAY_SIZE(genl_rqstp.rq_opnum));
 				for (j = 0; j < genl_rqstp.rq_opcnt; j++)
-					genl_rqstp.rq_opnum[j] =
-						args->ops[j].opnum;
+					genl_rqstp.rq_opnum[j] = ops[j].opnum;
 			}
 #endif /* CONFIG_NFSD_V4 */
 
@@ -1913,21 +1932,39 @@ err_free_msg:
 	return err;
 }
 
+/*
+ * Transport classes NFSD knows how to instantiate. Vetting the name here
+ * keeps a bogus string from reaching svc_xprt_create_from_sa(), where an
+ * unknown name triggers a request_module("svc%s", name) upcall under
+ * nfsd_mutex.
+ */
+static bool nfsd_nl_transport_supported(const char *name)
+{
+	static const char * const supported[] = { "tcp", "udp", "rdma" };
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(supported); i++)
+		if (!strcmp(name, supported[i]))
+			return true;
+	return false;
+}
+
+/* Upper bound on the number of listeners a single request may carry. */
+#define NFSD_NL_LISTENER_MAX	1024
+
 /**
  * nfsd_nl_validate_listeners - sanity-check the listener list from userland
  * @info: netlink metadata and command arguments
  *
- * Walk every NFSD_A_SERVER_SOCK_ADDR attribute and confirm that each entry
- * is well-formed: it parses against the policy, carries both an address and
- * a transport name, and the address is long enough for its family. Doing
- * this up front lets the callers below assume every entry is valid and
- * guarantees we make no changes when the request is malformed.
+ * Walk every NFSD_A_SERVER_SOCK_ADDR attribute and confirm that the list is
+ * not oversized and that each entry is well-formed.
  *
  * Return: 0 if every entry is valid, or a negative errno otherwise.
  */
 static int nfsd_nl_validate_listeners(struct genl_info *info)
 {
 	const struct nlattr *attr;
+	unsigned int count = 0;
 	int rem;
 
 	nlmsg_for_each_attr_type(attr, NFSD_A_SERVER_SOCK_ADDR, info->nlhdr,
@@ -1936,6 +1973,11 @@ static int nfsd_nl_validate_listeners(struct genl_info *info)
 		struct sockaddr *sa;
 		int err;
 
+		if (++count > NFSD_NL_LISTENER_MAX) {
+			NL_SET_ERR_MSG(info->extack, "too many listeners");
+			return -E2BIG;
+		}
+
 		err = nla_parse_nested(tb, NFSD_A_SOCK_MAX, attr,
 				       nfsd_sock_nl_policy, info->extack);
 		if (err < 0)
@@ -1943,6 +1985,13 @@ static int nfsd_nl_validate_listeners(struct genl_info *info)
 
 		if (!tb[NFSD_A_SOCK_ADDR] || !tb[NFSD_A_SOCK_TRANSPORT_NAME])
 			return -EINVAL;
+
+		if (!nfsd_nl_transport_supported(nla_data(tb[NFSD_A_SOCK_TRANSPORT_NAME]))) {
+			NL_SET_ERR_MSG_ATTR(info->extack,
+					    tb[NFSD_A_SOCK_TRANSPORT_NAME],
+					    "unsupported transport name");
+			return -EPROTONOSUPPORT;
+		}
 
 		sa = nla_data(tb[NFSD_A_SOCK_ADDR]);
 		if (nla_len(tb[NFSD_A_SOCK_ADDR]) < sizeof(sa->sa_family))

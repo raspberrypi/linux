@@ -529,6 +529,7 @@ static int cs35l56_sdw_probe(struct sdw_slave *peripheral, const struct sdw_devi
 		regmap_config = &cs35l56_regmap_sdw;
 		break;
 	case 0x3563:
+	case 0x3562:
 		regmap_config = &cs35l63_regmap_sdw;
 		break;
 	default:
@@ -582,6 +583,7 @@ static const struct sdw_device_id cs35l56_sdw_id[] = {
 	SDW_SLAVE_ENTRY(0x01FA, 0x3556, 0x3556),
 	SDW_SLAVE_ENTRY(0x01FA, 0x3557, 0x3557),
 	SDW_SLAVE_ENTRY(0x01FA, 0x3563, 0x3563),
+	SDW_SLAVE_ENTRY(0x01FA, 0x3562, 0x3562),
 	{},
 };
 MODULE_DEVICE_TABLE(sdw, cs35l56_sdw_id);

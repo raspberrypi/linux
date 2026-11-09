@@ -37,6 +37,7 @@ struct dml2_core_ip_params {
 	unsigned int writeback_interface_buffer_size_kbytes;
 	unsigned int max_num_dpp;
 	unsigned int max_num_otg;
+	unsigned int TDLUT_33cube_count;
 	unsigned int max_num_wb;
 	unsigned int max_dchub_pscl_bw_pix_per_clk;
 	unsigned int max_pscl_lb_bw_pix_per_clk;
@@ -46,6 +47,7 @@ struct dml2_core_ip_params {
 	double max_vscl_ratio;
 	unsigned int max_hscl_taps;
 	unsigned int max_vscl_taps;
+	unsigned int odm_combine_support_mask;
 	unsigned int num_dsc;
 	unsigned int maximum_dsc_bits_per_component;
 	unsigned int maximum_pixels_per_line_per_dsc_unit;
@@ -82,7 +84,6 @@ struct dml2_core_ip_params {
 	unsigned int subvp_swath_height_margin_lines;
 	unsigned int subvp_fw_processing_delay_us;
 	unsigned int subvp_pstate_allow_width_us;
-
 	// MRQ
 	bool dcn_mrq_present;
 	unsigned int zero_size_buffer_entries;
@@ -103,6 +104,8 @@ struct dml2_core_internal_DmlPipe {
 	unsigned int DPPPerSurface;
 	bool ScalerEnabled;
 	bool UPSPEnabled;
+	unsigned int UPSPVTaps;
+	enum dml2_sample_positioning UPSPSamplePositioning;
 	enum dml2_rotation_angle RotationAngle;
 	bool mirrored;
 	unsigned int ViewportHeight;
@@ -230,6 +233,7 @@ struct dml2_core_internal_mode_support_info {
 	bool MSOOrODMSplitWithNonDPLink;
 	bool NotEnoughLanesForMSO;
 	bool NumberOfOTGSupport;
+	bool NumberOfTDLUT33cubeSupport;
 	bool NumberOfHDMIFRLSupport;
 	bool NumberOfDP2p0Support;
 	bool WritebackScaleRatioAndTapsSupport;
@@ -259,8 +263,11 @@ struct dml2_core_internal_mode_support_info {
 	bool DCCMetaBufferSizeNotExceeded;
 	enum dml2_pstate_change_support DRAMClockChangeSupport[DML2_MAX_PLANES];
 	enum dml2_pstate_change_support FCLKChangeSupport[DML2_MAX_PLANES];
+	enum dml2_pstate_change_support temp_read_or_ppt_support[DML2_MAX_PLANES];
+	bool global_dram_clock_change_support_required;
 	bool global_dram_clock_change_supported;
 	bool global_fclk_change_supported;
+	bool global_temp_read_or_ppt_supported;
 	bool USRRetrainingSupport;
 	bool AvgBandwidthSupport;
 	bool UrgVactiveBandwidthSupport;
@@ -331,7 +338,6 @@ struct dml2_core_internal_mode_support_info {
 	bool incorrect_imall_usage;
 
 	bool g6_temp_read_support;
-	bool temp_read_or_ppt_support;
 
 	struct dml2_core_internal_watermarks watermarks;
 	bool dcfclk_support;
@@ -639,7 +645,7 @@ struct dml2_core_internal_mode_support {
 	unsigned int DSTYAfterScaler[DML2_MAX_PLANES];
 	unsigned int DSTXAfterScaler[DML2_MAX_PLANES];
 
-	enum dml2_pstate_method pstate_switch_modes[DML2_MAX_PLANES];
+	enum dml2_pstate_method uclk_pstate_switch_modes[DML2_MAX_PLANES];
 };
 
 /// @brief A mega structure that houses various info for model programming step.
@@ -830,6 +836,7 @@ struct dml2_core_internal_mode_program {
 	double max_urgent_latency_us;
 	double df_response_time_us;
 
+	enum dml2_pstate_method uclk_pstate_switch_modes[DML2_MAX_PLANES];
 	// -------------------
 	// Output
 	// -------------------
@@ -956,11 +963,12 @@ struct dml2_core_internal_mode_program {
 	double MaxActiveFCLKChangeLatencySupported;
 	bool USRRetrainingSupport;
 	bool g6_temp_read_support;
-	bool temp_read_or_ppt_support;
 	enum dml2_pstate_change_support FCLKChangeSupport[DML2_MAX_PLANES];
 	enum dml2_pstate_change_support DRAMClockChangeSupport[DML2_MAX_PLANES];
+	enum dml2_pstate_change_support temp_read_or_ppt_support[DML2_MAX_PLANES];
 	bool global_dram_clock_change_supported;
 	bool global_fclk_change_supported;
+	bool global_temp_read_or_ppt_supported;
 	double MaxActiveDRAMClockChangeLatencySupported[DML2_MAX_PLANES];
 	double WritebackAllowFCLKChangeEndPosition[DML2_MAX_PLANES];
 	double WritebackAllowDRAMClockChangeEndPosition[DML2_MAX_PLANES];
@@ -1306,7 +1314,7 @@ struct dml2_core_calcs_CalculateVMRowAndSwath_params {
 	unsigned int HostVMMinPageSize;
 	unsigned int DCCMetaBufferSizeBytes;
 	bool mrq_present;
-	enum dml2_pstate_method pstate_switch_modes[DML2_MAX_PLANES];
+	enum dml2_pstate_method *uclk_pstate_switch_modes;
 
 	// Output
 	bool *PTEBufferSizeNotExceeded;
@@ -1710,33 +1718,35 @@ struct dml2_core_calcs_CalculateWatermarksMALLUseAndDRAMSpeedChangeSupport_param
 	double ReturnBW;
 	bool SynchronizeTimings;
 	bool SynchronizeDRRDisplaysForUCLKPStateChange;
-	unsigned int *dpte_group_bytes;
+	const unsigned int *dpte_group_bytes;
 	struct dml2_core_internal_SOCParametersList mmSOCParameters;
 	unsigned int WritebackChunkSize;
 	double SOCCLK;
 	double DCFClkDeepSleep;
-	unsigned int *DETBufferSizeY;
-	unsigned int *DETBufferSizeC;
-	unsigned int *SwathHeightY;
-	unsigned int *SwathHeightC;
-	unsigned int *SwathWidthY;
-	unsigned int *SwathWidthC;
-	unsigned int *DPPPerSurface;
-	double *BytePerPixelDETY;
-	double *BytePerPixelDETC;
-	unsigned int *DSTXAfterScaler;
-	unsigned int *DSTYAfterScaler;
+	const unsigned int *DETBufferSizeY;
+	const unsigned int *DETBufferSizeC;
+	const unsigned int *SwathHeightY;
+	const unsigned int *SwathHeightC;
+	const unsigned int *SwathWidthY;
+	const unsigned int *SwathWidthC;
+	const unsigned int *DPPPerSurface;
+	const double *BytePerPixelDETY;
+	const double *BytePerPixelDETC;
+	const unsigned int *DSTXAfterScaler;
+	const unsigned int *DSTYAfterScaler;
 	bool UnboundedRequestEnabled;
 	unsigned int CompressedBufferSizeInkByte;
 	bool max_outstanding_when_urgent_expected;
 	unsigned int max_outstanding_requests;
 	unsigned int max_request_size_bytes;
-	unsigned int *meta_row_height_l;
-	unsigned int *meta_row_height_c;
+	const unsigned int *meta_row_height_l;
+	const unsigned int *meta_row_height_c;
+	const enum dml2_pstate_method *uclk_pstate_switch_modes;
 
 	// Output
 	struct dml2_core_internal_watermarks *Watermark;
 	enum dml2_pstate_change_support *DRAMClockChangeSupport;
+	bool *global_dram_clock_change_support_required;
 	bool *global_dram_clock_change_supported;
 	double *MaxActiveDRAMClockChangeLatencySupported;
 	unsigned int *SubViewportLinesNeededInMALL;
@@ -1747,9 +1757,9 @@ struct dml2_core_calcs_CalculateWatermarksMALLUseAndDRAMSpeedChangeSupport_param
 	double *VActiveLatencyHidingMargin;
 	double *VActiveLatencyHidingUs;
 	bool *g6_temp_read_support;
-	bool *temp_read_or_ppt_support;
+	enum dml2_pstate_change_support *temp_read_or_ppt_support;
+	bool *global_temp_read_or_ppt_supported;
 };
-
 
 struct dml2_core_calcs_CalculateSwathAndDETConfiguration_params {
 	const struct dml2_display_cfg *display_cfg;
@@ -2308,6 +2318,7 @@ struct dml2_core_calcs_mode_support_ex {
 	const struct dml2_display_cfg *in_display_cfg;
 	const struct dml2_mcg_min_clock_table *min_clk_table;
 	int min_clk_index;
+	enum dml2_project_id project_id;
 	//unsigned int in_state_index;
 	struct dml2_core_internal_mode_support_info *out_evaluation_info;
 };
@@ -2320,6 +2331,7 @@ struct dml2_core_calcs_mode_programming_ex {
 	const struct dml2_mcg_min_clock_table *min_clk_table;
 	const struct core_display_cfg_support_info *cfg_support_info;
 	int min_clk_index;
+	enum dml2_project_id project_id;
 	struct dml2_display_cfg_programming *programming;
 };
 

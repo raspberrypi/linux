@@ -5707,8 +5707,7 @@ static void make_discard_request(struct mddev *mddev, struct bio *bi)
 	int stripe_sectors;
 
 	if (mddev->reshape_position != MaxSector)
-		/* Skip discard while reshape is happening */
-		return;
+		goto complete_again;
 
 	stripe_sectors = conf->chunk_sectors *
 		(conf->raid_disks - conf->max_degraded);
@@ -5786,6 +5785,11 @@ static void make_discard_request(struct mddev *mddev, struct bio *bi)
 	}
 
 	bio_endio(bi);
+	return;
+
+complete_again:
+	/* Skip discard while reshape is happening */
+	bio_endio_status(bi, BLK_STS_AGAIN);
 }
 
 static bool ahead_of_reshape(struct mddev *mddev, sector_t sector,
@@ -8433,6 +8437,8 @@ static int check_reshape(struct mddev *mddev)
 		return 0; /* nothing to do */
 	if (has_failed(conf))
 		return -EINVAL;
+	if (!mddev->new_chunk_sectors)
+		return -EINVAL;
 	if (mddev->delta_disks < 0 && mddev->reshape_position == MaxSector) {
 		/* We might be able to shrink, but the devices must
 		 * be made bigger first.
@@ -8475,6 +8481,9 @@ static int raid5_start_reshape(struct mddev *mddev)
 
 	if (test_bit(MD_RECOVERY_RUNNING, &mddev->recovery))
 		return -EBUSY;
+
+	if (!mddev->new_chunk_sectors)
+		return -EINVAL;
 
 	if (!check_stripe_cache(mddev))
 		return -ENOSPC;

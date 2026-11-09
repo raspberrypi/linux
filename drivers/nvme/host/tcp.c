@@ -1859,7 +1859,6 @@ static int nvme_tcp_alloc_queue(struct nvme_ctrl *nctrl, int qid,
 	}
 
 	sk_net_refcnt_upgrade(queue->sock->sk);
-	nvme_tcp_reclassify_socket(queue->sock);
 
 	/* Single syn retry */
 	tcp_sock_set_syncnt(queue->sock->sk, 1);
@@ -1895,7 +1894,7 @@ static int nvme_tcp_alloc_queue(struct nvme_ctrl *nctrl, int qid,
 	sk_set_memalloc(queue->sock->sk);
 
 	if (nctrl->opts->mask & NVMF_OPT_HOST_TRADDR) {
-		ret = kernel_bind(queue->sock, (struct sockaddr_unsized *)&ctrl->src_addr,
+		ret = kernel_bind(queue->sock, (struct sockaddr *)&ctrl->src_addr,
 			sizeof(ctrl->src_addr));
 		if (ret) {
 			dev_err(nctrl->device,
@@ -1947,6 +1946,8 @@ static int nvme_tcp_alloc_queue(struct nvme_ctrl *nctrl, int qid,
 		if (ret)
 			goto err_init_connect;
 	}
+
+	nvme_tcp_reclassify_socket(queue->sock);
 
 	ret = nvme_tcp_init_connection(queue);
 	if (ret)
@@ -2999,7 +3000,8 @@ static struct nvme_tcp_ctrl *nvme_tcp_alloc_ctrl(struct device *dev,
 	}
 
 	if (opts->mask & NVMF_OPT_HOST_IFACE) {
-		if (!__dev_get_by_name(&init_net, opts->host_iface)) {
+		if (!__dev_get_by_name(current->nsproxy->net_ns,
+				       opts->host_iface)) {
 			pr_err("invalid interface passed: %s\n",
 			       opts->host_iface);
 			ret = -ENODEV;

@@ -477,6 +477,9 @@ xrep_xattr_recover_sf(
 		if (xchk_should_terminate(sc, &error))
 			return error;
 
+		if ((unsigned char *)(sfe + 1) >= end)
+			break;
+
 		next = xfs_attr_sf_nextentry(sfe);
 		if ((unsigned char *)next > end)
 			break;
@@ -837,11 +840,11 @@ xrep_xattr_full_reset(
 
 		ASSERT(ifp->if_bytes == 0);
 		ifp->if_format = XFS_DINODE_FMT_LOCAL;
-		xfs_idata_realloc(sc->tempip, sizeof(*hdr), XFS_ATTR_FORK);
 	}
 
 	/* Reinitialize the attr fork to an empty shortform structure. */
-	hdr = ifp->if_data;
+	hdr = xfs_idata_realloc(sc->tempip,
+			(int64_t)sizeof(*hdr) - ifp->if_bytes, XFS_ATTR_FORK);
 	memset(hdr, 0, sizeof(*hdr));
 	hdr->totsize = cpu_to_be16(sizeof(*hdr));
 	xfs_trans_log_inode(sc->tp, sc->tempip, XFS_ILOG_CORE | XFS_ILOG_ADATA);
@@ -967,7 +970,7 @@ xrep_xattr_fork_remove(
 		ifp->if_format = XFS_DINODE_FMT_LOCAL;
 		hdr = xfs_idata_realloc(ip, (int)sizeof(*hdr) - ifp->if_bytes,
 				XFS_ATTR_FORK);
-		hdr->count = 0;
+		memset(hdr, 0, sizeof(*hdr));
 		hdr->totsize = cpu_to_be16(sizeof(*hdr));
 		xfs_trans_log_inode(sc->tp, ip,
 				XFS_ILOG_CORE | XFS_ILOG_ADATA);
@@ -1474,6 +1477,9 @@ xrep_xattr_rebuild_tree(
 	if (error)
 		return error;
 
+	if (rx->live_update_aborted)
+		return -EIO;
+
 	/*
 	 * Exchange the blocks mapped by the tempfile's attr fork with the file
 	 * being repaired.  The old attr blocks will then be attached to the
@@ -1485,7 +1491,7 @@ xrep_xattr_rebuild_tree(
 
 	error = xrep_xattr_reset_tempfile_fork(sc);
 	if (error)
-		return error;
+		goto forget_acls;
 
 	/*
 	 * Roll to get a transaction without any inodes joined to it.  Then we
@@ -1494,7 +1500,7 @@ xrep_xattr_rebuild_tree(
 	 */
 	error = xfs_trans_roll(&sc->tp);
 	if (error)
-		return error;
+		goto forget_acls;
 
 	xrep_tempfile_iunlock(sc);
 	xrep_tempfile_iounlock(sc);
@@ -1503,7 +1509,7 @@ forget_acls:
 	/* Invalidate cached ACLs now that we've reloaded all the xattrs. */
 	xfs_forget_acl(VFS_I(sc->ip), SGI_ACL_FILE);
 	xfs_forget_acl(VFS_I(sc->ip), SGI_ACL_DEFAULT);
-	return 0;
+	return error;
 }
 
 /* Tear down all the incore scan stuff we created. */

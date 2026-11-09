@@ -1377,12 +1377,14 @@ xrep_reset_metafile_resv(
 {
 	struct xfs_mount	*mp = sc->mp;
 	int64_t			delta;
-	int			error;
+	int			error = 0;
+
+	mutex_lock(&mp->m_metafile_resv_lock);
 
 	delta = mp->m_metafile_resv_used + mp->m_metafile_resv_avail -
 		mp->m_metafile_resv_target;
 	if (delta == 0)
-		return 0;
+		goto out_resv_lock;
 
 	/*
 	 * Too many blocks have been reserved, transfer some from the incore
@@ -1398,7 +1400,7 @@ xrep_reset_metafile_resv(
 			mp->m_metafile_resv_avail -= give_back;
 		}
 
-		return 0;
+		goto out_resv_lock;
 	}
 
 	/*
@@ -1412,14 +1414,18 @@ xrep_reset_metafile_resv(
 		if (delta == 0) {
 			xfs_warn(sc->mp,
 "Insufficient free space to reset metabtree reservation after repair.");
-			return 0;
+			error = 0;
+			goto out_resv_lock;
 		}
 		error = xfs_dec_fdblocks(mp, delta, true);
 	}
 	if (error)
-		return error;
+		goto out_resv_lock;
 
 	xfs_mod_sb_delalloc(mp, delta);
 	mp->m_metafile_resv_avail += delta;
-	return 0;
+
+out_resv_lock:
+	mutex_unlock(&mp->m_metafile_resv_lock);
+	return error;
 }

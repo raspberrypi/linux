@@ -86,6 +86,7 @@ int cs35l56_set_patch(struct cs35l56_base *cs35l56_base)
 					    ARRAY_SIZE(cs35l56_patch_fw));
 		break;
 	case 0x63:
+	case 0x62:
 		ret = regmap_register_patch(cs35l56_base->regmap, cs35l63_patch_fw,
 					    ARRAY_SIZE(cs35l63_patch_fw));
 		break;
@@ -370,6 +371,7 @@ static void cs35l56_set_fw_reg_table(struct cs35l56_base *cs35l56_base)
 		}
 		break;
 	case 0x63:
+	case 0x62:
 		cs35l56_base->fw_reg = &cs35l63_fw_reg;
 		break;
 	}
@@ -576,6 +578,7 @@ void cs35l56_system_reset(struct cs35l56_base *cs35l56_base, bool is_soundwire)
 		}
 		break;
 	case 0x63:
+	case 0x62:
 		regmap_multi_reg_write_bypassed(cs35l56_base->regmap,
 						cs35l63_system_reset_seq,
 						ARRAY_SIZE(cs35l63_system_reset_seq));
@@ -1080,6 +1083,7 @@ int cs35l56_hw_init(struct cs35l56_base *cs35l56_base)
 		cs35l56_base->calibration_controls = &cs35l56_calibration_controls;
 		break;
 	case 0x35A630:
+	case 0x35A620:
 		cs35l56_base->calibration_controls = &cs35l63_calibration_controls;
 		devid = devid >> 4;
 		break;

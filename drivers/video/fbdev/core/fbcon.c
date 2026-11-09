@@ -612,6 +612,13 @@ static void fbcon_prepare_logo(struct vc_data *vc, struct fb_info *info,
 	if (fullscreen_logo_enabled)
 		logo_height = info->var.yres - vc->vc_font.height;
 	logo_lines = DIV_ROUND_UP(logo_height, vc->vc_font.height);
+	logo_lines = min(logo_lines, rows);
+	logo_lines = min(logo_lines, new_rows - 1);
+	if (logo_lines <= 0) {
+		logo_lines = 0;
+		logo_shown = FBCON_LOGO_DONTSHOW;
+		return;
+	}
 	q = (unsigned short *) (vc->vc_origin +
 				vc->vc_size_row * rows);
 	step = logo_lines * cols;

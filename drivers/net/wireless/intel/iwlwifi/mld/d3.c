@@ -53,6 +53,30 @@ struct iwl_mld_suspend_key_iter_data {
 	__le32 bigtk_cipher;
 };
 
+struct iwl_mld_wake_pkt_iter_data {
+	bool multicast;
+	u32 ivlen;
+	u32 icvlen;
+};
+
+static void
+iwl_mld_wake_pkt_key_iter(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			  struct ieee80211_sta *sta,
+			  struct ieee80211_key_conf *key, void *_data)
+{
+	struct iwl_mld_wake_pkt_iter_data *data = _data;
+	bool is_group_key = !sta;
+
+	/* ignore anything that is not a PTK / GTK */
+	if (key->keyidx > 3)
+		return;
+	if (is_group_key != data->multicast)
+		return;
+
+	data->ivlen = key->iv_len;
+	data->icvlen = key->icv_len;
+}
+
 struct iwl_mld_mcast_key_data {
 	u8 key[WOWLAN_KEY_MAX_SIZE];
 	u8 len;
@@ -707,11 +731,17 @@ iwl_mld_set_wake_packet(struct iwl_mld *mld,
 			struct cfg80211_wowlan_wakeup *wakeup,
 			struct sk_buff **_pkt)
 {
-	int pkt_bufsize = wowlan_status->wake_packet_bufsize;
-	int expected_pktlen = wowlan_status->wake_packet_length;
+	u32 pkt_bufsize = wowlan_status->wake_packet_bufsize;
+	u32 expected_pktlen = wowlan_status->wake_packet_length;
 	const u8 *pktdata = wowlan_status->wake_packet;
 	const struct ieee80211_hdr *hdr = (const void *)pktdata;
-	int truncated = expected_pktlen - pkt_bufsize;
+	u32 truncated;
+
+	if (IWL_FW_CHECK(mld, pkt_bufsize < sizeof(*hdr),
+			 "pkt_bufsize is too short: %u\n", pkt_bufsize))
+		return;
+
+	truncated = expected_pktlen - pkt_bufsize;
 
 	if (ieee80211_is_data(hdr->frame_control)) {
 		int hdrlen = ieee80211_hdrlen(hdr->frame_control);
@@ -722,9 +752,18 @@ iwl_mld_set_wake_packet(struct iwl_mld *mld,
 		if (!pkt)
 			return;
 
-		skb_put_data(pkt, pktdata, hdrlen);
-		pktdata += hdrlen;
-		pkt_bufsize -= hdrlen;
+		if (ieee80211_has_protected(hdr->frame_control)) {
+			struct iwl_mld_wake_pkt_iter_data iter_data = {
+				.multicast =
+					is_multicast_ether_addr(hdr->addr1),
+			};
+
+			ieee80211_iter_keys(mld->hw, vif,
+					    iwl_mld_wake_pkt_key_iter,
+					    &iter_data);
+			ivlen = iter_data.ivlen;
+			icvlen += iter_data.icvlen;
+		}
 
 		/* if truncated, FCS/ICV is (partially) gone */
 		if (truncated >= icvlen) {
@@ -735,6 +774,13 @@ iwl_mld_set_wake_packet(struct iwl_mld *mld,
 			truncated = 0;
 		}
 
+		if (IWL_FW_CHECK(mld, pkt_bufsize <= hdrlen + ivlen + icvlen,
+				 "pkt_bufsize is too small %u\n", pkt_bufsize))
+			return;
+
+		skb_put_data(pkt, pktdata, hdrlen);
+		pktdata += hdrlen;
+		pkt_bufsize -= hdrlen;
 		pkt_bufsize -= ivlen + icvlen;
 		pktdata += ivlen;
 
@@ -756,6 +802,11 @@ iwl_mld_set_wake_packet(struct iwl_mld *mld,
 			fcslen -= truncated;
 			truncated = 0;
 		}
+
+		if (IWL_FW_CHECK(mld, pkt_bufsize <= fcslen,
+				 "pkt_bufsize is too small %u\n", pkt_bufsize))
+			return;
+
 		pkt_bufsize -= fcslen;
 		wakeup->packet = wowlan_status->wake_packet;
 		wakeup->packet_present_len = pkt_bufsize;
@@ -1326,8 +1377,16 @@ static bool iwl_mld_handle_d3_notif(struct iwl_notif_wait_data *notif_wait,
 	}
 	case WIDE_ID(PROT_OFFLOAD_GROUP, D3_END_NOTIFICATION): {
 		struct iwl_d3_end_notif *notif = (void *)pkt->data;
+		u32 len = iwl_rx_packet_payload_len(pkt);
 
-		resume_data->d3_end_flags = le32_to_cpu(notif->flags);
+		if (IWL_FW_CHECK(mld, len < sizeof(*notif),
+				 "Invalid D3_END notification (expected=%zu got=%u)\n",
+				 sizeof(*notif), len)) {
+			resume_data->notif_handling_err = true;
+		} else {
+			resume_data->d3_end_flags = le32_to_cpu(notif->flags);
+		}
+
 		resume_data->notifs_received |= IWL_D3_NOTIF_D3_END_NOTIF;
 		break;
 	}
@@ -2018,6 +2077,9 @@ int iwl_mld_wowlan_resume(struct iwl_mld *mld)
 	ret = iwl_mld_wait_d3_notif(mld, &resume_data, true);
 	if (ret) {
 		IWL_ERR(mld, "Couldn't get the d3 notifs %d\n", ret);
+
+		if (bss_vif->cfg.assoc)
+			ieee80211_resume_disconnect(bss_vif);
 		goto err;
 	}
 

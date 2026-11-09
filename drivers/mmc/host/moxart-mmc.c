@@ -264,6 +264,7 @@ static void moxart_transfer_dma(struct mmc_data *data, struct moxart_host *host)
 	u32 len, dir_slave;
 	struct dma_async_tx_descriptor *desc = NULL;
 	struct dma_chan *dma_chan;
+	long timeout;
 
 	if (host->data_len == data->bytes_xfered)
 		return;
@@ -296,11 +297,17 @@ static void moxart_transfer_dma(struct mmc_data *data, struct moxart_host *host)
 		dma_async_issue_pending(dma_chan);
 	}
 
-	wait_for_completion_interruptible_timeout(&host->dma_complete,
-						  host->timeout);
+	timeout = wait_for_completion_interruptible_timeout(&host->dma_complete,
+							    host->timeout);
+	if (timeout <= 0) {
+		dmaengine_terminate_sync(dma_chan);
+		data->error = timeout ?: -ETIMEDOUT;
+		goto unmap;
+	}
 
 	data->bytes_xfered = host->data_len;
 
+unmap:
 	dma_unmap_sg(dma_chan->device->dev,
 		     data->sg, data->sg_len,
 		     mmc_get_dma_dir(data));

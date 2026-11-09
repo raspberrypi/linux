@@ -276,7 +276,7 @@ xrep_rtbitmap_mark_free(
 		xrep_wordoff_t	rem;
 		xrep_wordcnt_t	wordcnt;
 
-		wordcnt = min_t(xrep_wordcnt_t, nextwordoff - wordoff,
+		wordcnt = min_t(xrep_wordoff_t, nextwordoff - wordoff,
 				bufwsize);
 
 		/*

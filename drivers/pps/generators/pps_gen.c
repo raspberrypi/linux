@@ -26,7 +26,10 @@
  */
 
 static dev_t pps_gen_devt;
-static struct class *pps_gen_class;
+static const struct class pps_gen_class = {
+	.name		= "pps-gen",
+	.dev_groups	= pps_gen_groups
+};
 
 static DEFINE_IDA(pps_gen_ida);
 
@@ -60,7 +63,7 @@ static long pps_gen_cdev_ioctl(struct file *file,
 
 	switch (cmd) {
 	case PPS_GEN_SETENABLE:
-		dev_dbg(pps_gen->dev, "PPS_GEN_SETENABLE\n");
+		dev_dbg(&pps_gen->dev, "PPS_GEN_SETENABLE\n");
 
 		ret = get_user(status, uiuarg);
 		if (ret)
@@ -74,7 +77,7 @@ static long pps_gen_cdev_ioctl(struct file *file,
 		break;
 
 	case PPS_GEN_USESYSTEMCLOCK:
-		dev_dbg(pps_gen->dev, "PPS_GEN_USESYSTEMCLOCK\n");
+		dev_dbg(&pps_gen->dev, "PPS_GEN_USESYSTEMCLOCK\n");
 
 		ret = put_user(pps_gen->info->use_system_clock, uiuarg);
 		if (ret)
@@ -86,12 +89,12 @@ static long pps_gen_cdev_ioctl(struct file *file,
 		struct pps_gen_event info;
 		unsigned int ev = pps_gen->last_ev;
 
-		dev_dbg(pps_gen->dev, "PPS_GEN_FETCHEVENT\n");
+		dev_dbg(&pps_gen->dev, "PPS_GEN_FETCHEVENT\n");
 
 		ret = wait_event_interruptible(pps_gen->queue,
 				ev != pps_gen->last_ev);
 		if (ret == -ERESTARTSYS) {
-			dev_dbg(pps_gen->dev, "pending signal caught\n");
+			dev_dbg(&pps_gen->dev, "pending signal caught\n");
 			return -EINTR;
 		}
 
@@ -118,7 +121,7 @@ static int pps_gen_cdev_open(struct inode *inode, struct file *file)
 	struct pps_gen_device *pps_gen = container_of(inode->i_cdev,
 				struct pps_gen_device, cdev);
 
-	get_device(pps_gen->dev);
+	get_device(&pps_gen->dev);
 	file->private_data = pps_gen;
 	return 0;
 }
@@ -127,7 +130,7 @@ static int pps_gen_cdev_release(struct inode *inode, struct file *file)
 {
 	struct pps_gen_device *pps_gen = file->private_data;
 
-	put_device(pps_gen->dev);
+	put_device(&pps_gen->dev);
 	return 0;
 }
 
@@ -148,19 +151,15 @@ static void pps_gen_device_destruct(struct device *dev)
 {
 	struct pps_gen_device *pps_gen = dev_get_drvdata(dev);
 
-	cdev_del(&pps_gen->cdev);
-
 	pr_debug("deallocating pps-gen%d\n", pps_gen->id);
 	ida_free(&pps_gen_ida, pps_gen->id);
 
-	kfree(dev);
 	kfree(pps_gen);
 }
 
 static int pps_gen_register_cdev(struct pps_gen_device *pps_gen)
 {
 	int err;
-	dev_t devt;
 
 	err = ida_alloc_max(&pps_gen_ida, PPS_GEN_MAX_SOURCES - 1, GFP_KERNEL);
 	if (err < 0) {
@@ -168,46 +167,52 @@ static int pps_gen_register_cdev(struct pps_gen_device *pps_gen)
 			pr_err("too many PPS sources in the system\n");
 			err = -EBUSY;
 		}
+		kfree(pps_gen);
 		return err;
 	}
 	pps_gen->id = err;
 
-	devt = MKDEV(MAJOR(pps_gen_devt), pps_gen->id);
+	/*
+	 * From here on pps_gen belongs to its device and is freed by
+	 * pps_gen_device_destruct(). The cdev holds a reference to the
+	 * device, so pps_gen stays around until the last file is closed.
+	 */
+	device_initialize(&pps_gen->dev);
+	pps_gen->dev.class = &pps_gen_class;
+	pps_gen->dev.parent = pps_gen->info->parent;
+	pps_gen->dev.devt = MKDEV(MAJOR(pps_gen_devt), pps_gen->id);
+	pps_gen->dev.release = pps_gen_device_destruct;
+	dev_set_drvdata(&pps_gen->dev, pps_gen);
 
 	cdev_init(&pps_gen->cdev, &pps_gen_cdev_fops);
 	pps_gen->cdev.owner = pps_gen->info->owner;
 
-	err = cdev_add(&pps_gen->cdev, devt, 1);
+	err = dev_set_name(&pps_gen->dev, "pps-gen%d", pps_gen->id);
+	if (err)
+		goto put_dev;
+
+	err = cdev_device_add(&pps_gen->cdev, &pps_gen->dev);
 	if (err) {
 		pr_err("failed to add char device %d:%d\n",
 				MAJOR(pps_gen_devt), pps_gen->id);
-		goto free_ida;
+		goto put_dev;
 	}
-	pps_gen->dev = device_create(pps_gen_class, pps_gen->info->parent, devt,
-				     pps_gen, "pps-gen%d", pps_gen->id);
-	if (IS_ERR(pps_gen->dev)) {
-		err = PTR_ERR(pps_gen->dev);
-		goto del_cdev;
-	}
-	pps_gen->dev->release = pps_gen_device_destruct;
-	dev_set_drvdata(pps_gen->dev, pps_gen);
 
 	pr_debug("generator got cdev (%d:%d)\n",
 			MAJOR(pps_gen_devt), pps_gen->id);
 
 	return 0;
 
-del_cdev:
-	cdev_del(&pps_gen->cdev);
-free_ida:
-	ida_free(&pps_gen_ida, pps_gen->id);
+put_dev:
+	put_device(&pps_gen->dev);
 	return err;
 }
 
 static void pps_gen_unregister_cdev(struct pps_gen_device *pps_gen)
 {
 	pr_debug("unregistering pps-gen%d\n", pps_gen->id);
-	device_destroy(pps_gen_class, pps_gen->dev->devt);
+	cdev_device_del(&pps_gen->cdev, &pps_gen->dev);
+	put_device(&pps_gen->dev);
 }
 
 /*
@@ -241,17 +246,14 @@ struct pps_gen_device *pps_gen_register_source(const struct pps_gen_source_info 
 	init_waitqueue_head(&pps_gen->queue);
 	spin_lock_init(&pps_gen->lock);
 
-	/* Create the char device */
+	/* Create the char device, this frees pps_gen on failure */
 	err = pps_gen_register_cdev(pps_gen);
 	if (err < 0) {
 		pr_err(" unable to create char device\n");
-		goto kfree_pps_gen;
+		goto pps_gen_register_source_exit;
 	}
 
 	return pps_gen;
-
-kfree_pps_gen:
-	kfree(pps_gen);
 
 pps_gen_register_source_exit:
 	pr_err("unable to register generator\n");
@@ -286,7 +288,7 @@ void pps_gen_event(struct pps_gen_device *pps_gen,
 {
 	unsigned long flags;
 
-	dev_dbg(pps_gen->dev, "PPS generator event %u\n", event);
+	dev_dbg(&pps_gen->dev, "PPS generator event %u\n", event);
 
 	spin_lock_irqsave(&pps_gen->lock, flags);
 
@@ -307,7 +309,7 @@ EXPORT_SYMBOL(pps_gen_event);
 
 static void __exit pps_gen_exit(void)
 {
-	class_destroy(pps_gen_class);
+	class_unregister(&pps_gen_class);
 	unregister_chrdev_region(pps_gen_devt, PPS_GEN_MAX_SOURCES);
 }
 
@@ -315,12 +317,11 @@ static int __init pps_gen_init(void)
 {
 	int err;
 
-	pps_gen_class = class_create("pps-gen");
-	if (IS_ERR(pps_gen_class)) {
-		pr_err("failed to allocate class\n");
-		return PTR_ERR(pps_gen_class);
+	err = class_register(&pps_gen_class);
+	if (err) {
+		pr_err("failed to register class\n");
+		return err;
 	}
-	pps_gen_class->dev_groups = pps_gen_groups;
 
 	err = alloc_chrdev_region(&pps_gen_devt, 0,
 					PPS_GEN_MAX_SOURCES, "pps-gen");
@@ -332,7 +333,7 @@ static int __init pps_gen_init(void)
 	return 0;
 
 remove_class:
-	class_destroy(pps_gen_class);
+	class_unregister(&pps_gen_class);
 	return err;
 }
 

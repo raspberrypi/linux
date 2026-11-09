@@ -1081,12 +1081,9 @@ xrep_iunlink_reload_next(
 	if (VFS_I(ip)->i_nlink != 0) {
 		error = xrep_iunlink_store_next(ragi, agino, NULLAGINO);
 		if (error)
-			return error;
+			goto rele;
 
 		error = xrep_iunlink_store_prev(ragi, agino, LINKED_AGINO);
-		if (error)
-			return error;
-
 		goto rele;
 	}
 
@@ -1100,7 +1097,7 @@ xrep_iunlink_reload_next(
 	 */
 rele:
 	xchk_irele(sc, ip);
-	return 0;
+	return error;
 }
 
 /*
@@ -1331,8 +1328,12 @@ xrep_iunlink_mark_ondisk_rec(
 		 */
 		error = xchk_iget(ragi->sc, xfs_agino_to_ino(sc->sa.pag, agino),
 				&ip);
-		if (error)
+		if (error == -ENOMEM)
+			return error;
+		if (error) {
+			error = 0;
 			continue;
+		}
 
 		trace_xrep_iunlink_reload_ondisk(ip);
 

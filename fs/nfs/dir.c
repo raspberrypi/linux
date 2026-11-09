@@ -2442,6 +2442,8 @@ struct dentry *nfs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
 	trace_nfs_mkdir_enter(dir, dentry);
 	ret = NFS_PROTO(dir)->mkdir(dir, dentry, &attr);
 	trace_nfs_mkdir_exit(dir, dentry, PTR_ERR_OR_ZERO(ret));
+	if (IS_ERR(ret))
+		d_drop(dentry);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(nfs_mkdir);
@@ -2630,6 +2632,12 @@ int nfs_symlink(struct mnt_idmap *idmap, struct inode *dir,
 		d_drop(dentry);
 		folio_put(folio);
 		return error;
+	}
+
+	if (unlikely(!d_is_symlink(dentry))) {
+		d_drop(dentry);
+		folio_put(folio);
+		return 0;
 	}
 
 	nfs_set_verifier(dentry, nfs_save_change_attribute(dir));

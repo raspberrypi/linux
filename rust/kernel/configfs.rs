@@ -298,26 +298,39 @@ unsafe impl<Data> HasGroup<Data> for Group<Data> {
 ///
 /// `this` must be a valid pointer.
 ///
-/// If `this` does not represent the root group of a configfs subsystem,
-/// `this` must be a pointer to a `bindings::config_group` embedded in a
-/// `Group<Parent>`.
+/// If `this` is the `su_group` field of a `bindings::configfs_subsystem`, that
+/// `configfs_subsystem` must be embedded in a `Subsystem<Parent>`.
 ///
-/// Otherwise, `this` must be a pointer to a `bindings::config_group` that
-/// is embedded in a `bindings::configfs_subsystem` that is embedded in a
-/// `Subsystem<Parent>`.
+/// Otherwise, `this` must be a pointer to a `bindings::config_group` embedded
+/// in a `Group<Parent>`.
 unsafe fn get_group_data<'a, Parent>(this: *mut bindings::config_group) -> &'a Parent {
     // SAFETY: `this` is a valid pointer.
-    let is_root = unsafe { (*this).cg_subsys.is_null() };
+    let subsys = unsafe { (*this).cg_subsys };
 
-    if !is_root {
-        // SAFETY: By C API contact,`this` was returned from a call to
-        // `make_group`. The pointer is known to be embedded within a
-        // `Group<Parent>`.
-        unsafe { &(*Group::<Parent>::container_of(this)).data }
-    } else {
-        // SAFETY: By C API contract, `this` is a pointer to the
-        // `bindings::config_group` field within a `Subsystem<Parent>`.
+    // `link_group()` in `fs/configfs/dir.c` assigns `cg_subsys` for every
+    // `config_group` attached anywhere in a registered subsystem, including
+    // the subsystem's own `su_group` (which gets a pointer to itself). The
+    // only `config_group` with a NULL `cg_subsys` is the configfs root, and
+    // userspace cannot trigger callbacks on it. The group is therefore the
+    // subsystem's `su_group` iff it equals `&cg_subsys->su_group`.
+    let is_root = !subsys.is_null()
+        && core::ptr::eq(
+            this.cast_const(),
+            // SAFETY: For every `config_group` the configfs core dispatches a
+            // callback on, `cg_subsys` was set by `link_group()` at registration time
+            // and points to a valid `configfs_subsystem` that outlives the callback.
+            unsafe { &raw const (*subsys).su_group },
+        );
+
+    if is_root {
+        // SAFETY: By the above, `this` is the `su_group` field of a
+        // `configfs_subsystem` that, by function safety requirements, is
+        // embedded in a `Subsystem<Parent>`.
         unsafe { &(*Subsystem::container_of(this)).data }
+    } else {
+        // SAFETY: By function safety requirements, `this` is a
+        // `config_group` embedded in a `Group<Parent>`.
+        unsafe { &(*Group::<Parent>::container_of(this)).data }
     }
 }
 

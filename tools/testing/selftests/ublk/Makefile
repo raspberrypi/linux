@@ -40,12 +40,17 @@ TEST_PROGS += test_stress_03.sh
 TEST_PROGS += test_stress_04.sh
 TEST_PROGS += test_stress_05.sh
 
-TEST_GEN_PROGS_EXTENDED = kublk
+TEST_FILES := settings
+TEST_FILES += test_common.sh
+TEST_FILES += trace
 
+TEST_GEN_PROGS_EXTENDED = kublk metadata_size
+STANDALONE_UTILS := metadata_size.c
+
+LOCAL_HDRS += $(wildcard *.h)
 include ../lib.mk
 
-$(TEST_GEN_PROGS_EXTENDED): kublk.c null.c file_backed.c common.c stripe.c \
-	fault_inject.c
+$(OUTPUT)/kublk: $(filter-out $(STANDALONE_UTILS),$(wildcard *.c))
 
 check:
 	shellcheck -x -f gcc *.sh

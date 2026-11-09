@@ -171,6 +171,9 @@ static void rp1_unregister_interrupts(struct pci_dev *pdev)
 	struct rp1_dev *rp1 = pci_get_drvdata(pdev);
 	int irq, i;
 
+	for (i = 0; i < RP1_INT_END; i++)
+		irq_set_chained_handler_and_data(pci_irq_vector(pdev, i), NULL, NULL);
+
 	if (rp1->domain) {
 		for (i = 0; i < RP1_INT_END; i++) {
 			irq = irq_find_mapping(rp1->domain, i);

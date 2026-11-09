@@ -1104,6 +1104,8 @@ static int rproc_start_subdevices(struct rproc *rproc)
 		}
 	}
 
+	rproc->subdevs_started = true;
+
 	return 0;
 
 unroll_registration:
@@ -1119,10 +1121,15 @@ static void rproc_stop_subdevices(struct rproc *rproc, bool crashed)
 {
 	struct rproc_subdev *subdev;
 
+	if (!rproc->subdevs_started)
+		return;
+
 	list_for_each_entry_reverse(subdev, &rproc->subdevs, node) {
 		if (subdev->stop)
 			subdev->stop(subdev, crashed);
 	}
+
+	rproc->subdevs_started = false;
 }
 
 static void rproc_unprepare_subdevices(struct rproc *rproc)
@@ -1784,7 +1791,20 @@ static int rproc_attach_recovery(struct rproc *rproc)
 	if (ret)
 		return ret;
 
-	return __rproc_attach(rproc);
+	/* clean up all acquired resources */
+	rproc_resource_cleanup(rproc);
+
+	/* release HW resources if needed */
+	rproc_unprepare_device(rproc);
+
+	rproc_disable_iommu(rproc);
+
+	/* Free the copy of the resource table */
+	kfree(rproc->cached_table);
+	rproc->cached_table = NULL;
+	rproc->table_ptr = NULL;
+
+	return rproc_attach(rproc);
 }
 
 static int rproc_boot_recovery(struct rproc *rproc)
@@ -1973,6 +1993,54 @@ unlock_mutex:
 }
 EXPORT_SYMBOL(rproc_boot);
 
+static int __rproc_shutdown(struct rproc *rproc, bool force)
+{
+	struct device *dev = &rproc->dev;
+	bool crashed;
+	int ret;
+
+	ret = mutex_lock_interruptible(&rproc->lock);
+	if (ret) {
+		dev_err(dev, "can't lock rproc %s: %d\n", rproc->name, ret);
+		return ret;
+	}
+
+	if (rproc->state != RPROC_RUNNING &&
+	    rproc->state != RPROC_ATTACHED &&
+	    rproc->state != RPROC_CRASHED) {
+		ret = -EINVAL;
+		goto out;
+	}
+	crashed = rproc->state == RPROC_CRASHED;
+
+	if (!atomic_dec_and_test(&rproc->power) && !force) {
+		/* The remote processor is still needed by another user. */
+		goto out;
+	}
+
+	ret = rproc_stop(rproc, crashed);
+	if (ret) {
+		atomic_inc(&rproc->power);
+		goto out;
+	}
+
+	/* clean up all acquired resources */
+	rproc_resource_cleanup(rproc);
+
+	/* release HW resources if needed */
+	rproc_unprepare_device(rproc);
+
+	rproc_disable_iommu(rproc);
+
+	/* Free the copy of the resource table */
+	kfree(rproc->cached_table);
+	rproc->cached_table = NULL;
+	rproc->table_ptr = NULL;
+out:
+	mutex_unlock(&rproc->lock);
+	return ret;
+}
+
 /**
  * rproc_shutdown() - power off the remote processor
  * @rproc: the remote processor
@@ -1996,49 +2064,7 @@ EXPORT_SYMBOL(rproc_boot);
  */
 int rproc_shutdown(struct rproc *rproc)
 {
-	struct device *dev = &rproc->dev;
-	bool crashed;
-	int ret;
-
-	ret = mutex_lock_interruptible(&rproc->lock);
-	if (ret) {
-		dev_err(dev, "can't lock rproc %s: %d\n", rproc->name, ret);
-		return ret;
-	}
-
-	if (rproc->state != RPROC_RUNNING &&
-	    rproc->state != RPROC_ATTACHED &&
-	    rproc->state != RPROC_CRASHED) {
-		ret = -EINVAL;
-		goto out;
-	}
-	crashed = rproc->state == RPROC_CRASHED;
-
-	/* if the remote proc is still needed, bail out */
-	if (!atomic_dec_and_test(&rproc->power))
-		goto out;
-
-	ret = rproc_stop(rproc, crashed);
-	if (ret) {
-		atomic_inc(&rproc->power);
-		goto out;
-	}
-
-	/* clean up all acquired resources */
-	rproc_resource_cleanup(rproc);
-
-	/* release HW resources if needed */
-	rproc_unprepare_device(rproc);
-
-	rproc_disable_iommu(rproc);
-
-	/* Free the copy of the resource table */
-	kfree(rproc->cached_table);
-	rproc->cached_table = NULL;
-	rproc->table_ptr = NULL;
-out:
-	mutex_unlock(&rproc->lock);
-	return ret;
+	return __rproc_shutdown(rproc, false);
 }
 EXPORT_SYMBOL(rproc_shutdown);
 
@@ -2338,6 +2364,7 @@ int rproc_add(struct rproc *rproc)
 	return 0;
 
 rproc_remove_dev:
+	cancel_work_sync(&rproc->crash_handler);
 	rproc_delete_debug_dir(rproc);
 	device_del(dev);
 rproc_remove_cdev:
@@ -2605,8 +2632,7 @@ int rproc_del(struct rproc *rproc)
 	if (cancel_work_sync(&rproc->crash_handler))
 		pm_relax(rproc->dev.parent);
 
-	/* TODO: make sure this works with rproc->power > 1 */
-	rproc_shutdown(rproc);
+	__rproc_shutdown(rproc, true);
 
 	rproc_delete_debug_dir(rproc);
 

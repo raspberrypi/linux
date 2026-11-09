@@ -1464,10 +1464,18 @@ static int dspi_init(struct fsl_dspi *dspi)
 static int dspi_suspend(struct device *dev)
 {
 	struct fsl_dspi *dspi = dev_get_drvdata(dev);
+	int ret;
 
 	if (dspi->irq)
 		disable_irq(dspi->irq);
-	spi_controller_suspend(dspi->ctlr);
+
+	ret = spi_controller_suspend(dspi->ctlr);
+	if (ret) {
+		if (dspi->irq)
+			enable_irq(dspi->irq);
+		return ret;
+	}
+
 	clk_disable_unprepare(dspi->clk);
 
 	pinctrl_pm_select_sleep_state(dev);
@@ -1485,12 +1493,15 @@ static int dspi_resume(struct device *dev)
 	ret = clk_prepare_enable(dspi->clk);
 	if (ret)
 		return ret;
-	spi_controller_resume(dspi->ctlr);
+
+	ret = spi_controller_resume(dspi->ctlr);
+	if (ret)
+		goto disable_clk;
 
 	ret = dspi_init(dspi);
 	if (ret) {
 		dev_err(dev, "failed to initialize dspi during resume\n");
-		return ret;
+		goto disable_clk;
 	}
 
 	dspi_set_mtf(dspi);
@@ -1499,6 +1510,10 @@ static int dspi_resume(struct device *dev)
 		enable_irq(dspi->irq);
 
 	return 0;
+
+disable_clk:
+	clk_disable_unprepare(dspi->clk);
+	return ret;
 }
 #endif /* CONFIG_PM_SLEEP */
 
