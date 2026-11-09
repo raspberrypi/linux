@@ -12,7 +12,6 @@
 #include <linux/device.h>
 #include <linux/dmaengine.h>
 #include <linux/dmapool.h>
-#include <linux/dma-direct.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/interrupt.h>
@@ -94,17 +93,6 @@ axi_chan_iowrite64(struct axi_dma_chan *chan, u32 reg, u64 val)
 	 */
 	iowrite32(lower_32_bits(val), chan->chan_regs + reg);
 	iowrite32(upper_32_bits(val), chan->chan_regs + reg + 4);
-}
-
-static inline u64
-axi_chan_ioread64(struct axi_dma_chan *chan, u32 reg)
-{
-	/*
-	 * We split one 64 bit read into two 32 bit reads as some HW doesn't
-	 * support 64 bit access.
-	 */
-	return ((u64)ioread32(chan->chan_regs + reg + 4) << 32) +
-		ioread32(chan->chan_regs + reg);
 }
 
 static inline void axi_chan_config_write(struct axi_dma_chan *chan,
@@ -230,32 +218,6 @@ static inline void axi_chan_disable(struct axi_dma_chan *chan)
 	}
 }
 
-/*
- * Abort a channel, flushing its FIFO. This is only intended for use when a
- * channel has failed to respond to a disable request, e.g. because it is
- * stalled waiting on a peripheral handshake.
- */
-static inline void axi_chan_abort(struct axi_dma_chan *chan)
-{
-	u64 val;
-
-	if (chan->chip->dw->hdata->reg_map_8_channels) {
-		val = BIT(chan->id) << (DMAC_CHAN_ABORT_SHIFT - 32) |
-		      BIT(chan->id) << (DMAC_CHAN_ABORT_WE_SHIFT - 32);
-		axi_dma_iowrite32(chan->chip, DMAC_CHEN + 4, (u32)val);
-	} else if (chan->id >= DMAC_CHAN_16) {
-		val = (u64)(BIT(chan->id) >> DMAC_CHAN_16)
-			<< (DMAC_CHAN_ABORT2_SHIFT + DMAC_CHAN_BLOCK_SHIFT) |
-		      (u64)(BIT(chan->id) >> DMAC_CHAN_16)
-			<< (DMAC_CHAN_ABORT2_WE_SHIFT + DMAC_CHAN_BLOCK_SHIFT);
-		axi_dma_iowrite64(chan->chip, DMAC_CHABORTREG, val);
-	} else {
-		val = BIT(chan->id) << DMAC_CHAN_ABORT2_SHIFT |
-		      BIT(chan->id) << DMAC_CHAN_ABORT2_WE_SHIFT;
-		axi_dma_iowrite32(chan->chip, DMAC_CHABORTREG, (u32)val);
-	}
-}
-
 static inline void axi_chan_enable(struct axi_dma_chan *chan)
 {
 	u64 val;
@@ -304,18 +266,7 @@ static void axi_dma_hw_init(struct axi_dma_chip *chip)
 {
 	int ret;
 	u32 i;
-	int retries = 1000;
 
-	axi_dma_iowrite32(chip, DMAC_RESET, 1);
-	while (axi_dma_ioread32(chip, DMAC_RESET)) {
-		retries--;
-		if (!retries) {
-			dev_err(chip->dev, "%s: DMAC failed to reset\n",
-				__func__);
-			return;
-		}
-		cpu_relax();
-	}
 	for (i = 0; i < chip->dw->hdata->nr_channels; i++) {
 		axi_chan_irq_disable(&chip->dw->chan[i], DWAXIDMAC_IRQ_ALL);
 		axi_chan_disable(&chip->dw->chan[i]);
@@ -331,15 +282,6 @@ static u32 axi_chan_get_xfer_width(struct axi_dma_chan *chan, dma_addr_t src,
 	u32 max_width = chan->chip->dw->hdata->m_data_width;
 
 	return __ffs(src | dst | len | BIT(max_width));
-}
-
-static u32 axi_dma_encode_msize(u32 max_burst)
-{
-	if (max_burst <= 1)
-		return DWAXIDMAC_BURST_TRANS_LEN_1;
-	if (max_burst > 1024)
-		return DWAXIDMAC_BURST_TRANS_LEN_1024;
-	return fls(max_burst) - 2;
 }
 
 static inline const char *axi_chan_name(struct axi_dma_chan *chan)
@@ -393,8 +335,7 @@ static void axi_desc_put(struct axi_dma_desc *desc)
 
 	for (descs_put = 0; descs_put < count; descs_put++) {
 		hw_desc = &desc->hw_desc[descs_put];
-		if (hw_desc->lli)
-			dma_pool_free(chan->desc_pool, hw_desc->lli, hw_desc->llp);
+		dma_pool_free(chan->desc_pool, hw_desc->lli, hw_desc->llp);
 	}
 
 	kfree(desc->hw_desc);
@@ -410,48 +351,6 @@ static void vchan_desc_put(struct virt_dma_desc *vdesc)
 	axi_desc_put(vd_to_axi_desc(vdesc));
 }
 
-static u32 axi_dma_desc_src_pos(struct axi_dma_desc *desc, dma_addr_t addr)
-{
-	unsigned int idx = 0;
-	u32 pos = 0;
-
-	while (pos < desc->length) {
-		struct axi_dma_hw_desc *hw_desc = &desc->hw_desc[idx++];
-		u32 len = hw_desc->len;
-		dma_addr_t start = le64_to_cpu(hw_desc->lli->sar);
-
-		if (addr >= start && addr <= (start + len)) {
-			pos += addr - start;
-			break;
-		}
-
-		pos += len;
-	}
-
-	return pos;
-}
-
-static u32 axi_dma_desc_dst_pos(struct axi_dma_desc *desc, dma_addr_t addr)
-{
-	unsigned int idx = 0;
-	u32 pos = 0;
-
-	while (pos < desc->length) {
-		struct axi_dma_hw_desc *hw_desc = &desc->hw_desc[idx++];
-		u32 len = hw_desc->len;
-		dma_addr_t start = le64_to_cpu(hw_desc->lli->dar);
-
-		if (addr >= start && addr <= (start + len)) {
-			pos += addr - start;
-			break;
-		}
-
-		pos += len;
-	}
-
-	return pos;
-}
-
 static enum dma_status
 dma_chan_tx_status(struct dma_chan *dchan, dma_cookie_t cookie,
 		  struct dma_tx_state *txstate)
@@ -461,7 +360,10 @@ dma_chan_tx_status(struct dma_chan *dchan, dma_cookie_t cookie,
 	enum dma_status status;
 	u32 completed_length;
 	unsigned long flags;
+	u32 completed_blocks;
 	size_t bytes = 0;
+	u32 length;
+	u32 len;
 
 	status = dma_cookie_status(dchan, cookie, txstate);
 	if (status == DMA_COMPLETE || !txstate)
@@ -470,31 +372,16 @@ dma_chan_tx_status(struct dma_chan *dchan, dma_cookie_t cookie,
 	spin_lock_irqsave(&chan->vc.lock, flags);
 
 	vdesc = vchan_find_desc(&chan->vc, cookie);
-	if (vdesc && vdesc == vchan_next_desc(&chan->vc)) {
-		/* This descriptor is in-progress */
-		struct axi_dma_desc *desc = vd_to_axi_desc(vdesc);
-		dma_addr_t addr;
-
-		if (chan->direction == DMA_MEM_TO_DEV) {
-			addr = axi_chan_ioread64(chan, CH_SAR);
-			completed_length = axi_dma_desc_src_pos(desc, addr);
-		} else if (chan->direction == DMA_DEV_TO_MEM) {
-			addr = axi_chan_ioread64(chan, CH_DAR);
-			completed_length = axi_dma_desc_dst_pos(desc, addr);
-		} else {
-			completed_length = 0;
-		}
-		bytes = desc->length - completed_length;
-	} else if (vdesc) {
-		/* Still in the queue so not started */
-		bytes = vd_to_axi_desc(vdesc)->length;
+	if (vdesc) {
+		length = vd_to_axi_desc(vdesc)->length;
+		completed_blocks = vd_to_axi_desc(vdesc)->completed_blocks;
+		len = vd_to_axi_desc(vdesc)->hw_desc[0].len;
+		completed_length = completed_blocks * len;
+		bytes = length - completed_length;
 	}
 
-	if (chan->is_paused && status == DMA_IN_PROGRESS)
-		status = DMA_PAUSED;
-
-	dma_set_residue(txstate, bytes);
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
+	dma_set_residue(txstate, bytes);
 
 	return status;
 }
@@ -548,6 +435,8 @@ static void axi_chan_block_xfer_start(struct axi_dma_chan *chan,
 		return;
 	}
 
+	axi_dma_enable(chan->chip);
+
 	config.dst_multblk_type = DWAXIDMAC_MBLK_TYPE_LL;
 	config.src_multblk_type = DWAXIDMAC_MBLK_TYPE_LL;
 	config.tt_fc = DWAXIDMAC_TT_FC_MEM_TO_MEM_DMAC;
@@ -581,8 +470,7 @@ static void axi_chan_block_xfer_start(struct axi_dma_chan *chan,
 
 	write_chan_llp(chan, first->hw_desc[0].llp | lms);
 
-	irq_mask = DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_BLOCK_TRF |
-		   DWAXIDMAC_IRQ_ALL_ERR;
+	irq_mask = DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_ALL_ERR;
 	axi_chan_irq_sig_set(chan, irq_mask);
 
 	/* Generate 'suspend' status but don't generate interrupt */
@@ -611,11 +499,9 @@ static void dma_chan_issue_pending(struct dma_chan *dchan)
 {
 	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
 	unsigned long flags;
-	bool was_empty;
 
 	spin_lock_irqsave(&chan->vc.lock, flags);
-	was_empty = list_empty(&chan->vc.desc_issued);
-	if (vchan_issue_pending(&chan->vc) && was_empty)
+	if (vchan_issue_pending(&chan->vc))
 		axi_chan_start_first_queued(chan);
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
 }
@@ -688,7 +574,7 @@ static void dw_axi_dma_set_hw_channel(struct axi_dma_chan *chan, bool set)
 	unsigned long reg_value, val;
 
 	if (!chip->apb_regs) {
-		dev_dbg(chip->dev, "apb_regs not initialized\n");
+		dev_err(chip->dev, "apb_regs not initialized\n");
 		return;
 	}
 
@@ -725,15 +611,6 @@ static void set_desc_last(struct axi_dma_hw_desc *desc)
 
 	val = le32_to_cpu(desc->lli->ctl_hi);
 	val |= CH_CTL_H_LLI_LAST;
-	desc->lli->ctl_hi = cpu_to_le32(val);
-}
-
-static void set_desc_blktrf(struct axi_dma_hw_desc *desc)
-{
-	u32 val;
-
-	val = le32_to_cpu(desc->lli->ctl_hi);
-	val |= CH_CTL_H_LLI_BLKTRF;
 	desc->lli->ctl_hi = cpu_to_le32(val);
 }
 
@@ -783,58 +660,39 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	size_t axi_block_ts;
 	size_t block_ts;
 	u32 ctllo, ctlhi;
-	u32 burst_len = 0, mem_burst_msize, reg_burst_msize;
+	u32 burst_len;
 
 	axi_block_ts = chan->chip->dw->hdata->block_size[chan->id];
 
 	mem_width = __ffs(data_width | mem_addr | len);
+	if (mem_width > DWAXIDMAC_TRANS_WIDTH_32)
+		mem_width = DWAXIDMAC_TRANS_WIDTH_32;
 
-	/* Use a reasonable upper limit otherwise residue reporting granularity grows large */
-	mem_burst_msize = axi_dma_encode_msize(16);
+	if (!IS_ALIGNED(mem_addr, 4)) {
+		dev_err(chan->chip->dev, "invalid buffer alignment\n");
+		return -EINVAL;
+	}
 
 	switch (chan->direction) {
 	case DMA_MEM_TO_DEV:
-		reg_burst_msize = axi_dma_encode_msize(chan->config.dst_maxburst);
 		reg_width = __ffs(chan->config.dst_addr_width);
-		device_addr = phys_to_dma(chan->chip->dev, chan->config.dst_addr);
+		device_addr = chan->config.dst_addr;
 		ctllo = reg_width << CH_CTL_L_DST_WIDTH_POS |
 			mem_width << CH_CTL_L_SRC_WIDTH_POS |
-			reg_burst_msize << CH_CTL_L_DST_MSIZE_POS |
-			mem_burst_msize << CH_CTL_L_SRC_MSIZE_POS |
 			DWAXIDMAC_CH_CTL_L_NOINC << CH_CTL_L_DST_INC_POS |
 			DWAXIDMAC_CH_CTL_L_INC << CH_CTL_L_SRC_INC_POS;
 		block_ts = len >> mem_width;
 		break;
 	case DMA_DEV_TO_MEM:
-		reg_burst_msize = axi_dma_encode_msize(chan->config.src_maxburst);
 		reg_width = __ffs(chan->config.src_addr_width);
-		/*
-		 * For devices where transfer lengths are not known upfront,
-		 * there is a danger when the destination is wider than the
-		 * source that partial words can be lost at the end of a transfer.
-		 * Ideally the controller would be able to flush the residue, but
-		 * it can't - it's not even possible to tell that there is any.
-		 * Instead, allow the client driver to avoid the problem by setting
-		 * a smaller width.
-		 */
-		if (chan->config.dst_addr_width &&
-		    (chan->config.dst_addr_width < mem_width))
-			mem_width = chan->config.dst_addr_width;
-		device_addr = phys_to_dma(chan->chip->dev, chan->config.src_addr);
+		device_addr = chan->config.src_addr;
 		ctllo = reg_width << CH_CTL_L_SRC_WIDTH_POS |
 			mem_width << CH_CTL_L_DST_WIDTH_POS |
-			mem_burst_msize << CH_CTL_L_DST_MSIZE_POS |
-			reg_burst_msize << CH_CTL_L_SRC_MSIZE_POS |
 			DWAXIDMAC_CH_CTL_L_INC << CH_CTL_L_DST_INC_POS |
 			DWAXIDMAC_CH_CTL_L_NOINC << CH_CTL_L_SRC_INC_POS;
 		block_ts = len >> reg_width;
 		break;
 	default:
-		return -EINVAL;
-	}
-
-	if (len % (1 << reg_width)) {
-		dev_err_ratelimited(chan->chip->dev, "length %ld not aligned to device width %d\n", len, 1 << reg_width);
 		return -EINVAL;
 	}
 
@@ -848,7 +706,7 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	ctlhi = CH_CTL_H_LLI_VALID;
 
 	if (chan->chip->dw->hdata->restrict_axi_burst_len) {
-		burst_len = chan->chip->dw->hdata->axi_rw_burst_len[chan->id];
+		burst_len = chan->chip->dw->hdata->axi_rw_burst_len;
 		ctlhi |= CH_CTL_H_ARLEN_EN | CH_CTL_H_AWLEN_EN |
 			 burst_len << CH_CTL_H_ARLEN_POS |
 			 burst_len << CH_CTL_H_AWLEN_POS;
@@ -865,17 +723,14 @@ static int dw_axi_dma_set_hw_desc(struct axi_dma_chan *chan,
 	}
 
 	hw_desc->lli->block_ts_lo = cpu_to_le32(block_ts - 1);
+
+	ctllo |= DWAXIDMAC_BURST_TRANS_LEN_4 << CH_CTL_L_DST_MSIZE_POS |
+		 DWAXIDMAC_BURST_TRANS_LEN_4 << CH_CTL_L_SRC_MSIZE_POS;
 	hw_desc->lli->ctl_lo = cpu_to_le32(ctllo);
 
 	set_desc_src_master(hw_desc);
 
 	hw_desc->len = len;
-
-	if (burst_len && (chan->config.src_maxburst > burst_len))
-		dev_warn_ratelimited(chan2dev(chan),
-				     "%s: requested source burst length %u exceeds supported burst length %u - data may be lost\n",
-				     axi_chan_name(chan), chan->config.src_maxburst, burst_len);
-
 	return 0;
 }
 
@@ -892,6 +747,9 @@ static size_t calculate_block_len(struct axi_dma_chan *chan,
 	case DMA_MEM_TO_DEV:
 		data_width = BIT(chan->chip->dw->hdata->m_data_width);
 		mem_width = __ffs(data_width | dma_addr | buf_len);
+		if (mem_width > DWAXIDMAC_TRANS_WIDTH_32)
+			mem_width = DWAXIDMAC_TRANS_WIDTH_32;
+
 		block_len = axi_block_ts << mem_width;
 		break;
 	case DMA_DEV_TO_MEM:
@@ -919,20 +777,19 @@ dw_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 	size_t axi_block_len;
 	u32 total_segments;
 	u32 segment_len;
-	unsigned int i, p;
+	unsigned int i;
 	int status;
 	u64 llp = 0;
 	u8 lms = 0; /* Select AXI0 master for LLI fetching */
 
 	num_periods = buf_len / period_len;
-	if (num_periods * period_len != buf_len)
-		return NULL;
 
 	axi_block_len = calculate_block_len(chan, dma_addr, buf_len, direction);
 	if (axi_block_len == 0)
 		return NULL;
 
 	num_segments = DIV_ROUND_UP(period_len, axi_block_len);
+	segment_len = DIV_ROUND_UP(period_len, num_segments);
 
 	total_segments = num_periods * num_segments;
 
@@ -946,34 +803,24 @@ dw_axi_dma_chan_prep_cyclic(struct dma_chan *dchan, dma_addr_t dma_addr,
 	desc->length = 0;
 	desc->period_len = period_len;
 
-	for (p = 0; p < num_periods; p++) {
-		u32 len = period_len;
+	for (i = 0; i < total_segments; i++) {
+		hw_desc = &desc->hw_desc[i];
 
-		for (i = 0; i < num_segments; i++) {
-			hw_desc = &desc->hw_desc[p * num_segments + i];
+		status = dw_axi_dma_set_hw_desc(chan, hw_desc, src_addr,
+						segment_len);
+		if (status < 0)
+			goto err_desc_get;
 
-			segment_len = min(len, axi_block_len);
-			status = dw_axi_dma_set_hw_desc(chan, hw_desc, src_addr,
-							segment_len);
-			if (status < 0)
-				goto err_desc_get;
-
-			desc->length += hw_desc->len;
-
-			src_addr += segment_len;
-			len -= segment_len;
-		}
-		set_desc_blktrf(hw_desc);
+		desc->length += hw_desc->len;
 		/* Set end-of-link to the linked descriptor, so that cyclic
 		 * callback function can be triggered during interrupt.
 		 */
+		set_desc_last(hw_desc);
+
+		src_addr += segment_len;
 	}
 
-	desc->nr_hw_descs = total_segments;
-
 	llp = desc->hw_desc[0].llp;
-	if (!total_segments)
-		goto err_desc_get;
 
 	/* Managed transfer list */
 	do {
@@ -1002,7 +849,7 @@ dw_axi_dma_chan_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
 	struct axi_dma_hw_desc *hw_desc = NULL;
 	struct axi_dma_desc *desc = NULL;
-	u32 segment_len;
+	u32 num_segments, segment_len;
 	unsigned int loop = 0;
 	struct scatterlist *sg;
 	size_t axi_block_len;
@@ -1037,11 +884,10 @@ dw_axi_dma_chan_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 	for_each_sg(sgl, sg, sg_len, i) {
 		mem = sg_dma_address(sg);
 		len = sg_dma_len(sg);
-		if (!len)
-			continue;
+		num_segments = DIV_ROUND_UP(sg_dma_len(sg), axi_block_len);
+		segment_len = DIV_ROUND_UP(sg_dma_len(sg), num_segments);
 
-		while (len) {
-			segment_len = min(len, axi_block_len);
+		do {
 			hw_desc = &desc->hw_desc[loop++];
 			status = dw_axi_dma_set_hw_desc(chan, hw_desc, mem, segment_len);
 			if (status < 0)
@@ -1050,10 +896,8 @@ dw_axi_dma_chan_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 			desc->length += hw_desc->len;
 			len -= segment_len;
 			mem += segment_len;
-		}
+		} while (len >= segment_len);
 	}
-
-	desc->nr_hw_descs = loop;
 
 	/* Set end-of-link to the last link descriptor of list */
 	set_desc_last(&desc->hw_desc[num_sgs - 1]);
@@ -1133,7 +977,7 @@ dma_chan_prep_dma_memcpy(struct dma_chan *dchan, dma_addr_t dst_adr,
 
 		reg = CH_CTL_H_LLI_VALID;
 		if (chan->chip->dw->hdata->restrict_axi_burst_len) {
-			u32 burst_len = chan->chip->dw->hdata->axi_rw_burst_len[chan->id];
+			u32 burst_len = chan->chip->dw->hdata->axi_rw_burst_len;
 
 			reg |= (CH_CTL_H_ARLEN_EN |
 				burst_len << CH_CTL_H_ARLEN_POS |
@@ -1161,8 +1005,6 @@ dma_chan_prep_dma_memcpy(struct dma_chan *dchan, dma_addr_t dst_adr,
 		src_adr += xfer_len;
 		num++;
 	}
-
-	desc->nr_hw_descs = num;
 
 	/* Set end-of-link to the last link descriptor of list */
 	set_desc_last(&desc->hw_desc[num - 1]);
@@ -1212,7 +1054,7 @@ static void axi_chan_dump_lli(struct axi_dma_chan *chan,
 static void axi_chan_list_dump_lli(struct axi_dma_chan *chan,
 				   struct axi_dma_desc *desc_head)
 {
-	int count = desc_head->nr_hw_descs;
+	int count = atomic_read(&chan->descs_allocated);
 	int i;
 
 	for (i = 0; i < count; i++)
@@ -1253,14 +1095,18 @@ out:
 	spin_unlock_irqrestore(&chan->vc.lock, flags);
 }
 
-static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan, bool block_trf)
+static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan)
 {
+	int count = atomic_read(&chan->descs_allocated);
+	struct axi_dma_hw_desc *hw_desc;
 	struct axi_dma_desc *desc;
 	struct virt_dma_desc *vd;
 	unsigned long flags;
+	u64 llp;
+	int i;
 
 	spin_lock_irqsave(&chan->vc.lock, flags);
-	if (!block_trf && unlikely(axi_chan_is_hw_enable(chan))) {
+	if (unlikely(axi_chan_is_hw_enable(chan))) {
 		dev_err(chan2dev(chan), "BUG: %s caught DWAXIDMAC_IRQ_DMA_TRF, but channel not idle!\n",
 			axi_chan_name(chan));
 		axi_chan_disable(chan);
@@ -1277,60 +1123,26 @@ static void axi_chan_block_xfer_complete(struct axi_dma_chan *chan, bool block_t
 	if (chan->cyclic) {
 		desc = vd_to_axi_desc(vd);
 		if (desc) {
-			u32 num_periods = desc->length / desc->period_len;
-			u32 perlen = desc->nr_hw_descs / num_periods;
+			llp = lo_hi_readq(chan->chan_regs + CH_LLP);
+			for (i = 0; i < count; i++) {
+				hw_desc = &desc->hw_desc[i];
+				if (hw_desc->llp == llp) {
+					axi_chan_irq_clear(chan, hw_desc->lli->status_lo);
+					hw_desc->lli->ctl_hi |= CH_CTL_H_LLI_VALID;
+					desc->completed_blocks = i;
 
-			if (block_trf)
-				axi_chan_irq_clear(chan, DWAXIDMAC_IRQ_BLOCK_TRF);
-			else
-				axi_chan_irq_clear(chan, DWAXIDMAC_IRQ_DMA_TRF);
-
-			/*
-			 * The DMAC clears LLI_VALID in memory as it retires
-			 * each descriptor, and writes the period data into the
-			 * destination buffer. Order both against the reads
-			 * below and against the consumer woken by the callback.
-			 */
-			dma_rmb();
-
-			for (int i = 0; i < num_periods; i++) {
-				u32 idx = i * perlen;
-				u32 last = idx + perlen - 1;
-				int j;
-
-				if (le32_to_cpu(desc->hw_desc[last].lli->ctl_hi) &
-				    CH_CTL_H_LLI_VALID)
-					continue;
-
-				desc->hw_desc[last].lli->status_lo &= ~cpu_to_le32(4);
-
-				/*
-				 * Re-arm back-to-front and publish the period's
-				 * first descriptor last. The engine enters the
-				 * period at hw_desc[idx] and walks forward, so
-				 * validating that one before its successors
-				 * lets it run into a descriptor that is still
-				 * retired.
-				 */
-				for (j = last; j > idx; j--)
-					desc->hw_desc[j].lli->ctl_hi |=
-						cpu_to_le32(CH_CTL_H_LLI_VALID);
-				dma_wmb();
-				desc->hw_desc[idx].lli->ctl_hi |=
-					cpu_to_le32(CH_CTL_H_LLI_VALID);
-				/* Publish the re-armed chain to the DMAC. */
-				dma_wmb();
-
-				vchan_cyclic_callback(vd);
+					if (((hw_desc->len * (i + 1)) % desc->period_len) == 0)
+						vchan_cyclic_callback(vd);
+					break;
+				}
 			}
+
+			axi_chan_enable(chan);
 		}
 	} else {
 		/* Remove the completed descriptor from issued list before completing */
 		list_del(&vd->node);
 		vchan_cookie_complete(vd);
-
-		/* Submit queued descriptors after processing the completed ones */
-		axi_chan_start_first_queued(chan);
 	}
 
 out:
@@ -1359,8 +1171,8 @@ static irqreturn_t dw_axi_dma_interrupt(int irq, void *dev_id)
 
 		if (status & DWAXIDMAC_IRQ_ALL_ERR)
 			axi_chan_handle_err(chan, status);
-		else if (status & (DWAXIDMAC_IRQ_DMA_TRF | DWAXIDMAC_IRQ_BLOCK_TRF))
-			axi_chan_block_xfer_complete(chan, status & DWAXIDMAC_IRQ_BLOCK_TRF);
+		else if (status & DWAXIDMAC_IRQ_DMA_TRF)
+			axi_chan_block_xfer_complete(chan);
 	}
 
 	/* Re-enable interrupts */
@@ -1382,21 +1194,9 @@ static int dma_chan_terminate_all(struct dma_chan *dchan)
 
 	ret = readl_poll_timeout_atomic(chan->chip->regs + DMAC_CHEN, val,
 					!(val & chan_active), 1000, 50000);
-	if (ret == -ETIMEDOUT) {
-		/*
-		 * The channel is probably stalled waiting for a handshake
-		 * from the peripheral - abort it. Discarding the contents
-		 * of the FIFO is permitted when terminating, so this is
-		 * not an error.
-		 */
-		dev_dbg(dchan2dev(dchan), "%s aborting\n", axi_chan_name(chan));
-		axi_chan_abort(chan);
-		ret = readl_poll_timeout_atomic(chan->chip->regs + DMAC_CHEN, val,
-						!(val & chan_active), 10, 10000);
-		if (ret == -ETIMEDOUT)
-			dev_err(dchan2dev(dchan),
-				"%s failed to abort\n", axi_chan_name(chan));
-	}
+	if (ret == -ETIMEDOUT)
+		dev_warn(dchan2dev(dchan),
+			 "%s failed to stop\n", axi_chan_name(chan));
 
 	if (chan->direction != DMA_MEM_TO_MEM)
 		dw_axi_dma_set_hw_channel(chan, false);
@@ -1560,85 +1360,19 @@ static int __maybe_unused axi_dma_runtime_resume(struct device *dev)
 	return axi_dma_resume(chip);
 }
 
-static void dw_axi_dma_device_caps(struct dma_chan *dchan,
-				   struct dma_slave_caps *caps)
-{
-	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
-	struct dw_axi_dma *dw = chan->chip->dw;
-
-	if (dw->hdata->restrict_axi_burst_len)
-		caps->max_burst = dw->hdata->axi_rw_burst_len[chan->id];
-}
-
-static bool dw_axi_dma_filter_fn(struct dma_chan *dchan, void *filter_param)
-{
-	struct axi_dma_chan *chan = dchan_to_axi_dma_chan(dchan);
-	uint32_t selector = *(const uint32_t *)filter_param;
-
-	return !!(selector & (1 << chan->id));
-}
-
 static struct dma_chan *dw_axi_dma_of_xlate(struct of_phandle_args *dma_spec,
 					    struct of_dma *ofdma)
 {
 	struct dw_axi_dma *dw = ofdma->of_dma_data;
 	struct axi_dma_chan *chan;
-	uint32_t chan_flags_all = 0;
-	uint32_t busy_channels;
 	struct dma_chan *dchan;
-	dma_cap_mask_t mask;
-	uint32_t chan_mask;
-	uint32_t chan_sel;
-	int max_score;
-	int score;
-	int i;
 
-	for (i = 0; i < dw->hdata->nr_channels; i++)
-		chan_flags_all |= dw->chan_flags[i];
-
-	dma_cap_zero(mask);
-	dma_cap_set(DMA_SLAVE, mask);
-
-	chan_sel = dma_spec->args[0];
-	busy_channels = 0;
-	dchan = NULL;
-
-	while (1) {
-		max_score = 0;
-		chan_mask = 0;
-
-		for (i = 0; i < dw->hdata->nr_channels; i++) {
-			if (busy_channels & (1 << i))
-				continue;
-			/*
-			 * Positive matches (wanted flags that match) score twice that of
-			 * negetive matches (not wanted flags that are not present).
-			 */
-			score = 2 * hweight32(chan_sel & dw->chan_flags[i]) +
-				1 * hweight32(~chan_sel & ~dw->chan_flags[i] & chan_flags_all);
-			if (score > max_score) {
-				max_score = score;
-				chan_mask = (1 << i);
-			} else if (score == max_score) {
-				chan_mask |= (1 << i);
-			}
-		}
-
-		if (!chan_mask)
-			return NULL;
-
-		dchan = __dma_request_channel(&mask, dw_axi_dma_filter_fn,
-					      &chan_mask, ofdma->of_node);
-		if (dchan)
-			break;
-
-		/* Repeat, after first marking this group of channels as busy */
-		busy_channels |= chan_mask;
-	}
+	dchan = dma_get_any_slave_channel(&dw->dma);
+	if (!dchan)
+		return NULL;
 
 	chan = dchan_to_axi_dma_chan(dchan);
-	chan->hw_handshake_num = (u8)chan_sel;
-
+	chan->hw_handshake_num = dma_spec->args[0];
 	return dchan;
 }
 
@@ -1646,7 +1380,6 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 {
 	struct device *dev = chip->dev;
 	u32 tmp, carr[DMAC_MAX_CHANNELS];
-	u32 val;
 	int ret;
 
 	ret = device_property_read_u32(dev, "dma-channels", &tmp);
@@ -1666,10 +1399,6 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 		return -EINVAL;
 
 	chip->dw->hdata->nr_masters = tmp;
-
-	ret = device_property_read_u32(dev, "snps,dma-targets", &tmp);
-	if (!ret && tmp > 16)
-		chip->dw->hdata->use_cfg2 = true;
 
 	ret = device_property_read_u32(dev, "snps,data-width", &tmp);
 	if (ret)
@@ -1703,31 +1432,16 @@ static int parse_device_properties(struct axi_dma_chip *chip)
 	}
 
 	/* axi-max-burst-len is optional property */
-	ret = device_property_read_u32_array(dev, "snps,axi-max-burst-len", NULL,
-					     chip->dw->hdata->nr_channels);
-	if ((ret > 0) &&
-	    !device_property_read_u32_array(dev, "snps,axi-max-burst-len",
-					    carr, ret)) {
-		chip->dw->hdata->restrict_axi_burst_len = true;
-		for (tmp = 0; tmp < chip->dw->hdata->nr_channels; tmp++) {
-			// Replicate the last value to any remaining channels
-			val = carr[min(tmp, (u32)ret - 1)];
-			if (val > DWAXIDMAC_ARWLEN_MAX + 1)
-				return -EINVAL;
-			if (val < DWAXIDMAC_ARWLEN_MIN + 1)
-				return -EINVAL;
-			chip->dw->hdata->axi_rw_burst_len[tmp] = val;
-		}
-	}
+	ret = device_property_read_u32(dev, "snps,axi-max-burst-len", &tmp);
+	if (!ret) {
+		if (tmp > DWAXIDMAC_ARWLEN_MAX + 1)
+			return -EINVAL;
+		if (tmp < DWAXIDMAC_ARWLEN_MIN + 1)
+			return -EINVAL;
 
-	/* snps,chan-flags is optional */
-	memset(chip->dw->chan_flags, 0, sizeof(chip->dw->chan_flags));
-	if (device_property_read_u32_array(dev, "snps,chan-flags",
-				       chip->dw->chan_flags,
-				       chip->dw->hdata->nr_channels) < 0)
-		device_property_read_u32_array(dev, "snps,sel-require",
-					       chip->dw->chan_flags,
-					       chip->dw->hdata->nr_channels);
+		chip->dw->hdata->restrict_axi_burst_len = true;
+		chip->dw->hdata->axi_rw_burst_len = tmp;
+	}
 
 	return 0;
 }
@@ -1756,7 +1470,6 @@ static int dw_probe(struct platform_device *pdev)
 	struct dw_axi_dma *dw;
 	struct dw_axi_dma_hcfg *hdata;
 	struct reset_control *resets;
-	unsigned int max_seg_size;
 	unsigned int flags;
 	u32 i;
 	int ret;
@@ -1840,7 +1553,7 @@ static int dw_probe(struct platform_device *pdev)
 	dma_cap_set(DMA_CYCLIC, dw->dma.cap_mask);
 
 	/* DMA capabilities */
-	dw->dma.device_caps = dw_axi_dma_device_caps;
+	dw->dma.max_burst = hdata->axi_rw_burst_len;
 	dw->dma.src_addr_widths = AXI_DMA_BUSWIDTHS;
 	dw->dma.dst_addr_widths = AXI_DMA_BUSWIDTHS;
 	dw->dma.directions = BIT(DMA_MEM_TO_MEM);
@@ -1867,21 +1580,9 @@ static int dw_probe(struct platform_device *pdev)
 	 * Synopsis DesignWare AxiDMA datasheet mentioned Maximum
 	 * supported blocks is 1024. Device register width is 4 bytes.
 	 * Therefore, set constraint to 1024 * 4.
-	 * However, if all channels specify a greater value, use that instead.
 	 */
-
 	dw->dma.dev->dma_parms = &dw->dma_parms;
-	max_seg_size = UINT_MAX;
-	for (i = 0; i < dw->hdata->nr_channels; i++) {
-		unsigned int block_size = chip->dw->hdata->block_size[i];
-
-		if (!block_size)
-			block_size = MAX_BLOCK_SIZE;
-		max_seg_size = min(block_size, max_seg_size);
-	}
-
-	dma_set_max_seg_size(&pdev->dev, max_seg_size);
-
+	dma_set_max_seg_size(&pdev->dev, MAX_BLOCK_SIZE);
 	platform_set_drvdata(pdev, chip);
 
 	pm_runtime_enable(chip->dev);
