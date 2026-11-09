@@ -5,6 +5,9 @@
  */
 /dts-v1/;
 /plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
 /{
 // RaspberryPi CM4
 	compatible = "brcm,bcm2835";
@@ -88,19 +91,8 @@
 			};
 		};
 	};
-// rPI GPIO INPUT FOR TOUCH IC IRQ
-	fragment@4 {
-		target = <&gpio>;
-		__dormant__ {
-			gt928intpins: gt928intpins {
-				brcm,pins = <26>; //gpio pin
-				brcm,function = <0>; //input
-				brcm,pull = <2>; //2=pull-up
-			};
-		};
-	};
 // GT928 TOUCH CONTROLLER IC
-	frag5: fragment@5 {
+	frag4: fragment@4 {
 		target = <&i2c_csi_dsi>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -109,11 +101,9 @@
 			gt928: gt928@5d {
 				compatible = "goodix,gt928";
 				reg = <0x5d>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&gt928intpins>;
 				interrupt-parent = <&gpio>;
 				interrupts = <26 2>; //gpio 26, 2=high-to-low trigger
-				irq-gpios = <&gpio 26 0>; //gpio 26, 0=active-high
+				irq-gpios = <&gpio 26 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
 				reset-gpios = <&pcf8574a 1 0>;
 				touchscreen-inverted-x;
 				touchscreen-inverted-y;
@@ -123,11 +113,11 @@
 //OVERLAY OPTIONS
 	__overrides__ {
 		//enables captouch
-		captouch = <0>,"+4+5";
+		captouch = <0>,"+4";
 		//changes options to support CM5 (default is CM4)
 		cm5 = <&frag0>, "target:0=",<&i2c_csi_dsi0>,
 			<&frag1>, "target:0=",<&i2c_csi_dsi0>,
 			<&frag2>, "target:0=",<&i2c_csi_dsi0>,
-			<&frag5>, "target:0=",<&i2c_csi_dsi0>;
+			<&frag4>, "target:0=",<&i2c_csi_dsi0>;
 	};
 };
