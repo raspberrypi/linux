@@ -41,9 +41,7 @@
 
             pps: pps {
                 compatible = "pps-gpio";
-                pinctrl-names = "default";
-                pinctrl-0 = <&pps_pins>;
-                gpios = <&gpio 7 GPIO_ACTIVE_HIGH>;
+                gpios = <&gpio 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DISABLE)>;
                 status = "okay";
             };
 
@@ -182,12 +180,6 @@
                 brcm,pins = <17>;
                 brcm,function = <0>;
                 brcm,pull = <2>;
-            };
-
-            pps_pins: pps_pins {
-                brcm,pins = <7>;
-                brcm,function = <0>;
-                brcm,pull = <0>;
             };
         };
     };
