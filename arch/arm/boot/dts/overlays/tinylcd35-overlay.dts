@@ -23,6 +23,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -48,17 +50,6 @@
 	};
 
 	fragment@3 {
-		target = <&gpio>;
-		__overlay__ {
-			keypad_pins: keypad_pins {
-				brcm,pins = <4 17 22 23 27>;
-				brcm,function = <0>; /* in */
-				brcm,pull = <1>; /* down */
-			};
-		};
-	};
-
-	fragment@4 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
@@ -118,7 +109,7 @@
 
 	/*  RTC    */
 
-	fragment@5 {
+	fragment@4 {
 		target = <&i2c1>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -134,7 +125,7 @@
 		};
 	};
 
-	fragment@6 {
+	fragment@5 {
 		target = <&i2c1>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -154,40 +145,38 @@
 	 * Values for input event code is found under the
 	 * 'Keys and buttons' heading in include/uapi/linux/input.h
 	 */
-	fragment@7 {
+	fragment@6 {
 		target-path = "/soc";
 		__overlay__ {
 			keypad: keypad {
 				compatible = "gpio-keys";
-				pinctrl-names = "default";
-				pinctrl-0 = <&keypad_pins>;
 				status = "disabled";
 				autorepeat;
 
 				button@17 {
 					label = "GPIO KEY_UP";
 					linux,code = <103>;
-					gpios = <&gpio 17 0>;
+					gpios = <&gpio 17 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 				};
 				button@22 {
 					label = "GPIO KEY_DOWN";
 					linux,code = <108>;
-					gpios = <&gpio 22 0>;
+					gpios = <&gpio 22 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 				};
 				button@27 {
 					label = "GPIO KEY_LEFT";
 					linux,code = <105>;
-					gpios = <&gpio 27 0>;
+					gpios = <&gpio 27 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 				};
 				button@23 {
 					label = "GPIO KEY_RIGHT";
 					linux,code = <106>;
-					gpios = <&gpio 23 0>;
+					gpios = <&gpio 23 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 				};
 				button@4 {
 					label = "GPIO KEY_ENTER";
 					linux,code = <28>;
-					gpios = <&gpio 4 0>;
+					gpios = <&gpio 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 				};
 			};
 		};
@@ -202,8 +191,8 @@
 		touchgpio =  <&tinylcd35_ts>,"interrupts:0",
 			     <&tinylcd35_ts>,"pendown-gpio:4";
 		xohms =      <&tinylcd35_ts>,"ti,x-plate-ohms;0";
-		rtc-pcf =    <0>,"=5";
-		rtc-ds =     <0>,"=6";
+		rtc-pcf =    <0>,"=4";
+		rtc-ds =     <0>,"=5";
 		keypad =     <&keypad>,"status";
 	};
 };
