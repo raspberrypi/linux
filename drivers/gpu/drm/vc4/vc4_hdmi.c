@@ -3453,6 +3453,8 @@ static const struct dev_pm_ops vc4_hdmi_pm_ops = {
 	SET_RUNTIME_PM_OPS(vc4_hdmi_runtime_suspend,
 			   vc4_hdmi_runtime_resume,
 			   NULL)
+	/* drvdata aliases the snd_soc_card, see vc4_hdmi_audio_init() */
+	SYSTEM_SLEEP_PM_OPS(snd_soc_suspend, snd_soc_resume)
 	LATE_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
 				 pm_runtime_force_resume)
 };
