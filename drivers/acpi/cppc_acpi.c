@@ -1633,6 +1633,9 @@ bool cppc_perf_ctrs_in_pcc_cpu(unsigned int cpu)
 {
 	struct cpc_desc *cpc_desc = per_cpu(cpc_desc_ptr, cpu);
 
+	if (!cpc_desc)
+		return false;
+
 	return CPC_IN_PCC(&cpc_desc->cpc_regs[DELIVERED_CTR]) ||
 		CPC_IN_PCC(&cpc_desc->cpc_regs[REFERENCE_CTR]) ||
 		CPC_IN_PCC(&cpc_desc->cpc_regs[CTR_WRAP_TIME]);
