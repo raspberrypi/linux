@@ -1,6 +1,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -23,13 +25,11 @@
 			gt911: gt911@14 {
 				compatible = "goodix,gt911";
 				reg = <0x14>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&gt911_pins>;
 
 				reset-gpios = <&reg_display 3 0>;
 				interrupt-parent = <&gpio>;
 				interrupts = <16 2>;
-				irq-gpios = <&gpio 16 0>;
+				irq-gpios = <&gpio 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
 			};
 		};
 	};
@@ -97,23 +97,11 @@
 		};
 	};
 
-	fragment@5 {
-		target = <&gpio>;
-		__overlay__ {
-			gt911_pins: gt911_pins {
-				brcm,pins = <16>;
-				brcm,function = <0>;
-				brcm,pull = <2>;
-			};
-		};
-	};
-
 	__overrides__ {
 		i2c1 = <&i2c_frag>, "target:0=",<&i2c1>,
 			   <0>,"-2-3+4";
 		i2c4 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>;
-		interrupt = <&gt911_pins>,"brcm,pins:0",
-				    <&gt911>,"interrupts:0",
+		interrupt = <&gt911>,"interrupts:0",
 				    <&gt911>,"irq-gpios:4";
 	};
 };
