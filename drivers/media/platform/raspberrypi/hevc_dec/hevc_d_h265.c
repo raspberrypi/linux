@@ -2366,7 +2366,7 @@ int hevc_d_h265_start(struct hevc_d_ctx *ctx)
 				DMA_ATTR_NO_KERNEL_MAPPING)) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Failed to alloc %#zx Coeff%d buffer\n",
-				 pu_size, i);
+				 coeff_size, i);
 			goto fail;
 		}
 	}
