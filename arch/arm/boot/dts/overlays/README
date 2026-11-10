@@ -5102,6 +5102,18 @@ Load:   dtoverlay=smi-nand
 Params: <None>
 
 
+Name:   spdif-gpio21
+Info:   Sound card that drives an S/PDIF transmitter (TOSLINK module or coaxial
+        driver) directly from GPIO21 (PCM_DOUT, 40-pin header pin 40), without
+        a transceiver chip. The I2S block is the bit and frame clock producer
+        and sends 2 x 32-bit slots per frame; userspace has to supply the
+        biphase-mark coded S/PDIF line signal as S32_LE at twice the audio
+        sample rate (e.g. through an ALSA plugin) - plain PCM does not produce
+        audio. Only GPIO21 is claimed, GPIOs 18-20 stay free.
+Load:   dtoverlay=spdif-gpio21
+Params: <None>
+
+
 Name:   spi-gpio35-39
 Info:   Move SPI function block to GPIO 35 to 39
 Load:   dtoverlay=spi-gpio35-39
