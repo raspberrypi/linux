@@ -233,6 +233,11 @@ struct ublk_device {
 	u32			nr_io_ready;
 	bool 			unprivileged_daemons;
 	struct mutex cancel_mutex;
+	/*
+	 * A cancel started in this FETCH round. Set by ublk_set_canceling(),
+	 * cleared only by ublk_reset_ch_dev() when a new round starts. While
+	 * it is set, no queue clears its ->canceling.
+	 */
 	bool canceling;
 	pid_t 	ublksrv_tgid;
 	struct delayed_work	exit_work;
@@ -1637,6 +1642,11 @@ static void ublk_reset_ch_dev(struct ublk_device *ub)
 	for (i = 0; i < ub->dev_info.nr_hw_queues; i++)
 		ublk_queue_reinit(ub, ublk_get_queue(ub, i));
 
+	/* a new FETCH round starts, the queues stay canceling until ready */
+	mutex_lock(&ub->cancel_mutex);
+	ub->canceling = false;
+	mutex_unlock(&ub->cancel_mutex);
+
 	/* set to NULL, otherwise new tasks cannot mmap io_cmd_buf */
 	ub->mm = NULL;
 	ub->nr_io_ready = 0;
@@ -2152,8 +2162,15 @@ static void ublk_reset_io_flags(struct ublk_device *ub)
 
 	for (i = 0; i < ub->dev_info.nr_hw_queues; i++)
 		ublk_get_queue(ub, i)->fail_io = false;
+	/*
+	 * A cancel in this FETCH round took a command which still counts as
+	 * ready, so the queues have to stay canceling. ub->canceling is set
+	 * under cancel_mutex before any command is taken: either we see it
+	 * here, or the cancel marks these queues again later.
+	 */
 	mutex_lock(&ub->cancel_mutex);
-	ublk_set_canceling(ub, false);
+	if (!ub->canceling)
+		ublk_set_canceling(ub, false);
 	mutex_unlock(&ub->cancel_mutex);
 }
 
@@ -2173,9 +2190,8 @@ static void ublk_mark_io_ready(struct ublk_device *ub, struct ublk_queue *ubq,
 	ub->nr_io_ready++;
 	if (ublk_dev_ready(ub)) {
 		/*
-		 * now we are ready for handling ublk io request, clear
-		 * device-level canceling flag and wake ublk_dev_ready()
-		 * waiters
+		 * Reset queue flags unless this round saw a cancel, and
+		 * wake ublk_dev_ready() waiters.
 		 */
 		ublk_reset_io_flags(ub);
 		wake_up_var(&ub->nr_io_ready);
@@ -2996,9 +3012,10 @@ static bool ublk_validate_user_pid(struct ublk_device *ub, pid_t ublksrv_pid)
 
 /*
  * Wait until all queues have fetched their I/O commands, and return with
- * ub->mutex held and readiness guaranteed: then every queue's ->canceling
- * is cleared. Ready may regress between wakeup and mutex_lock() (daemon
- * death), so re-check it under the mutex and wait again.
+ * ub->mutex held and readiness guaranteed. The queues stay canceling if
+ * this round saw a cancel, see ublk_reset_io_flags(). Ready may regress
+ * between wakeup and mutex_lock() (daemon death), so re-check it under
+ * the mutex and wait again.
  */
 static int ublk_wait_dev_ready_and_lock(struct ublk_device *ub)
 {
