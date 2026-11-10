@@ -67,7 +67,8 @@ static void page_table_check_clear(unsigned long pfn, unsigned long pgcnt)
 	unsigned long i;
 	bool anon;
 
-	if (!pfn_valid(pfn))
+	if (!pfn_valid(pfn) || is_zero_pfn(pfn) ||
+	    is_huge_zero_folio(pfn_folio(pfn)))
 		return;
 
 	page = pfn_to_page(pfn);
@@ -107,7 +108,8 @@ static void page_table_check_set(unsigned long pfn, unsigned long pgcnt,
 	unsigned long i;
 	bool anon;
 
-	if (!pfn_valid(pfn))
+	if (!pfn_valid(pfn) || is_zero_pfn(pfn) ||
+	    is_huge_zero_folio(pfn_folio(pfn)))
 		return;
 
 	page = pfn_to_page(pfn);
