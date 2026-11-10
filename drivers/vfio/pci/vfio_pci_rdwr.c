@@ -449,9 +449,6 @@ int vfio_pci_ioeventfd(struct vfio_pci_core_device *vdev, loff_t offset,
 	      pos >= vdev->msix_offset + vdev->msix_size))
 		return -EINVAL;
 
-	if (count == 8)
-		return -EINVAL;
-
 	ret = vfio_pci_core_setup_barmap(vdev, bar);
 	if (ret)
 		return ret;
