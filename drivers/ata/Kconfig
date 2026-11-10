@@ -329,13 +329,6 @@ config SATA_AHCI_SEATTLE
 
 	 If unsure, say N
 
-config SATA_INIC162X
-	tristate "Initio 162x SATA support (Very Experimental)"
-	depends on PCI
-	select SATA_HOST
-	help
-	  This option enables support for Initio 162x Serial ATA.
-
 config SATA_ACARD_AHCI
 	tristate "ACard AHCI variant (ATP 8620)"
 	depends on PCI
