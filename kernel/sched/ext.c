@@ -2173,7 +2173,11 @@ static void ops_dequeue(struct task_struct *p, u64 deq_flags)
 {
 	unsigned long opss;
 
-	/* dequeue is always temporary, don't reset runnable_at */
+	/*
+	 * Don't reset runnable_at. If @p is waiting, the wait continues across
+	 * temporary dequeues, e.g. for a migration or an attribute change.
+	 * scx_ops_disable_task() ends it if @p leaves its scheduler.
+	 */
 	clr_task_runnable(p, false);
 
 	/* acquire ensures that we see the preceding updates on QUEUED */
@@ -3794,6 +3798,14 @@ static void scx_ops_disable_task(struct task_struct *p)
 	if (SCX_HAS_OP(disable))
 		SCX_CALL_OP_TASK(SCX_KF_REST, disable, p);
 	scx_set_task_state(p, SCX_TASK_READY);
+
+	/*
+	 * If @p is runnable but not running, its wait started at runnable_at,
+	 * which ops_dequeue() didn't reset. Leaving the BPF scheduler ends the
+	 * wait. Reset runnable_at the next time @p is enqueued on SCX, so that
+	 * the watchdog doesn't count the time @p spends elsewhere.
+	 */
+	p->scx.flags |= SCX_TASK_RESET_RUNNABLE_AT;
 }
 
 static void scx_ops_exit_task(struct task_struct *p)
