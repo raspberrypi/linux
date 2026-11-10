@@ -1323,8 +1323,12 @@ retry:
 			pte_unmap(dst_pte);
 			src_pte = dst_pte = NULL;
 			err = split_folio(src_folio);
-			if (err)
+			if (err) {
+				/* do not retry, extra refs may be held forever */
+				if (err == -EAGAIN)
+					err = -EBUSY;
 				goto out;
+			}
 			/* have to reacquire the folio after it got split */
 			folio_unlock(src_folio);
 			folio_put(src_folio);
