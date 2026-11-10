@@ -2101,9 +2101,9 @@ static long snd_utimer_ioctl(struct file *file, unsigned int ioctl, unsigned lon
 }
 
 static const struct file_operations snd_utimer_fops = {
-	.llseek = noop_llseek,
-	.release = snd_utimer_release,
-	.unlocked_ioctl = snd_utimer_ioctl,
+	.llseek		=	noop_llseek,
+	.release	=	snd_utimer_release,
+	.unlocked_ioctl	=	snd_utimer_ioctl,
 };
 
 static int snd_utimer_start(struct snd_timer *t)
@@ -2455,16 +2455,15 @@ static __poll_t snd_timer_user_poll(struct file *file, poll_table * wait)
 #define snd_timer_user_ioctl_compat	NULL
 #endif
 
-static const struct file_operations snd_timer_f_ops =
-{
-	.owner =	THIS_MODULE,
-	.read =		snd_timer_user_read,
-	.open =		snd_timer_user_open,
-	.release =	snd_timer_user_release,
-	.poll =		snd_timer_user_poll,
-	.unlocked_ioctl =	snd_timer_user_ioctl,
-	.compat_ioctl =	snd_timer_user_ioctl_compat,
-	.fasync = 	snd_timer_user_fasync,
+static const struct file_operations snd_timer_f_ops = {
+	.owner		=	THIS_MODULE,
+	.read		=	snd_timer_user_read,
+	.open		=	snd_timer_user_open,
+	.release	=	snd_timer_user_release,
+	.poll		=	snd_timer_user_poll,
+	.unlocked_ioctl	=	snd_timer_user_ioctl,
+	.compat_ioctl	=	snd_timer_user_ioctl_compat,
+	.fasync		=	snd_timer_user_fasync,
 };
 
 /* unregister the system timer */

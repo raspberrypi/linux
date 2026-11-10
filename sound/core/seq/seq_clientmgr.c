@@ -2785,16 +2785,15 @@ void snd_seq_info_clients_read(struct snd_info_entry *entry,
  *  REGISTRATION PART
  */
 
-static const struct file_operations snd_seq_f_ops =
-{
-	.owner =	THIS_MODULE,
-	.read =		snd_seq_read,
-	.write =	snd_seq_write,
-	.open =		snd_seq_open,
-	.release =	snd_seq_release,
-	.poll =		snd_seq_poll,
-	.unlocked_ioctl =	snd_seq_ioctl,
-	.compat_ioctl =	snd_seq_ioctl_compat,
+static const struct file_operations snd_seq_f_ops = {
+	.owner		=	THIS_MODULE,
+	.read		=	snd_seq_read,
+	.write		=	snd_seq_write,
+	.open		=	snd_seq_open,
+	.release	=	snd_seq_release,
+	.poll		=	snd_seq_poll,
+	.unlocked_ioctl	=	snd_seq_ioctl,
+	.compat_ioctl	=	snd_seq_ioctl_compat,
 };
 
 static struct device *seq_dev;
