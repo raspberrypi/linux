@@ -819,7 +819,7 @@ xfarray_sort_scan(
 	    (idx < si->first_folio_idx || idx > si->last_folio_idx))
 		xfarray_sort_scan_done(si);
 
-	/* Grab the first folio that backs this array element. */
+	/* Grab the folio that backs this array element. */
 	if (!si->folio) {
 		struct folio	*folio;
 		loff_t		next_pos;
@@ -830,6 +830,10 @@ xfarray_sort_scan(
 			return PTR_ERR(folio);
 		si->folio = folio;
 
+		/* No folio?  Read into the scratchpad. */
+		if (!si->folio)
+			goto read_scratchpad;
+
 		si->first_folio_idx = xfarray_idx(si->array,
 				folio_pos(si->folio) + si->array->obj_size - 1);
 
@@ -838,14 +842,24 @@ xfarray_sort_scan(
 		if (xfarray_pos(si->array, si->last_folio_idx + 1) > next_pos)
 			si->last_folio_idx--;
 
+		/*
+		 * If this folio still doesn't cover the desired element, it must
+		 * cross a folio boundary.  Read into the scratchpad.
+		 */
+		if (idx < si->first_folio_idx || idx > si->last_folio_idx) {
+			xfarray_sort_scan_done(si);
+			goto read_scratchpad;
+		}
+
 		trace_xfarray_sort_scan(si, idx);
 	}
 
+read_scratchpad:
 	/*
-	 * If this folio still doesn't cover the desired element, it must cross
-	 * a folio boundary.  Read into the scratchpad and we're done.
+	 * If we don't have a folio mapping the entire array element, read into
+	 * the scratchpad and we're done.
 	 */
-	if (idx < si->first_folio_idx || idx > si->last_folio_idx) {
+	if (!si->folio) {
 		void		*temp = xfarray_scratch(si->array);
 
 		error = xfile_load(si->array->xfile, temp, si->array->obj_size,
