@@ -287,6 +287,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	smi.dtbo \
 	smi-dev.dtbo \
 	smi-nand.dtbo \
+	spdif-gpio21.dtbo \
 	spi-gpio35-39.dtbo \
 	spi-gpio40-45.dtbo \
 	spi-rtc.dtbo \

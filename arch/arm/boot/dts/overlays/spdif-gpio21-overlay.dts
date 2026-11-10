@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-2.0
+// S/PDIF transmitter on GPIO21 (PCM_DOUT) without a transceiver: the I2S block is the clock
+// producer; software supplies the biphase-mark coded bitstream. Only GPIO21 is claimed.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			spdif_gpio21_pins: spdif_gpio21_pins {
+				brcm,pins = <21>;
+				brcm,function = <4>; /* ALT0: PCM_DOUT, on RP1 i2s0 */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&spdif_gpio21_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			spdif_gpio21_codec: spdif-gpio21-codec {
+				compatible = "linux,spdif-dit";
+				#sound-dai-cells = <0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			status = "okay";
+
+			simple-audio-card,name = "spdif-gpio21";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,bitclock-master = <&dailink0_cpu>;
+			simple-audio-card,frame-master = <&dailink0_cpu>;
+
+			dailink0_cpu: simple-audio-card,cpu {
+				sound-dai = <&i2s_clk_producer>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+
+			simple-audio-card,codec {
+				sound-dai = <&spdif_gpio21_codec>;
+			};
+		};
+	};
+};
