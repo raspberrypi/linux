@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <media/v4l2-cci.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
@@ -28,34 +29,54 @@ static int qbc_adjust = 2;
 module_param(qbc_adjust, int, 0644);
 MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]");
 
-#define IMX708_REG_VALUE_08BIT		1
-#define IMX708_REG_VALUE_16BIT		2
-
 /* Chip ID */
-#define IMX708_REG_CHIP_ID		0x0016
+#define IMX708_REG_CHIP_ID		CCI_REG16(0x0016)
 #define IMX708_CHIP_ID			0x0708
 
-#define IMX708_REG_MODE_SELECT		0x0100
+#define IMX708_REG_MODE_SELECT		CCI_REG8(0x0100)
 #define IMX708_MODE_STANDBY		0x00
 #define IMX708_MODE_STREAMING		0x01
 
-#define IMX708_REG_ORIENTATION		0x101
+#define IMX708_REG_ORIENTATION		CCI_REG8(0x101)
 
+#define IMX708_REG_CSI_LANE_MODE	CCI_REG8(0x0114)
+#define IMX708_CSI_2_LANE_MODE		0x01
+#define IMX708_CSI_4_LANE_MODE		0x03
+
+#define IMX708_REG_EXCK_FREQ		CCI_REG16(0x0136)
+  #define IMX708_EXCLK_FREQ		0x1800
 #define IMX708_INCLK_FREQ		24000000
+
+#define IMX708_REG_IVT_PXCK_DIV		CCI_REG8(0x0301)
+  #define IMX708_IVT_PXCK_DIV		0x05
+#define IMX708_REG_IVT_SYSCK_DIV	CCI_REG8(0x0303)
+  #define IMX708_IVT_SYSCK_DIV		0x02
+#define IMX708_REG_IVT_PREDIV		CCI_REG8(0x0305)
+  #define IMX708_IVT_PREDIV		0x02
+#define IMX708_REG_IVT_MPY		CCI_REG16(0x0306)
+
+#define IMX708_REG_IOP_SYSCK_DIV	CCI_REG8(0x030b)
+  #define IMX708_IOP_SYSCK_DIV		0x02
+#define IMX708_REG_IOP_PREDIV		CCI_REG8(0x030d)
+  #define IMX708_IOP_PREDIV		0x04
+#define IMX708_REG_IOP_MPY		CCI_REG16(0x030e)
 
 /* Default initial pixel rate, will get updated for each mode. */
 #define IMX708_INITIAL_PIXEL_RATE	590000000
 
 /* V_TIMING internal */
-#define IMX708_REG_FRAME_LENGTH		0x0340
+#define IMX708_REG_FRAME_LENGTH		CCI_REG16(0x0340)
 #define IMX708_FRAME_LENGTH_MAX		0xffff
+
+/* H_TIMING internal */
+#define IMX708_REG_LINE_LENGTH		CCI_REG16(0x0342)
 
 /* Long exposure multiplier */
 #define IMX708_LONG_EXP_SHIFT_MAX	7
-#define IMX708_LONG_EXP_SHIFT_REG	0x3100
+#define IMX708_LONG_EXP_SHIFT_REG	CCI_REG8(0x3100)
 
 /* Exposure control */
-#define IMX708_REG_EXPOSURE		0x0202
+#define IMX708_REG_EXPOSURE		CCI_REG16(0x0202)
 #define IMX708_EXPOSURE_OFFSET		48
 #define IMX708_EXPOSURE_DEFAULT		0x640
 #define IMX708_EXPOSURE_STEP		1
@@ -64,29 +85,29 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 					 IMX708_EXPOSURE_OFFSET)
 
 /* Analog gain control */
-#define IMX708_REG_ANALOG_GAIN		0x0204
+#define IMX708_REG_ANALOG_GAIN		CCI_REG16(0x0204)
 #define IMX708_ANA_GAIN_MIN		112
 #define IMX708_ANA_GAIN_MAX		960
 #define IMX708_ANA_GAIN_STEP		1
 #define IMX708_ANA_GAIN_DEFAULT	   IMX708_ANA_GAIN_MIN
 
 /* Digital gain control */
-#define IMX708_REG_DIGITAL_GAIN		0x020e
+#define IMX708_REG_DIGITAL_GAIN		CCI_REG16(0x020e)
 #define IMX708_DGTL_GAIN_MIN		0x0100
 #define IMX708_DGTL_GAIN_MAX		0xffff
 #define IMX708_DGTL_GAIN_DEFAULT	0x0100
 #define IMX708_DGTL_GAIN_STEP		1
 
 /* Colour balance controls */
-#define IMX708_REG_COLOUR_BALANCE_RED   0x0b90
-#define IMX708_REG_COLOUR_BALANCE_BLUE	0x0b92
+#define IMX708_REG_COLOUR_BALANCE_RED   CCI_REG16(0x0b90)
+#define IMX708_REG_COLOUR_BALANCE_BLUE	CCI_REG16(0x0b92)
 #define IMX708_COLOUR_BALANCE_MIN	0x01
 #define IMX708_COLOUR_BALANCE_MAX	0xffff
 #define IMX708_COLOUR_BALANCE_STEP	0x01
 #define IMX708_COLOUR_BALANCE_DEFAULT	0x100
 
 /* Test Pattern Control */
-#define IMX708_REG_TEST_PATTERN		0x0600
+#define IMX708_REG_TEST_PATTERN		CCI_REG8(0x0600)
 #define IMX708_TEST_PATTERN_DISABLE	0
 #define IMX708_TEST_PATTERN_SOLID_COLOR	1
 #define IMX708_TEST_PATTERN_COLOR_BARS	2
@@ -94,29 +115,29 @@ MODULE_PARM_DESC(qbc_adjust, "Quad Bayer broken line correction strength [0,2-5]
 #define IMX708_TEST_PATTERN_PN9		4
 
 /* Test pattern colour components */
-#define IMX708_REG_TEST_PATTERN_R	0x0602
-#define IMX708_REG_TEST_PATTERN_GR	0x0604
-#define IMX708_REG_TEST_PATTERN_B	0x0606
-#define IMX708_REG_TEST_PATTERN_GB	0x0608
+#define IMX708_REG_TEST_PATTERN_R	CCI_REG16(0x0602)
+#define IMX708_REG_TEST_PATTERN_GR	CCI_REG16(0x0604)
+#define IMX708_REG_TEST_PATTERN_B	CCI_REG16(0x0606)
+#define IMX708_REG_TEST_PATTERN_GB	CCI_REG16(0x0608)
 #define IMX708_TEST_PATTERN_COLOUR_MIN	0
 #define IMX708_TEST_PATTERN_COLOUR_MAX	0x0fff
 #define IMX708_TEST_PATTERN_COLOUR_STEP	1
 
-#define IMX708_REG_BASE_SPC_GAINS_L	0x7b10
-#define IMX708_REG_BASE_SPC_GAINS_R	0x7c00
+#define IMX708_REG_BASE_SPC_GAINS_L	CCI_REG8(0x7b10)
+#define IMX708_REG_BASE_SPC_GAINS_R	CCI_REG8(0x7c00)
 
 /* HDR exposure ratio (long:med == med:short) */
 #define IMX708_HDR_EXPOSURE_RATIO       4
-#define IMX708_REG_MID_EXPOSURE		0x3116
-#define IMX708_REG_SHT_EXPOSURE		0x0224
-#define IMX708_REG_MID_ANALOG_GAIN	0x3118
-#define IMX708_REG_SHT_ANALOG_GAIN	0x0216
+#define IMX708_REG_MID_EXPOSURE		CCI_REG16(0x3116)
+#define IMX708_REG_SHT_EXPOSURE		CCI_REG16(0x0224)
+#define IMX708_REG_MID_ANALOG_GAIN	CCI_REG16(0x3118)
+#define IMX708_REG_SHT_ANALOG_GAIN	CCI_REG16(0x0216)
 
 /* QBC Re-mosaic broken line correction registers */
-#define IMX708_LPF_INTENSITY_EN		0xC428
+#define IMX708_LPF_INTENSITY_EN		CCI_REG8(0xc428)
 #define IMX708_LPF_INTENSITY_ENABLED	0x00
 #define IMX708_LPF_INTENSITY_DISABLED	0x01
-#define IMX708_LPF_INTENSITY		0xC429
+#define IMX708_LPF_INTENSITY		CCI_REG8(0xc429)
 
 /*
  * Metadata buffer holds a variety of data, all sent with the same VC/DT (0x12).
@@ -141,14 +162,9 @@ enum pad_types {
 #define IMX708_PIXEL_ARRAY_WIDTH	4608U
 #define IMX708_PIXEL_ARRAY_HEIGHT	2592U
 
-struct imx708_reg {
-	u16 address;
-	u8 val;
-};
-
 struct imx708_reg_list {
 	unsigned int num_of_regs;
-	const struct imx708_reg *regs;
+	const struct cci_reg_sequence *regs;
 };
 
 /* Mode : resolution and related config&values */
@@ -196,478 +212,375 @@ static const u8 pdaf_gains[2][9] = {
 	{ 0x36, 0x36, 0x36, 0x39, 0x3e, 0x46, 0x4c, 0x4c, 0x4c }
 };
 
-/* Link frequency setup */
-enum {
-	IMX708_LINK_FREQ_450MHZ,
-	IMX708_LINK_FREQ_447MHZ,
-	IMX708_LINK_FREQ_453MHZ,
-};
-
-static const s64 link_freqs[] = {
-	[IMX708_LINK_FREQ_450MHZ] = 450000000,
-	[IMX708_LINK_FREQ_447MHZ] = 447000000,
-	[IMX708_LINK_FREQ_453MHZ] = 453000000,
-};
-
-/* 450MHz is the nominal "default" link frequency */
-static const struct imx708_reg link_450Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2c},
-};
-
-static const struct imx708_reg link_447Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2a},
-};
-
-static const struct imx708_reg link_453Mhz_regs[] = {
-	{0x030E, 0x01},
-	{0x030F, 0x2e},
-};
-
-static const struct imx708_reg_list link_freq_regs[] = {
-	[IMX708_LINK_FREQ_450MHZ] = {
-		.regs = link_450Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_450Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_447MHZ] = {
-		.regs = link_447Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_447Mhz_regs)
-	},
-	[IMX708_LINK_FREQ_453MHZ] = {
-		.regs = link_453Mhz_regs,
-		.num_of_regs = ARRAY_SIZE(link_453Mhz_regs)
-	},
-};
-
-static const struct imx708_reg mode_common_regs[] = {
-	{0x0100, 0x00},
-	{0x0136, 0x18},
-	{0x0137, 0x00},
-	{0x33F0, 0x02},
-	{0x33F1, 0x05},
-	{0x3062, 0x00},
-	{0x3063, 0x12},
-	{0x3068, 0x00},
-	{0x3069, 0x12},
-	{0x306A, 0x00},
-	{0x306B, 0x30},
-	{0x3076, 0x00},
-	{0x3077, 0x30},
-	{0x3078, 0x00},
-	{0x3079, 0x30},
-	{0x5E54, 0x0C},
-	{0x6E44, 0x00},
-	{0xB0B6, 0x01},
-	{0xE829, 0x00},
-	{0xF001, 0x08},
-	{0xF003, 0x08},
-	{0xF00D, 0x10},
-	{0xF00F, 0x10},
-	{0xF031, 0x08},
-	{0xF033, 0x08},
-	{0xF03D, 0x10},
-	{0xF03F, 0x10},
-	{0x0112, 0x0A},
-	{0x0113, 0x0A},
-	{0x0114, 0x01},
-	{0x0B8E, 0x01},
-	{0x0B8F, 0x00},
-	{0x0B94, 0x01},
-	{0x0B95, 0x00},
-	{0x3400, 0x01},
-	{0x3478, 0x01},
-	{0x3479, 0x1c},
-	{0x3091, 0x01},
-	{0x3092, 0x00},
-	{0x3419, 0x00},
-	{0xBCF1, 0x02},
-	{0x3094, 0x01},
-	{0x3095, 0x01},
-	{0x3362, 0x00},
-	{0x3363, 0x00},
-	{0x3364, 0x00},
-	{0x3365, 0x00},
-	{0x0138, 0x01},
+static const struct cci_reg_sequence mode_common_regs[] = {
+	{CCI_REG8(0x0100), 0x00},
+	{IMX708_REG_EXCK_FREQ, IMX708_EXCLK_FREQ},
+	{CCI_REG8(0x33F0), 0x02},
+	{CCI_REG8(0x33F1), 0x05},
+	{IMX708_REG_IVT_PREDIV, IMX708_IVT_PREDIV},
+	{IMX708_REG_IOP_SYSCK_DIV, IMX708_IOP_SYSCK_DIV},
+	{IMX708_REG_IOP_PREDIV, IMX708_IOP_PREDIV},
+	{CCI_REG8(0x3062), 0x00},
+	{CCI_REG8(0x3063), 0x12},
+	{CCI_REG8(0x3068), 0x00},
+	{CCI_REG8(0x3069), 0x12},
+	{CCI_REG8(0x306A), 0x00},
+	{CCI_REG8(0x306B), 0x30},
+	{CCI_REG8(0x3076), 0x00},
+	{CCI_REG8(0x3077), 0x30},
+	{CCI_REG8(0x3078), 0x00},
+	{CCI_REG8(0x3079), 0x30},
+	{CCI_REG8(0x5E54), 0x0C},
+	{CCI_REG8(0x6E44), 0x00},
+	{CCI_REG8(0xB0B6), 0x01},
+	{CCI_REG8(0xE829), 0x00},
+	{CCI_REG8(0xF001), 0x08},
+	{CCI_REG8(0xF003), 0x08},
+	{CCI_REG8(0xF00D), 0x10},
+	{CCI_REG8(0xF00F), 0x10},
+	{CCI_REG8(0xF031), 0x08},
+	{CCI_REG8(0xF033), 0x08},
+	{CCI_REG8(0xF03D), 0x10},
+	{CCI_REG8(0xF03F), 0x10},
+	{CCI_REG8(0x0112), 0x0A},
+	{CCI_REG8(0x0113), 0x0A},
+	{CCI_REG8(0x0B8E), 0x01},
+	{CCI_REG8(0x0B8F), 0x00},
+	{CCI_REG8(0x0B94), 0x01},
+	{CCI_REG8(0x0B95), 0x00},
+	{CCI_REG8(0x3400), 0x01},
+	{CCI_REG8(0x3478), 0x01},
+	{CCI_REG8(0x3479), 0x1c},
+	{CCI_REG8(0x3091), 0x01},
+	{CCI_REG8(0x3092), 0x00},
+	{CCI_REG8(0x3419), 0x00},
+	{CCI_REG8(0xBCF1), 0x02},
+	{CCI_REG8(0x3094), 0x01},
+	{CCI_REG8(0x3095), 0x01},
+	{CCI_REG8(0x3362), 0x00},
+	{CCI_REG8(0x3363), 0x00},
+	{CCI_REG8(0x3364), 0x00},
+	{CCI_REG8(0x3365), 0x00},
+	{CCI_REG8(0x0138), 0x01},
 };
 
 /* 10-bit. */
-static const struct imx708_reg mode_4608x2592_regs[] = {
-	{0x0342, 0x3D},
-	{0x0343, 0x20},
-	{0x0340, 0x0A},
-	{0x0341, 0x59},
-	{0x0344, 0x00},
-	{0x0345, 0x00},
-	{0x0346, 0x00},
-	{0x0347, 0x00},
-	{0x0348, 0x11},
-	{0x0349, 0xFF},
-	{0x034A, 0X0A},
-	{0x034B, 0x1F},
-	{0x0220, 0x62},
-	{0x0222, 0x01},
-	{0x0900, 0x00},
-	{0x0901, 0x11},
-	{0x0902, 0x0A},
-	{0x3200, 0x01},
-	{0x3201, 0x01},
-	{0x32D5, 0x01},
-	{0x32D6, 0x00},
-	{0x32DB, 0x01},
-	{0x32DF, 0x00},
-	{0x350C, 0x00},
-	{0x350D, 0x00},
-	{0x0408, 0x00},
-	{0x0409, 0x00},
-	{0x040A, 0x00},
-	{0x040B, 0x00},
-	{0x040C, 0x12},
-	{0x040D, 0x00},
-	{0x040E, 0x0A},
-	{0x040F, 0x20},
-	{0x034C, 0x12},
-	{0x034D, 0x00},
-	{0x034E, 0x0A},
-	{0x034F, 0x20},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7C},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
-	{0x3CA0, 0x00},
-	{0x3CA1, 0x64},
-	{0x3CA4, 0x00},
-	{0x3CA5, 0x00},
-	{0x3CA6, 0x00},
-	{0x3CA7, 0x00},
-	{0x3CAA, 0x00},
-	{0x3CAB, 0x00},
-	{0x3CB8, 0x00},
-	{0x3CB9, 0x08},
-	{0x3CBA, 0x00},
-	{0x3CBB, 0x00},
-	{0x3CBC, 0x00},
-	{0x3CBD, 0x3C},
-	{0x3CBE, 0x00},
-	{0x3CBF, 0x00},
-	{0x0202, 0x0A},
-	{0x0203, 0x29},
-	{0x0224, 0x01},
-	{0x0225, 0xF4},
-	{0x3116, 0x01},
-	{0x3117, 0xF4},
-	{0x0204, 0x00},
-	{0x0205, 0x00},
-	{0x0216, 0x00},
-	{0x0217, 0x00},
-	{0x0218, 0x01},
-	{0x0219, 0x00},
-	{0x020E, 0x01},
-	{0x020F, 0x00},
-	{0x3118, 0x00},
-	{0x3119, 0x00},
-	{0x311A, 0x01},
-	{0x311B, 0x00},
-	{0x341a, 0x00},
-	{0x341b, 0x00},
-	{0x341c, 0x00},
-	{0x341d, 0x00},
-	{0x341e, 0x01},
-	{0x341f, 0x20},
-	{0x3420, 0x00},
-	{0x3421, 0xd8},
-	{0x3366, 0x00},
-	{0x3367, 0x00},
-	{0x3368, 0x00},
-	{0x3369, 0x00},
+static const struct cci_reg_sequence mode_4608x2592_regs[] = {
+	{CCI_REG8(0x0344), 0x00},
+	{CCI_REG8(0x0345), 0x00},
+	{CCI_REG8(0x0346), 0x00},
+	{CCI_REG8(0x0347), 0x00},
+	{CCI_REG8(0x0348), 0x11},
+	{CCI_REG8(0x0349), 0xFF},
+	{CCI_REG8(0x034A), 0x0A},
+	{CCI_REG8(0x034B), 0x1F},
+	{CCI_REG8(0x0220), 0x62},
+	{CCI_REG8(0x0222), 0x01},
+	{CCI_REG8(0x0900), 0x00},
+	{CCI_REG8(0x0901), 0x11},
+	{CCI_REG8(0x0902), 0x0A},
+	{CCI_REG8(0x3200), 0x01},
+	{CCI_REG8(0x3201), 0x01},
+	{CCI_REG8(0x32D5), 0x01},
+	{CCI_REG8(0x32D6), 0x00},
+	{CCI_REG8(0x32DB), 0x01},
+	{CCI_REG8(0x32DF), 0x00},
+	{CCI_REG8(0x350C), 0x00},
+	{CCI_REG8(0x350D), 0x00},
+	{CCI_REG8(0x0408), 0x00},
+	{CCI_REG8(0x0409), 0x00},
+	{CCI_REG8(0x040A), 0x00},
+	{CCI_REG8(0x040B), 0x00},
+	{CCI_REG8(0x040C), 0x12},
+	{CCI_REG8(0x040D), 0x00},
+	{CCI_REG8(0x040E), 0x0A},
+	{CCI_REG8(0x040F), 0x20},
+	{CCI_REG8(0x034C), 0x12},
+	{CCI_REG8(0x034D), 0x00},
+	{CCI_REG8(0x034E), 0x0A},
+	{CCI_REG8(0x034F), 0x20},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
+	{CCI_REG8(0x0310), 0x01},
+	{CCI_REG8(0x3CA0), 0x00},
+	{CCI_REG8(0x3CA1), 0x64},
+	{CCI_REG8(0x3CA4), 0x00},
+	{CCI_REG8(0x3CA5), 0x00},
+	{CCI_REG8(0x3CA6), 0x00},
+	{CCI_REG8(0x3CA7), 0x00},
+	{CCI_REG8(0x3CAA), 0x00},
+	{CCI_REG8(0x3CAB), 0x00},
+	{CCI_REG8(0x3CB8), 0x00},
+	{CCI_REG8(0x3CB9), 0x08},
+	{CCI_REG8(0x3CBA), 0x00},
+	{CCI_REG8(0x3CBB), 0x00},
+	{CCI_REG8(0x3CBC), 0x00},
+	{CCI_REG8(0x3CBD), 0x3C},
+	{CCI_REG8(0x3CBE), 0x00},
+	{CCI_REG8(0x3CBF), 0x00},
+	{CCI_REG8(0x0224), 0x01},
+	{CCI_REG8(0x0225), 0xF4},
+	{CCI_REG8(0x3116), 0x01},
+	{CCI_REG8(0x3117), 0xF4},
+	{CCI_REG8(0x0216), 0x00},
+	{CCI_REG8(0x0217), 0x00},
+	{CCI_REG8(0x0218), 0x01},
+	{CCI_REG8(0x0219), 0x00},
+	{CCI_REG8(0x3118), 0x00},
+	{CCI_REG8(0x3119), 0x00},
+	{CCI_REG8(0x311A), 0x01},
+	{CCI_REG8(0x311B), 0x00},
+	{CCI_REG8(0x341a), 0x00},
+	{CCI_REG8(0x341b), 0x00},
+	{CCI_REG8(0x341c), 0x00},
+	{CCI_REG8(0x341d), 0x00},
+	{CCI_REG8(0x341e), 0x01},
+	{CCI_REG8(0x341f), 0x20},
+	{CCI_REG8(0x3420), 0x00},
+	{CCI_REG8(0x3421), 0xd8},
+	{CCI_REG8(0x3366), 0x00},
+	{CCI_REG8(0x3367), 0x00},
+	{CCI_REG8(0x3368), 0x00},
+	{CCI_REG8(0x3369), 0x00},
 };
 
-static const struct imx708_reg mode_2x2binned_regs[] = {
-	{0x0342, 0x1E},
-	{0x0343, 0x90},
-	{0x0340, 0x05},
-	{0x0341, 0x38},
-	{0x0344, 0x00},
-	{0x0345, 0x00},
-	{0x0346, 0x00},
-	{0x0347, 0x00},
-	{0x0348, 0x11},
-	{0x0349, 0xFF},
-	{0x034A, 0X0A},
-	{0x034B, 0x1F},
-	{0x0220, 0x62},
-	{0x0222, 0x01},
-	{0x0900, 0x01},
-	{0x0901, 0x22},
-	{0x0902, 0x08},
-	{0x3200, 0x41},
-	{0x3201, 0x41},
-	{0x32D5, 0x00},
-	{0x32D6, 0x00},
-	{0x32DB, 0x01},
-	{0x32DF, 0x00},
-	{0x350C, 0x00},
-	{0x350D, 0x00},
-	{0x0408, 0x00},
-	{0x0409, 0x00},
-	{0x040A, 0x00},
-	{0x040B, 0x00},
-	{0x040C, 0x09},
-	{0x040D, 0x00},
-	{0x040E, 0x05},
-	{0x040F, 0x10},
-	{0x034C, 0x09},
-	{0x034D, 0x00},
-	{0x034E, 0x05},
-	{0x034F, 0x10},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x7A},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
-	{0x3CA0, 0x00},
-	{0x3CA1, 0x3C},
-	{0x3CA4, 0x00},
-	{0x3CA5, 0x3C},
-	{0x3CA6, 0x00},
-	{0x3CA7, 0x00},
-	{0x3CAA, 0x00},
-	{0x3CAB, 0x00},
-	{0x3CB8, 0x00},
-	{0x3CB9, 0x1C},
-	{0x3CBA, 0x00},
-	{0x3CBB, 0x08},
-	{0x3CBC, 0x00},
-	{0x3CBD, 0x1E},
-	{0x3CBE, 0x00},
-	{0x3CBF, 0x0A},
-	{0x0202, 0x05},
-	{0x0203, 0x08},
-	{0x0224, 0x01},
-	{0x0225, 0xF4},
-	{0x3116, 0x01},
-	{0x3117, 0xF4},
-	{0x0204, 0x00},
-	{0x0205, 0x70},
-	{0x0216, 0x00},
-	{0x0217, 0x70},
-	{0x0218, 0x01},
-	{0x0219, 0x00},
-	{0x020E, 0x01},
-	{0x020F, 0x00},
-	{0x3118, 0x00},
-	{0x3119, 0x70},
-	{0x311A, 0x01},
-	{0x311B, 0x00},
-	{0x341a, 0x00},
-	{0x341b, 0x00},
-	{0x341c, 0x00},
-	{0x341d, 0x00},
-	{0x341e, 0x00},
-	{0x341f, 0x90},
-	{0x3420, 0x00},
-	{0x3421, 0x6c},
-	{0x3366, 0x00},
-	{0x3367, 0x00},
-	{0x3368, 0x00},
-	{0x3369, 0x00},
+static const struct cci_reg_sequence mode_2x2binned_regs[] = {
+	{CCI_REG8(0x0344), 0x00},
+	{CCI_REG8(0x0345), 0x00},
+	{CCI_REG8(0x0346), 0x00},
+	{CCI_REG8(0x0347), 0x00},
+	{CCI_REG8(0x0348), 0x11},
+	{CCI_REG8(0x0349), 0xFF},
+	{CCI_REG8(0x034A), 0x0A},
+	{CCI_REG8(0x034B), 0x1F},
+	{CCI_REG8(0x0220), 0x62},
+	{CCI_REG8(0x0222), 0x01},
+	{CCI_REG8(0x0900), 0x01},
+	{CCI_REG8(0x0901), 0x22},
+	{CCI_REG8(0x0902), 0x08},
+	{CCI_REG8(0x3200), 0x41},
+	{CCI_REG8(0x3201), 0x41},
+	{CCI_REG8(0x32D5), 0x00},
+	{CCI_REG8(0x32D6), 0x00},
+	{CCI_REG8(0x32DB), 0x01},
+	{CCI_REG8(0x32DF), 0x00},
+	{CCI_REG8(0x350C), 0x00},
+	{CCI_REG8(0x350D), 0x00},
+	{CCI_REG8(0x0408), 0x00},
+	{CCI_REG8(0x0409), 0x00},
+	{CCI_REG8(0x040A), 0x00},
+	{CCI_REG8(0x040B), 0x00},
+	{CCI_REG8(0x040C), 0x09},
+	{CCI_REG8(0x040D), 0x00},
+	{CCI_REG8(0x040E), 0x05},
+	{CCI_REG8(0x040F), 0x10},
+	{CCI_REG8(0x034C), 0x09},
+	{CCI_REG8(0x034D), 0x00},
+	{CCI_REG8(0x034E), 0x05},
+	{CCI_REG8(0x034F), 0x10},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
+	{CCI_REG8(0x0310), 0x01},
+	{CCI_REG8(0x3CA0), 0x00},
+	{CCI_REG8(0x3CA1), 0x3C},
+	{CCI_REG8(0x3CA4), 0x00},
+	{CCI_REG8(0x3CA5), 0x3C},
+	{CCI_REG8(0x3CA6), 0x00},
+	{CCI_REG8(0x3CA7), 0x00},
+	{CCI_REG8(0x3CAA), 0x00},
+	{CCI_REG8(0x3CAB), 0x00},
+	{CCI_REG8(0x3CB8), 0x00},
+	{CCI_REG8(0x3CB9), 0x1C},
+	{CCI_REG8(0x3CBA), 0x00},
+	{CCI_REG8(0x3CBB), 0x08},
+	{CCI_REG8(0x3CBC), 0x00},
+	{CCI_REG8(0x3CBD), 0x1E},
+	{CCI_REG8(0x3CBE), 0x00},
+	{CCI_REG8(0x3CBF), 0x0A},
+	{CCI_REG8(0x0224), 0x01},
+	{CCI_REG8(0x0225), 0xF4},
+	{CCI_REG8(0x3116), 0x01},
+	{CCI_REG8(0x3117), 0xF4},
+	{CCI_REG8(0x0216), 0x00},
+	{CCI_REG8(0x0217), 0x70},
+	{CCI_REG8(0x0218), 0x01},
+	{CCI_REG8(0x0219), 0x00},
+	{CCI_REG8(0x3118), 0x00},
+	{CCI_REG8(0x3119), 0x70},
+	{CCI_REG8(0x311A), 0x01},
+	{CCI_REG8(0x311B), 0x00},
+	{CCI_REG8(0x341a), 0x00},
+	{CCI_REG8(0x341b), 0x00},
+	{CCI_REG8(0x341c), 0x00},
+	{CCI_REG8(0x341d), 0x00},
+	{CCI_REG8(0x341e), 0x00},
+	{CCI_REG8(0x341f), 0x90},
+	{CCI_REG8(0x3420), 0x00},
+	{CCI_REG8(0x3421), 0x6c},
+	{CCI_REG8(0x3366), 0x00},
+	{CCI_REG8(0x3367), 0x00},
+	{CCI_REG8(0x3368), 0x00},
+	{CCI_REG8(0x3369), 0x00},
 };
 
-static const struct imx708_reg mode_2x2binned_720p_regs[] = {
-	{0x0342, 0x14},
-	{0x0343, 0x60},
-	{0x0340, 0x04},
-	{0x0341, 0xB6},
-	{0x0344, 0x03},
-	{0x0345, 0x00},
-	{0x0346, 0x01},
-	{0x0347, 0xB0},
-	{0x0348, 0x0E},
-	{0x0349, 0xFF},
-	{0x034A, 0x08},
-	{0x034B, 0x6F},
-	{0x0220, 0x62},
-	{0x0222, 0x01},
-	{0x0900, 0x01},
-	{0x0901, 0x22},
-	{0x0902, 0x08},
-	{0x3200, 0x41},
-	{0x3201, 0x41},
-	{0x32D5, 0x00},
-	{0x32D6, 0x00},
-	{0x32DB, 0x01},
-	{0x32DF, 0x01},
-	{0x350C, 0x00},
-	{0x350D, 0x00},
-	{0x0408, 0x00},
-	{0x0409, 0x00},
-	{0x040A, 0x00},
-	{0x040B, 0x00},
-	{0x040C, 0x06},
-	{0x040D, 0x00},
-	{0x040E, 0x03},
-	{0x040F, 0x60},
-	{0x034C, 0x06},
-	{0x034D, 0x00},
-	{0x034E, 0x03},
-	{0x034F, 0x60},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0x76},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
-	{0x3CA0, 0x00},
-	{0x3CA1, 0x3C},
-	{0x3CA4, 0x01},
-	{0x3CA5, 0x5E},
-	{0x3CA6, 0x00},
-	{0x3CA7, 0x00},
-	{0x3CAA, 0x00},
-	{0x3CAB, 0x00},
-	{0x3CB8, 0x00},
-	{0x3CB9, 0x0C},
-	{0x3CBA, 0x00},
-	{0x3CBB, 0x04},
-	{0x3CBC, 0x00},
-	{0x3CBD, 0x1E},
-	{0x3CBE, 0x00},
-	{0x3CBF, 0x05},
-	{0x0202, 0x04},
-	{0x0203, 0x86},
-	{0x0224, 0x01},
-	{0x0225, 0xF4},
-	{0x3116, 0x01},
-	{0x3117, 0xF4},
-	{0x0204, 0x00},
-	{0x0205, 0x70},
-	{0x0216, 0x00},
-	{0x0217, 0x70},
-	{0x0218, 0x01},
-	{0x0219, 0x00},
-	{0x020E, 0x01},
-	{0x020F, 0x00},
-	{0x3118, 0x00},
-	{0x3119, 0x70},
-	{0x311A, 0x01},
-	{0x311B, 0x00},
-	{0x341a, 0x00},
-	{0x341b, 0x00},
-	{0x341c, 0x00},
-	{0x341d, 0x00},
-	{0x341e, 0x00},
-	{0x341f, 0x60},
-	{0x3420, 0x00},
-	{0x3421, 0x48},
-	{0x3366, 0x00},
-	{0x3367, 0x00},
-	{0x3368, 0x00},
-	{0x3369, 0x00},
+static const struct cci_reg_sequence mode_2x2binned_720p_regs[] = {
+	{CCI_REG8(0x0344), 0x03},
+	{CCI_REG8(0x0345), 0x00},
+	{CCI_REG8(0x0346), 0x01},
+	{CCI_REG8(0x0347), 0xB0},
+	{CCI_REG8(0x0348), 0x0E},
+	{CCI_REG8(0x0349), 0xFF},
+	{CCI_REG8(0x034A), 0x08},
+	{CCI_REG8(0x034B), 0x6F},
+	{CCI_REG8(0x0220), 0x62},
+	{CCI_REG8(0x0222), 0x01},
+	{CCI_REG8(0x0900), 0x01},
+	{CCI_REG8(0x0901), 0x22},
+	{CCI_REG8(0x0902), 0x08},
+	{CCI_REG8(0x3200), 0x41},
+	{CCI_REG8(0x3201), 0x41},
+	{CCI_REG8(0x32D5), 0x00},
+	{CCI_REG8(0x32D6), 0x00},
+	{CCI_REG8(0x32DB), 0x01},
+	{CCI_REG8(0x32DF), 0x01},
+	{CCI_REG8(0x350C), 0x00},
+	{CCI_REG8(0x350D), 0x00},
+	{CCI_REG8(0x0408), 0x00},
+	{CCI_REG8(0x0409), 0x00},
+	{CCI_REG8(0x040A), 0x00},
+	{CCI_REG8(0x040B), 0x00},
+	{CCI_REG8(0x040C), 0x06},
+	{CCI_REG8(0x040D), 0x00},
+	{CCI_REG8(0x040E), 0x03},
+	{CCI_REG8(0x040F), 0x60},
+	{CCI_REG8(0x034C), 0x06},
+	{CCI_REG8(0x034D), 0x00},
+	{CCI_REG8(0x034E), 0x03},
+	{CCI_REG8(0x034F), 0x60},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
+	{CCI_REG8(0x0310), 0x01},
+	{CCI_REG8(0x3CA0), 0x00},
+	{CCI_REG8(0x3CA1), 0x3C},
+	{CCI_REG8(0x3CA4), 0x01},
+	{CCI_REG8(0x3CA5), 0x5E},
+	{CCI_REG8(0x3CA6), 0x00},
+	{CCI_REG8(0x3CA7), 0x00},
+	{CCI_REG8(0x3CAA), 0x00},
+	{CCI_REG8(0x3CAB), 0x00},
+	{CCI_REG8(0x3CB8), 0x00},
+	{CCI_REG8(0x3CB9), 0x0C},
+	{CCI_REG8(0x3CBA), 0x00},
+	{CCI_REG8(0x3CBB), 0x04},
+	{CCI_REG8(0x3CBC), 0x00},
+	{CCI_REG8(0x3CBD), 0x1E},
+	{CCI_REG8(0x3CBE), 0x00},
+	{CCI_REG8(0x3CBF), 0x05},
+	{CCI_REG8(0x0224), 0x01},
+	{CCI_REG8(0x0225), 0xF4},
+	{CCI_REG8(0x3116), 0x01},
+	{CCI_REG8(0x3117), 0xF4},
+	{CCI_REG8(0x0216), 0x00},
+	{CCI_REG8(0x0217), 0x70},
+	{CCI_REG8(0x0218), 0x01},
+	{CCI_REG8(0x0219), 0x00},
+	{CCI_REG8(0x3118), 0x00},
+	{CCI_REG8(0x3119), 0x70},
+	{CCI_REG8(0x311A), 0x01},
+	{CCI_REG8(0x311B), 0x00},
+	{CCI_REG8(0x341a), 0x00},
+	{CCI_REG8(0x341b), 0x00},
+	{CCI_REG8(0x341c), 0x00},
+	{CCI_REG8(0x341d), 0x00},
+	{CCI_REG8(0x341e), 0x00},
+	{CCI_REG8(0x341f), 0x60},
+	{CCI_REG8(0x3420), 0x00},
+	{CCI_REG8(0x3421), 0x48},
+	{CCI_REG8(0x3366), 0x00},
+	{CCI_REG8(0x3367), 0x00},
+	{CCI_REG8(0x3368), 0x00},
+	{CCI_REG8(0x3369), 0x00},
 };
 
-static const struct imx708_reg mode_hdr_regs[] = {
-	{0x0342, 0x14},
-	{0x0343, 0x60},
-	{0x0340, 0x0A},
-	{0x0341, 0x5B},
-	{0x0344, 0x00},
-	{0x0345, 0x00},
-	{0x0346, 0x00},
-	{0x0347, 0x00},
-	{0x0348, 0x11},
-	{0x0349, 0xFF},
-	{0x034A, 0X0A},
-	{0x034B, 0x1F},
-	{0x0220, 0x01},
-	{0x0222, IMX708_HDR_EXPOSURE_RATIO},
-	{0x0900, 0x00},
-	{0x0901, 0x11},
-	{0x0902, 0x0A},
-	{0x3200, 0x01},
-	{0x3201, 0x01},
-	{0x32D5, 0x00},
-	{0x32D6, 0x00},
-	{0x32DB, 0x01},
-	{0x32DF, 0x00},
-	{0x350C, 0x00},
-	{0x350D, 0x00},
-	{0x0408, 0x00},
-	{0x0409, 0x00},
-	{0x040A, 0x00},
-	{0x040B, 0x00},
-	{0x040C, 0x09},
-	{0x040D, 0x00},
-	{0x040E, 0x05},
-	{0x040F, 0x10},
-	{0x034C, 0x09},
-	{0x034D, 0x00},
-	{0x034E, 0x05},
-	{0x034F, 0x10},
-	{0x0301, 0x05},
-	{0x0303, 0x02},
-	{0x0305, 0x02},
-	{0x0306, 0x00},
-	{0x0307, 0xA2},
-	{0x030B, 0x02},
-	{0x030D, 0x04},
-	{0x0310, 0x01},
-	{0x3CA0, 0x00},
-	{0x3CA1, 0x00},
-	{0x3CA4, 0x00},
-	{0x3CA5, 0x00},
-	{0x3CA6, 0x00},
-	{0x3CA7, 0x28},
-	{0x3CAA, 0x00},
-	{0x3CAB, 0x00},
-	{0x3CB8, 0x00},
-	{0x3CB9, 0x30},
-	{0x3CBA, 0x00},
-	{0x3CBB, 0x00},
-	{0x3CBC, 0x00},
-	{0x3CBD, 0x32},
-	{0x3CBE, 0x00},
-	{0x3CBF, 0x00},
-	{0x0202, 0x0A},
-	{0x0203, 0x2B},
-	{0x0224, 0x0A},
-	{0x0225, 0x2B},
-	{0x3116, 0x0A},
-	{0x3117, 0x2B},
-	{0x0204, 0x00},
-	{0x0205, 0x00},
-	{0x0216, 0x00},
-	{0x0217, 0x00},
-	{0x0218, 0x01},
-	{0x0219, 0x00},
-	{0x020E, 0x01},
-	{0x020F, 0x00},
-	{0x3118, 0x00},
-	{0x3119, 0x00},
-	{0x311A, 0x01},
-	{0x311B, 0x00},
-	{0x341a, 0x00},
-	{0x341b, 0x00},
-	{0x341c, 0x00},
-	{0x341d, 0x00},
-	{0x341e, 0x00},
-	{0x341f, 0x90},
-	{0x3420, 0x00},
-	{0x3421, 0x6c},
-	{0x3360, 0x01},
-	{0x3361, 0x01},
-	{0x3366, 0x09},
-	{0x3367, 0x00},
-	{0x3368, 0x05},
-	{0x3369, 0x10},
+static const struct cci_reg_sequence mode_hdr_regs[] = {
+	{CCI_REG8(0x0344), 0x00},
+	{CCI_REG8(0x0345), 0x00},
+	{CCI_REG8(0x0346), 0x00},
+	{CCI_REG8(0x0347), 0x00},
+	{CCI_REG8(0x0348), 0x11},
+	{CCI_REG8(0x0349), 0xFF},
+	{CCI_REG8(0x034A), 0x0A},
+	{CCI_REG8(0x034B), 0x1F},
+	{CCI_REG8(0x0220), 0x01},
+	{CCI_REG8(0x0222), IMX708_HDR_EXPOSURE_RATIO},
+	{CCI_REG8(0x0900), 0x00},
+	{CCI_REG8(0x0901), 0x11},
+	{CCI_REG8(0x0902), 0x0A},
+	{CCI_REG8(0x3200), 0x01},
+	{CCI_REG8(0x3201), 0x01},
+	{CCI_REG8(0x32D5), 0x00},
+	{CCI_REG8(0x32D6), 0x00},
+	{CCI_REG8(0x32DB), 0x01},
+	{CCI_REG8(0x32DF), 0x00},
+	{CCI_REG8(0x350C), 0x00},
+	{CCI_REG8(0x350D), 0x00},
+	{CCI_REG8(0x0408), 0x00},
+	{CCI_REG8(0x0409), 0x00},
+	{CCI_REG8(0x040A), 0x00},
+	{CCI_REG8(0x040B), 0x00},
+	{CCI_REG8(0x040C), 0x09},
+	{CCI_REG8(0x040D), 0x00},
+	{CCI_REG8(0x040E), 0x05},
+	{CCI_REG8(0x040F), 0x10},
+	{CCI_REG8(0x034C), 0x09},
+	{CCI_REG8(0x034D), 0x00},
+	{CCI_REG8(0x034E), 0x05},
+	{CCI_REG8(0x034F), 0x10},
+	{IMX708_REG_IVT_PXCK_DIV, IMX708_IVT_PXCK_DIV},
+	{IMX708_REG_IVT_SYSCK_DIV, IMX708_IVT_SYSCK_DIV},
+	{CCI_REG8(0x0310), 0x01},
+	{CCI_REG8(0x3CA0), 0x00},
+	{CCI_REG8(0x3CA1), 0x00},
+	{CCI_REG8(0x3CA4), 0x00},
+	{CCI_REG8(0x3CA5), 0x00},
+	{CCI_REG8(0x3CA6), 0x00},
+	{CCI_REG8(0x3CA7), 0x28},
+	{CCI_REG8(0x3CAA), 0x00},
+	{CCI_REG8(0x3CAB), 0x00},
+	{CCI_REG8(0x3CB8), 0x00},
+	{CCI_REG8(0x3CB9), 0x30},
+	{CCI_REG8(0x3CBA), 0x00},
+	{CCI_REG8(0x3CBB), 0x00},
+	{CCI_REG8(0x3CBC), 0x00},
+	{CCI_REG8(0x3CBD), 0x32},
+	{CCI_REG8(0x3CBE), 0x00},
+	{CCI_REG8(0x3CBF), 0x00},
+	{CCI_REG8(0x0224), 0x0A},
+	{CCI_REG8(0x0225), 0x2B},
+	{CCI_REG8(0x3116), 0x0A},
+	{CCI_REG8(0x3117), 0x2B},
+	{CCI_REG8(0x0216), 0x00},
+	{CCI_REG8(0x0217), 0x00},
+	{CCI_REG8(0x0218), 0x01},
+	{CCI_REG8(0x0219), 0x00},
+	{CCI_REG8(0x3118), 0x00},
+	{CCI_REG8(0x3119), 0x00},
+	{CCI_REG8(0x311A), 0x01},
+	{CCI_REG8(0x311B), 0x00},
+	{CCI_REG8(0x341a), 0x00},
+	{CCI_REG8(0x341b), 0x00},
+	{CCI_REG8(0x341c), 0x00},
+	{CCI_REG8(0x341d), 0x00},
+	{CCI_REG8(0x341e), 0x00},
+	{CCI_REG8(0x341f), 0x90},
+	{CCI_REG8(0x3420), 0x00},
+	{CCI_REG8(0x3421), 0x6c},
+	{CCI_REG8(0x3360), 0x01},
+	{CCI_REG8(0x3361), 0x01},
+	{CCI_REG8(0x3366), 0x09},
+	{CCI_REG8(0x3367), 0x00},
+	{CCI_REG8(0x3368), 0x05},
+	{CCI_REG8(0x3369), 0x10},
 };
 
 /* Mode configs. Keep separate lists for when HDR is enabled or not. */
@@ -676,7 +589,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* Full resolution. */
 		.width = 4608,
 		.height = 2592,
-		.line_length_pix = 0x3d20,
+		.line_length_pix = 15648,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -699,7 +612,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* regular 2x2 binned. */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1e90,
+		.line_length_pix = 7824,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -722,7 +635,7 @@ static const struct imx708_mode supported_modes_10bit_no_hdr[] = {
 		/* 2x2 binned and cropped for 720p. */
 		.width = 1536,
 		.height = 864,
-		.line_length_pix = 0x1460,
+		.line_length_pix = 5216,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT + 768,
 			.top = IMX708_PIXEL_ARRAY_TOP + 432,
@@ -748,7 +661,7 @@ static const struct imx708_mode supported_modes_10bit_hdr[] = {
 		/* There's only one HDR mode, which is 2x2 downscaled */
 		.width = 2304,
 		.height = 1296,
-		.line_length_pix = 0x1460,
+		.line_length_pix = 5216,
 		.crop = {
 			.left = IMX708_PIXEL_ARRAY_LEFT,
 			.top = IMX708_PIXEL_ARRAY_TOP,
@@ -825,6 +738,7 @@ static const char * const imx708_supply_name[] = {
 struct imx708 {
 	struct v4l2_subdev sd;
 	struct media_pad pad[NUM_PADS];
+	struct regmap *regmap;
 
 	struct v4l2_mbus_framefmt fmt;
 
@@ -865,7 +779,10 @@ struct imx708 {
 	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
 	unsigned int long_exp_shift;
 
-	unsigned int link_freq_idx;
+	u64 link_freq_value;
+	u16 iop_pll_mpy;
+
+	unsigned int lanes;
 };
 
 static inline struct imx708 *to_imx708(struct v4l2_subdev *_sd)
@@ -896,79 +813,6 @@ static inline void get_mode_table(unsigned int code,
 		*mode_list = NULL;
 		*num_modes = 0;
 	}
-}
-
-/* Read registers up to 2 at a time */
-static int imx708_read_reg(struct imx708 *imx708, u16 reg, u32 len, u32 *val)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	struct i2c_msg msgs[2];
-	u8 addr_buf[2] = { reg >> 8, reg & 0xff };
-	u8 data_buf[4] = { 0, };
-	int ret;
-
-	if (len > 4)
-		return -EINVAL;
-
-	/* Write register address */
-	msgs[0].addr = client->addr;
-	msgs[0].flags = 0;
-	msgs[0].len = ARRAY_SIZE(addr_buf);
-	msgs[0].buf = addr_buf;
-
-	/* Read data from register */
-	msgs[1].addr = client->addr;
-	msgs[1].flags = I2C_M_RD;
-	msgs[1].len = len;
-	msgs[1].buf = &data_buf[4 - len];
-
-	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
-	if (ret != ARRAY_SIZE(msgs))
-		return -EIO;
-
-	*val = get_unaligned_be32(data_buf);
-
-	return 0;
-}
-
-/* Write registers up to 2 at a time */
-static int imx708_write_reg(struct imx708 *imx708, u16 reg, u32 len, u32 val)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	u8 buf[6];
-
-	if (len > 4)
-		return -EINVAL;
-
-	put_unaligned_be16(reg, buf);
-	put_unaligned_be32(val << (8 * (4 - len)), buf + 2);
-	if (i2c_master_send(client, buf, len + 2) != len + 2)
-		return -EIO;
-
-	return 0;
-}
-
-/* Write a list of registers */
-static int imx708_write_regs(struct imx708 *imx708,
-			     const struct imx708_reg *regs, u32 len)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	unsigned int i;
-
-	for (i = 0; i < len; i++) {
-		int ret;
-
-		ret = imx708_write_reg(imx708, regs[i].address, 1, regs[i].val);
-		if (ret) {
-			dev_err_ratelimited(&client->dev,
-					    "Failed to write reg 0x%4.4x. error = %d\n",
-					    regs[i].address, ret);
-
-			return ret;
-		}
-	}
-
-	return 0;
 }
 
 /* Get bayer order based on flip setting. */
@@ -1052,9 +896,8 @@ static int imx708_set_exposure(struct imx708 *imx708, unsigned int val)
 	 * In HDR mode this will set the longest exposure. The sensor
 	 * will automatically divide the medium and short ones by 4,16.
 	 */
-	return imx708_write_reg(imx708, IMX708_REG_EXPOSURE,
-				IMX708_REG_VALUE_16BIT,
-				val >> imx708->long_exp_shift);
+	return cci_write(imx708->regmap, IMX708_REG_EXPOSURE,
+			 val >> imx708->long_exp_shift, NULL);
 }
 
 static void imx708_adjust_exposure_range(struct imx708 *imx708,
@@ -1073,16 +916,11 @@ static void imx708_adjust_exposure_range(struct imx708 *imx708,
 
 static int imx708_set_analogue_gain(struct imx708 *imx708, unsigned int val)
 {
-	int ret;
-
 	/*
 	 * In HDR mode this will set the gain for the longest exposure,
 	 * and by default the sensor uses the same gain for all of them.
 	 */
-	ret = imx708_write_reg(imx708, IMX708_REG_ANALOG_GAIN,
-			       IMX708_REG_VALUE_16BIT, val);
-
-	return ret;
+	return cci_write(imx708->regmap, IMX708_REG_ANALOG_GAIN, val, NULL);
 }
 
 static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
@@ -1096,13 +934,10 @@ static int imx708_set_frame_length(struct imx708 *imx708, unsigned int val)
 		val >>= 1;
 	}
 
-	ret = imx708_write_reg(imx708, IMX708_REG_FRAME_LENGTH,
-			       IMX708_REG_VALUE_16BIT, val);
-	if (ret)
-		return ret;
+	ret = cci_write(imx708->regmap, IMX708_REG_FRAME_LENGTH, val, NULL);
 
-	return imx708_write_reg(imx708, IMX708_LONG_EXP_SHIFT_REG,
-				IMX708_REG_VALUE_08BIT, imx708->long_exp_shift);
+	return cci_write(imx708->regmap, IMX708_LONG_EXP_SHIFT_REG,
+			 imx708->long_exp_shift, &ret);
 }
 
 static void imx708_set_framing_limits(struct imx708 *imx708)
@@ -1181,49 +1016,46 @@ static int imx708_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = imx708_set_exposure(imx708, ctrl->val);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
-		ret = imx708_write_reg(imx708, IMX708_REG_DIGITAL_GAIN,
-				       IMX708_REG_VALUE_16BIT, ctrl->val);
+		ret = cci_write(imx708->regmap, IMX708_REG_DIGITAL_GAIN,
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN:
-		ret = imx708_write_reg(imx708, IMX708_REG_TEST_PATTERN,
-				       IMX708_REG_VALUE_16BIT,
-				       imx708_test_pattern_val[ctrl->val]);
+		ret = cci_write(imx708->regmap, IMX708_REG_TEST_PATTERN,
+				imx708_test_pattern_val[ctrl->val], NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN_RED:
-		ret = imx708_write_reg(imx708, IMX708_REG_TEST_PATTERN_R,
-				       IMX708_REG_VALUE_16BIT, ctrl->val);
+		ret = cci_write(imx708->regmap, IMX708_REG_TEST_PATTERN_R,
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN_GREENR:
-		ret = imx708_write_reg(imx708, IMX708_REG_TEST_PATTERN_GR,
-				       IMX708_REG_VALUE_16BIT, ctrl->val);
+		ret = cci_write(imx708->regmap, IMX708_REG_TEST_PATTERN_GR,
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN_BLUE:
-		ret = imx708_write_reg(imx708, IMX708_REG_TEST_PATTERN_B,
-				       IMX708_REG_VALUE_16BIT, ctrl->val);
+		ret = cci_write(imx708->regmap, IMX708_REG_TEST_PATTERN_B,
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_TEST_PATTERN_GREENB:
-		ret = imx708_write_reg(imx708, IMX708_REG_TEST_PATTERN_GB,
-				       IMX708_REG_VALUE_16BIT, ctrl->val);
+		ret = cci_write(imx708->regmap, IMX708_REG_TEST_PATTERN_GB,
+				ctrl->val, NULL);
 		break;
 	case V4L2_CID_HFLIP:
 	case V4L2_CID_VFLIP:
-		ret = imx708_write_reg(imx708, IMX708_REG_ORIENTATION, 1,
-				       imx708->hflip->val |
-				       imx708->vflip->val << 1);
+		ret = cci_write(imx708->regmap, IMX708_REG_ORIENTATION,
+				imx708->hflip->val | imx708->vflip->val << 1,
+				NULL);
 		break;
 	case V4L2_CID_VBLANK:
 		ret = imx708_set_frame_length(imx708,
 					      imx708->mode->height + ctrl->val);
 		break;
 	case V4L2_CID_NOTIFY_GAINS:
-		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_BLUE,
-				       IMX708_REG_VALUE_16BIT,
-				       ctrl->p_new.p_u32[0]);
+		ret = cci_write(imx708->regmap, IMX708_REG_COLOUR_BALANCE_BLUE,
+				ctrl->p_new.p_u32[0], NULL);
 		if (ret)
 			break;
-		ret = imx708_write_reg(imx708, IMX708_REG_COLOUR_BALANCE_RED,
-				       IMX708_REG_VALUE_16BIT,
-				       ctrl->p_new.p_u32[3]);
+		ret = cci_write(imx708->regmap, IMX708_REG_COLOUR_BALANCE_RED,
+				ctrl->p_new.p_u32[3], NULL);
 		break;
 	case V4L2_CID_WIDE_DYNAMIC_RANGE:
 		/* Already handled above. */
@@ -1482,37 +1314,45 @@ static int imx708_get_selection(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
+static void imx708_set_pixel_rate_pll(struct imx708 *imx708, int *ret)
+{
+	u64 mpy = (imx708->mode->pixel_rate * IMX708_IVT_PREDIV *
+		   IMX708_IVT_PXCK_DIV * IMX708_IVT_SYSCK_DIV);
+
+	do_div(mpy, IMX708_INCLK_FREQ * 4);
+
+	cci_write(imx708->regmap, IMX708_REG_IVT_MPY, mpy, ret);
+}
+
 /* Start streaming */
 static int imx708_start_streaming(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
-	const struct imx708_reg_list *reg_list, *freq_regs;
+	const struct imx708_reg_list *reg_list;
 	int i, ret;
-	u32 val;
+	u64 val;
 
 	if (!imx708->common_regs_written) {
-		ret = imx708_write_regs(imx708, mode_common_regs,
-					ARRAY_SIZE(mode_common_regs));
+		ret = cci_multi_reg_write(imx708->regmap, mode_common_regs,
+					  ARRAY_SIZE(mode_common_regs), NULL);
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
 				__func__);
 			return ret;
 		}
 
-		ret = imx708_read_reg(imx708, IMX708_REG_BASE_SPC_GAINS_L,
-				      IMX708_REG_VALUE_08BIT, &val);
+		ret = cci_read(imx708->regmap, IMX708_REG_BASE_SPC_GAINS_L,
+			       &val, NULL);
 		if (ret == 0 && val == 0x40) {
 			for (i = 0; i < 54 && ret == 0; i++) {
-				ret = imx708_write_reg(imx708,
-						       IMX708_REG_BASE_SPC_GAINS_L + i,
-						       IMX708_REG_VALUE_08BIT,
-						       pdaf_gains[0][i % 9]);
+				cci_write(imx708->regmap,
+					  IMX708_REG_BASE_SPC_GAINS_L + i,
+					  pdaf_gains[0][i % 9], &ret);
 			}
 			for (i = 0; i < 54 && ret == 0; i++) {
-				ret = imx708_write_reg(imx708,
-						       IMX708_REG_BASE_SPC_GAINS_R + i,
-						       IMX708_REG_VALUE_08BIT,
-						       pdaf_gains[1][i % 9]);
+				cci_write(imx708->regmap,
+					  IMX708_REG_BASE_SPC_GAINS_R + i,
+					  pdaf_gains[1][i % 9], &ret);
 			}
 		}
 		if (ret) {
@@ -1524,37 +1364,52 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		imx708->common_regs_written = true;
 	}
 
+	ret = cci_write(imx708->regmap, IMX708_REG_CSI_LANE_MODE,
+			imx708->lanes == 2 ? IMX708_CSI_2_LANE_MODE :
+						IMX708_CSI_4_LANE_MODE, NULL);
+
+	imx708_set_pixel_rate_pll(imx708, &ret);
+
 	/* Apply default values of current mode */
 	reg_list = &imx708->mode->reg_list;
-	ret = imx708_write_regs(imx708, reg_list->regs, reg_list->num_of_regs);
+	ret = cci_multi_reg_write(imx708->regmap, reg_list->regs,
+				  reg_list->num_of_regs, NULL);
 	if (ret) {
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
 
-	/* Update the link frequency registers */
-	freq_regs = &link_freq_regs[imx708->link_freq_idx];
-	ret = imx708_write_regs(imx708, freq_regs->regs,
-				freq_regs->num_of_regs);
+	/* Write line_length_pix */
+	ret = cci_write(imx708->regmap, IMX708_REG_LINE_LENGTH,
+			imx708->mode->line_length_pix, NULL);
 	if (ret) {
-		dev_err(&client->dev, "%s failed to set link frequency registers\n",
+		dev_err(&client->dev, "%s failed to set line length\n",
+			__func__);
+		return ret;
+	}
+	/* Update the link frequency registers */
+	ret = cci_write(imx708->regmap, IMX708_REG_IOP_MPY, imx708->iop_pll_mpy,
+			NULL);
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set link frequency register\n",
 			__func__);
 		return ret;
 	}
 
 	/* Quad Bayer re-mosaic adjustments (for full-resolution mode only) */
 	if (imx708->mode->remosaic && qbc_adjust > 0) {
-		imx708_write_reg(imx708, IMX708_LPF_INTENSITY,
-				 IMX708_REG_VALUE_08BIT, qbc_adjust);
-		imx708_write_reg(imx708,
-				 IMX708_LPF_INTENSITY_EN,
-				 IMX708_REG_VALUE_08BIT,
-				 IMX708_LPF_INTENSITY_ENABLED);
+		cci_write(imx708->regmap, IMX708_LPF_INTENSITY, qbc_adjust,
+			  &ret);
+		cci_write(imx708->regmap, IMX708_LPF_INTENSITY_EN,
+			  IMX708_LPF_INTENSITY_ENABLED, &ret);
 	} else {
-		imx708_write_reg(imx708,
-				 IMX708_LPF_INTENSITY_EN,
-				 IMX708_REG_VALUE_08BIT,
-				 IMX708_LPF_INTENSITY_DISABLED);
+		cci_write(imx708->regmap, IMX708_LPF_INTENSITY_EN,
+			  IMX708_LPF_INTENSITY_DISABLED, &ret);
+	}
+	if (ret) {
+		dev_err(&client->dev, "%s failed to set remosaic registers\n",
+			__func__);
+		return ret;
 	}
 
 	/* Apply customized values from user */
@@ -1563,8 +1418,8 @@ static int imx708_start_streaming(struct imx708 *imx708)
 		return ret;
 
 	/* set stream on register */
-	return imx708_write_reg(imx708, IMX708_REG_MODE_SELECT,
-				IMX708_REG_VALUE_08BIT, IMX708_MODE_STREAMING);
+	return cci_write(imx708->regmap, IMX708_REG_MODE_SELECT,
+			 IMX708_MODE_STREAMING, &ret);
 }
 
 /* Stop streaming */
@@ -1574,8 +1429,8 @@ static void imx708_stop_streaming(struct imx708 *imx708)
 	int ret;
 
 	/* set stream off register */
-	ret = imx708_write_reg(imx708, IMX708_REG_MODE_SELECT,
-			       IMX708_REG_VALUE_08BIT, IMX708_MODE_STANDBY);
+	ret = cci_write(imx708->regmap, IMX708_REG_MODE_SELECT,
+			IMX708_MODE_STANDBY, NULL);
 	if (ret)
 		dev_err(&client->dev, "%s failed to set stream\n", __func__);
 }
@@ -1732,10 +1587,9 @@ static int imx708_identify_module(struct imx708 *imx708)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx708->sd);
 	int ret;
-	u32 val;
+	u64 val;
 
-	ret = imx708_read_reg(imx708, IMX708_REG_CHIP_ID,
-			      IMX708_REG_VALUE_16BIT, &val);
+	ret = cci_read(imx708->regmap, IMX708_REG_CHIP_ID, &val, NULL);
 	if (ret) {
 		dev_err(&client->dev, "failed to read chip id %x, with error %d\n",
 			IMX708_CHIP_ID, ret);
@@ -1743,14 +1597,14 @@ static int imx708_identify_module(struct imx708 *imx708)
 	}
 
 	if (val != IMX708_CHIP_ID) {
-		dev_err(&client->dev, "chip id mismatch: %x!=%x\n",
+		dev_err(&client->dev, "chip id mismatch: %x!=%llx\n",
 			IMX708_CHIP_ID, val);
 		return -EIO;
 	}
 
-	ret = imx708_read_reg(imx708, 0x0000, IMX708_REG_VALUE_16BIT, &val);
+	ret = cci_read(imx708->regmap, 0x0000, &val, NULL);
 	if (!ret) {
-		dev_info(&client->dev, "camera module ID 0x%04x\n", val);
+		dev_info(&client->dev, "camera module ID 0x%04llx\n", val);
 		snprintf(imx708->sd.name, sizeof(imx708->sd.name), "imx708%s%s",
 			 val & 0x02 ? "_wide" : "",
 			 val & 0x80 ? "_noir" : "");
@@ -1825,7 +1679,7 @@ static int imx708_init_controls(struct imx708 *imx708)
 
 	ctrl = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx708_ctrl_ops,
 				      V4L2_CID_LINK_FREQ, 0, 0,
-				      &link_freqs[imx708->link_freq_idx]);
+				      &imx708->link_freq_value);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -1926,6 +1780,25 @@ static void imx708_free_controls(struct imx708 *imx708)
 	mutex_destroy(&imx708->mutex);
 }
 
+static int imx708_check_link_freq(u64 link_frequency, u16 *mpy_out)
+{
+	u64 mpy = link_frequency * 2 * IMX708_IOP_SYSCK_DIV * IMX708_IOP_PREDIV;
+	u64 tmp;
+
+	do_div(mpy, IMX708_INCLK_FREQ);
+
+	tmp = mpy * (IMX708_INCLK_FREQ / IMX708_IOP_PREDIV);
+	do_div(tmp, IMX708_IOP_SYSCK_DIV * 2);
+
+	if (tmp != link_frequency)
+		return -EINVAL;
+
+	if (mpy_out)
+		*mpy_out = mpy;
+
+	return 0;
+}
+
 static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 {
 	struct fwnode_handle *endpoint;
@@ -1947,10 +1820,13 @@ static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 	}
 
 	/* Check the number of MIPI CSI2 data lanes */
-	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2) {
-		dev_err(dev, "only 2 data lanes are currently supported\n");
+	if (ep_cfg.bus.mipi_csi2.num_data_lanes != 2 &&
+	    ep_cfg.bus.mipi_csi2.num_data_lanes != 4) {
+		dev_err_probe(dev, -EINVAL,
+			      "only 2 or 4 data lanes are currently supported\n");
 		goto error_out;
 	}
+	imx708->lanes = ep_cfg.bus.mipi_csi2.num_data_lanes;
 
 	/* Check the link frequency set in device tree */
 	if (!ep_cfg.nr_of_link_frequencies) {
@@ -1958,16 +1834,16 @@ static int imx708_check_hwcfg(struct device *dev, struct imx708 *imx708)
 		goto error_out;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(link_freqs); i++) {
-		if (link_freqs[i] == ep_cfg.link_frequencies[0]) {
-			imx708->link_freq_idx = i;
+	for (i = 0; i < ep_cfg.nr_of_link_frequencies; i++) {
+		if (!imx708_check_link_freq(ep_cfg.link_frequencies[i],
+					    &imx708->iop_pll_mpy)) {
+			imx708->link_freq_value = ep_cfg.link_frequencies[i];
 			break;
 		}
 	}
 
-	if (i == ARRAY_SIZE(link_freqs)) {
-		dev_err(dev, "Link frequency not supported: %lld\n",
-			ep_cfg.link_frequencies[0]);
+	if (i == ep_cfg.nr_of_link_frequencies) {
+		dev_err(dev, "No link frequencies supported\n");
 			ret = -EINVAL;
 			goto error_out;
 	}
@@ -1992,6 +1868,13 @@ static int imx708_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	v4l2_i2c_subdev_init(&imx708->sd, client, &imx708_subdev_ops);
+
+	imx708->regmap = devm_cci_regmap_init_i2c(client, 16);
+	if (IS_ERR(imx708->regmap)) {
+		ret = PTR_ERR(imx708->regmap);
+		dev_err(&client->dev, "failed to initialize CCI: %d\n", ret);
+		return ret;
+	}
 
 	/* Check the hardware configuration in device tree */
 	if (imx708_check_hwcfg(dev, imx708))
