@@ -114,8 +114,7 @@ struct sensor_async_sd {
  * @csi2_rx_ctrl_cached: cached shared value between all CSI2 receivers
  * @streams_lock: serialise access to streams
  * @streams: streams per firmware stream ID
- * @fwcom: fw communication layer private pointer
- *         or optional external library private pointer
+ * @fwctx: fw communication layer context pointer
  * @phy_termcal_val: the termination calibration value, only used for DWC PHY
  * @need_reset: Isys requires d0i0->i3 transition
  * @ref_count: total number of callers fw open
@@ -136,7 +135,7 @@ struct ipu6_isys {
 	spinlock_t streams_lock;
 	struct ipu6_isys_stream streams[IPU6_ISYS_MAX_STREAMS];
 	int streams_ref_count[IPU6_ISYS_MAX_STREAMS];
-	void *fwcom;
+	void *fwctx;
 	u32 phy_termcal_val;
 	bool need_reset;
 	bool icache_prefetch;

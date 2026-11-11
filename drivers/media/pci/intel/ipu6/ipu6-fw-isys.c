@@ -32,7 +32,7 @@ static int handle_proxy_response(struct ipu6_isys *isys, unsigned int req_id)
 	struct ipu6_fw_isys_proxy_resp_info_abi *resp;
 	int ret;
 
-	resp = ipu6_recv_get_token(isys->fwcom, IPU6_BASE_PROXY_RECV_QUEUES);
+	resp = ipu6_recv_get_token(isys->fwctx, IPU6_BASE_PROXY_RECV_QUEUES);
 	if (!resp)
 		return 1;
 
@@ -42,7 +42,7 @@ static int handle_proxy_response(struct ipu6_isys *isys, unsigned int req_id)
 
 	ret = req_id == resp->request_id ? 0 : -EIO;
 
-	ipu6_recv_put_token(isys->fwcom, IPU6_BASE_PROXY_RECV_QUEUES);
+	ipu6_recv_put_token(isys->fwctx, IPU6_BASE_PROXY_RECV_QUEUES);
 
 	return ret;
 }
@@ -52,7 +52,7 @@ int ipu6_fw_isys_send_proxy_token(struct ipu6_isys *isys,
 				  unsigned int index,
 				  unsigned int offset, u32 value)
 {
-	struct ipu6_fw_com_context *ctx = isys->fwcom;
+	struct ipu6_fw_com_context *ctx = isys->fwctx;
 	struct device *dev = &isys->adev->auxdev.dev;
 	struct ipu6_fw_proxy_send_queue_token *token;
 	unsigned int timeout = 1000;
@@ -96,7 +96,7 @@ int ipu6_fw_isys_complex_cmd(struct ipu6_isys *isys,
 			     dma_addr_t dma_mapped_buf,
 			     size_t size, u16 send_type)
 {
-	struct ipu6_fw_com_context *ctx = isys->fwcom;
+	struct ipu6_fw_com_context *ctx = isys->fwctx;
 	struct device *dev = &isys->adev->auxdev.dev;
 	struct ipu6_fw_send_queue_token *token;
 
@@ -138,7 +138,7 @@ int ipu6_fw_isys_close(struct ipu6_isys *isys)
 	struct device *dev = &isys->adev->auxdev.dev;
 	int retry = IPU6_ISYS_CLOSE_RETRY;
 	unsigned long flags;
-	void *fwcom;
+	void *fwctx;
 	int ret;
 
 	/*
@@ -148,9 +148,9 @@ int ipu6_fw_isys_close(struct ipu6_isys *isys)
 	 * spinlock to wait the interrupt handler to be finished
 	 */
 	spin_lock_irqsave(&isys->power_lock, flags);
-	ret = ipu6_fw_com_close(isys->fwcom);
-	fwcom = isys->fwcom;
-	isys->fwcom = NULL;
+	ret = ipu6_fw_com_close(isys->fwctx);
+	fwctx = isys->fwctx;
+	isys->fwctx = NULL;
 	spin_unlock_irqrestore(&isys->power_lock, flags);
 	if (ret)
 		dev_err(dev, "Device close failure: %d\n", ret);
@@ -158,14 +158,14 @@ int ipu6_fw_isys_close(struct ipu6_isys *isys)
 	/* release probably fails if the close failed. Let's try still */
 	do {
 		usleep_range(400, 500);
-		ret = ipu6_fw_com_release(fwcom, 0);
+		ret = ipu6_fw_com_release(fwctx, 0);
 		retry--;
 	} while (ret && retry);
 
 	if (ret) {
 		dev_err(dev, "Device release time out %d\n", ret);
 		spin_lock_irqsave(&isys->power_lock, flags);
-		isys->fwcom = fwcom;
+		isys->fwctx = fwctx;
 		spin_unlock_irqrestore(&isys->power_lock, flags);
 	}
 
@@ -176,11 +176,11 @@ void ipu6_fw_isys_cleanup(struct ipu6_isys *isys)
 {
 	int ret;
 
-	ret = ipu6_fw_com_release(isys->fwcom, 1);
+	ret = ipu6_fw_com_release(isys->fwctx, 1);
 	if (ret < 0)
 		dev_warn(&isys->adev->auxdev.dev,
 			 "Device busy, fw_com release failed.");
-	isys->fwcom = NULL;
+	isys->fwctx = NULL;
 }
 
 static void start_sp(struct ipu6_bus_device *adev)
@@ -212,7 +212,7 @@ static int query_sp(struct ipu6_bus_device *adev)
 }
 
 static int ipu6_isys_fwcom_cfg_init(struct ipu6_isys *isys,
-				    struct ipu6_fw_com_cfg *fwcom,
+				    struct ipu6_fw_com_cfg *fwcom_cfg,
 				    unsigned int num_streams)
 {
 	unsigned int max_send_queues, max_sram_blocks, max_devq_size;
@@ -258,14 +258,16 @@ static int ipu6_isys_fwcom_cfg_init(struct ipu6_isys *isys,
 	if (!output_queue_cfg)
 		return -ENOMEM;
 
-	fwcom->input = input_queue_cfg;
-	fwcom->output = output_queue_cfg;
+	fwcom_cfg->input = input_queue_cfg;
+	fwcom_cfg->output = output_queue_cfg;
 
-	fwcom->num_input_queues = isys_fw_cfg->num_send_queues[type_proxy] +
+	fwcom_cfg->num_input_queues =
+		isys_fw_cfg->num_send_queues[type_proxy] +
 		isys_fw_cfg->num_send_queues[type_dev] +
 		isys_fw_cfg->num_send_queues[type_msg];
 
-	fwcom->num_output_queues = isys_fw_cfg->num_recv_queues[type_proxy] +
+	fwcom_cfg->num_output_queues =
+		isys_fw_cfg->num_recv_queues[type_proxy] +
 		isys_fw_cfg->num_recv_queues[type_dev] +
 		isys_fw_cfg->num_recv_queues[type_msg];
 
@@ -280,7 +282,7 @@ static int ipu6_isys_fwcom_cfg_init(struct ipu6_isys *isys,
 			isys_fw_cfg->buffer_partition.num_gda_pages[i] = 0;
 	}
 
-	/* FW assumes proxy interface at fwcom queue 0 */
+	/* FW assumes proxy interface at fwcom_cfg queue 0 */
 	for (i = 0; i < isys_fw_cfg->num_send_queues[type_proxy]; i++) {
 		input_queue_cfg[i].token_size =
 			sizeof(struct ipu6_fw_proxy_send_queue_token);
@@ -314,9 +316,9 @@ static int ipu6_isys_fwcom_cfg_init(struct ipu6_isys *isys,
 			IPU6_ISYS_SIZE_RECV_QUEUE;
 	}
 
-	fwcom->dmem_addr = isys->pdata->ipdata->hw_variant.dmem_offset;
-	fwcom->specific_addr = isys_fw_cfg;
-	fwcom->specific_size = sizeof(*isys_fw_cfg);
+	fwcom_cfg->dmem_addr = isys->pdata->ipdata->hw_variant.dmem_offset;
+	fwcom_cfg->specific_addr = isys_fw_cfg;
+	fwcom_cfg->specific_size = sizeof(*isys_fw_cfg);
 
 	return 0;
 }
@@ -325,23 +327,23 @@ int ipu6_fw_isys_init(struct ipu6_isys *isys, unsigned int num_streams)
 {
 	struct device *dev = &isys->adev->auxdev.dev;
 	int retry = IPU6_ISYS_OPEN_RETRY;
-	struct ipu6_fw_com_cfg fwcom = {
+	struct ipu6_fw_com_cfg fwcom_cfg = {
 		.cell_start = start_sp,
 		.cell_ready = query_sp,
 		.buttress_boot_offset = SYSCOM_BUTTRESS_FW_PARAMS_ISYS_OFFSET,
 	};
 	int ret;
 
-	ipu6_isys_fwcom_cfg_init(isys, &fwcom, num_streams);
+	ipu6_isys_fwcom_cfg_init(isys, &fwcom_cfg, num_streams);
 
-	isys->fwcom = ipu6_fw_com_prepare(&fwcom, isys->adev,
+	isys->fwctx = ipu6_fw_com_prepare(&fwcom_cfg, isys->adev,
 					  isys->pdata->base);
-	if (!isys->fwcom) {
+	if (!isys->fwctx) {
 		dev_err(dev, "isys fw com prepare failed\n");
 		return -EIO;
 	}
 
-	ret = ipu6_fw_com_open(isys->fwcom);
+	ret = ipu6_fw_com_open(isys->fwctx);
 	if (ret) {
 		dev_err(dev, "isys fw com open failed %d\n", ret);
 		return ret;
@@ -349,7 +351,7 @@ int ipu6_fw_isys_init(struct ipu6_isys *isys, unsigned int num_streams)
 
 	do {
 		usleep_range(400, 500);
-		if (ipu6_fw_com_ready(isys->fwcom))
+		if (ipu6_fw_com_ready(isys->fwctx))
 			break;
 		retry--;
 	} while (retry > 0);
