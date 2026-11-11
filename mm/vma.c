@@ -2462,14 +2462,17 @@ static int __mmap_setup(struct mmap_state *map, struct list_head *uf)
 
 	/* Private writable mapping: check memory availability. */
 	if (accountable_mapping(map->file, map->vm_flags)) {
-		map->charged = map->pglen;
-		map->charged -= vms->nr_accounted;
-		if (map->charged) {
-			error = security_vm_enough_memory_mm(map->mm, map->charged);
+		const unsigned long uncharged = map->pglen - vms->nr_accounted;
+
+		/* Charge only what's not already charged by mappings we replace. */
+		if (uncharged) {
+			error = security_vm_enough_memory_mm(map->mm, uncharged);
 			if (error)
 				return error;
 		}
 
+		/* Our new mapping owns the entire charge now. */
+		map->charged = map->pglen;
 		vms->nr_accounted = 0;
 		map->vm_flags |= VM_ACCOUNT;
 	}
