@@ -2067,7 +2067,7 @@ int dax_dedupe_file_range_compare(struct inode *src, loff_t srcoff,
 		compared = dax_range_compare_iter(&src_iter, &dst_iter,
 				min(src_iter.len, dst_iter.len), same);
 		if (compared < 0)
-			return ret;
+			return compared;
 		src_iter.processed = dst_iter.processed = compared;
 	}
 	return ret;
