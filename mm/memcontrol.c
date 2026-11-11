@@ -2016,6 +2016,9 @@ void drain_all_stock(struct mem_cgroup *root_memcg)
 				drain_local_memcg_stock(&memcg_st->work);
 			else if (!cpu_is_isolated(cpu))
 				schedule_work_on(cpu, &memcg_st->work);
+			else
+				clear_bit(FLUSHING_CACHED_CHARGE,
+					  &memcg_st->flags);
 		}
 
 		if (!test_bit(FLUSHING_CACHED_CHARGE, &obj_st->flags) &&
@@ -2026,6 +2029,9 @@ void drain_all_stock(struct mem_cgroup *root_memcg)
 				drain_local_obj_stock(&obj_st->work);
 			else if (!cpu_is_isolated(cpu))
 				schedule_work_on(cpu, &obj_st->work);
+			else
+				clear_bit(FLUSHING_CACHED_CHARGE,
+					  &obj_st->flags);
 		}
 	}
 	migrate_enable();
