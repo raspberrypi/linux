@@ -1778,7 +1778,7 @@ static int zswap_setup(void)
 	if (pool) {
 		pr_info("loaded using pool %s/%s\n", pool->tfm_name,
 			zpool_get_type(pool->zpool));
-		list_add(&pool->list, &zswap_pools);
+		list_add_rcu(&pool->list, &zswap_pools);
 		zswap_has_pool = true;
 	} else {
 		pr_err("pool creation failed\n");
