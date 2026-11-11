@@ -64,7 +64,7 @@ static void cros_usbpd_get_event_and_notify(struct device  *dev,
 
 	/*
 	 * We still send a 0 event out to older devices which don't
-	 * have the updated device heirarchy.
+	 * have the updated device hierarchy.
 	 */
 	if (!ec_dev) {
 		dev_dbg(dev,
@@ -115,7 +115,7 @@ static int cros_usbpd_notify_probe_acpi(struct platform_device *pdev)
 	if (!ec_dev) {
 		/*
 		 * We continue even for older devices which don't have the
-		 * correct device heirarchy, namely, GOOG0003 is a child
+		 * correct device hierarchy, namely, GOOG0003 is a child
 		 * of GOOG0004. If GOOG0003 is a child of GOOG0004 and we
 		 * can't get a pointer to the Chrome EC device, defer the
 		 * probe function.
