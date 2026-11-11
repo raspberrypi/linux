@@ -2152,6 +2152,13 @@ static int vc4_hdmi_audio_prepare(struct drm_connector *connector,
 	vc4_hdmi_audio_set_mai_clock(vc4_hdmi, sample_rate);
 
 	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
+	/* Also reached on xrun recovery, where startup is not called */
+	HDMI_WRITE(HDMI_MAI_CTL,
+		   VC4_HD_MAI_CTL_RESET |
+		   VC4_HD_MAI_CTL_FLUSH |
+		   VC4_HD_MAI_CTL_DLATE |
+		   VC4_HD_MAI_CTL_ERRORE |
+		   VC4_HD_MAI_CTL_ERRORF);
 	HDMI_WRITE(HDMI_MAI_CTL,
 		   VC4_SET_FIELD(channels, VC4_HD_MAI_CTL_CHNUM) |
 		   VC4_HD_MAI_CTL_WHOLSMP |
