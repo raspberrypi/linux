@@ -33,6 +33,8 @@
  * @class: USB class.
  * @subclass: USB subclass.
  * @protocol: USB protocol.
+ * @ifunction: Optional iFunction string for the IAD. When set, it replaces
+ *             the built-in strings and the interfaces get no iInterface.
  * @lock: Protects the data from concurrent access by configfs read/write
  *        and create symlink/remove symlink operations.
  * @refcnt: Reference counter for the function instance.
@@ -52,6 +54,7 @@ struct f_rndis_opts {
 	u8				class;
 	u8				subclass;
 	u8				protocol;
+	char				ifunction[96];
 	struct mutex			lock;
 	int				refcnt;
 };

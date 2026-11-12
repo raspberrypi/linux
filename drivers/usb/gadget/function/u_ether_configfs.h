@@ -197,4 +197,38 @@ out:									\
 									\
 	CONFIGFS_ATTR(_f_##_opts_, _n_)
 
+#define USB_ETHER_CONFIGFS_ITEM_ATTR_STRING(_f_, _n_)			\
+	static ssize_t _f_##_opts_##_n_##_show(struct config_item *item,\
+					       char *page)		\
+	{								\
+		struct f_##_f_##_opts *opts = to_f_##_f_##_opts(item);	\
+		int ret;						\
+									\
+		mutex_lock(&opts->lock);				\
+		ret = sysfs_emit(page, "%s\n", opts->_n_);		\
+		mutex_unlock(&opts->lock);				\
+									\
+		return ret;						\
+	}								\
+									\
+	static ssize_t _f_##_opts_##_n_##_store(struct config_item *item,\
+						const char *page,	\
+						size_t len)		\
+	{								\
+		struct f_##_f_##_opts *opts = to_f_##_f_##_opts(item);	\
+		ssize_t ret;						\
+		char *nl;						\
+									\
+		mutex_lock(&opts->lock);				\
+		ret = strscpy(opts->_n_, page, sizeof(opts->_n_));	\
+		nl = strchr(opts->_n_, '\n');				\
+		if (nl)							\
+			*nl = '\0';					\
+		mutex_unlock(&opts->lock);				\
+									\
+		return ret < 0 ? ret : len;				\
+	}								\
+									\
+	CONFIGFS_ATTR(_f_##_opts_, _n_)
+
 #endif /* __U_ETHER_CONFIGFS_H */

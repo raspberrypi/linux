@@ -16,4 +16,12 @@ Description:
 		class		USB interface class, default is 02 (hex)
 		subclass	USB interface subclass, default is 06 (hex)
 		protocol	USB interface protocol, default is 00 (hex)
+		ifunction	optional iFunction string (max 95 characters)
+				for the Interface Association Descriptor.
+				When set, it replaces the built-in strings and
+				the interfaces report no iInterface string
 		=========	=============================================
+
+		If class, subclass or protocol differ from their defaults,
+		the values are also reported in the control interface
+		descriptor, not only in the Interface Association Descriptor.
