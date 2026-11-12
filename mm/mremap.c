@@ -47,7 +47,8 @@ static pud_t *get_old_pud(struct mm_struct *mm, unsigned long addr)
 		return NULL;
 
 	pud = pud_offset(p4d, addr);
-	if (pud_none_or_clear_bad(pud))
+	if (!pud_trans_huge(*pud) && !pud_devmap(*pud) &&
+	    pud_none_or_clear_bad(pud))
 		return NULL;
 
 	return pud;
@@ -624,12 +625,11 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 		if (!new_pud)
 			break;
 		if (pud_trans_huge(*old_pud) || pud_devmap(*old_pud)) {
-			if (extent == HPAGE_PUD_SIZE) {
-				move_pgt_entry(HPAGE_PUD, vma, old_addr, new_addr,
-					       old_pud, new_pud, need_rmap_locks);
-				/* We ignore and continue on error? */
+			if (extent == HPAGE_PUD_SIZE &&
+			    move_pgt_entry(HPAGE_PUD, vma, old_addr, new_addr,
+					   old_pud, new_pud, need_rmap_locks))
 				continue;
-			}
+			split_huge_pud(vma, old_pud, old_addr);
 		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PUD) &&
 			   extent == PUD_SIZE && uffd_supports_move) {
 
