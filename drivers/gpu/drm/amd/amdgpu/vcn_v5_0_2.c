@@ -203,8 +203,6 @@ static int vcn_v5_0_2_hw_init(struct amdgpu_ip_block *ip_block)
 	int i, r, vcn_inst;
 	uint32_t tmp;
 
-	if (RREG32_SOC15(VCN, GET_INST(VCN, 0), regVCN_RRMT_CNTL) & 0x200)
-		adev->vcn.caps |= AMDGPU_VCN_CAPS(RRMT_ENABLED);
 	for (i = 0; i < adev->vcn.num_vcn_inst; ++i) {
 		vcn_inst = GET_INST(VCN, i);
 		ring = &adev->vcn.inst[i].ring_enc[0];
