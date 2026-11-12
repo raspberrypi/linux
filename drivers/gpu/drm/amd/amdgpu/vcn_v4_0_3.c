@@ -313,10 +313,14 @@ static int vcn_v4_0_3_hw_init(void *handle)
 
 			r = amdgpu_ring_test_helper(ring);
 			if (r)
-				return r;
+				goto error;
 		}
 	}
 
+	return r;
+
+error:
+	cancel_delayed_work_sync(&adev->vcn.idle_work);
 	return r;
 }
 
