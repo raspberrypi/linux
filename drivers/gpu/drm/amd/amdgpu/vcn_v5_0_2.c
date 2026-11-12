@@ -129,7 +129,7 @@ static int vcn_v5_0_2_sw_init(struct amdgpu_ip_block *ip_block)
 		ring->use_doorbell = true;
 
 		ring->doorbell_index =
-			(adev->doorbell_index.vcn.vcn_ring0_1 << 1) + 32 * vcn_inst;
+			(adev->doorbell_index.vcn.vcn_ring0_1 << 1) + 11 * vcn_inst;
 
 		ring->vm_hub = AMDGPU_MMHUB0(adev->vcn.inst[i].aid_id);
 		sprintf(ring->name, "vcn_unified_%d", adev->vcn.inst[i].aid_id);
