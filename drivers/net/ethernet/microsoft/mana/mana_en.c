@@ -9,7 +9,6 @@
 #include <linux/ethtool.h>
 #include <linux/filter.h>
 #include <linux/mm.h>
-#include <linux/pci.h>
 #include <linux/export.h>
 #include <linux/skbuff.h>
 
@@ -20,6 +19,7 @@
 #include <net/xdp.h>
 
 #include <net/mana/mana.h>
+
 #include <net/mana/mana_auxiliary.h>
 #include <net/mana/hw_channel.h>
 
@@ -3754,10 +3754,9 @@ static int mana_dealloc_queues(struct net_device *ndev)
 				tsleep <<= 1;
 			}
 			if (atomic_read(&txq->pending_sends)) {
-				err =
-				    pcie_flr(to_pci_dev(gd->gdma_context->dev));
+				err = mana_gd_dev_reset(gd->gdma_context);
 				if (err) {
-					netdev_err(ndev, "flr failed %d with %d pkts pending in txq %u\n",
+					netdev_err(ndev, "device reset failed %d with %d pkts pending in txq %u\n",
 						   err,
 					    atomic_read(&txq->pending_sends),
 					    txq->gdma_txq_id);
@@ -4059,6 +4058,9 @@ int mana_rdma_service_event(struct gdma_context *gc, enum gdma_service_type even
 		/* RDMA device is not detected on pci */
 		return 0;
 	}
+
+	if (!gc->service_wq)
+		return -EOPNOTSUPP;
 
 	serv_work = kzalloc_obj(*serv_work, GFP_ATOMIC);
 	if (!serv_work)
