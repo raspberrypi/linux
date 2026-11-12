@@ -849,6 +849,11 @@ int soc_v1_0_init_soc_config(struct amdgpu_device *adev)
 	adev->sdma.sdma_mask = sdma_mask;
 	adev->sdma.num_instances = NUM_XCC(adev->sdma.sdma_mask);
 
+	adev->vcn.harvest_config = 0;
+	adev->vcn.num_inst_per_aid = 1;
+	adev->vcn.inst_mask = 1;
+	adev->vcn.num_vcn_inst = hweight32(adev->vcn.inst_mask);
+
 	ret = soc_v1_0_xcp_mgr_init(adev);
 	if (ret)
 		return ret;
