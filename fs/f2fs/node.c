@@ -2167,9 +2167,11 @@ continue_unlock:
 
 			/* flush inline_data */
 			if (folio_test_f2fs_inline(folio)) {
+				nid_t ino = ino_of_node(folio);
+
 				folio_clear_f2fs_inline(folio);
 				folio_unlock(folio);
-				flush_inline_data(sbi, ino_of_node(folio));
+				flush_inline_data(sbi, ino);
 				goto lock_node;
 			}
 
