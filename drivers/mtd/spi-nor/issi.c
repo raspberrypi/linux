@@ -99,6 +99,7 @@ static const struct flash_info issi_nor_parts[] = {
 		.id = SNOR_ID(0x9d, 0x60, 0x18),
 		.name = "is25lp128",
 		.size = SZ_16M,
+		.flags = SPI_NOR_QUAD_PP,
 		.no_sfdp_flags = SECT_4K | SPI_NOR_DUAL_READ,
 	}, {
 		.id = SNOR_ID(0x9d, 0x60, 0x19),
