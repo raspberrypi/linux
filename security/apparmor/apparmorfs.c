@@ -494,8 +494,9 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 	struct aa_loaddata *data;
 	struct aa_label *label;
 	ssize_t error;
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 
 	/* high level check about policy management - fine grained in
 	 * below after unpack
@@ -514,7 +515,7 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 		aa_put_profile_loaddata(data);
 	}
 end_section:
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 
 	return error;
 }
@@ -562,8 +563,9 @@ static ssize_t profile_remove(struct file *f, const char __user *buf,
 	struct aa_label *label;
 	ssize_t error;
 	struct aa_ns *ns = get_ns_common_ref(f->f_inode->i_private);
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 	/* high level check about policy management - fine grained in
 	 * below after unpack
 	 */
@@ -585,7 +587,7 @@ static ssize_t profile_remove(struct file *f, const char __user *buf,
 		aa_put_profile_loaddata(data);
 	}
  out:
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 	aa_put_ns(ns);
 	return error;
 }
@@ -761,6 +763,7 @@ static ssize_t query_data(char *buf, size_t buf_len,
 	struct aa_data *data;
 	u32 bytes, blocks;
 	__le32 outle32;
+	bool needput;
 
 	if (!query_len)
 		return -EINVAL; /* need a query */
@@ -774,9 +777,9 @@ static ssize_t query_data(char *buf, size_t buf_len,
 	if (buf_len < sizeof(bytes) + sizeof(blocks))
 		return -EINVAL; /* not enough space */
 
-	curr = begin_current_label_crit_section();
+	curr = begin_current_label_crit_section(&needput);
 	label = aa_label_parse(curr, query, GFP_KERNEL, false, false);
-	end_current_label_crit_section(curr);
+	end_current_label_crit_section(curr, needput);
 	if (IS_ERR(label))
 		return PTR_ERR(label);
 
@@ -852,6 +855,7 @@ static ssize_t query_label(char *buf, size_t buf_len,
 	size_t label_name_len, match_len;
 	struct aa_perms perms;
 	struct label_it i;
+	bool needput;
 
 	if (!query_len)
 		return -EINVAL;
@@ -870,9 +874,9 @@ static ssize_t query_label(char *buf, size_t buf_len,
 	match_str = label_name + label_name_len + 1;
 	match_len = query_len - label_name_len - 1;
 
-	curr = begin_current_label_crit_section();
+	curr = begin_current_label_crit_section(&needput);
 	label = aa_label_parse(curr, label_name, GFP_KERNEL, false, false);
-	end_current_label_crit_section(curr);
+	end_current_label_crit_section(curr, needput);
 	if (IS_ERR(label))
 		return PTR_ERR(label);
 
@@ -1240,10 +1244,11 @@ static const struct file_operations seq_ns_ ##NAME ##_fops = {	      \
 static int seq_ns_stacked_show(struct seq_file *seq, void *v)
 {
 	struct aa_label *label;
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 	seq_printf(seq, "%s\n", str_yes_no(label->size > 1));
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 
 	return 0;
 }
@@ -1254,8 +1259,9 @@ static int seq_ns_nsstacked_show(struct seq_file *seq, void *v)
 	struct aa_profile *profile;
 	struct label_it it;
 	int count = 1;
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 
 	if (label->size > 1) {
 		label_for_each(it, label, profile)
@@ -1266,7 +1272,7 @@ static int seq_ns_nsstacked_show(struct seq_file *seq, void *v)
 	}
 
 	seq_printf(seq, "%s\n", str_yes_no(count > 1));
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 
 	return 0;
 }
@@ -1274,19 +1280,22 @@ static int seq_ns_nsstacked_show(struct seq_file *seq, void *v)
 static int seq_ns_level_show(struct seq_file *seq, void *v)
 {
 	struct aa_label *label;
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 	seq_printf(seq, "%d\n", labels_ns(label)->level);
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 
 	return 0;
 }
 
 static int seq_ns_name_show(struct seq_file *seq, void *v)
 {
-	struct aa_label *label = begin_current_label_crit_section();
+	bool needput;
+	struct aa_label *label = begin_current_label_crit_section(&needput);
+
 	seq_printf(seq, "%s\n", labels_ns(label)->base.name);
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 
 	return 0;
 }
@@ -1937,11 +1946,12 @@ static struct dentry *ns_mkdir_op(struct mnt_idmap *idmap, struct inode *dir,
 	/* TODO: improve permission check */
 	struct aa_label *label;
 	int error;
+	bool needput;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 	error = aa_may_manage_policy(current_cred(), label, NULL, NULL,
 				     AA_MAY_LOAD_POLICY);
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 	if (error)
 		return ERR_PTR(error);
 
@@ -1986,12 +1996,13 @@ static int ns_rmdir_op(struct inode *dir, struct dentry *dentry)
 	struct aa_ns *ns, *parent;
 	/* TODO: improve permission check */
 	struct aa_label *label;
+	bool needput;
 	int error;
 
-	label = begin_current_label_crit_section();
+	label = begin_current_label_crit_section(&needput);
 	error = aa_may_manage_policy(current_cred(), label, NULL, NULL,
 				     AA_MAY_LOAD_POLICY);
-	end_current_label_crit_section(label);
+	end_current_label_crit_section(label, needput);
 	if (error)
 		return error;
 
