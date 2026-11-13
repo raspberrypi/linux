@@ -1968,7 +1968,8 @@ static s32 brcmf_set_wpa_version(struct net_device *ndev,
 	if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_1) {
 		val = WPA_AUTH_PSK | WPA_AUTH_UNSPECIFIED;
 	} else if (sme->crypto.wpa_versions & NL80211_WPA_VERSION_2) {
-		if (drvr->bus_if->fwvid == BRCMF_FWVENDOR_CYW &&
+		if ((drvr->bus_if->fwvid == BRCMF_FWVENDOR_CYW ||
+		     brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT)) &&
 		    sme->crypto.akm_suites[0] == WLAN_AKM_SUITE_SAE)
 			val = WPA3_AUTH_SAE_PSK;
 		else
@@ -5563,6 +5564,36 @@ brcmf_cfg80211_update_mgmt_frame_registrations(struct wiphy *wiphy,
 	vif->mgmt_rx_reg = upd->interface_stypes;
 }
 
+static s32
+brcmf_cfg80211_mgmt_auth_tx(struct brcmf_cfg80211_vif *vif, struct wireless_dev *wdev,
+			    const u8 *buf, size_t len, u64 cookie)
+{
+	struct brcmf_assoc_mgr_cmd *cmd;
+	int param_len;
+	int err;
+
+	if (!brcmf_feat_is_enabled(vif->ifp, BRCMF_FEAT_SAE_EXT))
+		return -EOPNOTSUPP;
+
+	param_len = sizeof(*cmd) + len;
+	cmd = kzalloc(param_len, GFP_KERNEL);
+	if (!cmd)
+		return -ENOMEM;
+
+	cmd->version = cpu_to_le16(BRCMF_ASSOC_MGR_CURRENT_VERSION);
+	cmd->length = cpu_to_le16(len);
+	cmd->cmd = cpu_to_le16(BRCMF_ASSOC_MGR_CMD_SEND_AUTH);
+	memcpy(cmd->data, buf, len);
+
+	err = brcmf_fil_iovar_data_set(vif->ifp, "assoc_mgr_cmd", cmd, param_len);
+	if (err)
+		brcmf_err("Failed to send auth(%d)\n", err);
+
+	kfree(cmd);
+
+	cfg80211_mgmt_tx_status(wdev, cookie, buf, len, !err, GFP_KERNEL);
+	return err;
+}
 
 int
 brcmf_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
@@ -5668,6 +5699,9 @@ brcmf_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 					GFP_KERNEL);
 free:
 		kfree(af_params);
+	} else if (ieee80211_is_auth(mgmt->frame_control)) {
+		err = brcmf_cfg80211_mgmt_auth_tx(vif, wdev, buf, len, cookie);
+		goto exit;
 	} else {
 		brcmf_dbg(TRACE, "Unhandled, fc=%04x!!\n", mgmt->frame_control);
 		brcmf_dbg_hex_dump(true, buf, len, "payload, len=%zu\n", len);
@@ -6012,6 +6046,46 @@ static int brcmf_cfg80211_change_bss(struct wiphy *wiphy, struct net_device *dev
 	return ret;
 }
 
+/** Called by the cfg80211 framework */
+static s32
+brcmf_cfg80211_external_auth(struct wiphy *wiphy, struct net_device *ndev,
+			     struct cfg80211_external_auth_params *ext_auth_param)
+{
+	struct brcmf_if *ifp = netdev_priv(ndev);
+	struct brcmf_assoc_mgr_cmd cmd = {};
+	int err;
+
+	brcmf_dbg(TRACE, "Enter\n");
+
+	if (!brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT))
+		return -EOPNOTSUPP;
+
+	if (is_zero_ether_addr(ext_auth_param->bssid)) {
+		brcmf_err("Invalid external auth BSSID\n");
+		return -EINVAL;
+	}
+
+	brcmf_dbg(CONN, "BSSID:%pM, status:%d\n", ext_auth_param->bssid,
+		  ext_auth_param->status);
+
+	/* Disconnect on authentication failure */
+	if (ext_auth_param->status) {
+		brcmf_cfg80211_disconnect(wiphy, ndev, WLAN_REASON_UNSPECIFIED);
+		return 0;
+	}
+
+	/* Resume the paused association */
+	cmd.version = cpu_to_le16(BRCMF_ASSOC_MGR_CURRENT_VERSION);
+	cmd.length = cpu_to_le16(sizeof(cmd));
+	cmd.cmd = cpu_to_le16(BRCMF_ASSOC_MGR_CMD_PAUSE_ON_EVT);
+	cmd.params = cpu_to_le16(BRCMF_ASSOC_MGR_PARAMS_EVENT_NONE);
+	err = brcmf_fil_iovar_data_set(ifp, "assoc_mgr_cmd", &cmd, sizeof(cmd));
+	if (err)
+		brcmf_err("Failed to resume assoc(%d)\n", err);
+
+	return err;
+}
+
 static struct cfg80211_ops brcmf_cfg80211_ops = {
 	.add_virtual_intf = brcmf_cfg80211_add_iface,
 	.del_virtual_intf = brcmf_cfg80211_del_iface,
@@ -6060,6 +6134,7 @@ static struct cfg80211_ops brcmf_cfg80211_ops = {
 	.set_pmk = brcmf_cfg80211_set_pmk,
 	.del_pmk = brcmf_cfg80211_del_pmk,
 	.change_bss = brcmf_cfg80211_change_bss,
+	.external_auth = brcmf_cfg80211_external_auth,
 };
 
 struct cfg80211_ops *brcmf_cfg80211_get_ops(struct brcmf_mp_device *settings)
@@ -6603,6 +6678,136 @@ brcmf_notify_connect_status_ap(struct brcmf_cfg80211_info *cfg,
 }
 
 static s32
+brcmf_handle_auth_event(struct brcmf_if *ifp, struct brcmf_cfg80211_info *cfg,
+			struct net_device *ndev,
+			const struct brcmf_event_msg *e, void *data)
+{
+	struct wireless_dev *wdev = ndev->ieee80211_ptr;
+	struct ieee80211_mgmt *mgmt;
+	enum nl80211_band band;
+	u32 len = e->datalen;
+	u8 bssid[ETH_ALEN];
+	size_t frame_len;
+	__le32 chan_le;
+	s32 chan, freq;
+	int err;
+
+	if (brcmf_is_apmode(ifp->vif))
+		return -EINVAL;
+
+	if (!brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT))
+		return 0;
+
+	/* Only events carrying an external SAE frame are of interest */
+	if (!len) {
+		brcmf_dbg(CONN, "WLC_E_AUTH without payload, status %d reason %d\n",
+			  e->status, e->reason);
+		return 0;
+	}
+
+	err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_BSSID, bssid, ETH_ALEN);
+	/* Use e->addr as the BSSID before association has completed */
+	if (err == -EBADE) {
+		memcpy(bssid, e->addr, ETH_ALEN);
+		err = 0;
+	}
+	if (err) {
+		brcmf_err("Could not get bssid %d\n", err);
+		return err;
+	}
+
+	err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_CHANNEL, &chan_le,
+				     sizeof(chan_le));
+	if (err) {
+		brcmf_err("Could not get channel %d\n", err);
+		return err;
+	}
+
+	chan = le32_to_cpu(chan_le);
+	band = (chan <= CH_MAX_2G_CHANNEL) ? NL80211_BAND_2GHZ : NL80211_BAND_5GHZ;
+	freq = ieee80211_channel_to_frequency(chan, band);
+
+	/* The event carries the frame body - add a management header */
+	frame_len = DOT11_MGMT_HDR_LEN + len;
+	mgmt = kzalloc(frame_len, GFP_KERNEL);
+	if (!mgmt)
+		return -ENOMEM;
+
+	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
+						  IEEE80211_STYPE_AUTH);
+	memcpy(mgmt->da, ifp->mac_addr, ETH_ALEN);
+	memcpy(mgmt->sa, e->addr, ETH_ALEN);
+	memcpy(mgmt->bssid, bssid, ETH_ALEN);
+	memcpy((u8 *)mgmt + DOT11_MGMT_HDR_LEN, data, len);
+
+	cfg80211_rx_mgmt(wdev, freq, 0, (u8 *)mgmt, frame_len,
+			 NL80211_RXMGMT_FLAG_EXTERNAL_AUTH);
+	kfree(mgmt);
+
+	return 0;
+}
+
+static s32
+brcmf_notify_start_auth(struct brcmf_if *ifp,
+			const struct brcmf_event_msg *e, void *data)
+{
+	struct cfg80211_external_auth_params ext_auth_param = {};
+	struct wireless_dev *wdev = ifp->ndev->ieee80211_ptr;
+	struct brcmf_ext_auth_evt *evt_data = data;
+	struct brcmf_assoc_mgr_cmd assoc_cmd = {};
+	struct net_device *ndev = ifp->ndev;
+	int err, retry;
+
+	brcmf_dbg(TRACE, "Enter\n");
+
+	if (!brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT))
+		return 0;
+
+	if (!data || e->datalen < offsetofend(struct brcmf_ext_auth_evt, bssid)) {
+		brcmf_err("Invalid data for auth start event\n");
+		return -EINVAL;
+	}
+
+	ext_auth_param.ssid.ssid_len = min_t(u32, le32_to_cpu(evt_data->ssid.SSID_len),
+					     IEEE80211_MAX_SSID_LEN);
+	memcpy(ext_auth_param.ssid.ssid, evt_data->ssid.SSID,
+	       ext_auth_param.ssid.ssid_len);
+	memcpy(ext_auth_param.bssid, evt_data->bssid, ETH_ALEN);
+	ext_auth_param.action = NL80211_EXTERNAL_AUTH_START;
+	ext_auth_param.key_mgmt_suite = WLAN_AKM_SUITE_SAE;
+
+	/* Wait for conn_owner_nlportid to be assigned in nl80211_connect */
+	for (retry = 5; retry > 0 && !wdev->conn_owner_nlportid; retry--)
+		msleep(20);
+
+	err = -ENOTCONN;
+	if (test_bit(BRCMF_VIF_STATUS_CONNECTING, &ifp->vif->sme_state))
+		err = cfg80211_external_auth_request(ndev, &ext_auth_param,
+						     GFP_KERNEL);
+	if (err) {
+		/* Nobody will complete SAE for this join (e.g. the connect
+		 * attempt has already been failed), so abort it rather than
+		 * leave the firmware waiting and refusing to scan.
+		 */
+		brcmf_err("Send external auth request failed, ret %d\n", err);
+		brcmf_fil_cmd_data_set(ifp, BRCMF_C_DISASSOC, NULL, 0);
+		return 0;
+	}
+
+	/* Pause the association until the supplicant has completed SAE */
+	assoc_cmd.version = cpu_to_le16(BRCMF_ASSOC_MGR_CURRENT_VERSION);
+	assoc_cmd.length = cpu_to_le16(sizeof(assoc_cmd));
+	assoc_cmd.cmd = cpu_to_le16(BRCMF_ASSOC_MGR_CMD_PAUSE_ON_EVT);
+	assoc_cmd.params = cpu_to_le16(BRCMF_ASSOC_MGR_PARAMS_PAUSE_EVENT_AUTH_RESP);
+	err = brcmf_fil_iovar_data_set(ifp, "assoc_mgr_cmd", &assoc_cmd,
+				       sizeof(assoc_cmd));
+	if (err)
+		brcmf_err("Failed to pause assoc(%d)\n", err);
+
+	return 0;
+}
+
+static s32
 brcmf_notify_connect_status(struct brcmf_if *ifp,
 			    const struct brcmf_event_msg *e, void *data)
 {
@@ -6665,6 +6870,8 @@ brcmf_notify_connect_status(struct brcmf_if *ifp,
 				  &ifp->vif->sme_state);
 		else
 			brcmf_bss_connect_done(cfg, ndev, e, false);
+	} else if (e->event_code == BRCMF_E_AUTH) {
+		brcmf_handle_auth_event(ifp, cfg, ndev, e, data);
 	}
 
 	return err;
@@ -6818,6 +7025,8 @@ static void brcmf_register_event_handlers(struct brcmf_cfg80211_info *cfg)
 {
 	brcmf_fweh_register(cfg->pub, BRCMF_E_LINK,
 			    brcmf_notify_connect_status);
+	brcmf_fweh_register(cfg->pub, BRCMF_E_AUTH,
+			    brcmf_notify_connect_status);
 	brcmf_fweh_register(cfg->pub, BRCMF_E_DEAUTH_IND,
 			    brcmf_notify_connect_status);
 	brcmf_fweh_register(cfg->pub, BRCMF_E_DEAUTH,
@@ -6851,6 +7060,7 @@ static void brcmf_register_event_handlers(struct brcmf_cfg80211_info *cfg)
 	brcmf_fweh_register(cfg->pub, BRCMF_E_PSK_SUP,
 			    brcmf_notify_connect_status);
 	brcmf_fweh_register(cfg->pub, BRCMF_E_RSSI, brcmf_notify_rssi);
+	brcmf_fweh_register(cfg->pub, BRCMF_E_JOIN_START, brcmf_notify_start_auth);
 
 	brcmf_fwvid_register_event_handlers(cfg->pub);
 }
