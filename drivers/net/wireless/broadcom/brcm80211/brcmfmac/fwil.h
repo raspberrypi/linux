@@ -8,6 +8,9 @@
 
 #include "debug.h"
 
+/* firmware error code for an unknown iovar/command (BCME_UNSUPPORTED) */
+#define BRCMF_FW_UNSUPPORTED	23
+
 /*******************************************************************************
  * Dongle command codes that are interpreted by firmware
  ******************************************************************************/
