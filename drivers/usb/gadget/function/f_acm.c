@@ -617,19 +617,56 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	int			status;
 	struct usb_ep		*ep;
 	struct usb_request	*request __free(free_usb_request) = NULL;
+	struct f_serial_opts	*opts;
+	bool			has_ifunction;
 
 	/* REVISIT might want instance-specific strings to help
 	 * distinguish instances ...
 	 */
 
-	/* maybe allocate device-global string IDs, and patch descriptors */
-	us = usb_gstrings_attach(cdev, acm_strings,
-			ARRAY_SIZE(acm_string_defs));
+	opts = container_of(f->fi, struct f_serial_opts, func_inst);
+
+	mutex_lock(&opts->lock);
+	has_ifunction = opts->ifunction[0] != '\0';
+	if (has_ifunction) {
+		/*
+		 * iFunction configured. Let this string override the builtin
+		 * strings, by setting it in the IAD only. The tables are
+		 * copied by usb_gstrings_attach(), so stack storage is fine
+		 * and the shared acm_string_defs[] is left untouched.
+		 */
+		struct usb_string ifunc_defs[] = {
+			[0].s = opts->ifunction,
+			{ } /* end of list */
+		};
+		struct usb_gadget_strings ifunc_table = {
+			.language =	0x0409,	/* en-us */
+			.strings =	ifunc_defs,
+		};
+		struct usb_gadget_strings *ifunc_strings[] = {
+			&ifunc_table,
+			NULL,
+		};
+
+		us = usb_gstrings_attach(cdev, ifunc_strings, 1);
+	} else {
+		/* maybe allocate device-global string IDs, and patch descriptors */
+		us = usb_gstrings_attach(cdev, acm_strings,
+				ARRAY_SIZE(acm_string_defs));
+	}
+	mutex_unlock(&opts->lock);
 	if (IS_ERR(us))
 		return PTR_ERR(us);
-	acm_control_interface_desc.iInterface = us[ACM_CTRL_IDX].id;
-	acm_data_interface_desc.iInterface = us[ACM_DATA_IDX].id;
-	acm_iad_descriptor.iFunction = us[ACM_IAD_IDX].id;
+
+	if (has_ifunction) {
+		acm_control_interface_desc.iInterface = 0;
+		acm_data_interface_desc.iInterface = 0;
+		acm_iad_descriptor.iFunction = us[0].id;
+	} else {
+		acm_control_interface_desc.iInterface = us[ACM_CTRL_IDX].id;
+		acm_data_interface_desc.iInterface = us[ACM_DATA_IDX].id;
+		acm_iad_descriptor.iFunction = us[ACM_IAD_IDX].id;
+	}
 
 	/* allocate instance-specific interface IDs, and patch descriptors */
 	status = usb_interface_id(c, f);
@@ -852,12 +889,44 @@ out:
 
 CONFIGFS_ATTR(f_acm_, protocol);
 
+static ssize_t f_acm_ifunction_show(struct config_item *item, char *page)
+{
+	struct f_serial_opts *opts = to_f_serial_opts(item);
+	ssize_t ret;
+
+	mutex_lock(&opts->lock);
+	ret = sysfs_emit(page, "%s\n", opts->ifunction);
+	mutex_unlock(&opts->lock);
+
+	return ret;
+}
+
+static ssize_t f_acm_ifunction_store(struct config_item *item,
+		const char *page, size_t count)
+{
+	struct f_serial_opts *opts = to_f_serial_opts(item);
+	ssize_t ret;
+	char *nl;
+
+	mutex_lock(&opts->lock);
+	ret = strscpy(opts->ifunction, page, sizeof(opts->ifunction));
+	nl = strchr(opts->ifunction, '\n');
+	if (nl)
+		*nl = '\0';
+	mutex_unlock(&opts->lock);
+
+	return ret < 0 ? ret : count;
+}
+
+CONFIGFS_ATTR(f_acm_, ifunction);
+
 static struct configfs_attribute *acm_attrs[] = {
 #ifdef CONFIG_U_SERIAL_CONSOLE
 	&f_acm_attr_console,
 #endif
 	&f_acm_attr_port_num,
 	&f_acm_attr_protocol,
+	&f_acm_attr_ifunction,
 	NULL,
 };
 

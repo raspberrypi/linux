@@ -13,3 +13,12 @@ KernelVersion:	6.13
 Description:
 		Reported bInterfaceProtocol for the ACM device. For legacy
 		reasons, this defaults to 1 (USB_CDC_ACM_PROTO_AT_V25TER).
+
+What:		/config/usb-gadget/gadget/functions/acm.name/ifunction
+Date:		Nov 2026
+KernelVersion:	6.18
+Description:
+		Optional iFunction string (max 95 characters) reported in the
+		Interface Association Descriptor. When set, it replaces the
+		built-in strings and the control and data interfaces report no
+		iInterface string. Empty (default) keeps the built-in strings.

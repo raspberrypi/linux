@@ -18,6 +18,7 @@ struct f_serial_opts {
 	struct usb_function_instance func_inst;
 	u8 port_num;
 	u8 protocol;
+	char ifunction[96];	/* optional iFunction string for the IAD */
 
 	struct mutex lock; /* protect instances */
 	int instances;

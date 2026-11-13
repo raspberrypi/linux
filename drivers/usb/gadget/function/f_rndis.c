@@ -668,6 +668,8 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	struct usb_os_desc_table        *os_desc_table __free(kfree) = NULL;
 	struct net_device		*net __free(detach_gadget) = NULL;
 	struct usb_request		*request __free(free_usb_request) = NULL;
+	bool				custom_class, custom_subclass, custom_protocol;
+	bool				has_ifunction;
 
 	if (!can_support_rndis(c))
 		return -EINVAL;
@@ -685,6 +687,51 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 		rndis_iad_descriptor.bFunctionSubClass = rndis_opts->subclass;
 		rndis_iad_descriptor.bFunctionProtocol = rndis_opts->protocol;
 
+		/*
+		 * If class/subclass/protocol differ from the defaults, also
+		 * report them in the control interface descriptor.
+		 */
+		custom_class = rndis_opts->class != USB_CLASS_COMM;
+		custom_subclass = rndis_opts->subclass != USB_CDC_SUBCLASS_ETHERNET;
+		custom_protocol = rndis_opts->protocol != USB_CDC_PROTO_NONE;
+
+		rndis_control_intf.bInterfaceClass = custom_class ?
+			rndis_opts->class : USB_CLASS_COMM;
+		rndis_control_intf.bInterfaceSubClass = custom_subclass ?
+			rndis_opts->subclass : USB_CDC_SUBCLASS_ACM;
+		rndis_control_intf.bInterfaceProtocol = custom_protocol ?
+			rndis_opts->protocol : USB_CDC_ACM_PROTO_VENDOR;
+
+		has_ifunction = rndis_opts->ifunction[0] != '\0';
+		if (has_ifunction) {
+			/*
+			 * iFunction configured. Let this string override the
+			 * builtin strings, by setting it in the IAD only. The
+			 * tables are copied by usb_gstrings_attach(), so stack
+			 * storage is fine and the shared rndis_string_defs[]
+			 * is left untouched.
+			 */
+			struct usb_string ifunc_defs[] = {
+				[0].s = rndis_opts->ifunction,
+				{ } /* end of list */
+			};
+			struct usb_gadget_strings ifunc_table = {
+				.language =	0x0409,	/* en-us */
+				.strings =	ifunc_defs,
+			};
+			struct usb_gadget_strings *ifunc_strings[] = {
+				&ifunc_table,
+				NULL,
+			};
+
+			us = usb_gstrings_attach(cdev, ifunc_strings, 1);
+		} else {
+			us = usb_gstrings_attach(cdev, rndis_strings,
+						 ARRAY_SIZE(rndis_string_defs));
+		}
+		if (IS_ERR(us))
+			return PTR_ERR(us);
+
 		if (rndis_opts->bind_count == 0 && !rndis_opts->borrowed_net) {
 			if (!device_is_registered(&rndis_opts->net->dev)) {
 				gether_set_gadget(rndis_opts->net, cdev->gadget);
@@ -698,13 +745,15 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 		}
 	}
 
-	us = usb_gstrings_attach(cdev, rndis_strings,
-				 ARRAY_SIZE(rndis_string_defs));
-	if (IS_ERR(us))
-		return PTR_ERR(us);
-	rndis_control_intf.iInterface = us[0].id;
-	rndis_data_intf.iInterface = us[1].id;
-	rndis_iad_descriptor.iFunction = us[2].id;
+	if (has_ifunction) {
+		rndis_control_intf.iInterface = 0;
+		rndis_data_intf.iInterface = 0;
+		rndis_iad_descriptor.iFunction = us[0].id;
+	} else {
+		rndis_control_intf.iInterface = us[0].id;
+		rndis_data_intf.iInterface = us[1].id;
+		rndis_iad_descriptor.iFunction = us[2].id;
+	}
 
 	/* allocate instance-specific interface IDs */
 	status = usb_interface_id(c, f);
@@ -852,6 +901,9 @@ USB_ETHER_CONFIGFS_ITEM_ATTR_U8_RW(rndis, subclass);
 /* f_rndis_opts_protocol */
 USB_ETHER_CONFIGFS_ITEM_ATTR_U8_RW(rndis, protocol);
 
+/* f_rndis_opts_ifunction */
+USB_ETHER_CONFIGFS_ITEM_ATTR_STRING(rndis, ifunction);
+
 static struct configfs_attribute *rndis_attrs[] = {
 	&rndis_opts_attr_dev_addr,
 	&rndis_opts_attr_host_addr,
@@ -860,6 +912,7 @@ static struct configfs_attribute *rndis_attrs[] = {
 	&rndis_opts_attr_class,
 	&rndis_opts_attr_subclass,
 	&rndis_opts_attr_protocol,
+	&rndis_opts_attr_ifunction,
 	NULL,
 };
 

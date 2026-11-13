@@ -39,11 +39,15 @@ Function-specific configfs interface
 ------------------------------------
 
 The function name to use when creating the function directory is "acm".
-The ACM function provides just one attribute in its function directory:
+The ACM function provides these attributes in its function directory:
 
-	port_num
-
-The attribute is read-only.
+	=============== ==================================================
+	port_num	port number of the /dev/ttyGS<n> device (read-only)
+	protocol	reported bInterfaceProtocol, default is 1
+	ifunction	optional iFunction string for the Interface
+			Association Descriptor; when set, it replaces the
+			built-in interface strings
+	=============== ==================================================
 
 There can be at most 4 ACM/generic serial/OBEX ports in the system.
 
@@ -604,6 +608,12 @@ The RNDIS function provides these attributes in its function directory:
 			Ethernet over USB link
 	dev_addr	MAC address of device's end of this
 			Ethernet over USB link
+	class		USB interface class, default is 02 (hex)
+	subclass	USB interface subclass, default is 06 (hex)
+	protocol	USB interface protocol, default is 00 (hex)
+	ifunction	optional iFunction string for the Interface
+			Association Descriptor; when set, it replaces the
+			built-in interface strings
 	=============== ==================================================
 
 and after creating the functions/rndis.<instance name> they contain default
