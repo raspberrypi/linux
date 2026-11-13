@@ -10,6 +10,7 @@
 #include <fwvid.h>
 #include <fwil.h>
 #include <fweh.h>
+#include <feature.h>
 
 #include "vops.h"
 #include "fwil_types.h"
@@ -233,10 +234,43 @@ brcmf_cyw_external_auth(struct wiphy *wiphy, struct net_device *dev,
 	return ret;
 }
 
-static void brcmf_cyw_get_cfg80211_ops(struct brcmf_pub *drvr)
+/* Check for a set-only iovar. A get returns BCME_UNSUPPORTED whether or not
+ * the iovar exists, so issue a zero-length set instead: firmware that knows
+ * the iovar rejects it as malformed, firmware that doesn't returns
+ * BCME_UNSUPPORTED.
+ */
+static bool brcmf_cyw_set_iovar_supported(struct brcmf_if *ifp, char *name)
 {
-	drvr->ops->mgmt_tx = brcmf_cyw_mgmt_tx;
-	drvr->ops->external_auth = brcmf_cyw_external_auth;
+	u8 dummy = 0;
+	int err;
+
+	/* we need to know the firmware error */
+	ifp->fwil_fwerr = true;
+	err = brcmf_fil_iovar_data_set(ifp, name, &dummy, 0);
+	ifp->fwil_fwerr = false;
+
+	return err != -BRCMF_FW_UNSUPPORTED;
+}
+
+static void brcmf_cyw_feat_attach(struct brcmf_if *ifp)
+{
+	struct brcmf_pub *drvr = ifp->drvr;
+
+	if (!(drvr->feat_flags & BIT(BRCMF_FEAT_SAE_EXT)))
+		return;
+
+	/* Some non-Infineon firmware sharing a chip ID with Infineon parts
+	 * (e.g. SYN43436s, BCM43430/1) advertises "extsae" but implements
+	 * external SAE using the assoc_mgr_cmd interface rather than the
+	 * mgmt_frame/auth_status iovars, so only use the latter if present.
+	 */
+	if (brcmf_cyw_set_iovar_supported(ifp, "mgmt_frame") &&
+	    brcmf_cyw_set_iovar_supported(ifp, "auth_status")) {
+		drvr->ops->mgmt_tx = brcmf_cyw_mgmt_tx;
+		drvr->ops->external_auth = brcmf_cyw_external_auth;
+	} else {
+		brcmf_dbg(INFO, "using generic external SAE support\n");
+	}
 }
 
 static s32
@@ -379,10 +413,10 @@ static int brcmf_cyw_configure_sae_pwe(struct brcmf_if *ifp, u32 sae_pwe)
 }
 
 const struct brcmf_fwvid_ops brcmf_cyw_ops = {
+	.feat_attach = brcmf_cyw_feat_attach,
 	.set_sae_password = brcmf_cyw_set_sae_pwd,
 	.alloc_fweh_info = brcmf_cyw_alloc_fweh_info,
 	.activate_events = brcmf_cyw_activate_events,
-	.get_cfg80211_ops = brcmf_cyw_get_cfg80211_ops,
 	.register_event_handlers = brcmf_cyw_register_event_handlers,
 	.configure_sae_pwe = brcmf_cyw_configure_sae_pwe,
 };

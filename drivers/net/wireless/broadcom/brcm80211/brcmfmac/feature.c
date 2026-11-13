@@ -17,8 +17,6 @@
 #include "feature.h"
 #include "common.h"
 
-#define BRCMF_FW_UNSUPPORTED	23
-
 /*
  * expand feature list to array of feature strings.
  */
