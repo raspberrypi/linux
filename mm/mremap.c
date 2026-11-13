@@ -812,7 +812,14 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 	}
 
 	if (is_vm_hugetlb_page(vma)) {
+		/*
+		 * Rmap walks might still find this VMA and take the lock
+		 * inside the reservation map for __vma_private_lock(). Don't clear
+		 * the reservation map while that is possible.
+		 */
+		i_mmap_lock_write(vma->vm_file->f_mapping);
 		clear_vma_resv_huge_pages(vma);
+		i_mmap_unlock_write(vma->vm_file->f_mapping);
 	}
 
 	/* Conceal VM_ACCOUNT so old reservation is not undone */
