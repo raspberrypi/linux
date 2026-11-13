@@ -392,24 +392,24 @@ static ssize_t show_ttarget(struct device *dev,
 static ssize_t show_temp(struct device *dev,
 			struct device_attribute *devattr, char *buf)
 {
-	u32 eax, edx;
+	struct msr val;
 	struct temp_data *tdata = container_of(devattr, struct temp_data, sd_attrs[ATTR_TEMP]);
 	int tjmax, temp;
 	bool valid;
 
 	mutex_lock(&tdata->update_lock);
 
-	tjmax = get_tjmax(tdata, dev);
 	/* Check whether the time interval has elapsed */
 	if (time_after(jiffies, tdata->last_updated + HZ)) {
-		rdmsr_on_cpu(tdata->cpu, tdata->status_reg, &eax, &edx);
+		tjmax = get_tjmax(tdata, dev);
+		rdmsrq_on_cpu(tdata->cpu, tdata->status_reg, &val.q);
 		/*
 		 * Bit 31 indicates whether the reading is valid. Some CPUs
 		 * clear it while the temperature is too low to be measured.
 		 * Such a reading is not a temperature. Do not report it.
 		 */
-		tdata->temp_valid = (eax >> 31) & 1;
-		tdata->temp = tjmax - ((eax >> 16) & 0xff) * 1000;
+		tdata->temp_valid = (val.l >> 31) & 1;
+		tdata->temp = tjmax - ((val.l >> 16) & 0xff) * 1000;
 		tdata->last_updated = jiffies;
 	}
 
