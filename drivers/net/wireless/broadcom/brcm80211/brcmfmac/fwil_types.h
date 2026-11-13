@@ -533,6 +533,36 @@ struct brcmf_ext_join_params_le {
 	struct brcmf_assoc_params_le assoc_le;
 };
 
+struct brcmf_ext_auth_evt {
+	struct brcmf_ssid_le ssid;
+	u8 bssid[ETH_ALEN];		/* optional for BSSID */
+	__le32 key_mgmt_suite;
+	__le32 status;
+};
+
+/* Assoc Mgr commands for fine control of assoc */
+#define BRCMF_ASSOC_MGR_CURRENT_VERSION	0x0
+
+struct brcmf_assoc_mgr_cmd {
+	__le16 version;	/* version of the structure as
+			 * defined by BRCMF_ASSOC_MGR_CURRENT_VERSION
+			 */
+	__le16 length;	/* length of the entire structure */
+
+	__le16 cmd;
+
+	union {		/* the command buffer may end in a simple uint16 params, */
+		__le16 params;	/* or may have a variable length set of parameters */
+		DECLARE_FLEX_ARRAY(u8, data);	/* represented by the 'data' member */
+	};
+};
+
+#define BRCMF_ASSOC_MGR_CMD_PAUSE_ON_EVT	0 /* have assoc pause on certain events */
+#define BRCMF_ASSOC_MGR_CMD_SEND_AUTH		3
+
+#define BRCMF_ASSOC_MGR_PARAMS_EVENT_NONE		0 /* use this to resume as well as clear */
+#define BRCMF_ASSOC_MGR_PARAMS_PAUSE_EVENT_AUTH_RESP	1
+
 struct brcmf_wsec_key {
 	u32 index;		/* key index */
 	u32 len;		/* key length */
