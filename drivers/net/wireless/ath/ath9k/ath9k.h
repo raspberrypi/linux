@@ -24,7 +24,12 @@
 #include <linux/leds.h>
 #include <linux/completion.h>
 #include <linux/time.h>
+#include <linux/ktime.h>
+#include <linux/timecounter.h>
 #include <linux/hw_random.h>
+#include <linux/ptp_clock_kernel.h>
+#include <linux/ptp_classify.h>
+#include <linux/hrtimer.h>
 
 #include "common.h"
 #include "debug.h"
@@ -109,7 +114,7 @@ int ath_descdma_setup(struct ath_softc *sc, struct ath_descdma *dd,
 /* minimum h/w qdepth to be sustained to maximize aggregation */
 #define ATH_AGGR_MIN_QDEPTH        2
 /* minimum h/w qdepth for non-aggregated traffic */
-#define ATH_NON_AGGR_MIN_QDEPTH    8
+#define ATH_NON_AGGR_MIN_QDEPTH    32
 #define ATH_HW_CHECK_POLL_INT      1000
 #define ATH_TXFIFO_DEPTH           8
 #define ATH_TX_ERROR               0x01
@@ -579,7 +584,7 @@ bool ath_stoprecv(struct ath_softc *sc);
 u32 ath_calcrxfilter(struct ath_softc *sc);
 int ath_rx_init(struct ath_softc *sc, int nbufs);
 void ath_rx_cleanup(struct ath_softc *sc);
-int ath_rx_tasklet(struct ath_softc *sc, int flush, bool hp);
+int ath_rx_tasklet(struct ath_softc *sc, int flush, bool hp, ktime_t *tstamp);
 struct ath_txq *ath_txq_setup(struct ath_softc *sc, int qtype, int subtype);
 void ath_txq_unlock_complete(struct ath_softc *sc, struct ath_txq *txq);
 void ath_tx_cleanupq(struct ath_softc *sc, struct ath_txq *txq);
@@ -601,7 +606,7 @@ int ath_tx_start(struct ieee80211_hw *hw, struct sk_buff *skb,
 void ath_tx_cabq(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		 struct sk_buff *skb);
 void ath_tx_tasklet(struct ath_softc *sc);
-void ath_tx_edma_tasklet(struct ath_softc *sc);
+void ath_tx_edma_tasklet(struct ath_softc *sc, ktime_t *tstamp);
 int ath_tx_aggr_start(struct ath_softc *sc, struct ieee80211_sta *sta,
 		      u16 tid, u16 *ssn);
 void ath_tx_aggr_stop(struct ath_softc *sc, struct ieee80211_sta *sta, u16 tid);
@@ -1018,11 +1023,26 @@ struct ath_softc {
 
 	u8 gtt_cnt;
 	u32 intrstatus;
-	u16 ps_flags; /* PS_* */
+	ktime_t intrtstamp;
+    	u16 ps_flags; /* PS_* */
 	bool ps_enabled;
 	bool ps_idle;
 	short nbcnvifs;
 	unsigned long ps_usecount;
+
+	spinlock_t systim_lock;
+	struct cyclecounter cc;
+	struct timecounter tc;
+	struct ptp_clock *ptp_clock;
+	struct ptp_clock_info ptp_clock_info;
+	u32    cc_mult;
+	struct hrtimer off_timer;
+	ktime_t off_interval;
+	u32    off_counter;
+	s64    off_last;
+	u64    off_base_time;
+
+	u64 ptp_dirtyts;
 
 	struct ath_rx rx;
 	struct ath_tx tx;
@@ -1151,5 +1171,10 @@ void ath_ahb_exit(void);
 static inline int ath_ahb_init(void) { return 0; };
 static inline void ath_ahb_exit(void) {};
 #endif
+
+void ath9k_ptp_init(struct ath_softc *sc);
+void ath9k_ptp_remove(struct ath_softc *sc);
+void ath9k_cyc2hwtstamp(struct ath_softc *sc, struct skb_shared_hwtstamps *hwtstamps, u32 cycle);
+#define ATH9K_PTP_FAKE_SHIFT 21
 
 #endif /* ATH9K_H */
