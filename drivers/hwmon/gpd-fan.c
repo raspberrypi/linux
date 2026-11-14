@@ -412,6 +412,7 @@ static void gpd_duo_set_pwm_enable(enum FAN_PWM_ENABLE pwm_enable)
 		break;
 	case AUTOMATIC:
 		gpd_ecram_write(gpd_driver_priv.drvdata->pwm_write, 0);
+		gpd_ecram_write(gpd_driver_priv.drvdata->pwm_write + 1, 0);
 		break;
 	}
 }
