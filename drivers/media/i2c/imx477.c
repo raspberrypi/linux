@@ -146,6 +146,13 @@ MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting t
 #define IMX477_REG_XVS_IO_CTRL		CCI_REG8(0x3040)
 #define IMX477_REG_EXTOUT_EN		CCI_REG8(0x4b81)
 
+/* Horizontal sync output */
+#define IMX477_REG_OUTIF2		CCI_REG8(0x428a)
+#define IMX477_REG_CKTESTSEL		CCI_REG8(0x42b0)
+#define IMX477_REG_MNTTEST3_SEL_H	CCI_REG8(0x4bdc)
+#define IMX477_REG_MNTTEST3_SEL_L	CCI_REG8(0x4bdd)
+#define IMX477_REG_TESTMNT2		CCI_REG8(0x42aa)
+
 #define IMX477_REG_ADBIT_MODE		CCI_REG8(0x3f0d)
 /* Temperature sensor */
 #define IMX477_REG_TEMP_SEN_CTL		CCI_REG8(0x0138)
@@ -538,6 +545,10 @@ static const struct cci_reg_sequence mode_common_regs[] = {
 	{CCI_REG8(0x3e20), 0x01},
 	{CCI_REG8(0x3e37), 0x00},
 	{CCI_REG8(0x3f50), 0x00},
+	{CCI_REG8(IMX477_REG_OUTIF2), 0x00},
+	{CCI_REG8(IMX477_REG_MNTTEST3_SEL_H), 0x00},
+	{CCI_REG8(IMX477_REG_MNTTEST3_SEL_L), 0x15},
+	{CCI_REG8(IMX477_REG_TESTMNT2), 0xfd},
 };
 
 /* 12 mpix 10fps */
@@ -1654,6 +1665,9 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	cci_write(imx477->regmap, IMX477_REG_XVS_IO_CTRL, (tm == 1) ? 1 : 0,
 		  &ret);
 	cci_write(imx477->regmap, IMX477_REG_MC_MODE, (tm > 0) ? 1 : 0, &ret);
+
+	/* unconditionally enable hsync output, for test use only */
+	cci_write(imx477->regmap, IMX477_REG_CKTESTSEL, 0, &ret);
 
 	/* set stream on register */
 	cci_write(imx477->regmap, IMX477_REG_MODE_SELECT,
