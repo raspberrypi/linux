@@ -109,3 +109,42 @@ void __mmap_lock_do_trace_released(struct mm_struct *mm, bool write)
 }
 EXPORT_SYMBOL(__mmap_lock_do_trace_released);
 #endif /* CONFIG_TRACING */
+
+#ifdef CONFIG_PER_VMA_LOCK
+/*
+ * Called with mmap write lock held after mm->mm_lock_seq just overflowed (and
+ * therefore zero), with all VMA write locks now released.
+ *
+ * The stores below follow the smp_wmb() in do_raw_write_seqcount_end(), so
+ * a reader that observes a reset value also observes this cycle's VMA
+ * modifications (ordered by the ACQUIRE on vma->vm_lock_seq in
+ * vma_start_read()).
+ */
+void __mm_reset_vma_seqcounts(struct mm_struct *mm)
+{
+	struct vm_area_struct *vma;
+	VMA_ITERATOR(vmi, mm, 0);
+
+	mmap_assert_write_locked(mm);
+	VM_WARN_ON_ONCE(mm->mm_lock_seq.sequence);
+
+	/*
+	 * Failing to reset means stale vma->vm_lock_seq values could result in
+	 * those VMAs becoming spuriously write locked when mm->mm_lock_seq
+	 * happens to match their values.
+	 *
+	 * This is problematic, as it causes the VMA write lock to not exclude
+	 * readers, which can result in concurrent readers while a VMA write
+	 * lock is held.
+	 *
+	 * Avoid this by resetting to an even value (indicates no write lock
+	 * held).
+	 *
+	 * Readers will either observe zero (not write locked) or the previous
+	 * value, so this is safe.
+	 */
+	for_each_vma(vmi, vma)
+		WRITE_ONCE(vma->vm_lock_seq, 0);
+}
+EXPORT_SYMBOL(__mm_reset_vma_seqcounts);
+#endif /* CONFIG_PER_VMA_LOCK */

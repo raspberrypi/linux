@@ -450,7 +450,7 @@ static bool vma_lock_alloc(struct vm_area_struct *vma)
 		return false;
 
 	init_rwsem(&vma->vm_lock->lock);
-	vma->vm_lock_seq = UINT_MAX;
+	vma->vm_lock_seq = 0;
 
 	return true;
 }
