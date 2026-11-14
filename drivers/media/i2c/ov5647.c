@@ -337,7 +337,7 @@ static struct regval_list ov5647_2x2binned_10bpp[] = {
 };
 
 static struct regval_list ov5647_640x480_10bpp[] = {
-	{0x3036, 0x46},
+	{0x3036, 0x69},
 	{0x3821, 0x01},
 	{0x3820, 0x41},
 	{0x3612, 0x59},
@@ -435,7 +435,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 		.reg_list	= ov5647_2x2binned_10bpp,
 		.num_regs	= ARRAY_SIZE(ov5647_2x2binned_10bpp)
 	},
-	/* 10-bit VGA full FOV 60fps. 2x2 binned and subsampled down to VGA. */
+	/* 10-bit VGA full FOV 90fps. 2x2 binned and subsampled down to VGA. */
 	{
 		.format = {
 			.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
@@ -450,7 +450,7 @@ static const struct ov5647_mode ov5647_modes[] = {
 			.width		= 2560,
 			.height		= 1920,
 		},
-		.pixel_rate	= 58333000,
+		.pixel_rate	= 87500000,
 		.link_freq_index = FREQ_INDEX_VGA,
 		.hts		= 1852,
 		.vts		= 0x1f8,
