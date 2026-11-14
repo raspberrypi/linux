@@ -2376,6 +2376,8 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 			if (IS_ERR(folio)) {
 				error = PTR_ERR(folio);
 				folio = NULL;
+				/* Make sure to validate the original value. */
+				swap = index_entry;
 				goto failed;
 			}
 			skip_swapcache = true;
@@ -2384,6 +2386,8 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 			folio = shmem_swapin_cluster(swap, gfp, info, index);
 			if (!folio) {
 				error = -ENOMEM;
+				/* Make sure to validate the original value. */
+				swap = index_entry;
 				goto failed;
 			}
 		}
