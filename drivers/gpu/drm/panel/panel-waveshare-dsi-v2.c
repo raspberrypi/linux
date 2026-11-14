@@ -22,6 +22,9 @@
 
 #include <video/mipi_display.h>
 
+#define WS_DSI_RETRIES		3	/* Number of retry attempts for DSI operations */
+#define WS_DSI_RETRY_DELAY_MS	50	/* Delay between retries in milliseconds */
+
 struct ws_panel_desc {
 	const struct panel_init_cmd *init;
 	const struct drm_display_mode *mode;
@@ -1707,6 +1710,9 @@ static int ws_panel_init_dcs_cmd(struct ws_panel *ts)
 	struct drm_panel *panel = &ts->panel;
 	int i, err = 0;
 
+	/* Allow panel controller to stabilize after power-up/reset */
+	msleep(WS_DSI_RETRY_DELAY_MS);
+
 	if (ts->desc->init) {
 		const struct panel_init_cmd *init_cmds = ts->desc->init;
 
@@ -1720,11 +1726,20 @@ static int ws_panel_init_dcs_cmd(struct ws_panel *ts)
 				break;
 
 			case INIT_DCS_CMD:
-				err = mipi_dsi_dcs_write(
-					dsi, cmd->data[0],
-					cmd->len <= 1 ? NULL : &cmd->data[1],
-					cmd->len - 1);
+			{
+				int retries = WS_DSI_RETRIES;
+
+				do {
+					err = mipi_dsi_dcs_write(
+						dsi, cmd->data[0],
+						cmd->len <= 1 ? NULL : &cmd->data[1],
+						cmd->len - 1);
+					if (err >= 0)
+						break;
+					msleep(WS_DSI_RETRY_DELAY_MS);
+				} while (--retries > 0);
 				break;
+			}
 
 			default:
 				err = -EINVAL;
