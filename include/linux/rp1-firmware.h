@@ -17,6 +17,8 @@ struct rp1_firmware;
 int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 			 const void *data, unsigned int data_len,
 			 void *resp, unsigned int resp_space);
+int rp1_firmware_transport_error(struct rp1_firmware *fw);
+int rp1_firmware_report_fault(struct rp1_firmware *fw, int err);
 void rp1_firmware_put(struct rp1_firmware *fw);
 struct rp1_firmware *rp1_firmware_get(struct device_node *fwnode);
 struct rp1_firmware *devm_rp1_firmware_get(struct device *dev, struct device_node *fwnode);
@@ -26,6 +28,16 @@ int rp1_firmware_get_feature(struct rp1_firmware *fw, uint32_t fourcc,
 static inline int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 				       const void *data, unsigned int data_len,
 				       void *resp, unsigned int resp_space)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int rp1_firmware_transport_error(struct rp1_firmware *fw)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int rp1_firmware_report_fault(struct rp1_firmware *fw, int err)
 {
 	return -EOPNOTSUPP;
 }

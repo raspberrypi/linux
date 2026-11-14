@@ -15,6 +15,8 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/gpio/driver.h>
+#include <linux/gpio/consumer.h>
+#include <linux/gpio/machine.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/irqdesc.h>
@@ -22,12 +24,14 @@
 #include <linux/of_address.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/machine.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinmux.h>
 #include <linux/pinctrl/pinconf-generic.h>
+#include <linux/pinctrl/rp1.h>
 #include <linux/platform_device.h>
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
@@ -45,6 +49,7 @@
 #define RP1_SET_OFFSET			0x2000
 #define RP1_CLR_OFFSET			0x3000
 
+#define RP1_GPIO_STATUS_OETOPAD	BIT(13)
 #define RP1_GPIO_STATUS			0x0000
 #define RP1_GPIO_CTRL			0x0004
 
@@ -81,6 +86,7 @@
 #define RP1_GPIO_CTRL_IRQEN_F_HIGH	BIT(27)
 #define RP1_GPIO_CTRL_IRQRESET		BIT(28)
 #define RP1_GPIO_CTRL_IRQOVER_LSB	30
+#define RP1_GPIO_CTRL_IRQEN_MASK	0x0ff00000
 #define RP1_GPIO_CTRL_IRQOVER_MASK	0xc0000000
 
 #define RP1_INT_EDGE_FALLING		BIT(0)
@@ -100,6 +106,7 @@
 #define RP1_FSEL_ALT0			0x00
 #define RP1_FSEL_GPIO			0x05
 #define RP1_FSEL_NONE			0x09
+#define RP1_FSEL_PIO			0x07
 #define RP1_FSEL_NONE_HW		0x1f
 
 #define RP1_DIR_OUTPUT			0
@@ -191,6 +198,11 @@ struct rp1_pin_info {
 	u8 offset;
 	u8 fsel;
 	u8 irq_type;
+	raw_spinlock_t pio_lock;
+	bool pio_restore;
+	bool pio_changed;
+	u32 pio_saved_ctrl;
+	u32 pio_saved_pad;
 
 	void __iomem *gpio;
 	void __iomem *rio;
@@ -286,6 +298,12 @@ struct rp1_pinctrl {
 	struct pinctrl_gpio_range gpio_range;
 
 	raw_spinlock_t irq_lock[RP1_NUM_BANKS];
+};
+
+struct rp1_pinctrl_pio_pin {
+	struct rp1_pin_info *pin;
+	struct gpio_desc *desc;
+	unsigned int gpio;
 };
 
 const struct rp1_iobank_desc rp1_iobanks[RP1_NUM_BANKS] = {
@@ -753,25 +771,60 @@ static int rp1_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
 static int rp1_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 {
 	struct rp1_pin_info *pin = rp1_get_pin(chip, offset);
+	unsigned long flags;
+	int ret = 0;
 
 	if (!pin)
 		return -EINVAL;
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (pin->pio_restore) {
+		ret = -EBUSY;
+		goto out;
+	}
 	rp1_set_dir(pin, RP1_DIR_INPUT);
 	rp1_set_fsel(pin, RP1_FSEL_GPIO);
-	return 0;
+out:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	return ret;
 }
 
 static int rp1_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
 				     int value)
 {
 	struct rp1_pin_info *pin = rp1_get_pin(chip, offset);
+	unsigned long flags;
+	int ret = 0;
 
 	if (!pin)
 		return -EINVAL;
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (pin->pio_restore) {
+		ret = -EBUSY;
+		goto out;
+	}
 	rp1_set_value(pin, value);
 	rp1_set_dir(pin, RP1_DIR_OUTPUT);
 	rp1_set_fsel(pin, RP1_FSEL_GPIO);
-	return 0;
+out:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	return ret;
+}
+
+static int rp1_gpio_request(struct gpio_chip *chip, unsigned int offset)
+{
+	struct rp1_pin_info *pin = rp1_get_pin(chip, offset);
+	unsigned long flags;
+	int ret;
+
+	if (!pin)
+		return -EINVAL;
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	ret = pin->pio_restore ? -EBUSY : 0;
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	if (ret)
+		return ret;
+
+	return gpiochip_generic_request(chip, offset);
 }
 
 static int rp1_gpio_set_config(struct gpio_chip *gc, unsigned offset,
@@ -787,7 +840,7 @@ static int rp1_gpio_set_config(struct gpio_chip *gc, unsigned offset,
 static const struct gpio_chip rp1_gpio_chip = {
 	.label = MODULE_NAME,
 	.owner = THIS_MODULE,
-	.request = gpiochip_generic_request,
+	.request = rp1_gpio_request,
 	.free = gpiochip_generic_free,
 	.direction_input = rp1_gpio_direction_input,
 	.direction_output = rp1_gpio_direction_output,
@@ -967,21 +1020,35 @@ static int rp1_gpio_irq_set_affinity(struct irq_data *data, const struct cpumask
 	return -EINVAL;
 }
 
-static int rp1_gpio_irq_reqres(struct irq_data *d)
+static int rp1_gpio_irq_request_resources(struct irq_data *data)
 {
-	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+	unsigned int offset = irqd_to_hwirq(data);
+	struct rp1_pin_info *pin = rp1_get_pin(gc, offset);
+	unsigned long flags;
 	int ret;
 
-	ret = gpiochip_irq_reqres(d);
-	if (!ret)
-		ret = rp1_gpio_direction_input(gc, d->hwirq);
-
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	ret = pin->pio_restore ? -EBUSY : gpiochip_irq_reqres(data);
+	if (!ret) {
+		ret = rp1_gpio_direction_input(gc, offset);
+		if (ret)
+			gpiochip_irq_relres(data);
+	}
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
 	return ret;
 }
 
-static void rp1_gpio_irq_relres(struct irq_data *d)
+static void rp1_gpio_irq_release_resources(struct irq_data *data)
 {
-	return gpiochip_irq_relres(d);
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+	unsigned int offset = irqd_to_hwirq(data);
+	struct rp1_pin_info *pin = rp1_get_pin(gc, offset);
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	gpiochip_irq_relres(data);
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
 }
 
 static struct irq_chip rp1_gpio_irq_chip = {
@@ -993,8 +1060,8 @@ static struct irq_chip rp1_gpio_irq_chip = {
 	.irq_mask = rp1_gpio_irq_disable,
 	.irq_unmask = rp1_gpio_irq_enable,
 	.irq_set_affinity = rp1_gpio_irq_set_affinity,
-	.irq_request_resources = rp1_gpio_irq_reqres,
-	.irq_release_resources = rp1_gpio_irq_relres,
+	.irq_request_resources = rp1_gpio_irq_request_resources,
+	.irq_release_resources = rp1_gpio_irq_release_resources,
 	.flags = IRQCHIP_IMMUTABLE,
 };
 
@@ -1262,11 +1329,303 @@ static const struct pinctrl_ops rp1_pctl_ops = {
 	.dt_free_map = rp1_pctl_dt_free_map,
 };
 
+static int rp1_pio_restore(struct rp1_pin_info *pin)
+{
+	unsigned long flags;
+	u32 ctrl;
+	int ret = 0;
+
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (!pin->pio_restore)
+		goto out;
+	if (!pin->pio_changed) {
+		pin->pio_restore = false;
+		ret = 1;
+		goto out;
+	}
+
+	ctrl = rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL);
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OEOVER, RP1_OEOVER_DISABLE);
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OUTOVER, RP1_OUTOVER_LOW);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	rp1_pin_writel(pin->pio_saved_pad, pin->dummy, pin->pad);
+	rp1_pin_writel(pin->pio_saved_ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != pin->pio_saved_ctrl ||
+	    rp1_pin_readl(pin->pad) != pin->pio_saved_pad) {
+		ret = -EIO;
+		goto out;
+	}
+	pin->pio_restore = false;
+	pin->pio_changed = false;
+	ret = 1;
+out:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	return ret;
+}
+
+/**
+ * rp1_pinctrl_pio_request - reserve and configure an RP1 GPIO for PIO
+ * @consumer: device using the pin
+ * @provider_node: GPIO/pinctrl provider node
+ * @gpio: RP1 GPIO number, in the range 0 to 27
+ *
+ * The returned handle owns the GPIO descriptor. The driver core keeps the
+ * managed supplier link until the consumer device is unbound. PIO output
+ * remains inhibited until rp1_pinctrl_pio_set_output() enables it.
+ */
+struct rp1_pinctrl_pio_pin *
+rp1_pinctrl_pio_request(struct device *consumer, struct device_node *provider_node,
+			unsigned int gpio)
+{
+	struct rp1_pinctrl_pio_pin *request;
+	struct platform_device *pdev;
+	struct device_link *link;
+	struct rp1_pinctrl *pc;
+	struct rp1_pin_info *pin;
+	enum device_link_state state;
+	unsigned long flags;
+	u32 ctrl, pad, status;
+	int ret;
+
+	if (!consumer || !provider_node || gpio >= 28)
+		return ERR_PTR(-EINVAL);
+
+	pdev = of_find_device_by_node(provider_node);
+	if (!pdev)
+		return ERR_PTR(-EPROBE_DEFER);
+
+	request = kzalloc(sizeof(*request), GFP_KERNEL);
+	if (!request) {
+		ret = -ENOMEM;
+		goto put_device;
+	}
+
+	/* The driver core owns this managed link until the consumer is unbound. */
+	link = device_link_add(consumer, &pdev->dev,
+			       DL_FLAG_AUTOREMOVE_CONSUMER);
+	if (!link) {
+		ret = -ENODEV;
+		goto free_request;
+	}
+	state = READ_ONCE(link->status);
+	if (state != DL_STATE_ACTIVE && state != DL_STATE_CONSUMER_PROBE) {
+		ret = -EPROBE_DEFER;
+		goto free_request;
+	}
+
+	pc = dev_get_drvdata(&pdev->dev);
+	if (!pc || !pc->pctl_dev) {
+		ret = -EPROBE_DEFER;
+		goto free_request;
+	}
+
+	request->desc = gpiochip_request_own_desc(&pc->gpio_chip, gpio,
+						  "rp1-macb-ptp", 0, GPIOD_ASIS);
+	if (IS_ERR(request->desc)) {
+		ret = PTR_ERR(request->desc);
+		request->desc = NULL;
+		goto free_request;
+	}
+
+	pin = &pc->pins[gpio];
+	request->pin = pin;
+	request->gpio = gpio;
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (pin->pio_restore) {
+		ret = -EBUSY;
+		goto unlock_free_desc;
+	}
+	ctrl = rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL);
+	pad = rp1_pin_readl(pin->pad);
+	status = rp1_pin_readl(pin->gpio + RP1_GPIO_STATUS);
+	if (((ctrl & RP1_GPIO_CTRL_FUNCSEL_MASK) != RP1_FSEL_GPIO &&
+	     (ctrl & RP1_GPIO_CTRL_FUNCSEL_MASK) != RP1_FSEL_NONE_HW) ||
+	    ((status & RP1_GPIO_STATUS_OETOPAD) &&
+	     !(pad & RP1_PAD_OUT_DISABLE_MASK)) ||
+	    gpiochip_line_is_irq(&pc->gpio_chip, gpio) ||
+	    (ctrl & (RP1_GPIO_CTRL_INOVER_MASK | RP1_GPIO_CTRL_IRQEN_MASK |
+	     RP1_GPIO_CTRL_IRQOVER_MASK))) {
+		ret = -EBUSY;
+		goto unlock_free_desc;
+	}
+
+	pin->pio_saved_ctrl = ctrl;
+	pin->pio_saved_pad = pad;
+	pin->pio_restore = true;
+	pin->pio_changed = true;
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OEOVER, RP1_OEOVER_DISABLE);
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OUTOVER, RP1_OUTOVER_LOW);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	rp1_pin_writel(pad | RP1_PAD_OUT_DISABLE_MASK | RP1_PAD_IN_ENABLE_MASK,
+		       pin->dummy, pin->pad);
+	FLD_SET(ctrl, RP1_GPIO_CTRL_FUNCSEL, RP1_FSEL_PIO);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != ctrl ||
+	    rp1_pin_readl(pin->pad) !=
+	    (pad | RP1_PAD_OUT_DISABLE_MASK | RP1_PAD_IN_ENABLE_MASK))
+		ret = -EIO;
+	else
+		ret = 0;
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	if (!ret) {
+		put_device(&pdev->dev);
+		return request;
+	}
+
+	/* Keep the pin inhibited while restoring it after a partial setup. */
+	rp1_pio_restore(pin);
+	gpiochip_free_own_desc(request->desc);
+	request->desc = NULL;
+	goto free_request;
+
+unlock_free_desc:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	gpiochip_free_own_desc(request->desc);
+	request->desc = NULL;
+free_request:
+	kfree(request);
+put_device:
+	put_device(&pdev->dev);
+	return ERR_PTR(ret);
+}
+EXPORT_SYMBOL_GPL(rp1_pinctrl_pio_request);
+
+/**
+ * rp1_pinctrl_pio_set_output - safely enable or inhibit an owned PIO output
+ * @request: handle returned by rp1_pinctrl_pio_request()
+ * @enable: release the low override to PIO, or force the pad low
+ *
+ * Disabling the output first forces the pad low, then inhibits it. This path
+ * remains available when the PIO firmware transport has failed.
+ */
+int rp1_pinctrl_pio_set_output(struct rp1_pinctrl_pio_pin *request,
+			       bool enable)
+{
+	struct rp1_pin_info *pin;
+	unsigned long flags;
+	u32 ctrl, pad;
+	int ret = 0;
+
+	if (!request || !request->pin)
+		return -EINVAL;
+	pin = request->pin;
+
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (!pin->pio_restore || !pin->pio_changed) {
+		ret = -EPERM;
+		goto out;
+	}
+	ctrl = rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL);
+	if (FLD_GET(ctrl, RP1_GPIO_CTRL_FUNCSEL) != RP1_FSEL_PIO) {
+		ret = -EPERM;
+		goto out;
+	}
+
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OUTOVER, RP1_OUTOVER_LOW);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != ctrl) {
+		ret = -EIO;
+		goto out;
+	}
+	if (!enable) {
+		pad = rp1_pin_readl(pin->pad) | RP1_PAD_OUT_DISABLE_MASK;
+		rp1_pin_writel(pad, pin->dummy, pin->pad);
+		if (rp1_pin_readl(pin->pad) != pad) {
+			ret = -EIO;
+			goto out;
+		}
+		FLD_SET(ctrl, RP1_GPIO_CTRL_OEOVER, RP1_OEOVER_DISABLE);
+		rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+		if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != ctrl)
+			ret = -EIO;
+		goto out;
+	}
+
+	pad = rp1_pin_readl(pin->pad) & ~RP1_PAD_OUT_DISABLE_MASK;
+	rp1_pin_writel(pad, pin->dummy, pin->pad);
+	if (rp1_pin_readl(pin->pad) != pad) {
+		ret = -EIO;
+		goto force_low;
+	}
+
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OEOVER, RP1_OEOVER_PERI);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != ctrl) {
+		ret = -EIO;
+		goto force_low;
+	}
+
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OUTOVER, RP1_OUTOVER_PERI);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	if (rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != ctrl) {
+		ret = -EIO;
+		goto force_low;
+	}
+	goto out;
+
+force_low:
+	ctrl = rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL);
+	FLD_SET(ctrl, RP1_GPIO_CTRL_OUTOVER, RP1_OUTOVER_LOW);
+	rp1_pin_writel(ctrl, pin->dummy, pin->gpio + RP1_GPIO_CTRL);
+	rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL);
+out:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rp1_pinctrl_pio_set_output);
+
+/**
+ * rp1_pinctrl_pio_release - restore an RP1 GPIO and release its ownership
+ * @request: handle returned by rp1_pinctrl_pio_request()
+ *
+ * On failure the handle remains valid and the GPIO remains reserved so the
+ * caller can retry cleanup.
+ */
+int rp1_pinctrl_pio_release(struct rp1_pinctrl_pio_pin *request)
+{
+	struct rp1_pin_info *pin;
+	int ret;
+
+	if (!request || !request->pin)
+		return -EINVAL;
+	pin = request->pin;
+
+	ret = rp1_pinctrl_pio_set_output(request, false);
+	if (ret && ret != -EPERM)
+		return ret;
+	if (request->desc) {
+		gpiochip_free_own_desc(request->desc);
+		request->desc = NULL;
+	}
+
+	/* gpiochip_free_own_desc() runs rp1_pmx_free(), which restores the pin. */
+	ret = rp1_pio_restore(pin);
+	if (ret < 0 || rp1_pin_readl(pin->gpio + RP1_GPIO_CTRL) != pin->pio_saved_ctrl ||
+	    rp1_pin_readl(pin->pad) != pin->pio_saved_pad) {
+		unsigned long flags;
+
+		raw_spin_lock_irqsave(&pin->pio_lock, flags);
+		pin->pio_restore = true;
+		pin->pio_changed = true;
+		raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+		return ret < 0 ? ret : -EIO;
+	}
+
+	kfree(request);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rp1_pinctrl_pio_release);
+
 static int rp1_pmx_free(struct pinctrl_dev *pctldev, unsigned offset)
 {
 	struct rp1_pin_info *pin = rp1_get_pin_pctl(pctldev, offset);
-	u32 fsel = rp1_get_fsel(pin);
+	u32 fsel;
 
+	int ret = rp1_pio_restore(pin);
+
+	if (ret)
+		return 0;
+	fsel = rp1_get_fsel(pin);
 	/* Return all pins to GPIO_IN, unless persist_gpio_outputs is set */
 	if (persist_gpio_outputs && fsel == RP1_FSEL_GPIO)
 		return 0;
@@ -1341,11 +1700,19 @@ static int rp1_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 				      bool input)
 {
 	struct rp1_pin_info *pin = rp1_get_pin_pctl(pctldev, offset);
+	unsigned long flags;
+	int ret = 0;
 
+	raw_spin_lock_irqsave(&pin->pio_lock, flags);
+	if (pin->pio_restore) {
+		ret = -EBUSY;
+		goto out;
+	}
 	rp1_set_dir(pin, input);
 	rp1_set_fsel(pin, RP1_FSEL_GPIO);
-
-	return 0;
+out:
+	raw_spin_unlock_irqrestore(&pin->pio_lock, flags);
+	return ret;
 }
 
 static bool rp1_pmx_function_is_gpio(struct pinctrl_dev *pctldev,
@@ -1640,6 +2007,7 @@ static int rp1_pinctrl_probe(struct platform_device *pdev)
 			struct rp1_pin_info *pin =
 				&pc->pins[bank->min_gpio + j];
 
+			raw_spin_lock_init(&pin->pio_lock);
 			pin->num = bank->min_gpio + j;
 			pin->bank = i;
 			pin->offset = j;
