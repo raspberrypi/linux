@@ -270,6 +270,11 @@ static void brcmf_cyw_feat_attach(struct brcmf_if *ifp)
 		drvr->ops->external_auth = brcmf_cyw_external_auth;
 	} else {
 		brcmf_dbg(INFO, "using generic external SAE support\n");
+		/* This firmware doesn't perform the 4-way handshake after an
+		 * external SAE authentication, so the in-firmware supplicant
+		 * must not be used - leave it to the host.
+		 */
+		drvr->feat_flags &= ~BIT(BRCMF_FEAT_FWSUP);
 	}
 }
 
