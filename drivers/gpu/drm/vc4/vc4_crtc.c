@@ -153,10 +153,20 @@ static bool vc4_crtc_get_scanout_position(struct drm_crtc *crtc,
 	*hpos = 0;
 
 	if (mode->flags & DRM_MODE_FLAG_INTERLACE) {
+		bool field;
+
 		*vpos /= 2;
 
-		/* Use hpos to correct for field offset in interlaced mode. */
-		if (vc4_hvs_get_fifo_frame_count(hvs, channel) % 2)
+		if (vc4->gen >= VC4_GEN_6_C)
+			field = val & SCALER6_DISPX_STATUS_OFIELD;
+		else
+			field = val & SCALER_DISPSTATX_FIELD;
+
+		/*
+		 * Use hpos to correct for field offset in interlaced mode.
+		 * The offset applies when the field bit is clear.
+		 */
+		if (!field)
 			*hpos += mode->crtc_htotal / 2;
 	}
 
