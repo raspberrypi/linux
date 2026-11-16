@@ -2707,15 +2707,18 @@ void vchiq_msg_queue_push(struct vchiq_instance *instance, unsigned int handle,
 	if (!service)
 		return;
 
-	while (service->msg_queue_write == service->msg_queue_read +
-		VCHIQ_MAX_SLOTS) {
+	/* Pairs with the release of msg_queue_read in vchiq_msg_hold(). */
+	while (smp_load_acquire(&service->msg_queue_read) + VCHIQ_MAX_SLOTS ==
+	       service->msg_queue_write) {
 		if (wait_for_completion_interruptible(&service->msg_queue_pop))
 			flush_signals(current);
 	}
 
 	pos = service->msg_queue_write & (VCHIQ_MAX_SLOTS - 1);
-	service->msg_queue_write++;
 	service->msg_queue[pos] = header;
+	/* Publish the entry only once it is stored. */
+	smp_store_release(&service->msg_queue_write,
+			  service->msg_queue_write + 1);
 
 	complete(&service->msg_queue_push);
 }
@@ -2730,17 +2733,21 @@ struct vchiq_header *vchiq_msg_hold(struct vchiq_instance *instance, unsigned in
 	if (!service)
 		return NULL;
 
-	if (service->msg_queue_write == service->msg_queue_read)
+	/* Pairs with the release of msg_queue_write in vchiq_msg_queue_push(). */
+	if (smp_load_acquire(&service->msg_queue_write) == service->msg_queue_read)
 		return NULL;
 
-	while (service->msg_queue_write == service->msg_queue_read) {
+	/* The same pairing, while waiting for an entry. */
+	while (smp_load_acquire(&service->msg_queue_write) == service->msg_queue_read) {
 		if (wait_for_completion_interruptible(&service->msg_queue_push))
 			flush_signals(current);
 	}
 
 	pos = service->msg_queue_read & (VCHIQ_MAX_SLOTS - 1);
-	service->msg_queue_read++;
 	header = service->msg_queue[pos];
+	/* Free the entry only once it is read. */
+	smp_store_release(&service->msg_queue_read,
+			  service->msg_queue_read + 1);
 
 	complete(&service->msg_queue_pop);
 
