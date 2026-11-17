@@ -309,7 +309,9 @@ static bool firmware_kms(void)
 	return of_device_is_available(of_find_compatible_node(NULL, NULL,
 	       "raspberrypi,rpi-firmware-kms")) ||
 	       of_device_is_available(of_find_compatible_node(NULL, NULL,
-	       "raspberrypi,rpi-firmware-kms-2711"));
+	       "raspberrypi,rpi-firmware-kms-2711")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2712"));
 }
 
 static int vc4_drm_bind(struct device *dev)
@@ -322,6 +324,7 @@ static int vc4_drm_bind(struct device *dev)
 	struct device_node *node;
 	struct drm_crtc *crtc;
 	enum vc4_gen gen;
+	bool fkms;
 	int ret = 0;
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -333,7 +336,9 @@ static int vc4_drm_bind(struct device *dev)
 	else
 		driver = &vc4_drm_driver;
 
-	if (gen >= VC4_GEN_6_C)
+	fkms = firmware_kms();
+
+	if (gen >= VC4_GEN_6_C && !fkms)
 		dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 	else
 		dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
@@ -341,7 +346,12 @@ static int vc4_drm_bind(struct device *dev)
 	node = of_find_matching_node_and_match(NULL, vc4_dma_range_matches,
 					       NULL);
 	if (node) {
-		ret = of_dma_configure(dev, node, true);
+		/*
+		 * The firmware scans out without the BCM2712 HVS IOMMU, so
+		 * don't inherit the HVS DMA setup there.
+		 */
+		if (!(fkms && gen >= VC4_GEN_6_C))
+			ret = of_dma_configure(dev, node, true);
 		of_node_put(node);
 
 		if (ret)
@@ -395,7 +405,7 @@ static int vc4_drm_bind(struct device *dev)
 		goto err;
 	}
 
-	if (firmware && !firmware_kms()) {
+	if (firmware && !fkms) {
 		ret = rpi_firmware_property(firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
