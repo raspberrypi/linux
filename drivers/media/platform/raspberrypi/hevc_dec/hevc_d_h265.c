@@ -332,7 +332,7 @@ static struct hevc_d_q_aux *aux_q_alloc(struct hevc_d_ctx *const ctx,
 					const unsigned int q_index)
 {
 	struct hevc_d_dev *const dev = ctx->dev;
-	struct hevc_d_q_aux *const aq = kzalloc(sizeof(*aq), GFP_KERNEL);
+	struct hevc_d_q_aux *const aq = kzalloc_obj(*aq);
 
 	if (!aq)
 		return NULL;
@@ -1366,14 +1366,10 @@ static int updated_ps(struct hevc_d_dec_state *const s)
 			s->log2_ctb_size;
 	s->ctb_size = s->ctb_width * s->ctb_height;
 
-	s->ctb_addr_rs_to_ts = kmalloc_array(s->ctb_size,
-					     sizeof(*s->ctb_addr_rs_to_ts),
-					     GFP_KERNEL);
+	s->ctb_addr_rs_to_ts = kmalloc_objs(*s->ctb_addr_rs_to_ts, s->ctb_size);
 	if (!s->ctb_addr_rs_to_ts)
 		goto fail;
-	s->ctb_addr_ts_to_rs = kmalloc_array(s->ctb_size,
-					     sizeof(*s->ctb_addr_ts_to_rs),
-					     GFP_KERNEL);
+	s->ctb_addr_ts_to_rs = kmalloc_objs(*s->ctb_addr_ts_to_rs, s->ctb_size);
 	if (!s->ctb_addr_ts_to_rs)
 		goto fail;
 
@@ -1385,12 +1381,10 @@ static int updated_ps(struct hevc_d_dec_state *const s)
 		s->tile_height = s->pps.num_tile_rows_minus1 + 1;
 	}
 
-	s->col_bd = kmalloc_array((s->tile_width + 1), sizeof(*s->col_bd),
-				  GFP_KERNEL);
+	s->col_bd = kmalloc_objs(*s->col_bd, s->tile_width + 1);
 	if (!s->col_bd)
 		goto fail;
-	s->row_bd = kmalloc_array((s->tile_height + 1), sizeof(*s->row_bd),
-				  GFP_KERNEL);
+	s->row_bd = kmalloc_objs(*s->row_bd, s->tile_height + 1);
 	if (!s->row_bd)
 		goto fail;
 
@@ -1480,8 +1474,7 @@ static int dec_env_init(struct hevc_d_ctx *const ctx)
 {
 	unsigned int i;
 
-	ctx->dec_pool = kcalloc(HEVC_D_DEC_ENV_COUNT, sizeof(*ctx->dec_pool),
-				GFP_KERNEL);
+	ctx->dec_pool = kzalloc_objs(*ctx->dec_pool, HEVC_D_DEC_ENV_COUNT);
 	if (!ctx->dec_pool)
 		return -1;
 
@@ -2349,7 +2342,7 @@ int hevc_d_h265_start(struct hevc_d_ctx *ctx)
 	ctx->fatal_err = 0;
 	ctx->dec0 = NULL;
 
-	ctx->state = kzalloc(sizeof(*ctx->state), GFP_KERNEL);
+	ctx->state = kzalloc_obj(*ctx->state);
 	if (!ctx->state) {
 		v4l2_err(&dev->v4l2_dev, "Failed to allocate decode state\n");
 		goto fail;
