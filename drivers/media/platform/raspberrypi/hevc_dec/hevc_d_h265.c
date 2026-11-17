@@ -2392,11 +2392,18 @@ void hevc_d_h265_trigger(struct hevc_d_ctx *ctx)
 	de->frame_buf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 	de->request = req;
 
+	/*
+	 * Once job_finish is called it is possible to get a streamoff. By
+	 * that point the irq must have been claimed or sync will not give
+	 * the correct ordering.
+	 * This means p1out may go -ve it if the irq runs before we inc it
+	 * but that is OK
+	 */
+	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, de);
+
 	/* Enable the next setup if our Q isn't too big */
 	if (atomic_add_return(1, &ctx->p1out) < HEVC_D_P1BUF_COUNT)
 		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
-
-	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, de);
 }
 
 static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
