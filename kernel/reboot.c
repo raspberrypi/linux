@@ -317,6 +317,9 @@ static void kernel_shutdown_prepare(enum system_states state)
 	usermodehelper_disable();
 	device_shutdown();
 }
+
+static void do_kernel_power_off_prepare(void);
+
 /**
  *	kernel_halt - halt the system
  *
@@ -325,6 +328,8 @@ static void kernel_shutdown_prepare(enum system_states state)
 void kernel_halt(void)
 {
 	kernel_shutdown_prepare(SYSTEM_HALT);
+	/* machine_halt() attempts a power off, so prepare for it */
+	do_kernel_power_off_prepare();
 	migrate_to_reboot_cpu();
 	syscore_shutdown();
 	if (poweroff_fallback_to_halt)
