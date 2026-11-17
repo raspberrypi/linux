@@ -350,7 +350,7 @@ void rp1dsi_dma_setup(struct rp1_dsi *dsi,
 			break;
 	}
 	if (i >= ARRAY_SIZE(my_formats)) {
-		drm_err(dsi->drm, "%s: bad input format\n", __func__);
+		dev_err(&dsi->pdev->dev, "%s: bad input format\n", __func__);
 		i = 0;
 	}
 	rp1dsi_dma_write(dsi, DPI_DMA_IMASK, my_formats[i].mask);
@@ -373,7 +373,7 @@ void rp1dsi_dma_setup(struct rp1_dsi *dsi,
 
 	i = rp1dsi_dma_busy(dsi);
 	if (i)
-		drm_err(dsi->drm, "RP1DSI: Unexpectedly busy at start!");
+		dev_err(&dsi->pdev->dev, "RP1DSI: Unexpectedly busy at start!");
 
 	rp1dsi_dma_write(dsi, DPI_DMA_CONTROL,
 			 BITS(DPI_DMA_CONTROL_ARM, (i == 0)) |
@@ -420,7 +420,7 @@ void rp1dsi_dma_stop(struct rp1_dsi *dsi)
 	ctrl &= ~(DPI_DMA_CONTROL_ARM_MASK | DPI_DMA_CONTROL_AUTO_REPEAT_MASK);
 	rp1dsi_dma_write(dsi, DPI_DMA_CONTROL, ctrl);
 	if (!wait_for_completion_timeout(&dsi->finished, HZ / 10))
-		drm_err(dsi->drm, "%s: timed out waiting for idle\n", __func__);
+		dev_err(&dsi->pdev->dev, "%s: timed out waiting for idle\n", __func__);
 	rp1dsi_dma_write(dsi, DPI_DMA_IRQ_EN, 0);
 }
 
@@ -439,14 +439,17 @@ irqreturn_t rp1dsi_dma_isr(int irq, void *dev)
 	u32 u = rp1dsi_dma_read(dsi, DPI_DMA_IRQ_FLAGS);
 
 	if (u) {
+		/* Cleared, and waited for with synchronize_irq(), on detach */
+		struct rp1dsi_kms *kms = READ_ONCE(dsi->kms);
+
 		rp1dsi_dma_write(dsi, DPI_DMA_IRQ_FLAGS, u);
 		if (dsi) {
 			if (u & DPI_DMA_IRQ_FLAGS_UNDERFLOW_MASK)
-				drm_err_ratelimited(dsi->drm,
+				dev_err_ratelimited(&dsi->pdev->dev,
 						    "Underflow! (panics=0x%08x)\n",
 						    rp1dsi_dma_read(dsi, DPI_DMA_PANICS));
-			if (u & DPI_DMA_IRQ_FLAGS_DMA_READY_MASK)
-				drm_crtc_handle_vblank(&dsi->pipe.crtc);
+			if ((u & DPI_DMA_IRQ_FLAGS_DMA_READY_MASK) && kms)
+				drm_crtc_handle_vblank(&kms->pipe.crtc);
 			if (u & DPI_DMA_IRQ_FLAGS_AFIFO_EMPTY_MASK)
 				complete(&dsi->finished);
 		}
