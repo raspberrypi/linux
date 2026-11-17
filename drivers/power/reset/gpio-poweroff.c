@@ -54,6 +54,17 @@ static int gpio_poweroff_do_poweroff(struct sys_off_data *data)
 	return NOTIFY_DONE;
 }
 
+/*
+ * The POWER_OFF chain is an atomic notifier, called under rcu_read_lock(),
+ * so a GPIO that can sleep (I2C expander, firmware mailbox, etc.) must be
+ * driven from the blocking POWER_OFF_PREPARE chain instead. A no-op POWER_OFF
+ * handler is still registered so that kernel_can_power_off() reports true.
+ */
+static int gpio_poweroff_nop(struct sys_off_data *data)
+{
+	return NOTIFY_DONE;
+}
+
 static int gpio_poweroff_probe(struct platform_device *pdev)
 {
 	struct gpio_poweroff *gpio_poweroff;
@@ -98,8 +109,22 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 		gpiod_export_link(&pdev->dev, "poweroff-gpio", gpio_poweroff->reset_gpio);
 	}
 
-	ret = devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_POWER_OFF,
-					    priority, gpio_poweroff_do_poweroff, gpio_poweroff);
+	if (gpiod_cansleep(gpio_poweroff->reset_gpio)) {
+		ret = devm_register_sys_off_handler(&pdev->dev,
+						    SYS_OFF_MODE_POWER_OFF_PREPARE,
+						    priority, gpio_poweroff_do_poweroff,
+						    gpio_poweroff);
+		if (!ret)
+			ret = devm_register_sys_off_handler(&pdev->dev,
+							    SYS_OFF_MODE_POWER_OFF,
+							    priority, gpio_poweroff_nop,
+							    NULL);
+	} else {
+		ret = devm_register_sys_off_handler(&pdev->dev,
+						    SYS_OFF_MODE_POWER_OFF,
+						    priority, gpio_poweroff_do_poweroff,
+						    gpio_poweroff);
+	}
 	if (ret) {
 		gpiod_unexport(gpio_poweroff->reset_gpio);
 		return dev_err_probe(&pdev->dev, ret, "Cannot register poweroff handler\n");
