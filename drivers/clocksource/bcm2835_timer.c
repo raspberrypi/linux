@@ -45,8 +45,18 @@ static int bcm2835_time_set_next_event(unsigned long event,
 {
 	struct bcm2835_timer *timer = container_of(evt_dev,
 		struct bcm2835_timer, evt);
-	writel_relaxed(readl_relaxed(system_clock) + event,
-		timer->compare);
+	u32 target = readl_relaxed(system_clock) + event;
+
+	writel_relaxed(target, timer->compare);
+
+	/*
+	 * The compare is an equality match, so if the counter has already
+	 * reached the target the interrupt won't fire until the counter
+	 * wraps (~4295s at 1MHz). Report the miss so the core retries.
+	 */
+	if ((s32)(readl_relaxed(system_clock) - target) >= 0)
+		return -ETIME;
+
 	return 0;
 }
 
@@ -120,7 +130,7 @@ static int __init bcm2835_timer_init(struct device_node *node)
 		goto err_timer_free;
 	}
 
-	clockevents_config_and_register(&timer->evt, freq, 0xf, 0xffffffff);
+	clockevents_config_and_register(&timer->evt, freq, 0xf, 0x7fffffff);
 
 	pr_info("bcm2835: system timer (irq = %d)\n", irq);
 
