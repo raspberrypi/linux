@@ -304,6 +304,8 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 
 	zswap_pool_debug("created", pool);
 
+	static_branch_enable(&zswap_ever_enabled);
+
 	return pool;
 
 ref_fail:
@@ -1776,9 +1778,8 @@ static int zswap_setup(void)
 	if (pool) {
 		pr_info("loaded using pool %s/%s\n", pool->tfm_name,
 			zpool_get_type(pool->zpool));
-		list_add(&pool->list, &zswap_pools);
+		list_add_rcu(&pool->list, &zswap_pools);
 		zswap_has_pool = true;
-		static_branch_enable(&zswap_ever_enabled);
 	} else {
 		pr_err("pool creation failed\n");
 		zswap_enabled = false;

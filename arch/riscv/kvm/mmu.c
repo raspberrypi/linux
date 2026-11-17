@@ -653,6 +653,8 @@ int kvm_riscv_gstage_map(struct kvm_vcpu *vcpu,
 				vma_pageshift, current);
 		return 0;
 	}
+	if (is_sigpending_pfn(hfn))
+		return -EINTR;
 	if (is_error_noslot_pfn(hfn))
 		return -EFAULT;
 

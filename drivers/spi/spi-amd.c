@@ -286,6 +286,10 @@ static inline int amd_spi_fifo_xfer(struct amd_spi *amd_spi,
 
 	list_for_each_entry(xfer, &message->transfers,
 			    transfer_list) {
+		/* Skip zero-length transfers to avoid len underflow below */
+		if (!xfer->len)
+			continue;
+
 		if (xfer->speed_hz)
 			amd_set_spi_freq(amd_spi, xfer->speed_hz);
 		else
@@ -299,6 +303,10 @@ static inline int amd_spi_fifo_xfer(struct amd_spi *amd_spi,
 				xfer->len--;
 			}
 			tx_len += xfer->len;
+			if (tx_len + rx_len > AMD_SPI_FIFO_SIZE) {
+				message->status = -EMSGSIZE;
+				goto fin_msg;
+			}
 
 			/* Write data into the FIFO. */
 			for (i = 0; i < xfer->len; i++)
@@ -308,8 +316,13 @@ static inline int amd_spi_fifo_xfer(struct amd_spi *amd_spi,
 		}
 
 		/* Store no. of bytes to be received from FIFO */
-		if (xfer->rx_buf)
+		if (xfer->rx_buf) {
 			rx_len += xfer->len;
+			if (tx_len + rx_len > AMD_SPI_FIFO_SIZE) {
+				message->status = -EMSGSIZE;
+				goto fin_msg;
+			}
+		}
 	}
 
 	if (!buf) {

@@ -87,6 +87,19 @@ struct nr_sock {
 
 #define nr_sk(sk) ((struct nr_sock *)(sk))
 
+/*
+ * Window negotiation, for a CONNREQ received or a CONNACK: use the smaller
+ * of our window and the peer's. A window of 0 would never let a frame
+ * out: take it as 1.
+ */
+static inline void nr_negotiate_window(struct nr_sock *nr, unsigned char window)
+{
+	if (window == 0)
+		window = 1;
+	if (window < nr->window)
+		nr->window = window;
+}
+
 struct nr_neigh {
 	struct hlist_node	neigh_node;
 	ax25_address		callsign;
@@ -189,7 +202,7 @@ void nr_loopback_clear(void);
 int nr_loopback_queue(struct sk_buff *);
 
 /* nr_out.c */
-void nr_output(struct sock *, struct sk_buff *);
+int nr_output(struct sock *sk, struct sk_buff *skb);
 void nr_send_nak_frame(struct sock *);
 void nr_kick(struct sock *);
 void nr_transmit_buffer(struct sock *, struct sk_buff *);

@@ -315,7 +315,7 @@
 				 <0>,
 				 <0>,
 				 <0>,
-				 <0>;
+				 <&usb_0_qmpphy>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 			#interconnect-cells = <1>;

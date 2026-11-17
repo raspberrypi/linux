@@ -27,29 +27,66 @@
 static void rose_ftimer_expiry(struct timer_list *);
 static void rose_t0timer_expiry(struct timer_list *);
 
+/*
+ * neigh->ax25 is replaced when a frame is sent or the link is looked up,
+ * from process context, softirq and the neighbour timers, and cleared by
+ * rose_link_failed(). Each holder of the pointer owns a reference on the
+ * ax25_cb: swap the pointer under this lock, then drop the reference that
+ * was taken off, so that it is dropped once and none is lost.
+ */
+static DEFINE_SPINLOCK(rose_neigh_ax25_lock);
+
+static void rose_neigh_set_ax25(struct rose_neigh *neigh, ax25_cb *ax25)
+{
+	ax25_cb *old;
+
+	spin_lock_bh(&rose_neigh_ax25_lock);
+	old = neigh->ax25;
+	neigh->ax25 = ax25;
+	spin_unlock_bh(&rose_neigh_ax25_lock);
+
+	if (old)
+		ax25_cb_put(old);
+}
+
+/*
+ * Clear neigh->ax25 if it still is @ax25, and drop its reference.
+ */
+bool rose_neigh_clear_ax25(struct rose_neigh *neigh, ax25_cb *ax25)
+{
+	bool found;
+
+	spin_lock_bh(&rose_neigh_ax25_lock);
+	found = neigh->ax25 == ax25;
+	if (found)
+		neigh->ax25 = NULL;
+	spin_unlock_bh(&rose_neigh_ax25_lock);
+
+	if (found)
+		ax25_cb_put(ax25);
+
+	return found;
+}
+
 static void rose_transmit_restart_confirmation(struct rose_neigh *neigh);
 static void rose_transmit_restart_request(struct rose_neigh *neigh);
 
+void rose_neigh_init_timers(struct rose_neigh *neigh)
+{
+	timer_setup(&neigh->ftimer, rose_ftimer_expiry, 0);
+	timer_setup(&neigh->t0timer, rose_t0timer_expiry, 0);
+}
+
 void rose_start_ftimer(struct rose_neigh *neigh)
 {
-	del_timer(&neigh->ftimer);
-
-	neigh->ftimer.function = rose_ftimer_expiry;
-	neigh->ftimer.expires  =
-		jiffies + msecs_to_jiffies(sysctl_rose_link_fail_timeout);
-
-	add_timer(&neigh->ftimer);
+	mod_timer(&neigh->ftimer,
+		  jiffies + msecs_to_jiffies(sysctl_rose_link_fail_timeout));
 }
 
 static void rose_start_t0timer(struct rose_neigh *neigh)
 {
-	del_timer(&neigh->t0timer);
-
-	neigh->t0timer.function = rose_t0timer_expiry;
-	neigh->t0timer.expires  =
-		jiffies + msecs_to_jiffies(sysctl_rose_restart_request_timeout);
-
-	add_timer(&neigh->t0timer);
+	mod_timer(&neigh->t0timer,
+		  jiffies + msecs_to_jiffies(sysctl_rose_restart_request_timeout));
 }
 
 void rose_stop_ftimer(struct rose_neigh *neigh)
@@ -95,19 +132,17 @@ static void rose_t0timer_expiry(struct timer_list *t)
 static int rose_send_frame(struct sk_buff *skb, struct rose_neigh *neigh)
 {
 	const ax25_address *rose_call;
-	ax25_cb *ax25s;
+	ax25_cb *ax25;
 
 	if (ax25cmp(&rose_callsign, &null_ax25_address) == 0)
 		rose_call = (const ax25_address *)neigh->dev->dev_addr;
 	else
 		rose_call = &rose_callsign;
 
-	ax25s = neigh->ax25;
-	neigh->ax25 = ax25_send_frame(skb, 260, rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
-	if (ax25s)
-		ax25_cb_put(ax25s);
+	ax25 = ax25_send_frame(skb, 260, rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
+	rose_neigh_set_ax25(neigh, ax25);
 
-	return neigh->ax25 != NULL;
+	return !!ax25;
 }
 
 /*
@@ -118,19 +153,17 @@ static int rose_send_frame(struct sk_buff *skb, struct rose_neigh *neigh)
 static int rose_link_up(struct rose_neigh *neigh)
 {
 	const ax25_address *rose_call;
-	ax25_cb *ax25s;
+	ax25_cb *ax25;
 
 	if (ax25cmp(&rose_callsign, &null_ax25_address) == 0)
 		rose_call = (const ax25_address *)neigh->dev->dev_addr;
 	else
 		rose_call = &rose_callsign;
 
-	ax25s = neigh->ax25;
-	neigh->ax25 = ax25_find_cb(rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
-	if (ax25s)
-		ax25_cb_put(ax25s);
+	ax25 = ax25_find_cb(rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
+	rose_neigh_set_ax25(neigh, ax25);
 
-	return neigh->ax25 != NULL;
+	return !!ax25;
 }
 
 /*

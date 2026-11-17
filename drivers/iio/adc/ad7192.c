@@ -1395,7 +1395,7 @@ static int ad7192_probe(struct spi_device *spi)
 
 	st->chip_info = spi_get_device_match_data(spi);
 	if (!st->chip_info)
-		return -ENODEV;
+		return -ENODATA;
 
 	indio_dev->name = st->chip_info->name;
 	indio_dev->modes = INDIO_DIRECT_MODE;

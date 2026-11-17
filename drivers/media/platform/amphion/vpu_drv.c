@@ -230,6 +230,7 @@ static struct platform_driver amphion_vpu_driver = {
 	.remove_new = vpu_remove,
 	.driver = {
 		.name = "amphion-vpu",
+		.suppress_bind_attrs = true,
 		.of_match_table = vpu_dt_match,
 		.pm = &vpu_pm_ops,
 	},

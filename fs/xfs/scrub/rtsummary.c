@@ -201,15 +201,22 @@ xchk_rtsum_compute(
 	struct xfs_scrub	*sc)
 {
 	struct xfs_mount	*mp = sc->mp;
+	struct xchk_rtsummary	*rts = sc->buf;
 	unsigned long long	rtbmp_blocks;
+	int			error;
 
 	/* If the bitmap size doesn't match the computed size, bail. */
 	rtbmp_blocks = xfs_rtbitmap_blockcount(mp, mp->m_sb.sb_rextents);
 	if (XFS_FSB_TO_B(mp, rtbmp_blocks) != mp->m_rbmip->i_disk_size)
 		return -EFSCORRUPTED;
 
-	return xfs_rtalloc_query_all(sc->mp, sc->tp, xchk_rtsum_record_free,
+	error = xfs_rtalloc_query_all(sc->mp, sc->tp, xchk_rtsum_record_free,
 			sc);
+	if (error)
+		return error;
+
+	rts->summary_computed = true;
+	return 0;
 }
 
 /* Compare the rtsummary file against the one we computed. */

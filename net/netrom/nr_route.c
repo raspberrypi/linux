@@ -345,6 +345,24 @@ static void nr_remove_neigh_locked(struct nr_neigh *nr_neigh)
 }
 
 /*
+ * Remove route i of a node: move the routes after it up, and keep which on
+ * the route it selected. If that route is the one removed, which now
+ * selects the next one, as after a link failure. The caller drops the
+ * route's use of its neighbour. Called with nr_route_lock held.
+ */
+static void nr_node_remove_route_locked(struct nr_node *nr_node, int i)
+{
+	lockdep_assert_held(&nr_route_lock);
+
+	if (i < nr_node->which)
+		nr_node->which--;
+
+	nr_node->count--;
+	for (; i < nr_node->count; i++)
+		nr_node->routes[i] = nr_node->routes[i + 1];
+}
+
+/*
  *	"Delete" a node. Strictly speaking remove a route to a node. The node
  *	is only deleted if no routes are left to it.
  */
@@ -373,22 +391,10 @@ static int nr_del_node(ax25_address *callsign, ax25_address *neighbour, struct n
 			nr_neigh_route_put_locked(nr_neigh);
 			nr_neigh_put(nr_neigh);
 
-			nr_node->count--;
+			nr_node_remove_route_locked(nr_node, i);
 
-			if (nr_node->count == 0) {
+			if (nr_node->count == 0)
 				nr_remove_node_locked(nr_node);
-			} else {
-				switch (i) {
-				case 0:
-					nr_node->routes[0] = nr_node->routes[1];
-					fallthrough;
-				case 1:
-					nr_node->routes[1] = nr_node->routes[2];
-					fallthrough;
-				case 2:
-					break;
-				}
-			}
 			/* Drop the reference taken by __nr_node_get() */
 			nr_node_put(nr_node);
 			ret = 0;
@@ -472,34 +478,24 @@ static int nr_dec_obs(void)
 
 	spin_lock_bh(&nr_route_lock);
 	nr_node_for_each_safe(s, nodet, &nr_node_list) {
-		for (i = 0; i < s->count; i++) {
+		/* i only moves on when route i stays: the next one moves up */
+		for (i = 0; i < s->count; ) {
 			switch (s->routes[i].obs_count) {
 			case 0:		/* A locked entry */
+				i++;
 				break;
 
 			case 1:		/* From 1 -> 0 */
 				nr_neigh = s->routes[i].neighbour;
 
 				nr_neigh_route_put_locked(nr_neigh);
-
-				s->count--;
-
-				switch (i) {
-				case 0:
-					s->routes[0] = s->routes[1];
-					fallthrough;
-				case 1:
-					s->routes[1] = s->routes[2];
-					break;
-				case 2:
-					break;
-				}
+				nr_node_remove_route_locked(s, i);
 				break;
 
 			default:
 				s->routes[i].obs_count--;
+				i++;
 				break;
-
 			}
 		}
 
@@ -525,23 +521,14 @@ void nr_rt_device_down(struct net_device *dev)
 	nr_neigh_for_each_safe(s, nodet, &nr_neigh_list) {
 		if (s->dev == dev) {
 			nr_node_for_each_safe(t, node2t, &nr_node_list) {
-				for (i = 0; i < t->count; i++) {
+				for (i = 0; i < t->count; ) {
 					if (t->routes[i].neighbour == s) {
 						s->count--;
 						nr_neigh_put(s);
 
-						t->count--;
-
-						switch (i) {
-						case 0:
-							t->routes[0] = t->routes[1];
-							fallthrough;
-						case 1:
-							t->routes[1] = t->routes[2];
-							break;
-						case 2:
-							break;
-						}
+						nr_node_remove_route_locked(t, i);
+					} else {
+						i++;
 					}
 				}
 
@@ -774,11 +761,16 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	nr_dest = (ax25_address *)(skb->data + 7);
 
 	if (ax25 != NULL) {
-		ret = nr_add_node(nr_src, "", &ax25->dest_addr, ax25->digipeat,
-				  ax25->ax25_dev->dev, 0,
-				  READ_ONCE(sysctl_netrom_obsolescence_count_initialiser));
-		if (ret)
-			return ret;
+		/*
+		 * A frame that cannot be noted here (it claims to come from
+		 * one of our own callsigns, or memory is short) is dropped.
+		 * Return 0, not the error: AX.25 takes any other value as
+		 * "frame consumed" and would never free it.
+		 */
+		if (nr_add_node(nr_src, "", &ax25->dest_addr, ax25->digipeat,
+				ax25->ax25_dev->dev, 0,
+				READ_ONCE(sysctl_netrom_obsolescence_count_initialiser)))
+			return 0;
 	}
 
 	if ((dev = nr_dev_get(nr_dest)) != NULL) {	/* Its for me */
@@ -793,10 +785,12 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	if (!READ_ONCE(sysctl_netrom_routing_control) && ax25 != NULL)
 		return 0;
 
-	/* Its Time-To-Live has expired */
-	if (skb->data[14] == 1) {
+	/*
+	 * Its Time-To-Live has expired. A frame received with a TTL of 0
+	 * has expired too: decremented below, it would leave with 255.
+	 */
+	if (skb->data[14] <= 1)
 		return 0;
-	}
 
 	nr_node = nr_node_get(nr_dest);
 	if (nr_node == NULL)
@@ -848,8 +842,14 @@ int nr_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 	spin_unlock_bh(&nr_route_lock);
 	nr_node_put(nr_node);
 
+	/*
+	 * ax25_send_frame() only returns NULL before taking the frame:
+	 * free our copy then; the caller frees the original.
+	 */
 	if (ret)
 		kfree_skb(oskb);
+	else
+		kfree_skb(skb);
 
 	return ret;
 }

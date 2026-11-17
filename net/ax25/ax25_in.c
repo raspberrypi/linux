@@ -201,7 +201,7 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 	int type = 0, mine = 0, dama;
 	struct sock *make, *sk;
 	ax25_digi dp, reverse_dp;
-	ax25_cb *ax25;
+	ax25_cb *ax25, *existing;
 	ax25_dev *ax25_dev;
 
 	/*
@@ -401,11 +401,12 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 			}
 		}
 
-		skb_set_owner_r(skb, make);
-		skb_queue_head(&sk->sk_receive_queue, skb);
-
-		make->sk_state = TCP_ESTABLISHED;
-
+		/*
+		 * Keep a place in the backlog, but put the skb on the
+		 * listener's queue only once the connection is set up
+		 * below: accept() takes it from there, and close() on the
+		 * new socket frees the connection.
+		 */
 		sk_acceptq_added(sk);
 		bh_unlock_sock(sk);
 	} else {
@@ -450,6 +451,24 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 		ax25->window  = ax25_dev->values[AX25_VALUES_WINDOW];
 	}
 
+	if (!sk) {
+		/*
+		 * ax25_send_frame() may have created a connection for this
+		 * link since the lookup above: add ours only if there is
+		 * none, otherwise give the SABM to the existing one. Frames
+		 * queued on ours before it reaches state 3 are sent by the
+		 * ax25_kick() below.
+		 */
+		existing = ax25_cb_add_unique(ax25);
+		if (existing) {
+			ax25_cb_put(ax25);
+			if (ax25_process_rx_frame(existing, skb, type, dama) == 0)
+				kfree_skb(skb);
+			ax25_cb_put(existing);
+			return 0;
+		}
+	}
+
 	ax25_send_control(ax25, AX25_UA, AX25_POLLON, AX25_RESPONSE);
 
 #ifdef CONFIG_AX25_DAMA_SLAVE
@@ -459,15 +478,36 @@ static int ax25_rcv(struct sk_buff *skb, struct net_device *dev,
 
 	ax25->state = AX25_STATE_3;
 
-	ax25_cb_add(ax25);
+	if (sk)
+		ax25_cb_add(ax25);
 
 	ax25_start_heartbeat(ax25);
 	ax25_start_t3timer(ax25);
 	ax25_start_idletimer(ax25);
 
+	if (!sk)
+		ax25_kick(ax25);
+
 	if (sk) {
-		if (!sock_flag(sk, SOCK_DEAD))
+		bh_lock_sock(sk);
+		skb_set_owner_r(skb, make);
+		if (sk->sk_state == TCP_LISTEN && !sock_flag(sk, SOCK_DEAD)) {
+			skb_queue_head(&sk->sk_receive_queue, skb);
 			sk->sk_data_ready(sk);
+		} else {
+			/*
+			 * The listener was closed meanwhile: leave the
+			 * connection to its heartbeat, as
+			 * ax25_destroy_socket() does with the connections
+			 * that were still waiting on its queue.
+			 */
+			sk_acceptq_removed(sk);
+			kfree_skb(skb);
+			sock_orphan(make);
+			make->sk_state = TCP_LISTEN;
+			ax25->state = AX25_STATE_0;
+		}
+		bh_unlock_sock(sk);
 		sock_put(sk);
 	} else {
 free:

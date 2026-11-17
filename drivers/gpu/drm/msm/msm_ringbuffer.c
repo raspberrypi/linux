@@ -134,5 +134,5 @@ void msm_ringbuffer_destroy(struct msm_ringbuffer *ring)
 
 	msm_gem_kernel_put(ring->bo, ring->gpu->aspace);
 
-	kfree(ring);
+	kfree_rcu(ring, rcu);
 }

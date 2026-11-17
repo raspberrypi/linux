@@ -72,6 +72,7 @@ enum kvm_only_cpuid_leafs {
 /* CPUID level 0x80000021 (ECX) */
 #define KVM_X86_FEATURE_TSA_SQ_NO	KVM_X86_FEATURE(CPUID_8000_0021_ECX, 1)
 #define KVM_X86_FEATURE_TSA_L1_NO	KVM_X86_FEATURE(CPUID_8000_0021_ECX, 2)
+#define KVM_X86_FEATURE_TSA_FILL_NO	KVM_X86_FEATURE(CPUID_8000_0021_ECX, 7)
 
 struct cpuid_reg {
 	u32 function;
@@ -145,6 +146,7 @@ static __always_inline u32 __feature_translate(int x86_feature)
 	KVM_X86_TRANSLATE_FEATURE(BHI_CTRL);
 	KVM_X86_TRANSLATE_FEATURE(TSA_SQ_NO);
 	KVM_X86_TRANSLATE_FEATURE(TSA_L1_NO);
+	KVM_X86_TRANSLATE_FEATURE(TSA_FILL_NO);
 	default:
 		return x86_feature;
 	}

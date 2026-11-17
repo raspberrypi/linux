@@ -28,11 +28,19 @@
 /*
  *	This is where all NET/ROM frames pass, except for IP-over-NET/ROM which
  *	cannot be fragmented in this manner.
+ *
+ *	A message too long for one frame is cut into fragments built on a list
+ *	of our own, and only put on the write queue once all of them exist: a
+ *	message that cannot be fragmented whole (no memory, or a signal while
+ *	waiting for send buffer space) is not sent at all, and the error is
+ *	returned. Consumes skb in all cases.
  */
-void nr_output(struct sock *sk, struct sk_buff *skb)
+int nr_output(struct sock *sk, struct sk_buff *skb)
 {
+	struct sk_buff_head frags;
 	struct sk_buff *skbn;
 	unsigned char transport[NR_TRANSPORT_LEN];
+	unsigned long flags;
 	int err, frontlen, len;
 
 	if (skb->len - NR_TRANSPORT_LEN > NR_MAX_PACKET_SIZE) {
@@ -42,10 +50,13 @@ void nr_output(struct sock *sk, struct sk_buff *skb)
 
 		frontlen = skb_headroom(skb);
 
+		__skb_queue_head_init(&frags);
+
 		while (skb->len > 0) {
 			if ((skbn = sock_alloc_send_skb(sk, frontlen + NR_MAX_PACKET_SIZE, 0, &err)) == NULL) {
+				__skb_queue_purge(&frags);
 				kfree_skb(skb);
-				return;
+				return err;
 			}
 
 			skb_reserve(skbn, frontlen);
@@ -63,15 +74,21 @@ void nr_output(struct sock *sk, struct sk_buff *skb)
 			if (skb->len > 0)
 				skbn->data[4] |= NR_MORE_FLAG;
 
-			skb_queue_tail(&sk->sk_write_queue, skbn); /* Throw it on the queue */
+			__skb_queue_tail(&frags, skbn);
 		}
 
 		kfree_skb(skb);
+
+		spin_lock_irqsave(&sk->sk_write_queue.lock, flags);
+		skb_queue_splice_tail_init(&frags, &sk->sk_write_queue);
+		spin_unlock_irqrestore(&sk->sk_write_queue.lock, flags);
 	} else {
 		skb_queue_tail(&sk->sk_write_queue, skb);		/* Throw it on the queue */
 	}
 
 	nr_kick(sk);
+
+	return 0;
 }
 
 /*

@@ -1323,8 +1323,12 @@ xrep_iunlink_mark_ondisk_rec(
 				XFS_AGINO_TO_INO(mp, sc->sa.pag->pag_agno,
 						 agino),
 				&ip);
-		if (error)
+		if (error == -ENOMEM)
+			return error;
+		if (error) {
+			error = 0;
 			continue;
+		}
 
 		trace_xrep_iunlink_reload_ondisk(ip);
 

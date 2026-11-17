@@ -1375,6 +1375,7 @@ static void blk_add_rq_to_plug(struct blk_plug *plug, struct request *rq)
 		   (!blk_queue_nomerges(rq->q) &&
 		    blk_rq_bytes(last) >= BLK_PLUG_FLUSH_SIZE)) {
 		blk_mq_flush_plug_list(plug, false);
+		blk_plug_invalidate_ts();
 		last = NULL;
 		trace_block_plug(rq->q);
 	}
@@ -3121,16 +3122,14 @@ new_request:
 
 	blk_mq_bio_to_request(rq, bio, nr_segs);
 
-	ret = blk_crypto_rq_get_keyslot(rq);
-	if (ret != BLK_STS_OK) {
-		bio->bi_status = ret;
-		bio_endio(bio);
-		blk_mq_free_request(rq);
-		return;
-	}
-
 	if (bio_zone_write_plugging(bio))
 		blk_zone_write_plug_init_request(rq);
+
+	ret = blk_crypto_rq_get_keyslot(rq);
+	if (ret != BLK_STS_OK) {
+		blk_mq_end_request(rq, ret);
+		return;
+	}
 
 	if (op_is_flush(bio->bi_opf) && blk_insert_flush(rq))
 		return;
@@ -3924,6 +3923,7 @@ static int blk_mq_init_hctx(struct request_queue *q,
 		struct blk_mq_hw_ctx *hctx, unsigned hctx_idx)
 {
 	hctx->queue_num = hctx_idx;
+	clear_bit(BLK_MQ_S_INACTIVE, &hctx->state);
 
 	hctx->tags = set->tags[hctx_idx];
 

@@ -373,9 +373,11 @@ static __poll_t iommufd_fault_fops_poll(struct file *filep,
 static int iommufd_fault_fops_release(struct inode *inode, struct file *filep)
 {
 	struct iommufd_fault *fault = filep->private_data;
+	/* fault may be freed once the users reference is dropped. */
+	struct iommufd_ctx *ictx = fault->ictx;
 
 	refcount_dec(&fault->obj.users);
-	iommufd_ctx_put(fault->ictx);
+	iommufd_ctx_put(ictx);
 	return 0;
 }
 

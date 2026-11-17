@@ -49,7 +49,6 @@
 #include "kvm-s390.h"
 #include "gaccess.h"
 #include "pci.h"
-#include "gmap.h"
 
 #define CREATE_TRACE_POINTS
 #include "trace.h"
@@ -4743,113 +4742,29 @@ static void kvm_s390_assert_primary_as(struct kvm_vcpu *vcpu)
 		current->thread.gmap_int_code, current->thread.gmap_teid.val);
 }
 
-/*
- * __kvm_s390_handle_dat_fault() - handle a dat fault for the gmap of a vcpu
- * @vcpu: the vCPU whose gmap is to be fixed up
- * @gfn: the guest frame number used for memslots (including fake memslots)
- * @gaddr: the gmap address, does not have to match @gfn for ucontrol gmaps
- * @foll: FOLL_* flags
- *
- * Return: 0 on success, < 0 in case of error.
- * Context: The mm lock must not be held before calling. May sleep.
- */
-int __kvm_s390_handle_dat_fault(struct kvm_vcpu *vcpu, gfn_t gfn, gpa_t gaddr, unsigned int foll)
-{
-	struct kvm_memory_slot *slot;
-	unsigned int fault_flags;
-	bool writable, unlocked;
-	unsigned long vmaddr;
-	struct page *page;
-	kvm_pfn_t pfn;
-	int rc;
-
-	slot = kvm_vcpu_gfn_to_memslot(vcpu, gfn);
-	if (!slot || slot->flags & KVM_MEMSLOT_INVALID)
-		return vcpu_post_run_addressing_exception(vcpu);
-
-	fault_flags = foll & FOLL_WRITE ? FAULT_FLAG_WRITE : 0;
-	if (vcpu->arch.gmap->pfault_enabled)
-		foll |= FOLL_NOWAIT;
-	vmaddr = __gfn_to_hva_memslot(slot, gfn);
-
-try_again:
-	pfn = __kvm_faultin_pfn(slot, gfn, foll, &writable, &page);
-
-	/* Access outside memory, inject addressing exception */
-	if (is_noslot_pfn(pfn))
-		return vcpu_post_run_addressing_exception(vcpu);
-	/* Signal pending: try again */
-	if (pfn == KVM_PFN_ERR_SIGPENDING)
-		return -EAGAIN;
-
-	/* Needs I/O, try to setup async pfault (only possible with FOLL_NOWAIT) */
-	if (pfn == KVM_PFN_ERR_NEEDS_IO) {
-		trace_kvm_s390_major_guest_pfault(vcpu);
-		if (kvm_arch_setup_async_pf(vcpu))
-			return 0;
-		vcpu->stat.pfault_sync++;
-		/* Could not setup async pfault, try again synchronously */
-		foll &= ~FOLL_NOWAIT;
-		goto try_again;
-	}
-	/* Any other error */
-	if (is_error_pfn(pfn))
-		return -EFAULT;
-
-	/* Success */
-	mmap_read_lock(vcpu->arch.gmap->mm);
-	/* Mark the userspace PTEs as young and/or dirty, to avoid page fault loops */
-	rc = fixup_user_fault(vcpu->arch.gmap->mm, vmaddr, fault_flags, &unlocked);
-	if (!rc)
-		rc = __gmap_link(vcpu->arch.gmap, gaddr, vmaddr);
-	scoped_guard(spinlock, &vcpu->kvm->mmu_lock) {
-		kvm_release_faultin_page(vcpu->kvm, page, false, writable);
-	}
-	mmap_read_unlock(vcpu->arch.gmap->mm);
-	return rc;
-}
-
-static int vcpu_dat_fault_handler(struct kvm_vcpu *vcpu, unsigned long gaddr, unsigned int foll)
-{
-	unsigned long gaddr_tmp;
-	gfn_t gfn;
-
-	gfn = gpa_to_gfn(gaddr);
-	if (kvm_is_ucontrol(vcpu->kvm)) {
-		/*
-		 * This translates the per-vCPU guest address into a
-		 * fake guest address, which can then be used with the
-		 * fake memslots that are identity mapping userspace.
-		 * This allows ucontrol VMs to use the normal fault
-		 * resolution path, like normal VMs.
-		 */
-		mmap_read_lock(vcpu->arch.gmap->mm);
-		gaddr_tmp = __gmap_translate(vcpu->arch.gmap, gaddr);
-		mmap_read_unlock(vcpu->arch.gmap->mm);
-		if (gaddr_tmp == -EFAULT) {
-			vcpu->run->exit_reason = KVM_EXIT_S390_UCONTROL;
-			vcpu->run->s390_ucontrol.trans_exc_code = gaddr;
-			vcpu->run->s390_ucontrol.pgm_code = PGM_SEGMENT_TRANSLATION;
-			return -EREMOTE;
-		}
-		gfn = gpa_to_gfn(gaddr_tmp);
-	}
-	return __kvm_s390_handle_dat_fault(vcpu, gfn, gaddr, foll);
-}
-
 static int vcpu_post_run_handle_fault(struct kvm_vcpu *vcpu)
 {
-	unsigned int foll = 0;
+	unsigned int flags = 0;
 	unsigned long gaddr;
-	int rc;
+	int rc = 0;
 
 	gaddr = current->thread.gmap_teid.addr * PAGE_SIZE;
 	if (kvm_s390_cur_gmap_fault_is_write())
-		foll = FOLL_WRITE;
+		flags = FAULT_FLAG_WRITE;
 
 	switch (current->thread.gmap_int_code & PGM_INT_CODE_MASK) {
 	case 0:
 		vcpu->stat.exit_null++;
+		break;
+	case PGM_NON_SECURE_STORAGE_ACCESS:
+		kvm_s390_assert_primary_as(vcpu);
+		/*
+		 * This is normal operation; a page belonging to a protected
+		 * guest has not been imported yet. Try to import the page into
+		 * the protected guest.
+		 */
+		if (gmap_convert_to_secure(vcpu->arch.gmap, gaddr) == -EINVAL)
+			send_sig(SIGSEGV, current, 0);
 		break;
 	case PGM_SECURE_STORAGE_ACCESS:
 	case PGM_SECURE_STORAGE_VIOLATION:
@@ -4875,20 +4790,6 @@ static int vcpu_post_run_handle_fault(struct kvm_vcpu *vcpu)
 			send_sig(SIGSEGV, current, 0);
 		}
 		break;
-	case PGM_NON_SECURE_STORAGE_ACCESS:
-		kvm_s390_assert_primary_as(vcpu);
-		/*
-		 * This is normal operation; a page belonging to a protected
-		 * guest has not been imported yet. Try to import the page into
-		 * the protected guest.
-		 */
-		rc = gmap_convert_to_secure(vcpu->arch.gmap, gaddr);
-		if (rc == -EINVAL)
-			send_sig(SIGSEGV, current, 0);
-		if (rc != -ENXIO)
-			break;
-		foll = FOLL_WRITE;
-		fallthrough;
 	case PGM_PROTECTION:
 	case PGM_SEGMENT_TRANSLATION:
 	case PGM_PAGE_TRANSLATION:
@@ -4897,14 +4798,37 @@ static int vcpu_post_run_handle_fault(struct kvm_vcpu *vcpu)
 	case PGM_REGION_SECOND_TRANS:
 	case PGM_REGION_THIRD_TRANS:
 		kvm_s390_assert_primary_as(vcpu);
-		return vcpu_dat_fault_handler(vcpu, gaddr, foll);
+		if (vcpu->arch.gmap->pfault_enabled) {
+			rc = gmap_fault(vcpu->arch.gmap, gaddr, flags | FAULT_FLAG_RETRY_NOWAIT);
+			if (rc == -EFAULT)
+				return vcpu_post_run_addressing_exception(vcpu);
+			if (rc == -EAGAIN) {
+				trace_kvm_s390_major_guest_pfault(vcpu);
+				if (kvm_arch_setup_async_pf(vcpu))
+					return 0;
+				vcpu->stat.pfault_sync++;
+			} else {
+				return rc;
+			}
+		}
+		rc = gmap_fault(vcpu->arch.gmap, gaddr, flags);
+		if (rc == -EFAULT) {
+			if (kvm_is_ucontrol(vcpu->kvm)) {
+				vcpu->run->exit_reason = KVM_EXIT_S390_UCONTROL;
+				vcpu->run->s390_ucontrol.trans_exc_code = gaddr;
+				vcpu->run->s390_ucontrol.pgm_code = 0x10;
+				return -EREMOTE;
+			}
+			return vcpu_post_run_addressing_exception(vcpu);
+		}
+		break;
 	default:
 		KVM_BUG(1, vcpu->kvm, "Unexpected program interrupt 0x%x, TEID 0x%016lx",
 			current->thread.gmap_int_code, current->thread.gmap_teid.val);
 		send_sig(SIGSEGV, current, 0);
 		break;
 	}
-	return 0;
+	return rc;
 }
 
 static int vcpu_post_run(struct kvm_vcpu *vcpu, int exit_reason)
@@ -5785,9 +5709,7 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 	}
 #endif
 	case KVM_S390_VCPU_FAULT: {
-		idx = srcu_read_lock(&vcpu->kvm->srcu);
-		r = vcpu_dat_fault_handler(vcpu, arg, 0);
-		srcu_read_unlock(&vcpu->kvm->srcu, idx);
+		r = gmap_fault(vcpu->arch.gmap, arg, 0);
 		break;
 	}
 	case KVM_ENABLE_CAP:

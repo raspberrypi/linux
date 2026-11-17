@@ -250,6 +250,11 @@ static void io_waitid_cb(struct io_kiocb *req, struct io_tw_state *ts)
 	int ret;
 
 	io_tw_lock(ctx, ts);
+	if (unlikely(io_should_terminate_tw(ctx))) {
+		io_waitid_complete(req, -ECANCELED, false);
+		io_req_task_complete(req, ts);
+		return;
+	}
 
 	ret = __do_wait(&iwa->wo);
 
