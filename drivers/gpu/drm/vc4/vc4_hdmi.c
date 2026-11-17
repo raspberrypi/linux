@@ -755,9 +755,6 @@ static void vc4_hdmi_enable_scrambling(struct drm_encoder *encoder)
 	if (!drm_dev_enter(drm, &idx))
 		return;
 
-	drm_scdc_set_high_tmds_clock_ratio(connector, true);
-	drm_scdc_set_scrambling(connector, true);
-
 	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
 	HDMI_WRITE(HDMI_SCRAMBLER_CTL, HDMI_READ(HDMI_SCRAMBLER_CTL) |
 		   VC5_HDMI_SCRAMBLER_CTL_ENABLE);
@@ -860,8 +857,6 @@ static void vc4_hdmi_encoder_post_crtc_disable(struct drm_encoder *encoder,
 		spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
 	}
 
-	vc4_hdmi_disable_scrambling(encoder);
-
 	drm_dev_exit(idx);
 
 out:
@@ -889,6 +884,8 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 
 	if (vc4_hdmi->variant->phy_disable)
 		vc4_hdmi->variant->phy_disable(vc4_hdmi);
+
+	vc4_hdmi_disable_scrambling(encoder);
 
 	/* we no longer require a minimum clock rate */
 	clk_set_min_rate(vc4_hdmi->pixel_bvb_clock, 0);
@@ -1499,6 +1496,13 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	if (ret) {
 		drm_err(drm, "Failed to turn on pixel bvb clock: %d\n", ret);
 		goto err_disable_pixel_clock;
+	}
+
+	if (vc4_hdmi_supports_scrambling(vc4_hdmi) &&
+	    vc4_hdmi_mode_needs_scrambling(mode, vc4_hdmi->output_bpc, vc4_hdmi->output_format)) {
+		drm_scdc_set_high_tmds_clock_ratio(connector, true);
+		drm_scdc_set_scrambling(connector, true);
+		usleep_range(1000, 2000);
 	}
 
 	if (vc4_hdmi->variant->phy_init)
