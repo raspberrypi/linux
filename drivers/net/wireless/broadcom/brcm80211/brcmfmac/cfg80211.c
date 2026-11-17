@@ -2384,6 +2384,48 @@ static void brcmf_set_join_pref(struct brcmf_if *ifp,
 		bphy_err(drvr, "Set join_pref error (%d)\n", err);
 }
 
+/*
+ * For external SAE, pass the supplicant's RSNXE (or an empty one if it
+ * didn't supply one) to the firmware along with the RSN IE. Otherwise
+ * the firmware adds its own RSNXE to the (re)association request, which
+ * can claim SAE H2E support when the supplicant authenticated using
+ * hunting-and-pecking - an AP will reject that as a downgrade attack.
+ */
+static bool brcmf_set_sae_wpaie(struct brcmf_if *ifp,
+				struct cfg80211_connect_params *sme,
+				const struct brcmf_tlv *rsn_ie)
+{
+	static const u8 empty_rsnx[] = { WLAN_EID_RSNX, 1, 0 };
+	u32 rsn_len = rsn_ie->len + TLV_HDR_LEN;
+	const struct brcmf_tlv *rsnx_ie;
+	const void *rsnx = empty_rsnx;
+	u32 rsnx_len = sizeof(empty_rsnx);
+	u8 *buf;
+
+	if (!brcmf_feat_is_enabled(ifp, BRCMF_FEAT_SAE_EXT) ||
+	    !sme->crypto.n_akm_suites ||
+	    (sme->crypto.akm_suites[0] != WLAN_AKM_SUITE_SAE &&
+	     sme->crypto.akm_suites[0] != WLAN_AKM_SUITE_FT_OVER_SAE))
+		return false;
+
+	rsnx_ie = brcmf_parse_tlvs(sme->ie, sme->ie_len, WLAN_EID_RSNX);
+	if (rsnx_ie) {
+		rsnx = rsnx_ie;
+		rsnx_len = rsnx_ie->len + TLV_HDR_LEN;
+	}
+
+	buf = kmalloc(rsn_len + rsnx_len, GFP_KERNEL);
+	if (!buf)
+		return false;
+
+	memcpy(buf, rsn_ie, rsn_len);
+	memcpy(buf + rsn_len, rsnx, rsnx_len);
+	brcmf_fil_iovar_data_set(ifp, "wpaie", buf, rsn_len + rsnx_len);
+	kfree(buf);
+
+	return true;
+}
+
 static s32
 brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 		       struct cfg80211_connect_params *sme)
@@ -2438,7 +2480,8 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 				ie_len = rsn_ie->len + TLV_HDR_LEN;
 			}
 		}
-		brcmf_fil_iovar_data_set(ifp, "wpaie", ie, ie_len);
+		if (wpa_ie || !rsn_ie || !brcmf_set_sae_wpaie(ifp, sme, rsn_ie))
+			brcmf_fil_iovar_data_set(ifp, "wpaie", ie, ie_len);
 	}
 
 	err = brcmf_vif_set_mgmt_ie(ifp->vif, BRCMF_VNDR_IE_ASSOCREQ_FLAG,
