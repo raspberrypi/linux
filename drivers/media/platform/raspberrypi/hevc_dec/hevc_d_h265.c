@@ -1587,6 +1587,15 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	s->slice_temporal_mvp = (sh0->flags &
 		   V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_TEMPORAL_MVP_ENABLED);
 
+	/*
+	 * Set frame_slot and currpoc early as they are used in the error path
+	 */
+	de->mvbase = 0;
+	de->cmd_len = 0;
+	de->dpbno_col = ~0U;
+	de->frame_slot = run->dst->vb2_buf.index;
+	de->rpi_currpoc = sh0->slice_pic_order_cnt;
+
 	/* Frame start */
 
 	if (!is_sps_set(run->h265.sps)) {
@@ -1621,8 +1630,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->pic_height_in_ctbs_y =
 		(s->sps.pic_height_in_luma_samples + ctb_size_y - 1) /
 			ctb_size_y; /* 7-17 */
-	de->cmd_len = 0;
-	de->dpbno_col = ~0U;
 
 	switch (ctx->dst_fmt.pixelformat) {
 	case V4L2_PIX_FMT_NV12MT_COL128:
@@ -1633,8 +1640,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		de->chroma_stride = de->luma_stride / 2;
 		de->frame_chroma_addr =
 			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
-		de->mvbase = 0;
-		de->frame_slot = run->dst->vb2_buf.index;
 		break;
 	case V4L2_PIX_FMT_NV12_COL128:
 	case V4L2_PIX_FMT_NV12_10_COL128:
@@ -1644,8 +1649,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		de->chroma_stride = de->luma_stride;
 		de->frame_chroma_addr = de->frame_luma_addr +
 					(ctx->dst_fmt.height * 128);
-		de->mvbase = 0;
-		de->frame_slot = run->dst->vb2_buf.index;
 		old_bits = true;
 		break;
 	}
@@ -1729,7 +1732,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->rpi_config2 = mk_config2(s);
 	de->rpi_framesize = (s->sps.pic_height_in_luma_samples << 16) |
 			    s->sps.pic_width_in_luma_samples;
-	de->rpi_currpoc = sh0->slice_pic_order_cnt;
 
 	s->slice_idx = 0;
 
