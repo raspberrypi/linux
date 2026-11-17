@@ -20,10 +20,10 @@ use crate::sync::{aref::ARef, Arc};
 #[repr(u32)]
 pub enum IrqReturn {
     /// The interrupt was not from this device or was not handled.
-    None = bindings::irqreturn_IRQ_NONE,
+    None = bindings::irqreturn::IRQ_NONE.0,
 
     /// The interrupt was handled by this device.
-    Handled = bindings::irqreturn_IRQ_HANDLED,
+    Handled = bindings::irqreturn::IRQ_HANDLED.0,
 }
 
 /// Callbacks for an IRQ handler.
@@ -275,7 +275,7 @@ impl<T: Handler + 'static> Registration<T> {
 unsafe extern "C" fn handle_irq_callback<T: Handler + 'static>(
     _irq: i32,
     ptr: *mut c_void,
-) -> c_uint {
+) -> bindings::irqreturn_t {
     // SAFETY: `ptr` is a pointer to `RegistrationInner` set in `Registration::new`
     let inner = unsafe { &*(ptr as *const RegistrationInner) };
     // SAFETY: `inner.handler` is a pointer to `T` set in `Registration::new`
@@ -284,20 +284,20 @@ unsafe extern "C" fn handle_irq_callback<T: Handler + 'static>(
     // callback is running implies that the device has not yet been unbound.
     let device = unsafe { inner.dev.as_bound() };
 
-    T::handle(handler, device) as c_uint
+    bindings::irqreturn_t(T::handle(handler, device) as c_uint)
 }
 
 /// The value that can be returned from [`ThreadedHandler::handle`].
 #[repr(u32)]
 pub enum ThreadedIrqReturn {
     /// The interrupt was not from this device or was not handled.
-    None = bindings::irqreturn_IRQ_NONE,
+    None = bindings::irqreturn::IRQ_NONE.0,
 
     /// The interrupt was handled by this device.
-    Handled = bindings::irqreturn_IRQ_HANDLED,
+    Handled = bindings::irqreturn::IRQ_HANDLED.0,
 
     /// The handler wants the handler thread to wake up.
-    WakeThread = bindings::irqreturn_IRQ_WAKE_THREAD,
+    WakeThread = bindings::irqreturn::IRQ_WAKE_THREAD.0,
 }
 
 /// Callbacks for a threaded IRQ handler.
@@ -501,7 +501,7 @@ impl<T: ThreadedHandler + 'static> ThreadedRegistration<T> {
 unsafe extern "C" fn handle_threaded_irq_callback<T: ThreadedHandler + 'static>(
     _irq: i32,
     ptr: *mut c_void,
-) -> c_uint {
+) -> bindings::irqreturn_t {
     // SAFETY: `ptr` is a pointer to `RegistrationInner` set in `ThreadedRegistration::new`
     let inner = unsafe { &*(ptr as *const RegistrationInner) };
     // SAFETY: `inner.handler` is a pointer to `T` set in `ThreadedRegistration::new`
@@ -510,7 +510,7 @@ unsafe extern "C" fn handle_threaded_irq_callback<T: ThreadedHandler + 'static>(
     // callback is running implies that the device has not yet been unbound.
     let device = unsafe { inner.dev.as_bound() };
 
-    T::handle(handler, device) as c_uint
+    bindings::irqreturn_t(T::handle(handler, device) as c_uint)
 }
 
 /// # Safety
@@ -519,7 +519,7 @@ unsafe extern "C" fn handle_threaded_irq_callback<T: ThreadedHandler + 'static>(
 unsafe extern "C" fn thread_fn_callback<T: ThreadedHandler + 'static>(
     _irq: i32,
     ptr: *mut c_void,
-) -> c_uint {
+) -> bindings::irqreturn_t {
     // SAFETY: `ptr` is a pointer to `RegistrationInner` set in `ThreadedRegistration::new`
     let inner = unsafe { &*(ptr as *const RegistrationInner) };
     // SAFETY: `inner.handler` is a pointer to `T` set in `ThreadedRegistration::new`
@@ -528,5 +528,5 @@ unsafe extern "C" fn thread_fn_callback<T: ThreadedHandler + 'static>(
     // callback is running implies that the device has not yet been unbound.
     let device = unsafe { inner.dev.as_bound() };
 
-    T::handle_threaded(handler, device) as c_uint
+    bindings::irqreturn_t(T::handle_threaded(handler, device) as c_uint)
 }

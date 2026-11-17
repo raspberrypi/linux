@@ -96,16 +96,22 @@ static void nr_remove_socket(struct sock *sk)
 }
 
 /*
- *	Kill all bound sockets on a dropped device.
+ *	Kill all bound sockets on a dropped device. Each socket is disconnected
+ *	under its lock, which its timers and nr_rx_frame() hold while they work
+ *	on it; nr_info_show() takes the two locks in the same order.
  */
 static void nr_kill_by_device(struct net_device *dev)
 {
 	struct sock *s;
 
 	spin_lock_bh(&nr_list_lock);
-	sk_for_each(s, &nr_list)
-		if (nr_sk(s)->device == dev)
-			nr_disconnect(s, ENETUNREACH);
+	sk_for_each(s, &nr_list) {
+		if (nr_sk(s)->device != dev)
+			continue;
+		bh_lock_sock(s);
+		nr_disconnect(s, ENETUNREACH);
+		bh_unlock_sock(s);
+	}
 	spin_unlock_bh(&nr_list_lock);
 }
 
@@ -208,29 +214,40 @@ found:
 }
 
 /*
- *	Find next free circuit ID.
+ *	Give a socket the next free circuit ID. The search and the assignment
+ *	are done under nr_list_lock, which the caller holds, with the socket
+ *	already on nr_list: two sockets cannot pick the same ID.
  */
-static unsigned short nr_find_next_circuit(void)
+static void nr_assign_circuit(struct nr_sock *nr)
 {
 	unsigned short id = circuit;
 	unsigned char i, j;
-	struct sock *sk;
+	struct sock *s;
+	bool used;
+
+	lockdep_assert_held(&nr_list_lock);
 
 	for (;;) {
 		i = id / 256;
 		j = id % 256;
 
 		if (i != 0 && j != 0) {
-			sk = nr_find_socket(i, j, NULL);
-			if (!sk)
+			used = false;
+			sk_for_each(s, &nr_list)
+				if (nr_sk(s)->my_index == i && nr_sk(s)->my_id == j) {
+					used = true;
+					break;
+				}
+			if (!used)
 				break;
-			sock_put(sk);
 		}
 
 		id++;
 	}
 
-	return id;
+	nr->my_index = i;
+	nr->my_id    = j;
+	circuit      = id + 1;
 }
 
 /*
@@ -459,8 +476,7 @@ static int nr_create(struct net *net, struct socket *sock, int protocol,
 		msecs_to_jiffies(READ_ONCE(sysctl_netrom_transport_timeout));
 	nr->t2     =
 		msecs_to_jiffies(READ_ONCE(sysctl_netrom_transport_acknowledge_delay));
-	nr->n2     =
-		msecs_to_jiffies(READ_ONCE(sysctl_netrom_transport_maximum_tries));
+	nr->n2     = READ_ONCE(sysctl_netrom_transport_maximum_tries);
 	nr->t4     =
 		msecs_to_jiffies(READ_ONCE(sysctl_netrom_transport_busy_delay));
 	nr->idle   =
@@ -710,14 +726,10 @@ static int nr_connect(struct socket *sock, struct sockaddr *uaddr,
 
 	nr->dest_addr = addr->sax25_call;
 
-	release_sock(sk);
-	circuit = nr_find_next_circuit();
-	lock_sock(sk);
-
-	nr->my_index = circuit / 256;
-	nr->my_id    = circuit % 256;
-
-	circuit++;
+	/* The socket is on nr_list now, so others see the ID it gets */
+	spin_lock_bh(&nr_list_lock);
+	nr_assign_circuit(nr);
+	spin_unlock_bh(&nr_list_lock);
 
 	/* Move to connecting socket, start sending Connect Requests */
 	sock->state  = SS_CONNECTING;
@@ -949,10 +961,16 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 		bh_lock_sock(sk);
 		skb_reset_transport_header(skb);
 
-		if (frametype == NR_CONNACK && skb->len == 22)
-			nr_sk(sk)->bpqext = 1;
-		else
-			nr_sk(sk)->bpqext = 0;
+		/*
+		 * Only the circuit set-up frames tell whether the peer uses
+		 * the BPQ extension: a CONNACK of 22 bytes, or a CONNREQ of
+		 * 37 bytes (repeated, for a circuit already accepted). The
+		 * other frames say nothing about it.
+		 */
+		if (frametype == NR_CONNACK)
+			nr_sk(sk)->bpqext = (skb->len == 22);
+		else if (frametype == NR_CONNREQ)
+			nr_sk(sk)->bpqext = (skb->len == 37);
 
 		ret = nr_process_rx_frame(sk, skb);
 		bh_unlock_sock(sk);
@@ -1014,23 +1032,29 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 	nr_make->your_index  = circuit_index;
 	nr_make->your_id     = circuit_id;
 
+	/*
+	 * Put the new socket on nr_list as it gets its circuit ID, under the
+	 * same lock, so that no other socket can be given the same ID.
+	 * nr_list_lock is not taken under a socket lock (nr_info_show() takes
+	 * them the other way round).
+	 */
 	bh_unlock_sock(sk);
-	circuit = nr_find_next_circuit();
+	spin_lock_bh(&nr_list_lock);
+	nr_assign_circuit(nr_make);
+	sk_add_node(make, &nr_list);
+	spin_unlock_bh(&nr_list_lock);
 	bh_lock_sock(sk);
 
-	nr_make->my_index    = circuit / 256;
-	nr_make->my_id       = circuit % 256;
-
-	circuit++;
-
 	/* Window negotiation */
-	if (window < nr_make->window)
-		nr_make->window = window;
+	nr_negotiate_window(nr_make, window);
 
-	/* L4 timeout negotiation */
+	/*
+	 * L4 timeout negotiation.  Ignore a proposal shorter than the
+	 * smallest transport timeout the sysctl accepts (5 s), such as 0.
+	 */
 	if (skb->len == 37) {
 		timeout = skb->data[36] * 256 + skb->data[35];
-		if (timeout * HZ < nr_make->t1)
+		if (timeout >= 5 && timeout * HZ < nr_make->t1)
 			nr_make->t1 = timeout * HZ;
 		nr_make->bpqext = 1;
 	} else {
@@ -1053,8 +1077,6 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 
 	bh_unlock_sock(sk);
 	sock_put(sk);
-
-	nr_insert_socket(make);
 
 	nr_start_heartbeat(make);
 	nr_start_idletimer(make);
@@ -1163,9 +1185,9 @@ static int nr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		goto out;
 	}
 
-	nr_output(sk, skb);	/* Shove it onto the queue */
-
-	err = len;
+	err = nr_output(sk, skb);	/* Shove it onto the queue */
+	if (!err)
+		err = len;
 out:
 	release_sock(sk);
 	return err;
@@ -1214,10 +1236,13 @@ static int nr_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 	}
 
 	if (sax != NULL) {
+		/*
+		 * The NET/ROM headers were pulled when the frame was queued:
+		 * give the node at the other end of the circuit.
+		 */
 		memset(sax, 0, sizeof(*sax));
 		sax->sax25_family = AF_NETROM;
-		skb_copy_from_linear_data_offset(skb, 7, sax->sax25_call.ax25_call,
-			      AX25_ADDR_LEN);
+		sax->sax25_call   = nr_sk(sk)->dest_addr;
 		msg->msg_namelen = sizeof(*sax);
 	}
 

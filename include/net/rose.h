@@ -231,6 +231,8 @@ int rose_rcv_frame(struct sock *sk, struct sk_buff *skb);
 int rose_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 /* rose_link.c */
+void rose_neigh_init_timers(struct rose_neigh *neigh);
+bool rose_neigh_clear_ax25(struct rose_neigh *neigh, ax25_cb *ax25);
 void rose_start_ftimer(struct rose_neigh *);
 void rose_stop_ftimer(struct rose_neigh *);
 void rose_stop_t0timer(struct rose_neigh *);
@@ -266,6 +268,7 @@ void rose_link_device_down(struct net_device *);
 struct net_device *rose_dev_first(void);
 struct net_device *rose_dev_get(rose_address *);
 struct rose_route *rose_route_free_lci(unsigned int, struct rose_neigh *);
+unsigned int rose_assign_lci(struct sock *sk);
 struct rose_neigh *rose_get_neigh(rose_address *, unsigned char *,
 				  unsigned char *, int);
 int rose_rt_ioctl(unsigned int, void __user *);

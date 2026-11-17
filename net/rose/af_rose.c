@@ -278,7 +278,7 @@ static void rose_insert_socket(struct sock *sk)
 
 /*
  *	Find a socket that wants to accept the Call Request we just
- *	received.
+ *	received. A reference is taken on the socket found.
  */
 static struct sock *rose_find_listener(rose_address *addr, ax25_address *call)
 {
@@ -304,48 +304,73 @@ static struct sock *rose_find_listener(rose_address *addr, ax25_address *call)
 	}
 	s = NULL;
 found:
+	if (s)
+		sock_hold(s);
 	spin_unlock_bh(&rose_list_lock);
 	return s;
 }
 
 /*
  *	Find a connected ROSE socket given my LCI and device.
+ *	The caller holds rose_list_lock.
+ */
+static struct sock *__rose_find_socket(unsigned int lci, struct rose_neigh *neigh)
+{
+	struct sock *s;
+
+	sk_for_each(s, &rose_list) {
+		struct rose_sock *rose = rose_sk(s);
+
+		if (rose->lci == lci && rose->neighbour == neigh)
+			return s;
+	}
+
+	return NULL;
+}
+
+/*
+ *	Find a connected ROSE socket given my LCI and device. A reference is
+ *	taken on the socket found: it can be released and destroyed as soon
+ *	as rose_list_lock is dropped.
  */
 struct sock *rose_find_socket(unsigned int lci, struct rose_neigh *neigh)
 {
 	struct sock *s;
 
 	spin_lock_bh(&rose_list_lock);
-	sk_for_each(s, &rose_list) {
-		struct rose_sock *rose = rose_sk(s);
-
-		if (rose->lci == lci && rose->neighbour == neigh)
-			goto found;
-	}
-	s = NULL;
-found:
+	s = __rose_find_socket(lci, neigh);
+	if (s)
+		sock_hold(s);
 	spin_unlock_bh(&rose_list_lock);
 	return s;
 }
 
 /*
  *	Find a unique LCI for a given device.
+ *	The caller holds rose_route_list_lock.
  */
 unsigned int rose_new_lci(struct rose_neigh *neigh)
 {
+	unsigned int res = 0;
 	int lci;
 
+	spin_lock_bh(&rose_list_lock);
 	if (neigh->dce_mode) {
 		for (lci = 1; lci <= sysctl_rose_maximum_vcs; lci++)
-			if (rose_find_socket(lci, neigh) == NULL && rose_route_free_lci(lci, neigh) == NULL)
-				return lci;
+			if (!__rose_find_socket(lci, neigh) && !rose_route_free_lci(lci, neigh)) {
+				res = lci;
+				break;
+			}
 	} else {
 		for (lci = sysctl_rose_maximum_vcs; lci > 0; lci--)
-			if (rose_find_socket(lci, neigh) == NULL && rose_route_free_lci(lci, neigh) == NULL)
-				return lci;
+			if (!__rose_find_socket(lci, neigh) && !rose_route_free_lci(lci, neigh)) {
+				res = lci;
+				break;
+			}
 	}
+	spin_unlock_bh(&rose_list_lock);
 
-	return 0;
+	return res;
 }
 
 /*
@@ -673,6 +698,7 @@ static struct sock *rose_make_new(struct sock *osk)
 static int rose_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
+	struct rose_neigh *neigh;
 	struct rose_sock *rose;
 
 	if (sk == NULL) return 0;
@@ -691,10 +717,21 @@ static int rose_release(struct socket *sock)
 		break;
 
 	case ROSE_STATE_2:
-		rose_neigh_put(rose->neighbour);
-		release_sock(sk);
+		/*
+		 * Disconnect before the socket lock is dropped: frames put on
+		 * the backlog meanwhile, a Clear Confirmation for one, then
+		 * find it in state 0 instead of dropping the neighbour
+		 * reference a second time. rose_kill_by_neigh() does not take
+		 * the socket lock: take the neighbour under rose_list_lock, as
+		 * it does, so that only one of them drops the reference.
+		 */
 		rose_disconnect(sk, 0, -1, -1);
-		lock_sock(sk);
+		spin_lock_bh(&rose_list_lock);
+		neigh = rose->neighbour;
+		rose->neighbour = NULL;
+		spin_unlock_bh(&rose_list_lock);
+		if (neigh)
+			rose_neigh_put(neigh);
 		rose_destroy_socket(sk);
 		break;
 
@@ -854,20 +891,6 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 	sk->sk_state   = TCP_CLOSE;
 	sock->state = SS_UNCONNECTED;
 
-	rose->neighbour = rose_get_neigh(&addr->srose_addr, &cause,
-					 &diagnostic, 0);
-	if (!rose->neighbour) {
-		err = -ENETUNREACH;
-		goto out_release;
-	}
-
-	rose->lci = rose_new_lci(rose->neighbour);
-	if (!rose->lci) {
-		err = -ENETUNREACH;
-		rose_neigh_put(rose->neighbour);
-		goto out_release;
-	}
-
 	if (sock_flag(sk, SOCK_ZAPPED)) {	/* Must bind first - autobinding in this may or may not work */
 		struct net_device *dev;
 
@@ -876,14 +899,12 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 		dev = rose_dev_first();
 		if (!dev) {
 			err = -ENETUNREACH;
-			rose_neigh_put(rose->neighbour);
 			goto out_release;
 		}
 
 		user = ax25_findbyuid(current_euid());
 		if (!user) {
 			err = -EINVAL;
-			rose_neigh_put(rose->neighbour);
 			dev_put(dev);
 			goto out_release;
 		}
@@ -897,6 +918,21 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 
 		rose_insert_socket(sk);		/* Finish the bind */
 	}
+
+	rose->neighbour = rose_get_neigh(&addr->srose_addr, &cause,
+					 &diagnostic, 0);
+	if (!rose->neighbour) {
+		err = -ENETUNREACH;
+		goto out_release;
+	}
+
+	/* The socket is on the list now, so others see the LCI it gets */
+	if (!rose_assign_lci(sk)) {
+		err = -ENETUNREACH;
+		rose_neigh_put(rose->neighbour);
+		goto out_release;
+	}
+
 	rose->dest_addr   = addr->srose_addr;
 	rose->dest_call   = addr->srose_call;
 	rose->rand        = ((long)rose & 0xFFFF) + rose->lci;
@@ -1103,12 +1139,31 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 	}
 
 	sk = rose_find_listener(&facilities.source_addr, &facilities.source_call);
+	if (!sk) {
+		rose_transmit_clear_request(neigh, lci, ROSE_NETWORK_CONGESTION, 120);
+		return 0;
+	}
+
+	/*
+	 * The listener may be closed by rose_release() at any time. It is
+	 * marked dead before rose_destroy_socket() empties its queue, so
+	 * once it is locked a listener that is not dead will see the new
+	 * socket on its queue, either in rose_accept() or when it is
+	 * destroyed.
+	 */
+	bh_lock_sock(sk);
 
 	/*
 	 * We can't accept the Call Request.
 	 */
-	if (sk == NULL || sk_acceptq_is_full(sk) ||
-	    (make = rose_make_new(sk)) == NULL) {
+	if (sock_flag(sk, SOCK_DEAD) || sk->sk_state != TCP_LISTEN ||
+	    sk_acceptq_is_full(sk))
+		make = NULL;
+	else
+		make = rose_make_new(sk);
+	if (!make) {
+		bh_unlock_sock(sk);
+		sock_put(sk);
 		rose_transmit_clear_request(neigh, lci, ROSE_NETWORK_CONGESTION, 120);
 		return 0;
 	}
@@ -1164,8 +1219,9 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 
 	rose_start_heartbeat(make);
 
-	if (!sock_flag(sk, SOCK_DEAD))
-		sk->sk_data_ready(sk);
+	sk->sk_data_ready(sk);
+	bh_unlock_sock(sk);
+	sock_put(sk);
 
 	return 1;
 }

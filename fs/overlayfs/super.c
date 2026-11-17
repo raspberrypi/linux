@@ -1370,7 +1370,6 @@ static struct dentry *ovl_get_root(struct super_block *sb,
 	ovl_dentry_set_flag(OVL_E_CONNECTED, root);
 	ovl_set_upperdata(d_inode(root));
 	ovl_inode_init(d_inode(root), &oip, ino, fsid);
-	WARN_ON(!!IS_CASEFOLDED(d_inode(root)) != ofs->casefold);
 	ovl_dentry_init_flags(root, upperdentry, oe, DCACHE_OP_WEAK_REVALIDATE);
 	/* root keeps a reference of upperdentry */
 	dget(upperdentry);
@@ -1575,6 +1574,17 @@ int ovl_fill_super(struct super_block *sb, struct fs_context *fc)
 	root_dentry = ovl_get_root(sb, ctx->upper.dentry, oe);
 	if (!root_dentry)
 		goto out_free_oe;
+
+	/*
+	 * The casefold flag of an empty layer root may have changed since the
+	 * mount options were parsed. The root inode owns oe by now.
+	 */
+	if (!!IS_CASEFOLDED(d_inode(root_dentry)) != ofs->casefold) {
+		pr_err("casefold flag of the root directory has changed\n");
+		dput(root_dentry);
+		err = -EINVAL;
+		goto out_err;
+	}
 
 	sb->s_root = root_dentry;
 

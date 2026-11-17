@@ -143,7 +143,7 @@ void ax25_std_t1timer_expiry(ax25_cb *ax25)
 	case AX25_STATE_2:
 		if (ax25->n2count == ax25->n2) {
 			ax25_send_control(ax25, AX25_DISC, AX25_POLLON, AX25_COMMAND);
-			if (!sock_flag(ax25->sk, SOCK_DESTROY))
+			if (!ax25->sk || !sock_flag(ax25->sk, SOCK_DESTROY))
 				ax25_disconnect(ax25, ETIMEDOUT);
 			return;
 		} else {

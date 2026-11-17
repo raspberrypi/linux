@@ -287,6 +287,14 @@ static int enable_verity(struct file *filp,
 		 * just after the filesystem has successfully enabled verity.
 		 */
 		fsverity_set_info(inode, vi);
+
+		/*
+		 * Now that verity is enabled, report the signature (if any) to
+		 * LSMs.  We tolerate that a process racing with this ioctl can
+		 * briefly see verity enabled with no signature reported yet.
+		 */
+		fsverity_report_valid_sig(inode, desc->signature,
+					  le32_to_cpu(desc->sig_size));
 	}
 out:
 	kfree(params.hashstate);

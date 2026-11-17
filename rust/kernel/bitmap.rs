@@ -19,7 +19,7 @@ use core::ptr::NonNull;
 /// Must reference a `[c_ulong]` long enough to fit `data.len()` bits.
 /// Must not be longer than [`i32::MAX`] bits, so offsets and lengths used with
 /// [`Bitmap`] functions fit in the `int` and `unsigned int` arguments of the C bitmap API.
-/// This also matches [`BitmapVec::MAX_LEN`].
+/// This also matches the maximum length accepted by [`BitmapVec::new`].
 #[cfg_attr(CONFIG_64BIT, repr(align(8)))]
 #[cfg_attr(not(CONFIG_64BIT), repr(align(4)))]
 pub struct Bitmap {

@@ -2103,7 +2103,7 @@ early_param("spectre_v2", spectre_v2_parse_cmdline);
 static enum spectre_v2_mitigation __init spectre_v2_select_retpoline(void)
 {
 	if (!IS_ENABLED(CONFIG_MITIGATION_RETPOLINE)) {
-		pr_err("Kernel not compiled with retpoline; no mitigation available!");
+		pr_err("Kernel not compiled with retpoline");
 		return SPECTRE_V2_NONE;
 	}
 
@@ -2233,14 +2233,12 @@ static void __init bhi_select_mitigation(void)
 	if (bhi_mitigation != BHI_MITIGATION_AUTO)
 		return;
 
-	if (cpu_attack_vector_mitigated(CPU_MITIGATE_GUEST_HOST)) {
-		if (cpu_attack_vector_mitigated(CPU_MITIGATE_USER_KERNEL))
-			bhi_mitigation = BHI_MITIGATION_ON;
-		else
-			bhi_mitigation = BHI_MITIGATION_VMEXIT_ONLY;
-	} else {
+	if (cpu_attack_vector_mitigated(CPU_MITIGATE_USER_KERNEL))
+		bhi_mitigation = BHI_MITIGATION_ON;
+	else if (cpu_attack_vector_mitigated(CPU_MITIGATE_GUEST_HOST))
+		bhi_mitigation = BHI_MITIGATION_VMEXIT_ONLY;
+	else
 		bhi_mitigation = BHI_MITIGATION_OFF;
-	}
 }
 
 static void __init bhi_update_mitigation(void)

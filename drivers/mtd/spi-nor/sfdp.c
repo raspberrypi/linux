@@ -1175,6 +1175,7 @@ out:
 #define PROFILE1_DWORD5_DUMMY_166MHZ		GENMASK(31, 27)
 #define PROFILE1_DWORD5_DUMMY_133MHZ		GENMASK(21, 17)
 #define PROFILE1_DWORD5_DUMMY_100MHZ		GENMASK(11, 7)
+#define SFDP_PROFILE1_DWORD_MIN			5
 
 /**
  * spi_nor_parse_profile1() - parse the xSPI Profile 1.0 table
@@ -1191,6 +1192,9 @@ static int spi_nor_parse_profile1(struct spi_nor *nor,
 	size_t len;
 	int ret;
 	u8 dummy, opcode;
+
+	if (profile1_header->length < SFDP_PROFILE1_DWORD_MIN)
+		return -EINVAL;
 
 	len = profile1_header->length * sizeof(*dwords);
 	dwords = kmalloc(len, GFP_KERNEL);
@@ -1262,6 +1266,7 @@ out:
 }
 
 #define SCCR_DWORD22_OCTAL_DTR_EN_VOLATILE		BIT(31)
+#define SFDP_SCCR_DWORD_MIN				22
 
 /**
  * spi_nor_parse_sccr() - Parse the Status, Control and Configuration Register
@@ -1279,6 +1284,9 @@ static int spi_nor_parse_sccr(struct spi_nor *nor,
 	u32 *dwords, addr;
 	size_t len;
 	int ret;
+
+	if (sccr_header->length < SFDP_SCCR_DWORD_MIN)
+		return -EINVAL;
 
 	len = sccr_header->length * sizeof(*dwords);
 	dwords = kmalloc(len, GFP_KERNEL);

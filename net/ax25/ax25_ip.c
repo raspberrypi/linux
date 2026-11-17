@@ -176,9 +176,14 @@ netdev_tx_t ax25_ip_xmit(struct sk_buff *skb)
 			    ax25_dev->values[AX25_VALUES_PACLEN],
 			    &src_c,
 			    &dst_c, digipeat, dev);
-			if (ax25) {
+			/*
+			 * ax25_send_frame() leaves the skb to its caller
+			 * when it gives up, as ROSE and NET/ROM expect.
+			 */
+			if (ax25)
 				ax25_cb_put(ax25);
-			}
+			else
+				kfree_skb(ourskb);
 			goto put;
 		}
 	}

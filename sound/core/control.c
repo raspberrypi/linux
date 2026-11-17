@@ -2269,16 +2269,15 @@ EXPORT_SYMBOL_GPL(snd_ctl_disconnect_layer);
  *  INIT PART
  */
 
-static const struct file_operations snd_ctl_f_ops =
-{
-	.owner =	THIS_MODULE,
-	.read =		snd_ctl_read,
-	.open =		snd_ctl_open,
-	.release =	snd_ctl_release,
-	.poll =		snd_ctl_poll,
-	.unlocked_ioctl =	snd_ctl_ioctl,
-	.compat_ioctl =	snd_ctl_ioctl_compat,
-	.fasync =	snd_ctl_fasync,
+static const struct file_operations snd_ctl_f_ops = {
+	.owner		=	THIS_MODULE,
+	.read		=	snd_ctl_read,
+	.open		=	snd_ctl_open,
+	.release	=	snd_ctl_release,
+	.poll		=	snd_ctl_poll,
+	.unlocked_ioctl	=	snd_ctl_ioctl,
+	.compat_ioctl	=	snd_ctl_ioctl_compat,
+	.fasync		=	snd_ctl_fasync,
 };
 
 /* call lops under rwsems; called from snd_ctl_dev_*() below() */
