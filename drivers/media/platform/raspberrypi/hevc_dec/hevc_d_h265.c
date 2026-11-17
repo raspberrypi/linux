@@ -1101,8 +1101,7 @@ static int tile_entry_fill(struct hevc_d_dec_env *const de,
 		const unsigned int last_x = s->col_bd[t_x + 1] - 1;
 		const unsigned int last_y = s->row_bd[t_y + 1] - 1;
 
-		/* One more than needed here */
-		rv = cmds_check_space(de, CMDS_NEW_ENTRY_POINT + 3);
+		rv = cmds_check_space(de, CMDS_NEW_ENTRY_POINT + 2);
 		if (rv)
 			return rv;
 
@@ -1120,7 +1119,8 @@ static int tile_entry_fill(struct hevc_d_dec_env *const de,
 				t_x, t_y, s->col_bd[t_x], s->row_bd[t_y],
 				de->entry_qp, de->entry_slice);
 	}
-	return 0;
+	/* Loop above may not run once so must check here */
+	return cmds_check_space(de, 1);
 }
 
 /* Write STATUS register with expected end CTU address of previous slice */
