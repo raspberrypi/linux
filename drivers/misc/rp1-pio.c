@@ -2018,7 +2018,12 @@ static long rp1_pio_ioctl(struct file *filp, unsigned int ioctl_num,
 	ret = (hdlr->func)(client, argbuf);
 	dev_dbg(dev, "%s: %s -> %d\n", __func__, hdlr->name, ret);
 	if (ret > 0) {
-		if (copy_to_user(argp, argbuf, ret))
+		/*
+		 * A positive result is the number of bytes of the arguments
+		 * to return, but some handlers return a value instead (an SM
+		 * index, a byte count), so never copy more than was passed in.
+		 */
+		if (copy_to_user(argp, argbuf, min(ret, sz)))
 			ret = -EFAULT;
 	} else if (ret == -ERESTARTSYS && hdlr->restartable) {
 		/* Pass back the progress, so that a restart resumes from there */
