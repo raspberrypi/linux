@@ -318,8 +318,20 @@ int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
 
 	mutex_lock(&pio->instr_mutex);
 	offset = rp1_pio_find_program(pio, args);
-	if (offset < 0)
+	if (offset >= 0) {
+		/* Sharing an existing copy - make sure it can take another user */
+		for (i = 0; i < args->num_instrs; i++) {
+			if (pio->instr_refcounts[offset + i] == U8_MAX) {
+				offset = -EBUSY;
+				break;
+			}
+		}
+	} else {
 		offset = rp1_pio_message(client->pio, PIO_ADD_PROGRAM, args, sizeof(*args));
+		/* Don't trust the firmware to return a usable offset */
+		if (offset >= 0 && offset + args->num_instrs > RP1_PIO_INSTR_COUNT)
+			offset = -EIO;
+	}
 
 	if (offset >= 0) {
 		uint32_t used_mask;
