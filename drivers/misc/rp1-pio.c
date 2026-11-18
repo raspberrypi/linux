@@ -41,7 +41,10 @@
 #define DRIVER_NAME		"rp1-pio"
 
 #define RP1_PIO_SMS_COUNT	4
+#define RP1_PIO_SM_MASK		((1 << RP1_PIO_SMS_COUNT) - 1)
 #define RP1_PIO_INSTR_COUNT	32
+#define RP1_PIO_INTERRUPT_COUNT	8
+#define RP1_GPIO_FUNC_MAX	0x1f
 
 #define MAX_ARG_SIZE		256
 
@@ -221,6 +224,10 @@ static int rp1_pio_read_hw(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	struct rp1_access_hw_args *args = param;
 
+	/* Don't let the address range wrap */
+	if (args->addr + args->len < args->addr)
+		return -EINVAL;
+
 	return rp1_pio_message_resp(pio, READ_HW,
 				    args, 8, NULL, args->data, args->len);
 }
@@ -232,7 +239,13 @@ static int rp1_pio_write_hw(struct rp1_pio_client *client, void *param)
 	uint32_t write_buf[32 + 1];
 	int len;
 
+	if (pio->fw_pio_count <= WRITE_HW)
+		return -EOPNOTSUPP;
+
 	len = min(args->len, sizeof(write_buf) - 4);
+	/* Don't let the address range wrap */
+	if (args->addr + len < args->addr)
+		return -EINVAL;
 	write_buf[0] = args->addr;
 	if (copy_from_user(&write_buf[1], args->data, len))
 		return -EFAULT;
@@ -272,7 +285,7 @@ int rp1_pio_can_add_program(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	int offset;
 
-	if (args->num_instrs > RP1_PIO_INSTR_COUNT ||
+	if (!args->num_instrs || args->num_instrs > RP1_PIO_INSTR_COUNT ||
 		((args->origin != RP1_PIO_ORIGIN_ANY) &&
 		 (args->origin >= RP1_PIO_INSTR_COUNT ||
 		  ((args->origin + args->num_instrs) > RP1_PIO_INSTR_COUNT))))
@@ -297,7 +310,7 @@ int rp1_pio_add_program(struct rp1_pio_client *client, void *param)
 	int offset;
 	uint i;
 
-	if (args->num_instrs > RP1_PIO_INSTR_COUNT ||
+	if (!args->num_instrs || args->num_instrs > RP1_PIO_INSTR_COUNT ||
 		((args->origin != RP1_PIO_ORIGIN_ANY) &&
 		 (args->origin >= RP1_PIO_INSTR_COUNT ||
 		  ((args->origin + args->num_instrs) > RP1_PIO_INSTR_COUNT))))
@@ -356,7 +369,7 @@ int rp1_pio_remove_program(struct rp1_pio_client *client, void *param)
 	uint32_t used_mask;
 	int ret = -ENODEV;
 
-	if (args->num_instrs > RP1_PIO_INSTR_COUNT ||
+	if (!args->num_instrs || args->num_instrs > RP1_PIO_INSTR_COUNT ||
 		args->origin >= RP1_PIO_INSTR_COUNT ||
 		(args->origin + args->num_instrs) > RP1_PIO_INSTR_COUNT)
 		return -EINVAL;
@@ -391,12 +404,15 @@ int rp1_pio_sm_claim(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	int ret;
 
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
+
 	mutex_lock(&pio->instr_mutex);
 	ret = rp1_pio_message(client->pio, PIO_SM_CLAIM, args, sizeof(*args));
 	if (ret >= 0) {
 		if (args->mask)
 			client->claimed_sms |= args->mask;
-		else
+		else if (ret < RP1_PIO_SMS_COUNT)
 			client->claimed_sms |= (1 << ret);
 		pio->claimed_sms |= client->claimed_sms;
 	}
@@ -409,6 +425,9 @@ int rp1_pio_sm_unclaim(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_claim_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
+
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
 
 	mutex_lock(&pio->instr_mutex);
 	(void)rp1_pio_message(client->pio, PIO_SM_UNCLAIM, args, sizeof(*args));
@@ -423,6 +442,9 @@ int rp1_pio_sm_is_claimed(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_claim_args *args = param;
 
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_IS_CLAIMED, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_is_claimed);
@@ -431,6 +453,10 @@ int rp1_pio_sm_init(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_init_args *args = param;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT ||
+	    args->initial_pc >= RP1_PIO_INSTR_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_INIT, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_init);
@@ -438,6 +464,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_init);
 int rp1_pio_sm_set_config(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_config_args *args = param;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_CONFIG, args, sizeof(*args));
 }
@@ -448,6 +477,9 @@ int rp1_pio_sm_exec(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_sm_exec_args *args = param;
 	unsigned long interval = POLL_INTERVAL_MIN;
 	int ret;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	if (args->blocking)
 		args->blocking = 2;
@@ -470,6 +502,9 @@ int rp1_pio_sm_clear_fifos(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_clear_fifos_args *args = param;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_CLEAR_FIFOS, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_clear_fifos);
@@ -477,6 +512,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_clear_fifos);
 int rp1_pio_sm_set_clkdiv(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_clkdiv_args *args = param;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_CLKDIV, args, sizeof(*args));
 }
@@ -486,6 +524,9 @@ int rp1_pio_sm_set_pins(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_pins_args *args = param;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_SET_PINS, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_set_pins);
@@ -493,6 +534,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_set_pins);
 int rp1_pio_sm_set_pindirs(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_pindirs_args *args = param;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_SM_SET_PINDIRS, args, sizeof(*args));
 }
@@ -502,6 +546,9 @@ int rp1_pio_sm_set_enabled(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_enabled_args *args = param;
 
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_SET_ENABLED, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_set_enabled);
@@ -509,6 +556,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_set_enabled);
 int rp1_pio_sm_restart(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_restart_args *args = param;
+
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_SM_RESTART, args, sizeof(*args));
 }
@@ -518,6 +568,9 @@ int rp1_pio_sm_clkdiv_restart(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_restart_args *args = param;
 
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_CLKDIV_RESTART, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_clkdiv_restart);
@@ -525,6 +578,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_clkdiv_restart);
 int rp1_pio_sm_enable_sync(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_enable_sync_args *args = param;
+
+	if (args->mask & ~RP1_PIO_SM_MASK)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_SM_ENABLE_SYNC, args, sizeof(*args));
 }
@@ -535,6 +591,9 @@ int rp1_pio_sm_put(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_sm_put_args *args = param;
 	unsigned long interval = POLL_INTERVAL_MIN;
 	int ret;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	if (args->blocking)
 		args->blocking = 2;
@@ -558,6 +617,9 @@ int rp1_pio_sm_get(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_sm_get_args *args = param;
 	unsigned long interval = POLL_INTERVAL_MIN;
 	int ret;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	if (args->blocking)
 		args->blocking = 2;
@@ -583,6 +645,9 @@ int rp1_pio_sm_set_dmactrl(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_set_dmactrl_args *args = param;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_SET_DMACTRL, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_set_dmactrl);
@@ -592,6 +657,9 @@ int rp1_pio_sm_get_dmactrl(struct rp1_pio_client *client, void *param)
 	struct rp1_pio_device *pio = client->pio;
 	struct rp1_pio_sm_get_dmactrl_args *args = param;
 	int ret;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	if (pio->fw_pio_count >= PIO_SM_GET_DMACTRL) {
 		ret = rp1_pio_message_resp(pio, PIO_SM_GET_DMACTRL, args, sizeof(*args),
@@ -617,6 +685,9 @@ int rp1_pio_sm_fifo_state(struct rp1_pio_client *client, void *param)
 	const int level_offset = offsetof(struct rp1_pio_sm_fifo_state_args, level);
 	int ret;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
+
 	ret = rp1_pio_message_resp(client->pio, PIO_SM_FIFO_STATE, args, sizeof(*args),
 				   &args->level, NULL, sizeof(*args) - level_offset);
 	if (ret >= 0)
@@ -629,6 +700,9 @@ int rp1_pio_sm_drain_tx(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_clear_fifos_args *args = param;
 
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SM_DRAIN_TX, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_sm_drain_tx);
@@ -637,6 +711,9 @@ int rp1_pio_sm_get_flags(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_get_flags_args *args = param;
 	int ret;
+
+	if (args->sm >= RP1_PIO_SMS_COUNT)
+		return -EINVAL;
 
 	ret = rp1_pio_message_resp(client->pio, PIO_SM_GET_FLAGS, args, sizeof(*args),
 				   &args->flags, NULL, sizeof(args->flags));
@@ -651,6 +728,9 @@ int rp1_pio_gpio_init(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_init_args *args = param;
 
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, GPIO_INIT, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_gpio_init);
@@ -658,6 +738,10 @@ EXPORT_SYMBOL_GPL(rp1_pio_gpio_init);
 int rp1_pio_gpio_set_function(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_function_args *args = param;
+
+	if (args->gpio >= RP1_PIO_GPIO_COUNT ||
+	    args->fn > RP1_GPIO_FUNC_MAX)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, GPIO_SET_FUNCTION, args, sizeof(*args));
 }
@@ -667,6 +751,9 @@ int rp1_pio_gpio_set_pulls(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_pulls_args *args = param;
 
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, GPIO_SET_PULLS, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_pulls);
@@ -674,6 +761,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_pulls);
 int rp1_pio_gpio_set_outover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
+
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, GPIO_SET_OUTOVER, args, sizeof(*args));
 }
@@ -683,6 +773,9 @@ int rp1_pio_gpio_set_inover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, GPIO_SET_INOVER, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_inover);
@@ -690,6 +783,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_inover);
 int rp1_pio_gpio_set_oeover(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
+
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, GPIO_SET_OEOVER, args, sizeof(*args));
 }
@@ -699,6 +795,9 @@ int rp1_pio_gpio_set_input_enabled(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
 
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, GPIO_SET_INPUT_ENABLED, args, sizeof(*args));
 }
 EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_input_enabled);
@@ -706,6 +805,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_gpio_set_input_enabled);
 int rp1_pio_gpio_set_drive_strength(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_gpio_set_args *args = param;
+
+	if (args->gpio >= RP1_PIO_GPIO_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, GPIO_SET_DRIVE_STRENGTH, args, sizeof(*args));
 }
@@ -784,6 +886,9 @@ int rp1_pio_set_irqn_source_mask_enabled(struct rp1_pio_client *client, void *pa
 {
 	struct rp1_pio_set_irqn_source_mask_enabled_args *args = param;
 
+	if (args->irq_index >= RP1_PIO_IRQ_COUNT)
+		return -EINVAL;
+
 	return rp1_pio_message(client->pio, PIO_SET_IRQN_SOURCE_MASK_ENABLED,
 			       args, sizeof(*args));
 }
@@ -793,6 +898,9 @@ int rp1_pio_interrupt_get(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_interrupt_get_args *args = param;
 	int ret;
+
+	if (args->pio_interrupt_num >= RP1_PIO_INTERRUPT_COUNT)
+		return -EINVAL;
 
 	ret = rp1_pio_message_resp(client->pio, PIO_INTERRUPT_GET, args, sizeof(*args),
 				   &args->active, NULL, sizeof(args->active));
@@ -805,6 +913,9 @@ EXPORT_SYMBOL_GPL(rp1_pio_interrupt_get);
 int rp1_pio_interrupt_clear(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_interrupt_clear_args *args = param;
+
+	if (args->pio_interrupt_num >= RP1_PIO_INTERRUPT_COUNT)
+		return -EINVAL;
 
 	return rp1_pio_message(client->pio, PIO_INTERRUPT_CLEAR, args, sizeof(*args));
 }
