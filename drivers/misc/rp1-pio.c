@@ -983,10 +983,12 @@ int rp1_pio_irq_set_enabled(struct rp1_pio_client *client, void *param)
 	if (irq_index >= pio->irq_count)
 		return -EINVAL;
 	irqi = &pio->irqs[irq_index];
-	if (irqi->owner != client)
-		return -EBUSY;
 
 	spin_lock(&pio->lock);
+	if (irqi->owner != client) {
+		spin_unlock(&pio->lock);
+		return -EBUSY;
+	}
 	if (args->enabled && !irqi->enabled) {
 		enable_irq(irqi->irq);
 		irqi->enabled = true;
@@ -2079,26 +2081,39 @@ void rp1_pio_close(struct rp1_pio_client *client)
 
 	/* Free any allocated resources */
 
-	spin_lock(&pio->lock);
 	for (i = 0; i < pio->irq_count; i++) {
-		irqi = &pio->irqs[i];
-		if (irqi->owner == client) {
-			/*
-			 * Disable directly rather than via irq_set_enabled():
-			 * that helper takes pio->lock itself, and it is
-			 * already held here.
-			 */
-			if (irqi->enabled) {
-				disable_irq(irqi->irq);
-				irqi->enabled = false;
-			}
+		bool enabled;
 
-			irqi->owner = NULL;
-			irqi->handler = NULL;
-			irqi->context = NULL;
+		irqi = &pio->irqs[i];
+
+		spin_lock(&pio->lock);
+		if (irqi->owner != client) {
+			spin_unlock(&pio->lock);
+			continue;
 		}
+		enabled = irqi->enabled;
+		irqi->enabled = false;
+		spin_unlock(&pio->lock);
+
+		/*
+		 * The handler uses the client, so make sure it isn't running
+		 * and can't run again before giving up the interrupt. If the
+		 * interrupt was disabled with disable_irq_nosync() then the
+		 * handler may still be running. Both of these can sleep, so
+		 * call them without the lock - nobody else can claim the
+		 * interrupt while it still has an owner.
+		 */
+		if (enabled)
+			disable_irq(irqi->irq);
+		else
+			synchronize_irq(irqi->irq);
+
+		spin_lock(&pio->lock);
+		irqi->owner = NULL;
+		irqi->handler = NULL;
+		irqi->context = NULL;
+		spin_unlock(&pio->lock);
 	}
-	spin_unlock(&pio->lock);
 
 	if (client->claimed_sms) {
 		struct rp1_pio_sm_set_enabled_args se_args = {
