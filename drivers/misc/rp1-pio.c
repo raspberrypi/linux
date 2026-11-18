@@ -1014,12 +1014,17 @@ int rp1_pio_irq_is_enabled(struct rp1_pio_client *client, void *param)
 	if (irq_index >= pio->irq_count)
 		return -EINVAL;
 	irqi = &pio->irqs[irq_index];
-	if (irqi->owner != client)
+
+	spin_lock(&pio->lock);
+	if (irqi->owner != client) {
+		spin_unlock(&pio->lock);
 		return -EBUSY;
-
+	}
 	args->enabled = irqi->enabled;
+	spin_unlock(&pio->lock);
 
-	return 0;
+	/* Return the size of the arguments, so that the result is copied back */
+	return sizeof(*args);
 }
 EXPORT_SYMBOL_GPL(rp1_pio_irq_is_enabled);
 
