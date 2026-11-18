@@ -89,7 +89,7 @@
 				reg = <0>;
 
 				/* Set devices present with 8-bit mask. */
-				microchip,spi-present-mask = <0x01>;
+				microchip,spi-present-mask = /bits/ 8 <0x01>;
 				spi-max-frequency = <500000>;
 
 				gpio-controller;
@@ -139,6 +139,6 @@
 	};
 
 	__overrides__ {
-		spi-present-mask = <&pfdigital>, "microchip,spi-present-mask:0";
+		spi-present-mask = <&pfdigital>, "microchip,spi-present-mask.0";
 	};
 };
