@@ -14,9 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/ktime.h>
 #include <linux/dma-mapping.h>
+#include <net/sock.h>
 #include "ath9k.h"
 #include "ar9003_mac.h"
+#include "../ath.h"
 
 #define SKB_CB_ATHBUF(__skb)	(*((struct ath_rxbuf **)__skb->cb))
 
@@ -473,8 +476,8 @@ start_recv:
 static void ath_flushrecv(struct ath_softc *sc)
 {
 	if (sc->sc_ah->caps.hw_caps & ATH9K_HW_CAP_EDMA)
-		ath_rx_tasklet(sc, 1, true);
-	ath_rx_tasklet(sc, 1, false);
+		ath_rx_tasklet(sc, 1, true, NULL);
+	ath_rx_tasklet(sc, 1, false, NULL);
 }
 
 bool ath_stoprecv(struct ath_softc *sc)
@@ -1057,7 +1060,7 @@ exit:
 	rcu_read_unlock();
 }
 
-int ath_rx_tasklet(struct ath_softc *sc, int flush, bool hp)
+int ath_rx_tasklet(struct ath_softc *sc, int flush, bool hp, ktime_t *tstamp)
 {
 	struct ath_rxbuf *bf;
 	struct sk_buff *skb = NULL, *requeue_skb, *hdr_skb;
@@ -1208,6 +1211,16 @@ int ath_rx_tasklet(struct ath_softc *sc, int flush, bool hp)
 		hdr = (struct ieee80211_hdr *)skb->data;
 		if (ieee80211_is_ack(hdr->frame_control))
 			ath_dynack_sample_ack_ts(sc->sc_ah, skb, rs.rs_tstamp);
+
+        // ath9k_cyc2hwtstamp(sc, skb_hwtstamps(skb), rs.rs_tstamp);
+        skb_hwtstamps(skb)->hwtstamp = (u64)(rs.rs_tstamp - 2);
+        // printk("ath9k: %s rx tstamp: %lld\n", __FUNCTION__, ktime_to_ns(skb_hwtstamps(skb)->hwtstamp));
+        /*
+        ath_info(
+            ath9k_hw_common(ah), "get ts after rx: %lld\n",
+            ktime_to_ns(skb_hwtstamps(skb)->hwtstamp)
+        );
+        */
 
 		ieee80211_rx(hw, skb);
 

@@ -369,6 +369,7 @@ bool ath9k_hw_resettxqueue(struct ath_hw *ah, u32 q)
 	struct ath_common *common = ath9k_hw_common(ah);
 	struct ath9k_tx_queue_info *qi;
 	u32 cwMin, chanCwMin, value;
+    int hcfenabled = 0;
 
 	qi = &ah->txq[q];
 	if (qi->tqi_type == ATH9K_TX_QUEUE_INACTIVE) {
@@ -377,6 +378,14 @@ bool ath9k_hw_resettxqueue(struct ath_hw *ah, u32 q)
 	}
 
 	ath_dbg(common, QUEUE, "Reset TX queue: %u\n", q);
+
+    if (q == ATH_TXQ_AC_VI) {
+        qi->tqi_cwmin = qi->tqi_cwmax = 0;
+        qi->tqi_aifs = 0;
+        qi->tqi_cbrPeriod = 5000;
+        qi->tqi_cbrOverflowLimit = 0;
+//        hcfenabled = 1;
+    }
 
 	if (qi->tqi_cwmin == ATH9K_TXQ_USEDEFAULT) {
 		chanCwMin = INIT_CWMIN;
@@ -413,8 +422,10 @@ bool ath9k_hw_resettxqueue(struct ath_hw *ah, u32 q)
 		REG_SET_BIT(ah, AR_QMISC(q), AR_Q_MISC_FSP_CBR |
 			    (qi->tqi_cbrOverflowLimit ?
 			     AR_Q_MISC_CBR_EXP_CNTR_LIMIT_EN : 0));
+//        REG_SET_BIT(ah, AR_QMISC(q), AR_Q_MISC_ONE_SHOT_EN);
 	}
 	if (qi->tqi_readyTime && (qi->tqi_type != ATH9K_TX_QUEUE_CAB)) {
+        printk("ath9k: tqi set rdytime: %d\n", q);
 		REG_WRITE(ah, AR_QRDYTIMECFG(q),
 			  SM(qi->tqi_readyTime, AR_Q_RDYTIMECFG_DURATION) |
 			  AR_Q_RDYTIMECFG_EN);
@@ -494,6 +505,9 @@ bool ath9k_hw_resettxqueue(struct ath_hw *ah, u32 q)
 		break;
 	}
 
+    if (hcfenabled) {
+        REG_SET_BIT(ah, AR_QMISC(q), 0x00000016);
+    }
 	if (qi->tqi_intFlags & ATH9K_TXQ_USE_LOCKOUT_BKOFF_DIS) {
 		REG_SET_BIT(ah, AR_DMISC(q),
 			    SM(AR_D_MISC_ARB_LOCKOUT_CNTRL_GLOBAL,

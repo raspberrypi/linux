@@ -16,6 +16,7 @@
 
 #include <linux/nl80211.h>
 #include <linux/delay.h>
+#include <linux/ktime.h>
 #include "ath9k.h"
 #include "btcoex.h"
 
@@ -384,10 +385,12 @@ void ath9k_tasklet(struct tasklet_struct *t)
 	unsigned long flags;
 	u32 status;
 	u32 rxmask;
+    ktime_t tstamp;
 
 	spin_lock_irqsave(&sc->intr_lock, flags);
 	status = sc->intrstatus;
 	sc->intrstatus = 0;
+    tstamp = sc->intrtstamp;
 	spin_unlock_irqrestore(&sc->intr_lock, flags);
 
 	ath9k_ps_wakeup(sc);
@@ -436,7 +439,7 @@ void ath9k_tasklet(struct tasklet_struct *t)
 		 * the next Beacon.
 		 */
 		ath_dbg(common, PS, "TSFOOR - Sync with next Beacon\n");
-		sc->ps_flags |= PS_WAIT_FOR_BEACON | PS_BEACON_SYNC;
+		// sc->ps_flags |= PS_WAIT_FOR_BEACON | PS_BEACON_SYNC;
 	}
 	spin_unlock_irqrestore(&sc->sc_pm_lock, flags);
 
@@ -450,9 +453,9 @@ void ath9k_tasklet(struct tasklet_struct *t)
 		/* Check for high priority Rx first */
 		if ((ah->caps.hw_caps & ATH9K_HW_CAP_EDMA) &&
 		    (status & ATH9K_INT_RXHP))
-			ath_rx_tasklet(sc, 0, true);
+			ath_rx_tasklet(sc, 0, true, &tstamp);
 
-		ath_rx_tasklet(sc, 0, false);
+		ath_rx_tasklet(sc, 0, false, &tstamp);
 	}
 
 	if (status & ATH9K_INT_TX) {
@@ -465,7 +468,7 @@ void ath9k_tasklet(struct tasklet_struct *t)
 			 */
 			sc->gtt_cnt = 0;
 
-			ath_tx_edma_tasklet(sc);
+			ath_tx_edma_tasklet(sc, &tstamp);
 		} else {
 			ath_tx_tasklet(sc);
 		}
@@ -509,6 +512,9 @@ irqreturn_t ath_isr(int irq, void *dev)
 	enum ath9k_int status;
 	u32 sync_cause = 0;
 	bool sched = false;
+    ktime_t isr_tstamp = ktime_get_real();
+
+    //printk("ath9k: ath_isr isr_tstamp=%lld, tsf64=%u\n", isr_tstamp, ath9k_hw_gettsf32(ah));
 
 	/*
 	 * The hardware is not ready/present, don't
@@ -547,6 +553,7 @@ irqreturn_t ath_isr(int irq, void *dev)
 	/* Cache the status */
 	spin_lock(&sc->intr_lock);
 	sc->intrstatus |= status;
+    sc->intrtstamp = isr_tstamp;
 	spin_unlock(&sc->intr_lock);
 
 	if (status & SCHED_INTR)
@@ -759,6 +766,8 @@ static void ath9k_tx(struct ieee80211_hw *hw,
 	struct ath_tx_control txctl;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 	unsigned long flags;
+
+    ath_warn(common, "ath9k_tx skb=%p, skb->sk=%p\n", skb, skb->sk);
 
 	if (sc->ps_enabled) {
 		/*
@@ -2837,3 +2846,16 @@ struct ieee80211_ops ath9k_ops = {
 	.get_txpower        = ath9k_get_txpower,
 	.wake_tx_queue      = ath9k_wake_tx_queue,
 };
+
+void ath9k_cyc2hwtstamp(struct ath_softc *sc, struct skb_shared_hwtstamps *hwtstamps, u32 cycle) {
+    u64 ns;
+    unsigned long flags;
+
+    spin_lock_irqsave(&sc->systim_lock, flags);
+    ns = timecounter_cyc2time(&sc->tc, (u64)cycle);
+    spin_unlock_irqrestore(&sc->systim_lock, flags);
+
+    memset(hwtstamps, 0, sizeof(*hwtstamps));
+    hwtstamps->hwtstamp = ns_to_ktime(ns);
+}
+

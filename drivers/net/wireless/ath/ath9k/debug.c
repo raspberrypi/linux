@@ -121,6 +121,91 @@ static const struct file_operations fops_debug = {
 
 #endif
 
+static ssize_t read_file_dirtyts(struct file *file, char __user *user_buf, size_t count, loff_t *ppos) {
+    struct ath_softc *sc = file->private_data;
+    u8 buf[sizeof(u64)];
+
+    memcpy(buf, &sc->ptp_dirtyts, sizeof buf);
+    return simple_read_from_buffer(user_buf, count, ppos, buf, sizeof buf);
+}
+
+static ssize_t write_file_dirtyts(struct file *file, const char __user *user_buf,
+                size_t count, loff_t *ppos) {
+    struct ath_softc *sc = file->private_data;
+    u8 buf[sizeof(u64)];
+    ssize_t len;
+    u64 dirty_cycle;
+    u32 raw_tsf;
+    s64 delta;
+    s64 dirty_ns;
+    unsigned long flags;
+    u32 remain;
+
+    len = simple_write_to_buffer(buf, sizeof buf, ppos, user_buf, count);
+    if (len < 0) {
+        return len;
+    }
+    if (len < sizeof buf) {
+        return -EINVAL;
+    }
+
+    memcpy(&dirty_cycle, buf, sizeof buf);
+    raw_tsf = (dirty_cycle >> 32);
+    remain = dirty_cycle & 0xffffffffU;
+
+    spin_lock_irqsave(&sc->systim_lock, flags);
+    dirty_ns = timecounter_cyc2time(&sc->tc, raw_tsf);
+    delta = 0;
+    if (remain) {
+        u64 frac = 0;
+        delta = cyclecounter_cyc2ns(&sc->cc, 1, sc->cc.mask, &frac);
+        delta = delta * remain / 1000;
+    }
+    spin_unlock_irqrestore(&sc->systim_lock, flags);
+
+    dirty_ns += delta;
+    sc->ptp_dirtyts = dirty_ns;
+
+    return len;
+}
+
+static const struct file_operations fops_dirtyts = {
+	.read = read_file_dirtyts,
+	.write = write_file_dirtyts,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
+static ssize_t read_file_trigger_cbr(struct file *file, char __user *user_buf, size_t count, loff_t *ppos) {
+    return -EINVAL;
+}
+
+static ssize_t write_file_trigger_cbr(struct file *file, const char __user *user_buf,
+                size_t count, loff_t *ppos) {
+    struct ath_softc *sc = file->private_data;
+    struct ath_hw *ah = sc->sc_ah;
+
+    if (count & 1) {
+        printk("ath9k: cbr open\n");
+//        REG_RMW(ah, AR_QMISC(ATH_TXQ_AC_VI), AR_Q_MISC_FSP_CBR, AR_Q_MISC_FSP);
+        REG_WRITE(ah, AR_QCBRCFG(ATH_TXQ_AC_VI), 0xc350);
+    } else {
+        printk("ath9k: cbr gated\n");
+//        REG_RMW(ah, AR_QMISC(ATH_TXQ_AC_VI), 0x4, AR_Q_MISC_FSP);
+    }
+
+    return count;
+}
+
+static const struct file_operations fops_trigger_cbr = {
+	.read = read_file_trigger_cbr,
+	.write = write_file_trigger_cbr,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
 #define DMA_BUF_LEN 1024
 
 
@@ -1426,6 +1511,12 @@ int ath9k_init_debug(struct ath_hw *ah)
 	debugfs_create_devm_seqfile(sc->dev, "dump_nfcal",
 				    sc->debug.debugfs_phy,
 				    read_file_dump_nfcal);
+
+    debugfs_create_file("dirtyts", 0600, sc->debug.debugfs_phy,
+                sc, &fops_dirtyts);
+
+    debugfs_create_file("trigger_cbr", 0600, sc->debug.debugfs_phy,
+                sc, &fops_trigger_cbr);
 
 	ath9k_cmn_debug_base_eeprom(sc->debug.debugfs_phy, sc->sc_ah);
 	ath9k_cmn_debug_modal_eeprom(sc->debug.debugfs_phy, sc->sc_ah);
