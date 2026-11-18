@@ -46,6 +46,13 @@
 #define RP1_PIO_INTERRUPT_COUNT	8
 #define RP1_GPIO_FUNC_MAX	0x1f
 
+/*
+ * The longest that the firmware is asked to wait for SM flags in a single
+ * message. The firmware waits by polling, with the mailbox blocked, so
+ * longer timeouts are broken up into multiple messages.
+ */
+#define RP1_PIO_FLAGS_WAIT_MAX_US	1000
+
 #define MAX_ARG_SIZE		256
 
 #define RP1_PIO_FIFO_TX0	0x00
@@ -722,15 +729,40 @@ EXPORT_SYMBOL_GPL(rp1_pio_sm_drain_tx);
 int rp1_pio_sm_get_flags(struct rp1_pio_client *client, void *param)
 {
 	struct rp1_pio_sm_get_flags_args *args = param;
+	unsigned long interval = POLL_INTERVAL_MIN;
+	uint32_t timeout = args->timeout;
+	uint32_t flags = args->flags;
+	ktime_t end;
 	int ret;
 
 	if (args->sm >= RP1_PIO_SMS_COUNT)
 		return -EINVAL;
 
-	ret = rp1_pio_message_resp(client->pio, PIO_SM_GET_FLAGS, args, sizeof(*args),
-				   &args->flags, NULL, sizeof(args->flags));
-	if (ret >= 0)
-		return offsetof(struct rp1_pio_sm_get_flags_args, flags) + ret;
+	/*
+	 * The firmware waits for the flags by polling with the mailbox
+	 * blocked, so only let it wait for a short time. Do the rest of the
+	 * waiting here, where it can sleep and be interrupted.
+	 */
+	end = ktime_add_us(ktime_get(), timeout);
+
+	while (1) {
+		s64 remaining = ktime_us_delta(end, ktime_get());
+
+		args->flags = flags;
+		args->timeout = clamp_t(s64, remaining, 0,
+					min_t(uint32_t, timeout, RP1_PIO_FLAGS_WAIT_MAX_US));
+		ret = rp1_pio_message_resp(client->pio, PIO_SM_GET_FLAGS, args, sizeof(*args),
+					   &args->flags, NULL, sizeof(args->flags));
+		if (ret < 0)
+			break;
+		if (args->flags || remaining <= RP1_PIO_FLAGS_WAIT_MAX_US)
+			return offsetof(struct rp1_pio_sm_get_flags_args, flags) + ret;
+		if (signal_pending(current))
+			return -ERESTARTSYS;
+		fsleep(min_t(s64, interval, remaining));
+		POLL_INTERVAL_NEXT(interval);
+	}
+
 	args->flags = ~0;
 	return ret;
 }
