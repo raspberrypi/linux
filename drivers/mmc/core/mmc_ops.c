@@ -512,6 +512,9 @@ int __mmc_poll_for_busy(struct mmc_host *host, unsigned int period_us,
 
 	timeout = jiffies + msecs_to_jiffies(timeout_ms) + 1;
 	do {
+		if (host->rescan_disable)
+			return -ENOENT;
+
 		/*
 		 * Due to the possibility of being preempted while polling,
 		 * check the expiration time first.
