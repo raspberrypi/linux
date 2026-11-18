@@ -222,6 +222,7 @@ void pisp_fe_isr(struct pisp_fe_device *fe, bool *sof, bool *eof)
 static bool pisp_fe_validate_output(struct pisp_fe_config const *cfg,
 				    unsigned int c, struct v4l2_format const *f)
 {
+	unsigned int shift;
 	unsigned int wbytes;
 
 	wbytes = cfg->ch[c].output.format.width;
@@ -235,6 +236,22 @@ static bool pisp_fe_validate_output(struct pisp_fe_config const *cfg,
 	    cfg->ch[c].output.format.stride > f->fmt.pix.bytesperline ||
 	    wbytes > f->fmt.pix.bytesperline)
 		return false;
+
+	/*
+	 * An LSB-aligned node format needs the FE output to match it: 16 bits per
+	 * sample, uncompressed, shifted right by 16 - bit depth.
+	 */
+	shift = cfe_find_lsb16_shift(f->fmt.pix.pixelformat);
+	if (shift) {
+		u32 format = cfg->ch[c].output.format.format;
+
+		if ((format & PISP_IMAGE_FORMAT_BPS_MASK) !=
+			    PISP_IMAGE_FORMAT_BPS_16 ||
+		    (format & PISP_IMAGE_FORMAT_COMPRESSION_MASK) ||
+		    (format & PISP_IMAGE_FORMAT_SHIFT_MASK) !=
+			    shift * PISP_IMAGE_FORMAT_SHIFT_1)
+			return false;
+	}
 
 	/* Check for zero-sized crops, which could cause lockup */
 	if ((cfg->global.enables & PISP_FE_ENABLE_CROP(c)) &&

@@ -16,6 +16,8 @@ extern bool cfe_debug_verbose;
 enum cfe_remap_types {
 	CFE_REMAP_16BIT,
 	CFE_REMAP_COMPRESSED,
+	/* Unpacked, LSB-aligned 16-bit output of the FE */
+	CFE_REMAP_LSB16,
 	CFE_NUM_REMAP,
 };
 
@@ -39,5 +41,6 @@ const struct cfe_fmt *find_format_by_code(u32 code);
 const struct cfe_fmt *find_format_by_pix(u32 pixelformat);
 u32 cfe_find_16bit_code(u32 code);
 u32 cfe_find_compressed_code(u32 code);
+unsigned int cfe_find_lsb16_shift(u32 pixelformat);
 
 #endif
