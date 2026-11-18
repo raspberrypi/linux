@@ -997,8 +997,12 @@
 		};
 
 		rp1_eth: ethernet@100000 {
-			reg = <0xc0 0x40100000  0x0 0x4000>;
+			reg = <0xc0 0x40100000  0x0 0x4000>,
+			      <0xc0 0x40104000  0x0 0x4000>;
+			reg-names = "macb", "eth_cfg";
 			compatible = "raspberrypi,rp1-gem", "cdns,macb";
+			raspberrypi,pio = <&rp1_pio>;
+			raspberrypi,gpio-controller = <&rp1_gpio>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			interrupts = <RP1_INT_ETH IRQ_TYPE_LEVEL_HIGH>;

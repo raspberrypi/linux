@@ -42,6 +42,43 @@ struct rp1_get_feature_resp {
 };
 
 static DEFINE_MUTEX(transaction_lock);
+/* The mailbox protocol has no transaction identifier or cancellation token. */
+static int transaction_error;
+
+int rp1_firmware_transport_error(struct rp1_firmware *fw)
+{
+	(void)fw;
+	return READ_ONCE(transaction_error);
+}
+EXPORT_SYMBOL_GPL(rp1_firmware_transport_error);
+
+/* Caller holds transaction_lock and a firmware reference. */
+static int rp1_firmware_fault(struct rp1_firmware *fw, int err)
+{
+	if (!transaction_error) {
+		/* Preserve the completion and callback context for a late reply. */
+		kref_get(&fw->consumers);
+		__module_get(THIS_MODULE);
+		WRITE_ONCE(transaction_error, err);
+		dev_err(fw->cl.dev,
+			"RP1 firmware transport fault %d; power cycle required\n", err);
+	}
+	return transaction_error;
+}
+
+int rp1_firmware_report_fault(struct rp1_firmware *fw, int err)
+{
+	int ret;
+
+	if (!fw || err >= 0)
+		return -EINVAL;
+
+	mutex_lock(&transaction_lock);
+	ret = rp1_firmware_fault(fw, err);
+	mutex_unlock(&transaction_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rp1_firmware_report_fault);
 
 static const struct of_device_id rp1_firmware_of_match[] = {
 	{ .compatible = "raspberrypi,rp1-firmware", },
@@ -69,13 +106,19 @@ int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 	int ret;
 	u32 rc;
 
-	if (data_len + 4 > fw->buf_size)
+	if (!fw || fw->buf_size < 4 || data_len > U16_MAX ||
+	    data_len > fw->buf_size - 4 || (data_len && !data) ||
+	    (resp_space && !resp))
 		return -EINVAL;
 
 	mutex_lock(&transaction_lock);
+	if (transaction_error) {
+		ret = transaction_error;
+		goto out;
+	}
 
 	memcpy_toio(&fw->buf[1], data, data_len);
-	writel((op << 16) | data_len, fw->buf);
+	writel(((u32)op << 16) | data_len, fw->buf);
 
 	reinit_completion(&fw->c);
 	ret = mbox_send_message(fw->chan, NULL);
@@ -90,7 +133,7 @@ int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 		if (wait_for_completion_timeout(&fw->c, HZ))
 			ret = 0;
 		else
-			ret = -ETIMEDOUT;
+			ret = rp1_firmware_fault(fw, -ETIMEDOUT);
 	} else {
 		dev_err(fw->cl.dev, "mbox_send_message returned %d\n", ret);
 	}
@@ -99,12 +142,16 @@ int rp1_firmware_message(struct rp1_firmware *fw, uint16_t op,
 		rc = readl(fw->buf);
 		if (rc & 0x80000000) {
 			ret = (int32_t)rc;
+		} else if (rc > fw->buf_size - 4 || rc > resp_space) {
+			ret = rp1_firmware_fault(fw, -EPROTO);
 		} else {
-			ret = min(rc, resp_space);
-			memcpy_fromio(resp, &fw->buf[1], ret);
+			ret = rc;
+			if (ret)
+				memcpy_fromio(resp, &fw->buf[1], ret);
 		}
 	}
 
+out:
 	mutex_unlock(&transaction_lock);
 
 	return ret;
@@ -155,6 +202,7 @@ static void devm_rp1_firmware_put(void *data)
 
 /**
  * rp1_firmware_get - Get pointer to rp1_firmware structure.
+ * @client: Device Tree node of the firmware consumer.
  *
  * The reference to rp1_firmware has to be released with rp1_firmware_put().
  *
@@ -202,9 +250,11 @@ EXPORT_SYMBOL_GPL(rp1_firmware_get);
 
 /**
  * devm_rp1_firmware_get - Get pointer to rp1_firmware structure.
- * @firmware_node:    Pointer to the firmware Device Tree node.
+ * @dev: Device associated with the managed reference.
+ * @client: Device Tree node of the firmware consumer.
  *
- * Returns NULL is the firmware device is not ready.
+ * Returns NULL if the firmware device is not ready, or an error pointer on
+ * failure. The reference is released when @dev is detached.
  */
 struct rp1_firmware *devm_rp1_firmware_get(struct device *dev, struct device_node *client)
 {
