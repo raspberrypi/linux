@@ -112,6 +112,12 @@ struct dma_buf_info {
 };
 
 struct dma_info {
+	/*
+	 * Serialises the configuration and use of the channel by user space,
+	 * so that the channel and its buffers can't be freed or replaced
+	 * during a transfer.
+	 */
+	struct mutex lock;
 	struct semaphore buf_sem;
 	wait_queue_head_t cyclic_wait;
 	struct dma_chan *chan;
@@ -1258,7 +1264,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	bool tx = dir == RP1_PIO_DIR_TO_SM;
 	bool prefer_light_dma = flags & BIT(0);
 	bool force_dma_type = flags & BIT(1);
-	bool reconfigure = false;
+	struct dma_chan *chan;
 	phys_addr_t fifo_addr;
 	uint32_t dma_mask;
 	char chan_name[5];
@@ -1296,30 +1302,38 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 
 	dma_mask = 1 << (sm * 2 + dir);
 
+	/* Fail quickly, rather than wait for another client's transfer */
 	spin_lock(&pio->lock);
-	if (!(pio->claimed_dmas & dma_mask & ~client->claimed_dmas)) {
+	if (!(pio->claimed_dmas & dma_mask & ~client->claimed_dmas))
 		dma = &pio->dma_configs[sm][dir];
-		if (client->claimed_dmas & dma_mask)
-			reconfigure = true;
-		pio->claimed_dmas |= dma_mask;
-		client->claimed_dmas |= dma_mask;
-	}
 	spin_unlock(&pio->lock);
 	if (!dma)
 		return -EBUSY;
 
+	/*
+	 * Wait for any transfer or configuration by this client to finish,
+	 * then claim the channel for real.
+	 */
+	if (mutex_lock_interruptible(&dma->lock))
+		return -ERESTARTSYS;
+
+	spin_lock(&pio->lock);
+	if (pio->claimed_dmas & dma_mask & ~client->claimed_dmas) {
+		ret = -EBUSY;
+	} else {
+		pio->claimed_dmas |= dma_mask;
+		client->claimed_dmas |= dma_mask;
+	}
+	spin_unlock(&pio->lock);
+	if (ret)
+		goto out_unlock;
+
 	/* dma_release_channel() sleeps, so free the old channel outside the lock. */
-	if (reconfigure)
+	if (dma->chan)
 		rp1_pio_sm_dma_free(dma);
 
 	/* Note: the semaphore is only used by non-cyclic DMA */
 	sema_init(&dma->buf_sem, 0);
-
-	if (!reconfigure) {
-		/* the waitqueue and spinlock are only used by cyclic DMA */
-		init_waitqueue_head(&dma->cyclic_wait);
-		spin_lock_init(&dma->cyclic_lock);
-	}
 
 	/* Allocate and configure a DMA channel */
 	/* Careful - each SM FIFO has its own DREQ value */
@@ -1338,11 +1352,15 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 	dma->cyclic_underflow = false;
 	dma->cyclic_tx_issued = false;
 	dma->tx = tx;
-	dma->chan = dma_request_chan(dev, chan_name);
-	if (IS_ERR(dma->chan)) {
-		ret = PTR_ERR(dma->chan);
+	dma->buf_size = 0;
+	dma->buf_count = 0;
+	/* dma->chan is only ever NULL or a valid channel */
+	chan = dma_request_chan(dev, chan_name);
+	if (IS_ERR(chan)) {
+		ret = PTR_ERR(chan);
 		goto err_unclaim;
 	}
+	dma->chan = chan;
 	dma_get_slave_caps(dma->chan, &dma_caps);
 	if (force_dma_type &&
 	    dma_caps.max_burst != (prefer_light_dma ? 4 : 8)) {
@@ -1455,7 +1473,7 @@ static int rp1_pio_sm_config_xfer_internal(struct rp1_pio_client *client, uint s
 		if (!tx)
 			dma_async_issue_pending(dma->chan);
 	}
-	return 0;
+	goto out_unlock;
 
 err_dma_free:
 	rp1_pio_sm_dma_free(dma);
@@ -1465,6 +1483,9 @@ err_unclaim:
 	client->claimed_dmas &= ~dma_mask;
 	pio->claimed_dmas &= ~dma_mask;
 	spin_unlock(&pio->lock);
+
+out_unlock:
+	mutex_unlock(&dma->lock);
 
 	return ret;
 }
@@ -1805,8 +1826,10 @@ static int rp1_pio_sm_xfer_data32_user(struct rp1_pio_client *client, void *para
 {
 	struct rp1_pio_sm_xfer_data32_args *args = param;
 	struct rp1_pio_device *pio = client->pio;
-	struct dma_info *dma = NULL;
+	struct dma_info *dma;
 	uint32_t dma_mask;
+	bool claimed;
+	int ret;
 
 	if (args->sm >= RP1_PIO_SMS_COUNT || args->dir >= RP1_PIO_DIR_COUNT ||
 	    !args->data_bytes ||
@@ -1814,19 +1837,32 @@ static int rp1_pio_sm_xfer_data32_user(struct rp1_pio_client *client, void *para
 		return -EINVAL;
 
 	dma_mask = 1 << (args->sm * 2 + args->dir);
-	spin_lock(&pio->lock);
-	if (client->claimed_dmas & dma_mask)
-		dma = &pio->dma_configs[args->sm][args->dir];
-	spin_unlock(&pio->lock);
-	if (!dma)
-		return -EINVAL;
+	dma = &pio->dma_configs[args->sm][args->dir];
 
-	if (args->dir == RP1_PIO_DIR_TO_SM)
-		return dma->cyclic ? rp1_pio_sm_tx_user_cyclic(pio, dma, args) :
-				     rp1_pio_sm_tx_user(pio, dma, args);
+	/*
+	 * Hold the lock for the whole transfer, even though it may block,
+	 * so that the channel can't be reconfigured underneath it.
+	 */
+	if (mutex_lock_interruptible(&dma->lock))
+		return -ERESTARTSYS;
+
+	spin_lock(&pio->lock);
+	claimed = client->claimed_dmas & dma_mask;
+	spin_unlock(&pio->lock);
+
+	/* A channel configured with no buffers is of no use to user space */
+	if (!claimed || !dma->chan || !dma->buf_count)
+		ret = -EINVAL;
+	else if (args->dir == RP1_PIO_DIR_TO_SM)
+		ret = dma->cyclic ? rp1_pio_sm_tx_user_cyclic(pio, dma, args) :
+				    rp1_pio_sm_tx_user(pio, dma, args);
 	else
-		return dma->cyclic ? rp1_pio_sm_rx_user_cyclic(pio, dma, args) :
-				     rp1_pio_sm_rx_user(pio, dma, args);
+		ret = dma->cyclic ? rp1_pio_sm_rx_user_cyclic(pio, dma, args) :
+				    rp1_pio_sm_rx_user(pio, dma, args);
+
+	mutex_unlock(&dma->lock);
+
+	return ret;
 }
 
 static int rp1_pio_sm_xfer_data_user(struct rp1_pio_client *client, void *param)
@@ -2084,10 +2120,14 @@ void rp1_pio_close(struct rp1_pio_client *client)
 			struct dma_info *dma = &pio->dma_configs[i >> 1][i & 1];
 
 			claimed &= ~mask;
-			/* The SMs have been disabled, so this is safe */
-			if (!dma->tx)
-				rp1_pio_sm_dma_flush_rx(dma);
-			rp1_pio_sm_dma_free(dma);
+			mutex_lock(&dma->lock);
+			if (dma->chan) {
+				/* The SMs have been disabled, so this is safe */
+				if (!dma->tx)
+					rp1_pio_sm_dma_flush_rx(dma);
+				rp1_pio_sm_dma_free(dma);
+			}
+			mutex_unlock(&dma->lock);
 		}
 	}
 
@@ -2377,6 +2417,18 @@ static int rp1_pio_probe(struct platform_device *pdev)
 	pio->fw = fw;
 	spin_lock_init(&pio->lock);
 	mutex_init(&pio->instr_mutex);
+	for (i = 0; i < RP1_PIO_SMS_COUNT; i++) {
+		int dir;
+
+		for (dir = 0; dir < RP1_PIO_DIR_COUNT; dir++) {
+			struct dma_info *dma = &pio->dma_configs[i][dir];
+
+			mutex_init(&dma->lock);
+			/* the waitqueue and spinlock are only used by cyclic DMA */
+			init_waitqueue_head(&dma->cyclic_wait);
+			spin_lock_init(&dma->cyclic_lock);
+		}
+	}
 
 	p = devm_platform_get_and_ioremap_resource(pdev, 0, &ioresource);
 	if (IS_ERR(p)) {
