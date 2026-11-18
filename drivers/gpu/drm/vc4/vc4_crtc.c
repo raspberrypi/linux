@@ -1447,6 +1447,27 @@ int __vc4_crtc_init(struct drm_device *drm,
 		 * implemented as private driver state in vc4_kms, not here.
 		 */
 		drm_crtc_enable_color_mgmt(crtc, 0, true, crtc->gamma_size);
+	} else if (vc4->gen == VC4_GEN_6_D) {
+		/* This is a lie for hvs5 which uses a 16 point PWL, but it
+		 * allows for something smarter than just 16 linearly spaced
+		 * segments. Conversion is done in vc5_hvs_update_gamma_lut.
+		 */
+		drm_mode_crtc_set_gamma_size(crtc, 256);
+		drm_crtc_enable_color_mgmt(crtc, 0, true, crtc->gamma_size);
+
+		/* Initialize the gamma PWL entries. Assume 12-bit pipeline,
+		 * evenly spread over full range.
+		 */
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++) {
+			vc4_crtc->pwl_r[i] =
+				VC6D_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_g[i] =
+				VC6D_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_b[i] =
+				VC6D_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_a[i] =
+				VC6D_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+		}
 	}
 
 	for (i = 0; i < crtc->gamma_size; i++) {

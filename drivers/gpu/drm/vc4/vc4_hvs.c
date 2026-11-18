@@ -199,6 +199,7 @@ static const struct debugfs_reg32 vc6_d_hvs_regs[] = {
 	VC4_REG32(SCALER6D_HISTBIN6),
 	VC4_REG32(SCALER6D_HISTBIN7),
 	VC4_REG32(SCALER6D_HVS_ID),
+	VC4_REG32(SCALER6D_DITHERGAMMA),
 };
 
 void vc4_hvs_dump_state(struct vc4_hvs *hvs)
@@ -400,6 +401,85 @@ static int vc4_hvs_debugfs_lbm_allocs(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int vc6_hvs_debugfs_gamma(struct seq_file *m, void *data)
+{
+	struct drm_debugfs_entry *entry = m->private;
+	struct drm_device *dev = entry->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
+	struct drm_printer p = drm_seq_file_printer(m);
+	unsigned int i, chan;
+	u32 dispstat, dither_gamma;
+
+	for (chan = 0; chan < SCALER_CHANNELS_COUNT; chan++) {
+		u32 x_c, grad;
+		u32 offset = SCALER6D_DSPGAMMA_START +
+			chan * SCALER6D_DSPGAMMA_CHAN_OFFSET;
+
+		dispstat = VC4_GET_FIELD(HVS_READ(SCALER6_DISPX_STATUS(chan)),
+					 SCALER6_DISPX_STATUS_MODE);
+		if (dispstat == SCALER6_DISPX_STATUS_MODE_DISABLED ||
+		    dispstat == SCALER6_DISPX_STATUS_MODE_EOF) {
+			drm_printf(&p, "HVS channel %u: disabled\n", chan);
+			continue;
+		}
+
+		dither_gamma = HVS_READ(SCALER6D_DITHERGAMMA);
+		if (!(dither_gamma & SCALER6D_DITHERGAMMA_GAMMA(chan))) {
+			drm_printf(&p, "HVS channel %u: Gamma disabled\n", chan);
+			continue;
+		}
+
+		drm_printf(&p, "HVS channel %u:\n", chan);
+		drm_printf(&p, "  blue:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+		drm_printf(&p, "  green:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+		drm_printf(&p, "  red:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+
+		/* Alpha only valid on channel 2 */
+		if (chan != 2)
+			continue;
+
+		drm_printf(&p, "  alpha:\n");
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8) {
+			x_c = HVS_READ(offset);
+			grad = HVS_READ(offset + 4);
+			drm_printf(&p, "  %08x %08x - x %u, c %u, grad %u\n",
+				   x_c, grad,
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_X),
+				   VC4_GET_FIELD(x_c, SCALER6D_DSPGAMMA_OFF_C),
+				   grad);
+		}
+	}
+	return 0;
+}
+
 /* The filter kernel is composed of dwords each containing 3 9-bit
  * signed integers packed next to each other.
  */
@@ -522,6 +602,82 @@ static void vc4_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 	}
 
 	vc4_hvs_lut_load(hvs, vc4_crtc);
+}
+
+static void vc6_hvs_write_gamma_entry(struct vc4_dev *vc4,
+				      u32 offset,
+				      struct vc6_gamma_entry *gamma)
+{
+	struct vc4_hvs *hvs = vc4->hvs;
+
+	HVS_WRITE(offset, gamma->x_c_terms);
+	HVS_WRITE(offset + 4, gamma->grad_term);
+}
+
+static void vc6_hvs_lut_load(struct drm_crtc *crtc)
+{
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
+	u32 i;
+	u32 offset = SCALER6D_DSPGAMMA_START +
+		vc4_state->assigned_channel * SCALER6D_DSPGAMMA_CHAN_OFFSET;
+
+	for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc6_hvs_write_gamma_entry(vc4, offset, &vc4_crtc->pwl_b[i]);
+	for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc6_hvs_write_gamma_entry(vc4, offset, &vc4_crtc->pwl_g[i]);
+	for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc6_hvs_write_gamma_entry(vc4, offset, &vc4_crtc->pwl_r[i]);
+
+	if (vc4_state->assigned_channel == 2) {
+		/* Alpha only valid on channel 2 */
+		for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+			vc6_hvs_write_gamma_entry(vc4, offset, &vc4_crtc->pwl_a[i]);
+	}
+}
+
+static void vc6_hvs_update_gamma_lut(struct drm_crtc *crtc)
+{
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_color_lut *lut = crtc->state->gamma_lut->data;
+	unsigned int step, i;
+	u32 start, end;
+
+#define VC6D_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl, chan)			\
+	start = drm_color_lut_extract(lut[i * step].chan, 12);		\
+	end = drm_color_lut_extract(lut[(i + 1) * step - 1].chan, 12);	\
+									\
+	/* Negative gradients not permitted by the hardware, so		\
+	 * flatten such points out.					\
+	 */								\
+	if (end < start)						\
+		end = start;						\
+									\
+	/* Assume 12bit pipeline.					\
+	 * X evenly spread over full range (12 bit).			\
+	 * C as U12.4 format.						\
+	 * Gradient as U4.8 format.					\
+	 */								\
+	vc4_crtc->pwl[i] =						\
+		VC6D_HVS_SET_GAMMA_ENTRY(i << 8, start << 4,		\
+				((end - start) << 4) / (step - 1))
+
+	/* HVS6 has a 16 point piecewise linear function for each colour
+	 * channel (including alpha on channel 2) on each display channel.
+	 *
+	 * Currently take a crude subsample of the gamma LUT, but this could
+	 * be improved to implement curve fitting.
+	 */
+	step = crtc->gamma_size / SCALER6D_DSPGAMMA_NUM_POINTS;
+	for (i = 0; i < SCALER6D_DSPGAMMA_NUM_POINTS; i++) {
+		VC6D_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_r, red);
+		VC6D_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_g, green);
+		VC6D_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_b, blue);
+	}
+
+	vc6_hvs_lut_load(crtc);
 }
 
 static void vc4_hvs_irq_enable_eof(struct vc4_hvs *hvs,
@@ -1032,6 +1188,9 @@ static int vc6_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 		  VC4_SET_FIELD(mode->vdisplay - 1,
 				SCALER6_DISPX_CTRL0_LINES));
 
+	if (vc4->gen > VC4_GEN_6_D)
+		vc6_hvs_lut_load(crtc);
+
 	drm_dev_exit(idx);
 
 	return 0;
@@ -1346,21 +1505,36 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 	}
 
 	if (crtc->state->color_mgmt_changed) {
-		u32 dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(channel));
+		WARN_ON_ONCE(vc4->gen > VC4_GEN_5 && vc4->gen < VC4_GEN_6_C);
 
-		WARN_ON_ONCE(vc4->gen > VC4_GEN_5);
-
-		if (crtc->state->gamma_lut) {
-			vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
-			dispbkgndx |= SCALER_DISPBKGND_GAMMA;
+		if (vc4->gen == VC4_GEN_4) {
+			u32 dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(channel));
+			if (crtc->state->gamma_lut) {
+				vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
+				dispbkgndx |= SCALER_DISPBKGND_GAMMA;
+			} else {
+				/* Unsetting DISPBKGND_GAMMA skips the gamma lut step
+				 * in hardware, which is the same as a linear lut that
+				 * DRM expects us to use in absence of a user lut.
+				 */
+				dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
+			}
+			HVS_WRITE(SCALER_DISPBKGNDX(channel), dispbkgndx);
 		} else {
-			/* Unsetting DISPBKGND_GAMMA skips the gamma lut step
-			 * in hardware, which is the same as a linear lut that
-			 * DRM expects us to use in absence of a user lut.
-			 */
-			dispbkgndx &= ~SCALER_DISPBKGND_GAMMA;
+			u32 dither_gamma = HVS_READ(SCALER6D_DITHERGAMMA);
+
+			if (crtc->state->gamma_lut) {
+				vc6_hvs_update_gamma_lut(crtc);
+				dither_gamma |= SCALER6D_DITHERGAMMA_GAMMA(channel);
+			} else {
+				/* Unsetting DISPBKGND_GAMMA skips the gamma lut step
+				 * in hardware, which is the same as a linear lut that
+				 * DRM expects us to use in absence of a user lut.
+				 */
+				dither_gamma &= ~SCALER6D_DITHERGAMMA_GAMMA(channel);
+			}
+			HVS_WRITE(SCALER6D_DITHERGAMMA, dither_gamma);
 		}
-		HVS_WRITE(SCALER_DISPBKGNDX(channel), dispbkgndx);
 	}
 
 	if (debug_dump_regs) {
@@ -1528,6 +1702,8 @@ int vc4_hvs_debugfs_init(struct drm_minor *minor)
 	if (vc4->gen >= VC4_GEN_6_C) {
 		drm_debugfs_add_file(drm, "hvs_dlists", vc6_hvs_debugfs_dlist, NULL);
 		drm_debugfs_add_file(drm, "hvs_upm", vc6_hvs_debugfs_upm_allocs, NULL);
+		if (vc4->gen >= VC4_GEN_6_D)
+			drm_debugfs_add_file(drm, "gamma", vc6_hvs_debugfs_gamma, NULL);
 	} else {
 		drm_debugfs_add_file(drm, "hvs_dlists", vc4_hvs_debugfs_dlist, NULL);
 	}
