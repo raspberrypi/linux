@@ -2341,11 +2341,11 @@ Params: addr                    Sets the address for the fan controller. Note
                                 begins to speed up (default 50000)
 
         midtemp_hyst            Temperature delta (in millicelsius) below
-                                mintemp at which the fan will drop to minrpm
+                                midtemp at which the fan will drop to minrpm
                                 (default 2000)
 
         maxtemp                 Temperature (in millicelsius) at which the fan
-                                will be held at maxrpm (default 70000)
+                                will be held at maxrpm (default 75000)
 
         maxtemp_hyst            Temperature delta (in millicelsius) below
                                 maxtemp at which the fan begins to slow down
