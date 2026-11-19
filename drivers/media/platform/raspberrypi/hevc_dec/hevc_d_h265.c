@@ -1637,7 +1637,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	}
 	if (sps_changed ||
 	    memcmp(&s->pps, run->h265.pps, sizeof(s->pps)) != 0) {
-		/* SPS changed */
+		/* PPS changed */
 		memcpy(&s->pps, run->h265.pps, sizeof(s->pps));
 
 		/* Recalc stuff as required */
