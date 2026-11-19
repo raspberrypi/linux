@@ -11,6 +11,9 @@ on:
     branches: [ "rpi-*" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   NUM_JOBS: 6
 
@@ -72,8 +75,9 @@ jobs:
         sudo apt-get install -y gcc-arm-linux-gnueabihf
       timeout-minutes: 15
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         fetch-depth: 1
         clean: true
 
@@ -103,7 +107,7 @@ jobs:
       run: tar -cvf ${{matrix.name}}_build.tar -C ${{github.workspace}}/install .
 
     - name: Upload results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{matrix.name}}_build
         path: ${{matrix.name}}_build.tar

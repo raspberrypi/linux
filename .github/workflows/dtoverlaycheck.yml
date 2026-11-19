@@ -11,6 +11,9 @@ on:
     branches: [ "rpi-*" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   UTILS_DIR: "${{github.workspace}}/utils"
 
@@ -25,8 +28,9 @@ jobs:
         sudo apt-get install gcc-arm-linux-gnueabihf libfdt-dev device-tree-compiler gnutls-dev
       timeout-minutes: 15
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         fetch-depth: 1
         clean: true
 
