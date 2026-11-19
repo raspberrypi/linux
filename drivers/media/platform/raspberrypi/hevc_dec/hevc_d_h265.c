@@ -1568,6 +1568,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	struct vb2_queue *vq;
 	struct hevc_d_dec_env *de;
 	unsigned int prev_rs;
+	unsigned int prev_start_ts = 0;
 	unsigned int i;
 	int rv;
 	unsigned int ctb_size_y;
@@ -1825,6 +1826,13 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 		/* Calc all the random coord info to avoid repeated conversion in/out */
 		s->start_ts = s->ctb_addr_rs_to_ts[sh->slice_segment_addr];
+		if (i != 0 && s->start_ts <= prev_start_ts) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Slice %u: segment addr %u not after previous slice\n",
+				  i, sh->slice_segment_addr);
+			goto fail;
+		}
+		prev_start_ts = s->start_ts;
 		s->start_ctb_x = sh->slice_segment_addr % de->pic_width_in_ctbs_y;
 		s->start_ctb_y = sh->slice_segment_addr / de->pic_width_in_ctbs_y;
 		/* Last CTB of previous slice */
@@ -2604,6 +2612,13 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 	if (sh->slice_segment_addr != 0) {
 		v4l2_warn(&dev->v4l2_dev, "New frame but segment_addr=%d\n",
 			  sh->slice_segment_addr);
+		return -EINVAL;
+	}
+
+	/* The first slice segment of a picture cannot be dependent */
+	if (sh->flags & V4L2_HEVC_SLICE_PARAMS_FLAG_DEPENDENT_SLICE_SEGMENT) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "New frame but dependent slice segment\n");
 		return -EINVAL;
 	}
 
