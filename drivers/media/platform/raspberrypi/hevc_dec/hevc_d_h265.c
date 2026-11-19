@@ -2455,8 +2455,9 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	const struct v4l2_ctrl_hevc_sps *const sps = ctrl->p_new.p_hevc_sps;
 	struct hevc_d_ctx *const ctx = ctrl->priv;
 	struct hevc_d_dev *const dev = ctx->dev;
-	const unsigned int ctb_log2_size_y =
-			sps->log2_min_luma_coding_block_size_minus3 + 3 +
+	const unsigned int min_cb_log2_size_y =
+			sps->log2_min_luma_coding_block_size_minus3 + 3;
+	const unsigned int ctb_log2_size_y = min_cb_log2_size_y +
 			sps->log2_diff_max_min_luma_coding_block_size;
 	const unsigned int min_tb_log2_size_y =
 			sps->log2_min_luma_transform_block_size_minus2 + 2;
@@ -2505,7 +2506,16 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	if (sps->sps_max_num_reorder_pics >
 				sps->sps_max_dec_pic_buffering_minus1)
 		return -EINVAL;
-	if (ctb_log2_size_y > 6)
+	if (sps->sps_max_sub_layers_minus1 > 6)
+		return -EINVAL;
+	if (ctb_log2_size_y < 4 || ctb_log2_size_y > 6)
+		return -EINVAL;
+	if (min_tb_log2_size_y >= min_cb_log2_size_y)
+		return -EINVAL;
+	/* Width & height must be a multiple of the min coding block size */
+	if ((sps->pic_width_in_luma_samples |
+	     sps->pic_height_in_luma_samples) &
+	    ((1U << min_cb_log2_size_y) - 1))
 		return -EINVAL;
 	if (max_tb_log2_size_y > 5)
 		return -EINVAL;
@@ -2521,6 +2531,23 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 	if (sps->num_long_term_ref_pics_sps > 32)
 		return -EINVAL;
+
+	/* The core zeros the PCM fields if PCM is not enabled */
+	if (sps->flags & V4L2_HEVC_SPS_FLAG_PCM_ENABLED) {
+		const unsigned int bit_depth = sps->bit_depth_luma_minus8 + 8;
+		const unsigned int min_pcm_log2_size_y =
+			sps->log2_min_pcm_luma_coding_block_size_minus3 + 3;
+		const unsigned int max_pcm_log2_size_y = min_pcm_log2_size_y +
+			sps->log2_diff_max_min_pcm_luma_coding_block_size;
+
+		/* Luma & chroma depths have been checked to be the same */
+		if (sps->pcm_sample_bit_depth_luma_minus1 + 1U > bit_depth ||
+		    sps->pcm_sample_bit_depth_chroma_minus1 + 1U > bit_depth)
+			return -EINVAL;
+		if (min_pcm_log2_size_y < min(min_cb_log2_size_y, 5U) ||
+		    max_pcm_log2_size_y > min(ctb_log2_size_y, 5U))
+			return -EINVAL;
+	}
 
 	return 0;
 }
@@ -2545,9 +2572,9 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 	}
 
 	if ((pps->flags & V4L2_HEVC_PPS_FLAG_TILES_ENABLED) &&
-		(pps->num_tile_columns_minus1 >
+		(pps->num_tile_columns_minus1 >=
 			ARRAY_SIZE(pps->column_width_minus1) ||
-		 pps->num_tile_rows_minus1 >
+		 pps->num_tile_rows_minus1 >=
 			ARRAY_SIZE(pps->row_height_minus1))) {
 		v4l2_warn(&dev->v4l2_dev, "Tiles cols/rows too big\n");
 		return -EINVAL;
@@ -2581,6 +2608,11 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 	}
 
 	for (i = 0; i != ctrl->new_elems; ++i, ++sh) {
+		if (!sh->bit_size) {
+			v4l2_warn(&dev->v4l2_dev, "Slice %u: bit size zero\n", i);
+			return -EINVAL;
+		}
+
 		if (sh->slice_type != HEVC_SLICE_B &&
 		    sh->slice_type != HEVC_SLICE_P &&
 		    sh->slice_type != HEVC_SLICE_I) {
