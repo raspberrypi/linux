@@ -11,6 +11,7 @@
  * Copyright (C) 2018 Bootlin
  */
 
+#include <linux/completion.h>
 #include <linux/math.h>
 #include <linux/types.h>
 
@@ -2001,6 +2002,10 @@ static void phase2_err_claimed(struct hevc_d_dev *const dev, void *v)
 	phase2_done(dev, de, VB2_BUF_STATE_ERROR);
 }
 
+/*
+ * Find the dpb slot, if the slot is empty then fall back to the slot
+ * with the nearest POC
+ */
 static const struct hevc_d_slot *find_slot(struct hevc_d_dec_env *const de,
 					   const struct hevc_d_ctx *ctx,
 					   unsigned int dpb_no)
@@ -2252,8 +2257,7 @@ static void dec_state_delete(struct hevc_d_ctx *const ctx)
 }
 
 struct irq_sync {
-	atomic_t done;
-	wait_queue_head_t wq;
+	struct completion done;
 	struct hevc_d_hw_irq_ent irq_ent;
 };
 
@@ -2261,8 +2265,7 @@ static void phase2_sync_claimed(struct hevc_d_dev *const dev, void *v)
 {
 	struct irq_sync *const sync = v;
 
-	atomic_set(&sync->done, 1);
-	wake_up(&sync->wq);
+	complete(&sync->done);
 }
 
 static void phase1_sync_claimed(struct hevc_d_dev *const dev, void *v)
@@ -2285,11 +2288,51 @@ void hevc_d_h265_sync(struct hevc_d_dev *dev)
 {
 	struct irq_sync sync;
 
-	atomic_set(&sync.done, 0);
-	init_waitqueue_head(&sync.wq);
+	init_completion(&sync.done);
 
 	hevc_d_hw_irq_active1_claim(dev, &sync.irq_ent, phase1_sync_claimed, &sync);
-	wait_event(sync.wq, atomic_read(&sync.done));
+	wait_for_completion(&sync.done);
+}
+
+struct slot_invalidate {
+	struct completion done;
+	struct hevc_d_slot *slot;
+	struct hevc_d_hw_irq_ent irq_ent;
+};
+
+static void slot_invalidate_claimed(struct hevc_d_dev *const dev, void *v)
+{
+	struct slot_invalidate *const si = v;
+	struct hevc_d_slot *const slot = si->slot;
+
+	/* Invalidate slot but leave POC intact for fallback */
+	slot->refybase = 0;
+	slot->refcbase = 0;
+	slot->colbase = 0;
+	complete(&si->done);
+}
+
+/*
+ * Forget the reference addresses cached for a CAPTURE buffer
+ * Syncs with phase 2 so it is safe to clobber and only returns
+ * once the buffer is no longer in use by h/w.
+ *
+ * If the buffer was still in use, then an alternative will be selected by
+ * find_slot at the start of phase2
+ */
+void hevc_d_h265_invalidate_slot(struct hevc_d_ctx *ctx, unsigned int index)
+{
+	struct slot_invalidate si;
+
+	if (WARN_ON(index >= ARRAY_SIZE(ctx->slots)))
+		return;
+
+	init_completion(&si.done);
+	si.slot = ctx->slots + index;
+
+	hevc_d_hw_irq_active2_claim(ctx->dev, &si.irq_ent,
+				    slot_invalidate_claimed, &si);
+	wait_for_completion(&si.done);
 }
 
 static void h265_ctx_uninit(struct hevc_d_dev *const dev, struct hevc_d_ctx *ctx)
