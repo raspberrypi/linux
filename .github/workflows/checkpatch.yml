@@ -1,6 +1,9 @@
 name: Advisory checkpatch review
 on: [pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   review:
     name: checkpatch review
@@ -8,11 +11,12 @@ jobs:
     steps:
     - name: 'Calculate PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> $GITHUB_ENV
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        persist-credentials: false
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
     - name: Copy checkpatch.conf
       run: cp ${{github.workspace}}/.github/workflows/ci_checkpatch.conf ${{github.workspace}}/.checkpatch.conf
     - name: Run checkpatch review
-      uses: webispy/checkpatch-action@v9
+      uses: webispy/checkpatch-action@58374fe5bb03358b23d3d6871e2ff290ce77fcd2 # v9
