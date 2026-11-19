@@ -110,7 +110,7 @@ struct hevc_d_ctx {
 	 */
 	int fatal_err;
 
-	/* Lock for queue operations */
+	/* Lock for queue operations and src_fmt / dst_fmt */
 	struct mutex			ctx_mutex;
 
 	struct v4l2_ctrl_handler	hdl;
@@ -174,9 +174,6 @@ struct hevc_d_dev {
 	struct platform_device	*pdev;
 	struct device		*dev;
 	struct v4l2_m2m_dev	*m2m_dev;
-
-	/* Video device file (vfd) mutex */
-	struct mutex		dev_mutex;
 
 	void __iomem		*base_irq;
 	void __iomem		*base_h265;
