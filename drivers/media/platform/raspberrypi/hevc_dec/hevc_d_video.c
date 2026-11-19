@@ -552,6 +552,24 @@ static int hevc_d_buf_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
+/*
+ * Called before buffer memory is released: on free, VIDIOC_REMOVE_BUFS or
+ * when a dmabuf is replaced on QBUF.
+ * A CAPTURE buffer that userspace has dequeued may still be in use as a
+ * reference by frames in the decode pipeline so make sure the decoder has
+ * let go of it first.
+ */
+static void hevc_d_buf_cleanup(struct vb2_buffer *vb)
+{
+	struct vb2_queue *vq = vb->vb2_queue;
+	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
+
+	if (V4L2_TYPE_IS_OUTPUT(vq->type))
+		return;
+
+	hevc_d_h265_invalidate_slot(ctx, vb->index);
+}
+
 static bool other_q_started(struct hevc_d_ctx *ctx, struct vb2_queue *vq)
 {
 	struct vb2_queue *other_vq;
@@ -632,6 +650,7 @@ static void hevc_d_buf_request_complete(struct vb2_buffer *vb)
 static const struct vb2_ops hevc_d_qops = {
 	.queue_setup		= hevc_d_queue_setup,
 	.buf_prepare		= hevc_d_buf_prepare,
+	.buf_cleanup		= hevc_d_buf_cleanup,
 	.buf_queue		= hevc_d_buf_queue,
 	.buf_out_validate	= hevc_d_buf_out_validate,
 	.buf_request_complete	= hevc_d_buf_request_complete,

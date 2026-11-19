@@ -18,6 +18,7 @@ int hevc_d_h265_start(struct hevc_d_ctx *ctx);
 void hevc_d_h265_stop(struct hevc_d_ctx *ctx);
 void hevc_d_h265_trigger(struct hevc_d_ctx *ctx);
 void hevc_d_h265_sync(struct hevc_d_dev *dev);
+void hevc_d_h265_invalidate_slot(struct hevc_d_ctx *ctx, unsigned int index);
 
 void hevc_d_device_run(void *priv);
 
