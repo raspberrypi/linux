@@ -15,6 +15,7 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
+#include <linux/iopoll.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
@@ -313,6 +314,10 @@ struct cfe_device {
 	struct pisp_fe_device fe;
 
 	int fe_csi2_channel;
+
+	int irq;
+	/* Nodes that were streaming when the system suspended */
+	unsigned long suspended_nodes;
 };
 
 static inline bool is_fe_enabled(struct cfe_device *cfe)
@@ -2342,7 +2347,8 @@ static int cfe_probe(struct platform_device *pdev)
 		goto err_cfe_put;
 	}
 
-	ret = devm_request_irq(&pdev->dev, ret, cfe_isr, 0, "rp1-cfe", cfe);
+	cfe->irq = ret;
+	ret = devm_request_irq(&pdev->dev, cfe->irq, cfe_isr, 0, "rp1-cfe", cfe);
 	if (ret) {
 		dev_err(&pdev->dev, "Unable to request interrupt\n");
 		ret = -EINVAL;
@@ -2486,8 +2492,148 @@ static int cfe_runtime_resume(struct device *dev)
 	return 0;
 }
 
+/*
+ * Stop the sensor and then the receiver, and put the buffers in flight back at
+ * the head of their queues, so that resume can restart the stream the way
+ * cfe_start_streaming() does.
+ */
+static bool cfe_frame_in_flight(struct cfe_device *cfe)
+{
+	unsigned int i, fs_count = 0;
+	bool busy = false, first = true;
+	unsigned long flags;
+
+	spin_lock_irqsave(&cfe->state_lock, flags);
+	for (i = 0; i < NUM_NODES; i++) {
+		struct cfe_node *node = &cfe->node[i];
+
+		if (!(cfe->suspended_nodes & BIT(i)))
+			continue;
+		if (node->cur_frm || (!first && node->fs_count != fs_count))
+			busy = true;
+		fs_count = node->fs_count;
+		first = false;
+	}
+	spin_unlock_irqrestore(&cfe->state_lock, flags);
+
+	return busy;
+}
+
+static int __maybe_unused cfe_suspend(struct device *dev)
+{
+	struct cfe_device *cfe = dev_get_drvdata(dev);
+	unsigned int i, fs_count = 0;
+	unsigned long flags;
+	bool fe_stop, busy;
+
+	cfe->suspended_nodes = 0;
+	for (i = 0; i < NUM_NODES; i++) {
+		if (check_state(cfe, NODE_STREAMING, i))
+			cfe->suspended_nodes |= BIT(i);
+	}
+
+	if (!cfe->suspended_nodes)
+		return 0;
+
+	if (v4l2_subdev_call(cfe->sensor, video, s_stream, 0) < 0)
+		cfe_err("stream off failed in subdev\n");
+
+	/*
+	 * Userspace pairs the buffers of each node by order, so every node must
+	 * have completed the same frames when the hardware is stopped.
+	 */
+	read_poll_timeout(cfe_frame_in_flight, busy, !busy, 5000, 250000,
+			  false, cfe);
+
+	fe_stop = is_fe_enabled(cfe) &&
+		  test_all_nodes(cfe, NODE_ENABLED, NODE_STREAMING);
+
+	cfg_reg_write(cfe, MIPICFG_INTE, 0);
+	synchronize_irq(cfe->irq);
+
+	for (i = 0; i < NUM_NODES; i++) {
+		if (!(cfe->suspended_nodes & BIT(i)))
+			continue;
+		cfe_stop_channel(&cfe->node[i], fe_stop);
+		fe_stop = false;
+	}
+
+	csi2_close_rx(&cfe->csi2);
+
+	spin_lock_irqsave(&cfe->state_lock, flags);
+	for (i = 0; i < NUM_NODES; i++) {
+		if (cfe->suspended_nodes & BIT(i))
+			fs_count = max(fs_count, cfe->node[i].fs_count);
+	}
+	for (i = 0; i < NUM_NODES; i++) {
+		struct cfe_node *node = &cfe->node[i];
+
+		if (!(cfe->suspended_nodes & BIT(i)))
+			continue;
+
+		/* Fail any frame that was cut short, on every node it began on. */
+		if (node->cur_frm)
+			cfe_process_buffer_complete(node, VB2_BUF_STATE_ERROR);
+		node->cur_frm = NULL;
+		if (node->fs_count < fs_count && node->next_frm) {
+			node->cur_frm = node->next_frm;
+			node->next_frm = NULL;
+			node->fs_count = fs_count;
+			cfe_process_buffer_complete(node, VB2_BUF_STATE_ERROR);
+			node->cur_frm = NULL;
+		}
+		node->fs_count = fs_count;
+
+		if (node->next_frm)
+			list_add(&node->next_frm->list, &node->dma_queue);
+		node->next_frm = NULL;
+
+		clear_state(cfe, FS_INT | FE_INT | NODE_STREAMING, i);
+	}
+	cfe->job_queued = false;
+	cfe->job_ready = false;
+	spin_unlock_irqrestore(&cfe->state_lock, flags);
+
+	return 0;
+}
+
+static int __maybe_unused cfe_resume(struct device *dev)
+{
+	struct cfe_device *cfe = dev_get_drvdata(dev);
+	unsigned long flags;
+	unsigned int i;
+	int ret;
+
+	if (!cfe->suspended_nodes)
+		return 0;
+
+	spin_lock_irqsave(&cfe->state_lock, flags);
+	cfe->job_ready = cfe_check_job_ready(cfe);
+	spin_unlock_irqrestore(&cfe->state_lock, flags);
+
+	/* As cfe_start_streaming(): the last node to start also starts the FE. */
+	for (i = 0; i < NUM_NODES; i++) {
+		if (!(cfe->suspended_nodes & BIT(i)))
+			continue;
+		set_state(cfe, NODE_STREAMING, i);
+		cfe_start_channel(&cfe->node[i]);
+	}
+	cfe->suspended_nodes = 0;
+
+	cfg_reg_write(cfe, MIPICFG_CFG, MIPICFG_CFG_SEL_CSI);
+	cfg_reg_write(cfe, MIPICFG_INTE, MIPICFG_INT_CSI_DMA | MIPICFG_INT_PISP_FE);
+	csi2_open_rx(&cfe->csi2);
+
+	ret = v4l2_subdev_call(cfe->sensor, video, s_stream, 1);
+	if (ret < 0)
+		cfe_err("stream on failed in subdev\n");
+
+	return ret;
+}
+
 static const struct dev_pm_ops cfe_pm_ops = {
 	SET_RUNTIME_PM_OPS(cfe_runtime_suspend, cfe_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(cfe_suspend, cfe_resume)
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 
