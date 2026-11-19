@@ -494,6 +494,7 @@ static void hevc_d_queue_cleanup(struct vb2_queue *vq, u32 state)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct vb2_v4l2_buffer *vbuf;
+	struct media_request *req;
 
 	for (;;) {
 		if (V4L2_TYPE_IS_OUTPUT(vq->type))
@@ -504,9 +505,13 @@ static void hevc_d_queue_cleanup(struct vb2_queue *vq, u32 state)
 		if (!vbuf)
 			return;
 
-		v4l2_ctrl_request_complete(vbuf->vb2_buf.req_obj.req,
-					   &ctx->hdl);
+		/* Ensure requests are dealt with */
+		req = state == VB2_BUF_STATE_QUEUED ? NULL : vbuf->vb2_buf.req_obj.req;
+		if (req)
+			v4l2_ctrl_request_complete(req, &ctx->hdl);
 		v4l2_m2m_buf_done(vbuf, state);
+		if (req)
+			media_request_manual_complete(req);
 	}
 }
 
@@ -629,8 +634,15 @@ static void hevc_d_buf_queue(struct vb2_buffer *vb)
 static void hevc_d_buf_request_complete(struct vb2_buffer *vb)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct media_request *req = vb->req_obj.req;
 
-	v4l2_ctrl_request_complete(vb->req_obj.req, &ctx->hdl);
+	v4l2_ctrl_request_complete(req, &ctx->hdl);
+
+	/* Must do manual completion, to avoid WARN we must unbind first */
+	media_request_object_unbind(&vb->req_obj);
+	media_request_object_put(&vb->req_obj);
+
+	media_request_manual_complete(req);
 }
 
 static const struct vb2_ops hevc_d_qops = {
