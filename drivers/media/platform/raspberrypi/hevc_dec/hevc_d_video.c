@@ -568,6 +568,17 @@ static int hevc_d_buf_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
+static bool other_q_started(struct hevc_d_ctx *ctx, struct vb2_queue *vq)
+{
+	struct vb2_queue *other_vq;
+
+	other_vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
+				   V4L2_TYPE_IS_OUTPUT(vq->type) ?
+					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
+					V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	return vb2_start_streaming_called(other_vq);
+}
+
 static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
@@ -576,7 +587,8 @@ static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	v4l2_m2m_update_start_streaming_state(ctx->fh.m2m_ctx, vq);
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	/* Only start if we have both OUTPUT and CAPTURE streaming */
+	if (other_q_started(ctx, vq)) {
 		ret = hevc_d_hw_pm_get(dev);
 		if (ret)
 			goto fail_cleanup;
@@ -601,7 +613,12 @@ static void hevc_d_stop_streaming(struct vb2_queue *vq)
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct hevc_d_dev *dev = ctx->dev;
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	/*
+	 * Stop if we stop any stream
+	 * Some decoder resource allocation is based off source and destination
+	 * formats and this prevents old badly sized buffers being used.
+	 */
+	if (other_q_started(ctx, vq)) {
 		hevc_d_h265_stop(ctx);
 		hevc_d_hw_pm_put(dev);
 	}
