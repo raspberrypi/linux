@@ -2615,7 +2615,8 @@ void hevc_d_device_run(void *priv)
 	struct hevc_d_dev *const dev = ctx->dev;
 	struct hevc_d_run run = {};
 	struct media_request *src_req;
-	const struct v4l2_ctrl *ctrl;
+	const struct v4l2_ctrl *slice_ctrl;
+	int err;
 
 	run.src = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
 	run.dst = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
@@ -2635,10 +2636,8 @@ void hevc_d_device_run(void *priv)
 		hevc_d_find_control_data(ctx,
 					 V4L2_CID_STATELESS_HEVC_DECODE_PARAMS);
 
-	ctrl = v4l2_ctrl_find(ctx->fh.ctrl_handler,
+	slice_ctrl = v4l2_ctrl_find(ctx->fh.ctrl_handler,
 			      V4L2_CID_STATELESS_HEVC_SLICE_PARAMS);
-	run.h265.slice_ents = ctrl->elems;	/* Framework ensures >= 1 */
-	run.h265.slice_params = ctrl->p_cur.p;
 
 	run.h265.scaling_matrix =
 		hevc_d_find_control_data(ctx,
@@ -2646,7 +2645,22 @@ void hevc_d_device_run(void *priv)
 
 	v4l2_m2m_buf_copy_metadata(run.src, run.dst);
 
-	if (hevc_d_h265_setup(ctx, &run) == -1)
+	/*
+	 * Ensure controls cannot be changed by non-request sets whilst we
+	 * are using them. slice params must be read inside the lock as the
+	 * array might be realloced.
+	 * SPS, PPS etc. might be overwritten by new values between setup and
+	 * here if they are not attached to the request but that doesn't
+	 * matter as they will be fixed from here until we have finished with
+	 * them.
+	 */
+	mutex_lock(ctx->hdl.lock);
+	run.h265.slice_ents = slice_ctrl->elems;  /* Framework ensures >= 1 */
+	run.h265.slice_params = slice_ctrl->p_cur.p;
+
+	err = hevc_d_h265_setup(ctx, &run);
+	mutex_unlock(ctx->hdl.lock);
+	if (err)
 		goto fail;
 
 	/* Complete request(s) controls */
