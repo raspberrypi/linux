@@ -236,10 +236,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 		goto err_hw;
 	}
 
-	mutex_init(&dev->dev_mutex);
-
 	vfd = &dev->vfd;
-	vfd->lock = &dev->dev_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
 
 	snprintf(vfd->name, sizeof(vfd->name), "%s", hevc_d_video_device.name);
@@ -303,7 +300,6 @@ err_m2m:
 	media_device_cleanup(&dev->mdev);
 	v4l2_m2m_release(dev->m2m_dev);
 err_v4l2:
-	mutex_destroy(&dev->dev_mutex);
 	v4l2_device_unregister(&dev->v4l2_dev);
 err_hw:
 	hevc_d_hw_remove(dev);
@@ -321,7 +317,6 @@ static void hevc_d_remove(struct platform_device *pdev)
 
 	v4l2_m2m_release(dev->m2m_dev);
 	video_unregister_device(&dev->vfd);
-	mutex_destroy(&dev->dev_mutex);
 	v4l2_device_unregister(&dev->v4l2_dev);
 
 	hevc_d_hw_remove(dev);

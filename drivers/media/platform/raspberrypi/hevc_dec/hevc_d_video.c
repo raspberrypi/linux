@@ -319,6 +319,7 @@ static int hevc_d_enum_fmt_vid_cap(struct file *file, void *priv,
  * default is not updated whilst CAPTURE buffers exist as they were sized
  * from it
  * returns a pointer to the struct as a convenience
+ * Must be called with ctx_mutex held
  */
 static struct v4l2_pix_format_mplane *get_dst_fmt(struct hevc_d_ctx *const ctx)
 {
@@ -334,6 +335,8 @@ static int hevc_d_g_fmt_vid_cap(struct file *file, void *priv,
 {
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
 
+	guard(mutex)(&ctx->ctx_mutex);
+
 	f->fmt.pix_mp = *get_dst_fmt(ctx);
 	return 0;
 }
@@ -342,6 +345,8 @@ static int hevc_d_g_fmt_vid_out(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
+
+	guard(mutex)(&ctx->ctx_mutex);
 
 	f->fmt.pix_mp = ctx->src_fmt;
 	return 0;
@@ -387,6 +392,8 @@ static int hevc_d_s_fmt_vid_cap(struct file *file, void *priv,
 	struct vb2_queue *vq;
 	int ret;
 
+	guard(mutex)(&ctx->ctx_mutex);
+
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (vb2_is_busy(vq))
 		return -EBUSY;
@@ -407,6 +414,8 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
 	struct vb2_queue *vq;
 	int ret;
+
+	guard(mutex)(&ctx->ctx_mutex);
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (vb2_is_streaming(vq))
