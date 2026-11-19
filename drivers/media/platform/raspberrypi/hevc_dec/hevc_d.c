@@ -91,6 +91,7 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *hdl = &ctx->hdl;
 	unsigned int i;
+	int ret;
 
 	v4l2_ctrl_handler_init(hdl, ARRAY_SIZE(hevc_d_ctrls));
 	if (hdl->error) {
@@ -111,8 +112,14 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 		}
 	}
 
+	ret = v4l2_ctrl_handler_setup(hdl);
+	if (ret) {
+		v4l2_err(&dev->v4l2_dev, "Failed to set up control handler\n");
+		v4l2_ctrl_handler_free(hdl);
+		return ret;
+	}
+
 	ctx->fh.ctrl_handler = hdl;
-	v4l2_ctrl_handler_setup(hdl);
 
 	return 0;
 }
@@ -155,6 +162,7 @@ static int hevc_d_open(struct file *file)
 err_ctx:
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 err_free:
+	v4l2_fh_exit(&ctx->fh);
 	mutex_destroy(&ctx->ctx_mutex);
 	kfree(ctx);
 	return ret;
