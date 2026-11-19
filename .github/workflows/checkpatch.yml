@@ -19,4 +19,7 @@ jobs:
     - name: Copy checkpatch.conf
       run: cp ${{github.workspace}}/.github/workflows/ci_checkpatch.conf ${{github.workspace}}/.checkpatch.conf
     - name: Run checkpatch review
+      env:
+        # Use the tree's checkpatch.pl, not the action image's stale copy
+        CHECKPATCH_COMMAND: perl scripts/checkpatch.pl
       uses: webispy/checkpatch-action@58374fe5bb03358b23d3d6871e2ff290ce77fcd2 # v9
