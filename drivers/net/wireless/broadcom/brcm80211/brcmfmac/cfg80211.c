@@ -5225,6 +5225,21 @@ static s32 brcmf_bss_disable(struct brcmf_if *ifp)
 	return err;
 }
 
+/*
+ * Stop the firmware from time-sharing the radio between an AP and another
+ * interface on different channels, so that the AP follows the channel of an
+ * associated STA. Not all firmware supports this, hence the lack of fuss.
+ */
+static void brcmf_set_mchan_stago_disab(struct brcmf_if *ifp, bool disab)
+{
+	s32 err;
+
+	err = brcmf_fil_iovar_int_set(ifp, "mchan_stago_disab", disab);
+	if (err)
+		brcmf_dbg(INFO, "mchan_stago_disab %d failed: %d\n", disab,
+			  err);
+}
+
 static s32
 brcmf_cfg80211_start_ap(struct wiphy *wiphy, struct net_device *ndev,
 			struct cfg80211_ap_settings *settings)
@@ -5349,6 +5364,9 @@ brcmf_cfg80211_start_ap(struct wiphy *wiphy, struct net_device *ndev,
 		if ((brcmf_feat_is_enabled(ifp, BRCMF_FEAT_MBSS)) && (!mbss))
 			brcmf_fil_iovar_int_set(ifp, "mbss", 1);
 
+		if (!brcmf_ap_owns_radio(ifp))
+			brcmf_set_mchan_stago_disab(ifp, true);
+
 		err = brcmf_fil_cmd_int_set(ifp, BRCMF_C_SET_AP, 1);
 		if (err < 0) {
 			bphy_err(drvr, "setting AP mode failed %d\n",
@@ -5468,6 +5486,8 @@ exit:
 		brcmf_set_mpc(ifp, 1);
 		brcmf_configure_arp_nd_offload(ifp, true);
 	}
+	if (err && dev_role == NL80211_IFTYPE_AP && !brcmf_ap_owns_radio(ifp))
+		brcmf_set_mchan_stago_disab(ifp, false);
 	return err;
 }
 
@@ -5532,6 +5552,7 @@ static int brcmf_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *ndev,
 		} else {
 			/* Leave the radio, and other interfaces, running */
 			err = brcmf_bss_disable(ifp);
+			brcmf_set_mchan_stago_disab(ifp, false);
 		}
 
 		brcmf_vif_clear_mgmt_ies(ifp->vif);
