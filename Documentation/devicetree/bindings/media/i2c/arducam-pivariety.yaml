@@ -90,7 +90,7 @@ examples:
         #address-cells = <1>;
         #size-cells = <0>;
 
-        arducam_pivariety: sensor@0c {
+        arducam_pivariety: sensor@c {
             compatible = "arducam,arducam-pivariety";
             reg = <0x0c>;
             clocks = <&arducam_pivariety_clk>;
