@@ -389,6 +389,8 @@ static int hevc_d_try_fmt_vid_cap(struct file *file, void *priv,
 		if (f->fmt.pix_mp.pixelformat == pixelformat)
 			break;
 	}
+	if (!pixelformat)
+		f->fmt.pix_mp.pixelformat = pixelformat_from_sps(sps, 0);
 
 	/*
 	 * We don't have any way of finding out colourspace so believe
@@ -397,7 +399,6 @@ static int hevc_d_try_fmt_vid_cap(struct file *file, void *priv,
 	if (f->fmt.pix_mp.colorspace == V4L2_COLORSPACE_DEFAULT)
 		copy_color(&f->fmt.pix_mp, &ctx->src_fmt);
 
-	f->fmt.pix_mp.pixelformat = pixelformat;
 	hevc_d_prepare_dst_format(&f->fmt.pix_mp);
 	return 0;
 }
