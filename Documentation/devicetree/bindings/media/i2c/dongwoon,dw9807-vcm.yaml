@@ -16,7 +16,6 @@ description: |
   DW9817 is very similar as a 10-bit DAC with current sink capability,
   however the output drive is a bidirection -100 to +100mA.
 
-
 properties:
   compatible:
     items:
