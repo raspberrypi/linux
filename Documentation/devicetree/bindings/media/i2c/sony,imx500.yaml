@@ -20,6 +20,9 @@ description: |-
   address of 0x36.  Image data is sent through MIPI CSI-2, which is configured
   as either 2 or 4 data lanes.
 
+allOf:
+  - $ref: /schemas/media/video-interface-devices.yaml#
+
 properties:
   compatible:
     const: sony,imx500
@@ -69,9 +72,15 @@ properties:
         unevaluatedProperties: false
         properties:
           data-lanes:
-            items:
-              - const: 2
-              - const: 4
+            oneOf:
+              - items:
+                  - const: 1
+                  - const: 2
+              - items:
+                  - const: 1
+                  - const: 2
+                  - const: 3
+                  - const: 4
           clock-noncontinuous: true
           link-frequencies: true
         required:
@@ -95,6 +104,8 @@ required:
   - vdig-supply
   - vif-supply
   - port
+
+unevaluatedProperties: false
 
 examples:
   - |
