@@ -36,9 +36,11 @@ properties:
   gpio-controller: true
 
   fast_xfer_requires_i2c_lock:
+    type: boolean
     description: Set if I2C bus should be locked during fast transfer.
 
   fast_xfer_recv_gpio_base:
+    $ref: /schemas/types.yaml#/definitions/uint32
     description: RP2040 GPIO base for fast transfer pair.
 
   fast_xfer-gpios:
