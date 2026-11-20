@@ -978,6 +978,9 @@ static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: eos buffer returned.\n",
 			 __func__);
 		ctx->q_data[V4L2_M2M_SRC].eos_buffer_in_use = false;
+		/* Counted in buffers_with_vpu too: signal it during a flush. */
+		if (!port->enabled)
+			complete(&ctx->frame_cmplt);
 		return;
 	}
 
@@ -987,6 +990,8 @@ static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
 			/* there was a buffer with the error so return it */
 			vb2_buffer_done(&buf->m2m.vb.vb2_buf,
 					VB2_BUF_STATE_ERROR);
+		if (!port->enabled)
+			complete(&ctx->frame_cmplt);
 		return;
 	}
 	if (mmal_buf->cmd) {
@@ -1008,7 +1013,14 @@ static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d input buffers\n",
 		 __func__, ctx->num_ip_buffers);
 
-	if (!port->enabled && atomic_read(&port->buffers_with_vpu))
+	/*
+	 * buffers_with_vpu has already been decremented for this buffer
+	 * (buffer_work_cb), so signal every buffer returned while the port is
+	 * disabled: conditioning on the counter lost the LAST one, and the flush
+	 * then slept COMPLETE_TIMEOUT under dev_mutex, stalling every other
+	 * decoder instance.
+	 */
+	if (!port->enabled)
 		complete(&ctx->frame_cmplt);
 }
 
@@ -1182,6 +1194,8 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 			/* there was a buffer with the error so return it */
 			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_ERROR);
 		}
+		if (!port->enabled)
+			complete(&ctx->frame_cmplt);
 		return;
 	}
 
@@ -1211,8 +1225,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		if (!(mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS)) {
 			if (!port->enabled) {
 				vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_QUEUED);
-				if (atomic_read(&port->buffers_with_vpu))
-					complete(&ctx->frame_cmplt);
+				complete(&ctx->frame_cmplt);
 			} else {
 				vchiq_mmal_submit_buffer(ctx->dev->instance,
 							 &ctx->component->output[0],
@@ -1259,7 +1272,14 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d output buffers\n",
 		 __func__, ctx->num_op_buffers);
 
-	if (!port->enabled && atomic_read(&port->buffers_with_vpu))
+	/*
+	 * buffers_with_vpu has already been decremented for this buffer
+	 * (buffer_work_cb), so signal every buffer returned while the port is
+	 * disabled: conditioning on the counter lost the LAST one, and the flush
+	 * then slept COMPLETE_TIMEOUT under dev_mutex, stalling every other
+	 * decoder instance.
+	 */
+	if (!port->enabled)
 		complete(&ctx->frame_cmplt);
 }
 
@@ -3028,7 +3048,11 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 {
 	int ret;
 
-	if (atomic_read(&port->buffers_with_vpu)) {
+	/*
+	 * Each buffer returned while the port is disabled signals frame_cmplt
+	 * once; wait until none is left with the VPU, each wait bounded.
+	 */
+	while (atomic_read(&port->buffers_with_vpu)) {
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Waiting for buffers to be returned - %d outstanding\n",
 			 __func__, atomic_read(&port->buffers_with_vpu));
 		ret = wait_for_completion_timeout(&ctx->frame_cmplt,
@@ -3037,6 +3061,7 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Timeout waiting for buffers to be returned - %d outstanding\n",
 				 __func__,
 				 atomic_read(&port->buffers_with_vpu));
+			break;
 		}
 	}
 }
