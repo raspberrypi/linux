@@ -1692,12 +1692,12 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 				  run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
-		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage ||
-		    run->dst->planes[1].length < ctx->dst_fmt.plane_fmt[1].sizeimage) {
+		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage ||
+		    vb2_plane_size(&run->dst->vb2_buf, 1) < ctx->dst_fmt.plane_fmt[1].sizeimage) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%d/%d) < sizeimage (%d/%d)\n",
-				  run->dst->planes[0].length,
-				  run->dst->planes[1].length,
+				  "Capture planes length (%lu/%lu) < sizeimage (%d/%d)\n",
+				  vb2_plane_size(&run->dst->vb2_buf, 0),
+				  vb2_plane_size(&run->dst->vb2_buf, 1),
 				  ctx->dst_fmt.plane_fmt[0].sizeimage,
 				  ctx->dst_fmt.plane_fmt[1].sizeimage);
 			goto fail;
@@ -1710,10 +1710,10 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 				  run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
-		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage) {
+		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%d) < sizeimage (%d)\n",
-				  run->dst->planes[0].length,
+				  "Capture planes length (%lu) < sizeimage (%d)\n",
+				  vb2_plane_size(&run->dst->vb2_buf, 0),
 				  ctx->dst_fmt.plane_fmt[0].sizeimage);
 			goto fail;
 		}
