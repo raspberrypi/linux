@@ -21,13 +21,11 @@ properties:
       - raspberrypi,rpivid-vid-decoder
 
   reg:
-    minItems: 2
     items:
       - description: The HEVC main register region
       - description: The Interrupt controller register region
 
   reg-names:
-    minItems: 2
     items:
       - const: hevc
       - const: intc
@@ -56,17 +54,22 @@ examples:
   - |
     #include <dt-bindings/interrupt-controller/arm-gic.h>
 
-    video-codec@7eb10000 {
-        compatible = "raspberrypi,rpivid-vid-decoder";
-        reg = <0x0 0x7eb10000 0x1000>,	/* INTC */
-              <0x0 0x7eb00000 0x10000>; /* HEVC */
-        reg-names = "intc",
-                    "hevc";
+    soc {
+        #address-cells = <2>;
+        #size-cells = <1>;
 
-        interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+        video-codec@7eb00000 {
+            compatible = "raspberrypi,rpivid-vid-decoder";
+            reg = <0x0 0x7eb00000 0x10000>,
+                  <0x0 0x7eb10000 0x1000>;
+            reg-names = "hevc",
+                        "intc";
 
-        clocks = <&clk 0>;
-        clock-names = "hevc";
+            interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+
+            clocks = <&clk 0>;
+            clock-names = "hevc";
+        };
     };
 
 ...
