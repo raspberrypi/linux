@@ -82,6 +82,7 @@ struct hx8394_panel_desc {
 	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
 	void (*init_sequence)(struct mipi_dsi_multi_context *dsi_ctx);
+	void (*display_on_sequence)(struct mipi_dsi_multi_context *dsi_ctx);
 };
 
 static inline struct hx8394 *panel_to_hx8394(struct drm_panel *panel)
@@ -708,6 +709,19 @@ static void waveshare_5_0_inch_a_init_sequence(struct mipi_dsi_multi_context *ds
 				     0x40, 0x81, 0x50, 0x00, 0x1a, 0xfc, 0x01);
 };
 
+static void waveshare_5_0_inch_a_display_on_sequence(struct mipi_dsi_multi_context *dsi_ctx)
+{
+	mipi_dsi_msleep(dsi_ctx, 200);
+
+	/* 5.19.3 SETDISP: Set display related register (B2h) */
+	mipi_dsi_dcs_write_seq_multi(dsi_ctx, HX8394_CMD_SETDISP,
+				     0x00, 0x80, 0x64, 0x0c, 0x06, 0x2f, 0x00, 0x00,
+				     0x00, 0x00, 0xc0, 0x18);
+
+	mipi_dsi_dcs_set_display_on_multi(dsi_ctx);
+	mipi_dsi_msleep(dsi_ctx, 80);
+}
+
 static const struct drm_display_mode waveshare_5_0_inch_a_mode = {
 	.clock = 70000,
 	.hdisplay = 720,
@@ -729,6 +743,7 @@ static const struct hx8394_panel_desc waveshare_5_0_inch_a_desc = {
 		      MIPI_DSI_MODE_LPM | MIPI_DSI_CLOCK_NON_CONTINUOUS,
 	.format = MIPI_DSI_FMT_RGB888,
 	.init_sequence = waveshare_5_0_inch_a_init_sequence,
+	.display_on_sequence = waveshare_5_0_inch_a_display_on_sequence,
 };
 
 static const struct drm_display_mode waveshare_5_5_inch_a_mode = {
@@ -882,10 +897,14 @@ static int hx8394_enable(struct drm_panel *panel)
 
 	mipi_dsi_dcs_exit_sleep_mode_multi(&dsi_ctx);
 
-	/* Panel is operational 120 msec after reset */
-	mipi_dsi_msleep(&dsi_ctx, 120);
+	if (ctx->desc->display_on_sequence) {
+		ctx->desc->display_on_sequence(&dsi_ctx);
+	} else {
+		/* Panel is operational 120 msec after reset */
+		mipi_dsi_msleep(&dsi_ctx, 120);
 
-	mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
+		mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
+	}
 	if (dsi_ctx.accum_err)
 		hx8394_disable(panel);
 
