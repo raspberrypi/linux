@@ -1,9 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright © 2023 Raspberry Pi Ltd
- *
- * Based on panel-raspberrypi-touchscreen by Broadcom
- */
 
 #include <linux/backlight.h>
 #include <linux/delay.h>
@@ -39,214 +34,6 @@ struct ws_panel_data {
 	unsigned long mode_flags;
 };
 
-/* 2.8inch 480x640
- * https://www.waveshare.com/product/raspberry-pi/displays/2.8inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_2_8_mode = {
-	.clock = 50000,
-	.hdisplay = 480,
-	.hsync_start = 480 + 150,
-	.hsync_end = 480 + 150 + 50,
-	.htotal = 480 + 150 + 50 + 150,
-	.vdisplay = 640,
-	.vsync_start = 640 + 150,
-	.vsync_end = 640 + 150 + 50,
-	.vtotal = 640 + 150 + 50 + 150,
-};
-
-static const struct ws_panel_data ws_panel_2_8_data = {
-	.mode = &ws_panel_2_8_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 3.4inch 800x800 Round
- * https://www.waveshare.com/product/displays/lcd-oled/3.4inch-dsi-lcd-c.htm
- */
-static const struct drm_display_mode ws_panel_3_4_mode = {
-	.clock = 50000,
-	.hdisplay = 800,
-	.hsync_start = 800 + 32,
-	.hsync_end = 800 + 32 + 6,
-	.htotal = 800 + 32 + 6 + 120,
-	.vdisplay = 800,
-	.vsync_start = 800 + 8,
-	.vsync_end = 800 + 8 + 4,
-	.vtotal = 800 + 8 + 4 + 16,
-};
-
-static const struct ws_panel_data ws_panel_3_4_data = {
-	.mode = &ws_panel_3_4_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 4.0inch 480x800
- * https://www.waveshare.com/product/raspberry-pi/displays/4inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_4_0_mode = {
-	.clock = 50000,
-	.hdisplay = 480,
-	.hsync_start = 480 + 150,
-	.hsync_end = 480 + 150 + 100,
-	.htotal = 480 + 150 + 100 + 150,
-	.vdisplay = 800,
-	.vsync_start = 800 + 20,
-	.vsync_end = 800 + 20 + 100,
-	.vtotal = 800 + 20 + 100 + 20,
-};
-
-static const struct ws_panel_data ws_panel_4_0_data = {
-	.mode = &ws_panel_4_0_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 7.0inch C 1024x600
- * https://www.waveshare.com/product/raspberry-pi/displays/lcd-oled/7inch-dsi-lcd-c-with-case-a.htm
- */
-static const struct drm_display_mode ws_panel_7_0_c_mode = {
-	.clock = 50000,
-	.hdisplay = 1024,
-	.hsync_start = 1024 + 100,
-	.hsync_end = 1024 + 100 + 100,
-	.htotal = 1024 + 100 + 100 + 100,
-	.vdisplay = 600,
-	.vsync_start = 600 + 10,
-	.vsync_end = 600 + 10 + 10,
-	.vtotal = 600 + 10 + 10 + 10,
-};
-
-static const struct ws_panel_data ws_panel_7_0_c_data = {
-	.mode = &ws_panel_7_0_c_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 7.9inch 400x1280
- * https://www.waveshare.com/product/raspberry-pi/displays/7.9inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_7_9_mode = {
-	.clock = 50000,
-	.hdisplay = 400,
-	.hsync_start = 400 + 40,
-	.hsync_end = 400 + 40 + 30,
-	.htotal = 400 + 40 + 30 + 40,
-	.vdisplay = 1280,
-	.vsync_start = 1280 + 20,
-	.vsync_end = 1280 + 20 + 10,
-	.vtotal = 1280 + 20 + 10 + 20,
-};
-
-static const struct ws_panel_data ws_panel_7_9_data = {
-	.mode = &ws_panel_7_9_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 8.0inch or 10.1inch 1280x800
- * https://www.waveshare.com/product/raspberry-pi/displays/8inch-dsi-lcd-c.htm
- * https://www.waveshare.com/product/raspberry-pi/displays/10.1inch-dsi-lcd-c.htm
- */
-static const struct drm_display_mode ws_panel_10_1_mode = {
-	.clock = 83333,
-	.hdisplay = 1280,
-	.hsync_start = 1280 + 156,
-	.hsync_end = 1280 + 156 + 20,
-	.htotal = 1280 + 156 + 20 + 40,
-	.vdisplay = 800,
-	.vsync_start = 800 + 40,
-	.vsync_end = 800 + 40 + 48,
-	.vtotal = 800 + 40 + 48 + 40,
-};
-
-static const struct ws_panel_data ws_panel_10_1_data = {
-	.mode = &ws_panel_10_1_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 11.9inch 320x1480
- * https://www.waveshare.com/product/raspberry-pi/displays/11.9inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_11_9_mode = {
-	.clock = 50000,
-	.hdisplay = 320,
-	.hsync_start = 320 + 60,
-	.hsync_end = 320 + 60 + 60,
-	.htotal = 320 + 60 + 60 + 60,
-	.vdisplay = 1480,
-	.vsync_start = 1480 + 60,
-	.vsync_end = 1480 + 60 + 60,
-	.vtotal = 1480 + 60 + 60 + 60,
-};
-
-static const struct ws_panel_data ws_panel_11_9_data = {
-	.mode = &ws_panel_11_9_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-static const struct drm_display_mode ws_panel_4_mode = {
-	.clock = 50000,
-	.hdisplay = 720,
-	.hsync_start = 720 + 32,
-	.hsync_end = 720 + 32 + 200,
-	.htotal = 720 + 32 + 200 + 120,
-	.vdisplay = 720,
-	.vsync_start = 720 + 8,
-	.vsync_end = 720 + 8 + 4,
-	.vtotal = 720 + 8 + 4 + 16,
-};
-
-static const struct ws_panel_data ws_panel_4_data = {
-	.mode = &ws_panel_4_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 5.0inch 720x1280
- * https://www.waveshare.com/5inch-dsi-lcd-d.htm
- */
-static const struct drm_display_mode ws_panel_5_0_mode = {
-	.clock = 83333,
-	.hdisplay = 720,
-	.hsync_start = 720 + 100,
-	.hsync_end = 720 + 100 + 80,
-	.htotal = 720 + 100 + 80 + 100,
-	.vdisplay = 1280,
-	.vsync_start = 1280 + 20,
-	.vsync_end = 1280 + 20 + 20,
-	.vtotal = 1280 + 20 + 20 + 20,
-};
-
-static const struct ws_panel_data ws_panel_5_0_data = {
-	.mode = &ws_panel_5_0_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-/* 6.25inch 720x1560
- * https://www.waveshare.com/6.25inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_6_25_mode = {
-	.clock = 83333,
-	.hdisplay = 720,
-	.hsync_start = 720 + 50,
-	.hsync_end = 720 + 50 + 50,
-	.htotal = 720 + 50 + 50 + 50,
-	.vdisplay = 1560,
-	.vsync_start = 1560 + 20,
-	.vsync_end = 1560 + 20 + 20,
-	.vtotal = 1560 + 20 + 20 + 20,
-};
-
-static const struct ws_panel_data ws_panel_6_25_data = {
-	.mode = &ws_panel_6_25_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
 /* 6.25inch B 720x1560
  * https://www.waveshare.com/6.25inch-dsi-lcd-b.htm
  */
@@ -268,45 +55,6 @@ static const struct ws_panel_data ws_panel_6_25_b_data = {
 	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
 };
 
-/* 8.8inch 480x1920
- * https://www.waveshare.com/8.8inch-dsi-lcd.htm
- */
-static const struct drm_display_mode ws_panel_8_8_mode = {
-	.clock = 83333,
-	.hdisplay = 480,
-	.hsync_start = 480 + 50,
-	.hsync_end = 480 + 50 + 50,
-	.htotal = 480 + 50 + 50 + 50,
-	.vdisplay = 1920,
-	.vsync_start = 1920 + 20,
-	.vsync_end = 1920 + 20 + 20,
-	.vtotal = 1920 + 20 + 20 + 20,
-};
-
-static const struct ws_panel_data ws_panel_8_8_data = {
-	.mode = &ws_panel_8_8_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
-};
-
-static const struct drm_display_mode ws_panel_13_3_4lane_mode = {
-	.clock = 148500,
-	.hdisplay = 1920,
-	.hsync_start = 1920 + 88,
-	.hsync_end = 1920 + 88 + 44,
-	.htotal = 1920 + 88 + 44 + 148,
-	.vdisplay = 1080,
-	.vsync_start = 1080 + 4,
-	.vsync_end = 1080 + 4 + 5,
-	.vtotal = 1080 + 4 + 5 + 36,
-};
-
-static const struct ws_panel_data ws_panel_13_3_4lane_data = {
-	.mode = &ws_panel_13_3_4lane_mode,
-	.lanes = 4,
-	.mode_flags = MIPI_DSI_MODE_VIDEO  | MIPI_DSI_MODE_LPM,
-};
-
 static const struct drm_display_mode ws_panel_13_3_2lane_mode = {
 	.clock = 83333,
 	.hdisplay = 1920,
@@ -323,27 +71,6 @@ static const struct ws_panel_data ws_panel_13_3_2lane_data = {
 	.mode = &ws_panel_13_3_2lane_mode,
 	.lanes = 2,
 	.mode_flags = MIPI_DSI_MODE_VIDEO  | MIPI_DSI_MODE_LPM,
-};
-
-/* 7.0inch 1280x720
- * https://www.waveshare.com/7inch-dsi-lcd-h.htm
- */
-static const struct drm_display_mode ws_panel_7_0_h_mode = {
-	.clock = 83333,
-	.hdisplay = 1280,
-	.hsync_start = 1280 + 64,
-	.hsync_end = 1280 + 64 + 64,
-	.htotal = 1280 + 64 + 64 + 64,
-	.vdisplay = 720,
-	.vsync_start = 720 + 64,
-	.vsync_end = 720 + 64 + 64,
-	.vtotal = 720 + 64 + 64 + 64,
-};
-
-static const struct ws_panel_data ws_panel_7_0_h_data = {
-	.mode = &ws_panel_7_0_h_mode,
-	.lanes = 2,
-	.mode_flags = MIPI_DSI_MODE_VIDEO_HSE | MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS,
 };
 
 /* 10.1inch DSI LCD (E)
@@ -640,53 +367,11 @@ static void ws_panel_shutdown(struct i2c_client *i2c)
 
 static const struct of_device_id ws_panel_of_ids[] = {
 	{
-		.compatible = "waveshare,2.8inch-panel",
-		.data = &ws_panel_2_8_data,
-	}, {
-		.compatible = "waveshare,3.4inch-panel",
-		.data = &ws_panel_3_4_data,
-	}, {
-		.compatible = "waveshare,4.0inch-panel",
-		.data = &ws_panel_4_0_data,
-	}, {
-		.compatible = "waveshare,7.0inch-c-panel",
-		.data = &ws_panel_7_0_c_data,
-	}, {
-		.compatible = "waveshare,7.9inch-panel",
-		.data = &ws_panel_7_9_data,
-	}, {
-		.compatible = "waveshare,8.0inch-panel",
-		.data = &ws_panel_10_1_data,
-	}, {
-		.compatible = "waveshare,10.1inch-panel",
-		.data = &ws_panel_10_1_data,
-	}, {
-		.compatible = "waveshare,11.9inch-panel",
-		.data = &ws_panel_11_9_data,
-	}, {
-		.compatible = "waveshare,4inch-panel",
-		.data = &ws_panel_4_data,
-	}, {
-		.compatible = "waveshare,5.0inch-panel",
-		.data = &ws_panel_5_0_data,
-	}, {
-		.compatible = "waveshare,6.25inch-panel",
-		.data = &ws_panel_6_25_data,
-	}, {
 		.compatible = "waveshare,6.25inch-b-panel",
 		.data = &ws_panel_6_25_b_data,
 	}, {
-		.compatible = "waveshare,8.8inch-panel",
-		.data = &ws_panel_8_8_data,
-	}, {
-		.compatible = "waveshare,13.3inch-4lane-panel",
-		.data = &ws_panel_13_3_4lane_data,
-	}, {
 		.compatible = "waveshare,13.3inch-2lane-panel",
 		.data = &ws_panel_13_3_2lane_data,
-	}, {
-		.compatible = "waveshare,7.0inch-h-panel",
-		.data = &ws_panel_7_0_h_data,
 	}, {
 		.compatible = "waveshare,10.1inch-e-4lane-panel",
 		.data = &ws_panel_10_1_e_4lane_data,
