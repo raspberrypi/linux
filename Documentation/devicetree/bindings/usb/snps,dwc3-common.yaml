@@ -389,6 +389,14 @@ properties:
     $ref: /schemas/types.yaml#/definitions/uint8
     minimum: 3
 
+  snps,axi-pipe-limit:
+    $ref: /schemas/types.yaml#/definitions/uint8
+    minimum: 1
+    maximum: 16
+    description:
+      Maximum number of pipelined AXI transfers (GSBUSCFG1.PIPETRANSLIMIT).
+      If absent, the hardware default is kept.
+
   snps,incr-burst-type-adjustment:
     description:
       Value for INCR burst type of GSBUSCFG0 register, undefined length INCR
