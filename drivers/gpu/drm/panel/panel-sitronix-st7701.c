@@ -106,6 +106,7 @@ struct st7701;
 struct st7701_panel_desc {
 	const struct drm_display_mode *mode;
 	unsigned int lanes;
+	unsigned long mode_flags;
 	enum mipi_dsi_pixel_format format;
 	u32 mediabus_format;
 	unsigned int panel_sleep_delay;
@@ -130,6 +131,8 @@ struct st7701_panel_desc {
 
 	/* GIP sequence, fully custom and undocumented. */
 	void		(*gip_sequence)(struct st7701 *st7701);
+	/* Optional complete initialization for panels with a different sequence. */
+	int		(*init_sequence)(struct st7701 *st7701);
 };
 
 struct st7701 {
@@ -633,6 +636,61 @@ static void txw210001b0_gip_sequence(struct st7701 *st7701)
 	ST7701_WRITE(st7701, MIPI_DCS_EXIT_SLEEP_MODE);
 }
 
+static int hd40007c30_v5_init_sequence(struct st7701 *st7701)
+{
+	struct mipi_dsi_multi_context ctx = { .dsi = st7701->dsi };
+
+	/* This module uses panel-specific internal porch and gate timings. */
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xFF, 0x77, 0x01, 0x00, 0x00, 0x10);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xC0, 0x3B, 0x00);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xC1, 0x0D, 0x02);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xC2, 0x31, 0x05);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xCD, 0x08);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB0, 0x00, 0x11, 0x18, 0x0E, 0x11, 0x06,
+				     0x07, 0x08, 0x07, 0x22, 0x04, 0x12, 0x0F, 0xAA, 0x31, 0x18);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB1, 0x00, 0x11, 0x19, 0x0E, 0x12, 0x07,
+				     0x08, 0x08, 0x08, 0x22, 0x04, 0x11, 0x11, 0xA9, 0x32, 0x18);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xFF, 0x77, 0x01, 0x00, 0x00, 0x11);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB0, 0x60);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB1, 0x32);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB2, 0x07);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB3, 0x80);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB5, 0x49);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB7, 0x85);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xB8, 0x21);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xC1, 0x78);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xC2, 0x78);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE0, 0x00, 0x1B, 0x02);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE1, 0x08, 0xA0, 0x00, 0x00, 0x07, 0xA0,
+				     0x00, 0x00, 0x00, 0x44, 0x44);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE2, 0x11, 0x11, 0x44, 0x44, 0xED, 0xA0,
+				     0x00, 0x00, 0xEC, 0xA0, 0x00, 0x00);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE3, 0x00, 0x00, 0x11, 0x11);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE4, 0x44, 0x44);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE5, 0x0A, 0xE9, 0xD8, 0xA0, 0x0C, 0xEB,
+				     0xD8, 0xA0, 0x0E, 0xED, 0xD8, 0xA0, 0x10, 0xEF, 0xD8, 0xA0);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE6, 0x00, 0x00, 0x11, 0x11);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE7, 0x44, 0x44);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE8, 0x09, 0xE8, 0xD8, 0xA0, 0x0B, 0xEA,
+				     0xD8, 0xA0, 0x0D, 0xEC, 0xD8, 0xA0, 0x0F, 0xEE, 0xD8, 0xA0);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xEB, 0x02, 0x00, 0xE4, 0xE4, 0x88, 0x00, 0x40);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xEC, 0x3C, 0x00);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xED, 0xAB, 0x89, 0x76, 0x54, 0x02, 0xFF,
+				     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x20, 0x45, 0x67, 0x98, 0xBA);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0x36, 0x00);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xFF, 0x77, 0x01, 0x00, 0x00, 0x13);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xE5, 0xE4);
+	mipi_dsi_dcs_write_seq_multi(&ctx, 0xFF, 0x77, 0x01, 0x00, 0x00, 0x00);
+	mipi_dsi_dcs_set_pixel_format_multi(&ctx, 0x77);
+	mipi_dsi_dcs_write_seq_multi(&ctx, MIPI_DCS_ENTER_INVERT_MODE);
+	mipi_dsi_msleep(&ctx, 10);
+	mipi_dsi_dcs_exit_sleep_mode_multi(&ctx);
+	mipi_dsi_msleep(&ctx, 120);
+	mipi_dsi_dcs_write_seq_multi(&ctx, MIPI_DCS_EXIT_INVERT_MODE);
+
+	return ctx.accum_err;
+}
+
 static int st7701_prepare(struct drm_panel *panel)
 {
 	struct st7701 *st7701 = panel_to_st7701(panel);
@@ -648,6 +706,16 @@ static int st7701_prepare(struct drm_panel *panel)
 
 	gpiod_set_value(st7701->reset, 1);
 	msleep(150);
+
+	if (st7701->desc->init_sequence) {
+		ret = st7701->desc->init_sequence(st7701);
+		if (ret) {
+			gpiod_set_value(st7701->reset, 0);
+			regulator_bulk_disable(ARRAY_SIZE(st7701->supplies),
+					       st7701->supplies);
+		}
+		return ret;
+	}
 
 	st7701_init_sequence(st7701);
 
@@ -754,6 +822,31 @@ static const struct drm_panel_funcs st7701_funcs = {
 	.enable		= st7701_enable,
 	.get_modes	= st7701_get_modes,
 	.get_orientation = st7701_get_orientation,
+};
+
+static const struct drm_display_mode hd40007c30_v5_mode = {
+	.clock = 16000,
+	.hdisplay = 480,
+	.hsync_start = 480 + 50,
+	.hsync_end = 480 + 50 + 2,
+	.htotal = 480 + 50 + 2 + 44,
+	.vdisplay = 480,
+	.vsync_start = 480 + 16,
+	.vsync_end = 480 + 16 + 2,
+	.vtotal = 480 + 16 + 2 + 18,
+	.width_mm = 72,
+	.height_mm = 72,
+	.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
+	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
+};
+
+static const struct st7701_panel_desc hd40007c30_v5_desc = {
+	.mode = &hd40007c30_v5_mode,
+	.lanes = 2,
+	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
+		      MIPI_DSI_MODE_LPM | MIPI_DSI_CLOCK_NON_CONTINUOUS,
+	.format = MIPI_DSI_FMT_RGB888,
+	.init_sequence = hd40007c30_v5_init_sequence,
 };
 
 static const struct drm_display_mode ts8550b_mode = {
@@ -1588,7 +1681,8 @@ static int st7701_dsi_probe(struct mipi_dsi_device *dsi)
 	if (!st7701->desc->lanes)
 		return dev_err_probe(&dsi->dev, -EINVAL, "This panel is not for MIPI DSI\n");
 
-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
+	dsi->mode_flags = st7701->desc->mode_flags ?:
+			  MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
 			  MIPI_DSI_MODE_LPM | MIPI_DSI_CLOCK_NON_CONTINUOUS;
 	dsi->format = st7701->desc->format;
 	dsi->lanes = st7701->desc->lanes;
@@ -1634,6 +1728,7 @@ static const struct of_device_id st7701_dsi_of_match[] = {
 	{ .compatible = "anbernic,rg-arc-panel", .data = &rg_arc_desc },
 	{ .compatible = "densitron,dmt028vghmcmi-1a", .data = &dmt028vghmcmi_1a_desc },
 	{ .compatible = "elida,kd50t048a", .data = &kd50t048a_desc },
+	{ .compatible = "huadi,hd40007c30-v5", .data = &hd40007c30_v5_desc },
 	{ .compatible = "techstar,ts8550b", .data = &ts8550b_desc },
 	{ .compatible = "winstar,wf40eswaa6mnn0", .data = &wf40eswaa6mnn0_desc },
 	{ }

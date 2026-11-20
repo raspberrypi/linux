@@ -719,6 +719,8 @@ patternProperties:
     description: HannStar Display Co.
   "^htc,.*":
     description: HTC Corporation
+  "^huadi,.*":
+    description: Shenzhen Huadi Chuangxian Technology Co., Ltd.
   "^huawei,.*":
     description: Huawei Technologies Co., Ltd.
   "^hugsun,.*":
