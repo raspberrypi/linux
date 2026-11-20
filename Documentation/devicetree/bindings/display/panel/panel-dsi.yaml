@@ -9,9 +9,6 @@ title: Generic MIPI DSI Panel
 maintainers:
   - Timon Skerutsch <kernel@diodes-delight.com>
 
-allOf:
-  - $ref: panel-common.yaml#
-
 properties:
   compatible:
     description:
@@ -51,30 +48,46 @@ properties:
     description: |
       DSI mode flags. See DSI Specs for details.
       These are driver independent features of the DSI bus.
+    $ref: /schemas/types.yaml#/definitions/string-array
     items:
-      - const: MODE_VIDEO
-      - const: MODE_VIDEO_BURST
-      - const: MODE_VIDEO_SYNC_PULSE
-      - const: MODE_VIDEO_AUTO_VERT
-      - const: MODE_VIDEO_HSE
-      - const: MODE_VIDEO_NO_HFP
-      - const: MODE_VIDEO_NO_HBP
-      - const: MODE_VIDEO_NO_HSA
-      - const: MODE_VSYNC_FLUSH
-      - const: MODE_NO_EOT_PACKET
-      - const: CLOCK_NON_CONTINUOUS
-      - const: MODE_LPM
-      - const: HS_PKT_END_ALIGNED
+      enum:
+        - MODE_VIDEO
+        - MODE_VIDEO_BURST
+        - MODE_VIDEO_SYNC_PULSE
+        - MODE_VIDEO_AUTO_VERT
+        - MODE_VIDEO_HSE
+        - MODE_VIDEO_NO_HFP
+        - MODE_VIDEO_NO_HBP
+        - MODE_VIDEO_NO_HSA
+        - MODE_VSYNC_FLUSH
+        - MODE_NO_EOT_PACKET
+        - CLOCK_NON_CONTINUOUS
+        - MODE_LPM
+        - HS_PKT_END_ALIGNED
 
-  reg: true
-  backlight: true
-  enable-gpios: true
+  reg:
+    maxItems: 1
+
+  backlight:
+    $ref: panel-common.yaml#/properties/backlight
+
+  enable-gpios:
+    $ref: panel-common.yaml#/properties/enable-gpios
+
   width-mm: true
+
   height-mm: true
-  panel-timing: true
+
+  panel-timing:
+    $ref: panel-common.yaml#/properties/panel-timing
+
   power-supply: true
-  reset-gpios: true
-  ddc-i2c-bus: true
+
+  reset-gpios:
+    $ref: panel-common.yaml#/properties/reset-gpios
+
+  ddc-i2c-bus:
+    $ref: panel-common.yaml#/properties/ddc-i2c-bus
 
 required:
   - panel-timing
@@ -87,32 +100,38 @@ additionalProperties: false
 
 examples:
   - |
-    panel {
-        compatible = "panel-mfgr,generic-dsi-panel","panel-dsi";
-        power-supply = <&vcc_supply>;
-        backlight = <&backlight>;
-        dsi-color-format = "RGB888";
-        reg = <0>;
-        mode = "MODE_VIDEO", "MODE_VIDEO_BURST", "MODE_NO_EOT_PACKET";
+    dsi {
+        #address-cells = <1>;
+        #size-cells = <0>;
 
-        port {
-            panel_dsi_port: endpoint {
-                data-lanes = <1 2>;
-                remote-endpoint = <&dsi_out>;
+        panel@0 {
+            compatible = "panel-mfgr,generic-dsi-panel","panel-dsi";
+            power-supply = <&vcc_supply>;
+            backlight = <&backlight>;
+            dsi-color-format = "RGB888";
+            reg = <0>;
+            mode = "MODE_VIDEO", "MODE_VIDEO_BURST", "MODE_NO_EOT_PACKET";
+
+            port {
+                panel_dsi_port: endpoint {
+                    data-lanes = <1 2>;
+                    remote-endpoint = <&dsi_out>;
+                };
+            };
+
+            panel-timing {
+                clock-frequency = <9200000>;
+                hactive = <800>;
+                vactive = <480>;
+                hfront-porch = <8>;
+                hback-porch = <4>;
+                hsync-len = <41>;
+                vback-porch = <2>;
+                vfront-porch = <4>;
+                vsync-len = <10>;
             };
         };
 
-        panel-timing {
-            clock-frequency = <9200000>;
-            hactive = <800>;
-            vactive = <480>;
-            hfront-porch = <8>;
-            hback-porch = <4>;
-            hsync-len = <41>;
-            vback-porch = <2>;
-            vfront-porch = <4>;
-            vsync-len = <10>;
-        };
     };
 
 ...
