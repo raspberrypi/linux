@@ -329,9 +329,19 @@ static int hevc_d_enum_fmt_vid_cap(struct file *file, void *priv,
 }
 
 /*
+ * The dst format may not change whilst CAPTURE buffers exist as they were
+ * sized from it, or whilst CAPTURE is streaming as decoder resources are
+ * sized from it at start. Buffers existing is not sufficient as
+ * VIDIOC_REMOVE_BUFS can remove them all whilst streaming.
+ */
+static bool dst_fmt_locked(struct vb2_queue *vq)
+{
+	return vb2_is_busy(vq) || vb2_is_streaming(vq);
+}
+
+/*
  * get dst format - sets it to default if otherwise unset
- * default is not updated whilst CAPTURE buffers exist as they were sized
- * from it
+ * default is not updated whilst the dst format is locked
  * returns a pointer to the struct as a convenience
  * Must be called with ctx_mutex held
  */
@@ -339,7 +349,7 @@ static struct v4l2_pix_format_mplane *get_dst_fmt(struct hevc_d_ctx *const ctx)
 {
 	struct vb2_queue *vq = v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx);
 
-	if (!ctx->dst_fmt_set && !vb2_is_busy(vq))
+	if (!ctx->dst_fmt_set && !dst_fmt_locked(vq))
 		ctx->dst_fmt = hevc_d_hevc_default_dst_fmt(ctx);
 	return &ctx->dst_fmt;
 }
@@ -409,7 +419,7 @@ static int hevc_d_s_fmt_vid_cap(struct file *file, void *priv,
 	guard(mutex)(&ctx->ctx_mutex);
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
-	if (vb2_is_busy(vq))
+	if (dst_fmt_locked(vq))
 		return -EBUSY;
 
 	ret = hevc_d_try_fmt_vid_cap(file, priv, f);
