@@ -375,7 +375,7 @@ static u32 dw_spi_prepare_cr0(struct dw_spi *dws, struct spi_device *spi)
 }
 
 void dw_spi_update_config(struct dw_spi *dws, struct spi_device *spi,
-			  struct dw_spi_cfg *cfg)
+			  struct dw_spi_cfg *cfg, struct dw_spi_enh_cfg *ecfg)
 {
 	struct dw_spi_chip_data *chip = spi_get_ctldata(spi);
 	u32 cr0 = chip->cr0;
@@ -385,14 +385,26 @@ void dw_spi_update_config(struct dw_spi *dws, struct spi_device *spi,
 	/* CTRLR0[ 4/3: 0] or CTRLR0[ 20: 16] Data Frame Size */
 	cr0 |= (cfg->dfs - 1) << dws->dfs_offset;
 
-	if (dw_spi_ip_is(dws, PSSI))
+	if (dw_spi_ip_is(dws, PSSI)) {
 		/* CTRLR0[ 9:8] Transfer Mode */
 		cr0 |= FIELD_PREP(DW_PSSI_CTRLR0_TMOD_MASK, cfg->tmode);
-	else
+		/* CTRLR0[22:21] Enhanced SPI frame format (quad) */
+		if (dws->caps & DW_SPI_CAP_QUAD)
+			cr0 |= FIELD_PREP(DW_PSSI_CTRLR0_ENH_FRF_MASK, cfg->enh_frf);
+	} else {
 		/* CTRLR0[11:10] Transfer Mode */
 		cr0 |= FIELD_PREP(DW_HSSI_CTRLR0_TMOD_MASK, cfg->tmode);
+	}
 
 	dw_writel(dws, DW_SPI_CTRLR0, cr0);
+
+	if (ecfg) {
+		cr0 = FIELD_PREP(DW_SPI_ENH_CTRLR0_TRANS_TYPE_MASK, ecfg->trans_type) |
+		      FIELD_PREP(DW_SPI_ENH_CTRLR0_ADDR_L_MASK, ecfg->addr_l) |
+		      FIELD_PREP(DW_SPI_ENH_CTRLR0_INST_L_MASK, ecfg->inst_l) |
+		      FIELD_PREP(DW_SPI_ENH_CTRLR0_WAIT_CYCLE_MASK, ecfg->wait_l);
+		dw_writel(dws, DW_SPI_ENH_CTRLR0, cr0);
+	}
 
 	if (cfg->tmode == DW_SPI_CTRLR0_TMOD_EPROMREAD ||
 	    cfg->tmode == DW_SPI_CTRLR0_TMOD_RO)
@@ -415,10 +427,143 @@ void dw_spi_update_config(struct dw_spi *dws, struct spi_device *spi,
 }
 EXPORT_SYMBOL_NS_GPL(dw_spi_update_config, "SPI_DW_CORE");
 
+/*
+ * The controller transmits only while the Tx FIFO is non-empty, so a frame has
+ * to be initiated by a write to it. A standard receive-only frame needs a
+ * single dummy word. An enhanced frame is initiated by its control words. For
+ * a write the data must follow at once, since the frame ends as soon as the
+ * Tx FIFO drains.
+ */
+void dw_spi_start_frame(struct dw_spi *dws)
+{
+	if (dws->enh.ctrl_len) {
+		dw_write_io_reg(dws, DW_SPI_DR, dws->enh.inst);
+		if (dws->enh.ctrl_len > 1)
+			dw_write_io_reg(dws, DW_SPI_DR, dws->enh.addr);
+
+		/* The control words are consumed and must not be repeated */
+		memset(&dws->enh, 0, sizeof(dws->enh));
+
+		if (dws->tx_len)
+			dw_writer(dws);
+	} else if (!dws->tx_len) {
+		dw_writel(dws, DW_SPI_DR, 0);
+	}
+}
+
+/* True if the multi-lane data of an enhanced frame is still ahead */
+static bool dw_spi_enh_data_pending(struct spi_controller *host,
+				    struct spi_transfer *xfer)
+{
+	struct spi_transfer *next = xfer;
+
+	list_for_each_entry_continue(next, &host->cur_msg->transfers, transfer_list)
+		if (next->tx_nbits > 1 || next->rx_nbits > 1)
+			return true;
+
+	return false;
+}
+
+/*
+ * Collect one transfer into the enhanced frame in dws->enh to be written to
+ * the FIFO later. The instruction comes first then the address.
+ */
+static int dw_spi_collect_enh_xfer(struct dw_spi *dws,
+				   struct spi_transfer *xfer)
+{
+	unsigned int cycles, i;
+
+	if (!xfer->tx_buf)
+		return -EINVAL;
+
+	if (xfer->dummy_data) {
+		/* Dummy bytes set WAIT_CYCLES, which counts sclk periods */
+		cycles = xfer->len * BITS_PER_BYTE / xfer->tx_nbits;
+		if (cycles > FIELD_MAX(DW_SPI_ENH_CTRLR0_WAIT_CYCLE_MASK))
+			return -EINVAL;
+
+		dws->enh.cfg.wait_l = cycles;
+	} else if (!dws->enh.ctrl_len) {
+		/* The instruction comes first, INST_L is a width */
+		if (xfer->len == 1)
+			dws->enh.cfg.inst_l = DW_SPI_ENH_CTRLR0_INST_L_8BIT;
+		else if (xfer->len == 2)
+			dws->enh.cfg.inst_l = DW_SPI_ENH_CTRLR0_INST_L_16BIT;
+		else
+			return -EINVAL;
+
+		for (i = 0; i < xfer->len; i++)
+			dws->enh.inst = dws->enh.inst << BITS_PER_BYTE |
+					((const u8 *)xfer->tx_buf)[i];
+
+		dws->enh.ctrl_len = 1;
+	} else if (dws->enh.ctrl_len == 1) {
+		/* Then the address, one FIFO entry, ADDR_L counts nibbles */
+		if (xfer->len > sizeof(dws->enh.addr))
+			return -EINVAL;
+
+		dws->enh.cfg.addr_l = xfer->len * 2;
+		if (xfer->tx_nbits > 1)
+			dws->enh.cfg.trans_type = DW_SPI_ENH_CTRLR0_TRANS_TYPE_TT1;
+
+		for (i = 0; i < xfer->len; i++)
+			dws->enh.addr = dws->enh.addr << BITS_PER_BYTE |
+					((const u8 *)xfer->tx_buf)[i];
+
+		dws->enh.ctrl_len = 2;
+	} else {
+		/* Nothing else can precede the data */
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/*
+ * Check the collected frame against the transfer and select its format. Only
+ * spi-mem ops are filtered earlier by dw_spi_supports_enh_mem_op().
+ */
+static int dw_spi_check_enh_frame(struct dw_spi *dws, struct dw_spi_cfg *cfg,
+				  int buswidth)
+{
+	/* Quad is the only frame format the driver implements */
+	if (buswidth != 4 || !(dws->caps & DW_SPI_CAP_QUAD))
+		return -EOPNOTSUPP;
+
+	/* An enhanced frame always begins with an instruction */
+	if (!dws->enh.ctrl_len)
+		return -EINVAL;
+
+	/* The control words are byte sized, so DFS has to be 8 */
+	if (dws->n_bytes != 1)
+		return -EINVAL;
+
+	/* There is no full duplex enhanced frame */
+	if (cfg->tmode != DW_SPI_CTRLR0_TMOD_RO &&
+	    cfg->tmode != DW_SPI_CTRLR0_TMOD_TO)
+		return -EINVAL;
+
+	/* A write ends when the Tx FIFO drains, so all of it has to fit */
+	if (cfg->tmode == DW_SPI_CTRLR0_TMOD_TO &&
+	    dws->tx_len + dws->enh.ctrl_len > dws->fifo_len)
+		return -EINVAL;
+
+	cfg->enh_frf = DW_SPI_CTRLR0_ENH_FRF_QUAD;
+
+	return 0;
+}
+
 static void dw_spi_irq_setup(struct dw_spi *dws)
 {
 	u16 level;
 	u8 imask;
+
+	/*
+	 * An enhanced write must be loaded before the interrupts are unmasked,
+	 * or TXEI would feed its data ahead of the control words.
+	 */
+	if (dws->tx_len && dws->enh.ctrl_len)
+		dw_spi_start_frame(dws);
 
 	/*
 	 * Originally Tx and Rx data lengths match. Rx FIFO Threshold level
@@ -427,7 +572,7 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 	 */
 	level = min_t(unsigned int, dws->fifo_len / 2, dws->tx_len ? dws->tx_len : dws->rx_len);
 	dw_writel(dws, DW_SPI_TXFTLR, level);
-	dw_writel(dws, DW_SPI_RXFTLR, level - 1);
+	dw_writel(dws, DW_SPI_RXFTLR, level ? level - 1 : 0);
 
 	dws->transfer_handler = dw_spi_transfer_handler;
 
@@ -435,8 +580,9 @@ static void dw_spi_irq_setup(struct dw_spi *dws)
 	if (dws->rx_len)
 		imask |= DW_SPI_INT_RXUI | DW_SPI_INT_RXOI | DW_SPI_INT_RXFI;
 	dw_spi_umask_intr(dws, imask);
-	if (!dws->tx_len)
-		dw_writel(dws, DW_SPI_DR, 0);
+
+	if (!dws->tx_len && dws->rx_len)
+		dw_spi_start_frame(dws);
 }
 
 /*
@@ -459,8 +605,7 @@ static int dw_spi_poll_transfer(struct dw_spi *dws,
 	delay.unit = SPI_DELAY_UNIT_SCK;
 	nbits = dws->n_bytes * BITS_PER_BYTE;
 
-	if (!dws->tx_len)
-		dw_writel(dws, DW_SPI_DR, 0);
+	dw_spi_start_frame(dws);
 
 	do {
 		if (dws->tx_len)
@@ -493,6 +638,14 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 	int buswidth;
 	int ret;
 
+	/* Start the message with no frame collected */
+	if (list_is_first(&transfer->transfer_list, &host->cur_msg->transfers))
+		memset(&dws->enh, 0, sizeof(dws->enh));
+
+	/* Not transmitted here, the data transfer issues the whole frame */
+	if (dw_spi_enh_data_pending(host, transfer))
+		return dw_spi_collect_enh_xfer(dws, transfer);
+
 	dws->dma_mapped = 0;
 	dws->n_bytes = spi_bpw_to_bytes(transfer->bits_per_word);
 	dws->tx = (void *)transfer->tx_buf;
@@ -508,15 +661,22 @@ static int dw_spi_transfer_one(struct spi_controller *host,
 		cfg.tmode = DW_SPI_CTRLR0_TMOD_RO;
 		cfg.ndf = dws->rx_len;
 	}
-	buswidth = transfer->rx_buf ? transfer->rx_nbits :
-		  (transfer->tx_buf ? transfer->tx_nbits : 1);
+
+	/* A multi-lane transfer here is the data of an enhanced frame */
+	buswidth = transfer->rx_buf ? transfer->rx_nbits : transfer->tx_nbits;
+	if (buswidth > 1) {
+		ret = dw_spi_check_enh_frame(dws, &cfg, buswidth);
+		if (ret)
+			return ret;
+	}
 
 	/* Ensure the data above is visible for all CPUs */
 	smp_mb();
 
 	dw_spi_enable_chip(dws, 0);
 
-	dw_spi_update_config(dws, spi, &cfg);
+	dw_spi_update_config(dws, spi, &cfg,
+			     buswidth > 1 ? &dws->enh.cfg : NULL);
 
 	transfer->effective_speed_hz = dws->current_freq;
 
@@ -552,13 +712,20 @@ static void dw_spi_handle_err(struct spi_controller *host,
 	if (dws->dma_mapped)
 		dws->dma_ops->dma_stop(dws);
 
+	memset(&dws->enh, 0, sizeof(dws->enh));
 	dw_spi_reset_chip(dws);
 }
 
 static int dw_spi_adjust_mem_op_size(struct spi_mem *mem, struct spi_mem_op *op)
 {
+	struct dw_spi *dws = spi_controller_get_devdata(mem->spi->controller);
+
 	if (op->data.dir == SPI_MEM_DATA_IN)
 		op->data.nbytes = clamp_val(op->data.nbytes, 0, DW_SPI_NDF_MASK + 1);
+	else if (op->data.buswidth > 1)
+		/* An enhanced write is limited to what the Tx FIFO can hold */
+		op->data.nbytes = min(op->data.nbytes,
+				      dws->fifo_len - DW_SPI_ENH_CTRL_ENTRIES);
 
 	return 0;
 }
@@ -568,6 +735,29 @@ static bool dw_spi_supports_mem_op(struct spi_mem *mem,
 {
 	if (op->data.buswidth > 1 || op->addr.buswidth > 1 ||
 	    op->dummy.buswidth > 1 || op->cmd.buswidth > 1)
+		return false;
+
+	return spi_mem_default_supports_op(mem, op);
+}
+
+static bool dw_spi_supports_enh_mem_op(struct spi_mem *mem,
+				       const struct spi_mem_op *op)
+{
+	struct dw_spi *dws = spi_controller_get_devdata(mem->spi->controller);
+
+	/* The instruction is always sent single-lane */
+	if (op->cmd.buswidth > 1)
+		return false;
+
+	/* Quad is the only multi-lane data width implemented */
+	if (op->data.buswidth > 1 && op->data.buswidth != 4)
+		return false;
+	if (op->data.buswidth == 4 && !(dws->caps & DW_SPI_CAP_QUAD))
+		return false;
+
+	/* A multi-lane write requires Tx FIFO space after the control words */
+	if (op->data.dir == SPI_MEM_DATA_OUT && op->data.buswidth > 1 &&
+	    dws->fifo_len <= DW_SPI_ENH_CTRL_ENTRIES)
 		return false;
 
 	return spi_mem_default_supports_op(mem, op);
@@ -737,9 +927,14 @@ static void dw_spi_stop_mem_op(struct dw_spi *dws, struct spi_device *spi)
 static int dw_spi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 {
 	struct dw_spi *dws = spi_controller_get_devdata(mem->spi->controller);
-	struct dw_spi_cfg cfg;
+	struct dw_spi_cfg cfg = {};
 	unsigned long flags;
 	int ret;
+
+	// This path implements single-lane frames only
+	if (op->data.buswidth > 1 || op->addr.buswidth > 1 ||
+	    op->dummy.buswidth > 1 || op->cmd.buswidth > 1)
+		return -EOPNOTSUPP;
 
 	/*
 	 * Collect the outbound data into a single buffer to speed the
@@ -764,7 +959,7 @@ static int dw_spi_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op *op)
 
 	dw_spi_enable_chip(dws, 0);
 
-	dw_spi_update_config(dws, mem->spi, &cfg);
+	dw_spi_update_config(dws, mem->spi, &cfg, NULL);
 
 	dw_spi_mask_intr(dws, 0xff);
 
@@ -840,7 +1035,10 @@ static void dw_spi_init_mem_ops(struct dw_spi *dws)
 	if (!dws->mem_ops.exec_op && !(dws->caps & DW_SPI_CAP_CS_OVERRIDE) &&
 	    !dws->set_cs) {
 		dws->mem_ops.adjust_op_size = dw_spi_adjust_mem_op_size;
-		dws->mem_ops.supports_op = dw_spi_supports_mem_op;
+		if (dws->caps & DW_SPI_CAP_QUAD)
+			dws->mem_ops.supports_op = dw_spi_supports_enh_mem_op;
+		else
+			dws->mem_ops.supports_op = dw_spi_supports_mem_op;
 		dws->mem_ops.exec_op = dw_spi_exec_mem_op;
 		if (!dws->max_mem_freq)
 			dws->max_mem_freq = dws->max_freq;
@@ -946,14 +1144,22 @@ static void dw_spi_hw_init(struct device *dev, struct dw_spi *dws)
 	/*
 	 * Detect CTRLR0.DFS field size and offset by testing the lowest bits
 	 * writability. Note DWC SSI controller also has the extended DFS, but
-	 * with zero offset.
+	 * with zero offset. The ENH_FRF field is probed the same way.
 	 */
 	if (dw_spi_ip_is(dws, PSSI)) {
 		u32 cr0, tmp = dw_readl(dws, DW_SPI_CTRLR0);
+		u32 enh_frf = 0;
 
 		dw_spi_enable_chip(dws, 0);
+
 		dw_writel(dws, DW_SPI_CTRLR0, 0xffffffff);
 		cr0 = dw_readl(dws, DW_SPI_CTRLR0);
+
+		/* ENH_FRF: quad is the only format the driver uses */
+		dw_writel(dws, DW_SPI_CTRLR0, (tmp & ~DW_PSSI_CTRLR0_ENH_FRF_MASK) |
+			      FIELD_PREP(DW_PSSI_CTRLR0_ENH_FRF_MASK, DW_SPI_CTRLR0_ENH_FRF_QUAD));
+		enh_frf = FIELD_GET(DW_PSSI_CTRLR0_ENH_FRF_MASK, dw_readl(dws, DW_SPI_CTRLR0));
+
 		dw_writel(dws, DW_SPI_CTRLR0, tmp);
 		dw_spi_enable_chip(dws, 1);
 
@@ -961,6 +1167,11 @@ static void dw_spi_hw_init(struct device *dev, struct dw_spi *dws)
 			dws->caps |= DW_SPI_CAP_DFS32;
 			dws->dfs_offset = __bf_shf(DW_PSSI_CTRLR0_DFS32_MASK);
 			dev_dbg(dev, "Detected 32-bits max data frame size\n");
+		}
+
+		if (enh_frf == DW_SPI_CTRLR0_ENH_FRF_QUAD) {
+			dws->caps |= DW_SPI_CAP_QUAD;
+			dev_dbg(dev, "Detected quad enhanced SPI mode\n");
 		}
 	} else {
 		dws->caps |= DW_SPI_CAP_DFS32;
@@ -1008,6 +1219,8 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 
 	host->use_gpio_descriptors = true;
 	host->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP;
+	if (dws->caps & DW_SPI_CAP_QUAD)
+		host->mode_bits |= SPI_TX_QUAD | SPI_RX_QUAD;
 	if (dws->caps & DW_SPI_CAP_DFS32)
 		host->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	else
