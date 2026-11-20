@@ -59,10 +59,12 @@ properties:
     description: DAC power supply regulator 2 (+5V)
 
   adc-force-cons:
+    type: boolean
     description: Force ADC to operate in consumer mode. Useful if ADC and DAC
       clock pins are tied together with DAC as producer.
 
   dac-force-cons:
+    type: boolean
     description: Force DAC to operate in consumer mode. Useful if ADC and DAC
       clock pins are tied together with ADC as producer.
 
