@@ -17,6 +17,9 @@ properties:
   reg:
     maxItems: 1
 
+  clocks:
+    maxItems: 1
+
   "#pwm-cells":
     const: 3
 
@@ -30,9 +33,14 @@ additionalProperties: false
 
 examples:
   - |
-    pwm0: pwm@98000 {
-      compatible = "raspberrypi,rp1-pwm";
-      reg = <0x0 0x98000  0x0 0x100>;
-      clocks = <&rp1_sys>;
-      #pwm-cells = <3>;
+    bus {
+      #address-cells = <2>;
+      #size-cells = <2>;
+
+      pwm0: pwm@98000 {
+        compatible = "raspberrypi,rp1-pwm";
+        reg = <0x0 0x98000  0x0 0x100>;
+        clocks = <&rp1_sys>;
+        #pwm-cells = <3>;
+      };
     };
