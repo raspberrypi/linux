@@ -364,6 +364,7 @@ struct rp1_clk_desc {
 				       struct rp1_clk_desc *desc);
 	const void *data;
 	struct clk_hw hw;
+	const struct clk_init_data *init;
 	struct rp1_clockman *clockman;
 	unsigned long cached_rate;
 	struct clk_divider div;
@@ -2423,6 +2424,18 @@ static int rp1_clk_probe(struct platform_device *pdev)
 
 	clockman->onecell.num = asize;
 	hws = clockman->onecell.hws;
+
+	for (i = 0; i < asize; i++) {
+		desc = clk_desc_array[i];
+		if (!desc)
+			continue;
+		if (!desc->init)
+			desc->init = desc->hw.init;
+		desc->hw.init = desc->init;
+		desc->hw.core = NULL;
+		desc->div.hw.core = NULL;
+		desc->cached_rate = 0;
+	}
 
 	for (i = 0; i < asize; i++) {
 		desc = clk_desc_array[i];
