@@ -240,9 +240,8 @@ static void rpi_gpiomem_remove(struct platform_device *pdev)
 	class_destroy(priv->class);
 	cdev_del(&priv->rpi_gpiomem_cdev);
 	unregister_chrdev_region(priv->devid, 1);
+	dev_info(dev, "%s driver removed - OK\n", priv->name);
 	kfree(priv);
-
-	dev_info(dev, "%s driver removed - OK", priv->name);
 }
 
 static const struct of_device_id rpi_gpiomem_of_match[] = {
