@@ -304,7 +304,7 @@ static void dphy_set_hsfreqrange(struct rp1_dsi *dsi, u32 freq_mhz)
 	unsigned int i;
 
 	if (freq_mhz < 80 || freq_mhz > 1500)
-		drm_err(dsi->drm, "DPHY: Frequency %u MHz out of range\n",
+		dev_err(&dsi->pdev->dev, "DPHY: Frequency %u MHz out of range\n",
 			freq_mhz);
 
 	for (i = 0; i < ARRAY_SIZE(hsfreq_table) - 1; i++) {
@@ -333,12 +333,12 @@ static u32 dphy_configure_pll(struct rp1_dsi *dsi, u32 refclk, u32 vco_freq)
 		dphy_transaction(dsi, DPHY_PLL_LOOP_DIV_OFFSET, 0x80 | ((m - 1) >> 5));
 		/* M[4:0] (program M-1) */
 		dphy_transaction(dsi, DPHY_PLL_LOOP_DIV_OFFSET, ((m - 1) & 0x1F));
-		drm_dbg_driver(dsi->drm,
-			       "DPHY: vco freq want %uHz got %uHz = %d * (%uHz / %d), hsfreqrange = 0x%02x\n",
-			       vco_freq, actual_vco_freq, m, refclk, n,
-			       hsfreq_table[dsi->hsfreq_index].hsfreqrange);
+		dev_dbg(&dsi->pdev->dev,
+			"DPHY: vco freq want %uHz got %uHz = %d * (%uHz / %d), hsfreqrange = 0x%02x\n",
+			vco_freq, actual_vco_freq, m, refclk, n,
+			hsfreq_table[dsi->hsfreq_index].hsfreqrange);
 	} else {
-		drm_err(dsi->drm,
+		dev_err(&dsi->pdev->dev,
 			"rp1dsi: Error configuring DPHY PLL %uHz\n", vco_freq);
 	}
 
@@ -413,7 +413,7 @@ static void rp1dsi_dpiclk_start(struct rp1_dsi *dsi, u32 byte_clock,
 
 	clk_set_rate(dsi->clocks[RP1DSI_CLOCK_DPI], (4 * lanes * byte_clock) / (bpp >> 1));
 	clk_prepare_enable(dsi->clocks[RP1DSI_CLOCK_DPI]);
-	drm_info(dsi->drm,
+	dev_info(&dsi->pdev->dev,
 		 "rp1dsi: Nominal Byte clock %u DPI clock %lu (parent rate %lu)\n",
 		 byte_clock,
 		 clk_get_rate(dsi->clocks[RP1DSI_CLOCK_DPI]),
@@ -540,7 +540,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 	cmdtim -= hsfreq_table[dsi->hsfreq_index].data_lp2hs;
 	cmdtim = (cmdtim / clkdiv) - 24;                      /* escape clocks for commands */
 	cmdtim = max(0, cmdtim >> 4);                         /* bytes (at 2 clocks per bit) */
-	drm_info(dsi->drm, "rp1dsi: Command time (outvact): %d\n", cmdtim);
+	dev_info(&dsi->pdev->dev, "rp1dsi: Command time (outvact): %d\n", cmdtim);
 	DSI_WRITE(DSI_DPI_LP_CMD_TIM, cmdtim << 16);
 
 	/* Wait for PLL lock */
@@ -550,7 +550,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 			break;
 	}
 	if (timeout == 0)
-		drm_err(dsi->drm, "RP1DSI: Time out waiting for PLL\n");
+		dev_err(&dsi->pdev->dev, "RP1DSI: Time out waiting for PLL\n");
 
 	DSI_WRITE(DSI_LPCLK_CTRL,
 		  (dsi->display_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ? 0x3 : 0x1);
@@ -574,7 +574,7 @@ void rp1dsi_dsi_setup(struct rp1_dsi *dsi, struct drm_display_mode const *mode)
 			break;
 	}
 	if (timeout == 0)
-		drm_err(dsi->drm, "RP1DSI: Time out waiting for lanes (%x %x)\n",
+		dev_err(&dsi->pdev->dev, "RP1DSI: Time out waiting for lanes (%x %x)\n",
 			mask, DSI_READ(DSI_PHY_STATUS));
 }
 
@@ -642,7 +642,7 @@ int rp1dsi_dsi_recv(struct rp1_dsi *dsi, int len, u8 *buf)
 		usleep_range(100, 150);
 	}
 	if (!i) {
-		drm_warn(dsi->drm, "Receive failed\n");
+		dev_warn(&dsi->pdev->dev, "Receive failed\n");
 		return -EIO;
 	}
 
