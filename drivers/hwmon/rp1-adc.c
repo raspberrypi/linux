@@ -280,13 +280,6 @@ err_register:
 	return ret;
 }
 
-static void rp1_adc_remove(struct platform_device *pdev)
-{
-	struct rp1_adc_data *data = platform_get_drvdata(pdev);
-
-	hwmon_device_unregister(data->hwmon_dev);
-}
-
 static const struct of_device_id rp1_adc_dt_ids[] = {
 	{ .compatible = "raspberrypi,rp1-adc", },
 	{ }
@@ -294,7 +287,6 @@ static const struct of_device_id rp1_adc_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, rp1_adc_dt_ids);
 
 static struct platform_driver rp1_adc_driver = {
-	.remove		= rp1_adc_remove,
 	.driver		= {
 		.name	= MODULE_NAME,
 		.of_match_table = rp1_adc_dt_ids,
