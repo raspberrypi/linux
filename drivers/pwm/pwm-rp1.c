@@ -126,7 +126,6 @@ static int rp1_pwm_probe(struct platform_device *pdev)
 {
 	struct pwm_chip *chip;
 	struct rp1_pwm *pc;
-	int ret;
 
 	chip = devm_pwmchip_alloc(&pdev->dev, 4, sizeof(*pc));
 
@@ -147,22 +146,7 @@ static int rp1_pwm_probe(struct platform_device *pdev)
 	chip->ops = &rp1_pwm_ops;
 	chip->of_xlate = of_pwm_xlate_with_flags;
 
-	ret = devm_pwmchip_add(&pdev->dev, chip);
-	if (ret < 0)
-		goto add_fail;
-
-	return 0;
-
-add_fail:
-	clk_disable_unprepare(pc->clk);
-	return ret;
-}
-
-static void rp1_pwm_remove(struct platform_device *pdev)
-{
-	struct rp1_pwm *pc = platform_get_drvdata(pdev);
-
-	clk_disable_unprepare(pc->clk);
+	return devm_pwmchip_add(&pdev->dev, chip);
 }
 
 static const struct of_device_id rp1_pwm_of_match[] = {
@@ -177,7 +161,6 @@ static struct platform_driver rp1_pwm_driver = {
 		.of_match_table = rp1_pwm_of_match,
 	},
 	.probe = rp1_pwm_probe,
-	.remove = rp1_pwm_remove,
 };
 module_platform_driver(rp1_pwm_driver);
 
