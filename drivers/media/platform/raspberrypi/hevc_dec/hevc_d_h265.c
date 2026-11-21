@@ -11,6 +11,7 @@
  * Copyright (C) 2018 Bootlin
  */
 
+#include <linux/completion.h>
 #include <linux/math.h>
 #include <linux/types.h>
 
@@ -1078,8 +1079,7 @@ static int tile_entry_fill(struct hevc_d_dec_env *const de,
 		const unsigned int last_x = s->col_bd[t_x + 1] - 1;
 		const unsigned int last_y = s->row_bd[t_y + 1] - 1;
 
-		/* One more than needed here */
-		rv = cmds_check_space(de, CMDS_NEW_ENTRY_POINT + 3);
+		rv = cmds_check_space(de, CMDS_NEW_ENTRY_POINT + 2);
 		if (rv)
 			return rv;
 
@@ -1097,7 +1097,8 @@ static int tile_entry_fill(struct hevc_d_dec_env *const de,
 				t_x, t_y, s->col_bd[t_x], s->row_bd[t_y],
 				de->entry_qp, de->entry_slice);
 	}
-	return 0;
+	/* Loop above may not run once so must check here */
+	return cmds_check_space(de, 1);
 }
 
 /* Write STATUS register with expected end CTU address of previous slice */
@@ -1567,6 +1568,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	struct vb2_queue *vq;
 	struct hevc_d_dec_env *de;
 	unsigned int prev_rs;
+	unsigned int prev_start_ts = 0;
 	unsigned int i;
 	int rv;
 	unsigned int ctb_size_y;
@@ -1587,6 +1589,15 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	s->slice_temporal_mvp = (sh0->flags &
 		   V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_TEMPORAL_MVP_ENABLED);
 
+	/*
+	 * Set frame_slot and currpoc early as they are used in the error path
+	 */
+	de->mvbase = 0;
+	de->cmd_len = 0;
+	de->dpbno_col = ~0U;
+	de->frame_slot = run->dst->vb2_buf.index;
+	de->rpi_currpoc = sh0->slice_pic_order_cnt;
+
 	/* Frame start */
 
 	if (!is_sps_set(run->h265.sps)) {
@@ -1602,7 +1613,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	}
 	if (sps_changed ||
 	    memcmp(&s->pps, run->h265.pps, sizeof(s->pps)) != 0) {
-		/* SPS changed */
+		/* PPS changed */
 		memcpy(&s->pps, run->h265.pps, sizeof(s->pps));
 
 		/* Recalc stuff as required */
@@ -1621,8 +1632,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->pic_height_in_ctbs_y =
 		(s->sps.pic_height_in_luma_samples + ctb_size_y - 1) /
 			ctb_size_y; /* 7-17 */
-	de->cmd_len = 0;
-	de->dpbno_col = ~0U;
 
 	switch (ctx->dst_fmt.pixelformat) {
 	case V4L2_PIX_FMT_NV12MT_COL128:
@@ -1633,8 +1642,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		de->chroma_stride = de->luma_stride / 2;
 		de->frame_chroma_addr =
 			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 1);
-		de->mvbase = 0;
-		de->frame_slot = run->dst->vb2_buf.index;
 		break;
 	case V4L2_PIX_FMT_NV12_COL128:
 	case V4L2_PIX_FMT_NV12_10_COL128:
@@ -1644,8 +1651,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		de->chroma_stride = de->luma_stride;
 		de->frame_chroma_addr = de->frame_luma_addr +
 					(ctx->dst_fmt.height * 128);
-		de->mvbase = 0;
-		de->frame_slot = run->dst->vb2_buf.index;
 		old_bits = true;
 		break;
 	}
@@ -1687,12 +1692,12 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 				  run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
-		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage ||
-		    run->dst->planes[1].length < ctx->dst_fmt.plane_fmt[1].sizeimage) {
+		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage ||
+		    vb2_plane_size(&run->dst->vb2_buf, 1) < ctx->dst_fmt.plane_fmt[1].sizeimage) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%d/%d) < sizeimage (%d/%d)\n",
-				  run->dst->planes[0].length,
-				  run->dst->planes[1].length,
+				  "Capture planes length (%lu/%lu) < sizeimage (%d/%d)\n",
+				  vb2_plane_size(&run->dst->vb2_buf, 0),
+				  vb2_plane_size(&run->dst->vb2_buf, 1),
 				  ctx->dst_fmt.plane_fmt[0].sizeimage,
 				  ctx->dst_fmt.plane_fmt[1].sizeimage);
 			goto fail;
@@ -1705,10 +1710,10 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 				  run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
-		if (run->dst->planes[0].length < ctx->dst_fmt.plane_fmt[0].sizeimage) {
+		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage) {
 			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%d) < sizeimage (%d)\n",
-				  run->dst->planes[0].length,
+				  "Capture planes length (%lu) < sizeimage (%d)\n",
+				  vb2_plane_size(&run->dst->vb2_buf, 0),
 				  ctx->dst_fmt.plane_fmt[0].sizeimage);
 			goto fail;
 		}
@@ -1729,7 +1734,6 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	de->rpi_config2 = mk_config2(s);
 	de->rpi_framesize = (s->sps.pic_height_in_luma_samples << 16) |
 			    s->sps.pic_width_in_luma_samples;
-	de->rpi_currpoc = sh0->slice_pic_order_cnt;
 
 	s->slice_idx = 0;
 
@@ -1822,6 +1826,13 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 
 		/* Calc all the random coord info to avoid repeated conversion in/out */
 		s->start_ts = s->ctb_addr_rs_to_ts[sh->slice_segment_addr];
+		if (i != 0 && s->start_ts <= prev_start_ts) {
+			v4l2_warn(&dev->v4l2_dev,
+				  "Slice %u: segment addr %u not after previous slice\n",
+				  i, sh->slice_segment_addr);
+			goto fail;
+		}
+		prev_start_ts = s->start_ts;
 		s->start_ctb_x = sh->slice_segment_addr % de->pic_width_in_ctbs_y;
 		s->start_ctb_y = sh->slice_segment_addr / de->pic_width_in_ctbs_y;
 		/* Last CTB of previous slice */
@@ -2250,8 +2261,7 @@ static void dec_state_delete(struct hevc_d_ctx *const ctx)
 }
 
 struct irq_sync {
-	atomic_t done;
-	wait_queue_head_t wq;
+	struct completion done;
 	struct hevc_d_hw_irq_ent irq_ent;
 };
 
@@ -2259,8 +2269,7 @@ static void phase2_sync_claimed(struct hevc_d_dev *const dev, void *v)
 {
 	struct irq_sync *const sync = v;
 
-	atomic_set(&sync->done, 1);
-	wake_up(&sync->wq);
+	complete(&sync->done);
 }
 
 static void phase1_sync_claimed(struct hevc_d_dev *const dev, void *v)
@@ -2283,11 +2292,44 @@ void hevc_d_h265_sync(struct hevc_d_dev *dev)
 {
 	struct irq_sync sync;
 
-	atomic_set(&sync.done, 0);
-	init_waitqueue_head(&sync.wq);
+	init_completion(&sync.done);
 
 	hevc_d_hw_irq_active1_claim(dev, &sync.irq_ent, phase1_sync_claimed, &sync);
-	wait_event(sync.wq, atomic_read(&sync.done));
+	wait_for_completion(&sync.done);
+}
+
+struct slot_invalidate {
+	struct completion done;
+	struct hevc_d_slot *slot;
+	struct hevc_d_hw_irq_ent irq_ent;
+};
+
+static void slot_invalidate_claimed(struct hevc_d_dev *const dev, void *v)
+{
+	struct slot_invalidate *const si = v;
+
+	memset(si->slot, 0, sizeof(*si->slot));
+	complete(&si->done);
+}
+
+/*
+ * Forget the reference addresses cached for a CAPTURE buffer
+ * Syncs with phase 2 so it is safe to clobber and only returns
+ * once the buffer is no longer in use by h/w
+ */
+void hevc_d_h265_invalidate_slot(struct hevc_d_ctx *ctx, unsigned int index)
+{
+	struct slot_invalidate si;
+
+	if (WARN_ON(index >= ARRAY_SIZE(ctx->slots)))
+		return;
+
+	init_completion(&si.done);
+	si.slot = ctx->slots + index;
+
+	hevc_d_hw_irq_active2_claim(ctx->dev, &si.irq_ent,
+				    slot_invalidate_claimed, &si);
+	wait_for_completion(&si.done);
 }
 
 static void h265_ctx_uninit(struct hevc_d_dev *const dev, struct hevc_d_ctx *ctx)
@@ -2392,11 +2434,18 @@ void hevc_d_h265_trigger(struct hevc_d_ctx *ctx)
 	de->frame_buf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 	de->request = req;
 
+	/*
+	 * Once job_finish is called it is possible to get a streamoff. By
+	 * that point the irq must have been claimed or sync will not give
+	 * the correct ordering.
+	 * This means p1out may go -ve it if the irq runs before we inc it
+	 * but that is OK
+	 */
+	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, de);
+
 	/* Enable the next setup if our Q isn't too big */
 	if (atomic_add_return(1, &ctx->p1out) < HEVC_D_P1BUF_COUNT)
 		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
-
-	hevc_d_hw_irq_active1_claim(dev, &de->irq_ent, p1_cb, de);
 }
 
 static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
@@ -2404,8 +2453,9 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	const struct v4l2_ctrl_hevc_sps *const sps = ctrl->p_new.p_hevc_sps;
 	struct hevc_d_ctx *const ctx = ctrl->priv;
 	struct hevc_d_dev *const dev = ctx->dev;
-	const unsigned int ctb_log2_size_y =
-			sps->log2_min_luma_coding_block_size_minus3 + 3 +
+	const unsigned int min_cb_log2_size_y =
+			sps->log2_min_luma_coding_block_size_minus3 + 3;
+	const unsigned int ctb_log2_size_y = min_cb_log2_size_y +
 			sps->log2_diff_max_min_luma_coding_block_size;
 	const unsigned int min_tb_log2_size_y =
 			sps->log2_min_luma_transform_block_size_minus2 + 2;
@@ -2454,7 +2504,16 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	if (sps->sps_max_num_reorder_pics >
 				sps->sps_max_dec_pic_buffering_minus1)
 		return -EINVAL;
-	if (ctb_log2_size_y > 6)
+	if (sps->sps_max_sub_layers_minus1 > 6)
+		return -EINVAL;
+	if (ctb_log2_size_y < 4 || ctb_log2_size_y > 6)
+		return -EINVAL;
+	if (min_tb_log2_size_y >= min_cb_log2_size_y)
+		return -EINVAL;
+	/* Width & height must be a multiple of the min coding block size */
+	if ((sps->pic_width_in_luma_samples |
+	     sps->pic_height_in_luma_samples) &
+	    ((1U << min_cb_log2_size_y) - 1))
 		return -EINVAL;
 	if (max_tb_log2_size_y > 5)
 		return -EINVAL;
@@ -2470,6 +2529,23 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 	if (sps->num_long_term_ref_pics_sps > 32)
 		return -EINVAL;
+
+	/* The core zeros the PCM fields if PCM is not enabled */
+	if (sps->flags & V4L2_HEVC_SPS_FLAG_PCM_ENABLED) {
+		const unsigned int bit_depth = sps->bit_depth_luma_minus8 + 8;
+		const unsigned int min_pcm_log2_size_y =
+			sps->log2_min_pcm_luma_coding_block_size_minus3 + 3;
+		const unsigned int max_pcm_log2_size_y = min_pcm_log2_size_y +
+			sps->log2_diff_max_min_pcm_luma_coding_block_size;
+
+		/* Luma & chroma depths have been checked to be the same */
+		if (sps->pcm_sample_bit_depth_luma_minus1 + 1U > bit_depth ||
+		    sps->pcm_sample_bit_depth_chroma_minus1 + 1U > bit_depth)
+			return -EINVAL;
+		if (min_pcm_log2_size_y < min(min_cb_log2_size_y, 5U) ||
+		    max_pcm_log2_size_y > min(ctb_log2_size_y, 5U))
+			return -EINVAL;
+	}
 
 	return 0;
 }
@@ -2494,9 +2570,9 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 	}
 
 	if ((pps->flags & V4L2_HEVC_PPS_FLAG_TILES_ENABLED) &&
-		(pps->num_tile_columns_minus1 >
+		(pps->num_tile_columns_minus1 >=
 			ARRAY_SIZE(pps->column_width_minus1) ||
-		 pps->num_tile_rows_minus1 >
+		 pps->num_tile_rows_minus1 >=
 			ARRAY_SIZE(pps->row_height_minus1))) {
 		v4l2_warn(&dev->v4l2_dev, "Tiles cols/rows too big\n");
 		return -EINVAL;
@@ -2529,7 +2605,19 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 	}
 
+	/* The first slice segment of a picture cannot be dependent */
+	if (sh->flags & V4L2_HEVC_SLICE_PARAMS_FLAG_DEPENDENT_SLICE_SEGMENT) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "New frame but dependent slice segment\n");
+		return -EINVAL;
+	}
+
 	for (i = 0; i != ctrl->new_elems; ++i, ++sh) {
+		if (!sh->bit_size) {
+			v4l2_warn(&dev->v4l2_dev, "Slice %u: bit size zero\n", i);
+			return -EINVAL;
+		}
+
 		if (sh->slice_type != HEVC_SLICE_B &&
 		    sh->slice_type != HEVC_SLICE_P &&
 		    sh->slice_type != HEVC_SLICE_I) {
@@ -2564,7 +2652,8 @@ void hevc_d_device_run(void *priv)
 	struct hevc_d_dev *const dev = ctx->dev;
 	struct hevc_d_run run = {};
 	struct media_request *src_req;
-	const struct v4l2_ctrl *ctrl;
+	const struct v4l2_ctrl *slice_ctrl;
+	int err;
 
 	run.src = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
 	run.dst = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
@@ -2584,10 +2673,8 @@ void hevc_d_device_run(void *priv)
 		hevc_d_find_control_data(ctx,
 					 V4L2_CID_STATELESS_HEVC_DECODE_PARAMS);
 
-	ctrl = v4l2_ctrl_find(ctx->fh.ctrl_handler,
+	slice_ctrl = v4l2_ctrl_find(ctx->fh.ctrl_handler,
 			      V4L2_CID_STATELESS_HEVC_SLICE_PARAMS);
-	run.h265.slice_ents = ctrl->elems;	/* Framework ensures >= 1 */
-	run.h265.slice_params = ctrl->p_cur.p;
 
 	run.h265.scaling_matrix =
 		hevc_d_find_control_data(ctx,
@@ -2595,7 +2682,18 @@ void hevc_d_device_run(void *priv)
 
 	v4l2_m2m_buf_copy_metadata(run.src, run.dst, true);
 
-	if (hevc_d_h265_setup(ctx, &run) == -1)
+	/*
+	 * Ensure controls cannot be changed by non-request sets whilst we
+	 * are using them. slice params must be read inside the lock as the
+	 * array might be realloced.
+	 */
+	mutex_lock(ctx->hdl.lock);
+	run.h265.slice_ents = slice_ctrl->elems;  /* Framework ensures >= 1 */
+	run.h265.slice_params = slice_ctrl->p_cur.p;
+
+	err = hevc_d_h265_setup(ctx, &run);
+	mutex_unlock(ctx->hdl.lock);
+	if (err)
 		goto fail;
 
 	/* Complete request(s) controls */
