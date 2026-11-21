@@ -222,7 +222,7 @@ static const struct attribute_group rp1_adc_group = {
 };
 __ATTRIBUTE_GROUPS(rp1_adc);
 
-static int __init rp1_adc_probe(struct platform_device *pdev)
+static int rp1_adc_probe(struct platform_device *pdev)
 {
 	struct rp1_adc_data *data;
 	struct regulator *reg;
@@ -280,13 +280,6 @@ err_register:
 	return ret;
 }
 
-static void rp1_adc_remove(struct platform_device *pdev)
-{
-	struct rp1_adc_data *data = platform_get_drvdata(pdev);
-
-	hwmon_device_unregister(data->hwmon_dev);
-}
-
 static const struct of_device_id rp1_adc_dt_ids[] = {
 	{ .compatible = "raspberrypi,rp1-adc", },
 	{ }
@@ -294,14 +287,14 @@ static const struct of_device_id rp1_adc_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, rp1_adc_dt_ids);
 
 static struct platform_driver rp1_adc_driver = {
-	.remove		= rp1_adc_remove,
+	.probe		= rp1_adc_probe,
 	.driver		= {
 		.name	= MODULE_NAME,
 		.of_match_table = rp1_adc_dt_ids,
 	},
 };
 
-module_platform_driver_probe(rp1_adc_driver, rp1_adc_probe);
+module_platform_driver(rp1_adc_driver);
 
 MODULE_DESCRIPTION("RP1 ADC driver");
 MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.com>");
