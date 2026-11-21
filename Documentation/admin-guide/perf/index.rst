@@ -30,3 +30,4 @@ Performance monitor support
    ampere_cspmu
    mrvl-pem-pmu
    fujitsu_uncore_pmu
+   rpi-axi-pmu
